@@ -32,8 +32,8 @@
     "sourceCodeHash": "0xb3e32b18c95d4940980333e1e99b4dcf42d8a8bfce78139db4dc3fb06e9349d0"
   },
   "src/L1/StandardValidator.sol:StandardValidator": {
-    "initCodeHash": "0x1d1bad59f5c04e220a1ac728aa81fe08d4459d1f6425211ae8eb3f8fcff5aa55",
-    "sourceCodeHash": "0x9779fe822a21b8a23d57e0feb3a7a4c75a1dac2d910fd82adffa15f13ddf83fa"
+    "initCodeHash": "0x035d23030f111046ba1d4daa5d7c3f476716e828e8eba8849554b61d9bbeb117",
+    "sourceCodeHash": "0x66a1bbd4dd4f4ddd2e9f7464ab76ffd0daedbd7cba61e9a238401a9910d600c3"
   },
   "src/L1/SuperchainConfig.sol:SuperchainConfig": {
     "initCodeHash": "0x0ea921059d71fd19ac9c6e29c05b9724ad584eb27f74231de6df9551e9b13084",
@@ -136,7 +136,7 @@
     "sourceCodeHash": "0x734a6b2aa6406bc145d848ad6071d3af1d40852aeb8f4b2f6f51beaad476e2d3"
   },
   "src/cannon/MIPS64.sol:MIPS64": {
-    "initCodeHash": "0x1560fbcbc327b375bb82f17ad5c0005fbb6d4fe05a277bc35402161943501bab",
+    "initCodeHash": "0x76432efd536550998eaab7f43056cc02ab90d56f2dbab95f9eef69c77ca4e33a",
     "sourceCodeHash": "0xc97931b0938a6a92e47c7ad7ef6ff7b988f538531d1df25147c694e0ebf408c3"
   },
   "src/cannon/PreimageOracle.sol:PreimageOracle": {
