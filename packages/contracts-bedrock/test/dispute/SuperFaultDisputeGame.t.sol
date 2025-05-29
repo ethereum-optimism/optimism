@@ -6,6 +6,7 @@ import { Vm } from "forge-std/Vm.sol";
 import { DisputeGameFactory_Init } from "test/dispute/DisputeGameFactory.t.sol";
 import { AlphabetVM } from "test/mocks/AlphabetVM.sol";
 import { stdError } from "forge-std/StdError.sol";
+import { console } from "forge-std/console.sol";
 
 // Scripts
 import { DeployUtils } from "scripts/libraries/DeployUtils.sol";
@@ -39,6 +40,10 @@ contract SuperFaultDisputeGame_Init is DisputeGameFactory_Init {
     /// @dev The `Clone` proxy of the game.
     ISuperFaultDisputeGame internal gameProxy;
 
+    ISuperFaultDisputeGame.GameConstructorParams internal gameParams;
+
+    IDelayedWETH internal delayedWETH;
+
     /// @dev The extra data passed to the game for initialization.
     bytes internal extraData;
 
@@ -55,6 +60,19 @@ contract SuperFaultDisputeGame_Init is DisputeGameFactory_Init {
 
         // Set the extra data for the game creation
         extraData = abi.encode(l2SequenceNumber);
+
+        delayedWETH= IDelayedWETH(payable(artifacts.mustGetAddress("DelayedWETHProxy")));
+
+        gameParams = ISuperFaultDisputeGame.GameConstructorParams({
+            gameType: GAME_TYPE,
+            maxGameDepth: 2 ** 3,
+            splitDepth: 2 ** 2,
+            clockExtension: Duration.wrap(3 hours),
+            maxClockDuration: Duration.wrap(3.5 days),
+            weth: delayedWETH,
+            l2ChainId: 10
+        });
+
 
         // Set preimage oracle challenge period to something arbitrary (4 seconds) just so we can
         // actually test the clock extensions later on. This is not a realistic value.
@@ -77,15 +95,12 @@ contract SuperFaultDisputeGame_Init is DisputeGameFactory_Init {
                         ISuperFaultDisputeGame.__constructor__,
                         (
                             ISuperFaultDisputeGame.GameConstructorParams({
-                                gameType: GAME_TYPE,
-                                absolutePrestate: absolutePrestate,
-                                maxGameDepth: 2 ** 3,
-                                splitDepth: 2 ** 2,
-                                clockExtension: Duration.wrap(3 hours),
-                                maxClockDuration: Duration.wrap(3.5 days),
-                                vm: _vm,
-                                weth: delayedWeth,
-                                anchorStateRegistry: anchorStateRegistry,
+                                gameType: gameParams.gameType,
+                                maxGameDepth: gameParams.maxGameDepth,
+                                splitDepth: gameParams.splitDepth,
+                                clockExtension: gameParams.clockExtension,
+                                maxClockDuration: gameParams.maxClockDuration,
+                                weth: gameParams.weth,
                                 l2ChainId: 0
                             })
                         )
@@ -94,8 +109,9 @@ contract SuperFaultDisputeGame_Init is DisputeGameFactory_Init {
             })
         );
 
-        // Register the game implementation with the factory.
         bytes memory implArgs = abi.encodePacked(absolutePrestate, _vm, anchorStateRegistry);
+
+        // Register the game implementation with the factory.
         disputeGameFactory.setImplementation(GAME_TYPE, gameImpl, implArgs);
         uint256 bondAmount = disputeGameFactory.initBonds(GAME_TYPE);
 
@@ -191,14 +207,11 @@ contract SuperFaultDisputeGame_Test is SuperFaultDisputeGame_Init {
                     (
                         ISuperFaultDisputeGame.GameConstructorParams({
                             gameType: GAME_TYPE,
-                            absolutePrestate: absolutePrestate,
                             maxGameDepth: _maxGameDepth,
                             splitDepth: _maxGameDepth + 1,
                             clockExtension: Duration.wrap(3 hours),
                             maxClockDuration: Duration.wrap(3.5 days),
-                            vm: alphabetVM,
                             weth: IDelayedWETH(payable(address(0))),
-                            anchorStateRegistry: IAnchorStateRegistry(address(0)),
                             l2ChainId: 0
                         })
                     )
@@ -226,29 +239,35 @@ contract SuperFaultDisputeGame_Test is SuperFaultDisputeGame_Init {
         // is allowed to be too large.
         vm.mockCall(address(oracle), abi.encodeCall(IPreimageOracle.challengePeriod, ()), abi.encode(_challengePeriod));
 
-        vm.expectRevert(InvalidChallengePeriod.selector);
-        DeployUtils.create1({
-            _name: "SuperFaultDisputeGame",
-            _args: DeployUtils.encodeConstructor(
-                abi.encodeCall(
-                    ISuperFaultDisputeGame.__constructor__,
-                    (
-                        ISuperFaultDisputeGame.GameConstructorParams({
-                            gameType: GAME_TYPE,
-                            absolutePrestate: absolutePrestate,
-                            maxGameDepth: 2 ** 3,
-                            splitDepth: 2 ** 2,
-                            clockExtension: Duration.wrap(3 hours),
-                            maxClockDuration: Duration.wrap(3.5 days),
-                            vm: alphabetVM,
-                            weth: IDelayedWETH(payable(address(0))),
-                            anchorStateRegistry: IAnchorStateRegistry(address(0)),
-                            l2ChainId: 0
-                        })
+        // Deploy the implementation contract
+        ISuperFaultDisputeGame impl = ISuperFaultDisputeGame(
+            DeployUtils.create1({
+                _name: "SuperFaultDisputeGame",
+                _args: DeployUtils.encodeConstructor(
+                    abi.encodeCall(
+                        ISuperFaultDisputeGame.__constructor__,
+                        (
+                            ISuperFaultDisputeGame.GameConstructorParams({
+                                gameType: GAME_TYPE,
+                                maxGameDepth: 2 ** 3,
+                                splitDepth: 2 ** 2,
+                                clockExtension: Duration.wrap(3 hours),
+                                maxClockDuration: Duration.wrap(3.5 days),
+                                weth: delayedWETH,
+                                l2ChainId: 0
+                            })
+                        )
                     )
                 )
-            )
-        });
+            })
+        );
+
+        // Register with factory and expect revert on game creation due to initialization
+        bytes memory implArgs = abi.encodePacked(absolutePrestate, alphabetVM, anchorStateRegistry);
+        disputeGameFactory.setImplementation(GAME_TYPE, impl, implArgs);
+        
+        vm.expectRevert(InvalidChallengePeriod.selector);
+        disputeGameFactory.create(GAME_TYPE, ROOT_CLAIM, extraData);
     }
 
     /// @dev Tests that the constructor of the `FaultDisputeGame` reverts when the `_splitDepth`
@@ -275,14 +294,11 @@ contract SuperFaultDisputeGame_Test is SuperFaultDisputeGame_Init {
                     (
                         ISuperFaultDisputeGame.GameConstructorParams({
                             gameType: GAME_TYPE,
-                            absolutePrestate: absolutePrestate,
                             maxGameDepth: maxGameDepth,
                             splitDepth: _splitDepth,
                             clockExtension: Duration.wrap(3 hours),
                             maxClockDuration: Duration.wrap(3.5 days),
-                            vm: alphabetVM,
                             weth: IDelayedWETH(payable(address(0))),
-                            anchorStateRegistry: IAnchorStateRegistry(address(0)),
                             l2ChainId: 0
                         })
                     )
@@ -315,14 +331,11 @@ contract SuperFaultDisputeGame_Test is SuperFaultDisputeGame_Init {
                     (
                         ISuperFaultDisputeGame.GameConstructorParams({
                             gameType: GAME_TYPE,
-                            absolutePrestate: absolutePrestate,
                             maxGameDepth: 2 ** 3,
                             splitDepth: _splitDepth,
                             clockExtension: Duration.wrap(3 hours),
                             maxClockDuration: Duration.wrap(3.5 days),
-                            vm: alphabetVM,
                             weth: IDelayedWETH(payable(address(0))),
-                            anchorStateRegistry: IAnchorStateRegistry(address(0)),
                             l2ChainId: 0
                         })
                     )
@@ -354,29 +367,35 @@ contract SuperFaultDisputeGame_Test is SuperFaultDisputeGame_Init {
         _maxClockDuration = uint64(bound(_maxClockDuration, 0, type(uint64).max / 2 - 1));
         _clockExtension = uint64(bound(_clockExtension, _maxClockDuration / 2 + 1, type(uint64).max / 2));
 
-        vm.expectRevert(InvalidClockExtension.selector);
-        DeployUtils.create1({
-            _name: "SuperFaultDisputeGame",
-            _args: DeployUtils.encodeConstructor(
-                abi.encodeCall(
-                    ISuperFaultDisputeGame.__constructor__,
-                    (
-                        ISuperFaultDisputeGame.GameConstructorParams({
-                            gameType: GAME_TYPE,
-                            absolutePrestate: absolutePrestate,
-                            maxGameDepth: 16,
-                            splitDepth: 8,
-                            clockExtension: Duration.wrap(_clockExtension),
-                            maxClockDuration: Duration.wrap(_maxClockDuration),
-                            vm: alphabetVM,
-                            weth: IDelayedWETH(payable(address(0))),
-                            anchorStateRegistry: IAnchorStateRegistry(address(0)),
-                            l2ChainId: 0
-                        })
+        // Deploy the implementation contract
+        ISuperFaultDisputeGame impl = ISuperFaultDisputeGame(
+            DeployUtils.create1({
+                _name: "SuperFaultDisputeGame",
+                _args: DeployUtils.encodeConstructor(
+                    abi.encodeCall(
+                        ISuperFaultDisputeGame.__constructor__,
+                        (
+                            ISuperFaultDisputeGame.GameConstructorParams({
+                                gameType: GAME_TYPE,
+                                maxGameDepth: 16,
+                                splitDepth: 8,
+                                clockExtension: Duration.wrap(_clockExtension),
+                                maxClockDuration: Duration.wrap(_maxClockDuration),
+                                weth: delayedWETH,
+                                l2ChainId: 0
+                            })
+                        )
                     )
                 )
-            )
-        });
+            })
+        );
+
+        // Register with factory and expect revert on game creation due to initialization
+        bytes memory implArgs = abi.encodePacked(absolutePrestate, alphabetVM, anchorStateRegistry);
+        disputeGameFactory.setImplementation(GAME_TYPE, impl, implArgs);
+        
+        vm.expectRevert(InvalidClockExtension.selector);
+        disputeGameFactory.create(GAME_TYPE, ROOT_CLAIM, extraData);
     }
 
     /// @dev Tests that the constructor of the `FaultDisputeGame` reverts when the `_gameType`
@@ -401,14 +420,11 @@ contract SuperFaultDisputeGame_Test is SuperFaultDisputeGame_Init {
                     (
                         ISuperFaultDisputeGame.GameConstructorParams({
                             gameType: GameType.wrap(type(uint32).max),
-                            absolutePrestate: absolutePrestate,
                             maxGameDepth: 16,
                             splitDepth: 8,
                             clockExtension: Duration.wrap(3 hours),
                             maxClockDuration: Duration.wrap(3.5 days),
-                            vm: alphabetVM,
                             weth: IDelayedWETH(payable(address(0))),
-                            anchorStateRegistry: IAnchorStateRegistry(address(0)),
                             l2ChainId: 0
                         })
                     )
@@ -1070,7 +1086,7 @@ contract SuperFaultDisputeGame_Test is SuperFaultDisputeGame_Init {
         gameProxy.attack{ value: _getRequiredBond(4) }(disputed, 4, _changeClaimStatus(_dummyClaim(), VMStatuses.PANIC));
 
         bytes memory claimData7 = abi.encode(7, 7);
-        Claim postState_ = Claim.wrap(gameImpl.vm().step(claimData7, hex"", bytes32(0)));
+        Claim postState_ = Claim.wrap(gameProxy.vm().step(claimData7, hex"", bytes32(0)));
 
         (,,,, disputed,,) = gameProxy.claimData(5);
         gameProxy.attack{ value: _getRequiredBond(5) }(disputed, 5, _dummyClaim());
@@ -1106,7 +1122,7 @@ contract SuperFaultDisputeGame_Test is SuperFaultDisputeGame_Init {
         gameProxy.attack{ value: _getRequiredBond(5) }(disputed, 5, claim5);
         (,,,, disputed,,) = gameProxy.claimData(6);
         gameProxy.defend{ value: _getRequiredBond(6) }(disputed, 6, _dummyClaim());
-        Claim postState_ = Claim.wrap(gameImpl.vm().step(claimData5, hex"", bytes32(0)));
+        Claim postState_ = Claim.wrap(gameProxy.vm().step(claimData5, hex"", bytes32(0)));
         (,,,, disputed,,) = gameProxy.claimData(7);
         gameProxy.attack{ value: _getRequiredBond(7) }(disputed, 7, postState_);
         gameProxy.addLocalData(LocalPreimageKey.DISPUTED_L2_BLOCK_NUMBER, 8, 0);
@@ -1134,7 +1150,7 @@ contract SuperFaultDisputeGame_Test is SuperFaultDisputeGame_Init {
         gameProxy.attack{ value: _getRequiredBond(4) }(disputed, 4, _changeClaimStatus(_dummyClaim(), VMStatuses.PANIC));
 
         bytes memory claimData7 = abi.encode(5, 5);
-        Claim postState_ = Claim.wrap(gameImpl.vm().step(claimData7, hex"", bytes32(0)));
+        Claim postState_ = Claim.wrap(gameProxy.vm().step(claimData7, hex"", bytes32(0)));
 
         (,,,, disputed,,) = gameProxy.claimData(5);
         gameProxy.attack{ value: _getRequiredBond(5) }(disputed, 5, postState_);
@@ -1170,7 +1186,7 @@ contract SuperFaultDisputeGame_Test is SuperFaultDisputeGame_Init {
 
         bytes memory claimData7 = abi.encode(5, 5);
         Claim claim7 = Claim.wrap(keccak256(claimData7));
-        Claim postState_ = Claim.wrap(gameImpl.vm().step(claimData7, hex"", bytes32(0)));
+        Claim postState_ = Claim.wrap(gameProxy.vm().step(claimData7, hex"", bytes32(0)));
 
         (,,,, disputed,,) = gameProxy.claimData(5);
         gameProxy.attack{ value: _getRequiredBond(5) }(disputed, 5, postState_);
