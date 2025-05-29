@@ -93,8 +93,8 @@ func TestUnsafeChainUnknownToL2CL(gt *testing.T) {
 
 	logger.Info("Make sure sequencer and verifier unsafe head advances")
 	dsl.CheckAll(t,
-		sys.L2CLA.Advanced(types.LocalUnsafe, 5, 30),
-		sys.L2CLA2.Advanced(types.LocalUnsafe, 5, 30),
+		sys.L2CLA.AdvancedFn(types.LocalUnsafe, 5, 30),
+		sys.L2CLA2.AdvancedFn(types.LocalUnsafe, 5, 30),
 	)
 
 	logger.Info("Disconnect p2p between L2CLs")
@@ -103,7 +103,7 @@ func TestUnsafeChainUnknownToL2CL(gt *testing.T) {
 
 	// verifier lost its P2P connection with sequencer, and will advance its unsafe head by reading L1 but not by P2P
 	logger.Info("Make sure verifier advances safe head by reading L1")
-	dsl.CheckAll(t, sys.L2CLA2.Advanced(types.CrossSafe, 5, 30))
+	sys.L2CLA2.Advanced(types.CrossSafe, 5, 30)
 
 	// The verifier will not receive unsafe heads via P2P, and can only update unsafe heads matching with safe heads by reading L1 batches.
 	// The verifier safe head will lag behind or match the sequencer because both components share the same L1 view
@@ -137,15 +137,15 @@ func TestL2CLSyncP2P(gt *testing.T) {
 
 	logger.Info("Make sure sequencer and verifier unsafe head advances")
 	dsl.CheckAll(t,
-		sys.L2CLA.Advanced(types.LocalUnsafe, 5, 30),
-		sys.L2CLA2.Advanced(types.LocalUnsafe, 5, 30),
+		sys.L2CLA.AdvancedFn(types.LocalUnsafe, 5, 30),
+		sys.L2CLA2.AdvancedFn(types.LocalUnsafe, 5, 30),
 	)
 
 	logger.Info("Stop verifier CL")
 	sys.L2CLA2.Stop()
 
 	logger.Info("Make sure verifier EL does not advance")
-	dsl.CheckAll(t, sys.L2ELA2.DoesNotAdvance(eth.Unsafe))
+	sys.L2ELA2.NotAdvanced(eth.Unsafe)
 
 	logger.Info("Restart verifier CL")
 	sys.L2CLA2.Start()
@@ -156,8 +156,8 @@ func TestL2CLSyncP2P(gt *testing.T) {
 
 	logger.Info("Make sure verifier EL advances")
 	dsl.CheckAll(t,
-		sys.L2CLA.Advanced(types.LocalUnsafe, 10, 30),
-		sys.L2CLA2.Advanced(types.LocalUnsafe, 10, 30),
+		sys.L2CLA.AdvancedFn(types.LocalUnsafe, 10, 30),
+		sys.L2CLA2.AdvancedFn(types.LocalUnsafe, 10, 30),
 	)
 
 	logger.Info("Check sequencer and verifier holds identical chain")
