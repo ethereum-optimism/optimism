@@ -119,3 +119,42 @@ func TestUnsafeChainUnknownToL2CL(gt *testing.T) {
 	logger.Info("verifier catches up sequencer unsafe chain with was unknown for verifier")
 	dsl.CheckAll(t, sys.L2CLA2.MatchedFn(sys.L2CLA, types.LocalUnsafe, 5))
 }
+
+// TestL2CLSyncP2P checks that unsafe head is propagated from sequencer to verifier.
+// Tests started/restarted L2CL advances unsafe head via P2P connection.
+func TestL2CLSyncP2P(gt *testing.T) {
+	t := devtest.SerialT(gt)
+
+	// Sequencer and verifier are connected via P2P, which makes their unsafe heads in sync.
+	// Both L2CLs are in managed mode, digesting L1 blocks from the supervisor and reporting unsafe and safe blocks back to the supervisor.
+	sys := presets.NewRedundantInterop(t)
+	logger := sys.Log.With("Test", "TestL2CLSyncP2P")
+
+	logger.Info("Make sure sequencer and verifier unsafe head advances")
+	dsl.CheckAll(t,
+		sys.L2CLA.Advanced(types.LocalUnsafe, 5, 30),
+		sys.L2CLA2.Advanced(types.LocalUnsafe, 5, 30),
+	)
+
+	logger.Info("Stop verifier CL")
+	sys.L2CLA2.Stop()
+
+	logger.Info("Make sure verifier EL does not advance")
+	dsl.CheckAll(t, sys.L2ELA2.DoesNotAdvance(eth.Unsafe))
+
+	logger.Info("Restart verifier CL")
+	sys.L2CLA2.Start()
+
+	logger.Info("explicit reconnection of L2CL P2P between sequencer and verifier")
+	sys.L2CLA.ConnectPeer(sys.L2CLA2)
+	sys.L2CLA2.ConnectPeer(sys.L2CLA)
+
+	logger.Info("Make sure verifier EL advances")
+	dsl.CheckAll(t,
+		sys.L2CLA.Advanced(types.LocalUnsafe, 10, 30),
+		sys.L2CLA2.Advanced(types.LocalUnsafe, 10, 30),
+	)
+
+	logger.Info("check sequencer and verifier holds identical chain")
+	dsl.CheckAll(t, sys.L2CLA2.MatchedFn(sys.L2CLA, types.LocalUnsafe, 30))
+}
