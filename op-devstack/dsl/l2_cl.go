@@ -249,26 +249,34 @@ func (cl *L2CLNode) MatchedFn(refNode SyncStatusProvider, lvl types.SafetyLevel,
 }
 
 func (cl *L2CLNode) PeerInfo() *apis.PeerInfo {
-	peerInfo, err := cl.inner.P2PAPI().Self(cl.ctx)
+	peerInfo, err := retry.Do(cl.ctx, 3, retry.Exponential(), func() (*apis.PeerInfo, error) {
+		return cl.inner.P2PAPI().Self(cl.ctx)
+	})
 	cl.require.NoError(err, "failed to get peer info")
 	return peerInfo
 }
 
 func (cl *L2CLNode) Peers() *apis.PeerDump {
-	peerDump, err := cl.inner.P2PAPI().Peers(cl.ctx, true)
+	peerDump, err := retry.Do(cl.ctx, 3, retry.Exponential(), func() (*apis.PeerDump, error) {
+		return cl.inner.P2PAPI().Peers(cl.ctx, true)
+	})
 	cl.require.NoError(err, "failed to get peers")
 	return peerDump
 }
 
 func (cl *L2CLNode) DisconnectPeer(peer *L2CLNode) {
 	peerInfo := peer.PeerInfo()
-	err := cl.inner.P2PAPI().DisconnectPeer(cl.ctx, peerInfo.PeerID)
+	err := retry.Do0(cl.ctx, 3, retry.Exponential(), func() error {
+		return cl.inner.P2PAPI().DisconnectPeer(cl.ctx, peerInfo.PeerID)
+	})
 	cl.require.NoError(err, "failed to disconnect peer")
 }
 
 func (cl *L2CLNode) ConnectPeer(peer *L2CLNode) {
 	peerInfo := peer.PeerInfo()
 	cl.require.NotZero(len(peerInfo.Addresses), "failed to get peer address")
-	err := cl.inner.P2PAPI().ConnectPeer(cl.ctx, peerInfo.Addresses[0])
-	cl.require.NoError(err, "failed to disconnect peer")
+	err := retry.Do0(cl.ctx, 6, retry.Exponential(), func() error {
+		return cl.inner.P2PAPI().ConnectPeer(cl.ctx, peerInfo.Addresses[0])
+	})
+	cl.require.NoError(err, "failed to connect peer")
 }
