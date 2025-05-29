@@ -27,6 +27,9 @@ import { IResourceMetering } from "interfaces/L1/IResourceMetering.sol";
 import { IOptimismPortal2 } from "interfaces/L1/IOptimismPortal2.sol";
 import { IPreimageOracle } from "interfaces/cannon/IPreimageOracle.sol";
 
+// Contracts
+import { MIPS64 } from "src/cannon/MIPS64.sol";
+
 /// @title StandardValidator
 /// @notice This contract is used to validate the configuration of the L1 contracts of an OP Stack chain.
 /// It is a stateless contract that can be used to ensure that the L1 contracts are configured correctly.
@@ -195,7 +198,7 @@ contract StandardValidator {
 
     /// @notice Returns the expected MIPS version.
     function mipsVersion() public pure returns (string memory) {
-        return "1.3.0";
+        return "1.5.0";
     }
 
     /// @notice Returns the expected OptimismMintableERC20Factory version.
@@ -572,7 +575,6 @@ contract StandardValidator {
         _errors = internalRequire(
             Claim.unwrap(_game.absolutePrestate()) == _absolutePrestate, string.concat(_errorPrefix, "-40"), _errors
         );
-        _errors = internalRequire(address(_game.vm()) == mipsImpl, string.concat(_errorPrefix, "-50"), _errors);
         _errors = internalRequire(_game.l2ChainId() == _l2ChainID, string.concat(_errorPrefix, "-60"), _errors);
         _errors = internalRequire(_game.l2SequenceNumber() == 0, string.concat(_errorPrefix, "-70"), _errors);
         _errors = internalRequire(
@@ -587,6 +589,8 @@ contract StandardValidator {
 
         _errors = assertValidDelayedWETH(_errors, _sysCfg, _game.weth(), _admin, _overrides, _errorPrefix);
         _errors = assertValidAnchorStateRegistry(_errors, _sysCfg, _factory, _asr, _admin, _errorPrefix);
+
+        _errors = assertValidMipsVm(_errors, MIPS64(address(_game.vm())), _errorPrefix);
 
         // Only assert valid preimage oracle if the game VM is valid, since otherwise
         // the contract is likely to revert.
@@ -657,6 +661,25 @@ contract StandardValidator {
         _errors = internalRequire(_asr.systemConfig() == _sysCfg, string.concat(_errorPrefix, "-40"), _errors);
         _errors = internalRequire(_asr.proxyAdmin() == _admin, string.concat(_errorPrefix, "-50"), _errors);
         _errors = internalRequire(_asr.retirementTimestamp() > 0, string.concat(_errorPrefix, "-60"), _errors);
+        return _errors;
+    }
+
+    /// @notice Asserts that the MipsVm contract is valid.
+    function assertValidMipsVm(
+        string memory _errors,
+        MIPS64 _mips,
+        string memory _errorPrefix
+    )
+        internal
+        view
+        returns (string memory)
+    {
+        _errorPrefix = string.concat(_errorPrefix, "-VM");
+        _errors = internalRequire(address(_mips) == mipsImpl, string.concat(_errorPrefix, "-10"), _errors);
+        _errors = internalRequire(
+            LibString.eq(ISemver(_mips).version(), mipsVersion()), string.concat(_errorPrefix, "-20"), _errors
+        );
+        _errors = internalRequire(_mips.stateVersion() == 7, string.concat(_errorPrefix, "-30"), _errors);
         return _errors;
     }
 
