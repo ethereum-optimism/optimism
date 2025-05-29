@@ -1,9 +1,10 @@
+use crate::auth::Authentication;
 use crate::client::ClientConnection;
 use crate::metrics::Metrics;
 use crate::rate_limit::{RateLimit, RateLimitError};
 use crate::registry::Registry;
 use axum::body::Body;
-use axum::extract::{ConnectInfo, State, WebSocketUpgrade};
+use axum::extract::{ConnectInfo, Path, State, WebSocketUpgrade};
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
 use axum::routing::{any, get};
@@ -20,6 +21,7 @@ struct ServerState {
     registry: Registry,
     rate_limiter: Arc<dyn RateLimit>,
     metrics: Arc<Metrics>,
+    auth: Authentication,
     ip_addr_http_header: String,
 }
 
@@ -30,6 +32,7 @@ pub struct Server {
     rate_limiter: Arc<dyn RateLimit>,
     metrics: Arc<Metrics>,
     ip_addr_http_header: String,
+    authentication: Option<Authentication>,
 }
 
 impl Server {
@@ -38,6 +41,7 @@ impl Server {
         registry: Registry,
         metrics: Arc<Metrics>,
         rate_limiter: Arc<dyn RateLimit>,
+        authentication: Option<Authentication>,
         ip_addr_http_header: String,
     ) -> Self {
         Self {
@@ -45,20 +49,32 @@ impl Server {
             registry,
             rate_limiter,
             metrics,
+            authentication,
             ip_addr_http_header,
         }
     }
 
     pub async fn listen(&self, cancellation_token: CancellationToken) {
-        let router = Router::new()
-            .route("/healthz", get(healthz_handler))
-            .route("/ws", any(websocket_handler))
-            .with_state(ServerState {
-                registry: self.registry.clone(),
-                rate_limiter: self.rate_limiter.clone(),
-                metrics: self.metrics.clone(),
-                ip_addr_http_header: self.ip_addr_http_header.clone(),
-            });
+        let mut router: Router<ServerState> = Router::new().route("/healthz", get(healthz_handler));
+
+        if self.authentication.is_some() {
+            info!("Authentication is enabled");
+            router = router.route("/ws/{api_key}", any(authenticated_websocket_handler));
+        } else {
+            info!("Public endpoint is enabled");
+            router = router.route("/ws", any(unauthenticated_websocket_handler));
+        }
+
+        let router = router.with_state(ServerState {
+            registry: self.registry.clone(),
+            rate_limiter: self.rate_limiter.clone(),
+            metrics: self.metrics.clone(),
+            auth: self
+                .authentication
+                .clone()
+                .unwrap_or_else(Authentication::none),
+            ip_addr_http_header: self.ip_addr_http_header.clone(),
+        });
 
         let listener = tokio::net::TcpListener::bind(self.listen_addr)
             .await
@@ -83,12 +99,48 @@ async fn healthz_handler() -> impl IntoResponse {
     StatusCode::OK
 }
 
-async fn websocket_handler(
+async fn authenticated_websocket_handler(
+    State(state): State<ServerState>,
+    ws: WebSocketUpgrade,
+    ConnectInfo(addr): ConnectInfo<SocketAddr>,
+    headers: HeaderMap,
+    Path(api_key): Path<String>,
+) -> impl IntoResponse {
+    let application = state.auth.get_application_for_key(&api_key);
+
+    match application {
+        None => {
+            state.metrics.unauthorized_requests.increment(1);
+
+            Response::builder()
+                .status(StatusCode::UNAUTHORIZED)
+                .body(Body::from(
+                    json!({"message": "Invalid API key"}).to_string(),
+                ))
+                .unwrap()
+        }
+        Some(app) => {
+            state.metrics.proxy_connections_by_app(app);
+            websocket_handler(state, ws, addr, headers)
+        }
+    }
+}
+
+async fn unauthenticated_websocket_handler(
     State(state): State<ServerState>,
     ws: WebSocketUpgrade,
     ConnectInfo(addr): ConnectInfo<SocketAddr>,
     headers: HeaderMap,
 ) -> impl IntoResponse {
+    websocket_handler(state, ws, addr, headers)
+}
+
+fn websocket_handler(
+    state: ServerState,
+    ws: WebSocketUpgrade,
+    addr: SocketAddr,
+    headers: HeaderMap,
+) -> Response {
     let connect_addr = addr.ip();
 
     let client_addr = match headers.get(state.ip_addr_http_header) {

@@ -1,4 +1,5 @@
 mod test {
+    use crate::auth::Authentication;
     use crate::metrics::Metrics;
     use crate::rate_limit::InMemoryRateLimit;
     use crate::registry::Registry;
@@ -36,6 +37,10 @@ mod test {
             listener.local_addr().unwrap()
         }
         fn new(addr: SocketAddr) -> TestHarness {
+            TestHarness::new_with_auth(addr, None)
+        }
+
+        fn new_with_auth(addr: SocketAddr, auth: Option<Authentication>) -> TestHarness {
             let (sender, _) = broadcast::channel(5);
             let metrics = Arc::new(Metrics::default());
             let registry = Registry::new(sender.clone(), metrics.clone());
@@ -51,6 +56,7 @@ mod test {
                     registry,
                     metrics,
                     rate_limited,
+                    auth,
                     "header".to_string(),
                 ),
                 server_addr: addr,
@@ -92,6 +98,14 @@ mod test {
             }
 
             assert!(healthy);
+        }
+
+        async fn can_connect(&mut self, path: &str) -> bool {
+            let uri = format!("ws://{}/{}", self.server_addr, path);
+            match connect_async(uri).await {
+                Ok(_) => true,
+                Err(_) => false,
+            }
         }
 
         fn connect_client(&mut self) -> usize {
@@ -304,5 +318,34 @@ mod test {
             vec!["five", "six"],
             harness.messages_for_client(client_four)
         );
+    }
+
+    #[tokio::test]
+    async fn test_authentication_disables_public_endpoint() {
+        let addr = TestHarness::alloc_port().await;
+        let auth = Authentication::none();
+
+        let mut harness = TestHarness::new_with_auth(addr, Some(auth));
+        harness.start_server().await;
+
+        assert_eq!(false, harness.can_connect("ws").await);
+    }
+
+    #[tokio::test]
+    async fn test_authentication_allows_known_api_keys() {
+        let addr = TestHarness::alloc_port().await;
+        let auth = Authentication::new(HashMap::from([
+            ("key1".to_string(), "app1".to_string()),
+            ("key2".to_string(), "app2".to_string()),
+            ("key3".to_string(), "app3".to_string()),
+        ]));
+
+        let mut harness = TestHarness::new_with_auth(addr, Some(auth));
+        harness.start_server().await;
+
+        assert_eq!(true, harness.can_connect("ws/key1").await);
+        assert_eq!(true, harness.can_connect("ws/key2").await);
+        assert_eq!(true, harness.can_connect("ws/key3").await);
+        assert_eq!(false, harness.can_connect("ws/key4").await);
     }
 }

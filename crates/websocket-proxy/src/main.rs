@@ -1,3 +1,4 @@
+mod auth;
 mod client;
 #[cfg(all(feature = "integration", test))]
 mod integration;
@@ -83,9 +84,13 @@ struct Args {
     #[arg(long, env, default_value = "text")]
     log_format: String,
 
-    // Enable Prometheus metrics
+    /// Enable Prometheus metrics
     #[arg(long, env, default_value = "true")]
     metrics: bool,
+
+    /// API Keys, if not provided will be an unauthenticated endpoint, should be in the format <app1>:<apiKey1>,<app2>:<apiKey2>,..
+    #[arg(long, env, value_delimiter = ',', help = "API keys to allow")]
+    api_keys: Vec<String>,
 
     /// Address to run the metrics server on
     #[arg(long, env, default_value = "0.0.0.0:9000")]
@@ -139,6 +144,22 @@ async fn main() {
             .with_ansi(false)
             .init();
     }
+
+    let api_keys: Vec<String> = args
+        .api_keys
+        .into_iter()
+        .filter(|s| !s.is_empty())
+        .collect();
+    let authentication = if api_keys.is_empty() {
+        None
+    } else {
+        match auth::Authentication::try_from(api_keys) {
+            Ok(auth) => Some(auth),
+            Err(e) => {
+                panic!("Failed to parse API Keys: {}", e)
+            }
+        }
+    };
 
     if args.metrics {
         info!(
@@ -264,6 +285,7 @@ async fn main() {
         registry.clone(),
         metrics,
         rate_limiter,
+        authentication,
         args.ip_addr_http_header,
     );
     let server_task = server.listen(token.clone());
