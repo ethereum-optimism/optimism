@@ -29,7 +29,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/sources"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/log"
-	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/stretchr/testify/require"
 	"github.com/urfave/cli/v2"
 )
@@ -348,48 +347,6 @@ func WithL2CLP2PConnection(l2CL1ID, l2CL2ID stack.L2CLNodeID) stack.Option[*Orch
 			multiAddress := peerInfo.PeerID.String()
 			_, ok := peerDump.Peers[multiAddress]
 			require.True(ok, "peer register invalid")
-		}
-
-		peerDump1, err := GetPeers(ctx, p.client1)
-		require.NoError(err)
-		peerDump2, err := GetPeers(ctx, p.client2)
-		require.NoError(err)
-
-		check(peerDump1, p.peerInfo2)
-		check(peerDump2, p.peerInfo1)
-	})
-}
-
-// DisconnectL2CLP2P disconnects P2P between two L2CLs
-func DisconnectL2CLP2P(l2CL1ID, l2CL2ID stack.L2CLNodeID) stack.Option[*Orchestrator] {
-	return stack.AfterDeploy(func(orch *Orchestrator) {
-		require := orch.P().Require()
-
-		l2CL1, ok := orch.l2CLs.Get(l2CL1ID)
-		require.True(ok, "looking for L2 CL node 1 to disconnect p2p")
-		l2CL2, ok := orch.l2CLs.Get(l2CL2ID)
-		require.True(ok, "looking for L2 CL node 2 to disconnect p2p")
-		require.Equal(l2CL1.cfg.Rollup.L2ChainID, l2CL2.cfg.Rollup.L2ChainID, "must be same l2 chain")
-
-		ctx := orch.P().Ctx()
-		logger := orch.P().Logger()
-
-		p := getP2PClientsAndPeers(ctx, logger, require, l2CL1, l2CL2)
-
-		disconnectPeer := func(p2pClient *sources.P2PClient, id peer.ID) {
-			err := retry.Do0(ctx, 3, retry.Exponential(), func() error {
-				return p2pClient.DisconnectPeer(ctx, id)
-			})
-			require.NoError(err, "failed to disconnect peer")
-		}
-
-		disconnectPeer(p.client1, p.peerInfo2.PeerID)
-		disconnectPeer(p.client2, p.peerInfo1.PeerID)
-
-		check := func(peerDump *apis.PeerDump, peerInfo *apis.PeerInfo) {
-			multiAddress := peerInfo.PeerID.String()
-			_, ok := peerDump.Peers[multiAddress]
-			require.False(ok, "peer deregister invalid")
 		}
 
 		peerDump1, err := GetPeers(ctx, p.client1)
