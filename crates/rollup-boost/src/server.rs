@@ -166,10 +166,12 @@ impl RollupBoostServer {
                 .await
             {
                 info!(message = "builder has no payload, skipping get_payload call to builder");
+                tracing::Span::current().record("builder_has_payload", false);
                 return RpcResult::Ok(None);
             }
 
             // Get payload and validate with the local l2 client
+            tracing::Span::current().record("builder_has_payload", true);
             let payload = self.builder_client.get_payload(payload_id, version).await?;
             let _ = self
                 .l2_client
@@ -305,7 +307,6 @@ impl EngineApiServer for RollupBoostServer {
         err,
         fields(
             otel.kind = ?SpanKind::Server,
-            has_attributes = payload_attributes.is_some(),
             head_block_hash = %fork_choice_state.head_block_hash,
             timestamp = ?payload_attributes.as_ref().map(|attrs| attrs.payload_attributes.timestamp),
             payload_id
@@ -406,6 +407,7 @@ impl EngineApiServer for RollupBoostServer {
             payload_source,
             gas_delta,
             tx_count_delta,
+            builder_has_payload,
         )
     )]
     async fn get_payload_v3(
