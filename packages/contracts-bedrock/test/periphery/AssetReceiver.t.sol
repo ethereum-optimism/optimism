@@ -56,7 +56,7 @@ contract AssetReceiver_Constructor_Test is AssetReceiver_TestInit {
 /// @title AssetReceiver_Receive_Test
 /// @notice Tests the `receive` function of the `AssetReceiver` contract.
 contract AssetReceiver_Receive_Test is AssetReceiver_TestInit {
-   /// @notice Tests that receive works as intended.
+    /// @notice Tests that receive works as intended.
     function test_receive_succeeds() external {
         // Check that contract balance is 0 initially
         assertEq(address(assetReceiver).balance, 0);

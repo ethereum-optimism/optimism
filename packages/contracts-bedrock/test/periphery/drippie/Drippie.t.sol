@@ -361,7 +361,7 @@ contract Drippie_Status_Test is Drippie_TestInit {
         vm.prank(_caller);
 
         _createDefaultDrip(dripName);
- 
+
         vm.expectRevert("UNAUTHORIZED");
         drippie.status(dripName, Drippie.DripStatus.ACTIVE);
     }
