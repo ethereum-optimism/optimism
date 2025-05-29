@@ -42,11 +42,11 @@ func TestInteropHappyTx(gt *testing.T) {
 
 	// confirm that the cross-safe safety passed init and exec receipts and that blocks were not reorged
 	dsl.CheckAll(t,
-		sys.L2CLA.ReachedRef(stypes.CrossSafe, eth.BlockID{
+		sys.L2CLA.ReachedRefFn(stypes.CrossSafe, eth.BlockID{
 			Number: initReceipt.BlockNumber.Uint64(),
 			Hash:   initReceipt.BlockHash,
 		}, 30),
-		sys.L2CLB.ReachedRef(stypes.CrossSafe, eth.BlockID{
+		sys.L2CLB.ReachedRefFn(stypes.CrossSafe, eth.BlockID{
 			Number: execReceipt.BlockNumber.Uint64(),
 			Hash:   execReceipt.BlockHash,
 		}, 30),
