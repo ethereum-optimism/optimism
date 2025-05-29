@@ -242,6 +242,10 @@ jobs:
       skip_slow_tests:
         type: boolean
         default: false
+      no_output_timeout:
+        description: Timeout for when CircleCI kills the job if there's no output
+        type: string
+        default: 10m
       notify:
         description: Whether to notify on failure
         type: boolean
@@ -268,6 +272,7 @@ jobs:
           working_directory: cannon
       - run:
           name: Cannon Go 64-bit tests
+          no_output_timeout: <<parameters.no_output_timeout>>
           command: |
             export SKIP_SLOW_TESTS="<<parameters.skip_slow_tests>>"
             TIMEOUT="10m"
