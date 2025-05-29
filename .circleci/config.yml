@@ -2173,6 +2173,7 @@ workflows:
           requires:
             - contracts-bedrock-build
           skip_slow_tests: false
+          no_output_timeout: 30m
           notify: true
           context:
             - slack
