@@ -356,12 +356,12 @@ contract Drippie_Status_Test is Drippie_TestInit {
     }
 
     /// @notice Expect a revert when attempting to set the status when not the owner.
-    function test_status_unauthorized_reverts(address caller) external {
-        vm.assume(caller != drippie.owner());
-        vm.prank(caller);
+    function test_status_unauthorized_reverts(address _caller) external {
+        vm.assume(_caller != drippie.owner());
+        vm.prank(_caller);
 
         _createDefaultDrip(dripName);
-
+ 
         vm.expectRevert("UNAUTHORIZED");
         drippie.status(dripName, Drippie.DripStatus.ACTIVE);
     }
