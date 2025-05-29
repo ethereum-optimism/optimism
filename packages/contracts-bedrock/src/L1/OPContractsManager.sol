@@ -1470,14 +1470,11 @@ contract OPContractsManagerInteropMigrator is OPContractsManagerBase {
                     encodePermissionedSuperFDGConstructor(
                         ISuperFaultDisputeGame.GameConstructorParams({
                             gameType: GameTypes.SUPER_PERMISSIONED_CANNON,
-                            absolutePrestate: _input.opChainConfigs[0].absolutePrestate,
                             maxGameDepth: _input.gameParameters.maxGameDepth,
                             splitDepth: _input.gameParameters.splitDepth,
                             clockExtension: _input.gameParameters.clockExtension,
                             maxClockDuration: _input.gameParameters.maxClockDuration,
-                            vm: IBigStepper(getImplementations().mipsImpl),
                             weth: newPermissionedDelayedWETHProxy,
-                            anchorStateRegistry: newAnchorStateRegistry,
                             l2ChainId: 0
                         }),
                         _input.gameParameters.proposer,
@@ -1526,14 +1523,11 @@ contract OPContractsManagerInteropMigrator is OPContractsManagerBase {
                     encodePermissionlessSuperFDGConstructor(
                         ISuperFaultDisputeGame.GameConstructorParams({
                             gameType: GameTypes.SUPER_CANNON,
-                            absolutePrestate: _input.opChainConfigs[0].absolutePrestate,
                             maxGameDepth: _input.gameParameters.maxGameDepth,
                             splitDepth: _input.gameParameters.splitDepth,
                             clockExtension: _input.gameParameters.clockExtension,
                             maxClockDuration: _input.gameParameters.maxClockDuration,
-                            vm: IBigStepper(getImplementations().mipsImpl),
                             weth: newPermissionlessDelayedWETHProxy,
-                            anchorStateRegistry: newAnchorStateRegistry,
                             l2ChainId: 0
                         })
                     )
