@@ -33,7 +33,7 @@
   },
   "src/L1/StandardValidator.sol:StandardValidator": {
     "initCodeHash": "0x035d23030f111046ba1d4daa5d7c3f476716e828e8eba8849554b61d9bbeb117",
-    "sourceCodeHash": "0x66a1bbd4dd4f4ddd2e9f7464ab76ffd0daedbd7cba61e9a238401a9910d600c3"
+    "sourceCodeHash": "0x9b48cde5b2fcd6e5399ed3fa27be48ae071891dba93d4ff393e81345298eb6da"
   },
   "src/L1/SuperchainConfig.sol:SuperchainConfig": {
     "initCodeHash": "0x0ea921059d71fd19ac9c6e29c05b9724ad584eb27f74231de6df9551e9b13084",

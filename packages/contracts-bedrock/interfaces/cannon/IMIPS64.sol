@@ -22,12 +22,15 @@ interface IMIPS64 is ISemver {
         uint32[32] registers;
     }
 
-    error InvalidMemoryProof();
-    error InvalidRMWInstruction();
+    error InvalidExitedValue();
+    error InvalidPC();
+    error InvalidSecondMemoryProof();
+    error UnsupportedStateVersion();
 
+    function version() external view returns (string memory);
     function oracle() external view returns (IPreimageOracle oracle_);
-    function step(bytes memory _stateData, bytes memory _proof, bytes32 _localContext) external returns (bytes32);
     function stateVersion() external view returns (uint256 stateVersion_);
+    function step(bytes memory _stateData, bytes memory _proof, bytes32 _localContext) external returns (bytes32 postState_);
 
-    function __constructor__(IPreimageOracle _oracle) external;
+    function __constructor__(IPreimageOracle _oracle, uint256 _stateVersion) external;
 }
