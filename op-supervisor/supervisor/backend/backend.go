@@ -484,6 +484,7 @@ func (su *SupervisorBackend) asyncVerifyAccessWithRPC(ctx context.Context, acc t
 // fetched, receipts are fetched, log exists) but the log checksum does not
 // match. Returns ad-hoc errors for the mechanical failures listed above. Returns
 // the block ID and nil if the log is found and the checksum matches.
+// Will be mapped to -320600 (conflicting_data) in the frontend, see https://github.com/ethereum-optimism/specs/blob/main/specs/interop/supervisor.md#-320600-conflicting_data
 func (su *SupervisorBackend) checkAccessWithRPC(ctx context.Context, acc types.Access) (eth.BlockID, error) {
 	src, ok := su.syncSources.Get(acc.ChainID)
 	if !ok {
@@ -550,12 +551,14 @@ func (su *SupervisorBackend) CheckAccessList(ctx context.Context, inboxEntries [
 		// Check if message passes time checks
 		if err := executingDescriptor.AccessCheck(su.cfgSet.MessageExpiryWindow(), acc.Timestamp); err != nil {
 			su.logger.Warn("Access-list time check failed", "err", err)
+			// Will be mapped to -320600 (conflicting_data) in the frontend, see https://github.com/ethereum-optimism/specs/blob/main/specs/interop/supervisor.md#-320600-conflicting_data
 			return types.ErrConflict // TODO: Do we want to do this?
 		}
 
 		msgBlockFromDB, err := su.checkAccessWithDB(acc)
 		if err != nil {
 			su.logger.Debug("Access-list inclusion check failed", "err", err)
+			// Will be mapped to -320600 (conflicting_data) in the frontend, see https://github.com/ethereum-optimism/specs/blob/main/specs/interop/supervisor.md#-320600-conflicting_data
 			return types.ErrConflict
 		}
 
@@ -568,6 +571,7 @@ func (su *SupervisorBackend) CheckAccessList(ctx context.Context, inboxEntries [
 		// TODO(#14800): this can be deferred to only check the latest block of all access entries
 		if err := su.checkSafety(acc.ChainID, msgBlockFromDB, minSafety); err != nil {
 			su.logger.Debug("Access-list safety check failed", "err", err)
+			// Will be mapped to -320600 (conflicting_data) in the frontend, see https://github.com/ethereum-optimism/specs/blob/main/specs/interop/supervisor.md#-320600-conflicting_data
 			return types.ErrConflict
 		}
 	}
