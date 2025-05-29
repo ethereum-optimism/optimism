@@ -194,6 +194,8 @@ contract AssetReceiver_WithdrawERC20_Test is AssetReceiver_TestInit {
     }
 }
 
+/// @title AssetReceiver_WithdrawERC721_Test
+/// @notice Tests the `withdrawERC721` function of the `AssetReceiver` contract.
 contract AssetReceiver_WithdrawERC721_Test is AssetReceiver_TestInit {
     /// @notice Test withdrawERC721 from owner.
     function test_withdrawERC721_succeeds() external {
