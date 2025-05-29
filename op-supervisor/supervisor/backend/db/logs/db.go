@@ -200,8 +200,8 @@ func (db *DB) OpenBlock(blockNum uint64) (ref eth.BlockRef, logCount uint32, exe
 	db.rwLock.RLock()
 	defer db.rwLock.RUnlock()
 
-	// TODO: need to fix assumption that the first block is block 0
-	// This is only true for genesis-Interop chains.
+	// Note: newIteratorAt below handles the not-at-genesis interop start case.
+	// But here we explicitly handle blockNum 0 to avoid a block number underflow.
 	if blockNum == 0 {
 		seal, err := db.FirstSealedBlock()
 		if err != nil {
@@ -209,7 +209,7 @@ func (db *DB) OpenBlock(blockNum uint64) (ref eth.BlockRef, logCount uint32, exe
 			return
 		}
 		if seal.Number != 0 {
-			db.log.Warn("The first block is not block 0", "block", seal.Number)
+			return eth.BlockRef{}, 0, nil, fmt.Errorf("looked for block 0 but got %s: %w", seal, types.ErrSkipped)
 		}
 		ref = eth.BlockRef{
 			Hash:       seal.Hash,
