@@ -33,6 +33,10 @@ interface IStandardValidator {
         address challenger;
     }
 
+    error InvalidMemoryProof();
+    error InvalidRMWInstruction();
+
+    function version() external view returns (string memory);
     function anchorStateRegistryImpl() external view returns (address);
     function anchorStateRegistryVersion() external pure returns (string memory);
     function challenger() external view returns (address);
