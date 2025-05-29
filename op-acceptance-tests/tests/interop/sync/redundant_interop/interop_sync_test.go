@@ -104,9 +104,9 @@ func TestUnsafeChainUnknownToL2CL(gt *testing.T) {
 	// The verifier safe head will lag behind or match the sequencer because both components share the same L1 view
 	logger.Info("verifier heads will lag compared from sequencer heads and supervisor view")
 	dsl.CheckAll(t,
-		sys.L2CLA2.Lagged(sys.L2CLA, types.LocalUnsafe, 10, false),
-		sys.L2CLA2.Lagged(sys.L2CLA, types.CrossSafe, 10, true),
-		// TODO: compare with supervisor
+		sys.L2CLA2.LaggedFn(sys.L2CLA, types.LocalUnsafe, 10, false),
+		sys.L2CLA2.LaggedFn(sys.L2CLA, types.CrossSafe, 10, true),
+		sys.L2CLA2.LaggedFn(sys.Supervisor, types.LocalUnsafe, 10, true),
 	)
 
 	logger.Info("explicit reconnection of L2CL P2P between sequencer and verifier")
@@ -117,5 +117,5 @@ func TestUnsafeChainUnknownToL2CL(gt *testing.T) {
 	// The verifier will quickly catch up with the sequencer unsafe head as well as the supervisor.
 	// The verifier will process previously unknown unsafe blocks and advance its unsafe head.
 	logger.Info("verifier catches up sequencer unsafe chain with was unknown for verifier")
-	dsl.CheckAll(t, sys.L2CLA2.Matched(sys.L2CLA, types.LocalUnsafe, 5))
+	dsl.CheckAll(t, sys.L2CLA2.MatchedFn(sys.L2CLA, types.LocalUnsafe, 5))
 }

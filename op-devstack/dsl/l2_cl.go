@@ -230,60 +230,22 @@ func (cl *L2CLNode) Rewinded(lvl types.SafetyLevel, delta uint64, attempts int) 
 	cl.require.NoError(cl.RewindedFn(lvl, delta, attempts)())
 }
 
-// Matched returns a lambda that checks the L2CL chain head with given safety level matched with the reference L2CL chain
-// Composable with other lambdas to wait in parallel
-func (cl *L2CLNode) Matched(refNode *L2CLNode, lvl types.SafetyLevel, attempts int) CheckFunc {
-	return func() error {
-		base := cl.HeadBlockRef(lvl)
-		ref := refNode.HeadBlockRef(lvl)
-		logger := cl.log.With("id", cl.inner.ID(), "ref_id", refNode.inner.ID(), "chain", cl.ChainID(), "label", lvl)
-		logger.Info("Expecting chain to match with reference", "base", base.Number, "ref", ref.Number)
-		return retry.Do0(cl.ctx, attempts, &retry.FixedStrategy{Dur: 2 * time.Second},
-			func() error {
-				base = cl.HeadBlockRef(lvl)
-				ref = refNode.HeadBlockRef(lvl)
-				if ref.Hash == base.Hash && ref.Number == base.Number {
-					logger.Info("Chain matched", "ref", ref.Number)
-					return nil
-				}
-				logger.Info("Chain sync status", "base", base.Number, "ref", ref.Number)
-				return fmt.Errorf("expected head to match: %s", lvl)
-			})
-	}
+// ChainSyncStatus satisfies that the L2CLNode can provide sync status per chain
+func (cl *L2CLNode) ChainSyncStatus(chainID eth.ChainID, lvl types.SafetyLevel) eth.BlockID {
+	cl.require.Equal(chainID, cl.inner.ID().ChainID, "chain ID mismatch")
+	return cl.HeadBlockRef(lvl).ID()
 }
 
-// Lagged returns a lambda that checks the L2CL chain head with given safety level is lagged with the reference L2CL chain
+// LaggedFn returns a lambda that checks the L2CL chain head with given safety level is lagged with the reference chain sync status provider
 // Composable with other lambdas to wait in parallel
-func (cl *L2CLNode) Lagged(refNode *L2CLNode, lvl types.SafetyLevel, attempts int, allowMatch bool) CheckFunc {
-	return func() error {
-		base := cl.HeadBlockRef(lvl)
-		ref := refNode.HeadBlockRef(lvl)
-		logger := cl.log.With("id", cl.inner.ID(), "ref_id", refNode.inner.ID(), "chain", cl.ChainID(), "label", lvl)
-		logger.Info("Expecting chain to lag with reference", "base", base.Number, "ref", ref.Number)
-		err := retry.Do0(cl.ctx, attempts, &retry.FixedStrategy{Dur: 2 * time.Second},
-			func() error {
-				base = cl.HeadBlockRef(lvl)
-				ref = refNode.HeadBlockRef(lvl)
-				cmp := base.Number > ref.Number
-				msg := "Base chain surpassed"
-				if !allowMatch {
-					cmp = base.Number >= ref.Number
-					msg += " or caught up"
-				}
-				if cmp {
-					logger.Info(msg, "base", base.Number, "ref", ref.Number)
-					return nil
-				}
-				logger.Info("Chain sync status", "base", base.Number, "ref", ref.Number)
-				return fmt.Errorf("chain is lagging as expected: %s", lvl)
-			})
-		// invert the error to check base chain was always lagging
-		if err != nil {
-			logger.Info("Chain lagged as expected")
-			return nil
-		}
-		return fmt.Errorf("expected head to lag: %s", lvl)
-	}
+func (cl *L2CLNode) LaggedFn(refNode SyncStatusProvider, lvl types.SafetyLevel, attempts int, allowMatch bool) CheckFunc {
+	return LaggedFn(cl, refNode, cl.log, cl.ctx, lvl, cl.ChainID(), attempts, allowMatch)
+}
+
+// MatchedFn returns a lambda that checks the L2CLNode head with given safety level is matched with the refNode chain sync status provider
+// Composable with other lambdas to wait in parallel
+func (cl *L2CLNode) MatchedFn(refNode SyncStatusProvider, lvl types.SafetyLevel, attempts int) CheckFunc {
+	return MatchedFn(cl, refNode, cl.log, cl.ctx, lvl, cl.ChainID(), attempts)
 }
 
 func (cl *L2CLNode) PeerInfo() *apis.PeerInfo {
