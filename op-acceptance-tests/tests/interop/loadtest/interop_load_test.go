@@ -1,31 +1,35 @@
 package loadtest
 
 import (
+	"math"
+	"math/rand"
 	"os"
 	"strconv"
 	"sync"
 	"testing"
 	"time"
 
+	"github.com/ethereum-optimism/optimism/devnet-sdk/contracts/constants"
+	"github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/interop"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
+	"github.com/ethereum-optimism/optimism/op-service/plan"
+	"github.com/ethereum-optimism/optimism/op-service/txintent"
+	"github.com/ethereum-optimism/optimism/op-service/txplan"
+	"github.com/ethereum/go-ethereum/common"
+	"golang.org/x/net/context"
 )
-
-const numInitTxsEnvVar = "NAT_LOADTEST_INITTXS"
 
 func TestMain(m *testing.M) {
 	presets.DoMain(m, presets.WithSimpleInterop())
 }
 
-type L2 struct {
-	Chain  *dsl.L2Network
-	EL     *dsl.L2ELNode
-	Funder *dsl.Funder
-}
-
+// TestLoad passes messages from one chain to another.
+// It assumes that both chains have the same block time.
+// Set NAT_INTEROP_LOADTEST_TARGET to the initial amount of messages that should be passed per block time.
+// The test will run until the test deadline.
 func TestLoad(gt *testing.T) {
 	if testing.Short() {
 		gt.Skip("skipping load test in short mode")
@@ -33,88 +37,105 @@ func TestLoad(gt *testing.T) {
 	t := devtest.SerialT(gt)
 	sys := presets.NewSimpleInterop(t)
 
-	numInitTxs := uint64(1)
-	if numInitTxsStr, ok := os.LookupEnv(numInitTxsEnvVar); ok {
+	targetMessagePassesPerBlock := uint64(100)
+	if targetMsgPassesStr, exists := os.LookupEnv("NAT_INTEROP_LOADTEST_TARGET"); exists {
 		var err error
-		numInitTxs, err = strconv.ParseUint(numInitTxsStr, 10, 64)
+		targetMessagePassesPerBlock, err = strconv.ParseUint(targetMsgPassesStr, 10, 0)
 		t.Require().NoError(err)
-	}
-
-	l2ELA := sys.L2ChainA.PublicRPC()
-	L2A := &L2{
-		Chain:  sys.L2ChainA,
-		EL:     l2ELA,
-		Funder: dsl.NewFunder(sys.Wallet, sys.FaucetA, l2ELA),
-	}
-	l2ELB := sys.L2ChainB.PublicRPC()
-	L2B := &L2{
-		Chain:  sys.L2ChainB,
-		EL:     l2ELB,
-		Funder: dsl.NewFunder(sys.Wallet, sys.FaucetB, l2ELB),
 	}
 
 	var wg sync.WaitGroup
 	defer wg.Wait()
+
+	// Start the AIMD schedule.
+	deadline := time.Unix(math.MaxInt64, 0)
+	testCtxDeadline, testCtxDeadlineExsts := t.Ctx().Deadline()
+	if testCtxDeadlineExsts {
+		deadline = testCtxDeadline.Add(-10 * time.Second) // Give some time for cleanup.
+	}
+	schedCtx, schedCancel := context.WithDeadline(t.Ctx(), deadline)
+	t.Cleanup(schedCancel)
+	blockTime := time.Duration(sys.L2ChainB.Escape().RollupConfig().BlockTime) * time.Second
+	aimd := NewAIMD(targetMessagePassesPerBlock, blockTime, WithAdjustWindow(targetMessagePassesPerBlock/2))
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		SpamInteropTxs(t, numInitTxs, L2A, L2B, sys.Supervisor)
+		aimd.Start(schedCtx)
 	}()
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		SpamInteropTxs(t, numInitTxs, L2B, L2A, sys.Supervisor)
-	}()
+
+	workerCount := targetMessagePassesPerBlock * 7
+
+	l2ELA := sys.L2ChainA.PublicRPC()
+	l2ELB := sys.L2ChainB.PublicRPC()
+	funderA := dsl.NewFunder(sys.Wallet, sys.FaucetA, l2ELA)
+	source := &L2{
+		EOAs:        NewEOAPool(funderA, workerCount, eth.MillionEther),
+		EL:          l2ELA,
+		EventLogger: funderA.NewFundedEOA(eth.OneEther).DeployEventLogger(),
+	}
+	dest := &L2{
+		EOAs: NewEOAPool(dsl.NewFunder(sys.Wallet, sys.FaucetB, l2ELB), workerCount, eth.MillionEther),
+		EL:   l2ELB,
+	}
+
+	// Start the message passing workers.
+	for range workerCount {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			relayTxsWhenReady(t, aimd, source, dest)
+		}()
+	}
 }
 
-func SpamInteropTxs(t devtest.T, numInitTxs uint64, source *L2, dest *L2, supervisor *dsl.Supervisor) {
-	var relayWg sync.WaitGroup
-	defer relayWg.Wait()
-	msgsCh := make(chan []types.Message, 100)
-	defer close(msgsCh) // Must be defer'd after the relayWg.Wait() above.
+type L2 struct {
+	EOAs        *EOAPool
+	EL          *dsl.L2ELNode
+	EventLogger common.Address
+}
 
-	// Spam executing messages.
-	relayWg.Add(1)
-	go func() {
-		defer relayWg.Done()
-		dest.Funder.NewFundedEOA(eth.MillionEther.Mul(100))
-		relayers := []Relayer{
-			NewValidRelayer(dest.Funder, dest.EL, supervisor),
-			NewDelayedRelayer(NewValidRelayer(dest.Funder, dest.EL, supervisor), &relayWg, time.Minute),
-			NewInvalidRelayer(dest.Funder, dest.EL, makeInvalidChainID),
-			NewInvalidRelayer(dest.Funder, dest.EL, makeInvalidBlockNumber),
-			NewInvalidRelayer(dest.Funder, dest.EL, makeInvalidLogIndex),
-			NewInvalidRelayer(dest.Funder, dest.EL, makeInvalidOrigin),
-			NewInvalidRelayer(dest.Funder, dest.EL, makeInvalidPayloadHash),
-			NewInvalidRelayer(dest.Funder, dest.EL, makeInvalidTimestamp),
+func relayTxsWhenReady(t devtest.T, sched *AIMD, source *L2, dest *L2) {
+	rng := rand.New(rand.NewSource(1234))
+	for range sched.Ready() {
+		initiator := source.EOAs.Get()
+		initMsgTx := txintent.NewIntent[txintent.Call, *txintent.InteropOutput](initiator.Inner.Plan(), txplan.WithStaticNonce(uint64(initiator.Nonce.Add(1))-1))
+		initMsgTx.Content.Set(interop.RandomInitTrigger(rng, source.EventLogger, rng.Intn(2), rng.Intn(5)))
+		if _, err := initMsgTx.PlannedTx.Included.Eval(t.Ctx()); err != nil {
+			initiator.Nonce.Add(-1)
+			sched.Adjust(false)
+			continue
 		}
-		for msgs := range msgsCh {
-			for _, relayer := range relayers {
-				relayWg.Add(1)
-				go func() {
-					defer relayWg.Done()
-					relayer.Relay(t, msgs)
-				}()
-			}
-			if len(msgs) >= cap(msgs)/2 {
-				t.Logger().Warn("Messages buffer is at least half full", "len", len(msgs), "cap", cap(msgs))
-			}
-		}
-	}()
+		_, err := initMsgTx.PlannedTx.Success.Eval(t.Ctx())
+		t.Require().NoError(err)
+		out, err := initMsgTx.Result.Eval(t.Ctx())
+		t.Require().NoError(err)
+		t.Require().Len(out.Entries, 1)
+		initMsg := out.Entries[0]
 
-	// Spam initiating messages.
-	eventLogger := source.Funder.NewFundedEOA(eth.OneEther).DeployEventLogger()
-	initiators := []Initiator{
-		NewManyMsgsInitiator(source.Funder, source.EL, eventLogger),
-		NewLargeMsgInitiator(source.Funder, source.EL, eventLogger),
-	}
-	var initWg sync.WaitGroup
-	defer initWg.Wait()
-	for i := range numInitTxs {
-		initWg.Add(1)
-		go func() {
-			defer initWg.Done()
-			msgsCh <- initiators[i%uint64(len(initiators))].Initiate(t)
-		}()
+		executor := dest.EOAs.Get()
+		execTx := txintent.NewIntent[*txintent.ExecTrigger, txintent.Result](executor.Inner.Plan(), txplan.WithStaticNonce(uint64(executor.Nonce.Add(1))-1), txplan.WithGasRatio(2))
+		execTx.Content.Set(&txintent.ExecTrigger{
+			Executor: constants.CrossL2Inbox,
+			Msg:      initMsg,
+		})
+
+		// The relay tx is invalid until we know it will be included at a higher timestamp than any of the initiating messages, modulo reorgs.
+		// Wait to plan the relay tx against a target block until the timestamp elapses.
+		// NOTE: this should be `<`, but the mempool filtering in op-geth currently uses the unsafe head's timestamp instead of
+		// the pending timestamp. See https://github.com/ethereum-optimism/op-geth/issues/603.
+		execTx.PlannedTx.AgainstBlock.Wrap(func(fn plan.Fn[eth.BlockInfo]) plan.Fn[eth.BlockInfo] {
+			for dest.EL.BlockRefByLabel(eth.Unsafe).Time <= initMsg.Identifier.Timestamp {
+				dest.EL.WaitForBlock()
+			}
+			return fn
+		})
+		if _, err := execTx.PlannedTx.Included.Eval(t.Ctx()); err != nil {
+			executor.Nonce.Add(-1)
+			sched.Adjust(false)
+			continue
+		}
+		_, err = execTx.PlannedTx.Success.Eval(t.Ctx())
+		t.Require().NoError(err)
+		sched.Adjust(true)
 	}
 }
