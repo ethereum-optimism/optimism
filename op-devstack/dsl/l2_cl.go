@@ -248,6 +248,14 @@ func (cl *L2CLNode) MatchedFn(refNode SyncStatusProvider, lvl types.SafetyLevel,
 	return MatchedFn(cl, refNode, cl.log, cl.ctx, lvl, cl.ChainID(), attempts)
 }
 
+func (cl *L2CLNode) Lagged(refNode SyncStatusProvider, lvl types.SafetyLevel, attempts int, allowMatch bool) {
+	cl.require.NoError(cl.LaggedFn(refNode, lvl, attempts, allowMatch)())
+}
+
+func (cl *L2CLNode) Matched(refNode SyncStatusProvider, lvl types.SafetyLevel, attempts int) {
+	cl.require.NoError(cl.MatchedFn(refNode, lvl, attempts)())
+}
+
 func (cl *L2CLNode) PeerInfo() *apis.PeerInfo {
 	peerInfo, err := retry.Do(cl.ctx, 3, retry.Exponential(), func() (*apis.PeerInfo, error) {
 		return cl.inner.P2PAPI().Self(cl.ctx)

@@ -122,7 +122,7 @@ func TestUnsafeChainUnknownToL2CL(gt *testing.T) {
 	// The verifier will quickly catch up with the sequencer unsafe head as well as the supervisor.
 	// The verifier will process previously unknown unsafe blocks and advance its unsafe head.
 	logger.Info("Verifier catches up sequencer unsafe chain with was unknown for verifier")
-	dsl.CheckAll(t, sys.L2CLA2.MatchedFn(sys.L2CLA, types.LocalUnsafe, 5))
+	sys.L2CLA2.Matched(sys.L2CLA, types.LocalUnsafe, 5)
 }
 
 // TestL2CLSyncP2P checks that unsafe head is propagated from sequencer to verifier.
@@ -161,5 +161,5 @@ func TestL2CLSyncP2P(gt *testing.T) {
 	)
 
 	logger.Info("Check sequencer and verifier holds identical chain")
-	dsl.CheckAll(t, sys.L2CLA2.MatchedFn(sys.L2CLA, types.LocalUnsafe, 30))
+	sys.L2CLA2.Matched(sys.L2CLA, types.LocalUnsafe, 30)
 }
