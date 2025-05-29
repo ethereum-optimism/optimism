@@ -208,6 +208,26 @@ func (cl *L2CLNode) RewindedFn(lvl types.SafetyLevel, delta uint64, attempts int
 	}
 }
 
+func (cl *L2CLNode) Advanced(lvl types.SafetyLevel, delta uint64, attempts int) {
+	cl.require.NoError(cl.AdvancedFn(lvl, delta, attempts)())
+}
+
+func (cl *L2CLNode) NotAdvanced(lvl types.SafetyLevel, attempts int) {
+	cl.require.NoError(cl.NotAdvancedFn(lvl, attempts)())
+}
+
+func (cl *L2CLNode) Reached(lvl types.SafetyLevel, target uint64, attempts int) {
+	cl.require.NoError(cl.ReachedFn(lvl, target, attempts)())
+}
+
+func (cl *L2CLNode) ReachedRef(lvl types.SafetyLevel, target eth.BlockID, attempts int) {
+	cl.require.NoError(cl.ReachedRefFn(lvl, target, attempts)())
+}
+
+func (cl *L2CLNode) Rewinded(lvl types.SafetyLevel, delta uint64, attempts int) {
+	cl.require.NoError(cl.RewindedFn(lvl, delta, attempts)())
+}
+
 func (cl *L2CLNode) PeerInfo() *apis.PeerInfo {
 	peerInfo, err := cl.inner.P2PAPI().Self(cl.ctx)
 	cl.require.NoError(err, "failed to get peer info")

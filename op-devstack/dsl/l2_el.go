@@ -119,3 +119,15 @@ func (el *L2ELNode) ReorgTriggeredFn(target eth.L2BlockRef, attempts int) CheckF
 			})
 	}
 }
+
+func (el *L2ELNode) Advanced(label eth.BlockLabel, block uint64) {
+	el.require.NoError(el.AdvancedFn(label, block)())
+}
+
+func (el *L2ELNode) NotAdvanced(label eth.BlockLabel) {
+	el.require.NoError(el.NotAdvancedFn(label)())
+}
+
+func (el *L2ELNode) ReorgTriggered(target eth.L2BlockRef, attempts int) {
+	el.require.NoError(el.ReorgTriggeredFn(target, attempts)())
+}

@@ -12,7 +12,6 @@ import (
 	"github.com/ethereum-optimism/optimism/devnet-sdk/contracts/constants"
 	"github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/interop"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
-	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
@@ -215,13 +214,11 @@ func testReorgInvalidExecMsg(gt *testing.T, txModifierFn func(msg *suptypes.Mess
 	sys.L2BatcherA.Start()
 
 	// wait for reorg on chain A
-	dsl.CheckAll(t,
-		sys.L2ELA.ReorgTriggeredFn(eth.L2BlockRef{
-			Number:     divergenceBlockNumber_A,
-			Hash:       originalHash_A,
-			ParentHash: originalParentHash_A,
-		}, 30),
-	)
+	sys.L2ELA.ReorgTriggered(eth.L2BlockRef{
+		Number:     divergenceBlockNumber_A,
+		Hash:       originalHash_A,
+		ParentHash: originalParentHash_A,
+	}, 30)
 
 	err := wait.For(ctx, 5*time.Second, func() (bool, error) {
 		safeL2Head_supervisor_A := sys.Supervisor.SafeBlockID(sys.L2ChainA.ChainID()).Hash
