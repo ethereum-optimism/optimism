@@ -154,6 +154,18 @@ func (n *L2Network) unsafeHeadRef() eth.L2BlockRef {
 	return unsafeHeadRef
 }
 
+// IsActivated checks if a given fork has been activated
+func (n *L2Network) IsActivated(timestamp uint64) bool {
+	blockNum, err := n.Escape().RollupConfig().TargetBlockNumber(timestamp)
+	n.require.NoError(err)
+
+	el := n.Escape().L2ELNode(match.FirstL2EL)
+	head, err := el.EthClient().BlockRefByLabel(n.ctx, eth.Unsafe)
+	n.require.NoError(err)
+
+	return head.Number >= blockNum
+}
+
 // LatestBlockBeforeTimestamp finds the latest block before fork activation
 func (n *L2Network) LatestBlockBeforeTimestamp(t devtest.T, timestamp uint64) eth.BlockRef {
 	require := t.Require()
