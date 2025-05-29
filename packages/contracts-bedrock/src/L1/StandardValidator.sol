@@ -26,9 +26,7 @@ import { ISemver } from "interfaces/universal/ISemver.sol";
 import { IResourceMetering } from "interfaces/L1/IResourceMetering.sol";
 import { IOptimismPortal2 } from "interfaces/L1/IOptimismPortal2.sol";
 import { IPreimageOracle } from "interfaces/cannon/IPreimageOracle.sol";
-
-// Contracts
-import { MIPS64 } from "src/cannon/MIPS64.sol";
+import { IMIPS64 } from "interfaces/cannon/IMIPS64.sol";
 
 /// @title StandardValidator
 /// @notice This contract is used to validate the configuration of the L1 contracts of an OP Stack chain.
@@ -590,7 +588,7 @@ contract StandardValidator {
         _errors = assertValidDelayedWETH(_errors, _sysCfg, _game.weth(), _admin, _overrides, _errorPrefix);
         _errors = assertValidAnchorStateRegistry(_errors, _sysCfg, _factory, _asr, _admin, _errorPrefix);
 
-        _errors = assertValidMipsVm(_errors, MIPS64(address(_game.vm())), _errorPrefix);
+        _errors = assertValidMipsVm(_errors, IMIPS64(address(_game.vm())), _errorPrefix);
 
         // Only assert valid preimage oracle if the game VM is valid, since otherwise
         // the contract is likely to revert.
@@ -667,7 +665,7 @@ contract StandardValidator {
     /// @notice Asserts that the MipsVm contract is valid.
     function assertValidMipsVm(
         string memory _errors,
-        MIPS64 _mips,
+        IMIPS64 _mips,
         string memory _errorPrefix
     )
         internal
