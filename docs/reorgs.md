@@ -1,0 +1,6 @@
+
+# Reorgs in Rollup-Boost
+
+Rollup-boost remains unaffected by blockchain reorganizations due to its stateless design as a pure proxy layer between the consensus layer (op-node) and execution engines. During the sequencing process, when the sequencer derives L2 blocks from L1 data within sequencing windows (ranges of L1 blocks spanning the sequencer window size, currently defaulting to 3600 epochs), any reorgs that occur in the underlying L1 chain or affect the sequencing window are handled transparently by rollup-boost's forwarding mechanism.
+
+When reorgs impact the sequencing epoch derivation or cause drift in the L2 chain state, rollup-boost simply proxies all Engine API calls—including fork choice updates reflecting the new canonical chain and payload requests for reorg recovery—directly to both the builder and local execution client without maintaining any state about the reorganization. The actual reorg handling, including re-deriving the correct L2 blocks from the updated sequencing windows and managing any resulting drift, is performed by the underlying execution engines (e.g op-geth, op-reth) which receive these reorg signals through the standard Engine API methods that rollup-boost transparently forwards.
