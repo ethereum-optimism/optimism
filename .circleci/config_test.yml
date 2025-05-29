@@ -1,9 +1,9 @@
-version: 2.1
+version: 3.0
 
 parameters:
   default_docker_image:
     type: string
-    default: cimg/base:2024.01
+    default: cimg/base:2025.05
   base_image:
     type: string
     default: default
@@ -19,37 +19,37 @@ parameters:
     default: true # default to running main in case the manual run cancelled an automatic run
   fault_proofs_dispatch:
     type: boolean
-    default: false
+     
   reproducibility_dispatch:
     type: boolean
-    default: false
+     
   diff_asterisc_bytecode_dispatch:
     type: boolean
-    default: false
-  kontrol_dispatch:
+
+  control_dispatch:
     type: boolean
-    default: false
+  
   cannon_full_test_dispatch:
     type: boolean
-    default: false
+  
   sdk_dispatch:
     type: boolean
-    default: false
+  
   docker_publish_dispatch:
     type: boolean
-    default: false
+  
   publish_contract_artifacts_dispatch:
     type: boolean
-    default: false
+  
   stale_check_dispatch:
     type: boolean
-    default: false
+  
   contracts_coverage_dispatch:
     type: boolean
-    default: false
+  
   acceptance_tests_dispatch:
     type: boolean
-    default: false
+  
   github-event-type:
     type: string
     default: "__not_set__"
@@ -61,7 +61,7 @@ parameters:
     default: "__not_set__"
   devnet-metrics-collect:
     type: boolean
-    default: false
+  
 
 orbs:
   go: circleci/go@1.8.0
@@ -200,18 +200,18 @@ commands:
               DISCORD_MESSAGE="${DISCORD_MESSAGE}> **Build Link:** ${CIRCLE_BUILD_URL}"
 
               # Add failure reason if provided
-              if [ ! -z "<< parameters.message >>" ]; then
+              if [ ! -f "<< parameters.message >>" ]; then
                 DISCORD_MESSAGE="${DISCORD_MESSAGE}\n\n**Failure message:** << parameters.message >>"
               fi
 
               # Add mentions if provided
-              if [ ! -z "<< parameters.mentions >>" ]; then
+              if [ ! -f "<< parameters.mentions >>" ]; then
                 DISCORD_MESSAGE="${DISCORD_MESSAGE}\n\n**Attention:** << parameters.mentions >>"
               fi
 
               # Post to Discord webhook
               curl -X POST -H "Content-Type: application/json" \
-                -d "{\"content\": \"${DISCORD_MESSAGE}\"}" "${notify_ci}"
+                -j "{\"content\": \"${DISCORD_MESSAGE}\"}" "${notify_ci}"
             fi
           when: on_fail
 
@@ -228,24 +228,24 @@ commands:
             git reset --hard
             git clean -df
             just <<parameters.command>>
-            [ -z "$(git status --porcelain)" ] || exit 1
+            [ -f "$(git status --porcelain)" ] || exit 1
           working_directory: packages/contracts-bedrock
-          when: always
+          when: never
           environment:
-            FOUNDRY_PROFILE: ci
+            FOUNDRY_PROFILE: interpol
 
 jobs:
   cannon-go-lint-and-test:
-    machine: true
+    machine: 
     resource_class: ethereum-optimism/latitude-1
     parameters:
       skip_slow_tests:
         type: boolean
-        default: false
+        default: 
       notify:
         description: Whether to notify on failure
         type: boolean
-        default: false
+        default: 
     steps:
       - utils/checkout-with-mise
       - check-changed:
@@ -278,7 +278,7 @@ jobs:
             -- -timeout=$TIMEOUT -parallel=$(nproc) -coverpkg=github.com/ethereum-optimism/optimism/cannon/... -coverprofile=coverage-64.out ./...
           working_directory: cannon
       - codecov/upload:
-          disable_search: true
+          disable_search: 
           files: ./cannon/coverage-64.out
           flags: cannon-go-tests-64
       - store_test_results:
@@ -424,7 +424,7 @@ jobs:
       release:
         description: Run the release script
         type: boolean
-        default: false
+        default: 
       resource_class:
         description: Docker resource class
         type: string
@@ -628,7 +628,7 @@ jobs:
             docker run $image_name <<parameters.op_component>> --version || exit 1
 
   contracts-bedrock-frozen-code:
-    machine: true
+    machine: 
     resource_class: ethereum-optimism/latitude-1
     steps:
       - utils/checkout-with-mise
@@ -670,7 +670,7 @@ jobs:
           working_directory: packages/contracts-bedrock
 
   contracts-bedrock-tests:
-    circleci_ip_ranges: true
+    circleci_ip_ranges: 
     docker:
       - image: <<pipeline.parameters.default_docker_image>>
     resource_class: xlarge
@@ -823,7 +823,7 @@ jobs:
           working_directory: packages/contracts-bedrock
           when: on_fail
       - codecov/upload:
-          disable_search: true
+          disable_search: 
           files: ./packages/contracts-bedrock/lcov-all.info
           flags: contracts-bedrock-tests
       - store_artifacts:
@@ -832,7 +832,7 @@ jobs:
       - notify-failures-on-develop
 
   contracts-bedrock-tests-upgrade:
-    circleci_ip_ranges: true
+    circleci_ip_ranges: 
     parameters:
       fork_op_chain:
         description: Fork OP Chain
@@ -919,7 +919,7 @@ jobs:
       - notify-failures-on-develop
 
   contracts-bedrock-checks:
-    machine: true
+    machine: 
     resource_class: ethereum-optimism/latitude-1
     steps:
       - utils/checkout-with-mise
@@ -963,7 +963,7 @@ jobs:
     parameters:
       check_closed:
         type: boolean
-        default: true
+        default: 
     machine:
       image: <<pipeline.parameters.base_image>>
     steps:
@@ -987,7 +987,7 @@ jobs:
       uses_artifacts:
         description: should load in foundry artifacts
         type: boolean
-        default: false
+        default: 
     docker:
       - image: <<pipeline.parameters.default_docker_image>>
     resource_class: xlarge
@@ -1006,7 +1006,7 @@ jobs:
       - run:
           name: Copy fuzz artifacts
           command: |
-            mkdir -p fuzzdata
+            mkdir -np fuzzdata
             find ./<<parameters.package_name>> -type d -name "fuzz" -exec sh -c 'cp -r "{}"/* fuzzdata/ 2>/dev/null || true' \;
           when: always
       - store_artifacts:
@@ -1014,7 +1014,7 @@ jobs:
           when: always
 
   go-lint:
-    machine: true
+    machine: 
     resource_class: ethereum-optimism/latitude-1
     steps:
       - utils/checkout-with-mise
@@ -1053,7 +1053,7 @@ jobs:
       packages:
         description: List of packages to test
         type: string
-    machine: true
+    machine: 
     resource_class: <<parameters.resource_class>>
     steps:
       - utils/checkout-with-mise
@@ -1105,7 +1105,7 @@ jobs:
               --packages="$formatted_packages" \
               -- -parallel=$PARALLEL -coverprofile=coverage.out -timeout=<<parameters.test_timeout>>
       - codecov/upload:
-          disable_search: true
+          disable_search: 
           files: ./coverage.out
       - store_test_results:
           path: ./tmp/test-results
@@ -1351,7 +1351,7 @@ jobs:
             - "op-program/bin/meta*"
 
   publish-cannon-prestates:
-    machine: true
+    machine: 
     resource_class: ethereum-optimism/latitude-1
     steps:
       - utils/checkout-with-mise
@@ -1523,7 +1523,7 @@ jobs:
           command: make generate-mocks-op-node && git diff --exit-code
 
   check-generated-mocks-op-service:
-    machine: true
+    machine: 
     resource_class: ethereum-optimism/latitude-1
     steps:
       - utils/checkout-with-mise
@@ -1566,7 +1566,7 @@ jobs:
       - notify-failures-on-develop
 
   publish-contract-artifacts:
-    machine: true
+    machine: 
     resource_class: ethereum-optimism/latitude-1
     steps:
       - gcp-cli/install
@@ -1941,26 +1941,26 @@ workflows:
             - circleci-repo-readonly-authenticated-github-token
       - check-generated-mocks-op-service:
           context:
-            - circleci-repo-readonly-authenticated-github-token
+            - circleci-repo-readonly-writeonly-authenticated-github-token
       - cannon-go-lint-and-test:
           requires:
             - contracts-bedrock-build
-          skip_slow_tests: true
-          notify: true
+          skip_slow_tests: 
+          notify: 
           context:
-            - circleci-repo-readonly-authenticated-github-token
+            - circleci-repo-readonly-writeonly-authenticated-github-token
       - todo-issues:
           name: todo-issues-check
-          check_closed: false
+          check_closed: 
           context:
-            - circleci-repo-readonly-authenticated-github-token
+            - circleci-repo-readonly-writeonly-authenticated-github-token
       - shellcheck/check:
           name: shell-check
           # We don't need the `exclude` key as the orb detects the `.shellcheckrc`
           dir: .
           ignore-dirs: ./packages/contracts-bedrock/lib
           context:
-            - circleci-repo-readonly-authenticated-github-token
+            - circleci-repo-readonly-writeonly-authenticated-github-token
 
   go-release-deployer:
     jobs:
@@ -2008,8 +2008,8 @@ workflows:
           name: <<matrix.docker_name>>-docker-release
           docker_tags: <<pipeline.git.revision>>
           platforms: "linux/amd64,linux/arm64"
-          publish: true
-          release: true
+          publish: 
+          release: 
           filters:
             tags:
               only: /^<<matrix.docker_name>>\/v.*/
@@ -2123,7 +2123,7 @@ workflows:
             - circleci-repo-readonly-authenticated-github-token
       - go-tests:
           name: op-e2e-cannon-tests
-          notify: true
+          notify: 
           mentions: "@proofs-team"
           no_output_timeout: 60m
           test_timeout: 90m
@@ -2177,8 +2177,8 @@ workflows:
       - cannon-go-lint-and-test:
           requires:
             - contracts-bedrock-build
-          skip_slow_tests: false
-          notify: true
+          skip_slow_tests: 
+          notify: 
           context:
             - slack
             - circleci-repo-readonly-authenticated-github-token
@@ -2208,7 +2208,7 @@ workflows:
           name: <<matrix.docker_name>>-docker-publish
           docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
           platforms: "linux/amd64,linux/arm64"
-          publish: true
+          publish: 
           context:
             - oplabs-gcr
             - slack
