@@ -39,6 +39,9 @@ type FetchingAttributesBuilder struct {
 }
 
 func NewFetchingAttributesBuilder(rollupCfg *rollup.Config, depSet DependencySet, l1 L1ReceiptsFetcher, l2 SystemConfigL2Fetcher) *FetchingAttributesBuilder {
+	if rollupCfg.InteropTime != nil && depSet == nil {
+		panic("FetchingAttributesBuilder requires a dependency set when interop fork is scheduled")
+	}
 	return &FetchingAttributesBuilder{
 		rollupCfg: rollupCfg,
 		depSet:    depSet,
@@ -146,9 +149,6 @@ func (ba *FetchingAttributesBuilder) PreparePayloadAttributes(ctx context.Contex
 		}
 		upgradeTxs = append(upgradeTxs, interop...)
 
-		if ba.depSet == nil {
-			return nil, NewCriticalError(fmt.Errorf("interop is active but no dependency set provided"))
-		}
 		if len(ba.depSet.Chains()) > 1 {
 			txs, err := InteropActivateCrossL2InboxTransactions()
 			if err != nil {
