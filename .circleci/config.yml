@@ -1689,7 +1689,9 @@ jobs:
       - utils/checkout-with-mise
       - run:
           name: Collect devnet metrics for op-acceptance-tests
-          command: ./devnet-sdk/scripts/metrics-collect-authorship.sh op-acceptance-tests/tests > .metrics--authorship--op-acceptance-tests
+          command: |
+            ./devnet-sdk/scripts/metrics-collect-authorship.sh op-acceptance-tests/tests > .metrics--authorship--op-acceptance-tests
+            echo "Wrote file .metrics--authorship--op-acceptance-tests"
       - gcp-cli/install
       - gcp-oidc-authenticate:
           gcp_cred_config_file_path: /tmp/gcp_cred_config.json
@@ -1697,8 +1699,11 @@ jobs:
       - run:
           name: Store artifact in Bucket
           command: |
-            gsutil cp .metrics--authorship--op-acceptance-tests gs://oplabs-tools-data-public-metrics/metrics-authorship/metrics
-            gsutil cp .metrics--authorship--op-acceptance-tests gs://oplabs-tools-data-public-metrics/metrics-authorship/metrics-$CIRCLE_SHA1
+            CURRENT_DATE=$(date '+%Y-%m-%d')
+            FOLDER_NAME="dt=$CURRENT_DATE"
+
+            # Upload to the date-partitioned folder structure
+            gsutil cp .metrics--authorship--op-acceptance-tests gs://oplabs-tools-data-public-metrics/metrics-authorship/$FOLDER_NAME/metrics-$CIRCLE_SHA1.csv
 
 
 workflows:
@@ -2265,7 +2270,7 @@ workflows:
           devnet: simple
           gate: base
           # CircleCI params
-          no_output_timeout: 60m
+          no_output_timeout: 30m
           context:
             - circleci-repo-readonly-authenticated-github-token
             - discord
@@ -2276,7 +2281,7 @@ workflows:
           devnet: isthmus
           gate: isthmus
           # CircleCI params
-          no_output_timeout: 60m
+          no_output_timeout: 30m
           context:
             - circleci-repo-readonly-authenticated-github-token
             - discord
@@ -2287,7 +2292,7 @@ workflows:
           devnet: interop
           gate: interop
           # CircleCI params
-          no_output_timeout: 60m
+          no_output_timeout: 30m
           context:
             - circleci-repo-readonly-authenticated-github-token
             - discord
@@ -2298,13 +2303,36 @@ workflows:
       not:
         equal: [<< pipeline.git.branch >>, "develop"]
     jobs:
+      # KURTOSIS (Simple)
+      - op-acceptance-tests:
+          # Acceptance Testing params
+          name: kurtosis-simple
+          devnet: simple
+          gate: base
+          # CircleCI params
+          no_output_timeout: 30m
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+            - discord
+      # KURTOSIS (Isthmus)
+      - op-acceptance-tests:
+          # Acceptance Testing params
+          name: kurtosis-isthmus
+          devnet: isthmus
+          gate: isthmus
+          # CircleCI params
+          no_output_timeout: 30m
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+            - discord
+      # KURTOSIS (Interop)
       - op-acceptance-tests:
           # Acceptance Testing params
           name: kurtosis-interop
           devnet: interop
           gate: interop
           # CircleCI params
-          no_output_timeout: 10m
+          no_output_timeout: 30m
           context:
             - circleci-repo-readonly-authenticated-github-token
             - discord

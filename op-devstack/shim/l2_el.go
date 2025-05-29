@@ -25,10 +25,13 @@ type rpcL2ELNode struct {
 var _ stack.L2ELNode = (*rpcL2ELNode)(nil)
 
 func NewL2ELNode(cfg L2ELNodeConfig) stack.L2ELNode {
-	require.Equal(cfg.T, cfg.ID.ChainID, cfg.ELNodeConfig.ChainID, "chainID must be configured to match node chainID")
-	cfg.Log = cfg.Log.New("chainID", cfg.ID.ChainID, "id", cfg.ID)
+	ctx := cfg.T.Ctx()
+	ctx = stack.ContextWithKind(ctx, stack.L2ELNodeKind)
+	ctx = stack.ContextWithChainID(ctx, cfg.ID.ChainID)
+	cfg.T = cfg.T.WithCtx(ctx, "chainID", cfg.ID.ChainID, "id", cfg.ID)
 
-	l2Client, err := sources.NewL2Client(cfg.ELNodeConfig.Client, cfg.Log, nil, sources.L2ClientSimpleConfig(cfg.RollupCfg, false, 10, 10))
+	require.Equal(cfg.T, cfg.ID.ChainID, cfg.ELNodeConfig.ChainID, "chainID must be configured to match node chainID")
+	l2Client, err := sources.NewL2Client(cfg.ELNodeConfig.Client, cfg.T.Logger(), nil, sources.L2ClientSimpleConfig(cfg.RollupCfg, false, 10, 10))
 	require.NoError(cfg.T, err)
 
 	return &rpcL2ELNode{

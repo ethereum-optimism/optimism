@@ -94,7 +94,10 @@ func (s *Supervisor) Stop() {
 
 func WithSupervisor(supervisorID stack.SupervisorID, clusterID stack.ClusterID, l1ELID stack.L1ELNodeID) stack.Option[*Orchestrator] {
 	return stack.AfterDeploy(func(orch *Orchestrator) {
-		require := orch.P().Require()
+		ctx := orch.P().Ctx()
+		ctx = stack.ContextWithKind(ctx, stack.TestSequencerKind)
+		p := orch.P().WithCtx(ctx, "service", "op-supervisor", "id", supervisorID)
+		require := p.Require()
 
 		l1EL, ok := orch.l1ELs.Get(l1ELID)
 		require.True(ok, "need L1 EL node to connect supervisor to")
@@ -133,13 +136,12 @@ func WithSupervisor(supervisorID stack.SupervisorID, clusterID stack.ClusterID, 
 			DatadirSyncEndpoint:   "",
 		}
 
-		plog := orch.P().Logger().New("service", "op-supervisor", "id", supervisorID)
-
+		plog := p.Logger()
 		supervisorNode := &Supervisor{
 			id:      supervisorID,
 			userRPC: "", // set on start
 			cfg:     cfg,
-			p:       orch.P(),
+			p:       p,
 			logger:  plog,
 			service: nil, // set on start
 		}

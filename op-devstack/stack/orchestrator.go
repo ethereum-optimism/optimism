@@ -47,6 +47,10 @@ type Orchestrator interface {
 // }
 
 type SystemHook interface {
+	// PreHydrate runs before a system is hydrated,
+	// to prepare settings on the system like logging, or inspect test-scope
+	PreHydrate(sys System)
+
 	// PostHydrate runs after a system is hydrated, to run any checks.
 	// This may register validation that runs at the end of the test, using the sys.T().Cleanup function.
 	PostHydrate(sys System)
@@ -118,6 +122,12 @@ func (c CombinedOption[O]) Finally(orch O) {
 	}
 }
 
+func (c CombinedOption[O]) PreHydrate(sys System) {
+	for _, opt := range c {
+		opt.PreHydrate(sys)
+	}
+}
+
 func (c CombinedOption[O]) PostHydrate(sys System) {
 	for _, opt := range c {
 		opt.PostHydrate(sys)
@@ -131,6 +141,7 @@ type FnOption[O Orchestrator] struct {
 	DeployFn       func(orch O)
 	AfterDeployFn  func(orch O)
 	FinallyFn      func(orch O)
+	PreHydrateFn   func(sys System)
 	PostHydrateFn  func(sys System)
 }
 
@@ -157,6 +168,12 @@ func (f FnOption[O]) AfterDeploy(orch O) {
 func (f FnOption[O]) Finally(orch O) {
 	if f.FinallyFn != nil {
 		f.FinallyFn(orch)
+	}
+}
+
+func (f FnOption[O]) PreHydrate(sys System) {
+	if f.PreHydrateFn != nil {
+		f.PreHydrateFn(sys)
 	}
 }
 
@@ -189,6 +206,11 @@ func AfterDeploy[O Orchestrator](fn func(orch O)) Option[O] {
 // or to export any of the now ready orchestrator resources.
 func Finally[O Orchestrator](fn func(orch O)) Option[O] {
 	return FnOption[O]{FinallyFn: fn}
+}
+
+// PreHydrate hooks up an option callback to run before a new System has been hydrated by the Orchestrator.
+func PreHydrate[O Orchestrator](fn func(sys System)) Option[O] {
+	return FnOption[O]{PostHydrateFn: fn}
 }
 
 // PostHydrate hooks up an option callback to run when a new System has been hydrated by the Orchestrator.
@@ -233,6 +255,9 @@ func MakeCommon[O Orchestrator](opt Option[O]) CommonOption {
 			} else {
 				orch.P().Logger().Debug("Finally option does not apply to this orchestrator type")
 			}
+		},
+		PreHydrateFn: func(sys System) {
+			opt.PreHydrate(sys)
 		},
 		PostHydrateFn: func(sys System) {
 			opt.PostHydrate(sys)

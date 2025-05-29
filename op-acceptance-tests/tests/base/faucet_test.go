@@ -22,6 +22,6 @@ func TestFaucetFund(gt *testing.T) {
 	_, span = tracer.Start(ctx, "transfer funds")
 	amount := eth.OneEther
 	funded.Transfer(unfunded.Address(), amount)
-	t.Logger().WithContext(ctx).Info("funds transferred", "amount", amount)
+	t.Logger().InfoContext(ctx, "funds transferred", "amount", amount)
 	span.End()
 }

@@ -24,3 +24,22 @@ func (f *Funder) NewFundedEOA(amount eth.ETH) *EOA {
 	f.faucet.Fund(eoa.Address(), amount)
 	return eoa
 }
+
+func (f *Funder) Fund(wallet *EOA, amount eth.ETH) eth.ETH {
+	currentBalance := wallet.balance()
+	f.faucet.Fund(wallet.Address(), amount)
+	finalBalance := currentBalance.Add(amount)
+	wallet.VerifyBalanceExact(finalBalance)
+	return finalBalance
+}
+
+func (f *Funder) FundAtLeast(wallet *EOA, amount eth.ETH) eth.ETH {
+	currentBalance := wallet.balance()
+	if currentBalance.Lt(amount) {
+		missing := amount.Sub(currentBalance)
+		f.faucet.Fund(wallet.Address(), missing)
+		currentBalance = currentBalance.Add(missing)
+		wallet.VerifyBalanceExact(currentBalance)
+	}
+	return currentBalance
+}

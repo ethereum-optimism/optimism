@@ -112,6 +112,11 @@ func (u *EOA) balance() eth.ETH {
 	return eth.WeiBig(result)
 }
 
+// Try to avoid using this method where possible, use the VerifyBalance* methods instead.
+func (u *EOA) GetBalance() eth.ETH {
+	return u.balance()
+}
+
 // VerifyBalanceLessThan verifies balance < v
 func (u *EOA) VerifyBalanceLessThan(v eth.ETH) {
 	actual := u.balance()

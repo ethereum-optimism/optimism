@@ -119,18 +119,18 @@ func (cl *L2CLNode) ChainID() eth.ChainID {
 	return cl.inner.ID().ChainID
 }
 
-// Advanced returns a lambda that checks the L2CL chain head with given safety level advanced more than delta block number
+// AdvancedFn returns a lambda that checks the L2CL chain head with given safety level advanced more than delta block number
 // Composable with other lambdas to wait in parallel
-func (cl *L2CLNode) Advanced(lvl types.SafetyLevel, delta uint64, attempts int) CheckFunc {
+func (cl *L2CLNode) AdvancedFn(lvl types.SafetyLevel, delta uint64, attempts int) CheckFunc {
 	return func() error {
 		initial := cl.HeadBlockRef(lvl)
 		target := initial.Number + delta
 		cl.log.Info("expecting chain to advance", "id", cl.inner.ID(), "chain", cl.ChainID(), "label", lvl, "delta", delta)
-		return cl.Reached(lvl, target, attempts)()
+		return cl.ReachedFn(lvl, target, attempts)()
 	}
 }
 
-func (cl *L2CLNode) NotAdvanced(lvl types.SafetyLevel, attempts int) CheckFunc {
+func (cl *L2CLNode) NotAdvancedFn(lvl types.SafetyLevel, attempts int) CheckFunc {
 	return func() error {
 		initial := cl.HeadBlockRef(lvl)
 		cl.log.Info("expecting chain not to advance", "id", cl.inner.ID(), "chain", cl.ChainID(), "label", lvl, "target", initial.Number)
@@ -147,9 +147,9 @@ func (cl *L2CLNode) NotAdvanced(lvl types.SafetyLevel, attempts int) CheckFunc {
 	}
 }
 
-// Reached returns a lambda that checks the L2CL chain head with given safety level reaches the target block number
+// ReachedFn returns a lambda that checks the L2CL chain head with given safety level reaches the target block number
 // Composable with other lambdas to wait in parallel
-func (cl *L2CLNode) Reached(lvl types.SafetyLevel, target uint64, attempts int) CheckFunc {
+func (cl *L2CLNode) ReachedFn(lvl types.SafetyLevel, target uint64, attempts int) CheckFunc {
 	return func() error {
 		cl.log.Info("expecting chain to reach", "id", cl.inner.ID(), "chain", cl.ChainID(), "label", lvl, "target", target)
 		return retry.Do0(cl.ctx, attempts, &retry.FixedStrategy{Dur: 2 * time.Second},
@@ -165,11 +165,11 @@ func (cl *L2CLNode) Reached(lvl types.SafetyLevel, target uint64, attempts int) 
 	}
 }
 
-// ReachedRef is same as Reached, but has an additional check to ensure that the block referenced is not reorged
+// ReachedRefFn is same as Reached, but has an additional check to ensure that the block referenced is not reorged
 // Composable with other lambdas to wait in parallel
-func (cl *L2CLNode) ReachedRef(lvl types.SafetyLevel, target eth.BlockID, attempts int) CheckFunc {
+func (cl *L2CLNode) ReachedRefFn(lvl types.SafetyLevel, target eth.BlockID, attempts int) CheckFunc {
 	return func() error {
-		err := cl.Reached(lvl, target.Number, attempts)()
+		err := cl.ReachedFn(lvl, target.Number, attempts)()
 		if err != nil {
 			return err
 		}
@@ -186,9 +186,9 @@ func (cl *L2CLNode) ReachedRef(lvl types.SafetyLevel, target eth.BlockID, attemp
 	}
 }
 
-// Rewinded returns a lambda that checks the L2CL chain head with given safety level rewinded more than the delta block number
+// RewindedFn returns a lambda that checks the L2CL chain head with given safety level rewinded more than the delta block number
 // Composable with other lambdas to wait in parallel
-func (cl *L2CLNode) Rewinded(lvl types.SafetyLevel, delta uint64, attempts int) CheckFunc {
+func (cl *L2CLNode) RewindedFn(lvl types.SafetyLevel, delta uint64, attempts int) CheckFunc {
 	return func() error {
 		initial := cl.HeadBlockRef(lvl)
 		cl.require.GreaterOrEqual(initial.Number, delta, "cannot rewind before genesis")
@@ -206,6 +206,26 @@ func (cl *L2CLNode) Rewinded(lvl types.SafetyLevel, delta uint64, attempts int) 
 				return fmt.Errorf("expected head to rewind: %s", lvl)
 			})
 	}
+}
+
+func (cl *L2CLNode) Advanced(lvl types.SafetyLevel, delta uint64, attempts int) {
+	cl.require.NoError(cl.AdvancedFn(lvl, delta, attempts)())
+}
+
+func (cl *L2CLNode) NotAdvanced(lvl types.SafetyLevel, attempts int) {
+	cl.require.NoError(cl.NotAdvancedFn(lvl, attempts)())
+}
+
+func (cl *L2CLNode) Reached(lvl types.SafetyLevel, target uint64, attempts int) {
+	cl.require.NoError(cl.ReachedFn(lvl, target, attempts)())
+}
+
+func (cl *L2CLNode) ReachedRef(lvl types.SafetyLevel, target eth.BlockID, attempts int) {
+	cl.require.NoError(cl.ReachedRefFn(lvl, target, attempts)())
+}
+
+func (cl *L2CLNode) Rewinded(lvl types.SafetyLevel, delta uint64, attempts int) {
+	cl.require.NoError(cl.RewindedFn(lvl, delta, attempts)())
 }
 
 func (cl *L2CLNode) PeerInfo() *apis.PeerInfo {

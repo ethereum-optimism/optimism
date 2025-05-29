@@ -39,7 +39,12 @@ func (n *L2ELNode) hydrate(system stack.ExtensibleSystem) {
 
 func WithL2ELNode(id stack.L2ELNodeID, supervisorID *stack.SupervisorID) stack.Option[*Orchestrator] {
 	return stack.AfterDeploy(func(orch *Orchestrator) {
-		require := orch.P().Require()
+		ctx := orch.P().Ctx()
+		ctx = stack.ContextWithChainID(ctx, id.ChainID)
+		ctx = stack.ContextWithKind(ctx, stack.L2ELNodeKind)
+		p := orch.P().WithCtx(ctx, "id", id)
+
+		require := p.Require()
 
 		l2Net, ok := orch.l2Nets.Get(id.ChainID)
 		require.True(ok, "L2 network required")
@@ -55,7 +60,8 @@ func WithL2ELNode(id stack.L2ELNodeID, supervisorID *stack.SupervisorID) stack.O
 			require.True(ok, "supervisor is required for interop")
 			supervisorRPC = sup.userRPC
 		}
-		logger := orch.P().Logger().New("id", id)
+
+		logger := p.Logger()
 
 		l2Geth, err := geth.InitL2(id.String(), l2Net.genesis, jwtPath,
 			func(ethCfg *ethconfig.Config, nodeCfg *gn.Config) error {
@@ -66,7 +72,7 @@ func WithL2ELNode(id stack.L2ELNodeID, supervisorID *stack.SupervisorID) stack.O
 		require.NoError(err)
 		require.NoError(l2Geth.Node.Start())
 
-		orch.p.Cleanup(func() {
+		p.Cleanup(func() {
 			logger.Info("Closing op-geth", "id", id)
 			closeErr := l2Geth.Close()
 			logger.Info("Closed op-geth", "id", id, "err", closeErr)

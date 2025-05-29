@@ -1395,21 +1395,24 @@ func TestInteropFaultProofs_DepositMessage_InvalidExecution(gt *testing.T) {
 	runFppAndChallengerTests(gt, system, tests)
 }
 
-func runFppAndChallengerTests(gt *testing.T, system *dsl.InteropDSL, tests []*transitionTest) {
+// Returns true if all tests passed, otherwise returns false
+func runFppAndChallengerTests(gt *testing.T, system *dsl.InteropDSL, tests []*transitionTest) bool {
+	passed := true
 	for _, test := range tests {
 		test := test
-		gt.Run(fmt.Sprintf("%s-fpp", test.name), func(gt *testing.T) {
+		passed = gt.Run(fmt.Sprintf("%s-fpp", test.name), func(gt *testing.T) {
 			runFppTest(gt, test, system.Actors, system.DepSet())
-		})
+		}) && passed
 
-		gt.Run(fmt.Sprintf("%s-challenger", test.name), func(gt *testing.T) {
+		passed = gt.Run(fmt.Sprintf("%s-challenger", test.name), func(gt *testing.T) {
 			runChallengerTest(gt, test, system.Actors)
-		})
+		}) && passed
 	}
+	return passed
 }
 
 func runFppTest(gt *testing.T, test *transitionTest, actors *dsl.InteropActors, depSet *depset.StaticConfigDependencySet) {
-	t := helpers.NewDefaultTesting(gt)
+	t := helpers.SubTest(gt)
 	if test.skipProgram {
 		t.Skip("Not yet implemented")
 		return
@@ -1438,7 +1441,7 @@ func runFppTest(gt *testing.T, test *transitionTest, actors *dsl.InteropActors, 
 }
 
 func runChallengerTest(gt *testing.T, test *transitionTest, actors *dsl.InteropActors) {
-	t := helpers.NewDefaultTesting(gt)
+	t := helpers.SubTest(gt)
 	if test.skipChallenger {
 		t.Skip("Not yet implemented")
 		return
@@ -1493,7 +1496,7 @@ func WithInteropEnabled(t helpers.StatefulTesting, actors *dsl.InteropActors, de
 		f.DependencySet = depSet
 
 		for _, chain := range []*dsl.Chain{actors.ChainA, actors.ChainB} {
-			verifier, canonicalOnlyEngine := createVerifierWithOnlyCanonicalBlocks(t, actors.L1Miner, chain)
+			verifier, canonicalOnlyEngine := createVerifierWithOnlyCanonicalBlocks(t, actors.L1Miner, chain, depSet)
 			f.L2Sources = append(f.L2Sources, &fpHelpers.FaultProofProgramL2Source{
 				Node:        verifier,
 				Engine:      canonicalOnlyEngine,
@@ -1505,7 +1508,7 @@ func WithInteropEnabled(t helpers.StatefulTesting, actors *dsl.InteropActors, de
 
 // createVerifierWithOnlyCanonicalBlocks creates a new L2Verifier and associated L2Engine that only has the canonical
 // blocks from chain in its database. Non-canonical blocks, their world state, receipts and other data are not available
-func createVerifierWithOnlyCanonicalBlocks(t helpers.StatefulTesting, l1Miner *helpers.L1Miner, chain *dsl.Chain) (*helpers.L2Verifier, *helpers.L2Engine) {
+func createVerifierWithOnlyCanonicalBlocks(t helpers.StatefulTesting, l1Miner *helpers.L1Miner, chain *dsl.Chain, depSet depset.DependencySet) (*helpers.L2Verifier, *helpers.L2Engine) {
 	jwtPath := e2eutils.WriteDefaultJWT(t)
 	canonicalOnlyEngine := helpers.NewL2Engine(t, testlog.Logger(t, log.LvlInfo).New("role", "canonicalOnlyEngine"), chain.L2Genesis, jwtPath)
 	head := chain.Sequencer.L2Unsafe()
@@ -1543,6 +1546,7 @@ func createVerifierWithOnlyCanonicalBlocks(t helpers.StatefulTesting, l1Miner *h
 		altda.Disabled,
 		canonicalOnlyEngine.EngineClient(t, chain.RollupCfg),
 		chain.RollupCfg,
+		depSet,
 		&sync2.Config{},
 		safedb.Disabled)
 	return verifier, canonicalOnlyEngine

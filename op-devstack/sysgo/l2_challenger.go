@@ -39,13 +39,17 @@ func WithL2Challenger(challengerID stack.L2ChallengerID, l1ELID stack.L1ELNodeID
 	supervisorID *stack.SupervisorID, clusterID *stack.ClusterID, l2CLID *stack.L2CLNodeID, l2ELIDs []stack.L2ELNodeID,
 ) stack.Option[*Orchestrator] {
 	return stack.AfterDeploy(func(orch *Orchestrator) {
-		require := orch.P().Require()
+		ctx := orch.P().Ctx()
+		ctx = stack.ContextWithKind(ctx, stack.L2ChallengerKind)
+		p := orch.P().WithCtx(ctx, "service", "op-challenger", "id", challengerID)
+
+		require := p.Require()
 		require.False(orch.challengers.Has(challengerID), "challenger must not already exist")
 
 		challengerSecret, err := orch.keys.Secret(devkeys.ChallengerRole.Key(l1ELID.ChainID.ToBig()))
 		require.NoError(err)
 
-		logger := orch.P().Logger().New("service", "op-challenger", "id", challengerID)
+		logger := p.Logger()
 		logger.Info("Challenger key acquired", "addr", crypto.PubkeyToAddress(challengerSecret.PublicKey))
 
 		l1EL, ok := orch.l1ELs.Get(l1ELID)
@@ -69,10 +73,6 @@ func WithL2Challenger(challengerID stack.L2ChallengerID, l1ELID stack.L1ELNodeID
 				interopScheduled = l2Net.genesis.Config.InteropTime != nil
 			} else {
 				require.Equal(l2Net.genesis.Config.InteropTime != nil, interopScheduled, "Cluster not consistently using interop")
-				// TODO(#15057): Interop chains should have a shared DisputeGameFactory
-				//if interopScheduled {
-				//require.Equal(disputeGameFactoryAddr, factory, "Cluster not using a shared dispute game factory")
-				//}
 			}
 
 			l2Geneses = append(l2Geneses, l2Net.genesis)
@@ -80,7 +80,7 @@ func WithL2Challenger(challengerID stack.L2ChallengerID, l1ELID stack.L1ELNodeID
 			l2NetIDs = append(l2NetIDs, l2Net.id)
 		}
 
-		dir := orch.P().TempDir()
+		dir := p.TempDir()
 		var cfg *config.Config
 		if interopScheduled {
 			require.NotNil(supervisorID, "need supervisor to connect to in interop")
@@ -122,12 +122,12 @@ func WithL2Challenger(challengerID stack.L2ChallengerID, l1ELID stack.L1ELNodeID
 			require.NoError(err, "Failed to create pre-interop challenger config")
 		}
 
-		svc, err := opchallenger.Main(orch.P().Ctx(), logger, cfg, metrics.NoopMetrics)
+		svc, err := opchallenger.Main(ctx, logger, cfg, metrics.NoopMetrics)
 		require.NoError(err)
 
-		require.NoError(svc.Start(orch.P().Ctx()))
-		orch.p.Cleanup(func() {
-			ctx, cancel := context.WithCancel(context.Background())
+		require.NoError(svc.Start(ctx))
+		p.Cleanup(func() {
+			ctx, cancel := context.WithCancel(ctx)
 			cancel() // force-quit
 			logger.Info("Closing challenger")
 			_ = svc.Stop(ctx)

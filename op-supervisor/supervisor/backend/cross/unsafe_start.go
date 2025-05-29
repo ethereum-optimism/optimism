@@ -14,18 +14,16 @@ type UnsafeStartDeps interface {
 
 	IsCrossUnsafe(chainID eth.ChainID, block eth.BlockID) error
 
-	DependencySet() depset.DependencySet
-
 	OpenBlock(chainID eth.ChainID, blockNum uint64) (ref eth.BlockRef, logCount uint32, execMsgs map[uint32]*types.ExecutingMessage, err error)
 }
 
 // CrossUnsafeHazards checks if the given messages all exist and pass invariants.
 // It returns a hazard-set: if any intra-block messaging happened,
 // these hazard blocks have to be verified.
-func CrossUnsafeHazards(d UnsafeStartDeps, logger log.Logger, chainID eth.ChainID,
+func CrossUnsafeHazards(d UnsafeStartDeps, linker depset.LinkChecker, logger log.Logger, chainID eth.ChainID,
 	candidate types.BlockSeal) (*HazardSet, error) {
 	unsafeDeps := &UnsafeHazardDeps{UnsafeStartDeps: d}
-	return NewHazardSet(unsafeDeps, logger, chainID, candidate)
+	return NewHazardSet(unsafeDeps, linker, logger, chainID, candidate)
 }
 
 // UnsafeHazardDeps adapts UnsafeStartDeps to HazardDeps

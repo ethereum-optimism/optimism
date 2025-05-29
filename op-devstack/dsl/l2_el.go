@@ -42,7 +42,7 @@ func (el *L2ELNode) BlockRefByLabel(label eth.BlockLabel) eth.BlockRef {
 	return block
 }
 
-func (el *L2ELNode) Advance(label eth.BlockLabel, block uint64) CheckFunc {
+func (el *L2ELNode) AdvancedFn(label eth.BlockLabel, block uint64) CheckFunc {
 	return func() error {
 		initial := el.BlockRefByLabel(label)
 		target := initial.Number + block
@@ -61,7 +61,7 @@ func (el *L2ELNode) Advance(label eth.BlockLabel, block uint64) CheckFunc {
 	}
 }
 
-func (el *L2ELNode) DoesNotAdvance(label eth.BlockLabel) CheckFunc {
+func (el *L2ELNode) NotAdvancedFn(label eth.BlockLabel) CheckFunc {
 	return func() error {
 		el.log.Info("expecting chain not to advance", "chain", el.inner.ChainID(), "label", label)
 		initial := el.BlockRefByLabel(label)
@@ -87,9 +87,9 @@ func (el *L2ELNode) BlockRefByNumber(num uint64) eth.BlockRef {
 	return block
 }
 
-// ReorgTriggered returns a lambda that checks that a L2 reorg occurred on the expected block
+// ReorgTriggeredFn returns a lambda that checks that a L2 reorg occurred on the expected block
 // Composable with other lambdas to wait in parallel
-func (el *L2ELNode) ReorgTriggered(target eth.L2BlockRef, attempts int) CheckFunc {
+func (el *L2ELNode) ReorgTriggeredFn(target eth.L2BlockRef, attempts int) CheckFunc {
 	return func() error {
 		el.log.Info("expecting chain to reorg on block ref", "id", el.inner.ID(), "chain", el.inner.ID().ChainID, "target", target)
 		return retry.Do0(el.ctx, attempts, &retry.FixedStrategy{Dur: 2 * time.Second},
@@ -118,4 +118,16 @@ func (el *L2ELNode) ReorgTriggered(target eth.L2BlockRef, attempts int) CheckFun
 				return nil
 			})
 	}
+}
+
+func (el *L2ELNode) Advanced(label eth.BlockLabel, block uint64) {
+	el.require.NoError(el.AdvancedFn(label, block)())
+}
+
+func (el *L2ELNode) NotAdvanced(label eth.BlockLabel) {
+	el.require.NoError(el.NotAdvancedFn(label)())
+}
+
+func (el *L2ELNode) ReorgTriggered(target eth.L2BlockRef, attempts int) {
+	el.require.NoError(el.ReorgTriggeredFn(target, attempts)())
 }

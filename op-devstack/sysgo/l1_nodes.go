@@ -56,6 +56,10 @@ func (n *L1CLNode) hydrate(system stack.ExtensibleSystem) {
 
 func WithL1Nodes(l1ELID stack.L1ELNodeID, l1CLID stack.L1CLNodeID) stack.Option[*Orchestrator] {
 	return stack.AfterDeploy(func(orch *Orchestrator) {
+		ctx := orch.P().Ctx()
+		ctx = stack.ContextWithChainID(ctx, l1ELID.ChainID)
+		clP := orch.P().WithCtx(stack.ContextWithKind(ctx, stack.L1CLNodeKind), "id", l1CLID)
+		elP := orch.P().WithCtx(stack.ContextWithKind(ctx, stack.L1ELNodeKind), "id", l1ELID)
 		require := orch.P().Require()
 
 		l1Net, ok := orch.l1Nets.Get(l1ELID.ChainID)
@@ -68,17 +72,18 @@ func WithL1Nodes(l1ELID stack.L1ELNodeID, l1CLID stack.L1CLNodeID) stack.Option[
 			l1Clock = orch.timeTravelClock
 		}
 
-		blobPath := orch.p.TempDir()
+		blobPath := clP.TempDir()
 
-		logger := orch.P().Logger().New("id", l1CLID)
-		bcn := fakebeacon.NewBeacon(logger, e2eutils.NewBlobStore(), l1Net.genesis.Timestamp, blockTimeL1)
-		orch.p.Cleanup(func() {
+		clLogger := clP.Logger()
+		bcn := fakebeacon.NewBeacon(clLogger, e2eutils.NewBlobStore(), l1Net.genesis.Timestamp, blockTimeL1)
+		clP.Cleanup(func() {
 			_ = bcn.Close()
 		})
 		require.NoError(bcn.Start("127.0.0.1:0"))
 		beaconApiAddr := bcn.BeaconAddr()
 		require.NotEmpty(beaconApiAddr, "beacon API listener must be up")
 
+		elLogger := elP.Logger()
 		l1Geth, fp, err := geth.InitL1(
 			blockTimeL1,
 			l1FinalizedDistance,
@@ -88,8 +93,8 @@ func WithL1Nodes(l1ELID stack.L1ELNodeID, l1CLID stack.L1CLNodeID) stack.Option[
 			bcn)
 		require.NoError(err)
 		require.NoError(l1Geth.Node.Start())
-		orch.p.Cleanup(func() {
-			logger.Info("Closing L1 geth")
+		elP.Cleanup(func() {
+			elLogger.Info("Closing L1 geth")
 			_ = l1Geth.Close()
 		})
 
@@ -105,7 +110,7 @@ func WithL1Nodes(l1ELID stack.L1ELNodeID, l1CLID stack.L1CLNodeID) stack.Option[
 			id:             l1CLID,
 			beaconHTTPAddr: beaconApiAddr,
 			beacon:         bcn,
-			fakepos:        &FakePoS{fakepos: fp, p: orch.p},
+			fakepos:        &FakePoS{fakepos: fp, p: clP},
 		}
 		require.True(orch.l1CLs.SetIfMissing(l1CLID, l1CLNode), "must not already exist")
 	})

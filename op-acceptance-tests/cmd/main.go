@@ -65,6 +65,12 @@ var (
 		Value:   defaultAcceptor,
 		EnvVars: []string{"ACCEPTOR"},
 	}
+	reuseDevnetFlag = &cli.BoolFlag{
+		Name:    "reuse-devnet",
+		Usage:   "Reuse the devnet if it already exists",
+		Value:   false,
+		EnvVars: []string{"REUSE_DEVNET"},
+	}
 )
 
 func main() {
@@ -79,6 +85,7 @@ func main() {
 			logLevelFlag,
 			kurtosisDirFlag,
 			acceptorFlag,
+			reuseDevnetFlag,
 		},
 		Action: runAcceptanceTest,
 	}
@@ -98,7 +105,7 @@ func runAcceptanceTest(c *cli.Context) error {
 	logLevel := c.String(logLevelFlag.Name)
 	kurtosisDir := c.String(kurtosisDirFlag.Name)
 	acceptor := c.String(acceptorFlag.Name)
-
+	reuseDevnet := c.Bool(reuseDevnetFlag.Name)
 	// Get the absolute path of the test directory
 	absTestDir, err := filepath.Abs(testDir)
 	if err != nil {
@@ -133,6 +140,9 @@ func runAcceptanceTest(c *cli.Context) error {
 
 	steps := []func(ctx context.Context) error{
 		func(ctx context.Context) error {
+			if reuseDevnet {
+				return nil
+			}
 			return deployDevnet(ctx, tracer, devnet, absKurtosisDir)
 		},
 		func(ctx context.Context) error {

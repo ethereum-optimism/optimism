@@ -285,9 +285,6 @@ follow up with asynchronous full verification of the safety.
 The `op-supervisor` is actively changing.
 The most immediate changes are that to the architecture and data flow, as outlined in [design-doc 171].
 
-Full support for chain reorgs (detecting them, and resolving them) is the
-next priority after the above architecture and data changes.
-
 Further background on the design-choices of op-supervisor can be found in the
 [superchain backend design-doc](https://github.com/ethereum-optimism/design-docs/blob/main/protocol/superchain-backend.md).
 

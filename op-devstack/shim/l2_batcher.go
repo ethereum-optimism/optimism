@@ -22,7 +22,10 @@ type rpcL2Batcher struct {
 var _ stack.L2Batcher = (*rpcL2Batcher)(nil)
 
 func NewL2Batcher(cfg L2BatcherConfig) stack.L2Batcher {
-	cfg.Log = cfg.Log.New("chainID", cfg.ID.ChainID, "id", cfg.ID)
+	ctx := cfg.T.Ctx()
+	ctx = stack.ContextWithKind(ctx, stack.L2BatcherKind)
+	ctx = stack.ContextWithChainID(ctx, cfg.ID.ChainID)
+	cfg.T = cfg.T.WithCtx(ctx, "chainID", cfg.ID.ChainID, "id", cfg.ID)
 	return &rpcL2Batcher{
 		commonImpl: newCommon(cfg.CommonConfig),
 		id:         cfg.ID,

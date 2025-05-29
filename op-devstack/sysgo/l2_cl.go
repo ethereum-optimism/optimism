@@ -125,7 +125,12 @@ func (n *L2CLNode) Stop() {
 
 func WithL2CLNode(l2CLID stack.L2CLNodeID, isSequencer bool, l1CLID stack.L1CLNodeID, l1ELID stack.L1ELNodeID, l2ELID stack.L2ELNodeID) stack.Option[*Orchestrator] {
 	return stack.AfterDeploy(func(orch *Orchestrator) {
-		require := orch.P().Require()
+		ctx := orch.P().Ctx()
+		ctx = stack.ContextWithChainID(ctx, l2CLID.ChainID)
+		ctx = stack.ContextWithKind(ctx, stack.L2CLNodeKind)
+		p := orch.P().WithCtx(ctx, "service", "op-node", "id", l2CLID)
+
+		require := p.Require()
 
 		l2Net, ok := orch.l2Nets.Get(l2CLID.ChainID)
 		require.True(ok, "l2 network required")
@@ -141,7 +146,7 @@ func WithL2CLNode(l2CLID stack.L2CLNodeID, isSequencer bool, l1CLID stack.L1CLNo
 
 		jwtPath, jwtSecret := orch.writeDefaultJWT()
 
-		logger := orch.P().Logger().New("service", "op-node", "id", l2CLID)
+		logger := p.Logger()
 
 		var p2pSignerSetup p2p.SignerSetup
 		var p2pConfig *p2p.Config
@@ -248,12 +253,12 @@ func WithL2CLNode(l2CLID stack.L2CLNodeID, isSequencer bool, l1CLID stack.L1CLNo
 			id:     l2CLID,
 			cfg:    nodeCfg,
 			logger: logger,
-			p:      orch.P(),
+			p:      p,
 			el:     l2ELID,
 		}
 		require.True(orch.l2CLs.SetIfMissing(l2CLID, l2CLNode), "must not already exist")
 		l2CLNode.Start()
-		orch.p.Cleanup(l2CLNode.Stop)
+		p.Cleanup(l2CLNode.Stop)
 	})
 }
 

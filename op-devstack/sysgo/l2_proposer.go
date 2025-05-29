@@ -44,13 +44,18 @@ func (p *L2Proposer) hydrate(system stack.ExtensibleSystem) {
 func WithProposer(proposerID stack.L2ProposerID, l1ELID stack.L1ELNodeID,
 	l2CLID *stack.L2CLNodeID, supervisorID *stack.SupervisorID) stack.Option[*Orchestrator] {
 	return stack.AfterDeploy(func(orch *Orchestrator) {
-		require := orch.P().Require()
+		ctx := orch.P().Ctx()
+		ctx = stack.ContextWithChainID(ctx, proposerID.ChainID)
+		ctx = stack.ContextWithKind(ctx, stack.L2ProposerKind)
+		p := orch.P().WithCtx(ctx, "service", "op-proposer", "id", proposerID)
+
+		require := p.Require()
 		require.False(orch.proposers.Has(proposerID), "proposer must not already exist")
 
 		proposerSecret, err := orch.keys.Secret(devkeys.ProposerRole.Key(proposerID.ChainID.ToBig()))
 		require.NoError(err)
 
-		logger := orch.P().Logger().New("service", "op-proposer", "id", proposerID)
+		logger := p.Logger()
 		logger.Info("Proposer key acquired", "addr", crypto.PubkeyToAddress(proposerSecret.PublicKey))
 
 		l1EL, ok := orch.l1ELs.Get(l1ELID)
@@ -92,23 +97,23 @@ func WithProposer(proposerID stack.L2ProposerID, l1ELID stack.L1ELNodeID,
 			proposerCLIConfig.RollupRpc = l2CL.userRPC
 		}
 
-		proposer, err := ps.ProposerServiceFromCLIConfig(context.Background(), "0.0.1", proposerCLIConfig, logger)
+		proposer, err := ps.ProposerServiceFromCLIConfig(ctx, "0.0.1", proposerCLIConfig, logger)
 		require.NoError(err)
 
-		require.NoError(proposer.Start(orch.P().Ctx()))
-		orch.p.Cleanup(func() {
-			ctx, cancel := context.WithCancel(context.Background())
+		require.NoError(proposer.Start(ctx))
+		p.Cleanup(func() {
+			ctx, cancel := context.WithCancel(ctx)
 			cancel() // force-quit
 			logger.Info("Closing proposer")
 			_ = proposer.Stop(ctx)
 			logger.Info("Closed proposer")
 		})
 
-		p := &L2Proposer{
+		prop := &L2Proposer{
 			id:      proposerID,
 			service: proposer,
 			userRPC: proposer.HTTPEndpoint(),
 		}
-		orch.proposers.Set(proposerID, p)
+		orch.proposers.Set(proposerID, prop)
 	})
 }

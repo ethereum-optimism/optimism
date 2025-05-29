@@ -25,7 +25,7 @@ func TestCLAdvance(gt *testing.T) {
 		defer span.End()
 
 		new_num, num = sys.L2CL.SafeL2BlockRef().Number, new_num
-		t.Logger().WithContext(ctx).Info("safe head", "number", new_num)
+		t.Logger().InfoContext(ctx, "safe head", "number", new_num)
 		return new_num > num
 	}, 30*time.Second, waitTime)
 }

@@ -18,6 +18,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-devstack/sysgo"
 	"github.com/ethereum-optimism/optimism/op-service/locks"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
+	"github.com/ethereum-optimism/optimism/op-service/logfilter"
 )
 
 // lockedOrchestrator is the global variable that stores
@@ -55,12 +56,16 @@ func DoMain(m *testing.M, opts ...stack.CommonOption) {
 		}()
 
 		// This may be tuned with env or CLI flags in the future, to customize test output
-		logger := oplog.NewLogger(os.Stdout, oplog.CLIConfig{
-			Level:  log.LevelInfo,
+		logHandler := oplog.NewLogHandler(os.Stdout, oplog.CLIConfig{
+			Level:  log.LevelTrace,
 			Color:  true,
 			Format: oplog.FormatTerminal,
 			Pid:    false,
 		})
+		logHandler = logfilter.WrapFilterHandler(logHandler)
+		// The default can be changed using the WithLogFiltersReset option
+		logHandler.(logfilter.Handler).Set(logfilter.Minimum(devtest.DefaultTestLogLevel))
+		logger := log.NewLogger(logHandler)
 
 		ctx, otelShutdown, err := telemetry.SetupOpenTelemetry(context.Background())
 		if err != nil {
@@ -72,7 +77,12 @@ func DoMain(m *testing.M, opts ...stack.CommonOption) {
 		ctx, run := otel.Tracer("run").Start(ctx, "test suite")
 		defer run.End()
 
+		// All tests will inherit this package-level context
 		devtest.RootContext = ctx
+
+		// Make the package-level logger use this context
+		logger.SetContext(ctx)
+
 		p := devtest.NewP(ctx, logger, func() {
 			debug.PrintStack()
 			failed.Store(true)
@@ -119,7 +129,7 @@ func initOrchestrator(ctx context.Context, p devtest.P, opt stack.CommonOption) 
 		panic(fmt.Sprintf("Unknown backend for initializing orchestrator: %s", backend))
 	}
 
-	p.Logger().WithContext(ctx).Info("initializing orchestrator", "backend", backend)
+	p.Logger().InfoContext(ctx, "initializing orchestrator", "backend", backend)
 	stack.ApplyOptionLifecycle(opt, lockedOrchestrator.Value)
 }
 

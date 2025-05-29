@@ -7,6 +7,8 @@ import (
 
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
+
+	"github.com/ethereum-optimism/optimism/op-service/logmods"
 )
 
 func WrapHandler(h slog.Handler) slog.Handler {
@@ -17,6 +19,12 @@ func WrapHandler(h slog.Handler) slog.Handler {
 
 type tracingHandler struct {
 	slog.Handler
+}
+
+var _ logmods.Handler = (*tracingHandler)(nil)
+
+func (h *tracingHandler) Unwrap() slog.Handler {
+	return h.Handler
 }
 
 func (h *tracingHandler) Handle(ctx context.Context, record slog.Record) error {

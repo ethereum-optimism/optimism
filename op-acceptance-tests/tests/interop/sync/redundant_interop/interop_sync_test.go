@@ -23,8 +23,8 @@ func TestUnsafeChainKnownToL2CL(gt *testing.T) {
 
 	logger.Info("Make sure verifier safe head advances")
 	dsl.CheckAll(t,
-		sys.L2CLA.Advanced(types.CrossSafe, 5, 30),
-		sys.L2CLA2.Advanced(types.CrossSafe, 5, 30),
+		sys.L2CLA.AdvancedFn(types.CrossSafe, 5, 30),
+		sys.L2CLA2.AdvancedFn(types.CrossSafe, 5, 30),
 	)
 
 	safeA2 := sys.L2ELA2.BlockRefByLabel(eth.Safe)
@@ -65,12 +65,12 @@ func TestUnsafeChainKnownToL2CL(gt *testing.T) {
 	// The verifier will quickly catch up with the sequencer safe head as well as the supervisor.
 	// The verifier will "skip" processing already known unsafe blocks, and consolidate them into safe blocks.
 	logger.Info("Make sure verifier unsafe head was consolidated to safe")
-	dsl.CheckAll(t, sys.L2CLA2.Reached(types.CrossSafe, unsafeA2.Number, 30))
+	sys.L2CLA2.Reached(types.CrossSafe, unsafeA2.Number, 30)
 
 	safeA := sys.L2ELA.BlockRefByLabel(eth.Safe)
 	target := safeA.Number + delta
 	logger.Info("Make sure verifier unsafe head advances due to safe head advances", "target", target, "delta", delta)
-	dsl.CheckAll(t, sys.L2CLA2.Reached(types.LocalUnsafe, target, 30))
+	sys.L2CLA2.Reached(types.LocalUnsafe, target, 30)
 
 	block := sys.L2ELA2.BlockRefByNumber(unsafeA2.Number)
 	require.Equal(unsafeA2.Hash, block.Hash)

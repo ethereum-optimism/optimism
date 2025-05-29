@@ -18,8 +18,11 @@ type rpcL1ELNode struct {
 var _ stack.L1ELNode = (*rpcL1ELNode)(nil)
 
 func NewL1ELNode(cfg L1ELNodeConfig) stack.L1ELNode {
+	ctx := cfg.T.Ctx()
+	ctx = stack.ContextWithKind(ctx, stack.L1ELNodeKind)
+	ctx = stack.ContextWithChainID(ctx, cfg.ID.ChainID)
+	cfg.T = cfg.T.WithCtx(ctx, "chainID", cfg.ID.ChainID, "id", cfg.ID)
 	require.Equal(cfg.T, cfg.ID.ChainID, cfg.ELNodeConfig.ChainID, "chainID must be configured to match node chainID")
-	cfg.Log = cfg.Log.New("chainID", cfg.ID.ChainID, "id", cfg.ID)
 	return &rpcL1ELNode{
 		rpcELNode: newRpcELNode(cfg.ELNodeConfig),
 		id:        cfg.ID,

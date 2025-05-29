@@ -1,6 +1,8 @@
 # Configuration file for acceptance tests (op-acceptor)
 #
 # All acceptance tests need to be registered here for op-acceptor to run them.
+# As a rule of thumb, we recommend that each fork gate inherits from the
+# base gate as well as any earlier fork gates.
 
 
 
@@ -9,6 +11,8 @@ gates:
     description: "Sanity/smoke acceptance tests for all networks."
     tests:
       - package: github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/base
+      - package: github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/base/deposit
+        timeout: 10m
 
   - id: holocene
     inherits:
@@ -42,3 +46,6 @@ gates:
     description: "Interop network tests."
     tests:
       - package: github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/interop
+        timeout: 10m
+      - package: github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/interop/message
+      - package: github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/interop/sync

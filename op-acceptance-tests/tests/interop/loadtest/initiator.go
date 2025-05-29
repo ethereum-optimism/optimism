@@ -2,6 +2,7 @@ package loadtest
 
 import (
 	"math/rand"
+	"sync"
 
 	"github.com/ethereum-optimism/optimism/devnet-sdk/contracts/constants"
 	"github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/interop"
@@ -14,8 +15,6 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 )
 
-var rng = rand.New(rand.NewSource(1234))
-
 type Initiator interface {
 	Initiate(t devtest.T) []types.Message
 }
@@ -25,6 +24,8 @@ type ManyMsgsInitiator struct {
 	eoa         *dsl.EOA
 	eventLogger common.Address
 	counter     *nonceCounter
+	rngMu       sync.Mutex
+	rng         *rand.Rand
 }
 
 func NewManyMsgsInitiator(funder *dsl.Funder, el *dsl.L2ELNode, eventLogger common.Address) *ManyMsgsInitiator {
@@ -33,18 +34,25 @@ func NewManyMsgsInitiator(funder *dsl.Funder, el *dsl.L2ELNode, eventLogger comm
 		el:          el,
 		eventLogger: eventLogger,
 		counter:     new(nonceCounter),
+		rng:         rand.New(rand.NewSource(1234)),
 	}
 }
 
-func (in *ManyMsgsInitiator) Initiate(t devtest.T) []types.Message {
+func (in *ManyMsgsInitiator) randomInitTriggers() []txintent.Call {
 	const numMsgs = 275 // About the max number of msgs we can create before hitting tx size limits.
 	initCalls := make([]txintent.Call, 0, numMsgs)
+	in.rngMu.Lock()
+	defer in.rngMu.Unlock()
 	for range numMsgs {
-		initCalls = append(initCalls, interop.RandomInitTrigger(rng, in.eventLogger, rng.Intn(5), rng.Intn(10)))
+		initCalls = append(initCalls, interop.RandomInitTrigger(in.rng, in.eventLogger, in.rng.Intn(5), in.rng.Intn(10)))
 	}
+	return initCalls
+}
+
+func (in *ManyMsgsInitiator) Initiate(t devtest.T) []types.Message {
 	return buildAndSendInitTx(t, in.eoa, in.el, &txintent.MultiTrigger{
 		Emitter: constants.MultiCall3,
-		Calls:   initCalls,
+		Calls:   in.randomInitTriggers(),
 	}, txplan.WithStaticNonce(in.counter.Next()))
 }
 
@@ -53,6 +61,8 @@ type LargeMsgInitiator struct {
 	el          *dsl.L2ELNode
 	eventLogger common.Address
 	counter     *nonceCounter
+	rngMu       sync.Mutex
+	rng         *rand.Rand
 }
 
 func NewLargeMsgInitiator(funder *dsl.Funder, el *dsl.L2ELNode, eventLogger common.Address) *LargeMsgInitiator {
@@ -61,16 +71,28 @@ func NewLargeMsgInitiator(funder *dsl.Funder, el *dsl.L2ELNode, eventLogger comm
 		el:          el,
 		eventLogger: eventLogger,
 		counter:     new(nonceCounter),
+		rng:         rand.New(rand.NewSource(1234)),
 	}
+}
+
+func (lin *LargeMsgInitiator) randomInitTrigger() *txintent.InitTrigger {
+	lin.rngMu.Lock()
+	defer lin.rngMu.Unlock()
+	return interop.RandomInitTrigger(lin.rng, lin.eventLogger, 4, 75_000)
 }
 
 func (lin *LargeMsgInitiator) Initiate(t devtest.T) []types.Message {
 	// TODO(#16039): can we create an even larger event without the event logger?
-	return buildAndSendInitTx(t, lin.eoa, lin.el, interop.RandomInitTrigger(rng, lin.eventLogger, 4, 75_000), txplan.WithStaticNonce(lin.counter.Next()))
+	return buildAndSendInitTx(t, lin.eoa, lin.el, lin.randomInitTrigger(), txplan.WithStaticNonce(lin.counter.Next()))
 }
 
 func buildAndSendInitTx(t devtest.T, eoa *dsl.EOA, el *dsl.L2ELNode, initCall txintent.Call, opts ...txplan.Option) []types.Message {
-	initMsgsTx := txintent.NewIntent[txintent.Call, *txintent.InteropOutput](eoa.Plan(), retryForever(el.Escape().EthClient()), txplan.Combine(opts...))
+	initMsgsTx := txintent.NewIntent[txintent.Call, *txintent.InteropOutput](
+		eoa.Plan(),
+		retrySubmissionForever(el.Escape().EthClient()),
+		retryInclusionForever(el.Escape().EthClient()),
+		txplan.Combine(opts...),
+	)
 	initMsgsTx.Content.Set(initCall)
 	_, err := initMsgsTx.PlannedTx.Success.Eval(t.Ctx())
 	t.Require().NoError(err)

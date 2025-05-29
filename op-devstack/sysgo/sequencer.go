@@ -71,9 +71,12 @@ func (s *TestSequencer) hydrate(sys stack.ExtensibleSystem) {
 
 func WithTestSequencer(testSequencerID stack.TestSequencerID, l2CLID stack.L2CLNodeID, l1ELID stack.L1ELNodeID, l2ELID stack.L2ELNodeID) stack.Option[*Orchestrator] {
 	return stack.AfterDeploy(func(orch *Orchestrator) {
-		require := orch.P().Require()
+		ctx := orch.P().Ctx()
+		ctx = stack.ContextWithKind(ctx, stack.TestSequencerKind)
+		p := orch.P().WithCtx(ctx, "service", "op-test-sequencer", "id", testSequencerID)
+		require := p.Require()
 
-		logger := orch.P().Logger().New("service", "op-test-sequencer", "id", testSequencerID)
+		logger := p.Logger()
 
 		l1EL, ok := orch.l1ELs.Get(l1ELID)
 		require.True(ok, "l1 EL node required")
@@ -189,14 +192,14 @@ func WithTestSequencer(testSequencerID stack.TestSequencerID, l2CLID stack.L2CLN
 			MockRun:       false,
 		}
 
-		sq, err := sequencer.FromConfig(context.Background(), cfg, logger)
+		sq, err := sequencer.FromConfig(ctx, cfg, logger)
 		require.NoError(err)
 
-		err = sq.Start(context.Background())
+		err = sq.Start(ctx)
 		require.NoError(err)
 
-		orch.p.Cleanup(func() {
-			ctx, cancel := context.WithCancel(context.Background())
+		p.Cleanup(func() {
+			ctx, cancel := context.WithCancel(ctx)
 			cancel()
 			logger.Info("Closing sequencer")
 			closeErr := sq.Stop(ctx)

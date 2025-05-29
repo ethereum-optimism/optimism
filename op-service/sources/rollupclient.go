@@ -4,6 +4,7 @@ import (
 	"context"
 	"log/slog"
 
+	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/depset"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 
@@ -44,6 +45,12 @@ func (r *RollupClient) SyncStatus(ctx context.Context) (*eth.SyncStatus, error) 
 func (r *RollupClient) RollupConfig(ctx context.Context) (*rollup.Config, error) {
 	var output *rollup.Config
 	err := r.rpc.CallContext(ctx, &output, "optimism_rollupConfig")
+	return output, err
+}
+
+func (r *RollupClient) DependencySet(ctx context.Context) (depset.DependencySet, error) {
+	var output *depset.StaticConfigDependencySet
+	err := r.rpc.CallContext(ctx, &output, "optimism_dependencySet")
 	return output, err
 }
 
