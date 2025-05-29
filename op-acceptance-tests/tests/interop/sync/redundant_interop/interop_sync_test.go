@@ -13,6 +13,7 @@ import (
 // TestUnsafeChainKnownToL2CL tests the below scenario:
 // supervisor cross-safe ahead of L2CL cross-safe, aka L2CL can "skip" forward to match safety of supervisor.
 func TestUnsafeChainKnownToL2CL(gt *testing.T) {
+	gt.Skip() // TODO(#16187): Fix to use multi-supervisor (not multi-node) setup.
 	t := devtest.SerialT(gt)
 
 	// Sequencer and verifier are connected via P2P, which makes their unsafe heads in sync.
@@ -84,6 +85,7 @@ func TestUnsafeChainKnownToL2CL(gt *testing.T) {
 // TestUnsafeChainUnknownToL2CL tests the below scenario:
 // supervisor unsafe ahead of L2CL unsafe, aka L2CL processes new blocks first.
 func TestUnsafeChainUnknownToL2CL(gt *testing.T) {
+	gt.Skip() // TODO(#16187): Fix to use multi-supervisor (not multi-node) setup.
 	t := devtest.SerialT(gt)
 
 	// Sequencer and verifier are connected via P2P, which makes their unsafe heads in sync.
