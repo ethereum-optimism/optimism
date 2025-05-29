@@ -655,7 +655,7 @@ contract L2ToL2CrossDomainMessengerTest is Test {
             Identifier(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER, _blockNum, _logIndex, _time, _source);
         bytes memory sentMessage = abi.encodePacked(
             abi.encode(L2ToL2CrossDomainMessenger.SentMessage.selector, block.chainid, _target, _nonce), // topics
-            abi.encode(_sender, _message, originContext) // data (no context)
+            abi.encode(_sender, _message, originContext)
         );
 
         // Ensure the CrossL2Inbox validates this message

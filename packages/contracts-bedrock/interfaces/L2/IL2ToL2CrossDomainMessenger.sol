@@ -64,6 +64,10 @@ interface IL2ToL2CrossDomainMessenger {
         uint256 indexed source, uint256 indexed messageNonce, bytes32 indexed messageHash, bytes32 returnDataHash
     );
 
+    /// @notice Retrieves the current origin context encoding version.
+    function ORIGIN_CONTEXT_ENCODING_VERSION() external view returns (uint8);
+
+    /// @notice Semantic version.
     function version() external view returns (string memory);
 
     /// @notice Mapping of message hashes to boolean receipt values. Note that a message will only
@@ -90,6 +94,10 @@ interface IL2ToL2CrossDomainMessenger {
     /// @notice Retrieves the source of the current cross domain message.
     /// @return source_ Chain ID of the source of the current cross domain message.
     function crossDomainMessageSource() external view returns (uint256 source_);
+
+    /// @notice Retrieves the origin context of the current cross domain message. If not entered, reverts.
+    /// @return context_ Origin context of the current cross domain message.
+    function crossDomainMessageOriginContext() external view returns (bytes memory context_);
 
     /// @notice Retrieves the context of the current cross domain message. If not entered, reverts.
     /// @return sender_ Address of the sender of the current cross domain message.
