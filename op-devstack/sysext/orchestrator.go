@@ -43,6 +43,9 @@ func NewOrchestrator(p devtest.P, sysHook stack.SystemHook) *Orchestrator {
 	}
 	env, err := env.LoadDevnetFromURL(url)
 	p.Require().NoError(err, "Error loading devnet environment")
+	p.Require().NotNil(env, "Error loading devnet environment: DevnetEnv is nil")
+	p.Require().NotNil(env.Env, "Error loading devnet environment: DevnetEnvironment is nil")
+
 	orch := &Orchestrator{
 		env:     env,
 		p:       p,
@@ -59,6 +62,10 @@ func (o *Orchestrator) P() devtest.P {
 }
 
 func (o *Orchestrator) Hydrate(sys stack.ExtensibleSystem) {
+	if o.env == nil || o.env.Env == nil {
+		panic("orchestrator not properly initialized: env is nil")
+	}
+
 	o.sysHook.PreHydrate(sys)
 	o.hydrateL1(sys)
 	o.hydrateSuperchain(sys)
