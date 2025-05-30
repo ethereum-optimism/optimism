@@ -1,4 +1,6 @@
-FROM golang:1.23.8-alpine3.21 AS src
+ARG GO_VERSION=1.23.8-alpine3.21
+ARG EXPORT_TARGET=current
+FROM golang:${GO_VERSION} AS src
 
 RUN apk add --no-cache make gcc musl-dev linux-headers git jq bash just
 
@@ -16,6 +18,7 @@ COPY . /app
 
 # we need a separate stage for src so we can build a service provides prestates for unnanounced chains
 FROM src AS builder
+ARG EXPORT_TARGET
 # We avoid copying the full .git dir into the build for just some metadata.
 # Instead, specify:
 # --build-arg GIT_COMMIT=$(git rev-parse HEAD)
@@ -38,22 +41,35 @@ RUN --mount=type=cache,target=/go/pkg/mod --mount=type=cache,target=/root/.cache
         GIT_DATE="$GIT_DATE" \
         CANNON_VERSION="$CANNON_VERSION" \
         OP_PROGRAM_VERSION="$OP_PROGRAM_VERSION" \
-        build-all
+        "build-${EXPORT_TARGET}"
+
+
+FROM scratch AS export-current
+# Cannon64 files
+COPY --from=builder /app/op-program/bin/op-program-client64.elf .
+COPY --from=builder /app/op-program/bin/meta-mt64.json .
+COPY --from=builder /app/op-program/bin/prestate-mt64.bin.gz .
+COPY --from=builder /app/op-program/bin/prestate-proof-mt64.json .
+# Interop files
+COPY --from=builder ./app/op-program/bin/op-program-client-interop.elf .
+COPY --from=builder /app/op-program/bin/meta-interop.json .
+COPY --from=builder /app/op-program/bin/prestate-interop.bin.gz .
+COPY --from=builder /app/op-program/bin/prestate-proof-interop.json .
+
+FROM scratch AS export-next
+# Cannon64 Next VM files
+COPY --from=builder /app/op-program/bin/op-program-client64.elf ./op-program-client-next64.elf
+COPY --from=builder /app/op-program/bin/meta-mt64Next.json .
+COPY --from=builder /app/op-program/bin/prestate-mt64Next.bin.gz .
+COPY --from=builder /app/op-program/bin/prestate-proof-mt64Next.json .
+# Interop Next files
+COPY --from=builder ./app/op-program/bin/op-program-client-interop.elf ./op-program-client-interopNext.elf
+COPY --from=builder /app/op-program/bin/meta-interopNext.json .
+COPY --from=builder /app/op-program/bin/prestate-interopNext.bin.gz .
+COPY --from=builder /app/op-program/bin/prestate-proof-interopNext.json .
 
 # Exports files to the specified output location.
 # Writing files to host requires buildkit to be enabled.
 # e.g. `BUILDKIT=1 docker build ...`
-FROM scratch AS export-stage
-COPY --from=builder /app/op-program/bin/op-program-client64.elf .
-# Cannon64 files
-COPY --from=builder /app/op-program/bin/meta-mt64.json .
-COPY --from=builder /app/op-program/bin/prestate-mt64.bin.gz .
-COPY --from=builder /app/op-program/bin/prestate-proof-mt64.json .
-# Cannon64 Next VM files
-COPY --from=builder /app/op-program/bin/meta-mt64Next.json .
-COPY --from=builder /app/op-program/bin/prestate-mt64Next.bin.gz .
-COPY --from=builder /app/op-program/bin/prestate-proof-mt64Next.json .
-# Interop files
-COPY --from=builder /app/op-program/bin/meta-interop.json .
-COPY --from=builder /app/op-program/bin/prestate-interop.bin.gz .
-COPY --from=builder /app/op-program/bin/prestate-proof-interop.json .
+# Final export stage — dynamically selected
+FROM export-${EXPORT_TARGET} AS export-stage

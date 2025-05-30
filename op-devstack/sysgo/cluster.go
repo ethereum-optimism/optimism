@@ -21,5 +21,8 @@ func (c *Cluster) hydrate(system stack.ExtensibleSystem) {
 }
 
 func (c *Cluster) DepSet() *depset.StaticConfigDependencySet {
+	if c.cfgset.DependencySet == nil {
+		return nil
+	}
 	return c.cfgset.DependencySet.(*depset.StaticConfigDependencySet)
 }

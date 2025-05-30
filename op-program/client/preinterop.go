@@ -22,6 +22,7 @@ func RunPreInteropProgram(
 	result, err := tasks.RunDerivation(
 		logger,
 		bootInfo.RollupConfig,
+		nil, // No dependency set pre-interop
 		bootInfo.L2ChainConfig,
 		bootInfo.L1Head,
 		bootInfo.L2OutputRoot,

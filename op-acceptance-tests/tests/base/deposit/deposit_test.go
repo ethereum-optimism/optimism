@@ -28,7 +28,7 @@ func TestL1ToL2Deposit(gt *testing.T) {
 	sys.L1Network.WaitForOnline()
 
 	// Fund Alice on L1
-	fundingAmount := eth.ThousandEther
+	fundingAmount := eth.ThreeHundredthsEther
 	alice := sys.Wallet.NewEOA(sys.L1EL)
 	initialBalance := sys.FunderL1.FundAtLeast(alice, fundingAmount)
 
@@ -39,7 +39,7 @@ func TestL1ToL2Deposit(gt *testing.T) {
 	rollupConfig := sys.L2Chain.Escape().RollupConfig()
 	portalAddr := rollupConfig.DepositContractAddress
 
-	depositAmount := eth.OneEther
+	depositAmount := eth.OneHundredthEther
 
 	// Define the deposit function and encode arguments
 	// TODO: Redo this when the new DSL (#16079) is merged

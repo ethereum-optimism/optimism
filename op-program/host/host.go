@@ -165,6 +165,7 @@ func (p *programExecutor) RunProgram(
 	result, err := tasks.RunDerivation(
 		p.logger,
 		rollupConfig,
+		p.cfg.DependencySet,
 		l2ChainConfig,
 		p.cfg.L1Head,
 		outputRoot,

@@ -91,10 +91,9 @@ func GenerateL2Genesis(pEnv *Env, intent *state.Intent, bundle ArtifactsBundle, 
 		SequencerFeeVaultRecipient:               thisIntent.SequencerFeeVaultRecipient,
 		GovernanceTokenOwner:                     overrides.GovernanceTokenOwner,
 		Fork:                                     big.NewInt(schedule.SolidityForkNumber(1)),
-		// Only include interop predeploys if it is activating at genesis
-		UseInterop:       schedule.L2GenesisInteropTimeOffset != nil && *schedule.L2GenesisInteropTimeOffset == 0,
-		EnableGovernance: overrides.EnableGovernance,
-		FundDevAccounts:  overrides.FundDevAccounts,
+		DeployCrossL2Inbox:                       len(intent.Chains) > 1,
+		EnableGovernance:                         overrides.EnableGovernance,
+		FundDevAccounts:                          overrides.FundDevAccounts,
 	}); err != nil {
 		return fmt.Errorf("failed to call L2Genesis script: %w", err)
 	}

@@ -404,7 +404,7 @@ func (s *interopE2ESystem) Address(id, username string) common.Address {
 func (s *interopE2ESystem) prepareL2s() map[string]l2Net {
 	l2s := make(map[string]l2Net)
 	for id, l2Out := range s.worldOutput.L2s {
-		l2s[id] = s.newL2(id, l2Out)
+		l2s[id] = s.newL2(id, l2Out, s.DependencySet())
 	}
 	return l2s
 }

@@ -63,9 +63,10 @@ type VersionedVMTestCase struct {
 	ElfVMFactory   ElfVMFactory
 	ProofGenerator ProofGenerator
 	Version        versions.StateVersion
+	GoTarget       testutil.GoTarget
 }
 
-func GetMultiThreadedTestCase(t require.TestingT, version versions.StateVersion) VersionedVMTestCase {
+func GetMultiThreadedTestCase(t require.TestingT, version versions.StateVersion, goTarget testutil.GoTarget) VersionedVMTestCase {
 	features := versions.FeaturesForVersion(version)
 	return VersionedVMTestCase{
 		Name:        version.String(),
@@ -79,6 +80,7 @@ func GetMultiThreadedTestCase(t require.TestingT, version versions.StateVersion)
 		},
 		ProofGenerator: multiThreadedProofGenerator,
 		Version:        version,
+		GoTarget:       goTarget,
 	}
 }
 
@@ -86,7 +88,12 @@ func GetMipsVersionTestCases(t require.TestingT) []VersionedVMTestCase {
 	var cases []VersionedVMTestCase
 	for _, version := range versions.StateVersionTypes {
 		if !arch.IsMips32 && versions.IsSupportedMultiThreaded64(version) {
-			cases = append(cases, GetMultiThreadedTestCase(t, version))
+			goTarget := testutil.Go1_23
+			features := versions.FeaturesForVersion(version)
+			if features.SupportWorkingSysGetRandom {
+				goTarget = testutil.Go1_24
+			}
+			cases = append(cases, GetMultiThreadedTestCase(t, version, goTarget))
 		}
 	}
 	return cases

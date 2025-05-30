@@ -114,7 +114,7 @@ func Deploy(logger log.Logger, fa *foundry.ArtifactsFS, srcFS *foundry.SourceMap
 		if err := l2Host.EnableCheats(); err != nil {
 			return nil, nil, fmt.Errorf("failed to enable cheats in L2 state %s: %w", l2ChainID, err)
 		}
-		if err := GenesisL2(l2Host, l2Cfg, deployments.L2s[l2ChainID]); err != nil {
+		if err := GenesisL2(l2Host, l2Cfg, deployments.L2s[l2ChainID], len(cfg.L2s) > 1); err != nil {
 			return nil, nil, fmt.Errorf("failed to apply genesis data to L2 %s: %w", l2ChainID, err)
 		}
 		l2Out, err := CompleteL2(l2Host, l2Cfg, l1GenesisBlock, deployments.L2s[l2ChainID])
@@ -297,7 +297,7 @@ func MigrateInterop(
 	}, nil
 }
 
-func GenesisL2(l2Host *script.Host, cfg *L2Config, deployment *L2Deployment) error {
+func GenesisL2(l2Host *script.Host, cfg *L2Config, deployment *L2Deployment, multichainDepSet bool) error {
 	genesisScript, err := opcm.NewL2GenesisScript(l2Host)
 	if err != nil {
 		return fmt.Errorf("failed to create L2 genesis script: %w", err)
@@ -321,10 +321,9 @@ func GenesisL2(l2Host *script.Host, cfg *L2Config, deployment *L2Deployment) err
 		L1FeeVaultWithdrawalNetwork:              big.NewInt(int64(cfg.L1FeeVaultWithdrawalNetwork.ToUint8())),
 		GovernanceTokenOwner:                     cfg.GovernanceTokenOwner,
 		Fork:                                     big.NewInt(cfg.SolidityForkNumber(1)),
-		// Only include interop predeploys if it is activating at genesis
-		UseInterop:       cfg.L2GenesisInteropTimeOffset != nil && *cfg.L2GenesisInteropTimeOffset == 0,
-		EnableGovernance: cfg.EnableGovernance,
-		FundDevAccounts:  cfg.FundDevAccounts,
+		DeployCrossL2Inbox:                       multichainDepSet,
+		EnableGovernance:                         cfg.EnableGovernance,
+		FundDevAccounts:                          cfg.FundDevAccounts,
 	}); err != nil {
 		return fmt.Errorf("failed L2 genesis: %w", err)
 	}

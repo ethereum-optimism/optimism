@@ -1,0 +1,198 @@
+vm: Cannon
+goos: linux
+goarch: mips64
+ignored_functions:
+  - 'syscall.setrlimit'
+  - 'runtime.morestack'
+  - 'runtime.abort'
+  - 'runtime.sysFaultOS'
+  - 'runtime.netpollinit'
+
+allowed_opcodes:
+  - opcode: '0x2'
+    funct: []
+  - opcode: '0x3'
+    funct: []
+  - opcode: '0x38'
+    funct: []
+  - opcode: '0x30'
+    funct: []
+  - opcode: '0x27'
+    funct: []
+  - opcode: '0x1a'
+    funct: []
+  - opcode: '0x1b'
+    funct: []
+  - opcode: '0x4'
+    funct: []
+  - opcode: '0x5'
+    funct: []
+  - opcode: '0x6'
+    funct: []
+  - opcode: '0x7'
+    funct: []
+  - opcode: '0x1'
+    funct: []
+  - opcode: '0x0'
+    funct:
+      - '0x27'
+      - '0x20'
+      - '0x21'
+      - '0x2A'
+      - '0x2B'
+      - '0x24'
+      - '0x25'
+      - '0x26'
+      - '0x2c'
+      - '0x2d'
+      - '0x0'
+      - '0x2'
+      - '0x3'
+      - '0x4'
+      - '0x6'
+      - '0x7'
+      - '0x8'
+      - '0x9'
+      - '0xa'
+      - '0xb'
+      - '0xc'
+      - '0xf'
+      - '0x10'
+      - '0x11'
+      - '0x12'
+      - '0x13'
+      - '0x14'
+      - '0x18'
+      - '0x19'
+      - '0x16'
+      - '0x17'
+      - '0x1C'
+      - '0x1D'
+      - '0x1E'
+      - '0x1F'
+      - '0x2c'
+      - '0x2d'
+      - '0x2e'
+      - '0x2f'
+      - '0x38'
+      - '0x3A'
+      - '0x3B'
+      - '0x3C'
+      - '0x3E'
+      - '0x3F'
+      - '0x1a'
+      - '0x1b'
+      - '0xc'
+  - opcode: '0x8'
+    funct: []
+  - opcode: '0x9'
+    funct: []
+  - opcode: '0xa'
+    funct: []
+  - opcode: '0xb'
+    funct: []
+  - opcode: '0xc'
+    funct: []
+  - opcode: '0xd'
+    funct: []
+  - opcode: '0xe'
+    funct: []
+  - opcode: '0x18'
+    funct: []
+  - opcode: '0x19'
+    funct: []
+  - opcode: '0x1c'
+    funct:
+      - '0x2'
+      - '0x20'
+      - '0x21'
+      - '0x24'
+      - '0x25'
+  - opcode: '0xf'
+    funct: []
+  - opcode: '0x20'
+    funct: []
+  - opcode: '0x21'
+    funct: []
+  - opcode: '0x22'
+    funct: []
+  - opcode: '0x23'
+    funct: []
+  - opcode: '0x24'
+    funct: []
+  - opcode: '0x25'
+    funct: []
+  - opcode: '0x26'
+    funct: []
+  - opcode: '0x28'
+    funct: []
+  - opcode: '0x29'
+    funct: []
+  - opcode: '0x2a'
+    funct: []
+  - opcode: '0x2b'
+    funct: []
+  - opcode: '0x2e'
+    funct: []
+  - opcode: '0x2c'
+    funct: []
+  - opcode: '0x2d'
+    funct: []
+  - opcode: '0x37'
+    funct: []
+  - opcode: '0x3f'
+    funct: []
+  - opcode: '0x34'
+    funct: []
+  - opcode: '0x3c'
+    funct: []
+allowed_syscalls:
+  - 5009
+  - 5012
+  - 5205
+  - 5000
+  - 5001
+  - 5070
+  - 5055
+  - 5058
+  - 5023
+  - 5178
+  - 5194
+  - 5002
+  - 5034
+  - 5222
+  - 5038
+  - 5313
+noop_syscalls:
+  - 5011
+  - 5196
+  - 5027
+  - 5014
+  - 5129
+  - 5013
+  - 5297
+  - 5003
+  - 5016
+  - 5004
+  - 5005
+  - 5247
+  - 5087
+  - 5257
+  - 5015
+  - 5285
+  - 5287
+  - 5208
+  - 5272
+  - 5061
+  - 5100
+  - 5102
+  - 5010
+  - 5026
+  - 5225
+  - 5095
+  - 5008
+  - 5036
+  - 5216
+  - 5217
+  - 5220
+  - 5284

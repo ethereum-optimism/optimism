@@ -172,6 +172,9 @@ func (cfg *Config) Check() error {
 			"'--ignore-missing-pectra-blob-schedule' flag or 'IGNORE_MISSING_PECTRA_BLOB_SCHEDULE' env var.")
 		return ErrMissingPectraBlobSchedule
 	}
+	if cfg.Rollup.InteropTime != nil && cfg.DependencySet == nil {
+		return fmt.Errorf("the Interop upgrade is scheduled (timestamp = %d) but not dependency set is configured", *cfg.Rollup.InteropTime)
+	}
 	if err := cfg.Metrics.Check(); err != nil {
 		return fmt.Errorf("metrics config error: %w", err)
 	}

@@ -774,6 +774,7 @@ var _ taskExecutor = (*stubTasks)(nil)
 func (t *stubTasks) RunDerivation(
 	_ log.Logger,
 	_ *rollup.Config,
+	_ depset.DependencySet,
 	_ *params.ChainConfig,
 	_ common.Hash,
 	_ eth.Bytes32,

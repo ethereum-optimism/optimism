@@ -103,6 +103,11 @@ func (s *Supervisor) SafeBlockID(chainID eth.ChainID) eth.BlockID {
 	return s.L2HeadBlockID(chainID, types.CrossSafe)
 }
 
+// ChainSyncStatus satisfies that the supervisor can provide sync status per chain
+func (s *Supervisor) ChainSyncStatus(chainID eth.ChainID, lvl types.SafetyLevel) eth.BlockID {
+	return s.L2HeadBlockID(chainID, lvl)
+}
+
 // L2HeadBlockID fetches supervisor sync status and returns block id with given safety level
 func (s *Supervisor) L2HeadBlockID(chainID eth.ChainID, lvl types.SafetyLevel) eth.BlockID {
 	supervisorSyncStatus := s.FetchSyncStatus()
