@@ -142,7 +142,7 @@ func WithL2CLNode(l2CLID stack.L2CLNodeID, isSequencer bool, l1CLID stack.L1CLNo
 		require.True(ok, "l2 EL node required")
 
 		var depSet depset.DependencySet
-		if cluster, ok := orch.ClusterForL2(l2ELID.ChainID); ok {
+		if cluster, ok := orch.ClusterForL2(l2ELID.ChainID()); ok {
 			depSet = cluster.DepSet()
 		}
 
