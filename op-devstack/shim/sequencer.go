@@ -27,7 +27,7 @@ type rpcTestSequencer struct {
 var _ stack.TestSequencer = (*rpcTestSequencer)(nil)
 
 func NewTestSequencer(cfg TestSequencerConfig) stack.TestSequencer {
-	cfg.T = cfg.T.WithCtx(stack.ContextWithKind(cfg.T.Ctx(), stack.TestSequencerKind), "id", cfg.ID)
+	cfg.T = cfg.T.WithCtx(stack.ContextWithID(cfg.T.Ctx(), cfg.ID))
 	s := &rpcTestSequencer{
 		commonImpl: newCommon(cfg.CommonConfig),
 		id:         cfg.ID,

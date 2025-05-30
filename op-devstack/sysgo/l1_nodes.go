@@ -29,10 +29,10 @@ func (n *L1ELNode) hydrate(system stack.ExtensibleSystem) {
 		ELNodeConfig: shim.ELNodeConfig{
 			CommonConfig: shim.NewCommonConfig(system.T()),
 			Client:       rpcCl,
-			ChainID:      n.id.ChainID,
+			ChainID:      n.id.ChainID(),
 		},
 	})
-	l1Net := system.L1Network(stack.L1NetworkID(n.id.ChainID))
+	l1Net := system.L1Network(stack.L1NetworkID(n.id.ChainID()))
 	l1Net.(stack.ExtensibleL1Network).AddL1ELNode(frontend)
 }
 
@@ -50,19 +50,17 @@ func (n *L1CLNode) hydrate(system stack.ExtensibleSystem) {
 		ID:           n.id,
 		Client:       beaconCl,
 	})
-	l1Net := system.L1Network(stack.L1NetworkID(n.id.ChainID))
+	l1Net := system.L1Network(stack.L1NetworkID(n.id.ChainID()))
 	l1Net.(stack.ExtensibleL1Network).AddL1CLNode(frontend)
 }
 
 func WithL1Nodes(l1ELID stack.L1ELNodeID, l1CLID stack.L1CLNodeID) stack.Option[*Orchestrator] {
 	return stack.AfterDeploy(func(orch *Orchestrator) {
-		ctx := orch.P().Ctx()
-		ctx = stack.ContextWithChainID(ctx, l1ELID.ChainID)
-		clP := orch.P().WithCtx(stack.ContextWithKind(ctx, stack.L1CLNodeKind), "id", l1CLID)
-		elP := orch.P().WithCtx(stack.ContextWithKind(ctx, stack.L1ELNodeKind), "id", l1ELID)
+		clP := orch.P().WithCtx(stack.ContextWithID(orch.P().Ctx(), l1CLID))
+		elP := orch.P().WithCtx(stack.ContextWithID(orch.P().Ctx(), l1ELID))
 		require := orch.P().Require()
 
-		l1Net, ok := orch.l1Nets.Get(l1ELID.ChainID)
+		l1Net, ok := orch.l1Nets.Get(l1ELID.ChainID())
 		require.True(ok, "L1 network must exist")
 
 		blockTimeL1 := l1Net.blockTime

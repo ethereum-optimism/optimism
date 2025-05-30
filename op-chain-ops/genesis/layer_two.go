@@ -29,6 +29,7 @@ const (
 	L2AllocsGranite  L2AllocsMode = "granite"
 	L2AllocsHolocene L2AllocsMode = "holocene"
 	L2AllocsIsthmus  L2AllocsMode = "isthmus"
+	L2AllocsInterop  L2AllocsMode = "interop"
 	L2AllocsJovian   L2AllocsMode = "jovian"
 )
 

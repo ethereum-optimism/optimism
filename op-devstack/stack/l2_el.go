@@ -1,14 +1,44 @@
 package stack
 
-import "github.com/ethereum-optimism/optimism/op-service/apis"
+import (
+	"log/slog"
+
+	"github.com/ethereum-optimism/optimism/op-service/apis"
+	"github.com/ethereum-optimism/optimism/op-service/eth"
+)
 
 // L2ELNodeID identifies a L2ELNode by name and chainID, is type-safe, and can be value-copied and used as map key.
 type L2ELNodeID idWithChain
 
+var _ IDWithChain = (*L2ELNodeID)(nil)
+
 const L2ELNodeKind Kind = "L2ELNode"
+
+func NewL2ELNodeID(key string, chainID eth.ChainID) L2ELNodeID {
+	return L2ELNodeID{
+		key:     key,
+		chainID: chainID,
+	}
+}
 
 func (id L2ELNodeID) String() string {
 	return idWithChain(id).string(L2ELNodeKind)
+}
+
+func (id L2ELNodeID) ChainID() eth.ChainID {
+	return id.chainID
+}
+
+func (id L2ELNodeID) Kind() Kind {
+	return L2ELNodeKind
+}
+
+func (id L2ELNodeID) Key() string {
+	return id.key
+}
+
+func (id L2ELNodeID) LogValue() slog.Value {
+	return slog.StringValue(id.String())
 }
 
 func (id L2ELNodeID) MarshalText() ([]byte, error) {

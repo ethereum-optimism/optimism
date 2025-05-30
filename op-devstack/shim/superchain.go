@@ -19,7 +19,7 @@ type presetSuperchain struct {
 var _ stack.Superchain = (*presetSuperchain)(nil)
 
 func NewSuperchain(cfg SuperchainConfig) stack.Superchain {
-	cfg.T = cfg.T.WithCtx(stack.ContextWithKind(cfg.T.Ctx(), stack.SuperchainKind), "id", cfg.ID)
+	cfg.T = cfg.T.WithCtx(stack.ContextWithID(cfg.T.Ctx(), cfg.ID))
 	return &presetSuperchain{
 		commonImpl: newCommon(cfg.CommonConfig),
 		id:         cfg.ID,

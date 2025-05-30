@@ -21,6 +21,10 @@ func (n *nonceCounter) Next() uint64 {
 	return nonce
 }
 
-func retryForever(g txplan.ReceiptGetter) txplan.Option {
+func retryInclusionForever(g txplan.ReceiptGetter) txplan.Option {
 	return txplan.WithRetryInclusion(g, math.MaxInt, retry.Exponential())
+}
+
+func retrySubmissionForever(s txplan.TransactionSubmitter) txplan.Option {
+	return txplan.WithRetrySubmission(s, math.MaxInt, retry.Exponential())
 }

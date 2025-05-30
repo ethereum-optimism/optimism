@@ -94,9 +94,7 @@ func (s *Supervisor) Stop() {
 
 func WithSupervisor(supervisorID stack.SupervisorID, clusterID stack.ClusterID, l1ELID stack.L1ELNodeID) stack.Option[*Orchestrator] {
 	return stack.AfterDeploy(func(orch *Orchestrator) {
-		ctx := orch.P().Ctx()
-		ctx = stack.ContextWithKind(ctx, stack.TestSequencerKind)
-		p := orch.P().WithCtx(ctx, "service", "op-supervisor", "id", supervisorID)
+		p := orch.P().WithCtx(stack.ContextWithID(orch.P().Ctx(), supervisorID))
 		require := p.Require()
 
 		l1EL, ok := orch.l1ELs.Get(l1ELID)

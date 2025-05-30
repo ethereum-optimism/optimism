@@ -180,7 +180,7 @@ func (t *testingT) Run(name string, fn func(T)) {
 		subGoT.Cleanup(func() {
 			span.End()
 		})
-		logger := t.logger.New("subtest", name)
+		logger := t.logger.New()
 		logger.SetContext(ctx) // attach the sub-test context as default log-context
 
 		subT := &testingT{
@@ -285,7 +285,7 @@ func SerialT(t *testing.T) T {
 
 	// Set the lowest default log-level, so the log-filters on top can apply correctly
 	logger := testlog.LoggerWithHandlerMod(t, log.LevelTrace,
-		telemetry.WrapHandler, logfilter.WrapFilterHandler)
+		telemetry.WrapHandler, logfilter.WrapFilterHandler, oplog.WrapContextHandler)
 	h, ok := logmods.FindHandler[logfilter.Handler](logger.Handler())
 	if ok {
 		// Apply default log level. This may be overridden later.

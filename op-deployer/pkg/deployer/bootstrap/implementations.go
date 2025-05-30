@@ -71,9 +71,13 @@ func (c *ImplementationsConfig) Check() error {
 		return errors.New("artifacts locator must be specified")
 	}
 	if c.ArtifactsLocator.IsTag() {
+		if c.L1ContractsRelease != "" {
+			return errors.New("l1 contracts release cannot be specified if using an artifacts tag")
+		}
+
 		c.L1ContractsRelease = c.ArtifactsLocator.Tag
-	} else {
-		c.L1ContractsRelease = "dev"
+	} else if c.L1ContractsRelease == "" {
+		return errors.New("l1 contracts release must be specified if not using an artifacts tag")
 	}
 	if !mipsVersion.IsSupported(c.MIPSVersion) {
 		return errors.New("MIPS version is not supported")

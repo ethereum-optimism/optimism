@@ -63,8 +63,9 @@ func DoMain(m *testing.M, opts ...stack.CommonOption) {
 			Pid:    false,
 		})
 		logHandler = logfilter.WrapFilterHandler(logHandler)
-		// The default can be changed using the WithLogFiltersReset option
 		logHandler.(logfilter.Handler).Set(logfilter.Minimum(devtest.DefaultTestLogLevel))
+		logHandler = oplog.WrapContextHandler(logHandler)
+		// The default can be changed using the WithLogFiltersReset option
 		logger := log.NewLogger(logHandler)
 
 		ctx, otelShutdown, err := telemetry.SetupOpenTelemetry(context.Background())

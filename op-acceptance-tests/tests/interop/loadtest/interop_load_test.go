@@ -68,19 +68,19 @@ func TestLoad(gt *testing.T) {
 }
 
 func SpamInteropTxs(t devtest.T, numInitTxs uint64, source *L2, dest *L2, supervisor *dsl.Supervisor) {
-	var wg sync.WaitGroup
-	defer wg.Wait()
+	var relayWg sync.WaitGroup
+	defer relayWg.Wait()
 	msgsCh := make(chan []types.Message, 100)
-	defer close(msgsCh)
+	defer close(msgsCh) // Must be defer'd after the relayWg.Wait() above.
 
 	// Spam executing messages.
-	wg.Add(1)
+	relayWg.Add(1)
 	go func() {
-		defer wg.Done()
+		defer relayWg.Done()
 		dest.Funder.NewFundedEOA(eth.MillionEther.Mul(100))
 		relayers := []Relayer{
 			NewValidRelayer(dest.Funder, dest.EL, supervisor),
-			NewDelayedRelayer(NewValidRelayer(dest.Funder, dest.EL, supervisor), &wg, time.Minute),
+			NewDelayedRelayer(NewValidRelayer(dest.Funder, dest.EL, supervisor), &relayWg, time.Minute),
 			NewInvalidRelayer(dest.Funder, dest.EL, makeInvalidChainID),
 			NewInvalidRelayer(dest.Funder, dest.EL, makeInvalidBlockNumber),
 			NewInvalidRelayer(dest.Funder, dest.EL, makeInvalidLogIndex),
@@ -90,11 +90,14 @@ func SpamInteropTxs(t devtest.T, numInitTxs uint64, source *L2, dest *L2, superv
 		}
 		for msgs := range msgsCh {
 			for _, relayer := range relayers {
-				wg.Add(1)
+				relayWg.Add(1)
 				go func() {
-					defer wg.Done()
+					defer relayWg.Done()
 					relayer.Relay(t, msgs)
 				}()
+			}
+			if len(msgs) >= cap(msgs)/2 {
+				t.Logger().Warn("Messages buffer is at least half full", "len", len(msgs), "cap", cap(msgs))
 			}
 		}
 	}()
@@ -105,7 +108,13 @@ func SpamInteropTxs(t devtest.T, numInitTxs uint64, source *L2, dest *L2, superv
 		NewManyMsgsInitiator(source.Funder, source.EL, eventLogger),
 		NewLargeMsgInitiator(source.Funder, source.EL, eventLogger),
 	}
+	var initWg sync.WaitGroup
+	defer initWg.Wait()
 	for i := range numInitTxs {
-		msgsCh <- initiators[i%uint64(len(initiators))].Initiate(t)
+		initWg.Add(1)
+		go func() {
+			defer initWg.Done()
+			msgsCh <- initiators[i%uint64(len(initiators))].Initiate(t)
+		}()
 	}
 }

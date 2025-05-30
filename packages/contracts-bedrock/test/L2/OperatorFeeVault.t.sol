@@ -8,9 +8,10 @@ import { CommonTest } from "test/setup/CommonTest.sol";
 import { Types } from "src/libraries/Types.sol";
 import { Predeploys } from "src/libraries/Predeploys.sol";
 
-// Test the implementations of the FeeVault
-contract FeeVault_Test is CommonTest {
-    /// @dev Tests that the constructor sets the correct values.
+/// @title OperatorFeeVault_Constructor_Test
+/// @notice Tests the `constructor` of the `OperatorFeeVault` contract.
+contract OperatorFeeVault_Constructor_Test is CommonTest {
+    /// @notice Tests that the constructor sets the correct values.
     function test_constructor_operatorFeeVault_succeeds() external view {
         assertEq(operatorFeeVault.RECIPIENT(), Predeploys.BASE_FEE_VAULT);
         assertEq(operatorFeeVault.recipient(), Predeploys.BASE_FEE_VAULT);

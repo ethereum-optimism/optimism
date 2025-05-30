@@ -123,13 +123,13 @@ type Config struct {
 	// Active if IsthmusTime != nil && L2 block timestamp >= *IsthmusTime, inactive otherwise.
 	IsthmusTime *uint64 `json:"isthmus_time,omitempty"`
 
-	// JovianTime sets the activation time of the Jovian network upgrade.
-	// Active if JovianTime != nil && L2 block timestamp >= *JovianTime, inactive otherwise.
-	JovianTime *uint64 `json:"jovian_time,omitempty"`
-
 	// InteropTime sets the activation time for an experimental feature-set, activated like a hardfork.
 	// Active if InteropTime != nil && L2 block timestamp >= *InteropTime, inactive otherwise.
 	InteropTime *uint64 `json:"interop_time,omitempty"`
+
+	// JovianTime sets the activation time of the Jovian network upgrade.
+	// Active if JovianTime != nil && L2 block timestamp >= *JovianTime, inactive otherwise.
+	JovianTime *uint64 `json:"jovian_time,omitempty"`
 
 	// Note: below addresses are part of the block-derivation process,
 	// and required to be the same network-wide to stay in consensus.
@@ -561,11 +561,11 @@ func (c *Config) IsActivationBlock(oldTime, newTime uint64) ForkName {
 func (c *Config) ActivateAtGenesis(hardfork ForkName) {
 	// IMPORTANT! ordered from newest to oldest
 	switch hardfork {
-	case Interop:
-		c.InteropTime = new(uint64)
-		fallthrough
 	case Jovian:
 		c.JovianTime = new(uint64)
+		fallthrough
+	case Interop:
+		c.InteropTime = new(uint64)
 		fallthrough
 	case Isthmus:
 		c.IsthmusTime = new(uint64)

@@ -5,6 +5,7 @@ import { Test } from "forge-std/Test.sol";
 import { EIP1967Helper } from "test/mocks/EIP1967Helper.sol";
 import { L2Genesis } from "scripts/L2Genesis.s.sol";
 import { Predeploys } from "src/libraries/Predeploys.sol";
+import { LATEST_FORK } from "scripts/libraries/Config.sol";
 
 import { ISequencerFeeVault } from "interfaces/L2/ISequencerFeeVault.sol";
 import { IBaseFeeVault } from "interfaces/L2/IBaseFeeVault.sol";
@@ -44,8 +45,8 @@ contract L2GenesisTest is Test {
             l1FeeVaultMinimumWithdrawalAmount: 1,
             l1FeeVaultWithdrawalNetwork: 1,
             governanceTokenOwner: address(0x0000000000000000000000000000000000000008),
-            fork: 7, // Jovian
-            useInterop: true,
+            fork: uint256(LATEST_FORK),
+            deployCrossL2Inbox: true,
             enableGovernance: true,
             fundDevAccounts: true
         });
@@ -79,7 +80,7 @@ contract L2GenesisTest is Test {
             assertEq(Predeploys.PROXY_ADMIN, EIP1967Helper.getAdmin(addr));
 
             // If it's not a supported predeploy, skip next checks.
-            if (!Predeploys.isSupportedPredeploy(addr, true)) {
+            if (!Predeploys.isSupportedPredeploy(addr, uint256(LATEST_FORK), true)) {
                 continue;
             }
 

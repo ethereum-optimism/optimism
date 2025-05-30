@@ -5,6 +5,7 @@ import (
 	"cmp"
 	"errors"
 	"fmt"
+	"log/slog"
 	"slices"
 	"sort"
 
@@ -13,6 +14,12 @@ import (
 
 // Kind represents a kind of component, this is used to make each ID unique, even when encoded as text.
 type Kind string
+
+var _ slog.LogValuer = (*Kind)(nil)
+
+func (k Kind) LogValue() slog.Value {
+	return slog.StringValue(string(k))
+}
 
 func (k Kind) String() string {
 	return string(k)
@@ -31,23 +38,31 @@ const maxIDLength = 100
 
 var errInvalidID = errors.New("invalid ID")
 
+// Defined types based on idWithChain should implement this interface so they may be used as logging attributes.
+type IDWithChain interface {
+	slog.LogValuer
+	ChainID() eth.ChainID
+	Kind() Kind
+	Key() string
+}
+
 // idWithChain is comparable, can be copied, contains a chain-ID,
 // and has type-safe text encoding/decoding to prevent accidental mixups.
 type idWithChain struct {
-	Key     string
-	ChainID eth.ChainID
+	key     string
+	chainID eth.ChainID
 }
 
 func (id idWithChain) string(kind Kind) string {
-	return fmt.Sprintf("%s-%s-%s", kind, id.Key, id.ChainID)
+	return fmt.Sprintf("%s-%s-%s", kind, id.key, id.chainID)
 }
 
 func (id idWithChain) marshalText(kind Kind) ([]byte, error) {
-	k := string(id.Key)
+	k := string(id.key)
 	if len(k) > maxIDLength {
 		return nil, errInvalidID
 	}
-	k = fmt.Sprintf("%s-%s-%s", kind, k, id.ChainID)
+	k = fmt.Sprintf("%s-%s-%s", kind, k, id.chainID)
 	return []byte(k), nil
 }
 
@@ -70,25 +85,28 @@ func (id *idWithChain) unmarshalText(kind Kind, data []byte) error {
 	if len(before) > maxIDLength {
 		return errInvalidID
 	}
-	id.Key = string(before)
-	id.ChainID = chainID
+	id.key = string(before)
+	id.chainID = chainID
 	return nil
+}
+
+// Defined types based on idOnlyChainID should implement this interface so they may be used as logging attributes.
+type IDOnlyChainID interface {
+	slog.LogValuer
+	ChainID() eth.ChainID
+	Kind() Kind
 }
 
 // idChainID is comparable, can be copied, contains only a chain-ID,
 // and has type-safe text encoding/decoding to prevent accidental mixups.
 type idOnlyChainID eth.ChainID
 
-func (id idOnlyChainID) ChainID() eth.ChainID {
-	return (eth.ChainID)(id)
-}
-
 func (id idOnlyChainID) string(kind Kind) string {
-	return fmt.Sprintf("%s-%s", kind, id.ChainID())
+	return fmt.Sprintf("%s-%s", kind, eth.ChainID(id))
 }
 
 func (id idOnlyChainID) marshalText(kind Kind) ([]byte, error) {
-	k := fmt.Sprintf("%s-%s", kind, id.ChainID())
+	k := fmt.Sprintf("%s-%s", kind, eth.ChainID(id))
 	return []byte(k), nil
 }
 
@@ -106,6 +124,12 @@ func (id *idOnlyChainID) unmarshalText(kind Kind, data []byte) error {
 	}
 	*id = idOnlyChainID(chainID)
 	return nil
+}
+
+// Defined types based on genericID should implement this interface so they may be used as logging attributes.
+type GenericID interface {
+	slog.LogValuer
+	Kind() Kind
 }
 
 // genericID is comparable, can be copied,
@@ -152,18 +176,18 @@ func copyAndSort[V ~[]E, E any](vs V, lessFn func(a, b E) bool) V {
 // lessIDWithChain is a helper function to compare two idWithChain objects.
 // It does not use generics, since idWithChain is a concrete type with struct fields and no accessor methods in the types that wrap this type.
 func lessIDWithChain(a, b idWithChain) bool {
-	if a.Key > b.Key {
+	if a.key > b.key {
 		return false
 	}
-	if a.Key == b.Key {
-		return a.ChainID.Cmp(b.ChainID) < 0
+	if a.key == b.key {
+		return a.chainID.Cmp(b.chainID) < 0
 	}
 	return true
 }
 
 // lessIDOnlyChainID is a helper function to compare two idOnlyChainID objects.
 func lessIDOnlyChainID(a, b idOnlyChainID) bool {
-	return a.ChainID().Cmp(b.ChainID()) < 0
+	return eth.ChainID(a).Cmp(eth.ChainID(b)) < 0
 }
 
 func lessElemOrdered[I cmp.Ordered, E Identifiable[I]](a, b E) bool {

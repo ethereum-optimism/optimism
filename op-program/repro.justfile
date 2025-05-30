@@ -35,6 +35,7 @@ op-program-client-mips:
 # Run the op-program-client elf binary directly through cannon's load-elf subcommand.
 client TYPE CLIENT_SUFFIX PRESTATE_SUFFIX: cannon op-program-client-mips
     #!/bin/bash
+    echo "Checking program version | $(go version /app/op-program/bin/op-program-client{{CLIENT_SUFFIX}}.elf)"
     /app/cannon/bin/cannon load-elf \
         --type {{TYPE}} \
         --path /app/op-program/bin/op-program-client{{CLIENT_SUFFIX}}.elf \
@@ -54,9 +55,9 @@ prestate TYPE CLIENT_SUFFIX PRESTATE_SUFFIX: (client TYPE CLIENT_SUFFIX PRESTATE
     mv /app/op-program/bin/0{{PRESTATE_SUFFIX}}.json /app/op-program/bin/prestate-proof{{PRESTATE_SUFFIX}}.json
 
 build-mt64: (prestate "multithreaded64-4" "64" "-mt64")
-build-mt64Next: (prestate "multithreaded64-4" "64" "-mt64Next")
+build-mt64Next: (prestate "multithreaded64-5" "64" "-mt64Next")
 build-interop: (prestate "multithreaded64-4" "-interop" "-interop")
+build-interopNext: (prestate "multithreaded64-5" "-interop" "-interopNext")
 
-build-all: build-mt64 build-mt64Next build-interop
 build-current: build-mt64 build-interop
-build-next: build-mt64Next
+build-next: build-mt64Next build-interopNext

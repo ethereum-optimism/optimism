@@ -11,7 +11,6 @@ import (
 	"github.com/ethereum-optimism/optimism/devnet-sdk/contracts/constants"
 	"github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/interop"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
-	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
 	"github.com/ethereum-optimism/optimism/op-devstack/stack/match"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
@@ -21,7 +20,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-test-sequencer/sequencer/seqtypes"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/stretchr/testify/require"
 )
 
@@ -35,30 +33,9 @@ func TestReorgInitExecMsg(gt *testing.T) {
 	ia := sys.TestSequencer.Escape().IndividualAPI(sys.L2ChainA.ChainID())
 
 	// three EOAs for triggering the init and exec interop txs, as well as a simple transfer tx
-	var alice, bob, cathrine *dsl.EOA
-	{
-		// alice is on chain A
-		pk, err := crypto.GenerateKey()
-		require.NoError(t, err)
-		alice = dsl.NewEOA(dsl.NewKey(t, pk), sys.L2ELA)
-		sys.FaucetA.Fund(alice.Address(), eth.OneEther)
-
-		// bob is on chain B
-		pk, err = crypto.GenerateKey()
-		require.NoError(t, err)
-		bob = dsl.NewEOA(dsl.NewKey(t, pk), sys.L2ELB)
-		sys.FaucetB.Fund(bob.Address(), eth.OneEther)
-
-		// cathrine is on chain A
-		pk, err = crypto.GenerateKey()
-		require.NoError(t, err)
-		cathrine = dsl.NewEOA(dsl.NewKey(t, pk), sys.L2ELA)
-		sys.FaucetA.Fund(cathrine.Address(), eth.OneEther)
-
-		l.Info("alice", "address", alice.Address())
-		l.Info("bob", "address", bob.Address())
-		l.Info("cathrine", "address", cathrine.Address())
-	}
+	alice := sys.FunderA.NewFundedEOA(eth.OneEther)
+	bob := sys.FunderB.NewFundedEOA(eth.OneEther)
+	cathrine := sys.FunderA.NewFundedEOA(eth.OneEther)
 
 	sys.L1Network.WaitForBlock()
 	sys.L2ChainA.WaitForBlock()

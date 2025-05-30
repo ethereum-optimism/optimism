@@ -13,9 +13,9 @@ import { IETHLiquidity } from "interfaces/L2/IETHLiquidity.sol";
 import { ISuperchainETHBridge } from "interfaces/L2/ISuperchainETHBridge.sol";
 import { IL2ToL2CrossDomainMessenger } from "interfaces/L2/IL2ToL2CrossDomainMessenger.sol";
 
-/// @title SuperchainETHBridge_Test
-/// @notice Contract for testing the SuperchainETHBridge contract.
-contract SuperchainETHBridge_Test is CommonTest {
+/// @title SuperchainETHBridge_TestInit
+/// @notice Reusable test initialization for `SuperchainETHBridge` tests.
+contract SuperchainETHBridge_TestInit is CommonTest {
     event SendETH(address indexed from, address indexed to, uint256 amount, uint256 destination);
 
     event RelayETH(address indexed from, address indexed to, uint256 amount, uint256 source);
@@ -39,8 +39,12 @@ contract SuperchainETHBridge_Test is CommonTest {
         vm.mockCall(_receiver, _calldata, _returned);
         vm.expectCall(_receiver, _calldata);
     }
-    /// @notice Tests the `sendETH` function reverts when the address `_to` is zero.
+}
 
+/// @title SuperchainETHBridge_SendETH_Test
+/// @notice Tests the `sendETH` function of the `SuperchainETHBridge` contract.
+contract SuperchainETHBridge_SendETH_Test is SuperchainETHBridge_TestInit {
+    /// @notice Tests the `sendETH` function reverts when the address `_to` is zero.
     function testFuzz_sendETH_zeroAddressTo_reverts(address _sender, uint256 _amount, uint256 _chainId) public {
         // Expect the revert with `ZeroAddress` selector
         vm.expectRevert(ZeroAddress.selector);
@@ -51,8 +55,8 @@ contract SuperchainETHBridge_Test is CommonTest {
         superchainETHBridge.sendETH{ value: _amount }(ZERO_ADDRESS, _chainId);
     }
 
-    /// @notice Tests the `sendETH` function burns the sender ETH, sends the message, and emits the `SendETH`
-    /// event.
+    /// @notice Tests the `sendETH` function burns the sender ETH, sends the message, and emits the
+    ///         `SendETH` event.
     function testFuzz_sendETH_succeeds(
         address _sender,
         address _to,
@@ -99,8 +103,13 @@ contract SuperchainETHBridge_Test is CommonTest {
         // Check the total supply and balance of `_sender` after the send were updated correctly
         assertEq(_sender.balance, _senderBalanceBefore - _amount);
     }
+}
 
-    /// @notice Tests the `relayETH` function reverts when the caller is not the L2ToL2CrossDomainMessenger.
+/// @title SuperchainETHBridge_RelayETH_Test
+/// @notice Tests the `relayETH` function of the `SuperchainETHBridge` contract.
+contract SuperchainETHBridge_RelayETH_Test is SuperchainETHBridge_TestInit {
+    /// @notice Tests the `relayETH` function reverts when the caller is not the
+    ///         `L2ToL2CrossDomainMessenger`.
     function testFuzz_relayETH_notMessenger_reverts(address _caller, address _to, uint256 _amount) public {
         // Ensure the caller is not the messenger
         vm.assume(_caller != Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER);
@@ -113,8 +122,8 @@ contract SuperchainETHBridge_Test is CommonTest {
         superchainETHBridge.relayETH(_caller, _to, _amount);
     }
 
-    /// @notice Tests the `relayETH` function reverts when the `crossDomainMessageSender` that sent the message is not
-    /// the same SuperchainETHBridge.
+    /// @notice Tests the `relayETH` function reverts when the `crossDomainMessageSender` that sent
+    ///         the message is not the same `SuperchainETHBridge`.
     function testFuzz_relayETH_notCrossDomainSender_reverts(
         address _crossDomainMessageSender,
         uint256 _source,
@@ -140,7 +149,8 @@ contract SuperchainETHBridge_Test is CommonTest {
         superchainETHBridge.relayETH(_crossDomainMessageSender, _to, _amount);
     }
 
-    /// @notice Tests the `relayETH` function relays the proper amount of ETH and emits the `RelayETH` event.
+    /// @notice Tests the `relayETH` function relays the proper amount of ETH and emits the
+    ///         `RelayETH` event.
     function testFuzz_relayETH_succeeds(address _from, address _to, uint256 _amount, uint256 _source) public {
         // Assume
         vm.assume(_to != ZERO_ADDRESS);

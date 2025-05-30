@@ -44,10 +44,7 @@ type presetL2Network struct {
 var _ stack.L2Network = (*presetL2Network)(nil)
 
 func NewL2Network(cfg L2NetworkConfig) stack.ExtensibleL2Network {
-	ctx := cfg.T.Ctx()
-	ctx = stack.ContextWithKind(ctx, stack.L2NetworkKind)
-	ctx = stack.ContextWithChainID(ctx, cfg.ID.ChainID())
-	cfg.T = cfg.T.WithCtx(ctx, "chainID", cfg.ID.ChainID(), "id", cfg.ID)
+	cfg.T = cfg.T.WithCtx(stack.ContextWithID(cfg.T.Ctx(), cfg.ID))
 	// sanity-check the configs match the expected chains
 	require.Equal(cfg.T, cfg.ID.ChainID(), eth.ChainIDFromBig(cfg.NetworkConfig.ChainConfig.ChainID), "chain config must match expected chain")
 	require.Equal(cfg.T, cfg.L1.ChainID(), eth.ChainIDFromBig(cfg.RollupConfig.L1ChainID), "rollup config must match expected L1 chain")
@@ -106,7 +103,7 @@ func (p *presetL2Network) L2Batcher(m stack.L2BatcherMatcher) stack.L2Batcher {
 
 func (p *presetL2Network) AddL2Batcher(v stack.L2Batcher) {
 	id := v.ID()
-	p.require().Equal(p.chainID, id.ChainID, "l2 batcher %s must be on chain %s", id, p.chainID)
+	p.require().Equal(p.chainID, id.ChainID(), "l2 batcher %s must be on chain %s", id, p.chainID)
 	p.require().True(p.batchers.SetIfMissing(id, v), "l2 batcher %s must not already exist", id)
 }
 
@@ -118,7 +115,7 @@ func (p *presetL2Network) L2Proposer(m stack.L2ProposerMatcher) stack.L2Proposer
 
 func (p *presetL2Network) AddL2Proposer(v stack.L2Proposer) {
 	id := v.ID()
-	p.require().Equal(p.chainID, id.ChainID, "l2 proposer %s must be on chain %s", id, p.chainID)
+	p.require().Equal(p.chainID, id.ChainID(), "l2 proposer %s must be on chain %s", id, p.chainID)
 	p.require().True(p.proposers.SetIfMissing(id, v), "l2 proposer %s must not already exist", id)
 }
 
@@ -142,7 +139,7 @@ func (p *presetL2Network) L2CLNode(m stack.L2CLMatcher) stack.L2CLNode {
 
 func (p *presetL2Network) AddL2CLNode(v stack.L2CLNode) {
 	id := v.ID()
-	p.require().Equal(p.chainID, id.ChainID, "l2 CL node %s must be on chain %s", id, p.chainID)
+	p.require().Equal(p.chainID, id.ChainID(), "l2 CL node %s must be on chain %s", id, p.chainID)
 	p.require().True(p.cls.SetIfMissing(id, v), "l2 CL node %s must not already exist", id)
 }
 
@@ -154,7 +151,7 @@ func (p *presetL2Network) L2ELNode(m stack.L2ELMatcher) stack.L2ELNode {
 
 func (p *presetL2Network) AddL2ELNode(v stack.L2ELNode) {
 	id := v.ID()
-	p.require().Equal(p.chainID, id.ChainID, "l2 EL node %s must be on chain %s", id, p.chainID)
+	p.require().Equal(p.chainID, id.ChainID(), "l2 EL node %s must be on chain %s", id, p.chainID)
 	p.require().True(p.els.SetIfMissing(id, v), "l2 EL node %s must not already exist", id)
 }
 

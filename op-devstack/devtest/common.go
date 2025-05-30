@@ -3,6 +3,7 @@ package devtest
 import (
 	"context"
 
+	oplog "github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum/go-ethereum/log"
 
 	"github.com/stretchr/testify/require"
@@ -48,5 +49,6 @@ func TestScope(ctx context.Context) string {
 // and returns a context with the updated scope value.
 func AddTestScope(ctx context.Context, scope string) context.Context {
 	prev := TestScope(ctx)
+	ctx = oplog.RegisterLogAttrOnContext(ctx, "scope", testScopeCtxKey)
 	return context.WithValue(ctx, testScopeCtxKey, prev+"/"+scope)
 }

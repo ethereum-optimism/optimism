@@ -27,16 +27,16 @@ import {
 import { ICrossL2Inbox, Identifier } from "interfaces/L2/ICrossL2Inbox.sol";
 
 /// @title L2ToL2CrossDomainMessengerWithModifiableTransientStorage
-/// @dev L2ToL2CrossDomainMessenger contract with methods to modify the transient storage.
-///      This is used to test the transient storage of L2ToL2CrossDomainMessenger.
+/// @notice L2ToL2CrossDomainMessenger contract with methods to modify the transient storage.
+///         This is used to test the transient storage of L2ToL2CrossDomainMessenger.
 contract L2ToL2CrossDomainMessengerWithModifiableTransientStorage is L2ToL2CrossDomainMessenger {
-    /// @dev Returns the value of the entered slot in transient storage.
+    /// @notice Returns the value of the entered slot in transient storage.
     /// @return Value of the entered slot.
     function entered() external view returns (bool) {
         return _entered();
     }
 
-    /// @dev Sets the entered slot value in transient storage.
+    /// @notice Sets the entered slot value in transient storage.
     /// @param _value Value to set.
     function setEntered(uint256 _value) external {
         assembly {
@@ -44,7 +44,7 @@ contract L2ToL2CrossDomainMessengerWithModifiableTransientStorage is L2ToL2Cross
         }
     }
 
-    /// @dev Sets the cross domain messenger sender in transient storage.
+    /// @notice Sets the cross domain messenger sender in transient storage.
     /// @param _sender Sender address to set.
     function setCrossDomainMessageSender(address _sender) external {
         assembly {
@@ -52,7 +52,7 @@ contract L2ToL2CrossDomainMessengerWithModifiableTransientStorage is L2ToL2Cross
         }
     }
 
-    /// @dev Sets the cross domain messenger source in transient storage.
+    /// @notice Sets the cross domain messenger source in transient storage.
     /// @param _source Source chain ID to set.
     function setCrossDomainMessageSource(uint256 _source) external {
         assembly {
@@ -61,15 +61,15 @@ contract L2ToL2CrossDomainMessengerWithModifiableTransientStorage is L2ToL2Cross
     }
 }
 
-/// @title L2ToL2CrossDomainMessengerTest
-/// @dev Contract for testing the L2ToL2CrossDomainMessenger contract.
-contract L2ToL2CrossDomainMessengerTest is Test {
+/// @title L2ToL2CrossDomainMessenger_TestInit
+/// @notice Reusable test initialization for `L2ToL2CrossDomainMessenger` tests.
+contract L2ToL2CrossDomainMessenger_TestInit is Test {
     address internal foundryVMAddress = 0x7109709ECfa91a80626fF3989D68f67F5b1DD12D;
 
-    /// @dev L2ToL2CrossDomainMessenger contract instance with modifiable transient storage.
+    /// @notice L2ToL2CrossDomainMessenger contract instance with modifiable transient storage.
     L2ToL2CrossDomainMessengerWithModifiableTransientStorage l2ToL2CrossDomainMessenger;
 
-    /// @dev Sets up the test suite.
+    /// @notice Sets up the test suite.
     function setUp() public {
         // Deploy the L2ToL2CrossDomainMessenger contract
         vm.etch(
@@ -79,8 +79,103 @@ contract L2ToL2CrossDomainMessengerTest is Test {
         l2ToL2CrossDomainMessenger =
             L2ToL2CrossDomainMessengerWithModifiableTransientStorage(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER);
     }
+}
 
-    /// @dev Tests that `sendMessage` succeeds and emits the correct event.
+/// @title L2ToL2CrossDomainMessenger_CrossDomainMessageSender_Test
+/// @notice Tests the `crossDomainMessageSender` function of the `L2ToL2CrossDomainMessenger`
+///         contract.
+contract L2ToL2CrossDomainMessenger_CrossDomainMessageSender_Test is L2ToL2CrossDomainMessenger_TestInit {
+    /// @notice Tests that the `crossDomainMessageSender` function returns the correct value.
+    function testFuzz_crossDomainMessageSender_succeeds(address _sender) external {
+        // Set `entered` to non-zero value to prevent NotEntered revert
+        l2ToL2CrossDomainMessenger.setEntered(1);
+        // Ensure that the contract is now entered
+        assertEq(l2ToL2CrossDomainMessenger.entered(), true);
+        // Set cross domain message sender in the transient storage
+        l2ToL2CrossDomainMessenger.setCrossDomainMessageSender(_sender);
+        // Check that the `crossDomainMessageSender` function returns the correct value
+        assertEq(l2ToL2CrossDomainMessenger.crossDomainMessageSender(), _sender);
+    }
+
+    /// @notice Tests that the `crossDomainMessageSender` function reverts when not entered.
+    function test_crossDomainMessageSender_notEntered_reverts() external {
+        // Ensure that the contract is not entered
+        assertEq(l2ToL2CrossDomainMessenger.entered(), false);
+
+        // Expect a revert with the NotEntered selector
+        vm.expectRevert(NotEntered.selector);
+
+        // Call `crossDomainMessageSender` to provoke revert
+        l2ToL2CrossDomainMessenger.crossDomainMessageSender();
+    }
+}
+
+/// @title L2ToL2CrossDomainMessenger_CrossDomainMessageSource_Test
+/// @notice Tests the `crossDomainMessageSource` function of the `L2ToL2CrossDomainMessenger` contract.
+contract L2ToL2CrossDomainMessenger_CrossDomainMessageSource_Test is L2ToL2CrossDomainMessenger_TestInit {
+    /// @notice Tests that the `crossDomainMessageSource` function returns the correct value.
+    function testFuzz_crossDomainMessageSource_succeeds(uint256 _source) external {
+        // Set `entered` to non-zero value to prevent NotEntered revert
+        l2ToL2CrossDomainMessenger.setEntered(1);
+        // Ensure that the contract is now entered
+        assertEq(l2ToL2CrossDomainMessenger.entered(), true);
+        // Set cross domain message source in the transient storage
+        l2ToL2CrossDomainMessenger.setCrossDomainMessageSource(_source);
+        // Check that the `crossDomainMessageSource` function returns the correct value
+        assertEq(l2ToL2CrossDomainMessenger.crossDomainMessageSource(), _source);
+    }
+
+    /// @notice Tests that the `crossDomainMessageSource` function reverts when not entered.
+    function test_crossDomainMessageSource_notEntered_reverts() external {
+        // Ensure that the contract is not entered
+        assertEq(l2ToL2CrossDomainMessenger.entered(), false);
+
+        // Expect a revert with the NotEntered selector
+        vm.expectRevert(NotEntered.selector);
+
+        // Call `crossDomainMessageSource` to provoke revert
+        l2ToL2CrossDomainMessenger.crossDomainMessageSource();
+    }
+}
+
+/// @title L2ToL2CrossDomainMessenger_CrossDomainMessageContext_Test
+/// @notice Tests the `crossDomainMessageContext` function of the `L2ToL2CrossDomainMessenger` contract.
+contract L2ToL2CrossDomainMessenger_CrossDomainMessageContext_Test is L2ToL2CrossDomainMessenger_TestInit {
+    /// @notice Tests that the `crossDomainMessageContext` function returns the correct value.
+    function testFuzz_crossDomainMessageContext_succeeds(address _sender, uint256 _source) external {
+        // Set `entered` to non-zero value to prevent NotEntered revert
+        l2ToL2CrossDomainMessenger.setEntered(1);
+        // Ensure that the contract is now entered
+        assertEq(l2ToL2CrossDomainMessenger.entered(), true);
+
+        // Set cross domain message source in the transient storage
+        l2ToL2CrossDomainMessenger.setCrossDomainMessageSender(_sender);
+        l2ToL2CrossDomainMessenger.setCrossDomainMessageSource(_source);
+
+        // Check that the `crossDomainMessageContext` function returns the correct value
+        (address crossDomainContextSender, uint256 crossDomainContextSource) =
+            l2ToL2CrossDomainMessenger.crossDomainMessageContext();
+        assertEq(crossDomainContextSender, _sender);
+        assertEq(crossDomainContextSource, _source);
+    }
+
+    /// @notice Tests that the `crossDomainMessageContext` function reverts when not entered.
+    function test_crossDomainMessageContext_notEntered_reverts() external {
+        // Ensure that the contract is not entered
+        assertEq(l2ToL2CrossDomainMessenger.entered(), false);
+
+        // Expect a revert with the NotEntered selector
+        vm.expectRevert(NotEntered.selector);
+
+        // Call `crossDomainMessageContext` to provoke revert
+        l2ToL2CrossDomainMessenger.crossDomainMessageContext();
+    }
+}
+
+/// @title L2ToL2CrossDomainMessenger_SendMessage_Test
+/// @notice Tests the `sendMessage` function of the `L2ToL2CrossDomainMessenger` contract.
+contract L2ToL2CrossDomainMessenger_SendMessage_Test is L2ToL2CrossDomainMessenger_TestInit {
+    /// @notice Tests that `sendMessage` succeeds and emits the correct event.
     function testFuzz_sendMessage_succeeds(uint256 _destination, address _target, bytes calldata _message) external {
         // Ensure the destination is not the same as the source, otherwise the function will revert
         vm.assume(_destination != block.chainid);
@@ -121,7 +216,7 @@ contract L2ToL2CrossDomainMessengerTest is Test {
         assertEq(l2ToL2CrossDomainMessenger.sentMessages(msgHash), true);
     }
 
-    /// @dev Tests that the `sendMessage` function reverts when sending a ETH
+    /// @notice Tests that the `sendMessage` function reverts when sending a ETH
     function testFuzz_sendMessage_nonPayable_reverts(
         uint256 _destination,
         address _target,
@@ -151,23 +246,27 @@ contract L2ToL2CrossDomainMessengerTest is Test {
         assertFalse(success);
     }
 
-    /// @dev Tests that the `sendMessage` function reverts when destination is the same as the source chain.
+    /// @notice Tests that the `sendMessage` function reverts when destination is the same as the
+    ///         source chain.
     function testFuzz_sendMessage_destinationSameChain_reverts(address _target, bytes calldata _message) external {
         // Expect a revert with the MessageDestinationSameChain selector
         vm.expectRevert(MessageDestinationSameChain.selector);
 
-        // Call `sendMessage` with the current chain as the destination to prevent revert due to invalid destination
+        // Call `sendMessage` with the current chain as the destination to prevent revert due to
+        // invalid destination
         l2ToL2CrossDomainMessenger.sendMessage({ _destination: block.chainid, _target: _target, _message: _message });
     }
 
-    /// @dev Tests that the `sendMessage` function reverts when the target is L2ToL2CrossDomainMessenger.
+    /// @notice Tests that the `sendMessage` function reverts when the target is
+    ///         L2ToL2CrossDomainMessenger.
     function testFuzz_sendMessage_targetL2ToL2CrossDomainMessenger_reverts(
         uint256 _destination,
         bytes calldata _message
     )
         external
     {
-        // Ensure the destination is not the same as the source, otherwise the function will revert regardless of target
+        // Ensure the destination is not the same as the source, otherwise the function will revert
+        // regardless of target
         vm.assume(_destination != block.chainid);
 
         // Expect a revert with the MessageTargetL2ToL2CrossDomainMessenger selector
@@ -180,9 +279,13 @@ contract L2ToL2CrossDomainMessengerTest is Test {
             _message: _message
         });
     }
+}
 
-    /// @dev Tests that the `resendMessage` function reverts when the message hash does not correspond to
-    ///      any previously sent message.
+/// @title L2ToL2CrossDomainMessenger_ResendMessage_Test
+/// @notice Tests the `resendMessage` function of the `L2ToL2CrossDomainMessenger` contract.
+contract L2ToL2CrossDomainMessenger_ResendMessage_Test is L2ToL2CrossDomainMessenger_TestInit {
+    /// @notice Tests that the `resendMessage` function reverts when the message hash does not
+    ///         correspond to any previously sent message.
     function testFuzz_resendMessage_invalidMessage_reverts(
         uint256 _destination,
         uint256 _nonce,
@@ -204,8 +307,8 @@ contract L2ToL2CrossDomainMessengerTest is Test {
         l2ToL2CrossDomainMessenger.resendMessage(_destination, _nonce, _sender, _target, _message);
     }
 
-    /// @dev Tests that `resendMessage` succeeds and emits the same SentMessage event as the one
-    ///      emitted by `sendMessage`.
+    /// @notice Tests that `resendMessage` succeeds and emits the same SentMessage event as the one
+    ///         emitted by `sendMessage`.
     function testFuzz_resendMessage_succeeds(
         address _sender,
         uint256 _destination,
@@ -268,6 +371,50 @@ contract L2ToL2CrossDomainMessengerTest is Test {
         // Check that the message hash returned by `sendMessage` is the same as the one returned by `resendMessage`
         assertEq(resendMsgHash, msgHash);
     }
+}
+
+/// @title L2ToL2CrossDomainMessenger_RelayMessage_Test
+/// @notice Tests the `relayMessage` function of the `L2ToL2CrossDomainMessenger` contract.
+contract L2ToL2CrossDomainMessenger_RelayMessage_Test is L2ToL2CrossDomainMessenger_TestInit {
+    /// @notice Mock target function that checks the source and sender of the message in transient
+    ///         storage.
+    /// @param _source Source chain ID of the message.
+    /// @param _sender Sender of the message.
+    function mockTarget(uint256 _source, address _sender) external payable {
+        // Ensure that the contract is entered
+        assertEq(l2ToL2CrossDomainMessenger.entered(), true);
+
+        // Ensure that the sender is correct
+        assertEq(l2ToL2CrossDomainMessenger.crossDomainMessageSource(), _source);
+
+        // Ensure that the source is correct
+        assertEq(l2ToL2CrossDomainMessenger.crossDomainMessageSender(), _sender);
+    }
+
+    /// @notice Mock reentrant function that calls the `relayMessage` function.
+    /// @param _source Source chain ID of the message.
+    /// @param _nonce Nonce of the message.
+    /// @param _sender Sender of the message.
+    function mockTargetReentrant(uint256 _source, uint256 _nonce, address _sender) external payable {
+        // Ensure caller is CrossL2Inbox to prevent a revert from the caller check
+        vm.prank(Predeploys.CROSS_L2_INBOX);
+
+        // Ensure that the contract is entered
+        assertEq(l2ToL2CrossDomainMessenger.entered(), true);
+
+        vm.expectRevert(ReentrantCall.selector);
+
+        Identifier memory id = Identifier(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER, 1, 1, 1, _source);
+        bytes memory sentMessage = abi.encodePacked(
+            abi.encode(L2ToL2CrossDomainMessenger.SentMessage.selector, block.chainid, address(0), _nonce), // topics
+            abi.encode(_sender, "") // data
+        );
+
+        l2ToL2CrossDomainMessenger.relayMessage(id, sentMessage);
+
+        // Ensure the function still reverts if `expectRevert` succeeds
+        revert();
+    }
 
     function testFuzz_relayMessage_eventPayloadNotSentMessage_reverts(
         uint256 _source,
@@ -301,21 +448,8 @@ contract L2ToL2CrossDomainMessengerTest is Test {
         l2ToL2CrossDomainMessenger.relayMessage{ value: _value }(id, sentMessage);
     }
 
-    /// @dev Mock target function that checks the source and sender of the message in transient storage.
-    /// @param _source Source chain ID of the message.
-    /// @param _sender Sender of the message.
-    function mockTarget(uint256 _source, address _sender) external payable {
-        // Ensure that the contract is entered
-        assertEq(l2ToL2CrossDomainMessenger.entered(), true);
-
-        // Ensure that the sender is correct
-        assertEq(l2ToL2CrossDomainMessenger.crossDomainMessageSource(), _source);
-
-        // Ensure that the source is correct
-        assertEq(l2ToL2CrossDomainMessenger.crossDomainMessageSender(), _sender);
-    }
-
-    /// @dev Tests that the `relayMessage` function succeeds and stores the correct metadata in transient storage.
+    /// @notice Tests that the `relayMessage` function succeeds and stores the correct metadata in
+    ///         transient storage.
     function testFuzz_relayMessage_metadataStore_succeeds(
         uint256 _source,
         uint256 _nonce,
@@ -327,8 +461,9 @@ contract L2ToL2CrossDomainMessengerTest is Test {
     )
         external
     {
-        // Since the target is this contract, we want to ensure the payment doesn't lead to overflow, since this
-        // contract has a non-zero balance. Thus, we set this contract's balance to zero and we hoax afterwards.
+        // Since the target is this contract, we want to ensure the payment doesn't lead to
+        // overflow, since this contract has a non-zero balance. Thus, we set this contract's
+        // balance to zero and we hoax afterwards.
         vm.deal(address(this), 0);
 
         // Set the target and message for the reentrant call
@@ -368,14 +503,16 @@ contract L2ToL2CrossDomainMessengerTest is Test {
         // Check that entered slot is cleared after the function call
         assertEq(l2ToL2CrossDomainMessenger.entered(), false);
 
-        // Check that metadata is cleared after the function call. We need to set the `entered` slot to non-zero value
-        // to prevent NotEntered revert when calling the crossDomainMessageSender and crossDomainMessageSource functions
+        // Check that metadata is cleared after the function call. We need to set the `entered` slot
+        // to non-zero value to prevent NotEntered revert when calling the
+        // crossDomainMessageSender and crossDomainMessageSource functions
         l2ToL2CrossDomainMessenger.setEntered(1);
         assertEq(l2ToL2CrossDomainMessenger.crossDomainMessageSource(), 0);
         assertEq(l2ToL2CrossDomainMessenger.crossDomainMessageSender(), address(0));
     }
 
-    /// @dev Tests the `relayMessage` function returns the expected return data from the call to the target contract.
+    /// @notice Tests the `relayMessage` function returns the expected return data from the call to
+    ///         the target contract.
     function testFuzz_relayMessage_returnData_succeeds(
         uint256 _source,
         uint256 _nonce,
@@ -394,6 +531,8 @@ contract L2ToL2CrossDomainMessengerTest is Test {
             _target != Predeploys.CROSS_L2_INBOX && _target != Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER
                 && _target != foundryVMAddress
         );
+
+        assumeNotForgeAddress(_target);
 
         // ensure the target has 0 balance to avoid an overflow
         vm.deal(_target, 0);
@@ -426,32 +565,7 @@ contract L2ToL2CrossDomainMessengerTest is Test {
         assertEq(returnData, _mockedReturnData);
     }
 
-    /// @dev Mock reentrant function that calls the `relayMessage` function.
-    /// @param _source Source chain ID of the message.
-    /// @param _nonce Nonce of the message.
-    /// @param _sender Sender of the message.
-    function mockTargetReentrant(uint256 _source, uint256 _nonce, address _sender) external payable {
-        // Ensure caller is CrossL2Inbox to prevent a revert from the caller check
-        vm.prank(Predeploys.CROSS_L2_INBOX);
-
-        // Ensure that the contract is entered
-        assertEq(l2ToL2CrossDomainMessenger.entered(), true);
-
-        vm.expectRevert(ReentrantCall.selector);
-
-        Identifier memory id = Identifier(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER, 1, 1, 1, _source);
-        bytes memory sentMessage = abi.encodePacked(
-            abi.encode(L2ToL2CrossDomainMessenger.SentMessage.selector, block.chainid, address(0), _nonce), // topics
-            abi.encode(_sender, "") // data
-        );
-
-        l2ToL2CrossDomainMessenger.relayMessage(id, sentMessage);
-
-        // Ensure the function still reverts if `expectRevert` succeeds
-        revert();
-    }
-
-    /// @dev Tests that the `relayMessage` function reverts when reentrancy is attempted.
+    /// @notice Tests that the `relayMessage` function reverts when reentrancy is attempted.
     function testFuzz_relayMessage_reentrant_reverts(
         uint256 _source1, // source passed to `relayMessage` by the initial call.
         address _sender1, // sender passed to `relayMessage` by the initial call.
@@ -465,8 +579,9 @@ contract L2ToL2CrossDomainMessengerTest is Test {
     )
         external
     {
-        // Since the target is this contract, we want to ensure the payment doesn't lead to overflow, since this
-        // contract has a non-zero balance. Thus, we set this contract's balance to zero and we hoax afterwards.
+        // Since the target is this contract, we want to ensure the payment doesn't lead to
+        // overflow, since this contract has a non-zero balance. Thus, we set this contract's
+        // balance to zero and we hoax afterwards.
         vm.deal(address(this), 0);
 
         // Set the target and message for the reentrant call
@@ -499,14 +614,15 @@ contract L2ToL2CrossDomainMessengerTest is Test {
         // Check that entered slot is cleared after the function call
         assertEq(l2ToL2CrossDomainMessenger.entered(), false);
 
-        // Check that metadata is cleared after the function call. We need to set the `entered` slot to non-zero value
-        // to prevent NotEntered revert when calling the crossDomainMessageSender and crossDomainMessageSource functions
+        // Check that metadata is cleared after the function call. We need to set the `entered`
+        // slot to non-zero value to prevent NotEntered revert when calling the
+        // crossDomainMessageSender and crossDomainMessageSource functions
         l2ToL2CrossDomainMessenger.setEntered(1);
         assertEq(l2ToL2CrossDomainMessenger.crossDomainMessageSource(), 0);
         assertEq(l2ToL2CrossDomainMessenger.crossDomainMessageSender(), address(0));
     }
 
-    /// @dev Tests that the `relayMessage` function reverts when log identifier is not the cdm
+    /// @notice Tests that the `relayMessage` function reverts when log identifier is not the cdm
     function testFuzz_relayMessage_idOriginNotL2ToL2CrossDomainMessenger_reverts(
         uint256 _source,
         uint256 _nonce,
@@ -538,7 +654,8 @@ contract L2ToL2CrossDomainMessengerTest is Test {
         l2ToL2CrossDomainMessenger.relayMessage{ value: _value }(id, sentMessage);
     }
 
-    /// @dev Tests that the `relayMessage` function reverts when the destination is not the relay chain.
+    /// @notice Tests that the `relayMessage` function reverts when the destination is not the relay
+    ///         chain.
     function testFuzz_relayMessage_destinationNotRelayChain_reverts(
         uint256 _destination,
         uint256 _source,
@@ -578,7 +695,8 @@ contract L2ToL2CrossDomainMessengerTest is Test {
         l2ToL2CrossDomainMessenger.relayMessage{ value: _value }(id, sentMessage);
     }
 
-    /// @dev Tests that the `relayMessage` function reverts when the message has already been relayed.
+    /// @notice Tests that the `relayMessage` function reverts when the message has already been
+    ///         relayed.
     function testFuzz_relayMessage_alreadyRelayed_reverts(
         uint256 _source,
         uint256 _nonce,
@@ -592,19 +710,22 @@ contract L2ToL2CrossDomainMessengerTest is Test {
     )
         external
     {
-        // Ensure that payment doesn't overflow since we send value to L2ToL2CrossDomainMessenger twice
+        // Ensure that payment doesn't overflow since we send value to L2ToL2CrossDomainMessenger
+        // twice
         _value = bound(_value, 0, type(uint256).max / 2);
 
         // Ensure that the target call is payable if value is sent
         if (_value > 0) assumePayable(_target);
 
-        // Ensure that the target contract is not CrossL2Inbox or L2ToL2CrossDomainMessenger or the foundry VM
+        // Ensure that the target contract is not CrossL2Inbox or L2ToL2CrossDomainMessenger or the
+        // foundry VM
         vm.assume(
             _target != Predeploys.CROSS_L2_INBOX && _target != Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER
                 && _target != foundryVMAddress
         );
 
-        // Ensure that the target contract does not revert (using the message also as the return data)
+        // Ensure that the target contract does not revert (using the message also as the return
+        // data)
         vm.mockCall({ callee: _target, msgValue: _value, data: _message, returnData: _message });
 
         // Look for correct emitted event for first call.
@@ -630,20 +751,21 @@ contract L2ToL2CrossDomainMessengerTest is Test {
             returnData: ""
         });
 
-        // First call to `relayMessage` should succeed. The current chain is the destination to prevent revert due to
-        // invalid destination
+        // First call to `relayMessage` should succeed. The current chain is the destination to
+        // prevent revert due to invalid destination
         hoax(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER, _value);
         l2ToL2CrossDomainMessenger.relayMessage{ value: _value }(id, sentMessage);
 
         // Second call should fail with MessageAlreadyRelayed selector
         vm.expectRevert(MessageAlreadyRelayed.selector);
 
-        // Call `relayMessage` again. The current chain is the destination to prevent revert due to invalid destination
+        // Call `relayMessage` again. The current chain is the destination to prevent revert due to
+        // invalid destination
         hoax(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER, _value);
         l2ToL2CrossDomainMessenger.relayMessage{ value: _value }(id, sentMessage);
     }
 
-    /// @dev Tests that the `relayMessage` function reverts when the target call fails.
+    /// @notice Tests that the `relayMessage` function reverts when the target call fails.
     function testFuzz_relayMessage_targetCallFails_reverts(
         uint256 _source,
         uint256 _nonce,
@@ -664,8 +786,9 @@ contract L2ToL2CrossDomainMessengerTest is Test {
         // Ensure that the target contract reverts
         vm.mockCallRevert({ callee: _target, msgValue: _value, data: _message, revertData: _revertData });
 
-        // Construct the identifier -- using some hardcoded values for the block number, log index, and time to avoid
-        // stack too deep errors.
+        // Construct the identifier -- using some hardcoded values for the block number, log index,
+
+        // and time to avoid stack too deep errors.
         Identifier memory id = Identifier(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER, 1, 1, 1, _source);
 
         bytes memory sentMessage = abi.encodePacked(
@@ -684,83 +807,5 @@ contract L2ToL2CrossDomainMessengerTest is Test {
         vm.expectRevert(_revertData);
         hoax(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER, _value);
         l2ToL2CrossDomainMessenger.relayMessage{ value: _value }(id, sentMessage);
-    }
-
-    /// @dev Tests that the `crossDomainMessageSender` function returns the correct value.
-    function testFuzz_crossDomainMessageSender_succeeds(address _sender) external {
-        // Set `entered` to non-zero value to prevent NotEntered revert
-        l2ToL2CrossDomainMessenger.setEntered(1);
-        // Ensure that the contract is now entered
-        assertEq(l2ToL2CrossDomainMessenger.entered(), true);
-        // Set cross domain message sender in the transient storage
-        l2ToL2CrossDomainMessenger.setCrossDomainMessageSender(_sender);
-        // Check that the `crossDomainMessageSender` function returns the correct value
-        assertEq(l2ToL2CrossDomainMessenger.crossDomainMessageSender(), _sender);
-    }
-
-    /// @dev Tests that the `crossDomainMessageSender` function reverts when not entered.
-    function test_crossDomainMessageSender_notEntered_reverts() external {
-        // Ensure that the contract is not entered
-        assertEq(l2ToL2CrossDomainMessenger.entered(), false);
-
-        // Expect a revert with the NotEntered selector
-        vm.expectRevert(NotEntered.selector);
-
-        // Call `crossDomainMessageSender` to provoke revert
-        l2ToL2CrossDomainMessenger.crossDomainMessageSender();
-    }
-
-    /// @dev Tests that the `crossDomainMessageSource` function returns the correct value.
-    function testFuzz_crossDomainMessageSource_succeeds(uint256 _source) external {
-        // Set `entered` to non-zero value to prevent NotEntered revert
-        l2ToL2CrossDomainMessenger.setEntered(1);
-        // Ensure that the contract is now entered
-        assertEq(l2ToL2CrossDomainMessenger.entered(), true);
-        // Set cross domain message source in the transient storage
-        l2ToL2CrossDomainMessenger.setCrossDomainMessageSource(_source);
-        // Check that the `crossDomainMessageSource` function returns the correct value
-        assertEq(l2ToL2CrossDomainMessenger.crossDomainMessageSource(), _source);
-    }
-
-    /// @dev Tests that the `crossDomainMessageSource` function reverts when not entered.
-    function test_crossDomainMessageSource_notEntered_reverts() external {
-        // Ensure that the contract is not entered
-        assertEq(l2ToL2CrossDomainMessenger.entered(), false);
-
-        // Expect a revert with the NotEntered selector
-        vm.expectRevert(NotEntered.selector);
-
-        // Call `crossDomainMessageSource` to provoke revert
-        l2ToL2CrossDomainMessenger.crossDomainMessageSource();
-    }
-
-    /// @dev Tests that the `crossDomainMessageContext` function returns the correct value.
-    function testFuzz_crossDomainMessageContext_succeeds(address _sender, uint256 _source) external {
-        // Set `entered` to non-zero value to prevent NotEntered revert
-        l2ToL2CrossDomainMessenger.setEntered(1);
-        // Ensure that the contract is now entered
-        assertEq(l2ToL2CrossDomainMessenger.entered(), true);
-
-        // Set cross domain message source in the transient storage
-        l2ToL2CrossDomainMessenger.setCrossDomainMessageSender(_sender);
-        l2ToL2CrossDomainMessenger.setCrossDomainMessageSource(_source);
-
-        // Check that the `crossDomainMessageContext` function returns the correct value
-        (address crossDomainContextSender, uint256 crossDomainContextSource) =
-            l2ToL2CrossDomainMessenger.crossDomainMessageContext();
-        assertEq(crossDomainContextSender, _sender);
-        assertEq(crossDomainContextSource, _source);
-    }
-
-    /// @dev Tests that the `crossDomainMessageContext` function reverts when not entered.
-    function test_crossDomainMessageContext_notEntered_reverts() external {
-        // Ensure that the contract is not entered
-        assertEq(l2ToL2CrossDomainMessenger.entered(), false);
-
-        // Expect a revert with the NotEntered selector
-        vm.expectRevert(NotEntered.selector);
-
-        // Call `crossDomainMessageContext` to provoke revert
-        l2ToL2CrossDomainMessenger.crossDomainMessageContext();
     }
 }

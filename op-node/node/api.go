@@ -5,6 +5,8 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/depset"
+	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/log"
@@ -102,6 +104,7 @@ func (n *adminAPI) SetRecoverMode(ctx context.Context, mode bool) error {
 
 type nodeAPI struct {
 	config *rollup.Config
+	depSet depset.DependencySet
 	client l2EthClient
 	dr     driverClient
 	safeDB SafeDBReader
@@ -110,9 +113,10 @@ type nodeAPI struct {
 
 var _ apis.RollupNodeServer = (*nodeAPI)(nil)
 
-func NewNodeAPI(config *rollup.Config, l2Client l2EthClient, dr driverClient, safeDB SafeDBReader, log log.Logger) *nodeAPI {
+func NewNodeAPI(config *rollup.Config, depSet depset.DependencySet, l2Client l2EthClient, dr driverClient, safeDB SafeDBReader, log log.Logger) *nodeAPI {
 	return &nodeAPI{
 		config: config,
+		depSet: depSet,
 		client: l2Client,
 		dr:     dr,
 		safeDB: safeDB,
@@ -161,6 +165,13 @@ func (n *nodeAPI) SyncStatus(ctx context.Context) (*eth.SyncStatus, error) {
 
 func (n *nodeAPI) RollupConfig(_ context.Context) (*rollup.Config, error) {
 	return n.config, nil
+}
+
+func (n *nodeAPI) DependencySet(_ context.Context) (depset.DependencySet, error) {
+	if n.depSet != nil {
+		return n.depSet, nil
+	}
+	return nil, ethereum.NotFound
 }
 
 func (n *nodeAPI) Version(ctx context.Context) (string, error) {

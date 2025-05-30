@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	preimage "github.com/ethereum-optimism/optimism/op-preimage"
 	cldr "github.com/ethereum-optimism/optimism/op-program/client/driver"
 	"github.com/ethereum-optimism/optimism/op-program/client/l1"
@@ -34,9 +35,6 @@ type DerivationOptions struct {
 	// StoreBlockData controls whether block data, including intermediate trie nodes from transactions and receipts
 	// of the derived block should be stored in the l2.KeyValueStore.
 	StoreBlockData bool
-
-	// SkipValidation controls whether the claim is validated after the block is derived.
-	SkipValidation bool
 }
 
 // RunDerivation executes the L2 state transition, given a minimal interface to retrieve data.
@@ -47,6 +45,7 @@ type DerivationOptions struct {
 func RunDerivation(
 	logger log.Logger,
 	cfg *rollup.Config,
+	depSet derive.DependencySet,
 	l2Cfg *params.ChainConfig,
 	l1Head common.Hash,
 	l2OutputRoot common.Hash,
@@ -64,7 +63,7 @@ func RunDerivation(
 	l2Source := l2.NewOracleEngine(cfg, logger, engineBackend, l2Oracle.Hinter())
 
 	logger.Info("Starting derivation", "chainID", cfg.L2ChainID)
-	d := cldr.NewDriver(logger, cfg, l1Source, l1BlobsSource, l2Source, l2ClaimBlockNum)
+	d := cldr.NewDriver(logger, cfg, depSet, l1Source, l1BlobsSource, l2Source, l2ClaimBlockNum)
 	result, err := d.RunComplete()
 	if err != nil {
 		return DerivationResult{}, fmt.Errorf("failed to run program to completion: %w", err)

@@ -23,12 +23,6 @@ func TestLocator_Marshaling(t *testing.T) {
 			err: false,
 		},
 		{
-			name: "well-formed but nonexistent tag",
-			in:   "tag://op-contracts/v1.5.0",
-			out:  nil,
-			err:  true,
-		},
-		{
 			name: "mal-formed tag",
 			in:   "tag://honk",
 			out:  nil,

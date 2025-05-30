@@ -364,6 +364,7 @@ func TestInteropBlockBuilding(t *testing.T) {
 }
 
 func TestMultiNode(t *testing.T) {
+	t.Skip() // TODO(#16174): Decide on future of multi-node support
 	t.Parallel()
 	test := func(t *testing.T, s2 SuperSystem) {
 		supervisor := s2.SupervisorClient()

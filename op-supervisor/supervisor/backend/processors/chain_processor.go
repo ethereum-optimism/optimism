@@ -67,8 +67,10 @@ type ChainProcessor struct {
 	maxFetcherThreads int
 }
 
-var _ event.AttachEmitter = (*ChainProcessor)(nil)
-var _ event.Deriver = (*ChainProcessor)(nil)
+var (
+	_ event.AttachEmitter = (*ChainProcessor)(nil)
+	_ event.Deriver       = (*ChainProcessor)(nil)
+)
 
 func NewChainProcessor(systemContext context.Context, log log.Logger, chain eth.ChainID, processor LogProcessor, rewinder DatabaseRewinder) *ChainProcessor {
 	out := &ChainProcessor{
@@ -95,10 +97,12 @@ func (s *ChainProcessor) AddSource(cl Source) {
 	}
 }
 
+// nextNum returns the next block number to process.
+// It returns 0 if the rewinder is empty, so there's no start to process from.
 func (s *ChainProcessor) nextNum() uint64 {
 	headNum, ok := s.rewinder.LatestBlockNum(s.chain)
 	if !ok {
-		return 0 // genesis. We could change this to start at a later block.
+		return 0
 	}
 	return headNum + 1
 }
@@ -142,7 +146,11 @@ func (s *ChainProcessor) index() {
 	// evaluate if indexing is needed
 	target := s.target
 	next := s.nextNum()
-	if target < next {
+	if next == 0 {
+		s.log.Warn("Dropping processing request, DB empty, need activation block first", "target", target)
+		s.running.Store(false)
+		return
+	} else if target < next {
 		s.log.Debug("Indexing for target block already done", "target", target, "next", s.nextNum())
 		s.running.Store(false)
 		return

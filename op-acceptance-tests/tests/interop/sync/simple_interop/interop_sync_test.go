@@ -18,8 +18,8 @@ func TestL2CLResync(gt *testing.T) {
 
 	logger.Info("Check unsafe chains are advancing")
 	dsl.CheckAll(t,
-		sys.L2ELA.Advance(eth.Unsafe, 5),
-		sys.L2ELB.Advance(eth.Unsafe, 5),
+		sys.L2ELA.AdvancedFn(eth.Unsafe, 5),
+		sys.L2ELB.AdvancedFn(eth.Unsafe, 5),
 	)
 
 	logger.Info("Stop L2CL nodes")
@@ -28,8 +28,8 @@ func TestL2CLResync(gt *testing.T) {
 
 	logger.Info("Make sure L2ELs does not advance")
 	dsl.CheckAll(t,
-		sys.L2ELA.DoesNotAdvance(eth.Unsafe),
-		sys.L2ELB.DoesNotAdvance(eth.Unsafe),
+		sys.L2ELA.NotAdvancedFn(eth.Unsafe),
+		sys.L2ELB.NotAdvancedFn(eth.Unsafe),
 	)
 
 	logger.Info("Restart L2CL nodes")
@@ -40,15 +40,15 @@ func TestL2CLResync(gt *testing.T) {
 	// we must check that unsafe head is advancing due to reconnection
 	logger.Info("Boot up L2CL nodes")
 	dsl.CheckAll(t,
-		sys.L2ELA.Advance(eth.Unsafe, 10),
-		sys.L2ELB.Advance(eth.Unsafe, 10),
+		sys.L2ELA.AdvancedFn(eth.Unsafe, 10),
+		sys.L2ELB.AdvancedFn(eth.Unsafe, 10),
 	)
 
 	// supervisor will attempt to reconnect with L2CLs at this point because L2CL ws endpoint is recovered
 	logger.Info("Check unsafe chains are advancing again")
 	dsl.CheckAll(t,
-		sys.L2ELA.Advance(eth.Unsafe, 10),
-		sys.L2ELB.Advance(eth.Unsafe, 10),
+		sys.L2ELA.AdvancedFn(eth.Unsafe, 10),
+		sys.L2ELB.AdvancedFn(eth.Unsafe, 10),
 	)
 
 	// supervisor successfully connected with managed L2CLs

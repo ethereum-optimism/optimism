@@ -37,22 +37,19 @@ func (p *L2Proposer) hydrate(system stack.ExtensibleSystem) {
 		ID:           p.id,
 		Client:       rpcCl,
 	})
-	l2Net := system.L2Network(stack.L2NetworkID(p.id.ChainID))
+	l2Net := system.L2Network(stack.L2NetworkID(p.id.ChainID()))
 	l2Net.(stack.ExtensibleL2Network).AddL2Proposer(bFrontend)
 }
 
 func WithProposer(proposerID stack.L2ProposerID, l1ELID stack.L1ELNodeID,
 	l2CLID *stack.L2CLNodeID, supervisorID *stack.SupervisorID) stack.Option[*Orchestrator] {
 	return stack.AfterDeploy(func(orch *Orchestrator) {
-		ctx := orch.P().Ctx()
-		ctx = stack.ContextWithChainID(ctx, proposerID.ChainID)
-		ctx = stack.ContextWithKind(ctx, stack.L2ProposerKind)
-		p := orch.P().WithCtx(ctx, "service", "op-proposer", "id", proposerID)
+		p := orch.P().WithCtx(stack.ContextWithID(orch.P().Ctx(), proposerID))
 
 		require := p.Require()
 		require.False(orch.proposers.Has(proposerID), "proposer must not already exist")
 
-		proposerSecret, err := orch.keys.Secret(devkeys.ProposerRole.Key(proposerID.ChainID.ToBig()))
+		proposerSecret, err := orch.keys.Secret(devkeys.ProposerRole.Key(proposerID.ChainID().ToBig()))
 		require.NoError(err)
 
 		logger := p.Logger()
@@ -61,7 +58,7 @@ func WithProposer(proposerID stack.L2ProposerID, l1ELID stack.L1ELNodeID,
 		l1EL, ok := orch.l1ELs.Get(l1ELID)
 		require.True(ok)
 
-		l2Net, ok := orch.l2Nets.Get(proposerID.ChainID)
+		l2Net, ok := orch.l2Nets.Get(proposerID.ChainID())
 		require.True(ok)
 		disputeGameFactoryAddr := l2Net.deployment.DisputeGameFactoryProxyAddr()
 
@@ -97,12 +94,12 @@ func WithProposer(proposerID stack.L2ProposerID, l1ELID stack.L1ELNodeID,
 			proposerCLIConfig.RollupRpc = l2CL.userRPC
 		}
 
-		proposer, err := ps.ProposerServiceFromCLIConfig(ctx, "0.0.1", proposerCLIConfig, logger)
+		proposer, err := ps.ProposerServiceFromCLIConfig(p.Ctx(), "0.0.1", proposerCLIConfig, logger)
 		require.NoError(err)
 
-		require.NoError(proposer.Start(ctx))
+		require.NoError(proposer.Start(p.Ctx()))
 		p.Cleanup(func() {
-			ctx, cancel := context.WithCancel(ctx)
+			ctx, cancel := context.WithCancel(p.Ctx())
 			cancel() // force-quit
 			logger.Info("Closing proposer")
 			_ = proposer.Stop(ctx)
