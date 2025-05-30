@@ -2,7 +2,7 @@
 pragma solidity ^0.8.15;
 
 // Libraries
-import { Strings } from "openzeppelin-contracts/contracts/utils/Strings.sol";
+import { LibString } from "@solady/utils/LibString.sol";
 
 // Interfaces
 import { IDisputeGameFactory } from "interfaces/dispute/IDisputeGameFactory.sol";
@@ -162,6 +162,6 @@ contract DisputeMonitorHelper {
     /// @param _value The value to convert.
     /// @return hexString_ The hex string.
     function toRpcHexString(uint256 _value) public pure returns (string memory hexString_) {
-        hexString_ = Strings.toHexString(_value);
+        hexString_ = LibString.toMinimalHexString(_value);
     }
 }

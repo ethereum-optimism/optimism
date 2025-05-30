@@ -3,6 +3,7 @@ package dsl
 import (
 	"fmt"
 	"math/big"
+	"math/rand"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -10,6 +11,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/devnet-sdk/contracts/bindings"
 	"github.com/ethereum-optimism/optimism/devnet-sdk/contracts/constants"
+	"github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/interop"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/retry"
 	"github.com/ethereum-optimism/optimism/op-service/txintent"
@@ -69,7 +71,7 @@ func (u *EOA) Plan() txplan.Option {
 		txplan.WithPendingNonce(elClient),
 		txplan.WithAgainstLatestBlock(elClient),
 		txplan.WithEstimator(elClient, true),
-		txplan.WithTransactionSubmitter(elClient),
+		txplan.WithRetrySubmission(elClient, 5, retry.Exponential()),
 		txplan.WithRetryInclusion(elClient, 5, retry.Exponential()),
 		txplan.WithBlockInclusionInfo(elClient),
 	)
@@ -157,4 +159,42 @@ func (u *EOA) SendExecMessage(initIntent *txintent.IntentTx[*txintent.InitTrigge
 	// Check single ExecutingMessage triggered
 	u.t.Require().Equal(1, len(receipt.Logs))
 	return tx, receipt
+}
+
+// SendPackedRandomInitMessages batches random messages and initiates them via a single multicall
+func (u *EOA) SendPackedRandomInitMessages(rng *rand.Rand, eventLoggerAddress common.Address) (*txintent.IntentTx[*txintent.MultiTrigger, *txintent.InteropOutput], *types.Receipt, error) {
+	// Intent to initiate messages
+	eventCnt := 1 + rng.Intn(9)
+	initCalls := make([]txintent.Call, eventCnt)
+	for index := range eventCnt {
+		initCalls[index] = interop.RandomInitTrigger(rng, eventLoggerAddress, rng.Intn(5), rng.Intn(100))
+	}
+	tx := txintent.NewIntent[*txintent.MultiTrigger, *txintent.InteropOutput](u.Plan())
+	tx.Content.Set(&txintent.MultiTrigger{Emitter: constants.MultiCall3, Calls: initCalls})
+	receipt, err := tx.PlannedTx.Included.Eval(u.ctx)
+	if err != nil {
+		return nil, nil, err
+	}
+	return tx, receipt, nil
+}
+
+// SendPackedExecMessages batches every message and validates them via a single multicall
+func (u *EOA) SendPackedExecMessages(dependOn *txintent.IntentTx[*txintent.MultiTrigger, *txintent.InteropOutput]) (*txintent.IntentTx[*txintent.MultiTrigger, *txintent.InteropOutput], *types.Receipt, error) {
+	// Intent to validate message
+	tx := txintent.NewIntent[*txintent.MultiTrigger, *txintent.InteropOutput](u.Plan())
+	tx.Content.DependOn(&dependOn.Result)
+	indexes := []int{}
+	result, err := dependOn.Result.Eval(u.ctx)
+	if err != nil {
+		return nil, nil, err
+	}
+	for idx := range len(result.Entries) {
+		indexes = append(indexes, idx)
+	}
+	tx.Content.Fn(txintent.ExecuteIndexeds(constants.MultiCall3, constants.CrossL2Inbox, &dependOn.Result, indexes))
+	receipt, err := tx.PlannedTx.Included.Eval(u.ctx)
+	if err != nil {
+		return nil, nil, err
+	}
+	return tx, receipt, nil
 }

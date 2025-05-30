@@ -418,4 +418,12 @@ contract DisputeMonitorHelper_toRpcHexString_Test is DisputeMonitorHelper_TestIn
         string memory hexString = helper.toRpcHexString(value);
         assertEq(hexString, "0x499602d2");
     }
+
+    /// @notice Test that the toRpcHexString function converts a uint256 to a hex string that
+    ///         doesn't have any leading zeros.
+    function test_toRpcHexString_noLeadingZero_succeeds() external view {
+        uint256 value = 136210625;
+        string memory hexString = helper.toRpcHexString(value);
+        assertEq(hexString, "0x81e68c1");
+    }
 }
