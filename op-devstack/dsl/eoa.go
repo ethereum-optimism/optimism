@@ -69,7 +69,7 @@ func (u *EOA) Plan() txplan.Option {
 		txplan.WithPendingNonce(elClient),
 		txplan.WithAgainstLatestBlock(elClient),
 		txplan.WithEstimator(elClient, true),
-		txplan.WithTransactionSubmitter(elClient),
+		txplan.WithRetrySubmission(elClient, 5, retry.Exponential()),
 		txplan.WithRetryInclusion(elClient, 5, retry.Exponential()),
 		txplan.WithBlockInclusionInfo(elClient),
 	)
