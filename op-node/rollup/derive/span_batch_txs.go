@@ -2,16 +2,19 @@ package derive
 
 import (
 	"bytes"
+	"context"
 	"encoding/binary"
 	"errors"
 	"fmt"
 	"io"
 	"math/big"
+	"runtime"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/holiman/uint256"
+	"golang.org/x/sync/errgroup"
 )
 
 type spanBatchTxs struct {
@@ -338,37 +341,73 @@ func (btx *spanBatchTxs) decode(r *bytes.Reader) error {
 }
 
 func (btx *spanBatchTxs) fullTxs(chainID *big.Int) ([][]byte, error) {
-	var txs [][]byte
+	num_txs := int(btx.totalBlockTxCount)
+	txs := make([][]byte, num_txs)
+	jobs := make(chan int, num_txs)
+
+	toMap := make(map[int]*common.Address)
 	toIdx := 0
-	for idx := 0; idx < int(btx.totalBlockTxCount); idx++ {
-		var stx spanBatchTx
-		if err := stx.UnmarshalBinary(btx.txDatas[idx]); err != nil {
-			return nil, err
-		}
-		nonce := btx.txNonces[idx]
-		gas := btx.txGases[idx]
-		var to *common.Address = nil
-		bit := btx.contractCreationBits.Bit(idx)
-		if bit == 0 {
+	for idx := range num_txs {
+		if btx.contractCreationBits.Bit(idx) == 0 {
 			if len(btx.txTos) <= toIdx {
 				return nil, errors.New("tx to not enough")
 			}
-			to = &btx.txTos[toIdx]
+			toMap[idx] = &btx.txTos[toIdx]
 			toIdx++
 		}
-		v := new(big.Int).SetUint64(btx.txSigs[idx].v)
-		r := btx.txSigs[idx].r.ToBig()
-		s := btx.txSigs[idx].s.ToBig()
-		tx, err := stx.convertToFullTx(nonce, gas, to, chainID, v, r, s)
-		if err != nil {
-			return nil, err
-		}
-		encodedTx, err := tx.MarshalBinary()
-		if err != nil {
-			return nil, err
-		}
-		txs = append(txs, encodedTx)
 	}
+
+	g, ctx := errgroup.WithContext(context.Background())
+
+	workerCount := min(runtime.NumCPU(), num_txs)
+	for range workerCount {
+		g.Go(func() error {
+			for idx := range jobs {
+				if err := ctx.Err(); err != nil {
+					return err
+				}
+
+				var stx spanBatchTx
+				if err := stx.UnmarshalBinary(btx.txDatas[idx]); err != nil {
+					return err
+				}
+
+				nonce := btx.txNonces[idx]
+				gas := btx.txGases[idx]
+				to := toMap[idx]
+
+				v := new(big.Int).SetUint64(btx.txSigs[idx].v)
+				r := btx.txSigs[idx].r.ToBig()
+				s := btx.txSigs[idx].s.ToBig()
+
+				tx, err := stx.convertToFullTx(nonce, gas, to, chainID, v, r, s)
+				if err != nil {
+					return err
+				}
+
+				encodedTx, err := tx.MarshalBinary()
+				if err != nil {
+					return err
+				}
+
+				txs[idx] = encodedTx
+			}
+			return nil
+		})
+	}
+
+	for idx := range num_txs {
+		if err := ctx.Err(); err != nil {
+			break
+		}
+		jobs <- idx
+	}
+	close(jobs)
+
+	if err := g.Wait(); err != nil {
+		return nil, err
+	}
+
 	return txs, nil
 }
 
