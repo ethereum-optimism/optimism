@@ -36,11 +36,12 @@ func (c ErrorCode) IsGenericRPCError() bool {
 const (
 	MethodNotFound           ErrorCode = -32601 // RPC method not found or not available.
 	InvalidParams            ErrorCode = -32602
-	UnknownPayload           ErrorCode = -38001 // Payload does not exist / is not available.
-	InvalidForkchoiceState   ErrorCode = -38002 // Forkchoice state is invalid / inconsistent.
-	InvalidPayloadAttributes ErrorCode = -38003 // Payload attributes are invalid / inconsistent.
-	TooLargeEngineRequest    ErrorCode = -38004 // Unused, here for completeness, only used by engine_getPayloadBodiesByHashV1
-	UnsupportedFork          ErrorCode = -38005 // Unused, see issue #11130.
+	UnknownPayload           ErrorCode = -38001  // Payload does not exist / is not available.
+	InvalidForkchoiceState   ErrorCode = -38002  // Forkchoice state is invalid / inconsistent.
+	InvalidPayloadAttributes ErrorCode = -38003  // Payload attributes are invalid / inconsistent.
+	TooLargeEngineRequest    ErrorCode = -38004  // Unused, here for completeness, only used by engine_getPayloadBodiesByHashV1
+	UnsupportedFork          ErrorCode = -38005  // Unused, see issue #11130.
+	ConflictingDataErrorCode ErrorCode = -320600 // See https://github.com/ethereum-optimism/specs/blob/main/specs/interop/supervisor.md#-320600-conflicting_data
 )
 
 var ErrBedrockScalarPaddingNotEmpty = errors.New("version 0 scalar value has non-empty padding")
