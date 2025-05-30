@@ -5,7 +5,6 @@ use op_alloy_rpc_types_engine::{
     OpExecutionData, OpExecutionPayloadEnvelopeV3, OpExecutionPayloadEnvelopeV4,
     OpPayloadAttributes,
 };
-use reth_chainspec::{EthChainSpec, Hardforks};
 use reth_consensus::ConsensusError;
 use reth_node_api::{
     payload::{
@@ -17,7 +16,7 @@ use reth_node_api::{
     PayloadValidator,
 };
 use reth_optimism_consensus::isthmus;
-use reth_optimism_forks::{OpHardfork, OpHardforks};
+use reth_optimism_forks::OpHardforks;
 use reth_optimism_payload_builder::{OpExecutionPayloadValidator, OpPayloadTypes};
 use reth_optimism_primitives::{OpBlock, ADDRESS_L2_TO_L1_MESSAGE_PASSER};
 use reth_primitives_traits::{Block, RecoveredBlock, SealedBlock, SignedTransaction};
@@ -67,16 +66,16 @@ where
 
 /// Validator for Optimism engine API.
 #[derive(Debug, Clone)]
-pub struct OpEngineValidator<P, Tx, Chain> {
-    inner: OpExecutionPayloadValidator<Chain>,
+pub struct OpEngineValidator<P, Tx, ChainSpec> {
+    inner: OpExecutionPayloadValidator<ChainSpec>,
     provider: P,
     hashed_addr_l2tol1_msg_passer: B256,
     phantom: PhantomData<Tx>,
 }
 
-impl<P, Tx, Chain> OpEngineValidator<P, Tx, Chain> {
+impl<P, Tx, ChainSpec> OpEngineValidator<P, Tx, ChainSpec> {
     /// Instantiates a new validator.
-    pub fn new<KH: KeyHasher>(chain_spec: Arc<Chain>, provider: P) -> Self {
+    pub fn new<KH: KeyHasher>(chain_spec: Arc<ChainSpec>, provider: P) -> Self {
         let hashed_addr_l2tol1_msg_passer = KH::hash_key(ADDRESS_L2_TO_L1_MESSAGE_PASSER);
         Self {
             inner: OpExecutionPayloadValidator::new(chain_spec),
@@ -87,22 +86,22 @@ impl<P, Tx, Chain> OpEngineValidator<P, Tx, Chain> {
     }
 }
 
-impl<P, Tx, Chain> OpEngineValidator<P, Tx, Chain>
+impl<P, Tx, ChainSpec> OpEngineValidator<P, Tx, ChainSpec>
 where
-    Chain: OpHardforks,
+    ChainSpec: OpHardforks,
 {
     /// Returns the chain spec used by the validator.
     #[inline]
-    fn chain_spec(&self) -> &Chain {
+    fn chain_spec(&self) -> &ChainSpec {
         self.inner.chain_spec()
     }
 }
 
-impl<P, Tx, Chain> PayloadValidator for OpEngineValidator<P, Tx, Chain>
+impl<P, Tx, ChainSpec> PayloadValidator for OpEngineValidator<P, Tx, ChainSpec>
 where
     P: StateProviderFactory + Unpin + 'static,
     Tx: SignedTransaction + Unpin + 'static,
-    Chain: EthChainSpec + OpHardforks + Hardforks + 'static,
+    ChainSpec: OpHardforks + Send + Sync + 'static,
 {
     type Block = alloy_consensus::Block<Tx>;
     type ExecutionData = OpExecutionData;
@@ -147,7 +146,7 @@ where
     }
 }
 
-impl<Types, P, Tx, Chain> EngineValidator<Types> for OpEngineValidator<P, Tx, Chain>
+impl<Types, P, Tx, ChainSpec> EngineValidator<Types> for OpEngineValidator<P, Tx, ChainSpec>
 where
     Types: PayloadTypes<
         PayloadAttributes = OpPayloadAttributes,
@@ -155,8 +154,8 @@ where
         BuiltPayload: BuiltPayload<Primitives: NodePrimitives<SignedTx = Tx>>,
     >,
     P: StateProviderFactory + Unpin + 'static,
-    Tx: SignedTransaction + Unpin + 'static + Send + Sync,
-    Chain: EthChainSpec + OpHardforks + Hardforks + 'static,
+    Tx: SignedTransaction + Unpin + 'static,
+    ChainSpec: OpHardforks + Send + Sync + 'static,
 {
     fn validate_version_specific_fields(
         &self,
@@ -231,13 +230,13 @@ where
 /// Canyon activates the Shanghai EIPs, see the Canyon specs for more details:
 /// <https://github.com/ethereum-optimism/optimism/blob/ab926c5fd1e55b5c864341c44842d6d1ca679d99/specs/superchain-upgrades.md#canyon>
 pub fn validate_withdrawals_presence(
-    chain_spec: &(impl EthChainSpec + OpHardforks + Hardforks),
+    chain_spec: impl OpHardforks,
     version: EngineApiMessageVersion,
     message_validation_kind: MessageValidationKind,
     timestamp: u64,
     has_withdrawals: bool,
 ) -> Result<(), EngineObjectValidationError> {
-    let is_shanghai = chain_spec.fork(OpHardfork::Canyon).active_at_timestamp(timestamp);
+    let is_shanghai = chain_spec.is_canyon_active_at_timestamp(timestamp);
 
     match version {
         EngineApiMessageVersion::V1 => {
