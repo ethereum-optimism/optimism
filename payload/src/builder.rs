@@ -12,7 +12,7 @@ use alloy_rpc_types_debug::ExecutionWitness;
 use alloy_rpc_types_engine::PayloadId;
 use op_alloy_rpc_types_engine::OpPayloadAttributes;
 use reth_basic_payload_builder::*;
-use reth_chain_state::{ExecutedBlock, ExecutedBlockWithTrieUpdates, ExecutedTrieUpdates};
+use reth_chain_state::{ExecutedBlock, ExecutedBlockWithTrieUpdates};
 use reth_chainspec::{ChainSpecProvider, EthChainSpec};
 use reth_evm::{
     execute::{
@@ -341,7 +341,7 @@ impl<Txs> OpBuilder<'_, Txs> {
                 execution_output: Arc::new(execution_outcome),
                 hashed_state: Arc::new(hashed_state),
             },
-            trie: ExecutedTrieUpdates::Present(Arc::new(trie_updates)),
+            trie: Arc::new(trie_updates),
         };
 
         let no_tx_pool = ctx.attributes().no_tx_pool;
