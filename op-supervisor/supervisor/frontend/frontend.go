@@ -25,10 +25,9 @@ var _ apis.SupervisorQueryAPI = (*QueryFrontend)(nil)
 
 func (q *QueryFrontend) CheckAccessList(ctx context.Context, inboxEntries []common.Hash,
 	minSafety types.SafetyLevel, executingDescriptor types.ExecutingDescriptor) error {
-	const ConflictingDataErrorCode eth.ErrorCode = -320600 // See https://github.com/ethereum-optimism/specs/blob/main/specs/interop/supervisor.md#-320600-conflicting_data
 	err := q.Supervisor.CheckAccessList(ctx, inboxEntries, minSafety, executingDescriptor)
 	if err != nil && errors.Is(err, types.ErrConflict) {
-		return eth.InputError{Inner: err, Code: ConflictingDataErrorCode}
+		return eth.InputError{Inner: err, Code: eth.ConflictingDataErrorCode}
 	}
 	return err
 }
