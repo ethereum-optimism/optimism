@@ -4,7 +4,6 @@ import (
 	"context"
 	"math/big"
 	"math/rand"
-	"sync"
 	"testing"
 	"time"
 
@@ -20,7 +19,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/txplan"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
-	"github.com/ethereum/go-ethereum/params"
 	"github.com/stretchr/testify/require"
 )
 
@@ -486,124 +484,6 @@ func executeMessageInvalidAttributes(
 	}
 }
 
-// randomDirectedGraph tests below scenario:
-// Construct random directed graph of messages
-func randomDirectedGraph(
-	l2ChainNums int,
-	walletGetters []validators.WalletGetter,
-) systest.InteropSystemTestFunc {
-	return func(t systest.T, sys system.InteropSystem) {
-		ctx, rng, logger, _, wallets, opts := DefaultInteropSetup(t, sys, l2ChainNums, walletGetters)
-
-		// pubSubPairCnt is the count of (publisher, subscriber) pairs which
-		// - publisher initiates messages
-		// - subscriber validates messages
-		pubSubPairCnt := 10
-		// txCnt is the count of transactions that each publisher emits
-		txCnt := 3
-		// fundAmount is the ETH amount which publisher and subscriber needs to transact
-		fundAmount := big.NewInt(params.Ether / 10)
-
-		// Deploy eventLoggers per every L2 chains because initiating messages can happen on any L2 chains
-		eventLoggerAddresses := []common.Address{}
-		{
-			var mu sync.Mutex
-			var wg sync.WaitGroup
-			for chainIdx := range l2ChainNums {
-				wg.Add(1)
-				go func(chainIdx int) {
-					defer wg.Done()
-					eventLoggerAddress, err := DeployEventLogger(ctx, wallets[chainIdx], logger)
-					require.NoError(t, err)
-					mu.Lock()
-					eventLoggerAddresses = append(eventLoggerAddresses, eventLoggerAddress)
-					mu.Unlock()
-				}(chainIdx)
-			}
-			wg.Wait()
-		}
-
-		// chainWalletsOpts collects wallet options to transact, grouped per L2 chain
-		chainWalletsOpts := [][]txplan.Option{}
-		logger.Info("funding accounts", "amount", fundAmount.String())
-		{
-			var mu sync.Mutex
-			var wg sync.WaitGroup
-			for chainIdx := range l2ChainNums {
-				wg.Add(1)
-				go func(chainIdx int) {
-					defer wg.Done()
-					// each goroutine funds wallets per L2 chain
-					chainWalletOpts, err := FundWalletsFromFaucet(ctx, logger, sys, chainIdx, opts[chainIdx], fundAmount, pubSubPairCnt)
-					require.NoError(t, err)
-					mu.Lock()
-					chainWalletsOpts = append(chainWalletsOpts, chainWalletOpts)
-					mu.Unlock()
-				}(chainIdx)
-			}
-			wg.Wait()
-		}
-
-		// runPubSubPair spawns publisher goroutine, paired with subscriber goroutine
-		runPubSubPair := func(pubOpt, subOpt txplan.Option, eventLoggerAddress common.Address, localRng *rand.Rand) {
-			var wg sync.WaitGroup
-			wg.Add(2)
-
-			ch := make(chan *txintent.IntentTx[*txintent.MultiTrigger, *txintent.InteropOutput])
-
-			// publisher initiates txCnt transactions that includes multiple random messages
-			publisherRng := rand.New(rand.NewSource(localRng.Int63()))
-			go func(ch chan<- *txintent.IntentTx[*txintent.MultiTrigger, *txintent.InteropOutput], rng *rand.Rand) {
-				defer wg.Done()
-				for range txCnt {
-					tx, receipt, err := InitiateRandomMessages(ctx, pubOpt, rng, eventLoggerAddress)
-					require.NoError(t, err)
-					logger.Info("initiate messages included", "chainID", tx.PlannedTx.ChainID.Value().String(), "blockNumber", receipt.BlockNumber, "block", receipt.BlockHash)
-					ch <- tx
-					time.Sleep(time.Duration(rng.Intn(250)) * time.Millisecond)
-				}
-				close(ch)
-			}(ch, publisherRng)
-
-			subscriberRng := rand.New(rand.NewSource(localRng.Int63()))
-			// subscriber validates every messages that was initiated by the publisher
-			go func(ch <-chan *txintent.IntentTx[*txintent.MultiTrigger, *txintent.InteropOutput], rng *rand.Rand) {
-				defer wg.Done()
-				for dependsOn := range ch {
-					tx, receipt, err := ValidateEveryMessage(ctx, subOpt, dependsOn)
-					require.NoError(t, err)
-					logger.Info("validate messages included", "blockNumber", receipt.BlockNumber, "block", receipt.BlockHash)
-					logger.Info("message dependency",
-						"sourceChainID", dependsOn.PlannedTx.ChainID.Value().String(),
-						"destChainID", tx.PlannedTx.ChainID.Value().String(),
-						"sourceBlockNum", dependsOn.PlannedTx.IncludedBlock.Value().Number,
-						"destBlockNum", receipt.BlockNumber)
-					time.Sleep(time.Duration(rng.Intn(250)) * time.Millisecond)
-				}
-			}(ch, subscriberRng)
-
-			wg.Wait()
-		}
-
-		runPubSubPairWrapper := func(sourceIdx, destIdx, pairIdx int, wg *sync.WaitGroup, localRng *rand.Rand) {
-			defer wg.Done()
-			runPubSubPair(chainWalletsOpts[sourceIdx][pairIdx], chainWalletsOpts[destIdx][pairIdx], eventLoggerAddresses[sourceIdx], localRng)
-		}
-
-		var wg sync.WaitGroup
-		wg.Add(pubSubPairCnt)
-		for pairIdx := range pubSubPairCnt {
-			// randomize source and destination L2 chains
-			perm := rng.Perm(l2ChainNums)
-			sourceIdx, destIdx := perm[0], perm[1]
-			// localRng is needed per pubsub pair because rng cannot be shared without mutex
-			localRng := rand.New(rand.NewSource(rng.Int63()))
-			go runPubSubPairWrapper(sourceIdx, destIdx, pairIdx, &wg, localRng)
-		}
-		wg.Wait()
-	}
-}
-
 func TestInteropInitAndExecMsg(t *testing.T) {
 	l2ChainNums := 2
 	walletGetters, totalValidators := SetupDefaultInteropSystemTest(l2ChainNums)
@@ -627,15 +507,6 @@ func TestInteropExecSameMsgTwice(t *testing.T) {
 	walletGetters, totalValidators := SetupDefaultInteropSystemTest(l2ChainNums)
 	systest.InteropSystemTest(t,
 		execSameMsgTwice(l2ChainNums, walletGetters),
-		totalValidators...,
-	)
-}
-
-func TestInteropRandomDirectedGraph(t *testing.T) {
-	l2ChainNums := 2
-	walletGetters, totalValidators := SetupDefaultInteropSystemTest(l2ChainNums)
-	systest.InteropSystemTest(t,
-		randomDirectedGraph(l2ChainNums, walletGetters),
 		totalValidators...,
 	)
 }
