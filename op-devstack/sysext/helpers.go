@@ -89,7 +89,11 @@ func (orch *Orchestrator) findProtocolService(service *descriptors.Service, prot
 			if orch.usePrivatePorts {
 				port = endpoint.PrivatePort
 			}
-			return fmt.Sprintf("http://%s:%d", endpoint.Host, port), nil, nil
+			scheme := endpoint.Scheme
+			if scheme == "" {
+				scheme = HTTPProtocol
+			}
+			return fmt.Sprintf("%s://%s:%d", scheme, endpoint.Host, port), nil, nil
 		}
 	}
 	return "", nil, fmt.Errorf("protocol %s not found", protocol)
