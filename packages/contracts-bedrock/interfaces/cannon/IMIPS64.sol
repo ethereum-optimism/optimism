@@ -26,6 +26,8 @@ interface IMIPS64 is ISemver {
     error InvalidPC();
     error InvalidSecondMemoryProof();
     error UnsupportedStateVersion();
+    error InvalidMemoryProof();
+    error InvalidRMWInstruction();
 
     function version() external view returns (string memory);
     function oracle() external view returns (IPreimageOracle oracle_);
