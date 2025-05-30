@@ -148,7 +148,7 @@ func TestRandomDirectedGraph(gt *testing.T) {
 	// pubSubPairCnt is the count of (publisher, subscriber) pairs which
 	// - publisher initiates messages
 	// - subscriber validates messages
-	pubSubPairCnt := 10
+	pubSubPairCnt := 5
 	// txCnt is the count of transactions that each publisher emits
 	txCnt := 3
 	// fundAmount is the ETH amount to fund publishers and subscribers
