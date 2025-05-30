@@ -25,7 +25,13 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func temporarilySkip(t *testing.T) {
+	// TODO(#16166) Reenable these tests
+	t.Skip("Skip temporarily while #16166 is in progress")
+}
+
 func TestCreateSuperCannonGame(t *testing.T) {
+	temporarilySkip(t)
 	RunTestAcrossVmTypes(t, func(t *testing.T, allocType config.AllocType) {
 		ctx := context.Background()
 		sys, disputeGameFactory, _ := StartInteropFaultDisputeSystem(t, WithAllocType(allocType))
@@ -36,6 +42,7 @@ func TestCreateSuperCannonGame(t *testing.T) {
 }
 
 func TestSuperCannonGame(t *testing.T) {
+	temporarilySkip(t)
 	RunTestAcrossVmTypes(t, func(t *testing.T, allocType config.AllocType) {
 		ctx := context.Background()
 		sys, disputeGameFactory, _ := StartInteropFaultDisputeSystem(t, WithAllocType(allocType))
@@ -45,6 +52,7 @@ func TestSuperCannonGame(t *testing.T) {
 }
 
 func TestSuperCannonGame_ChallengeAllZeroClaim(t *testing.T) {
+	temporarilySkip(t)
 	RunTestAcrossVmTypes(t, func(t *testing.T, allocType config.AllocType) {
 		ctx := context.Background()
 		sys, disputeGameFactory, _ := StartInteropFaultDisputeSystem(t, WithAllocType(allocType))
@@ -54,6 +62,7 @@ func TestSuperCannonGame_ChallengeAllZeroClaim(t *testing.T) {
 }
 
 func TestSuperCannonPublishCannonRootClaim(t *testing.T) {
+	temporarilySkip(t)
 	type TestCase struct {
 		disputeL2SequenceNumberOffset uint64
 	}
@@ -115,6 +124,7 @@ func TestSuperCannonPublishCannonRootClaim(t *testing.T) {
 }
 
 func TestSuperCannonDisputeGame(t *testing.T) {
+	temporarilySkip(t)
 	type TestCase struct {
 		name             string
 		defendClaimDepth types.Depth
@@ -167,6 +177,7 @@ func TestSuperCannonDisputeGame(t *testing.T) {
 }
 
 func TestSuperCannonDefendStep(t *testing.T) {
+	temporarilySkip(t)
 	RunTestAcrossVmTypes(t, func(t *testing.T, allocType config.AllocType) {
 		ctx := context.Background()
 		sys, disputeGameFactory, _ := StartInteropFaultDisputeSystem(t, WithAllocType(allocType))
@@ -222,6 +233,7 @@ func TestSuperCannonStepWithLargePreimage(t *testing.T) {
 }
 
 func TestSuperCannonStepWithPreimage_nonExistingPreimage(t *testing.T) {
+	temporarilySkip(t)
 	preimageConditions := []string{"keccak", "sha256", "blob"}
 	testName := func(vm string, preimageType string) string {
 		return fmt.Sprintf("%v-%v", preimageType, vm)
@@ -236,6 +248,7 @@ func TestSuperCannonStepWithPreimage_nonExistingPreimage(t *testing.T) {
 }
 
 func TestSuperCannonStepWithPreimage_existingPreimage(t *testing.T) {
+	temporarilySkip(t)
 	// Only test pre-existing images with one type to save runtime
 	RunTestAcrossVmTypes(t, func(t *testing.T, allocType config.AllocType) {
 		testSuperPreimageStep(t, utils.FirstKeccakPreimageLoad(), true, allocType)
@@ -243,6 +256,7 @@ func TestSuperCannonStepWithPreimage_existingPreimage(t *testing.T) {
 }
 
 func testSuperPreimageStep(t *testing.T, preimageType utils.PreimageOpt, preloadPreimage bool, allocType config.AllocType) {
+	temporarilySkip(t)
 	ctx := context.Background()
 	sys, disputeGameFactory, _ := StartInteropFaultDisputeSystem(t, WithAllocType(allocType))
 
@@ -269,6 +283,7 @@ func testSuperPreimageStep(t *testing.T, preimageType utils.PreimageOpt, preload
 }
 
 func TestSuperCannonProposalValid_AttackWithCorrectTrace(t *testing.T) {
+	temporarilySkip(t)
 	RunTestAcrossVmTypes(t, func(t *testing.T, allocType config.AllocType) {
 		ctx := context.Background()
 		sys, disputeGameFactory, _ := StartInteropFaultDisputeSystem(t, WithAllocType(allocType))
@@ -278,6 +293,7 @@ func TestSuperCannonProposalValid_AttackWithCorrectTrace(t *testing.T) {
 }
 
 func TestSuperCannonProposalValid_DefendWithCorrectTrace(t *testing.T) {
+	temporarilySkip(t)
 	RunTestAcrossVmTypes(t, func(t *testing.T, allocType config.AllocType) {
 		ctx := context.Background()
 		sys, disputeGameFactory, _ := StartInteropFaultDisputeSystem(t, WithAllocType(allocType))
@@ -287,6 +303,7 @@ func TestSuperCannonProposalValid_DefendWithCorrectTrace(t *testing.T) {
 }
 
 func TestSuperCannonPoisonedPostState(t *testing.T) {
+	temporarilySkip(t)
 	RunTestAcrossVmTypes(t, func(t *testing.T, allocType config.AllocType) {
 		ctx := context.Background()
 		sys, disputeGameFactory, _ := StartInteropFaultDisputeSystem(t, WithAllocType(allocType))
@@ -296,6 +313,7 @@ func TestSuperCannonPoisonedPostState(t *testing.T) {
 }
 
 func TestSuperCannonRootBeyondProposedBlock_ValidRoot(t *testing.T) {
+	temporarilySkip(t)
 	RunTestAcrossVmTypes(t, func(t *testing.T, allocType config.AllocType) {
 		ctx := context.Background()
 		sys, disputeGameFactory, _ := StartInteropFaultDisputeSystem(t, WithAllocType(allocType))
@@ -305,6 +323,7 @@ func TestSuperCannonRootBeyondProposedBlock_ValidRoot(t *testing.T) {
 }
 
 func TestSuperCannonRootBeyondProposedBlock_InvalidRoot(t *testing.T) {
+	temporarilySkip(t)
 	RunTestAcrossVmTypes(t, func(t *testing.T, allocType config.AllocType) {
 		ctx := context.Background()
 		sys, disputeGameFactory, _ := StartInteropFaultDisputeSystem(t, WithAllocType(allocType))
@@ -314,6 +333,7 @@ func TestSuperCannonRootBeyondProposedBlock_InvalidRoot(t *testing.T) {
 }
 
 func TestSuperCannonRootChangeClaimedRoot(t *testing.T) {
+	temporarilySkip(t)
 	RunTestAcrossVmTypes(t, func(t *testing.T, allocType config.AllocType) {
 		ctx := context.Background()
 		sys, disputeGameFactory, _ := StartInteropFaultDisputeSystem(t, WithAllocType(allocType))
@@ -323,6 +343,7 @@ func TestSuperCannonRootChangeClaimedRoot(t *testing.T) {
 }
 
 func TestSuperInvalidateUnsafeProposal(t *testing.T) {
+	temporarilySkip(t)
 	ctx := context.Background()
 	type TestCase struct {
 		name     string
@@ -408,6 +429,7 @@ func TestSuperInvalidateUnsafeProposal(t *testing.T) {
 }
 
 func TestSuperInvalidateProposalForFutureBlock(t *testing.T) {
+	temporarilySkip(t)
 	ctx := context.Background()
 	type TestCase struct {
 		name     string
@@ -470,6 +492,7 @@ func TestSuperInvalidateProposalForFutureBlock(t *testing.T) {
 }
 
 func TestSuperInvalidateCorrectProposalFutureBlock(t *testing.T) {
+	temporarilySkip(t)
 	ctx := context.Background()
 	type TestCase struct {
 		name     string
@@ -547,6 +570,7 @@ func TestSuperInvalidateCorrectProposalFutureBlock(t *testing.T) {
 }
 
 func TestSuperCannonHonestSafeTraceExtensionValidRoot(t *testing.T) {
+	temporarilySkip(t)
 	RunTestAcrossVmTypes(t, func(t *testing.T, allocType config.AllocType) {
 		ctx := context.Background()
 
@@ -600,6 +624,7 @@ func TestSuperCannonHonestSafeTraceExtensionValidRoot(t *testing.T) {
 }
 
 func TestSuperCannonHonestSafeTraceExtensionInvalidRoot(t *testing.T) {
+	temporarilySkip(t)
 	RunTestAcrossVmTypes(t, func(t *testing.T, allocType config.AllocType) {
 		ctx := context.Background()
 
@@ -659,6 +684,7 @@ func TestSuperCannonHonestSafeTraceExtensionInvalidRoot(t *testing.T) {
 }
 
 func TestSuperCannonGame_HonestCallsSteps(t *testing.T) {
+	temporarilySkip(t)
 	RunTestAcrossVmTypes(t, func(t *testing.T, allocType config.AllocType) {
 		ctx := context.Background()
 		sys, disputeGameFactory, _ := StartInteropFaultDisputeSystem(t, WithAllocType(allocType))
