@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.15;
 
+// Libraries
+import { Strings } from "openzeppelin-contracts/contracts/utils/Strings.sol";
+
 // Interfaces
 import { IDisputeGameFactory } from "interfaces/dispute/IDisputeGameFactory.sol";
 import { IDisputeGame } from "interfaces/dispute/IDisputeGame.sol";
@@ -153,5 +156,12 @@ contract DisputeMonitorHelper {
                 }
             }
         }
+    }
+
+    /// @notice Converts a uint256 to an RPC hex string.
+    /// @param _value The value to convert.
+    /// @return hexString_ The hex string.
+    function toRpcHexString(uint256 _value) public pure returns (string memory hexString_) {
+        hexString_ = Strings.toHexString(_value);
     }
 }

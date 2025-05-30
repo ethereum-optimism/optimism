@@ -409,3 +409,13 @@ contract DisputeMonitorHelper_getUnresolvedGames_Test is DisputeMonitorHelper_Te
         assertEq(results.length, _numGames, "expected 5 games");
     }
 }
+
+contract DisputeMonitorHelper_toRpcHexString_Test is DisputeMonitorHelper_TestInit {
+    /// @notice Test that the toRpcHexString function converts a uint256 to a hex string that
+    ///         starts with 0x and doesn't have any leading zeros.
+    function test_toRpcHexString_succeeds() external view {
+        uint256 value = 1234567890;
+        string memory hexString = helper.toRpcHexString(value);
+        assertEq(hexString, "0x499602d2");
+    }
+}
