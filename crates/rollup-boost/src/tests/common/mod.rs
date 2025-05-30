@@ -74,7 +74,8 @@ impl LogConsumer for LoggingConsumer {
 }
 
 pub struct EngineApi {
-    pub engine_api_client: HttpClient<RpcLogger<RpcService<AuthService<SetSensitiveRequestHeaders<HttpBackend>>>>>,
+    pub engine_api_client:
+        HttpClient<RpcLogger<RpcService<AuthService<SetSensitiveRequestHeaders<HttpBackend>>>>>,
 }
 
 // TODO: Use client/rpc.rs instead

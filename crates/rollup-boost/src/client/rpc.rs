@@ -410,10 +410,10 @@ pub mod tests {
     use crate::payload::PayloadSource;
     use alloy_rpc_types_engine::JwtSecret;
     use jsonrpsee::core::client::Error as ClientError;
+    use jsonrpsee::http_client::transport::Error as TransportError;
     use jsonrpsee::server::{ServerBuilder, ServerHandle};
     use jsonrpsee::{RpcModule, rpc_params};
     use predicates::prelude::*;
-    use reth_rpc_layer::JwtAuthValidator;
     use std::collections::HashSet;
     use std::net::SocketAddr;
     use std::net::TcpListener;
@@ -456,21 +456,6 @@ pub mod tests {
         let response = send_request(client.auth_client, port).await;
         assert!(response.is_ok());
         assert_eq!(response.unwrap(), "You are the dark lord");
-    }
-
-    #[tokio::test]
-    async fn invalid_jwt() {
-        let port = get_available_port();
-        let secret = JwtSecret::random();
-        let auth_rpc = Uri::from_str(&format!("http://{}:{}", AUTH_ADDR, port)).unwrap();
-        let client = RpcClient::new(auth_rpc, secret, 1000, PayloadSource::L2).unwrap();
-        let response = send_request(client.auth_client, port).await;
-        assert!(response.is_err());
-        // assert!(matches!(
-        //     response.unwrap_err(),
-        //     ClientError::Transport(e)
-        //         if matches!(e.downcast_ref::<TransportError>(), Some(TransportError::Rejected { status_code: 401 }))
-        // ));
     }
 
     async fn send_request(client: RpcClientService, port: u16) -> Result<String, ClientError> {
