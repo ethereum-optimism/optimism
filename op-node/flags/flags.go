@@ -402,10 +402,11 @@ var (
 	/* Interop flags, experimental. */
 	InteropRPCAddr = &cli.StringFlag{
 		Name: "interop.rpc.addr",
-		Usage: "Interop Websocket-only RPC listening address, to serve supervisor syncing." +
-			"Applies only to Interop-enabled networks. Optional, alternative to follow-mode.",
+		Usage: "Interop Websocket-only RPC listening address, for supervisor service to manage syncing of the op-node." +
+			"Applies only to Interop-enabled networks. Optional, disabled if left empty. " +
+			"Do not enable if you do not run a supervisor service.",
 		EnvVars:  prefixEnvVars("INTEROP_RPC_ADDR"),
-		Value:    "127.0.0.1",
+		Value:    "",
 		Category: InteropCategory,
 	}
 	InteropRPCPort = &cli.IntFlag{

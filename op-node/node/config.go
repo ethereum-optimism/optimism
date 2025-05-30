@@ -154,6 +154,9 @@ func (cfg *Config) Check() error {
 			return fmt.Errorf("misconfigured L1 Beacon API endpoint: %w", err)
 		}
 	}
+	if cfg.InteropConfig == nil {
+		return errors.New("missing interop config")
+	}
 	if err := cfg.InteropConfig.Check(); err != nil {
 		return fmt.Errorf("misconfigured interop: %w", err)
 	}

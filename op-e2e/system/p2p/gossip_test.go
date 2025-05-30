@@ -18,6 +18,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-e2e/system/e2esys"
 	"github.com/ethereum-optimism/optimism/op-e2e/system/helpers"
 	rollupNode "github.com/ethereum-optimism/optimism/op-node/node"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/interop"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/retry"
 	"github.com/ethereum/go-ethereum/common"
@@ -120,6 +121,7 @@ func TestSystemDenseTopology(t *testing.T) {
 			SequencerConfDepth: 0,
 			SequencerEnabled:   false,
 		},
+		InteropConfig:       &interop.Config{},
 		L1EpochPollInterval: time.Second * 4,
 	}
 	cfg.Nodes["verifier3"] = &rollupNode.Config{
@@ -128,6 +130,7 @@ func TestSystemDenseTopology(t *testing.T) {
 			SequencerConfDepth: 0,
 			SequencerEnabled:   false,
 		},
+		InteropConfig:       &interop.Config{},
 		L1EpochPollInterval: time.Second * 4,
 	}
 	cfg.Loggers["verifier2"] = testlog.Logger(t, log.LevelInfo).New("role", "verifier")

@@ -192,6 +192,19 @@ func WithL2CLNode(l2CLID stack.L2CLNodeID, isSequencer bool, l1CLID stack.L1CLNo
 			require.NoError(err, "failed to load p2p config")
 		}
 
+		// specify interop config, but do not configure anything, to disable managed mode
+		interopCfg := &interop.Config{}
+
+		if depSet != nil { // start in managed-mode, ready for interop, if we have a dependency set config
+			interopCfg = &interop.Config{
+				RPCAddr: "127.0.0.1",
+				// When L2CL starts, store its RPC port here
+				// given by the os, to reclaim when restart.
+				RPCPort:          0,
+				RPCJwtSecretPath: jwtPath,
+			}
+		}
+
 		nodeCfg := &node.Config{
 			L1: &node.L1EndpointConfig{
 				L1NodeAddr:       l1EL.userRPC,
@@ -223,13 +236,7 @@ func WithL2CLNode(l2CLID stack.L2CLNodeID, isSequencer bool, l1CLID stack.L1CLNo
 				ListenPort:  0,
 				EnableAdmin: true,
 			},
-			InteropConfig: &interop.Config{
-				RPCAddr: "127.0.0.1",
-				// When L2CL starts, store its RPC port here
-				// given by the os, to reclaim when restart.
-				RPCPort:          0,
-				RPCJwtSecretPath: jwtPath,
-			},
+			InteropConfig:               interopCfg,
 			P2P:                         p2pConfig,
 			L1EpochPollInterval:         time.Second * 2,
 			RuntimeConfigReloadInterval: 0,
