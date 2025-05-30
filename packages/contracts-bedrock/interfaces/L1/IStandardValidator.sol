@@ -33,6 +33,7 @@ interface IStandardValidator {
         address challenger;
     }
 
+    function version() external view returns (string memory);
     function anchorStateRegistryImpl() external view returns (address);
     function anchorStateRegistryVersion() external pure returns (string memory);
     function challenger() external view returns (address);
