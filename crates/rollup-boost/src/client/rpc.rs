@@ -410,7 +410,6 @@ pub mod tests {
     use crate::payload::PayloadSource;
     use alloy_rpc_types_engine::JwtSecret;
     use jsonrpsee::core::client::Error as ClientError;
-    use jsonrpsee::http_client::transport::Error as TransportError;
     use jsonrpsee::server::{ServerBuilder, ServerHandle};
     use jsonrpsee::{RpcModule, rpc_params};
     use predicates::prelude::*;

@@ -67,7 +67,7 @@ assert_cmd = "2.0.10"
 predicates = "3.1.2"
 tokio-util = { version = "0.7.13" }
 bytes = "1.2"
-reth-rpc-layer = { git = "https://github.com/paradigmxyz/reth.git", rev = "586976f12fb7a9c1417981a41fb233f4f603f643" }
+reth-rpc-layer = { git = "https://github.com/paradigmxyz/reth.git", tag = "v1.4.4" }
 ctor = "0.4.1"
 reqwest = "0.12.15"
 
