@@ -25,8 +25,8 @@ use reth_node_builder::{
     },
     node::{FullNodeTypes, NodeTypes},
     rpc::{
-        EngineValidatorAddOn, EngineValidatorBuilder, EthApiBuilder, RethRpcAddOns, RpcAddOns,
-        RpcHandle,
+        EngineValidatorAddOn, EngineValidatorBuilder, EthApiBuilder, RethRpcAddOns,
+        RethRpcServerHandles, RpcAddOns, RpcContext, RpcHandle,
     },
     BuilderContext, DebugNode, Node, NodeAdapter, NodeComponentsBuilder,
 };
@@ -271,6 +271,68 @@ where
     /// Build a [`OpAddOns`] using [`OpAddOnsBuilder`].
     pub fn builder() -> OpAddOnsBuilder<NetworkT> {
         OpAddOnsBuilder::default()
+    }
+}
+
+impl<N, EthB, EV, EB> OpAddOns<N, EthB, EV, EB>
+where
+    N: FullNodeComponents,
+    EthB: EthApiBuilder<N>,
+{
+    /// Maps the [`reth_node_builder::rpc::EngineApiBuilder`] builder type.
+    pub fn with_engine_api<T>(self, engine_api_builder: T) -> OpAddOns<N, EthB, EV, T> {
+        let Self {
+            rpc_add_ons,
+            da_config,
+            sequencer_url,
+            sequencer_headers,
+            enable_tx_conditional,
+        } = self;
+        OpAddOns {
+            rpc_add_ons: rpc_add_ons.with_engine_api(engine_api_builder),
+            da_config,
+            sequencer_url,
+            sequencer_headers,
+            enable_tx_conditional,
+        }
+    }
+
+    /// Maps the [`EngineValidatorBuilder`] builder type.
+    pub fn with_engine_validator<T>(self, engine_validator_builder: T) -> OpAddOns<N, EthB, T, EB> {
+        let Self {
+            rpc_add_ons,
+            da_config,
+            sequencer_url,
+            sequencer_headers,
+            enable_tx_conditional,
+        } = self;
+        OpAddOns {
+            rpc_add_ons: rpc_add_ons.with_engine_validator(engine_validator_builder),
+            da_config,
+            sequencer_url,
+            sequencer_headers,
+            enable_tx_conditional,
+        }
+    }
+
+    /// Sets the hook that is run once the rpc server is started.
+    pub fn on_rpc_started<F>(mut self, hook: F) -> Self
+    where
+        F: FnOnce(RpcContext<'_, N, EthB::EthApi>, RethRpcServerHandles) -> eyre::Result<()>
+            + Send
+            + 'static,
+    {
+        self.rpc_add_ons = self.rpc_add_ons.on_rpc_started(hook);
+        self
+    }
+
+    /// Sets the hook that is run to configure the rpc modules.
+    pub fn extend_rpc_modules<F>(mut self, hook: F) -> Self
+    where
+        F: FnOnce(RpcContext<'_, N, EthB::EthApi>) -> eyre::Result<()> + Send + 'static,
+    {
+        self.rpc_add_ons = self.rpc_add_ons.extend_rpc_modules(hook);
+        self
     }
 }
 
