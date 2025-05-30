@@ -14,17 +14,15 @@ type SafeStartDeps interface {
 
 	CrossDerivedToSource(chainID eth.ChainID, derived eth.BlockID) (source types.BlockSeal, err error)
 
-	DependencySet() depset.DependencySet
-
 	OpenBlock(chainID eth.ChainID, blockNum uint64) (ref eth.BlockRef, logCount uint32, execMsgs map[uint32]*types.ExecutingMessage, err error)
 }
 
 // CrossSafeHazards checks if the given messages all exist and pass invariants.
 // It returns a hazard-set: if any intra-block messaging happened,
 // these hazard blocks have to be verified.
-func CrossSafeHazards(d SafeStartDeps, logger log.Logger, chainID eth.ChainID, inL1Source eth.BlockID, candidate types.BlockSeal) (*HazardSet, error) {
+func CrossSafeHazards(d SafeStartDeps, linker depset.LinkChecker, logger log.Logger, chainID eth.ChainID, inL1Source eth.BlockID, candidate types.BlockSeal) (*HazardSet, error) {
 	safeDeps := &SafeHazardDeps{SafeStartDeps: d, inL1Source: inL1Source}
-	return NewHazardSet(safeDeps, logger, chainID, candidate)
+	return NewHazardSet(safeDeps, linker, logger, chainID, candidate)
 }
 
 type SafeHazardDeps struct {

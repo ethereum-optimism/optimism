@@ -57,7 +57,7 @@ func (db *ChainsDB) Rewind(chain eth.ChainID, headBlock eth.BlockID) error {
 	if !ok {
 		return fmt.Errorf("cannot Rewind: %w: %s", types.ErrUnknownChain, chain)
 	}
-	if err := logDB.Rewind(headBlock); err != nil {
+	if err := logDB.Rewind(db.readRegistry, headBlock); err != nil {
 		return fmt.Errorf("failed to rewind to block %v: %w", headBlock, err)
 	}
 
@@ -75,15 +75,11 @@ func (db *ChainsDB) Rewind(chain eth.ChainID, headBlock eth.BlockID) error {
 		return fmt.Errorf("cannot determine revision of %s on %s: %w", headBlock, chain, err)
 	}
 
-	if err := localDB.RewindToFirstDerived(headBlock, revision); err != nil {
+	if err := localDB.RewindToFirstDerived(db.readRegistry, headBlock, revision); err != nil {
 		return fmt.Errorf("failed to rewind localDB to block %s on %s: %w", headBlock, chain, err)
 	}
-	if err := crossDB.RewindToFirstDerived(headBlock, revision); err != nil {
+	if err := crossDB.RewindToFirstDerived(db.readRegistry, headBlock, revision); err != nil {
 		return fmt.Errorf("failed to rewind crossDB to block %s on %s: %w", headBlock, chain, err)
-	}
-
-	if registry, ok := db.readRegistries.Get(chain); ok {
-		registry.InvalidateHandlesAfter(headBlock.Number + 1)
 	}
 
 	return nil
@@ -254,7 +250,7 @@ func (db *ChainsDB) InvalidateLocalSafe(chainID eth.ChainID, candidate types.Der
 	// Now invalidate the local-safe data.
 	// We insert a marker, so we don't build on top of the invalidated block, until it is replaced.
 	// And we won't index unsafe blocks, until it is replaced.
-	if err := localSafeDB.RewindAndInvalidate(candidate); err != nil {
+	if err := localSafeDB.RewindAndInvalidate(db.readRegistry, candidate); err != nil {
 		return fmt.Errorf("failed to invalidate entry in local-safe DB: %w", err)
 	}
 
@@ -265,12 +261,8 @@ func (db *ChainsDB) InvalidateLocalSafe(chainID eth.ChainID, candidate types.Der
 
 	// Drop the events of the invalidated block and after,
 	// by rewinding to only keep the parent-block.
-	if err := eventsDB.Rewind(candidate.Derived.ParentID()); err != nil {
+	if err := eventsDB.Rewind(db.readRegistry, candidate.Derived.ParentID()); err != nil {
 		return fmt.Errorf("failed to rewind unsafe-chain: %w", err)
-	}
-
-	if registry, ok := db.readRegistries.Get(chainID); ok {
-		registry.InvalidateHandlesAfter(candidate.Derived.Number)
 	}
 
 	// Create an event, that subscribed sync-nodes can listen to,
@@ -291,12 +283,8 @@ func (db *ChainsDB) RewindLocalSafe(chainID eth.ChainID, scope eth.BlockID) erro
 	if !ok {
 		return fmt.Errorf("cannot find local-safe DB of chain %s for invalidation: %w", chainID, types.ErrUnknownChain)
 	}
-	if err := localSafeDB.RewindToScope(scope); err != nil {
+	if err := localSafeDB.RewindToScope(db.readRegistry, scope); err != nil {
 		return fmt.Errorf("failed to rewind local-safe: %w", err)
-	}
-
-	if registry, ok := db.readRegistries.Get(chainID); ok {
-		registry.InvalidateHandlesAfter(scope.Number + 1)
 	}
 
 	return nil
@@ -310,12 +298,8 @@ func (db *ChainsDB) RewindCrossSafe(chainID eth.ChainID, scope eth.BlockID) erro
 	if !ok {
 		return fmt.Errorf("cannot find cross-safe DB of chain %s for invalidation: %w", chainID, types.ErrUnknownChain)
 	}
-	if err := crossSafeDB.RewindToScope(scope); err != nil {
+	if err := crossSafeDB.RewindToScope(db.readRegistry, scope); err != nil {
 		return fmt.Errorf("failed to rewind cross-safe: %w", err)
-	}
-
-	if registry, ok := db.readRegistries.Get(chainID); ok {
-		registry.InvalidateHandlesAfter(scope.Number + 1)
 	}
 
 	return nil
@@ -326,12 +310,8 @@ func (db *ChainsDB) RewindLogs(chainID eth.ChainID, newHead types.BlockSeal) err
 	if !ok {
 		return fmt.Errorf("cannot find events DB of chain %s for invalidation: %w", chainID, types.ErrUnknownChain)
 	}
-	if err := eventsDB.Rewind(newHead.ID()); err != nil {
+	if err := eventsDB.Rewind(db.readRegistry, newHead.ID()); err != nil {
 		return fmt.Errorf("failed to rewind logs of chain %s: %w", chainID, err)
-	}
-
-	if registry, ok := db.readRegistries.Get(chainID); ok {
-		registry.InvalidateHandlesAfter(newHead.Number + 1)
 	}
 
 	return nil
@@ -372,7 +352,7 @@ func (db *ChainsDB) onReplaceBlock(chainID eth.ChainID, replacement eth.BlockRef
 	}
 
 	db.logger.Warn("Replacing local block", "replacement", replacement)
-	result, err := localSafeDB.ReplaceInvalidatedBlock(replacement, invalidated)
+	result, err := localSafeDB.ReplaceInvalidatedBlock(db.readRegistry, replacement, invalidated)
 	if err != nil {
 		db.logger.Error("Cannot replace invalidated block in local-safe DB",
 			"invalidated", invalidated, "replacement", replacement, "err", err)
@@ -380,11 +360,7 @@ func (db *ChainsDB) onReplaceBlock(chainID eth.ChainID, replacement eth.BlockRef
 	}
 
 	revision := types.Revision(result.Derived.Number)
-	db.logger.Info("Replacing block", "chain", chainID, "replacement", replacement, "revision", revision)
-
-	if registry, ok := db.readRegistries.Get(chainID); ok {
-		registry.InvalidateHandlesAfter(replacement.Number - 1)
-	}
+	db.logger.Info("Replaced block", "chain", chainID, "replacement", replacement, "revision", revision)
 
 	// Consider the replacement as a new local-unsafe block, so we can try to index the new event-data.
 	db.emitter.Emit(superevents.LocalUnsafeReceivedEvent{

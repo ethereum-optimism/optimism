@@ -12,6 +12,8 @@ import (
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/disputegame"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
 	"github.com/ethereum-optimism/optimism/op-e2e/interop"
+	"github.com/ethereum-optimism/optimism/op-e2e/system/e2esys"
+
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/stretchr/testify/require"
 )
@@ -23,6 +25,12 @@ func StartInteropFaultDisputeSystem(t *testing.T, opts ...faultDisputeConfigOpts
 	for _, opt := range opts {
 		opt(fdc)
 	}
+
+	sysConfigOpts := new(e2esys.SystemConfigOpts)
+	for _, sysOpt := range fdc.sysOpts {
+		sysOpt(sysConfigOpts)
+	}
+
 	recipe := interopgen.InteropDevRecipe{
 		L1ChainID:        InteropL1ChainID.Uint64(),
 		L2s:              []interopgen.InteropDevL2Recipe{{ChainID: 900200}, {ChainID: 900201}},
@@ -42,7 +50,7 @@ func StartInteropFaultDisputeSystem(t *testing.T, opts ...faultDisputeConfigOpts
 	privKey, err := hdWallet.Secret(l1User)
 	require.NoError(t, err)
 	s2 := interop.NewSuperSystem(t, &recipe, worldResources, superCfg)
-	factory := disputegame.NewFactoryHelper(t, context.Background(), disputegame.NewSuperDisputeSystem(s2),
+	factory := disputegame.NewFactoryHelper(t, context.Background(), disputegame.NewSuperDisputeSystem(s2, sysConfigOpts),
 		disputegame.WithFactoryPrivKey(privKey))
 
 	ctx := context.Background()

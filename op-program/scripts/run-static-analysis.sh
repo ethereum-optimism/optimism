@@ -48,7 +48,8 @@ echo "✅ vm-compat found at $(which vm-compat)"
 echo "Running analysis with VM profile: $VM_PROFILE_CONFIG using baseline report: $BASELINE_REPORT..."
 OUTPUT_FILE=$(mktemp)
 
-"$ANALYZER_BIN" analyze --with-trace=true --format=json --vm-profile-config "$VM_PROFILE_CONFIG" --baseline-report "$BASELINE_REPORT" --report-output-path "$OUTPUT_FILE" ./client/cmd/main.go
+# Note: to output the full report, remove the `--baseline-report` option below
+"$ANALYZER_BIN" analyze --with-trace=true --skip-warnings=false --format=json --vm-profile-config "$VM_PROFILE_CONFIG" --baseline-report "$BASELINE_REPORT" --report-output-path "$OUTPUT_FILE" ./client/cmd/main.go
 
 # Check if JSON output contains any issues
 ISSUE_COUNT=$(jq 'length' "$OUTPUT_FILE")

@@ -15,9 +15,11 @@ import (
 var (
 	errNotReadyForCanonicalHash = errors.New("not ready for canonical hash entry, already sealed the last block")
 	errLogBeforeLastLogComplete = errors.New("cannot process log before last log completes")
-	errUnexpectedExecutingLink  = errors.New("unexpected executing-link")
-	errNeedAppliedExecutingLink = errors.New("need executing link to be applied before the check part")
-	errUnexpectedExecutingCheck = errors.New("unexpected executing check")
+	errUnexpectedExecChainID    = errors.New("unexpected execChainID")
+	errUnexpectedExecPosition   = errors.New("unexpected execPosition")
+	errUnexpectedExecChecksum   = errors.New("unexpected execChecksum")
+	errNeedAppliedExecChainID   = errors.New("need execChainID to be applied")
+	errNeedAppliedExecPosition  = errors.New("need execPosition to be applied")
 	errUnknownEntryType         = errors.New("unknown entry type")
 	errNonEmptyState            = errors.New("non-empty state")
 	errIncompleteBlock          = errors.New("incomplete block")
@@ -28,15 +30,16 @@ var (
 //
 // Rules:
 //
-//		if entry_index % 256 == 0: must be type 0. For easy binary search.
-//		else if end_of_block: also type 0.
-//		else:
-//		    after type 0: type 1
-//		    after type 1: type 2 iff any event and space, otherwise type 0
-//		    after type 2: type 3 iff executing, otherwise type 2 or 0
-//		    after type 3: type 4
-//		    after type 4: type 2 iff any event and space, otherwise type 0
-//	     after type 5: any
+//	if entry_index % 256 == 0: must be type 0. For easy binary search.
+//	else if end_of_block: also type 0.
+//	else:
+//		after type 0: type 1
+//		after type 1: type 2 iff any event and space, otherwise type 0
+//		after type 2: type 3 iff executing, otherwise type 2 or 0
+//		after type 3: type 4
+//		after type 4: type 5
+//		after type 5: type 2 iff any event and space, otherwise type 0
+//		after type 6: any
 //
 // Type 0 can repeat: seal the block, then start a search checkpoint, then a single canonical hash.
 // Type 0 may also be used as padding: type 2 only starts when it will not be interrupted by a search checkpoint.
@@ -45,9 +48,10 @@ var (
 // type 0: "checkpoint" <type><uint64 block number: 8 bytes><uint32 logsSince count: 4 bytes><uint64 timestamp: 8 bytes> = 21 bytes
 // type 1: "canonical hash" <type><parent blockhash: 32 bytes> = 33 bytes
 // type 2: "initiating event" <type><event flags: 1 byte><event-hash: 32 bytes> = 34 bytes
-// type 3: "executing link" <type><chain: 4 bytes><blocknum: 8 bytes><event index: 3 bytes><uint64 timestamp: 8 bytes> = 24 bytes
-// type 4: "executing check" <type><event-hash: 32 bytes> = 33 bytes
-// type 5: "padding" <type><padding: 33 bytes> = 34 bytes
+// type 3: "execChainID" <type><chainID: 32 bytes> = 33 bytes
+// type 4: "execPosition" <type><blocknum: 8 bytes><event index: 4 bytes><uint64 timestamp: 8 bytes> = 21 bytes
+// type 5: "execChecksum" <type><event-hash: 32 bytes> = 33 bytes
+// type 6: "padding" <type><padding: 33 bytes> = 34 bytes
 // other types: future compat. E.g. for linking to L1, registering block-headers as a kind of initiating-event, tracking safe-head progression, etc.
 //
 // Right-pad each entry that is not 34 bytes.
@@ -117,7 +121,7 @@ func (l *logContext) hasCompleteBlock() bool {
 }
 
 func (l *logContext) hasIncompleteLog() bool {
-	return l.need.Any(FlagInitiatingEvent | FlagExecutingLink | FlagExecutingCheck)
+	return l.need.Any(FlagInitiatingEvent | FlagExecChainID | FlagExecPosition | FlagExecChecksum)
 }
 
 func (l *logContext) hasReadableLog() bool {
@@ -197,47 +201,66 @@ func (l *logContext) processEntry(entry Entry) error {
 		l.execMsg = nil // clear the old state
 		l.logHash = evt.logHash
 		if evt.hasExecMsg {
-			l.need.Add(FlagExecutingLink | FlagExecutingCheck)
+			l.need.Add(FlagExecChainID)
 		} else {
 			l.logsSince += 1
 		}
 		l.need.Remove(FlagInitiatingEvent)
-	case TypeExecutingLink:
-		if !l.need.Any(FlagExecutingLink) {
-			return errUnexpectedExecutingLink
+	case TypeExecChainID:
+		if !l.need.Any(FlagExecChainID) {
+			return errUnexpectedExecChainID
 		}
-		link, err := newExecutingLinkFromEntry(entry)
+		idEntry, err := newExecChainIDFromEntry(entry)
 		if err != nil {
 			return err
 		}
 		l.execMsg = &types.ExecutingMessage{
-			Chain:     types.ChainIndex(link.chain),
-			BlockNum:  link.blockNum,
-			LogIdx:    link.logIdx,
-			Timestamp: link.timestamp,
-			Hash:      common.Hash{}, // not known yet
+			ChainID: idEntry.chainID,
+			// not known yet
+			BlockNum:  0,
+			LogIdx:    0,
+			Timestamp: 0,
+			Checksum:  types.MessageChecksum{},
 		}
-		l.need.Remove(FlagExecutingLink)
-		l.need.Add(FlagExecutingCheck)
-	case TypeExecutingCheck:
-		if l.need.Any(FlagExecutingLink) {
-			return errNeedAppliedExecutingLink
+		l.need.Remove(FlagExecChainID)
+		l.need.Add(FlagExecPosition)
+	case TypeExecPosition:
+		if l.need.Any(FlagExecChainID) {
+			return errNeedAppliedExecChainID
 		}
-		if !l.need.Any(FlagExecutingCheck) {
-			return errUnexpectedExecutingCheck
+		if !l.need.Any(FlagExecPosition) {
+			return errUnexpectedExecPosition
 		}
-		link, err := newExecutingCheckFromEntry(entry)
+		posEntry, err := newExecPositionFromEntry(entry)
 		if err != nil {
 			return err
 		}
-		l.execMsg.Hash = link.hash
-		l.need.Remove(FlagExecutingCheck)
+		l.execMsg.BlockNum = posEntry.blockNum
+		l.execMsg.LogIdx = posEntry.logIdx
+		l.execMsg.Timestamp = posEntry.timestamp
+		l.need.Remove(FlagExecPosition)
+		l.need.Add(FlagExecChecksum)
+	case TypeExecChecksum:
+		if l.need.Any(FlagExecPosition) {
+			return errNeedAppliedExecPosition
+		}
+		if !l.need.Any(FlagExecChecksum) {
+			return errUnexpectedExecChecksum
+		}
+		checkEntry, err := newExecChecksumFromEntry(entry)
+		if err != nil {
+			return err
+		}
+		l.execMsg.Checksum = checkEntry.checksum
+		l.need.Remove(FlagExecChecksum)
 		l.logsSince += 1
 	case TypePadding:
 		if l.need.Any(FlagPadding) {
 			l.need.Remove(FlagPadding)
-		} else {
+		} else if l.need.Any(FlagPadding2) {
 			l.need.Remove(FlagPadding2)
+		} else {
+			l.need.Remove(FlagPadding3)
 		}
 	default:
 		return fmt.Errorf("%w: %s", errUnknownEntryType, entry.Type())
@@ -283,16 +306,24 @@ func (l *logContext) infer() error {
 		l.need.Remove(FlagPadding2)
 		return nil
 	}
+	if l.need.Any(FlagPadding3) {
+		l.appendEntry(paddingEntry{})
+		l.need.Remove(FlagPadding3)
+		return nil
+	}
 	if l.need.Any(FlagInitiatingEvent) {
 		// If we are running out of space for log-event data,
 		// write some checkpoints as padding, to pass the checkpoint.
-		if l.execMsg != nil { // takes 3 total. Need to avoid the checkpoint.
+		if l.execMsg != nil { // takes 4 total. Need to avoid the checkpoint.
 			switch l.nextEntryIndex % searchCheckpointFrequency {
 			case searchCheckpointFrequency - 1:
 				l.need.Add(FlagPadding)
 				return nil
 			case searchCheckpointFrequency - 2:
 				l.need.Add(FlagPadding | FlagPadding2)
+				return nil
+			case searchCheckpointFrequency - 3:
+				l.need.Add(FlagPadding | FlagPadding2 | FlagPadding3)
 				return nil
 			}
 		}
@@ -304,18 +335,29 @@ func (l *logContext) infer() error {
 		}
 		return nil
 	}
-	if l.need.Any(FlagExecutingLink) {
-		link, err := newExecutingLink(*l.execMsg)
+	if l.need.Any(FlagExecChainID) {
+		chainIDEntry, err := newExecChainID(*l.execMsg)
 		if err != nil {
-			return fmt.Errorf("failed to create executing link: %w", err)
+			return fmt.Errorf("failed to create execChainID: %w", err)
 		}
-		l.appendEntry(link)
-		l.need.Remove(FlagExecutingLink)
+		l.appendEntry(chainIDEntry)
+		l.need.Remove(FlagExecChainID)
+		l.need.Add(FlagExecPosition)
 		return nil
 	}
-	if l.need.Any(FlagExecutingCheck) {
-		l.appendEntry(newExecutingCheck(l.execMsg.Hash))
-		l.need.Remove(FlagExecutingCheck)
+	if l.need.Any(FlagExecPosition) {
+		posEntry, err := newExecPosition(*l.execMsg)
+		if err != nil {
+			return fmt.Errorf("failed to create execPosition: %w", err)
+		}
+		l.appendEntry(posEntry)
+		l.need.Remove(FlagExecPosition)
+		l.need.Add(FlagExecChecksum)
+		return nil
+	}
+	if l.need.Any(FlagExecChecksum) {
+		l.appendEntry(newExecChecksum(l.execMsg.Checksum))
+		l.need.Remove(FlagExecChecksum)
 		l.logsSince += 1
 		return nil
 	}
@@ -324,7 +366,7 @@ func (l *logContext) infer() error {
 
 // inferFull advances the logContext until it cannot infer any more entries.
 func (l *logContext) inferFull() error {
-	for i := 0; i < 10; i++ {
+	for i := 0; i < 20; i++ {
 		err := l.infer()
 		if err == nil {
 			continue
@@ -413,7 +455,7 @@ func (l *logContext) ApplyLog(parentBlock eth.BlockID, logIdx uint32, logHash co
 	l.execMsg = execMsg
 	l.need.Add(FlagInitiatingEvent)
 	if execMsg != nil {
-		l.need.Add(FlagExecutingLink | FlagExecutingCheck)
+		l.need.Add(FlagExecChainID)
 	}
 	return l.inferFull() // apply to the state as much as possible
 }

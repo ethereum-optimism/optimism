@@ -12,7 +12,7 @@ contract MIPS64_Test is Test {
     IPreimageOracle oracle;
 
     // Store some data about acceptable versions
-    uint256[1] validVersions = [7];
+    uint256[2] validVersions = [7, 8];
     mapping(uint256 => bool) public isValidVersion;
     uint256 maxValidVersion;
 

@@ -66,8 +66,8 @@ contract MIPS64 is ISemver {
     }
 
     /// @notice The semantic version of the MIPS64 contract.
-    /// @custom:semver 1.4.0
-    string public constant version = "1.4.0";
+    /// @custom:semver 1.5.0
+    string public constant version = "1.5.0";
 
     /// @notice The preimage oracle contract.
     IPreimageOracle internal immutable ORACLE;
@@ -92,8 +92,8 @@ contract MIPS64 is ISemver {
 
     /// @param _oracle The address of the preimage oracle contract.
     constructor(IPreimageOracle _oracle, uint256 _stateVersion) {
-        // Supports VersionMultiThreaded64_v4 (7)
-        if (_stateVersion != 7) {
+        // Supports VersionMultiThreaded64_v4 (7) and VersionMultiThreaded64_v5 (8)
+        if (_stateVersion != 7 && _stateVersion != 8) {
             revert UnsupportedStateVersion();
         }
         ORACLE = _oracle;
@@ -560,6 +560,11 @@ contract MIPS64 is ISemver {
             } else if (syscall_no == sys.SYS_GETPID) {
                 v0 = 0;
                 v1 = 0;
+            } else if (syscall_no == sys.SYS_GETRANDOM) {
+                if (st.featuresForVersion(STATE_VERSION).supportWorkingSysGetRandom) {
+                    (v0, v1, state.memRoot) = syscallGetRandom(state, a0, a1);
+                }
+                // Otherwise, ignored (noop)
             } else if (syscall_no == sys.SYS_MUNMAP) {
                 // ignored
             } else if (syscall_no == sys.SYS_MPROTECT) {
@@ -602,8 +607,6 @@ contract MIPS64 is ISemver {
                 // ignored
             } else if (syscall_no == sys.SYS_EPOLLPWAIT) {
                 // ignored
-            } else if (syscall_no == sys.SYS_GETRANDOM) {
-                // ignored
             } else if (syscall_no == sys.SYS_UNAME) {
                 // ignored
             } else if (syscall_no == sys.SYS_GETUID) {
@@ -640,6 +643,53 @@ contract MIPS64 is ISemver {
 
             updateCurrentThreadRoot();
             out_ = outputState();
+        }
+    }
+
+    function syscallGetRandom(
+        State memory _state,
+        uint64 _a0,
+        uint64 _a1
+    )
+        internal
+        pure
+        returns (uint64 v0_, uint64 v1_, bytes32 memRoot_)
+    {
+        uint64 effAddr = _a0 & arch.ADDRESS_MASK;
+        uint256 memProofOffset = MIPS64Memory.memoryProofOffset(MEM_PROOF_OFFSET, 1);
+        uint64 memVal = MIPS64Memory.readMem(_state.memRoot, effAddr, memProofOffset);
+
+        // Generate some pseudorandom data
+        uint64 randomWord = splitmix64(_state.step);
+
+        // Calculate number of bytes to write
+        uint64 targetByteIndex = _a0 - effAddr;
+        uint64 maxBytes = arch.WORD_SIZE_BYTES - targetByteIndex;
+        uint64 byteCount = _a1;
+        if (maxBytes < byteCount) {
+            byteCount = maxBytes;
+        }
+
+        // Write random data into target memory location
+        uint64 randDataMask = uint64((1 << (byteCount * 8)) - 1);
+        // Shift left to align with index 0, then shift right to target correct index
+        randDataMask <<= (arch.WORD_SIZE_BYTES - byteCount) * 8;
+        randDataMask >>= targetByteIndex * 8;
+        uint64 newMemVal = (memVal & ~randDataMask) | (randomWord & randDataMask);
+        memRoot_ = MIPS64Memory.writeMem(effAddr, memProofOffset, newMemVal);
+
+        v0_ = byteCount;
+        v1_ = 0;
+    }
+
+    // splitmix64 generates a pseudorandom 64-bit value.
+    // See canonical implementation: https://prng.di.unimi.it/splitmix64.c
+    function splitmix64(uint64 _seed) internal pure returns (uint64) {
+        unchecked {
+            uint64 z = _seed + 0x9e3779b97f4a7c15;
+            z = (z ^ (z >> 30)) * 0xbf58476d1ce4e5b9;
+            z = (z ^ (z >> 27)) * 0x94d049bb133111eb;
+            return z ^ (z >> 31);
         }
     }
 

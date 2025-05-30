@@ -1,5 +1,6 @@
-GITCOMMIT ?= $(shell git rev-parse HEAD)
-GITDATE ?= $(shell git show -s --format='%ct')
+GITCOMMIT ?= $(shell git rev-parse HEAD 2>/dev/null || echo "unknown")
+GITDATE ?= $(shell git show -s --format='%ct' 2>/dev/null || echo "0")
+
 VERSION ?= v0.0.0
 
 LDFLAGSSTRING +=-X main.GitCommit=$(GITCOMMIT)
@@ -46,15 +47,18 @@ check-custom-chains: op-program-host
 	./bin/op-program configs check-custom-chains
 
 reproducible-prestate: check-custom-chains
-	@docker build --output ./bin/ --progress plain -f Dockerfile.repro ../
-	@echo "-------------------- Production Prestates --------------------\n"
+	@docker build --build-arg GO_VERSION=1.24.2-alpine3.21 --build-arg EXPORT_TARGET=next  --output ./bin/ --progress plain -f Dockerfile.repro ../
+	@docker build --build-arg GO_VERSION=1.23.8-alpine3.21 --build-arg EXPORT_TARGET=current --output ./bin/ --progress plain -f Dockerfile.repro ../
+	@echo "-------------------- Production Prestates --------------------"
 	@echo "\nCannon64 Absolute prestate hash: "
 	@cat ./bin/prestate-proof-mt64.json | jq -r .pre
-	@echo "\n-------------------- Experimental Prestates --------------------\n"
-	@echo "CannonInterop Absolute prestate hash: "
-	@cat ./bin/prestate-proof-interop.json | jq -r .pre
+	@echo "\n-------------------- Experimental Prestates --------------------"
 	@echo "\nCannon64Next Absolute prestate hash: "
 	@cat ./bin/prestate-proof-mt64Next.json | jq -r .pre
+	@echo "\nCannonInterop Absolute prestate hash: "
+	@cat ./bin/prestate-proof-interop.json | jq -r .pre
+	@echo "\nCannonInteropNext Absolute prestate hash: "
+	@cat ./bin/prestate-proof-interopNext.json | jq -r .pre
 	@echo
 .PHONY: reproducible-prestate
 
@@ -130,10 +134,15 @@ verify-sepolia-isthmus: op-program-host op-program-client
 
 verify-compat: verify-mainnet-genesis verify-sepolia-delta verify-sepolia-ecotone verify-sepolia-fjord verify-sepolia-granite verify-sepolia-holocene verify-sepolia-isthmus
 
-analyze-op-program-client: analyze-op-program-client-cannon-multithreaded-64
-
-analyze-op-program-client-cannon-multithreaded-64:
+analyze-op-program-client-current:
 	./scripts/run-static-analysis.sh ./vm-profiles/cannon-multithreaded-64.yaml ./compatibility-test/baseline-cannon-multithreaded-64.json
+
+analyze-op-program-client-next:
+	./scripts/run-static-analysis.sh ./vm-profiles/cannon-multithreaded-64-next.yaml ./compatibility-test/baseline-cannon-multithreaded-64-next.json
+
+run-vm-compat:
+	@docker build --build-arg GO_VERSION=1.23.8-alpine3.21 --build-arg VM_TARGET=current --progress plain -f Dockerfile.vmcompat ../
+	@docker build --build-arg GO_VERSION=1.24.2-alpine3.21 --build-arg VM_TARGET=next --progress plain -f Dockerfile.vmcompat ../
 
 .PHONY: \
 	op-program \

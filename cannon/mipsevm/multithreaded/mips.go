@@ -158,6 +158,11 @@ func (m *InstrumentedState) handleSyscall() error {
 	case arch.SysGetpid:
 		v0 = 0
 		v1 = 0
+	case arch.SysGetRandom:
+		if m.features.SupportWorkingSysGetRandom {
+			v0, v1 = m.syscallGetRandom(a0, a1)
+		}
+		// Otherwise, ignored (noop)
 	case arch.SysMunmap:
 	case arch.SysMprotect:
 		if !m.features.SupportNoopMprotect {
@@ -181,7 +186,6 @@ func (m *InstrumentedState) handleSyscall() error {
 	case arch.SysPipe2:
 	case arch.SysEpollCtl:
 	case arch.SysEpollPwait:
-	case arch.SysGetRandom:
 	case arch.SysUname:
 	case arch.SysGetuid:
 	case arch.SysGetgid:
@@ -208,6 +212,46 @@ func (m *InstrumentedState) handleSyscall() error {
 
 	exec.HandleSyscallUpdates(&thread.Cpu, &thread.Registers, v0, v1)
 	return nil
+}
+
+func (m *InstrumentedState) syscallGetRandom(a0, a1 uint64) (v0, v1 uint64) {
+	// Get existing memory value at target address
+	effAddr := a0 & arch.AddressMask
+	m.memoryTracker.TrackMemAccess(effAddr)
+	memVal := m.state.Memory.GetWord(effAddr)
+
+	// Generate some pseudorandom data
+	randomWord := splitmix64(m.state.Step)
+
+	// Calculate number of bytes to write
+	targetByteIndex := a0 - effAddr
+	maxBytes := arch.WordSizeBytes - targetByteIndex
+	byteCount := a1
+	if maxBytes < byteCount {
+		byteCount = maxBytes
+	}
+
+	// Write random data into target memory location
+	var randDataMask arch.Word = (1 << (byteCount * 8)) - 1
+	// Shift left to align with index 0, then shift right to target correct index
+	randDataMask <<= (arch.WordSizeBytes - byteCount) * 8
+	randDataMask >>= targetByteIndex * 8
+	newMemVal := (memVal & ^randDataMask) | (randomWord & randDataMask)
+	m.state.Memory.SetWord(effAddr, newMemVal)
+
+	v0 = byteCount
+	v1 = 0
+
+	return v0, v1
+}
+
+// splitmix64 generates a pseudorandom 64-bit value.
+// See canonical implementation: https://prng.di.unimi.it/splitmix64.c
+func splitmix64(seed uint64) uint64 {
+	z := seed + 0x9e3779b97f4a7c15
+	z = (z ^ (z >> 30)) * 0xbf58476d1ce4e5b9
+	z = (z ^ (z >> 27)) * 0x94d049bb133111eb
+	return z ^ (z >> 31)
 }
 
 func (m *InstrumentedState) handleUnrecognizedSyscall(syscallNum Word) {

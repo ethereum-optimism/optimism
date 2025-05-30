@@ -24,6 +24,7 @@ const (
 	MTCannonVariant     PrestateVariant = "mt64"
 	MTCannonNextVariant PrestateVariant = "mt64Next"
 	InteropVariant      PrestateVariant = "interop"
+	InteropVariantNext  PrestateVariant = "interopNext"
 )
 
 type Option func(cfg *config.Config) error

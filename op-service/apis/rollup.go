@@ -3,6 +3,7 @@ package apis
 import (
 	"context"
 
+	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/depset"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 
@@ -12,6 +13,10 @@ import (
 
 type RollupConfig interface {
 	RollupConfig(ctx context.Context) (*rollup.Config, error)
+}
+
+type DependencySetConfig interface {
+	DependencySet(ctx context.Context) (depset.DependencySet, error)
 }
 
 type RollupSyncStatus interface {
@@ -72,6 +77,7 @@ type RollupAdminServer interface {
 type RollupNodeClient interface {
 	Version
 	RollupConfig
+	DependencySetConfig
 	RollupSyncStatus
 	RollupOutputClient
 	RollupSafeAtClient
@@ -80,6 +86,7 @@ type RollupNodeClient interface {
 type RollupNodeServer interface {
 	Version
 	RollupConfig
+	DependencySetConfig
 	RollupSyncStatus
 	RollupOutputServer
 	RollupSafeAtServer

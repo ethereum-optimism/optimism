@@ -5,7 +5,6 @@ import (
 	"fmt"
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/depset"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 )
 
@@ -14,8 +13,6 @@ type UnsafeFrontierCheckDeps interface {
 
 	IsCrossUnsafe(chainID eth.ChainID, block eth.BlockID) error
 	IsLocalUnsafe(chainID eth.ChainID, block eth.BlockID) error
-
-	DependencySet() depset.DependencySet
 }
 
 // HazardUnsafeFrontierChecks verifies all the hazard blocks are either:
@@ -23,17 +20,9 @@ type UnsafeFrontierCheckDeps interface {
 //   - the first (if not first: local blocks to verify before proceeding)
 //     local-unsafe block, after the cross-unsafe block.
 func HazardUnsafeFrontierChecks(d UnsafeFrontierCheckDeps, hazards *HazardSet) error {
-	depSet := d.DependencySet()
-	for hazardChainIndex, hazardBlock := range hazards.Entries() {
-		hazardChainID, err := depSet.ChainIDFromIndex(hazardChainIndex)
-		if err != nil {
-			if errors.Is(err, types.ErrUnknownChain) {
-				err = fmt.Errorf("cannot cross-safe verify block %s of unknown chain index %s: %w", hazardBlock, hazardChainIndex, types.ErrConflict)
-			}
-			return err
-		}
+	for hazardChainID, hazardBlock := range hazards.Entries() {
 		// Anything we depend on in this timestamp must be cross-unsafe already, or the first block after.
-		err = d.IsCrossUnsafe(hazardChainID, hazardBlock.ID())
+		err := d.IsCrossUnsafe(hazardChainID, hazardBlock.ID())
 		if err != nil {
 			if errors.Is(err, types.ErrFuture) {
 				// Not already cross-unsafe, so we check if the block is local-unsafe
@@ -41,7 +30,7 @@ func HazardUnsafeFrontierChecks(d UnsafeFrontierCheckDeps, hazards *HazardSet) e
 				err = d.IsLocalUnsafe(hazardChainID, hazardBlock.ID())
 				if err != nil {
 					// can be ErrFuture (missing data) or ErrConflict (non-canonical)
-					return fmt.Errorf("hazard block %s (chain %d) is not local-unsafe: %w", hazardBlock, hazardChainID, err)
+					return fmt.Errorf("hazard block %s (chain %s) is not local-unsafe: %w", hazardBlock, hazardChainID, err)
 				}
 				// If it doesn't have a parent block, then there is no prior block required to be cross-safe
 				if hazardBlock.Number > 0 {

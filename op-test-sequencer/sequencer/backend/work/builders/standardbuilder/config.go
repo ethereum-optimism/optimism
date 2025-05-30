@@ -10,6 +10,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/endpoint"
 	"github.com/ethereum-optimism/optimism/op-service/retry"
 	"github.com/ethereum-optimism/optimism/op-service/sources"
+	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/depset"
 	"github.com/ethereum-optimism/optimism/op-test-sequencer/sequencer/backend/work"
 	"github.com/ethereum-optimism/optimism/op-test-sequencer/sequencer/seqtypes"
 )
@@ -60,6 +61,22 @@ func (c *Config) Start(ctx context.Context, id seqtypes.BuilderID, opts *work.Se
 		return nil, err
 	}
 
+	var depSet depset.DependencySet
+	// Dependency set is only required if interop is scheduled and the RPC may not be available before then.
+	if cfg.InteropTime != nil {
+		depSet, err = retry.Do(ctx, 10, retry.Exponential(), func() (depset.DependencySet, error) {
+			opts.Log.Info("Fetching dependency set for block-building")
+			depSet, err := rolCl.DependencySet(ctx)
+			if err != nil {
+				opts.Log.Warn("Failed to fetch dependency set", "err", err)
+			}
+			return depSet, err
+		})
+		if err != nil {
+			return nil, err
+		}
+	}
+
 	l1Cl, err := sources.NewL1Client(l1ELRPCClient, opts.Log, nil,
 		sources.L1ClientSimpleConfig(false, sources.RPCKindStandard, 10))
 	if err != nil {
@@ -70,7 +87,7 @@ func (c *Config) Start(ctx context.Context, id seqtypes.BuilderID, opts *work.Se
 	if err != nil {
 		return nil, err
 	}
-	fb := derive.NewFetchingAttributesBuilder(cfg, l1Cl, l2Cl)
+	fb := derive.NewFetchingAttributesBuilder(cfg, depSet, l1Cl, l2Cl)
 
 	fb.TestSkipL1OriginCheck()
 

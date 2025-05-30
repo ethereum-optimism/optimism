@@ -73,6 +73,7 @@ func (o *Orchestrator) hydrateL2ELCL(node *descriptors.Node, l2Net stack.Extensi
 	require.True(ok, "need L2 EL service for chain", l2ID)
 	elClient := o.rpcClient(l2Net.T(), elService, RPCProtocol, "/")
 	l2EL := shim.NewL2ELNode(shim.L2ELNodeConfig{
+		RollupCfg: l2Net.RollupConfig(),
 		ELNodeConfig: shim.ELNodeConfig{
 			CommonConfig: shim.NewCommonConfig(l2Net.T()),
 			Client:       elClient,

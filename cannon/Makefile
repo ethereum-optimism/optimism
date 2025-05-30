@@ -31,6 +31,7 @@ cannon64-impl:
 cannon-embeds: cannon64-impl
 	# 64-bit multithreaded vm
 	@cp bin/cannon64-impl ./multicannon/embeds/cannon-7
+	@cp bin/cannon64-impl ./multicannon/embeds/cannon-8
 
 cannon: cannon-embeds
 	env GO111MODULE=on GOOS=$(TARGETOS) GOARCH=$(TARGETARCH) go build -v $(LDFLAGS) -o ./bin/cannon ./multicannon/

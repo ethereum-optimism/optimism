@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 
@@ -31,6 +32,10 @@ func (j *JSONDependencySetLoader) LoadDependencySet(ctx context.Context) (Depend
 		return nil, fmt.Errorf("failed to open dependency set: %w", err)
 	}
 	defer f.Close()
+	return ParseJSONDependencySet(f)
+}
+
+func ParseJSONDependencySet(f io.Reader) (DependencySet, error) {
 	dec := json.NewDecoder(f)
 	var out StaticConfigDependencySet
 	if err := dec.Decode(&out); err != nil {

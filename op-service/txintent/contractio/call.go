@@ -3,14 +3,14 @@ package contractio
 import (
 	"context"
 
-	"github.com/ethereum-optimism/optimism/op-service/txintent"
+	"github.com/ethereum-optimism/optimism/op-service/txintent/bindings"
 	"github.com/ethereum-optimism/optimism/op-service/txplan"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 )
 
-// Write receives a Call and uses to plan transaction, and attempts to write.
-func Write(call txintent.Call, ctx context.Context, opts ...txplan.Option) (*types.Receipt, error) {
+// Write receives a TypedCall and uses to plan transaction, and attempts to write.
+func Write[O any](call bindings.TypedCall[O], ctx context.Context, opts ...txplan.Option) (*types.Receipt, error) {
 	plan, err := Plan(call)
 	if err != nil {
 		return nil, err
@@ -23,8 +23,8 @@ func Write(call txintent.Call, ctx context.Context, opts ...txplan.Option) (*typ
 	return receipt, nil
 }
 
-// Read receives a CallView and uses to plan transaction, and attempts to read.
-func Read[O any](view txintent.CallView[O], ctx context.Context, opts ...txplan.Option) (O, error) {
+// Read receives a TypedCall and uses to plan transaction, and attempts to read.
+func Read[O any](view bindings.TypedCall[O], ctx context.Context, opts ...txplan.Option) (O, error) {
 	plan, err := Plan(view)
 	if err != nil {
 		return *new(O), err
@@ -49,7 +49,7 @@ func Read[O any](view txintent.CallView[O], ctx context.Context, opts ...txplan.
 	return decoded, nil
 }
 
-func Plan(call txintent.Call) (txplan.Option, error) {
+func Plan[O any](call bindings.TypedCall[O]) (txplan.Option, error) {
 	target, err := call.To()
 	if err != nil {
 		return nil, err

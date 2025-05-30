@@ -225,6 +225,17 @@ func WithTransactionSubmitter(cl TransactionSubmitter) Option {
 	}
 }
 
+func WithRetrySubmission(cl TransactionSubmitter, maxAttempts int, strategy retry.Strategy) Option {
+	return func(tx *PlannedTx) {
+		tx.Submitted.DependOn(&tx.Signed)
+		tx.Submitted.Fn(func(ctx context.Context) (struct{}, error) {
+			return struct{}{}, retry.Do0(ctx, maxAttempts, strategy, func() error {
+				return cl.SendTransaction(ctx, tx.Signed.Value())
+			})
+		})
+	}
+}
+
 type ReceiptGetter interface {
 	TransactionReceipt(ctx context.Context, txHash common.Hash) (*types.Receipt, error)
 }
