@@ -24,12 +24,13 @@ alloy-serde.workspace = true
 
 tokio-tungstenite.workspace = true
 
-jsonrpsee = { version = "0.24", features = ["server", "http-client", "macros"] }
+# jsonrpsee = { version = "0.25.1", features = ["server", "http-client", "macros"] }
+jsonrpsee = { git = "https://github.com/paritytech/jsonrpsee", rev = "f04afa740e55db60dce20d9839758792f035ffff", features = ["server", "http-client", "macros"]}
 moka = { version = "0.12.10", features = ["future"] }
 http = "1.1.0"
 dotenvy = "0.15.7"
-tower = { version = "0.4.13", features = ["timeout"] }
-tower-http = { version = "0.5.2", features = [
+tower = { version = "0.5.2", features = ["timeout"] }
+tower-http = { version = "0.6.4", features = [
     "decompression-full",
     "sensitive-headers",
 ] }
@@ -57,16 +58,16 @@ url = "2.2.0"
 [dev-dependencies]
 rand = "0.9.0"
 time = { version = "0.3.36", features = ["macros", "formatting", "parsing"] }
-op-alloy-consensus = "0.12.0"
-alloy-eips = { version = "0.13.0", features = ["serde"] }
-alloy-consensus = { version = "0.13.0", features = ["serde"] }
+op-alloy-consensus = "0.17.2"
+alloy-eips = { version = "1.0.9", features = ["serde"] }
+alloy-consensus = { version = "1.0.9", features = ["serde"] }
 anyhow = "1.0"
 testcontainers = { version = "0.23.3" }
 assert_cmd = "2.0.10"
 predicates = "3.1.2"
 tokio-util = { version = "0.7.13" }
 bytes = "1.2"
-reth-rpc-layer = { git = "https://github.com/paradigmxyz/reth.git", rev = "v1.3.7" }
+reth-rpc-layer = { git = "https://github.com/paradigmxyz/reth.git", rev = "586976f12fb7a9c1417981a41fb233f4f603f643" }
 ctor = "0.4.1"
 reqwest = "0.12.15"
 

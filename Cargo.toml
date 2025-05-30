@@ -16,10 +16,10 @@ tokio = { version = "1", features = ["full"] }
 eyre = "0.6.12"
 
 # Alloy libraries
-alloy-rpc-types-engine = "0.13.0"
-alloy-rpc-types-eth = "0.13.0"
-alloy-primitives = { version = "0.8.10", features = ["rand"] }
-alloy-serde = "0.13.0"
+alloy-rpc-types-engine = "1.0.5"
+alloy-rpc-types-eth = "1.0.5"
+alloy-primitives = { version = "1.1.2", features = ["rand"] }
+alloy-serde = "1.0.5"
 
-op-alloy-rpc-types-engine = "0.12.0"
+op-alloy-rpc-types-engine = "0.17.2"
 tokio-tungstenite = { version = "0.26.2", features = ["native-tls"] }
