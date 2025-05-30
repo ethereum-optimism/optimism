@@ -134,7 +134,7 @@ func (mc *MultiClient) HeaderByNumber(ctx context.Context, number *big.Int) (*ty
 	}
 
 	// Verify consistency with retry for followers
-	err = mc.verifyFollowersWithRetry(ctx, number, header.Hash())
+	err = mc.verifyFollowersWithRetry(ctx, header.Number, header.Hash())
 
 	return header, err
 }
