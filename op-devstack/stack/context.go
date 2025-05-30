@@ -2,7 +2,6 @@ package stack
 
 import (
 	"context"
-	"fmt"
 	"log/slog"
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
@@ -83,46 +82,44 @@ var idCtxKey = idCtxKeyType{}
 // IDLogFilter creates a log-filter that applies the given inner log-filter only if it matches the given ID.
 // This can be composed with logfilter package utils like logfilter.Mute or logfilter.Add
 // to adjust logging for a specific chain ID.
-func IDLogFilter(id any, filter logfilter.LogFilter) logfilter.LogFilter {
+func IDLogFilter[I comparable](id I, filter logfilter.LogFilter) logfilter.LogFilter {
 	return func(ctx context.Context, lvl slog.Level) slog.Level {
 		v := ctx.Value(idCtxKey)
 		if v == nil {
 			return lvl
 		}
-		switch v := v.(type) {
-		case IDWithChain:
-			if id, ok := id.(IDWithChain); ok {
-				if v.ChainID() == id.ChainID() && v.Kind() == id.Kind() && v.Key() == id.Key() {
-					return filter(ctx, lvl)
-				}
-			}
-		case IDOnlyChainID:
-			if id, ok := id.(IDOnlyChainID); ok {
-				if v.ChainID() == id.ChainID() && v.Kind() == id.Kind() {
-					return filter(ctx, lvl)
-				}
-			}
-		case GenericID:
-			if id, ok := id.(GenericID); ok {
-				if v.Kind() == id.Kind() {
-					return filter(ctx, lvl)
-				}
-			}
-		default:
-			panic(fmt.Sprintf("unsupported ID type: %T", v))
+		if x, ok := v.(I); ok && x == id {
+			return filter(ctx, lvl)
 		}
 		return lvl
 	}
 }
 
-func ContextWithID(ctx context.Context, id any) context.Context {
-	if idWithChainID, ok := id.(interface{ ChainID() eth.ChainID }); ok {
+// ContextWithID attaches a component ID to the context.
+// This also automatically attaches the chain ID and component kind to the context, if available from the ID.
+func ContextWithID(ctx context.Context, id slog.LogValuer) context.Context {
+	if idWithChainID, ok := id.(ChainIDProvider); ok {
 		ctx = ContextWithChainID(ctx, idWithChainID.ChainID())
 	}
-	if idWithKind, ok := id.(interface{ Kind() Kind }); ok {
+	if idWithKind, ok := id.(KindProvider); ok {
 		ctx = ContextWithKind(ctx, idWithKind.Kind())
 	}
 	ctx = context.WithValue(ctx, idCtxKey, id)
 	ctx = log.RegisterLogAttrOnContext(ctx, "id", idCtxKey)
 	return ctx
+}
+
+// IDFromContext retrieves a typed component ID from the context,
+// that was previously attached with ContextWithID.
+// If the ID is not present, or not of the same type, then a zero value is returned.
+func IDFromContext[I slog.LogValuer](ctx context.Context) (out I) {
+	v := ctx.Value(idCtxKey)
+	if v == nil {
+		return out // not existent, zero value
+	}
+	x, ok := v.(I)
+	if !ok {
+		return out // not the expected ID type, zero value
+	}
+	return x
 }

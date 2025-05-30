@@ -34,6 +34,21 @@ func (k *Kind) UnmarshalText(data []byte) error {
 	return nil
 }
 
+// ChainIDProvider presents a type that provides a relevant ChainID.
+type ChainIDProvider interface {
+	ChainID() eth.ChainID
+}
+
+// KindProvider presents a type that provides a relevant Kind. E.g. an L2BatcherKind.
+type KindProvider interface {
+	Kind() Kind
+}
+
+// Keyed presents a type that provides a relevant string key. E.g. a named superchain.
+type Keyed interface {
+	Key() string
+}
+
 const maxIDLength = 100
 
 var errInvalidID = errors.New("invalid ID")
@@ -41,9 +56,9 @@ var errInvalidID = errors.New("invalid ID")
 // Defined types based on idWithChain should implement this interface so they may be used as logging attributes.
 type IDWithChain interface {
 	slog.LogValuer
-	ChainID() eth.ChainID
-	Kind() Kind
-	Key() string
+	ChainIDProvider
+	KindProvider
+	Keyed
 }
 
 // idWithChain is comparable, can be copied, contains a chain-ID,
@@ -93,8 +108,8 @@ func (id *idWithChain) unmarshalText(kind Kind, data []byte) error {
 // Defined types based on idOnlyChainID should implement this interface so they may be used as logging attributes.
 type IDOnlyChainID interface {
 	slog.LogValuer
-	ChainID() eth.ChainID
-	Kind() Kind
+	ChainIDProvider
+	KindProvider
 }
 
 // idChainID is comparable, can be copied, contains only a chain-ID,
@@ -129,7 +144,7 @@ func (id *idOnlyChainID) unmarshalText(kind Kind, data []byte) error {
 // Defined types based on genericID should implement this interface so they may be used as logging attributes.
 type GenericID interface {
 	slog.LogValuer
-	Kind() Kind
+	KindProvider
 }
 
 // genericID is comparable, can be copied,
