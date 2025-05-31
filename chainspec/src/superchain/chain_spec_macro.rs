@@ -73,7 +73,6 @@ macro_rules! create_superchain_specs {
             /// All supported superchains, including both older and newer naming,
             /// for backwards compatibility
             pub const SUPPORTED_CHAINS: &'static [&'static str] = &[
-                "dev",
                 "optimism",
                 "optimism_sepolia",
                 "optimism-sepolia",
@@ -83,6 +82,7 @@ macro_rules! create_superchain_specs {
                 $(
                     $crate::key_for!($name, $env),
                 )+
+                "dev",
             ];
 
             /// Parses the chain into an [`$crate::OpChainSpec`], if recognized.
