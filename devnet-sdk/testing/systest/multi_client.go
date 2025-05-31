@@ -129,8 +129,14 @@ func (mc *MultiClient) HeaderByNumber(ctx context.Context, number *big.Int) (*ty
 	}
 
 	header, err := mc.clients[0].HeaderByNumber(ctx, number)
-	if err != nil || len(mc.clients) == 1 {
-		return header, err
+	if err != nil {
+		return nil, err
+	}
+	if header == nil {
+		return nil, fmt.Errorf("no header found for block number %v", number)
+	}
+	if len(mc.clients) == 1 {
+		return header, nil
 	}
 
 	// Verify consistency with retry for followers
