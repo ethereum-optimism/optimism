@@ -76,3 +76,4 @@ acceptance-test-docker devnet="simple" gate="holocene":
 
 clean:
     kurtosis clean --all
+    rm -rf tests/interop/loadtest/artifacts

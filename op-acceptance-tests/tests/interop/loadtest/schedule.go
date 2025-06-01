@@ -10,8 +10,7 @@ import (
 // AIMD scheduler (additive-increase, multiplicative-decrease).
 type AIMD struct {
 	// rps can be thought of to mean "requests per slot", although the unit and quantity are flexible.
-	rps    atomic.Uint64
-	maxRPS uint64
+	rps atomic.Uint64
 
 	increaseDelta  uint64  // additive delta
 	decreaseFactor float64 // multiplicative factor
@@ -34,7 +33,6 @@ type aimdMetrics struct {
 
 func NewAIMD(baseRPS uint64, slotTime time.Duration, opts ...AIMDOption) *AIMD {
 	aimd := &AIMD{
-		maxRPS:            10 * baseRPS,
 		increaseDelta:     max(baseRPS/10, 1),
 		decreaseFactor:    0.5,
 		failRateThreshold: 0.05,
@@ -47,16 +45,11 @@ func NewAIMD(baseRPS uint64, slotTime time.Duration, opts ...AIMDOption) *AIMD {
 	for _, opt := range opts {
 		opt(aimd)
 	}
+	targetMessagesPerBlock.Set(float64(aimd.rps.Load()))
 	return aimd
 }
 
 type AIMDOption func(*AIMD)
-
-func WithMaxRPS(maxRPS uint64) AIMDOption {
-	return func(aimd *AIMD) {
-		aimd.maxRPS = maxRPS
-	}
-}
 
 func WithIncreaseDelta(delta uint64) AIMDOption {
 	return func(aimd *AIMD) {
@@ -106,13 +99,14 @@ func (c *AIMD) Adjust(success bool) {
 	}
 	if c.metrics.Completed == c.adjustWindow {
 		failRate := float64(c.metrics.Failed) / float64(c.metrics.Completed+1)
+		var newRPS uint64
 		if failRate > c.failRateThreshold {
-			newRPS := max(uint64(float64(c.rps.Load())*c.decreaseFactor), 1)
-			c.rps.Store(newRPS)
+			newRPS = max(uint64(float64(c.rps.Load())*c.decreaseFactor), 1)
 		} else {
-			newRPS := min(c.rps.Load()+c.increaseDelta, c.maxRPS)
-			c.rps.Store(newRPS)
+			newRPS = c.rps.Load() + c.increaseDelta
 		}
+		c.rps.Store(newRPS)
+		targetMessagesPerBlock.Set(float64(newRPS))
 		c.metrics = aimdMetrics{}
 	}
 }
