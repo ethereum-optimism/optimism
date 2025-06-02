@@ -44,74 +44,94 @@ func (p *L2Proposer) hydrate(system stack.ExtensibleSystem) {
 func WithProposer(proposerID stack.L2ProposerID, l1ELID stack.L1ELNodeID,
 	l2CLID *stack.L2CLNodeID, supervisorID *stack.SupervisorID) stack.Option[*Orchestrator] {
 	return stack.AfterDeploy(func(orch *Orchestrator) {
-		p := orch.P().WithCtx(stack.ContextWithID(orch.P().Ctx(), proposerID))
-
-		require := p.Require()
-		require.False(orch.proposers.Has(proposerID), "proposer must not already exist")
-
-		proposerSecret, err := orch.keys.Secret(devkeys.ProposerRole.Key(proposerID.ChainID().ToBig()))
-		require.NoError(err)
-
-		logger := p.Logger()
-		logger.Info("Proposer key acquired", "addr", crypto.PubkeyToAddress(proposerSecret.PublicKey))
-
-		l1EL, ok := orch.l1ELs.Get(l1ELID)
-		require.True(ok)
-
-		l2Net, ok := orch.l2Nets.Get(proposerID.ChainID())
-		require.True(ok)
-		disputeGameFactoryAddr := l2Net.deployment.DisputeGameFactoryProxyAddr()
-
-		proposerCLIConfig := &ps.CLIConfig{
-			L1EthRpc:          l1EL.userRPC,
-			L2OOAddress:       "", // legacy, not used, fault-proofs support only for now.
-			PollInterval:      500 * time.Millisecond,
-			AllowNonFinalized: true,
-			TxMgrConfig:       setuputils.NewTxMgrConfig(endpoint.URL(l1EL.userRPC), proposerSecret),
-			RPCConfig:         oprpc.CLIConfig{},
-			LogConfig: oplog.CLIConfig{
-				Level:  log.LvlInfo,
-				Format: oplog.FormatText,
-			},
-			MetricsConfig:                opmetrics.CLIConfig{},
-			PprofConfig:                  oppprof.CLIConfig{},
-			DGFAddress:                   disputeGameFactoryAddr.Hex(),
-			ProposalInterval:             6 * time.Second,
-			DisputeGameType:              1, // Permissioned game type is the only one currently deployed
-			ActiveSequencerCheckDuration: time.Second * 5,
-			WaitNodeSync:                 false,
-		}
-
-		// If interop is scheduled, or if we cannot do the pre-interop connection, then set up with supervisor
-		if l2Net.genesis.Config.InteropTime != nil || l2CLID == nil {
-			require.NotNil(supervisorID, "need supervisor to connect to in interop")
-			supervisorNode, ok := orch.supervisors.Get(*supervisorID)
-			require.True(ok)
-			proposerCLIConfig.SupervisorRpcs = []string{supervisorNode.userRPC}
-		} else {
-			require.NotNil(l2CLID, "need L2 CL to connect to pre-interop")
-			l2CL, ok := orch.l2CLs.Get(*l2CLID)
-			require.True(ok)
-			proposerCLIConfig.RollupRpc = l2CL.userRPC
-		}
-
-		proposer, err := ps.ProposerServiceFromCLIConfig(p.Ctx(), "0.0.1", proposerCLIConfig, logger)
-		require.NoError(err)
-
-		require.NoError(proposer.Start(p.Ctx()))
-		p.Cleanup(func() {
-			ctx, cancel := context.WithCancel(p.Ctx())
-			cancel() // force-quit
-			logger.Info("Closing proposer")
-			_ = proposer.Stop(ctx)
-			logger.Info("Closed proposer")
-		})
-
-		prop := &L2Proposer{
-			id:      proposerID,
-			service: proposer,
-			userRPC: proposer.HTTPEndpoint(),
-		}
-		orch.proposers.Set(proposerID, prop)
+		WithProposerPostDeploy(orch, proposerID, l1ELID, l2CLID, supervisorID)
 	})
+}
+
+func WithSuperProposer(proposerID stack.L2ProposerID, l1ELID stack.L1ELNodeID,
+	supervisorID *stack.SupervisorID) stack.Option[*Orchestrator] {
+	return stack.Finally(func(orch *Orchestrator) {
+		WithProposerPostDeploy(orch, proposerID, l1ELID, nil, supervisorID)
+	})
+}
+
+func WithProposerPostDeploy(orch *Orchestrator, proposerID stack.L2ProposerID, l1ELID stack.L1ELNodeID,
+	l2CLID *stack.L2CLNodeID, supervisorID *stack.SupervisorID) {
+	ctx := orch.P().Ctx()
+	ctx = stack.ContextWithChainID(ctx, proposerID.ChainID())
+	ctx = stack.ContextWithKind(ctx, stack.L2ProposerKind)
+	p := orch.P().WithCtx(ctx, "service", "op-proposer", "id", proposerID)
+
+	require := p.Require()
+	require.False(orch.proposers.Has(proposerID), "proposer must not already exist")
+
+	proposerSecret, err := orch.keys.Secret(devkeys.ProposerRole.Key(proposerID.ChainID().ToBig()))
+	require.NoError(err)
+
+	logger := p.Logger()
+	logger.Info("Proposer key acquired", "addr", crypto.PubkeyToAddress(proposerSecret.PublicKey))
+
+	l1EL, ok := orch.l1ELs.Get(l1ELID)
+	require.True(ok)
+
+	l2Net, ok := orch.l2Nets.Get(proposerID.ChainID())
+	require.True(ok)
+	disputeGameFactoryAddr := l2Net.deployment.DisputeGameFactoryProxyAddr()
+	disputeGameType := 1 // Permissioned game type is the only one currently deployed
+	if orch.wb.outInteropMigration != nil {
+		disputeGameFactoryAddr = orch.wb.outInteropMigration.DisputeGameFactory
+		disputeGameType = 4 // SUPER_CANNON
+	}
+
+	proposerCLIConfig := &ps.CLIConfig{
+		L1EthRpc:          l1EL.userRPC,
+		L2OOAddress:       "", // legacy, not used, fault-proofs support only for now.
+		PollInterval:      500 * time.Millisecond,
+		AllowNonFinalized: true,
+		TxMgrConfig:       setuputils.NewTxMgrConfig(endpoint.URL(l1EL.userRPC), proposerSecret),
+		RPCConfig:         oprpc.CLIConfig{},
+		LogConfig: oplog.CLIConfig{
+			Level:  log.LvlInfo,
+			Format: oplog.FormatText,
+		},
+		MetricsConfig:                opmetrics.CLIConfig{},
+		PprofConfig:                  oppprof.CLIConfig{},
+		DGFAddress:                   disputeGameFactoryAddr.Hex(),
+		ProposalInterval:             6 * time.Second,
+		DisputeGameType:              uint32(disputeGameType),
+		ActiveSequencerCheckDuration: time.Second * 5,
+		WaitNodeSync:                 false,
+	}
+
+	// If interop is scheduled, or if we cannot do the pre-interop connection, then set up with supervisor
+	if l2Net.genesis.Config.InteropTime != nil || l2CLID == nil {
+		require.NotNil(supervisorID, "need supervisor to connect to in interop")
+		supervisorNode, ok := orch.supervisors.Get(*supervisorID)
+		require.True(ok)
+		proposerCLIConfig.SupervisorRpcs = []string{supervisorNode.userRPC}
+	} else {
+		require.NotNil(l2CLID, "need L2 CL to connect to pre-interop")
+		l2CL, ok := orch.l2CLs.Get(*l2CLID)
+		require.True(ok)
+		proposerCLIConfig.RollupRpc = l2CL.userRPC
+	}
+
+	proposer, err := ps.ProposerServiceFromCLIConfig(ctx, "0.0.1", proposerCLIConfig, logger)
+	require.NoError(err)
+
+	require.NoError(proposer.Start(ctx))
+	p.Cleanup(func() {
+		ctx, cancel := context.WithCancel(ctx)
+		cancel() // force-quit
+		logger.Info("Closing proposer")
+		_ = proposer.Stop(ctx)
+		logger.Info("Closed proposer")
+	})
+
+	prop := &L2Proposer{
+		id:      proposerID,
+		service: proposer,
+		userRPC: proposer.HTTPEndpoint(),
+	}
+	orch.proposers.Set(proposerID, prop)
 }

@@ -119,6 +119,10 @@ func (d *L2Deployment) DisputeGameFactoryProxyAddr() common.Address {
 	return d.disputeGameFactoryProxy
 }
 
+type InteropMigration struct {
+	DisputeGameFactory common.Address
+}
+
 type worldBuilder struct {
 	p devtest.P
 
@@ -138,6 +142,8 @@ type worldBuilder struct {
 	outFullCfgSet depset.FullConfigSetMerged
 
 	outSuperchainDeployment *SuperchainDeployment
+
+	outInteropMigration *InteropMigration
 }
 
 var (
@@ -180,6 +186,7 @@ func WithCommons(l1ChainID eth.ChainID) DeployerOption {
 		l1Config.WithPrefundedAccount(addrFor(devkeys.SuperchainProxyAdminOwner), *millionEth)
 		l1Config.WithPrefundedAccount(addrFor(devkeys.SuperchainProtocolVersionsOwner), *millionEth)
 		l1Config.WithPrefundedAccount(addrFor(devkeys.SuperchainConfigGuardianKey), *millionEth)
+		l1Config.WithPrefundedAccount(addrFor(devkeys.L1ProxyAdminOwnerRole), *millionEth)
 	}
 }
 

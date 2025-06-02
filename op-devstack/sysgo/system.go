@@ -196,6 +196,66 @@ func DefaultInteropSystem(dest *DefaultInteropSystemIDs) stack.Option[*Orchestra
 	return opt
 }
 
+func DefaultInteropProofsSystem(dest *DefaultInteropSystemIDs) stack.Option[*Orchestrator] {
+	l1ID := eth.ChainIDFromUInt64(900)
+	l2AID := eth.ChainIDFromUInt64(901)
+	l2BID := eth.ChainIDFromUInt64(902)
+	ids := NewDefaultInteropSystemIDs(l1ID, l2AID, l2BID)
+
+	opt := stack.Combine[*Orchestrator]()
+	opt.Add(stack.BeforeDeploy(func(o *Orchestrator) {
+		o.P().Logger().Info("Setting up")
+	}))
+
+	opt.Add(WithMnemonicKeys(devkeys.TestMnemonic))
+
+	opt.Add(WithDeployer(),
+		WithDeployerOptions(
+			WithLocalContractSources(),
+			WithCommons(ids.L1.ChainID()),
+			WithPrefundedL2(ids.L2A.ChainID()),
+			WithPrefundedL2(ids.L2B.ChainID()),
+			WithInteropAtGenesis(), // this can be overridden by later options
+		),
+	)
+
+	opt.Add(WithL1Nodes(ids.L1EL, ids.L1CL))
+
+	opt.Add(WithSupervisor(ids.Supervisor, ids.Cluster, ids.L1EL))
+
+	opt.Add(WithL2ELNode(ids.L2AEL, &ids.Supervisor))
+	opt.Add(WithL2ELNode(ids.L2BEL, &ids.Supervisor))
+
+	opt.Add(WithL2CLNode(ids.L2ACL, true, true, ids.L1CL, ids.L1EL, ids.L2AEL))
+	opt.Add(WithL2CLNode(ids.L2BCL, true, true, ids.L1CL, ids.L1EL, ids.L2BEL))
+
+	opt.Add(WithTestSequencer(ids.TestSequencer, ids.L2ACL, ids.L1EL, ids.L2AEL))
+
+	opt.Add(WithBatcher(ids.L2ABatcher, ids.L1EL, ids.L2ACL, ids.L2AEL))
+	opt.Add(WithBatcher(ids.L2BBatcher, ids.L1EL, ids.L2BCL, ids.L2BEL))
+
+	opt.Add(WithManagedBySupervisor(ids.L2ACL, ids.Supervisor))
+	opt.Add(WithManagedBySupervisor(ids.L2BCL, ids.Supervisor))
+
+	opt.Add(WithFaucets([]stack.L1ELNodeID{ids.L1EL}, []stack.L2ELNodeID{ids.L2AEL, ids.L2BEL}))
+
+	opt.Add(WithSuperRoots(ids.L1.ChainID(), ids.L1EL, ids.L2ACL, ids.Supervisor))
+
+	opt.Add(WithSuperProposer(ids.L2AProposer, ids.L1EL, &ids.Supervisor))
+
+	opt.Add(WithSuperL2Challenger(ids.L2ChallengerA, ids.L1EL, ids.L1CL, &ids.Supervisor, &ids.Cluster, []stack.L2ELNodeID{
+		ids.L2BEL, ids.L2AEL,
+	}))
+
+	// Upon evaluation of the option, export the contents we created.
+	// Ids here are static, but other things may be exported too.
+	opt.Add(stack.Finally(func(orch *Orchestrator) {
+		*dest = ids
+	}))
+
+	return opt
+}
+
 type RedundantInteropSystemIDs struct {
 	DefaultInteropSystemIDs
 
