@@ -32,7 +32,7 @@
     "sourceCodeHash": "0xb3e32b18c95d4940980333e1e99b4dcf42d8a8bfce78139db4dc3fb06e9349d0"
   },
   "src/L1/StandardValidator.sol:StandardValidator": {
-    "initCodeHash": "0x2f62a134cff1c82a5a7aa2f2f7ff93fcbf48f5ff16f3fea4f06a8ce5a85f2dbd",
+    "initCodeHash": "0x13e15cc4ba947a46c7bf4e3bf764a2b142b8e5cb3e12a9bbddc63058d00430dd",
     "sourceCodeHash": "0x3fb114ff0219b0541ee9ec8c287f167a27546270c01b9ac235c574c7df28361c"
   },
   "src/L1/SuperchainConfig.sol:SuperchainConfig": {
