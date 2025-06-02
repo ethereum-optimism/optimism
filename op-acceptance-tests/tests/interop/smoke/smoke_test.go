@@ -10,6 +10,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/txintent/bindings"
 	"github.com/ethereum-optimism/optimism/op-service/txintent/contractio"
 	"github.com/ethereum-optimism/optimism/op-service/txplan"
+	"github.com/ethereum/go-ethereum/common"
 )
 
 // TestWrapETH checks WETH interactions, testing both reading and writing on the chain.
@@ -84,4 +85,7 @@ func TestWrapETH(gt *testing.T) {
 	require.Equal(eth.ZeroWei, contract.Read(weth.BalanceOf(alice.Address())))
 	// Read: Bob has 2 WETH
 	require.Equal(eth.Ether(2), contract.Read(weth.BalanceOf(bob.Address())))
+
+	// Throw away WETH for cleanup
+	contract.Write(bob, weth.Transfer(common.MaxAddress, eth.Ether(2)))
 }
