@@ -575,14 +575,20 @@ func (su *SupervisorBackend) CheckAccessList(ctx context.Context, inboxEntries [
 		// Register initiating side as a dependency
 		h.DependOnDerivedTime(acc.Timestamp)
 
+		// TODO(#16245): backwards compat: if user does not specify executing chain, then assume the initiating chain ID.
+		// This supports op-reth, op-rbuilder, proxyd while they are not updated to provide this chain ID.
+		execChainID := execDescr.ChainID
+		if execDescr.ChainID == (eth.ChainID{}) {
+			execChainID = acc.ChainID
+		}
 		// If not specified, assume the same chain as the initiating side.
-		if !su.linker.CanExecute(execDescr.ChainID, execDescr.Timestamp, acc.ChainID, acc.Timestamp) {
+		if !su.linker.CanExecute(execChainID, execDescr.Timestamp, acc.ChainID, acc.Timestamp) {
 			su.logger.Debug("Access-list link check failed")
 			return types.ErrConflict
 		}
 		if execDescr.Timeout != 0 {
 			maxTimestamp := safemath.SaturatingAdd(execDescr.Timestamp, execDescr.Timeout)
-			if !su.linker.CanExecute(execDescr.ChainID, maxTimestamp, acc.ChainID, acc.Timestamp) {
+			if !su.linker.CanExecute(execChainID, maxTimestamp, acc.ChainID, acc.Timestamp) {
 				su.logger.Debug("Access-list link check at timeout time failed")
 				return types.ErrConflict
 			}
