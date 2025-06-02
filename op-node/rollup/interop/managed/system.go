@@ -311,10 +311,10 @@ func (m *ManagedMode) Reset(ctx context.Context, lUnsafe, xUnsafe, lSafe, xSafe,
 		result, err := m.l2.L2BlockRefByNumber(ctx, ref.Number)
 		if err != nil {
 			if errors.Is(err, ethereum.NotFound) {
-				logger.Warn("Cannot reset, reset-anchor not found", "refName", name)
+				logger.Warn("Cannot reset, target block not found", "refName", name)
 				return eth.L2BlockRef{}, &gethrpc.JsonError{
 					Code:    BlockNotFoundRPCErrCode,
-					Message: "Block not found",
+					Message: name + " reset target not found",
 					Data:    nil, // TODO communicate the latest block that we do have.
 				}
 			}
@@ -328,7 +328,7 @@ func (m *ManagedMode) Reset(ctx context.Context, lUnsafe, xUnsafe, lSafe, xSafe,
 		if result.Hash != ref.Hash {
 			return eth.L2BlockRef{}, &gethrpc.JsonError{
 				Code:    ConflictingBlockRPCErrCode,
-				Message: "Conflicting block",
+				Message: "conflicting block",
 				Data:    result,
 			}
 		}
@@ -338,22 +338,22 @@ func (m *ManagedMode) Reset(ctx context.Context, lUnsafe, xUnsafe, lSafe, xSafe,
 	// verify all provided references
 	_, err := verify(lUnsafe, "unsafe")
 	if err != nil {
-		logger.Error("Cannot reset, local-unsafe block not known")
+		logger.Error("Cannot reset, local-unsafe target invalid")
 		return err
 	}
 	xUnsafeRef, err := verify(xUnsafe, "cross-unsafe")
 	if err != nil {
-		logger.Error("Cannot reset, cross-safe block not known")
+		logger.Error("Cannot reset, cross-safe target invalid")
 		return err
 	}
 	lSafeRef, err := verify(lSafe, "safe")
 	if err != nil {
-		logger.Error("Cannot reset, local-safe block not known")
+		logger.Error("Cannot reset, local-safe target invalid")
 		return err
 	}
 	xSafeRef, err := verify(xSafe, "cross-safe")
 	if err != nil {
-		logger.Error("Cannot reset, cross-safe block not known")
+		logger.Error("Cannot reset, cross-safe target invalid")
 		return err
 	}
 	finalizedRef, err := verify(finalized, "finalized")
@@ -362,9 +362,9 @@ func (m *ManagedMode) Reset(ctx context.Context, lUnsafe, xUnsafe, lSafe, xSafe,
 		return err
 	}
 
-	latestLocalUnsafe, err := m.scanL2ForLatestLocalUnsafe(ctx, lUnsafe)
+	latestLocalUnsafe, err := m.findLatestValidLocalUnsafe(ctx, lUnsafe)
 	if err != nil {
-		logger.Error("Cannot reset, local-unsafe block not known")
+		logger.Error("Cannot reset, no valid local-unsafe block found", "err", err)
 		return err
 	}
 
@@ -378,52 +378,60 @@ func (m *ManagedMode) Reset(ctx context.Context, lUnsafe, xUnsafe, lSafe, xSafe,
 	return nil
 }
 
-// scanL2ForLatestLocalUnsafe scans the op-node's L2 chain starting from l2Unsafe (which we know is valid because it's given by the supervisor)
-// and check until the latestUnsafe block.
-func (m *ManagedMode) scanL2ForLatestLocalUnsafe(ctx context.Context, l2Unsafe eth.BlockID) (eth.L2BlockRef, error) {
-	valid, err := m.l2.L2BlockRefByHash(ctx, l2Unsafe.Hash)
-	if err != nil {
-		return eth.L2BlockRef{}, err
-	}
-
+// findLatestValidLocalUnsafe scans the L2 unsafe chain for the latest block with a valid L1 origin,
+// starting from its latest unsafe and going back until the target provided by the supervisor.
+// If the supervisor's target is ahead, the latest unsafe is returned.
+func (m *ManagedMode) findLatestValidLocalUnsafe(ctx context.Context, l2UnsafeTarget eth.BlockID) (eth.L2BlockRef, error) {
 	latestUnsafe, err := m.l2.L2BlockRefByLabel(ctx, eth.Unsafe)
 	if err != nil {
 		return eth.L2BlockRef{}, err
 	}
-
-	m.log.Info("Scanning L2 for latest valid local unsafe", "valid", valid.Number, "latestUnsafe", latestUnsafe.Number)
-	if latestUnsafe.Number-valid.Number > 20 {
-		m.log.Warn("We are about to scan more than 20 blocks, this loop might need to be optimised", "valid.Number", valid.Number, "latest", latestUnsafe.Number)
+	logger := m.log.New("target", l2UnsafeTarget, "latestUnsafe", latestUnsafe)
+	if latestUnsafe.Number < l2UnsafeTarget.Number {
+		logger.Warn("Latest unsafe block is older than target, using latest unsafe")
+		return latestUnsafe, nil
 	}
 
-	next := valid.Number + 1
+	unsafeTarget, err := m.l2.L2BlockRefByHash(ctx, l2UnsafeTarget.Hash)
+	if err != nil {
+		return eth.L2BlockRef{}, err
+	}
 
-	for next <= latestUnsafe.Number {
-		current, err := m.l2.L2BlockRefByNumber(ctx, next)
-		if err != nil {
-			m.log.Error("Failed to get L2 block ref", "err", err, "blocknum", next)
-			break
+	logger.Info("Searching for latest valid local unsafe")
+	if latestUnsafe.Number-unsafeTarget.Number > 20 {
+		logger.Warn("We may scan more than 20 blocks, this loop might need to be optimised")
+	}
+
+	// Start from latestUnsafe and go down to find the latest valid block, since L1 reorgs aren't usually that deep.
+	for n := latestUnsafe.Number; ; n-- {
+		if n == l2UnsafeTarget.Number-1 {
+			logger.Warn("No valid unsafe block found up to target, searching further")
+		}
+		// Exit loop if context is done - other errors are only logged and loop continues.
+		if cerr := ctx.Err(); cerr != nil {
+			return eth.L2BlockRef{}, fmt.Errorf("context done: %w", cerr)
 		}
 
+		current, err := m.l2.L2BlockRefByNumber(ctx, n)
+		if err != nil {
+			logger.Warn("Failed to get L2 block ref, trying previous", "err", err, "current", n)
+			continue
+		}
+
+		logger := logger.New("current", current, "currentL1Origin", current.L1Origin)
 		// make sure L1 origin hasn't been reorged
-		l1Blk, err := m.l1.L1BlockRefByNumber(ctx, current.L1Origin.Number)
+		l1Origin, err := m.l1.L1BlockRefByNumber(ctx, current.L1Origin.Number)
 		if err != nil {
-			m.log.Error("Failed to get L1 block ref", "err", err, "blocknum", current.L1Origin.Number)
-			break
+			logger.Warn("Failed to get origin L1 block ref, trying previous", "err", err)
+			continue
 		}
-		if l1Blk.Hash != current.L1Origin.Hash {
-			m.log.Warn("L1 block was reorged on this block, stopping scan", "current.number", current.Number, "current.L1Origin", current.L1Origin, "new-L1Origin", l1Blk)
-			break
+		if l1Origin.Hash != current.L1Origin.Hash {
+			logger.Warn("L1 block was reorged on this block, trying previous", "newL1Origin", l1Origin)
+			continue
 		}
-		valid = current
-		next++
+		logger.Info("Latest valid L2 block found", "valid", current)
+		return current, nil
 	}
-
-	m.log.Info("Latest valid L2 block", "valid", valid, "latestUnsafe", latestUnsafe)
-
-	// we return the most recent valid block
-	// in this context the definition of valid is that it's L1Origin is valid
-	return valid, nil
 }
 
 func (m *ManagedMode) ProvideL1(ctx context.Context, nextL1 eth.BlockRef) error {
