@@ -32,8 +32,8 @@
     "sourceCodeHash": "0xb3e32b18c95d4940980333e1e99b4dcf42d8a8bfce78139db4dc3fb06e9349d0"
   },
   "src/L1/StandardValidator.sol:StandardValidator": {
-    "initCodeHash": "0x035d23030f111046ba1d4daa5d7c3f476716e828e8eba8849554b61d9bbeb117",
-    "sourceCodeHash": "0x9b48cde5b2fcd6e5399ed3fa27be48ae071891dba93d4ff393e81345298eb6da"
+    "initCodeHash": "0x2f62a134cff1c82a5a7aa2f2f7ff93fcbf48f5ff16f3fea4f06a8ce5a85f2dbd",
+    "sourceCodeHash": "0x3fb114ff0219b0541ee9ec8c287f167a27546270c01b9ac235c574c7df28361c"
   },
   "src/L1/SuperchainConfig.sol:SuperchainConfig": {
     "initCodeHash": "0x0ea921059d71fd19ac9c6e29c05b9724ad584eb27f74231de6df9551e9b13084",
