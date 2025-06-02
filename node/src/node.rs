@@ -102,7 +102,7 @@ pub type OpNodeComponentBuilder<Node, Payload = OpPayloadBuilder> = ComponentsBu
     OpPoolBuilder,
     BasicPayloadServiceBuilder<Payload>,
     OpNetworkBuilder,
-    OpExecutorBuilder<<<Node as FullNodeTypes>::Types as NodeTypes>::ChainSpec>,
+    OpExecutorBuilder,
     OpConsensusBuilder,
 >;
 
@@ -194,7 +194,7 @@ where
         OpPoolBuilder,
         BasicPayloadServiceBuilder<OpPayloadBuilder>,
         OpNetworkBuilder,
-        OpExecutorBuilder<<N::Types as NodeTypes>::ChainSpec>,
+        OpExecutorBuilder,
         OpConsensusBuilder,
     >;
 
@@ -561,35 +561,16 @@ impl<NetworkT> OpAddOnsBuilder<NetworkT> {
 }
 
 /// A regular optimism evm and executor builder.
-#[derive(Debug, Copy)]
+#[derive(Debug, Copy, Clone, Default)]
 #[non_exhaustive]
-pub struct OpExecutorBuilder<ChainSpec = OpChainSpec, Primitives = OpPrimitives> {
-    /// Marker for chain spec type.
-    _cs: PhantomData<ChainSpec>,
-    /// Marker for primitives type.
-    _p: PhantomData<Primitives>,
-}
+pub struct OpExecutorBuilder;
 
-impl<ChainSpec, Primitives> Clone for OpExecutorBuilder<ChainSpec, Primitives> {
-    fn clone(&self) -> Self {
-        Self::default()
-    }
-}
-
-impl<ChainSpec, Primitives> Default for OpExecutorBuilder<ChainSpec, Primitives> {
-    fn default() -> Self {
-        Self { _cs: PhantomData, _p: PhantomData }
-    }
-}
-
-impl<Node, ChainSpec, Primitives> ExecutorBuilder<Node> for OpExecutorBuilder<ChainSpec, Primitives>
+impl<Node> ExecutorBuilder<Node> for OpExecutorBuilder
 where
-    Node: FullNodeTypes<Types: NodeTypes<ChainSpec = ChainSpec, Primitives = Primitives>>,
-    ChainSpec: OpHardforks + Send + Sync,
-    Primitives: NodePrimitives,
-    OpEvmConfig<ChainSpec, Primitives>: ConfigureEvm<Primitives = Primitives> + 'static,
+    Node: FullNodeTypes<Types: NodeTypes<ChainSpec: OpHardforks, Primitives = OpPrimitives>>,
 {
-    type EVM = OpEvmConfig<ChainSpec, Primitives>;
+    type EVM =
+        OpEvmConfig<<Node::Types as NodeTypes>::ChainSpec, <Node::Types as NodeTypes>::Primitives>;
 
     async fn build_evm(self, ctx: &BuilderContext<Node>) -> eyre::Result<Self::EVM> {
         let evm_config = OpEvmConfig::new(ctx.chain_spec(), OpRethReceiptBuilder::default());
