@@ -57,10 +57,10 @@
   },
   {
     "bytes": "32",
-    "label": "proposalRequiredApprovals",
+    "label": "proposalTypesData",
     "offset": 0,
     "slot": "104",
-    "type": "mapping(enum ProposalValidator.ProposalType => uint256)"
+    "type": "mapping(enum ProposalValidator.ProposalType => struct ProposalValidator.ProposalTypeData)"
   },
   {
     "bytes": "32",

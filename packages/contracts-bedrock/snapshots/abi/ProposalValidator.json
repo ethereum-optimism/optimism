@@ -160,9 +160,21 @@
         "type": "uint8[]"
       },
       {
-        "internalType": "uint256[]",
-        "name": "_requiredApprovals",
-        "type": "uint256[]"
+        "components": [
+          {
+            "internalType": "uint256",
+            "name": "requiredApprovals",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint8",
+            "name": "proposalTypeConfigurator",
+            "type": "uint8"
+          }
+        ],
+        "internalType": "struct ProposalValidator.ProposalTypeData[]",
+        "name": "_proposalTypesData",
+        "type": "tuple[]"
       }
     ],
     "name": "initialize",
@@ -238,12 +250,17 @@
         "type": "uint8"
       }
     ],
-    "name": "proposalRequiredApprovals",
+    "name": "proposalTypesData",
     "outputs": [
       {
         "internalType": "uint256",
-        "name": "",
+        "name": "requiredApprovals",
         "type": "uint256"
+      },
+      {
+        "internalType": "uint8",
+        "name": "proposalTypeConfigurator",
+        "type": "uint8"
       }
     ],
     "stateMutability": "view",
@@ -290,12 +307,24 @@
         "type": "uint8"
       },
       {
-        "internalType": "uint256",
-        "name": "_requiredApprovals",
-        "type": "uint256"
+        "components": [
+          {
+            "internalType": "uint256",
+            "name": "requiredApprovals",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint8",
+            "name": "proposalTypeConfigurator",
+            "type": "uint8"
+          }
+        ],
+        "internalType": "struct ProposalValidator.ProposalTypeData",
+        "name": "_proposalTypeData",
+        "type": "tuple"
       }
     ],
-    "name": "setProposalTypeApprovalThreshold",
+    "name": "setProposalTypeData",
     "outputs": [],
     "stateMutability": "nonpayable",
     "type": "function"
@@ -353,11 +382,6 @@
       {
         "internalType": "enum ProposalValidator.ProposalType",
         "name": "_proposalType",
-        "type": "uint8"
-      },
-      {
-        "internalType": "uint8",
-        "name": "_proposalTypeConfigurator",
         "type": "uint8"
       },
       {
@@ -595,11 +619,17 @@
       {
         "indexed": false,
         "internalType": "uint256",
-        "name": "newApprovalThreshold",
+        "name": "requiredApprovals",
         "type": "uint256"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint8",
+        "name": "proposalTypeConfigurator",
+        "type": "uint8"
       }
     ],
-    "name": "ProposalTypeApprovalThresholdSet",
+    "name": "ProposalTypeDataSet",
     "type": "event"
   },
   {
@@ -661,6 +691,11 @@
   {
     "inputs": [],
     "name": "ProposalValidator_ProposalDoesNotExist",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "ProposalValidator_ProposalTypesDataLengthMismatch",
     "type": "error"
   },
   {
