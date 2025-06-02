@@ -193,8 +193,27 @@ func (f *ServiceFinder) triageUniversalL2Service(name string) serviceParser {
 	}
 }
 
+type serviceParserRules map[string]serviceParser
+
+func (spr serviceParserRules) apply(serviceName string, endpoints descriptors.EndpointMap) *triagedService {
+	for tag, rule := range spr {
+		if idx, accept, ok := rule(serviceName); ok {
+			return &triagedService{
+				tag:    tag,
+				idx:    idx,
+				accept: accept,
+				svc: &descriptors.Service{
+					Name:      serviceName,
+					Endpoints: endpoints,
+				},
+			}
+		}
+	}
+	return nil
+}
+
 func (f *ServiceFinder) triage() {
-	rules := map[string]serviceParser{
+	rules := serviceParserRules{
 		"el":         f.triageNode("el-"),
 		"cl":         f.triageNode("cl-"),
 		"batcher":    f.triageExclusiveL2Service("op-batcher-"),
@@ -211,19 +230,11 @@ func (f *ServiceFinder) triage() {
 		for portName, portInfo := range svc.Ports {
 			endpoints[portName] = portInfo
 		}
-		svc := &descriptors.Service{
-			Name:      serviceName,
-			Endpoints: endpoints,
-		}
-		for tag, rule := range rules {
-			if idx, accept, ok := rule(serviceName); ok {
-				triagedServices = append(triagedServices, &triagedService{
-					tag:    tag,
-					idx:    idx,
-					accept: accept,
-					svc:    svc,
-				})
-			}
+
+		svc := rules.apply(serviceName, endpoints)
+
+		if svc != nil {
+			triagedServices = append(triagedServices, svc)
 		}
 	}
 
