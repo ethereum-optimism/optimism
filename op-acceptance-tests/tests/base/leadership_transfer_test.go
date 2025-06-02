@@ -21,14 +21,14 @@ type conductorWithInfo struct {
 	info consensus.ServerInfo
 }
 
-// TestLeadershipTransfer checks if the leadership transfer works correctly on the conductors
-func TestLeadershipTransfer(gt *testing.T) {
+// TestConductorLeadershipTransfer checks if the leadership transfer works correctly on the conductors
+func TestConductorLeadershipTransfer(gt *testing.T) {
 	t := devtest.SerialT(gt)
 	sys := presets.NewMinimal(t)
-	logger := testlog.Logger(t, log.LevelInfo).With("Test", "TestLeadershipTransfer")
+	logger := testlog.Logger(t, log.LevelInfo).With("Test", "TestConductorLeadershipTransfer")
 	tracer := t.Tracer()
 	ctx := t.Ctx()
-	logger.Info("Started L2 RPC connectivity test")
+	logger.Info("Started Conductor Leadership Transfer test")
 
 	ctx, span := tracer.Start(ctx, "test chains")
 	defer span.End()
@@ -41,28 +41,31 @@ func TestLeadershipTransfer(gt *testing.T) {
 		_, span = tracer.Start(ctx, "test chain")
 		defer span.End()
 
-		require.NotEmpty(t, l2Chain.Escape().Conductors(), "no conductors found in the L2 chain")
+		chainId := l2Chain.String()
+		conductors := l2Chain.Escape().Conductors()
 
-		membership := dsl.NewConductor(l2Chain.Escape().Conductors()[0]).FetchClusterMembership()
-		if len(l2Chain.Escape().Conductors()) == 0 {
+		require.NotEmpty(t, conductors, "no conductors found in the L2 chain", "chainId", chainId)
+
+		membership := dsl.NewConductor(conductors[0]).FetchClusterMembership()
+		if len(conductors) == 0 {
 			t.Skip("no conductor found in the input, skipping leadership transfer test")
 			continue
 		}
-		require.Equal(t, len(membership.Servers), len(l2Chain.Escape().Conductors()), "cluster membership does not match the number of conductors")
+		require.Equal(t, len(membership.Servers), len(conductors), "cluster membership does not match the number of conductors", "chainId", chainId)
 
 		idToConductor := make(map[string]conductorWithInfo)
-		for _, conductor := range l2Chain.Escape().Conductors() {
+		for _, conductor := range conductors {
 			idToConductor[string(conductor.ID())] = conductorWithInfo{conductor, consensus.ServerInfo{}}
 		}
 		for _, memberInfo := range membership.Servers {
 			conductor, ok := idToConductor[memberInfo.ID]
-			require.True(t, ok, "unknown conductor in cluster membership", memberInfo.ID)
+			require.True(t, ok, "unknown conductor in cluster membership", memberInfo.ID, "chainId", chainId)
 			conductor.info = memberInfo
 			idToConductor[memberInfo.ID] = conductor
 		}
 
-		leaderInfo, err := l2Chain.Escape().Conductors()[0].RpcAPI().LeaderWithID(ctx)
-		require.NoError(t, err, "failed to get current conductor info")
+		leaderInfo, err := conductors[0].RpcAPI().LeaderWithID(ctx)
+		require.NoError(t, err, "failed to get current conductor info", "chainId", chainId)
 
 		leaderConductor := idToConductor[leaderInfo.ID]
 
@@ -83,27 +86,18 @@ func TestLeadershipTransfer(gt *testing.T) {
 		t.Run(fmt.Sprintf("L2_Chain_%s", l2Chain.String()), func(tt devtest.T) {
 			numOfLeadershipTransfers := len(voters)
 			for i := 0; i < numOfLeadershipTransfers; i++ {
-				oldLeader := voters[i]                 // no need for i%numOfLeadershipTransfers, since i is always less than numOfLeadershipTransfers
-				newLeader := voters[(i+1)%len(voters)] // same as i+1, except it becomes 0 when i+1 is numOfLeadershipTransfers
+				// the modulo operation is used to wrap around the list of voters whenever i or i+1 becomes >= len(voters)
+				oldLeaderIndex, newLeaderIndex := i%len(voters), (i+1)%len(voters)
+				oldLeader, newLeader := voters[oldLeaderIndex], voters[newLeaderIndex]
 
-				testTransferLeadershipAndCheck(t, voters, oldLeader, newLeader)
+				testTransferLeadershipAndCheck(t, oldLeader, newLeader)
 			}
 		})
 	}
 }
 
-// testTransferLeadershipAndCheck tests from one leader to another
-func testTransferLeadershipAndCheck(t devtest.T, voters []conductorWithInfo, oldLeader, targetLeader conductorWithInfo) {
-	if len(voters) == 0 {
-		t.Skip("no voters found in the cluster, skipping leadership transfer test")
-		return
-	}
-
-	if oldLeader.Conductor == nil || targetLeader.Conductor == nil {
-		t.Skip("current or target leader is nil, skipping leadership transfer test")
-		return
-	}
-
+// testTransferLeadershipAndCheck tests conductor's leadership transfer from one leader to another
+func testTransferLeadershipAndCheck(t devtest.T, oldLeader, targetLeader conductorWithInfo) {
 	oldLeaderDsl := dsl.NewConductor(oldLeader.Conductor)
 	targetLeaderDsl := dsl.NewConductor(targetLeader.Conductor)
 
@@ -118,7 +112,7 @@ func testTransferLeadershipAndCheck(t devtest.T, voters []conductorWithInfo, old
 		require.True(tt, oldLeaderDsl.IsLeader(), "current leader was not found to be the leader")
 		require.False(tt, targetLeaderDsl.IsLeader(), "target leader was already found to be the leader")
 
-		oldLeaderDsl.TransferLeadershipTo(targetLeader.info.ID, targetLeader.info.Addr)
+		oldLeaderDsl.TransferLeadershipTo(targetLeader.info)
 
 		require.Eventually(
 			tt,

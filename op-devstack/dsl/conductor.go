@@ -87,11 +87,11 @@ func (c *Conductor) IsLeader() bool {
 	return leader
 }
 
-func (c *Conductor) TransferLeadershipTo(targetLeaderID string, targetLeaderAddr string) {
-	c.log.Debug("Transferring leadership to target leader")
+func (c *Conductor) TransferLeadershipTo(targetLeaderInfo consensus.ServerInfo) {
+	c.log.Debug("Transferring leadership to target leader", "targetLeaderID", targetLeaderInfo.ID, "targetLeaderAddr", targetLeaderInfo.Addr)
 	ctx, cancel := context.WithTimeout(c.ctx, DefaultTimeout)
 	defer cancel()
-	err := c.inner.RpcAPI().TransferLeaderToServer(ctx, targetLeaderID, targetLeaderAddr)
-	c.require.NoError(err, "Failed to transfer leadership to target leader")
-	c.log.Info("Transferred leadership to target leader")
+	err := c.inner.RpcAPI().TransferLeaderToServer(ctx, targetLeaderInfo.ID, targetLeaderInfo.Addr)
+	c.require.NoError(err, "Failed to transfer leadership to target leader", "targetLeaderID", targetLeaderInfo.ID)
+	c.log.Info("Transferred leadership to target leader", "targetLeaderID", targetLeaderInfo.ID)
 }
