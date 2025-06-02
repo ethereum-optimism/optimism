@@ -19,8 +19,8 @@ func TestWrapETH(gt *testing.T) {
 	require := t.Require()
 	sys := presets.NewMinimal(t)
 
-	alice := sys.Funder.NewFundedEOA(eth.ThousandEther)
-	bob := sys.Funder.NewFundedEOA(eth.ThousandEther)
+	alice := sys.Funder.NewFundedEOA(eth.TenEther)
+	bob := sys.Funder.NewFundedEOA(eth.TenEther)
 
 	client := sys.L2EL.Escape().EthClient()
 
