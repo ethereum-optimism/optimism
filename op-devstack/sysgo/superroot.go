@@ -308,7 +308,7 @@ func transferOwnershipForDelegateCallProxy(
 	t.Require().NoError(err, "must have transact opts")
 	transactOpts.Context = t.Ctx()
 
-	abi, err := DelegateCallProxyMetaData.GetAbi()
+	abi, err := delegatecallproxy.DelegatecallproxyMetaData.GetAbi()
 	t.Require().NoError(err, "failed to get abi")
 	contract := batching.NewBoundContract(abi, delegateCallProxy)
 	call := contract.Call("transferOwnership", proxyAdminOwned, newOwner)
@@ -338,7 +338,7 @@ func changeAdminForDelegateCallProxy(
 	t.Require().NoError(err, "must have transact opts")
 	transactOpts.Context = t.Ctx()
 
-	abi, err := DelegateCallProxyMetaData.GetAbi()
+	abi, err := delegatecallproxy.DelegatecallproxyMetaData.GetAbi()
 	t.Require().NoError(err, "failed to get abi")
 	contract := batching.NewBoundContract(abi, delegateCallProxy)
 	call := contract.Call("changeAdmin", proxyAdminOwned, newOwner)
