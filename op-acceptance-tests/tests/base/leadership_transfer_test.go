@@ -44,6 +44,10 @@ func TestLeadershipTransfer(gt *testing.T) {
 		require.NotEmpty(t, l2Chain.Escape().Conductors(), "no conductors found in the L2 chain")
 
 		membership := dsl.NewConductor(l2Chain.Escape().Conductors()[0]).FetchClusterMembership()
+		if len(l2Chain.Escape().Conductors()) == 0 {
+			t.Skip("no conductor found in the input, skipping leadership transfer test")
+			continue
+		}
 		require.Equal(t, len(membership.Servers), len(l2Chain.Escape().Conductors()), "cluster membership does not match the number of conductors")
 
 		idToConductor := make(map[string]conductorWithInfo)
