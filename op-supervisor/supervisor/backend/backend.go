@@ -17,6 +17,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/client"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/locks"
+	"github.com/ethereum-optimism/optimism/op-service/safemath"
 	"github.com/ethereum-optimism/optimism/op-service/sources"
 	"github.com/ethereum-optimism/optimism/op-supervisor/config"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/cross"
@@ -46,6 +47,9 @@ type SupervisorBackend struct {
 
 	// cfgSet is the full config set that the backend uses to know about the chains it is indexing
 	cfgSet depset.FullConfigSet
+
+	// linker checks if the configuration constraints of a message (check chain ID + timestamp)
+	linker depset.LinkChecker
 
 	// chainDBs is the primary interface to the databases, including logs, derived-from information and L1 finalization
 	chainDBs *db.ChainsDB
@@ -143,6 +147,7 @@ func NewSupervisorBackend(ctx context.Context, logger log.Logger,
 		m:          m,
 		dataDir:    cfg.Datadir,
 		cfgSet:     cfgSet,
+		linker:     depset.LinkerFromConfig(cfgSet),
 		chainDBs:   chainsDBs,
 		l1Accessor: l1Accessor,
 		// For testing we can avoid running the processors.
@@ -247,15 +252,14 @@ func (su *SupervisorBackend) initResources(ctx context.Context, cfg *config.Conf
 		}
 	}
 
-	linker := depset.LinkerFromConfig(su.cfgSet)
 	// initialize all cross-unsafe processors
 	for _, chainID := range chains {
-		worker := cross.NewCrossUnsafeWorker(su.logger, chainID, su.chainDBs, linker)
+		worker := cross.NewCrossUnsafeWorker(su.logger, chainID, su.chainDBs, su.linker)
 		su.eventSys.Register(fmt.Sprintf("cross-unsafe-%s", chainID), worker)
 	}
 	// initialize all cross-safe processors
 	for _, chainID := range chains {
-		worker := cross.NewCrossSafeWorker(su.logger, chainID, su.chainDBs, linker)
+		worker := cross.NewCrossSafeWorker(su.logger, chainID, su.chainDBs, su.linker)
 		su.eventSys.Register(fmt.Sprintf("cross-safe-%s", chainID), worker)
 	}
 	// For each chain initialize a chain processor service,
@@ -544,8 +548,7 @@ func (su *SupervisorBackend) checkSafety(chainID eth.ChainID, blockID eth.BlockI
 }
 
 func (su *SupervisorBackend) CheckAccessList(ctx context.Context, inboxEntries []common.Hash,
-	minSafety types.SafetyLevel, executingDescriptor types.ExecutingDescriptor,
-) error {
+	minSafety types.SafetyLevel, execDescr types.ExecutingDescriptor) error {
 	switch minSafety {
 	case types.LocalUnsafe, types.CrossUnsafe, types.LocalSafe, types.CrossSafe, types.Finalized:
 		// valid safety level
@@ -553,8 +556,7 @@ func (su *SupervisorBackend) CheckAccessList(ctx context.Context, inboxEntries [
 		return ErrUnexpectedMinSafetyLevel
 	}
 
-	su.logger.Debug("Checking access-list",
-		"minSafety", minSafety, "length", len(inboxEntries))
+	su.logger.Debug("Checking access-list", "minSafety", minSafety, "length", len(inboxEntries))
 
 	h := su.chainDBs.AcquireHandle()
 	defer h.Release()
@@ -570,13 +572,20 @@ func (su *SupervisorBackend) CheckAccessList(ctx context.Context, inboxEntries [
 		}
 		entries = remaining
 
-		// Register as a dependency
+		// Register initiating side as a dependency
 		h.DependOnDerivedTime(acc.Timestamp)
 
-		// Check if message passes time checks
-		if err := executingDescriptor.AccessCheck(su.cfgSet.MessageExpiryWindow(), acc.Timestamp); err != nil {
-			su.logger.Warn("Access-list time check failed", "err", err)
-			return types.ErrConflict // TODO: Do we want to do this?
+		// If not specified, assume the same chain as the initiating side.
+		if !su.linker.CanExecute(execDescr.ChainID, execDescr.Timestamp, acc.ChainID, acc.Timestamp) {
+			su.logger.Debug("Access-list link check failed")
+			return types.ErrConflict
+		}
+		if execDescr.Timeout != 0 {
+			maxTimestamp := safemath.SaturatingAdd(execDescr.Timestamp, execDescr.Timeout)
+			if !su.linker.CanExecute(execDescr.ChainID, maxTimestamp, acc.ChainID, acc.Timestamp) {
+				su.logger.Debug("Access-list link check at timeout time failed")
+				return types.ErrConflict
+			}
 		}
 
 		msgBlockFromDB, err := su.checkAccessWithDB(acc)

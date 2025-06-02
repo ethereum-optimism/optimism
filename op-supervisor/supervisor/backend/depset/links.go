@@ -1,6 +1,9 @@
 package depset
 
-import "github.com/ethereum-optimism/optimism/op-service/eth"
+import (
+	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/safemath"
+)
 
 type LinkChecker interface {
 	// CanExecute determines if an executing message is valid w.r.t. chain and timestamp constraints.
@@ -54,11 +57,7 @@ func (lc *LinkCheckerImpl) CanExecute(execInChain eth.ChainID,
 	if initTimestamp > execInTimestamp {
 		return false
 	}
-	window := lc.cfg.MessageExpiryWindow()
-	expiresAt := initTimestamp + window
-	if expiresAt < initTimestamp { // happens upon underflow
-		return false
-	}
+	expiresAt := safemath.SaturatingAdd(initTimestamp, lc.cfg.MessageExpiryWindow())
 	if expiresAt < execInTimestamp { // expiry check
 		return false
 	}

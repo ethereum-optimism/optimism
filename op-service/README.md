@@ -36,6 +36,7 @@ Pull requests: [monorepo](https://github.com/ethereum-optimism/optimism/pulls?q=
 ├── retry           - Function retry utils
 ├── rpc             - RPC server utils
 ├── safego          - Utils to make Go memory more safe
+├── safemath        - Utils to do math safely
 ├── serialize       - Binary serialization abstractions
 ├── signer          - CLI flags and bindings to work with a remote signer
 ├── solabi          - Utils to encode/decode Solidity ABI formatted data

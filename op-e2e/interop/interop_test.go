@@ -233,7 +233,7 @@ func TestInterop_EmitLogs(t *testing.T) {
 		accessList := types.EncodeAccessList(accessEntries)
 
 		timestamp := uint64(time.Now().Unix())
-		ed := types.ExecutingDescriptor{Timestamp: timestamp}
+		ed := types.ExecutingDescriptor{Timestamp: timestamp, ChainID: eth.ChainIDFromBig(s2.ChainID(chainB))}
 		ctx = context.Background()
 		err = supervisor.CheckAccessList(ctx, accessList, types.CrossSafe, ed)
 		require.NoError(t, err, "logsA must all be cross-safe")
