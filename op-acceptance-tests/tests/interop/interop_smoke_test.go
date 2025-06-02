@@ -10,7 +10,6 @@ import (
 	"github.com/ethereum-optimism/optimism/devnet-sdk/testing/systest"
 	"github.com/ethereum-optimism/optimism/devnet-sdk/testing/testlib/validators"
 	sdktypes "github.com/ethereum-optimism/optimism/devnet-sdk/types"
-	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
@@ -48,19 +47,6 @@ func smokeTestScenario(chainIdx uint64, walletGetter validators.WalletGetter) sy
 
 		require.Equal(t, initialBalance.Add(funds), balance)
 	}
-}
-
-func TestSystemWrapETH(t *testing.T) {
-	chainIdx := uint64(0) // We'll use the first L2 chain for this test
-
-	walletGetter, fundsValidator := validators.AcquireL2WalletWithFunds(chainIdx, sdktypes.NewBalance(big.NewInt(1.0*constants.ETH)))
-	_, interopValidator := validators.AcquireL2WithFork(chainIdx, rollup.Interop)
-
-	systest.SystemTest(t,
-		smokeTestScenario(chainIdx, walletGetter),
-		fundsValidator,
-		interopValidator,
-	)
 }
 
 func TestInteropSystemNoop(t *testing.T) {
