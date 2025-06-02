@@ -206,6 +206,11 @@ func WithMultiSupervisorInterop() stack.CommonOption {
 	return stack.MakeCommon(sysgo.MultiSupervisorInteropSystem(&sysgo.MultiSupervisorInteropSystemIDs{}))
 }
 
+// NewMultiSupervisorInterop initializes below scenario:
+// Two supervisor initialized, each managing two L2CLs per chains.
+// Primary supervisor manages sequencer L2CLs for chain A, B.
+// Secondary supervisor manages verifier L2CLs for chain A, B.
+// Each L2CLs per chain is connected via P2P.
 func NewMultiSupervisorInterop(t devtest.T) *MultiSupervisorInterop {
 	redundancyInterop := NewRedundantInterop(t)
 	orch := Orchestrator()
