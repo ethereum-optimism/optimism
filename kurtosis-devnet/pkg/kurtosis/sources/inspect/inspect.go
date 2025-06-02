@@ -12,7 +12,8 @@ import (
 type PortMap map[string]*descriptors.PortInfo
 
 type Service struct {
-	Ports PortMap
+	Labels map[string]string
+	Ports  PortMap
 }
 
 type ServiceMap map[string]*Service
@@ -95,7 +96,8 @@ func (e *Inspector) ExtractData(ctx context.Context) (*InspectData, error) {
 
 		if len(portMap) != 0 {
 			data.UserServices[svc] = &Service{
-				Ports: portMap,
+				Ports:  portMap,
+				Labels: svcCtx.GetLabels(),
 			}
 		}
 
