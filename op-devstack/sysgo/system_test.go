@@ -20,10 +20,15 @@ func TestSystem(gt *testing.T) {
 
 	logger := testlog.Logger(gt, log.LevelInfo)
 
-	p := devtest.NewP(context.Background(), logger, func() {
-		gt.Helper()
-		gt.FailNow()
-	})
+	p := devtest.NewP(context.Background(), logger,
+		func(now bool) {
+			gt.Helper()
+			if now {
+				gt.FailNow()
+			} else {
+				gt.Fail()
+			}
+		})
 	gt.Cleanup(p.Close)
 
 	orch := NewOrchestrator(p, stack.Combine[*Orchestrator]())

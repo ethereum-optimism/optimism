@@ -102,9 +102,25 @@ func mustNotSkip() bool {
 	return out
 }
 
-func (t *testingT) Errorf(format string, args ...interface{}) {
+func (t *testingT) Error(args ...any) {
 	t.t.Helper()
-	t.t.Errorf(format, args...)
+	// Note: the test-logger catches panics when the test is logged to after test-end.
+	// Note: we do not use t.Error directly, to keep the log-formatting more consistent.
+	t.logger.Error(fmt.Sprintln(args...))
+	t.t.Fail()
+}
+
+func (t *testingT) Errorf(format string, args ...any) {
+	t.t.Helper()
+	// Note: the test-logger catches panics when the test is logged to after test-end.
+	// Note: we do not use t.Errorf directly, to keep the log-formatting more consistent.
+	t.logger.Error(fmt.Sprintf(format, args...))
+	t.t.Fail()
+}
+
+func (t *testingT) Fail() {
+	t.t.Helper()
+	t.t.Fail()
 }
 
 func (t *testingT) FailNow() {
@@ -120,9 +136,17 @@ func (t *testingT) Cleanup(fn func()) {
 	t.t.Cleanup(fn)
 }
 
+func (t *testingT) Log(args ...any) {
+	t.t.Helper()
+	// Note: the test-logger catches panics when the test is logged to after test-end.
+	// Note: we do not use t.Log directly, to keep the log-formatting more consistent.
+	t.logger.Info(fmt.Sprintln(args...))
+}
+
 func (t *testingT) Logf(format string, args ...any) {
 	t.t.Helper()
-	// Note: we do not use t.Log directly, to keep the log-formatting more consistent
+	// Note: the test-logger catches panics when the test is logged to after test-end.
+	// Note: we do not use t.Logf directly, to keep the log-formatting more consistent.
 	t.logger.Info(fmt.Sprintf(format, args...))
 }
 
@@ -203,10 +227,11 @@ func (t *testingT) Parallel() {
 func (t *testingT) Skip(args ...any) {
 	t.t.Helper()
 	if mustNotSkip() {
-		t.t.Error(args...)
+		t.Error("Unexpected test-skip!", fmt.Sprintln(args...))
 		return
 	}
-	t.t.Skip(args...)
+	t.Log(args...)
+	t.t.SkipNow()
 }
 
 func (t *testingT) Skipped() bool {
@@ -217,10 +242,11 @@ func (t *testingT) Skipped() bool {
 func (t *testingT) Skipf(format string, args ...any) {
 	t.t.Helper()
 	if mustNotSkip() {
-		t.t.Errorf(format, args...)
+		t.Error("Unexpected test-skip!", fmt.Sprintf(format, args...))
 		return
 	}
-	t.t.Skipf(format, args...)
+	t.Logf(format, args...)
+	t.t.SkipNow()
 }
 
 func (t *testingT) SkipNow() {

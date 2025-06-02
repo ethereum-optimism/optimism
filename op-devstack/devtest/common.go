@@ -16,11 +16,14 @@ import (
 // This CommonT interface is minimal enough such that it can be implemented by tooling,
 // and a *testing.T can be used with minimal wrapping.
 type CommonT interface {
-	Errorf(format string, args ...interface{})
+	Error(args ...any)
+	Errorf(format string, args ...any)
+	Fail()
 	FailNow()
 
 	TempDir() string
 	Cleanup(fn func())
+	Log(args ...any)
 	Logf(format string, args ...any)
 	Helper()
 	Name() string

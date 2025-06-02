@@ -84,10 +84,13 @@ func DoMain(m *testing.M, opts ...stack.CommonOption) {
 		// Make the package-level logger use this context
 		logger.SetContext(ctx)
 
-		p := devtest.NewP(ctx, logger, func() {
+		p := devtest.NewP(ctx, logger, func(now bool) {
+			logger.Error("Main failed")
 			debug.PrintStack()
 			failed.Store(true)
-			panic("setup fail")
+			if now {
+				panic("critical Main fail")
+			}
 		})
 		defer p.Close()
 
