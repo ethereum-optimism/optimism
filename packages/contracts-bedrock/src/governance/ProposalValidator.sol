@@ -44,27 +44,36 @@ contract ProposalValidator is OwnableUpgradeable, ReinitializableBase, ISemver {
     /// @notice Thrown when a proposal does not exist.
     error ProposalValidator_ProposalDoesNotExist();
 
+    /// @notice Thrown when the length of the proposal types and proposal types data arrays do not match.
+    error ProposalValidator_ProposalTypesDataLengthMismatch();
+
     /*//////////////////////////////////////////////////////////////
                                  STRUCTS
     //////////////////////////////////////////////////////////////*/
 
-    /// @notice Data structure for storing proposal information.
+    /// @notice Struct for storing proposal information.
     /// @param proposer The address that submitted the proposal.
     /// @param proposalType Type of the proposal from the ProposalType enum.
-    /// @param proposalTypeConfigurator Configuration value specific to the proposal type.
     /// @param inVoting Whether the proposal has been moved to the voting phase.
     /// @param delegateApprovals Mapping of delegate addresses to their approval status.
-    /// @param remainingApprovalsRequired Number of approvals still needed before voting.
+    /// @param approvalCount Number of approvals received so far.
     struct ProposalData {
         address proposer;
         ProposalType proposalType;
-        uint8 proposalTypeConfigurator;
         bool inVoting;
         mapping(address => bool) delegateApprovals;
-        uint256 remainingApprovalsRequired;
+        uint256 approvalCount;
     }
 
-    /// @notice Data structure for storing voting cycle data.
+    /// @notice Struct for storing explicit data for each proposal type.
+    /// @param requiredApprovals The number of approvals each proposal type requires in order to be able to move for voting.
+    /// @param proposalTypeConfigurator The voting module each proposal type must use.
+    struct ProposalTypeData {
+        uint256 requiredApprovals;
+        uint8 proposalTypeConfigurator;
+    }
+
+    /// @notice Struct for storing voting cycle data.
     /// @param startingBlock The block number of the starting block of the voting cycle.
     /// @param duration The duration of the voting cycle.
     /// @param votingCycleDistributionLimit The max amount of tokens that can be distributed in a proposal.
@@ -143,10 +152,11 @@ contract ProposalValidator is OwnableUpgradeable, ReinitializableBase, ISemver {
     /// @param newDistributionThreshold The new distribution threshold.
     event DistributionThresholdSet(uint256 newDistributionThreshold);
 
-    /// @notice Emitted when the number of approvals required for a proposal type is set.
+    /// @notice Emitted when the proposal type data is set.
     /// @param proposalType The type of proposal.
-    /// @param newApprovalThreshold The new approval threshold.
-    event ProposalTypeApprovalThresholdSet(ProposalType proposalType, uint256 newApprovalThreshold);
+    /// @param requiredApprovals The required number of approvals.
+    /// @param proposalTypeConfigurator The proposal type configurator.
+    event ProposalTypeDataSet(ProposalType proposalType, uint256 requiredApprovals, uint8 proposalTypeConfigurator);
 
     /// @notice The schema UID for attestations in the Ethereum Attestation Service.
     /// @dev Schema format: { approvedProposer: address, proposalType: uint8 }
@@ -167,8 +177,8 @@ contract ProposalValidator is OwnableUpgradeable, ReinitializableBase, ISemver {
     /// @notice Mapping of voting cycle numbers to their corresponding data.
     mapping(uint256 => VotingCycleData) public votingCycles;
 
-    /// @notice The number of approvals required for each proposal type.
-    mapping(ProposalType => uint256) public proposalRequiredApprovals;
+    /// @notice Mapping of proposal types to their corresponding data.
+    mapping(ProposalType => ProposalTypeData) public proposalTypesData;
 
     /// @notice Mapping of proposal hash to their corresponding proposal data.
     mapping(bytes32 => ProposalData) private _proposals;
@@ -204,8 +214,8 @@ contract ProposalValidator is OwnableUpgradeable, ReinitializableBase, ISemver {
     /// @param _duration The duration of the voting cycle.
     /// @param _votingCycleDistributionLimit The max amount of tokens that can be distributed during the voting cycle.
     /// @param _distributionThreshold The max amount of tokens that can be distributed in a proposal.
-    /// @param _proposalTypes Array of proposal types to set approval thresholds for.
-    /// @param _requiredApprovals Array of approval thresholds corresponding to the proposal types.
+    /// @param _proposalTypes Array of proposal types to set data for.
+    /// @param _proposalTypesData Array of proposal type data corresponding to the proposal types.
     function initialize(
         address _owner,
         uint256 _minimumVotingPower,
@@ -215,17 +225,21 @@ contract ProposalValidator is OwnableUpgradeable, ReinitializableBase, ISemver {
         uint256 _votingCycleDistributionLimit,
         uint256 _distributionThreshold,
         ProposalType[] memory _proposalTypes,
-        uint256[] memory _requiredApprovals
+        ProposalTypeData[] memory _proposalTypesData
     )
         external
         reinitializer(initVersion())
     {
+        if (_proposalTypes.length != _proposalTypesData.length) {
+            revert ProposalValidator_ProposalTypesDataLengthMismatch();
+        }
+
         _setMinimumVotingPower(_minimumVotingPower);
         _setVotingCycleData(_cycleNumber, _startBlock, _duration, _votingCycleDistributionLimit);
         _setDistributionThreshold(_distributionThreshold);
 
         for (uint256 i = 0; i < _proposalTypes.length; i++) {
-            _setProposalTypeApprovalThreshold(_proposalTypes[i], _requiredApprovals[i]);
+            _setProposalTypeData(_proposalTypes[i], _proposalTypesData[i]);
         }
 
         __Ownable_init();
@@ -245,7 +259,6 @@ contract ProposalValidator is OwnableUpgradeable, ReinitializableBase, ISemver {
         bytes[] memory _calldatas,
         string memory _description,
         ProposalType _proposalType,
-        uint8 _proposalTypeConfigurator,
         bytes32 _attestationUid
     )
         external
@@ -260,11 +273,11 @@ contract ProposalValidator is OwnableUpgradeable, ReinitializableBase, ISemver {
             revert ProposalValidator_ProposalAlreadySubmitted();
         }
 
+        ProposalTypeData memory proposalTypeData = proposalTypesData[_proposalType];
+
         proposal.proposer = msg.sender;
         proposal.proposalType = _proposalType;
-        proposal.proposalTypeConfigurator = _proposalTypeConfigurator;
         proposal.inVoting = false;
-        proposal.remainingApprovalsRequired = 4; // Hardcoded for now, will change with proposalTypes
 
         emit ProposalSubmitted(
             proposalHash_,
@@ -274,7 +287,7 @@ contract ProposalValidator is OwnableUpgradeable, ReinitializableBase, ISemver {
             _calldatas,
             _description,
             _proposalType,
-            _proposalTypeConfigurator
+            proposalTypeData.proposalTypeConfigurator
         );
     }
 
@@ -292,7 +305,7 @@ contract ProposalValidator is OwnableUpgradeable, ReinitializableBase, ISemver {
         }
 
         proposal.delegateApprovals[msg.sender] = true;
-        proposal.remainingApprovalsRequired--; // Expected overflow when all approvals are granted
+        proposal.approvalCount++;
 
         emit ProposalApproved(_proposalHash, msg.sender);
     }
@@ -321,7 +334,8 @@ contract ProposalValidator is OwnableUpgradeable, ReinitializableBase, ISemver {
             revert ProposalValidator_ProposalDoesNotExist();
         }
 
-        if (proposal.remainingApprovalsRequired > 0) {
+        ProposalTypeData memory proposalTypeData = proposalTypesData[proposal.proposalType];
+        if (proposal.approvalCount < proposalTypeData.requiredApprovals) {
             revert ProposalValidator_InsufficientApprovals();
         }
 
@@ -332,7 +346,7 @@ contract ProposalValidator is OwnableUpgradeable, ReinitializableBase, ISemver {
         proposal.inVoting = true;
 
         governorProposalId_ =
-            GOVERNOR.propose(_targets, _values, _calldatas, _description, proposal.proposalTypeConfigurator);
+            GOVERNOR.propose(_targets, _values, _calldatas, _description, proposalTypeData.proposalTypeConfigurator);
 
         emit ProposalMovedToVote(_proposalHash, msg.sender);
     }
@@ -373,17 +387,17 @@ contract ProposalValidator is OwnableUpgradeable, ReinitializableBase, ISemver {
         _setDistributionThreshold(_distributionThreshold);
     }
 
-    /// @notice Sets the number of approvals required for each proposal type.
-    /// @param _proposalType The type of proposal to set the required approvals for.
-    /// @param _requiredApprovals The new required approvals.
-    function setProposalTypeApprovalThreshold(
+    /// @notice Sets the data for a proposal type.
+    /// @param _proposalType The type of proposal to set the data for.
+    /// @param _proposalTypeData The data for the proposal type.
+    function setProposalTypeData(
         ProposalType _proposalType,
-        uint256 _requiredApprovals
+        ProposalTypeData memory _proposalTypeData
     )
         external
         onlyOwner
     {
-        _setProposalTypeApprovalThreshold(_proposalType, _requiredApprovals);
+        _setProposalTypeData(_proposalType, _proposalTypeData);
     }
 
     /// @notice Validates a proposal before submission.
@@ -491,11 +505,13 @@ contract ProposalValidator is OwnableUpgradeable, ReinitializableBase, ISemver {
         emit DistributionThresholdSet(_distributionThreshold);
     }
 
-    /// @notice Private function to set a proposal's type required approvals and emit event.
-    /// @param _proposalType The type of proposal to set the required approvals for.
-    /// @param _requiredApprovals The new required approvals.
-    function _setProposalTypeApprovalThreshold(ProposalType _proposalType, uint256 _requiredApprovals) private {
-        proposalRequiredApprovals[_proposalType] = _requiredApprovals;
-        emit ProposalTypeApprovalThresholdSet(_proposalType, _requiredApprovals);
+    /// @notice Private function to set a proposal's type data.
+    /// @param _proposalType The type of proposal to set the data for.
+    /// @param _proposalTypeData The data for the proposal type.
+    function _setProposalTypeData(ProposalType _proposalType, ProposalTypeData memory _proposalTypeData) private {
+        proposalTypesData[_proposalType] = _proposalTypeData;
+        emit ProposalTypeDataSet(
+            _proposalType, _proposalTypeData.requiredApprovals, _proposalTypeData.proposalTypeConfigurator
+        );
     }
 }
