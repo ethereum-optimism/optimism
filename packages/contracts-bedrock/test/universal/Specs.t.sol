@@ -937,6 +937,7 @@ contract Specification_Test is CommonTest {
             _name: "StandardValidator",
             _sel: _getSel("validate((address,address,bytes32,uint256),bool,(address,address))")
         });
+        _addSpec({ _name: "StandardValidator", _sel: _getSel("version()") });
     }
 
     /// @dev Computes the selector from a function signature.
