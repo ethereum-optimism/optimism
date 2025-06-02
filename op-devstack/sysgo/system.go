@@ -59,7 +59,7 @@ func DefaultMinimalSystem(dest *DefaultMinimalSystemIDs) stack.Option[*Orchestra
 	opt.Add(WithL1Nodes(ids.L1EL, ids.L1CL))
 
 	opt.Add(WithL2ELNode(ids.L2EL, nil))
-	opt.Add(WithL2CLNode(ids.L2CL, true, ids.L1CL, ids.L1EL, ids.L2EL))
+	opt.Add(WithL2CLNode(ids.L2CL, true, false, ids.L1CL, ids.L1EL, ids.L2EL))
 
 	opt.Add(WithBatcher(ids.L2Batcher, ids.L1EL, ids.L2CL, ids.L2EL))
 	opt.Add(WithProposer(ids.L2Proposer, ids.L1EL, &ids.L2CL, nil))
@@ -160,8 +160,8 @@ func DefaultInteropSystem(dest *DefaultInteropSystemIDs) stack.Option[*Orchestra
 	opt.Add(WithL2ELNode(ids.L2AEL, &ids.Supervisor))
 	opt.Add(WithL2ELNode(ids.L2BEL, &ids.Supervisor))
 
-	opt.Add(WithL2CLNode(ids.L2ACL, true, ids.L1CL, ids.L1EL, ids.L2AEL))
-	opt.Add(WithL2CLNode(ids.L2BCL, true, ids.L1CL, ids.L1EL, ids.L2BEL))
+	opt.Add(WithL2CLNode(ids.L2ACL, true, true, ids.L1CL, ids.L1EL, ids.L2AEL))
+	opt.Add(WithL2CLNode(ids.L2BCL, true, true, ids.L1CL, ids.L1EL, ids.L2BEL))
 
 	opt.Add(WithTestSequencer(ids.TestSequencer, ids.L2ACL, ids.L1EL, ids.L2AEL))
 
@@ -219,7 +219,7 @@ func RedundantInteropSystem(dest *RedundantInteropSystemIDs) stack.Option[*Orche
 	opt.Add(DefaultInteropSystem(&parentIds))
 
 	opt.Add(WithL2ELNode(ids.L2A2EL, &ids.Supervisor))
-	opt.Add(WithL2CLNode(ids.L2A2CL, false, ids.L1CL, ids.L1EL, ids.L2A2EL))
+	opt.Add(WithL2CLNode(ids.L2A2CL, false, true, ids.L1CL, ids.L1EL, ids.L2A2EL))
 
 	// verifier must be also managed or it cannot advance
 	opt.Add(WithManagedBySupervisor(ids.L2A2CL, ids.Supervisor))
@@ -269,10 +269,10 @@ func MultiSupervisorInteropSystem(dest *MultiSupervisorInteropSystemIDs) stack.O
 	opt.Add(WithSupervisor(ids.SupervisorSecondary, ids.Cluster, ids.L1EL))
 
 	opt.Add(WithL2ELNode(ids.L2A2EL, &ids.SupervisorSecondary))
-	opt.Add(WithL2CLNode(ids.L2A2CL, false, ids.L1CL, ids.L1EL, ids.L2A2EL))
+	opt.Add(WithL2CLNode(ids.L2A2CL, false, true, ids.L1CL, ids.L1EL, ids.L2A2EL))
 
 	opt.Add(WithL2ELNode(ids.L2B2EL, &ids.SupervisorSecondary))
-	opt.Add(WithL2CLNode(ids.L2B2CL, false, ids.L1CL, ids.L1EL, ids.L2B2EL))
+	opt.Add(WithL2CLNode(ids.L2B2CL, false, true, ids.L1CL, ids.L1EL, ids.L2B2EL))
 
 	// verifier must be also managed or it cannot advance
 	// we attach verifier L2CL with backup supervisor
