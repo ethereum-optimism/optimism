@@ -1065,10 +1065,16 @@ contract OPContractsManagerDeployer is OPContractsManagerBase {
         );
         output.opChainProxyAdmin.setImplementationName(address(output.l1CrossDomainMessengerProxy), contractName);
 
-        // Eventually we will switch from DelayedWETHPermissionedGameProxy to DelayedWETHPermissionlessGameProxy.
+        // Deploy DelayedWETH proxies for both permissioned and permissionless games
         output.delayedWETHPermissionedGameProxy = IDelayedWETH(
             payable(
                 deployProxy(_input.l2ChainId, output.opChainProxyAdmin, _input.saltMixer, "DelayedWETHPermissionedGame")
+            )
+        );
+
+        output.delayedWETHPermissionlessGameProxy = IDelayedWETH(
+            payable(
+                deployProxy(_input.l2ChainId, output.opChainProxyAdmin, _input.saltMixer, "DelayedWETHPermissionlessGame")
             )
         );
 
@@ -1144,11 +1150,18 @@ contract OPContractsManagerDeployer is OPContractsManagerBase {
             output.opChainProxyAdmin, address(output.l1StandardBridgeProxy), implementation.l1StandardBridgeImpl, data
         );
 
-        // Eventually we will switch from DelayedWETHPermissionedGameProxy to DelayedWETHPermissionlessGameProxy.
+        // Initialize both DelayedWETH proxies
         data = encodeDelayedWETHInitializer(output);
         upgradeToAndCall(
             output.opChainProxyAdmin,
             address(output.delayedWETHPermissionedGameProxy),
+            implementation.delayedWETHImpl,
+            data
+        );
+
+        upgradeToAndCall(
+            output.opChainProxyAdmin,
+            address(output.delayedWETHPermissionlessGameProxy),
             implementation.delayedWETHImpl,
             data
         );

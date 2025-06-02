@@ -353,8 +353,7 @@ contract DeployOPChainOutput is BaseDeployIO {
     }
 
     function delayedWETHPermissionlessGameProxy() public view returns (IDelayedWETH) {
-        // TODO: Eventually switch from Permissioned to Permissionless. Add this check back in.
-        // DeployUtils.assertValidContractAddress(address(_delayedWETHPermissionlessGameProxy));
+        DeployUtils.assertValidContractAddress(address(_delayedWETHPermissionlessGameProxy));
         return _delayedWETHPermissionlessGameProxy;
     }
 }
@@ -425,11 +424,10 @@ contract DeployOPChain is Script {
         // _doo.set(_doo.faultDisputeGame.selector, address(deployOutput.faultDisputeGame));
         _doo.set(_doo.permissionedDisputeGame.selector, address(deployOutput.permissionedDisputeGame));
         _doo.set(_doo.delayedWETHPermissionedGameProxy.selector, address(deployOutput.delayedWETHPermissionedGameProxy));
-        // TODO: Eventually switch from Permissioned to Permissionless.
-        // _doo.set(
-        //     _doo.delayedWETHPermissionlessGameProxy.selector,
-        // address(deployOutput.delayedWETHPermissionlessGameProxy)
-        // );
+        _doo.set(
+            _doo.delayedWETHPermissionlessGameProxy.selector,
+            address(deployOutput.delayedWETHPermissionlessGameProxy)
+        );
 
         checkOutput(_doi, _doo);
     }
@@ -453,10 +451,9 @@ contract DeployOPChain is Script {
             address(_doo.permissionedDisputeGame()),
             // address(_doo.faultDisputeGame()),
             address(_doo.delayedWETHPermissionedGameProxy()),
+            address(_doo.delayedWETHPermissionlessGameProxy()),
             address(_doo.ethLockboxProxy())
         );
-        // TODO: Eventually switch from Permissioned to Permissionless. Add this address back in.
-        // address(_delayedWETHPermissionlessGameProxy)
 
         DeployUtils.assertValidContractAddresses(Solarray.extend(addrs1, addrs2));
         assertValidDeploy(_doi, _doo);

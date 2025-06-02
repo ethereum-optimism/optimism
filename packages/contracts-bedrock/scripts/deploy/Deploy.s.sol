@@ -359,30 +359,15 @@ contract Deploy is Deployer {
         artifacts.save("DisputeGameFactoryProxy", address(deployOutput.disputeGameFactoryProxy));
         artifacts.save("PermissionedDelayedWETHProxy", address(deployOutput.delayedWETHPermissionedGameProxy));
         artifacts.save("PermissionlessDelayedWETHProxy", address(deployOutput.delayedWETHPermissionlessGameProxy));
+        // For backward compatibility, save permissionless as the default DelayedWETHProxy
+        artifacts.save("DelayedWETHProxy", address(deployOutput.delayedWETHPermissionlessGameProxy));
         console.log("HERE");
         console.log(address(deployOutput.delayedWETHPermissionlessGameProxy));
         artifacts.save("AnchorStateRegistryProxy", address(deployOutput.anchorStateRegistryProxy));
         artifacts.save("PermissionedDisputeGame", address(deployOutput.permissionedDisputeGame));
         artifacts.save("OptimismPortalProxy", address(deployOutput.optimismPortalProxy));
         artifacts.save("OptimismPortal2Proxy", address(deployOutput.optimismPortalProxy));
-        // Check if the permissionless game implementation is already set
-        IDisputeGameFactory factory = IDisputeGameFactory(artifacts.mustGetAddress("DisputeGameFactoryProxy"));
-        address permissionlessGameImpl = address(factory.gameImpls(GameTypes.CANNON));
-
-        // Deploy and setup the PermissionlessDelayedWeth not provided by the OPCM.
-        // If the following require statement is hit, you can delete the block of code after it.
-        require(
-            permissionlessGameImpl == address(0),
-            "Deploy: The PermissionlessDelayedWETH is already set by the OPCM, it is no longer necessary to deploy it separately."
-        );
-        address delayedWETHImpl = artifacts.mustGetAddress("DelayedWETHImpl");
-        address delayedWETHPermissionlessGameProxy =
-            deployERC1967ProxyWithOwner("DelayedWETHProxy", address(deployOutput.opChainProxyAdmin));
-        vm.broadcast(address(deployOutput.opChainProxyAdmin));
-        IProxy(payable(delayedWETHPermissionlessGameProxy)).upgradeToAndCall({
-            _implementation: delayedWETHImpl,
-            _data: abi.encodeCall(IDelayedWETH.initialize, (deployOutput.systemConfigProxy))
-        });
+        // OPCM now provides both permissioned and permissionless DelayedWETH proxies
 
         setAlphabetFaultGameImplementation();
         setSuperFaultGameImplementation();
@@ -784,6 +769,12 @@ contract Deploy is Deployer {
             rawGameType != GameTypes.PERMISSIONED_CANNON.raw(), "Deploy: Permissioned Game should be deployed by OPCM"
         );
 
+        // Get required CWIA arguments for all game types
+        Claim absolutePrestate = Claim.wrap(bytes32(cfg.faultGameAbsolutePrestate()));
+        IBigStepper vm_ = IBigStepper(artifacts.mustGetAddress("MipsSingleton"));
+        IAnchorStateRegistry anchorStateRegistry = IAnchorStateRegistry(artifacts.mustGetAddress("AnchorStateRegistryProxy"));
+        bytes memory implArgs = abi.encodePacked(absolutePrestate, vm_, anchorStateRegistry);
+
         if (rawGameType == 4) {
             _factory.setImplementation(
                 _params.gameType,
@@ -796,7 +787,7 @@ contract Deploy is Deployer {
                         _args: DeployUtils.encodeConstructor(abi.encodeCall(IFaultDisputeGame.__constructor__, (_params)))
                     })
                 ),
-                "" // TODO: fix
+                implArgs
             );
         } else if (rawGameType == 5) {
             _factory.setImplementation(
@@ -815,7 +806,7 @@ contract Deploy is Deployer {
                         )
                     })
                 ),
-                "" // TODO: fix
+                implArgs
             );
         } else {
             _factory.setImplementation(
@@ -829,9 +820,8 @@ contract Deploy is Deployer {
                         _args: DeployUtils.encodeConstructor(abi.encodeCall(IFaultDisputeGame.__constructor__, (_params)))
                     })
                 ),
-                ""
+                implArgs
             );
-            /// TODO: Fix
         }
 
         string memory gameTypeString;
