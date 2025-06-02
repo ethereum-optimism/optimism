@@ -4,7 +4,6 @@ import (
 	conductorRpc "github.com/ethereum-optimism/optimism/op-conductor/rpc"
 )
 
-// ConductorID identifies a Conductor by name and chainID, is type-safe, and can be value-copied and used as map key.
 type ConductorID genericID
 
 const ConductorKind Kind = "Conductor"
@@ -35,7 +34,6 @@ func (id ConductorID) Match(elems []Conductor) []Conductor {
 	return findByID(id, elems)
 }
 
-// Conductor is an interop service, used to cross-verify messages between chains.
 type Conductor interface {
 	Common
 	ID() ConductorID

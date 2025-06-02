@@ -68,10 +68,8 @@ func NewMinimal(t devtest.T) *Minimal {
 		Wallet:        dsl.NewHDWallet(t, devkeys.TestMnemonic, 30),
 		Faucet:        dsl.NewFaucet(l2.Faucet(match.Assume(t, match.FirstFaucet))),
 	}
-	if out.Faucet != nil {
-		out.FaucetL1 = dsl.NewFaucet(out.L1Network.Escape().Faucet(match.Assume(t, match.FirstFaucet)))
-		out.FunderL1 = dsl.NewFunder(out.Wallet, out.FaucetL1, out.L1EL)
-		out.Funder = dsl.NewFunder(out.Wallet, out.Faucet, out.L2EL)
-	}
+	out.FaucetL1 = dsl.NewFaucet(out.L1Network.Escape().Faucet(match.Assume(t, match.FirstFaucet)))
+	out.FunderL1 = dsl.NewFunder(out.Wallet, out.FaucetL1, out.L1EL)
+	out.Funder = dsl.NewFunder(out.Wallet, out.Faucet, out.L2EL)
 	return out
 }
