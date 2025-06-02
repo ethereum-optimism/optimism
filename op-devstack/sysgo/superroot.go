@@ -11,6 +11,8 @@ import (
 	"github.com/ethereum-optimism/optimism/op-chain-ops/devkeys"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/stack"
+	"github.com/ethereum-optimism/optimism/op-e2e/bindings"
+	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/contracts/bindings/delegatecallproxy"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/transactions"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
 	"github.com/ethereum-optimism/optimism/op-service/client"
@@ -65,18 +67,18 @@ func WithSuperRoots(l1ChainID eth.ChainID, l1ELID stack.L1ELNodeID, l2CLID stack
 			require.NotEmpty(superchainProxyAdmin, "superchain proxy admin address is empty")
 
 			absolutePrestate := getInteropAbsolutePrestate(t)
-			var opChainConfigs []OPContractsManagerOpChainConfig
+			var opChainConfigs []bindings.OPContractsManagerOpChainConfig
 			var l2ChainIDs []eth.ChainID
 			for l2ChainID, l2Deployment := range o.wb.outL2Deployment {
 				l2ChainIDs = append(l2ChainIDs, l2ChainID)
-				opChainConfigs = append(opChainConfigs, OPContractsManagerOpChainConfig{
+				opChainConfigs = append(opChainConfigs, bindings.OPContractsManagerOpChainConfig{
 					SystemConfigProxy: l2Deployment.SystemConfigProxyAddr(),
 					ProxyAdmin:        superchainProxyAdmin,
 					AbsolutePrestate:  absolutePrestate,
 				})
 			}
 
-			opcmABI, err := abi.JSON(bytes.NewReader([]byte(OPContractsManagerMetaData.ABI)))
+			opcmABI, err := abi.JSON(bytes.NewReader([]byte(bindings.OPContractsManagerMetaData.ABI)))
 			o.P().Require().NoError(err, "invalid OPCM ABI")
 			chainOps := devkeys.ChainOperatorKeys(l1ChainID.ToBig())
 			proposer, err := o.keys.Address(chainOps(devkeys.ProposerRole))
@@ -86,13 +88,13 @@ func WithSuperRoots(l1ChainID eth.ChainID, l1ELID stack.L1ELNodeID, l2CLID stack
 
 			opcmAddr := o.wb.output.ImplementationsDeployment.OpcmImpl
 			contract := batching.NewBoundContract(&opcmABI, opcmAddr)
-			migrateInput := OPContractsManagerInteropMigratorMigrateInput{
+			migrateInput := bindings.OPContractsManagerInteropMigratorMigrateInput{
 				UsePermissionlessGame: true,
-				StartingAnchorRoot: Proposal{
+				StartingAnchorRoot: bindings.Proposal{
 					Root:             common.Hash(superRoot),
 					L2SequenceNumber: big.NewInt(int64(header.Time)),
 				},
-				GameParameters: OPContractsManagerInteropMigratorGameParameters{
+				GameParameters: bindings.OPContractsManagerInteropMigratorGameParameters{
 					Proposer:         proposer,
 					Challenger:       challenger,
 					MaxGameDepth:     big.NewInt(73),
@@ -117,7 +119,7 @@ func WithSuperRoots(l1ChainID eth.ChainID, l1ELID stack.L1ELNodeID, l2CLID stack
 			// The DelegateCallProxy is used to simulate a GnosisSafe proxy that satisfies the delegatecall requirement of the OPCM.
 			delegateCallProxy, proxyContract := deployDelegateCallProxy(t, transactOpts, client, l1pao)
 			oldSuperchainProxyAdminOwner := getOwner(t, w3Client, superchainProxyAdmin)
-			transferOwnership(t, l1ChainID.ToBig(), l1PAOKey, client, superchainProxyAdmin, delegateCallProxy)
+			transferOwnership(t, l1PAOKey, client, superchainProxyAdmin, delegateCallProxy)
 
 			oldDisputeGameFactories := make(map[eth.ChainID]common.Address)
 			for i, opChainConfig := range opChainConfigs {
@@ -131,10 +133,10 @@ func WithSuperRoots(l1ChainID eth.ChainID, l1ELID stack.L1ELNodeID, l2CLID stack
 						w3eth.CallFunc(opChainConfig.SystemConfigProxy, optimismPortalFn).Returns(&portal),
 					))
 				portalProxyAdmin := getProxyAdmin(t, w3Client, portal)
-				transferOwnership(t, l1ChainID.ToBig(), l1PAOKeyForL2, client, portalProxyAdmin, delegateCallProxy)
+				transferOwnership(t, l1PAOKeyForL2, client, portalProxyAdmin, delegateCallProxy)
 
 				dgf := getDisputeGameFactory(t, w3Client, portal)
-				transferOwnership(t, l1ChainID.ToBig(), l1PAOKeyForL2, client, dgf, delegateCallProxy)
+				transferOwnership(t, l1PAOKeyForL2, client, dgf, delegateCallProxy)
 				oldDisputeGameFactories[l2ChainIDs[i]] = dgf
 			}
 
@@ -195,8 +197,8 @@ func WithSuperRoots(l1ChainID eth.ChainID, l1ELID stack.L1ELNodeID, l2CLID stack
 	}
 }
 
-func deployDelegateCallProxy(t devtest.CommonT, transactOpts *bind.TransactOpts, client *ethclient.Client, owner common.Address) (common.Address, *DelegateCallProxy) {
-	deployAddress, _, proxyContract, err := DeployDelegateCallProxy(transactOpts, client, owner)
+func deployDelegateCallProxy(t devtest.CommonT, transactOpts *bind.TransactOpts, client *ethclient.Client, owner common.Address) (common.Address, *delegatecallproxy.Delegatecallproxy) {
+	deployAddress, _, proxyContract, err := delegatecallproxy.DeployDelegatecallproxy(transactOpts, client, owner)
 	t.Require().NoError(err, "DelegateCallProxy deployment failed")
 	return deployAddress, proxyContract
 }
@@ -241,6 +243,7 @@ var (
 	ethLockboxFn          = w3.MustNewFunc("ethLockbox()", "address")
 	anchorStateRegistryFn = w3.MustNewFunc("anchorStateRegistry()", "address")
 	wethFn                = w3.MustNewFunc("weth()", "address")
+	transferOwnershipFn   = w3.MustNewFunc("transferOwnership(address)", "")
 )
 
 func getOptimismPortal(t devtest.CommonT, client *w3.Client, systemConfigProxy common.Address) common.Address {
@@ -278,33 +281,8 @@ func getProxyAdmin(t devtest.CommonT, client *w3.Client, addr common.Address) co
 	return proxyAdmin
 }
 
-func transferOwnership(t devtest.CommonT, transactChainID *big.Int, privateKey *ecdsa.PrivateKey, client *ethclient.Client, l1ProxyAdmin common.Address, newOwner common.Address) {
-	ownableABIString := `
-	[
-		{
-			"inputs": [
-				{
-					"internalType": "address",
-					"name": "newOwner",
-					"type": "address"
-				}
-			],
-			"name": "transferOwnership",
-			"outputs": [],
-			"stateMutability": "nonpayable",
-			"type": "function"
-		}
-	]
-`
-	transactOpts, err := bind.NewKeyedTransactorWithChainID(privateKey, transactChainID)
-	t.Require().NoError(err, "must have transact opts")
-	transactOpts.Context = t.Ctx()
-
-	abi, err := abi.JSON(bytes.NewReader([]byte(ownableABIString)))
-	t.Require().NoError(err)
-	contract := batching.NewBoundContract(&abi, l1ProxyAdmin)
-	call := contract.Call("transferOwnership", newOwner)
-	data, err := call.Pack()
+func transferOwnership(t devtest.CommonT, privateKey *ecdsa.PrivateKey, client *ethclient.Client, l1ProxyAdmin common.Address, newOwner common.Address) {
+	data, err := transferOwnershipFn.EncodeArgs(newOwner)
 	t.Require().NoError(err)
 
 	candidate := txmgr.TxCandidate{
@@ -385,7 +363,7 @@ func resetOwnershipAfterMigration(
 	w3Client *w3.Client,
 	client *ethclient.Client,
 	delegateCallProxy common.Address,
-	opChainConfigs []OPContractsManagerOpChainConfig,
+	opChainConfigs []bindings.OPContractsManagerOpChainConfig,
 ) {
 	l1PAO, err := o.keys.Address(devkeys.ChainOperatorKeys(l1ChainID)(devkeys.L1ProxyAdminOwnerRole))
 	t.Require().NoError(err, "must have L1 proxy admin owner private key")

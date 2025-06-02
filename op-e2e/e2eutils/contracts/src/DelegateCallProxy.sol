@@ -19,22 +19,22 @@ contract DelegateCallProxy {
         return result;
     }
 
-    function transferOwnership(address _proxyAdmin, address newOwner) external {
+    function transferOwnership(address _proxyAdmin, address _newOwner) external {
         if (msg.sender != owner) {
             revert NotOwner();
         }
         // nosemgrep: sol-style-use-abi-encodecall
-        bytes memory data = abi.encodeWithSignature("transferOwnership(address)", newOwner);
+        bytes memory data = abi.encodeWithSignature("transferOwnership(address)", _newOwner);
         (bool success, ) = _proxyAdmin.call(data);
         require(success, "TransferOwnership: failed");
     }
 
-    function changeAdmin(address _proxy, address newAdmin) external {
+    function changeAdmin(address _proxy, address _newAdmin) external {
         if (msg.sender != owner) {
             revert NotOwner();
         }
         // nosemgrep: sol-style-use-abi-encodecall
-        bytes memory data = abi.encodeWithSignature("changeAdmin(address)", newAdmin);
+        bytes memory data = abi.encodeWithSignature("changeAdmin(address)", _newAdmin);
         (bool success, ) = _proxy.call(data);
         require(success, "ChangeAdmin: failed");
     }
