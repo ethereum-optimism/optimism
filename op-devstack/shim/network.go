@@ -50,7 +50,9 @@ func (p *presetNetwork) Faucets() []stack.Faucet {
 
 func (p *presetNetwork) Faucet(m stack.FaucetMatcher) stack.Faucet {
 	v, ok := findMatch(m, p.faucets.Get, p.Faucets)
-	p.require().True(ok, "must find faucet %s", m)
+	if !ok {
+		return nil
+	}
 	return v
 }
 
