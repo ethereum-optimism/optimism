@@ -38,19 +38,18 @@ func TestConductorLeadershipTransfer(gt *testing.T) {
 
 	// Test all L2 chains in the system
 	for _, l2Chain := range sys.L2Networks() {
-		_, span = tracer.Start(ctx, "test chain")
+		chainId := l2Chain.String()
+
+		_, span = tracer.Start(ctx, fmt.Sprintf("test chain %s", chainId))
 		defer span.End()
 
-		chainId := l2Chain.String()
 		conductors := l2Chain.Escape().Conductors()
-
-		require.NotEmpty(t, conductors, "no conductors found in the L2 chain", "chainId", chainId)
-
-		membership := dsl.NewConductor(conductors[0]).FetchClusterMembership()
 		if len(conductors) == 0 {
-			t.Skip("no conductor found in the input, skipping leadership transfer test")
+			logger.Info("no conductor found in the input, skipping leadership transfer test", "chainId", chainId)
 			continue
 		}
+
+		membership := dsl.NewConductor(conductors[0]).FetchClusterMembership()
 		require.Equal(t, len(membership.Servers), len(conductors), "cluster membership does not match the number of conductors", "chainId", chainId)
 
 		idToConductor := make(map[string]conductorWithInfo)
