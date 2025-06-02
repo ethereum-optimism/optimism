@@ -256,51 +256,14 @@ func DefaultInteropProofsSystem(dest *DefaultInteropSystemIDs) stack.Option[*Orc
 	return opt
 }
 
-type RedundantInteropSystemIDs struct {
+type MultiSupervisorInteropSystemIDs struct {
 	DefaultInteropSystemIDs
+
+	// Supervisor does not support multinode so need a additional supervisor for verifier nodes
+	SupervisorSecondary stack.SupervisorID
 
 	L2A2CL stack.L2CLNodeID
 	L2A2EL stack.L2ELNodeID
-}
-
-func RedundantInteropSystem(dest *RedundantInteropSystemIDs) stack.Option[*Orchestrator] {
-	l1ID := eth.ChainIDFromUInt64(900)
-	l2AID := eth.ChainIDFromUInt64(901)
-	l2BID := eth.ChainIDFromUInt64(902)
-	ids := RedundantInteropSystemIDs{
-		DefaultInteropSystemIDs: NewDefaultInteropSystemIDs(l1ID, l2AID, l2BID),
-		L2A2CL:                  stack.NewL2CLNodeID("verifier", l2AID),
-		L2A2EL:                  stack.NewL2ELNodeID("verifier", l2AID),
-	}
-
-	// start with default interop system
-	var parentIds DefaultInteropSystemIDs
-	opt := stack.Combine[*Orchestrator]()
-	opt.Add(DefaultInteropSystem(&parentIds))
-
-	opt.Add(WithL2ELNode(ids.L2A2EL, &ids.Supervisor))
-	opt.Add(WithL2CLNode(ids.L2A2CL, false, true, ids.L1CL, ids.L1EL, ids.L2A2EL))
-
-	// verifier must be also managed or it cannot advance
-	opt.Add(WithManagedBySupervisor(ids.L2A2CL, ids.Supervisor))
-
-	// P2P connect L2CL nodes
-	opt.Add(WithL2CLP2PConnection(ids.L2ACL, ids.L2A2CL))
-
-	// Upon evaluation of the option, export the contents we created.
-	// Ids here are static, but other things may be exported too.
-	opt.Add(stack.Finally(func(orch *Orchestrator) {
-		*dest = ids
-	}))
-
-	return opt
-}
-
-type MultiSupervisorInteropSystemIDs struct {
-	RedundantInteropSystemIDs
-
-	SupervisorSecondary stack.SupervisorID
-
 	L2B2CL stack.L2CLNodeID
 	L2B2EL stack.L2ELNodeID
 }
@@ -310,14 +273,12 @@ func MultiSupervisorInteropSystem(dest *MultiSupervisorInteropSystemIDs) stack.O
 	l2AID := eth.ChainIDFromUInt64(901)
 	l2BID := eth.ChainIDFromUInt64(902)
 	ids := MultiSupervisorInteropSystemIDs{
-		RedundantInteropSystemIDs: RedundantInteropSystemIDs{
-			DefaultInteropSystemIDs: NewDefaultInteropSystemIDs(l1ID, l2AID, l2BID),
-			L2A2CL:                  stack.NewL2CLNodeID("verifier", l2AID),
-			L2A2EL:                  stack.NewL2ELNodeID("verifier", l2AID),
-		},
-		SupervisorSecondary: "2-secondary", // prefix with number for ordering of supervisors
-		L2B2CL:              stack.NewL2CLNodeID("verifier", l2BID),
-		L2B2EL:              stack.NewL2ELNodeID("verifier", l2BID),
+		DefaultInteropSystemIDs: NewDefaultInteropSystemIDs(l1ID, l2AID, l2BID),
+		SupervisorSecondary:     "2-secondary", // prefix with number for ordering of supervisors
+		L2A2CL:                  stack.NewL2CLNodeID("verifier", l2AID),
+		L2A2EL:                  stack.NewL2ELNodeID("verifier", l2AID),
+		L2B2CL:                  stack.NewL2CLNodeID("verifier", l2BID),
+		L2B2EL:                  stack.NewL2ELNodeID("verifier", l2BID),
 	}
 
 	// start with default interop system
