@@ -11,7 +11,11 @@ import (
 
 type PortMap map[string]*descriptors.PortInfo
 
-type ServiceMap map[string]PortMap
+type Service struct {
+	Ports PortMap
+}
+
+type ServiceMap map[string]*Service
 
 // InspectData represents a summary of the output of "kurtosis enclave inspect"
 type InspectData struct {
@@ -90,7 +94,9 @@ func (e *Inspector) ExtractData(ctx context.Context) (*InspectData, error) {
 		}
 
 		if len(portMap) != 0 {
-			data.UserServices[svc] = portMap
+			data.UserServices[svc] = &Service{
+				Ports: portMap,
+			}
 		}
 
 	}

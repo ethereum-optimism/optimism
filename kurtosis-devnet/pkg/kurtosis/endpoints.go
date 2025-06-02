@@ -206,9 +206,9 @@ func (f *ServiceFinder) triage() {
 	}
 
 	triagedServices := []*triagedService{}
-	for serviceName, ports := range f.services {
+	for serviceName, svc := range f.services {
 		endpoints := make(descriptors.EndpointMap)
-		for portName, portInfo := range ports {
+		for portName, portInfo := range svc.Ports {
 			endpoints[portName] = portInfo
 		}
 		svc := &descriptors.Service{

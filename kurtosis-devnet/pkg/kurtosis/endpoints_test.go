@@ -92,98 +92,134 @@ func TestFindChainServices(t *testing.T) {
 func createTestServiceMap() inspect.ServiceMap {
 	services := inspect.ServiceMap{
 		// L1 Services - must match pattern expected by triageNode function
-		"cl-1-teku-geth": {
-			"http":          &descriptors.PortInfo{Port: 32777},
-			"metrics":       &descriptors.PortInfo{Port: 32778},
-			"tcp-discovery": &descriptors.PortInfo{Port: 32779},
-			"udp-discovery": &descriptors.PortInfo{Port: 32769},
+		"cl-1-teku-geth": &inspect.Service{
+			Ports: inspect.PortMap{
+				"http":          &descriptors.PortInfo{Port: 32777},
+				"metrics":       &descriptors.PortInfo{Port: 32778},
+				"tcp-discovery": &descriptors.PortInfo{Port: 32779},
+				"udp-discovery": &descriptors.PortInfo{Port: 32769},
+			},
 		},
-		"el-1-geth-teku": {
-			"engine-rpc":    &descriptors.PortInfo{Port: 32774},
-			"metrics":       &descriptors.PortInfo{Port: 32775},
-			"rpc":           &descriptors.PortInfo{Port: 32772},
-			"tcp-discovery": &descriptors.PortInfo{Port: 32776},
-			"udp-discovery": &descriptors.PortInfo{Port: 32768},
-			"ws":            &descriptors.PortInfo{Port: 32773},
+		"el-1-geth-teku": &inspect.Service{
+			Ports: inspect.PortMap{
+				"engine-rpc":    &descriptors.PortInfo{Port: 32774},
+				"metrics":       &descriptors.PortInfo{Port: 32775},
+				"rpc":           &descriptors.PortInfo{Port: 32772},
+				"tcp-discovery": &descriptors.PortInfo{Port: 32776},
+				"udp-discovery": &descriptors.PortInfo{Port: 32768},
+				"ws":            &descriptors.PortInfo{Port: 32773},
+			},
 		},
-		"fileserver": {
-			"http": &descriptors.PortInfo{Port: 32771},
+		"fileserver": &inspect.Service{
+			Ports: inspect.PortMap{
+				"http": &descriptors.PortInfo{Port: 32771},
+			},
 		},
-		"grafana": {
-			"http": &descriptors.PortInfo{Port: 32815},
+		"grafana": &inspect.Service{
+			Ports: inspect.PortMap{
+				"http": &descriptors.PortInfo{Port: 32815},
+			},
 		},
-		"prometheus": {
-			"http": &descriptors.PortInfo{Port: 32814},
+		"prometheus": &inspect.Service{
+			Ports: inspect.PortMap{
+				"http": &descriptors.PortInfo{Port: 32814},
+			},
 		},
 
 		// L2 Chain1 Services
-		"op-batcher-op-kurtosis-1": {
-			"http":    &descriptors.PortInfo{Port: 32791},
-			"metrics": &descriptors.PortInfo{Port: 32792},
+		"op-batcher-op-kurtosis-1": &inspect.Service{
+			Ports: inspect.PortMap{
+				"http":    &descriptors.PortInfo{Port: 32791},
+				"metrics": &descriptors.PortInfo{Port: 32792},
+			},
 		},
-		"op-proposer-op-kurtosis-1": {
-			"http":    &descriptors.PortInfo{Port: 32793},
-			"metrics": &descriptors.PortInfo{Port: 32794},
+		"op-proposer-op-kurtosis-1": &inspect.Service{
+			Ports: inspect.PortMap{
+				"http":    &descriptors.PortInfo{Port: 32793},
+				"metrics": &descriptors.PortInfo{Port: 32794},
+			},
 		},
-		"op-cl-2151908-1-op-node-op-geth-op-kurtosis-1": {
-			"http":          &descriptors.PortInfo{Port: 32785},
-			"metrics":       &descriptors.PortInfo{Port: 32786},
-			"rpc-interop":   &descriptors.PortInfo{Port: 32788},
-			"tcp-discovery": &descriptors.PortInfo{Port: 32787},
-			"udp-discovery": &descriptors.PortInfo{Port: 32771},
+		"op-cl-2151908-1-op-node-op-geth-op-kurtosis-1": &inspect.Service{
+			Ports: inspect.PortMap{
+				"http":          &descriptors.PortInfo{Port: 32785},
+				"metrics":       &descriptors.PortInfo{Port: 32786},
+				"rpc-interop":   &descriptors.PortInfo{Port: 32788},
+				"tcp-discovery": &descriptors.PortInfo{Port: 32787},
+				"udp-discovery": &descriptors.PortInfo{Port: 32771},
+			},
 		},
-		"op-el-2151908-1-op-geth-op-node-op-kurtosis-1": {
-			"engine-rpc":    &descriptors.PortInfo{Port: 32782},
-			"metrics":       &descriptors.PortInfo{Port: 32783},
-			"rpc":           &descriptors.PortInfo{Port: 32780},
-			"tcp-discovery": &descriptors.PortInfo{Port: 32784},
-			"udp-discovery": &descriptors.PortInfo{Port: 32770},
-			"ws":            &descriptors.PortInfo{Port: 32781},
+		"op-el-2151908-1-op-geth-op-node-op-kurtosis-1": &inspect.Service{
+			Ports: inspect.PortMap{
+				"engine-rpc":    &descriptors.PortInfo{Port: 32782},
+				"metrics":       &descriptors.PortInfo{Port: 32783},
+				"rpc":           &descriptors.PortInfo{Port: 32780},
+				"tcp-discovery": &descriptors.PortInfo{Port: 32784},
+				"udp-discovery": &descriptors.PortInfo{Port: 32770},
+				"ws":            &descriptors.PortInfo{Port: 32781},
+			},
 		},
-		"proxyd-2151908": {
-			"http":    &descriptors.PortInfo{Port: 32790},
-			"metrics": &descriptors.PortInfo{Port: 32789},
+		"proxyd-2151908": &inspect.Service{
+			Ports: inspect.PortMap{
+				"http":    &descriptors.PortInfo{Port: 32790},
+				"metrics": &descriptors.PortInfo{Port: 32789},
+			},
 		},
 
 		// L2 Chain2 Services
-		"op-batcher-op-kurtosis-2": {
-			"http":    &descriptors.PortInfo{Port: 32806},
-			"metrics": &descriptors.PortInfo{Port: 32807},
+		"op-batcher-op-kurtosis-2": &inspect.Service{
+			Ports: inspect.PortMap{
+				"http":    &descriptors.PortInfo{Port: 32806},
+				"metrics": &descriptors.PortInfo{Port: 32807},
+			},
 		},
-		"op-proposer-op-kurtosis-2": {
-			"http":    &descriptors.PortInfo{Port: 32808},
-			"metrics": &descriptors.PortInfo{Port: 32809},
+		"op-proposer-op-kurtosis-2": &inspect.Service{
+			Ports: inspect.PortMap{
+				"http":    &descriptors.PortInfo{Port: 32808},
+				"metrics": &descriptors.PortInfo{Port: 32809},
+			},
 		},
-		"op-cl-2151909-1-op-node-op-geth-op-kurtosis-2": {
-			"http":          &descriptors.PortInfo{Port: 32800},
-			"metrics":       &descriptors.PortInfo{Port: 32801},
-			"rpc-interop":   &descriptors.PortInfo{Port: 32803},
-			"tcp-discovery": &descriptors.PortInfo{Port: 32802},
-			"udp-discovery": &descriptors.PortInfo{Port: 32773},
+		"op-cl-2151909-1-op-node-op-geth-op-kurtosis-2": &inspect.Service{
+			Ports: inspect.PortMap{
+				"http":          &descriptors.PortInfo{Port: 32800},
+				"metrics":       &descriptors.PortInfo{Port: 32801},
+				"rpc-interop":   &descriptors.PortInfo{Port: 32803},
+				"tcp-discovery": &descriptors.PortInfo{Port: 32802},
+				"udp-discovery": &descriptors.PortInfo{Port: 32773},
+			},
 		},
-		"op-el-2151909-1-op-geth-op-node-op-kurtosis-2": {
-			"engine-rpc":    &descriptors.PortInfo{Port: 32797},
-			"metrics":       &descriptors.PortInfo{Port: 32798},
-			"rpc":           &descriptors.PortInfo{Port: 32795},
-			"tcp-discovery": &descriptors.PortInfo{Port: 32799},
-			"udp-discovery": &descriptors.PortInfo{Port: 32772},
-			"ws":            &descriptors.PortInfo{Port: 32796},
+		"op-el-2151909-1-op-geth-op-node-op-kurtosis-2": &inspect.Service{
+			Ports: inspect.PortMap{
+				"engine-rpc":    &descriptors.PortInfo{Port: 32797},
+				"metrics":       &descriptors.PortInfo{Port: 32798},
+				"rpc":           &descriptors.PortInfo{Port: 32795},
+				"tcp-discovery": &descriptors.PortInfo{Port: 32799},
+				"udp-discovery": &descriptors.PortInfo{Port: 32772},
+				"ws":            &descriptors.PortInfo{Port: 32796},
+			},
 		},
-		"proxyd-2151909": {
-			"http":    &descriptors.PortInfo{Port: 32805},
-			"metrics": &descriptors.PortInfo{Port: 32804},
+		"proxyd-2151909": &inspect.Service{
+			Ports: inspect.PortMap{
+				"http":    &descriptors.PortInfo{Port: 32805},
+				"metrics": &descriptors.PortInfo{Port: 32804},
+			},
 		},
 
 		// Shared L2 Services
-		"op-faucet": {
-			"rpc": &descriptors.PortInfo{Port: 32813},
+		"op-faucet": &inspect.Service{
+			Ports: inspect.PortMap{
+				"rpc": &descriptors.PortInfo{Port: 32813},
+			},
 		},
-		"op-challenger-service-2151908-2151909": {
-			"metrics": &descriptors.PortInfo{Port: 32812},
+		"op-challenger-service-2151908-2151909": &inspect.Service{
+			Ports: inspect.PortMap{
+				"metrics": &descriptors.PortInfo{Port: 32812},
+			},
 		},
-		"op-supervisor-service-superchain": {
-			"metrics": &descriptors.PortInfo{Port: 32811},
-			"rpc":     &descriptors.PortInfo{Port: 32810},
+		"op-supervisor-service-superchain": &inspect.Service{
+			Ports: inspect.PortMap{
+				"metrics": &descriptors.PortInfo{Port: 32811},
+				"rpc":     &descriptors.PortInfo{Port: 32810},
+			},
 		},
 		"validator-key-generation-cl-validator-keystore": {},
 	}
