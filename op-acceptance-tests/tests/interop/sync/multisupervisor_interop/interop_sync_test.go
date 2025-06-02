@@ -43,6 +43,7 @@ func TestL2CLAheadOfSupervisor(gt *testing.T) {
 
 	// Wait enough to make sequencers and primary supervisor advance safe head enough.
 	logger.Info("Sequencers advances safe heads but not verifiers", "delta", delta)
+	logger.Info("Every CL advance unsafe heads since sequencer and verifier are connected with P2P", "delta", delta)
 	dsl.CheckAll(t,
 		// verifier CLs cannot advance their safe head because secondary supervisor is down, no supervisor to provide them L1 data.
 		sys.L2CLA2.NotAdvancedFn(types.CrossSafe, 30), sys.L2CLB2.NotAdvancedFn(types.CrossSafe, 30),
@@ -54,6 +55,12 @@ func TestL2CLAheadOfSupervisor(gt *testing.T) {
 		sys.L2CLA2.AdvancedFn(types.LocalUnsafe, delta, 30), sys.L2CLB2.AdvancedFn(types.LocalUnsafe, delta, 30),
 	)
 
+	logger.Info("Stop primary supervisor to disconnect every CL connection")
+	sys.Supervisor.Stop()
+
+	logger.Info("Restart primary supervisor")
+	sys.Supervisor.Start()
+
 	// Primary supervisor has safe heads synced with sequencers.
 	// After connection, verifiers will sync with primary supervisor, matching supervisor safe head view.
 	logger.Info("Connect verifier CLs to primary supervisor to advance verifier safe heads")
@@ -62,10 +69,16 @@ func TestL2CLAheadOfSupervisor(gt *testing.T) {
 
 	// Secondary supervisor and verifiers becomes out-of-sync with safe heads.
 	target := max(sys.L2CLA.SafeL2BlockRef().Number, sys.L2CLB.SafeL2BlockRef().Number) + delta
-	logger.Info("Every CLs advance safe heads", "delta", delta, "target", target)
+	logger.Info("Verifiers advances safe heads but not sequencers", "delta", delta, "target", target)
+	logger.Info("Every CL advance unsafe heads since sequencer and verifier are connected with P2P", "delta", delta)
 	dsl.CheckAll(t,
-		sys.L2CLA.ReachedFn(types.CrossSafe, target, 30), sys.L2CLA2.ReachedFn(types.CrossSafe, target, 30),
-		sys.L2CLB.ReachedFn(types.CrossSafe, target, 30), sys.L2CLB2.ReachedFn(types.CrossSafe, target, 30),
+		// verifier CLs advance their safe heads
+		sys.L2CLA2.ReachedFn(types.CrossSafe, target, 30), sys.L2CLB2.ReachedFn(types.CrossSafe, target, 30),
+		// sequencer CLs cannot advance their safe head because no supervisor is connected to provide them L1 data.
+		sys.L2CLA.NotAdvancedFn(types.CrossSafe, 30), sys.L2CLB.NotAdvancedFn(types.CrossSafe, 30),
+		// Verifiers advances unsafe head because they still have P2P connection with each sequencers
+		sys.L2CLA.AdvancedFn(types.LocalUnsafe, delta, 30), sys.L2CLB.AdvancedFn(types.LocalUnsafe, delta, 30),
+		sys.L2CLA2.AdvancedFn(types.LocalUnsafe, delta, 30), sys.L2CLB2.AdvancedFn(types.LocalUnsafe, delta, 30),
 	)
 
 	logger.Info("Stop primary supervisor to disconnect every CL connection")
