@@ -11,6 +11,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-devstack/stack"
 	"github.com/ethereum-optimism/optimism/op-devstack/stack/match"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum/go-ethereum/rpc"
 )
 
 func getL2ID(net *descriptors.L2Chain) stack.L2NetworkID {
@@ -46,6 +47,7 @@ func (o *Orchestrator) hydrateL2(net *descriptors.L2Chain, system stack.Extensib
 
 	for _, node := range net.Nodes {
 		o.hydrateL2ELCL(&node, l2)
+		o.hydrateConductors(&node, l2)
 	}
 	o.hydrateBatcherMaybe(net, l2)
 	o.hydrateProposerMaybe(net, l2)
@@ -101,6 +103,32 @@ func (o *Orchestrator) hydrateL2ELCL(node *descriptors.Node, l2Net stack.Extensi
 	})
 	l2Net.AddL2CLNode(l2CL)
 	l2CL.(stack.LinkableL2CLNode).LinkEL(l2EL)
+}
+
+func (o *Orchestrator) hydrateConductors(node *descriptors.Node, l2Net stack.ExtensibleL2Network) {
+	require := l2Net.T().Require()
+	l2ID := l2Net.ID()
+
+	conductorService, ok := node.Services[ConductorServiceName]
+	if !ok {
+		l2Net.Logger().Debug("L2 net node is missing a conductor service", "node", node.Name, "l2", l2ID)
+		return
+	}
+
+	endpoint, _, err := o.findProtocolService(conductorService, HTTPProtocol)
+	require.NoError(err, "failed to find RPC service for conductor")
+
+	conductorClient, err := rpc.DialContext(l2Net.T().Ctx(), endpoint)
+	require.NoError(err, "failed to dial conductor endpoint")
+	l2Net.T().Cleanup(func() { conductorClient.Close() })
+
+	conductor := shim.NewConductor(shim.ConductorConfig{
+		CommonConfig: shim.NewCommonConfig(l2Net.T()),
+		Client:       conductorClient,
+		ID:           stack.ConductorID(conductorService.Name),
+	})
+
+	l2Net.AddConductor(conductor)
 }
 
 func (o *Orchestrator) hydrateL2ProxydMaybe(net *descriptors.L2Chain, l2Net stack.ExtensibleL2Network) {

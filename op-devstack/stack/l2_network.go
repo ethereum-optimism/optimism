@@ -101,6 +101,7 @@ type L2Network interface {
 	L2Challengers() []L2Challenger
 	L2CLNodes() []L2CLNode
 	L2ELNodes() []L2ELNode
+	Conductors() []Conductor
 }
 
 // ExtensibleL2Network is an optional extension interface for L2Network,
@@ -113,4 +114,5 @@ type ExtensibleL2Network interface {
 	AddL2Challenger(v L2Challenger)
 	AddL2CLNode(v L2CLNode)
 	AddL2ELNode(v L2ELNode)
+	AddConductor(v Conductor)
 }

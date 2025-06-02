@@ -53,6 +53,8 @@ type SupervisorMatcher = Matcher[SupervisorID, Supervisor]
 
 type TestSequencerMatcher = Matcher[TestSequencerID, TestSequencer]
 
+type ConductorMatcher = Matcher[ConductorID, Conductor]
+
 type L2ELMatcher = Matcher[L2ELNodeID, L2ELNode]
 
 type FaucetMatcher = Matcher[FaucetID, Faucet]

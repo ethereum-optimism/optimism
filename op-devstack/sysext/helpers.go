@@ -13,8 +13,10 @@ import (
 )
 
 const (
-	ELServiceName = "el"
-	CLServiceName = "cl"
+	ELServiceName        = "el"
+	CLServiceName        = "cl"
+	RBuilderServiceName  = "rbuilder"
+	ConductorServiceName = "conductor"
 
 	HTTPProtocol    = "http"
 	RPCProtocol     = "rpc"

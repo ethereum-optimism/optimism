@@ -39,6 +39,8 @@ type presetL2Network struct {
 
 	els locks.RWMap[stack.L2ELNodeID, stack.L2ELNode]
 	cls locks.RWMap[stack.L2CLNodeID, stack.L2CLNode]
+
+	conductors locks.RWMap[stack.ConductorID, stack.Conductor]
 }
 
 var _ stack.L2Network = (*presetL2Network)(nil)
@@ -105,6 +107,17 @@ func (p *presetL2Network) AddL2Batcher(v stack.L2Batcher) {
 	id := v.ID()
 	p.require().Equal(p.chainID, id.ChainID(), "l2 batcher %s must be on chain %s", id, p.chainID)
 	p.require().True(p.batchers.SetIfMissing(id, v), "l2 batcher %s must not already exist", id)
+}
+
+func (p *presetL2Network) Conductor(m stack.ConductorMatcher) stack.Conductor {
+	v, ok := findMatch(m, p.conductors.Get, p.Conductors)
+	p.require().True(ok, "must find L2 conductor %s", m)
+	return v
+}
+
+func (p *presetL2Network) AddConductor(v stack.Conductor) {
+	id := v.ID()
+	p.require().True(p.conductors.SetIfMissing(id, v), "conductor %s must not already exist", id)
 }
 
 func (p *presetL2Network) L2Proposer(m stack.L2ProposerMatcher) stack.L2Proposer {
@@ -177,6 +190,10 @@ func (p *presetL2Network) L2ChallengerIDs() []stack.L2ChallengerID {
 
 func (p *presetL2Network) L2Challengers() []stack.L2Challenger {
 	return stack.SortL2Challengers(p.challengers.Values())
+}
+
+func (p *presetL2Network) Conductors() []stack.Conductor {
+	return stack.SortConductors(p.conductors.Values())
 }
 
 func (p *presetL2Network) L2CLNodeIDs() []stack.L2CLNodeID {
