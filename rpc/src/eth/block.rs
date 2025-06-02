@@ -5,7 +5,7 @@ use alloy_rpc_types_eth::BlockId;
 use op_alloy_rpc_types::OpTransactionReceipt;
 use reth_chainspec::ChainSpecProvider;
 use reth_node_api::BlockBody;
-use reth_optimism_chainspec::OpChainSpec;
+use reth_optimism_forks::OpHardforks;
 use reth_optimism_primitives::{OpReceipt, OpTransactionSigned};
 use reth_rpc_eth_api::{
     helpers::{EthBlocks, LoadBlock, LoadPendingBlock, LoadReceipt, SpawnBlocking},
@@ -24,7 +24,7 @@ where
         NetworkTypes: RpcTypes<Receipt = OpTransactionReceipt>,
         Provider: BlockReader<Receipt = OpReceipt, Transaction = OpTransactionSigned>,
     >,
-    N: OpNodeCore<Provider: ChainSpecProvider<ChainSpec = OpChainSpec> + HeaderProvider>,
+    N: OpNodeCore<Provider: ChainSpecProvider<ChainSpec: OpHardforks> + HeaderProvider>,
 {
     async fn block_receipts(
         &self,

@@ -65,7 +65,7 @@ where
 }
 
 /// Validator for Optimism engine API.
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct OpEngineValidator<P, Tx, ChainSpec> {
     inner: OpExecutionPayloadValidator<ChainSpec>,
     provider: P,
@@ -82,6 +82,21 @@ impl<P, Tx, ChainSpec> OpEngineValidator<P, Tx, ChainSpec> {
             provider,
             hashed_addr_l2tol1_msg_passer,
             phantom: PhantomData,
+        }
+    }
+}
+
+impl<P, Tx, ChainSpec> Clone for OpEngineValidator<P, Tx, ChainSpec>
+where
+    P: Clone,
+    ChainSpec: OpHardforks,
+{
+    fn clone(&self) -> Self {
+        Self {
+            inner: OpExecutionPayloadValidator::new(self.inner.clone()),
+            provider: self.provider.clone(),
+            hashed_addr_l2tol1_msg_passer: self.hashed_addr_l2tol1_msg_passer,
+            phantom: Default::default(),
         }
     }
 }

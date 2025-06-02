@@ -27,8 +27,8 @@ op-alloy-consensus.workspace = true
 alloy-consensus.workspace = true
 
 # Optimism
-reth-optimism-consensus.workspace = true
 reth-optimism-chainspec.workspace = true
+reth-optimism-consensus.workspace = true
 reth-optimism-forks.workspace = true
 reth-optimism-primitives.workspace = true
 
@@ -42,7 +42,6 @@ thiserror.workspace = true
 [dev-dependencies]
 reth-evm = { workspace = true, features = ["test-utils"] }
 reth-revm = { workspace = true, features = ["test-utils"] }
-reth-optimism-chainspec.workspace = true
 alloy-genesis.workspace = true
 alloy-consensus.workspace = true
 reth-optimism-primitives = { workspace = true, features = ["arbitrary"] }

@@ -7,7 +7,6 @@ use op_alloy_consensus::{OpDepositReceipt, OpDepositReceiptWithBloom, OpReceiptE
 use op_alloy_rpc_types::{L1BlockInfo, OpTransactionReceipt, OpTransactionReceiptFields};
 use reth_chainspec::ChainSpecProvider;
 use reth_node_api::{FullNodeComponents, NodeTypes};
-use reth_optimism_chainspec::OpChainSpec;
 use reth_optimism_evm::RethL1BlockInfo;
 use reth_optimism_forks::OpHardforks;
 use reth_optimism_primitives::{OpReceipt, OpTransactionSigned};
@@ -20,7 +19,7 @@ use crate::{OpEthApi, OpEthApiError};
 impl<N> LoadReceipt for OpEthApi<N>
 where
     Self: Send + Sync,
-    N: FullNodeComponents<Types: NodeTypes<ChainSpec = OpChainSpec>>,
+    N: FullNodeComponents<Types: NodeTypes<ChainSpec: OpHardforks>>,
     Self::Provider: TransactionsProvider<Transaction = OpTransactionSigned>
         + ReceiptProvider<Receipt = OpReceipt>,
 {
@@ -115,7 +114,7 @@ impl OpReceiptFieldsBuilder {
     /// Applies [`L1BlockInfo`](op_revm::L1BlockInfo).
     pub fn l1_block_info(
         mut self,
-        chain_spec: &OpChainSpec,
+        chain_spec: &impl OpHardforks,
         tx: &OpTransactionSigned,
         l1_block_info: &mut op_revm::L1BlockInfo,
     ) -> Result<Self, OpEthApiError> {
@@ -223,7 +222,7 @@ pub struct OpReceiptBuilder {
 impl OpReceiptBuilder {
     /// Returns a new builder.
     pub fn new(
-        chain_spec: &OpChainSpec,
+        chain_spec: &impl OpHardforks,
         transaction: &OpTransactionSigned,
         meta: TransactionMeta,
         receipt: &OpReceipt,
@@ -341,7 +340,7 @@ mod test {
         assert!(OP_MAINNET.is_fjord_active_at_timestamp(BLOCK_124665056_TIMESTAMP));
 
         let receipt_meta = OpReceiptFieldsBuilder::new(BLOCK_124665056_TIMESTAMP, 124665056)
-            .l1_block_info(&OP_MAINNET, &tx_1, &mut l1_block_info)
+            .l1_block_info(&*OP_MAINNET, &tx_1, &mut l1_block_info)
             .expect("should parse revm l1 info")
             .build();
 
@@ -412,7 +411,7 @@ mod test {
         l1_block_info.operator_fee_constant = Some(U256::from(2));
 
         let receipt_meta = OpReceiptFieldsBuilder::new(BLOCK_124665056_TIMESTAMP, 124665056)
-            .l1_block_info(&OP_MAINNET, &tx_1, &mut l1_block_info)
+            .l1_block_info(&*OP_MAINNET, &tx_1, &mut l1_block_info)
             .expect("should parse revm l1 info")
             .build();
 
@@ -435,7 +434,7 @@ mod test {
         l1_block_info.operator_fee_constant = Some(U256::ZERO);
 
         let receipt_meta = OpReceiptFieldsBuilder::new(BLOCK_124665056_TIMESTAMP, 124665056)
-            .l1_block_info(&OP_MAINNET, &tx_1, &mut l1_block_info)
+            .l1_block_info(&*OP_MAINNET, &tx_1, &mut l1_block_info)
             .expect("should parse revm l1 info")
             .build();
 
@@ -469,7 +468,7 @@ mod test {
         let tx_1 = OpTransactionSigned::decode_2718(&mut &tx[..]).unwrap();
 
         let receipt_meta = OpReceiptFieldsBuilder::new(1730216981, 21713817)
-            .l1_block_info(&BASE_MAINNET, &tx_1, &mut l1_block_info)
+            .l1_block_info(&*BASE_MAINNET, &tx_1, &mut l1_block_info)
             .expect("should parse revm l1 info")
             .build();
 

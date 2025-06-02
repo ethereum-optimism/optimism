@@ -66,12 +66,16 @@ use std::{marker::PhantomData, sync::Arc};
 
 /// Marker trait for Optimism node types with standard engine, chain spec, and primitives.
 pub trait OpNodeTypes:
-    NodeTypes<Payload = OpEngineTypes, ChainSpec = OpChainSpec, Primitives = OpPrimitives>
+    NodeTypes<Payload = OpEngineTypes, ChainSpec: OpHardforks + Hardforks, Primitives = OpPrimitives>
 {
 }
 /// Blanket impl for all node types that conform to the Optimism spec.
 impl<N> OpNodeTypes for N where
-    N: NodeTypes<Payload = OpEngineTypes, ChainSpec = OpChainSpec, Primitives = OpPrimitives>
+    N: NodeTypes<
+        Payload = OpEngineTypes,
+        ChainSpec: OpHardforks + Hardforks,
+        Primitives = OpPrimitives,
+    >
 {
 }
 /// Storage implementation for Optimism.
@@ -92,6 +96,16 @@ pub struct OpNode {
     pub da_config: OpDAConfig,
 }
 
+/// A [`ComponentsBuilder`] with its generic arguments set to a stack of Optimism specific builders.
+pub type OpNodeComponentBuilder<Node, Payload = OpPayloadBuilder> = ComponentsBuilder<
+    Node,
+    OpPoolBuilder,
+    BasicPayloadServiceBuilder<Payload>,
+    OpNetworkBuilder,
+    OpExecutorBuilder<<<Node as FullNodeTypes>::Types as NodeTypes>::ChainSpec>,
+    OpConsensusBuilder,
+>;
+
 impl OpNode {
     /// Creates a new instance of the Optimism node type.
     pub fn new(args: RollupArgs) -> Self {
@@ -105,16 +119,7 @@ impl OpNode {
     }
 
     /// Returns the components for the given [`RollupArgs`].
-    pub fn components<Node>(
-        &self,
-    ) -> ComponentsBuilder<
-        Node,
-        OpPoolBuilder,
-        BasicPayloadServiceBuilder<OpPayloadBuilder>,
-        OpNetworkBuilder,
-        OpExecutorBuilder,
-        OpConsensusBuilder,
-    >
+    pub fn components<Node>(&self) -> OpNodeComponentBuilder<Node>
     where
         Node: FullNodeTypes<Types: OpNodeTypes>,
     {
@@ -178,7 +183,7 @@ where
     N: FullNodeTypes<
         Types: NodeTypes<
             Payload = OpEngineTypes,
-            ChainSpec = OpChainSpec,
+            ChainSpec: OpHardforks + Hardforks,
             Primitives = OpPrimitives,
             Storage = OpStorage,
         >,
@@ -189,7 +194,7 @@ where
         OpPoolBuilder,
         BasicPayloadServiceBuilder<OpPayloadBuilder>,
         OpNetworkBuilder,
-        OpExecutorBuilder,
+        OpExecutorBuilder<<N::Types as NodeTypes>::ChainSpec>,
         OpConsensusBuilder,
     >;
 
@@ -340,7 +345,7 @@ impl<N, NetworkT> NodeAddOns<N> for OpAddOns<N, OpEthApiBuilder<NetworkT>>
 where
     N: FullNodeComponents<
         Types: NodeTypes<
-            ChainSpec = OpChainSpec,
+            ChainSpec: OpHardforks,
             Primitives = OpPrimitives,
             Storage = OpStorage,
             Payload = OpEngineTypes,
@@ -433,7 +438,7 @@ impl<N, NetworkT> RethRpcAddOns<N> for OpAddOns<N, OpEthApiBuilder<NetworkT>>
 where
     N: FullNodeComponents<
         Types: NodeTypes<
-            ChainSpec = OpChainSpec,
+            ChainSpec: OpHardforks,
             Primitives = OpPrimitives,
             Storage = OpStorage,
             Payload = OpEngineTypes,
@@ -457,7 +462,7 @@ impl<N, NetworkT> EngineValidatorAddOn<N> for OpAddOns<N, OpEthApiBuilder<Networ
 where
     N: FullNodeComponents<
         Types: NodeTypes<
-            ChainSpec = OpChainSpec,
+            ChainSpec: OpHardforks,
             Primitives = OpPrimitives,
             Payload = OpEngineTypes,
         >,
@@ -580,7 +585,7 @@ impl<ChainSpec, Primitives> Default for OpExecutorBuilder<ChainSpec, Primitives>
 impl<Node, ChainSpec, Primitives> ExecutorBuilder<Node> for OpExecutorBuilder<ChainSpec, Primitives>
 where
     Node: FullNodeTypes<Types: NodeTypes<ChainSpec = ChainSpec, Primitives = Primitives>>,
-    ChainSpec: EthChainSpec + OpHardforks,
+    ChainSpec: OpHardforks + Send + Sync,
     Primitives: NodePrimitives,
     OpEvmConfig<ChainSpec, Primitives>: ConfigureEvm<Primitives = Primitives> + 'static,
 {
@@ -1001,7 +1006,7 @@ pub struct OpEngineValidatorBuilder;
 
 impl<Node, Types> EngineValidatorBuilder<Node> for OpEngineValidatorBuilder
 where
-    Types: NodeTypes<ChainSpec = OpChainSpec, Primitives = OpPrimitives, Payload = OpEngineTypes>,
+    Types: NodeTypes<ChainSpec: OpHardforks, Primitives = OpPrimitives, Payload = OpEngineTypes>,
     Node: FullNodeComponents<Types = Types>,
 {
     type Validator = OpEngineValidator<
