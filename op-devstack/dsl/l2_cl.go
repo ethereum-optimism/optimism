@@ -202,7 +202,7 @@ func (cl *L2CLNode) RewindedFn(lvl types.SafetyLevel, delta uint64, attempts int
 		logger := cl.log.With("id", cl.inner.ID(), "chain", cl.ChainID(), "label", lvl)
 		logger.Info("Expecting chain to rewind", "target", target, "delta", delta)
 		// check rewind more aggressively, in shorter interval
-		return retry.Do0(cl.ctx, attempts, &retry.FixedStrategy{Dur: 500 * time.Millisecond},
+		return retry.Do0(cl.ctx, attempts, &retry.FixedStrategy{Dur: 250 * time.Millisecond},
 			func() error {
 				head := cl.HeadBlockRef(lvl)
 				if head.Number <= target {
