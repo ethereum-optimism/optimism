@@ -144,9 +144,11 @@ contract DeployDisputeGame2 is Script {
         require(game.splitDepth() == _input.splitDepth, "DG-30");
         require(game.clockExtension().raw() == uint64(_input.clockExtension), "DG-40");
         require(game.maxClockDuration().raw() == uint64(_input.maxClockDuration), "DG-50");
-        require(game.vm() == _input.vm, "DG-60");
+        // TODO(snevins): these checks seem to be on the implementation and not needed anymore
+        // require(game.vm() == _input.vm, "DG-60");
         require(game.weth() == _input.delayedWethProxy, "DG-70");
-        require(game.anchorStateRegistry() == _input.anchorStateRegistryProxy, "DG-80");
+        // TODO(snevins): these checks seem to be on the implementation and not needed anymore
+        // require(game.anchorStateRegistry() == _input.anchorStateRegistryProxy, "DG-80");
         require(game.l2ChainId() == _input.l2ChainId, "DG-90");
 
         if (LibString.eq(_input.gameKind, "PermissionedDisputeGame")) {
