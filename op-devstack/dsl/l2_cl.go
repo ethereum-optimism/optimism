@@ -148,6 +148,7 @@ func (cl *L2CLNode) NotAdvancedFn(lvl types.SafetyLevel, attempts int) CheckFunc
 			}
 			return fmt.Errorf("expected head not to advance: %s", lvl)
 		}
+		logger.Info("Chain not advanced")
 		return nil
 	}
 }
