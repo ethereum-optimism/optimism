@@ -3,11 +3,12 @@ package devtest
 import (
 	"context"
 
-	oplog "github.com/ethereum-optimism/optimism/op-service/log"
+	"go.opentelemetry.io/otel/trace"
+
 	"github.com/ethereum/go-ethereum/log"
 
-	"github.com/stretchr/testify/require"
-	"go.opentelemetry.io/otel/trace"
+	oplog "github.com/ethereum-optimism/optimism/op-service/log"
+	"github.com/ethereum-optimism/optimism/op-service/testreq"
 )
 
 // CommonT is a subset of testing.T, extended with a few common utils.
@@ -31,7 +32,7 @@ type CommonT interface {
 	Logger() log.Logger
 	Tracer() trace.Tracer
 	Ctx() context.Context
-	Require() *require.Assertions
+	Require() *testreq.Assertions
 }
 
 type testScopeCtxKeyType struct{}

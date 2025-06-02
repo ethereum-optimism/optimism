@@ -1,8 +1,7 @@
 package shim
 
 import (
-	"github.com/stretchr/testify/require"
-
+	"github.com/ethereum-optimism/optimism/op-service/testreq"
 	"github.com/ethereum/go-ethereum/log"
 
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
@@ -28,13 +27,13 @@ func NewCommonConfig(t devtest.T) CommonConfig {
 type commonImpl struct {
 	log    log.Logger
 	t      devtest.T
-	req    *require.Assertions
+	req    *testreq.Assertions
 	labels *locks.RWMap[string, string]
 }
 
 var _ interface {
 	stack.Common
-	require() *require.Assertions
+	require() *testreq.Assertions
 } = (*commonImpl)(nil)
 
 // newCommon creates an object to hold on to common component data, safe to embed in other structs
@@ -55,7 +54,7 @@ func (c *commonImpl) Logger() log.Logger {
 	return c.log
 }
 
-func (c *commonImpl) require() *require.Assertions {
+func (c *commonImpl) require() *testreq.Assertions {
 	return c.req
 }
 

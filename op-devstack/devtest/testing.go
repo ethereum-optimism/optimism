@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"runtime"
 	"strconv"
 	"testing"
 	"time"
@@ -20,6 +21,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/logfilter"
 	"github.com/ethereum-optimism/optimism/op-service/logmods"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
+	"github.com/ethereum-optimism/optimism/op-service/testreq"
 )
 
 const ExpectPreconditionsMet = "DEVNET_EXPECT_PRECONDITIONS_MET"
@@ -70,7 +72,7 @@ type T interface {
 	SkipNow()
 
 	// Gate provides everything that Require does, but skips instead of fails the test upon error.
-	Gate() *require.Assertions
+	Gate() *testreq.Assertions
 
 	// Deadline reports the time at which the test binary will have
 	// exceeded the timeout specified by the -timeout flag.
@@ -92,8 +94,8 @@ type testingT struct {
 	logger log.Logger
 	tracer trace.Tracer
 	ctx    context.Context
-	req    *require.Assertions
-	gate   *require.Assertions
+	req    *testreq.Assertions
+	gate   *testreq.Assertions
 }
 
 func mustNotSkip() bool {
@@ -107,7 +109,7 @@ func (t *testingT) Error(args ...any) {
 	// Note: the test-logger catches panics when the test is logged to after test-end.
 	// Note: we do not use t.Error directly, to keep the log-formatting more consistent.
 	t.logger.Error(fmt.Sprintln(args...))
-	t.t.Fail()
+	t.Fail()
 }
 
 func (t *testingT) Errorf(format string, args ...any) {
@@ -115,16 +117,30 @@ func (t *testingT) Errorf(format string, args ...any) {
 	// Note: the test-logger catches panics when the test is logged to after test-end.
 	// Note: we do not use t.Errorf directly, to keep the log-formatting more consistent.
 	t.logger.Error(fmt.Sprintf(format, args...))
-	t.t.Fail()
+	t.Fail()
 }
 
 func (t *testingT) Fail() {
 	t.t.Helper()
+	// if we already closed and failed, then this error is stale
+	if t.ctx.Err() != nil && t.t.Failed() {
+		return
+	}
 	t.t.Fail()
 }
 
 func (t *testingT) FailNow() {
 	t.t.Helper()
+	// If we already closed and failed the test-scope, then there is nothing to do.
+	// This happens on e.g. a go-routine spawned by require.Eventually, when the time runs out,
+	// the ctx is closed, a shared resource fails to do a lookup because of the ctx-timeout,
+	// and the eventually-condition then does a no-error check, causing the test-scope to error after it already had.
+	if t.ctx.Err() != nil && t.t.Failed() {
+		// Exit the go-routine that is running us (actual testing.T FailNow does this too).
+		// Still runs deferred calls on this go-routine.
+		runtime.Goexit()
+		return
+	}
 	t.t.FailNow()
 }
 
@@ -182,12 +198,12 @@ func (t *testingT) WithCtx(ctx context.Context, args ...any) T {
 		tracer: t.tracer,
 		ctx:    ctx,
 	}
-	out.req = require.New(out)
-	out.gate = require.New(&gateAdapter{out})
+	out.req = testreq.New(out)
+	out.gate = testreq.New(&gateAdapter{out})
 	return out
 }
 
-func (t *testingT) Require() *require.Assertions {
+func (t *testingT) Require() *testreq.Assertions {
 	return t.req
 }
 
@@ -213,8 +229,8 @@ func (t *testingT) Run(name string, fn func(T)) {
 			tracer: tracer,
 			ctx:    ctx,
 		}
-		subT.req = require.New(subT)
-		subT.gate = require.New(&gateAdapter{subT})
+		subT.req = testreq.New(subT)
+		subT.gate = testreq.New(&gateAdapter{subT})
 		fn(subT)
 	})
 }
@@ -252,13 +268,13 @@ func (t *testingT) Skipf(format string, args ...any) {
 func (t *testingT) SkipNow() {
 	t.t.Helper()
 	if mustNotSkip() {
-		t.t.FailNow()
+		t.FailNow()
 		return
 	}
 	t.t.SkipNow()
 }
 
-func (t *testingT) Gate() *require.Assertions {
+func (t *testingT) Gate() *testreq.Assertions {
 	return t.gate
 }
 
@@ -325,8 +341,8 @@ func SerialT(t *testing.T) T {
 		tracer: tracer,
 		ctx:    ctx,
 	}
-	out.req = require.New(out)
-	out.gate = require.New(&gateAdapter{out})
+	out.req = testreq.New(out)
+	out.gate = testreq.New(&gateAdapter{out})
 	return out
 }
 

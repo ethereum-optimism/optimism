@@ -11,6 +11,8 @@ import (
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/ethereum/go-ethereum/log"
+
+	"github.com/ethereum-optimism/optimism/op-service/testreq"
 )
 
 // P is used by the preset package and system backends as testing interface, to host package-wide resources.
@@ -62,7 +64,7 @@ type implP struct {
 	cleanupLock    sync.Mutex
 	cleanupBacklog []func()
 
-	req *require.Assertions
+	req *testreq.Assertions
 }
 
 var _ P = (*implP)(nil)
@@ -139,7 +141,7 @@ func (t *implP) Ctx() context.Context {
 type wrapP struct {
 	ctx    context.Context
 	logger log.Logger
-	req    *require.Assertions
+	req    *testreq.Assertions
 	P
 }
 
@@ -160,11 +162,11 @@ func (t *implP) WithCtx(ctx context.Context, args ...any) P {
 	logger := t.logger.New(args...)
 	logger.SetContext(ctx)
 	out := &wrapP{ctx: ctx, logger: logger, P: t}
-	out.req = require.New(out)
+	out.req = testreq.New(out)
 	return out
 }
 
-func (t *implP) Require() *require.Assertions {
+func (t *implP) Require() *testreq.Assertions {
 	return t.req
 }
 
@@ -220,6 +222,6 @@ func NewP(ctx context.Context, logger log.Logger, onFail func(now bool)) P {
 		ctx:       AddTestScope(ctx, "pkg"),
 		cancel:    cancel,
 	}
-	out.req = require.New(out)
+	out.req = testreq.New(out)
 	return out
 }

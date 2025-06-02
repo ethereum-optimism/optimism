@@ -7,11 +7,9 @@ import (
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/holiman/uint256"
-	"github.com/stretchr/testify/require"
-
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/log"
+	"github.com/holiman/uint256"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/devkeys"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer"
@@ -23,6 +21,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/intentbuilder"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/testreq"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/depset"
 )
 
@@ -123,7 +122,7 @@ type worldBuilder struct {
 	p devtest.P
 
 	logger  log.Logger
-	require *require.Assertions
+	require *testreq.Assertions
 	keys    devkeys.Keys
 
 	builder intentbuilder.Builder

@@ -27,10 +27,10 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/oppprof"
 	"github.com/ethereum-optimism/optimism/op-service/retry"
 	"github.com/ethereum-optimism/optimism/op-service/sources"
+	"github.com/ethereum-optimism/optimism/op-service/testreq"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/depset"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/log"
-	"github.com/stretchr/testify/require"
 	"github.com/urfave/cli/v2"
 )
 
@@ -300,7 +300,7 @@ type p2pClientsAndPeers struct {
 	peerInfo2 *apis.PeerInfo
 }
 
-func getP2PClientsAndPeers(ctx context.Context, logger log.Logger, require *require.Assertions, l2CL1, l2CL2 *L2CLNode) *p2pClientsAndPeers {
+func getP2PClientsAndPeers(ctx context.Context, logger log.Logger, require *testreq.Assertions, l2CL1, l2CL2 *L2CLNode) *p2pClientsAndPeers {
 	p2pClient1, err := GetP2PClient(ctx, logger, l2CL1)
 	require.NoError(err)
 	p2pClient2, err := GetP2PClient(ctx, logger, l2CL2)

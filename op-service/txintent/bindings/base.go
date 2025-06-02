@@ -9,14 +9,13 @@ import (
 	"github.com/ethereum-optimism/optimism/op-chain-ops/script"
 	"github.com/ethereum-optimism/optimism/op-service/apis"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/testreq"
 	"github.com/ethereum-optimism/optimism/op-service/txintent"
+	suptypes "github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/holiman/uint256"
-	"github.com/stretchr/testify/require"
-
-	suptypes "github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 )
 
 // function fields(lambdas) corresponding to solidity functions must be tagged with sol
@@ -48,7 +47,7 @@ func (c *BaseCallView) Client() apis.EthClient {
 
 // BaseCall represents minimal testing interface
 type BaseTest interface {
-	Require() *require.Assertions
+	Require() *testreq.Assertions
 	Ctx() context.Context
 }
 

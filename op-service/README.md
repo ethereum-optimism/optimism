@@ -41,6 +41,7 @@ Pull requests: [monorepo](https://github.com/ethereum-optimism/optimism/pulls?q=
 ├── solabi          - Utils to encode/decode Solidity ABI formatted data
 ├── sources         - RPC client bindings
 ├── tasks           - Err-group with panic handling
+├── testreq         - Extension and improvement of the common `testify/require` package.
 ├── testlog         - Test logger and log-capture utils for testing
 ├── testutils       - Simplified Ethereum types, mock RPC bindings, utils for testing.
 ├── tls             - CLI flags and utils to work with TLS connections
