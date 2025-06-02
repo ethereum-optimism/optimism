@@ -228,6 +228,7 @@ commands:
             git reset --hard
             git clean -df
             just <<parameters.command>>
+            git status --porcelain
             [ -z "$(git status --porcelain)" ] || exit 1
           working_directory: packages/contracts-bedrock
           when: always
