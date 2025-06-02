@@ -25,6 +25,10 @@ type ServiceFinder struct {
 	depsets  map[string]descriptors.DepSet
 
 	triagedServices []*triagedService
+
+	// TODO: remove once we move node services recognition to labels
+	nodeNames2Index map[string]int
+	nodeNextIndex   int
 }
 
 // ServiceFinderOption configures a ServiceFinder
@@ -212,6 +216,47 @@ func (spr serviceParserRules) apply(serviceName string, endpoints descriptors.En
 	return nil
 }
 
+// TODO: this might need some adjustments as we stabilize labels in optimism-package
+const (
+	kindLabel      = "op.kind"
+	networkIDLabel = "op.network.id"
+	nodeNameLabel  = "op.network.participant.name"
+)
+
+func (f *ServiceFinder) triageByLabels(svc *inspect.Service, name string, endpoints descriptors.EndpointMap) *triagedService {
+	tag, ok := svc.Labels[kindLabel]
+	if !ok {
+		return nil
+	}
+	id, ok := svc.Labels[networkIDLabel]
+	if !ok {
+		return nil
+	}
+
+	// TODO: we really don't need numeric index for nodes, but it's a quick fix until
+	// we move node services recognition to labels entirely.
+	idx := -1
+	if name, ok := svc.Labels[nodeNameLabel]; ok {
+		if val, ok := f.nodeNames2Index[name]; ok {
+			idx = val
+		} else {
+			idx = f.nodeNextIndex
+			f.nodeNames2Index[name] = idx
+			f.nodeNextIndex++
+		}
+	}
+	return &triagedService{
+		tag: tag,
+		idx: idx,
+		// TODO: eventually we can retire the "name" part, but it doesn't hurt for now
+		accept: acceptNamesOrIDs(strings.Split(id, ",")...),
+		svc: &descriptors.Service{
+			Name:      name,
+			Endpoints: endpoints,
+		},
+	}
+}
+
 func (f *ServiceFinder) triage() {
 	rules := serviceParserRules{
 		"el":         f.triageNode("el-"),
@@ -231,10 +276,17 @@ func (f *ServiceFinder) triage() {
 			endpoints[portName] = portInfo
 		}
 
-		svc := rules.apply(serviceName, endpoints)
+		// TODO: for now, use labels as a fallback, so it's currently inactive.
+		// We should expect the rules to be gradually removed to make way for
+		// this code path. Ultimately we'll rely only on labels, and most of the
+		// code in this file will disappear as a result.
+		triaged := rules.apply(serviceName, endpoints)
+		if triaged == nil {
+			triaged = f.triageByLabels(svc, serviceName, endpoints)
+		}
 
-		if svc != nil {
-			triagedServices = append(triagedServices, svc)
+		if triaged != nil {
+			triagedServices = append(triagedServices, triaged)
 		}
 	}
 

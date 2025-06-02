@@ -2,6 +2,7 @@ package kurtosis
 
 import (
 	"encoding/json"
+	"fmt"
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/devnet-sdk/descriptors"
@@ -73,19 +74,21 @@ func TestFindChainServices(t *testing.T) {
 	})
 
 	// Test L2 services for both chains
-	t.Run("L2 chain1 services", func(t *testing.T) {
-		nodes, services := finder.FindL2Services(chain1)
+	for _, chain := range chains {
+		t.Run(fmt.Sprintf("L2 %s services", chain), func(t *testing.T) {
+			nodes, services := finder.FindL2Services(chain)
 
-		assert.Equal(t, 1, len(nodes), "Should have exactly 1 node")
-		assert.Equal(t, 6, len(services), "Should have exactly 6 services")
+			assert.Equal(t, 1, len(nodes), "Should have exactly 1 node")
+			assert.Equal(t, 6, len(services), "Should have exactly 6 services")
 
-		assert.Contains(t, services, "batcher", "Should have batcher service")
-		assert.Contains(t, services, "proposer", "Should have proposer service")
-		assert.Contains(t, services, "proxyd", "Should have proxyd service")
-		assert.Contains(t, services, "challenger", "Should have challenger service")
-		assert.Contains(t, services, "supervisor", "Should have supervisor service")
-		assert.Contains(t, services, "faucet", "Should have faucet service")
-	})
+			assert.Contains(t, services, "batcher", "Should have batcher service")
+			assert.Contains(t, services, "proposer", "Should have proposer service")
+			assert.Contains(t, services, "proxyd", "Should have proxyd service")
+			assert.Contains(t, services, "challenger", "Should have challenger service")
+			assert.Contains(t, services, "supervisor", "Should have supervisor service")
+			assert.Contains(t, services, "faucet", "Should have faucet service")
+		})
+	}
 }
 
 // createTestServiceMap creates a service map based on the provided scenario output
@@ -210,9 +213,13 @@ func createTestServiceMap() inspect.ServiceMap {
 				"rpc": &descriptors.PortInfo{Port: 32813},
 			},
 		},
-		"op-challenger-service-2151908-2151909": &inspect.Service{
+		"challenger-service": &inspect.Service{ // intentionally not following conventions, to force use of labels.
 			Ports: inspect.PortMap{
 				"metrics": &descriptors.PortInfo{Port: 32812},
+			},
+			Labels: map[string]string{
+				kindLabel:      "challenger",
+				networkIDLabel: "2151908,2151909",
 			},
 		},
 		"op-supervisor-service-superchain": &inspect.Service{
