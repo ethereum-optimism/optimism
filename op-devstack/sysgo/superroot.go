@@ -78,7 +78,7 @@ func WithSuperRoots(l1ChainID eth.ChainID, l1ELID stack.L1ELNodeID, l2CLID stack
 				})
 			}
 
-			opcmABI, err := abi.JSON(bytes.NewReader([]byte(bindings.OPContractsManagerMetaData.ABI)))
+			opcmABI, err := bindings.OPContractsManagerMetaData.GetAbi()
 			o.P().Require().NoError(err, "invalid OPCM ABI")
 			chainOps := devkeys.ChainOperatorKeys(l1ChainID.ToBig())
 			proposer, err := o.keys.Address(chainOps(devkeys.ProposerRole))
