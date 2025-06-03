@@ -8,8 +8,9 @@ use op_alloy_consensus::{
     OpTxEnvelope,
 };
 use op_alloy_rpc_types::{OpTransactionRequest, Transaction};
-use reth_node_api::FullNodeComponents;
-use reth_optimism_primitives::{DepositReceipt, OpTransactionSigned};
+use reth_node_api::{FullNodeComponents, FullNodeTypes, NodeTypes};
+use reth_optimism_primitives::DepositReceipt;
+use reth_primitives_traits::{NodePrimitives, TxTy};
 use reth_rpc_eth_api::{
     helpers::{EthSigner, EthTransactions, LoadTransaction, SpawnBlocking},
     EthApiTypes, FromEthApiError, FullEthApiTypes, RpcNodeCore, RpcNodeCoreExt, TransactionCompat,
@@ -86,20 +87,22 @@ where
     }
 }
 
-impl<N> TransactionCompat<OpTransactionSigned> for OpEthApi<N>
+impl<N> TransactionCompat for OpEthApi<N>
 where
     N: FullNodeComponents,
     N::Provider: ReceiptProvider<Receipt: DepositReceipt>,
+    <<N as FullNodeTypes>::Types as NodeTypes>::Primitives: NodePrimitives<SignedTx = OpTxEnvelope>,
 {
+    type Primitives = <<N as FullNodeTypes>::Types as NodeTypes>::Primitives;
     type Transaction = Transaction;
     type Error = OpEthApiError;
 
     fn fill(
         &self,
-        tx: Recovered<OpTransactionSigned>,
+        tx: Recovered<TxTy<Self::Primitives>>,
         tx_info: TransactionInfo,
     ) -> Result<Self::Transaction, Self::Error> {
-        let tx = tx.convert::<OpTxEnvelope>();
+        let tx = tx.convert::<TxTy<Self::Primitives>>();
         let mut deposit_receipt_version = None;
         let mut deposit_nonce = None;
 
@@ -129,7 +132,7 @@ where
     fn build_simulate_v1_transaction(
         &self,
         request: alloy_rpc_types_eth::TransactionRequest,
-    ) -> Result<OpTransactionSigned, Self::Error> {
+    ) -> Result<TxTy<Self::Primitives>, Self::Error> {
         let request: OpTransactionRequest = request.into();
         let Ok(tx) = request.build_typed_tx() else {
             return Err(OpEthApiError::Eth(EthApiError::TransactionConversionError))
