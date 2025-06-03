@@ -135,11 +135,19 @@ func createTestServiceMap() inspect.ServiceMap {
 				"http":    &descriptors.PortInfo{Port: 32791},
 				"metrics": &descriptors.PortInfo{Port: 32792},
 			},
+			Labels: map[string]string{
+				kindLabel:      "batcher",
+				networkIDLabel: "2151908",
+			},
 		},
 		"op-proposer-op-kurtosis-1": &inspect.Service{
 			Ports: inspect.PortMap{
 				"http":    &descriptors.PortInfo{Port: 32793},
 				"metrics": &descriptors.PortInfo{Port: 32794},
+			},
+			Labels: map[string]string{
+				kindLabel:      "proposer",
+				networkIDLabel: "2151908",
 			},
 		},
 		"op-cl-2151908-1-op-node-op-geth-op-kurtosis-1": &inspect.Service{
@@ -166,6 +174,10 @@ func createTestServiceMap() inspect.ServiceMap {
 				"http":    &descriptors.PortInfo{Port: 32790},
 				"metrics": &descriptors.PortInfo{Port: 32789},
 			},
+			Labels: map[string]string{
+				kindLabel:      "proxyd",
+				networkIDLabel: "2151908",
+			},
 		},
 
 		// L2 Chain2 Services
@@ -174,11 +186,19 @@ func createTestServiceMap() inspect.ServiceMap {
 				"http":    &descriptors.PortInfo{Port: 32806},
 				"metrics": &descriptors.PortInfo{Port: 32807},
 			},
+			Labels: map[string]string{
+				kindLabel:      "batcher",
+				networkIDLabel: "2151909",
+			},
 		},
 		"op-proposer-op-kurtosis-2": &inspect.Service{
 			Ports: inspect.PortMap{
 				"http":    &descriptors.PortInfo{Port: 32808},
 				"metrics": &descriptors.PortInfo{Port: 32809},
+			},
+			Labels: map[string]string{
+				kindLabel:      "proposer",
+				networkIDLabel: "2151909",
 			},
 		},
 		"op-cl-2151909-1-op-node-op-geth-op-kurtosis-2": &inspect.Service{
@@ -204,6 +224,10 @@ func createTestServiceMap() inspect.ServiceMap {
 			Ports: inspect.PortMap{
 				"http":    &descriptors.PortInfo{Port: 32805},
 				"metrics": &descriptors.PortInfo{Port: 32804},
+			},
+			Labels: map[string]string{
+				kindLabel:      "proxyd",
+				networkIDLabel: "2151909",
 			},
 		},
 
