@@ -101,6 +101,7 @@ func TestLoad(gt *testing.T) {
 			rng := rand.New(rand.NewSource(1234))
 			for range aimd.Ready() {
 				inFlightMessages.Inc()
+				start := time.Now()
 				initMsg := source.SendInitiatingMsg(t, rng)
 				if initMsg == nil {
 					messageStatusCount.WithLabelValues("init_failed").Inc()
@@ -110,6 +111,7 @@ func TestLoad(gt *testing.T) {
 				}
 				success := dest.SendExecutingMsg(t, *initMsg)
 				if success {
+					messageLatency.WithLabelValues("e2e").Observe(time.Since(start).Seconds())
 					messageStatusCount.WithLabelValues("success").Inc()
 				} else {
 					messageStatusCount.WithLabelValues("exec_failed").Inc()
@@ -128,6 +130,7 @@ type L2 struct {
 }
 
 func (l2 *L2) SendInitiatingMsg(t devtest.T, rng *rand.Rand) *types.Message {
+	start := time.Now()
 	eoa := l2.EOAs.Get()
 	tx := txintent.NewIntent[txintent.Call, *txintent.InteropOutput](eoa.Inner.Plan(), txplan.WithStaticNonce(uint64(eoa.Nonce.Add(1))-1))
 	tx.Content.Set(interop.RandomInitTrigger(rng, l2.EventLogger, rng.Intn(2), rng.Intn(5)))
@@ -137,6 +140,7 @@ func (l2 *L2) SendInitiatingMsg(t devtest.T, rng *rand.Rand) *types.Message {
 	}
 	_, err := tx.PlannedTx.Success.Eval(t.Ctx())
 	t.Require().NoError(err)
+	messageLatency.WithLabelValues("init").Observe(time.Since(start).Seconds())
 	out, err := tx.Result.Eval(t.Ctx())
 	t.Require().NoError(err)
 	t.Require().Len(out.Entries, 1)
@@ -144,6 +148,7 @@ func (l2 *L2) SendInitiatingMsg(t devtest.T, rng *rand.Rand) *types.Message {
 }
 
 func (l2 *L2) SendExecutingMsg(t devtest.T, initMsg types.Message) bool {
+	start := time.Now()
 	eoa := l2.EOAs.Get()
 	tx := txintent.NewIntent[*txintent.ExecTrigger, txintent.Result](eoa.Inner.Plan(), txplan.WithStaticNonce(uint64(eoa.Nonce.Add(1))-1), txplan.WithGasRatio(2))
 	tx.Content.Set(&txintent.ExecTrigger{
@@ -166,5 +171,6 @@ func (l2 *L2) SendExecutingMsg(t devtest.T, initMsg types.Message) bool {
 	}
 	_, err := tx.PlannedTx.Success.Eval(t.Ctx())
 	t.Require().NoError(err)
+	messageLatency.WithLabelValues("exec").Observe(time.Since(start).Seconds())
 	return true
 }

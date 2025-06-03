@@ -21,6 +21,7 @@ const (
 	inFlightMessagesName       = "inflight_messages"
 	targetMessagesPerBlockName = "target_messages_per_block"
 	messageStatusCountName     = "message_status_count"
+	messageLatencyName         = "message_latency"
 )
 
 var (
@@ -41,30 +42,77 @@ var (
 		Subsystem: subsystemName,
 		Help:      "Total number of messages by status (success, init_failed, exec_failed)",
 	}, []string{"status"})
+
+	messageLatency = promauto.NewHistogramVec(prometheus.HistogramOpts{
+		Name:      messageLatencyName,
+		Subsystem: subsystemName,
+		Help:      "Message latencies by stage (init, exec, e2e)",
+	}, []string{"stage"})
+)
+
+var (
+	e2eColor  = color.RGBA{R: 0, G: 200, B: 0, A: 255} // Green
+	initColor = color.RGBA{R: 200, G: 0, B: 0, A: 255} // Red
+	execColor = color.RGBA{R: 0, G: 0, B: 200, A: 255} // Blue
 )
 
 // MetricSample represents a single metric sample at a point in time
 type MetricSample struct {
 	Timestamp time.Time
 	Value     float64
+	Count     uint64 // Count is only used in histograms.
 	Labels    []string
-}
-
-func (sample *MetricSample) ToPoint(startTime time.Time) plotter.XY {
-	return plotter.XY{
-		X: sample.Timestamp.Sub(startTime).Seconds(),
-		Y: sample.Value,
-	}
 }
 
 type MetricSamples []MetricSample
 
-func (samples MetricSamples) ToPoints(startTime time.Time, labels ...string) plotter.XYs {
-	pts := make(plotter.XYs, 0)
+func (samples MetricSamples) WithLabels(labels ...string) MetricSamples {
+	newSamples := make([]MetricSample, 0)
 	for _, sample := range samples {
 		if isSubset(labels, sample.Labels) {
-			pts = append(pts, sample.ToPoint(startTime))
+			newSamples = append(newSamples, sample)
 		}
+	}
+	return newSamples
+}
+
+func (samples MetricSamples) ToPoints(startTime time.Time) plotter.XYs {
+	pts := make(plotter.XYs, 0, len(samples))
+	for _, sample := range samples {
+		pts = append(pts, plotter.XY{
+			X: sample.Timestamp.Sub(startTime).Seconds(),
+			Y: sample.Value,
+		})
+	}
+	return pts
+}
+
+func (samples MetricSamples) ToValuePerIntervalPoints(startTime time.Time) plotter.XYs {
+	pts := make(plotter.XYs, 0, len(samples))
+	var prevValue float64
+	for _, sample := range samples {
+		pts = append(pts, plotter.XY{
+			X: sample.Timestamp.Sub(startTime).Seconds(),
+			Y: sample.Value - prevValue,
+		})
+		prevValue = sample.Value
+	}
+	return pts
+}
+
+func (samples MetricSamples) ToHistogramPoints(startTime time.Time) plotter.XYs {
+	pts := make(plotter.XYs, 0, len(samples))
+	var prevValue float64
+	var prevCount uint64
+	for _, sample := range samples {
+		if count := sample.Count - prevCount; count > 0 {
+			pts = append(pts, plotter.XY{
+				X: sample.Timestamp.Sub(startTime).Seconds(),
+				Y: (sample.Value - prevValue) / float64(count), // Average over the sample interval.
+			})
+		}
+		prevCount = sample.Count
+		prevValue = sample.Value
 	}
 	return pts
 }
@@ -121,10 +169,14 @@ func (mc *MetricsCollector) Start(ctx context.Context) error {
 				}
 				for _, metric := range metricFamily.GetMetric() {
 					var value float64
+					var count uint64
 					if metric.Gauge != nil && metric.Gauge.Value != nil {
 						value = *metric.Gauge.Value
 					} else if metric.Counter != nil && metric.Counter.Value != nil {
 						value = *metric.Counter.Value
+					} else if metric.Histogram != nil {
+						count = metric.Histogram.GetSampleCount()
+						value = metric.Histogram.GetSampleSum()
 					}
 					labels := make([]string, 0, len(metric.Label))
 					for _, labelPair := range metric.Label {
@@ -133,6 +185,7 @@ func (mc *MetricsCollector) Start(ctx context.Context) error {
 					mc.samples[name] = append(mc.samples[name], MetricSample{
 						Timestamp: now,
 						Value:     value,
+						Count:     count,
 						Labels:    labels,
 					})
 				}
@@ -151,6 +204,9 @@ func (mc *MetricsCollector) SaveGraph(dir string) error {
 	}
 	if err := mc.saveMessageStatusCountGraph(dir); err != nil {
 		return fmt.Errorf("save message status count graph: %w", err)
+	}
+	if err := mc.saveMessageLatencyGraph(dir); err != nil {
+		return fmt.Errorf("save message latency graph: %w", err)
 	}
 	return nil
 }
@@ -197,19 +253,7 @@ func (mc *MetricsCollector) saveMessageStatusCountGraph(dir string) error {
 
 	samples := mc.samples[messageStatusCountName]
 
-	// We want to visualize the number of new messages per block time, not the raw count at each block time.
-	normalize := func(points plotter.XYs) plotter.XYs {
-		var count float64
-		for i, point := range points {
-			newCount := point.Y
-			point.Y -= count
-			count = newCount
-			points[i] = point
-		}
-		return points
-	}
-
-	successLine, err := plotter.NewLine(normalize(samples.ToPoints(mc.startTime, "success")))
+	successLine, err := plotter.NewLine(samples.WithLabels("success").ToValuePerIntervalPoints(mc.startTime))
 	if err != nil {
 		return fmt.Errorf("create success line: %w", err)
 	}
@@ -218,7 +262,7 @@ func (mc *MetricsCollector) saveMessageStatusCountGraph(dir string) error {
 	p.Add(successLine)
 	p.Legend.Add("Success", successLine)
 
-	initFailedLine, err := plotter.NewLine(normalize(samples.ToPoints(mc.startTime, "init_failed")))
+	initFailedLine, err := plotter.NewLine(samples.WithLabels("init_failed").ToValuePerIntervalPoints(mc.startTime))
 	if err != nil {
 		return fmt.Errorf("create init_failed line: %w", err)
 	}
@@ -227,7 +271,7 @@ func (mc *MetricsCollector) saveMessageStatusCountGraph(dir string) error {
 	p.Add(initFailedLine)
 	p.Legend.Add("Init Failed", initFailedLine)
 
-	execFailedLine, err := plotter.NewLine(normalize(samples.ToPoints(mc.startTime, "exec_failed")))
+	execFailedLine, err := plotter.NewLine(samples.WithLabels("exec_failed").ToValuePerIntervalPoints(mc.startTime))
 	if err != nil {
 		return fmt.Errorf("create exec_failed line: %w", err)
 	}
@@ -240,6 +284,47 @@ func (mc *MetricsCollector) saveMessageStatusCountGraph(dir string) error {
 	p.Legend.Top = true
 
 	return savePlot(p, dir, messageStatusCountName)
+}
+
+func (mc *MetricsCollector) saveMessageLatencyGraph(dir string) error {
+	p := plot.New()
+	p.Title.Text = "Message Latency by Stage"
+	p.X.Label.Text = "Time (seconds)"
+	p.Y.Label.Text = "Latency"
+
+	samples := mc.samples[messageLatencyName]
+
+	e2eLine, err := plotter.NewLine(samples.WithLabels("e2e").ToHistogramPoints(mc.startTime))
+	if err != nil {
+		return fmt.Errorf("create success line: %w", err)
+	}
+	e2eLine.Color = e2eColor
+	e2eLine.Width = vg.Points(2)
+	p.Add(e2eLine)
+	p.Legend.Add("E2E", e2eLine)
+
+	initLine, err := plotter.NewLine(samples.WithLabels("init").ToHistogramPoints(mc.startTime))
+	if err != nil {
+		return fmt.Errorf("create init_failed line: %w", err)
+	}
+	initLine.Color = initColor
+	initLine.Width = vg.Points(2)
+	p.Add(initLine)
+	p.Legend.Add("Init", initLine)
+
+	execLine, err := plotter.NewLine(samples.WithLabels("exec").ToHistogramPoints(mc.startTime))
+	if err != nil {
+		return fmt.Errorf("create exec_failed line: %w", err)
+	}
+	execLine.Color = execColor
+	execLine.Width = vg.Points(2)
+	p.Add(execLine)
+	p.Legend.Add("Exec", execLine)
+
+	p.Add(plotter.NewGrid())
+	p.Legend.Top = true
+
+	return savePlot(p, dir, messageLatencyName)
 }
 
 func savePlot(p *plot.Plot, dir, name string) error {
