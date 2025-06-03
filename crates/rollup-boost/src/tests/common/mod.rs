@@ -15,6 +15,8 @@ use bytes::BytesMut;
 use eyre::{Context, ContextCompat};
 use futures::FutureExt;
 use futures::future::BoxFuture;
+use jsonrpsee::core::middleware::layer::RpcLogger;
+use jsonrpsee::http_client::RpcService;
 use jsonrpsee::http_client::{HttpClient, transport::HttpBackend};
 use jsonrpsee::proc_macros::rpc;
 use op_alloy_consensus::TxDeposit;
@@ -72,7 +74,8 @@ impl LogConsumer for LoggingConsumer {
 }
 
 pub struct EngineApi {
-    pub engine_api_client: HttpClient<AuthService<SetSensitiveRequestHeaders<HttpBackend>>>,
+    pub engine_api_client:
+        HttpClient<RpcLogger<RpcService<AuthService<SetSensitiveRequestHeaders<HttpBackend>>>>>,
 }
 
 // TODO: Use client/rpc.rs instead
@@ -593,7 +596,7 @@ fn create_deposit_tx() -> Bytes {
         source_hash: B256::default(),
         from: address!("DeaDDEaDDeAdDeAdDEAdDEaddeAddEAdDEAd0001"),
         to: TxKind::Call(address!("4200000000000000000000000000000000000015")),
-        mint: None,
+        mint: 0,
         value: U256::default(),
         gas_limit: 210000,
         is_system_transaction: true,
