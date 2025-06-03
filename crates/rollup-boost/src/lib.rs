@@ -18,6 +18,9 @@ pub use proxy::*;
 mod server;
 pub use server::*;
 
+mod flashblocks;
+pub use flashblocks::*;
+
 mod tracing;
 pub use tracing::*;
 
@@ -37,3 +40,6 @@ mod selection;
 pub use selection::*;
 
 mod consistent_request;
+
+mod engine_api;
+pub use engine_api::*;

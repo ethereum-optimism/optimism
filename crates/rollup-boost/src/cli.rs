@@ -1,15 +1,20 @@
-use std::{net::SocketAddr, path::PathBuf, sync::Arc};
-
 use alloy_rpc_types_engine::JwtSecret;
 use clap::{Parser, Subcommand};
 use eyre::bail;
 use jsonrpsee::{RpcModule, server::Server};
 use parking_lot::Mutex;
+use std::{
+    net::{IpAddr, SocketAddr},
+    path::PathBuf,
+    str::FromStr,
+    sync::Arc,
+};
 use tokio::signal::unix::{SignalKind, signal as unix_signal};
 use tracing::{Level, info};
 
 use crate::{
-    BlockSelectionPolicy, DebugClient, ProxyLayer, RollupBoostServer, RpcClient,
+    BlockSelectionPolicy, DebugClient, EngineApiExt, Flashblocks, FlashblocksArgs, ProxyLayer,
+    RollupBoostServer, RpcClient,
     client::rpc::{BuilderArgs, L2ClientArgs},
     debug_api::ExecutionMode,
     init_metrics,
@@ -91,6 +96,9 @@ pub struct Args {
 
     #[arg(long, env)]
     pub block_selection_policy: Option<BlockSelectionPolicy>,
+
+    #[clap(flatten)]
+    pub flashblocks: FlashblocksArgs,
 }
 
 impl Args {
@@ -158,6 +166,22 @@ impl Args {
         )?;
 
         let (probe_layer, probes) = ProbeLayer::new();
+
+        let builder_client: Arc<dyn EngineApiExt> = if self.flashblocks.flashblocks {
+            let inbound_url = self.flashblocks.flashblocks_builder_url;
+            let outbound_addr = SocketAddr::new(
+                IpAddr::from_str(&self.flashblocks.flashblocks_host)?,
+                self.flashblocks.flashblocks_port,
+            );
+
+            Arc::new(Flashblocks::run(
+                builder_client.clone(),
+                inbound_url,
+                outbound_addr,
+            )?)
+        } else {
+            Arc::new(builder_client)
+        };
 
         let execution_mode = Arc::new(Mutex::new(self.execution_mode));
         let rollup_boost = RollupBoostServer::new(

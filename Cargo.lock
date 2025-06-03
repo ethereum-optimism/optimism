@@ -3992,6 +3992,7 @@ dependencies = [
  "alloy-primitives",
  "alloy-rpc-types-engine",
  "alloy-rpc-types-eth",
+ "alloy-serde",
  "anyhow",
  "assert_cmd",
  "bytes",
@@ -4028,12 +4029,14 @@ dependencies = [
  "thiserror 2.0.12",
  "time",
  "tokio",
+ "tokio-tungstenite",
  "tokio-util",
  "tower 0.4.13",
  "tower-http 0.5.2",
  "tracing",
  "tracing-opentelemetry",
  "tracing-subscriber",
+ "url",
 ]
 
 [[package]]

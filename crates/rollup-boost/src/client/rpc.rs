@@ -1,3 +1,4 @@
+use crate::EngineApiExt;
 use crate::client::auth::AuthLayer;
 use crate::payload::{NewPayload, OpExecutionPayloadEnvelope, PayloadSource, PayloadVersion};
 use crate::server::EngineApiClient;
@@ -9,6 +10,7 @@ use alloy_rpc_types_engine::{
 use alloy_rpc_types_eth::{Block, BlockNumberOrTag};
 use clap::{Parser, arg};
 use http::Uri;
+use jsonrpsee::core::async_trait;
 use jsonrpsee::http_client::transport::HttpBackend;
 use jsonrpsee::http_client::{HttpClient, HttpClientBuilder};
 use jsonrpsee::types::ErrorObjectOwned;
@@ -332,6 +334,38 @@ impl RpcClient {
             .get_block_by_number(number, full)
             .await
             .set_code()?)
+    }
+}
+
+#[async_trait]
+impl EngineApiExt for RpcClient {
+    async fn fork_choice_updated_v3(
+        &self,
+        fork_choice_state: ForkchoiceState,
+        payload_attributes: Option<OpPayloadAttributes>,
+    ) -> ClientResult<ForkchoiceUpdated> {
+        self.fork_choice_updated_v3(fork_choice_state, payload_attributes)
+            .await
+    }
+
+    async fn new_payload(&self, new_payload: NewPayload) -> ClientResult<PayloadStatus> {
+        self.new_payload(new_payload).await
+    }
+
+    async fn get_payload(
+        &self,
+        payload_id: PayloadId,
+        version: PayloadVersion,
+    ) -> ClientResult<OpExecutionPayloadEnvelope> {
+        self.get_payload(payload_id, version).await
+    }
+
+    async fn get_block_by_number(
+        &self,
+        number: BlockNumberOrTag,
+        full: bool,
+    ) -> ClientResult<Block> {
+        self.get_block_by_number(number, full).await
     }
 }
 

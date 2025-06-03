@@ -1,9 +1,9 @@
-use crate::BlockSelectionPolicy;
 use crate::debug_api::ExecutionMode;
+use crate::{BlockSelectionPolicy, EngineApiExt};
 use crate::{
-    HealthHandle,
     client::rpc::RpcClient,
     debug_api::DebugServer,
+    health::HealthHandle,
     payload::{
         NewPayload, NewPayloadV3, NewPayloadV4, OpExecutionPayloadEnvelope, PayloadSource,
         PayloadTraceContext, PayloadVersion,
@@ -45,7 +45,7 @@ pub type BufferedResponse = http::Response<Full<bytes::Bytes>>;
 #[derive(Clone)]
 pub struct RollupBoostServer {
     pub l2_client: Arc<RpcClient>,
-    pub builder_client: Arc<RpcClient>,
+    pub builder_client: Arc<dyn EngineApiExt>,
     pub payload_trace_context: Arc<PayloadTraceContext>,
     block_selection_policy: Option<BlockSelectionPolicy>,
     execution_mode: Arc<Mutex<ExecutionMode>>,
@@ -55,7 +55,7 @@ pub struct RollupBoostServer {
 impl RollupBoostServer {
     pub fn new(
         l2_client: RpcClient,
-        builder_client: RpcClient,
+        builder_client: Arc<dyn EngineApiExt>,
         initial_execution_mode: Arc<Mutex<ExecutionMode>>,
         block_selection_policy: Option<BlockSelectionPolicy>,
         probes: Arc<Probes>,
@@ -64,7 +64,7 @@ impl RollupBoostServer {
     ) -> Self {
         HealthHandle {
             probes: probes.clone(),
-            builder_client: Arc::new(builder_client.clone()),
+            builder_client: builder_client.clone(),
             health_check_interval: Duration::from_secs(health_check_interval),
             max_unsafe_interval,
         }
@@ -72,7 +72,7 @@ impl RollupBoostServer {
 
         Self {
             l2_client: Arc::new(l2_client),
-            builder_client: Arc::new(builder_client),
+            builder_client,
             block_selection_policy,
             payload_trace_context: Arc::new(PayloadTraceContext::new()),
             execution_mode: initial_execution_mode,
@@ -623,13 +623,15 @@ mod tests {
                 RpcClient::new(l2_auth_rpc.clone(), jwt_secret, 2000, PayloadSource::L2).unwrap();
 
             let builder_auth_rpc = Uri::from_str(&format!("http://{builder_server_addr}")).unwrap();
-            let builder_client = RpcClient::new(
-                builder_auth_rpc.clone(),
-                jwt_secret,
-                2000,
-                PayloadSource::Builder,
-            )
-            .unwrap();
+            let builder_client = Arc::new(
+                RpcClient::new(
+                    builder_auth_rpc.clone(),
+                    jwt_secret,
+                    2000,
+                    PayloadSource::Builder,
+                )
+                .unwrap(),
+            );
 
             let (probe_layer, probes) = ProbeLayer::new();
             let execution_mode = Arc::new(Mutex::new(ExecutionMode::Enabled));

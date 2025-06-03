@@ -9,6 +9,17 @@ tracing-subscriber = { version = "0.3.11", features = ["env-filter", "json"] }
 clap = { version = "4", features = ["derive", "env"] }
 futures = "0.3.31"
 thiserror = "2.0.11"
+serde = { version = "1", features = ["derive"] }
 serde_json = "1.0.96"
 metrics = "0.24.0"
 tokio = { version = "1", features = ["full"] }
+eyre = "0.6.12"
+
+# Alloy libraries
+alloy-rpc-types-engine = "0.13.0"
+alloy-rpc-types-eth = "0.13.0"
+alloy-primitives = { version = "0.8.10", features = ["rand"] }
+alloy-serde = "0.13.0"
+
+op-alloy-rpc-types-engine = "0.12.0"
+tokio-tungstenite = { version = "0.26.2", features = ["native-tls"] }
