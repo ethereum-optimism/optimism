@@ -19,7 +19,8 @@ use crate::cli::{Args, LogFormat};
 /// Use caution when adding new attributes here and keep
 /// label cardinality in mind. Not all span attributes make
 /// appropriate labels.
-pub const SPAN_ATTRIBUTE_LABELS: [&str; 4] = ["code", "has_attributes", "payload_source", "method"];
+pub const SPAN_ATTRIBUTE_LABELS: [&str; 4] =
+    ["code", "payload_source", "method", "builder_has_payload"];
 
 /// Custom span processor that records span durations as histograms
 #[derive(Debug)]

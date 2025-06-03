@@ -31,6 +31,12 @@ impl RollupBoost {
     pub fn debug_endpoint(&self) -> String {
         format!("http://localhost:{}", self.args.debug_server_port)
     }
+
+    pub async fn get_metrics(&self) -> eyre::Result<String> {
+        let response = reqwest::get(self.metrics_endpoint() + "/metrics").await?;
+        let body = response.text().await?;
+        Ok(body)
+    }
 }
 
 #[derive(Clone, Debug)]
