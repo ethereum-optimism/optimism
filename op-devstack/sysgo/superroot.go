@@ -1,7 +1,6 @@
 package sysgo
 
 import (
-	"bytes"
 	"crypto/ecdsa"
 	"encoding/json"
 	"math/big"
@@ -22,7 +21,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/sources"
 	"github.com/ethereum-optimism/optimism/op-service/sources/batching"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
-	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
@@ -87,7 +85,7 @@ func WithSuperRoots(l1ChainID eth.ChainID, l1ELID stack.L1ELNodeID, l2CLID stack
 			o.P().Require().NoError(err, "must have configured challenger")
 
 			opcmAddr := o.wb.output.ImplementationsDeployment.OpcmImpl
-			contract := batching.NewBoundContract(&opcmABI, opcmAddr)
+			contract := batching.NewBoundContract(opcmABI, opcmAddr)
 			migrateInput := bindings.OPContractsManagerInteropMigratorMigrateInput{
 				UsePermissionlessGame: true,
 				StartingAnchorRoot: bindings.Proposal{
