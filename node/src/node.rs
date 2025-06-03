@@ -7,7 +7,7 @@ use crate::{
     OpEngineApiBuilder, OpEngineTypes,
 };
 use op_alloy_consensus::{interop::SafetyLevel, OpPooledTransaction};
-use op_alloy_rpc_types_engine::OpPayloadAttributes;
+use op_alloy_rpc_types_engine::{OpExecutionData, OpPayloadAttributes};
 use reth_chainspec::{ChainSpecProvider, EthChainSpec, Hardforks};
 use reth_evm::{ConfigureEvm, EvmFactory, EvmFactoryFor};
 use reth_network::{
@@ -15,8 +15,8 @@ use reth_network::{
     PeersInfo,
 };
 use reth_node_api::{
-    AddOnsContext, FullNodeComponents, KeyHasherTy, NodeAddOns, NodePrimitives, PayloadTypes,
-    PrimitivesTy, TxTy,
+    AddOnsContext, EngineTypes, FullNodeComponents, KeyHasherTy, NodeAddOns, NodePrimitives,
+    PayloadTypes, PrimitivesTy, TxTy,
 };
 use reth_node_builder::{
     components::{
@@ -357,7 +357,7 @@ where
             ChainSpec: OpHardforks,
             Primitives = OpPrimitives,
             Storage = OpStorage,
-            Payload = OpEngineTypes,
+            Payload: EngineTypes<ExecutionData = OpExecutionData>,
         >,
         Evm: ConfigureEvm<NextBlockEnvCtx = OpNextBlockEnvAttributes>,
     >,
@@ -452,7 +452,7 @@ where
             ChainSpec: OpHardforks,
             Primitives = OpPrimitives,
             Storage = OpStorage,
-            Payload = OpEngineTypes,
+            Payload: EngineTypes<ExecutionData = OpExecutionData>,
         >,
         Evm: ConfigureEvm<NextBlockEnvCtx = OpNextBlockEnvAttributes>,
     >,
@@ -477,21 +477,17 @@ where
         Types: NodeTypes<
             ChainSpec: OpHardforks,
             Primitives = OpPrimitives,
-            Payload = OpEngineTypes,
+            Payload: EngineTypes<ExecutionData = OpExecutionData>,
         >,
     >,
     OpEthApiBuilder<NetworkT>: EthApiBuilder<N>,
-    EV: EngineValidatorBuilder<N>,
+    EV: EngineValidatorBuilder<N> + Default,
     EB: EngineApiBuilder<N>,
 {
-    type Validator = OpEngineValidator<
-        N::Provider,
-        <<N::Types as NodeTypes>::Primitives as NodePrimitives>::SignedTx,
-        <N::Types as NodeTypes>::ChainSpec,
-    >;
+    type Validator = <EV as EngineValidatorBuilder<N>>::Validator;
 
     async fn engine_validator(&self, ctx: &AddOnsContext<'_, N>) -> eyre::Result<Self::Validator> {
-        OpEngineValidatorBuilder::default().build(ctx).await
+        EV::default().build(ctx).await
     }
 }
 
@@ -552,17 +548,12 @@ impl<NetworkT> OpAddOnsBuilder<NetworkT> {
 
 impl<NetworkT> OpAddOnsBuilder<NetworkT> {
     /// Builds an instance of [`OpAddOns`].
-    pub fn build<N>(
-        self,
-    ) -> OpAddOns<
-        N,
-        OpEthApiBuilder<NetworkT>,
-        OpEngineValidatorBuilder,
-        OpEngineApiBuilder<OpEngineValidatorBuilder>,
-    >
+    pub fn build<N, EV, EB>(self) -> OpAddOns<N, OpEthApiBuilder<NetworkT>, EV, EB>
     where
         N: FullNodeComponents<Types: NodeTypes>,
         OpEthApiBuilder<NetworkT>: EthApiBuilder<N>,
+        EV: Default,
+        EB: Default,
     {
         let Self { sequencer_url, sequencer_headers, da_config, enable_tx_conditional, .. } = self;
 
@@ -571,8 +562,8 @@ impl<NetworkT> OpAddOnsBuilder<NetworkT> {
                 OpEthApiBuilder::default()
                     .with_sequencer(sequencer_url.clone())
                     .with_sequencer_headers(sequencer_headers.clone()),
-                OpEngineValidatorBuilder::default(),
-                OpEngineApiBuilder::default(),
+                EV::default(),
+                EB::default(),
             ),
             da_config: da_config.unwrap_or_default(),
             sequencer_url,
