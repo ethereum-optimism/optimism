@@ -1178,7 +1178,7 @@ contract OPContractsManager_UpdatePrestate_Test is OPContractsManager_TestInit {
         address owner = chainDeployOutput1.disputeGameFactoryProxy.owner();
         vm.prank(owner);
         chainDeployOutput1.disputeGameFactoryProxy.setImplementation(
-            GameTypes.PERMISSIONED_CANNON, IDisputeGame(payable(address(0)))
+            GameTypes.PERMISSIONED_CANNON, IDisputeGame(payable(address(0))), "" // TODO(snevins): validate correct parameters later
         );
 
         // Create the input for the function call.

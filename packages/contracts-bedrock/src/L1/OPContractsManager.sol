@@ -288,14 +288,11 @@ abstract contract OPContractsManagerBase {
         // Return the constructor params.
         return IFaultDisputeGame.GameConstructorParams({
             gameType: gameType,
-            absolutePrestate: _disputeGame.absolutePrestate(),
             maxGameDepth: _disputeGame.maxGameDepth(),
             splitDepth: _disputeGame.splitDepth(),
             clockExtension: _disputeGame.clockExtension(),
             maxClockDuration: _disputeGame.maxClockDuration(),
-            vm: _disputeGame.vm(),
             weth: getWETH(_disputeGame),
-            anchorStateRegistry: getAnchorStateRegistry(_disputeGame),
             l2ChainId: l2ChainId
         });
     }
@@ -307,7 +304,7 @@ abstract contract OPContractsManagerBase {
 
     /// @notice Sets a game implementation on the dispute game factory
     function setDGFImplementation(IDisputeGameFactory _dgf, GameType _gameType, IDisputeGame _newGame) internal {
-        _dgf.setImplementation(_gameType, _newGame);
+        _dgf.setImplementation(_gameType, _newGame, ""); // TODO(snevins): validate correct parameters later
     }
 }
 
@@ -443,14 +440,11 @@ contract OPContractsManagerGameTypeAdder is OPContractsManagerBase {
                 constructorData = encodePermissionedFDGConstructor(
                     IFaultDisputeGame.GameConstructorParams(
                         gameConfig.disputeGameType,
-                        gameConfig.disputeAbsolutePrestate,
                         gameConfig.disputeMaxGameDepth,
                         gameConfig.disputeSplitDepth,
                         gameConfig.disputeClockExtension,
                         gameConfig.disputeMaxClockDuration,
-                        gameConfig.vm,
                         outputs[i].delayedWETH,
-                        getAnchorStateRegistry(gameConfig.systemConfig),
                         gameL2ChainId
                     ),
                     getProposer(IPermissionedDisputeGame(address(existingGame))),
@@ -460,14 +454,11 @@ contract OPContractsManagerGameTypeAdder is OPContractsManagerBase {
                 constructorData = encodePermissionlessFDGConstructor(
                     IFaultDisputeGame.GameConstructorParams(
                         gameConfig.disputeGameType,
-                        gameConfig.disputeAbsolutePrestate,
                         gameConfig.disputeMaxGameDepth,
                         gameConfig.disputeSplitDepth,
                         gameConfig.disputeClockExtension,
                         gameConfig.disputeMaxClockDuration,
-                        gameConfig.vm,
                         outputs[i].delayedWETH,
-                        getAnchorStateRegistry(gameConfig.systemConfig),
                         gameL2ChainId
                     )
                 );
@@ -569,7 +560,7 @@ contract OPContractsManagerGameTypeAdder is OPContractsManagerBase {
                     disputeClockExtension: gameParams.clockExtension,
                     disputeMaxClockDuration: gameParams.maxClockDuration,
                     initialBond: dgf.initBonds(gameType),
-                    vm: gameParams.vm,
+                    vm: existingGame.vm(),
                     permissioned: gameType.raw() == GameTypes.PERMISSIONED_CANNON.raw()
                         || gameType.raw() == GameTypes.SUPER_PERMISSIONED_CANNON.raw()
                 });
@@ -893,19 +884,23 @@ contract OPContractsManagerUpgrader is OPContractsManagerBase {
 
         // Modify the params with the new vm values.
         params.weth = _newDelayedWeth;
-        params.anchorStateRegistry = _newAnchorStateRegistryProxy;
-        params.vm = IBigStepper(impls.mipsImpl);
+        // TODO(snevins): anchorStateRegistry removed from GameConstructorParams struct
+        // params.anchorStateRegistry = _newAnchorStateRegistryProxy;
+        // TODO(snevins): vm removed from GameConstructorParams struct  
+        // params.vm = IBigStepper(impls.mipsImpl);
 
         // If the prestate is set in the config, use it. If not set, we'll try to use the prestate
         // that already exists on the current dispute game.
-        if (Claim.unwrap(_opChainConfig.absolutePrestate) != bytes32(0)) {
-            params.absolutePrestate = _opChainConfig.absolutePrestate;
-        }
+        // TODO(snevins): absolutePrestate removed from GameConstructorParams struct
+        // if (Claim.unwrap(_opChainConfig.absolutePrestate) != bytes32(0)) {
+        //     params.absolutePrestate = _opChainConfig.absolutePrestate;
+        // }
 
+        // TODO(snevins): absolutePrestate removed from GameConstructorParams struct
         // As a sanity check, if the prestate is zero here, revert.
-        if (params.absolutePrestate.raw() == bytes32(0)) {
-            revert OPContractsManager.PrestateNotSet();
-        }
+        // if (params.absolutePrestate.raw() == bytes32(0)) {
+        //     revert OPContractsManager.PrestateNotSet();
+        // }
 
         IDisputeGame newGame;
         if (GameType.unwrap(_gameType) == GameType.unwrap(GameTypes.PERMISSIONED_CANNON)) {
@@ -1053,14 +1048,11 @@ contract OPContractsManagerDeployer is OPContractsManagerBase {
                 encodePermissionedFDGConstructor(
                     IFaultDisputeGame.GameConstructorParams({
                         gameType: GameTypes.PERMISSIONED_CANNON,
-                        absolutePrestate: _input.disputeAbsolutePrestate,
                         maxGameDepth: _input.disputeMaxGameDepth,
                         splitDepth: _input.disputeSplitDepth,
                         clockExtension: _input.disputeClockExtension,
                         maxClockDuration: _input.disputeMaxClockDuration,
-                        vm: IBigStepper(implementation.mipsImpl),
                         weth: IDelayedWETH(payable(address(output.delayedWETHPermissionedGameProxy))),
-                        anchorStateRegistry: IAnchorStateRegistry(address(output.anchorStateRegistryProxy)),
                         l2ChainId: _input.l2ChainId
                     }),
                     _input.roles.proposer,
@@ -1518,10 +1510,10 @@ contract OPContractsManagerInteropMigrator is OPContractsManagerBase {
             // old DisputeGameFactory proxy. We clear out all 4 potential game types to be safe.
             IDisputeGameFactory oldDisputeGameFactory =
                 IDisputeGameFactory(payable(address(portals[i].disputeGameFactory())));
-            oldDisputeGameFactory.setImplementation(GameTypes.CANNON, IDisputeGame(address(0)));
-            oldDisputeGameFactory.setImplementation(GameTypes.SUPER_CANNON, IDisputeGame(address(0)));
-            oldDisputeGameFactory.setImplementation(GameTypes.PERMISSIONED_CANNON, IDisputeGame(address(0)));
-            oldDisputeGameFactory.setImplementation(GameTypes.SUPER_PERMISSIONED_CANNON, IDisputeGame(address(0)));
+            oldDisputeGameFactory.setImplementation(GameTypes.CANNON, IDisputeGame(address(0)), ""); // TODO(snevins): validate correct parameters later
+            oldDisputeGameFactory.setImplementation(GameTypes.SUPER_CANNON, IDisputeGame(address(0)), ""); // TODO(snevins): validate correct parameters later
+            oldDisputeGameFactory.setImplementation(GameTypes.PERMISSIONED_CANNON, IDisputeGame(address(0)), ""); // TODO(snevins): validate correct parameters later
+            oldDisputeGameFactory.setImplementation(GameTypes.SUPER_PERMISSIONED_CANNON, IDisputeGame(address(0)), ""); // TODO(snevins): validate correct parameters later
 
             // Migrate the portal to the new ETHLockbox and AnchorStateRegistry.
             portals[i].migrateToSuperRoots(newEthLockbox, newAnchorStateRegistry);
@@ -1564,14 +1556,11 @@ contract OPContractsManagerInteropMigrator is OPContractsManagerBase {
                     encodePermissionedSuperFDGConstructor(
                         ISuperFaultDisputeGame.GameConstructorParams({
                             gameType: GameTypes.SUPER_PERMISSIONED_CANNON,
-                            absolutePrestate: _input.opChainConfigs[0].absolutePrestate,
                             maxGameDepth: _input.gameParameters.maxGameDepth,
                             splitDepth: _input.gameParameters.splitDepth,
                             clockExtension: _input.gameParameters.clockExtension,
                             maxClockDuration: _input.gameParameters.maxClockDuration,
-                            vm: IBigStepper(getImplementations().mipsImpl),
                             weth: newPermissionedDelayedWETHProxy,
-                            anchorStateRegistry: newAnchorStateRegistry,
                             l2ChainId: 0
                         }),
                         _input.gameParameters.proposer,
@@ -1582,7 +1571,7 @@ contract OPContractsManagerInteropMigrator is OPContractsManagerBase {
 
             // Register the new SuperPermissionedDisputeGame.
             newDisputeGameFactory.setImplementation(
-                GameTypes.SUPER_PERMISSIONED_CANNON, IDisputeGame(address(newSuperPDG))
+                GameTypes.SUPER_PERMISSIONED_CANNON, IDisputeGame(address(newSuperPDG)), "" // TODO(snevins): validate correct parameters later
             );
             newDisputeGameFactory.setInitBond(GameTypes.SUPER_PERMISSIONED_CANNON, _input.gameParameters.initBond);
         }
@@ -1618,14 +1607,11 @@ contract OPContractsManagerInteropMigrator is OPContractsManagerBase {
                     encodePermissionlessSuperFDGConstructor(
                         ISuperFaultDisputeGame.GameConstructorParams({
                             gameType: GameTypes.SUPER_CANNON,
-                            absolutePrestate: _input.opChainConfigs[0].absolutePrestate,
                             maxGameDepth: _input.gameParameters.maxGameDepth,
                             splitDepth: _input.gameParameters.splitDepth,
                             clockExtension: _input.gameParameters.clockExtension,
                             maxClockDuration: _input.gameParameters.maxClockDuration,
-                            vm: IBigStepper(getImplementations().mipsImpl),
                             weth: newPermissionlessDelayedWETHProxy,
-                            anchorStateRegistry: newAnchorStateRegistry,
                             l2ChainId: 0
                         })
                     )
@@ -1633,7 +1619,7 @@ contract OPContractsManagerInteropMigrator is OPContractsManagerBase {
             );
 
             // Register the new SuperFaultDisputeGame.
-            newDisputeGameFactory.setImplementation(GameTypes.SUPER_CANNON, IDisputeGame(address(newSuperFDG)));
+            newDisputeGameFactory.setImplementation(GameTypes.SUPER_CANNON, IDisputeGame(address(newSuperFDG)), ""); // TODO(snevins): validate correct parameters later
             newDisputeGameFactory.setInitBond(GameTypes.SUPER_CANNON, _input.gameParameters.initBond);
         }
     }

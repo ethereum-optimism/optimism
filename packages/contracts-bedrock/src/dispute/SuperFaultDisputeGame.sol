@@ -901,7 +901,7 @@ contract SuperFaultDisputeGame is Clone, ISemver {
         // confusion for honest challengers. By blocking the game from being closed while the
         // system is paused, the game will only go into refund mode if it ends up being explicitly
         // invalidated in the AnchorStateRegistry.
-        if (ANCHOR_STATE_REGISTRY.paused()) {
+        if (anchorStateRegistry().paused()) {
             revert GamePaused();
         }
 

@@ -57,7 +57,8 @@ import {
     InvalidBondDistributionMode,
     GameNotResolved,
     ReservedGameType,
-    BadExtraData
+    BadExtraData,
+    GamePaused
 } from "src/dispute/lib/Errors.sol";
 
 // Interfaces
@@ -1052,7 +1053,7 @@ contract FaultDisputeGame is Clone, ISemver {
         // system is paused, the game will only go into refund mode if it ends up being explicitly
         // invalidated in the AnchorStateRegistry. If the game has already been closed and a refund
         // mode has been selected, we'll already have returned and we won't hit this revert.
-        if (ANCHOR_STATE_REGISTRY.paused()) {
+        if (anchorStateRegistry().paused()) {
             revert GamePaused();
         }
 
