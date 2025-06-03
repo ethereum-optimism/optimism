@@ -106,13 +106,13 @@ func TestConfig(t *testing.T) {
 
 	t.Run("RollupConfigRequiredWhenNoNetwork", func(t *testing.T) {
 		verifyArgsInvalid(t,
-			"required flag is missing: either network or dependency-set and one of rollup-config-set, rollup-config-paths must be set",
+			"required flag is missing: either networks or dependency-set and one of rollup-config-set, rollup-config-paths must be set",
 			addRequiredArgsExcept("--rollup-config-set"))
 	})
 
 	t.Run("DependencySetRequiredWhenNoNetwork", func(t *testing.T) {
 		verifyArgsInvalid(t,
-			"required flag is missing: either network or dependency-set and one of rollup-config-set, rollup-config-paths must be set",
+			"required flag is missing: either networks or dependency-set and one of rollup-config-set, rollup-config-paths must be set",
 			addRequiredArgsExcept("--dependency-set"))
 	})
 

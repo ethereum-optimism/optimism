@@ -58,9 +58,10 @@ var (
 		EnvVars: prefixEnvVars("DATADIR_SYNC_ENDPOINT"),
 	}
 	NetworkFlag = &cli.StringSliceFlag{
-		Name:    "network",
+		Name:    "networks",
+		Aliases: []string{"network"},
 		Usage:   fmt.Sprintf("Predefined network selection. Available networks: %s", strings.Join(chaincfg.AvailableNetworks(), ", ")),
-		EnvVars: prefixEnvVars("NETWORK"),
+		EnvVars: append(prefixEnvVars("NETWORKS"), prefixEnvVars("NETWORK")...),
 	}
 	DependencySetFlag = &cli.PathFlag{
 		Name:      "dependency-set",
