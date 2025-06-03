@@ -24,7 +24,7 @@ func NewRegistryFullConfigSetSource(l1RPCURL string, networks []string) (*Regist
 		if err != nil {
 			return nil, err
 		}
-		// Use the dependency set from the fist chain.
+		// Use the dependency set from the first chain.
 		// superchain-registry has checks to ensure consistency for all chains in the same set
 		if dependencySet == nil {
 			depSet, err := FromRegistry(eth.ChainIDFromUInt64(chainID))
