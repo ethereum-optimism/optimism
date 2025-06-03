@@ -47,9 +47,9 @@ const (
 
 var DisputeAbsolutePrestate = common.HexToHash("0x038512e02c4c3f7bdaec27d00edf55b7155e0905301e1a88083e4e0a6764d54c")
 
-var DefaultL1ContractsTag = ContractsV300Tag
+var DefaultL1ContractsTag = ContractsV400Tag
 
-var DefaultL2ContractsTag = ContractsV300Tag
+var DefaultL2ContractsTag = ContractsV400Tag
 
 var VaultMinWithdrawalAmount = mustHexBigFromHex("0x8ac7230489e80000")
 
