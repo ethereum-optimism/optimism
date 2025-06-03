@@ -2,8 +2,11 @@ package depset
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum/go-ethereum/common/math"
+	"github.com/ethereum/go-ethereum/superchain"
 )
 
 type DependencySetSource interface {
@@ -22,4 +25,26 @@ type DependencySet interface {
 
 	// MessageExpiryWindow returns the message expiry window to use for this dependency set.
 	MessageExpiryWindow() uint64
+}
+
+// FromRegistry loads a dependency set from the superchain-registry.
+// Returns error of type superchain.ErrUnknownChain if the chain is not available in the superchain registry.
+func FromRegistry(chainID eth.ChainID) (DependencySet, error) {
+	id, ok := chainID.Uint64()
+	if !ok {
+		return nil, fmt.Errorf("%w: %v", superchain.ErrUnknownChain, chainID)
+	}
+	depSet, err := superchain.GetDepset(id)
+	if err != nil {
+		return nil, err
+	}
+	chains := make(map[eth.ChainID]*StaticConfigDependency)
+	for idStr := range depSet {
+		id, ok := math.ParseUint64(idStr)
+		if !ok {
+			return nil, fmt.Errorf("invalid chain ID in dependency set: %s", idStr)
+		}
+		chains[eth.ChainIDFromUInt64(id)] = &StaticConfigDependency{}
+	}
+	return NewStaticConfigDependencySet(chains)
 }
