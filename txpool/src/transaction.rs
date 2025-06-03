@@ -69,14 +69,14 @@ impl<Cons: SignedTransaction, Pooled> OpPooledTransaction<Cons, Pooled> {
         }
     }
 
-    /// Returns the estimated compressed size of a transaction in bytes scaled by 1e6.
+    /// Returns the estimated compressed size of a transaction in bytes.
     /// This value is computed based on the following formula:
-    /// `max(minTransactionSize, intercept + fastlzCoef*fastlzSize)`
+    /// `max(minTransactionSize, intercept + fastlzCoef*fastlzSize) / 1e6`
     /// Uses cached EIP-2718 encoded bytes to avoid recomputing the encoding for each estimation.
     pub fn estimated_compressed_size(&self) -> u64 {
         *self
             .estimated_tx_compressed_size
-            .get_or_init(|| op_alloy_flz::tx_estimated_size_fjord(self.encoded_2718()))
+            .get_or_init(|| op_alloy_flz::tx_estimated_size_fjord_bytes(self.encoded_2718()))
     }
 
     /// Returns lazily computed EIP-2718 encoded bytes of the transaction.
