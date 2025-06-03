@@ -14,7 +14,7 @@ use reth_payload_builder::PayloadStore;
 use reth_rpc_engine_api::{EngineApi, EngineCapabilities};
 
 /// Builder for basic [`OpEngineApi`] implementation.
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone)]
 pub struct OpEngineApiBuilder<EV> {
     engine_validator_builder: EV,
 }
