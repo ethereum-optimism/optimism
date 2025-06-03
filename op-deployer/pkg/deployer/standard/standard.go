@@ -98,7 +98,7 @@ func IsSupportedL1Version(tag string) bool {
 }
 
 func IsSupportedL2Version(tag string) bool {
-	return tag == ContractsV300Tag
+	return tag == ContractsV400Tag
 }
 
 func L1VersionsFor(chainID uint64) (validation.Versions, error) {
