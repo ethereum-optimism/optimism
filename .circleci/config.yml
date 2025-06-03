@@ -1920,6 +1920,7 @@ workflows:
               docker_name:
                 - op-node
                 - op-batcher
+                - op-faucet
                 - op-program
                 - op-proposer
                 - op-challenger
@@ -1998,6 +1999,7 @@ workflows:
               docker_name:
                 - op-node
                 - op-batcher
+                - op-faucet
                 - op-proposer
                 - op-challenger
                 - op-dispute-mon
@@ -2030,6 +2032,7 @@ workflows:
               op_component:
                 - op-node
                 - op-batcher
+                - op-faucet
                 - op-proposer
                 - op-challenger
                 - op-dispute-mon
@@ -2045,6 +2048,7 @@ workflows:
           requires:
             - op-node-docker-release
             - op-batcher-docker-release
+            - op-faucet-docker-release
             - op-proposer-docker-release
             - op-challenger-docker-release
             - op-dispute-mon-docker-release
@@ -2196,6 +2200,7 @@ workflows:
               docker_name:
                 - op-node
                 - op-batcher
+                - op-faucet
                 - op-program
                 - op-proposer
                 - op-challenger
@@ -2219,6 +2224,7 @@ workflows:
               op_component:
                 - op-node
                 - op-batcher
+                - op-faucet
                 - op-program
                 - op-proposer
                 - op-challenger
