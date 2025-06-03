@@ -99,6 +99,9 @@ func testL2ReorgAfterL1Reorg(gt *testing.T, n int, preChecks, postChecks checksF
 	// continue building on the alternative L1 chain
 	sys.ControlPlane.FakePoSState(cl.ID(), stack.Start)
 
+	// confirm L1 reorged
+	sys.L1EL.ReorgTriggered(divergence, 5)
+
 	// test that latest chain A unsafe is not referencing a reorged L1 block (through the L1Origin field)
 	require.Eventually(t, func() bool {
 		unsafe := sys.L2ELA.BlockRefByLabel(eth.Unsafe)
@@ -121,9 +124,10 @@ func testL2ReorgAfterL1Reorg(gt *testing.T, n int, preChecks, postChecks checksF
 	// confirm all L1Origin fields point to canonical blocks
 	{
 		ref := sys.L2ELA.BlockRefByLabel(eth.Unsafe)
-		for i := ref.Number; i > 0; i-- {
-			ref, err := sys.L2ELA.Escape().L2EthClient().L2BlockRefByNumber(ctx, i)
-			require.NoError(t, err, "Expected to get block ref by number")
+		var err error
+		for i := ref.Number; i > 0 && ref.L1Origin.Number >= divergence.Number; i-- {
+			ref, err = sys.L2ELA.Escape().L2EthClient().L2BlockRefByNumber(ctx, i)
+			require.NoError(t, err, "Expected to get block ref by number", "number", i)
 
 			require.True(t, sys.L1EL.IsCanonical(ref.L1Origin), "L1 block origin should be canonical")
 		}

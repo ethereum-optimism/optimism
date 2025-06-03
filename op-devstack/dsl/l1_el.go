@@ -2,10 +2,13 @@ package dsl
 
 import (
 	"context"
+	"fmt"
+	"strings"
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-devstack/stack"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/retry"
 )
 
 // L1ELNode wraps a stack.L1ELNode interface for DSL operations
@@ -64,4 +67,41 @@ func (el *L1ELNode) BlockRefByNumber(number uint64) eth.L1BlockRef {
 	block, err := el.inner.EthClient().BlockRefByNumber(ctx, number)
 	el.require.NoError(err, "block not found using block number %d", number)
 	return block
+}
+
+// ReorgTriggeredFn returns a lambda that checks that a L1 reorg occurred on the expected block
+// Composable with other lambdas to wait in parallel
+func (el *L1ELNode) ReorgTriggeredFn(target eth.L1BlockRef, attempts int) CheckFunc {
+	return func() error {
+		el.log.Info("expecting chain to reorg on block ref", "id", el.inner.ID(), "chain", el.inner.ID().ChainID(), "target", target)
+		return retry.Do0(el.ctx, attempts, &retry.FixedStrategy{Dur: 7 * time.Second},
+			func() error {
+				reorged, err := el.inner.EthClient().BlockRefByNumber(el.ctx, target.Number)
+				if err != nil {
+					if strings.Contains(err.Error(), "not found") { // reorg is happening wait a bit longer
+						el.log.Info("chain still hasn't been reorged", "chain", el.inner.ID().ChainID(), "error", err)
+						return err
+					}
+					return err
+				}
+
+				if target.Hash == reorged.Hash { // want not equal
+					el.log.Info("chain still hasn't been reorged", "chain", el.inner.ID().ChainID(), "ref", reorged)
+					return fmt.Errorf("expected head to reorg %s, but got %s", target, reorged)
+				}
+
+				if target.ParentHash != reorged.ParentHash {
+					return fmt.Errorf("expected parent of target to be the same as the parent of the reorged head, but they are different")
+				}
+
+				el.log.Info("reorg on divergence block", "chain", el.inner.ID().ChainID(), "pre_blockref", target)
+				el.log.Info("reorg on divergence block", "chain", el.inner.ID().ChainID(), "post_blockref", reorged)
+
+				return nil
+			})
+	}
+}
+
+func (el *L1ELNode) ReorgTriggered(target eth.L1BlockRef, attempts int) {
+	el.require.NoError(el.ReorgTriggeredFn(target, attempts)())
 }

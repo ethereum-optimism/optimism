@@ -229,7 +229,7 @@ func DefaultInteropProofsSystem(dest *DefaultInteropSystemIDs) stack.Option[*Orc
 	opt.Add(WithL2CLNode(ids.L2ACL, true, true, ids.L1CL, ids.L1EL, ids.L2AEL))
 	opt.Add(WithL2CLNode(ids.L2BCL, true, true, ids.L1CL, ids.L1EL, ids.L2BEL))
 
-	opt.Add(WithTestSequencer(ids.TestSequencer, ids.L2ACL, ids.L1EL, ids.L2AEL))
+	opt.Add(WithTestSequencer(ids.TestSequencer, ids.L1CL, ids.L2ACL, ids.L1EL, ids.L2AEL))
 
 	opt.Add(WithBatcher(ids.L2ABatcher, ids.L1EL, ids.L2ACL, ids.L2AEL))
 	opt.Add(WithBatcher(ids.L2BBatcher, ids.L1EL, ids.L2BCL, ids.L2BEL))
