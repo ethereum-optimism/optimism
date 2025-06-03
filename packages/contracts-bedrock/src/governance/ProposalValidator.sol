@@ -267,7 +267,7 @@ contract ProposalValidator is OwnableUpgradeable, ReinitializableBase, ISemver {
     {
         _validateProposal(_targets, _values, _calldatas, _proposalType, _attestationUid);
 
-        proposalHash_ = _hashProposal(_targets, _values, _calldatas, _description);
+        proposalHash_ = bytes32(0); // TODO: Implement hashProposalWithModule
         ProposalData storage proposal = _proposals[proposalHash_];
 
         if (proposal.proposer != address(0)) {
@@ -327,7 +327,7 @@ contract ProposalValidator is OwnableUpgradeable, ReinitializableBase, ISemver {
         returns (uint256 governorProposalId_)
     {
         // Verify that the provided data matches the proposalHash
-        bytes32 _proposalHash = _hashProposal(_targets, _values, _calldatas, _description);
+        bytes32 _proposalHash = bytes32(0); // TODO: Implement hashProposalWithModule
 
         ProposalData storage proposal = _proposals[_proposalHash];
 
@@ -454,17 +454,21 @@ contract ProposalValidator is OwnableUpgradeable, ReinitializableBase, ISemver {
         isValid_ = approvedDelegate == msg.sender && proposalType == uint8(_expectedProposalType);
     }
 
-    function _hashProposal(
-        address[] memory _targets,
-        uint256[] memory _values,
-        bytes[] memory _calldatas,
-        string memory _description
+    /// @notice Calculate `proposalId` hashing similarly to `hashProposal` but based on `module` and `proposalData`.
+    /// @param _module The address of the voting module to use for this proposal.
+    /// @param _proposalData The proposal data to pass to the voting module.
+    /// @param _descriptionHash The hash of the proposal description.
+    /// @return The hash of the proposal.
+    function _hashProposalWithModule(
+        address _module,
+        bytes memory _proposalData,
+        bytes32 _descriptionHash
     )
         internal
-        pure
-        returns (bytes32 proposalHash_)
+        view
+        returns (bytes32)
     {
-        return keccak256(abi.encode(_targets, _values, _calldatas, _description));
+        return keccak256(abi.encode(address(this), _module, _proposalData, _descriptionHash));
     }
 
     /// @notice Private function to set the minimum voting power and emit event.
