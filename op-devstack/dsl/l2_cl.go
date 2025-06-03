@@ -40,10 +40,6 @@ func (cl *L2CLNode) Escape() stack.L2CLNode {
 	return cl.inner
 }
 
-func (cl *L2CLNode) LocalUnsafeL2BlockRef() eth.L2BlockRef {
-	return cl.HeadBlockRef(types.CrossSafe)
-}
-
 func (cl *L2CLNode) SafeL2BlockRef() eth.L2BlockRef {
 	return cl.HeadBlockRef(types.CrossSafe)
 }
