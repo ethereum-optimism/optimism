@@ -3996,8 +3996,8 @@ dependencies = [
 
 [[package]]
 name = "reth-rpc-layer"
-version = "1.4.4"
-source = "git+https://github.com/paradigmxyz/reth.git?tag=v1.4.4#e95d2b463571d3207ecd63691ab0f7a51266a458"
+version = "1.4.7"
+source = "git+https://github.com/paradigmxyz/reth.git?tag=v1.4.7#dc7cb6e6670b0da294a0e5010e02855f5aaf6b49"
 dependencies = [
  "alloy-rpc-types-engine",
  "http",

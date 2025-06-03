@@ -24,6 +24,7 @@ alloy-serde.workspace = true
 
 tokio-tungstenite.workspace = true
 
+# TODO: update to latest release when it is published
 # jsonrpsee = { version = "0.25.1", features = ["server", "http-client", "macros"] }
 jsonrpsee = { git = "https://github.com/paritytech/jsonrpsee", rev = "f04afa740e55db60dce20d9839758792f035ffff", features = ["server", "http-client", "macros"]}
 moka = { version = "0.12.10", features = ["future"] }
@@ -67,7 +68,7 @@ assert_cmd = "2.0.10"
 predicates = "3.1.2"
 tokio-util = { version = "0.7.13" }
 bytes = "1.2"
-reth-rpc-layer = { git = "https://github.com/paradigmxyz/reth.git", tag = "v1.4.4" }
+reth-rpc-layer = { git = "https://github.com/paradigmxyz/reth.git", tag = "v1.4.7" }
 ctor = "0.4.1"
 reqwest = "0.12.15"
 
