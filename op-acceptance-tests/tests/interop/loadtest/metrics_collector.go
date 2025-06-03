@@ -5,17 +5,19 @@ import (
 	"fmt"
 	"image/color"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
-	dto "github.com/prometheus/client_model/go"
 	"gonum.org/v1/plot"
 	"gonum.org/v1/plot/plotter"
 	"gonum.org/v1/plot/vg"
 )
 
 const (
+	subsystemName = "interop_loadtest"
+
 	inFlightMessagesName       = "inflight_messages"
 	targetMessagesPerBlockName = "target_messages_per_block"
 	messageStatusCountName     = "message_status_count"
@@ -24,19 +26,19 @@ const (
 var (
 	inFlightMessages = promauto.NewGauge(prometheus.GaugeOpts{
 		Name:      inFlightMessagesName,
-		Subsystem: "interop_loadtest",
+		Subsystem: subsystemName,
 		Help:      "Number of messages currently in flight between L2 chains",
 	})
 
 	targetMessagesPerBlock = promauto.NewGauge(prometheus.GaugeOpts{
 		Name:      targetMessagesPerBlockName,
-		Subsystem: "interop_loadtest",
+		Subsystem: subsystemName,
 		Help:      "Current target messages per block from AIMD scheduler",
 	})
 
 	messageStatusCount = promauto.NewCounterVec(prometheus.CounterOpts{
 		Name:      messageStatusCountName,
-		Subsystem: "interop_loadtest",
+		Subsystem: subsystemName,
 		Help:      "Total number of messages by status (success, init_failed, exec_failed)",
 	}, []string{"status"})
 )
@@ -57,37 +59,14 @@ func (sample *MetricSample) ToPoint(startTime time.Time) plotter.XY {
 
 type MetricSamples []MetricSample
 
-func (samples *MetricSamples) ToPoints(startTime time.Time, labels ...string) plotter.XYs {
+func (samples MetricSamples) ToPoints(startTime time.Time, labels ...string) plotter.XYs {
 	pts := make(plotter.XYs, 0)
-	for _, sample := range *samples {
+	for _, sample := range samples {
 		if isSubset(labels, sample.Labels) {
 			pts = append(pts, sample.ToPoint(startTime))
 		}
 	}
 	return pts
-}
-
-func (samples *MetricSamples) Append(timestamp time.Time, m prometheus.Metric) error {
-	sample := &dto.Metric{}
-	if err := m.Write(sample); err != nil {
-		return fmt.Errorf("write metric to sample: %w", err)
-	}
-	var value float64
-	if sample.Gauge != nil && sample.Gauge.Value != nil {
-		value = *sample.Gauge.Value
-	} else if sample.Counter != nil && sample.Counter.Value != nil {
-		value = *sample.Counter.Value
-	}
-	labels := make([]string, 0, len(sample.Label))
-	for _, labelPair := range sample.Label {
-		labels = append(labels, labelPair.GetValue())
-	}
-	*samples = append(*samples, MetricSample{
-		Timestamp: timestamp,
-		Value:     value,
-		Labels:    labels,
-	})
-	return nil
 }
 
 func isSubset[T comparable](xs []T, ys []T) bool {
@@ -108,26 +87,21 @@ Outer:
 
 // MetricsCollector collects metrics samples over time
 type MetricsCollector struct {
-	inFlightMessagesSamples       MetricSamples
-	targetMessagesPerBlockSamples MetricSamples
-	messageStatusSamples          MetricSamples
-	blockTime                     time.Duration
-	startTime                     time.Time
+	samples   map[string]MetricSamples
+	blockTime time.Duration
+	startTime time.Time
 }
 
 // NewMetricsCollector creates a new metrics collector with the given sampling interval.
 func NewMetricsCollector(blockTime time.Duration) *MetricsCollector {
 	return &MetricsCollector{
-		inFlightMessagesSamples:       make([]MetricSample, 0),
-		targetMessagesPerBlockSamples: make([]MetricSample, 0),
-		messageStatusSamples:          make([]MetricSample, 0),
-		blockTime:                     blockTime,
+		samples:   make(map[string]MetricSamples),
+		blockTime: blockTime,
 	}
 }
 
 // Start begins collecting metrics samples
 func (mc *MetricsCollector) Start(ctx context.Context) error {
-	lastMessageStatusCounts := make(map[string]float64, 0)
 	mc.startTime = time.Now()
 	ticker := time.NewTicker(mc.blockTime)
 	defer ticker.Stop()
@@ -135,22 +109,33 @@ func (mc *MetricsCollector) Start(ctx context.Context) error {
 		select {
 		case <-ctx.Done():
 			return nil
-		case <-ticker.C:
-			now := time.Now()
-			if err := mc.inFlightMessagesSamples.Append(now, inFlightMessages); err != nil {
-				return fmt.Errorf("append to inFlightMessagesSamples: %w", err)
+		case now := <-ticker.C:
+			metricFamilies, err := prometheus.DefaultGatherer.Gather()
+			if err != nil {
+				return fmt.Errorf("gather metrics: %w", err)
 			}
-			if err := mc.targetMessagesPerBlockSamples.Append(now, targetMessagesPerBlock); err != nil {
-				return fmt.Errorf("append to targetMessagesPerBlockSamples: %w", err)
-			}
-			for _, status := range []string{"success", "init_failed", "exec_failed"} {
-				if err := mc.messageStatusSamples.Append(now, messageStatusCount.WithLabelValues(status)); err != nil {
-					return fmt.Errorf("append to messageStatusSamples: %w", err)
+			for _, metricFamily := range metricFamilies {
+				name, hasPrefix := strings.CutPrefix(metricFamily.GetName(), subsystemName+"_")
+				if !hasPrefix {
+					continue // Skip metrics we don't care about.
 				}
-				currentCount := mc.messageStatusSamples[len(mc.messageStatusSamples)-1].Value
-				delta := currentCount - lastMessageStatusCounts[status]
-				mc.messageStatusSamples[len(mc.messageStatusSamples)-1].Value = delta
-				lastMessageStatusCounts[status] = currentCount
+				for _, metric := range metricFamily.GetMetric() {
+					var value float64
+					if metric.Gauge != nil && metric.Gauge.Value != nil {
+						value = *metric.Gauge.Value
+					} else if metric.Counter != nil && metric.Counter.Value != nil {
+						value = *metric.Counter.Value
+					}
+					labels := make([]string, 0, len(metric.Label))
+					for _, labelPair := range metric.Label {
+						labels = append(labels, labelPair.GetValue())
+					}
+					mc.samples[name] = append(mc.samples[name], MetricSample{
+						Timestamp: now,
+						Value:     value,
+						Labels:    labels,
+					})
+				}
 			}
 		}
 	}
@@ -164,8 +149,8 @@ func (mc *MetricsCollector) SaveGraph(dir string) error {
 	if err := mc.saveTargetMessagesPerBlockGraph(dir); err != nil {
 		return fmt.Errorf("save target messages per block graph: %w", err)
 	}
-	if err := mc.saveMessageStatusGraph(dir); err != nil {
-		return fmt.Errorf("save message status graph: %w", err)
+	if err := mc.saveMessageStatusCountGraph(dir); err != nil {
+		return fmt.Errorf("save message status count graph: %w", err)
 	}
 	return nil
 }
@@ -176,7 +161,7 @@ func (mc *MetricsCollector) saveInFlightMessagesGraph(dir string) error {
 	p.X.Label.Text = "Time (seconds)"
 	p.Y.Label.Text = "Messages"
 
-	line, err := plotter.NewLine(mc.inFlightMessagesSamples.ToPoints(mc.startTime))
+	line, err := plotter.NewLine(mc.samples[inFlightMessagesName].ToPoints(mc.startTime))
 	if err != nil {
 		return fmt.Errorf("create line plot: %w", err)
 	}
@@ -193,7 +178,7 @@ func (mc *MetricsCollector) saveTargetMessagesPerBlockGraph(dir string) error {
 	p.X.Label.Text = "Time (seconds)"
 	p.Y.Label.Text = "Target"
 
-	line, err := plotter.NewLine(mc.targetMessagesPerBlockSamples.ToPoints(mc.startTime))
+	line, err := plotter.NewLine(mc.samples[targetMessagesPerBlockName].ToPoints(mc.startTime))
 	if err != nil {
 		return fmt.Errorf("create line plot: %w", err)
 	}
@@ -204,13 +189,27 @@ func (mc *MetricsCollector) saveTargetMessagesPerBlockGraph(dir string) error {
 	return savePlot(p, dir, targetMessagesPerBlockName)
 }
 
-func (mc *MetricsCollector) saveMessageStatusGraph(dir string) error {
+func (mc *MetricsCollector) saveMessageStatusCountGraph(dir string) error {
 	p := plot.New()
 	p.Title.Text = "Messages by Status"
 	p.X.Label.Text = "Time (seconds)"
 	p.Y.Label.Text = "Messages"
 
-	successLine, err := plotter.NewLine(mc.messageStatusSamples.ToPoints(mc.startTime, "success"))
+	samples := mc.samples[messageStatusCountName]
+
+	// We want to visualize the number of new messages per block time, not the raw count at each block time.
+	normalize := func(points plotter.XYs) plotter.XYs {
+		var count float64
+		for i, point := range points {
+			newCount := point.Y
+			point.Y -= count
+			count = newCount
+			points[i] = point
+		}
+		return points
+	}
+
+	successLine, err := plotter.NewLine(normalize(samples.ToPoints(mc.startTime, "success")))
 	if err != nil {
 		return fmt.Errorf("create success line: %w", err)
 	}
@@ -219,7 +218,7 @@ func (mc *MetricsCollector) saveMessageStatusGraph(dir string) error {
 	p.Add(successLine)
 	p.Legend.Add("Success", successLine)
 
-	initFailedLine, err := plotter.NewLine(mc.messageStatusSamples.ToPoints(mc.startTime, "init_failed"))
+	initFailedLine, err := plotter.NewLine(normalize(samples.ToPoints(mc.startTime, "init_failed")))
 	if err != nil {
 		return fmt.Errorf("create init_failed line: %w", err)
 	}
@@ -228,7 +227,7 @@ func (mc *MetricsCollector) saveMessageStatusGraph(dir string) error {
 	p.Add(initFailedLine)
 	p.Legend.Add("Init Failed", initFailedLine)
 
-	execFailedLine, err := plotter.NewLine(mc.messageStatusSamples.ToPoints(mc.startTime, "exec_failed"))
+	execFailedLine, err := plotter.NewLine(normalize(samples.ToPoints(mc.startTime, "exec_failed")))
 	if err != nil {
 		return fmt.Errorf("create exec_failed line: %w", err)
 	}
