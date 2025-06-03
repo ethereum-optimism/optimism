@@ -66,11 +66,12 @@ contract ProposalValidator is OwnableUpgradeable, ReinitializableBase, ISemver {
     }
 
     /// @notice Struct for storing explicit data for each proposal type.
-    /// @param requiredApprovals The number of approvals each proposal type requires in order to be able to move for voting.
-    /// @param proposalTypeConfigurator The voting module each proposal type must use.
+    /// @param requiredApprovals The number of approvals each proposal type requires in order to be able to move for
+    /// voting.
+    /// @param proposalVotingModule The voting module each proposal type must use.
     struct ProposalTypeData {
         uint256 requiredApprovals;
-        uint8 proposalTypeConfigurator;
+        uint8 proposalVotingModule;
     }
 
     /// @notice Struct for storing voting cycle data.
@@ -113,7 +114,7 @@ contract ProposalValidator is OwnableUpgradeable, ReinitializableBase, ISemver {
     /// @param calldatas Function data for proposal calls.
     /// @param description Description of the proposal.
     /// @param proposalType Type of the proposal.
-    /// @param proposalTypeConfigurator Configuration value specific to the proposal type.
+    /// @param proposalVotingModule Voting module specific to the proposal type.
     event ProposalSubmitted(
         bytes32 indexed proposalHash,
         address indexed proposer,
@@ -122,7 +123,7 @@ contract ProposalValidator is OwnableUpgradeable, ReinitializableBase, ISemver {
         bytes[] calldatas,
         string description,
         ProposalType proposalType,
-        uint8 proposalTypeConfigurator
+        uint8 proposalVotingModule
     );
 
     /// @notice Emitted when a delegate approves a proposal.
@@ -155,8 +156,8 @@ contract ProposalValidator is OwnableUpgradeable, ReinitializableBase, ISemver {
     /// @notice Emitted when the proposal type data is set.
     /// @param proposalType The type of proposal.
     /// @param requiredApprovals The required number of approvals.
-    /// @param proposalTypeConfigurator The proposal type configurator.
-    event ProposalTypeDataSet(ProposalType proposalType, uint256 requiredApprovals, uint8 proposalTypeConfigurator);
+    /// @param proposalVotingModule The proposal voting module.
+    event ProposalTypeDataSet(ProposalType proposalType, uint256 requiredApprovals, uint8 proposalVotingModule);
 
     /// @notice The schema UID for attestations in the Ethereum Attestation Service.
     /// @dev Schema format: { approvedProposer: address, proposalType: uint8 }
@@ -287,7 +288,7 @@ contract ProposalValidator is OwnableUpgradeable, ReinitializableBase, ISemver {
             _calldatas,
             _description,
             _proposalType,
-            proposalTypeData.proposalTypeConfigurator
+            proposalTypeData.proposalVotingModule
         );
     }
 
@@ -346,7 +347,7 @@ contract ProposalValidator is OwnableUpgradeable, ReinitializableBase, ISemver {
         proposal.inVoting = true;
 
         governorProposalId_ =
-            GOVERNOR.propose(_targets, _values, _calldatas, _description, proposalTypeData.proposalTypeConfigurator);
+            GOVERNOR.propose(_targets, _values, _calldatas, _description, proposalTypeData.proposalVotingModule);
 
         emit ProposalMovedToVote(_proposalHash, msg.sender);
     }
@@ -511,7 +512,7 @@ contract ProposalValidator is OwnableUpgradeable, ReinitializableBase, ISemver {
     function _setProposalTypeData(ProposalType _proposalType, ProposalTypeData memory _proposalTypeData) private {
         proposalTypesData[_proposalType] = _proposalTypeData;
         emit ProposalTypeDataSet(
-            _proposalType, _proposalTypeData.requiredApprovals, _proposalTypeData.proposalTypeConfigurator
+            _proposalType, _proposalTypeData.requiredApprovals, _proposalTypeData.proposalVotingModule
         );
     }
 }

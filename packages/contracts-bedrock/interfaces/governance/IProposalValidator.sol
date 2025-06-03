@@ -29,7 +29,7 @@ interface IProposalValidator is ISemver {
 
     struct ProposalTypeData {
         uint256 requiredApprovals;
-        uint8 proposalTypeConfigurator;
+        uint8 proposalVotingModule;
     }
     
     enum ProposalType {
@@ -48,7 +48,7 @@ interface IProposalValidator is ISemver {
         bytes[] calldatas,
         string description,
         ProposalType proposalType,
-        uint8 proposalTypeConfigurator
+        uint8 proposalVotingModule
     );
 
     event ProposalApproved(
@@ -67,7 +67,7 @@ interface IProposalValidator is ISemver {
 
     event DistributionThresholdSet(uint256 newDistributionThreshold);
 
-    event ProposalTypeDataSet(ProposalType proposalType, uint256 requiredApprovals, uint8 proposalTypeConfigurator);
+    event ProposalTypeDataSet(ProposalType proposalType, uint256 requiredApprovals, uint8 proposalVotingModule);
     
     event VotingCycleDataSet(
         uint256 cycleNumber, 
@@ -144,7 +144,7 @@ interface IProposalValidator is ISemver {
 
     function ATTESTATION_SCHEMA_UID() external view returns (bytes32);
     
-    function proposalTypesData(ProposalType) external view returns (uint256 requiredApprovals, uint8 proposalTypeConfigurator);
+    function proposalTypesData(ProposalType) external view returns (uint256 requiredApprovals, uint8 proposalVotingModule);
     
     function votingCycles(uint256) external view returns (
         uint256 startingBlock, 
