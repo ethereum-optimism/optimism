@@ -31,6 +31,8 @@ contract PermissionedDisputeGame_Init is DisputeGameFactory_Init {
     /// @dev The `Clone` proxy of the game.
     IPermissionedDisputeGame internal gameProxy;
 
+    IDelayedWETH internal delayedWETH;
+
     /// @dev The extra data passed to the game for initialization.
     bytes internal extraData;
 
@@ -48,22 +50,7 @@ contract PermissionedDisputeGame_Init is DisputeGameFactory_Init {
         // Set the extra data for the game creation
         extraData = abi.encode(l2BlockNumber);
 
-        IPreimageOracle oracle = IPreimageOracle(
-            DeployUtils.create1({
-                _name: "PreimageOracle",
-                _args: DeployUtils.encodeConstructor(abi.encodeCall(IPreimageOracle.__constructor__, (0, 0)))
-            })
-        );
-        AlphabetVM _vm = new AlphabetVM(absolutePrestate, oracle);
-
-        // Use a 7 day delayed WETH to simulate withdrawals.
-        IDelayedWETH _weth = IDelayedWETH(
-            DeployUtils.create1({
-                _name: "DelayedWETH",
-                _args: DeployUtils.encodeConstructor(abi.encodeCall(IDelayedWETH.__constructor__, (7 days)))
-            })
-        );
-
+        delayedWETH = IDelayedWETH(payable(artifacts.mustGetAddress("DelayedWETHProxy")));
 
         IFaultDisputeGame.GameConstructorParams memory _params = IFaultDisputeGame.GameConstructorParams({
             gameType: GAME_TYPE,
@@ -71,29 +58,56 @@ contract PermissionedDisputeGame_Init is DisputeGameFactory_Init {
             splitDepth: 2 ** 2,
             clockExtension: Duration.wrap(3 hours),
             maxClockDuration: Duration.wrap(3.5 days),
-            weth: _weth,
-            l2ChainId: 0
+            weth: delayedWETH,
+            l2ChainId: 10
         });
 
-        // Deploy an implementation of the fault game
+        // Set preimage oracle challenge period to something arbitrary (4 seconds) just so we can
+        // actually test the clock extensions later on. This is not a realistic value.
+        AlphabetVM _vm = new AlphabetVM(
+            absolutePrestate,
+            IPreimageOracle(
+                DeployUtils.create1({
+                    _name: "PreimageOracle",
+                    _args: DeployUtils.encodeConstructor(abi.encodeCall(IPreimageOracle.__constructor__, (0, 4)))
+                })
+            )
+        );
+
+        // Deploy an implementation of the permissioned dispute game
         gameImpl = IPermissionedDisputeGame(
             DeployUtils.create1({
                 _name: "PermissionedDisputeGame",
                 _args: DeployUtils.encodeConstructor(
-                    abi.encodeCall(IPermissionedDisputeGame.__constructor__, (_params, PROPOSER, CHALLENGER))
+                    abi.encodeCall(
+                        IPermissionedDisputeGame.__constructor__,
+                        (
+                            IFaultDisputeGame.GameConstructorParams({
+                                gameType: _params.gameType,
+                                maxGameDepth: _params.maxGameDepth,
+                                splitDepth: _params.splitDepth,
+                                clockExtension: _params.clockExtension,
+                                maxClockDuration: _params.maxClockDuration,
+                                weth: _params.weth,
+                                l2ChainId: _params.l2ChainId
+                            }),
+                            PROPOSER,
+                            CHALLENGER
+                        )
+                    )
                 )
             })
         );
+
+        bytes memory implArgs = abi.encodePacked(absolutePrestate, _vm, anchorStateRegistry);
+
         // Register the game implementation with the factory.
-        disputeGameFactory.setImplementation(GAME_TYPE, gameImpl, "");
+        disputeGameFactory.setImplementation(GAME_TYPE, gameImpl, implArgs);
+
+        // Set an initial bond for the game type
+        uint256 bondAmount = disputeGameFactory.initBonds(GAME_TYPE);
 
         // Create a new game.
-        uint256 bondAmount = disputeGameFactory.initBonds(GAME_TYPE);
-        vm.mockCall(
-            address(anchorStateRegistry),
-            abi.encodeCall(anchorStateRegistry.anchors, (GAME_TYPE)),
-            abi.encode(rootClaim, 0)
-        );
         vm.prank(PROPOSER, PROPOSER);
         gameProxy = IPermissionedDisputeGame(
             payable(address(disputeGameFactory.create{ value: bondAmount }(GAME_TYPE, rootClaim, extraData)))
@@ -107,10 +121,12 @@ contract PermissionedDisputeGame_Init is DisputeGameFactory_Init {
         assertEq(gameProxy.maxGameDepth(), 2 ** 3);
         assertEq(gameProxy.splitDepth(), 2 ** 2);
         assertEq(gameProxy.maxClockDuration().raw(), 3.5 days);
+        assertEq(address(gameProxy.weth()), address(delayedWETH));
+        assertEq(address(gameProxy.anchorStateRegistry()), address(anchorStateRegistry));
         assertEq(address(gameProxy.vm()), address(_vm));
 
         // Label the proxy
-        vm.label(address(gameProxy), "FaultDisputeGame_Clone");
+        vm.label(address(gameProxy), "PermissionedDisputeGame_Clone");
     }
 
     fallback() external payable { }
