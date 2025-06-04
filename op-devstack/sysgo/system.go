@@ -206,6 +206,7 @@ func DefaultInteropSystem(dest *DefaultInteropSystemIDs) stack.Option[*Orchestra
 
 	opt.Add(WithDeployerOptions(
 		WithPrefundedL2(ids.L2B.ChainID()),
+		WithInteropAtGenesis(), // this can be overridden by later options
 	))
 	opt.Add(WithL2ELNode(ids.L2BEL, &ids.Supervisor))
 	opt.Add(WithL2CLNode(ids.L2BCL, true, true, ids.L1CL, ids.L1EL, ids.L2BEL))
