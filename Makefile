@@ -281,6 +281,21 @@ go-tests-short: $(TEST_DEPS) ## Runs comprehensive Go tests with -short flag
 	go test -short -parallel=$$PARALLEL -timeout=$(TEST_TIMEOUT) $(TEST_PKGS)
 .PHONY: go-tests-short
 
+go-tests-short-ci: ## Runs short Go tests with gotestsum for CI (assumes deps built by CI)
+	@echo "Setting up test directories..."
+	mkdir -p ./tmp/test-results ./tmp/testlogs
+	@echo "Running Go tests with gotestsum..."
+	$(DEFAULT_TEST_ENV_VARS) && \
+	$(CI_ENV_VARS) && \
+	gotestsum --format=testname \
+		--junitfile=./tmp/test-results/results.xml \
+		--jsonfile=./tmp/testlogs/log.json \
+		--rerun-fails=3 \
+		--rerun-fails-max-failures=50 \
+		--packages="$(TEST_PKGS) $(RPC_TEST_PKGS) $(FRAUD_PROOF_TEST_PKGS)" \
+		-- -parallel=$$PARALLEL -coverprofile=coverage.out -short -timeout=$(TEST_TIMEOUT)
+.PHONY: go-tests-short-ci
+
 go-tests-ci: ## Runs comprehensive Go tests with gotestsum for CI (assumes deps built by CI)
 	@echo "Setting up test directories..."
 	mkdir -p ./tmp/test-results ./tmp/testlogs

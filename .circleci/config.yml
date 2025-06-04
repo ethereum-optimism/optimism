@@ -1060,7 +1060,7 @@ jobs:
       rule:
         description: Rule to run the tests
         type: string
-        default: "go-tests-ci"
+        default: "go-tests-short-ci"
     machine: true
     resource_class: <<parameters.resource_class>>
     steps:
