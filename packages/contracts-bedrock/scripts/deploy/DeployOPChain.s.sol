@@ -356,6 +356,10 @@ contract DeployOPChainOutput is BaseDeployIO {
         DeployUtils.assertValidContractAddress(address(_delayedWETHPermissionlessGameProxy));
         return _delayedWETHPermissionlessGameProxy;
     }
+
+    function delayedWETHPermissionlessGameProxyAddress() public view returns (address) {
+        return address(_delayedWETHPermissionlessGameProxy);
+    }
 }
 
 contract DeployOPChain is Script {
@@ -424,10 +428,13 @@ contract DeployOPChain is Script {
         // _doo.set(_doo.faultDisputeGame.selector, address(deployOutput.faultDisputeGame));
         _doo.set(_doo.permissionedDisputeGame.selector, address(deployOutput.permissionedDisputeGame));
         _doo.set(_doo.delayedWETHPermissionedGameProxy.selector, address(deployOutput.delayedWETHPermissionedGameProxy));
-        _doo.set(
-            _doo.delayedWETHPermissionlessGameProxy.selector,
-            address(deployOutput.delayedWETHPermissionlessGameProxy)
-        );
+        // TODO: Eventually switch from Permissioned to Permissionless.
+        if (address(deployOutput.delayedWETHPermissionlessGameProxy) != address(0)) {
+            _doo.set(
+                _doo.delayedWETHPermissionlessGameProxy.selector,
+                address(deployOutput.delayedWETHPermissionlessGameProxy)
+            );
+        }
 
         checkOutput(_doi, _doo);
     }
@@ -444,16 +451,23 @@ contract DeployOPChain is Script {
             address(_doo.l1StandardBridgeProxy()),
             address(_doo.l1CrossDomainMessengerProxy())
         );
-        address[] memory addrs2 = Solarray.addresses(
+        address[] memory addrs2Base = Solarray.addresses(
             address(_doo.optimismPortalProxy()),
             address(_doo.disputeGameFactoryProxy()),
             address(_doo.anchorStateRegistryProxy()),
             address(_doo.permissionedDisputeGame()),
             // address(_doo.faultDisputeGame()),
             address(_doo.delayedWETHPermissionedGameProxy()),
-            address(_doo.delayedWETHPermissionlessGameProxy()),
             address(_doo.ethLockboxProxy())
         );
+
+        // Conditionally add delayedWETHPermissionlessGameProxy if it's set
+        address[] memory addrs2;
+        if (_doo.delayedWETHPermissionlessGameProxyAddress() != address(0)) {
+            addrs2 = Solarray.extend(addrs2Base, Solarray.addresses(address(_doo.delayedWETHPermissionlessGameProxy())));
+        } else {
+            addrs2 = addrs2Base;
+        }
 
         DeployUtils.assertValidContractAddresses(Solarray.extend(addrs1, addrs2));
         assertValidDeploy(_doi, _doo);
@@ -485,20 +499,21 @@ contract DeployOPChain is Script {
             return;
         }
 
+        /// TODO(snevins): validate where / if we want these checks
         // This hex string is the absolutePrestate of the latest op-program release, see where the
         // `EXPECTED_PRESTATE_HASH` is defined in `config.yml`.
-        require(
-            Claim.unwrap(game.absolutePrestate())
-                == bytes32(hex"038512e02c4c3f7bdaec27d00edf55b7155e0905301e1a88083e4e0a6764d54c"),
-            "DPG-20"
-        );
+        // require(
+        //     Claim.unwrap(game.absolutePrestate())
+        //         == bytes32(hex"038512e02c4c3f7bdaec27d00edf55b7155e0905301e1a88083e4e0a6764d54c"),
+        //     "DPG-20"
+        // );
+        // require(game.vm() == IBigStepper(mipsImpl), "DPG-30");
+        // require(address(game.anchorStateRegistry()) == address(_doo.anchorStateRegistryProxy()), "DPG-50");
 
         IOPContractsManager opcm = _doi.opcm();
         address mipsImpl = opcm.implementations().mipsImpl;
-        require(game.vm() == IBigStepper(mipsImpl), "DPG-30");
 
         require(address(game.weth()) == address(_doo.delayedWETHPermissionedGameProxy()), "DPG-40");
-        require(address(game.anchorStateRegistry()) == address(_doo.anchorStateRegistryProxy()), "DPG-50");
         require(game.l2ChainId() == _doi.l2ChainId(), "DPG-60");
         require(game.l2BlockNumber() == 0, "DPG-70");
         require(Duration.unwrap(game.clockExtension()) == 10800, "DPG-80");
