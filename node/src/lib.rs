@@ -40,3 +40,5 @@ pub use reth_optimism_payload_builder::{
 };
 
 pub use reth_optimism_evm::*;
+
+pub use reth_optimism_storage::OpStorage;

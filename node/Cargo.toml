@@ -37,6 +37,7 @@ reth-rpc-api.workspace = true
 reth-optimism-payload-builder.workspace = true
 reth-optimism-evm.workspace = true
 reth-optimism-rpc.workspace = true
+reth-optimism-storage.workspace = true
 reth-optimism-txpool.workspace = true
 reth-optimism-chainspec.workspace = true
 reth-optimism-consensus = { workspace = true, features = ["std"] }
@@ -94,9 +95,7 @@ asm-keccak = [
     "reth-optimism-node/asm-keccak",
     "reth-node-core/asm-keccak",
 ]
-js-tracer = [
-    "reth-node-builder/js-tracer",
-]
+js-tracer = ["reth-node-builder/js-tracer"]
 test-utils = [
     "reth-tasks",
     "reth-e2e-test-utils",
@@ -119,6 +118,4 @@ test-utils = [
     "reth-primitives-traits/test-utils",
     "reth-trie-common/test-utils",
 ]
-reth-codec = [
-    "reth-optimism-primitives/reth-codec",
-]
+reth-codec = ["reth-optimism-primitives/reth-codec"]
