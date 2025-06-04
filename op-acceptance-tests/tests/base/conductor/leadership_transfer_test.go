@@ -3,6 +3,7 @@ package base
 import (
 	"context"
 	"fmt"
+	"strings"
 	"testing"
 	"time"
 
@@ -10,6 +11,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
+	"github.com/ethereum-optimism/optimism/op-devstack/stack"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/stretchr/testify/require"
@@ -51,7 +53,8 @@ func TestConductorLeadershipTransfer(gt *testing.T) {
 
 		idToConductor := make(map[string]conductorWithInfo)
 		for _, conductor := range conductors {
-			idToConductor[conductor.String()] = conductorWithInfo{conductor, consensus.ServerInfo{}}
+			conductorId := strings.TrimPrefix(conductor.String(), stack.ConductorKind.String()+"-")
+			idToConductor[conductorId] = conductorWithInfo{conductor, consensus.ServerInfo{}}
 		}
 		for _, memberInfo := range membership.Servers {
 			conductor, ok := idToConductor[memberInfo.ID]

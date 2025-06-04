@@ -2,7 +2,6 @@ package dsl
 
 import (
 	"context"
-	"strings"
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-conductor/consensus"
@@ -33,7 +32,7 @@ func NewConductor(inner stack.Conductor) *Conductor {
 }
 
 func (c *Conductor) String() string {
-	return strings.TrimPrefix(c.inner.ID().String(), stack.ConductorKind.String()+"-")
+	return c.inner.ID().String()
 }
 
 func (c *Conductor) Escape() stack.Conductor {
