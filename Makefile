@@ -307,7 +307,7 @@ go-tests-ci: ## Runs comprehensive Go tests with gotestsum for CI (assumes deps 
 		--jsonfile=./tmp/testlogs/log.json \
 		--rerun-fails=3 \
 		--rerun-fails-max-failures=50 \
-		--packages="$(TEST_PKGS) $(RPC_TEST_PKGS) $(FRAUD_PROOF_TEST_PKGS)" \
+		--packages="$(TEST_PKGS) $(RPC_TEST_PKGS) $(FRAUD_PROOF_TEST_PKGS) -./op-acceptance-tests/tests/base/conductor/..." \
 		-- -parallel=$$PARALLEL -coverprofile=coverage.out -timeout=$(TEST_TIMEOUT)
 .PHONY: go-tests-ci
 

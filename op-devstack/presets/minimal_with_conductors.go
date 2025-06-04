@@ -16,6 +16,7 @@ type MinimalWithConductors struct {
 	ConductorSets map[stack.L2NetworkID]dsl.ConductorSet
 }
 
+// TODO: shift this to a different sysgo constructor once the sysgo implementation supports conductors
 func WithMinimalWithConductors() stack.CommonOption {
 	return stack.MakeCommon(sysgo.DefaultMinimalSystem(&sysgo.DefaultMinimalSystemIDs{}))
 }
