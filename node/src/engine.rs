@@ -107,7 +107,7 @@ where
 {
     /// Returns the chain spec used by the validator.
     #[inline]
-    fn chain_spec(&self) -> &ChainSpec {
+    pub fn chain_spec(&self) -> &ChainSpec {
         self.inner.chain_spec()
     }
 }
