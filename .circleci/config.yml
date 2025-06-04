@@ -1894,11 +1894,30 @@ workflows:
           context:
             - circleci-repo-readonly-authenticated-github-token
       - go-tests:
+          name: go-tests-short
           requires:
             - contracts-bedrock-build
             - cannon-prestate-quick
           context:
             - circleci-repo-readonly-authenticated-github-token
+          filters:
+            branches:
+              ignore: develop  # Run on all branches EXCEPT develop (PR branches only)
+      - go-tests:
+          name: go-tests-full
+          rule: "go-tests-ci"  # Run full test suite instead of short
+          no_output_timeout: 30m  # Longer timeout for full tests
+          test_timeout: 60m
+          notify: true
+          filters:
+            branches:
+              only: develop  # Only runs on develop branch (post-merge)
+          requires:
+            - contracts-bedrock-build
+            - cannon-prestate-quick
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+            - slack
       - analyze-op-program-client:
           context:
             - circleci-repo-readonly-authenticated-github-token
@@ -1918,7 +1937,7 @@ workflows:
             - op-program-docker-build
             - op-supervisor-docker-build
             - op-test-sequencer-docker-build
-            - go-tests
+            - go-tests-short
             - sanitize-op-program
           context:
             - circleci-repo-readonly-authenticated-github-tokens
