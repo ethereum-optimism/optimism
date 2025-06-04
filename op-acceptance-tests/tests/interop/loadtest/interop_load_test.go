@@ -27,10 +27,10 @@ func TestMain(m *testing.M) {
 	presets.DoMain(m, presets.WithSimpleInterop())
 }
 
-// TestSteady attempts to slightly exceed the gas target in every block by spamming interop messages,
+// TestSteady attempts to approach but not exceed the gas target in every block by spamming interop messages,
 // simulating benign but heavy activity.
 // The test will exit successfully after the global go test deadline or the timeout specified by the
-// NAT_INTEROP_STEADY_TIMEOUT environment variable elapses, whichever comes first.
+// NAT_STEADY_TIMEOUT environment variable elapses, whichever comes first.
 // Also see: https://github.com/golang/go/issues/48157.
 func TestSteady(gt *testing.T) {
 	t := setupT(gt)
@@ -45,7 +45,7 @@ func TestSteady(gt *testing.T) {
 	}
 	ctx, cancel := context.WithDeadline(t.Ctx(), deadline)
 	t.Cleanup(cancel) // We only care about the deadline.
-	if timeoutStr, exists := os.LookupEnv("NAT_INTEROP_LOADTEST_STEADY_TIMEOUT"); exists {
+	if timeoutStr, exists := os.LookupEnv("NAT_STEADY_TIMEOUT"); exists {
 		timeout, err := time.ParseDuration(timeoutStr)
 		t.Require().NoError(err)
 		ctx, cancel = context.WithTimeout(ctx, timeout)
@@ -64,8 +64,8 @@ func TestSteady(gt *testing.T) {
 			}
 			unsafe := dest.Unsafe()
 			gasTarget := unsafe.GasLimit() / elasticityMultiplier
-			// Apply backpressure when we're using at least 110% of the gas target.
-			aimd.Adjust(unsafe.GasUsed() < uint64(1.1*float64(gasTarget)))
+			// Apply backpressure when we meet or exceed the gas target.
+			aimd.Adjust(unsafe.GasUsed() < gasTarget)
 		}()
 	}
 }
