@@ -216,6 +216,7 @@ where
             .with_sequencer_headers(self.args.sequencer_headers.clone())
             .with_da_config(self.da_config.clone())
             .with_enable_tx_conditional(self.args.enable_tx_conditional)
+            .with_min_suggested_priority_fee(self.args.min_suggested_priority_fee)
             .build()
     }
 }
@@ -254,6 +255,7 @@ pub struct OpAddOns<N: FullNodeComponents, EthB: EthApiBuilder<N>, EV, EB> {
     pub sequencer_headers: Vec<String>,
     /// Enable transaction conditionals.
     enable_tx_conditional: bool,
+    min_suggested_priority_fee: u64,
 }
 
 impl<N, NetworkT> Default
@@ -302,6 +304,7 @@ where
             sequencer_url,
             sequencer_headers,
             enable_tx_conditional,
+            min_suggested_priority_fee,
         } = self;
         OpAddOns {
             rpc_add_ons: rpc_add_ons.with_engine_api(engine_api_builder),
@@ -309,6 +312,7 @@ where
             sequencer_url,
             sequencer_headers,
             enable_tx_conditional,
+            min_suggested_priority_fee,
         }
     }
 
@@ -320,6 +324,7 @@ where
             sequencer_url,
             sequencer_headers,
             enable_tx_conditional,
+            min_suggested_priority_fee,
         } = self;
         OpAddOns {
             rpc_add_ons: rpc_add_ons.with_engine_validator(engine_validator_builder),
@@ -327,6 +332,7 @@ where
             sequencer_url,
             sequencer_headers,
             enable_tx_conditional,
+            min_suggested_priority_fee,
         }
     }
 
@@ -382,6 +388,7 @@ where
             sequencer_url,
             sequencer_headers,
             enable_tx_conditional,
+            ..
         } = self;
 
         let builder = reth_optimism_payload_builder::OpPayloadBuilder::new(
@@ -507,6 +514,8 @@ pub struct OpAddOnsBuilder<NetworkT> {
     enable_tx_conditional: bool,
     /// Marker for network types.
     _nt: PhantomData<NetworkT>,
+    /// Minimum suggested priority fee (tip)
+    min_suggested_priority_fee: u64,
 }
 
 impl<NetworkT> Default for OpAddOnsBuilder<NetworkT> {
@@ -516,6 +525,7 @@ impl<NetworkT> Default for OpAddOnsBuilder<NetworkT> {
             sequencer_headers: Vec::new(),
             da_config: None,
             enable_tx_conditional: false,
+            min_suggested_priority_fee: 1_000_000,
             _nt: PhantomData,
         }
     }
@@ -545,6 +555,12 @@ impl<NetworkT> OpAddOnsBuilder<NetworkT> {
         self.enable_tx_conditional = enable_tx_conditional;
         self
     }
+
+    /// Configure the minimum priority fee (tip)
+    pub const fn with_min_suggested_priority_fee(mut self, min: u64) -> Self {
+        self.min_suggested_priority_fee = min;
+        self
+    }
 }
 
 impl<NetworkT> OpAddOnsBuilder<NetworkT> {
@@ -556,13 +572,21 @@ impl<NetworkT> OpAddOnsBuilder<NetworkT> {
         EV: Default,
         EB: Default,
     {
-        let Self { sequencer_url, sequencer_headers, da_config, enable_tx_conditional, .. } = self;
+        let Self {
+            sequencer_url,
+            sequencer_headers,
+            da_config,
+            enable_tx_conditional,
+            min_suggested_priority_fee,
+            ..
+        } = self;
 
         OpAddOns {
             rpc_add_ons: RpcAddOns::new(
                 OpEthApiBuilder::default()
                     .with_sequencer(sequencer_url.clone())
-                    .with_sequencer_headers(sequencer_headers.clone()),
+                    .with_sequencer_headers(sequencer_headers.clone())
+                    .with_min_suggested_priority_fee(min_suggested_priority_fee),
                 EV::default(),
                 EB::default(),
             ),
@@ -570,6 +594,7 @@ impl<NetworkT> OpAddOnsBuilder<NetworkT> {
             sequencer_url,
             sequencer_headers,
             enable_tx_conditional,
+            min_suggested_priority_fee,
         }
     }
 }
