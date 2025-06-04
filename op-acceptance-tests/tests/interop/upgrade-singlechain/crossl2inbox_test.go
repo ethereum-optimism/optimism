@@ -17,7 +17,6 @@ import (
 func TestPostInbox(gt *testing.T) {
 	t := devtest.ParallelT(gt)
 	sys := presets.NewSingleChainInterop(t)
-	t.Gate().Len(sys.L2Networks(), 1, "only applies with a single network")
 	devtest.RunParallel(t, sys.L2Networks(), func(t devtest.T, net *dsl.L2Network) {
 		require := t.Require()
 		el := net.Escape().L2ELNode(match.FirstL2EL)

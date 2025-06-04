@@ -44,10 +44,10 @@ func NewSingleChainInterop(t devtest.T) *SingleChainInterop {
 	orch := Orchestrator()
 	orch.Hydrate(system)
 
-	t.Gate().GreaterOrEqual(len(system.Supervisors()), 1, "expected at least one supervisor")
 	// At this point, any supervisor is acceptable but as the DSL gets fleshed out this should be selecting supervisors
 	// that fit with specific networks and nodes. That will likely require expanding the metadata exposed by the system
 	// since currently there's no way to tell which nodes are using which supervisor.
+	t.Gate().GreaterOrEqual(len(system.Supervisors()), 1, "expected at least one supervisor")
 
 	t.Gate().Equal(len(system.TestSequencers()), 1, "expected exactly one test sequencer")
 
@@ -189,6 +189,12 @@ func WithInteropNotAtGenesis() stack.CommonOption {
 			sys.T().Gate().NotNil(interopTime, "must have interop")
 			sys.T().Gate().NotZero(*interopTime, "must not be at genesis")
 		}
+	})
+}
+
+func WithL2NetworkCount(count int) stack.CommonOption {
+	return stack.PostHydrate[stack.Orchestrator](func(sys stack.System) {
+		sys.T().Gate().Lenf(sys.L2Networks(), count, "Must have exactly %v chains", count)
 	})
 }
 
