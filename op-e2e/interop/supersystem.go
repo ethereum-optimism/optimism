@@ -7,7 +7,6 @@ import (
 	"os"
 	"path"
 	"path/filepath"
-	"slices"
 	"sort"
 	"testing"
 	"time"
@@ -405,7 +404,7 @@ func (s *interopE2ESystem) Address(id, username string) common.Address {
 func (s *interopE2ESystem) prepareL2s() map[string]l2Net {
 	l2s := make(map[string]l2Net)
 	for id, l2Out := range s.worldOutput.L2s {
-		l2s[id] = s.newL2(id, l2Out)
+		l2s[id] = s.newL2(id, l2Out, s.DependencySet())
 	}
 	return l2s
 }
@@ -618,12 +617,7 @@ func worldToDepSet(world *interopgen.WorldOutput) (*depset.StaticConfigDependenc
 	// Iterate over the L2 chain configs. The L2 nodes don't exist yet.
 	for _, l2Out := range world.L2s {
 		chainID := eth.ChainIDFromBig(l2Out.Genesis.Config.ChainID)
-		chainIndex := supervisortypes.ChainIndex(100 + slices.Index(ids, chainID))
-		depSet[chainID] = &depset.StaticConfigDependency{
-			ChainIndex:     chainIndex,
-			ActivationTime: 0,
-			HistoryMinTime: 0,
-		}
+		depSet[chainID] = &depset.StaticConfigDependency{}
 	}
 	return depset.NewStaticConfigDependencySet(depSet)
 }

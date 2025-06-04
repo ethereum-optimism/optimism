@@ -2,7 +2,6 @@ package client
 
 import (
 	"errors"
-	"fmt"
 	"io"
 	"os"
 
@@ -18,14 +17,8 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 )
 
-var errInvalidConfig = errors.New("invalid config")
-
 type Config struct {
-	SkipValidation   bool
-	InteropEnabled   bool
-	ForceHintChainID bool
-	DB               l2.KeyValueStore
-	StoreBlockData   bool
+	InteropEnabled bool
 }
 
 // Main executes the client program in a detached context and exits the current process.
@@ -45,7 +38,6 @@ func Main(useInterop bool) {
 	preimageHinter := preimage.ClientHinterChannel()
 	config := Config{
 		InteropEnabled: useInterop,
-		DB:             memorydb.New(),
 	}
 	if err := RunProgram(logger, preimageOracle, preimageHinter, config); errors.Is(err, claim.ErrClaimNotValid) {
 		log.Error("Claim is invalid", "err", err)
@@ -64,16 +56,13 @@ func RunProgram(logger log.Logger, preimageOracle io.ReadWriter, preimageHinter 
 	pClient := preimage.NewOracleClient(preimageOracle)
 	hClient := preimage.NewHintWriter(preimageHinter)
 	l1PreimageOracle := l1.NewCachingOracle(l1.NewPreimageOracle(pClient, hClient))
-	l2PreimageOracle := l2.NewCachingOracle(l2.NewPreimageOracle(pClient, hClient, cfg.InteropEnabled || cfg.ForceHintChainID))
+	l2PreimageOracle := l2.NewCachingOracle(l2.NewPreimageOracle(pClient, hClient, cfg.InteropEnabled))
 
 	if cfg.InteropEnabled {
 		bootInfo := boot.BootstrapInterop(pClient)
-		return interop.RunInteropProgram(logger, bootInfo, l1PreimageOracle, l2PreimageOracle, !cfg.SkipValidation)
-	}
-	if cfg.DB == nil {
-		return fmt.Errorf("%w: db config is required", errInvalidConfig)
+		return interop.RunInteropProgram(logger, bootInfo, l1PreimageOracle, l2PreimageOracle)
 	}
 	bootInfo := boot.NewBootstrapClient(pClient).BootInfo()
-	derivationOptions := tasks.DerivationOptions{StoreBlockData: cfg.StoreBlockData, SkipValidation: cfg.SkipValidation}
-	return RunPreInteropProgram(logger, bootInfo, l1PreimageOracle, l2PreimageOracle, cfg.DB, derivationOptions)
+	db := memorydb.New()
+	return RunPreInteropProgram(logger, bootInfo, l1PreimageOracle, l2PreimageOracle, db, tasks.DerivationOptions{})
 }

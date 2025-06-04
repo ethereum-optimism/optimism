@@ -560,7 +560,7 @@ func (s *SyncClient) peerLoop(ctx context.Context, id peer.ID) {
 	}()
 
 	log := s.log.New("peer", id)
-	log.Info("Starting P2P sync client event loop")
+	log.Debug("Starting P2P sync client event loop")
 
 	// Implement the same rate limits as the server does per-peer,
 	// so we don't be too aggressive to the server.

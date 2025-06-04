@@ -411,14 +411,11 @@ func (n *OpNode) initL2(ctx context.Context, cfg *Config) error {
 	}
 
 	managedMode := false
-	if cfg.Rollup.InteropTime != nil {
-		sys, err := cfg.InteropConfig.Setup(ctx, n.log, &n.cfg.Rollup, n.l1Source, n.l2Source, n.metrics)
-		if err != nil {
-			return fmt.Errorf("failed to setup interop: %w", err)
-		}
-		if _, ok := sys.(*managed.ManagedMode); ok {
-			managedMode = ok
-		}
+	sys, err := cfg.InteropConfig.Setup(ctx, n.log, &n.cfg.Rollup, n.l1Source, n.l2Source, n.metrics)
+	if err != nil {
+		return fmt.Errorf("failed to setup interop: %w", err)
+	} else if sys != nil { // we continue with legacy mode if no interop sub-system is set up.
+		_, managedMode = sys.(*managed.ManagedMode)
 		n.interopSys = sys
 		n.eventSys.Register("interop", n.interopSys)
 	}
@@ -449,13 +446,13 @@ func (n *OpNode) initL2(ctx context.Context, cfg *Config) error {
 		return fmt.Errorf("cfg.Rollup.ChainOpConfig is nil. Please see https://github.com/ethereum-optimism/optimism/releases/tag/op-node/v1.11.0: %w", err)
 	}
 
-	n.l2Driver = driver.NewDriver(n.eventSys, n.eventDrain, &cfg.Driver, &cfg.Rollup, n.l2Source, n.l1Source,
+	n.l2Driver = driver.NewDriver(n.eventSys, n.eventDrain, &cfg.Driver, &cfg.Rollup, cfg.DependencySet, n.l2Source, n.l1Source,
 		n.beacon, n, n, n.log, n.metrics, cfg.ConfigPersistence, n.safeDB, &cfg.Sync, sequencerConductor, altDA, managedMode)
 	return nil
 }
 
 func (n *OpNode) initRPCServer(cfg *Config) error {
-	server := newRPCServer(&cfg.RPC, &cfg.Rollup,
+	server := newRPCServer(&cfg.RPC, &cfg.Rollup, cfg.DependencySet,
 		n.l2Source.L2Client, n.l2Driver, n.safeDB,
 		n.log, n.metrics, n.appVersion)
 	if p2pNode := n.getP2PNodeIfEnabled(); p2pNode != nil {

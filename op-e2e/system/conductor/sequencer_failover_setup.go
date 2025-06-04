@@ -27,6 +27,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/driver"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/interop"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/sync"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum-optimism/optimism/op-service/retry"
@@ -357,6 +358,7 @@ func sequencerCfg(conductorRPCEndpoint rollupNode.ConductorRPCFunc) *rollupNode.
 			ListenPort:  0,
 			EnableAdmin: true,
 		},
+		InteropConfig:               &interop.Config{},
 		L1EpochPollInterval:         time.Second * 2,
 		RuntimeConfigReloadInterval: time.Minute * 10,
 		ConfigPersistence:           &rollupNode.DisabledConfigPersistence{},

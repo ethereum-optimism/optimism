@@ -59,6 +59,7 @@ type ServiceContext interface {
 	GetMaybePublicIPAddress() string
 	GetPublicPorts() map[string]PortSpec
 	GetPrivatePorts() map[string]PortSpec
+	GetLabels() map[string]string
 }
 
 type EnclaveContext interface {

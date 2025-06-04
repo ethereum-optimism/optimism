@@ -7,11 +7,9 @@ import (
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/holiman/uint256"
-	"github.com/stretchr/testify/require"
-
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/log"
+	"github.com/holiman/uint256"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/devkeys"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer"
@@ -23,8 +21,8 @@ import (
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/intentbuilder"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/testreq"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/depset"
-	supervisortypes "github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 )
 
 // funderMnemonicIndex the funding account is not one of the 30 standard account, but still derived from a user-key.
@@ -120,11 +118,15 @@ func (d *L2Deployment) DisputeGameFactoryProxyAddr() common.Address {
 	return d.disputeGameFactoryProxy
 }
 
+type InteropMigration struct {
+	DisputeGameFactory common.Address
+}
+
 type worldBuilder struct {
 	p devtest.P
 
 	logger  log.Logger
-	require *require.Assertions
+	require *testreq.Assertions
 	keys    devkeys.Keys
 
 	builder intentbuilder.Builder
@@ -136,12 +138,11 @@ type worldBuilder struct {
 	outL2RollupCfg  map[eth.ChainID]*rollup.Config
 	outL2Deployment map[eth.ChainID]*L2Deployment
 
-	// outDepset is nil if none of the chains has a scheduled interop activation time
-	outDepset *depset.StaticConfigDependencySet
-
 	outFullCfgSet depset.FullConfigSetMerged
 
 	outSuperchainDeployment *SuperchainDeployment
+
+	outInteropMigration *InteropMigration
 }
 
 var (
@@ -184,6 +185,7 @@ func WithCommons(l1ChainID eth.ChainID) DeployerOption {
 		l1Config.WithPrefundedAccount(addrFor(devkeys.SuperchainProxyAdminOwner), *millionEth)
 		l1Config.WithPrefundedAccount(addrFor(devkeys.SuperchainProtocolVersionsOwner), *millionEth)
 		l1Config.WithPrefundedAccount(addrFor(devkeys.SuperchainConfigGuardianKey), *millionEth)
+		l1Config.WithPrefundedAccount(addrFor(devkeys.L1ProxyAdminOwnerRole), *millionEth)
 	}
 }
 
@@ -252,32 +254,6 @@ func (wb *worldBuilder) buildL2Genesis() {
 	}
 }
 
-func (wb *worldBuilder) buildDepSet() {
-	// Note: deployer has a dep set of itself, but it only supports the at-genesis case
-	// So we work around it, and build our own here for now.
-
-	// Deployer uses a different type than the dependency-set itself, so we have to convert
-	depSetContents := make(map[eth.ChainID]*depset.StaticConfigDependency)
-	for chainIndex, ch := range wb.output.Chains {
-		id := eth.ChainIDFromBytes32(ch.ID)
-		interopTime := wb.outL2Genesis[id].Config.InteropTime
-		if interopTime == nil {
-			continue
-		}
-		depSetContents[id] = &depset.StaticConfigDependency{
-			ChainIndex:     supervisortypes.ChainIndex(chainIndex),
-			ActivationTime: *interopTime,
-			HistoryMinTime: *interopTime,
-		}
-	}
-	if len(depSetContents) == 0 {
-		return // no dependency set output if no chain had interop active
-	}
-	staticDepSet, err := depset.NewStaticConfigDependencySet(depSetContents)
-	wb.require.NoError(err)
-	wb.outDepset = staticDepSet
-}
-
 func (wb *worldBuilder) buildL2DeploymentOutputs() {
 	wb.outL2Deployment = make(map[eth.ChainID]*L2Deployment)
 	for _, ch := range wb.output.Chains {
@@ -296,13 +272,13 @@ func (wb *worldBuilder) buildL2DeploymentOutputs() {
 func (wb *worldBuilder) buildFullConfigSet() {
 	// If no chain has interop active, the dep set will be nil here,
 	// so we should skip building the full config set.
-	if wb.outDepset == nil {
+	if wb.output.InteropDepSet == nil {
 		return
 	}
 
 	rollupConfigSet := depset.StaticRollupConfigSetFromRollupConfigMap(wb.outL2RollupCfg,
 		depset.StaticTimestamp(wb.outL1Genesis.Timestamp))
-	fullCfgSet, err := depset.NewFullConfigSetMerged(rollupConfigSet, wb.outDepset)
+	fullCfgSet, err := depset.NewFullConfigSetMerged(rollupConfigSet, wb.output.InteropDepSet)
 	wb.require.NoError(err)
 	wb.outFullCfgSet = fullCfgSet
 }
@@ -342,7 +318,6 @@ func (wb *worldBuilder) Build() {
 	wb.buildL1Genesis()
 	wb.buildL2Genesis()
 	wb.buildL2DeploymentOutputs()
-	wb.buildDepSet()
 	wb.buildFullConfigSet()
 }
 

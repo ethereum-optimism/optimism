@@ -123,13 +123,13 @@ type Config struct {
 	// Active if IsthmusTime != nil && L2 block timestamp >= *IsthmusTime, inactive otherwise.
 	IsthmusTime *uint64 `json:"isthmus_time,omitempty"`
 
-	// JovianTime sets the activation time of the Jovian network upgrade.
-	// Active if JovianTime != nil && L2 block timestamp >= *JovianTime, inactive otherwise.
-	JovianTime *uint64 `json:"jovian_time,omitempty"`
-
 	// InteropTime sets the activation time for an experimental feature-set, activated like a hardfork.
 	// Active if InteropTime != nil && L2 block timestamp >= *InteropTime, inactive otherwise.
 	InteropTime *uint64 `json:"interop_time,omitempty"`
+
+	// JovianTime sets the activation time of the Jovian network upgrade.
+	// Active if JovianTime != nil && L2 block timestamp >= *JovianTime, inactive otherwise.
+	JovianTime *uint64 `json:"jovian_time,omitempty"`
 
 	// Note: below addresses are part of the block-derivation process,
 	// and required to be the same network-wide to stay in consensus.
@@ -552,20 +552,45 @@ func (c *Config) IsInteropActivationBlock(l2BlockTime uint64) bool {
 // those timestamps. It can be used for both, L1 and L2 blocks.
 // TODO(12490): Currently only supports Holocene. Will be modularized in a follow-up.
 func (c *Config) IsActivationBlock(oldTime, newTime uint64) ForkName {
+	if c.IsInterop(newTime) && !c.IsInterop(oldTime) {
+		return Interop
+	}
+	if c.IsIsthmus(newTime) && !c.IsIsthmus(oldTime) {
+		return Isthmus
+	}
 	if c.IsHolocene(newTime) && !c.IsHolocene(oldTime) {
 		return Holocene
 	}
-	return ""
+	if c.IsGranite(newTime) && !c.IsGranite(oldTime) {
+		return Granite
+	}
+	if c.IsFjord(newTime) && !c.IsFjord(oldTime) {
+		return Fjord
+	}
+	if c.IsEcotone(newTime) && !c.IsEcotone(oldTime) {
+		return Ecotone
+	}
+	if c.IsDelta(newTime) && !c.IsDelta(oldTime) {
+		return Delta
+	}
+	if c.IsCanyon(newTime) && !c.IsCanyon(oldTime) {
+		return Canyon
+	}
+	return None
+}
+
+func (c *Config) IsActivationBlockForFork(l2BlockTime uint64, forkName ForkName) bool {
+	return c.IsActivationBlock(l2BlockTime-c.BlockTime, l2BlockTime) == forkName
 }
 
 func (c *Config) ActivateAtGenesis(hardfork ForkName) {
 	// IMPORTANT! ordered from newest to oldest
 	switch hardfork {
-	case Interop:
-		c.InteropTime = new(uint64)
-		fallthrough
 	case Jovian:
 		c.JovianTime = new(uint64)
+		fallthrough
+	case Interop:
+		c.InteropTime = new(uint64)
 		fallthrough
 	case Isthmus:
 		c.IsthmusTime = new(uint64)

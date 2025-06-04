@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	hdwallet "github.com/ethereum-optimism/go-ethereum-hdwallet"
+	"github.com/tyler-smith/go-bip39"
 
 	"github.com/ethereum/go-ethereum/accounts"
 	"github.com/ethereum/go-ethereum/common"
@@ -23,6 +24,18 @@ func NewMnemonicDevKeys(mnemonic string) (*MnemonicDevKeys, error) {
 	w, err := hdwallet.NewFromMnemonic(mnemonic)
 	if err != nil {
 		return nil, fmt.Errorf("invalid mnemonic: %w", err)
+	}
+	return &MnemonicDevKeys{w: w}, nil
+}
+
+func NewSaltedDevKeys(mnemonic string, salt string) (*MnemonicDevKeys, error) {
+	seed, err := bip39.NewSeedWithErrorChecking(mnemonic, salt)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create seed: %w", err)
+	}
+	w, err := hdwallet.NewFromSeed(seed)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create wallet: %w", err)
 	}
 	return &MnemonicDevKeys{w: w}, nil
 }

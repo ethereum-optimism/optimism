@@ -3,11 +3,10 @@ package dsl
 import (
 	"context"
 
-	"github.com/stretchr/testify/require"
-
 	"github.com/ethereum/go-ethereum/log"
 
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
+	"github.com/ethereum-optimism/optimism/op-service/testreq"
 )
 
 // commonImpl provides a set of common values and methods inherited by all DSL structs.
@@ -24,7 +23,7 @@ type commonImpl struct {
 	// T is a minimal test interface for panic-checks / assertions.
 	t devtest.T
 	// Require is a helper around the above T, ready to assert against.
-	require *require.Assertions
+	require *testreq.Assertions
 }
 
 func commonFromT(t devtest.T) commonImpl {

@@ -11,6 +11,8 @@ import (
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/ethereum/go-ethereum/log"
+
+	"github.com/ethereum-optimism/optimism/op-service/testreq"
 )
 
 // P is used by the preset package and system backends as testing interface, to host package-wide resources.
@@ -50,9 +52,10 @@ type implP struct {
 	// logger is used for logging. Regular test errors will also be redirected to get logged here.
 	logger log.Logger
 
-	// fail will be called to register a critical failure.
+	// failNow will be called to register a failure.
+	// The failure is intended to be critical if now==true.
 	// The implementer can choose to panic, crit-log, exit, etc. as preferred.
-	fail func()
+	onFail func(now bool)
 
 	ctx    context.Context
 	cancel context.CancelFunc
@@ -61,17 +64,27 @@ type implP struct {
 	cleanupLock    sync.Mutex
 	cleanupBacklog []func()
 
-	req *require.Assertions
+	req *testreq.Assertions
 }
 
 var _ P = (*implP)(nil)
 
-func (t *implP) Errorf(format string, args ...interface{}) {
+func (t *implP) Error(args ...any) {
+	t.logger.Error(fmt.Sprintln(args...))
+	t.Fail()
+}
+
+func (t *implP) Errorf(format string, args ...any) {
 	t.logger.Error(fmt.Sprintf(format, args...))
+	t.Fail()
+}
+
+func (t *implP) Fail() {
+	t.onFail(false)
 }
 
 func (t *implP) FailNow() {
-	t.fail()
+	t.onFail(true)
 }
 
 func (t *implP) TempDir() string {
@@ -95,6 +108,10 @@ func (t *implP) Cleanup(fn func()) {
 	t.cleanupLock.Lock()
 	defer t.cleanupLock.Unlock()
 	t.cleanupBacklog = append(t.cleanupBacklog, fn)
+}
+
+func (t *implP) Log(args ...any) {
+	t.logger.Info(fmt.Sprintln(args...))
 }
 
 func (t *implP) Logf(format string, args ...any) {
@@ -124,7 +141,7 @@ func (t *implP) Ctx() context.Context {
 type wrapP struct {
 	ctx    context.Context
 	logger log.Logger
-	req    *require.Assertions
+	req    *testreq.Assertions
 	P
 }
 
@@ -145,11 +162,11 @@ func (t *implP) WithCtx(ctx context.Context, args ...any) P {
 	logger := t.logger.New(args...)
 	logger.SetContext(ctx)
 	out := &wrapP{ctx: ctx, logger: logger, P: t}
-	out.req = require.New(out)
+	out.req = testreq.New(out)
 	return out
 }
 
-func (t *implP) Require() *require.Assertions {
+func (t *implP) Require() *testreq.Assertions {
 	return t.req
 }
 
@@ -196,15 +213,15 @@ func (t *implP) _PackageOnly() {
 	panic("do not use - this method only forces the interface to be unique")
 }
 
-func NewP(ctx context.Context, logger log.Logger, onFail func()) P {
+func NewP(ctx context.Context, logger log.Logger, onFail func(now bool)) P {
 	ctx, cancel := context.WithCancel(ctx)
 	out := &implP{
 		scopeName: "pkg",
 		logger:    logger,
-		fail:      onFail,
+		onFail:    onFail,
 		ctx:       AddTestScope(ctx, "pkg"),
 		cancel:    cancel,
 	}
-	out.req = require.New(out)
+	out.req = testreq.New(out)
 	return out
 }

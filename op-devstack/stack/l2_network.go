@@ -2,6 +2,7 @@ package stack
 
 import (
 	"crypto/ecdsa"
+	"log/slog"
 
 	"github.com/ethereum/go-ethereum/common"
 
@@ -13,14 +14,24 @@ import (
 // L2NetworkID identifies a L2Network by name and chainID, is type-safe, and can be value-copied and used as map key.
 type L2NetworkID idOnlyChainID
 
+var _ IDOnlyChainID = (*L2NetworkID)(nil)
+
 const L2NetworkKind Kind = "L2Network"
 
 func (id L2NetworkID) ChainID() eth.ChainID {
-	return idOnlyChainID(id).ChainID()
+	return eth.ChainID(id)
+}
+
+func (id L2NetworkID) Kind() Kind {
+	return L2NetworkKind
 }
 
 func (id L2NetworkID) String() string {
 	return idOnlyChainID(id).string(L2NetworkKind)
+}
+
+func (id L2NetworkID) LogValue() slog.Value {
+	return slog.StringValue(id.String())
 }
 
 func (id L2NetworkID) MarshalText() ([]byte, error) {

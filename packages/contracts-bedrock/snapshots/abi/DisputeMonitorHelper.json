@@ -82,6 +82,25 @@
     "type": "function"
   },
   {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "_value",
+        "type": "uint256"
+      }
+    ],
+    "name": "toRpcHexString",
+    "outputs": [
+      {
+        "internalType": "string",
+        "name": "hexString_",
+        "type": "string"
+      }
+    ],
+    "stateMutability": "pure",
+    "type": "function"
+  },
+  {
     "inputs": [],
     "name": "DisputeMonitorHelper_InvalidSearchRange",
     "type": "error"

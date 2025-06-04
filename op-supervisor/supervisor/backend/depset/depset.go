@@ -2,9 +2,11 @@ package depset
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
+	"github.com/ethereum/go-ethereum/common/math"
+	"github.com/ethereum/go-ethereum/superchain"
 )
 
 type DependencySetSource interface {
@@ -14,19 +16,6 @@ type DependencySetSource interface {
 // DependencySet is an initialized dependency set, ready to answer queries
 // of what is and what is not part of the dependency set.
 type DependencySet interface {
-
-	// CanExecuteAt determines if an executing message is valid at all.
-	// I.e. if the chain may be executing messages at the given timestamp.
-	// This may return an error if the query temporarily cannot be answered.
-	// E.g. if the DependencySet is syncing new changes.
-	CanExecuteAt(chainID eth.ChainID, execTimestamp uint64) (bool, error)
-
-	// CanInitiateAt determines if an initiating message is valid to pull in.
-	// I.e. if the message of the given chain is readable or not.
-	// This may return an error if the query temporarily cannot be answered.
-	// E.g. if the DependencySet is syncing new changes.
-	CanInitiateAt(chainID eth.ChainID, initTimestamp uint64) (bool, error)
-
 	// Chains returns the list of chains that are part of the dependency set.
 	Chains() []eth.ChainID
 
@@ -34,21 +23,28 @@ type DependencySet interface {
 	// See CanExecuteAt and CanInitiateAt to check if a chain may message at a given time.
 	HasChain(chainID eth.ChainID) bool
 
-	ChainIndexFromID(id eth.ChainID) (types.ChainIndex, error)
-
 	// MessageExpiryWindow returns the message expiry window to use for this dependency set.
 	MessageExpiryWindow() uint64
-
-	ChainIndexFromID
-	ChainIDFromIndex
 }
 
-type ChainIndexFromID interface {
-	// ChainIndexFromID converts a ChainID to a ChainIndex.
-	ChainIndexFromID(id eth.ChainID) (types.ChainIndex, error)
-}
-
-type ChainIDFromIndex interface {
-	// ChainIDFromIndex converts a ChainIndex to a ChainID.
-	ChainIDFromIndex(index types.ChainIndex) (eth.ChainID, error)
+// FromRegistry loads a dependency set from the superchain-registry.
+// Returns error of type superchain.ErrUnknownChain if the chain is not available in the superchain registry.
+func FromRegistry(chainID eth.ChainID) (DependencySet, error) {
+	id, ok := chainID.Uint64()
+	if !ok {
+		return nil, fmt.Errorf("%w: %v", superchain.ErrUnknownChain, chainID)
+	}
+	depSet, err := superchain.GetDepset(id)
+	if err != nil {
+		return nil, err
+	}
+	chains := make(map[eth.ChainID]*StaticConfigDependency)
+	for idStr := range depSet {
+		id, ok := math.ParseUint64(idStr)
+		if !ok {
+			return nil, fmt.Errorf("invalid chain ID in dependency set: %s", idStr)
+		}
+		chains[eth.ChainIDFromUInt64(id)] = &StaticConfigDependency{}
+	}
+	return NewStaticConfigDependencySet(chains)
 }

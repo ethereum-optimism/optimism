@@ -32,6 +32,7 @@ import { IL1StandardBridge } from "interfaces/L1/IL1StandardBridge.sol";
 import { IProxyAdminOwnedBase } from "interfaces/L1/IProxyAdminOwnedBase.sol";
 import { IStandardBridge } from "interfaces/universal/IStandardBridge.sol";
 import { IStandardValidator } from "interfaces/L1/IStandardValidator.sol";
+import { IMIPS64 } from "interfaces/cannon/IMIPS64.sol";
 
 /// @title BadDisputeGameFactoryReturner
 /// @notice Used to return a bad DisputeGameFactory address to the StandardValidator. Far easier
@@ -862,7 +863,17 @@ contract StandardValidator_PermissionedDisputeGame_Test is StandardValidator_Tes
     ///         PermissionedDisputeGame VM address is invalid.
     function test_validate_permissionedDisputeGameInvalidVM_succeeds() public {
         vm.mockCall(address(pdg), abi.encodeCall(IPermissionedDisputeGame.vm, ()), abi.encode(address(0xbad)));
-        assertEq("PDDG-50", _validate(true));
+        vm.mockCall(address(0xbad), abi.encodeCall(ISemver.version, ()), abi.encode("0.0.0"));
+        vm.mockCall(address(0xbad), abi.encodeCall(IMIPS64.stateVersion, ()), abi.encode(7));
+        assertEq("PDDG-VM-10,PDDG-VM-20", _validate(true));
+    }
+
+    /// @notice Tests that the validate function successfully returns the right error when the
+    ///         PermissionedDisputeGame VM's state version is invalid.
+    function test_validate_permissionedDisputeGameInvalidVMStateVersion_succeeds() public {
+        vm.mockCall(address(pdg), abi.encodeCall(IPermissionedDisputeGame.vm, ()), abi.encode(address(mips)));
+        vm.mockCall(address(mips), abi.encodeCall(IMIPS64.stateVersion, ()), abi.encode(6));
+        assertEq("PDDG-VM-30,PLDG-VM-30", _validate(true));
     }
 
     /// @notice Tests that the validate function successfully returns the right error when the
@@ -1166,7 +1177,17 @@ contract StandardValidator_FaultDisputeGame_Test is StandardValidator_TestInit {
     ///         FaultDisputeGame (permissionless) VM address is invalid.
     function test_validate_faultDisputeGameInvalidVM_succeeds() public {
         vm.mockCall(address(fdg), abi.encodeCall(IFaultDisputeGame.vm, ()), abi.encode(address(0xbad)));
-        assertEq("PLDG-50", _validate(true));
+        vm.mockCall(address(0xbad), abi.encodeCall(ISemver.version, ()), abi.encode("0.0.0"));
+        vm.mockCall(address(0xbad), abi.encodeCall(IMIPS64.stateVersion, ()), abi.encode(7));
+        assertEq("PLDG-VM-10,PLDG-VM-20", _validate(true));
+    }
+
+    /// @notice Tests that the validate function successfully returns the right error when the
+    ///         FaultDisputeGame (permissionless) VM's state version is invalid.
+    function test_validate_faultDisputeGameInvalidVMStateVersion_succeeds() public {
+        vm.mockCall(address(fdg), abi.encodeCall(IFaultDisputeGame.vm, ()), abi.encode(address(mips)));
+        vm.mockCall(address(mips), abi.encodeCall(IMIPS64.stateVersion, ()), abi.encode(6));
+        assertEq("PDDG-VM-30,PLDG-VM-30", _validate(true));
     }
 
     /// @notice Tests that the validate function successfully returns the right error when the

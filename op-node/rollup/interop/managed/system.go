@@ -24,6 +24,7 @@ import (
 type L2Source interface {
 	L2BlockRefByHash(ctx context.Context, hash common.Hash) (eth.L2BlockRef, error)
 	L2BlockRefByNumber(ctx context.Context, num uint64) (eth.L2BlockRef, error)
+	L2BlockRefByLabel(ctx context.Context, label eth.BlockLabel) (eth.L2BlockRef, error)
 	BlockRefByHash(ctx context.Context, hash common.Hash) (eth.BlockRef, error)
 	PayloadByHash(ctx context.Context, hash common.Hash) (*eth.ExecutionPayloadEnvelope, error)
 	BlockRefByNumber(ctx context.Context, num uint64) (eth.BlockRef, error)
@@ -33,6 +34,7 @@ type L2Source interface {
 
 type L1Source interface {
 	L1BlockRefByHash(ctx context.Context, hash common.Hash) (eth.L1BlockRef, error)
+	L1BlockRefByNumber(ctx context.Context, num uint64) (eth.L1BlockRef, error)
 }
 
 // ManagedMode makes the op-node managed by an op-supervisor,
@@ -54,6 +56,7 @@ type ManagedMode struct {
 }
 
 func NewManagedMode(log log.Logger, cfg *rollup.Config, addr string, port int, jwtSecret eth.Bytes32, l1 L1Source, l2 L2Source, m opmetrics.RPCMetricer) *ManagedMode {
+	log = log.With("mode", "managed", "chainId", cfg.L2ChainID)
 	out := &ManagedMode{
 		log:       log,
 		cfg:       cfg,
@@ -84,6 +87,7 @@ func (m *ManagedMode) Start(ctx context.Context) error {
 	if err := m.srv.Start(); err != nil {
 		return fmt.Errorf("failed to start interop RPC server: %w", err)
 	}
+	m.log.Info("Started interop RPC", "endpoint", m.WSEndpoint())
 	return nil
 }
 
@@ -113,21 +117,34 @@ func (m *ManagedMode) AttachEmitter(em event.Emitter) {
 	m.emitter = em
 }
 
+// Outgoing events to supervisor
 func (m *ManagedMode) OnEvent(ev event.Event) bool {
 	switch x := ev.(type) {
 	case rollup.ResetEvent:
 		msg := x.Err.Error()
 		m.events.Send(&supervisortypes.ManagedEvent{Reset: &msg})
 	case engine.UnsafeUpdateEvent:
+		if !m.cfg.IsInterop(x.Ref.Time) {
+			m.log.Debug("Ignoring non-Interop local unsafe update", "unsafe", x.Ref)
+			return false
+		}
 		ref := x.Ref.BlockRef()
 		m.events.Send(&supervisortypes.ManagedEvent{UnsafeBlock: &ref})
 	case engine.LocalSafeUpdateEvent:
+		if !m.cfg.IsInterop(x.Ref.Time) {
+			m.log.Debug("Ignoring non-Interop local safe update", "derivedFrom", x.Source, "derived", x.Ref)
+			return false
+		}
 		m.log.Info("Emitting local safe update because of L2 block", "derivedFrom", x.Source, "derived", x.Ref)
 		m.events.Send(&supervisortypes.ManagedEvent{DerivationUpdate: &supervisortypes.DerivedBlockRefPair{
 			Source:  x.Source,
 			Derived: x.Ref.BlockRef(),
 		}})
 	case derive.DeriverL1StatusEvent:
+		if !m.cfg.IsInterop(x.LastL2.Time) {
+			m.log.Debug("Ignoring non-Interop L1 traversal", "origin", x.Origin, "lastL2", x.LastL2)
+			return false
+		}
 		m.log.Info("Emitting local safe update because of L1 traversal", "derivedFrom", x.Origin, "derived", x.LastL2)
 		m.events.Send(&supervisortypes.ManagedEvent{
 			DerivationUpdate: &supervisortypes.DerivedBlockRefPair{
@@ -240,6 +257,15 @@ func (m *ManagedMode) InvalidateBlock(ctx context.Context, seal supervisortypes.
 }
 
 func (m *ManagedMode) AnchorPoint(ctx context.Context) (supervisortypes.DerivedBlockRefPair, error) {
+	// TODO: maybe cache non-genesis anchor point when seeing safe Interop activation block?
+	//  Only needed if we don't test for activation block in the supervisor.
+	if !m.cfg.IsInterop(m.cfg.Genesis.L2Time) {
+		return supervisortypes.DerivedBlockRefPair{}, &gethrpc.JsonError{
+			Code:    InteropInactiveRPCErrCode,
+			Message: "Interop inactive at genesis",
+		}
+	}
+
 	l1Ref, err := m.l1.L1BlockRefByHash(ctx, m.cfg.Genesis.L1.Hash)
 	if err != nil {
 		return supervisortypes.DerivedBlockRefPair{}, fmt.Errorf("failed to fetch L1 block ref: %w", err)
@@ -258,7 +284,15 @@ const (
 	InternalErrorRPCErrcode    = -32603
 	BlockNotFoundRPCErrCode    = -39001
 	ConflictingBlockRPCErrCode = -39002
+	InteropInactiveRPCErrCode  = -39003
 )
+
+// TODO: add ResetPreInterop, called by supervisor if bisection went pre-Interop. Emit ResetEngineRequestEvent.
+func (m *ManagedMode) ResetPreInterop(ctx context.Context) error {
+	m.log.Info("Received pre-interop reset request")
+	m.emitter.Emit(engine.ResetEngineRequestEvent{})
+	return nil
+}
 
 func (m *ManagedMode) Reset(ctx context.Context, lUnsafe, xUnsafe, lSafe, xSafe, finalized eth.BlockID) error {
 	logger := m.log.New(
@@ -328,17 +362,68 @@ func (m *ManagedMode) Reset(ctx context.Context, lUnsafe, xUnsafe, lSafe, xSafe,
 		return err
 	}
 
+	latestLocalUnsafe, err := m.scanL2ForLatestLocalUnsafe(ctx, lUnsafe)
+	if err != nil {
+		logger.Error("Cannot reset, local-unsafe block not known")
+		return err
+	}
+
 	m.emitter.Emit(rollup.ForceResetEvent{
-		// Unsafe is not provided, because it is never considered for reset.
-		// it is either invalid, in which case we cannot reset to it,
-		// or valid, in which case we reset to the full chain.
-		LocalUnsafe: eth.L2BlockRef{},
+		LocalUnsafe: latestLocalUnsafe,
 		CrossUnsafe: xUnsafeRef,
 		LocalSafe:   lSafeRef,
 		CrossSafe:   xSafeRef,
 		Finalized:   finalizedRef,
 	})
 	return nil
+}
+
+// scanL2ForLatestLocalUnsafe scans the op-node's L2 chain starting from l2Unsafe (which we know is valid because it's given by the supervisor)
+// and check until the latestUnsafe block.
+func (m *ManagedMode) scanL2ForLatestLocalUnsafe(ctx context.Context, l2Unsafe eth.BlockID) (eth.L2BlockRef, error) {
+	valid, err := m.l2.L2BlockRefByHash(ctx, l2Unsafe.Hash)
+	if err != nil {
+		return eth.L2BlockRef{}, err
+	}
+
+	latestUnsafe, err := m.l2.L2BlockRefByLabel(ctx, eth.Unsafe)
+	if err != nil {
+		return eth.L2BlockRef{}, err
+	}
+
+	m.log.Info("Scanning L2 for latest valid local unsafe", "valid", valid.Number, "latestUnsafe", latestUnsafe.Number)
+	if latestUnsafe.Number-valid.Number > 20 {
+		m.log.Warn("We are about to scan more than 20 blocks, this loop might need to be optimised", "valid.Number", valid.Number, "latest", latestUnsafe.Number)
+	}
+
+	next := valid.Number + 1
+
+	for next <= latestUnsafe.Number {
+		current, err := m.l2.L2BlockRefByNumber(ctx, next)
+		if err != nil {
+			m.log.Error("Failed to get L2 block ref", "err", err, "blocknum", next)
+			break
+		}
+
+		// make sure L1 origin hasn't been reorged
+		l1Blk, err := m.l1.L1BlockRefByNumber(ctx, current.L1Origin.Number)
+		if err != nil {
+			m.log.Error("Failed to get L1 block ref", "err", err, "blocknum", current.L1Origin.Number)
+			break
+		}
+		if l1Blk.Hash != current.L1Origin.Hash {
+			m.log.Warn("L1 block was reorged on this block, stopping scan", "current.number", current.Number, "current.L1Origin", current.L1Origin, "new-L1Origin", l1Blk)
+			break
+		}
+		valid = current
+		next++
+	}
+
+	m.log.Info("Latest valid L2 block", "valid", valid, "latestUnsafe", latestUnsafe)
+
+	// we return the most recent valid block
+	// in this context the definition of valid is that it's L1Origin is valid
+	return valid, nil
 }
 
 func (m *ManagedMode) ProvideL1(ctx context.Context, nextL1 eth.BlockRef) error {

@@ -36,9 +36,9 @@ func main() {
 	}
 
 	fmt.Println("\nServices:")
-	for svc, ports := range data.UserServices {
-		fmt.Printf("  %s:\n", svc)
-		for portName, portInfo := range ports {
+	for name, svc := range data.UserServices {
+		fmt.Printf("  %s:\n", name)
+		for portName, portInfo := range svc.Ports {
 			host := portInfo.Host
 			if host == "" {
 				host = "localhost"

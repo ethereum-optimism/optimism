@@ -32,7 +32,7 @@ func TestCreateSuperCannonGame(t *testing.T) {
 		sys.L2IDs()
 		game := disputeGameFactory.StartSuperCannonGame(ctx, common.Hash{0x01})
 		game.LogGameData(ctx)
-	}, WithNextVMOnly[any]())
+	})
 }
 
 func TestSuperCannonGame(t *testing.T) {
@@ -41,7 +41,7 @@ func TestSuperCannonGame(t *testing.T) {
 		sys, disputeGameFactory, _ := StartInteropFaultDisputeSystem(t, WithAllocType(allocType))
 		game := disputeGameFactory.StartSuperCannonGame(ctx, common.Hash{0x01})
 		testCannonGame(t, ctx, createSuperGameArena(t, sys, game), &game.SplitGameHelper)
-	}, WithNextVMOnly[any]())
+	})
 }
 
 func TestSuperCannonGame_ChallengeAllZeroClaim(t *testing.T) {

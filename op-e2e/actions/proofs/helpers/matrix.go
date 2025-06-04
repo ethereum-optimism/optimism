@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils"
+	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-program/client/claim"
 	"github.com/ethereum/go-ethereum/common"
 )
@@ -116,14 +117,14 @@ type ForkMatrix = []*Hardfork
 
 // Hardfork definitions
 var (
-	Regolith = &Hardfork{Name: "Regolith", Precedence: 1}
-	Canyon   = &Hardfork{Name: "Canyon", Precedence: 2}
-	Delta    = &Hardfork{Name: "Delta", Precedence: 3}
-	Ecotone  = &Hardfork{Name: "Ecotone", Precedence: 4}
-	Fjord    = &Hardfork{Name: "Fjord", Precedence: 5}
-	Granite  = &Hardfork{Name: "Granite", Precedence: 6}
-	Holocene = &Hardfork{Name: "Holocene", Precedence: 7}
-	Isthmus  = &Hardfork{Name: "Isthmus", Precedence: 8}
+	Regolith = &Hardfork{Name: string(rollup.Regolith), Precedence: 1}
+	Canyon   = &Hardfork{Name: string(rollup.Canyon), Precedence: 2}
+	Delta    = &Hardfork{Name: string(rollup.Delta), Precedence: 3}
+	Ecotone  = &Hardfork{Name: string(rollup.Ecotone), Precedence: 4}
+	Fjord    = &Hardfork{Name: string(rollup.Fjord), Precedence: 5}
+	Granite  = &Hardfork{Name: string(rollup.Granite), Precedence: 6}
+	Holocene = &Hardfork{Name: string(rollup.Holocene), Precedence: 7}
+	Isthmus  = &Hardfork{Name: string(rollup.Isthmus), Precedence: 8}
 )
 
 var (

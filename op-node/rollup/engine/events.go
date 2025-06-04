@@ -603,10 +603,8 @@ type ResetEngineControl interface {
 }
 
 func ForceEngineReset(ec ResetEngineControl, x rollup.ForceResetEvent) {
-	// local-unsafe is an optional attribute, empty to preserve the existing latest chain
-	if x.LocalUnsafe != (eth.L2BlockRef{}) {
-		ec.SetUnsafeHead(x.LocalUnsafe)
-	}
+	ec.SetUnsafeHead(x.LocalUnsafe)
+
 	// cross-safe is fine to revert back, it does not affect engine logic, just sync-status
 	ec.SetCrossUnsafeHead(x.CrossUnsafe)
 

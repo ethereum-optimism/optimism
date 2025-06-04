@@ -10,8 +10,8 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/rpc"
 
+	"github.com/ethereum-optimism/optimism/op-service/dial"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-	"github.com/ethereum-optimism/optimism/op-service/sources"
 )
 
 // BlockCaller is a subset of the [ethclient.Client] interface
@@ -64,7 +64,7 @@ func ForNextBlock(ctx context.Context, client BlockCaller) error {
 	return ForBlock(ctx, client, current+1)
 }
 
-func ForProcessingFullBatch(ctx context.Context, rollupCl *sources.RollupClient) error {
+func ForProcessingFullBatch(ctx context.Context, rollupCl dial.RollupClientInterface) error {
 	_, err := AndGet(ctx, time.Second, func() (*eth.SyncStatus, error) {
 		return rollupCl.SyncStatus(ctx)
 	}, func(syncStatus *eth.SyncStatus) bool {
@@ -73,7 +73,7 @@ func ForProcessingFullBatch(ctx context.Context, rollupCl *sources.RollupClient)
 	return err
 }
 
-func ForUnsafeBlock(ctx context.Context, rollupCl *sources.RollupClient, n uint64) error {
+func ForUnsafeBlock(ctx context.Context, rollupCl dial.RollupClientInterface, n uint64) error {
 	ctx, cancel := context.WithTimeout(ctx, 60*time.Second)
 	defer cancel()
 
@@ -85,7 +85,7 @@ func ForUnsafeBlock(ctx context.Context, rollupCl *sources.RollupClient, n uint6
 	return err
 }
 
-func ForSafeBlock(ctx context.Context, rollupClient *sources.RollupClient, n uint64) error {
+func ForSafeBlock(ctx context.Context, rollupClient dial.RollupClientInterface, n uint64) error {
 	ctx, cancel := context.WithTimeout(ctx, 60*time.Second)
 	defer cancel()
 	_, err := AndGet(ctx, time.Second, func() (*eth.SyncStatus, error) {

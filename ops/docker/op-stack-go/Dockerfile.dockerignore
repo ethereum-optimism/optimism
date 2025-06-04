@@ -19,6 +19,8 @@
 !/op-service
 !/op-supervisor
 !/op-test-sequencer
+!/op-e2e/e2eutils
+!/op-e2e/config
 !/op-wheel
 !/op-alt-da
 !/op-faucet

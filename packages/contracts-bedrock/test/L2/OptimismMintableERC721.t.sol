@@ -8,7 +8,9 @@ import { Strings } from "@openzeppelin/contracts/utils/Strings.sol";
 import { CommonTest } from "test/setup/CommonTest.sol";
 import { OptimismMintableERC721, IOptimismMintableERC721 } from "src/L2/OptimismMintableERC721.sol";
 
-contract OptimismMintableERC721_Test is CommonTest {
+/// @title OptimismMintableERC721_TestInit
+/// @notice Reusable test initialization for `OptimismMintableERC721` tests.
+contract OptimismMintableERC721_TestInit is CommonTest {
     ERC721 internal L1NFT;
     OptimismMintableERC721 internal L2NFT;
 
@@ -29,8 +31,12 @@ contract OptimismMintableERC721_Test is CommonTest {
         vm.label(address(L1NFT), "L1ERC721Token");
         vm.label(address(L2NFT), "L2ERC721Token");
     }
+}
 
-    /// @notice Tests that the constructor works as expected.
+/// @title OptimismMintableERC721_Constructor_Test
+/// @notice Tests the `constructor` of the `OptimismMintableERC721` contract.
+contract OptimismMintableERC721_Constructor_Test is OptimismMintableERC721_TestInit {
+    /// @notice Tests that the constructor initializes state variables correctly with valid inputs.
     function test_constructor_succeeds() external view {
         assertEq(L2NFT.name(), "L2NFT");
         assertEq(L2NFT.symbol(), "L2T");
@@ -42,36 +48,30 @@ contract OptimismMintableERC721_Test is CommonTest {
         assertEq(L2NFT.REMOTE_CHAIN_ID(), 1);
     }
 
-    /// @notice Tests that the bridge cannot be address(0) at construction time.
+    /// @notice Tests that the constructor reverts when the bridge address is zero.
     function test_constructor_bridgeAsAddress0_reverts() external {
         vm.expectRevert("OptimismMintableERC721: bridge cannot be address(0)");
         L2NFT = new OptimismMintableERC721(address(0), 1, address(L1NFT), "L2NFT", "L2T");
     }
 
-    /// @notice Tests that the remote chain ID cannot be zero at construction time.
+    /// @notice Tests that the constructor reverts when the remote chain ID is zero.
     function test_constructor_remoteChainId0_reverts() external {
         vm.expectRevert("OptimismMintableERC721: remote chain id cannot be zero");
         L2NFT = new OptimismMintableERC721(address(l2ERC721Bridge), 0, address(L1NFT), "L2NFT", "L2T");
     }
 
-    /// @notice Tests that the remote token cannot be address(0) at construction time.
+    /// @notice Tests that the constructor reverts when the remote token address is zero.
     function test_constructor_remoteTokenAsAddress0_reverts() external {
         vm.expectRevert("OptimismMintableERC721: remote token cannot be address(0)");
         L2NFT = new OptimismMintableERC721(address(l2ERC721Bridge), 1, address(0), "L2NFT", "L2T");
     }
+}
 
-    /// @notice Ensure that the contract supports the expected interfaces.
-    function test_supportsInterfaces_succeeds() external view {
-        // Checks if the contract supports the IOptimismMintableERC721 interface.
-        assertTrue(L2NFT.supportsInterface(type(IOptimismMintableERC721).interfaceId));
-        // Checks if the contract supports the IERC721Enumerable interface.
-        assertTrue(L2NFT.supportsInterface(type(IERC721Enumerable).interfaceId));
-        // Checks if the contract supports the IERC721 interface.
-        assertTrue(L2NFT.supportsInterface(type(IERC721).interfaceId));
-        // Checks if the contract supports the IERC165 interface.
-        assertTrue(L2NFT.supportsInterface(type(IERC165).interfaceId));
-    }
-
+/// @title OptimismMintableERC721_SafeMint_Test
+/// @notice Tests the `safeMint` function of the `OptimismMintableERC721` contract.
+contract OptimismMintableERC721_SafeMint_Test is OptimismMintableERC721_TestInit {
+    /// @notice Tests that the `safeMint` function successfully mints a token when called by the
+    ///         bridge.
     function test_safeMint_succeeds() external {
         // Expect a transfer event.
         vm.expectEmit(true, true, true, true);
@@ -89,13 +89,20 @@ contract OptimismMintableERC721_Test is CommonTest {
         assertEq(L2NFT.ownerOf(1), alice);
     }
 
+    /// @notice Tests that the `safeMint` function reverts when called by an address other than the bridge.
     function test_safeMint_notBridge_reverts() external {
         // Try to mint the token.
         vm.expectRevert("OptimismMintableERC721: only bridge can call this function");
         vm.prank(address(alice));
         L2NFT.safeMint(alice, 1);
     }
+}
 
+/// @title OptimismMintableERC721_Burn_Test
+/// @notice Tests the `burn` function of the `OptimismMintableERC721` contract.
+contract OptimismMintableERC721_Burn_Test is OptimismMintableERC721_TestInit {
+    /// @notice Tests that the `burn` function successfully burns a token when called by the
+    ///         bridge.
     function test_burn_succeeds() external {
         // Mint the token first.
         vm.prank(address(l2ERC721Bridge));
@@ -118,6 +125,8 @@ contract OptimismMintableERC721_Test is CommonTest {
         L2NFT.ownerOf(1);
     }
 
+    /// @notice Tests that the `burn` function reverts when called by an address other than the
+    ///         bridge.
     function test_burn_notBridge_reverts() external {
         // Mint the token first.
         vm.prank(address(l2ERC721Bridge));
@@ -128,7 +137,30 @@ contract OptimismMintableERC721_Test is CommonTest {
         vm.prank(address(alice));
         L2NFT.burn(alice, 1);
     }
+}
 
+/// @title OptimismMintableERC721_SupportsInterfaces_Test
+/// @notice Tests the `supportsInterfaces` function of the `OptimismMintableERC721` contract.
+contract OptimismMintableERC721_SupportsInterfaces_Test is OptimismMintableERC721_TestInit {
+    /// @notice Tests that the `supportsInterface` function returns true for
+    ///         IOptimismMintableERC721, IERC721Enumerable, IERC721 and IERC165 interfaces.
+    function test_supportsInterfaces_succeeds() external view {
+        // Checks if the contract supports the IOptimismMintableERC721 interface.
+        assertTrue(L2NFT.supportsInterface(type(IOptimismMintableERC721).interfaceId));
+        // Checks if the contract supports the IERC721Enumerable interface.
+        assertTrue(L2NFT.supportsInterface(type(IERC721Enumerable).interfaceId));
+        // Checks if the contract supports the IERC721 interface.
+        assertTrue(L2NFT.supportsInterface(type(IERC721).interfaceId));
+        // Checks if the contract supports the IERC165 interface.
+        assertTrue(L2NFT.supportsInterface(type(IERC165).interfaceId));
+    }
+}
+
+/// @title OptimismMintableERC721_Unclassified_Test
+/// @notice General tests that are not testing any function directly of the
+///         `OptimismMintableERC721` contract.
+contract OptimismMintableERC721_Unclassified_Test is OptimismMintableERC721_TestInit {
+    /// @notice Tests that the `tokenURI` function returns the correct URI for a minted token.
     function test_tokenURI_succeeds() external {
         // Mint the token first.
         vm.prank(address(l2ERC721Bridge));

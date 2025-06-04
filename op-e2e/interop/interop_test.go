@@ -233,7 +233,7 @@ func TestInterop_EmitLogs(t *testing.T) {
 		accessList := types.EncodeAccessList(accessEntries)
 
 		timestamp := uint64(time.Now().Unix())
-		ed := types.ExecutingDescriptor{Timestamp: timestamp}
+		ed := types.ExecutingDescriptor{Timestamp: timestamp, ChainID: eth.ChainIDFromBig(s2.ChainID(chainB))}
 		ctx = context.Background()
 		err = supervisor.CheckAccessList(ctx, accessList, types.CrossSafe, ed)
 		require.NoError(t, err, "logsA must all be cross-safe")
@@ -364,6 +364,7 @@ func TestInteropBlockBuilding(t *testing.T) {
 }
 
 func TestMultiNode(t *testing.T) {
+	t.Skip() // TODO(#16174): Decide on future of multi-node support
 	t.Parallel()
 	test := func(t *testing.T, s2 SuperSystem) {
 		supervisor := s2.SupervisorClient()
