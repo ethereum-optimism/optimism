@@ -2,6 +2,7 @@ package devtest
 
 import (
 	"context"
+	"log/slog"
 
 	"go.opentelemetry.io/otel/trace"
 
@@ -40,13 +41,23 @@ type testScopeCtxKeyType struct{}
 // testScopeCtxKey is a key added to the test-context to identify the test-scope.
 var testScopeCtxKey = testScopeCtxKeyType{}
 
+// testScopeValue wraps a string to implement slog.LogValuer for context handling
+type testScopeValue string
+
+func (t testScopeValue) LogValue() slog.Value {
+	return slog.StringValue(string(t))
+}
+
 // TestScope retrieves the test-scope from the context
 func TestScope(ctx context.Context) string {
 	scope := ctx.Value(testScopeCtxKey)
 	if scope == nil {
 		return ""
 	}
-	return scope.(string)
+	if scopeVal, ok := scope.(testScopeValue); ok {
+		return string(scopeVal)
+	}
+	return ""
 }
 
 // AddTestScope combines the sub-scope with the test-scope of the context,
@@ -54,5 +65,5 @@ func TestScope(ctx context.Context) string {
 func AddTestScope(ctx context.Context, scope string) context.Context {
 	prev := TestScope(ctx)
 	ctx = oplog.RegisterLogAttrOnContext(ctx, "scope", testScopeCtxKey)
-	return context.WithValue(ctx, testScopeCtxKey, prev+"/"+scope)
+	return context.WithValue(ctx, testScopeCtxKey, testScopeValue(prev+"/"+scope))
 }

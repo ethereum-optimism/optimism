@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"os"
 
 	"github.com/ethereum-optimism/optimism/op-service/logmods"
 )
@@ -78,7 +79,10 @@ func (c *contextHandler) Handle(ctx context.Context, record slog.Record) error {
 		if attr, ok := value.(slog.LogValuer); ok {
 			record.Add(name, attr)
 		} else {
-			return fmt.Errorf("invalid value %v in context for key of type %T, expected value to implement slog.LogValuer", value, key)
+			// Log the error to stderr to make the problem visible instead of silently failing
+			fmt.Fprintf(os.Stderr, "ERROR: invalid value %v in context for key of type %T, expected value to implement slog.LogValuer\n", value, key)
+			// Still continue processing other attributes to avoid complete logging failure
+			continue
 		}
 	}
 	return c.inner.Handle(ctx, record)

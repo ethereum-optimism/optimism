@@ -119,8 +119,20 @@ func TestContextHandler_HandleError(t *testing.T) {
 	record := slog.NewRecord(time.Now(), slog.LevelInfo, "test message", 0)
 	err := handler.Handle(ctx, record)
 
-	require.Error(t, err)
-	require.Contains(t, err.Error(), "expected value to implement slog.LogValuer")
+	// With the new behavior, no error is returned, but the log record is still processed
+	require.NoError(t, err)
+	require.Len(t, inner.records, 1)
+
+	// Verify the record was created but the invalid attribute was not added
+	found := false
+	inner.records[0].Attrs(func(attr slog.Attr) bool {
+		if attr.Key == "attr_name" {
+			found = true
+			return false
+		}
+		return true
+	})
+	require.False(t, found, "Invalid attribute should not be added to record")
 }
 
 func TestContextHandler_Enabled(t *testing.T) {
@@ -193,4 +205,47 @@ func TestForkedContexts(t *testing.T) {
 	require.Equal(t, keyA, fork2Index[0].key)
 	require.Equal(t, "c", fork2Index[1].name)
 	require.Equal(t, "keyC", fork2Index[1].key)
+}
+
+type scopeKeyType struct{}
+
+var scopeKey scopeKeyType = scopeKeyType{}
+
+func TestContextHandler_SilentLoggingBugFixed(t *testing.T) {
+	// This test verifies that when context values don't implement slog.LogValuer,
+	// the error is logged to stderr instead of being silently swallowed
+
+	inner := &testHandler{enabled: true}
+	handler := WrapContextHandler(inner)
+
+	ctx := context.Background()
+
+	// Add a context attribute that doesn't implement slog.LogValuer (the bug scenario)
+	ctx = RegisterLogAttrOnContext(ctx, "scope", scopeKey)
+
+	ctx = context.WithValue(ctx, scopeKey, "plain-string-value") // This would cause silent failure before
+
+	record := slog.NewRecord(time.Now(), slog.LevelInfo, "test message", 0)
+	err := handler.Handle(ctx, record)
+
+	// The handler should not return an error (which would be silently swallowed)
+	require.NoError(t, err)
+
+	// The log record should still be processed
+	require.Len(t, inner.records, 1)
+	require.Equal(t, "test message", inner.records[0].Message)
+
+	// The invalid context attribute should not be present in the log
+	found := false
+	inner.records[0].Attrs(func(attr slog.Attr) bool {
+		if attr.Key == "scope" {
+			found = true
+			return false
+		}
+		return true
+	})
+	require.False(t, found, "Invalid context attribute should not be added to log record")
+
+	// Note: The error message would be visible on stderr in real usage,
+	// making the problem apparent to developers instead of silent
 }
