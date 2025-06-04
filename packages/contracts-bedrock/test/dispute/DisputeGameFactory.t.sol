@@ -107,9 +107,11 @@ contract DisputeGameFactory_TestInit is CommonTest {
         params_ = abi.decode(args, (ISuperFaultDisputeGame.GameConstructorParams));
     }
 
-    function _setGame(address _gameImpl, GameType _gameType) internal {
+    function _setGame(address _gameImpl, GameType _gameType, Claim _absolutePrestate, AlphabetVM _vm) internal {
+        bytes memory implArgs = abi.encodePacked(_absolutePrestate, _vm, anchorStateRegistry);
+        
         vm.startPrank(disputeGameFactory.owner());
-        disputeGameFactory.setImplementation(_gameType, IDisputeGame(_gameImpl), ""); // TODO(snevins): validate correct parameters later
+        disputeGameFactory.setImplementation(_gameType, IDisputeGame(_gameImpl), implArgs);
         disputeGameFactory.setInitBond(_gameType, 0.08 ether);
         vm.stopPrank();
     }
@@ -131,7 +133,7 @@ contract DisputeGameFactory_TestInit is CommonTest {
             )
         });
 
-        _setGame(gameImpl_, GameTypes.SUPER_CANNON);
+        _setGame(gameImpl_, GameTypes.SUPER_CANNON, _absolutePrestate, vm_);
     }
 
     /// @notice Sets up a super permissioned game implementation
@@ -159,7 +161,7 @@ contract DisputeGameFactory_TestInit is CommonTest {
             )
         });
 
-        _setGame(gameImpl_, GameTypes.SUPER_PERMISSIONED_CANNON);
+        _setGame(gameImpl_, GameTypes.SUPER_PERMISSIONED_CANNON, _absolutePrestate, vm_);
     }
 
     /// @notice Sets up a fault game implementation
@@ -177,7 +179,7 @@ contract DisputeGameFactory_TestInit is CommonTest {
             )
         });
 
-        _setGame(gameImpl_, GameTypes.CANNON);
+        _setGame(gameImpl_, GameTypes.CANNON, _absolutePrestate, vm_);
     }
 
     function setupPermissionedDisputeGame(
@@ -203,7 +205,7 @@ contract DisputeGameFactory_TestInit is CommonTest {
             )
         });
 
-        _setGame(gameImpl_, GameTypes.PERMISSIONED_CANNON);
+        _setGame(gameImpl_, GameTypes.PERMISSIONED_CANNON, _absolutePrestate, vm_);
     }
 }
 
