@@ -193,7 +193,9 @@ func (p *presetL2Network) L2Challengers() []stack.L2Challenger {
 }
 
 func (p *presetL2Network) Conductors() []stack.Conductor {
-	return stack.SortConductors(p.conductors.Values())
+	output := stack.SortConductors(p.conductors.Values())
+	p.require().NotEmpty(output, "l2 chain %s must have at least one conductor", p.ID())
+	return output
 }
 
 func (p *presetL2Network) L2CLNodeIDs() []stack.L2CLNodeID {

@@ -7,6 +7,12 @@
 
 
 gates:
+  - id: conductor
+    description: "Sanity/smoke acceptance tests for networks with conductors."
+    tests:
+      - package: github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/base/conductor
+        timeout: 10m
+
   - id: base
     description: "Sanity/smoke acceptance tests for all networks."
     tests:

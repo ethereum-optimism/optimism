@@ -2,12 +2,23 @@ package dsl
 
 import (
 	"context"
+	"strings"
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-conductor/consensus"
 	"github.com/ethereum-optimism/optimism/op-devstack/stack"
 	"github.com/ethereum-optimism/optimism/op-service/retry"
 )
+
+type ConductorSet []*Conductor
+
+func NewConductorSet(inner []stack.Conductor) ConductorSet {
+	conductors := make([]*Conductor, len(inner))
+	for i, c := range inner {
+		conductors[i] = NewConductor(c)
+	}
+	return conductors
+}
 
 type Conductor struct {
 	commonImpl
@@ -22,7 +33,7 @@ func NewConductor(inner stack.Conductor) *Conductor {
 }
 
 func (c *Conductor) String() string {
-	return c.inner.ID().String()
+	return strings.TrimPrefix(c.inner.ID().String(), stack.ConductorKind.String()+"-")
 }
 
 func (c *Conductor) Escape() stack.Conductor {

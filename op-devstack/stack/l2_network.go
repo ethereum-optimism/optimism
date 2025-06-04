@@ -89,6 +89,7 @@ type L2Network interface {
 	L2Challenger(m L2ChallengerMatcher) L2Challenger
 	L2CLNode(m L2CLMatcher) L2CLNode
 	L2ELNode(m L2ELMatcher) L2ELNode
+	Conductor(m ConductorMatcher) Conductor
 
 	L2BatcherIDs() []L2BatcherID
 	L2ProposerIDs() []L2ProposerID
