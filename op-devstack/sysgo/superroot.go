@@ -144,20 +144,20 @@ func WithSuperRoots(l1ChainID eth.ChainID, l1ELID stack.L1ELNodeID, l2CLID stack
 			_, err = wait.ForReceiptOK(t.Ctx(), client, migrateTx.Hash())
 			require.NoError(err)
 
+			var sharedDGF common.Address
 			{
-				var dgf common.Address
 				for _, l2Deployment := range o.wb.outL2Deployment {
 					portal := getOptimismPortal(t, w3Client, l2Deployment.SystemConfigProxyAddr())
 					addr := getDisputeGameFactory(t, w3Client, portal)
-					if dgf == (common.Address{}) {
-						dgf = addr
+					if sharedDGF == (common.Address{}) {
+						sharedDGF = addr
 					} else {
-						require.Equal(dgf, addr, "dispute game factory address is not the same for all deployments")
+						require.Equal(sharedDGF, addr, "dispute game factory address is not the same for all deployments")
 					}
 				}
-				require.NotEmpty(getSuperGameImpl(t, w3Client, dgf))
+				require.NotEmpty(getSuperGameImpl(t, w3Client, sharedDGF))
 				o.wb.outInteropMigration = &InteropMigration{
-					DisputeGameFactory: dgf,
+					DisputeGameFactory: sharedDGF,
 				}
 			}
 
@@ -190,6 +190,9 @@ func WithSuperRoots(l1ChainID eth.ChainID, l1ELID stack.L1ELNodeID, l2CLID stack
 				oldSuperchainProxyAdminOwner,
 			)
 
+			for _, l2Deployment := range o.wb.outL2Deployment {
+				l2Deployment.disputeGameFactoryProxy = sharedDGF
+			}
 			t.Log("Interop migration complete")
 		},
 	}
