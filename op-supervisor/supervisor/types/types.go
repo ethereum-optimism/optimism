@@ -341,19 +341,10 @@ func (ed *ExecutingDescriptor) UnmarshalJSON(input []byte) error {
 	return nil
 }
 
-type ReferenceView struct {
-	Local eth.BlockID `json:"local"`
-	Cross eth.BlockID `json:"cross"`
-}
-
-func (v ReferenceView) String() string {
-	return fmt.Sprintf("View(local: %s, cross: %s)", v.Local, v.Cross)
-}
-
 type BlockSeal struct {
-	Hash      common.Hash
-	Number    uint64
-	Timestamp uint64
+	Hash      common.Hash `json:"hash"`
+	Number    uint64      `json:"number"`
+	Timestamp uint64      `json:"timestamp"`
 }
 
 func (s BlockSeal) String() string {
