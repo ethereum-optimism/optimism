@@ -203,3 +203,7 @@ func (n *L2Network) AwaitActivation(t devtest.T, forkName rollup.ForkName) eth.B
 
 	return unsafeHead.ID()
 }
+
+func (n *L2Network) Deployment() stack.L2Deployment {
+	return n.inner.Deployment()
+}
