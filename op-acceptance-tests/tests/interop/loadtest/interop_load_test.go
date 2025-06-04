@@ -7,6 +7,7 @@
 package loadtest
 
 import (
+	"math"
 	"math/rand"
 	"os"
 	"path/filepath"
@@ -28,20 +29,29 @@ func TestMain(m *testing.M) {
 
 // TestSteady attempts to slightly exceed the gas target in every block by spamming interop messages,
 // simulating benign but heavy activity.
-// Set NAT_INTEROP_LOADTEST_STEADY_TIMEOUT to configure TestSteady's timeout.
-// If unset, the test will run until the go test timeout before exiting successfully. Also see: https://github.com/golang/go/issues/48157.
+// The test will exit successfully after the global go test deadline or the timeout specified by the
+// NAT_INTEROP_STEADY_TIMEOUT environment variable elapses, whichever comes first.
+// Also see: https://github.com/golang/go/issues/48157.
 func TestSteady(gt *testing.T) {
 	t := setupT(gt)
 	var wg sync.WaitGroup
 	defer wg.Wait()
-	ctx := t.Ctx()
+
+	// Configure a context that will allow us to exit the test on time.
+	deadline := time.Unix(math.MaxInt64, 0)
+	testCtxDeadline, testCtxDeadlineExsts := t.Ctx().Deadline()
+	if testCtxDeadlineExsts {
+		deadline = testCtxDeadline.Add(-10 * time.Second) // Give some time for cleanup.
+	}
+	ctx, cancel := context.WithDeadline(t.Ctx(), deadline)
+	t.Cleanup(cancel) // We only care about the deadline.
 	if timeoutStr, exists := os.LookupEnv("NAT_INTEROP_LOADTEST_STEADY_TIMEOUT"); exists {
 		timeout, err := time.ParseDuration(timeoutStr)
 		t.Require().NoError(err)
-		var cancel context.CancelFunc
 		ctx, cancel = context.WithTimeout(ctx, timeout)
 		t.Cleanup(cancel) // We only care about the timeout.
 	}
+
 	aimd, source, dest := setupLoadTest(t, ctx, &wg)
 	elasticityMultiplier := dest.Config.ElasticityMultiplier()
 	for range aimd.Ready() {
