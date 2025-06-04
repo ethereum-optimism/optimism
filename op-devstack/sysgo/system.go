@@ -118,7 +118,8 @@ func DefaultSingleChainInteropSystem(dest *DefaultSingleChainInteropSystemIDs) s
 	l1ID := eth.ChainIDFromUInt64(900)
 	l2AID := eth.ChainIDFromUInt64(901)
 	ids := NewDefaultSingleChainInteropSystemIDs(l1ID, l2AID)
-	opt := defaultSingleChainInteropWithoutShared(&ids)
+	opt := stack.Combine[*Orchestrator]()
+	opt.Add(baseInteropSystem(&ids))
 
 	opt.Add(WithL2Challenger(ids.L2ChallengerA, ids.L1EL, ids.L1CL, &ids.Supervisor, &ids.Cluster, &ids.L2ACL, []stack.L2ELNodeID{
 		ids.L2AEL,
@@ -135,7 +136,10 @@ func DefaultSingleChainInteropSystem(dest *DefaultSingleChainInteropSystemIDs) s
 	return opt
 }
 
-func defaultSingleChainInteropWithoutShared(ids *DefaultSingleChainInteropSystemIDs) stack.CombinedOption[*Orchestrator] {
+// baseInteropSystem defines a system that supports interop with a single chain
+// Components which are shared across multiple chains are not started, allowing them to be added later including
+// any additional chains that have been added.
+func baseInteropSystem(ids *DefaultSingleChainInteropSystemIDs) stack.Option[*Orchestrator] {
 	opt := stack.Combine[*Orchestrator]()
 	opt.Add(stack.BeforeDeploy(func(o *Orchestrator) {
 		o.P().Logger().Info("Setting up")
@@ -200,9 +204,10 @@ func DefaultInteropSystem(dest *DefaultInteropSystemIDs) stack.Option[*Orchestra
 	l2AID := eth.ChainIDFromUInt64(901)
 	l2BID := eth.ChainIDFromUInt64(902)
 	ids := NewDefaultInteropSystemIDs(l1ID, l2AID, l2BID)
+	opt := stack.Combine[*Orchestrator]()
 
 	// start with single chain interop system
-	opt := defaultSingleChainInteropWithoutShared(&ids.DefaultSingleChainInteropSystemIDs)
+	opt.Add(baseInteropSystem(&ids.DefaultSingleChainInteropSystemIDs))
 
 	opt.Add(WithDeployerOptions(
 		WithPrefundedL2(ids.L2B.ChainID()),
