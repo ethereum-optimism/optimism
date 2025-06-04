@@ -361,7 +361,7 @@ where
     N: FullNodeComponents<
         Types: NodeTypes<
             ChainSpec: OpHardforks,
-            Primitives = OpPrimitives,
+            Primitives: OpPayloadPrimitives,
             Storage = OpStorage,
             Payload: EngineTypes<ExecutionData = OpExecutionData>,
         >,
