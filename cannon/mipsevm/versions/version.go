@@ -23,8 +23,10 @@ const (
 	VersionMultiThreaded_v2
 	// VersionMultiThreaded64_v3 includes futex handling simplification
 	VersionMultiThreaded64_v3
-	// VersionMultiThreaded64_v4 is the latest 64-bit multithreaded vm, includes support for new syscall eventfd2 and dclo/dclz instructions
+	// VersionMultiThreaded64_v4 adds support for new noop syscalls eventfd2 and mprotect, and dclo/dclz instructions
 	VersionMultiThreaded64_v4
+	// VersionMultiThreaded64_v5 adds support for a working (non-noop) getrandom syscall
+	VersionMultiThreaded64_v5
 )
 
 var StateVersionTypes = []StateVersion{
@@ -36,6 +38,7 @@ var StateVersionTypes = []StateVersion{
 	VersionMultiThreaded_v2,
 	VersionMultiThreaded64_v3,
 	VersionMultiThreaded64_v4,
+	VersionMultiThreaded64_v5,
 }
 
 func (s StateVersion) String() string {
@@ -56,6 +59,8 @@ func (s StateVersion) String() string {
 		return "multithreaded64-3"
 	case VersionMultiThreaded64_v4:
 		return "multithreaded64-4"
+	case VersionMultiThreaded64_v5:
+		return "multithreaded64-5"
 	default:
 		return "unknown"
 	}
@@ -79,6 +84,8 @@ func ParseStateVersion(ver string) (StateVersion, error) {
 		return VersionMultiThreaded64_v3, nil
 	case "multithreaded64-4":
 		return VersionMultiThreaded64_v4, nil
+	case "multithreaded64-5":
+		return VersionMultiThreaded64_v5, nil
 	default:
 		return StateVersion(0), errors.New("unknown state version")
 	}

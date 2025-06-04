@@ -23,13 +23,13 @@ func (n *L2ELNode) hydrate(system stack.ExtensibleSystem) {
 	require.NoError(err)
 	system.T().Cleanup(rpcCl.Close)
 
-	l2Net := system.L2Network(stack.L2NetworkID(n.id.ChainID))
+	l2Net := system.L2Network(stack.L2NetworkID(n.id.ChainID()))
 	sysL2EL := shim.NewL2ELNode(shim.L2ELNodeConfig{
 		RollupCfg: l2Net.RollupConfig(),
 		ELNodeConfig: shim.ELNodeConfig{
 			CommonConfig: shim.NewCommonConfig(system.T()),
 			Client:       rpcCl,
-			ChainID:      n.id.ChainID,
+			ChainID:      n.id.ChainID(),
 		},
 		ID: n.id,
 	})
@@ -39,14 +39,11 @@ func (n *L2ELNode) hydrate(system stack.ExtensibleSystem) {
 
 func WithL2ELNode(id stack.L2ELNodeID, supervisorID *stack.SupervisorID) stack.Option[*Orchestrator] {
 	return stack.AfterDeploy(func(orch *Orchestrator) {
-		ctx := orch.P().Ctx()
-		ctx = stack.ContextWithChainID(ctx, id.ChainID)
-		ctx = stack.ContextWithKind(ctx, stack.L2ELNodeKind)
-		p := orch.P().WithCtx(ctx, "id", id)
+		p := orch.P().WithCtx(stack.ContextWithID(orch.P().Ctx(), id))
 
 		require := p.Require()
 
-		l2Net, ok := orch.l2Nets.Get(id.ChainID)
+		l2Net, ok := orch.l2Nets.Get(id.ChainID())
 		require.True(ok, "L2 network required")
 
 		jwtPath, _ := orch.writeDefaultJWT()

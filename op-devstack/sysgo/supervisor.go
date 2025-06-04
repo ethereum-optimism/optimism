@@ -94,9 +94,7 @@ func (s *Supervisor) Stop() {
 
 func WithSupervisor(supervisorID stack.SupervisorID, clusterID stack.ClusterID, l1ELID stack.L1ELNodeID) stack.Option[*Orchestrator] {
 	return stack.AfterDeploy(func(orch *Orchestrator) {
-		ctx := orch.P().Ctx()
-		ctx = stack.ContextWithKind(ctx, stack.TestSequencerKind)
-		p := orch.P().WithCtx(ctx, "service", "op-supervisor", "id", supervisorID)
+		p := orch.P().WithCtx(stack.ContextWithID(orch.P().Ctx(), supervisorID))
 		require := p.Require()
 
 		l1EL, ok := orch.l1ELs.Get(l1ELID)
@@ -106,6 +104,7 @@ func WithSupervisor(supervisorID stack.SupervisorID, clusterID stack.ClusterID, 
 		require.True(ok, "need cluster to determine dependency set")
 
 		require.NotNil(cluster.cfgset, "need a full config set")
+		require.NoError(cluster.cfgset.CheckChains(), "config set must be valid")
 		cfg := &supervisorConfig.Config{
 			MetricsConfig: metrics.CLIConfig{
 				Enabled: false,

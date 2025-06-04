@@ -1,14 +1,44 @@
 package stack
 
-import "github.com/ethereum-optimism/optimism/op-service/apis"
+import (
+	"log/slog"
+
+	"github.com/ethereum-optimism/optimism/op-service/apis"
+	"github.com/ethereum-optimism/optimism/op-service/eth"
+)
 
 // L2BatcherID identifies a L2Batcher by name and chainID, is type-safe, and can be value-copied and used as map key.
 type L2BatcherID idWithChain
 
+var _ IDWithChain = (*L2BatcherID)(nil)
+
 const L2BatcherKind Kind = "L2Batcher"
+
+func NewL2BatcherID(key string, chainID eth.ChainID) L2BatcherID {
+	return L2BatcherID{
+		key:     key,
+		chainID: chainID,
+	}
+}
 
 func (id L2BatcherID) String() string {
 	return idWithChain(id).string(L2BatcherKind)
+}
+
+func (id L2BatcherID) ChainID() eth.ChainID {
+	return id.chainID
+}
+
+func (id L2BatcherID) Kind() Kind {
+	return L2BatcherKind
+}
+
+func (id L2BatcherID) Key() string {
+	return id.key
+}
+
+func (id L2BatcherID) LogValue() slog.Value {
+	return slog.StringValue(id.String())
 }
 
 func (id L2BatcherID) MarshalText() ([]byte, error) {

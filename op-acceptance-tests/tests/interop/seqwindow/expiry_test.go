@@ -1,7 +1,6 @@
 package seqwindow
 
 import (
-	"strings"
 	"testing"
 	"time"
 
@@ -10,7 +9,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-	"github.com/ethereum-optimism/optimism/op-service/retry"
 )
 
 // TestSequencingWindowExpiry tests that the sequencing window may expire,
@@ -28,7 +26,7 @@ func TestSequencingWindowExpiry(gt *testing.T) {
 	tx1 := alice.Transfer(common.HexToAddress("0x7777"), eth.GWei(100))
 	receipt1, err := tx1.Included.Eval(t.Ctx())
 	require.NoError(err)
-	t.Logger().Info("Confirmed tx 1", "tx", receipt1.TxHash, "block", receipt1.BlockHash)
+	t.Logger().Info("Confirmed tx 1", "tx", receipt1.TxHash, "block", receipt1.BlockHash, "number", receipt1.BlockNumber)
 
 	// Wait for the first tx to become cross-safe.
 	// We are not interested in the sequencing window to expire and revert all the way back to 0.
@@ -36,18 +34,13 @@ func TestSequencingWindowExpiry(gt *testing.T) {
 		stat, err := sys.L2CLA.Escape().RollupAPI().SyncStatus(t.Ctx())
 		require.NoError(err)
 		return stat.SafeL2.Number > receipt1.BlockNumber.Uint64()
-	}, time.Second*30, time.Second, "wait for tx 1 to be safe")
+	}, time.Second*45, time.Second, "wait for tx 1 to be safe")
 	t.Logger().Info("Tx 1 is safe now")
 
 	// Stop the batcher of chain A, so the L2 unsafe blocks will not get submitted.
 	// This may take a while, since the batcher is still actively submitting new data.
-	require.NoError(retry.Do0(t.Ctx(), 10, retry.Exponential(), func() error {
-		err := sys.L2BatcherA.ActivityAPI().StopBatcher(t.Ctx())
-		if err != nil && strings.Contains(err.Error(), "batcher is not running") {
-			return nil
-		}
-		return err
-	}))
+	sys.L2BatcherA.Stop()
+
 	stoppedAt := sys.L1Network.WaitForBlock() // wait for new block, in case there is any batch left
 	// Make sure the supervisor has synced enough of the L1, for the local-safe query to work.
 	sys.Supervisor.AwaitMinL1(stoppedAt.Number)
@@ -133,7 +126,7 @@ func TestSequencingWindowExpiry(gt *testing.T) {
 
 	t.Logger().Info("Re-enabling batch-submitter")
 	// re-enable the batcher now that we are done with the test.
-	t.Require().NoError(sys.L2BatcherA.ActivityAPI().StartBatcher(t.Ctx()))
+	sys.L2BatcherA.Start()
 	// TODO(#16036): batcher submits future span batch, misses a L2 block.
 	// For now it uses singular batches to work-around.
 

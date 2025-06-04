@@ -20,7 +20,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/txplan"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/log"
 
 	"github.com/stretchr/testify/require"
@@ -159,88 +158,4 @@ func SetupDefaultInteropSystemTest(l2ChainNums int) ([]validators.WalletGetter, 
 		totalValidators = append(totalValidators, fundsValidator)
 	}
 	return walletGetters, totalValidators
-}
-
-// FundWalletsFromFaucet funds wallet and returns txplan options which encapsulates funded wallet
-func FundWalletFromFaucet(ctx context.Context, logger log.Logger, sys system.InteropSystem, chainIdx int, faucetOpt txplan.Option, amount *big.Int) (txplan.Option, error) {
-	if len(sys.L2s()) < chainIdx {
-		return nil, fmt.Errorf("invalid chain idx: %d", chainIdx)
-	}
-	chain := sys.L2s()[chainIdx]
-	if len(chain.Nodes()) == 0 {
-		return nil, fmt.Errorf("no node available at chain: %s", chain.ID())
-	}
-	node := chain.Nodes()[0]
-	privateKey, err := crypto.GenerateKey()
-	if err != nil {
-		return nil, err
-	}
-	wallet, err := system.NewWalletV2(ctx, node.RPCURL(), privateKey, nil, logger)
-	if err != nil {
-		return nil, err
-	}
-	to := crypto.PubkeyToAddress(privateKey.PublicKey)
-	opt := DefaultTxOpts(wallet)
-	tx := txplan.NewPlannedTx(faucetOpt, txplan.WithValue(amount), txplan.WithTo(&to))
-	_, err = tx.Included.Eval(ctx)
-	if err != nil {
-		return nil, err
-	}
-	logger.Info("Funded", "address", to, "chainID", chain.ID())
-	return opt, nil
-}
-
-// FundWalletsFromFaucet funds wallets and returns txplan options which encapsulates funded wallets
-func FundWalletsFromFaucet(ctx context.Context, logger log.Logger, sys system.InteropSystem, chainIdx int, faucetOpt txplan.Option, amount *big.Int, cnt int) ([]txplan.Option, error) {
-	opts := []txplan.Option{}
-	for range cnt {
-		opt, err := FundWalletFromFaucet(ctx, logger, sys, chainIdx, faucetOpt, amount)
-		if err != nil {
-			return nil, err
-		}
-		opts = append(opts, opt)
-	}
-	return opts, nil
-}
-
-// InitiateRandomMessages batches random messages and initiates them via a single multicall
-func InitiateRandomMessages(ctx context.Context, opt txplan.Option, rng *rand.Rand, eventLoggerAddress common.Address) (*txintent.IntentTx[*txintent.MultiTrigger, *txintent.InteropOutput], *types.Receipt, error) {
-	// Intent to initiate messages
-	eventCnt := 1 + rng.Intn(9)
-	initCalls := make([]txintent.Call, eventCnt)
-	for index := range eventCnt {
-		initCalls[index] = RandomInitTrigger(rng, eventLoggerAddress, rng.Intn(5), rng.Intn(100))
-	}
-
-	tx := txintent.NewIntent[*txintent.MultiTrigger, *txintent.InteropOutput](opt)
-	tx.Content.Set(&txintent.MultiTrigger{Emitter: constants.MultiCall3, Calls: initCalls})
-
-	// Trigger multiple events
-	receipt, err := tx.PlannedTx.Included.Eval(ctx)
-	if err != nil {
-		return nil, nil, err
-	}
-	return tx, receipt, nil
-}
-
-// ValidateEveryMessage batches every message and validates them via a single multicall
-func ValidateEveryMessage(ctx context.Context, opt txplan.Option, dependOn *txintent.IntentTx[*txintent.MultiTrigger, *txintent.InteropOutput]) (*txintent.IntentTx[*txintent.MultiTrigger, *txintent.InteropOutput], *types.Receipt, error) {
-	// Intent to validate message
-	tx := txintent.NewIntent[*txintent.MultiTrigger, *txintent.InteropOutput](opt)
-	tx.Content.DependOn(&dependOn.Result)
-
-	indexes := []int{}
-	result, err := dependOn.Result.Eval(ctx)
-	if err != nil {
-		return nil, nil, err
-	}
-	for idx := range len(result.Entries) {
-		indexes = append(indexes, idx)
-	}
-	tx.Content.Fn(txintent.ExecuteIndexeds(constants.MultiCall3, constants.CrossL2Inbox, &dependOn.Result, indexes))
-	receipt, err := tx.PlannedTx.Included.Eval(ctx)
-	if err != nil {
-		return nil, nil, err
-	}
-	return tx, receipt, err
 }

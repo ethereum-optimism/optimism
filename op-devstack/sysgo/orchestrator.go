@@ -56,6 +56,15 @@ type Orchestrator struct {
 	jwtPathOnce sync.Once
 }
 
+func (o *Orchestrator) ClusterForL2(chainID eth.ChainID) (*Cluster, bool) {
+	for _, cluster := range o.clusters.Values() {
+		if cluster.DepSet() != nil && cluster.DepSet().HasChain(chainID) {
+			return cluster, true
+		}
+	}
+	return nil, false
+}
+
 func (o *Orchestrator) ControlPlane() stack.ControlPlane {
 	return o.controlPlane
 }

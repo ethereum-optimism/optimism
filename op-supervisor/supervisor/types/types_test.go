@@ -204,24 +204,6 @@ func TestInteropMessageFormatEdgeCases(t *testing.T) {
 	}
 }
 
-func TestChainIndex(t *testing.T) {
-	var x ChainIndex
-	require.NoError(t, json.Unmarshal([]byte(`"1"`), &x))
-	require.Equal(t, ChainIndex(1), x)
-	data, err := json.Marshal(x)
-	require.NoError(t, err)
-	require.Equal(t, `"1"`, string(data))
-
-	require.NoError(t, json.Unmarshal([]byte(`"4294967295"`), &x))
-	require.Equal(t, ChainIndex(0xff_ff_ff_ff), x)
-	data, err = json.Marshal(x)
-	require.NoError(t, err)
-	require.Equal(t, `"4294967295"`, string(data))
-
-	require.ErrorContains(t, json.Unmarshal([]byte(`"-1"`), &x), "invalid")
-	require.ErrorContains(t, json.Unmarshal([]byte(`"4294967296"`), &x), "out of range")
-}
-
 func TestHashing(t *testing.T) {
 	keccak256 := func(name string, parts ...[]byte) (h common.Hash) {
 		t.Logf("%s = H(", name)
@@ -362,98 +344,6 @@ func TestSafetyLevel(t *testing.T) {
 	var x SafetyLevel
 	require.ErrorContains(t, json.Unmarshal([]byte(`""`), &x), "unrecognized", "empty")
 	require.ErrorContains(t, json.Unmarshal([]byte(`"foobar"`), &x), "unrecognized", "other")
-}
-
-type execDescrTestCase struct {
-	name             string
-	ed               ExecutingDescriptor
-	expiryWindow     uint64
-	initMsgTimestamp uint64
-	errStr           string // empty if no error
-}
-
-func TestExecutingDescriptorAccessCheck(t *testing.T) {
-	testCases := []execDescrTestCase{
-		{
-			name: "success",
-			ed: ExecutingDescriptor{
-				Timestamp: 3,
-				Timeout:   0,
-			},
-			expiryWindow:     10,
-			initMsgTimestamp: 2,
-		},
-		{
-			name: "future exec",
-			ed: ExecutingDescriptor{
-				Timestamp: 3,
-				Timeout:   0,
-			},
-			expiryWindow:     10,
-			initMsgTimestamp: 4,
-			errStr:           "broke timestamp invariant",
-		},
-		{
-			name: "access-list checks are extra strict, don't allow intra-timestamp",
-			ed: ExecutingDescriptor{
-				Timestamp: 3,
-				Timeout:   0,
-			},
-			expiryWindow:     10,
-			initMsgTimestamp: 3,
-			errStr:           "not allow intra-timestamp",
-		},
-		{
-			name: "attempt init-msg timestamp overflow",
-			ed: ExecutingDescriptor{
-				Timestamp: (^uint64(0)) - 2,
-				Timeout:   0,
-			},
-			expiryWindow:     10,
-			initMsgTimestamp: (^uint64(0)) - 3,
-			errStr:           "overflow",
-		},
-		{
-			name: "expired",
-			ed: ExecutingDescriptor{
-				Timestamp: 100,
-				Timeout:   0,
-			},
-			expiryWindow:     10,
-			initMsgTimestamp: 89,
-			errStr:           "expired",
-		},
-		{
-			name: "timeout overflow",
-			ed: ExecutingDescriptor{
-				Timestamp: 100,
-				Timeout:   (^uint64(0)) - 3,
-			},
-			expiryWindow:     10,
-			initMsgTimestamp: 99,
-			errStr:           "overflow",
-		},
-		{
-			name: "timeout, valid at exec timestamp, but not shortly after",
-			ed: ExecutingDescriptor{
-				Timestamp: 100,
-				Timeout:   10, //timeout asks for 100+10=110
-			},
-			expiryWindow:     10, // valid till 95+10 = 105
-			initMsgTimestamp: 95,
-			errStr:           "timeout",
-		},
-	}
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			err := tc.ed.AccessCheck(tc.expiryWindow, tc.initMsgTimestamp)
-			if tc.errStr == "" {
-				require.NoError(t, err)
-			} else {
-				require.ErrorContains(t, err, tc.errStr)
-			}
-		})
-	}
 }
 
 func TestPayloadHashToLogHash(t *testing.T) {

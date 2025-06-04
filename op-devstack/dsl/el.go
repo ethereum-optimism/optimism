@@ -44,6 +44,13 @@ func (el *elNode) WaitForOnline() {
 	}, 10*time.Second, 500*time.Millisecond, "Expected to be online")
 }
 
+func (el *elNode) IsCanonical(ref eth.BlockID) bool {
+	blk, err := el.inner.EthClient().BlockRefByNumber(el.t.Ctx(), ref.Number)
+	el.require.NoError(err)
+
+	return blk.Hash == ref.Hash
+}
+
 // waitForNextBlockWithTimeout waits until the specified block number is present
 func (el *elNode) waitForNextBlock(blocksFromNow uint64) eth.BlockRef {
 	initial, err := el.inner.EthClient().InfoByLabel(el.ctx, eth.Unsafe)

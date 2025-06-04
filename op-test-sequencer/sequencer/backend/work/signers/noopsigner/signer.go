@@ -35,7 +35,9 @@ func (n *Signer) ID() seqtypes.SignerID {
 
 func (n *Signer) Sign(ctx context.Context, block work.Block) (work.SignedBlock, error) {
 	n.log.Info("No-op sign", "block", block)
-	return nil, nil
+	return &NoopSignedBlock{
+		Block: block,
+	}, nil
 }
 
 func (n *Signer) ChainID() eth.ChainID {

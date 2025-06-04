@@ -25,3 +25,7 @@ func (g *gateAdapter) FailNow() {
 	g.inner.Helper()
 	g.inner.SkipNow()
 }
+
+func (g *gateAdapter) Helper() {
+	g.inner.Helper()
+}

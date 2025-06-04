@@ -16,6 +16,7 @@ library MIPS64State {
         bool supportNoopSysEventFd2;
         bool supportDclzDclo;
         bool supportNoopMprotect;
+        bool supportWorkingSysGetRandom;
     }
 
     function assertExitedIsValid(uint32 _exited) internal pure {
@@ -29,6 +30,9 @@ library MIPS64State {
             features_.supportNoopSysEventFd2 = true;
             features_.supportDclzDclo = true;
             features_.supportNoopMprotect = true;
+        }
+        if (_version >= 8) {
+            features_.supportWorkingSysGetRandom = true;
         }
     }
 }

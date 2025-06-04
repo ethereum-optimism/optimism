@@ -31,10 +31,7 @@ func (n *FaucetService) hydrate(system stack.ExtensibleSystem) {
 		require.NoError(err)
 		system.T().Cleanup(rpcCl.Close)
 
-		id := stack.FaucetID{
-			Key:     faucetID.String(),
-			ChainID: chainID,
-		}
+		id := stack.NewFaucetID(faucetID.String(), chainID)
 		front := shim.NewFaucet(shim.FaucetConfig{
 			CommonConfig: shim.NewCommonConfig(system.T()),
 			ID:           id,
@@ -46,10 +43,7 @@ func (n *FaucetService) hydrate(system stack.ExtensibleSystem) {
 
 	// Label the default faucets, in case we have multiple
 	for chainID, faucetID := range n.service.Defaults() {
-		id := stack.FaucetID{
-			Key:     faucetID.String(),
-			ChainID: chainID,
-		}
+		id := stack.NewFaucetID(faucetID.String(), chainID)
 		net := system.Network(chainID).(stack.ExtensibleNetwork)
 		net.Faucet(id).SetLabel("default", "true")
 	}
@@ -57,9 +51,8 @@ func (n *FaucetService) hydrate(system stack.ExtensibleSystem) {
 
 func WithFaucets(l1ELs []stack.L1ELNodeID, l2ELs []stack.L2ELNodeID) stack.Option[*Orchestrator] {
 	return stack.AfterDeploy(func(orch *Orchestrator) {
-		ctx := orch.P().Ctx()
-		ctx = stack.ContextWithKind(ctx, stack.FaucetKind)
-		p := orch.P().WithCtx(ctx, "id", "dev-faucet")
+		faucetID := stack.NewFaucetID("dev-faucet", l2ELs[0].ChainID())
+		p := orch.P().WithCtx(stack.ContextWithID(orch.P().Ctx(), faucetID))
 
 		require := p.Require()
 
@@ -71,7 +64,7 @@ func WithFaucets(l1ELs []stack.L1ELNodeID, l2ELs []stack.L2ELNodeID) stack.Optio
 
 		faucets := make(map[ftypes.FaucetID]*fconf.FaucetEntry)
 		for _, elID := range l1ELs {
-			id := ftypes.FaucetID(fmt.Sprintf("dev-faucet-%s", elID.ChainID))
+			id := ftypes.FaucetID(fmt.Sprintf("dev-faucet-%s", elID.ChainID()))
 			require.NotContains(faucets, id, "one faucet per chain only")
 
 			el, ok := orch.l1ELs.Get(elID)
@@ -79,14 +72,14 @@ func WithFaucets(l1ELs []stack.L1ELNodeID, l2ELs []stack.L2ELNodeID) stack.Optio
 
 			faucets[id] = &fconf.FaucetEntry{
 				ELRPC:   endpoint.MustRPC{Value: endpoint.URL(el.userRPC)},
-				ChainID: elID.ChainID,
+				ChainID: elID.ChainID(),
 				TxCfg: fconf.TxManagerConfig{
 					PrivateKey: funderKeyStr,
 				},
 			}
 		}
 		for _, elID := range l2ELs {
-			id := ftypes.FaucetID(fmt.Sprintf("dev-faucet-%s", elID.ChainID))
+			id := ftypes.FaucetID(fmt.Sprintf("dev-faucet-%s", elID.ChainID()))
 			require.NotContains(faucets, id, "one faucet per chain only")
 
 			el, ok := orch.l2ELs.Get(elID)
@@ -94,7 +87,7 @@ func WithFaucets(l1ELs []stack.L1ELNodeID, l2ELs []stack.L2ELNodeID) stack.Optio
 
 			faucets[id] = &fconf.FaucetEntry{
 				ELRPC:   endpoint.MustRPC{Value: endpoint.URL(el.userRPC)},
-				ChainID: elID.ChainID,
+				ChainID: elID.ChainID(),
 				TxCfg: fconf.TxManagerConfig{
 					PrivateKey: funderKeyStr,
 				},
@@ -107,9 +100,9 @@ func WithFaucets(l1ELs []stack.L1ELNodeID, l2ELs []stack.L2ELNodeID) stack.Optio
 			},
 		}
 		logger := p.Logger()
-		srv, err := faucet.FromConfig(ctx, cfg, logger)
+		srv, err := faucet.FromConfig(p.Ctx(), cfg, logger)
 		require.NoError(err, "must setup faucet service")
-		require.NoError(srv.Start(ctx))
+		require.NoError(srv.Start(p.Ctx()))
 		p.Cleanup(func() {
 			ctx, cancel := context.WithCancel(context.Background())
 			cancel() // force-quit

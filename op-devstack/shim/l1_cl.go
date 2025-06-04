@@ -22,10 +22,7 @@ type rpcL1CLNode struct {
 var _ stack.L1CLNode = (*rpcL1CLNode)(nil)
 
 func NewL1CLNode(cfg L1CLNodeConfig) stack.L1CLNode {
-	ctx := cfg.T.Ctx()
-	ctx = stack.ContextWithKind(ctx, stack.L1CLNodeKind)
-	ctx = stack.ContextWithChainID(ctx, cfg.ID.ChainID)
-	cfg.T = cfg.T.WithCtx(ctx, "chainID", cfg.ID.ChainID, "id", cfg.ID)
+	cfg.T = cfg.T.WithCtx(stack.ContextWithID(cfg.T.Ctx(), cfg.ID))
 	return &rpcL1CLNode{
 		commonImpl: newCommon(cfg.CommonConfig),
 		id:         cfg.ID,

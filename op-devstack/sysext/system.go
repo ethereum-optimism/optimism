@@ -70,9 +70,9 @@ func (o *Orchestrator) hydrateSupervisorsMaybe(sys stack.ExtensibleSystem) {
 func (o *Orchestrator) hydrateTestSequencersMaybe(sys stack.ExtensibleSystem) {
 	// TODO(#15265) op-test-sequencer: add to devnet env and kurtosis
 	sys.AddTestSequencer(shim.NewTestSequencer(shim.TestSequencerConfig{
-		CommonConfig:       shim.NewCommonConfig(sys.T()),
-		ID:                 stack.TestSequencerID("dummy"),
-		Client:             nil,
-		L2SequencerClients: nil,
+		CommonConfig:   shim.NewCommonConfig(sys.T()),
+		ID:             stack.TestSequencerID("dummy"),
+		Client:         nil,
+		ControlClients: nil,
 	}))
 }

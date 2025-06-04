@@ -29,9 +29,13 @@ func TestControlPlane(gt *testing.T) {
 	p := devtest.NewP(
 		context.Background(),
 		logger,
-		func() {
+		func(now bool) {
 			gt.Helper()
-			gt.FailNow()
+			if now {
+				gt.FailNow()
+			} else {
+				gt.Fail()
+			}
 		},
 	)
 	gt.Cleanup(p.Close)
@@ -159,9 +163,13 @@ func TestControlPlaneFakePoS(gt *testing.T) {
 	p := devtest.NewP(
 		context.Background(),
 		logger,
-		func() {
+		func(now bool) {
 			gt.Helper()
-			gt.FailNow()
+			if now {
+				gt.FailNow()
+			} else {
+				gt.Fail()
+			}
 		},
 	)
 	gt.Cleanup(p.Close)

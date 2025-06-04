@@ -202,7 +202,14 @@ func TestCompareABIs(t *testing.T) {
 	}
 }
 
-func TestIsExcluded(t *testing.T) {
+func TestCheckExclusion(t *testing.T) {
+	// Fixed test list
+	testExcludes := []string{
+		"IERC20",
+		"IEAS",
+		"IERC721",
+	}
+
 	tests := []struct {
 		name         string
 		contractName string
@@ -217,8 +224,8 @@ func TestIsExcluded(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := isExcluded(tt.contractName); got != tt.want {
-				t.Errorf("isExcluded() = %v, want %v", got, tt.want)
+			if got := checkExclusion(tt.contractName, testExcludes); got != tt.want {
+				t.Errorf("checkExclusion() = %v, want %v", got, tt.want)
 			}
 		})
 	}
@@ -241,47 +248,6 @@ func TestNormalizeInternalType(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			if got := normalizeInternalType(tt.internalType); got != tt.want {
 				t.Errorf("normalizeInternalType() = %v, want %v", got, tt.want)
-			}
-		})
-	}
-}
-
-func TestIsExcludedSourceContract(t *testing.T) {
-	tests := []struct {
-		name         string
-		contractName string
-		want         bool
-	}{
-		{"Excluded library", "Bytes", true},
-		{"Excluded test helper", "TestERC20", true},
-		{"Excluded abstract contract", "CrossDomainMessenger", true},
-		{"Excluded special case", "SafeCall", true},
-		{"Excluded implementation", "Ownable", true},
-		{"Excluded L1 contract", "OPContractsManager", true},
-		{"Excluded L1 validator", "StandardValidatorV300", true},
-		{"Excluded L2 contract", "L2StandardBridge", true},
-		{"Excluded fee vault", "BaseFeeVault", true},
-		{"Excluded dispute contract", "FaultDisputeGame", true},
-		{"Excluded governance contract", "GovernanceToken", true},
-		{"Excluded universal contract", "OptimismMintableERC20Factory", true},
-
-		// Contracts that should have interfaces (intentionally not in excludes)
-		{"Contract should have interface", "ETHLockbox", false},
-		{"Contract should have interface", "DataAvailabilityChallenge", false},
-		{"Contract should have interface", "L1CrossDomainMessenger", false},
-		{"Contract should have interface", "L1ERC721Bridge", false},
-		{"Contract should have interface", "L1StandardBridge", false},
-
-		// Other non-excluded contracts
-		{"Non-excluded contract", "MyNewContract", false},
-		{"Non-excluded with similar name", "BytesExtra", false},
-		{"Non-excluded with suffix", "L1StandardBridgeCustom", false},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if got := isExcludedSourceContract(tt.contractName); got != tt.want {
-				t.Errorf("isExcludedSourceContract() = %v, want %v", got, tt.want)
 			}
 		})
 	}

@@ -18,7 +18,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/sources"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/stretchr/testify/require"
@@ -45,32 +44,11 @@ func NewL2FaultProofEnv[c any](t helpers.Testing, testCfg *TestCfg[c], tp *e2eut
 	log, logs := testlog.CaptureLogger(t, log.LevelDebug)
 
 	dp := NewDeployParams(t, tp, func(dp *e2eutils.DeployParams) {
-		genesisBlock := hexutil.Uint64(0)
-
-		// Enable cancun always
-		dp.DeployConfig.L1CancunTimeOffset = &genesisBlock
-
 		// Enable L2 feature.
-		switch testCfg.Hardfork {
-		case Regolith:
-			dp.DeployConfig.ActivateForkAtGenesis(rollup.Regolith)
-		case Canyon:
-			dp.DeployConfig.ActivateForkAtGenesis(rollup.Canyon)
-		case Delta:
-			dp.DeployConfig.ActivateForkAtGenesis(rollup.Delta)
-		case Ecotone:
-			dp.DeployConfig.ActivateForkAtGenesis(rollup.Ecotone)
-		case Fjord:
-			dp.DeployConfig.ActivateForkAtGenesis(rollup.Fjord)
-		case Granite:
-			dp.DeployConfig.ActivateForkAtGenesis(rollup.Granite)
-		case Holocene:
-			dp.DeployConfig.ActivateForkAtGenesis(rollup.Holocene)
-		case Isthmus:
-			dp.DeployConfig.ActivateForkAtGenesis(rollup.Isthmus)
-		default:
-			t.Fatalf("unhandled HF:%v", testCfg.Hardfork)
+		if testCfg.Hardfork == nil {
+			t.Fatalf("HF not set")
 		}
+		dp.DeployConfig.ActivateForkAtGenesis(rollup.ForkName(testCfg.Hardfork.Name))
 
 		for _, override := range deployConfigOverrides {
 			override(dp.DeployConfig)
@@ -94,7 +72,7 @@ func NewL2FaultProofEnv[c any](t helpers.Testing, testCfg *TestCfg[c], tp *e2eut
 	l2EngineCl, err := sources.NewEngineClient(engine.RPCClient(), log, nil, sources.EngineClientDefaultConfig(sd.RollupCfg))
 	require.NoError(t, err)
 
-	sequencer := helpers.NewL2Sequencer(t, log.New("role", "sequencer"), l1Cl, miner.BlobStore(), altda.Disabled, l2EngineCl, sd.RollupCfg, 0)
+	sequencer := helpers.NewL2Sequencer(t, log.New("role", "sequencer"), l1Cl, miner.BlobStore(), altda.Disabled, l2EngineCl, sd.RollupCfg, sd.DependencySet, 0)
 	miner.ActL1SetFeeRecipient(common.Address{0xCA, 0xFE, 0xBA, 0xBE})
 	sequencer.ActL2PipelineFull(t)
 	engCl := engine.EngineClient(t, sd.RollupCfg)

@@ -36,6 +36,7 @@ enum Fork {
     GRANITE,
     HOLOCENE,
     ISTHMUS,
+    INTEROP,
     JOVIAN
 }
 

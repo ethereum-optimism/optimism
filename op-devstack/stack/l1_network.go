@@ -1,18 +1,32 @@
 package stack
 
-import "github.com/ethereum-optimism/optimism/op-service/eth"
+import (
+	"log/slog"
+
+	"github.com/ethereum-optimism/optimism/op-service/eth"
+)
 
 // L1NetworkID identifies a L1Network by name and chainID, is type-safe, and can be value-copied and used as map key.
 type L1NetworkID idOnlyChainID
 
+var _ IDOnlyChainID = (*L1NetworkID)(nil)
+
 const L1NetworkKind Kind = "L1Network"
 
+func (id L1NetworkID) Kind() Kind {
+	return L1NetworkKind
+}
+
 func (id L1NetworkID) ChainID() eth.ChainID {
-	return idOnlyChainID(id).ChainID()
+	return eth.ChainID(id)
 }
 
 func (id L1NetworkID) String() string {
 	return idOnlyChainID(id).string(L1NetworkKind)
+}
+
+func (id L1NetworkID) LogValue() slog.Value {
+	return slog.StringValue(id.String())
 }
 
 func (id L1NetworkID) MarshalText() ([]byte, error) {

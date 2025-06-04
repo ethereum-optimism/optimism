@@ -2,7 +2,9 @@ package flags
 
 import (
 	"fmt"
+	"strings"
 
+	"github.com/ethereum-optimism/optimism/op-node/chaincfg"
 	"github.com/urfave/cli/v2"
 
 	opservice "github.com/ethereum-optimism/optimism/op-service"
@@ -17,7 +19,10 @@ import (
 
 const EnvVarPrefix = "OP_SUPERVISOR"
 
-var ErrRequiredFlagMissing = fmt.Errorf("required flag is missing")
+var (
+	ErrRequiredFlagMissing = fmt.Errorf("required flag is missing")
+	ErrConflictingFlags    = fmt.Errorf("conflicting flags")
+)
 
 func prefixEnvVars(name string) []string {
 	return opservice.PrefixEnvVar(EnvVarPrefix, name)
@@ -51,6 +56,12 @@ var (
 		Name:    "datadir.sync-endpoint",
 		Usage:   "op-supervisor endpoint to sync databases from",
 		EnvVars: prefixEnvVars("DATADIR_SYNC_ENDPOINT"),
+	}
+	NetworkFlag = &cli.StringSliceFlag{
+		Name:    "networks",
+		Aliases: []string{"network"},
+		Usage:   fmt.Sprintf("Predefined network selection. Available networks: %s", strings.Join(chaincfg.AvailableNetworks(), ", ")),
+		EnvVars: append(prefixEnvVars("NETWORKS"), prefixEnvVars("NETWORK")...),
 	}
 	DependencySetFlag = &cli.PathFlag{
 		Name:      "dependency-set",
@@ -91,20 +102,16 @@ var requiredFlags = []cli.Flag{
 	L2ConsensusNodesFlag,
 	L2ConsensusJWTSecret,
 	DataDirFlag,
-	DependencySetFlag,
-}
-
-var requiredFlagGroups = [][]cli.Flag{
-	{
-		RollupConfigPathsFlag,
-		RollupConfigSetFlag,
-	},
 }
 
 var optionalFlags = []cli.Flag{
+	NetworkFlag,
 	MockRunFlag,
 	DataDirSyncEndpointFlag,
 	RPCVerificationWarningsFlag,
+	DependencySetFlag,
+	RollupConfigPathsFlag,
+	RollupConfigSetFlag,
 }
 
 func init() {
@@ -114,48 +121,65 @@ func init() {
 	optionalFlags = append(optionalFlags, oppprof.CLIFlags(EnvVarPrefix)...)
 
 	Flags = append(Flags, requiredFlags...)
-	for _, group := range requiredFlagGroups {
-		Flags = append(Flags, group...)
-	}
 	Flags = append(Flags, optionalFlags...)
 }
 
 // Flags contains the list of configuration options available to the binary.
 var Flags []cli.Flag
 
-func CheckRequired(ctx *cli.Context) error {
+func checkRequired(ctx *cli.Context) error {
 	for _, f := range requiredFlags {
 		if !ctx.IsSet(f.Names()[0]) {
 			return fmt.Errorf("%w: %s", ErrRequiredFlagMissing, f.Names()[0])
 		}
 	}
-
-	for _, group := range requiredFlagGroups {
-		var set int
-		for _, f := range group {
-			if ctx.IsSet(f.Names()[0]) {
-				set++
-			}
+	if ctx.IsSet(NetworkFlag.Name) {
+		if err := checkNotSet(ctx, DependencySetFlag, RollupConfigPathsFlag, RollupConfigSetFlag); err != nil {
+			return fmt.Errorf("%w must not be set with %s", err, NetworkFlag.Name)
 		}
-		if set == 0 {
-			return fmt.Errorf("%w: one of %s must be set", ErrRequiredFlagMissing, flagNames(group))
-		} else if set > 1 {
-			return fmt.Errorf("%w: only one of %s can be set", ErrRequiredFlagMissing, flagNames(group))
-		}
+	} else if !ctx.IsSet(DependencySetFlag.Name) || (!ctx.IsSet(RollupConfigSetFlag.Name) && !ctx.IsSet(RollupConfigPathsFlag.Name)) {
+		return fmt.Errorf("%w: either %s or %s and one of %s must be set", ErrRequiredFlagMissing,
+			NetworkFlag.Name, DependencySetFlag.Name, flagNames(RollupConfigSetFlag, RollupConfigPathsFlag))
+	} else if err := checkGroupUnique(ctx, RollupConfigPathsFlag, RollupConfigSetFlag); err != nil {
+		return err
 	}
-
 	return nil
 }
 
-func flagNames(flags []cli.Flag) []string {
+func checkGroupUnique(ctx *cli.Context, group ...cli.Flag) error {
+	var set int
+	for _, f := range group {
+		if ctx.IsSet(f.Names()[0]) {
+			set++
+		}
+	}
+	if set > 1 {
+		return fmt.Errorf("%w: only one of %s can be set", ErrConflictingFlags, flagNames(group...))
+	}
+	return nil
+}
+
+func checkNotSet(ctx *cli.Context, flags ...cli.Flag) error {
+	for _, flag := range flags {
+		if ctx.IsSet(flag.Names()[0]) {
+			return fmt.Errorf("%w: %s", ErrConflictingFlags, flagNames(flags...))
+		}
+	}
+	return nil
+}
+
+func flagNames(flags ...cli.Flag) string {
 	names := make([]string, 0, len(flags))
 	for _, f := range flags {
 		names = append(names, f.Names()[0])
 	}
-	return names
+	return strings.Join(names, ", ")
 }
 
-func ConfigFromCLI(ctx *cli.Context, version string) *config.Config {
+func ConfigFromCLI(ctx *cli.Context, version string) (*config.Config, error) {
+	if err := checkRequired(ctx); err != nil {
+		return nil, err
+	}
 	c := &config.Config{
 		Version:                 version,
 		LogConfig:               oplog.ReadCLIConfig(ctx),
@@ -182,8 +206,18 @@ func ConfigFromCLI(ctx *cli.Context, version string) *config.Config {
 			},
 			DependencySetSource: &depset.JSONDependencySetLoader{Path: ctx.Path(DependencySetFlag.Name)},
 		}
+	} else if ctx.IsSet(NetworkFlag.Name) {
+		networks := ctx.StringSlice(NetworkFlag.Name)
+		source, err := depset.NewRegistryFullConfigSetSource(ctx.String(L1RPCFlag.Name), networks)
+		if err != nil {
+			return nil, err
+		}
+		c.FullConfigSetSource = source
+	} else {
+		return nil, fmt.Errorf("%w: either %s or %s and one of %s must be set", ErrRequiredFlagMissing,
+			NetworkFlag.Name, DependencySetFlag.Name, flagNames(RollupConfigSetFlag, RollupConfigPathsFlag))
 	}
-	return c
+	return c, nil
 }
 
 // syncSourceSetups creates a sync source collection, from CLI arguments.

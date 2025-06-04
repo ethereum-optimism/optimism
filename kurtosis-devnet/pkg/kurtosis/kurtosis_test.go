@@ -181,8 +181,10 @@ func TestDeploy(t *testing.T) {
 	}
 
 	testServices := make(inspect.ServiceMap)
-	testServices["el-1-geth-lighthouse"] = inspect.PortMap{
-		"rpc": {Port: 52645},
+	testServices["el-1-geth-lighthouse"] = &inspect.Service{
+		Ports: inspect.PortMap{
+			"rpc": {Port: 52645},
+		},
 	}
 
 	testWallets := deployer.WalletList{
@@ -285,8 +287,10 @@ func TestGetEnvironmentInfo(t *testing.T) {
 
 	// Create test services map with the expected structure
 	testServices := make(inspect.ServiceMap)
-	testServices["el-1-geth-lighthouse"] = inspect.PortMap{
-		"rpc": &descriptors.PortInfo{Port: 52645},
+	testServices["el-1-geth-lighthouse"] = &inspect.Service{
+		Ports: inspect.PortMap{
+			"rpc": &descriptors.PortInfo{Port: 52645},
+		},
 	}
 
 	testWallet := &deployer.Wallet{

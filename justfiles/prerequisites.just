@@ -52,8 +52,19 @@ _check_mise:
 
     if [ "$RUN_AUTOFIX" = "true" ]; then
         echo "Automatically running mise doctor..."
-        # This will exit if mise is outdated, so better run it only if AUTOFIX is true
-        mise doctor --silent
+        output=$(mise doctor --silent || true)
+        if [ -n "$output" ]; then
+            # Check if there are any problems beyond just version updates
+            if echo "$output" | grep -q "1 problem found:" && echo "$output" | grep -q "new mise version.*available"; then
+                echo "Note: Only mise version update available"
+            elif echo "$output" | grep -q "No problems found"; then
+                echo "Note: No problems found"
+            else
+                echo "Warning: mise doctor found unexpected issues:"
+                echo "$output"
+                exit 1
+            fi
+        fi
     fi
 
     if mise ls | grep -q "outdated"; then

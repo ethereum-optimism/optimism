@@ -1,6 +1,10 @@
 package stack
 
-import "github.com/ethereum/go-ethereum/common"
+import (
+	"log/slog"
+
+	"github.com/ethereum/go-ethereum/common"
+)
 
 type SuperchainDeployment interface {
 	ProtocolVersionsAddr() common.Address
@@ -10,10 +14,20 @@ type SuperchainDeployment interface {
 // SuperchainID identifies a Superchain by name, is type-safe, and can be value-copied and used as map key.
 type SuperchainID genericID
 
+var _ GenericID = (*SuperchainID)(nil)
+
 const SuperchainKind Kind = "Superchain"
 
 func (id SuperchainID) String() string {
 	return genericID(id).string(SuperchainKind)
+}
+
+func (id SuperchainID) Kind() Kind {
+	return SuperchainKind
+}
+
+func (id SuperchainID) LogValue() slog.Value {
+	return slog.StringValue(id.String())
 }
 
 func (id SuperchainID) MarshalText() ([]byte, error) {

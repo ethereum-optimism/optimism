@@ -3,215 +3,77 @@ package syncnode
 import (
 	"context"
 	"errors"
-	"sync/atomic"
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/superevents"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
-	"github.com/ethereum/go-ethereum"
 )
 
-// resetTracker manages a bisection
-// between consistent and inconsistent blocks
-// and is used to prepare a reset request
-// which is sent to the managed node
-type resetTracker struct {
-	a eth.BlockID
-	z eth.BlockID
-
-	synchronous bool
-	resetting   *atomic.Bool
-	cancelling  *atomic.Bool
-
-	managed *ManagedNode
+// managedNodeResetBackend is a shim to pass to the resetTracker to let it
+// query information from the node and DB that it needs during bisection.
+type managedNodeResetBackend struct {
+	chainID eth.ChainID
+	node    SyncControl
+	backend backend
 }
 
-// init initializes the reset tracker with
-// empty start and end of range, and no reset in progress
-func (t *resetTracker) init() {
-	t.resetting.Store(true)
-	t.cancelling.Store(false)
-	t.a = eth.BlockID{}
-	t.z = eth.BlockID{}
+var _ resetBackend = (*managedNodeResetBackend)(nil)
+
+func (m *managedNodeResetBackend) BlockIDByNumber(ctx context.Context, n uint64) (eth.BlockID, error) {
+	r, err := m.node.BlockRefByNumber(ctx, n)
+	return r.ID(), err
 }
 
-// beginBisectionReset initializes the reset tracker
-// and starts the bisection process at the given block
-// which will lead to a reset request
-func (t *resetTracker) beginBisectionReset(z eth.BlockID) {
-	t.managed.log.Info("beginning reset", "endOfRange", z)
-	// only one reset can be in progress at a time
-	if t.resetting.Load() {
+func (m *managedNodeResetBackend) IsLocalSafe(ctx context.Context, block eth.BlockID) error {
+	return m.backend.IsLocalSafe(ctx, m.chainID, block)
+}
+
+func (m *ManagedNode) resetBackend() *managedNodeResetBackend {
+	return &managedNodeResetBackend{
+		chainID: m.chainID,
+		node:    m.Node,
+		backend: m.backend,
+	}
+}
+
+func (m *ManagedNode) initiateReset(z eth.BlockID) {
+	m.resetMu.Lock()
+	defer m.resetMu.Unlock()
+	var ctx context.Context
+	ctx, m.resetCancel = context.WithCancel(m.ctx)
+	defer func() { m.resetCancel = nil }()
+	defer m.resetCancel()
+
+	start, err := m.backend.ActivationBlock(ctx, m.chainID)
+	if errors.Is(err, types.ErrFuture) {
+		m.log.Info("no activation block yet, initiating pre-Interop reset", "err", err)
+		m.emitter.Emit(superevents.ResetPreInteropRequestEvent{ChainID: m.chainID})
 		return
-	}
-	// initialize the reset tracker
-	t.init()
-	t.z = z
-	// action tests may prefer to run the managed node totally synchronously
-	if t.synchronous {
-		t.bisectToTarget()
-	} else {
-		go t.bisectToTarget()
-	}
-}
-
-// endReset signals that the reset is over
-func (t *resetTracker) endReset() {
-	t.resetting.Store(false)
-	t.cancelling.Store(false)
-}
-
-// isResetting returns true if a reset is in progress
-func (t *resetTracker) isResetting() bool {
-	return t.resetting.Load()
-}
-
-// cancelReset signals that the ongoing reset should be cancelled
-// it is not guaranteed that the reset will be cancelled immediately
-func (t *resetTracker) cancelReset() {
-	t.cancelling.Store(true)
-}
-
-// bisectToTarget prepares the reset by bisecting the search range until the last consistent block is found.
-// it then calls resetHeadsFromTarget to trigger the reset on the node.
-func (t *resetTracker) bisectToTarget() {
-	nodeCtx, nCancel := context.WithTimeout(t.managed.ctx, nodeTimeout)
-	defer nCancel()
-	internalCtx, iCancel := context.WithTimeout(t.managed.ctx, internalTimeout)
-	defer iCancel()
-
-	// TODO(#16026): this `if` is an artifact of trying to re-target bisection while the resetTracker is already active.
-	// We can simplify by targeting one thing at a time.
-
-	// initialize the start of the range if it is empty
-	if t.a == (eth.BlockID{}) {
-		t.managed.log.Debug("Start of range is empty, fetching the anchor block as starting point")
-		// TODO(#16026): change name: GetActivationBlock, Anchor point = get first block of DB
-		anchor, err := t.managed.backend.AnchorPoint(internalCtx, t.managed.chainID)
-		if err != nil {
-			if errors.Is(err, types.ErrFuture) {
-				// TODO(#16026): need to trigger pre-interop reset
-				t.managed.log.Info("Missing activation block", "err", err)
-				return
-			}
-			t.managed.log.Error("failed to initialize start of bisection range", "err", err)
-			t.endReset()
-			return
-		}
-		t.managed.log.Debug("Start of range is set to anchor point", "anchor", anchor)
-		t.a = anchor.Derived.ID()
-	}
-
-	// before starting bisection, check if z is already consistent (i.e. the node is ahead but otherwise consistent)
-	nodeZ, err := t.managed.Node.BlockRefByNumber(nodeCtx, t.z.Number)
-	// if z is already consistent, we can skip the bisection
-	// and move straight to a targeted reset
-	if err == nil && nodeZ.ID() == t.z {
-		t.resetHeadsFromTarget(t.z)
+	} else if err != nil {
+		m.log.Error("failed to get activation block, cancelling reset", "err", err)
 		return
 	}
 
-	// before starting bisection, check if a is inconsistent (i.e. the node has no common reference point)
-	// if the first block in the range can't be found or is inconsistent, we can't do a reset
-	nodeA, err := t.managed.Node.BlockRefByNumber(nodeCtx, t.a.Number)
+	target, err := m.resetTracker.FindResetTarget(ctx, start.Derived.ID(), z)
 	if err != nil {
-		// TODO(#16026): if notFound error -> pre-interop
-		t.managed.log.Error("failed to get block at start of range. cannot reset node", "err", err)
-		t.endReset()
+		m.log.Error("failed to find reset target, cancelling reset", "err", err)
+		return
+	} else if target.PreInterop {
+		m.log.Info("bisection results in pre-Interop reset")
+		m.emitter.Emit(superevents.ResetPreInteropRequestEvent{ChainID: m.chainID})
 		return
 	}
-	if nodeA.ID() != t.a {
-		// TODO(#16026) pre-interop reset, need to re-derive the activation block
-		t.managed.log.Error("start of range is inconsistent with logs db. cannot reset node",
-			"a", t.a,
-			"block", nodeA.ID())
-		t.endReset()
-		return
-	}
-
-	// repeatedly bisect the range until the last consistent block is found
-	for {
-		if t.cancelling.Load() {
-			t.managed.log.Debug("reset cancelled")
-			t.endReset()
-			return
-		}
-		if t.a.Number >= t.z.Number {
-			t.managed.log.Debug("reset target converged. Resetting to start of range", "a", t.a, "z", t.z)
-			t.resetHeadsFromTarget(t.a)
-			return
-		}
-		if t.a.Number+1 == t.z.Number {
-			break
-		}
-		err := t.bisect()
-		if err != nil {
-			t.managed.log.Error("failed to bisect recovery range. cannot reset node", "err", err)
-			t.endReset()
-			return
-		}
-	}
-	// the bisection is now complete. a is the last consistent block, and z is the first inconsistent block
-	t.resetHeadsFromTarget(t.a)
-}
-
-// bisect halves the search range of the ongoing reset to narrow down
-// where the reset will target. It bisects the range and constrains either
-// the start or the end of the range, based on the consistency of the midpoint
-// with the logs db.
-func (t *resetTracker) bisect() error {
-	internalCtx, iCancel := context.WithTimeout(t.managed.ctx, internalTimeout)
-	defer iCancel()
-	nodeCtx, nCancel := context.WithTimeout(t.managed.ctx, nodeTimeout)
-	defer nCancel()
-
-	// attempt to get the block at the midpoint of the range
-	i := (t.a.Number + t.z.Number) / 2
-	nodeIRef, err := t.managed.Node.BlockRefByNumber(nodeCtx, i)
-	if err != nil {
-		// if the block is not known to the node, it is defacto inconsistent
-		if errors.Is(err, ethereum.NotFound) {
-			t.managed.log.Trace("midpoint of range is not known to node. pulling back end of range", "i", i)
-			t.z = eth.BlockID{Number: i}
-			return nil
-		} else {
-			t.managed.log.Error("failed to get block at midpoint of range. cannot reset node", "err", err)
-		}
-	}
-
-	// Check if the block at i is consistent with the local-safe DB,
-	// if we do not know it yet, then fall back to the local-unsafe blocks (logs DB)
-	// and update the search range accordingly.
-	nodeI := nodeIRef.ID()
-	err = t.managed.backend.IsLocalSafe(internalCtx, t.managed.chainID, nodeI)
-	if err != nil {
-		// TODO(#16026): could abort with critical-error on data-corruption
-		// TODO(#16026): could gracefully exit on block-replacement (no need to reset what is already being built replacement for)
-		// Primarily we handle ErrFuture and ErrConflict here: where the DB does not have what the node has.
-		t.managed.log.Debug("midpoint of range is inconsistent. pulling back end of range", "i", i)
-		t.z = nodeI
-	} else {
-		t.managed.log.Debug("midpoint of range is consistent. pushing up start of range", "i", i)
-		t.a = nodeI
-	}
-	return nil
+	m.log.Info("bisection found reset target", "target", target.Target)
+	m.resetHeadsFromTarget(ctx, target.Target)
 }
 
 // resetHeadsFromTarget takes a target block and identifies the correct
 // unsafe, safe, and finalized blocks to target for the reset.
 // It then triggers the reset on the node.
-func (t *resetTracker) resetHeadsFromTarget(target eth.BlockID) {
-	internalCtx, iCancel := context.WithTimeout(t.managed.ctx, internalTimeout)
+func (t *ManagedNode) resetHeadsFromTarget(ctx context.Context, target eth.BlockID) {
+	iCtx, iCancel := context.WithTimeout(ctx, internalTimeout)
 	defer iCancel()
 
-	// if the target is empty, no reset can be done
-	if target == (eth.BlockID{}) {
-		t.managed.log.Error("no reset target found. cannot reset node")
-		t.endReset()
-		return
-	}
-
-	// TODO(#16026): This function should be split off from the resetTracker
-	t.managed.log.Info("reset target identified", "target", target)
 	var lUnsafe, xUnsafe, lSafe, xSafe, finalized eth.BlockID
 
 	// We set the local unsafe block to our target (the local-safe block we determined to reset to).
@@ -222,10 +84,9 @@ func (t *resetTracker) resetHeadsFromTarget(target eth.BlockID) {
 
 	// all other blocks are either the last consistent block, or the last block in the db, whichever is earlier
 	// cross unsafe
-	lastXUnsafe, err := t.managed.backend.CrossUnsafe(internalCtx, t.managed.chainID)
+	lastXUnsafe, err := t.backend.CrossUnsafe(iCtx, t.chainID)
 	if err != nil {
-		t.managed.log.Error("failed to get last cross unsafe block. cancelling reset", "err", err)
-		t.endReset()
+		t.log.Error("failed to get last cross unsafe block. cancelling reset", "err", err)
 		return
 	}
 	if lastXUnsafe.Number < target.Number {
@@ -233,14 +94,14 @@ func (t *resetTracker) resetHeadsFromTarget(target eth.BlockID) {
 	} else {
 		xUnsafe = target
 	}
+
 	// local safe
 	lSafe = target
 
 	// cross safe
-	lastXSafe, err := t.managed.backend.CrossSafe(internalCtx, t.managed.chainID)
+	lastXSafe, err := t.backend.CrossSafe(iCtx, t.chainID)
 	if err != nil {
-		t.managed.log.Error("failed to get last cross safe block. cancelling reset", "err", err)
-		t.endReset()
+		t.log.Error("failed to get last cross safe block. cancelling reset", "err", err)
 		return
 	}
 	if lastXSafe.Derived.Number < target.Number {
@@ -252,14 +113,14 @@ func (t *resetTracker) resetHeadsFromTarget(target eth.BlockID) {
 		// Note: op-node may not have the same blocks as op-supervisor has,
 		// and thus needs to start from an old forkchoice state.
 	}
+
 	// finalized
-	lastFinalized, err := t.managed.backend.Finalized(internalCtx, t.managed.chainID)
+	lastFinalized, err := t.backend.Finalized(iCtx, t.chainID)
 	if errors.Is(err, types.ErrFuture) {
-		t.managed.log.Warn("finalized block is not yet known", "err", err)
+		t.log.Warn("finalized block is not yet known", "err", err)
 		lastFinalized = eth.BlockID{}
 	} else if err != nil {
-		t.managed.log.Error("failed to get last finalized block. cancelling reset", "err", err)
-		t.endReset()
+		t.log.Error("failed to get last finalized block. cancelling reset", "err", err)
 		return
 	}
 	if lastFinalized.Number < target.Number {
@@ -270,11 +131,19 @@ func (t *resetTracker) resetHeadsFromTarget(target eth.BlockID) {
 	}
 
 	// trigger the reset
-	t.managed.log.Info("triggering reset on node",
+	t.log.Info("triggering reset on node",
 		"localUnsafe", lUnsafe,
 		"crossUnsafe", xUnsafe,
 		"localSafe", lSafe,
 		"crossSafe", xSafe,
 		"finalized", finalized)
-	t.managed.OnResetReady(lUnsafe, xUnsafe, lSafe, xSafe, finalized)
+
+	nCtx, nCancel := context.WithTimeout(ctx, nodeTimeout)
+	defer nCancel()
+	if err := t.Node.Reset(nCtx,
+		lUnsafe, xUnsafe,
+		lSafe, xSafe,
+		finalized); err != nil {
+		t.log.Error("Failed to reset node", "err", err)
+	}
 }

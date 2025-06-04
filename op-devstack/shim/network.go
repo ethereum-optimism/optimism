@@ -56,6 +56,6 @@ func (p *presetNetwork) Faucet(m stack.FaucetMatcher) stack.Faucet {
 
 func (p *presetNetwork) AddFaucet(v stack.Faucet) {
 	id := v.ID()
-	p.require().Equal(p.chainID, id.ChainID, "faucet %s must be on chain %s", id, p.chainID)
+	p.require().Equal(p.chainID, id.ChainID(), "faucet %s must be on chain %s", id, p.chainID)
 	p.require().True(p.faucets.SetIfMissing(id, v), "faucet %s must not already exist", id)
 }

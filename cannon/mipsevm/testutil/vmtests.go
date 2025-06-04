@@ -16,8 +16,8 @@ import (
 type VMFactory[T mipsevm.FPVMState] func(state T, po mipsevm.PreimageOracle, stdOut, stdErr io.Writer, log log.Logger, meta *program.Metadata) mipsevm.FPVM
 type StateFactory[T mipsevm.FPVMState] func() T
 
-func RunVMTest_Hello[T mipsevm.FPVMState](t *testing.T, initState program.CreateInitialFPVMState[T], vmFactory VMFactory[T]) {
-	state, meta := LoadELFProgram(t, ProgramPath("hello"), initState)
+func RunVMTest_Hello[T mipsevm.FPVMState](t *testing.T, initState program.CreateInitialFPVMState[T], vmFactory VMFactory[T], goTarget GoTarget) {
+	state, meta := LoadELFProgram(t, ProgramPath("hello", goTarget), initState)
 
 	var stdOutBuf, stdErrBuf bytes.Buffer
 	us := vmFactory(state, nil, io.MultiWriter(&stdOutBuf, os.Stdout), io.MultiWriter(&stdErrBuf, os.Stderr), CreateLogger(), meta)
@@ -38,8 +38,8 @@ func RunVMTest_Hello[T mipsevm.FPVMState](t *testing.T, initState program.Create
 	require.Equal(t, "", stdErrBuf.String(), "stderr silent")
 }
 
-func RunVMTest_Claim[T mipsevm.FPVMState](t *testing.T, initState program.CreateInitialFPVMState[T], vmFactory VMFactory[T]) {
-	state, meta := LoadELFProgram(t, ProgramPath("claim"), initState)
+func RunVMTest_Claim[T mipsevm.FPVMState](t *testing.T, initState program.CreateInitialFPVMState[T], vmFactory VMFactory[T], goTarget GoTarget) {
+	state, meta := LoadELFProgram(t, ProgramPath("claim", goTarget), initState)
 
 	oracle, expectedStdOut, expectedStdErr := ClaimTestOracle(t)
 
