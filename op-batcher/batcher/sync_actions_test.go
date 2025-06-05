@@ -78,7 +78,7 @@ func TestBatchSubmitter_computeSyncActions(t *testing.T) {
 			newSyncStatus:        eth.SyncStatus{},
 			expected:             syncActions{},
 			expectedSeqOutOfSync: true,
-			expectedLogs:         []string{"empty sync status"},
+			expectedLogs:         []string{"empty safeL2 L2BlockRef in sync status"},
 		},
 		{name: "current l1 reversed",
 			// This can happen when the sequencer restarts or is switched
@@ -86,6 +86,7 @@ func TestBatchSubmitter_computeSyncActions(t *testing.T) {
 			newSyncStatus: eth.SyncStatus{
 				HeadL1:    eth.BlockRef{Number: 2},
 				CurrentL1: eth.BlockRef{Number: 1},
+				SafeL2:    eth.L2BlockRef{Number: 100, L1Origin: eth.BlockID{Number: 1}},
 			},
 			prevCurrentL1:        eth.BlockRef{Number: 2},
 			expected:             syncActions{},
