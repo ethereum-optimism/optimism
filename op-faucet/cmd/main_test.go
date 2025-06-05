@@ -78,7 +78,7 @@ func toArgList(req map[string]string) []string {
 
 func requiredArgs() map[string]string {
 	args := map[string]string{
-		//"--example": "todo",
+		"--config": "testdata/empty.yaml",
 	}
 	return args
 }
