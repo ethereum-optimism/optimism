@@ -23,16 +23,19 @@ func TestStatus(t *testing.T) {
 	status := tracker.SyncStatus()
 	require.Equal(t, eth.SyncStatus{}, *status)
 
-	oneHundred := eth.L2BlockRef{Number: 100}
 	tracker.OnEvent(engine.ForkchoiceUpdateEvent{
-		UnsafeL2Head:    oneHundred,
-		SafeL2Head:      oneHundred,
-		FinalizedL2Head: oneHundred,
+		UnsafeL2Head:    eth.L2BlockRef{Number: 101},
+		SafeL2Head:      eth.L2BlockRef{Number: 102},
+		FinalizedL2Head: eth.L2BlockRef{Number: 99},
 	})
 	status = tracker.SyncStatus()
 
 	// this is a general invariant which should hold both pre and post interop
 	require.GreaterOrEqual(t, status.LocalSafeL2.Number, status.SafeL2.Number)
+
+	require.Equal(t, status.UnsafeL2.Number, uint64(101))
+	require.Equal(t, status.SafeL2.Number, uint64(102))
+	require.Equal(t, status.FinalizedL2.Number, uint64(99))
 
 	// If this were to happen while other fields remain nonzero
 	// the batcher might try and load blocks from genesis
