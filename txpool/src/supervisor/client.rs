@@ -113,6 +113,7 @@ impl SupervisorClient {
             )
             .await
         {
+            self.inner.metrics.increment_metrics_for_error(&err);
             trace!(target: "txpool", hash=%hash, err=%err, "Cross chain transaction invalid");
             return Some(Err(InvalidCrossTx::ValidationError(err)));
         }
