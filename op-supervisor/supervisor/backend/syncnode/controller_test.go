@@ -209,9 +209,8 @@ func sampleDepSet(t *testing.T) depset.DependencySet {
 }
 
 type eventMonitor struct {
-	localDerived             int
-	receivedLocalUnsafe      int
-	localDerivedOriginUpdate int
+	localDerived        int
+	receivedLocalUnsafe int
 }
 
 func (m *eventMonitor) OnEvent(ev event.Event) bool {
@@ -220,8 +219,6 @@ func (m *eventMonitor) OnEvent(ev event.Event) bool {
 		m.localDerived += 1
 	case superevents.LocalUnsafeReceivedEvent:
 		m.receivedLocalUnsafe += 1
-	case superevents.LocalDerivedOriginUpdateEvent:
-		m.localDerivedOriginUpdate += 1
 	default:
 		return false
 	}
