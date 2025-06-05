@@ -22,8 +22,7 @@ type P interface {
 	// WithCtx makes a copy of P with a specific context.
 	// The ctx must match the test-scope of the existing context.
 	// This function is used to create a P with annotated context, e.g. a specific resource.
-	// The logger may be annotated with additional arguments.
-	WithCtx(ctx context.Context, args ...any) P
+	WithCtx(ctx context.Context) P
 
 	// TempDir creates a temporary directory, and returns the file-path.
 	// This directory is cleaned up at the end of the package,
@@ -155,11 +154,11 @@ func (p *wrapP) Logger() log.Logger {
 	return p.logger
 }
 
-func (t *implP) WithCtx(ctx context.Context, args ...any) P {
+func (t *implP) WithCtx(ctx context.Context) P {
 	expected := TestScope(t.ctx)
 	got := TestScope(ctx)
 	t.req.Equal(expected, got, "cannot replace context with different test-scope")
-	logger := t.logger.New(args...)
+	logger := t.logger.New()
 	logger.SetContext(ctx)
 	out := &wrapP{ctx: ctx, logger: logger, P: t}
 	out.req = testreq.New(out)

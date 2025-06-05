@@ -403,7 +403,7 @@ func (s *OpConductorTestSuite) TestScenario3() {
 	}
 	s.cons.EXPECT().LatestUnsafePayload().Return(mockPayload, nil).Times(1)
 	s.ctrl.EXPECT().LatestUnsafeBlock(mock.Anything).Return(mockBlockInfo, nil).Times(1)
-	s.ctrl.EXPECT().StartSequencer(mock.Anything, mock.Anything).Return(nil).Times(1)
+	s.ctrl.EXPECT().StartSequencer(mock.Anything, mockPayload.ExecutionPayload.BlockHash).Return(nil).Times(1)
 
 	// [follower, healthy, not sequencing]
 	s.False(s.conductor.leader.Load())
@@ -443,7 +443,7 @@ func (s *OpConductorTestSuite) TestScenario4() {
 	s.cons.EXPECT().LatestUnsafePayload().Return(mockPayload, nil).Times(1)
 	s.ctrl.EXPECT().LatestUnsafeBlock(mock.Anything).Return(mockBlockInfo, nil).Times(1)
 	s.ctrl.EXPECT().PostUnsafePayload(mock.Anything, mockPayload).Return(errors.New("simulated PostUnsafePayload failure")).Times(1)
-	s.ctrl.EXPECT().StartSequencer(mock.Anything, mockPayload.ExecutionPayload.BlockHash).Return(nil).Times(1)
+	s.ctrl.EXPECT().StartSequencer(mock.Anything, mockBlockInfo.InfoHash).Return(nil).Times(1)
 
 	s.updateLeaderStatusAndExecuteAction(true)
 
@@ -459,7 +459,7 @@ func (s *OpConductorTestSuite) TestScenario4() {
 	s.cons.EXPECT().LatestUnsafePayload().Return(mockPayload, nil).Times(1)
 	s.ctrl.EXPECT().LatestUnsafeBlock(mock.Anything).Return(mockBlockInfo, nil).Times(1)
 	s.ctrl.EXPECT().PostUnsafePayload(mock.Anything, mockPayload).Return(nil).Times(1)
-	s.ctrl.EXPECT().StartSequencer(mock.Anything, mockBlockInfo.InfoHash).Return(nil).Times(1)
+	s.ctrl.EXPECT().StartSequencer(mock.Anything, mockPayload.ExecutionPayload.BlockHash).Return(nil).Times(1)
 
 	s.executeAction()
 
@@ -1067,12 +1067,13 @@ func (s *OpConductorTestSuite) TestFlashblocksHandlerIntegration() {
 	// Convert HTTP URL to WebSocket URL for rollup boost
 	rollupBoostWsURL := strings.Replace(rollupBoostServer.URL, "http", "ws", 1)
 
-	// Update the config to include the WebSocket URL and server port
-	s.cfg.RollupBoostWsURL = rollupBoostWsURL
-	s.cfg.WebsocketServerPort = port
+	// Create a copy of the config to avoid modifying the shared config object
+	testCfg := s.cfg
+	testCfg.RollupBoostWsURL = rollupBoostWsURL
+	testCfg.WebsocketServerPort = port
 
 	// Create a new conductor with the updated config
-	conductor, err := NewOpConductor(s.ctx, &s.cfg, s.log, s.metrics, s.version, s.ctrl, s.cons, s.hmon)
+	conductor, err := NewOpConductor(s.ctx, &testCfg, s.log, s.metrics, s.version, s.ctrl, s.cons, s.hmon)
 	s.NoError(err)
 
 	// Set up mock expectation for Leader() calls - the flashblocks handler checks leadership
@@ -1096,7 +1097,7 @@ func (s *OpConductorTestSuite) TestFlashblocksHandlerIntegration() {
 	}
 
 	// Connect to the WebSocket server BEFORE messages are sent
-	wsURL := fmt.Sprintf("ws://localhost:%d/ws", s.cfg.WebsocketServerPort)
+	wsURL := fmt.Sprintf("ws://localhost:%d/ws", testCfg.WebsocketServerPort)
 
 	// Create connection context
 	connCtx, connCancel := context.WithTimeout(testCtx, 3*time.Second)

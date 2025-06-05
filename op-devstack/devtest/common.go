@@ -8,7 +8,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/log"
 
-	oplog "github.com/ethereum-optimism/optimism/op-service/log"
+	"github.com/ethereum-optimism/optimism/op-service/log/logfilter"
 	"github.com/ethereum-optimism/optimism/op-service/testreq"
 )
 
@@ -64,6 +64,7 @@ func TestScope(ctx context.Context) string {
 // and returns a context with the updated scope value.
 func AddTestScope(ctx context.Context, scope string) context.Context {
 	prev := TestScope(ctx)
-	ctx = oplog.RegisterLogAttrOnContext(ctx, "scope", testScopeCtxKey)
-	return context.WithValue(ctx, testScopeCtxKey, testScopeValue(prev+"/"+scope))
+	newScope := testScopeValue(prev + "/" + scope)
+	ctx = logfilter.AddLogAttrToContext(ctx, "scope", newScope)
+	return context.WithValue(ctx, testScopeCtxKey, newScope)
 }
