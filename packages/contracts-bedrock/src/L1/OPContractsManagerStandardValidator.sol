@@ -109,9 +109,11 @@ contract StandardValidator is ISemver {
     }
 
     /// @notice Struct containing override parameters for the validation process.
+    /// TODO(snevins): get this from the IStandardValidator interface
     struct ValidationOverrides {
         address l1PAOMultisig;
         address challenger;
+        IAnchorStateRegistry anchorStateRegistry;
     }
 
     /// @notice Constructor for the StandardValidator contract.
@@ -567,7 +569,9 @@ contract StandardValidator is ISemver {
     {
         IAnchorStateRegistry _asr = _game.anchorStateRegistry();
         Hash anchorRoot;
-        
+
+        _asr = _overrides.anchorStateRegistry;
+
         // Only attempt to get anchor root if anchor state registry is not zero address
         // TODO(snevins): validate this is what we want
         if (address(_asr) != address(0)) {
@@ -655,13 +659,13 @@ contract StandardValidator is ISemver {
         returns (string memory)
     {
         _errorPrefix = string.concat(_errorPrefix, "-ANCHORP");
-        
+
         // If anchor state registry is zero address, return early with error
         // TODO(snevins): validate this is what we want
         if (address(_asr) == address(0)) {
             return internalRequire(false, string.concat(_errorPrefix, "-00"), _errors);
         }
-        
+
         _errors = internalRequire(
             LibString.eq(_asr.version(), anchorStateRegistryVersion()), string.concat(_errorPrefix, "-10"), _errors
         );
@@ -691,7 +695,7 @@ contract StandardValidator is ISemver {
     {
         _errorPrefix = string.concat(_errorPrefix, "-VM");
         _errors = internalRequire(address(_mips) == mipsImpl, string.concat(_errorPrefix, "-10"), _errors);
-        
+
         // Only call methods on _mips if it's not the zero address
         // TODO(snevins): validate this is what we want
         if (address(_mips) != address(0)) {
@@ -747,7 +751,7 @@ contract StandardValidator is ISemver {
     /// @notice Validates the configuration of the L1 contracts.
     function validate(ValidationInput memory _input, bool _allowFailure) external view returns (string memory) {
         return
-            validate(_input, _allowFailure, ValidationOverrides({ l1PAOMultisig: address(0), challenger: address(0) }));
+            validate(_input, _allowFailure, ValidationOverrides({ l1PAOMultisig: address(0), challenger: address(0), anchorStateRegistry: IAnchorStateRegistry(address(0)) }));
     }
 
     /// @notice Validates the configuration of the L1 contracts.

@@ -9,6 +9,7 @@ import { GameTypes, Duration, Claim } from "src/dispute/lib/Types.sol";
 import { DeployUtils } from "scripts/libraries/DeployUtils.sol";
 
 // Interfaces
+import { IAnchorStateRegistry } from "interfaces/dispute/IAnchorStateRegistry.sol";
 import { IOPContractsManager } from "interfaces/L1/IOPContractsManager.sol";
 import { IDisputeGameFactory } from "interfaces/dispute/IDisputeGameFactory.sol";
 import { IFaultDisputeGame } from "interfaces/dispute/IFaultDisputeGame.sol";
@@ -241,7 +242,7 @@ contract StandardValidator_TestInit is CommonTest {
     }
 
     function _defaultValidationOverrides() internal pure returns (IStandardValidator.ValidationOverrides memory) {
-        return IStandardValidator.ValidationOverrides({ l1PAOMultisig: address(0), challenger: address(0) });
+        return IStandardValidator.ValidationOverrides({ l1PAOMultisig: address(0), challenger: address(0), anchorStateRegistry: IAnchorStateRegistry(address(0)) });
     }
 }
 
@@ -283,7 +284,7 @@ contract StandardValidator_GeneralOverride_Test is StandardValidator_TestInit {
     ///         overridden strings alone.
     function test_validateOverrides_noErrors_succeeds() public {
         IStandardValidator.ValidationOverrides memory overrides =
-            IStandardValidator.ValidationOverrides({ l1PAOMultisig: address(0xbad), challenger: address(0xc0ffee) });
+            IStandardValidator.ValidationOverrides({ l1PAOMultisig: address(0xbad), challenger: address(0xc0ffee), anchorStateRegistry: IAnchorStateRegistry(address(420)) });
         vm.mockCall(address(proxyAdmin), abi.encodeCall(IProxyAdmin.owner, ()), abi.encode(overrides.l1PAOMultisig));
         vm.mockCall(
             address(disputeGameFactory),
@@ -301,7 +302,7 @@ contract StandardValidator_GeneralOverride_Test is StandardValidator_TestInit {
     ///         returns the errors with the overrides prepended.
     function test_validateOverrides_notAllowFailurePrependsOverrides_succeeds() public {
         IStandardValidator.ValidationOverrides memory overrides =
-            IStandardValidator.ValidationOverrides({ l1PAOMultisig: address(0xbad), challenger: address(0xc0ffee) });
+            IStandardValidator.ValidationOverrides({ l1PAOMultisig: address(0xbad), challenger: address(0xc0ffee), anchorStateRegistry: IAnchorStateRegistry(address(420)) });
 
         vm.expectRevert(
             bytes(

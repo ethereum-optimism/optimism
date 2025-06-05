@@ -3,6 +3,7 @@ pragma solidity ^0.8.0;
 
 // Interfaces
 import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
+import { IAnchorStateRegistry } from "interfaces/dispute/IAnchorStateRegistry.sol";
 import { ISystemConfig } from "interfaces/L1/ISystemConfig.sol";
 import { IProxyAdmin } from "interfaces/universal/IProxyAdmin.sol";
 
@@ -31,6 +32,7 @@ interface IOPContractsManagerStandardValidator {
     struct ValidationOverrides {
         address l1PAOMultisig;
         address challenger;
+        IAnchorStateRegistry anchorStateRegistry;
     }
 
     function version() external view returns (string memory);
