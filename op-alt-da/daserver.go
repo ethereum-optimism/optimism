@@ -12,6 +12,7 @@ import (
 	"net/http"
 	"path"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-service/httputil"
@@ -91,7 +92,7 @@ func (d *DAServer) Start() error {
 }
 
 func (d *DAServer) HandleGet(w http.ResponseWriter, r *http.Request) {
-	d.log.Debug("GET", "url", r.URL)
+	d.log.Debug("GET", "url", r.URL, "src", getSrcIP(r))
 
 	route := path.Dir(r.URL.Path)
 	if route != "/get" {
@@ -126,7 +127,7 @@ func (d *DAServer) HandleGet(w http.ResponseWriter, r *http.Request) {
 }
 
 func (d *DAServer) HandlePut(w http.ResponseWriter, r *http.Request) {
-	d.log.Info("PUT", "url", r.URL)
+	d.log.Info("PUT", "url", r.URL, "src", getSrcIP(r))
 
 	route := path.Dir(r.URL.Path)
 	if route != "/put" && r.URL.Path != "/put" {
@@ -197,4 +198,19 @@ func (b *DAServer) Stop() error {
 	defer cancel()
 	_ = b.httpServer.Shutdown(ctx)
 	return nil
+}
+
+func getSrcIP(r *http.Request) string {
+	if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
+		ips := strings.Split(xff, ",")
+
+		return strings.TrimSpace(ips[0])
+	}
+
+	host, _, err := net.SplitHostPort(r.RemoteAddr)
+	if err != nil {
+		return r.RemoteAddr
+	}
+
+	return host
 }
