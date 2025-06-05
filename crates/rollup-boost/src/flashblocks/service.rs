@@ -23,7 +23,7 @@ use std::sync::Arc;
 use thiserror::Error;
 use tokio::sync::RwLock;
 use tokio::sync::mpsc;
-use tracing::error;
+use tracing::{error, info};
 
 #[derive(Debug, Error)]
 pub enum FlashblocksError {
@@ -284,13 +284,21 @@ impl EngineApiExt for FlashblocksService {
         payload_id: PayloadId,
         version: PayloadVersion,
     ) -> ClientResult<OpExecutionPayloadEnvelope> {
-        let fb_payload = self.get_best_payload(version).await?;
-        if let Some(payload) = fb_payload {
-            tracing::info!(message = "Returning fb payload", payload_id = %payload_id);
-            return Ok(payload);
+        // First try to get the best flashblocks payload from the builder if it exists
+        match self.get_best_payload(version).await {
+            Ok(Some(payload)) => {
+                info!(message = "Returning fb payload");
+                return Ok(payload);
+            }
+            Ok(None) => {
+                info!(message = "No flashblocks payload available");
+            }
+            Err(e) => {
+                error!(message = "Error getting fb best payload", error = %e);
+            }
         }
 
-        tracing::info!(message = "No flashblocks payload available, fetching from client", payload_id = %payload_id);
+        info!(message = "Falling back to get_payload on client", payload_id = %payload_id);
         let result = self.client.get_payload(payload_id, version).await?;
         Ok(result)
     }
@@ -301,5 +309,46 @@ impl EngineApiExt for FlashblocksService {
         full: bool,
     ) -> ClientResult<Block> {
         self.client.get_block_by_number(number, full).await
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{
+        PayloadSource,
+        server::tests::{MockEngineServer, spawn_server},
+    };
+    use http::Uri;
+    use reth_rpc_layer::JwtSecret;
+    use std::str::FromStr;
+
+    /// Test that we fallback to the getPayload method if the flashblocks payload is not available
+    #[tokio::test]
+    async fn test_flashblocks_fallback_to_get_payload() -> eyre::Result<()> {
+        let builder_mock: MockEngineServer = MockEngineServer::new();
+        let (_fallback_server, fallback_server_addr) = spawn_server(builder_mock.clone()).await;
+        let jwt_secret = JwtSecret::random();
+
+        let builder_auth_rpc = Uri::from_str(&format!("http://{fallback_server_addr}")).unwrap();
+        let builder_client = RpcClient::new(
+            builder_auth_rpc.clone(),
+            jwt_secret,
+            2000,
+            PayloadSource::Builder,
+        )?;
+
+        let service =
+            FlashblocksService::new(builder_client, "127.0.0.1:8000".parse().unwrap()).unwrap();
+
+        // by default, builder_mock returns a valid payload always
+        service
+            .get_payload(PayloadId::default(), PayloadVersion::V3)
+            .await?;
+
+        let get_payload_requests_builder = builder_mock.get_payload_requests.clone();
+        assert_eq!(get_payload_requests_builder.lock().len(), 1);
+
+        Ok(())
     }
 }
