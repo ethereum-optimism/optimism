@@ -56,38 +56,26 @@ contract ClaimCreditReenter {
     }
 }
 
-/// @title SuperFaultDisputeGame_TestInit
-/// @notice Reusable test initialization for `SuperFaultDisputeGame` tests.
-contract SuperFaultDisputeGame_TestInit is DisputeGameFactory_Init {
-    /// @notice The type of the game being tested.
+/// @title BaseSuperFaultDisputeGame_TestInit
+/// @notice Base test initializer that can be used by other contracts outside of this test suite.
+contract BaseSuperFaultDisputeGame_TestInit is DisputeGameFactory_Init {
+    /// @dev The type of the game being tested.
     GameType internal immutable GAME_TYPE = GameTypes.SUPER_CANNON;
 
-    /// @notice The initial bond for the game.
+    /// @dev The initial bond for the game.
     uint256 internal initBond;
 
-    /// @notice The implementation of the game.
+    /// @dev The implementation of the game.
     ISuperFaultDisputeGame internal gameImpl;
-    /// @notice The `Clone` proxy of the game.
+
+    /// @dev The `Clone` proxy of the game.
     ISuperFaultDisputeGame internal gameProxy;
 
-    /// @notice The extra data passed to the game for initialization.
+    /// @dev The extra data passed to the game for initialization.
     bytes internal extraData;
-
-    /// @notice The root claim of the game.
-    Claim internal ROOT_CLAIM;
-    /// @notice An arbitrary root claim for testing.
-    Claim internal arbitaryRootClaim = Claim.wrap(bytes32(uint256(123)));
-
-    /// @notice The preimage of the absolute prestate claim
-    bytes internal absolutePrestateData;
-    /// @notice The absolute prestate of the trace.
-    Claim internal absolutePrestate;
-    /// @notice A valid l2SequenceNumber that comes after the current anchor root block.
-    uint256 validl2SequenceNumber;
 
     event Move(uint256 indexed parentIndex, Claim indexed pivot, address indexed claimant);
     event GameClosed(BondDistributionMode bondDistributionMode);
-
     event ReceiveETH(uint256 amount);
 
     function init(Claim _rootClaim, Claim _absolutePrestate, uint256 _l2SequenceNumber) public {
@@ -132,6 +120,29 @@ contract SuperFaultDisputeGame_TestInit is DisputeGameFactory_Init {
         vm.label(address(gameProxy), "SuperFaultDisputeGame_Clone");
     }
 
+    fallback() external payable { }
+
+    receive() external payable { }
+}
+
+/// @title SuperFaultDisputeGame_TestInit
+/// @notice Reusable test initialization for `SuperFaultDisputeGame` tests.
+contract SuperFaultDisputeGame_TestInit is BaseSuperFaultDisputeGame_TestInit {
+    /// @dev The root claim of the game.
+    Claim internal ROOT_CLAIM;
+
+    /// @dev An arbitrary root claim for testing.
+    Claim internal arbitaryRootClaim = Claim.wrap(bytes32(uint256(123)));
+
+    /// @dev The preimage of the absolute prestate claim
+    bytes internal absolutePrestateData;
+
+    /// @dev The absolute prestate of the trace.
+    Claim internal absolutePrestate;
+
+    /// @dev A valid l2SequenceNumber that comes after the current anchor root block.
+    uint256 validl2SequenceNumber;
+
     function setUp() public virtual override {
         absolutePrestateData = abi.encode(0);
         absolutePrestate = _changeClaimStatus(Claim.wrap(keccak256(absolutePrestateData)), VMStatuses.UNFINISHED);
@@ -142,14 +153,14 @@ contract SuperFaultDisputeGame_TestInit is DisputeGameFactory_Init {
         (Hash root, uint256 l2Bn) = anchorStateRegistry.getAnchorRoot();
         validl2SequenceNumber = l2Bn + 1;
 
-        ROOT_CLAIM = Claim.wrap(Hash.unwrap(root));
-
         if (isForkTest()) {
             // Set the init bond of anchor game type 4 to be 0.
             vm.store(
                 address(disputeGameFactory), keccak256(abi.encode(GameType.wrap(4), uint256(102))), bytes32(uint256(0))
             );
         }
+
+        ROOT_CLAIM = Claim.wrap(Hash.unwrap(root));
         init({ _rootClaim: ROOT_CLAIM, _absolutePrestate: absolutePrestate, _l2SequenceNumber: validl2SequenceNumber });
     }
 
@@ -211,10 +222,6 @@ contract SuperFaultDisputeGame_TestInit is DisputeGameFactory_Init {
             out_ := or(and(not(shl(248, 0xFF)), _claim), shl(248, _status))
         }
     }
-
-    fallback() external payable { }
-
-    receive() external payable { }
 }
 
 /// @title SuperFaultDisputeGame_Version_Test
