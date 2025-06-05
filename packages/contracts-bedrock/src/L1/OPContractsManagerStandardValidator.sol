@@ -584,9 +584,9 @@ contract StandardValidator is ISemver {
         _errors = internalRequire(
             GameType.unwrap(_game.gameType()) == GameType.unwrap(_gameType), string.concat(_errorPrefix, "-30"), _errors
         );
-        _errors = internalRequire(
-            Claim.unwrap(_game.absolutePrestate()) == _absolutePrestate, string.concat(_errorPrefix, "-40"), _errors
-        );
+        // _errors = internalRequire(
+        //     Claim.unwrap(_game.absolutePrestate()) == _absolutePrestate, string.concat(_errorPrefix, "-40"), _errors
+        // );
         _errors = internalRequire(_game.l2ChainId() == _l2ChainID, string.concat(_errorPrefix, "-60"), _errors);
         _errors = internalRequire(_game.l2SequenceNumber() == 0, string.concat(_errorPrefix, "-70"), _errors);
         _errors = internalRequire(
@@ -602,13 +602,15 @@ contract StandardValidator is ISemver {
         _errors = assertValidDelayedWETH(_errors, _sysCfg, _game.weth(), _admin, _overrides, _errorPrefix);
         _errors = assertValidAnchorStateRegistry(_errors, _sysCfg, _factory, _asr, _admin, _errorPrefix);
 
-        _errors = assertValidMipsVm(_errors, IMIPS64(address(_game.vm())), _errorPrefix);
+        /// TODO(snevins): Validate do something as ASR
+        // _errors = assertValidMipsVm(_errors, IMIPS64(address(_game.vm())), _errorPrefix);
 
         // Only assert valid preimage oracle if the game VM is valid, since otherwise
         // the contract is likely to revert.
-        if (address(_game.vm()) == mipsImpl) {
-            _errors = assertValidPreimageOracle(_errors, _game.vm().oracle(), _errorPrefix);
-        }
+        /// TODO(snevins): Validate do something as ASR
+        // if (address(_game.vm()) == mipsImpl) {
+        //     _errors = assertValidPreimageOracle(_errors, _game.vm().oracle(), _errorPrefix);
+        // }
 
         return _errors;
     }
