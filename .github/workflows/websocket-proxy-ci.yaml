@@ -11,7 +11,7 @@ env:
 jobs:
   check:
     name: Check
-    runs-on: ubuntu-latest
+    runs-on: warp-ubuntu-latest-x64-16x
     defaults:
       run:
         working-directory: "./crates/websocket-proxy"
@@ -51,7 +51,7 @@ jobs:
 
   docker:
     name: Docker Build
-    runs-on: ubuntu-latest
+    runs-on: warp-ubuntu-latest-x64-16x
     steps:
       - uses: actions/checkout@v4
 

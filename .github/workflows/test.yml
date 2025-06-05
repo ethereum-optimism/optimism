@@ -11,7 +11,7 @@ env:
 jobs:
   run-tests:
     name: Run tests
-    runs-on: ubuntu-latest
+    runs-on: warp-ubuntu-latest-x64-16x
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable

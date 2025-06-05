@@ -84,7 +84,7 @@ jobs:
           retention-days: 1
 
   merge:
-    runs-on: ubuntu-latest
+    runs-on: warp-ubuntu-latest-x64-16x
     needs:
       - release
     steps:
@@ -126,7 +126,7 @@ jobs:
           docker buildx imagetools inspect ${{ env.REGISTRY_IMAGE }}:${{ steps.meta.outputs.version }}
 
   github-release:
-    runs-on: ubuntu-latest
+    runs-on: warp-ubuntu-latest-x64-16x
     steps:
       - name: Checkout sources
         uses: actions/checkout@v4

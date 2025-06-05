@@ -11,7 +11,7 @@ on:
 
 jobs:
   test:
-    runs-on: ubuntu-latest
+    runs-on: warp-ubuntu-latest-x64-16x
     name: test
     timeout-minutes: 60
 
@@ -33,7 +33,7 @@ jobs:
         run: mdbook test
 
   lint:
-    runs-on: ubuntu-latest
+    runs-on: warp-ubuntu-latest-x64-16x
     name: lint
     timeout-minutes: 60
 
