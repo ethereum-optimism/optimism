@@ -303,8 +303,18 @@ abstract contract OPContractsManagerBase {
     }
 
     /// @notice Sets a game implementation on the dispute game factory
-    function setDGFImplementation(IDisputeGameFactory _dgf, GameType _gameType, IDisputeGame _newGame) internal {
-        _dgf.setImplementation(_gameType, _newGame, ""); // TODO(snevins): validate correct parameters later
+    function setDGFImplementation(
+        IDisputeGameFactory _dgf,
+        GameType _gameType,
+        IDisputeGame _newGame,
+        Claim _absolutePrestate,
+        IBigStepper _vm,
+        IAnchorStateRegistry _anchorStateRegistry
+    )
+        internal
+    {
+        bytes memory implArgs = abi.encodePacked(_absolutePrestate, _vm, _anchorStateRegistry);
+        _dgf.setImplementation(_gameType, _newGame, implArgs);
     }
 }
 
@@ -327,6 +337,25 @@ contract OPContractsManagerGameTypeAdder is OPContractsManagerBase {
     /// @notice Constructor to initialize the immutable thisOPCM variable and contract addresses
     /// @param _contractsContainer The blueprint contract addresses and implementation contract addresses
     constructor(OPContractsManagerContractsContainer _contractsContainer) OPContractsManagerBase(_contractsContainer) { }
+
+    /// @notice Helper function to set game implementation with CWIA args to avoid stack too deep
+    function _setGameImplementation(
+        IDisputeGameFactory _dgf,
+        OPContractsManager.AddGameInput memory _gameConfig,
+        IFaultDisputeGame _faultDisputeGame
+    )
+        private
+    {
+        IAnchorStateRegistry asr = getAnchorStateRegistry(_gameConfig.systemConfig);
+        setDGFImplementation(
+            _dgf,
+            _gameConfig.disputeGameType,
+            IDisputeGame(address(_faultDisputeGame)),
+            _gameConfig.disputeAbsolutePrestate,
+            _gameConfig.vm,
+            asr
+        );
+    }
 
     /// @notice Deploys a new dispute game and installs it into the DisputeGameFactory. Inputted
     ///         game configs must be added in ascending GameType order.
@@ -476,7 +505,7 @@ contract OPContractsManagerGameTypeAdder is OPContractsManagerBase {
 
             // As a last step, register the new game type with the DisputeGameFactory. If the game
             // type already exists, then its implementation will be overwritten.
-            setDGFImplementation(dgf, gameConfig.disputeGameType, IDisputeGame(address(outputs[i].faultDisputeGame)));
+            _setGameImplementation(dgf, gameConfig, outputs[i].faultDisputeGame);
             dgf.setInitBond(gameConfig.disputeGameType, gameConfig.initialBond);
 
             // Emit event for the newly added game type with the new and old implementations.
@@ -886,7 +915,7 @@ contract OPContractsManagerUpgrader is OPContractsManagerBase {
         params.weth = _newDelayedWeth;
         // TODO(snevins): anchorStateRegistry removed from GameConstructorParams struct
         // params.anchorStateRegistry = _newAnchorStateRegistryProxy;
-        // TODO(snevins): vm removed from GameConstructorParams struct  
+        // TODO(snevins): vm removed from GameConstructorParams struct
         // params.vm = IBigStepper(impls.mipsImpl);
 
         // If the prestate is set in the config, use it. If not set, we'll try to use the prestate
@@ -929,7 +958,19 @@ contract OPContractsManagerUpgrader is OPContractsManagerBase {
         IDisputeGameFactory dgf = IDisputeGameFactory(_opChainConfig.systemConfigProxy.disputeGameFactory());
 
         // Set the new implementation.
-        setDGFImplementation(dgf, _gameType, IDisputeGame(newGame));
+        Claim absolutePrestate = _opChainConfig.absolutePrestate;
+        if (Claim.unwrap(absolutePrestate) == bytes32(0)) {
+            // If no prestate provided in config, get it from the existing game
+            absolutePrestate = IFaultDisputeGame(address(_disputeGame)).absolutePrestate();
+        }
+        setDGFImplementation(
+            dgf,
+            _gameType,
+            IDisputeGame(newGame),
+            absolutePrestate,
+            IBigStepper(impls.mipsImpl),
+            _newAnchorStateRegistryProxy
+        );
     }
 }
 
@@ -1128,7 +1169,10 @@ contract OPContractsManagerDeployer is OPContractsManagerBase {
         setDGFImplementation(
             output.disputeGameFactoryProxy,
             GameTypes.PERMISSIONED_CANNON,
-            IDisputeGame(address(output.permissionedDisputeGame))
+            IDisputeGame(address(output.permissionedDisputeGame)),
+            _input.disputeAbsolutePrestate,
+            IBigStepper(implementation.mipsImpl),
+            output.anchorStateRegistryProxy
         );
 
         transferOwnership(address(output.disputeGameFactoryProxy), address(_input.roles.opChainProxyAdminOwner));
