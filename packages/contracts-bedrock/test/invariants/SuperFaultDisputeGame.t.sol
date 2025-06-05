@@ -2,7 +2,7 @@
 pragma solidity 0.8.15;
 
 // Testing
-import { SuperFaultDisputeGame_Init } from "test/dispute/SuperFaultDisputeGame.t.sol";
+import { SuperFaultDisputeGame_TestInit } from "test/dispute/SuperFaultDisputeGame.t.sol";
 import { IFaultDisputeGame } from "interfaces/dispute/IFaultDisputeGame.sol";
 import { RandomClaimActor } from "test/invariants/FaultDisputeGame.t.sol";
 
@@ -10,16 +10,16 @@ import { RandomClaimActor } from "test/invariants/FaultDisputeGame.t.sol";
 import "src/dispute/lib/Types.sol";
 import "src/dispute/lib/Errors.sol";
 
-contract SuperFaultDisputeGame_Solvency_Invariant is SuperFaultDisputeGame_Init {
-    Claim internal constant ROOT_CLAIM = Claim.wrap(bytes32(uint256(10)));
-    Claim internal constant ABSOLUTE_PRESTATE = Claim.wrap(bytes32((uint256(3) << 248) | uint256(0)));
+contract SuperFaultDisputeGame_Solvency_Invariant is SuperFaultDisputeGame_TestInit {
+    Claim internal constant _ROOT_CLAIM = Claim.wrap(bytes32(uint256(10)));
+    Claim internal constant _ABSOLUTE_PRESTATE = Claim.wrap(bytes32((uint256(3) << 248) | uint256(0)));
 
     RandomClaimActor internal actor;
     uint256 internal defaultSenderBalance;
 
     function setUp() public override {
         super.setUp();
-        super.init({ rootClaim: ROOT_CLAIM, absolutePrestate: ABSOLUTE_PRESTATE, l2SequenceNumber: 0x10 });
+        super.init({ _rootClaim: _ROOT_CLAIM, _absolutePrestate: _ABSOLUTE_PRESTATE, _l2SequenceNumber: 0x10 });
 
         actor = new RandomClaimActor(IFaultDisputeGame(address(gameProxy)), vm);
 
