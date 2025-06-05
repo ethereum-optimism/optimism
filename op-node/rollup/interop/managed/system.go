@@ -151,7 +151,6 @@ func (m *ManagedMode) OnEvent(ev event.Event) bool {
 				Source:  x.Origin,
 				Derived: x.LastL2.BlockRef(),
 			},
-			DerivationOriginUpdate: &x.Origin,
 		})
 	case derive.ExhaustedL1Event:
 		m.log.Info("Exhausted L1 data", "derivedFrom", x.L1Ref, "derived", x.LastL2)
