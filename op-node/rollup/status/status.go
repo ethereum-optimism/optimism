@@ -117,6 +117,7 @@ func (st *StatusTracker) OnEvent(ev event.Event) bool {
 	case rollup.ResetEvent:
 		st.data.UnsafeL2 = eth.L2BlockRef{}
 		st.data.SafeL2 = eth.L2BlockRef{}
+		st.data.LocalSafeL2 = eth.L2BlockRef{}
 		st.data.CurrentL1 = eth.L1BlockRef{}
 	case engine.EngineResetConfirmedEvent:
 		st.data.UnsafeL2 = x.LocalUnsafe

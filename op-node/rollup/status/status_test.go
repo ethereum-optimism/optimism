@@ -3,6 +3,7 @@ package status
 import (
 	"testing"
 
+	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/engine"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
@@ -19,8 +20,8 @@ func TestStatus(t *testing.T) {
 
 	tracker := NewStatusTracker(testlog.Logger(t, log.LevelDebug), NoopMetrics{})
 
-	initialStatus := tracker.SyncStatus()
-	require.Equal(t, eth.SyncStatus{}, *initialStatus)
+	status := tracker.SyncStatus()
+	require.Equal(t, eth.SyncStatus{}, *status)
 
 	oneHundred := eth.L2BlockRef{Number: 100}
 	tracker.OnEvent(engine.ForkchoiceUpdateEvent{
@@ -28,14 +29,20 @@ func TestStatus(t *testing.T) {
 		SafeL2Head:      oneHundred,
 		FinalizedL2Head: oneHundred,
 	})
-
-	finalStatus := tracker.SyncStatus()
+	status = tracker.SyncStatus()
 
 	// this is a general invariant which should hold both pre and post interop
-	require.GreaterOrEqual(t, finalStatus.LocalSafeL2.Number, finalStatus.SafeL2.Number)
+	require.GreaterOrEqual(t, status.LocalSafeL2.Number, status.SafeL2.Number)
 
 	// If this were to happen while other fields remain nonzero
 	// the batcher might try and load blocks from genesis
 	// which would cause a major issue:
-	require.NotZero(t, finalStatus.LocalSafeL2.Number)
+	require.NotZero(t, status.LocalSafeL2.Number)
+
+	tracker.OnEvent(rollup.ResetEvent{})
+	status = tracker.SyncStatus()
+
+	// this is a general invariant which should hold both pre and post interop
+	require.Equal(t, status.LocalSafeL2.Number, status.SafeL2.Number)
+
 }
