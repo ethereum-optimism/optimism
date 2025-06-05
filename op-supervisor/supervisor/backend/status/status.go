@@ -2,7 +2,6 @@ package status
 
 import (
 	"errors"
-	"fmt"
 	"sync"
 
 	"github.com/ethereum/go-ethereum/log"
@@ -15,7 +14,6 @@ import (
 
 var (
 	ErrStatusTrackerNotReady = errors.New("supervisor status tracker not ready")
-	ErrMinSyncedL1Mismatch   = errors.New("min synced L1 mismatch")
 )
 
 type StatusTracker struct {
@@ -24,7 +22,6 @@ type StatusTracker struct {
 }
 
 type NodeSyncStatus struct {
-	CurrentL1   eth.L1BlockRef
 	LocalUnsafe eth.BlockRef
 	LocalSafe   types.BlockSeal
 	CrossUnsafe types.BlockSeal
@@ -55,9 +52,6 @@ func (su *StatusTracker) OnEvent(ev event.Event) bool {
 		return v
 	}
 	switch x := ev.(type) {
-	case superevents.LocalDerivedOriginUpdateEvent:
-		status := loadStatusRef(x.ChainID)
-		status.CurrentL1 = x.Origin
 	case superevents.LocalUnsafeUpdateEvent:
 		status := loadStatusRef(x.ChainID)
 		status.LocalUnsafe = x.NewLocalUnsafe
@@ -106,23 +100,8 @@ func (su *StatusTracker) SyncStatus() (eth.SupervisorSyncStatus, error) {
 	firstChain := true
 	var supervisorStatus eth.SupervisorSyncStatus
 	supervisorStatus.Chains = make(map[eth.ChainID]*eth.SupervisorChainSyncStatus)
-	// to collect the min synced L1, we need to iterate over all nodes
-	// and compare the current L1 block they each reported.
-	for chainID, nodeStatus := range su.statuses {
-		// if the min synced L1 is not set, or the node's current L1 is lower than the min synced L1, set it
-		if supervisorStatus.MinSyncedL1 == (eth.L1BlockRef{}) || supervisorStatus.MinSyncedL1.Number > nodeStatus.CurrentL1.Number {
-			// even after this update, MinSyncedL1 may still be empty when CurrentL1 was never updated
-			supervisorStatus.MinSyncedL1 = nodeStatus.CurrentL1
-		}
-		// if the height is equal, we need to compare the hash
-		if supervisorStatus.MinSyncedL1.Number == nodeStatus.CurrentL1.Number &&
-			supervisorStatus.MinSyncedL1.Hash != nodeStatus.CurrentL1.Hash {
-			// if the hashes are not equal, return an empty status
-			return eth.SupervisorSyncStatus{}, fmt.Errorf("%w: %v != %v", ErrMinSyncedL1Mismatch, supervisorStatus.MinSyncedL1.Hash, nodeStatus.CurrentL1.Hash)
-		}
-		// if the node's current L1 is higher than the min synced L1, we can skip it,
-		// because we already know a different node isn't synced to it yet
 
+	for chainID, nodeStatus := range su.statuses {
 		if firstChain || supervisorStatus.SafeTimestamp >= nodeStatus.CrossSafe.Timestamp {
 			supervisorStatus.SafeTimestamp = nodeStatus.CrossSafe.Timestamp
 		}
