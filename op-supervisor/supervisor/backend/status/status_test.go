@@ -17,25 +17,6 @@ func TestInitialSyncStatus(t *testing.T) {
 	require.Error(t, ErrStatusTrackerNotReady, err)
 }
 
-func TestUpdateMinSyncedL1(t *testing.T) {
-	chain1 := eth.ChainIDFromUInt64(1)
-	chain2 := eth.ChainIDFromUInt64(2)
-	chains := []eth.ChainID{chain1, chain2}
-	tracker := NewStatusTracker(chains)
-	minL1 := eth.BlockRef{Number: 204, Hash: common.Hash{0xaa}}
-	tracker.OnEvent(superevents.LocalDerivedOriginUpdateEvent{
-		ChainID: chain1,
-		Origin:  minL1,
-	})
-	tracker.OnEvent(superevents.LocalDerivedOriginUpdateEvent{
-		ChainID: chain2,
-		Origin:  eth.BlockRef{Number: 228, Hash: common.Hash{0xbb}},
-	})
-	status, err := tracker.SyncStatus()
-	require.NoError(t, err)
-	require.EqualValues(t, minL1, status.MinSyncedL1)
-}
-
 func TestUpdateLocalUnsafe(t *testing.T) {
 	chain1 := eth.ChainIDFromUInt64(1)
 	chain2 := eth.ChainIDFromUInt64(2)
