@@ -42,7 +42,8 @@ func TestStatus(t *testing.T) {
 	tracker.OnEvent(rollup.ResetEvent{})
 	status = tracker.SyncStatus()
 
-	// this is a general invariant which should hold both pre and post interop
-	require.Equal(t, status.LocalSafeL2.Number, status.SafeL2.Number)
-
+	require.Zero(t, status.LocalSafeL2.Number)
+	require.Zero(t, status.SafeL2.Number)
+	require.Zero(t, status.UnsafeL2.Number)
+	require.Zero(t, status.CurrentL1.Number)
 }
