@@ -18,6 +18,10 @@ calculate-artifacts-hash checksum:
 
 # ======================================
 # Deployment and Verification Utilities
+#
+# The following commands are used to deploy the OPCM and the associated implementations contracts,
+# they are meant to be run in the order which they are listed.
+# This provides a linear flow of deployment and verification steps.
 # ======================================
 
 export ROOT_DIR := justfile_directory() + "/.."
@@ -36,6 +40,7 @@ _validate_rpc:
     exit 1
   fi
 
+# Run this before deploying the OPCM.
 pre-deploy: build build-contracts
 
 deploy-opcm: _validate_rpc
@@ -50,6 +55,8 @@ deploy-opcm: _validate_rpc
     --upgrade-controller  $UPGRADE_CONTROLLER \
     --outfile deploy-${NETWORK}.json
 
+# Verifies the OPCM and the associated implementations contracts on Etherscan.
+# This should be run after the OPCM is deployed, and requires the deploy-$NETWORK.json file.
 verify-opcm: _validate_rpc
   #!/bin/bash
   ./bin/op-deployer verify \
@@ -58,6 +65,8 @@ verify-opcm: _validate_rpc
     --etherscan-api-key $ETHERSCAN_API_KEY \
     --input-file deploy-${NETWORK}.json
 
+# The `op-deployer bootstrap validator` command requires a validator config file which can be
+# generated from the deploy-$NETWORK.json file along with the release and challenger addresses.
 convert-deploy-outfile-to-validator-config RELEASE CHALLENGER:
   #!/bin/bash
   jq --arg release "{{RELEASE}}" --arg challenger "{{CHALLENGER}}" --arg superchainConfig "$SUPERCHAIN_CONFIG_PROXY" --arg upgradeController "$UPGRADE_CONTROLLER" '{
@@ -81,6 +90,8 @@ convert-deploy-outfile-to-validator-config RELEASE CHALLENGER:
     "withdrawalDelaySeconds": 302400
   }' deploy-${NETWORK}.json > validator-config-${NETWORK}.json
 
+# Deploys a validator contract, with the validator config file as input,
+# then converts the outfile for use in the `verify-validator` command.
 deploy-validator: _validate_rpc
   #!/bin/bash
   ./bin/op-deployer bootstrap validator \
@@ -91,6 +102,8 @@ deploy-validator: _validate_rpc
     --outfile deploy-validator-${NETWORK}.json
   sed -i '' 's/validator/StandardValidator/g' deploy-validator-${NETWORK}.json
 
+# Verifies the validator contract on Etherscan.
+# This should be run after the validator is deployed, and requires the deploy-validator-$NETWORK.json file.
 verify-validator: _validate_rpc
   ./bin/op-deployer verify \
     --contract-name "StandardValidator" \
