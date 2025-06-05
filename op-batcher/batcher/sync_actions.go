@@ -71,8 +71,8 @@ func computeSyncActions[T channelStatuser](
 	}
 
 	// PART 1: Initial checks on the sync status
-	if safeL2 == (eth.L2BlockRef{}) {
-		m.Warn("empty safeL2 L2BlockRef in sync status")
+	if safeL2 == (eth.L2BlockRef{}) || newSyncStatus.UnsafeL2 == (eth.L2BlockRef{}) {
+		m.Warn("empty L2BlockRef in sync status")
 		return syncActions{}, true
 	}
 
