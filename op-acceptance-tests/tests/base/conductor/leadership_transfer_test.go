@@ -1,5 +1,6 @@
-//go:build skipci
+//go:build !ci
 
+// use a tag prefixed with "!". Such tag ensures that the default behaviour of this test would be to be built/run even when the go toolchain (go test) doesn't specify any tag filter.
 package conductor
 
 import (
