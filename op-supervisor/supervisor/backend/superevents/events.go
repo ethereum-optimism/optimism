@@ -110,15 +110,6 @@ func (ev LocalDerivedEvent) String() string {
 	return "local-derived"
 }
 
-type LocalDerivedOriginUpdateEvent struct {
-	ChainID eth.ChainID
-	Origin  eth.BlockRef
-}
-
-func (ev LocalDerivedOriginUpdateEvent) String() string {
-	return "local-derived-origin-update"
-}
-
 type ResetPreInteropRequestEvent struct {
 	ChainID eth.ChainID
 }
