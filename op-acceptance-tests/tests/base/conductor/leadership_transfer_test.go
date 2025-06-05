@@ -33,6 +33,7 @@ func TestConductorLeadershipTransfer(gt *testing.T) {
 	logger := testlog.Logger(t, log.LevelInfo).With("Test", "TestConductorLeadershipTransfer")
 
 	// allow skipping the test until 2025-07-05
+	// TODO: remove this once kurtosis/sysgo supports conductors
 	if os.Getenv("SKIP_CONDUCTOR_TESTS") == "true" {
 		now := time.Now()
 		dateUntilWhenSkipIsAllowed := time.Date(2025, 7, 5, 0, 0, 0, 0, time.UTC)
