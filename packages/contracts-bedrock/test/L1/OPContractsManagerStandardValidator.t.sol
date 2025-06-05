@@ -196,8 +196,9 @@ contract StandardValidator_TestInit is CommonTest {
             );
 
             // Add the FaultDisputeGame to the DisputeGameFactory.
+            bytes memory implArgs = abi.encode(absolutePrestate, mips, anchorStateRegistry);
             vm.prank(disputeGameFactory.owner());
-            disputeGameFactory.setImplementation(GameTypes.CANNON, IDisputeGame(address(fdg)), ""); // TODO(snevins): validate correct parameters later
+            disputeGameFactory.setImplementation(GameTypes.CANNON, IDisputeGame(address(fdg)), implArgs);
         }
     }
 
