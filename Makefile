@@ -302,7 +302,6 @@ go-tests-ci: ## Runs comprehensive Go tests with gotestsum for CI (assumes deps 
 	@echo "Running Go tests with gotestsum..."
 	$(DEFAULT_TEST_ENV_VARS) && \
 	$(CI_ENV_VARS) && \
-	export SKIP_CONDUCTOR_TESTS="true" && \
 	gotestsum --format=testname \
 		--junitfile=./tmp/test-results/results.xml \
 		--jsonfile=./tmp/testlogs/log.json \
