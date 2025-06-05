@@ -126,6 +126,25 @@ func TestHazardSafeFrontierChecks(t *testing.T) {
 		err := HazardSafeFrontierChecks(sfcd, l1Source, NewHazardSetFromEntries(hazards))
 		require.ErrorContains(t, err, "some error")
 	})
+	t.Run("Hazard Chain Out of Scope is translated to ErrFuture", func(t *testing.T) {
+		sfcd := &mockSafeFrontierCheckDeps{}
+		sfcd.crossSourceFn = func() (types.BlockSeal, error) {
+			return types.BlockSeal{}, types.ErrFuture
+		}
+		sfcd.candidateCrossSafeFn = func() (candidate types.DerivedBlockRefPair, err error) {
+			return types.DerivedBlockRefPair{
+				Source:  eth.BlockRef{Number: 9},
+				Derived: eth.BlockRef{},
+			}, types.ErrOutOfScope
+		}
+		l1Source := eth.BlockID{Number: 8}
+		hazards := map[eth.ChainID]types.BlockSeal{eth.ChainIDFromUInt64(123): {Number: 3, Hash: common.BytesToHash([]byte{0x02})}}
+		// when there is one hazard, and CrossSource returns an ErrFuture,
+		// and the initSource is out of scope,
+		// an error is returned as a ErrOutOfScope
+		err := HazardSafeFrontierChecks(sfcd, l1Source, NewHazardSetFromEntries(hazards))
+		require.ErrorIs(t, err, types.ErrFuture)
+	})
 }
 
 type mockSafeFrontierCheckDeps struct {
