@@ -280,9 +280,6 @@ func (m *ManagedNode) onNodeEvent(ev *types.ManagedEvent) {
 	if ev.ReplaceBlock != nil {
 		m.onReplaceBlock(*ev.ReplaceBlock)
 	}
-	if ev.DerivationOriginUpdate != nil {
-		m.onDerivationOriginUpdate(*ev.DerivationOriginUpdate)
-	}
 }
 
 // onResetEvent handles a reset event from the node
@@ -368,14 +365,6 @@ func (m *ManagedNode) onDerivationUpdate(pair types.DerivedBlockRefPair) {
 	})
 	m.lastNodeLocalSafe = pair.Derived.ID()
 	m.resetIfInconsistent()
-}
-
-func (m *ManagedNode) onDerivationOriginUpdate(origin eth.BlockRef) {
-	m.log.Info("Node derived new origin", "origin", origin)
-	m.emitter.Emit(superevents.LocalDerivedOriginUpdateEvent{
-		ChainID: m.chainID,
-		Origin:  origin,
-	})
 }
 
 func (m *ManagedNode) onExhaustL1Event(completed types.DerivedBlockRefPair) {
