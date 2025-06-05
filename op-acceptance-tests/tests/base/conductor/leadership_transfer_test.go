@@ -3,6 +3,7 @@ package conductor
 import (
 	"context"
 	"fmt"
+	"os"
 	"strings"
 	"testing"
 	"time"
@@ -29,8 +30,21 @@ func TestMain(m *testing.M) {
 // TestConductorLeadershipTransfer checks if the leadership transfer works correctly on the conductors
 func TestConductorLeadershipTransfer(gt *testing.T) {
 	t := devtest.SerialT(gt)
-	sys := presets.NewMinimalWithConductors(t)
 	logger := testlog.Logger(t, log.LevelInfo).With("Test", "TestConductorLeadershipTransfer")
+
+	// allow skipping the test until 2025-07-05
+	if os.Getenv("SKIP_CONDUCTOR_TESTS") == "true" {
+		now := time.Now()
+		dateUntilWhenSkipIsAllowed := time.Date(2025, 7, 5, 0, 0, 0, 0, time.UTC)
+		if !now.After(dateUntilWhenSkipIsAllowed) {
+			gt.Skip("skipping conductor tests because SKIP_CONDUCTOR_TESTS=true was set")
+			return
+		} else {
+			logger.Warn("Ignoring SKIP_CONDUCTOR_TESTS=true after 2025-07-05. Either remove that env var or bump this date. This was a time-bound skip introduced to allow merging the conductor leadership transsfer tests without failing existing CI under the expectation that Kurtosis will be able to support conductors before 05-07-2025")
+		}
+	}
+
+	sys := presets.NewMinimalWithConductors(t)
 	tracer := t.Tracer()
 	ctx := t.Ctx()
 	logger.Info("Started Conductor Leadership Transfer test")
