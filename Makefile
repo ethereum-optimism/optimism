@@ -309,7 +309,7 @@ go-tests-ci: ## Runs comprehensive Go tests with gotestsum for CI (assumes deps 
 		--rerun-fails=3 \
 		--rerun-fails-max-failures=50 \
 		--packages="$(TEST_PKGS) $(RPC_TEST_PKGS) $(FRAUD_PROOF_TEST_PKGS)" \
-		-- -parallel=$$PARALLEL -coverprofile=coverage.out -timeout=$(TEST_TIMEOUT)
+		-- -parallel=$$PARALLEL -coverprofile=coverage.out -timeout=$(TEST_TIMEOUT) -tags="!skipci"
 .PHONY: go-tests-ci
 
 go-tests-fraud-proofs-ci: ## Runs fraud proofs Go tests with gotestsum for CI (assumes deps built by CI)
