@@ -6,24 +6,25 @@ import { Preinstalls } from "src/libraries/Preinstalls.sol";
 import { Bytes } from "src/libraries/Bytes.sol";
 import { IEIP712 } from "interfaces/universal/IEIP712.sol";
 
-/// @title PreinstallsTest
-contract PreinstallsTest is CommonTest {
-    /// @dev The domain separator commits to the chainid of the chain
-    function test_preinstall_permit2DomainSeparator_works() external view {
-        bytes32 domainSeparator = IEIP712(Preinstalls.Permit2).DOMAIN_SEPARATOR();
-        bytes32 typeHash =
-            keccak256(abi.encodePacked("EIP712Domain(string name,uint256 chainId,address verifyingContract)"));
-        bytes32 nameHash = keccak256(abi.encodePacked("Permit2"));
-        uint256 chainId = block.chainid;
-        bytes memory encoded = abi.encode(typeHash, nameHash, chainId, Preinstalls.Permit2);
-        bytes32 expectedDomainSeparator = keccak256(encoded);
-        assertEq(domainSeparator, expectedDomainSeparator, "Domain separator mismatch");
-        assertEq(chainId, uint256(901)); // uses devnet config
-        assertEq(domainSeparator, bytes32(0x48deb34b39fb4b41f5c195008940d5ef510cdd7853eba5807b2fa08dfd586475));
-        // Warning the Permit2 domain separator as cached in the DeployPermit2.sol bytecode is incorrect.
+/// @title Preinstalls_TestInit
+/// @notice Reusable test initialization for `Preinstalls` tests.
+contract Preinstalls_TestInit is CommonTest {
+    function assertPreinstall(address _addr, bytes memory _code) internal view {
+        assertNotEq(_code.length, 0, "must have code");
+        assertNotEq(_addr.code.length, 0, "deployed preinstall account must have code");
+        assertEq(_addr.code, _code, "equal code must be deployed");
+        assertEq(Preinstalls.getDeployedCode(_addr, block.chainid), _code, "deployed-code getter must match");
+        assertNotEq(Preinstalls.getName(_addr), "", "must have a name");
+        if (_addr != Preinstalls.DeterministicDeploymentProxy) {
+            assertEq(vm.getNonce(_addr), 1, "preinstall account must have 1 nonce");
+        }
     }
+}
 
-    function test_permit2_templating_works() external pure {
+/// @title Preinstalls_GetPermit2Code_Test
+/// @notice Tests the `getPermit2Code` function of the `Preinstalls` library.
+contract Preinstalls_GetPermit2Code_Test is Preinstalls_TestInit {
+    function test_getPermit2Code_templating_works() external pure {
         bytes memory customCode = Preinstalls.getPermit2Code(1234);
         assertNotEq(customCode.length, 0, "must have code");
         assertEq(uint256(bytes32(Bytes.slice(customCode, 6945, 32))), uint256(1234), "expecting custom chain ID");
@@ -43,16 +44,26 @@ contract PreinstallsTest is CommonTest {
         );
         assertEq(defaultCode, Preinstalls.Permit2TemplateCode, "template is using chain ID 1");
     }
+}
 
-    function assertPreinstall(address _addr, bytes memory _code) internal view {
-        assertNotEq(_code.length, 0, "must have code");
-        assertNotEq(_addr.code.length, 0, "deployed preinstall account must have code");
-        assertEq(_addr.code, _code, "equal code must be deployed");
-        assertEq(Preinstalls.getDeployedCode(_addr, block.chainid), _code, "deployed-code getter must match");
-        assertNotEq(Preinstalls.getName(_addr), "", "must have a name");
-        if (_addr != Preinstalls.DeterministicDeploymentProxy) {
-            assertEq(vm.getNonce(_addr), 1, "preinstall account must have 1 nonce");
-        }
+/// @title Preinstalls_Unclassified_Test
+/// @notice General tests that are not testing any function directly of the `Preinstalls` contract
+///         or are testing multiple functions at once.
+contract Preinstalls_Unclassified_Test is Preinstalls_TestInit {
+    /// @notice The domain separator commits to the chainid of the chain
+    function test_preinstall_permit2DomainSeparator_works() external view {
+        bytes32 domainSeparator = IEIP712(Preinstalls.Permit2).DOMAIN_SEPARATOR();
+        bytes32 typeHash =
+            keccak256(abi.encodePacked("EIP712Domain(string name,uint256 chainId,address verifyingContract)"));
+        bytes32 nameHash = keccak256(abi.encodePacked("Permit2"));
+        uint256 chainId = block.chainid;
+        bytes memory encoded = abi.encode(typeHash, nameHash, chainId, Preinstalls.Permit2);
+        bytes32 expectedDomainSeparator = keccak256(encoded);
+        assertEq(domainSeparator, expectedDomainSeparator, "Domain separator mismatch");
+        assertEq(chainId, uint256(901)); // uses devnet config
+        assertEq(domainSeparator, bytes32(0x48deb34b39fb4b41f5c195008940d5ef510cdd7853eba5807b2fa08dfd586475));
+        // Warning the Permit2 domain separator as cached in the DeployPermit2.sol bytecode is
+        // incorrect.
     }
 
     function test_preinstall_multicall3_succeeds() external view {
