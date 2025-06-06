@@ -106,26 +106,6 @@ contract ProposalValidator is OwnableUpgradeable, ReinitializableBase, ISemver {
                                  EVENTS
     //////////////////////////////////////////////////////////////*/
 
-    /// @notice Emitted when a new proposal is submitted to the validator contract.
-    /// @param proposalHash The hash of the submitted proposal.
-    /// @param proposer The address that submitted the proposal.
-    /// @param targets Target addresses for proposal calls.
-    /// @param values ETH values for proposal calls.
-    /// @param calldatas Function data for proposal calls.
-    /// @param description Description of the proposal.
-    /// @param proposalType Type of the proposal.
-    /// @param proposalVotingModule Voting module specific to the proposal type.
-    event ProposalSubmitted(
-        bytes32 indexed proposalHash,
-        address indexed proposer,
-        address[] targets,
-        uint256[] values,
-        bytes[] calldatas,
-        string description,
-        ProposalType proposalType,
-        uint8 proposalVotingModule
-    );
-
     /// @notice Emitted when a delegate approves a proposal.
     /// @param proposalHash The hash of the approved proposal.
     /// @param approver The address of the delegate who approved the proposal.
@@ -247,51 +227,6 @@ contract ProposalValidator is OwnableUpgradeable, ReinitializableBase, ISemver {
         transferOwnership(_owner);
     }
 
-    /// @notice Submit a proposal for delegate approval
-    /// @param _targets Target addresses for proposal calls
-    /// @param _values ETH values for proposal calls
-    /// @param _calldatas Function data for proposal calls
-    /// @param _description Description of the proposal
-    /// @param _proposalType Type of the proposal
-    /// @return proposalHash_ The hash of the submitted proposal
-    function submitProposal(
-        address[] memory _targets,
-        uint256[] memory _values,
-        bytes[] memory _calldatas,
-        string memory _description,
-        ProposalType _proposalType,
-        bytes32 _attestationUid
-    )
-        external
-        returns (bytes32 proposalHash_)
-    {
-        _validateProposal(_targets, _values, _calldatas, _proposalType, _attestationUid);
-
-        proposalHash_ = bytes32(0); // TODO: Implement hashProposalWithModule
-        ProposalData storage proposal = _proposals[proposalHash_];
-
-        if (proposal.proposer != address(0)) {
-            revert ProposalValidator_ProposalAlreadySubmitted();
-        }
-
-        ProposalTypeData memory proposalTypeData = proposalTypesData[_proposalType];
-
-        proposal.proposer = msg.sender;
-        proposal.proposalType = _proposalType;
-        proposal.inVoting = false;
-
-        emit ProposalSubmitted(
-            proposalHash_,
-            msg.sender,
-            _targets,
-            _values,
-            _calldatas,
-            _description,
-            _proposalType,
-            proposalTypeData.proposalVotingModule
-        );
-    }
-
     /// @notice Approve a proposal (only callable by delegates with sufficient voting power)
     /// @param _proposalHash The hash of the proposal to approve
     function approveProposal(bytes32 _proposalHash) external {
@@ -401,57 +336,22 @@ contract ProposalValidator is OwnableUpgradeable, ReinitializableBase, ISemver {
         _setProposalTypeData(_proposalType, _proposalTypeData);
     }
 
-    /// @notice Validates a proposal before submission.
-    /// @dev Checks if the proposal requires approval and validates the attestation.
-    /// @param _targets Target addresses for proposal calls.
-    /// @param _values ETH values for proposal calls.
-    /// @param _calldatas Function data for proposal calls.
-    /// @param _proposalType Type of the proposal.
-    /// @param _attestationUid The UID of the attestation proving eligibility.
-    function _validateProposal(
-        address[] memory _targets,
-        uint256[] memory _values,
-        bytes[] memory _calldatas,
-        ProposalType _proposalType,
-        bytes32 _attestationUid
-    )
-        private
-        view
-    {
-        if (_requiresAttestation(_proposalType)) {
-            Attestation memory attestation = IEAS(Predeploys.EAS).getAttestation(_attestationUid);
-            if (
-                attestation.attester != owner() || attestation.schema != ATTESTATION_SCHEMA_UID
-                    || !_isValidAttestationData(attestation.data, _proposalType)
-            ) {
-                revert ProposalValidator_InvalidAttestation();
-            }
-        }
-    }
-
-    /// @notice Determines if a proposal type requires approval via attestation.
-    /// @param _proposalType The type of proposal to check.
-    /// @return requiresAttestation_ True if the proposal type requires approval, false otherwise.
-    function _requiresAttestation(ProposalType _proposalType) private pure returns (bool requiresAttestation_) {
-        return _proposalType == ProposalType.ProtocolOrGovernorUpgrade
-            || _proposalType == ProposalType.MaintenanceUpgrade || _proposalType == ProposalType.CouncilMemberElections;
-    }
-
     /// @notice Validates the attestation data for a proposal.
-    /// @dev Checks that the sender is the approved delegate and that the proposal type is correct.
-    /// @param _data The attestation data to validate.
+    /// @dev Checks that the attester is the owner, the schema is correct,
+    ///      the sender is the approved delegate, and that the proposal type is correct.
+    ///      Reverts with ProposalValidator_InvalidAttestation if validation fails.
+    /// @param _attestationUid The UID of the attestation to validate.
     /// @param _expectedProposalType The expected proposal type from the attestation.
-    /// @return isValid_ True if the attestation data is valid, false otherwise.
-    function _isValidAttestationData(
-        bytes memory _data,
-        ProposalType _expectedProposalType
-    )
-        private
-        view
-        returns (bool isValid_)
-    {
-        (address approvedDelegate, uint8 proposalType) = abi.decode(_data, (address, uint8));
-        isValid_ = approvedDelegate == msg.sender && proposalType == uint8(_expectedProposalType);
+    function _validateAttestation(bytes32 _attestationUid, ProposalType _expectedProposalType) internal view {
+        Attestation memory attestation = IEAS(Predeploys.EAS).getAttestation(_attestationUid);
+        (address approvedDelegate, uint8 proposalType) = abi.decode(attestation.data, (address, uint8));
+
+        if (
+            attestation.attester != owner() || attestation.schema != ATTESTATION_SCHEMA_UID
+                || approvedDelegate != msg.sender || proposalType != uint8(_expectedProposalType)
+        ) {
+            revert ProposalValidator_InvalidAttestation();
+        }
     }
 
     /// @notice Calculate `proposalId` hashing similarly to `hashProposal` but based on `module` and `proposalData`.
