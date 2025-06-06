@@ -37,6 +37,7 @@ type queueCall struct {
 
 type testTx struct {
 	sendErr bool // error to return from send for this tx
+	noMine  bool // true if the tx should not be mined
 }
 
 type mockBackendWithNonce struct {
@@ -172,7 +173,8 @@ func TestQueue_Send(t *testing.T) {
 
 			conf := configWithNumConfs(1)
 			conf.ReceiptQueryInterval = 1 * time.Second            // simulate a network send
-			conf.ResubmissionTimeout.Store(int64(2 * time.Second)) // resubmit to detect errors
+			conf.RebroadcastInterval.Store(int64(2 * time.Second)) // possibly rebroadcast once before resubmission if unconfirmed
+			conf.ResubmissionTimeout.Store(int64(3 * time.Second)) // resubmit to detect errors
 			conf.SafeAbortNonceTooLowCount = 1
 			backend := newMockBackendWithNonce(newGasPricer(3))
 			mgr := &SimpleTxManager{
@@ -206,7 +208,9 @@ func TestQueue_Send(t *testing.T) {
 
 				txHash := tx.Hash()
 				nonceMu.Lock()
-				backend.mine(&txHash, tx.GasFeeCap(), nil)
+				if testTx == nil || !testTx.noMine {
+					backend.mine(&txHash, tx.GasFeeCap(), nil)
+				}
 				nonceForTxId[uint(index)] = tx.Nonce()
 				nonceMu.Unlock()
 				return nil

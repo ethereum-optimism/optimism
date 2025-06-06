@@ -35,6 +35,7 @@ const (
 	MaxBaseFeeFlagName                 = "txmgr.max-basefee"
 	MinTipCapFlagName                  = "txmgr.min-tip-cap"
 	MaxTipCapFlagName                  = "txmgr.max-tip-cap"
+	RebroadcastIntervalFlagName        = "txmgr.rebroadcast-interval"
 	ResubmissionTimeoutFlagName        = "resubmission-timeout"
 	NetworkTimeoutFlagName             = "network-timeout"
 	RetryIntervalFlagName              = "txmgr.retry-interval"
@@ -67,6 +68,7 @@ type DefaultFlagValues struct {
 	FeeLimitThresholdGwei     float64
 	MinTipCapGwei             float64
 	MinBaseFeeGwei            float64
+	RebroadcastInterval       time.Duration
 	ResubmissionTimeout       time.Duration
 	NetworkTimeout            time.Duration
 	RetryInterval             time.Duration
@@ -84,6 +86,7 @@ var (
 		FeeLimitThresholdGwei:     100.0,
 		MinTipCapGwei:             1.0,
 		MinBaseFeeGwei:            1.0,
+		RebroadcastInterval:       12 * time.Second,
 		ResubmissionTimeout:       48 * time.Second,
 		NetworkTimeout:            10 * time.Second,
 		RetryInterval:             1 * time.Second,
@@ -99,6 +102,7 @@ var (
 		FeeLimitThresholdGwei:     100.0,
 		MinTipCapGwei:             1.0,
 		MinBaseFeeGwei:            1.0,
+		RebroadcastInterval:       12 * time.Second,
 		ResubmissionTimeout:       24 * time.Second,
 		NetworkTimeout:            10 * time.Second,
 		RetryInterval:             1 * time.Second,
@@ -183,6 +187,12 @@ func CLIFlagsWithDefaults(envPrefix string, defaults DefaultFlagValues) []cli.Fl
 			EnvVars: prefixEnvVars("TXMGR_MAX_BASEFEE"),
 		},
 		&cli.DurationFlag{
+			Name:    RebroadcastIntervalFlagName,
+			Usage:   "Interval at which a published transaction will be rebroadcasted if it has not yet been mined. Should be less than ResubmissionTimeout to have an effect.",
+			Value:   defaults.RebroadcastInterval,
+			EnvVars: prefixEnvVars("TXMGR_REBROADCAST_INTERVAL"),
+		},
+		&cli.DurationFlag{
 			Name:    ResubmissionTimeoutFlagName,
 			Usage:   "Duration we will wait before resubmitting a transaction to L1",
 			Value:   defaults.ResubmissionTimeout,
@@ -248,6 +258,7 @@ type CLIConfig struct {
 	MinTipCapGwei              float64
 	MaxBaseFeeGwei             float64
 	MaxTipCapGwei              float64
+	RebroadcastInterval        time.Duration
 	ResubmissionTimeout        time.Duration
 	ReceiptQueryInterval       time.Duration
 	NetworkTimeout             time.Duration
@@ -267,6 +278,7 @@ func NewCLIConfig(l1RPCURL string, defaults DefaultFlagValues) CLIConfig {
 		FeeLimitThresholdGwei:     defaults.FeeLimitThresholdGwei,
 		MinTipCapGwei:             defaults.MinTipCapGwei,
 		MinBaseFeeGwei:            defaults.MinBaseFeeGwei,
+		RebroadcastInterval:       defaults.RebroadcastInterval,
 		ResubmissionTimeout:       defaults.ResubmissionTimeout,
 		NetworkTimeout:            defaults.NetworkTimeout,
 		RetryInterval:             defaults.RetryInterval,
@@ -294,6 +306,9 @@ func (m CLIConfig) Check() error {
 	if m.MinBaseFeeGwei < m.MinTipCapGwei {
 		return fmt.Errorf("minBaseFee smaller than minTipCap, have %f < %f",
 			m.MinBaseFeeGwei, m.MinTipCapGwei)
+	}
+	if m.RebroadcastInterval == 0 {
+		return errors.New("must provide RebroadcastInterval")
 	}
 	if m.ResubmissionTimeout == 0 {
 		return errors.New("must provide ResubmissionTimeout")
@@ -330,6 +345,7 @@ func ReadCLIConfig(ctx *cli.Context) CLIConfig {
 		MaxBaseFeeGwei:             ctx.Float64(MaxBaseFeeFlagName),
 		MinTipCapGwei:              ctx.Float64(MinTipCapFlagName),
 		MaxTipCapGwei:              ctx.Float64(MaxTipCapFlagName),
+		RebroadcastInterval:        ctx.Duration(RebroadcastIntervalFlagName),
 		ResubmissionTimeout:        ctx.Duration(ResubmissionTimeoutFlagName),
 		ReceiptQueryInterval:       ctx.Duration(ReceiptQueryIntervalFlagName),
 		NetworkTimeout:             ctx.Duration(NetworkTimeoutFlagName),
@@ -422,6 +438,7 @@ func NewConfig(cfg CLIConfig, l log.Logger) (*Config, error) {
 		AlreadyPublishedCustomErrs: cfg.AlreadyPublishedCustomErrs,
 	}
 
+	res.RebroadcastInterval.Store(int64(cfg.RebroadcastInterval))
 	res.ResubmissionTimeout.Store(int64(cfg.ResubmissionTimeout))
 	res.FeeLimitThreshold.Store(feeLimitThreshold)
 	res.FeeLimitMultiplier.Store(cfg.FeeLimitMultiplier)
@@ -437,6 +454,11 @@ func NewConfig(cfg CLIConfig, l log.Logger) (*Config, error) {
 // Config houses parameters for altering the behavior of a SimpleTxManager.
 type Config struct {
 	Backend ETHBackend
+
+	// RebroadcastInterval is the interval at which a published transaction
+	// will be rebroadcasted if it has not yet been mined.
+	RebroadcastInterval atomic.Int64
+
 	// ResubmissionTimeout is the interval at which, if no previously
 	// published transaction has been mined, the new tx with a bumped gas
 	// price will be published. Only one publication at MaxGasPrice will be
@@ -534,6 +556,9 @@ func (m *Config) Check() error {
 	if minBaseFee != nil && minTipCap != nil && minBaseFee.Cmp(minTipCap) == -1 {
 		return fmt.Errorf("minBaseFee smaller than minTipCap, have %v < %v",
 			minBaseFee, minTipCap)
+	}
+	if m.RebroadcastInterval.Load() == 0 {
+		return errors.New("must provide RebroadcastInterval")
 	}
 	if m.ResubmissionTimeout.Load() == 0 {
 		return errors.New("must provide ResubmissionTimeout")
