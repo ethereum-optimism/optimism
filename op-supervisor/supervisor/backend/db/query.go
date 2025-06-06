@@ -53,18 +53,7 @@ func (db *ChainsDB) IsCrossUnsafe(chainID eth.ChainID, block eth.BlockID) error 
 	}
 	// now we know it's within the cross-unsafe range
 	// check if it's consistent with unsafe data
-	lU, ok := db.logDBs.Get(chainID)
-	if !ok {
-		return types.ErrUnknownChain
-	}
-	unsafeBlock, err := lU.FindSealedBlock(block.Number)
-	if err != nil {
-		return fmt.Errorf("failed to find sealed block %d: %w", block.Number, err)
-	}
-	if unsafeBlock.ID() != block {
-		return fmt.Errorf("found %s but was looking for unsafe block %s: %w", unsafeBlock.ID(), block, types.ErrConflict)
-	}
-	return nil
+	return db.IsLocalUnsafe(chainID, block)
 }
 
 func (db *ChainsDB) IsLocalUnsafe(chainID eth.ChainID, block eth.BlockID) error {
@@ -74,7 +63,7 @@ func (db *ChainsDB) IsLocalUnsafe(chainID eth.ChainID, block eth.BlockID) error 
 	}
 	got, err := logDB.FindSealedBlock(block.Number)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to find sealed block %d: %w", block.Number, err)
 	}
 	if got.ID() != block {
 		return fmt.Errorf("found %s but was looking for unsafe block %s: %w", got, block, types.ErrConflict)
