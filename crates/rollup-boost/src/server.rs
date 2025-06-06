@@ -669,8 +669,10 @@ pub mod tests {
                     .layer(ProxyLayer::new(
                         l2_auth_rpc,
                         jwt_secret,
+                        1,
                         builder_auth_rpc,
                         jwt_secret,
+                        1,
                         probes,
                         execution_mode.clone(),
                     ));

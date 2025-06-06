@@ -34,7 +34,7 @@ pub struct HttpClient {
 }
 
 impl HttpClient {
-    pub fn new(url: Uri, secret: JwtSecret, target: PayloadSource) -> Self {
+    pub fn new(url: Uri, secret: JwtSecret, target: PayloadSource, timeout: u64) -> Self {
         let connector = hyper_rustls::HttpsConnectorBuilder::new()
             .with_native_roots()
             .expect("no native root CA certificates found")
@@ -46,7 +46,7 @@ impl HttpClient {
         let client = Client::builder(TokioExecutor::new()).build(connector);
 
         let client = ServiceBuilder::new()
-            .layer(TimeoutLayer::new(Duration::from_secs(1)))
+            .layer(TimeoutLayer::new(Duration::from_millis(timeout)))
             .layer(DecompressionLayer::new())
             .layer(AuthLayer::new(secret))
             .service(client);

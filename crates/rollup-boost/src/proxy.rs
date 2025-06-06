@@ -33,8 +33,10 @@ pub const MINER_SET_MAX_DA_SIZE: &str = "miner_setMaxDASize";
 pub struct ProxyLayer {
     l2_auth_rpc: Uri,
     l2_auth_secret: JwtSecret,
+    l2_timeout: u64,
     builder_auth_rpc: Uri,
     builder_auth_secret: JwtSecret,
+    builder_timeout: u64,
     probes: Arc<Probes>,
     execution_mode: Arc<Mutex<ExecutionMode>>,
 }
@@ -43,16 +45,20 @@ impl ProxyLayer {
     pub fn new(
         l2_auth_rpc: Uri,
         l2_auth_secret: JwtSecret,
+        l2_timeout: u64,
         builder_auth_rpc: Uri,
         builder_auth_secret: JwtSecret,
+        builder_timeout: u64,
         probes: Arc<Probes>,
         execution_mode: Arc<Mutex<ExecutionMode>>,
     ) -> Self {
         ProxyLayer {
             l2_auth_rpc,
             l2_auth_secret,
+            l2_timeout,
             builder_auth_rpc,
             builder_auth_secret,
+            builder_timeout,
             probes,
             execution_mode,
         }
@@ -67,12 +73,14 @@ impl<S> Layer<S> for ProxyLayer {
             self.l2_auth_rpc.clone(),
             self.l2_auth_secret,
             PayloadSource::L2,
+            self.l2_timeout,
         );
 
         let builder_client = HttpClient::new(
             self.builder_auth_rpc.clone(),
             self.builder_auth_secret,
             PayloadSource::Builder,
+            self.builder_timeout,
         );
 
         let set_max_da_size_manager = ConsistentRequest::new(
@@ -239,8 +247,10 @@ mod tests {
             let middleware = tower::ServiceBuilder::new().layer(ProxyLayer::new(
                 format!("http://{}:{}", l2.addr.ip(), l2.addr.port()).parse::<Uri>()?,
                 JwtSecret::random(),
+                1,
                 format!("http://{}:{}", builder.addr.ip(), builder.addr.port()).parse::<Uri>()?,
                 JwtSecret::random(),
+                1,
                 probes.clone(),
                 execution_mode.clone(),
             ));
@@ -510,8 +520,10 @@ mod tests {
         let proxy_layer = ProxyLayer::new(
             l2_auth_uri.clone(),
             jwt,
+            1,
             l2_auth_uri,
             jwt,
+            1,
             probes,
             execution_mode,
         );

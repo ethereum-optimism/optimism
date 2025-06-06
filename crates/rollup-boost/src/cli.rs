@@ -208,8 +208,10 @@ impl Args {
                 .layer(ProxyLayer::new(
                     l2_client_args.l2_url,
                     l2_auth_jwt,
+                    l2_client_args.l2_timeout,
                     builder_args.builder_url,
                     builder_auth_jwt,
+                    builder_args.builder_timeout,
                     probes,
                     execution_mode,
                 ));
