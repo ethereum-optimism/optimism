@@ -84,7 +84,6 @@
   "proofMaturityDelaySeconds": 12,
   "disputeGameFinalityDelaySeconds": 6,
   "respectedGameType": 0,
-  "useCustomGasToken": false,
   "useFaultProofs": false,
   "useAltDA": false,
   "daBondSize": 0,

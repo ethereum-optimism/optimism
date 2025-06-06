@@ -271,26 +271,6 @@ func (d *GasPriceOracleDeployConfig) OperatorFeeParams() [32]byte {
 	})
 }
 
-// GasTokenDeployConfig configures the optional custom gas token functionality.
-type GasTokenDeployConfig struct {
-	// UseCustomGasToken is a flag to indicate that a custom gas token should be used
-	UseCustomGasToken bool `json:"useCustomGasToken"`
-	// CustomGasTokenAddress is the address of the ERC20 token to be used to pay for gas on L2.
-	CustomGasTokenAddress common.Address `json:"customGasTokenAddress"`
-}
-
-var _ ConfigChecker = (*GasTokenDeployConfig)(nil)
-
-func (d *GasTokenDeployConfig) Check(log log.Logger) error {
-	if d.UseCustomGasToken {
-		if d.CustomGasTokenAddress == (common.Address{}) {
-			return fmt.Errorf("%w: CustomGasTokenAddress cannot be address(0)", ErrInvalidDeployConfig)
-		}
-		log.Info("Using custom gas token", "address", d.CustomGasTokenAddress)
-	}
-	return nil
-}
-
 // OperatorDeployConfig configures the hot-key addresses for operations such as sequencing and batch-submission.
 type OperatorDeployConfig struct {
 	// P2PSequencerAddress is the address of the key the sequencer uses to sign blocks on the P2P layer.
@@ -712,7 +692,6 @@ type L2InitializationConfig struct {
 	L2VaultsDeployConfig
 	GovernanceDeployConfig
 	GasPriceOracleDeployConfig
-	GasTokenDeployConfig
 	OperatorDeployConfig
 	EIP1559DeployConfig
 	UpgradeScheduleDeployConfig
