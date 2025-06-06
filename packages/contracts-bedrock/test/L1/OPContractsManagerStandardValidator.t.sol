@@ -205,8 +205,9 @@ contract StandardValidator_TestInit is CommonTest {
             disputeGameFactory.setImplementation(GameTypes.CANNON, IDisputeGame(address(fdg)), implArgs);
         }
 
-        // Set the anchorStateRegistry in the validationOverrides struct
+        // Set the anchorStateRegistry and vm in the validationOverrides struct
         validationOverrides.anchorStateRegistry = IAnchorStateRegistry(artifacts.mustGetAddress("AnchorStateRegistryProxy"));
+        validationOverrides.vm = address(mips);
     }
 
     /// @notice Runs the StandardValidator.validate function.
@@ -251,7 +252,8 @@ contract StandardValidator_TestInit is CommonTest {
         return IStandardValidator.ValidationOverrides({
             l1PAOMultisig: address(0),
             challenger: address(0),
-            anchorStateRegistry: validationOverrides.anchorStateRegistry
+            anchorStateRegistry: validationOverrides.anchorStateRegistry,
+            vm: validationOverrides.vm
         });
     }
 }
@@ -261,7 +263,7 @@ contract StandardValidator_TestInit is CommonTest {
 contract StandardValidator_CoreValidation_Test is StandardValidator_TestInit {
     /// @notice Tests that the validate function succeeds when all parameters are valid.
     function test_validate_succeeds() public view {
-        string memory errors = _validate(false);
+        string memory errors = _validate(false, _defaultValidationOverrides());
         assertEq(errors, "");
     }
 
@@ -875,7 +877,16 @@ contract StandardValidator_PermissionedDisputeGame_Test is StandardValidator_Tes
         vm.mockCall(address(pdg), abi.encodeCall(IPermissionedDisputeGame.vm, ()), abi.encode(address(0xbad)));
         vm.mockCall(address(0xbad), abi.encodeCall(ISemver.version, ()), abi.encode("0.0.0"));
         vm.mockCall(address(0xbad), abi.encodeCall(IMIPS64.stateVersion, ()), abi.encode(7));
-        assertEq("PDDG-VM-10,PDDG-VM-20", _validate(true, validationOverrides));
+
+        // Mock the FaultDisputeGame's VM to return the valid mips address so it doesn't produce errors
+        // This is necessary because the validate function validates both PermissionedDisputeGame and FaultDisputeGame
+        // TODO(snevins): validate if we want these checks on the implementation any more
+        vm.mockCall(address(fdg), abi.encodeCall(IFaultDisputeGame.vm, ()), abi.encode(address(mips)));
+
+        // Use overrides with vm set to address(0) so it doesn't override the game's VM
+        IStandardValidator.ValidationOverrides memory overrides = _defaultValidationOverrides();
+        overrides.vm = address(0);
+        assertEq("PDDG-VM-10,PDDG-VM-20", _validate(true, overrides));
     }
 
     /// @notice Tests that the validate function successfully returns the right error when the
@@ -1187,7 +1198,16 @@ contract StandardValidator_FaultDisputeGame_Test is StandardValidator_TestInit {
         vm.mockCall(address(fdg), abi.encodeCall(IFaultDisputeGame.vm, ()), abi.encode(address(0xbad)));
         vm.mockCall(address(0xbad), abi.encodeCall(ISemver.version, ()), abi.encode("0.0.0"));
         vm.mockCall(address(0xbad), abi.encodeCall(IMIPS64.stateVersion, ()), abi.encode(7));
-        assertEq("PLDG-VM-10,PLDG-VM-20", _validate(true, validationOverrides));
+
+        // Mock the PermissionedDisputeGame's VM to return the valid mips address so it doesn't produce errors
+        // This is necessary because the validate function validates both PermissionedDisputeGame and FaultDisputeGame
+        // TODO(snevins): validate if we want these checks on the implementation any more
+        vm.mockCall(address(pdg), abi.encodeCall(IPermissionedDisputeGame.vm, ()), abi.encode(address(mips)));
+
+        // Use overrides with vm set to address(0) so it doesn't override the game's VM
+        IStandardValidator.ValidationOverrides memory overrides = _defaultValidationOverrides();
+        overrides.vm = address(0);
+        assertEq("PLDG-VM-10,PLDG-VM-20", _validate(true, overrides));
     }
 
     /// @notice Tests that the validate function successfully returns the right error when the

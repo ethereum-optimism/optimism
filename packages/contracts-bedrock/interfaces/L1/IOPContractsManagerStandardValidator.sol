@@ -33,6 +33,7 @@ interface IOPContractsManagerStandardValidator {
         address l1PAOMultisig;
         address challenger;
         IAnchorStateRegistry anchorStateRegistry;
+        address vm;
     }
 
     function version() external view returns (string memory);
