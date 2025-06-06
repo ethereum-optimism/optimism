@@ -24,7 +24,8 @@ calculate-artifacts-hash checksum:
 # This provides a linear flow of deployment and verification steps.
 # ======================================
 
-export ROOT_DIR := justfile_directory() + "/.."
+export ROOT_DIR := parent_directory(justfile_directory())
+export DEFAULT_LOCATOR := "file://" + ROOT_DIR + "/packages/contracts-bedrock/forge-artifacts"
 export NETWORK := env_var_or_default("NETWORK", "sepolia")
 export PROTOCOL_VERSIONS_PROXY := if NETWORK == "mainnet" { "0x8062AbC286f5e7D9428a0Ccb9AbD71e50d93b935" } else if NETWORK == "sepolia" { "0x79ADD5713B383DAa0a138d3C4780C7A1804a8090" } else { "" }
 export SUPERCHAIN_CONFIG_PROXY := if NETWORK == "mainnet" { "0x95703e0982140D16f8ebA6d158FccEde42f04a4C" } else if NETWORK == "sepolia" { "0xC2Be75506d5724086DEB7245bd260Cc9753911Be" } else { "" }
@@ -43,10 +44,11 @@ _validate_rpc:
 # Run this before deploying the OPCM.
 pre-deploy: build build-contracts
 
-deploy-opcm: _validate_rpc
+deploy-opcm locator="$DEFAULT_LOCATOR": _validate_rpc
   #!/bin/bash
+  echo "Using artifacts locator: {{locator}}"
   ./bin/op-deployer bootstrap implementations \
-    --artifacts-locator $locator \
+    --artifacts-locator {{locator}} \
     --l1-rpc-url $ETH_RPC_URL \
     --private-key $PRIVATE_KEY \
     --mips-version 7 \
@@ -57,10 +59,11 @@ deploy-opcm: _validate_rpc
 
 # Verifies the OPCM and the associated implementations contracts on Etherscan.
 # This should be run after the OPCM is deployed, and requires the deploy-$NETWORK.json file.
-verify-opcm: _validate_rpc
+verify-opcm: locator="$DEFAULT_LOCATOR": _validate_rpc
   #!/bin/bash
+  echo "Using artifacts locator: {{locator}}"
   ./bin/op-deployer verify \
-    --artifacts-locator file://${ROOT_DIR}/packages/contracts-bedrock/forge-artifacts \
+    --artifacts-locator {{locator}} \
     --l1-rpc-url $ETH_RPC_URL \
     --etherscan-api-key $ETHERSCAN_API_KEY \
     --input-file deploy-${NETWORK}.json
@@ -94,10 +97,11 @@ convert-deploy-outfile-to-validator-config RELEASE CHALLENGER:
 
 # Deploys a validator contract, with the validator-config-$NETWORK.json file as input,
 # then converts the outfile for use in the `verify-validator` command.
-deploy-validator: _validate_rpc
+deploy-validator: locator="$DEFAULT_LOCATOR": _validate_rpc
   #!/bin/bash
+  echo "Using artifacts locator: {{locator}}"
   ./bin/op-deployer bootstrap validator \
-    --artifacts-locator file://${ROOT_DIR}/packages/contracts-bedrock/forge-artifacts \
+    --artifacts-locator {{locator}} \
     --l1-rpc-url $ETH_RPC_URL \
     --private-key $PRIVATE_KEY \
     --config validator-config-${NETWORK}.json \
@@ -106,10 +110,12 @@ deploy-validator: _validate_rpc
 
 # Verifies the validator contract on Etherscan.
 # This should be run after the validator is deployed, and requires the deploy-validator-$NETWORK.json file.
-verify-validator: _validate_rpc
+verify-validator: locator="$DEFAULT_LOCATOR": _validate_rpc
+  #!/bin/bash
+  echo "Using artifacts locator: {{locator}}"
   ./bin/op-deployer verify \
     --contract-name "StandardValidator" \
-    --artifacts-locator file://${ROOT_DIR}/packages/contracts-bedrock/forge-artifacts \
+    --artifacts-locator {{locator}} \
     --l1-rpc-url $ETH_RPC_URL \
     --etherscan-api-key $ETHERSCAN_API_KEY \
     --input-file deploy-validator-${NETWORK}.json
