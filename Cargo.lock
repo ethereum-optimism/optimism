@@ -1766,6 +1766,7 @@ version = "0.1.0"
 dependencies = [
  "axum 0.8.4",
  "backoff",
+ "brotli",
  "clap",
  "dotenvy",
  "futures",
