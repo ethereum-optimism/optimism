@@ -137,16 +137,26 @@ commands:
 
   install-contracts-dependencies:
     description: "Install the dependencies for the smart contracts"
+    parameters:
+      solc_versions:
+        description: "The versions of solc to install"
+        type: string
+        default: "0.8.15,0.8.19,0.8.25,0.8.28"
     steps:
+      - restore_cache:
+          keys:
+            # use mise.toml to anchor on the underlying forge/svm versions
+            - svm-cache-{{ checksum "mise.toml" }}-<<parameters.solc_versions>>
       - run:
-          name: Install SVM compilers
+          name: Install solc compilers
           command: |
-            # Have to wipe out the SVM directory to avoid issues with the SVM version
-            rm -rf ~/.svm/*
-            svm install 0.8.15
-            svm install 0.8.19
-            svm install 0.8.25
-            svm install 0.8.28
+            for version in $(echo "<<parameters.solc_versions>>" | tr ',' '\n'); do
+              svm which $version || svm install $version
+            done
+      - save_cache:
+          key: svm-cache-{{ checksum "mise.toml" }}-<<parameters.solc_versions>>
+          paths:
+            - ~/.svm
       - run:
           name: Install dependencies
           command: |
