@@ -292,8 +292,9 @@ contract StandardValidator_GeneralOverride_Test is StandardValidator_TestInit {
     ///         successfully returns no error when there is none. That is, it never returns the
     ///         overridden strings alone.
     function test_validateOverrides_noErrors_succeeds() public {
-        IStandardValidator.ValidationOverrides memory overrides =
-            IStandardValidator.ValidationOverrides({ l1PAOMultisig: address(0xbad), challenger: address(0xc0ffee), anchorStateRegistry: IAnchorStateRegistry(address(420)) });
+        IStandardValidator.ValidationOverrides memory overrides = _defaultValidationOverrides();
+        overrides.l1PAOMultisig = address(0xbad);
+        overrides.challenger = address(0xc0ffee);
         vm.mockCall(address(proxyAdmin), abi.encodeCall(IProxyAdmin.owner, ()), abi.encode(overrides.l1PAOMultisig));
         vm.mockCall(
             address(disputeGameFactory),
@@ -304,14 +305,15 @@ contract StandardValidator_GeneralOverride_Test is StandardValidator_TestInit {
             address(pdg), abi.encodeCall(IPermissionedDisputeGame.challenger, ()), abi.encode(overrides.challenger)
         );
 
-        assertEq("OVERRIDES-L1PAOMULTISIG,OVERRIDES-CHALLENGER", _validate(true, validationOverrides));
+        assertEq("OVERRIDES-L1PAOMULTISIG,OVERRIDES-CHALLENGER", _validate(true, overrides));
     }
 
     /// @notice Tests that the validate function (with overrides) and allow failure set to false,
     ///         returns the errors with the overrides prepended.
     function test_validateOverrides_notAllowFailurePrependsOverrides_succeeds() public {
-        IStandardValidator.ValidationOverrides memory overrides =
-            IStandardValidator.ValidationOverrides({ l1PAOMultisig: address(0xbad), challenger: address(0xc0ffee), anchorStateRegistry: IAnchorStateRegistry(address(0)) });
+        IStandardValidator.ValidationOverrides memory overrides = _defaultValidationOverrides();
+        overrides.l1PAOMultisig = address(0xbad);
+        overrides.challenger = address(0xc0ffee);
 
         vm.expectRevert(
             bytes(
@@ -358,7 +360,7 @@ contract StandardValidator_ProxyAdmin_Test is StandardValidator_TestInit {
             abi.encodeCall(IDisputeGameFactory.owner, ()),
             abi.encode(overrides.l1PAOMultisig)
         );
-        assertEq("OVERRIDES-L1PAOMULTISIG", _validate(true, validationOverrides));
+        assertEq("OVERRIDES-L1PAOMULTISIG", _validate(true, overrides));
     }
 
     /// @notice Tests that the validate function (with an overridden ProxyAdmin owner) successfully
@@ -366,7 +368,7 @@ contract StandardValidator_ProxyAdmin_Test is StandardValidator_TestInit {
     function test_validateOverrideL1PAOMultisig_invalidProxyAdminOwner_succeeds() public view {
         IStandardValidator.ValidationOverrides memory overrides = _defaultValidationOverrides();
         overrides.l1PAOMultisig = address(0xbad);
-        assertEq("OVERRIDES-L1PAOMULTISIG,PROXYA-10,DF-30,PDDG-DWETH-30,PLDG-DWETH-30", _validate(true, validationOverrides));
+        assertEq("OVERRIDES-L1PAOMULTISIG,PROXYA-10,DF-30,PDDG-DWETH-30,PLDG-DWETH-30", _validate(true, overrides));
     }
 }
 
