@@ -90,3 +90,11 @@ func NewV180Validator(client *rpc.Client) *BaseValidator {
 func NewV200Validator(client *rpc.Client) *BaseValidator {
 	return newBaseValidator(client, standard.ContractsV200Tag)
 }
+
+func NewV300Validator(client *rpc.Client) *BaseValidator {
+	return newBaseValidator(client, standard.ContractsV300Tag)
+}
+
+func NewV400Validator(client *rpc.Client) *BaseValidator {
+	return newBaseValidator(client, standard.ContractsV400Tag)
+}

@@ -100,6 +100,16 @@ func WithExpectationsFile(t *testing.T, path string) Option {
 	}
 }
 
+func WithOkCall(method string, pm ParamsMatcher, result any) Option {
+	return func(rpc *MockRPC) {
+		rpc.calls = append(rpc.calls, rpcCall{
+			Method:        method,
+			ParamsMatcher: pm,
+			Result:        result,
+		})
+	}
+}
+
 func NewMockRPC(t *testing.T, lgr log.Logger, opts ...Option) *MockRPC {
 	m := &MockRPC{
 		lgr: lgr,
