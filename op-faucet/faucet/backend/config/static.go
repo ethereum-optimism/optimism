@@ -20,6 +20,7 @@ var DefaultFaucetTxManagerValues = txmgr.DefaultFlagValues{
 	FeeLimitThresholdGwei:     100.0,
 	MinTipCapGwei:             1.0,
 	MinBaseFeeGwei:            1.0,
+	RebroadcastInterval:       12 * time.Second,
 	ResubmissionTimeout:       24 * time.Second,
 	NetworkTimeout:            10 * time.Second,
 	TxSendTimeout:             2 * time.Minute,
