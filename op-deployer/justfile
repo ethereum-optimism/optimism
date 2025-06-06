@@ -44,7 +44,7 @@ _validate_rpc:
 # Run this before deploying the OPCM.
 pre-deploy: build build-contracts
 
-deploy-opcm locator="$DEFAULT_LOCATOR": _validate_rpc
+deploy-opcm locator="$DEFAULT_LOCATOR" release="dev": _validate_rpc
   #!/bin/bash
   echo "Using artifacts locator: {{locator}}"
   ./bin/op-deployer bootstrap implementations \
@@ -55,11 +55,12 @@ deploy-opcm locator="$DEFAULT_LOCATOR": _validate_rpc
     --protocol-versions-proxy $PROTOCOL_VERSIONS_PROXY \
     --superchain-config-proxy $SUPERCHAIN_CONFIG_PROXY \
     --upgrade-controller  $UPGRADE_CONTROLLER \
+    --l1-contracts-release {{release}} \
     --outfile deploy-${NETWORK}.json
 
 # Verifies the OPCM and the associated implementations contracts on Etherscan.
 # This should be run after the OPCM is deployed, and requires the deploy-$NETWORK.json file.
-verify-opcm: locator="$DEFAULT_LOCATOR": _validate_rpc
+verify-opcm locator="$DEFAULT_LOCATOR": _validate_rpc
   #!/bin/bash
   echo "Using artifacts locator: {{locator}}"
   ./bin/op-deployer verify \
@@ -97,7 +98,7 @@ convert-deploy-outfile-to-validator-config RELEASE CHALLENGER:
 
 # Deploys a validator contract, with the validator-config-$NETWORK.json file as input,
 # then converts the outfile for use in the `verify-validator` command.
-deploy-validator: locator="$DEFAULT_LOCATOR": _validate_rpc
+deploy-validator locator="$DEFAULT_LOCATOR": _validate_rpc
   #!/bin/bash
   echo "Using artifacts locator: {{locator}}"
   ./bin/op-deployer bootstrap validator \
@@ -110,7 +111,7 @@ deploy-validator: locator="$DEFAULT_LOCATOR": _validate_rpc
 
 # Verifies the validator contract on Etherscan.
 # This should be run after the validator is deployed, and requires the deploy-validator-$NETWORK.json file.
-verify-validator: locator="$DEFAULT_LOCATOR": _validate_rpc
+verify-validator locator="$DEFAULT_LOCATOR": _validate_rpc
   #!/bin/bash
   echo "Using artifacts locator: {{locator}}"
   ./bin/op-deployer verify \
