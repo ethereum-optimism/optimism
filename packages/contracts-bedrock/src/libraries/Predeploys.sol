@@ -113,6 +113,9 @@ library Predeploys {
     /// @notice Address of the SuperchainTokenBridge predeploy.
     address internal constant SUPERCHAIN_TOKEN_BRIDGE = 0x4200000000000000000000000000000000000028;
 
+    /// @notice Address of the SuperchainNFTBridge predeploy.
+    address internal constant SUPERCHAIN_NFT_BRIDGE = 0x4200000000000000000000000000000000000029;
+
     /// @notice Returns the name of the predeploy at the given address.
     function getName(address _addr) internal pure returns (string memory out_) {
         require(isPredeployNamespace(_addr), "Predeploys: address must be a predeploy");
@@ -145,6 +148,7 @@ library Predeploys {
         if (_addr == OPTIMISM_SUPERCHAIN_ERC20_FACTORY) return "OptimismSuperchainERC20Factory";
         if (_addr == OPTIMISM_SUPERCHAIN_ERC20_BEACON) return "OptimismSuperchainERC20Beacon";
         if (_addr == SUPERCHAIN_TOKEN_BRIDGE) return "SuperchainTokenBridge";
+        if (_addr == SUPERCHAIN_NFT_BRIDGE) return "SuperchainNFTBridge";
         revert("Predeploys: unnamed predeploy");
     }
 
