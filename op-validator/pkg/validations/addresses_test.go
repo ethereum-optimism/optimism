@@ -106,6 +106,7 @@ func testStandardVersionNetwork(t *testing.T, network string) {
 		standard.ContractsV180Tag,
 		standard.ContractsV200Tag,
 		standard.ContractsV300Tag,
+		standard.ContractsV400Tag,
 	}
 
 	for _, semver := range contractVersions {
@@ -117,7 +118,7 @@ func testStandardVersionNetwork(t *testing.T, network string) {
 		rpcClient, err := rpc.Dial(rpcURL)
 		require.NoError(t, err)
 
-		t.Run(string(semver), func(t *testing.T) {
+		t.Run(semver, func(t *testing.T) {
 			testStandardVersion(t, address, rpcClient, version)
 		})
 	}
