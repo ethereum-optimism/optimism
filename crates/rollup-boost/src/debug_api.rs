@@ -25,6 +25,10 @@ impl ExecutionMode {
     pub fn is_disabled(&self) -> bool {
         matches!(self, ExecutionMode::Disabled)
     }
+
+    pub fn is_enabled(&self) -> bool {
+        matches!(self, ExecutionMode::Enabled)
+    }
 }
 
 #[derive(Serialize, Deserialize, Debug)]

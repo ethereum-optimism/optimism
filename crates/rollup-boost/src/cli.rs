@@ -39,7 +39,7 @@ pub struct Args {
     pub health_check_interval: u64,
 
     /// Max duration in seconds between the unsafe head block of the builder and the current time
-    #[arg(long, env, default_value = "5")]
+    #[arg(long, env, default_value = "10")]
     pub max_unsafe_interval: u64,
 
     /// Host to run the server on
@@ -191,9 +191,10 @@ impl Args {
             execution_mode.clone(),
             self.block_selection_policy,
             probes.clone(),
-            self.health_check_interval,
-            self.max_unsafe_interval,
         );
+
+        let health_handle =
+            rollup_boost.spawn_health_check(self.health_check_interval, self.max_unsafe_interval);
 
         // Spawn the debug server
         rollup_boost.start_debug_server(debug_addr.as_str()).await?;
@@ -233,6 +234,9 @@ impl Args {
             _ = handle.stopped() => {
                 // The server has already shut down by itself
                 info!("Server stopped");
+            }
+            _ = health_handle => {
+                info!("Health check task stopped");
             }
             _ = sigint.recv() => {
                 info!("Received SIGINT, shutting down gracefully...");

@@ -35,6 +35,7 @@ use opentelemetry::trace::SpanKind;
 use parking_lot::Mutex;
 use std::sync::Arc;
 use std::time::Duration;
+use tokio::task::JoinHandle;
 use tracing::{error, info, instrument};
 
 pub type Request = HttpRequest;
@@ -59,17 +60,7 @@ impl RollupBoostServer {
         initial_execution_mode: Arc<Mutex<ExecutionMode>>,
         block_selection_policy: Option<BlockSelectionPolicy>,
         probes: Arc<Probes>,
-        health_check_interval: u64,
-        max_unsafe_interval: u64,
     ) -> Self {
-        HealthHandle {
-            probes: probes.clone(),
-            builder_client: builder_client.clone(),
-            health_check_interval: Duration::from_secs(health_check_interval),
-            max_unsafe_interval,
-        }
-        .spawn();
-
         Self {
             l2_client: Arc::new(l2_client),
             builder_client,
@@ -78,6 +69,22 @@ impl RollupBoostServer {
             execution_mode: initial_execution_mode,
             probes,
         }
+    }
+
+    pub fn spawn_health_check(
+        &self,
+        health_check_interval: u64,
+        max_unsafe_interval: u64,
+    ) -> JoinHandle<()> {
+        let handle = HealthHandle::new(
+            self.probes.clone(),
+            self.execution_mode.clone(),
+            self.builder_client.clone(),
+            Duration::from_secs(health_check_interval),
+            max_unsafe_interval,
+        );
+
+        handle.spawn()
     }
 
     pub async fn start_debug_server(&self, debug_addr: &str) -> eyre::Result<()> {
@@ -657,8 +664,6 @@ pub mod tests {
                 execution_mode.clone(),
                 None,
                 probes.clone(),
-                60,
-                5,
             );
 
             let module: RpcModule<()> = rollup_boost.try_into().unwrap();
