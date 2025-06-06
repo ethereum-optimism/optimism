@@ -360,50 +360,6 @@
   {
     "inputs": [
       {
-        "internalType": "address[]",
-        "name": "_targets",
-        "type": "address[]"
-      },
-      {
-        "internalType": "uint256[]",
-        "name": "_values",
-        "type": "uint256[]"
-      },
-      {
-        "internalType": "bytes[]",
-        "name": "_calldatas",
-        "type": "bytes[]"
-      },
-      {
-        "internalType": "string",
-        "name": "_description",
-        "type": "string"
-      },
-      {
-        "internalType": "enum ProposalValidator.ProposalType",
-        "name": "_proposalType",
-        "type": "uint8"
-      },
-      {
-        "internalType": "bytes32",
-        "name": "_attestationUid",
-        "type": "bytes32"
-      }
-    ],
-    "name": "submitProposal",
-    "outputs": [
-      {
-        "internalType": "bytes32",
-        "name": "proposalHash_",
-        "type": "bytes32"
-      }
-    ],
-    "stateMutability": "nonpayable",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
         "internalType": "address",
         "name": "newOwner",
         "type": "address"
@@ -550,61 +506,6 @@
       }
     ],
     "name": "ProposalMovedToVote",
-    "type": "event"
-  },
-  {
-    "anonymous": false,
-    "inputs": [
-      {
-        "indexed": true,
-        "internalType": "bytes32",
-        "name": "proposalHash",
-        "type": "bytes32"
-      },
-      {
-        "indexed": true,
-        "internalType": "address",
-        "name": "proposer",
-        "type": "address"
-      },
-      {
-        "indexed": false,
-        "internalType": "address[]",
-        "name": "targets",
-        "type": "address[]"
-      },
-      {
-        "indexed": false,
-        "internalType": "uint256[]",
-        "name": "values",
-        "type": "uint256[]"
-      },
-      {
-        "indexed": false,
-        "internalType": "bytes[]",
-        "name": "calldatas",
-        "type": "bytes[]"
-      },
-      {
-        "indexed": false,
-        "internalType": "string",
-        "name": "description",
-        "type": "string"
-      },
-      {
-        "indexed": false,
-        "internalType": "enum ProposalValidator.ProposalType",
-        "name": "proposalType",
-        "type": "uint8"
-      },
-      {
-        "indexed": false,
-        "internalType": "uint8",
-        "name": "proposalVotingModule",
-        "type": "uint8"
-      }
-    ],
-    "name": "ProposalSubmitted",
     "type": "event"
   },
   {

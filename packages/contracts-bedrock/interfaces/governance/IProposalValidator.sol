@@ -40,17 +40,6 @@ interface IProposalValidator is ISemver {
         CouncilBudget
     }
 
-    event ProposalSubmitted(
-        bytes32 indexed proposalHash,
-        address indexed proposer,
-        address[] targets,
-        uint256[] values,
-        bytes[] calldatas,
-        string description,
-        ProposalType proposalType,
-        uint8 proposalVotingModule
-    );
-
     event ProposalApproved(
         bytes32 indexed proposalHash,
         address indexed approver
@@ -77,15 +66,6 @@ interface IProposalValidator is ISemver {
     );
     
     event Initialized(uint8 version);
-
-    function submitProposal(
-        address[] memory _targets,
-        uint256[] memory _values,
-        bytes[] memory _calldatas,
-        string memory _description,
-        ProposalType _proposalType,
-        bytes32 _attestationUid
-    ) external returns (bytes32 proposalHash_);
 
     function approveProposal(bytes32 _proposalHash) external;
 
