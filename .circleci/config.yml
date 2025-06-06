@@ -1178,6 +1178,7 @@ jobs:
     resource_class: xlarge
     steps:
       - utils/checkout-with-mise
+      - install-contracts-dependencies
       - run:
           name: Setup Kurtosis
           command: |
