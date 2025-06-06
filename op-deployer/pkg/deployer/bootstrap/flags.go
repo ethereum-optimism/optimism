@@ -81,6 +81,12 @@ var (
 		EnvVars: deployer.PrefixEnvVar("SUPERCHAIN_PROXY_ADMIN_OWNER"),
 		Value:   common.Address{}.Hex(),
 	}
+	L1ContractsReleaseFlag = &cli.StringFlag{
+		Name:    L1ContractsReleaseFlagName,
+		Usage:   "L1 contracts release",
+		EnvVars: deployer.PrefixEnvVar("L1_CONTRACTS_RELEASE"),
+		Value:   "dev",
+	}
 	ProtocolVersionsOwnerFlag = &cli.StringFlag{
 		Name:    ProtocolVersionsOwnerFlagName,
 		Usage:   "Owner address for protocol versions",
@@ -146,6 +152,7 @@ var ImplementationsFlags = []cli.Flag{
 	ChallengePeriodSecondsFlag,
 	ProofMaturityDelaySecondsFlag,
 	DisputeGameFinalityDelaySecondsFlag,
+	L1ContractsReleaseFlag,
 	SuperchainConfigProxyFlag,
 	ProtocolVersionsProxyFlag,
 	UpgradeControllerFlag,
