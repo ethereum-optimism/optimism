@@ -8,18 +8,23 @@ use url::Url;
 pub struct FlashblocksReceiverService {
     url: Url,
     sender: mpsc::Sender<FlashblocksPayloadV1>,
+    reconnect_ms: u64,
 }
 
 impl FlashblocksReceiverService {
-    pub fn new(url: Url, sender: mpsc::Sender<FlashblocksPayloadV1>) -> Self {
-        Self { url, sender }
+    pub fn new(url: Url, sender: mpsc::Sender<FlashblocksPayloadV1>, reconnect_ms: u64) -> Self {
+        Self {
+            url,
+            sender,
+            reconnect_ms,
+        }
     }
 
     pub async fn run(self) {
         loop {
             if let Err(e) = self.connect_and_handle().await {
                 error!("Flashblocks receiver connection error, retrying in 5 seconds: {e}");
-                tokio::time::sleep(std::time::Duration::from_secs(5)).await;
+                tokio::time::sleep(std::time::Duration::from_secs(self.reconnect_ms)).await;
             } else {
                 break;
             }

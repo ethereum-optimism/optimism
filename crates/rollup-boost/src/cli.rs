@@ -178,6 +178,7 @@ impl Args {
                 builder_client.clone(),
                 inbound_url,
                 outbound_addr,
+                self.flashblocks.flashblock_builder_ws_reconnect_ms,
             )?)
         } else {
             Arc::new(builder_client)

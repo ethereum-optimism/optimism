@@ -18,4 +18,8 @@ pub struct FlashblocksArgs {
     /// Flashblocks WebSocket port for outbound connections
     #[arg(long, env, default_value = "1112")]
     pub flashblocks_port: u16,
+
+    /// Time used for timeout if builder disconnected
+    #[arg(long, env, default_value = "5000")]
+    pub flashblock_builder_ws_reconnect_ms: u64,
 }

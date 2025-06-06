@@ -11,10 +11,11 @@ impl Flashblocks {
         builder_url: RpcClient,
         flashblocks_url: Url,
         outbound_addr: SocketAddr,
+        reconnect_ms: u64,
     ) -> eyre::Result<FlashblocksService> {
         let (tx, rx) = mpsc::channel(100);
 
-        let receiver = FlashblocksReceiverService::new(flashblocks_url, tx);
+        let receiver = FlashblocksReceiverService::new(flashblocks_url, tx, reconnect_ms);
         tokio::spawn(async move {
             let _ = receiver.run().await;
         });
