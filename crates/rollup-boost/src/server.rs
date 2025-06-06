@@ -678,8 +678,6 @@ pub mod tests {
                         builder_auth_rpc,
                         jwt_secret,
                         1,
-                        probes,
-                        execution_mode.clone(),
                     ));
 
             let server = Server::builder()

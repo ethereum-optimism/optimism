@@ -214,8 +214,6 @@ impl Args {
                     builder_args.builder_url,
                     builder_auth_jwt,
                     builder_args.builder_timeout,
-                    probes,
-                    execution_mode,
                 ));
 
         let server = Server::builder()
