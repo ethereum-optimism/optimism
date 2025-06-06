@@ -17,13 +17,13 @@ use crate::{
     RollupBoostServer, RpcClient,
     client::rpc::{BuilderArgs, L2ClientArgs},
     debug_api::ExecutionMode,
-    init_metrics,
+    get_version, init_metrics,
     payload::PayloadSource,
     probe::ProbeLayer,
 };
 
 #[derive(Clone, Parser, Debug)]
-#[clap(author, version, about)]
+#[clap(author, version = get_version(), about)]
 pub struct Args {
     #[command(subcommand)]
     pub command: Option<Commands>,

@@ -26,7 +26,11 @@ tokio-tungstenite.workspace = true
 
 # TODO: update to latest release when it is published
 # jsonrpsee = { version = "0.25.1", features = ["server", "http-client", "macros"] }
-jsonrpsee = { git = "https://github.com/paritytech/jsonrpsee", rev = "f04afa740e55db60dce20d9839758792f035ffff", features = ["server", "http-client", "macros"]}
+jsonrpsee = { git = "https://github.com/paritytech/jsonrpsee", rev = "f04afa740e55db60dce20d9839758792f035ffff", features = [
+    "server",
+    "http-client",
+    "macros",
+] }
 moka = { version = "0.12.10", features = ["future"] }
 http = "1.1.0"
 dotenvy = "0.15.7"
@@ -71,6 +75,10 @@ bytes = "1.2"
 reth-rpc-layer = { git = "https://github.com/paradigmxyz/reth.git", tag = "v1.4.7" }
 ctor = "0.4.1"
 reqwest = "0.12.15"
+
+[build-dependencies]
+vergen = { version = "9.0.4", features = ["build", "cargo", "emit_and_set"] }
+vergen-git2 = "1.0.5"
 
 [[bin]]
 name = "rollup-boost"
