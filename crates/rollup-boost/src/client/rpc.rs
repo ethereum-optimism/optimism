@@ -2,6 +2,7 @@ use crate::EngineApiExt;
 use crate::client::auth::AuthLayer;
 use crate::payload::{NewPayload, OpExecutionPayloadEnvelope, PayloadSource, PayloadVersion};
 use crate::server::EngineApiClient;
+use crate::version::{CARGO_PKG_VERSION, VERGEN_GIT_SHA};
 use alloy_primitives::{B256, Bytes};
 use alloy_rpc_types_engine::{
     ExecutionPayload, ExecutionPayloadV3, ForkchoiceState, ForkchoiceUpdated, JwtError, JwtSecret,
@@ -9,7 +10,7 @@ use alloy_rpc_types_engine::{
 };
 use alloy_rpc_types_eth::{Block, BlockNumberOrTag};
 use clap::{Parser, arg};
-use http::Uri;
+use http::{HeaderMap, Uri};
 use jsonrpsee::core::async_trait;
 use jsonrpsee::core::middleware::layer::RpcLogger;
 use jsonrpsee::http_client::transport::HttpBackend;
@@ -118,9 +119,14 @@ impl RpcClient {
         timeout: u64,
         payload_source: PayloadSource,
     ) -> Result<Self, RpcClientError> {
+        let version = format!("{}-{}", CARGO_PKG_VERSION, VERGEN_GIT_SHA);
+        let mut headers = HeaderMap::new();
+        headers.insert("X-Rollup-Boost-Version", version.parse().unwrap());
+
         let auth_layer = AuthLayer::new(auth_rpc_jwt_secret);
         let auth_client = HttpClientBuilder::new()
             .set_http_middleware(tower::ServiceBuilder::new().layer(auth_layer))
+            .set_headers(headers)
             .request_timeout(Duration::from_millis(timeout))
             .build(auth_rpc.to_string())?;
 
