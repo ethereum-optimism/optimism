@@ -22,7 +22,12 @@ pub mod primitives {
 
 /// Re-exported cli types
 #[cfg(feature = "cli")]
-pub use reth_optimism_cli as cli;
+pub mod cli {
+    #[doc(inline)]
+    pub use reth_cli_util::*;
+    #[doc(inline)]
+    pub use reth_optimism_cli::*;
+}
 
 /// Re-exported pool types
 #[cfg(feature = "pool")]
