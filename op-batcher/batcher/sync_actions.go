@@ -43,7 +43,7 @@ func (s syncActions) TerminalString() string {
 		"SyncActions{blocksToPrune: %d, channelsToPrune: %d, clearState: %v, blocksToLoad: %v}", s.blocksToPrune, s.channelsToPrune, cs, btl)
 }
 
-func isZero[T eth.L2BlockRef | eth.L1BlockRef](x T) bool {
+func isZero[T comparable](x T) bool {
 	var y T
 	return (x == y)
 }
