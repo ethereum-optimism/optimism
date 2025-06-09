@@ -1006,18 +1006,6 @@ contract OPContractsManager_AddGameType_Test is OPContractsManager_TestInit {
     {
         // Check the config for the game itself
         assertEq(ago.faultDisputeGame.gameType().raw(), agi.disputeGameType.raw(), "gameType mismatch");
-        /// TODO(snevins): update how we want to validate these
-        // assertEq(
-        //     ago.faultDisputeGame.absolutePrestate().raw(),
-        //     agi.disputeAbsolutePrestate.raw(),
-        //     "absolutePrestate mismatch"
-        // );
-        // assertEq(address(ago.faultDisputeGame.vm()), address(agi.vm), "vm address mismatch");
-        // assertEq(
-        //     address(ago.faultDisputeGame.anchorStateRegistry()),
-        //     address(chainDeployOutput1.anchorStateRegistryProxy),
-        //     "ASR address mismatch"
-        // );
         assertEq(ago.faultDisputeGame.maxGameDepth(), agi.disputeMaxGameDepth, "maxGameDepth mismatch");
         assertEq(ago.faultDisputeGame.splitDepth(), agi.disputeSplitDepth, "splitDepth mismatch");
         assertEq(

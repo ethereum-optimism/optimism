@@ -880,7 +880,6 @@ contract StandardValidator_PermissionedDisputeGame_Test is StandardValidator_Tes
 
         // Mock the FaultDisputeGame's VM to return the valid mips address so it doesn't produce errors
         // This is necessary because the validate function validates both PermissionedDisputeGame and FaultDisputeGame
-        // TODO(snevins): validate if we want these checks on the implementation any more
         vm.mockCall(address(fdg), abi.encodeCall(IFaultDisputeGame.vm, ()), abi.encode(address(mips)));
 
         // Use overrides with vm set to address(0) so it doesn't override the game's VM
@@ -1201,7 +1200,6 @@ contract StandardValidator_FaultDisputeGame_Test is StandardValidator_TestInit {
 
         // Mock the PermissionedDisputeGame's VM to return the valid mips address so it doesn't produce errors
         // This is necessary because the validate function validates both PermissionedDisputeGame and FaultDisputeGame
-        // TODO(snevins): validate if we want these checks on the implementation any more
         vm.mockCall(address(pdg), abi.encodeCall(IPermissionedDisputeGame.vm, ()), abi.encode(address(mips)));
 
         // Use overrides with vm set to address(0) so it doesn't override the game's VM

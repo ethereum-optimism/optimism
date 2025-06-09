@@ -499,20 +499,6 @@ contract DeployOPChain is Script {
             return;
         }
 
-        /// TODO(snevins): validate where / if we want these checks
-        // This hex string is the absolutePrestate of the latest op-program release, see where the
-        // `EXPECTED_PRESTATE_HASH` is defined in `config.yml`.
-        // require(
-        //     Claim.unwrap(game.absolutePrestate())
-        //         == bytes32(hex"038512e02c4c3f7bdaec27d00edf55b7155e0905301e1a88083e4e0a6764d54c"),
-        //     "DPG-20"
-        // );
-        // require(game.vm() == IBigStepper(mipsImpl), "DPG-30");
-        // require(address(game.anchorStateRegistry()) == address(_doo.anchorStateRegistryProxy()), "DPG-50");
-
-        IOPContractsManager opcm = _doi.opcm();
-        address mipsImpl = opcm.implementations().mipsImpl;
-
         require(address(game.weth()) == address(_doo.delayedWETHPermissionedGameProxy()), "DPG-40");
         require(game.l2ChainId() == _doi.l2ChainId(), "DPG-60");
         require(game.l2BlockNumber() == 0, "DPG-70");

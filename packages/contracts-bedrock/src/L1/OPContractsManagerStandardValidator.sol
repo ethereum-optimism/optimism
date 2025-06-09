@@ -109,7 +109,6 @@ contract StandardValidator is ISemver {
     }
 
     /// @notice Struct containing override parameters for the validation process.
-    /// TODO(snevins): get this from the IStandardValidator interface
     struct ValidationOverrides {
         address l1PAOMultisig;
         address challenger;
