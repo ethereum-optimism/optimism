@@ -42,3 +42,19 @@ func WithFastGame() stack.CommonOption {
 		),
 	)
 }
+
+func WithDeployerMatchL1PAO() stack.CommonOption {
+	return stack.MakeCommon(
+		sysgo.WithDeployerPipelineOption(
+			sysgo.WithDeployerMatchL1PAO(),
+		),
+	)
+}
+
+func WithGuardianMatchL1PAO() stack.CommonOption {
+	return stack.MakeCommon(
+		sysgo.WithDeployerOptions(
+			sysgo.WithGuardianMatchL1PAO(),
+		),
+	)
+}

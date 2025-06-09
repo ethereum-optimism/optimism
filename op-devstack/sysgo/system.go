@@ -52,7 +52,7 @@ func DefaultMinimalSystem(dest *DefaultMinimalSystemIDs) stack.Option[*Orchestra
 		WithDeployerOptions(
 			WithLocalContractSources(),
 			WithCommons(ids.L1.ChainID()),
-			WithPrefundedL2(ids.L2.ChainID()),
+			WithPrefundedL2(ids.L1.ChainID(), ids.L2.ChainID()),
 		),
 	)
 
@@ -151,7 +151,7 @@ func baseInteropSystem(ids *DefaultSingleChainInteropSystemIDs) stack.Option[*Or
 		WithDeployerOptions(
 			WithLocalContractSources(),
 			WithCommons(ids.L1.ChainID()),
-			WithPrefundedL2(ids.L2A.ChainID()),
+			WithPrefundedL2(ids.L1.ChainID(), ids.L2A.ChainID()),
 			WithInteropAtGenesis(), // this can be overridden by later options
 		),
 	)

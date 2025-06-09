@@ -27,8 +27,9 @@ type Orchestrator struct {
 	timeTravelClock *clock.AdvancingClock
 
 	// options
-	batcherOptions  []BatcherOption
-	proposerOptions []ProposerOption
+	batcherOptions          []BatcherOption
+	proposerOptions         []ProposerOption
+	deployerPipelineOptions []DeployerPipelineOption
 
 	superchains    locks.RWMap[stack.SuperchainID, *Superchain]
 	clusters       locks.RWMap[stack.ClusterID, *Cluster]
