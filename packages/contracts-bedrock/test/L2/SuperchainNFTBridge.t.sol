@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.25;
+pragma solidity ^0.8.15;
 
 // Testing utilities
-import { Test } from "forge-std/Test.sol";
+import { CommonTest } from "test/setup/CommonTest.sol";
 
 // Libraries
 import { Predeploys } from "src/libraries/Predeploys.sol";
@@ -18,18 +18,23 @@ import { ICrosschainERC721 } from "interfaces/L2/ICrosschainERC721.sol";
 import { IL2ToL2CrossDomainMessenger } from "interfaces/L2/IL2ToL2CrossDomainMessenger.sol";
 import { ISuperchainERC721 } from "interfaces/L2/ISuperchainERC721.sol";
 
-contract SuperchainNFTBridge_TestInit is Test {
+contract SuperchainNFTBridge_TestInit is CommonTest {
     address internal constant ZERO_ADDRESS = address(0);
-
-    // Target contract
-    ISuperchainNFTBridge public superchainNFTBridge;
 
     // Mocks
     ISuperchainERC721 public superchainERC721;
 
-    function setUp() public virtual {
+    // Events
+    event SendERC721(
+        address indexed token, address indexed from, address indexed to, uint256 tokenId, uint256 destination
+    );
+    event RelayERC721(address indexed token, address indexed from, address indexed to, uint256 tokenId, uint256 source);
+
+    function setUp() public virtual override {
+        useInteropOverride = true;
+        super.setUp();
+
         vm.etch(Predeploys.SUPERCHAIN_NFT_BRIDGE, address(new SuperchainNFTBridge()).code);
-        superchainNFTBridge = ISuperchainNFTBridge(Predeploys.SUPERCHAIN_NFT_BRIDGE);
         superchainERC721 = ISuperchainERC721(address(new MockSuperchainERC721Implementation()));
     }
 
@@ -118,7 +123,7 @@ contract SuperchainNFTBridge_SendERC721_Test is SuperchainNFTBridge_TestInit {
 
         // Expect the `SendERC721` event
         vm.expectEmit(address(superchainNFTBridge));
-        emit SuperchainNFTBridge.SendERC721(address(superchainERC721), _sender, _to, _tokenId, _chainId);
+        emit SendERC721(address(superchainERC721), _sender, _to, _tokenId, _chainId);
 
         // Call the `sendERC721` function
         vm.prank(_sender);
@@ -196,7 +201,7 @@ contract SuperchainNFTBridge_RelayERC721_Test is SuperchainNFTBridge_TestInit {
 
         // Look for the emit of the `RelayERC721` event
         vm.expectEmit(address(superchainNFTBridge));
-        emit SuperchainNFTBridge.RelayERC721(address(superchainERC721), _from, _to, _tokenId, _source);
+        emit RelayERC721(address(superchainERC721), _from, _to, _tokenId, _source);
 
         // Call the `relayERC20` function with the messenger caller
         vm.prank(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER);
