@@ -7,12 +7,12 @@ use tracing::{info, trace, warn};
 
 #[derive(Clone)]
 pub struct Registry {
-    sender: Sender<String>,
+    sender: Sender<Vec<u8>>,
     metrics: Arc<Metrics>,
 }
 
 impl Registry {
-    pub fn new(sender: Sender<String>, metrics: Arc<Metrics>) -> Self {
+    pub fn new(sender: Sender<Vec<u8>>, metrics: Arc<Metrics>) -> Self {
         Self { sender, metrics }
     }
 

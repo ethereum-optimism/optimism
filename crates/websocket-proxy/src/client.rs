@@ -18,8 +18,8 @@ impl ClientConnection {
         }
     }
 
-    pub async fn send(&mut self, data: String) -> Result<(), Error> {
-        self.websocket.send(data.into_bytes().into()).await
+    pub async fn send(&mut self, data: Vec<u8>) -> Result<(), Error> {
+        self.websocket.send(data.into()).await
     }
 
     pub fn id(&self) -> String {
