@@ -72,7 +72,7 @@ func TestWithdrawal(gt *testing.T) {
 		txplan.WithValue(depositAmount.ToBig()),
 	)
 	// L2CL will read L1, fetch TransactionDeposited() event and convert as a deposit transaction at L2
-	// Contruct the L2 deposit tx to check the tx is included at L2
+	// Construct the L2 deposit tx to check the tx is included at L2
 	idx := len(l1DepositReceipt.Logs) - 1
 	l2DepositTx, err := derive.UnmarshalDepositLogEvent(l1DepositReceipt.Logs[idx])
 	require.NoError(err, "Could not reconstruct L2 Deposit")
