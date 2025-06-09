@@ -378,6 +378,86 @@ func (m *ManagedMode) Reset(ctx context.Context, lUnsafe, xUnsafe, lSafe, xSafe,
 	return nil
 }
 
+// findLatestValidLocalUnsafe searches and returns the latest valid block of the L2 chain
+// starting from `l2UnsafeTarget` and checking until the latest unsafe block.
+func (m *ManagedMode) findLatestValidLocalUnsafe(ctx context.Context, l2UnsafeTarget eth.BlockID) (eth.L2BlockRef, error) {
+	latestUnsafe, err := m.l2.L2BlockRefByLabel(ctx, eth.Unsafe)
+	if err != nil {
+		return eth.L2BlockRef{}, err
+	}
+
+	logger := m.log.New("target", l2UnsafeTarget, "latestUnsafe", latestUnsafe)
+	target := l2UnsafeTarget.Number
+
+	// Binary search to find and return the smallest index i in [0, x) at which f(i) is true
+	// In this context, binary search returns the first block which is invalid, and we infer that the previous block is valid
+	// This means that `offset+1` is the index of the first invalid block
+	// This means that `offset` is the index of the last valid block, which we are searching for
+	// We don't check `target`
+	logger.Info("Searching for latest valid local unsafe")
+
+	x := int(latestUnsafe.Number - target)
+	if x != 0 {
+		// search space:
+		// ------------------------------------------------------------------------------------
+		// target.Number |  offset=0   offset=1   offset=2  ...  offset = x-1 = latestUnsafe   |  offset=x  (doesn't exist)
+		// false         |  t/f        t/f        t/f       ...  t/f                           |  true
+		// ------------------------------------------------------------------------------------
+		offset, err := localUnsafeSearch(x, func(i int) (bool, error) {
+			return m.isInvalidBlock(ctx, logger, target+1+uint64(i))
+		})
+		if err != nil {
+			return eth.L2BlockRef{}, err
+		}
+		// offset == 0 => search returns 0 if f(i) returned true for all i in [0, x) => all blocks we checked are invalid
+		// offset == x => search returns x if f(i) returned false for all i in [0, x) => all blocks we checked are valid
+
+		if offset != 0 {
+			logger.Info("Found last valid block with binary search", "validNum", target+uint64(offset))
+
+			valid, err := m.l2.L2BlockRefByNumber(ctx, target+uint64(offset))
+			if err != nil {
+				return eth.L2BlockRef{}, err
+			}
+
+			logger.Info("Last valid L2 block ref", "valid", valid)
+			return valid, nil
+		}
+	} else if x < 0 {
+		logger.Warn("Latest unsafe block is older than target, using latest unsafe for search")
+		target = latestUnsafe.Number
+	}
+
+	// offset == 0 or x == 0, so go from target backwards indefinitely until we find a valid block
+	// since L1 reorgs aren't usually that deep.
+	for n := target; ; n-- {
+		if n == target-1 {
+			logger.Warn("No valid unsafe block found up to target, searching further")
+		}
+		// Exit loop if context is done - other errors are only logged and loop continues.
+		if cerr := ctx.Err(); cerr != nil {
+			return eth.L2BlockRef{}, fmt.Errorf("context done: %w", cerr)
+		}
+
+		isInvalid, err := m.isInvalidBlock(ctx, logger, n)
+		if err != nil {
+			return eth.L2BlockRef{}, err
+		}
+
+		if !isInvalid {
+			logger.Info("Found last valid block", "validNum", n)
+
+			valid, err := m.l2.L2BlockRefByNumber(ctx, n)
+			if err != nil {
+				return eth.L2BlockRef{}, err
+			}
+
+			logger.Info("Last valid L2 block ref", "valid", valid)
+			return valid, nil
+		}
+	}
+}
+
 // localUnsafeSearch is a copy-paste from sort.Search, but also stops on and returns error
 func localUnsafeSearch(n int, f func(int) (bool, error)) (int, error) {
 	// Define f(-1) == false and f(n) == true.
@@ -400,107 +480,26 @@ func localUnsafeSearch(n int, f func(int) (bool, error)) (int, error) {
 	return i, nil
 }
 
-// findLatestValidLocalUnsafe searches and returns the latest valid block of the L2 chain
-// starting from `l2UnsafeTarget` and checking until the latest unsafe block.
-func (m *ManagedMode) findLatestValidLocalUnsafe(ctx context.Context, l2UnsafeTarget eth.BlockID) (eth.L2BlockRef, error) {
-	latestUnsafe, err := m.l2.L2BlockRefByLabel(ctx, eth.Unsafe)
+// isInvalidBlock returns:
+// - false: if the L1Origin field for the block belongs to the canonical chain
+// - true: if the L1Origin field for the block is invalid/outdated/reorged
+func (m *ManagedMode) isInvalidBlock(ctx context.Context, logger log.Logger, blockNum uint64) (bool, error) {
+	current, err := m.l2.L2BlockRefByNumber(ctx, blockNum)
 	if err != nil {
-		return eth.L2BlockRef{}, err
+		return true, err
 	}
 
-	logger := m.log.New("target", l2UnsafeTarget, "latestUnsafe", latestUnsafe)
-	target := l2UnsafeTarget.Number
-
-	// isInvalidBlock returns:
-	// - false: if the L1Origin field for the block belongs to the canonical chain
-	// - true: if the L1Origin field for the block is invalid/outdated/reorged
-	isInvalidBlock := func(blockNum uint64) (bool, error) {
-		current, err := m.l2.L2BlockRefByNumber(ctx, blockNum)
-		if err != nil {
-			return true, err
-		}
-
-		// Check if L1Origin has been reorged
-		l1Blk, err := m.l1.L1BlockRefByNumber(ctx, current.L1Origin.Number)
-		if err != nil {
-			return true, err
-		}
-		if l1Blk.Hash != current.L1Origin.Hash {
-			logger.Debug("L1Origin field is invalid/outdated, so block is invalid and should be reorged", "currentNumber", current.Number, "currentL1Origin", current.L1Origin, "newL1Origin", l1Blk)
-			return true, nil
-		}
-		logger.Trace("L1Origin field points to canonical L1 block, so block is valid", "blocknum", blockNum, "l1Blk", l1Blk)
-		return false, nil
+	// Check if L1Origin has been reorged
+	l1Blk, err := m.l1.L1BlockRefByNumber(ctx, current.L1Origin.Number)
+	if err != nil {
+		return true, err
 	}
-
-	// Binary search to find and return the smallest index i in [0, x) at which f(i) is true
-	// In this context, binary search returns the first block which is invalid, and we infer that the previous block is valid
-	// This means that `offset+1` is the index of the first invalid block
-	// This means that `offset` is the index of the last valid block, which we are searching for
-	// We don't check `target`
-	logger.Info("Searching for latest valid local unsafe")
-
-	x := int(latestUnsafe.Number - target)
-	if x < 0 {
-		logger.Warn("Latest unsafe block is older than target, using latest unsafe for search")
-		target = latestUnsafe.Number
-	} else if x != 0 {
-		// search space:
-		// ------------------------------------------------------------------------------------
-		// target.Number |  offset=0   offset=1   offset=2  ...  offset = x-1 = latestUnsafe   |  offset=x  (doesn't exist)
-		// false         |  t/f        t/f        t/f       ...  t/f                           |  true
-		// ------------------------------------------------------------------------------------
-		offset, err := localUnsafeSearch(x, func(i int) (bool, error) {
-			return isInvalidBlock(target + 1 + uint64(i))
-		})
-		if err != nil {
-			return eth.L2BlockRef{}, err
-		}
-		// offset == 0 => search returns 0 if f(i) returned true for all i in [0, x) => all blocks we checked are invalid
-		// offset == x => search returns x if f(i) returned false for all i in [0, x) => all blocks we checked are valid
-
-		if offset != 0 {
-			logger.Info("Found last valid block with binary search", "validNum", target+uint64(offset))
-
-			valid, err := m.l2.L2BlockRefByNumber(ctx, target+uint64(offset))
-			if err != nil {
-				return eth.L2BlockRef{}, err
-			}
-
-			logger.Info("Last valid L2 block ref", "valid", valid)
-			return valid, nil
-		}
+	if l1Blk.Hash != current.L1Origin.Hash {
+		logger.Debug("L1Origin field is invalid/outdated, so block is invalid and should be reorged", "currentNumber", current.Number, "currentL1Origin", current.L1Origin, "newL1Origin", l1Blk)
+		return true, nil
 	}
-
-	// offset == 0 or x == 0, so go from target backwards indefinitely until we find a valid block
-	// since L1 reorgs aren't usually that deep.
-	for n := target; ; n-- {
-		if n == target-1 {
-			logger.Warn("No valid unsafe block found up to target, searching further")
-		}
-		// Exit loop if context is done - other errors are only logged and loop continues.
-		if cerr := ctx.Err(); cerr != nil {
-			return eth.L2BlockRef{}, fmt.Errorf("context done: %w", cerr)
-		}
-
-		isInvalid, err := isInvalidBlock(n)
-		if err != nil {
-			return eth.L2BlockRef{}, err
-		}
-
-		if !isInvalid {
-			logger.Info("Found last valid block", "validNum", n)
-
-			valid, err := m.l2.L2BlockRefByNumber(ctx, n)
-			if err != nil {
-				return eth.L2BlockRef{}, err
-			}
-
-			logger.Info("Last valid L2 block ref", "valid", valid)
-			return valid, nil
-		}
-	}
-
+	logger.Trace("L1Origin field points to canonical L1 block, so block is valid", "blocknum", blockNum, "l1Blk", l1Blk)
+	return false, nil
 }
 
 func (m *ManagedMode) ProvideL1(ctx context.Context, nextL1 eth.BlockRef) error {
