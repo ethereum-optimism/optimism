@@ -5,6 +5,7 @@ import (
 	"math/big"
 	"testing"
 
+	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/stretchr/testify/require"
@@ -52,8 +53,22 @@ type TestStruct struct {
 	C []byte
 }
 
-type TestDynamicArray struct {
+type TestDynamicSlice struct {
 	A []TestStruct
+}
+
+type TestStruct2 struct {
+	B common.Address
+	C []byte
+}
+
+type TestDynamicArray struct {
+	A [2]TestStruct2
+}
+
+type TestCustomTypeStruct struct {
+	A eth.ETH
+	B eth.ChainID
 }
 
 type TestBaseContract struct {
@@ -90,8 +105,11 @@ type TestBaseContract struct {
 
 	TestFunc1 func() TypedCall[TestNestedDynamicStruct] `sol:"testfunc1"`
 
-	TestFunc2 func() TypedCall[TestDynamicArray] `sol:"testfunc2"`
+	TestFunc2 func() TypedCall[TestDynamicSlice] `sol:"testfunc2"`
 	TestFunc3 func() TypedCall[[]TestStruct]     `sol:"testfunc3"`
+
+	TestFunc4 func() TypedCall[TestDynamicArray] `sol:"testfunc5"`
+	TestFunc5 func() TypedCall[[2]TestStruct2]   `sol:"testfunc5"`
 }
 
 func NewTestBaseContract(f *TestBaseCallContractFactory) *TestBaseContract {
@@ -236,7 +254,7 @@ func TestDecodeNestedDynamicStruct(t *testing.T) {
 	require.Equal(t, hexutil.MustDecode("0xdeadbeef"), result.D.F)
 }
 
-func TestDecodeDynamicArray(t *testing.T) {
+func TestDecodeDynamicSlice(t *testing.T) {
 	factory := NewTestBaseContractCallFactory()
 	testBaseContract := NewTestBaseContract(factory)
 
@@ -261,5 +279,32 @@ func TestDecodeDynamicArray(t *testing.T) {
 		require.Equal(t, hexutil.MustDecode("0xdeadbeef"), result[0].C)
 		require.True(t, new(big.Int).SetUint64(2).Cmp(result[1].B) == 0)
 		require.Equal(t, hexutil.MustDecode("0xbeefcafe"), result[1].C)
+	}
+}
+
+func TestDecodeDynamicArray(t *testing.T) {
+	factory := NewTestBaseContractCallFactory()
+	testBaseContract := NewTestBaseContract(factory)
+
+	data := hexutil.MustDecode("0x0000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000004000000000000000000000000000000000000000000000000000000000000000c0000000000000000000000000111111111111111111111111111111111111111100000000000000000000000000000000000000000000000000000000000000400000000000000000000000000000000000000000000000000000000000000003abcdef00000000000000000000000000000000000000000000000000000000000000000000000000000000002222222222222222222222222222222222222222000000000000000000000000000000000000000000000000000000000000004000000000000000000000000000000000000000000000000000000000000000031234560000000000000000000000000000000000000000000000000000000000")
+
+	{
+		call := testBaseContract.TestFunc4()
+		result, err := call.DecodeOutput(data)
+		require.NoError(t, err)
+		require.Equal(t, common.HexToAddress("0x1111111111111111111111111111111111111111"), result.A[0].B)
+		require.Equal(t, hexutil.MustDecode("0xabcdef"), result.A[0].C)
+		require.Equal(t, common.HexToAddress("0x2222222222222222222222222222222222222222"), result.A[1].B)
+		require.Equal(t, hexutil.MustDecode("0x123456"), result.A[1].C)
+	}
+	{
+		call := testBaseContract.TestFunc5()
+		result, err := call.DecodeOutput(data)
+		require.NoError(t, err)
+		require.Equal(t, 2, len(result))
+		require.Equal(t, common.HexToAddress("0x1111111111111111111111111111111111111111"), result[0].B)
+		require.Equal(t, hexutil.MustDecode("0xabcdef"), result[0].C)
+		require.Equal(t, common.HexToAddress("0x2222222222222222222222222222222222222222"), result[1].B)
+		require.Equal(t, hexutil.MustDecode("0x123456"), result[1].C)
 	}
 }

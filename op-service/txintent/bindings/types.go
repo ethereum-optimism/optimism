@@ -35,11 +35,13 @@ func goStructTypeToABIType(t reflect.Type) (abi.Type, []abi.ArgumentMarshaling, 
 		case abi.TupleTy:
 			innerElemTyp = "tuple"
 		case abi.ArrayTy:
-			idx := strings.LastIndex(innerElemTyp, "[")
-			if idx == -1 {
-				panic(fmt.Sprintf("malformed type: %s", innerElemTyp))
+			if innerComponents != nil {
+				idx := strings.LastIndex(innerElemTyp, "[")
+				if idx == -1 {
+					panic(fmt.Sprintf("malformed type: %s", innerElemTyp))
+				}
+				innerElemTyp = "tuple" + innerElemTyp[idx:]
 			}
-			innerElemTyp = "tuple" + innerElemTyp[idx:]
 		case abi.SliceTy:
 			innerElemTyp = "tuple[]"
 		}

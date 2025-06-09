@@ -80,12 +80,12 @@ func TestTypeConversion(t *testing.T) {
 	tests := []testCase{
 		{
 			value:    eth.ETH{},
-			want:     "uint64[4]",
+			want:     "uint256",
 			testName: "eth.ETH",
 		},
 		{
 			value:    eth.ChainID{},
-			want:     "uint64[4]",
+			want:     "uint256",
 			testName: "eth.ChainID",
 		},
 		{
@@ -172,7 +172,8 @@ func TestTypeConversion(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.testName, func(t *testing.T) {
-			typ, _, err := goTypeToABIType(reflect.TypeOf(tc.value))
+			abiTargetType := CustomTypeToGoType(reflect.TypeOf(tc.value))
+			typ, _, err := goTypeToABIType(abiTargetType)
 			require.NoError(t, err)
 			require.Equal(t, tc.want, typ.String())
 		})
