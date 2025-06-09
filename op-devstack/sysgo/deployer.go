@@ -266,6 +266,27 @@ func WithDeployerMatchL1PAO() DeployerPipelineOption {
 	}
 }
 
+// WithFinalizationPeriodSeconds overrides the number of L1 blocks in a sequencing window, applied to all L2s.
+func WithFinalizationPeriodSeconds(n uint64) DeployerOption {
+	return func(p devtest.P, keys devkeys.Keys, builder intentbuilder.Builder) {
+		for _, l2Cfg := range builder.L2s() {
+			l2Cfg.WithFinalizationPeriodSeconds(n)
+		}
+	}
+}
+
+func WithProofMaturityDelaySeconds(n uint64) DeployerOption {
+	return func(p devtest.P, keys devkeys.Keys, builder intentbuilder.Builder) {
+		builder.WithGlobalOverride("proofMaturityDelaySeconds", uint64(n))
+	}
+}
+
+func WithDisputeGameFinalityDelaySeconds(seconds uint64) DeployerOption {
+	return func(p devtest.P, keys devkeys.Keys, builder intentbuilder.Builder) {
+		builder.WithGlobalOverride("disputeGameFinalityDelaySeconds", seconds)
+	}
+}
+
 func (wb *worldBuilder) buildL1Genesis() {
 	wb.require.NotNil(wb.output.L1DevGenesis, "must have L1 genesis outer config")
 	wb.require.NotNil(wb.output.L1StateDump, "must have L1 genesis alloc")

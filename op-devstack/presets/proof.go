@@ -58,3 +58,21 @@ func WithGuardianMatchL1PAO() stack.CommonOption {
 		),
 	)
 }
+
+func WithFinalizationPeriodSeconds(n uint64) stack.CommonOption {
+	return stack.MakeCommon(sysgo.WithDeployerOptions(
+		sysgo.WithFinalizationPeriodSeconds(n),
+	))
+}
+
+func WithProofMaturityDelaySeconds(seconds uint64) stack.CommonOption {
+	return stack.MakeCommon(sysgo.WithDeployerOptions(
+		sysgo.WithProofMaturityDelaySeconds(seconds),
+	))
+}
+
+func WithDisputeGameFinalityDelaySeconds(seconds uint64) stack.CommonOption {
+	return stack.MakeCommon(sysgo.WithDeployerOptions(
+		sysgo.WithDisputeGameFinalityDelaySeconds(seconds),
+	))
+}
