@@ -470,7 +470,7 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
         }
 
         Claim claim = _dummyClaim();
-        // vm.expectRevert(abi.encodeWithSelector(BadExtraData.selector)); // TODO(steven): removed the check in the
+        // vm.expectRevert(abi.encodeWithSelector(BadExtraData.selector)); // TODO: steven - removed the check in the
         // contract
         gameProxy = IFaultDisputeGame(payable(address(disputeGameFactory.create(GAME_TYPE, claim, _extraData))));
     }
