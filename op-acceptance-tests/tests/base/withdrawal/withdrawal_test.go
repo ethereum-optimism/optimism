@@ -17,24 +17,6 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 )
 
-func TestMain(m *testing.M) {
-	presets.DoMain(m, presets.WithMinimal(),
-		presets.WithProposerGameType(faultTypes.FastGameType),
-		// Fast game for test
-		presets.WithFastGame(),
-		// Deployer must be L1PAO to make op-deployer happy
-		presets.WithDeployerMatchL1PAO(),
-		// Guardian must be L1PAO to make AnchorStateRegistry's setRespectedGameType method work
-		presets.WithGuardianMatchL1PAO(),
-		// Fast finalization for fast withdrawal
-		presets.WithFinalizationPeriodSeconds(2),
-		// Satisfy OptimismPortal2 PROOF_MATURITY_DELAY_SECONDS check, avoid OptimismPortal_ProofNotOldEnough() revert
-		presets.WithProofMaturityDelaySeconds(12),
-		// Satisfy AnchorStateRegistry DISPUTE_GAME_FINALITY_DELAY_SECONDS check, avoid OptimismPortal_InvalidRootClaim() revert
-		presets.WithDisputeGameFinalityDelaySeconds(6),
-	)
-}
-
 func TestWithdrawal(gt *testing.T) {
 	t := devtest.SerialT(gt)
 	sys := presets.NewMinimal(t)
@@ -54,7 +36,7 @@ func TestWithdrawal(gt *testing.T) {
 	// Make sure fast game is set
 	require.Equal(uint32(faultTypes.FastGameType), contract.Read(portal.RespectedGameType()))
 
-	initialL1Balance, initialL2Balance := eth.TenEther, eth.OneEther
+	initialL1Balance, initialL2Balance := eth.OneThirdEther, eth.OneTenthEther
 
 	// l1User and l2User share same private key
 	l2User := sys.Funder.NewFundedEOA(initialL2Balance)
@@ -65,8 +47,8 @@ func TestWithdrawal(gt *testing.T) {
 	// The max amount of withdrawal is limited to the total amount of deposit
 	// We trigger deposit first to fund the L1 ETHLockbox to satisfy the invariant
 
-	// Deposit 1 ETH
-	depositAmount := eth.OneEther
+	// Deposit 0.1 ETH
+	depositAmount := eth.OneTenthEther
 	l1DepositReceipt := contract.Write(l1User,
 		portal.DepositTransaction(userAddr, depositAmount, 1_000_000, false, []byte{}),
 		txplan.WithValue(depositAmount.ToBig()),
@@ -102,8 +84,8 @@ func TestWithdrawal(gt *testing.T) {
 		require.True(l1BalanceAfterDeposit.Cmp(diff) == 0)
 	}
 
-	// Withdrawal 1 ETH
-	withdrawalAmount := eth.OneEther
+	// Withdrawal 0.1 ETH
+	withdrawalAmount := eth.OneTenthEther
 	l1BalanceBeforeWithdrawal := l1BalanceAfterDeposit
 	l2BalanceBeforeWithdrawal := l2BalanceAfterDeposit
 

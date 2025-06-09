@@ -17,6 +17,7 @@ func WithProposerGameType(gameType faultTypes.GameType) stack.CommonOption {
 			})))
 }
 
+// TODO(infra#401): Implement support in the sysext toolset
 func WithFastGame() stack.CommonOption {
 	return stack.MakeCommon(
 		sysgo.WithDeployerOptions(
@@ -43,6 +44,7 @@ func WithFastGame() stack.CommonOption {
 	)
 }
 
+// TODO(infra#401): Implement support in the sysext toolset
 func WithDeployerMatchL1PAO() stack.CommonOption {
 	return stack.MakeCommon(
 		sysgo.WithDeployerPipelineOption(
@@ -51,6 +53,7 @@ func WithDeployerMatchL1PAO() stack.CommonOption {
 	)
 }
 
+// TODO(infra#401): Implement support in the sysext toolset
 func WithGuardianMatchL1PAO() stack.CommonOption {
 	return stack.MakeCommon(
 		sysgo.WithDeployerOptions(
@@ -59,18 +62,21 @@ func WithGuardianMatchL1PAO() stack.CommonOption {
 	)
 }
 
+// TODO(infra#401): Implement support in the sysext toolset
 func WithFinalizationPeriodSeconds(n uint64) stack.CommonOption {
 	return stack.MakeCommon(sysgo.WithDeployerOptions(
 		sysgo.WithFinalizationPeriodSeconds(n),
 	))
 }
 
+// TODO(infra#401): Implement support in the sysext toolset
 func WithProofMaturityDelaySeconds(seconds uint64) stack.CommonOption {
 	return stack.MakeCommon(sysgo.WithDeployerOptions(
 		sysgo.WithProofMaturityDelaySeconds(seconds),
 	))
 }
 
+// TODO(infra#401): Implement support in the sysext toolset
 func WithDisputeGameFinalityDelaySeconds(seconds uint64) stack.CommonOption {
 	return stack.MakeCommon(sysgo.WithDeployerOptions(
 		sysgo.WithDisputeGameFinalityDelaySeconds(seconds),
