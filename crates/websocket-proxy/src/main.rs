@@ -222,7 +222,7 @@ async fn main() {
             {
                 let mut compressor =
                     brotli::CompressorWriter::new(&mut compressed_data_bytes, 4096, 5, 22);
-                compressor.write_all(&data_bytes).unwrap();
+                compressor.write_all(data_bytes).unwrap();
             }
             compressed_data_bytes
         } else {
