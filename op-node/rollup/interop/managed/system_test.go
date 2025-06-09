@@ -25,7 +25,7 @@ func TestManagedMode_findLatestValidLocalUnsafe(t *testing.T) {
 		expectedError  string
 	}{
 		{
-			name:           "l2unsafe_equals_latest",
+			name:           "target_equals_latest",
 			l2Unsafe:       100,
 			latestUnsafe:   100,
 			validBlocks:    []uint64{100},
@@ -67,11 +67,25 @@ func TestManagedMode_findLatestValidLocalUnsafe(t *testing.T) {
 			expectedResult: 100,
 		},
 		{
-			name:           "l2unsafe_not_at_100",
+			name:           "target_not_at_100",
 			l2Unsafe:       95,
 			latestUnsafe:   100,
 			validBlocks:    []uint64{95, 96, 97}, // 98-100 invalid
 			expectedResult: 97,
+		},
+		{
+			name:           "target_is_invalid",
+			l2Unsafe:       100,
+			latestUnsafe:   100,
+			validBlocks:    []uint64{96, 97, 98, 99}, // 96-99 valid
+			expectedResult: 99,
+		},
+		{
+			name:           "target_is_larger_than_latest",
+			l2Unsafe:       101,
+			latestUnsafe:   100,
+			validBlocks:    []uint64{96, 97, 98, 99}, // 96-99 valid
+			expectedResult: 99,
 		},
 	}
 
@@ -106,7 +120,7 @@ func TestManagedMode_findLatestValidLocalUnsafe(t *testing.T) {
 			}
 
 			// Setup specific expectations for each possible block
-			for blockNum := tt.l2Unsafe; blockNum <= tt.latestUnsafe; blockNum++ {
+			for blockNum := tt.l2Unsafe - 10; blockNum <= tt.latestUnsafe; blockNum++ {
 				l1OriginNum := 10 + blockNum - tt.l2Unsafe
 				l1OriginHash := fmt.Sprintf("0x%x", l1OriginNum)
 				l1Origin := eth.BlockID{Hash: common.HexToHash(l1OriginHash), Number: l1OriginNum}
