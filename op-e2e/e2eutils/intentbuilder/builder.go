@@ -44,6 +44,7 @@ type L2Configurator interface {
 	ChainID() eth.ChainID
 	WithBlockTime(uint64)
 	WithL1StartBlockHash(hash common.Hash)
+	WithAdditionalDisputeGames(games []state.AdditionalDisputeGame)
 	ContractsConfigurator
 	L2VaultsConfigurator
 	L2RolesConfigurator
@@ -416,4 +417,12 @@ func (c *l2Configurator) initL2DevGenesisParams() *state.L2DevGenesisParams {
 func (c *l2Configurator) WithPrefundedAccount(addr common.Address, amount uint256.Int) L2Configurator {
 	c.initL2DevGenesisParams().Prefund[addr] = (*hexutil.U256)(&amount)
 	return c
+}
+
+func (c *l2Configurator) WithAdditionalDisputeGames(games []state.AdditionalDisputeGame) {
+	chain := c.builder.intent.Chains[c.chainIndex]
+	if chain.AdditionalDisputeGames == nil {
+		chain.AdditionalDisputeGames = make([]state.AdditionalDisputeGame, 0)
+	}
+	chain.AdditionalDisputeGames = append(chain.AdditionalDisputeGames, games...)
 }
