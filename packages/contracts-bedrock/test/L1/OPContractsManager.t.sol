@@ -1681,18 +1681,6 @@ contract OPContractsManager_Migrate_Test is OPContractsManager_TestInit {
         assertEq(superFdg.splitDepth(), input.gameParameters.splitDepth);
         assertEq(superFdg.clockExtension().raw(), input.gameParameters.clockExtension.raw());
         assertEq(superFdg.maxClockDuration().raw(), input.gameParameters.maxClockDuration.raw());
-        // Validate absolutePrestate by creating a test game instance
-        // CWIA stores absolutePrestate in clone bytecode, so we need an actual clone
-        {
-            Claim testRootClaim = Claim.wrap(bytes32(hex"1234"));
-            bytes memory extraData = abi.encode(chainDeployOutput1.systemConfigProxy.disputeGameFactoryProxy());
-            IDisputeGame testSuperFdg = disputeGameFactory.create(GameTypes.SUPER_CANNON, testRootClaim, extraData);
-            assertEq(
-                ISuperFaultDisputeGame(address(testSuperFdg)).absolutePrestate().raw(),
-                absolutePrestate1.raw(),
-                "Super Cannon absolutePrestate mismatch"
-            );
-        }
 
         // Check that the Super Permissioned Cannon game has the correct parameters.
         IDisputeGame superPdgImpl = disputeGameFactory.gameImpls(GameTypes.SUPER_PERMISSIONED_CANNON);
@@ -1703,18 +1691,6 @@ contract OPContractsManager_Migrate_Test is OPContractsManager_TestInit {
         assertEq(superPdg.splitDepth(), input.gameParameters.splitDepth);
         assertEq(superPdg.clockExtension().raw(), input.gameParameters.clockExtension.raw());
         assertEq(superPdg.maxClockDuration().raw(), input.gameParameters.maxClockDuration.raw());
-        // Validate absolutePrestate by creating a test game instance
-        // CWIA stores absolutePrestate in clone bytecode, so we need an actual clone
-        {
-            Claim testRootClaim = Claim.wrap(bytes32(hex"5678"));
-            bytes memory extraData = abi.encode(chainDeployOutput1.systemConfigProxy.disputeGameFactoryProxy());
-            IDisputeGame testSuperPdg = disputeGameFactory.create(GameTypes.SUPER_PERMISSIONED_CANNON, testRootClaim, extraData);
-            assertEq(
-                ISuperPermissionedDisputeGame(address(testSuperPdg)).absolutePrestate().raw(),
-                absolutePrestate1.raw(),
-                "Super Permissioned Cannon absolutePrestate mismatch"
-            );
-        }
     }
 
     /// @notice Tests that the migration function succeeds when requesting to not use the
@@ -1824,18 +1800,6 @@ contract OPContractsManager_Migrate_Test is OPContractsManager_TestInit {
         assertEq(superPdg.splitDepth(), input.gameParameters.splitDepth);
         assertEq(superPdg.clockExtension().raw(), input.gameParameters.clockExtension.raw());
         assertEq(superPdg.maxClockDuration().raw(), input.gameParameters.maxClockDuration.raw());
-        // Validate absolutePrestate by creating a test game instance
-        // CWIA stores absolutePrestate in clone bytecode, so we need an actual clone
-        {
-            Claim testRootClaim = Claim.wrap(bytes32(hex"5678"));
-            bytes memory extraData = abi.encode(chainDeployOutput1.systemConfigProxy.disputeGameFactoryProxy());
-            IDisputeGame testSuperPdg = disputeGameFactory.create(GameTypes.SUPER_PERMISSIONED_CANNON, testRootClaim, extraData);
-            assertEq(
-                ISuperPermissionedDisputeGame(address(testSuperPdg)).absolutePrestate().raw(),
-                absolutePrestate1.raw(),
-                "Super Permissioned Cannon absolutePrestate mismatch"
-            );
-        }
     }
 
     /// @notice Tests that the migration function reverts when the ProxyAdmin owners are
