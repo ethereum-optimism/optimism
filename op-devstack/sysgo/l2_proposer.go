@@ -41,6 +41,14 @@ func (p *L2Proposer) hydrate(system stack.ExtensibleSystem) {
 	l2Net.(stack.ExtensibleL2Network).AddL2Proposer(bFrontend)
 }
 
+type ProposerOption func(id stack.L2ProposerID, cfg *ps.CLIConfig)
+
+func WithProposerOption(opt ProposerOption) stack.Option[*Orchestrator] {
+	return stack.BeforeDeploy(func(o *Orchestrator) {
+		o.proposerOptions = append(o.proposerOptions, opt)
+	})
+}
+
 func WithProposer(proposerID stack.L2ProposerID, l1ELID stack.L1ELNodeID,
 	l2CLID *stack.L2CLNodeID, supervisorID *stack.SupervisorID) stack.Option[*Orchestrator] {
 	return stack.AfterDeploy(func(orch *Orchestrator) {
