@@ -18,6 +18,7 @@ use clap::Parser;
 use dotenvy::dotenv;
 use metrics_exporter_prometheus::PrometheusBuilder;
 use rate_limit::RedisRateLimit;
+#[cfg(feature = "compression")]
 use std::io::Write;
 use std::net::SocketAddr;
 use std::sync::Arc;
@@ -209,15 +210,22 @@ async fn main() {
             .active_connections
             .set((send.receiver_count() - 1) as f64);
 
-        let data_bytes = data.as_bytes();
-        let mut compressed_data_bytes = Vec::new();
-        {
-            let mut compressor =
-                brotli::CompressorWriter::new(&mut compressed_data_bytes, 4096, 5, 22);
-            compressor.write_all(&data_bytes).unwrap();
-        }
+        #[cfg(feature = "compression")]
+        let message_data = {
+            let data_bytes = data.as_bytes();
+            let mut compressed_data_bytes = Vec::new();
+            {
+                let mut compressor =
+                    brotli::CompressorWriter::new(&mut compressed_data_bytes, 4096, 5, 22);
+                compressor.write_all(&data_bytes).unwrap();
+            }
+            compressed_data_bytes
+        };
 
-        match send.send(compressed_data_bytes) {
+        #[cfg(not(feature = "compression"))]
+        let message_data = data.into_bytes();
+
+        match send.send(message_data) {
             Ok(_) => (),
             Err(e) => error!(message = "failed to send data", error = e.to_string()),
         }
