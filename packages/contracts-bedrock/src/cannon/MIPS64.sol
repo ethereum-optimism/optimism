@@ -67,7 +67,7 @@ contract MIPS64 is ISemver {
 
     /// @notice The semantic version of the MIPS64 contract.
     /// @custom:semver 1.4.0
-    string public constant version = "1.4.0";
+    string public constant version = "1.4.0-patch.1";
 
     /// @notice The preimage oracle contract.
     IPreimageOracle internal immutable ORACLE;
@@ -630,6 +630,7 @@ contract MIPS64 is ISemver {
                 if (!st.featuresForVersion(STATE_VERSION).supportNoopSysEventFd2) {
                     revert("MIPS64: unimplemented syscall");
                 }
+                v0 = sys.FD_EVENTFD;
             } else {
                 revert("MIPS64: unimplemented syscall");
             }
