@@ -20,11 +20,11 @@
     "sourceCodeHash": "0x11b35ee81f797b30ee834e2ffad52686d2100d7ee139db4299b7d854dba25550"
   },
   "src/L1/OPContractsManager.sol:OPContractsManager": {
-    "initCodeHash": "0xab0bd49534411b7f57a20d897ea495dfea419421d4caec392371a4670bfa1ae3",
+    "initCodeHash": "0xc11b609dedb7d232c3a4c56f755149f2a5dd3104c873eba89a741a65e6b09fe3",
     "sourceCodeHash": "0xafa3ebc3061831c4503664dff2e290934a2ba0ec7be354e1a11afcf9d130962e"
   },
   "src/L1/OptimismPortal2.sol:OptimismPortal2": {
-    "initCodeHash": "0x785b09610b2da65d248b49150fafc85b8369c921ddae95b0ea45608b1ce5cbc6",
+    "initCodeHash": "0x70d70e522e24852b32a1fdcaa3b48efb453a5990fc7ba248d9f868ce3d6b3152",
     "sourceCodeHash": "0x925821e7ca59f1799a900fbf5ce7d2c6bef35fc2636c306977d9889f60a987bb"
   },
   "src/L1/ProtocolVersions.sol:ProtocolVersions": {
@@ -32,7 +32,7 @@
     "sourceCodeHash": "0xb3e32b18c95d4940980333e1e99b4dcf42d8a8bfce78139db4dc3fb06e9349d0"
   },
   "src/L1/StandardValidator.sol:StandardValidator": {
-    "initCodeHash": "0x035d23030f111046ba1d4daa5d7c3f476716e828e8eba8849554b61d9bbeb117",
+    "initCodeHash": "0xb6c05d6642a9a083c8863ec4311735fe1ff6c3b847e37003a29008113a4e190b",
     "sourceCodeHash": "0x9b48cde5b2fcd6e5399ed3fa27be48ae071891dba93d4ff393e81345298eb6da"
   },
   "src/L1/SuperchainConfig.sol:SuperchainConfig": {
@@ -123,9 +123,17 @@
     "initCodeHash": "0xc5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470",
     "sourceCodeHash": "0x76eb2c7617e9b0b8dcd6b88470797cc946798a9ac067e3f195fff971fcabdbf5"
   },
+  "src/L2/SuperchainERC721.sol:SuperchainERC721": {
+    "initCodeHash": "0xc5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470",
+    "sourceCodeHash": "0x76188564050d875dfdb5799ac4802ed2955848f362c947ed4d42852a9e07a85a"
+  },
   "src/L2/SuperchainETHBridge.sol:SuperchainETHBridge": {
     "initCodeHash": "0xa43665ad0f2b4f092ff04b12e38f24aa8d2cb34ae7a06fc037970743547bdf98",
     "sourceCodeHash": "0x862b8a2e5dd5cafcda55e35df7713b0d0b7a93d4d6ce29ea9ca53e045bf63cb4"
+  },
+  "src/L2/SuperchainNFTBridge.sol:SuperchainNFTBridge": {
+    "initCodeHash": "0xb25f6a6e71b3eea1d444d05bd5c588329dcd73a2aee5ac8f92aeb94931e9e512",
+    "sourceCodeHash": "0x925344d3c5ce24093d21335c3a75b4e41e65887ef983937a9c91fdf368e1ba5a"
   },
   "src/L2/SuperchainTokenBridge.sol:SuperchainTokenBridge": {
     "initCodeHash": "0xb0d25dc03b9c84b07b263921c2b717e6caad3f4297fa939207e35978d7d25abe",
@@ -156,11 +164,11 @@
     "sourceCodeHash": "0x1871aaeba0658f17270190cc95ffff172d92dca795d698401ec34a7462bf5242"
   },
   "src/dispute/FaultDisputeGame.sol:FaultDisputeGame": {
-    "initCodeHash": "0x9748700f873b6fe0599f9674a4c2dfbc9e35bbc918ebd2f7c54f709b1480df36",
+    "initCodeHash": "0xc0dff9e1704dcc889a0037590a6b1d59052ccf09448dcb701a3ad3c328f9fb77",
     "sourceCodeHash": "0xe6d4bdbfb05491164f203f1c5542a7ba961a20727a5b706b393f4f886ba5f901"
   },
   "src/dispute/PermissionedDisputeGame.sol:PermissionedDisputeGame": {
-    "initCodeHash": "0x1018dcbe7714a80a33dd8ad09bcc533dc6cbe1e97d2a17d3780887d406fc46a8",
+    "initCodeHash": "0x6da0cd2fa18dd79370c8100dc063f0561202f284c0a0460cb8bedfc2e207bca2",
     "sourceCodeHash": "0x09455fe79619e63a08244647dca734fa58e96352fe21aeb289cc467437389125"
   },
   "src/dispute/SuperFaultDisputeGame.sol:SuperFaultDisputeGame": {
