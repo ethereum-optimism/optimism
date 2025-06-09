@@ -417,18 +417,16 @@ func (m *ManagedMode) findLatestValidLocalUnsafe(ctx context.Context, l2UnsafeTa
 	isInvalidBlock := func(blockNum uint64) (bool, error) {
 		current, err := m.l2.L2BlockRefByNumber(ctx, blockNum)
 		if err != nil {
-			logger.Error("Failed to get L2 block ref", "err", err, "blocknum", blockNum)
 			return true, err
 		}
 
 		// Check if L1Origin has been reorged
 		l1Blk, err := m.l1.L1BlockRefByNumber(ctx, current.L1Origin.Number)
 		if err != nil {
-			logger.Error("Failed to get L1 block ref", "err", err, "blocknum", current.L1Origin.Number)
 			return true, err
 		}
 		if l1Blk.Hash != current.L1Origin.Hash {
-			logger.Trace("L1Origin field is invalid/outdated, so block is invalid and should be reorged", "current.number", current.Number, "current.L1Origin", current.L1Origin, "new-L1Origin", l1Blk)
+			logger.Debug("L1Origin field is invalid/outdated, so block is invalid and should be reorged", "currentNumber", current.Number, "currentL1Origin", current.L1Origin, "newL1Origin", l1Blk)
 			return true, nil
 		}
 		logger.Trace("L1Origin field points to canonical L1 block, so block is valid", "blocknum", blockNum, "l1Blk", l1Blk)

@@ -87,6 +87,13 @@ func TestManagedMode_findLatestValidLocalUnsafe(t *testing.T) {
 			validBlocks:    []uint64{96, 97, 98, 99}, // 96-99 valid
 			expectedResult: 99,
 		},
+		{
+			name:           "walkback_after_binary_search",
+			l2Unsafe:       95,
+			latestUnsafe:   105,
+			validBlocks:    []uint64{92, 93}, // 92-93 valid
+			expectedResult: 93,
+		},
 	}
 
 	for _, tt := range tests {
