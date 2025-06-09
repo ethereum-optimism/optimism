@@ -8,7 +8,7 @@ import { Script } from "forge-std/Script.sol";
 import { DeployUtils } from "scripts/libraries/DeployUtils.sol";
 
 // Libraries
-import { GameType, Claim, Duration } from "src/dispute/lib/Types.sol";
+import { GameType, Duration } from "src/dispute/lib/Types.sol";
 import { LibString } from "@solady/utils/LibString.sol";
 
 // Interfaces
