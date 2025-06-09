@@ -5,8 +5,9 @@ use alloy_rpc_types_eth::{error::EthRpcErrorCode, BlockError};
 use alloy_transport::{RpcError, TransportErrorKind};
 use jsonrpsee_types::error::{INTERNAL_ERROR_CODE, INVALID_PARAMS_CODE};
 use op_revm::{OpHaltReason, OpTransactionError};
+use reth_evm::execute::ProviderError;
 use reth_optimism_evm::OpBlockExecutionError;
-use reth_rpc_eth_api::AsEthApiError;
+use reth_rpc_eth_api::{AsEthApiError, TransactionConversionError};
 use reth_rpc_eth_types::{error::api::FromEvmHalt, EthApiError};
 use reth_rpc_server_types::result::{internal_rpc_err, rpc_err};
 use revm::context_interface::result::{EVMError, InvalidTransaction};
@@ -160,12 +161,6 @@ impl From<SequencerClientError> for jsonrpsee_types::error::ErrorObject<'static>
     }
 }
 
-impl From<BlockError> for OpEthApiError {
-    fn from(error: BlockError) -> Self {
-        Self::Eth(error.into())
-    }
-}
-
 impl<T> From<EVMError<T, OpTransactionError>> for OpEthApiError
 where
     T: Into<EthApiError>,
@@ -191,5 +186,23 @@ impl FromEvmHalt<OpHaltReason> for OpEthApiError {
             }
             OpHaltReason::Base(halt) => EthApiError::from_evm_halt(halt, gas_limit).into(),
         }
+    }
+}
+
+impl From<TransactionConversionError> for OpEthApiError {
+    fn from(value: TransactionConversionError) -> Self {
+        Self::Eth(EthApiError::from(value))
+    }
+}
+
+impl From<ProviderError> for OpEthApiError {
+    fn from(value: ProviderError) -> Self {
+        Self::Eth(EthApiError::from(value))
+    }
+}
+
+impl From<BlockError> for OpEthApiError {
+    fn from(value: BlockError) -> Self {
+        Self::Eth(EthApiError::from(value))
     }
 }
