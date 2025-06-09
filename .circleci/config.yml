@@ -765,7 +765,7 @@ jobs:
     circleci_ip_ranges: true
     docker:
         - image: <<pipeline.parameters.default_docker_image>>
-    resource_class: xlarge
+    resource_class: 2xlarge
     parameters:
       test_flags:
         description: Additional flags to pass to the test command
