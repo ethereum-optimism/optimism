@@ -913,19 +913,19 @@ contract OPContractsManagerUpgrader is OPContractsManagerBase {
 
         // Modify the params with the new vm values.
         params.weth = _newDelayedWeth;
-        // TODO(snevins): anchorStateRegistry removed from GameConstructorParams struct
+        // TODO: snevins - anchorStateRegistry removed from GameConstructorParams struct
         // params.anchorStateRegistry = _newAnchorStateRegistryProxy;
-        // TODO(snevins): vm removed from GameConstructorParams struct
+        // TODO: snevins - vm removed from GameConstructorParams struct
         // params.vm = IBigStepper(impls.mipsImpl);
 
         // If the prestate is set in the config, use it. If not set, we'll try to use the prestate
         // that already exists on the current dispute game.
-        // TODO(snevins): absolutePrestate removed from GameConstructorParams struct
+        // TODO: snevins - absolutePrestate removed from GameConstructorParams struct
         // if (Claim.unwrap(_opChainConfig.absolutePrestate) != bytes32(0)) {
         //     params.absolutePrestate = _opChainConfig.absolutePrestate;
         // }
 
-        // TODO(snevins): absolutePrestate removed from GameConstructorParams struct
+        // TODO: snevins - absolutePrestate removed from GameConstructorParams struct
         // As a sanity check, if the prestate is zero here, revert.
         // if (params.absolutePrestate.raw() == bytes32(0)) {
         //     revert OPContractsManager.PrestateNotSet();
@@ -1554,10 +1554,10 @@ contract OPContractsManagerInteropMigrator is OPContractsManagerBase {
             // old DisputeGameFactory proxy. We clear out all 4 potential game types to be safe.
             IDisputeGameFactory oldDisputeGameFactory =
                 IDisputeGameFactory(payable(address(portals[i].disputeGameFactory())));
-            oldDisputeGameFactory.setImplementation(GameTypes.CANNON, IDisputeGame(address(0)), ""); // TODO(snevins): validate correct parameters later
-            oldDisputeGameFactory.setImplementation(GameTypes.SUPER_CANNON, IDisputeGame(address(0)), ""); // TODO(snevins): validate correct parameters later
-            oldDisputeGameFactory.setImplementation(GameTypes.PERMISSIONED_CANNON, IDisputeGame(address(0)), ""); // TODO(snevins): validate correct parameters later
-            oldDisputeGameFactory.setImplementation(GameTypes.SUPER_PERMISSIONED_CANNON, IDisputeGame(address(0)), ""); // TODO(snevins): validate correct parameters later
+            oldDisputeGameFactory.setImplementation(GameTypes.CANNON, IDisputeGame(address(0)), "");
+            oldDisputeGameFactory.setImplementation(GameTypes.SUPER_CANNON, IDisputeGame(address(0)), "");
+            oldDisputeGameFactory.setImplementation(GameTypes.PERMISSIONED_CANNON, IDisputeGame(address(0)), "");
+            oldDisputeGameFactory.setImplementation(GameTypes.SUPER_PERMISSIONED_CANNON, IDisputeGame(address(0)), "");
 
             // Migrate the portal to the new ETHLockbox and AnchorStateRegistry.
             portals[i].migrateToSuperRoots(newEthLockbox, newAnchorStateRegistry);
@@ -1615,7 +1615,7 @@ contract OPContractsManagerInteropMigrator is OPContractsManagerBase {
 
             // Register the new SuperPermissionedDisputeGame.
             newDisputeGameFactory.setImplementation(
-                GameTypes.SUPER_PERMISSIONED_CANNON, IDisputeGame(address(newSuperPDG)), "" // TODO(snevins): validate correct parameters later
+                GameTypes.SUPER_PERMISSIONED_CANNON, IDisputeGame(address(newSuperPDG)), "" // TODO: snevins - validate correct parameters later
             );
             newDisputeGameFactory.setInitBond(GameTypes.SUPER_PERMISSIONED_CANNON, _input.gameParameters.initBond);
         }
@@ -1663,7 +1663,7 @@ contract OPContractsManagerInteropMigrator is OPContractsManagerBase {
             );
 
             // Register the new SuperFaultDisputeGame.
-            newDisputeGameFactory.setImplementation(GameTypes.SUPER_CANNON, IDisputeGame(address(newSuperFDG)), ""); // TODO(snevins): validate correct parameters later
+            newDisputeGameFactory.setImplementation(GameTypes.SUPER_CANNON, IDisputeGame(address(newSuperFDG)), ""); // TODO: snevins - validate correct parameters later
             newDisputeGameFactory.setInitBond(GameTypes.SUPER_CANNON, _input.gameParameters.initBond);
         }
     }
