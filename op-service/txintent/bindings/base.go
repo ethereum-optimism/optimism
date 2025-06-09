@@ -332,6 +332,8 @@ func (c *TypedCall[ReturnType]) DecodeOutput(data []byte) (ReturnType, error) {
 		}
 		decoded, err = args.Unpack(data)
 		if err != nil {
+			// we do not support custom value decoding when struct with dynamic fields.
+			// using with eth.ETH or eth.ChainID will fail
 			return *new(ReturnType), fmt.Errorf("failed to unpack: %w", err)
 		}
 		var val ReturnType
