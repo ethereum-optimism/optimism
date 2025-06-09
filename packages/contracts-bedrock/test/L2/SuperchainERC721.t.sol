@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.25;
+pragma solidity ^0.8.15;
 
 // Testing utilities
-import { Test } from "forge-std/Test.sol";
+import { CommonTest } from "test/setup/CommonTest.sol";
 
 // Libraries
 import { Predeploys } from "src/libraries/Predeploys.sol";
@@ -19,15 +19,20 @@ import { ISuperchainERC721 } from "interfaces/L2/ISuperchainERC721.sol";
 
 /// @title SuperchainERC721_TestInit
 /// @notice Reusable test initialization for `SuperchainERC721` tests.
-contract SuperchainERC721_TestInit is Test {
+contract SuperchainERC721_TestInit is CommonTest {
     address internal constant ZERO_ADDRESS = address(0);
-    address internal constant SUPERCHAIN_NFT_BRIDGE = Predeploys.SUPERCHAIN_NFT_BRIDGE;
-    address internal constant MESSENGER = Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER;
 
     SuperchainERC721 public superchainERC721;
 
+    // Events
+    event Transfer(address indexed from, address indexed to, uint256 indexed tokenId);
+    event CrosschainMint(address indexed to, uint256 tokenId, address indexed sender);
+    event CrosschainBurn(address indexed from, uint256 tokenId, address indexed sender);
+
     /// @notice Sets up the test suite.
-    function setUp() public {
+    function setUp() public override {
+        useInteropOverride = true;
+        super.setUp();
         superchainERC721 = new MockSuperchainERC721Implementation();
     }
 
@@ -44,7 +49,7 @@ contract SuperchainERC721_CrosschainMint_Test is SuperchainERC721_TestInit {
     /// @notice Tests the `crosschainMint` function reverts when the caller is not the bridge.
     function testFuzz_crosschainMint_callerNotBridge_reverts(address _caller, address _to, uint256 _tokenId) public {
         // Ensure the caller is not the bridge
-        vm.assume(_caller != SUPERCHAIN_NFT_BRIDGE);
+        vm.assume(_caller != Predeploys.SUPERCHAIN_NFT_BRIDGE);
 
         // Expect the revert with `Unauthorized` selector
         vm.expectRevert(ISuperchainERC721.Unauthorized.selector);
@@ -61,14 +66,14 @@ contract SuperchainERC721_CrosschainMint_Test is SuperchainERC721_TestInit {
 
         // Look for the emit of the `Transfer` event
         vm.expectEmit(address(superchainERC721));
-        emit IERC721.Transfer(ZERO_ADDRESS, _to, _tokenId);
+        emit Transfer(ZERO_ADDRESS, _to, _tokenId);
 
         // Look for the emit of the `CrosschainMint` event
         vm.expectEmit(address(superchainERC721));
-        emit ICrosschainERC721.CrosschainMint(_to, _tokenId, SUPERCHAIN_NFT_BRIDGE);
+        emit CrosschainMint(_to, _tokenId, Predeploys.SUPERCHAIN_NFT_BRIDGE);
 
         // Call the `mint` function with the bridge caller
-        vm.prank(SUPERCHAIN_NFT_BRIDGE);
+        vm.prank(Predeploys.SUPERCHAIN_NFT_BRIDGE);
         superchainERC721.crosschainMint(_to, _tokenId);
 
         // Check the token was minted to `_to`
@@ -82,7 +87,7 @@ contract SuperchainERC721_CrosschainBurn_Test is SuperchainERC721_TestInit {
     /// @notice Tests the `crosschainBurn` function reverts when the caller is not the bridge.
     function testFuzz_crosschainBurn_callerNotBridge_reverts(address _caller, address _from, uint256 _tokenId) public {
         // Ensure the caller is not the bridge
-        vm.assume(_caller != SUPERCHAIN_NFT_BRIDGE);
+        vm.assume(_caller != Predeploys.SUPERCHAIN_NFT_BRIDGE);
 
         // Expect the revert with `Unauthorized` selector
         vm.expectRevert(ISuperchainERC721.Unauthorized.selector);
@@ -99,19 +104,19 @@ contract SuperchainERC721_CrosschainBurn_Test is SuperchainERC721_TestInit {
         vm.assume(_from != ZERO_ADDRESS);
 
         // Mint some tokens to `_from` so then they can be burned
-        vm.prank(SUPERCHAIN_NFT_BRIDGE);
+        vm.prank(Predeploys.SUPERCHAIN_NFT_BRIDGE);
         superchainERC721.crosschainMint(_from, _tokenId);
 
         // Look for the emit of the `Transfer` event
         vm.expectEmit(address(superchainERC721));
-        emit IERC721.Transfer(_from, ZERO_ADDRESS, _tokenId);
+        emit Transfer(_from, ZERO_ADDRESS, _tokenId);
 
         // Look for the emit of the `CrosschainBurn` event
         vm.expectEmit(address(superchainERC721));
-        emit ICrosschainERC721.CrosschainBurn(_from, _tokenId, SUPERCHAIN_NFT_BRIDGE);
+        emit CrosschainBurn(_from, _tokenId, Predeploys.SUPERCHAIN_NFT_BRIDGE);
 
         // Call the `burn` function with the bridge caller
-        vm.prank(SUPERCHAIN_NFT_BRIDGE);
+        vm.prank(Predeploys.SUPERCHAIN_NFT_BRIDGE);
         superchainERC721.crosschainBurn(_from, _tokenId);
 
         // Check the token was burnt
