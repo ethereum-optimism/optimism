@@ -576,7 +576,6 @@ contract StandardValidator is ISemver {
         }
 
         // Only attempt to get anchor root if anchor state registry is not zero address
-        // TODO(snevins): validate this is what we want
         if (address(_asr) != address(0)) {
             (anchorRoot,) = _asr.getAnchorRoot();
         }
@@ -670,7 +669,6 @@ contract StandardValidator is ISemver {
         _errorPrefix = string.concat(_errorPrefix, "-ANCHORP");
 
         // If anchor state registry is zero address, return early with error
-        // TODO(snevins): validate this is what we want
         if (address(_asr) == address(0)) {
             return internalRequire(false, string.concat(_errorPrefix, "-00"), _errors);
         }
@@ -706,7 +704,6 @@ contract StandardValidator is ISemver {
         _errors = internalRequire(address(_mips) == mipsImpl, string.concat(_errorPrefix, "-10"), _errors);
 
         // Only call methods on _mips if it's not the zero address
-        // TODO(snevins): validate this is what we want
         if (address(_mips) != address(0)) {
             _errors = internalRequire(
                 LibString.eq(ISemver(_mips).version(), mipsVersion()), string.concat(_errorPrefix, "-20"), _errors
