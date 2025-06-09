@@ -27,7 +27,7 @@ mod test {
         server: Server,
         server_addr: SocketAddr,
         client_id_to_handle: HashMap<usize, JoinHandle<()>>,
-        sender: Sender<String>,
+        sender: Sender<Vec<u8>>,
     }
 
     impl TestHarness {
@@ -153,7 +153,10 @@ mod test {
         }
 
         fn send_messages(&mut self, messages: Vec<&str>) {
-            let messages: Vec<String> = messages.into_iter().map(String::from).collect();
+            let messages: Vec<Vec<u8>> = messages
+                .into_iter()
+                .map(|m| m.as_bytes().to_vec())
+                .collect();
 
             for message in messages.iter() {
                 match self.sender.send(message.clone()) {

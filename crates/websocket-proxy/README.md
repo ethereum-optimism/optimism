@@ -62,3 +62,8 @@ When Redis is enabled, the following features are available:
 
 If the Redis connection fails, the proxy will automatically fall back to in-memory rate limiting.
 
+### Brotli Compression
+
+The proxy supports compressing messages to downstream clients using Brotli.
+
+To enable this, pass the parameter `--enable-compression`
