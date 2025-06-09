@@ -56,19 +56,6 @@ type TestNestedStructFixLen struct {
 }
 
 //nolint:unused
-type TestStruct struct {
-	a TestSimpleStructB
-	b []TestNestedStruct
-	c TestSimpleStructA
-	d *big.Int
-	e TestSimpleStructB
-	f TestSimpleStructA
-	g [5]TestNestedStruct
-	h []byte
-	i [5]byte
-}
-
-//nolint:unused
 type TestRecursiveStruct struct {
 	a TestNestedStruct
 }
