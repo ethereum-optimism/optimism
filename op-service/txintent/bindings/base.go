@@ -307,15 +307,39 @@ func (c *TypedCall[ReturnType]) DecodeOutput(data []byte) (ReturnType, error) {
 	}
 
 	abiTargetType := CustomTypeToGoType(retTyp)
-	abiType, _, err := goTypeToABIType(abiTargetType)
+	abiType, components, err := goTypeToABIType(abiTargetType)
 	if err != nil {
-		panic(err)
+		return *new(ReturnType), fmt.Errorf("failed to convert go type to abi type: %w", err)
 	}
 
 	outputs := abi.Arguments{{Type: abiType}}
+	// try to unpack assuming every field is static
 	decoded, err := outputs.Unpack(data)
 	if err != nil {
-		panic(err)
+		// at lest one dynamic field is included so unpack by mimicing abi.UnpackIntoInterface method
+		args := abi.Arguments{}
+		for idx, component := range components {
+			t, err := abi.NewType(component.Type, "", component.Components)
+			if err != nil {
+				return *new(ReturnType), fmt.Errorf("failed to create type: %w", err)
+			}
+			name := component.Name
+			// make sure name is properly set and unique
+			if name == "" || name == "_" {
+				name = fmt.Sprintf("arg%d", idx)
+			}
+			args = append(args, abi.Argument{Type: t, Name: name})
+		}
+		decoded, err = args.Unpack(data)
+		if err != nil {
+			return *new(ReturnType), fmt.Errorf("failed to unpack: %w", err)
+		}
+		var val ReturnType
+		err = args.Copy(&val, decoded)
+		if err != nil {
+			return *new(ReturnType), fmt.Errorf("failed to convert go format to provided struct: %w", err)
+		}
+		return val, nil
 	}
 
 	val := ABIValueToCustomValue[ReturnType](retTyp, decoded[0])

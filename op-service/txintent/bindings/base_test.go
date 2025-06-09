@@ -31,6 +31,31 @@ type TestProvenWithdrawalsResult struct {
 	Timestamp        uint64
 }
 
+type TestGameData struct {
+	GameType  uint32
+	RootClaim [32]byte
+	Extradata []byte
+}
+
+type TestNestedDynamicStruct struct {
+	A *big.Int
+	B common.Address
+	C []byte
+	D struct {
+		E *big.Int
+		F []byte
+	}
+}
+
+type TestStruct struct {
+	B *big.Int
+	C []byte
+}
+
+type TestDynamicArray struct {
+	A []TestStruct
+}
+
 type TestBaseContract struct {
 	TestBaseCallContractFactory
 
@@ -60,6 +85,13 @@ type TestBaseContract struct {
 	FindLatestGames func(gameType uint32, start *big.Int, n *big.Int) TypedCall[[]TestGameSearchResult] `sol:"findLatestGames"`
 
 	ProvenWithdrawals func(withdrawalHash [32]byte, submitter common.Address) TypedCall[TestProvenWithdrawalsResult] `sol:"provenWithdrawals"`
+
+	GameData func() TypedCall[TestGameData] `sol:"gameData"`
+
+	TestFunc1 func() TypedCall[TestNestedDynamicStruct] `sol:"testfunc1"`
+
+	TestFunc2 func() TypedCall[TestDynamicArray] `sol:"testfunc2"`
+	TestFunc3 func() TypedCall[[]TestStruct]     `sol:"testfunc3"`
 }
 
 func NewTestBaseContract(f *TestBaseCallContractFactory) *TestBaseContract {
@@ -68,7 +100,7 @@ func NewTestBaseContract(f *TestBaseCallContractFactory) *TestBaseContract {
 	return &testBase
 }
 
-func TestEncode(t *testing.T) {
+func TestEncodeStruct(t *testing.T) {
 	factory := NewTestBaseContractCallFactory()
 	testBaseContract := NewTestBaseContract(factory)
 
@@ -138,7 +170,7 @@ func TestEncode(t *testing.T) {
 	)
 }
 
-func TestDecode(t *testing.T) {
+func TestDecodeArray(t *testing.T) {
 	factory := NewTestBaseContractCallFactory()
 	testBaseContract := NewTestBaseContract(factory)
 
@@ -158,7 +190,7 @@ func TestDecode(t *testing.T) {
 	require.Equal(t, hexutil.MustDecode("0x0000000000000000000000000000000000000000000000000000000000000003"), game.ExtraData)
 }
 
-func TestDecodeStruct(t *testing.T) {
+func TestDecodeStaticStruct(t *testing.T) {
 	factory := NewTestBaseContractCallFactory()
 	testBaseContract := NewTestBaseContract(factory)
 
@@ -170,4 +202,64 @@ func TestDecodeStruct(t *testing.T) {
 
 	require.Equal(t, common.HexToAddress("0x46D257cf3803b353350ec1Edc6AA106f355F3bd2"), result.DisputeGameProxy)
 	require.Equal(t, uint64(1749020377), result.Timestamp)
+}
+
+func TestDecodeDynamicStruct(t *testing.T) {
+	factory := NewTestBaseContractCallFactory()
+	testBaseContract := NewTestBaseContract(factory)
+
+	call := testBaseContract.GameData()
+
+	data := hexutil.MustDecode("0x00000000000000000000000000000000000000000000000000000000000000fec0ced67668cc6e8e63517245aa7e34053a1332eb4303f3169b6051810e277036000000000000000000000000000000000000000000000000000000000000006000000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000000000000015")
+	result, err := call.DecodeOutput(data)
+	require.NoError(t, err)
+
+	require.Equal(t, uint32(254), result.GameType)
+	require.Equal(t, *(*[32]byte)(hexutil.MustDecode("0xc0ced67668cc6e8e63517245aa7e34053a1332eb4303f3169b6051810e277036")), result.RootClaim)
+	require.Equal(t, hexutil.MustDecode("0x0000000000000000000000000000000000000000000000000000000000000015"), result.Extradata)
+}
+
+func TestDecodeNestedDynamicStruct(t *testing.T) {
+	factory := NewTestBaseContractCallFactory()
+	testBaseContract := NewTestBaseContract(factory)
+
+	call := testBaseContract.TestFunc1()
+
+	data := hexutil.MustDecode("0x000000000000000000000000000000000000000000000000000000000000007b000000000000000000000000abc123abc123abc123abc123abc123abc123abc1000000000000000000000000000000000000000000000000000000000000008000000000000000000000000000000000000000000000000000000000000000c00000000000000000000000000000000000000000000000000000000000000004133773310000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001c800000000000000000000000000000000000000000000000000000000000000400000000000000000000000000000000000000000000000000000000000000004deadbeef00000000000000000000000000000000000000000000000000000000")
+	result, err := call.DecodeOutput(data)
+	require.NoError(t, err)
+
+	require.True(t, new(big.Int).SetUint64(123).Cmp(result.A) == 0)
+	require.Equal(t, common.HexToAddress("0xabc123abc123abc123abc123abc123abc123abc1"), result.B)
+	require.Equal(t, hexutil.MustDecode("0x13377331"), result.C)
+	require.True(t, new(big.Int).SetUint64(456).Cmp(result.D.E) == 0)
+	require.Equal(t, hexutil.MustDecode("0xdeadbeef"), result.D.F)
+}
+
+func TestDecodeDynamicArray(t *testing.T) {
+	factory := NewTestBaseContractCallFactory()
+	testBaseContract := NewTestBaseContract(factory)
+
+	data := hexutil.MustDecode("0x00000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000004000000000000000000000000000000000000000000000000000000000000000c0000000000000000000000000000000000000000000000000000000000000000100000000000000000000000000000000000000000000000000000000000000400000000000000000000000000000000000000000000000000000000000000004deadbeef00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000000000000400000000000000000000000000000000000000000000000000000000000000004beefcafe00000000000000000000000000000000000000000000000000000000")
+
+	{
+		call := testBaseContract.TestFunc2()
+		result, err := call.DecodeOutput(data)
+		require.NoError(t, err)
+		require.Equal(t, 2, len(result.A))
+		require.True(t, new(big.Int).SetUint64(1).Cmp(result.A[0].B) == 0)
+		require.Equal(t, hexutil.MustDecode("0xdeadbeef"), result.A[0].C)
+		require.True(t, new(big.Int).SetUint64(2).Cmp(result.A[1].B) == 0)
+		require.Equal(t, hexutil.MustDecode("0xbeefcafe"), result.A[1].C)
+	}
+	{
+		call := testBaseContract.TestFunc3()
+		result, err := call.DecodeOutput(data)
+		require.NoError(t, err)
+		require.Equal(t, 2, len(result))
+		require.True(t, new(big.Int).SetUint64(1).Cmp(result[0].B) == 0)
+		require.Equal(t, hexutil.MustDecode("0xdeadbeef"), result[0].C)
+		require.True(t, new(big.Int).SetUint64(2).Cmp(result[1].B) == 0)
+		require.Equal(t, hexutil.MustDecode("0xbeefcafe"), result[1].C)
+	}
 }
