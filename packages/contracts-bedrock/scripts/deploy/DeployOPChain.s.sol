@@ -12,7 +12,6 @@ import { BaseDeployIO } from "scripts/deploy/BaseDeployIO.sol";
 import { ChainAssertions } from "scripts/deploy/ChainAssertions.sol";
 import { IResourceMetering } from "interfaces/L1/IResourceMetering.sol";
 import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
-import { IBigStepper } from "interfaces/dispute/IBigStepper.sol";
 import { Predeploys } from "src/libraries/Predeploys.sol";
 import { Constants } from "src/libraries/Constants.sol";
 import { Constants as ScriptConstants } from "scripts/libraries/Constants.sol";
