@@ -378,6 +378,28 @@ func (m *ManagedMode) Reset(ctx context.Context, lUnsafe, xUnsafe, lSafe, xSafe,
 	return nil
 }
 
+// localUnsafeSearch is a copy-paste from sort.Search, but also stops on and returns error
+func localUnsafeSearch(n int, f func(int) (bool, error)) (int, error) {
+	// Define f(-1) == false and f(n) == true.
+	// Invariant: f(i-1) == false, f(j) == true.
+	i, j := 0, n
+	for i < j {
+		h := int(uint(i+j) >> 1) // avoid overflow when computing h
+		// i ≤ h < j
+		ok, err := f(h)
+		if err != nil {
+			return -1, err
+		}
+		if !ok {
+			i = h + 1 // preserves f(i-1) == false
+		} else {
+			j = h // preserves f(j) == true
+		}
+	}
+	// i == j, f(i-1) == false, and f(j) (= f(i)) == true  =>  answer is i.
+	return i, nil
+}
+
 // findLatestValidLocalUnsafe searches and returns the latest valid block of the L2 chain
 // starting from `l2UnsafeTarget` and checking until the latest unsafe block.
 func (m *ManagedMode) findLatestValidLocalUnsafe(ctx context.Context, l2UnsafeTarget eth.BlockID) (eth.L2BlockRef, error) {
@@ -388,28 +410,6 @@ func (m *ManagedMode) findLatestValidLocalUnsafe(ctx context.Context, l2UnsafeTa
 
 	logger := m.log.New("target", l2UnsafeTarget, "latestUnsafe", latestUnsafe)
 	target := l2UnsafeTarget.Number
-
-	// Copy-paste from sort.Search, but also stops on and returns error
-	search := func(n int, f func(int) (bool, error)) (int, error) {
-		// Define f(-1) == false and f(n) == true.
-		// Invariant: f(i-1) == false, f(j) == true.
-		i, j := 0, n
-		for i < j {
-			h := int(uint(i+j) >> 1) // avoid overflow when computing h
-			// i ≤ h < j
-			ok, err := f(h)
-			if err != nil {
-				return -1, err
-			}
-			if !ok {
-				i = h + 1 // preserves f(i-1) == false
-			} else {
-				j = h // preserves f(j) == true
-			}
-		}
-		// i == j, f(i-1) == false, and f(j) (= f(i)) == true  =>  answer is i.
-		return i, nil
-	}
 
 	// isInvalidBlock returns:
 	// - false: if the L1Origin field for the block belongs to the canonical chain
@@ -450,7 +450,7 @@ func (m *ManagedMode) findLatestValidLocalUnsafe(ctx context.Context, l2UnsafeTa
 		// target.Number |  offset=0   offset=1   offset=2  ...  offset = x-1 = latestUnsafe   |  offset=x  (doesn't exist)
 		// false         |  t/f        t/f        t/f       ...  t/f                           |  true
 		// ------------------------------------------------------------------------------------
-		offset, err := search(x, func(i int) (bool, error) {
+		offset, err := localUnsafeSearch(x, func(i int) (bool, error) {
 			return isInvalidBlock(target + 1 + uint64(i))
 		})
 		if err != nil {
