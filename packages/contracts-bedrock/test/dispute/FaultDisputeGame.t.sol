@@ -59,7 +59,7 @@ contract FaultDisputeGame_Init is DisputeGameFactory_Init {
         // Set the extra data for the game creation
         extraData = abi.encode(l2BlockNumber);
 
-        delayedWETH= IDelayedWETH(payable(artifacts.mustGetAddress("DelayedWETHProxy")));
+        delayedWETH = IDelayedWETH(payable(artifacts.mustGetAddress("DelayedWETHProxy")));
 
         gameParams = IFaultDisputeGame.GameConstructorParams({
             gameType: GAME_TYPE,
@@ -70,7 +70,6 @@ contract FaultDisputeGame_Init is DisputeGameFactory_Init {
             weth: delayedWETH,
             l2ChainId: 10
         });
-
 
         // Set preimage oracle challenge period to something arbitrary (4 seconds) just so we can
         // actually test the clock extensions later on. This is not a realistic value.
@@ -471,7 +470,8 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
         }
 
         Claim claim = _dummyClaim();
-        // vm.expectRevert(abi.encodeWithSelector(BadExtraData.selector)); // TODO(steven): removed the check in the contract
+        // vm.expectRevert(abi.encodeWithSelector(BadExtraData.selector)); // TODO(steven): removed the check in the
+        // contract
         gameProxy = IFaultDisputeGame(payable(address(disputeGameFactory.create(GAME_TYPE, claim, _extraData))));
     }
 

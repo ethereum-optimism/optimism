@@ -270,8 +270,7 @@ contract SuperFaultDisputeGame is Clone, ISemver {
         // Determine the maximum clock extension which is either the split depth extension or the
         // maximum game depth extension depending on the configuration of these contracts.
         uint256 splitDepthExtension = uint256(CLOCK_EXTENSION.raw()) * 2;
-        uint256 maxGameDepthExtension =
-            uint256(CLOCK_EXTENSION.raw()) + uint256(vm().oracle().challengePeriod());
+        uint256 maxGameDepthExtension = uint256(CLOCK_EXTENSION.raw()) + uint256(vm().oracle().challengePeriod());
         uint256 maxClockExtension = Math.max(splitDepthExtension, maxGameDepthExtension);
 
         // The maximum clock extension must fit into a uint64.
@@ -1026,6 +1025,7 @@ contract SuperFaultDisputeGame is Clone, ISemver {
     }
     /// @dev `clones-with-immutable-args` argument #9
     /// @return vm_ The onchain VM implementation address.
+
     function vm() public pure returns (IBigStepper vm_) {
         vm_ = IBigStepper(_getArgAddress(148));
     }

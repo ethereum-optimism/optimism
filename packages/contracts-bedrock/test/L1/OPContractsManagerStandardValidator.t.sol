@@ -206,7 +206,8 @@ contract StandardValidator_TestInit is CommonTest {
         }
 
         // Set the anchorStateRegistry and vm in the validationOverrides struct
-        validationOverrides.anchorStateRegistry = IAnchorStateRegistry(artifacts.mustGetAddress("AnchorStateRegistryProxy"));
+        validationOverrides.anchorStateRegistry =
+            IAnchorStateRegistry(artifacts.mustGetAddress("AnchorStateRegistryProxy"));
         validationOverrides.vm = address(mips);
     }
 

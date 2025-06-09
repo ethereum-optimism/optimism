@@ -185,7 +185,11 @@ contract DisputeGameFactory is ProxyAdminOwnedBase, ReinitializableBase, Ownable
         // │ [84, 116)    │ Extra data (32 bytes, padded)      │
         // │ [116, ..)    │ Game-specific constructor args     │
         // └──────────────┴────────────────────────────────────┘
-        proxy_ = IDisputeGame(address(impl).clone(abi.encodePacked(msg.sender, _rootClaim, parentHash, paddedExtraData, gameArgs[_gameType])));
+        proxy_ = IDisputeGame(
+            address(impl).clone(
+                abi.encodePacked(msg.sender, _rootClaim, parentHash, paddedExtraData, gameArgs[_gameType])
+            )
+        );
         proxy_.initialize{ value: msg.value }();
 
         // Compute the unique identifier for the dispute game.

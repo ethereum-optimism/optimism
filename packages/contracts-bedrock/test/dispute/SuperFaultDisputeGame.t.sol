@@ -6,7 +6,6 @@ import { Vm } from "forge-std/Vm.sol";
 import { DisputeGameFactory_Init } from "test/dispute/DisputeGameFactory.t.sol";
 import { AlphabetVM } from "test/mocks/AlphabetVM.sol";
 import { stdError } from "forge-std/StdError.sol";
-import { console } from "forge-std/console.sol";
 
 // Scripts
 import { DeployUtils } from "scripts/libraries/DeployUtils.sol";
@@ -61,7 +60,7 @@ contract SuperFaultDisputeGame_Init is DisputeGameFactory_Init {
         // Set the extra data for the game creation
         extraData = abi.encode(l2SequenceNumber);
 
-        delayedWETH= IDelayedWETH(payable(artifacts.mustGetAddress("DelayedWETHProxy")));
+        delayedWETH = IDelayedWETH(payable(artifacts.mustGetAddress("DelayedWETHProxy")));
 
         gameParams = ISuperFaultDisputeGame.GameConstructorParams({
             gameType: GAME_TYPE,
@@ -72,7 +71,6 @@ contract SuperFaultDisputeGame_Init is DisputeGameFactory_Init {
             weth: delayedWETH,
             l2ChainId: 10
         });
-
 
         // Set preimage oracle challenge period to something arbitrary (4 seconds) just so we can
         // actually test the clock extensions later on. This is not a realistic value.
@@ -265,7 +263,7 @@ contract SuperFaultDisputeGame_Test is SuperFaultDisputeGame_Init {
         // Register with factory and expect revert on game creation due to initialization
         bytes memory implArgs = abi.encodePacked(absolutePrestate, alphabetVM, anchorStateRegistry);
         disputeGameFactory.setImplementation(GAME_TYPE, impl, implArgs);
-        
+
         vm.expectRevert(InvalidChallengePeriod.selector);
         disputeGameFactory.create(GAME_TYPE, ROOT_CLAIM, extraData);
     }
@@ -393,7 +391,7 @@ contract SuperFaultDisputeGame_Test is SuperFaultDisputeGame_Init {
         // Register with factory and expect revert on game creation due to initialization
         bytes memory implArgs = abi.encodePacked(absolutePrestate, alphabetVM, anchorStateRegistry);
         disputeGameFactory.setImplementation(GAME_TYPE, impl, implArgs);
-        
+
         vm.expectRevert(InvalidClockExtension.selector);
         disputeGameFactory.create(GAME_TYPE, ROOT_CLAIM, extraData);
     }
@@ -512,8 +510,10 @@ contract SuperFaultDisputeGame_Test is SuperFaultDisputeGame_Init {
 
     /// @dev Tests that the game cannot be initialized with extra data of the incorrect length (must be 32 bytes)
     function testFuzz_initialize_badExtraData_reverts(uint256 _extraDataLen) public {
-        /// Now that the data is packed in the factor ywe have to enforce that the extra data is bytes32 so we can predictably predict where the args should in the calldata layout
-        /// ie, extraData needs a fixed lenght.  The other option considered is we put it at the end and sandwhich the args stored in the factory storage
+        /// Now that the data is packed in the factor ywe have to enforce that the extra data is bytes32 so we can
+        /// predictably predict where the args should in the calldata layout
+        /// ie, extraData needs a fixed lenght.  The other option considered is we put it at the end and sandwhich the
+        /// args stored in the factory storage
         vm.skip(true);
 
         // The `DisputeGameFactory` will pack the root claim and the extra data into a single array, which is enforced

@@ -83,7 +83,7 @@ contract SuperPermissionedDisputeGame_Init is DisputeGameFactory_Init {
                 )
             })
         );
-        
+
         // Register the game implementation with the factory using CWIA pattern
         bytes memory implArgs = abi.encodePacked(absolutePrestate, _vm, anchorStateRegistry);
         disputeGameFactory.setImplementation(GAME_TYPE, gameImpl, implArgs);
