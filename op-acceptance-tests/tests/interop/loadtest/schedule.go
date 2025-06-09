@@ -12,15 +12,10 @@ type AIMD struct {
 	// rps can be thought of to mean "requests per slot", although the unit and quantity are flexible.
 	rps atomic.Uint64
 
-	increaseDelta  uint64  // additive delta
-	decreaseFactor float64 // multiplicative factor
-
-	failRateThreshold float64 // when to start decreasing (e.g., 0.05 of all requests are failures)
-
-	adjustWindow uint64 // how many operations to perform before adjusting rps
-
 	metricsMu sync.Mutex
 	metrics   aimdMetrics
+
+	cfg *aimdConfig
 
 	slotTime time.Duration
 	ready    chan struct{}
@@ -31,47 +26,57 @@ type aimdMetrics struct {
 	Failed    uint64
 }
 
+type aimdConfig struct {
+	increaseDelta     uint64  // additive delta
+	decreaseFactor    float64 // multiplicative factor
+	failRateThreshold float64 // when to start decreasing (e.g., 0.05 of all requests are failures)
+	adjustWindow      uint64  // how many operations to perform before adjusting rps
+}
+
 func NewAIMD(baseRPS uint64, slotTime time.Duration, opts ...AIMDOption) *AIMD {
-	aimd := &AIMD{
+	cfg := &aimdConfig{
 		increaseDelta:     max(baseRPS/10, 1),
 		decreaseFactor:    0.5,
 		failRateThreshold: 0.05,
-		ready:             make(chan struct{}),
-		slotTime:          slotTime,
 		adjustWindow:      50,
-		metrics:           aimdMetrics{},
+	}
+	for _, opt := range opts {
+		opt(cfg)
+	}
+	aimd := &AIMD{
+		ready:    make(chan struct{}),
+		slotTime: slotTime,
+		metrics:  aimdMetrics{},
+		cfg:      cfg,
 	}
 	aimd.rps.Store(baseRPS)
-	for _, opt := range opts {
-		opt(aimd)
-	}
-	targetMessagesPerBlock.Set(float64(aimd.rps.Load()))
+	targetMessagesPerBlock.Set(float64(baseRPS))
 	return aimd
 }
 
-type AIMDOption func(*AIMD)
+type AIMDOption func(*aimdConfig)
 
 func WithIncreaseDelta(delta uint64) AIMDOption {
-	return func(aimd *AIMD) {
-		aimd.increaseDelta = delta
+	return func(cfg *aimdConfig) {
+		cfg.increaseDelta = delta
 	}
 }
 
 func WithDecreaseFactor(factor float64) AIMDOption {
-	return func(aimd *AIMD) {
-		aimd.decreaseFactor = factor
+	return func(cfg *aimdConfig) {
+		cfg.decreaseFactor = factor
 	}
 }
 
 func WithFailRateThreshold(threshold float64) AIMDOption {
-	return func(aimd *AIMD) {
-		aimd.failRateThreshold = threshold
+	return func(cfg *aimdConfig) {
+		cfg.failRateThreshold = threshold
 	}
 }
 
 func WithAdjustWindow(window uint64) AIMDOption {
-	return func(aimd *AIMD) {
-		aimd.adjustWindow = window
+	return func(cfg *aimdConfig) {
+		cfg.adjustWindow = window
 	}
 }
 
@@ -97,18 +102,19 @@ func (c *AIMD) Adjust(success bool) {
 	if !success {
 		c.metrics.Failed++
 	}
-	if c.metrics.Completed == c.adjustWindow {
-		failRate := float64(c.metrics.Failed) / float64(c.metrics.Completed+1)
-		var newRPS uint64
-		if failRate > c.failRateThreshold {
-			newRPS = max(uint64(float64(c.rps.Load())*c.decreaseFactor), 1)
-		} else {
-			newRPS = c.rps.Load() + c.increaseDelta
-		}
-		c.rps.Store(newRPS)
-		targetMessagesPerBlock.Set(float64(newRPS))
-		c.metrics = aimdMetrics{}
+	if c.metrics.Completed != c.cfg.adjustWindow {
+		return
 	}
+	failRate := float64(c.metrics.Failed) / float64(c.metrics.Completed)
+	var newRPS uint64
+	if failRate > c.cfg.failRateThreshold {
+		newRPS = max(uint64(float64(c.rps.Load())*c.cfg.decreaseFactor), 1)
+	} else {
+		newRPS = c.rps.Load() + c.cfg.increaseDelta
+	}
+	c.rps.Store(newRPS)
+	targetMessagesPerBlock.Set(float64(newRPS))
+	c.metrics = aimdMetrics{}
 }
 
 func (c *AIMD) Ready() <-chan struct{} {

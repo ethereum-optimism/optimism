@@ -7,6 +7,7 @@ Pull requests: [monorepo](https://github.com/ethereum-optimism/optimism/pulls?q=
 `op-service` is a collection of Go utilities to build OP-Stack services with.
 
 ```text
+├── accounting      - accounting utilities
 ├── apis            - interfaces for client / server RPC and misc. APIs
 ├── bigs            - big-int utils
 ├── cliapp          - Flag and lifecycle handling for a Urfave v2 CLI app.
@@ -48,6 +49,7 @@ Pull requests: [monorepo](https://github.com/ethereum-optimism/optimism/pulls?q=
 ├── tls             - CLI flags and utils to work with TLS connections
 ├── txmgr           - Transaction manager: automated nonce, fee and confirmation handling.
 ├── txplan          - PlannedTx to declaratively build/execute/wait transactions
+├── txinclude       - txinclude.Includer is a txplan-friendly txmgr
 ├── txintent        - IntentTx builds upon PlannedTx to prepare tx and digest the result.
 └── *.go            - Miscellaneous utils (soon to be deprecated / moved)
 ```

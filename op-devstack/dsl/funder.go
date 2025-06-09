@@ -1,6 +1,8 @@
 package dsl
 
 import (
+	"sync"
+
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
 
@@ -28,11 +30,23 @@ func (f *Funder) NewFundedEOA(amount eth.ETH) *EOA {
 }
 
 func (f *Funder) NewFundedEOAs(count int, amount eth.ETH) []*EOA {
-	eoas := make([]*EOA, count)
-	for idx := range count {
-		eoa := f.wallet.NewEOA(f.el)
-		f.faucet.Fund(eoa.Address(), amount)
-		eoas[idx] = eoa
+	eoas := func() []*EOA {
+		eoas := make([]*EOA, count)
+		var wg sync.WaitGroup
+		defer wg.Wait()
+		for idx := range len(eoas) {
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				eoas[idx] = f.NewFundedEOA(amount)
+			}()
+		}
+		return eoas
+	}()
+	for _, eoa := range eoas {
+		// For a large count, the faucet may fail.
+		// This sanity check prevents surprising errors down the line.
+		f.require.NotNil(eoa)
 	}
 	return eoas
 }

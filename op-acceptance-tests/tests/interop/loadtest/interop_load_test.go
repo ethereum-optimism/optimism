@@ -1,13 +1,19 @@
 // Package loadtest contains interop load tests.
 //
-// Set NAT_INTEROP_LOADTEST_TARGET to the initial amount of messages that should be passed per L2 slot in each test (default: 100).
+// Configure test behavior with the following environment variables:
+//
+//   - NAT_INTEROP_LOADTEST_TARGET (default: 100): the initial amount of messages that should be passed per L2 slot in each test.
+//   - NAT_INTEROP_LOADTEST_BUDGET (default: 1): the max amount of ETH to spend per L2 in each test.
+//
+// Budget depletion and the global test timeout can end any test. They are interpreted as failures unless noted otherwise.
 //
 // Each test increases the message throughput until some threshold is reached (e.g., the gas target).
 // The throughput is decreased if the threshold is exceeded or if errors are encountered (e.g., transaction inclusion failures).
 package loadtest
 
 import (
-	"math"
+	"context"
+	"errors"
 	"math/rand"
 	"os"
 	"path/filepath"
@@ -16,11 +22,17 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ethereum-optimism/optimism/devnet-sdk/contracts/constants"
+	"github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/interop"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
+	"github.com/ethereum-optimism/optimism/op-service/accounting"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-	"golang.org/x/net/context"
+	"github.com/ethereum-optimism/optimism/op-service/plan"
+	"github.com/ethereum-optimism/optimism/op-service/txinclude"
+	"github.com/ethereum-optimism/optimism/op-service/txintent"
+	"github.com/ethereum-optimism/optimism/op-service/txplan"
 )
 
 func TestMain(m *testing.M) {
@@ -38,40 +50,62 @@ func TestSteady(gt *testing.T) {
 	defer wg.Wait()
 
 	// Configure a context that will allow us to exit the test on time.
-	deadline := time.Unix(math.MaxInt64, 0)
-	testCtxDeadline, testCtxDeadlineExsts := t.Ctx().Deadline()
-	if testCtxDeadlineExsts {
+	deadline := time.Now().Add(time.Hour * 1_000)
+	testCtxDeadline, testCtxDeadlineExists := t.Ctx().Deadline()
+	if testCtxDeadlineExists {
 		deadline = testCtxDeadline.Add(-10 * time.Second) // Give some time for cleanup.
 	}
 	ctx, cancel := context.WithDeadline(t.Ctx(), deadline)
-	t.Cleanup(cancel) // We only care about the deadline.
+	t.Cleanup(cancel)
 	if timeoutStr, exists := os.LookupEnv("NAT_STEADY_TIMEOUT"); exists {
 		timeout, err := time.ParseDuration(timeoutStr)
 		t.Require().NoError(err)
 		ctx, cancel = context.WithTimeout(ctx, timeout)
-		t.Cleanup(cancel) // We only care about the timeout.
+		t.Cleanup(cancel)
 	}
 
-	aimd, source, dest := setupLoadTest(t, ctx, &wg)
+	// The scheduler will adjust every slot to stay within 95-100% of the gas target.
+	aimd, source, dest := setupLoadTest(t, ctx, &wg, WithAdjustWindow(1), WithDecreaseFactor(0.95))
+
 	elasticityMultiplier := dest.Config.ElasticityMultiplier()
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		blockTime := time.Duration(dest.RollupConfig.BlockTime) * time.Second
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-time.After(blockTime):
+				unsafe, err := dest.EL.Escape().EthClient().InfoByLabel(ctx, eth.Unsafe)
+				if err != nil {
+					if errors.Is(err, context.DeadlineExceeded) {
+						return
+					}
+					t.Require().NoError(err)
+				}
+				gasTarget := unsafe.GasLimit() / elasticityMultiplier
+				// Apply backpressure when we meet or exceed the gas target.
+				aimd.Adjust(unsafe.GasUsed() < gasTarget)
+			}
+		}
+	}()
+
 	for range aimd.Ready() {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			if !relayMessage(t, source, dest) {
-				aimd.Adjust(false)
-				return
+			var overdraft *accounting.OverdraftError
+			if err := relayMessage(ctx, t, source, dest); errors.As(err, &overdraft) {
+				cancel()
+				t.Require().NoError(err)
 			}
-			unsafe := dest.Unsafe()
-			gasTarget := unsafe.GasLimit() / elasticityMultiplier
-			// Apply backpressure when we meet or exceed the gas target.
-			aimd.Adjust(unsafe.GasUsed() < gasTarget)
 		}()
 	}
 }
 
-// TestBurst spams interop messages and exits successfully when the base fee is raised to one gwei.
-// This simulates adversarial behavior.
+// TestBurst spams interop messages and exits successfully when the budget is depleted,
+// simulating adversarial behavior.
 func TestBurst(gt *testing.T) {
 	t := setupT(gt)
 	var wg sync.WaitGroup
@@ -79,22 +113,21 @@ func TestBurst(gt *testing.T) {
 	ctx, cancel := context.WithCancel(t.Ctx())
 	defer cancel()
 	aimd, source, dest := setupLoadTest(t, ctx, &wg)
-	targetBaseFee := eth.OneGWei.ToBig()
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		case <-aimd.Ready():
-			wg.Add(1)
-			go func() {
-				defer wg.Done()
-				success := relayMessage(t, source, dest)
-				if dest.Unsafe().BaseFee().Cmp(targetBaseFee) >= 0 {
-					cancel() // End the test when we've met or exceeded the target base fee.
-				}
-				aimd.Adjust(success)
-			}()
-		}
+	for range aimd.Ready() {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			err := relayMessage(ctx, t, source, dest)
+			if err == nil {
+				aimd.Adjust(true)
+				return
+			}
+			var overdraft *accounting.OverdraftError
+			if errors.As(err, &overdraft) {
+				cancel()
+			}
+			aimd.Adjust(false)
+		}()
 	}
 }
 
@@ -105,7 +138,7 @@ func setupT(t *testing.T) devtest.T {
 	return devtest.SerialT(t)
 }
 
-func setupLoadTest(t devtest.T, ctx context.Context, wg *sync.WaitGroup) (*AIMD, *L2, *L2) {
+func setupLoadTest(t devtest.T, ctx context.Context, wg *sync.WaitGroup, aimdOpts ...AIMDOption) (*AIMD, *L2, *L2) {
 	sys := presets.NewSimpleInterop(t)
 	blockTime := time.Duration(sys.L2ChainB.Escape().RollupConfig().BlockTime) * time.Second
 
@@ -116,7 +149,7 @@ func setupLoadTest(t devtest.T, ctx context.Context, wg *sync.WaitGroup) (*AIMD,
 		targetMessagePassesPerBlock, err = strconv.ParseUint(targetMsgPassesStr, 10, 0)
 		t.Require().NoError(err)
 	}
-	aimd := NewAIMD(targetMessagePassesPerBlock, blockTime, WithAdjustWindow(targetMessagePassesPerBlock/2))
+	aimd := NewAIMD(targetMessagePassesPerBlock, blockTime, aimdOpts...)
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
@@ -124,28 +157,59 @@ func setupLoadTest(t devtest.T, ctx context.Context, wg *sync.WaitGroup) (*AIMD,
 	}()
 
 	// Chains.
+	budget := eth.OneEther
+	if budgetStr, exists := os.LookupEnv("NAT_INTEROP_LOADTEST_BUDGET"); exists {
+		amount, err := strconv.ParseUint(budgetStr, 10, 64)
+		t.Require().NoError(err)
+		budget = eth.Ether(amount)
+	}
 	l2ELA := sys.L2ChainA.PublicRPC()
 	l2ELB := sys.L2ChainB.PublicRPC()
 	funderA := dsl.NewFunder(sys.Wallet, sys.FaucetA, l2ELA)
+	funderB := dsl.NewFunder(sys.Wallet, sys.FaucetB, l2ELB)
 	const numEOAs = 300
-	source := &L2{
+	innerEOAsA := funderA.NewFundedEOAs(numEOAs, budget)
+	innerEOAsB := funderB.NewFundedEOAs(numEOAs, budget)
+	reliableELA := newReliableEL(l2ELA.Escape().EthClient(), blockTime, ResubmitterObserver("source"))
+	reliableELB := newReliableEL(l2ELB.Escape().EthClient(), blockTime, ResubmitterObserver("destination"))
+	eoasA := make([]*SyncEOA, 0, len(innerEOAsA))
+	eoasB := make([]*SyncEOA, 0, len(innerEOAsA))
+	for _, eoa := range innerEOAsA {
+		p := txinclude.NewPersistent(
+			txinclude.NewPkSigner(eoa.Key().Priv(), eoa.ChainID().ToBig()),
+			reliableELA,
+			txinclude.WithBudget(accounting.NewBudget(budget)),
+		)
+		eoasA = append(eoasA, &SyncEOA{
+			Plan:     eoa.Plan(),
+			Includer: p,
+		})
+	}
+	for _, eoa := range innerEOAsB {
+		p := txinclude.NewPersistent(
+			txinclude.NewPkSigner(eoa.Key().Priv(), eoa.ChainID().ToBig()),
+			reliableELB,
+			txinclude.WithBudget(accounting.NewBudget(budget)),
+		)
+		eoasB = append(eoasB, &SyncEOA{
+			Plan:     eoa.Plan(),
+			Includer: p,
+		})
+	}
+	l2A := &L2{
 		Config:       sys.L2ChainA.Escape().ChainConfig(),
 		RollupConfig: sys.L2ChainA.Escape().RollupConfig(),
-		eoas:         NewEOAPool(funderA, numEOAs, eth.MillionEther),
-		el:           l2ELA,
-		eventLogger:  funderA.NewFundedEOA(eth.OneEther).DeployEventLogger(),
+		EOAs:         NewRoundRobin(eoasA),
+		EL:           l2ELA,
 	}
-	dest := &L2{
+	l2B := &L2{
 		Config:       sys.L2ChainB.Escape().ChainConfig(),
 		RollupConfig: sys.L2ChainB.Escape().RollupConfig(),
-		eoas:         NewEOAPool(dsl.NewFunder(sys.Wallet, sys.FaucetB, l2ELB), numEOAs, eth.MillionEther),
-		el:           l2ELB,
+		EOAs:         NewRoundRobin(eoasB),
+		EL:           l2ELB,
 	}
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		dest.PollUnsafe(ctx, t, blockTime)
-	}()
+	l2A.DeployEventLogger(ctx, t)
+	l2B.DeployEventLogger(ctx, t)
 
 	// Metrics.
 	metricsCollector := NewMetricsCollector(blockTime)
@@ -155,31 +219,110 @@ func setupLoadTest(t devtest.T, ctx context.Context, wg *sync.WaitGroup) (*AIMD,
 		t.Require().NoError(metricsCollector.Start(ctx))
 	}()
 	t.Cleanup(func() {
-		dir := filepath.Join("artifacts", t.Name())
+		dir := filepath.Join("artifacts", t.Name()+"_"+time.Now().Format("20060102-150405"))
 		t.Require().NoError(os.MkdirAll(dir, 0755))
-		t.Require().NoError(metricsCollector.SaveGraph(dir))
+		t.Require().NoError(metricsCollector.SaveGraphs(dir))
 	})
 
-	return aimd, source, dest
+	return aimd, l2A, l2B
 }
 
-func relayMessage(t devtest.T, source, dest *L2) bool {
+func relayMessage(ctx context.Context, t devtest.T, source, dest *L2) error {
 	rng := rand.New(rand.NewSource(1234))
 	inFlightMessages.Inc()
-	start := time.Now()
-	initMsg := source.SendInitiatingMsg(t, rng)
-	if initMsg == nil {
-		messageStatusCount.WithLabelValues("init_failed").Inc()
+	defer func() {
 		inFlightMessages.Dec()
-		return false
+	}()
+	startE2E := time.Now()
+
+	startInit := startE2E
+	initTx, err := source.Include(ctx, t, planCall(t, interop.RandomInitTrigger(rng, source.EventLogger, rng.Intn(2), rng.Intn(5))))
+	if err != nil {
+		return err
 	}
-	success := dest.SendExecutingMsg(t, *initMsg)
-	if success {
-		messageLatency.WithLabelValues("e2e").Observe(time.Since(start).Seconds())
-		messageStatusCount.WithLabelValues("success").Inc()
-	} else {
-		messageStatusCount.WithLabelValues("exec_failed").Inc()
+	messageLatency.WithLabelValues("init").Observe(time.Since(startInit).Seconds())
+	ref, err := source.EL.Escape().EthClient().BlockRefByHash(ctx, initTx.Receipt.BlockHash)
+	if err != nil && errors.Is(err, ctx.Err()) {
+		return err
 	}
-	inFlightMessages.Dec()
-	return success
+	t.Require().NoError(err)
+	out := new(txintent.InteropOutput)
+	t.Require().NoError(out.FromReceipt(t.Ctx(), initTx.Receipt, ref, source.EL.ChainID()))
+	t.Require().Len(out.Entries, 1)
+	initMsg := out.Entries[0]
+
+	startExec := time.Now()
+	if _, err = dest.Include(ctx, t, planCall(t, &txintent.ExecTrigger{
+		Executor: constants.CrossL2Inbox,
+		Msg:      initMsg,
+	}), func(tx *txplan.PlannedTx) {
+		tx.AgainstBlock.Wrap(func(fn plan.Fn[eth.BlockInfo]) plan.Fn[eth.BlockInfo] {
+			// The tx is invalid until we know it will be included at a higher timestamp than any of the initiating messages, modulo reorgs.
+			// Wait to plan the relay tx against a target block until the timestamp elapses.
+			// NOTE: this should be `>=`, but the mempool filtering in op-geth currently uses the unsafe head's timestamp instead of
+			// the pending timestamp. See https://github.com/ethereum-optimism/op-geth/issues/603.
+			// TODO(16371): if every txintent.Call had a Plan() method, this Option could be included with ExecTrigger.
+			ctxErrFn := func(_ context.Context) (eth.BlockInfo, error) {
+				return nil, ctx.Err()
+			}
+			for {
+				ref, err := dest.EL.Escape().EthClient().BlockRefByLabel(ctx, eth.Unsafe)
+				if err != nil && errors.Is(err, ctx.Err()) {
+					return ctxErrFn
+				}
+				t.Require().NoError(err)
+				if ref.Time > initMsg.Identifier.Timestamp {
+					break
+				}
+				select {
+				case <-time.After(time.Duration(dest.RollupConfig.BlockTime) * time.Second):
+				case <-ctx.Done():
+					return ctxErrFn
+				}
+			}
+			return fn
+		})
+	}); err != nil {
+		return err
+	}
+	endExec := time.Now()
+	messageLatency.WithLabelValues("exec").Observe(endExec.Sub(startExec).Seconds())
+
+	messageLatency.WithLabelValues("e2e").Observe(endExec.Sub(startE2E).Seconds())
+	return nil
+}
+
+// TODO(16371) every txintent.Call implementation should probably just be a txplan.Option.
+func planCall(t devtest.T, call txintent.Call) txplan.Option {
+	plan := make([]txplan.Option, 0)
+	accessList, err := call.AccessList()
+	t.Require().NoError(err)
+	if accessList != nil {
+		plan = append(plan, txplan.WithAccessList(accessList))
+	}
+	data, err := call.EncodeInput()
+	t.Require().NoError(err)
+	if data != nil {
+		plan = append(plan, txplan.WithData(data))
+	}
+	to, err := call.To()
+	t.Require().NoError(err)
+	if to != nil {
+		plan = append(plan, txplan.WithTo(to))
+	}
+	return txplan.Combine(plan...)
+}
+
+type reliableEL struct {
+	*txinclude.Resubmitter
+	*txinclude.Monitor
+}
+
+var _ txinclude.EL = (*reliableEL)(nil)
+
+func newReliableEL(el txinclude.EL, blockTime time.Duration, observer txinclude.ResubmitterObserver) *reliableEL {
+	return &reliableEL{
+		Resubmitter: txinclude.NewResubmitter(el, blockTime, txinclude.WithObserver(observer)),
+		Monitor:     txinclude.NewMonitor(el, blockTime),
+	}
 }
