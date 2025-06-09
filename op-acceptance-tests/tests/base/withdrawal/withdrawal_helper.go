@@ -14,6 +14,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl/contract"
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
+	"github.com/ethereum-optimism/optimism/op-node/withdrawals"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/crossdomain"
 
@@ -44,7 +45,7 @@ func ForGamePublished(t devtest.T, l2Chain *dsl.L2Network, l1Client apis.EthClie
 	return outputBlockNum.Uint64(), nil
 }
 
-func ProveWithdrawal(t devtest.T, portal *bindings.OptimismPortal2, sys *presets.Minimal, l1User *dsl.EOA, l2WithdrawalReceipt *types.Receipt) (utils.ProvenWithdrawalParameters, *types.Receipt) {
+func ProveWithdrawal(t devtest.T, portal *bindings.OptimismPortal2, sys *presets.Minimal, l1User *dsl.EOA, l2WithdrawalReceipt *types.Receipt) (withdrawals.ProvenWithdrawalParameters, *types.Receipt) {
 	optimismPortalAddr, err := portal.BaseCall.To()
 	require.NoError(t, err)
 	require.NotNil(t, optimismPortalAddr)
@@ -58,7 +59,7 @@ func ProveWithdrawal(t devtest.T, portal *bindings.OptimismPortal2, sys *presets
 	sys.L1Network.WaitForBlock()
 
 	var proveReceipt *types.Receipt
-	var params utils.ProvenWithdrawalParameters
+	var params withdrawals.ProvenWithdrawalParameters
 
 	t.Logf("proveWithdrawal: proving withdrawal...")
 	require.Eventually(t, func() bool {
@@ -93,11 +94,11 @@ func ProveWithdrawal(t devtest.T, portal *bindings.OptimismPortal2, sys *presets
 	return params, proveReceipt
 }
 
-func ProveWithdrawalParameters(t devtest.T, l2Chain *dsl.L2Network, l1Client apis.EthClient, l2Client apis.EthClient, l2WithdrawalReceipt *types.Receipt) (utils.ProvenWithdrawalParameters, error) {
+func ProveWithdrawalParameters(t devtest.T, l2Chain *dsl.L2Network, l1Client apis.EthClient, l2Client apis.EthClient, l2WithdrawalReceipt *types.Receipt) (withdrawals.ProvenWithdrawalParameters, error) {
 	return utils.ProveWithdrawalParameters(t, l2Chain, l1Client, l2Client, l2WithdrawalReceipt)
 }
 
-func FinalizeWithdrawal(t devtest.T, portal *bindings.OptimismPortal2, sys *presets.Minimal, l1User *dsl.EOA, l2WithdrawalReceipt *types.Receipt, params utils.ProvenWithdrawalParameters) (*types.Receipt, *types.Receipt, *types.Receipt) {
+func FinalizeWithdrawal(t devtest.T, portal *bindings.OptimismPortal2, sys *presets.Minimal, l1User *dsl.EOA, l2WithdrawalReceipt *types.Receipt, params withdrawals.ProvenWithdrawalParameters) (*types.Receipt, *types.Receipt, *types.Receipt) {
 	wd := crossdomain.Withdrawal{
 		Nonce:    params.Nonce,
 		Sender:   &params.Sender,
