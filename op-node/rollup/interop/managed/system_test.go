@@ -6,13 +6,12 @@ import (
 	"testing"
 
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
-	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
+	"github.com/ethereum-optimism/optimism/op-service/testutils"
 )
 
 func TestManagedMode_findLatestValidLocalUnsafe(t *testing.T) {
@@ -101,24 +100,24 @@ func TestManagedMode_findLatestValidLocalUnsafe(t *testing.T) {
 			ctx := context.Background()
 			logger := testlog.Logger(t, log.LevelDebug)
 
-			mockL1 := &MockL1Source{}
-			mockL2 := &MockL2Source{}
+			mockL1 := &testutils.MockL1Client{}
+			mockL2 := &testutils.MockL2Client{}
+
+			var nilErr error
 
 			// Setup l2Unsafe block
 			l2UnsafeHash := common.HexToHash(fmt.Sprintf("0x%x", tt.l2Unsafe))
 			l2UnsafeL1Origin := eth.BlockID{Hash: common.HexToHash("0xa"), Number: 10}
 			l2UnsafeBlockRef := createL2BlockRef(tt.l2Unsafe, l2UnsafeHash.Hex(), l2UnsafeL1Origin)
 
-			mockL2.On("L2BlockRefByHash", mock.Anything, l2UnsafeHash).Return(l2UnsafeBlockRef, nil)
+			mockL2.ExpectL2BlockRefByHash(l2UnsafeHash, l2UnsafeBlockRef, nilErr)
 
 			// Setup latest unsafe block
 			latestHash := common.HexToHash(fmt.Sprintf("0x%x", tt.latestUnsafe))
 			latestL1Origin := eth.BlockID{Hash: common.HexToHash("0xf"), Number: 10 + tt.latestUnsafe - tt.l2Unsafe}
 			latestBlockRef := createL2BlockRef(tt.latestUnsafe, latestHash.Hex(), latestL1Origin)
 
-			mockL2.On("L2BlockRefByLabel", mock.Anything, mock.MatchedBy(func(label eth.BlockLabel) bool {
-				return label == eth.Unsafe
-			})).Return(latestBlockRef, nil)
+			mockL2.ExpectL2BlockRefByLabel(eth.Unsafe, latestBlockRef, nilErr)
 
 			// Setup blocks for binary search
 			validBlocksMap := make(map[uint64]bool)
@@ -135,16 +134,16 @@ func TestManagedMode_findLatestValidLocalUnsafe(t *testing.T) {
 
 				logger.Info("Setting up block", "l2Block", l2Block, "l1Origin", l1Origin)
 
-				mockL2.On("L2BlockRefByNumber", mock.Anything, blockNum).Return(l2Block, nil).Maybe()
+				mockL2.On("L2BlockRefByNumber", blockNum).Return(l2Block, &nilErr).Maybe()
 
 				if validBlocksMap[blockNum] {
 					// Valid: return matching hash
-					mockL1.On("L1BlockRefByNumber", mock.Anything, l1OriginNum).
-						Return(createL1BlockRef(l1OriginNum, l1OriginHash), nil).Maybe()
+					mockL1.On("L1BlockRefByNumber", l1OriginNum).
+						Return(createL1BlockRef(l1OriginNum, l1OriginHash), &nilErr).Maybe()
 				} else {
 					// Invalid: return different hash (reorg)
-					mockL1.On("L1BlockRefByNumber", mock.Anything, l1OriginNum).
-						Return(createL1BlockRef(l1OriginNum, fmt.Sprintf("0x%x", l1OriginNum+1000)), nil).Maybe()
+					mockL1.On("L1BlockRefByNumber", l1OriginNum).
+						Return(createL1BlockRef(l1OriginNum, fmt.Sprintf("0x%x", l1OriginNum+1000)), &nilErr).Maybe()
 				}
 			}
 
@@ -168,66 +167,6 @@ func TestManagedMode_findLatestValidLocalUnsafe(t *testing.T) {
 			}
 		})
 	}
-}
-
-// MockL1Source implements L1Source interface for testing
-type MockL1Source struct {
-	mock.Mock
-}
-
-func (m *MockL1Source) L1BlockRefByHash(ctx context.Context, hash common.Hash) (eth.L1BlockRef, error) {
-	args := m.Called(ctx, hash)
-	return args.Get(0).(eth.L1BlockRef), args.Error(1)
-}
-
-func (m *MockL1Source) L1BlockRefByNumber(ctx context.Context, num uint64) (eth.L1BlockRef, error) {
-	args := m.Called(ctx, num)
-	return args.Get(0).(eth.L1BlockRef), args.Error(1)
-}
-
-// MockL2Source implements L2Source interface for testing
-type MockL2Source struct {
-	mock.Mock
-}
-
-func (m *MockL2Source) L2BlockRefByHash(ctx context.Context, hash common.Hash) (eth.L2BlockRef, error) {
-	args := m.Called(ctx, hash)
-	return args.Get(0).(eth.L2BlockRef), args.Error(1)
-}
-
-func (m *MockL2Source) L2BlockRefByNumber(ctx context.Context, num uint64) (eth.L2BlockRef, error) {
-	args := m.Called(ctx, num)
-	return args.Get(0).(eth.L2BlockRef), args.Error(1)
-}
-
-func (m *MockL2Source) L2BlockRefByLabel(ctx context.Context, label eth.BlockLabel) (eth.L2BlockRef, error) {
-	args := m.Called(ctx, label)
-	return args.Get(0).(eth.L2BlockRef), args.Error(1)
-}
-
-func (m *MockL2Source) BlockRefByHash(ctx context.Context, hash common.Hash) (eth.BlockRef, error) {
-	args := m.Called(ctx, hash)
-	return args.Get(0).(eth.BlockRef), args.Error(1)
-}
-
-func (m *MockL2Source) PayloadByHash(ctx context.Context, hash common.Hash) (*eth.ExecutionPayloadEnvelope, error) {
-	args := m.Called(ctx, hash)
-	return args.Get(0).(*eth.ExecutionPayloadEnvelope), args.Error(1)
-}
-
-func (m *MockL2Source) BlockRefByNumber(ctx context.Context, num uint64) (eth.BlockRef, error) {
-	args := m.Called(ctx, num)
-	return args.Get(0).(eth.BlockRef), args.Error(1)
-}
-
-func (m *MockL2Source) FetchReceipts(ctx context.Context, blockHash common.Hash) (eth.BlockInfo, types.Receipts, error) {
-	args := m.Called(ctx, blockHash)
-	return args.Get(0).(eth.BlockInfo), args.Get(1).(types.Receipts), args.Error(2)
-}
-
-func (m *MockL2Source) OutputV0AtBlock(ctx context.Context, blockHash common.Hash) (*eth.OutputV0, error) {
-	args := m.Called(ctx, blockHash)
-	return args.Get(0).(*eth.OutputV0), args.Error(1)
 }
 
 // Helper functions to create test data
