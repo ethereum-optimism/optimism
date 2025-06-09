@@ -366,6 +366,6 @@ mod tests {
         assert!(messages.contains(&"Another message from server 1".to_string()));
         assert!(messages.contains(&"Another message from server 2".to_string()));
 
-        assert!(messages.len() > 0);
+        assert!(!messages.is_empty());
     }
 }

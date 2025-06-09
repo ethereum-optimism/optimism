@@ -141,7 +141,7 @@ mod tests {
         });
 
         // Send a message to the websocket server
-        let _ = send_msg
+        send_msg
             .send(FlashblocksPayloadV1::default())
             .await
             .expect("Failed to send message");
@@ -158,7 +158,7 @@ mod tests {
 
         // start a new server with the same address
         let (term, send_msg, _url) = start(addr).await?;
-        let _ = send_msg
+        send_msg
             .send(FlashblocksPayloadV1::default())
             .await
             .expect("Failed to send message");

@@ -203,13 +203,22 @@ impl FlashblocksService {
     pub async fn get_best_payload(
         &self,
         version: PayloadVersion,
+        payload_id: PayloadId,
     ) -> Result<Option<OpExecutionPayloadEnvelope>, FlashblocksError> {
+        // Check that we have flashblocks for correct payload
+        if *self.current_payload_id.read().await != payload_id {
+            // We have outdated `current_payload_id` so we should fallback to get_payload
+            // Clearing best_payload in here would cause situation when old `get_payload` would clear
+            // currently built correct flashblocks.
+            // This will self-heal on the next FCU.
+            return Err(FlashblocksError::MissingPayload);
+        }
         // consume the best payload and reset the builder
         let payload = {
             let mut builder = self.best_payload.write().await;
-            std::mem::take(&mut *builder).into_envelope(version)?
+            // Take payload and place new one in its place in one go to avoid double locking
+            std::mem::replace(&mut *builder, FlashblockBuilder::new()).into_envelope(version)?
         };
-        *self.best_payload.write().await = FlashblockBuilder::new();
 
         Ok(Some(payload))
     }
@@ -217,6 +226,8 @@ impl FlashblocksService {
     pub async fn set_current_payload_id(&self, payload_id: PayloadId) {
         tracing::debug!(message = "Setting current payload ID", payload_id = %payload_id);
         *self.current_payload_id.write().await = payload_id;
+        // Current state won't be useful anymore because chain progressed
+        *self.best_payload.write().await = FlashblockBuilder::new();
     }
 
     async fn on_event(&mut self, event: FlashblocksEngineMessage) {
@@ -285,7 +296,7 @@ impl EngineApiExt for FlashblocksService {
         version: PayloadVersion,
     ) -> ClientResult<OpExecutionPayloadEnvelope> {
         // First try to get the best flashblocks payload from the builder if it exists
-        match self.get_best_payload(version).await {
+        match self.get_best_payload(version, payload_id).await {
             Ok(Some(payload)) => {
                 info!(message = "Returning fb payload");
                 return Ok(payload);
@@ -342,6 +353,39 @@ mod tests {
             FlashblocksService::new(builder_client, "127.0.0.1:8000".parse().unwrap()).unwrap();
 
         // by default, builder_mock returns a valid payload always
+        service
+            .get_payload(PayloadId::default(), PayloadVersion::V3)
+            .await?;
+
+        let get_payload_requests_builder = builder_mock.get_payload_requests.clone();
+        assert_eq!(get_payload_requests_builder.lock().len(), 1);
+
+        Ok(())
+    }
+
+    /// Test that we don't return block from flashblocks if payload_id is different
+    #[tokio::test]
+    async fn test_flashblocks_different_payload_id() -> eyre::Result<()> {
+        let builder_mock: MockEngineServer = MockEngineServer::new();
+        let (_fallback_server, fallback_server_addr) = spawn_server(builder_mock.clone()).await;
+        let jwt_secret = JwtSecret::random();
+
+        let builder_auth_rpc = Uri::from_str(&format!("http://{fallback_server_addr}")).unwrap();
+        let builder_client = RpcClient::new(
+            builder_auth_rpc.clone(),
+            jwt_secret,
+            2000,
+            PayloadSource::Builder,
+        )?;
+
+        let service =
+            FlashblocksService::new(builder_client, "127.0.0.1:8001".parse().unwrap()).unwrap();
+
+        // Some "random" payload id
+        *service.current_payload_id.write().await = PayloadId::new([1, 1, 1, 1, 1, 1, 1, 1]);
+
+        // We ensure that request will skip rollup-boost and serve payload from backup if payload id
+        // don't match
         service
             .get_payload(PayloadId::default(), PayloadVersion::V3)
             .await?;
