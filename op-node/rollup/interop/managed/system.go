@@ -391,8 +391,8 @@ func (m *ManagedMode) findLatestValidLocalUnsafe(ctx context.Context, l2UnsafeTa
 
 	logger.Info("Searching for latest valid local unsafe")
 
-	x := int(latestUnsafe.Number - target)
-	if x > 0 {
+	targetDiff := int(latestUnsafe.Number - target)
+	if targetDiff > 0 {
 		// Binary search to find and return the smallest index i in [0, x) at which f(i) is true.
 		// In this context, binary search returns the first block which is invalid, and we infer that the previous block is valid.
 		// This means that `offset+1` is the index of the first invalid block.
@@ -405,7 +405,7 @@ func (m *ManagedMode) findLatestValidLocalUnsafe(ctx context.Context, l2UnsafeTa
 		// target.Number |  offset=0   offset=1   offset=2  ...  offset = x-1 = latestUnsafe   |  offset=x  (doesn't exist)
 		// false         |  t/f        t/f        t/f       ...  t/f                           |  true
 		// ------------------------------------------------------------------------------------
-		offset, err := localUnsafeSearch(x, func(i int) (bool, eth.L2BlockRef, error) {
+		offset, err := localUnsafeSearch(targetDiff, func(i int) (bool, eth.L2BlockRef, error) {
 			block, err := m.verifyBlock(ctx, logger, target+1+uint64(i))
 			return block == (eth.L2BlockRef{}), block, err
 		})
@@ -426,7 +426,7 @@ func (m *ManagedMode) findLatestValidLocalUnsafe(ctx context.Context, l2UnsafeTa
 			logger.Info("Last valid L2 block ref", "valid", valid)
 			return valid, nil
 		}
-	} else if x < 0 {
+	} else if targetDiff < 0 {
 		logger.Warn("Latest unsafe block is older than target, using latest unsafe for search")
 		target = latestUnsafe.Number
 	}
