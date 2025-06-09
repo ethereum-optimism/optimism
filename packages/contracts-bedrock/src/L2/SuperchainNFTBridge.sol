@@ -2,7 +2,6 @@
 pragma solidity ^0.8.15;
 
 // Libraries
-import { Predeploys } from "src/libraries/Predeploys.sol";
 import { ZeroAddress, Unauthorized } from "src/libraries/errors/CommonErrors.sol";
 
 // Interfaces
@@ -18,10 +17,10 @@ import { IL2ToL2CrossDomainMessenger } from "interfaces/L2/IL2ToL2CrossDomainMes
 contract SuperchainNFTBridge {
     /// @notice Thrown when attempting to relay a message and the cross domain message sender is not the
     /// SuperchainNFTBridge.
-    error InvalidCrossDomainSender();
+    error SuperchainNFTBridge_InvalidCrossDomainSender();
 
     /// @notice Thrown when attempting to use a token that does not implement the ICrosschainERC721 interface.
-    error InvalidCrosschainERC721();
+    error SuperchainNFTBridge_InvalidCrosschainERC721();
 
     /// @notice Emitted when an NFT is sent from one chain to another.
     /// @param token         Address of the token sent.
@@ -42,7 +41,7 @@ contract SuperchainNFTBridge {
     event RelayERC721(address indexed token, address indexed from, address indexed to, uint256 tokenId, uint256 source);
 
     /// @notice Address of the L2ToL2CrossDomainMessenger Predeploy.
-    address internal immutable MESSENGER = Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER;
+    address internal constant MESSENGER = 0x4200000000000000000000000000000000000023;
 
     /// @notice Semantic version.
     /// @custom:semver 0.0.1
@@ -66,7 +65,9 @@ contract SuperchainNFTBridge {
     {
         if (_to == address(0)) revert ZeroAddress();
 
-        if (!IERC165(_token).supportsInterface(type(ICrosschainERC721).interfaceId)) revert InvalidCrosschainERC721();
+        if (!IERC165(_token).supportsInterface(type(ICrosschainERC721).interfaceId)) {
+            revert SuperchainNFTBridge_InvalidCrosschainERC721();
+        }
 
         ICrosschainERC721(_token).crosschainBurn(msg.sender, _tokenId);
 
@@ -88,7 +89,7 @@ contract SuperchainNFTBridge {
         (address crossDomainMessageSender, uint256 source) =
             IL2ToL2CrossDomainMessenger(MESSENGER).crossDomainMessageContext();
 
-        if (crossDomainMessageSender != address(this)) revert InvalidCrossDomainSender();
+        if (crossDomainMessageSender != address(this)) revert SuperchainNFTBridge_InvalidCrossDomainSender();
 
         ICrosschainERC721(_token).crosschainMint(_to, _tokenId);
 

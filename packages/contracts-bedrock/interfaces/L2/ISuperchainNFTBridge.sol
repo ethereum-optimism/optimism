@@ -8,8 +8,8 @@ import { ISemver } from "interfaces/universal/ISemver.sol";
 interface ISuperchainNFTBridge is ISemver {
     error ZeroAddress();
     error Unauthorized();
-    error InvalidCrossDomainSender();
-    error InvalidCrosschainERC721();
+    error SuperchainNFTBridge_InvalidCrossDomainSender();
+    error SuperchainNFTBridge_InvalidCrosschainERC721();
 
     event SendERC721(
         address indexed token, address indexed from, address indexed to, uint256 tokenId, uint256 destination

@@ -78,7 +78,7 @@ contract SuperchainNFTBridge_SendERC721_Test is SuperchainNFTBridge_TestInit {
         );
 
         // Expect the revert with `InvalidCrosschainERC721` selector
-        vm.expectRevert(ISuperchainNFTBridge.InvalidCrosschainERC721.selector);
+        vm.expectRevert(ISuperchainNFTBridge.SuperchainNFTBridge_InvalidCrosschainERC721.selector);
 
         // Call the `sendERC721` function
         vm.prank(_sender);
@@ -180,7 +180,7 @@ contract SuperchainNFTBridge_RelayERC721_Test is SuperchainNFTBridge_TestInit {
         );
 
         // Expect the revert with `InvalidCrossDomainSender` selector
-        vm.expectRevert(ISuperchainNFTBridge.InvalidCrossDomainSender.selector);
+        vm.expectRevert(ISuperchainNFTBridge.SuperchainNFTBridge_InvalidCrossDomainSender.selector);
 
         // Call the `relayERC721` function
         vm.prank(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER);
