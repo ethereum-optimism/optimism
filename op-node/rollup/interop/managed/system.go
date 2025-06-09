@@ -406,7 +406,8 @@ func (m *ManagedMode) findLatestValidLocalUnsafe(ctx context.Context, l2UnsafeTa
 		// false         |  t/f        t/f        t/f       ...  t/f                           |  true
 		// ------------------------------------------------------------------------------------
 		offset, err := localUnsafeSearch(x, func(i int) (bool, eth.L2BlockRef, error) {
-			return m.isInvalidBlock(ctx, logger, target+1+uint64(i))
+			block, err := m.verifyBlock(ctx, logger, target+1+uint64(i))
+			return block == (eth.L2BlockRef{}), block, err
 		})
 		if err != nil {
 			return eth.L2BlockRef{}, err
@@ -439,12 +440,12 @@ func (m *ManagedMode) findLatestValidLocalUnsafe(ctx context.Context, l2UnsafeTa
 			logger.Warn("No valid unsafe block found up to target, searching further")
 		}
 
-		isInvalid, valid, err := m.isInvalidBlock(ctx, logger, n)
+		valid, err := m.verifyBlock(ctx, logger, n)
 		if err != nil {
 			return eth.L2BlockRef{}, err
 		}
 
-		if !isInvalid {
+		if valid != (eth.L2BlockRef{}) {
 			logger.Info("Fould last valid block", "valid", valid)
 			return valid, nil
 		}
@@ -473,26 +474,24 @@ func localUnsafeSearch(n int, f func(int) (bool, eth.L2BlockRef, error)) (int, e
 	return i, nil
 }
 
-// isInvalidBlock returns:
-// - false: if the L1Origin field for the block belongs to the canonical chain; in this case we also return the block ref
-// - true: if the L1Origin field for the block is invalid/outdated/reorged
-func (m *ManagedMode) isInvalidBlock(ctx context.Context, logger log.Logger, blockNum uint64) (bool, eth.L2BlockRef, error) {
+// verifyBlock
+func (m *ManagedMode) verifyBlock(ctx context.Context, logger log.Logger, blockNum uint64) (eth.L2BlockRef, error) {
 	current, err := m.l2.L2BlockRefByNumber(ctx, blockNum)
 	if err != nil {
-		return true, eth.L2BlockRef{}, err
+		return eth.L2BlockRef{}, err
 	}
 
 	// Check if L1Origin has been reorged
 	l1Blk, err := m.l1.L1BlockRefByNumber(ctx, current.L1Origin.Number)
 	if err != nil {
-		return true, eth.L2BlockRef{}, err
+		return eth.L2BlockRef{}, err
 	}
 	if l1Blk.Hash != current.L1Origin.Hash {
 		logger.Debug("L1Origin field is invalid/outdated, so block is invalid and should be reorged", "currentNumber", current.Number, "currentL1Origin", current.L1Origin, "newL1Origin", l1Blk)
-		return true, eth.L2BlockRef{}, nil
+		return eth.L2BlockRef{}, nil
 	}
 	logger.Trace("L1Origin field points to canonical L1 block, so block is valid", "blocknum", blockNum, "l1Blk", l1Blk)
-	return false, current, nil
+	return current, nil
 }
 
 func (m *ManagedMode) ProvideL1(ctx context.Context, nextL1 eth.BlockRef) error {
