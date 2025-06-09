@@ -887,6 +887,12 @@ contract OPContractsManagerUpgrader is OPContractsManagerBase {
         assertValidContractAddress(address(_config.proxyAdmin));
     }
 
+    struct ImplArgs {
+        bytes32 absolutePrestate;
+        address vm;
+        address anchorStateRegistry;
+    }
+
     /// @notice Deploys and sets a new dispute game implementation
     /// @param _l2ChainId The L2 chain ID
     /// @param _disputeGame The current dispute game implementation
@@ -913,23 +919,6 @@ contract OPContractsManagerUpgrader is OPContractsManagerBase {
 
         // Modify the params with the new vm values.
         params.weth = _newDelayedWeth;
-        // TODO: snevins - anchorStateRegistry removed from GameConstructorParams struct
-        // params.anchorStateRegistry = _newAnchorStateRegistryProxy;
-        // TODO: snevins - vm removed from GameConstructorParams struct
-        // params.vm = IBigStepper(impls.mipsImpl);
-
-        // If the prestate is set in the config, use it. If not set, we'll try to use the prestate
-        // that already exists on the current dispute game.
-        // TODO: snevins - absolutePrestate removed from GameConstructorParams struct
-        // if (Claim.unwrap(_opChainConfig.absolutePrestate) != bytes32(0)) {
-        //     params.absolutePrestate = _opChainConfig.absolutePrestate;
-        // }
-
-        // TODO: snevins - absolutePrestate removed from GameConstructorParams struct
-        // As a sanity check, if the prestate is zero here, revert.
-        // if (params.absolutePrestate.raw() == bytes32(0)) {
-        //     revert OPContractsManager.PrestateNotSet();
-        // }
 
         IDisputeGame newGame;
         if (GameType.unwrap(_gameType) == GameType.unwrap(GameTypes.PERMISSIONED_CANNON)) {
