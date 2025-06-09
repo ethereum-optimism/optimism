@@ -28,8 +28,8 @@ func TestOperatorFee(t *testing.T) {
 	logger.Info("Starting operator fee test", "chain", chainIdx)
 
 	// Get validators and getters for accessing the system and wallets
-	l1WalletGetter, l1WalletValidator := validators.AcquireL1WalletWithFunds(types.NewBalance(big.NewInt(params.Ether)))
-	l2WalletGetter, l2WalletValidator := validators.AcquireL2WalletWithFunds(chainIdx, types.NewBalance(big.NewInt(params.Ether)))
+	l1WalletGetter, l1WalletValidator := validators.AcquireL1WalletWithFunds(types.NewBalance(big.NewInt(params.Ether / 10)))
+	l2WalletGetter, l2WalletValidator := validators.AcquireL2WalletWithFunds(chainIdx, types.NewBalance(big.NewInt(params.Ether/10)))
 
 	logger.Info("Acquired test wallets with funds")
 
@@ -174,14 +174,14 @@ func operatorFeeTestProcedure(t systest.T, sys system.System, l1FundingWallet sy
 	require.NoError(t, err)
 	logger.Info("Test wallet 2", "address", l2TestWallet2.Address().Hex(), "private key", hex.EncodeToString(l2TestWallet2.PrivateKey().D.Bytes()))
 
-	fundAmount := new(big.Int).Mul(big.NewInt(1), big.NewInt(params.Ether))
+	fundAmount := new(big.Int).Mul(big.NewInt(1), big.NewInt(params.Ether/10))
 
 	// ==========
 	// Begin Test
 	// ==========
 
-	logger.Info("Funding owner wallet with ETH", "amount", big.NewInt(params.Ether))
-	err = EnsureSufficientBalance(l1FundingWallet, l1RollupOwnerWallet.Address(), big.NewInt(params.Ether))
+	logger.Info("Funding owner wallet with ETH", "amount", big.NewInt(params.Ether/10))
+	err = EnsureSufficientBalance(l1FundingWallet, l1RollupOwnerWallet.Address(), big.NewInt(params.Ether/10))
 	require.NoError(t, err, "Error funding owner wallet")
 	defer func() {
 		logger.Info("Returning remaining funds to owner wallet")

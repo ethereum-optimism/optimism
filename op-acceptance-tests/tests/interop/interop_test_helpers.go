@@ -152,7 +152,7 @@ func SetupDefaultInteropSystemTest(l2ChainNums int) ([]validators.WalletGetter, 
 	totalValidators := make([]systest.PreconditionValidator, 0)
 	for i := range l2ChainNums {
 		walletGetter, fundsValidator := validators.AcquireL2WalletWithFunds(
-			uint64(i), sdktypes.NewBalance(big.NewInt(1*constants.ETH)),
+			uint64(i), sdktypes.NewBalance(big.NewInt(0.1*constants.ETH)),
 		)
 		walletGetters[i] = walletGetter
 		totalValidators = append(totalValidators, fundsValidator)

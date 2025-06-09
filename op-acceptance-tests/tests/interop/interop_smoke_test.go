@@ -72,7 +72,7 @@ func TestSmokeTestFailure(t *testing.T) {
 	mockAddr := common.HexToAddress("0x1234567890123456789012345678901234567890")
 	mockWallet := &mockFailingWallet{
 		addr: mockAddr,
-		bal:  sdktypes.NewBalance(big.NewInt(1000000)),
+		bal:  sdktypes.NewBalance(big.NewInt(0.1 * constants.ETH)),
 	}
 	mockL1Chain := newMockFailingL1Chain(
 		sdktypes.ChainID(big.NewInt(1234)),
