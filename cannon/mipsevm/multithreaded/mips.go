@@ -201,6 +201,7 @@ func (m *InstrumentedState) handleSyscall() error {
 		if !m.features.SupportNoopSysEventFd2 {
 			m.handleUnrecognizedSyscall(syscallNum)
 		}
+		v0 = exec.FdEventFd
 	default:
 		// These syscalls have the same values on 64-bit. So we use if-stmts here to avoid "duplicate case" compiler error for the cannon64 build
 		if arch.IsMips32 && (syscallNum == arch.SysFstat64 || syscallNum == arch.SysStat64 || syscallNum == arch.SysLlseek) {

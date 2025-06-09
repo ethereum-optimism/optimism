@@ -29,6 +29,8 @@ const (
 	FdHintWrite     = 4
 	FdPreimageRead  = 5
 	FdPreimageWrite = 6
+
+	FdEventFd = ^Word(0)
 )
 
 // Errors
@@ -175,6 +177,10 @@ func HandleSysRead(
 	case FdHintRead: // hint response
 		// don't actually read into memory, just say we read it all, we ignore the result anyway
 		v0 = a2
+	case FdEventFd:
+		// Always act in non blocking mode as if the counter has not been signalled
+		v0 = MipsEAGAIN
+		v1 = MipsEAGAIN
 	default:
 		v0 = ^Word(0)
 		v1 = MipsEBADF
@@ -239,6 +245,11 @@ func HandleSysWrite(a0, a1, a2 Word,
 		newPreimageOffset = 0
 		//fmt.Printf("updating pre-image key: %s\n", m.state.PreimageKey)
 		v0 = a2
+	case FdEventFd:
+		// Always report that the write could not be completed
+		// This acts as if the counter has already reached the maximum value
+		v0 = MipsEAGAIN
+		v1 = MipsEAGAIN
 	default:
 		v0 = ^Word(0)
 		v1 = MipsEBADF
