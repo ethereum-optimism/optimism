@@ -35,8 +35,8 @@ import { IMIPS64 } from "interfaces/cannon/IMIPS64.sol";
 /// before and after an upgrade.
 contract StandardValidator is ISemver {
     /// @notice The semantic version of the StandardValidator contract.
-    /// @custom:semver 1.1.0
-    string public constant version = "1.1.0";
+    /// @custom:semver 1.1.1
+    string public constant version = "1.1.1";
 
     /// @notice The SuperchainConfig contract.
     ISuperchainConfig public superchainConfig;

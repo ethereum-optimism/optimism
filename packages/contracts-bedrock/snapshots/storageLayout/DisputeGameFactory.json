@@ -61,5 +61,12 @@
     "offset": 0,
     "slot": "104",
     "type": "GameId[]"
+  },
+  {
+    "bytes": "32",
+    "label": "gameArgs",
+    "offset": 0,
+    "slot": "105",
+    "type": "mapping(GameType => bytes)"
   }
 ]

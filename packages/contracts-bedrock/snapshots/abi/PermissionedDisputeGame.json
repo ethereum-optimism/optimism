@@ -9,11 +9,6 @@
             "type": "uint32"
           },
           {
-            "internalType": "Claim",
-            "name": "absolutePrestate",
-            "type": "bytes32"
-          },
-          {
             "internalType": "uint256",
             "name": "maxGameDepth",
             "type": "uint256"
@@ -34,18 +29,8 @@
             "type": "uint64"
           },
           {
-            "internalType": "contract IBigStepper",
-            "name": "vm",
-            "type": "address"
-          },
-          {
             "internalType": "contract IDelayedWETH",
             "name": "weth",
-            "type": "address"
-          },
-          {
-            "internalType": "contract IAnchorStateRegistry",
-            "name": "anchorStateRegistry",
             "type": "address"
           },
           {
@@ -82,7 +67,7 @@
         "type": "bytes32"
       }
     ],
-    "stateMutability": "view",
+    "stateMutability": "pure",
     "type": "function"
   },
   {
@@ -118,7 +103,7 @@
         "type": "address"
       }
     ],
-    "stateMutability": "view",
+    "stateMutability": "pure",
     "type": "function"
   },
   {
@@ -962,7 +947,7 @@
         "type": "address"
       }
     ],
-    "stateMutability": "view",
+    "stateMutability": "pure",
     "type": "function"
   },
   {
@@ -984,7 +969,7 @@
     "outputs": [
       {
         "internalType": "contract IDelayedWETH",
-        "name": "weth_",
+        "name": "",
         "type": "address"
       }
     ],
@@ -1055,6 +1040,11 @@
   {
     "inputs": [],
     "name": "BadAuth",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "BadExtraData",
     "type": "error"
   },
   {

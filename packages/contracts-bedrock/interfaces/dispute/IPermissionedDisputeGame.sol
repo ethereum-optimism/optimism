@@ -68,6 +68,7 @@ interface IPermissionedDisputeGame is IDisputeGame {
     error GameNotResolved();
     error ReservedGameType();
     error GamePaused();
+    error BadExtraData();
     event Move(uint256 indexed parentIndex, Claim indexed claim, address indexed claimant);
     event GameClosed(BondDistributionMode bondDistributionMode);
 
@@ -125,7 +126,7 @@ interface IPermissionedDisputeGame is IDisputeGame {
     function version() external pure returns (string memory);
     function vm() external view returns (IBigStepper vm_);
     function wasRespectedGameTypeWhenCreated() external view returns (bool);
-    function weth() external view returns (IDelayedWETH weth_);
+    function weth() external view returns (IDelayedWETH);
 
     error BadAuth();
 

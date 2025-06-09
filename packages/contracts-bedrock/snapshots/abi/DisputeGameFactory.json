@@ -92,6 +92,25 @@
   {
     "inputs": [
       {
+        "internalType": "GameType",
+        "name": "",
+        "type": "uint32"
+      }
+    ],
+    "name": "gameArgs",
+    "outputs": [
+      {
+        "internalType": "bytes",
+        "name": "",
+        "type": "bytes"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
         "internalType": "uint256",
         "name": "_index",
         "type": "uint256"
@@ -315,6 +334,11 @@
         "internalType": "contract IDisputeGame",
         "name": "_impl",
         "type": "address"
+      },
+      {
+        "internalType": "bytes",
+        "name": "_args",
+        "type": "bytes"
       }
     ],
     "name": "setImplementation",
