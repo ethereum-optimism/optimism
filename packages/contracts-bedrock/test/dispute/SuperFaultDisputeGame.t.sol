@@ -3,7 +3,7 @@ pragma solidity ^0.8.15;
 
 // Testing
 import { Vm } from "forge-std/Vm.sol";
-import { DisputeGameFactory_Init } from "test/dispute/DisputeGameFactory.t.sol";
+import { DisputeGameFactory_TestInit } from "test/dispute/DisputeGameFactory.t.sol";
 import { AlphabetVM } from "test/mocks/AlphabetVM.sol";
 import { stdError } from "forge-std/StdError.sol";
 
@@ -58,7 +58,7 @@ contract ClaimCreditReenter {
 
 /// @title BaseSuperFaultDisputeGame_TestInit
 /// @notice Base test initializer that can be used by other contracts outside of this test suite.
-contract BaseSuperFaultDisputeGame_TestInit is DisputeGameFactory_Init {
+contract BaseSuperFaultDisputeGame_TestInit is DisputeGameFactory_TestInit {
     /// @dev The type of the game being tested.
     GameType internal immutable GAME_TYPE = GameTypes.SUPER_CANNON;
 

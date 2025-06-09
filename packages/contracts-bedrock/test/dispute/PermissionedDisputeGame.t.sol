@@ -2,7 +2,7 @@
 pragma solidity ^0.8.15;
 
 // Testing
-import { DisputeGameFactory_Init } from "test/dispute/DisputeGameFactory.t.sol";
+import { DisputeGameFactory_TestInit } from "test/dispute/DisputeGameFactory.t.sol";
 import { AlphabetVM } from "test/mocks/AlphabetVM.sol";
 // Libraries
 import "src/dispute/lib/Types.sol";
@@ -13,7 +13,7 @@ import { IPermissionedDisputeGame } from "interfaces/dispute/IPermissionedDisput
 
 /// @title PermissionedDisputeGame_TestInit
 /// @notice Reusable test initialization for `PermissionedDisputeGame` tests.
-contract PermissionedDisputeGame_TestInit is DisputeGameFactory_Init {
+contract PermissionedDisputeGame_TestInit is DisputeGameFactory_TestInit {
     /// @notice The type of the game being tested.
     GameType internal immutable GAME_TYPE = GameTypes.PERMISSIONED_CANNON;
     /// @notice Mock proposer key

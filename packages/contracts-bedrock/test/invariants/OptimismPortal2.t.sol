@@ -6,7 +6,7 @@ import { StdUtils } from "forge-std/Test.sol";
 import { Vm } from "forge-std/Vm.sol";
 import { CommonTest } from "test/setup/CommonTest.sol";
 import { EIP1967Helper } from "test/mocks/EIP1967Helper.sol";
-import { DisputeGameFactory_Init } from "test/dispute/DisputeGameFactory.t.sol";
+import { DisputeGameFactory_TestInit } from "test/dispute/DisputeGameFactory.t.sol";
 
 // Contracts
 import { ResourceMetering } from "src/L1/ResourceMetering.sol";
@@ -82,7 +82,7 @@ contract OptimismPortal2_Depositor is StdUtils, ResourceMetering {
     }
 }
 
-contract OptimismPortal2_Invariant_Harness is DisputeGameFactory_Init {
+contract OptimismPortal2_Invariant_Harness is DisputeGameFactory_TestInit {
     // Reusable default values for a test withdrawal
     Types.WithdrawalTransaction _defaultTx;
 
