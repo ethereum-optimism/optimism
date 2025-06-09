@@ -121,7 +121,7 @@ impl RpcClient {
     ) -> Result<Self, RpcClientError> {
         let version = format!("{}-{}", CARGO_PKG_VERSION, VERGEN_GIT_SHA);
         let mut headers = HeaderMap::new();
-        headers.insert("X-Rollup-Boost-Version", version.parse().unwrap());
+        headers.insert("User-Agent", version.parse().unwrap());
 
         let auth_layer = AuthLayer::new(auth_rpc_jwt_secret);
         let auth_client = HttpClientBuilder::new()
