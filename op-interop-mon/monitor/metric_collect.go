@@ -7,8 +7,11 @@ import (
 
 // ConsolidateMetrics scans the jobMap and updates the metrics
 func (m *Maintainer) ConsolidateMetrics() {
-	m.jobMapMu.RLock()
-	defer m.jobMapMu.RUnlock()
+	jobMap := map[JobID]*Job{}
+	m.updaters.Range(func(chainID eth.ChainID, updater Updater) bool {
+		jobMap = updater.GetJobs(jobMap)
+		return true
+	})
 	// message metrics are dimensioned by:
 	// - initiating chain id
 	// - block number
@@ -17,7 +20,7 @@ func (m *Maintainer) ConsolidateMetrics() {
 	executingMessages := map[eth.ChainID]map[uint64]map[common.Hash]map[string]int{}
 	initiatingMessages := map[eth.ChainID]map[uint64]map[string]int{}
 	terminalStatusChanges := map[eth.ChainID]map[eth.ChainID]int{}
-	for _, job := range m.jobMap {
+	for _, job := range jobMap {
 		states := job.States()
 		current := states[len(states)-1].String()
 		// Lazy increment the executing message metrics

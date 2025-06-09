@@ -3,6 +3,7 @@ package monitor
 import (
 	"context"
 	"math/big"
+	"time"
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum/go-ethereum"
@@ -113,7 +114,11 @@ func (t *RPCFinder) Run(ctx context.Context) {
 				t.log.Error("error processing block", "error", err)
 				continue
 			}
+			// give all jobs the same firstSeen time
+			seen := time.Now()
 			for _, job := range jobs {
+				job.firstSeen = seen
+				job.status = []jobStatus{jobStatusUnknown}
 				t.callback(job)
 			}
 			if len(jobs) > 0 {

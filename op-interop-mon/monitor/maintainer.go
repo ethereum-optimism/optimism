@@ -2,7 +2,6 @@ package monitor
 
 import (
 	"context"
-	"sync"
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-interop-mon/metrics"
@@ -12,11 +11,6 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/rpc"
 )
-
-// JobUpdater can take cases and update them
-type JobUpdater interface {
-	UpdateJob(c Job)
-}
 
 type receiptClient interface {
 	BlockReceipts(ctx context.Context, blockNrOrHash rpc.BlockNumberOrHash) ([]*types.Receipt, error)
@@ -29,9 +23,6 @@ type Maintainer struct {
 	newInbox    chan *Job
 	updateInbox chan *Job
 	closed      chan struct{}
-
-	jobMap   map[JobID]*Job
-	jobMapMu sync.RWMutex
 
 	log log.Logger
 	m   metrics.Metricer
@@ -46,8 +37,6 @@ func NewMaintainer(log log.Logger, m metrics.Metricer) *Maintainer {
 		newInbox: make(chan *Job, 100_000),
 		// The update inbox has a lower limit so that updaters experience backpressure
 		updateInbox: make(chan *Job, 10_000),
-		jobMap:      make(map[JobID]*Job),
-		jobMapMu:    sync.RWMutex{},
 		log:         log,
 		m:           m,
 	}
@@ -71,39 +60,11 @@ func (m *Maintainer) Start() error {
 }
 
 // EnqueueNew enqueues a new job
-// It will not enqueue a job if it already exists by ID in the jobMap
-// and will lock the jobMap while checking and adding the job
 func (m *Maintainer) EnqueueNew(c *Job) {
 	if m.Stopped() {
 		return
 	}
-	m.jobMapMu.Lock()
-	if old, ok := m.jobMap[c.ID()]; ok {
-		m.jobMapMu.Unlock()
-		m.log.Warn("job with id already exists", "jobID", c.ID(), "job", c, "existing", old.String())
-		return
-	}
-	m.jobMap[c.ID()] = c
-	m.jobMapMu.Unlock()
 	m.newInbox <- c
-}
-
-// EnqueueUpdate enqueues an update job
-// the job is expected to already exist in the jobMap
-func (m *Maintainer) EnqueueUpdate(c *Job) {
-	if m.Stopped() {
-		return
-	}
-	m.updateInbox <- c
-}
-
-func (m *Maintainer) ExpireJob(c *Job) {
-	if m.Stopped() {
-		return
-	}
-	m.jobMapMu.Lock()
-	defer m.jobMapMu.Unlock()
-	delete(m.jobMap, c.ID())
 }
 
 func (m *Maintainer) Stopped() bool {

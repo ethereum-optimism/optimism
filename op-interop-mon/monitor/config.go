@@ -43,8 +43,7 @@ func (c *CLIConfig) Check() error {
 func NewConfig(ctx *cli.Context) *CLIConfig {
 	return &CLIConfig{
 		// Required Flags
-		L2Rpcs:       ctx.StringSlice(flags.L2RpcsFlag.Name),
-		PollInterval: ctx.Duration(flags.PollIntervalFlag.Name),
+		L2Rpcs: ctx.StringSlice(flags.L2RpcsFlag.Name),
 
 		// Optional Flags
 		RPCConfig:     oprpc.ReadCLIConfig(ctx),

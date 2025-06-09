@@ -2,7 +2,6 @@ package flags
 
 import (
 	"fmt"
-	"time"
 
 	"github.com/urfave/cli/v2"
 
@@ -27,23 +26,13 @@ var (
 		EnvVars:  prefixEnvVars("L2_RPCS"),
 		Required: true,
 	}
-
-	// Optional Flags
-	PollIntervalFlag = &cli.DurationFlag{
-		Name:    "poll-interval",
-		Usage:   "How frequently to poll L2 for new blocks",
-		Value:   12 * time.Second,
-		EnvVars: prefixEnvVars("POLL_INTERVAL"),
-	}
 )
 
 var requiredFlags = []cli.Flag{
 	L2RpcsFlag,
 }
 
-var optionalFlags = []cli.Flag{
-	PollIntervalFlag,
-}
+var optionalFlags = []cli.Flag{}
 
 func init() {
 	optionalFlags = append(optionalFlags, oprpc.CLIFlags(EnvVarPrefix)...)

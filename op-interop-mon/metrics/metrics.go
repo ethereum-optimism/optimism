@@ -84,7 +84,7 @@ func NewMetrics(procName string) *Metrics {
 		initiatingMessages: *factory.NewGaugeVec(prometheus.GaugeOpts{
 			Namespace: ns,
 			Name:      "initiating_messages",
-			Help:      "Number of messages being initiated",
+			Help:      "Number of messages being referenced by executing messages",
 		}, []string{
 			"chain_id",
 			"block_height",
