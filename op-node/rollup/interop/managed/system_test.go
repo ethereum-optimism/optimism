@@ -100,7 +100,7 @@ func TestManagedMode_findLatestValidLocalUnsafe(t *testing.T) {
 			ctx := context.Background()
 			logger := testlog.Logger(t, log.LevelDebug)
 
-			mockL1 := &testutils.MockL1Client{}
+			mockL1 := &testutils.MockL1Source{}
 			mockL2 := &testutils.MockL2Client{}
 
 			var nilErr error
@@ -139,11 +139,11 @@ func TestManagedMode_findLatestValidLocalUnsafe(t *testing.T) {
 				if validBlocksMap[blockNum] {
 					// Valid: return matching hash
 					mockL1.On("L1BlockRefByNumber", l1OriginNum).
-						Return(createL1BlockRef(l1OriginNum, l1OriginHash), &nilErr).Maybe()
+						Return(createL1BlockRef(l1OriginNum, l1OriginHash), nilErr).Maybe()
 				} else {
 					// Invalid: return different hash (reorg)
 					mockL1.On("L1BlockRefByNumber", l1OriginNum).
-						Return(createL1BlockRef(l1OriginNum, fmt.Sprintf("0x%x", l1OriginNum+1000)), &nilErr).Maybe()
+						Return(createL1BlockRef(l1OriginNum, fmt.Sprintf("0x%x", l1OriginNum+1000)), nilErr).Maybe()
 				}
 			}
 
