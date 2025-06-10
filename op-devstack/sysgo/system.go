@@ -260,8 +260,8 @@ func DefaultInteropProofsSystem(dest *DefaultInteropSystemIDs) stack.Option[*Orc
 		WithDeployerOptions(
 			WithLocalContractSources(),
 			WithCommons(ids.L1.ChainID()),
-			WithPrefundedL2(ids.L2A.ChainID()),
-			WithPrefundedL2(ids.L2B.ChainID()),
+			WithPrefundedL2(ids.L1.ChainID(), ids.L2A.ChainID()),
+			WithPrefundedL2(ids.L1.ChainID(), ids.L2B.ChainID()),
 			WithInteropAtGenesis(), // this can be overridden by later options
 		),
 	)

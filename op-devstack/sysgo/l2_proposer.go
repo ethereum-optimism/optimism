@@ -110,6 +110,9 @@ func WithProposerPostDeploy(orch *Orchestrator, proposerID stack.L2ProposerID, l
 		ActiveSequencerCheckDuration: time.Second * 5,
 		WaitNodeSync:                 false,
 	}
+	for _, opt := range orch.proposerOptions {
+		opt(proposerID, proposerCLIConfig)
+	}
 
 	// If interop is scheduled, or if we cannot do the pre-interop connection, then set up with supervisor
 	if l2Net.genesis.Config.InteropTime != nil || l2CLID == nil {
