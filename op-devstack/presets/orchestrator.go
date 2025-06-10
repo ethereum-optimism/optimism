@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"runtime/debug"
+	"slices"
 	"sync/atomic"
 	"testing"
 
@@ -12,6 +13,7 @@ import (
 	"go.opentelemetry.io/otel"
 
 	"github.com/ethereum-optimism/optimism/devnet-sdk/telemetry"
+	"github.com/ethereum-optimism/optimism/op-devstack/compat"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/stack"
 	"github.com/ethereum-optimism/optimism/op-devstack/sysext"
@@ -152,4 +154,19 @@ Add a TestMain to your test package init the orchestrator:
 `)
 	}
 	return out
+}
+
+// WithCompatibleTypes is a common option that can be used to ensure that the orchestrator is compatible with the preset.
+// If the orchestrator is not compatible, the test will fail with a non-zero exit code: compat.CompatErrorCode.
+// This is useful to ensure that the preset is only used with the correct orchestrator type.
+func WithCompatibleTypes(t ...compat.Type) stack.CommonOption {
+	return stack.FnOption[stack.Orchestrator]{
+		BeforeDeployFn: func(orch stack.Orchestrator) {
+			if !slices.Contains(t, orch.Type()) {
+				p := orch.P()
+				p.Errorf("Orchestrator type %s is incompatible with this preset", orch.Type())
+				os.Exit(compat.CompatErrorCode)
+			}
+		},
+	}
 }

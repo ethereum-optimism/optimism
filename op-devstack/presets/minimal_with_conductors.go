@@ -1,6 +1,7 @@
 package presets
 
 import (
+	"github.com/ethereum-optimism/optimism/op-devstack/compat"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
 	"github.com/ethereum-optimism/optimism/op-devstack/shim"
@@ -18,7 +19,10 @@ type MinimalWithConductors struct {
 
 // TODO: shift this to a different sysgo constructor once the sysgo implementation supports conductors
 func WithMinimalWithConductors() stack.CommonOption {
-	return stack.MakeCommon(sysgo.DefaultMinimalSystem(&sysgo.DefaultMinimalSystemIDs{}))
+	return stack.Combine(
+		stack.MakeCommon(sysgo.DefaultMinimalSystem(&sysgo.DefaultMinimalSystemIDs{})),
+		WithCompatibleTypes(compat.Persistent),
+	)
 }
 
 func NewMinimalWithConductors(t devtest.T) *MinimalWithConductors {
