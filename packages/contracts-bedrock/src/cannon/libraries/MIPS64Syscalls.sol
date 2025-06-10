@@ -406,8 +406,8 @@ library MIPS64Syscalls {
                 ) {
                     v0_ = 0; // No flags set
                 } else {
-                    v0_ = U64_MASK;
-                    v1_ = EBADF;
+                    v0_ = EBADF;
+                    v1_ = U64_MASK;
                 }
             } else if (_a1 == 3) {
                 // F_GETFL: get file status flags
@@ -416,12 +416,12 @@ library MIPS64Syscalls {
                 } else if (_a0 == FD_STDOUT || _a0 == FD_STDERR || _a0 == FD_PREIMAGE_WRITE || _a0 == FD_HINT_WRITE) {
                     v0_ = 1; // O_WRONLY
                 } else {
-                    v0_ = U64_MASK;
-                    v1_ = EBADF;
+                    v0_ = EBADF;
+                    v1_ = U64_MASK;
                 }
             } else {
-                v0_ = U64_MASK;
-                v1_ = EINVAL; // cmd not recognized by this kernel
+                v0_ = EINVAL; // cmd not recognized by this kernel
+                v1_ = U64_MASK;
             }
 
             return (v0_, v1_);

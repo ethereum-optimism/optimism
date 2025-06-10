@@ -503,22 +503,22 @@ contract MIPS64 is ISemver {
                     uint32 futexVal = getFutexValue(effFutexAddr);
                     uint32 targetVal = uint32(a2);
                     if (futexVal != targetVal) {
-                        v0 = sys.SYS_ERROR_SIGNAL;
-                        v1 = sys.EAGAIN;
+                        v0 = sys.EAGAIN;
+                        v1 = sys.SYS_ERROR_SIGNAL;
                     } else {
                         return syscallYield(state, thread);
                     }
                 } else if (a1 == sys.FUTEX_WAKE_PRIVATE) {
                     return syscallYield(state, thread);
                 } else {
-                    v0 = sys.SYS_ERROR_SIGNAL;
-                    v1 = sys.EINVAL;
+                    v0 = sys.EINVAL;
+                    v1 = sys.SYS_ERROR_SIGNAL;
                 }
             } else if (syscall_no == sys.SYS_SCHED_YIELD || syscall_no == sys.SYS_NANOSLEEP) {
                 return syscallYield(state, thread);
             } else if (syscall_no == sys.SYS_OPEN) {
-                v0 = sys.SYS_ERROR_SIGNAL;
-                v1 = sys.EBADF;
+                v0 = sys.EBADF;
+                v1 = sys.SYS_ERROR_SIGNAL;
             } else if (syscall_no == sys.SYS_CLOCKGETTIME) {
                 if (a0 == sys.CLOCK_GETTIME_REALTIME_FLAG || a0 == sys.CLOCK_GETTIME_MONOTONIC_FLAG) {
                     v0 = 0;
@@ -554,8 +554,8 @@ contract MIPS64 is ISemver {
                         MIPS64Memory.writeMem(effAddr + 8, MIPS64Memory.memoryProofOffset(MEM_PROOF_OFFSET, 2), nsecs);
                     handleMemoryUpdate(state, effAddr + 8);
                 } else {
-                    v0 = sys.SYS_ERROR_SIGNAL;
-                    v1 = sys.EINVAL;
+                    v0 = sys.EINVAL;
+                    v1 = sys.SYS_ERROR_SIGNAL;
                 }
             } else if (syscall_no == sys.SYS_GETPID) {
                 v0 = 0;
