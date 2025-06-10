@@ -122,8 +122,8 @@ func HandleSysMmap(a0, a1, heap Word) (v0, v1, newHeap Word) {
 		newHeap += sz
 		// Fail if new heap exceeds memory limit, newHeap overflows around to low memory, or sz overflows
 		if newHeap > program.HEAP_END || newHeap < heap || sz < a1 {
-			v0 = SysErrorSignal
-			v1 = MipsEINVAL
+			v0 = MipsEINVAL
+			v1 = SysErrorSignal
 			return v0, v1, heap
 		}
 	} else {
@@ -180,10 +180,10 @@ func HandleSysRead(
 	case FdEventFd:
 		// Always act in non blocking mode as if the counter has not been signalled
 		v0 = MipsEAGAIN
-		v1 = ^Word(0)
+		v1 = SysErrorSignal
 	default:
 		v0 = MipsEBADF
-		v1 = ^Word(0)
+		v1 = SysErrorSignal
 	}
 
 	return v0, v1, newPreimageOffset, memUpdated, memAddr
@@ -249,10 +249,10 @@ func HandleSysWrite(a0, a1, a2 Word,
 		// Always report that the write could not be completed
 		// This acts as if the counter has already reached the maximum value
 		v0 = MipsEAGAIN
-		v1 = ^Word(0)
+		v1 = SysErrorSignal
 	default:
 		v0 = MipsEBADF
-		v1 = ^Word(0)
+		v1 = SysErrorSignal
 	}
 
 	return v0, v1, newLastHint, newPreimageKey, newPreimageOffset
@@ -281,8 +281,8 @@ func HandleSysFcntl(a0, a1 Word) (v0, v1 Word) {
 			v1 = MipsEBADF
 		}
 	} else {
-		v0 = ^Word(0)
-		v1 = MipsEINVAL // cmd not recognized by this kernel
+		v0 = MipsEINVAL // cmd not recognized by this kernel
+		v1 = SysErrorSignal
 	}
 
 	return v0, v1

@@ -225,8 +225,8 @@ library MIPS64Syscalls {
                 newHeap_ += sz;
                 // Fail if new heap exceeds memory limit, newHeap overflows to low memory, or sz overflows
                 if (newHeap_ > HEAP_END || newHeap_ < _heap || sz < _a1) {
-                    v0_ = SYS_ERROR_SIGNAL;
-                    v1_ = EINVAL;
+                    v0_ = EINVAL;
+                    v1_ = SYS_ERROR_SIGNAL;
                     return (v0_, v1_, _heap);
                 }
             } else {
