@@ -8,12 +8,15 @@ import { IDisputeGameFactory } from "interfaces/dispute/IDisputeGameFactory.sol"
 import { BaseDeployIO } from "scripts/deploy/BaseDeployIO.sol";
 import { GameType } from "src/dispute/lib/Types.sol";
 import { IAnchorStateRegistry } from "interfaces/dispute/IAnchorStateRegistry.sol";
+import { IBigStepper } from "interfaces/dispute/IBigStepper.sol";
 
 contract SetDisputeGameImplInput is BaseDeployIO {
     IDisputeGameFactory internal _factory;
     IAnchorStateRegistry internal _anchorStateRegistry;
     IFaultDisputeGame internal _impl;
     uint32 internal _gameType;
+    bytes32 internal _absolutePrestate;
+    IBigStepper internal _vm;
 
     // Setter for address type
     function set(bytes4 _sel, address _addr) public {
@@ -22,6 +25,13 @@ contract SetDisputeGameImplInput is BaseDeployIO {
         if (_sel == this.factory.selector) _factory = IDisputeGameFactory(_addr);
         else if (_sel == this.anchorStateRegistry.selector) _anchorStateRegistry = IAnchorStateRegistry(_addr);
         else if (_sel == this.impl.selector) _impl = IFaultDisputeGame(_addr);
+        else if (_sel == this.bigStepper.selector) _vm = IBigStepper(_addr);
+        else revert("SetDisputeGameImplInput: unknown selector");
+    }
+
+    // Setter for bytes32 type
+    function set(bytes4 _sel, bytes32 _value) public {
+        if (_sel == this.absolutePrestate.selector) _absolutePrestate = _value;
         else revert("SetDisputeGameImplInput: unknown selector");
     }
 
@@ -48,11 +58,20 @@ contract SetDisputeGameImplInput is BaseDeployIO {
     function gameType() public view returns (uint32) {
         return _gameType;
     }
+
+    function absolutePrestate() public view returns (bytes32) {
+        require(_absolutePrestate != bytes32(0), "SetDisputeGameImplInput: not set");
+        return _absolutePrestate;
+    }
+
+    function bigStepper() public view returns (IBigStepper) {
+        require(address(_vm) != address(0), "SetDisputeGameImplInput: not set");
+        return _vm;
+    }
 }
 
 contract SetDisputeGameImpl is Script {
     function run(SetDisputeGameImplInput _input) public {
-        require(false, "SetDisputeGameImpl Failing");
         IDisputeGameFactory factory = _input.factory();
         GameType gameType = GameType.wrap(_input.gameType());
         require(address(factory.gameImpls(gameType)) == address(0), "SDGI-10");
@@ -60,8 +79,10 @@ contract SetDisputeGameImpl is Script {
         IFaultDisputeGame impl = _input.impl();
         IAnchorStateRegistry anchorStateRegistry = _input.anchorStateRegistry();
 
+        bytes memory implArgs = abi.encodePacked(_input.absolutePrestate(), _input.bigStepper(), anchorStateRegistry);
+        
         vm.broadcast(msg.sender);
-        factory.setImplementation(gameType, impl, ""); // TODO: use actual args in script
+        factory.setImplementation(gameType, impl, implArgs);
 
         if (address(anchorStateRegistry) != address(0)) {
             require(address(anchorStateRegistry.disputeGameFactory()) == address(factory), "SDGI-20");

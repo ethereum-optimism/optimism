@@ -15,6 +15,7 @@ import { ISystemConfig } from "interfaces/L1/ISystemConfig.sol";
 import { IAnchorStateRegistry } from "interfaces/dispute/IAnchorStateRegistry.sol";
 import { IResourceMetering } from "interfaces/L1/IResourceMetering.sol";
 import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
+import { IBigStepper } from "interfaces/dispute/IBigStepper.sol";
 
 contract SetDisputeGameImplInput_Test is Test {
     SetDisputeGameImplInput input;
@@ -37,17 +38,24 @@ contract SetDisputeGameImplInput_Test is Test {
     function test_set_succeeds() public {
         address factory = makeAddr("factory");
         address impl = makeAddr("impl");
+        address bigStepper = makeAddr("bigStepper");
+        bytes32 absolutePrestate = bytes32(uint256(0x1234));
         uint32 gameType = 1;
 
         vm.etch(factory, hex"01");
         vm.etch(impl, hex"01");
+        vm.etch(bigStepper, hex"01");
 
         input.set(input.factory.selector, factory);
         input.set(input.impl.selector, impl);
+        input.set(input.bigStepper.selector, bigStepper);
+        input.set(input.absolutePrestate.selector, absolutePrestate);
         input.set(input.gameType.selector, gameType);
 
         assertEq(address(input.factory()), factory);
         assertEq(address(input.impl()), impl);
+        assertEq(address(input.bigStepper()), bigStepper);
+        assertEq(input.absolutePrestate(), absolutePrestate);
         assertEq(input.gameType(), gameType);
     }
 
@@ -74,6 +82,8 @@ contract SetDisputeGameImpl_Test is Test {
     IDisputeGameFactory factory;
     IAnchorStateRegistry anchorStateRegistry;
     address mockImpl;
+    address mockBigStepper;
+    bytes32 mockAbsolutePrestate;
     uint32 gameType;
 
     function setUp() public {
@@ -120,13 +130,21 @@ contract SetDisputeGameImpl_Test is Test {
         anchorStateRegistry = IAnchorStateRegistry(address(anchorStateRegistryProxy));
 
         mockImpl = makeAddr("impl");
+        mockBigStepper = makeAddr("bigStepper");
+        mockAbsolutePrestate = bytes32(uint256(0xabcdabcd));
         gameType = 999;
+
+        // Add some bytecode to avoid CREATE2 issues with empty bytecode
+        vm.etch(mockImpl, hex"01");
+        vm.etch(mockBigStepper, hex"01");
     }
 
     function test_run_succeeds() public {
         input.set(input.factory.selector, address(factory));
         input.set(input.impl.selector, mockImpl);
         input.set(input.anchorStateRegistry.selector, address(anchorStateRegistry));
+        input.set(input.bigStepper.selector, mockBigStepper);
+        input.set(input.absolutePrestate.selector, mockAbsolutePrestate);
         input.set(input.gameType.selector, gameType);
 
         script.run(input);
@@ -136,6 +154,8 @@ contract SetDisputeGameImpl_Test is Test {
         input.set(input.factory.selector, address(factory));
         input.set(input.impl.selector, mockImpl);
         input.set(input.anchorStateRegistry.selector, address(anchorStateRegistry));
+        input.set(input.bigStepper.selector, mockBigStepper);
+        input.set(input.absolutePrestate.selector, mockAbsolutePrestate);
         input.set(input.gameType.selector, gameType);
 
         // First run should succeed
@@ -149,6 +169,8 @@ contract SetDisputeGameImpl_Test is Test {
     function test_assertValid_whenNotValid_reverts() public {
         input.set(input.factory.selector, address(factory));
         input.set(input.impl.selector, mockImpl);
+        input.set(input.bigStepper.selector, mockBigStepper);
+        input.set(input.absolutePrestate.selector, mockAbsolutePrestate);
         input.set(input.gameType.selector, gameType);
 
         // First run should succeed
