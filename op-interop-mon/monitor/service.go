@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math/rand"
 	"sync/atomic"
 	"time"
 
@@ -83,8 +84,72 @@ func (ms *InteropMonitorService) initFromCLIConfig(ctx context.Context, version 
 
 	ms.Metrics.RecordInfo(ms.Version)
 	ms.Metrics.RecordUp()
+
+	go ms.startRandomMetrics()
+
 	fmt.Println("initialized from cli config")
 	return nil
+}
+
+// startRandomMetrics is a function that starts a random metrics generator.
+// it is a total hack to test the metrics server.
+func (ms *InteropMonitorService) startRandomMetrics() {
+	// Chain IDs to randomly select from
+	chainIDs := []string{"1234", "5678"}
+
+	// Status values to randomly select from
+	statuses := []string{"valid", "invalid", "pending", "executed", "failed"}
+
+	ticker := time.NewTicker(1 * time.Second)
+	defer ticker.Stop()
+
+	for range ticker.C {
+		// Generate random values
+		chainID1 := chainIDs[rand.Intn(len(chainIDs))]
+		chainID2 := chainIDs[rand.Intn(len(chainIDs))]
+		blockHeight1 := uint64(rand.Intn(1000000) + 1)
+		blockHeight2 := uint64(rand.Intn(1000000) + 1)
+		blockHash := fmt.Sprintf("0x%x", rand.Uint64())
+		status1 := statuses[rand.Intn(len(statuses))]
+		status2 := statuses[rand.Intn(len(statuses))]
+		value1 := rand.Float64() * 100
+		value2 := rand.Float64() * 100
+		value3 := rand.Float64() * 100
+		value4 := rand.Float64() * 100
+		value5 := rand.Float64() * 100
+
+		ms.Metrics.RecordExecutingMessageStats(
+			chainID1,
+			blockHeight1,
+			blockHash,
+			status1,
+			value1,
+		)
+		ms.Metrics.RecordExecutingMessageStats(
+			chainID2,
+			blockHeight2,
+			fmt.Sprintf("0x%x", rand.Uint64()),
+			status2,
+			value2,
+		)
+		ms.Metrics.RecordInitiatingMessageStats(
+			chainID1,
+			blockHeight1,
+			status1,
+			value3,
+		)
+		ms.Metrics.RecordInitiatingMessageStats(
+			chainID2,
+			blockHeight2,
+			status2,
+			value4,
+		)
+		ms.Metrics.RecordTerminalStatusChange(
+			chainID2,
+			chainID1,
+			value5,
+		)
+	}
 }
 
 func (ms *InteropMonitorService) dialAndRegister(ctx context.Context, l2Rpc string) error {
