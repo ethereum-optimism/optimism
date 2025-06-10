@@ -15,6 +15,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/engine"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/event"
+	"github.com/ethereum-optimism/optimism/op-service/binary"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
 	"github.com/ethereum-optimism/optimism/op-service/rpc"
@@ -405,7 +406,7 @@ func (m *ManagedMode) findLatestValidLocalUnsafe(ctx context.Context, l2UnsafeTa
 		// target.Number |  offset=0   offset=1   offset=2  ...  offset = x-1 = latestUnsafe   |  offset=x  (doesn't exist)
 		// false         |  t/f        t/f        t/f       ...  t/f                           |  true
 		// ------------------------------------------------------------------------------------
-		offset, err := localUnsafeSearch(targetDiff, func(i int) (bool, eth.L2BlockRef, error) {
+		offset, _, err := binary.SearchFirst(targetDiff, func(i int) (bool, eth.L2BlockRef, error) {
 			block, err := m.verifyBlock(ctx, logger, target+1+uint64(i))
 			return block == (eth.L2BlockRef{}), block, err
 		})
@@ -450,28 +451,6 @@ func (m *ManagedMode) findLatestValidLocalUnsafe(ctx context.Context, l2UnsafeTa
 			return valid, nil
 		}
 	}
-}
-
-// localUnsafeSearch is a copy-paste from sort.Search, but also stops on and returns error
-func localUnsafeSearch(n int, f func(int) (bool, eth.L2BlockRef, error)) (int, error) {
-	// Define f(-1) == false and f(n) == true.
-	// Invariant: f(i-1) == false, f(j) == true.
-	i, j := 0, n
-	for i < j {
-		h := int(uint(i+j) >> 1) // avoid overflow when computing h
-		// i ≤ h < j
-		ok, _, err := f(h)
-		if err != nil {
-			return -1, err
-		}
-		if !ok {
-			i = h + 1 // preserves f(i-1) == false
-		} else {
-			j = h // preserves f(j) == true
-		}
-	}
-	// i == j, f(i-1) == false, and f(j) (= f(i)) == true  =>  answer is i.
-	return i, nil
 }
 
 // verifyBlock
