@@ -212,13 +212,14 @@ impl RollupBoostServer {
             if let Some(builder_payload) = builder_payload {
                 // Record the delta (gas and txn) between the builder and l2 payload
                 let span = tracing::Span::current();
+                // use i64 to cover case when l2 builder has more gas/txs
                 span.record(
                     "gas_delta",
-                    (builder_payload.gas_used() - l2_payload.gas_used()).to_string(),
+                    (builder_payload.gas_used() as i64 - l2_payload.gas_used() as i64).to_string(),
                 );
                 span.record(
                     "tx_count_delta",
-                    (builder_payload.tx_count() - l2_payload.tx_count()).to_string(),
+                    (builder_payload.tx_count() as i64 - l2_payload.tx_count() as i64).to_string(),
                 );
 
                 // If execution mode is set to DryRun, fallback to the l2_payload,
