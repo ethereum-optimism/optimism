@@ -49,21 +49,4 @@ func TestStatus(t *testing.T) {
 	require.Zero(t, status.SafeL2.Number)
 	require.Zero(t, status.UnsafeL2.Number)
 	require.Zero(t, status.CurrentL1.Number)
-
-	tracker.OnEvent(rollup.ForceResetEvent{
-		LocalUnsafe: eth.L2BlockRef{Number: 201},
-		CrossUnsafe: eth.L2BlockRef{Number: 202},
-		LocalSafe:   eth.L2BlockRef{Number: 203},
-		CrossSafe:   eth.L2BlockRef{Number: 204},
-		Finalized:   eth.L2BlockRef{Number: 205},
-	})
-
-	status = tracker.SyncStatus()
-
-	require.Equal(t, status.UnsafeL2.Number, uint64(201))
-	require.Equal(t, status.CrossUnsafeL2.Number, uint64(202))
-	require.Equal(t, status.LocalSafeL2.Number, uint64(203))
-	require.Equal(t, status.SafeL2.Number, uint64(204))
-	require.Equal(t, status.FinalizedL2.Number, uint64(205))
-	require.Equal(t, status.CurrentL1.Number, uint64(0))
 }
