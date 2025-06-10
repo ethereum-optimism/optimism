@@ -24,17 +24,9 @@ const (
 
 func callEventfd() int {
 	fmt.Println("call eventfd")
-	const (
-		initVal   = 0
-		flags     = EFD_CLOEXEC | EFD_NONBLOCK
-		sysEvent2 = syscall.SYS_EVENTFD2
-	)
 
-	r1, _, errno := syscall.Syscall(sysEvent2,
-		uintptr(initVal),
-		uintptr(flags),
-		0,
-	)
+	flags := EFD_CLOEXEC | EFD_NONBLOCK
+	r1, _, errno := syscall.Syscall(syscall.SYS_EVENTFD2, uintptr(0), uintptr(flags), 0)
 	if errno != 0 {
 		panic("eventfd2 call failed")
 	}
@@ -47,11 +39,11 @@ func callEventfd() int {
 func writeToEventObject(fd int) {
 	fmt.Println("write to eventfd object")
 
-	writeVal := uint64(2)
+	writeVal := uint64(1)
 	var writeBuf [8]byte
 	binary.BigEndian.PutUint64(writeBuf[:], writeVal)
-
 	n, err := syscall.Write(fd, writeBuf[:])
+
 	validateReadWriteResponse(n, err)
 }
 
@@ -60,6 +52,7 @@ func readFromEventObject(fd int) {
 
 	var buf [8]byte
 	n, err := syscall.Read(fd, buf[:])
+
 	validateReadWriteResponse(n, err)
 }
 
