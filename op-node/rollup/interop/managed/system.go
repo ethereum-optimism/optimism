@@ -423,7 +423,7 @@ func (m *ManagedMode) findLatestValidLocalUnsafe(ctx context.Context, l2UnsafeTa
 	}
 
 	// In the following walkback loop, the following two cases are covered:
-	// 1. x == 0 or x < 1 (i.e. target == latestUnsafe), or
+	// 1. targetDiff == 0 or targetDiff < 0 (i.e. target == latestUnsafe), or
 	// 2. all blocks checked by binary search were invalid, so we have to go from `target` backwards indefinitely
 	//    until we find a valid block
 	for n := target; ; n-- {
