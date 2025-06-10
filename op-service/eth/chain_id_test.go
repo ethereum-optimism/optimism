@@ -4,6 +4,8 @@ import (
 	"math"
 	"testing"
 
+	"github.com/ethereum/go-ethereum/common/hexutil"
+
 	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
 )
@@ -60,4 +62,31 @@ func TestSortChainIDs(t *testing.T) {
 	require.NotEqual(t, expected, ids)
 	SortChainID(ids)
 	require.Equal(t, expected, ids)
+}
+
+func TestChainID_FromString(t *testing.T) {
+	hash := "0x23b00f3aae2634f1b35057cca336e1950473a1e037d0b405302d988f360f8268"
+	var h [32]byte
+	dec := hexutil.MustDecode(hash)
+	copy(h[:], dec)
+
+	tests := []struct {
+		input    string
+		expected ChainID
+	}{
+		{"0", ChainIDFromUInt64(0)},
+		{"1", ChainIDFromUInt64(1)},
+		{"871975192374", ChainIDFromUInt64(871975192374)},
+		{"9223372036854775807", ChainIDFromUInt64(math.MaxInt64)},
+		{"18446744073709551615", ChainID(*uint256.NewInt(math.MaxUint64))},
+		{"0x1234", ChainIDFromUInt64(0x1234)},
+		{hash, ChainIDFromBytes32(h)},
+	}
+	for _, tt := range tests {
+		t.Run(tt.input, func(t *testing.T) {
+			id, err := ChainIDFromString(tt.input)
+			require.NoError(t, err)
+			require.Equal(t, tt.expected, id)
+		})
+	}
 }
