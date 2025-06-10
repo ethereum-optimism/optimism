@@ -67,7 +67,7 @@ func TestInstrumentedState_SyscallEventFdProgram(t *testing.T) {
 		require.NoError(t, err)
 		matches := re.FindAllStringSubmatch(output, -1)
 		require.Equal(t, 1, len(matches))
-		require.Equal(t, "-1", matches[0][1])
+		require.Equal(t, "100", matches[0][1])
 	})
 }
 
