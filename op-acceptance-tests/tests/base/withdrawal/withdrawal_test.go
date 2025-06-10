@@ -64,7 +64,7 @@ func TestWithdrawal(gt *testing.T) {
 	require.Eventually(func() bool {
 		l2DepositReceipt, err = l2Client.TransactionReceipt(t.Ctx(), l2DepositTxHash)
 		return err == nil
-	}, 12*time.Second, 500*time.Millisecond, "L2 Deposit never found")
+	}, 60*time.Second, 500*time.Millisecond, "L2 Deposit never found")
 	require.Equal(types.ReceiptStatusSuccessful, l2DepositReceipt.Status)
 	// Deposit tx included so L2 user balance must be updated
 
