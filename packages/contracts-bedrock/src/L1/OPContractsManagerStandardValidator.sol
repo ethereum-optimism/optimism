@@ -35,8 +35,8 @@ import { IMIPS64 } from "interfaces/cannon/IMIPS64.sol";
 /// before and after an upgrade.
 contract StandardValidator is ISemver {
     /// @notice The semantic version of the StandardValidator contract.
-    /// @custom:semver 1.1.1
-    string public constant version = "1.1.1";
+    /// @custom:semver 1.1.2
+    string public constant version = "1.1.2";
 
     /// @notice The SuperchainConfig contract.
     ISuperchainConfig public superchainConfig;
@@ -212,7 +212,7 @@ contract StandardValidator is ISemver {
 
     /// @notice Returns the expected DisputeGameFactory version.
     function disputeGameFactoryVersion() public pure returns (string memory) {
-        return "1.2.0";
+        return "1.2.1";
     }
 
     /// @notice Returns the expected AnchorStateRegistry version.
@@ -227,7 +227,7 @@ contract StandardValidator is ISemver {
 
     /// @notice Returns the expected PermissionedDisputeGame version.
     function permissionedDisputeGameVersion() public pure returns (string memory) {
-        return "1.7.0";
+        return "1.7.1";
     }
 
     /// @notice Returns the expected PreimageOracle version.
