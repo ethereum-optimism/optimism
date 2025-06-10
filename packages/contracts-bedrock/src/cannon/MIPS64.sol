@@ -627,7 +627,7 @@ contract MIPS64 is ISemver {
             } else if (syscall_no == sys.SYS_LSEEK) {
                 // ignored
             } else if (syscall_no == sys.SYS_EVENTFD2) {
-                if (!st.featuresForVersion(STATE_VERSION).supportNoopSysEventFd2) {
+                if (!st.featuresForVersion(STATE_VERSION).supportMinimalSysEventFd2) {
                     revert("MIPS64: unimplemented syscall");
                 }
                 v0 = sys.FD_EVENTFD;
