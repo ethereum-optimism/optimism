@@ -182,8 +182,8 @@ func HandleSysRead(
 		v0 = MipsEAGAIN
 		v1 = ^Word(0)
 	default:
-		v0 = ^Word(0)
-		v1 = MipsEBADF
+		v0 = MipsEBADF
+		v1 = ^Word(0)
 	}
 
 	return v0, v1, newPreimageOffset, memUpdated, memAddr
@@ -251,8 +251,8 @@ func HandleSysWrite(a0, a1, a2 Word,
 		v0 = MipsEAGAIN
 		v1 = ^Word(0)
 	default:
-		v0 = ^Word(0)
-		v1 = MipsEBADF
+		v0 = MipsEBADF
+		v1 = ^Word(0)
 	}
 
 	return v0, v1, newLastHint, newPreimageKey, newPreimageOffset

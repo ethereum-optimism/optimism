@@ -318,8 +318,8 @@ library MIPS64Syscalls {
                 v0_ = EAGAIN;
                 v1_ = U64_MASK;
             } else {
-                v0_ = U64_MASK;
-                v1_ = EBADF;
+                v0_ = EBADF;
+                v1_ = U64_MASK;
             }
 
             return (v0_, v1_, newPreimageOffset_, newMemRoot_, memUpdated_, memAddr_);
@@ -378,8 +378,8 @@ library MIPS64Syscalls {
                 v0_ = EAGAIN;
                 v1_ = U64_MASK;
             } else {
-                v0_ = U64_MASK;
-                v1_ = EBADF;
+                v0_ = EBADF;
+                v1_ = U64_MASK;
             }
 
             return (v0_, v1_, newPreimageKey_, newPreimageOffset_);
