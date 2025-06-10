@@ -316,7 +316,7 @@ library MIPS64Syscalls {
             } else if (_args.a0 == FD_EVENTFD) {
                 // Always act in non blocking mode as if the counter has not been signalled
                 v0_ = EAGAIN;
-                v1_ = EAGAIN;
+                v1_ = U64_MASK;
             } else {
                 v0_ = U64_MASK;
                 v1_ = EBADF;
@@ -376,7 +376,7 @@ library MIPS64Syscalls {
                 // Always report that the write could not be completed
                 // This acts as if the counter has already reached the maximum value
                 v0_ = EAGAIN;
-                v1_ = EAGAIN;
+                v1_ = U64_MASK;
             } else {
                 v0_ = U64_MASK;
                 v1_ = EBADF;

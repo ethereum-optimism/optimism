@@ -180,7 +180,7 @@ func HandleSysRead(
 	case FdEventFd:
 		// Always act in non blocking mode as if the counter has not been signalled
 		v0 = MipsEAGAIN
-		v1 = MipsEAGAIN
+		v1 = ^Word(0)
 	default:
 		v0 = ^Word(0)
 		v1 = MipsEBADF
@@ -249,7 +249,7 @@ func HandleSysWrite(a0, a1, a2 Word,
 		// Always report that the write could not be completed
 		// This acts as if the counter has already reached the maximum value
 		v0 = MipsEAGAIN
-		v1 = MipsEAGAIN
+		v1 = ^Word(0)
 	default:
 		v0 = ^Word(0)
 		v1 = MipsEBADF
