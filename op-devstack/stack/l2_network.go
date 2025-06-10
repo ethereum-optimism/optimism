@@ -103,6 +103,8 @@ type L2Network interface {
 	L2CLNodes() []L2CLNode
 	L2ELNodes() []L2ELNode
 	Conductors() []Conductor
+	FlashblocksBuilders() []FlashblocksBuilderNode
+	AddFlashblocksBuilder(v FlashblocksBuilderNode)
 }
 
 // ExtensibleL2Network is an optional extension interface for L2Network,
