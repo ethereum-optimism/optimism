@@ -199,8 +199,8 @@ library MIPS64Syscalls {
     /// @param _a0 The address for the new mapping
     /// @param _a1 The size of the new mapping
     /// @param _heap The current value of the heap pointer
-    /// @return v0_ The address of the new mapping
-    /// @return v1_ Unused error code (0)
+    /// @return v0_ The address of the new mapping or error code on error
+    /// @return v1_ 0 if there is no error, non-zero on error
     /// @return newHeap_ The new value for the heap, may be unchanged
     function handleSysMmap(
         uint64 _a0,
@@ -225,8 +225,8 @@ library MIPS64Syscalls {
                 newHeap_ += sz;
                 // Fail if new heap exceeds memory limit, newHeap overflows to low memory, or sz overflows
                 if (newHeap_ > HEAP_END || newHeap_ < _heap || sz < _a1) {
-                    v0_ = SYS_ERROR_SIGNAL;
-                    v1_ = EINVAL;
+                    v0_ = EINVAL;
+                    v1_ = SYS_ERROR_SIGNAL;
                     return (v0_, v1_, _heap);
                 }
             } else {
@@ -239,8 +239,8 @@ library MIPS64Syscalls {
 
     /// @notice Like a Linux read syscall. Splits unaligned reads into aligned reads.
     ///         Args are provided as a struct to reduce stack pressure.
-    /// @return v0_ The number of bytes read, -1 on error.
-    /// @return v1_ The error code, 0 if there is no error.
+    /// @return v0_ The number of bytes read, error code on error.
+    /// @return v1_ 0 if there is no error, non-zero on error
     /// @return newPreimageOffset_ The new value for the preimage offset.
     /// @return newMemRoot_ The new memory root.
     function handleSysRead(SysReadParams memory _args)
@@ -327,8 +327,8 @@ library MIPS64Syscalls {
     }
 
     /// @notice Like a Linux write syscall. Splits unaligned writes into aligned writes.
-    /// @return v0_ The number of bytes written, or -1 on error.
-    /// @return v1_ The error code, or 0 if empty.
+    /// @return v0_ The number of bytes written, or error code on error.
+    /// @return v1_ 0 if there is no error, non-zero on error
     /// @return newPreimageKey_ The new preimageKey.
     /// @return newPreimageOffset_ The new preimageOffset.
     function handleSysWrite(SysWriteParams memory _args)
@@ -390,8 +390,8 @@ library MIPS64Syscalls {
     /// retrieve the file-descriptor R/W flags.
     /// @param _a0 The file descriptor.
     /// @param _a1 The control command.
-    /// @param v0_ The file status flag (only supported commands are F_GETFD and F_GETFL), or -1 on error.
-    /// @param v1_ An error number, or 0 if there is no error.
+    /// @param v0_ The file status flag (only supported commands are F_GETFD and F_GETFL), or error code on error.
+    /// @param v1_ 0 if there is no error, non-zero on error
     function handleSysFcntl(uint64 _a0, uint64 _a1) internal pure returns (uint64 v0_, uint64 v1_) {
         unchecked {
             v0_ = uint64(0);
@@ -406,8 +406,8 @@ library MIPS64Syscalls {
                 ) {
                     v0_ = 0; // No flags set
                 } else {
-                    v0_ = U64_MASK;
-                    v1_ = EBADF;
+                    v0_ = EBADF;
+                    v1_ = SYS_ERROR_SIGNAL;
                 }
             } else if (_a1 == 3) {
                 // F_GETFL: get file status flags
@@ -416,12 +416,12 @@ library MIPS64Syscalls {
                 } else if (_a0 == FD_STDOUT || _a0 == FD_STDERR || _a0 == FD_PREIMAGE_WRITE || _a0 == FD_HINT_WRITE) {
                     v0_ = 1; // O_WRONLY
                 } else {
-                    v0_ = U64_MASK;
-                    v1_ = EBADF;
+                    v0_ = EBADF;
+                    v1_ = SYS_ERROR_SIGNAL;
                 }
             } else {
-                v0_ = U64_MASK;
-                v1_ = EINVAL; // cmd not recognized by this kernel
+                v0_ = EINVAL; // cmd not recognized by this kernel
+                v1_ = SYS_ERROR_SIGNAL;
             }
 
             return (v0_, v1_);

@@ -122,8 +122,8 @@ func HandleSysMmap(a0, a1, heap Word) (v0, v1, newHeap Word) {
 		newHeap += sz
 		// Fail if new heap exceeds memory limit, newHeap overflows around to low memory, or sz overflows
 		if newHeap > program.HEAP_END || newHeap < heap || sz < a1 {
-			v0 = SysErrorSignal
-			v1 = MipsEINVAL
+			v0 = MipsEINVAL
+			v1 = SysErrorSignal
 			return v0, v1, heap
 		}
 	} else {
@@ -143,7 +143,7 @@ func HandleSysRead(
 	memTracker MemTracker,
 ) (v0, v1, newPreimageOffset Word, memUpdated bool, memAddr Word) {
 	// args: a0 = fd, a1 = addr, a2 = count
-	// returns: v0 = read, v1 = err code
+	// returns: v0 = return value, v1 = error boolean
 	v0 = Word(0)
 	v1 = Word(0)
 	newPreimageOffset = preimageOffset
@@ -180,10 +180,10 @@ func HandleSysRead(
 	case FdEventFd:
 		// Always act in non blocking mode as if the counter has not been signalled
 		v0 = MipsEAGAIN
-		v1 = ^Word(0)
+		v1 = SysErrorSignal
 	default:
 		v0 = MipsEBADF
-		v1 = ^Word(0)
+		v1 = SysErrorSignal
 	}
 
 	return v0, v1, newPreimageOffset, memUpdated, memAddr
@@ -199,7 +199,7 @@ func HandleSysWrite(a0, a1, a2 Word,
 	stdOut, stdErr io.Writer,
 ) (v0, v1 Word, newLastHint hexutil.Bytes, newPreimageKey common.Hash, newPreimageOffset Word) {
 	// args: a0 = fd, a1 = addr, a2 = count
-	// returns: v0 = written, v1 = err code
+	// returns: v0 = return value, v1 = error boolean
 	v1 = Word(0)
 	newLastHint = lastHint
 	newPreimageKey = preimageKey
@@ -249,10 +249,10 @@ func HandleSysWrite(a0, a1, a2 Word,
 		// Always report that the write could not be completed
 		// This acts as if the counter has already reached the maximum value
 		v0 = MipsEAGAIN
-		v1 = ^Word(0)
+		v1 = SysErrorSignal
 	default:
 		v0 = MipsEBADF
-		v1 = ^Word(0)
+		v1 = SysErrorSignal
 	}
 
 	return v0, v1, newLastHint, newPreimageKey, newPreimageOffset
@@ -267,8 +267,8 @@ func HandleSysFcntl(a0, a1 Word) (v0, v1 Word) {
 		case FdStdin, FdStdout, FdStderr, FdPreimageRead, FdHintRead, FdPreimageWrite, FdHintWrite:
 			v0 = 0 // No flags set
 		default:
-			v0 = ^Word(0)
-			v1 = MipsEBADF
+			v0 = MipsEBADF
+			v1 = SysErrorSignal
 		}
 	} else if a1 == 3 { // F_GETFL: get file status flags
 		switch a0 {
@@ -277,12 +277,12 @@ func HandleSysFcntl(a0, a1 Word) (v0, v1 Word) {
 		case FdStdout, FdStderr, FdPreimageWrite, FdHintWrite:
 			v0 = 1 // O_WRONLY
 		default:
-			v0 = ^Word(0)
-			v1 = MipsEBADF
+			v0 = MipsEBADF
+			v1 = SysErrorSignal
 		}
 	} else {
-		v0 = ^Word(0)
-		v1 = MipsEINVAL // cmd not recognized by this kernel
+		v0 = MipsEINVAL // cmd not recognized by this kernel
+		v1 = SysErrorSignal
 	}
 
 	return v0, v1
