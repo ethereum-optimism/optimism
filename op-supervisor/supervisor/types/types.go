@@ -114,6 +114,31 @@ func (m *Message) Access() Access {
 	return m.ToCheckSumArgs().Access()
 }
 
+func (m *Message) EncodeEvent() (topics []common.Hash, data []byte) {
+	topics = make([]common.Hash, 2)
+	topics[0] = ExecutingMessageEventTopic
+	topics[1] = m.PayloadHash
+
+	putZeroes := func(length uint) {
+		zeroes := make([]byte, length)
+		data = append(data, zeroes...)
+	}
+
+	data = make([]byte, 0, 32*5)
+	putZeroes(12)
+	data = append(data, m.Identifier.Origin.Bytes()...)
+	putZeroes(32 - 8)
+	data = binary.BigEndian.AppendUint64(data, m.Identifier.BlockNumber)
+	putZeroes(32 - 4)
+	data = binary.BigEndian.AppendUint32(data, m.Identifier.LogIndex)
+	putZeroes(32 - 8)
+	data = binary.BigEndian.AppendUint64(data, m.Identifier.Timestamp)
+	chainid := m.Identifier.ChainID.Bytes32()
+	data = append(data, chainid[:]...)
+
+	return topics, data
+}
+
 func (m *Message) DecodeEvent(topics []common.Hash, data []byte) error {
 	if len(topics) != 2 { // event hash, indexed payloadHash
 		return fmt.Errorf("unexpected number of event topics: %d", len(topics))
