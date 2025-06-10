@@ -25,7 +25,8 @@ func WithFastGame() stack.CommonOption {
 				[]state.AdditionalDisputeGame{
 					{
 						ChainProofParams: state.ChainProofParams{
-							DisputeGameType:         uint32(faultTypes.FastGameType),
+							DisputeGameType: uint32(faultTypes.FastGameType),
+							// Use Alphabet VM prestate which is a pre-determined fixed hash
 							DisputeAbsolutePrestate: common.HexToHash("0x03c7ae758795765c6664a5d39bf63841c71ff191e9189522bad8ebff5d4eca98"),
 							DisputeMaxGameDepth:     14 + 3 + 1,
 							DisputeSplitDepth:       14,
