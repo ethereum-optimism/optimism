@@ -49,6 +49,14 @@ gates:
         package: github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/isthmus/preinterop
         timeout: 20m
 
+  - id: flashblocks
+    inherits:
+      - base
+    description: "Flashblocks network tests."
+    tests:
+      - package: github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/flashblocks
+        timeout: 5m
+
   - id: interop
     inherits:
       - base
