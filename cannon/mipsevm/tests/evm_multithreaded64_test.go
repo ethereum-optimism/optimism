@@ -455,7 +455,7 @@ func TestEVM_MT_SysRead_FromEventFd(t *testing.T) {
 			expected := mttestutil.NewExpectedMTState(state)
 			expected.ExpectStep()
 			expected.ActiveThread().Registers[2] = exec.MipsEAGAIN
-			expected.ActiveThread().Registers[7] = ^Word(0)
+			expected.ActiveThread().Registers[7] = exec.SysErrorSignal
 
 			stepWitness, err := goVm.Step(true)
 			require.NoError(t, err)
@@ -498,7 +498,7 @@ func TestEVM_MT_SysWrite_ToEventFd(t *testing.T) {
 			expected := mttestutil.NewExpectedMTState(state)
 			expected.ExpectStep()
 			expected.ActiveThread().Registers[2] = exec.MipsEAGAIN
-			expected.ActiveThread().Registers[7] = ^Word(0)
+			expected.ActiveThread().Registers[7] = exec.SysErrorSignal
 
 			stepWitness, err := goVm.Step(true)
 			require.NoError(t, err)

@@ -517,8 +517,8 @@ func TestEVM_SysFutex_WaitPrivate(t *testing.T) {
 				expected.ActiveThread().NextPC = state.GetCpu().NextPC + 4
 				if c.shouldFail {
 					expected.StepsSinceLastContextSwitch += 1
-					expected.ActiveThread().Registers[2] = exec.SysErrorSignal
-					expected.ActiveThread().Registers[7] = exec.MipsEAGAIN
+					expected.ActiveThread().Registers[2] = exec.MipsEAGAIN
+					expected.ActiveThread().Registers[7] = exec.SysErrorSignal
 				} else {
 					// Return empty result and preempt thread
 					expected.ActiveThread().Registers[2] = 0
@@ -663,8 +663,8 @@ func TestEVM_SysFutex_UnsupportedOp(t *testing.T) {
 				expected.StepsSinceLastContextSwitch += 1
 				expected.ActiveThread().PC = state.GetCpu().NextPC
 				expected.ActiveThread().NextPC = state.GetCpu().NextPC + 4
-				expected.ActiveThread().Registers[2] = exec.SysErrorSignal
-				expected.ActiveThread().Registers[7] = exec.MipsEINVAL
+				expected.ActiveThread().Registers[2] = exec.MipsEINVAL
+				expected.ActiveThread().Registers[7] = exec.SysErrorSignal
 
 				// State transition
 				var err error
@@ -751,8 +751,8 @@ func TestEVM_SysOpen(t *testing.T) {
 			// Set up post-state expectations
 			expected := mttestutil.NewExpectedMTState(state)
 			expected.ExpectStep()
-			expected.ActiveThread().Registers[2] = exec.SysErrorSignal
-			expected.ActiveThread().Registers[7] = exec.MipsEBADF
+			expected.ActiveThread().Registers[2] = exec.MipsEBADF
+			expected.ActiveThread().Registers[7] = exec.SysErrorSignal
 
 			// State transition
 			var err error
@@ -919,8 +919,8 @@ func TestEVM_SysClockGettimeNonMonotonic(t *testing.T) {
 
 			expected := mttestutil.NewExpectedMTState(state)
 			expected.ExpectStep()
-			expected.ActiveThread().Registers[2] = exec.SysErrorSignal
-			expected.ActiveThread().Registers[7] = exec.MipsEINVAL
+			expected.ActiveThread().Registers[2] = exec.MipsEINVAL
+			expected.ActiveThread().Registers[7] = exec.SysErrorSignal
 
 			var err error
 			var stepWitness *mipsevm.StepWitness

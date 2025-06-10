@@ -616,8 +616,8 @@ func TestEVM_MMap(t *testing.T) {
 				expected.PC = state.GetCpu().NextPC
 				expected.NextPC = state.GetCpu().NextPC + 4
 				if c.shouldFail {
-					expected.Registers[2] = exec.SysErrorSignal
-					expected.Registers[7] = exec.MipsEINVAL
+					expected.Registers[2] = exec.MipsEINVAL
+					expected.Registers[7] = exec.SysErrorSignal
 				} else {
 					expected.Heap = c.expectedHeap
 					if c.address == 0 {
