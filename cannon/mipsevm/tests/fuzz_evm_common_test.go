@@ -158,7 +158,7 @@ func FuzzStateSyscallFcntl(f *testing.F) {
 						expected.Registers[7] = 0
 					default:
 						expected.Registers[2] = exec.MipsEBADF
-						expected.Registers[7] = ^Word(0)
+						expected.Registers[7] = exec.SysErrorSignal
 					}
 				} else if cmd == 3 {
 					switch fd {
@@ -170,11 +170,11 @@ func FuzzStateSyscallFcntl(f *testing.F) {
 						expected.Registers[7] = 0
 					default:
 						expected.Registers[2] = exec.MipsEBADF
-						expected.Registers[7] = ^Word(0)
+						expected.Registers[7] = exec.SysErrorSignal
 					}
 				} else {
 					expected.Registers[2] = exec.MipsEINVAL
-					expected.Registers[7] = ^Word(0)
+					expected.Registers[7] = exec.SysErrorSignal
 				}
 
 				stepWitness, err := goVm.Step(true)
