@@ -136,7 +136,7 @@
     "sourceCodeHash": "0x734a6b2aa6406bc145d848ad6071d3af1d40852aeb8f4b2f6f51beaad476e2d3"
   },
   "src/cannon/MIPS64.sol:MIPS64": {
-    "initCodeHash": "0x9d75430415c843626dfa74daee3bec853c513900c6fa616302db8fcde57e6844",
+    "initCodeHash": "0x87abcd93ed88b7792bb8cd239b4ca785e2b368774efe54406c00780374446d11",
     "sourceCodeHash": "0xfb4f60d3a1613acabfad274c00d5e393a072869989117f41a76c3d60c77f96d2"
   },
   "src/cannon/PreimageOracle.sol:PreimageOracle": {
