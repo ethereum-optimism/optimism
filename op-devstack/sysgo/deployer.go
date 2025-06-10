@@ -192,7 +192,6 @@ func WithCommons(l1ChainID eth.ChainID) DeployerOption {
 
 		// We use the L1 chain ID to identify the superchain-wide roles.
 		addrFor := intentbuilder.RoleToAddrProvider(p, keys, l1ChainID)
-		l1Config.WithPrefundedAccount(addrFor(devkeys.L1ProxyAdminOwnerRole), *millionEth)
 		_, superCfg := builder.WithSuperchain()
 		intentbuilder.WithDevkeySuperRoles(p, keys, l1ChainID, superCfg)
 		l1Config.WithPrefundedAccount(addrFor(devkeys.SuperchainProxyAdminOwner), *millionEth)
