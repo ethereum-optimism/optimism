@@ -6,3 +6,7 @@ go1-23:
 
 .PHONY: elf
 elf: go1-23
+
+.PHONY: clean
+clean:
+	make -C ./go-1-23 clean

@@ -30,6 +30,47 @@ func TestInstrumentedState_Claim(t *testing.T) {
 	testutil.RunVMTest_Claim(t, CreateInitialState, vmFactory)
 }
 
+func TestInstrumentedState_SyscallEventFdProgram(t *testing.T) {
+	runTestAcrossVms(t, "SyscallEventFdProgram", func(t *testing.T, vmFactory testutil.VMFactory[*State], goTarget testutil.GoTarget) {
+		state, meta := testutil.LoadELFProgram(t, testutil.ProgramPath("syscall-eventfd", goTarget), CreateInitialState)
+
+		var stdOutBuf, stdErrBuf bytes.Buffer
+		us := vmFactory(state, nil, io.MultiWriter(&stdOutBuf, os.Stdout), io.MultiWriter(&stdErrBuf, os.Stderr), testutil.CreateLogger(), meta)
+		err := us.InitDebug()
+		require.NoError(t, err)
+
+		for i := 0; i < 500_000; i++ {
+			if us.GetState().GetExited() {
+				break
+			}
+			_, err := us.Step(false)
+			require.NoError(t, err)
+		}
+		t.Logf("Completed in %d steps", state.Step)
+
+		require.True(t, state.GetExited(), "must complete program")
+		if state.GetExitCode() != 0 {
+			us.Traceback()
+		}
+		require.Equal(t, uint8(0), state.GetExitCode(), "exit with 0")
+
+		// Check output
+		output := stdOutBuf.String()
+		require.Contains(t, output, "call eventfd")
+		require.Contains(t, output, "write to eventfd object")
+		require.Contains(t, output, "read from eventfd object")
+		require.Contains(t, output, "done")
+
+		// Check fd value
+		pattern := `eventfd2 fd = (.+)`
+		re, err := regexp.Compile(pattern)
+		require.NoError(t, err)
+		matches := re.FindAllStringSubmatch(output, -1)
+		require.Equal(t, 1, len(matches))
+		require.Equal(t, "-1", matches[0][1])
+	})
+}
+
 func TestInstrumentedState_UtilsCheck(t *testing.T) {
 	// Sanity check that test running utilities will return a non-zero exit code on failure
 	t.Parallel()
