@@ -33,7 +33,7 @@ func SearchL[T any](n int, f func(int) (bool, T, error)) (int, T, error) {
 	return l, elLeft, nil
 }
 
-// SearchR is the same as SearchL, but returns the index of the first element, which returns false.
+// SearchR is the same as SearchL, but returns the index of the first element which returns false.
 //
 // Example search space:
 // index:  0, 1, 2, 3, 4, 5, 6, 7, 8, 9
