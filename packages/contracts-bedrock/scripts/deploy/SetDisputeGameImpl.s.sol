@@ -52,6 +52,7 @@ contract SetDisputeGameImplInput is BaseDeployIO {
 
 contract SetDisputeGameImpl is Script {
     function run(SetDisputeGameImplInput _input) public {
+        require(false, "SetDisputeGameImpl Failing");
         IDisputeGameFactory factory = _input.factory();
         GameType gameType = GameType.wrap(_input.gameType());
         require(address(factory.gameImpls(gameType)) == address(0), "SDGI-10");
