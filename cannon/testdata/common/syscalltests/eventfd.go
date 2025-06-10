@@ -1,7 +1,7 @@
 //go:build linux && mips64
 // +build linux,mips64
 
-package syscall
+package syscalltests
 
 import (
 	"encoding/binary"

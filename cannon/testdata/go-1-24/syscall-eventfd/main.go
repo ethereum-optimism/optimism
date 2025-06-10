@@ -1,9 +1,9 @@
 package main
 
 import (
-	"common/syscall"
+	"common/syscalltests"
 )
 
 func main() {
-	syscall.EventfdTest()
+	syscalltests.EventfdTest()
 }
