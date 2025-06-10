@@ -267,8 +267,8 @@ func HandleSysFcntl(a0, a1 Word) (v0, v1 Word) {
 		case FdStdin, FdStdout, FdStderr, FdPreimageRead, FdHintRead, FdPreimageWrite, FdHintWrite:
 			v0 = 0 // No flags set
 		default:
-			v0 = ^Word(0)
-			v1 = MipsEBADF
+			v0 = MipsEBADF
+			v1 = SysErrorSignal
 		}
 	} else if a1 == 3 { // F_GETFL: get file status flags
 		switch a0 {
@@ -277,8 +277,8 @@ func HandleSysFcntl(a0, a1 Word) (v0, v1 Word) {
 		case FdStdout, FdStderr, FdPreimageWrite, FdHintWrite:
 			v0 = 1 // O_WRONLY
 		default:
-			v0 = ^Word(0)
-			v1 = MipsEBADF
+			v0 = MipsEBADF
+			v1 = SysErrorSignal
 		}
 	} else {
 		v0 = MipsEINVAL // cmd not recognized by this kernel
