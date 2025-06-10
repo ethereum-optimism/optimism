@@ -394,38 +394,28 @@ func (m *ManagedMode) findLatestValidLocalUnsafe(ctx context.Context, l2UnsafeTa
 
 	targetDiff := int(latestUnsafe.Number - target)
 	if targetDiff > 0 {
-		// Binary search to find and return the smallest index i in [0, x) at which f(i) is true.
-		// In this context, binary search returns the first block which is invalid, and we infer that the previous block is valid.
-		// This means that `offset+1` is the index of the first invalid block.
-		// This means that `offset` is the index of the last valid block, which we are searching for.
+		// Binary search to find and return the last valid block for idx in [0, targetDiff)
 		// We don't check validity of `target`, `target` is not in the search space, it is checked
 		// in the walkback loop section below if necessary.
 
 		// Search space:
-		// ------------------------------------------------------------------------------------
-		// target.Number |  offset=0   offset=1   offset=2  ...  offset = x-1 = latestUnsafe   |  offset=x  (doesn't exist)
-		// false         |  t/f        t/f        t/f       ...  t/f                           |  true
-		// ------------------------------------------------------------------------------------
-		offset, _, err := binary.SearchFirst(targetDiff, func(i int) (bool, eth.L2BlockRef, error) {
+		// ------------------------------------------------------------------------------------------
+		// target.Number |  idx=0      idx=1      idx=2     ...  idx = targetDiff-1 = latestUnsafe   |
+		// false         |  t/f        t/f        t/f       ...  t/f                                 |
+		// ------------------------------------------------------------------------------------------
+		idx, valid, err := binary.SearchL(targetDiff, func(i int) (bool, eth.L2BlockRef, error) {
 			block, err := m.verifyBlock(ctx, logger, target+1+uint64(i))
-			return block == (eth.L2BlockRef{}), block, err
+			return block != (eth.L2BlockRef{}), block, err
 		})
 		if err != nil {
 			return eth.L2BlockRef{}, err
 		}
-		// offset == 0 => search returns 0 if f(i) returned true for all i in [0, x) => all blocks we checked are invalid
-		// offset == x => search returns x if f(i) returned false for all i in [0, x) => all blocks we checked are valid
 
-		if offset != 0 {
-			logger.Info("Found last valid block with binary search", "validNum", target+uint64(offset))
-
-			valid, err := m.l2.L2BlockRefByNumber(ctx, target+uint64(offset))
-			if err != nil {
-				return eth.L2BlockRef{}, err
-			}
-
-			logger.Info("Last valid L2 block ref", "valid", valid)
+		if idx != -1 {
+			logger.Info("Found last valid block with binary search", "valid", valid)
 			return valid, nil
+		} else {
+			logger.Info("All blocks checked by binary search are invalid between target and latestUnsafe")
 		}
 	} else if targetDiff < 0 {
 		logger.Warn("Latest unsafe block is older than target, using latest unsafe for search")
@@ -434,7 +424,7 @@ func (m *ManagedMode) findLatestValidLocalUnsafe(ctx context.Context, l2UnsafeTa
 
 	// In the following walkback loop, the following two cases are covered:
 	// 1. x == 0 or x < 1 (i.e. target == latestUnsafe), or
-	// 2. binary search returned offset == 0 (i.e. all blocks we checked are invalid), so we have to go from `target` backwards indefinitely
+	// 2. all blocks checked by binary search were invalid, so we have to go from `target` backwards indefinitely
 	//    until we find a valid block
 	for n := target; ; n-- {
 		if n == target-1 {
