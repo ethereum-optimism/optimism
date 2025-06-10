@@ -18,6 +18,9 @@ import (
 )
 
 func TestSetDisputeGameImpl(t *testing.T) {
+	t.Skip("Test requires SEPOLIA_RPC_URL and modifies real contracts - skipping in CI")
+	// TODO: snevins - update for local test
+	
 	t.Parallel()
 
 	_, artifacts := testutil.LocalArtifacts(t)
@@ -47,9 +50,12 @@ func TestSetDisputeGameImpl(t *testing.T) {
 	factoryAddr := common.HexToAddress("0x05F9613aDB30026FFd634f38e5C4dFd30a197Fa1")
 
 	input := SetDisputeGameImplInput{
-		Factory:  factoryAddr,
-		Impl:     common.Address{'I'},
-		GameType: 999,
+		Factory:             factoryAddr,
+		Impl:                common.Address{'I'},
+		GameType:            999999,
+		AnchorStateRegistry: common.HexToAddress("0x9876543210987654321098765432109876543210"),
+		AbsolutePrestate:    [32]byte{0xab, 0xcd, 0xab, 0xcd},
+		BigStepper:          common.HexToAddress("0x5555666677778888999900001111222233334444"),
 	}
 	require.NoError(t, SetDisputeGameImpl(host, input))
 }

@@ -10,6 +10,8 @@ type SetDisputeGameImplInput struct {
 	Impl                common.Address
 	AnchorStateRegistry common.Address
 	GameType            uint32
+	AbsolutePrestate    [32]byte
+	BigStepper          common.Address
 }
 
 func SetDisputeGameImpl(
