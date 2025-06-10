@@ -112,7 +112,7 @@ library MIPS64Syscalls {
     uint32 internal constant FD_HINT_WRITE = 4;
     uint32 internal constant FD_PREIMAGE_READ = 5;
     uint32 internal constant FD_PREIMAGE_WRITE = 6;
-    uint64 internal constant FD_EVENTFD = U64_MASK;
+    uint64 internal constant FD_EVENTFD = 100;
 
     uint64 internal constant SYS_ERROR_SIGNAL = U64_MASK;
     uint64 internal constant EBADF = 0x9;
@@ -316,10 +316,10 @@ library MIPS64Syscalls {
             } else if (_args.a0 == FD_EVENTFD) {
                 // Always act in non blocking mode as if the counter has not been signalled
                 v0_ = EAGAIN;
-                v1_ = U64_MASK;
+                v1_ = SYS_ERROR_SIGNAL;
             } else {
                 v0_ = EBADF;
-                v1_ = U64_MASK;
+                v1_ = SYS_ERROR_SIGNAL;
             }
 
             return (v0_, v1_, newPreimageOffset_, newMemRoot_, memUpdated_, memAddr_);
@@ -376,10 +376,10 @@ library MIPS64Syscalls {
                 // Always report that the write could not be completed
                 // This acts as if the counter has already reached the maximum value
                 v0_ = EAGAIN;
-                v1_ = U64_MASK;
+                v1_ = SYS_ERROR_SIGNAL;
             } else {
                 v0_ = EBADF;
-                v1_ = U64_MASK;
+                v1_ = SYS_ERROR_SIGNAL;
             }
 
             return (v0_, v1_, newPreimageKey_, newPreimageOffset_);

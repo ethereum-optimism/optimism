@@ -30,7 +30,7 @@ const (
 	FdPreimageRead  = 5
 	FdPreimageWrite = 6
 
-	FdEventFd = ^Word(0)
+	FdEventFd = 100
 )
 
 // Errors
