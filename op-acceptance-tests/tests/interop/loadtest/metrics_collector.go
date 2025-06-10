@@ -183,7 +183,7 @@ Outer:
 	return true
 }
 
-// MetricsCollector collects metrics samples over time
+// MetricsCollector collects metrics samples over time.
 type MetricsCollector struct {
 	samples   map[string]MetricSamples
 	blockTime time.Duration
@@ -198,7 +198,7 @@ func NewMetricsCollector(blockTime time.Duration) *MetricsCollector {
 	}
 }
 
-// Start begins collecting metrics samples
+// Start begins collecting metrics samples.
 func (mc *MetricsCollector) Start(ctx context.Context) error {
 	mc.startTime = time.Now()
 	ticker := time.NewTicker(mc.blockTime)
@@ -244,7 +244,7 @@ func (mc *MetricsCollector) Start(ctx context.Context) error {
 	}
 }
 
-// SaveGraphs generates and saves graphs of collected metrics over time
+// SaveGraphs generates and saves graphs of collected metrics over time.
 func (mc *MetricsCollector) SaveGraphs(dir string) error {
 	if err := mc.saveInFlightMessagesGraph(dir); err != nil {
 		return fmt.Errorf("save in-flight messages graph: %w", err)
@@ -362,8 +362,8 @@ func (mc *MetricsCollector) saveTxSubmissionStatusCountGraphs(dir string) error 
 		chainSamples := samples.WithLabels(chain)
 		for i, status := range chainSamples.UniqueLabels(1) {
 			statusPoints := chainSamples.WithLabels(status).ToValuePerIntervalPoints(mc.startTime)
-			// Prometheus's Gatherer interface guarantees the statuses are sorted,
-			// so we will always assign them the same colors.
+			// Prometheus's Gatherer interface guarantees the statuses are sorted, so we will
+			// always assign them the same colors.
 			line, err := addLine(p, statusPoints, colors[colorOrder[i%len(colorOrder)]])
 			if err != nil {
 				return fmt.Errorf("%s: %w", status, err)

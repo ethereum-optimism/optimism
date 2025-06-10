@@ -54,13 +54,13 @@ func (l2 *L2) Include(ctx context.Context, t devtest.T, opts ...txplan.Option) (
 	eoa := l2.EOAs.Get()
 	unsigned, err := txplan.NewPlannedTx(eoa.Plan, txplan.Combine(opts...)).Unsigned.Eval(ctx)
 	if err != nil {
-		// Context cancelations and i/o timeouts can cause an error (there may be other scenarios, too).
+		// Context cancelations and i/o timeouts can cause an error (there may be other scenarios).
 		// Let the caller handle it.
 		return nil, err
 	}
 	includedTx, err := eoa.Includer.Include(ctx, unsigned)
 	if err != nil {
-		return nil, err // Allow the caller to check for budget overdrafts, context cancelation, etc.
+		return nil, err // Allow the caller to check for budget overdrafts and context cancelation.
 	}
 	t.Require().Equal(ethtypes.ReceiptStatusSuccessful, includedTx.Receipt.Status)
 	return includedTx, nil

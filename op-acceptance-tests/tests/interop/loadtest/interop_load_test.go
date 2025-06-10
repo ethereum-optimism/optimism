@@ -1,14 +1,3 @@
-// Package loadtest contains interop load tests.
-//
-// Configure test behavior with the following environment variables:
-//
-//   - NAT_INTEROP_LOADTEST_TARGET (default: 100): the initial amount of messages that should be passed per L2 slot in each test.
-//   - NAT_INTEROP_LOADTEST_BUDGET (default: 1): the max amount of ETH to spend per L2 in each test.
-//
-// Budget depletion and the global test timeout can end any test. They are interpreted as failures unless noted otherwise.
-//
-// Each test increases the message throughput until some threshold is reached (e.g., the gas target).
-// The throughput is decreased if the threshold is exceeded or if errors are encountered (e.g., transaction inclusion failures).
 package loadtest
 
 import (
@@ -39,11 +28,10 @@ func TestMain(m *testing.M) {
 	presets.DoMain(m, presets.WithSimpleInterop())
 }
 
-// TestSteady attempts to approach but not exceed the gas target in every block by spamming interop messages,
-// simulating benign but heavy activity.
-// The test will exit successfully after the global go test deadline or the timeout specified by the
-// NAT_STEADY_TIMEOUT environment variable elapses, whichever comes first.
-// Also see: https://github.com/golang/go/issues/48157.
+// TestSteady attempts to approach but not exceed the gas target in every block by spamming interop
+// messages, simulating benign but heavy activity. The test will exit successfully after the global
+// go test deadline or the timeout specified by the NAT_STEADY_TIMEOUT environment variable
+// elapses, whichever comes first. Also see: https://github.com/golang/go/issues/48157.
 func TestSteady(gt *testing.T) {
 	t := setupT(gt)
 	var wg sync.WaitGroup
@@ -104,8 +92,8 @@ func TestSteady(gt *testing.T) {
 	}
 }
 
-// TestBurst spams interop messages and exits successfully when the budget is depleted,
-// simulating adversarial behavior.
+// TestBurst spams interop messages and exits successfully when the budget is depleted, simulating
+// adversarial behavior.
 func TestBurst(gt *testing.T) {
 	t := setupT(gt)
 	var wg sync.WaitGroup
@@ -257,11 +245,13 @@ func relayMessage(ctx context.Context, t devtest.T, source, dest *L2) error {
 		Msg:      initMsg,
 	}), func(tx *txplan.PlannedTx) {
 		tx.AgainstBlock.Wrap(func(fn plan.Fn[eth.BlockInfo]) plan.Fn[eth.BlockInfo] {
-			// The tx is invalid until we know it will be included at a higher timestamp than any of the initiating messages, modulo reorgs.
-			// Wait to plan the relay tx against a target block until the timestamp elapses.
-			// NOTE: this should be `>=`, but the mempool filtering in op-geth currently uses the unsafe head's timestamp instead of
-			// the pending timestamp. See https://github.com/ethereum-optimism/op-geth/issues/603.
-			// TODO(16371): if every txintent.Call had a Plan() method, this Option could be included with ExecTrigger.
+			// The tx is invalid until we know it will be included at a higher timestamp than any
+			// of the initiating messages, modulo reorgs. Wait to plan the relay tx against a
+			// target block until the timestamp elapses. NOTE: this should be `>=`, but the mempool
+			// filtering in op-geth currently uses the unsafe head's timestamp instead of the
+			// pending timestamp. See https://github.com/ethereum-optimism/op-geth/issues/603.
+			// TODO(16371): if every txintent.Call had a Plan() method, this Option could be
+			// included with ExecTrigger.
 			ctxErrFn := func(_ context.Context) (eth.BlockInfo, error) {
 				return nil, ctx.Err()
 			}

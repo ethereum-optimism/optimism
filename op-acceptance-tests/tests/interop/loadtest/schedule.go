@@ -9,7 +9,8 @@ import (
 
 // AIMD scheduler (additive-increase, multiplicative-decrease).
 type AIMD struct {
-	// rps can be thought of to mean "requests per slot", although the unit and quantity are flexible.
+	// rps can be thought of to mean "requests per slot", although the unit and quantity are
+	// flexible.
 	rps atomic.Uint64
 
 	metricsMu sync.Mutex
