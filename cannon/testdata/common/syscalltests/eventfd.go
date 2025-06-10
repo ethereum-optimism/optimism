@@ -1,5 +1,5 @@
-//go:build linux && mips64
-// +build linux,mips64
+//go:build linux
+// +build linux
 
 package syscalltests
 
