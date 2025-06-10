@@ -7,12 +7,11 @@ import (
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/sources"
 	supervisortypes "github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
-	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/log"
-	"github.com/ethereum/go-ethereum/rpc"
 )
 
 var ErrLogNotFound = errors.New("log not found")
@@ -21,10 +20,10 @@ var ErrLogNotFound = errors.New("log not found")
 var updateInterval = 1 * time.Second
 
 type UpdaterClient interface {
-	BlockReceipts(ctx context.Context, blockNrOrHash rpc.BlockNumberOrHash) ([]*types.Receipt, error)
+	FetchReceiptsByNumber(ctx context.Context, number uint64) (eth.BlockInfo, types.Receipts, error)
 }
 
-var _ UpdaterClient = &ethclient.Client{}
+var _ UpdaterClient = &sources.EthClient{}
 
 // Updaters are responsible for updating jobs from a chain for the Maintainer to track
 type Updater interface {
@@ -148,8 +147,7 @@ func (t *RPCUpdater) UpdateJob(job *Job) error {
 }
 
 func (t *RPCUpdater) UpdateJobStatus(job *Job) {
-	receipts, err := t.client.BlockReceipts(context.Background(),
-		rpc.BlockNumberOrHashWithNumber(rpc.BlockNumber(job.initiating.BlockNumber)))
+	_, receipts, err := t.client.FetchReceiptsByNumber(context.Background(), job.initiating.BlockNumber)
 	if err != nil {
 		t.log.Error("error getting block receipts", "error", err)
 		job.UpdateStatus(jobStatusUnknown)

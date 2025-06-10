@@ -1,23 +1,17 @@
 package monitor
 
 import (
-	"context"
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-interop-mon/metrics"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/locks"
-	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum-optimism/optimism/op-service/sources"
 	"github.com/ethereum/go-ethereum/log"
-	"github.com/ethereum/go-ethereum/rpc"
 )
 
-type receiptClient interface {
-	BlockReceipts(ctx context.Context, blockNrOrHash rpc.BlockNumberOrHash) ([]*types.Receipt, error)
-}
-
 type Maintainer struct {
-	clients     locks.RWMap[eth.ChainID, receiptClient]
+	clients     locks.RWMap[eth.ChainID, *sources.EthClient]
 	finders     locks.RWMap[eth.ChainID, Finder]
 	updaters    locks.RWMap[eth.ChainID, Updater]
 	newInbox    chan *Job
@@ -42,7 +36,7 @@ func NewMaintainer(log log.Logger, m metrics.Metricer) *Maintainer {
 	}
 }
 
-func (m *Maintainer) AddClient(chainID eth.ChainID, client receiptClient) {
+func (m *Maintainer) AddClient(chainID eth.ChainID, client *sources.EthClient) {
 	m.clients.Set(chainID, client)
 }
 

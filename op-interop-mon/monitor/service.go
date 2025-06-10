@@ -9,13 +9,14 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-interop-mon/metrics"
 	"github.com/ethereum-optimism/optimism/op-service/cliapp"
+	"github.com/ethereum-optimism/optimism/op-service/client"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/httputil"
 	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
 	"github.com/ethereum-optimism/optimism/op-service/oppprof"
 	oprpc "github.com/ethereum-optimism/optimism/op-service/rpc"
+	"github.com/ethereum-optimism/optimism/op-service/sources"
 
-	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/log"
 )
 
@@ -31,7 +32,7 @@ type InteropMonitorService struct {
 
 	InteropMonitorConfig
 
-	clients    map[eth.ChainID]*ethclient.Client
+	clients    map[eth.ChainID]*sources.EthClient
 	maintainer *Maintainer
 	finders    []Finder
 	updaters   []Updater
@@ -63,7 +64,7 @@ func (ms *InteropMonitorService) initFromCLIConfig(ctx context.Context, version 
 
 	ms.maintainer = NewMaintainer(ms.Log, ms.Metrics)
 
-	ms.clients = make(map[eth.ChainID]*ethclient.Client)
+	ms.clients = make(map[eth.ChainID]*sources.EthClient)
 	for _, l2Rpc := range cfg.L2Rpcs {
 		if err := ms.dialAndRegister(ctx, l2Rpc); err != nil {
 			return fmt.Errorf("failed to dial and register: %w", err)
@@ -87,24 +88,32 @@ func (ms *InteropMonitorService) initFromCLIConfig(ctx context.Context, version 
 }
 
 func (ms *InteropMonitorService) dialAndRegister(ctx context.Context, l2Rpc string) error {
-	client, err := ethclient.Dial(l2Rpc)
+	fmt.Println("dialing and registering", l2Rpc)
+	client, err := client.NewRPC(ctx, ms.Log, l2Rpc)
 	if err != nil {
-		return fmt.Errorf("failed to dial: %w", err)
+		return fmt.Errorf("failed to create client: %w", err)
 	}
-	chainIDBig, err := client.ChainID(ctx)
+	ethClient, err := sources.NewEthClient(client, ms.Log, nil, sources.DefaultEthClientConfig(1000))
+	if err != nil {
+		return fmt.Errorf("failed to create eth client: %w", err)
+	}
+	fmt.Println("created eth client")
+	chainIDBig, err := ethClient.ChainID(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to get chain ID: %w", err)
 	}
 	chainID := eth.ChainIDFromBig(chainIDBig)
-	ms.clients[chainID] = client
+	ms.clients[chainID] = ethClient
+	fmt.Println("added eth client to map")
 
-	finder := NewFinder(chainID, client, BlockReceiptsToJobs, ms.maintainer.EnqueueNew, ms.Log)
-	updater := NewUpdater(chainID, client, ms.Log)
+	finder := NewFinder(chainID, ethClient, BlockReceiptsToJobs, ms.maintainer.EnqueueNew, ms.Log)
+	updater := NewUpdater(chainID, ethClient, ms.Log)
 	ms.finders = append(ms.finders, finder)
 	ms.updaters = append(ms.updaters, updater)
-	ms.maintainer.AddClient(chainID, client)
+	ms.maintainer.AddClient(chainID, ethClient)
 	ms.maintainer.AddFinder(chainID, finder)
 	ms.maintainer.AddUpdater(chainID, updater)
+	fmt.Println("added finder and updater to maintainer")
 	return nil
 }
 

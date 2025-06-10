@@ -2,16 +2,72 @@ package monitor
 
 import (
 	"context"
-	"math/big"
+	"errors"
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/sources"
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/log"
-	"github.com/ethereum/go-ethereum/rpc"
 )
+
+var ErrBlockNotFound = errors.New("block not found")
+
+// BlockBuffer is a circular buffer of seen blocks
+// it is used to ensure no gaps in the block history being monitored
+type BlockBuffer struct {
+	buffer []eth.BlockInfo
+	idx    int
+	total  int
+}
+
+func NewBlockBuffer(size int) *BlockBuffer {
+	return &BlockBuffer{
+		buffer: make([]eth.BlockInfo, size),
+		idx:    0,
+		total:  0,
+	}
+}
+func (r *BlockBuffer) Add(block eth.BlockInfo) {
+	r.buffer[r.idx] = block
+	r.idx++
+	r.idx %= len(r.buffer)
+	r.total++
+}
+
+func (r *BlockBuffer) Peek() eth.BlockInfo {
+	// if the buffer is empty, return an error
+	if r.total == 0 {
+		return nil
+	}
+	// get the previous index, wrap around if necessary
+	prevIndex := (r.idx + len(r.buffer) - 1) % len(r.buffer)
+	block := r.buffer[prevIndex]
+	// if the block is nil, the buffer is empty
+	if block == nil {
+		return nil
+	}
+	return block
+}
+
+func (r *BlockBuffer) Pop() (eth.BlockInfo, error) {
+	// if the buffer is empty, return an error
+	if r.total == 0 {
+		return nil, ErrBlockNotFound
+	}
+	// get the previous index, wrap around if necessary
+	prevIndex := (r.idx + len(r.buffer) - 1) % len(r.buffer)
+	block := r.buffer[prevIndex]
+	// if the block is nil, the buffer is empty
+	if block == nil {
+		return nil, ErrBlockNotFound
+	}
+	// decrement and wrap the index around the buffer
+	r.idx = prevIndex
+	r.total--
+	return block, nil
+}
 
 // JobFilter is a function that turns any executing messages from a slice of receipts
 // into a slice of jobs which can be added to the Maintainer's inbox
@@ -20,11 +76,12 @@ type JobFilter func(receipts []*types.Receipt) []*Job
 // FinderClient is a client that can be used to find new blocks and their receipts
 // it is satisfied by the ethclient.Client type
 type FinderClient interface {
-	BlockReceipts(ctx context.Context, blockNrOrHash rpc.BlockNumberOrHash) ([]*types.Receipt, error)
-	SubscribeNewHead(ctx context.Context, ch chan<- *types.Header) (ethereum.Subscription, error)
+	InfoByLabel(ctx context.Context, label eth.BlockLabel) (eth.BlockInfo, error)
+	InfoByNumber(ctx context.Context, number uint64) (eth.BlockInfo, error)
+	FetchReceiptsByNumber(ctx context.Context, number uint64) (eth.BlockInfo, types.Receipts, error)
 }
 
-var _ FinderClient = &ethclient.Client{}
+var _ FinderClient = &sources.EthClient{}
 
 // Finders are responsible for finding new jobs from a chain for the Maintainer to track
 type Finder interface {
@@ -37,130 +94,125 @@ type RPCFinder struct {
 	client  FinderClient
 	chainID eth.ChainID
 
-	sub         ethereum.Subscription
-	subErr      <-chan error
-	inbox       chan *types.Header
-	lastHandled eth.BlockID
-	toJobs      JobFilter
-	callback    func(*Job)
-	closed      chan struct{}
-	log         log.Logger
+	pollInterval time.Duration
+
+	inbox    chan *types.Header
+	toJobs   JobFilter
+	callback func(*Job)
+	closed   chan struct{}
+	log      log.Logger
+
+	next       uint64
+	seenBlocks *BlockBuffer
 }
 
 func NewFinder(chainID eth.ChainID, client FinderClient, toCases JobFilter, callback func(*Job), log log.Logger) *RPCFinder {
 	return &RPCFinder{
-		chainID:  chainID,
-		client:   client,
-		log:      log.New("component", "rpc_finder", "chain_id", chainID),
-		toJobs:   toCases,
-		inbox:    make(chan *types.Header, 1000),
-		closed:   make(chan struct{}),
-		callback: callback,
+		chainID:      chainID,
+		client:       client,
+		log:          log.New("component", "rpc_finder", "chain_id", chainID),
+		toJobs:       toCases,
+		inbox:        make(chan *types.Header, 1000),
+		closed:       make(chan struct{}),
+		callback:     callback,
+		pollInterval: 2 * time.Second,
 	}
-}
-
-// GetBlockReceipts retrieves all receipts for a given block number
-func (t *RPCFinder) GetBlockReceipts(ctx context.Context, blockNumber *big.Int) (types.Receipts, error) {
-	receipts, err := t.client.BlockReceipts(ctx,
-		rpc.BlockNumberOrHashWithNumber(
-			rpc.BlockNumber(blockNumber.Uint64())))
-	if err != nil {
-		return nil, err
-	}
-	return receipts, nil
-}
-
-// SubscribeToNewBlocks subscribes to new blocks and processes their receipts
-func (t *RPCFinder) SubscribeToNewBlocks(ctx context.Context) error {
-	sub, err := t.client.SubscribeNewHead(ctx, t.inbox)
-	if err != nil {
-		t.log.Error("failed to subscribe to new blocks", "error", err)
-		return err
-	}
-	if sub != nil {
-		t.sub = sub
-		t.subErr = sub.Err()
-	} else {
-		t.log.Warn("nil subscription returned from SubscribeNewHead")
-	}
-	return nil
 }
 
 func (t *RPCFinder) Start(ctx context.Context) error {
-	if err := t.SubscribeToNewBlocks(ctx); err != nil {
+	// seed the seenBlocks buffer with the latest block
+	block, err := t.client.InfoByLabel(ctx, eth.Unsafe)
+	if err != nil {
 		return err
 	}
+	// static backfill of 100 blocks. to be made configurable
+	t.next = block.NumberU64() - 100
+	t.seenBlocks = NewBlockBuffer(1000)
 	go t.Run(ctx)
 	return nil
 }
 
 func (t *RPCFinder) Run(ctx context.Context) {
+	// start with a 100ms poll interval to rapidly find new blocks
+	// until a block is not found, at which point we increase the poll interval to the configured value
+	ticker := time.NewTicker(100 * time.Millisecond)
+	defer ticker.Stop()
+
 	for {
 		select {
-		// if the finder is closed, close the inbox and outbox and end the loop
 		case <-t.closed:
 			t.log.Info("finder closed")
 			close(t.inbox)
 			return
-		// if the subscription errors, close the finder and initiate Stop
-		case err := <-t.subErr:
-			t.log.Error("subscription error, closing finder", "error", err)
-			t.Stop()
-		// if the inbox has a new header, process the block and send the jobs to the outbox
-		case header := <-t.inbox:
-			t.log.Info("received new header", "number", header.Number, "hash", header.Hash())
-			jobs, err := t.ProcessBlock(ctx, header)
-			if err != nil {
-				t.log.Error("error processing block", "error", err)
+		case <-ticker.C:
+			blockInfo, receipts, err := t.client.FetchReceiptsByNumber(ctx, t.next)
+			if errors.Is(err, ethereum.NotFound) {
+				t.log.Debug("block not found", "block", t.next)
+				// once a block is not found, increase the poll interval to the configured value
+				ticker = time.NewTicker(t.pollInterval)
+				continue
+			} else if err != nil {
+				t.log.Error("error getting block", "error", err)
 				continue
 			}
-			// give all jobs the same firstSeen time
-			seen := time.Now()
+			previous := t.seenBlocks.Peek()
+			if previous != nil {
+				// check if the blocks being processed are contiguous
+				if blockInfo.ParentHash() != previous.Hash() ||
+					blockInfo.NumberU64() != previous.NumberU64()+1 {
+					t.log.Error("blocks are not contiguous", "previous", previous, "next", blockInfo)
+					err := t.walkback(ctx)
+					if err != nil {
+						t.log.Error("error walking back", "error", err)
+						continue
+					}
+				}
+			}
+			jobs := t.toJobs([]*types.Receipt(receipts))
+			firstSeen := time.Now()
 			for _, job := range jobs {
-				job.firstSeen = seen
-				job.status = []jobStatus{jobStatusUnknown}
+				job.firstSeen = firstSeen
+				job.UpdateStatus(jobStatusUnknown)
 				t.callback(job)
 			}
 			if len(jobs) > 0 {
-				t.log.Info("sent new jobs to callback", "count", len(jobs))
-			} else {
-				t.log.Trace("no new jobs found")
+				t.log.Info("added jobs to callback", "count", len(jobs))
 			}
+			t.log.Debug("visited block", "block", blockInfo.NumberU64())
+			t.seenBlocks.Add(blockInfo)
+			t.next++
 		}
 	}
 }
 
-// ProcessBlock retrieves a block of receipts, converts them to jobs, and returns the jobs to be tracked
-func (t *RPCFinder) ProcessBlock(ctx context.Context, header *types.Header) (cases []*Job, err error) {
-	// check and warn if the parent hash is not the last seen block
-	// TODO: initiate a backfilling routine if there is a gap
-	if t.lastHandled != (eth.BlockID{}) {
-		if header.Hash().Cmp(t.lastHandled.Hash) == 0 {
-			t.log.Trace("already processed block", "hash", header.Hash())
-			return nil, nil
+// walkback walks back to the last contiguous block which matches on the l2 client
+// it will pop blocks from the buffer until it finds a block that matches the hash,
+// or until an error occurs, including when the buffer is empty.
+func (t *RPCFinder) walkback(ctx context.Context) error {
+	for {
+		// pop the last block from the buffer
+		previous, err := t.seenBlocks.Pop()
+		if err != nil {
+			t.log.Error("error popping block", "error", err)
+			return err
 		}
-		if t.lastHandled.Number+1 != header.Number.Uint64() {
-			t.log.Info("job finder experience block discontinuity", "expectedHeight", t.lastHandled.Number+1, "actualHeight", header.Number)
-		} else if header.ParentHash.Cmp(t.lastHandled.Hash) != 0 {
-			t.log.Info("job finder experience parent hash discontinuity", "expectedHash", t.lastHandled.Hash, "actualHash", header.ParentHash)
-			return nil, nil
+		// fetch the block from the client
+		block, err := t.client.InfoByNumber(ctx, previous.NumberU64())
+		if err != nil {
+			t.log.Error("error fetching block", "error", err)
+			return err
 		}
+		if block.Hash() != previous.Hash() {
+			t.log.Error("block hash mismatch", "expected", previous.Hash(), "got", block.Hash())
+			continue
+		}
+		// if the block is contiguous, add it back to the buffer
+		t.seenBlocks.Add(block)
+		return nil
 	}
-	receipts, err := t.GetBlockReceipts(ctx, header.Number)
-	if err != nil {
-		return nil, err
-	}
-	ret := t.toJobs(receipts)
-	t.lastHandled = eth.BlockID{Number: header.Number.Uint64(), Hash: header.Hash()}
-	t.log.Trace("last handled block", "number", t.lastHandled.Number, "hash", t.lastHandled.Hash)
-	return ret, nil
 }
 
-// TODO: add wait group to make Stop return sync
 func (t *RPCFinder) Stop() error {
-	if t.sub != nil {
-		t.sub.Unsubscribe()
-	}
 	close(t.closed)
 	return nil
 }
