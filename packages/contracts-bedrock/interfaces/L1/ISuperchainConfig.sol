@@ -20,7 +20,6 @@ interface ISuperchainConfig is IProxyAdminOwnedBase {
 
     function guardian() external view returns (address);
     function initialize(address _guardian) external;
-    function upgrade() external;
     function pause(address _identifier) external;
     function unpause(address _identifier) external;
     function pausable(address _identifier) external view returns (bool);

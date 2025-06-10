@@ -779,24 +779,6 @@
     "type": "function"
   },
   {
-    "inputs": [
-      {
-        "internalType": "contract IAnchorStateRegistry",
-        "name": "_anchorStateRegistry",
-        "type": "address"
-      },
-      {
-        "internalType": "contract IETHLockbox",
-        "name": "_ethLockbox",
-        "type": "address"
-      }
-    ],
-    "name": "upgrade",
-    "outputs": [],
-    "stateMutability": "nonpayable",
-    "type": "function"
-  },
-  {
     "inputs": [],
     "name": "version",
     "outputs": [

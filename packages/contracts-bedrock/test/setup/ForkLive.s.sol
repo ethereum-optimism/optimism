@@ -40,11 +40,11 @@ import { IOptimismPortal2 } from "interfaces/L1/IOptimismPortal2.sol";
 ///         Therefore this script can only be run against a fork of a production network which is listed in the
 ///         superchain-registry.
 ///         This contract must not have constructor logic because it is set into state using `etch`.
-
 contract ForkLive is Deployer {
     using stdToml for string;
     using LibString for string;
 
+    /// @notice Whether to use the superchain-ops repo to load state.
     bool public useOpsRepo;
 
     /// @notice Returns the base chain name to use for forking
@@ -190,14 +190,20 @@ contract ForkLive is Deployer {
 
     /// @notice Upgrades the contracts using the OPCM.
     function _upgrade() internal {
+        // Grab the current OPCM from artifacts.
         IOPContractsManager opcm = IOPContractsManager(artifacts.mustGetAddress("OPContractsManager"));
 
+        // Previous OPCM should be the latest release.
+        // NOTE that this code may have to be updated if multiple releases are in flight.
+        address PREVIOUS_OPCM = 0x4FefD0C327D08143be8037c45f8a29FA0d711E50; // v4.0.0
+
+        // Grab the ProxyAdmin and upgrader accounts from the SystemConfig.
         ISystemConfig systemConfig = ISystemConfig(artifacts.mustGetAddress("SystemConfigProxy"));
         IProxyAdmin proxyAdmin = IProxyAdmin(EIP1967Helper.getAdmin(address(systemConfig)));
-
         address upgrader = proxyAdmin.owner();
         vm.label(upgrader, "ProxyAdmin Owner");
 
+        // Configure the upgrade parameters.
         IOPContractsManager.OpChainConfig[] memory opChains = new IOPContractsManager.OpChainConfig[](1);
         opChains[0] = IOPContractsManager.OpChainConfig({
             systemConfigProxy: systemConfig,
@@ -210,48 +216,52 @@ contract ForkLive is Deployer {
         bytes memory upgraderCode = address(upgrader).code;
         vm.etch(upgrader, vm.getDeployedCode("test/mocks/Callers.sol:DelegateCaller"));
 
-        // The 2.0.0 OPCM requires that the SuperchainConfig and ProtocolVersions contracts have
-        // been upgraded before it will upgrade other contracts. These contracts can only be
-        // upgraded by the Superchain ProxyAdmin owner. For simplicity, we always just call U13
-        // once without any chain configs to trigger this upgrade.
+        // Grab the SuperchainPAO and make it a DelegateCaller so we can upgrade the
+        // SuperchainConfig contract (potentially).
         ISuperchainConfig superchainConfig = ISuperchainConfig(artifacts.mustGetAddress("SuperchainConfigProxy"));
         address superchainPAO = IProxyAdmin(EIP1967Helper.getAdmin(address(superchainConfig))).owner();
         vm.etch(superchainPAO, vm.getDeployedCode("test/mocks/Callers.sol:DelegateCaller"));
+
+        // Always trigger the previous OPCM once with an empty opChainConfig array to ensure that
+        // the SuperchainConfig contract is upgraded. This is not always strictly necessary if the
+        // OPCM did not upgrade the SuperchainConfig contract, but it has no negative effects and
+        // avoids the need to manually add/remove this step each time.
         DelegateCaller(superchainPAO).dcForward(
-            address(0x026b2F158255Beac46c1E7c6b8BbF29A4b6A7B76),
+            address(PREVIOUS_OPCM),
             abi.encodeCall(IOPContractsManager.upgrade, (new IOPContractsManager.OpChainConfig[](0)))
         );
 
-        // Start by doing Upgrade 13.
+        // Execute the PREVIOUS OPCM upgrade.
         DelegateCaller(upgrader).dcForward(
-            address(0x026b2F158255Beac46c1E7c6b8BbF29A4b6A7B76), abi.encodeCall(IOPContractsManager.upgrade, (opChains))
+            address(PREVIOUS_OPCM), abi.encodeCall(IOPContractsManager.upgrade, (opChains))
         );
 
-        // Then do Upgrade 14.
-        DelegateCaller(upgrader).dcForward(
-            address(0x3A1f523a4bc09cd344A2745a108Bb0398288094F), abi.encodeCall(IOPContractsManager.upgrade, (opChains))
-        );
-
-        // Like with Upgrade 13, we need to first call U16 from the Superchain ProxyAdmin owner to
-        // trigger the upgrade of the SuperchainConfig contract.
-        vm.etch(superchainPAO, vm.getDeployedCode("test/mocks/Callers.sol:DelegateCaller"));
+        // Execute the CURRENT upgrade for the in-development OPCM once so that the
+        // SuperchainConfig contract is upgraded. This is not always strictly necessary but it has
+        // no negative effects and avoids the need to manually add/remove this step each time.
         DelegateCaller(superchainPAO).dcForward(
-            address(opcm), abi.encodeCall(IOPContractsManager.upgrade, (new IOPContractsManager.OpChainConfig[](0)))
+            address(address(opcm)),
+            abi.encodeCall(IOPContractsManager.upgrade, (new IOPContractsManager.OpChainConfig[](0)))
         );
 
-        // Then do the final upgrade.
+        // Execute the CURRENT upgrade for the in-development OPCM here.
         DelegateCaller(upgrader).dcForward(address(opcm), abi.encodeCall(IOPContractsManager.upgrade, (opChains)));
 
         // Reset the upgrader to the original code.
         vm.etch(upgrader, upgraderCode);
 
+        // We did the upgrade, now we'll save any new addresses.
         console.log("ForkLive: Saving newly deployed contracts");
-        // A new ASR and new dispute games were deployed, so we need to update them
+
+        // We may have deployed a new DisputeGameFactory, so we'll update the saved address.
         IDisputeGameFactory disputeGameFactory =
             IDisputeGameFactory(artifacts.mustGetAddress("DisputeGameFactoryProxy"));
+
+        // We may have deployed a new PermissionedDisputeGame, so we'll update the saved address.
         address permissionedDisputeGame = address(disputeGameFactory.gameImpls(GameTypes.PERMISSIONED_CANNON));
         artifacts.save("PermissionedDisputeGame", permissionedDisputeGame);
 
+        // We may have deployed a new PermissionlessDisputeGame, so we'll update the saved address.
         address permissionlessDisputeGame = address(disputeGameFactory.gameImpls(GameTypes.CANNON));
         if (permissionlessDisputeGame != address(0)) {
             // Both names are used in different places, so we save both.
@@ -259,16 +269,17 @@ contract ForkLive is Deployer {
             artifacts.save("FaultDisputeGame", address(permissionlessDisputeGame));
         }
 
+        // We may have deployed a new AnchorStateRegistry, so we'll update the saved address.
         IAnchorStateRegistry newAnchorStateRegistry =
             IPermissionedDisputeGame(permissionedDisputeGame).anchorStateRegistry();
         artifacts.save("AnchorStateRegistryProxy", address(newAnchorStateRegistry));
 
-        // Get the lockbox address from the portal, and save it
+        // We may have deployed a new ETHLockbox, so we'll update the saved address.
         IOptimismPortal2 portal = IOptimismPortal2(artifacts.mustGetAddress("OptimismPortalProxy"));
         address lockboxAddress = address(portal.ethLockbox());
         artifacts.save("ETHLockboxProxy", lockboxAddress);
 
-        // Get the new DelayedWETH address and save it (might be a new proxy).
+        // We may have deployed a new DelayedWETH, so we'll update the saved address.
         IDelayedWETH newDelayedWeth = IPermissionedDisputeGame(permissionedDisputeGame).weth();
         artifacts.save("DelayedWETHProxy", address(newDelayedWeth));
         artifacts.save("DelayedWETHImpl", EIP1967Helper.getImplementation(address(newDelayedWeth)));

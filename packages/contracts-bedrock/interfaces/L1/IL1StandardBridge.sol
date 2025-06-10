@@ -31,7 +31,6 @@ interface IL1StandardBridge is IStandardBridge, IProxyAdminOwnedBase {
     event ETHWithdrawalFinalized(address indexed from, address indexed to, uint256 amount, bytes extraData);
 
     function initVersion() external view returns (uint8);
-    function upgrade(ISystemConfig _systemConfig) external;
     function depositERC20(
         address _l1Token,
         address _l2Token,

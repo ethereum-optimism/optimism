@@ -232,9 +232,9 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
     error OptimismPortal_MigratingToSameRegistry();
 
     /// @notice Semantic version.
-    /// @custom:semver 4.6.0
+    /// @custom:semver 4.7.0
     function version() public pure virtual returns (string memory) {
-        return "4.6.0";
+        return "4.7.0";
     }
 
     /// @param _proofMaturityDelaySeconds The proof maturity delay in seconds.
@@ -270,24 +270,6 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
         }
 
         __ResourceMetering_init();
-    }
-
-    /// @notice Upgrades the OptimismPortal contract to have a reference to the AnchorStateRegistry and SystemConfig
-    /// @param _anchorStateRegistry AnchorStateRegistry contract.
-    /// @param _ethLockbox ETHLockbox contract.
-    function upgrade(
-        IAnchorStateRegistry _anchorStateRegistry,
-        IETHLockbox _ethLockbox
-    )
-        external
-        reinitializer(initVersion())
-    {
-        // Upgrade transactions must come from the ProxyAdmin or its owner.
-        _assertOnlyProxyAdminOrProxyAdminOwner();
-
-        // Now perform upgrade logic.
-        anchorStateRegistry = _anchorStateRegistry;
-        ethLockbox = _ethLockbox;
     }
 
     /// @notice Getter for the current paused status.

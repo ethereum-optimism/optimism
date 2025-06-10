@@ -291,19 +291,6 @@
     "type": "function"
   },
   {
-    "inputs": [
-      {
-        "internalType": "contract ISystemConfig",
-        "name": "_systemConfig",
-        "type": "address"
-      }
-    ],
-    "name": "upgrade",
-    "outputs": [],
-    "stateMutability": "nonpayable",
-    "type": "function"
-  },
-  {
     "inputs": [],
     "name": "version",
     "outputs": [
