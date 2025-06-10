@@ -58,17 +58,17 @@ struct Args {
         long,
         env,
         default_value = "100",
-        help = "Maximum number of concurrently connected clients"
+        help = "Maximum number of concurrently connected clients per instance"
     )]
-    global_connections_limit: usize,
+    instance_connection_limit: usize,
 
     #[arg(
         long,
         env,
         default_value = "10",
-        help = "Maximum number of concurrently connected clients"
+        help = "Maximum number of concurrently connected clients per IP"
     )]
-    per_ip_connections_limit: usize,
+    per_ip_connection_limit: usize,
     #[arg(
         long,
         env,
@@ -271,8 +271,8 @@ async fn main() {
             info!(message = "Using Redis rate limiter", redis_url = redis_url);
             match RedisRateLimit::new(
                 redis_url,
-                args.global_connections_limit,
-                args.per_ip_connections_limit,
+                args.instance_connection_limit,
+                args.per_ip_connection_limit,
                 &args.redis_key_prefix,
             ) {
                 Ok(limiter) => {
@@ -286,8 +286,8 @@ async fn main() {
                         error = e.to_string()
                     );
                     Arc::new(InMemoryRateLimit::new(
-                        args.global_connections_limit,
-                        args.per_ip_connections_limit,
+                        args.instance_connection_limit,
+                        args.per_ip_connection_limit,
                     )) as Arc<dyn RateLimit>
                 }
             }
@@ -295,8 +295,8 @@ async fn main() {
         None => {
             info!(message = "Using in-memory rate limiter");
             Arc::new(InMemoryRateLimit::new(
-                args.global_connections_limit,
-                args.per_ip_connections_limit,
+                args.instance_connection_limit,
+                args.per_ip_connection_limit,
             )) as Arc<dyn RateLimit>
         }
     };

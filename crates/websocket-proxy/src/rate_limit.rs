@@ -47,12 +47,12 @@ pub struct InMemoryRateLimit {
 }
 
 impl InMemoryRateLimit {
-    pub fn new(global_limit: usize, per_ip_limit: usize) -> Self {
+    pub fn new(instance_limit: usize, per_ip_limit: usize) -> Self {
         Self {
             per_ip_limit,
             inner: Mutex::new(Inner {
                 active_connections: HashMap::new(),
-                semaphore: Arc::new(Semaphore::new(global_limit)),
+                semaphore: Arc::new(Semaphore::new(instance_limit)),
             }),
         }
     }
@@ -125,7 +125,7 @@ impl RateLimit for InMemoryRateLimit {
 
 pub struct RedisRateLimit {
     redis_client: Client,
-    global_limit: usize,
+    instance_limit: usize,
     per_ip_limit: usize,
     semaphore: Arc<Semaphore>,
     key_prefix: String,
@@ -138,7 +138,7 @@ pub struct RedisRateLimit {
 impl RedisRateLimit {
     pub fn new(
         redis_url: &str,
-        global_limit: usize,
+        instance_limit: usize,
         per_ip_limit: usize,
         key_prefix: &str,
     ) -> Result<Self, RedisError> {
@@ -150,9 +150,9 @@ impl RedisRateLimit {
 
         let rate_limiter = Self {
             redis_client: client,
-            global_limit,
+            instance_limit,
             per_ip_limit,
-            semaphore: Arc::new(Semaphore::new(global_limit)),
+            semaphore: Arc::new(Semaphore::new(instance_limit)),
             key_prefix: key_prefix.to_string(),
             instance_id,
             heartbeat_interval,
@@ -356,37 +356,6 @@ impl RateLimit for RedisRateLimit {
             }
         };
 
-        let ip_instance_pattern = format!("{}:ip:*:instance:*:connections", self.key_prefix);
-        let ip_instance_keys: Vec<String> = match conn.keys(ip_instance_pattern) {
-            Ok(keys) => keys,
-            Err(e) => {
-                error!(
-                    message = "Failed to get IP instance keys from Redis",
-                    error = e.to_string()
-                );
-                return Err(RateLimitError::Limit {
-                    reason: "Redis operation failed".to_string(),
-                });
-            }
-        };
-
-        let mut total_global_connections: usize = 0;
-        for key in &ip_instance_keys {
-            let count: usize = conn.get(key).unwrap_or(0);
-            total_global_connections += count;
-        }
-
-        if total_global_connections >= self.global_limit {
-            debug!(
-                message = "Global limit reached",
-                global_connections = total_global_connections,
-                global_limit = self.global_limit
-            );
-            return Err(RateLimitError::Limit {
-                reason: "Global connection limit reached".to_string(),
-            });
-        }
-
         let ip_keys_pattern = format!("{}:ip:{}:instance:*:connections", self.key_prefix, addr);
         let ip_keys: Vec<String> = match conn.keys(ip_keys_pattern) {
             Ok(keys) => keys,
@@ -426,12 +395,14 @@ impl RateLimit for RedisRateLimit {
             }
         };
 
+        let total_instance_connections = self.instance_limit - self.semaphore.available_permits();
+
         debug!(
             message = "Connection established",
             ip = addr.to_string(),
             ip_instance_connections = ip_instance_connections,
             total_ip_connections = total_ip_connections + 1,
-            total_global_connections = total_global_connections + 1,
+            total_instance_connections = total_instance_connections,
             instance_id = self.instance_id
         );
 
@@ -722,7 +693,7 @@ mod tests {
         {
             let rate_limiter1 = Arc::new(RedisRateLimit {
                 redis_client: Client::open(client_addr.as_str()).unwrap(),
-                global_limit: 10,
+                instance_limit: 10,
                 per_ip_limit: 5,
                 semaphore: Arc::new(Semaphore::new(10)),
                 key_prefix: "test".to_string(),
@@ -797,7 +768,7 @@ mod tests {
 
         let rate_limiter2 = Arc::new(RedisRateLimit {
             redis_client: Client::open(client_addr.as_str()).unwrap(),
-            global_limit: 10,
+            instance_limit: 10,
             per_ip_limit: 5,
             semaphore: Arc::new(Semaphore::new(10)),
             key_prefix: "test".to_string(),
