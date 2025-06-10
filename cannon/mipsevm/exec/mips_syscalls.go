@@ -143,7 +143,7 @@ func HandleSysRead(
 	memTracker MemTracker,
 ) (v0, v1, newPreimageOffset Word, memUpdated bool, memAddr Word) {
 	// args: a0 = fd, a1 = addr, a2 = count
-	// returns: v0 = read, v1 = err code
+	// returns: v0 = return value, v1 = error boolean
 	v0 = Word(0)
 	v1 = Word(0)
 	newPreimageOffset = preimageOffset
@@ -199,7 +199,7 @@ func HandleSysWrite(a0, a1, a2 Word,
 	stdOut, stdErr io.Writer,
 ) (v0, v1 Word, newLastHint hexutil.Bytes, newPreimageKey common.Hash, newPreimageOffset Word) {
 	// args: a0 = fd, a1 = addr, a2 = count
-	// returns: v0 = written, v1 = err code
+	// returns: v0 = return value, v1 = error boolean
 	v1 = Word(0)
 	newLastHint = lastHint
 	newPreimageKey = preimageKey
