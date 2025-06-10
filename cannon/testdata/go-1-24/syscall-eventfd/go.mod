@@ -1,4 +1,4 @@
-module hello
+module syscalleventfd
 
 go 1.24
 
