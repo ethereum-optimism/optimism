@@ -19,6 +19,51 @@ The service consists of several key components working together:
 
 The components communicate through channels and maintain state about message status.
 
+
+```mermaid
+architecture-beta
+  group mon(cloud)[opInteropMon]
+
+  service rfa(internet)[RPC_A]
+  service rua(internet)[RPC_A]
+  service rfb(internet)[RPC_B]
+  service rub(internet)[RPC_B]
+
+  service m(database)[maintainer] in mon
+  service fa(disk)[Fetcher_A] in mon
+  service ub(disk)[Updater_B] in mon
+  service fb(disk)[Fetcher_B] in mon
+  service ua(disk)[Updater_A] in mon
+
+  junction lm
+  junction lt
+  junction lb
+
+  junction rm
+  junction rt
+  junction rb
+
+  m:L<--R:lm
+  lm:T--B:lt
+  lm:B--T:lb
+
+  m:R<--L:rm
+  rm:T--B:rt
+  rm:B--T:rb
+
+  lt:L--R:fa
+  lb:L--R:fb
+
+  rt:R-->L:ua
+  rb:R-->L:ub
+
+  rfa:R-->L:fa
+  rfb:R-->L:fb
+
+  rua:L-->R:ua
+  rub:L-->R:ub
+```
+
 ## Maintainer
 The `Maintainer` is responsible for routing `job`s to updaters, and collecting metrics. It:
 
