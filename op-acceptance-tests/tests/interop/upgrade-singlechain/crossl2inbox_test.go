@@ -26,18 +26,17 @@ func TestPostInbox(gt *testing.T) {
 
 		pre := activationBlock.Number - 1
 
-		// Should not have CrossL2Inbox implementation before activation
-		implAddrBytes, err := el.EthClient().GetStorageAt(t.Ctx(), predeploys.CrossL2InboxAddr,
-			genesis.ImplementationSlot, hexutil.Uint64(pre).String())
-		require.NoError(err)
-		implAddr := common.BytesToAddress(implAddrBytes[:])
-		require.Equal(common.Address{}, implAddr, "Should not have CrossL2Inbox implementation")
+		verifyNoCrossL2InboxAtBlock := func(blockNum uint64) {
+			net.PublicRPC().WaitForBlockNumber(blockNum)
+			implAddrBytes, err := el.EthClient().GetStorageAt(t.Ctx(), predeploys.CrossL2InboxAddr,
+				genesis.ImplementationSlot, hexutil.Uint64(blockNum).String())
+			require.NoError(err)
+			implAddr := common.BytesToAddress(implAddrBytes[:])
+			require.Equal(common.Address{}, implAddr, "Should not have CrossL2Inbox implementation")
+		}
 
-		// Should not have CrossL2Inbox implementation after activation
-		implAddrBytes, err = el.EthClient().GetStorageAt(t.Ctx(), predeploys.CrossL2InboxAddr,
-			genesis.ImplementationSlot, activationBlock.Hash.String())
-		require.NoError(err)
-		implAddr = common.BytesToAddress(implAddrBytes[:])
-		require.Equal(common.Address{}, implAddr, "Should not have CrossL2Inbox implementation")
+		verifyNoCrossL2InboxAtBlock(pre)
+		verifyNoCrossL2InboxAtBlock(activationBlock.Number)
+		verifyNoCrossL2InboxAtBlock(activationBlock.Number + 1)
 	})
 }
