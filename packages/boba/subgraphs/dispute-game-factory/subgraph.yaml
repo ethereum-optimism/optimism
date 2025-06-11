@@ -75,6 +75,25 @@ dataSources:
           handler: handleOwnershipTransferred
       file: ./src/dispute-game-factory.ts
 templates:
+  - name: PermissionedDisputeGame
+    kind: ethereum/contract
+    network: sepolia
+    source:
+      abi: PermissionedDisputeGame
+    mapping:
+      kind: ethereum/events
+      apiVersion: 0.0.7
+      language: wasm/assemblyscript
+      file: ./src/permissioned-dispute-game.ts
+      entities:
+        - Resolved
+      abis:
+        - name: PermissionedDisputeGame
+          file: ./abis/PermissionedDisputeGame.json
+      eventHandlers:
+        - event: Resolved(indexed uint8)
+          handler: handleResolved
+
   - name: FaultDisputeGame
     kind: ethereum/contract
     network: sepolia
