@@ -14,8 +14,8 @@ import { ISemver } from "interfaces/universal/ISemver.sol";
 import { IFaultDisputeGame } from "interfaces/dispute/IFaultDisputeGame.sol";
 import { IDisputeGame } from "interfaces/dispute/IDisputeGame.sol";
 import { IDisputeGameFactory } from "interfaces/dispute/IDisputeGameFactory.sol";
-import { ISystemConfig } from "interfaces/L1/ISystemConfig.sol";
 import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
+import { IETHLockbox } from "interfaces/L1/IETHLockbox.sol";
 
 /// @custom:proxied true
 /// @title AnchorStateRegistry
@@ -31,8 +31,11 @@ contract AnchorStateRegistry is ProxyAdminOwnedBase, Initializable, Reinitializa
     /// @notice The dispute game finality delay in seconds.
     uint256 internal immutable DISPUTE_GAME_FINALITY_DELAY_SECONDS;
 
-    /// @notice Address of the SystemConfig contract.
-    ISystemConfig public systemConfig;
+    /// @notice Address of the SuperchainConfig contract.
+    ISuperchainConfig public superchainConfig;
+
+    /// @notice Address of the ETHLockbox contract (pause identifier).
+    IETHLockbox public ethLockbox;
 
     /// @notice Address of the DisputeGameFactory contract.
     IDisputeGameFactory public disputeGameFactory;
@@ -83,11 +86,13 @@ contract AnchorStateRegistry is ProxyAdminOwnedBase, Initializable, Reinitializa
     }
 
     /// @notice Initializes the contract.
-    /// @param _systemConfig The address of the SystemConfig contract.
+    /// @param _superchainConfig The address of the SuperchainConfig contract.
+    /// @param _ethLockbox The address of the ETHLockbox contract (pause identifier).
     /// @param _disputeGameFactory The address of the DisputeGameFactory contract.
     /// @param _startingAnchorRoot The starting anchor root.
     function initialize(
-        ISystemConfig _systemConfig,
+        ISuperchainConfig _superchainConfig,
+        IETHLockbox _ethLockbox,
         IDisputeGameFactory _disputeGameFactory,
         Proposal memory _startingAnchorRoot,
         GameType _startingRespectedGameType
@@ -99,7 +104,8 @@ contract AnchorStateRegistry is ProxyAdminOwnedBase, Initializable, Reinitializa
         _assertOnlyProxyAdminOrProxyAdminOwner();
 
         // Now perform initialization logic.
-        systemConfig = _systemConfig;
+        superchainConfig = _superchainConfig;
+        ethLockbox = _ethLockbox;
         disputeGameFactory = _disputeGameFactory;
         startingAnchorRoot = _startingAnchorRoot;
         respectedGameType = _startingRespectedGameType;
@@ -108,13 +114,14 @@ contract AnchorStateRegistry is ProxyAdminOwnedBase, Initializable, Reinitializa
 
     /// @notice Returns whether the contract is paused.
     function paused() public view returns (bool) {
-        return systemConfig.paused();
+        // Use the ETHLockbox address as the pause identifier
+        return superchainConfig.paused(address(ethLockbox));
     }
 
     /// @notice Returns the SuperchainConfig contract.
     /// @return ISuperchainConfig The SuperchainConfig contract.
-    function superchainConfig() public view returns (ISuperchainConfig) {
-        return systemConfig.superchainConfig();
+    function getSuperchainConfig() public view returns (ISuperchainConfig) {
+        return superchainConfig;
     }
 
     /// @notice Returns the dispute game finality delay in seconds.
@@ -341,9 +348,9 @@ contract AnchorStateRegistry is ProxyAdminOwnedBase, Initializable, Reinitializa
         emit AnchorUpdated(game);
     }
 
-    /// @notice Asserts that the caller is the Guardian.
+    /// @dev Internal: checks that the caller is the guardian in SuperchainConfig.
     function _assertOnlyGuardian() internal view {
-        if (msg.sender != systemConfig.guardian()) {
+        if (msg.sender != superchainConfig.guardian()) {
             revert AnchorStateRegistry_Unauthorized();
         }
     }
