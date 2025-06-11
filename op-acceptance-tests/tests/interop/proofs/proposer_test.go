@@ -22,9 +22,8 @@ func TestProposer(gt *testing.T) {
 	t := devtest.SerialT(gt)
 	sys := presets.NewSimpleInterop(t)
 
-	deployment := sys.L2Networks()[0].Escape().Deployment()
 	// The DGF is shared across all L2 networks. So pick the first one.
-	disputeGameFactoryAddr := deployment.DisputeGameFactoryProxyAddr()
+	disputeGameFactoryAddr := sys.L2Networks()[0].DisputeGameFactoryProxyAddr()
 	l1Client := sys.L1EL.EthClient()
 
 	var gameCount *big.Int
