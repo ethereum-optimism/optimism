@@ -66,6 +66,9 @@ func MakeDeployParams(t require.TestingT, tp *TestParams) *DeployParams {
 	deployConfig.ChannelTimeoutBedrock = tp.ChannelTimeout
 	deployConfig.L1BlockTime = tp.L1BlockTime
 	deployConfig.UseAltDA = tp.UseAltDA
+	if deployConfig.UseAltDA {
+		deployConfig.AltDADeployConfig.DACommitmentType = altda.GenericCommitmentString
+	}
 	ApplyDeployConfigForks(deployConfig)
 
 	logger := log.NewLogger(log.NewTerminalHandlerWithLevel(os.Stdout, tp.LogLevel, true))
@@ -173,11 +176,22 @@ func Setup(t require.TestingT, deployParams *DeployParams, alloc *AllocParams) *
 
 	var pcfg *rollup.AltDAConfig
 	if deployConf.UseAltDA {
-		pcfg = &rollup.AltDAConfig{
-			DAChallengeAddress: l1Deployments.DataAvailabilityChallengeProxy,
-			DAChallengeWindow:  deployConf.DAChallengeWindow,
-			DAResolveWindow:    deployConf.DAResolveWindow,
-			CommitmentType:     altda.KeccakCommitmentString,
+		if deployConf.AltDADeployConfig.DACommitmentType == altda.KeccakCommitmentString {
+			pcfg = &rollup.AltDAConfig{
+				// change to use generic
+				DAChallengeAddress: l1Deployments.DataAvailabilityChallengeProxy,
+				DAChallengeWindow:  deployConf.DAChallengeWindow,
+				DAResolveWindow:    deployConf.DAResolveWindow,
+				CommitmentType:     altda.KeccakCommitmentString,
+			}
+		} else if deployConf.AltDADeployConfig.DACommitmentType == altda.GenericCommitmentString {
+			pcfg = &rollup.AltDAConfig{
+				CommitmentType:    deployConf.AltDADeployConfig.DACommitmentType,
+				DAChallengeWindow: deployConf.AltDADeployConfig.DAChallengeWindow,
+				DAResolveWindow:   deployConf.AltDADeployConfig.DAResolveWindow,
+			}
+		} else {
+			panic("cannot find a match toAltDADeployConfig.DACommitmentType")
 		}
 	}
 
