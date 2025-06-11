@@ -36,6 +36,11 @@ contract DisputeGameFactory is ProxyAdminOwnedBase, ReinitializableBase, Ownable
     /// @param gameType The type of the DisputeGame.
     event ImplementationSet(address indexed impl, GameType indexed gameType);
 
+    /// @notice Emitted when a game type's implementation args are set
+    /// @param gameType The type of the DisputeGame.
+    /// @param args The constructor args for the game type.
+    event ImplementationArgsSet(GameType indexed gameType, bytes args);
+
     /// @notice Emitted when a game type's initialization bond is updated
     /// @param gameType The type of the DisputeGame.
     /// @param newBond The new bond (in wei) for initializing the game type.
@@ -291,8 +296,7 @@ contract DisputeGameFactory is ProxyAdminOwnedBase, ReinitializableBase, Ownable
         gameArgs[_gameType] = _args;
 
         emit ImplementationSet(address(_impl), _gameType);
-
-        /// TODO: emit args
+        emit ImplementationArgsSet(_gameType, _args);
     }
 
     /// @notice Sets the bond (in wei) for initializing a game type.
