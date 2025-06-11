@@ -4,27 +4,30 @@ import (
 	"container/ring"
 )
 
-// A buffer element may always have a nil default value
-type Buffer[T any] struct {
+// A RingBuffer is a generic [container/ring.Ring]
+// with convenient methods for adding and removing values.
+// The generic type T should be a pointer type or interface
+// because the default value if T will be returned if the value
+// is unset.
+type RingBuffer[T any] struct {
 	*ring.Ring
 }
 
-// NewBlockBuffer creates a new block buffer
-func NewBuffer[T any](size int) *Buffer[T] {
-	b := Buffer[T]{Ring: ring.New(size)}
+// NewBlockBuffer creates a new RingBuffer
+func NewRingBuffer[T any](size int) *RingBuffer[T] {
+	b := RingBuffer[T]{Ring: ring.New(size)}
 	return &b
 }
 
-// Add adds a value to the buffer, removing the oldest value
-func (r *Buffer[T]) Add(block T) {
+// Add adds a value to the RingBuffer, removing the oldest value
+func (r *RingBuffer[T]) Add(block T) {
 	r.Ring = r.Ring.Move(-1)
 	r.Value = block
 }
 
-// Peek returns the last added value to the buffer
-// if the buffer is empty, it returns nil
-// if the buffer is not empty, it returns the last added value
-func (r *Buffer[T]) Peek() T {
+// Peek returns the RingBuffer value
+// If the value is unset, the empty T is returned
+func (r *RingBuffer[T]) Peek() T {
 	v, ok := r.Value.(T)
 	if !ok {
 		var t T
@@ -33,14 +36,14 @@ func (r *Buffer[T]) Peek() T {
 	return v
 }
 
-// Reset resets the buffer to empty
-func (r *Buffer[T]) Reset() {
-	s := NewBuffer[T](r.Len()) // create a new buffer with the same size
+// Reset resets the buffer, unsetting all values
+func (r *RingBuffer[T]) Reset() {
+	s := NewRingBuffer[T](r.Len()) // create a new buffer with the same size
 	r.Ring = s.Ring
 }
 
-// Pop removes the last added value from the buffer
-func (r *Buffer[T]) Pop() T {
+// Pop removes the value from the buffer
+func (r *RingBuffer[T]) Pop() T {
 	b := r.Peek()
 	var t T
 	r.Value = t

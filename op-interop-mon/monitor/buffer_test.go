@@ -13,7 +13,7 @@ func TestBlockBuffer(t *testing.T) {
 	three := ptr(3)
 	four := ptr(4)
 
-	f := NewBuffer[*int](3)
+	f := NewRingBuffer[*int](3)
 
 	// nil nil [nil]
 	require.Equal(t, 3, f.Len())

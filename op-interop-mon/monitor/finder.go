@@ -49,7 +49,7 @@ type RPCFinder struct {
 	log      log.Logger
 
 	next       uint64
-	seenBlocks *Buffer[eth.BlockInfo]
+	seenBlocks *RingBuffer[eth.BlockInfo]
 }
 
 func NewFinder(chainID eth.ChainID, client FinderClient, toCases JobFilter, callback func(*Job), log log.Logger) *RPCFinder {
@@ -63,7 +63,7 @@ func NewFinder(chainID eth.ChainID, client FinderClient, toCases JobFilter, call
 		callback:           callback,
 		pollInterval:       2 * time.Second,
 		expiryPollInterval: 10 * time.Second,
-		seenBlocks:         NewBuffer[eth.BlockInfo](1000),
+		seenBlocks:         NewRingBuffer[eth.BlockInfo](1000),
 	}
 }
 
