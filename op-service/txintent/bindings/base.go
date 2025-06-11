@@ -103,8 +103,10 @@ func (b *BaseCallFactory) ApplyFactoryOptions(opts ...CallFactoryOption) {
 	}
 }
 
-// CheckImpl validates that the given binding struct has correctly defined function fields
-// Each function field must have a `sol` tag (MethodTagName) and the struct must embed BaseCallFactory
+// CheckImpl validates that the given struct satisfies the form BindingWrapper, which is initialized
+// using binding struct that user provided, and the injected binding factory.
+// User provided binding struct is checked that it has correctly defined function fields:
+// Each function field must have a `sol` tag (MethodTagName).
 func CheckImpl(v reflect.Value) (reflect.Value, reflect.Value) {
 	t := v.Type()
 	if t.Kind() == reflect.Ptr {
@@ -167,10 +169,10 @@ func findBindings(v reflect.Value) reflect.Value {
 // The input struct must be a pointer, and its fields are expected to follow a specific pattern for reflection-based setup
 func InitImpl[T any](impl *T) {
 	v := reflect.ValueOf(impl).Elem()
-	baseCallFactory, inner := CheckImpl(v)
-	innerType := inner.Type()
-	for i := range innerType.NumField() {
-		field := innerType.Field(i)
+	baseCallFactory, bindings := CheckImpl(v)
+	bindingsType := bindings.Type()
+	for i := range bindingsType.NumField() {
+		field := bindingsType.Field(i)
 		fieldType := field.Type
 		// Only care about function fields
 		if fieldType.Kind() == reflect.Func {
@@ -220,7 +222,7 @@ func InitImpl[T any](impl *T) {
 				typedCall.FieldByName("BaseCallFactory").Set(baseCallFactory.Addr())
 				return []reflect.Value{typedCall}
 			})
-			inner.FieldByName(field.Name).Set(lambda)
+			bindings.FieldByName(field.Name).Set(lambda)
 		}
 	}
 }
