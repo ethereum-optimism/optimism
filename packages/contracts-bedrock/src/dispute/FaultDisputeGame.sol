@@ -359,7 +359,7 @@ contract FaultDisputeGame is Clone, ISemver {
     /// @param _stateData The stateData of the step is the preimage of the claim at the given
     ///        prestate, which is at `_stateIndex` if the move is an attack and `_claimIndex` if
     ///        the move is a defense. If the step is an attack on the first instruction, it is
-    ///        the absolute prestate of the fault proof vm().
+    ///        the absolute prestate of the fault proof VM.
     /// @param _proof Proof to access memory nodes in the VM's merkle state tree.
     function step(
         uint256 _claimIndex,
