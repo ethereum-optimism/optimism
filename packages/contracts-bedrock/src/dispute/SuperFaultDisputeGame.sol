@@ -50,7 +50,8 @@ import {
     InvalidBondDistributionMode,
     GameNotResolved,
     ReservedGameType,
-    GamePaused
+    GamePaused,
+    BadExtraData
 } from "src/dispute/lib/Errors.sol";
 
 // Interfaces
@@ -295,13 +296,8 @@ contract SuperFaultDisputeGame is Clone, ISemver {
         // - 0x20 absolutePrestate (from CWIA gameArgs)
         // - 0x14 vm address (from CWIA gameArgs)
         // - 0x14 anchorStateRegistry address (from CWIA gameArgs)
-        // assembly {
-        //     if iszero(eq(calldatasize(), 0xC2)) {
-        //         // Store the selector for `BadExtraData()` & revert
-        //         mstore(0x00, 0x9824bdab)
-        //         revert(0x1C, 0x04)
-        //     }
-        // }
+
+        if (msg.data.length != 194) revert BadExtraData();
 
         // Do not allow the game to be initialized if the root claim corresponds to a l2 sequence number (timestamp) at
         // or before the configured starting sequence number.
