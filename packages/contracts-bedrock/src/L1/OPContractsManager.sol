@@ -1332,7 +1332,8 @@ contract OPContractsManagerDeployer is OPContractsManagerBase {
         return abi.encodeCall(
             IAnchorStateRegistry.initialize,
             (
-                _output.systemConfigProxy,
+                superchainConfig,
+                _output.ethLockboxProxy,
                 _output.disputeGameFactoryProxy,
                 startingAnchorRoot,
                 GameTypes.PERMISSIONED_CANNON
@@ -1495,7 +1496,13 @@ contract OPContractsManagerInteropMigrator is OPContractsManagerBase {
             getImplementations().anchorStateRegistryImpl,
             abi.encodeCall(
                 IAnchorStateRegistry.initialize,
-                (portals[0].systemConfig(), newDisputeGameFactory, _input.startingAnchorRoot, newGameType)
+                (
+                    portals[0].superchainConfig(),
+                    portals[0].ethLockbox(),
+                    newDisputeGameFactory,
+                    _input.startingAnchorRoot,
+                    newGameType
+                )
             )
         );
 
