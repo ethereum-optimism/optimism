@@ -47,8 +47,7 @@ func TestPreNoInbox(gt *testing.T) {
 	devtest.RunParallel(t, sys.L2Networks(), func(t devtest.T, net *dsl.L2Network) {
 		interopTime := net.Escape().ChainConfig().InteropTime
 
-		ctx := sys.T.Ctx()
-		_, err := sys.Supervisor.Escape().QueryAPI().SyncStatus(ctx)
+		_, err := sys.Supervisor.Escape().QueryAPI().SyncStatus(t.Ctx())
 		require.ErrorContains(err, "supervisor status tracker not ready")
 
 		// confirm we are still pre-interop
