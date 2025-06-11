@@ -79,7 +79,7 @@ are currently built naively. Each Updater:
 - Maintains a map of all `job`s it is updating
 - Evaluates all `job`s regularly
 - Expires old `job`s
-- Operates independenly per chain
+- Operates independently per chain
 
 ## Finders
 `Finder`s scan individual chains for relevant transactions. Each Finder:
