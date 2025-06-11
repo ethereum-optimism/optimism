@@ -119,7 +119,7 @@ func CheckImpl(v reflect.Value) (reflect.Value, reflect.Value) {
 	}
 	bindings := findBindings(v)
 	if !bindings.IsValid() {
-		panic("Inner not found in embedded fields")
+		panic("Bindings not found in embedded fields")
 	}
 	bindingType := bindings.Type()
 	for i := range bindingType.NumField() {
