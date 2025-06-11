@@ -7,6 +7,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl/contract"
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/predeploys"
 	"github.com/ethereum-optimism/optimism/op-service/txintent/bindings"
 	"github.com/ethereum-optimism/optimism/op-service/txintent/contractio"
 	"github.com/ethereum-optimism/optimism/op-service/txplan"
@@ -26,19 +27,9 @@ func TestWrapETH(gt *testing.T) {
 
 	client := sys.L2EL.Escape().EthClient()
 
+	wethAddr := common.HexToAddress(predeploys.WETH)
 	// Contract binding preparation
-	// Embed EL client for reading the chain
-	factory := bindings.NewWETHCallFactory(bindings.WithClient(client))
-	// Use default WETH address
-	factory.WithDefaultAddr()
-	// We can bind other options such as tests later
-	factory.ApplyFactoryOptions(bindings.WithTest(t))
-
-	// Initialize bindings from binding factory
-	weth := bindings.NewWETH(factory)
-
-	// Fetch default WETH address from binding
-	wethAddr, _ := weth.To()
+	weth := bindings.NewBindings[bindings.WETH](bindings.WithClient(client), bindings.WithTest(t), bindings.WithTo(wethAddr))
 
 	// Basic sanity check
 	require.NotEqual(alice.Address(), bob.Address())
@@ -48,7 +39,7 @@ func TestWrapETH(gt *testing.T) {
 	require.Equal(eth.ZeroWei, contract.Read(weth.BalanceOf(bob.Address())))
 
 	// Write: Alice wraps 0.01 WETH
-	alice.Transfer(*wethAddr, eth.OneHundredthEther)
+	alice.Transfer(wethAddr, eth.OneHundredthEther)
 
 	// Read: Alice has 0.01 WETH
 	require.Equal(eth.OneHundredthEther, contract.Read(weth.BalanceOf(alice.Address())))
@@ -56,7 +47,7 @@ func TestWrapETH(gt *testing.T) {
 	require.Equal(eth.ZeroWei, contract.Read(weth.BalanceOf(bob.Address())))
 
 	// Write: Alice wraps 0.01 WETH again
-	alice.Transfer(*wethAddr, eth.OneHundredthEther)
+	alice.Transfer(wethAddr, eth.OneHundredthEther)
 
 	// Read: Alice has 0.02 WETH
 	require.Equal(eth.TwoHundredthsEther, contract.Read(weth.BalanceOf(alice.Address())))
