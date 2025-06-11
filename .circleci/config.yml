@@ -2023,6 +2023,7 @@ workflows:
                 - op-deployer
                 - cannon
                 - op-dripper
+                - op-interop-mon
           name: <<matrix.docker_name>>-docker-release
           docker_tags: <<pipeline.git.revision>>
           platforms: "linux/amd64,linux/arm64"
@@ -2056,6 +2057,7 @@ workflows:
                 - op-deployer
                 - cannon
                 - op-dripper
+                - op-interop-mon
           name: <<matrix.op_component>>-cross-platform
           requires:
             - op-node-docker-release
@@ -2071,6 +2073,7 @@ workflows:
             - op-test-sequencer-docker-release
             - cannon-docker-release
             - op-dripper-docker-release
+            - op-interop-mon-docker-release
           context:
             - circleci-repo-readonly-authenticated-github-token
       - cannon-prestate:
@@ -2222,6 +2225,7 @@ workflows:
                 - op-test-sequencer
                 - cannon
                 - op-dripper
+                - op-interop-mon
           name: <<matrix.docker_name>>-docker-publish
           docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
           platforms: "linux/amd64,linux/arm64"
@@ -2246,6 +2250,7 @@ workflows:
                 - op-test-sequencer
                 - cannon
                 - op-dripper
+                - op-interop-mon
           name: <<matrix.op_component>>-cross-platform
           requires:
             - <<matrix.op_component>>-docker-publish
