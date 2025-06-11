@@ -37,7 +37,7 @@ func (r *BlockBuffer) Add(block eth.BlockInfo) {
 }
 
 func (r *BlockBuffer) Peek() eth.BlockInfo {
-	// if the buffer is empty, return an error
+	// if the buffer is empty, return nil
 	if r.total == 0 {
 		return nil
 	}
@@ -116,6 +116,7 @@ func NewFinder(chainID eth.ChainID, client FinderClient, toCases JobFilter, call
 		closed:       make(chan struct{}),
 		callback:     callback,
 		pollInterval: 2 * time.Second,
+		seenBlocks:   NewBlockBuffer(1000),
 	}
 }
 
@@ -126,8 +127,8 @@ func (t *RPCFinder) Start(ctx context.Context) error {
 		return err
 	}
 	// static backfill of 100 blocks. to be made configurable
-	t.next = block.NumberU64() - 100
-	t.seenBlocks = NewBlockBuffer(1000)
+	t.next = uint64(max(0, int64(block.NumberU64())-100))
+
 	go t.Run(ctx)
 	return nil
 }
@@ -155,34 +156,56 @@ func (t *RPCFinder) Run(ctx context.Context) {
 				t.log.Error("error getting block", "error", err)
 				continue
 			}
-			previous := t.seenBlocks.Peek()
-			if previous != nil {
-				// check if the blocks being processed are contiguous
-				if blockInfo.ParentHash() != previous.Hash() ||
-					blockInfo.NumberU64() != previous.NumberU64()+1 {
-					t.log.Error("blocks are not contiguous", "previous", previous, "next", blockInfo)
-					err := t.walkback(ctx)
-					if err != nil {
-						t.log.Error("error walking back", "error", err)
-						continue
-					}
+			err = t.processBlock(blockInfo, receipts)
+			if errors.Is(err, ErrBlockNotContiguous) {
+				err := t.walkback(ctx)
+				if err != nil {
+					t.log.Error("error walking back", "error", err)
 				}
+				continue
+			} else if err != nil {
+				t.log.Error("error processing block", "error", err)
+				continue
 			}
-			jobs := t.toJobs([]*types.Receipt(receipts))
-			firstSeen := time.Now()
-			for _, job := range jobs {
-				job.firstSeen = firstSeen
-				job.UpdateStatus(jobStatusUnknown)
-				t.callback(job)
-			}
-			if len(jobs) > 0 {
-				t.log.Info("added jobs to callback", "count", len(jobs))
-			}
-			t.log.Debug("visited block", "block", blockInfo.NumberU64())
-			t.seenBlocks.Add(blockInfo)
-			t.next++
 		}
 	}
+}
+
+var ErrBlockNotContiguous = errors.New("blocks are not contiguous")
+
+// processBlock processes a block and its receipts
+// it checks if the block is contiguous with the previous block
+// if it is:
+// it then calls the toJobs function to convert the receipts to jobs
+// it then calls the callback with the jobs
+// it then adds the block to the seenBlocks buffer
+// it returns a sentinel error if the block was not contiguous and
+// a generic error any of the steps fail
+func (t *RPCFinder) processBlock(blockInfo eth.BlockInfo, receipts types.Receipts) error {
+	previous := t.seenBlocks.Peek()
+	if previous != nil {
+		// check if the blocks being processed are contiguous
+		if blockInfo.ParentHash() != previous.Hash() ||
+			blockInfo.NumberU64() != previous.NumberU64()+1 {
+			t.log.Error("blocks are not contiguous", "previous", eth.InfoToL1BlockRef(previous), "next", eth.InfoToL1BlockRef(blockInfo))
+			return ErrBlockNotContiguous
+
+		}
+	}
+	jobs := t.toJobs([]*types.Receipt(receipts))
+	firstSeen := time.Now()
+	for _, job := range jobs {
+		job.firstSeen = firstSeen
+		job.UpdateStatus(jobStatusUnknown)
+		t.callback(job)
+	}
+	if len(jobs) > 0 {
+		t.log.Info("added jobs to callback", "count", len(jobs))
+	}
+	t.log.Debug("visited block", "block", blockInfo.NumberU64())
+	t.seenBlocks.Add(blockInfo)
+	t.next++
+	return nil
 }
 
 // walkback walks back to the last contiguous block which matches on the l2 client
@@ -203,11 +226,13 @@ func (t *RPCFinder) walkback(ctx context.Context) error {
 			return err
 		}
 		if block.Hash() != previous.Hash() {
-			t.log.Error("block hash mismatch", "expected", previous.Hash(), "got", block.Hash())
+			t.log.Debug("block hash mismatch", "height", previous.NumberU64(), "expected", previous.Hash(), "got", block.Hash())
 			continue
 		}
 		// if the block is contiguous, add it back to the buffer
+		t.log.Info("walked back to common ancestor", "block", eth.InfoToL1BlockRef(block))
 		t.seenBlocks.Add(block)
+		t.next = block.NumberU64() + 1
 		return nil
 	}
 }
