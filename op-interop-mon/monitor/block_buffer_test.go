@@ -7,40 +7,46 @@ import (
 )
 
 func TestBlockBuffer(t *testing.T) {
-	f := NewBuffer[*int](3)
-	require.Equal(t, 3, f.Len())
-
 	var nilint *int
+	one := ptr(1)
+	two := ptr(2)
+	three := ptr(3)
+	four := ptr(4)
+
+	f := NewBuffer[*int](3)
+
+	// nil nil [nil]
+	require.Equal(t, 3, f.Len())
 	require.Equal(t, nilint, f.Peek())
 
-	f.Print()
+	f.Add(one)
+	// nil nil [ 1 ]
+	require.Equal(t, one, f.Peek())
 
-	f.Add(ptr(1))
-	f.Print()
-	require.Equal(t, ptr(1), f.Peek())
+	f.Add(two)
+	// nil  1  [ 2 ]
+	require.Equal(t, two, f.Peek())
 
-	f.Add(ptr(2))
-	f.Print()
-	require.Equal(t, ptr(2), f.Peek())
+	f.Add(three)
+	//  1   2  [ 3 ]
+	require.Equal(t, three, f.Peek())
 
-	f.Add(ptr(3))
-	f.Print()
-	require.Equal(t, ptr(3), f.Peek())
-
-	f.Add(ptr(4))
-	f.Print()
-	require.Equal(t, ptr(4), f.Peek())
+	f.Add(four)
+	//  2   3  [ 4 ]
+	require.Equal(t, four, f.Peek())
 
 	p := f.Pop()
-	require.Equal(t, ptr(4), p)
-	f.Print()
+	// nil  2  [ 3 ]
+	require.Equal(t, four, p)
+	require.Equal(t, three, f.Peek())
 
 	p = f.Pop()
-	require.Equal(t, ptr(3), p)
-	f.Print()
+	// nil nil [ 2 ]
+	require.Equal(t, three, p)
+	require.Equal(t, two, f.Peek())
 
 	f.Reset()
-	f.Print()
+	// nil nil [nil]
 	require.Equal(t, 3, f.Len())
 	require.Equal(t, nilint, f.Peek())
 }

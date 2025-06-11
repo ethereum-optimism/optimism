@@ -2,7 +2,6 @@ package monitor
 
 import (
 	"container/ring"
-	"fmt"
 )
 
 // A buffer element may always have a nil default value
@@ -47,28 +46,4 @@ func (r *Buffer[T]) Pop() T {
 	r.Value = t
 	r.Ring = r.Ring.Move(1)
 	return b
-}
-
-func (r *Buffer[T]) Print() {
-	fmt.Println("--------------------------------")
-	r.Do(func(v any) {
-		fmt.Printf("%v\n", format(v))
-	})
-	p := r.Peek()
-	n := r.Next()
-	fmt.Printf("peek: %v\n", p)
-	fmt.Printf("next: %v\n", n.Value)
-	fmt.Println("--------------------------------")
-}
-
-func format(v any) string {
-	switch v := v.(type) {
-	case *int:
-		if v == nil {
-			return "nil"
-		}
-		return fmt.Sprintf("%v", *v)
-	default:
-		return fmt.Sprintf("%v", v)
-	}
 }
