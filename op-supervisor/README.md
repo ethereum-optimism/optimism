@@ -283,7 +283,7 @@ follow up with asynchronous full verification of the safety.
 ### Vision
 
 The `op-supervisor` is actively changing.
-The most immediate changes are that to the architecture and data flow, as outlined in [design-doc 171].
+The most immediate changes are that to the architecture and data flow, as outlined in [design-doc 171](https://github.com/ethereum-optimism/design-docs/pull/171).
 
 Further background on the design-choices of op-supervisor can be found in the
 [superchain backend design-doc](https://github.com/ethereum-optimism/design-docs/blob/main/protocol/superchain-backend.md).
@@ -298,7 +298,7 @@ Further background on the design-choices of op-supervisor can be found in the
 
 ## Failure modes
 
-See [design-doc 171] for discussion of missing data and syncing related failure modes.
+See [design-doc 171](https://github.com/ethereum-optimism/design-docs/pull/171) for discussion of missing data and syncing related failure modes.
 
 Generally the supervisor aims to provide existing static data in the case of disruption of cross-chain verification,
 such that a chain which does not take on new interop dependencies, can continue to be extended with safe blocks.
