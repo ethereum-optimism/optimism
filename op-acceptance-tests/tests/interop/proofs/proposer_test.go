@@ -1,14 +1,12 @@
 package proofs
 
 import (
-	"context"
 	"math/big"
 	"testing"
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
-	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/lmittmann/w3"
 )
@@ -25,29 +23,24 @@ func TestProposer(gt *testing.T) {
 	sys := presets.NewSimpleInterop(t)
 
 	deployment := sys.L2Networks()[0].Escape().Deployment()
+	// The DGF is shared across all L2 networks. So pick the first one.
 	disputeGameFactoryAddr := deployment.DisputeGameFactoryProxyAddr()
-
-	l1Client := sys.L1EL.Escape().EthClient()
+	l1Client := sys.L1EL.EthClient()
 
 	var gameCount *big.Int
 	newFuncCallDSL(t, l1Client, gameCountFn).
 		WithReturns(&gameCount).
 		Call(disputeGameFactoryAddr)
 
-	waitCtx, cancel := context.WithTimeout(t.Ctx(), time.Minute*30)
-	err := wait.For(waitCtx, time.Second*5, func() (bool, error) {
+	t.Require().Eventually(func() bool {
 		var newGameCount *big.Int
 		newFuncCallDSL(t, l1Client, gameCountFn).
 			WithReturns(&newGameCount).
 			Call(disputeGameFactoryAddr)
-		if newGameCount.Cmp(gameCount) > 0 {
-			t.Logf("game count increased from %d to %d", gameCount, newGameCount)
-			return true, nil
-		}
-		return false, nil
-	})
-	cancel()
-	t.Require().NoError(err, "waiting for game count to increase")
+		check := newGameCount.Cmp(gameCount) > 0
+		t.Logf("waiting for game count to increase. current=%d new=%d", gameCount, newGameCount)
+		return check
+	}, time.Minute*10, time.Second*5)
 
 	var gameType uint32
 	var timestamp uint64
