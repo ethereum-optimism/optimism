@@ -14,24 +14,6 @@ import (
 
 var ErrBlockNotFound = errors.New("block not found")
 
-func (r *BlockBuffer) Pop() (eth.BlockInfo, error) {
-	// if the buffer is empty, return an error
-	if r.total == 0 {
-		return nil, ErrBlockNotFound
-	}
-	// get the previous index, wrap around if necessary
-	prevIndex := (r.idx + len(r.buffer) - 1) % len(r.buffer)
-	block := r.buffer[prevIndex]
-	// if the block is nil, the buffer is empty
-	if block == nil {
-		return nil, ErrBlockNotFound
-	}
-	// decrement and wrap the index around the buffer
-	r.idx = prevIndex
-	r.total--
-	return block, nil
-}
-
 // JobFilter is a function that turns any executing messages from a slice of receipts
 // into a slice of jobs which can be added to the Maintainer's inbox
 type JobFilter func(receipts []*types.Receipt) []*Job
@@ -81,7 +63,7 @@ func NewFinder(chainID eth.ChainID, client FinderClient, toCases JobFilter, call
 		callback:           callback,
 		pollInterval:       2 * time.Second,
 		expiryPollInterval: 10 * time.Second,
-		seenBlocks:         NewBlockBuffer(1000),
+		seenBlocks:         NewBuffer[eth.BlockInfo](1000),
 	}
 }
 
@@ -178,10 +160,10 @@ func (t *RPCFinder) processBlock(blockInfo eth.BlockInfo, receipts types.Receipt
 func (t *RPCFinder) walkback(ctx context.Context) error {
 	for {
 		// pop the last block from the buffer
-		previous, err := t.seenBlocks.Pop()
-		if err != nil {
-			t.log.Error("error popping block", "error", err)
-			return err
+		previous := t.seenBlocks.Pop()
+		if previous == nil {
+			t.log.Error("no blocks to walk back to")
+			return ErrBlockNotFound
 		}
 		// fetch the block from the client
 		block, err := t.client.InfoByNumber(ctx, previous.NumberU64())

@@ -1,56 +1,76 @@
 package monitor
 
-import "github.com/ethereum-optimism/optimism/op-service/eth"
+import (
+	"container/ring"
+	"fmt"
+
+	"github.com/ethereum-optimism/optimism/op-service/eth"
+)
 
 // BlockBuffer is a circular buffer of seen blocks.
 // It can be used as a fix-sized stack of blocks to ensure
 // a canonical and contiguous view of the block history.
-type BlockBuffer struct {
-	buffer []eth.BlockInfo
-	idx    int
-	total  int
-}
+type Buffer[T any] struct{ *ring.Ring }
+
+type BlockBuffer = Buffer[eth.BlockInfo]
 
 // NewBlockBuffer creates a new block buffer
-func NewBlockBuffer(size int) *BlockBuffer {
-	return &BlockBuffer{
-		buffer: make([]eth.BlockInfo, size),
-		idx:    0,
-		total:  0,
-	}
+func NewBuffer[T any](size int) *Buffer[T] {
+	b := Buffer[T]{Ring: ring.New(size)}
+	return &b
 }
 
-// Add adds a block to the buffer
-func (r *BlockBuffer) Add(block eth.BlockInfo) {
-	r.buffer[r.idx] = block
-	r.idx++
-	r.idx %= len(r.buffer)
-	r.total++
+// Add adds a block to the buffer, removing the oldest block
+func (r *Buffer[T]) Add(block T) {
+	r.Ring = r.Ring.Move(-1)
+	r.Value = block
 }
 
 // Peek returns the last added block to the buffer
 // if the buffer is empty, it returns nil
 // if the buffer is not empty, it returns the last added block
-func (r *BlockBuffer) Peek() eth.BlockInfo {
-	// if the buffer is empty, return nil
-	if r.total == 0 {
-		return nil
+func (r *Buffer[T]) Peek() T {
+	bi, ok := r.Value.(T)
+	if !ok {
+		var t T
+		return t
 	}
-	// get the previous index, wrap around if necessary
-	prevIndex := (r.idx + len(r.buffer) - 1) % len(r.buffer)
-	block := r.buffer[prevIndex]
-	// if the block is nil, the buffer is empty
-	if block == nil {
-		return nil
-	}
-	return block
+	return bi
 }
 
 // Reset resets the buffer to empty
-func (r *BlockBuffer) Reset() {
-	r.idx = 0
-	r.total = 0
-	for i := range r.buffer {
-		r.buffer[i] = nil
+func (r *Buffer[T]) Reset() {
+	r = NewBuffer[T](r.Len()) // create a new buffer with the same size
+}
+
+func (r *Buffer[T]) Pop() T {
+	b := r.Peek()
+	r.Move(1)
+	return b
+}
+
+func (r *Buffer[T]) Print() {
+	fmt.Println("--------------------------------")
+	r.Do(func(v any) {
+		switch v := v.(type) {
+		case *int:
+			fmt.Printf("%v\n", *v)
+		default:
+			fmt.Printf("%v\n", v)
+		}
+	})
+	p := r.Peek()
+	n := r.Next()
+	fmt.Printf("peek: %v\n", p)
+	fmt.Printf("next: %v\n", n.Value)
+	fmt.Println("--------------------------------")
+}
+
+func format(v any) string {
+	switch v := v.(type) {
+	case *int:
+		return fmt.Sprintf("%v", *v)
+	default:
+		return fmt.Sprintf("%v", v)
 	}
 }
