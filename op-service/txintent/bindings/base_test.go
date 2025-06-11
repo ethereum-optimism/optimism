@@ -48,6 +48,20 @@ type TestNestedDynamicStruct struct {
 	}
 }
 
+type TestDoubleNestedStruct struct {
+	A *big.Int
+	B common.Address
+	C []byte
+	D struct {
+		E *big.Int
+		F []byte
+		G struct {
+			H []byte
+			I *big.Int
+		}
+	}
+}
+
 type TestStruct struct {
 	B *big.Int
 	C []byte
@@ -108,8 +122,10 @@ type TestBaseContract struct {
 	TestFunc2 func() TypedCall[TestDynamicSlice] `sol:"testfunc2"`
 	TestFunc3 func() TypedCall[[]TestStruct]     `sol:"testfunc3"`
 
-	TestFunc4 func() TypedCall[TestDynamicArray] `sol:"testfunc5"`
+	TestFunc4 func() TypedCall[TestDynamicArray] `sol:"testfunc4"`
 	TestFunc5 func() TypedCall[[2]TestStruct2]   `sol:"testfunc5"`
+
+	TestFunc6 func() TypedCall[TestDoubleNestedStruct] `sol:"testfunc6"`
 }
 
 func NewTestBaseContract(f *TestBaseCallContractFactory) *TestBaseContract {
@@ -307,4 +323,22 @@ func TestDecodeDynamicArray(t *testing.T) {
 		require.Equal(t, common.HexToAddress("0x2222222222222222222222222222222222222222"), result[1].B)
 		require.Equal(t, hexutil.MustDecode("0x123456"), result[1].C)
 	}
+}
+
+func TestDoubleTestedStruct(t *testing.T) {
+	factory := NewTestBaseContractCallFactory()
+	testBaseContract := NewTestBaseContract(factory)
+
+	call := testBaseContract.TestFunc6()
+	data := hexutil.MustDecode("0x00000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000000000000001000000000000000000000000000000000000000000000000000000000000dead000000000000000000000000000000000000000000000000000000000000008000000000000000000000000000000000000000000000000000000000000000c0000000000000000000000000000000000000000000000000000000000000000212340000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000006000000000000000000000000000000000000000000000000000000000000000a00000000000000000000000000000000000000000000000000000000000000002abcd0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000040000000000000000000000000000000000000000000000000000000000000000300000000000000000000000000000000000000000000000000000000000000015500000000000000000000000000000000000000000000000000000000000000")
+	result, err := call.DecodeOutput(data)
+	require.NoError(t, err)
+
+	require.True(t, new(big.Int).SetUint64(1).Cmp(result.A) == 0)
+	require.Equal(t, common.HexToAddress("0x000000000000000000000000000000000000dEaD"), result.B)
+	require.Equal(t, hexutil.MustDecode("0x1234"), result.C)
+	require.True(t, new(big.Int).SetUint64(2).Cmp(result.D.E) == 0)
+	require.Equal(t, hexutil.MustDecode("0xabcd"), result.D.F)
+	require.Equal(t, hexutil.MustDecode("0x55"), result.D.G.H)
+	require.True(t, new(big.Int).SetUint64(3).Cmp(result.D.G.I) == 0)
 }

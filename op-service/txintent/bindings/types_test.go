@@ -179,3 +179,34 @@ func TestTypeConversion(t *testing.T) {
 		})
 	}
 }
+
+func TestTest(t *testing.T) {
+	type testCase struct {
+		value    any
+		want     string
+		testName string
+	}
+
+	tests := []testCase{
+
+		{
+			value:    common.Address{},
+			want:     "address",
+			testName: "address (value)",
+		},
+		{
+			value:    TestSimpleStructB{},
+			want:     "(bytes3,bytes32,uint256)",
+			testName: "SimpleStructB",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.testName, func(t *testing.T) {
+			abiTargetType := CustomTypeToGoType(reflect.TypeOf(tc.value))
+			typ, _, err := goTypeToABIType(abiTargetType)
+			require.NoError(t, err)
+			require.Equal(t, tc.want, typ.String())
+		})
+	}
+}
