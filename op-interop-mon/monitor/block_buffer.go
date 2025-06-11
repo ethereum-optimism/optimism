@@ -3,16 +3,12 @@ package monitor
 import (
 	"container/ring"
 	"fmt"
-
-	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
 
-// BlockBuffer is a circular buffer of seen blocks.
-// It can be used as a fix-sized stack of blocks to ensure
-// a canonical and contiguous view of the block history.
-type Buffer[T any] struct{ *ring.Ring }
-
-type BlockBuffer = Buffer[eth.BlockInfo]
+// A buffer element may always have a nil default value
+type Buffer[T any] struct {
+	*ring.Ring
+}
 
 // NewBlockBuffer creates a new block buffer
 func NewBuffer[T any](size int) *Buffer[T] {
@@ -20,44 +16,43 @@ func NewBuffer[T any](size int) *Buffer[T] {
 	return &b
 }
 
-// Add adds a block to the buffer, removing the oldest block
+// Add adds a value to the buffer, removing the oldest value
 func (r *Buffer[T]) Add(block T) {
 	r.Ring = r.Ring.Move(-1)
 	r.Value = block
 }
 
-// Peek returns the last added block to the buffer
+// Peek returns the last added value to the buffer
 // if the buffer is empty, it returns nil
-// if the buffer is not empty, it returns the last added block
+// if the buffer is not empty, it returns the last added value
 func (r *Buffer[T]) Peek() T {
-	bi, ok := r.Value.(T)
+	v, ok := r.Value.(T)
 	if !ok {
 		var t T
 		return t
 	}
-	return bi
+	return v
 }
 
 // Reset resets the buffer to empty
 func (r *Buffer[T]) Reset() {
-	r = NewBuffer[T](r.Len()) // create a new buffer with the same size
+	s := NewBuffer[T](r.Len()) // create a new buffer with the same size
+	r.Ring = s.Ring
 }
 
+// Pop removes the last added value from the buffer
 func (r *Buffer[T]) Pop() T {
 	b := r.Peek()
-	r.Move(1)
+	var t T
+	r.Value = t
+	r.Ring = r.Ring.Move(1)
 	return b
 }
 
 func (r *Buffer[T]) Print() {
 	fmt.Println("--------------------------------")
 	r.Do(func(v any) {
-		switch v := v.(type) {
-		case *int:
-			fmt.Printf("%v\n", *v)
-		default:
-			fmt.Printf("%v\n", v)
-		}
+		fmt.Printf("%v\n", format(v))
 	})
 	p := r.Peek()
 	n := r.Next()
@@ -69,6 +64,9 @@ func (r *Buffer[T]) Print() {
 func format(v any) string {
 	switch v := v.(type) {
 	case *int:
+		if v == nil {
+			return "nil"
+		}
 		return fmt.Sprintf("%v", *v)
 	default:
 		return fmt.Sprintf("%v", v)
