@@ -106,8 +106,8 @@ func (ms *InteropMonitorService) dialAndRegister(ctx context.Context, l2Rpc stri
 	ms.clients[chainID] = ethClient
 	fmt.Println("added eth client to map")
 
-	finder := NewFinder(chainID, ethClient, BlockReceiptsToJobs, ms.maintainer.EnqueueNew, ms.Log)
-	updater := NewUpdater(chainID, ethClient, ms.Log)
+	finder := NewFinder(chainID, ethClient, BlockReceiptsToJobs, ms.maintainer.EnqueueNew, ms.maintainer.SetExpiry, ms.Log)
+	updater := NewUpdater(chainID, ethClient, &ms.maintainer.expiry, ms.Log)
 	ms.finders = append(ms.finders, finder)
 	ms.updaters = append(ms.updaters, updater)
 	ms.maintainer.AddClient(chainID, ethClient)

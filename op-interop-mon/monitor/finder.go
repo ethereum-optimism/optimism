@@ -36,6 +36,12 @@ func (r *BlockBuffer) Pop() (eth.BlockInfo, error) {
 // into a slice of jobs which can be added to the Maintainer's inbox
 type JobFilter func(receipts []*types.Receipt) []*Job
 
+// NewCallback is a function to be called when a new job is created
+type NewCallback func(*Job)
+
+// ExpiryCallback is a function to be called when the expiry of jobs for this chain is updated
+type ExpiryCallback func(chainID eth.ChainID, block eth.BlockInfo)
+
 // FinderClient is a client that can be used to find new blocks and their receipts
 // it is satisfied by the ethclient.Client type
 type FinderClient interface {
@@ -54,34 +60,34 @@ type Finder interface {
 
 // RPCFinder connects to an Ethereum chain and extracts receipts in order to create jobs
 type RPCFinder struct {
-	client  FinderClient
 	chainID eth.ChainID
+	client  FinderClient
+	log     log.Logger
 
-	pollInterval       time.Duration
 	expiryPollInterval time.Duration
+	expiryCallback     ExpiryCallback
 
-	inbox    chan *types.Header
-	toJobs   JobFilter
-	callback func(*Job)
-	closed   chan struct{}
-	log      log.Logger
+	fetchInterval time.Duration
+	next          uint64
+	seenBlocks    *BlockBuffer
+	toJobs        JobFilter
+	newCallback   NewCallback
 
-	next       uint64
-	seenBlocks *BlockBuffer
+	closed chan struct{}
 }
 
-func NewFinder(chainID eth.ChainID, client FinderClient, toCases JobFilter, callback func(*Job), log log.Logger) *RPCFinder {
+func NewFinder(chainID eth.ChainID, client FinderClient, toCases JobFilter, newCallback NewCallback, expiryCallback ExpiryCallback, log log.Logger) *RPCFinder {
 	return &RPCFinder{
 		chainID:            chainID,
 		client:             client,
 		log:                log.New("component", "rpc_finder", "chain_id", chainID),
-		toJobs:             toCases,
-		inbox:              make(chan *types.Header, 1000),
-		closed:             make(chan struct{}),
-		callback:           callback,
-		pollInterval:       2 * time.Second,
-		expiryPollInterval: 10 * time.Second,
+		fetchInterval:      2 * time.Second,
 		seenBlocks:         NewBlockBuffer(1000),
+		toJobs:             toCases,
+		newCallback:        newCallback,
+		expiryPollInterval: 10 * time.Second,
+		expiryCallback:     expiryCallback,
+		closed:             make(chan struct{}),
 	}
 }
 
@@ -102,19 +108,21 @@ func (t *RPCFinder) Run(ctx context.Context) {
 	// fetchTicker starts at 100ms to rapidly backfill blocks
 	fetchTicker := time.NewTicker(100 * time.Millisecond)
 	defer fetchTicker.Stop()
+	// expiryTicker tracks finalized L2 blocks of this chain
+	expiryTicker := time.NewTicker(t.expiryPollInterval)
+	defer expiryTicker.Stop()
 
 	for {
 		select {
 		case <-t.closed:
 			t.log.Info("finder closed")
-			close(t.inbox)
 			return
 		case <-fetchTicker.C:
 			blockInfo, receipts, err := t.client.FetchReceiptsByNumber(ctx, t.next)
 			if errors.Is(err, ethereum.NotFound) {
 				t.log.Debug("block not found", "block", t.next)
 				// once a block is not found, increase the poll interval to the configured value
-				fetchTicker.Reset(t.pollInterval)
+				fetchTicker.Reset(t.fetchInterval)
 				continue
 			} else if err != nil {
 				t.log.Error("error getting block", "error", err)
@@ -131,8 +139,21 @@ func (t *RPCFinder) Run(ctx context.Context) {
 				t.log.Error("error processing block", "error", err)
 				continue
 			}
+		case <-expiryTicker.C:
+			t.checkExpiry(ctx)
 		}
 	}
+}
+
+// checkExpiry checks the latest finalized block on the L2 chain
+// and updates the expiry callback
+func (t *RPCFinder) checkExpiry(ctx context.Context) {
+	blockInfo, err := t.client.InfoByLabel(ctx, eth.Finalized)
+	if err != nil {
+		t.log.Error("error getting finalized block", "error", err)
+		return
+	}
+	t.expiryCallback(t.chainID, blockInfo)
 }
 
 var ErrBlockNotContiguous = errors.New("blocks are not contiguous")
@@ -161,12 +182,9 @@ func (t *RPCFinder) processBlock(blockInfo eth.BlockInfo, receipts types.Receipt
 	for _, job := range jobs {
 		job.firstSeen = firstSeen
 		job.UpdateStatus(jobStatusUnknown)
-		t.callback(job)
+		t.newCallback(job)
 	}
-	if len(jobs) > 0 {
-		t.log.Info("added jobs to callback", "count", len(jobs))
-	}
-	t.log.Debug("visited block", "block", blockInfo.NumberU64())
+	t.log.Debug("block processed", "block", blockInfo.NumberU64(), "jobs", len(jobs))
 	t.seenBlocks.Add(blockInfo)
 	t.next++
 	return nil

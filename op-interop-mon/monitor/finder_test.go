@@ -12,7 +12,6 @@ import (
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
-	ethTypes "github.com/ethereum/go-ethereum/core/types"
 	"github.com/stretchr/testify/require"
 )
 
@@ -57,17 +56,20 @@ func (m *mockFinderClient) FetchReceiptsByNumber(ctx context.Context, number uin
 	}
 }
 
-func mockReceiptsToCases(receipts []*ethTypes.Receipt) []*Job {
+func mockReceiptsToCases(receipts []*types.Receipt) []*Job {
 	return nil
 }
 
 func mockCallback(job *Job) {
 }
 
+func mockExpiryCallback(chainID eth.ChainID, block eth.BlockInfo) {
+}
+
 func TestRPCFinder_StartStop(t *testing.T) {
 	client := &mockFinderClient{}
 	logger := testlog.Logger(t, slog.LevelDebug)
-	finder := NewFinder(eth.ChainIDFromUInt64(1), client, mockReceiptsToCases, mockCallback, logger)
+	finder := NewFinder(eth.ChainIDFromUInt64(1), client, mockReceiptsToCases, mockCallback, mockExpiryCallback, logger)
 
 	require.NoError(t, finder.Start(context.Background()))
 	require.NoError(t, finder.Stop())
@@ -97,7 +99,7 @@ func TestRPCFinder_processBlock(t *testing.T) {
 		callbackInvocations++
 	}
 
-	finder := NewFinder(eth.ChainIDFromUInt64(1), client, fakeReceiptsToCases, callback, logger)
+	finder := NewFinder(eth.ChainIDFromUInt64(1), client, fakeReceiptsToCases, callback, mockExpiryCallback, logger)
 
 	receipts := []*types.Receipt{
 		{
@@ -167,7 +169,7 @@ func TestRPCFinder_walkback(t *testing.T) {
 
 	logger := testlog.Logger(t, slog.LevelDebug)
 
-	finder := NewFinder(eth.ChainIDFromUInt64(1), client, mockReceiptsToCases, mockCallback, logger)
+	finder := NewFinder(eth.ChainIDFromUInt64(1), client, mockReceiptsToCases, mockCallback, mockExpiryCallback, logger)
 
 	finder.seenBlocks.Add(a0)
 	finder.seenBlocks.Add(a1)

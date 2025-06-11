@@ -9,7 +9,7 @@ import (
 func (m *Maintainer) ConsolidateMetrics() {
 	jobMap := map[JobID]*Job{}
 	m.updaters.Range(func(chainID eth.ChainID, updater Updater) bool {
-		jobMap = updater.GetJobs(jobMap)
+		jobMap = updater.CollectForMetrics(jobMap)
 		return true
 	})
 	// message metrics are dimensioned by:
