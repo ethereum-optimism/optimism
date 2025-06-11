@@ -4,12 +4,12 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/ethereum-optimism/optimism/cannon/mipsevm"
-	"github.com/ethereum-optimism/optimism/cannon/mipsevm/multithreaded"
-	"github.com/urfave/cli/v2"
-
-	"github.com/ethereum-optimism/optimism/cannon/mipsevm/singlethreaded"
+	factory "github.com/ethereum-optimism/optimism/cannon/mipsevm/versions"
+	"github.com/ethereum-optimism/optimism/op-service/ioutil"
 	"github.com/ethereum-optimism/optimism/op-service/jsonutil"
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/urfave/cli/v2"
 )
 
 var (
@@ -26,44 +26,51 @@ var (
 	}
 )
 
+type response struct {
+	WitnessHash common.Hash   `json:"witnessHash"`
+	Witness     hexutil.Bytes `json:"witness"`
+	Step        uint64        `json:"step"`
+	Exited      bool          `json:"exited"`
+	ExitCode    uint8         `json:"exitCode"`
+}
+
 func Witness(ctx *cli.Context) error {
 	input := ctx.Path(WitnessInputFlag.Name)
-	output := ctx.Path(WitnessOutputFlag.Name)
-	var state mipsevm.FPVMState
-	if vmType, err := vmTypeFromString(ctx); err != nil {
-		return err
-	} else if vmType == cannonVMType {
-		state, err = jsonutil.LoadJSON[singlethreaded.State](input)
-		if err != nil {
-			return fmt.Errorf("invalid input state (%v): %w", input, err)
-		}
-	} else if vmType == mtVMType {
-		state, err = jsonutil.LoadJSON[multithreaded.State](input)
-		if err != nil {
-			return fmt.Errorf("invalid input state (%v): %w", input, err)
-		}
-	} else {
-		return fmt.Errorf("invalid VM type: %q", vmType)
+	witnessOutput := ctx.Path(WitnessOutputFlag.Name)
+	state, err := factory.LoadStateFromFile(input)
+	if err != nil {
+		return fmt.Errorf("invalid input state (%v): %w", input, err)
 	}
-
 	witness, h := state.EncodeWitness()
-	if output != "" {
-		if err := os.WriteFile(output, witness, 0755); err != nil {
-			return fmt.Errorf("writing output to %v: %w", output, err)
+	if witnessOutput != "" {
+		if err := os.WriteFile(witnessOutput, witness, 0755); err != nil {
+			return fmt.Errorf("writing output to %v: %w", witnessOutput, err)
 		}
 	}
-	fmt.Println(h.Hex())
+	output := response{
+		WitnessHash: h,
+		Witness:     witness,
+		Step:        state.GetStep(),
+		Exited:      state.GetExited(),
+		ExitCode:    state.GetExitCode(),
+	}
+	if err := jsonutil.WriteJSON(output, ioutil.ToStdOut()); err != nil {
+		return fmt.Errorf("failed to write response: %w", err)
+	}
 	return nil
 }
 
-var WitnessCommand = &cli.Command{
-	Name:        "witness",
-	Usage:       "Convert a Cannon JSON state into a binary witness",
-	Description: "Convert a Cannon JSON state into a binary witness. The hash of the witness is written to stdout",
-	Action:      Witness,
-	Flags: []cli.Flag{
-		VMTypeFlag,
-		WitnessInputFlag,
-		WitnessOutputFlag,
-	},
+func CreateWitnessCommand(action cli.ActionFunc) *cli.Command {
+	return &cli.Command{
+		Name:        "witness",
+		Usage:       "Convert a Cannon JSON state into a binary witness",
+		Description: "Convert a Cannon JSON state into a binary witness. Basic data about the state is printed to stdout in JSON format.",
+		Action:      action,
+		Flags: []cli.Flag{
+			WitnessInputFlag,
+			WitnessOutputFlag,
+		},
+	}
 }
+
+var WitnessCommand = CreateWitnessCommand(Witness)

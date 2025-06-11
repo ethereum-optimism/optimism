@@ -2,10 +2,12 @@ package flags
 
 import (
 	"fmt"
+	"strings"
 	"time"
 
-	challengerFlags "github.com/ethereum-optimism/optimism/op-challenger/flags"
+	"github.com/ethereum-optimism/optimism/op-node/chaincfg"
 	"github.com/ethereum-optimism/optimism/op-service/flags"
+	"github.com/ethereum/go-ethereum/superchain"
 	"github.com/urfave/cli/v2"
 
 	"github.com/ethereum-optimism/optimism/op-dispute-mon/config"
@@ -31,12 +33,17 @@ var (
 		Usage:   "HTTP provider URL for L1.",
 		EnvVars: prefixEnvVars("L1_ETH_RPC"),
 	}
+	// Optional Flags
 	RollupRpcFlag = &cli.StringFlag{
 		Name:    "rollup-rpc",
 		Usage:   "HTTP provider URL for the rollup node",
 		EnvVars: prefixEnvVars("ROLLUP_RPC"),
 	}
-	// Optional Flags
+	SupervisorRpcFlag = &cli.StringFlag{
+		Name:    "supervisor-rpc",
+		Usage:   "HTTP provider URL for the supervisor node",
+		EnvVars: prefixEnvVars("SUPERVISOR_RPC"),
+	}
 	GameFactoryAddressFlag = &cli.StringFlag{
 		Name:    "game-factory-address",
 		Usage:   "Address of the fault game factory contract.",
@@ -89,11 +96,12 @@ var (
 // requiredFlags are checked by [CheckRequired]
 var requiredFlags = []cli.Flag{
 	L1EthRpcFlag,
-	RollupRpcFlag,
 }
 
 // optionalFlags is a list of unchecked cli flags
 var optionalFlags = []cli.Flag{
+	RollupRpcFlag,
+	SupervisorRpcFlag,
 	GameFactoryAddressFlag,
 	NetworkFlag,
 	HonestActorsFlag,
@@ -122,6 +130,9 @@ func CheckRequired(ctx *cli.Context) error {
 			return fmt.Errorf("flag %s is required", f.Names()[0])
 		}
 	}
+	if !ctx.IsSet(RollupRpcFlag.Name) && !ctx.IsSet(SupervisorRpcFlag.Name) {
+		return fmt.Errorf("flag %s or %s is required", RollupRpcFlag.Name, SupervisorRpcFlag.Name)
+	}
 	return nil
 }
 
@@ -130,7 +141,7 @@ func NewConfigFromCLI(ctx *cli.Context) (*config.Config, error) {
 	if err := CheckRequired(ctx); err != nil {
 		return nil, err
 	}
-	gameFactoryAddress, err := challengerFlags.FactoryAddress(ctx)
+	gameFactoryAddress, err := FactoryAddress(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -169,6 +180,7 @@ func NewConfigFromCLI(ctx *cli.Context) (*config.Config, error) {
 		L1EthRpc:           ctx.String(L1EthRpcFlag.Name),
 		GameFactoryAddress: gameFactoryAddress,
 		RollupRpc:          ctx.String(RollupRpcFlag.Name),
+		SupervisorRpc:      ctx.String(SupervisorRpcFlag.Name),
 
 		HonestActors:          actors,
 		MonitorInterval:       ctx.Duration(MonitorIntervalFlag.Name),
@@ -181,4 +193,32 @@ func NewConfigFromCLI(ctx *cli.Context) (*config.Config, error) {
 		MetricsConfig: metricsConfig,
 		PprofConfig:   pprofConfig,
 	}, nil
+}
+
+func FactoryAddress(ctx *cli.Context) (common.Address, error) {
+	// Use FactoryAddressFlag in preference to Network. Allows overriding the default dispute game factory.
+	if ctx.IsSet(GameFactoryAddressFlag.Name) {
+		gameFactoryAddress, err := opservice.ParseAddress(ctx.String(GameFactoryAddressFlag.Name))
+		if err != nil {
+			return common.Address{}, err
+		}
+		return gameFactoryAddress, nil
+	}
+	if ctx.IsSet(flags.NetworkFlagName) {
+		chainName := ctx.String(flags.NetworkFlagName)
+		chain := chaincfg.ChainByName(chainName)
+		if chain == nil {
+			var opts []string
+			for _, cfg := range superchain.Chains {
+				opts = append(opts, cfg.Name+"-"+cfg.Network)
+			}
+			return common.Address{}, fmt.Errorf("unknown chain: %v (Valid options: %v)", chainName, strings.Join(opts, ", "))
+		}
+		addrs := chain.Addresses
+		if addrs.DisputeGameFactoryProxy == nil {
+			return common.Address{}, fmt.Errorf("dispute factory proxy not available for chain %v", chainName)
+		}
+		return *addrs.DisputeGameFactoryProxy, nil
+	}
+	return common.Address{}, fmt.Errorf("flag %v or %v is required", GameFactoryAddressFlag.Name, flags.NetworkFlagName)
 }

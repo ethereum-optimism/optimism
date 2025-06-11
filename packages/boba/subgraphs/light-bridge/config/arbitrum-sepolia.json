@@ -1,0 +1,9 @@
+{
+  "network": "arbitrum-sepolia",
+  "contracts": {
+    "LightBridge": {
+      "address": "0x3f7da9c51138e0475aa26e80677d27a568cfd6b9",
+      "startBlock": 0
+    }
+  }
+}

@@ -3,7 +3,6 @@ import os
 import re
 import subprocess
 import sys
-import json
 
 from github import Github
 
@@ -12,6 +11,7 @@ REBUILD_ALL_PATTERNS = [
     r'^\.github/\.*',
     r'^package\.json',
     r'ops/check-changed/.*',
+    r'^mise.toml',
 ]
 
 GO_PATTERNS = [

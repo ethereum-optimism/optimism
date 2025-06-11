@@ -37,6 +37,9 @@ type SendState struct {
 	// Whether any attempt to send the tx resulted in ErrAlreadyReserved
 	alreadyReserved bool
 
+	// Whether we should bump fees before trying to publish the tx again
+	bumpFees bool
+
 	// Miscellaneous tracking
 	bumpCount int // number of times we have bumped the gas price
 }
@@ -119,6 +122,10 @@ func (s *SendState) CriticalError() error {
 		return nil
 	case s.nonceTooLowCount >= s.safeAbortNonceTooLowCount:
 		// we have exceeded the nonce too low count
+		return core.ErrNonceTooLow
+	case s.successFullPublishCount == 0 && s.nonceTooLowCount > 0:
+		// A nonce too low error before successfully publishing any transaction means the tx will
+		// need a different nonce, which we can force by returning error.
 		return core.ErrNonceTooLow
 	case s.successFullPublishCount == 0 && s.now().After(s.txInMempoolDeadline):
 		// unable to get the tx into the mempool in the allotted time

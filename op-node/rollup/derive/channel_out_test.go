@@ -5,6 +5,9 @@ import (
 	"io"
 	"math/big"
 	"math/rand"
+	"reflect"
+	"runtime"
+	"strconv"
 	"testing"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -13,9 +16,17 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
+	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
 
-var rollupCfg rollup.Config
+var rollupCfg = rollup.Config{
+	Genesis: rollup.Genesis{
+		L2Time: uint64(1723618465),
+	},
+	BlockTime: 2,
+	L2ChainID: big.NewInt(420),
+	L1ChainID: big.NewInt(161),
+}
 
 // basic implementation of the Compressor interface that does no compression
 type nonCompressor struct {
@@ -34,14 +45,19 @@ func (s *nonCompressor) FullErr() error {
 	return nil
 }
 
+type channelOut interface {
+	ChannelOut
+	addSingularBatch(batch *SingularBatch, seqNum uint64) error
+}
+
 // channelTypes allows tests to run against different channel types
 var channelTypes = []struct {
-	ChannelOut func(t *testing.T, rcfg *rollup.Config) ChannelOut
+	ChannelOut func(t *testing.T, rcfg *rollup.Config) channelOut
 	Name       string
 }{
 	{
 		Name: "Singular",
-		ChannelOut: func(t *testing.T, rcfg *rollup.Config) ChannelOut {
+		ChannelOut: func(t *testing.T, rcfg *rollup.Config) channelOut {
 			cout, err := NewSingularChannelOut(&nonCompressor{}, rollup.NewChainSpec(rcfg))
 			require.NoError(t, err)
 			return cout
@@ -49,8 +65,8 @@ var channelTypes = []struct {
 	},
 	{
 		Name: "Span",
-		ChannelOut: func(t *testing.T, rcfg *rollup.Config) ChannelOut {
-			cout, err := NewSpanChannelOut(0, big.NewInt(0), 128_000, Zlib, rollup.NewChainSpec(rcfg))
+		ChannelOut: func(t *testing.T, rcfg *rollup.Config) channelOut {
+			cout, err := NewSpanChannelOut(128_000, Zlib, rollup.NewChainSpec(rcfg))
 			require.NoError(t, err)
 			return cout
 		},
@@ -69,9 +85,9 @@ func TestChannelOutAddBlock(t *testing.T) {
 					},
 				},
 			)
-			err := cout.AddBlock(&rollupCfg, block)
+			_, err := cout.AddBlock(&rollupCfg, block)
 			require.Error(t, err)
-			require.Equal(t, ErrNotDepositTx, err)
+			require.ErrorIs(t, err, ErrNotDepositTx)
 		})
 	}
 }
@@ -100,11 +116,10 @@ func TestOutputFrameNoEmptyLastFrame(t *testing.T) {
 			cout := tcase.ChannelOut(t, &rollupCfg)
 
 			rng := rand.New(rand.NewSource(0x543331))
-			chainID := big.NewInt(0)
 			txCount := 1
-			singularBatch := RandomSingularBatch(rng, txCount, chainID)
+			singularBatch := RandomSingularBatch(rng, txCount, rollupCfg.L2ChainID)
 
-			err := cout.AddSingularBatch(singularBatch, 0)
+			err := cout.addSingularBatch(singularBatch, 0)
 			var written uint64
 			require.NoError(t, err)
 
@@ -204,7 +219,7 @@ func TestForceCloseTxData(t *testing.T) {
 	for i, test := range tests {
 		out, err := ForceCloseTxData(test.frames)
 		if test.errors {
-			require.NotNil(t, err, "Should error on tc %v", i)
+			require.Error(t, err, "Should error on tc %v", i)
 			require.Nil(t, out, "Should return no value in tc %v", i)
 		} else {
 			require.NoError(t, err, "Should not error on tc %v", i)
@@ -219,40 +234,44 @@ func TestBlockToBatchValidity(t *testing.T) {
 	require.ErrorContains(t, err, "has no transactions")
 }
 
-func SpanChannelAndBatches(t *testing.T, target uint64, len int, algo CompressionAlgo) (*SpanChannelOut, []*SingularBatch) {
+func SpanChannelAndBatches(t *testing.T, targetOutputSize uint64, numBatches int, algo CompressionAlgo, opts ...SpanChannelOutOption) (*SpanChannelOut, []*SingularBatch) {
 	// target is larger than one batch, but smaller than two batches
 	rng := rand.New(rand.NewSource(0x543331))
-	chainID := big.NewInt(rng.Int63n(1000))
+	chainID := rollupCfg.L2ChainID
 	txCount := 1
-	cout, err := NewSpanChannelOut(0, chainID, target, algo, rollup.NewChainSpec(&rollupCfg))
+	genesisTime := rollupCfg.Genesis.L2Time
+	cout, err := NewSpanChannelOut(targetOutputSize, algo, rollup.NewChainSpec(&rollupCfg), opts...)
 	require.NoError(t, err)
-	batches := make([]*SingularBatch, len)
+	batches := make([]*SingularBatch, 0, numBatches)
 	// adding the first batch should not cause an error
-	for i := 0; i < len; i++ {
+	for i := 0; i < numBatches; i++ {
 		singularBatch := RandomSingularBatch(rng, txCount, chainID)
-		batches[i] = singularBatch
+		// use default 2 sec block time
+		singularBatch.Timestamp = genesisTime + 420_000 + rollupCfg.BlockTime*uint64(i)
+		batches = append(batches, singularBatch)
 	}
 
 	return cout, batches
 }
 
 func TestSpanChannelOut(t *testing.T) {
-	tests := []struct {
-		name string
-		f    func(t *testing.T, algo CompressionAlgo)
-	}{
-		{"SpanChannelOutCompressionOnlyOneBatch", SpanChannelOutCompressionOnlyOneBatch},
-		{"SpanChannelOutCompressionUndo", SpanChannelOutCompressionUndo},
-		{"SpanChannelOutClose", SpanChannelOutClose},
+	tests := []func(t *testing.T, algo CompressionAlgo){
+		SpanChannelOutCompressionOnlyOneBatch,
+		SpanChannelOutCompressionUndo,
+		SpanChannelOutClose,
 	}
 	for _, test := range tests {
 		test := test
 		for _, algo := range CompressionAlgos {
-			t.Run(test.name+"_"+algo.String(), func(t *testing.T) {
-				test.f(t, algo)
+			t.Run(funcName(test)+"_"+algo.String(), func(t *testing.T) {
+				test(t, algo)
 			})
 		}
 	}
+}
+
+func funcName(fn any) string {
+	return runtime.FuncForPC(reflect.ValueOf(fn).Pointer()).Name()
 }
 
 // TestSpanChannelOutCompressionOnlyOneBatch tests that the SpanChannelOut compression works as expected when there is only one batch
@@ -260,7 +279,7 @@ func TestSpanChannelOut(t *testing.T) {
 func SpanChannelOutCompressionOnlyOneBatch(t *testing.T, algo CompressionAlgo) {
 	cout, singularBatches := SpanChannelAndBatches(t, 300, 2, algo)
 
-	err := cout.AddSingularBatch(singularBatches[0], 0)
+	err := cout.addSingularBatch(singularBatches[0], 0)
 	// confirm compression was not skipped
 	require.Greater(t, cout.compressor.Len(), 0)
 	require.NoError(t, err)
@@ -269,16 +288,16 @@ func SpanChannelOutCompressionOnlyOneBatch(t *testing.T, algo CompressionAlgo) {
 	require.ErrorIs(t, cout.FullErr(), ErrCompressorFull)
 
 	// confirm adding another batch would cause the same full error
-	err = cout.AddSingularBatch(singularBatches[1], 0)
+	err = cout.addSingularBatch(singularBatches[1], 0)
 	require.ErrorIs(t, err, ErrCompressorFull)
 }
 
 // TestSpanChannelOutCompressionUndo tests that the SpanChannelOut compression rejects a batch that would cause the channel to be overfull
 func SpanChannelOutCompressionUndo(t *testing.T, algo CompressionAlgo) {
 	// target is larger than one batch, but smaller than two batches
-	cout, singularBatches := SpanChannelAndBatches(t, 750, 2, algo)
+	cout, singularBatches := SpanChannelAndBatches(t, 1100, 2, algo)
 
-	err := cout.AddSingularBatch(singularBatches[0], 0)
+	err := cout.addSingularBatch(singularBatches[0], 0)
 	require.NoError(t, err)
 	// confirm that the first compression was skipped
 	if algo == Zlib {
@@ -289,7 +308,7 @@ func SpanChannelOutCompressionUndo(t *testing.T, algo CompressionAlgo) {
 	// record the RLP length to confirm it doesn't change when adding a rejected batch
 	rlp1 := cout.activeRLP().Len()
 
-	err = cout.AddSingularBatch(singularBatches[1], 0)
+	err = cout.addSingularBatch(singularBatches[1], 0)
 	require.ErrorIs(t, err, ErrCompressorFull)
 	// confirm that the second compression was not skipped
 	require.Greater(t, cout.compressor.Len(), 0)
@@ -301,10 +320,10 @@ func SpanChannelOutCompressionUndo(t *testing.T, algo CompressionAlgo) {
 // TestSpanChannelOutClose tests that the SpanChannelOut compression works as expected when the channel is closed.
 // it should compress the batch even if it is smaller than the target size because the channel is closing
 func SpanChannelOutClose(t *testing.T, algo CompressionAlgo) {
-	target := uint64(600)
+	target := uint64(1100)
 	cout, singularBatches := SpanChannelAndBatches(t, target, 1, algo)
 
-	err := cout.AddSingularBatch(singularBatches[0], 0)
+	err := cout.addSingularBatch(singularBatches[0], 0)
 	require.NoError(t, err)
 	// confirm no compression has happened yet
 
@@ -324,4 +343,175 @@ func SpanChannelOutClose(t *testing.T, algo CompressionAlgo) {
 	// confirm that the only batch was compressed, and that the RLP did not change
 	require.Greater(t, cout.compressor.Len(), 0)
 	require.Equal(t, rlpLen, cout.activeRLP().Len())
+}
+
+type maxBlocksTest struct {
+	outputSize        uint64
+	exactFull         bool // whether the outputSize is exactly hit by the last batch
+	numBatches        int  // the last batch should cause the compressor to be full
+	maxBlocks         int
+	expNumSpanBatches int
+	expLastNumBlocks  int
+}
+
+// This tests sets a max blocks per span batch and causes multiple span batches
+// within a single channel. It then does a full round trip, encoding and decoding
+// the channel, confirming that the expected batches were encoded.
+func TestSpanChannelOut_MaxBlocksPerSpanBatch(t *testing.T) {
+	for i, tt := range []maxBlocksTest{
+		{
+			outputSize:        9_109,
+			exactFull:         true,
+			numBatches:        15,
+			maxBlocks:         4,
+			expNumSpanBatches: 4,
+			expLastNumBlocks:  3,
+		},
+		{
+			outputSize:        9_200,
+			numBatches:        16,
+			maxBlocks:         4,
+			expNumSpanBatches: 4,
+			expLastNumBlocks:  3,
+		},
+		{
+			outputSize:        9_310,
+			exactFull:         true,
+			numBatches:        16,
+			maxBlocks:         4,
+			expNumSpanBatches: 4,
+			expLastNumBlocks:  4,
+		},
+		{
+			outputSize:        9_400,
+			numBatches:        17,
+			maxBlocks:         4,
+			expNumSpanBatches: 4,
+			expLastNumBlocks:  4,
+		},
+		{
+			outputSize:        9_933,
+			exactFull:         true,
+			numBatches:        17,
+			maxBlocks:         4,
+			expNumSpanBatches: 5,
+			expLastNumBlocks:  1,
+		},
+		{
+			outputSize:        10_000,
+			numBatches:        18,
+			maxBlocks:         4,
+			expNumSpanBatches: 5,
+			expLastNumBlocks:  1,
+		},
+	} {
+		t.Run("test-"+strconv.Itoa(i), func(t *testing.T) {
+			testSpanChannelOut_MaxBlocksPerSpanBatch(t, tt)
+		})
+	}
+}
+
+func testSpanChannelOut_MaxBlocksPerSpanBatch(t *testing.T, tt maxBlocksTest) {
+	l1Origin := eth.L1BlockRef{Number: rollupCfg.Genesis.L1.Number + 42_000, Hash: common.Hash{0xde, 0xad, 0x42}}
+	l2SafeHead := eth.L2BlockRef{Number: rollupCfg.Genesis.L2Time + 40_000}
+	cout, bs := SpanChannelAndBatches(t, tt.outputSize, tt.numBatches, Brotli, WithMaxBlocksPerSpanBatch(tt.maxBlocks))
+	for i, b := range bs {
+		b.EpochNum = rollup.Epoch(l1Origin.Number)
+		b.EpochHash = l1Origin.Hash
+		err := cout.addSingularBatch(b, uint64(i))
+		if i != tt.numBatches-1 || tt.exactFull {
+			require.NoErrorf(t, err, "iteration %d", i)
+		} else {
+			// adding last batch should not succeed, if not making compressor exactly full
+			require.ErrorIs(t, err, ErrCompressorFull)
+			t.Logf("full compressor length: %d", cout.compressor.Len())
+		}
+
+	}
+	require.ErrorIs(t, cout.FullErr(), ErrCompressorFull)
+	expSpanBatchBlocks := tt.expLastNumBlocks
+	if !tt.exactFull {
+		// if we didn't fill up exactly, we expect that one more block got
+		// added to the current span batch to detect that the compressor is full
+		expSpanBatchBlocks = tt.expLastNumBlocks%tt.maxBlocks + 1
+	}
+	require.Equal(t, expSpanBatchBlocks, cout.spanBatch.GetBlockCount(),
+		"last block should still have been added to the span batch")
+	require.NoError(t, cout.Close())
+
+	// write cannel into a single frame
+	var frameBuf bytes.Buffer
+	fn, err := cout.OutputFrame(&frameBuf, tt.outputSize+FrameV0OverHeadSize)
+	require.Zero(t, fn)
+	require.ErrorIs(t, err, io.EOF)
+
+	// now roundtrip to decode the batches
+	var frame Frame
+	require.NoError(t, frame.UnmarshalBinary(&frameBuf))
+	require.True(t, frame.IsLast)
+	spec := rollup.NewChainSpec(&rollupCfg)
+	ch := NewChannel(frame.ID, l1Origin, false)
+	require.False(t, ch.IsReady())
+	require.NoError(t, ch.AddFrame(frame, l1Origin))
+	require.True(t, ch.IsReady())
+	br, err := BatchReader(ch.Reader(), spec.MaxRLPBytesPerChannel(0), true)
+	require.NoError(t, err)
+
+	sbs := make([]*SingularBatch, 0, tt.numBatches-1)
+	for i := 0; i < tt.expNumSpanBatches; i++ {
+		t.Logf("iteration %d", i)
+		expBlocks := tt.maxBlocks
+		if i == tt.expNumSpanBatches-1 {
+			// last span batch possibly contains less
+			expBlocks = tt.expLastNumBlocks
+		}
+
+		bd, err := br()
+		require.NoError(t, err)
+		require.EqualValues(t, SpanBatchType, bd.GetBatchType())
+		sb, err := DeriveSpanBatch(bd, rollupCfg.BlockTime, rollupCfg.Genesis.L2Time, cout.spanBatch.ChainID)
+		require.NoError(t, err)
+		require.Equal(t, expBlocks, sb.GetBlockCount())
+		sbs0, err := sb.GetSingularBatches([]eth.L1BlockRef{l1Origin}, l2SafeHead)
+		require.NoError(t, err)
+		// last span batch contains one less
+		require.Len(t, sbs0, expBlocks)
+		sbs = append(sbs, sbs0...)
+	}
+
+	// batch reader should be exhausted
+	_, err = br()
+	require.ErrorIs(t, err, io.EOF)
+
+	for i, batch := range sbs {
+		batch0 := bs[i]
+		// clear the expected parent hash, as GetSingularBatches doesn't set these yet
+		// we still compare timestamps and txs, which is enough
+		batch0.ParentHash = (common.Hash{})
+		require.Equalf(t, batch0, batch, "iteration %d", i)
+	}
+}
+
+func TestSpanChannelOut_MaxRLPBytesPerChannel(t *testing.T) {
+	for _, algo := range CompressionAlgos {
+		t.Run("testSpanChannelOut_MaxRLPBytesPerChannel_"+algo.String(), func(t *testing.T) {
+			testSpanChannelOut_MaxRLPBytesPerChannel(t, algo)
+		})
+	}
+}
+
+func testSpanChannelOut_MaxRLPBytesPerChannel(t *testing.T, algo CompressionAlgo) {
+
+	maxRLPBytesPerChannel := int(rollup.NewChainSpec(&rollupCfg).MaxRLPBytesPerChannel(0))
+	cout, singularBatches := SpanChannelAndBatches(t, 100, 1, algo)
+
+	cout.rlp[0] = bytes.NewBuffer(make([]byte, maxRLPBytesPerChannel))
+	cout.rlp[1] = bytes.NewBuffer(make([]byte, maxRLPBytesPerChannel))
+	cout.sealedRLPBytes = maxRLPBytesPerChannel
+
+	err := cout.addSingularBatch(singularBatches[0], 1)
+	require.ErrorIs(t, err, ErrTooManyRLPBytes, "error should be ErrTooManyRLPBytes")
+
+	require.Equal(t, cout.activeRLP().Len(), maxRLPBytesPerChannel, "active RLP should be equal to the max RLP limit")
+	require.Greater(t, cout.inactiveRLP().Len(), maxRLPBytesPerChannel, "inactive RLP should be greater than max RLP limit")
 }

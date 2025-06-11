@@ -95,12 +95,12 @@ func (o *CachingOracle) GetBlob(ref eth.L1BlockRef, blobHash eth.IndexedBlobHash
 	return blob
 }
 
-func (o *CachingOracle) Precompile(address common.Address, input []byte) ([]byte, bool) {
+func (o *CachingOracle) Precompile(address common.Address, input []byte, requiredGas uint64) ([]byte, bool) {
 	cacheKey := crypto.Keccak256Hash(append(address.Bytes(), input...))
 	if val, ok := o.pcmps.Get(cacheKey); ok {
 		return val.result, val.ok
 	}
-	res, ok := o.oracle.Precompile(address, input)
+	res, ok := o.oracle.Precompile(address, input, requiredGas)
 	o.pcmps.Add(cacheKey, precompileResult{res, ok})
 	return res, ok
 }

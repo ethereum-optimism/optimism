@@ -1,0 +1,9 @@
+{
+  "network": "chapel",
+  "contracts": {
+    "LightBridge": {
+      "address": "0x7f6a32bCaA70c65E08F2f221737612F6fC18347A",
+      "startBlock": 0
+    }
+  }
+}

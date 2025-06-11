@@ -12,6 +12,12 @@ import { LegacyCrossDomainUtils } from "src/libraries/LegacyCrossDomainUtils.sol
 // Target contract
 import { Hashing } from "src/libraries/Hashing.sol";
 
+contract Hashing_Harness {
+    function hashSuperRootProof(Types.SuperRootProof memory _proof) external pure returns (bytes32) {
+        return Hashing.hashSuperRootProof(_proof);
+    }
+}
+
 contract Hashing_hashDepositSource_Test is CommonTest {
     /// @notice Tests that hashDepositSource returns the correct hash in a simple case.
     function test_hashDepositSource_succeeds() external pure {
@@ -134,5 +140,53 @@ contract Hashing_hashDepositTransaction_Test is CommonTest {
             ),
             ffi.hashDepositTransaction(_from, _to, _mint, _value, _gas, _data, _logIndex)
         );
+    }
+}
+
+contract Hashing_hashSuperRootProof_Test is CommonTest {
+    Hashing_Harness internal harness;
+
+    /// @notice Sets up the test.
+    function setUp() public override {
+        super.setUp();
+        harness = new Hashing_Harness();
+    }
+
+    /// @notice Tests that the Solidity impl of hashSuperRootProof matches the FFI impl
+    /// @param _proof The super root proof to test.
+    function testDiff_hashSuperRootProof_succeeds(Types.SuperRootProof memory _proof) external {
+        // Make sure the proof has the right version.
+        _proof.version = 0x01;
+
+        // Make sure the proof has at least one output root.
+        if (_proof.outputRoots.length == 0) {
+            _proof.outputRoots = new Types.OutputRootWithChainId[](1);
+            _proof.outputRoots[0] = Types.OutputRootWithChainId({
+                chainId: vm.randomUint(0, type(uint64).max),
+                root: bytes32(vm.randomUint())
+            });
+        }
+
+        // Encode using the Solidity implementation
+        bytes32 hash1 = harness.hashSuperRootProof(_proof);
+
+        // Encode using the FFI implementation
+        bytes32 hash2 = ffi.hashSuperRootProof(_proof);
+
+        // Compare the results
+        assertEq(hash1, hash2, "Solidity and FFI implementations should match");
+    }
+
+    /// @notice Tests that hashSuperRootProof reverts when the version is incorrect.
+    /// @param _proof The super root proof to test.
+    function testFuzz_hashSuperRootProof_wrongVersion_reverts(Types.SuperRootProof memory _proof) external {
+        // 0x01 is the correct version, so we need any other version.
+        if (_proof.version == 0x01) {
+            _proof.version = 0x00;
+        }
+
+        // Should always revert when the version is incorrect.
+        vm.expectRevert(Encoding.Encoding_InvalidSuperRootVersion.selector);
+        harness.hashSuperRootProof(_proof);
     }
 }

@@ -1,0 +1,211 @@
+type FailedRelayedMessage @entity(immutable: true) {
+  id: Bytes!
+  msgHash: Bytes! # bytes32
+  blockNumber: BigInt!
+  blockTimestamp: BigInt!
+  transactionHash: Bytes!
+}
+
+type Initialized @entity(immutable: true) {
+  id: Bytes!
+  version: Int! # uint8
+  blockNumber: BigInt!
+  blockTimestamp: BigInt!
+  transactionHash: Bytes!
+}
+
+type RelayedMessage @entity(immutable: true) {
+  id: Bytes!
+  msgHash: Bytes! # bytes32
+  blockNumber: BigInt!
+  blockTimestamp: BigInt!
+  transactionHash: Bytes!
+}
+
+type SentMessage @entity(immutable: true) {
+  id: Bytes!
+  target: Bytes! # address
+  sender: Bytes! # address
+  message: Bytes! # bytes
+  messageNonce: BigInt! # uint256
+  gasLimit: BigInt! # uint256
+  blockNumber: BigInt!
+  blockTimestamp: BigInt!
+  transactionHash: Bytes!
+}
+
+type SentMessageExtension1 @entity(immutable: true) {
+  id: Bytes!
+  sender: Bytes! # address
+  value: BigInt! # uint256
+  blockNumber: BigInt!
+  blockTimestamp: BigInt!
+  transactionHash: Bytes!
+}
+type ERC20BridgeFinalized @entity(immutable: true) {
+  id: Bytes!
+  localToken: Bytes! # address
+  remoteToken: Bytes! # address
+  from: Bytes! # address
+  to: Bytes! # address
+  amount: BigInt! # uint256
+  extraData: Bytes! # bytes
+  blockNumber: BigInt!
+  blockTimestamp: BigInt!
+  transactionHash: Bytes!
+}
+
+type ERC20BridgeInitiated @entity(immutable: true) {
+  id: Bytes!
+  localToken: Bytes! # address
+  remoteToken: Bytes! # address
+  from: Bytes! # address
+  to: Bytes! # address
+  amount: BigInt! # uint256
+  extraData: Bytes! # bytes
+  blockNumber: BigInt!
+  blockTimestamp: BigInt!
+  transactionHash: Bytes!
+}
+
+type ERC20DepositInitiated @entity(immutable: true) {
+  id: Bytes!
+  l1Token: Bytes! # address
+  l2Token: Bytes! # address
+  from: Bytes! # address
+  to: Bytes! # address
+  amount: BigInt! # uint256
+  extraData: Bytes! # bytes
+  blockNumber: BigInt!
+  blockTimestamp: BigInt!
+  transactionHash: Bytes!
+}
+
+type ERC20WithdrawalFinalized @entity(immutable: true) {
+  id: Bytes!
+  l1Token: Bytes! # address
+  l2Token: Bytes! # address
+  from: Bytes! # address
+  to: Bytes! # address
+  amount: BigInt! # uint256
+  extraData: Bytes! # bytes
+  blockNumber: BigInt!
+  blockTimestamp: BigInt!
+  transactionHash: Bytes!
+}
+
+type ETHBridgeFinalized @entity(immutable: true) {
+  id: Bytes!
+  from: Bytes! # address
+  to: Bytes! # address
+  amount: BigInt! # uint256
+  extraData: Bytes! # bytes
+  blockNumber: BigInt!
+  blockTimestamp: BigInt!
+  transactionHash: Bytes!
+}
+
+type ETHBridgeInitiated @entity(immutable: true) {
+  id: Bytes!
+  from: Bytes! # address
+  to: Bytes! # address
+  amount: BigInt! # uint256
+  extraData: Bytes! # bytes
+  blockNumber: BigInt!
+  blockTimestamp: BigInt!
+  transactionHash: Bytes!
+}
+
+type ETHDepositInitiated @entity(immutable: true) {
+  id: Bytes!
+  from: Bytes! # address
+  to: Bytes! # address
+  amount: BigInt! # uint256
+  extraData: Bytes! # bytes
+  blockNumber: BigInt!
+  blockTimestamp: BigInt!
+  transactionHash: Bytes!
+}
+
+type ETHWithdrawalFinalized @entity(immutable: true) {
+  id: Bytes!
+  from: Bytes! # address
+  to: Bytes! # address
+  amount: BigInt! # uint256
+  extraData: Bytes! # bytes
+  blockNumber: BigInt!
+  blockTimestamp: BigInt!
+  transactionHash: Bytes!
+}
+
+type L1StandardBridgeInitialized @entity(immutable: true) {
+  id: Bytes!
+  version: Int! # uint8
+  blockNumber: BigInt!
+  blockTimestamp: BigInt!
+  transactionHash: Bytes!
+}
+type L2OutputOracleInitialized @entity(immutable: true) {
+  id: Bytes!
+  version: Int! # uint8
+  blockNumber: BigInt!
+  blockTimestamp: BigInt!
+  transactionHash: Bytes!
+}
+
+type OutputProposed @entity(immutable: true) {
+  id: Bytes!
+  outputRoot: Bytes! # bytes32
+  l2OutputIndex: BigInt! # uint256
+  l2BlockNumber: BigInt! # uint256
+  l1Timestamp: BigInt! # uint256
+  blockNumber: BigInt!
+  blockTimestamp: BigInt!
+  transactionHash: Bytes!
+}
+
+type OutputsDeleted @entity(immutable: true) {
+  id: Bytes!
+  prevNextOutputIndex: BigInt! # uint256
+  newNextOutputIndex: BigInt! # uint256
+  blockNumber: BigInt!
+  blockTimestamp: BigInt!
+  transactionHash: Bytes!
+}
+type OptimismPortalInitialized @entity(immutable: true) {
+  id: Bytes!
+  version: Int! # uint8
+  blockNumber: BigInt!
+  blockTimestamp: BigInt!
+  transactionHash: Bytes!
+}
+
+type TransactionDeposited @entity(immutable: true) {
+  id: Bytes!
+  from: Bytes! # address
+  to: Bytes! # address
+  version: BigInt! # uint256
+  opaqueData: Bytes! # bytes
+  blockNumber: BigInt!
+  blockTimestamp: BigInt!
+  transactionHash: Bytes!
+}
+
+type WithdrawalFinalized @entity(immutable: true) {
+  id: Bytes!
+  withdrawalHash: Bytes! # bytes32
+  success: Boolean! # bool
+  blockNumber: BigInt!
+  blockTimestamp: BigInt!
+  transactionHash: Bytes!
+}
+
+type WithdrawalProven @entity(immutable: true) {
+  id: Bytes!
+  withdrawalHash: Bytes! # bytes32
+  from: Bytes! # address
+  to: Bytes! # address
+  blockNumber: BigInt!
+  blockTimestamp: BigInt!
+  transactionHash: Bytes!
+}

@@ -4,6 +4,9 @@
   "scripts": {
     "codegen": "graph codegen",
     "build": "graph build",
+    "prepare:chapel": "mustache config/chapel.json subgraph.template.yaml > subgraph.yaml",
+    "prepare:sepolia": "mustache config/sepolia.json subgraph.template.yaml > subgraph.yaml",
+    "prepare:mainnet": "mustache config/mainnet.json subgraph.template.yaml > subgraph.yaml",
     "deploy": "graph deploy --node https://api.studio.thegraph.com/deploy/ anchorage-eth",
     "create-local": "graph create --node http://localhost:8020/ anchorage-eth",
     "remove-local": "graph remove --node http://localhost:8020/ anchorage-eth",
@@ -12,7 +15,10 @@
   },
   "dependencies": {
     "@graphprotocol/graph-cli": "0.72.1",
-    "@graphprotocol/graph-ts": "0.32.0"
+    "@graphprotocol/graph-ts": "0.32.0",
+    "mustache": "^4.2.0"
   },
-  "devDependencies": { "matchstick-as": "0.5.0" }
+  "devDependencies": {
+    "matchstick-as": "0.5.0"
+  }
 }

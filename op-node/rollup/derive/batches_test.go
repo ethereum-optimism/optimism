@@ -43,15 +43,16 @@ func deltaAt(t *uint64) func(*rollup.Config) {
 
 func fjordAt(t *uint64) func(*rollup.Config) {
 	return func(c *rollup.Config) {
+		c.DeltaTime = &zero64
 		c.FjordTime = t
 	}
 }
 
-func multiMod[T any](mods ...func(T)) func(T) {
-	return func(x T) {
-		for _, mod := range mods {
-			mod(x)
-		}
+func holoceneAt(t *uint64) func(*rollup.Config) {
+	return func(c *rollup.Config) {
+		c.DeltaTime = &zero64
+		c.FjordTime = &zero64
+		c.HoloceneTime = t
 	}
 }
 
@@ -72,7 +73,7 @@ func TestValidBatch(t *testing.T) {
 	rng := rand.New(rand.NewSource(1234))
 
 	chainId := new(big.Int).SetUint64(rng.Uint64())
-	signer := types.NewLondonSigner(chainId)
+	signer := types.NewIsthmusSigner(chainId)
 	randTx := testutils.RandomTx(rng, new(big.Int).SetUint64(rng.Uint64()), signer)
 	randTxData, _ := randTx.MarshalBinary()
 
@@ -264,6 +265,23 @@ func TestValidBatch(t *testing.T) {
 			Expected: BatchFuture,
 		},
 		{
+			Name:       "future timestamp with Holocene at L1 inc",
+			L1Blocks:   []eth.L1BlockRef{l1A, l1B, l1C},
+			L2SafeHead: l2A0,
+			Batch: BatchWithL1InclusionBlock{
+				L1InclusionBlock: l1B,
+				Batch: &SingularBatch{
+					ParentHash: l2A1.ParentHash,
+					EpochNum:   rollup.Epoch(l2A1.L1Origin.Number),
+					EpochHash:  l2A1.L1Origin.Hash,
+					Timestamp:  l2A1.Time + 1, // 1 too high
+				},
+			},
+			Expected:    BatchDrop,
+			ExpectedLog: "dropping future batch",
+			ConfigMod:   holoceneAt(&l1B.Time),
+		},
+		{
 			Name:       "old timestamp",
 			L1Blocks:   []eth.L1BlockRef{l1A, l1B, l1C},
 			L2SafeHead: l2A0,
@@ -278,6 +296,23 @@ func TestValidBatch(t *testing.T) {
 				},
 			},
 			Expected: BatchDrop,
+		},
+		{
+			Name:       "past timestamp with Holocene at L1 inc",
+			L1Blocks:   []eth.L1BlockRef{l1A, l1B, l1C},
+			L2SafeHead: l2A0,
+			Batch: BatchWithL1InclusionBlock{
+				L1InclusionBlock: l1B,
+				Batch: &SingularBatch{
+					ParentHash: l2A1.ParentHash,
+					EpochNum:   rollup.Epoch(l2A1.L1Origin.Number),
+					EpochHash:  l2A1.L1Origin.Hash,
+					Timestamp:  l2A0.Time, // repeating the same time
+				},
+			},
+			Expected:    BatchPast,
+			ExpectedLog: "dropping past batch with old timestamp",
+			ConfigMod:   holoceneAt(&l1B.Time),
 		},
 		{
 			Name:       "misaligned timestamp",
@@ -538,7 +573,27 @@ func TestValidBatch(t *testing.T) {
 					},
 				},
 			},
-			Expected: BatchDrop,
+			Expected:    BatchDrop,
+			ExpectedLog: "sequencers may not embed any deposits into batch data, but found tx that has one",
+		},
+		{
+			Name:       "setCode tx included pre-Isthmus",
+			L1Blocks:   []eth.L1BlockRef{l1A, l1B},
+			L2SafeHead: l2A0,
+			Batch: BatchWithL1InclusionBlock{
+				L1InclusionBlock: l1B,
+				Batch: &SingularBatch{
+					ParentHash: l2A1.ParentHash,
+					EpochNum:   rollup.Epoch(l2A1.L1Origin.Number),
+					EpochHash:  l2A1.L1Origin.Hash,
+					Timestamp:  l2A1.Time,
+					Transactions: []hexutil.Bytes{
+						[]byte{types.SetCodeTxType, 0}, // piece of data alike to a SetCodeTx
+					},
+				},
+			},
+			Expected:    BatchDrop,
+			ExpectedLog: "sequencers may not embed any SetCode transactions before Isthmus",
 		},
 		{
 			Name:       "valid batch same epoch",
@@ -595,6 +650,7 @@ func TestValidBatch(t *testing.T) {
 			Expected: BatchDrop,
 		},
 	}
+
 	spanBatchTestCases := []ValidBatchTestCase{
 		{
 			Name:       "missing L1 info",
@@ -635,6 +691,26 @@ func TestValidBatch(t *testing.T) {
 			Expected:    BatchFuture,
 			ExpectedLog: "received out-of-order batch for future processing after next batch",
 			ConfigMod:   deltaAtGenesis,
+		},
+		{
+			Name:       "future timestamp with Holocene at L1 inc",
+			L1Blocks:   []eth.L1BlockRef{l1A, l1B, l1C},
+			L2SafeHead: l2A0,
+			Batch: BatchWithL1InclusionBlock{
+				L1InclusionBlock: l1B,
+				Batch: initializedSpanBatch([]*SingularBatch{
+					{
+						ParentHash:   l2A1.ParentHash,
+						EpochNum:     rollup.Epoch(l2A1.L1Origin.Number),
+						EpochHash:    l2A1.L1Origin.Hash,
+						Timestamp:    l2A1.Time + 1, // 1 too high
+						Transactions: nil,
+					},
+				}, uint64(0), big.NewInt(0)),
+			},
+			Expected:    BatchDrop,
+			ExpectedLog: "dropping future span batch",
+			ConfigMod:   holoceneAt(&l1B.Time),
 		},
 		{
 			Name:       "misaligned timestamp",
@@ -873,7 +949,7 @@ func TestValidBatch(t *testing.T) {
 				}, uint64(0), big.NewInt(0)),
 			},
 			Expected:  BatchAccept,
-			ConfigMod: multiMod(deltaAtGenesis, fjordAt(&l1A.Time)),
+			ConfigMod: fjordAt(&l1A.Time),
 		},
 		{
 			Name:       "sequencer time drift on same epoch with non-empty txs - long span",
@@ -1276,6 +1352,33 @@ func TestValidBatch(t *testing.T) {
 			Expected:    BatchDrop,
 			ExpectedLog: "span batch has no new blocks after safe head",
 			ConfigMod:   deltaAtGenesis,
+		},
+		{
+			Name:       "fully overlapping batch with Holocene",
+			L1Blocks:   []eth.L1BlockRef{l1A, l1B},
+			L2SafeHead: l2A2,
+			Batch: BatchWithL1InclusionBlock{
+				L1InclusionBlock: l1B,
+				Batch: initializedSpanBatch([]*SingularBatch{
+					{
+						ParentHash:   l2A0.Hash,
+						EpochNum:     rollup.Epoch(l2A1.L1Origin.Number),
+						EpochHash:    l2A1.L1Origin.Hash,
+						Timestamp:    l2A1.Time,
+						Transactions: nil,
+					},
+					{
+						ParentHash:   l2A1.Hash,
+						EpochNum:     rollup.Epoch(l2A2.L1Origin.Number),
+						EpochHash:    l2A2.L1Origin.Hash,
+						Timestamp:    l2A2.Time,
+						Transactions: nil,
+					},
+				}, uint64(0), big.NewInt(0)),
+			},
+			Expected:    BatchPast,
+			ExpectedLog: "span batch has no new blocks after safe head",
+			ConfigMod:   holoceneAt(&l1B.Time),
 		},
 		{
 			Name:       "overlapping batch with invalid parent hash",

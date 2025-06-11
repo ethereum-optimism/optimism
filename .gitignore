@@ -4,6 +4,8 @@ results
 temp
 coverage.json
 **/lcov.info
+**/lcov-upgrade.info
+**/lcov-all.info
 
 yarn-error.log
 .yarn/*
@@ -15,7 +17,12 @@ dist
 artifacts
 cache
 
-packages/contracts-bedrock/deployments/devnetL1
+!op-chain-ops/foundry/testdata/srcmaps/cache
+!op-chain-ops/foundry/testdata/srcmaps/artifacts
+
+!op-deployer/pkg/deployer/artifacts
+
+
 packages/contracts-bedrock/deployments/anvil
 packages/contracts-bedrock/deployments/hardhat-local
 
@@ -32,7 +39,7 @@ packages/contracts-bedrock/deployments/hardhat-local
 !.envrc.example
 *.log
 
-.devnet
+.devnet*
 
 # Ignore local fuzzing results
 **/testdata/fuzz/

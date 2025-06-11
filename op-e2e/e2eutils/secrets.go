@@ -8,7 +8,6 @@ import (
 	hdwallet "github.com/ethereum-optimism/go-ethereum-hdwallet"
 	"github.com/ethereum/go-ethereum/accounts"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/crypto"
 )
 
@@ -20,8 +19,8 @@ const defaultHDPathPrefix = "m/44'/60'/0'/0/"
 // If these values are changed, it is subject to breaking tests. They
 // must be in sync with the values in the DeployConfig used to create the system.
 var DefaultMnemonicConfig = &MnemonicConfig{
-	Mnemonic:     "test test test test test test test test test test test junk",
-	CliqueSigner: "m/44'/60'/0'/0/0",
+	Mnemonic: "test test test test test test test test test test test junk",
+	// Note: "m/44'/60'/0'/0/0" is a legacy mnemonic path, used for the L1 clique signer.
 	Proposer:     "m/44'/60'/0'/0/1",
 	Batcher:      "m/44'/60'/0'/0/2",
 	Deployer:     "m/44'/60'/0'/0/3",
@@ -37,9 +36,8 @@ var DefaultMnemonicConfig = &MnemonicConfig{
 type MnemonicConfig struct {
 	Mnemonic string
 
-	CliqueSigner string
-	Deployer     string
-	SysCfgOwner  string
+	Deployer    string
+	SysCfgOwner string
 
 	// rollup actors
 	Proposer     string
@@ -64,10 +62,6 @@ func (m *MnemonicConfig) Secrets() (*Secrets, error) {
 	}
 
 	deployer, err := wallet.PrivateKey(account(m.Deployer))
-	if err != nil {
-		return nil, err
-	}
-	cliqueSigner, err := wallet.PrivateKey(account(m.CliqueSigner))
 	if err != nil {
 		return nil, err
 	}
@@ -103,7 +97,6 @@ func (m *MnemonicConfig) Secrets() (*Secrets, error) {
 	return &Secrets{
 		Deployer:     deployer,
 		SysCfgOwner:  sysCfgOwner,
-		CliqueSigner: cliqueSigner,
 		Proposer:     proposer,
 		Batcher:      batcher,
 		SequencerP2P: sequencerP2P,
@@ -116,9 +109,8 @@ func (m *MnemonicConfig) Secrets() (*Secrets, error) {
 
 // Secrets bundles secp256k1 private keys for all common rollup actors for testing purposes.
 type Secrets struct {
-	Deployer     *ecdsa.PrivateKey
-	CliqueSigner *ecdsa.PrivateKey
-	SysCfgOwner  *ecdsa.PrivateKey
+	Deployer    *ecdsa.PrivateKey
+	SysCfgOwner *ecdsa.PrivateKey
 
 	// rollup actors
 	Proposer     *ecdsa.PrivateKey
@@ -134,24 +126,11 @@ type Secrets struct {
 	Wallet *hdwallet.Wallet
 }
 
-// EncodePrivKey encodes the given private key in 32 bytes
-func EncodePrivKey(priv *ecdsa.PrivateKey) hexutil.Bytes {
-	privkey := make([]byte, 32)
-	blob := priv.D.Bytes()
-	copy(privkey[32-len(blob):], blob)
-	return privkey
-}
-
-func EncodePrivKeyToString(priv *ecdsa.PrivateKey) string {
-	return hexutil.Encode(EncodePrivKey(priv))
-}
-
 // Addresses computes the ethereum address of each account,
 // which can then be kept around for fast precomputed address access.
 func (s *Secrets) Addresses() *Addresses {
 	return &Addresses{
 		Deployer:     crypto.PubkeyToAddress(s.Deployer.PublicKey),
-		CliqueSigner: crypto.PubkeyToAddress(s.CliqueSigner.PublicKey),
 		SysCfgOwner:  crypto.PubkeyToAddress(s.SysCfgOwner.PublicKey),
 		Proposer:     crypto.PubkeyToAddress(s.Proposer.PublicKey),
 		Batcher:      crypto.PubkeyToAddress(s.Batcher.PublicKey),
@@ -164,9 +143,8 @@ func (s *Secrets) Addresses() *Addresses {
 
 // Addresses bundles the addresses for all common rollup addresses for testing purposes.
 type Addresses struct {
-	Deployer     common.Address
-	CliqueSigner common.Address
-	SysCfgOwner  common.Address
+	Deployer    common.Address
+	SysCfgOwner common.Address
 
 	// rollup actors
 	Proposer     common.Address
@@ -182,7 +160,6 @@ type Addresses struct {
 func (a *Addresses) All() []common.Address {
 	return []common.Address{
 		a.Deployer,
-		a.CliqueSigner,
 		a.SysCfgOwner,
 		a.Proposer,
 		a.Batcher,

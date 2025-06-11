@@ -130,20 +130,20 @@
     "label": "superchainConfig",
     "offset": 0,
     "slot": "251",
-    "type": "contract SuperchainConfig"
+    "type": "contract ISuperchainConfig"
   },
   {
     "bytes": "20",
     "label": "portal",
     "offset": 0,
     "slot": "252",
-    "type": "contract OptimismPortal"
+    "type": "contract IOptimismPortal2"
   },
   {
     "bytes": "20",
-    "label": "systemConfig",
+    "label": "spacer_253_0_20",
     "offset": 0,
     "slot": "253",
-    "type": "contract SystemConfig"
+    "type": "address"
   }
 ]

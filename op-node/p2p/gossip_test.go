@@ -9,25 +9,24 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils"
-	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/golang/snappy"
 
-	// "github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	opsigner "github.com/ethereum-optimism/optimism/op-service/signer"
+	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum-optimism/optimism/op-service/testutils"
+
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
-
 	"github.com/ethereum/go-ethereum/log"
+
 	pubsub "github.com/libp2p/go-libp2p-pubsub"
 	pubsub_pb "github.com/libp2p/go-libp2p-pubsub/pb"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/stretchr/testify/require"
-
-	"github.com/ethereum-optimism/optimism/op-service/testlog"
 )
 
 func TestGuardGossipValidator(t *testing.T) {
@@ -62,41 +61,41 @@ func TestVerifyBlockSignature(t *testing.T) {
 		L2ChainID: big.NewInt(100),
 	}
 	peerId := peer.ID("foo")
-	secrets, err := e2eutils.DefaultMnemonicConfig.Secrets()
+	secrets, err := crypto.GenerateKey()
 	require.NoError(t, err)
 	msg := []byte("any msg")
 
 	t.Run("Valid", func(t *testing.T) {
-		runCfg := &testutils.MockRuntimeConfig{P2PSeqAddress: crypto.PubkeyToAddress(secrets.SequencerP2P.PublicKey)}
-		signer := &PreparedSigner{Signer: NewLocalSigner(secrets.SequencerP2P)}
-		sig, err := signer.Sign(context.Background(), SigningDomainBlocksV1, cfg.L2ChainID, msg)
+		runCfg := &testutils.MockRuntimeConfig{P2PSeqAddress: crypto.PubkeyToAddress(secrets.PublicKey)}
+		signer := &PreparedSigner{Signer: opsigner.NewLocalSigner(secrets)}
+		sig, err := signer.SignBlockV1(context.Background(), eth.ChainIDFromBig(cfg.L2ChainID), opsigner.PayloadHash(msg))
 		require.NoError(t, err)
-		result := verifyBlockSignature(logger, cfg, runCfg, peerId, sig[:65], msg)
+		result := verifyBlockSignature(logger, cfg, runCfg, peerId, sig, msg)
 		require.Equal(t, pubsub.ValidationAccept, result)
 	})
 
 	t.Run("WrongSigner", func(t *testing.T) {
 		runCfg := &testutils.MockRuntimeConfig{P2PSeqAddress: common.HexToAddress("0x1234")}
-		signer := &PreparedSigner{Signer: NewLocalSigner(secrets.SequencerP2P)}
-		sig, err := signer.Sign(context.Background(), SigningDomainBlocksV1, cfg.L2ChainID, msg)
+		signer := &PreparedSigner{Signer: opsigner.NewLocalSigner(secrets)}
+		sig, err := signer.SignBlockV1(context.Background(), eth.ChainIDFromBig(cfg.L2ChainID), opsigner.PayloadHash(msg))
 		require.NoError(t, err)
-		result := verifyBlockSignature(logger, cfg, runCfg, peerId, sig[:65], msg)
+		result := verifyBlockSignature(logger, cfg, runCfg, peerId, sig, msg)
 		require.Equal(t, pubsub.ValidationReject, result)
 	})
 
 	t.Run("InvalidSignature", func(t *testing.T) {
-		runCfg := &testutils.MockRuntimeConfig{P2PSeqAddress: crypto.PubkeyToAddress(secrets.SequencerP2P.PublicKey)}
-		sig := make([]byte, 65)
+		runCfg := &testutils.MockRuntimeConfig{P2PSeqAddress: crypto.PubkeyToAddress(secrets.PublicKey)}
+		sig := eth.Bytes65{}
 		result := verifyBlockSignature(logger, cfg, runCfg, peerId, sig, msg)
 		require.Equal(t, pubsub.ValidationReject, result)
 	})
 
 	t.Run("NoSequencer", func(t *testing.T) {
 		runCfg := &testutils.MockRuntimeConfig{}
-		signer := &PreparedSigner{Signer: NewLocalSigner(secrets.SequencerP2P)}
-		sig, err := signer.Sign(context.Background(), SigningDomainBlocksV1, cfg.L2ChainID, msg)
+		signer := &PreparedSigner{Signer: opsigner.NewLocalSigner(secrets)}
+		sig, err := signer.SignBlockV1(context.Background(), eth.ChainIDFromBig(cfg.L2ChainID), opsigner.PayloadHash(msg))
 		require.NoError(t, err)
-		result := verifyBlockSignature(logger, cfg, runCfg, peerId, sig[:65], msg)
+		result := verifyBlockSignature(logger, cfg, runCfg, peerId, sig, msg)
 		require.Equal(t, pubsub.ValidationIgnore, result)
 	})
 }
@@ -113,7 +112,7 @@ func createSignedP2Payload(payload MarshalSSZ, signer Signer, l2ChainID *big.Int
 	}
 	data := buf.Bytes()
 	payloadData := data[65:]
-	sig, err := signer.Sign(context.TODO(), SigningDomainBlocksV1, l2ChainID, payloadData)
+	sig, err := signer.SignBlockV1(context.TODO(), eth.ChainIDFromBig(l2ChainID), opsigner.PayloadHash(payloadData))
 	if err != nil {
 		return nil, fmt.Errorf("failed to sign execution payload with signer: %w", err)
 	}
@@ -124,19 +123,21 @@ func createSignedP2Payload(payload MarshalSSZ, signer Signer, l2ChainID *big.Int
 	return snappy.Encode(nil, data), nil
 }
 
-func createExecutionPayload(w types.Withdrawals, excessGas, gasUsed *uint64) *eth.ExecutionPayload {
+func createExecutionPayload(w types.Withdrawals, withdrawalsRoot *common.Hash, excessGas, gasUsed *uint64) *eth.ExecutionPayload {
 	return &eth.ExecutionPayload{
-		Timestamp:     hexutil.Uint64(time.Now().Unix()),
-		Withdrawals:   &w,
-		ExcessBlobGas: (*eth.Uint64Quantity)(excessGas),
-		BlobGasUsed:   (*eth.Uint64Quantity)(gasUsed),
+		Timestamp:       hexutil.Uint64(time.Now().Unix()),
+		Withdrawals:     &w,
+		WithdrawalsRoot: withdrawalsRoot,
+		ExcessBlobGas:   (*eth.Uint64Quantity)(excessGas),
+		BlobGasUsed:     (*eth.Uint64Quantity)(gasUsed),
 	}
 }
 
-func createEnvelope(h *common.Hash, w types.Withdrawals, excessGas, gasUsed *uint64) *eth.ExecutionPayloadEnvelope {
+func createEnvelope(h *common.Hash, w types.Withdrawals, withdrawalsRoot *common.Hash, excessGas, gasUsed *uint64, requestsHash *common.Hash) *eth.ExecutionPayloadEnvelope {
 	return &eth.ExecutionPayloadEnvelope{
-		ExecutionPayload:      createExecutionPayload(w, excessGas, gasUsed),
+		ExecutionPayload:      createExecutionPayload(w, withdrawalsRoot, excessGas, gasUsed),
 		ParentBeaconBlockRoot: h,
+		RequestsHash:          requestsHash,
 	}
 }
 
@@ -146,18 +147,19 @@ func TestBlockValidator(t *testing.T) {
 	cfg := &rollup.Config{
 		L2ChainID: big.NewInt(100),
 	}
-	secrets, err := e2eutils.DefaultMnemonicConfig.Secrets()
+	secrets, err := crypto.GenerateKey()
 	require.NoError(t, err)
-	runCfg := &testutils.MockRuntimeConfig{P2PSeqAddress: crypto.PubkeyToAddress(secrets.SequencerP2P.PublicKey)}
-	signer := &PreparedSigner{Signer: NewLocalSigner(secrets.SequencerP2P)}
+	runCfg := &testutils.MockRuntimeConfig{P2PSeqAddress: crypto.PubkeyToAddress(secrets.PublicKey)}
+	signer := &PreparedSigner{Signer: opsigner.NewLocalSigner(secrets)}
 	// Params Set 2: Call the validation function
 	peerID := peer.ID("foo")
 
 	v2Validator := BuildBlocksValidator(testlog.Logger(t, log.LevelCrit), cfg, runCfg, eth.BlockV2)
 	v3Validator := BuildBlocksValidator(testlog.Logger(t, log.LevelCrit), cfg, runCfg, eth.BlockV3)
+	v4Validator := BuildBlocksValidator(testlog.Logger(t, log.LevelCrit), cfg, runCfg, eth.BlockV4)
 
 	zero, one := uint64(0), uint64(1)
-	beaconHash := common.HexToHash("0x1234")
+	beaconHash, withdrawalsRoot := common.HexToHash("0x1234"), common.HexToHash("0x9876")
 
 	payloadTests := []struct {
 		name      string
@@ -165,10 +167,10 @@ func TestBlockValidator(t *testing.T) {
 		result    pubsub.ValidationResult
 		payload   *eth.ExecutionPayload
 	}{
-		{"V2Valid", v2Validator, pubsub.ValidationAccept, createExecutionPayload(types.Withdrawals{}, nil, nil)},
-		{"V2NonZeroWithdrawals", v2Validator, pubsub.ValidationReject, createExecutionPayload(types.Withdrawals{&types.Withdrawal{Index: 1, Validator: 1}}, nil, nil)},
-		{"V2NonZeroBlobProperties", v2Validator, pubsub.ValidationReject, createExecutionPayload(types.Withdrawals{}, &zero, &zero)},
-		{"V3RejectExecutionPayload", v3Validator, pubsub.ValidationReject, createExecutionPayload(types.Withdrawals{}, &zero, &zero)},
+		{"V2Valid", v2Validator, pubsub.ValidationAccept, createExecutionPayload(types.Withdrawals{}, nil, nil, nil)},
+		{"V2NonZeroWithdrawals", v2Validator, pubsub.ValidationReject, createExecutionPayload(types.Withdrawals{&types.Withdrawal{Index: 1, Validator: 1}}, nil, nil, nil)},
+		{"V2NonZeroBlobProperties", v2Validator, pubsub.ValidationReject, createExecutionPayload(types.Withdrawals{}, nil, &zero, &zero)},
+		{"V3RejectExecutionPayload", v3Validator, pubsub.ValidationReject, createExecutionPayload(types.Withdrawals{}, nil, &zero, &zero)},
 	}
 
 	for _, tt := range payloadTests {
@@ -190,10 +192,12 @@ func TestBlockValidator(t *testing.T) {
 		result    pubsub.ValidationResult
 		payload   *eth.ExecutionPayloadEnvelope
 	}{
-		{"V3RejectNonZeroExcessGas", v3Validator, pubsub.ValidationReject, createEnvelope(&beaconHash, types.Withdrawals{}, &one, &zero)},
-		{"V3RejectNonZeroBlobGasUsed", v3Validator, pubsub.ValidationReject, createEnvelope(&beaconHash, types.Withdrawals{}, &zero, &one)},
-		{"V3RejectNonZeroBlobGasUsed", v3Validator, pubsub.ValidationReject, createEnvelope(&beaconHash, types.Withdrawals{}, &zero, &one)},
-		{"V3Valid", v3Validator, pubsub.ValidationAccept, createEnvelope(&beaconHash, types.Withdrawals{}, &zero, &zero)},
+		{"V3RejectNonZeroExcessGas", v3Validator, pubsub.ValidationReject, createEnvelope(&beaconHash, types.Withdrawals{}, nil, &one, &zero, nil)},
+		{"V3RejectNonZeroBlobGasUsed", v3Validator, pubsub.ValidationReject, createEnvelope(&beaconHash, types.Withdrawals{}, nil, &zero, &one, nil)},
+		{"V3Valid", v3Validator, pubsub.ValidationAccept, createEnvelope(&beaconHash, types.Withdrawals{}, nil, &zero, &zero, nil)},
+		{"V4Valid", v4Validator, pubsub.ValidationAccept, createEnvelope(&beaconHash, types.Withdrawals{}, &withdrawalsRoot, &zero, &zero, &types.EmptyRequestsHash)},
+		{"V4RejectNoWithdrawalRoot", v4Validator, pubsub.ValidationReject, createEnvelope(&beaconHash, types.Withdrawals{}, nil, &zero, &zero, &types.EmptyRequestsHash)},
+		{"V4RejectNoRequestsHash", v4Validator, pubsub.ValidationReject, createEnvelope(&beaconHash, types.Withdrawals{}, &common.Hash{}, &zero, &zero, nil)},
 	}
 
 	for _, tt := range envelopeTests {

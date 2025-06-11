@@ -11,7 +11,7 @@ usage_run_kontrol() {
   echo "" 1>&2
   echo "Execution modes:"
   echo "  container          Run in docker container. Reproduce CI execution. (Default)" 1>&2
-  echo "  local              Run locally, enforces registered versions.json version for better reproducibility. (Recommended)" 1>&2
+  echo "  local              Run locally, enforces registered mise.toml version for better reproducibility. (Recommended)" 1>&2
   echo "  dev                Run locally, does NOT enforce registered version. (Useful for developing with new versions and features)" 1>&2
   echo "" 1>&2
   echo "Tests executed:"
@@ -28,13 +28,14 @@ usage_make_summary() {
   echo "" 1>&2
   echo "Execution modes:"
   echo "  container          Run in docker container. Reproduce CI execution. (Default)" 1>&2
-  echo "  local              Run locally, enforces registered versions.json version for better reproducibility. (Recommended)" 1>&2
+  echo "  local              Run locally, enforces registered mise.toml version for better reproducibility. (Recommended)" 1>&2
   echo "  dev                Run locally, does NOT enforce registered version. (Useful for developing with new versions and features)" 1>&2
   exit 0
 }
 
 # Set Run Directory <root>/packages/contracts-bedrock
 WORKSPACE_DIR=$( cd "$SCRIPT_HOME/../../.." >/dev/null 2>&1 && pwd )
+pushd "$WORKSPACE_DIR" > /dev/null || exit
 
 # Variables
 export KONTROL_FP_DEPLOYMENT="${KONTROL_FP_DEPLOYMENT:-false}"
@@ -42,7 +43,7 @@ export CONTAINER_NAME=kontrol-tests
 if [ "$KONTROL_FP_DEPLOYMENT" = true ]; then
   export CONTAINER_NAME=kontrol-fp-tests
 fi
-KONTROLRC=$(jq -r .kontrol < "$WORKSPACE_DIR/../../versions.json")
+KONTROLRC=$(yq '.tools.kontrol' "$WORKSPACE_DIR/../../mise.toml")
 export KONTROL_RELEASE=$KONTROLRC
 export LOCAL=false
 export SCRIPT_TESTS=false
@@ -111,7 +112,6 @@ parse_first_arg() {
     export LOCAL=true
     export SCRIPT_TESTS=$SCRIPT_OPTION
     export CUSTOM_TESTS=$CUSTOM_OPTION
-    pushd "$WORKSPACE_DIR" > /dev/null || exit
   elif [ "$1" == "script" ]; then
     notif "Running in docker container (DEFAULT)"
     export LOCAL=false
@@ -130,7 +130,6 @@ check_kontrol_version() {
   if [ "$(kontrol version | awk -F': ' '{print$2}')" == "$KONTROLRC" ]; then
     notif "Kontrol version matches $KONTROLRC"
     export LOCAL=true
-    pushd "$WORKSPACE_DIR" > /dev/null || exit
   else
     notif "Kontrol version does NOT match $KONTROLRC"
     notif "Please run 'kup install kontrol --version v$KONTROLRC'"
@@ -156,7 +155,7 @@ start_docker () {
     --rm \
     --interactive \
     --detach \
-    --env FOUNDRY_PROFILE="$FOUNDRY_PROFILE" \
+    --env FOUNDRY_PROFILE="${FOUNDRY_PROFILE-default}" \
     --workdir /home/user/workspace \
     runtimeverificationinc/kontrol:ubuntu-jammy-"$KONTROL_RELEASE"
 
@@ -182,10 +181,15 @@ copy_to_docker() {
 }
 
 clean_docker(){
-  notif "Stopping Docker Container"
-  docker stop "$CONTAINER_NAME"
+  if [ "$LOCAL" = false ]; then
+    notif "Cleaning Docker Container"
+    docker stop "$CONTAINER_NAME" > /dev/null 2>&1 || true
+    docker rm "$CONTAINER_NAME" > /dev/null 2>&1 || true
+    sleep 2 # Give time for system to clean up container
+  else
+    notif "Not Running in Container. Done."
+  fi
 }
-
 
 docker_exec () {
   docker exec --user user --workdir /home/user/workspace $CONTAINER_NAME "${@}"
@@ -200,4 +204,5 @@ run () {
     notif "Running in docker"
     docker_exec "${@}"
   fi
+  return $? # Return the exit code of the command
 }

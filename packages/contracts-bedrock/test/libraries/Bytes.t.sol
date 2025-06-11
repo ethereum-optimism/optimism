@@ -7,7 +7,15 @@ import { Test } from "forge-std/Test.sol";
 // Target contract
 import { Bytes } from "src/libraries/Bytes.sol";
 
+contract Bytes_Harness {
+    function exposed_slice(bytes memory _input, uint256 _start, uint256 _length) public pure returns (bytes memory) {
+        return Bytes.slice(_input, _start, _length);
+    }
+}
+
 contract Bytes_slice_Test is Test {
+    Bytes_Harness harness;
+
     /// @notice Tests that the `slice` function works as expected when starting from index 0.
     function test_slice_fromZeroIdx_works() public pure {
         bytes memory input = hex"11223344556677889900";
@@ -124,26 +132,41 @@ contract Bytes_slice_Test is Test {
 }
 
 contract Bytes_slice_TestFail is Test {
+    Bytes_Harness harness;
+
+    function setUp() public {
+        harness = new Bytes_Harness();
+    }
+
     /// @notice Tests that, when given an input bytes array of length `n`, the `slice` function will
     ///         always revert if `_start + _length > n`.
     function testFuzz_slice_outOfBounds_reverts(bytes memory _input, uint256 _start, uint256 _length) public {
-        // We want a valid start index and a length that will not overflow.
-        vm.assume(_start < _input.length && _length < type(uint256).max - 31);
+        // We want a valid start index that will not overflow.
+        if (_input.length == 0) {
+            _start = 0;
+        } else {
+            _start = bound(_start, 0, _input.length - 1);
+        }
+        // And a length that will not overflow.
         // But, we want an invalid slice length.
-        vm.assume(_start + _length > _input.length);
+        if (_start > 31) {
+            _length = bound(_length, (_input.length - _start) + 1, type(uint256).max - _start);
+        } else {
+            _length = bound(_length, (_input.length - _start) + 1, type(uint256).max - 31);
+        }
 
         vm.expectRevert("slice_outOfBounds");
-        Bytes.slice(_input, _start, _length);
+        harness.exposed_slice(_input, _start, _length);
     }
 
     /// @notice Tests that, when given a length `n` that is greater than `type(uint256).max - 31`,
     ///         the `slice` function reverts.
     function testFuzz_slice_lengthOverflows_reverts(bytes memory _input, uint256 _start, uint256 _length) public {
         // Ensure that the `_length` will overflow if a number >= 31 is added to it.
-        vm.assume(_length > type(uint256).max - 31);
+        _length = uint256(bound(_length, type(uint256).max - 30, type(uint256).max));
 
         vm.expectRevert("slice_overflow");
-        Bytes.slice(_input, _start, _length);
+        harness.exposed_slice(_input, _start, _length);
     }
 
     /// @notice Tests that, when given a start index `n` that is greater than
@@ -160,7 +183,7 @@ contract Bytes_slice_TestFail is Test {
         vm.assume(_start > type(uint256).max - _length);
 
         vm.expectRevert("slice_overflow");
-        Bytes.slice(_input, _start, _length);
+        harness.exposed_slice(_input, _start, _length);
     }
 }
 

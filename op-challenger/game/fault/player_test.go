@@ -90,6 +90,11 @@ func TestDoNotActOnCompleteGame(t *testing.T) {
 			fetched = game.ProgressGame(context.Background())
 			require.Equal(t, 1, gameState.callCount, "does not act after game is complete")
 			require.Equal(t, status, fetched)
+
+			// Should have replaced the act function with a noop so callCount doesn't update even when called directly
+			// This allows the agent resources to be GC'd
+			require.NoError(t, game.act(context.Background()))
+			require.Equal(t, 1, gameState.callCount)
 		})
 	}
 }

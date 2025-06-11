@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
+// Libraries
 import { Types } from "src/libraries/Types.sol";
 import { Hashing } from "src/libraries/Hashing.sol";
 import { RLPWriter } from "src/libraries/rlp/RLPWriter.sol";
@@ -8,6 +9,12 @@ import { RLPWriter } from "src/libraries/rlp/RLPWriter.sol";
 /// @title Encoding
 /// @notice Encoding handles Optimism's various different encoding schemes.
 library Encoding {
+    /// @notice Thrown when a provided Super Root proof has an invalid version.
+    error Encoding_InvalidSuperRootVersion();
+
+    /// @notice Thrown when a provided Super Root proof has no Output Roots.
+    error Encoding_EmptySuperRoot();
+
     /// @notice RLP encodes the L2 transaction that would be generated when a given deposit is sent
     ///         to the L2 system. Useful for searching for a deposit in the L2 system. The
     ///         transaction is prefixed with 0x7e to identify its EIP-2718 type.
@@ -74,6 +81,7 @@ library Encoding {
         pure
         returns (bytes memory)
     {
+        // nosemgrep: sol-style-use-abi-encodecall
         return abi.encodeWithSignature("relayMessage(address,address,bytes,uint256)", _target, _sender, _data, _nonce);
     }
 
@@ -97,6 +105,7 @@ library Encoding {
         pure
         returns (bytes memory)
     {
+        // nosemgrep: sol-style-use-abi-encodecall
         return abi.encodeWithSignature(
             "relayMessage(uint256,address,address,uint256,uint256,bytes)",
             _nonce,
@@ -135,46 +144,6 @@ library Encoding {
     }
 
     /// @notice Returns an appropriately encoded call to L1Block.setL1BlockValuesEcotone
-    /// @param baseFeeScalar       L1 base fee Scalar
-    /// @param blobBaseFeeScalar   L1 blob base fee Scalar
-    /// @param sequenceNumber      Number of L2 blocks since epoch start.
-    /// @param timestamp           L1 timestamp.
-    /// @param number              L1 blocknumber.
-    /// @param baseFee             L1 base fee.
-    /// @param blobBaseFee         L1 blob base fee.
-    /// @param hash                L1 blockhash.
-    /// @param batcherHash         Versioned hash to authenticate batcher by.
-    function encodeSetL1BlockValuesEcotone(
-        uint32 baseFeeScalar,
-        uint32 blobBaseFeeScalar,
-        uint64 sequenceNumber,
-        uint64 timestamp,
-        uint64 number,
-        uint256 baseFee,
-        uint256 blobBaseFee,
-        bytes32 hash,
-        bytes32 batcherHash
-    )
-        internal
-        pure
-        returns (bytes memory)
-    {
-        bytes4 functionSignature = bytes4(keccak256("setL1BlockValuesEcotone()"));
-        return abi.encodePacked(
-            functionSignature,
-            baseFeeScalar,
-            blobBaseFeeScalar,
-            sequenceNumber,
-            timestamp,
-            number,
-            baseFee,
-            blobBaseFee,
-            hash,
-            batcherHash
-        );
-    }
-
-    /// @notice Returns an appropriately encoded call to L1Block.setL1BlockValuesInterop
     /// @param _baseFeeScalar       L1 base fee Scalar
     /// @param _blobBaseFeeScalar   L1 blob base fee Scalar
     /// @param _sequenceNumber      Number of L2 blocks since epoch start.
@@ -184,8 +153,49 @@ library Encoding {
     /// @param _blobBaseFee         L1 blob base fee.
     /// @param _hash                L1 blockhash.
     /// @param _batcherHash         Versioned hash to authenticate batcher by.
-    /// @param _dependencySet       Array of the chain IDs in the interop dependency set.
-    function encodeSetL1BlockValuesInterop(
+    function encodeSetL1BlockValuesEcotone(
+        uint32 _baseFeeScalar,
+        uint32 _blobBaseFeeScalar,
+        uint64 _sequenceNumber,
+        uint64 _timestamp,
+        uint64 _number,
+        uint256 _baseFee,
+        uint256 _blobBaseFee,
+        bytes32 _hash,
+        bytes32 _batcherHash
+    )
+        internal
+        pure
+        returns (bytes memory)
+    {
+        bytes4 functionSignature = bytes4(keccak256("setL1BlockValuesEcotone()"));
+        return abi.encodePacked(
+            functionSignature,
+            _baseFeeScalar,
+            _blobBaseFeeScalar,
+            _sequenceNumber,
+            _timestamp,
+            _number,
+            _baseFee,
+            _blobBaseFee,
+            _hash,
+            _batcherHash
+        );
+    }
+
+    /// @notice Returns an appropriately encoded call to L1Block.setL1BlockValuesIsthmus
+    /// @param _baseFeeScalar       L1 base fee Scalar
+    /// @param _blobBaseFeeScalar   L1 blob base fee Scalar
+    /// @param _sequenceNumber      Number of L2 blocks since epoch start.
+    /// @param _timestamp           L1 timestamp.
+    /// @param _number              L1 blocknumber.
+    /// @param _baseFee             L1 base fee.
+    /// @param _blobBaseFee         L1 blob base fee.
+    /// @param _hash                L1 blockhash.
+    /// @param _batcherHash         Versioned hash to authenticate batcher by.
+    /// @param _operatorFeeScalar   Operator fee scalar.
+    /// @param _operatorFeeConstant Operator fee constant.
+    function encodeSetL1BlockValuesIsthmus(
         uint32 _baseFeeScalar,
         uint32 _blobBaseFeeScalar,
         uint64 _sequenceNumber,
@@ -195,17 +205,14 @@ library Encoding {
         uint256 _blobBaseFee,
         bytes32 _hash,
         bytes32 _batcherHash,
-        uint256[] memory _dependencySet
+        uint32 _operatorFeeScalar,
+        uint64 _operatorFeeConstant
     )
         internal
         pure
         returns (bytes memory)
     {
-        require(_dependencySet.length <= type(uint8).max, "Encoding: dependency set length is too large");
-        // Check that the batcher hash is just the address with 0 padding to the left for version 0.
-        require(uint160(uint256(_batcherHash)) == uint256(_batcherHash), "Encoding: invalid batcher hash");
-
-        bytes4 functionSignature = bytes4(keccak256("setL1BlockValuesInterop()"));
+        bytes4 functionSignature = bytes4(keccak256("setL1BlockValuesIsthmus()"));
         return abi.encodePacked(
             functionSignature,
             _baseFeeScalar,
@@ -217,8 +224,34 @@ library Encoding {
             _blobBaseFee,
             _hash,
             _batcherHash,
-            uint8(_dependencySet.length),
-            _dependencySet
+            _operatorFeeScalar,
+            _operatorFeeConstant
         );
+    }
+
+    /// @notice Encodes a super root proof into the preimage of a Super Root.
+    /// @param _superRootProof Super root proof to encode.
+    /// @return Encoded super root proof.
+    function encodeSuperRootProof(Types.SuperRootProof memory _superRootProof) internal pure returns (bytes memory) {
+        // Version must match the expected version.
+        if (_superRootProof.version != 0x01) {
+            revert Encoding_InvalidSuperRootVersion();
+        }
+
+        // Output roots must not be empty.
+        if (_superRootProof.outputRoots.length == 0) {
+            revert Encoding_EmptySuperRoot();
+        }
+
+        // Start with version byte and timestamp.
+        bytes memory encoded = bytes.concat(bytes1(0x01), bytes8(_superRootProof.timestamp));
+
+        // Add each output root (chainId + root)
+        for (uint256 i = 0; i < _superRootProof.outputRoots.length; i++) {
+            Types.OutputRootWithChainId memory outputRoot = _superRootProof.outputRoots[i];
+            encoded = bytes.concat(encoded, bytes32(outputRoot.chainId), outputRoot.root);
+        }
+
+        return encoded;
     }
 }

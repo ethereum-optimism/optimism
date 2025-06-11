@@ -15,21 +15,23 @@ var _ eth.BlockInfo = &MockBlockInfo{}
 type MockBlockInfo struct {
 	// Prefixed all fields with "Info" to avoid collisions with the interface method names.
 
-	InfoHash        common.Hash
-	InfoParentHash  common.Hash
-	InfoCoinbase    common.Address
-	InfoRoot        common.Hash
-	InfoNum         uint64
-	InfoTime        uint64
-	InfoMixDigest   [32]byte
-	InfoBaseFee     *big.Int
-	InfoBlobBaseFee *big.Int
-	InfoReceiptRoot common.Hash
-	InfoGasUsed     uint64
-	InfoGasLimit    uint64
-	InfoHeaderRLP   []byte
+	InfoHash          common.Hash
+	InfoParentHash    common.Hash
+	InfoCoinbase      common.Address
+	InfoRoot          common.Hash
+	InfoNum           uint64
+	InfoTime          uint64
+	InfoMixDigest     [32]byte
+	InfoBaseFee       *big.Int
+	InfoBlobBaseFee   *big.Int
+	InfoExcessBlobGas *uint64
+	InfoReceiptRoot   common.Hash
+	InfoGasUsed       uint64
+	InfoGasLimit      uint64
+	InfoHeaderRLP     []byte
 
 	InfoParentBeaconRoot *common.Hash
+	InfoWithdrawalsRoot  *common.Hash
 }
 
 func (l *MockBlockInfo) Hash() common.Hash {
@@ -68,6 +70,10 @@ func (l *MockBlockInfo) BlobBaseFee() *big.Int {
 	return l.InfoBlobBaseFee
 }
 
+func (l *MockBlockInfo) ExcessBlobGas() *uint64 {
+	return l.InfoExcessBlobGas
+}
+
 func (l *MockBlockInfo) ReceiptHash() common.Hash {
 	return l.InfoReceiptRoot
 }
@@ -86,6 +92,10 @@ func (l *MockBlockInfo) ID() eth.BlockID {
 
 func (l *MockBlockInfo) ParentBeaconRoot() *common.Hash {
 	return l.InfoParentBeaconRoot
+}
+
+func (l *MockBlockInfo) WithdrawalsRoot() *common.Hash {
+	return l.InfoWithdrawalsRoot
 }
 
 func (l *MockBlockInfo) HeaderRLP() ([]byte, error) {

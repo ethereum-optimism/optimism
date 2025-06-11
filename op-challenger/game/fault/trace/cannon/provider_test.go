@@ -52,7 +52,7 @@ func TestGet(t *testing.T) {
 	t.Run("ProofAfterEndOfTrace", func(t *testing.T) {
 		provider, generator := setupWithTestData(t, dataDir, prestate)
 		generator.finalState = &singlethreaded.State{
-			Memory: &memory.Memory{},
+			Memory: memory.NewMemory(),
 			Step:   10,
 			Exited: true,
 		}
@@ -108,7 +108,7 @@ func TestGetStepData(t *testing.T) {
 		dataDir, prestate := setupTestData(t)
 		provider, generator := setupWithTestData(t, dataDir, prestate)
 		generator.finalState = &singlethreaded.State{
-			Memory: &memory.Memory{},
+			Memory: memory.NewMemory(),
 			Step:   10,
 			Exited: true,
 		}
@@ -134,7 +134,7 @@ func TestGetStepData(t *testing.T) {
 		dataDir, prestate := setupTestData(t)
 		provider, generator := setupWithTestData(t, dataDir, prestate)
 		generator.finalState = &singlethreaded.State{
-			Memory: &memory.Memory{},
+			Memory: memory.NewMemory(),
 			Step:   10,
 			Exited: true,
 		}
@@ -160,7 +160,7 @@ func TestGetStepData(t *testing.T) {
 		dataDir, prestate := setupTestData(t)
 		provider, initGenerator := setupWithTestData(t, dataDir, prestate)
 		initGenerator.finalState = &singlethreaded.State{
-			Memory: &memory.Memory{},
+			Memory: memory.NewMemory(),
 			Step:   10,
 			Exited: true,
 		}
@@ -178,7 +178,7 @@ func TestGetStepData(t *testing.T) {
 
 		provider, generator := setupWithTestData(t, dataDir, prestate)
 		generator.finalState = &singlethreaded.State{
-			Memory: &memory.Memory{},
+			Memory: memory.NewMemory(),
 			Step:   10,
 			Exited: true,
 		}
@@ -239,11 +239,12 @@ func setupTestData(t *testing.T) (string, string) {
 func setupWithTestData(t *testing.T, dataDir string, prestate string) (*CannonTraceProvider, *stubGenerator) {
 	generator := &stubGenerator{}
 	return &CannonTraceProvider{
-		logger:    testlog.Logger(t, log.LevelInfo),
-		dir:       dataDir,
-		generator: generator,
-		prestate:  filepath.Join(dataDir, prestate),
-		gameDepth: 63,
+		logger:         testlog.Logger(t, log.LevelInfo),
+		dir:            dataDir,
+		generator:      generator,
+		prestate:       filepath.Join(dataDir, prestate),
+		gameDepth:      63,
+		stateConverter: generator,
 	}, generator
 }
 
@@ -251,6 +252,21 @@ type stubGenerator struct {
 	generated  []int // Using int makes assertions easier
 	finalState *singlethreaded.State
 	proof      *utils.ProofData
+
+	finalStatePath string
+}
+
+func (e *stubGenerator) ConvertStateToProof(ctx context.Context, statePath string) (*utils.ProofData, uint64, bool, error) {
+	if statePath == e.finalStatePath {
+		witness, hash := e.finalState.EncodeWitness()
+		return &utils.ProofData{
+			ClaimValue: hash,
+			StateData:  witness,
+			ProofData:  []byte{},
+		}, e.finalState.Step, e.finalState.Exited, nil
+	} else {
+		return nil, 0, false, fmt.Errorf("loading unexpected state: %s, only support: %s", statePath, e.finalStatePath)
+	}
 }
 
 func (e *stubGenerator) GenerateProof(ctx context.Context, dir string, i uint64) error {
@@ -260,7 +276,8 @@ func (e *stubGenerator) GenerateProof(ctx context.Context, dir string, i uint64)
 	var err error
 	if e.finalState != nil && e.finalState.Step <= i {
 		// Requesting a trace index past the end of the trace
-		proofFile = filepath.Join(dir, vm.FinalState)
+		proofFile = vm.FinalStatePath(dir, false)
+		e.finalStatePath = proofFile
 		data, err = json.Marshal(e.finalState)
 		if err != nil {
 			return err

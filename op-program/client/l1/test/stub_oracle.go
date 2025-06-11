@@ -1,6 +1,7 @@
 package test
 
 import (
+	"encoding/binary"
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
@@ -75,8 +76,10 @@ func (o StubOracle) GetBlob(ref eth.L1BlockRef, blobHash eth.IndexedBlobHash) *e
 	return blob
 }
 
-func (o StubOracle) Precompile(addr common.Address, input []byte) ([]byte, bool) {
-	result, ok := o.PcmpResults[crypto.Keccak256Hash(append(addr.Bytes(), input...))]
+func (o StubOracle) Precompile(addr common.Address, input []byte, requiredGas uint64) ([]byte, bool) {
+	arg := append(addr.Bytes(), binary.BigEndian.AppendUint64(nil, requiredGas)...)
+	arg = append(arg, input...)
+	result, ok := o.PcmpResults[crypto.Keccak256Hash(arg)]
 	if !ok {
 		o.t.Fatalf("unknown kzg point evaluation %x", input)
 	}

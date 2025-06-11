@@ -2,13 +2,26 @@
   {
     "inputs": [
       {
-        "internalType": "contract IDisputeGameFactory",
-        "name": "_disputeGameFactory",
-        "type": "address"
+        "internalType": "uint256",
+        "name": "_disputeGameFinalityDelaySeconds",
+        "type": "uint256"
       }
     ],
     "stateMutability": "nonpayable",
     "type": "constructor"
+  },
+  {
+    "inputs": [],
+    "name": "anchorGame",
+    "outputs": [
+      {
+        "internalType": "contract IFaultDisputeGame",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
   },
   {
     "inputs": [
@@ -22,13 +35,45 @@
     "outputs": [
       {
         "internalType": "Hash",
-        "name": "root",
+        "name": "",
         "type": "bytes32"
       },
       {
         "internalType": "uint256",
-        "name": "l2BlockNumber",
+        "name": "",
         "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "contract IDisputeGame",
+        "name": "_disputeGame",
+        "type": "address"
+      }
+    ],
+    "name": "blacklistDisputeGame",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "contract IDisputeGame",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "name": "disputeGameBlacklist",
+    "outputs": [
+      {
+        "internalType": "bool",
+        "name": "",
+        "type": "bool"
       }
     ],
     "stateMutability": "view",
@@ -48,35 +93,69 @@
     "type": "function"
   },
   {
+    "inputs": [],
+    "name": "disputeGameFinalityDelaySeconds",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "getAnchorRoot",
+    "outputs": [
+      {
+        "internalType": "Hash",
+        "name": "",
+        "type": "bytes32"
+      },
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
     "inputs": [
+      {
+        "internalType": "contract ISuperchainConfig",
+        "name": "_superchainConfig",
+        "type": "address"
+      },
+      {
+        "internalType": "contract IDisputeGameFactory",
+        "name": "_disputeGameFactory",
+        "type": "address"
+      },
       {
         "components": [
           {
-            "internalType": "GameType",
-            "name": "gameType",
-            "type": "uint32"
+            "internalType": "Hash",
+            "name": "root",
+            "type": "bytes32"
           },
           {
-            "components": [
-              {
-                "internalType": "Hash",
-                "name": "root",
-                "type": "bytes32"
-              },
-              {
-                "internalType": "uint256",
-                "name": "l2BlockNumber",
-                "type": "uint256"
-              }
-            ],
-            "internalType": "struct OutputRoot",
-            "name": "outputRoot",
-            "type": "tuple"
+            "internalType": "uint256",
+            "name": "l2SequenceNumber",
+            "type": "uint256"
           }
         ],
-        "internalType": "struct AnchorStateRegistry.StartingAnchorRoot[]",
-        "name": "_startingAnchorRoots",
-        "type": "tuple[]"
+        "internalType": "struct Proposal",
+        "name": "_startingAnchorRoot",
+        "type": "tuple"
+      },
+      {
+        "internalType": "GameType",
+        "name": "_startingRespectedGameType",
+        "type": "uint32"
       }
     ],
     "name": "initialize",
@@ -85,8 +164,238 @@
     "type": "function"
   },
   {
+    "inputs": [
+      {
+        "internalType": "contract IDisputeGame",
+        "name": "_game",
+        "type": "address"
+      }
+    ],
+    "name": "isGameBlacklisted",
+    "outputs": [
+      {
+        "internalType": "bool",
+        "name": "",
+        "type": "bool"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "contract IDisputeGame",
+        "name": "_game",
+        "type": "address"
+      }
+    ],
+    "name": "isGameClaimValid",
+    "outputs": [
+      {
+        "internalType": "bool",
+        "name": "",
+        "type": "bool"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "contract IDisputeGame",
+        "name": "_game",
+        "type": "address"
+      }
+    ],
+    "name": "isGameFinalized",
+    "outputs": [
+      {
+        "internalType": "bool",
+        "name": "",
+        "type": "bool"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "contract IDisputeGame",
+        "name": "_game",
+        "type": "address"
+      }
+    ],
+    "name": "isGameProper",
+    "outputs": [
+      {
+        "internalType": "bool",
+        "name": "",
+        "type": "bool"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "contract IDisputeGame",
+        "name": "_game",
+        "type": "address"
+      }
+    ],
+    "name": "isGameRegistered",
+    "outputs": [
+      {
+        "internalType": "bool",
+        "name": "",
+        "type": "bool"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "contract IDisputeGame",
+        "name": "_game",
+        "type": "address"
+      }
+    ],
+    "name": "isGameResolved",
+    "outputs": [
+      {
+        "internalType": "bool",
+        "name": "",
+        "type": "bool"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "contract IDisputeGame",
+        "name": "_game",
+        "type": "address"
+      }
+    ],
+    "name": "isGameRespected",
+    "outputs": [
+      {
+        "internalType": "bool",
+        "name": "",
+        "type": "bool"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "contract IDisputeGame",
+        "name": "_game",
+        "type": "address"
+      }
+    ],
+    "name": "isGameRetired",
+    "outputs": [
+      {
+        "internalType": "bool",
+        "name": "",
+        "type": "bool"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
     "inputs": [],
-    "name": "tryUpdateAnchorState",
+    "name": "paused",
+    "outputs": [
+      {
+        "internalType": "bool",
+        "name": "",
+        "type": "bool"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "respectedGameType",
+    "outputs": [
+      {
+        "internalType": "GameType",
+        "name": "",
+        "type": "uint32"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "retirementTimestamp",
+    "outputs": [
+      {
+        "internalType": "uint64",
+        "name": "",
+        "type": "uint64"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "contract IDisputeGame",
+        "name": "_game",
+        "type": "address"
+      }
+    ],
+    "name": "setAnchorState",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "GameType",
+        "name": "_gameType",
+        "type": "uint32"
+      }
+    ],
+    "name": "setRespectedGameType",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "superchainConfig",
+    "outputs": [
+      {
+        "internalType": "contract ISuperchainConfig",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "updateRetirementTimestamp",
     "outputs": [],
     "stateMutability": "nonpayable",
     "type": "function"
@@ -108,6 +417,32 @@
     "anonymous": false,
     "inputs": [
       {
+        "indexed": true,
+        "internalType": "contract IFaultDisputeGame",
+        "name": "game",
+        "type": "address"
+      }
+    ],
+    "name": "AnchorUpdated",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "contract IDisputeGame",
+        "name": "disputeGame",
+        "type": "address"
+      }
+    ],
+    "name": "DisputeGameBlacklisted",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
         "indexed": false,
         "internalType": "uint8",
         "name": "version",
@@ -116,5 +451,46 @@
     ],
     "name": "Initialized",
     "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": false,
+        "internalType": "GameType",
+        "name": "gameType",
+        "type": "uint32"
+      }
+    ],
+    "name": "RespectedGameTypeSet",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "timestamp",
+        "type": "uint256"
+      }
+    ],
+    "name": "RetirementTimestampSet",
+    "type": "event"
+  },
+  {
+    "inputs": [],
+    "name": "AnchorStateRegistry_AnchorGameBlacklisted",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "AnchorStateRegistry_InvalidAnchorGame",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "AnchorStateRegistry_Unauthorized",
+    "type": "error"
   }
 ]

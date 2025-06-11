@@ -1,9 +1,12 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.15;
 
-import { IBigStepper, IPreimageOracle } from "src/dispute/interfaces/IBigStepper.sol";
-import { PreimageOracle, PreimageKeyLib } from "src/cannon/PreimageOracle.sol";
+// Libraries
+import { PreimageKeyLib } from "src/cannon/PreimageKeyLib.sol";
 import "src/dispute/lib/Types.sol";
+
+// Interfaces
+import { IBigStepper, IPreimageOracle } from "interfaces/dispute/IBigStepper.sol";
 
 /// @title AlphabetVM
 /// @dev A mock VM for the purpose of testing the dispute game infrastructure. Note that this only works
@@ -12,7 +15,7 @@ contract AlphabetVM is IBigStepper {
     Claim internal immutable ABSOLUTE_PRESTATE;
     IPreimageOracle public oracle;
 
-    constructor(Claim _absolutePrestate, PreimageOracle _oracle) {
+    constructor(Claim _absolutePrestate, IPreimageOracle _oracle) {
         ABSOLUTE_PRESTATE = _absolutePrestate;
         oracle = _oracle;
     }

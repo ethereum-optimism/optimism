@@ -3,6 +3,7 @@ package conductor
 import (
 	"fmt"
 	"math"
+	"time"
 
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/pkg/errors"
@@ -18,11 +19,18 @@ import (
 )
 
 type Config struct {
-	// ConsensusAddr is the address to listen for consensus connections.
+	// ConsensusAddr is the address, excluding port, to listen on for consensus connections.
+	// E.g. 0.0.0.0 to bind to the external-facing network interface.
 	ConsensusAddr string
 
-	// ConsensusPort is the port to listen for consensus connections.
+	// ConsensusPort is the port to listen on for consensus connections.
+	// If 0, the server binds to a port selected by the system.
 	ConsensusPort int
+
+	// ConsensusAdvertisedAddr is the network address, including port, to advertise to other peers.
+	// This is optional: if empty, the address that the server network transport binds to is used instead.
+	// E.g. local tests may use temporary addresses, rather than preset known addresses.
+	ConsensusAdvertisedAddr string
 
 	// RaftServerID is the unique ID for this server used by raft consensus.
 	RaftServerID string
@@ -32,6 +40,22 @@ type Config struct {
 
 	// RaftBootstrap is true if this node should bootstrap a new raft cluster.
 	RaftBootstrap bool
+
+	// RaftSnapshotInterval is the interval to check if a snapshot should be taken.
+	RaftSnapshotInterval time.Duration
+
+	// RaftSnapshotThreshold is the number of logs to trigger a snapshot.
+	RaftSnapshotThreshold uint64
+
+	// RaftTrailingLogs is the number of logs to keep after a snapshot.
+	RaftTrailingLogs uint64
+
+	// RaftHeartbeatTimeout is the interval timeout between leader and followers.
+	RaftHeartbeatTimeout time.Duration
+
+	// RaftLeaderLeaseTimeout is the timeout for leader lease.
+	// If the leader reaches this timeout without contacts to followers, it resigns.
+	RaftLeaderLeaseTimeout time.Duration
 
 	// NodeRPC is the HTTP provider URL for op-node.
 	NodeRPC string
@@ -107,14 +131,22 @@ func NewConfig(ctx *cli.Context, log log.Logger) (*Config, error) {
 	}
 
 	return &Config{
-		ConsensusAddr:  ctx.String(flags.ConsensusAddr.Name),
-		ConsensusPort:  ctx.Int(flags.ConsensusPort.Name),
-		RaftBootstrap:  ctx.Bool(flags.RaftBootstrap.Name),
-		RaftServerID:   ctx.String(flags.RaftServerID.Name),
-		RaftStorageDir: ctx.String(flags.RaftStorageDir.Name),
-		NodeRPC:        ctx.String(flags.NodeRPC.Name),
-		ExecutionRPC:   ctx.String(flags.ExecutionRPC.Name),
-		Paused:         ctx.Bool(flags.Paused.Name),
+		ConsensusAddr: ctx.String(flags.ConsensusAddr.Name),
+		ConsensusPort: ctx.Int(flags.ConsensusPort.Name),
+		// The consensus server will advertise the address it binds to if this is empty/unspecified.
+		ConsensusAdvertisedAddr: ctx.String(flags.AdvertisedFullAddr.Name),
+
+		RaftBootstrap:          ctx.Bool(flags.RaftBootstrap.Name),
+		RaftServerID:           ctx.String(flags.RaftServerID.Name),
+		RaftStorageDir:         ctx.String(flags.RaftStorageDir.Name),
+		RaftSnapshotInterval:   ctx.Duration(flags.RaftSnapshotInterval.Name),
+		RaftSnapshotThreshold:  ctx.Uint64(flags.RaftSnapshotThreshold.Name),
+		RaftTrailingLogs:       ctx.Uint64(flags.RaftTrailingLogs.Name),
+		RaftHeartbeatTimeout:   ctx.Duration(flags.RaftHeartbeatTimeout.Name),
+		RaftLeaderLeaseTimeout: ctx.Duration(flags.RaftLeaderLeaseTimeout.Name),
+		NodeRPC:                ctx.String(flags.NodeRPC.Name),
+		ExecutionRPC:           ctx.String(flags.ExecutionRPC.Name),
+		Paused:                 ctx.Bool(flags.Paused.Name),
 		HealthCheck: HealthCheckConfig{
 			Interval:       ctx.Uint64(flags.HealthCheckInterval.Name),
 			UnsafeInterval: ctx.Uint64(flags.HealthCheckUnsafeInterval.Name),

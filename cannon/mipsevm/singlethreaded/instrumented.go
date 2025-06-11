@@ -3,16 +3,15 @@ package singlethreaded
 import (
 	"io"
 
+	"github.com/ethereum/go-ethereum/common/hexutil"
+
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/exec"
-	"github.com/ethereum-optimism/optimism/cannon/mipsevm/program"
-	"github.com/ethereum-optimism/optimism/op-service/jsonutil"
-	"github.com/ethereum/go-ethereum/common/hexutil"
 )
 
 type InstrumentedState struct {
-	meta       *program.Metadata
-	sleepCheck program.SymbolMatcher
+	meta       mipsevm.Metadata
+	sleepCheck mipsevm.SymbolMatcher
 
 	state *State
 
@@ -27,16 +26,14 @@ type InstrumentedState struct {
 
 var _ mipsevm.FPVM = (*InstrumentedState)(nil)
 
-func NewInstrumentedState(state *State, po mipsevm.PreimageOracle, stdOut, stdErr io.Writer, meta *program.Metadata) *InstrumentedState {
-	var sleepCheck program.SymbolMatcher
+func NewInstrumentedState(state *State, po mipsevm.PreimageOracle, stdOut, stdErr io.Writer, meta mipsevm.Metadata) *InstrumentedState {
+	var sleepCheck mipsevm.SymbolMatcher
 	if meta == nil {
-		sleepCheck = func(addr uint32) bool { return false }
+		sleepCheck = func(addr Word) bool { return false }
 	} else {
 		sleepCheck = meta.CreateSymbolMatcher("runtime.notesleep")
 	}
-
 	return &InstrumentedState{
-		meta:           meta,
 		sleepCheck:     sleepCheck,
 		state:          state,
 		stdOut:         stdOut,
@@ -44,15 +41,8 @@ func NewInstrumentedState(state *State, po mipsevm.PreimageOracle, stdOut, stdEr
 		memoryTracker:  exec.NewMemoryTracker(state.Memory),
 		stackTracker:   &exec.NoopStackTracker{},
 		preimageOracle: exec.NewTrackingPreimageOracleReader(po),
+		meta:           meta,
 	}
-}
-
-func NewInstrumentedStateFromFile(stateFile string, po mipsevm.PreimageOracle, stdOut, stdErr io.Writer, meta *program.Metadata) (*InstrumentedState, error) {
-	state, err := jsonutil.LoadJSON[State](stateFile)
-	if err != nil {
-		return nil, err
-	}
-	return NewInstrumentedState(state, po, stdOut, stdErr, meta), nil
 }
 
 func (m *InstrumentedState) InitDebug() error {
@@ -62,6 +52,10 @@ func (m *InstrumentedState) InitDebug() error {
 	}
 	m.stackTracker = stackTracker
 	return nil
+}
+
+func (m *InstrumentedState) EnableStats() {
+	//noop
 }
 
 func (m *InstrumentedState) Step(proof bool) (wit *mipsevm.StepWitness, err error) {
@@ -86,7 +80,7 @@ func (m *InstrumentedState) Step(proof bool) (wit *mipsevm.StepWitness, err erro
 		memProof := m.memoryTracker.MemProof()
 		wit.ProofData = append(wit.ProofData, memProof[:]...)
 		lastPreimageKey, lastPreimage, lastPreimageOffset := m.preimageOracle.LastPreimage()
-		if lastPreimageOffset != ^uint32(0) {
+		if lastPreimageOffset != ^Word(0) {
 			wit.PreimageOffset = lastPreimageOffset
 			wit.PreimageKey = lastPreimageKey
 			wit.PreimageValue = lastPreimage
@@ -99,7 +93,7 @@ func (m *InstrumentedState) CheckInfiniteLoop() bool {
 	return m.sleepCheck(m.state.GetPC())
 }
 
-func (m *InstrumentedState) LastPreimage() ([32]byte, []byte, uint32) {
+func (m *InstrumentedState) LastPreimage() ([32]byte, []byte, Word) {
 	return m.preimageOracle.LastPreimage()
 }
 
@@ -113,9 +107,17 @@ func (m *InstrumentedState) GetDebugInfo() *mipsevm.DebugInfo {
 		MemoryUsed:          hexutil.Uint64(m.state.Memory.UsageRaw()),
 		NumPreimageRequests: m.preimageOracle.NumPreimageRequests(),
 		TotalPreimageSize:   m.preimageOracle.TotalPreimageSize(),
+		TotalSteps:          m.state.GetStep(),
 	}
 }
 
 func (m *InstrumentedState) Traceback() {
 	m.stackTracker.Traceback()
+}
+
+func (m *InstrumentedState) LookupSymbol(addr Word) string {
+	if m.meta == nil {
+		return ""
+	}
+	return m.meta.LookupSymbol(addr)
 }

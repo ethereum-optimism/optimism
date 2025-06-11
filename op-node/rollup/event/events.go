@@ -75,3 +75,13 @@ func (fn DeriverFunc) OnEvent(ev Event) bool {
 type NoopEmitter struct{}
 
 func (e NoopEmitter) Emit(ev Event) {}
+
+type CriticalErrorEvent struct {
+	Err error
+}
+
+var _ Event = CriticalErrorEvent{}
+
+func (ev CriticalErrorEvent) String() string {
+	return "critical-error"
+}

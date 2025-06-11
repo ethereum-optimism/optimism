@@ -7,6 +7,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/params"
 	"github.com/stretchr/testify/require"
 )
 
@@ -27,14 +28,22 @@ func TestGetRollupConfig(t *testing.T) {
 		"boba-sepolia":                  bobaSepoliaCfg,
 		"boba-mainnet":                  bobaMainnetCfg,
 		"boba-bnb-testnet":              bobaBnbTestnetCfg,
+		"boba-sepolia-dev-0":            bobaDev0Cfg,
 	}
 
 	for name, expectedCfg := range configsByName {
-		gotCfg, err := GetRollupConfig(name)
-		require.NoError(t, err)
-
-		require.Equalf(t, expectedCfg, *gotCfg, "rollup-configs from superchain-registry must match for %v", name)
+		t.Run(name, func(t *testing.T) {
+			gotCfg, err := GetRollupConfig(name)
+			require.NoError(t, err)
+			require.Equalf(t, expectedCfg, *gotCfg, "rollup-configs from superchain-registry must match for %v", name)
+		})
 	}
+}
+
+var defaultOpConfig = &params.OptimismConfig{
+	EIP1559Elasticity:        6,
+	EIP1559Denominator:       50,
+	EIP1559DenominatorCanyon: u64Ptr(250),
 }
 
 var mainnetCfg = rollup.Config{
@@ -59,7 +68,6 @@ var mainnetCfg = rollup.Config{
 	MaxSequencerDrift:       600,
 	SeqWindowSize:           3600,
 	ChannelTimeoutBedrock:   300,
-	ChannelTimeoutGranite:   50,
 	L1ChainID:               big.NewInt(1),
 	L2ChainID:               big.NewInt(10),
 	BatchInboxAddress:       common.HexToAddress("0xff00000000000000000000000000000000000010"),
@@ -70,7 +78,10 @@ var mainnetCfg = rollup.Config{
 	DeltaTime:               u64Ptr(1708560000),
 	EcotoneTime:             u64Ptr(1710374401),
 	FjordTime:               u64Ptr(1720627201),
+	GraniteTime:             u64Ptr(1726070401),
+	HoloceneTime:            u64Ptr(1736445601),
 	ProtocolVersionsAddress: common.HexToAddress("0x8062AbC286f5e7D9428a0Ccb9AbD71e50d93b935"),
+	ChainOpConfig:           defaultOpConfig,
 }
 
 var sepoliaCfg = rollup.Config{
@@ -95,7 +106,6 @@ var sepoliaCfg = rollup.Config{
 	MaxSequencerDrift:       600,
 	SeqWindowSize:           3600,
 	ChannelTimeoutBedrock:   300,
-	ChannelTimeoutGranite:   50,
 	L1ChainID:               big.NewInt(11155111),
 	L2ChainID:               big.NewInt(11155420),
 	BatchInboxAddress:       common.HexToAddress("0xff00000000000000000000000000000011155420"),
@@ -107,7 +117,10 @@ var sepoliaCfg = rollup.Config{
 	EcotoneTime:             u64Ptr(1708534800),
 	FjordTime:               u64Ptr(1716998400),
 	GraniteTime:             u64Ptr(1723478400),
+	HoloceneTime:            u64Ptr(1732633200),
+	PectraBlobScheduleTime:  u64Ptr(1742486400),
 	ProtocolVersionsAddress: common.HexToAddress("0x79ADD5713B383DAa0a138d3C4780C7A1804a8090"),
+	ChainOpConfig:           defaultOpConfig,
 }
 
 var sepoliaDev0Cfg = rollup.Config{
@@ -132,7 +145,6 @@ var sepoliaDev0Cfg = rollup.Config{
 	MaxSequencerDrift:       600,
 	SeqWindowSize:           3600,
 	ChannelTimeoutBedrock:   300,
-	ChannelTimeoutGranite:   50,
 	L1ChainID:               big.NewInt(11155111),
 	L2ChainID:               big.NewInt(11155421),
 	BatchInboxAddress:       common.HexToAddress("0xff00000000000000000000000000000011155421"),
@@ -144,7 +156,10 @@ var sepoliaDev0Cfg = rollup.Config{
 	EcotoneTime:             u64Ptr(1706634000),
 	FjordTime:               u64Ptr(1715961600),
 	GraniteTime:             u64Ptr(1723046400),
+	HoloceneTime:            u64Ptr(1731682800),
+	PectraBlobScheduleTime:  u64Ptr(1741687200),
 	ProtocolVersionsAddress: common.HexToAddress("0x252CbE9517F731C618961D890D534183822dcC8d"),
+	ChainOpConfig:           defaultOpConfig,
 }
 
 var bobaSepoliaCfg = rollup.Config{
@@ -169,7 +184,6 @@ var bobaSepoliaCfg = rollup.Config{
 	MaxSequencerDrift:       600,
 	SeqWindowSize:           3600,
 	ChannelTimeoutBedrock:   300,
-	ChannelTimeoutGranite:   50,
 	L1ChainID:               big.NewInt(11155111),
 	L2ChainID:               big.NewInt(28882),
 	BatchInboxAddress:       common.HexToAddress("0xfff0000000000000000000000000000000028882"),
@@ -180,7 +194,11 @@ var bobaSepoliaCfg = rollup.Config{
 	DeltaTime:               u64Ptr(1709078400),
 	EcotoneTime:             u64Ptr(1709078400),
 	FjordTime:               u64Ptr(1722297600),
+	GraniteTime:             u64Ptr(1726470000),
+	HoloceneTime:            u64Ptr(1736150400),
+	PectraBlobScheduleTime:  u64Ptr(1743534000),
 	ProtocolVersionsAddress: common.HexToAddress("0x0000000000000000000000000000000000000000"),
+	ChainOpConfig:           defaultOpConfig,
 }
 
 var bobaMainnetCfg = rollup.Config{
@@ -205,7 +223,6 @@ var bobaMainnetCfg = rollup.Config{
 	MaxSequencerDrift:       600,
 	SeqWindowSize:           3600,
 	ChannelTimeoutBedrock:   300,
-	ChannelTimeoutGranite:   50,
 	L1ChainID:               big.NewInt(1),
 	L2ChainID:               big.NewInt(288),
 	BatchInboxAddress:       common.HexToAddress("0xfff0000000000000000000000000000000000288"),
@@ -216,7 +233,10 @@ var bobaMainnetCfg = rollup.Config{
 	DeltaTime:               u64Ptr(1713302879),
 	EcotoneTime:             u64Ptr(1713302880),
 	FjordTime:               u64Ptr(1725951600),
+	GraniteTime:             u64Ptr(1729753200),
+	HoloceneTime:            u64Ptr(1738785600),
 	ProtocolVersionsAddress: common.HexToAddress("0x0000000000000000000000000000000000000000"),
+	ChainOpConfig:           defaultOpConfig,
 }
 
 var bobaBnbTestnetCfg = rollup.Config{
@@ -241,7 +261,6 @@ var bobaBnbTestnetCfg = rollup.Config{
 	MaxSequencerDrift:       900,
 	SeqWindowSize:           3600,
 	ChannelTimeoutBedrock:   300,
-	ChannelTimeoutGranite:   50,
 	L1ChainID:               big.NewInt(97),
 	L2ChainID:               big.NewInt(9728),
 	BatchInboxAddress:       common.HexToAddress("0xfff0000000000000000000000000000000009728"),
@@ -252,7 +271,49 @@ var bobaBnbTestnetCfg = rollup.Config{
 	DeltaTime:               u64Ptr(1718920167),
 	EcotoneTime:             u64Ptr(1718920168),
 	FjordTime:               u64Ptr(1722297600),
+	GraniteTime:             u64Ptr(1726470000),
+	HoloceneTime:            u64Ptr(1736150400),
 	ProtocolVersionsAddress: common.HexToAddress("0x0000000000000000000000000000000000000000"),
+	ChainOpConfig:           defaultOpConfig,
+}
+
+var bobaDev0Cfg = rollup.Config{
+	Genesis: rollup.Genesis{
+		L1: eth.BlockID{
+			Hash:   common.HexToHash("0xb6404ecff691edd6895c474f4dfca5b3e27b92a19deabd80cbe05c75c1b4c924"),
+			Number: 6576100,
+		},
+		L2: eth.BlockID{
+			Hash:   common.HexToHash("0xe919706177d2c568ed21a4b443d421c8098b4e453a29bd432258fab3f7fe1d07"),
+			Number: 0,
+		},
+		L2Time: 1724692140,
+		SystemConfig: eth.SystemConfig{
+			BatcherAddr: common.HexToAddress("0xe40d3fB61A6a9e16ffD17ae4Ed225dE00a4B16fd"),
+			Overhead:    eth.Bytes32(common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000834")),
+			Scalar:      eth.Bytes32(common.HexToHash("0x00000000000000000000000000000000000000000000000000000000000f4240")),
+			GasLimit:    30000000,
+		},
+	},
+	BlockTime:               2,
+	MaxSequencerDrift:       600,
+	SeqWindowSize:           3600,
+	ChannelTimeoutBedrock:   300,
+	L1ChainID:               big.NewInt(11155111),
+	L2ChainID:               big.NewInt(288882),
+	BatchInboxAddress:       common.HexToAddress("0xfFF0000000000000000000000000000000288882"),
+	DepositContractAddress:  common.HexToAddress("0xD00d5Cc5620697a31014E5594AABba590793836D"),
+	L1SystemConfigAddress:   common.HexToAddress("0xcc3c025036612B849340D6866eC0bd4d2d794a36"),
+	RegolithTime:            u64Ptr(0),
+	CanyonTime:              u64Ptr(1724692140),
+	DeltaTime:               u64Ptr(1724692140),
+	EcotoneTime:             u64Ptr(1724692141),
+	FjordTime:               u64Ptr(1724692150),
+	GraniteTime:             u64Ptr(1724914800),
+	HoloceneTime:            u64Ptr(1732435200),
+	PectraBlobScheduleTime:  u64Ptr(1743534000),
+	ProtocolVersionsAddress: common.HexToAddress("0x252CbE9517F731C618961D890D534183822dcC8d"),
+	ChainOpConfig:           defaultOpConfig,
 }
 
 func u64Ptr(v uint64) *uint64 {

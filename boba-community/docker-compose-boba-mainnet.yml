@@ -12,7 +12,7 @@ version: '3.4'
 
 services:
   l2:
-    image:  us-docker.pkg.dev/boba-392114/bobanetwork-tools-artifacts/images/op-erigon:v1.1.5
+    image:  us-docker.pkg.dev/boba-392114/bobanetwork-tools-artifacts/images/op-erigon:${ERIGON_VERSION:-latest}
     command: |
       --datadir=/db
       --chain=boba-mainnet
@@ -37,7 +37,7 @@ services:
   op-node:
     depends_on:
       - l2
-    image: us-docker.pkg.dev/boba-392114/bobanetwork-tools-artifacts/images/op-node:v1.6.3
+    image: us-docker.pkg.dev/boba-392114/bobanetwork-tools-artifacts/images/op-node:${OP_NODE_VERSION:-latest}
     command: >
       op-node
       --l1=${ETH1_HTTP:-https://mainnet.gateway.tenderly.co}
@@ -47,7 +47,6 @@ services:
       --network=boba-mainnet
       --rpc.addr=0.0.0.0
       --rpc.port=8545
-      --plasma.enabled=false
     # Optional flags
     # These flags are optional and can be used to identify the node and store the peerstore and discovery data.
     # We recommend adding these flags to your configuration to help identify your node and store the peerstore and discovery data.

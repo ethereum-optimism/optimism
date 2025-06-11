@@ -14,16 +14,26 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 )
 
-type SnapshotSelect func(logger log.Logger, dir string, absolutePreState string, i uint64) (string, error)
+type SnapshotSelect func(logger log.Logger, dir string, absolutePreState string, i uint64, binary bool) (string, error)
 type CmdExecutor func(ctx context.Context, l log.Logger, binary string, args ...string) error
 
 const (
-	SnapsDir     = "snapshots"
-	PreimagesDir = "preimages"
-	FinalState   = "final.json.gz"
+	SnapsDir         = "snapshots"
+	PreimagesDir     = "preimages"
+	finalStateJson   = "final.json.gz"
+	finalStateBinary = "final.bin.gz"
 )
 
-var snapshotNameRegexp = regexp.MustCompile(`^[0-9]+\.json.gz$`)
+func FinalStatePath(dir string, binarySnapshots bool) string {
+	filename := finalStateJson
+	if binarySnapshots {
+		filename = finalStateBinary
+	}
+	return filepath.Join(dir, filename)
+}
+
+var snapshotJsonNameRegexp = regexp.MustCompile(`^[0-9]+\.json\.gz$`)
+var snapshotBinaryNameRegexp = regexp.MustCompile(`^[0-9]+\.bin\.gz$`)
 
 func PreimageDir(dir string) string {
 	return filepath.Join(dir, PreimagesDir)
@@ -43,7 +53,13 @@ func RunCmd(ctx context.Context, l log.Logger, binary string, args ...string) er
 
 // FindStartingSnapshot finds the closest snapshot before the specified traceIndex in snapDir.
 // If no suitable snapshot can be found it returns absolutePreState.
-func FindStartingSnapshot(logger log.Logger, snapDir string, absolutePreState string, traceIndex uint64) (string, error) {
+func FindStartingSnapshot(logger log.Logger, snapDir string, absolutePreState string, traceIndex uint64, binarySnapshots bool) (string, error) {
+	suffix := ".json.gz"
+	nameRegexp := snapshotJsonNameRegexp
+	if binarySnapshots {
+		suffix = ".bin.gz"
+		nameRegexp = snapshotBinaryNameRegexp
+	}
 	// Find the closest snapshot to start from
 	entries, err := os.ReadDir(snapDir)
 	if err != nil {
@@ -59,11 +75,11 @@ func FindStartingSnapshot(logger log.Logger, snapDir string, absolutePreState st
 			continue
 		}
 		name := entry.Name()
-		if !snapshotNameRegexp.MatchString(name) {
+		if !nameRegexp.MatchString(name) {
 			logger.Warn("Unexpected file in snapshots dir", "parent", snapDir, "child", entry.Name())
 			continue
 		}
-		index, err := strconv.ParseUint(name[0:len(name)-len(".json.gz")], 10, 64)
+		index, err := strconv.ParseUint(name[0:len(name)-len(suffix)], 10, 64)
 		if err != nil {
 			logger.Error("Unable to parse trace index of snapshot file", "parent", snapDir, "child", entry.Name())
 			continue
@@ -75,7 +91,7 @@ func FindStartingSnapshot(logger log.Logger, snapDir string, absolutePreState st
 	if bestSnap == 0 {
 		return absolutePreState, nil
 	}
-	startFrom := fmt.Sprintf("%v/%v.json.gz", snapDir, bestSnap)
+	startFrom := fmt.Sprintf("%v/%v%v", snapDir, bestSnap, suffix)
 
 	return startFrom, nil
 }

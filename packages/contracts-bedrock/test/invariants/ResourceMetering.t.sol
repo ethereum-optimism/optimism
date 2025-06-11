@@ -1,13 +1,12 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
-import { Test } from "forge-std/Test.sol";
-
 import { StdUtils } from "forge-std/StdUtils.sol";
 import { StdInvariant } from "forge-std/StdInvariant.sol";
 
 import { Arithmetic } from "src/libraries/Arithmetic.sol";
 import { ResourceMetering } from "src/L1/ResourceMetering.sol";
+import { IResourceMetering } from "interfaces/L1/IResourceMetering.sol";
 import { Constants } from "src/libraries/Constants.sol";
 import { InvariantTest } from "test/invariants/InvariantTest.sol";
 
@@ -35,9 +34,11 @@ contract ResourceMetering_User is StdUtils, ResourceMetering {
         return _resourceConfig();
     }
 
-    function _resourceConfig() internal pure override returns (ResourceMetering.ResourceConfig memory) {
-        ResourceMetering.ResourceConfig memory rcfg = Constants.DEFAULT_RESOURCE_CONFIG();
-        return rcfg;
+    function _resourceConfig() internal pure override returns (ResourceMetering.ResourceConfig memory config_) {
+        IResourceMetering.ResourceConfig memory rcfg = Constants.DEFAULT_RESOURCE_CONFIG();
+        assembly ("memory-safe") {
+            config_ := rcfg
+        }
     }
 
     /// @notice Takes the necessary parameters to allow us to burn arbitrary amounts of gas to test

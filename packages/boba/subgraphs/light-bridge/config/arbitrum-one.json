@@ -1,0 +1,9 @@
+{
+  "network": "arbitrum-one",
+  "contracts": {
+    "LightBridge": {
+      "address": "0x3f7Da9C51138E0475aA26E80677d27A568cFD6b9",
+      "startBlock": 180755075
+    }
+  }
+}

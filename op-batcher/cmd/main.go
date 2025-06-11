@@ -11,14 +11,14 @@ import (
 	"github.com/ethereum-optimism/optimism/op-batcher/metrics"
 	opservice "github.com/ethereum-optimism/optimism/op-service"
 	"github.com/ethereum-optimism/optimism/op-service/cliapp"
+	"github.com/ethereum-optimism/optimism/op-service/ctxinterrupt"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum-optimism/optimism/op-service/metrics/doc"
-	"github.com/ethereum-optimism/optimism/op-service/opio"
 	"github.com/ethereum/go-ethereum/log"
 )
 
 var (
-	Version   = "v0.10.14"
+	Version   = "v0.0.0"
 	GitCommit = ""
 	GitDate   = ""
 )
@@ -40,7 +40,7 @@ func main() {
 		},
 	}
 
-	ctx := opio.WithInterruptBlocker(context.Background())
+	ctx := ctxinterrupt.WithSignalWaiterMain(context.Background())
 	err := app.RunContext(ctx, os.Args)
 	if err != nil {
 		log.Crit("Application failed", "message", err)

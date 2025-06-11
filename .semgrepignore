@@ -8,16 +8,11 @@ vendor/
 .tox/
 *.min.js
 
-# Common test paths
-test/
-tests/
-
 # Semgrep rules folder
-.semgrep
+.semgrep/
 
 # Semgrep-action log folder
 .semgrep_logs/
 
-
-packages/*/node_modules
-packages/*/test
+# Test contracts the scripts folder
+op-chain-ops/script/testdata/scripts/

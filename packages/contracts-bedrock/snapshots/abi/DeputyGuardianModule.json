@@ -7,7 +7,7 @@
         "type": "address"
       },
       {
-        "internalType": "contract SuperchainConfig",
+        "internalType": "contract ISuperchainConfig",
         "name": "_superchainConfig",
         "type": "address"
       },
@@ -23,8 +23,8 @@
   {
     "inputs": [
       {
-        "internalType": "contract OptimismPortal2",
-        "name": "_portal",
+        "internalType": "contract IAnchorStateRegistry",
+        "name": "_anchorStateRegistry",
         "type": "address"
       },
       {
@@ -74,8 +74,8 @@
   {
     "inputs": [
       {
-        "internalType": "contract OptimismPortal2",
-        "name": "_portal",
+        "internalType": "contract IAnchorStateRegistry",
+        "name": "_anchorStateRegistry",
         "type": "address"
       },
       {
@@ -94,7 +94,7 @@
     "name": "superchainConfig",
     "outputs": [
       {
-        "internalType": "contract SuperchainConfig",
+        "internalType": "contract ISuperchainConfig",
         "name": "superchainConfig_",
         "type": "address"
       }
@@ -105,6 +105,19 @@
   {
     "inputs": [],
     "name": "unpause",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "contract IAnchorStateRegistry",
+        "name": "_anchorStateRegistry",
+        "type": "address"
+      }
+    ],
+    "name": "updateRetirementTimestamp",
     "outputs": [],
     "stateMutability": "nonpayable",
     "type": "function"
@@ -169,6 +182,19 @@
   },
   {
     "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "Timestamp",
+        "name": "updatedAt",
+        "type": "uint64"
+      }
+    ],
+    "name": "RetirementTimestampUpdated",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
     "inputs": [],
     "name": "Unpaused",
     "type": "event"
@@ -181,12 +207,12 @@
         "type": "string"
       }
     ],
-    "name": "ExecutionFailed",
+    "name": "DeputyGuardianModule_ExecutionFailed",
     "type": "error"
   },
   {
     "inputs": [],
-    "name": "Unauthorized",
+    "name": "DeputyGuardianModule_Unauthorized",
     "type": "error"
   }
 ]

@@ -1,0 +1,2 @@
+[profile GCP]
+credential_process = /opt/aws/credentials.sh

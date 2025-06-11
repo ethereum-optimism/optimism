@@ -25,29 +25,49 @@ op-program-host:
 
 op-program-client:
 	env GO111MODULE=on GOOS=$(TARGETOS) GOARCH=$(TARGETARCH) go build -v -ldflags "$(PC_LDFLAGSSTRING)" -o ./bin/op-program-client ./client/cmd/main.go
+	env GO111MODULE=on GOOS=$(TARGETOS) GOARCH=$(TARGETARCH) go build -v -ldflags "$(PC_LDFLAGSSTRING)" -o ./bin/op-program-client-interop ./client/interopcmd/main.go
 
-op-program-client-mips:
+op-program-client-mips: op-program-client-mips32 op-program-client-mips64 op-program-client-mips64-interop
+
+op-program-client-mips32:
 	env GO111MODULE=on GOOS=linux GOARCH=mips GOMIPS=softfloat go build -v -ldflags "$(PC_LDFLAGSSTRING)" -o ./bin/op-program-client.elf ./client/cmd/main.go
 	# verify output with: readelf -h bin/op-program-client.elf
 	# result is mips32, big endian, R3000
+
+op-program-client-mips64:
+	env GO111MODULE=on GOOS=linux GOARCH=mips64 GOMIPS64=softfloat go build -v -ldflags "$(PC_LDFLAGSSTRING)" -o ./bin/op-program-client64.elf ./client/cmd/main.go
+	# verify output with: readelf -h bin/op-program-client64.elf
+	# result is mips64, big endian, R3000
+
+op-program-client-mips64-interop:
+	env GO111MODULE=on GOOS=linux GOARCH=mips64 GOMIPS64=softfloat go build -v -ldflags "$(PC_LDFLAGSSTRING)" -o ./bin/op-program-client-interop.elf ./client/interopcmd/main.go
+	# verify output with: readelf -h bin/op-program-client-interop.elf
+	# result is mips64, big endian, R3000
 
 op-program-client-riscv:
 	env GO111MODULE=on GOOS=linux GOARCH=riscv64 go build -v -gcflags="all=-d=softfloat" -ldflags "$(PC_LDFLAGSSTRING)" -o ./bin/op-program-client-riscv.elf ./client/cmd/main.go
 
 reproducible-prestate:
 	@docker build --output ./bin/ --progress plain -f Dockerfile.repro ../
-	@echo "Absolute prestate hash:"
+	@echo "Cannon Absolute prestate hash: "
 	@cat ./bin/prestate-proof.json | jq -r .pre
+	@echo "Cannon64 Absolute prestate hash: "
+	@cat ./bin/prestate-proof-mt64.json | jq -r .pre
+	@echo "CannonInterop Absolute prestate hash: "
+	@cat ./bin/prestate-proof-interop.json | jq -r .pre
 .PHONY: reproducible-prestate
+
+verify-reproducibility:
+	rm -rf temp/states
+	./scripts/build-prestates.sh
+	env GO111MODULE=on go run ./prestates/verify/verify.go --input temp/states/versions.json
+.PHONY: verify-reproducibility
 
 clean:
 	rm -rf bin "$(COMPAT_DIR)"
 
 test:
 	go test -v ./...
-
-verify-sepolia: op-program-host op-program-client
-	env GO111MODULE=on go run ./verify/sepolia/cmd/sepolia.go --l1 $$SEPOLIA_L1URL --l1.beacon $$SEPOLIA_BEACON_URL --l2 $$SEPOLIA_L2URL --datadir /tmp/test-sepolia
 
 capture-mainnet-genesis: op-program-host op-program-client
 	rm -rf "$(COMPAT_DIR)/mainnet-genesis" "$(COMPAT_DIR)/mainnet-genesis.tar.bz"
@@ -90,11 +110,12 @@ verify-compat: verify-sepolia-delta verify-sepolia-ecotone verify-mainnet-genesi
 	op-program-host \
 	op-program-client \
 	op-program-client-mips \
+	op-program-client-mips32 \
+	op-program-client-mips64 \
 	op-program-client-riscv \
 	clean \
 	test \
 	capture-goerli-verify \
-	verify-sepolia \
 	capture-mainnet-genesis \
 	capture-sepolia-delta \
 	capture-sepolia-ecotone \

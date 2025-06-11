@@ -1,13 +1,16 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
-import { ISemver } from "src/universal/ISemver.sol";
-import { IPreimageOracle } from "./interfaces/IPreimageOracle.sol";
-import { PreimageKeyLib } from "./PreimageKeyLib.sol";
+// Libraries
 import { MIPSInstructions as ins } from "src/cannon/libraries/MIPSInstructions.sol";
 import { MIPSSyscalls as sys } from "src/cannon/libraries/MIPSSyscalls.sol";
 import { MIPSState as st } from "src/cannon/libraries/MIPSState.sol";
 import { MIPSMemory } from "src/cannon/libraries/MIPSMemory.sol";
+import { InvalidRMWInstruction } from "src/cannon/libraries/CannonErrors.sol";
+
+// Interfaces
+import { ISemver } from "interfaces/universal/ISemver.sol";
+import { IPreimageOracle } from "interfaces/cannon/IPreimageOracle.sol";
 
 /// @title MIPS
 /// @notice The MIPS contract emulates a single MIPS instruction.
@@ -44,8 +47,8 @@ contract MIPS is ISemver {
     }
 
     /// @notice The semantic version of the MIPS contract.
-    /// @custom:semver 1.0.1
-    string public constant version = "1.1.0-beta.6";
+    /// @custom:semver 1.3.0
+    string public constant version = "1.3.0";
 
     /// @notice The preimage oracle contract.
     IPreimageOracle internal immutable ORACLE;
@@ -98,6 +101,14 @@ contract MIPS is ISemver {
             from, to := copyMem(from, to, 8) // step
             from := add(from, 32) // offset to registers
 
+            // Verify that the value of exited is valid (0 or 1)
+            if gt(exited, 1) {
+                // revert InvalidExitedValue();
+                let ptr := mload(0x40)
+                mstore(ptr, shl(224, 0x0136cc76))
+                revert(ptr, 0x04)
+            }
+
             // Copy registers
             for { let i := 0 } lt(i, 32) { i := add(i, 1) } { from, to := copyMem(from, to, 4) }
 
@@ -140,7 +151,7 @@ contract MIPS is ISemver {
             }
 
             // Load the syscall numbers and args from the registers
-            (uint32 syscall_no, uint32 a0, uint32 a1, uint32 a2,) = sys.getSyscallArgs(state.registers);
+            (uint32 syscall_no, uint32 a0, uint32 a1, uint32 a2) = sys.getSyscallArgs(state.registers);
 
             uint32 v0 = 0;
             uint32 v1 = 0;
@@ -149,7 +160,7 @@ contract MIPS is ISemver {
                 (v0, v1, state.heap) = sys.handleSysMmap(a0, a1, state.heap);
             } else if (syscall_no == sys.SYS_BRK) {
                 // brk: Returns a fixed address for the program break at 0x40000000
-                v0 = sys.BRK_START;
+                v0 = sys.PROGRAM_BREAK;
             } else if (syscall_no == sys.SYS_CLONE) {
                 // clone (not supported) returns 1
                 v0 = 1;
@@ -170,9 +181,9 @@ contract MIPS is ISemver {
                     proofOffset: MIPSMemory.memoryProofOffset(STEP_PROOF_OFFSET, 1),
                     memRoot: state.memRoot
                 });
-                (v0, v1, state.preimageOffset, state.memRoot) = sys.handleSysRead(args);
+                (v0, v1, state.preimageOffset, state.memRoot,,) = sys.handleSysRead(args);
             } else if (syscall_no == sys.SYS_WRITE) {
-                (v0, v1, state.preimageKey, state.preimageOffset) = sys.handleSysWrite({
+                sys.SysWriteParams memory args = sys.SysWriteParams({
                     _a0: a0,
                     _a1: a1,
                     _a2: a2,
@@ -181,6 +192,7 @@ contract MIPS is ISemver {
                     _proofOffset: MIPSMemory.memoryProofOffset(STEP_PROOF_OFFSET, 1),
                     _memRoot: state.memRoot
                 });
+                (v0, v1, state.preimageKey, state.preimageOffset) = sys.handleSysWrite(args);
             } else if (syscall_no == sys.SYS_FCNTL) {
                 (v0, v1) = sys.handleSysFcntl(a0, a1);
             }
@@ -243,10 +255,24 @@ contract MIPS is ISemver {
                 c, m := putField(c, m, 4) // heap
                 c, m := putField(c, m, 1) // exitCode
                 c, m := putField(c, m, 1) // exited
+                let exited := mload(sub(m, 32))
                 c, m := putField(c, m, 8) // step
 
+                // Verify that the value of exited is valid (0 or 1)
+                if gt(exited, 1) {
+                    // revert InvalidExitedValue();
+                    let ptr := mload(0x40)
+                    mstore(ptr, shl(224, 0x0136cc76))
+                    revert(ptr, 0x04)
+                }
+
+                // Compiler should have done this already
+                if iszero(eq(mload(m), add(m, 32))) {
+                    // expected registers offset check
+                    revert(0, 0)
+                }
+
                 // Unpack register calldata into memory
-                mstore(m, add(m, 32)) // offset to registers
                 m := add(m, 32)
                 for { let i := 0 } lt(i, 32) { i := add(i, 1) } { c, m := putField(c, m, 4) }
             }
@@ -269,18 +295,54 @@ contract MIPS is ISemver {
                 return handleSyscall(_localContext);
             }
 
+            // Handle RMW (read-modify-write) ops
+            if (opcode == ins.OP_LOAD_LINKED || opcode == ins.OP_STORE_CONDITIONAL) {
+                return handleRMWOps(state, insn, opcode);
+            }
+
             // Exec the rest of the step logic
             st.CpuScalars memory cpu = getCpuScalars(state);
-            (state.memRoot) = ins.execMipsCoreStepLogic({
-                _cpu: cpu,
-                _registers: state.registers,
-                _memRoot: state.memRoot,
-                _memProofOffset: MIPSMemory.memoryProofOffset(STEP_PROOF_OFFSET, 1),
-                _insn: insn,
-                _opcode: opcode,
-                _fun: fun
+            ins.CoreStepLogicParams memory coreStepArgs = ins.CoreStepLogicParams({
+                cpu: cpu,
+                registers: state.registers,
+                memRoot: state.memRoot,
+                memProofOffset: MIPSMemory.memoryProofOffset(STEP_PROOF_OFFSET, 1),
+                insn: insn,
+                opcode: opcode,
+                fun: fun
             });
+            (state.memRoot,,) = ins.execMipsCoreStepLogic(coreStepArgs);
             setStateCpuScalars(state, cpu);
+
+            return outputState();
+        }
+    }
+
+    function handleRMWOps(State memory _state, uint32 _insn, uint32 _opcode) internal returns (bytes32) {
+        unchecked {
+            uint32 baseReg = (_insn >> 21) & 0x1F;
+            uint32 base = _state.registers[baseReg];
+            uint32 rtReg = (_insn >> 16) & 0x1F;
+            uint32 offset = ins.signExtendImmediate(_insn);
+
+            uint32 effAddr = (base + offset) & 0xFFFFFFFC;
+            uint256 memProofOffset = MIPSMemory.memoryProofOffset(STEP_PROOF_OFFSET, 1);
+            uint32 mem = MIPSMemory.readMem(_state.memRoot, effAddr, memProofOffset);
+
+            uint32 retVal;
+            if (_opcode == ins.OP_LOAD_LINKED) {
+                retVal = mem;
+            } else if (_opcode == ins.OP_STORE_CONDITIONAL) {
+                uint32 val = _state.registers[rtReg];
+                _state.memRoot = MIPSMemory.writeMem(effAddr, memProofOffset, val);
+                retVal = 1; // 1 for success
+            } else {
+                revert InvalidRMWInstruction();
+            }
+
+            st.CpuScalars memory cpu = getCpuScalars(_state);
+            ins.handleRd(cpu, _state.registers, rtReg, retVal, true);
+            setStateCpuScalars(_state, cpu);
 
             return outputState();
         }

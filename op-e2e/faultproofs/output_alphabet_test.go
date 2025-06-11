@@ -6,8 +6,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	op_e2e "github.com/ethereum-optimism/optimism/op-e2e"
+
+	"github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/challenger"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/disputegame"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
@@ -114,13 +115,22 @@ func TestOutputAlphabetGame_ReclaimBond(t *testing.T) {
 	game.WaitForGameStatus(ctx, types.GameStatusChallengerWon)
 	game.LogGameData(ctx)
 
+	// Advance the time past the finalization delay
+	// Finalization delay is the same as the credit unlock delay
+	// But just warp way into the future to be safe
+	sys.TimeTravelClock.AdvanceTime(game.CreditUnlockDuration(ctx) * 2)
+	require.NoError(t, wait.ForNextBlock(ctx, l1Client))
+
+	// Wait for the game to have bond mode set
+	game.WaitForBondModeDecided(ctx)
+
 	// Expect Alice's credit to be non-zero
 	// But it can't be claimed right now since there is a delay on the weth unlock
 	require.Truef(t, game.AvailableCredit(ctx, alice).Cmp(big.NewInt(0)) > 0, "Expected alice credit to be above zero")
 
 	// The actor should have no credit available because all its bonds were paid to Alice.
 	actorCredit := game.AvailableCredit(ctx, disputegame.TestAddress)
-	require.True(t, actorCredit.Cmp(big.NewInt(0)) == 0, "Expected alice available credit to be zero")
+	require.True(t, actorCredit.Cmp(big.NewInt(0)) == 0, "Expected actor available credit to be zero")
 
 	// Advance the time past the weth unlock delay
 	sys.TimeTravelClock.AdvanceTime(game.CreditUnlockDuration(ctx))
@@ -166,7 +176,7 @@ func TestOutputAlphabetGame_ValidOutputRoot(t *testing.T) {
 }
 
 func TestChallengerCompleteExhaustiveDisputeGame(t *testing.T) {
-	op_e2e.InitParallel(t)
+	op_e2e.InitParallel(t, op_e2e.IsSlow)
 
 	testCase := func(t *testing.T, isRootCorrect bool) {
 		ctx := context.Background()
@@ -303,7 +313,7 @@ func TestHighestActedL1BlockMetric(t *testing.T) {
 	t.Cleanup(sys.Close)
 
 	disputeGameFactory := disputegame.NewFactoryHelper(t, ctx, sys)
-	honestChallenger := disputeGameFactory.StartChallenger(ctx, "Honest", challenger.WithAlphabet(), challenger.WithFastGames(), challenger.WithPrivKey(sys.Cfg.Secrets.Alice))
+	honestChallenger := disputeGameFactory.StartChallenger(ctx, "Honest", challenger.WithAlphabet(), challenger.WithPrivKey(sys.Cfg.Secrets.Alice))
 
 	game1 := disputeGameFactory.StartOutputAlphabetGame(ctx, "sequencer", 1, common.Hash{0xaa})
 	sys.AdvanceTime(game1.MaxClockDuration(ctx))

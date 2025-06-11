@@ -1,7 +1,10 @@
 package main
 
 import (
+	"context"
 	"os"
+
+	"github.com/ethereum-optimism/optimism/op-service/ctxinterrupt"
 
 	opservice "github.com/ethereum-optimism/optimism/op-service"
 	"github.com/urfave/cli/v2"
@@ -16,7 +19,7 @@ import (
 )
 
 var (
-	Version   = "v0.10.14"
+	Version   = "v0.0.0"
 	GitCommit = ""
 	GitDate   = ""
 )
@@ -38,7 +41,8 @@ func main() {
 		},
 	}
 
-	err := app.Run(os.Args)
+	ctx := ctxinterrupt.WithSignalWaiterMain(context.Background())
+	err := app.RunContext(ctx, os.Args)
 	if err != nil {
 		log.Crit("Application failed", "message", err)
 	}

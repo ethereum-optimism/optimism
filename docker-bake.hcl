@@ -6,6 +6,10 @@ variable "REPOSITORY" {
   default = "boba-392114/bobanetwork-tools-artifacts/images"
 }
 
+variable "KONA_VERSION" {
+  default = "kona-client-v0.1.0-beta.8"
+}
+
 variable "GIT_COMMIT" {
   default = "dev"
 }
@@ -53,10 +57,6 @@ variable "OP_DISPUTE_MON_VERSION" {
   default = "${GIT_VERSION}"
 }
 
-variable "OP_HEARTBEAT_VERSION" {
-  default = "${GIT_VERSION}"
-}
-
 variable "OP_PROGRAM_VERSION" {
   default = "${GIT_VERSION}"
 }
@@ -70,6 +70,14 @@ variable "CANNON_VERSION" {
 }
 
 variable "OP_CONDUCTOR_VERSION" {
+  default = "${GIT_VERSION}"
+}
+
+variable "OP_DEPLOYER_VERSION" {
+  default = "${GIT_VERSION}"
+}
+
+variable "OP_DRIPPER_VERSION" {
   default = "${GIT_VERSION}"
 }
 
@@ -120,6 +128,7 @@ target "op-challenger" {
     GIT_COMMIT = "${GIT_COMMIT}"
     GIT_DATE = "${GIT_DATE}"
     OP_CHALLENGER_VERSION = "${OP_CHALLENGER_VERSION}"
+    KONA_VERSION="${KONA_VERSION}"
   }
   target = "op-challenger-target"
   platforms = split(",", PLATFORMS)
@@ -150,19 +159,6 @@ target "op-conductor" {
   target = "op-conductor-target"
   platforms = split(",", PLATFORMS)
   tags = [for tag in split(",", IMAGE_TAGS) : "${REGISTRY}/${REPOSITORY}/op-conductor:${tag}"]
-}
-
-target "op-heartbeat" {
-  dockerfile = "ops/docker/op-stack-go/Dockerfile"
-  context = "."
-  args = {
-    GIT_COMMIT = "${GIT_COMMIT}"
-    GIT_DATE = "${GIT_DATE}"
-    OP_HEARTBEAT_VERSION = "${OP_HEARTBEAT_VERSION}"
-  }
-  target = "op-heartbeat-target"
-  platforms = split(",", PLATFORMS)
-  tags = [for tag in split(",", IMAGE_TAGS) : "${REGISTRY}/${REPOSITORY}/op-heartbeat:${tag}"]
 }
 
 target "da-server" {
@@ -216,26 +212,51 @@ target "cannon" {
   tags = [for tag in split(",", IMAGE_TAGS) : "${REGISTRY}/${REPOSITORY}/cannon:${tag}"]
 }
 
-target "ci-builder" {
-  dockerfile = "./ops/docker/ci-builder/Dockerfile"
+target "proofs-tools" {
+  dockerfile = "./ops/docker/proofs-tools/Dockerfile"
   context = "."
+  args = {
+    CHALLENGER_VERSION="b46bffed42db3442d7484f089278d59f51503049"
+    KONA_VERSION="${KONA_VERSION}"
+  }
+  target="proofs-tools"
   platforms = split(",", PLATFORMS)
-  target="base-builder"
-  tags = [for tag in split(",", IMAGE_TAGS) : "${REGISTRY}/${REPOSITORY}/ci-builder:${tag}"]
+  tags = [for tag in split(",", IMAGE_TAGS) : "${REGISTRY}/${REPOSITORY}/proofs-tools:${tag}"]
 }
 
-target "ci-builder-rust" {
-  dockerfile = "./ops/docker/ci-builder/Dockerfile"
-  context = "."
+target "holocene-deployer" {
+  dockerfile = "./packages/contracts-bedrock/scripts/upgrades/holocene/upgrade.dockerfile"
+  context = "./packages/contracts-bedrock/scripts/upgrades/holocene"
+  args = {
+    REV = "op-contracts/v1.8.0-rc.1"
+  }
+  target="holocene-deployer"
   platforms = split(",", PLATFORMS)
-  target="rust-builder"
-  tags = [for tag in split(",", IMAGE_TAGS) : "${REGISTRY}/${REPOSITORY}/ci-builder-rust:${tag}"]
+  tags = [for tag in split(",", IMAGE_TAGS) : "${REGISTRY}/${REPOSITORY}/holocene-deployer:${tag}"]
 }
 
-target "contracts-bedrock" {
-  dockerfile = "./ops/docker/Dockerfile.packages"
+target "op-deployer" {
+  dockerfile = "ops/docker/op-stack-go/Dockerfile"
   context = "."
-  target = "contracts-bedrock"
+  args = {
+    GIT_COMMIT = "${GIT_COMMIT}"
+    GIT_DATE = "${GIT_DATE}"
+    OP_DEPLOYER_VERSION = "${OP_DEPLOYER_VERSION}"
+  }
+  target = "op-deployer-target"
   platforms = split(",", PLATFORMS)
-  tags = [for tag in split(",", IMAGE_TAGS) : "${REGISTRY}/${REPOSITORY}/contracts-bedrock:${tag}"]
+  tags = [for tag in split(",", IMAGE_TAGS) : "${REGISTRY}/${REPOSITORY}/op-deployer:${tag}"]
+}
+
+target "op-dripper" {
+  dockerfile = "ops/docker/op-stack-go/Dockerfile"
+  context = "."
+  args = {
+    GIT_COMMIT = "${GIT_COMMIT}"
+    GIT_DATE = "${GIT_DATE}"
+    OP_DRIPPER_VERSION = "${OP_DRIPPER_VERSION}"
+  }
+  target = "op-dripper-target"
+  platforms = split(",", PLATFORMS)
+  tags = [for tag in split(",", IMAGE_TAGS) : "${REGISTRY}/${REPOSITORY}/op-dripper:${tag}"]
 }

@@ -4,19 +4,16 @@ import (
 	"fmt"
 	"math/big"
 
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/params"
 
-	"github.com/ethereum/go-ethereum/common"
-
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-	"github.com/ethereum-optimism/superchain-registry/superchain"
+	"github.com/ethereum/go-ethereum/superchain"
 )
 
-var OPStackSupport = params.ProtocolVersionV0{Build: [8]byte{}, Major: 7, Minor: 0, Patch: 0, PreRelease: 0}.Encode()
+var OPStackSupport = params.ProtocolVersionV0{Build: [8]byte{}, Major: 9, Minor: 0, Patch: 0, PreRelease: 0}.Encode()
 
 const (
-	pgnSepolia = 58008
-
 	bobaMainnet    = 288
 	bobaSepolia    = 28882
 	bobaBnbTestnet = 9728
@@ -25,42 +22,48 @@ const (
 // LoadOPStackRollupConfig loads the rollup configuration of the requested chain ID from the superchain-registry.
 // Some chains may require a SystemConfigProvider to retrieve any values not part of the registry.
 func LoadOPStackRollupConfig(chainID uint64) (*Config, error) {
-	chConfig, ok := superchain.OPChains[chainID]
-	if !ok {
-		return nil, fmt.Errorf("unknown chain ID: %d", chainID)
+	chain, err := superchain.GetChain(chainID)
+	if err != nil {
+		return nil, fmt.Errorf("unable to get chain %d from superchain registry: %w", chainID, err)
 	}
 
-	superChain, ok := superchain.Superchains[chConfig.Superchain]
-	if !ok {
-		return nil, fmt.Errorf("chain %d specifies unknown superchain: %q", chainID, chConfig.Superchain)
+	chConfig, err := chain.Config()
+	if err != nil {
+		return nil, fmt.Errorf("unable to retrieve chain %d config: %w", chainID, err)
+	}
+	chOpConfig := &params.OptimismConfig{
+		EIP1559Elasticity:        chConfig.Optimism.EIP1559Elasticity,
+		EIP1559Denominator:       chConfig.Optimism.EIP1559Denominator,
+		EIP1559DenominatorCanyon: chConfig.Optimism.EIP1559DenominatorCanyon,
 	}
 
-	var genesisSysConfig eth.SystemConfig
-	if sysCfg, ok := superchain.GenesisSystemConfigs[chainID]; ok {
-		genesisSysConfig = eth.SystemConfig{
-			BatcherAddr: common.Address(sysCfg.BatcherAddr),
-			Overhead:    eth.Bytes32(sysCfg.Overhead),
-			Scalar:      eth.Bytes32(sysCfg.Scalar),
-			GasLimit:    sysCfg.GasLimit,
+	superConfig, err := superchain.GetSuperchain(chain.Network)
+	if err != nil {
+		return nil, fmt.Errorf("unable to get superchain %q from superchain registry: %w", chain.Network, err)
+	}
+
+	sysCfg := chConfig.Genesis.SystemConfig
+
+	genesisSysConfig := eth.SystemConfig{
+		BatcherAddr: sysCfg.BatcherAddr,
+		Overhead:    eth.Bytes32(sysCfg.Overhead),
+		Scalar:      eth.Bytes32(sysCfg.Scalar),
+		GasLimit:    sysCfg.GasLimit,
+	}
+
+	addrs := chConfig.Addresses
+
+	var altDA *AltDAConfig
+	if chConfig.AltDA != nil {
+		altDA = &AltDAConfig{
+			DAChallengeAddress: chConfig.AltDA.DaChallengeContractAddress,
+			DAChallengeWindow:  chConfig.AltDA.DaChallengeWindow,
+			DAResolveWindow:    chConfig.AltDA.DaResolveWindow,
+			CommitmentType:     chConfig.AltDA.DaCommitmentType,
 		}
-	} else {
-		return nil, fmt.Errorf("unable to retrieve genesis SystemConfig of chain %d", chainID)
 	}
 
-	addrs, ok := superchain.Addresses[chainID]
-	if !ok {
-		return nil, fmt.Errorf("unable to retrieve deposit contract address")
-	}
-
-	var plasma *PlasmaConfig
-	if chConfig.Plasma != nil {
-		plasma = &PlasmaConfig{
-			DAChallengeAddress: common.Address(*chConfig.Plasma.DAChallengeAddress),
-			DAChallengeWindow:  *chConfig.Plasma.DAChallengeWindow,
-			DAResolveWindow:    *chConfig.Plasma.DAResolveWindow,
-		}
-	}
-
+	hardforks := chConfig.Hardforks
 	regolithTime := uint64(0)
 	// three goerli testnets test-ran Bedrock and later upgraded to Regolith.
 	// All other OP-Stack chains have Regolith enabled from the start.
@@ -76,11 +79,11 @@ func LoadOPStackRollupConfig(chainID uint64) (*Config, error) {
 	cfg := &Config{
 		Genesis: Genesis{
 			L1: eth.BlockID{
-				Hash:   common.Hash(chConfig.Genesis.L1.Hash),
+				Hash:   chConfig.Genesis.L1.Hash,
 				Number: chConfig.Genesis.L1.Number,
 			},
 			L2: eth.BlockID{
-				Hash:   common.Hash(chConfig.Genesis.L2.Hash),
+				Hash:   chConfig.Genesis.L2.Hash,
 				Number: chConfig.Genesis.L2.Number,
 			},
 			L2Time:       chConfig.Genesis.L2Time,
@@ -91,30 +94,38 @@ func LoadOPStackRollupConfig(chainID uint64) (*Config, error) {
 		// Note: hardcoded values are not yet represented in the registry but should be
 		// soon, then will be read and set in the same fashion.
 		BlockTime:              chConfig.BlockTime,
-		MaxSequencerDrift:      600,
-		SeqWindowSize:          chConfig.SequencerWindowSize,
+		MaxSequencerDrift:      chConfig.MaxSequencerDrift,
+		SeqWindowSize:          chConfig.SeqWindowSize,
 		ChannelTimeoutBedrock:  300,
-		ChannelTimeoutGranite:  50,
-		L1ChainID:              new(big.Int).SetUint64(superChain.Config.L1.ChainID),
+		L1ChainID:              new(big.Int).SetUint64(superConfig.L1.ChainID),
 		L2ChainID:              new(big.Int).SetUint64(chConfig.ChainID),
 		RegolithTime:           &regolithTime,
-		CanyonTime:             chConfig.CanyonTime,
-		DeltaTime:              chConfig.DeltaTime,
-		EcotoneTime:            chConfig.EcotoneTime,
-		FjordTime:              chConfig.FjordTime,
-		GraniteTime:            chConfig.GraniteTime,
-		BatchInboxAddress:      common.Address(chConfig.BatchInboxAddr),
-		DepositContractAddress: common.Address(addrs.OptimismPortalProxy),
-		L1SystemConfigAddress:  common.Address(addrs.SystemConfigProxy),
-		PlasmaConfig:           plasma,
+		CanyonTime:             hardforks.CanyonTime,
+		DeltaTime:              hardforks.DeltaTime,
+		EcotoneTime:            hardforks.EcotoneTime,
+		FjordTime:              hardforks.FjordTime,
+		GraniteTime:            hardforks.GraniteTime,
+		HoloceneTime:           hardforks.HoloceneTime,
+		PectraBlobScheduleTime: hardforks.PectraBlobScheduleTime,
+		IsthmusTime:            hardforks.IsthmusTime,
+		BatchInboxAddress:      chConfig.BatchInboxAddr,
+		DepositContractAddress: *addrs.OptimismPortalProxy,
+		L1SystemConfigAddress:  *addrs.SystemConfigProxy,
+		AltDAConfig:            altDA,
+		ChainOpConfig:          chOpConfig,
 	}
 
-	if superChain.Config.ProtocolVersionsAddr != nil { // Set optional protocol versions address
-		cfg.ProtocolVersionsAddress = common.Address(*superChain.Config.ProtocolVersionsAddr)
+	cfg.ProtocolVersionsAddress = superConfig.ProtocolVersionsAddr
+
+	if chainID == bobaSepolia {
+		cfg.ProtocolVersionsAddress = common.Address{}
 	}
-	if chainID == pgnSepolia {
-		cfg.MaxSequencerDrift = 1000
-		cfg.SeqWindowSize = 7200
+	if chainID == bobaMainnet {
+		cfg.ProtocolVersionsAddress = common.Address{}
+	}
+	if chainID == bobaBnbTestnet {
+		cfg.MaxSequencerDrift = 900
+		cfg.ProtocolVersionsAddress = common.Address{}
 	}
 	if chainID == bobaSepolia {
 		cfg.ProtocolVersionsAddress = common.Address{}

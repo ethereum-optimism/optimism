@@ -5,12 +5,15 @@ import (
 	"testing"
 
 	op_e2e "github.com/ethereum-optimism/optimism/op-e2e"
+
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/challenger"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/disputegame"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/disputegame/preimage"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/stretchr/testify/require"
 )
+
+const testPreimageSize = preimage.MinPreimageSize * 20
 
 func TestChallengeLargePreimages_ChallengeFirst(t *testing.T) {
 	op_e2e.InitParallel(t)
@@ -23,7 +26,7 @@ func TestChallengeLargePreimages_ChallengeFirst(t *testing.T) {
 		challenger.WithAlphabet(),
 		challenger.WithPrivKey(sys.Cfg.Secrets.Alice))
 	preimageHelper := disputeGameFactory.PreimageHelper(ctx)
-	ident := preimageHelper.UploadLargePreimage(ctx, preimage.MinPreimageSize,
+	ident := preimageHelper.UploadLargePreimage(ctx, testPreimageSize,
 		preimage.WithReplacedCommitment(0, common.Hash{0xaa}))
 
 	require.NotEqual(t, ident.Claimant, common.Address{})
@@ -41,7 +44,7 @@ func TestChallengeLargePreimages_ChallengeMiddle(t *testing.T) {
 		challenger.WithAlphabet(),
 		challenger.WithPrivKey(sys.Cfg.Secrets.Mallory))
 	preimageHelper := disputeGameFactory.PreimageHelper(ctx)
-	ident := preimageHelper.UploadLargePreimage(ctx, preimage.MinPreimageSize,
+	ident := preimageHelper.UploadLargePreimage(ctx, testPreimageSize,
 		preimage.WithReplacedCommitment(10, common.Hash{0xaa}))
 
 	require.NotEqual(t, ident.Claimant, common.Address{})
@@ -59,7 +62,7 @@ func TestChallengeLargePreimages_ChallengeLast(t *testing.T) {
 		challenger.WithAlphabet(),
 		challenger.WithPrivKey(sys.Cfg.Secrets.Mallory))
 	preimageHelper := disputeGameFactory.PreimageHelper(ctx)
-	ident := preimageHelper.UploadLargePreimage(ctx, preimage.MinPreimageSize,
+	ident := preimageHelper.UploadLargePreimage(ctx, testPreimageSize,
 		preimage.WithLastCommitment(common.Hash{0xaa}))
 
 	require.NotEqual(t, ident.Claimant, common.Address{})

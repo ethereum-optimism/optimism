@@ -32,6 +32,11 @@ var (
 		Usage:   "HTTP provider URL for the rollup node. A comma-separated list enables the active rollup provider.",
 		EnvVars: prefixEnvVars("ROLLUP_RPC"),
 	}
+	SupervisorRpcsFlag = &cli.StringSliceFlag{
+		Name:    "supervisor-rpcs",
+		Usage:   "HTTP provider URLs for the supervisor nodes. Multiple URLs can be provided to automatically fail over.",
+		EnvVars: prefixEnvVars("SUPERVISOR_RPCS"),
+	}
 
 	// Optional flags
 	L2OOAddressFlag = &cli.StringFlag{
@@ -60,12 +65,6 @@ var (
 		Usage:   "Interval between submitting L2 output proposals when the dispute game factory address is set",
 		EnvVars: prefixEnvVars("PROPOSAL_INTERVAL"),
 	}
-	OutputRetryIntervalFlag = &cli.DurationFlag{
-		Name:    "output-retry-interval",
-		Usage:   "Interval between retrying output fetching (DGF)",
-		Value:   12 * time.Second,
-		EnvVars: prefixEnvVars("OUTPUT_RETRY_INTERVAL"),
-	}
 	DisputeGameTypeFlag = &cli.UintFlag{
 		Name:    "game-type",
 		Usage:   "Dispute game type to create via the configured DisputeGameFactory",
@@ -91,17 +90,17 @@ var (
 
 var requiredFlags = []cli.Flag{
 	L1EthRpcFlag,
-	RollupRpcFlag,
 }
 
 var optionalFlags = []cli.Flag{
+	RollupRpcFlag,
+	SupervisorRpcsFlag,
 	L2OOAddressFlag,
 	PollIntervalFlag,
 	AllowNonFinalizedFlag,
 	L2OutputHDPathFlag,
 	DisputeGameFactoryAddressFlag,
 	ProposalIntervalFlag,
-	OutputRetryIntervalFlag,
 	DisputeGameTypeFlag,
 	ActiveSequencerCheckDurationFlag,
 	WaitNodeSyncFlag,

@@ -2,6 +2,7 @@ package dial
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"testing"
 	"time"
@@ -41,7 +42,7 @@ func setupEndpointProviderTest(t *testing.T, numSequencers int) *endpointProvide
 	return ept
 }
 
-// newActiveL2EndpointProvider constructs a new ActiveL2RollupProvider using the test harness setup.
+// newActiveL2RollupProvider constructs a new ActiveL2RollupProvider using the test harness setup.
 func (et *endpointProviderTest) newActiveL2RollupProvider(checkDuration time.Duration) (*ActiveL2RollupProvider, error) {
 	mockRollupDialer := func(ctx context.Context, log log.Logger, url string) (RollupClientInterface, error) {
 		for i, client := range et.rollupClients {
@@ -147,6 +148,12 @@ func TestRollupProvider_FailoverOnInactiveSequencer(t *testing.T) {
 	rollupProvider, err := ept.newActiveL2RollupProvider(0)
 	require.NoError(t, err)
 
+	numInvocations := 0
+	mockCallback := func() {
+		numInvocations++
+	}
+	rollupProvider.SetOnActiveProviderChanged(mockCallback)
+
 	firstSequencerUsed, err := rollupProvider.RollupClient(context.Background())
 	require.NoError(t, err)
 	require.Same(t, primarySequencer, firstSequencerUsed)
@@ -158,6 +165,7 @@ func TestRollupProvider_FailoverOnInactiveSequencer(t *testing.T) {
 	require.NoError(t, err)
 	require.Same(t, secondarySequencer, secondSequencerUsed)
 	ept.assertAllExpectations(t)
+	require.Equal(t, 1, numInvocations)
 }
 
 // TestEndpointProvider_FailoverOnInactiveSequencer verifies that the ActiveL2EndpointProvider
@@ -204,7 +212,7 @@ func TestRollupProvider_FailoverOnErroredSequencer(t *testing.T) {
 	require.NoError(t, err)
 	require.Same(t, primarySequencer, firstSequencerUsed)
 
-	primarySequencer.ExpectSequencerActive(true, fmt.Errorf("a test error")) // error-out after that
+	primarySequencer.ExpectSequencerActive(true, errors.New("a test error")) // error-out after that
 	primarySequencer.MaybeClose()
 	secondarySequencer.ExpectSequencerActive(true, nil)
 	secondSequencerUsed, err := rollupProvider.RollupClient(context.Background())
@@ -231,7 +239,7 @@ func TestEndpointProvider_FailoverOnErroredSequencer(t *testing.T) {
 	require.NoError(t, err)
 	require.Same(t, primaryEthClient, firstSequencerUsed)
 
-	primarySequencer.ExpectSequencerActive(true, fmt.Errorf("a test error")) // error out after that
+	primarySequencer.ExpectSequencerActive(true, errors.New("a test error")) // error out after that
 	primarySequencer.MaybeClose()
 	primaryEthClient.MaybeClose()
 	secondarySequencer.ExpectSequencerActive(true, nil)
@@ -465,7 +473,7 @@ func TestRollupProvider_ConstructorErrorOnFirstSequencerOffline(t *testing.T) {
 	ept := setupEndpointProviderTest(t, 2)
 
 	// First sequencer is dead, second sequencer is active
-	ept.rollupClients[0].ExpectSequencerActive(false, fmt.Errorf("I am offline"))
+	ept.rollupClients[0].ExpectSequencerActive(false, errors.New("I am offline"))
 	ept.rollupClients[0].MaybeClose()
 	ept.rollupClients[1].ExpectSequencerActive(true, nil)
 
@@ -482,7 +490,7 @@ func TestEndpointProvider_ConstructorErrorOnFirstSequencerOffline(t *testing.T) 
 	ept := setupEndpointProviderTest(t, 2)
 
 	// First sequencer is dead, second sequencer is active
-	ept.rollupClients[0].ExpectSequencerActive(false, fmt.Errorf("I am offline"))
+	ept.rollupClients[0].ExpectSequencerActive(false, errors.New("I am offline"))
 	ept.rollupClients[0].MaybeClose()
 	ept.rollupClients[1].ExpectSequencerActive(true, nil)
 	ept.rollupClients[1].ExpectSequencerActive(true, nil) // see comment in other tests about why we expect this twice
@@ -533,7 +541,7 @@ func TestRollupProvider_FailOnAllErroredSequencers(t *testing.T) {
 
 	// All sequencers are inactive
 	for _, sequencer := range ept.rollupClients {
-		sequencer.ExpectSequencerActive(true, fmt.Errorf("a test error"))
+		sequencer.ExpectSequencerActive(true, errors.New("a test error"))
 		sequencer.MaybeClose()
 	}
 
@@ -549,7 +557,7 @@ func TestEndpointProvider_FailOnAllErroredSequencers(t *testing.T) {
 
 	// All sequencers are inactive
 	for _, sequencer := range ept.rollupClients {
-		sequencer.ExpectSequencerActive(true, fmt.Errorf("a test error"))
+		sequencer.ExpectSequencerActive(true, errors.New("a test error"))
 		sequencer.MaybeClose()
 	}
 
@@ -711,7 +719,7 @@ func TestRollupProvider_HandlesManyIndexClientMismatch(t *testing.T) {
 	require.NoError(t, err)
 
 	// primarySequencer goes down
-	seq0.ExpectSequencerActive(false, fmt.Errorf("I'm offline now"))
+	seq0.ExpectSequencerActive(false, errors.New("I'm offline now"))
 	seq0.MaybeClose()
 	ept.setRollupDialOutcome(0, false) // primarySequencer fails to dial
 	// secondarySequencer is inactive, but online

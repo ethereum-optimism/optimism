@@ -17,6 +17,7 @@ import (
 	"github.com/ethereum/go-ethereum/triedb"
 	"github.com/ethereum/go-ethereum/triedb/hashdb"
 
+	"github.com/ethereum-optimism/optimism/cannon/mipsevm/arch"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/memory"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/crossdomain"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
@@ -37,13 +38,14 @@ var (
 		{Type: fixedBytes},
 	}
 
-	uint32Type, _ = abi.NewType("uint32", "", nil)
-
 	// Plain address type
 	addressType, _ = abi.NewType("address", "", nil)
 
 	// Plain uint8 type
 	uint8Type, _ = abi.NewType("uint8", "", nil)
+
+	// Plain uint32 type
+	uint32Type, _ = abi.NewType("uint32", "", nil)
 
 	// Plain uint256 type
 	uint256Type, _ = abi.NewType("uint256", "", nil)
@@ -99,6 +101,19 @@ var (
 		{Name: "decimals", Type: uint8Type},
 		{Name: "name", Type: fixedBytes},
 		{Name: "symbol", Type: fixedBytes},
+	}
+
+	// Super root proof tuple (uint8, uint64, OutputRootWithChainId[])
+	superRootProof, _ = abi.NewType("tuple", "SuperRootProof", []abi.ArgumentMarshaling{
+		{Name: "version", Type: "bytes1"},
+		{Name: "timestamp", Type: "uint64"},
+		{Name: "outputRoots", Type: "tuple[]", Components: []abi.ArgumentMarshaling{
+			{Name: "chainId", Type: "uint256"},
+			{Name: "root", Type: "bytes32"},
+		}},
+	})
+	superRootProofArgs = abi.Arguments{
+		{Type: superRootProof},
 	}
 
 	// Dependency tuple (uint256)
@@ -359,60 +374,106 @@ func DiffTestUtils() {
 		// Print the output
 		fmt.Print(hexutil.Encode(packed[32:]))
 	case "cannonMemoryProof":
-		// <pc, insn, [memAddr, memValue]>
+		// <memAddr0, memValue0, [memAddr1, memValue1], [memAddr2, memValue2]>
+		// Generates memory proofs of `memAddr0` for a trie containing memValue0 and `memAddr1` for a trie containing memValue1 and memValue2
+		// For the cannon stf, this is equivalent to the prestate proofs of the program counter and memory access for instruction execution
 		mem := memory.NewMemory()
-		if len(args) != 3 && len(args) != 5 {
-			panic("Error: cannonMemoryProofWithProof requires 2 or 4 arguments")
+		if len(args) != 3 && len(args) != 5 && len(args) != 7 {
+			panic("Error: cannonMemoryProofWithProof requires 2, 4, or 6 arguments")
 		}
-		pc, err := strconv.ParseUint(args[1], 10, 32)
+		memAddr0, err := strconv.ParseUint(args[1], 10, arch.WordSize)
 		checkErr(err, "Error decoding addr")
-		insn, err := strconv.ParseUint(args[2], 10, 32)
-		checkErr(err, "Error decoding insn")
-		mem.SetMemory(uint32(pc), uint32(insn))
+		memValue0, err := strconv.ParseUint(args[2], 10, arch.WordSize)
+		checkErr(err, "Error decoding memValue0")
+		mem.SetWord(arch.Word(memAddr0), arch.Word(memValue0))
 
-		var insnProof, memProof [896]byte
-		if len(args) == 5 {
-			memAddr, err := strconv.ParseUint(args[3], 10, 32)
+		var proof1 []byte
+		if len(args) >= 5 {
+			memAddr, err := strconv.ParseUint(args[3], 10, arch.WordSize)
 			checkErr(err, "Error decoding memAddr")
-			memValue, err := strconv.ParseUint(args[4], 10, 32)
+			memValue, err := strconv.ParseUint(args[4], 10, arch.WordSize)
 			checkErr(err, "Error decoding memValue")
-			mem.SetMemory(uint32(memAddr), uint32(memValue))
-			memProof = mem.MerkleProof(uint32(memAddr))
+			mem.SetWord(arch.Word(memAddr), arch.Word(memValue))
+			proof := mem.MerkleProof(arch.Word(memAddr))
+			proof1 = proof[:]
 		}
-		insnProof = mem.MerkleProof(uint32(pc))
+		if len(args) == 7 {
+			memAddr, err := strconv.ParseUint(args[5], 10, arch.WordSize)
+			checkErr(err, "Error decoding memAddr")
+			memValue, err := strconv.ParseUint(args[6], 10, arch.WordSize)
+			checkErr(err, "Error decoding memValue")
+			mem.SetWord(arch.Word(memAddr), arch.Word(memValue))
+			proof := mem.MerkleProof(arch.Word(memAddr))
+			proof1 = proof[:]
+		}
+		proof0 := mem.MerkleProof(arch.Word(memAddr0))
 
 		output := struct {
 			MemRoot common.Hash
 			Proof   []byte
 		}{
 			MemRoot: mem.MerkleRoot(),
-			Proof:   append(insnProof[:], memProof[:]...),
+			Proof:   append(proof0[:], proof1...),
+		}
+		packed, err := cannonMemoryProofArgs.Pack(&output)
+		checkErr(err, "Error encoding output")
+		fmt.Print(hexutil.Encode(packed[32:]))
+	case "cannonMemoryProof2":
+		// <memAddr0, memValue0, [memAddr1, memValue1], memAddr2>
+		// Generates memory proof of `memAddr2` for a trie containing `memValue0` and `memValue1`
+		mem := memory.NewMemory()
+		if len(args) != 6 {
+			panic("Error: cannonMemoryProofWithProof2 requires 5 arguments")
+		}
+		memAddr0, err := strconv.ParseUint(args[1], 10, arch.WordSize)
+		checkErr(err, "Error decoding addr")
+		memValue0, err := strconv.ParseUint(args[2], 10, arch.WordSize)
+		checkErr(err, "Error decoding memValue0")
+		mem.SetWord(arch.Word(memAddr0), arch.Word(memValue0))
+
+		var memProof [memory.MemProofSize]byte
+		memAddr, err := strconv.ParseUint(args[3], 10, arch.WordSize)
+		checkErr(err, "Error decoding memAddr")
+		memValue1, err := strconv.ParseUint(args[4], 10, arch.WordSize)
+		checkErr(err, "Error decoding memValue1")
+		mem.SetWord(arch.Word(memAddr), arch.Word(memValue1))
+
+		memAddr2, err := strconv.ParseUint(args[5], 10, arch.WordSize)
+		checkErr(err, "Error decoding memAddr")
+		memProof = mem.MerkleProof(arch.Word(memAddr2))
+
+		output := struct {
+			MemRoot common.Hash
+			Proof   []byte
+		}{
+			MemRoot: mem.MerkleRoot(),
+			Proof:   memProof[:],
 		}
 		packed, err := cannonMemoryProofArgs.Pack(&output)
 		checkErr(err, "Error encoding output")
 		fmt.Print(hexutil.Encode(packed[32:]))
 	case "cannonMemoryProofWrongLeaf":
-		// <pc, insn, memAddr, memValue>
+		// <memAddr0, memValue0, memAddr1, memValue1>
 		mem := memory.NewMemory()
 		if len(args) != 5 {
 			panic("Error: cannonMemoryProofWrongLeaf requires 4 arguments")
 		}
-		pc, err := strconv.ParseUint(args[1], 10, 32)
-		checkErr(err, "Error decoding addr")
-		insn, err := strconv.ParseUint(args[2], 10, 32)
-		checkErr(err, "Error decoding insn")
-		mem.SetMemory(uint32(pc), uint32(insn))
+		memAddr0, err := strconv.ParseUint(args[1], 10, arch.WordSize)
+		checkErr(err, "Error decoding memAddr0")
+		memValue0, err := strconv.ParseUint(args[2], 10, arch.WordSize)
+		checkErr(err, "Error decoding memValue0")
+		mem.SetWord(arch.Word(memAddr0), arch.Word(memValue0))
 
-		var insnProof, memProof [896]byte
-		memAddr, err := strconv.ParseUint(args[3], 10, 32)
-		checkErr(err, "Error decoding memAddr")
-		memValue, err := strconv.ParseUint(args[4], 10, 32)
-		checkErr(err, "Error decoding memValue")
-		mem.SetMemory(uint32(memAddr), uint32(memValue))
+		var insnProof, memProof [memory.MemProofSize]byte
+		memAddr1, err := strconv.ParseUint(args[3], 10, arch.WordSize)
+		checkErr(err, "Error decoding memAddr1")
+		memValue1, err := strconv.ParseUint(args[4], 10, arch.WordSize)
+		checkErr(err, "Error decoding memValue1")
+		mem.SetWord(arch.Word(memAddr1), arch.Word(memValue1))
 
 		// Compute a valid proof for the root, but for the wrong leaves.
-		memProof = mem.MerkleProof(uint32(memAddr + 32))
-		insnProof = mem.MerkleProof(uint32(pc + 32))
+		memProof = mem.MerkleProof(arch.Word(memAddr1 + arch.WordSize))
+		insnProof = mem.MerkleProof(arch.Word(memAddr0 + arch.WordSize))
 
 		output := struct {
 			MemRoot common.Hash
@@ -471,6 +532,49 @@ func DiffTestUtils() {
 
 		// Pack encoded dependency
 		packed, err := bytesArgs.Pack(&encoded)
+		checkErr(err, "Error encoding output")
+
+		fmt.Print(hexutil.Encode(packed))
+	case "encodeSuperRootProof":
+		// Parse input argument as abi encoded super root proof
+		if len(args) < 2 {
+			panic("Error: encodeSuperRoot requires at least 1 argument")
+		}
+
+		// Parse the input as hex data
+		superRootProofData := common.FromHex(args[1])
+		proof, err := parseSuperRootProof(superRootProofData)
+		checkErr(err, "Error parsing super root proof")
+
+		// Encode super root proof
+		encoded, err := encodeSuperRootProof(proof)
+		checkErr(err, "Error encoding super root")
+
+		// Pack encoded super root
+		packed, err := bytesArgs.Pack(&encoded)
+		checkErr(err, "Error encoding output")
+
+		fmt.Print(hexutil.Encode(packed))
+	case "hashSuperRootProof":
+		// Parse input argument as abi encoded super root proof
+		if len(args) < 2 {
+			panic("Error: hashSuperRootProof requires at least 1 argument")
+		}
+
+		// Parse the input as hex data
+		superRootProofData := common.FromHex(args[1])
+		proof, err := parseSuperRootProof(superRootProofData)
+		checkErr(err, "Error parsing super root proof")
+
+		// Encode super root proof
+		encoded, err := encodeSuperRootProof(proof)
+		checkErr(err, "Error encoding super root proof")
+
+		// Hash super root proof
+		hash := crypto.Keccak256Hash(encoded)
+
+		// Pack hash
+		packed, err := fixedBytesArgs.Pack(&hash)
 		checkErr(err, "Error encoding output")
 
 		fmt.Print(hexutil.Encode(packed))

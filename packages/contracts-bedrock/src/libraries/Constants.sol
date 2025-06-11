@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
-import { ResourceMetering } from "src/L1/ResourceMetering.sol";
+// Interfaces
+import { IResourceMetering } from "interfaces/L1/IResourceMetering.sol";
 
 /// @title Constants
 /// @notice Constants is a library for storing constants. Simple! Don't put everything in here, just
@@ -39,8 +40,8 @@ library Constants {
 
     /// @notice Returns the default values for the ResourceConfig. These are the recommended values
     ///         for a production network.
-    function DEFAULT_RESOURCE_CONFIG() internal pure returns (ResourceMetering.ResourceConfig memory) {
-        ResourceMetering.ResourceConfig memory config = ResourceMetering.ResourceConfig({
+    function DEFAULT_RESOURCE_CONFIG() internal pure returns (IResourceMetering.ResourceConfig memory) {
+        IResourceMetering.ResourceConfig memory config = IResourceMetering.ResourceConfig({
             maxResourceLimit: 20_000_000,
             elasticityMultiplier: 10,
             baseFeeMaxChangeDenominator: 8,
@@ -50,8 +51,4 @@ library Constants {
         });
         return config;
     }
-
-    /// @notice The `reinitailizer` input for upgradable contracts. This value must be updated
-    ///         each time that the contracts are deployed.
-    uint8 internal constant INITIALIZER = 3;
 }

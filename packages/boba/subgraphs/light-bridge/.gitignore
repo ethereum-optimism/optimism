@@ -32,3 +32,6 @@ typechain-types
 
 # Hardhat files
 cache
+
+# subgraph file
+subgraph.yaml

@@ -2,6 +2,7 @@ package metrics
 
 import (
 	"io"
+	"sync/atomic"
 
 	"github.com/prometheus/client_golang/prometheus"
 
@@ -41,6 +42,11 @@ type Metricer interface {
 	RecordChannelClosed(id derive.ChannelID, numPendingBlocks int, numFrames int, inputBytes int, outputComprBytes int, reason error)
 	RecordChannelFullySubmitted(id derive.ChannelID)
 	RecordChannelTimedOut(id derive.ChannelID)
+	RecordChannelQueueLength(len int)
+
+	// ClearAllStateMetrics resets any metrics that track current ChannelManager state
+	// It should be called when clearing the ChannelManager state.
+	ClearAllStateMetrics()
 
 	RecordBatchTxSubmitted()
 	RecordBatchTxSuccess()
@@ -49,6 +55,8 @@ type Metricer interface {
 	RecordBlobUsedBytes(num int)
 
 	Document() []opmetrics.DocumentedMetric
+
+	PendingDABytes() float64
 }
 
 type Metrics struct {
@@ -69,7 +77,11 @@ type Metrics struct {
 	pendingBlocksCount        prometheus.GaugeVec
 	pendingBlocksBytesTotal   prometheus.Counter
 	pendingBlocksBytesCurrent prometheus.Gauge
-	blocksAddedCount          prometheus.Gauge
+
+	pendingDABytes          int64
+	pendingDABytesGaugeFunc prometheus.GaugeFunc
+
+	blocksAddedCount prometheus.Gauge
 
 	channelInputBytes       prometheus.GaugeVec
 	channelReadyBytes       prometheus.Gauge
@@ -79,6 +91,7 @@ type Metrics struct {
 	channelComprRatio       prometheus.Histogram
 	channelInputBytesTotal  prometheus.Counter
 	channelOutputBytesTotal prometheus.Counter
+	channelQueueLength      prometheus.Gauge
 
 	batcherTxEvs opmetrics.EventVec
 
@@ -99,7 +112,7 @@ func NewMetrics(procName string) *Metrics {
 	registry := opmetrics.NewRegistry()
 	factory := opmetrics.With(registry)
 
-	return &Metrics{
+	m := &Metrics{
 		ns:       ns,
 		registry: registry,
 		factory:  factory,
@@ -143,7 +156,6 @@ func NewMetrics(procName string) *Metrics {
 			Name:      "blocks_added_count",
 			Help:      "Total number of blocks added to current channel.",
 		}),
-
 		channelInputBytes: *factory.NewGaugeVec(prometheus.GaugeOpts{
 			Namespace: ns,
 			Name:      "input_bytes",
@@ -185,6 +197,11 @@ func NewMetrics(procName string) *Metrics {
 			Name:      "output_bytes_total",
 			Help:      "Total number of compressed output bytes from a channel.",
 		}),
+		channelQueueLength: factory.NewGauge(prometheus.GaugeOpts{
+			Namespace: ns,
+			Name:      "channel_queue_length",
+			Help:      "The number of channels currently in memory.",
+		}),
 		blobUsedBytes: factory.NewHistogram(prometheus.HistogramOpts{
 			Namespace: ns,
 			Name:      "blob_used_bytes",
@@ -194,6 +211,13 @@ func NewMetrics(procName string) *Metrics {
 
 		batcherTxEvs: opmetrics.NewEventVec(factory, ns, "", "batcher_tx", "BatcherTx", []string{"stage"}),
 	}
+	m.pendingDABytesGaugeFunc = factory.NewGaugeFunc(prometheus.GaugeOpts{
+		Namespace: ns,
+		Name:      "pending_da_bytes",
+		Help:      "The estimated amount of data currently pending to be written to the DA layer (from blocks fetched from L2 but not yet in a channel).",
+	}, m.PendingDABytes)
+
+	return m
 }
 
 func (m *Metrics) Registry() *prometheus.Registry {
@@ -202,6 +226,12 @@ func (m *Metrics) Registry() *prometheus.Registry {
 
 func (m *Metrics) Document() []opmetrics.DocumentedMetric {
 	return m.factory.Document()
+}
+
+// PendingDABytes returns the current number of bytes pending to be written to the DA layer (from blocks fetched from L2
+// but not yet in a channel).
+func (m *Metrics) PendingDABytes() float64 {
+	return float64(atomic.LoadInt64(&m.pendingDABytes))
 }
 
 func (m *Metrics) StartBalanceMetrics(l log.Logger, client *ethclient.Client, account common.Address) io.Closer {
@@ -216,7 +246,6 @@ func (m *Metrics) RecordInfo(version string) {
 
 // RecordUp sets the up metric to 1.
 func (m *Metrics) RecordUp() {
-	prometheus.MustRegister()
 	m.up.Set(1)
 }
 
@@ -278,14 +307,16 @@ func (m *Metrics) RecordChannelClosed(id derive.ChannelID, numPendingBlocks int,
 }
 
 func (m *Metrics) RecordL2BlockInPendingQueue(block *types.Block) {
-	size := float64(estimateBatchSize(block))
-	m.pendingBlocksBytesTotal.Add(size)
-	m.pendingBlocksBytesCurrent.Add(size)
+	daSize, rawSize := estimateBatchSize(block)
+	m.pendingBlocksBytesTotal.Add(float64(rawSize))
+	m.pendingBlocksBytesCurrent.Add(float64(rawSize))
+	atomic.AddInt64(&m.pendingDABytes, int64(daSize))
 }
 
 func (m *Metrics) RecordL2BlockInChannel(block *types.Block) {
-	size := float64(estimateBatchSize(block))
-	m.pendingBlocksBytesCurrent.Add(-1 * size)
+	daSize, rawSize := estimateBatchSize(block)
+	m.pendingBlocksBytesCurrent.Add(-1.0 * float64(rawSize))
+	atomic.AddInt64(&m.pendingDABytes, -1*int64(daSize))
 	// Refer to RecordL2BlocksAdded to see the current + count of bytes added to a channel
 }
 
@@ -318,16 +349,37 @@ func (m *Metrics) RecordBlobUsedBytes(num int) {
 	m.blobUsedBytes.Observe(float64(num))
 }
 
-// estimateBatchSize estimates the size of the batch
-func estimateBatchSize(block *types.Block) uint64 {
-	size := uint64(70) // estimated overhead of batch metadata
+func (m *Metrics) RecordChannelQueueLength(len int) {
+	m.channelQueueLength.Set(float64(len))
+}
+
+// ClearAllStateMetrics clears all state metrics.
+//
+// This should cover any metric which is a Gauge and is incremented / decremented rather than "set".
+// Counter Metrics only ever go up, so they can't be reset and shouldn't be.
+// Gauge Metrics which are "set" will get the right value the next time they are updated and don't need to be reset.
+func (m *Metrics) ClearAllStateMetrics() {
+	m.RecordChannelQueueLength(0)
+	atomic.StoreInt64(&m.pendingDABytes, 0)
+	m.pendingBlocksBytesCurrent.Set(0)
+}
+
+// estimateBatchSize returns the estimated size of the block in a batch both with compression ('daSize') and without
+// ('rawSize').
+func estimateBatchSize(block *types.Block) (daSize, rawSize uint64) {
+	daSize = uint64(70) // estimated overhead of batch metadata
+	rawSize = uint64(70)
 	for _, tx := range block.Transactions() {
-		// Don't include deposit transactions in the batch.
+		// Deposit transactions are not included in batches
 		if tx.IsDepositTx() {
 			continue
 		}
+		bigSize := tx.RollupCostData().EstimatedDASize()
+		if bigSize.IsUint64() { // this should always be true, but if not just ignore
+			daSize += bigSize.Uint64()
+		}
 		// Add 2 for the overhead of encoding the tx bytes in a RLP list
-		size += tx.Size() + 2
+		rawSize += tx.Size() + 2
 	}
-	return size
+	return
 }

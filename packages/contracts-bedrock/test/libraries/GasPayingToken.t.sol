@@ -7,9 +7,21 @@ import { Constants } from "src/libraries/Constants.sol";
 import { Test } from "forge-std/Test.sol";
 import { LibString } from "@solady/utils/LibString.sol";
 
+contract GasPayingToken_Harness {
+    function exposed_sanitize(string memory _str) public pure returns (bytes32) {
+        return GasPayingToken.sanitize(_str);
+    }
+}
+
 /// @title GasPayingToken_Roundtrip_Test
 /// @notice Tests the roundtrip of setting and getting the gas paying token.
 contract GasPayingToken_Roundtrip_Test is Test {
+    GasPayingToken_Harness harness;
+
+    function setUp() public {
+        harness = new GasPayingToken_Harness();
+    }
+
     /// @dev Test that the gas paying token correctly sets values in storage.
     function testFuzz_set_succeeds(address _token, uint8 _decimals, bytes32 _name, bytes32 _symbol) external {
         GasPayingToken.set(_token, _decimals, _name, _symbol);
@@ -57,15 +69,19 @@ contract GasPayingToken_Roundtrip_Test is Test {
     function testFuzz_setGetWithSanitize_succeeds(
         address _token,
         uint8 _decimals,
-        string memory _name,
-        string memory _symbol
+        string calldata _name,
+        string calldata _symbol
     )
         external
     {
         vm.assume(_token != address(0));
-        vm.assume(bytes(_name).length <= 32);
-        vm.assume(bytes(_symbol).length <= 32);
         vm.assume(_token != Constants.ETHER);
+        if (bytes(_name).length > 32) {
+            _name = string(bytes(_name)[0:32]);
+        }
+        if (bytes(_symbol).length > 32) {
+            _symbol = string(bytes(_symbol)[0:32]);
+        }
 
         GasPayingToken.set(_token, _decimals, GasPayingToken.sanitize(_name), GasPayingToken.sanitize(_symbol));
 
@@ -100,7 +116,7 @@ contract GasPayingToken_Roundtrip_Test is Test {
 
         vm.expectRevert("GasPayingToken: string cannot be greater than 32 bytes");
 
-        GasPayingToken.sanitize(_str);
+        harness.exposed_sanitize(_str);
     }
 
     /// @dev Test that `sanitize` works as expected when the input string is empty.

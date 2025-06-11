@@ -46,7 +46,7 @@ func (f *FaultDisputeGameContract0180) GetGameMetadata(ctx context.Context, bloc
 	duration := results[4].GetUint64(0)
 	return GameMetadata{
 		L1Head:                  l1Head,
-		L2BlockNum:              l2BlockNumber,
+		L2SequenceNum:           l2BlockNumber,
 		RootClaim:               rootClaim,
 		Status:                  status,
 		MaxClockDuration:        duration,
@@ -70,4 +70,8 @@ func (f *FaultDisputeGameContract0180) AttackTx(ctx context.Context, parent type
 func (f *FaultDisputeGameContract0180) DefendTx(ctx context.Context, parent types.Claim, pivot common.Hash) (txmgr.TxCandidate, error) {
 	call := f.contract.Call(methodDefend, big.NewInt(int64(parent.ContractIndex)), pivot)
 	return f.txWithBond(ctx, parent.Position.Defend(), call)
+}
+
+func (f *FaultDisputeGameContract0180) GetBondDistributionMode(ctx context.Context, block rpcblock.Block) (types.BondDistributionMode, error) {
+	return types.LegacyDistributionMode, nil
 }

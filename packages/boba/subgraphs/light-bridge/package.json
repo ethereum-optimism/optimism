@@ -2,6 +2,18 @@
   "name": "lightbridge",
   "license": "UNLICENSED",
   "scripts": {
+    "prepare:sepolia": "mustache config/sepolia.json subgraph.template.yaml > subgraph.yaml",
+    "prepare:mainnet": "mustache config/mainnet.json subgraph.template.yaml > subgraph.yaml",
+    "prepare:chapel": "mustache config/chapel.json subgraph.template.yaml > subgraph.yaml",
+    "prepare:bsc": "mustache config/bsc.json subgraph.template.yaml > subgraph.yaml",
+    "prepare:optimism": "mustache config/optimism.json subgraph.template.yaml > subgraph.yaml",
+    "prepare:optimism-sepolia": "mustache config/optimism-sepolia.json subgraph.template.yaml > subgraph.yaml",
+    "prepare:arbitrum-sepolia": "mustache config/arbitrum-sepolia.json subgraph.template.yaml > subgraph.yaml",
+    "prepare:arbitrum-one": "mustache config/arbitrum-one.json subgraph.template.yaml > subgraph.yaml",
+    "prepare:boba": "mustache config/boba.json subgraph.template.yaml > subgraph.yaml",
+    "prepare:boba-testnet": "mustache config/boba-testnet.json subgraph.template.yaml > subgraph.yaml",
+    "prepare:boba-bnb": "mustache config/boba-bnb.json subgraph.template.yaml > subgraph.yaml",
+    "prepare:boba-bnb-testnet": "mustache config/boba-bnb-testnet.json subgraph.template.yaml > subgraph.yaml",
     "codegen": "graph codegen",
     "build": "graph build",
     "deploy": "graph deploy --node https://api.studio.thegraph.com/deploy/ lightbridge",
@@ -12,7 +24,10 @@
   },
   "dependencies": {
     "@graphprotocol/graph-cli": "0.72.1",
-    "@graphprotocol/graph-ts": "0.32.0"
+    "@graphprotocol/graph-ts": "0.32.0",
+    "mustache": "^4.2.0"
   },
-  "devDependencies": { "matchstick-as": "0.5.0" }
+  "devDependencies": {
+    "matchstick-as": "0.5.0"
+  }
 }

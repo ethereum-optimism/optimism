@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/ioutil"
 	"github.com/ethereum-optimism/optimism/op-service/retry"
 	"github.com/ethereum-optimism/optimism/op-service/sources/batching"
 	"github.com/urfave/cli/v2"
@@ -120,49 +122,7 @@ var Subcommands = cli.Commands{
 				return err
 			}
 
-			return jsonutil.WriteJSON(ctx.String(outfileL1Flag.Name), l1Genesis, 0o666)
-		},
-	},
-	{
-		Name:  "l1-clean",
-		Usage: "Generates a L1 genesis state file",
-
-		Flags: []cli.Flag{
-			&cli.StringFlag{
-				Name:     "deploy-config",
-				Usage:    "Path to hardhat deploy config file",
-				Required: true,
-			},
-			&cli.StringFlag{
-				Name:  "l1-allocs",
-				Usage: "Path to L1 genesis state dump",
-			},
-			&cli.StringFlag{
-				Name:  "outfile.l1",
-				Usage: "Path to L1 genesis output file",
-			},
-		},
-		Action: func(ctx *cli.Context) error {
-			deployConfig := ctx.String("deploy-config")
-			config, err := genesis.NewDeployConfig(deployConfig)
-			if err != nil {
-				return err
-			}
-
-			var dump *foundry.ForgeAllocs
-			if l1Allocs := ctx.String(l1AllocsFlag.Name); l1Allocs != "" {
-				dump, err = foundry.LoadForgeAllocs(l1Allocs)
-				if err != nil {
-					return err
-				}
-			}
-
-			l1Genesis, err := genesis.BuildL1DeveloperGenesis(config, dump, &genesis.L1Deployments{})
-			if err != nil {
-				return err
-			}
-
-			return jsonutil.WriteJSON(ctx.String("outfile.l1"), l1Genesis, 0o666)
+			return jsonutil.WriteJSON(l1Genesis, ioutil.ToStdOutOrFileOrNoop(ctx.String(outfileL1Flag.Name), 0o666))
 		},
 	},
 	{
@@ -232,13 +192,13 @@ var Subcommands = cli.Commands{
 			}
 
 			// Build the L2 genesis block
-			l2Genesis, err := genesis.BuildL2Genesis(config, l2Allocs, l1StartBlock)
+			l2Genesis, err := genesis.BuildL2Genesis(config, l2Allocs, eth.BlockRefFromHeader(l1StartBlock.Header()))
 			if err != nil {
 				return fmt.Errorf("error creating l2 genesis: %w", err)
 			}
 
 			l2GenesisBlock := l2Genesis.ToBlock()
-			rollupConfig, err := config.RollupConfig(l1StartBlock, l2GenesisBlock.Hash(), l2GenesisBlock.Number().Uint64())
+			rollupConfig, err := config.RollupConfig(eth.BlockRefFromHeader(l1StartBlock.Header()), l2GenesisBlock.Hash(), l2GenesisBlock.Number().Uint64())
 			if err != nil {
 				return err
 			}
@@ -246,10 +206,10 @@ var Subcommands = cli.Commands{
 				return fmt.Errorf("generated rollup config does not pass validation: %w", err)
 			}
 
-			if err := jsonutil.WriteJSON(ctx.String(outfileL2Flag.Name), l2Genesis, 0o666); err != nil {
+			if err := jsonutil.WriteJSON(l2Genesis, ioutil.ToAtomicFile(ctx.String(outfileL2Flag.Name), 0o666)); err != nil {
 				return err
 			}
-			return jsonutil.WriteJSON(ctx.String(outfileRollupFlag.Name), rollupConfig, 0o666)
+			return jsonutil.WriteJSON(rollupConfig, ioutil.ToAtomicFile(ctx.String(outfileRollupFlag.Name), 0o666))
 		},
 	},
 }

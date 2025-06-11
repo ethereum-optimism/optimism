@@ -17,7 +17,7 @@ import (
 // L1 Info Deposit transaction.
 func RandomL2Block(rng *rand.Rand, txCount int, t time.Time) (*types.Block, []*types.Receipt) {
 	body := types.Body{}
-	l1Block := types.NewBlock(testutils.RandomHeader(rng), &body, nil, trie.NewStackTrie(nil))
+	l1Block := types.NewBlock(testutils.RandomHeader(rng), &body, nil, trie.NewStackTrie(nil), types.DefaultBlockConfig)
 	rollupCfg := rollup.Config{}
 	if testutils.RandomBool(rng) {
 		t := uint64(0)
@@ -40,7 +40,7 @@ func RandomL2BlockWithChainId(rng *rand.Rand, txCount int, chainId *big.Int) *ty
 }
 
 func RandomL2BlockWithChainIdAndTime(rng *rand.Rand, txCount int, chainId *big.Int, t time.Time) *types.Block {
-	signer := types.NewLondonSigner(chainId)
+	signer := types.NewIsthmusSigner(chainId)
 	block, _ := RandomL2Block(rng, 0, t)
 	txs := []*types.Transaction{block.Transactions()[0]} // L1 info deposit TX
 	for i := 0; i < txCount; i++ {

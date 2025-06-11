@@ -1,26 +1,39 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
-// Testing utilities
+// Testing
 import { CommonTest } from "test/setup/CommonTest.sol";
 
 // Libraries
 import { Encoding } from "src/libraries/Encoding.sol";
 import { Constants } from "src/libraries/Constants.sol";
-
-// Target contract
-import { L1Block } from "src/L2/L1Block.sol";
 import "src/libraries/L1BlockErrors.sol";
 
 contract L1BlockTest is CommonTest {
     address depositor;
 
-    event GasPayingTokenSet(address indexed token, uint8 indexed decimals, bytes32 name, bytes32 symbol);
-
     /// @dev Sets up the test suite.
     function setUp() public virtual override {
         super.setUp();
         depositor = l1Block.DEPOSITOR_ACCOUNT();
+    }
+
+    function test_isCustomGasToken_succeeds() external view {
+        assertFalse(l1Block.isCustomGasToken());
+    }
+
+    function test_gasPayingToken_succeeds() external view {
+        (address token, uint8 decimals) = l1Block.gasPayingToken();
+        assertEq(token, Constants.ETHER);
+        assertEq(uint256(decimals), uint256(18));
+    }
+
+    function test_gasPayingTokenName_succeeds() external view {
+        assertEq("Ether", l1Block.gasPayingTokenName());
+    }
+
+    function test_gasPayingTokenSymbol_succeeds() external view {
+        assertEq("ETH", l1Block.gasPayingTokenSymbol());
     }
 }
 
@@ -168,40 +181,107 @@ contract L1BlockEcotone_Test is L1BlockTest {
     }
 }
 
-contract L1BlockCustomGasToken_Test is L1BlockTest {
-    function testFuzz_setGasPayingToken_succeeds(
-        address _token,
-        uint8 _decimals,
-        string memory _name,
-        string memory _symbol
+contract L1BlockIsthmus_Test is L1BlockTest {
+    /// @dev Tests that setL1BlockValuesIsthmus updates the values appropriately.
+    function testFuzz_setL1BlockValuesIsthmus_succeeds(
+        uint32 baseFeeScalar,
+        uint32 blobBaseFeeScalar,
+        uint64 sequenceNumber,
+        uint64 timestamp,
+        uint64 number,
+        uint256 baseFee,
+        uint256 blobBaseFee,
+        bytes32 hash,
+        bytes32 batcherHash,
+        uint32 operatorFeeScalar,
+        uint64 operatorFeeConstant
     )
         external
     {
-        vm.assume(_token != address(0));
-        vm.assume(_token != Constants.ETHER);
-        vm.assume(bytes(_name).length <= 32);
-        vm.assume(bytes(_symbol).length <= 32);
-
-        bytes32 name = bytes32(abi.encodePacked(_name));
-        bytes32 symbol = bytes32(abi.encodePacked(_symbol));
-
-        vm.expectEmit(address(l1Block));
-        emit GasPayingTokenSet({ token: _token, decimals: _decimals, name: name, symbol: symbol });
+        bytes memory functionCallDataPacked = Encoding.encodeSetL1BlockValuesIsthmus(
+            baseFeeScalar,
+            blobBaseFeeScalar,
+            sequenceNumber,
+            timestamp,
+            number,
+            baseFee,
+            blobBaseFee,
+            hash,
+            batcherHash,
+            operatorFeeScalar,
+            operatorFeeConstant
+        );
 
         vm.prank(depositor);
-        l1Block.setGasPayingToken({ _token: _token, _decimals: _decimals, _name: name, _symbol: symbol });
+        (bool success,) = address(l1Block).call(functionCallDataPacked);
+        assertTrue(success, "Function call failed");
 
-        (address token, uint8 decimals) = l1Block.gasPayingToken();
-        assertEq(token, _token);
-        assertEq(decimals, _decimals);
+        assertEq(l1Block.baseFeeScalar(), baseFeeScalar);
+        assertEq(l1Block.blobBaseFeeScalar(), blobBaseFeeScalar);
+        assertEq(l1Block.sequenceNumber(), sequenceNumber);
+        assertEq(l1Block.timestamp(), timestamp);
+        assertEq(l1Block.number(), number);
+        assertEq(l1Block.basefee(), baseFee);
+        assertEq(l1Block.blobBaseFee(), blobBaseFee);
+        assertEq(l1Block.hash(), hash);
+        assertEq(l1Block.batcherHash(), batcherHash);
+        assertEq(l1Block.operatorFeeScalar(), operatorFeeScalar);
+        assertEq(l1Block.operatorFeeConstant(), operatorFeeConstant);
 
-        assertEq(_name, l1Block.gasPayingTokenName());
-        assertEq(_symbol, l1Block.gasPayingTokenSymbol());
-        assertTrue(l1Block.isCustomGasToken());
+        // ensure we didn't accidentally pollute the 128 bits of the sequencenum+scalars slot that
+        // should be empty
+        bytes32 scalarsSlot = vm.load(address(l1Block), bytes32(uint256(3)));
+        bytes32 mask128 = hex"FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF00000000000000000000000000000000";
+
+        assertEq(0, scalarsSlot & mask128);
+
+        // ensure we didn't accidentally pollute the 128 bits of the number & timestamp slot that
+        // should be empty
+        bytes32 numberTimestampSlot = vm.load(address(l1Block), bytes32(uint256(0)));
+        assertEq(0, numberTimestampSlot & mask128);
     }
 
-    function test_setGasPayingToken_isDepositor_reverts() external {
-        vm.expectRevert(NotDepositor.selector);
-        l1Block.setGasPayingToken(address(this), 18, "Test", "TST");
+    /// @dev Tests that `setL1BlockValuesIsthmus` succeeds if sender address is the depositor
+    function test_setL1BlockValuesIsthmus_isDepositor_succeeds() external {
+        bytes memory functionCallDataPacked = Encoding.encodeSetL1BlockValuesIsthmus(
+            type(uint32).max,
+            type(uint32).max,
+            type(uint64).max,
+            type(uint64).max,
+            type(uint64).max,
+            type(uint256).max,
+            type(uint256).max,
+            bytes32(type(uint256).max),
+            bytes32(type(uint256).max),
+            type(uint32).max,
+            type(uint64).max
+        );
+
+        vm.prank(depositor);
+        (bool success,) = address(l1Block).call(functionCallDataPacked);
+        assertTrue(success, "function call failed");
+    }
+
+    /// @dev Tests that `setL1BlockValuesIsthmus` reverts if sender address is not the depositor
+    function test_setL1BlockValuesIsthmus_notDepositor_reverts() external {
+        bytes memory functionCallDataPacked = Encoding.encodeSetL1BlockValuesIsthmus(
+            type(uint32).max,
+            type(uint32).max,
+            type(uint64).max,
+            type(uint64).max,
+            type(uint64).max,
+            type(uint256).max,
+            type(uint256).max,
+            bytes32(type(uint256).max),
+            bytes32(type(uint256).max),
+            type(uint32).max,
+            type(uint64).max
+        );
+
+        (bool success, bytes memory data) = address(l1Block).call(functionCallDataPacked);
+        assertTrue(!success, "function call should have failed");
+        // make sure return value is the expected function selector for "NotDepositor()"
+        bytes memory expReturn = hex"3cc50b45";
+        assertEq(data, expReturn);
     }
 }

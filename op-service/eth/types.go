@@ -3,17 +3,20 @@ package eth
 import (
 	"bytes"
 	"encoding/binary"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"math"
 	"math/big"
 	"reflect"
 	"strconv"
+	"strings"
 
 	"github.com/ethereum/go-ethereum/beacon/engine"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/params"
 	"github.com/ethereum/go-ethereum/trie"
 	"github.com/holiman/uint256"
 )
@@ -24,9 +27,14 @@ func (c ErrorCode) IsEngineError() bool {
 	return -38100 < c && c <= -38000
 }
 
+func (c ErrorCode) IsGenericRPCError() bool {
+	return -32700 < c && c <= -32600
+}
+
 // Engine error codes used to be -3200x, but were rebased to -3800x:
 // https://github.com/ethereum/execution-apis/pull/214
 const (
+	MethodNotFound           ErrorCode = -32601 // RPC method not found or not available.
 	InvalidParams            ErrorCode = -32602
 	UnknownPayload           ErrorCode = -38001 // Payload does not exist / is not available.
 	InvalidForkchoiceState   ErrorCode = -38002 // Forkchoice state is invalid / inconsistent.
@@ -37,8 +45,7 @@ const (
 
 var ErrBedrockScalarPaddingNotEmpty = errors.New("version 0 scalar value has non-empty padding")
 
-// InputError distinguishes an user-input error from regular rpc errors,
-// to help the (Engine) API user divert from accidental input mistakes.
+// InputError can be used to create rpc.Error instances with a specific error code.
 type InputError struct {
 	Inner error
 	Code  ErrorCode
@@ -46,6 +53,11 @@ type InputError struct {
 
 func (ie InputError) Error() string {
 	return fmt.Sprintf("input error %d: %s", ie.Code, ie.Inner.Error())
+}
+
+// Makes InputError implement the rpc.Error interface
+func (ie InputError) ErrorCode() int {
+	return int(ie.Code)
 }
 
 func (ie InputError) Unwrap() error {
@@ -57,6 +69,32 @@ func (ie InputError) Unwrap() error {
 func (ie InputError) Is(target error) bool {
 	_, ok := target.(InputError)
 	return ok // we implement Unwrap, so we do not have to check the inner type now
+}
+
+// Bytes65 is a 65-byte long byte string, and encoded with 0x-prefix in hex.
+// This can be used to represent encoded secp256k ethereum signatures.
+type Bytes65 [65]byte
+
+func (b *Bytes65) UnmarshalJSON(text []byte) error {
+	return hexutil.UnmarshalFixedJSON(reflect.TypeOf(b), text, b[:])
+}
+
+func (b *Bytes65) UnmarshalText(text []byte) error {
+	return hexutil.UnmarshalFixedText("Bytes65", text, b[:])
+}
+
+func (b Bytes65) MarshalText() ([]byte, error) {
+	return hexutil.Bytes(b[:]).MarshalText()
+}
+
+func (b Bytes65) String() string {
+	return hexutil.Encode(b[:])
+}
+
+// TerminalString implements log.TerminalStringer, formatting a string for console
+// output during logging.
+func (b Bytes65) TerminalString() string {
+	return fmt.Sprintf("0x%x..%x", b[:3], b[65-3:])
 }
 
 type Bytes32 [32]byte
@@ -80,7 +118,31 @@ func (b Bytes32) String() string {
 // TerminalString implements log.TerminalStringer, formatting a string for console
 // output during logging.
 func (b Bytes32) TerminalString() string {
-	return fmt.Sprintf("%x..%x", b[:3], b[29:])
+	return fmt.Sprintf("0x%x..%x", b[:3], b[29:])
+}
+
+type Bytes8 [8]byte
+
+func (b *Bytes8) UnmarshalJSON(text []byte) error {
+	return hexutil.UnmarshalFixedJSON(reflect.TypeOf(b), text, b[:])
+}
+
+func (b *Bytes8) UnmarshalText(text []byte) error {
+	return hexutil.UnmarshalFixedText("Bytes8", text, b[:])
+}
+
+func (b Bytes8) MarshalText() ([]byte, error) {
+	return hexutil.Bytes(b[:]).MarshalText()
+}
+
+func (b Bytes8) String() string {
+	return hexutil.Encode(b[:])
+}
+
+// TerminalString implements log.TerminalStringer, formatting a string for console
+// output during logging.
+func (b Bytes8) TerminalString() string {
+	return fmt.Sprintf("0x%x", b[:])
 }
 
 type Bytes96 [96]byte
@@ -104,7 +166,7 @@ func (b Bytes96) String() string {
 // TerminalString implements log.TerminalStringer, formatting a string for console
 // output during logging.
 func (b Bytes96) TerminalString() string {
-	return fmt.Sprintf("%x..%x", b[:3], b[93:])
+	return fmt.Sprintf("0x%x..%x", b[:3], b[93:])
 }
 
 type Bytes256 [256]byte
@@ -128,7 +190,7 @@ func (b Bytes256) String() string {
 // TerminalString implements log.TerminalStringer, formatting a string for console
 // output during logging.
 func (b Bytes256) TerminalString() string {
-	return fmt.Sprintf("%x..%x", b[:3], b[253:])
+	return fmt.Sprintf("0x%x..%x", b[:3], b[253:])
 }
 
 type Uint64Quantity = hexutil.Uint64
@@ -172,6 +234,15 @@ type (
 type ExecutionPayloadEnvelope struct {
 	ParentBeaconBlockRoot *common.Hash      `json:"parentBeaconBlockRoot,omitempty"`
 	ExecutionPayload      *ExecutionPayload `json:"executionPayload"`
+	RequestsHash          *common.Hash      `json:"requestsHash,omitempty"`
+}
+
+func (env *ExecutionPayloadEnvelope) ID() BlockID {
+	return env.ExecutionPayload.ID()
+}
+
+func (env *ExecutionPayloadEnvelope) String() string {
+	return fmt.Sprintf("envelope(%s)", env.ID())
 }
 
 type ExecutionPayload struct {
@@ -197,10 +268,16 @@ type ExecutionPayload struct {
 	BlobGasUsed *Uint64Quantity `json:"blobGasUsed,omitempty"`
 	// Nil if not present (Bedrock, Canyon, Delta)
 	ExcessBlobGas *Uint64Quantity `json:"excessBlobGas,omitempty"`
+	// Nil if not present (Bedrock, Canyon, Delta, Ecotone, Fjord, Granite, Holocene)
+	WithdrawalsRoot *common.Hash `json:"withdrawalsRoot,omitempty"`
 }
 
 func (payload *ExecutionPayload) ID() BlockID {
 	return BlockID{Hash: payload.BlockHash, Number: uint64(payload.BlockNumber)}
+}
+
+func (payload *ExecutionPayload) String() string {
+	return fmt.Sprintf("payload(%s)", payload.ID())
 }
 
 func (payload *ExecutionPayload) ParentID() BlockID {
@@ -211,15 +288,20 @@ func (payload *ExecutionPayload) ParentID() BlockID {
 	return BlockID{Hash: payload.ParentHash, Number: n}
 }
 
+func (payload *ExecutionPayload) BlockRef() BlockRef {
+	return BlockRef{
+		Hash:       payload.BlockHash,
+		Number:     uint64(payload.BlockNumber),
+		ParentHash: payload.ParentHash,
+		Time:       uint64(payload.Timestamp),
+	}
+}
+
 type rawTransactions []Data
 
 func (s rawTransactions) Len() int { return len(s) }
 func (s rawTransactions) EncodeIndex(i int, w *bytes.Buffer) {
 	w.Write(s[i])
-}
-
-func (payload *ExecutionPayload) CanyonBlock() bool {
-	return payload.Withdrawals != nil
 }
 
 // CheckBlockHash recomputes the block hash and returns if the embedded block hash matches.
@@ -246,10 +328,16 @@ func (envelope *ExecutionPayloadEnvelope) CheckBlockHash() (actual common.Hash, 
 		MixDigest:        common.Hash(payload.PrevRandao),
 		Nonce:            types.BlockNonce{}, // zeroed, proof-of-work legacy
 		BaseFee:          (*uint256.Int)(&payload.BaseFeePerGas).ToBig(),
+		WithdrawalsHash:  nil, // set below
+		BlobGasUsed:      (*uint64)(payload.BlobGasUsed),
+		ExcessBlobGas:    (*uint64)(payload.ExcessBlobGas),
 		ParentBeaconRoot: envelope.ParentBeaconBlockRoot,
+		RequestsHash:     envelope.RequestsHash,
 	}
 
-	if payload.CanyonBlock() {
+	if payload.WithdrawalsRoot != nil {
+		header.WithdrawalsHash = payload.WithdrawalsRoot
+	} else if payload.Withdrawals != nil {
 		withdrawalHash := types.DeriveSha(*payload.Withdrawals, hasher)
 		header.WithdrawalsHash = &withdrawalHash
 	}
@@ -258,7 +346,7 @@ func (envelope *ExecutionPayloadEnvelope) CheckBlockHash() (actual common.Hash, 
 	return blockHash, blockHash == payload.BlockHash
 }
 
-func BlockAsPayload(bl *types.Block, canyonForkTime *uint64) (*ExecutionPayload, error) {
+func BlockAsPayload(bl *types.Block, config *params.ChainConfig) (*ExecutionPayload, error) {
 	baseFee, overflow := uint256.FromBig(bl.BaseFee())
 	if overflow {
 		return nil, fmt.Errorf("invalid base fee in block: %s", bl.BaseFee())
@@ -270,6 +358,9 @@ func BlockAsPayload(bl *types.Block, canyonForkTime *uint64) (*ExecutionPayload,
 			return nil, fmt.Errorf("tx %d failed to marshal: %w", i, err)
 		}
 		opaqueTxs[i] = otx
+	}
+	if baseFee == nil {
+		return nil, fmt.Errorf("base fee was nil")
 	}
 
 	payload := &ExecutionPayload{
@@ -291,21 +382,26 @@ func BlockAsPayload(bl *types.Block, canyonForkTime *uint64) (*ExecutionPayload,
 		BlobGasUsed:   (*Uint64Quantity)(bl.BlobGasUsed()),
 	}
 
-	if canyonForkTime != nil && uint64(payload.Timestamp) >= *canyonForkTime {
+	if config.ShanghaiTime != nil && uint64(payload.Timestamp) >= *config.ShanghaiTime {
 		payload.Withdrawals = &types.Withdrawals{}
+	}
+
+	if config.IsthmusTime != nil && uint64(payload.Timestamp) >= *config.IsthmusTime {
+		payload.WithdrawalsRoot = bl.Header().WithdrawalsHash
 	}
 
 	return payload, nil
 }
 
-func BlockAsPayloadEnv(bl *types.Block, canyonForkTime *uint64) (*ExecutionPayloadEnvelope, error) {
-	payload, err := BlockAsPayload(bl, canyonForkTime)
+func BlockAsPayloadEnv(bl *types.Block, config *params.ChainConfig) (*ExecutionPayloadEnvelope, error) {
+	payload, err := BlockAsPayload(bl, config)
 	if err != nil {
 		return nil, err
 	}
 	return &ExecutionPayloadEnvelope{
 		ExecutionPayload:      payload,
 		ParentBeaconBlockRoot: bl.BeaconRoot(),
+		RequestsHash:          bl.RequestsHash(),
 	}, nil
 }
 
@@ -329,6 +425,33 @@ type PayloadAttributes struct {
 	NoTxPool bool `json:"noTxPool,omitempty"`
 	// GasLimit override
 	GasLimit *Uint64Quantity `json:"gasLimit,omitempty"`
+	// EIP-1559 parameters, to be specified only post-Holocene
+	EIP1559Params *Bytes8 `json:"eip1559Params,omitempty"`
+}
+
+// IsDepositsOnly returns whether all transactions of the PayloadAttributes are of Deposit
+// type. Empty transactions are also considered non-Deposit transactions.
+func (a *PayloadAttributes) IsDepositsOnly() bool {
+	for _, tx := range a.Transactions {
+		if len(tx) == 0 || tx[0] != types.DepositTxType {
+			return false
+		}
+	}
+	return true
+}
+
+// WithDepositsOnly return a shallow clone with all non-Deposit transactions stripped from its
+// transactions. The order is preserved.
+func (a *PayloadAttributes) WithDepositsOnly() *PayloadAttributes {
+	clone := *a
+	depositTxs := make([]Data, 0, len(a.Transactions))
+	for _, tx := range a.Transactions {
+		if len(tx) > 0 && tx[0] == types.DepositTxType {
+			depositTxs = append(depositTxs, tx)
+		}
+	}
+	clone.Transactions = depositTxs
+	return &clone
 }
 
 type ExecutePayloadStatus string
@@ -390,7 +513,47 @@ type SystemConfig struct {
 	Scalar Bytes32 `json:"scalar"`
 	// GasLimit identifies the L2 block gas limit
 	GasLimit uint64 `json:"gasLimit"`
+	// EIP1559Params contains the Holocene-encoded EIP-1559 parameters. This
+	// value will be 0 if Holocene is not active, or if derivation has yet to
+	// process any EIP_1559_PARAMS system config update events.
+	EIP1559Params Bytes8 `json:"eip1559Params"`
+	// OperatorFeeParams identifies the operator fee parameters.
+	OperatorFeeParams Bytes32 `json:"operatorFeeParams"`
 	// More fields can be added for future SystemConfig versions.
+
+	// MarshalPreHolocene indicates whether or not this struct should be
+	// marshaled in the pre-Holocene format. The pre-Holocene format does
+	// not marshal the EIP1559Params field. The presence of this field in
+	// pre-Holocene codebases causes the rollup config to be rejected.
+	MarshalPreHolocene bool `json:"-"`
+}
+
+func (sysCfg SystemConfig) MarshalJSON() ([]byte, error) {
+	if sysCfg.MarshalPreHolocene {
+		return jsonMarshalPreHolocene(sysCfg)
+	}
+	return jsonMarshalHolocene(sysCfg)
+}
+
+func jsonMarshalHolocene(sysCfg SystemConfig) ([]byte, error) {
+	type sysCfgMarshaling SystemConfig
+	return json.Marshal(sysCfgMarshaling(sysCfg))
+}
+
+func jsonMarshalPreHolocene(sysCfg SystemConfig) ([]byte, error) {
+	type sysCfgMarshaling struct {
+		BatcherAddr common.Address `json:"batcherAddr"`
+		Overhead    Bytes32        `json:"overhead"`
+		Scalar      Bytes32        `json:"scalar"`
+		GasLimit    uint64         `json:"gasLimit"`
+	}
+	sc := sysCfgMarshaling{
+		BatcherAddr: sysCfg.BatcherAddr,
+		Overhead:    sysCfg.Overhead,
+		Scalar:      sysCfg.Scalar,
+		GasLimit:    sysCfg.GasLimit,
+	}
+	return json.Marshal(sc)
 }
 
 // The Ecotone upgrade introduces a versioned L1 scalar format
@@ -466,6 +629,32 @@ func CheckEcotoneL1SystemConfigScalar(scalar [32]byte) error {
 	}
 }
 
+type OperatorFeeParams struct {
+	Scalar   uint32
+	Constant uint64
+}
+
+func (sysCfg *SystemConfig) OperatorFee() OperatorFeeParams {
+	return DecodeOperatorFeeParams(sysCfg.OperatorFeeParams)
+}
+
+// DecodeScalar decodes the operatorFeeScalar and operatorFeeConstant from a 32-byte scalar value.
+// It uses the first byte to determine the scalar format.
+func DecodeOperatorFeeParams(scalar [32]byte) OperatorFeeParams {
+	return OperatorFeeParams{
+		Scalar:   binary.BigEndian.Uint32(scalar[20:24]),
+		Constant: binary.BigEndian.Uint64(scalar[24:32]),
+	}
+}
+
+// EncodeOperatorFeeParams encodes the OperatorFeeParams into a 32-byte value
+func EncodeOperatorFeeParams(params OperatorFeeParams) (scalar [32]byte) {
+
+	binary.BigEndian.PutUint32(scalar[20:24], params.Scalar)
+	binary.BigEndian.PutUint64(scalar[24:32], params.Constant)
+	return
+}
+
 type Bytes48 [48]byte
 
 func (b *Bytes48) UnmarshalJSON(text []byte) error {
@@ -473,7 +662,7 @@ func (b *Bytes48) UnmarshalJSON(text []byte) error {
 }
 
 func (b *Bytes48) UnmarshalText(text []byte) error {
-	return hexutil.UnmarshalFixedText("Bytes32", text, b[:])
+	return hexutil.UnmarshalFixedText("Bytes48", text, b[:])
 }
 
 func (b Bytes48) MarshalText() ([]byte, error) {
@@ -516,7 +705,43 @@ const (
 
 	NewPayloadV2 EngineAPIMethod = "engine_newPayloadV2"
 	NewPayloadV3 EngineAPIMethod = "engine_newPayloadV3"
+	NewPayloadV4 EngineAPIMethod = "engine_newPayloadV4"
 
 	GetPayloadV2 EngineAPIMethod = "engine_getPayloadV2"
 	GetPayloadV3 EngineAPIMethod = "engine_getPayloadV3"
+	GetPayloadV4 EngineAPIMethod = "engine_getPayloadV4"
 )
+
+// StorageKey is a marshaling utility for hex-encoded storage keys, which can have leading 0s and are
+// an arbitrary length.
+type StorageKey []byte
+
+func (k *StorageKey) UnmarshalText(text []byte) error {
+	textString := string(text)
+
+	if len(textString)%2 != 0 {
+		// add leading 0 if odd length
+		if strings.HasPrefix(textString, "0x") {
+			textString = textString[:2] + "0" + textString[2:]
+		} else {
+			textString = "0" + textString
+		}
+	}
+
+	// decode hex string
+	b, err := hexutil.Decode(textString)
+	if err != nil {
+		return err
+	}
+
+	*k = b
+	return nil
+}
+
+func (k StorageKey) MarshalText() ([]byte, error) {
+	return []byte(hexutil.Encode(k)), nil
+}
+
+func (k StorageKey) String() string {
+	return hexutil.Encode(k)
+}

@@ -1,0 +1,9 @@
+{
+  "network": "optimism-sepolia",
+  "contracts": {
+    "LightBridge": {
+      "address": "0x3fc06c53aa3Ef19ad7830f5F18C9186C676EdE29",
+      "startBlock": 9968069
+    }
+  }
+}

@@ -29,6 +29,8 @@ type GameInfo interface {
 }
 
 type SyncValidator interface {
+	// ValidateNodeSynced checks that the local node is sufficiently up to date to play the game.
+	// It returns types.ErrNotInSync if the node is too far behind.
 	ValidateNodeSynced(ctx context.Context, gameL1Head eth.BlockID) error
 }
 
@@ -60,8 +62,12 @@ type GameContract interface {
 	GetStatus(ctx context.Context) (gameTypes.GameStatus, error)
 	GetMaxGameDepth(ctx context.Context) (types.Depth, error)
 	GetMaxClockDuration(ctx context.Context) (time.Duration, error)
-	GetOracle(ctx context.Context) (*contracts.PreimageOracleContract, error)
+	GetOracle(ctx context.Context) (contracts.PreimageOracleContract, error)
 	GetL1Head(ctx context.Context) (common.Hash, error)
+}
+
+var actNoop = func(ctx context.Context) error {
+	return nil
 }
 
 type resourceCreator func(ctx context.Context, logger log.Logger, gameDepth types.Depth, dir string) (types.TraceAccessor, error)
@@ -98,9 +104,7 @@ func NewGamePlayer(
 			prestateValidators: validators,
 			status:             status,
 			// Act function does nothing because the game is already complete
-			act: func(ctx context.Context) error {
-				return nil
-			},
+			act: actNoop,
 		}, nil
 	}
 
@@ -177,7 +181,7 @@ func (g *GamePlayer) ProgressGame(ctx context.Context) gameTypes.GameStatus {
 		g.logger.Trace("Skipping completed game")
 		return g.status
 	}
-	if err := g.syncValidator.ValidateNodeSynced(ctx, g.gameL1Head); errors.Is(err, ErrNotInSync) {
+	if err := g.syncValidator.ValidateNodeSynced(ctx, g.gameL1Head); errors.Is(err, types.ErrNotInSync) {
 		g.logger.Warn("Local node not sufficiently up to date", "err", err)
 		return g.status
 	} else if err != nil {
@@ -195,6 +199,10 @@ func (g *GamePlayer) ProgressGame(ctx context.Context) gameTypes.GameStatus {
 	}
 	g.logGameStatus(ctx, status)
 	g.status = status
+	if status != gameTypes.GameStatusInProgress {
+		// Release the agent as we will no longer need to act on this game.
+		g.act = actNoop
+	}
 	return status
 }
 

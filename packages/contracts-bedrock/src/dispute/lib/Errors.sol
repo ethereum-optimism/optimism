@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.15;
 
-import "src/dispute/lib/LibUDT.sol";
+// Libraries
+import { GameType, Hash, Claim } from "src/dispute/lib/LibUDT.sol";
 
 ////////////////////////////////////////////////////////////////
 //                `DisputeGameFactory` Errors                 //
@@ -94,6 +95,9 @@ error InvalidSplitDepth();
 /// @notice Thrown on deployment if the max clock duration is less than or equal to the clock extension.
 error InvalidClockExtension();
 
+/// @notice Thrown on deployment if the PreimageOracle challenge period is too high.
+error InvalidChallengePeriod();
+
 /// @notice Thrown on deployment if the max depth is greater than `LibPosition.`
 error MaxDepthTooLarge();
 
@@ -116,6 +120,18 @@ error BlockNumberMatches();
 
 /// @notice Thrown when the L2 block number claim has already been challenged.
 error L2BlockNumberChallenged();
+
+/// @notice Thrown when the game is not yet finalized.
+error GameNotFinalized();
+
+/// @notice Thrown when an invalid bond distribution mode is supplied.
+error InvalidBondDistributionMode();
+
+/// @notice Thrown when the game is not yet resolved.
+error GameNotResolved();
+
+/// @notice Thrown when a reserved game type is used.
+error ReservedGameType();
 
 ////////////////////////////////////////////////////////////////
 //              `PermissionedDisputeGame` Errors              //

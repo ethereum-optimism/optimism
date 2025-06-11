@@ -1,15 +1,22 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
-import { Unauthorized, NotCustomGasToken } from "src/libraries/errors/CommonErrors.sol";
-import { Predeploys } from "src/libraries/Predeploys.sol";
-import { L1Block } from "src/L2/L1Block.sol";
+// Contracts
 import { SafeSend } from "src/universal/SafeSend.sol";
-import { ISemver } from "src/universal/ISemver.sol";
 
+// Libraries
+import { Unauthorized } from "src/libraries/errors/CommonErrors.sol";
+import { Predeploys } from "src/libraries/Predeploys.sol";
+
+// Interfaces
+import { ISemver } from "interfaces/universal/ISemver.sol";
+
+/// @custom:proxied true
+/// @custom:predeploy 0x4200000000000000000000000000000000000025
 /// @title ETHLiquidity
 /// @notice The ETHLiquidity contract allows other contracts to access ETH liquidity without
-///         needing to modify the EVM to generate new ETH.
+///         needing to modify the EVM to generate new ETH. Contract comes "pre-loaded" with
+///         uint248.max balance to prevent liquidity shortages.
 contract ETHLiquidity is ISemver {
     /// @notice Emitted when an address burns ETH liquidity.
     event LiquidityBurned(address indexed caller, uint256 value);
@@ -18,13 +25,12 @@ contract ETHLiquidity is ISemver {
     event LiquidityMinted(address indexed caller, uint256 value);
 
     /// @notice Semantic version.
-    /// @custom:semver 1.0.0-beta.1
-    string public constant version = "1.0.0-beta.1";
+    /// @custom:semver 1.0.0-beta.7
+    string public constant version = "1.0.0-beta.7";
 
     /// @notice Allows an address to lock ETH liquidity into this contract.
     function burn() external payable {
         if (msg.sender != Predeploys.SUPERCHAIN_WETH) revert Unauthorized();
-        if (L1Block(Predeploys.L1_BLOCK_ATTRIBUTES).isCustomGasToken()) revert NotCustomGasToken();
         emit LiquidityBurned(msg.sender, msg.value);
     }
 
@@ -32,7 +38,6 @@ contract ETHLiquidity is ISemver {
     /// @param _amount The amount of liquidity to unlock.
     function mint(uint256 _amount) external {
         if (msg.sender != Predeploys.SUPERCHAIN_WETH) revert Unauthorized();
-        if (L1Block(Predeploys.L1_BLOCK_ATTRIBUTES).isCustomGasToken()) revert NotCustomGasToken();
         new SafeSend{ value: _amount }(payable(msg.sender));
         emit LiquidityMinted(msg.sender, _amount);
     }

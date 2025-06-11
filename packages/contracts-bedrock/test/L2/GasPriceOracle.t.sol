@@ -27,6 +27,8 @@ contract GasPriceOracle_Test is CommonTest {
     uint256 constant l1FeeScalar = 10;
     uint32 constant blobBaseFeeScalar = 15;
     uint32 constant baseFeeScalar = 20;
+    uint32 constant operatorFeeScalar = 4_000_000;
+    uint64 constant operatorFeeConstant = 300;
 
     /// @dev Sets up the test suite.
     function setUp() public virtual override {
@@ -93,6 +95,7 @@ contract GasPriceOracleBedrock_Test is GasPriceOracle_Test {
 
     /// @dev Tests that `setGasPrice` reverts since it was removed in bedrock.
     function test_setGasPrice_doesNotExist_reverts() external {
+        // nosemgrep: sol-style-use-abi-encodecall
         (bool success, bytes memory returndata) =
             address(gasPriceOracle).call(abi.encodeWithSignature("setGasPrice(uint256)", 1));
 
@@ -102,6 +105,7 @@ contract GasPriceOracleBedrock_Test is GasPriceOracle_Test {
 
     /// @dev Tests that `setL1BaseFee` reverts since it was removed in bedrock.
     function test_setL1BaseFee_doesNotExist_reverts() external {
+        // nosemgrep: sol-style-use-abi-encodecall
         (bool success, bytes memory returndata) =
             address(gasPriceOracle).call(abi.encodeWithSignature("setL1BaseFee(uint256)", 1));
 
@@ -114,6 +118,26 @@ contract GasPriceOracleBedrock_Test is GasPriceOracle_Test {
         vm.prank(depositor);
         vm.expectRevert("GasPriceOracle: Fjord can only be activated after Ecotone");
         gasPriceOracle.setFjord();
+    }
+
+    /// @dev Tests that `getL1Fee` returns the expected value when both fjord and ecotone are not active
+    function test_getL1Fee_whenFjordAndEcotoneNotActive_succeeds() external {
+        vm.store(address(gasPriceOracle), bytes32(uint256(0)), bytes32(0));
+        bytes memory data = hex"1111";
+
+        uint256 price = gasPriceOracle.getL1Fee(data);
+        assertEq(price, 28_600); // ((((16 * data.length(i.e 2)) * (68 * 16)) + l1FeeOverhead(i.e. 310)) *
+            // l1BaseFee(i.e. 2M) *
+            // l1FeeScalar(i.e. 10)) / 1e6
+    }
+
+    /// @dev Tests that `getL1GasUsed` returns the expected value when both fjord and ecotone are not active
+    function test_getL1GasUsed_whenFjordAndEcotoneNotActive_succeeds() external {
+        vm.store(address(gasPriceOracle), bytes32(uint256(0)), bytes32(0));
+        bytes memory data = hex"1111";
+
+        uint256 gas = gasPriceOracle.getL1GasUsed(data);
+        assertEq(gas, 1_430); // 1398 + (16 * data.length(i.e 2))
     }
 }
 
@@ -131,7 +155,7 @@ contract GasPriceOracleEcotone_Test is GasPriceOracle_Test {
         // Execute the function call
         vm.prank(depositor);
         (bool success,) = address(l1Block).call(calldataPacked);
-        require(success, "Function call failed");
+        require(success, "GasPriceOracleEcotone_Test: Function call failed");
     }
 
     /// @dev Tests that `setEcotone` is only callable by the depositor.
@@ -222,7 +246,7 @@ contract GasPriceOracleFjordActive_Test is GasPriceOracle_Test {
 
         vm.prank(depositor);
         (bool success,) = address(l1Block).call(calldataPacked);
-        require(success, "Function call failed");
+        require(success, "GasPriceOracleFjordActive_Test: Function call failed");
     }
 
     /// @dev Tests that `setFjord` cannot be called when Fjord is already activate
@@ -328,5 +352,48 @@ contract GasPriceOracleFjordActive_Test is GasPriceOracle_Test {
         // 162_356_900 * (20 * 16 * 2 * 1e6 + 3 * 1e6 * 15) / 1e12 == 111,214.4765
         uint256 upperBound = gasPriceOracle.getL1FeeUpperBound(data.length);
         assertEq(upperBound, 111214);
+    }
+
+    /// @dev Tests that `operatorFee` is 0 is Isthmus is not activated.
+    function test_getOperatorFee_succeeds() external view {
+        assertEq(gasPriceOracle.isIsthmus(), false);
+        assertEq(gasPriceOracle.getOperatorFee(10), 0);
+    }
+}
+
+contract GasPriceOracleIsthmus_Test is GasPriceOracle_Test {
+    /// @dev Sets up the test suite.
+    function setUp() public virtual override {
+        l2Fork = Fork.ISTHMUS;
+        super.setUp();
+
+        bytes memory calldataPacked = Encoding.encodeSetL1BlockValuesIsthmus(
+            baseFeeScalar,
+            blobBaseFeeScalar,
+            sequenceNumber,
+            timestamp,
+            number,
+            baseFee,
+            blobBaseFee,
+            hash,
+            batcherHash,
+            operatorFeeScalar,
+            operatorFeeConstant
+        );
+
+        vm.prank(depositor);
+        (bool success,) = address(l1Block).call(calldataPacked);
+        require(success, "GasPriceOracleIsthmus_Test: Function call failed");
+    }
+
+    /// @dev Tests that `operatorFee` is set correctly.
+    function test_getOperatorFee_succeeds() external view {
+        assertEq(gasPriceOracle.getOperatorFee(10), 10 * operatorFeeScalar / 1e6 + operatorFeeConstant);
+    }
+
+    /// @dev Tests that `setIsthmus` is only callable by the depositor.
+    function test_setIsthmus_wrongCaller_reverts() external {
+        vm.expectRevert("GasPriceOracle: only the depositor account can set isIsthmus flag");
+        gasPriceOracle.setIsthmus();
     }
 }

@@ -8,9 +8,8 @@ import (
 	"regexp"
 	"time"
 
-	"golang.org/x/time/rate"
-
 	"github.com/prometheus/client_golang/prometheus"
+	"golang.org/x/time/rate"
 
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/log"
@@ -21,16 +20,19 @@ import (
 )
 
 var (
-	httpRegex              = regexp.MustCompile("^http(s)?://")
-	defaultRPCTimeout      = 10 * time.Second
-	defaultRPCBatchTimeout = 20 * time.Second
+	httpRegex = regexp.MustCompile("^http(s)?://")
 )
+
+type BaseRPCTimeout struct {
+	RPCTimeout      time.Duration
+	RPCBatchTimeout time.Duration
+}
 
 type RPC interface {
 	Close()
 	CallContext(ctx context.Context, result any, method string, args ...any) error
 	BatchCallContext(ctx context.Context, b []rpc.BatchElem) error
-	EthSubscribe(ctx context.Context, channel any, args ...any) (ethereum.Subscription, error)
+	Subscribe(ctx context.Context, namespace string, channel any, args ...any) (ethereum.Subscription, error)
 }
 
 type rpcConfig struct {
@@ -39,88 +41,117 @@ type rpcConfig struct {
 	backoffAttempts  int
 	limit            float64
 	burst            int
-	rpcTimeout       *time.Duration
-	rpcBatchTimeout  *time.Duration
+	lazy             bool
+	callTimeout      time.Duration
+	batchCallTimeout time.Duration
+	fixedDialBackoff time.Duration
 }
 
-type RPCOption func(cfg *rpcConfig) error
+type RPCOption func(cfg *rpcConfig)
 
-// WithDialBackoff configures the number of attempts for the initial dial to the RPC,
-// attempts are executed with an exponential backoff strategy.
-func WithDialBackoff(attempts int) RPCOption {
-	return func(cfg *rpcConfig) error {
+func WithCallTimeout(d time.Duration) RPCOption {
+	return func(cfg *rpcConfig) {
+		cfg.callTimeout = d
+	}
+}
+
+func WithBatchCallTimeout(d time.Duration) RPCOption {
+	return func(cfg *rpcConfig) {
+		cfg.batchCallTimeout = d
+	}
+}
+
+// WithDialAttempts configures the number of attempts for the initial dial to the RPC,
+// attempts are executed with an exponential backoff strategy by default.
+func WithDialAttempts(attempts int) RPCOption {
+	return func(cfg *rpcConfig) {
 		cfg.backoffAttempts = attempts
-		return nil
+	}
+}
+
+// WithFixedDialBackoff makes the RPC client use a fixed delay between dial attempts of 2 seconds instead of exponential
+func WithFixedDialBackoff(d time.Duration) RPCOption {
+	return func(cfg *rpcConfig) {
+		cfg.fixedDialBackoff = d
 	}
 }
 
 // WithHttpPollInterval configures the RPC to poll at the given rate, in case RPC subscriptions are not available.
 func WithHttpPollInterval(duration time.Duration) RPCOption {
-	return func(cfg *rpcConfig) error {
+	return func(cfg *rpcConfig) {
 		cfg.httpPollInterval = duration
-		return nil
 	}
 }
 
 // WithGethRPCOptions passes the list of go-ethereum RPC options to the internal RPC instance.
 func WithGethRPCOptions(gethRPCOptions ...rpc.ClientOption) RPCOption {
-	return func(cfg *rpcConfig) error {
+	return func(cfg *rpcConfig) {
 		cfg.gethRPCOptions = append(cfg.gethRPCOptions, gethRPCOptions...)
-		return nil
 	}
 }
 
 // WithRateLimit configures the RPC to target the given rate limit (in requests / second).
 // See NewRateLimitingClient for more details.
 func WithRateLimit(rateLimit float64, burst int) RPCOption {
-	return func(cfg *rpcConfig) error {
+	return func(cfg *rpcConfig) {
 		cfg.limit = rateLimit
 		cfg.burst = burst
-		return nil
 	}
 }
 
-// WithTimeout configures the RPC to timeout after the given duration.
-func WithTimeout(timeout, batchTimeout time.Duration) RPCOption {
-	return func(cfg *rpcConfig) error {
-		cfg.rpcTimeout = &timeout
-		cfg.rpcBatchTimeout = &batchTimeout
-		return nil
+// WithLazyDial makes the RPC client initialization defer the initial connection attempt,
+// and defer to later RPC requests upon subsequent dial errors.
+// Any dial-backoff option will be ignored if this option is used.
+func WithLazyDial() RPCOption {
+	return func(cfg *rpcConfig) {
+		cfg.lazy = true
 	}
 }
 
 // NewRPC returns the correct client.RPC instance for a given RPC url.
 func NewRPC(ctx context.Context, lgr log.Logger, addr string, opts ...RPCOption) (RPC, error) {
-	var cfg rpcConfig
-	for i, opt := range opts {
-		if err := opt(&cfg); err != nil {
-			return nil, fmt.Errorf("rpc option %d failed to apply to RPC config: %w", i, err)
+	cfg := applyOptions(opts)
+
+	var wrapped RPC
+	if cfg.lazy {
+		wrapped = newLazyRPC(addr, cfg)
+	} else {
+		underlying, err := dialRPCClientWithBackoff(ctx, lgr, addr, cfg)
+		if err != nil {
+			return nil, err
 		}
+
+		baseRPCClient := &BaseRPCClient{c: underlying, CallTimeout: 10 * time.Second, BatchCallTimeout: 20 * time.Second}
+
+		if cfg.callTimeout != time.Duration(0) {
+			baseRPCClient.CallTimeout = cfg.callTimeout
+		}
+		if cfg.batchCallTimeout != time.Duration(0) {
+			baseRPCClient.BatchCallTimeout = cfg.batchCallTimeout
+		}
+
+		wrapped = baseRPCClient
+	}
+
+	return NewRPCWithClient(ctx, lgr, addr, wrapped, cfg.httpPollInterval)
+}
+
+func applyOptions(opts []RPCOption) rpcConfig {
+	var cfg rpcConfig
+	for _, opt := range opts {
+		opt(&cfg)
 	}
 
 	if cfg.backoffAttempts < 1 { // default to at least 1 attempt, or it always fails to dial.
 		cfg.backoffAttempts = 1
 	}
-
-	underlying, err := dialRPCClientWithBackoff(ctx, lgr, addr, cfg.backoffAttempts, cfg.gethRPCOptions...)
-	if err != nil {
-		return nil, err
+	if cfg.callTimeout == 0 {
+		cfg.callTimeout = 10 * time.Second
 	}
-
-	baseRPCClient := &BaseRPCClient{c: underlying, RPCTimeout: defaultRPCTimeout, RPCBatchTimeout: defaultRPCBatchTimeout}
-	if cfg.rpcTimeout != nil {
-		baseRPCClient.RPCTimeout = *cfg.rpcTimeout
+	if cfg.batchCallTimeout == 0 {
+		cfg.batchCallTimeout = 20 * time.Second
 	}
-	if cfg.rpcBatchTimeout != nil {
-		baseRPCClient.RPCBatchTimeout = *cfg.rpcBatchTimeout
-	}
-	var wrapped RPC = baseRPCClient
-
-	if cfg.limit != 0 {
-		wrapped = NewRateLimitingClient(wrapped, rate.Limit(cfg.limit), cfg.burst)
-	}
-
-	return NewRPCWithClient(ctx, lgr, addr, wrapped, cfg.httpPollInterval)
+	return cfg
 }
 
 // NewRPCWithClient builds a new polling client with the given underlying RPC client.
@@ -132,19 +163,26 @@ func NewRPCWithClient(ctx context.Context, lgr log.Logger, addr string, underlyi
 }
 
 // Dials a JSON-RPC endpoint repeatedly, with a backoff, until a client connection is established. Auth is optional.
-func dialRPCClientWithBackoff(ctx context.Context, log log.Logger, addr string, attempts int, opts ...rpc.ClientOption) (*rpc.Client, error) {
+func dialRPCClientWithBackoff(ctx context.Context, log log.Logger, addr string, cfg rpcConfig) (*rpc.Client, error) {
 	bOff := retry.Exponential()
-	return retry.Do(ctx, attempts, bOff, func() (*rpc.Client, error) {
-		if !IsURLAvailable(ctx, addr) {
-			log.Warn("failed to dial address, but may connect later", "addr", addr)
-			return nil, fmt.Errorf("address unavailable (%s)", addr)
-		}
-		client, err := rpc.DialOptions(ctx, addr, opts...)
-		if err != nil {
-			return nil, fmt.Errorf("failed to dial address (%s): %w", addr, err)
-		}
-		return client, nil
+	if cfg.fixedDialBackoff != 0 {
+		bOff = retry.Fixed(cfg.fixedDialBackoff)
+	}
+	return retry.Do(ctx, cfg.backoffAttempts, bOff, func() (*rpc.Client, error) {
+		return CheckAndDial(ctx, log, addr, cfg.gethRPCOptions...)
 	})
+}
+
+func CheckAndDial(ctx context.Context, log log.Logger, addr string, options ...rpc.ClientOption) (*rpc.Client, error) {
+	if !IsURLAvailable(ctx, addr) {
+		log.Warn("failed to dial address, but may connect later", "addr", addr)
+		return nil, fmt.Errorf("address unavailable (%s)", addr)
+	}
+	client, err := rpc.DialOptions(ctx, addr, options...)
+	if err != nil {
+		return nil, fmt.Errorf("failed to dial address (%s): %w", addr, err)
+	}
+	return client, nil
 }
 
 func IsURLAvailable(ctx context.Context, address string) bool {
@@ -175,20 +213,35 @@ func IsURLAvailable(ctx context.Context, address string) bool {
 
 // BaseRPCClient is a wrapper around a concrete *rpc.Client instance to make it compliant
 // with the client.RPC interface.
-// It sets a timeout of 10s on CallContext & 20s on BatchCallContext made through it.
+// It sets a default timeout of 10s on CallContext & 20s on BatchCallContext made through it.
 type BaseRPCClient struct {
-	c               *rpc.Client
-	RPCTimeout      time.Duration
-	RPCBatchTimeout time.Duration
+	c                *rpc.Client
+	BatchCallTimeout time.Duration
+	CallTimeout      time.Duration
 }
 
-type BaseRPCTimeout struct {
-	RPCTimeout      time.Duration
-	RPCBatchTimeout time.Duration
+func NewBaseRPCClient(c *rpc.Client, opts ...RPCOption) RPC {
+	cfg := applyOptions(opts)
+	return wrapClient(c, cfg)
 }
 
-func NewBaseRPCClient(c *rpc.Client) *BaseRPCClient {
-	return &BaseRPCClient{c: c, RPCTimeout: defaultRPCTimeout, RPCBatchTimeout: defaultRPCBatchTimeout}
+func wrapClient(c *rpc.Client, cfg rpcConfig) RPC {
+	var wrapped RPC
+	baseRPCClient := &BaseRPCClient{c: c, CallTimeout: 10 * time.Second, BatchCallTimeout: 20 * time.Second}
+
+	if cfg.callTimeout != time.Duration(0) {
+		baseRPCClient.CallTimeout = cfg.callTimeout
+	}
+	if cfg.batchCallTimeout != time.Duration(0) {
+		baseRPCClient.BatchCallTimeout = cfg.batchCallTimeout
+	}
+
+	wrapped = baseRPCClient
+
+	if cfg.limit != 0 {
+		wrapped = NewRateLimitingClient(wrapped, rate.Limit(cfg.limit), cfg.burst)
+	}
+	return wrapped
 }
 
 func (b *BaseRPCClient) Close() {
@@ -196,19 +249,19 @@ func (b *BaseRPCClient) Close() {
 }
 
 func (b *BaseRPCClient) CallContext(ctx context.Context, result any, method string, args ...any) error {
-	cCtx, cancel := context.WithTimeout(ctx, b.RPCTimeout)
+	cCtx, cancel := context.WithTimeout(ctx, b.CallTimeout)
 	defer cancel()
 	return b.c.CallContext(cCtx, result, method, args...)
 }
 
 func (b *BaseRPCClient) BatchCallContext(ctx context.Context, batch []rpc.BatchElem) error {
-	cCtx, cancel := context.WithTimeout(ctx, b.RPCBatchTimeout)
+	cCtx, cancel := context.WithTimeout(ctx, b.BatchCallTimeout)
 	defer cancel()
 	return b.c.BatchCallContext(cCtx, batch)
 }
 
-func (b *BaseRPCClient) EthSubscribe(ctx context.Context, channel any, args ...any) (ethereum.Subscription, error) {
-	return b.c.EthSubscribe(ctx, channel, args...)
+func (b *BaseRPCClient) Subscribe(ctx context.Context, namespace string, channel any, args ...any) (ethereum.Subscription, error) {
+	return b.c.Subscribe(ctx, namespace, channel, args...)
 }
 
 // InstrumentedRPCClient is an RPC client that tracks
@@ -242,8 +295,8 @@ func (ic *InstrumentedRPCClient) BatchCallContext(ctx context.Context, b []rpc.B
 	}, b)
 }
 
-func (ic *InstrumentedRPCClient) EthSubscribe(ctx context.Context, channel any, args ...any) (ethereum.Subscription, error) {
-	return ic.c.EthSubscribe(ctx, channel, args...)
+func (ic *InstrumentedRPCClient) Subscribe(ctx context.Context, namespace string, channel any, args ...any) (ethereum.Subscription, error) {
+	return ic.c.Subscribe(ctx, namespace, channel, args...)
 }
 
 // instrumentBatch handles metrics for batch calls. Request metrics are

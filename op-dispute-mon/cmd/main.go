@@ -14,8 +14,8 @@ import (
 	"github.com/ethereum-optimism/optimism/op-dispute-mon/version"
 	opservice "github.com/ethereum-optimism/optimism/op-service"
 	"github.com/ethereum-optimism/optimism/op-service/cliapp"
+	"github.com/ethereum-optimism/optimism/op-service/ctxinterrupt"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
-	"github.com/ethereum-optimism/optimism/op-service/opio"
 )
 
 var (
@@ -28,7 +28,7 @@ var VersionWithMeta = opservice.FormatVersion(version.Version, GitCommit, GitDat
 
 func main() {
 	args := os.Args
-	ctx := opio.WithInterruptBlocker(context.Background())
+	ctx := ctxinterrupt.WithSignalWaiterMain(context.Background())
 	if err := run(ctx, args, monitor.Main); err != nil {
 		log.Crit("Application failed", "err", err)
 	}

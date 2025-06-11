@@ -12,7 +12,7 @@ version: '3.4'
 
 services:
   l2:
-    image: us-docker.pkg.dev/oplabs-tools-artifacts/images/op-geth:${GETH_VERSION:-v1.101308.1}
+    image: us-docker.pkg.dev/boba-392114/bobanetwork-tools-artifacts/images/op-geth:${GETH_VERSION:-v1.101411.0}
     command: >
       --datadir=/db
       --networkid=9728
@@ -31,6 +31,8 @@ services:
       --syncmode=full
       --maxpeers=0
       --rollup.sequencerhttp=https://testnet.bnb.boba.network
+      --override.fjord=1722297600
+      --override.granite=1726470000
     ports:
       - "9545:9545"
       - "8551:8551"
@@ -50,7 +52,6 @@ services:
       --network=boba-bnb-testnet
       --rpc.addr=0.0.0.0
       --rpc.port=8545
-      --plasma.enabled=false
     # Optional flags
     # These flags are optional and can be used to identify the node and store the peerstore and discovery data.
     # We recommend adding these flags to your configuration to help identify your node and store the peerstore and discovery data.

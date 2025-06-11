@@ -1,8 +1,11 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
-import { ISemver } from "src/universal/ISemver.sol";
+// Libraries
 import { Storage } from "src/libraries/Storage.sol";
+
+// Interfaces
+import { ISemver } from "interfaces/universal/ISemver.sol";
 
 /// @title StorageSetter
 /// @notice A simple contract that allows setting arbitrary storage slots.
@@ -16,8 +19,8 @@ contract StorageSetter is ISemver {
     }
 
     /// @notice Semantic version.
-    /// @custom:semver 1.2.0
-    string public constant version = "1.2.0";
+    /// @custom:semver 1.2.1-beta.4
+    string public constant version = "1.2.1-beta.4";
 
     /// @notice Stores a bytes32 `_value` at `_slot`. Any storage slots that
     ///         are packed should be set through this interface.
@@ -26,10 +29,10 @@ contract StorageSetter is ISemver {
     }
 
     /// @notice Stores a bytes32 value at each key in `_slots`.
-    function setBytes32(Slot[] calldata slots) public {
-        uint256 length = slots.length;
+    function setBytes32(Slot[] calldata _slots) public {
+        uint256 length = _slots.length;
         for (uint256 i; i < length; i++) {
-            Storage.setBytes32(slots[i].key, slots[i].value);
+            Storage.setBytes32(_slots[i].key, _slots[i].value);
         }
     }
 

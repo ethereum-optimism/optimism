@@ -37,3 +37,7 @@ func (m *MemKV) Get(k common.Hash) ([]byte, error) {
 	}
 	return slices.Clone(v), nil
 }
+
+func (m *MemKV) Close() error {
+	return nil
+}

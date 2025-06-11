@@ -4,13 +4,17 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math/big"
 	"os"
-	"os/signal"
 	"path/filepath"
 	"reflect"
+	"strconv"
 	"strings"
-	"syscall"
 	"time"
+
+	"github.com/ethereum/go-ethereum/common/hexutil"
+
+	"github.com/ethereum-optimism/optimism/op-service/ctxinterrupt"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
@@ -86,37 +90,27 @@ func ParseAddress(address string) (common.Address, error) {
 	return common.Address{}, fmt.Errorf("invalid address: %v", address)
 }
 
-// CloseAction runs the function in the background, until it finishes or until it is closed by the user with an interrupt.
-func CloseAction(fn func(ctx context.Context, shutdown <-chan struct{}) error) error {
-	stopped := make(chan error, 1)
-	shutdown := make(chan struct{}, 1)
-
-	ctx, cancel := context.WithCancel(context.Background())
+// CloseAction runs the function in the background, until it finishes or until it is closed by the
+// user with an interrupt.
+func CloseAction(ctx context.Context, fn func(ctx context.Context) error) error {
+	ctx, stop := ctxinterrupt.WithSignalWaiter(ctx)
+	defer stop()
+	finished := make(chan error, 1)
 	go func() {
-		stopped <- fn(ctx, shutdown)
+		finished <- fn(ctx)
 	}()
 
-	doneCh := make(chan os.Signal, 1)
-	signal.Notify(doneCh, []os.Signal{
-		os.Interrupt,
-		os.Kill,
-		syscall.SIGTERM,
-		syscall.SIGQUIT,
-	}...)
-
 	select {
-	case <-doneCh:
-		cancel()
-		shutdown <- struct{}{}
-
+	case <-ctx.Done():
+		// Stop catching interrupts.
+		stop()
 		select {
-		case err := <-stopped:
+		case err := <-finished:
 			return err
 		case <-time.After(time.Second * 10):
 			return errors.New("command action is unresponsive for more than 10 seconds... shutting down")
 		}
-	case err := <-stopped:
-		cancel()
+	case err := <-finished:
 		return err
 	}
 }
@@ -140,5 +134,39 @@ func FindMonorepoRoot(startDir string) (string, error) {
 		}
 		dir = parentDir
 	}
-	return "", fmt.Errorf("monorepo root not found")
+	return "", errors.New("monorepo root not found")
+}
+
+// Parse256BitChainID parses a 256-bit chain ID from a string. Chain IDs
+// can be defined as either an integer or a hex string. If the string
+// starts with "0x", it is treated as a hex string, otherwise it is
+// treated as an integer string.
+func Parse256BitChainID(in string) (common.Hash, error) {
+	var chainIDBig *big.Int
+	if strings.HasPrefix(in, "0x") {
+		in = strings.TrimPrefix(in, "0x")
+		var ok bool
+		chainIDBig, ok = new(big.Int).SetString(in, 16)
+		if !ok {
+			return common.Hash{}, fmt.Errorf("failed to parse chain ID %s", in)
+		}
+	} else {
+		inUint, err := strconv.ParseUint(in, 10, 64)
+		if err != nil {
+			return common.Hash{}, fmt.Errorf("failed to parse chain ID %s: %w", in, err)
+		}
+
+		chainIDBig = new(big.Int).SetUint64(inUint)
+	}
+
+	if chainIDBig.BitLen() > 256 {
+		return common.Hash{}, fmt.Errorf("chain ID %s is too large", in)
+	}
+
+	return common.BigToHash(chainIDBig), nil
+}
+
+func U64UtilPtr(in uint64) *hexutil.Uint64 {
+	util := hexutil.Uint64(in)
+	return &util
 }

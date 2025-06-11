@@ -19,6 +19,15 @@
     "TestCannonPoisonedPostState": "TODO, this should be investigated, is probably the debug_dbGet though",
     "TestPreregolith/UnusedGasConsumed_RegolithNotScheduled": "Erigon doesn't reject building the block when the gas exceeds the block gas limit; instead, it discards transactions until they fit within the block",
     "TestPreregolith/UnusedGasConsumed_RegolithNotYetActive": "Erigon doesn't reject building the block when the gas exceeds the block gas limit; instead, it discards transactions until they fit within the block",
-    "TestMultipleGameTypes": "TODO, this should be investigated, is probably the debug_dbGet though"
+    "TestMultipleGameTypes": "TODO, this should be investigated, is probably the debug_dbGet though",
+    "TestSendRawTransactionConditionalEnabled": "TODO, this new feature should be added to Erigon",
+    "TestSendRawTransactionConditionalTxForwarding": "TODO, this new feature should be added to Erigon",
+    "TestDATxThrottling": "TODO, miner api is not supported in Erigon",
+    "TestDABlockThrottling": "TODO, miner api is not supported in Erigon",
+    "TestIsthmus": "TODO, this should be investigated",
+    "TestFees/isthmus_without_operator_fee": "TODO, this should be investigated",
+    "TestFees/isthmus_with_operator_fee": "TODO, this should be investigated",
+    "TestBatcherAutoDA": "TODO, this should be investigated. The base fee is relatively low in Erigon somehow",
+    "TestInteropBlockBuilding": "TODO, this should be investigated"
   }
 }

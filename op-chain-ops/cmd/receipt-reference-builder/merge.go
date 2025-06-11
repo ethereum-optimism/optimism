@@ -2,6 +2,7 @@ package main
 
 import (
 	"errors"
+	"maps"
 	"sort"
 
 	"github.com/ethereum/go-ethereum/log"
@@ -96,9 +97,8 @@ func checkBlockRanges(aggregates []aggregate) error {
 func mergeAggregates(a1, a2 aggregate, log log.Logger) aggregate {
 	log.Info("merging", "a1", a1, "a2", a2)
 	// merge the results
-	for k, v := range a2.Results {
-		a1.Results[k] = v
-	}
+	maps.Copy(a1.Results, a2.Results)
+
 	a1.Last = a2.Last
 	log.Info("result", "aggregate", a1)
 	return a1

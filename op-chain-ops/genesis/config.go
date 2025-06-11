@@ -12,13 +12,13 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
-	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/ethereum/go-ethereum/rpc"
 
+	altda "github.com/ethereum-optimism/optimism/op-alt-da"
+	opparams "github.com/ethereum-optimism/optimism/op-node/params"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
-	plasma "github.com/ethereum-optimism/optimism/op-plasma"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/predeploys"
 )
@@ -94,8 +94,8 @@ type L2GenesisBlockDeployConfig struct {
 	L2GenesisBlockGasUsed       hexutil.Uint64 `json:"l2GenesisBlockGasUsed"`
 	L2GenesisBlockParentHash    common.Hash    `json:"l2GenesisBlockParentHash"`
 	L2GenesisBlockBaseFeePerGas *hexutil.Big   `json:"l2GenesisBlockBaseFeePerGas"`
-	// L2GenesisBlockExtraData is configurable extradata. Will default to []byte("BEDROCK") if left unspecified.
-	L2GenesisBlockExtraData []byte `json:"l2GenesisBlockExtraData"`
+	// Note that there is no L2 genesis ExtraData, as it must default to a valid Holocene eip-1559
+	// configuration. See constant 'HoloceneExtraData' for the specific value used.
 	// Note that there is no L2 genesis timestamp:
 	// This is instead configured based on the timestamp of "l1StartingBlockTag".
 }
@@ -230,9 +230,13 @@ type GasPriceOracleDeployConfig struct {
 	// Deprecated: Since Ecotone, this field is superseded by GasPriceOracleBaseFeeScalar and GasPriceOracleBlobBaseFeeScalar.
 	GasPriceOracleScalar uint64 `json:"gasPriceOracleScalar"`
 	// GasPriceOracleBaseFeeScalar represents the value of the base fee scalar used for fee calculations.
-	GasPriceOracleBaseFeeScalar uint32 `json:"gasPriceOracleBaseFeeScalar"`
+	GasPriceOracleBaseFeeScalar uint32 `json:"gasPriceOracleBaseFeeScalar" evm:"basefeeScalar"`
 	// GasPriceOracleBlobBaseFeeScalar represents the value of the blob base fee scalar used for fee calculations.
-	GasPriceOracleBlobBaseFeeScalar uint32 `json:"gasPriceOracleBlobBaseFeeScalar"`
+	GasPriceOracleBlobBaseFeeScalar uint32 `json:"gasPriceOracleBlobBaseFeeScalar" evm:"blobbasefeeScalar"`
+	// GasPriceOracleOperatorFeeScalar represents the value of the operator fee scalar used for fee calculations.
+	GasPriceOracleOperatorFeeScalar uint32 `json:"gasPriceOracleOperatorFeeScalar" evm:"operatorfeeScalar"`
+	// GasPriceOracleOperatorFeeConstant represents the value of the operator fee constant used for fee calculations.
+	GasPriceOracleOperatorFeeConstant uint64 `json:"gasPriceOracleOperatorFeeConstant" evm:"operatorfeeConstant"`
 }
 
 var _ ConfigChecker = (*GasPriceOracleDeployConfig)(nil)
@@ -259,6 +263,14 @@ func (d *GasPriceOracleDeployConfig) FeeScalar() [32]byte {
 	})
 }
 
+// OperatorFeeParams returns the raw serialized operator fee params.
+func (d *GasPriceOracleDeployConfig) OperatorFeeParams() [32]byte {
+	return eth.EncodeOperatorFeeParams(eth.OperatorFeeParams{
+		Scalar:   d.GasPriceOracleOperatorFeeScalar,
+		Constant: d.GasPriceOracleOperatorFeeConstant,
+	})
+}
+
 // GasTokenDeployConfig configures the optional custom gas token functionality.
 type GasTokenDeployConfig struct {
 	// UseCustomGasToken is a flag to indicate that a custom gas token should be used
@@ -282,7 +294,7 @@ func (d *GasTokenDeployConfig) Check(log log.Logger) error {
 // OperatorDeployConfig configures the hot-key addresses for operations such as sequencing and batch-submission.
 type OperatorDeployConfig struct {
 	// P2PSequencerAddress is the address of the key the sequencer uses to sign blocks on the P2P layer.
-	P2PSequencerAddress common.Address `json:"p2pSequencerAddress"`
+	P2PSequencerAddress common.Address `json:"p2pSequencerAddress" evm:"p2pSequencerAddress"`
 	// BatchSenderAddress represents the initial sequencer account that authorizes batches.
 	// Transactions sent from this account to the batch inbox address are considered valid.
 	BatchSenderAddress common.Address `json:"batchSenderAddress"`
@@ -342,12 +354,26 @@ type UpgradeScheduleDeployConfig struct {
 	// L2GenesisGraniteTimeOffset is the number of seconds after genesis block that Granite hard fork activates.
 	// Set it to 0 to activate at genesis. Nil to disable Granite.
 	L2GenesisGraniteTimeOffset *hexutil.Uint64 `json:"l2GenesisGraniteTimeOffset,omitempty"`
+	// L2GenesisHoloceneTimeOffset is the number of seconds after genesis block that the Holocene hard fork activates.
+	// Set it to 0 to activate at genesis. Nil to disable Holocene.
+	L2GenesisHoloceneTimeOffset *hexutil.Uint64 `json:"l2GenesisHoloceneTimeOffset,omitempty"`
+	// L2GenesisIsthmusTimeOffset is the number of seconds after genesis block that the Isthmus hard fork activates.
+	// Set it to 0 to activate at genesis. Nil to disable Isthmus.
+	L2GenesisIsthmusTimeOffset *hexutil.Uint64 `json:"l2GenesisIsthmusTimeOffset,omitempty"`
 	// L2GenesisInteropTimeOffset is the number of seconds after genesis block that the Interop hard fork activates.
 	// Set it to 0 to activate at genesis. Nil to disable Interop.
 	L2GenesisInteropTimeOffset *hexutil.Uint64 `json:"l2GenesisInteropTimeOffset,omitempty"`
 
+	// Optional Forks
+
+	// L2GenesisPectraBlobScheduleTimeOffset is the number of seconds after genesis block that the PectraBlobSchedule fix activates.
+	// Set it to 0 to activate at genesis. Nil to disable the PectraBlobSchedule fix.
+	L2GenesisPectraBlobScheduleTimeOffset *hexutil.Uint64 `json:"l2GenesisPectraBlobScheduleTimeOffset,omitempty"`
+
 	// When Cancun activates. Relative to L1 genesis.
 	L1CancunTimeOffset *hexutil.Uint64 `json:"l1CancunTimeOffset,omitempty"`
+	// When Prague activates. Relative to L1 genesis.
+	L1PragueTimeOffset *hexutil.Uint64 `json:"l1PragueTimeOffset,omitempty"`
 
 	// UseInterop is a flag that indicates if the system is using interop
 	UseInterop bool `json:"useInterop,omitempty"`
@@ -364,6 +390,85 @@ func offsetToUpgradeTime(offset *hexutil.Uint64, genesisTime uint64) *uint64 {
 		v = genesisTime + uint64(offset)
 	}
 	return &v
+}
+
+func (d *UpgradeScheduleDeployConfig) ForkTimeOffset(fork rollup.ForkName) *uint64 {
+	switch fork {
+	case rollup.Regolith:
+		return (*uint64)(d.L2GenesisRegolithTimeOffset)
+	case rollup.Canyon:
+		return (*uint64)(d.L2GenesisCanyonTimeOffset)
+	case rollup.Delta:
+		return (*uint64)(d.L2GenesisDeltaTimeOffset)
+	case rollup.Ecotone:
+		return (*uint64)(d.L2GenesisEcotoneTimeOffset)
+	case rollup.Fjord:
+		return (*uint64)(d.L2GenesisFjordTimeOffset)
+	case rollup.Granite:
+		return (*uint64)(d.L2GenesisGraniteTimeOffset)
+	case rollup.Holocene:
+		return (*uint64)(d.L2GenesisHoloceneTimeOffset)
+	case rollup.Isthmus:
+		return (*uint64)(d.L2GenesisIsthmusTimeOffset)
+	case rollup.Interop:
+		return (*uint64)(d.L2GenesisInteropTimeOffset)
+	default:
+		panic(fmt.Sprintf("unknown fork: %s", fork))
+	}
+}
+
+func (d *UpgradeScheduleDeployConfig) SetForkTimeOffset(fork rollup.ForkName, offset *uint64) {
+	switch fork {
+	case rollup.Regolith:
+		d.L2GenesisRegolithTimeOffset = (*hexutil.Uint64)(offset)
+	case rollup.Canyon:
+		d.L2GenesisCanyonTimeOffset = (*hexutil.Uint64)(offset)
+	case rollup.Delta:
+		d.L2GenesisDeltaTimeOffset = (*hexutil.Uint64)(offset)
+	case rollup.Ecotone:
+		d.L2GenesisEcotoneTimeOffset = (*hexutil.Uint64)(offset)
+	case rollup.Fjord:
+		d.L2GenesisFjordTimeOffset = (*hexutil.Uint64)(offset)
+	case rollup.Granite:
+		d.L2GenesisGraniteTimeOffset = (*hexutil.Uint64)(offset)
+	case rollup.Holocene:
+		d.L2GenesisHoloceneTimeOffset = (*hexutil.Uint64)(offset)
+	case rollup.Isthmus:
+		d.L2GenesisIsthmusTimeOffset = (*hexutil.Uint64)(offset)
+	case rollup.Interop:
+		d.L2GenesisInteropTimeOffset = (*hexutil.Uint64)(offset)
+	default:
+		panic(fmt.Sprintf("unknown fork: %s", fork))
+	}
+}
+
+var scheduleableForks = rollup.ForksFrom(rollup.Regolith)
+
+// ActivateForkAtOffset activates the given fork at the given offset. Previous forks are activated
+// at genesis and later forks are deactivated.
+// If multiple forks should be activated at a later time than genesis, first call
+// ActivateForkAtOffset with the earliest fork and then SetForkTimeOffset to individually set later
+// forks.
+func (d *UpgradeScheduleDeployConfig) ActivateForkAtOffset(fork rollup.ForkName, offset uint64) {
+	if !rollup.IsValidFork(fork) || fork == rollup.Bedrock {
+		panic(fmt.Sprintf("invalid fork: %s", fork))
+	}
+	ts := new(uint64)
+	for i, f := range scheduleableForks {
+		if f == fork {
+			d.SetForkTimeOffset(fork, &offset)
+			ts = nil
+		} else {
+			d.SetForkTimeOffset(scheduleableForks[i], ts)
+		}
+	}
+}
+
+// ActivateForkAtGenesis activates the given fork, and all previous forks, at genesis.
+// Later forks are deactivated.
+// See also [ActivateForkAtOffset].
+func (d *UpgradeScheduleDeployConfig) ActivateForkAtGenesis(fork rollup.ForkName) {
+	d.ActivateForkAtOffset(fork, 0)
 }
 
 func (d *UpgradeScheduleDeployConfig) RegolithTime(genesisTime uint64) *uint64 {
@@ -390,8 +495,52 @@ func (d *UpgradeScheduleDeployConfig) GraniteTime(genesisTime uint64) *uint64 {
 	return offsetToUpgradeTime(d.L2GenesisGraniteTimeOffset, genesisTime)
 }
 
+func (d *UpgradeScheduleDeployConfig) HoloceneTime(genesisTime uint64) *uint64 {
+	return offsetToUpgradeTime(d.L2GenesisHoloceneTimeOffset, genesisTime)
+}
+
+func (d *UpgradeScheduleDeployConfig) PectraBlobScheduleTime(genesisTime uint64) *uint64 {
+	return offsetToUpgradeTime(d.L2GenesisPectraBlobScheduleTimeOffset, genesisTime)
+}
+
+func (d *UpgradeScheduleDeployConfig) IsthmusTime(genesisTime uint64) *uint64 {
+	return offsetToUpgradeTime(d.L2GenesisIsthmusTimeOffset, genesisTime)
+}
+
 func (d *UpgradeScheduleDeployConfig) InteropTime(genesisTime uint64) *uint64 {
 	return offsetToUpgradeTime(d.L2GenesisInteropTimeOffset, genesisTime)
+}
+
+func (d *UpgradeScheduleDeployConfig) AllocMode(genesisTime uint64) L2AllocsMode {
+	forks := d.forks()
+	for i := len(forks) - 1; i >= 0; i-- {
+		if forkTime := offsetToUpgradeTime(forks[i].L2GenesisTimeOffset, genesisTime); forkTime != nil && *forkTime == 0 {
+			return L2AllocsMode(forks[i].Name)
+		}
+		// the oldest L2AllocsMode is delta
+		if forks[i].Name == string(L2AllocsDelta) {
+			return L2AllocsDelta
+		}
+	}
+	panic("should never reach here")
+}
+
+type Fork struct {
+	L2GenesisTimeOffset *hexutil.Uint64
+	Name                string
+}
+
+func (d *UpgradeScheduleDeployConfig) forks() []Fork {
+	return []Fork{
+		{L2GenesisTimeOffset: d.L2GenesisRegolithTimeOffset, Name: "regolith"},
+		{L2GenesisTimeOffset: d.L2GenesisCanyonTimeOffset, Name: "canyon"},
+		{L2GenesisTimeOffset: d.L2GenesisDeltaTimeOffset, Name: string(L2AllocsDelta)},
+		{L2GenesisTimeOffset: d.L2GenesisEcotoneTimeOffset, Name: string(L2AllocsEcotone)},
+		{L2GenesisTimeOffset: d.L2GenesisFjordTimeOffset, Name: string(L2AllocsFjord)},
+		{L2GenesisTimeOffset: d.L2GenesisGraniteTimeOffset, Name: string(L2AllocsGranite)},
+		{L2GenesisTimeOffset: d.L2GenesisHoloceneTimeOffset, Name: string(L2AllocsHolocene)},
+		{L2GenesisTimeOffset: d.L2GenesisIsthmusTimeOffset, Name: string(L2AllocsIsthmus)},
+	}
 }
 
 func (d *UpgradeScheduleDeployConfig) Check(log log.Logger) error {
@@ -411,20 +560,11 @@ func (d *UpgradeScheduleDeployConfig) Check(log log.Logger) error {
 		}
 		return nil
 	}
-	if err := checkFork(d.L2GenesisRegolithTimeOffset, d.L2GenesisCanyonTimeOffset, "regolith", "canyon"); err != nil {
-		return err
-	}
-	if err := checkFork(d.L2GenesisCanyonTimeOffset, d.L2GenesisDeltaTimeOffset, "canyon", "delta"); err != nil {
-		return err
-	}
-	if err := checkFork(d.L2GenesisDeltaTimeOffset, d.L2GenesisEcotoneTimeOffset, "delta", "ecotone"); err != nil {
-		return err
-	}
-	if err := checkFork(d.L2GenesisEcotoneTimeOffset, d.L2GenesisFjordTimeOffset, "ecotone", "fjord"); err != nil {
-		return err
-	}
-	if err := checkFork(d.L2GenesisFjordTimeOffset, d.L2GenesisGraniteTimeOffset, "fjord", "granite"); err != nil {
-		return err
+	forks := d.forks()
+	for i := 0; i < len(forks)-1; i++ {
+		if err := checkFork(forks[i].L2GenesisTimeOffset, forks[i+1].L2GenesisTimeOffset, forks[i].Name, forks[i+1].Name); err != nil {
+			return err
+		}
 	}
 	return nil
 }
@@ -451,8 +591,6 @@ type L2CoreDeployConfig struct {
 	SequencerWindowSize uint64 `json:"sequencerWindowSize"`
 	// ChannelTimeoutBedrock is the number of L1 blocks that a frame stays valid when included in L1.
 	ChannelTimeoutBedrock uint64 `json:"channelTimeout"`
-	// ChannelTimeoutGranite is the number of L1 blocks that a frame stays valid when included in L1 after granite.
-	ChannelTimeoutGranite uint64 `json:"channelTimeoutGranite,omitempty"`
 	// BatchInboxAddress is the L1 account that batches are sent to.
 	BatchInboxAddress common.Address `json:"batchInboxAddress"`
 
@@ -492,32 +630,32 @@ func (d *L2CoreDeployConfig) Check(log log.Logger) error {
 	return nil
 }
 
-// PlasmaDeployConfig configures optional Alt-DA and Plasma functionality.
-type PlasmaDeployConfig struct {
-	// UsePlasma is a flag that indicates if the system is using op-plasma
-	UsePlasma bool `json:"usePlasma"`
+// AltDADeployConfig configures optional AltDA functionality.
+type AltDADeployConfig struct {
+	// UseAltDA is a flag that indicates if the system is using op-alt-da
+	UseAltDA bool `json:"useAltDA" toml:"useAltDA"`
 	// DACommitmentType specifies the allowed commitment
-	DACommitmentType string `json:"daCommitmentType"`
+	DACommitmentType string `json:"daCommitmentType" toml:"daCommitmentType"`
 	// DAChallengeWindow represents the block interval during which the availability of a data commitment can be challenged.
-	DAChallengeWindow uint64 `json:"daChallengeWindow"`
+	DAChallengeWindow uint64 `json:"daChallengeWindow" toml:"daChallengeWindow"`
 	// DAResolveWindow represents the block interval during which a data availability challenge can be resolved.
-	DAResolveWindow uint64 `json:"daResolveWindow"`
+	DAResolveWindow uint64 `json:"daResolveWindow" toml:"daResolveWindow"`
 	// DABondSize represents the required bond size to initiate a data availability challenge.
-	DABondSize uint64 `json:"daBondSize"`
+	DABondSize uint64 `json:"daBondSize" toml:"daBondSize"`
 	// DAResolverRefundPercentage represents the percentage of the resolving cost to be refunded to the resolver
 	// such as 100 means 100% refund.
-	DAResolverRefundPercentage uint64 `json:"daResolverRefundPercentage"`
+	DAResolverRefundPercentage uint64 `json:"daResolverRefundPercentage" toml:"daResolverRefundPercentage"`
 }
 
-var _ ConfigChecker = (*PlasmaDeployConfig)(nil)
+var _ ConfigChecker = (*AltDADeployConfig)(nil)
 
-func (d *PlasmaDeployConfig) Check(log log.Logger) error {
-	if d.UsePlasma {
-		if !(d.DACommitmentType == plasma.KeccakCommitmentString || d.DACommitmentType == plasma.GenericCommitmentString) {
+func (d *AltDADeployConfig) Check(log log.Logger) error {
+	if d.UseAltDA {
+		if !(d.DACommitmentType == altda.KeccakCommitmentString || d.DACommitmentType == altda.GenericCommitmentString) {
 			return fmt.Errorf("%w: DACommitmentType must be either KeccakCommitment or GenericCommitment", ErrInvalidDeployConfig)
 		}
 		// only enforce challenge and resolve window if using alt-da mode with Keccak Commitments
-		if d.DACommitmentType != plasma.GenericCommitmentString {
+		if d.DACommitmentType != altda.GenericCommitmentString {
 			if d.DAChallengeWindow == 0 {
 				return fmt.Errorf("%w: DAChallengeWindow cannot be 0 when using alt-da mode with Keccak Commitments", ErrInvalidDeployConfig)
 			}
@@ -543,15 +681,12 @@ type L2InitializationConfig struct {
 	EIP1559DeployConfig
 	UpgradeScheduleDeployConfig
 	L2CoreDeployConfig
-	PlasmaDeployConfig
+	AltDADeployConfig
 }
 
 func (d *L2InitializationConfig) Check(log log.Logger) error {
 	if err := checkConfigBundle(d, log); err != nil {
 		return err
-	}
-	if d.ChannelTimeoutGranite == 0 && d.L2GenesisGraniteTimeOffset != nil {
-		return fmt.Errorf("%w: ChannelTimeoutGranite cannot be 0", ErrInvalidDeployConfig)
 	}
 	return nil
 }
@@ -610,7 +745,7 @@ type OutputOracleDeployConfig struct {
 	L2OutputOracleSubmissionInterval uint64 `json:"l2OutputOracleSubmissionInterval"`
 	// L2OutputOracleStartingTimestamp is the starting timestamp for the L2OutputOracle.
 	// MUST be the same as the timestamp of the L2OO start block.
-	L2OutputOracleStartingTimestamp int `json:"l2OutputOracleStartingTimestamp"`
+	L2OutputOracleStartingTimestamp int64 `json:"l2OutputOracleStartingTimestamp"`
 	// L2OutputOracleStartingBlockNumber is the starting block number for the L2OutputOracle.
 	// Must be greater than or equal to the first Bedrock block. The first L2 output will correspond
 	// to this value plus the submission interval.
@@ -715,12 +850,14 @@ type L1DependenciesConfig struct {
 
 	// DAChallengeProxy represents the L1 address of the DataAvailabilityChallenge contract.
 	DAChallengeProxy common.Address `json:"daChallengeProxy"`
+
+	ProtocolVersionsProxy common.Address `json:"protocolVersionsProxy"`
 }
 
 // DependencyContext is the contextual configuration needed to verify the L1 dependencies,
 // used by DeployConfig.CheckAddresses.
 type DependencyContext struct {
-	UsePlasma        bool
+	UseAltDA         bool
 	DACommitmentType string
 }
 
@@ -741,9 +878,9 @@ func (d *L1DependenciesConfig) CheckAddresses(dependencyContext DependencyContex
 		return fmt.Errorf("%w: OptimismPortalProxy cannot be address(0)", ErrInvalidDeployConfig)
 	}
 
-	if dependencyContext.UsePlasma && dependencyContext.DACommitmentType == plasma.KeccakCommitmentString && d.DAChallengeProxy == (common.Address{}) {
+	if dependencyContext.UseAltDA && dependencyContext.DACommitmentType == altda.KeccakCommitmentString && d.DAChallengeProxy == (common.Address{}) {
 		return fmt.Errorf("%w: DAChallengeContract cannot be address(0) when using alt-da mode", ErrInvalidDeployConfig)
-	} else if dependencyContext.UsePlasma && dependencyContext.DACommitmentType == plasma.GenericCommitmentString && d.DAChallengeProxy != (common.Address{}) {
+	} else if dependencyContext.UseAltDA && dependencyContext.DACommitmentType == altda.GenericCommitmentString && d.DAChallengeProxy != (common.Address{}) {
 		return fmt.Errorf("%w: DAChallengeContract must be address(0) when using generic commitments in alt-da mode", ErrInvalidDeployConfig)
 	}
 	return nil
@@ -753,15 +890,20 @@ func (d *L1DependenciesConfig) CheckAddresses(dependencyContext DependencyContex
 // The genesis generation may log warnings, do a best-effort support attempt,
 // or ignore these attributes completely.
 type LegacyDeployConfig struct {
-	// CliqueSignerAddress represents the signer address for the clique consensus engine.
-	// It is used in the multi-process devnet to sign blocks.
-	CliqueSignerAddress common.Address `json:"cliqueSignerAddress"`
-	// L1UseClique represents whether or not to use the clique consensus engine.
-	L1UseClique bool `json:"l1UseClique"`
-
 	// DeploymentWaitConfirmations is the number of confirmations to wait during
 	// deployment. This is DEPRECATED and should be removed in a future PR.
 	DeploymentWaitConfirmations int `json:"deploymentWaitConfirmations"`
+
+	UnusedChannelTimeoutGranite uint64 `json:"channelTimeoutGranite,omitempty"`
+}
+
+var _ ConfigChecker = (*LegacyDeployConfig)(nil)
+
+func (d *LegacyDeployConfig) Check(log log.Logger) error {
+	if d.UnusedChannelTimeoutGranite != 0 && d.UnusedChannelTimeoutGranite != opparams.ChannelTimeoutGranite {
+		return fmt.Errorf("%w: channelTimeoutGranite is no longer used. Only valid values are 0 or the protocol constant (%d)", ErrInvalidDeployConfig, opparams.ChannelTimeoutGranite)
+	}
+	return nil
 }
 
 // BobaDeployConfig configures the deployment of the Boba contract.
@@ -786,7 +928,7 @@ type DeployConfig struct {
 	// The L2 genesis timestamp does not affect the initial L2 account state:
 	// the storage of the L1Block contract at genesis is zeroed, since the adoption of
 	// the L2-genesis allocs-generation through solidity script.
-	L1StartingBlockTag *MarshalableRPCBlockNumberOrHash `json:"l1StartingBlockTag"`
+	L1StartingBlockTag *MarshalableRPCBlockNumberOrHash `json:"l1StartingBlockTag" evm:"-"`
 
 	// L1 contracts configuration.
 	// The deployer of the contracts chooses which sub-systems to deploy.
@@ -798,7 +940,7 @@ type DeployConfig struct {
 	L1DependenciesConfig
 
 	// Legacy, ignored, here for strict-JSON decoding to be accepted.
-	LegacyDeployConfig
+	LegacyDeployConfig `evm:"-"`
 
 	// Boba
 	BobaDeployConfig
@@ -832,9 +974,6 @@ func (d *DeployConfig) Check(log log.Logger) error {
 	if d.L1BlockTime < d.L2BlockTime {
 		return fmt.Errorf("L2 block time (%d) is larger than L1 block time (%d)", d.L2BlockTime, d.L1BlockTime)
 	}
-	if d.ChannelTimeoutGranite == 0 && d.L2GenesisGraniteTimeOffset != nil {
-		return fmt.Errorf("%w: ChannelTimeoutGranite cannot be 0", ErrInvalidDeployConfig)
-	}
 	return checkConfigBundle(d, log)
 }
 
@@ -844,7 +983,7 @@ func (d *DeployConfig) Check(log log.Logger) error {
 // circular dependency that should be resolved in the future.
 func (d *DeployConfig) CheckAddresses() error {
 	return d.L1DependenciesConfig.CheckAddresses(DependencyContext{
-		UsePlasma:        d.UsePlasma,
+		UseAltDA:         d.UseAltDA,
 		DACommitmentType: d.DACommitmentType,
 	})
 }
@@ -861,16 +1000,23 @@ func (d *DeployConfig) SetDeployments(deployments *L1Deployments) {
 
 // RollupConfig converts a DeployConfig to a rollup.Config. If Ecotone is active at genesis, the
 // Overhead value is considered a noop.
-func (d *DeployConfig) RollupConfig(l1StartBlock *types.Block, l2GenesisBlockHash common.Hash, l2GenesisBlockNumber uint64) (*rollup.Config, error) {
+func (d *DeployConfig) RollupConfig(l1StartBlock *eth.BlockRef, l2GenesisBlockHash common.Hash, l2GenesisBlockNumber uint64) (*rollup.Config, error) {
 	if d.OptimismPortalProxy == (common.Address{}) {
 		return nil, errors.New("OptimismPortalProxy cannot be address(0)")
 	}
 	if d.SystemConfigProxy == (common.Address{}) {
 		return nil, errors.New("SystemConfigProxy cannot be address(0)")
 	}
-	var plasma *rollup.PlasmaConfig
-	if d.UsePlasma {
-		plasma = &rollup.PlasmaConfig{
+
+	chainOpConfig := &params.OptimismConfig{
+		EIP1559Elasticity:        d.EIP1559Elasticity,
+		EIP1559Denominator:       d.EIP1559Denominator,
+		EIP1559DenominatorCanyon: &d.EIP1559DenominatorCanyon,
+	}
+
+	var altDA *rollup.AltDAConfig
+	if d.UseAltDA {
+		altDA = &rollup.AltDAConfig{
 			CommitmentType:     d.DACommitmentType,
 			DAChallengeAddress: d.DAChallengeProxy,
 			DAChallengeWindow:  d.DAChallengeWindow,
@@ -878,45 +1024,59 @@ func (d *DeployConfig) RollupConfig(l1StartBlock *types.Block, l2GenesisBlockHas
 		}
 	}
 
+	l1StartTime := l1StartBlock.Time
+
 	return &rollup.Config{
 		Genesis: rollup.Genesis{
 			L1: eth.BlockID{
-				Hash:   l1StartBlock.Hash(),
-				Number: l1StartBlock.NumberU64(),
+				Hash:   l1StartBlock.Hash,
+				Number: l1StartBlock.Number,
 			},
 			L2: eth.BlockID{
 				Hash:   l2GenesisBlockHash,
 				Number: l2GenesisBlockNumber,
 			},
-			L2Time: l1StartBlock.Time(),
-			SystemConfig: eth.SystemConfig{
-				BatcherAddr: d.BatchSenderAddress,
-				Overhead:    eth.Bytes32(common.BigToHash(new(big.Int).SetUint64(d.GasPriceOracleOverhead))),
-				Scalar:      eth.Bytes32(d.FeeScalar()),
-				GasLimit:    uint64(d.L2GenesisBlockGasLimit),
-			},
+			L2Time:       l1StartBlock.Time,
+			SystemConfig: d.GenesisSystemConfig(),
 		},
-		BlockTime:              d.L2BlockTime,
-		MaxSequencerDrift:      d.MaxSequencerDrift,
-		SeqWindowSize:          d.SequencerWindowSize,
-		ChannelTimeoutBedrock:  d.ChannelTimeoutBedrock,
-		ChannelTimeoutGranite:  d.ChannelTimeoutGranite,
-		L1ChainID:              new(big.Int).SetUint64(d.L1ChainID),
-		L2ChainID:              new(big.Int).SetUint64(d.L2ChainID),
-		BatchInboxAddress:      d.BatchInboxAddress,
-		DepositContractAddress: d.OptimismPortalProxy,
-		L1SystemConfigAddress:  d.SystemConfigProxy,
-		RegolithTime:           d.RegolithTime(l1StartBlock.Time()),
-		CanyonTime:             d.CanyonTime(l1StartBlock.Time()),
-		DeltaTime:              d.DeltaTime(l1StartBlock.Time()),
-		EcotoneTime:            d.EcotoneTime(l1StartBlock.Time()),
-		FjordTime:              d.FjordTime(l1StartBlock.Time()),
-		GraniteTime:            d.GraniteTime(l1StartBlock.Time()),
-		InteropTime:            d.InteropTime(l1StartBlock.Time()),
-		PlasmaConfig:           plasma,
+		BlockTime:               d.L2BlockTime,
+		MaxSequencerDrift:       d.MaxSequencerDrift,
+		SeqWindowSize:           d.SequencerWindowSize,
+		ChannelTimeoutBedrock:   d.ChannelTimeoutBedrock,
+		L1ChainID:               new(big.Int).SetUint64(d.L1ChainID),
+		L2ChainID:               new(big.Int).SetUint64(d.L2ChainID),
+		BatchInboxAddress:       d.BatchInboxAddress,
+		DepositContractAddress:  d.OptimismPortalProxy,
+		L1SystemConfigAddress:   d.SystemConfigProxy,
+		RegolithTime:            d.RegolithTime(l1StartTime),
+		CanyonTime:              d.CanyonTime(l1StartTime),
+		DeltaTime:               d.DeltaTime(l1StartTime),
+		EcotoneTime:             d.EcotoneTime(l1StartTime),
+		FjordTime:               d.FjordTime(l1StartTime),
+		GraniteTime:             d.GraniteTime(l1StartTime),
+		HoloceneTime:            d.HoloceneTime(l1StartTime),
+		PectraBlobScheduleTime:  d.PectraBlobScheduleTime(l1StartTime),
+		IsthmusTime:             d.IsthmusTime(l1StartTime),
+		InteropTime:             d.InteropTime(l1StartTime),
+		ProtocolVersionsAddress: d.ProtocolVersionsProxy,
+		AltDAConfig:             altDA,
+		ChainOpConfig:           chainOpConfig,
 	}, nil
 }
 
+// GenesisSystemConfig converts a DeployConfig to a eth.SystemConfig. If Ecotone is active at genesis, the
+// Overhead value is considered a noop.
+func (d *DeployConfig) GenesisSystemConfig() eth.SystemConfig {
+	return eth.SystemConfig{
+		BatcherAddr:       d.BatchSenderAddress,
+		Overhead:          eth.Bytes32(common.BigToHash(new(big.Int).SetUint64(d.GasPriceOracleOverhead))),
+		Scalar:            d.FeeScalar(),
+		GasLimit:          uint64(d.L2GenesisBlockGasLimit),
+		OperatorFeeParams: d.OperatorFeeParams(),
+	}
+}
+
+// Get Boba Token address
 func (d *DeployConfig) GetL1BobaTokenAddress() (*common.Address, error) {
 	var l1TokenAddr common.Address
 	if d.L1BobaToken != nil {
@@ -974,6 +1134,8 @@ type L1Deployments struct {
 	OptimismMintableERC20FactoryProxy common.Address `json:"OptimismMintableERC20FactoryProxy"`
 	OptimismPortal                    common.Address `json:"OptimismPortal"`
 	OptimismPortalProxy               common.Address `json:"OptimismPortalProxy"`
+	ETHLockbox                        common.Address `json:"ETHLockbox"`
+	ETHLockboxProxy                   common.Address `json:"ETHLockboxProxy"`
 	ProxyAdmin                        common.Address `json:"ProxyAdmin"`
 	SystemConfig                      common.Address `json:"SystemConfig"`
 	SystemConfigProxy                 common.Address `json:"SystemConfigProxy"`
@@ -1010,11 +1172,16 @@ func (d *L1Deployments) Check(deployConfig *DeployConfig) error {
 				name == "DisputeGameFactoryProxy") {
 			continue
 		}
-		if !deployConfig.UsePlasma &&
+		if deployConfig.UseFaultProofs &&
+			(name == "OptimismPortal" || name == "L2OutputOracle" || name == "L2OutputOracleProxy") {
+			continue
+		}
+		if !deployConfig.UseAltDA &&
 			(name == "DataAvailabilityChallenge" ||
 				name == "DataAvailabilityChallengeProxy") {
 			continue
 		}
+
 		if val.Field(i).Interface().(common.Address) == (common.Address{}) {
 			return fmt.Errorf("%s is not set", name)
 		}

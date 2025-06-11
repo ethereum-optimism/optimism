@@ -9,9 +9,9 @@ import (
 
 	"github.com/ethereum/go-ethereum/params"
 
+	altda "github.com/ethereum-optimism/optimism/op-alt-da"
 	"github.com/ethereum-optimism/optimism/op-node/p2p/store"
-	plasma "github.com/ethereum-optimism/optimism/op-plasma"
-
+	"github.com/ethereum-optimism/optimism/op-node/rollup/event"
 	ophttp "github.com/ethereum-optimism/optimism/op-service/httputil"
 	"github.com/ethereum-optimism/optimism/op-service/metrics"
 
@@ -35,6 +35,7 @@ type Metricer interface {
 	RecordRPCClientRequest(method string) func(err error)
 	RecordRPCClientResponse(method string, err error)
 	SetDerivationIdle(status bool)
+	SetSequencerState(active bool)
 	RecordPipelineReset()
 	RecordSequencingError()
 	RecordPublishingError()
@@ -48,7 +49,7 @@ type Metricer interface {
 	RecordL2Ref(name string, ref eth.L2BlockRef)
 	RecordUnsafePayloadsBuffer(length uint64, memSize uint64, next eth.BlockID)
 	RecordDerivedBatches(batchType string)
-	CountSequencedTxs(count int)
+	CountSequencedTxsInBlock(txns int, deposits int)
 	RecordL1ReorgDepth(d uint64)
 	RecordSequencerInconsistentL1Origin(from eth.BlockID, to eth.BlockID)
 	RecordSequencerReset()
@@ -94,18 +95,9 @@ type Metrics struct {
 	DerivationErrors *metrics.Event
 	SequencingErrors *metrics.Event
 	PublishingErrors *metrics.Event
+	SequencerActive  prometheus.Gauge
 
-	EmittedEvents   *prometheus.CounterVec
-	ProcessedEvents *prometheus.CounterVec
-
-	// We don't use a histogram for observing time durations,
-	// as each vec entry (event-type, deriver type) is synchronous with other occurrences of the same entry key,
-	// so we can get a reasonably good understanding of execution by looking at the rate.
-	// Bucketing to detect outliers would be nice, but also increases the overhead by a lot,
-	// where we already track many event-type/deriver combinations.
-	EventsProcessTime *prometheus.CounterVec
-
-	EventsRateLimited *metrics.Event
+	*event.EventMetricsTracker
 
 	DerivedBatches metrics.EventVec
 
@@ -133,9 +125,9 @@ type Metrics struct {
 
 	L1ReorgDepth prometheus.Histogram
 
-	TransactionsSequencedTotal prometheus.Counter
+	TransactionsSequencedTotal *prometheus.CounterVec
 
-	PlasmaMetrics plasma.Metricer
+	AltDAMetrics altda.Metricer
 
 	// Channel Bank Metrics
 	headChannelOpenedEvent *metrics.Event
@@ -209,32 +201,12 @@ func NewMetrics(procName string) *Metrics {
 		DerivationErrors: metrics.NewEvent(factory, ns, "", "derivation_errors", "derivation errors"),
 		SequencingErrors: metrics.NewEvent(factory, ns, "", "sequencing_errors", "sequencing errors"),
 		PublishingErrors: metrics.NewEvent(factory, ns, "", "publishing_errors", "p2p publishing errors"),
-
-		EmittedEvents: factory.NewCounterVec(
-			prometheus.CounterOpts{
-				Namespace: ns,
-				Subsystem: "events",
-				Name:      "emitted",
-				Help:      "number of emitted events",
-			}, []string{"event_type", "emitter"}),
-
-		ProcessedEvents: factory.NewCounterVec(
-			prometheus.CounterOpts{
-				Namespace: ns,
-				Subsystem: "events",
-				Name:      "processed",
-				Help:      "number of processed events",
-			}, []string{"event_type", "deriver"}),
-
-		EventsProcessTime: factory.NewCounterVec(
-			prometheus.CounterOpts{
-				Namespace: ns,
-				Subsystem: "events",
-				Name:      "process_time",
-				Help:      "total duration in seconds of processed events",
-			}, []string{"event_type", "deriver"}),
-
-		EventsRateLimited: metrics.NewEvent(factory, ns, "events", "rate_limited", "events rate limiter hits"),
+		SequencerActive: factory.NewGauge(prometheus.GaugeOpts{
+			Namespace: ns,
+			Name:      "sequencer_active",
+			Help:      "1 if sequencer active, 0 otherwise",
+		}),
+		EventMetricsTracker: event.NewMetricsTracker(ns, factory),
 
 		DerivedBatches: metrics.NewEventVec(factory, ns, "", "derived_batches", "derived batches", []string{"type"}),
 
@@ -261,12 +233,11 @@ func NewMetrics(procName string) *Metrics {
 			Help:      "Histogram of L1 Reorg Depths",
 		}),
 
-		TransactionsSequencedTotal: factory.NewGauge(prometheus.GaugeOpts{
+		TransactionsSequencedTotal: factory.NewCounterVec(prometheus.CounterOpts{
 			Namespace: ns,
 			Name:      "transactions_sequenced_total",
 			Help:      "Count of total transactions sequenced",
-		}),
-
+		}, []string{"type"}),
 		PeerCount: factory.NewGauge(prometheus.GaugeOpts{
 			Namespace: ns,
 			Subsystem: "p2p",
@@ -425,7 +396,7 @@ func NewMetrics(procName string) *Metrics {
 			"required",
 		}),
 
-		PlasmaMetrics: plasma.MakeMetrics(ns, factory),
+		AltDAMetrics: altda.MakeMetrics(ns, factory),
 
 		registry: registry,
 		factory:  factory,
@@ -458,7 +429,6 @@ func (m *Metrics) RecordInfo(version string) {
 
 // RecordUp sets the up metric to 1.
 func (m *Metrics) RecordUp() {
-	prometheus.MustRegister()
 	m.Up.Set(1)
 }
 
@@ -468,6 +438,14 @@ func (m *Metrics) SetDerivationIdle(status bool) {
 		val = 1
 	}
 	m.DerivationIdle.Set(val)
+}
+
+func (m *Metrics) SetSequencerState(active bool) {
+	var val float64
+	if active {
+		val = 1
+	}
+	m.SequencerActive.Set(val)
 }
 
 func (m *Metrics) RecordPipelineReset() {
@@ -480,21 +458,6 @@ func (m *Metrics) RecordSequencingError() {
 
 func (m *Metrics) RecordPublishingError() {
 	m.PublishingErrors.Record()
-}
-
-func (m *Metrics) RecordEmittedEvent(eventName string, emitter string) {
-	m.EmittedEvents.WithLabelValues(eventName, emitter).Inc()
-}
-
-func (m *Metrics) RecordProcessedEvent(eventName string, deriver string, duration time.Duration) {
-	m.ProcessedEvents.WithLabelValues(eventName, deriver).Inc()
-	// We take the absolute value; if the clock was not monotonically increased between start and top,
-	// there still was a duration gap. And the Counter metrics-type would panic if the duration is negative.
-	m.EventsProcessTime.WithLabelValues(eventName, deriver).Add(float64(duration.Abs()) / float64(time.Second))
-}
-
-func (m *Metrics) RecordEventsRateLimited() {
-	m.EventsRateLimited.Record()
 }
 
 func (m *Metrics) RecordDerivationError() {
@@ -516,8 +479,9 @@ func (m *Metrics) RecordDerivedBatches(batchType string) {
 	m.DerivedBatches.Record(batchType)
 }
 
-func (m *Metrics) CountSequencedTxs(count int) {
-	m.TransactionsSequencedTotal.Add(float64(count))
+func (m *Metrics) CountSequencedTxsInBlock(txns int, deposits int) {
+	m.TransactionsSequencedTotal.WithLabelValues("deposits").Add(float64(deposits))
+	m.TransactionsSequencedTotal.WithLabelValues("txns").Add(float64(txns - deposits))
 }
 
 func (m *Metrics) RecordL1ReorgDepth(d uint64) {
@@ -673,6 +637,7 @@ func (m *Metrics) ReportProtocolVersions(local, engine, recommended, required pa
 
 type noopMetricer struct {
 	metrics.NoopRPCMetrics
+	event.NoopMetrics
 }
 
 var NoopMetrics Metricer = new(noopMetricer)
@@ -686,6 +651,9 @@ func (n *noopMetricer) RecordUp() {
 func (n *noopMetricer) SetDerivationIdle(status bool) {
 }
 
+func (m *noopMetricer) SetSequencerState(active bool) {
+}
+
 func (n *noopMetricer) RecordPipelineReset() {
 }
 
@@ -696,15 +664,6 @@ func (n *noopMetricer) RecordPublishingError() {
 }
 
 func (n *noopMetricer) RecordDerivationError() {
-}
-
-func (n *noopMetricer) RecordEmittedEvent(eventName string, emitter string) {
-}
-
-func (n *noopMetricer) RecordProcessedEvent(eventName string, deriver string, duration time.Duration) {
-}
-
-func (n *noopMetricer) RecordEventsRateLimited() {
 }
 
 func (n *noopMetricer) RecordReceivedUnsafePayload(payload *eth.ExecutionPayloadEnvelope) {
@@ -725,7 +684,7 @@ func (n *noopMetricer) RecordUnsafePayloadsBuffer(length uint64, memSize uint64,
 func (n *noopMetricer) RecordDerivedBatches(batchType string) {
 }
 
-func (n *noopMetricer) CountSequencedTxs(count int) {
+func (n *noopMetricer) CountSequencedTxsInBlock(txns int, deposits int) {
 }
 
 func (n *noopMetricer) RecordL1ReorgDepth(d uint64) {

@@ -64,7 +64,7 @@ func (m *TestTxManager) makeStuckTx(ctx context.Context, candidate TxCandidate) 
 
 	var txMessage types.TxData
 	if sidecar != nil {
-		blobFeeCap := calcBlobFeeCap(blobBaseFee)
+		blobFeeCap := m.calcBlobFeeCap(blobBaseFee)
 		message := &types.BlobTx{
 			To:         *candidate.To,
 			Data:       candidate.TxData,

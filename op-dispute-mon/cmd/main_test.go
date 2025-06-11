@@ -9,9 +9,9 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-dispute-mon/config"
 	"github.com/ethereum-optimism/optimism/op-service/cliapp"
-	"github.com/ethereum-optimism/superchain-registry/superchain"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum/go-ethereum/superchain"
 	"github.com/stretchr/testify/require"
 )
 
@@ -59,15 +59,32 @@ func TestL1EthRpc(t *testing.T) {
 	})
 }
 
+func TestMustSpecifyEitherRollupRpcOrSupervisorRpc(t *testing.T) {
+	verifyArgsInvalid(t, "flag rollup-rpc or supervisor-rpc is required", addRequiredArgsExcept("--rollup-rpc"))
+}
+
 func TestRollupRpc(t *testing.T) {
-	t.Run("Required", func(t *testing.T) {
-		verifyArgsInvalid(t, "flag rollup-rpc is required", addRequiredArgsExcept("--rollup-rpc"))
+	t.Run("NotRequiredIfSupervisorRpcSupplied", func(t *testing.T) {
+		configForArgs(t, addRequiredArgsExcept("--rollup-rpc", "--supervisor-rpc", "http://localhost/supervisor"))
 	})
 
 	t.Run("Valid", func(t *testing.T) {
 		url := "http://example.com:9999"
 		cfg := configForArgs(t, addRequiredArgsExcept("--rollup-rpc", "--rollup-rpc", url))
 		require.Equal(t, url, cfg.RollupRpc)
+	})
+}
+
+func TestSupervisorRpc(t *testing.T) {
+	t.Run("NotRequiredIfRollupRpcSupplied", func(t *testing.T) {
+		// rollup-rpc is in the default args.
+		configForArgs(t, addRequiredArgsExcept("--supervisor-rpc"))
+	})
+
+	t.Run("Valid", func(t *testing.T) {
+		url := "http://example.com:9999"
+		cfg := configForArgs(t, addRequiredArgsExcept("--rollup-rpc", "--supervisor-rpc", url))
+		require.Equal(t, url, cfg.SupervisorRpc)
 	})
 }
 
@@ -96,8 +113,12 @@ func TestGameFactoryAddress(t *testing.T) {
 func TestNetwork(t *testing.T) {
 	t.Run("Valid", func(t *testing.T) {
 		opSepoliaChainId := uint64(11155420)
+		opSepolia, err := superchain.GetChain(opSepoliaChainId)
+		require.NoError(t, err)
+		opSepoliaCfg, err := opSepolia.Config()
+		require.NoError(t, err)
 		cfg := configForArgs(t, addRequiredArgsExcept("--game-factory-address", "--network=op-sepolia"))
-		require.EqualValues(t, superchain.Addresses[opSepoliaChainId].DisputeGameFactoryProxy, cfg.GameFactoryAddress)
+		require.EqualValues(t, *opSepoliaCfg.Addresses.DisputeGameFactoryProxy, cfg.GameFactoryAddress)
 	})
 
 	t.Run("UnknownNetwork", func(t *testing.T) {

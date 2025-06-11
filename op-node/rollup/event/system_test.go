@@ -2,6 +2,7 @@ package event
 
 import (
 	"context"
+	"errors"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -103,4 +104,47 @@ func TestSystemBroadcast(t *testing.T) {
 	require.NoError(t, ex.Drain())
 	require.Equal(t, 3, fooCount)
 	require.Equal(t, 3, barCount)
+}
+
+func TestCriticalError(t *testing.T) {
+	logger := testlog.Logger(t, log.LevelError)
+	count := 0
+	seenCrit := 0
+	deriverFn := DeriverFunc(func(ev Event) bool {
+		switch ev.(type) {
+		case CriticalErrorEvent:
+			seenCrit += 1
+		default:
+			count += 1
+		}
+		return true
+	})
+	exec := NewGlobalSynchronous(context.Background())
+	sys := NewSystem(logger, exec)
+	emitterA := sys.Register("a", deriverFn, DefaultRegisterOpts())
+	emitterB := sys.Register("b", deriverFn, DefaultRegisterOpts())
+
+	require.NoError(t, exec.Drain(), "can drain, even if empty")
+	emitterA.Emit(TestEvent{})
+	require.Equal(t, 0, count, "no processing yet, queued event")
+	require.NoError(t, exec.Drain())
+	require.Equal(t, 2, count, "both A and B processed the event")
+
+	emitterA.Emit(TestEvent{})
+	emitterB.Emit(TestEvent{})
+	testErr := errors.New("test crit error")
+	emitterB.Emit(CriticalErrorEvent{Err: testErr})
+	require.Equal(t, 2, count, "no processing yet, queued events")
+	require.Equal(t, 0, seenCrit, "critical error events are still scheduled like normal")
+	require.True(t, sys.abort.Load(), "we are aware of the crit")
+	require.NoError(t, exec.Drain())
+	require.Equal(t, 2, count, "still no processing, since we hit a crit error, the events are ignored")
+	require.Equal(t, 2, seenCrit, "but everyone has seen the crit now")
+
+	// We are able to stop the processing now
+	sys.Stop()
+
+	emitterA.Emit(TestEvent{})
+	require.NoError(t, exec.Drain(), "system is closed, no further event processing")
+	require.Equal(t, 2, count)
 }

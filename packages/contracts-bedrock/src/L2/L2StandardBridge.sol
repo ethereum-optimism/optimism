@@ -1,14 +1,18 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
-import { Predeploys } from "src/libraries/Predeploys.sol";
+// Contracts
 import { StandardBridge } from "src/universal/StandardBridge.sol";
-import { ISemver } from "src/universal/ISemver.sol";
-import { OptimismMintableERC20 } from "src/universal/OptimismMintableERC20.sol";
-import { CrossDomainMessenger } from "src/universal/CrossDomainMessenger.sol";
-import { L1Block } from "src/L2/L1Block.sol";
 
-/// @custom:proxied
+// Libraries
+import { Predeploys } from "src/libraries/Predeploys.sol";
+
+// Interfaces
+import { ISemver } from "interfaces/universal/ISemver.sol";
+import { ICrossDomainMessenger } from "interfaces/universal/ICrossDomainMessenger.sol";
+import { OptimismMintableERC20 } from "src/universal/OptimismMintableERC20.sol";
+
+/// @custom:proxied true
 /// @custom:predeploy 0x4200000000000000000000000000000000000010
 /// @title L2StandardBridge
 /// @notice The L2StandardBridge is responsible for transfering ETH and ERC20 tokens between L1 and
@@ -52,19 +56,22 @@ contract L2StandardBridge is StandardBridge, ISemver {
         bytes extraData
     );
 
-    /// @custom:semver 1.10.0
-    string public constant version = "1.10.0";
+    /// @notice Semantic version.
+    /// @custom:semver 1.13.0
+    function version() public pure virtual returns (string memory) {
+        return "1.13.0";
+    }
 
     /// @notice Constructs the L2StandardBridge contract.
     constructor() StandardBridge() {
-        initialize({ _otherBridge: StandardBridge(payable(address(0))) });
+        _disableInitializers();
     }
 
     /// @notice Initializer.
     /// @param _otherBridge Contract for the corresponding bridge on the other chain.
-    function initialize(StandardBridge _otherBridge) public initializer {
+    function initialize(StandardBridge _otherBridge) external initializer {
         __StandardBridge_init({
-            _messenger: CrossDomainMessenger(Predeploys.L2_CROSS_DOMAIN_MESSENGER),
+            _messenger: ICrossDomainMessenger(Predeploys.L2_CROSS_DOMAIN_MESSENGER),
             _otherBridge: _otherBridge
         });
     }
@@ -74,11 +81,6 @@ contract L2StandardBridge is StandardBridge, ISemver {
         _initiateWithdrawal(
             Predeploys.LEGACY_ERC20_ETH, msg.sender, msg.sender, msg.value, RECEIVE_DEFAULT_GAS_LIMIT, bytes("")
         );
-    }
-
-    /// @inheritdoc StandardBridge
-    function gasPayingToken() internal view override returns (address addr_, uint8 decimals_) {
-        (addr_, decimals_) = L1Block(Predeploys.L1_BLOCK_ATTRIBUTES).gasPayingToken();
     }
 
     /// @custom:legacy
@@ -101,7 +103,6 @@ contract L2StandardBridge is StandardBridge, ISemver {
         virtual
         onlyEOA
     {
-        require(isCustomGasToken() == false, "L2StandardBridge: not supported with custom gas token");
         _initiateWithdrawal(_l2Token, msg.sender, msg.sender, _amount, _minGasLimit, _extraData);
     }
 
@@ -130,7 +131,6 @@ contract L2StandardBridge is StandardBridge, ISemver {
         payable
         virtual
     {
-        require(isCustomGasToken() == false, "L2StandardBridge: not supported with custom gas token");
         _initiateWithdrawal(_l2Token, msg.sender, _to, _amount, _minGasLimit, _extraData);
     }
 

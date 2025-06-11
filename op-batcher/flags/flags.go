@@ -8,9 +8,9 @@ import (
 
 	"github.com/urfave/cli/v2"
 
+	altda "github.com/ethereum-optimism/optimism/op-alt-da"
 	"github.com/ethereum-optimism/optimism/op-batcher/compressor"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
-	plasma "github.com/ethereum-optimism/optimism/op-plasma"
 	opservice "github.com/ethereum-optimism/optimism/op-service"
 	openum "github.com/ethereum-optimism/optimism/op-service/enum"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
@@ -76,6 +76,11 @@ var (
 		Value:   120_000, // will be overwritten to max for blob da-type
 		EnvVars: prefixEnvVars("MAX_L1_TX_SIZE_BYTES"),
 	}
+	MaxBlocksPerSpanBatch = &cli.IntFlag{
+		Name:    "max-blocks-per-span-batch",
+		Usage:   "Maximum number of blocks to add to a span batch. Default is 0 - no maximum.",
+		EnvVars: prefixEnvVars("MAX_BLOCKS_PER_SPAN_BATCH"),
+	}
 	TargetNumFramesFlag = &cli.IntFlag{
 		Name:    "target-num-frames",
 		Usage:   "The target number of frames to create per channel. Controls number of blobs per blob tx, if using Blob DA.",
@@ -133,8 +138,8 @@ var (
 	}
 	ActiveSequencerCheckDurationFlag = &cli.DurationFlag{
 		Name:    "active-sequencer-check-duration",
-		Usage:   "The duration between checks to determine the active sequencer endpoint. ",
-		Value:   2 * time.Minute,
+		Usage:   "The duration between checks to determine the active sequencer endpoint.",
+		Value:   5 * time.Second,
 		EnvVars: prefixEnvVars("ACTIVE_SEQUENCER_CHECK_DURATION"),
 	}
 	CheckRecentTxsDepthFlag = &cli.IntFlag{
@@ -150,6 +155,36 @@ var (
 			"finalize (via more block confirmations). This should help avoid duplicate batcher txs.",
 		Value:   false,
 		EnvVars: prefixEnvVars("WAIT_NODE_SYNC"),
+	}
+	ThrottleThresholdFlag = &cli.IntFlag{
+		Name:    "throttle-threshold",
+		Usage:   "The threshold on pending-blocks-bytes-current beyond which the batcher will instruct the block builder to start throttling transactions with larger DA demands. Zero disables throttling.",
+		Value:   1_000_000,
+		EnvVars: prefixEnvVars("THROTTLE_THRESHOLD"),
+	}
+	ThrottleTxSizeFlag = &cli.IntFlag{
+		Name:    "throttle-tx-size",
+		Usage:   "The DA size of transactions to start throttling when we are over the throttle threshold",
+		Value:   5000, // less than 1% of all transactions should be affected by this limit
+		EnvVars: prefixEnvVars("THROTTLE_TX_SIZE"),
+	}
+	ThrottleBlockSizeFlag = &cli.IntFlag{
+		Name:    "throttle-block-size",
+		Usage:   "The total DA limit to start imposing on block building when we are over the throttle threshold",
+		Value:   21_000, // at least 70 transactions per block of up to 300 compressed bytes each.
+		EnvVars: prefixEnvVars("THROTTLE_BLOCK_SIZE"),
+	}
+	ThrottleAlwaysBlockSizeFlag = &cli.IntFlag{
+		Name:    "throttle-always-block-size",
+		Usage:   "The total DA limit to start imposing on block building at all times",
+		Value:   130_000, // should be larger than the builder's max-l2-tx-size to prevent endlessly throttling some txs
+		EnvVars: prefixEnvVars("THROTTLE_ALWAYS_BLOCK_SIZE"),
+	}
+	PreferLocalSafeL2Flag = &cli.BoolFlag{
+		Name:    "prefer-local-safe-l2",
+		Usage:   "Load unsafe blocks higher than the sequencer's LocalSafeL2 instead of SafeL2",
+		Value:   false,
+		EnvVars: prefixEnvVars("PREFER_LOCAL_SAFE_L2"),
 	}
 	// Legacy Flags
 	SequencerHDPathFlag = txmgr.SequencerHDPathFlag
@@ -169,6 +204,7 @@ var optionalFlags = []cli.Flag{
 	MaxPendingTransactionsFlag,
 	MaxChannelDurationFlag,
 	MaxL1TxSizeBytesFlag,
+	MaxBlocksPerSpanBatch,
 	TargetNumFramesFlag,
 	ApproxComprRatioFlag,
 	CompressorFlag,
@@ -178,6 +214,11 @@ var optionalFlags = []cli.Flag{
 	DataAvailabilityTypeFlag,
 	ActiveSequencerCheckDurationFlag,
 	CompressionAlgoFlag,
+	ThrottleThresholdFlag,
+	ThrottleTxSizeFlag,
+	ThrottleBlockSizeFlag,
+	ThrottleAlwaysBlockSizeFlag,
+	PreferLocalSafeL2Flag,
 }
 
 func init() {
@@ -186,7 +227,7 @@ func init() {
 	optionalFlags = append(optionalFlags, opmetrics.CLIFlags(EnvVarPrefix)...)
 	optionalFlags = append(optionalFlags, oppprof.CLIFlags(EnvVarPrefix)...)
 	optionalFlags = append(optionalFlags, txmgr.CLIFlags(EnvVarPrefix)...)
-	optionalFlags = append(optionalFlags, plasma.CLIFlags(EnvVarPrefix, "")...)
+	optionalFlags = append(optionalFlags, altda.CLIFlags(EnvVarPrefix, "")...)
 
 	Flags = append(requiredFlags, optionalFlags...)
 }

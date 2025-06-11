@@ -1,0 +1,21 @@
+{
+  "network": "sepolia",
+  "contracts": {
+    "L1CrossDomainMessenger": {
+      "address": "0x9253E76E2fA3f72aF18e08914b3528F725779495",
+      "startBlock": 5655598
+    },
+    "L1StandardBridge": {
+      "address": "0x244d7b81EE3949788Da5F1178D911e83bA24E157",
+      "startBlock": 5655598
+    },
+    "L2OutputOracle": {
+      "address": "0xdBdb238185f9BB40f742aE249f9a083381EC39eC",
+      "startBlock": 5655598
+    },
+    "OptimismPortal": {
+      "address": "0xB079E6FA9B3eb072fEbf7F746044834eab308dB6",
+      "startBlock": 5655598
+    }
+  }
+}

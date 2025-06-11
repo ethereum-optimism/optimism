@@ -16,6 +16,7 @@ import (
 var (
 	addressEmptyPadding [12]byte = [12]byte{}
 	uint64EmptyPadding  [24]byte = [24]byte{}
+	uint8EmptyPadding   [31]byte = [31]byte{}
 )
 
 func ReadSignature(r io.Reader) ([]byte, error) {
@@ -69,7 +70,7 @@ func ReadUint64(r io.Reader) (uint64, error) {
 		return n, fmt.Errorf("number padding was not empty: %x", readPadding[:])
 	}
 	if err := binary.Read(r, binary.BigEndian, &n); err != nil {
-		return 0, fmt.Errorf("expected number length to be 8 bytes")
+		return 0, errors.New("expected number length to be 8 bytes")
 	}
 	return n, nil
 }
@@ -125,6 +126,16 @@ func WriteUint256(w io.Writer, n *big.Int) error {
 
 func WriteUint64(w io.Writer, n uint64) error {
 	if _, err := w.Write(uint64EmptyPadding[:]); err != nil {
+		return err
+	}
+	if err := binary.Write(w, binary.BigEndian, n); err != nil {
+		return err
+	}
+	return nil
+}
+
+func WriteUint8(w io.Writer, n uint8) error {
+	if _, err := w.Write(uint8EmptyPadding[:]); err != nil {
 		return err
 	}
 	if err := binary.Write(w, binary.BigEndian, n); err != nil {

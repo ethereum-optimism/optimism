@@ -4,15 +4,9 @@ pragma solidity ^0.8.0;
 import { console2 as console } from "forge-std/console2.sol";
 import { Script } from "forge-std/Script.sol";
 
-import { LibString } from "solady/src/utils/LibString.sol";
-
-import { IAutomate as IGelato } from "gelato/interfaces/IAutomate.sol";
-import { LibDataTypes as GelatoDataTypes } from "gelato/libraries/LibDataTypes.sol";
-import { LibTaskId as GelatoTaskId } from "gelato/libraries/LibTaskId.sol";
-import { GelatoBytes } from "gelato/vendor/gelato/GelatoBytes.sol";
+import { LibString } from "@solady/utils/LibString.sol";
 
 import { Config } from "scripts/libraries/Config.sol";
-import { Artifacts } from "scripts/Artifacts.s.sol";
 import { DrippieConfig } from "scripts/periphery/drippie/DrippieConfig.s.sol";
 
 import { Drippie } from "src/periphery/drippie/Drippie.sol";
@@ -20,16 +14,7 @@ import { IDripCheck } from "src/periphery/drippie/IDripCheck.sol";
 
 /// @title ManageDrippie
 /// @notice Script for managing drips in the Drippie contract.
-contract ManageDrippie is Script, Artifacts {
-    /// @notice Struct that contains the data for a Gelato task.
-    struct GelatoTaskData {
-        address taskCreator;
-        address execAddress;
-        bytes execData;
-        GelatoDataTypes.ModuleData moduleData;
-        address feeToken;
-    }
-
+contract ManageDrippie is Script {
     /// @notice Drippie configuration.
     DrippieConfig public cfg;
 
@@ -41,8 +26,7 @@ contract ManageDrippie is Script, Artifacts {
     }
 
     /// @notice Sets up the deployment script.
-    function setUp() public override {
-        Artifacts.setUp();
+    function setUp() public {
         cfg = new DrippieConfig(Config.deployConfigPath());
         console.log("Config path: %s", Config.deployConfigPath());
     }
@@ -70,12 +54,6 @@ contract ManageDrippie is Script, Artifacts {
                     console.log("ManageDrippie: pausing drip for %s", name);
                     cfg.drippie().status(name, Drippie.DripStatus.PAUSED);
                 }
-
-                // Cancel the Gelato task if it's active.
-                if (_isGelatoDripTaskActive(cfg.gelato(), cfg.drippie(), name)) {
-                    console.log("ManageDrippie: pausing Gelato task for %s", name);
-                    _pauseGelatoDripTask(cfg.gelato(), cfg.drippie(), name);
-                }
             }
         }
     }
@@ -88,13 +66,12 @@ contract ManageDrippie is Script, Artifacts {
             Drippie.DripAction[] memory actions = new Drippie.DripAction[](1);
             actions[0] = Drippie.DripAction({ target: payable(drip.recipient), data: drip.data, value: drip.value });
             _installDrip({
-                _gelato: cfg.gelato(),
                 _drippie: cfg.drippie(),
                 _name: drip.name,
                 _config: Drippie.DripConfig({
                     reentrant: false,
                     interval: drip.interval,
-                    dripcheck: IDripCheck(mustGetAddress(drip.dripcheck)),
+                    dripcheck: IDripCheck(cfg.mustGetDripCheck(drip.dripcheck)),
                     checkparams: drip.checkparams,
                     actions: actions
                 })
@@ -102,126 +79,14 @@ contract ManageDrippie is Script, Artifacts {
         }
     }
 
-    /// @notice Generates the data for a Gelato task that would trigger a drip.
-    /// @param _drippie The drippie contract.
-    /// @param _name The name of the drip.
-    /// @return _taskData Gelato task data.
-    function _makeGelatoDripTaskData(
-        Drippie _drippie,
-        string memory _name
-    )
-        internal
-        view
-        returns (GelatoTaskData memory _taskData)
-    {
-        // Get the drip interval.
-        uint256 dripInterval = _drippie.getDripInterval(_name);
-
-        // Set up module types.
-        GelatoDataTypes.Module[] memory modules = new GelatoDataTypes.Module[](2);
-        modules[0] = GelatoDataTypes.Module.PROXY;
-        modules[1] = GelatoDataTypes.Module.TRIGGER;
-
-        // Interval is in milliseconds, so we should be multiplying by 1000.
-        // We then want to attempt to trigger the drip 10x per interval, so we divide by 10.
-        // Total multiplier is then 1000 / 10 = 100.
-        uint128 interval = uint128(dripInterval) * 100;
-
-        // Create arguments for the PROXY and TRIGGER modules.
-        bytes[] memory args = new bytes[](2);
-        args[0] = abi.encode(_name);
-        args[1] = abi.encode(uint128(GelatoDataTypes.TriggerType.TIME), abi.encode(uint128(0), interval));
-
-        // Create the task data.
-        _taskData = GelatoTaskData({
-            taskCreator: msg.sender,
-            execAddress: address(_drippie),
-            execData: abi.encodeCall(Drippie.drip, (_name)),
-            moduleData: GelatoDataTypes.ModuleData({ modules: modules, args: args }),
-            feeToken: address(0)
-        });
-    }
-
-    /// @notice Starts a gelato drip task.
-    /// @param _gelato The gelato contract.
-    /// @param _drippie The drippie contract.
-    /// @param _name The name of the drip being triggered.
-    function _startGelatoDripTask(IGelato _gelato, Drippie _drippie, string memory _name) internal {
-        GelatoTaskData memory taskData = _makeGelatoDripTaskData({ _drippie: _drippie, _name: _name });
-        _gelato.createTask({
-            execAddress: taskData.execAddress,
-            execData: taskData.execData,
-            moduleData: taskData.moduleData,
-            feeToken: taskData.feeToken
-        });
-    }
-
-    /// @notice Determines if a gelato drip task is active or not.
-    /// @param _gelato The gelato contract.
-    /// @param _drippie The drippie contract.
-    /// @param _name The name of the drip being triggered.
-    /// @return _active True if the task is active, false otherwise.
-    function _isGelatoDripTaskActive(
-        IGelato _gelato,
-        Drippie _drippie,
-        string memory _name
-    )
-        internal
-        view
-        returns (bool _active)
-    {
-        GelatoTaskData memory taskData = _makeGelatoDripTaskData({ _drippie: _drippie, _name: _name });
-        bytes32 taskId = GelatoTaskId.getTaskId({
-            taskCreator: taskData.taskCreator,
-            execAddress: taskData.execAddress,
-            execSelector: GelatoBytes.memorySliceSelector(taskData.execData),
-            moduleData: taskData.moduleData,
-            feeToken: taskData.feeToken
-        });
-
-        // Iterate over the task IDs to see if the task is active.
-        bytes32[] memory taskIds = _gelato.getTaskIdsByUser(taskData.taskCreator);
-        for (uint256 i = 0; i < taskIds.length; i++) {
-            if (taskIds[i] == taskId) {
-                _active = true;
-            }
-        }
-    }
-
-    /// @notice Pauses a gelato drip task.
-    /// @param _gelato The gelato contract.
-    /// @param _drippie The drippie contract.
-    /// @param _name The name of the drip being triggered.
-    function _pauseGelatoDripTask(IGelato _gelato, Drippie _drippie, string memory _name) internal {
-        GelatoTaskData memory taskData = _makeGelatoDripTaskData({ _drippie: _drippie, _name: _name });
-        _gelato.cancelTask(
-            GelatoTaskId.getTaskId({
-                taskCreator: taskData.taskCreator,
-                execAddress: taskData.execAddress,
-                execSelector: GelatoBytes.memorySliceSelector(taskData.execData),
-                moduleData: taskData.moduleData,
-                feeToken: taskData.feeToken
-            })
-        );
-    }
-
     /// @notice Installs a drip in the drippie contract.
-    /// @param _gelato The gelato contract.
     /// @param _drippie The drippie contract.
     /// @param _name The name of the drip.
     /// @param _config The configuration of the drip.
-    function _installDrip(
-        IGelato _gelato,
-        Drippie _drippie,
-        string memory _name,
-        Drippie.DripConfig memory _config
-    )
-        internal
-    {
+    function _installDrip(Drippie _drippie, string memory _name, Drippie.DripConfig memory _config) internal {
         if (_drippie.getDripStatus(_name) == Drippie.DripStatus.NONE) {
             console.log("installing %s", _name);
             _drippie.create(_name, _config);
-            _startGelatoDripTask(_gelato, _drippie, _name);
             console.log("%s installed successfully", _name);
         } else {
             console.log("%s already installed", _name);

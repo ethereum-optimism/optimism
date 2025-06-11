@@ -67,6 +67,13 @@ library SafeCall {
         success_ = call({ _target: _target, _gas: gasleft(), _value: _value, _calldata: _calldata });
     }
 
+    /// @notice Perform a low level call without copying any returndata
+    /// @param _target   Address to call
+    /// @param _calldata Calldata to pass to the call
+    function call(address _target, bytes memory _calldata) internal returns (bool success_) {
+        success_ = call({ _target: _target, _gas: gasleft(), _value: 0, _calldata: _calldata });
+    }
+
     /// @notice Helper function to determine if there is sufficient gas remaining within the context
     ///         to guarantee that the minimum gas requirement for a call will be met as well as
     ///         optionally reserving a specified amount of gas for after the call has concluded.

@@ -1,0 +1,16 @@
+[
+  {
+    "bytes": "32",
+    "label": "L1_CONTRACTS_RELEASE",
+    "offset": 0,
+    "slot": "0",
+    "type": "string"
+  },
+  {
+    "bytes": "1",
+    "label": "isRC",
+    "offset": 0,
+    "slot": "1",
+    "type": "bool"
+  }
+]

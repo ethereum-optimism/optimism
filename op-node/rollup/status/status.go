@@ -63,12 +63,24 @@ func (st *StatusTracker) OnEvent(ev event.Event) bool {
 
 	switch x := ev.(type) {
 	case engine.ForkchoiceUpdateEvent:
+		st.log.Debug("Forkchoice update", "unsafe", x.UnsafeL2Head, "safe", x.SafeL2Head, "finalized", x.FinalizedL2Head)
 		st.data.UnsafeL2 = x.UnsafeL2Head
 		st.data.SafeL2 = x.SafeL2Head
 		st.data.FinalizedL2 = x.FinalizedL2Head
 	case engine.PendingSafeUpdateEvent:
 		st.data.UnsafeL2 = x.Unsafe
 		st.data.PendingSafeL2 = x.PendingSafe
+	case engine.CrossUnsafeUpdateEvent:
+		st.log.Debug("Cross unsafe head updated", "cross_unsafe", x.CrossUnsafe, "local_unsafe", x.LocalUnsafe)
+		st.data.CrossUnsafeL2 = x.CrossUnsafe
+		st.data.UnsafeL2 = x.LocalUnsafe
+	case engine.LocalSafeUpdateEvent:
+		st.log.Debug("Local safe head updated", "local_safe", x.Ref)
+		st.data.LocalSafeL2 = x.Ref
+	case engine.CrossSafeUpdateEvent:
+		st.log.Debug("Cross safe head updated", "cross_safe", x.CrossSafe, "local_safe", x.LocalSafe)
+		st.data.SafeL2 = x.CrossSafe
+		st.data.LocalSafeL2 = x.LocalSafe
 	case derive.DeriverL1StatusEvent:
 		st.data.CurrentL1 = x.Origin
 	case L1UnsafeEvent:
@@ -106,8 +118,10 @@ func (st *StatusTracker) OnEvent(ev event.Event) bool {
 		st.data.SafeL2 = eth.L2BlockRef{}
 		st.data.CurrentL1 = eth.L1BlockRef{}
 	case engine.EngineResetConfirmedEvent:
-		st.data.UnsafeL2 = x.Unsafe
-		st.data.SafeL2 = x.Safe
+		st.data.UnsafeL2 = x.LocalUnsafe
+		st.data.CrossUnsafeL2 = x.CrossUnsafe
+		st.data.LocalSafeL2 = x.LocalSafe
+		st.data.SafeL2 = x.CrossSafe
 		st.data.FinalizedL2 = x.Finalized
 	default: // other events do not affect the sync status
 		return false

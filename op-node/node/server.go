@@ -7,7 +7,6 @@ import (
 	"net/http"
 	"strconv"
 
-	"github.com/ethereum-optimism/optimism/op-service/httputil"
 	ophttp "github.com/ethereum-optimism/optimism/op-service/httputil"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/node"
@@ -26,11 +25,11 @@ type rpcServer struct {
 	appVersion string
 	log        log.Logger
 	sources.L2Client
-	rpcServerTimeout httputil.HTTPTimeouts
+	rpcServerTimeout ophttp.HTTPTimeouts
 }
 
 func newRPCServer(rpcCfg *RPCConfig, rollupCfg *rollup.Config, l2Client l2EthClient, dr driverClient, safedb SafeDBReader, log log.Logger, appVersion string, m metrics.Metricer) (*rpcServer, error) {
-	rpcServerTimeout := httputil.DefaultTimeouts
+	rpcServerTimeout := ophttp.DefaultTimeouts
 	if rpcCfg.ListenTimeout != nil {
 		rpcServerTimeout = *rpcCfg.ListenTimeout
 	}
@@ -85,7 +84,7 @@ func (s *rpcServer) Start() error {
 	mux.Handle("/", nodeHandler)
 	mux.HandleFunc("/healthz", healthzHandler(s.appVersion))
 
-	hs, err := ophttp.StartHTTPServer(s.endpoint, mux, ophttp.WithTimeouts(s.rpcServerTimeout))
+	hs, err := ophttp.StartHTTPServer(s.endpoint, mux)
 	if err != nil {
 		return fmt.Errorf("failed to start HTTP RPC server: %w", err)
 	}

@@ -1,8 +1,11 @@
 package preimage
 
 import (
+	"errors"
+	"fmt"
 	"io"
 	"os"
+	"syscall"
 )
 
 // FileChannel is a unidirectional channel for file I/O
@@ -41,10 +44,14 @@ func (rw *ReadWritePair) Writer() *os.File {
 }
 
 func (rw *ReadWritePair) Close() error {
+	var combinedErr error
 	if err := rw.r.Close(); err != nil {
-		return err
+		combinedErr = errors.Join(fmt.Errorf("failed to close reader: %w", err))
 	}
-	return rw.w.Close()
+	if err := rw.w.Close(); err != nil {
+		combinedErr = errors.Join(fmt.Errorf("failed to close writer: %w", err))
+	}
+	return combinedErr
 }
 
 // CreateBidirectionalChannel creates a pair of FileChannels that are connected to each other.
@@ -68,14 +75,21 @@ const (
 )
 
 func ClientHinterChannel() *ReadWritePair {
-	r := os.NewFile(HClientRFd, "preimage-hint-read")
-	w := os.NewFile(HClientWFd, "preimage-hint-write")
+	r := newFileNonBlocking(HClientRFd, "preimage-hint-read")
+	w := newFileNonBlocking(HClientWFd, "preimage-hint-write")
 	return NewReadWritePair(r, w)
 }
 
 // ClientPreimageChannel returns a FileChannel for the preimage oracle in a detached context
 func ClientPreimageChannel() *ReadWritePair {
-	r := os.NewFile(PClientRFd, "preimage-oracle-read")
-	w := os.NewFile(PClientWFd, "preimage-oracle-write")
+	r := newFileNonBlocking(PClientRFd, "preimage-oracle-read")
+	w := newFileNonBlocking(PClientWFd, "preimage-oracle-write")
 	return NewReadWritePair(r, w)
+}
+
+func newFileNonBlocking(fd int, name string) *os.File {
+	// Try to enable non-blocking mode for IO so that read calls return when the file is closed
+	// This may not be possible on all systems so errors are ignored.
+	_ = syscall.SetNonblock(fd, true)
+	return os.NewFile(uintptr(fd), name)
 }

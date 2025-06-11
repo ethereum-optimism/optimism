@@ -1,0 +1,10 @@
+{
+  "bsc": {
+    "L1CrossDomainMessenger": {
+      "address": "0x31338a7D5d123E18a9a71447136B54B6D28241ae"
+    },
+    "L1StandardBridge": {
+      "address": "0x1E0f7f4b2656b14C161f1caDF3076C02908F9ACC"
+    }
+  }
+}

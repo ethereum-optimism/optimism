@@ -20,7 +20,6 @@ on:
         options:
           - ci-builder
           - ci-builder-rust
-          - op-heartbeat
           - op-node
           - op-batcher
           - op-proposer
@@ -36,6 +35,9 @@ on:
         required: false
         type: boolean
         default: false
+
+permissions:
+  contents: write
 
 jobs:
   release:

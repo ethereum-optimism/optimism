@@ -35,6 +35,12 @@ func PrivateKeySignerFn(key *ecdsa.PrivateKey, chainID *big.Int) bind.SignerFn {
 	}
 }
 
+func SignerFnFromBind(fn bind.SignerFn) SignerFn {
+	return func(_ context.Context, address common.Address, tx *types.Transaction) (*types.Transaction, error) {
+		return fn(address, tx)
+	}
+}
+
 // SignerFn is a generic transaction signing function. It may be a remote signer so it takes a context.
 // It also takes the address that should be used to sign the transaction with.
 type SignerFn func(context.Context, common.Address, *types.Transaction) (*types.Transaction, error)

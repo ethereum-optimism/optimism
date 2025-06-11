@@ -33,5 +33,19 @@
     "offset": 0,
     "slot": "4",
     "type": "string"
+  },
+  {
+    "bytes": "32",
+    "label": "_nonces",
+    "offset": 0,
+    "slot": "5",
+    "type": "mapping(address => struct Counters.Counter)"
+  },
+  {
+    "bytes": "32",
+    "label": "_PERMIT_TYPEHASH_DEPRECATED_SLOT",
+    "offset": 0,
+    "slot": "6",
+    "type": "bytes32"
   }
 ]

@@ -28,6 +28,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/httputil"
 	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
+	"github.com/ethereum-optimism/optimism/op-service/retry"
 	oprpc "github.com/ethereum-optimism/optimism/op-service/rpc"
 	"github.com/ethereum-optimism/optimism/op-service/sources"
 )
@@ -77,9 +78,10 @@ func NewOpConductor(
 	oc.loopActionFn = oc.loopAction
 
 	// explicitly set all atomic.Bool values
-	oc.leader.Store(false)    // upon start, it should not be the leader unless specified otherwise by raft bootstrap, in that case, it'll receive a leadership update from consensus.
-	oc.healthy.Store(true)    // default to healthy unless reported otherwise by health monitor.
-	oc.seqActive.Store(false) // explicitly set to false by default, the real value will be reported after sequencer control initialization.
+	oc.leader.Store(false)         // upon start, it should not be the leader unless specified otherwise by raft bootstrap, in that case, it'll receive a leadership update from consensus.
+	oc.leaderOverride.Store(false) // default to no override.
+	oc.healthy.Store(true)         // default to healthy unless reported otherwise by health monitor.
+	oc.seqActive.Store(false)      // explicitly set to false by default, the real value will be reported after sequencer control initialization.
 	oc.paused.Store(cfg.Paused)
 	oc.stopped.Store(false)
 
@@ -140,6 +142,25 @@ func (c *OpConductor) initSequencerControl(ctx context.Context) error {
 	node := sources.NewRollupClient(nc)
 	c.ctrl = client.NewSequencerControl(exec, node)
 
+	enabled, err := retry.Do(ctx, 60, retry.Fixed(5*time.Second), func() (bool, error) {
+		enabled, err := c.ctrl.ConductorEnabled(ctx)
+		if rpcErr, ok := err.(rpc.Error); ok {
+			errCode := rpcErr.ErrorCode()
+			errText := strings.ToLower(err.Error())
+			if errCode == -32601 || strings.Contains(errText, "method not found") { // method not found error
+				c.log.Warn("Warning: conductorEnabled method not found, please upgrade your op-node to the latest version, continuing...")
+				return true, nil
+			}
+		}
+		return enabled, err
+	})
+	if err != nil {
+		return errors.Wrap(err, "failed to connect to sequencer")
+	}
+	if !enabled {
+		return errors.New("conductor is not enabled on sequencer, exiting...")
+	}
+
 	return c.updateSequencerActiveStatus()
 }
 
@@ -148,8 +169,22 @@ func (c *OpConductor) initConsensus(ctx context.Context) error {
 		return nil
 	}
 
-	serverAddr := fmt.Sprintf("%s:%d", c.cfg.ConsensusAddr, c.cfg.ConsensusPort)
-	cons, err := consensus.NewRaftConsensus(c.log, c.cfg.RaftServerID, serverAddr, c.cfg.RaftStorageDir, c.cfg.RaftBootstrap, &c.cfg.RollupCfg)
+	raftConsensusConfig := &consensus.RaftConsensusConfig{
+		ServerID: c.cfg.RaftServerID,
+		// AdvertisedAddr may be empty: the server will then default to what it binds to.
+		AdvertisedAddr:     raft.ServerAddress(c.cfg.ConsensusAdvertisedAddr),
+		ListenAddr:         c.cfg.ConsensusAddr,
+		ListenPort:         c.cfg.ConsensusPort,
+		StorageDir:         c.cfg.RaftStorageDir,
+		Bootstrap:          c.cfg.RaftBootstrap,
+		RollupCfg:          &c.cfg.RollupCfg,
+		SnapshotInterval:   c.cfg.RaftSnapshotInterval,
+		SnapshotThreshold:  c.cfg.RaftSnapshotThreshold,
+		TrailingLogs:       c.cfg.RaftTrailingLogs,
+		HeartbeatTimeout:   c.cfg.RaftHeartbeatTimeout,
+		LeaderLeaseTimeout: c.cfg.RaftLeaderLeaseTimeout,
+	}
+	cons, err := consensus.NewRaftConsensus(c.log, raftConsensusConfig)
 	if err != nil {
 		return errors.Wrap(err, "failed to create raft consensus")
 	}
@@ -216,6 +251,11 @@ func (oc *OpConductor) initRPCServer(ctx context.Context) error {
 			Namespace: conductorrpc.ExecutionRPCNamespace,
 			Service:   executionProxy,
 		})
+		execMinerProxy := conductorrpc.NewExecutionMinerProxyBackend(oc.log, oc, execClient)
+		server.AddAPI(rpc.API{
+			Namespace: conductorrpc.ExecutionMinerRPCNamespace,
+			Service:   execMinerProxy,
+		})
 
 		nodeClient, err := dial.DialRollupClientWithTimeout(ctx, 1*time.Minute, oc.log, oc.cfg.NodeRPC)
 		if err != nil {
@@ -257,11 +297,12 @@ type OpConductor struct {
 	cons consensus.Consensus
 	hmon health.HealthMonitor
 
-	leader    atomic.Bool
-	seqActive atomic.Bool
-	healthy   atomic.Bool
-	hcerr     error // error from health check
-	prevState *state
+	leader         atomic.Bool
+	leaderOverride atomic.Bool
+	seqActive      atomic.Bool
+	healthy        atomic.Bool
+	hcerr          error // error from health check
+	prevState      *state
 
 	healthUpdateCh <-chan error
 	leaderUpdateCh <-chan bool
@@ -435,6 +476,12 @@ func (oc *OpConductor) Paused() bool {
 	return oc.paused.Load()
 }
 
+// ConsensusEndpoint returns the raft consensus server address to connect to.
+func (oc *OpConductor) ConsensusEndpoint() string {
+	return oc.cons.Addr()
+}
+
+// HTTPEndpoint returns the HTTP RPC endpoint
 func (oc *OpConductor) HTTPEndpoint() string {
 	if oc.rpcServer == nil {
 		return ""
@@ -442,13 +489,29 @@ func (oc *OpConductor) HTTPEndpoint() string {
 	return fmt.Sprintf("http://%s", oc.rpcServer.Endpoint())
 }
 
+func (oc *OpConductor) OverrideLeader(override bool) {
+	oc.leaderOverride.Store(override)
+}
+
+func (oc *OpConductor) LeaderOverridden() bool {
+	return oc.leaderOverride.Load()
+}
+
 // Leader returns true if OpConductor is the leader.
-func (oc *OpConductor) Leader(_ context.Context) bool {
-	return oc.cons.Leader()
+func (oc *OpConductor) Leader(ctx context.Context) bool {
+	return oc.LeaderOverridden() || oc.cons.Leader()
 }
 
 // LeaderWithID returns the current leader's server ID and address.
-func (oc *OpConductor) LeaderWithID(_ context.Context) *consensus.ServerInfo {
+func (oc *OpConductor) LeaderWithID(ctx context.Context) *consensus.ServerInfo {
+	if oc.LeaderOverridden() {
+		return &consensus.ServerInfo{
+			ID:       "N/A (Leader overridden)",
+			Addr:     "N/A",
+			Suffrage: 0,
+		}
+	}
+
 	return oc.cons.LeaderWithID()
 }
 
@@ -560,7 +623,8 @@ func (oc *OpConductor) handleHealthUpdate(hcerr error) {
 		oc.queueAction()
 	}
 
-	if oc.healthy.Swap(healthy) != healthy {
+	if old := oc.healthy.Swap(healthy); old != healthy {
+		oc.log.Info("Health state changed", "old", old, "new", healthy)
 		// queue an action if health status changed.
 		oc.queueAction()
 	}
@@ -647,9 +711,12 @@ func (oc *OpConductor) action() {
 
 	oc.log.Debug("exiting action with status and error", "status", status, "err", err)
 	if err != nil {
-		oc.log.Error("failed to execute step, queueing another one to retry", "err", err, "status", status)
-		time.Sleep(oc.retryBackoff())
-		oc.queueAction()
+		select {
+		case <-oc.shutdownCtx.Done():
+		case <-time.After(oc.retryBackoff()):
+			oc.log.Error("failed to execute step, queueing another one to retry", "err", err, "status", status)
+			oc.queueAction()
+		}
 		return
 	}
 
@@ -683,18 +750,33 @@ func (oc *OpConductor) transferLeader() error {
 }
 
 func (oc *OpConductor) stopSequencer() error {
-	oc.log.Info("stopping sequencer", "server", oc.cons.ServerID(), "leader", oc.leader.Load(), "healthy", oc.healthy.Load(), "active", oc.seqActive.Load())
+	oc.log.Info(
+		"stopping sequencer",
+		"server", oc.cons.ServerID(),
+		"leader", oc.leader.Load(),
+		"healthy", oc.healthy.Load(),
+		"active", oc.seqActive.Load())
 
-	_, err := oc.ctrl.StopSequencer(context.Background())
-	if err != nil {
+	// Quoting (@zhwrd): StopSequencer is called after conductor loses leadership. In the event that
+	// the StopSequencer call fails, it actually has little real consequences because the sequencer
+	// cant produce a block and gossip / commit it to the raft log (requires leadership). Once
+	// conductor comes back up it will check its leader and sequencer state and attempt to stop the
+	// sequencer again. So it is "okay" to fail to stop a sequencer, the state will eventually be
+	// rectified and we won't have two active sequencers that are actually producing blocks.
+	//
+	// To that end we allow to cancel the StopSequencer call if we're shutting down.
+	latestHead, err := oc.ctrl.StopSequencer(oc.shutdownCtx)
+	if err == nil {
+		// None of the consensus state should have changed here so don't log it again.
+		oc.log.Info("stopped sequencer", "latestHead", latestHead)
+	} else {
 		if strings.Contains(err.Error(), driver.ErrSequencerAlreadyStopped.Error()) {
-			oc.log.Warn("sequencer already stopped.", "err", err)
+			oc.log.Warn("sequencer already stopped", "err", err)
 		} else {
 			return errors.Wrap(err, "failed to stop sequencer")
 		}
 	}
 	oc.metrics.RecordStopSequencer(err == nil)
-
 	oc.seqActive.Store(false)
 	return nil
 }

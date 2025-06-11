@@ -1,9 +1,12 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
-import { FeeVault } from "src/universal/FeeVault.sol";
-import { IDisputeGame } from "src/dispute/interfaces/IDisputeGame.sol";
+// Libraries
+import { Types } from "src/libraries/Types.sol";
 import "src/dispute/lib/Types.sol";
+
+// Interfaces
+import { IDisputeGame } from "interfaces/dispute/IDisputeGame.sol";
 
 /// @title Events
 /// @dev Contains various events that are tested against. This contract needs to
@@ -52,7 +55,7 @@ contract Events {
     event OutputsDeleted(uint256 indexed prevNextOutputIndex, uint256 indexed newNextOutputIndex);
 
     event Withdrawal(uint256 value, address to, address from);
-    event Withdrawal(uint256 value, address to, address from, FeeVault.WithdrawalNetwork withdrawalNetwork);
+    event Withdrawal(uint256 value, address to, address from, Types.WithdrawalNetwork withdrawalNetwork);
 
     event ETHDepositInitiated(address indexed from, address indexed to, uint256 amount, bytes data);
 
@@ -103,4 +106,12 @@ contract Events {
     event Paused(string identifier);
 
     event Unpaused();
+
+    event BalanceChanged(address account, uint256 balance);
+
+    event ETHMigrated(address indexed lockbox, uint256 ethBalance);
+
+    event PortalMigrated(
+        address oldLockbox, address newLockbox, address oldAnchorStateRegistry, address newAnchorStateRegistry
+    );
 }

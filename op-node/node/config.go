@@ -7,15 +7,17 @@ import (
 	"math"
 	"time"
 
+	"github.com/ethereum/go-ethereum/log"
+
+	altda "github.com/ethereum-optimism/optimism/op-alt-da"
 	"github.com/ethereum-optimism/optimism/op-node/flags"
 	"github.com/ethereum-optimism/optimism/op-node/p2p"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/driver"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/interop"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/sync"
-	plasma "github.com/ethereum-optimism/optimism/op-plasma"
 	"github.com/ethereum-optimism/optimism/op-service/httputil"
 	"github.com/ethereum-optimism/optimism/op-service/oppprof"
-	"github.com/ethereum/go-ethereum/log"
 )
 
 type Config struct {
@@ -23,6 +25,8 @@ type Config struct {
 	L2 L2EndpointSetup
 
 	Beacon L1BeaconEndpointSetup
+
+	InteropConfig interop.Setup
 
 	Driver driver.Config
 
@@ -55,8 +59,7 @@ type Config struct {
 	RuntimeConfigReloadInterval time.Duration
 
 	// Optional
-	Tracer    Tracer
-	Heartbeat HeartbeatConfig
+	Tracer Tracer
 
 	Sync sync.Config
 
@@ -67,17 +70,19 @@ type Config struct {
 	// Cancel to request a premature shutdown of the node itself, e.g. when halting. This may be nil.
 	Cancel context.CancelCauseFunc
 
-	// [OPTIONAL] The reth DB path to read receipts from
-	RethDBPath string
-
 	// Conductor is used to determine this node is the leader sequencer.
 	ConductorEnabled    bool
-	ConductorRpc        string
+	ConductorRpc        ConductorRPCFunc
 	ConductorRpcTimeout time.Duration
 
-	// Plasma DA config
-	Plasma plasma.CLIConfig
+	// AltDA config
+	AltDA altda.CLIConfig
+
+	IgnoreMissingPectraBlobSchedule bool
 }
+
+// ConductorRPCFunc retrieves the endpoint. The RPC may not immediately be available.
+type ConductorRPCFunc func(ctx context.Context) (string, error)
 
 type RPCConfig struct {
 	ListenAddr    string
@@ -108,12 +113,6 @@ func (m MetricsConfig) Check() error {
 	return nil
 }
 
-type HeartbeatConfig struct {
-	Enabled bool
-	Moniker string
-	URL     string
-}
-
 func (cfg *Config) LoadPersisted(log log.Logger) error {
 	if !cfg.Driver.SequencerEnabled {
 		return nil
@@ -132,24 +131,41 @@ func (cfg *Config) LoadPersisted(log log.Logger) error {
 	return nil
 }
 
+var ErrMissingPectraBlobSchedule = errors.New("probably missing Pectra blob schedule")
+
 // Check verifies that the given configuration makes sense
 func (cfg *Config) Check() error {
 	if err := cfg.L1.Check(); err != nil {
-		return fmt.Errorf("l2 endpoint config error: %w", err)
+		return fmt.Errorf("l1 endpoint config error: %w", err)
 	}
 	if err := cfg.L2.Check(); err != nil {
 		return fmt.Errorf("l2 endpoint config error: %w", err)
 	}
 	if cfg.Rollup.EcotoneTime != nil {
 		if cfg.Beacon == nil {
-			return fmt.Errorf("the Ecotone upgrade is scheduled but no L1 Beacon API endpoint is configured")
+			return fmt.Errorf("the Ecotone upgrade is scheduled (timestamp = %d) but no L1 Beacon API endpoint is configured", *cfg.Rollup.EcotoneTime)
 		}
 		if err := cfg.Beacon.Check(); err != nil {
 			return fmt.Errorf("misconfigured L1 Beacon API endpoint: %w", err)
 		}
 	}
+	if cfg.Rollup.InteropTime != nil {
+		if cfg.InteropConfig == nil {
+			return fmt.Errorf("the Interop upgrade is scheduled (timestamp = %d) but no interop node config is set", *cfg.Rollup.InteropTime)
+		}
+		if err := cfg.InteropConfig.Check(); err != nil {
+			return fmt.Errorf("misconfigured interop: %w", err)
+		}
+	}
 	if err := cfg.Rollup.Check(); err != nil {
 		return fmt.Errorf("rollup config error: %w", err)
+	}
+	if !cfg.IgnoreMissingPectraBlobSchedule && cfg.Rollup.ProbablyMissingPectraBlobSchedule() {
+		log.Error("Your rollup config seems to be missing the Pectra blob schedule fix. " +
+			"Reach out to your chain operator for the correct Pectra blob schedule configuration. " +
+			"If you know what you are doing, you can disable this error by setting the " +
+			"'--ignore-missing-pectra-blob-schedule' flag or 'IGNORE_MISSING_PECTRA_BLOB_SCHEDULE' env var.")
+		return ErrMissingPectraBlobSchedule
 	}
 	if err := cfg.Metrics.Check(); err != nil {
 		return fmt.Errorf("metrics config error: %w", err)
@@ -173,11 +189,15 @@ func (cfg *Config) Check() error {
 			return fmt.Errorf("sequencer must be enabled when conductor is enabled")
 		}
 	}
-	if err := cfg.Plasma.Check(); err != nil {
-		return fmt.Errorf("plasma config error: %w", err)
+	if err := cfg.AltDA.Check(); err != nil {
+		return fmt.Errorf("altDA config error: %w", err)
 	}
-	if cfg.Plasma.Enabled {
+	if cfg.AltDA.Enabled {
 		log.Warn("Alt-DA Mode is a Beta feature of the MIT licensed OP Stack.  While it has received initial review from core contributors, it is still undergoing testing, and may have bugs or other issues.")
 	}
 	return nil
+}
+
+func (cfg *Config) P2PEnabled() bool {
+	return cfg.P2P != nil && !cfg.P2P.Disabled()
 }

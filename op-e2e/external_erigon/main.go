@@ -106,9 +106,7 @@ func (es *erigonSession) Close() {
 
 func execute(binPath string, config external.Config) (*erigonSession, error) {
 	if config.Verbosity < 3 {
-		// Note, we could manually filter the logging further, if this is
-		// really problematic.
-		return nil, fmt.Errorf("verbosity of at least 2 is required to scrape for logs")
+		config.Verbosity = 3
 	}
 	cmd := exec.Command(
 		binPath,
@@ -120,7 +118,7 @@ func execute(binPath string, config external.Config) (*erigonSession, error) {
 		"--http=true",
 		"--http.port", "0",
 		"--http.addr", "127.0.0.1",
-		"--http.api", "eth,debug,net,engine,erigon,web3,txpool",
+		"--http.api", "eth,debug,net,engine,erigon,web3,txpool,admin",
 		"--private.api.addr=127.0.0.1:0",
 		"--allow-insecure-unlock",
 		"--authrpc.addr=127.0.0.1",
@@ -132,6 +130,7 @@ func execute(binPath string, config external.Config) (*erigonSession, error) {
 		"--networkid", strconv.FormatUint(config.ChainID, 10),
 		"--torrent.port", "0", // There doesn't seem to be an obvious way to disable torrent listening
 		"--log.console.verbosity", strconv.FormatUint(config.Verbosity, 10),
+		"--rollup.halt", "major",
 	)
 
 	fmt.Printf("==================    op-erigon starting with args %q  ==========================\n", cmd.String())
@@ -149,14 +148,20 @@ func execute(binPath string, config external.Config) (*erigonSession, error) {
 	if err != nil {
 		return nil, fmt.Errorf("http endpoint never opened")
 	}
-	fmt.Fscanf(engineBuffer, "%d", &httpPort)
+	_, err = fmt.Fscanf(engineBuffer, "%d", &httpPort)
+	if err != nil {
+		return nil, fmt.Errorf("failed to scan http port: %w", err)
+	}
 	fmt.Printf("==================    op-erigon shim got http port %d  ==========================\n", httpPort)
 
 	gm.Eventually(sess.Err, time.Minute).Should(gbytes.Say("HTTP endpoint opened for Engine API\\s*url=127.0.0.1:"))
 	if err != nil {
 		return nil, fmt.Errorf("http engine endpoint never opened")
 	}
-	fmt.Fscanf(sess.Err, "%d", &enginePort)
+	_, err = fmt.Fscanf(sess.Err, "%d", &enginePort)
+	if err != nil {
+		return nil, fmt.Errorf("failed to scan engine port: %w", err)
+	}
 	fmt.Printf("==================    op-erigon shim got engine port %d  ==========================\n", enginePort)
 
 	// TODO(jky) this is a horrible hack, but giving Erigon just a little extra

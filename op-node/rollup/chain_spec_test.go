@@ -37,7 +37,6 @@ var testConfig = Config{
 	MaxSequencerDrift:       600,
 	SeqWindowSize:           3600,
 	ChannelTimeoutBedrock:   300,
-	ChannelTimeoutGranite:   50,
 	L1ChainID:               big.NewInt(1),
 	L2ChainID:               big.NewInt(10),
 	RegolithTime:            u64ptr(10),
@@ -46,12 +45,14 @@ var testConfig = Config{
 	EcotoneTime:             u64ptr(40),
 	FjordTime:               u64ptr(50),
 	GraniteTime:             u64ptr(60),
+	HoloceneTime:            u64ptr(70),
+	IsthmusTime:             u64ptr(80),
 	InteropTime:             nil,
 	BatchInboxAddress:       common.HexToAddress("0xff00000000000000000000000000000000000010"),
 	DepositContractAddress:  common.HexToAddress("0xbEb5Fc579115071764c7423A4f12eDde41f106Ed"),
 	L1SystemConfigAddress:   common.HexToAddress("0x229047fed2591dbec1eF1118d64F7aF3dB9EB290"),
 	ProtocolVersionsAddress: common.HexToAddress("0x8062AbC286f5e7D9428a0Ccb9AbD71e50d93b935"),
-	PlasmaConfig:            nil,
+	AltDAConfig:             nil,
 }
 
 func TestChainSpec_CanyonForkActivation(t *testing.T) {
@@ -174,14 +175,26 @@ func TestCheckForkActivation(t *testing.T) {
 		},
 		{
 			name:                "Granite activation",
-			block:               eth.L2BlockRef{Time: 60, Number: 8, Hash: common.Hash{0x7}},
+			block:               eth.L2BlockRef{Time: 60, Number: 8, Hash: common.Hash{0x8}},
 			expectedCurrentFork: Granite,
 			expectedLog:         "Detected hardfork activation block",
 		},
 		{
+			name:                "Holocene activation",
+			block:               eth.L2BlockRef{Time: 70, Number: 9, Hash: common.Hash{0x9}},
+			expectedCurrentFork: Holocene,
+			expectedLog:         "Detected hardfork activation block",
+		},
+		{
+			name:                "Isthmus activation",
+			block:               eth.L2BlockRef{Time: 80, Number: 10, Hash: common.Hash{0xa}},
+			expectedCurrentFork: Isthmus,
+			expectedLog:         "Detected hardfork activation block",
+		},
+		{
 			name:                "No more hardforks",
-			block:               eth.L2BlockRef{Time: 700, Number: 9, Hash: common.Hash{0x8}},
-			expectedCurrentFork: Granite,
+			block:               eth.L2BlockRef{Time: 700, Number: 11, Hash: common.Hash{0xb}},
+			expectedCurrentFork: Isthmus,
 			expectedLog:         "",
 		},
 	}

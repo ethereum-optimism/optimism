@@ -14,9 +14,10 @@ type TestDerivationMetrics struct {
 	FnRecordL2Ref             func(name string, ref eth.L2BlockRef)
 	FnRecordUnsafePayloads    func(length uint64, memSize uint64, next eth.BlockID)
 	FnRecordChannelInputBytes func(inputCompressedBytes int)
+	FnRecordChannelTimedOut   func()
 }
 
-func (t *TestDerivationMetrics) CountSequencedTxs(count int) {
+func (t *TestDerivationMetrics) CountSequencedTxsInBlock(txns int, deposits int) {
 }
 
 func (t *TestDerivationMetrics) RecordSequencerBuildingDiffTime(duration time.Duration) {
@@ -59,6 +60,9 @@ func (t *TestDerivationMetrics) RecordHeadChannelOpened() {
 }
 
 func (t *TestDerivationMetrics) RecordChannelTimedOut() {
+	if t.FnRecordChannelTimedOut != nil {
+		t.FnRecordChannelTimedOut()
+	}
 }
 
 func (t *TestDerivationMetrics) RecordFrame() {

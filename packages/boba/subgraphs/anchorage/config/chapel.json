@@ -1,0 +1,21 @@
+{
+  "network": "chapel",
+  "contracts": {
+    "L1CrossDomainMessenger": {
+      "address": "0x53aD38aE4a63Fe33a86E011F7AF4d3fDe3daD145",
+      "startBlock": 41400516
+    },
+    "L1StandardBridge": {
+      "address": "0xBf0939120b4F5E3196b9E12cAC291e03dD058e9a",
+      "startBlock": 41400516
+    },
+    "L2OutputOracle": {
+      "address": "0xD518C4883AdFBfd7501890e84B4fdA0357B0C73A",
+      "startBlock": 41400516
+    },
+    "OptimismPortal": {
+      "address": "0xF48d08721D99E16D22Cc704991c2Ad064320aD5e",
+      "startBlock": 41400516
+    }
+  }
+}

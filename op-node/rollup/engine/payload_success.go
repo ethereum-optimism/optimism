@@ -1,14 +1,19 @@
 package engine
 
 import (
+	"time"
+
+	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
 
 type PayloadSuccessEvent struct {
-	// if payload should be promoted to safe (must also be pending safe, see DerivedFrom)
-	IsLastInSpan bool
+	// if payload should be promoted to (local) safe (must also be pending safe, see DerivedFrom)
+	Concluding bool
 	// payload is promoted to pending-safe if non-zero
-	DerivedFrom eth.L1BlockRef
+	DerivedFrom   eth.L1BlockRef
+	BuildStarted  time.Time
+	InsertStarted time.Time
 
 	Envelope *eth.ExecutionPayloadEnvelope
 	Ref      eth.L2BlockRef
@@ -19,31 +24,42 @@ func (ev PayloadSuccessEvent) String() string {
 }
 
 func (eq *EngDeriver) onPayloadSuccess(ev PayloadSuccessEvent) {
-
-	// Backup unsafeHead when new block is not built on original unsafe head.
-	if eq.ec.unsafeHead.Number >= ev.Ref.Number {
-		eq.ec.SetBackupUnsafeL2Head(eq.ec.unsafeHead, false)
+	if ev.DerivedFrom == ReplaceBlockSource {
+		eq.log.Warn("Successfully built replacement block, resetting chain to continue now", "replacement", ev.Ref)
+		// Change the engine state to make the replacement block the cross-safe head of the chain,
+		// And continue syncing from there.
+		eq.emitter.Emit(rollup.ForceResetEvent{
+			LocalUnsafe: ev.Ref,
+			CrossUnsafe: ev.Ref,
+			LocalSafe:   ev.Ref,
+			CrossSafe:   ev.Ref,
+			Finalized:   eq.ec.Finalized(),
+		})
+		eq.emitter.Emit(InteropReplacedBlockEvent{
+			Envelope: ev.Envelope,
+			Ref:      ev.Ref.BlockRef(),
+		})
+		// Apply it to the execution engine
+		eq.emitter.Emit(TryUpdateEngineEvent{})
+		// Not a regular reset, since we don't wind back to any L2 block.
+		// We start specifically from the replacement block.
+		return
 	}
-	eq.ec.SetUnsafeHead(ev.Ref)
+
+	eq.emitter.Emit(PromoteUnsafeEvent{Ref: ev.Ref})
 
 	// If derived from L1, then it can be considered (pending) safe
 	if ev.DerivedFrom != (eth.L1BlockRef{}) {
-		if ev.IsLastInSpan {
-			eq.ec.SetSafeHead(ev.Ref)
-			eq.emitter.Emit(SafeDerivedEvent{Safe: ev.Ref, DerivedFrom: ev.DerivedFrom})
-		}
-		eq.ec.SetPendingSafeL2Head(ev.Ref)
-		eq.emitter.Emit(PendingSafeUpdateEvent{
-			PendingSafe: eq.ec.PendingSafeL2Head(),
-			Unsafe:      eq.ec.UnsafeL2Head(),
+		eq.emitter.Emit(PromotePendingSafeEvent{
+			Ref:        ev.Ref,
+			Concluding: ev.Concluding,
+			Source:     ev.DerivedFrom,
 		})
 	}
 
-	payload := ev.Envelope.ExecutionPayload
-	eq.log.Info("Inserted block", "hash", payload.BlockHash, "number", uint64(payload.BlockNumber),
-		"state_root", payload.StateRoot, "timestamp", uint64(payload.Timestamp), "parent", payload.ParentHash,
-		"prev_randao", payload.PrevRandao, "fee_recipient", payload.FeeRecipient,
-		"txs", len(payload.Transactions), "last_in_span", ev.IsLastInSpan, "derived_from", ev.DerivedFrom)
-
-	eq.emitter.Emit(TryUpdateEngineEvent{})
+	eq.emitter.Emit(TryUpdateEngineEvent{
+		BuildStarted:  ev.BuildStarted,
+		InsertStarted: ev.InsertStarted,
+		Envelope:      ev.Envelope,
+	})
 }

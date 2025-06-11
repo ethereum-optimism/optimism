@@ -1,10 +1,11 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
-import { ISemver } from "src/universal/ISemver.sol";
+// Interfaces
+import { ISemver } from "interfaces/universal/ISemver.sol";
 
-/// @custom:legacy
-/// @custom:proxied
+/// @custom:legacy true
+/// @custom:proxied true
 /// @custom:predeployed 0x4200000000000000000000000000000000000002
 /// @title DeployerWhitelist
 /// @notice DeployerWhitelist is a legacy contract that was originally used to act as a whitelist of
@@ -41,8 +42,8 @@ contract DeployerWhitelist is ISemver {
     }
 
     /// @notice Semantic version.
-    /// @custom:semver 1.1.0
-    string public constant version = "1.1.0";
+    /// @custom:semver 1.1.1-beta.3
+    string public constant version = "1.1.1-beta.3";
 
     /// @notice Adds or removes an address from the deployment whitelist.
     /// @param _deployer      Address to update permissions for.

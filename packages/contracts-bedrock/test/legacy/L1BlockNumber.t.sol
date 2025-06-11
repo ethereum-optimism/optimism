@@ -1,27 +1,33 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
-// Testing utilities
+// Testing
 import { Test } from "forge-std/Test.sol";
 
-// Target contract dependencies
-import { L1Block } from "src/L2/L1Block.sol";
+// Libraries
 import { Predeploys } from "src/libraries/Predeploys.sol";
+import { DeployUtils } from "scripts/libraries/DeployUtils.sol";
 
-// Target contract
-import { L1BlockNumber } from "src/legacy/L1BlockNumber.sol";
+// Interfaces
+import { IL1BlockNumber } from "interfaces/legacy/IL1BlockNumber.sol";
+import { IL1Block } from "interfaces/L2/IL1Block.sol";
 
 contract L1BlockNumberTest is Test {
-    L1Block lb;
-    L1BlockNumber bn;
+    IL1Block lb;
+    IL1BlockNumber bn;
 
     uint64 constant number = 99;
 
     /// @dev Sets up the test suite.
     function setUp() external {
-        vm.etch(Predeploys.L1_BLOCK_ATTRIBUTES, address(new L1Block()).code);
-        lb = L1Block(Predeploys.L1_BLOCK_ATTRIBUTES);
-        bn = new L1BlockNumber();
+        vm.etch(Predeploys.L1_BLOCK_ATTRIBUTES, vm.getDeployedCode("L1Block.sol:L1Block"));
+        lb = IL1Block(Predeploys.L1_BLOCK_ATTRIBUTES);
+        bn = IL1BlockNumber(
+            DeployUtils.create1({
+                _name: "L1BlockNumber",
+                _args: DeployUtils.encodeConstructor(abi.encodeCall(IL1BlockNumber.__constructor__, ()))
+            })
+        );
         vm.prank(lb.DEPOSITOR_ACCOUNT());
 
         lb.setL1BlockValues({
@@ -43,7 +49,7 @@ contract L1BlockNumberTest is Test {
 
     /// @dev Tests that `fallback` is correctly dispatched.
     function test_fallback_succeeds() external {
-        (bool success, bytes memory ret) = address(bn).call(hex"");
+        (bool success, bytes memory ret) = address(bn).call(hex"11");
         assertEq(success, true);
         assertEq(ret, abi.encode(number));
     }

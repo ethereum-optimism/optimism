@@ -1,14 +1,13 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
+// Libraries
 import { Constants } from "src/libraries/Constants.sol";
 
-/// @title IL1ChugSplashDeployer
-interface IL1ChugSplashDeployer {
-    function isUpgrading() external view returns (bool);
-}
+// Interfaces
+import { IL1ChugSplashDeployer } from "interfaces/legacy/IL1ChugSplashProxy.sol";
 
-/// @custom:legacy
+/// @custom:legacy true
 /// @title L1ChugSplashProxy
 /// @notice Basic ChugSplash proxy contract for L1. Very close to being a normal proxy but has added
 ///         functions `setCode` and `setStorage` for changing the code or storage of the contract.

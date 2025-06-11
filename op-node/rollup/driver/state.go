@@ -26,8 +26,6 @@ import (
 type SyncStatus = eth.SyncStatus
 
 type Driver struct {
-	eventSys event.System
-
 	statusTracker SyncStatusTracker
 
 	*SyncDeriver
@@ -100,7 +98,6 @@ func (s *Driver) Start() error {
 func (s *Driver) Close() error {
 	s.driverCancel()
 	s.wg.Wait()
-	s.eventSys.Stop()
 	s.sequencer.Close()
 	return nil
 }
@@ -282,27 +279,6 @@ func (s *Driver) eventLoop() {
 	}
 }
 
-// OnEvent handles broadcasted events.
-// The Driver itself is a deriver to catch system-critical events.
-// Other event-handling should be encapsulated into standalone derivers.
-func (s *Driver) OnEvent(ev event.Event) bool {
-	switch x := ev.(type) {
-	case rollup.CriticalErrorEvent:
-		s.Log.Error("Derivation process critical error", "err", x.Err)
-		// we need to unblock event-processing to be able to close
-		go func() {
-			logger := s.Log
-			err := s.Close()
-			if err != nil {
-				logger.Error("Failed to shutdown driver on critical error", "err", err)
-			}
-		}()
-		return true
-	default:
-		return false
-	}
-}
-
 type SyncDeriver struct {
 	// The derivation pipeline is reset whenever we reorg.
 	// The derivation pipeline determines the new l2Safe.
@@ -331,6 +307,10 @@ type SyncDeriver struct {
 	Ctx context.Context
 
 	Drain func() error
+
+	// When in interop, and managed by an op-supervisor,
+	// the node performs a reset based on the instructions of the op-supervisor.
+	ManagedMode bool
 }
 
 func (s *SyncDeriver) AttachEmitter(em event.Emitter) {
@@ -340,7 +320,7 @@ func (s *SyncDeriver) AttachEmitter(em event.Emitter) {
 func (s *SyncDeriver) OnEvent(ev event.Event) bool {
 	switch x := ev.(type) {
 	case StepEvent:
-		s.onStepEvent()
+		s.SyncStep()
 	case rollup.ResetEvent:
 		s.onResetEvent(x)
 	case rollup.L1TemporaryErrorEvent:
@@ -363,6 +343,8 @@ func (s *SyncDeriver) OnEvent(ev event.Event) bool {
 		s.Emitter.Emit(StepReqEvent{ResetBackoff: true})
 	case engine.SafeDerivedEvent:
 		s.onSafeDerivedBlock(x)
+	case derive.ProvideL1Traversal:
+		s.Emitter.Emit(StepReqEvent{})
 	default:
 		return false
 	}
@@ -371,7 +353,7 @@ func (s *SyncDeriver) OnEvent(ev event.Event) bool {
 
 func (s *SyncDeriver) onSafeDerivedBlock(x engine.SafeDerivedEvent) {
 	if s.SafeHeadNotifs != nil && s.SafeHeadNotifs.Enabled() {
-		if err := s.SafeHeadNotifs.SafeHeadUpdated(x.Safe, x.DerivedFrom.ID()); err != nil {
+		if err := s.SafeHeadNotifs.SafeHeadUpdated(x.Safe, x.Source.ID()); err != nil {
 			// At this point our state is in a potentially inconsistent state as we've updated the safe head
 			// in the execution client but failed to post process it. Reset the pipeline so the safe head rolls back
 			// a little (it always rolls back at least 1 block) and then it will retry storing the entry
@@ -385,11 +367,11 @@ func (s *SyncDeriver) onEngineConfirmedReset(x engine.EngineResetConfirmedEvent)
 	// and don't confirm the engine-reset with the derivation pipeline.
 	// The pipeline will re-trigger a reset as necessary.
 	if s.SafeHeadNotifs != nil {
-		if err := s.SafeHeadNotifs.SafeHeadReset(x.Safe); err != nil {
-			s.Log.Error("Failed to warn safe-head notifier of safe-head reset", "safe", x.Safe)
+		if err := s.SafeHeadNotifs.SafeHeadReset(x.CrossSafe); err != nil {
+			s.Log.Error("Failed to warn safe-head notifier of safe-head reset", "safe", x.CrossSafe)
 			return
 		}
-		if s.SafeHeadNotifs.Enabled() && x.Safe.ID() == s.Config.Genesis.L2 {
+		if s.SafeHeadNotifs.Enabled() && x.CrossSafe.ID() == s.Config.Genesis.L2 {
 			// The rollup genesis block is always safe by definition. So if the pipeline resets this far back we know
 			// we will process all safe head updates and can record genesis as always safe from L1 genesis.
 			// Note that it is not safe to use cfg.Genesis.L1 here as it is the block immediately before the L2 genesis
@@ -400,41 +382,22 @@ func (s *SyncDeriver) onEngineConfirmedReset(x engine.EngineResetConfirmedEvent)
 				s.Log.Error("Failed to retrieve L1 genesis, cannot notify genesis as safe block", "err", err)
 				return
 			}
-			if err := s.SafeHeadNotifs.SafeHeadUpdated(x.Safe, l1Genesis.ID()); err != nil {
+			if err := s.SafeHeadNotifs.SafeHeadUpdated(x.CrossSafe, l1Genesis.ID()); err != nil {
 				s.Log.Error("Failed to notify safe-head listener of safe-head", "err", err)
 				return
 			}
 		}
 	}
+	s.Log.Info("Confirming pipeline reset")
 	s.Emitter.Emit(derive.ConfirmPipelineResetEvent{})
 }
 
-func (s *SyncDeriver) onStepEvent() {
-	s.Log.Debug("Sync process step")
-	// Note: while we refactor the SyncStep to be entirely event-based we have an intermediate phase
-	// where some things are triggered through events, and some through this synchronous step function.
-	// We just translate the results into their equivalent events,
-	// to merge the error-handling with that of the new event-based system.
-	err := s.SyncStep()
-	if err != nil && errors.Is(err, derive.EngineELSyncing) {
-		s.Log.Debug("Derivation process went idle because the engine is syncing", "unsafe_head", s.Engine.UnsafeL2Head(), "err", err)
-		s.Emitter.Emit(ResetStepBackoffEvent{})
-	} else if err != nil && errors.Is(err, derive.ErrReset) {
-		s.Emitter.Emit(rollup.ResetEvent{Err: err})
-	} else if err != nil && errors.Is(err, derive.ErrTemporary) {
-		s.Emitter.Emit(rollup.EngineTemporaryErrorEvent{Err: err})
-	} else if err != nil && errors.Is(err, derive.ErrCritical) {
-		s.Emitter.Emit(rollup.CriticalErrorEvent{Err: err})
-	} else if err != nil {
-		s.Log.Error("Derivation process error", "err", err)
-		s.Emitter.Emit(StepReqEvent{})
-	} else {
-		// Revisit SyncStep in 1/2 of a L2 block.
-		s.Emitter.Emit(StepDelayedReqEvent{Delay: (time.Duration(s.Config.BlockTime) * time.Second) / 2})
-	}
-}
-
 func (s *SyncDeriver) onResetEvent(x rollup.ResetEvent) {
+	if s.ManagedMode {
+		s.Log.Warn("Encountered reset in Managed Mode, waiting for op-supervisor", "err", x.Err)
+		// ManagedMode will pick up the ResetEvent
+		return
+	}
 	// If the system corrupts, e.g. due to a reorg, simply reset it
 	s.Log.Warn("Deriver system is resetting", "err", x.Err)
 	s.Emitter.Emit(StepReqEvent{})
@@ -443,24 +406,42 @@ func (s *SyncDeriver) onResetEvent(x rollup.ResetEvent) {
 
 // SyncStep performs the sequence of encapsulated syncing steps.
 // Warning: this sequence will be broken apart as outlined in op-node derivers design doc.
-func (s *SyncDeriver) SyncStep() error {
-	if err := s.Drain(); err != nil {
-		return err
+func (s *SyncDeriver) SyncStep() {
+	s.Log.Debug("Sync process step")
+
+	drain := func() (ok bool) {
+		if err := s.Drain(); err != nil {
+			if errors.Is(err, context.Canceled) {
+				return false
+			} else {
+				s.Emitter.Emit(rollup.CriticalErrorEvent{
+					Err: fmt.Errorf("unexpected error on SyncStep event Drain: %w", err)})
+				return false
+			}
+		}
+		return true
+	}
+
+	if !drain() {
+		return
 	}
 
 	s.Emitter.Emit(engine.TryBackupUnsafeReorgEvent{})
-	if err := s.Drain(); err != nil {
-		return err
+	if !drain() {
+		return
 	}
 
 	s.Emitter.Emit(engine.TryUpdateEngineEvent{})
-	if err := s.Drain(); err != nil {
-		return err
+	if !drain() {
+		return
 	}
 
 	if s.Engine.IsEngineSyncing() {
 		// The pipeline cannot move forwards if doing EL sync.
-		return derive.EngineELSyncing
+		s.Log.Debug("Rollup driver is backing off because execution engine is syncing.",
+			"unsafe_head", s.Engine.UnsafeL2Head())
+		s.Emitter.Emit(ResetStepBackoffEvent{})
+		return
 	}
 
 	// Any now processed forkchoice updates will trigger CL-sync payload processing, if any payload is queued up.
@@ -472,7 +453,12 @@ func (s *SyncDeriver) SyncStep() error {
 	// Upon the pending-safe signal the attributes deriver can then ask the pipeline
 	// to generate new attributes, if no attributes are known already.
 	s.Emitter.Emit(engine.PendingSafeRequestEvent{})
-	return nil
+
+	// If interop is configured, we have to run the engine events,
+	// to ensure cross-L2 safety is continuously verified against the interop-backend.
+	if s.Config.InteropTime != nil && !s.ManagedMode {
+		s.Emitter.Emit(engine.CrossUpdateRequestEvent{})
+	}
 }
 
 // ResetDerivationPipeline forces a reset of the derivation pipeline.
@@ -507,6 +493,10 @@ func (s *Driver) SequencerActive(ctx context.Context) (bool, error) {
 
 func (s *Driver) OverrideLeader(ctx context.Context) error {
 	return s.sequencer.OverrideLeader(ctx)
+}
+
+func (s *Driver) ConductorEnabled(ctx context.Context) (bool, error) {
+	return s.sequencer.ConductorEnabled(ctx), nil
 }
 
 // SyncStatus blocks the driver event loop and captures the syncing status.

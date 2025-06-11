@@ -1,0 +1,103 @@
+type DepositFinalized @entity(immutable: true) {
+  id: Bytes!
+  l1Token: Bytes! # address
+  l2Token: Bytes! # address
+  from: Bytes! # address
+  to: Bytes! # address
+  amount: BigInt! # uint256
+  extraData: Bytes! # bytes
+  blockNumber: BigInt!
+  blockTimestamp: BigInt!
+  transactionHash: Bytes!
+}
+
+type ERC20BridgeFinalized @entity(immutable: true) {
+  id: Bytes!
+  localToken: Bytes! # address
+  remoteToken: Bytes! # address
+  from: Bytes! # address
+  to: Bytes! # address
+  amount: BigInt! # uint256
+  extraData: Bytes! # bytes
+  blockNumber: BigInt!
+  blockTimestamp: BigInt!
+  transactionHash: Bytes!
+}
+
+type ERC20BridgeInitiated @entity(immutable: true) {
+  id: Bytes!
+  localToken: Bytes! # address
+  remoteToken: Bytes! # address
+  from: Bytes! # address
+  to: Bytes! # address
+  amount: BigInt! # uint256
+  extraData: Bytes! # bytes
+  blockNumber: BigInt!
+  blockTimestamp: BigInt!
+  transactionHash: Bytes!
+}
+
+type ETHBridgeFinalized @entity(immutable: true) {
+  id: Bytes!
+  from: Bytes! # address
+  to: Bytes! # address
+  amount: BigInt! # uint256
+  extraData: Bytes! # bytes
+  blockNumber: BigInt!
+  blockTimestamp: BigInt!
+  transactionHash: Bytes!
+}
+
+type ETHBridgeInitiated @entity(immutable: true) {
+  id: Bytes!
+  from: Bytes! # address
+  to: Bytes! # address
+  amount: BigInt! # uint256
+  extraData: Bytes # bytes
+  blockNumber: BigInt!
+  blockTimestamp: BigInt!
+  transactionHash: Bytes!
+}
+
+type Initialized @entity(immutable: true) {
+  id: Bytes!
+  version: Int! # uint8
+  blockNumber: BigInt!
+  blockTimestamp: BigInt!
+  transactionHash: Bytes!
+}
+
+type WithdrawalInitiated @entity(immutable: true) {
+  id: Bytes!
+  l1Token: Bytes! # address
+  l2Token: Bytes! # address
+  from: Bytes! # address
+  to: Bytes! # address
+  amount: BigInt! # uint256
+  extraData: Bytes! # bytes
+  blockNumber: BigInt!
+  blockTimestamp: BigInt!
+  transactionHash: Bytes!
+}
+
+type MessagePassed @entity(immutable: true) {
+  id: Bytes!
+  nonce: BigInt! # uint256
+  sender: Bytes! # address
+  target: Bytes! # address
+  value: BigInt! # uint256
+  gasLimit: BigInt! # uint256
+  data: Bytes! # bytes
+  withdrawalHash: Bytes! # bytes32
+  blockNumber: BigInt!
+  blockTimestamp: BigInt!
+  transactionHash: Bytes!
+}
+
+type WithdrawerBalanceBurnt @entity(immutable: true) {
+  id: Bytes!
+  amount: BigInt! # uint256
+  blockNumber: BigInt!
+  blockTimestamp: BigInt!
+  transactionHash: Bytes!
+}

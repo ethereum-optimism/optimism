@@ -13,6 +13,9 @@ The subgraph.yaml file always contains the latest network chosen:
 - Install deps \
   ```yarn```
 
+- Generate `subgraph.yaml` \
+  ```yarn prepare:boba```
+
 
 - Build files \
   ```npx graph codegen && npx graph build```
@@ -41,25 +44,29 @@ The subgraph.yaml file always contains the latest network chosen:
 | arbitrum-sepolia | light-bridge-arbitrum-sepolia | ✅        |
 | bsc              | light-bridge-bsc              | ✅        |
 | x                | light-bridge-boba-bnb         | ❌        |
-| x                | light-bridge-boba-sepolia     | ❌        |
+| boba-sepolia     | light-bridge-boba-sepolia     | ✅        |
 | arbitrum-one     | light-bridge-arbitrum-one     | ✅        |
 | mainnet          | light-bridge-mainnet          | ✅        |
 | optimism         | light-bridge-optimism         | ✅        |
-| x                | light-bridge-boba-eth         | ❌        |
+| boba             | light-bridge-boba-eth         | ✅        |
 | sepolia          | light-bridge-sepolia          | ✅        |
-
 
 #### DAO
 
-| NETWORK | PROJECT_NAME               | Deployed? |
-|---------|------------------------|-----------|
-| x       | dao-boba-eth           | ❌         |
+| NETWORK | PROJECT_NAME | Deployed? |
+|---------|--------------|-----------|
+| x       | dao-boba-eth | ✅         |
 
 #### Anchorage
 
-| NETWORK | PROJECT_NAME                               | Deployed |
-|--------|----------------------------------------|----------|
-| x      | anchorage-bridge-boba-eth              | ❌        |
-| mainnet | anchorage-bridge-mainnet               | ❌        |
-| sepolia | anchorage-bridge-bridging-sepolia      | ❌        |
-|        | anchorage-bridge-bridging-boba-sepolia | ❌        |
+| NETWORK | PROJECT_NAME             | Deployed |
+|---------|--------------------------|----------|
+| mainnet | anchorage-bridge-mainnet | ✅        |
+| sepolia | anchorage-bridge-sepolia | ✅        |
+
+#### Anchorage Boba
+
+| NETWORK      | PROJECT_NAME                           | Deployed |
+|--------------|----------------------------------------|----------|
+| boba         | anchorage-bridge-boba-eth              | ✅        |
+| boba-sepolia | anchorage-bridge-bridging-boba-sepolia | ✅        |

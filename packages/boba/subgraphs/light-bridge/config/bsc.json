@@ -1,0 +1,9 @@
+{
+  "network": "bsc",
+  "contracts": {
+    "LightBridge": {
+      "address": "0x670b130112C6f03E17192e63c67866e67D77c3ee",
+      "startBlock": 36194993
+    }
+  }
+}

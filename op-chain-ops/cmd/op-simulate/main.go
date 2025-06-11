@@ -11,7 +11,10 @@ import (
 	"path"
 	"time"
 
+	"github.com/ethereum-optimism/optimism/op-service/superutil"
+
 	"github.com/ethereum/go-ethereum/core/tracing"
+	"github.com/ethereum/go-ethereum/triedb"
 	"github.com/holiman/uint256"
 	"github.com/pkg/profile"
 	"github.com/urfave/cli/v2"
@@ -20,6 +23,7 @@ import (
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/consensus"
 	"github.com/ethereum/go-ethereum/consensus/beacon"
+	"github.com/ethereum/go-ethereum/consensus/ethash"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/rawdb"
 	gstate "github.com/ethereum/go-ethereum/core/state"
@@ -33,8 +37,8 @@ import (
 
 	op_service "github.com/ethereum-optimism/optimism/op-service"
 	"github.com/ethereum-optimism/optimism/op-service/cliapp"
+	"github.com/ethereum-optimism/optimism/op-service/ctxinterrupt"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
-	"github.com/ethereum-optimism/optimism/op-service/opio"
 )
 
 var EnvPrefix = "OP_SIMULATE"
@@ -82,7 +86,7 @@ func main() {
 }
 
 func mainAction(c *cli.Context) error {
-	ctx := opio.CancelOnInterrupt(c.Context)
+	ctx := ctxinterrupt.WithCancelOnInterrupt(c.Context)
 	logCfg := oplog.ReadCLIConfig(c)
 	logger := oplog.NewLogger(c.App.Writer, logCfg)
 
@@ -155,7 +159,6 @@ func fetchPrestate(ctx context.Context, cl *rpc.Client, dir string, txHash commo
 			DisableStack:     true,
 			DisableStorage:   true,
 			EnableReturnData: false,
-			Debug:            false,
 			Limit:            0,
 			Overrides:        nil,
 		},
@@ -180,7 +183,7 @@ func fetchChainConfig(ctx context.Context, cl *rpc.Client) (*params.ChainConfig,
 	// if we recognize the chain ID, we can get the chain config
 	id := (*big.Int)(&idResult)
 	if id.IsUint64() {
-		cfg, err := params.LoadOPStackChainConfig(id.Uint64())
+		cfg, err := superutil.LoadOPStackChainConfigFromChainID(id.Uint64())
 		if err == nil {
 			return cfg, nil
 		}
@@ -188,7 +191,7 @@ func fetchChainConfig(ctx context.Context, cl *rpc.Client) (*params.ChainConfig,
 	}
 	// if not already recognized, then fetch the chain config manually
 	var config params.ChainConfig
-	if err := cl.CallContext(ctx, &config, "eth_chainConfig"); err != nil {
+	if err := cl.CallContext(ctx, &config, "debug_chainConfig"); err != nil {
 		return nil, fmt.Errorf("failed to retrieve chain config: %w", err)
 	}
 	return &config, nil
@@ -232,6 +235,7 @@ func readDump(prestatePath string) (map[common.Address]DumpAccount, error) {
 type simChainContext struct {
 	eng  consensus.Engine
 	head *types.Header
+	cfg  *params.ChainConfig
 }
 
 func (d *simChainContext) Engine() consensus.Engine {
@@ -245,11 +249,15 @@ func (d *simChainContext) GetHeader(h common.Hash, n uint64) *types.Header {
 	panic(fmt.Errorf("header retrieval not supported, cannot fetch %s %d", h, n))
 }
 
+func (d *simChainContext) Config() *params.ChainConfig {
+	return d.cfg
+}
+
 func simulate(ctx context.Context, logger log.Logger, conf *params.ChainConfig,
 	prestatePath string, tx *types.Transaction, header *types.Header, doProfile bool) error {
 	memDB := rawdb.NewMemoryDatabase()
-	stateDB := gstate.NewDatabase(memDB)
-	state, err := gstate.New(types.EmptyRootHash, stateDB, nil)
+	stateDB := gstate.NewDatabase(triedb.NewDatabase(memDB, nil), nil)
+	state, err := gstate.New(types.EmptyRootHash, stateDB)
 	if err != nil {
 		return fmt.Errorf("failed to create in-memory state: %w", err)
 	}
@@ -260,13 +268,13 @@ func simulate(ctx context.Context, logger log.Logger, conf *params.ChainConfig,
 	for addr, acc := range dump {
 		state.CreateAccount(addr)
 		state.SetBalance(addr, uint256.MustFromBig((*big.Int)(&acc.Balance)), tracing.BalanceChangeUnspecified)
-		state.SetNonce(addr, acc.Nonce)
+		state.SetNonce(addr, acc.Nonce, tracing.NonceChangeUnspecified)
 		state.SetCode(addr, acc.Code)
 		state.SetStorage(addr, acc.Storage)
 	}
 
 	// load prestate data into memory db state
-	_, err = state.Commit(header.Number.Uint64()-1, true)
+	_, err = state.Commit(header.Number.Uint64()-1, true, conf.IsCancun(header.Number, header.Time))
 	if err != nil {
 		return fmt.Errorf("failed to write state data to underlying DB: %w", err)
 	}
@@ -282,7 +290,7 @@ func simulate(ctx context.Context, logger log.Logger, conf *params.ChainConfig,
 	state.Prepare(rules, sender, header.Coinbase, tx.To(), precompiles, tx.AccessList())
 	state.SetTxContext(tx.Hash(), 0)
 
-	cCtx := &simChainContext{eng: beacon.NewFaker(), head: header}
+	cCtx := &simChainContext{eng: beacon.New(ethash.NewFaker()), head: header, cfg: conf}
 	gp := core.GasPool(tx.Gas())
 	usedGas := uint64(0)
 	vmConfig := vm.Config{}
@@ -294,7 +302,10 @@ func simulate(ctx context.Context, logger log.Logger, conf *params.ChainConfig,
 
 	// run the transaction
 	start := time.Now()
-	receipt, err := core.ApplyTransaction(conf, cCtx, &sender, &gp, state, header, tx, &usedGas, vmConfig)
+	// nil block-author, since it defaults to header.coinbase
+	blockCtx := core.NewEVMBlockContext(header, cCtx, nil, conf, state)
+	evm := vm.NewEVM(blockCtx, state, conf, vmConfig)
+	receipt, err := core.ApplyTransaction(evm, &gp, state, header, tx, &usedGas)
 	if err != nil {
 		return fmt.Errorf("failed to apply tx: %w", err)
 	}

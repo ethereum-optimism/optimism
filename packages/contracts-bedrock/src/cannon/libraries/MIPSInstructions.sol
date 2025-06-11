@@ -1,10 +1,32 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.15;
+pragma solidity ^0.8.0;
 
+// Libraries
 import { MIPSMemory } from "src/cannon/libraries/MIPSMemory.sol";
 import { MIPSState as st } from "src/cannon/libraries/MIPSState.sol";
 
 library MIPSInstructions {
+    uint32 internal constant OP_LOAD_LINKED = 0x30;
+    uint32 internal constant OP_STORE_CONDITIONAL = 0x38;
+    uint32 internal constant REG_RA = 31;
+
+    struct CoreStepLogicParams {
+        /// @param opcode The opcode value parsed from insn_.
+        st.CpuScalars cpu;
+        /// @param registers The CPU registers.
+        uint32[32] registers;
+        /// @param memRoot The current merkle root of the memory.
+        bytes32 memRoot;
+        /// @param memProofOffset The offset in calldata specify where the memory merkle proof is located.
+        uint256 memProofOffset;
+        /// @param insn The current 32-bit instruction at the pc.
+        uint32 insn;
+        /// @param cpu The CPU scalar fields.
+        uint32 opcode;
+        /// @param fun The function value parsed from insn_.
+        uint32 fun;
+    }
+
     /// @param _pc The program counter.
     /// @param _memRoot The current memory root.
     /// @param _insnProofOffset The calldata offset of the memory proof for the current instruction.
@@ -30,91 +52,80 @@ library MIPSInstructions {
     }
 
     /// @notice Execute core MIPS step logic.
-    /// @notice _cpu The CPU scalar fields.
-    /// @notice _registers The CPU registers.
-    /// @notice _memRoot The current merkle root of the memory.
-    /// @notice _memProofOffset The offset in calldata specify where the memory merkle proof is located.
-    /// @param _insn The current 32-bit instruction at the pc.
-    /// @param _opcode The opcode value parsed from insn_.
-    /// @param _fun The function value parsed from insn_.
     /// @return newMemRoot_ The updated merkle root of memory after any modifications, may be unchanged.
-    function execMipsCoreStepLogic(
-        st.CpuScalars memory _cpu,
-        uint32[32] memory _registers,
-        bytes32 _memRoot,
-        uint256 _memProofOffset,
-        uint32 _insn,
-        uint32 _opcode,
-        uint32 _fun
-    )
+    /// @return memUpdated_ True if memory was modified.
+    /// @return memAddr_ Holds the memory address that was updated if memUpdated_ is true.
+    function execMipsCoreStepLogic(CoreStepLogicParams memory _args)
         internal
         pure
-        returns (bytes32 newMemRoot_)
+        returns (bytes32 newMemRoot_, bool memUpdated_, uint32 memAddr_)
     {
         unchecked {
-            newMemRoot_ = _memRoot;
+            newMemRoot_ = _args.memRoot;
+            memUpdated_ = false;
+            memAddr_ = 0;
 
             // j-type j/jal
-            if (_opcode == 2 || _opcode == 3) {
+            if (_args.opcode == 2 || _args.opcode == 3) {
                 // Take top 4 bits of the next PC (its 256 MB region), and concatenate with the 26-bit offset
-                uint32 target = (_cpu.nextPC & 0xF0000000) | (_insn & 0x03FFFFFF) << 2;
-                handleJump(_cpu, _registers, _opcode == 2 ? 0 : 31, target);
-                return newMemRoot_;
+                uint32 target = (_args.cpu.nextPC & 0xF0000000) | (_args.insn & 0x03FFFFFF) << 2;
+                handleJump(_args.cpu, _args.registers, _args.opcode == 2 ? 0 : 31, target);
+                return (newMemRoot_, memUpdated_, memAddr_);
             }
 
             // register fetch
             uint32 rs = 0; // source register 1 value
             uint32 rt = 0; // source register 2 / temp value
-            uint32 rtReg = (_insn >> 16) & 0x1F;
+            uint32 rtReg = (_args.insn >> 16) & 0x1F;
 
             // R-type or I-type (stores rt)
-            rs = _registers[(_insn >> 21) & 0x1F];
+            rs = _args.registers[(_args.insn >> 21) & 0x1F];
             uint32 rdReg = rtReg;
 
-            if (_opcode == 0 || _opcode == 0x1c) {
+            if (_args.opcode == 0 || _args.opcode == 0x1c) {
                 // R-type (stores rd)
-                rt = _registers[rtReg];
-                rdReg = (_insn >> 11) & 0x1F;
-            } else if (_opcode < 0x20) {
+                rt = _args.registers[rtReg];
+                rdReg = (_args.insn >> 11) & 0x1F;
+            } else if (_args.opcode < 0x20) {
                 // rt is SignExtImm
                 // don't sign extend for andi, ori, xori
-                if (_opcode == 0xC || _opcode == 0xD || _opcode == 0xe) {
+                if (_args.opcode == 0xC || _args.opcode == 0xD || _args.opcode == 0xe) {
                     // ZeroExtImm
-                    rt = _insn & 0xFFFF;
+                    rt = _args.insn & 0xFFFF;
                 } else {
                     // SignExtImm
-                    rt = signExtend(_insn & 0xFFFF, 16);
+                    rt = signExtend(_args.insn & 0xFFFF, 16);
                 }
-            } else if (_opcode >= 0x28 || _opcode == 0x22 || _opcode == 0x26) {
+            } else if (_args.opcode >= 0x28 || _args.opcode == 0x22 || _args.opcode == 0x26) {
                 // store rt value with store
-                rt = _registers[rtReg];
+                rt = _args.registers[rtReg];
 
                 // store actual rt with lwl and lwr
                 rdReg = rtReg;
             }
 
-            if ((_opcode >= 4 && _opcode < 8) || _opcode == 1) {
+            if ((_args.opcode >= 4 && _args.opcode < 8) || _args.opcode == 1) {
                 handleBranch({
-                    _cpu: _cpu,
-                    _registers: _registers,
-                    _opcode: _opcode,
-                    _insn: _insn,
+                    _cpu: _args.cpu,
+                    _registers: _args.registers,
+                    _opcode: _args.opcode,
+                    _insn: _args.insn,
                     _rtReg: rtReg,
                     _rs: rs
                 });
-                return newMemRoot_;
+                return (newMemRoot_, memUpdated_, memAddr_);
             }
 
             uint32 storeAddr = 0xFF_FF_FF_FF;
             // memory fetch (all I-type)
             // we do the load for stores also
             uint32 mem = 0;
-            if (_opcode >= 0x20) {
+            if (_args.opcode >= 0x20) {
                 // M[R[rs]+SignExtImm]
-                rs += signExtend(_insn & 0xFFFF, 16);
+                rs += signExtend(_args.insn & 0xFFFF, 16);
                 uint32 addr = rs & 0xFFFFFFFC;
-                mem = MIPSMemory.readMem(_memRoot, addr, _memProofOffset);
-                if (_opcode >= 0x28 && _opcode != 0x30) {
+                mem = MIPSMemory.readMem(_args.memRoot, addr, _args.memProofOffset);
+                if (_args.opcode >= 0x28) {
                     // store
                     storeAddr = addr;
                     // store opcodes don't write back to a register
@@ -124,49 +135,58 @@ library MIPSInstructions {
 
             // ALU
             // Note: swr outputs more than 4 bytes without the mask 0xffFFffFF
-            uint32 val = executeMipsInstruction(_insn, _opcode, _fun, rs, rt, mem) & 0xffFFffFF;
+            uint32 val = executeMipsInstruction(_args.insn, _args.opcode, _args.fun, rs, rt, mem) & 0xffFFffFF;
 
-            if (_opcode == 0 && _fun >= 8 && _fun < 0x1c) {
-                if (_fun == 8 || _fun == 9) {
+            if (_args.opcode == 0 && _args.fun >= 8 && _args.fun < 0x1c) {
+                if (_args.fun == 8 || _args.fun == 9) {
                     // jr/jalr
-                    handleJump(_cpu, _registers, _fun == 8 ? 0 : rdReg, rs);
-                    return newMemRoot_;
+                    handleJump(_args.cpu, _args.registers, _args.fun == 8 ? 0 : rdReg, rs);
+                    return (newMemRoot_, memUpdated_, memAddr_);
                 }
 
-                if (_fun == 0xa) {
+                if (_args.fun == 0xa) {
                     // movz
-                    handleRd(_cpu, _registers, rdReg, rs, rt == 0);
-                    return newMemRoot_;
+                    handleRd(_args.cpu, _args.registers, rdReg, rs, rt == 0);
+                    return (newMemRoot_, memUpdated_, memAddr_);
                 }
-                if (_fun == 0xb) {
+                if (_args.fun == 0xb) {
                     // movn
-                    handleRd(_cpu, _registers, rdReg, rs, rt != 0);
-                    return newMemRoot_;
+                    handleRd(_args.cpu, _args.registers, rdReg, rs, rt != 0);
+                    return (newMemRoot_, memUpdated_, memAddr_);
                 }
 
                 // lo and hi registers
                 // can write back
-                if (_fun >= 0x10 && _fun < 0x1c) {
-                    handleHiLo({ _cpu: _cpu, _registers: _registers, _fun: _fun, _rs: rs, _rt: rt, _storeReg: rdReg });
-
-                    return newMemRoot_;
+                if (_args.fun >= 0x10 && _args.fun < 0x1c) {
+                    handleHiLo({
+                        _cpu: _args.cpu,
+                        _registers: _args.registers,
+                        _fun: _args.fun,
+                        _rs: rs,
+                        _rt: rt,
+                        _storeReg: rdReg
+                    });
+                    return (newMemRoot_, memUpdated_, memAddr_);
                 }
-            }
-
-            // stupid sc, write a 1 to rt
-            if (_opcode == 0x38 && rtReg != 0) {
-                _registers[rtReg] = 1;
             }
 
             // write memory
             if (storeAddr != 0xFF_FF_FF_FF) {
-                newMemRoot_ = MIPSMemory.writeMem(storeAddr, _memProofOffset, val);
+                newMemRoot_ = MIPSMemory.writeMem(storeAddr, _args.memProofOffset, val);
+                memUpdated_ = true;
+                memAddr_ = storeAddr;
             }
 
             // write back the value to destination register
-            handleRd(_cpu, _registers, rdReg, val, true);
+            handleRd(_args.cpu, _args.registers, rdReg, val, true);
 
-            return newMemRoot_;
+            return (newMemRoot_, memUpdated_, memAddr_);
+        }
+    }
+
+    function signExtendImmediate(uint32 _insn) internal pure returns (uint32 offset_) {
+        unchecked {
+            return signExtend(_insn & 0xFFFF, 16);
         }
     }
 
@@ -227,7 +247,10 @@ library MIPSInstructions {
                 }
                 // srav
                 else if (_fun == 0x07) {
-                    return signExtend(_rt >> _rs, 32 - _rs);
+                    // shamt here is different than the typical shamt which comes from the
+                    // instruction itself, here it comes from the rs register
+                    uint32 shamt = _rs & 0x1F;
+                    return signExtend(_rt >> shamt, 32 - shamt);
                 }
                 // functs in range [0x8, 0x1b] are handled specially by other functions
                 // Explicitly enumerate each funct in range to reduce code diff against Go Vm
@@ -357,11 +380,11 @@ library MIPSInstructions {
                 }
                 // lb
                 else if (_opcode == 0x20) {
-                    return signExtend((_mem >> (24 - (_rs & 3) * 8)) & 0xFF, 8);
+                    return selectSubWord(_rs, _mem, 1, true);
                 }
                 // lh
                 else if (_opcode == 0x21) {
-                    return signExtend((_mem >> (16 - (_rs & 2) * 8)) & 0xFFFF, 16);
+                    return selectSubWord(_rs, _mem, 2, true);
                 }
                 // lwl
                 else if (_opcode == 0x22) {
@@ -371,15 +394,15 @@ library MIPSInstructions {
                 }
                 // lw
                 else if (_opcode == 0x23) {
-                    return _mem;
+                    return selectSubWord(_rs, _mem, 4, true);
                 }
                 // lbu
                 else if (_opcode == 0x24) {
-                    return (_mem >> (24 - (_rs & 3) * 8)) & 0xFF;
+                    return selectSubWord(_rs, _mem, 1, false);
                 }
                 //  lhu
                 else if (_opcode == 0x25) {
-                    return (_mem >> (16 - (_rs & 2) * 8)) & 0xFFFF;
+                    return selectSubWord(_rs, _mem, 2, false);
                 }
                 //  lwr
                 else if (_opcode == 0x26) {
@@ -389,15 +412,11 @@ library MIPSInstructions {
                 }
                 //  sb
                 else if (_opcode == 0x28) {
-                    uint32 val = (_rt & 0xFF) << (24 - (_rs & 3) * 8);
-                    uint32 mask = 0xFFFFFFFF ^ uint32(0xFF << (24 - (_rs & 3) * 8));
-                    return (_mem & mask) | val;
+                    return updateSubWord(_rs, _mem, 1, _rt);
                 }
                 //  sh
                 else if (_opcode == 0x29) {
-                    uint32 val = (_rt & 0xFFFF) << (16 - (_rs & 2) * 8);
-                    uint32 mask = 0xFFFFFFFF ^ uint32(0xFFFF << (16 - (_rs & 2) * 8));
-                    return (_mem & mask) | val;
+                    return updateSubWord(_rs, _mem, 2, _rt);
                 }
                 //  swl
                 else if (_opcode == 0x2a) {
@@ -407,21 +426,13 @@ library MIPSInstructions {
                 }
                 //  sw
                 else if (_opcode == 0x2b) {
-                    return _rt;
+                    return updateSubWord(_rs, _mem, 4, _rt);
                 }
                 //  swr
                 else if (_opcode == 0x2e) {
                     uint32 val = _rt << (24 - (_rs & 3) * 8);
                     uint32 mask = uint32(0xFFFFFFFF) << (24 - (_rs & 3) * 8);
                     return (_mem & ~mask) | val;
-                }
-                // ll
-                else if (_opcode == 0x30) {
-                    return _mem;
-                }
-                // sc
-                else if (_opcode == 0x38) {
-                    return _rt;
                 } else {
                     revert("invalid instruction");
                 }
@@ -433,7 +444,7 @@ library MIPSInstructions {
     /// @notice Extends the value leftwards with its most significant bit (sign extension).
     function signExtend(uint32 _dat, uint32 _idx) internal pure returns (uint32 out_) {
         unchecked {
-            bool isSigned = (_dat >> (_idx - 1)) != 0;
+            bool isSigned = (_dat >> (_idx - 1)) & 1 != 0;
             uint256 signed = ((1 << (32 - _idx)) - 1) << _idx;
             uint256 mask = (1 << _idx) - 1;
             return uint32(_dat & mask | (isSigned ? signed : 0));
@@ -485,8 +496,18 @@ library MIPSInstructions {
                 if (rtv == 0) {
                     shouldBranch = int32(_rs) < 0;
                 }
+                // bltzal
+                if (rtv == 0x10) {
+                    shouldBranch = int32(_rs) < 0;
+                    _registers[31] = _cpu.pc + 8; // always set regardless of branch taken
+                }
                 if (rtv == 1) {
                     shouldBranch = int32(_rs) >= 0;
+                }
+                // bgezal (i.e. bal mnemonic)
+                if (rtv == 0x11) {
+                    shouldBranch = int32(_rs) >= 0;
+                    _registers[REG_RA] = _cpu.pc + 8; // always set regardless of branch taken
                 }
             }
 
@@ -647,5 +668,70 @@ library MIPSInstructions {
             _cpu.pc = _cpu.nextPC;
             _cpu.nextPC = _cpu.nextPC + 4;
         }
+    }
+
+    /// @notice Selects a subword of byteLength size contained in memWord based on the low-order bits of vaddr
+    /// @param _vaddr The virtual address of the the subword.
+    /// @param _memWord The full word to select a subword from.
+    /// @param _byteLength The size of the subword.
+    /// @param _signExtend Whether to sign extend the selected subwrod.
+    function selectSubWord(
+        uint32 _vaddr,
+        uint32 _memWord,
+        uint32 _byteLength,
+        bool _signExtend
+    )
+        internal
+        pure
+        returns (uint32 retval_)
+    {
+        (uint32 dataMask, uint32 bitOffset, uint32 bitLength) = calculateSubWordMaskAndOffset(_vaddr, _byteLength);
+        retval_ = (_memWord >> bitOffset) & dataMask;
+        if (_signExtend) {
+            retval_ = signExtend(retval_, bitLength);
+        }
+        return retval_;
+    }
+
+    /// @notice Returns a word that has been updated by the specified subword at bit positions determined by the virtual
+    /// address
+    /// @param _vaddr The virtual address of the subword.
+    /// @param _memWord The full word to update.
+    /// @param _byteLength The size of the subword.
+    /// @param _value The subword that updates _memWord.
+    function updateSubWord(
+        uint32 _vaddr,
+        uint32 _memWord,
+        uint32 _byteLength,
+        uint32 _value
+    )
+        internal
+        pure
+        returns (uint32 word_)
+    {
+        (uint32 dataMask, uint32 bitOffset,) = calculateSubWordMaskAndOffset(_vaddr, _byteLength);
+        uint32 subWordValue = dataMask & _value;
+        uint32 memUpdateMask = dataMask << bitOffset;
+        return subWordValue << bitOffset | (~memUpdateMask) & _memWord;
+    }
+
+    function calculateSubWordMaskAndOffset(
+        uint32 _vaddr,
+        uint32 _byteLength
+    )
+        internal
+        pure
+        returns (uint32 dataMask_, uint32 bitOffset_, uint32 bitLength_)
+    {
+        uint32 bitLength = _byteLength << 3;
+        uint32 dataMask = ~uint32(0) >> (32 - bitLength);
+
+        // Figure out sub-word index based on the low-order bits in vaddr
+        uint32 byteIndexMask = _vaddr & 0x3 & ~(_byteLength - 1);
+        uint32 maxByteShift = 4 - _byteLength;
+        uint32 byteIndex = _vaddr & byteIndexMask;
+        uint32 bitOffset = (maxByteShift - byteIndex) << 3;
+
+        return (dataMask, bitOffset, bitLength);
     }
 }

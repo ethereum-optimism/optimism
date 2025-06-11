@@ -1,0 +1,21 @@
+{
+  "network": "mainnet",
+  "contracts": {
+    "L1CrossDomainMessenger": {
+      "address": "0x6D4528d192dB72E282265D6092F4B872f9Dff69e",
+      "startBlock": 19592017
+    },
+    "L1StandardBridge": {
+      "address": "0xdc1664458d2f0B6090bEa60A8793A4E66c2F1c00",
+      "startBlock": 19592017
+    },
+    "L2OutputOracle": {
+      "address": "0xbB7aD3f9CCbC94085b7F7B1D5258e59F5F068741",
+      "startBlock": 19592017
+    },
+    "OptimismPortal": {
+      "address": "0x7B02D13904D8e6E0f0Efaf756aB14Cb0FF21eE7e",
+      "startBlock": 19592017
+    }
+  }
+}

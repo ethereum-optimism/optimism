@@ -1,0 +1,72 @@
+specVersion: 1.0.0
+indexerHints:
+  prune: auto
+schema:
+  file: ./schema.graphql
+dataSources:
+  - kind: ethereum
+    name: L2StandardBridge
+    network: {{network}}
+    source:
+      abi: L2StandardBridge
+      address: '{{contracts.L2StandardBridge.address}}'
+      startBlock: {{contracts.L2StandardBridge.startBlock}}
+    mapping:
+      kind: ethereum/events
+      apiVersion: 0.0.7
+      language: wasm/assemblyscript
+      entities:
+        - DepositFinalized
+        - ERC20BridgeFinalized
+        - ERC20BridgeInitiated
+        - ETHBridgeFinalized
+        - ETHBridgeInitiated
+        - Initialized
+        - WithdrawalInitiated
+      abis:
+        - name: L2StandardBridge
+          file: ./abis/L2StandardBridge.json
+      eventHandlers:
+        - event: DepositFinalized(indexed address,indexed address,indexed
+            address,address,uint256,bytes)
+          handler: handleDepositFinalized
+        - event: ERC20BridgeFinalized(indexed address,indexed address,indexed
+            address,address,uint256,bytes)
+          handler: handleERC20BridgeFinalized
+        - event: ERC20BridgeInitiated(indexed address,indexed address,indexed
+            address,address,uint256,bytes)
+          handler: handleERC20BridgeInitiated
+        - event: ETHBridgeFinalized(indexed address,indexed address,uint256,bytes)
+          handler: handleETHBridgeFinalized
+        - event: ETHBridgeInitiated(indexed address,indexed address,uint256,bytes)
+          handler: handleETHBridgeInitiated
+        - event: Initialized(uint8)
+          handler: handleInitialized
+        - event: WithdrawalInitiated(indexed address,indexed address,indexed
+            address,address,uint256,bytes)
+          handler: handleWithdrawalInitiated
+      file: ./src/l2-standard-bridge.ts
+  - kind: ethereum
+    name: L2ToL1MessagePasser
+    network: {{network}}
+    source:
+      abi: L2ToL1MessagePasser
+      address: '{{contracts.L2ToL1MessagePasser.address}}'
+      startBlock: {{contracts.L2ToL1MessagePasser.startBlock}}
+    mapping:
+      kind: ethereum/events
+      apiVersion: 0.0.7
+      language: wasm/assemblyscript
+      entities:
+        - MessagePassed
+        - WithdrawerBalanceBurnt
+      abis:
+        - name: L2ToL1MessagePasser
+          file: ./abis/L2ToL1MessagePasser.json
+      eventHandlers:
+        - event: MessagePassed(indexed uint256,indexed address,indexed
+            address,uint256,uint256,bytes,bytes32)
+          handler: handleMessagePassed
+        - event: WithdrawerBalanceBurnt(indexed uint256)
+          handler: handleWithdrawerBalanceBurnt
+      file: ./src/l2-to-l1-message-passer.ts

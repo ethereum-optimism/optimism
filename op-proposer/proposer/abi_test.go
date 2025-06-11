@@ -7,11 +7,11 @@ import (
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-proposer/bindings"
+	"github.com/ethereum-optimism/optimism/op-proposer/proposer/source"
 	"github.com/ethereum-optimism/optimism/op-service/testutils"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind/backends"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/common/math"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/params"
@@ -46,23 +46,6 @@ func setupL2OutputOracle() (common.Address, *bind.TransactOpts, *backends.Simula
 	return from, opts, backend, contract, nil
 }
 
-// setupDisputeGameFactory deploys the DisputeGameFactory contract to a simulated backend
-func setupDisputeGameFactory() (common.Address, *bind.TransactOpts, *backends.SimulatedBackend, *bindings.DisputeGameFactory, error) {
-	_, from, opts, backend, err := simulatedBackend()
-	if err != nil {
-		return common.Address{}, nil, nil, nil, err
-	}
-
-	_, _, contract, err := bindings.DeployDisputeGameFactory(
-		opts,
-		backend,
-	)
-	if err != nil {
-		return common.Address{}, nil, nil, nil, err
-	}
-	return from, opts, backend, contract, nil
-}
-
 // TestManualABIPacking ensure that the manual ABI packing is the same as going through the bound contract.
 // We don't use the contract to transact because it does not fit our transaction management scheme, but
 // we want to make sure that we don't incorrectly create the transaction data.
@@ -75,9 +58,18 @@ func TestManualABIPacking(t *testing.T) {
 	l2ooAbi, err := bindings.L2OutputOracleMetaData.GetAbi()
 	require.NoError(t, err)
 
-	output := testutils.RandomOutputResponse(rng)
+	proposal := source.Proposal{
+		Root:      testutils.RandomHash(rng),
+		CurrentL1: testutils.RandomBlockID(rng),
+		Legacy: source.LegacyProposalData{
+			BlockRef:    testutils.RandomL2BlockRef(rng),
+			HeadL1:      testutils.RandomBlockRef(rng),
+			SafeL2:      testutils.RandomL2BlockRef(rng),
+			FinalizedL2: testutils.RandomL2BlockRef(rng),
+		},
+	}
 
-	txData, err := proposeL2OutputTxData(l2ooAbi, output)
+	txData, err := proposeL2OutputTxData(l2ooAbi, proposal)
 	require.NoError(t, err)
 
 	// set a gas limit to disable gas estimation. The invariants that the L2OO tries to uphold
@@ -85,35 +77,11 @@ func TestManualABIPacking(t *testing.T) {
 	opts.GasLimit = 100_000
 	tx, err := l2oo.ProposeL2Output(
 		opts,
-		output.OutputRoot,
-		new(big.Int).SetUint64(output.BlockRef.Number),
-		output.Status.CurrentL1.Hash,
-		new(big.Int).SetUint64(output.Status.CurrentL1.Number))
+		proposal.Root,
+		new(big.Int).SetUint64(proposal.SequenceNum),
+		proposal.CurrentL1.Hash,
+		new(big.Int).SetUint64(proposal.CurrentL1.Number))
 	require.NoError(t, err)
 
 	require.Equal(t, txData, tx.Data())
-
-	// DGF
-	_, opts, _, dgf, err := setupDisputeGameFactory()
-	require.NoError(t, err)
-	rng = rand.New(rand.NewSource(1234))
-
-	dgfAbi, err := bindings.DisputeGameFactoryMetaData.GetAbi()
-	require.NoError(t, err)
-
-	output = testutils.RandomOutputResponse(rng)
-
-	txData, err = proposeL2OutputDGFTxData(dgfAbi, uint32(0), output)
-	require.NoError(t, err)
-
-	opts.GasLimit = 100_000
-	dgfTx, err := dgf.Create(
-		opts,
-		uint32(0),
-		output.OutputRoot,
-		math.U256Bytes(new(big.Int).SetUint64(output.BlockRef.Number)),
-	)
-	require.NoError(t, err)
-
-	require.Equal(t, txData, dgfTx.Data())
 }

@@ -6,6 +6,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
 
+	altda "github.com/ethereum-optimism/optimism/op-alt-da"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/async"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/attributes"
@@ -19,7 +20,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup/sequencing"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/status"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/sync"
-	plasma "github.com/ethereum-optimism/optimism/op-plasma"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
 
@@ -48,6 +48,7 @@ type Metrics interface {
 	RecordUnsafePayloadsBuffer(length uint64, memSize uint64, next eth.BlockID)
 
 	SetDerivationIdle(idle bool)
+	SetSequencerState(active bool)
 
 	RecordL1ReorgDepth(d uint64)
 
@@ -105,13 +106,13 @@ type Finalizer interface {
 	event.Deriver
 }
 
-type PlasmaIface interface {
-	// Notify L1 finalized head so plasma finality is always behind L1
+type AltDAIface interface {
+	// Notify L1 finalized head so AltDA finality is always behind L1
 	Finalize(ref eth.L1BlockRef)
 	// Set the engine finalization signal callback
-	OnFinalizedHeadSignal(f plasma.HeadSignalFn)
+	OnFinalizedHeadSignal(f altda.HeadSignalFn)
 
-	derive.PlasmaInputFetcher
+	derive.AltDAInputFetcher
 }
 
 type SyncStatusTracker interface {
@@ -149,8 +150,14 @@ type SequencerStateListener interface {
 	SequencerStopped() error
 }
 
+type Drain interface {
+	Drain() error
+}
+
 // NewDriver composes an events handler that tracks L1 state, triggers L2 Derivation, and optionally sequences new L2 blocks.
 func NewDriver(
+	sys event.Registry,
+	drain Drain,
 	driverCfg *Config,
 	cfg *rollup.Config,
 	l2 L2Chain,
@@ -164,20 +171,10 @@ func NewDriver(
 	safeHeadListener rollup.SafeHeadListener,
 	syncCfg *sync.Config,
 	sequencerConductor conductor.SequencerConductor,
-	plasma PlasmaIface,
+	altDA AltDAIface,
+	managedMode bool,
 ) *Driver {
 	driverCtx, driverCancel := context.WithCancel(context.Background())
-
-	var executor event.Executor
-	var drain func() error
-	// This instantiation will be one of more options: soon there will be a parallel events executor
-	{
-		s := event.NewGlobalSynchronous(driverCtx)
-		executor = s
-		drain = s.Drain
-	}
-	sys := event.NewSystem(log, executor)
-	sys.AddTracer(event.NewMetricsTracer(metrics))
 
 	opts := event.DefaultRegisterOpts()
 
@@ -200,8 +197,8 @@ func NewDriver(
 	sys.Register("cl-sync", clSync, opts)
 
 	var finalizer Finalizer
-	if cfg.PlasmaEnabled() {
-		finalizer = finality.NewPlasmaFinalizer(driverCtx, log, cfg, l1, plasma)
+	if cfg.AltDAEnabled() {
+		finalizer = finality.NewAltDAFinalizer(driverCtx, log, cfg, l1, altDA)
 	} else {
 		finalizer = finality.NewFinalizer(driverCtx, log, cfg, l1)
 	}
@@ -210,7 +207,7 @@ func NewDriver(
 	sys.Register("attributes-handler",
 		attributes.NewAttributesHandler(log, cfg, driverCtx, l2), opts)
 
-	derivationPipeline := derive.NewDerivationPipeline(log, cfg, verifConfDepth, l1Blobs, plasma, l2, metrics)
+	derivationPipeline := derive.NewDerivationPipeline(log, cfg, verifConfDepth, l1Blobs, altDA, l2, metrics, managedMode)
 
 	sys.Register("pipeline",
 		derive.NewPipelineDeriver(driverCtx, derivationPipeline), opts)
@@ -226,7 +223,8 @@ func NewDriver(
 		L2:             l2,
 		Log:            log,
 		Ctx:            driverCtx,
-		Drain:          drain,
+		Drain:          drain.Drain,
+		ManagedMode:    managedMode,
 	}
 	sys.Register("sync", syncDeriver, opts)
 
@@ -240,7 +238,8 @@ func NewDriver(
 		asyncGossiper := async.NewAsyncGossiper(driverCtx, network, log, metrics)
 		attrBuilder := derive.NewFetchingAttributesBuilder(cfg, l1, l2)
 		sequencerConfDepth := confdepth.NewConfDepth(driverCfg.SequencerConfDepth, statusTracker.L1Head, l1)
-		findL1Origin := sequencing.NewL1OriginSelector(log, cfg, sequencerConfDepth)
+		findL1Origin := sequencing.NewL1OriginSelector(driverCtx, log, cfg, sequencerConfDepth)
+		sys.Register("origin-selector", findL1Origin, opts)
 		sequencer = sequencing.NewSequencer(driverCtx, log, cfg, attrBuilder, findL1Origin,
 			sequencerStateListener, sequencerConductor, asyncGossiper, metrics)
 		sys.Register("sequencer", sequencer, opts)
@@ -250,12 +249,11 @@ func NewDriver(
 
 	driverEmitter := sys.Register("driver", nil, opts)
 	driver := &Driver{
-		eventSys:         sys,
 		statusTracker:    statusTracker,
 		SyncDeriver:      syncDeriver,
 		sched:            schedDeriv,
 		emitter:          driverEmitter,
-		drain:            drain,
+		drain:            drain.Drain,
 		stateReq:         make(chan chan struct{}),
 		forceReset:       make(chan chan struct{}, 10),
 		driverConfig:     driverCfg,

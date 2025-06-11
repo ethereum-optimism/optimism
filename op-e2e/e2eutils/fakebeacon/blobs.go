@@ -1,23 +1,24 @@
 package fakebeacon
 
 import (
+	"context"
 	"encoding/binary"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io/fs"
 	"net"
 	"net/http"
-	"os"
-	"path/filepath"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
 
+	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/beacon/engine"
+	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/ethereum/go-ethereum/crypto/kzg4844"
 	"github.com/ethereum/go-ethereum/log"
 )
 
@@ -27,8 +28,8 @@ import (
 type FakeBeacon struct {
 	log log.Logger
 
-	// directory to store blob contents in after the blobs are persisted in a block
-	blobsDir  string
+	// in-memory blob store
+	blobStore *e2eutils.BlobsStore
 	blobsLock sync.Mutex
 
 	beaconSrv         *http.Server
@@ -38,10 +39,10 @@ type FakeBeacon struct {
 	blockTime   uint64
 }
 
-func NewBeacon(log log.Logger, blobsDir string, genesisTime uint64, blockTime uint64) *FakeBeacon {
+func NewBeacon(log log.Logger, blobStore *e2eutils.BlobsStore, genesisTime uint64, blockTime uint64) *FakeBeacon {
 	return &FakeBeacon{
 		log:         log,
-		blobsDir:    blobsDir,
+		blobStore:   blobStore,
 		genesisTime: genesisTime,
 		blockTime:   blockTime,
 	}
@@ -126,6 +127,7 @@ func (f *FakeBeacon) Start(addr string) error {
 						Slot:      eth.Uint64String(slot),
 					},
 				},
+				InclusionProof: make([]eth.Bytes32, 0),
 			}
 			copy(sidecars[i].Blob[:], bundle.Blobs[ix])
 		}
@@ -158,20 +160,23 @@ func (f *FakeBeacon) Start(addr string) error {
 }
 
 func (f *FakeBeacon) StoreBlobsBundle(slot uint64, bundle *engine.BlobsBundleV1) error {
-	data, err := json.Marshal(bundle)
-	if err != nil {
-		return fmt.Errorf("failed to encode blobs bundle of slot %d: %w", slot, err)
-	}
-
 	f.blobsLock.Lock()
 	defer f.blobsLock.Unlock()
-	bundlePath := fmt.Sprintf("blobs_bundle_%d.json", slot)
-	if err := os.MkdirAll(f.blobsDir, 0755); err != nil {
-		return fmt.Errorf("failed to create dir for blob storage: %w", err)
-	}
-	err = os.WriteFile(filepath.Join(f.blobsDir, bundlePath), data, 0755)
-	if err != nil {
-		return fmt.Errorf("failed to write blobs bundle of slot %d: %w", slot, err)
+
+	// Solve for the slot timestamp.
+	// slot = (timestamp - genesis) / slot_time
+	// timestamp = slot * slot_time + genesis
+	slotTimestamp := slot*f.blockTime + f.genesisTime
+
+	for i, b := range bundle.Blobs {
+		f.blobStore.StoreBlob(
+			slotTimestamp,
+			eth.IndexedBlobHash{
+				Index: uint64(i),
+				Hash:  eth.KZGToVersionedHash(kzg4844.Commitment(bundle.Commitments[i])),
+			},
+			(*eth.Blob)(b[:]),
+		)
 	}
 	return nil
 }
@@ -179,19 +184,30 @@ func (f *FakeBeacon) StoreBlobsBundle(slot uint64, bundle *engine.BlobsBundleV1)
 func (f *FakeBeacon) LoadBlobsBundle(slot uint64) (*engine.BlobsBundleV1, error) {
 	f.blobsLock.Lock()
 	defer f.blobsLock.Unlock()
-	bundlePath := fmt.Sprintf("blobs_bundle_%d.json", slot)
-	data, err := os.ReadFile(filepath.Join(f.blobsDir, bundlePath))
+
+	// Solve for the slot timestamp.
+	// slot = (timestamp - genesis) / slot_time
+	// timestamp = slot * slot_time + genesis
+	slotTimestamp := slot*f.blockTime + f.genesisTime
+
+	// Load blobs from the store
+	blobs, err := f.blobStore.GetAllSidecars(context.Background(), slotTimestamp)
 	if err != nil {
-		if errors.Is(err, fs.ErrNotExist) {
-			return nil, fmt.Errorf("no blobs bundle found for slot %d (%q): %w", slot, bundlePath, ethereum.NotFound)
-		} else {
-			return nil, fmt.Errorf("failed to read blobs bundle of slot %d (%q): %w", slot, bundlePath, err)
-		}
+		return nil, fmt.Errorf("failed to load blobs from store: %w", err)
 	}
-	var out engine.BlobsBundleV1
-	if err := json.Unmarshal(data, &out); err != nil {
-		return nil, fmt.Errorf("failed to decode blobs bundle of slot %d (%q): %w", slot, bundlePath, err)
+
+	// Convert blobs to the bundle
+	out := engine.BlobsBundleV1{
+		Commitments: make([]hexutil.Bytes, len(blobs)),
+		Proofs:      make([]hexutil.Bytes, len(blobs)),
+		Blobs:       make([]hexutil.Bytes, len(blobs)),
 	}
+	for _, b := range blobs {
+		out.Commitments[b.Index] = hexutil.Bytes(b.KZGCommitment[:])
+		out.Proofs[b.Index] = hexutil.Bytes(b.KZGProof[:])
+		out.Blobs[b.Index] = hexutil.Bytes(b.Blob[:])
+	}
+
 	return &out, nil
 }
 

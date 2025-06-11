@@ -109,7 +109,7 @@ func TestOutputAtBlock(t *testing.T) {
 		require.NoError(t, server.Stop(context.Background()))
 	}()
 
-	client, err := rpcclient.NewRPC(context.Background(), log, "http://"+server.Addr().String(), rpcclient.WithDialBackoff(3))
+	client, err := rpcclient.NewRPC(context.Background(), log, "http://"+server.Addr().String(), rpcclient.WithDialAttempts(3))
 	require.NoError(t, err)
 
 	var out *eth.OutputResponse
@@ -145,7 +145,7 @@ func TestVersion(t *testing.T) {
 		require.NoError(t, server.Stop(context.Background()))
 	}()
 
-	client, err := rpcclient.NewRPC(context.Background(), log, "http://"+server.Addr().String(), rpcclient.WithDialBackoff(3))
+	client, err := rpcclient.NewRPC(context.Background(), log, "http://"+server.Addr().String(), rpcclient.WithDialAttempts(3))
 	assert.NoError(t, err)
 
 	var out string
@@ -191,7 +191,7 @@ func TestSyncStatus(t *testing.T) {
 		require.NoError(t, server.Stop(context.Background()))
 	}()
 
-	client, err := rpcclient.NewRPC(context.Background(), log, "http://"+server.Addr().String(), rpcclient.WithDialBackoff(3))
+	client, err := rpcclient.NewRPC(context.Background(), log, "http://"+server.Addr().String(), rpcclient.WithDialAttempts(3))
 	assert.NoError(t, err)
 
 	var out *eth.SyncStatus
@@ -234,7 +234,7 @@ func TestSafeHeadAtL1Block(t *testing.T) {
 		require.NoError(t, server.Stop(context.Background()))
 	}()
 
-	client, err := rpcclient.NewRPC(context.Background(), log, "http://"+server.Addr().String(), rpcclient.WithDialBackoff(3))
+	client, err := rpcclient.NewRPC(context.Background(), log, "http://"+server.Addr().String(), rpcclient.WithDialAttempts(3))
 	require.NoError(t, err)
 
 	var out *eth.SafeHeadResponse
@@ -285,6 +285,10 @@ func (c *mockDriverClient) OnUnsafeL2Payload(ctx context.Context, payload *eth.E
 
 func (c *mockDriverClient) OverrideLeader(ctx context.Context) error {
 	return c.Mock.MethodCalled("OverrideLeader").Get(0).(error)
+}
+
+func (c *mockDriverClient) ConductorEnabled(ctx context.Context) (bool, error) {
+	return c.Mock.MethodCalled("ConductorEnabled").Get(0).(bool), nil
 }
 
 type mockSafeDBReader struct {

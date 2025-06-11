@@ -35,7 +35,7 @@ func (c *expectedCall) Matches(rpcMethod string, args ...interface{}) error {
 	}
 	callOpts, ok := args[0].(map[string]any)
 	if !ok {
-		return fmt.Errorf("arg 0 is not a map[string]any")
+		return errors.New("arg 0 is not a map[string]any")
 	}
 	actualBlockRef := args[1]
 	to, ok := callOpts["to"].(*common.Address)
@@ -56,7 +56,7 @@ func (c *expectedCall) Matches(rpcMethod string, args ...interface{}) error {
 		return fmt.Errorf("expected input to have at least 4 bytes but was %v", len(data))
 	}
 	if !slices.Equal(c.abiMethod.ID, data[:4]) {
-		return fmt.Errorf("expected abi method ID %x but was %x", c.abiMethod.ID, data[:4])
+		return fmt.Errorf("expected abi method ID %x but was %v", c.abiMethod.ID, data[:4])
 	}
 	if !slices.Equal(c.packedArgs, data[4:]) {
 		return fmt.Errorf("expected args %x but was %x", c.packedArgs, data[4:])

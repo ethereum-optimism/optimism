@@ -81,7 +81,7 @@
             "type": "bytes"
           }
         ],
-        "internalType": "struct IDisputeGameFactory.GameSearchResult[]",
+        "internalType": "struct DisputeGameFactory.GameSearchResult[]",
         "name": "games_",
         "type": "tuple[]"
       }

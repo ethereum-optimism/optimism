@@ -12,7 +12,7 @@ version: '3.4'
 
 services:
   l2:
-    image: us-docker.pkg.dev/oplabs-tools-artifacts/images/op-geth:${GETH_VERSION:-optimism}
+    image: us-docker.pkg.dev/boba-392114/bobanetwork-tools-artifacts/images/op-geth:${GETH_VERSION:-v1.101411.0}
     command: >
       --datadir=/db
       --networkid=288
@@ -31,6 +31,8 @@ services:
       --syncmode=full
       --maxpeers=0
       --rollup.sequencerhttp=https://mainnet.boba.network
+      --override.fjord=1725951600
+      --override.granite=1729753200
     ports:
       - "9545:9545"
       - "8551:8551"
@@ -40,7 +42,7 @@ services:
   op-node:
     depends_on:
       - l2
-    image: us-docker.pkg.dev/boba-392114/bobanetwork-tools-artifacts/images/op-node:v1.6.3
+    image: us-docker.pkg.dev/boba-392114/bobanetwork-tools-artifacts/images/op-node:${OP_NODE_VERSION:-latest}
     command: >
       op-node
       --l1=${ETH1_HTTP:-https://mainnet.gateway.tenderly.co}
@@ -50,7 +52,6 @@ services:
       --network=boba-mainnet
       --rpc.addr=0.0.0.0
       --rpc.port=8545
-      --plasma.enabled=false
     # Optional flags
     # These flags are optional and can be used to identify the node and store the peerstore and discovery data.
     # We recommend adding these flags to your configuration to help identify your node and store the peerstore and discovery data.

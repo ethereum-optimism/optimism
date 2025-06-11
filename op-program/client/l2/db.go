@@ -5,27 +5,35 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/rawdb"
 	"github.com/ethereum/go-ethereum/ethdb"
-	"github.com/ethereum/go-ethereum/ethdb/memorydb"
 )
 
 var codePrefixedKeyLength = common.HashLength + len(rawdb.CodePrefix)
 
-var (
-	ErrInvalidKeyLength = errors.New("pre-images must be identified by 32-byte hash keys")
-)
+var ErrInvalidKeyLength = errors.New("pre-images must be identified by 32-byte hash keys")
 
-type OracleKeyValueStore struct {
-	db     ethdb.KeyValueStore
-	oracle StateOracle
+// KeyValueStore is a subset of the ethdb.KeyValueStore interface that's required for block processing.
+type KeyValueStore interface {
+	ethdb.KeyValueReader
+	ethdb.Batcher
+	// Put inserts the given value into the key-value data store.
+	Put(key []byte, value []byte) error
 }
 
-func NewOracleBackedDB(oracle StateOracle) *OracleKeyValueStore {
+type OracleKeyValueStore struct {
+	db      KeyValueStore
+	oracle  StateOracle
+	chainID eth.ChainID
+}
+
+func NewOracleBackedDB(kv KeyValueStore, oracle StateOracle, chainID eth.ChainID) *OracleKeyValueStore {
 	return &OracleKeyValueStore{
-		db:     memorydb.New(),
-		oracle: oracle,
+		db:      kv,
+		oracle:  oracle,
+		chainID: chainID,
 	}
 }
 
@@ -40,12 +48,12 @@ func (o *OracleKeyValueStore) Get(key []byte) ([]byte, error) {
 
 	if len(key) == codePrefixedKeyLength && bytes.HasPrefix(key, rawdb.CodePrefix) {
 		key = key[len(rawdb.CodePrefix):]
-		return o.oracle.CodeByHash(*(*[common.HashLength]byte)(key)), nil
+		return o.oracle.CodeByHash(*(*[common.HashLength]byte)(key), o.chainID), nil
 	}
 	if len(key) != common.HashLength {
 		return nil, ErrInvalidKeyLength
 	}
-	return o.oracle.NodeByHash(*(*[common.HashLength]byte)(key)), nil
+	return o.oracle.NodeByHash(*(*[common.HashLength]byte)(key), o.chainID), nil
 }
 
 func (o *OracleKeyValueStore) NewBatch() ethdb.Batch {
@@ -74,6 +82,10 @@ func (o *OracleKeyValueStore) Delete(key []byte) error {
 	panic("not supported")
 }
 
+func (o *OracleKeyValueStore) DeleteRange(start, end []byte) error {
+	panic("not supported")
+}
+
 func (o *OracleKeyValueStore) Stat() (string, error) {
 	panic("not supported")
 }
@@ -83,9 +95,5 @@ func (o *OracleKeyValueStore) NewIterator(prefix []byte, start []byte) ethdb.Ite
 }
 
 func (o *OracleKeyValueStore) Compact(start []byte, limit []byte) error {
-	panic("not supported")
-}
-
-func (o *OracleKeyValueStore) NewSnapshot() (ethdb.Snapshot, error) {
 	panic("not supported")
 }

@@ -1,18 +1,37 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
-import { IPreimageOracle } from "./interfaces/IPreimageOracle.sol";
-import { ISemver } from "src/universal/ISemver.sol";
-import { PreimageKeyLib } from "./PreimageKeyLib.sol";
+// Libraries
 import { LibKeccak } from "@lib-keccak/LibKeccak.sol";
-import "src/cannon/libraries/CannonErrors.sol";
-import "src/cannon/libraries/CannonTypes.sol";
+import { PreimageKeyLib } from "src/cannon/PreimageKeyLib.sol";
+import {
+    PartOffsetOOB,
+    InvalidProof,
+    InvalidPreimage,
+    InvalidInputSize,
+    WrongStartingBlock,
+    StatesNotContiguous,
+    PostStateMatches,
+    TreeSizeOverflow,
+    AlreadyFinalized,
+    ActiveProposal,
+    BadProposal,
+    NotInitialized,
+    AlreadyInitialized,
+    NotEOA,
+    InsufficientBond,
+    BondTransferFailed
+} from "src/cannon/libraries/CannonErrors.sol";
+import { LPPMetaData } from "src/cannon/libraries/CannonTypes.sol";
+
+// Interfaces
+import { ISemver } from "interfaces/universal/ISemver.sol";
 
 /// @title PreimageOracle
 /// @notice A contract for storing permissioned pre-images.
 /// @custom:attribution Solady <https://github.com/Vectorized/solady/blob/main/src/utils/MerkleProofLib.sol#L13-L43>
 /// @custom:attribution Beacon Deposit Contract <0x00000000219ab540356cbb839cbe05303d7705fa>
-contract PreimageOracle is IPreimageOracle, ISemver {
+contract PreimageOracle is ISemver {
     ////////////////////////////////////////////////////////////////
     //                   Constants & Immutables                   //
     ////////////////////////////////////////////////////////////////
@@ -27,10 +46,12 @@ contract PreimageOracle is IPreimageOracle, ISemver {
     uint256 public constant KECCAK_TREE_DEPTH = 16;
     /// @notice The maximum number of keccak blocks that can fit into the merkle tree.
     uint256 public constant MAX_LEAF_COUNT = 2 ** KECCAK_TREE_DEPTH - 1;
+    /// @notice The reserved gas for precompile call setup.
+    uint256 public constant PRECOMPILE_CALL_RESERVED_GAS = 100_000;
 
     /// @notice The semantic version of the Preimage Oracle contract.
-    /// @custom:semver 1.0.0
-    string public constant version = "1.0.0";
+    /// @custom:semver 1.1.4
+    string public constant version = "1.1.4";
 
     ////////////////////////////////////////////////////////////////
     //                 Authorized Preimage Parts                  //
@@ -90,6 +111,11 @@ contract PreimageOracle is IPreimageOracle, ISemver {
         MIN_LPP_SIZE_BYTES = _minProposalSize;
         CHALLENGE_PERIOD = _challengePeriod;
 
+        // Make sure challenge period fits within uint64 so that it can safely be used within the
+        // FaultDisputeGame contract to compute clock extensions. Adding this check is simpler than
+        // changing the existing contract ABI.
+        require(_challengePeriod <= type(uint64).max, "PreimageOracle: challenge period too large");
+
         // Compute hashes in empty sparse Merkle tree. The first hash is not set, and kept as zero as the identity.
         for (uint256 height = 0; height < KECCAK_TREE_DEPTH - 1; height++) {
             zeroHashes[height + 1] = keccak256(abi.encodePacked(zeroHashes[height], zeroHashes[height]));
@@ -100,7 +126,11 @@ contract PreimageOracle is IPreimageOracle, ISemver {
     //             Standard Preimage Route (External)             //
     ////////////////////////////////////////////////////////////////
 
-    /// @inheritdoc IPreimageOracle
+    /// @notice Reads a preimage from the oracle.
+    /// @param _key The key of the preimage to read.
+    /// @param _offset The offset of the preimage to read.
+    /// @return dat_ The preimage data.
+    /// @return datLen_ The length of the preimage data.
     function readPreimage(bytes32 _key, uint256 _offset) external view returns (bytes32 dat_, uint256 datLen_) {
         require(preimagePartOk[_key][_offset], "pre-image must exist");
 
@@ -116,7 +146,27 @@ contract PreimageOracle is IPreimageOracle, ISemver {
         dat_ = preimageParts[_key][_offset];
     }
 
-    /// @inheritdoc IPreimageOracle
+    /// @notice Loads local data parts into the preimage oracle.
+    /// @param _ident The identifier of the local data.
+    /// @param _localContext The local key context for the preimage oracle. Optionally, can be set as a constant
+    ///                      if the caller only requires one set of local keys.
+    /// @param _word The local data word.
+    /// @param _size The number of bytes in `_word` to load.
+    /// @param _partOffset The offset of the local data part to write to the oracle.
+    /// @dev The local data parts are loaded into the preimage oracle under the context
+    ///      of the caller - no other account can write to the caller's context
+    ///      specific data.
+    ///
+    ///      There are 5 local data identifiers:
+    ///      ┌────────────┬────────────────────────┐
+    ///      │ Identifier │      Data              │
+    ///      ├────────────┼────────────────────────┤
+    ///      │          1 │ L1 Head Hash (bytes32) │
+    ///      │          2 │ Output Root (bytes32)  │
+    ///      │          3 │ Root Claim (bytes32)   │
+    ///      │          4 │ L2 Block Number (u64)  │
+    ///      │          5 │ Chain ID (u64)         │
+    ///      └────────────┴────────────────────────┘
     function loadLocalData(
         uint256 _ident,
         bytes32 _localContext,
@@ -131,7 +181,7 @@ contract PreimageOracle is IPreimageOracle, ISemver {
         key_ = PreimageKeyLib.localizeIdent(_ident, _localContext);
 
         // Revert if the given part offset is not within bounds.
-        if (_partOffset > _size + 8 || _size > 32) {
+        if (_partOffset >= _size + 8 || _size > 32) {
             revert PartOffsetOOB();
         }
 
@@ -156,7 +206,10 @@ contract PreimageOracle is IPreimageOracle, ISemver {
         preimageLengths[key_] = _size;
     }
 
-    /// @inheritdoc IPreimageOracle
+    /// @notice Prepares a preimage to be read by keccak256 key, starting at the given offset and up to 32 bytes
+    ///         (clipped at preimage length, if out of data).
+    /// @param _partOffset The offset of the preimage to read.
+    /// @param _preimage The preimage data.
     function loadKeccak256PreimagePart(uint256 _partOffset, bytes calldata _preimage) external {
         uint256 size;
         bytes32 key;
@@ -191,7 +244,10 @@ contract PreimageOracle is IPreimageOracle, ISemver {
         preimageLengths[key] = size;
     }
 
-    /// @inheritdoc IPreimageOracle
+    /// @notice Prepares a preimage to be read by sha256 key, starting at the given offset and up to 32 bytes
+    ///         (clipped at preimage length, if out of data).
+    /// @param _partOffset The offset of the preimage to read.
+    /// @param _preimage The preimage data.
     function loadSha256PreimagePart(uint256 _partOffset, bytes calldata _preimage) external {
         uint256 size;
         bytes32 key;
@@ -240,7 +296,13 @@ contract PreimageOracle is IPreimageOracle, ISemver {
         preimageLengths[key] = size;
     }
 
-    /// @inheritdoc IPreimageOracle
+    /// @notice Verifies that `p(_z) = _y` given `_commitment` that corresponds to the polynomial `p(x)` and a KZG
+    //          proof. The value `y` is the pre-image, and the preimage key is `5 ++ keccak256(_commitment ++ z)[1:]`.
+    /// @param _z Big endian point value. Part of the preimage key.
+    /// @param _y Big endian point value. The preimage for the key.
+    /// @param _commitment The commitment to the polynomial. 48 bytes, part of the preimage key.
+    /// @param _proof The KZG proof, part of the preimage key.
+    /// @param _partOffset The offset of the preimage to store.
     function loadBlobPreimagePart(
         uint256 _z,
         uint256 _y,
@@ -331,8 +393,21 @@ contract PreimageOracle is IPreimageOracle, ISemver {
         preimageLengths[key] = 32;
     }
 
-    /// @inheritdoc IPreimageOracle
-    function loadPrecompilePreimagePart(uint256 _partOffset, address _precompile, bytes calldata _input) external {
+    /// @notice Prepares a precompile result to be read by a precompile key for the specified offset.
+    ///         The precompile result data is a concatenation of the precompile call status byte and its return data.
+    ///         The preimage key is `6 ++ keccak256(precompile ++ input)[1:]`.
+    /// @param _partOffset The offset of the precompile result being loaded.
+    /// @param _precompile The precompile address
+    /// @param _requiredGas The gas required to fully execute an L1 precompile.
+    /// @param _input The input to the precompile call.
+    function loadPrecompilePreimagePart(
+        uint256 _partOffset,
+        address _precompile,
+        uint64 _requiredGas,
+        bytes calldata _input
+    )
+        external
+    {
         bytes32 res;
         bytes32 key;
         bytes32 part;
@@ -341,21 +416,32 @@ contract PreimageOracle is IPreimageOracle, ISemver {
             // we leave solidity slots 0x40 and 0x60 untouched, and everything after as scratch-memory.
             let ptr := 0x80
 
-            // copy precompile address and input into memory
-            // len(sig) + len(_partOffset) + address-offset-in-slot
-            calldatacopy(ptr, 48, 20)
-            calldatacopy(add(20, ptr), _input.offset, _input.length)
+            // copy precompile address, requiredGas, and input into memory to compute the key
+            mstore(ptr, shl(96, _precompile))
+            mstore(add(ptr, 20), shl(192, _requiredGas))
+            calldatacopy(add(28, ptr), _input.offset, _input.length)
             // compute the hash
-            let h := keccak256(ptr, add(20, _input.length))
+            let h := keccak256(ptr, add(28, _input.length))
             // mask out prefix byte, replace with type 6 byte
             key := or(and(h, not(shl(248, 0xFF))), shl(248, 0x06))
 
+            // Check if the precompile call has at least the required gas.
+            // This assumes there are no further memory expansion costs until after the staticall on the precompile
+            // Also assumes that the gas expended in setting up the staticcall is less than PRECOMPILE_CALL_RESERVED_GAS
+            // require(gas() >= (requiredGas * 64 / 63) + reservedGas)
+            if lt(mul(gas(), 63), add(mul(_requiredGas, 64), mul(PRECOMPILE_CALL_RESERVED_GAS, 63))) {
+                // Store "NotEnoughGas()"
+                mstore(0, 0xdd629f86)
+                revert(0x1c, 4)
+            }
+
             // Call the precompile to get the result.
+            // SAFETY: Given the above gas check, the staticall cannot fail due to insufficient gas.
             res :=
                 staticcall(
                     gas(), // forward all gas
                     _precompile,
-                    add(20, ptr), // input ptr
+                    add(28, ptr), // input ptr
                     _input.length,
                     0x0, // Unused as we don't copy anything
                     0x00 // don't copy anything
@@ -418,7 +504,9 @@ contract PreimageOracle is IPreimageOracle, ISemver {
         // The bond provided must be at least `MIN_BOND_SIZE`.
         if (msg.value < MIN_BOND_SIZE) revert InsufficientBond();
 
-        // The caller of `addLeavesLPP` must be an EOA, so that the call inputs are always available in block bodies.
+        // Legacy check, no longer technically required but keeping for now. Can be bypassed using
+        // EIP-7702. Challenger loads this information directly from the proposals array instead of
+        // looking at transaction calldata.
         if (msg.sender != tx.origin) revert NotEOA();
 
         // The part offset must be within the bounds of the claimed size + 8.
@@ -429,6 +517,10 @@ contract PreimageOracle is IPreimageOracle, ISemver {
 
         // Initialize the proposal metadata.
         LPPMetaData metaData = proposalMetadata[msg.sender][_uuid];
+
+        // Revert if the proposal has already been initialized. 0-size preimages are *not* allowed.
+        if (metaData.claimedSize() != 0) revert AlreadyInitialized();
+
         proposalMetadata[msg.sender][_uuid] = metaData.setPartOffset(_partOffset).setClaimedSize(_claimedSize);
         proposals.push(LargePreimageProposalKeys(msg.sender, _uuid));
 
@@ -459,9 +551,9 @@ contract PreimageOracle is IPreimageOracle, ISemver {
         LPPMetaData metaData = proposalMetadata[msg.sender][_uuid];
         uint256 blocksProcessed = metaData.blocksProcessed();
 
-        // The caller of `addLeavesLPP` must be an EOA.
-        // Note: This check may break if EIPs like EIP-3074 are introduced. We may query the data in the logs if this
-        // is the case.
+        // Legacy check, no longer technically required but keeping for now. Can be bypassed using
+        // EIP-7702. Challenger loads this information from the log at the end of this function
+        // instead of looking at transaction calldata.
         if (msg.sender != tx.origin) revert NotEOA();
 
         // Revert if the proposal has not been initialized. 0-size preimages are *not* allowed.
@@ -484,7 +576,7 @@ contract PreimageOracle is IPreimageOracle, ISemver {
             let inputPtr := add(input, 0x20)
 
             // The input length must be a multiple of 136 bytes
-            // The input lenth / 136 must be equal to the number of state commitments.
+            // The input length / 136 must be equal to the number of state commitments.
             if or(mod(inputLen, 136), iszero(eq(_stateCommitments.length, div(inputLen, 136)))) {
                 // Store "InvalidInputSize()" error selector
                 mstore(0x00, 0x7b1daf1)
@@ -652,6 +744,9 @@ contract PreimageOracle is IPreimageOracle, ISemver {
 
         // Check if the proposal was countered.
         if (metaData.countered()) revert BadProposal();
+
+        // Check if the proposal has been finalized at all.
+        if (metaData.timestamp() == 0) revert ActiveProposal();
 
         // Check if the challenge period has passed since the proposal was finalized.
         if (block.timestamp - metaData.timestamp() <= CHALLENGE_PERIOD) revert ActiveProposal();

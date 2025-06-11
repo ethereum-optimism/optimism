@@ -5,19 +5,25 @@ import (
 	"io"
 	"os"
 	"path"
+	"strings"
 	"testing"
 
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm"
+	"github.com/ethereum-optimism/optimism/cannon/mipsevm/arch"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/program"
 )
 
-type VMFactory[T mipsevm.FPVMState] func(state T, po mipsevm.PreimageOracle, stdOut, stdErr io.Writer, log log.Logger) mipsevm.FPVM
+type VMFactory[T mipsevm.FPVMState] func(state T, po mipsevm.PreimageOracle, stdOut, stdErr io.Writer, log log.Logger, meta *program.Metadata) mipsevm.FPVM
 type StateFactory[T mipsevm.FPVMState] func() T
 
 func RunVMTests_OpenMips[T mipsevm.FPVMState](t *testing.T, stateFactory StateFactory[T], vmFactory VMFactory[T], excludedTests ...string) {
+	if !arch.IsMips32 {
+		// TODO: guard these tests by the cannon32 build tag
+		t.Skip("Open MIPS tests are not appropriate for cannon64")
+	}
 	testFiles, err := os.ReadDir("../tests/open_mips_tests/test/bin")
 	require.NoError(t, err)
 
@@ -32,6 +38,7 @@ func RunVMTests_OpenMips[T mipsevm.FPVMState](t *testing.T, stateFactory StateFa
 			oracle := SelectOracleFixture(t, f.Name())
 			// Short-circuit early for exit_group.bin
 			exitGroup := f.Name() == "exit_group.bin"
+			expectPanic := strings.HasSuffix(f.Name(), "panic.bin")
 
 			// TODO: currently tests are compiled as flat binary objects
 			// We can use more standard tooling to compile them to ELF files and get remove maketests.py
@@ -47,9 +54,20 @@ func RunVMTests_OpenMips[T mipsevm.FPVMState](t *testing.T, stateFactory StateFa
 			require.NoError(t, err, "load program into state")
 
 			// set the return address ($ra) to jump into when test completes
-			state.GetRegisters()[31] = EndAddr
+			state.GetRegistersRef()[31] = EndAddr
 
-			us := vmFactory(state, oracle, os.Stdout, os.Stderr, CreateLogger())
+			us := vmFactory(state, oracle, os.Stdout, os.Stderr, CreateLogger(), nil)
+
+			// Catch panics and check if they are expected
+			defer func() {
+				if r := recover(); r != nil {
+					if expectPanic {
+						// Success
+					} else {
+						t.Errorf("unexpected panic: %v", r)
+					}
+				}
+			}()
 
 			for i := 0; i < 1000; i++ {
 				if us.GetState().GetPC() == EndAddr {
@@ -63,27 +81,30 @@ func RunVMTests_OpenMips[T mipsevm.FPVMState](t *testing.T, stateFactory StateFa
 			}
 
 			if exitGroup {
-				require.NotEqual(t, uint32(EndAddr), us.GetState().GetPC(), "must not reach end")
+				require.NotEqual(t, arch.Word(EndAddr), us.GetState().GetPC(), "must not reach end")
 				require.True(t, us.GetState().GetExited(), "must set exited state")
 				require.Equal(t, uint8(1), us.GetState().GetExitCode(), "must exit with 1")
+			} else if expectPanic {
+				require.NotEqual(t, arch.Word(EndAddr), us.GetState().GetPC(), "must not reach end")
 			} else {
-				require.Equal(t, uint32(EndAddr), us.GetState().GetPC(), "must reach end")
-				done, result := state.GetMemory().GetMemory(BaseAddrEnd+4), state.GetMemory().GetMemory(BaseAddrEnd+8)
+				require.Equal(t, arch.Word(EndAddr), us.GetState().GetPC(), "must reach end")
+				done, result := state.GetMemory().GetWord(BaseAddrEnd+4), state.GetMemory().GetWord(BaseAddrEnd+8)
 				// inspect test result
-				require.Equal(t, done, uint32(1), "must be done")
-				require.Equal(t, result, uint32(1), "must have success result")
+				require.Equal(t, done, arch.Word(1), "must be done")
+				require.Equal(t, result, arch.Word(1), "must have success result")
 			}
 		})
 	}
 }
 
 func RunVMTest_Hello[T mipsevm.FPVMState](t *testing.T, initState program.CreateInitialFPVMState[T], vmFactory VMFactory[T], doPatchGo bool) {
-	state := LoadELFProgram(t, "../../testdata/example/bin/hello.elf", initState, doPatchGo)
+	state, meta := LoadELFProgram(t, ProgramPath("hello"), initState, doPatchGo)
 
 	var stdOutBuf, stdErrBuf bytes.Buffer
-	us := vmFactory(state, nil, io.MultiWriter(&stdOutBuf, os.Stdout), io.MultiWriter(&stdErrBuf, os.Stderr), CreateLogger())
+	us := vmFactory(state, nil, io.MultiWriter(&stdOutBuf, os.Stdout), io.MultiWriter(&stdErrBuf, os.Stderr), CreateLogger(), meta)
 
-	for i := 0; i < 400_000; i++ {
+	maxSteps := 430_000
+	for i := 0; i < maxSteps; i++ {
 		if us.GetState().GetExited() {
 			break
 		}
@@ -91,7 +112,7 @@ func RunVMTest_Hello[T mipsevm.FPVMState](t *testing.T, initState program.Create
 		require.NoError(t, err)
 	}
 
-	require.True(t, state.GetExited(), "must complete program")
+	require.Truef(t, state.GetExited(), "must complete program. reached %d of max %d steps", state.GetStep(), maxSteps)
 	require.Equal(t, uint8(0), state.GetExitCode(), "exit with 0")
 
 	require.Equal(t, "hello world!\n", stdOutBuf.String(), "stdout says hello")
@@ -99,12 +120,12 @@ func RunVMTest_Hello[T mipsevm.FPVMState](t *testing.T, initState program.Create
 }
 
 func RunVMTest_Claim[T mipsevm.FPVMState](t *testing.T, initState program.CreateInitialFPVMState[T], vmFactory VMFactory[T], doPatchGo bool) {
-	state := LoadELFProgram(t, "../../testdata/example/bin/claim.elf", initState, doPatchGo)
+	state, meta := LoadELFProgram(t, ProgramPath("claim"), initState, doPatchGo)
 
 	oracle, expectedStdOut, expectedStdErr := ClaimTestOracle(t)
 
 	var stdOutBuf, stdErrBuf bytes.Buffer
-	us := vmFactory(state, oracle, io.MultiWriter(&stdOutBuf, os.Stdout), io.MultiWriter(&stdErrBuf, os.Stderr), CreateLogger())
+	us := vmFactory(state, oracle, io.MultiWriter(&stdOutBuf, os.Stdout), io.MultiWriter(&stdErrBuf, os.Stderr), CreateLogger(), meta)
 
 	for i := 0; i < 2000_000; i++ {
 		if us.GetState().GetExited() {

@@ -34,14 +34,14 @@ const defaultFinalityLookback = 4*32 + 1
 // We do not want to do this too often, since it requires fetching a L1 block by number, so no cache data.
 const finalityDelay = 64
 
-// calcFinalityLookback calculates the default finality lookback based on DA challenge window if plasma
+// calcFinalityLookback calculates the default finality lookback based on DA challenge window if altDA
 // mode is activated or L1 finality lookback.
 func calcFinalityLookback(cfg *rollup.Config) uint64 {
 	// in alt-da mode the longest finality lookback is a commitment is challenged on the last block of
 	// the challenge window in which case it will be both challenge + resolve window.
-	if cfg.PlasmaEnabled() {
-		lkb := cfg.PlasmaConfig.DAChallengeWindow + cfg.PlasmaConfig.DAResolveWindow + 1
-		// in the case only if the plasma windows are longer than the default finality lookback
+	if cfg.AltDAEnabled() {
+		lkb := cfg.AltDAConfig.DAChallengeWindow + cfg.AltDAConfig.DAResolveWindow + 1
+		// in the case only if the altDA windows are longer than the default finality lookback
 		if lkb > defaultFinalityLookback {
 			return lkb
 		}
@@ -73,6 +73,8 @@ type Finalizer struct {
 
 	ctx context.Context
 
+	cfg *rollup.Config
+
 	emitter event.Emitter
 
 	// finalizedL1 is the currently perceived finalized L1 block.
@@ -98,6 +100,7 @@ func NewFinalizer(ctx context.Context, log log.Logger, cfg *rollup.Config, l1Fet
 	lookback := calcFinalityLookback(cfg)
 	return &Finalizer{
 		ctx:              ctx,
+		cfg:              cfg,
 		log:              log,
 		finalizedL1:      eth.L1BlockRef{},
 		triedFinalizeAt:  0,
@@ -139,7 +142,7 @@ func (fi *Finalizer) OnEvent(ev event.Event) bool {
 	case FinalizeL1Event:
 		fi.onL1Finalized(x.FinalizedL1)
 	case engine.SafeDerivedEvent:
-		fi.onDerivedSafeBlock(x.Safe, x.DerivedFrom)
+		fi.onDerivedSafeBlock(x.Safe, x.Source)
 	case derive.DeriverIdleEvent:
 		fi.onDerivationIdle(x.Origin)
 	case rollup.ResetEvent:
@@ -221,7 +224,6 @@ func (fi *Finalizer) tryFinalize() {
 		// Sanity check the finality signal of L1.
 		// Even though the signal is trusted and we do the below check also,
 		// the signal itself has to be canonical to proceed.
-		// TODO(#10724): This check could be removed if the finality signal is fully trusted, and if tests were more flexible for this case.
 		signalRef, err := fi.l1Fetcher.L1BlockRefByNumber(ctx, fi.finalizedL1.Number)
 		if err != nil {
 			fi.emitter.Emit(rollup.L1TemporaryErrorEvent{Err: fmt.Errorf("failed to check if on finalizing L1 chain, could not fetch block %d: %w", fi.finalizedL1.Number, err)})
@@ -253,6 +255,14 @@ func (fi *Finalizer) tryFinalize() {
 func (fi *Finalizer) onDerivedSafeBlock(l2Safe eth.L2BlockRef, derivedFrom eth.L1BlockRef) {
 	fi.mu.Lock()
 	defer fi.mu.Unlock()
+
+	// Stop registering blocks after interop.
+	// Finality in interop is determined by the superchain backend,
+	// i.e. the op-supervisor RPC identifies which L2 block may be finalized.
+	if fi.cfg.IsInterop(l2Safe.Time) {
+		return
+	}
+
 	// remember the last L2 block that we fully derived from the given finality data
 	if len(fi.finalityData) == 0 || fi.finalityData[len(fi.finalityData)-1].L1Block.Number < derivedFrom.Number {
 		// prune finality data if necessary, before appending any data.

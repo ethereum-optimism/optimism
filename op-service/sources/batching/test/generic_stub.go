@@ -59,7 +59,7 @@ func (r *RpcStub) findExpectedCall(rpcMethod string, args ...interface{}) Expect
 		if err := call.Matches(rpcMethod, args...); err == nil {
 			return call
 		} else {
-			matchResults += fmt.Sprintf("%v: %v", call, err)
+			matchResults += fmt.Sprintf("%v: %v\n", call, err)
 		}
 	}
 	require.Failf(r.t, "No matching expected calls.", matchResults)

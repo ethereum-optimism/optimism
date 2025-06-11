@@ -4,7 +4,9 @@ import (
 	"math/rand" // nosemgrep
 	"testing"
 
+	"github.com/ethereum/go-ethereum/consensus/misc/eip1559"
 	"github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum/go-ethereum/params"
 	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -18,24 +20,39 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/testutils"
 )
 
-var (
-	validParentHash       = common.HexToHash("0x123")
-	validTimestamp        = eth.Uint64Quantity(123)
-	validParentBeaconRoot = common.HexToHash("0x456")
-	validPrevRandao       = eth.Bytes32(common.HexToHash("0x789"))
-	validGasLimit         = eth.Uint64Quantity(1000)
-	validWithdrawals      = types.Withdrawals{}
-	validFeeRecipient     = predeploys.SequencerFeeVaultAddr
-)
+var defaultOpConfig = &params.OptimismConfig{
+	EIP1559Elasticity:        6,
+	EIP1559Denominator:       50,
+	EIP1559DenominatorCanyon: ptr(uint64(250)),
+}
 
-type args struct {
+func ptr[T any](t T) *T {
+	return &t
+}
+
+type matchArgs struct {
 	envelope   *eth.ExecutionPayloadEnvelope
 	attrs      *eth.PayloadAttributes
 	parentHash common.Hash
 }
 
-func ecotoneArgs() args {
-	return args{
+func holoceneArgs() matchArgs {
+	var (
+		validParentHash       = common.HexToHash("0x123")
+		validTimestamp        = eth.Uint64Quantity(50)
+		validParentBeaconRoot = common.HexToHash("0x456")
+		validPrevRandao       = eth.Bytes32(common.HexToHash("0x789"))
+		validGasLimit         = eth.Uint64Quantity(1000)
+		validFeeRecipient     = predeploys.SequencerFeeVaultAddr
+		validTx               = testutils.RandomLegacyTxNotProtected(rand.New(rand.NewSource(42)))
+		validTxData, _        = validTx.MarshalBinary()
+
+		validHoloceneExtraData = eth.BytesMax32(eip1559.EncodeHoloceneExtraData(
+			*defaultOpConfig.EIP1559DenominatorCanyon, defaultOpConfig.EIP1559Elasticity))
+		validHoloceneEIP1559Params = new(eth.Bytes8)
+	)
+
+	return matchArgs{
 		envelope: &eth.ExecutionPayloadEnvelope{
 			ParentBeaconBlockRoot: &validParentBeaconRoot,
 			ExecutionPayload: &eth.ExecutionPayload{
@@ -43,8 +60,10 @@ func ecotoneArgs() args {
 				Timestamp:    validTimestamp,
 				PrevRandao:   validPrevRandao,
 				GasLimit:     validGasLimit,
-				Withdrawals:  &validWithdrawals,
+				Transactions: []eth.Data{validTxData},
+				Withdrawals:  &types.Withdrawals{},
 				FeeRecipient: validFeeRecipient,
+				ExtraData:    validHoloceneExtraData,
 			},
 		},
 		attrs: &eth.PayloadAttributes{
@@ -52,231 +71,487 @@ func ecotoneArgs() args {
 			PrevRandao:            validPrevRandao,
 			GasLimit:              &validGasLimit,
 			ParentBeaconBlockRoot: &validParentBeaconRoot,
-			Withdrawals:           &validWithdrawals,
+			Transactions:          []eth.Data{validTxData},
+			Withdrawals:           &types.Withdrawals{},
 			SuggestedFeeRecipient: validFeeRecipient,
+			EIP1559Params:         validHoloceneEIP1559Params,
 		},
 		parentHash: validParentHash,
 	}
 }
 
-func canyonArgs() args {
+func ecotoneArgs() matchArgs {
+	args := holoceneArgs()
+	args.attrs.EIP1559Params = nil
+	args.envelope.ExecutionPayload.ExtraData = nil
+	return args
+}
+
+func canyonArgs() matchArgs {
 	args := ecotoneArgs()
 	args.attrs.ParentBeaconBlockRoot = nil
 	args.envelope.ParentBeaconBlockRoot = nil
 	return args
 }
 
-func bedrockArgs() args {
-	args := ecotoneArgs()
+func bedrockArgs() matchArgs {
+	args := canyonArgs()
 	args.attrs.Withdrawals = nil
 	args.envelope.ExecutionPayload.Withdrawals = nil
 	return args
 }
 
-func ecotoneNoParentBeaconBlockRoot() args {
+func ecotoneNoParentBeaconBlockRoot() matchArgs {
 	args := ecotoneArgs()
 	args.envelope.ParentBeaconBlockRoot = nil
 	return args
 }
 
-func ecotoneUnexpectedParentBeaconBlockRoot() args {
+func ecotoneUnexpectedParentBeaconBlockRoot() matchArgs {
 	args := ecotoneArgs()
 	args.attrs.ParentBeaconBlockRoot = nil
 	return args
 }
 
-func ecotoneMismatchParentBeaconBlockRoot() args {
+func ecotoneMismatchParentBeaconBlockRoot() matchArgs {
 	args := ecotoneArgs()
 	h := common.HexToHash("0xabc")
 	args.attrs.ParentBeaconBlockRoot = &h
 	return args
 }
 
-func ecotoneMismatchParentBeaconBlockRootPtr() args {
+func ecotoneMismatchParentBeaconBlockRootPtr() matchArgs {
 	args := ecotoneArgs()
 	cpy := *args.attrs.ParentBeaconBlockRoot
 	args.attrs.ParentBeaconBlockRoot = &cpy
 	return args
 }
 
-func ecotoneNilParentBeaconBlockRoots() args {
+func ecotoneNilParentBeaconBlockRoots() matchArgs {
 	args := ecotoneArgs()
 	args.attrs.ParentBeaconBlockRoot = nil
 	args.envelope.ParentBeaconBlockRoot = nil
 	return args
 }
 
-func mismatchedParentHashArgs() args {
+func mismatchedParentHashArgs() matchArgs {
 	args := ecotoneArgs()
 	args.parentHash = common.HexToHash("0xabc")
 	return args
 }
 
-func createMismatchedPrevRandao() args {
+func createMismatchedPrevRandao() matchArgs {
 	args := ecotoneArgs()
 	args.attrs.PrevRandao = eth.Bytes32(common.HexToHash("0xabc"))
 	return args
 }
 
-func createMismatchedGasLimit() args {
+func createMismatchedGasLimit() matchArgs {
 	args := ecotoneArgs()
 	val := eth.Uint64Quantity(2000)
 	args.attrs.GasLimit = &val
 	return args
 }
 
-func createNilGasLimit() args {
+func createNilGasLimit() matchArgs {
 	args := ecotoneArgs()
 	args.attrs.GasLimit = nil
 	return args
 }
 
-func createMismatchedTimestamp() args {
+func createMismatchedTimestamp() matchArgs {
 	args := ecotoneArgs()
-	val := eth.Uint64Quantity(2000)
-	args.attrs.Timestamp = val
+	args.attrs.Timestamp++
 	return args
 }
 
-func createMismatchedFeeRecipient() args {
+func createMismatchedTransactions() matchArgs {
+	args := ecotoneArgs()
+	args.attrs.Transactions = append(args.attrs.Transactions, args.attrs.Transactions[0])
+	return args
+}
+
+func createMismatchedFeeRecipient() matchArgs {
 	args := ecotoneArgs()
 	args.attrs.SuggestedFeeRecipient = common.Address{0xde, 0xad}
 	return args
 }
 
-func TestAttributesMatch(t *testing.T) {
-	rollupCfg := &rollup.Config{}
-
-	tests := []struct {
-		shouldMatch bool
-		args        args
-	}{
-		{
-			shouldMatch: true,
-			args:        ecotoneArgs(),
-		},
-		{
-			shouldMatch: true,
-			args:        canyonArgs(),
-		},
-		{
-			shouldMatch: true,
-			args:        bedrockArgs(),
-		},
-		{
-			shouldMatch: false,
-			args:        mismatchedParentHashArgs(),
-		},
-		{
-			shouldMatch: false,
-			args:        ecotoneNoParentBeaconBlockRoot(),
-		},
-		{
-			shouldMatch: false,
-			args:        ecotoneUnexpectedParentBeaconBlockRoot(),
-		},
-		{
-			shouldMatch: false,
-			args:        ecotoneMismatchParentBeaconBlockRoot(),
-		},
-		{
-			shouldMatch: true,
-			args:        ecotoneMismatchParentBeaconBlockRootPtr(),
-		},
-		{
-			shouldMatch: true,
-			args:        ecotoneNilParentBeaconBlockRoots(),
-		},
-		{
-			shouldMatch: false,
-			args:        createMismatchedPrevRandao(),
-		},
-		{
-			shouldMatch: false,
-			args:        createMismatchedGasLimit(),
-		},
-		{
-			shouldMatch: false,
-			args:        createNilGasLimit(),
-		},
-		{
-			shouldMatch: false,
-			args:        createMismatchedTimestamp(),
-		},
-		{
-			shouldMatch: false,
-			args:        createMismatchedFeeRecipient(),
-		},
-	}
-
-	for i, test := range tests {
-		err := AttributesMatchBlock(rollupCfg, test.args.attrs, test.args.parentHash, test.args.envelope, testlog.Logger(t, log.LevelInfo))
-		if test.shouldMatch {
-			require.NoError(t, err, "fail %d", i)
-		} else {
-			require.Error(t, err, "fail %d", i)
-		}
-	}
+func createMismatchedEIP1559Params() matchArgs {
+	args := holoceneArgs()
+	args.attrs.EIP1559Params[0]++ // so denominator is != 0
+	return args
 }
 
-func TestWithdrawalsMatch(t *testing.T) {
+func TestAttributesMatch(t *testing.T) {
+	// default valid timestamp is 50
+	pastTime := uint64(0)
+	futureTime := uint64(100)
+
+	rollupCfgPreCanyon := &rollup.Config{CanyonTime: &futureTime, ChainOpConfig: defaultOpConfig}
+	rollupCfgPreIsthmus := &rollup.Config{CanyonTime: &pastTime, IsthmusTime: &futureTime, ChainOpConfig: defaultOpConfig}
+
 	tests := []struct {
-		attrs       *types.Withdrawals
-		block       *types.Withdrawals
-		shouldMatch bool
+		args      matchArgs
+		rollupCfg *rollup.Config
+		err       string
+		desc      string
 	}{
 		{
-			attrs:       nil,
-			block:       nil,
-			shouldMatch: true,
+			args:      bedrockArgs(),
+			rollupCfg: rollupCfgPreCanyon,
+			desc:      "validBedrockArgs",
 		},
 		{
-			attrs:       &types.Withdrawals{},
-			block:       nil,
-			shouldMatch: false,
+			args:      bedrockArgs(),
+			rollupCfg: rollupCfgPreIsthmus,
+			err:       ErrCanyonMustHaveWithdrawals.Error() + ": block",
+			desc:      "bedrockArgsPostCanyon",
 		},
 		{
-			attrs:       nil,
-			block:       &types.Withdrawals{},
-			shouldMatch: false,
+			args:      canyonArgs(),
+			rollupCfg: rollupCfgPreIsthmus,
+			desc:      "validCanyonArgs",
 		},
 		{
-			attrs:       &types.Withdrawals{},
-			block:       &types.Withdrawals{},
-			shouldMatch: true,
+			args:      ecotoneArgs(),
+			rollupCfg: rollupCfgPreIsthmus,
+			desc:      "validEcotoneArgs",
 		},
 		{
-			attrs: &types.Withdrawals{
-				{
-					Index: 1,
-				},
-			},
-			block:       &types.Withdrawals{},
-			shouldMatch: false,
+			args:      holoceneArgs(),
+			rollupCfg: rollupCfgPreIsthmus,
+			desc:      "validholoceneArgs",
 		},
 		{
-			attrs: &types.Withdrawals{
-				{
-					Index: 1,
-				},
-			},
-			block: &types.Withdrawals{
-				{
-					Index: 2,
-				},
-			},
-			shouldMatch: false,
+			args:      mismatchedParentHashArgs(),
+			rollupCfg: rollupCfgPreIsthmus,
+			err:       "parent hash field does not match",
+			desc:      "mismatchedParentHashArgs",
+		},
+		{
+			args:      createMismatchedTimestamp(),
+			rollupCfg: rollupCfgPreIsthmus,
+			err:       "timestamp field does not match",
+			desc:      "createMismatchedTimestamp",
+		},
+		{
+			args:      createMismatchedPrevRandao(),
+			rollupCfg: rollupCfgPreIsthmus,
+			err:       "random field does not match",
+			desc:      "createMismatchedPrevRandao",
+		},
+		{
+			args:      createMismatchedTransactions(),
+			rollupCfg: rollupCfgPreIsthmus,
+			err:       "transaction count does not match",
+			desc:      "createMismatchedTransactions",
+		},
+		{
+			args:      ecotoneNoParentBeaconBlockRoot(),
+			rollupCfg: rollupCfgPreIsthmus,
+			err:       "expected non-nil parent beacon block root",
+			desc:      "ecotoneNoParentBeaconBlockRoot",
+		},
+		{
+			args:      ecotoneUnexpectedParentBeaconBlockRoot(),
+			rollupCfg: rollupCfgPreIsthmus,
+			err:       "expected nil parent beacon block root but got non-nil",
+			desc:      "ecotoneUnexpectedParentBeaconBlockRoot",
+		},
+		{
+			args:      ecotoneMismatchParentBeaconBlockRoot(),
+			rollupCfg: rollupCfgPreIsthmus,
+			err:       "parent beacon block root does not match",
+			desc:      "ecotoneMismatchParentBeaconBlockRoot",
+		},
+		{
+			args:      ecotoneMismatchParentBeaconBlockRootPtr(),
+			rollupCfg: rollupCfgPreIsthmus,
+			desc:      "ecotoneMismatchParentBeaconBlockRootPtr",
+		},
+		{
+			args:      ecotoneNilParentBeaconBlockRoots(),
+			rollupCfg: rollupCfgPreIsthmus,
+			desc:      "ecotoneNilParentBeaconBlockRoots",
+		},
+		{
+			args:      createMismatchedGasLimit(),
+			rollupCfg: rollupCfgPreIsthmus,
+			err:       "gas limit does not match",
+			desc:      "createMismatchedGasLimit",
+		},
+		{
+			args:      createNilGasLimit(),
+			rollupCfg: rollupCfgPreIsthmus,
+			err:       "expected gaslimit in attributes to not be nil",
+			desc:      "createNilGasLimit",
+		},
+		{
+			args:      createMismatchedFeeRecipient(),
+			rollupCfg: rollupCfgPreIsthmus,
+			err:       "fee recipient data does not match",
+			desc:      "createMismatchedFeeRecipient",
+		},
+		{
+			args:      createMismatchedEIP1559Params(),
+			rollupCfg: rollupCfgPreIsthmus,
+			err:       "eip1559 parameters do not match",
+			desc:      "createMismatchedEIP1559Params",
 		},
 	}
 
 	for _, test := range tests {
-		err := checkWithdrawalsMatch(test.attrs, test.block)
+		t.Run(test.desc, func(t *testing.T) {
+			err := AttributesMatchBlock(test.rollupCfg,
+				test.args.attrs, test.args.parentHash, test.args.envelope,
+				testlog.Logger(t, log.LevelInfo),
+			)
+			if test.err == "" {
+				require.NoError(t, err)
+			} else {
+				require.ErrorContains(t, err, test.err)
+			}
+		})
+	}
+}
 
-		if test.shouldMatch {
-			require.NoError(t, err)
-		} else {
-			require.Error(t, err)
-		}
+func TestWithdrawalsMatch(t *testing.T) {
+	canyonTimeInFuture := uint64(100)
+	canyonTimeInPast := uint64(0)
+	isthmusTimeInPast := uint64(150)
+	isthmusTimeInFuture := uint64(250)
+
+	emptyWithdrawals := make(types.Withdrawals, 0)
+
+	rollupCfgPreCanyonChecks := &rollup.Config{CanyonTime: &canyonTimeInFuture, ChainOpConfig: defaultOpConfig}
+	rollupCfgPreIsthmusChecks := &rollup.Config{CanyonTime: &canyonTimeInPast, IsthmusTime: &isthmusTimeInFuture, ChainOpConfig: defaultOpConfig}
+	rollupCfgPostIsthmusChecks := &rollup.Config{CanyonTime: &canyonTimeInPast, IsthmusTime: &isthmusTimeInPast, ChainOpConfig: defaultOpConfig}
+
+	tests := []struct {
+		cfg   *rollup.Config
+		attrs *eth.PayloadAttributes
+		block *eth.ExecutionPayload
+		err   error
+		desc  string
+	}{
+		{
+			cfg:   rollupCfgPreCanyonChecks,
+			attrs: nil,
+			block: nil,
+			err:   ErrNilBlockOrAttributes,
+			desc:  "nil attributes/block",
+		},
+		{
+			cfg:   rollupCfgPreCanyonChecks,
+			attrs: &eth.PayloadAttributes{Withdrawals: nil},
+			block: &eth.ExecutionPayload{Timestamp: 0},
+			desc:  "pre-canyon: nil attr withdrawals",
+		},
+		{
+			cfg: rollupCfgPreCanyonChecks,
+			attrs: &eth.PayloadAttributes{
+				Withdrawals: &types.Withdrawals{
+					&types.Withdrawal{
+						Index: 1,
+					},
+				},
+			},
+			block: &eth.ExecutionPayload{Timestamp: 0},
+			err:   ErrBedrockMustHaveEmptyWithdrawals,
+			desc:  "pre-canyon: non-nil withdrawals",
+		},
+		{
+			cfg:   rollupCfgPostIsthmusChecks,
+			attrs: &eth.PayloadAttributes{},
+			block: &eth.ExecutionPayload{
+				Timestamp: 200,
+				Withdrawals: &types.Withdrawals{
+					&types.Withdrawal{
+						Index: 1,
+					},
+				},
+			},
+			err:  ErrCanyonMustHaveWithdrawals,
+			desc: "post-isthmus: non-empty block withdrawals list",
+		},
+		{
+			cfg: rollupCfgPostIsthmusChecks,
+			attrs: &eth.PayloadAttributes{
+				Withdrawals: &emptyWithdrawals,
+			},
+			block: &eth.ExecutionPayload{
+				Timestamp:       200,
+				WithdrawalsRoot: nil,
+				Withdrawals:     &emptyWithdrawals,
+			},
+			err:  ErrIsthmusMustHaveWithdrawalsRoot,
+			desc: "post-isthmus: nil block withdrawalsRoot",
+		},
+		{
+			cfg: rollupCfgPostIsthmusChecks,
+			attrs: &eth.PayloadAttributes{
+				Withdrawals: &types.Withdrawals{
+					&types.Withdrawal{
+						Index: 1,
+					},
+				},
+			},
+			block: &eth.ExecutionPayload{
+				Timestamp:       200,
+				WithdrawalsRoot: &common.Hash{},
+				Withdrawals:     &emptyWithdrawals,
+			},
+			err:  ErrCanyonMustHaveWithdrawals,
+			desc: "post-isthmus: non-empty attr withdrawals list",
+		},
+		{
+			cfg: rollupCfgPostIsthmusChecks,
+			attrs: &eth.PayloadAttributes{
+				Withdrawals: &emptyWithdrawals,
+			},
+			block: &eth.ExecutionPayload{
+				Timestamp:       200,
+				WithdrawalsRoot: &common.Hash{},
+				Withdrawals:     &emptyWithdrawals,
+			},
+			desc: "post-isthmus: non-empty block withdrawalsRoot and empty block/attr withdrawals list",
+		},
+		{
+			cfg:   rollupCfgPreIsthmusChecks,
+			attrs: &eth.PayloadAttributes{},
+			block: &eth.ExecutionPayload{
+				Timestamp: 200,
+				Withdrawals: &types.Withdrawals{
+					&types.Withdrawal{
+						Index: 1,
+					},
+				},
+			},
+			err:  ErrCanyonMustHaveWithdrawals,
+			desc: "pre-isthmus: non-empty block withdrawals list",
+		},
+		{
+			cfg: rollupCfgPreIsthmusChecks,
+			attrs: &eth.PayloadAttributes{
+				Withdrawals: &emptyWithdrawals,
+			},
+			block: &eth.ExecutionPayload{
+				Timestamp:       200,
+				Withdrawals:     &types.Withdrawals{},
+				WithdrawalsRoot: &common.Hash{},
+			},
+			err:  ErrCanyonWithdrawalsRoot,
+			desc: "pre-isthmus: non-empty block withdrawalsRoot",
+		},
+		{
+			cfg: rollupCfgPreIsthmusChecks,
+			attrs: &eth.PayloadAttributes{
+				Withdrawals: &types.Withdrawals{
+					&types.Withdrawal{
+						Index: 1,
+					},
+				},
+			},
+			block: &eth.ExecutionPayload{
+				Timestamp:       200,
+				Withdrawals:     &types.Withdrawals{},
+				WithdrawalsRoot: nil,
+			},
+			err:  ErrCanyonMustHaveWithdrawals,
+			desc: "pre-isthmus: non-empty attr withdrawals list",
+		},
+		{
+			cfg: rollupCfgPreIsthmusChecks,
+			attrs: &eth.PayloadAttributes{
+				Withdrawals: &emptyWithdrawals,
+			},
+			block: &eth.ExecutionPayload{
+				Timestamp:       200,
+				WithdrawalsRoot: nil,
+				Withdrawals:     &emptyWithdrawals,
+			},
+			desc: "pre-isthmus: nil block withdrawalsRoot and empty block/attr withdrawals list",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.desc, func(t *testing.T) {
+			err := checkWithdrawals(test.cfg, test.attrs, test.block)
+
+			if test.err != nil {
+				require.ErrorIs(t, err, test.err, "test: %s", test.desc)
+			} else {
+				require.NoError(t, err, "test: %s", test.desc)
+			}
+		})
+	}
+}
+
+func TestCheckEIP1559ParamsMatch(t *testing.T) {
+	params := eth.Bytes8{1, 2, 3, 4, 5, 6, 7, 8}
+	paramsAlt := eth.Bytes8{1, 2, 3, 4, 5, 6, 7, 9}
+	paramsInvalid := eth.Bytes8{0, 0, 0, 0, 5, 6, 7, 8}
+	defaultExtraData := eth.BytesMax32(eip1559.EncodeHoloceneExtraData(
+		*defaultOpConfig.EIP1559DenominatorCanyon, defaultOpConfig.EIP1559Elasticity))
+
+	for _, test := range []struct {
+		desc           string
+		attrParams     *eth.Bytes8
+		blockExtraData eth.BytesMax32
+		err            string
+	}{
+		{
+			desc: "match-empty",
+		},
+		{
+			desc:           "match-zero-attrs",
+			attrParams:     new(eth.Bytes8),
+			blockExtraData: defaultExtraData,
+		},
+		{
+			desc:           "match-non-zero",
+			attrParams:     &params,
+			blockExtraData: append(eth.BytesMax32{0}, params[:]...),
+		},
+		{
+			desc:           "err-both-zero",
+			attrParams:     new(eth.Bytes8),
+			blockExtraData: make(eth.BytesMax32, 9),
+			err:            "eip1559 parameters do not match, attributes: 250, 6 (translated from 0,0), block: 0, 0",
+		},
+		{
+			desc:           "err-invalid-params",
+			attrParams:     &paramsInvalid,
+			blockExtraData: append(eth.BytesMax32{0}, paramsInvalid[:]...),
+			err:            "invalid attributes EIP1559 parameters: holocene params cannot have a 0 denominator unless elasticity is also 0",
+		},
+		{
+			desc:           "err-invalid-extra",
+			attrParams:     &params,
+			blockExtraData: append(eth.BytesMax32{42}, params[:]...),
+			err:            "invalid block extraData: holocene extraData should have 0 version byte, got 42",
+		},
+		{
+			desc:           "err-no-match",
+			attrParams:     &paramsAlt,
+			blockExtraData: append(eth.BytesMax32{0}, params[:]...),
+			err:            "eip1559 parameters do not match",
+		},
+		{
+			desc:           "err-non-nil-extra",
+			blockExtraData: make(eth.BytesMax32, 9),
+			err:            "nil EIP1559Params in attributes but non-nil extraData in block",
+		},
+	} {
+		t.Run(test.desc, func(t *testing.T) {
+			err := checkEIP1559ParamsMatch(defaultOpConfig, test.attrParams, test.blockExtraData)
+			if test.err == "" {
+				require.NoError(t, err)
+			} else {
+				require.ErrorContains(t, err, test.err)
+			}
+		})
 	}
 }
 

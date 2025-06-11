@@ -6,9 +6,9 @@ import (
 
 	"github.com/urfave/cli/v2"
 
+	altda "github.com/ethereum-optimism/optimism/op-alt-da"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/engine"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/sync"
-	plasma "github.com/ethereum-optimism/optimism/op-plasma"
 	openum "github.com/ethereum-optimism/optimism/op-service/enum"
 	opflags "github.com/ethereum-optimism/optimism/op-service/flags"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
@@ -28,6 +28,7 @@ const (
 	P2PCategory        = "5. PEER-TO-PEER"
 	AltDACategory      = "6. ALT-DA (EXPERIMENTAL)"
 	MiscCategory       = "7. MISC"
+	InteropCategory    = "8. INTEROP (SUPER EXPERIMENTAL)"
 )
 
 func init() {
@@ -97,7 +98,7 @@ var (
 	BeaconFallbackAddrs = &cli.StringSliceFlag{
 		Name:     "l1.beacon-fallbacks",
 		Aliases:  []string{"l1.beacon-archiver"},
-		Usage:    "Addresses of L1 Beacon-API compatible HTTP fallback endpoints. Used to fetch blob sidecars not availalbe at the l1.beacon (e.g. expired blobs).",
+		Usage:    "Addresses of L1 Beacon-API compatible HTTP fallback endpoints. Used to fetch blob sidecars not available at the l1.beacon (e.g. expired blobs).",
 		EnvVars:  prefixEnvVars("L1_BEACON_FALLBACKS", "L1_BEACON_ARCHIVER"),
 		Category: L1RPCCategory,
 	}
@@ -194,13 +195,6 @@ var (
 		}(),
 		Category: L1RPCCategory,
 	}
-	L1RethDBPath = &cli.StringFlag{
-		Name:     "l1.rethdb",
-		Usage:    "The L1 RethDB path, used to fetch receipts for L1 blocks.",
-		EnvVars:  prefixEnvVars("L1_RETHDB"),
-		Hidden:   true,
-		Category: L1RPCCategory,
-	}
 	L1RPCMaxConcurrency = &cli.IntFlag{
 		Name:     "l1.max-concurrency",
 		Usage:    "Maximum number of concurrent RPC requests to make to the L1 RPC provider.",
@@ -222,6 +216,18 @@ var (
 		Value:    20,
 		Category: L1RPCCategory,
 	}
+	L1CacheSize = &cli.UintFlag{
+		Name: "l1.cache-size",
+		Usage: "Cache size for blocks, receipts and transactions. " +
+			"If this flag is set to 0, 2/3 of the sequencing window size is used (usually 2400). " +
+			"The default value of 900 (~3h of L1 blocks) is good for (high-throughput) networks that see frequent safe head increments. " +
+			"On (low-throughput) networks with infrequent safe head increments, it is recommended to set this value to 0, " +
+			"or a value that well covers the typical span between safe head increments. " +
+			"Note that higher values will cause significantly increased memory usage.",
+		EnvVars:  prefixEnvVars("L1_CACHE_SIZE"),
+		Value:    900, // ~3h of L1 blocks
+		Category: L1RPCCategory,
+	}
 	L1HTTPPollInterval = &cli.DurationFlag{
 		Name:     "l1.http-poll-interval",
 		Usage:    "Polling interval for latest-block subscription when using an HTTP RPC provider. Ignored for other types of RPC endpoints.",
@@ -238,6 +244,13 @@ var (
 			out := engine.Geth
 			return &out
 		}(),
+		Category: RollupCategory,
+	}
+	L2EngineRpcTimeout = &cli.DurationFlag{
+		Name:     "l2.engine-rpc-timeout",
+		Usage:    "L2 engine client rpc timeout",
+		EnvVars:  prefixEnvVars("L2_ENGINE_RPC_TIMEOUT"),
+		Value:    time.Second * 10,
 		Category: RollupCategory,
 	}
 	VerifierL1Confs = &cli.Uint64Flag{
@@ -296,7 +309,7 @@ var (
 	MetricsAddrFlag = &cli.StringFlag{
 		Name:     "metrics.addr",
 		Usage:    "Metrics listening address",
-		Value:    "0.0.0.0", // TODO(CLI-4159): Switch to 127.0.0.1
+		Value:    "0.0.0.0", // TODO: Switch to 127.0.0.1
 		EnvVars:  prefixEnvVars("METRICS_ADDR"),
 		Category: OperationsCategory,
 	}
@@ -316,22 +329,24 @@ var (
 	}
 	HeartbeatEnabledFlag = &cli.BoolFlag{
 		Name:     "heartbeat.enabled",
-		Usage:    "Enables or disables heartbeating",
+		Usage:    "Deprecated, no-op flag.",
 		EnvVars:  prefixEnvVars("HEARTBEAT_ENABLED"),
 		Category: OperationsCategory,
+		Hidden:   true,
 	}
 	HeartbeatMonikerFlag = &cli.StringFlag{
 		Name:     "heartbeat.moniker",
-		Usage:    "Sets a moniker for this node",
+		Usage:    "Deprecated, no-op flag.",
 		EnvVars:  prefixEnvVars("HEARTBEAT_MONIKER"),
 		Category: OperationsCategory,
+		Hidden:   true,
 	}
 	HeartbeatURLFlag = &cli.StringFlag{
 		Name:     "heartbeat.url",
-		Usage:    "Sets the URL to heartbeat to",
+		Usage:    "Deprecated, no-op flag.",
 		EnvVars:  prefixEnvVars("HEARTBEAT_URL"),
-		Value:    "https://heartbeat.optimism.io",
 		Category: OperationsCategory,
+		Hidden:   true,
 	}
 	RollupHalt = &cli.StringFlag{
 		Name:     "rollup.halt",
@@ -407,6 +422,50 @@ var (
 		Value:    time.Second * 1,
 		Category: SequencerCategory,
 	}
+	/* Interop flags, experimental. */
+	InteropSupervisor = &cli.StringFlag{
+		Name: "interop.supervisor",
+		Usage: "Interop standard-mode: RPC address of interop supervisor to use for cross-chain safety verification." +
+			"Applies only to Interop-enabled networks.",
+		EnvVars:  prefixEnvVars("INTEROP_SUPERVISOR"),
+		Category: InteropCategory,
+	}
+	InteropRPCAddr = &cli.StringFlag{
+		Name: "interop.rpc.addr",
+		Usage: "Interop Websocket-only RPC listening address, to serve supervisor syncing." +
+			"Applies only to Interop-enabled networks. Optional, alternative to follow-mode.",
+		EnvVars:  prefixEnvVars("INTEROP_RPC_ADDR"),
+		Value:    "127.0.0.1",
+		Category: InteropCategory,
+	}
+	InteropRPCPort = &cli.IntFlag{
+		Name: "interop.rpc.port",
+		Usage: "Interop RPC listening port, to serve supervisor syncing." +
+			"Applies only to Interop-enabled networks.",
+		EnvVars:  prefixEnvVars("INTEROP_RPC_PORT"),
+		Value:    9645, // Note: op-service/rpc/cli.go uses 8545 as the default.
+		Category: InteropCategory,
+	}
+	InteropJWTSecret = &cli.StringFlag{
+		Name: "interop.jwt-secret",
+		Usage: "Interop RPC server authentication. Path to JWT secret key. Keys are 32 bytes, hex encoded in a file. " +
+			"A new key will be generated if the file is empty. " +
+			"Applies only to Interop-enabled networks.",
+		EnvVars:     prefixEnvVars("INTEROP_JWT_SECRET"),
+		Value:       "",
+		Destination: new(string),
+		Category:    InteropCategory,
+	}
+
+	IgnoreMissingPectraBlobSchedule = &cli.BoolFlag{
+		Name: "ignore-missing-pectra-blob-schedule",
+		Usage: "Ignore missing pectra blob schedule fix for Sepolia and Holesky chains. Only set if you know what you are doing!" +
+			"Ask your chain's operator for the correct Pectra blob schedule activation time and set it via the rollup.json config" +
+			"or use the --override.pectrablobschedule flag.",
+		EnvVars:  prefixEnvVars("IGNORE_MISSING_PECTRA_BLOB_SCHEDULE"),
+		Category: RollupCategory,
+		Hidden:   true,
+	}
 )
 
 var requiredFlags = []cli.Flag{
@@ -434,6 +493,7 @@ var optionalFlags = []cli.Flag{
 	L1RPCMaxBatchSize,
 	L1RPCMaxConcurrency,
 	L1HTTPPollInterval,
+	L1CacheSize,
 	L2RpcTimeout,
 	L2RpcBatchTimeout,
 	VerifierL1Confs,
@@ -454,12 +514,17 @@ var optionalFlags = []cli.Flag{
 	HeartbeatURLFlag,
 	RollupHalt,
 	RollupLoadProtocolVersions,
-	L1RethDBPath,
 	ConductorEnabledFlag,
 	ConductorRpcFlag,
 	ConductorRpcTimeoutFlag,
 	SafeDBPath,
 	L2EngineKind,
+	L2EngineRpcTimeout,
+	InteropSupervisor,
+	InteropRPCAddr,
+	InteropRPCPort,
+	InteropJWTSecret,
+	IgnoreMissingPectraBlobSchedule,
 }
 
 var DeprecatedFlags = []cli.Flag{
@@ -481,7 +546,7 @@ func init() {
 	optionalFlags = append(optionalFlags, oppprof.CLIFlagsWithCategory(EnvVarPrefix, OperationsCategory)...)
 	optionalFlags = append(optionalFlags, DeprecatedFlags...)
 	optionalFlags = append(optionalFlags, opflags.CLIFlags(EnvVarPrefix, RollupCategory)...)
-	optionalFlags = append(optionalFlags, plasma.CLIFlags(EnvVarPrefix, AltDACategory)...)
+	optionalFlags = append(optionalFlags, altda.CLIFlags(EnvVarPrefix, AltDACategory)...)
 	Flags = append(requiredFlags, optionalFlags...)
 }
 

@@ -29,6 +29,9 @@ type ChannelConfig struct {
 	SubSafetyMargin uint64
 	// The maximum byte-size a frame can have.
 	MaxFrameSize uint64
+	// MaxBlocksPerSpanBatch is the maximum number of blocks to add to a span batch.
+	// A value of 0 disables a maximum.
+	MaxBlocksPerSpanBatch int
 
 	// Target number of frames to create per channel.
 	// For blob transactions, this controls the number of blobs to target adding
@@ -48,9 +51,9 @@ type ChannelConfig struct {
 	UseBlobs bool
 }
 
-// ChannelConfig returns a copy of itself. This makes a ChannelConfig a static
-// ChannelConfigProvider of itself.
-func (cc ChannelConfig) ChannelConfig() ChannelConfig {
+// ChannelConfig returns a copy of the receiver.
+// This allows the receiver to be a static ChannelConfigProvider of itself.
+func (cc ChannelConfig) ChannelConfig(isPectra bool) ChannelConfig {
 	return cc
 }
 
@@ -101,7 +104,7 @@ func (cc *ChannelConfig) Check() error {
 	// The [ChannelTimeout] must be larger than the [SubSafetyMargin].
 	// Otherwise, new blocks would always be considered timed out.
 	if cc.ChannelTimeout < cc.SubSafetyMargin {
-		return ErrInvalidChannelTimeout
+		return fmt.Errorf("%w: %d < %d", ErrInvalidChannelTimeout, cc.ChannelTimeout, cc.SubSafetyMargin)
 	}
 
 	// The max frame size must at least be able to accommodate the constant

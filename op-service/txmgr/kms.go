@@ -39,6 +39,12 @@ func NewKmsConfig(cfg CLIConfig) (*KmsConfig, error) {
 		sess, err = session.NewSession(&aws.Config{
 			Region: aws.String(cfg.KmsRegion)},
 		)
+		if cfg.KmsProfile != "" {
+			sess, err = session.NewSession(&aws.Config{
+				Region:      aws.String(cfg.KmsRegion),
+				Credentials: credentials.NewSharedCredentials("", cfg.KmsProfile),
+			})
+		}
 	} else {
 		log.Info("Using AWS KMS development mode")
 		if cfg.KmsKeyID == "" || cfg.KmsEndpoint == "" || cfg.KmsRegion == "" {

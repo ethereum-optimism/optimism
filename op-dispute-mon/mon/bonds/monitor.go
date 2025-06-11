@@ -17,22 +17,19 @@ type RClock interface {
 type BondMetrics interface {
 	RecordCredit(expectation metrics.CreditExpectation, count int)
 	RecordBondCollateral(addr common.Address, required *big.Int, available *big.Int)
-	RecordHonestWithdrawableAmounts(map[common.Address]*big.Int)
 }
 
 type Bonds struct {
-	logger       log.Logger
-	clock        RClock
-	metrics      BondMetrics
-	honestActors types.HonestActors
+	logger  log.Logger
+	clock   RClock
+	metrics BondMetrics
 }
 
-func NewBonds(logger log.Logger, metrics BondMetrics, honestActors types.HonestActors, clock RClock) *Bonds {
+func NewBonds(logger log.Logger, metrics BondMetrics, clock RClock) *Bonds {
 	return &Bonds{
-		logger:       logger,
-		clock:        clock,
-		metrics:      metrics,
-		honestActors: honestActors,
+		logger:  logger,
+		clock:   clock,
+		metrics: metrics,
 	}
 }
 
@@ -50,10 +47,6 @@ func (b *Bonds) CheckBonds(games []*types.EnrichedGameData) {
 
 func (b *Bonds) checkCredits(games []*types.EnrichedGameData) {
 	creditMetrics := make(map[metrics.CreditExpectation]int)
-	honestWithdrawableAmounts := make(map[common.Address]*big.Int)
-	for address := range b.honestActors {
-		honestWithdrawableAmounts[address] = big.NewInt(0)
-	}
 
 	for _, game := range games {
 		// Check if the max duration has been reached for this game
@@ -101,12 +94,6 @@ func (b *Bonds) checkCredits(games []*types.EnrichedGameData) {
 			}
 			comparison := actual.Cmp(expected)
 			if maxDurationReached {
-				if actual.Cmp(big.NewInt(0)) > 0 && b.honestActors.Contains(recipient) {
-					total := honestWithdrawableAmounts[recipient]
-					total = new(big.Int).Add(total, actual)
-					honestWithdrawableAmounts[recipient] = total
-					b.logger.Warn("Found unclaimed credit", "recipient", recipient, "game", game.Proxy, "amount", actual)
-				}
 				if comparison > 0 {
 					creditMetrics[metrics.CreditAboveWithdrawable] += 1
 					b.logger.Warn("Credit above expected amount", "recipient", recipient, "expected", expected, "actual", actual, "game", game.Proxy, "withdrawable", "withdrawable")
@@ -136,5 +123,4 @@ func (b *Bonds) checkCredits(games []*types.EnrichedGameData) {
 	b.metrics.RecordCredit(metrics.CreditBelowNonWithdrawable, creditMetrics[metrics.CreditBelowNonWithdrawable])
 	b.metrics.RecordCredit(metrics.CreditEqualNonWithdrawable, creditMetrics[metrics.CreditEqualNonWithdrawable])
 	b.metrics.RecordCredit(metrics.CreditAboveNonWithdrawable, creditMetrics[metrics.CreditAboveNonWithdrawable])
-	b.metrics.RecordHonestWithdrawableAmounts(honestWithdrawableAmounts)
 }

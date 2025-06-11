@@ -299,7 +299,7 @@ const (
 	//   - QuickNode: https://www.quicknode.com/docs/ethereum/eth_getBlockReceipts
 	//   - Alchemy: https://docs.alchemy.com/reference/eth-getblockreceipts
 	// Erigon has this available, but does not support block-hash argument to the method:
-	// https://github.com/ledgerwatch/erigon/blob/287a3d1d6c90fc6a7a088b5ae320f93600d5a167/cmd/rpcdaemon/commands/eth_receipts.go#L571
+	// https://github.com/erigontech/erigon/blob/287a3d1d6c90fc6a7a088b5ae320f93600d5a167/cmd/rpcdaemon/commands/eth_receipts.go#L571
 	EthGetBlockReceipts
 	// ErigonGetBlockReceiptsByBlockHash is an Erigon-specific receipt fetching method,
 	// the same as EthGetBlockReceipts but supporting a block-hash argument.
@@ -311,7 +311,7 @@ const (
 	// Returns:
 	//  - Erigon: array of json-ified receipts
 	// See:
-	// https://github.com/ledgerwatch/erigon/blob/287a3d1d6c90fc6a7a088b5ae320f93600d5a167/cmd/rpcdaemon/commands/erigon_receipts.go#LL391C24-L391C51
+	// https://github.com/erigontech/erigon/blob/287a3d1d6c90fc6a7a088b5ae320f93600d5a167/cmd/rpcdaemon/commands/erigon_receipts.go#LL391C24-L391C51
 	ErigonGetBlockReceiptsByBlockHash
 
 	// Other:
@@ -329,8 +329,7 @@ func AvailableReceiptsFetchingMethods(kind RPCProviderKind) ReceiptsFetchingMeth
 	case RPCKindQuickNode:
 		return DebugGetRawReceipts | EthGetBlockReceipts | EthGetTransactionReceiptBatch
 	case RPCKindInfura:
-		// Infura is big, but sadly does not support more optimized receipts fetching methods (yet?)
-		return EthGetTransactionReceiptBatch
+		return EthGetBlockReceipts | EthGetTransactionReceiptBatch
 	case RPCKindParity:
 		return ParityGetBlockReceipts | EthGetTransactionReceiptBatch
 	case RPCKindNethermind:

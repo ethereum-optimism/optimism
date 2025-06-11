@@ -1,18 +1,19 @@
 package eth
 
 import (
+	"errors"
 	"fmt"
 )
 
 func ForkchoiceUpdateErr(payloadStatus PayloadStatusV1) error {
 	switch payloadStatus.Status {
 	case ExecutionSyncing:
-		return fmt.Errorf("updated forkchoice, but node is syncing")
+		return errors.New("updated forkchoice, but node is syncing")
 	case ExecutionAccepted, ExecutionInvalidTerminalBlock, ExecutionInvalidBlockHash:
 		// ACCEPTED, INVALID_TERMINAL_BLOCK, INVALID_BLOCK_HASH are only for execution
 		return fmt.Errorf("unexpected %s status, could not update forkchoice", payloadStatus.Status)
 	case ExecutionInvalid:
-		return fmt.Errorf("cannot update forkchoice, block is invalid")
+		return errors.New("cannot update forkchoice, block is invalid")
 	case ExecutionValid:
 		return nil
 	default:

@@ -17,7 +17,6 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
-	"github.com/ethereum/go-ethereum/consensus/misc/eip4844"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/crypto"
@@ -32,10 +31,10 @@ import (
 	op_service "github.com/ethereum-optimism/optimism/op-service"
 	"github.com/ethereum-optimism/optimism/op-service/cliapp"
 	"github.com/ethereum-optimism/optimism/op-service/client"
+	"github.com/ethereum-optimism/optimism/op-service/ctxinterrupt"
 	"github.com/ethereum-optimism/optimism/op-service/dial"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
-	"github.com/ethereum-optimism/optimism/op-service/opio"
 	"github.com/ethereum-optimism/optimism/op-service/predeploys"
 	"github.com/ethereum-optimism/optimism/op-service/retry"
 	"github.com/ethereum-optimism/optimism/op-service/sources"
@@ -168,7 +167,7 @@ func makeCommandAction(fn CheckAction) func(c *cli.Context) error {
 		logCfg := oplog.ReadCLIConfig(c)
 		logger := oplog.NewLogger(c.App.Writer, logCfg)
 
-		c.Context = opio.CancelOnInterrupt(c.Context)
+		c.Context = ctxinterrupt.WithCancelOnInterrupt(c.Context)
 		l1Cl, err := ethclient.DialContext(c.Context, c.String(EndpointL1.Name))
 		if err != nil {
 			return fmt.Errorf("failed to dial L1 RPC: %w", err)
@@ -512,7 +511,8 @@ func checkBlobTxDenial(ctx context.Context, env *actionEnv) error {
 	if latestHeader.ExcessBlobGas == nil {
 		return fmt.Errorf("the L1 block %s (time %d) is not ecotone yet", latestHeader.Hash(), latestHeader.Time)
 	}
-	blobBaseFee := eip4844.CalcBlobFee(*latestHeader.ExcessBlobGas)
+
+	blobBaseFee := eth.CalcBlobFeeDefault(latestHeader)
 	blobFeeCap := new(uint256.Int).Mul(uint256.NewInt(2), uint256.MustFromBig(blobBaseFee))
 	if blobFeeCap.Lt(uint256.NewInt(params.GWei)) { // ensure we meet 1 gwei geth tx-pool minimum
 		blobFeeCap = uint256.NewInt(params.GWei)
@@ -786,7 +786,7 @@ func checkL1Fees(ctx context.Context, env *actionEnv) error {
 		Data:       []byte("hello"),
 		AccessList: nil,
 	}
-	tx, err := types.SignNewTx(env.key, types.NewLondonSigner(txData.ChainID), txData)
+	tx, err := types.SignNewTx(env.key, types.NewIsthmusSigner(txData.ChainID), txData)
 	if err != nil {
 		return fmt.Errorf("failed to sign test tx: %w", err)
 	}

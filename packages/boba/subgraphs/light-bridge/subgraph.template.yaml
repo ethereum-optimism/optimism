@@ -1,0 +1,64 @@
+specVersion: 1.0.0
+indexerHints:
+  prune: auto
+schema:
+  file: ./schema.graphql
+dataSources:
+  - kind: ethereum
+    name: LightBridge
+    network: {{network}}
+    source:
+      abi: LightBridge
+      address: '{{contracts.LightBridge.address}}'
+      startBlock: {{contracts.LightBridge.startBlock}}
+    mapping:
+      kind: ethereum/events
+      apiVersion: 0.0.7
+      language: wasm/assemblyscript
+      entities:
+        - AssetBalanceWithdrawn
+        - AssetReceived
+        - DisbursementFailed
+        - DisbursementRetrySuccess
+        - DisbursementSuccess
+        - DisburserTransferred
+        - MaxDepositAmountSet
+        - MaxTransferAmountPerDaySet
+        - MinDepositAmountSet
+        - OwnershipTransferred
+        - Paused
+        - TokenSupported
+        - Unpaused
+      abis:
+        - name: LightBridge
+          file: ./abis/LightBridge.json
+      eventHandlers:
+        - event: AssetBalanceWithdrawn(indexed address,indexed address,uint256)
+          handler: handleAssetBalanceWithdrawn
+        - event: AssetReceived(address,uint32,indexed uint32,indexed uint256,indexed
+            address,uint256)
+          handler: handleAssetReceived
+        - event: DisbursementFailed(indexed uint256,indexed address,uint256,uint32)
+          handler: handleDisbursementFailed
+        - event: DisbursementRetrySuccess(indexed uint256,indexed address,uint256,uint32)
+          handler: handleDisbursementRetrySuccess
+        - event: DisbursementSuccess(indexed uint256,indexed address,indexed
+            address,uint256,uint32)
+          handler: handleDisbursementSuccess
+        - event: DisburserTransferred(address)
+          handler: handleDisburserTransferred
+        - event: MaxDepositAmountSet(address,uint32,uint256,uint256)
+          handler: handleMaxDepositAmountSet
+        - event: MaxTransferAmountPerDaySet(address,uint32,uint256,uint256)
+          handler: handleMaxTransferAmountPerDaySet
+        - event: MinDepositAmountSet(address,uint32,uint256,uint256)
+          handler: handleMinDepositAmountSet
+        - event: OwnershipTransferred(address)
+          handler: handleOwnershipTransferred
+        - event: Paused(address)
+          handler: handlePaused
+        - event: TokenSupported(indexed address,indexed uint32,bool)
+          handler: handleTokenSupported
+        - event: Unpaused(address)
+          handler: handleUnpaused
+      file: ./src/light-bridge.ts
