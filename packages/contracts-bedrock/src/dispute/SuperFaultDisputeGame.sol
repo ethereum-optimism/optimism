@@ -236,6 +236,25 @@ contract SuperFaultDisputeGame is Clone, ISemver {
     /// @notice Initializes the contract.
     /// @dev This function may only be called once.
     function initialize() public payable virtual {
+        // Revert if the calldata size is not the expected length.
+        //
+        // This is to prevent adding extra or omitting bytes from to `extraData` that result in a different game UUID
+        // in the factory, but are not used by the game, which would allow for multiple dispute games for the same
+        // output proposal to be created.
+        //
+        // Expected length: 0xC2 (194 bytes)
+        // - 0x04 selector
+        // - 0x02 CWIA length prefix
+        // - 0x14 creator address
+        // - 0x20 root claim
+        // - 0x20 l1 head
+        // - 0x20 extraData
+        // - 0x20 absolutePrestate (from CWIA gameArgs)
+        // - 0x14 vm address (from CWIA gameArgs)
+        // - 0x14 anchorStateRegistry address (from CWIA gameArgs)
+
+        if (msg.data.length != 194) revert BadExtraData();
+
         // SAFETY: Any revert in this function will bubble up to the DisputeGameFactory and
         // prevent the game from being created.
         //
@@ -279,25 +298,6 @@ contract SuperFaultDisputeGame is Clone, ISemver {
 
         // The maximum clock extension may not be greater than the maximum clock duration.
         if (uint64(maxClockExtension) > MAX_CLOCK_DURATION.raw()) revert InvalidClockExtension();
-
-        // Revert if the calldata size is not the expected length.
-        //
-        // This is to prevent adding extra or omitting bytes from to `extraData` that result in a different game UUID
-        // in the factory, but are not used by the game, which would allow for multiple dispute games for the same
-        // output proposal to be created.
-        //
-        // Expected length: 0xC2 (194 bytes)
-        // - 0x04 selector
-        // - 0x02 CWIA length prefix
-        // - 0x14 creator address
-        // - 0x20 root claim
-        // - 0x20 l1 head
-        // - 0x20 extraData
-        // - 0x20 absolutePrestate (from CWIA gameArgs)
-        // - 0x14 vm address (from CWIA gameArgs)
-        // - 0x14 anchorStateRegistry address (from CWIA gameArgs)
-
-        if (msg.data.length != 194) revert BadExtraData();
 
         // Do not allow the game to be initialized if the root claim corresponds to a l2 sequence number (timestamp) at
         // or before the configured starting sequence number.

@@ -255,6 +255,24 @@ contract FaultDisputeGame is Clone, ISemver {
     /// @notice Initializes the contract.
     /// @dev This function may only be called once.
     function initialize() public payable virtual {
+        // Revert if the calldata size is not the expected length.
+        //
+        // This is to prevent adding extra or omitting bytes from to `extraData` that result in a different game UUID
+        // in the factory, but are not used by the game, which would allow for multiple dispute games for the same
+        // output proposal to be created.
+        //
+        // Expected length: 194 bytes
+        // - 4 bytes: selector
+        // - 2 bytes: CWIA length prefix
+        // - 20 bytes: creator address
+        // - 32 bytes: root claim
+        // - 32 bytes: l1 head
+        // - 32 bytes: extraData
+        // - 32 bytes: absolutePrestate
+        // - 20 bytes: vm address
+        // - 20 bytes: anchorStateRegistry address
+        if (msg.data.length != 194) revert BadExtraData();
+
         // SAFETY: Any revert in this function will bubble up to the DisputeGameFactory and
         // prevent the game from being created.
         //
@@ -277,24 +295,6 @@ contract FaultDisputeGame is Clone, ISemver {
 
         // Set the starting proposal.
         startingOutputRoot = Proposal({ l2SequenceNumber: rootBlockNumber, root: root });
-
-        // Revert if the calldata size is not the expected length.
-        //
-        // This is to prevent adding extra or omitting bytes from to `extraData` that result in a different game UUID
-        // in the factory, but are not used by the game, which would allow for multiple dispute games for the same
-        // output proposal to be created.
-        //
-        // Expected length: 194 bytes
-        // - 4 bytes: selector
-        // - 2 bytes: CWIA length prefix
-        // - 20 bytes: creator address
-        // - 32 bytes: root claim
-        // - 32 bytes: l1 head
-        // - 32 bytes: extraData
-        // - 32 bytes: absolutePrestate
-        // - 20 bytes: vm address
-        // - 20 bytes: anchorStateRegistry address
-        if (msg.data.length != 194) revert BadExtraData();
 
         // Do not allow the game to be initialized if the root claim corresponds to a block at or before the
         // configured starting block number.

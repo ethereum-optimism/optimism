@@ -451,7 +451,6 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
 
     /// @dev Tests that the game cannot be initialized with extra data of the incorrect length (must be 32 bytes)
     function testFuzz_initialize_badExtraData_reverts(uint256 _extraDataLen) public {
-        vm.skip(true);
         // The `DisputeGameFactory` will pack the root claim and the extra data into a single array, which is enforced
         // to be at least 64 bytes long.
         // We bound the upper end to 23.5KB to ensure that the minimal proxy never surpasses the contract size limit

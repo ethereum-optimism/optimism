@@ -510,12 +510,6 @@ contract SuperFaultDisputeGame_Test is SuperFaultDisputeGame_Init {
 
     /// @dev Tests that the game cannot be initialized with extra data of the incorrect length (must be 32 bytes)
     function testFuzz_initialize_badExtraData_reverts(uint256 _extraDataLen) public {
-        /// Now that the data is packed in the factor ywe have to enforce that the extra data is bytes32 so we can
-        /// predictably predict where the args should in the calldata layout
-        /// ie, extraData needs a fixed lenght.  The other option considered is we put it at the end and sandwhich the
-        /// args stored in the factory storage
-        vm.skip(true);
-
         // The `DisputeGameFactory` will pack the root claim and the extra data into a single array, which is enforced
         // to be at least 64 bytes long.
         // We bound the upper end to 23.5KB to ensure that the minimal proxy never surpasses the contract size limit
