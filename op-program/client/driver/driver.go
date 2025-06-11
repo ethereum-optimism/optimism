@@ -11,7 +11,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/metrics"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
-	"github.com/ethereum-optimism/optimism/op-node/rollup/driver"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/engine"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/event"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/sync"
@@ -38,29 +37,7 @@ func NewDriver(logger log.Logger, cfg *rollup.Config, l1Source derive.L1Fetcher,
 		logger: logger,
 	}
 
-	var altdaImpl driver.AltDAIface
-
-	altdaConfig, err := cfg.GetOPAltDAConfig()
-	if err != nil {
-		panic("cfg.GetOPAltDAConfig() ")
-	}
-
-	// using using altda then always try to proxy
-	if altdaConfig.CommitmentType == altda.GenericCommitmentType {
-		// using eigenda proxy, this is a hack, clearly it cannot compile given it requires rpc access
-		addr := "http://127.0.0.1:3100"
-
-		daClient := altda.NewDAClient(addr, false, false)
-		daMgr := altda.NewAltDAWithStorage(logger, altdaConfig, daClient, &altda.NoopMetrics{})
-
-		altdaImpl = daMgr
-
-		log.Info("NewL2FaultProofEnv", "dp.AllocType", "EigenDAFaker")
-	} else {
-		altdaImpl = &altda.AltDADisabled{}
-	}
-
-	pipeline := derive.NewDerivationPipeline(logger, cfg, l1Source, l1BlobsSource, altdaImpl, l2Source, metrics.NoopMetrics, false)
+	pipeline := derive.NewDerivationPipeline(logger, cfg, l1Source, l1BlobsSource, altda.Disabled, l2Source, metrics.NoopMetrics, false)
 	pipelineDeriver := derive.NewPipelineDeriver(context.Background(), pipeline)
 	pipelineDeriver.AttachEmitter(d)
 
