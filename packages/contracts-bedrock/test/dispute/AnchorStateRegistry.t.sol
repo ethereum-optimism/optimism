@@ -61,9 +61,9 @@ contract AnchorStateRegistry_Initialize_Test is AnchorStateRegistry_TestInit {
         assertEq(l2BlockNumber, 0);
 
         // Verify contract addresses.
-        assert(anchorStateRegistry.systemConfig() == systemConfig);
         assert(anchorStateRegistry.disputeGameFactory() == disputeGameFactory);
         assert(anchorStateRegistry.superchainConfig() == superchainConfig);
+        assert(anchorStateRegistry.ethLockbox() == ethLockbox);
     }
 
     /// @notice Tests that the initializer value is correct. Trivial test for normal
@@ -85,7 +85,8 @@ contract AnchorStateRegistry_Initialize_Test is AnchorStateRegistry_TestInit {
     function test_initialize_twice_reverts() public {
         vm.expectRevert("Initializable: contract is already initialized");
         anchorStateRegistry.initialize(
-            systemConfig,
+            superchainConfig,
+            ethLockbox,
             disputeGameFactory,
             Proposal({
                 root: Hash.wrap(0xDEADBEEFDEADBEEFDEADBEEFDEADBEEFDEADBEEFDEADBEEFDEADBEEFDEADBEEF),
@@ -115,7 +116,8 @@ contract AnchorStateRegistry_Initialize_Test is AnchorStateRegistry_TestInit {
         // Call the `initialize` function with the sender
         vm.prank(_sender);
         anchorStateRegistry.initialize(
-            systemConfig,
+            superchainConfig,
+            ethLockbox,
             disputeGameFactory,
             Proposal({
                 root: Hash.wrap(0xDEADBEEFDEADBEEFDEADBEEFDEADBEEFDEADBEEFDEADBEEFDEADBEEFDEADBEEF),
