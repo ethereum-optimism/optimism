@@ -1942,6 +1942,7 @@ workflows:
                 - op-test-sequencer
                 - cannon
                 - op-dripper
+                - op-interop-mon
           context:
             - circleci-repo-readonly-authenticated-github-token
       - cannon-prestate-quick:
