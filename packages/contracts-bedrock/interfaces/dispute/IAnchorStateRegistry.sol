@@ -8,6 +8,7 @@ import { ISystemConfig } from "interfaces/L1/ISystemConfig.sol";
 import { GameType, Hash, Proposal } from "src/dispute/lib/Types.sol";
 import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
 import { IProxyAdminOwnedBase } from "interfaces/L1/IProxyAdminOwnedBase.sol";
+import { IETHLockbox } from "interfaces/L1/IETHLockbox.sol";
 
 interface IAnchorStateRegistry is IProxyAdminOwnedBase {
     error AnchorStateRegistry_InvalidAnchorGame();
@@ -29,7 +30,8 @@ interface IAnchorStateRegistry is IProxyAdminOwnedBase {
     function disputeGameFinalityDelaySeconds() external view returns (uint256);
     function disputeGameFactory() external view returns (IDisputeGameFactory);
     function initialize(
-        ISystemConfig _systemConfig,
+        ISuperchainConfig _superchainConfig,
+        IETHLockbox _ethLockbox,
         IDisputeGameFactory _disputeGameFactory,
         Proposal memory _startingAnchorRoot,
         GameType _startingRespectedGameType
@@ -48,10 +50,10 @@ interface IAnchorStateRegistry is IProxyAdminOwnedBase {
     function retirementTimestamp() external view returns (uint64);
     function setAnchorState(IDisputeGame _game) external;
     function setRespectedGameType(GameType _gameType) external;
-    function systemConfig() external view returns (ISystemConfig);
     function updateRetirementTimestamp() external;
     function version() external view returns (string memory);
     function superchainConfig() external view returns (ISuperchainConfig);
+    function ethLockbox() external view returns (IETHLockbox);
 
     function __constructor__(
         uint256 _disputeGameFinalityDelaySeconds
