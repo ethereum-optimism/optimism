@@ -391,6 +391,7 @@ type BindingsWrapper[T any] struct {
 	Bindings T
 }
 
+// NewBindings is a helper function to inject base call factory and initialize the contract bindings implementation
 func NewBindings[T any](opts ...CallFactoryOption) T {
 	bindingsWrapper := BindingsWrapper[T]{
 		BaseCallFactory: *NewBaseCallFactory(opts...),
