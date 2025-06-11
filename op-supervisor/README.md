@@ -114,7 +114,7 @@ In turn, op-supervisor sends signals to the op-node to manage its derivation pip
 | When new unsafe blocks are added  | Supervisor fetches receipts for database indexing |
 | When a new safe block is derived from an L1 block | Supervisor records the L1:L2 derivation information to the database |
 | When an L1 block is fully derived | Supervisor provides the next L1 block |
-| When the node resets is derivation pipeline | Supervisor provides a reset signal targeting blocks known in the database |
+| When the node resets its derivation pipeline | Supervisor provides a reset signal targeting blocks known in the database |
 
 Additionally, the supervisor sends control signals to the op-node triggered by *database updates* in order to inform the node of cross-safety levels:
 | database event | op-supervisor control |
