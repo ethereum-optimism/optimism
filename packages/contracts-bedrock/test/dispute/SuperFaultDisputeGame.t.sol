@@ -492,7 +492,7 @@ contract SuperFaultDisputeGame_Test is SuperFaultDisputeGame_Init {
             payable(
                 address(
                     disputeGameFactory.create{ value: _value }(
-                        GAME_TYPE, arbitaryRootClaim, abi.encode(validl2SequenceNumber)
+                        GAME_TYPE, arbitaryRootClaim, abi.encodePacked(validl2SequenceNumber)
                     )
                 )
             )
@@ -576,7 +576,7 @@ contract SuperFaultDisputeGame_Test is SuperFaultDisputeGame_Init {
 
         // Creation should fail.
         vm.expectRevert(AnchorRootNotFound.selector);
-        gameProxy = ISuperFaultDisputeGame(payable(address(disputeGameFactory.create(GAME_TYPE, _dummyClaim(), hex""))));
+        gameProxy = ISuperFaultDisputeGame(payable(address(disputeGameFactory.create(GAME_TYPE, _dummyClaim(), bytes.concat(bytes32(type(uint256).max))))));
     }
 
     /// @dev Tests that the game cannot be initialized twice.
