@@ -29,10 +29,10 @@ func (n *L1ELNode) hydrate(system stack.ExtensibleSystem) {
 		ELNodeConfig: shim.ELNodeConfig{
 			CommonConfig: shim.NewCommonConfig(system.T()),
 			Client:       rpcCl,
-			ChainID:      n.id.ChainID,
+			ChainID:      n.id.ChainID(),
 		},
 	})
-	l1Net := system.L1Network(stack.L1NetworkID(n.id.ChainID))
+	l1Net := system.L1Network(stack.L1NetworkID(n.id.ChainID()))
 	l1Net.(stack.ExtensibleL1Network).AddL1ELNode(frontend)
 }
 
@@ -40,6 +40,7 @@ type L1CLNode struct {
 	id             stack.L1CLNodeID
 	beaconHTTPAddr string
 	beacon         *fakebeacon.FakeBeacon
+	fakepos        *FakePoS
 }
 
 func (n *L1CLNode) hydrate(system stack.ExtensibleSystem) {
@@ -49,36 +50,39 @@ func (n *L1CLNode) hydrate(system stack.ExtensibleSystem) {
 		ID:           n.id,
 		Client:       beaconCl,
 	})
-	l1Net := system.L1Network(stack.L1NetworkID(n.id.ChainID))
+	l1Net := system.L1Network(stack.L1NetworkID(n.id.ChainID()))
 	l1Net.(stack.ExtensibleL1Network).AddL1CLNode(frontend)
 }
 
 func WithL1Nodes(l1ELID stack.L1ELNodeID, l1CLID stack.L1CLNodeID) stack.Option[*Orchestrator] {
 	return stack.AfterDeploy(func(orch *Orchestrator) {
+		clP := orch.P().WithCtx(stack.ContextWithID(orch.P().Ctx(), l1CLID))
+		elP := orch.P().WithCtx(stack.ContextWithID(orch.P().Ctx(), l1ELID))
 		require := orch.P().Require()
 
-		l1Net, ok := orch.l1Nets.Get(l1ELID.ChainID)
+		l1Net, ok := orch.l1Nets.Get(l1ELID.ChainID())
 		require.True(ok, "L1 network must exist")
 
 		blockTimeL1 := l1Net.blockTime
-		l1FinalizedDistance := uint64(3)
+		l1FinalizedDistance := uint64(20)
 		l1Clock := clock.SystemClock
 		if orch.timeTravelClock != nil {
 			l1Clock = orch.timeTravelClock
 		}
 
-		blobPath := orch.p.TempDir()
+		blobPath := clP.TempDir()
 
-		logger := orch.P().Logger().New("id", l1CLID)
-		bcn := fakebeacon.NewBeacon(logger, e2eutils.NewBlobStore(), l1Net.genesis.Timestamp, blockTimeL1)
-		orch.p.Cleanup(func() {
+		clLogger := clP.Logger()
+		bcn := fakebeacon.NewBeacon(clLogger, e2eutils.NewBlobStore(), l1Net.genesis.Timestamp, blockTimeL1)
+		clP.Cleanup(func() {
 			_ = bcn.Close()
 		})
 		require.NoError(bcn.Start("127.0.0.1:0"))
 		beaconApiAddr := bcn.BeaconAddr()
 		require.NotEmpty(beaconApiAddr, "beacon API listener must be up")
 
-		l1Geth, err := geth.InitL1(
+		elLogger := elP.Logger()
+		l1Geth, fp, err := geth.InitL1(
 			blockTimeL1,
 			l1FinalizedDistance,
 			l1Net.genesis,
@@ -87,8 +91,8 @@ func WithL1Nodes(l1ELID stack.L1ELNodeID, l1CLID stack.L1CLNodeID) stack.Option[
 			bcn)
 		require.NoError(err)
 		require.NoError(l1Geth.Node.Start())
-		orch.p.Cleanup(func() {
-			logger.Info("Closing L1 geth")
+		elP.Cleanup(func() {
+			elLogger.Info("Closing L1 geth")
 			_ = l1Geth.Close()
 		})
 
@@ -104,6 +108,7 @@ func WithL1Nodes(l1ELID stack.L1ELNodeID, l1CLID stack.L1CLNodeID) stack.Option[
 			id:             l1CLID,
 			beaconHTTPAddr: beaconApiAddr,
 			beacon:         bcn,
+			fakepos:        &FakePoS{fakepos: fp, p: clP},
 		}
 		require.True(orch.l1CLs.SetIfMissing(l1CLID, l1CLNode), "must not already exist")
 	})

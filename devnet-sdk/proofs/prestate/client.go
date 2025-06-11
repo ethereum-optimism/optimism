@@ -12,7 +12,6 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/depset"
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 )
 
 // These constants should be in sync with op-program/chainconfig/chaincfg.go
@@ -69,12 +68,12 @@ func WithInteropDepSet(content io.Reader) PrestateBuilderOption {
 
 func generateInteropDepSet(chains []string) ([]byte, error) {
 	deps := make(map[eth.ChainID]*depset.StaticConfigDependency)
-	for i, chain := range chains {
+	for _, chain := range chains {
 		id, err := eth.ParseDecimalChainID(chain)
 		if err != nil {
 			return nil, fmt.Errorf("failed to parse chain ID: %w", err)
 		}
-		deps[id] = &depset.StaticConfigDependency{ChainIndex: types.ChainIndex(i)}
+		deps[id] = &depset.StaticConfigDependency{}
 	}
 
 	interopDepSet, err := depset.NewStaticConfigDependencySet(deps)

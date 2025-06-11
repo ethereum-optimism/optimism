@@ -13,7 +13,7 @@ Think of acceptance testing as Gandalf 🧙, standing at the gates and shouting,
 
 The `op-acceptor` ensures network quality and readiness by running a comprehensive suite of acceptance tests before features can advance through the promotion pipeline:
 
-Localnet -> Alphanet → Betanet → Testnet
+Localnet → Alphanet → Betanet → Testnet
 
 This process helps maintain high-quality standards across all networks in the OP Stack ecosystem.
 

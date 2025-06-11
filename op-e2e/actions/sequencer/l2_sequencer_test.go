@@ -180,7 +180,7 @@ func TestL2SequencerAPI(gt *testing.T) {
 	l2Cl := seqEng.EngineClient(t, cfg)
 
 	// Prepare a block
-	fb := derive.NewFetchingAttributesBuilder(cfg, l1Cl, l2Cl)
+	fb := derive.NewFetchingAttributesBuilder(cfg, sd.DependencySet, l1Cl, l2Cl)
 	parent, err := l2Cl.L2BlockRefByLabel(t.Ctx(), eth.Unsafe)
 	require.NoError(t, err)
 	l1Origin := parent.L1Origin // repeat the L1 origin

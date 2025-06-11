@@ -13,7 +13,9 @@ import { IOptimismMintableERC20 } from "interfaces/universal/IOptimismMintableER
 import { ILegacyMintableERC20 } from "src/universal/OptimismMintableERC20.sol";
 import { IOptimismERC20Factory } from "interfaces/L2/IOptimismERC20Factory.sol";
 
-contract L2StandardBridgeInterop_Test is CommonTest {
+/// @title L2StandardBridgeInterop_TestInit
+/// @notice Reusable test initialization for `L2StandardBridgeInterop` tests.
+contract L2StandardBridgeInterop_TestInit is CommonTest {
     /// @notice Emitted when a conversion is made.
     event Converted(address indexed from, address indexed to, address indexed caller, uint256 amount);
 
@@ -53,18 +55,21 @@ contract L2StandardBridgeInterop_Test is CommonTest {
     }
 }
 
-/// @notice Test suite for getter functions.
-contract L2StandardBridgeInterop_Getters_Test is L2StandardBridgeInterop_Test {
-    /// @notice Tests that the version function returns a valid string. We avoid testing the
+/// @title L2StandardBridgeInterop_Version_Test
+/// @notice Tests the `version` function of the `L2StandardBridgeInterop` contract.
+contract L2StandardBridgeInterop_Version_Test is L2StandardBridgeInterop_TestInit {
+    /// @notice Tests that the `version` function returns a valid string. We avoid testing the
     ///         specific value of the string as it changes frequently.
     function test_version_succeeds() external view {
         assert(bytes(l2StandardBridge.version()).length > 0);
     }
 }
 
+/// @title L2StandardBridgeInterop_Convert_LegacyToSuper_Test
 /// @notice Test suite when converting from a legacy token to a OptimismSuperchainERC20 token
-contract L2StandardBridgeInterop_LegacyToSuper_Test is L2StandardBridgeInterop_Test {
-    /// @notice Set up the test for converting from a legacy token to a OptimismSuperchainERC20 token
+contract L2StandardBridgeInterop_Convert_LegacyToSuper_Test is L2StandardBridgeInterop_TestInit {
+    /// @notice Set up the test for converting from a legacy token to a OptimismSuperchainERC20
+    ///         token.
     function _setUpLegacyToSuper(address _from, address _to) internal {
         // Assume
         _assumeAddress(_from);
@@ -215,9 +220,11 @@ contract L2StandardBridgeInterop_LegacyToSuper_Test is L2StandardBridgeInterop_T
     }
 }
 
+/// @title L2StandardBridgeInterop_Convert_SuperToLegacy_Test
 /// @notice Test suite when converting from a OptimismSuperchainERC20 token to a legacy token
-contract L2StandardBridgeInterop_SuperToLegacy_Test is L2StandardBridgeInterop_Test {
-    /// @notice Set up the test for converting from a OptimismSuperchainERC20 token to a legacy token
+contract L2StandardBridgeInterop_Convert_SuperToLegacy_Test is L2StandardBridgeInterop_TestInit {
+    /// @notice Set up the test for converting from a OptimismSuperchainERC20 token to a legacy
+    ///         token.
     function _setUpSuperToLegacy(address _from, address _to) internal {
         // Assume
         _assumeAddress(_from);

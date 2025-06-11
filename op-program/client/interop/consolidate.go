@@ -23,12 +23,12 @@ import (
 var ErrInvalidBlockReplacement = errors.New("invalid block replacement error")
 
 // ReceiptsToExecutingMessages returns the executing messages in the receipts indexed by their position in the log.
-func ReceiptsToExecutingMessages(depset depset.ChainIndexFromID, receipts ethtypes.Receipts) (map[uint32]*supervisortypes.ExecutingMessage, uint32, error) {
+func ReceiptsToExecutingMessages(receipts ethtypes.Receipts) (map[uint32]*supervisortypes.ExecutingMessage, uint32, error) {
 	execMsgs := make(map[uint32]*supervisortypes.ExecutingMessage)
 	var curr uint32
 	for _, rcpt := range receipts {
 		for _, l := range rcpt.Logs {
-			execMsg, err := processors.DecodeExecutingMessageLog(l, depset)
+			execMsg, err := processors.DecodeExecutingMessageLog(l)
 			if err != nil {
 				return nil, 0, err
 			}
@@ -147,15 +147,19 @@ func singleRoundConsolidation(
 	tasks taskExecutor,
 ) error {
 	// The depset is the same for all chains. So it suffices to use any chain ID
-	depset, err := bootInfo.Configs.DependencySet(superRoot.Chains[0].ChainID)
+	depSet, err := bootInfo.Configs.DependencySet(superRoot.Chains[0].ChainID)
 	if err != nil {
 		return fmt.Errorf("failed to get dependency set: %w", err)
 	}
-	deps, err := newConsolidateCheckDeps(depset, bootInfo.Configs, consolidateState.TransitionState, superRoot.Chains, l2PreimageOracle, consolidateState)
+	deps, err := newConsolidateCheckDeps(depSet, bootInfo.Configs, consolidateState.TransitionState, superRoot.Chains, l2PreimageOracle, consolidateState)
 	if err != nil {
 		return fmt.Errorf("failed to create consolidate check deps: %w", err)
 	}
-
+	fullConfig, err := getFullConfig(bootInfo.Configs, l1PreimageOracle, depSet)
+	if err != nil {
+		return fmt.Errorf("failed to get full config set: %w", err)
+	}
+	linker := depset.LinkerFromConfig(fullConfig)
 	for i, chain := range superRoot.Chains {
 		// Do not check chains that have been replaced with a deposits-only block.
 		// They are already cross-safe because deposits-only blocks cannot contain executing messages.
@@ -171,7 +175,7 @@ func singleRoundConsolidation(
 			Number:    optimisticBlock.NumberU64(),
 			Timestamp: optimisticBlock.Time(),
 		}
-		if err := checkHazards(logger, deps, candidate, chain.ChainID); err != nil {
+		if err := checkHazards(logger, deps, linker, candidate, chain.ChainID); err != nil {
 			if !isInvalidMessageError(err) {
 				return err
 			}
@@ -201,7 +205,7 @@ func singleRoundConsolidation(
 			superRoot.Chains[i].Output = outputRoot
 			consolidateState.setReplaced(i, chain.ChainID, outputRoot, replacementBlockHash)
 			// Indicate that there was an invalid block so we have to re-check all chains.
-			// The re-check wil pick up invalid messages in any chains we haven't gotten to yet so don't waste time now.
+			// The re-check will pick up invalid messages in any chains we haven't gotten to yet so don't waste time now.
 			return ErrInvalidBlockReplacement
 		}
 	}
@@ -218,12 +222,12 @@ type ConsolidateCheckDeps interface {
 	cross.UnsafeStartDeps
 }
 
-func checkHazards(logger log.Logger, deps ConsolidateCheckDeps, candidate supervisortypes.BlockSeal, chainID eth.ChainID) error {
-	hazards, err := cross.CrossUnsafeHazards(deps, logger, chainID, candidate)
+func checkHazards(logger log.Logger, deps ConsolidateCheckDeps, linker depset.LinkChecker, candidate supervisortypes.BlockSeal, chainID eth.ChainID) error {
+	hazards, err := cross.CrossUnsafeHazards(deps, linker, logger, chainID, candidate)
 	if err != nil {
 		return err
 	}
-	if err := cross.HazardCycleChecks(deps.DependencySet(), deps, candidate.Timestamp, hazards); err != nil {
+	if err := cross.HazardCycleChecks(deps, candidate.Timestamp, hazards); err != nil {
 		return err
 	}
 	return nil
@@ -363,16 +367,12 @@ func (d *consolidateCheckDeps) OpenBlock(
 	}
 
 	_, receipts := d.oracle.ReceiptsByBlockHash(block.Hash(), chainID)
-	execMsgs, logCount, err = ReceiptsToExecutingMessages(d.depset, receipts)
+	execMsgs, logCount, err = ReceiptsToExecutingMessages(receipts)
 	if err != nil {
 		return eth.BlockRef{}, 0, nil, err
 	}
 	d.consolidateState.setCachedExecMsgs(block.Hash(), execMsgs, logCount)
 	return ref, logCount, execMsgs, nil
-}
-
-func (d *consolidateCheckDeps) DependencySet() depset.DependencySet {
-	return d.depset
 }
 
 func (d *consolidateCheckDeps) CanonBlockByNumber(oracle l2.Oracle, blockNum uint64, chainID eth.ChainID) (*ethtypes.Block, error) {

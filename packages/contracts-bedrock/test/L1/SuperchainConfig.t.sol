@@ -33,7 +33,7 @@ contract SuperchainConfig_Initialize_Test is SuperchainConfig_TestInit {
         assertEq(superchainConfig.guardian(), deploy.cfg().superchainConfigGuardian());
     }
 
-    /// @notice Tests that it can be intialized as paused.
+    /// @notice Tests that it can be initialized as paused.
     function test_initialize_paused_succeeds() external {
         IProxy newProxy = IProxy(
             DeployUtils.create1({
@@ -174,6 +174,53 @@ contract SuperchainConfig_PauseExpiry_Test is SuperchainConfig_TestInit {
     }
 }
 
+/// @title SuperchainConfig_Paused_Test
+/// @notice Test contract for SuperchainConfig `paused` function.
+contract SuperchainConfig_Paused_Test is SuperchainConfig_TestInit {
+    /// @notice Tests that `paused` returns true when the specific identifier is paused.
+    /// @param _identifier The identifier to test.
+    function testFuzz_paused_specificIdentifier_succeeds(address _identifier) external {
+        // Assume the identifier is not the zero address.
+        vm.assume(_identifier != address(0));
+
+        // Pause with the specific identifier.
+        vm.prank(superchainConfig.guardian());
+        superchainConfig.pause(_identifier);
+
+        // Assert that the specific identifier is paused.
+        assertTrue(superchainConfig.paused(_identifier));
+
+        // Pick a random address that is not the identifier.
+        address other = vm.randomAddress();
+        while (other == _identifier) {
+            other = vm.randomAddress();
+        }
+
+        // Assert that the other address is not paused.
+        assertFalse(superchainConfig.paused(other));
+    }
+
+    /// @notice Tests that `paused` returns true when the global superchain system is paused.
+    function test_paused_global_succeeds() external {
+        // Pause the global superchain system.
+        vm.prank(superchainConfig.guardian());
+        superchainConfig.pause(address(0));
+
+        // Assert that the global superchain system is paused.
+        assertTrue(superchainConfig.paused());
+        assertTrue(superchainConfig.paused(address(0)));
+
+        // Pick a random address that is not the zero address.
+        address other = vm.randomAddress();
+        while (other == address(0)) {
+            other = vm.randomAddress();
+        }
+
+        // Assert that the other address is not paused.
+        assertFalse(superchainConfig.paused(other));
+    }
+}
+
 /// @title SuperchainConfig_Pause_Test
 /// @notice Test contract for SuperchainConfig `pause` function.
 contract SuperchainConfig_Pause_Test is SuperchainConfig_TestInit {
@@ -269,6 +316,15 @@ contract SuperchainConfig_Extend_Test is SuperchainConfig_TestInit {
 
         vm.prank(alice);
         vm.expectRevert(ISuperchainConfig.SuperchainConfig_OnlyGuardian.selector);
+        superchainConfig.extend(address(this));
+    }
+
+    /// @notice Tests that `extend` reverts when the identifier is not already paused.
+    function test_extend_notAlreadyPaused_reverts() external {
+        vm.prank(superchainConfig.guardian());
+        vm.expectRevert(
+            abi.encodeWithSelector(ISuperchainConfig.SuperchainConfig_NotAlreadyPaused.selector, address(this))
+        );
         superchainConfig.extend(address(this));
     }
 }

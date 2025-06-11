@@ -26,6 +26,9 @@ contract SuperchainConfig is ProxyAdminOwnedBase, Initializable, Reinitializable
     /// @notice Thrown when attempting to pause an identifier that is already paused
     error SuperchainConfig_AlreadyPaused(address identifier);
 
+    /// @notice Thrown when attempting to extend a pause that is not already paused.
+    error SuperchainConfig_NotAlreadyPaused(address identifier);
+
     /// @notice Enum representing different types of updates.
     /// @custom:value GUARDIAN            Represents an update to the guardian.
     enum UpdateType {
@@ -56,8 +59,8 @@ contract SuperchainConfig is ProxyAdminOwnedBase, Initializable, Reinitializable
     event ConfigUpdate(UpdateType indexed updateType, bytes data);
 
     /// @notice Semantic version.
-    /// @custom:semver 2.1.0
-    string public constant version = "2.1.0";
+    /// @custom:semver 2.3.0
+    string public constant version = "2.3.0";
 
     /// @notice Constructs the SuperchainConfig contract.
     constructor() ReinitializableBase(2) {
@@ -81,6 +84,9 @@ contract SuperchainConfig is ProxyAdminOwnedBase, Initializable, Reinitializable
 
         // Now perform upgrade logic.
         // Transfer the guardian into the new variable and clear the old storage slot.
+        // We generally do not clear out old storage slots but in the case of the SuperchainConfig
+        // these are the only spacer slots, they aren't cleanly represented by spacer variables,
+        // and we can get rid of them now and never think about them again later.
         bytes32 guardianSlot = bytes32(uint256(keccak256("superchainConfig.guardian")) - 1);
         _setGuardian(Storage.getAddress(guardianSlot));
         Storage.setBytes32(guardianSlot, bytes32(0));
@@ -103,9 +109,7 @@ contract SuperchainConfig is ProxyAdminOwnedBase, Initializable, Reinitializable
     /// @param _identifier The address identifier for the pause.
     function pause(address _identifier) external {
         // Only the Guardian can pause the system.
-        if (msg.sender != guardian) {
-            revert SuperchainConfig_OnlyGuardian();
-        }
+        _assertOnlyGuardian();
 
         // Cannot pause if the identifier is already paused to prevent re-pausing without either
         // unpausing, extending, or resetting the pause timestamp.
@@ -122,9 +126,7 @@ contract SuperchainConfig is ProxyAdminOwnedBase, Initializable, Reinitializable
     /// @param _identifier The address identifier to unpause.
     function unpause(address _identifier) external {
         // Only the Guardian can unpause the system.
-        if (msg.sender != guardian) {
-            revert SuperchainConfig_OnlyGuardian();
-        }
+        _assertOnlyGuardian();
 
         // Unpause the system.
         pauseTimestamps[_identifier] = 0;
@@ -135,8 +137,11 @@ contract SuperchainConfig is ProxyAdminOwnedBase, Initializable, Reinitializable
     /// @param _identifier The address identifier to extend.
     function extend(address _identifier) external {
         // Only the Guardian can extend the pause.
-        if (msg.sender != guardian) {
-            revert SuperchainConfig_OnlyGuardian();
+        _assertOnlyGuardian();
+
+        // Cannot extend the pause if not already paused.
+        if (pauseTimestamps[_identifier] == 0) {
+            revert SuperchainConfig_NotAlreadyPaused(_identifier);
         }
 
         // Reset the pause timestamp.
@@ -149,6 +154,15 @@ contract SuperchainConfig is ProxyAdminOwnedBase, Initializable, Reinitializable
     /// @return True if the system can be paused for this identifier.
     function pausable(address _identifier) external view returns (bool) {
         return pauseTimestamps[_identifier] == 0;
+    }
+
+    /// @custom:legacy
+    /// @notice Checks if the global superchain system is paused. NOTE that this is a legacy
+    ///         function that provides support for systems that still rely on the older interface.
+    ///         Contracts should use paused(address) instead when possible.
+    /// @return True if the global superchain system is paused.
+    function paused() external view returns (bool) {
+        return paused(address(0));
     }
 
     /// @notice Checks if the system is currently paused for a specific identifier.
@@ -175,5 +189,12 @@ contract SuperchainConfig is ProxyAdminOwnedBase, Initializable, Reinitializable
     function _setGuardian(address _guardian) internal {
         guardian = _guardian;
         emit ConfigUpdate(UpdateType.GUARDIAN, abi.encode(_guardian));
+    }
+
+    /// @notice Asserts that the caller is the guardian.
+    function _assertOnlyGuardian() internal view {
+        if (msg.sender != guardian) {
+            revert SuperchainConfig_OnlyGuardian();
+        }
     }
 }

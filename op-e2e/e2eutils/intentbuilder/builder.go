@@ -95,6 +95,8 @@ type Builder interface {
 	WithL2(l2ChainID eth.ChainID) (Builder, L2Configurator)
 	L2s() (out []L2Configurator)
 	Build() (*state.Intent, error)
+
+	WithGlobalOverride(key string, value any) Builder
 }
 
 func WithDevkeyVaults(t require.TestingT, dk devkeys.Keys, configurator L2Configurator) {
@@ -190,6 +192,16 @@ func (b *intentBuilder) L2s() (out []L2Configurator) {
 		out = append(out, &l2Configurator{builder: b, chainIndex: i})
 	}
 	return out
+}
+
+// WithGlobalOverride sets a global override.
+// This is generally discouraged, but may be needed to work around legacy configuration constraints.
+func (b *intentBuilder) WithGlobalOverride(key string, value any) Builder {
+	if b.intent.GlobalDeployOverrides == nil {
+		b.intent.GlobalDeployOverrides = make(map[string]any)
+	}
+	b.intent.GlobalDeployOverrides[key] = value
+	return b
 }
 
 func (b *intentBuilder) Build() (*state.Intent, error) {

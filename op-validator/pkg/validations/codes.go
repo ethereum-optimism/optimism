@@ -18,6 +18,10 @@ var descriptions = map[string]string{
 	"SYSCON-80":  "SystemConfig systemTxMaxGas is not set to 1,000,000",
 	"SYSCON-90":  "SystemConfig minimumBaseFee is not set to 1 gwei",
 	"SYSCON-100": "SystemConfig maximumBaseFee is not set to max uint128",
+	"SYSCON-110": "SystemConfig operatorFeeScalar is not set to 0",
+	"SYSCON-120": "SystemConfig operatorFeeConstant is not set to 0",
+	"SYSCON-130": "SystemConfig proxyAdmin is invalid",
+	"SYSCON-140": "SystemConfig superchainConfig is invalid",
 
 	// L1 Cross Domain Messenger validations
 	"L1xDM-10": "L1CrossDomainMessenger version mismatch",
@@ -26,7 +30,8 @@ var descriptions = map[string]string{
 	"L1xDM-40": "L1CrossDomainMessenger otherMessenger address mismatch",
 	"L1xDM-50": "L1CrossDomainMessenger PORTAL address mismatch",
 	"L1xDM-60": "L1CrossDomainMessenger portal address mismatch",
-	"L1xDM-70": "L1CrossDomainMessenger superchainConfig address mismatch",
+	"L1xDM-70": "L1CrossDomainMessenger systemConfig address mismatch",
+	"L1xDM-80": "L1CrossDomainMessenger proxyAdmin is invalid",
 
 	// L1 Standard Bridge validations
 	"L1SB-10": "L1StandardBridge version mismatch",
@@ -35,7 +40,8 @@ var descriptions = map[string]string{
 	"L1SB-40": "L1StandardBridge messenger address mismatch",
 	"L1SB-50": "L1StandardBridge OTHER_BRIDGE address mismatch",
 	"L1SB-60": "L1StandardBridge otherBridge address mismatch",
-	"L1SB-70": "L1StandardBridge superchainConfig address mismatch",
+	"L1SB-70": "L1StandardBridge systemConfig address mismatch",
+	"L1SB-80": "L1StandardBridge proxyAdmin is invalid",
 
 	// Optimism Mintable ERC20 Factory validations
 	"MERC20F-10": "OptimismMintableERC20Factory version mismatch",
@@ -50,21 +56,29 @@ var descriptions = map[string]string{
 	"L721B-40": "L1ERC721Bridge otherBridge address mismatch",
 	"L721B-50": "L1ERC721Bridge MESSENGER address mismatch",
 	"L721B-60": "L1ERC721Bridge messenger address mismatch",
-	"L721B-70": "L1ERC721Bridge superchainConfig address mismatch",
+	"L721B-70": "L1ERC721Bridge systemConfig address mismatch",
+	"L721B-80": "L1ERC721Bridge proxyAdmin is invalid",
 
 	// Optimism Portal validations
 	"PORTAL-10": "OptimismPortal version mismatch",
 	"PORTAL-20": "OptimismPortal implementation address mismatch",
 	"PORTAL-30": "OptimismPortal disputeGameFactory address mismatch",
 	"PORTAL-40": "OptimismPortal systemConfig address mismatch",
-	"PORTAL-50": "OptimismPortal superchainConfig address mismatch",
-	"PORTAL-60": "OptimismPortal guardian address mismatch",
 	"PORTAL-80": "OptimismPortal l2Sender not set to default value",
+	"PORTAL-90": "OptimismPortal proxyAdmin is invalid",
 
 	// Dispute Factory validations
 	"DF-10": "DisputeGameFactory version mismatch",
 	"DF-20": "DisputeGameFactory implementation address mismatch",
 	"DF-30": "DisputeGameFactory owner is not set to L1 PAO multisig",
+	"DF-40": "DisputeGameFactory proxyAdmin is invalid",
+
+	// ETHLockbox validations
+	"LOCKBOX-10": "ETHLockbox version mismatch",
+	"LOCKBOX-20": "ETHLockbox implementation address mismatch",
+	"LOCKBOX-30": "ETHLockbox proxyAdmin is invalid",
+	"LOCKBOX-40": "ETHLockbox systemConfig address mismatch",
+	"LOCKBOX-50": "ETHLockbox authorizedPortals mismatch",
 
 	// Permissioned Dispute Game validations
 	"PDDG-10":  "Permissioned dispute game implementation not found",
@@ -98,10 +112,14 @@ var descriptions = map[string]string{
 	"PDDG-DWETH-20": "Permissioned dispute game delayed WETH implementation address mismatch",
 	"PDDG-DWETH-30": "Permissioned dispute game delayed WETH owner mismatch",
 	"PDDG-DWETH-40": "Permissioned dispute game delayed WETH delay not set to 1 week",
+	"PDDG-DWETH-50": "Permissioned dispute game delayed WETH system config address mismatch",
+	"PDDG-DWETH-60": "Permissioned dispute game delayed WETH proxy admin mismatch",
 	"PLDG-DWETH-10": "Permissionless dispute game delayed WETH version mismatch",
 	"PLDG-DWETH-20": "Permissionless dispute game delayed WETH implementation address mismatch",
 	"PLDG-DWETH-30": "Permissionless dispute game delayed WETH owner mismatch",
 	"PLDG-DWETH-40": "Permissionless dispute game delayed WETH delay not set to 1 week",
+	"PLDG-DWETH-50": "Permissionless dispute game delayed WETH system config address mismatch",
+	"PLDG-DWETH-60": "Permissionless dispute game delayed WETH proxy admin mismatch",
 
 	// Anchor State Registry validations (for both PDDG and PLDG)
 	"PDDG-ANCHORP-10": "Permissioned dispute game anchor state registry version mismatch",
@@ -109,11 +127,13 @@ var descriptions = map[string]string{
 	"PDDG-ANCHORP-30": "Permissioned dispute game anchor state registry dispute game factory address mismatch",
 	"PDDG-ANCHORP-40": "Permissioned dispute game anchor state registry root hash mismatch",
 	"PDDG-ANCHORP-50": "Permissioned dispute game anchor state registry superchain config address mismatch",
+	"PDDG-ANCHORP-60": "Permissioned dispute game anchor state registry retirement timestamp is not set",
 	"PLDG-ANCHORP-10": "Permissionless dispute game anchor state registry version mismatch",
 	"PLDG-ANCHORP-20": "Permissionless dispute game anchor state registry implementation address mismatch",
 	"PLDG-ANCHORP-30": "Permissionless dispute game anchor state registry dispute game factory address mismatch",
 	"PLDG-ANCHORP-40": "Permissionless dispute game anchor state registry root hash mismatch",
 	"PLDG-ANCHORP-50": "Permissionless dispute game anchor state registry superchain config address mismatch",
+	"PLDG-ANCHORP-60": "Permissionless dispute game anchor state registry retirement timestamp is not set",
 
 	// Preimage Oracle validations (for both PDDG and PLDG)
 	"PDDG-PIMGO-10": "Permissioned dispute game preimage oracle version mismatch",

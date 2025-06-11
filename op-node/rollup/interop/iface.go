@@ -8,7 +8,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/event"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/interop/managed"
-	"github.com/ethereum-optimism/optimism/op-node/rollup/interop/standard"
 	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
 )
 
@@ -20,7 +19,6 @@ type SubSystem interface {
 }
 
 var _ SubSystem = (*managed.ManagedMode)(nil)
-var _ SubSystem = (*standard.StandardMode)(nil)
 
 type L1Source interface {
 	managed.L1Source

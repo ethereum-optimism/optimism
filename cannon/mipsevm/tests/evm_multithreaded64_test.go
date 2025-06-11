@@ -488,7 +488,20 @@ func getNoopSyscalls64(vmVersion versions.StateVersion) map[string]uint32 {
 	if !features.SupportNoopMprotect {
 		delete(noOpCalls, "SysMprotect")
 	}
+	if features.SupportWorkingSysGetRandom {
+		delete(noOpCalls, "SysGetRandom")
+	}
 	return noOpCalls
+}
+
+func getSupportedSyscalls(vmVersion versions.StateVersion) []uint32 {
+	supportedSyscalls := []uint32{arch.SysMmap, arch.SysBrk, arch.SysClone, arch.SysExitGroup, arch.SysRead, arch.SysWrite, arch.SysFcntl, arch.SysExit, arch.SysSchedYield, arch.SysGetTID, arch.SysFutex, arch.SysOpen, arch.SysNanosleep, arch.SysClockGetTime, arch.SysGetpid}
+
+	features := versions.FeaturesForVersion(vmVersion)
+	if features.SupportWorkingSysGetRandom {
+		supportedSyscalls = append(supportedSyscalls, arch.SysGetRandom)
+	}
+	return supportedSyscalls
 }
 
 func TestEVM_NoopSyscall64(t *testing.T) {
@@ -503,7 +516,7 @@ func TestEVM_UnsupportedSyscall64(t *testing.T) {
 	t.Parallel()
 	for _, vmVersion := range GetMipsVersionTestCases(t) {
 		var noopSyscallNums = maps.Values(getNoopSyscalls64(vmVersion.Version))
-		var SupportedSyscalls = []uint32{arch.SysMmap, arch.SysBrk, arch.SysClone, arch.SysExitGroup, arch.SysRead, arch.SysWrite, arch.SysFcntl, arch.SysExit, arch.SysSchedYield, arch.SysGetTID, arch.SysFutex, arch.SysOpen, arch.SysNanosleep, arch.SysClockGetTime, arch.SysGetpid}
+		var SupportedSyscalls = getSupportedSyscalls(vmVersion.Version)
 		unsupportedSyscalls := make([]uint32, 0, 400)
 		for i := 5000; i < 5400; i++ {
 			candidate := uint32(i)

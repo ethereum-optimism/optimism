@@ -29,6 +29,7 @@ contract DeployStandardValidatorInput is BaseDeployIO {
     address internal _protocolVersionsImpl;
     address internal _l1ERC721BridgeImpl;
     address internal _optimismPortalImpl;
+    address internal _ethLockboxImpl;
     address internal _systemConfigImpl;
     address internal _optimismMintableERC20FactoryImpl;
     address internal _l1CrossDomainMessengerImpl;
@@ -60,6 +61,9 @@ contract DeployStandardValidatorInput is BaseDeployIO {
         } else if (_sel == this.optimismPortalImpl.selector) {
             require(_value != address(0), "DeployStandardValidator: optimismPortalImpl cannot be empty");
             _optimismPortalImpl = _value;
+        } else if (_sel == this.ethLockboxImpl.selector) {
+            require(_value != address(0), "DeployStandardValidator: ethLockboxImpl cannot be empty");
+            _ethLockboxImpl = _value;
         } else if (_sel == this.systemConfigImpl.selector) {
             require(_value != address(0), "DeployStandardValidator: systemConfigImpl cannot be empty");
             _systemConfigImpl = _value;
@@ -144,6 +148,11 @@ contract DeployStandardValidatorInput is BaseDeployIO {
     function optimismPortalImpl() public view returns (address) {
         require(_optimismPortalImpl != address(0), "DeployStandardValidator: optimismPortalImpl not set");
         return _optimismPortalImpl;
+    }
+
+    function ethLockboxImpl() public view returns (address) {
+        require(_ethLockboxImpl != address(0), "DeployStandardValidator: ethLockboxImpl not set");
+        return _ethLockboxImpl;
     }
 
     function systemConfigImpl() public view returns (address) {
@@ -231,6 +240,7 @@ contract DeployStandardValidator is Script {
         return IStandardValidator.Implementations({
             l1ERC721BridgeImpl: _si.l1ERC721BridgeImpl(),
             optimismPortalImpl: _si.optimismPortalImpl(),
+            ethLockboxImpl: _si.ethLockboxImpl(),
             systemConfigImpl: _si.systemConfigImpl(),
             optimismMintableERC20FactoryImpl: _si.optimismMintableERC20FactoryImpl(),
             l1CrossDomainMessengerImpl: _si.l1CrossDomainMessengerImpl(),

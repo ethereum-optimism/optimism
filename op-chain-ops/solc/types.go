@@ -123,10 +123,11 @@ type CompilerOutputEvm struct {
 // Object must be a string because its not guaranteed to be
 // a hex string
 type CompilerOutputBytecode struct {
-	Object         string         `json:"object"`
-	Opcodes        string         `json:"opcodes"`
-	SourceMap      string         `json:"sourceMap"`
-	LinkReferences LinkReferences `json:"linkReferences"`
+	Object              string              `json:"object"`
+	Opcodes             string              `json:"opcodes"`
+	SourceMap           string              `json:"sourceMap"`
+	LinkReferences      LinkReferences      `json:"linkReferences"`
+	ImmutableReferences ImmutableReferences `json:"immutableReferences"`
 }
 
 type LinkReferences map[string]LinkReference
@@ -135,6 +136,13 @@ type LinkReference map[string][]LinkReferenceOffset
 type LinkReferenceOffset struct {
 	Length uint `json:"length"`
 	Start  uint `json:"start"`
+}
+
+type ImmutableReferences map[string][]ImmutableReference
+
+type ImmutableReference struct {
+	Start  uint `json:"start"`
+	Length uint `json:"length"`
 }
 
 type CompilerOutputSources map[string]CompilerOutputSource

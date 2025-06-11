@@ -113,7 +113,9 @@ func configWithNumConfs(numConfirmations uint64) *Config {
 		Signer: func(ctx context.Context, from common.Address, tx *types.Transaction) (*types.Transaction, error) {
 			return tx, nil
 		},
-		From: common.Address{},
+		From:          common.Address{},
+		RetryInterval: 1 * time.Millisecond,
+		MaxRetries:    5,
 	}
 
 	cfg.ResubmissionTimeout.Store(int64(time.Second))
@@ -1654,6 +1656,31 @@ func TestTxMgrCustomPublishError(t *testing.T) {
 		receipt, err := send(ctx, h, h.createTxCandidate())
 		require.Nil(t, err)
 		require.NotNil(t, receipt)
+	})
+}
+
+func TestTxMgrRetryOnError(t *testing.T) {
+	sendErr := core.ErrNonceTooHigh
+
+	testSendVariants(t, func(t *testing.T, send testSendVariantsFn) {
+		cfg := configWithNumConfs(1)
+		h := newTestHarnessWithConfig(t, cfg)
+		sendAttempts := uint64(0)
+
+		sendTx := func(ctx context.Context, tx *types.Transaction) error {
+			txHash := tx.Hash()
+			h.backend.mine(&txHash, tx.GasFeeCap(), nil)
+			sendAttempts++
+			return sendErr
+		}
+		h.backend.setTxSender(sendTx)
+
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		receipt, err := send(ctx, h, h.createTxCandidate())
+		require.ErrorIs(t, sendErr, err)
+		require.Nil(t, receipt)
+		require.Equal(t, cfg.MaxRetries+1, sendAttempts)
 	})
 }
 

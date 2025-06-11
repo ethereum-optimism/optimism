@@ -672,7 +672,7 @@ contract OPContractsManagerUpgrader is OPContractsManagerBase {
                         _l2ChainId: l2ChainId,
                         _proxyAdmin: _opChainConfigs[i].proxyAdmin,
                         _saltMixer: reusableSaltMixer(_opChainConfigs[i]),
-                        _contractName: "AnchorStateRegistry-SOT"
+                        _contractName: "AnchorStateRegistry-U16"
                     })
                 );
 
@@ -714,13 +714,13 @@ contract OPContractsManagerUpgrader is OPContractsManagerBase {
                         _l2ChainId: l2ChainId,
                         _proxyAdmin: _opChainConfigs[i].proxyAdmin,
                         _saltMixer: reusableSaltMixer(_opChainConfigs[i]),
-                        _contractName: "ETHLockbox"
+                        _contractName: "ETHLockbox-U16"
                     })
                 );
 
                 // Upgrade the OptimismPortal contract first so that the SystemConfig will have
                 // the SuperchainConfig reference required in the ETHLockbox.
-                optimismPortal.upgrade(newAnchorStateRegistryProxy, ethLockbox, _opChainConfigs[i].systemConfigProxy);
+                optimismPortal.upgrade(newAnchorStateRegistryProxy, ethLockbox);
 
                 // Initialize the ETHLockbox setting the OptimismPortal as an authorized portal.
                 IOptimismPortal[] memory portals = new IOptimismPortal[](1);
@@ -1754,9 +1754,9 @@ contract OPContractsManager is ISemver {
 
     // -------- Constants and Variables --------
 
-    /// @custom:semver 2.3.0
+    /// @custom:semver 2.4.0
     function version() public pure virtual returns (string memory) {
-        return "2.3.0";
+        return "2.4.0";
     }
 
     OPContractsManagerGameTypeAdder public immutable opcmGameTypeAdder;
@@ -1917,7 +1917,8 @@ contract OPContractsManager is ISemver {
         _performDelegateCall(address(opcmGameTypeAdder), data);
     }
 
-    /// @notice Migrates the Optimism contracts to the latest version. This is a stub for now.
+    /// @notice Migrates the Optimism contracts to the latest version.
+    /// @param _input Input parameters for the migration.
     function migrate(OPContractsManagerInteropMigrator.MigrateInput calldata _input) external virtual {
         if (address(this) == address(thisOPCM)) revert OnlyDelegatecall();
 

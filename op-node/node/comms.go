@@ -5,6 +5,9 @@ import (
 
 	"github.com/libp2p/go-libp2p/core/peer"
 
+	"github.com/ethereum-optimism/optimism/op-node/p2p"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/event"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/status"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
 
@@ -15,13 +18,47 @@ type Tracer interface {
 	OnPublishL2Payload(ctx context.Context, payload *eth.ExecutionPayloadEnvelope)
 }
 
-type noOpTracer struct{}
-
-func (n noOpTracer) OnNewL1Head(ctx context.Context, sig eth.L1BlockRef) {}
-
-func (n noOpTracer) OnUnsafeL2Payload(ctx context.Context, from peer.ID, payload *eth.ExecutionPayloadEnvelope) {
+type TracePublishBlockEvent struct {
+	Envelope *eth.ExecutionPayloadEnvelope
 }
 
-func (n noOpTracer) OnPublishL2Payload(ctx context.Context, payload *eth.ExecutionPayloadEnvelope) {}
+func (ev TracePublishBlockEvent) String() string {
+	return "trace-publish-event"
+}
 
-var _ Tracer = (*noOpTracer)(nil)
+// TracerDeriver hooks a Tracer up to the event system as deriver
+type TracerDeriver struct {
+	tracer Tracer
+	ctx    context.Context
+	cancel context.CancelFunc
+}
+
+var _ event.Deriver = (*TracerDeriver)(nil)
+var _ event.Unattacher = (*TracerDeriver)(nil)
+
+func NewTracerDeriver(tracer Tracer) *TracerDeriver {
+	ctx, cancel := context.WithCancel(context.Background())
+	return &TracerDeriver{
+		tracer: tracer,
+		ctx:    ctx,
+		cancel: cancel,
+	}
+}
+
+func (t *TracerDeriver) OnEvent(ev event.Event) bool {
+	switch x := ev.(type) {
+	case status.L1UnsafeEvent:
+		t.tracer.OnNewL1Head(t.ctx, x.L1Unsafe)
+	case p2p.ReceivedBlockEvent:
+		t.tracer.OnUnsafeL2Payload(t.ctx, x.From, x.Envelope)
+	case TracePublishBlockEvent:
+		t.tracer.OnPublishL2Payload(t.ctx, x.Envelope)
+	default:
+		return false
+	}
+	return true
+}
+
+func (t *TracerDeriver) Unattach() {
+	t.cancel()
+}

@@ -42,7 +42,7 @@ type ImplementationsConfig struct {
 	SuperchainConfigProxy           common.Address     `cli:"superchain-config-proxy"`
 	ProtocolVersionsProxy           common.Address     `cli:"protocol-versions-proxy"`
 	UpgradeController               common.Address     `cli:"upgrade-controller"`
-	UseInterop                      bool               `cli:"use-interop"`
+	SuperchainProxyAdmin            common.Address     `cli:"superchain-proxy-admin"`
 	CacheDir                        string             `cli:"cache-dir"`
 
 	Logger log.Logger
@@ -71,9 +71,13 @@ func (c *ImplementationsConfig) Check() error {
 		return errors.New("artifacts locator must be specified")
 	}
 	if c.ArtifactsLocator.IsTag() {
+		if c.L1ContractsRelease != "" {
+			return errors.New("l1 contracts release cannot be specified if using an artifacts tag")
+		}
+
 		c.L1ContractsRelease = c.ArtifactsLocator.Tag
-	} else {
-		c.L1ContractsRelease = "dev"
+	} else if c.L1ContractsRelease == "" {
+		return errors.New("l1 contracts release must be specified if not using an artifacts tag")
 	}
 	if !mipsVersion.IsSupported(c.MIPSVersion) {
 		return errors.New("MIPS version is not supported")
@@ -101,6 +105,9 @@ func (c *ImplementationsConfig) Check() error {
 	}
 	if c.UpgradeController == (common.Address{}) {
 		return errors.New("upgrade controller must be specified")
+	}
+	if c.SuperchainProxyAdmin == (common.Address{}) {
+		return errors.New("superchain proxy admin must be specified")
 	}
 	return nil
 }
@@ -186,13 +193,12 @@ func Implementations(ctx context.Context, cfg ImplementationsConfig) (opcm.Deplo
 		return dio, fmt.Errorf("failed to create script host: %w", err)
 	}
 
-	superProxyAdmin, err := standard.SuperchainProxyAdminAddrFor(chainID.Uint64())
+	opcmScripts, err := opcm.NewScripts(l1Host)
 	if err != nil {
-		return dio, fmt.Errorf("failed to get superchain proxy admin address: %w", err)
+		return dio, fmt.Errorf("failed to load OPCM scripts: %w", err)
 	}
 
-	if dio, err = opcm.DeployImplementations(
-		l1Host,
+	if dio, err = opcmScripts.DeployImplementations.Run(
 		opcm.DeployImplementationsInput{
 			WithdrawalDelaySeconds:          new(big.Int).SetUint64(cfg.WithdrawalDelaySeconds),
 			MinProposalSizeBytes:            new(big.Int).SetUint64(cfg.MinProposalSizeBytes),
@@ -203,9 +209,8 @@ func Implementations(ctx context.Context, cfg ImplementationsConfig) (opcm.Deplo
 			L1ContractsRelease:              cfg.L1ContractsRelease,
 			SuperchainConfigProxy:           cfg.SuperchainConfigProxy,
 			ProtocolVersionsProxy:           cfg.ProtocolVersionsProxy,
-			SuperchainProxyAdmin:            superProxyAdmin,
+			SuperchainProxyAdmin:            cfg.SuperchainProxyAdmin,
 			UpgradeController:               cfg.UpgradeController,
-			UseInterop:                      cfg.UseInterop,
 		},
 	); err != nil {
 		return dio, fmt.Errorf("error deploying implementations: %w", err)

@@ -4,9 +4,6 @@ pragma solidity 0.8.15;
 // Testing
 import { CommonTest } from "test/setup/CommonTest.sol";
 
-// Contracts
-import { StandardValidator } from "src/L1/StandardValidator.sol";
-
 // Libraries
 import { GameTypes, Duration, Claim } from "src/dispute/lib/Types.sol";
 import { DeployUtils } from "scripts/libraries/DeployUtils.sol";
@@ -19,10 +16,10 @@ import { IPermissionedDisputeGame } from "interfaces/dispute/IPermissionedDisput
 import { IDisputeGame } from "interfaces/dispute/IDisputeGame.sol";
 import { IDelayedWETH } from "interfaces/dispute/IDelayedWETH.sol";
 import { IAnchorStateRegistry } from "interfaces/dispute/IAnchorStateRegistry.sol";
-import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
 import { IProxyAdmin } from "interfaces/universal/IProxyAdmin.sol";
 import { ISemver } from "interfaces/universal/ISemver.sol";
 import { ISystemConfig } from "interfaces/L1/ISystemConfig.sol";
+import { IETHLockbox } from "interfaces/L1/IETHLockbox.sol";
 import { IResourceMetering } from "interfaces/L1/IResourceMetering.sol";
 import { ICrossDomainMessenger } from "interfaces/universal/ICrossDomainMessenger.sol";
 import { IL1CrossDomainMessenger } from "interfaces/L1/IL1CrossDomainMessenger.sol";
@@ -34,6 +31,8 @@ import { IPreimageOracle } from "interfaces/cannon/IPreimageOracle.sol";
 import { IL1StandardBridge } from "interfaces/L1/IL1StandardBridge.sol";
 import { IProxyAdminOwnedBase } from "interfaces/L1/IProxyAdminOwnedBase.sol";
 import { IStandardBridge } from "interfaces/universal/IStandardBridge.sol";
+import { IStandardValidator } from "interfaces/L1/IStandardValidator.sol";
+import { IMIPS64 } from "interfaces/cannon/IMIPS64.sol";
 
 /// @title BadDisputeGameFactoryReturner
 /// @notice Used to return a bad DisputeGameFactory address to the StandardValidator. Far easier
@@ -41,7 +40,7 @@ import { IStandardBridge } from "interfaces/universal/IStandardBridge.sol";
 ///         the validation function to revert.
 contract BadDisputeGameFactoryReturner {
     /// @notice Address of the StandardValidator instance.
-    StandardValidator public immutable validator;
+    IStandardValidator public immutable validator;
 
     /// @notice Address of the real DisputeGameFactory instance.
     IDisputeGameFactory public immutable realDisputeGameFactory;
@@ -53,7 +52,7 @@ contract BadDisputeGameFactoryReturner {
     /// @param _realDisputeGameFactory The real DisputeGameFactory instance.
     /// @param _fakeDisputeGameFactory The fake DisputeGameFactory instance.
     constructor(
-        StandardValidator _validator,
+        IStandardValidator _validator,
         IDisputeGameFactory _realDisputeGameFactory,
         IDisputeGameFactory _fakeDisputeGameFactory
     ) {
@@ -73,10 +72,10 @@ contract BadDisputeGameFactoryReturner {
 }
 
 /// @title StandardValidator_TestInit
-/// @notice Base contract for StandardValidator tests, handles common setup.
+/// @notice Base contract for `StandardValidator` tests, handles common setup.
 contract StandardValidator_TestInit is CommonTest {
     /// @notice StandardValidator instance, used for testing.
-    StandardValidator validator;
+    IStandardValidator validator;
 
     /// @notice Deploy input that was used to deploy the contracts being tested.
     IOPContractsManager.DeployInput deployInput;
@@ -133,23 +132,34 @@ contract StandardValidator_TestInit is CommonTest {
         }
 
         // Deploy the validator.
-        validator = new StandardValidator(
-            StandardValidator.Implementations({
-                systemConfigImpl: impls.systemConfigImpl,
-                optimismPortalImpl: impls.optimismPortalImpl,
-                l1CrossDomainMessengerImpl: impls.l1CrossDomainMessengerImpl,
-                l1StandardBridgeImpl: impls.l1StandardBridgeImpl,
-                l1ERC721BridgeImpl: impls.l1ERC721BridgeImpl,
-                optimismMintableERC20FactoryImpl: impls.optimismMintableERC20FactoryImpl,
-                disputeGameFactoryImpl: impls.disputeGameFactoryImpl,
-                mipsImpl: impls.mipsImpl,
-                anchorStateRegistryImpl: impls.anchorStateRegistryImpl,
-                delayedWETHImpl: impls.delayedWETHImpl
-            }),
-            superchainConfig,
-            proxyAdminOwner,
-            challenger,
-            302400
+        validator = IStandardValidator(
+            DeployUtils.create1({
+                _name: "StandardValidator",
+                _args: DeployUtils.encodeConstructor(
+                    abi.encodeCall(
+                        IStandardValidator.__constructor__,
+                        (
+                            IStandardValidator.Implementations({
+                                systemConfigImpl: impls.systemConfigImpl,
+                                optimismPortalImpl: impls.optimismPortalImpl,
+                                ethLockboxImpl: impls.ethLockboxImpl,
+                                l1CrossDomainMessengerImpl: impls.l1CrossDomainMessengerImpl,
+                                l1StandardBridgeImpl: impls.l1StandardBridgeImpl,
+                                l1ERC721BridgeImpl: impls.l1ERC721BridgeImpl,
+                                optimismMintableERC20FactoryImpl: impls.optimismMintableERC20FactoryImpl,
+                                disputeGameFactoryImpl: impls.disputeGameFactoryImpl,
+                                mipsImpl: impls.mipsImpl,
+                                anchorStateRegistryImpl: impls.anchorStateRegistryImpl,
+                                delayedWETHImpl: impls.delayedWETHImpl
+                            }),
+                            superchainConfig,
+                            proxyAdminOwner,
+                            challenger,
+                            302400
+                        )
+                    )
+                )
+            })
         );
 
         // Deploy the BadDisputeGameFactoryReturner once.
@@ -199,7 +209,7 @@ contract StandardValidator_TestInit is CommonTest {
     /// @return The error message(s) from the validate function.
     function _validate(bool _allowFailure) internal view returns (string memory) {
         return validator.validate(
-            StandardValidator.ValidationInput({
+            IStandardValidator.ValidationInput({
                 proxyAdmin: proxyAdmin,
                 sysCfg: systemConfig,
                 absolutePrestate: absolutePrestate.raw(),
@@ -208,11 +218,38 @@ contract StandardValidator_TestInit is CommonTest {
             _allowFailure
         );
     }
+
+    /// @notice Runs the StandardValidator.validate function.
+    /// @param _allowFailure Whether to allow failure.
+    /// @return The error message(s) from the validate function.
+    function _validate(
+        bool _allowFailure,
+        IStandardValidator.ValidationOverrides memory _overrides
+    )
+        internal
+        view
+        returns (string memory)
+    {
+        return validator.validate(
+            IStandardValidator.ValidationInput({
+                proxyAdmin: proxyAdmin,
+                sysCfg: systemConfig,
+                absolutePrestate: absolutePrestate.raw(),
+                l2ChainID: l2ChainId
+            }),
+            _allowFailure,
+            _overrides
+        );
+    }
+
+    function _defaultValidationOverrides() internal pure returns (IStandardValidator.ValidationOverrides memory) {
+        return IStandardValidator.ValidationOverrides({ l1PAOMultisig: address(0), challenger: address(0) });
+    }
 }
 
-/// @title StandardValidator_validate_Test
-/// @notice Tests the StandardValidator.validate function.
-contract StandardValidator_validate_Test is StandardValidator_TestInit {
+/// @title StandardValidator_CoreValidation_Test
+/// @notice Tests the basic functionality of the `validate` function when all parameters are valid
+contract StandardValidator_CoreValidation_Test is StandardValidator_TestInit {
     /// @notice Tests that the validate function succeeds when all parameters are valid.
     function test_validate_succeeds() public view {
         string memory errors = _validate(false);
@@ -225,14 +262,76 @@ contract StandardValidator_validate_Test is StandardValidator_TestInit {
         string memory errors = _validate(true);
         assertEq(errors, "");
     }
+}
 
+/// @title StandardValidator_GeneralOverride_Test
+/// @notice Tests behavior of validation overrides when multiple parameters are overridden
+///         simultaneously
+contract StandardValidator_GeneralOverride_Test is StandardValidator_TestInit {
+    /// @notice Tests that the validate function (with the L1PAOMultisig and Challenger overridden)
+    ///         successfully returns the right error when both are invalid.
+    function test_validateL1PAOMultisigAndChallengerOverrides_succeeds() public view {
+        IStandardValidator.ValidationOverrides memory overrides = _defaultValidationOverrides();
+        overrides.l1PAOMultisig = address(0xace);
+        overrides.challenger = address(0xbad);
+        assertEq(
+            "OVERRIDES-L1PAOMULTISIG,OVERRIDES-CHALLENGER,PROXYA-10,DF-30,PDDG-DWETH-30,PDDG-130,PLDG-DWETH-30",
+            _validate(true, overrides)
+        );
+    }
+
+    /// @notice Tests that the validate function (with the L1PAOMultisig and Challenger overridden)
+    ///         successfully returns no error when there is none. That is, it never returns the
+    ///         overridden strings alone.
+    function test_validateOverrides_noErrors_succeeds() public {
+        IStandardValidator.ValidationOverrides memory overrides =
+            IStandardValidator.ValidationOverrides({ l1PAOMultisig: address(0xbad), challenger: address(0xc0ffee) });
+        vm.mockCall(address(proxyAdmin), abi.encodeCall(IProxyAdmin.owner, ()), abi.encode(overrides.l1PAOMultisig));
+        vm.mockCall(
+            address(disputeGameFactory),
+            abi.encodeCall(IDisputeGameFactory.owner, ()),
+            abi.encode(overrides.l1PAOMultisig)
+        );
+        vm.mockCall(
+            address(pdg), abi.encodeCall(IPermissionedDisputeGame.challenger, ()), abi.encode(overrides.challenger)
+        );
+
+        assertEq("OVERRIDES-L1PAOMULTISIG,OVERRIDES-CHALLENGER", _validate(true, overrides));
+    }
+
+    /// @notice Tests that the validate function (with overrides) and allow failure set to false,
+    ///         returns the errors with the overrides prepended.
+    function test_validateOverrides_notAllowFailurePrependsOverrides_succeeds() public {
+        IStandardValidator.ValidationOverrides memory overrides =
+            IStandardValidator.ValidationOverrides({ l1PAOMultisig: address(0xbad), challenger: address(0xc0ffee) });
+
+        vm.expectRevert(
+            bytes(
+                "StandardValidator: OVERRIDES-L1PAOMULTISIG,OVERRIDES-CHALLENGER,PROXYA-10,DF-30,PDDG-DWETH-30,PDDG-130,PLDG-DWETH-30"
+            )
+        );
+        _validate(false, overrides);
+    }
+}
+/// @title StandardValidator_SuperchainConfig_Test
+/// @notice Tests validation of `SuperchainConfig` contract configuration
+
+contract StandardValidator_SuperchainConfig_Test is StandardValidator_TestInit {
     /// @notice Tests that the validate function successfully returns the right error when the
     ///         SuperchainConfig contract is paused.
     function test_validate_superchainConfigPaused_succeeds() public {
-        vm.mockCall(address(superchainConfig), abi.encodeCall(ISuperchainConfig.paused, (address(0))), abi.encode(true));
+        // We use abi.encodeWithSignature because paused is overloaded.
+        // nosemgrep: sol-style-use-abi-encodecall
+        vm.mockCall(
+            address(superchainConfig), abi.encodeWithSignature("paused(address)", (address(0))), abi.encode(true)
+        );
         assertEq("SPRCFG-10", _validate(true));
     }
+}
 
+/// @title StandardValidator_ProxyAdmin_Test
+/// @notice Tests validation of `ProxyAdmin` configuration
+contract StandardValidator_ProxyAdmin_Test is StandardValidator_TestInit {
     /// @notice Tests that the validate function successfully returns the right error when the
     ///         ProxyAdmin owner is not correct.
     function test_validate_invalidProxyAdminOwner_succeeds() public {
@@ -240,6 +339,32 @@ contract StandardValidator_validate_Test is StandardValidator_TestInit {
         assertEq("PROXYA-10,PDDG-DWETH-30,PLDG-DWETH-30", _validate(true));
     }
 
+    /// @notice Tests that the validate function successfully returns the right overrides error
+    ///         when the ProxyAdmin owner is overridden but is correct.
+    function test_validate_overridenProxyAdminOwner_succeeds() public {
+        IStandardValidator.ValidationOverrides memory overrides = _defaultValidationOverrides();
+        overrides.l1PAOMultisig = address(0xbad);
+        vm.mockCall(address(proxyAdmin), abi.encodeCall(IProxyAdmin.owner, ()), abi.encode(address(0xbad)));
+        vm.mockCall(
+            address(disputeGameFactory),
+            abi.encodeCall(IDisputeGameFactory.owner, ()),
+            abi.encode(overrides.l1PAOMultisig)
+        );
+        assertEq("OVERRIDES-L1PAOMULTISIG", _validate(true, overrides));
+    }
+
+    /// @notice Tests that the validate function (with an overridden ProxyAdmin owner) successfully
+    ///         returns the right error when the ProxyAdmin owner is not correct.
+    function test_validateOverrideL1PAOMultisig_invalidProxyAdminOwner_succeeds() public view {
+        IStandardValidator.ValidationOverrides memory overrides = _defaultValidationOverrides();
+        overrides.l1PAOMultisig = address(0xbad);
+        assertEq("OVERRIDES-L1PAOMULTISIG,PROXYA-10,DF-30,PDDG-DWETH-30,PLDG-DWETH-30", _validate(true, overrides));
+    }
+}
+
+/// @title StandardValidator_SystemConfig_Test
+/// @notice Tests validation of `SystemConfig` configuration
+contract StandardValidator_SystemConfig_Test is StandardValidator_TestInit {
     /// @notice Tests that the validate function successfully returns the right error when the
     ///         SystemConfig version is invalid.
     function test_validate_systemConfigInvalidVersion_succeeds() public {
@@ -250,7 +375,7 @@ contract StandardValidator_validate_Test is StandardValidator_TestInit {
     /// @notice Tests that the validate function successfully returns the right error when the
     ///         SystemConfig gas limit is invalid.
     function test_validate_systemConfigInvalidGasLimit_succeeds() public {
-        vm.mockCall(address(systemConfig), abi.encodeCall(ISystemConfig.gasLimit, ()), abi.encode(uint64(200_000_001)));
+        vm.mockCall(address(systemConfig), abi.encodeCall(ISystemConfig.gasLimit, ()), abi.encode(uint64(500_000_001)));
         assertEq("SYSCON-20", _validate(true));
     }
 
@@ -340,14 +465,28 @@ contract StandardValidator_validate_Test is StandardValidator_TestInit {
         assertEq("SYSCON-120", _validate(true));
     }
 
-    /// @notice Tests that the validate function successfully returns the right error when both
-    ///         SystemConfig operatorFeeScalar and operatorFeeConstant are invalid.
-    function test_validate_systemConfigInvalidOperatorFeeScalarAndConstant_succeeds() public {
-        vm.mockCall(address(systemConfig), abi.encodeCall(ISystemConfig.operatorFeeScalar, ()), abi.encode(1));
-        vm.mockCall(address(systemConfig), abi.encodeCall(ISystemConfig.operatorFeeConstant, ()), abi.encode(1));
-        assertEq("SYSCON-110,SYSCON-120", _validate(true));
+    /// @notice Tests that the validate function successfully returns the right error when the
+    ///         SystemConfig proxyAdmin is invalid.
+    function test_validate_systemConfigInvalidProxyAdmin_succeeds() public {
+        vm.mockCall(
+            address(systemConfig), abi.encodeCall(IProxyAdminOwnedBase.proxyAdmin, ()), abi.encode(address(0xbad))
+        );
+        assertEq("SYSCON-130", _validate(true));
     }
 
+    /// @notice Tests that the validate function successfully returns the right error when the
+    ///         SystemConfig superchainConfig is invalid.
+    function test_validate_systemConfigInvalidSuperchainConfig_succeeds() public {
+        vm.mockCall(
+            address(systemConfig), abi.encodeCall(ISystemConfig.superchainConfig, ()), abi.encode(address(0xbad))
+        );
+        assertEq("SYSCON-140", _validate(true));
+    }
+}
+
+/// @title StandardValidator_L1CrossDomainMessenger_Test
+/// @notice Tests validation of `L1CrossDomainMessenger` configuration
+contract StandardValidator_L1CrossDomainMessenger_Test is StandardValidator_TestInit {
     /// @notice Tests that the validate function successfully returns the right error when the
     ///         L1CrossDomainMessenger version is invalid.
     function test_validate_l1CrossDomainMessengerInvalidVersion_succeeds() public {
@@ -422,6 +561,21 @@ contract StandardValidator_validate_Test is StandardValidator_TestInit {
     }
 
     /// @notice Tests that the validate function successfully returns the right error when the
+    ///         L1CrossDomainMessenger proxyAdmin is invalid.
+    function test_validate_l1CrossDomainMessengerInvalidProxyAdmin_succeeds() public {
+        vm.mockCall(
+            address(l1CrossDomainMessenger),
+            abi.encodeCall(IProxyAdminOwnedBase.proxyAdmin, ()),
+            abi.encode(address(0xbad))
+        );
+        assertEq("L1xDM-80", _validate(true));
+    }
+}
+
+/// @title StandardValidator_OptimismMintableERC20Factory_Test
+/// @notice Tests validation of `OptimismMintableERC20Factory` configuration
+contract StandardValidator_OptimismMintableERC20Factory_Test is StandardValidator_TestInit {
+    /// @notice Tests that the validate function successfully returns the right error when the
     ///         OptimismMintableERC20Factory version is invalid.
     function test_validate_optimismMintableERC20FactoryInvalidVersion_succeeds() public {
         vm.mockCall(address(l1OptimismMintableERC20Factory), abi.encodeCall(ISemver.version, ()), abi.encode("1.0.0"));
@@ -460,7 +614,11 @@ contract StandardValidator_validate_Test is StandardValidator_TestInit {
         );
         assertEq("MERC20F-40", _validate(true));
     }
+}
 
+/// @title StandardValidator_L1ERC721Bridge_Test
+/// @notice Tests validation of `L1ERC721Bridge` configuration
+contract StandardValidator_L1ERC721Bridge_Test is StandardValidator_TestInit {
     /// @notice Tests that the validate function successfully returns the right error when the
     ///         L1ERC721Bridge version is invalid.
     function test_validate_l1ERC721BridgeInvalidVersion_succeeds() public {
@@ -517,6 +675,19 @@ contract StandardValidator_validate_Test is StandardValidator_TestInit {
     }
 
     /// @notice Tests that the validate function successfully returns the right error when the
+    ///         L1ERC721Bridge proxyAdmin is invalid.
+    function test_validate_l1ERC721BridgeInvalidProxyAdmin_succeeds() public {
+        vm.mockCall(
+            address(l1ERC721Bridge), abi.encodeCall(IProxyAdminOwnedBase.proxyAdmin, ()), abi.encode(address(0xbad))
+        );
+        assertEq("L721B-80", _validate(true));
+    }
+}
+
+/// @title StandardValidator_OptimismPortal_Test
+/// @notice Tests validation of `OptimismPortal` configuration
+contract StandardValidator_OptimismPortal_Test is StandardValidator_TestInit {
+    /// @notice Tests that the validate function successfully returns the right error when the
     ///         OptimismPortal version is invalid.
     function test_validate_optimismPortalInvalidVersion_succeeds() public {
         vm.mockCall(address(optimismPortal2), abi.encodeCall(ISemver.version, ()), abi.encode("1.0.0"));
@@ -562,6 +733,66 @@ contract StandardValidator_validate_Test is StandardValidator_TestInit {
     }
 
     /// @notice Tests that the validate function successfully returns the right error when the
+    ///         OptimismPortal proxyAdmin is invalid.
+    function test_validate_optimismPortalInvalidProxyAdmin_succeeds() public {
+        vm.mockCall(
+            address(optimismPortal2), abi.encodeCall(IProxyAdminOwnedBase.proxyAdmin, ()), abi.encode(address(0xbad))
+        );
+        assertEq("PORTAL-90", _validate(true));
+    }
+}
+
+/// @title StandardValidator_ETHLockbox_Test
+/// @notice Tests validation of `ETHLockbox` configuration
+contract StandardValidator_ETHLockbox_Test is StandardValidator_TestInit {
+    /// @notice Tests that the validate function successfully returns the right error when the
+    ///         ETHLockbox version is invalid.
+    function test_validate_ethLockboxInvalidVersion_succeeds() public {
+        vm.mockCall(address(ethLockbox), abi.encodeCall(ISemver.version, ()), abi.encode("0.0.0"));
+        assertEq("LOCKBOX-10", _validate(true));
+    }
+
+    /// @notice Tests that the validate function successfully returns the right error when the
+    ///         ETHLockbox implementation is invalid.
+    function test_validate_ethLockboxInvalidImplementation_succeeds() public {
+        vm.mockCall(
+            address(proxyAdmin),
+            abi.encodeCall(IProxyAdmin.getProxyImplementation, (address(ethLockbox))),
+            abi.encode(address(0xbad))
+        );
+        assertEq("LOCKBOX-20", _validate(true));
+    }
+
+    /// @notice Tests that the validate function successfully returns the right error when the
+    ///         ETHLockbox proxyAdmin is invalid.
+    function test_validate_ethLockboxInvalidProxyAdmin_succeeds() public {
+        vm.mockCall(
+            address(ethLockbox), abi.encodeCall(IProxyAdminOwnedBase.proxyAdmin, ()), abi.encode(address(0xbad))
+        );
+        assertEq("LOCKBOX-30", _validate(true));
+    }
+
+    /// @notice Tests that the validate function successfully returns the right error when the
+    ///         ETHLockbox systemConfig is invalid.
+    function test_validate_ethLockboxInvalidSystemConfig_succeeds() public {
+        vm.mockCall(address(ethLockbox), abi.encodeCall(IETHLockbox.systemConfig, ()), abi.encode(address(0xbad)));
+        assertEq("LOCKBOX-40", _validate(true));
+    }
+
+    /// @notice Tests that the validate function successfully returns the right error when the
+    ///         ETHLockbox does not have the OptimismPortal as an authorized portal.
+    function test_validate_ethLockboxPortalUnauthorized_succeeds() public {
+        vm.mockCall(
+            address(ethLockbox), abi.encodeCall(IETHLockbox.authorizedPortals, (optimismPortal2)), abi.encode(false)
+        );
+        assertEq("LOCKBOX-50", _validate(true));
+    }
+}
+
+/// @title StandardValidator_DisputeGameFactory_Test
+/// @notice Tests validation of `DisputeGameFactory` configuration
+contract StandardValidator_DisputeGameFactory_Test is StandardValidator_TestInit {
+    /// @notice Tests that the validate function successfully returns the right error when the
     ///         DisputeGameFactory version is invalid.
     function test_validate_disputeGameFactoryInvalidVersion_succeeds() public {
         vm.mockCall(address(disputeGameFactory), abi.encodeCall(ISemver.version, ()), abi.encode("0.9.0"));
@@ -587,7 +818,11 @@ contract StandardValidator_validate_Test is StandardValidator_TestInit {
         );
         assertEq("DF-30", _validate(true));
     }
+}
 
+/// @title StandardValidator_PermissionedDisputeGame_Test
+/// @notice Tests validation of `PermissionedDisputeGame` configuration
+contract StandardValidator_PermissionedDisputeGame_Test is StandardValidator_TestInit {
     /// @notice Tests that the validate function successfully returns the right error when the
     ///         PermissionedDisputeGame implementation is null.
     function test_validate_permissionedDisputeGameNullImplementation_succeeds() public {
@@ -628,7 +863,17 @@ contract StandardValidator_validate_Test is StandardValidator_TestInit {
     ///         PermissionedDisputeGame VM address is invalid.
     function test_validate_permissionedDisputeGameInvalidVM_succeeds() public {
         vm.mockCall(address(pdg), abi.encodeCall(IPermissionedDisputeGame.vm, ()), abi.encode(address(0xbad)));
-        assertEq("PDDG-50", _validate(true));
+        vm.mockCall(address(0xbad), abi.encodeCall(ISemver.version, ()), abi.encode("0.0.0"));
+        vm.mockCall(address(0xbad), abi.encodeCall(IMIPS64.stateVersion, ()), abi.encode(7));
+        assertEq("PDDG-VM-10,PDDG-VM-20", _validate(true));
+    }
+
+    /// @notice Tests that the validate function successfully returns the right error when the
+    ///         PermissionedDisputeGame VM's state version is invalid.
+    function test_validate_permissionedDisputeGameInvalidVMStateVersion_succeeds() public {
+        vm.mockCall(address(pdg), abi.encodeCall(IPermissionedDisputeGame.vm, ()), abi.encode(address(mips)));
+        vm.mockCall(address(mips), abi.encodeCall(IMIPS64.stateVersion, ()), abi.encode(6));
+        assertEq("PDDG-VM-30,PLDG-VM-30", _validate(true));
     }
 
     /// @notice Tests that the validate function successfully returns the right error when the
@@ -639,9 +884,9 @@ contract StandardValidator_validate_Test is StandardValidator_TestInit {
     }
 
     /// @notice Tests that the validate function successfully returns the right error when the
-    ///         PermissionedDisputeGame L2 Block Number is invalid.
-    function test_validate_permissionedDisputeGameInvalidL2BlockNumber_succeeds() public {
-        vm.mockCall(address(pdg), abi.encodeCall(IPermissionedDisputeGame.l2BlockNumber, ()), abi.encode(123));
+    ///         PermissionedDisputeGame L2 Sequence Number is invalid.
+    function test_validate_permissionedDisputeGameInvalidL2SequenceNumber_succeeds() public {
+        vm.mockCall(address(pdg), abi.encodeCall(IDisputeGame.l2SequenceNumber, ()), abi.encode(123));
         assertEq("PDDG-70", _validate(true));
     }
 
@@ -678,12 +923,44 @@ contract StandardValidator_validate_Test is StandardValidator_TestInit {
     }
 
     /// @notice Tests that the validate function successfully returns the right error when the
+    ///         PermissionedDisputeGame anchor root is 0.
+    function test_validate_permissionedDisputeGameZeroAnchorRoot_succeeds() public {
+        vm.mockCall(
+            address(anchorStateRegistry),
+            abi.encodeCall(IAnchorStateRegistry.getAnchorRoot, ()),
+            abi.encode(bytes32(0), 1)
+        );
+        assertEq("PDDG-120,PLDG-120", _validate(true));
+    }
+
+    /// @notice Tests that the validate function successfully returns the right error when the
     ///         PermissionedDisputeGame challenger is invalid.
     function test_validate_permissionedDisputeGameInvalidChallenger_succeeds() public {
         vm.mockCall(address(pdg), abi.encodeCall(IPermissionedDisputeGame.challenger, ()), abi.encode(address(0xbad)));
-        assertEq("PDDG-120", _validate(true));
+        assertEq("PDDG-130", _validate(true));
     }
 
+    /// @notice Tests that the validate function successfully returns the right overrides error when the
+    ///         PermissionedDisputeGame challenger is overridden but is correct.
+    function test_validate_overridenPermissionedDisputeGameChallenger_succeeds() public {
+        IStandardValidator.ValidationOverrides memory overrides = _defaultValidationOverrides();
+        overrides.challenger = address(0xbad);
+        vm.mockCall(address(pdg), abi.encodeCall(IPermissionedDisputeGame.challenger, ()), abi.encode(address(0xbad)));
+        assertEq("OVERRIDES-CHALLENGER", _validate(true, overrides));
+    }
+
+    /// @notice Tests that the validate function (with an overridden PermissionedDisputeGame challenger) successfully
+    ///         returns the right error when the PermissionedDisputeGame challenger is invalid.
+    function test_validateOverridesChallenger_permissionedDisputeGameInvalidChallenger_succeeds() public view {
+        IStandardValidator.ValidationOverrides memory overrides = _defaultValidationOverrides();
+        overrides.challenger = address(0xbad);
+        assertEq("OVERRIDES-CHALLENGER,PDDG-130", _validate(true, overrides));
+    }
+}
+
+/// @title StandardValidator_AnchorStateRegistry_Test
+/// @notice Tests validation of `AnchorStateRegistry` configuration
+contract StandardValidator_AnchorStateRegistry_Test is StandardValidator_TestInit {
     /// @notice Tests that the validate function successfully returns the right error when the
     ///         AnchorStateRegistry version is invalid.
     function test_validate_anchorStateRegistryInvalidVersion_succeeds() public {
@@ -713,6 +990,41 @@ contract StandardValidator_validate_Test is StandardValidator_TestInit {
         assertEq("PDDG-ANCHORP-30,PLDG-ANCHORP-30", _validate(true));
     }
 
+    /// @notice Tests that the validate function successfully returns the right error when the
+    ///         AnchorStateRegistry systemConfig is invalid.
+    function test_validate_anchorStateRegistryInvalidSystemConfig_succeeds() public {
+        vm.mockCall(
+            address(anchorStateRegistry),
+            abi.encodeCall(IAnchorStateRegistry.systemConfig, ()),
+            abi.encode(address(0xbad))
+        );
+        assertEq("PDDG-ANCHORP-40,PLDG-ANCHORP-40", _validate(true));
+    }
+
+    /// @notice Tests that the validate function successfully returns the right error when the
+    ///         AnchorStateRegistry proxyAdmin is invalid.
+    function test_validate_anchorStateRegistryInvalidProxyAdmin_succeeds() public {
+        vm.mockCall(
+            address(anchorStateRegistry),
+            abi.encodeCall(IProxyAdminOwnedBase.proxyAdmin, ()),
+            abi.encode(address(0xbad))
+        );
+        assertEq("PDDG-ANCHORP-50,PLDG-ANCHORP-50", _validate(true));
+    }
+
+    /// @notice Tests that the validate function successfully returns the right error when the
+    ///         AnchorStateRegistry retirementTimestamp is invalid.
+    function test_validate_anchorStateRegistryInvalidRetirementTimestamp_succeeds() public {
+        vm.mockCall(
+            address(anchorStateRegistry), abi.encodeCall(IAnchorStateRegistry.retirementTimestamp, ()), abi.encode(0)
+        );
+        assertEq("PDDG-ANCHORP-60,PLDG-ANCHORP-60", _validate(true));
+    }
+}
+
+/// @title StandardValidator_DelayedWETH_Test
+/// @notice Tests validation of `DelayedWETH` configuration
+contract StandardValidator_DelayedWETH_Test is StandardValidator_TestInit {
     /// @notice Tests that the validate function successfully returns the right error when the
     ///         DelayedWETH version is invalid.
     function test_validate_delayedWETHInvalidVersion_succeeds() public {
@@ -783,6 +1095,24 @@ contract StandardValidator_validate_Test is StandardValidator_TestInit {
     }
 
     /// @notice Tests that the validate function successfully returns the right error when the
+    ///         DelayedWETH proxyAdmin is invalid.
+    function test_validate_delayedWETHInvalidProxyAdmin_succeeds() public {
+        vm.mockCall(
+            address(delayedWeth), abi.encodeCall(IProxyAdminOwnedBase.proxyAdmin, ()), abi.encode(address(0xbad))
+        );
+
+        if (isForkTest()) {
+            assertEq("PDDG-DWETH-60", _validate(true));
+        } else {
+            assertEq("PLDG-DWETH-60", _validate(true));
+        }
+    }
+}
+
+/// @title StandardValidator_PreimageOracle_Test
+/// @notice Tests validation of `PreimageOracle` configuration
+contract StandardValidator_PreimageOracle_Test is StandardValidator_TestInit {
+    /// @notice Tests that the validate function successfully returns the right error when the
     ///         PreimageOracle version is invalid.
     function test_validate_preimageOracleInvalidVersion_succeeds() public {
         vm.mockCall(address(preimageOracle), abi.encodeCall(ISemver.version, ()), abi.encode("0.0.1"));
@@ -802,7 +1132,11 @@ contract StandardValidator_validate_Test is StandardValidator_TestInit {
         vm.mockCall(address(preimageOracle), abi.encodeCall(IPreimageOracle.minProposalSize, ()), abi.encode(1000));
         assertEq("PDDG-PIMGO-30,PLDG-PIMGO-30", _validate(true));
     }
+}
 
+/// @title StandardValidator_FaultDisputeGame_Test
+/// @notice Tests validation of `FaultDisputeGame` configuration
+contract StandardValidator_FaultDisputeGame_Test is StandardValidator_TestInit {
     /// @notice Tests that the validate function successfully returns the right error when the
     ///         FaultDisputeGame (permissionless) implementation is null.
     function test_validate_faultDisputeGameNullImplementation_succeeds() public {
@@ -843,7 +1177,17 @@ contract StandardValidator_validate_Test is StandardValidator_TestInit {
     ///         FaultDisputeGame (permissionless) VM address is invalid.
     function test_validate_faultDisputeGameInvalidVM_succeeds() public {
         vm.mockCall(address(fdg), abi.encodeCall(IFaultDisputeGame.vm, ()), abi.encode(address(0xbad)));
-        assertEq("PLDG-50", _validate(true));
+        vm.mockCall(address(0xbad), abi.encodeCall(ISemver.version, ()), abi.encode("0.0.0"));
+        vm.mockCall(address(0xbad), abi.encodeCall(IMIPS64.stateVersion, ()), abi.encode(7));
+        assertEq("PLDG-VM-10,PLDG-VM-20", _validate(true));
+    }
+
+    /// @notice Tests that the validate function successfully returns the right error when the
+    ///         FaultDisputeGame (permissionless) VM's state version is invalid.
+    function test_validate_faultDisputeGameInvalidVMStateVersion_succeeds() public {
+        vm.mockCall(address(fdg), abi.encodeCall(IFaultDisputeGame.vm, ()), abi.encode(address(mips)));
+        vm.mockCall(address(mips), abi.encodeCall(IMIPS64.stateVersion, ()), abi.encode(6));
+        assertEq("PDDG-VM-30,PLDG-VM-30", _validate(true));
     }
 
     /// @notice Tests that the validate function successfully returns the right error when the
@@ -854,9 +1198,9 @@ contract StandardValidator_validate_Test is StandardValidator_TestInit {
     }
 
     /// @notice Tests that the validate function successfully returns the right error when the
-    ///         FaultDisputeGame (permissionless) L2 Block Number is invalid.
-    function test_validate_faultDisputeGameInvalidL2BlockNumber_succeeds() public {
-        vm.mockCall(address(fdg), abi.encodeCall(IFaultDisputeGame.l2BlockNumber, ()), abi.encode(123));
+    ///         FaultDisputeGame (permissionless) L2 Sequence Number is invalid.
+    function test_validate_faultDisputeGameInvalidL2SequenceNumber_succeeds() public {
+        vm.mockCall(address(fdg), abi.encodeCall(IDisputeGame.l2SequenceNumber, ()), abi.encode(123));
         assertEq("PLDG-70", _validate(true));
     }
 
@@ -889,7 +1233,11 @@ contract StandardValidator_validate_Test is StandardValidator_TestInit {
         );
         assertEq("PLDG-110", _validate(true));
     }
+}
 
+/// @title StandardValidator_L1StandardBridge_Test
+/// @notice Tests validation of `L1StandardBridge` configuration
+contract StandardValidator_L1StandardBridge_Test is StandardValidator_TestInit {
     // L1StandardBridge Tests
     /// @notice Tests that the validate function successfully returns the right error when the
     ///         L1StandardBridge version is invalid.
@@ -943,7 +1291,21 @@ contract StandardValidator_validate_Test is StandardValidator_TestInit {
         assertEq("L1SB-70", _validate(true));
     }
 
-    /// @notice Tests that the version getter functions on StandardValidator return non-empty strings.
+    /// @notice Tests that the validate function successfully returns the right error when the
+    ///         L1StandardBridge proxyAdmin is invalid.
+    function test_validate_l1StandardBridgeInvalidProxyAdmin_succeeds() public {
+        vm.mockCall(
+            address(l1StandardBridge), abi.encodeCall(IProxyAdminOwnedBase.proxyAdmin, ()), abi.encode(address(0xbad))
+        );
+        assertEq("L1SB-80", _validate(true));
+    }
+}
+
+/// @title StandardValidator_Versions_Test
+/// @notice Tests the `version` functions on `StandardValidator`.
+contract StandardValidator_Versions_Test is StandardValidator_TestInit {
+    /// @notice Tests that the version getter functions on `StandardValidator` return non-empty
+    ///         strings.
     function test_versions_succeeds() public view {
         assertTrue(bytes(validator.systemConfigVersion()).length > 0, "systemConfigVersion empty");
         assertTrue(bytes(validator.optimismPortalVersion()).length > 0, "optimismPortalVersion empty");
@@ -960,5 +1322,6 @@ contract StandardValidator_validate_Test is StandardValidator_TestInit {
         assertTrue(bytes(validator.delayedWETHVersion()).length > 0, "delayedWETHVersion empty");
         assertTrue(bytes(validator.permissionedDisputeGameVersion()).length > 0, "permissionedDisputeGameVersion empty");
         assertTrue(bytes(validator.preimageOracleVersion()).length > 0, "preimageOracleVersion empty");
+        assertTrue(bytes(validator.ethLockboxVersion()).length > 0, "ethLockboxVersion empty");
     }
 }

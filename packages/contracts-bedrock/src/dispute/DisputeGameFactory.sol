@@ -51,8 +51,8 @@ contract DisputeGameFactory is ProxyAdminOwnedBase, ReinitializableBase, Ownable
     }
 
     /// @notice Semantic version.
-    /// @custom:semver 1.1.0
-    string public constant version = "1.1.0";
+    /// @custom:semver 1.2.0
+    string public constant version = "1.2.0";
 
     /// @notice `gameImpls` is a mapping that maps `GameType`s to their respective
     ///         `IDisputeGame` implementations.
@@ -116,11 +116,11 @@ contract DisputeGameFactory is ProxyAdminOwnedBase, ReinitializableBase, Ownable
 
     /// @notice `gameAtIndex` returns the dispute game contract address and its creation timestamp
     ///          at the given index. Each created dispute game increments the underlying index.
+    ///          Reverts if the provided index does not correspond to an existing dispute game.
     /// @param _index The index of the dispute game.
     /// @return gameType_ The type of the DisputeGame - used to decide the proxy implementation.
     /// @return timestamp_ The timestamp of the creation of the dispute game.
     /// @return proxy_ The clone of the `DisputeGame` created with the given parameters.
-    ///         Returns `address(0)` if nonexistent.
     function gameAtIndex(uint256 _index)
         external
         view

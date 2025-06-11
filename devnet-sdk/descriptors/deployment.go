@@ -5,6 +5,7 @@ import (
 	"net/http"
 
 	"github.com/ethereum-optimism/optimism/devnet-sdk/types"
+	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum/go-ethereum/params"
 )
 
@@ -55,8 +56,9 @@ type Chain struct {
 
 type L2Chain struct {
 	*Chain
-	L1Addresses AddressMap `json:"l1_addresses,omitempty"`
-	L1Wallets   WalletMap  `json:"l1_wallets,omitempty"`
+	L1Addresses  AddressMap     `json:"l1_addresses,omitempty"`
+	L1Wallets    WalletMap      `json:"l1_wallets,omitempty"`
+	RollupConfig *rollup.Config `json:"rollup_config"`
 }
 
 // Wallet represents a wallet with an address and optional private key.

@@ -29,9 +29,9 @@ func TestERC20Bridge(t *testing.T) {
 
 	l2WalletGetter, l2WalletFundsValidator := validators.AcquireL2WalletWithFunds(
 		chainIdx,
-		sdktypes.NewBalance(big.NewInt(1.0*constants.ETH)),
+		sdktypes.NewBalance(big.NewInt(0.1*constants.ETH)),
 	)
-	l1WalletGetter, l1WalletFundsValidator := validators.AcquireL1WalletWithFunds(sdktypes.NewBalance(big.NewInt(1.0 * constants.ETH)))
+	l1WalletGetter, l1WalletFundsValidator := validators.AcquireL1WalletWithFunds(sdktypes.NewBalance(big.NewInt(0.1 * constants.ETH)))
 
 	systest.SystemTest(t,
 		erc20BridgeTestScenario(chainIdx, l1WalletGetter, l2WalletGetter),

@@ -101,12 +101,7 @@ func DecodeInvalidatedBlockTx(tx *types.Transaction) (*eth.OutputV0, error) {
 	if tx.Type() != types.DepositTxType {
 		return nil, fmt.Errorf("%w: expected deposit tx type, but got %d", ErrNotReplacementBlock, tx.Type())
 	}
-	signer := types.LatestSignerForChainID(tx.ChainId())
-	from, err := signer.Sender(tx)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get invalidated-block deposit-tx sender addr: %w", err)
-	}
-	if from != OptimisticBlockDepositSenderAddress {
+	if from := tx.From(); from != OptimisticBlockDepositSenderAddress {
 		return nil, fmt.Errorf("%w: expected system tx sender, but got %s", ErrNotReplacementBlock, from)
 	}
 	out, err := eth.UnmarshalOutput(tx.Data())

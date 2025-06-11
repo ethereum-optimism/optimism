@@ -16,7 +16,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/challenger"
+	shared "github.com/ethereum-optimism/optimism/op-devstack/shared/challenger"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/depset"
 
@@ -64,6 +64,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/driver"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/interop"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/sync"
 	l2os "github.com/ethereum-optimism/optimism/op-proposer/proposer"
 	"github.com/ethereum-optimism/optimism/op-service/client"
@@ -153,6 +154,7 @@ func DefaultSystemConfig(t testing.TB, opts ...SystemConfigOpt) SystemConfig {
 					ListenPort:  0,
 					EnableAdmin: true,
 				},
+				InteropConfig:               &interop.Config{},
 				L1EpochPollInterval:         time.Second * 2,
 				RuntimeConfigReloadInterval: time.Minute * 10,
 				ConfigPersistence:           &rollupNode.DisabledConfigPersistence{},
@@ -169,6 +171,7 @@ func DefaultSystemConfig(t testing.TB, opts ...SystemConfigOpt) SystemConfig {
 					ListenPort:  0,
 					EnableAdmin: true,
 				},
+				InteropConfig:               &interop.Config{},
 				L1EpochPollInterval:         time.Second * 4,
 				RuntimeConfigReloadInterval: time.Minute * 10,
 				ConfigPersistence:           &rollupNode.DisabledConfigPersistence{},
@@ -326,7 +329,7 @@ type SystemConfig struct {
 	// Default is 1 if unset.
 	BatcherTargetNumFrames int
 
-	// whether to actually use BatcherMaxL1TxSizeBytes for blobs, insteaf of max blob size
+	// whether to actually use BatcherMaxL1TxSizeBytes for blobs, instead of max blob size
 	BatcherUseMaxTxSizeForBlobs bool
 
 	// Singular (0) or span batches (1)
@@ -385,12 +388,12 @@ type System struct {
 	clients map[string]*ethclient.Client
 }
 
-func (sys *System) PrestateVariant() challenger.PrestateVariant {
+func (sys *System) PrestateVariant() shared.PrestateVariant {
 	switch sys.AllocType() {
 	case config.AllocTypeMTCannonNext:
-		return challenger.MTCannonNextVariant
+		return shared.MTCannonNextVariant
 	default:
-		return challenger.MTCannonVariant
+		return shared.MTCannonVariant
 	}
 }
 
@@ -734,7 +737,7 @@ func (cfg SystemConfig) Start(t *testing.T, startOpts ...StartOption) (*System, 
 	sys.L1BeaconAPIAddr = endpoint.RestHTTPURL(beaconApiAddr)
 
 	// Initialize nodes
-	l1Geth, err := geth.InitL1(
+	l1Geth, _, err := geth.InitL1(
 		cfg.DeployConfig.L1BlockTime, cfg.L1FinalizedDistance, l1Genesis, c,
 		path.Join(cfg.BlobsPath, "l1_el"), bcn, cfg.GethOptions[RoleL1]...)
 	if err != nil {

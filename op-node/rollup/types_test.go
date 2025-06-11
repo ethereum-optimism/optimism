@@ -790,18 +790,36 @@ func TestGetPayloadVersion(t *testing.T) {
 }
 
 func TestConfig_IsActivationBlock(t *testing.T) {
-	ts := uint64(42)
-	// TODO(12490): Currently only supports Holocene. Will be modularized in a follow-up.
-	for _, fork := range []ForkName{Holocene} {
-		cfg := &Config{
-			HoloceneTime: &ts,
-		}
-		require.Equal(t, fork, cfg.IsActivationBlock(0, ts))
-		require.Equal(t, fork, cfg.IsActivationBlock(0, ts+64))
-		require.Equal(t, fork, cfg.IsActivationBlock(ts-1, ts))
-		require.Equal(t, fork, cfg.IsActivationBlock(ts-1, ts+1))
-		require.Zero(t, cfg.IsActivationBlock(0, ts-1))
-		require.Zero(t, cfg.IsActivationBlock(ts, ts+1))
+	// Map of fork names to their config field setters
+	forks := []struct {
+		name    ForkName
+		setTime func(cfg *Config, ts uint64)
+	}{
+		{Canyon, func(cfg *Config, ts uint64) { cfg.CanyonTime = &ts }},
+		{Delta, func(cfg *Config, ts uint64) { cfg.DeltaTime = &ts }},
+		{Ecotone, func(cfg *Config, ts uint64) { cfg.EcotoneTime = &ts }},
+		{Fjord, func(cfg *Config, ts uint64) { cfg.FjordTime = &ts }},
+		{Granite, func(cfg *Config, ts uint64) { cfg.GraniteTime = &ts }},
+		{Holocene, func(cfg *Config, ts uint64) { cfg.HoloceneTime = &ts }},
+		{Isthmus, func(cfg *Config, ts uint64) { cfg.IsthmusTime = &ts }},
+		{Interop, func(cfg *Config, ts uint64) { cfg.InteropTime = &ts }},
+	}
+
+	for _, fork := range forks {
+		ts := uint64(100)
+		cfg := &Config{}
+		fork.setTime(cfg, ts)
+
+		t.Run(string(fork.name), func(t *testing.T) {
+			// Crossing the fork boundary should return the fork name
+			require.Equal(t, fork.name, cfg.IsActivationBlock(ts-1, ts))
+			require.Equal(t, fork.name, cfg.IsActivationBlock(ts-1, ts+10))
+			// Not crossing the fork boundary should return None
+			require.Equal(t, None, cfg.IsActivationBlock(ts, ts+1))
+			require.Equal(t, None, cfg.IsActivationBlock(ts+1, ts+2))
+			// Before the fork
+			require.Equal(t, None, cfg.IsActivationBlock(ts-10, ts-1))
+		})
 	}
 }
 

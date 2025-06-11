@@ -1,13 +1,10 @@
 package state
 
 import (
-	"errors"
 	"fmt"
 	"math/big"
 
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/standard"
-
-	op_service "github.com/ethereum-optimism/optimism/op-service"
 
 	"github.com/ethereum-optimism/optimism/op-service/jsonutil"
 
@@ -27,12 +24,6 @@ var (
 
 func CombineDeployConfig(intent *Intent, chainIntent *ChainIntent, state *State, chainState *ChainState) (genesis.DeployConfig, error) {
 	upgradeSchedule := standard.DefaultHardforkScheduleForTag(intent.L1ContractsLocator.Tag)
-	if intent.UseInterop {
-		if upgradeSchedule.L2GenesisIsthmusTimeOffset == nil {
-			return genesis.DeployConfig{}, errors.New("expecting isthmus fork to be enabled for interop deployments")
-		}
-		upgradeSchedule.UseInterop = true
-	}
 
 	cfg := genesis.DeployConfig{
 		L1DependenciesConfig: genesis.L1DependenciesConfig{
@@ -113,10 +104,6 @@ func CombineDeployConfig(intent *Intent, chainIntent *ChainIntent, state *State,
 			ProofMaturityDelaySeconds:       604800,
 			DisputeGameFinalityDelaySeconds: 302400,
 		},
-	}
-
-	if intent.UseInterop {
-		cfg.L2InitializationConfig.UpgradeScheduleDeployConfig.L2GenesisInteropTimeOffset = op_service.U64UtilPtr(0)
 	}
 
 	if chainState.StartBlock == nil {

@@ -9,7 +9,6 @@ import (
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
-	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
 	types2 "github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
@@ -31,33 +30,50 @@ import (
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 )
 
-func TestBackendLifetime(t *testing.T) {
+const testChainIDOffset = 900
+
+func fullConfigSet(t *testing.T, size int) depset.FullConfigSetMerged {
+	staticDepSet := make(map[eth.ChainID]*depset.StaticConfigDependency, size)
+	staticRollupCfgSet := make(map[eth.ChainID]*depset.StaticRollupConfig, size)
+	zero := uint64(0)
+	for i := 0; i < size; i++ {
+		chainID := eth.ChainIDFromUInt64(testChainIDOffset + uint64(i))
+		staticDepSet[chainID] = &depset.StaticConfigDependency{}
+		staticRollupCfgSet[chainID] = &depset.StaticRollupConfig{
+			InteropTime: &zero,
+			BlockTime:   2,
+		}
+	}
+	depSet, err := depset.NewStaticConfigDependencySet(staticDepSet)
+	require.NoError(t, err)
+	rollupCfgSet := depset.NewStaticRollupConfigSet(staticRollupCfgSet)
+	fullCfgSet, err := depset.NewFullConfigSetMerged(rollupCfgSet, depSet)
+	require.NoError(t, err)
+	return fullCfgSet
+}
+
+func TestBackendLifetime_InteropAtGenesis(t *testing.T) {
 	logger := testlog.Logger(t, log.LvlInfo)
 	m := metrics.NoopMetrics
 	dataDir := t.TempDir()
-	chainA := eth.ChainIDFromUInt64(900)
-	chainB := eth.ChainIDFromUInt64(901)
-	depSet, err := depset.NewStaticConfigDependencySet(
-		map[eth.ChainID]*depset.StaticConfigDependency{
-			chainA: {
-				ChainIndex:     900,
-				ActivationTime: 42,
-				HistoryMinTime: 100,
-			},
-			chainB: {
-				ChainIndex:     901,
-				ActivationTime: 30,
-				HistoryMinTime: 20,
-			},
-		})
-	require.NoError(t, err)
+	chainA := eth.ChainIDFromUInt64(testChainIDOffset)
+	fullCfgSet := fullConfigSet(t, 2)
+	rollupCfgSet := fullCfgSet.RollupConfigSet.(depset.StaticRollupConfigSet)
+
+	anchor := eth.BlockRef{
+		Hash:       common.Hash{0xff},
+		Number:     0,
+		ParentHash: common.Hash{}, // genesis has no parent hash
+		Time:       10000,
+	}
+
+	rollupCfgSet[chainA].Genesis = depset.Genesis{
+		L2: types.BlockSealFromRef(anchor),
+	}
+
 	cfg := &config.Config{
 		Version:               "test",
-		LogConfig:             oplog.CLIConfig{},
-		MetricsConfig:         opmetrics.CLIConfig{},
-		PprofConfig:           oppprof.CLIConfig{},
-		RPC:                   oprpc.CLIConfig{},
-		DependencySetSource:   depSet,
+		FullConfigSetSource:   fullCfgSet,
 		SynchronousProcessors: true,
 		MockRun:               false,
 		SyncSources:           &syncnode.CLISyncNodes{},
@@ -72,17 +88,11 @@ func TestBackendLifetime(t *testing.T) {
 	l1Src := &testutils.MockL1Source{}
 	src := &MockProcessorSource{}
 
-	anchorBlock := eth.BlockRef{
-		Hash:       common.Hash{0xaa},
-		Number:     0,
-		ParentHash: common.Hash{}, // genesis has no parent hash
-		Time:       10000,
-	}
 	blockX := eth.BlockRef{
 		Hash:       common.Hash{0xaa},
-		Number:     1,
-		ParentHash: anchorBlock.Hash,
-		Time:       10000,
+		Number:     anchor.Number + 1,
+		ParentHash: anchor.Hash,
+		Time:       anchor.Time + 2,
 	}
 	blockY := eth.BlockRef{
 		Hash:       common.Hash{0xbb},
@@ -108,61 +118,207 @@ func TestBackendLifetime(t *testing.T) {
 	_, err = b.LocalUnsafe(context.Background(), chainA)
 	require.ErrorIs(t, err, types.ErrFuture, "no data yet, need local-unsafe")
 
-	src.ExpectBlockRefByNumber(0, anchorBlock, nil)
-	src.ExpectFetchReceipts(blockX.Hash, nil, nil)
+	require.NoError(t, ex.Drain())
+	// The database is initialized from the genesis interop block at startup.
+	xunsafe, err := b.CrossUnsafe(context.Background(), chainA)
+	require.NoError(t, err)
+	require.Equal(t, anchor.ID(), xunsafe)
+	xsafe, err := b.CrossSafe(context.Background(), chainA)
+	require.NoError(t, err)
+	require.Equal(t, anchor.ID(), xsafe.Derived)
+
+	// Receive unsafe block Y from node
 
 	src.ExpectBlockRefByNumber(1, blockX, nil)
 	src.ExpectFetchReceipts(blockX.Hash, nil, nil)
-
 	src.ExpectBlockRefByNumber(2, blockY, nil)
 	src.ExpectFetchReceipts(blockY.Hash, nil, nil)
-
-	src.ExpectBlockRefByNumber(3, eth.L1BlockRef{}, ethereum.NotFound)
-
-	// The first time a Local Unsafe is received, the database is not initialized,
-	// so the call to b.CrossUnsafe will fail.
 	b.emitter.Emit(superevents.LocalUnsafeReceivedEvent{
 		ChainID:        chainA,
 		NewLocalUnsafe: blockY,
 	})
 	require.NoError(t, ex.Drain())
-	_, err = b.CrossUnsafe(context.Background(), chainA)
-	require.ErrorIs(t, err, types.ErrFuture)
+	src.AssertExpectations(t)
+	xunsafe, err = b.CrossUnsafe(context.Background(), chainA)
+	require.NoError(t, err)
+	require.Equal(t, blockY.ID(), xunsafe)
+	// cross-safe still at anchor
+	xsafe, err = b.CrossSafe(context.Background(), chainA)
+	require.NoError(t, err)
+	require.Equal(t, anchor.ID(), xsafe.Derived)
 
-	// After the anchor event, the database is initialized, and the call to update
-	// from the LocalUnsafe event will succeed.
-	src.ExpectBlockRefByNumber(1, blockX, nil)
-	src.ExpectFetchReceipts(blockX.Hash, nil, nil)
-	src.ExpectBlockRefByNumber(2, blockY, nil)
-	src.ExpectFetchReceipts(blockY.Hash, nil, nil)
-	b.emitter.Emit(superevents.AnchorEvent{
-		ChainID: chainA,
-		Anchor: types.DerivedBlockRefPair{
-			Derived: anchorBlock,
-			Source:  eth.L1BlockRef{},
-		}})
-	require.NoError(t, ex.Drain())
-	b.emitter.Emit(superevents.LocalUnsafeReceivedEvent{
-		ChainID:        chainA,
-		NewLocalUnsafe: blockY,
-	})
-	// Make the processing happen, so we can rely on the new chain information,
-	// and not run into errors for future data that isn't mocked at this time.
-	require.NoError(t, ex.Drain())
-	v, err := b.CrossUnsafe(context.Background(), chainA)
-	require.NoError(t, err, "have a functioning cross unsafe value now post anchor")
-	require.Equal(t, blockY.ID(), v)
-
-	err = b.chainDBs.UpdateCrossUnsafe(chainA, types.BlockSeal{
-		Hash:      blockX.Hash,
-		Number:    blockX.Number,
-		Timestamp: blockX.Time,
-	})
+	// Revert cross-unafe back to block X
+	err = b.chainDBs.UpdateCrossUnsafe(chainA, types.BlockSealFromRef(blockX))
 	require.NoError(t, err)
 
-	v, err = b.CrossUnsafe(context.Background(), chainA)
-	require.NoError(t, err, "have a functioning cross unsafe value now")
-	require.Equal(t, blockX.ID(), v)
+	xunsafe, err = b.CrossUnsafe(context.Background(), chainA)
+	require.NoError(t, err)
+	require.Equal(t, blockX.ID(), xunsafe)
+
+	// Receive derived block X from node
+
+	b.emitter.Emit(superevents.LocalDerivedEvent{
+		ChainID: chainA,
+		Derived: types.DerivedBlockRefPair{
+			Derived: blockX,
+		},
+	})
+	require.NoError(t, ex.Drain())
+	src.AssertExpectations(t)
+	// cross-unsafe still at block X
+	xunsafe, err = b.CrossUnsafe(context.Background(), chainA)
+	require.NoError(t, err)
+	require.Equal(t, blockY.ID(), xunsafe)
+	// cross-safe now at block X
+	xsafe, err = b.CrossSafe(context.Background(), chainA)
+	require.NoError(t, err)
+	require.Equal(t, blockX.ID(), xsafe.Derived)
+
+	err = b.Stop(context.Background())
+	require.NoError(t, err)
+	t.Log("stopped!")
+}
+
+func TestBackendLifetime_InteropPostGenesis(t *testing.T) {
+	logger := testlog.Logger(t, log.LvlInfo)
+	m := metrics.NoopMetrics
+	dataDir := t.TempDir()
+	chainA := eth.ChainIDFromUInt64(testChainIDOffset)
+	fullCfgSet := fullConfigSet(t, 2)
+	rollupCfgSet := fullCfgSet.RollupConfigSet.(depset.StaticRollupConfigSet)
+
+	block0 := eth.BlockRef{
+		Hash:       common.Hash{0xff},
+		Number:     0,
+		ParentHash: common.Hash{}, // genesis has no parent hash
+		Time:       10000,
+	}
+	blockX := eth.BlockRef{
+		Hash:       common.Hash{0xaa},
+		Number:     block0.Number + 1,
+		ParentHash: block0.Hash,
+		Time:       block0.Time + 2,
+	}
+
+	rollupCfgSet[chainA].InteropTime = &blockX.Time
+	rollupCfgSet[chainA].Genesis = depset.Genesis{
+		L2: types.BlockSealFromRef(block0),
+	}
+
+	cfg := &config.Config{
+		Version:               "test",
+		FullConfigSetSource:   fullCfgSet,
+		SynchronousProcessors: true,
+		MockRun:               false,
+		SyncSources:           &syncnode.CLISyncNodes{},
+		Datadir:               dataDir,
+	}
+
+	ex := event.NewGlobalSynchronous(context.Background())
+	b, err := NewSupervisorBackend(context.Background(), logger, m, cfg, ex)
+	require.NoError(t, err)
+	t.Log("initialized!")
+
+	l1Src := &testutils.MockL1Source{}
+	src := &MockProcessorSource{}
+
+	blockY := eth.BlockRef{
+		Hash:       common.Hash{0xbb},
+		Number:     blockX.Number + 1,
+		ParentHash: blockX.Hash,
+		Time:       blockX.Time + 2,
+	}
+
+	b.AttachL1Source(l1Src)
+	require.NoError(t, b.AttachProcessorSource(chainA, src))
+
+	require.FileExists(t, filepath.Join(cfg.Datadir, "900", "log.db"), "must have logs DB 900")
+	require.FileExists(t, filepath.Join(cfg.Datadir, "901", "log.db"), "must have logs DB 901")
+	require.FileExists(t, filepath.Join(cfg.Datadir, "900", "local_safe.db"), "must have local safe DB 900")
+	require.FileExists(t, filepath.Join(cfg.Datadir, "901", "local_safe.db"), "must have local safe DB 901")
+	require.FileExists(t, filepath.Join(cfg.Datadir, "900", "cross_safe.db"), "must have cross safe DB 900")
+	require.FileExists(t, filepath.Join(cfg.Datadir, "901", "cross_safe.db"), "must have cross safe DB 901")
+
+	err = b.Start(context.Background())
+	require.NoError(t, err)
+	t.Log("started!")
+
+	_, err = b.LocalUnsafe(context.Background(), chainA)
+	require.ErrorIs(t, err, types.ErrFuture, "no data yet, need local-unsafe")
+
+	require.NoError(t, ex.Drain())
+	// The database is not initialized from non-Interop genesis
+	xunsafe, err := b.CrossUnsafe(context.Background(), chainA)
+	require.ErrorIs(t, err, types.ErrFuture, "got xunsafe %v", xunsafe)
+	xsafe, err := b.CrossSafe(context.Background(), chainA)
+	require.ErrorIs(t, err, types.ErrFuture, "got xsafe %v", xsafe)
+
+	// Receive unsafe block X, interop activation block, from node
+
+	// src.ExpectBlockRefByNumber(1, blockX, nil)
+	// src.ExpectFetchReceipts(blockX.Hash, nil, nil)
+	b.emitter.Emit(superevents.LocalUnsafeReceivedEvent{
+		ChainID:        chainA,
+		NewLocalUnsafe: blockX,
+	})
+	require.NoError(t, ex.Drain())
+	src.AssertExpectations(t)
+	unsafe, err := b.LocalUnsafe(context.Background(), chainA)
+	require.NoError(t, err)
+	require.Equal(t, blockX.ID(), unsafe)
+	xunsafe, err = b.CrossUnsafe(context.Background(), chainA)
+	require.NoError(t, err)
+	require.Equal(t, blockX.ID(), xunsafe)
+	// cross-safe still undefined
+	_, err = b.CrossSafe(context.Background(), chainA)
+	require.ErrorIs(t, err, types.ErrFuture, err)
+
+	// Receive unsafe block Y from node
+
+	src.ExpectBlockRefByNumber(blockY.Number, blockY, nil)
+	src.ExpectFetchReceipts(blockY.Hash, nil, nil)
+	b.emitter.Emit(superevents.LocalUnsafeReceivedEvent{
+		ChainID:        chainA,
+		NewLocalUnsafe: blockY,
+	})
+	require.NoError(t, ex.Drain())
+	src.AssertExpectations(t)
+	xunsafe, err = b.CrossUnsafe(context.Background(), chainA)
+	require.NoError(t, err)
+	require.Equal(t, blockY.ID(), xunsafe)
+
+	// Receive derived block X from node
+
+	b.emitter.Emit(superevents.LocalDerivedEvent{
+		ChainID: chainA,
+		Derived: types.DerivedBlockRefPair{
+			Derived: blockX,
+		},
+	})
+	require.NoError(t, ex.Drain())
+	src.AssertExpectations(t)
+	// cross-unsafe still at block Y
+	xunsafe, err = b.CrossUnsafe(context.Background(), chainA)
+	require.NoError(t, err)
+	require.Equal(t, blockY.ID(), xunsafe)
+	// cross-safe now at block X
+	xsafe, err = b.CrossSafe(context.Background(), chainA)
+	require.NoError(t, err)
+	require.Equal(t, blockX.ID(), xsafe.Derived)
+
+	// Receive derived block Y from node
+
+	b.emitter.Emit(superevents.LocalDerivedEvent{
+		ChainID: chainA,
+		Derived: types.DerivedBlockRefPair{
+			Derived: blockY,
+		},
+	})
+	require.NoError(t, ex.Drain())
+	// cross-safe now at block Y
+	xsafe, err = b.CrossSafe(context.Background(), chainA)
+	require.NoError(t, err)
+	require.Equal(t, blockY.ID(), xsafe.Derived)
 
 	err = b.Stop(context.Background())
 	require.NoError(t, err)
@@ -173,30 +329,21 @@ func TestBackendCallsMetrics(t *testing.T) {
 	logger := testlog.Logger(t, log.LvlInfo)
 	mockMetrics := &MockMetrics{}
 	dataDir := t.TempDir()
-	chainA := eth.ChainIDFromUInt64(900)
+	chainA := eth.ChainIDFromUInt64(testChainIDOffset)
 
 	// Set up mock metrics
 	mockMetrics.Mock.On("RecordDBEntryCount", chainA, mock.AnythingOfType("string"), mock.AnythingOfType("int64")).Return()
 	mockMetrics.Mock.On("RecordCrossUnsafeRef", chainA, mock.MatchedBy(func(_ eth.BlockRef) bool { return true })).Return()
 	mockMetrics.Mock.On("RecordCrossSafeRef", chainA, mock.MatchedBy(func(_ eth.BlockRef) bool { return true })).Return()
 
-	depSet, err := depset.NewStaticConfigDependencySet(
-		map[eth.ChainID]*depset.StaticConfigDependency{
-			chainA: {
-				ChainIndex:     900,
-				ActivationTime: 42,
-				HistoryMinTime: 100,
-			},
-		})
-	require.NoError(t, err)
-
+	fullCfgSet := fullConfigSet(t, 1)
 	cfg := &config.Config{
 		Version:               "test",
 		LogConfig:             oplog.CLIConfig{},
 		MetricsConfig:         opmetrics.CLIConfig{},
 		PprofConfig:           oppprof.CLIConfig{},
 		RPC:                   oprpc.CLIConfig{},
-		DependencySetSource:   depSet,
+		FullConfigSetSource:   fullCfgSet,
 		SynchronousProcessors: true,
 		MockRun:               false,
 		SyncSources:           &syncnode.CLISyncNodes{},
@@ -359,11 +506,8 @@ func (f *fakeSyncSource) String() string {
 func TestAsyncVerifyAccessWithRPC(t *testing.T) {
 	logger := testlog.Logger(t, log.LevelInfo)
 	// Setup a single-chain dependency set
-	chainID := eth.ChainIDFromUInt64(1)
-	depSet, err := depset.NewStaticConfigDependencySet(map[eth.ChainID]*depset.StaticConfigDependency{
-		chainID: {ChainIndex: 1, ActivationTime: 0, HistoryMinTime: 0},
-	})
-	require.NoError(t, err)
+	chainID := eth.ChainIDFromUInt64(testChainIDOffset)
+	fullCfgSet := fullConfigSet(t, 1)
 
 	// Create and set up mock metrics
 	mockMetrics := &MockMetrics{}
@@ -379,7 +523,7 @@ func TestAsyncVerifyAccessWithRPC(t *testing.T) {
 		MetricsConfig:         opmetrics.CLIConfig{},
 		PprofConfig:           oppprof.CLIConfig{},
 		RPC:                   oprpc.CLIConfig{},
-		DependencySetSource:   depSet,
+		FullConfigSetSource:   fullCfgSet,
 		SynchronousProcessors: true,
 		MockRun:               false,
 		SyncSources:           &syncnode.CLISyncNodes{},

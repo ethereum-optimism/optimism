@@ -25,8 +25,8 @@ import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
 ///         be initialized with a more recent starting state which reduces the amount of required offchain computation.
 contract AnchorStateRegistry is ProxyAdminOwnedBase, Initializable, ReinitializableBase, ISemver {
     /// @notice Semantic version.
-    /// @custom:semver 3.4.0
-    string public constant version = "3.4.0";
+    /// @custom:semver 3.5.0
+    string public constant version = "3.5.0";
 
     /// @notice The dispute game finality delay in seconds.
     uint256 internal immutable DISPUTE_GAME_FINALITY_DELAY_SECONDS;
@@ -125,14 +125,20 @@ contract AnchorStateRegistry is ProxyAdminOwnedBase, Initializable, Reinitializa
     /// @notice Allows the Guardian to set the respected game type.
     /// @param _gameType The new respected game type.
     function setRespectedGameType(GameType _gameType) external {
-        if (msg.sender != systemConfig.guardian()) revert AnchorStateRegistry_Unauthorized();
+        // Only the Guardian can set the respected game type.
+        _assertOnlyGuardian();
+
+        // Set the respected game type.
         respectedGameType = _gameType;
         emit RespectedGameTypeSet(_gameType);
     }
 
     /// @notice Allows the Guardian to update the retirement timestamp.
     function updateRetirementTimestamp() external {
-        if (msg.sender != systemConfig.guardian()) revert AnchorStateRegistry_Unauthorized();
+        // Only the Guardian can update the retirement timestamp.
+        _assertOnlyGuardian();
+
+        // Update the retirement timestamp.
         retirementTimestamp = uint64(block.timestamp);
         emit RetirementTimestampSet(block.timestamp);
     }
@@ -140,7 +146,10 @@ contract AnchorStateRegistry is ProxyAdminOwnedBase, Initializable, Reinitializa
     /// @notice Allows the Guardian to blacklist a dispute game.
     /// @param _disputeGame Dispute game to blacklist.
     function blacklistDisputeGame(IDisputeGame _disputeGame) external {
-        if (msg.sender != systemConfig.guardian()) revert AnchorStateRegistry_Unauthorized();
+        // Only the Guardian can blacklist a dispute game.
+        _assertOnlyGuardian();
+
+        // Blacklist the dispute game.
         disputeGameBlacklist[_disputeGame] = true;
         emit DisputeGameBlacklisted(_disputeGame);
     }
@@ -330,5 +339,12 @@ contract AnchorStateRegistry is ProxyAdminOwnedBase, Initializable, Reinitializa
         // Update the anchor game.
         anchorGame = game;
         emit AnchorUpdated(game);
+    }
+
+    /// @notice Asserts that the caller is the Guardian.
+    function _assertOnlyGuardian() internal view {
+        if (msg.sender != systemConfig.guardian()) {
+            revert AnchorStateRegistry_Unauthorized();
+        }
     }
 }

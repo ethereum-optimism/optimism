@@ -15,6 +15,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
+	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/reads"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 )
 
@@ -742,18 +743,28 @@ func TestRewindToScope(t *testing.T) {
 		require.Equal(t, l1Block5, pair.Source)
 		require.Equal(t, l2Block2, pair.Derived)
 
+		inv := &reads.TestInvalidator{}
 		// Rewind to the future
-		require.ErrorIs(t, db.RewindToScope(l1Block6.ID()), types.ErrFuture)
+		require.ErrorIs(t, db.RewindToScope(inv, l1Block6.ID()), types.ErrFuture)
+		require.False(t, inv.Invalidated)
 
+		inv = &reads.TestInvalidator{}
 		// Rewind to the exact block we're at
-		require.NoError(t, db.RewindToScope(l1Block5.ID()))
+		require.NoError(t, db.RewindToScope(inv, l1Block5.ID()))
+		require.True(t, inv.Invalidated)
+		require.Equal(t, l1Block5.Number, inv.InvalidatedSourceNum)
+		require.Equal(t, l2Block2.Timestamp, inv.InvalidatedDerivedTimestamp)
 		pair, err = db.Last()
 		require.NoError(t, err)
 		require.Equal(t, l1Block5, pair.Source)
 		require.Equal(t, l2Block2, pair.Derived)
 
+		inv = &reads.TestInvalidator{}
 		// Now rewind to L1 block 3 (inclusive).
-		require.NoError(t, db.RewindToScope(l1Block3.ID()))
+		require.NoError(t, db.RewindToScope(inv, l1Block3.ID()))
+		require.True(t, inv.Invalidated)
+		require.Equal(t, l1Block3.Number, inv.InvalidatedSourceNum)
+		require.Equal(t, l2Block1.Timestamp, inv.InvalidatedDerivedTimestamp)
 
 		// See if we find consistent data
 		pair, err = db.Last()
@@ -761,15 +772,19 @@ func TestRewindToScope(t *testing.T) {
 		require.Equal(t, l1Block3, pair.Source)
 		require.Equal(t, l2Block1, pair.Derived)
 
+		inv = &reads.TestInvalidator{}
 		// Rewind further to L1 block 1 (inclusive).
-		require.NoError(t, db.RewindToScope(l1Block1.ID()))
+		require.NoError(t, db.RewindToScope(inv, l1Block1.ID()))
+		require.True(t, inv.Invalidated)
+		require.Equal(t, l1Block1.Number, inv.InvalidatedSourceNum)
+		require.Equal(t, l2Block1.Timestamp, inv.InvalidatedDerivedTimestamp)
 		pair, err = db.Last()
 		require.NoError(t, err)
 		require.Equal(t, l1Block1, pair.Source)
 		require.Equal(t, l2Block1, pair.Derived)
 
 		// Rewind further to L1 block 0 (inclusive).
-		require.NoError(t, db.RewindToScope(l1Block0.ID()))
+		require.NoError(t, db.RewindToScope(inv, l1Block0.ID()))
 		pair, err = db.Last()
 		require.NoError(t, err)
 		require.Equal(t, l1Block0, pair.Source)
@@ -812,18 +827,19 @@ func TestRewindToFirstDerived(t *testing.T) {
 		require.Equal(t, l1Block5, pair.Source)
 		require.Equal(t, l2Block2, pair.Derived)
 
+		inv := &reads.TestInvalidator{}
 		// Rewind to the future
-		require.ErrorIs(t, db.RewindToFirstDerived(l2Block3.ID(), types.RevisionAny), types.ErrFuture)
+		require.ErrorIs(t, db.RewindToFirstDerived(inv, l2Block3.ID(), types.RevisionAny), types.ErrFuture)
 
 		// Rewind to the exact block we're at
-		require.NoError(t, db.RewindToFirstDerived(l2Block2.ID(), types.RevisionAny))
+		require.NoError(t, db.RewindToFirstDerived(inv, l2Block2.ID(), types.RevisionAny))
 		pair, err = db.Last()
 		require.NoError(t, err)
 		require.Equal(t, l1Block5, pair.Source)
 		require.Equal(t, l2Block2, pair.Derived)
 
 		// Now rewind to L2 block 1
-		require.NoError(t, db.RewindToFirstDerived(l2Block1.ID(), types.RevisionAny))
+		require.NoError(t, db.RewindToFirstDerived(inv, l2Block1.ID(), types.RevisionAny))
 
 		// See if we went back to the first occurrence of L2 block 1.
 		pair, err = db.Last()
@@ -832,7 +848,7 @@ func TestRewindToFirstDerived(t *testing.T) {
 		require.Equal(t, l2Block1, pair.Derived)
 
 		// Rewind further to L2 block 0 (inclusive).
-		require.NoError(t, db.RewindToFirstDerived(l2Block0.ID(), types.RevisionAny))
+		require.NoError(t, db.RewindToFirstDerived(inv, l2Block0.ID(), types.RevisionAny))
 		pair, err = db.Last()
 		require.NoError(t, err)
 		require.Equal(t, l1Block0, pair.Source)
@@ -880,14 +896,15 @@ func TestInvalidateAndReplace(t *testing.T) {
 		replacement.Hash = common.Hash{0xff, 0xff, 0xff}
 		require.NotEqual(t, l2Ref2.Hash, replacement.Hash) // different L2 block as replacement
 
-		_, err = db.ReplaceInvalidatedBlock(replacement, l2Ref2.Hash)
+		inv := &reads.TestInvalidator{}
+		_, err = db.ReplaceInvalidatedBlock(inv, replacement, l2Ref2.Hash)
 		require.ErrorIs(t, err, types.ErrConflict, "cannot replace what has not been invalidated")
 
 		invalidated := types.DerivedBlockRefPair{
 			Source:  l1Ref1,
 			Derived: l2Ref2,
 		}
-		require.NoError(t, db.RewindAndInvalidate(invalidated))
+		require.NoError(t, db.RewindAndInvalidate(inv, invalidated))
 		_, err = db.Last()
 		require.ErrorIs(t, err, types.ErrAwaitReplacementBlock)
 
@@ -896,10 +913,10 @@ func TestInvalidateAndReplace(t *testing.T) {
 		require.Equal(t, invalidated.Source.ID(), pair.Source.ID())
 		require.Equal(t, invalidated.Derived.ID(), pair.Derived.ID())
 
-		_, err = db.ReplaceInvalidatedBlock(replacement, common.Hash{0xba, 0xd})
+		_, err = db.ReplaceInvalidatedBlock(inv, replacement, common.Hash{0xba, 0xd})
 		require.ErrorIs(t, err, types.ErrConflict, "must point at the right invalidated block")
 
-		result, err := db.ReplaceInvalidatedBlock(replacement, invalidated.Derived.Hash)
+		result, err := db.ReplaceInvalidatedBlock(inv, replacement, invalidated.Derived.Hash)
 		require.NoError(t, err)
 		require.Equal(t, replacement.ID(), result.Derived.ID())
 		require.Equal(t, l1Block1.ID(), result.Source.ID())
@@ -954,11 +971,12 @@ func TestInvalidateAndReplaceNonFirst(t *testing.T) {
 		_, err = db.Invalidated()
 		require.ErrorIs(t, err, types.ErrConflict)
 
+		inv := &reads.TestInvalidator{}
 		invalidated := types.DerivedBlockRefPair{
 			Source:  l1Ref2,
 			Derived: l2Ref3,
 		}
-		require.NoError(t, db.RewindAndInvalidate(invalidated))
+		require.NoError(t, db.RewindAndInvalidate(inv, invalidated))
 		_, err = db.Last()
 		require.ErrorIs(t, err, types.ErrAwaitReplacementBlock)
 
@@ -970,7 +988,7 @@ func TestInvalidateAndReplaceNonFirst(t *testing.T) {
 		replacement := l2Ref3
 		replacement.Hash = common.Hash{0xff, 0xff, 0xff}
 		require.NotEqual(t, l2Ref3.Hash, replacement.Hash) // different L2 block as replacement
-		result, err := db.ReplaceInvalidatedBlock(replacement, invalidated.Derived.Hash)
+		result, err := db.ReplaceInvalidatedBlock(inv, replacement, invalidated.Derived.Hash)
 		require.NoError(t, err)
 		require.Equal(t, replacement.ID(), result.Derived.ID())
 		require.Equal(t, l1Block2.ID(), result.Source.ID())
@@ -1028,10 +1046,14 @@ func TestNoReplaceFirst(t *testing.T) {
 	runDBTest(t,
 		func(t *testing.T, db *DB, m *stubMetrics) {},
 		func(t *testing.T, db *DB, m *stubMetrics) {
-			l1Block0 := mockL1(0)
-			l1Ref0 := toRef(l1Block0, common.Hash{})
-			_, err := db.ReplaceInvalidatedBlock(l1Ref0, common.Hash{0xff})
+			l2Block0 := mockL1(0)
+			l2Ref0 := toRef(l2Block0, common.Hash{})
+			inv := &reads.TestInvalidator{}
+			_, err := db.ReplaceInvalidatedBlock(inv, l2Ref0, common.Hash{0xff})
 			require.ErrorIs(t, err, types.ErrFuture)
+			require.True(t, inv.Invalidated)
+			require.Equal(t, l2Ref0.Time, inv.InvalidatedDerivedTimestamp)
+			require.Equal(t, uint64(0), inv.InvalidatedSourceNum, "source not affected")
 		},
 	)
 }
@@ -1063,10 +1085,14 @@ func TestNotOntoInvalidated(t *testing.T) {
 			require.NoError(t, dbAddDerivedAny(db, l1Ref1, l2Ref1))
 			require.NoError(t, dbAddDerivedAny(db, l1Ref2, l2Ref1))
 			require.NoError(t, dbAddDerivedAny(db, l1Ref2, l2Ref2))
-			require.NoError(t, db.RewindAndInvalidate(types.DerivedBlockRefPair{
+			inv := &reads.TestInvalidator{}
+			require.NoError(t, db.RewindAndInvalidate(inv, types.DerivedBlockRefPair{
 				Source:  l1Ref2,
 				Derived: l2Ref2,
 			}))
+			require.True(t, inv.Invalidated)
+			require.Equal(t, l1Ref2.Number, inv.InvalidatedSourceNum)
+			require.Equal(t, l2Ref2.Time, inv.InvalidatedDerivedTimestamp)
 		},
 		func(t *testing.T, db *DB, m *stubMetrics) {
 			require.ErrorIs(t, dbAddDerivedAny(db, l1Ref2, l2Ref3), types.ErrAwaitReplacementBlock)
@@ -1105,11 +1131,15 @@ func TestMismatchedInvalidate(t *testing.T) {
 			require.NoError(t, dbAddDerivedAny(db, l1Ref2, l2Ref2))
 		},
 		func(t *testing.T, db *DB, m *stubMetrics) {
+			inv := &reads.TestInvalidator{}
 			// This will detect the issue upon rewinding
-			require.ErrorIs(t, db.RewindAndInvalidate(types.DerivedBlockRefPair{
+			require.ErrorIs(t, db.RewindAndInvalidate(inv, types.DerivedBlockRefPair{
 				Source:  l1Ref2,
 				Derived: l2Ref2Alt,
 			}), types.ErrConflict)
+			require.True(t, inv.Invalidated) // even though no effect, we still pick up the signal as clue something is wrong.
+			require.Equal(t, l1Ref2.Number, inv.InvalidatedSourceNum)
+			require.Equal(t, l2Ref2Alt.Time, inv.InvalidatedDerivedTimestamp)
 			// This will detect the issue upon insertion of the new invalidated-entry
 			require.ErrorIs(t, db.addLink(l1Ref3, l2Ref2Alt, l2Ref2Alt.Hash, FirstRevision), types.ErrConflict)
 		},
@@ -1175,8 +1205,9 @@ func TestLookupDetectIfCorruptDB(t *testing.T) {
 			_, err = db.DerivedToFirstSource(l2Block1.ID(), types.RevisionAny)
 			require.ErrorIs(t, err, types.ErrNotExact)
 
+			inv := &reads.TestInvalidator{}
 			// Rewind, corrupt data cannot be left at end of test, otherwise invariant checks fail
-			require.NoError(t, db.Rewind(types.DerivedBlockSealPair{
+			require.NoError(t, db.Rewind(inv, types.DerivedBlockSealPair{
 				Source:  l1Block0,
 				Derived: l2Block0,
 			}, true))
@@ -1219,8 +1250,10 @@ func TestRewindToDifferent(t *testing.T) {
 		func(t *testing.T, db *DB, m *stubMetrics) {
 
 			t.Run("Bad derived target", func(t *testing.T) {
+				inv := &reads.TestInvalidator{}
 				// try to rewind, but towards a mismatching block
-				require.ErrorIs(t, db.RewindToFirstDerived(l2ID1Alt, types.RevisionAny), types.ErrConflict)
+				require.ErrorIs(t, db.RewindToFirstDerived(inv, l2ID1Alt, types.RevisionAny), types.ErrConflict)
+				require.False(t, inv.Invalidated)
 				last, err := db.Last()
 				require.NoError(t, err)
 				// assert we didn't rewind anything
@@ -1229,8 +1262,10 @@ func TestRewindToDifferent(t *testing.T) {
 			})
 
 			t.Run("Bad source target", func(t *testing.T) {
+				inv := &reads.TestInvalidator{}
 				// try to rewind, but towards a mismatching block
-				require.ErrorIs(t, db.RewindToScope(l1ID1Alt), types.ErrConflict)
+				require.ErrorIs(t, db.RewindToScope(inv, l1ID1Alt), types.ErrConflict)
+				require.False(t, inv.Invalidated)
 				last, err := db.Last()
 				require.NoError(t, err)
 				// assert we didn't rewind anything
@@ -1326,11 +1361,13 @@ func TestDeepInvalidate(t *testing.T) {
 			require.Equal(t, l2Ref8.ID(), v.derived.ID())
 			require.Equal(t, FirstRevision, v.revision)
 
+			inv := &reads.TestInvalidator{}
 			invalidated := types.DerivedBlockRefPair{
 				Source:  l1Ref6,
 				Derived: l2Ref3,
 			}
-			require.NoError(t, db.RewindAndInvalidate(invalidated))
+			require.NoError(t, db.RewindAndInvalidate(inv, invalidated))
+			require.True(t, inv.Invalidated)
 
 			_, v, err = db.lookup(6, 3) // now we have an invalidated place-holder that matches the (6, 3) lookup
 			require.NoError(t, err)
@@ -1347,14 +1384,14 @@ func TestDeepInvalidate(t *testing.T) {
 			require.NoError(t, db.ContainsDerived(l2Ref2.ID(), FirstRevision))
 
 			// We cannot invalidate what is already invalidated
-			require.ErrorIs(t, db.RewindAndInvalidate(invalidated), types.ErrAwaitReplacementBlock)
+			require.ErrorIs(t, db.RewindAndInvalidate(inv, invalidated), types.ErrAwaitReplacementBlock)
 
 			// we cannot proceed in any way until actually replacing the invalidated placeholder block
 			require.ErrorIs(t, dbAddDerivedAny(db, l1Ref6, l2Ref4p), types.ErrAwaitReplacementBlock)
 			require.ErrorIs(t, dbAddDerivedAny(db, l1Ref7, l2Ref3p), types.ErrAwaitReplacementBlock)
 			require.ErrorIs(t, dbAddDerivedAny(db, l1Ref7, l2Ref4p), types.ErrAwaitReplacementBlock)
 
-			replacement, err := db.ReplaceInvalidatedBlock(l2Ref3p, l2Ref3.Hash)
+			replacement, err := db.ReplaceInvalidatedBlock(inv, l2Ref3p, l2Ref3.Hash)
 			require.NoError(t, err)
 			require.Equal(t, l1Ref6.ID(), replacement.Source.ID())
 			require.Equal(t, l2Ref3p.ID(), replacement.Derived.ID())
@@ -1447,12 +1484,17 @@ func TestDeepInvalidate(t *testing.T) {
 			}
 			checkRevisionsOf4(t)
 
+			inv := &reads.TestInvalidator{}
 			// Invalidate again, now replace 5p with 5pp, at L1 8
 			invalidated2 := types.DerivedBlockRefPair{
 				Source:  l1Ref8,
 				Derived: l2Ref5p,
 			}
-			require.NoError(t, db.RewindAndInvalidate(invalidated2))
+			require.NoError(t, db.RewindAndInvalidate(inv, invalidated2))
+			require.True(t, inv.Invalidated)
+			require.Equal(t, l1Ref8.Number, inv.InvalidatedSourceNum)
+			require.Equal(t, l2Ref5p.Time, inv.InvalidatedDerivedTimestamp)
+
 			_, v, err := db.lookup(8, 5) // now we have an invalidated place-holder that matches the (8, 5) lookup
 			require.NoError(t, err)
 			require.True(t, v.invalidated)
@@ -1460,10 +1502,15 @@ func TestDeepInvalidate(t *testing.T) {
 			require.Equal(t, l2Ref5p.ID(), v.derived.ID())
 			require.Equal(t, thirdRevision, v.revision)
 
-			replacement2, err := db.ReplaceInvalidatedBlock(l2Ref5pp, l2Ref5p.Hash)
+			inv = &reads.TestInvalidator{}
+			replacement2, err := db.ReplaceInvalidatedBlock(inv, l2Ref5pp, l2Ref5p.Hash)
 			require.NoError(t, err)
 			require.Equal(t, l1Ref8.ID(), replacement2.Source.ID())
 			require.Equal(t, l2Ref5pp.ID(), replacement2.Derived.ID())
+
+			require.True(t, inv.Invalidated)
+			require.Equal(t, uint64(0), inv.InvalidatedSourceNum, "source stays the same, unaffected")
+			require.Equal(t, l2Ref5pp.Time, inv.InvalidatedDerivedTimestamp)
 
 			checkRevisionsOf3(t)
 			checkRevisionsOf4(t)

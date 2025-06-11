@@ -29,6 +29,8 @@ type hardforkScheduledTest struct {
 	graniteTime  *hexutil.Uint64
 	holoceneTime *hexutil.Uint64
 	isthmusTime  *hexutil.Uint64
+	interopTime  *hexutil.Uint64
+	jovianTime   *hexutil.Uint64
 	runToFork    string
 	allocType    config.AllocType
 }
@@ -43,6 +45,10 @@ func (tc *hardforkScheduledTest) GetFork(fork string) *uint64 {
 
 func (tc *hardforkScheduledTest) fork(fork string) **hexutil.Uint64 {
 	switch fork {
+	case "jovian":
+		return &tc.jovianTime
+	case "interop":
+		return &tc.interopTime
 	case "isthmus":
 		return &tc.isthmusTime
 	case "holocene":
@@ -89,6 +95,8 @@ func testCrossLayerUser(t *testing.T, allocType config.AllocType) {
 		"granite",
 		"holocene",
 		"isthmus",
+		"interop",
+		"jovian",
 	}
 	for i, fork := range forks {
 		i := i

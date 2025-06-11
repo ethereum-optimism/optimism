@@ -43,7 +43,7 @@ func (c *ChainOpts) AddChain(chain *Chain) {
 // Required inputs to methods are specified as normal parameters, so type checking enforces their presence.
 // Optional inputs to methods are specified by a config struct and accept a vararg of functions that can update that struct.
 // This is roughly inline with the typical opts pattern in Golang but with significantly reduced boilerplate code since
-// so many methods wil define their own config. With* methods are only provided for the most common optional args and
+// so many methods will define their own config. With* methods are only provided for the most common optional args and
 // tests will normally supply a custom function that sets all the optional values they need at once.
 // Common options can be extracted to a reusable struct (e.g. ChainOpts above) which may expose helper methods to aid
 // test readability and reduce boilerplate.
@@ -92,7 +92,7 @@ func NewInteropDSL(t helpers.Testing, opts ...setupOption) *InteropDSL {
 }
 
 func (d *InteropDSL) DepSet() *depset.StaticConfigDependencySet {
-	return d.setup.DepSet
+	return d.setup.CfgSet.DependencySet.(*depset.StaticConfigDependencySet)
 }
 
 func (d *InteropDSL) defaultChainOpts() ChainOpts {
@@ -226,6 +226,7 @@ func (d *InteropDSL) ProcessCrossSafe(optionalArgs ...func(*ProcessCrossSafeOpts
 	for _, arg := range optionalArgs {
 		arg(&opts)
 	}
+
 	// Process cross-safe updates
 	d.Actors.Supervisor.ProcessFull(d.t)
 
@@ -243,7 +244,7 @@ func (d *InteropDSL) ProcessCrossSafe(optionalArgs ...func(*ProcessCrossSafeOpts
 	d.Actors.Supervisor.ProcessFull(d.t)
 	for _, chain := range opts.Chains {
 		status := chain.Sequencer.SyncStatus()
-		require.Equalf(d.t, status.UnsafeL2, status.SafeL2, "Chain %v did not fully advance safe head", chain.ChainID)
+		require.Equalf(d.t, status.UnsafeL2, status.SafeL2, "Chain %v did not fully advance cross safe head", chain.ChainID)
 	}
 }
 
@@ -372,5 +373,29 @@ func (d *InteropDSL) AdvanceL2ToLastBlockOfOrigin(chain *Chain, l1OriginHeight u
 			break
 		}
 		d.AddL2Block(chain)
+	}
+}
+
+func (d *InteropDSL) ActSyncSupernode(t helpers.Testing, opts ...actSyncSupernodeOption) {
+	cfg := &actSyncSupernodeConfig{
+		ChainOpts: d.defaultChainOpts(),
+	}
+	for _, opt := range opts {
+		opt(cfg)
+	}
+
+	// Perform actions
+	if cfg.shouldSendL1LatestSignal {
+		d.Actors.Supervisor.SignalLatestL1(t)
+	}
+	if cfg.shouldSendL1FinalizedSignal {
+		d.Actors.Supervisor.SignalFinalizedL1(t)
+	}
+	for _, chain := range cfg.Chains {
+		chain.Sequencer.SyncSupervisor(t) // supervisor to react to exhaust-L1
+	}
+	d.Actors.Supervisor.ProcessFull(t)
+	for _, chain := range cfg.Chains {
+		chain.Sequencer.ActL2PipelineFull(t) // node to complete syncing to L1 head.
 	}
 }

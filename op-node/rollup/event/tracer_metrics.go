@@ -16,6 +16,7 @@ func (mt *MetricsTracer) OnDeriveStart(name string, ev AnnotatedEvent, derivCont
 }
 
 func (mt *MetricsTracer) OnDeriveEnd(name string, ev AnnotatedEvent, derivContext uint64, startTime time.Time, duration time.Duration, effect bool) {
+	mt.metrics.RecordDequeuedEvents(ev.Event.String(), name)
 	if !effect { // don't count events that were just pass-through and not of any effect
 		return
 	}

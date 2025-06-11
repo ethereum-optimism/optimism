@@ -66,7 +66,7 @@ func testBenchmarkCannonFPP(t *testing.T, allocType config.AllocType) {
 	newContracts := createBigContracts(ctx, t, cfg, l2Seq, cfg.Secrets.Alice, numCreates)
 	receipt := callBigContracts(ctx, t, cfg, l2Seq, cfg.Secrets.Alice, newContracts)
 
-	t.Log("Capture the latest L2 head that preceedes contract creations as agreed starting point")
+	t.Log("Capture the latest L2 head that precedes contract creations as agreed starting point")
 	agreedBlock, err := l2Seq.BlockByNumber(ctx, new(big.Int).Sub(receipt.BlockNumber, big.NewInt(1)))
 	require.NoError(t, err)
 	agreedL2Output, err := rollupClient.OutputAtBlock(ctx, agreedBlock.NumberU64())

@@ -41,7 +41,7 @@ func (c *Config) Start(ctx context.Context, id seqtypes.SequencerID, opts *work.
 	committer := opts.Services.Committer(c.Committer)
 	publisher := opts.Services.Publisher(c.Publisher)
 
-	// TODO(#14129) load persisted sequencer state (add config var for peristence path + use op-node persistence code)
+	// TODO(#14129) load persisted sequencer state (add config var for persistence path + use op-node persistence code)
 
 	seq := &Sequencer{
 		id: id,

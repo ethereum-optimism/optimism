@@ -23,6 +23,10 @@ type Orchestrator struct {
 
 	controlPlane *ControlPlane
 	useDirectCnx bool
+
+	// sysHook is called after hydration of a new test-scope system frontend,
+	// essentially a test-case preamble.
+	sysHook stack.SystemHook
 }
 
 var _ stack.Orchestrator = (*Orchestrator)(nil)
@@ -31,7 +35,7 @@ func (o *Orchestrator) ControlPlane() stack.ControlPlane {
 	return o.controlPlane
 }
 
-func NewOrchestrator(p devtest.P) *Orchestrator {
+func NewOrchestrator(p devtest.P, sysHook stack.SystemHook) *Orchestrator {
 	url := os.Getenv(env.EnvURLVar)
 	if url == "" {
 		p.Logger().Warn("No devnet URL specified, using default", "default", defaultDevnetUrl)
@@ -39,9 +43,13 @@ func NewOrchestrator(p devtest.P) *Orchestrator {
 	}
 	env, err := env.LoadDevnetFromURL(url)
 	p.Require().NoError(err, "Error loading devnet environment")
+	p.Require().NotNil(env, "Error loading devnet environment: DevnetEnv is nil")
+	p.Require().NotNil(env.Env, "Error loading devnet environment: DevnetEnvironment is nil")
+
 	orch := &Orchestrator{
-		env: env,
-		p:   p,
+		env:     env,
+		p:       p,
+		sysHook: sysHook,
 	}
 	orch.controlPlane = &ControlPlane{
 		o: orch,
@@ -54,14 +62,20 @@ func (o *Orchestrator) P() devtest.P {
 }
 
 func (o *Orchestrator) Hydrate(sys stack.ExtensibleSystem) {
+	if o.env == nil || o.env.Env == nil {
+		panic("orchestrator not properly initialized: env is nil")
+	}
+
+	o.sysHook.PreHydrate(sys)
 	o.hydrateL1(sys)
 	o.hydrateSuperchain(sys)
 	o.hydrateClustersMaybe(sys)
 	o.hydrateSupervisorsMaybe(sys)
-	o.hydrateSequencersMaybe(sys)
+	o.hydrateTestSequencersMaybe(sys)
 	for _, l2Net := range o.env.Env.L2 {
 		o.hydrateL2(l2Net, sys)
 	}
+	o.sysHook.PostHydrate(sys)
 }
 
 func isInterop(env *descriptors.DevnetEnvironment) bool {

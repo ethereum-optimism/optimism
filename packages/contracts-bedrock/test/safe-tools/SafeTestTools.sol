@@ -360,8 +360,8 @@ library SafeTestLib {
         );
     }
 
-    /// @dev Removes an owner from the safe. If not provided explictly, the identification of the prevOwner is handled
-    ///     automatically.
+    /// @dev Removes an owner from the safe. If not provided explicitly, the identification of the prevOwner is handled
+    ///      automatically.
     function removeOwner(SafeInstance memory instance, address prevOwner, address owner, uint256 threshold) internal {
         prevOwner = prevOwner > address(0) ? prevOwner : SafeTestLib.getPrevOwner(instance, owner);
         execTransaction(
@@ -369,8 +369,8 @@ library SafeTestLib {
         );
     }
 
-    /// @dev Replaces an old owner with a new owner. If not provided explictly, the identification of the prevOwner is
-    /// handled automatically.
+    /// @dev Replaces an old owner with a new owner. If not provided explicitly, the identification of the prevOwner is
+    ///      handled automatically.
     function swapOwner(SafeInstance memory instance, address prevOwner, address oldOwner, address newOwner) internal {
         prevOwner = prevOwner > address(0) ? prevOwner : SafeTestLib.getPrevOwner(instance, oldOwner);
         execTransaction(
@@ -379,7 +379,7 @@ library SafeTestLib {
     }
 
     /// @dev A wrapper for the full execTransaction method, if no signatures are provided it will
-    ///         generate them for all owners.
+    ///      generate them for all owners.
     function execTransaction(
         SafeInstance memory instance,
         address to,

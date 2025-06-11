@@ -6,6 +6,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
+	"github.com/ethereum-optimism/optimism/op-service/testreq"
 )
 
 type gateTesting struct {
@@ -22,13 +23,16 @@ func (g *gateTesting) FailNow() {
 	panic("gate hit")
 }
 
+func (g *gateTesting) Helper() {
+}
+
 type fakeTesting struct {
 	devtest.T // embedded but nil, to inherit interface
 	g         *gateTesting
 }
 
-func (f *fakeTesting) Gate() *require.Assertions {
-	return require.New(f.g)
+func (f *fakeTesting) Gate() *testreq.Assertions {
+	return testreq.New(f.g)
 }
 
 func TestAssume(t *testing.T) {

@@ -25,7 +25,7 @@ var _ stack.ExtensibleL1Network = (*presetL1Network)(nil)
 
 func NewL1Network(cfg L1NetworkConfig) stack.ExtensibleL1Network {
 	require.Equal(cfg.T, cfg.ID.ChainID(), eth.ChainIDFromBig(cfg.NetworkConfig.ChainConfig.ChainID), "chain config must match expected chain")
-	cfg.Log = cfg.Log.New("chainID", cfg.ID.ChainID(), "id", cfg.ID)
+	cfg.T = cfg.T.WithCtx(stack.ContextWithID(cfg.T.Ctx(), cfg.ID))
 	return &presetL1Network{
 		id:            cfg.ID,
 		presetNetwork: newNetwork(cfg.NetworkConfig),
@@ -44,7 +44,7 @@ func (p *presetL1Network) L1ELNode(m stack.L1ELMatcher) stack.L1ELNode {
 
 func (p *presetL1Network) AddL1ELNode(v stack.L1ELNode) {
 	id := v.ID()
-	p.require().Equal(p.chainID, id.ChainID, "l1 EL node %s must be on chain %s", id, p.chainID)
+	p.require().Equal(p.chainID, id.ChainID(), "l1 EL node %s must be on chain %s", id, p.chainID)
 	p.require().True(p.els.SetIfMissing(id, v), "l1 EL node %s must not already exist", id)
 }
 
@@ -56,7 +56,7 @@ func (p *presetL1Network) L1CLNode(m stack.L1CLMatcher) stack.L1CLNode {
 
 func (p *presetL1Network) AddL1CLNode(v stack.L1CLNode) {
 	id := v.ID()
-	p.require().Equal(p.chainID, id.ChainID, "l1 CL node %s must be on chain %s", id, p.chainID)
+	p.require().Equal(p.chainID, id.ChainID(), "l1 CL node %s must be on chain %s", id, p.chainID)
 	p.require().True(p.cls.SetIfMissing(id, v), "l1 CL node %s must not already exist", id)
 }
 

@@ -99,7 +99,7 @@ To accommodate this, once contract changes are ready for governance approval, th
 5. Check "set as pre-release" since it's not yet governance approved
 6. Uncheck "Set as the latest release" and "Create a discussion for this release".
 7. Click publish release.
-8. After governance vote passes, edit the relase to uncheck "set as pre-release", and remove the `-rc.1` tag.
+8. After governance vote passes, edit the release to uncheck "set as pre-release", and remove the `-rc.1` tag.
 
 Although the tools exist to apply a [code freeze](./code-freezes.md) to specific contracts, this is
 discouraged. If a change is required to a release candidate after it has been tagged, the
@@ -120,10 +120,3 @@ The process is as follows:
    incremented for each additional patch.
 4. After merging the changes into the new release branch, tag the resulting commit on the proposal branch as `op-contracts/vX.Y.Z-rc.n`.
    Create a new release for this tag per the instructions above.
-
-Note: The reason for the larger semver increment on `develop` is to prevent a collision, wherein a
-contract could have the same semver, but different source/bytecode on the two branches.
-
-For example: if the current version of a contract is `1.1.1` and a minor bump is required (most common for a bug fix),
-   then the fixed version should become `1.8.0` on `develop`. Then on the release branch is should become
-   `1.2.0`.

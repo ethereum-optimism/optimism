@@ -18,6 +18,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-devstack/sysgo"
 	"github.com/ethereum-optimism/optimism/op-service/locks"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
+	"github.com/ethereum-optimism/optimism/op-service/logfilter"
 )
 
 // lockedOrchestrator is the global variable that stores
@@ -25,6 +26,13 @@ import (
 // Presets are expected to use the global orchestrator,
 // unless explicitly told otherwise using a WithOrchestrator option.
 var lockedOrchestrator locks.RWValue[stack.Orchestrator]
+
+type backendKind string
+
+const (
+	backendKindSysGo  backendKind = "sysgo"
+	backendKindSysExt backendKind = "sysext"
+)
 
 // DoMain runs M with the pre- and post-processing of tests,
 // to setup the default global orchestrator and global logger.
@@ -48,12 +56,17 @@ func DoMain(m *testing.M, opts ...stack.CommonOption) {
 		}()
 
 		// This may be tuned with env or CLI flags in the future, to customize test output
-		logger := oplog.NewLogger(os.Stdout, oplog.CLIConfig{
-			Level:  log.LevelInfo,
+		logHandler := oplog.NewLogHandler(os.Stdout, oplog.CLIConfig{
+			Level:  log.LevelTrace,
 			Color:  true,
 			Format: oplog.FormatTerminal,
 			Pid:    false,
 		})
+		logHandler = logfilter.WrapFilterHandler(logHandler)
+		logHandler.(logfilter.Handler).Set(logfilter.Minimum(devtest.DefaultTestLogLevel))
+		logHandler = oplog.WrapContextHandler(logHandler)
+		// The default can be changed using the WithLogFiltersReset option
+		logger := log.NewLogger(logHandler)
 
 		ctx, otelShutdown, err := telemetry.SetupOpenTelemetry(context.Background())
 		if err != nil {
@@ -65,11 +78,19 @@ func DoMain(m *testing.M, opts ...stack.CommonOption) {
 		ctx, run := otel.Tracer("run").Start(ctx, "test suite")
 		defer run.End()
 
+		// All tests will inherit this package-level context
 		devtest.RootContext = ctx
-		p := devtest.NewP(ctx, logger, func() {
+
+		// Make the package-level logger use this context
+		logger.SetContext(ctx)
+
+		p := devtest.NewP(ctx, logger, func(now bool) {
+			logger.Error("Main failed")
 			debug.PrintStack()
 			failed.Store(true)
-			panic("setup fail")
+			if now {
+				panic("critical Main fail")
+			}
 		})
 		defer p.Close()
 
@@ -81,7 +102,6 @@ func DoMain(m *testing.M, opts ...stack.CommonOption) {
 		// TODO(#15139): set log-level filter, reduce noise
 		//log.SetDefault(t.Log.New("logger", "global"))
 
-		detectBackend(p.Logger())
 		initOrchestrator(ctx, p, stack.Combine(opts...))
 
 		errCode = m.Run()
@@ -100,15 +120,20 @@ func initOrchestrator(ctx context.Context, p devtest.P, opt stack.CommonOption) 
 	if lockedOrchestrator.Value != nil {
 		return
 	}
-	p.Logger().WithContext(ctx).Info("initializing orchestrator", "backend", globalBackend)
-	switch globalBackend {
-	case SysGo:
-		lockedOrchestrator.Value = sysgo.NewOrchestrator(p)
-	case SysExt:
-		lockedOrchestrator.Value = sysext.NewOrchestrator(p)
-	default:
-		panic(fmt.Sprintf("Unknown backend for initializing orchestrator: %s", globalBackend))
+	backend := backendKindSysGo
+	if override, ok := os.LookupEnv("DEVSTACK_ORCHESTRATOR"); ok {
+		backend = backendKind(override)
 	}
+	switch backend {
+	case backendKindSysGo:
+		lockedOrchestrator.Value = sysgo.NewOrchestrator(p, stack.SystemHook(opt))
+	case backendKindSysExt:
+		lockedOrchestrator.Value = sysext.NewOrchestrator(p, stack.SystemHook(opt))
+	default:
+		panic(fmt.Sprintf("Unknown backend for initializing orchestrator: %s", backend))
+	}
+
+	p.Logger().InfoContext(ctx, "initializing orchestrator", "backend", backend)
 	stack.ApplyOptionLifecycle(opt, lockedOrchestrator.Value)
 }
 

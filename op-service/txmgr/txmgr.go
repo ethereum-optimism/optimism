@@ -565,12 +565,14 @@ func (m *SimpleTxManager) sendTx(ctx context.Context, tx *types.Transaction) (*t
 	defer cancel()
 
 	sendState := NewSendState(m.cfg.SafeAbortNonceTooLowCount, m.cfg.TxNotInMempoolTimeout)
+	retryCount := uint64(0)
 	receiptChan := make(chan *types.Receipt, 1)
 	resubmissionTimeout := m.GetBumpFeeRetryTime()
-	ticker := time.NewTicker(resubmissionTimeout)
-	defer ticker.Stop()
+	resubmissionTicker := time.NewTicker(resubmissionTimeout)
+	defer resubmissionTicker.Stop()
 
 	for {
+		retryTicker := &time.Ticker{}
 		if !sendState.IsWaitingForConfirmation() {
 			if m.closed.Load() {
 				// the tx manager closed and no txs are waiting to be confirmed, give up
@@ -578,12 +580,22 @@ func (m *SimpleTxManager) sendTx(ctx context.Context, tx *types.Transaction) (*t
 				return nil, ErrClosed
 			}
 			var published bool
-			if tx, published = m.publishTx(ctx, tx, sendState); published {
+			var err error
+			if tx, published, err = m.publishTx(ctx, tx, sendState); published {
+				retryCount = 0
 				wg.Add(1)
 				go func() {
 					defer wg.Done()
 					m.waitForTx(ctx, tx, sendState, receiptChan)
 				}()
+			} else if err != nil {
+				if retryCount >= m.cfg.MaxRetries {
+					m.txLogger(tx, false).Warn("Aborting transaction submission retry", "err", err, "retries", retryCount)
+					return nil, err
+				}
+				retryCount++
+				// retry immediately if RetryInterval <= 0:
+				retryTicker = time.NewTicker(max(1, m.cfg.RetryInterval))
 			}
 		}
 		if err := sendState.CriticalError(); err != nil {
@@ -591,8 +603,13 @@ func (m *SimpleTxManager) sendTx(ctx context.Context, tx *types.Transaction) (*t
 			return nil, fmt.Errorf("aborted tx send due to critical error: %w", err)
 		}
 
+		if ctx.Err() != nil {
+			return nil, ctx.Err()
+		}
+
 		select {
-		case <-ticker.C:
+		case <-resubmissionTicker.C:
+		case <-retryTicker.C:
 
 		case <-ctx.Done():
 			return nil, ctx.Err()
@@ -607,8 +624,11 @@ func (m *SimpleTxManager) sendTx(ctx context.Context, tx *types.Transaction) (*t
 
 // publishTx publishes the transaction to the transaction pool. If it receives any underpriced errors
 // it will bump the fees and retry.
-// Returns the latest fee bumped tx, and a boolean indicating whether the tx was sent or not
-func (m *SimpleTxManager) publishTx(ctx context.Context, tx *types.Transaction, sendState *SendState) (*types.Transaction, bool) {
+// Returns:
+//   - the latest fee bumped tx
+//   - a boolean indicating whether the tx was sent or not
+//   - an error if the tx was not sent and should be retried
+func (m *SimpleTxManager) publishTx(ctx context.Context, tx *types.Transaction, sendState *SendState) (*types.Transaction, bool, error) {
 	l := m.txLogger(tx, true)
 
 	l.Info("Publishing transaction")
@@ -627,7 +647,7 @@ func (m *SimpleTxManager) publishTx(ctx context.Context, tx *types.Transaction, 
 				if sendState.IsWaitingForConfirmation() {
 					// A previously published tx might get mined during the increaseGasPrice call
 					// above, in which case we can abort trying to replace it with a higher fee tx.
-					return tx, false
+					return tx, false, nil
 				}
 				sendState.bumpCount++
 				tx = newTx
@@ -654,7 +674,7 @@ func (m *SimpleTxManager) publishTx(ctx context.Context, tx *types.Transaction, 
 			// Tx made it into the mempool, so we'll need a fee bump if we end up trying to replace
 			// it with another publish attempt.
 			sendState.bumpFees = true
-			return tx, true
+			return tx, true, nil
 		}
 
 		switch {
@@ -689,13 +709,18 @@ func (m *SimpleTxManager) publishTx(ctx context.Context, tx *types.Transaction, 
 				sendState.bumpFees = true
 				continue
 			}
+		case errStringMatch(err, core.ErrNonceTooHigh):
+			l.Error("nonce too high", "err", err)
+			m.metr.TxPublished("nonce_too_high")
+			// transient error (e.g. blob pool gapped nonce), retry
+			return tx, false, err
 		default:
 			m.metr.RPCError()
 			l.Error("unable to publish transaction", "err", err)
 			m.metr.TxPublished("unknown_error")
 		}
 
-		return tx, false
+		return tx, false, nil
 	}
 }
 

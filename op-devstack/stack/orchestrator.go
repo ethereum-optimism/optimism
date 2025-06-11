@@ -21,6 +21,7 @@ const (
 type ControlPlane interface {
 	SupervisorState(id SupervisorID, action ControlAction)
 	L2CLNodeState(id L2CLNodeID, action ControlAction)
+	FakePoSState(id L1CLNodeID, action ControlAction)
 }
 
 // Orchestrator is the base interface for all system orchestrators.
@@ -46,7 +47,12 @@ type Orchestrator interface {
 // }
 
 type SystemHook interface {
-	// PostHydrate runs after a system is hydrated, to run any checks
+	// PreHydrate runs before a system is hydrated,
+	// to prepare settings on the system like logging, or inspect test-scope
+	PreHydrate(sys System)
+
+	// PostHydrate runs after a system is hydrated, to run any checks.
+	// This may register validation that runs at the end of the test, using the sys.T().Cleanup function.
 	PostHydrate(sys System)
 }
 
@@ -55,7 +61,7 @@ func ApplyOptionLifecycle[O Orchestrator](opt Option[O], orch O) {
 	opt.BeforeDeploy(orch)
 	opt.Deploy(orch)
 	opt.AfterDeploy(orch)
-	opt.Finally(orch, opt)
+	opt.Finally(orch)
 }
 
 // Option is used to define a change that inspects and/or changes a System during the lifecycle.
@@ -66,10 +72,10 @@ type Option[O Orchestrator] interface {
 	Deploy(orch O)
 	// AfterDeploy runs after chains are created/deployed
 	AfterDeploy(orch O)
-	// Finally runs at the very end.
-	// A system hook is available, to validate any produced systems
-	Finally(orch O, hook SystemHook)
-	// SystemHook is embedded: Options may expose system hooks
+	// Finally runs at the very end of orchestrator setup,
+	// but before any test-scope is created.
+	Finally(orch O)
+	// SystemHook is embedded: Options may expose system hooks, to run in test-scope.
 	SystemHook
 }
 
@@ -110,9 +116,15 @@ func (c CombinedOption[O]) AfterDeploy(orch O) {
 	}
 }
 
-func (c CombinedOption[O]) Finally(orch O, hook SystemHook) {
+func (c CombinedOption[O]) Finally(orch O) {
 	for _, opt := range c {
-		opt.Finally(orch, hook)
+		opt.Finally(orch)
+	}
+}
+
+func (c CombinedOption[O]) PreHydrate(sys System) {
+	for _, opt := range c {
+		opt.PreHydrate(sys)
 	}
 }
 
@@ -128,7 +140,8 @@ type FnOption[O Orchestrator] struct {
 	BeforeDeployFn func(orch O)
 	DeployFn       func(orch O)
 	AfterDeployFn  func(orch O)
-	FinallyFn      func(orch O, hook SystemHook)
+	FinallyFn      func(orch O)
+	PreHydrateFn   func(sys System)
 	PostHydrateFn  func(sys System)
 }
 
@@ -152,9 +165,15 @@ func (f FnOption[O]) AfterDeploy(orch O) {
 	}
 }
 
-func (f FnOption[O]) Finally(orch O, hook SystemHook) {
+func (f FnOption[O]) Finally(orch O) {
 	if f.FinallyFn != nil {
-		f.FinallyFn(orch, hook)
+		f.FinallyFn(orch)
+	}
+}
+
+func (f FnOption[O]) PreHydrate(sys System) {
+	if f.PreHydrateFn != nil {
+		f.PreHydrateFn(sys)
 	}
 }
 
@@ -164,22 +183,40 @@ func (f FnOption[O]) PostHydrate(sys System) {
 	}
 }
 
+// BeforeDeploy registers a function to run before the deployment stage of the orchestrator.
+// This may be used to customize deployment settings.
 func BeforeDeploy[O Orchestrator](fn func(orch O)) Option[O] {
 	return FnOption[O]{BeforeDeployFn: fn}
 }
 
+// Deploy registers a function to run during the deployment stage of the orchestrator.
+// This may be used to perform deployments.
 func Deploy[O Orchestrator](fn func(orch O)) Option[O] {
 	return FnOption[O]{DeployFn: fn}
 }
 
+// AfterDeploy registers a function to run after the deployment stage of the orchestrator.
+// This may be used to customize the orchestrator, after having deployment configuration in place.
 func AfterDeploy[O Orchestrator](fn func(orch O)) Option[O] {
 	return FnOption[O]{AfterDeployFn: fn}
 }
 
-func Finally[O Orchestrator](fn func(orch O, hook SystemHook)) Option[O] {
+// Finally registers a function to run at the end of orchestrator setup.
+// This may be used for any orchestrator post-validation,
+// or to export any of the now ready orchestrator resources.
+func Finally[O Orchestrator](fn func(orch O)) Option[O] {
 	return FnOption[O]{FinallyFn: fn}
 }
 
+// PreHydrate hooks up an option callback to run before a new System has been hydrated by the Orchestrator.
+func PreHydrate[O Orchestrator](fn func(sys System)) Option[O] {
+	return FnOption[O]{PostHydrateFn: fn}
+}
+
+// PostHydrate hooks up an option callback to run when a new System has been hydrated by the Orchestrator.
+// This is essentially a test-case preamble,
+// to globally configure checks or gates that should run on the test-scope level.
+// Test post-checks can be configured with sys.T().Cleanup(...).
 func PostHydrate[O Orchestrator](fn func(sys System)) Option[O] {
 	return FnOption[O]{PostHydrateFn: fn}
 }
@@ -212,12 +249,15 @@ func MakeCommon[O Orchestrator](opt Option[O]) CommonOption {
 				orch.P().Logger().Debug("AfterDeploy option does not apply to this orchestrator type")
 			}
 		},
-		FinallyFn: func(orch Orchestrator, hook SystemHook) {
+		FinallyFn: func(orch Orchestrator) {
 			if o, ok := orch.(O); ok {
-				opt.Finally(o, hook)
+				opt.Finally(o)
 			} else {
 				orch.P().Logger().Debug("Finally option does not apply to this orchestrator type")
 			}
+		},
+		PreHydrateFn: func(sys System) {
+			opt.PreHydrate(sys)
 		},
 		PostHydrateFn: func(sys System) {
 			opt.PostHydrate(sys)

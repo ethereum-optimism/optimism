@@ -4,8 +4,9 @@ pragma solidity 0.8.15;
 import { Test } from "forge-std/Test.sol";
 import { CheckSecrets } from "src/periphery/drippie/dripchecks/CheckSecrets.sol";
 
-/// @title  CheckSecretsTest
-contract CheckSecretsTest is Test {
+/// @title CheckSecrets_TestInit
+/// @notice Reusable test initialization for `CheckSecrets` tests.
+contract CheckSecrets_TestInit is Test {
     /// @notice Event emitted when a secret is revealed.
     event SecretRevealed(bytes32 indexed secretHash, bytes secret);
 
@@ -25,35 +26,11 @@ contract CheckSecretsTest is Test {
     function setUp() external {
         c = new CheckSecrets();
     }
+}
 
-    /// @notice Test that the `name` function returns the correct value.
-    function test_name_succeeds() external view {
-        assertEq(c.name(), "CheckSecrets");
-    }
-
-    /// @notice Test that basic secret revealing works.
-    function test_reveal_succeeds() external {
-        // Simple reveal and check assertions.
-        vm.expectEmit(address(c));
-        emit SecretRevealed(keccak256(secretMustExist), secretMustExist);
-        c.reveal(secretMustExist);
-        assertEq(c.revealedSecrets(keccak256(secretMustExist)), block.timestamp);
-    }
-
-    /// @notice Test that revealing the same secret twice does not work.
-    function test_reveal_twice_fails() external {
-        // Reveal the secret once.
-        uint256 ts = block.timestamp;
-        c.reveal(secretMustExist);
-        assertEq(c.revealedSecrets(keccak256(secretMustExist)), ts);
-
-        // Forward time and reveal again, should fail, same original timestamp.
-        vm.warp(ts + 1);
-        vm.expectRevert("CheckSecrets: secret already revealed");
-        c.reveal(secretMustExist);
-        assertEq(c.revealedSecrets(keccak256(secretMustExist)), ts);
-    }
-
+/// @title CheckSecrets_Check_Test
+/// @notice Tests the `check` function of the `CheckSecrets` contract.
+contract CheckSecrets_Check_Test is CheckSecrets_TestInit {
     /// @notice Test that the check function returns true when the first secret is revealed but the
     ///         second secret is still hidden and the delay period has elapsed when the delay
     ///         period is non-zero. Here we warp to exactly the delay period.
@@ -184,5 +161,42 @@ contract CheckSecretsTest is Test {
 
         // Both secrets revealed, check should fail.
         assertEq(c.check(abi.encode(p)), false);
+    }
+}
+
+/// @title CheckSecrets_Reveal_Test
+/// @notice Tests the `reveal` function of the `CheckSecrets` contract.
+contract CheckSecrets_Reveal_Test is CheckSecrets_TestInit {
+    /// @notice Test that basic secret revealing works.
+    function test_reveal_succeeds() external {
+        // Simple reveal and check assertions.
+        vm.expectEmit(address(c));
+        emit SecretRevealed(keccak256(secretMustExist), secretMustExist);
+        c.reveal(secretMustExist);
+        assertEq(c.revealedSecrets(keccak256(secretMustExist)), block.timestamp);
+    }
+
+    /// @notice Test that revealing the same secret twice does not work.
+    function test_reveal_twice_fails() external {
+        // Reveal the secret once.
+        uint256 ts = block.timestamp;
+        c.reveal(secretMustExist);
+        assertEq(c.revealedSecrets(keccak256(secretMustExist)), ts);
+
+        // Forward time and reveal again, should fail, same original timestamp.
+        vm.warp(ts + 1);
+        vm.expectRevert("CheckSecrets: secret already revealed");
+        c.reveal(secretMustExist);
+        assertEq(c.revealedSecrets(keccak256(secretMustExist)), ts);
+    }
+}
+
+/// @title CheckSecrets_Unclassified_Test
+/// @notice General tests that are not testing any function directly of the `CheckSecrets` contract
+///         or are testing multiple functions at once.
+contract CheckSecrets_Unclassified_Test is CheckSecrets_TestInit {
+    /// @notice Test that the `name` function returns the correct value.
+    function test_name_succeeds() external view {
+        assertEq(c.name(), "CheckSecrets");
     }
 }

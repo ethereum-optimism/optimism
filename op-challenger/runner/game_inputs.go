@@ -101,7 +101,7 @@ func createGameInputsInterop(ctx context.Context, log log.Logger, client *source
 	provider := super.NewSuperTraceProvider(log, nil, prestateProvider, client, l1Head.ID(), gameDepth, agreedTimestamp, claimTimestamp+10)
 	var agreedPrestate []byte
 	var claim common.Hash
-	switch 2 { //rand.Intn(3) {
+	switch rand.Intn(3) {
 	case 0: // Derive block on first chain
 		log.Info("Running first chain")
 		prestate, err := prestateProvider.AbsolutePreState(ctx)

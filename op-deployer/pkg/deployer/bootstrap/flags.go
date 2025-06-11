@@ -81,6 +81,12 @@ var (
 		EnvVars: deployer.PrefixEnvVar("SUPERCHAIN_PROXY_ADMIN_OWNER"),
 		Value:   common.Address{}.Hex(),
 	}
+	L1ContractsReleaseFlag = &cli.StringFlag{
+		Name:    L1ContractsReleaseFlagName,
+		Usage:   "L1 contracts release",
+		EnvVars: deployer.PrefixEnvVar("L1_CONTRACTS_RELEASE"),
+		Value:   "dev",
+	}
 	ProtocolVersionsOwnerFlag = &cli.StringFlag{
 		Name:    ProtocolVersionsOwnerFlagName,
 		Usage:   "Owner address for protocol versions",
@@ -123,10 +129,10 @@ var (
 		Usage:   "Upgrade controller.",
 		EnvVars: deployer.PrefixEnvVar("UPGRADE_CONTROLLER"),
 	}
-	UseInteropFlag = &cli.BoolFlag{
-		Name:    "use-interop",
-		Usage:   "If true, deploy Interop implementations.",
-		EnvVars: deployer.PrefixEnvVar("USE_INTEROP"),
+	SuperchainProxyAdminFlag = &cli.StringFlag{
+		Name:    "superchain-proxy-admin",
+		Usage:   "Superchain proxy admin.",
+		EnvVars: deployer.PrefixEnvVar("SUPERCHAIN_PROXY_ADMIN"),
 	}
 	ConfigFileFlag = &cli.StringFlag{
 		Name:    "config",
@@ -146,10 +152,11 @@ var ImplementationsFlags = []cli.Flag{
 	ChallengePeriodSecondsFlag,
 	ProofMaturityDelaySecondsFlag,
 	DisputeGameFinalityDelaySecondsFlag,
+	L1ContractsReleaseFlag,
 	SuperchainConfigProxyFlag,
 	ProtocolVersionsProxyFlag,
 	UpgradeControllerFlag,
-	UseInteropFlag,
+	SuperchainProxyAdminFlag,
 }
 
 var ProxyFlags = []cli.Flag{

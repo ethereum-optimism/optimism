@@ -35,8 +35,6 @@ type Metrics interface {
 	RecordPublishingError()
 	RecordDerivationError()
 
-	RecordReceivedUnsafePayload(payload *eth.ExecutionPayloadEnvelope)
-
 	RecordL1Ref(name string, ref eth.L1BlockRef)
 	RecordL2Ref(name string, ref eth.L2BlockRef)
 	RecordChannelInputBytes(inputCompressedBytes int)
@@ -154,6 +152,7 @@ type SequencerStateListener interface {
 
 type Drain interface {
 	Drain() error
+	Await() <-chan struct{}
 }
 
 // NewDriver composes an events handler that tracks L1 state, triggers L2 Derivation, and optionally sequences new L2 blocks.
@@ -162,6 +161,7 @@ func NewDriver(
 	drain Drain,
 	driverCfg *Config,
 	cfg *rollup.Config,
+	depSet derive.DependencySet,
 	l2 L2Chain,
 	l1 L1Chain,
 	l1Blobs derive.L1BlobsFetcher,
@@ -207,7 +207,7 @@ func NewDriver(
 	sys.Register("attributes-handler",
 		attributes.NewAttributesHandler(log, cfg, driverCtx, l2))
 
-	derivationPipeline := derive.NewDerivationPipeline(log, cfg, verifConfDepth, l1Blobs, altDA, l2, metrics, managedMode)
+	derivationPipeline := derive.NewDerivationPipeline(log, cfg, depSet, verifConfDepth, l1Blobs, altDA, l2, metrics, managedMode)
 
 	sys.Register("pipeline",
 		derive.NewPipelineDeriver(driverCtx, derivationPipeline))
@@ -223,7 +223,6 @@ func NewDriver(
 		L2:             l2,
 		Log:            log,
 		Ctx:            driverCtx,
-		Drain:          drain.Drain,
 		ManagedMode:    managedMode,
 	}
 	sys.Register("sync", syncDeriver)
@@ -236,7 +235,7 @@ func NewDriver(
 	var sequencer sequencing.SequencerIface
 	if driverCfg.SequencerEnabled {
 		asyncGossiper := async.NewAsyncGossiper(driverCtx, network, log, metrics)
-		attrBuilder := derive.NewFetchingAttributesBuilder(cfg, l1, l2)
+		attrBuilder := derive.NewFetchingAttributesBuilder(cfg, depSet, l1, l2)
 		sequencerConfDepth := confdepth.NewConfDepth(driverCfg.SequencerConfDepth, statusTracker.L1Head, l1)
 		findL1Origin := sequencing.NewL1OriginSelector(driverCtx, log, cfg, sequencerConfDepth)
 		sys.Register("origin-selector", findL1Origin)
@@ -249,24 +248,20 @@ func NewDriver(
 
 	driverEmitter := sys.Register("driver", nil)
 	driver := &Driver{
-		statusTracker:    statusTracker,
-		SyncDeriver:      syncDeriver,
-		sched:            schedDeriv,
-		emitter:          driverEmitter,
-		drain:            drain.Drain,
-		stateReq:         make(chan chan struct{}),
-		forceReset:       make(chan chan struct{}, 10),
-		driverConfig:     driverCfg,
-		driverCtx:        driverCtx,
-		driverCancel:     driverCancel,
-		log:              log,
-		sequencer:        sequencer,
-		metrics:          metrics,
-		l1HeadSig:        make(chan eth.L1BlockRef, 10),
-		l1SafeSig:        make(chan eth.L1BlockRef, 10),
-		l1FinalizedSig:   make(chan eth.L1BlockRef, 10),
-		unsafeL2Payloads: make(chan *eth.ExecutionPayloadEnvelope, 10),
-		altSync:          altSync,
+		statusTracker: statusTracker,
+		SyncDeriver:   syncDeriver,
+		sched:         schedDeriv,
+		emitter:       driverEmitter,
+		drain:         drain,
+		stateReq:      make(chan chan struct{}),
+		forceReset:    make(chan chan struct{}, 10),
+		driverConfig:  driverCfg,
+		driverCtx:     driverCtx,
+		driverCancel:  driverCancel,
+		log:           log,
+		sequencer:     sequencer,
+		metrics:       metrics,
+		altSync:       altSync,
 	}
 
 	return driver

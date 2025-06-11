@@ -1,17 +1,24 @@
 # Configuration file for acceptance tests (op-acceptor)
 #
 # All acceptance tests need to be registered here for op-acceptor to run them.
+# As a rule of thumb, we recommend that each fork gate inherits from the
+# base gate as well as any earlier fork gates.
 
 
 
 gates:
+  - id: conductor
+    description: "Sanity/smoke acceptance tests for networks with conductors."
+    tests:
+      - package: github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/base/conductor
+        timeout: 10m
+
   - id: base
     description: "Sanity/smoke acceptance tests for all networks."
     tests:
-      - name: TestRPCConnectivity
-        package: github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/base
-      - name: TestChainFork
-        package: github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/base
+      - package: github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/base
+      - package: github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/base/deposit
+        timeout: 10m
 
   - id: holocene
     inherits:
@@ -30,9 +37,22 @@ gates:
       - package: github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/isthmus/operator_fee
         timeout: 6h
 
+  - id: pre-interop
+    inherits:
+      - base
+    description: "Pre-interop network tests."
+    tests:
+      - name: TestInteropReadiness
+        package: github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/isthmus/preinterop
+        timeout: 20m
+
   - id: interop
     inherits:
       - base
     description: "Interop network tests."
     tests:
       - package: github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/interop
+        timeout: 10m
+      - package: github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/interop/message
+      - package: github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/interop/sync
+      - package: github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/interop/smoke

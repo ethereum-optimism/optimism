@@ -2,15 +2,13 @@ package logs
 
 import (
 	"encoding/binary"
-	"errors"
 	"fmt"
 
 	"github.com/ethereum/go-ethereum/common"
 
+	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 )
-
-var errLogIndexTooLarge = errors.New("log index is too large")
 
 // searchCheckpoint is both a checkpoint for searching, as well as a checkpoint for sealing blocks.
 type searchCheckpoint struct {
@@ -110,82 +108,99 @@ func (i initiatingEvent) encode() Entry {
 	return data
 }
 
-type executingLink struct {
-	chain     uint32 // chain index, not a chain ID
+type execChainID struct {
+	chainID eth.ChainID
+}
+
+func newExecChainID(msg types.ExecutingMessage) (execChainID, error) {
+	return execChainID{
+		chainID: msg.ChainID,
+	}, nil
+}
+
+func newExecChainIDFromEntry(data Entry) (execChainID, error) {
+	if data.Type() != TypeExecChainID {
+		return execChainID{}, fmt.Errorf("%w: attempting to decode execChainID but was type %s", types.ErrDataCorruption, data.Type())
+	}
+	return execChainID{
+		chainID: eth.ChainIDFromBytes32([32]byte(data[1:33])),
+	}, nil
+}
+
+// encode creates an execChainID entry.
+// type 3: "execChainID" <type><chainID: 32 bytes> = 33 bytes
+func (e execChainID) encode() Entry {
+	var entry Entry
+	entry[0] = uint8(TypeExecChainID)
+	id := e.chainID.Bytes32()
+	copy(entry[1:33], id[:])
+	return entry
+}
+
+type execPosition struct {
 	blockNum  uint64
 	logIdx    uint32
 	timestamp uint64
 }
 
-func newExecutingLink(msg types.ExecutingMessage) (executingLink, error) {
-	if msg.LogIdx > 1<<24 {
-		return executingLink{}, fmt.Errorf("%w: %v", errLogIndexTooLarge, msg.LogIdx)
-	}
-	return executingLink{
-		chain:     uint32(msg.Chain),
+func newExecPosition(msg types.ExecutingMessage) (execPosition, error) {
+	return execPosition{
 		blockNum:  msg.BlockNum,
 		logIdx:    msg.LogIdx,
 		timestamp: msg.Timestamp,
 	}, nil
 }
 
-func newExecutingLinkFromEntry(data Entry) (executingLink, error) {
-	if data.Type() != TypeExecutingLink {
-		return executingLink{}, fmt.Errorf("%w: attempting to decode executing link but was type %s", types.ErrDataCorruption, data.Type())
+func newExecPositionFromEntry(data Entry) (execPosition, error) {
+	if data.Type() != TypeExecPosition {
+		return execPosition{}, fmt.Errorf("%w: attempting to decode execPosition but was type %s", types.ErrDataCorruption, data.Type())
 	}
-	timestamp := binary.LittleEndian.Uint64(data[16:24])
-	return executingLink{
-		chain:     binary.LittleEndian.Uint32(data[1:5]),
-		blockNum:  binary.LittleEndian.Uint64(data[5:13]),
-		logIdx:    uint32(data[13]) | uint32(data[14])<<8 | uint32(data[15])<<16,
-		timestamp: timestamp,
+	return execPosition{
+		blockNum:  binary.LittleEndian.Uint64(data[1:9]),
+		logIdx:    binary.LittleEndian.Uint32(data[9:13]),
+		timestamp: binary.LittleEndian.Uint64(data[13:21]),
 	}, nil
 }
 
-// encode creates an executing link entry
-// type 3: "executing link" <type><chain: 4 bytes><blocknum: 8 bytes><event index: 3 bytes><uint64 timestamp: 8 bytes> = 24 bytes
-func (e executingLink) encode() Entry {
+// encode creates an execPosition entry.
+// type 4: "execPosition" <type><blocknum: 8 bytes><event index: 4 bytes><uint64 timestamp: 8 bytes> = 21 bytes
+func (e execPosition) encode() Entry {
 	var entry Entry
-	entry[0] = uint8(TypeExecutingLink)
-	binary.LittleEndian.PutUint32(entry[1:5], e.chain)
-	binary.LittleEndian.PutUint64(entry[5:13], e.blockNum)
-
-	entry[13] = byte(e.logIdx)
-	entry[14] = byte(e.logIdx >> 8)
-	entry[15] = byte(e.logIdx >> 16)
-
-	binary.LittleEndian.PutUint64(entry[16:24], e.timestamp)
+	entry[0] = uint8(TypeExecPosition)
+	binary.LittleEndian.PutUint64(entry[1:9], e.blockNum)
+	binary.LittleEndian.PutUint32(entry[9:13], e.logIdx)
+	binary.LittleEndian.PutUint64(entry[13:21], e.timestamp)
 	return entry
 }
 
-type executingCheck struct {
-	hash common.Hash
+type execChecksum struct {
+	checksum types.MessageChecksum
 }
 
-func newExecutingCheck(hash common.Hash) executingCheck {
-	return executingCheck{hash: hash}
+func newExecChecksum(checksum types.MessageChecksum) execChecksum {
+	return execChecksum{checksum: checksum}
 }
 
-func newExecutingCheckFromEntry(data Entry) (executingCheck, error) {
-	if data.Type() != TypeExecutingCheck {
-		return executingCheck{}, fmt.Errorf("%w: attempting to decode executing check but was type %s", types.ErrDataCorruption, data.Type())
+func newExecChecksumFromEntry(data Entry) (execChecksum, error) {
+	if data.Type() != TypeExecChecksum {
+		return execChecksum{}, fmt.Errorf("%w: attempting to decode execChecksum but was type %s", types.ErrDataCorruption, data.Type())
 	}
-	return newExecutingCheck(common.Hash(data[1:33])), nil
+	return newExecChecksum(types.MessageChecksum(data[1:33])), nil
 }
 
 // encode creates an executing check entry
-// type 4: "executing check" <type><event-hash: 32 bytes> = 33 bytes
-func (e executingCheck) encode() Entry {
+// type 5: "execChecksum" <type><event-hash: 32 bytes> = 33 bytes
+func (e execChecksum) encode() Entry {
 	var entry Entry
-	entry[0] = uint8(TypeExecutingCheck)
-	copy(entry[1:33], e.hash[:])
+	entry[0] = uint8(TypeExecChecksum)
+	copy(entry[1:33], e.checksum[:])
 	return entry
 }
 
 type paddingEntry struct{}
 
 // encoding of the padding entry
-// type 5: "padding" <type><padding: 33 bytes> = 34 bytes
+// type 6: "padding" <type><padding: 33 bytes> = 34 bytes
 func (e paddingEntry) encode() Entry {
 	var entry Entry
 	entry[0] = uint8(TypePadding)

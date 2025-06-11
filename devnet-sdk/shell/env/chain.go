@@ -15,6 +15,7 @@ const (
 	ChainNameVar           = "DEVNET_CHAIN_NAME"
 	NodeIndexVar           = "DEVNET_NODE_INDEX"
 	ExpectPreconditionsMet = "DEVNET_EXPECT_PRECONDITIONS_MET"
+	EnvCtrlVar             = "DEVNET_ENV_CTRL"
 )
 
 type ChainConfig struct {

@@ -9,12 +9,13 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
+	"github.com/ethereum-optimism/optimism/op-devstack/presets"
 )
 
 // TestExample1 starts an interop chain and verifies that the local unsafe head advances.
 func TestExample1(gt *testing.T) {
 	t := devtest.ParallelT(gt)
-	sys := SimpleInterop(t)
+	sys := presets.NewSimpleInterop(t)
 
 	t.Require().NotEqual(sys.L2ChainA.ChainID(), sys.L2ChainB.ChainID(), "sanity-check we have two different chains")
 	sys.Supervisor.VerifySyncStatus(dsl.WithAllLocalUnsafeHeadsAdvancedBy(10))
@@ -22,7 +23,7 @@ func TestExample1(gt *testing.T) {
 
 func TestExample2(gt *testing.T) {
 	t := devtest.ParallelT(gt)
-	sys := SimpleInterop(t)
+	sys := presets.NewSimpleInterop(t)
 
 	sys.Supervisor.VerifySyncStatus(dsl.WithAllLocalUnsafeHeadsAdvancedBy(4))
 }
@@ -35,7 +36,7 @@ func TestExampleTxsTracing(gt *testing.T) {
 	logger := t.Logger()
 
 	ctx, acquiring := tracer.Start(ctx, "acquiring interop sys")
-	sys := SimpleInterop(t)
+	sys := presets.NewSimpleInterop(t)
 	acquiring.End()
 
 	ctx, funded := tracer.Start(ctx, "acquiring funded eoa")
@@ -51,7 +52,7 @@ func TestExampleTxsTracing(gt *testing.T) {
 	ctx, transfer := tracer.Start(ctx, "transferring")
 	transferred := eth.GWei(42)
 	tx := alice.Transfer(bob.Address(), transferred)
-	logger.WithContext(ctx).Info("transferred", "amount", transferred, "gas", tx.Included.Value().GasUsed)
+	logger.InfoContext(ctx, "transferred", "amount", transferred, "gas", tx.Included.Value().GasUsed)
 	require.Equal(params.TxGas, tx.Included.Value().GasUsed, "transfers cost 21k gas")
 	transfer.End()
 

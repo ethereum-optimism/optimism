@@ -27,6 +27,7 @@ type SupervisorQueryAPI interface {
 		minSafety types.SafetyLevel, executingDescriptor types.ExecutingDescriptor) error
 	CrossDerivedToSource(ctx context.Context, chainID eth.ChainID, derived eth.BlockID) (derivedFrom eth.BlockRef, err error)
 	LocalUnsafe(ctx context.Context, chainID eth.ChainID) (eth.BlockID, error)
+	LocalSafe(ctx context.Context, chainID eth.ChainID) (result types.DerivedIDPair, err error)
 	CrossSafe(ctx context.Context, chainID eth.ChainID) (types.DerivedIDPair, error)
 	Finalized(ctx context.Context, chainID eth.ChainID) (eth.BlockID, error)
 	FinalizedL1(ctx context.Context) (eth.BlockRef, error)

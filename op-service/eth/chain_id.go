@@ -2,6 +2,7 @@ package eth
 
 import (
 	"fmt"
+	"log/slog"
 	"math/big"
 	"sort"
 
@@ -9,6 +10,8 @@ import (
 )
 
 type ChainID uint256.Int
+
+var _ slog.LogValuer = ChainID(uint256.Int{})
 
 func ChainIDFromBig(chainID *big.Int) ChainID {
 	return ChainID(*uint256.MustFromBig(chainID))
@@ -29,6 +32,10 @@ func ParseDecimalChainID(chainID string) (ChainID, error) {
 		return ChainID{}, err
 	}
 	return ChainID(*v), nil
+}
+
+func (id ChainID) LogValue() slog.Value {
+	return slog.StringValue(id.String())
 }
 
 // String encodes the chainID in decimal form.

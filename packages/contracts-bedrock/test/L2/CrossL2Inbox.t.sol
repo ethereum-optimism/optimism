@@ -9,9 +9,39 @@ import { VmSafe } from "forge-std/Vm.sol";
 // Interfaces
 import { ICrossL2Inbox, Identifier } from "interfaces/L2/ICrossL2Inbox.sol";
 
-/// @title CrossL2InboxTest
-/// @dev Contract for testing the CrossL2Inbox contract.
-contract CrossL2InboxTest is CommonTest {
+/// @title ValidateMessageRelayer
+/// @notice For test contract used to validate multiple messages in a single tx.
+contract ValidateMessageRelayer is Test {
+    ICrossL2Inbox public immutable CROSS_L2_INBOX;
+
+    constructor(address _crossL2Inbox) {
+        CROSS_L2_INBOX = ICrossL2Inbox(_crossL2Inbox);
+    }
+
+    /// @notice Validates a message and retries it after it reverts.
+    function validateAndRetry(Identifier memory _id, bytes32 _messageHash) external {
+        try CROSS_L2_INBOX.validateMessage(_id, _messageHash) {
+            // It should always revert
+            assertFalse(true);
+        } catch {
+            // It should revert with NotInAccessList when called a second time without any access
+            // list
+            vm.expectRevert(ICrossL2Inbox.NotInAccessList.selector);
+            CROSS_L2_INBOX.validateMessage(_id, _messageHash);
+        }
+    }
+
+    /// @notice Validates multiple messages in a single tx.
+    function validateMessages(Identifier[20] memory _ids, bytes32[20] memory _messageHashes) external {
+        for (uint256 i; i < _ids.length; i++) {
+            CROSS_L2_INBOX.validateMessage(_ids[i], _messageHashes[i]);
+        }
+    }
+}
+
+/// @title CrossL2Inbox_Test_Init
+/// @notice Reusable test initialization for `CrossL2Inbox` tests.
+contract CrossL2Inbox_TestInit is CommonTest {
     event ExecutingMessage(bytes32 indexed msgHash, Identifier id);
 
     ValidateMessageRelayer public validateMessageRelayer;
@@ -24,8 +54,12 @@ contract CrossL2InboxTest is CommonTest {
         super.setUp();
         validateMessageRelayer = new ValidateMessageRelayer(address(crossL2Inbox));
     }
+}
 
-    /// Test that `validateMessage` reverts when the slot is not warm.
+/// @title CrossL2Inbox_ValidateMessage_Test
+/// @notice Tests the `validateMessage` function of the `CrossL2Inbox` contract.
+contract CrossL2Inbox_ValidateMessage_Test is CrossL2Inbox_TestInit {
+    /// @notice Test that `validateMessage` reverts when the slot is not warm.
     function testFuzz_validateMessage_accessList_reverts(Identifier memory _id, bytes32 _messageHash) external {
         // Bound values types to ensure they are not too large
         _id.blockNumber = bound(_id.blockNumber, 0, type(uint64).max);
@@ -40,7 +74,8 @@ contract CrossL2InboxTest is CommonTest {
         crossL2Inbox.validateMessage(_id, _messageHash);
     }
 
-    /// Test that `validateMessage` succeeds when the slot for the message checksum is warm.
+    /// @notice Test that `validateMessage` succeeds when the slot for the message checksum is
+    ///         warm.
     /// forge-config: default.isolate = true
     function testFuzz_validateMessage_succeeds(
         Identifier memory _id,
@@ -70,8 +105,10 @@ contract CrossL2InboxTest is CommonTest {
         crossL2Inbox.validateMessage(_id, _messageHash);
     }
 
-    /// Test that multiple calls to`validateMessage` with different access lists don't collide and succeeds.
-    /// @dev This tests that the way we encode and hash the checksum slot is unique enough to avoid collisions.
+    /// @notice Test that multiple calls to `validateMessage` with different access lists don't
+    ///         collide and succeeds.
+    /// @dev This tests that the way we encode and hash the checksum slot is unique enough to avoid
+    ///      collisions.
     /// forge-config: default.isolate = true
     function testFuzz_validateMessage_multipleAccessLists_succeeds(
         Identifier[20] memory _ids,
@@ -79,7 +116,8 @@ contract CrossL2InboxTest is CommonTest {
     )
         external
     {
-        // Send batches of calls with different access lists and check they never collide and always succeed
+        // Send batches of calls with different access lists and check they never collide and
+        // always succeed
         for (uint256 i; i < _ids.length; i++) {
             // Make sure we're not re-validating the same message
             bytes32 msgToValidate = keccak256(abi.encode(_ids[i], _messageHash[i]));
@@ -98,7 +136,8 @@ contract CrossL2InboxTest is CommonTest {
         }
     }
 
-    /// Test that an invalid tx calling `validateMessage` doesn't warm the slot for the next one.
+    /// @notice Test that an invalid tx calling `validateMessage` doesn't warm the slot for the
+    ///         next one.
     /// forge-config: default.isolate = true
     function test_validateMessage_revertDoesntWarm_reverts(
         Identifier memory _idOne,
@@ -133,7 +172,8 @@ contract CrossL2InboxTest is CommonTest {
         crossL2Inbox.validateMessage(_idTwo, _messageHashTwo);
     }
 
-    /// Test that a valid tx calling `validateMessage` doesn't warm the slot for the next one.
+    /// @notice Test that a valid tx calling `validateMessage` doesn't warm the slot for the next
+    ///         one.
     /// forge-config: default.isolate = true
     function test_validateMessage_validDoesntWarm_reverts(Identifier memory _id, bytes32 _messageHash) external {
         // Bound values types to ensure they are not too large
@@ -156,12 +196,14 @@ contract CrossL2InboxTest is CommonTest {
         vm.accessList(accessList);
         crossL2Inbox.validateMessage(_id, _messageHash);
 
-        // Send the same msg but without any access list and check that it reverts since the slot should not be warmed
+        // Send the same msg but without any access list and check that it reverts since the
+        // slot should not be warmed
         vm.expectRevert(ICrossL2Inbox.NotInAccessList.selector);
         crossL2Inbox.validateMessage(_id, _messageHash);
     }
 
-    /// Test that an invalid message without access list does not succeed warm the slot and fails the second time
+    /// @notice Test that an invalid message without access list does not succeed warm the slot and
+    ///         fails the second time.
     function test_validateMessage_sameMsgWithoutAccessListTwice_reverts(
         Identifier memory _id,
         bytes32 _messageHash
@@ -178,7 +220,8 @@ contract CrossL2InboxTest is CommonTest {
         validateMessageRelayer.validateAndRetry(_id, _messageHash);
     }
 
-    /// Test that multiple calls to `validateMessage` with multiple storage keys succeeds on the same tx succeeds.
+    /// @notice Test that multiple calls to `validateMessage` with multiple storage keys succeeds
+    ///         on the same tx.
     /// forge-config: default.isolate = true
     function test_validateMessage_multipleStorageKeys_succeeds(
         Identifier[20] memory _ids,
@@ -212,8 +255,12 @@ contract CrossL2InboxTest is CommonTest {
         vm.accessList(accessList);
         validateMessageRelayer.validateMessages(_ids, _messageHashes);
     }
+}
 
-    /// Test that calculate checcksum reverts when the block number is greater than 2^64.
+/// @title CrossL2Inbox_CalculateChecksum_Test
+/// @notice Tests the `calculateChecksum` function of the `CrossL2Inbox` contract.
+contract CrossL2Inbox_CalculateChecksum_Test is CrossL2Inbox_TestInit {
+    /// @notice Test that `calculateChecksum` reverts when the block number is greater than 2^64.
     function testFuzz_calculateChecksum_withTooLargeBlockNumber_reverts(
         Identifier memory _id,
         bytes32 _messageHash
@@ -226,7 +273,7 @@ contract CrossL2InboxTest is CommonTest {
         crossL2Inbox.calculateChecksum(_id, _messageHash);
     }
 
-    /// Test that calculate checcksum reverts when the log index is greater than 2^32.
+    /// @notice Test that `calculateChecksum` reverts when the log index is greater than 2^32.
     function testFuzz_calculateChecksum_withTooLargeLogIndex_reverts(
         Identifier memory _id,
         bytes32 _messageHash
@@ -241,7 +288,7 @@ contract CrossL2InboxTest is CommonTest {
         crossL2Inbox.calculateChecksum(_id, _messageHash);
     }
 
-    /// Test that calculate checcksum reverts when the timestamp is greater than 2^64.
+    /// @notice Test that `calculateChecksum` reverts when the timestamp is greater than 2^64.
     function testFuzz_calculateChecksum_withTooLargeTimestamp_reverts(
         Identifier memory _id,
         bytes32 _messageHash
@@ -257,8 +304,8 @@ contract CrossL2InboxTest is CommonTest {
         crossL2Inbox.calculateChecksum(_id, _messageHash);
     }
 
-    /// Test that `calculateChecksum` succeeds matching the expected calculated checksum.
-    /// Using a hardcoded checksum manually calculated and verified.
+    /// @notice Test that `calculateChecksum` succeeds matching the expected calculated checksum.
+    /// @dev Using a hardcoded checksum manually calculated and verified.
     function test_calculateChecksum_succeeds() external view {
         Identifier memory id = Identifier(
             address(0),
@@ -275,33 +322,5 @@ contract CrossL2InboxTest is CommonTest {
 
         // Expect it to match
         assertEq(checksum, expectedChecksum);
-    }
-}
-
-/// @dev For test contract used to validate multiple messages in a single tx.
-contract ValidateMessageRelayer is Test {
-    ICrossL2Inbox public immutable CROSS_L2_INBOX;
-
-    constructor(address _crossL2Inbox) {
-        CROSS_L2_INBOX = ICrossL2Inbox(_crossL2Inbox);
-    }
-
-    /// @notice Validates a message and retries it after it reverts.
-    function validateAndRetry(Identifier memory _id, bytes32 _messageHash) external {
-        try CROSS_L2_INBOX.validateMessage(_id, _messageHash) {
-            // It should always revert
-            assertFalse(true);
-        } catch {
-            // It should revert with NotInAccessList when called a second time without any access list
-            vm.expectRevert(ICrossL2Inbox.NotInAccessList.selector);
-            CROSS_L2_INBOX.validateMessage(_id, _messageHash);
-        }
-    }
-
-    /// @notice Validates multiple messages in a single tx.
-    function validateMessages(Identifier[20] memory _ids, bytes32[20] memory _messageHashes) external {
-        for (uint256 i; i < _ids.length; i++) {
-            CROSS_L2_INBOX.validateMessage(_ids[i], _messageHashes[i]);
-        }
     }
 }

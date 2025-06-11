@@ -443,7 +443,7 @@ func (d *EngDeriver) OnEvent(ev event.Event) bool {
 		d.emitter.Emit(TryUpdateEngineEvent{})
 
 		v := EngineResetConfirmedEvent{
-			LocalUnsafe: d.ec.LocalSafeL2Head(),
+			LocalUnsafe: d.ec.UnsafeL2Head(),
 			CrossUnsafe: d.ec.CrossUnsafeL2Head(),
 			LocalSafe:   d.ec.LocalSafeL2Head(),
 			CrossSafe:   d.ec.SafeL2Head(),
@@ -603,10 +603,8 @@ type ResetEngineControl interface {
 }
 
 func ForceEngineReset(ec ResetEngineControl, x rollup.ForceResetEvent) {
-	// local-unsafe is an optional attribute, empty to preserve the existing latest chain
-	if x.LocalUnsafe != (eth.L2BlockRef{}) {
-		ec.SetUnsafeHead(x.LocalUnsafe)
-	}
+	ec.SetUnsafeHead(x.LocalUnsafe)
+
 	// cross-safe is fine to revert back, it does not affect engine logic, just sync-status
 	ec.SetCrossUnsafeHead(x.CrossUnsafe)
 

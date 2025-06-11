@@ -87,7 +87,7 @@ contract SystemConfig is ProxyAdminOwnedBase, OwnableUpgradeable, Reinitializabl
     /// @notice The maximum gas limit that can be set for L2 blocks. This limit is used to enforce that the blocks
     ///         on L2 are not too large to process and prove. Over time, this value can be increased as various
     ///         optimizations and improvements are made to the system at large.
-    uint64 internal constant MAX_GAS_LIMIT = 200_000_000;
+    uint64 internal constant MAX_GAS_LIMIT = 500_000_000;
 
     /// @notice Fixed L2 gas overhead. Used as part of the L2 fee calculation.
     ///         Deprecated since the Ecotone network upgrade
@@ -142,9 +142,9 @@ contract SystemConfig is ProxyAdminOwnedBase, OwnableUpgradeable, Reinitializabl
     event ConfigUpdate(uint256 indexed version, UpdateType indexed updateType, bytes data);
 
     /// @notice Semantic version.
-    /// @custom:semver 3.2.0
+    /// @custom:semver 3.4.0
     function version() public pure virtual returns (string memory) {
-        return "3.2.0";
+        return "3.4.0";
     }
 
     /// @notice Constructs the SystemConfig contract.
@@ -210,7 +210,7 @@ contract SystemConfig is ProxyAdminOwnedBase, OwnableUpgradeable, Reinitializabl
         _setResourceConfig(_config);
 
         l2ChainId = _l2ChainId;
-        superchainConfig = ISuperchainConfig(_superchainConfig);
+        superchainConfig = _superchainConfig;
     }
 
     /// @notice Upgrades the SystemConfig by adding a reference to the SuperchainConfig.
@@ -227,9 +227,11 @@ contract SystemConfig is ProxyAdminOwnedBase, OwnableUpgradeable, Reinitializabl
         // Set the SuperchainConfig contract.
         superchainConfig = _superchainConfig;
 
-        // Clear out the old dispute game factory address, it's derived now.
+        // Clear out the old dispute game factory address, it's derived now. We get rid of this
+        // storage slot because it doesn't use structured storage and we can't use a spacer
+        // variable to block it off.
         bytes32 disputeGameFactorySlot = bytes32(uint256(keccak256("systemconfig.disputegamefactory")) - 1);
-        Storage.setAddress(disputeGameFactorySlot, address(0));
+        Storage.setBytes32(disputeGameFactorySlot, bytes32(0));
     }
 
     /// @notice Returns the minimum L2 gas limit that can be safely set for the system to
@@ -275,7 +277,7 @@ contract SystemConfig is ProxyAdminOwnedBase, OwnableUpgradeable, Reinitializabl
 
     /// @notice Getter for the DisputeGameFactory address.
     function disputeGameFactory() public view returns (address addr_) {
-        IOptimismPortal2 portal = IOptimismPortal2(payable(Storage.getAddress(OPTIMISM_PORTAL_SLOT)));
+        IOptimismPortal2 portal = IOptimismPortal2(payable(optimismPortal()));
         addr_ = address(portal.disputeGameFactory());
     }
 

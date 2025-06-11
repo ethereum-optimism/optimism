@@ -30,6 +30,10 @@ func NewKey(t devtest.T, priv *ecdsa.PrivateKey) *Key {
 	}
 }
 
+func (a *Key) Priv() *ecdsa.PrivateKey {
+	return a.priv
+}
+
 func (a *Key) String() string {
 	return fmt.Sprintf("EOA(%s)", a.addr)
 }

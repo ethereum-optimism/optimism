@@ -12,7 +12,7 @@ type Scripts struct {
 	DeployAltDA           DeployAltDAScript
 	DeployAsterisc        DeployAsteriscScript
 	DeployDisputeGame     DeployDisputeGameScript
-	DeployImplementations DeployImplementations2Script
+	DeployImplementations DeployImplementationsScript
 	DeployMIPS            DeployMIPSScript
 	DeployPreimageOracle  DeployPreimageOracleScript
 	DeployProxy           DeployProxyScript

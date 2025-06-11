@@ -80,8 +80,8 @@ contract DeputyPauseModule is ISemver, EIP712 {
     mapping(bytes32 => bool) public usedNonces;
 
     /// @notice Semantic version.
-    /// @custom:semver 2.0.0
-    string public constant version = "2.0.0";
+    /// @custom:semver 2.1.0
+    string public constant version = "2.1.0";
 
     /// @param _guardianSafe Address of the Guardian Safe.
     /// @param _foundationSafe Address of the Foundation Safe.
@@ -146,7 +146,7 @@ contract DeputyPauseModule is ISemver, EIP712 {
         _setDeputy(_deputy, _deputySignature);
     }
 
-    /// @notice Calls the Foundation Safe's `execTransactionFromModuleReturnData()` function with
+    /// @notice Calls the Guardian Safe's `execTransactionFromModuleReturnData()` function with
     ///         the arguments necessary to call `pause()` on the SuperchainConfig.
     ///         Front-running this function is completely safe, it'll pause either way.
     /// @param _nonce Signature nonce.

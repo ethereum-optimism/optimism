@@ -1,11 +1,11 @@
 package dsl
 
 import (
-	"time"
+	"fmt"
 
+	"github.com/davecgh/go-spew/spew"
 	"github.com/ethereum-optimism/optimism/op-devstack/stack"
 	"github.com/ethereum-optimism/optimism/op-devstack/stack/match"
-	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
 
@@ -36,26 +36,29 @@ func (n *L1Network) Escape() stack.L1Network {
 	return n.inner
 }
 
-func (n *L1Network) WaitForBlock() {
+func (n *L1Network) WaitForBlock() eth.BlockRef {
+	return NewL1ELNode(n.inner.L1ELNode(match.FirstL1EL)).WaitForBlock()
+}
+
+// PrintChain is used for testing/debugging, it prints the blockchain hashes and parent hashes to logs, which is useful when developing reorg tests
+func (n *L1Network) PrintChain() {
 	l1_el := n.inner.L1ELNode(match.FirstL1EL)
 
-	initial, err := l1_el.EthClient().InfoByLabel(n.ctx, "latest")
+	unsafeHeadRef, err := l1_el.EthClient().InfoByLabel(n.ctx, "latest")
 	n.require.NoError(err, "Expected to get latest block from L1 execution client")
 
-	err = wait.For(n.ctx, 500*time.Millisecond, func() (bool, error) {
-		newBlock, err := l1_el.EthClient().InfoByLabel(n.ctx, "latest")
-		if err != nil {
-			return false, err
-		}
+	var entries []string
+	for i := unsafeHeadRef.NumberU64(); i > 0; i-- {
+		ref, txs, err := l1_el.EthClient().InfoAndTxsByNumber(n.ctx, i)
+		n.require.NoError(err, "Expected to get block ref by number")
 
-		if initial.Hash().Cmp(newBlock.Hash()) == 0 {
-			n.log.Info("Still same L1 block detected as initial", "block", eth.InfoToL1BlockRef(newBlock))
+		entries = append(entries, fmt.Sprintf("Time: %d Block: %s Txs: %d Parent: %s", ref.Time(), eth.InfoToL1BlockRef(ref), len(txs), ref.ParentHash()))
+	}
 
-			return false, nil
-		}
+	n.log.Info("Printing block hashes and parent hashes", "network", n.String(), "chain", n.ChainID())
+	spew.Dump(entries)
+}
 
-		n.log.Info("New L1 block detected", "new_block", eth.InfoToL1BlockRef(newBlock), "prev_block", eth.InfoToL1BlockRef(initial))
-		return true, nil
-	})
-	n.require.NoError(err, "Expected to get latest block from L1 execution client for comparison")
+func (n *L1Network) WaitForOnline() {
+	NewL1ELNode(n.inner.L1ELNode(match.FirstL1EL)).WaitForOnline()
 }

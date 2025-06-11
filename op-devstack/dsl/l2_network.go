@@ -10,7 +10,9 @@ import (
 	"github.com/ethereum-optimism/optimism/op-devstack/stack"
 	"github.com/ethereum-optimism/optimism/op-devstack/stack/match"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
+	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/retry"
 )
 
 // L2Network wraps a stack.L2Network interface for DSL operations
@@ -66,32 +68,19 @@ func (n *L2Network) CatchUpTo(o *L2Network) {
 	n.require.NoError(err, "Expected to get latest block from L2 execution clients")
 }
 
-func (n *L2Network) WaitForBlock() {
-	l2_el := n.inner.L2ELNode(match.FirstL2EL)
+func (n *L2Network) WaitForBlock() eth.BlockRef {
+	return NewL2ELNode(n.inner.L2ELNode(match.FirstL2EL)).WaitForBlock()
+}
 
-	initial, err := l2_el.EthClient().InfoByLabel(n.ctx, eth.Unsafe)
-	n.require.NoError(err, "Expected to get latest block from L2 execution client")
+func (n *L2Network) PublicRPC() *L2ELNode {
+	if proxyds := match.Proxyd.Match(n.Escape().L2ELNodes()); len(proxyds) > 0 {
+		n.log.Info("PublicRPC - Using proxyd", "network", n.String())
+		return NewL2ELNode(proxyds[0])
+	}
 
-	initialHash := initial.Hash()
-
-	err = wait.For(n.ctx, 1000*time.Millisecond, func() (bool, error) {
-		latest, err := l2_el.EthClient().InfoByLabel(n.ctx, eth.Unsafe)
-		if err != nil {
-			return false, err
-		}
-
-		newHash := latest.Hash()
-
-		if initialHash.Cmp(newHash) == 0 {
-			n.log.Info("Still same block detected", "number", latest.NumberU64(), "chain", n.ChainID(), "initial_block_hash", initialHash, "new_block_hash", newHash)
-
-			return false, nil
-		}
-
-		n.log.Info("New block detected", "chain", n.ChainID(), "prev_block_hash", initialHash, "new_block_hash", newHash, "time", latest.Time())
-		return true, nil
-	})
-	n.require.NoError(err, "Expected to get latest block from L2 execution client for comparison")
+	n.log.Info("PublicRPC - Using fallback instead of proxyd", "network", n.String())
+	// Fallback since sysgo doesn't have proxyd support at the moment, and may never get it.
+	return NewL2ELNode(n.inner.L2ELNode(match.FirstL2EL))
 }
 
 // PrintChain is used for testing/debugging, it prints the blockchain hashes and parent hashes to logs, which is useful when developing reorg tests
@@ -99,35 +88,67 @@ func (n *L2Network) PrintChain() {
 	l2_el := n.inner.L2ELNode(match.FirstL2EL)
 	l2_cl := n.inner.L2CLNode(match.FirstL2CL)
 
-	unsafeHeadRef := n.UnsafeHeadRef()
+	l1_el := n.inner.L1().L1ELNode(match.FirstL1EL)
+
+	biAddr := n.inner.RollupConfig().BatchInboxAddress
+	dgfAddr := n.inner.Deployment().DisputeGameFactoryProxyAddr()
+
+	ref := n.unsafeHeadRef()
 
 	var entries []string
-	for i := unsafeHeadRef.Number; i > 0; i-- {
-		ref, err := l2_el.EthClient().BlockRefByNumber(n.ctx, i)
-		n.require.NoError(err, "Expected to get block ref by number")
-
-		l2blockref, err := l2_el.L2EthClient().L2BlockRefByHash(n.ctx, ref.Hash)
+	totalL2Txs := 0
+	for i := ref.Number; i > 0; i-- {
+		ref, err := l2_el.L2EthClient().L2BlockRefByNumber(n.ctx, i)
 		n.require.NoError(err, "Expected to get block ref by hash")
 
-		entries = append(entries, fmt.Sprintln("Time: ", ref.Time, "Number: ", ref.Number, "Hash: ", ref.Hash.Hex(), "Parent: ", ref.ParentID().Hash.Hex(), "L1 Origin: ", l2blockref.L1Origin))
+		_, l2Txs, err := l2_el.EthClient().InfoAndTxsByHash(n.ctx, ref.Hash)
+		n.require.NoError(err, "Expected to get block ref by hash")
+
+		_, txs, err := l1_el.EthClient().InfoAndTxsByHash(n.ctx, ref.L1Origin.Hash)
+		n.require.NoError(err, "Expected to get info and txs by hash from L1")
+
+		var batchTxs, dgfTxs int
+		for _, tx := range txs {
+			to := tx.To()
+			if to != nil && *to == biAddr {
+				batchTxs++
+			}
+			if to != nil && *to == dgfAddr {
+				dgfTxs++
+			}
+		}
+
+		entries = append(entries, fmt.Sprintf("Time: %d Block: %s Parent: %s L1 Origin: %s Txs (L2: %d; Batch: %d; DGF: %d)", ref.Time, ref, ref.ParentID(), ref.L1Origin, len(l2Txs), batchTxs, dgfTxs))
+		totalL2Txs += len(l2Txs)
 	}
 
 	syncStatus, err := l2_cl.RollupAPI().SyncStatus(n.ctx)
 	n.require.NoError(err, "Expected to get sync status")
 
-	entries = append(entries, spew.Sdump(syncStatus))
+	entries = append(entries, "")
+	entries = append(entries, fmt.Sprintf("Total L2 Txs: %d", totalL2Txs))
+	entries = append(entries, "")
+	entries = append(entries, "Supervisor Sync view")
+	entries = append(entries, "")
+	entries = append(entries, fmt.Sprintf("Current L1:      %s", syncStatus.CurrentL1))
+	entries = append(entries, fmt.Sprintf("Head L1:         %s", syncStatus.HeadL1))
+	entries = append(entries, fmt.Sprintf("Safe L1:         %s", syncStatus.SafeL1))
+	entries = append(entries, fmt.Sprintf("Unsafe L2:       %s", syncStatus.UnsafeL2))
+	entries = append(entries, fmt.Sprintf("Local-Safe L2:   %s", syncStatus.LocalSafeL2))
+	entries = append(entries, fmt.Sprintf("Cross-Unsafe L2: %s", syncStatus.CrossUnsafeL2))
+	entries = append(entries, fmt.Sprintf("Cross-Safe L2:   %s", syncStatus.SafeL2))
 
 	n.log.Info("Printing block hashes and parent hashes", "network", n.String(), "chain", n.ChainID())
 	spew.Dump(entries)
 }
 
-func (n *L2Network) UnsafeHeadRef() eth.BlockRef {
+func (n *L2Network) unsafeHeadRef() eth.L2BlockRef {
 	l2_el := n.inner.L2ELNode(match.FirstL2EL)
 
 	unsafeHead, err := l2_el.EthClient().InfoByLabel(n.ctx, eth.Unsafe)
 	n.require.NoError(err, "Expected to get latest block from L2 execution client")
 
-	unsafeHeadRef, err := l2_el.EthClient().BlockRefByHash(n.ctx, unsafeHead.Hash())
+	unsafeHeadRef, err := l2_el.L2EthClient().L2BlockRefByHash(n.ctx, unsafeHead.Hash())
 	n.require.NoError(err, "Expected to get block ref by hash")
 
 	return unsafeHeadRef
@@ -162,40 +183,23 @@ func (n *L2Network) LatestBlockBeforeTimestamp(t devtest.T, timestamp uint64) et
 }
 
 // AwaitActivation awaits the fork activation time, and returns the activation block
-func (n *L2Network) AwaitActivation(t devtest.T, forkTimestamp *uint64) eth.BlockRef {
+func (n *L2Network) AwaitActivation(t devtest.T, forkName rollup.ForkName) eth.BlockID {
 	require := t.Require()
 
-	t.Gate().NotNil(forkTimestamp, "Must have fork configured")
-	t.Gate().Greater(*forkTimestamp, uint64(0), "Must not start fork at genesis")
-
-	upgradeTime := time.Unix(int64(*forkTimestamp), 0)
-
-	if deadline, hasDeadline := t.Deadline(); hasDeadline {
-		t.Gate().True(upgradeTime.Before(deadline), "test must not time out before upgrade happens")
-	}
-
-	activationBlockNum, err := n.Escape().RollupConfig().TargetBlockNumber(*forkTimestamp)
-	require.NoError(err)
-
-	now := time.Now()
-	fromNow := upgradeTime.Sub(now)
-	if fromNow > 0 {
-		t.Logger().Info("Awaiting upgrade", "fromNow", fromNow,
-			"upgradeTime", upgradeTime,
-			"timestamp", *forkTimestamp,
-			"activationBlock", activationBlockNum)
-
-		select {
-		case <-time.After(fromNow):
-		case <-t.Ctx().Done():
-			t.Require().FailNow("failed to await fork within test time")
-		}
-	}
-
 	el := n.Escape().L2ELNode(match.FirstL2EL)
-	activationBlock, err := el.EthClient().BlockRefByNumber(t.Ctx(), activationBlockNum)
-	require.NoError(err)
 
-	t.Logger().Info("Activation block", "block", activationBlock)
-	return activationBlock
+	unsafeHead, err := retry.Do(t.Ctx(), 120, &retry.FixedStrategy{Dur: 500 * time.Millisecond}, func() (eth.BlockRef, error) {
+		unsafeHead, err := el.EthClient().BlockRefByLabel(t.Ctx(), eth.Unsafe)
+		if err != nil {
+			return eth.BlockRef{}, err
+		}
+		if !n.inner.RollupConfig().IsActivationBlockForFork(unsafeHead.Time, forkName) {
+			return eth.BlockRef{}, fmt.Errorf("not %s activation block", forkName)
+		}
+		return unsafeHead, nil // success
+	})
+	require.NoError(err)
+	t.Logger().Info("Activation block", "block", unsafeHead.ID())
+
+	return unsafeHead.ID()
 }

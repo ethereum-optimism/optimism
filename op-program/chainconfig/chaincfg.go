@@ -8,12 +8,11 @@ import (
 	"os"
 	"strings"
 
-	"github.com/ethereum-optimism/optimism/op-service/superutil"
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/depset"
-
 	"github.com/ethereum-optimism/optimism/op-node/chaincfg"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/superutil"
+	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/depset"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/params"
 )
@@ -119,7 +118,10 @@ func mustLoadChainConfig(name string) *params.ChainConfig {
 // DependencySetByChainID locates the dependency set from either the superchain-registry or the embed.
 // Returns ErrMissingChainConfig if the dependency set is not found.
 func DependencySetByChainID(chainID eth.ChainID) (depset.DependencySet, error) {
-	// TODO(#14771): Load from the superchain registry when available.
+	depSet, err := depset.FromRegistry(chainID)
+	if err == nil {
+		return depSet, nil
+	}
 	return dependencySetByChainID(chainID, customChainConfigFS)
 }
 

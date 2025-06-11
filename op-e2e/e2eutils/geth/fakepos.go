@@ -2,6 +2,7 @@ package geth
 
 import (
 	"encoding/binary"
+	"errors"
 	"math/big"
 	"math/rand"
 	"time"
@@ -28,7 +29,7 @@ type Beacon interface {
 
 // fakePoS is a testing-only utility to attach to Geth,
 // to build a fake proof-of-stake L1 chain with fixed block time and basic lagging safe/finalized blocks.
-type fakePoS struct {
+type FakePoS struct {
 	clock     clock.Clock
 	eth       *eth.Ethereum
 	log       log.Logger
@@ -45,13 +46,13 @@ type fakePoS struct {
 	beacon Beacon
 }
 
-func (f *fakePoS) FakeBeaconBlockRoot(time uint64) common.Hash {
+func (f *FakePoS) FakeBeaconBlockRoot(time uint64) common.Hash {
 	var dat [8]byte
 	binary.LittleEndian.PutUint64(dat[:], time)
 	return crypto.Keccak256Hash(dat[:])
 }
 
-func (f *fakePoS) Start() error {
+func (f *FakePoS) Start() error {
 	if advancing, ok := f.clock.(*clock.AdvancingClock); ok {
 		advancing.Start()
 	}
@@ -211,7 +212,10 @@ func (f *fakePoS) Start() error {
 	return nil
 }
 
-func (f *fakePoS) Stop() error {
+func (f *FakePoS) Stop() error {
+	if f.sub == nil || f.clock == nil {
+		return errors.New("fakePoS not started, but stop was called")
+	}
 	f.sub.Unsubscribe()
 	if advancing, ok := f.clock.(*clock.AdvancingClock); ok {
 		advancing.Stop()

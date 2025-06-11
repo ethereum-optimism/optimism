@@ -12,6 +12,7 @@ type Metrics interface {
 	RecordEmittedEvent(eventName string, emitter string)
 	RecordProcessedEvent(eventName string, deriver string, duration time.Duration)
 	RecordEventsRateLimited()
+	RecordDequeuedEvents(eventName string, deriver string)
 }
 
 type NoopMetrics struct {
@@ -22,6 +23,8 @@ func (n NoopMetrics) RecordEmittedEvent(eventName string, emitter string) {}
 func (n NoopMetrics) RecordProcessedEvent(eventName string, deriver string, duration time.Duration) {}
 
 func (n NoopMetrics) RecordEventsRateLimited() {}
+
+func (n NoopMetrics) RecordDequeuedEvents(eventName string, deriver string) {}
 
 var _ Metrics = NoopMetrics{}
 
@@ -37,6 +40,8 @@ type EventMetricsTracker struct {
 	EventsProcessTime *prometheus.CounterVec
 
 	EventsRateLimited *metrics.Event
+
+	DequeuedEvents *prometheus.CounterVec
 }
 
 func NewMetricsTracker(ns string, factory metrics.Factory) *EventMetricsTracker {
@@ -66,6 +71,14 @@ func NewMetricsTracker(ns string, factory metrics.Factory) *EventMetricsTracker 
 			}, []string{"event_type", "deriver"}),
 
 		EventsRateLimited: metrics.NewEvent(factory, ns, "events", "rate_limited", "events rate limiter hits"),
+
+		DequeuedEvents: factory.NewCounterVec(
+			prometheus.CounterOpts{
+				Namespace: ns,
+				Subsystem: "events",
+				Name:      "dequeued",
+				Help:      "number of dequeued events",
+			}, []string{"event_type", "deriver"}),
 	}
 }
 
@@ -82,4 +95,8 @@ func (m *EventMetricsTracker) RecordProcessedEvent(eventName string, deriver str
 
 func (m *EventMetricsTracker) RecordEventsRateLimited() {
 	m.EventsRateLimited.Record()
+}
+
+func (m *EventMetricsTracker) RecordDequeuedEvents(eventName string, deriver string) {
+	m.DequeuedEvents.WithLabelValues(eventName, deriver).Inc()
 }

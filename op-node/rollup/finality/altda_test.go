@@ -70,7 +70,7 @@ func TestAltDAFinalityData(t *testing.T) {
 		DAChallengeWindow: 90,
 		DAResolveWindow:   90,
 	}
-	// shoud return l1 finality if altda is not enabled
+	// should return l1 finality if altda is not enabled
 	require.Equal(t, uint64(defaultFinalityLookback), calcFinalityLookback(cfg))
 
 	cfg.AltDAConfig = altDACfg

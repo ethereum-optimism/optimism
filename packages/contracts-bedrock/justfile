@@ -231,10 +231,10 @@ opcm-upgrade-checks-no-build:
 # artifacts can cause the script to detect issues incorrectly.
 interfaces-check: clean build interfaces-check-no-build
 
-# Checks that all upgrade/initialize funcitons have proper reinitializer modifiers.
+# Checks that all upgrade/initialize functions have proper reinitializer modifiers.
 reinitializer-check: build-source reinitializer-check-no-build
 
-# Checks that all upgrade/initialize funcitons have proper reinitializer modifiers.
+# Checks that all upgrade/initialize functions have proper reinitializer modifiers.
 # Does not build contracts.
 reinitializer-check-no-build:
   go run ./scripts/checks/reinitializer

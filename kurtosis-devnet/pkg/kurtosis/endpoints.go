@@ -25,6 +25,10 @@ type ServiceFinder struct {
 	depsets  map[string]descriptors.DepSet
 
 	triagedServices []*triagedService
+
+	// TODO: remove once we move node services recognition to labels
+	nodeNames2Index map[string]int
+	nodeNextIndex   int
 }
 
 // ServiceFinderOption configures a ServiceFinder
@@ -193,8 +197,68 @@ func (f *ServiceFinder) triageUniversalL2Service(name string) serviceParser {
 	}
 }
 
+type serviceParserRules map[string]serviceParser
+
+func (spr serviceParserRules) apply(serviceName string, endpoints descriptors.EndpointMap) *triagedService {
+	for tag, rule := range spr {
+		if idx, accept, ok := rule(serviceName); ok {
+			return &triagedService{
+				tag:    tag,
+				idx:    idx,
+				accept: accept,
+				svc: &descriptors.Service{
+					Name:      serviceName,
+					Endpoints: endpoints,
+				},
+			}
+		}
+	}
+	return nil
+}
+
+// TODO: this might need some adjustments as we stabilize labels in optimism-package
+const (
+	kindLabel      = "op.kind"
+	networkIDLabel = "op.network.id"
+	nodeNameLabel  = "op.network.participant.name"
+)
+
+func (f *ServiceFinder) triageByLabels(svc *inspect.Service, name string, endpoints descriptors.EndpointMap) *triagedService {
+	tag, ok := svc.Labels[kindLabel]
+	if !ok {
+		return nil
+	}
+	id, ok := svc.Labels[networkIDLabel]
+	if !ok {
+		return nil
+	}
+
+	// TODO: we really don't need numeric index for nodes, but it's a quick fix until
+	// we move node services recognition to labels entirely.
+	idx := -1
+	if name, ok := svc.Labels[nodeNameLabel]; ok {
+		if val, ok := f.nodeNames2Index[name]; ok {
+			idx = val
+		} else {
+			idx = f.nodeNextIndex
+			f.nodeNames2Index[name] = idx
+			f.nodeNextIndex++
+		}
+	}
+	return &triagedService{
+		tag: tag,
+		idx: idx,
+		// TODO: eventually we can retire the "name" part, but it doesn't hurt for now
+		accept: acceptNamesOrIDs(strings.Split(id, ",")...),
+		svc: &descriptors.Service{
+			Name:      name,
+			Endpoints: endpoints,
+		},
+	}
+}
+
 func (f *ServiceFinder) triage() {
-	rules := map[string]serviceParser{
+	rules := serviceParserRules{
 		"el":         f.triageNode("el-"),
 		"cl":         f.triageNode("cl-"),
 		"batcher":    f.triageExclusiveL2Service("op-batcher-"),
@@ -206,24 +270,23 @@ func (f *ServiceFinder) triage() {
 	}
 
 	triagedServices := []*triagedService{}
-	for serviceName, ports := range f.services {
+	for serviceName, svc := range f.services {
 		endpoints := make(descriptors.EndpointMap)
-		for portName, portInfo := range ports {
+		for portName, portInfo := range svc.Ports {
 			endpoints[portName] = portInfo
 		}
-		svc := &descriptors.Service{
-			Name:      serviceName,
-			Endpoints: endpoints,
+
+		// TODO: for now, use labels as a fallback, so it's currently inactive.
+		// We should expect the rules to be gradually removed to make way for
+		// this code path. Ultimately we'll rely only on labels, and most of the
+		// code in this file will disappear as a result.
+		triaged := rules.apply(serviceName, endpoints)
+		if triaged == nil {
+			triaged = f.triageByLabels(svc, serviceName, endpoints)
 		}
-		for tag, rule := range rules {
-			if idx, accept, ok := rule(serviceName); ok {
-				triagedServices = append(triagedServices, &triagedService{
-					tag:    tag,
-					idx:    idx,
-					accept: accept,
-					svc:    svc,
-				})
-			}
+
+		if triaged != nil {
+			triagedServices = append(triagedServices, triaged)
 		}
 	}
 

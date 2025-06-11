@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"sync"
 
+	"github.com/ethereum/go-ethereum/log"
+
 	"github.com/ethereum-optimism/optimism/op-node/rollup/event"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/superevents"
@@ -71,6 +73,8 @@ func (su *StatusTracker) OnEvent(ev event.Event) bool {
 	case superevents.FinalizedL2UpdateEvent:
 		status := loadStatusRef(x.ChainID)
 		status.Finalized = x.FinalizedL2
+	case superevents.FinalizedL1UpdateEvent:
+		log.Debug("Updated finalized L1", "finalizedL1", x.FinalizedL1)
 	default:
 		return false
 	}

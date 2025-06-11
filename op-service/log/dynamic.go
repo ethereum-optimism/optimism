@@ -6,6 +6,7 @@ import (
 )
 
 type LvlSetter interface {
+	slog.Handler
 	SetLogLevel(lvl slog.Level)
 }
 
@@ -24,6 +25,10 @@ func NewDynamicLogHandler(lvl slog.Level, h slog.Handler) *DynamicLogHandler {
 
 func (d *DynamicLogHandler) SetLogLevel(lvl slog.Level) {
 	*d.minLvl = lvl
+}
+
+func (d *DynamicLogHandler) Unwrap() slog.Handler {
+	return d.h
 }
 
 func (d *DynamicLogHandler) Handle(ctx context.Context, r slog.Record) error {

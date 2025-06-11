@@ -11,6 +11,7 @@ import (
 	"github.com/BurntSushi/toml"
 	"github.com/ethereum-optimism/optimism/op-node/params"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum/go-ethereum/superchain"
 	"github.com/stretchr/testify/require"
 )
 
@@ -45,15 +46,6 @@ func TestDependencySet(t *testing.T) {
 		_, err := toml.Decode(string(bad), &ds)
 		require.Error(t, err)
 	})
-
-	t.Run("duplicate index", func(t *testing.T) {
-		_, err := NewStaticConfigDependencySet(map[eth.ChainID]*StaticConfigDependency{
-			eth.ChainIDFromUInt64(900): {ChainIndex: 1},
-			eth.ChainIDFromUInt64(901): {ChainIndex: 1}, // duplicate
-		})
-		require.ErrorIs(t, err, errDuplicateChainIndex)
-	})
-
 }
 
 func testDependencySetSerialization(
@@ -66,16 +58,8 @@ func testDependencySetSerialization(
 
 	depSet, err := NewStaticConfigDependencySet(
 		map[eth.ChainID]*StaticConfigDependency{
-			eth.ChainIDFromUInt64(900): {
-				ChainIndex:     900,
-				ActivationTime: 42,
-				HistoryMinTime: 100,
-			},
-			eth.ChainIDFromUInt64(901): {
-				ChainIndex:     901,
-				ActivationTime: 30,
-				HistoryMinTime: 20,
-			},
+			eth.ChainIDFromUInt64(900): {},
+			eth.ChainIDFromUInt64(901): {},
 		})
 	require.NoError(t, err)
 
@@ -83,12 +67,12 @@ func testDependencySetSerialization(
 		data, err := marshal(depSet)
 		require.NoError(t, err)
 
-		require.NoError(t, os.WriteFile(d, data, 0644))
+		require.NoError(t, os.WriteFile(d, data, 0o644))
 
 		// For JSON, use the loader. For TOML, unmarshal directly
 		var result DependencySet
 		if fileExt == "json" {
-			loader := &JsonDependencySetLoader{Path: d}
+			loader := &JSONDependencySetLoader{Path: d}
 			result, err = loader.LoadDependencySet(context.Background())
 			require.NoError(t, err)
 		} else {
@@ -108,7 +92,6 @@ func testDependencySetSerialization(
 		}, chainIDs)
 
 		require.Equal(t, uint64(params.MessageExpiryTimeSecondsInterop), result.MessageExpiryWindow())
-		testChainCapabilities(t, result)
 	})
 
 	t.Run("CustomExpiryWindow", func(t *testing.T) {
@@ -116,11 +99,11 @@ func testDependencySetSerialization(
 
 		data, err := marshal(depSet)
 		require.NoError(t, err)
-		require.NoError(t, os.WriteFile(d, data, 0644))
+		require.NoError(t, os.WriteFile(d, data, 0o644))
 
 		var result DependencySet
 		if fileExt == "json" {
-			loader := &JsonDependencySetLoader{Path: d}
+			loader := &JSONDependencySetLoader{Path: d}
 			result, err = loader.LoadDependencySet(context.Background())
 			require.NoError(t, err)
 		} else {
@@ -134,67 +117,18 @@ func testDependencySetSerialization(
 		}
 
 		require.Equal(t, uint64(15), result.MessageExpiryWindow())
-		testChainCapabilities(t, result)
-	})
-
-	t.Run("chain index round trip", func(t *testing.T) {
-		id900 := eth.ChainIDFromUInt64(900)
-		idx, _ := depSet.ChainIndexFromID(id900)
-		idBack, _ := depSet.ChainIDFromIndex(idx)
-		require.Equal(t, id900, idBack)
-
-		_, err := depSet.ChainIndexFromID(eth.ChainIDFromUInt64(999))
-		require.ErrorContains(t, err, "unknown chain")
 	})
 
 	t.Run("HasChain", func(t *testing.T) {
 		require.True(t, depSet.HasChain(eth.ChainIDFromUInt64(900)))
 		require.False(t, depSet.HasChain(eth.ChainIDFromUInt64(902)))
 	})
-
 }
 
-func testChainCapabilities(t *testing.T, result DependencySet) {
-	// Test chain 900
-	v, err := result.CanExecuteAt(eth.ChainIDFromUInt64(900), 42)
+func TestLoadDependencySetFromRegistry(t *testing.T) {
+	chainID, err := superchain.ChainIDByName("op-mainnet")
 	require.NoError(t, err)
-	require.True(t, v)
-
-	v, err = result.CanExecuteAt(eth.ChainIDFromUInt64(900), 41)
+	depSet, err := FromRegistry(eth.ChainIDFromUInt64(chainID))
 	require.NoError(t, err)
-	require.False(t, v)
-
-	v, err = result.CanInitiateAt(eth.ChainIDFromUInt64(900), 100)
-	require.NoError(t, err)
-	require.True(t, v)
-
-	v, err = result.CanInitiateAt(eth.ChainIDFromUInt64(900), 99)
-	require.NoError(t, err)
-	require.False(t, v)
-
-	// Test chain 901
-	v, err = result.CanExecuteAt(eth.ChainIDFromUInt64(901), 30)
-	require.NoError(t, err)
-	require.True(t, v)
-
-	v, err = result.CanExecuteAt(eth.ChainIDFromUInt64(901), 29)
-	require.NoError(t, err)
-	require.False(t, v)
-
-	v, err = result.CanInitiateAt(eth.ChainIDFromUInt64(901), 20)
-	require.NoError(t, err)
-	require.True(t, v)
-
-	v, err = result.CanInitiateAt(eth.ChainIDFromUInt64(901), 19)
-	require.NoError(t, err)
-	require.False(t, v)
-
-	// Test non-existent chain
-	v, err = result.CanExecuteAt(eth.ChainIDFromUInt64(902), 100000)
-	require.NoError(t, err)
-	require.False(t, v, "902 not a dependency")
-
-	v, err = result.CanInitiateAt(eth.ChainIDFromUInt64(902), 100000)
-	require.NoError(t, err)
-	require.False(t, v, "902 not a dependency")
+	require.True(t, depSet.HasChain(eth.ChainIDFromUInt64(chainID)))
 }

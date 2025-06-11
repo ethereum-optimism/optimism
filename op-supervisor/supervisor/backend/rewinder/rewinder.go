@@ -135,6 +135,7 @@ func (r *Rewinder) handleLocalDerivedEvent(ev superevents.LocalSafeUpdateEvent) 
 		break
 	}
 
+	r.log.Warn("Rewinding logs DB", "chain", ev.ChainID, "target", target)
 	// Try to rewind and stop if it succeeds
 	err = r.db.RewindLogs(ev.ChainID, target)
 	if err != nil {

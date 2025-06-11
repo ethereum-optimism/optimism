@@ -196,3 +196,38 @@ docker rm -f $(docker ps -aqf "name=kurtosis-*")
 # Clean up dangling networks
 docker network rm -f $(docker network ls -qf "name=kt-*")
 ```
+
+## Frequently Asked Questions (FAQ)
+
+### Docker Rate Limiting Issues
+
+#### Q: I'm getting a 443 error when pulling from ghcr.io. What can I do?
+
+A: This is typically caused by Docker Hub rate limiting. Here are several solutions:
+
+1. **Authenticate with GitHub Container Registry**:
+   ```bash
+   docker login ghcr.io
+   ```
+   This will give you higher rate limits.
+
+2. **Adjust Docker Engine Configuration**:
+   Add these settings to your Docker daemon configuration (`/etc/docker/daemon.json`):
+   ```json
+   {
+     "max-concurrent-downloads": 1,
+     "max-concurrent-uploads": 1,
+     "max-download-attempts": 100,
+     "registry-mirrors": []
+   }
+   ```
+
+3. **Restart Docker Engine**:
+   ```bash
+   # For systemd-based systems
+   sudo systemctl restart docker
+   
+   # For macOS
+   osascript -e 'quit app "Docker"'
+   open -a Docker
+   ```

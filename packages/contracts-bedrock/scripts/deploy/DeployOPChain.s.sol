@@ -543,7 +543,7 @@ contract DeployOPChain is Script {
         require(systemConfig.basefeeScalar() == _doi.basefeeScalar(), "SYSCON-20");
         require(systemConfig.blobbasefeeScalar() == _doi.blobBaseFeeScalar(), "SYSCON-30");
         require(systemConfig.batcherHash() == bytes32(uint256(uint160(_doi.batcher()))), "SYSCON-40");
-        require(systemConfig.gasLimit() == uint64(60_000_000), "SYSCON-50");
+        require(systemConfig.gasLimit() == _doi.gasLimit(), "SYSCON-50");
         require(systemConfig.unsafeBlockSigner() == _doi.unsafeBlockSigner(), "SYSCON-60");
         require(systemConfig.scalar() >> 248 == 1, "SYSCON-70");
 

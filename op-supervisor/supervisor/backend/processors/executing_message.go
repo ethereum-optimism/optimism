@@ -3,15 +3,13 @@ package processors
 import (
 	"fmt"
 
-	"github.com/ethereum-optimism/optimism/op-service/eth"
 	ethTypes "github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/params"
 
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/depset"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 )
 
-type EventDecoderFn func(*ethTypes.Log, depset.ChainIndexFromID) (*types.ExecutingMessage, error)
+type EventDecoderFn func(*ethTypes.Log) (*types.ExecutingMessage, error)
 
 func MessageFromLog(l *ethTypes.Log) (*types.Message, error) {
 	if l.Address != params.InteropCrossL2InboxAddress {
@@ -30,21 +28,16 @@ func MessageFromLog(l *ethTypes.Log) (*types.Message, error) {
 	return &msg, nil
 }
 
-func DecodeExecutingMessageLog(l *ethTypes.Log, depSet depset.ChainIndexFromID) (*types.ExecutingMessage, error) {
+func DecodeExecutingMessageLog(l *ethTypes.Log) (*types.ExecutingMessage, error) {
 	msg, err := MessageFromLog(l)
 	if err != nil || msg == nil {
 		return nil, err
 	}
-	logHash := types.PayloadHashToLogHash(msg.PayloadHash, msg.Identifier.Origin)
-	index, err := depSet.ChainIndexFromID(eth.ChainID(msg.Identifier.ChainID))
-	if err != nil {
-		return nil, err
-	}
 	return &types.ExecutingMessage{
-		Chain:     index,
+		ChainID:   msg.Identifier.ChainID,
 		BlockNum:  msg.Identifier.BlockNumber,
 		LogIdx:    msg.Identifier.LogIndex,
 		Timestamp: msg.Identifier.Timestamp,
-		Hash:      logHash,
+		Checksum:  msg.Checksum(),
 	}, nil
 }

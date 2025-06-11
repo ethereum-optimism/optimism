@@ -6,6 +6,12 @@ import (
 	"os"
 )
 
+type ContractPaths struct {
+	// must be absolute paths, without file:// prefix
+	FoundryArtifacts string
+	SourceMap        string
+}
+
 func contractPaths() (ContractPaths, error) {
 	contractsBedrockPath := "packages/contracts-bedrock"
 	root, err := findMonorepoRoot(contractsBedrockPath)
@@ -33,9 +39,9 @@ func ensureDir(dirPath string) error {
 // Different tests might be nested in subdirectories of the op-e2e dir.
 func findMonorepoRoot(testPath string) (string, error) {
 	path := "./"
-	// Only search up 5 directories
+	// Only search up 6 directories
 	// Avoids infinite recursion if the root isn't found for some reason
-	for i := 0; i < 5; i++ {
+	for i := 0; i < 6; i++ {
 		_, err := os.Stat(path + testPath)
 		if errors.Is(err, os.ErrNotExist) {
 			path = path + "../"

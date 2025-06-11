@@ -10,8 +10,8 @@ import (
 	"github.com/ethereum-optimism/optimism/op-devstack/shim"
 	"github.com/ethereum-optimism/optimism/op-devstack/stack"
 	"github.com/ethereum-optimism/optimism/op-devstack/stack/match"
-	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum/go-ethereum/rpc"
 )
 
 func getL2ID(net *descriptors.L2Chain) stack.L2NetworkID {
@@ -32,16 +32,12 @@ func (o *Orchestrator) hydrateL2(net *descriptors.L2Chain, system stack.Extensib
 			CommonConfig: commonConfig,
 			ChainConfig:  net.Config,
 		},
-		ID: l2ID,
-		RollupConfig: &rollup.Config{
-			L1ChainID: l1.ChainID().ToBig(),
-			L2ChainID: l2ID.ChainID().ToBig(),
-			// TODO this rollup config should be loaded from kurtosis artifacts
-		},
-		Deployment: newL2AddressBook(t, net.L1Addresses),
-		Keys:       o.defineSystemKeys(t),
-		Superchain: system.Superchain(stack.SuperchainID(env.Env.Name)),
-		L1:         l1,
+		ID:           l2ID,
+		RollupConfig: net.RollupConfig,
+		Deployment:   newL2AddressBook(t, net.L1Addresses),
+		Keys:         o.defineSystemKeys(t),
+		Superchain:   system.Superchain(stack.SuperchainID(env.Env.Name)),
+		L1:           l1,
 	}
 	if o.isInterop() {
 		cfg.Cluster = system.Cluster(stack.ClusterID(env.Env.Name))
@@ -51,6 +47,7 @@ func (o *Orchestrator) hydrateL2(net *descriptors.L2Chain, system stack.Extensib
 
 	for _, node := range net.Nodes {
 		o.hydrateL2ELCL(&node, l2)
+		o.hydrateConductors(&node, l2)
 	}
 	o.hydrateBatcherMaybe(net, l2)
 	o.hydrateProposerMaybe(net, l2)
@@ -62,7 +59,7 @@ func (o *Orchestrator) hydrateL2(net *descriptors.L2Chain, system stack.Extensib
 			l2.AddFaucet(shim.NewFaucet(shim.FaucetConfig{
 				CommonConfig: commonConfig,
 				Client:       o.rpcClient(t, instance, RPCProtocol, fmt.Sprintf("/chain/%s", l2.ChainID().String())),
-				ID:           stack.FaucetID{Key: instance.Name, ChainID: l2.ChainID()},
+				ID:           stack.NewFaucetID(instance.Name, l2.ChainID()),
 			}))
 		}
 	}
@@ -78,15 +75,13 @@ func (o *Orchestrator) hydrateL2ELCL(node *descriptors.Node, l2Net stack.Extensi
 	require.True(ok, "need L2 EL service for chain", l2ID)
 	elClient := o.rpcClient(l2Net.T(), elService, RPCProtocol, "/")
 	l2EL := shim.NewL2ELNode(shim.L2ELNodeConfig{
+		RollupCfg: l2Net.RollupConfig(),
 		ELNodeConfig: shim.ELNodeConfig{
 			CommonConfig: shim.NewCommonConfig(l2Net.T()),
 			Client:       elClient,
 			ChainID:      l2ID.ChainID(),
 		},
-		ID: stack.L2ELNodeID{
-			Key:     elService.Name,
-			ChainID: l2ID.ChainID(),
-		},
+		ID: stack.NewL2ELNodeID(elService.Name, l2ID.ChainID()),
 	})
 	if strings.Contains(node.Name, "geth") {
 		l2EL.SetLabel(match.LabelVendor, string(match.OpGeth))
@@ -102,15 +97,38 @@ func (o *Orchestrator) hydrateL2ELCL(node *descriptors.Node, l2Net stack.Extensi
 	// it's an RPC, but 'http' in kurtosis descriptor
 	clClient := o.rpcClient(l2Net.T(), clService, HTTPProtocol, "/")
 	l2CL := shim.NewL2CLNode(shim.L2CLNodeConfig{
-		ID: stack.L2CLNodeID{
-			Key:     clService.Name,
-			ChainID: l2ID.ChainID(),
-		},
+		ID:           stack.NewL2CLNodeID(clService.Name, l2ID.ChainID()),
 		CommonConfig: shim.NewCommonConfig(l2Net.T()),
 		Client:       clClient,
 	})
 	l2Net.AddL2CLNode(l2CL)
 	l2CL.(stack.LinkableL2CLNode).LinkEL(l2EL)
+}
+
+func (o *Orchestrator) hydrateConductors(node *descriptors.Node, l2Net stack.ExtensibleL2Network) {
+	require := l2Net.T().Require()
+	l2ID := l2Net.ID()
+
+	conductorService, ok := node.Services[ConductorServiceName]
+	if !ok {
+		l2Net.Logger().Debug("L2 net node is missing a conductor service", "node", node.Name, "l2", l2ID)
+		return
+	}
+
+	endpoint, _, err := o.findProtocolService(conductorService, HTTPProtocol)
+	require.NoError(err, "failed to find RPC service for conductor")
+
+	conductorClient, err := rpc.DialContext(l2Net.T().Ctx(), endpoint)
+	require.NoError(err, "failed to dial conductor endpoint")
+	l2Net.T().Cleanup(func() { conductorClient.Close() })
+
+	conductor := shim.NewConductor(shim.ConductorConfig{
+		CommonConfig: shim.NewCommonConfig(l2Net.T()),
+		Client:       conductorClient,
+		ID:           stack.ConductorID(conductorService.Name),
+	})
+
+	l2Net.AddConductor(conductor)
 }
 
 func (o *Orchestrator) hydrateL2ProxydMaybe(net *descriptors.L2Chain, l2Net stack.ExtensibleL2Network) {
@@ -131,10 +149,8 @@ func (o *Orchestrator) hydrateL2ProxydMaybe(net *descriptors.L2Chain, l2Net stac
 				Client:       o.rpcClient(l2Net.T(), instance, HTTPProtocol, "/"),
 				ChainID:      l2ID.ChainID(),
 			},
-			ID: stack.L2ELNodeID{
-				Key:     instance.Name,
-				ChainID: l2ID.ChainID(),
-			},
+			RollupCfg: l2Net.RollupConfig(),
+			ID:        stack.NewL2ELNodeID(instance.Name, l2ID.ChainID()),
 		})
 		l2Proxyd.SetLabel(match.LabelVendor, string(match.Proxyd))
 		l2Net.AddL2ELNode(l2Proxyd)
@@ -155,11 +171,8 @@ func (o *Orchestrator) hydrateBatcherMaybe(net *descriptors.L2Chain, l2Net stack
 	for _, instance := range batcherService {
 		l2Net.AddL2Batcher(shim.NewL2Batcher(shim.L2BatcherConfig{
 			CommonConfig: shim.NewCommonConfig(l2Net.T()),
-			ID: stack.L2BatcherID{
-				Key:     instance.Name,
-				ChainID: l2ID.ChainID(),
-			},
-			Client: o.rpcClient(l2Net.T(), instance, HTTPProtocol, "/"),
+			ID:           stack.NewL2BatcherID(instance.Name, l2ID.ChainID()),
+			Client:       o.rpcClient(l2Net.T(), instance, HTTPProtocol, "/"),
 		}))
 	}
 }
@@ -178,11 +191,8 @@ func (o *Orchestrator) hydrateProposerMaybe(net *descriptors.L2Chain, l2Net stac
 	for _, instance := range proposerService {
 		l2Net.AddL2Proposer(shim.NewL2Proposer(shim.L2ProposerConfig{
 			CommonConfig: shim.NewCommonConfig(l2Net.T()),
-			ID: stack.L2ProposerID{
-				Key:     instance.Name,
-				ChainID: l2ID.ChainID(),
-			},
-			Client: o.rpcClient(l2Net.T(), instance, HTTPProtocol, "/"),
+			ID:           stack.NewL2ProposerID(instance.Name, l2ID.ChainID()),
+			Client:       o.rpcClient(l2Net.T(), instance, HTTPProtocol, "/"),
 		}))
 	}
 }
@@ -201,10 +211,7 @@ func (o *Orchestrator) hydrateChallengerMaybe(net *descriptors.L2Chain, l2Net st
 	for _, instance := range challengerService {
 		l2Net.AddL2Challenger(shim.NewL2Challenger(shim.L2ChallengerConfig{
 			CommonConfig: shim.NewCommonConfig(l2Net.T()),
-			ID: stack.L2ChallengerID{
-				Key:     instance.Name,
-				ChainID: l2ID.ChainID(),
-			},
+			ID:           stack.L2ChallengerID(instance.Name),
 		}))
 	}
 }

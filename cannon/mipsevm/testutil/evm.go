@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"math/big"
 	"os"
+	"testing"
 
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/arch"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/srcmap"
@@ -82,7 +83,7 @@ func loadArtifacts(version MipsVersion) (*Artifacts, error) {
 	}, nil
 }
 
-func NewEVMEnv(contracts *ContractMetadata) (*vm.EVM, *state.StateDB) {
+func NewEVMEnv(t testing.TB, contracts *ContractMetadata) (*vm.EVM, *state.StateDB) {
 	// Temporary hack until Cancun is activated on mainnet
 	cpy := *params.MainnetChainConfig
 	chainCfg := &cpy // don't modify the global chain config
@@ -99,7 +100,7 @@ func NewEVMEnv(contracts *ContractMetadata) (*vm.EVM, *state.StateDB) {
 	statedb := state.NewDatabase(triedb.NewDatabase(db, nil), nil)
 	state, err := state.New(types.EmptyRootHash, statedb)
 	if err != nil {
-		panic(fmt.Errorf("failed to create memory state db: %w", err))
+		t.Fatalf("failed to create memory state db: %v", err)
 	}
 	blockContext := core.NewEVMBlockContext(header, bc, nil, chainCfg, state)
 	vmCfg := vm.Config{}
@@ -122,9 +123,9 @@ func NewEVMEnv(contracts *ContractMetadata) (*vm.EVM, *state.StateDB) {
 	}
 	mipsDeploy := append(bytes.Clone(contracts.Artifacts.MIPS.Bytecode.Object), ctorArgs...)
 	startingGas := uint64(30_000_000)
-	_, deployedMipsAddr, leftOverGas, err := env.Create(contracts.Addresses.Sender, mipsDeploy, startingGas, common.U2560)
+	retVal, deployedMipsAddr, leftOverGas, err := env.Create(contracts.Addresses.Sender, mipsDeploy, startingGas, common.U2560)
 	if err != nil {
-		panic(fmt.Errorf("failed to deploy MIPS contract: %w. took %d gas", err, startingGas-leftOverGas))
+		t.Fatalf("failed to deploy MIPS contract. error: '%v'. return value: 0x%x. took %d gas.", err, retVal, startingGas-leftOverGas)
 	}
 	contracts.Addresses.MIPS = deployedMipsAddr
 

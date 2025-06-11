@@ -98,7 +98,7 @@ interop-devnet: (devnet "interop.yaml")
 ## devnet output
 
 One important aspect of the devnet workflow is that the output should be
-*consumable*. Going forward we want to integrate them into larger worfklows
+*consumable*. Going forward we want to integrate them into larger workflows
 (serving as targets for tests for example, or any other form of automation).
 
 To address this, the deployment tool outputs a document with (hopefully!) useful
@@ -156,7 +156,7 @@ In particular, cleaning up a devnet can be achieved using
 
 ### Autofix mode
 
-Autofix mode helps recover from failed devnet deployments by automatically 
+Autofix mode helps recover from failed devnet deployments by automatically
 cleaning up the environment. It has two modes:
 
 1. **Normal Mode** (`AUTOFIX=true`)
@@ -189,7 +189,7 @@ older kurtosis engine. This typically happens if the kurtosis
 command-line managed by mise gets updated while some enclaves are
 already running.
 
-To help recover, you can either run with `AUTOFIX=nuke` or kill the 
+To help recover, you can either run with `AUTOFIX=nuke` or kill the
 old engine with:
 
 ```shell

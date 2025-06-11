@@ -27,12 +27,12 @@ type SendState struct {
 	now      func() time.Time
 
 	// Config
-	nonceTooLowCount    uint64
-	txInMempoolDeadline time.Time // deadline to abort at if no transactions are in the mempool
+	safeAbortNonceTooLowCount uint64
+	txInMempoolDeadline       time.Time // deadline to abort at if no transactions are in the mempool
 
 	// Counts of the different types of errors
-	successFullPublishCount   uint64 // nil error => tx made it to the mempool
-	safeAbortNonceTooLowCount uint64 // nonce too low error
+	successFullPublishCount uint64 // nil error => tx made it to the mempool
+	nonceTooLowCount        uint64 // nonce too low error
 
 	// Whether any attempt to send the tx resulted in ErrAlreadyReserved
 	alreadyReserved bool

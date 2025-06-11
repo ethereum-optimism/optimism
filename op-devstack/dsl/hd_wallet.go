@@ -2,12 +2,17 @@ package dsl
 
 import (
 	"fmt"
+	"os"
 	"sync/atomic"
 
 	"github.com/ethereum/go-ethereum/crypto"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/devkeys"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
+)
+
+const (
+	SaltEnvVar = "DEVSTACK_KEYS_SALT"
 )
 
 // HDWallet is a collection of deterministic accounts,
@@ -21,7 +26,7 @@ type HDWallet struct {
 }
 
 func NewHDWallet(t devtest.T, mnemonic string, startIndex uint64) *HDWallet {
-	hd, err := devkeys.NewMnemonicDevKeys(mnemonic)
+	hd, err := devkeys.NewSaltedDevKeys(mnemonic, os.Getenv(SaltEnvVar))
 	t.Require().NoError(err, "must have valid mnemonic")
 	w := &HDWallet{
 		commonImpl: commonFromT(t),

@@ -8,9 +8,9 @@ import { CommonTest } from "test/setup/CommonTest.sol";
 import { Unauthorized } from "src/libraries/errors/CommonErrors.sol";
 import { InvalidAmount } from "src/libraries/errors/CommonErrors.sol";
 
-/// @title ETHLiquidity_Test
-/// @notice Contract for testing the ETHLiquidity contract.
-contract ETHLiquidity_Test is CommonTest {
+/// @title ETHLiquidity_TestInit
+/// @notice Reusable test initialization for `ETHLiquidity` tests.
+contract ETHLiquidity_TestInit is CommonTest {
     /// @notice Emitted when an address burns ETH liquidity.
     event LiquidityBurned(address indexed caller, uint256 value);
 
@@ -41,7 +41,11 @@ contract ETHLiquidity_Test is CommonTest {
         // Assert
         assertEq(address(ethLiquidity).balance, STARTING_LIQUIDITY_BALANCE);
     }
+}
 
+/// @title ETHLiquidity_Burn_Test
+/// @notice Tests the `burn` function of the `ETHLiquidity` contract.
+contract ETHLiquidity_Burn_Test is ETHLiquidity_TestInit {
     /// @notice Tests that the burn function can always be called by an authorized caller.
     /// @param _amount Amount of ETH (in wei) to call the burn function with.
     function testFuzz_burn_fromAuthorizedCaller_succeeds(uint256 _amount) public {
@@ -83,14 +87,18 @@ contract ETHLiquidity_Test is CommonTest {
         assertEq(_caller.balance, _amount);
         assertEq(address(ethLiquidity).balance, STARTING_LIQUIDITY_BALANCE);
     }
+}
 
+/// @title ETHLiquidity_Mint_Test
+/// @notice Tests the `mint` function of the `ETHLiquidity` contract.
+contract ETHLiquidity_Mint_Test is ETHLiquidity_TestInit {
     /// @notice Tests that the mint function fails when the amount requested is greater than the
     ///         available balance. In practice this should never happen because the starting
     ///         balance is expected to be uint248 wei, the total ETH supply is far less than that
-    ///         amount, and the only contract that pulls from here is the SuperchainETHBridge contract
-    ///         which will always burn ETH somewhere before minting it somewhere else. It needs to
-    ///         be a system-wide invariant that this condition is never triggered in the first
-    ///         place but it is the behavior we expect if it does happen.
+    ///         amount, and the only contract that pulls from here is the SuperchainETHBridge
+    ///         contract which will always burn ETH somewhere before minting it somewhere else. It
+    ///         needs to be a system-wide invariant that this condition is never triggered in the
+    ///         first place but it is the behavior we expect if it does happen.
     function test_mint_moreThanAvailableBalance_fails() public {
         // Arrange
         uint256 amount = STARTING_LIQUIDITY_BALANCE + 1;
@@ -146,7 +154,11 @@ contract ETHLiquidity_Test is CommonTest {
         assertEq(address(ethLiquidity).balance, STARTING_LIQUIDITY_BALANCE);
         assertEq(address(superchainETHBridge).balance, 0);
     }
+}
 
+/// @title ETHLiquidity_Fund_Test
+/// @notice Tests the `fund` function of the `ETHLiquidity` contract.
+contract ETHLiquidity_Fund_Test is ETHLiquidity_TestInit {
     /// @notice Tests that the fund function succeeds when called with a non-zero value.
     /// @param _amount Amount of ETH (in wei) to call the fund function with.
     /// @param _caller Address of the caller to call the fund function with.

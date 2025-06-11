@@ -12,7 +12,6 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/predeploys"
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/depset"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 )
 
@@ -26,15 +25,10 @@ func TestLogProcessor(t *testing.T) {
 		Hash:       common.Hash{0x11},
 		Time:       1111,
 	}
-	depSet := &testDepSet{
-		mapping: map[eth.ChainID]types.ChainIndex{
-			eth.ChainIDFromUInt64(100): 4,
-		},
-	}
 
 	t.Run("NoOutputWhenLogsAreEmpty", func(t *testing.T) {
 		store := &stubLogStorage{}
-		processor := NewLogProcessor(logProcessorChainID, store, depSet)
+		processor := NewLogProcessor(logProcessorChainID, store)
 
 		err := processor.ProcessLogs(ctx, block1, ethTypes.Receipts{})
 		require.NoError(t, err)
@@ -68,7 +62,7 @@ func TestLogProcessor(t *testing.T) {
 			},
 		}
 		store := &stubLogStorage{}
-		processor := NewLogProcessor(logProcessorChainID, store, depSet)
+		processor := NewLogProcessor(logProcessorChainID, store)
 
 		err := processor.ProcessLogs(ctx, block1, rcpts)
 		require.NoError(t, err)
@@ -117,15 +111,15 @@ func TestLogProcessor(t *testing.T) {
 			},
 		}
 		execMsg := &types.ExecutingMessage{
-			Chain:     4,
+			ChainID:   eth.ChainIDFromUInt64(4),
 			BlockNum:  6,
 			LogIdx:    8,
 			Timestamp: 10,
-			Hash:      common.Hash{0xaa},
+			Checksum:  types.MessageChecksum{0xaa},
 		}
 		store := &stubLogStorage{}
-		processor := NewLogProcessor(eth.ChainID{4}, store, depSet).(*logProcessor)
-		processor.eventDecoder = func(l *ethTypes.Log, translator depset.ChainIndexFromID) (*types.ExecutingMessage, error) {
+		processor := NewLogProcessor(eth.ChainID{4}, store).(*logProcessor)
+		processor.eventDecoder = func(l *ethTypes.Log) (*types.ExecutingMessage, error) {
 			require.Equal(t, rcpts[0].Logs[0], l)
 			return execMsg, nil
 		}

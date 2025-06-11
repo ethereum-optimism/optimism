@@ -231,16 +231,10 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
     /// @notice Thrown when trying to migrate to the same AnchorStateRegistry.
     error OptimismPortal_MigratingToSameRegistry();
 
-    /// @notice Reverts when paused.
-    modifier whenNotPaused() {
-        if (paused()) revert OptimismPortal_CallPaused();
-        _;
-    }
-
     /// @notice Semantic version.
-    /// @custom:semver 4.4.0
+    /// @custom:semver 4.6.0
     function version() public pure virtual returns (string memory) {
-        return "4.4.0";
+        return "4.6.0";
     }
 
     /// @param _proofMaturityDelaySeconds The proof maturity delay in seconds.
@@ -281,11 +275,9 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
     /// @notice Upgrades the OptimismPortal contract to have a reference to the AnchorStateRegistry and SystemConfig
     /// @param _anchorStateRegistry AnchorStateRegistry contract.
     /// @param _ethLockbox ETHLockbox contract.
-    /// @param _systemConfig SystemConfig contract.
     function upgrade(
         IAnchorStateRegistry _anchorStateRegistry,
-        IETHLockbox _ethLockbox,
-        ISystemConfig _systemConfig
+        IETHLockbox _ethLockbox
     )
         external
         reinitializer(initVersion())
@@ -296,8 +288,6 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
         // Now perform upgrade logic.
         anchorStateRegistry = _anchorStateRegistry;
         ethLockbox = _ethLockbox;
-        systemConfig = _systemConfig;
-        spacer_53_1_20 = address(0);
     }
 
     /// @notice Getter for the current paused status.
@@ -317,13 +307,13 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
 
     /// @notice Returns the SuperchainConfig contract.
     /// @return ISuperchainConfig The SuperchainConfig contract.
-    function superchainConfig() public view returns (ISuperchainConfig) {
+    function superchainConfig() external view returns (ISuperchainConfig) {
         return systemConfig.superchainConfig();
     }
 
     /// @custom:legacy
     /// @notice Getter function for the address of the guardian.
-    function guardian() public view returns (address) {
+    function guardian() external view returns (address) {
         return systemConfig.guardian();
     }
 
@@ -341,8 +331,9 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
 
     /// @custom:legacy
     /// @notice Getter for the retirement timestamp. Note that this value NO LONGER reflects the
-    ///         timestamp at which the respected game type. Game retirement and respected game type
-    ///         value have been decoupled, this function now only returns the retirement timestamp.
+    ///         timestamp at which the respected game type was updated. Game retirement and
+    ///         respected game type value have been decoupled, this function now only returns the
+    ///         retirement timestamp.
     function respectedGameTypeUpdatedAt() external view returns (uint64) {
         return anchorStateRegistry.retirementTimestamp();
     }
@@ -403,6 +394,10 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
     /// @param _newLockbox The address of the new ETHLockbox contract.
     /// @param _newAnchorStateRegistry The address of the new AnchorStateRegistry contract.
     function migrateToSuperRoots(IETHLockbox _newLockbox, IAnchorStateRegistry _newAnchorStateRegistry) external {
+        // Migration can only be triggered when the system is not paused because the migration can
+        // potentially unpause the system as a result of the modified ETHLockbox address.
+        _assertNotPaused();
+
         // Migration can only be triggered by the ProxyAdmin owner.
         _assertOnlyProxyAdminOwner();
 
@@ -450,8 +445,10 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
         bytes[] calldata _withdrawalProof
     )
         external
-        whenNotPaused
     {
+        // Cannot prove withdrawal transactions while the system is paused.
+        _assertNotPaused();
+
         // Make sure that the OptimismPortal is using Super Roots.
         if (!superRootsActive) {
             revert OptimismPortal_WrongProofMethod();
@@ -476,8 +473,10 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
         bytes[] calldata _withdrawalProof
     )
         external
-        whenNotPaused
     {
+        // Cannot prove withdrawal transactions while the system is paused.
+        _assertNotPaused();
+
         // Make sure that the OptimismPortal is using Output Roots.
         if (superRootsActive) {
             revert OptimismPortal_WrongProofMethod();
@@ -615,7 +614,7 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
 
     /// @notice Finalizes a withdrawal transaction.
     /// @param _tx Withdrawal transaction to finalize.
-    function finalizeWithdrawalTransaction(Types.WithdrawalTransaction memory _tx) external whenNotPaused {
+    function finalizeWithdrawalTransaction(Types.WithdrawalTransaction memory _tx) external {
         finalizeWithdrawalTransactionExternalProof(_tx, msg.sender);
     }
 
@@ -627,8 +626,10 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
         address _proofSubmitter
     )
         public
-        whenNotPaused
     {
+        // Cannot finalize withdrawal transactions while the system is paused.
+        _assertNotPaused();
+
         // Make sure that the l2Sender has not yet been set. The l2Sender is set to a value other
         // than the default value when a withdrawal transaction is being finalized. This check is
         // a defacto reentrancy guard.
@@ -672,8 +673,9 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
         // be achieved through contracts built on top of this contract
         emit WithdrawalFinalized(withdrawalHash, success);
 
-        // Send ETH back to the Lockbox or it'll get stuck here.
-        if (!success) {
+        // Send ETH back to the Lockbox in the case of a failed transaction or it'll get stuck here
+        // and would need to be moved back via the migrateLiquidity function.
+        if (!success && _tx.value > 0) {
             ethLockbox.lockETH{ value: _tx.value }();
         }
 
@@ -790,6 +792,13 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
     /// @return The number of proof submitters for the withdrawal hash.
     function numProofSubmitters(bytes32 _withdrawalHash) external view returns (uint256) {
         return proofSubmitters[_withdrawalHash].length;
+    }
+
+    /// @notice Asserts that the contract is not paused.
+    function _assertNotPaused() internal view {
+        if (paused()) {
+            revert OptimismPortal_CallPaused();
+        }
     }
 
     /// @notice Checks if a target address is unsafe.

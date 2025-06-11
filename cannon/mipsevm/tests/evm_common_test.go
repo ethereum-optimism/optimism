@@ -4,7 +4,10 @@ import (
 	"bytes"
 	"fmt"
 	"io"
+	"math/big"
 	"os"
+	"regexp"
+	"strconv"
 	"testing"
 	"time"
 
@@ -15,7 +18,9 @@ import (
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/exec"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/memory"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/program"
+	"github.com/ethereum-optimism/optimism/cannon/mipsevm/register"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/testutil"
+	"github.com/ethereum-optimism/optimism/cannon/mipsevm/versions"
 )
 
 func TestEVM_SingleStep_Jump(t *testing.T) {
@@ -640,6 +645,98 @@ func TestEVM_MMap(t *testing.T) {
 	}
 }
 
+func TestEVM_SysGetRandom(t *testing.T) {
+	startingMemory := arch.Word(0x1234_5678_8765_4321)
+	effAddr := arch.Word(0x1000_0000)
+
+	// Random data is generated using the incremented step as the random seed
+	// For validation of this random data see instrumented_test.go TestSplitmix64 unit tests
+	step := uint64(0x1a2b3c4d5e6f7531) - 1
+	randomData := arch.Word(0x4141302768c9e9d0)
+
+	vmVersions := GetMipsVersionTestCases(t)
+	cases := []struct {
+		name                 string
+		bufAddrOffset        arch.Word
+		bufLen               arch.Word
+		expectedRandDataMask arch.Word
+		expectedReturnValue  arch.Word
+	}{
+		// Test word-aligned buffer address
+		{name: "Word-aligned buffer, zero bytes requested", bufAddrOffset: 0, bufLen: 0, expectedRandDataMask: 0x0000_0000_0000_0000, expectedReturnValue: 0},
+		{name: "Word-aligned buffer, 1 byte requested", bufAddrOffset: 0, bufLen: 1, expectedRandDataMask: 0xFF00_0000_0000_0000, expectedReturnValue: 1},
+		{name: "Word-aligned buffer, 2 byte requested", bufAddrOffset: 0, bufLen: 2, expectedRandDataMask: 0xFFFF_0000_0000_0000, expectedReturnValue: 2},
+		{name: "Word-aligned buffer, 3 byte requested", bufAddrOffset: 0, bufLen: 3, expectedRandDataMask: 0xFFFF_FF00_0000_0000, expectedReturnValue: 3},
+		{name: "Word-aligned buffer, 7 byte requested", bufAddrOffset: 0, bufLen: 7, expectedRandDataMask: 0xFFFF_FFFF_FFFF_FF00, expectedReturnValue: 7},
+		{name: "Word-aligned buffer, 8 byte requested", bufAddrOffset: 0, bufLen: 8, expectedRandDataMask: 0xFFFF_FFFF_FFFF_FFFF, expectedReturnValue: 8},
+		// Test buffer address offset by 1
+		{name: "Buffer offset by 1, zero bytes requested", bufAddrOffset: 1, bufLen: 0, expectedRandDataMask: 0x0000_0000_0000_0000, expectedReturnValue: 0},
+		{name: "Buffer offset by 1, 1 byte requested", bufAddrOffset: 1, bufLen: 1, expectedRandDataMask: 0x00FF_0000_0000_0000, expectedReturnValue: 1},
+		{name: "Buffer offset by 1, 2 byte requested", bufAddrOffset: 1, bufLen: 2, expectedRandDataMask: 0x00FF_FF00_0000_0000, expectedReturnValue: 2},
+		{name: "Buffer offset by 1, 3 byte requested", bufAddrOffset: 1, bufLen: 6, expectedRandDataMask: 0x00FF_FFFF_FFFF_FF00, expectedReturnValue: 6},
+		{name: "Buffer offset by 1, 7 byte requested", bufAddrOffset: 1, bufLen: 7, expectedRandDataMask: 0x00FF_FFFF_FFFF_FFFF, expectedReturnValue: 7},
+		{name: "Buffer offset by 1, 8 byte requested", bufAddrOffset: 1, bufLen: 8, expectedRandDataMask: 0x00FF_FFFF_FFFF_FFFF, expectedReturnValue: 7},
+		// Test buffer address offset by 6
+		{name: "Buffer offset by 6, zero bytes requested", bufAddrOffset: 6, bufLen: 0, expectedRandDataMask: 0x0000_0000_0000_0000, expectedReturnValue: 0},
+		{name: "Buffer offset by 6, 1 byte requested", bufAddrOffset: 6, bufLen: 1, expectedRandDataMask: 0x0000_0000_0000_FF00, expectedReturnValue: 1},
+		{name: "Buffer offset by 6, 2 byte requested", bufAddrOffset: 6, bufLen: 2, expectedRandDataMask: 0x0000_0000_0000_FFFF, expectedReturnValue: 2},
+		{name: "Buffer offset by 6, 3 byte requested", bufAddrOffset: 6, bufLen: 6, expectedRandDataMask: 0x0000_0000_0000_FFFF, expectedReturnValue: 2},
+		{name: "Buffer offset by 6, 7 byte requested", bufAddrOffset: 6, bufLen: 7, expectedRandDataMask: 0x0000_0000_0000_FFFF, expectedReturnValue: 2},
+		{name: "Buffer offset by 6, 8 byte requested", bufAddrOffset: 6, bufLen: 8, expectedRandDataMask: 0x0000_0000_0000_FFFF, expectedReturnValue: 2},
+	}
+
+	// Assert we have at least one vm with the working getrandom syscall
+	foundVmWithSyscallEnabled := false
+	for _, vers := range vmVersions {
+		features := versions.FeaturesForVersion(vers.Version)
+		foundVmWithSyscallEnabled = foundVmWithSyscallEnabled || features.SupportWorkingSysGetRandom
+	}
+	require.True(t, foundVmWithSyscallEnabled)
+
+	// Assert that latest version has a working getrandom ssycall
+	latestFeatures := versions.FeaturesForVersion(versions.GetExperimentalVersion())
+	require.True(t, latestFeatures.SupportWorkingSysGetRandom)
+
+	// Run test cases
+	for _, v := range vmVersions {
+		for i, c := range cases {
+			testName := fmt.Sprintf("%v (%v)", c.name, v.Name)
+			t.Run(testName, func(t *testing.T) {
+				isNoop := !versions.FeaturesForVersion(v.Version).SupportWorkingSysGetRandom
+				expectedMemory := c.expectedRandDataMask&randomData | ^c.expectedRandDataMask&startingMemory
+
+				goVm := v.VMFactory(nil, os.Stdout, os.Stderr, testutil.CreateLogger(), testutil.WithRandomization(int64(i)), testutil.WithStep(step))
+				state := goVm.GetState()
+
+				testutil.StoreInstruction(state.GetMemory(), state.GetPC(), syscallInsn)
+				state.GetMemory().SetWord(effAddr, startingMemory)
+				state.GetRegistersRef()[register.RegV0] = arch.SysGetRandom
+				state.GetRegistersRef()[register.RegA0] = effAddr + c.bufAddrOffset
+				state.GetRegistersRef()[register.RegA1] = c.bufLen
+				step := state.GetStep()
+
+				expected := testutil.NewExpectedState(state)
+				expected.ExpectStep()
+				if isNoop {
+					expected.Registers[register.RegSyscallRet1] = 0
+					expected.Registers[register.RegSyscallErrno] = 0
+				} else {
+					expected.Registers[register.RegSyscallRet1] = c.expectedReturnValue
+					expected.Registers[register.RegSyscallErrno] = 0
+					expected.ExpectMemoryWriteWord(effAddr, expectedMemory)
+				}
+
+				stepWitness, err := goVm.Step(true)
+				require.NoError(t, err)
+
+				// Check expectations
+				expected.Validate(t, state)
+				testutil.ValidateEVM(t, stepWitness, step, goVm, v.StateHashFn, v.Contracts)
+			})
+		}
+	}
+}
+
 func TestEVM_SysWriteHint(t *testing.T) {
 	versions := GetMipsVersionTestCases(t)
 	cases := []struct {
@@ -882,6 +979,87 @@ func TestEVM_Fault(t *testing.T) {
 	}
 }
 
+func TestEVM_RandomProgram(t *testing.T) {
+	if os.Getenv("SKIP_SLOW_TESTS") == "true" {
+		t.Skip("Skipping slow test because SKIP_SLOW_TESTS is enabled")
+	}
+
+	t.Parallel()
+	versionCases := GetMipsVersionTestCases(t)
+
+	for _, v := range versionCases {
+		v := v
+		t.Run(v.Name, func(t *testing.T) {
+			t.Parallel()
+
+			if !versions.FeaturesForVersion(v.Version).SupportWorkingSysGetRandom {
+				t.Skip("Skipping vm version that does not support working sys_getrandom")
+			}
+
+			validator := testutil.NewEvmValidator(t, v.StateHashFn, v.Contracts)
+
+			var stdOutBuf, stdErrBuf bytes.Buffer
+			elfFile := testutil.ProgramPath("random", testutil.Go1_24)
+			goVm := v.ElfVMFactory(t, elfFile, nil, io.MultiWriter(&stdOutBuf, os.Stdout), io.MultiWriter(&stdErrBuf, os.Stderr), testutil.CreateLogger())
+			state := goVm.GetState()
+
+			start := time.Now()
+			for i := 0; i < 500_000; i++ {
+				step := goVm.GetState().GetStep()
+				if goVm.GetState().GetExited() {
+					break
+				}
+				insn := testutil.GetInstruction(state.GetMemory(), state.GetPC())
+				if i%100_000 == 0 { // avoid spamming test logs, we are executing many steps
+					t.Logf("step: %4d pc: 0x%08x insn: 0x%08x", state.GetStep(), state.GetPC(), insn)
+				}
+
+				stepWitness, err := goVm.Step(true)
+				require.NoError(t, err)
+				validator.ValidateEVM(t, stepWitness, step, goVm)
+			}
+			end := time.Now()
+			delta := end.Sub(start)
+			t.Logf("test took %s, %d instructions, %s per instruction", delta, state.GetStep(), delta/time.Duration(state.GetStep()))
+
+			require.True(t, state.GetExited(), "must complete program")
+			require.Equal(t, uint8(0), state.GetExitCode(), "exit with 0")
+
+			// Check output
+			// Define the regex pattern we expect to match against stdOut
+			pattern := `Random (hex data|int): (\w+)\s*`
+			re, err := regexp.Compile(pattern)
+			require.NoError(t, err)
+
+			// Check that stdOut matches the expected regex
+			expectedMatches := 3
+			output := stdOutBuf.String()
+			matches := re.FindAllStringSubmatch(output, -1)
+			require.Equal(t, expectedMatches, len(matches))
+
+			// Check each match and validate the random values that are printed to stdOut
+			for i := 0; i < expectedMatches; i++ {
+				match := matches[i]
+				require.Contains(t, match[0], "Random")
+
+				// Check that the generated random number is not zero
+				dataType := match[1]
+				dataValue := match[2]
+				switch dataType {
+				case "hex data":
+					randVal, success := new(big.Int).SetString(dataValue, 16)
+					require.True(t, success, "should successfully set hex value")
+					require.NotEqual(t, 0, randVal.Sign(), "random data should be non-zero")
+				case "int":
+					randVal, err := strconv.ParseUint(dataValue, 10, 64)
+					require.NoError(t, err)
+					require.NotEqual(t, uint64(0), randVal, "random int should be non-zero")
+				}
+			}
+		})
+	}
+}
+
 func TestEVM_HelloProgram(t *testing.T) {
 	if os.Getenv("SKIP_SLOW_TESTS") == "true" {
 		t.Skip("Skipping slow test because SKIP_SLOW_TESTS is enabled")
@@ -897,7 +1075,7 @@ func TestEVM_HelloProgram(t *testing.T) {
 			validator := testutil.NewEvmValidator(t, v.StateHashFn, v.Contracts)
 
 			var stdOutBuf, stdErrBuf bytes.Buffer
-			elfFile := testutil.ProgramPath("hello")
+			elfFile := testutil.ProgramPath("hello", v.GoTarget)
 			goVm := v.ElfVMFactory(t, elfFile, nil, io.MultiWriter(&stdOutBuf, os.Stdout), io.MultiWriter(&stdErrBuf, os.Stderr), testutil.CreateLogger())
 			state := goVm.GetState()
 
@@ -945,7 +1123,7 @@ func TestEVM_ClaimProgram(t *testing.T) {
 			oracle, expectedStdOut, expectedStdErr := testutil.ClaimTestOracle(t)
 
 			var stdOutBuf, stdErrBuf bytes.Buffer
-			elfFile := testutil.ProgramPath("claim")
+			elfFile := testutil.ProgramPath("claim", v.GoTarget)
 			goVm := v.ElfVMFactory(t, elfFile, oracle, io.MultiWriter(&stdOutBuf, os.Stdout), io.MultiWriter(&stdErrBuf, os.Stderr), testutil.CreateLogger())
 			state := goVm.GetState()
 
@@ -990,7 +1168,7 @@ func TestEVM_EntryProgram(t *testing.T) {
 			validator := testutil.NewEvmValidator(t, v.StateHashFn, v.Contracts)
 
 			var stdOutBuf, stdErrBuf bytes.Buffer
-			elfFile := testutil.ProgramPath("entry")
+			elfFile := testutil.ProgramPath("entry", v.GoTarget)
 			goVm := v.ElfVMFactory(t, elfFile, nil, io.MultiWriter(&stdOutBuf, os.Stdout), io.MultiWriter(&stdErrBuf, os.Stderr), testutil.CreateLogger())
 			state := goVm.GetState()
 

@@ -55,6 +55,10 @@ func (m *MockBackend) LocalUnsafe(ctx context.Context, chainID eth.ChainID) (eth
 	return eth.BlockID{}, nil
 }
 
+func (m *MockBackend) LocalSafe(ctx context.Context, chainID eth.ChainID) (result types.DerivedIDPair, err error) {
+	return types.DerivedIDPair{}, nil
+}
+
 func (m *MockBackend) CrossSafe(ctx context.Context, chainID eth.ChainID) (types.DerivedIDPair, error) {
 	return types.DerivedIDPair{}, nil
 }

@@ -18,7 +18,7 @@ type mockGethClient struct {
 }
 
 func (m mockGethClient) HeaderByNumber(ctx context.Context, number *big.Int) (*types.Header, error) {
-	idx := int(0)
+	var idx int
 	if number == nil {
 		idx = m.latestBlockNum
 	} else {
@@ -37,8 +37,7 @@ func (mockGethClient) Close() {}
 
 var _ HeaderProvider = mockGethClient{}
 
-func TestCheckForChainFork(t *testing.T) {
-
+func TestDetectsFork(t *testing.T) {
 	leader := mockGethClient{latestBlockNum: 0, headersByNum: map[int]types.Header{
 		0: {
 			Number: big.NewInt(0),
@@ -76,14 +75,58 @@ func TestCheckForChainFork(t *testing.T) {
 	}
 
 	// First scenario is that the leader and follower are in sync initially, but then split:
-	secondCheck, firstErr := checkForChainFork(context.Background(), []HeaderProvider{leader, followerA}, testlog.Logger(t, log.LevelDebug))
+	secondCheck, firstErr := checkForChainFork(context.Background(), []HeaderProvider{&leader, &followerA}, testlog.Logger(t, log.LevelDebug))
 	require.NoError(t, firstErr)
 	leader.latestBlockNum = 1    // advance the chain head
 	followerA.latestBlockNum = 1 // advance the chain head
 	require.Error(t, secondCheck(false), "expected chain split error")
 
 	// Second scenario is that the leader and follower are forked immediately:
-	_, firstErr = checkForChainFork(context.Background(), []HeaderProvider{leader, followerB}, testlog.Logger(t, log.LevelDebug))
+	_, firstErr = checkForChainFork(context.Background(), []HeaderProvider{&leader, &followerB}, testlog.Logger(t, log.LevelDebug))
 	require.Error(t, firstErr, "expected chain split error")
+}
 
+func TestDetectsHealthy(t *testing.T) {
+	leader := mockGethClient{latestBlockNum: 0, headersByNum: map[int]types.Header{
+		0: {
+			Number: big.NewInt(0),
+			TxHash: common.HexToHash("0x0"),
+		},
+		1: {
+			Number: big.NewInt(1),
+			TxHash: common.HexToHash("0x1"),
+		},
+	},
+	}
+
+	followerA := mockGethClient{latestBlockNum: 0, headersByNum: map[int]types.Header{
+		0: {
+			Number: big.NewInt(0),
+			TxHash: common.HexToHash("0x0"), // in sync with mockA at this block
+		},
+		1: {
+			Number: big.NewInt(1),
+			TxHash: common.HexToHash("0x1"), // forks off from leader at this block
+		},
+	},
+	}
+
+	followerB := mockGethClient{latestBlockNum: 0, headersByNum: map[int]types.Header{
+		0: {
+			Number: big.NewInt(0),
+			TxHash: common.HexToHash("0x0"), // forks off from leader at this block
+		},
+		1: {
+			Number: big.NewInt(1),
+			TxHash: common.HexToHash("0x1"), // forks off from leader at this block
+		},
+	},
+	}
+
+	secondCheck, firstErr := checkForChainFork(context.Background(), []HeaderProvider{&leader, &followerA, &followerB}, testlog.Logger(t, log.LevelDebug))
+	require.NoError(t, firstErr)
+	leader.latestBlockNum = 1    // advance the chain head
+	followerA.latestBlockNum = 1 // advance the chain head
+	followerB.latestBlockNum = 1 // advance the chain head
+	require.NoError(t, secondCheck(false), "did not expect chain split error")
 }

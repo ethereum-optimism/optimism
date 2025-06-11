@@ -2,10 +2,10 @@ package metrics
 
 import (
 	"encoding/binary"
+	"sync"
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/prometheus/client_golang/prometheus"
 )
@@ -28,7 +28,8 @@ type RefMetrics struct {
 	RefsLatency *prometheus.GaugeVec
 	// hash of the last seen block per name, so we don't reduce/increase latency on updates of the same data,
 	// and only count the first occurrence
-	LatencySeen map[string]common.Hash
+	latencySeen map[string]common.Hash
+	mu          *sync.Mutex // by pointer reference, since RefMetrics is copied
 }
 
 var _ RefMetricer = (*RefMetrics)(nil)
@@ -112,19 +113,23 @@ func makeRefMetrics(ns string, factory Factory, extraLabels ...string) RefMetric
 			Name:      "refs_latency",
 			Help:      "Gauge representing the different L1/L2 reference block timestamps minus current time, in seconds",
 		}, labels),
-		LatencySeen: make(map[string]common.Hash),
+		latencySeen: make(map[string]common.Hash),
+		mu:          new(sync.Mutex),
 	}
 }
 
 // recordRefWithLabels implements to core logic of emitting block ref metrics.
 // It's abstracted over labels to enable re-use in different contexts.
 func recordRefWithLabels(m *RefMetrics, name string, num uint64, timestamp uint64, h common.Hash, labels []string) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
 	m.RefsNumber.WithLabelValues(labels...).Set(float64(num))
 	if timestamp != 0 {
 		m.RefsTime.WithLabelValues(labels...).Set(float64(timestamp))
 		// only meter the latency when we first see this hash for the given label name
-		if m.LatencySeen[name] != h {
-			m.LatencySeen[name] = h
+		if m.latencySeen[name] != h {
+			m.latencySeen[name] = h
 			m.RefsLatency.WithLabelValues(labels...).Set(float64(timestamp) - (float64(time.Now().UnixNano()) / 1e9))
 		}
 	}

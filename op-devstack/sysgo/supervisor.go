@@ -94,7 +94,8 @@ func (s *Supervisor) Stop() {
 
 func WithSupervisor(supervisorID stack.SupervisorID, clusterID stack.ClusterID, l1ELID stack.L1ELNodeID) stack.Option[*Orchestrator] {
 	return stack.AfterDeploy(func(orch *Orchestrator) {
-		require := orch.P().Require()
+		p := orch.P().WithCtx(stack.ContextWithID(orch.P().Ctx(), supervisorID))
+		require := p.Require()
 
 		l1EL, ok := orch.l1ELs.Get(l1ELID)
 		require.True(ok, "need L1 EL node to connect supervisor to")
@@ -102,7 +103,8 @@ func WithSupervisor(supervisorID stack.SupervisorID, clusterID stack.ClusterID, 
 		cluster, ok := orch.clusters.Get(clusterID)
 		require.True(ok, "need cluster to determine dependency set")
 
-		require.NotNil(cluster.depset, "need a dependency set")
+		require.NotNil(cluster.cfgset, "need a full config set")
+		require.NoError(cluster.cfgset.CheckChains(), "config set must be valid")
 		cfg := &supervisorConfig.Config{
 			MetricsConfig: metrics.CLIConfig{
 				Enabled: false,
@@ -127,19 +129,18 @@ func WithSupervisor(supervisorID stack.SupervisorID, clusterID stack.ClusterID, 
 			// persistent across stop/start, for the duration of the package execution.
 			Datadir:               orch.p.TempDir(),
 			Version:               "dev",
-			DependencySetSource:   cluster.depset,
+			FullConfigSetSource:   cluster.cfgset,
 			MockRun:               false,
 			SynchronousProcessors: false,
 			DatadirSyncEndpoint:   "",
 		}
 
-		plog := orch.P().Logger().New("service", "op-supervisor", "id", supervisorID)
-
+		plog := p.Logger()
 		supervisorNode := &Supervisor{
 			id:      supervisorID,
 			userRPC: "", // set on start
 			cfg:     cfg,
-			p:       orch.P(),
+			p:       p,
 			logger:  plog,
 			service: nil, // set on start
 		}

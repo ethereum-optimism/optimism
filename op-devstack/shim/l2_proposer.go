@@ -20,7 +20,7 @@ type rpcL2Proposer struct {
 var _ stack.L2Proposer = (*rpcL2Proposer)(nil)
 
 func NewL2Proposer(cfg L2ProposerConfig) stack.L2Proposer {
-	cfg.Log = cfg.Log.New("chainID", cfg.ID.ChainID, "id", cfg.ID)
+	cfg.T = cfg.T.WithCtx(stack.ContextWithID(cfg.T.Ctx(), cfg.ID))
 	return &rpcL2Proposer{
 		commonImpl: newCommon(cfg.CommonConfig),
 		id:         cfg.ID,
