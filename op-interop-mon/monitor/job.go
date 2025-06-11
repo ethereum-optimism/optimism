@@ -67,7 +67,6 @@ type Job struct {
 	lastEvaluated time.Time
 	terminalAt    time.Time
 
-	executingTx      common.Hash
 	executingAddress common.Address
 	executingChain   eth.ChainID
 	executingBlock   eth.BlockID
