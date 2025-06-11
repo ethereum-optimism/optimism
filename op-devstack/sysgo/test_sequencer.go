@@ -126,7 +126,7 @@ func WithTestSequencer(testSequencerID stack.TestSequencerID, l1CLID stack.L1CLN
 				},
 				bid_L1: {
 					L1: &fakepos.Config{
-						Geth:              l1EL.l1Geth,
+						GethBackend:       l1EL.l1Geth.Backend,
 						Beacon:            l1CL.beacon,
 						FinalizedDistance: 20,
 						SafeDistance:      10,
