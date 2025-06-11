@@ -7,7 +7,7 @@ import (
 // A RingBuffer is a generic [container/ring.Ring]
 // with convenient methods for adding and removing values.
 // The generic type T should be a pointer type or interface
-// because the default value if T will be returned if the value
+// because the default value of T will be returned by Pop and Peek if the value
 // is unset.
 type RingBuffer[T any] struct {
 	*ring.Ring
