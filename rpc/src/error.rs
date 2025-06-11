@@ -7,7 +7,7 @@ use jsonrpsee_types::error::{INTERNAL_ERROR_CODE, INVALID_PARAMS_CODE};
 use op_revm::{OpHaltReason, OpTransactionError};
 use reth_evm::execute::ProviderError;
 use reth_optimism_evm::OpBlockExecutionError;
-use reth_rpc_eth_api::{AsEthApiError, TransactionConversionError};
+use reth_rpc_eth_api::{AsEthApiError, EthTxEnvError, TransactionConversionError};
 use reth_rpc_eth_types::{error::api::FromEvmHalt, EthApiError};
 use reth_rpc_server_types::result::{internal_rpc_err, rpc_err};
 use revm::context_interface::result::{EVMError, InvalidTransaction};
@@ -191,6 +191,12 @@ impl FromEvmHalt<OpHaltReason> for OpEthApiError {
 
 impl From<TransactionConversionError> for OpEthApiError {
     fn from(value: TransactionConversionError) -> Self {
+        Self::Eth(EthApiError::from(value))
+    }
+}
+
+impl From<EthTxEnvError> for OpEthApiError {
+    fn from(value: EthTxEnvError) -> Self {
         Self::Eth(EthApiError::from(value))
     }
 }

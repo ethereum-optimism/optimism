@@ -67,7 +67,8 @@ pub struct OpEthApi<N: OpNodeCore, NetworkT = Optimism> {
     inner: Arc<OpEthApiInner<N>>,
     /// Marker for the network types.
     _nt: PhantomData<NetworkT>,
-    tx_resp_builder: RpcConverter<N::Primitives, NetworkT, OpEthApiError, OpTxInfoMapper<N>>,
+    tx_resp_builder:
+        RpcConverter<N::Primitives, NetworkT, N::Evm, OpEthApiError, OpTxInfoMapper<N>>,
 }
 
 impl<N: OpNodeCore, NetworkT> OpEthApi<N, NetworkT> {
@@ -114,12 +115,13 @@ where
     Self: Send + Sync + fmt::Debug,
     N: OpNodeCore,
     NetworkT: op_alloy_network::Network + Clone + fmt::Debug,
+    <N as RpcNodeCore>::Evm: fmt::Debug,
     <N as RpcNodeCore>::Primitives: fmt::Debug,
 {
     type Error = OpEthApiError;
     type NetworkTypes = NetworkT;
     type TransactionCompat =
-        RpcConverter<N::Primitives, NetworkT, OpEthApiError, OpTxInfoMapper<N>>;
+        RpcConverter<N::Primitives, NetworkT, N::Evm, OpEthApiError, OpTxInfoMapper<N>>;
 
     fn tx_resp_builder(&self) -> &Self::TransactionCompat {
         &self.tx_resp_builder
@@ -203,6 +205,7 @@ where
     Self: Send + Sync + Clone + 'static,
     N: OpNodeCore,
     NetworkT: op_alloy_network::Network,
+    <N as RpcNodeCore>::Evm: fmt::Debug,
     <N as RpcNodeCore>::Primitives: fmt::Debug,
 {
     #[inline]
@@ -254,6 +257,7 @@ where
         Pool: TransactionPool,
     >,
     NetworkT: op_alloy_network::Network,
+    <N as RpcNodeCore>::Evm: fmt::Debug,
     <N as RpcNodeCore>::Primitives: fmt::Debug,
 {
 }
