@@ -24,6 +24,7 @@
 !/op-wheel
 !/op-alt-da
 !/op-faucet
+!/op-interop-mon
 !/go.mod
 !/go.sum
 !/justfiles
