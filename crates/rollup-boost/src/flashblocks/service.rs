@@ -3,6 +3,7 @@ use super::primitives::{
     ExecutionPayloadBaseV1, ExecutionPayloadFlashblockDeltaV1, FlashblocksPayloadV1,
 };
 use crate::RpcClientError;
+use crate::flashblocks::metrics::FlashblocksServiceMetrics;
 use crate::{
     ClientResult, EngineApiExt, NewPayload, OpExecutionPayloadEnvelope, PayloadVersion, RpcClient,
 };
@@ -186,6 +187,8 @@ pub struct FlashblocksService {
 
     // websocket publisher for sending valid preconfirmations to clients
     ws_pub: Arc<WebSocketPublisher>,
+
+    metrics: FlashblocksServiceMetrics,
 }
 
 impl FlashblocksService {
@@ -197,6 +200,7 @@ impl FlashblocksService {
             current_payload_id: Arc::new(RwLock::new(PayloadId::default())),
             best_payload: Arc::new(RwLock::new(FlashblockBuilder::new())),
             ws_pub,
+            metrics: Default::default(),
         })
     }
 
@@ -233,6 +237,8 @@ impl FlashblocksService {
     async fn on_event(&mut self, event: FlashblocksEngineMessage) {
         match event {
             FlashblocksEngineMessage::FlashblocksPayloadV1(payload) => {
+                self.metrics.messages_processed.increment(1);
+
                 tracing::debug!(
                     message = "Received flashblock payload",
                     payload_id = %payload.payload_id,
@@ -241,11 +247,13 @@ impl FlashblocksService {
 
                 // make sure the payload id matches the current payload id
                 if *self.current_payload_id.read().await != payload.payload_id {
+                    self.metrics.current_payload_id_mismatch.increment(1);
                     error!(message = "Payload ID mismatch",);
                     return;
                 }
 
                 if let Err(e) = self.best_payload.write().await.extend(payload.clone()) {
+                    self.metrics.extend_payload_errors.increment(1);
                     error!(message = "Failed to extend payload", error = %e);
                 } else {
                     // Broadcast the valid message

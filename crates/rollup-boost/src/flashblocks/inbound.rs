@@ -1,4 +1,5 @@
 use super::primitives::FlashblocksPayloadV1;
+use crate::flashblocks::metrics::FlashblocksWsInboundMetrics;
 use futures::StreamExt;
 use tokio::sync::mpsc;
 use tokio_tungstenite::{connect_async, tungstenite::Message};
@@ -9,6 +10,7 @@ pub struct FlashblocksReceiverService {
     url: Url,
     sender: mpsc::Sender<FlashblocksPayloadV1>,
     reconnect_ms: u64,
+    metrics: FlashblocksWsInboundMetrics,
 }
 
 impl FlashblocksReceiverService {
@@ -17,6 +19,7 @@ impl FlashblocksReceiverService {
             url,
             sender,
             reconnect_ms,
+            metrics: Default::default(),
         }
     }
 
@@ -24,6 +27,8 @@ impl FlashblocksReceiverService {
         loop {
             if let Err(e) = self.connect_and_handle().await {
                 error!("Flashblocks receiver connection error, retrying in 5 seconds: {e}");
+                self.metrics.reconnect_attempts.increment(1);
+                self.metrics.connection_status.set(0);
                 tokio::time::sleep(std::time::Duration::from_millis(self.reconnect_ms)).await;
             } else {
                 break;
@@ -36,9 +41,11 @@ impl FlashblocksReceiverService {
         let (_, mut read) = ws_stream.split();
 
         info!("Connected to Flashblocks receiver at {}", self.url);
+        self.metrics.connection_status.set(1);
 
         while let Some(msg) = read.next().await {
             if let Message::Text(text) = msg? {
+                self.metrics.messages_received.increment(1);
                 if let Ok(flashblocks_msg) = serde_json::from_str::<FlashblocksPayloadV1>(&text) {
                     self.sender.send(flashblocks_msg).await?;
                 }

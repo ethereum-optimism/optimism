@@ -26,7 +26,7 @@ backoff = "0.4.0"
 reqwest = { version = "0.12.15", default-features = false, features = [
     "native-tls",
 ] }
-metrics-derive = "0.1"
+metrics-derive.workspace = true
 hostname = "0.4.0"
 redis = "0.30.0"
 redis-test = { version = "0.10.0", optional = true }

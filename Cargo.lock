@@ -4177,6 +4177,7 @@ dependencies = [
  "hyper-util",
  "jsonrpsee",
  "metrics",
+ "metrics-derive",
  "metrics-exporter-prometheus 0.16.2",
  "metrics-util",
  "moka",

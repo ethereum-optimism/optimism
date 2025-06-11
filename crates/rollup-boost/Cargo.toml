@@ -23,6 +23,7 @@ alloy-primitives.workspace = true
 alloy-serde.workspace = true
 
 tokio-tungstenite.workspace = true
+metrics-derive.workspace = true
 
 # TODO: update to latest release when it is published
 # jsonrpsee = { version = "0.25.1", features = ["server", "http-client", "macros"] }
