@@ -135,7 +135,6 @@ func (t *RPCFinder) processBlock(blockInfo eth.BlockInfo, receipts types.Receipt
 			blockInfo.NumberU64() != previous.NumberU64()+1 {
 			t.log.Error("blocks are not contiguous", "previous", eth.InfoToL1BlockRef(previous), "next", eth.InfoToL1BlockRef(blockInfo))
 			return ErrBlockNotContiguous
-
 		}
 	}
 	jobs := t.toJobs([]*types.Receipt(receipts))
