@@ -1,13 +1,13 @@
 {
-  "name": "dispute-game-factory",
+  "name": "anchorage-dgf-sepolia",
   "license": "UNLICENSED",
   "scripts": {
     "codegen": "graph codegen",
     "build": "graph build",
-    "deploy": "graph deploy --node https://api.studio.thegraph.com/deploy/ dispute-game-factory",
-    "create-local": "graph create --node http://localhost:8020/ dispute-game-factory",
-    "remove-local": "graph remove --node http://localhost:8020/ dispute-game-factory",
-    "deploy-local": "graph deploy --node http://localhost:8020/ --ipfs http://localhost:5001 dispute-game-factory",
+    "deploy": "graph deploy --node https://api.studio.thegraph.com/deploy/ anchorage-dgf-sepolia",
+    "create-local": "graph create --node http://localhost:8020/ anchorage-dgf-sepolia",
+    "remove-local": "graph remove --node http://localhost:8020/ anchorage-dgf-sepolia",
+    "deploy-local": "graph deploy --node http://localhost:8020/ --ipfs http://localhost:5001 anchorage-dgf-sepolia",
     "test": "graph test"
   },
   "dependencies": {

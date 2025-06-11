@@ -5,7 +5,7 @@ import {
   clearStore,
   beforeAll,
   afterAll
-} from "matchstick-as/assembly/index"
+} from "matchstick-as"
 import { Address, BigInt, Bytes } from "@graphprotocol/graph-ts"
 import { DisputeGameBlacklisted } from "../generated/schema"
 import { DisputeGameBlacklisted as DisputeGameBlacklistedEvent } from "../generated/OptimismPortal2/OptimismPortal2"
