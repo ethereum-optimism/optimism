@@ -14,43 +14,6 @@ import (
 
 var ErrBlockNotFound = errors.New("block not found")
 
-// BlockBuffer is a circular buffer of seen blocks
-// it is used to ensure no gaps in the block history being monitored
-type BlockBuffer struct {
-	buffer []eth.BlockInfo
-	idx    int
-	total  int
-}
-
-func NewBlockBuffer(size int) *BlockBuffer {
-	return &BlockBuffer{
-		buffer: make([]eth.BlockInfo, size),
-		idx:    0,
-		total:  0,
-	}
-}
-func (r *BlockBuffer) Add(block eth.BlockInfo) {
-	r.buffer[r.idx] = block
-	r.idx++
-	r.idx %= len(r.buffer)
-	r.total++
-}
-
-func (r *BlockBuffer) Peek() eth.BlockInfo {
-	// if the buffer is empty, return nil
-	if r.total == 0 {
-		return nil
-	}
-	// get the previous index, wrap around if necessary
-	prevIndex := (r.idx + len(r.buffer) - 1) % len(r.buffer)
-	block := r.buffer[prevIndex]
-	// if the block is nil, the buffer is empty
-	if block == nil {
-		return nil
-	}
-	return block
-}
-
 func (r *BlockBuffer) Pop() (eth.BlockInfo, error) {
 	// if the buffer is empty, return an error
 	if r.total == 0 {
@@ -94,7 +57,8 @@ type RPCFinder struct {
 	client  FinderClient
 	chainID eth.ChainID
 
-	pollInterval time.Duration
+	pollInterval       time.Duration
+	expiryPollInterval time.Duration
 
 	inbox    chan *types.Header
 	toJobs   JobFilter
@@ -108,15 +72,16 @@ type RPCFinder struct {
 
 func NewFinder(chainID eth.ChainID, client FinderClient, toCases JobFilter, callback func(*Job), log log.Logger) *RPCFinder {
 	return &RPCFinder{
-		chainID:      chainID,
-		client:       client,
-		log:          log.New("component", "rpc_finder", "chain_id", chainID),
-		toJobs:       toCases,
-		inbox:        make(chan *types.Header, 1000),
-		closed:       make(chan struct{}),
-		callback:     callback,
-		pollInterval: 2 * time.Second,
-		seenBlocks:   NewBlockBuffer(1000),
+		chainID:            chainID,
+		client:             client,
+		log:                log.New("component", "rpc_finder", "chain_id", chainID),
+		toJobs:             toCases,
+		inbox:              make(chan *types.Header, 1000),
+		closed:             make(chan struct{}),
+		callback:           callback,
+		pollInterval:       2 * time.Second,
+		expiryPollInterval: 10 * time.Second,
+		seenBlocks:         NewBlockBuffer(1000),
 	}
 }
 
@@ -134,10 +99,9 @@ func (t *RPCFinder) Start(ctx context.Context) error {
 }
 
 func (t *RPCFinder) Run(ctx context.Context) {
-	// start with a 100ms poll interval to rapidly find new blocks
-	// until a block is not found, at which point we increase the poll interval to the configured value
-	ticker := time.NewTicker(100 * time.Millisecond)
-	defer ticker.Stop()
+	// fetchTicker starts at 100ms to rapidly backfill blocks
+	fetchTicker := time.NewTicker(100 * time.Millisecond)
+	defer fetchTicker.Stop()
 
 	for {
 		select {
@@ -145,12 +109,12 @@ func (t *RPCFinder) Run(ctx context.Context) {
 			t.log.Info("finder closed")
 			close(t.inbox)
 			return
-		case <-ticker.C:
+		case <-fetchTicker.C:
 			blockInfo, receipts, err := t.client.FetchReceiptsByNumber(ctx, t.next)
 			if errors.Is(err, ethereum.NotFound) {
 				t.log.Debug("block not found", "block", t.next)
 				// once a block is not found, increase the poll interval to the configured value
-				ticker = time.NewTicker(t.pollInterval)
+				fetchTicker.Reset(t.pollInterval)
 				continue
 			} else if err != nil {
 				t.log.Error("error getting block", "error", err)
