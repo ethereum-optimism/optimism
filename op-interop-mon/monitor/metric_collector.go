@@ -1,17 +1,70 @@
 package monitor
 
 import (
+	"time"
+
+	"github.com/ethereum-optimism/optimism/op-interop-mon/metrics"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/log"
 )
 
-// ConsolidateMetrics scans the jobMap and updates the metrics
-func (m *Maintainer) ConsolidateMetrics() {
-	jobMap := map[JobID]*Job{}
-	m.updaters.Range(func(chainID eth.ChainID, updater Updater) bool {
-		jobMap = updater.CollectForMetrics(jobMap)
+type MetricCollector struct {
+	updaters map[eth.ChainID]Updater
+
+	closed chan struct{}
+	log    log.Logger
+	m      metrics.Metricer
+}
+
+func NewMetricCollector(log log.Logger, m metrics.Metricer, updaters map[eth.ChainID]Updater) *MetricCollector {
+	return &MetricCollector{
+		log:      log,
+		m:        m,
+		updaters: updaters,
+	}
+}
+
+func (m *MetricCollector) Start() error {
+	go m.Run()
+	return nil
+}
+
+func (m *MetricCollector) Stopped() bool {
+	select {
+	case <-m.closed:
 		return true
-	})
+	default:
+		return false
+	}
+}
+
+// Run is the main loop for the maintainer
+func (m *MetricCollector) Run() {
+	// set up a ticker to run every 1s
+	ticker := time.NewTicker(1 * time.Second)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-m.closed:
+			return
+		case <-ticker.C:
+			m.CollectMetrics()
+		}
+	}
+}
+
+func (m *MetricCollector) Stop() error {
+	close(m.closed)
+	return nil
+}
+
+// CollectMetrics scans the jobMaps, consolidates them, and updates the metrics
+func (m *MetricCollector) CollectMetrics() {
+	jobMap := map[JobID]*Job{}
+	for _, updater := range m.updaters {
+		jobMap = updater.CollectForMetrics(jobMap)
+	}
 	// message metrics are dimensioned by:
 	// - initiating chain id
 	// - block number

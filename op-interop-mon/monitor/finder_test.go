@@ -63,13 +63,13 @@ func mockReceiptsToCases(receipts []*types.Receipt) []*Job {
 func mockCallback(job *Job) {
 }
 
-func mockExpiryCallback(chainID eth.ChainID, block eth.BlockInfo) {
+func mockFinalizedCallback(chainID eth.ChainID, block eth.BlockInfo) {
 }
 
 func TestRPCFinder_StartStop(t *testing.T) {
 	client := &mockFinderClient{}
 	logger := testlog.Logger(t, slog.LevelDebug)
-	finder := NewFinder(eth.ChainIDFromUInt64(1), client, mockReceiptsToCases, mockCallback, mockExpiryCallback, logger)
+	finder := NewFinder(eth.ChainIDFromUInt64(1), client, mockReceiptsToCases, mockCallback, mockFinalizedCallback, logger)
 
 	require.NoError(t, finder.Start(context.Background()))
 	require.NoError(t, finder.Stop())
@@ -99,7 +99,7 @@ func TestRPCFinder_processBlock(t *testing.T) {
 		callbackInvocations++
 	}
 
-	finder := NewFinder(eth.ChainIDFromUInt64(1), client, fakeReceiptsToCases, callback, mockExpiryCallback, logger)
+	finder := NewFinder(eth.ChainIDFromUInt64(1), client, fakeReceiptsToCases, callback, mockFinalizedCallback, logger)
 
 	receipts := []*types.Receipt{
 		{
@@ -169,7 +169,7 @@ func TestRPCFinder_walkback(t *testing.T) {
 
 	logger := testlog.Logger(t, slog.LevelDebug)
 
-	finder := NewFinder(eth.ChainIDFromUInt64(1), client, mockReceiptsToCases, mockCallback, mockExpiryCallback, logger)
+	finder := NewFinder(eth.ChainIDFromUInt64(1), client, mockReceiptsToCases, mockCallback, mockFinalizedCallback, logger)
 
 	finder.seenBlocks.Add(a0)
 	finder.seenBlocks.Add(a1)
@@ -187,4 +187,26 @@ func TestRPCFinder_walkback(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, uint64(1), finder.next)
 	require.Equal(t, a0, finder.seenBlocks.Peek())
+}
+
+func TestRPCFinder_finality(t *testing.T) {
+	client := &mockFinderClient{}
+	client.infoByLabel = func(ctx context.Context, label eth.BlockLabel) (eth.BlockInfo, error) {
+		if label == eth.Finalized {
+			return eth.HeaderBlockInfo(&types.Header{
+				Number: big.NewInt(99),
+			}), nil
+		}
+		return nil, ethereum.NotFound
+	}
+
+	// confirm the callback is called with the correct chain and block
+	testFinalizedCallback := func(chainID eth.ChainID, block eth.BlockInfo) {
+		require.Equal(t, eth.ChainIDFromUInt64(1), chainID)
+		require.Equal(t, uint64(99), block.NumberU64())
+	}
+	logger := testlog.Logger(t, slog.LevelDebug)
+	finder := NewFinder(eth.ChainIDFromUInt64(1), client, mockReceiptsToCases, mockCallback, testFinalizedCallback, logger)
+
+	finder.checkFinality(context.Background())
 }

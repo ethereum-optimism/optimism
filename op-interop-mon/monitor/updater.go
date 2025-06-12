@@ -53,10 +53,11 @@ type RPCUpdater struct {
 
 func NewUpdater(chainID eth.ChainID, client UpdaterClient, expiry *locks.RWMap[eth.ChainID, eth.BlockInfo], log log.Logger) *RPCUpdater {
 	return &RPCUpdater{
-		chainID:    chainID,
-		client:     client,
-		log:        log.New("component", "rpc_updater", "chain_id", chainID),
-		inbox:      make(chan *Job, 10_000),
+		chainID: chainID,
+		client:  client,
+		log:     log.New("component", "rpc_updater", "chain_id", chainID),
+		// inbox depth is set very deep to allow spikes in job creation plus generous buffer
+		inbox:      make(chan *Job, 100_000),
 		closed:     make(chan struct{}),
 		expireTime: 2 * time.Minute,
 		expiry:     expiry,
