@@ -13,42 +13,43 @@ func TestBlockBuffer(t *testing.T) {
 	three := ptr(3)
 	four := ptr(4)
 
-	f := NewRing[*int](3)
+	r := NewRing[*int](3)
 
 	// nil<-nil<-[nil]
-	require.Equal(t, 3, f.Len())
-	require.Equal(t, nilint, f.Peek())
+	require.Equal(t, 3, r.Len())
+	require.Equal(t, nilint, r.Peek())
 
-	f.Add(one)
+	r.Add(one)
 	// nil<-nil<-[ 1 ]
-	require.Equal(t, one, f.Peek())
+	require.Equal(t, one, r.Peek())
 
-	f.Add(two)
+	r.Add(two)
 	// nil<-1<-[ 2 ]
-	require.Equal(t, two, f.Peek())
+	require.Equal(t, two, r.Peek())
 
-	f.Add(three)
+	r.Add(three)
 	//  1<-2<-[ 3 ]
-	require.Equal(t, three, f.Peek())
+	require.Equal(t, three, r.Peek())
 
-	f.Add(four)
+	r.Add(four)
 	//  2<-3<-[ 4 ]
-	require.Equal(t, four, f.Peek())
+	require.Equal(t, four, r.Peek())
 
-	p := f.Pop()
+	p := r.Pop()
 	// nil<-2<-[ 3 ]
 	require.Equal(t, four, p)
-	require.Equal(t, three, f.Peek())
+	require.Equal(t, three, r.Peek())
 
-	p = f.Pop()
+	p = r.Pop()
 	// nil<-nil<-[ 2 ]
 	require.Equal(t, three, p)
-	require.Equal(t, two, f.Peek())
+	require.Equal(t, two, r.Peek())
 
-	f.Reset()
+	r.Reset()
 	// nil<-nil<-[nil]
-	require.Equal(t, 3, f.Len())
-	require.Equal(t, nilint, f.Peek())
+	require.Equal(t, 3, r.Len())
+	require.Equal(t, nilint, r.Peek())
+
 }
 
 func ptr(i int) *int {
