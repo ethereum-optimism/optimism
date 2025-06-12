@@ -1,6 +1,7 @@
 package log
 
 import (
+	"flag"
 	"fmt"
 	"io"
 	"log/slog"
@@ -251,4 +252,42 @@ func ReadCLIConfig(ctx *cli.Context) CLIConfig {
 	}
 	cfg.Pid = ctx.Bool(PidFlagName)
 	return cfg
+}
+
+func ReadTestCLIConfig() CLIConfig {
+	cfg := DefaultCLIConfig()
+	cfg.Level = log.LevelTrace // Overriding this default with a new default for tests
+
+	flLevel := flag.String(LevelFlagName, "info", "Lowest log level that will be output")
+	flFormat := flag.String(FormatFlagName, "text", "Log format: text|terminal|logfmt|json|json-pretty")
+	flColor := flag.Bool(ColorFlagName, true, "Color the log output if in terminal mode: true|false")
+	flPID := flag.Bool(PidFlagName, false, "Show pid in the log")
+
+	flag.Parse()
+
+	if v := os.Getenv("LOG_LEVEL"); v != "" {
+		*flLevel = v
+	}
+	if v := os.Getenv("LOG_FORMAT"); v != "" {
+		*flFormat = v
+	}
+	if v := os.Getenv("LOG_COLOR"); v != "" {
+		*flColor = v == "true"
+	}
+	if v := os.Getenv("LOG_PID"); v != "" {
+		*flPID = v == "true"
+	}
+
+	lvl, err := LevelFromString(*flLevel)
+	if err != nil {
+		panic(err)
+	}
+	cfg.Level = lvl
+
+	cfg.Format = FormatType(*flFormat)
+	cfg.Color = *flColor
+	cfg.Pid = *flPID
+
+	return cfg
+
 }

@@ -67,6 +67,24 @@ This should allow you to tweak your test in a tight loop while the test subject 
 - `acceptance-tests.yaml`: Defines the validation gates and the suites and tests that should be run for each gate.
 - `justfile`: Contains the commands for running the acceptance tests.
 
+### Logging Configuration
+
+When invoked with `go test`, devstack acceptance tests support configuring logging via CLI flags and environment variables. The following options are available:
+
+* `--log.level LEVEL` (env: `LOG_LEVEL`): Sets the minimum log level. Supported levels: `trace`, `debug`, `info`, `warn`, `error`, `crit`. Default: `trace`.
+* `--log.format FORMAT` (env: `LOG_FORMAT`): Chooses the log output format. Supported formats: `text`, `terminal`, `logfmt`, `json`, `json-pretty`. Default: `text`.
+* `--log.color` (env: `LOG_COLOR`): Enables colored output in terminal mode. Default: `true` if STDOUT is a TTY.
+* `--log.pid` (env: `LOG_PID`): Includes the process ID in each log entry. Default: `false`.
+
+Environment variables override CLI flags. For example:
+```bash
+# Override log level via flag
+go test -v ./op-acceptance-tests/tests/interop/sync/multisupervisor_interop/... -run TestL2CLAheadOfSupervisor -log.format=json | logdy
+
+# Override via env var
+LOG_LEVEL=info go test -v ./op-acceptance-tests/tests/interop/sync/multisupervisor_interop/... -run TestL2CLAheadOfSupervisor
+```
+
 ## Adding New Tests
 
 To add new acceptance tests:

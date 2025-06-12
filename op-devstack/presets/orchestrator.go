@@ -55,18 +55,14 @@ func DoMain(m *testing.M, opts ...stack.CommonOption) {
 			}
 		}()
 
-		// This may be tuned with test setup code, to customize test output
-		logHandler := oplog.NewLogHandler(os.Stdout, oplog.CLIConfig{
-			Level:  log.LevelTrace,
-			Color:  true,
-			Format: oplog.FormatTerminal,
-			Pid:    false,
-		})
+		cfg := oplog.ReadTestCLIConfig()
+		logHandler := oplog.NewLogHandler(os.Stdout, cfg)
 		logHandler = logfilter.WrapFilterHandler(logHandler)
 		logHandler.(logfilter.FilterHandler).Set(logfilter.DefaultMute(logfilter.Level(log.LevelInfo).Show()))
 		logHandler = logfilter.WrapContextHandler(logHandler)
 		// The default can be changed using the WithLogFilters option which replaces this default
 		logger := log.NewLogger(logHandler)
+		oplog.SetGlobalLogHandler(logHandler)
 
 		ctx, otelShutdown, err := telemetry.SetupOpenTelemetry(context.Background())
 		if err != nil {
