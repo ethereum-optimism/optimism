@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ethereum-optimism/optimism/devnet-sdk/contracts/constants"
 	"github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/interop"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
@@ -238,4 +239,143 @@ func TestRandomDirectedGraph(gt *testing.T) {
 		})
 	}
 	require.NoError(g.Wait())
+}
+
+// TestInitExecMultipleMsg tests below scenario:
+// Transaction initiates and executes multiple messages of self
+func TestInitExecMultipleMsg(gt *testing.T) {
+	t := devtest.SerialT(gt)
+	sys := presets.NewSimpleInterop(t)
+	require := sys.T.Require()
+	logger := t.Logger()
+
+	rng := rand.New(rand.NewSource(1234))
+	alice, bob := sys.FunderA.NewFundedEOA(eth.OneEther), sys.FunderB.NewFundedEOA(eth.OneEther)
+
+	eventLoggerAddress := alice.DeployEventLogger()
+	// Intent to initiate two message(or emit event) on chain A
+	initCalls := []txintent.Call{
+		interop.RandomInitTrigger(rng, eventLoggerAddress, 1, 15),
+		interop.RandomInitTrigger(rng, eventLoggerAddress, 2, 13),
+	}
+	txA := txintent.NewIntent[*txintent.MultiTrigger, *txintent.InteropOutput](alice.Plan())
+	txA.Content.Set(&txintent.MultiTrigger{Emitter: constants.MultiCall3, Calls: initCalls})
+
+	// Trigger two events
+	receiptA, err := txA.PlannedTx.Included.Eval(t.Ctx())
+	require.NoError(err)
+	logger.Info("initiate messages included", "block", receiptA.BlockHash)
+	require.Equal(2, len(receiptA.Logs))
+
+	// Make sure supervisor syncs the chain A events
+	sys.Supervisor.WaitForUnsafeHeadToAdvance(alice.ChainID(), 2)
+
+	// Intent to validate messages on chain B
+	txB := txintent.NewIntent[*txintent.MultiTrigger, *txintent.InteropOutput](bob.Plan())
+	txB.Content.DependOn(&txA.Result)
+
+	// Two events in tx so use every index
+	indexes := []int{0, 1}
+	txB.Content.Fn(txintent.ExecuteIndexeds(constants.MultiCall3, constants.CrossL2Inbox, &txA.Result, indexes))
+
+	receiptB, err := txB.PlannedTx.Included.Eval(t.Ctx())
+	require.NoError(err)
+	logger.Info("validate messages included", "block", receiptB.BlockHash)
+
+	// Check two ExecutingMessage triggered
+	require.Equal(2, len(receiptB.Logs))
+}
+
+// TestExecSameMsgTwice tests below scenario:
+// Transaction that executes the same message twice.
+func TestExecSameMsgTwice(gt *testing.T) {
+	t := devtest.SerialT(gt)
+	sys := presets.NewSimpleInterop(t)
+	require := sys.T.Require()
+	logger := t.Logger()
+
+	rng := rand.New(rand.NewSource(1234))
+	alice, bob := sys.FunderA.NewFundedEOA(eth.OneEther), sys.FunderB.NewFundedEOA(eth.OneEther)
+
+	eventLoggerAddress := alice.DeployEventLogger()
+
+	// Intent to initiate message(or emit event) on chain A
+	txA := txintent.NewIntent[*txintent.InitTrigger, *txintent.InteropOutput](alice.Plan())
+	randomInitTrigger := interop.RandomInitTrigger(rng, eventLoggerAddress, 3, 10)
+	txA.Content.Set(randomInitTrigger)
+
+	// Trigger single event
+	receiptA, err := txA.PlannedTx.Included.Eval(t.Ctx())
+	require.NoError(err)
+	logger.Info("initiate message included", "block", receiptA.BlockHash)
+
+	// Make sure supervisor syncs the chain A events
+	sys.Supervisor.WaitForUnsafeHeadToAdvance(alice.ChainID(), 2)
+
+	// Intent to validate same message two times on chain B
+	txB := txintent.NewIntent[*txintent.MultiTrigger, *txintent.InteropOutput](bob.Plan())
+	txB.Content.DependOn(&txA.Result)
+
+	// Single event in tx so indexes are 0, 0
+	indexes := []int{0, 0}
+	txB.Content.Fn(txintent.ExecuteIndexeds(constants.MultiCall3, constants.CrossL2Inbox, &txA.Result, indexes))
+
+	receiptB, err := txB.PlannedTx.Included.Eval(t.Ctx())
+	require.NoError(err)
+	logger.Info("validate messages included", "block", receiptB.BlockHash)
+
+	// Check two ExecutingMessage triggered
+	require.Equal(2, len(receiptB.Logs))
+	// Check two messages are identical
+	require.Equal(receiptB.Logs[0].Topics, receiptB.Logs[1].Topics)
+}
+
+// TestExecDifferentTopicCount tests below scenario:
+// Execute message that links with initiating message with: 0, 1, 2, 3, or 4 topics in it
+func TestExecDifferentTopicCount(gt *testing.T) {
+	t := devtest.SerialT(gt)
+	sys := presets.NewSimpleInterop(t)
+	require := sys.T.Require()
+	logger := t.Logger()
+
+	rng := rand.New(rand.NewSource(1234))
+	alice, bob := sys.FunderA.NewFundedEOA(eth.OneEther), sys.FunderB.NewFundedEOA(eth.OneEther)
+
+	eventLoggerAddress := alice.DeployEventLogger()
+
+	// Intent to initiate message with different topic counts on chain A
+	initCalls := make([]txintent.Call, 5)
+	for topicCnt := range 5 {
+		initCalls[topicCnt] = interop.RandomInitTrigger(rng, eventLoggerAddress, topicCnt, 10)
+	}
+	txA := txintent.NewIntent[*txintent.MultiTrigger, *txintent.InteropOutput](alice.Plan())
+	txA.Content.Set(&txintent.MultiTrigger{Emitter: constants.MultiCall3, Calls: initCalls})
+
+	// Trigger five events, each have {0, 1, 2, 3, 4} topics in it
+	receiptA, err := txA.PlannedTx.Included.Eval(t.Ctx())
+	require.NoError(err)
+	logger.Info("initiate messages included", "block", receiptA.BlockHash)
+	require.Equal(5, len(receiptA.Logs))
+
+	for topicCnt := range 5 {
+		require.Equal(topicCnt, len(receiptA.Logs[topicCnt].Topics))
+	}
+
+	// Make sure supervisor syncs the chain A events
+	sys.Supervisor.WaitForUnsafeHeadToAdvance(alice.ChainID(), 2)
+
+	// Intent to validate message on chain B
+	txB := txintent.NewIntent[*txintent.MultiTrigger, *txintent.InteropOutput](bob.Plan())
+	txB.Content.DependOn(&txA.Result)
+
+	// Five events in tx so use every index
+	indexes := []int{0, 1, 2, 3, 4}
+	txB.Content.Fn(txintent.ExecuteIndexeds(constants.MultiCall3, constants.CrossL2Inbox, &txA.Result, indexes))
+
+	receiptB, err := txB.PlannedTx.Included.Eval(t.Ctx())
+	require.NoError(err)
+	logger.Info("validate message included", "block", receiptB.BlockHash)
+
+	// Check five ExecutingMessage triggered
+	require.Equal(5, len(receiptB.Logs))
 }
