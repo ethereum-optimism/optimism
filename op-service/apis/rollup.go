@@ -16,7 +16,7 @@ type RollupConfig interface {
 }
 
 type DependencySetConfig interface {
-	DependencySet(ctx context.Context) (depset.DependencySet, error)
+	DependencySetV1(ctx context.Context) (depset.DependencySet, error)
 }
 
 type RollupSyncStatus interface {

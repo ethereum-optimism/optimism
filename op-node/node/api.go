@@ -167,7 +167,7 @@ func (n *nodeAPI) RollupConfig(_ context.Context) (*rollup.Config, error) {
 	return n.config, nil
 }
 
-func (n *nodeAPI) DependencySet(_ context.Context) (depset.DependencySet, error) {
+func (n *nodeAPI) DependencySetV1(_ context.Context) (depset.DependencySet, error) {
 	if n.depSet != nil {
 		return n.depSet, nil
 	}

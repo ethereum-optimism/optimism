@@ -66,7 +66,7 @@ func (c *Config) Start(ctx context.Context, id seqtypes.BuilderID, opts *work.Se
 	if cfg.InteropTime != nil {
 		depSet, err = retry.Do(ctx, 10, retry.Exponential(), func() (depset.DependencySet, error) {
 			opts.Log.Info("Fetching dependency set for block-building")
-			depSet, err := rolCl.DependencySet(ctx)
+			depSet, err := rolCl.DependencySetV1(ctx)
 			if err != nil {
 				opts.Log.Warn("Failed to fetch dependency set", "err", err)
 			}

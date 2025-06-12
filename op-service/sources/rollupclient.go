@@ -53,9 +53,9 @@ func (r *RollupClient) RollupConfig(ctx context.Context) (*rollup.Config, error)
 	return output, err
 }
 
-func (r *RollupClient) DependencySet(ctx context.Context) (depset.DependencySet, error) {
+func (r *RollupClient) DependencySetV1(ctx context.Context) (depset.DependencySet, error) {
 	var output *depset.StaticConfigDependencySet
-	err := r.rpc.CallContext(ctx, &output, "optimism_dependencySet")
+	err := r.rpc.CallContext(ctx, &output, "optimism_dependencySetV1")
 	return output, err
 }
 

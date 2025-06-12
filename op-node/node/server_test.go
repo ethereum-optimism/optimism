@@ -184,7 +184,7 @@ func TestDependencySet(t *testing.T) {
 	assert.NoError(t, err)
 
 	var out depset.StaticConfigDependencySet
-	err = client.CallContext(context.Background(), &out, "optimism_dependencySet")
+	err = client.CallContext(context.Background(), &out, "optimism_dependencySetV1")
 	assert.NoError(t, err)
 	assert.Equal(t, depSet, &out)
 }
