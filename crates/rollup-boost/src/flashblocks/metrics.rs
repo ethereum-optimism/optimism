@@ -1,7 +1,7 @@
 use metrics::{Counter, Gauge};
 use metrics_derive::Metrics;
 
-#[derive(Metrics)]
+#[derive(Metrics, Clone)]
 #[metrics(scope = "flashblocks.ws_inbound")]
 pub struct FlashblocksWsInboundMetrics {
     /// Total number of WebSocket reconnection attempts
