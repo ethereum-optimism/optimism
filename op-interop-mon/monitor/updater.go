@@ -81,12 +81,10 @@ func (t *RPCUpdater) Run(ctx context.Context) {
 		case job := <-t.inbox:
 			t.log.Trace("received job", "job", job.String())
 			t.jobs.Store(job.ID(), job)
-			continue
 		case <-processTicker.C:
 			t.log.Trace("processing jobs")
 			t.processJobs()
 			t.log.Trace("processed jobs done")
-			continue
 		}
 	}
 }
@@ -135,7 +133,7 @@ func (t *RPCUpdater) expireJobs(ids []JobID) {
 }
 
 // ShouldExpire returns true if the job should be expired
-// jobs shuould only be expired with *both components* exist in finalized blocks. That is:
+// jobs should only be expired when *both components* exist in finalized blocks. That is:
 // - the initiating block is finalized
 // - the executing block is finalized
 // Before this point, the job status could change if a reorg affects either the initiating or executing block.

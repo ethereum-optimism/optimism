@@ -39,8 +39,8 @@ type JobFilter func(receipts []*types.Receipt) []*Job
 // NewCallback is a function to be called when a new job is created
 type NewCallback func(*Job)
 
-// ExpiryCallback is a function to be called when the expiry of jobs for this chain is updated
-type ExpiryCallback func(chainID eth.ChainID, block eth.BlockInfo)
+// FinalityCallback is a function to be called when the finality of jobs for this chain is updated
+type FinalityCallback func(chainID eth.ChainID, block eth.BlockInfo)
 
 // FinderClient is a client that can be used to find new blocks and their receipts
 // it is satisfied by the ethclient.Client type
@@ -64,8 +64,8 @@ type RPCFinder struct {
 	client  FinderClient
 	log     log.Logger
 
-	expiryPollInterval time.Duration
-	expiryCallback     ExpiryCallback
+	finalityPollInterval time.Duration
+	finalityCallback     FinalityCallback
 
 	fetchInterval time.Duration
 	next          uint64
@@ -76,18 +76,18 @@ type RPCFinder struct {
 	closed chan struct{}
 }
 
-func NewFinder(chainID eth.ChainID, client FinderClient, toCases JobFilter, newCallback NewCallback, expiryCallback ExpiryCallback, log log.Logger) *RPCFinder {
+func NewFinder(chainID eth.ChainID, client FinderClient, toCases JobFilter, newCallback NewCallback, finalityCallback FinalityCallback, log log.Logger) *RPCFinder {
 	return &RPCFinder{
-		chainID:            chainID,
-		client:             client,
-		log:                log.New("component", "rpc_finder", "chain_id", chainID),
-		fetchInterval:      2 * time.Second,
-		seenBlocks:         NewBlockBuffer(1000),
-		toJobs:             toCases,
-		newCallback:        newCallback,
-		expiryPollInterval: 10 * time.Second,
-		expiryCallback:     expiryCallback,
-		closed:             make(chan struct{}),
+		chainID:              chainID,
+		client:               client,
+		log:                  log.New("component", "rpc_finder", "chain_id", chainID),
+		fetchInterval:        2 * time.Second,
+		seenBlocks:           NewBlockBuffer(1000),
+		toJobs:               toCases,
+		newCallback:          newCallback,
+		finalityPollInterval: 10 * time.Second,
+		finalityCallback:     finalityCallback,
+		closed:               make(chan struct{}),
 	}
 }
 
@@ -108,9 +108,9 @@ func (t *RPCFinder) Run(ctx context.Context) {
 	// fetchTicker starts at 100ms to rapidly backfill blocks
 	fetchTicker := time.NewTicker(100 * time.Millisecond)
 	defer fetchTicker.Stop()
-	// expiryTicker tracks finalized L2 blocks of this chain
-	expiryTicker := time.NewTicker(t.expiryPollInterval)
-	defer expiryTicker.Stop()
+	// finalityTicker tracks finalized L2 blocks of this chain
+	finalityTicker := time.NewTicker(t.finalityPollInterval)
+	defer finalityTicker.Stop()
 
 	for {
 		select {
@@ -139,21 +139,21 @@ func (t *RPCFinder) Run(ctx context.Context) {
 				t.log.Error("error processing block", "error", err)
 				continue
 			}
-		case <-expiryTicker.C:
-			t.checkExpiry(ctx)
+		case <-finalityTicker.C:
+			t.checkFinality(ctx)
 		}
 	}
 }
 
-// checkExpiry checks the latest finalized block on the L2 chain
-// and updates the expiry callback
-func (t *RPCFinder) checkExpiry(ctx context.Context) {
+// checkFinality checks the latest finalized block on the L2 chain
+// and updates the finality callback
+func (t *RPCFinder) checkFinality(ctx context.Context) {
 	blockInfo, err := t.client.InfoByLabel(ctx, eth.Finalized)
 	if err != nil {
 		t.log.Error("error getting finalized block", "error", err)
 		return
 	}
-	t.expiryCallback(t.chainID, blockInfo)
+	t.finalityCallback(t.chainID, blockInfo)
 }
 
 var ErrBlockNotContiguous = errors.New("blocks are not contiguous")
