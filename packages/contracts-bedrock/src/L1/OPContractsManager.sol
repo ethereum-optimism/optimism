@@ -1637,7 +1637,7 @@ contract OPContractsManager is ISemver {
     // -------- Events --------
 
     /// @notice Emitted when the OPCM setRC function is called.
-    event Released();
+    event Released(bool _isRC);
 
     // -------- Structs --------
 
@@ -1954,7 +1954,7 @@ contract OPContractsManager is ISemver {
         if (msg.sender != upgradeController) revert OnlyUpgradeController();
         isRC = _isRC;
 
-        emit Released();
+        emit Released(_isRC);
     }
 
     /// @notice Helper function to perform a delegatecall to a target contract

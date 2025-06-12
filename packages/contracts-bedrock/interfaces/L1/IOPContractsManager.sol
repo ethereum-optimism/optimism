@@ -118,7 +118,7 @@ interface IOPContractsManager {
     // -------- Events --------
 
     /// @notice Emitted when the OPCM setRC function is called.
-    event Released();
+    event Released(bool _isRC);
 
     // -------- Structs --------
 
