@@ -17,10 +17,12 @@ type MinimalWithConductors struct {
 	ConductorSets map[stack.L2NetworkID]dsl.ConductorSet
 }
 
-// TODO: shift this to a different sysgo constructor once the sysgo implementation supports conductors
+// TODO(#16418): shift this to a different sysgo constructor once the sysgo implementation supports conductors
 func WithMinimalWithConductors() stack.CommonOption {
 	return stack.Combine(
 		stack.MakeCommon(sysgo.DefaultMinimalSystem(&sysgo.DefaultMinimalSystemIDs{})),
+		// TODO(#15152): add kurtosis support
+		// TODO(#16418) add sysgo support
 		WithCompatibleTypes(compat.Persistent),
 	)
 }

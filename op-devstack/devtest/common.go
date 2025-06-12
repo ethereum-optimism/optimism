@@ -22,6 +22,7 @@ type CommonT interface {
 	Errorf(format string, args ...any)
 	Fail()
 	FailNow()
+	SkipNow()
 
 	TempDir() string
 	Cleanup(fn func())

@@ -55,6 +55,8 @@ type implP struct {
 	// The failure is intended to be critical if now==true.
 	// The implementer can choose to panic, crit-log, exit, etc. as preferred.
 	onFail func(now bool)
+	// onSkipNow will be called to skip the test immediately.
+	onSkipNow func()
 
 	ctx    context.Context
 	cancel context.CancelFunc
@@ -84,6 +86,10 @@ func (t *implP) Fail() {
 
 func (t *implP) FailNow() {
 	t.onFail(true)
+}
+
+func (t *implP) SkipNow() {
+	t.onSkipNow()
 }
 
 func (t *implP) TempDir() string {
@@ -212,12 +218,13 @@ func (t *implP) _PackageOnly() {
 	panic("do not use - this method only forces the interface to be unique")
 }
 
-func NewP(ctx context.Context, logger log.Logger, onFail func(now bool)) P {
+func NewP(ctx context.Context, logger log.Logger, onFail func(now bool), onSkipNow func()) P {
 	ctx, cancel := context.WithCancel(ctx)
 	out := &implP{
 		scopeName: "pkg",
 		logger:    logger,
 		onFail:    onFail,
+		onSkipNow: onSkipNow,
 		ctx:       AddTestScope(ctx, "pkg"),
 		cancel:    cancel,
 	}
