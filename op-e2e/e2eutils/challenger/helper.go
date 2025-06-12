@@ -121,22 +121,22 @@ func handleOptError(t *testing.T, opt shared.Option) Option {
 }
 func WithCannon(t *testing.T, system System) Option {
 	return func(c *config.Config) {
-		handleOptError(t, shared.WithCannonConfig(system.RollupCfgs(), system.L2Geneses(), system.PrestateVariant()))
-		handleOptError(t, shared.WithCannonTraceType())
+		handleOptError(t, shared.WithCannonConfig(system.RollupCfgs(), system.L2Geneses(), system.PrestateVariant()))(c)
+		handleOptError(t, shared.WithCannonTraceType())(c)
 	}
 }
 
 func WithPermissioned(t *testing.T, system System) Option {
 	return func(c *config.Config) {
-		handleOptError(t, shared.WithCannonConfig(system.RollupCfgs(), system.L2Geneses(), system.PrestateVariant()))
-		handleOptError(t, shared.WithPermissionedTraceType())
+		handleOptError(t, shared.WithCannonConfig(system.RollupCfgs(), system.L2Geneses(), system.PrestateVariant()))(c)
+		handleOptError(t, shared.WithPermissionedTraceType())(c)
 	}
 }
 
 func WithSuperCannon(t *testing.T, system System) Option {
 	return func(c *config.Config) {
-		handleOptError(t, shared.WithCannonConfig(system.RollupCfgs(), system.L2Geneses(), system.PrestateVariant()))
-		handleOptError(t, shared.WithSuperCannonTraceType())
+		handleOptError(t, shared.WithCannonConfig(system.RollupCfgs(), system.L2Geneses(), system.PrestateVariant()))(c)
+		handleOptError(t, shared.WithSuperCannonTraceType())(c)
 	}
 }
 
