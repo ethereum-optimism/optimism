@@ -81,7 +81,7 @@ func createGameInputsSingle(ctx context.Context, log log.Logger, client *sources
 func createGameInputsInterop(ctx context.Context, log log.Logger, client *sources.SupervisorClient, typeName string) (utils.LocalGameInputs, error) {
 	status, err := client.SyncStatus(ctx)
 	if err != nil {
-		return utils.LocalGameInputs{}, fmt.Errorf("failed to get rollup sync status: %w", err)
+		return utils.LocalGameInputs{}, fmt.Errorf("failed to get supervisor sync status: %w", err)
 	}
 	log.Info("Got sync status", "status", status, "type", typeName)
 
