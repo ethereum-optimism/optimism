@@ -5,6 +5,7 @@ import (
 	"errors"
 	"time"
 
+	"github.com/ethereum-optimism/optimism/op-service/buffer"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/sources"
 	"github.com/ethereum/go-ethereum"
@@ -49,7 +50,7 @@ type RPCFinder struct {
 	log      log.Logger
 
 	next       uint64
-	seenBlocks *RingBuffer[eth.BlockInfo]
+	seenBlocks *buffer.Ring[eth.BlockInfo]
 }
 
 func NewFinder(chainID eth.ChainID, client FinderClient, toCases JobFilter, callback func(*Job), log log.Logger) *RPCFinder {
@@ -63,7 +64,7 @@ func NewFinder(chainID eth.ChainID, client FinderClient, toCases JobFilter, call
 		callback:           callback,
 		pollInterval:       2 * time.Second,
 		expiryPollInterval: 10 * time.Second,
-		seenBlocks:         NewRingBuffer[eth.BlockInfo](1000),
+		seenBlocks:         buffer.NewRing[eth.BlockInfo](1000),
 	}
 }
 
