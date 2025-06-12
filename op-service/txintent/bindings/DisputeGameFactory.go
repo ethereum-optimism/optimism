@@ -6,14 +6,6 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 )
 
-type DisputeGameFactoryCallFactory struct {
-	BaseCallFactory
-}
-
-func NewDisputeGameFactory(opts ...CallFactoryOption) *DisputeGameFactoryCallFactory {
-	return &DisputeGameFactoryCallFactory{BaseCallFactory: *NewBaseCallFactory(opts...)}
-}
-
 type GameSearchResult struct {
 	Index     *big.Int
 	Metadata  [32]byte
@@ -22,9 +14,7 @@ type GameSearchResult struct {
 	ExtraData []byte
 }
 
-type DisputeGame struct {
-	DisputeGameFactoryCallFactory
-
+type DisputeGameFactory struct {
 	// Read-only functions
 	GameCount   func() TypedCall[*big.Int] `sol:"gameCount"`
 	GameAtIndex func(index *big.Int) TypedCall[struct {
@@ -50,10 +40,4 @@ type DisputeGame struct {
 	SetImplementation func(gameType uint32, impl common.Address) TypedCall[any]                             `sol:"setImplementation"`
 	SetInitBond       func(gameType uint32, initBond *big.Int) TypedCall[any]                               `sol:"setInitBond"`
 	TransferOwnership func(newOwner common.Address) TypedCall[any]                                          `sol:"transferOwnership"`
-}
-
-func NewDisputeGame(f *DisputeGameFactoryCallFactory) *DisputeGame {
-	disputegame := DisputeGame{DisputeGameFactoryCallFactory: *f}
-	InitImpl(&disputegame)
-	return &disputegame
 }

@@ -27,11 +27,8 @@ func TestWithdrawal(gt *testing.T) {
 
 	// initialize contract bindings
 	optimismPortalAddr := sys.L2Chain.Escape().RollupConfig().DepositContractAddress
-	portalFactory := bindings.NewOptimismPortal2Factory(bindings.WithClient(l1Client), bindings.WithTo(optimismPortalAddr), bindings.WithTest(t))
-	portal := bindings.NewOptimismPortal2(portalFactory)
-
-	l2tol1MessagePasserFactory := bindings.NewL2ToL1MessagePasserFactory(bindings.WithClient(l2Client), bindings.WithTo(predeploys.L2ToL1MessagePasserAddr), bindings.WithTest(t))
-	l2tol1MessagePasser := bindings.NewL2ToL1MessagePasser(l2tol1MessagePasserFactory)
+	portal := bindings.NewBindings[bindings.OptimismPortal2](bindings.WithClient(l1Client), bindings.WithTo(optimismPortalAddr), bindings.WithTest(t))
+	l2tol1MessagePasser := bindings.NewBindings[bindings.L2ToL1MessagePasser](bindings.WithClient(l2Client), bindings.WithTo(predeploys.L2ToL1MessagePasserAddr), bindings.WithTest(t))
 
 	// Make sure fast game is set
 	require.Equal(uint32(faultTypes.FastGameType), contract.Read(portal.RespectedGameType()))
@@ -117,10 +114,10 @@ func TestWithdrawal(gt *testing.T) {
 	}
 
 	// Withdrawal STEP 1: Prove Withdrawal at L1
-	withdrawalParams, proveReceipt := ProveWithdrawal(t, portal, sys, l1User, l2WithdrawalReceipt)
+	withdrawalParams, proveReceipt := ProveWithdrawal(t, &portal, optimismPortalAddr, sys, l1User, l2WithdrawalReceipt)
 
 	// Withdrawal STEP 2: Finalize Withdrawal at L2
-	finalizeReceipt, resolveClaimReceipt, resolveReceipt := FinalizeWithdrawal(t, portal, sys, l1User, proveReceipt, withdrawalParams)
+	finalizeReceipt, resolveClaimReceipt, resolveReceipt := FinalizeWithdrawal(t, &portal, sys, l1User, proveReceipt, withdrawalParams)
 
 	// L1 gas fee check for proving and finalizing
 	{

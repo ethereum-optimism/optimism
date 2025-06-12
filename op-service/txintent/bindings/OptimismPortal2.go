@@ -7,14 +7,6 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 )
 
-type OptimismPortal2CallFactory struct {
-	BaseCallFactory
-}
-
-func NewOptimismPortal2Factory(opts ...CallFactoryOption) *OptimismPortal2CallFactory {
-	return &OptimismPortal2CallFactory{BaseCallFactory: *NewBaseCallFactory(opts...)}
-}
-
 type ProvenWithdrawalsResult struct {
 	DisputeGameProxy common.Address
 	Timestamp        uint64
@@ -37,8 +29,6 @@ type OutputRootProof struct {
 }
 
 type OptimismPortal2 struct {
-	OptimismPortal2CallFactory
-
 	// Read-only functions
 	CheckWithdrawal                 func(withdrawalHash [32]byte, proofSubmitter common.Address) TypedCall[any] `sol:"checkWithdrawal"`
 	DisputeGameBlacklist            func(disputeGame common.Address) TypedCall[bool]                            `sol:"disputeGameBlacklist"`
@@ -88,10 +78,4 @@ type OptimismPortal2 struct {
 	ProveWithdrawalTransaction func(tx WithdrawalTransaction, disputeGameIndex *big.Int, outputRootProof OutputRootProof, withdrawalProof [][]byte) TypedCall[any] `sol:"proveWithdrawalTransaction"`
 	SetRespectedGameType       func(gameType uint32) TypedCall[any]                                                                                                `sol:"setRespectedGameType"`
 	Receive                    func() TypedCall[any]                                                                                                               `sol:"receive"`
-}
-
-func NewOptimismPortal2(f *OptimismPortal2CallFactory) *OptimismPortal2 {
-	optimismportal2 := OptimismPortal2{OptimismPortal2CallFactory: *f}
-	InitImpl(&optimismportal2)
-	return &optimismportal2
 }

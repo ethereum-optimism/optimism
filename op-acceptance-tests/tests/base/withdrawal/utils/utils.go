@@ -110,22 +110,18 @@ func FindLatestGame(t devtest.T, l2Chain *dsl.L2Network, l1Client apis.EthClient
 	rollupConfig := l2Chain.Escape().RollupConfig()
 	disputeGameFactoryAddr := l2Chain.Escape().Deployment().DisputeGameFactoryProxyAddr()
 	optimismPortalAddr := rollupConfig.DepositContractAddress
+	portal := bindingsnew.NewBindings[bindingsnew.OptimismPortal2](bindingsnew.WithClient(l1Client), bindingsnew.WithTo(optimismPortalAddr), bindingsnew.WithTest(t))
 
-	portalFactory := bindingsnew.NewOptimismPortal2Factory(bindingsnew.WithClient(l1Client), bindingsnew.WithTo(optimismPortalAddr), bindingsnew.WithTest(t))
-	portal := bindingsnew.NewOptimismPortal2(portalFactory)
-
-	disputeGameFactory := bindingsnew.NewDisputeGameFactory(bindingsnew.WithClient(l1Client), bindingsnew.WithTo(disputeGameFactoryAddr), bindingsnew.WithTest(t))
-	disputeGame := bindingsnew.NewDisputeGame(disputeGameFactory)
-
+	disputeGameFactory := bindingsnew.NewBindings[bindingsnew.DisputeGameFactory](bindingsnew.WithClient(l1Client), bindingsnew.WithTo(disputeGameFactoryAddr), bindingsnew.WithTest(t))
 	respectedGameType := contract.Read(portal.RespectedGameType())
 
-	gameCount := contract.Read(disputeGame.GameCount())
+	gameCount := contract.Read(disputeGameFactory.GameCount())
 	if gameCount.Cmp(common.Big0) == 0 {
 		return bindingsnew.GameSearchResult{}, errors.New("no games")
 	}
 
 	searchStart := new(big.Int).Sub(gameCount, common.Big1)
-	latestGames := contract.Read(disputeGame.FindLatestGames(respectedGameType, searchStart, common.Big1))
+	latestGames := contract.Read(disputeGameFactory.FindLatestGames(respectedGameType, searchStart, common.Big1))
 	if len(latestGames) == 0 {
 		return bindingsnew.GameSearchResult{}, errors.New("no latest games")
 	}

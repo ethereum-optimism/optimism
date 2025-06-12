@@ -45,11 +45,7 @@ func ForGamePublished(t devtest.T, l2Chain *dsl.L2Network, l1Client apis.EthClie
 	return outputBlockNum.Uint64(), nil
 }
 
-func ProveWithdrawal(t devtest.T, portal *bindings.OptimismPortal2, sys *presets.Minimal, l1User *dsl.EOA, l2WithdrawalReceipt *types.Receipt) (withdrawals.ProvenWithdrawalParameters, *types.Receipt) {
-	optimismPortalAddr, err := portal.BaseCall.To()
-	require.NoError(t, err)
-	require.NotNil(t, optimismPortalAddr)
-
+func ProveWithdrawal(t devtest.T, portal *bindings.OptimismPortal2, optimismPortalAddr common.Address, sys *presets.Minimal, l1User *dsl.EOA, l2WithdrawalReceipt *types.Receipt) (withdrawals.ProvenWithdrawalParameters, *types.Receipt) {
 	l1Client := sys.L1EL.Escape().EthClient()
 	l2Client := sys.L2EL.Escape().EthClient()
 
@@ -64,7 +60,7 @@ func ProveWithdrawal(t devtest.T, portal *bindings.OptimismPortal2, sys *presets
 	t.Logf("proveWithdrawal: proving withdrawal...")
 	require.Eventually(t, func() bool {
 		dgfaddr := contract.Read(portal.DisputeGameFactoryAddr())
-		_, err := ForGamePublished(t, sys.L2Networks()[0], l1Client, *optimismPortalAddr, dgfaddr, l2WithdrawalReceipt.BlockNumber)
+		_, err := ForGamePublished(t, sys.L2Networks()[0], l1Client, optimismPortalAddr, dgfaddr, l2WithdrawalReceipt.BlockNumber)
 		require.NoError(t, err)
 		params, err = ProveWithdrawalParameters(t, sys.L2Chain, l1Client, l2Client, l2WithdrawalReceipt)
 		require.NoError(t, err)
