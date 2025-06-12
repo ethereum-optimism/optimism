@@ -13,59 +13,66 @@ func TestBudgetDebit(t *testing.T) {
 	t.Run("successful debit reduces remaining balance", func(t *testing.T) {
 		budget := accounting.NewBudget(eth.Ether(10))
 
-		require.NoError(t, budget.Debit(eth.Ether(3)))
-		require.Equal(t, eth.Ether(7), budget.Balance())
+		balance, err := budget.Debit(eth.Ether(3))
+		require.NoError(t, err)
+		require.Equal(t, eth.Ether(7), balance)
 
-		require.NoError(t, budget.Debit(eth.Ether(2)))
-		require.Equal(t, eth.Ether(5), budget.Balance())
+		balance, err = budget.Debit(eth.Ether(2))
+		require.NoError(t, err)
+		require.Equal(t, eth.Ether(5), balance)
 	})
 
 	t.Run("exact debit empties budget", func(t *testing.T) {
 		budget := accounting.NewBudget(eth.Ether(5))
 
-		err := budget.Debit(eth.Ether(5))
+		balance, err := budget.Debit(eth.Ether(5))
 		require.NoError(t, err)
-		require.Equal(t, eth.ZeroWei, budget.Balance())
+		require.Equal(t, eth.ZeroWei, balance)
 	})
 
 	t.Run("debit with insufficient funds returns error", func(t *testing.T) {
-		budget := accounting.NewBudget(eth.Ether(3))
+		startingBalance := eth.Ether(3)
+		budget := accounting.NewBudget(startingBalance)
 
-		err := budget.Debit(eth.Ether(5))
+		balance, err := budget.Debit(eth.Ether(5))
 		require.Error(t, err)
 
 		var insufficientErr *accounting.OverdraftError
 		require.True(t, errors.As(err, &insufficientErr))
 		require.Equal(t, &accounting.OverdraftError{
-			Remaining: eth.ZeroWei,
+			Remaining: startingBalance,
 			Requested: eth.Ether(5),
 		}, insufficientErr)
-		require.Equal(t, eth.ZeroWei, budget.Balance())
+		require.Equal(t, startingBalance, balance)
 	})
 
 	t.Run("debit from zero budget returns error", func(t *testing.T) {
-		budget := accounting.NewBudget(eth.ZeroWei)
+		startingBalance := eth.ZeroWei
+		budget := accounting.NewBudget(startingBalance)
 
-		err := budget.Debit(eth.OneWei)
+		balance, err := budget.Debit(eth.OneWei)
 		require.Error(t, err)
 
 		var overdraftErr *accounting.OverdraftError
 		require.True(t, errors.As(err, &overdraftErr))
 		require.Equal(t, &accounting.OverdraftError{
-			Remaining: eth.ZeroWei,
+			Remaining: startingBalance,
 			Requested: eth.OneWei,
 		}, overdraftErr)
-		require.Equal(t, eth.ZeroWei, budget.Balance())
+		require.Equal(t, startingBalance, balance)
 	})
 
-	t.Run("multiple overdrafts maintain zero balance", func(t *testing.T) {
-		budget := accounting.NewBudget(eth.Ether(1))
+	t.Run("multiple overdrafts maintain balance", func(t *testing.T) {
+		startingBalance := eth.Ether(1)
+		budget := accounting.NewBudget(startingBalance)
 
-		require.Error(t, budget.Debit(eth.Ether(2)))
-		require.Equal(t, eth.ZeroWei, budget.Balance())
+		balance, err := budget.Debit(startingBalance.Mul(2))
+		require.Error(t, err)
+		require.Equal(t, startingBalance, balance)
 
-		require.Error(t, budget.Debit(eth.OneWei))
-		require.Equal(t, eth.ZeroWei, budget.Balance())
+		balance, err = budget.Debit(startingBalance.Mul(2))
+		require.Error(t, err)
+		require.Equal(t, startingBalance, balance)
 	})
 }
 

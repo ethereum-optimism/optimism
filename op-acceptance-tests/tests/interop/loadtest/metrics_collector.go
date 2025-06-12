@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/txinclude"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
@@ -20,30 +21,23 @@ import (
 const (
 	subsystemName = "interop_loadtest"
 
-	inFlightMessagesName        = "inflight_messages"
 	targetMessagesPerBlockName  = "target_messages_per_block"
 	messageLatencyName          = "message_latency"
 	txSubmissionStatusCountName = "tx_submission_status_count"
 )
 
 var (
-	inFlightMessages = promauto.NewGauge(prometheus.GaugeOpts{
-		Name:      inFlightMessagesName,
-		Subsystem: subsystemName,
-		Help:      "Number of messages currently in flight between L2 chains",
-	})
-
-	targetMessagesPerBlock = promauto.NewGauge(prometheus.GaugeOpts{
+	targetMessagesPerBlock = promauto.NewGaugeVec(prometheus.GaugeOpts{
 		Name:      targetMessagesPerBlockName,
 		Subsystem: subsystemName,
-		Help:      "Current target messages per block from AIMD scheduler",
-	})
+		Help:      "Current target messages per block per chain from the AIMD scheduler",
+	}, []string{"chain"})
 
 	messageLatency = promauto.NewHistogramVec(prometheus.HistogramOpts{
 		Name:      messageLatencyName,
 		Subsystem: subsystemName,
-		Help:      "Message latencies by stage (init, exec, e2e)",
-	}, []string{"stage"})
+		Help:      "Message latencies by chain and stage (init, exec, e2e)",
+	}, []string{"chain", "stage"})
 
 	txSubmissionStatusCount = promauto.NewCounterVec(prometheus.CounterOpts{
 		Name:      txSubmissionStatusCountName,
@@ -83,12 +77,6 @@ var (
 		"Purple", "Spring", "Crimson", "SkyBlue", "Chartreuse", "Indigo", "Goldenrod", "Aqua",
 		"Fuchsia", "Emerald", "Violet", "Azure",
 	}
-)
-
-var (
-	e2eColor  = colors["RoyalBlue"]
-	initColor = colors["YellowGold"]
-	execColor = colors["VividRed"]
 )
 
 // MetricSample represents a single metric sample at a point in time
@@ -246,9 +234,6 @@ func (mc *MetricsCollector) Start(ctx context.Context) error {
 
 // SaveGraphs generates and saves graphs of collected metrics over time.
 func (mc *MetricsCollector) SaveGraphs(dir string) error {
-	if err := mc.saveInFlightMessagesGraph(dir); err != nil {
-		return fmt.Errorf("save in-flight messages graph: %w", err)
-	}
 	if err := mc.saveTargetMessagesPerBlockGraph(dir); err != nil {
 		return fmt.Errorf("save target messages per block graph: %w", err)
 	}
@@ -264,29 +249,20 @@ func (mc *MetricsCollector) SaveGraphs(dir string) error {
 	return nil
 }
 
-func (mc *MetricsCollector) saveInFlightMessagesGraph(dir string) error {
-	p := plot.New()
-	p.Title.Text = "In-Flight Messages"
-	p.X.Label.Text = "Time (seconds)"
-	p.Y.Label.Text = "Messages"
-
-	if _, err := addLine(p, mc.samples[inFlightMessagesName].ToPoints(mc.startTime), colors[colorOrder[0]]); err != nil {
-		return err
-	}
-
-	p.Add(plotter.NewGrid())
-
-	return savePlot(p, dir, inFlightMessagesName)
-}
-
 func (mc *MetricsCollector) saveTargetMessagesPerBlockGraph(dir string) error {
 	p := plot.New()
 	p.Title.Text = "Target Messages Per Block Time"
 	p.X.Label.Text = "Time (seconds)"
 	p.Y.Label.Text = "Target"
 
-	if _, err := addLine(p, mc.samples[targetMessagesPerBlockName].ToPoints(mc.startTime), colors[colorOrder[0]]); err != nil {
-		return err
+	samples := mc.samples[targetMessagesPerBlockName]
+	for i, chain := range samples.UniqueLabels(0) {
+		chainSamples := samples.WithLabels(chain)
+		line, err := addLine(p, chainSamples.ToPoints(mc.startTime), colors[colorOrder[i%len(colorOrder)]])
+		if err != nil {
+			return err
+		}
+		p.Legend.Add(chain, line)
 	}
 
 	p.Add(plotter.NewGrid())
@@ -300,7 +276,9 @@ func (mc *MetricsCollector) saveMessageCountGraph(dir string) error {
 	p.X.Label.Text = "Time (seconds)"
 	p.Y.Label.Text = "Messages"
 
-	latencySamples := mc.samples[messageLatencyName].WithLabels("e2e")
+	samples := mc.samples[messageLatencyName]
+
+	latencySamples := samples.WithLabels("exec")
 	countSamples := make(MetricSamples, 0, len(latencySamples))
 	for _, latencySample := range latencySamples {
 		countSamples = append(countSamples, MetricSample{
@@ -310,8 +288,13 @@ func (mc *MetricsCollector) saveMessageCountGraph(dir string) error {
 		})
 	}
 
-	if _, err := addLine(p, countSamples.ToValuePerIntervalPoints(mc.startTime), colors[colorOrder[0]]); err != nil {
-		return fmt.Errorf("create line plot: %w", err)
+	for i, chain := range countSamples.UniqueLabels(0) {
+		chainSamples := countSamples.WithLabels(chain)
+		line, err := addLine(p, chainSamples.ToValuePerIntervalPoints(mc.startTime), colors[colorOrder[i%len(colorOrder)]])
+		if err != nil {
+			return fmt.Errorf("create line plot: %w", err)
+		}
+		p.Legend.Add(chain, line)
 	}
 
 	p.Add(plotter.NewGrid())
@@ -321,29 +304,25 @@ func (mc *MetricsCollector) saveMessageCountGraph(dir string) error {
 
 func (mc *MetricsCollector) saveMessageLatencyGraph(dir string) error {
 	p := plot.New()
-	p.Title.Text = "Message Latency by Stage"
+	p.Title.Text = "Message Latency by Chain and Stage"
 	p.X.Label.Text = "Time (seconds)"
-	p.Y.Label.Text = "Latency"
+	p.Y.Label.Text = "Latency (seconds)"
 
 	samples := mc.samples[messageLatencyName]
-
-	e2eLine, err := addLine(p, samples.WithLabels("e2e").ToHistogramPoints(mc.startTime), e2eColor)
-	if err != nil {
-		return fmt.Errorf("success: %w", err)
+	chains := samples.UniqueLabels(0)
+	var lineIndex int
+	for _, chain := range chains {
+		chainSamples := samples.WithLabels(chain)
+		for _, stage := range chainSamples.UniqueLabels(1) {
+			points := chainSamples.WithLabels(stage).ToHistogramPoints(mc.startTime)
+			line, err := addLine(p, points, colors[colorOrder[lineIndex%len(colorOrder)]])
+			if err != nil {
+				return fmt.Errorf("%s: %w", stage, err)
+			}
+			p.Legend.Add(chain+"_"+stage, line)
+			lineIndex++
+		}
 	}
-	p.Legend.Add("e2e", e2eLine)
-
-	initLine, err := addLine(p, samples.WithLabels("init").ToHistogramPoints(mc.startTime), initColor)
-	if err != nil {
-		return fmt.Errorf("init: %w", err)
-	}
-	p.Legend.Add("init", initLine)
-
-	execLine, err := addLine(p, samples.WithLabels("exec").ToHistogramPoints(mc.startTime), execColor)
-	if err != nil {
-		return fmt.Errorf("exec: %w", err)
-	}
-	p.Legend.Add("exec", execLine)
 
 	p.Add(plotter.NewGrid())
 	p.Legend.Top = true
@@ -400,7 +379,15 @@ func savePlot(p *plot.Plot, dir, name string) error {
 	return nil
 }
 
-type ResubmitterObserver string
+type aimdObserver eth.ChainID
+
+var _ AIMDObserver = aimdObserver{}
+
+func (a aimdObserver) UpdateRPS(rps uint64) {
+	targetMessagesPerBlock.WithLabelValues(eth.ChainID(a).String()).Set(float64(rps))
+}
+
+type ResubmitterObserver eth.ChainID
 
 var _ txinclude.ResubmitterObserver = (*ResubmitterObserver)(nil)
 
@@ -411,7 +398,7 @@ func (m ResubmitterObserver) SubmissionError(err error) {
 	} else {
 		status = sanitizePrometheusLabel(err.Error())
 	}
-	txSubmissionStatusCount.WithLabelValues(string(m), status).Add(1)
+	txSubmissionStatusCount.WithLabelValues(eth.ChainID(m).String(), status).Add(1)
 }
 
 var (
