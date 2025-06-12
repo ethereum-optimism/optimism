@@ -53,7 +53,7 @@ func WithDepSets(depsets map[string]descriptors.DepSet) ServiceFinderOption {
 func NewServiceFinder(services inspect.ServiceMap, opts ...ServiceFinderOption) *ServiceFinder {
 	f := &ServiceFinder{
 		services:        services,
-		nodeServices:    []string{"cl", "el"},
+		nodeServices:    []string{"cl", "el", "cl-builder", "el-builder", "conductor", "mev"},
 		l2ServicePrefix: "op-",
 
 		nodeNames2Index: make(map[string]int),

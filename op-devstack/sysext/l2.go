@@ -2,6 +2,7 @@ package sysext
 
 import (
 	"fmt"
+	"net/http"
 	"strings"
 
 	"github.com/ethereum-optimism/optimism/devnet-sdk/descriptors"
@@ -116,10 +117,19 @@ func (o *Orchestrator) hydrateConductors(node *descriptors.Node, l2Net stack.Ext
 		return
 	}
 
-	endpoint, _, err := o.findProtocolService(conductorService, HTTPProtocol)
+	endpoint, header, err := o.findProtocolService(conductorService, RPCProtocol)
 	require.NoError(err, "failed to find RPC service for conductor")
 
-	conductorClient, err := rpc.DialContext(l2Net.T().Ctx(), endpoint)
+	opts := make([]rpc.ClientOption, 0)
+
+	if o.env.Env.ReverseProxyURL != "" && len(header) > 0 && !o.useDirectCnx {
+		opts = append(opts,
+			rpc.WithHeaders(header),
+			rpc.WithHTTPClient(&http.Client{
+				Transport: hostAwareRoundTripper(header),
+			}))
+	}
+	conductorClient, err := rpc.DialOptions(l2Net.T().Ctx(), endpoint, opts...)
 	require.NoError(err, "failed to dial conductor endpoint")
 	l2Net.T().Cleanup(func() { conductorClient.Close() })
 
