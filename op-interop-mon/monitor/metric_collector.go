@@ -3,25 +3,31 @@ package monitor
 import (
 	"time"
 
-	"github.com/ethereum-optimism/optimism/op-interop-mon/metrics"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
 )
+
+type InteropMessageMetrics interface {
+	RecordExecutingMessageStats(chainID string, blockNumber uint64, blockHash string, status string, value float64)
+	RecordInitiatingMessageStats(chainID string, blockNumber uint64, status string, value float64)
+	RecordTerminalStatusChange(executingChainID string, initiatingChainID string, value float64)
+}
 
 type MetricCollector struct {
 	updaters map[eth.ChainID]Updater
 
 	closed chan struct{}
 	log    log.Logger
-	m      metrics.Metricer
+	m      InteropMessageMetrics
 }
 
-func NewMetricCollector(log log.Logger, m metrics.Metricer, updaters map[eth.ChainID]Updater) *MetricCollector {
+func NewMetricCollector(log log.Logger, m InteropMessageMetrics, updaters map[eth.ChainID]Updater) *MetricCollector {
 	return &MetricCollector{
 		log:      log,
 		m:        m,
 		updaters: updaters,
+		closed:   make(chan struct{}),
 	}
 }
 
@@ -74,8 +80,12 @@ func (m *MetricCollector) CollectMetrics() {
 	initiatingMessages := map[eth.ChainID]map[uint64]map[string]int{}
 	terminalStatusChanges := map[eth.ChainID]map[eth.ChainID]int{}
 	for _, job := range jobMap {
-		states := job.States()
-		current := states[len(states)-1].String()
+		statuses := job.Statuses()
+		if len(statuses) == 0 {
+			m.log.Warn("Job has no statuses", "job", job)
+			continue
+		}
+		current := statuses[len(statuses)-1].String()
 		// Lazy increment the executing message metrics
 		if _, ok := executingMessages[job.executingChain]; !ok {
 			executingMessages[job.executingChain] = make(map[uint64]map[common.Hash]map[string]int)
@@ -106,7 +116,7 @@ func (m *MetricCollector) CollectMetrics() {
 		// Evaluate the job for a terminal state change
 		hasBeenValid := false
 		hasBeenInvalid := false
-		for _, state := range states {
+		for _, state := range statuses {
 			switch state {
 			case jobStatusValid:
 				hasBeenValid = true

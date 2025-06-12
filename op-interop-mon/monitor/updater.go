@@ -46,12 +46,12 @@ type RPCUpdater struct {
 	closed chan struct{}
 
 	jobs   sync.Map
-	expiry *locks.RWMap[eth.ChainID, eth.BlockInfo]
+	expiry *locks.RWMap[eth.ChainID, eth.NumberAndHash]
 
 	log log.Logger
 }
 
-func NewUpdater(chainID eth.ChainID, client UpdaterClient, expiry *locks.RWMap[eth.ChainID, eth.BlockInfo], log log.Logger) *RPCUpdater {
+func NewUpdater(chainID eth.ChainID, client UpdaterClient, expiry *locks.RWMap[eth.ChainID, eth.NumberAndHash], log log.Logger) *RPCUpdater {
 	return &RPCUpdater{
 		chainID: chainID,
 		client:  client,

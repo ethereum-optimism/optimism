@@ -36,7 +36,7 @@ type InteropMonitorService struct {
 	finders   map[eth.ChainID]Finder
 	updaters  map[eth.ChainID]Updater
 	collector *MetricCollector
-	expiry    *locks.RWMap[eth.ChainID, eth.BlockInfo]
+	expiry    *locks.RWMap[eth.ChainID, eth.NumberAndHash]
 
 	Version string
 
@@ -64,7 +64,7 @@ func (ms *InteropMonitorService) initFromCLIConfig(ctx context.Context, version 
 	ms.PollInterval = cfg.PollInterval
 
 	// Initialize the expiry map
-	ms.expiry = locks.RWMapFromMap(make(map[eth.ChainID]eth.BlockInfo))
+	ms.expiry = locks.RWMapFromMap(make(map[eth.ChainID]eth.NumberAndHash))
 
 	// Initialize all clients
 	clients, err := ms.initClients(ctx, cfg.L2Rpcs)

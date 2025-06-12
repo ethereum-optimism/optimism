@@ -137,8 +137,8 @@ func (j *Job) ID() JobID {
 	return j.id
 }
 
-// States returns the states of the job
-func (j *Job) States() []jobStatus {
+// Statuses returns the states of the job
+func (j *Job) Statuses() []jobStatus {
 	j.rwLock.RLock()
 	defer j.rwLock.RUnlock()
 	return j.status
