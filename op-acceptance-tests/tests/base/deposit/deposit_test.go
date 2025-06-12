@@ -41,18 +41,16 @@ func TestL1ToL2Deposit(gt *testing.T) {
 	depositAmount := eth.OneHundredthEther
 
 	// Build the transaction
-	factory := bindings.NewOptimismPortal2Factory(bindings.WithClient(sys.L2EL.Escape().EthClient()), bindings.WithTo(portalAddr), bindings.WithTest(t))
-
-	portal := bindings.NewOptimismPortal2(factory)
+	portal := bindings.NewBindings[bindings.OptimismPortal2](bindings.WithClient(sys.L2EL.Escape().EthClient()), bindings.WithTo(portalAddr), bindings.WithTest(t))
 
 	args := portal.DepositTransaction(alice.Address(), depositAmount, 300_000, false, []byte{})
 
-	tx := contract.Write(alice, args, txplan.WithValue(depositAmount.ToBig()))
+	receipt := contract.Write(alice, args, txplan.WithValue(depositAmount.ToBig()))
 
-	gasPrice := tx.EffectiveGasPrice
+	gasPrice := receipt.EffectiveGasPrice
 
 	// Verify the deposit was successful
-	gasCost := new(big.Int).Mul(new(big.Int).SetUint64(tx.GasUsed), gasPrice)
+	gasCost := new(big.Int).Mul(new(big.Int).SetUint64(receipt.GasUsed), gasPrice)
 	expectedFinalL1 := new(big.Int).Sub(initialBalance.ToBig(), depositAmount.ToBig())
 	expectedFinalL1.Sub(expectedFinalL1, gasCost)
 
@@ -61,7 +59,7 @@ func TestL1ToL2Deposit(gt *testing.T) {
 	// Wait for the sequencer to process the deposit
 	t.Require().Eventually(func() bool {
 		head := sys.L2CL.HeadBlockRef(supervisorTypes.LocalUnsafe)
-		return head.L1Origin.Number >= tx.BlockNumber.Uint64()
+		return head.L1Origin.Number >= receipt.BlockNumber.Uint64()
 	}, time.Second*30, time.Second, "awaiting deposit to be processed by L2")
 	alicel2.VerifyBalanceExact(initialL2Balance.Add(depositAmount))
 }
