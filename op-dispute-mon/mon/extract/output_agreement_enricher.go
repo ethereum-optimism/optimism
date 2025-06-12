@@ -31,15 +31,15 @@ type OutputMetrics interface {
 type OutputAgreementEnricher struct {
 	log     log.Logger
 	metrics OutputMetrics
-	client  OutputRollupClient
+	clients []OutputRollupClient
 	clock   clock.Clock
 }
 
-func NewOutputAgreementEnricher(logger log.Logger, metrics OutputMetrics, client OutputRollupClient, cl clock.Clock) *OutputAgreementEnricher {
+func NewOutputAgreementEnricher(logger log.Logger, metrics OutputMetrics, clients []OutputRollupClient, cl clock.Clock) *OutputAgreementEnricher {
 	return &OutputAgreementEnricher{
 		log:     logger,
 		metrics: metrics,
-		client:  client,
+		clients: clients,
 		clock:   cl,
 	}
 }
@@ -49,7 +49,7 @@ func (o *OutputAgreementEnricher) Enrich(ctx context.Context, block rpcblock.Blo
 	if !game.UsesOutputRoots() {
 		return nil
 	}
-	if o.client == nil {
+	if len(o.clients) == 0 {
 		return fmt.Errorf("%w but required for game type %v", ErrRollupRpcRequired, game.GameType)
 	}
 	if game.L2BlockNumber > math.MaxInt64 {
@@ -59,7 +59,7 @@ func (o *OutputAgreementEnricher) Enrich(ctx context.Context, block rpcblock.Blo
 		game.AgreeWithClaim = false
 		return nil
 	}
-	output, err := o.client.OutputAtBlock(ctx, game.L2BlockNumber)
+	output, err := o.clients[0].OutputAtBlock(ctx, game.L2BlockNumber)
 	if err != nil {
 		// string match as the error comes from the remote server so we can't use Errors.Is sadly.
 		if strings.Contains(err.Error(), "not found") {
@@ -78,7 +78,7 @@ func (o *OutputAgreementEnricher) Enrich(ctx context.Context, block rpcblock.Blo
 	}
 
 	// If the root matches, also check that l2 block is safe at the L1 head
-	safeHead, err := o.client.SafeHeadAtL1Block(ctx, game.L1HeadNum)
+	safeHead, err := o.clients[0].SafeHeadAtL1Block(ctx, game.L1HeadNum)
 	if err != nil {
 		o.log.Warn("Unable to verify proposed block was safe", "l1HeadNum", game.L1HeadNum, "l2BlockNum", game.L2BlockNumber, "err", err)
 		// If safe head data isn't available, assume the output root was safe

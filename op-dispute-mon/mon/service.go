@@ -45,7 +45,7 @@ type Service struct {
 	resolutions      *ResolutionMonitor
 	claims           *ClaimMonitor
 	withdrawals      *WithdrawalMonitor
-	rollupClient     *sources.RollupClient
+	rollupClients    []*sources.RollupClient
 	supervisorClient *sources.SupervisorClient
 
 	l1RPC    rpcclient.RPC
@@ -144,7 +144,13 @@ func (s *Service) initExtractor(cfg *config.Config) {
 		extract.NewBalanceEnricher(),
 		extract.NewL1HeadBlockNumEnricher(s.l1Client),
 		extract.NewSuperAgreementEnricher(s.logger, s.metrics, s.supervisorClient, clock.SystemClock),
-		extract.NewOutputAgreementEnricher(s.logger, s.metrics, s.rollupClient, clock.SystemClock),
+		extract.NewOutputAgreementEnricher(s.logger, s.metrics, func() []extract.OutputRollupClient {
+			clients := make([]extract.OutputRollupClient, len(s.rollupClients))
+			for i, client := range s.rollupClients {
+				clients[i] = client
+			}
+			return clients
+		}(), clock.SystemClock),
 	)
 }
 
@@ -157,14 +163,16 @@ func (s *Service) initBonds() {
 }
 
 func (s *Service) initOutputRollupClient(ctx context.Context, cfg *config.Config) error {
-	if cfg.RollupRpc == "" {
+	if len(cfg.RollupRpc) == 0 {
 		return nil
 	}
-	outputRollupClient, err := dial.DialRollupClientWithTimeout(ctx, dial.DefaultDialTimeout, s.logger, cfg.RollupRpc)
-	if err != nil {
-		return fmt.Errorf("failed to dial rollup client: %w", err)
+	for _, rpc := range cfg.RollupRpc {
+		client, err := dial.DialRollupClientWithTimeout(ctx, dial.DefaultDialTimeout, s.logger, rpc)
+		if err != nil {
+			return fmt.Errorf("failed to dial rollup client %s: %w", rpc, err)
+		}
+		s.rollupClients = append(s.rollupClients, client)
 	}
-	s.rollupClient = outputRollupClient
 	return nil
 }
 

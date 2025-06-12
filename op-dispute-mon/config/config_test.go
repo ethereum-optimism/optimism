@@ -11,7 +11,7 @@ import (
 var (
 	validL1EthRpc           = "http://localhost:8545"
 	validGameFactoryAddress = common.Address{0x23}
-	validRollupRpc          = "http://localhost:8555"
+	validRollupRpc          = []string{"http://localhost:8555"}
 	validSupervisorRpc      = "http://localhost:8999"
 )
 
@@ -37,14 +37,14 @@ func TestGameFactoryAddressRequired(t *testing.T) {
 
 func TestRollupRpcOrSupervisorRpcRequired(t *testing.T) {
 	config := validConfig()
-	config.RollupRpc = ""
+	config.RollupRpc = []string{}
 	config.SupervisorRpc = ""
 	require.ErrorIs(t, config.Check(), ErrMissingRollupAndSupervisorRpc)
 }
 
 func TestRollupRpcNotRequiredWhenSupervisorRpcSet(t *testing.T) {
 	config := validConfig()
-	config.RollupRpc = ""
+	config.RollupRpc = []string{}
 	config.SupervisorRpc = validSupervisorRpc
 	require.NoError(t, config.Check())
 }
