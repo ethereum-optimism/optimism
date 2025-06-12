@@ -101,31 +101,37 @@ func WithFactoryAddress(addr common.Address) Option {
 	}
 }
 
-func WithCannon(rollupCfgs []*rollup.Config, l2Geneses []*core.Genesis, prestateVariant PrestateVariant) Option {
+func WithCannonConfig(rollupCfgs []*rollup.Config, l2Geneses []*core.Genesis, prestateVariant PrestateVariant) Option {
+	return func(c *config.Config) error {
+		return applyCannonConfig(c, rollupCfgs, l2Geneses, prestateVariant)
+	}
+}
+
+func WithCannonTraceType() Option {
 	return func(c *config.Config) error {
 		c.TraceTypes = append(c.TraceTypes, types.TraceTypeCannon)
-		return applyCannonConfig(c, rollupCfgs, l2Geneses, prestateVariant)
+		return nil
 	}
 }
 
-func WithPermissioned(rollupCfgs []*rollup.Config, l2Geneses []*core.Genesis, prestateVariant PrestateVariant) Option {
+func WithPermissionedTraceType() Option {
 	return func(c *config.Config) error {
 		c.TraceTypes = append(c.TraceTypes, types.TraceTypePermissioned)
-		return applyCannonConfig(c, rollupCfgs, l2Geneses, prestateVariant)
+		return nil
 	}
 }
 
-func WithSuperCannon(rollupCfgs []*rollup.Config, l2Geneses []*core.Genesis, prestateVariant PrestateVariant) Option {
+func WithSuperCannonTraceType() Option {
 	return func(c *config.Config) error {
 		c.TraceTypes = append(c.TraceTypes, types.TraceTypeSuperCannon)
-		return applyCannonConfig(c, rollupCfgs, l2Geneses, prestateVariant)
+		return nil
 	}
 }
 
-func WithSuperPermissioned(rollupCfgs []*rollup.Config, l2Geneses []*core.Genesis, prestateVariant PrestateVariant) Option {
+func WithSuperPermissionedTraceType() Option {
 	return func(c *config.Config) error {
 		c.TraceTypes = append(c.TraceTypes, types.TraceTypeSuperPermissioned)
-		return applyCannonConfig(c, rollupCfgs, l2Geneses, prestateVariant)
+		return nil
 	}
 }
 
