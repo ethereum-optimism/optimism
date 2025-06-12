@@ -1,4 +1,4 @@
-import { Resolved as ResolvedEvent } from "../generated/templates/PermissionedDisputeGame/PermissionedDisputeGame"
+import { Resolved as ResolvedEvent, PermissionedDisputeGame } from "../generated/templates/PermissionedDisputeGame/PermissionedDisputeGame"
 import { DisputeGameCreated } from "../generated/schema"
 
 export function handleResolved(event: ResolvedEvent): void {
@@ -8,5 +8,13 @@ export function handleResolved(event: ResolvedEvent): void {
     return
   }
   disputeGame.resolvedStatus = event.params.status
+
+  // Get l2BlockNumber from contract since it's not in the event
+  let contract = PermissionedDisputeGame.bind(event.address)
+  let l2BlockNumberResult = contract.try_l2BlockNumber()
+  if (!l2BlockNumberResult.reverted) {
+    disputeGame.l2BlockNumber = l2BlockNumberResult.value
+  }
+
   disputeGame.save()
 }
