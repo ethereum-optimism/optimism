@@ -62,6 +62,10 @@ dataSources:
       abis:
         - name: DisputeGameFactory
           file: ./abis/DisputeGameFactory.json
+        - name: PermissionedDisputeGame
+          file: ./abis/PermissionedDisputeGame.json
+        - name: FaultDisputeGame
+          file: ./abis/FaultDisputeGame.json
       eventHandlers:
         - event: DisputeGameCreated(indexed address,indexed uint32,indexed bytes32)
           handler: handleDisputeGameCreated
@@ -110,5 +114,5 @@ templates:
         - name: FaultDisputeGame
           file: ./abis/FaultDisputeGame.json
       eventHandlers:
-        - event: Resolved(indexed uint8,indexed bytes32,indexed uint256)
+        - event: Resolved(indexed uint8)
           handler: handleResolved

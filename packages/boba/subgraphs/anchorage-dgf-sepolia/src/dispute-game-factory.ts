@@ -14,54 +14,9 @@ import {
   DisputeGameCreatedIndex,
 } from "../generated/schema"
 import { FaultDisputeGame, PermissionedDisputeGame } from "../generated/templates"
+import { FaultDisputeGame as FaultDisputeGameContract } from "../generated/templates/FaultDisputeGame/FaultDisputeGame"
 import { BigInt, Bytes, ethereum } from "@graphprotocol/graph-ts"
-
-/**
- * Extracts l2BlockNumber from extraData bytes
- * The l2BlockNumber is encoded in the last 8 bytes of the extraData
- */
-function extractL2BlockNumberFromExtraData(extraData: Bytes): BigInt | null {
-  if (extraData.length < 8) {
-    return null
-  }
-
-  // Get the last 8 bytes
-  let startIndex = extraData.length - 8
-  let l2BlockNumberBytes = new Array<i32>(8)
-  for (let i = 0; i < 8; i++) {
-    l2BlockNumberBytes[i] = extraData[startIndex + i]
-  }
-
-  // Convert bytes to BigInt (big-endian)
-  let l2BlockNumber = BigInt.fromString("0")
-  for (let i = 0; i < l2BlockNumberBytes.length; i++) {
-    l2BlockNumber = l2BlockNumber.leftShift(8).plus(BigInt.fromI32(l2BlockNumberBytes[i]))
-  }
-
-  return l2BlockNumber
-}
-
-/**
- * Extracts l2BlockNumber from transaction input using ABI decoding
- */
-function extractL2BlockNumberFromTxInput(txInput: Bytes): BigInt | null {
-  if (txInput.length < 4) { // At least function selector
-    return null
-  }
-
-  // Skip the 4-byte function selector to get the parameters
-  let paramsData = Bytes.fromUint8Array(txInput.subarray(4))
-
-  // Decode the parameters: (uint32, bytes32, bytes)
-  let decoded = ethereum.decode("(uint32,bytes32,bytes)", paramsData)
-  if (decoded) {
-    // Extract extraData (third parameter)
-    let extraData = decoded.toTuple()[2].toBytes()
-    return extractL2BlockNumberFromExtraData(extraData)
-  }
-
-  return null
-}
+import { log } from '@graphprotocol/graph-ts'
 
 export function handleDisputeGameCreated(event: DisputeGameCreatedEvent): void {
   if (!event.params.disputeProxy) {
@@ -82,14 +37,36 @@ export function handleDisputeGameCreated(event: DisputeGameCreatedEvent): void {
   entity.gameType = event.params.gameType
   entity.rootClaim = event.params.rootClaim
   entity.resolvedStatus = 0
-
-  // Extract l2BlockNumber from transaction input using ABI decoding
-  entity.l2BlockNumber = extractL2BlockNumberFromTxInput(event.transaction.input)
-
   entity.blockNumber = event.block.number
   entity.blockTimestamp = event.block.timestamp
   entity.transactionHash = event.transaction.hash
+
+  // Watch out! We are using the FaultGameDispute contract here
+  // but other game types might not match its ABI.  We tolerate
+  // reversion below, but don't re-use this contract with additional
+  // methods without realizing PermissionedDisputeGame must support
+  // the ABI as well
+  let contract = FaultDisputeGameContract.bind(event.params.disputeProxy)
+  let l2BlockNumberResult = contract.try_l2BlockNumber()
+  if (!l2BlockNumberResult.reverted) {
+    entity.l2BlockNumber = l2BlockNumberResult.value
+  } else {
+    log.warning("could not resolve l2BlockNumber for {}", [event.params.disputeProxy.toHexString()])
+  }
   entity.save()
+
+  // Create template instances based on game type
+  // You'll need to determine which game type corresponds to which template
+  if (event.params.gameType.equals(BigInt.fromI32(0))) {
+    log.info("Creating fault dispute gametype for {}", [event.params.disputeProxy.toHexString()])
+    FaultDisputeGame.create(event.params.disputeProxy)
+  } else if (event.params.gameType.equals(BigInt.fromI32(1))) {
+    // Assuming game type 1 is PermissionedDisputeGame
+    log.info("Creating permissioned dispute gametype for {}", [event.params.disputeProxy.toHexString()])
+    PermissionedDisputeGame.create(event.params.disputeProxy)
+  } else {
+    log.warning("Unsupported gametype {} for {}", [event.params.gameType.toHexString(), event.params.disputeProxy.toHexString()])
+  }
 
   // Update the latest index entity
   if (latestEntity == null) {
@@ -98,15 +75,6 @@ export function handleDisputeGameCreated(event: DisputeGameCreatedEvent): void {
   latestEntity.index = newIndex
   latestEntity.save()
 
-  // Create template instances based on game type
-  // You'll need to determine which game type corresponds to which template
-  if (event.params.gameType.equals(BigInt.fromI32(0))) {
-    // Assuming game type 0 is FaultDisputeGame
-    FaultDisputeGame.create(event.params.disputeProxy)
-  } else if (event.params.gameType.equals(BigInt.fromI32(1))) {
-    // Assuming game type 1 is PermissionedDisputeGame
-    PermissionedDisputeGame.create(event.params.disputeProxy)
-  }
 }
 
 export function handleImplementationSet(event: ImplementationSetEvent): void {

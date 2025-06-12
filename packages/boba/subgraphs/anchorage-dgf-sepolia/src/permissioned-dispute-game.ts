@@ -1,20 +1,15 @@
 import { Resolved as ResolvedEvent, PermissionedDisputeGame } from "../generated/templates/PermissionedDisputeGame/PermissionedDisputeGame"
 import { DisputeGameCreated } from "../generated/schema"
+import { log } from '@graphprotocol/graph-ts'
 
 export function handleResolved(event: ResolvedEvent): void {
   // update dispute game
   let disputeGame = DisputeGameCreated.load(event.address)
   if (disputeGame == null) {
+    log.warning("unexpected null permissioned dispute game for address {}", [event.address.toHexString()])
     return
   }
   disputeGame.resolvedStatus = event.params.status
-
-  // Get l2BlockNumber from contract since it's not in the event
-  let contract = PermissionedDisputeGame.bind(event.address)
-  let l2BlockNumberResult = contract.try_l2BlockNumber()
-  if (!l2BlockNumberResult.reverted) {
-    disputeGame.l2BlockNumber = l2BlockNumberResult.value
-  }
-
+  log.debug("Marked permissioned dispute game resolved as {} for address {}", [event.params.status.toString(), event.address.toHexString()])
   disputeGame.save()
 }
