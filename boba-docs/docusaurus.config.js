@@ -78,7 +78,7 @@ const config = {
     /** @type {import('@docusaurus/preset-classic').ThemeConfig} */
     ({
       // Replace with your project's social card
-      image: 'img/boba_B.ico',
+      image: 'img/boba-brandmark-light.png',
       navbar: {
         title: 'Boba Developer Docs',
         logo: {
