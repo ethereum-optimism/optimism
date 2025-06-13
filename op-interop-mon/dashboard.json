@@ -192,7 +192,7 @@
         {
           "disableTextWrap": false,
           "editorMode": "builder",
-          "expr": "sum by(chain_id) (op_interop_mon_default_executing_messages{instance=\"$instance\", status=\"valid\"})",
+          "expr": "sum by(chain_id) (op_interop_mon_default_executing_messages{status=\"valid\"})",
           "fullMetaSearch": false,
           "includeNullMetadata": true,
           "legendFormat": "{{chain_id}}-exec",
@@ -207,7 +207,7 @@
           },
           "disableTextWrap": false,
           "editorMode": "builder",
-          "expr": "sum by(chain_id) (op_interop_mon_default_initiating_messages{instance=\"$instance\", status=\"valid\"})",
+          "expr": "sum by(chain_id) (op_interop_mon_default_initiating_messages{status=\"valid\"})",
           "fullMetaSearch": false,
           "hide": false,
           "includeNullMetadata": true,
@@ -356,8 +356,8 @@
       {
         "allowCustomValue": false,
         "current": {
-          "text": "172.16.0.50:7300",
-          "value": "172.16.0.50:7300"
+          "text": "",
+          "value": ""
         },
         "definition": "label_values({service=\"interop-mon\"},instance)",
         "name": "instance",
@@ -374,13 +374,13 @@
     ]
   },
   "time": {
-    "from": "2025-06-10T20:27:03.686Z",
-    "to": "2025-06-10T20:35:59.425Z"
+    "from": "now-15m",
+    "to": "now"
   },
   "timepicker": {},
   "timezone": "browser",
   "title": "op-interop-mon",
   "uid": "feokja3izpxc0a",
-  "version": 4,
+  "version": 2,
   "weekStart": ""
 }
