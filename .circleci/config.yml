@@ -863,7 +863,7 @@ jobs:
         type: string
     docker:
       - image: <<pipeline.parameters.default_docker_image>>
-    resource_class: large
+    resource_class: xlarge
     steps:
       - utils/checkout-with-mise
       - attach_workspace: { at: "." }
