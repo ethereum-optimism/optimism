@@ -31,22 +31,10 @@ func (m mockNumberAndHash) Hash() common.Hash {
 	return m.hash
 }
 
-// mockUpdaterClient implements the UpdaterClient interface with configurable function implementations
-type mockUpdaterClient struct {
-	fetchReceiptsByNumberFn func(ctx context.Context, number uint64) (eth.BlockInfo, ethtypes.Receipts, error)
-}
-
-func (m *mockUpdaterClient) FetchReceiptsByNumber(ctx context.Context, number uint64) (eth.BlockInfo, ethtypes.Receipts, error) {
-	if m.fetchReceiptsByNumberFn != nil {
-		return m.fetchReceiptsByNumberFn(ctx, number)
-	}
-	return nil, nil, nil
-}
-
 // setupTestUpdater creates a new RPCUpdater instance for testing
-func setupTestUpdater(t *testing.T) (*RPCUpdater, *mockUpdaterClient) {
+func setupTestUpdater(t *testing.T) (*RPCUpdater, *mockClient) {
 	logger := log.New()
-	client := &mockUpdaterClient{}
+	client := &mockClient{}
 	expiry := locks.RWMapFromMap(map[eth.ChainID]eth.NumberAndHash{})
 	updater := NewUpdater(eth.ChainIDFromUInt64(1), client, expiry, logger)
 	return updater, client
@@ -297,7 +285,7 @@ func TestUpdaterJobStatusUpdate(t *testing.T) {
 			}
 
 			// Configure mock client
-			client.fetchReceiptsByNumberFn = func(ctx context.Context, number uint64) (eth.BlockInfo, ethtypes.Receipts, error) {
+			client.fetchReceiptsByNumber = func(ctx context.Context, number uint64) (eth.BlockInfo, ethtypes.Receipts, error) {
 				if tt.receipts == nil {
 					return nil, nil, errors.New("mock error")
 				}
