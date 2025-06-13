@@ -63,12 +63,18 @@ func (m *mockUpdater) Stop() error {
 }
 
 // mockMetrics implements the metrics.Metricer interface with configurable function implementations
+// by default, it records the calls to the metrics functions
 type mockMetrics struct {
 	recordInfoFn                   func(version string)
 	recordUpFn                     func()
 	recordInitiatingMessageStatsFn func(chainID string, blockHeight uint64, status string, value float64)
 	recordExecutingMessageStatsFn  func(chainID string, blockHeight uint64, blockHash string, status string, value float64)
 	recordTerminalStatusChangeFn   func(executingChainID string, initiatingChainID string, value float64)
+
+	// Recording slices for test verification
+	actualExecutingCalls  []expectedExecutingCall
+	actualInitiatingCalls []expectedInitiatingCall
+	actualTerminalCalls   []expectedTerminalCall
 }
 
 func (m *mockMetrics) RecordInfo(version string) {
@@ -86,18 +92,39 @@ func (m *mockMetrics) RecordUp() {
 func (m *mockMetrics) RecordInitiatingMessageStats(chainID string, blockHeight uint64, status string, value float64) {
 	if m.recordInitiatingMessageStatsFn != nil {
 		m.recordInitiatingMessageStatsFn(chainID, blockHeight, status, value)
+	} else {
+		m.actualInitiatingCalls = append(m.actualInitiatingCalls, expectedInitiatingCall{
+			chainID:  chainID,
+			blockNum: blockHeight,
+			status:   status,
+			value:    value,
+		})
 	}
 }
 
 func (m *mockMetrics) RecordExecutingMessageStats(chainID string, blockHeight uint64, blockHash string, status string, value float64) {
 	if m.recordExecutingMessageStatsFn != nil {
 		m.recordExecutingMessageStatsFn(chainID, blockHeight, blockHash, status, value)
+	} else {
+		m.actualExecutingCalls = append(m.actualExecutingCalls, expectedExecutingCall{
+			chainID:   chainID,
+			blockNum:  blockHeight,
+			blockHash: blockHash,
+			status:    status,
+			value:     value,
+		})
 	}
 }
 
 func (m *mockMetrics) RecordTerminalStatusChange(executingChainID string, initiatingChainID string, value float64) {
 	if m.recordTerminalStatusChangeFn != nil {
 		m.recordTerminalStatusChangeFn(executingChainID, initiatingChainID, value)
+	} else {
+		m.actualTerminalCalls = append(m.actualTerminalCalls, expectedTerminalCall{
+			executingChainID:  executingChainID,
+			initiatingChainID: initiatingChainID,
+			value:             value,
+		})
 	}
 }
 
@@ -352,37 +379,6 @@ func TestCollectMetrics(t *testing.T) {
 			logger := log.New()
 			mockMetrics := &mockMetrics{}
 
-			// Track actual metric calls
-			actualExecutingCalls := []expectedExecutingCall{}
-			actualInitiatingCalls := []expectedInitiatingCall{}
-			actualTerminalCalls := []expectedTerminalCall{}
-
-			// Configure mock metrics to record calls
-			mockMetrics.recordExecutingMessageStatsFn = func(chainID string, blockHeight uint64, blockHash string, status string, value float64) {
-				actualExecutingCalls = append(actualExecutingCalls, expectedExecutingCall{
-					chainID:   chainID,
-					blockNum:  blockHeight,
-					blockHash: blockHash,
-					status:    status,
-					value:     value,
-				})
-			}
-			mockMetrics.recordInitiatingMessageStatsFn = func(chainID string, blockHeight uint64, status string, value float64) {
-				actualInitiatingCalls = append(actualInitiatingCalls, expectedInitiatingCall{
-					chainID:  chainID,
-					blockNum: blockHeight,
-					status:   status,
-					value:    value,
-				})
-			}
-			mockMetrics.recordTerminalStatusChangeFn = func(executingChainID string, initiatingChainID string, value float64) {
-				actualTerminalCalls = append(actualTerminalCalls, expectedTerminalCall{
-					executingChainID:  executingChainID,
-					initiatingChainID: initiatingChainID,
-					value:             value,
-				})
-			}
-
 			// Create mock updaters with predefined responses
 			updater1 := &mockUpdater{
 				collectForMetricsFn: func(jobs map[JobID]*Job) map[JobID]*Job {
@@ -420,9 +416,9 @@ func TestCollectMetrics(t *testing.T) {
 			collector.CollectMetrics()
 
 			// Verify metric calls
-			require.ElementsMatch(t, tt.expectedExecutingCalls, actualExecutingCalls, "executing message stats calls should match")
-			require.ElementsMatch(t, tt.expectedInitiatingCalls, actualInitiatingCalls, "initiating message stats calls should match")
-			require.ElementsMatch(t, tt.expectedTerminalCalls, actualTerminalCalls, "terminal status change calls should match")
+			require.ElementsMatch(t, tt.expectedExecutingCalls, mockMetrics.actualExecutingCalls, "executing message stats calls should match")
+			require.ElementsMatch(t, tt.expectedInitiatingCalls, mockMetrics.actualInitiatingCalls, "initiating message stats calls should match")
+			require.ElementsMatch(t, tt.expectedTerminalCalls, mockMetrics.actualTerminalCalls, "terminal status change calls should match")
 		})
 	}
 }
