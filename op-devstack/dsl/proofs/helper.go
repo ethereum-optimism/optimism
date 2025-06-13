@@ -113,7 +113,7 @@ func (h *DisputeGameFactoryHelper) createNewGame(gameType uint32, claim common.H
 	// Pull some metadata we need to construct a new game
 	requiredBonds := contract.Read(dgf.InitBonds(gameType))
 
-	receipt := contract.Write(h.eoa, dgf.Create(gameType, claim, extraData), txplan.WithValue(requiredBonds))
+	receipt := contract.Write(h.eoa, dgf.Create(gameType, claim, extraData), txplan.WithValue(requiredBonds), txplan.WithGasRatio(2))
 	h.require.Equal(types.ReceiptStatusSuccessful, receipt.Status)
 
 	// Extract logs from receipt
