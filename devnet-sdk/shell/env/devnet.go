@@ -10,6 +10,7 @@ import (
 	"github.com/ethereum-optimism/optimism/devnet-sdk/controller/kt"
 	"github.com/ethereum-optimism/optimism/devnet-sdk/controller/surface"
 	"github.com/ethereum-optimism/optimism/devnet-sdk/descriptors"
+	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum/go-ethereum/params"
 )
 
@@ -131,14 +132,45 @@ func (d *DevnetEnv) Control() (surface.ControlSurface, error) {
 
 func fixupDevnetConfig(config *descriptors.DevnetEnvironment) error {
 	// we should really get this from the kurtosis output, but the data doesn't exist yet, so craft a minimal one.
+	l1ID := new(big.Int)
+	l1ID, ok := l1ID.SetString(config.L1.ID, 10)
+	if !ok {
+		return fmt.Errorf("invalid L1 ID: %s", config.L1.ID)
+	}
 	if config.L1.Config == nil {
-		l1ID := new(big.Int)
-		l1ID, ok := l1ID.SetString(config.L1.ID, 10)
-		if !ok {
-			return fmt.Errorf("invalid L1 ID: %s", config.L1.ID)
-		}
 		config.L1.Config = &params.ChainConfig{
 			ChainID: l1ID,
+		}
+	}
+	for _, l2Chain := range config.L2 {
+		l2ChainId := l2Chain.Chain.ID
+
+		var l2ID *big.Int
+		base := 10
+		if len(l2ChainId) >= 2 && l2ChainId[:2] == "0x" {
+			base = 16
+			l2ChainId = l2ChainId[2:]
+		}
+
+		l2ID, ok := new(big.Int).SetString(l2ChainId, base)
+		if !ok {
+			return fmt.Errorf("invalid L2 ID: %s", l2ChainId)
+		}
+		// Convert the L2 chain ID to decimal string format
+		decimalId := l2ID.String()
+		l2Chain.Chain.ID = decimalId
+
+		if l2Chain.Config == nil {
+			l2Chain.Config = &params.ChainConfig{
+				ChainID: l2ID,
+			}
+		}
+
+		if l2Chain.RollupConfig == nil {
+			l2Chain.RollupConfig = &rollup.Config{
+				L1ChainID: l1ID,
+				L2ChainID: l2ID,
+			}
 		}
 	}
 	return nil

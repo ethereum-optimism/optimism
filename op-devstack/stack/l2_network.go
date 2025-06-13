@@ -89,6 +89,7 @@ type L2Network interface {
 	L2Challenger(m L2ChallengerMatcher) L2Challenger
 	L2CLNode(m L2CLMatcher) L2CLNode
 	L2ELNode(m L2ELMatcher) L2ELNode
+	Conductor(m ConductorMatcher) Conductor
 
 	L2BatcherIDs() []L2BatcherID
 	L2ProposerIDs() []L2ProposerID
@@ -101,6 +102,9 @@ type L2Network interface {
 	L2Challengers() []L2Challenger
 	L2CLNodes() []L2CLNode
 	L2ELNodes() []L2ELNode
+	Conductors() []Conductor
+	FlashblocksBuilders() []FlashblocksBuilderNode
+	AddFlashblocksBuilder(v FlashblocksBuilderNode)
 }
 
 // ExtensibleL2Network is an optional extension interface for L2Network,
@@ -113,4 +117,5 @@ type ExtensibleL2Network interface {
 	AddL2Challenger(v L2Challenger)
 	AddL2CLNode(v L2CLNode)
 	AddL2ELNode(v L2ELNode)
+	AddConductor(v Conductor)
 }

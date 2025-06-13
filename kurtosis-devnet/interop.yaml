@@ -2,6 +2,7 @@
   "op_node" (localDockerImage "op-node")
   "op_batcher" (localDockerImage "op-batcher")
   "op_challenger" (localDockerImage "op-challenger")
+  "op_conductor" (localDockerImage "op-conductor")
   "op_proposer" (localDockerImage "op-proposer")
   "op_deployer" (localDockerImage "op-deployer")
   "op_supervisor" (localDockerImage "op-supervisor")
@@ -80,7 +81,7 @@ optimism_package:
         game_type: 1
         proposal_interval: 10m
       mev_params:
-        rollup_boost_image: ""
+        image: ""
         builder_host: ""
         builder_port: ""
       additional_services: []
@@ -133,7 +134,7 @@ optimism_package:
         game_type: 1
         proposal_interval: 10m
       mev_params:
-        rollup_boost_image: ""
+        image: ""
         builder_host: ""
         builder_port: ""
       additional_services: []

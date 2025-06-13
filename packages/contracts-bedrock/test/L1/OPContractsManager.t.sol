@@ -1984,11 +1984,16 @@ contract OPContractsManager_Version_Test is OPContractsManager_TestInit {
 /// @title OPContractsManager_SetRC_Test
 /// @notice Tests the `setRC` function of the `OPContractsManager` contract.
 contract OPContractsManager_SetRC_Test is OPContractsManager_Upgrade_Harness {
+    event Released(bool _isRC);
+
     /// @notice Tests the setRC function can be set by the upgrade controller.
     function test_setRC_succeeds(bool _isRC) public {
         skipIfNotOpFork("test_setRC_succeeds");
 
         vm.prank(upgrader);
+
+        vm.expectEmit(true, true, true, true);
+        emit Released(_isRC);
 
         opcm.setRC(_isRC);
         assertTrue(opcm.isRC() == _isRC, "isRC should be true");

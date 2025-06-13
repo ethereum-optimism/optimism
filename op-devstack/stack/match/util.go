@@ -15,6 +15,12 @@ func Second[I comparable, E stack.Identifiable[I]]() stack.Matcher[I, E] {
 	return ByIndex[I, E](1)
 }
 
+func byID[I comparable, E stack.Identifiable[I]](id I) stack.Matcher[I, E] {
+	return MatchElemFn[I, E](func(elem E) bool {
+		return elem.ID() == id
+	})
+}
+
 type byIndexMatcher[I comparable, E stack.Identifiable[I]] struct {
 	index int
 }

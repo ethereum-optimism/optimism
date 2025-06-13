@@ -12,6 +12,7 @@ require (
 	github.com/btcsuite/btcd v0.24.2
 	github.com/btcsuite/btcd/chaincfg/chainhash v1.1.0
 	github.com/cockroachdb/pebble v1.1.5
+	github.com/coder/websocket v1.8.13
 	github.com/consensys/gnark-crypto v0.16.0
 	github.com/crate-crypto/go-kzg-4844 v1.1.0
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc
@@ -65,7 +66,6 @@ require (
 	golang.org/x/crypto v0.35.0
 	golang.org/x/exp v0.0.0-20241009180824-f66d83c29e7c
 	golang.org/x/mod v0.22.0
-	golang.org/x/net v0.36.0
 	golang.org/x/sync v0.14.0
 	golang.org/x/term v0.29.0
 	golang.org/x/text v0.25.0
@@ -290,6 +290,7 @@ require (
 	go.uber.org/multierr v1.11.0 // indirect
 	go.uber.org/zap v1.27.0 // indirect
 	golang.org/x/image v0.25.0 // indirect
+	golang.org/x/net v0.36.0 // indirect
 	golang.org/x/sys v0.30.0 // indirect
 	golang.org/x/tools v0.29.0 // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20250115164207-1a7da9e5054f // indirect
@@ -303,7 +304,7 @@ require (
 	rsc.io/tmplfunc v0.0.3 // indirect
 )
 
-replace github.com/ethereum/go-ethereum => github.com/ethereum-optimism/op-geth v1.101511.1-dev.1.0.20250603002020-3e5073a7b5a4
+replace github.com/ethereum/go-ethereum => github.com/ethereum-optimism/op-geth v1.101511.1-dev.1.0.20250608235258-6005dd53e1b5
 
 //replace github.com/ethereum/go-ethereum => ../op-geth
 

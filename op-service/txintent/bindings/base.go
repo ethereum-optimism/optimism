@@ -6,7 +6,6 @@ import (
 	"math/big"
 	"reflect"
 
-	"github.com/ethereum-optimism/optimism/op-chain-ops/script"
 	"github.com/ethereum-optimism/optimism/op-service/apis"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/testreq"
@@ -21,6 +20,9 @@ import (
 // function fields(lambdas) corresponding to solidity functions must be tagged with sol
 // tag value is used for initializing solidity function selector
 const MethodTagName string = "sol"
+
+// Bindings field is a user supplied struct which has lambdas as a field
+const BindingsFieldName string = "Bindings"
 
 // BaseCall contains fields to populate fields of txplan
 type BaseCall struct {
@@ -101,9 +103,11 @@ func (b *BaseCallFactory) ApplyFactoryOptions(opts ...CallFactoryOption) {
 	}
 }
 
-// CheckImpl validates that the given binding struct has correctly defined function fields
-// Each function field must have a `sol` tag (MethodTagName) and the struct must embed BaseCallFactory
-func CheckImpl(v reflect.Value) reflect.Value {
+// CheckImpl validates that the given struct satisfies the form BindingWrapper, which is initialized
+// using binding struct that user provided, and the injected binding factory.
+// User provided binding struct is checked that it has correctly defined function fields:
+// Each function field must have a `sol` tag (MethodTagName).
+func CheckImpl(v reflect.Value) (reflect.Value, reflect.Value) {
 	t := v.Type()
 	if t.Kind() == reflect.Ptr {
 		t = t.Elem()
@@ -111,8 +115,17 @@ func CheckImpl(v reflect.Value) reflect.Value {
 	if t.Kind() != reflect.Struct {
 		panic("expected struct")
 	}
-	for i := range t.NumField() {
-		field := t.Field(i)
+	baseCallFactory := findBaseCallFactory(v)
+	if !baseCallFactory.IsValid() {
+		panic("BaseCallFactory not found in embedded fields")
+	}
+	bindings := findBindings(v)
+	if !bindings.IsValid() {
+		panic("Bindings not found in embedded fields")
+	}
+	bindingType := bindings.Type()
+	for i := range bindingType.NumField() {
+		field := bindingType.Field(i)
 		fieldType := field.Type
 		// check only function fields, which will be automatically inferred for codec
 		if fieldType.Kind() != reflect.Func {
@@ -125,16 +138,12 @@ func CheckImpl(v reflect.Value) reflect.Value {
 			panic("all methods must have single return type")
 		}
 	}
-	baseCallFactory := findBaseCallFactory(v)
-	if !baseCallFactory.IsValid() {
-		panic("BaseCallFactory not found in embedded fields")
-	}
-	return baseCallFactory
+	return baseCallFactory, bindings
 }
 
 // findBaseCallFactory recursively searches the struct for an embedded BaseCallFactory and returns its value
 func findBaseCallFactory(v reflect.Value) reflect.Value {
-	for i := 0; i < v.NumField(); i++ {
+	for i := range v.NumField() {
 		field := v.Field(i)
 		if !field.CanInterface() {
 			continue
@@ -152,17 +161,18 @@ func findBaseCallFactory(v reflect.Value) reflect.Value {
 	return reflect.Value{}
 }
 
+func findBindings(v reflect.Value) reflect.Value {
+	return v.FieldByName(BindingsFieldName)
+}
+
 // InitImpl initializes function fields (lambdas) in the given struct by assigning concrete implementations
 // The input struct must be a pointer, and its fields are expected to follow a specific pattern for reflection-based setup
 func InitImpl[T any](impl *T) {
 	v := reflect.ValueOf(impl).Elem()
-	t := v.Type()
-	if t.Kind() == reflect.Ptr {
-		t = t.Elem()
-	}
-	baseCallFactory := CheckImpl(v)
-	for i := range v.NumField() {
-		field := t.Field(i)
+	baseCallFactory, bindings := CheckImpl(v)
+	bindingsType := bindings.Type()
+	for i := range bindingsType.NumField() {
+		field := bindingsType.Field(i)
 		fieldType := field.Type
 		// Only care about function fields
 		if fieldType.Kind() == reflect.Func {
@@ -212,7 +222,7 @@ func InitImpl[T any](impl *T) {
 				typedCall.FieldByName("BaseCallFactory").Set(baseCallFactory.Addr())
 				return []reflect.Value{typedCall}
 			})
-			v.FieldByName(field.Name).Set(lambda)
+			bindings.FieldByName(field.Name).Set(lambda)
 		}
 	}
 }
@@ -244,7 +254,7 @@ func CustomTypeToGoType(retTyp reflect.Type) reflect.Type {
 	case reflect.TypeOf(eth.ETH{}), reflect.TypeOf(eth.ChainID{}):
 		return reflect.TypeOf(big.NewInt(0))
 	case reflect.TypeOf(suptypes.Identifier{}):
-		return reflect.TypeOf(script.ABIIdentifier{})
+		return reflect.TypeOf(ABIIdentifier{})
 	default:
 		return retTyp
 	}
@@ -259,7 +269,7 @@ func CustomValueToABIValue(arg any) any {
 	case eth.ChainID:
 		value = v.ToBig()
 	case suptypes.Identifier:
-		identifier := script.ABIIdentifier{
+		identifier := ABIIdentifier{
 			Origin:      v.Origin,
 			BlockNumber: big.NewInt(int64(v.BlockNumber)),
 			LogIndex:    big.NewInt(int64(v.LogIndex)),
@@ -307,20 +317,42 @@ func (c *TypedCall[ReturnType]) DecodeOutput(data []byte) (ReturnType, error) {
 		return *new(ReturnType), nil
 	}
 
-	if retTyp.Kind() == reflect.Struct {
-		panic("multiple return type using struct is not supported yet")
-	}
-
 	abiTargetType := CustomTypeToGoType(retTyp)
-	abiType, err := script.GoTypeToABIType(abiTargetType)
+	abiType, components, err := goTypeToABIType(abiTargetType)
 	if err != nil {
-		panic(err)
+		return *new(ReturnType), fmt.Errorf("failed to convert go type to abi type: %w", err)
 	}
 
 	outputs := abi.Arguments{{Type: abiType}}
+	// try to unpack assuming every field is static
 	decoded, err := outputs.Unpack(data)
 	if err != nil {
-		panic(err)
+		// at lest one dynamic field is included so unpack by mimicing abi.UnpackIntoInterface method
+		args := abi.Arguments{}
+		for idx, component := range components {
+			t, err := abi.NewType(component.Type, "", component.Components)
+			if err != nil {
+				return *new(ReturnType), fmt.Errorf("failed to create type: %w", err)
+			}
+			name := component.Name
+			// make sure name is properly set and unique
+			if name == "" || name == "_" {
+				name = fmt.Sprintf("arg%d", idx)
+			}
+			args = append(args, abi.Argument{Type: t, Name: name})
+		}
+		decoded, err = args.Unpack(data)
+		if err != nil {
+			// we do not support custom value decoding when struct with dynamic fields.
+			// using with eth.ETH or eth.ChainID will fail
+			return *new(ReturnType), fmt.Errorf("failed to unpack: %w", err)
+		}
+		var val ReturnType
+		err = args.Copy(&val, decoded)
+		if err != nil {
+			return *new(ReturnType), fmt.Errorf("failed to convert go format to provided struct: %w", err)
+		}
+		return val, nil
 	}
 
 	val := ABIValueToCustomValue[ReturnType](retTyp, decoded[0])
@@ -334,7 +366,7 @@ func ABIEncoder(name string, args ...any) ([]byte, error) {
 	for i, arg := range args {
 		goType := CustomTypeToGoType(reflect.TypeOf(arg))
 		abiValue := CustomValueToABIValue(arg)
-		abiType, err := script.GoTypeToABIType(goType)
+		abiType, _, err := goTypeToABIType(goType)
 		if err != nil {
 			panic(err)
 		}
@@ -352,4 +384,19 @@ func ABIEncoder(name string, args ...any) ([]byte, error) {
 	result := append(method.ID, arguments...)
 
 	return result, err
+}
+
+type BindingsWrapper[T any] struct {
+	BaseCallFactory
+	Bindings T
+}
+
+// NewBindings is a helper function to inject base call factory and initialize the contract bindings implementation
+func NewBindings[T any](opts ...CallFactoryOption) T {
+	bindingsWrapper := BindingsWrapper[T]{
+		BaseCallFactory: *NewBaseCallFactory(opts...),
+		Bindings:        *new(T),
+	}
+	InitImpl(&bindingsWrapper)
+	return bindingsWrapper.Bindings
 }

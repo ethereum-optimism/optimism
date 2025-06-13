@@ -45,7 +45,7 @@ rules:
       - pattern: vm.expectRevert()
     paths:
       exclude:
-        - packages/contracts-bedrock/test/dispute/WETH98.t.sol
+        - packages/contracts-bedrock/test/universal/WETH98.t.sol
 
   - id: sol-safety-natspec-semver-match
     languages: [generic]

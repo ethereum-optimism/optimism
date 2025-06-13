@@ -24,7 +24,28 @@ import { ISuperPermissionedDisputeGame } from "interfaces/dispute/ISuperPermissi
 // Mocks
 import { AlphabetVM } from "test/mocks/AlphabetVM.sol";
 
-contract DisputeGameFactory_Init is CommonTest {
+/// @notice A fake clone used for testing the `DisputeGameFactory` contract's `create` function.
+contract FakeClone {
+    function initialize() external payable {
+        // noop
+    }
+
+    function extraData() external pure returns (bytes memory) {
+        return hex"FF0420";
+    }
+
+    function parentHash() external pure returns (bytes32) {
+        return bytes32(0);
+    }
+
+    function rootClaim() external pure returns (Claim) {
+        return Claim.wrap(bytes32(0));
+    }
+}
+
+/// @title DisputeGameFactory_TestInit
+/// @notice Reusable test initialization for `DisputeGameFactory` tests.
+contract DisputeGameFactory_TestInit is CommonTest {
     FakeClone fakeClone;
 
     event DisputeGameCreated(address indexed disputeProxy, GameType indexed gameType, Claim indexed rootClaim);
@@ -189,8 +210,11 @@ contract DisputeGameFactory_Init is CommonTest {
     }
 }
 
-contract DisputeGameFactory_initialize_Test is DisputeGameFactory_Init {
-    /// @notice Tests that initialization reverts if called by a non-proxy admin or proxy admin owner.
+/// @title DisputeGameFactory_Initialize_Test
+/// @notice Tests the `initialize` function of the `DisputeGameFactory` contract.
+contract DisputeGameFactory_Initialize_Test is DisputeGameFactory_TestInit {
+    /// @notice Tests that initialization reverts if called by a non-proxy admin or proxy admin
+    ///         owner.
     /// @param _sender The address of the sender to test.
     function testFuzz_initialize_notProxyAdminOrProxyAdminOwner_reverts(address _sender) public {
         // Prank as the not ProxyAdmin or ProxyAdmin owner.
@@ -212,9 +236,9 @@ contract DisputeGameFactory_initialize_Test is DisputeGameFactory_Init {
         disputeGameFactory.initialize(address(1234));
     }
 
-    /// @notice Tests that the initializer value is correct. Trivial test for normal
-    ///         initialization but confirms that the initValue is not incremented incorrectly if
-    ///         an upgrade function is not present.
+    /// @notice Tests that the initializer value is correct. Trivial test for normal initialization
+    ///         but confirms that the initValue is not incremented incorrectly if an upgrade
+    ///         function is not present.
     function test_initialize_correctInitializerValue_succeeds() public {
         // Get the slot for _initialized.
         StorageSlot memory slot = ForgeArtifacts.getSlot("DisputeGameFactory", "_initialized");
@@ -228,9 +252,11 @@ contract DisputeGameFactory_initialize_Test is DisputeGameFactory_Init {
     }
 }
 
-contract DisputeGameFactory_Create_Test is DisputeGameFactory_Init {
-    /// @dev Tests that the `create` function succeeds when creating a new dispute game
-    ///      with a `GameType` that has an implementation set.
+/// @title DisputeGameFactory_Create_Test
+/// @notice Tests the `create` function of the `DisputeGameFactory` contract.
+contract DisputeGameFactory_Create_Test is DisputeGameFactory_TestInit {
+    /// @notice Tests that the `create` function succeeds when creating a new dispute game with a
+    ///         `GameType` that has an implementation set.
     function testFuzz_create_succeeds(
         uint32 gameType,
         Claim rootClaim,
@@ -239,7 +265,8 @@ contract DisputeGameFactory_Create_Test is DisputeGameFactory_Init {
     )
         public
     {
-        // Ensure that the `gameType` is within the bounds of the `GameType` enum's possible values.
+        // Ensure that the `gameType` is within the bounds of the `GameType` enum's possible
+        // values.
         GameType gt = GameType.wrap(uint8(bound(gameType, 0, 2)));
         // Ensure the rootClaim has a VMStatus that disagrees with the validity.
         rootClaim = changeClaimStatus(rootClaim, VMStatuses.INVALID);
@@ -274,7 +301,8 @@ contract DisputeGameFactory_Create_Test is DisputeGameFactory_Init {
         assertEq(address(proxy).balance, _value);
     }
 
-    /// @dev Tests that the `create` function reverts when creating a new dispute game with an incorrect bond amount.
+    /// @notice Tests that the `create` function reverts when creating a new dispute game with an
+    ///         incorrect bond amount.
     function testFuzz_create_incorrectBondAmount_reverts(
         uint32 gameType,
         Claim rootClaim,
@@ -282,7 +310,8 @@ contract DisputeGameFactory_Create_Test is DisputeGameFactory_Init {
     )
         public
     {
-        // Ensure that the `gameType` is within the bounds of the `GameType` enum's possible values.
+        // Ensure that the `gameType` is within the bounds of the `GameType` enum's possible
+        // values.
         GameType gt = GameType.wrap(uint8(bound(gameType, 0, 2)));
         // Ensure the rootClaim has a VMStatus that disagrees with the validity.
         rootClaim = changeClaimStatus(rootClaim, VMStatuses.INVALID);
@@ -298,11 +327,12 @@ contract DisputeGameFactory_Create_Test is DisputeGameFactory_Init {
         disputeGameFactory.create(gt, rootClaim, extraData);
     }
 
-    /// @dev Tests that the `create` function reverts when there is no implementation
-    ///      set for the given `GameType`.
+    /// @notice Tests that the `create` function reverts when there is no implementation set for
+    ///         the given `GameType`.
     function testFuzz_create_noImpl_reverts(uint32 gameType, Claim rootClaim, bytes calldata extraData) public {
-        // Ensure that the `gameType` is within the bounds of the `GameType` enum's possible values. We skip over
-        // game type = 0, since the deploy script set the implementation for that game type.
+        // Ensure that the `gameType` is within the bounds of the `GameType` enum's possible
+        // values. We skip over game type = 0, since the deploy script set the implementation for
+        // that game type.
         GameType gt = GameType.wrap(uint32(bound(gameType, 2, type(uint32).max)));
         // Ensure the rootClaim has a VMStatus that disagrees with the validity.
         rootClaim = changeClaimStatus(rootClaim, VMStatuses.INVALID);
@@ -311,9 +341,11 @@ contract DisputeGameFactory_Create_Test is DisputeGameFactory_Init {
         disputeGameFactory.create(gt, rootClaim, extraData);
     }
 
-    /// @dev Tests that the `create` function reverts when there exists a dispute game with the same UUID.
+    /// @notice Tests that the `create` function reverts when there exists a dispute game with the
+    ///         same UUID.
     function testFuzz_create_sameUUID_reverts(uint32 gameType, Claim rootClaim, bytes calldata extraData) public {
-        // Ensure that the `gameType` is within the bounds of the `GameType` enum's possible values.
+        // Ensure that the `gameType` is within the bounds of the `GameType` enum's possible
+        // values.
         GameType gt = GameType.wrap(uint8(bound(gameType, 0, 2)));
         // Ensure the rootClaim has a VMStatus that disagrees with the validity.
         rootClaim = changeClaimStatus(rootClaim, VMStatuses.INVALID);
@@ -335,7 +367,8 @@ contract DisputeGameFactory_Create_Test is DisputeGameFactory_Init {
         assertEq(address(game), address(proxy));
         assertEq(Timestamp.unwrap(timestamp), block.timestamp);
 
-        // Ensure that the `create` function reverts when called with parameters that would result in the same UUID.
+        // Ensure that the `create` function reverts when called with parameters that would result
+        // in the same UUID.
         vm.expectRevert(
             abi.encodeWithSelector(GameAlreadyExists.selector, disputeGameFactory.getGameUUID(gt, rootClaim, extraData))
         );
@@ -349,8 +382,11 @@ contract DisputeGameFactory_Create_Test is DisputeGameFactory_Init {
     }
 }
 
-contract DisputeGameFactory_SetImplementation_Test is DisputeGameFactory_Init {
-    /// @dev Tests that the `setImplementation` function properly sets the implementation for a given `GameType`.
+/// @title DisputeGameFactory_SetImplementation_Test
+/// @notice Tests the `setImplementation` function of the `DisputeGameFactory` contract.
+contract DisputeGameFactory_SetImplementation_Test is DisputeGameFactory_TestInit {
+    /// @notice Tests that the `setImplementation` function properly sets the implementation for a
+    ///         given `GameType`.
     function test_setImplementation_succeeds() public {
         vm.expectEmit(true, true, true, true, address(disputeGameFactory));
         emit ImplementationSet(address(1), GameTypes.CANNON);
@@ -362,7 +398,7 @@ contract DisputeGameFactory_SetImplementation_Test is DisputeGameFactory_Init {
         assertEq(address(disputeGameFactory.gameImpls(GameTypes.CANNON)), address(1));
     }
 
-    /// @dev Tests that the `setImplementation` function reverts when called by a non-owner.
+    /// @notice Tests that the `setImplementation` function reverts when called by a non-owner.
     function test_setImplementation_notOwner_reverts() public {
         // Ensure that the `setImplementation` function reverts when called by a non-owner.
         vm.prank(address(0));
@@ -371,8 +407,11 @@ contract DisputeGameFactory_SetImplementation_Test is DisputeGameFactory_Init {
     }
 }
 
-contract DisputeGameFactory_SetInitBond_Test is DisputeGameFactory_Init {
-    /// @dev Tests that the `setInitBond` function properly sets the init bond for a given `GameType`.
+/// @title DisputeGameFactory_SetInitBond_Test
+/// @notice Tests the `setInitBond` function of the `DisputeGameFactory` contract.
+contract DisputeGameFactory_SetInitBond_Test is DisputeGameFactory_TestInit {
+    /// @notice Tests that the `setInitBond` function properly sets the init bond for a given
+    ///         `GameType`.
     function test_setInitBond_succeeds() public {
         vm.expectEmit(true, true, true, true, address(disputeGameFactory));
         emit InitBondUpdated(GameTypes.CANNON, 1 ether);
@@ -393,7 +432,7 @@ contract DisputeGameFactory_SetInitBond_Test is DisputeGameFactory_Init {
         assertEq(disputeGameFactory.initBonds(GameTypes.CANNON), 2 ether);
     }
 
-    /// @dev Tests that the `setInitBond` function reverts when called by a non-owner.
+    /// @notice Tests that the `setInitBond` function reverts when called by a non-owner.
     function test_setInitBond_notOwner_reverts() public {
         // Ensure that the `setInitBond` function reverts when called by a non-owner.
         vm.prank(address(0));
@@ -402,11 +441,14 @@ contract DisputeGameFactory_SetInitBond_Test is DisputeGameFactory_Init {
     }
 }
 
-contract DisputeGameFactory_GetGameUUID_Test is DisputeGameFactory_Init {
-    /// @dev Tests that the `getGameUUID` function returns the correct hash when comparing
-    ///      against the keccak256 hash of the abi-encoded parameters.
+/// @title DisputeGameFactory_GetGameUUID_Test
+/// @notice Tests the `getGameUUID` function of the `DisputeGameFactory` contract.
+contract DisputeGameFactory_GetGameUUID_Test is DisputeGameFactory_TestInit {
+    /// @notice Tests that the `getGameUUID` function returns the correct hash when comparing
+    ///         against the keccak256 hash of the abi-encoded parameters.
     function testDiff_getGameUUID_succeeds(uint32 gameType, Claim rootClaim, bytes calldata extraData) public view {
-        // Ensure that the `gameType` is within the bounds of the `GameType` enum's possible values.
+        // Ensure that the `gameType` is within the bounds of the `GameType` enum's possible
+        // values.
         GameType gt = GameType.wrap(uint8(bound(gameType, 0, 2)));
 
         assertEq(
@@ -416,29 +458,9 @@ contract DisputeGameFactory_GetGameUUID_Test is DisputeGameFactory_Init {
     }
 }
 
-contract DisputeGameFactory_Owner_Test is DisputeGameFactory_Init {
-    /// @dev Tests that the `owner` function returns the correct address after deployment.
-    function test_owner_succeeds() public view {
-        assertEq(disputeGameFactory.owner(), address(this));
-    }
-}
-
-contract DisputeGameFactory_TransferOwnership_Test is DisputeGameFactory_Init {
-    /// @dev Tests that the `transferOwnership` function succeeds when called by the owner.
-    function test_transferOwnership_succeeds() public {
-        disputeGameFactory.transferOwnership(address(1));
-        assertEq(disputeGameFactory.owner(), address(1));
-    }
-
-    /// @dev Tests that the `transferOwnership` function reverts when called by a non-owner.
-    function test_transferOwnership_notOwner_reverts() public {
-        vm.prank(address(0));
-        vm.expectRevert("Ownable: caller is not the owner");
-        disputeGameFactory.transferOwnership(address(1));
-    }
-}
-
-contract DisputeGameFactory_FindLatestGames_Test is DisputeGameFactory_Init {
+/// @title DisputeGameFactory_FindLatestGames_Test
+/// @notice Tests the `findLatestGames` function of the `DisputeGameFactory` contract.
+contract DisputeGameFactory_FindLatestGames_Test is DisputeGameFactory_TestInit {
     function setUp() public override {
         super.setUp();
 
@@ -450,8 +472,8 @@ contract DisputeGameFactory_FindLatestGames_Test is DisputeGameFactory_Init {
         }
     }
 
-    /// @dev Tests that `findLatestGames` returns an empty array when the passed starting index is greater than or equal
-    ///      to the game count.
+    /// @notice Tests that `findLatestGames` returns an empty array when the passed starting index
+    ///         is greater than or equal to the game count.
     function testFuzz_findLatestGames_greaterThanLength_succeeds(uint256 _start) public {
         // Creation count should be 32 for normal tests, 5 for upgrade tests.
         uint256 creationCount = isForkTest() ? 5 : 32;
@@ -471,12 +493,13 @@ contract DisputeGameFactory_FindLatestGames_Test is DisputeGameFactory_Init {
         assertEq(games.length, 0);
     }
 
-    /// @dev Tests that `findLatestGames` returns the correct games.
+    /// @notice Tests that `findLatestGames` returns the correct games.
     function test_findLatestGames_static_succeeds() public {
         // Creation count should be 32 for normal tests, 5 for upgrade tests.
         uint256 creationCount = isForkTest() ? 5 : 32;
 
-        // Create some dispute games of varying game types, repeatedly iterating over the game types 0, 1, 2.
+        // Create some dispute games of varying game types, repeatedly iterating over the game
+        // types 0, 1, 2.
         for (uint256 i; i < creationCount; i++) {
             disputeGameFactory.create(GameType.wrap(uint8(i % 3)), Claim.wrap(bytes32(i)), abi.encode(i));
         }
@@ -518,8 +541,8 @@ contract DisputeGameFactory_FindLatestGames_Test is DisputeGameFactory_Init {
         assertEq(createdAt.raw(), block.timestamp);
     }
 
-    /// @dev Tests that `findLatestGames` returns the correct games, if there are less than `_n` games of the given type
-    ///      available.
+    /// @notice Tests that `findLatestGames` returns the correct games, if there are less than `_n`
+    ///         games of the given type available.
     function test_findLatestGames_lessThanNAvailable_succeeds() public {
         // Need to clear out the length of the game list on forked list to avoid massive iteration.
         if (isForkTest()) {
@@ -552,7 +575,8 @@ contract DisputeGameFactory_FindLatestGames_Test is DisputeGameFactory_Init {
         assertEq(games[1].index, 0);
     }
 
-    /// @dev Tests that the expected number of games are returned when `findLatestGames` is called.
+    /// @notice Tests that the expected number of games are returned when `findLatestGames` is
+    ///         called.
     function testFuzz_findLatestGames_correctAmount_succeeds(
         uint256 _numGames,
         uint256 _numSearchedGames,
@@ -578,21 +602,25 @@ contract DisputeGameFactory_FindLatestGames_Test is DisputeGameFactory_Init {
     }
 }
 
-/// @dev A fake clone used for testing the `DisputeGameFactory` contract's `create` function.
-contract FakeClone {
-    function initialize() external payable {
-        // noop
+/// @title DisputeGameFactory_Unclassified_Test
+/// @notice General tests that are not testing any function directly of the `DisputeGameFactory`
+///         contract or are testing multiple functions at once.
+contract DisputeGameFactory_Unclassified_Test is DisputeGameFactory_TestInit {
+    /// @notice Tests that the `owner` function returns the correct address after deployment.
+    function test_owner_succeeds() public view {
+        assertEq(disputeGameFactory.owner(), address(this));
     }
 
-    function extraData() external pure returns (bytes memory) {
-        return hex"FF0420";
+    /// @notice Tests that the `transferOwnership` function succeeds when called by the owner.
+    function test_transferOwnership_succeeds() public {
+        disputeGameFactory.transferOwnership(address(1));
+        assertEq(disputeGameFactory.owner(), address(1));
     }
 
-    function parentHash() external pure returns (bytes32) {
-        return bytes32(0);
-    }
-
-    function rootClaim() external pure returns (Claim) {
-        return Claim.wrap(bytes32(0));
+    /// @notice Tests that the `transferOwnership` function reverts when called by a non-owner.
+    function test_transferOwnership_notOwner_reverts() public {
+        vm.prank(address(0));
+        vm.expectRevert("Ownable: caller is not the owner");
+        disputeGameFactory.transferOwnership(address(1));
     }
 }

@@ -3,23 +3,37 @@ package fakepos
 import (
 	"context"
 
-	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/fakebeacon"
-	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/geth"
 	"github.com/ethereum-optimism/optimism/op-test-sequencer/sequencer/backend/work"
 	"github.com/ethereum-optimism/optimism/op-test-sequencer/sequencer/seqtypes"
 	"github.com/ethereum/go-ethereum/beacon/engine"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/eth/catalyst"
 	"github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum/go-ethereum/params"
 )
+
+type Beacon interface {
+	StoreBlobsBundle(slot uint64, bundle *engine.BlobsBundleV1) error
+}
+
+type Blockchain interface {
+	CurrentBlock() *types.Header
+	GetHeaderByNumber(number uint64) *types.Header
+	GetHeaderByHash(hash common.Hash) *types.Header
+	CurrentFinalBlock() *types.Header
+	CurrentSafeBlock() *types.Header
+	Genesis() *types.Block
+	Config() *params.ChainConfig
+}
 
 type Builder struct {
 	id  seqtypes.BuilderID
 	log log.Logger
 
-	engine *catalyst.ConsensusAPI
-	geth   *geth.GethInstance
-	beacon *fakebeacon.FakeBeacon
+	engine     *catalyst.ConsensusAPI
+	beacon     Beacon
+	blockchain Blockchain
 
 	registry work.Jobs
 
@@ -38,9 +52,9 @@ func NewBuilder(ctx context.Context, id seqtypes.BuilderID, opts *work.ServiceOp
 		id:                id,
 		log:               opts.Log,
 		registry:          opts.Jobs,
-		engine:            catalyst.NewConsensusAPI(config.Geth.Backend),
-		geth:              config.Geth,
+		engine:            catalyst.NewConsensusAPI(config.GethBackend),
 		beacon:            config.Beacon,
+		blockchain:        config.GethBackend.BlockChain(),
 		withdrawalsIndex:  1001,
 		envelopes:         make(map[common.Hash]*engine.ExecutionPayloadEnvelope),
 		finalizedDistance: config.FinalizedDistance,

@@ -137,16 +137,26 @@ commands:
 
   install-contracts-dependencies:
     description: "Install the dependencies for the smart contracts"
+    parameters:
+      solc_versions:
+        description: "The versions of solc to install"
+        type: string
+        default: "0.8.15,0.8.19,0.8.25,0.8.28"
     steps:
+      - restore_cache:
+          keys:
+            # use mise.toml to anchor on the underlying forge/svm versions
+            - svm-cache-{{ checksum "mise.toml" }}-<<parameters.solc_versions>>
       - run:
-          name: Install SVM compilers
+          name: Install solc compilers
           command: |
-            # Have to wipe out the SVM directory to avoid issues with the SVM version
-            rm -rf ~/.svm/*
-            svm install 0.8.15
-            svm install 0.8.19
-            svm install 0.8.25
-            svm install 0.8.28
+            for version in $(echo "<<parameters.solc_versions>>" | tr ',' '\n'); do
+              svm which $version || svm install $version
+            done
+      - save_cache:
+          key: svm-cache-{{ checksum "mise.toml" }}-<<parameters.solc_versions>>
+          paths:
+            - ~/.svm
       - run:
           name: Install dependencies
           command: |
@@ -765,7 +775,7 @@ jobs:
     circleci_ip_ranges: true
     docker:
         - image: <<pipeline.parameters.default_docker_image>>
-    resource_class: xlarge
+    resource_class: 2xlarge
     parameters:
       test_flags:
         description: Additional flags to pass to the test command
@@ -853,7 +863,7 @@ jobs:
         type: string
     docker:
       - image: <<pipeline.parameters.default_docker_image>>
-    resource_class: large
+    resource_class: xlarge
     steps:
       - utils/checkout-with-mise
       - attach_workspace: { at: "." }
@@ -1178,6 +1188,7 @@ jobs:
     resource_class: xlarge
     steps:
       - utils/checkout-with-mise
+      - install-contracts-dependencies
       - run:
           name: Setup Kurtosis
           command: |
@@ -1883,11 +1894,30 @@ workflows:
           context:
             - circleci-repo-readonly-authenticated-github-token
       - go-tests:
+          name: go-tests-short
           requires:
             - contracts-bedrock-build
             - cannon-prestate-quick
           context:
             - circleci-repo-readonly-authenticated-github-token
+          filters:
+            branches:
+              ignore: develop  # Run on all branches EXCEPT develop (PR branches only)
+      - go-tests:
+          name: go-tests-full
+          rule: "go-tests-ci"  # Run full test suite instead of short
+          no_output_timeout: 30m  # Longer timeout for full tests
+          test_timeout: 60m
+          notify: true
+          filters:
+            branches:
+              only: develop  # Only runs on develop branch (post-merge)
+          requires:
+            - contracts-bedrock-build
+            - cannon-prestate-quick
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+            - slack
       - analyze-op-program-client:
           context:
             - circleci-repo-readonly-authenticated-github-token
@@ -1907,7 +1937,7 @@ workflows:
             - op-program-docker-build
             - op-supervisor-docker-build
             - op-test-sequencer-docker-build
-            - go-tests
+            - go-tests-short
             - sanitize-op-program
           context:
             - circleci-repo-readonly-authenticated-github-tokens
@@ -1931,6 +1961,7 @@ workflows:
                 - op-test-sequencer
                 - cannon
                 - op-dripper
+                - op-interop-mon
           context:
             - circleci-repo-readonly-authenticated-github-token
       - cannon-prestate-quick:
@@ -2011,6 +2042,7 @@ workflows:
                 - op-deployer
                 - cannon
                 - op-dripper
+                - op-interop-mon
           name: <<matrix.docker_name>>-docker-release
           docker_tags: <<pipeline.git.revision>>
           platforms: "linux/amd64,linux/arm64"
@@ -2044,6 +2076,7 @@ workflows:
                 - op-deployer
                 - cannon
                 - op-dripper
+                - op-interop-mon
           name: <<matrix.op_component>>-cross-platform
           requires:
             - op-node-docker-release
@@ -2059,6 +2092,7 @@ workflows:
             - op-test-sequencer-docker-release
             - cannon-docker-release
             - op-dripper-docker-release
+            - op-interop-mon-docker-release
           context:
             - circleci-repo-readonly-authenticated-github-token
       - cannon-prestate:
@@ -2210,6 +2244,7 @@ workflows:
                 - op-test-sequencer
                 - cannon
                 - op-dripper
+                - op-interop-mon
           name: <<matrix.docker_name>>-docker-publish
           docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
           platforms: "linux/amd64,linux/arm64"
@@ -2234,6 +2269,7 @@ workflows:
                 - op-test-sequencer
                 - cannon
                 - op-dripper
+                - op-interop-mon
           name: <<matrix.op_component>>-cross-platform
           requires:
             - <<matrix.op_component>>-docker-publish

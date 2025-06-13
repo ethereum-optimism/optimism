@@ -39,6 +39,14 @@ func WithDeployerOptions(opts ...DeployerOption) stack.Option[*Orchestrator] {
 	})
 }
 
+type DeployerPipelineOption func(wb *worldBuilder, intent *state.Intent, cfg *deployer.ApplyPipelineOpts)
+
+func WithDeployerPipelineOption(opt DeployerPipelineOption) stack.Option[*Orchestrator] {
+	return stack.BeforeDeploy(func(o *Orchestrator) {
+		o.deployerPipelineOptions = append(o.deployerPipelineOptions, opt)
+	})
+}
+
 func WithDeployer() stack.Option[*Orchestrator] {
 	return stack.FnOption[*Orchestrator]{
 		BeforeDeployFn: func(o *Orchestrator) {
@@ -53,6 +61,7 @@ func WithDeployer() stack.Option[*Orchestrator] {
 		},
 		DeployFn: func(o *Orchestrator) {
 			o.P().Require().NotNil(o.wb, "must have a world builder")
+			o.wb.deployerPipelineOptions = o.deployerPipelineOptions
 			o.wb.Build()
 		},
 		AfterDeployFn: func(o *Orchestrator) {
@@ -129,6 +138,9 @@ type worldBuilder struct {
 	require *testreq.Assertions
 	keys    devkeys.Keys
 
+	// options
+	deployerPipelineOptions []DeployerPipelineOption
+
 	builder intentbuilder.Builder
 
 	output          *state.State
@@ -189,26 +201,32 @@ func WithCommons(l1ChainID eth.ChainID) DeployerOption {
 	}
 }
 
-func WithPrefundedL2(chainID eth.ChainID) DeployerOption {
+func WithGuardianMatchL1PAO() DeployerOption {
 	return func(p devtest.P, keys devkeys.Keys, builder intentbuilder.Builder) {
-		_, l2Config := builder.WithL2(chainID)
-		l2Config.ChainID()
+		_, superCfg := builder.WithSuperchain()
+		intentbuilder.WithOverrideGuardianToL1PAO(p, keys, superCfg.L1ChainID(), superCfg)
+	}
+}
 
+func WithPrefundedL2(l1ChainID, l2ChainID eth.ChainID) DeployerOption {
+	return func(p devtest.P, keys devkeys.Keys, builder intentbuilder.Builder) {
+		_, l2Config := builder.WithL2(l2ChainID)
 		intentbuilder.WithDevkeyVaults(p, keys, l2Config)
-		intentbuilder.WithDevkeyRoles(p, keys, l2Config)
+		intentbuilder.WithDevkeyL2Roles(p, keys, l2Config)
+		// l2configurator L1ProxyAdminOwner must be also populated
+		intentbuilder.WithDevkeyL1Roles(p, keys, l2Config, l1ChainID)
 		{
 			faucetFunderAddr, err := keys.Address(devkeys.UserKey(funderMnemonicIndex))
 			p.Require().NoError(err, "need funder addr")
 			l2Config.WithPrefundedAccount(faucetFunderAddr, *eth.BillionEther.ToU256())
 		}
 		{
-			addrFor := intentbuilder.RoleToAddrProvider(p, keys, chainID)
+			addrFor := intentbuilder.RoleToAddrProvider(p, keys, l2ChainID)
 			l1Config := l2Config.L1Config()
 			l1Config.WithPrefundedAccount(addrFor(devkeys.BatcherRole), *millionEth)
 			l1Config.WithPrefundedAccount(addrFor(devkeys.ProposerRole), *millionEth)
 			l1Config.WithPrefundedAccount(addrFor(devkeys.ChallengerRole), *millionEth)
 			l1Config.WithPrefundedAccount(addrFor(devkeys.SystemConfigOwner), *millionEth)
-			l1Config.WithPrefundedAccount(addrFor(devkeys.L1ProxyAdminOwnerRole), *millionEth)
 		}
 	}
 }
@@ -226,6 +244,45 @@ func WithInteropAtGenesis() DeployerOption {
 func WithSequencingWindow(n uint64) DeployerOption {
 	return func(p devtest.P, keys devkeys.Keys, builder intentbuilder.Builder) {
 		builder.WithGlobalOverride("sequencerWindowSize", uint64(n))
+	}
+}
+
+// WithAdditionalDisputeGames adds additional dispute games to all L2s.
+func WithAdditionalDisputeGames(games []state.AdditionalDisputeGame) DeployerOption {
+	return func(p devtest.P, keys devkeys.Keys, builder intentbuilder.Builder) {
+		for _, l2Cfg := range builder.L2s() {
+			l2Cfg.WithAdditionalDisputeGames(games)
+		}
+	}
+}
+
+func WithDeployerMatchL1PAO() DeployerPipelineOption {
+	return func(wb *worldBuilder, intent *state.Intent, cfg *deployer.ApplyPipelineOpts) {
+		l1ChainID := new(big.Int).SetUint64(intent.L1ChainID)
+		deployerKey, err := wb.keys.Secret(devkeys.L1ProxyAdminOwnerRole.Key(l1ChainID))
+		wb.require.NoError(err)
+		cfg.DeployerPrivateKey = deployerKey
+	}
+}
+
+// WithFinalizationPeriodSeconds overrides the number of L1 blocks in a sequencing window, applied to all L2s.
+func WithFinalizationPeriodSeconds(n uint64) DeployerOption {
+	return func(p devtest.P, keys devkeys.Keys, builder intentbuilder.Builder) {
+		for _, l2Cfg := range builder.L2s() {
+			l2Cfg.WithFinalizationPeriodSeconds(n)
+		}
+	}
+}
+
+func WithProofMaturityDelaySeconds(n uint64) DeployerOption {
+	return func(p devtest.P, keys devkeys.Keys, builder intentbuilder.Builder) {
+		builder.WithGlobalOverride("proofMaturityDelaySeconds", uint64(n))
+	}
+}
+
+func WithDisputeGameFinalityDelaySeconds(seconds uint64) DeployerOption {
+	return func(p devtest.P, keys devkeys.Keys, builder intentbuilder.Builder) {
+		builder.WithGlobalOverride("disputeGameFinalityDelaySeconds", seconds)
 	}
 }
 
@@ -305,6 +362,10 @@ func (wb *worldBuilder) Build() {
 		Logger:             wb.logger,
 		StateWriter:        wb, // direct output back here
 	}
+	for _, opt := range wb.deployerPipelineOptions {
+		opt(wb, intent, &pipelineOpts)
+	}
+
 	err = deployer.ApplyPipeline(wb.p.Ctx(), pipelineOpts)
 	wb.require.NoError(err)
 

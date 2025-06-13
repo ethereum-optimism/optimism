@@ -42,6 +42,7 @@ var (
 	TenEther             = Ether(10)
 	OneEther             = Ether(1)
 	HalfEther            = GWei(500_000_000)
+	OneThirdEther        = GWei(333_333_333)
 	OneTenthEther        = GWei(100_000_000)
 	NineHundredthsEther  = GWei(90_000_000)
 	EightHundredthsEther = GWei(80_000_000)

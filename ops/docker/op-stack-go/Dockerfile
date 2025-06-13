@@ -32,7 +32,7 @@ ARG TARGETARCH
 
 # Install yq
 RUN wget https://github.com/mikefarah/yq/releases/latest/download/yq_linux_$TARGETARCH -O /usr/local/bin/yq && \
-    chmod +x /usr/local/bin/yq
+  chmod +x /usr/local/bin/yq
 
 # Install versioned toolchain
 COPY ./mise.toml .
@@ -145,7 +145,7 @@ RUN --mount=type=cache,target=/go/pkg/mod --mount=type=cache,target=/root/.cache
   GOOS=$TARGETOS GOARCH=$TARGETARCH GITCOMMIT=$GIT_COMMIT GITDATE=$GIT_DATE  VERSION="$OP_TEST_SEQUENCER_VERSION"
 
 FROM --platform=$BUILDPLATFORM builder AS op-deployer-builder
-ARG OP_NODE_VERSION=v0.0.0
+ARG OP_DEPLOYER_VERSION=v0.0.0
 RUN --mount=type=cache,target=/go/pkg/mod --mount=type=cache,target=/root/.cache/go-build cd op-chain-ops && make op-deployer  \
   GOOS=$TARGETOS GOARCH=$TARGETARCH GITCOMMIT=$GIT_COMMIT GITDATE=$GIT_DATE VERSION="$OP_DEPLOYER_VERSION"
 
@@ -159,6 +159,12 @@ ARG OP_FAUCET_VERSION=v0.0.0
 RUN --mount=type=cache,target=/go/pkg/mod --mount=type=cache,target=/root/.cache/go-build just \
   GOOS=$TARGETOS GOARCH=$TARGETARCH GITCOMMIT=$GIT_COMMIT GITDATE=$GIT_DATE VERSION="$OP_FAUCET_VERSION" \
   op-faucet/op-faucet
+
+FROM --platform=$BUILDPLATFORM builder AS op-interop-mon-builder
+ARG OP_INTEROP_MON_VERSION=v0.0.0
+RUN --mount=type=cache,target=/go/pkg/mod --mount=type=cache,target=/root/.cache/go-build just \
+  GOOS=$TARGETOS GOARCH=$TARGETARCH GITCOMMIT=$GIT_COMMIT GITDATE=$GIT_DATE VERSION="$OP_INTEROP_MON_VERSION" \
+  op-interop-mon/op-interop-mon
 
 FROM $TARGET_BASE_IMAGE AS cannon-target
 COPY --from=cannon-builder /app/cannon/bin/cannon /usr/local/bin/
@@ -237,3 +243,7 @@ CMD ["op-dripper"]
 FROM $TARGET_BASE_IMAGE AS op-faucet-target
 COPY --from=op-faucet-builder /app/op-faucet/bin/op-faucet /usr/local/bin/
 CMD ["op-faucet"]
+
+FROM $TARGET_BASE_IMAGE AS op-interop-mon-target
+COPY --from=op-interop-mon-builder /app/op-interop-mon/bin/op-interop-mon /usr/local/bin/
+CMD ["op-interop-mon"]

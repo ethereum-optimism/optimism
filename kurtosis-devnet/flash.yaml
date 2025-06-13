@@ -1,0 +1,72 @@
+optimism_package:
+  faucet:
+    enabled: true
+    image: {{ localDockerImage "op-faucet" }}
+  chains:
+    - participants:
+      - el_type: op-geth
+        cl_type: op-node
+        cl_image: {{ localDockerImage "op-node" }}
+        el_builder_type: "op-rbuilder"
+        el_builder_image: "us-docker.pkg.dev/oplabs-tools-artifacts/dev-images/op-rbuilder:sha-4aee498"
+        count: 2
+      network_params:
+        network: "kurtosis"
+        network_id: "2151908"
+        seconds_per_slot: 2
+        name: "op-kurtosis"
+        fjord_time_offset: 0
+        granite_time_offset: 0
+        holocene_time_offset: 0
+        fund_dev_accounts: true
+      batcher_params:
+        image: {{ localDockerImage "op-batcher" }}
+        extra_params: []
+      conductor_params:
+        image: {{ localDockerImage "op-conductor" }}
+        enabled: true
+        bootstrap: true
+      proposer_params:
+        image: {{ localDockerImage "op-proposer" }}
+        extra_params: []
+        game_type: 1
+        proposal_interval: 10m
+      mev_params:
+        type: "rollup-boost"
+        image: "docker.io/flashbots/rollup-boost:0.6.2"
+      additional_services: [
+        "rollup-boost",
+      ]
+  challengers:
+    challenger:
+      enabled: true
+      image: {{ localDockerImage "op-challenger" }}
+      participants: "*"
+      cannon_prestates_url: {{ localPrestate.URL }}
+      cannon_trace_types: ["cannon", "permissioned"]
+  op_contract_deployer_params:
+    image: {{ localDockerImage "op-deployer" }}
+    l1_artifacts_locator: {{ localContractArtifacts "l1" }}
+    l2_artifacts_locator: {{ localContractArtifacts "l2" }}
+    overrides:
+      faultGameAbsolutePrestate: {{ localPrestate.Hashes.prestate_mt64 }}
+  global_log_level: "info"
+  global_node_selectors: {}
+  global_tolerations: []
+  persistent: false
+ethereum_package:
+  participants:
+    - el_type: geth
+      cl_type: teku
+  network_params:
+    preset: minimal
+    genesis_delay: 5
+    additional_preloaded_contracts: |
+      {
+        "0x4e59b44847b379578588920cA78FbF26c0B4956C": {
+          "balance": "0ETH",
+          "code": "0x7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe03601600081602082378035828234f58015156039578182fd5b8082525050506014600cf3",
+          "storage": {},
+          "nonce": "1"
+        }
+      }

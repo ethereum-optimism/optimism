@@ -59,17 +59,9 @@ func TestInitExecMsgWithDSL(gt *testing.T) {
 	clientB := sys.L2ELB.Escape().EthClient()
 
 	// Initialize eventLogger binding
-	eventLoggerCallFactory := bindings.NewEventLoggerCallFactory(
-		bindings.WithClient(clientA), bindings.WithTest(t), bindings.WithTo(eventLoggerAddress),
-	)
-	eventLogger := bindings.NewEventLogger(eventLoggerCallFactory)
-
+	eventLogger := bindings.NewBindings[bindings.EventLogger](bindings.WithClient(clientA), bindings.WithTest(t), bindings.WithTo(eventLoggerAddress))
 	// Initialize crossL2Inbox binding
-	crossL2InboxCallFactory := bindings.NewCrossL2InboxCallFactory(
-		bindings.WithClient(clientB), bindings.WithTest(t),
-	)
-	crossL2InboxCallFactory.WithDefaultAddr()
-	crossL2Inbox := bindings.NewCrossL2Inbox(crossL2InboxCallFactory)
+	crossL2Inbox := bindings.NewBindings[bindings.CrossL2Inbox](bindings.WithClient(clientB), bindings.WithTest(t), bindings.WithTo(common.HexToAddress(predeploys.CrossL2Inbox)))
 
 	// manually build topics and data for EventLogger
 	topics := []eth.Bytes32{}

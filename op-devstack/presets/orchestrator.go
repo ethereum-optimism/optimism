@@ -18,7 +18,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-devstack/sysgo"
 	"github.com/ethereum-optimism/optimism/op-service/locks"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
-	"github.com/ethereum-optimism/optimism/op-service/logfilter"
+	"github.com/ethereum-optimism/optimism/op-service/log/logfilter"
 )
 
 // lockedOrchestrator is the global variable that stores
@@ -55,7 +55,7 @@ func DoMain(m *testing.M, opts ...stack.CommonOption) {
 			}
 		}()
 
-		// This may be tuned with env or CLI flags in the future, to customize test output
+		// This may be tuned with test setup code, to customize test output
 		logHandler := oplog.NewLogHandler(os.Stdout, oplog.CLIConfig{
 			Level:  log.LevelTrace,
 			Color:  true,
@@ -63,9 +63,9 @@ func DoMain(m *testing.M, opts ...stack.CommonOption) {
 			Pid:    false,
 		})
 		logHandler = logfilter.WrapFilterHandler(logHandler)
-		logHandler.(logfilter.Handler).Set(logfilter.Minimum(devtest.DefaultTestLogLevel))
-		logHandler = oplog.WrapContextHandler(logHandler)
-		// The default can be changed using the WithLogFiltersReset option
+		logHandler.(logfilter.FilterHandler).Set(logfilter.DefaultMute(logfilter.Level(log.LevelInfo).Show()))
+		logHandler = logfilter.WrapContextHandler(logHandler)
+		// The default can be changed using the WithLogFilters option which replaces this default
 		logger := log.NewLogger(logHandler)
 
 		ctx, otelShutdown, err := telemetry.SetupOpenTelemetry(context.Background())

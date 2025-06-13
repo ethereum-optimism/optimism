@@ -125,7 +125,7 @@ func (cl *L2CLNode) AdvancedFn(lvl types.SafetyLevel, delta uint64, attempts int
 	return func() error {
 		initial := cl.HeadBlockRef(lvl)
 		target := initial.Number + delta
-		cl.log.Info("expecting chain to advance", "id", cl.inner.ID(), "chain", cl.ChainID(), "label", lvl, "delta", delta)
+		cl.log.Info("Expecting chain to advance", "id", cl.inner.ID(), "chain", cl.ChainID(), "label", lvl, "delta", delta)
 		return cl.ReachedFn(lvl, target, attempts)()
 	}
 }
@@ -134,7 +134,7 @@ func (cl *L2CLNode) NotAdvancedFn(lvl types.SafetyLevel, attempts int) CheckFunc
 	return func() error {
 		initial := cl.HeadBlockRef(lvl)
 		logger := cl.log.With("id", cl.inner.ID(), "chain", cl.ChainID(), "label", lvl, "target", initial.Number)
-		logger.Info("expecting chain not to advance")
+		logger.Info("Expecting chain not to advance")
 		for range attempts {
 			time.Sleep(2 * time.Second)
 			head := cl.HeadBlockRef(lvl)
@@ -144,6 +144,7 @@ func (cl *L2CLNode) NotAdvancedFn(lvl types.SafetyLevel, attempts int) CheckFunc
 			}
 			return fmt.Errorf("expected head not to advance: %s", lvl)
 		}
+		logger.Info("Chain not advanced")
 		return nil
 	}
 }
@@ -153,12 +154,12 @@ func (cl *L2CLNode) NotAdvancedFn(lvl types.SafetyLevel, attempts int) CheckFunc
 func (cl *L2CLNode) ReachedFn(lvl types.SafetyLevel, target uint64, attempts int) CheckFunc {
 	return func() error {
 		logger := cl.log.With("id", cl.inner.ID(), "chain", cl.ChainID(), "label", lvl, "target", target)
-		logger.Info("expecting chain to reach")
+		logger.Info("Expecting chain to reach")
 		return retry.Do0(cl.ctx, attempts, &retry.FixedStrategy{Dur: 2 * time.Second},
 			func() error {
 				head := cl.HeadBlockRef(lvl)
 				if head.Number >= target {
-					logger.Info("chain advanced", "target", target)
+					logger.Info("Chain advanced", "target", target)
 					return nil
 				}
 				logger.Info("Chain sync status", "current", head.Number)
@@ -195,13 +196,13 @@ func (cl *L2CLNode) RewindedFn(lvl types.SafetyLevel, delta uint64, attempts int
 		cl.require.GreaterOrEqual(initial.Number, delta, "cannot rewind before genesis")
 		target := initial.Number - delta
 		logger := cl.log.With("id", cl.inner.ID(), "chain", cl.ChainID(), "label", lvl)
-		logger.Info("expecting chain to rewind", "target", target, "delta", delta)
+		logger.Info("Expecting chain to rewind", "target", target, "delta", delta)
 		// check rewind more aggressively, in shorter interval
-		return retry.Do0(cl.ctx, attempts, &retry.FixedStrategy{Dur: 500 * time.Millisecond},
+		return retry.Do0(cl.ctx, attempts, &retry.FixedStrategy{Dur: 250 * time.Millisecond},
 			func() error {
 				head := cl.HeadBlockRef(lvl)
 				if head.Number <= target {
-					logger.Info("chain rewinded", "target", target)
+					logger.Info("Chain rewinded", "target", target)
 					return nil
 				}
 				logger.Info("Chain sync status", "target", target, "current", head.Number)

@@ -48,8 +48,16 @@ func NewEngineManager(opts ...Option) *EngineManager {
 // EnsureRunning starts the Kurtosis engine with the configured version
 func (e *EngineManager) EnsureRunning() error {
 	cmd := exec.Command(e.kurtosisBinary, "engine", "start", "--version", e.version)
+	fmt.Println("Starting Kurtosis engine with version:", e.version)
+
+	// Capture stdout and stderr for more verbose output
+	var stdout, stderr strings.Builder
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+
 	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("failed to start kurtosis engine: %w", err)
+		return fmt.Errorf("failed to start kurtosis engine: %w\nstdout: %s\nstderr: %s",
+			err, stdout.String(), stderr.String())
 	}
 	return nil
 }

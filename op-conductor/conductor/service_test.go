@@ -3,11 +3,17 @@ package conductor
 import (
 	"context"
 	"errors"
+	"fmt"
 	"math/big"
+	"net"
+	"net/http"
+	"net/http/httptest"
+	"strings"
 	"sync"
 	"testing"
 	"time"
 
+	"github.com/coder/websocket"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/log"
@@ -397,7 +403,7 @@ func (s *OpConductorTestSuite) TestScenario3() {
 	}
 	s.cons.EXPECT().LatestUnsafePayload().Return(mockPayload, nil).Times(1)
 	s.ctrl.EXPECT().LatestUnsafeBlock(mock.Anything).Return(mockBlockInfo, nil).Times(1)
-	s.ctrl.EXPECT().StartSequencer(mock.Anything, mock.Anything).Return(nil).Times(1)
+	s.ctrl.EXPECT().StartSequencer(mock.Anything, mockPayload.ExecutionPayload.BlockHash).Return(nil).Times(1)
 
 	// [follower, healthy, not sequencing]
 	s.False(s.conductor.leader.Load())
@@ -437,7 +443,7 @@ func (s *OpConductorTestSuite) TestScenario4() {
 	s.cons.EXPECT().LatestUnsafePayload().Return(mockPayload, nil).Times(1)
 	s.ctrl.EXPECT().LatestUnsafeBlock(mock.Anything).Return(mockBlockInfo, nil).Times(1)
 	s.ctrl.EXPECT().PostUnsafePayload(mock.Anything, mockPayload).Return(errors.New("simulated PostUnsafePayload failure")).Times(1)
-	s.ctrl.EXPECT().StartSequencer(mock.Anything, mockPayload.ExecutionPayload.BlockHash).Return(nil).Times(1)
+	s.ctrl.EXPECT().StartSequencer(mock.Anything, mockBlockInfo.InfoHash).Return(nil).Times(1)
 
 	s.updateLeaderStatusAndExecuteAction(true)
 
@@ -453,7 +459,7 @@ func (s *OpConductorTestSuite) TestScenario4() {
 	s.cons.EXPECT().LatestUnsafePayload().Return(mockPayload, nil).Times(1)
 	s.ctrl.EXPECT().LatestUnsafeBlock(mock.Anything).Return(mockBlockInfo, nil).Times(1)
 	s.ctrl.EXPECT().PostUnsafePayload(mock.Anything, mockPayload).Return(nil).Times(1)
-	s.ctrl.EXPECT().StartSequencer(mock.Anything, mockBlockInfo.InfoHash).Return(nil).Times(1)
+	s.ctrl.EXPECT().StartSequencer(mock.Anything, mockPayload.ExecutionPayload.BlockHash).Return(nil).Times(1)
 
 	s.executeAction()
 
@@ -974,4 +980,206 @@ func (s *OpConductorTestSuite) TestSupervisorConnectionDown() {
 	// Verify method calls
 	s.ctrl.AssertNumberOfCalls(s.T(), "StopSequencer", 1)
 	s.cons.AssertNumberOfCalls(s.T(), "TransferLeader", 1)
+}
+
+// TestFlashblocksHandlerIntegration tests that the flashblocks handler is properly initialized and started
+func (s *OpConductorTestSuite) TestFlashblocksHandlerIntegration() {
+	// Use a random available port to avoid conflicts
+	listener, err := net.Listen("tcp", "localhost:0")
+	s.NoError(err)
+	port := listener.Addr().(*net.TCPAddr).Port
+	listener.Close()
+
+	// Channels for coordination without timing dependencies
+	testCtx, testCancel := context.WithCancel(context.Background())
+	defer testCancel()
+
+	serverConnected := make(chan struct{})
+	clientConnected := make(chan struct{})
+	messagesSent := make(chan struct{})
+
+	// Use sync.Once to prevent double-closing channels
+	var serverConnectedOnce, messagesSentOnce sync.Once
+
+	// Create a test HTTP server for rollup boost WebSocket using coder/websocket
+	rollupBoostServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Accept the WebSocket connection using coder/websocket
+		conn, err := websocket.Accept(w, r, &websocket.AcceptOptions{
+			CompressionMode: websocket.CompressionDisabled,
+		})
+		if err != nil {
+			s.T().Logf("Failed to accept WebSocket connection: %v", err)
+			return
+		}
+		defer conn.Close(websocket.StatusNormalClosure, "test complete")
+
+		// Signal that connection is established (only once)
+		serverConnectedOnce.Do(func() {
+			close(serverConnected)
+		})
+
+		// Wait for client to connect before sending messages
+		select {
+		case <-clientConnected:
+			// Client is connected, proceed with sending messages
+		case <-testCtx.Done():
+			return
+		}
+
+		// Send test messages and signal completion
+		messages := []string{"Hello", "World", "Test"}
+		for _, msg := range messages {
+			err := conn.Write(testCtx, websocket.MessageText, []byte(msg))
+			if err != nil {
+				s.T().Logf("Failed to write message: %v", err)
+				return // Connection closed
+			}
+		}
+
+		// Signal messages sent (only once)
+		messagesSentOnce.Do(func() {
+			close(messagesSent)
+		})
+
+		// Keep connection alive by reading until context is cancelled
+		for {
+			select {
+			case <-testCtx.Done():
+				return
+			default:
+				// Read with timeout to avoid blocking indefinitely
+				readCtx, cancel := context.WithTimeout(testCtx, 100*time.Millisecond)
+				_, _, err := conn.Read(readCtx)
+				cancel()
+
+				if err != nil {
+					// Expected on timeout or connection close
+					if errors.Is(err, context.DeadlineExceeded) {
+						continue // Timeout is expected, continue loop
+					}
+					return // Other errors mean connection is closed
+				}
+			}
+		}
+	}))
+	defer rollupBoostServer.Close()
+
+	// Convert HTTP URL to WebSocket URL for rollup boost
+	rollupBoostWsURL := strings.Replace(rollupBoostServer.URL, "http", "ws", 1)
+
+	// Create a copy of the config to avoid modifying the shared config object
+	testCfg := s.cfg
+	testCfg.RollupBoostWsURL = rollupBoostWsURL
+	testCfg.WebsocketServerPort = port
+
+	// Create a new conductor with the updated config
+	conductor, err := NewOpConductor(s.ctx, &testCfg, s.log, s.metrics, s.version, s.ctrl, s.cons, s.hmon)
+	s.NoError(err)
+
+	// Set up mock expectation for Leader() calls - the flashblocks handler checks leadership
+	// before forwarding messages, so we need to mock this to return true
+	s.cons.EXPECT().Leader().Return(true)
+
+	// Start the conductor, which should initialize and start the flashblocks handler
+	s.hmon.EXPECT().Start(mock.Anything).Return(nil)
+	err = conductor.Start(s.ctx)
+	s.NoError(err)
+
+	// Wait for conductor to be ready using its internal state
+	s.NotNil(conductor.flashblocksHandler, "flashblocks handler should be initialized")
+
+	// Wait for rollup boost server connection (event-driven, not time-based)
+	select {
+	case <-serverConnected:
+		// Connection established
+	case <-time.After(5 * time.Second):
+		s.Fail("Timeout waiting for rollup boost server connection")
+	}
+
+	// Connect to the WebSocket server BEFORE messages are sent
+	wsURL := fmt.Sprintf("ws://localhost:%d/ws", testCfg.WebsocketServerPort)
+
+	// Create connection context
+	connCtx, connCancel := context.WithTimeout(testCtx, 3*time.Second)
+	defer connCancel()
+
+	var client *websocket.Conn
+	var resp *http.Response
+
+	// Simple retry loop with context timeout
+	for {
+		select {
+		case <-connCtx.Done():
+			s.Fail("Failed to connect to WebSocket server within timeout")
+		default:
+			client, resp, err = websocket.Dial(connCtx, wsURL, nil)
+			if resp != nil && resp.Body != nil {
+				resp.Body.Close()
+			}
+			if err == nil && resp.StatusCode == http.StatusSwitchingProtocols {
+				goto connected
+			}
+			// Brief pause before retry
+			select {
+			case <-connCtx.Done():
+				s.Failf("Failed to connect to WebSocket server", "Last error: %v", err)
+			case <-time.After(10 * time.Millisecond):
+				// Continue loop
+			}
+		}
+	}
+
+connected:
+	defer client.Close(websocket.StatusNormalClosure, "test complete")
+
+	// Signal that client is connected so rollup boost server can send messages
+	close(clientConnected)
+
+	// Wait for messages to be sent (event-driven)
+	select {
+	case <-messagesSent:
+		// Messages sent
+	case <-time.After(2 * time.Second):
+		s.Fail("Timeout waiting for messages to be sent")
+	}
+
+	// Wait for and verify we receive messages from rollup boost (event-driven)
+	expectedMessages := []string{"Hello", "World", "Test"}
+	receivedMessages := make([]string, 0, len(expectedMessages))
+
+	// Read messages with timeout
+	readCtx, readCancel := context.WithTimeout(testCtx, 3*time.Second)
+	defer readCancel()
+
+	for len(receivedMessages) < len(expectedMessages) {
+		_, message, err := client.Read(readCtx)
+		if err != nil {
+			if errors.Is(err, context.DeadlineExceeded) {
+				s.Failf("Timeout waiting for messages", "Received %d/%d messages: %v",
+					len(receivedMessages), len(expectedMessages), receivedMessages)
+			} else {
+				s.Failf("Error reading messages", "Error: %v", err)
+			}
+			break
+		}
+		receivedMessages = append(receivedMessages, string(message))
+	}
+
+	// Verify we received the expected messages
+	s.Equal(len(expectedMessages), len(receivedMessages), "Should receive all expected messages")
+	for i, expected := range expectedMessages {
+		if i < len(receivedMessages) {
+			s.Equal(expected, receivedMessages[i], "Message content should match")
+		}
+	}
+	s.T().Log("Successfully received all messages from rollup boost via op-conductor")
+
+	// Stop the conductor, which should also stop the flashblocks handler
+	s.hmon.EXPECT().Stop().Return(nil)
+	s.cons.EXPECT().Shutdown().Return(nil)
+	err = conductor.Stop(s.ctx)
+	s.NoError(err)
+
+	// Verify that the conductor is stopped
+	s.True(conductor.Stopped())
 }

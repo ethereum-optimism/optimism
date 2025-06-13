@@ -3,7 +3,6 @@ package devtest
 import (
 	"context"
 	"fmt"
-	"log/slog"
 	"os"
 	"runtime"
 	"strconv"
@@ -17,8 +16,7 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 
 	"github.com/ethereum-optimism/optimism/devnet-sdk/telemetry"
-	oplog "github.com/ethereum-optimism/optimism/op-service/log"
-	"github.com/ethereum-optimism/optimism/op-service/logfilter"
+	"github.com/ethereum-optimism/optimism/op-service/log/logfilter"
 	"github.com/ethereum-optimism/optimism/op-service/logmods"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum-optimism/optimism/op-service/testreq"
@@ -55,8 +53,7 @@ type T interface {
 	// WithCtx makes a copy of T with a specific context.
 	// The ctx must match the test-scope of the existing context.
 	// This function is used to create a T with annotated context, e.g. a specific resource, rather than a sub-scope.
-	// The logger may be annotated with additional arguments.
-	WithCtx(ctx context.Context, args ...any) T
+	WithCtx(ctx context.Context) T
 
 	// Parallel signals that this test is to be run in parallel with (and only with) other parallel tests.
 	Parallel()
@@ -77,7 +74,7 @@ type T interface {
 	// Deadline reports the time at which the test binary will have
 	// exceeded the timeout specified by the -timeout flag.
 	//
-	// The ok result is false if the -timeout flag indicates “no timeout” (0).
+	// The ok result is false if the -timeout flag indicates "no timeout" (0).
 	Deadline() (deadline time.Time, ok bool)
 
 	// This distinguishes the interface from other testing interfaces,
@@ -186,11 +183,11 @@ func (t *testingT) Ctx() context.Context {
 	return t.ctx
 }
 
-func (t *testingT) WithCtx(ctx context.Context, args ...any) T {
+func (t *testingT) WithCtx(ctx context.Context) T {
 	expected := TestScope(t.ctx)
 	got := TestScope(ctx)
 	t.req.Equal(expected, got, "cannot replace context with different test-scope")
-	logger := t.logger.New(args...)
+	logger := t.logger.New()
 	logger.SetContext(ctx)
 	out := &testingT{
 		t:      t.t,
@@ -281,7 +278,7 @@ func (t *testingT) Gate() *testreq.Assertions {
 // Deadline reports the time at which the test binary will have
 // exceeded the timeout specified by the -timeout flag.
 //
-// The ok result is false if the -timeout flag indicates “no timeout” (0).
+// The ok result is false if the -timeout flag indicates "no timeout" (0).
 func (t *testingT) Deadline() (deadline time.Time, ok bool) {
 	return t.t.Deadline()
 }
@@ -292,19 +289,8 @@ func (t *testingT) _TestOnly() {
 
 var _ T = (*testingT)(nil)
 
-// DefaultTestLogLevel is set to the TEST_LOG_LEVEL env var value, and defaults to info-level if not set.
-var DefaultTestLogLevel = func() slog.Level {
-	logLevel := os.Getenv("TEST_LOG_LEVEL")
-	if logLevel == "" {
-		return log.LevelInfo
-	}
-	level, err := oplog.LevelFromString(logLevel)
-	if err != nil {
-		_, _ = fmt.Fprintf(os.Stderr, "invalid TEST_LOG_LEVEL env var: %v\n", err)
-		return log.LevelInfo
-	}
-	return level
-}()
+// DefaultTestLogLevel is set to info level to show relevant logs without being overly verbose unless configured otherwise.
+var DefaultTestLogLevel = log.LevelInfo
 
 // SerialT wraps around a test-logger and turns it into a T for devstack testing.
 func SerialT(t *testing.T) T {
@@ -327,11 +313,11 @@ func SerialT(t *testing.T) T {
 
 	// Set the lowest default log-level, so the log-filters on top can apply correctly
 	logger := testlog.LoggerWithHandlerMod(t, log.LevelTrace,
-		telemetry.WrapHandler, logfilter.WrapFilterHandler, oplog.WrapContextHandler)
-	h, ok := logmods.FindHandler[logfilter.Handler](logger.Handler())
+		telemetry.WrapHandler, logfilter.WrapFilterHandler, logfilter.WrapContextHandler)
+	h, ok := logmods.FindHandler[logfilter.FilterHandler](logger.Handler())
 	if ok {
 		// Apply default log level. This may be overridden later.
-		h.Set(logfilter.Minimum(DefaultTestLogLevel))
+		h.Set(logfilter.DefaultMute(logfilter.Level(log.LevelInfo).Show()))
 	}
 	logger.SetContext(ctx) // Set the default context; any log call without context will use this
 

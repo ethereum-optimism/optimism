@@ -13,6 +13,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/retry"
+	"github.com/ethereum/go-ethereum/common"
 )
 
 // L2Network wraps a stack.L2Network interface for DSL operations
@@ -154,6 +155,18 @@ func (n *L2Network) unsafeHeadRef() eth.L2BlockRef {
 	return unsafeHeadRef
 }
 
+// IsActivated checks if a given fork has been activated
+func (n *L2Network) IsActivated(timestamp uint64) bool {
+	blockNum, err := n.Escape().RollupConfig().TargetBlockNumber(timestamp)
+	n.require.NoError(err)
+
+	el := n.Escape().L2ELNode(match.FirstL2EL)
+	head, err := el.EthClient().BlockRefByLabel(n.ctx, eth.Unsafe)
+	n.require.NoError(err)
+
+	return head.Number >= blockNum
+}
+
 // LatestBlockBeforeTimestamp finds the latest block before fork activation
 func (n *L2Network) LatestBlockBeforeTimestamp(t devtest.T, timestamp uint64) eth.BlockRef {
 	require := t.Require()
@@ -202,4 +215,8 @@ func (n *L2Network) AwaitActivation(t devtest.T, forkName rollup.ForkName) eth.B
 	t.Logger().Info("Activation block", "block", unsafeHead.ID())
 
 	return unsafeHead.ID()
+}
+
+func (n *L2Network) DisputeGameFactoryProxyAddr() common.Address {
+	return n.inner.Deployment().DisputeGameFactoryProxyAddr()
 }

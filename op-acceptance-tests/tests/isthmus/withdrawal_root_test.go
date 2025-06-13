@@ -30,7 +30,7 @@ func TestWithdrawalsRoot(t *testing.T) {
 
 	walletGetter, fundsValidator := validators.AcquireL2WalletWithFunds(
 		chainIdx,
-		types.NewBalance(big.NewInt(1.0*constants.ETH)),
+		types.NewBalance(big.NewInt(0.1*constants.ETH)),
 	)
 	_, forkValidator := validators.AcquireL2WithFork(chainIdx, rollup.Isthmus)
 

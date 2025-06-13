@@ -148,7 +148,6 @@ and returns a typed output that the test then may use.
 
 The following environment variables can be used to configure devstack:
 
-- `TEST_LOG_LEVEL`: Controls the logging level for tests. Defaults to "info" if not set. Valid values are standard log levels (e.g. "debug", "info", "warn", "error").
 - `DEVSTACK_ORCHESTRATOR`: Configures the preferred orchestrator kind (see Orchestrator interface section above).
 - `DEVSTACK_KEYS_SALT`: Seeds the keys generated with `NewHDWallet`. This is useful for "isolating" test runs, and might be needed to reproduce CI and/or acceptance test runs. It can be any string, including the empty one to use the "usual" devkeys.
 - `DEVNET_ENV_URL`: Used when `DEVSTACK_ORCHESTRATOR=sysext` to specify the network descriptor URL.

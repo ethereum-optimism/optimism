@@ -8,6 +8,7 @@ import (
 	"slices"
 	"testing"
 
+	"github.com/ethereum-optimism/optimism/cannon/mipsevm/exec"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/exp/maps"
 
@@ -423,6 +424,92 @@ func TestEVM_MT_SysRead_Preimage64(t *testing.T) {
 	testMTSysReadPreimage(t, preimageValue, cases)
 }
 
+func TestEVM_MT_SysRead_FromEventFd(t *testing.T) {
+	t.Parallel()
+	vmVersions := GetMipsVersionTestCases(t)
+	for i, ver := range vmVersions {
+		t.Run(ver.Name, func(t *testing.T) {
+			t.Parallel()
+			addr := Word(0x00_00_FF_00)
+			effAddr := arch.AddressMask & addr
+			goVm := ver.VMFactory(nil, os.Stdout, os.Stderr, testutil.CreateLogger(), testutil.WithRandomization(int64(i)))
+			state := mttestutil.GetMtState(t, goVm)
+			step := state.GetStep()
+
+			// Define LL-related params
+			llAddress := effAddr
+			llOwnerThread := state.GetCurrentThread().ThreadId
+
+			// Set up state
+			state.GetRegistersRef()[2] = arch.SysRead
+			state.GetRegistersRef()[4] = exec.FdEventFd
+			state.GetRegistersRef()[5] = addr
+			state.GetRegistersRef()[6] = 1
+			testutil.StoreInstruction(state.GetMemory(), state.GetPC(), syscallInsn)
+			state.LLReservationStatus = multithreaded.LLStatusNone
+			state.LLAddress = llAddress
+			state.LLOwnerThread = llOwnerThread
+			state.GetMemory().SetWord(effAddr, Word(0x12_EE_EE_EE_FF_FF_FF_FF))
+
+			// Setup expectations
+			expected := mttestutil.NewExpectedMTState(state)
+			expected.ExpectStep()
+			expected.ActiveThread().Registers[2] = exec.MipsEAGAIN
+			expected.ActiveThread().Registers[7] = exec.SysErrorSignal
+
+			stepWitness, err := goVm.Step(true)
+			require.NoError(t, err)
+
+			// Check expectations
+			expected.Validate(t, state)
+			testutil.ValidateEVM(t, stepWitness, step, goVm, multithreaded.GetStateHashFn(), ver.Contracts)
+		})
+	}
+}
+
+func TestEVM_MT_SysWrite_ToEventFd(t *testing.T) {
+	t.Parallel()
+	vmVersions := GetMipsVersionTestCases(t)
+	for i, ver := range vmVersions {
+		t.Run(ver.Name, func(t *testing.T) {
+			t.Parallel()
+			addr := Word(0x00_00_FF_00)
+			effAddr := arch.AddressMask & addr
+			goVm := ver.VMFactory(nil, os.Stdout, os.Stderr, testutil.CreateLogger(), testutil.WithRandomization(int64(i)))
+			state := mttestutil.GetMtState(t, goVm)
+			step := state.GetStep()
+
+			// Define LL-related params
+			llAddress := effAddr
+			llOwnerThread := state.GetCurrentThread().ThreadId
+
+			// Set up state
+			state.GetRegistersRef()[2] = arch.SysWrite
+			state.GetRegistersRef()[4] = exec.FdEventFd
+			state.GetRegistersRef()[5] = addr
+			state.GetRegistersRef()[6] = 1
+			testutil.StoreInstruction(state.GetMemory(), state.GetPC(), syscallInsn)
+			state.LLReservationStatus = multithreaded.LLStatusNone
+			state.LLAddress = llAddress
+			state.LLOwnerThread = llOwnerThread
+			state.GetMemory().SetWord(effAddr, Word(0x12_EE_EE_EE_FF_FF_FF_FF))
+
+			// Setup expectations
+			expected := mttestutil.NewExpectedMTState(state)
+			expected.ExpectStep()
+			expected.ActiveThread().Registers[2] = exec.MipsEAGAIN
+			expected.ActiveThread().Registers[7] = exec.SysErrorSignal
+
+			stepWitness, err := goVm.Step(true)
+			require.NoError(t, err)
+
+			// Check expectations
+			expected.Validate(t, state)
+			testutil.ValidateEVM(t, stepWitness, step, goVm, multithreaded.GetStateHashFn(), ver.Contracts)
+		})
+	}
+}
+
 func TestEVM_MT_StoreOpsClearMemReservation64(t *testing.T) {
 	t.Parallel()
 	cases := []testMTStoreOpsClearMemReservationTestCase{
@@ -476,15 +563,11 @@ var NoopSyscalls64 = map[string]uint32{
 	"SysTimerCreate":  5216,
 	"SysTimerSetTime": 5217,
 	"SysTimerDelete":  5220,
-	"SysEventFd2":     5284,
 }
 
 func getNoopSyscalls64(vmVersion versions.StateVersion) map[string]uint32 {
 	noOpCalls := maps.Clone(NoopSyscalls64)
 	features := versions.FeaturesForVersion(vmVersion)
-	if !features.SupportNoopSysEventFd2 {
-		delete(noOpCalls, "SysEventFd2")
-	}
 	if !features.SupportNoopMprotect {
 		delete(noOpCalls, "SysMprotect")
 	}
@@ -495,7 +578,7 @@ func getNoopSyscalls64(vmVersion versions.StateVersion) map[string]uint32 {
 }
 
 func getSupportedSyscalls(vmVersion versions.StateVersion) []uint32 {
-	supportedSyscalls := []uint32{arch.SysMmap, arch.SysBrk, arch.SysClone, arch.SysExitGroup, arch.SysRead, arch.SysWrite, arch.SysFcntl, arch.SysExit, arch.SysSchedYield, arch.SysGetTID, arch.SysFutex, arch.SysOpen, arch.SysNanosleep, arch.SysClockGetTime, arch.SysGetpid}
+	supportedSyscalls := []uint32{arch.SysMmap, arch.SysBrk, arch.SysClone, arch.SysExitGroup, arch.SysRead, arch.SysWrite, arch.SysFcntl, arch.SysExit, arch.SysSchedYield, arch.SysGetTID, arch.SysFutex, arch.SysOpen, arch.SysNanosleep, arch.SysClockGetTime, arch.SysGetpid, arch.SysEventFd2}
 
 	features := versions.FeaturesForVersion(vmVersion)
 	if features.SupportWorkingSysGetRandom {

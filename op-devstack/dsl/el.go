@@ -36,6 +36,26 @@ func (el *elNode) WaitForBlock() eth.BlockRef {
 	return el.waitForNextBlock(1)
 }
 
+func (el *elNode) WaitForBlockNumber(targetBlock uint64) eth.BlockRef {
+	var newRef eth.BlockRef
+
+	err := wait.For(el.ctx, 500*time.Millisecond, func() (bool, error) {
+		newBlock, err := el.inner.EthClient().InfoByLabel(el.ctx, eth.Unsafe)
+		if err != nil {
+			return false, err
+		}
+
+		newRef = eth.InfoToL1BlockRef(newBlock)
+		if newBlock.NumberU64() >= targetBlock {
+			el.log.Info("Target block reached", "block", newRef)
+			return true, nil
+		}
+		return false, nil
+	})
+	el.require.NoError(err, "Expected to reach target block")
+	return newRef
+}
+
 func (el *elNode) WaitForOnline() {
 	el.require.Eventually(func() bool {
 		el.log.Info("Waiting for online")

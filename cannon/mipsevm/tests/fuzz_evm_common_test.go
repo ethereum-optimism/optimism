@@ -80,8 +80,8 @@ func FuzzStateSyscallMmap(f *testing.F) {
 					}
 					newHeap := heap + sizAlign
 					if newHeap > program.HEAP_END || newHeap < heap || sizAlign < siz {
-						expected.Registers[2] = exec.SysErrorSignal
-						expected.Registers[7] = exec.MipsEINVAL
+						expected.Registers[2] = exec.MipsEINVAL
+						expected.Registers[7] = exec.SysErrorSignal
 					} else {
 						expected.Heap = heap + sizAlign
 						expected.Registers[2] = heap
@@ -157,8 +157,8 @@ func FuzzStateSyscallFcntl(f *testing.F) {
 						expected.Registers[2] = 0
 						expected.Registers[7] = 0
 					default:
-						expected.Registers[2] = ^Word(0)
-						expected.Registers[7] = exec.MipsEBADF
+						expected.Registers[2] = exec.MipsEBADF
+						expected.Registers[7] = exec.SysErrorSignal
 					}
 				} else if cmd == 3 {
 					switch fd {
@@ -169,12 +169,12 @@ func FuzzStateSyscallFcntl(f *testing.F) {
 						expected.Registers[2] = 1
 						expected.Registers[7] = 0
 					default:
-						expected.Registers[2] = ^Word(0)
-						expected.Registers[7] = exec.MipsEBADF
+						expected.Registers[2] = exec.MipsEBADF
+						expected.Registers[7] = exec.SysErrorSignal
 					}
 				} else {
-					expected.Registers[2] = ^Word(0)
-					expected.Registers[7] = exec.MipsEINVAL
+					expected.Registers[2] = exec.MipsEINVAL
+					expected.Registers[7] = exec.SysErrorSignal
 				}
 
 				stepWitness, err := goVm.Step(true)

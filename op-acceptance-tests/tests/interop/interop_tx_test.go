@@ -137,8 +137,8 @@ func messagePassingScenario(sourceChainIdx, destChainIdx uint64, sourceWalletGet
 func TestMessagePassing(t *testing.T) {
 	sourceChainIdx := uint64(0)
 	destChainIdx := uint64(1)
-	sourceWalletGetter, sourcefundsValidator := validators.AcquireL2WalletWithFunds(sourceChainIdx, sdktypes.NewBalance(big.NewInt(1.0*constants.ETH)))
-	destWalletGetter, destfundsValidator := validators.AcquireL2WalletWithFunds(destChainIdx, sdktypes.NewBalance(big.NewInt(1.0*constants.ETH)))
+	sourceWalletGetter, sourcefundsValidator := validators.AcquireL2WalletWithFunds(sourceChainIdx, sdktypes.NewBalance(big.NewInt(0.1*constants.ETH)))
+	destWalletGetter, destfundsValidator := validators.AcquireL2WalletWithFunds(destChainIdx, sdktypes.NewBalance(big.NewInt(0.1*constants.ETH)))
 
 	systest.InteropSystemTest(t,
 		messagePassingScenario(sourceChainIdx, destChainIdx, sourceWalletGetter, destWalletGetter),
