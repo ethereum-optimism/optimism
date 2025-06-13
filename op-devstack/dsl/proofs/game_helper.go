@@ -5,12 +5,16 @@ import (
 	"math/big"
 	"time"
 
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
+	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl/contract"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
 	"github.com/ethereum-optimism/optimism/op-service/txintent/bindings"
+	"github.com/ethereum-optimism/optimism/op-service/txplan"
 )
 
 type FaultDisputeGameHelper struct {
@@ -27,12 +31,35 @@ func NewFaultDisputeGameHelper(t devtest.T, require *require.Assertions, game *b
 	}
 }
 
+func (g *FaultDisputeGameHelper) GetMaxDepth() uint64 {
+	return contract.Read(g.game.MaxGameDepth()).Uint64()
+}
+
+func (g *FaultDisputeGameHelper) GetSplitDepth() uint64 {
+	return contract.Read(g.game.SplitDepth()).Uint64()
+}
+
 func (g *FaultDisputeGameHelper) GetRootClaim() *ClaimHelper {
 	return g.GetClaimAtIndex(int64(0))
 }
 
 func (g *FaultDisputeGameHelper) GetClaimAtIndex(claimIndex int64) *ClaimHelper {
 	claim := g.getClaimAtIndex(claimIndex)
+	return g.newClaimHelper(claimIndex, claim)
+}
+
+func (g *FaultDisputeGameHelper) Attack(eoa *dsl.EOA, claimIdx int64, newClaim common.Hash) {
+	claim := g.getClaimAtIndex(claimIdx)
+	g.t.Logf("Attacking claim %v (depth: %d) with counter-claim %v", claimIdx, claim.Position.Depth(), newClaim)
+
+	newPosition := claim.Position.Attack().ToGIndex()
+	requiredBond := contract.Read(g.game.GetRequiredBond(newPosition))
+
+	receipt := contract.Write(eoa, g.game.Attack(claim.Value, claim.Position.ToGIndex(), newClaim), txplan.WithValue(requiredBond))
+	g.require.Equal(types.ReceiptStatusSuccessful, receipt.Status)
+}
+
+func (g *FaultDisputeGameHelper) newClaimHelper(claimIndex int64, claim bindings.Claim) *ClaimHelper {
 	return newClaimHelper(g.t, g.require, claimIndex, claim, g)
 }
 

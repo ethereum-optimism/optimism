@@ -4,9 +4,11 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
+	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
 	"github.com/ethereum-optimism/optimism/op-service/txintent/bindings"
 )
 
@@ -30,6 +32,10 @@ func newClaimHelper(t devtest.T, require *require.Assertions, claimIndex int64, 
 	}
 }
 
+func (c *ClaimHelper) GetDepth() uint64 {
+	return uint64(c.claim.Depth())
+}
+
 // WaitForCounterClaim waits for the claim to be countered by another claim being posted.
 // It returns a helper for the claim that countered this one.
 func (c *ClaimHelper) WaitForCounterClaim() *ClaimHelper {
@@ -37,4 +43,9 @@ func (c *ClaimHelper) WaitForCounterClaim() *ClaimHelper {
 		return int64(claim.ParentContractIndex) == c.Index
 	})
 	return newClaimHelper(c.t, c.require, counterIdx, counterClaim, c.game)
+}
+
+func (c *ClaimHelper) Attack(eoa *dsl.EOA, newClaim common.Hash) *ClaimHelper {
+	c.game.Attack(eoa, c.Index, newClaim)
+	return c.WaitForCounterClaim()
 }
