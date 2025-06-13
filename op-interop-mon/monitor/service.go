@@ -83,7 +83,6 @@ func (ms *InteropMonitorService) initFromCLIConfig(ctx context.Context, version 
 
 	ms.Metrics.RecordInfo(ms.Version)
 	ms.Metrics.RecordUp()
-
 	fmt.Println("initialized from cli config")
 	return nil
 }
