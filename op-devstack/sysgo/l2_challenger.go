@@ -61,7 +61,7 @@ func WithL2ChallengerPostDeploy(orch *Orchestrator, challengerID stack.L2Challen
 	require := p.Require()
 	require.False(orch.challengers.Has(challengerID), "challenger must not already exist")
 
-	challengerSecret, err := orch.keys.Secret(devkeys.ChallengerRole.Key(l1ELID.ChainID().ToBig()))
+	challengerSecret, err := orch.keys.Secret(devkeys.ChallengerRole.Key(challengerID.ChainID().ToBig()))
 	require.NoError(err)
 
 	logger := p.Logger()

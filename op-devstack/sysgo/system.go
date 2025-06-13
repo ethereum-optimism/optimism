@@ -109,7 +109,7 @@ func NewDefaultSingleChainInteropSystemIDs(l1ID, l2AID eth.ChainID) DefaultSingl
 		L2AEL:         stack.NewL2ELNodeID("sequencer", l2AID),
 		L2ABatcher:    stack.NewL2BatcherID("main", l2AID),
 		L2AProposer:   stack.NewL2ProposerID("main", l2AID),
-		L2ChallengerA: "chainA",
+		L2ChallengerA: stack.NewL2ChallengerID("main", l2AID),
 	}
 	return ids
 }
@@ -194,7 +194,7 @@ func NewDefaultInteropSystemIDs(l1ID, l2AID, l2BID eth.ChainID) DefaultInteropSy
 		L2BEL:                              stack.NewL2ELNodeID("sequencer", l2BID),
 		L2BBatcher:                         stack.NewL2BatcherID("main", l2BID),
 		L2BProposer:                        stack.NewL2ProposerID("main", l2BID),
-		L2ChallengerB:                      "chainB",
+		L2ChallengerB:                      stack.NewL2ChallengerID("main", l2BID),
 	}
 	return ids
 }
@@ -286,7 +286,7 @@ func DefaultInteropProofsSystem(dest *DefaultInteropSystemIDs) stack.Option[*Orc
 
 	opt.Add(WithFaucets([]stack.L1ELNodeID{ids.L1EL}, []stack.L2ELNodeID{ids.L2AEL, ids.L2BEL}))
 
-	opt.Add(WithSuperRoots(ids.L1.ChainID(), ids.L1EL, ids.L2ACL, ids.Supervisor))
+	opt.Add(WithSuperRoots(ids.L1.ChainID(), ids.L1EL, ids.L2ACL, ids.Supervisor, ids.L2A.ChainID()))
 
 	opt.Add(WithSuperProposer(ids.L2AProposer, ids.L1EL, &ids.Supervisor))
 
