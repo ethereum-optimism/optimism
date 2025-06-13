@@ -21,9 +21,9 @@ func TestChallengerPlaysGame(gt *testing.T) {
 
 	badClaim := common.HexToHash("0xdeadbeef00000000000000000000000000000000000000000000000000000000")
 	attacker := fundAttackerWallet(t, sys, eth.OneEther.Mul(2))
-	helper := proofs.HelperFromInteropPreset(t, sys, sys.L2ChainA, attacker)
+	helper := proofs.HelperFromInteropPreset(t, sys, sys.L2ChainA)
 
-	game := helper.StartSuperCannonGame(badClaim)
+	game := helper.StartSuperCannonGame(attacker, badClaim)
 
 	claim := game.GetRootClaim()
 

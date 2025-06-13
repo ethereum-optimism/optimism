@@ -23,20 +23,18 @@ type DisputeGameFactoryHelper struct {
 	t          devtest.T
 	require    *require.Assertions
 	log        log.Logger
-	eoa        *dsl.EOA
 	l1Network  *dsl.L1Network
 	l2Network  *dsl.L2Network
 	supervisor *dsl.Supervisor
 	ethClient  apis.EthClient
 }
 
-func HelperFromInteropPreset(t devtest.T, sys *presets.SimpleInterop, l2Network *dsl.L2Network, eoa *dsl.EOA) *DisputeGameFactoryHelper {
+func HelperFromInteropPreset(t devtest.T, sys *presets.SimpleInterop, l2Network *dsl.L2Network) *DisputeGameFactoryHelper {
 	ethClient := sys.L1EL.EthClient()
 	return &DisputeGameFactoryHelper{
 		t:          t,
 		require:    require.New(t),
 		log:        t.Logger(),
-		eoa:        eoa,
 		l1Network:  sys.L1Network,
 		l2Network:  l2Network,
 		supervisor: sys.Supervisor,
@@ -77,17 +75,17 @@ func NewGameCfg(opts ...GameOpt) *GameCfg {
 	return cfg
 }
 
-func (h *DisputeGameFactoryHelper) StartSuperCannonGame(rootClaim common.Hash, opts ...GameOpt) *SuperCannonGameHelper {
+func (h *DisputeGameFactoryHelper) StartSuperCannonGame(eoa *dsl.EOA, rootClaim common.Hash, opts ...GameOpt) *SuperCannonGameHelper {
 	block := h.l1Network.WaitForBlock()
 
 	gameType := uint32(cTypes.SuperCannonGameType)
-	return h.startSuperCannonGameOfType(block.Time, rootClaim, gameType, opts...)
+	return h.startSuperCannonGameOfType(eoa, block.Time, rootClaim, gameType, opts...)
 }
 
-func (h *DisputeGameFactoryHelper) startSuperCannonGameOfType(timestamp uint64, rootClaim common.Hash, gameType uint32, opts ...GameOpt) *SuperCannonGameHelper {
+func (h *DisputeGameFactoryHelper) startSuperCannonGameOfType(eoa *dsl.EOA, timestamp uint64, rootClaim common.Hash, gameType uint32, opts ...GameOpt) *SuperCannonGameHelper {
 	cfg := NewGameCfg(opts...)
 	extraData := h.CreateSuperGameExtraData(timestamp, cfg)
-	game := h.createNewGame(gameType, rootClaim, extraData)
+	game := h.createNewGame(eoa, gameType, rootClaim, extraData)
 
 	return NewSuperCannonGameHelper(h.t, h.require, game)
 }
@@ -104,7 +102,7 @@ func (h *DisputeGameFactoryHelper) CreateSuperGameExtraData(timestamp uint64, cf
 	return extraData
 }
 
-func (h *DisputeGameFactoryHelper) createNewGame(gameType uint32, claim common.Hash, extraData []byte) *bindings.FaultDisputeGame {
+func (h *DisputeGameFactoryHelper) createNewGame(eoa *dsl.EOA, gameType uint32, claim common.Hash, extraData []byte) *bindings.FaultDisputeGame {
 	h.log.Info("Creating dispute game", "gameType", gameType, "claim", claim.Hex(), "extradata", common.Bytes2Hex(extraData))
 
 	dgfAddr := h.l2Network.DisputeGameFactoryProxyAddr()
@@ -113,7 +111,7 @@ func (h *DisputeGameFactoryHelper) createNewGame(gameType uint32, claim common.H
 	// Pull some metadata we need to construct a new game
 	requiredBonds := contract.Read(dgf.InitBonds(gameType))
 
-	receipt := contract.Write(h.eoa, dgf.Create(gameType, claim, extraData), txplan.WithValue(requiredBonds), txplan.WithGasRatio(2))
+	receipt := contract.Write(eoa, dgf.Create(gameType, claim, extraData), txplan.WithValue(requiredBonds), txplan.WithGasRatio(2))
 	h.require.Equal(types.ReceiptStatusSuccessful, receipt.Status)
 
 	// Extract logs from receipt
