@@ -265,7 +265,7 @@ func TestInitExecMultipleMsg(gt *testing.T) {
 	// Trigger two events
 	receiptA, err := txA.PlannedTx.Included.Eval(t.Ctx())
 	require.NoError(err)
-	logger.Info("initiate messages included", "block", receiptA.BlockHash)
+	logger.Info("Initiate messages included", "block", receiptA.BlockHash)
 	require.Equal(2, len(receiptA.Logs))
 
 	// Make sure supervisor syncs the chain A events
@@ -281,7 +281,7 @@ func TestInitExecMultipleMsg(gt *testing.T) {
 
 	receiptB, err := txB.PlannedTx.Included.Eval(t.Ctx())
 	require.NoError(err)
-	logger.Info("validate messages included", "block", receiptB.BlockHash)
+	logger.Info("Validate messages included", "block", receiptB.BlockHash)
 
 	// Check two ExecutingMessage triggered
 	require.Equal(2, len(receiptB.Logs))
@@ -308,7 +308,7 @@ func TestExecSameMsgTwice(gt *testing.T) {
 	// Trigger single event
 	receiptA, err := txA.PlannedTx.Included.Eval(t.Ctx())
 	require.NoError(err)
-	logger.Info("initiate message included", "block", receiptA.BlockHash)
+	logger.Info("Initiate message included", "block", receiptA.BlockHash)
 
 	// Make sure supervisor syncs the chain A events
 	sys.Supervisor.WaitForUnsafeHeadToAdvance(alice.ChainID(), 2)
@@ -323,7 +323,7 @@ func TestExecSameMsgTwice(gt *testing.T) {
 
 	receiptB, err := txB.PlannedTx.Included.Eval(t.Ctx())
 	require.NoError(err)
-	logger.Info("validate messages included", "block", receiptB.BlockHash)
+	logger.Info("Validate messages included", "block", receiptB.BlockHash)
 
 	// Check two ExecutingMessage triggered
 	require.Equal(2, len(receiptB.Logs))
@@ -355,7 +355,7 @@ func TestExecDifferentTopicCount(gt *testing.T) {
 	// Trigger five events, each have {0, 1, 2, 3, 4} topics in it
 	receiptA, err := txA.PlannedTx.Included.Eval(t.Ctx())
 	require.NoError(err)
-	logger.Info("initiate messages included", "block", receiptA.BlockHash)
+	logger.Info("Initiate messages included", "block", receiptA.BlockHash)
 	require.Equal(5, len(receiptA.Logs))
 
 	for topicCnt := range 5 {
@@ -375,7 +375,7 @@ func TestExecDifferentTopicCount(gt *testing.T) {
 
 	receiptB, err := txB.PlannedTx.Included.Eval(t.Ctx())
 	require.NoError(err)
-	logger.Info("validate message included", "block", receiptB.BlockHash)
+	logger.Info("Validate message included", "block", receiptB.BlockHash)
 
 	// Check five ExecutingMessage triggered
 	require.Equal(5, len(receiptB.Logs))
@@ -407,7 +407,7 @@ func TestExecMsgOpaqueData(gt *testing.T) {
 	// Trigger two events
 	receiptA, err := txA.PlannedTx.Included.Eval(t.Ctx())
 	require.NoError(err)
-	logger.Info("initiate messages included", "block", receiptA.BlockHash)
+	logger.Info("Initiate messages included", "block", receiptA.BlockHash)
 	require.Equal(2, len(receiptA.Logs))
 	require.Equal(emptyInitTrigger.OpaqueData, receiptA.Logs[0].Data)
 	require.Equal(largeInitTrigger.OpaqueData, receiptA.Logs[1].Data)
@@ -425,7 +425,7 @@ func TestExecMsgOpaqueData(gt *testing.T) {
 
 	receiptB, err := txB.PlannedTx.Included.Eval(t.Ctx())
 	require.NoError(err)
-	logger.Info("validate messages included", "block", receiptB.BlockHash)
+	logger.Info("Validate messages included", "block", receiptB.BlockHash)
 
 	// Check two ExecutingMessage triggered
 	require.Equal(2, len(receiptB.Logs))
@@ -457,7 +457,7 @@ func TestExecMsgDifferEventIndexInSingleTx(gt *testing.T) {
 	// Trigger multiple events
 	receiptA, err := txA.PlannedTx.Included.Eval(t.Ctx())
 	require.NoError(err)
-	logger.Info("initiate messages included", "block", receiptA.BlockHash)
+	logger.Info("Initiate messages included", "block", receiptA.BlockHash)
 	require.Equal(eventCnt, len(receiptA.Logs))
 
 	// Make sure supervisor syncs the chain A events
@@ -473,7 +473,7 @@ func TestExecMsgDifferEventIndexInSingleTx(gt *testing.T) {
 
 	receiptB, err := txB.PlannedTx.Included.Eval(t.Ctx())
 	require.NoError(err)
-	logger.Info("validate messages included", "block", receiptB.BlockHash)
+	logger.Info("Validate messages included", "block", receiptB.BlockHash)
 
 	// Check three ExecutingMessage triggered
 	require.Equal(len(indexes), len(receiptB.Logs))
@@ -574,7 +574,7 @@ func TestExecMessageInvalidAttributes(gt *testing.T) {
 	// Trigger multiple events
 	receiptA, err := txA.PlannedTx.Included.Eval(t.Ctx())
 	require.NoError(err)
-	logger.Info("initiate messages included", "block", receiptA.BlockHash)
+	logger.Info("Initiate messages included", "block", receiptA.BlockHash)
 
 	// Make sure supervisor syncs the chain A events
 	sys.Supervisor.WaitForUnsafeHeadToAdvance(alice.ChainID(), 2)
@@ -589,7 +589,7 @@ func TestExecMessageInvalidAttributes(gt *testing.T) {
 	}
 
 	for _, faults := range faultsLists {
-		logger.Info("attempt to validate message with invalid attribute", "faults", faults)
+		logger.Info("Attempt to validate message with invalid attribute", "faults", faults)
 		// Intent to validate message on chain B
 		txB := txintent.NewIntent[*txintent.ExecTrigger, *txintent.InteropOutput](bob.Plan())
 		txB.Content.DependOn(&txA.Result)
@@ -608,7 +608,7 @@ func TestExecMessageInvalidAttributes(gt *testing.T) {
 		// supervisor will throw ErrConflict(conflicting data), and L2 EL will drop tx
 		_, err = txB.PlannedTx.Included.Eval(t.Ctx())
 		require.Error(err)
-		logger.Info("validate message not included")
+		logger.Info("Validate message not included")
 	}
 
 	// we now attempt to execute msg correctly
@@ -622,7 +622,7 @@ func TestExecMessageInvalidAttributes(gt *testing.T) {
 
 	receiptB, err := txB.PlannedTx.Included.Eval(t.Ctx())
 	require.NoError(err)
-	logger.Info("validate message included", "block", receiptB.BlockHash)
+	logger.Info("Validate message included", "block", receiptB.BlockHash)
 
 	// Check three ExecutingMessage triggered
 	require.Equal(3, len(receiptB.Logs))
