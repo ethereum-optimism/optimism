@@ -13,13 +13,13 @@ type Ring[T any] struct {
 	c *ring.Ring
 }
 
-// NewBlockBuffer creates a new RingBuffer
+// NewRing creates a new RingBuffer
 func NewRing[T any](size int) *Ring[T] {
 	b := Ring[T]{c: ring.New(size)}
 	return &b
 }
 
-// Add adds a value to the RingBuffer, removing the oldest value
+// Add adds a value to the RingBuffer, overwriting the oldest value if full
 func (r *Ring[T]) Add(block T) {
 	r.c = r.c.Move(-1)
 	r.c.Value = block
