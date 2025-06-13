@@ -594,10 +594,9 @@ library MIPS64Instructions {
     /// @notice Extends the value leftwards with its most significant bit (sign extension).
     function signExtend(uint64 _dat, uint64 _idx) internal pure returns (uint64 out_) {
         unchecked {
-            bool isSigned = (_dat >> (_idx - 1)) & 1 != 0;
             uint256 mask = (1 << _idx) - 1;
             uint256 signed = ~mask;
-            return uint64(_dat & mask | (isSigned ? signed : 0));
+            return uint64(_dat & mask | signed);
         }
     }
 
