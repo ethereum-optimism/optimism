@@ -13,12 +13,42 @@ import (
 	"github.com/ethereum-optimism/optimism/devnet-sdk/testing/testlib/validators"
 	sdktypes "github.com/ethereum-optimism/optimism/devnet-sdk/types"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
+	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/stretchr/testify/require"
 )
+
+// SatisfyExecMsgConstraint waits supervisor to index initiating message,
+// and destination chain has advanced enough to satisfy messaging time invariant.
+func SatisfyExecMsgConstraint(t systest.T, logger log.Logger, sys system.InteropSystem, initBlockNum uint64, initTimestamp uint64) {
+	ctx := t.Context()
+
+	supervisor, err := sys.Supervisor(ctx)
+	require.NoError(t, err)
+	sourceChain, destChain := sys.L2s()[0], sys.L2s()[1]
+
+	elclientDest, err := destChain.Nodes()[0].GethClient()
+	require.NoError(t, err)
+
+	require.Eventually(t, func() bool {
+		syncStatus, err := supervisor.SyncStatus(ctx)
+		require.NoError(t, err)
+		chainAView, ok := syncStatus.Chains[eth.ChainIDFromBig(sourceChain.ID())]
+		require.True(t, ok)
+		chainBView, ok := syncStatus.Chains[eth.ChainIDFromBig(destChain.ID())]
+		require.True(t, ok)
+		blockB, err := elclientDest.BlockByNumber(ctx, big.NewInt(int64(chainBView.LocalUnsafe.Number)))
+		require.NoError(t, err)
+		checkA := chainAView.LocalUnsafe.Number >= initBlockNum
+		checkB := blockB.Header().Time >= initTimestamp
+		logger.Info("wait until supervisor indexes source chain block with initiating message", "check", checkA, "supervisor", chainAView.LocalUnsafe.Number, "chainA", initBlockNum)
+		logger.Info("wait until supervisor indexes dest chain head which passes timestamp invariant", "check", checkB, "supervisor", blockB.Header().Time, "chainA", initTimestamp)
+		return checkA && checkB
+	}, 20*time.Second, 2*time.Second)
+}
 
 func messagePassingScenario(sourceChainIdx, destChainIdx uint64, sourceWalletGetter, destWalletGetter validators.WalletGetter) systest.InteropSystemTestFunc {
 	return func(t systest.T, sys system.InteropSystem) {
