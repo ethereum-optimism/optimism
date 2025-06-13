@@ -397,9 +397,27 @@ func (d *EngDeriver) OnEvent(ev event.Event) bool {
 			} else {
 				d.emitter.Emit(rollup.CriticalErrorEvent{Err: fmt.Errorf("unexpected TryUpdateEngine error type: %w", err)})
 			}
-		} else if x.triggeredByPayloadSuccess() {
-			logValues := x.getBlockProcessingMetrics()
-			d.log.Info("Inserted new L2 unsafe block", logValues...)
+		} else {
+			v := EngineResetConfirmedEvent{
+				LocalUnsafe: d.ec.UnsafeL2Head(),
+				CrossUnsafe: d.ec.CrossUnsafeL2Head(),
+				LocalSafe:   d.ec.LocalSafeL2Head(),
+				CrossSafe:   d.ec.SafeL2Head(),
+				Finalized:   d.ec.Finalized(),
+			}
+			// We do not emit the original event values, since those might not be set (optional attributes).
+			d.emitter.Emit(v)
+			d.log.Info("Reset of Engine is completed",
+				"local_unsafe", v.LocalUnsafe,
+				"cross_unsafe", v.CrossUnsafe,
+				"local_safe", v.LocalSafe,
+				"cross_safe", v.CrossSafe,
+				"finalized", v.Finalized,
+			)
+			if x.triggeredByPayloadSuccess() {
+				logValues := x.getBlockProcessingMetrics()
+				d.log.Info("Inserted new L2 unsafe block", logValues...)
+			}
 		}
 	case ProcessUnsafePayloadEvent:
 		ref, err := derive.PayloadToBlockRef(d.cfg, x.Envelope.ExecutionPayload)
@@ -442,22 +460,6 @@ func (d *EngDeriver) OnEvent(ev event.Event) bool {
 		// Time to apply the changes to the underlying engine
 		d.emitter.Emit(TryUpdateEngineEvent{})
 
-		v := EngineResetConfirmedEvent{
-			LocalUnsafe: d.ec.UnsafeL2Head(),
-			CrossUnsafe: d.ec.CrossUnsafeL2Head(),
-			LocalSafe:   d.ec.LocalSafeL2Head(),
-			CrossSafe:   d.ec.SafeL2Head(),
-			Finalized:   d.ec.Finalized(),
-		}
-		// We do not emit the original event values, since those might not be set (optional attributes).
-		d.emitter.Emit(v)
-		d.log.Info("Reset of Engine is completed",
-			"local_unsafe", v.LocalUnsafe,
-			"cross_unsafe", v.CrossUnsafe,
-			"local_safe", v.LocalSafe,
-			"cross_safe", v.CrossSafe,
-			"finalized", v.Finalized,
-		)
 	case PromoteUnsafeEvent:
 		// Backup unsafeHead when new block is not built on original unsafe head.
 		if d.ec.unsafeHead.Number >= x.Ref.Number {
