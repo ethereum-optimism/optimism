@@ -58,13 +58,19 @@ type RPCFinder struct {
 	closed chan struct{}
 }
 
-func NewFinder(chainID eth.ChainID, client FinderClient, toCases JobFilter, newCallback NewCallback, finalityCallback FinalityCallback, log log.Logger) *RPCFinder {
+func NewFinder(chainID eth.ChainID,
+	client FinderClient,
+	toCases JobFilter,
+	newCallback NewCallback,
+	finalityCallback FinalityCallback,
+	bufferSize int,
+	log log.Logger) *RPCFinder {
 	return &RPCFinder{
 		chainID:              chainID,
 		client:               client,
 		log:                  log.New("component", "rpc_finder", "chain_id", chainID),
 		fetchInterval:        2 * time.Second,
-		seenBlocks:           NewBlockBuffer(1000),
+		seenBlocks:           NewBlockBuffer(bufferSize),
 		toJobs:               toCases,
 		newCallback:          newCallback,
 		finalityPollInterval: 10 * time.Second,

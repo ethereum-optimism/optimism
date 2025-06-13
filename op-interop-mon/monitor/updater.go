@@ -15,6 +15,8 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 )
 
+var inboxDepth = 100_000
+
 var ErrLogNotFound = errors.New("log not found")
 
 // TODO: make this configurable
@@ -51,13 +53,17 @@ type RPCUpdater struct {
 	log log.Logger
 }
 
-func NewUpdater(chainID eth.ChainID, client UpdaterClient, expiry *locks.RWMap[eth.ChainID, eth.NumberAndHash], log log.Logger) *RPCUpdater {
+func NewUpdater(
+	chainID eth.ChainID,
+	client UpdaterClient,
+	expiry *locks.RWMap[eth.ChainID, eth.NumberAndHash],
+	log log.Logger) *RPCUpdater {
 	return &RPCUpdater{
 		chainID: chainID,
 		client:  client,
 		log:     log.New("component", "rpc_updater", "chain_id", chainID),
 		// inbox depth is set very deep to allow spikes in job creation plus generous buffer
-		inbox:      make(chan *Job, 100_000),
+		inbox:      make(chan *Job, inboxDepth),
 		closed:     make(chan struct{}),
 		expireTime: 2 * time.Minute,
 		expiry:     expiry,

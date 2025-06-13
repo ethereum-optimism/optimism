@@ -69,7 +69,7 @@ func mockFinalizedCallback(chainID eth.ChainID, block eth.BlockInfo) {
 func TestRPCFinder_StartStop(t *testing.T) {
 	client := &mockFinderClient{}
 	logger := testlog.Logger(t, slog.LevelDebug)
-	finder := NewFinder(eth.ChainIDFromUInt64(1), client, mockReceiptsToCases, mockCallback, mockFinalizedCallback, logger)
+	finder := NewFinder(eth.ChainIDFromUInt64(1), client, mockReceiptsToCases, mockCallback, mockFinalizedCallback, 1000, logger)
 
 	require.NoError(t, finder.Start(context.Background()))
 	require.NoError(t, finder.Stop())
@@ -99,7 +99,7 @@ func TestRPCFinder_processBlock(t *testing.T) {
 		callbackInvocations++
 	}
 
-	finder := NewFinder(eth.ChainIDFromUInt64(1), client, fakeReceiptsToCases, callback, mockFinalizedCallback, logger)
+	finder := NewFinder(eth.ChainIDFromUInt64(1), client, fakeReceiptsToCases, callback, mockFinalizedCallback, 1000, logger)
 
 	receipts := []*types.Receipt{
 		{
@@ -169,7 +169,7 @@ func TestRPCFinder_walkback(t *testing.T) {
 
 	logger := testlog.Logger(t, slog.LevelDebug)
 
-	finder := NewFinder(eth.ChainIDFromUInt64(1), client, mockReceiptsToCases, mockCallback, mockFinalizedCallback, logger)
+	finder := NewFinder(eth.ChainIDFromUInt64(1), client, mockReceiptsToCases, mockCallback, mockFinalizedCallback, 1000, logger)
 
 	finder.seenBlocks.Add(a0)
 	finder.seenBlocks.Add(a1)
@@ -206,7 +206,7 @@ func TestRPCFinder_finality(t *testing.T) {
 		require.Equal(t, uint64(99), block.NumberU64())
 	}
 	logger := testlog.Logger(t, slog.LevelDebug)
-	finder := NewFinder(eth.ChainIDFromUInt64(1), client, mockReceiptsToCases, mockCallback, testFinalizedCallback, logger)
+	finder := NewFinder(eth.ChainIDFromUInt64(1), client, mockReceiptsToCases, mockCallback, testFinalizedCallback, 1000, logger)
 
 	finder.checkFinality(context.Background())
 }

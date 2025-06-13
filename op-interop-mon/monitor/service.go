@@ -149,7 +149,7 @@ func (ms *InteropMonitorService) initUpdaters(clients map[eth.ChainID]*sources.E
 // initFinders initializes the finders for the given clients
 func (ms *InteropMonitorService) initFinders(clients map[eth.ChainID]*sources.EthClient) error {
 	for chainID, ethClient := range clients {
-		finder := NewFinder(chainID, ethClient, BlockReceiptsToJobs, ms.RouteNewJob, ms.SetExpiry, ms.Log)
+		finder := NewFinder(chainID, ethClient, BlockReceiptsToJobs, ms.RouteNewJob, ms.SetExpiry, 1000, ms.Log)
 		ms.finders[chainID] = finder
 	}
 	return nil
