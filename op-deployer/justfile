@@ -45,7 +45,9 @@ _validate_rpc:
 # Run this before deploying the OPCM.
 pre-deploy: build build-contracts
 
-deploy-opcm locator="$DEFAULT_LOCATOR" release="dev": _validate_rpc
+# Run with:
+# PRIVATE_KEY=0x1234.... NETWORK=sepolia just deploy-opcm 'op-contracts/v4.0.0-rc.8'
+deploy-opcm release="dev" locator="$DEFAULT_LOCATOR": _validate_rpc
   #!/bin/bash
   echo "Using artifacts locator: {{locator}}"
   ./bin/op-deployer bootstrap implementations \
