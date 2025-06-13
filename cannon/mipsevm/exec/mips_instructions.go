@@ -467,14 +467,9 @@ func ExecuteMipsInstruction(insn uint32, opcode uint32, fun uint32, rs, rt, mem 
 }
 
 func SignExtend(dat Word, idx Word) Word {
-	isSigned := (dat>>(idx-1))&1 != 0
 	mask := (Word(1) << idx) - 1
 	signed := ^mask
-	if isSigned {
-		return dat&mask | signed
-	} else {
-		return dat & mask
-	}
+	return dat&mask | signed
 }
 
 func HandleBranch(cpu *mipsevm.CpuScalars, registers *[32]Word, opcode uint32, insn uint32, rtReg Word, rs Word, stackTracker StackTracker) error {
