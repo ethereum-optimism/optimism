@@ -134,3 +134,7 @@ func (el *L2ELNode) NotAdvanced(label eth.BlockLabel) {
 func (el *L2ELNode) ReorgTriggered(target eth.L2BlockRef, attempts int) {
 	el.require.NoError(el.ReorgTriggeredFn(target, attempts)())
 }
+
+func (el *L2ELNode) TransactionTimeout() time.Duration {
+	return el.inner.TransactionTimeout()
+}

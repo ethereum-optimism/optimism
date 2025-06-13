@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"math/big"
 	"math/rand"
+	"time"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -129,6 +130,19 @@ func (u *EOA) VerifyBalanceLessThan(v eth.ETH) {
 func (u *EOA) VerifyBalanceExact(v eth.ETH) {
 	actual := u.balance()
 	u.t.Require().Equal(v, actual, "must have expected balance")
+}
+
+// VerifyBalanceAtLeast verifies balance >= v
+func (u *EOA) VerifyBalanceAtLeast(v eth.ETH) {
+	actual := u.balance()
+	u.t.Require().GreaterOrEqual(actual, v, "got %s, expecting at least %s", actual, v)
+}
+
+func (u *EOA) WaitForBalance(v eth.ETH) {
+	u.t.Require().Eventually(func() bool {
+		u.VerifyBalanceExact(v)
+		return true
+	}, u.el.stackEL().TransactionTimeout(), time.Second, "awaiting balance to be updated")
 }
 
 func (u *EOA) DeployEventLogger() common.Address {

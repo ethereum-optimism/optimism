@@ -28,7 +28,7 @@ const (
 	FeatureFlashblocks = "flashblocks"
 )
 
-func (orch *Orchestrator) rpcClient(t devtest.T, service *descriptors.Service, protocol string, path string) client.RPC {
+func (orch *Orchestrator) rpcClient(t devtest.T, service *descriptors.Service, protocol string, path string, opts ...client.RPCOption) client.RPC {
 	t.Helper()
 
 	endpoint, header, err := orch.findProtocolService(service, protocol)
@@ -37,7 +37,6 @@ func (orch *Orchestrator) rpcClient(t devtest.T, service *descriptors.Service, p
 	endpoint, err = url.JoinPath(endpoint, path)
 	t.Require().NoError(err)
 
-	opts := []client.RPCOption{}
 	if !orch.useEagerRPCClients {
 		opts = append(opts, client.WithLazyDial())
 	}

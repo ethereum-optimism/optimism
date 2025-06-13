@@ -65,7 +65,7 @@ func (f *Funder) FundAtLeast(wallet *EOA, amount eth.ETH) eth.ETH {
 		missing := amount.Sub(currentBalance)
 		f.faucet.Fund(wallet.Address(), missing)
 		currentBalance = currentBalance.Add(missing)
-		wallet.VerifyBalanceExact(currentBalance)
+		wallet.WaitForBalance(currentBalance)
 	}
 	return currentBalance
 }

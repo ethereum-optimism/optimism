@@ -29,10 +29,13 @@ func TestL1ToL2Deposit(gt *testing.T) {
 	// Fund Alice on L1
 	fundingAmount := eth.ThreeHundredthsEther
 	alice := sys.Wallet.NewEOA(sys.L1EL)
+	t.Log("Alice L1 address", alice.Address())
 	initialBalance := sys.FunderL1.FundAtLeast(alice, fundingAmount)
+	t.Log("Alice L1 balance", initialBalance)
 
 	alicel2 := alice.AsEL(sys.L2EL)
 	initialL2Balance := alicel2.GetBalance()
+	t.Log("Alice L2 balance", initialL2Balance)
 
 	// Get the optimism portal address
 	rollupConfig := sys.L2Chain.Escape().RollupConfig()
@@ -53,13 +56,16 @@ func TestL1ToL2Deposit(gt *testing.T) {
 	gasCost := new(big.Int).Mul(new(big.Int).SetUint64(receipt.GasUsed), gasPrice)
 	expectedFinalL1 := new(big.Int).Sub(initialBalance.ToBig(), depositAmount.ToBig())
 	expectedFinalL1.Sub(expectedFinalL1, gasCost)
-
-	alice.VerifyBalanceExact(eth.WeiBig(expectedFinalL1))
+	t.Log("Alice L1 expected balance", eth.WeiBig(expectedFinalL1))
+	t.Log("Alice L2 expected balance", initialL2Balance.Add(depositAmount))
 
 	// Wait for the sequencer to process the deposit
 	t.Require().Eventually(func() bool {
 		head := sys.L2CL.HeadBlockRef(supervisorTypes.LocalUnsafe)
 		return head.L1Origin.Number >= receipt.BlockNumber.Uint64()
-	}, time.Second*30, time.Second, "awaiting deposit to be processed by L2")
-	alicel2.VerifyBalanceExact(initialL2Balance.Add(depositAmount))
+	}, sys.L1EL.TransactionTimeout(), time.Second, "awaiting deposit to be processed by L2")
+
+	alicel2.WaitForBalance(initialL2Balance.Add(depositAmount))
+
+	alice.WaitForBalance(eth.WeiBig(expectedFinalL1))
 }
