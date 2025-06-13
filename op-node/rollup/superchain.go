@@ -91,6 +91,7 @@ func LoadOPStackRollupConfig(chainID uint64) (*Config, error) {
 		PectraBlobScheduleTime: hardforks.PectraBlobScheduleTime,
 		IsthmusTime:            hardforks.IsthmusTime,
 		JovianTime:             hardforks.JovianTime,
+		InteropTime:            hardforks.InteropTime,
 		BatchInboxAddress:      chConfig.BatchInboxAddr,
 		DepositContractAddress: *addrs.OptimismPortalProxy,
 		L1SystemConfigAddress:  *addrs.SystemConfigProxy,

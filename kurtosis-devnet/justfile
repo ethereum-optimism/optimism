@@ -97,6 +97,9 @@ pectra-devnet: (devnet "pectra.yaml")
 # Isthmus devnet
 isthmus-devnet: (devnet "isthmus.yaml")
 
+# Flashblocks devnet
+flash-devnet: (devnet "flash.yaml")
+
 # subshells
 enter-devnet DEVNET CHAIN='Ethereum' NODE_INDEX='0': _prerequisites
     go run ../devnet-sdk/shell/cmd/enter/main.go --devnet kt://{{DEVNET}} --chain {{CHAIN}} --node-index {{NODE_INDEX}}

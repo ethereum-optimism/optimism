@@ -59,25 +59,25 @@ func (j *Job) Cancel(ctx context.Context) error {
 }
 
 func (j *Job) setHeadSafeAndFinalized() {
-	j.head = j.b.geth.Backend.BlockChain().CurrentBlock() // default head
+	j.head = j.b.blockchain.CurrentBlock() // default head
 	if j.parent != (common.Hash{}) {
-		j.head = j.b.geth.Backend.BlockChain().GetHeaderByHash(j.parent) // override head if parent is set
+		j.head = j.b.blockchain.GetHeaderByHash(j.parent) // override head if parent is set
 	}
 
-	j.finalized = j.b.geth.Backend.BlockChain().CurrentFinalBlock()
+	j.finalized = j.b.blockchain.CurrentFinalBlock()
 	if j.finalized == nil { // fallback to genesis if nothing is finalized
-		j.finalized = j.b.geth.Backend.BlockChain().Genesis().Header()
+		j.finalized = j.b.blockchain.Genesis().Header()
 	}
-	j.safe = j.b.geth.Backend.BlockChain().CurrentSafeBlock()
+	j.safe = j.b.blockchain.CurrentSafeBlock()
 	if j.safe == nil { // fallback to finalized if nothing is safe
 		j.safe = j.finalized
 	}
 
 	if j.head.Number.Uint64() > j.b.finalizedDistance { // progress finalized block, if we can
-		j.finalized = j.b.geth.Backend.BlockChain().GetHeaderByNumber(j.head.Number.Uint64() - j.b.finalizedDistance)
+		j.finalized = j.b.blockchain.GetHeaderByNumber(j.head.Number.Uint64() - j.b.finalizedDistance)
 	}
 	if j.head.Number.Uint64() > j.b.safeDistance { // progress safe block, if we can
-		j.safe = j.b.geth.Backend.BlockChain().GetHeaderByNumber(j.head.Number.Uint64() - j.b.safeDistance)
+		j.safe = j.b.blockchain.GetHeaderByNumber(j.head.Number.Uint64() - j.b.safeDistance)
 	}
 
 	j.parentBeaconBlockRoot = fakeBeaconBlockRoot(j.head.Time) // parent beacon block root
@@ -139,7 +139,7 @@ func (j *Job) Open(ctx context.Context) error {
 		// modify gas limit so that we get a different block
 		envelope.ExecutionPayload.GasLimit = envelope.ExecutionPayload.GasLimit + 100
 
-		block, err := engine.ExecutableDataToBlockNoHash(*envelope.ExecutionPayload, make([]common.Hash, 0), &j.parentBeaconBlockRoot, make([][]byte, 0), j.b.geth.Backend.BlockChain().Config())
+		block, err := engine.ExecutableDataToBlockNoHash(*envelope.ExecutionPayload, make([]common.Hash, 0), &j.parentBeaconBlockRoot, make([][]byte, 0), j.b.blockchain.Config())
 		if err != nil {
 			j.logger.Error("failed to convert executable data to block", "err", err)
 			return err
@@ -187,7 +187,7 @@ func (j *Job) Seal(ctx context.Context) (work.Block, error) {
 	}
 
 	if envelope.BlobsBundle != nil {
-		slot := (envelope.ExecutionPayload.Timestamp - j.b.geth.Backend.BlockChain().Genesis().Time()) / j.b.blockTime
+		slot := (envelope.ExecutionPayload.Timestamp - j.b.blockchain.Genesis().Time()) / j.b.blockTime
 		if j.b.beacon == nil {
 			j.logger.Error("no blobs storage available")
 			return nil, errors.New("no blobs storage available")

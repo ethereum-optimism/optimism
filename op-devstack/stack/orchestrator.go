@@ -1,6 +1,7 @@
 package stack
 
 import (
+	"github.com/ethereum-optimism/optimism/op-devstack/compat"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 )
 
@@ -37,6 +38,8 @@ type Orchestrator interface {
 	Hydrate(sys ExtensibleSystem)
 
 	ControlPlane() ControlPlane
+
+	Type() compat.Type
 }
 
 // GateWithRemediation is an example of a test-gate that checks a system and may use an orchestrator to remediate any shortcomings.

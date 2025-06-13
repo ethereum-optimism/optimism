@@ -79,6 +79,12 @@ const (
 		CloneThread
 )
 
+// eventfd flags
+// From: https://github.com/golang/go/blob/7a2cfb70b01f069c2125adcf7126d7f3376cb8b7/src/internal/runtime/syscall/defs_linux_mips64x.go#L18-L18
+const (
+	EFD_NONBLOCK = 0x80
+)
+
 // Other constants
 const (
 	// SchedQuantum is the number of steps dedicated for a thread before it's preempted. Effectively used to emulate thread "time slices"

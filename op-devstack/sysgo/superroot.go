@@ -121,20 +121,16 @@ func WithSuperRoots(l1ChainID eth.ChainID, l1ELID stack.L1ELNodeID, l2CLID stack
 
 			oldDisputeGameFactories := make(map[eth.ChainID]common.Address)
 			for i, opChainConfig := range opChainConfigs {
-				chainOpsForL2 := devkeys.ChainOperatorKeys(l2ChainIDs[i].ToBig())
-				l1PAOKeyForL2, err := o.keys.Secret(chainOpsForL2(devkeys.L1ProxyAdminOwnerRole))
-				require.NoError(err, "must have configured L1 proxy admin owner private key")
-
 				var portal common.Address
 				require.NoError(
 					w3Client.Call(
 						w3eth.CallFunc(opChainConfig.SystemConfigProxy, optimismPortalFn).Returns(&portal),
 					))
 				portalProxyAdmin := getProxyAdmin(t, w3Client, portal)
-				transferOwnership(t, l1PAOKeyForL2, client, portalProxyAdmin, delegateCallProxy)
+				transferOwnership(t, l1PAOKey, client, portalProxyAdmin, delegateCallProxy)
 
 				dgf := getDisputeGameFactory(t, w3Client, portal)
-				transferOwnership(t, l1PAOKeyForL2, client, dgf, delegateCallProxy)
+				transferOwnership(t, l1PAOKey, client, dgf, delegateCallProxy)
 				oldDisputeGameFactories[l2ChainIDs[i]] = dgf
 			}
 

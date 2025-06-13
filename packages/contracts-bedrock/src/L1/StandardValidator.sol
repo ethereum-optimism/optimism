@@ -35,8 +35,8 @@ import { IMIPS64 } from "interfaces/cannon/IMIPS64.sol";
 /// before and after an upgrade.
 contract StandardValidator is ISemver {
     /// @notice The semantic version of the StandardValidator contract.
-    /// @custom:semver 1.2.0
-    string public constant version = "1.2.0";
+    /// @custom:semver 1.3.0
+    string public constant version = "1.3.0";
 
     /// @notice The SuperchainConfig contract.
     ISuperchainConfig public superchainConfig;
@@ -200,7 +200,7 @@ contract StandardValidator is ISemver {
 
     /// @notice Returns the expected MIPS version.
     function mipsVersion() public pure returns (string memory) {
-        return "1.6.0";
+        return "1.7.0";
     }
 
     /// @notice Returns the expected OptimismMintableERC20Factory version.

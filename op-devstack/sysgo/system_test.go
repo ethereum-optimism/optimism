@@ -14,21 +14,30 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 )
 
+func exiters(gt *testing.T) (func(bool), func()) {
+	onFail := func(now bool) {
+		gt.Helper()
+		if now {
+			gt.FailNow()
+		} else {
+			gt.Fail()
+		}
+	}
+	onSkipNow := func() {
+		gt.Helper()
+		gt.SkipNow()
+	}
+	return onFail, onSkipNow
+}
+
 func TestSystem(gt *testing.T) {
 	var ids DefaultInteropSystemIDs
 	opt := DefaultInteropSystem(&ids)
 
 	logger := testlog.Logger(gt, log.LevelInfo)
 
-	p := devtest.NewP(context.Background(), logger,
-		func(now bool) {
-			gt.Helper()
-			if now {
-				gt.FailNow()
-			} else {
-				gt.Fail()
-			}
-		})
+	onFail, onSkipNow := exiters(gt)
+	p := devtest.NewP(context.Background(), logger, onFail, onSkipNow)
 	gt.Cleanup(p.Close)
 
 	orch := NewOrchestrator(p, stack.Combine[*Orchestrator]())

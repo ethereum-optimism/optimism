@@ -13,6 +13,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/retry"
+	"github.com/ethereum/go-ethereum/common"
 )
 
 // L2Network wraps a stack.L2Network interface for DSL operations
@@ -214,4 +215,8 @@ func (n *L2Network) AwaitActivation(t devtest.T, forkName rollup.ForkName) eth.B
 	t.Logger().Info("Activation block", "block", unsafeHead.ID())
 
 	return unsafeHead.ID()
+}
+
+func (n *L2Network) DisputeGameFactoryProxyAddr() common.Address {
+	return n.inner.Deployment().DisputeGameFactoryProxyAddr()
 }

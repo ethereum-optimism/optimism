@@ -5,14 +5,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/require"
-
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
+	"github.com/ethereum-optimism/optimism/op-devstack/dsl/contract"
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/txintent/bindings"
 	"github.com/ethereum-optimism/optimism/op-service/txplan"
 	supervisorTypes "github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
-	"github.com/lmittmann/w3"
 )
 
 func TestMain(m *testing.M) {
@@ -41,28 +40,14 @@ func TestL1ToL2Deposit(gt *testing.T) {
 
 	depositAmount := eth.OneHundredthEther
 
-	// Define the deposit function and encode arguments
-	// TODO: Redo this when the new DSL (#16079) is merged
-	funcDeposit := w3.MustNewFunc(`depositTransaction(address,uint256,uint64,bool,bytes)`, "")
-	args, err := funcDeposit.EncodeArgs(
-		alice.Address(),       // _to
-		depositAmount.ToBig(), // _value
-		uint64(300_000),       // _gasLimit
-		false,                 // _isCreation
-		[]byte{},              // _data
-	)
-	require.NoError(t, err)
+	// Build the transaction
+	portal := bindings.NewBindings[bindings.OptimismPortal2](bindings.WithClient(sys.L2EL.Escape().EthClient()), bindings.WithTo(portalAddr), bindings.WithTest(t))
 
-	// Create and confirm the transaction (awaits tx inclusion and checks success status)
-	tx := alice.Transact(
-		alice.Plan(),
-		txplan.WithGasLimit(500_000),
-		txplan.WithTo(&portalAddr),
-		txplan.WithData(args),
-		txplan.WithValue(depositAmount.ToBig()))
+	args := portal.DepositTransaction(alice.Address(), depositAmount, 300_000, false, []byte{})
 
-	receipt := tx.Included.Value()
-	gasPrice := receipt.EffectiveGasPrice // bugfix: use the exact price that was charged
+	receipt := contract.Write(alice, args, txplan.WithValue(depositAmount.ToBig()))
+
+	gasPrice := receipt.EffectiveGasPrice
 
 	// Verify the deposit was successful
 	gasCost := new(big.Int).Mul(new(big.Int).SetUint64(receipt.GasUsed), gasPrice)

@@ -9,7 +9,10 @@ import (
 	"github.com/ethereum-optimism/optimism/op-devstack/stack"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/retry"
+	"github.com/ethereum/go-ethereum/common"
 )
+
+var emptyHash = common.Hash{}
 
 // L2ELNode wraps a stack.L2ELNode interface for DSL operations
 type L2ELNode struct {
@@ -108,7 +111,7 @@ func (el *L2ELNode) ReorgTriggeredFn(target eth.L2BlockRef, attempts int) CheckF
 					return fmt.Errorf("expected head to reorg %s, but got %s", target, reorged)
 				}
 
-				if target.ParentHash != reorged.ParentHash {
+				if target.ParentHash != reorged.ParentHash && target.ParentHash != emptyHash {
 					return fmt.Errorf("expected parent of target to be the same as the parent of the reorged head, but they are different")
 				}
 

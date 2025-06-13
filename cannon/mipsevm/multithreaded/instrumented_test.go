@@ -109,18 +109,27 @@ func TestInstrumentedState_SyscallEventFdProgram(t *testing.T) {
 
 		// Check output
 		output := stdOutBuf.String()
-		require.Contains(t, output, "call eventfd")
+		require.Contains(t, output, "call eventfd with valid flags: '0x80080'")
+		require.Contains(t, output, "call eventfd with valid flags: '0xFFFFFFFFFFFFFFFF'")
+		require.Contains(t, output, "call eventfd with valid flags: '0x80'")
+		require.Contains(t, output, "call eventfd with invalid flags: '0x0'")
+		require.Contains(t, output, "call eventfd with invalid flags: '0xFFFFFFFFFFFFFF7F'")
+		require.Contains(t, output, "call eventfd with invalid flags: '0x80000'")
 		require.Contains(t, output, "write to eventfd object")
 		require.Contains(t, output, "read from eventfd object")
 		require.Contains(t, output, "done")
 
 		// Check fd value
-		pattern := `eventfd2 fd = (.+)`
+		pattern := `eventfd2 fd = '(.+)'`
 		re, err := regexp.Compile(pattern)
 		require.NoError(t, err)
 		matches := re.FindAllStringSubmatch(output, -1)
-		require.Equal(t, 1, len(matches))
-		require.Equal(t, "100", matches[0][1])
+
+		expectedMatches := 3
+		require.Equal(t, expectedMatches, len(matches))
+		for i := 0; i < expectedMatches; i++ {
+			require.Equal(t, "100", matches[i][1])
+		}
 	})
 }
 

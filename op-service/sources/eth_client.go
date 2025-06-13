@@ -28,6 +28,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/apis"
 	"github.com/ethereum-optimism/optimism/op-service/client"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/sources/batching"
 	"github.com/ethereum-optimism/optimism/op-service/sources/caching"
 )
 
@@ -593,4 +594,8 @@ func (s *EthClient) CodeAtHash(ctx context.Context, account common.Address, bloc
 	var result hexutil.Bytes
 	err := s.client.CallContext(ctx, &result, "eth_getCode", account, blockHash)
 	return result, err
+}
+
+func (s *EthClient) NewMultiCaller(batchSize int) *batching.MultiCaller {
+	return batching.NewMultiCaller(s.client, batchSize)
 }

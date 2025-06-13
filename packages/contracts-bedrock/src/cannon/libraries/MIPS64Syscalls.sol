@@ -153,6 +153,11 @@ library MIPS64Syscalls {
     uint64 internal constant VALID_SYS_CLONE_FLAGS =
         CLONE_VM | CLONE_FS | CLONE_FILES | CLONE_SIGHAND | CLONE_SYSVSEM | CLONE_THREAD;
 
+    // eventfd flags
+    // From:
+    // https://github.com/golang/go/blob/7a2cfb70b01f069c2125adcf7126d7f3376cb8b7/src/internal/runtime/syscall/defs_linux_mips64x.go#L18-L18
+    uint64 internal constant EFD_NONBLOCK = 0x80;
+
     // FYI: https://en.wikibooks.org/wiki/MIPS_Assembly/Register_File
     //      https://refspecs.linuxfoundation.org/elf/mipsabi.pdf
     uint32 internal constant REG_V0 = 2;

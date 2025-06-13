@@ -7,6 +7,7 @@
   "op_deployer" (localDockerImage "op-deployer")
   "op_supervisor" (localDockerImage "op-supervisor")
   "op_faucet" (localDockerImage "op-faucet")
+  "op_interop_mon" (localDockerImage "op-interop-mon")
 -}}
 {{- $urls := dict
   "prestate" (localPrestate.URL)
@@ -21,6 +22,9 @@ optimism_package:
   faucet:
     enabled: true
     image: {{ $local_images.op_faucet }}
+  interop_mon:
+    enabled: true
+    image: {{ $local_images.op_interop_mon }}
   superchains:
     superchain:
       enabled: true
@@ -157,6 +161,13 @@ optimism_package:
   global_node_selectors: {}
   global_tolerations: []
   persistent: false
+  observability:
+    grafana_params:
+      dashboard_sources:
+        - github.com/ethereum-optimism/grafana-dashboards-public/resources
+        - github.com/op-rs/kona/docker/recipes/kona-node/grafana
+        - github.com/paradigmxyz/reth/etc/grafana
+        - github.com/geoknee/grafana-dashboards/
 ethereum_package:
   participants:
     - el_type: geth

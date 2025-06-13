@@ -15,8 +15,7 @@ The service consists of several key components working together:
 - Multiple `Updater` instances that take `job`s for their chain and update them
 - A `MetricCollector` that regularly scans ongoing jobs to emit gauge metrics
 
-The components communicate through channels and maintain state about message status.
-
+The components use a collection of channels, callbacks and visitor-pattern style data collection to share Job information.
 
 ```mermaid
 flowchart TD
