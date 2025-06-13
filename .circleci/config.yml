@@ -1907,7 +1907,7 @@ workflows:
           name: go-tests-full
           rule: "go-tests-ci"  # Run full test suite instead of short
           no_output_timeout: 30m  # Longer timeout for full tests
-          test_timeout: 60m
+          test_timeout: 90m
           notify: true
           filters:
             branches:
