@@ -26,72 +26,14 @@ type EOA struct {
 	// el is the execution-layer node that this user operates against.
 	// This may be a L1 or L2 EL node.
 	el ELNode
-
-	// Set to true when a cleanup has been registered
-	cleanupRegistered bool
 }
 
 func NewEOA(key *Key, el ELNode) *EOA {
-	eoa := &EOA{
+	return &EOA{
 		commonImpl: commonFromT(key.t),
 		el:         el,
 		key:        key,
 	}
-
-	// If this address is in the fundedEOARegistry, register a cleanup
-	if _, funded := fundedEOARegistry[eoa.Address()]; funded && !eoa.cleanupRegistered {
-		eoa.registerCleanup()
-	}
-
-	return eoa
-}
-
-// registerCleanup sets up a cleanup function to refund any unused ETH at the end of the test
-func (u *EOA) registerCleanup() {
-	if u.cleanupRegistered {
-		return
-	}
-
-	u.cleanupRegistered = true
-
-	// Register cleanup to refund unused ETH
-	u.t.Cleanup(func() {
-		// Get the current balance
-		balance := u.balance()
-		if balance.IsZero() {
-			return
-		}
-
-		// For now, use a hardcoded zero address as a refund address
-		// In a real implementation, you would retrieve the faucet address
-		refundAddress := common.HexToAddress("0x0000000000000000000000000000000000000000")
-
-		// Log that we're refunding
-		u.log.Info("Refunding unused ETH", "address", u.Address(), "amount", balance, "refund_to", refundAddress)
-
-		// Leave a small amount for gas fees (0.01 ETH)
-		gasReserve := eth.Ether(0).Add(eth.WeiU64(10_000_000_000_000_000)) // 0.01 ETH
-
-		// Only refund if we have more than the gas reserve
-		if !balance.Gt(gasReserve) {
-			u.log.Info("Balance too low to refund", "address", u.Address(), "balance", balance, "min_required", gasReserve)
-			return
-		}
-
-		// Calculate amount to refund (balance - gas reserve)
-		refundAmount := balance.Sub(gasReserve)
-
-		// Transfer the funds
-		tx := u.Transfer(refundAddress, refundAmount)
-
-		// Check for errors using the Success field and eval which returns an error
-		_, err := tx.Success.Eval(u.ctx)
-		if err != nil {
-			u.log.Warn("Failed to refund ETH", "address", u.Address(), "amount", refundAmount, "err", err)
-		} else {
-			u.log.Info("Successfully refunded ETH", "address", u.Address(), "amount", refundAmount, "refund_to", refundAddress)
-		}
-	})
 }
 
 func (u *EOA) String() string {
