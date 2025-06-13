@@ -8,11 +8,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/retry"
 )
 
-// Global registry to keep track of funded EOAs
-// This is a simplistic approach for tests - in a production environment,
-// a more sophisticated tracking mechanism would be needed
-var fundedEOARegistry = make(map[common.Address]struct{})
-
 // Faucet wraps a stack.Faucet interface for DSL operations.
 // A Faucet is chain-specific.
 // Note: Faucet wraps a stack component, to share faucet operations in kurtosis by hosting it as service,
@@ -52,7 +47,4 @@ func (f *Faucet) Fund(addr common.Address, amount eth.ETH) {
 		return err
 	})
 	f.require.NoError(err, "must fund account %s with %s", addr, amount)
-
-	// Register this address as funded
-	fundedEOARegistry[addr] = struct{}{}
 }
