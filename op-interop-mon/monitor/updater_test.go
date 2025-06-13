@@ -20,7 +20,6 @@ import (
 // mockNumberAndHash implements eth.NumberAndHash for testing
 type mockNumberAndHash struct {
 	number uint64
-	hash   common.Hash
 }
 
 func (m mockNumberAndHash) NumberU64() uint64 {
@@ -28,7 +27,7 @@ func (m mockNumberAndHash) NumberU64() uint64 {
 }
 
 func (m mockNumberAndHash) Hash() common.Hash {
-	return m.hash
+	return common.Hash{} // Return empty hash since it's not needed
 }
 
 // setupTestUpdater creates a new RPCUpdater instance for testing
@@ -60,10 +59,9 @@ func TestUpdaterJobExpiration(t *testing.T) {
 			},
 			executingInfo: eth.BlockID{
 				Number: 200,
-				Hash:   common.HexToHash("0x123"),
 			},
-			initExpiry:    mockNumberAndHash{number: 150, hash: common.HexToHash("0x456")}, // initiating block is finalized
-			execExpiry:    mockNumberAndHash{number: 250, hash: common.HexToHash("0x789")}, // executing block is finalized
+			initExpiry:    mockNumberAndHash{number: 150}, // initiating block is finalized
+			execExpiry:    mockNumberAndHash{number: 250}, // executing block is finalized
 			lastEvaluated: time.Now().Add(-time.Hour),
 			didMetrics:    true,
 			shouldExpire:  true,
@@ -76,10 +74,9 @@ func TestUpdaterJobExpiration(t *testing.T) {
 			},
 			executingInfo: eth.BlockID{
 				Number: 200,
-				Hash:   common.HexToHash("0x123"),
 			},
-			initExpiry:    mockNumberAndHash{number: 50, hash: common.HexToHash("0x456")},  // initiating block not finalized
-			execExpiry:    mockNumberAndHash{number: 250, hash: common.HexToHash("0x789")}, // executing block is finalized
+			initExpiry:    mockNumberAndHash{number: 50},  // initiating block not finalized
+			execExpiry:    mockNumberAndHash{number: 250}, // executing block is finalized
 			lastEvaluated: time.Now().Add(-time.Hour),
 			didMetrics:    true,
 			shouldExpire:  false,
@@ -92,10 +89,9 @@ func TestUpdaterJobExpiration(t *testing.T) {
 			},
 			executingInfo: eth.BlockID{
 				Number: 200,
-				Hash:   common.HexToHash("0x123"),
 			},
-			initExpiry:    mockNumberAndHash{number: 150, hash: common.HexToHash("0x456")}, // initiating block is finalized
-			execExpiry:    mockNumberAndHash{number: 150, hash: common.HexToHash("0x789")}, // executing block not finalized
+			initExpiry:    mockNumberAndHash{number: 150}, // initiating block is finalized
+			execExpiry:    mockNumberAndHash{number: 150}, // executing block not finalized
 			lastEvaluated: time.Now().Add(-time.Hour),
 			didMetrics:    true,
 			shouldExpire:  false,
@@ -108,10 +104,9 @@ func TestUpdaterJobExpiration(t *testing.T) {
 			},
 			executingInfo: eth.BlockID{
 				Number: 200,
-				Hash:   common.HexToHash("0x123"),
 			},
-			initExpiry:    mockNumberAndHash{number: 150, hash: common.HexToHash("0x456")},
-			execExpiry:    mockNumberAndHash{number: 250, hash: common.HexToHash("0x789")},
+			initExpiry:    mockNumberAndHash{number: 150},
+			execExpiry:    mockNumberAndHash{number: 250},
 			lastEvaluated: time.Time{}, // never evaluated
 			didMetrics:    true,
 			shouldExpire:  false,
@@ -124,10 +119,9 @@ func TestUpdaterJobExpiration(t *testing.T) {
 			},
 			executingInfo: eth.BlockID{
 				Number: 200,
-				Hash:   common.HexToHash("0x123"),
 			},
-			initExpiry:    mockNumberAndHash{number: 150, hash: common.HexToHash("0x456")},
-			execExpiry:    mockNumberAndHash{number: 250, hash: common.HexToHash("0x789")},
+			initExpiry:    mockNumberAndHash{number: 150},
+			execExpiry:    mockNumberAndHash{number: 250},
 			lastEvaluated: time.Now().Add(-time.Hour),
 			didMetrics:    false,
 			shouldExpire:  false,
@@ -169,11 +163,24 @@ func TestUpdaterJobExpiration(t *testing.T) {
 
 // TestUpdaterJobStatusUpdate tests the job status update functionality
 func TestUpdaterJobStatusUpdate(t *testing.T) {
+	// Create test data
+	validLog := &ethtypes.Log{
+		Index: 0,
+		Data:  []byte{0x01, 0x02, 0x03},
+	}
+	validHash := crypto.Keccak256Hash(supervisortypes.LogToMessagePayload(validLog))
+
+	invalidLog := &ethtypes.Log{
+		Index: 0,
+		Data:  []byte{0x04, 0x05, 0x06}, // Different data will result in different hash
+	}
+
 	tests := []struct {
 		name           string
 		initiatingInfo *supervisortypes.Identifier
 		executingInfo  eth.BlockID
 		receipts       ethtypes.Receipts
+		expectedHash   common.Hash
 		expectedStatus []jobStatus
 	}{
 		{
@@ -185,22 +192,17 @@ func TestUpdaterJobStatusUpdate(t *testing.T) {
 			},
 			executingInfo: eth.BlockID{
 				Number: 200,
-				Hash:   common.HexToHash("0x123"),
 			},
 			receipts: ethtypes.Receipts{
 				{
-					Logs: []*ethtypes.Log{
-						{
-							Index: 0,
-							Data:  []byte{0x01, 0x02, 0x03},
-						},
-					},
+					Logs: []*ethtypes.Log{validLog},
 				},
 			},
+			expectedHash:   validHash,
 			expectedStatus: []jobStatus{jobStatusValid},
 		},
 		{
-			name: "log not found",
+			name: "log not found - index out of bounds",
 			initiatingInfo: &supervisortypes.Identifier{
 				ChainID:     eth.ChainIDFromUInt64(1),
 				BlockNumber: 100,
@@ -208,18 +210,13 @@ func TestUpdaterJobStatusUpdate(t *testing.T) {
 			},
 			executingInfo: eth.BlockID{
 				Number: 200,
-				Hash:   common.HexToHash("0x123"),
 			},
 			receipts: ethtypes.Receipts{
 				{
-					Logs: []*ethtypes.Log{
-						{
-							Index: 0,
-							Data:  []byte{0x01, 0x02, 0x03},
-						},
-					},
+					Logs: []*ethtypes.Log{validLog},
 				},
 			},
+			expectedHash:   validHash,
 			expectedStatus: []jobStatus{jobStatusInvalid},
 		},
 		{
@@ -231,22 +228,17 @@ func TestUpdaterJobStatusUpdate(t *testing.T) {
 			},
 			executingInfo: eth.BlockID{
 				Number: 200,
-				Hash:   common.HexToHash("0x123"),
 			},
 			receipts: ethtypes.Receipts{
 				{
-					Logs: []*ethtypes.Log{
-						{
-							Index: 0,
-							Data:  []byte{0x04, 0x05, 0x06}, // Different data will result in different hash
-						},
-					},
+					Logs: []*ethtypes.Log{invalidLog},
 				},
 			},
+			expectedHash:   validHash, // Expecting the valid hash but got invalid log
 			expectedStatus: []jobStatus{jobStatusInvalid},
 		},
 		{
-			name: "error fetching receipts",
+			name: "empty receipts",
 			initiatingInfo: &supervisortypes.Identifier{
 				ChainID:     eth.ChainIDFromUInt64(1),
 				BlockNumber: 100,
@@ -254,9 +246,23 @@ func TestUpdaterJobStatusUpdate(t *testing.T) {
 			},
 			executingInfo: eth.BlockID{
 				Number: 200,
-				Hash:   common.HexToHash("0x123"),
+			},
+			receipts:       ethtypes.Receipts{},
+			expectedHash:   validHash,
+			expectedStatus: []jobStatus{jobStatusInvalid},
+		},
+		{
+			name: "fetch receipts error",
+			initiatingInfo: &supervisortypes.Identifier{
+				ChainID:     eth.ChainIDFromUInt64(1),
+				BlockNumber: 100,
+				LogIndex:    0,
+			},
+			executingInfo: eth.BlockID{
+				Number: 200,
 			},
 			receipts:       nil, // Will cause error in mock
+			expectedHash:   validHash,
 			expectedStatus: []jobStatus{jobStatusUnknown},
 		},
 	}
@@ -267,24 +273,14 @@ func TestUpdaterJobStatusUpdate(t *testing.T) {
 
 			// Create a test job
 			job := &Job{
-				id:             JobID(uuid.New().String()),
-				initiating:     tt.initiatingInfo,
-				executingBlock: tt.executingInfo,
-				executingChain: eth.ChainIDFromUInt64(2),
+				id:               JobID(uuid.New().String()),
+				initiating:       tt.initiatingInfo,
+				executingBlock:   tt.executingInfo,
+				executingChain:   eth.ChainIDFromUInt64(2),
+				executingPayload: tt.expectedHash,
 			}
 
-			// If we have valid receipts, calculate the expected hash
-			if len(tt.receipts) > 0 && len(tt.receipts[0].Logs) > 0 {
-				if tt.name == "log hash mismatch" {
-					// For the mismatch case, set a different hash than what we expect from the log
-					job.executingPayload = common.HexToHash("0x1234567890abcdef")
-				} else {
-					expectedHash := crypto.Keccak256Hash(supervisortypes.LogToMessagePayload(tt.receipts[0].Logs[0]))
-					job.executingPayload = expectedHash
-				}
-			}
-
-			// Configure mock client
+			// Configure mock client to return the test receipts
 			client.fetchReceiptsByNumber = func(ctx context.Context, number uint64) (eth.BlockInfo, ethtypes.Receipts, error) {
 				if tt.receipts == nil {
 					return nil, nil, errors.New("mock error")
