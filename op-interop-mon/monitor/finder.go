@@ -19,6 +19,12 @@ var ErrBlockNotFound = errors.New("block not found")
 // into a slice of jobs which can be added to the Maintainer's inbox
 type JobFilter func(receipts []*types.Receipt) []*Job
 
+// NewCallback is a function to be called when a new job is created
+type NewCallback func(*Job)
+
+// FinalityCallback is a function to be called when the finality of jobs for this chain is updated
+type FinalityCallback func(chainID eth.ChainID, block eth.BlockInfo)
+
 // FinderClient is a client that can be used to find new blocks and their receipts
 // it is satisfied by the ethclient.Client type
 type FinderClient interface {
@@ -37,34 +43,40 @@ type Finder interface {
 
 // RPCFinder connects to an Ethereum chain and extracts receipts in order to create jobs
 type RPCFinder struct {
-	client  FinderClient
 	chainID eth.ChainID
+	client  FinderClient
+	log     log.Logger
 
-	pollInterval       time.Duration
-	expiryPollInterval time.Duration
+	finalityPollInterval time.Duration
+	finalityCallback     FinalityCallback
 
-	inbox    chan *types.Header
-	toJobs   JobFilter
-	callback func(*Job)
-	closed   chan struct{}
-	log      log.Logger
+	fetchInterval time.Duration
+	next          uint64
+	seenBlocks    *buffer.Ring[eth.BlockInfo]
+	toJobs        JobFilter
+	newCallback   NewCallback
 
-	next       uint64
-	seenBlocks *buffer.Ring[eth.BlockInfo]
+	closed chan struct{}
 }
 
-func NewFinder(chainID eth.ChainID, client FinderClient, toCases JobFilter, callback func(*Job), log log.Logger) *RPCFinder {
+func NewFinder(chainID eth.ChainID,
+	client FinderClient,
+	toCases JobFilter,
+	newCallback NewCallback,
+	finalityCallback FinalityCallback,
+	bufferSize int,
+	log log.Logger) *RPCFinder {
 	return &RPCFinder{
-		chainID:            chainID,
-		client:             client,
-		log:                log.New("component", "rpc_finder", "chain_id", chainID),
-		toJobs:             toCases,
-		inbox:              make(chan *types.Header, 1000),
-		closed:             make(chan struct{}),
-		callback:           callback,
-		pollInterval:       2 * time.Second,
-		expiryPollInterval: 10 * time.Second,
-		seenBlocks:         buffer.NewRing[eth.BlockInfo](1000),
+		chainID:              chainID,
+		client:               client,
+		log:                  log.New("component", "rpc_finder", "chain_id", chainID),
+		fetchInterval:        1 * time.Second,
+		seenBlocks:           buffer.NewRing[eth.BlockInfo](1000),
+		toJobs:               toCases,
+		newCallback:          newCallback,
+		finalityPollInterval: 10 * time.Second,
+		finalityCallback:     finalityCallback,
+		closed:               make(chan struct{}),
 	}
 }
 
@@ -85,19 +97,21 @@ func (t *RPCFinder) Run(ctx context.Context) {
 	// fetchTicker starts at 100ms to rapidly backfill blocks
 	fetchTicker := time.NewTicker(100 * time.Millisecond)
 	defer fetchTicker.Stop()
+	// finalityTicker tracks finalized L2 blocks of this chain
+	finalityTicker := time.NewTicker(t.finalityPollInterval)
+	defer finalityTicker.Stop()
 
 	for {
 		select {
 		case <-t.closed:
 			t.log.Info("finder closed")
-			close(t.inbox)
 			return
 		case <-fetchTicker.C:
 			blockInfo, receipts, err := t.client.FetchReceiptsByNumber(ctx, t.next)
 			if errors.Is(err, ethereum.NotFound) {
 				t.log.Debug("block not found", "block", t.next)
 				// once a block is not found, increase the poll interval to the configured value
-				fetchTicker.Reset(t.pollInterval)
+				fetchTicker.Reset(t.fetchInterval)
 				continue
 			} else if err != nil {
 				t.log.Error("error getting block", "error", err)
@@ -114,8 +128,21 @@ func (t *RPCFinder) Run(ctx context.Context) {
 				t.log.Error("error processing block", "error", err)
 				continue
 			}
+		case <-finalityTicker.C:
+			t.checkFinality(ctx)
 		}
 	}
+}
+
+// checkFinality checks the latest finalized block on the L2 chain
+// and updates the finality callback
+func (t *RPCFinder) checkFinality(ctx context.Context) {
+	blockInfo, err := t.client.InfoByLabel(ctx, eth.Finalized)
+	if err != nil {
+		t.log.Error("error getting finalized block", "error", err)
+		return
+	}
+	t.finalityCallback(t.chainID, blockInfo)
 }
 
 var ErrBlockNotContiguous = errors.New("blocks are not contiguous")
@@ -143,12 +170,9 @@ func (t *RPCFinder) processBlock(blockInfo eth.BlockInfo, receipts types.Receipt
 	for _, job := range jobs {
 		job.firstSeen = firstSeen
 		job.UpdateStatus(jobStatusUnknown)
-		t.callback(job)
+		t.newCallback(job)
 	}
-	if len(jobs) > 0 {
-		t.log.Info("added jobs to callback", "count", len(jobs))
-	}
-	t.log.Debug("visited block", "block", blockInfo.NumberU64())
+	t.log.Debug("block processed", "block", blockInfo.NumberU64(), "jobs", len(jobs))
 	t.seenBlocks.Add(blockInfo)
 	t.next++
 	return nil

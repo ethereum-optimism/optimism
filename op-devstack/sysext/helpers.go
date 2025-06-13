@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"strings"
 
 	"github.com/ethereum/go-ethereum/rpc"
 
@@ -18,11 +19,13 @@ const (
 	RBuilderServiceName  = "rbuilder"
 	ConductorServiceName = "conductor"
 
-	HTTPProtocol    = "http"
-	RPCProtocol     = "rpc"
-	MetricsProtocol = "metrics"
+	HTTPProtocol                 = "http"
+	RPCProtocol                  = "rpc"
+	MetricsProtocol              = "metrics"
+	WebsocketFlashblocksProtocol = "ws-flashblocks"
 
-	FeatureInterop = "interop"
+	FeatureInterop     = "interop"
+	FeatureFlashblocks = "flashblocks"
 )
 
 func (orch *Orchestrator) rpcClient(t devtest.T, service *descriptors.Service, protocol string, path string) client.RPC {
@@ -95,7 +98,14 @@ func (orch *Orchestrator) findProtocolService(service *descriptors.Service, prot
 			if scheme == "" {
 				scheme = HTTPProtocol
 			}
-			return fmt.Sprintf("%s://%s:%d", scheme, endpoint.Host, port), nil, nil
+			host := endpoint.Host
+			path := ""
+			if strings.Contains(host, "/") {
+				parts := strings.SplitN(host, "/", 2)
+				host = parts[0]
+				path = "/" + parts[1]
+			}
+			return fmt.Sprintf("%s://%s:%d%s", scheme, host, port, path), nil, nil
 		}
 	}
 	return "", nil, fmt.Errorf("protocol %s not found", protocol)

@@ -1,17 +1,76 @@
 package monitor
 
 import (
+	"time"
+
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/log"
 )
 
-// ConsolidateMetrics scans the jobMap and updates the metrics
-func (m *Maintainer) ConsolidateMetrics() {
-	jobMap := map[JobID]*Job{}
-	m.updaters.Range(func(chainID eth.ChainID, updater Updater) bool {
-		jobMap = updater.GetJobs(jobMap)
+type InteropMessageMetrics interface {
+	RecordExecutingMessageStats(chainID string, blockNumber uint64, blockHash string, status string, value float64)
+	RecordInitiatingMessageStats(chainID string, blockNumber uint64, status string, value float64)
+	RecordTerminalStatusChange(executingChainID string, initiatingChainID string, value float64)
+}
+
+type MetricCollector struct {
+	updaters map[eth.ChainID]Updater
+
+	closed chan struct{}
+	log    log.Logger
+	m      InteropMessageMetrics
+}
+
+func NewMetricCollector(log log.Logger, m InteropMessageMetrics, updaters map[eth.ChainID]Updater) *MetricCollector {
+	return &MetricCollector{
+		log:      log,
+		m:        m,
+		updaters: updaters,
+		closed:   make(chan struct{}),
+	}
+}
+
+func (m *MetricCollector) Start() error {
+	go m.Run()
+	return nil
+}
+
+func (m *MetricCollector) Stopped() bool {
+	select {
+	case <-m.closed:
 		return true
-	})
+	default:
+		return false
+	}
+}
+
+// Run is the main loop for the maintainer
+func (m *MetricCollector) Run() {
+	// set up a ticker to run every 1s
+	ticker := time.NewTicker(1 * time.Second)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-m.closed:
+			return
+		case <-ticker.C:
+			m.CollectMetrics()
+		}
+	}
+}
+
+func (m *MetricCollector) Stop() error {
+	close(m.closed)
+	return nil
+}
+
+// CollectMetrics scans the jobMaps, consolidates them, and updates the metrics
+func (m *MetricCollector) CollectMetrics() {
+	jobMap := map[JobID]*Job{}
+	for _, updater := range m.updaters {
+		jobMap = updater.CollectForMetrics(jobMap)
+	}
 	// message metrics are dimensioned by:
 	// - initiating chain id
 	// - block number
@@ -21,8 +80,12 @@ func (m *Maintainer) ConsolidateMetrics() {
 	initiatingMessages := map[eth.ChainID]map[uint64]map[string]int{}
 	terminalStatusChanges := map[eth.ChainID]map[eth.ChainID]int{}
 	for _, job := range jobMap {
-		states := job.States()
-		current := states[len(states)-1].String()
+		statuses := job.Statuses()
+		if len(statuses) == 0 {
+			m.log.Warn("Job has no statuses", "job", job)
+			continue
+		}
+		current := statuses[len(statuses)-1].String()
 		// Lazy increment the executing message metrics
 		if _, ok := executingMessages[job.executingChain]; !ok {
 			executingMessages[job.executingChain] = make(map[uint64]map[common.Hash]map[string]int)
@@ -53,7 +116,7 @@ func (m *Maintainer) ConsolidateMetrics() {
 		// Evaluate the job for a terminal state change
 		hasBeenValid := false
 		hasBeenInvalid := false
-		for _, state := range states {
+		for _, state := range statuses {
 			switch state {
 			case jobStatusValid:
 				hasBeenValid = true

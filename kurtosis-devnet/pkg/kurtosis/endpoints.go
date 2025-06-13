@@ -2,6 +2,7 @@ package kurtosis
 
 import (
 	"encoding/json"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -54,6 +55,9 @@ func NewServiceFinder(services inspect.ServiceMap, opts ...ServiceFinderOption) 
 		services:        services,
 		nodeServices:    []string{"cl", "el"},
 		l2ServicePrefix: "op-",
+
+		nodeNames2Index: make(map[string]int),
+		nodeNextIndex:   0,
 	}
 	for _, opt := range opts {
 		opt(f)
@@ -236,13 +240,15 @@ func (f *ServiceFinder) triageByLabels(svc *inspect.Service, name string, endpoi
 	// TODO: we really don't need numeric index for nodes, but it's a quick fix until
 	// we move node services recognition to labels entirely.
 	idx := -1
-	if name, ok := svc.Labels[nodeNameLabel]; ok {
-		if val, ok := f.nodeNames2Index[name]; ok {
-			idx = val
-		} else {
-			idx = f.nodeNextIndex
-			f.nodeNames2Index[name] = idx
-			f.nodeNextIndex++
+	if slices.Contains(f.nodeServices, tag) { // those are grouped into nodes
+		if name, ok := svc.Labels[nodeNameLabel]; ok {
+			if val, ok := f.nodeNames2Index[name]; ok {
+				idx = val
+			} else {
+				idx = f.nodeNextIndex
+				f.nodeNames2Index[name] = idx
+				f.nodeNextIndex++
+			}
 		}
 	}
 	return &triagedService{
@@ -261,9 +267,6 @@ func (f *ServiceFinder) triage() {
 	rules := serviceParserRules{
 		"el":         f.triageNode("el-"),
 		"cl":         f.triageNode("cl-"),
-		"batcher":    f.triageExclusiveL2Service("op-batcher-"),
-		"proposer":   f.triageExclusiveL2Service("op-proposer-"),
-		"proxyd":     f.triageExclusiveL2Service("proxyd-"),
 		"supervisor": f.triageSuperchainService("op-supervisor-"),
 		"challenger": f.triageMultiL2Service("op-challenger-"),
 		"faucet":     f.triageUniversalL2Service("op-faucet"),

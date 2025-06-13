@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
@@ -66,6 +67,7 @@ type Job struct {
 	firstSeen     time.Time
 	lastEvaluated time.Time
 	terminalAt    time.Time
+	didMetrics    atomic.Bool
 
 	executingAddress common.Address
 	executingChain   eth.ChainID
@@ -102,7 +104,6 @@ func JobFromExecutingMessageLog(log *types.Log) (Job, error) {
 	if msg == nil {
 		return Job{}, ErrNotExecutingMessage
 	}
-	fmt.Println("msg", msg)
 	return Job{
 		id:               JobID(fmt.Sprintf("%s@%d:%s:%d", log.Address.String(), msg.Identifier.ChainID, log.BlockHash.String(), log.Index)),
 		executingAddress: log.Address,
@@ -136,8 +137,8 @@ func (j *Job) ID() JobID {
 	return j.id
 }
 
-// States returns the states of the job
-func (j *Job) States() []jobStatus {
+// Statuses returns the states of the job
+func (j *Job) Statuses() []jobStatus {
 	j.rwLock.RLock()
 	defer j.rwLock.RUnlock()
 	return j.status
@@ -187,4 +188,21 @@ func (j *Job) UpdateLastEvaluated(t time.Time) {
 	j.rwLock.Lock()
 	defer j.rwLock.Unlock()
 	j.lastEvaluated = t
+}
+
+// LastEvaluated returns the last evaluated time of the job
+func (j *Job) LastEvaluated() time.Time {
+	j.rwLock.RLock()
+	defer j.rwLock.RUnlock()
+	return j.lastEvaluated
+}
+
+// DidMetrics returns true if the job has been used to update the metrics at least once
+func (j *Job) DidMetrics() bool {
+	return j.didMetrics.Load()
+}
+
+// SetDidMetrics sets the did metrics flag of the job
+func (j *Job) SetDidMetrics() {
+	j.didMetrics.Store(true)
 }

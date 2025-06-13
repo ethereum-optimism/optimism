@@ -12,19 +12,18 @@ import (
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
-	ethTypes "github.com/ethereum/go-ethereum/core/types"
 	"github.com/stretchr/testify/require"
 )
 
-// mockFinderClient implements FinderClient interface for testing
-type mockFinderClient struct {
+// mockClient implements both FinderClient and UpdaterClient interfaces for testing
+type mockClient struct {
 	infoByLabel           func(ctx context.Context, label eth.BlockLabel) (eth.BlockInfo, error)
 	infoByNumber          func(ctx context.Context, number uint64) (eth.BlockInfo, error)
 	fetchReceiptsByNumber func(ctx context.Context, number uint64) (eth.BlockInfo, types.Receipts, error)
 	err                   error
 }
 
-func (m *mockFinderClient) InfoByLabel(ctx context.Context, label eth.BlockLabel) (eth.BlockInfo, error) {
+func (m *mockClient) InfoByLabel(ctx context.Context, label eth.BlockLabel) (eth.BlockInfo, error) {
 	if m.infoByLabel != nil {
 		return m.infoByLabel(ctx, label)
 	} else {
@@ -35,7 +34,7 @@ func (m *mockFinderClient) InfoByLabel(ctx context.Context, label eth.BlockLabel
 	}
 }
 
-func (m *mockFinderClient) InfoByNumber(ctx context.Context, number uint64) (eth.BlockInfo, error) {
+func (m *mockClient) InfoByNumber(ctx context.Context, number uint64) (eth.BlockInfo, error) {
 	if m.infoByNumber != nil {
 		return m.infoByNumber(ctx, number)
 	} else {
@@ -46,7 +45,7 @@ func (m *mockFinderClient) InfoByNumber(ctx context.Context, number uint64) (eth
 	}
 }
 
-func (m *mockFinderClient) FetchReceiptsByNumber(ctx context.Context, number uint64) (eth.BlockInfo, types.Receipts, error) {
+func (m *mockClient) FetchReceiptsByNumber(ctx context.Context, number uint64) (eth.BlockInfo, types.Receipts, error) {
 	if m.fetchReceiptsByNumber != nil {
 		return m.fetchReceiptsByNumber(ctx, number)
 	} else {
@@ -57,17 +56,20 @@ func (m *mockFinderClient) FetchReceiptsByNumber(ctx context.Context, number uin
 	}
 }
 
-func mockReceiptsToCases(receipts []*ethTypes.Receipt) []*Job {
+func mockReceiptsToCases(receipts []*types.Receipt) []*Job {
 	return nil
 }
 
 func mockCallback(job *Job) {
 }
 
+func mockFinalizedCallback(chainID eth.ChainID, block eth.BlockInfo) {
+}
+
 func TestRPCFinder_StartStop(t *testing.T) {
-	client := &mockFinderClient{}
+	client := &mockClient{}
 	logger := testlog.Logger(t, slog.LevelDebug)
-	finder := NewFinder(eth.ChainIDFromUInt64(1), client, mockReceiptsToCases, mockCallback, logger)
+	finder := NewFinder(eth.ChainIDFromUInt64(1), client, mockReceiptsToCases, mockCallback, mockFinalizedCallback, 1000, logger)
 
 	require.NoError(t, finder.Start(context.Background()))
 	require.NoError(t, finder.Stop())
@@ -81,7 +83,7 @@ func TestRPCFinder_StartStop(t *testing.T) {
 // confirming that it checks the block for contiguity and
 // calls the callback with the expected jobs if it is
 func TestRPCFinder_processBlock(t *testing.T) {
-	client := &mockFinderClient{}
+	client := &mockClient{}
 	logger := testlog.Logger(t, slog.LevelDebug)
 
 	// create a single empty job regardless of the receipts
@@ -97,7 +99,7 @@ func TestRPCFinder_processBlock(t *testing.T) {
 		callbackInvocations++
 	}
 
-	finder := NewFinder(eth.ChainIDFromUInt64(1), client, fakeReceiptsToCases, callback, logger)
+	finder := NewFinder(eth.ChainIDFromUInt64(1), client, fakeReceiptsToCases, callback, mockFinalizedCallback, 1000, logger)
 
 	receipts := []*types.Receipt{
 		{
@@ -134,7 +136,7 @@ func TestRPCFinder_processBlock(t *testing.T) {
 }
 
 func TestRPCFinder_walkback(t *testing.T) {
-	client := &mockFinderClient{}
+	client := &mockClient{}
 
 	a0 := eth.HeaderBlockInfo(&types.Header{
 		Number: big.NewInt(0),
@@ -167,7 +169,7 @@ func TestRPCFinder_walkback(t *testing.T) {
 
 	logger := testlog.Logger(t, slog.LevelDebug)
 
-	finder := NewFinder(eth.ChainIDFromUInt64(1), client, mockReceiptsToCases, mockCallback, logger)
+	finder := NewFinder(eth.ChainIDFromUInt64(1), client, mockReceiptsToCases, mockCallback, mockFinalizedCallback, 1000, logger)
 
 	finder.seenBlocks.Add(a0)
 	finder.seenBlocks.Add(a1)
@@ -185,4 +187,26 @@ func TestRPCFinder_walkback(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, uint64(1), finder.next)
 	require.Equal(t, a0, finder.seenBlocks.Peek())
+}
+
+func TestRPCFinder_finality(t *testing.T) {
+	client := &mockClient{}
+	client.infoByLabel = func(ctx context.Context, label eth.BlockLabel) (eth.BlockInfo, error) {
+		if label == eth.Finalized {
+			return eth.HeaderBlockInfo(&types.Header{
+				Number: big.NewInt(99),
+			}), nil
+		}
+		return nil, ethereum.NotFound
+	}
+
+	// confirm the callback is called with the correct chain and block
+	testFinalizedCallback := func(chainID eth.ChainID, block eth.BlockInfo) {
+		require.Equal(t, eth.ChainIDFromUInt64(1), chainID)
+		require.Equal(t, uint64(99), block.NumberU64())
+	}
+	logger := testlog.Logger(t, slog.LevelDebug)
+	finder := NewFinder(eth.ChainIDFromUInt64(1), client, mockReceiptsToCases, mockCallback, testFinalizedCallback, 1000, logger)
+
+	finder.checkFinality(context.Background())
 }

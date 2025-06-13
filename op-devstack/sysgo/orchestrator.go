@@ -8,6 +8,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/devkeys"
+	"github.com/ethereum-optimism/optimism/op-devstack/compat"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/stack"
 	"github.com/ethereum-optimism/optimism/op-service/clock"
@@ -27,7 +28,9 @@ type Orchestrator struct {
 	timeTravelClock *clock.AdvancingClock
 
 	// options
-	batcherOptions []BatcherOption
+	batcherOptions          []BatcherOption
+	proposerOptions         []ProposerOption
+	deployerPipelineOptions []DeployerPipelineOption
 
 	superchains    locks.RWMap[stack.SuperchainID, *Superchain]
 	clusters       locks.RWMap[stack.ClusterID, *Cluster]
@@ -54,6 +57,10 @@ type Orchestrator struct {
 	jwtPath     string
 	jwtSecret   [32]byte
 	jwtPathOnce sync.Once
+}
+
+func (o *Orchestrator) Type() compat.Type {
+	return compat.SysGo
 }
 
 func (o *Orchestrator) ClusterForL2(chainID eth.ChainID) (*Cluster, bool) {

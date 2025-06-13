@@ -12,6 +12,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/retry"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/status"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
+	"github.com/ethereum/go-ethereum/common/hexutil"
 )
 
 type Supervisor struct {
@@ -180,6 +181,12 @@ func (s *Supervisor) WaitForUnsafeHeadToAdvance(chainID eth.ChainID, delta uint6
 
 func (s *Supervisor) AdvancedSafeHead(chainID eth.ChainID, delta uint64, attempts int) {
 	s.WaitForL2HeadToAdvance(chainID, delta, types.CrossSafe, attempts)
+}
+
+func (s *Supervisor) FetchSuperRootAtTimestamp(timestamp uint64) eth.SuperRootResponse {
+	response, err := s.inner.QueryAPI().SuperRootAtTimestamp(s.ctx, hexutil.Uint64(timestamp))
+	s.require.NoError(err, "Unable to fetch super root at timestamp")
+	return response
 }
 
 func (s *Supervisor) Start() {

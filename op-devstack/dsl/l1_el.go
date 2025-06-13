@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-devstack/stack"
+	"github.com/ethereum-optimism/optimism/op-service/apis"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/retry"
 )
@@ -32,6 +33,10 @@ func (el *L1ELNode) String() string {
 // Escape returns the underlying stack.L1ELNode
 func (el *L1ELNode) Escape() stack.L1ELNode {
 	return el.inner
+}
+
+func (el *L1ELNode) EthClient() apis.EthClient {
+	return el.inner.EthClient()
 }
 
 // EstimateBlockTime estimates the L1 block based on the last 1000 blocks

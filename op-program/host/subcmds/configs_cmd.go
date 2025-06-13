@@ -101,6 +101,13 @@ func listChain(chainID eth.ChainID) error {
 	if err != nil {
 		return err
 	}
+	if cfg.InteropTime != nil {
+		// If interop is scheduled, check the dependency set is available
+		_, err = chainconfig.DependencySetByChainID(chainID)
+		if err != nil {
+			return err
+		}
+	}
 	description := cfg.Description(chaincfg.L2ChainIDToNetworkDisplayName)
 	fmt.Println(description)
 	return nil

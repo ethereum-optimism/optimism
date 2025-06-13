@@ -22,8 +22,7 @@ type P interface {
 	// WithCtx makes a copy of P with a specific context.
 	// The ctx must match the test-scope of the existing context.
 	// This function is used to create a P with annotated context, e.g. a specific resource.
-	// The logger may be annotated with additional arguments.
-	WithCtx(ctx context.Context, args ...any) P
+	WithCtx(ctx context.Context) P
 
 	// TempDir creates a temporary directory, and returns the file-path.
 	// This directory is cleaned up at the end of the package,
@@ -56,6 +55,8 @@ type implP struct {
 	// The failure is intended to be critical if now==true.
 	// The implementer can choose to panic, crit-log, exit, etc. as preferred.
 	onFail func(now bool)
+	// onSkipNow will be called to skip the test immediately.
+	onSkipNow func()
 
 	ctx    context.Context
 	cancel context.CancelFunc
@@ -85,6 +86,10 @@ func (t *implP) Fail() {
 
 func (t *implP) FailNow() {
 	t.onFail(true)
+}
+
+func (t *implP) SkipNow() {
+	t.onSkipNow()
 }
 
 func (t *implP) TempDir() string {
@@ -155,11 +160,11 @@ func (p *wrapP) Logger() log.Logger {
 	return p.logger
 }
 
-func (t *implP) WithCtx(ctx context.Context, args ...any) P {
+func (t *implP) WithCtx(ctx context.Context) P {
 	expected := TestScope(t.ctx)
 	got := TestScope(ctx)
 	t.req.Equal(expected, got, "cannot replace context with different test-scope")
-	logger := t.logger.New(args...)
+	logger := t.logger.New()
 	logger.SetContext(ctx)
 	out := &wrapP{ctx: ctx, logger: logger, P: t}
 	out.req = testreq.New(out)
@@ -213,12 +218,13 @@ func (t *implP) _PackageOnly() {
 	panic("do not use - this method only forces the interface to be unique")
 }
 
-func NewP(ctx context.Context, logger log.Logger, onFail func(now bool)) P {
+func NewP(ctx context.Context, logger log.Logger, onFail func(now bool), onSkipNow func()) P {
 	ctx, cancel := context.WithCancel(ctx)
 	out := &implP{
 		scopeName: "pkg",
 		logger:    logger,
 		onFail:    onFail,
+		onSkipNow: onSkipNow,
 		ctx:       AddTestScope(ctx, "pkg"),
 		cancel:    cancel,
 	}

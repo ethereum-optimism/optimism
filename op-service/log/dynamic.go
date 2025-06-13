@@ -31,15 +31,12 @@ func (d *DynamicLogHandler) Unwrap() slog.Handler {
 	return d.h
 }
 
-func (d *DynamicLogHandler) Handle(ctx context.Context, r slog.Record) error {
-	if r.Level < *d.minLvl { // higher log level values are more critical
-		return nil
-	}
-	return d.h.Handle(ctx, r) // process the log
-}
-
 func (d *DynamicLogHandler) Enabled(ctx context.Context, lvl slog.Level) bool {
 	return (lvl >= *d.minLvl) && d.h.Enabled(ctx, lvl)
+}
+
+func (d *DynamicLogHandler) Handle(ctx context.Context, record slog.Record) error {
+	return d.h.Handle(ctx, record)
 }
 
 func (d *DynamicLogHandler) WithAttrs(attrs []slog.Attr) slog.Handler {

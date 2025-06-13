@@ -7,12 +7,15 @@ import (
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/locks"
 	"github.com/ethereum-optimism/optimism/op-service/sources"
 	supervisortypes "github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/log"
 )
+
+var inboxDepth = 100_000
 
 var ErrLogNotFound = errors.New("log not found")
 
@@ -30,7 +33,7 @@ type Updater interface {
 	Start(ctx context.Context) error
 	Enqueue(job *Job)
 	Stop() error
-	GetJobs(jobs map[JobID]*Job) map[JobID]*Job
+	CollectForMetrics(jobs map[JobID]*Job) map[JobID]*Job
 }
 
 // RPCFinder connects to an Ethereum chain and extracts receipts in order to create jobs
@@ -44,22 +47,26 @@ type RPCUpdater struct {
 	inbox  chan *Job
 	closed chan struct{}
 
-	// Map to track jobs being processed by this updater
-	jobMap   map[JobID]*Job
-	jobMapMu sync.RWMutex
+	jobs   sync.Map
+	expiry *locks.RWMap[eth.ChainID, eth.NumberAndHash]
 
 	log log.Logger
 }
 
-func NewUpdater(chainID eth.ChainID, client UpdaterClient, log log.Logger) *RPCUpdater {
+func NewUpdater(
+	chainID eth.ChainID,
+	client UpdaterClient,
+	expiry *locks.RWMap[eth.ChainID, eth.NumberAndHash],
+	log log.Logger) *RPCUpdater {
 	return &RPCUpdater{
-		chainID:    chainID,
-		client:     client,
-		log:        log.New("component", "rpc_updater", "chain_id", chainID),
-		inbox:      make(chan *Job, 10_000),
+		chainID: chainID,
+		client:  client,
+		log:     log.New("component", "rpc_updater", "chain_id", chainID),
+		// inbox depth is set very deep to allow spikes in job creation plus generous buffer
+		inbox:      make(chan *Job, inboxDepth),
 		closed:     make(chan struct{}),
 		expireTime: 2 * time.Minute,
-		jobMap:     make(map[JobID]*Job),
+		expiry:     expiry,
 	}
 }
 
@@ -69,22 +76,22 @@ func (t *RPCUpdater) Start(ctx context.Context) error {
 }
 
 func (t *RPCUpdater) Run(ctx context.Context) {
-	// Set up ticker for regular job processing
 	processTicker := time.NewTicker(updateInterval)
 	defer processTicker.Stop()
+	defer t.log.Info("updater closed")
 
 	for {
 		select {
 		case <-t.closed:
-			t.log.Info("updater closed")
 			close(t.inbox)
 			return
 		case job := <-t.inbox:
-			t.jobMapMu.Lock()
-			t.jobMap[job.ID()] = job
-			t.jobMapMu.Unlock()
+			t.log.Trace("received job", "job", job.String())
+			t.jobs.Store(job.ID(), job)
 		case <-processTicker.C:
+			t.log.Trace("processing jobs")
 			t.processJobs()
+			t.log.Trace("processed jobs done")
 		}
 	}
 }
@@ -94,15 +101,20 @@ func (t *RPCUpdater) processJobs() {
 	var toUpdate []*Job
 	var toExpire []JobID
 
-	t.jobMapMu.RLock()
-	for id, job := range t.jobMap {
+	t.jobs.Range(func(key, value any) bool {
+		id := key.(JobID)
+		job := value.(*Job)
 		if t.ShouldExpire(job) {
+			t.log.Trace("job should expire", "job", job.String())
 			toExpire = append(toExpire, id)
-		} else if time.Since(job.lastEvaluated) >= updateInterval {
+		} else if time.Since(job.LastEvaluated()) >= updateInterval {
+			t.log.Trace("job should update", "job", job.String())
 			toUpdate = append(toUpdate, job)
+		} else {
+			t.log.Trace("nothing to do with job", "job", job.String())
 		}
-	}
-	t.jobMapMu.RUnlock()
+		return true
+	})
 
 	// Update jobs that need updating
 	for _, job := range toUpdate {
@@ -120,23 +132,48 @@ func (t *RPCUpdater) processJobs() {
 
 // expireJobs removes expired jobs from the map
 func (t *RPCUpdater) expireJobs(ids []JobID) {
-	t.jobMapMu.Lock()
-	defer t.jobMapMu.Unlock()
+	t.log.Debug("expiring jobs", "ids", ids)
 
 	for _, id := range ids {
-		if job, ok := t.jobMap[id]; ok {
-			t.log.Info("job expired", "job", job.String())
-			delete(t.jobMap, id)
-		}
+		t.jobs.Delete(id)
 	}
 }
 
+// ShouldExpire returns true if the job should be expired
+// jobs should only be expired when *both components* exist in finalized blocks. That is:
+// - the initiating block is finalized
+// - the executing block is finalized
+// Before this point, the job status could change if a reorg affects either the initiating or executing block.
+// This also checks that the job has been evaluated at least once, and counted for metrics at least once.
 func (t *RPCUpdater) ShouldExpire(job *Job) bool {
-	terminal := job.TerminalAt()
-	if terminal == (time.Time{}) {
+	// every job should run at least once, so we can't expire it
+	if job.LastEvaluated() == (time.Time{}) {
+		t.log.Trace("job has not been evaluated", "job", job.String())
 		return false
 	}
-	return time.Since(terminal) > t.expireTime
+	// every job should be counted for metrics at least once
+	if !job.DidMetrics() {
+		t.log.Trace("job has not been counted for metrics", "job", job.String())
+		return false
+	}
+	initExpiryBlock, ok := t.expiry.Get(job.initiating.ChainID)
+	if !ok {
+		t.log.Warn("initiating chain has no expiry block", "job", job.String())
+		return false
+	}
+	execExpiryBlock, ok := t.expiry.Get(job.executingChain)
+	if !ok {
+		t.log.Warn("executing chain has no expiry block", "job", job.String())
+		return false
+	}
+	if job.initiating.BlockNumber <= initExpiryBlock.NumberU64() &&
+		job.executingBlock.Number <= execExpiryBlock.NumberU64() {
+		t.log.Debug("job should expire", "job", job.String())
+		return true
+	} else {
+		t.log.Trace("job should not expire", "job", job.String(), "initExpiryBlock", initExpiryBlock.NumberU64(), "execExpiryBlock", execExpiryBlock.NumberU64())
+	}
+	return false
 }
 
 func (t *RPCUpdater) UpdateJob(job *Job) error {
@@ -208,11 +245,13 @@ func (t *RPCUpdater) Stopped() bool {
 }
 
 // GetJobs adds all jobs to the provided map and returns it
-func (t *RPCUpdater) GetJobs(jobs map[JobID]*Job) map[JobID]*Job {
-	t.jobMapMu.RLock()
-	defer t.jobMapMu.RUnlock()
-	for k, v := range t.jobMap {
-		jobs[k] = v
-	}
+func (t *RPCUpdater) CollectForMetrics(jobs map[JobID]*Job) map[JobID]*Job {
+	t.jobs.Range(func(key, value any) bool {
+		id := key.(JobID)
+		job := value.(*Job)
+		job.SetDidMetrics()
+		jobs[id] = job
+		return true
+	})
 	return jobs
 }

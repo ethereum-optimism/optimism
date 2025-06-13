@@ -201,7 +201,16 @@ func (m *InstrumentedState) handleSyscall() error {
 		if !m.features.SupportMinimalSysEventFd2 {
 			m.handleUnrecognizedSyscall(syscallNum)
 		}
-		v0 = exec.FdEventFd
+
+		// a0 = initial value, a1 = flags
+		// Validate flags
+		if a1&exec.EFD_NONBLOCK == 0 {
+			// The non-block flag was not set, but we only support non-block requests, so error
+			v0 = exec.MipsEINVAL
+			v1 = exec.SysErrorSignal
+		} else {
+			v0 = exec.FdEventFd
+		}
 	default:
 		// These syscalls have the same values on 64-bit. So we use if-stmts here to avoid "duplicate case" compiler error for the cannon64 build
 		if arch.IsMips32 && (syscallNum == arch.SysFstat64 || syscallNum == arch.SysStat64 || syscallNum == arch.SysLlseek) {

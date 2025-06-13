@@ -41,6 +41,7 @@ type presetL2Network struct {
 	cls locks.RWMap[stack.L2CLNodeID, stack.L2CLNode]
 
 	conductors locks.RWMap[stack.ConductorID, stack.Conductor]
+	fbBuilders locks.RWMap[stack.FlashblocksBuilderID, stack.FlashblocksBuilderNode]
 }
 
 var _ stack.L2Network = (*presetL2Network)(nil)
@@ -120,6 +121,17 @@ func (p *presetL2Network) AddConductor(v stack.Conductor) {
 	p.require().True(p.conductors.SetIfMissing(id, v), "conductor %s must not already exist", id)
 }
 
+func (p *presetL2Network) FlashblocksBuilder(m stack.FlashblocksBuilderMatcher) stack.FlashblocksBuilderNode {
+	v, ok := findMatch(m, p.fbBuilders.Get, p.FlashblocksBuilders)
+	p.require().True(ok, "must find flashblocks builder %s", m)
+	return v
+}
+
+func (p *presetL2Network) AddFlashblocksBuilder(v stack.FlashblocksBuilderNode) {
+	id := v.ID()
+	p.require().True(p.fbBuilders.SetIfMissing(id, v), "flashblocks builder %s must not already exist", id)
+}
+
 func (p *presetL2Network) L2Proposer(m stack.L2ProposerMatcher) stack.L2Proposer {
 	v, ok := findMatch(m, p.proposers.Get, p.L2Proposers)
 	p.require().True(ok, "must find L2 proposer %s", m)
@@ -196,6 +208,10 @@ func (p *presetL2Network) Conductors() []stack.Conductor {
 	output := stack.SortConductors(p.conductors.Values())
 	p.require().NotEmpty(output, "l2 chain %s must have at least one conductor", p.ID())
 	return output
+}
+
+func (p *presetL2Network) FlashblocksBuilders() []stack.FlashblocksBuilderNode {
+	return stack.SortFlashblocksBuilders(p.fbBuilders.Values())
 }
 
 func (p *presetL2Network) L2CLNodeIDs() []stack.L2CLNodeID {
