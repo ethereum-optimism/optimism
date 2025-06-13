@@ -862,6 +862,33 @@ func TestCrossPatternSameTimestamp(gt *testing.T) {
 	require.Equal(t, targetTime, block.Time)
 }
 
+// ExecTriggerFromInitTrigger returns corresponding execTrigger with necessary information
+func ExecTriggerFromInitTrigger(init *txintent.InitTrigger, logIndex uint, targetNum, targetTime uint64, chainID eth.ChainID) (*txintent.ExecTrigger, error) {
+	topics := []common.Hash{}
+	for _, topic := range init.Topics {
+		topics = append(topics, topic)
+	}
+	log := &types.Log{Address: init.Emitter, Topics: topics,
+		Data: init.OpaqueData, BlockNumber: targetNum, Index: logIndex}
+	logs := make([]*types.Log, logIndex+1)
+	for i := range logs {
+		// dummy logs to fit in log index
+		logs[i] = &types.Log{}
+	}
+	logs[logIndex] = log
+	rec := &types.Receipt{Logs: logs}
+	includedIn := eth.BlockRef{Time: targetTime}
+	output := &txintent.InteropOutput{}
+	err := output.FromReceipt(context.TODO(), rec, includedIn, chainID)
+	if err != nil {
+		return nil, err
+	}
+	if x := len(output.Entries); x <= int(logIndex) {
+		return nil, fmt.Errorf("invalid index: %d, only have %d events", logIndex, x)
+	}
+	return &txintent.ExecTrigger{Executor: constants.CrossL2Inbox, Msg: output.Entries[logIndex]}, nil
+}
+
 // TestCrossPatternSameTx tests below scenario:
 // Transaction on B executes message from A, and vice-versa. Cross-pattern, within same tx: inter-dependent but non-cyclic txs.
 // Two transactions happen in same timestamp:
@@ -901,10 +928,10 @@ func TestCrossPatternSameTx(gt *testing.T) {
 	// speculatively build exec messages by knowing necessary info to build Message
 	initX := interop.RandomInitTrigger(rng, eventLoggerAddressA, 3, 10)
 	logIndexX, logIndexY := uint(0), uint(0)
-	execX, err := interop.ExecTriggerFromInitTrigger(initX, logIndexX, targetNum, targetTime, actors.ChainA.ChainID)
+	execX, err := ExecTriggerFromInitTrigger(initX, logIndexX, targetNum, targetTime, actors.ChainA.ChainID)
 	require.NoError(t, err)
 	initY := interop.RandomInitTrigger(rng, eventLoggerAddressB, 4, 7)
-	execY, err := interop.ExecTriggerFromInitTrigger(initY, logIndexY, targetNum, targetTime, actors.ChainB.ChainID)
+	execY, err := ExecTriggerFromInitTrigger(initY, logIndexY, targetNum, targetTime, actors.ChainB.ChainID)
 	require.NoError(t, err)
 
 	callsA := []txintent.Call{initX, execY}
@@ -984,7 +1011,7 @@ func TestCycleInTx(gt *testing.T) {
 	init := interop.RandomInitTrigger(rng, eventLoggerAddressA, 3, 10)
 	// log index of init message is 1, not 0 because exec message will firstly executed, emitting a single log
 	logIndexX := uint(1)
-	exec, err := interop.ExecTriggerFromInitTrigger(init, logIndexX, targetNum, targetTime, actors.ChainA.ChainID)
+	exec, err := ExecTriggerFromInitTrigger(init, logIndexX, targetNum, targetTime, actors.ChainA.ChainID)
 
 	require.NoError(t, err)
 
@@ -1070,7 +1097,7 @@ func TestCycleInBlock(gt *testing.T) {
 	init := interop.RandomInitTrigger(rng, eventLoggerAddressA, 3, 10)
 	// log index of init message is txCount - 1, not 0 because each tx before init message X emits a single log
 	logIndexX := uint(txCount - 1)
-	exec, err := interop.ExecTriggerFromInitTrigger(init, logIndexX, targetNum, targetTime, actors.ChainA.ChainID)
+	exec, err := ExecTriggerFromInitTrigger(init, logIndexX, targetNum, targetTime, actors.ChainA.ChainID)
 	require.NoError(t, err)
 
 	intents := []*txintent.IntentTx[txintent.Call, *txintent.InteropOutput]{}
@@ -1154,10 +1181,10 @@ func TestCycleAcrossChainsSameTimestamp(gt *testing.T) {
 	// log index of init messages are 1, not 0 because exec message will firstly executed, emitting a single log
 	logIndexX, logIndexY := uint(1), uint(1)
 	initX := interop.RandomInitTrigger(rng, eventLoggerAddressB, 3, 10)
-	execX, err := interop.ExecTriggerFromInitTrigger(initX, logIndexX, targetNum, targetTime, actors.ChainB.ChainID)
+	execX, err := ExecTriggerFromInitTrigger(initX, logIndexX, targetNum, targetTime, actors.ChainB.ChainID)
 	require.NoError(t, err)
 	initY := interop.RandomInitTrigger(rng, eventLoggerAddressA, 2, 15)
-	execY, err := interop.ExecTriggerFromInitTrigger(initY, logIndexY, targetNum, targetTime, actors.ChainA.ChainID)
+	execY, err := ExecTriggerFromInitTrigger(initY, logIndexY, targetNum, targetTime, actors.ChainA.ChainID)
 	require.NoError(t, err)
 
 	intents := []*txintent.IntentTx[txintent.Call, *txintent.InteropOutput]{}
@@ -1253,9 +1280,9 @@ func TestCycleAcrossChainsSameTx(gt *testing.T) {
 	initY := interop.RandomInitTrigger(rng, eventLoggerAddressA, 2, 15)
 	// log index of init messages are 1, not 0 because exec message will firstly executed, emitting a single log
 	logIndexX, logIndexY := uint(1), uint(1)
-	execX, err := interop.ExecTriggerFromInitTrigger(initX, logIndexX, targetNum, targetTime, actors.ChainB.ChainID)
+	execX, err := ExecTriggerFromInitTrigger(initX, logIndexX, targetNum, targetTime, actors.ChainB.ChainID)
 	require.NoError(t, err)
-	execY, err := interop.ExecTriggerFromInitTrigger(initY, logIndexY, targetNum, targetTime, actors.ChainA.ChainID)
+	execY, err := ExecTriggerFromInitTrigger(initY, logIndexY, targetNum, targetTime, actors.ChainA.ChainID)
 	require.NoError(t, err)
 
 	// tx0 executes message X, then initiates message Y
@@ -1483,7 +1510,7 @@ func TestInvalidRandomGraph(gt *testing.T) {
 				initMsgChain := chains[head.chainIdx]
 				initMsgBlockTime := initMsgChain.RollupCfg.Genesis.L2Time + initMsgChain.RollupCfg.BlockTime*initMsgBlockNum
 				// speculatively build exec messages without init message execution
-				exec, err := interop.ExecTriggerFromInitTrigger(head.init, uint(head.msgIdx), initMsgBlockNum, initMsgBlockTime, initMsgChain.ChainID)
+				exec, err := ExecTriggerFromInitTrigger(head.init, uint(head.msgIdx), initMsgBlockNum, initMsgBlockTime, initMsgChain.ChainID)
 				tail.exec = exec
 				require.NoError(t, err)
 				explicitEdges = append(explicitEdges, edge{tail: tail, head: head})
