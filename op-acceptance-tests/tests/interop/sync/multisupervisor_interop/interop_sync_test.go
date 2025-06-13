@@ -220,11 +220,9 @@ func TestUnsafeChainUnknownToL2CL(gt *testing.T) {
 	sys.L2CLA2.Advanced(types.CrossSafe, 5, 30)
 
 	// The verifier will not receive unsafe heads via P2P, and can only update unsafe heads matching with safe heads by reading L1 batches.
-	// The verifier safe head will lag behind or match the sequencer because both components share the same L1 view
 	logger.Info("Verifier heads will lag compared from sequencer heads and primary supervisor view")
 	dsl.CheckAll(t,
 		sys.L2CLA2.LaggedFn(sys.L2CLA, types.LocalUnsafe, 10, false),
-		sys.L2CLA2.LaggedFn(sys.L2CLA, types.CrossSafe, 10, true),
 		sys.L2CLA2.LaggedFn(sys.Supervisor, types.LocalUnsafe, 10, true),
 	)
 

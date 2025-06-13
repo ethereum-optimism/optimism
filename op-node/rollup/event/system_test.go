@@ -13,7 +13,7 @@ import (
 )
 
 func TestSysTracing(t *testing.T) {
-	logger := testlog.Logger(t, log.LevelError)
+	logger := testlog.Logger(t, log.LevelDebug)
 	ex := NewGlobalSynchronous(context.Background())
 	sys := NewSystem(logger, ex)
 	count := 0

@@ -9,7 +9,7 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-	"github.com/ethereum-optimism/optimism/op-service/logfilter"
+	"github.com/ethereum-optimism/optimism/op-service/tri"
 )
 
 func TestContext(t *testing.T) {
@@ -22,7 +22,7 @@ func TestContext(t *testing.T) {
 		require.Equal(t, chainB, ChainIDFromContext(ContextWithChainID(ContextWithChainID(ctx, chainA), chainB)), "priority")
 	})
 	t.Run("kind", func(t *testing.T) {
-		require.Equal(t, UnknownKind, KindFromContext(ctx), "none")
+		require.Equal(t, Kind(""), KindFromContext(ctx), "none")
 		require.Equal(t, L2BatcherKind, KindFromContext(ContextWithKind(ctx, L2BatcherKind)), "lookup")
 		require.Equal(t, L2ProposerKind, KindFromContext(ContextWithKind(ContextWithKind(ctx, L2BatcherKind), L2ProposerKind)), "priority")
 	})
@@ -52,26 +52,26 @@ func TestLogFilter(t *testing.T) {
 	chainA := eth.ChainIDFromUInt64(900)
 	chainB := eth.ChainIDFromUInt64(901)
 	t.Run("chainID", func(t *testing.T) {
-		fn := ChainIDLogFilter(chainA, logfilter.As(log.LevelCrit))
-		require.Equal(t, log.LevelDebug, fn(ctx, log.LevelDebug), "regular level")
-		require.Equal(t, log.LevelCrit, fn(ContextWithChainID(ctx, chainA), log.LevelDebug), "detected chain")
-		require.Equal(t, log.LevelDebug, fn(ContextWithChainID(ctx, chainB), log.LevelDebug), "different chain")
+		fn := ChainIDSelector(chainA).Mute()
+		require.Equal(t, tri.Undefined, fn(ctx, log.LevelDebug), "regular context should be false")
+		require.Equal(t, tri.False, fn(ContextWithChainID(ctx, chainA), log.LevelDebug), "detected chain should be muted")
+		require.Equal(t, tri.Undefined, fn(ContextWithChainID(ctx, chainB), log.LevelDebug), "different chain should be shown")
 	})
 	t.Run("kind", func(t *testing.T) {
-		fn := KindLogFilter(L2BatcherKind, logfilter.As(log.LevelCrit))
-		require.Equal(t, log.LevelDebug, fn(ctx, log.LevelDebug), "regular level")
-		require.Equal(t, log.LevelCrit, fn(ContextWithKind(ctx, L2BatcherKind), log.LevelDebug), "detected kind")
-		require.Equal(t, log.LevelDebug, fn(ContextWithKind(ctx, L2ProposerKind), log.LevelDebug), "different kind")
+		fn := KindSelector(L2BatcherKind).Mute()
+		require.Equal(t, tri.Undefined, fn(ctx, log.LevelDebug), "regular context should be false")
+		require.Equal(t, tri.False, fn(ContextWithKind(ctx, L2BatcherKind), log.LevelDebug), "detected kind should be muted")
+		require.Equal(t, tri.Undefined, fn(ContextWithKind(ctx, L2ProposerKind), log.LevelDebug), "different kind should be shown")
 	})
 	t.Run("id", func(t *testing.T) {
 		id1 := L2BatcherID{
 			key:     "batcherA",
 			chainID: chainA,
 		}
-		fn := IDLogFilter(id1, logfilter.As(log.LevelCrit))
-		require.Equal(t, log.LevelDebug, fn(ctx, log.LevelDebug), "regular level")
-		require.Equal(t, log.LevelCrit, fn(ContextWithID(ctx, id1), log.LevelDebug), "detected id")
+		fn := IDSelector(id1).Mute()
+		require.Equal(t, tri.Undefined, fn(ctx, log.LevelDebug), "regular context should be false")
+		require.Equal(t, tri.False, fn(ContextWithID(ctx, id1), log.LevelDebug), "detected id should be muted")
 		id2 := SuperchainID("foobar")
-		require.Equal(t, log.LevelDebug, fn(ContextWithID(ctx, id2), log.LevelDebug), "different id")
+		require.Equal(t, tri.Undefined, fn(ContextWithID(ctx, id2), log.LevelDebug), "different id should be shown")
 	})
 }

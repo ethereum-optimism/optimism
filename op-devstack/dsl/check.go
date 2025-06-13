@@ -52,7 +52,7 @@ func LaggedFn(baseNode, refNode SyncStatusProvider, log log.Logger, ctx context.
 				msg += " or caught up"
 			}
 			if cmp {
-				logger.Info(msg, "base", base.Number, "ref", ref.Number)
+				logger.Warn(msg, "base", base.Number, "ref", ref.Number)
 				return fmt.Errorf("expected head to lag: %s", lvl)
 			}
 			logger.Info("Node sync status", "base", base.Number, "ref", ref.Number)

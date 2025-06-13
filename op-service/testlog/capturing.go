@@ -80,21 +80,12 @@ func (c *CapturingHandler) Unwrap() slog.Handler {
 	return c.handler
 }
 
-func (c *CapturingHandler) Enabled(context.Context, slog.Level) bool {
-	// We want to capture all logs, even if the underlying handler only logs
-	// above a certain level.
-	return true
-}
-
 func (c *CapturingHandler) Handle(ctx context.Context, r slog.Record) error {
 	*c.Logs = append(*c.Logs, &CapturedRecord{
 		Parent: c.attrs,
 		Record: &r,
 	})
-	if c.handler != nil && c.handler.Enabled(ctx, r.Level) {
-		return c.handler.Handle(ctx, r)
-	}
-	return nil
+	return c.handler.Handle(ctx, r)
 }
 
 func (c *CapturingHandler) WithAttrs(attrs []slog.Attr) slog.Handler {
@@ -113,6 +104,10 @@ func (c *CapturingHandler) WithGroup(name string) slog.Handler {
 		handler: c.handler.WithGroup(name),
 		Logs:    c.Logs,
 	}
+}
+
+func (c *CapturingHandler) Enabled(ctx context.Context, level slog.Level) bool {
+	return c.handler.Enabled(ctx, level)
 }
 
 func (c *CapturingHandler) Clear() {
