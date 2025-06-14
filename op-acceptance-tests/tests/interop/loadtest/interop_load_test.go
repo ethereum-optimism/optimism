@@ -3,6 +3,7 @@ package loadtest
 import (
 	"context"
 	"errors"
+	"log/slog"
 	"math/rand"
 	"os"
 	"path/filepath"
@@ -18,6 +19,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
 	"github.com/ethereum-optimism/optimism/op-service/accounting"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/log/logfilter"
 	"github.com/ethereum-optimism/optimism/op-service/plan"
 	"github.com/ethereum-optimism/optimism/op-service/txinclude"
 	"github.com/ethereum-optimism/optimism/op-service/txintent"
@@ -25,7 +27,13 @@ import (
 )
 
 func TestMain(m *testing.M) {
-	presets.DoMain(m, presets.WithSimpleInterop())
+	presets.DoMain(m, presets.WithSimpleInterop(),
+		presets.WithLogFilter(
+			logfilter.DefaultMute(
+				logfilter.Level(slog.LevelWarn).Show(),
+			),
+		),
+	)
 }
 
 // TestSteady attempts to approach but not exceed the gas target in every block by spamming interop
@@ -34,23 +42,10 @@ func TestMain(m *testing.M) {
 // elapses, whichever comes first. Also see: https://github.com/golang/go/issues/48157.
 func TestSteady(gt *testing.T) {
 	t := setupT(gt)
+	t, ctx, cancel := setupDeadline(t, "NAT_STEADY_TIMEOUT")
+
 	var wg sync.WaitGroup
 	defer wg.Wait()
-
-	// Configure a context that will allow us to exit the test on time.
-	deadline := time.Now().Add(time.Hour * 1_000)
-	testCtxDeadline, testCtxDeadlineExists := t.Ctx().Deadline()
-	if testCtxDeadlineExists {
-		deadline = testCtxDeadline.Add(-10 * time.Second) // Give some time for cleanup.
-	}
-	ctx, cancel := context.WithDeadline(t.Ctx(), deadline)
-	t.Cleanup(cancel)
-	if timeoutStr, exists := os.LookupEnv("NAT_STEADY_TIMEOUT"); exists {
-		timeout, err := time.ParseDuration(timeoutStr)
-		t.Require().NoError(err)
-		ctx, cancel = context.WithTimeout(ctx, timeout)
-		t.Cleanup(cancel)
-	}
 
 	// The scheduler will adjust every slot to stay within 95-100% of the gas target.
 	aimd, source, dest := setupLoadTest(t, ctx, &wg, WithAdjustWindow(1), WithDecreaseFactor(0.95))
@@ -96,10 +91,10 @@ func TestSteady(gt *testing.T) {
 // adversarial behavior.
 func TestBurst(gt *testing.T) {
 	t := setupT(gt)
+	t, ctx, cancel := setupDeadline(t, "NAT_BURST_TIMEOUT")
+
 	var wg sync.WaitGroup
 	defer wg.Wait()
-	ctx, cancel := context.WithCancel(t.Ctx())
-	defer cancel()
 	aimd, source, dest := setupLoadTest(t, ctx, &wg)
 	for range aimd.Ready() {
 		wg.Add(1)
@@ -124,6 +119,27 @@ func setupT(t *testing.T) devtest.T {
 		t.Skip("skipping load test in short mode")
 	}
 	return devtest.SerialT(t)
+}
+
+func setupDeadline(t devtest.T, varName string) (devtest.T, context.Context, func()) {
+	// Configure a context that will allow us to exit the test on time.
+	var deadline time.Time
+	if timeoutStr, exists := os.LookupEnv(varName); exists {
+		timeout, err := time.ParseDuration(timeoutStr)
+		t.Require().NoError(err)
+		envVarDeadline := time.Now().Add(timeout)
+		if deadline == (time.Time{}) || envVarDeadline.Before(deadline) {
+			deadline = envVarDeadline
+		}
+	}
+	if deadline == (time.Time{}) {
+		// Default to 3 minutes when no timeout is specified.
+		deadline = time.Now().Add(time.Minute * 3)
+	}
+	ctx, cancel := context.WithDeadline(t.Ctx(), deadline)
+	t = t.WithCtx(ctx)
+	t.Cleanup(cancel)
+	return t, ctx, cancel
 }
 
 func setupLoadTest(t devtest.T, ctx context.Context, wg *sync.WaitGroup, aimdOpts ...AIMDOption) (*AIMD, *L2, *L2) {
