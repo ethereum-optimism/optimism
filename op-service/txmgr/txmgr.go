@@ -597,7 +597,10 @@ func (m *SimpleTxManager) sendTx(ctx context.Context, tx *types.Transaction) (*t
 					defer wg.Done()
 					m.waitForTx(ctx, tx, sendState, receiptChan)
 				}()
-				retryTicker = time.NewTicker(m.GetRebroadcastInterval())
+				rebroadcastInterval := m.GetRebroadcastInterval()
+				if rebroadcastInterval > 0 {
+					retryTicker = time.NewTicker(rebroadcastInterval)
+				}
 			} else if err != nil {
 				if retryCount >= m.cfg.MaxRetries {
 					m.txLogger(tx, false).Warn("Aborting transaction submission retry", "err", err, "retries", retryCount)
@@ -677,7 +680,6 @@ func (m *SimpleTxManager) publishTx(ctx context.Context, tx *types.Transaction, 
 		sendState.ProcessSendError(err)
 
 		if err == nil || errStringContainsAny(err, m.cfg.AlreadyPublishedCustomErrs) {
-			// only empty error strings are recorded as successful publishes
 			m.metr.TxPublished("")
 			if err == nil {
 				l.Info("Transaction successfully published", "tx", tx.Hash())

@@ -37,7 +37,6 @@ type queueCall struct {
 
 type testTx struct {
 	sendErr bool // error to return from send for this tx
-	noMine  bool // true if the tx should not be mined
 }
 
 type mockBackendWithNonce struct {
@@ -208,9 +207,7 @@ func TestQueue_Send(t *testing.T) {
 
 				txHash := tx.Hash()
 				nonceMu.Lock()
-				if testTx == nil || !testTx.noMine {
-					backend.mine(&txHash, tx.GasFeeCap(), nil)
-				}
+				backend.mine(&txHash, tx.GasFeeCap(), nil)
 				nonceForTxId[uint(index)] = tx.Nonce()
 				nonceMu.Unlock()
 				return nil

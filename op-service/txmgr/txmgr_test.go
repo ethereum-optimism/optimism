@@ -841,8 +841,7 @@ func TestTxMgrRetriesUnbumpableTx(t *testing.T) {
 	t.Parallel()
 
 	cfg := configWithNumConfs(1)
-	cfg.FeeLimitMultiplier.Store(1)                 // don't allow fees to be bumped over the suggested values
-	cfg.RebroadcastInterval.Store(int64(time.Hour)) // do not perform regular rebroadcasts, only rely on resubmission timeout
+	cfg.FeeLimitMultiplier.Store(1) // don't allow fees to be bumped over the suggested values
 	h := newTestHarnessWithConfig(t, cfg)
 
 	// Make the fees unbumpable by starting with fees that will be WAY over the suggested values

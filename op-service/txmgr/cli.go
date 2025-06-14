@@ -102,7 +102,6 @@ var (
 		FeeLimitThresholdGwei:     100.0,
 		MinTipCapGwei:             1.0,
 		MinBaseFeeGwei:            1.0,
-		RebroadcastInterval:       12 * time.Second,
 		ResubmissionTimeout:       24 * time.Second,
 		NetworkTimeout:            10 * time.Second,
 		RetryInterval:             1 * time.Second,
@@ -306,9 +305,6 @@ func (m CLIConfig) Check() error {
 	if m.MinBaseFeeGwei < m.MinTipCapGwei {
 		return fmt.Errorf("minBaseFee smaller than minTipCap, have %f < %f",
 			m.MinBaseFeeGwei, m.MinTipCapGwei)
-	}
-	if m.RebroadcastInterval == 0 {
-		return errors.New("must provide RebroadcastInterval")
 	}
 	if m.ResubmissionTimeout == 0 {
 		return errors.New("must provide ResubmissionTimeout")
@@ -556,9 +552,6 @@ func (m *Config) Check() error {
 	if minBaseFee != nil && minTipCap != nil && minBaseFee.Cmp(minTipCap) == -1 {
 		return fmt.Errorf("minBaseFee smaller than minTipCap, have %v < %v",
 			minBaseFee, minTipCap)
-	}
-	if m.RebroadcastInterval.Load() == 0 {
-		return errors.New("must provide RebroadcastInterval")
 	}
 	if m.ResubmissionTimeout.Load() == 0 {
 		return errors.New("must provide ResubmissionTimeout")
