@@ -18,6 +18,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-devstack/stack"
 	"github.com/ethereum-optimism/optimism/op-devstack/sysext"
 	"github.com/ethereum-optimism/optimism/op-devstack/sysgo"
+	"github.com/ethereum-optimism/optimism/op-service/flags"
 	"github.com/ethereum-optimism/optimism/op-service/locks"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum-optimism/optimism/op-service/log/logfilter"
@@ -57,8 +58,8 @@ func DoMain(m *testing.M, opts ...stack.CommonOption) {
 			}
 		}()
 
-		cfg := oplog.ReadTestCLIConfig()
-		logHandler := oplog.NewLogHandler(os.Stdout, cfg)
+		cfg := flags.ReadTestConfig()
+		logHandler := oplog.NewLogHandler(os.Stdout, cfg.LogConfig)
 		logHandler = logfilter.WrapFilterHandler(logHandler)
 		logHandler.(logfilter.FilterHandler).Set(logfilter.DefaultMute(logfilter.Level(log.LevelInfo).Show()))
 		logHandler = logfilter.WrapContextHandler(logHandler)

@@ -19,12 +19,16 @@ import (
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
 	"github.com/ethereum-optimism/optimism/op-service/accounting"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/flags"
 	"github.com/ethereum-optimism/optimism/op-service/log/logfilter"
 	"github.com/ethereum-optimism/optimism/op-service/plan"
 	"github.com/ethereum-optimism/optimism/op-service/txinclude"
 	"github.com/ethereum-optimism/optimism/op-service/txintent"
 	"github.com/ethereum-optimism/optimism/op-service/txplan"
 )
+
+// Override this with the env var NAT_STEADY_TIMEOUT.
+const defaultSteadyTestTimeout = time.Minute * 3
 
 func TestMain(m *testing.M) {
 	presets.DoMain(m, presets.WithSimpleInterop(),
@@ -42,7 +46,7 @@ func TestMain(m *testing.M) {
 // elapses, whichever comes first. Also see: https://github.com/golang/go/issues/48157.
 func TestSteady(gt *testing.T) {
 	t := setupT(gt)
-	t, ctx, cancel := setupDeadline(t, "NAT_STEADY_TIMEOUT")
+	t, ctx, cancel := setupTestDeadline(t, "NAT_STEADY_TIMEOUT")
 
 	var wg sync.WaitGroup
 	defer wg.Wait()
@@ -88,10 +92,12 @@ func TestSteady(gt *testing.T) {
 }
 
 // TestBurst spams interop messages and exits successfully when the budget is depleted, simulating
-// adversarial behavior.
+// adversarial behavior. The test will exit successfully after the global go test deadline or the
+// timeout specified by the NAT_BURST_TIMEOUT environment variable elapses, whichever comes first.
+// Also see: https://github.com/golang/go/issues/48157.
 func TestBurst(gt *testing.T) {
 	t := setupT(gt)
-	t, ctx, cancel := setupDeadline(t, "NAT_BURST_TIMEOUT")
+	t, ctx, cancel := setupTestDeadline(t, "NAT_BURST_TIMEOUT")
 
 	var wg sync.WaitGroup
 	defer wg.Wait()
@@ -115,26 +121,23 @@ func TestBurst(gt *testing.T) {
 }
 
 func setupT(t *testing.T) devtest.T {
-	if testing.Short() {
-		t.Skip("skipping load test in short mode")
+	if testing.Short() || !flags.ReadTestConfig().EnableLoadTests {
+		t.Skip("skipping load test in short mode or if load tests are disabled (enable with -loadtest or NAT_LOADTEST=true)")
 	}
 	return devtest.SerialT(t)
 }
 
-func setupDeadline(t devtest.T, varName string) (devtest.T, context.Context, func()) {
+func setupTestDeadline(t devtest.T, varName string) (devtest.T, context.Context, func()) {
 	// Configure a context that will allow us to exit the test on time.
 	var deadline time.Time
 	if timeoutStr, exists := os.LookupEnv(varName); exists {
 		timeout, err := time.ParseDuration(timeoutStr)
 		t.Require().NoError(err)
 		envVarDeadline := time.Now().Add(timeout)
-		if deadline == (time.Time{}) || envVarDeadline.Before(deadline) {
-			deadline = envVarDeadline
-		}
+		deadline = envVarDeadline
 	}
 	if deadline == (time.Time{}) {
-		// Default to 3 minutes when no timeout is specified.
-		deadline = time.Now().Add(time.Minute * 3)
+		deadline = time.Now().Add(defaultSteadyTestTimeout)
 	}
 	ctx, cancel := context.WithDeadline(t.Ctx(), deadline)
 	t = t.WithCtx(ctx)
