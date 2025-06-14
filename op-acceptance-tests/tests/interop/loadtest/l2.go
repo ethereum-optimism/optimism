@@ -2,6 +2,7 @@ package loadtest
 
 import (
 	"context"
+	"errors"
 	"sync/atomic"
 
 	"github.com/ethereum-optimism/optimism/devnet-sdk/contracts/bindings"
@@ -14,6 +15,20 @@ import (
 	ethtypes "github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/params"
 )
+
+// isCancellationError checks that err is nil, unless it's a context cancellation error.
+// Context cancellation is considered benign in load tests since they run for unbounded time.
+func isBenignCancellationError(err error) bool {
+	if err == nil {
+		return false
+	}
+
+	// Check if this is a benign context cancellation
+	if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+		return true
+	}
+	return false
+}
 
 type RoundRobin[T any] struct {
 	items []T

@@ -66,7 +66,7 @@ func TestSteady(gt *testing.T) {
 			case <-time.After(blockTime):
 				unsafe, err := dest.EL.Escape().EthClient().InfoByLabel(ctx, eth.Unsafe)
 				if err != nil {
-					if errors.Is(err, context.DeadlineExceeded) {
+					if isBenignCancellationError(err) {
 						return
 					}
 					t.Require().NoError(err)
@@ -223,7 +223,11 @@ func setupLoadTest(t devtest.T, ctx context.Context, wg *sync.WaitGroup, aimdOpt
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		t.Require().NoError(metricsCollector.Start(ctx))
+		err := metricsCollector.Start(ctx)
+		if isBenignCancellationError(err) {
+			return
+		}
+		t.Require().NoError(err)
 	}()
 	t.Cleanup(func() {
 		dir := filepath.Join("artifacts", t.Name()+"_"+time.Now().Format("20060102-150405"))
@@ -249,12 +253,16 @@ func relayMessage(ctx context.Context, t devtest.T, source, dest *L2) error {
 	}
 	messageLatency.WithLabelValues("init").Observe(time.Since(startInit).Seconds())
 	ref, err := source.EL.Escape().EthClient().BlockRefByHash(ctx, initTx.Receipt.BlockHash)
-	if err != nil && errors.Is(err, ctx.Err()) {
+	if isBenignCancellationError(err) {
 		return err
 	}
 	t.Require().NoError(err)
 	out := new(txintent.InteropOutput)
-	t.Require().NoError(out.FromReceipt(t.Ctx(), initTx.Receipt, ref, source.EL.ChainID()))
+	err = out.FromReceipt(t.Ctx(), initTx.Receipt, ref, source.EL.ChainID())
+	if isBenignCancellationError(err) {
+		return err
+	}
+	t.Require().NoError(err)
 	t.Require().Len(out.Entries, 1)
 	initMsg := out.Entries[0]
 
@@ -276,7 +284,7 @@ func relayMessage(ctx context.Context, t devtest.T, source, dest *L2) error {
 			}
 			for {
 				ref, err := dest.EL.Escape().EthClient().BlockRefByLabel(ctx, eth.Unsafe)
-				if err != nil && errors.Is(err, ctx.Err()) {
+				if isBenignCancellationError(err) {
 					return ctxErrFn
 				}
 				t.Require().NoError(err)
