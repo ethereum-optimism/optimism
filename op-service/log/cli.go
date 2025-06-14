@@ -1,6 +1,7 @@
 package log
 
 import (
+	"context"
 	"flag"
 	"fmt"
 	"io"
@@ -15,6 +16,7 @@ import (
 
 	opservice "github.com/ethereum-optimism/optimism/op-service"
 	"github.com/ethereum-optimism/optimism/op-service/cliapp"
+	"github.com/ethereum-optimism/optimism/op-service/log/logfilter"
 )
 
 const (
@@ -230,7 +232,10 @@ func NewLogger(wr io.Writer, cfg CLIConfig) log.Logger {
 // Geth and other components may use the global logger however,
 // and it is thus recommended to set the global log handler to catch these logs.
 func SetGlobalLogHandler(h slog.Handler) {
-	log.SetDefault(log.NewLogger(h))
+	l := log.NewLogger(h)
+	ctx := logfilter.AddLogAttrToContext(context.Background(), "global", "true")
+	l.SetContext(ctx)
+	log.SetDefault(l)
 }
 
 // DefaultCLIConfig creates a default log configuration.
