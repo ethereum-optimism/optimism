@@ -689,7 +689,7 @@ func (su *SupervisorBackend) Finalized(ctx context.Context, chainID eth.ChainID)
 	if err != nil {
 		return eth.BlockID{}, err
 	}
-	return v.ID(), nil
+	return v.Derived.ID(), nil
 }
 
 func (su *SupervisorBackend) FinalizedL1(ctx context.Context) (eth.BlockRef, error) {

@@ -34,7 +34,7 @@ type rewinderDB interface {
 	RewindLogs(chainID eth.ChainID, newHead types.BlockSeal) error
 
 	FindSealedBlock(eth.ChainID, uint64) (types.BlockSeal, error)
-	Finalized(eth.ChainID) (types.BlockSeal, error)
+	Finalized(eth.ChainID) (types.DerivedBlockSealPair, error)
 
 	LocalDerivedToSource(chain eth.ChainID, derived eth.BlockID) (source types.BlockSeal, err error)
 }
@@ -110,7 +110,8 @@ func (r *Rewinder) handleLocalDerivedEvent(ev superevents.LocalSafeUpdateEvent) 
 	// Try rewinding the logs DB to the parent of the new safe head
 	// If it fails with a data conflict walk back through the chain
 	// until we find a common ancestor or reach the finalized block
-	finalized, err := r.db.Finalized(ev.ChainID)
+	finalizedPair, err := r.db.Finalized(ev.ChainID)
+	var finalized types.BlockSeal
 	if err != nil {
 		if errors.Is(err, types.ErrFuture) {
 			finalized = types.BlockSeal{Number: 0}
@@ -118,6 +119,8 @@ func (r *Rewinder) handleLocalDerivedEvent(ev superevents.LocalSafeUpdateEvent) 
 			r.log.Error("failed to get finalized block", "chain", ev.ChainID, "err", err)
 			return
 		}
+	} else {
+		finalized = finalizedPair.Derived
 	}
 	var target types.BlockSeal
 	for height := int64(newSafeHead.Number - 1); height >= int64(finalized.Number); height-- {
@@ -175,7 +178,8 @@ func (r *Rewinder) rewindL1ChainIfReorged(chainID eth.ChainID, newTip eth.BlockI
 	}
 
 	// Get the finalized block as our lower bound
-	finalized, err := r.db.Finalized(chainID)
+	finalizedPair, err := r.db.Finalized(chainID)
+	var finalized types.BlockSeal
 	if err != nil {
 		// If we don't have a finalized block, use the genesis block
 		if errors.Is(err, types.ErrFuture) {
@@ -186,6 +190,8 @@ func (r *Rewinder) rewindL1ChainIfReorged(chainID eth.ChainID, newTip eth.BlockI
 		} else {
 			return fmt.Errorf("failed to get finalized block for chain %s: %w", chainID, err)
 		}
+	} else {
+		finalized = finalizedPair.Derived
 	}
 	finalizedL1, err := r.db.CrossDerivedToSourceRef(chainID, finalized.ID())
 	if err != nil {

@@ -36,7 +36,7 @@ import (
 )
 
 const (
-	staticPeerTag = "static"
+	StaticPeerTag = "static"
 )
 
 type HostNewStream interface {
@@ -97,7 +97,7 @@ func (e *extraHost) initStaticPeers() {
 		e.Peerstore().AddAddrs(addr.ID, addr.Addrs, time.Hour*24*7)
 		// We protect the peer, so the connection manager doesn't decide to prune it.
 		// We tag it with "static" so other protects/unprotects with different tags don't affect this protection.
-		e.connMgr.Protect(addr.ID, staticPeerTag)
+		e.connMgr.Protect(addr.ID, StaticPeerTag)
 		// Try to dial the node in the background
 		go func(addr *peer.AddrInfo) {
 			ctx, cancel := context.WithTimeout(context.Background(), time.Second*30)

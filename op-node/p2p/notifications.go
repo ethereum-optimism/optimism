@@ -51,7 +51,7 @@ func (notif *notifications) ClosedStream(n network.Network, v network.Stream) {
 	notif.log.Trace("opened stream", "protocol", v.Protocol(), "peer", c.RemotePeer(), "addr", c.RemoteMultiaddr())
 }
 
-func NewNetworkNotifier(log log.Logger, m metrics.Metricer) network.Notifiee {
+func NewNetworkNotifier(log log.Logger, m NotificationsMetricer) network.Notifiee {
 	if m == nil {
 		m = metrics.NoopMetrics
 	}

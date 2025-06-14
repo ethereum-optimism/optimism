@@ -214,7 +214,7 @@ func (rec *rpcRecorder) RecordIncoming(ctx context.Context, msg rpc.RecordedMsg)
 
 type NoopRPCMetrics struct{}
 
-func (n *NoopRPCMetrics) NewRecorder(name string) rpc.Recorder {
+func (NoopRPCMetrics) NewRecorder(name string) rpc.Recorder {
 	return &NoopRPCRecorder{}
 }
 

@@ -7,6 +7,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"strings"
 	"sync"
 	"time"
 
@@ -54,7 +55,7 @@ var MessageDomainValidSnappy = [4]byte{1, 0, 0, 0}
 type GossipSetupConfigurables interface {
 	PeerScoringParams() *ScoringParams
 	// ConfigureGossip creates configuration options to apply to the GossipSub setup
-	ConfigureGossip(rollupCfg *rollup.Config) []pubsub.Option
+	ConfigureGossip() []pubsub.Option
 }
 
 type GossipRuntimeConfig interface {
@@ -66,31 +67,72 @@ type GossipMetricer interface {
 	RecordGossipEvent(evType int32)
 }
 
-func blocksTopicV1(cfg *rollup.Config) string {
-	return fmt.Sprintf("/optimism/%s/0/blocks", cfg.L2ChainID.String())
+type BlockVersioning interface {
+	BlockVersion(chainID eth.ChainID, timestamp uint64) (eth.BlockVersion, error)
 }
 
-func blocksTopicV2(cfg *rollup.Config) string {
-	return fmt.Sprintf("/optimism/%s/1/blocks", cfg.L2ChainID.String())
+type BlockRuntimeAuth interface {
+	// The result may change over time.
+	P2PSequencerAddress(chainID eth.ChainID) (common.Address, error)
 }
 
-func blocksTopicV3(cfg *rollup.Config) string {
-	return fmt.Sprintf("/optimism/%s/2/blocks", cfg.L2ChainID.String())
+type GossipChainConfig interface {
+	// ChainIDs returns the lists of chains to subscribe to
+	ChainIDs() []eth.ChainID
+	BlockRuntimeAuth
+	BlockVersioning
 }
 
-func blocksTopicV4(cfg *rollup.Config) string {
-	return fmt.Sprintf("/optimism/%s/3/blocks", cfg.L2ChainID.String())
+type SingleChainGossip struct {
+	RollupCfg        *rollup.Config
+	P2PSequencerAuth GossipRuntimeConfig
 }
+
+func (s *SingleChainGossip) P2PSequencerAddress(chainID eth.ChainID) (common.Address, error) {
+	if eth.ChainIDFromBig(s.RollupCfg.L2ChainID) != chainID {
+		return common.Address{}, fmt.Errorf("unknown chain: %s", chainID)
+	}
+	return s.P2PSequencerAuth.P2PSequencerAddress(), nil
+}
+
+func (s *SingleChainGossip) ChainIDs() []eth.ChainID {
+	return []eth.ChainID{eth.ChainIDFromBig(s.RollupCfg.L2ChainID)}
+}
+
+func (s *SingleChainGossip) BlockTime(chainID eth.ChainID) time.Duration {
+	return time.Duration(s.RollupCfg.BlockTime) * time.Second
+}
+
+func (s *SingleChainGossip) BlockVersion(chainID eth.ChainID, timestamp uint64) (eth.BlockVersion, error) {
+	if eth.ChainIDFromBig(s.RollupCfg.L2ChainID) != chainID {
+		return 0, fmt.Errorf("unknown chain: %s", chainID)
+	}
+	if s.RollupCfg.IsIsthmus(timestamp) {
+		return eth.BlockV4, nil
+	} else if s.RollupCfg.IsEcotone(timestamp) {
+		return eth.BlockV3, nil
+	} else if s.RollupCfg.IsCanyon(timestamp) {
+		return eth.BlockV2, nil
+	} else {
+		return eth.BlockV1, nil
+	}
+}
+
+var _ GossipChainConfig = (*SingleChainGossip)(nil)
 
 // BuildSubscriptionFilter builds a simple subscription filter,
 // to help protect against peers spamming useless subscriptions.
-func BuildSubscriptionFilter(cfg *rollup.Config) pubsub.SubscriptionFilter {
-	return pubsub.NewAllowlistSubscriptionFilter(
-		blocksTopicV1(cfg),
-		blocksTopicV2(cfg),
-		blocksTopicV3(cfg),
-		blocksTopicV4(cfg), // add more topics here in the future, if any.
-	)
+func BuildSubscriptionFilter(chains []eth.ChainID) pubsub.SubscriptionFilter {
+	var topics []string
+	for _, chainID := range chains {
+		topics = append(topics,
+			eth.BlockV1.BlocksTopic(chainID),
+			eth.BlockV2.BlocksTopic(chainID),
+			eth.BlockV3.BlocksTopic(chainID),
+			eth.BlockV4.BlocksTopic(chainID))
+	}
+	// add more topics here in the future, if any.
+	return pubsub.NewAllowlistSubscriptionFilter(topics...)
 }
 
 var msgBufPool = sync.Pool{New: func() any {
@@ -101,7 +143,7 @@ var msgBufPool = sync.Pool{New: func() any {
 
 // BuildMsgIdFn builds a generic message ID function for gossipsub that can handle compressed payloads,
 // mirroring the eth2 p2p gossip spec.
-func BuildMsgIdFn(cfg *rollup.Config) pubsub.MsgIdFunction {
+func BuildMsgIdFn() pubsub.MsgIdFunction {
 	return func(pmsg *pb.Message) string {
 		valid := false
 		var data []byte
@@ -141,8 +183,8 @@ func BuildMsgIdFn(cfg *rollup.Config) pubsub.MsgIdFunction {
 	}
 }
 
-func (p *Config) ConfigureGossip(rollupCfg *rollup.Config) []pubsub.Option {
-	params := BuildGlobalGossipParams(rollupCfg)
+func (p *Config) ConfigureGossip() []pubsub.Option {
+	params := BuildGlobalGossipParams()
 
 	// override with CLI changes
 	params.D = p.MeshD
@@ -157,7 +199,7 @@ func (p *Config) ConfigureGossip(rollupCfg *rollup.Config) []pubsub.Option {
 	}
 }
 
-func BuildGlobalGossipParams(cfg *rollup.Config) pubsub.GossipSubParams {
+func BuildGlobalGossipParams() pubsub.GossipSubParams {
 	params := pubsub.DefaultGossipSubParams()
 	params.D = DefaultMeshD                    // topic stable mesh target count
 	params.Dlo = DefaultMeshDlo                // topic stable mesh low watermark
@@ -173,17 +215,18 @@ func BuildGlobalGossipParams(cfg *rollup.Config) pubsub.GossipSubParams {
 
 // NewGossipSub configures a new pubsub instance with the specified parameters.
 // PubSub uses a GossipSubRouter as it's router under the hood.
-func NewGossipSub(p2pCtx context.Context, h host.Host, cfg *rollup.Config, gossipConf GossipSetupConfigurables, scorer Scorer, m GossipMetricer, log log.Logger) (*pubsub.PubSub, error) {
+func NewGossipSub(p2pCtx context.Context, h host.Host, cfg GossipChainConfig,
+	gossipConf GossipSetupConfigurables, scorer Scorer, m GossipMetricer, log log.Logger) (*pubsub.PubSub, error) {
 	denyList, err := pubsub.NewTimeCachedBlacklist(30 * time.Second)
 	if err != nil {
 		return nil, err
 	}
 	gossipOpts := []pubsub.Option{
 		pubsub.WithMaxMessageSize(maxGossipSize),
-		pubsub.WithMessageIdFn(BuildMsgIdFn(cfg)),
+		pubsub.WithMessageIdFn(BuildMsgIdFn()),
 		pubsub.WithNoAuthor(),
 		pubsub.WithMessageSignaturePolicy(pubsub.StrictNoSign),
-		pubsub.WithSubscriptionFilter(BuildSubscriptionFilter(cfg)),
+		pubsub.WithSubscriptionFilter(BuildSubscriptionFilter(cfg.ChainIDs())),
 		pubsub.WithValidateQueueSize(maxValidateQueue),
 		pubsub.WithPeerOutboundQueueSize(maxOutboundQueue),
 		pubsub.WithValidateThrottle(globalValidateThrottle),
@@ -193,7 +236,7 @@ func NewGossipSub(p2pCtx context.Context, h host.Host, cfg *rollup.Config, gossi
 		pubsub.WithEventTracer(&gossipTracer{m: m}),
 	}
 	gossipOpts = append(gossipOpts, ConfigurePeerScoring(gossipConf, scorer, log)...)
-	gossipOpts = append(gossipOpts, gossipConf.ConfigureGossip(cfg)...)
+	gossipOpts = append(gossipOpts, gossipConf.ConfigureGossip()...)
 	return pubsub.NewGossipSub(p2pCtx, h, gossipOpts...)
 }
 
@@ -259,8 +302,7 @@ func (sb *seenBlocks) markSeen(h common.Hash) {
 	sb.blockHashes = append(sb.blockHashes, h)
 }
 
-func BuildBlocksValidator(log log.Logger, cfg *rollup.Config, runCfg GossipRuntimeConfig, blockVersion eth.BlockVersion) pubsub.ValidatorEx {
-
+func BuildBlocksValidator(log log.Logger, chainID eth.ChainID, runCfg BlockRuntimeAuth, blockVersion eth.BlockVersion) pubsub.ValidatorEx {
 	// Seen block hashes per block height
 	// uint64 -> *seenBlocks
 	blockHeightLRU, err := lru.New[uint64, *seenBlocks](1000)
@@ -301,7 +343,7 @@ func BuildBlocksValidator(log log.Logger, cfg *rollup.Config, runCfg GossipRunti
 		payloadBytes := data[65:]
 
 		// [REJECT] if the signature by the sequencer is not valid
-		result := verifyBlockSignature(log, cfg, runCfg, id, signature, payloadBytes)
+		result := verifyBlockSignature(log, chainID, runCfg, id, signature, payloadBytes)
 		if result != pubsub.ValidationAccept {
 			return result
 		}
@@ -427,10 +469,15 @@ func BuildBlocksValidator(log log.Logger, cfg *rollup.Config, runCfg GossipRunti
 	}
 }
 
-func verifyBlockSignature(log log.Logger, cfg *rollup.Config, runCfg GossipRuntimeConfig, id peer.ID, signature eth.Bytes65, payloadBytes []byte) pubsub.ValidationResult {
+func verifyBlockSignature(log log.Logger, chainID eth.ChainID, runCfg BlockRuntimeAuth, id peer.ID, signature eth.Bytes65, payloadBytes []byte) pubsub.ValidationResult {
+	seqAddress, err := runCfg.P2PSequencerAddress(chainID)
+	if err != nil {
+		log.Warn("Cannot determine P2P Sequencer address to auth against", "chainID", chainID, "err", err)
+		return pubsub.ValidationReject
+	}
 	authCtx := &opsigner.OPStackP2PBlockAuthV1{
-		Allowed: runCfg.P2PSequencerAddress(),
-		Chain:   eth.ChainIDFromBig(cfg.L2ChainID),
+		Allowed: seqAddress,
+		Chain:   chainID,
 	}
 	if authCtx.Allowed == (common.Address{}) {
 		log.Warn("no configured p2p sequencer address, ignoring gossiped block", "peer", id, "addr", authCtx.Allowed)
@@ -448,21 +495,12 @@ func verifyBlockSignature(log log.Logger, cfg *rollup.Config, runCfg GossipRunti
 }
 
 type GossipIn interface {
-	OnUnsafeL2Payload(ctx context.Context, from peer.ID, msg *eth.ExecutionPayloadEnvelope) error
-}
-
-type GossipTopicInfo interface {
-	AllBlockTopicsPeers() []peer.ID
-	BlocksTopicV1Peers() []peer.ID
-	BlocksTopicV2Peers() []peer.ID
-	BlocksTopicV3Peers() []peer.ID
-	BlocksTopicV4Peers() []peer.ID
+	OnUnsafeL2Payload(ctx context.Context, chainID eth.ChainID, from peer.ID, msg *eth.ExecutionPayloadEnvelope) error
 }
 
 type GossipOut interface {
-	GossipTopicInfo
-	SignAndPublishL2Payload(ctx context.Context, msg *eth.ExecutionPayloadEnvelope, signer Signer) error
-	PublishSignedL2Payload(ctx context.Context, signedEnvelope *opsigner.SignedExecutionPayloadEnvelope) error
+	SignAndPublishL2Payload(ctx context.Context, chainID eth.ChainID, msg *eth.ExecutionPayloadEnvelope, signer Signer) error
+	PublishSignedL2Payload(ctx context.Context, chainID eth.ChainID, signedEnvelope *opsigner.SignedExecutionPayloadEnvelope) error
 	Close() error
 }
 
@@ -481,66 +519,27 @@ func (bt *blockTopic) Close() error {
 	return bt.topic.Close()
 }
 
+type blockTopicKey struct {
+	eth.BlockVersion
+	eth.ChainID
+}
+
 type publisher struct {
 	log log.Logger
-	cfg *rollup.Config
+
+	blockVersioning BlockVersioning
 
 	// p2pCancel cancels the downstream gossip event-handling functions, independent of the sources.
 	// A closed gossip event source (event handler or subscription) does not stop any open event iteration,
 	// thus we have to stop it ourselves this way.
 	p2pCancel context.CancelFunc
 
-	blocksV1 *blockTopic
-	blocksV2 *blockTopic
-	blocksV3 *blockTopic
-	blocksV4 *blockTopic
-
-	runCfg GossipRuntimeConfig
+	blockTopics map[blockTopicKey]*blockTopic
 }
 
 var _ GossipOut = (*publisher)(nil)
 
-func combinePeers(allPeers ...[]peer.ID) []peer.ID {
-	var seen = make(map[peer.ID]bool)
-	var res []peer.ID
-	for _, peers := range allPeers {
-		for _, p := range peers {
-			if _, ok := seen[p]; ok {
-				continue
-			}
-			res = append(res, p)
-			seen[p] = true
-		}
-	}
-	return res
-}
-
-func (p *publisher) AllBlockTopicsPeers() []peer.ID {
-	return combinePeers(
-		p.BlocksTopicV1Peers(),
-		p.BlocksTopicV2Peers(),
-		p.BlocksTopicV3Peers(),
-		p.BlocksTopicV4Peers(),
-	)
-}
-
-func (p *publisher) BlocksTopicV1Peers() []peer.ID {
-	return p.blocksV1.topic.ListPeers()
-}
-
-func (p *publisher) BlocksTopicV2Peers() []peer.ID {
-	return p.blocksV2.topic.ListPeers()
-}
-
-func (p *publisher) BlocksTopicV3Peers() []peer.ID {
-	return p.blocksV3.topic.ListPeers()
-}
-
-func (p *publisher) BlocksTopicV4Peers() []peer.ID {
-	return p.blocksV4.topic.ListPeers()
-}
-
-func (p *publisher) PublishSignedL2Payload(ctx context.Context, signedEnvelope *opsigner.SignedExecutionPayloadEnvelope) error {
+func (p *publisher) PublishSignedL2Payload(ctx context.Context, chainID eth.ChainID, signedEnvelope *opsigner.SignedExecutionPayloadEnvelope) error {
 	res := msgBufPool.Get().(*[]byte)
 	buf := bytes.NewBuffer((*res)[:0])
 	defer func() {
@@ -562,10 +561,10 @@ func (p *publisher) PublishSignedL2Payload(ctx context.Context, signedEnvelope *
 
 	data := buf.Bytes()
 	timestamp := uint64(signedEnvelope.Envelope.ExecutionPayload.Timestamp)
-	return p.publishRawSignedPayload(ctx, timestamp, data)
+	return p.publishRawSignedPayload(ctx, chainID, timestamp, data)
 }
 
-func (p *publisher) SignAndPublishL2Payload(ctx context.Context, envelope *eth.ExecutionPayloadEnvelope, signer Signer) error {
+func (p *publisher) SignAndPublishL2Payload(ctx context.Context, chainID eth.ChainID, envelope *eth.ExecutionPayloadEnvelope, signer Signer) error {
 	res := msgBufPool.Get().(*[]byte)
 	buf := bytes.NewBuffer((*res)[:0])
 	defer func() {
@@ -587,86 +586,89 @@ func (p *publisher) SignAndPublishL2Payload(ctx context.Context, envelope *eth.E
 	data := buf.Bytes()
 	payloadData := data[65:]
 	payloadHash := opsigner.PayloadHash(payloadData)
-	chainID := eth.ChainIDFromBig(p.cfg.L2ChainID)
 	sig, err := signer.SignBlockV1(ctx, chainID, payloadHash)
 	if err != nil {
 		return fmt.Errorf("failed to sign execution payload with signer: %w", err)
 	}
 	copy(data[:65], sig[:])
-	return p.publishRawSignedPayload(ctx, uint64(envelope.ExecutionPayload.Timestamp), data)
+	return p.publishRawSignedPayload(ctx, chainID, uint64(envelope.ExecutionPayload.Timestamp), data)
 }
 
-func (p *publisher) publishRawSignedPayload(ctx context.Context, timestamp uint64, data []byte) error {
+func (p *publisher) publishRawSignedPayload(ctx context.Context, chainID eth.ChainID, timestamp uint64, data []byte) error {
 	// compress the full message
 	// This also copies the data, freeing up the original buffer to go back into the pool
 	out := snappy.Encode(nil, data)
 
-	if p.cfg.IsIsthmus(timestamp) {
-		return p.blocksV4.topic.Publish(ctx, out)
-	} else if p.cfg.IsEcotone(timestamp) {
-		return p.blocksV3.topic.Publish(ctx, out)
-	} else if p.cfg.IsCanyon(timestamp) {
-		return p.blocksV2.topic.Publish(ctx, out)
-	} else {
-		return p.blocksV1.topic.Publish(ctx, out)
+	blockVersion, err := p.blockVersioning.BlockVersion(chainID, timestamp)
+	if err != nil {
+		return fmt.Errorf("unable to determine block version to publish on (chain %s, timestamp %d): %w", chainID, timestamp, err)
 	}
+	k := blockTopicKey{
+		BlockVersion: blockVersion,
+		ChainID:      chainID,
+	}
+	top, ok := p.blockTopics[k]
+	if !ok {
+		return fmt.Errorf("cannot publish on unknown block version %s / chain ID %s", blockVersion, chainID)
+	}
+	return top.topic.Publish(ctx, out)
 }
 
 func (p *publisher) Close() error {
 	p.p2pCancel()
-	e1 := p.blocksV1.Close()
-	e2 := p.blocksV2.Close()
-	return errors.Join(e1, e2)
+	var out error
+	for key, v := range p.blockTopics {
+		if err := v.Close(); err != nil {
+			out = errors.Join(out, fmt.Errorf("failed to close topic blocks %s %s: %w", key.ChainID, key.BlockVersion, err))
+		}
+	}
+	return out
 }
 
-func JoinGossip(self peer.ID, ps *pubsub.PubSub, log log.Logger, cfg *rollup.Config, runCfg GossipRuntimeConfig, gossipIn GossipIn) (GossipOut, error) {
+func setupBlockTopic(p2pCtx context.Context, ps *pubsub.PubSub, self peer.ID, chainID eth.ChainID, runCfg BlockRuntimeAuth, blockVersion eth.BlockVersion, logger log.Logger, gossipIn GossipIn) (*blockTopic, error) {
+	logger = logger.New("topic", "blocks"+strings.ToUpper(blockVersion.String()))
+	validator := BuildBlocksValidator(logger, chainID, runCfg, blockVersion)
+	topicName := blockVersion.BlocksTopic(chainID)
+	guardedValidator := guardGossipValidator(logger, logValidationResult(self, "validated "+blockVersion.String(), logger, validator))
+	blTopic, err := newBlockTopic(p2pCtx, chainID, topicName, ps, logger, gossipIn, guardedValidator)
+	if err != nil {
+		return nil, fmt.Errorf("failed to setup blocks %s topic p2p: %w", blockVersion, err)
+	}
+	return blTopic, nil
+}
+
+func JoinGossip(self peer.ID, ps *pubsub.PubSub, logger log.Logger, cfg GossipChainConfig, gossipIn GossipIn) (GossipOut, error) {
 	p2pCtx, p2pCancel := context.WithCancel(context.Background())
 
-	v1Logger := log.New("topic", "blocksV1")
-	blocksV1Validator := guardGossipValidator(log, logValidationResult(self, "validated blockv1", v1Logger, BuildBlocksValidator(v1Logger, cfg, runCfg, eth.BlockV1)))
-	blocksV1, err := newBlockTopic(p2pCtx, blocksTopicV1(cfg), ps, v1Logger, gossipIn, blocksV1Validator)
-	if err != nil {
-		p2pCancel()
-		return nil, fmt.Errorf("failed to setup blocks v1 p2p: %w", err)
-	}
+	versions := []eth.BlockVersion{eth.BlockV1, eth.BlockV2, eth.BlockV3, eth.BlockV4}
+	chainIDs := cfg.ChainIDs()
+	blockTopics := make(map[blockTopicKey]*blockTopic)
+	for _, blockVersion := range versions {
+		for _, chainID := range chainIDs {
+			// TODO: we can stop subscribing to old inactive topics
 
-	v2Logger := log.New("topic", "blocksV2")
-	blocksV2Validator := guardGossipValidator(log, logValidationResult(self, "validated blockv2", v2Logger, BuildBlocksValidator(v2Logger, cfg, runCfg, eth.BlockV2)))
-	blocksV2, err := newBlockTopic(p2pCtx, blocksTopicV2(cfg), ps, v2Logger, gossipIn, blocksV2Validator)
-	if err != nil {
-		p2pCancel()
-		return nil, fmt.Errorf("failed to setup blocks v2 p2p: %w", err)
-	}
-
-	v3Logger := log.New("topic", "blocksV3")
-	blocksV3Validator := guardGossipValidator(log, logValidationResult(self, "validated blockv3", v3Logger, BuildBlocksValidator(v3Logger, cfg, runCfg, eth.BlockV3)))
-	blocksV3, err := newBlockTopic(p2pCtx, blocksTopicV3(cfg), ps, v3Logger, gossipIn, blocksV3Validator)
-	if err != nil {
-		p2pCancel()
-		return nil, fmt.Errorf("failed to setup blocks v3 p2p: %w", err)
-	}
-
-	v4Logger := log.New("topic", "blocksV4")
-	blocksV4Validator := guardGossipValidator(log, logValidationResult(self, "validated blockv4", v4Logger, BuildBlocksValidator(v4Logger, cfg, runCfg, eth.BlockV4)))
-	blocksV4, err := newBlockTopic(p2pCtx, blocksTopicV4(cfg), ps, v4Logger, gossipIn, blocksV4Validator)
-	if err != nil {
-		p2pCancel()
-		return nil, fmt.Errorf("failed to setup blocks v4 p2p: %w", err)
+			blTopic, err := setupBlockTopic(p2pCtx, ps, self, chainID, cfg, blockVersion, logger, gossipIn)
+			if err != nil {
+				p2pCancel()
+				return nil, err
+			}
+			key := blockTopicKey{
+				BlockVersion: blockVersion,
+				ChainID:      chainID,
+			}
+			blockTopics[key] = blTopic
+		}
 	}
 
 	return &publisher{
-		log:       log,
-		cfg:       cfg,
-		p2pCancel: p2pCancel,
-		blocksV1:  blocksV1,
-		blocksV2:  blocksV2,
-		blocksV3:  blocksV3,
-		blocksV4:  blocksV4,
-		runCfg:    runCfg,
+		log:             logger,
+		blockVersioning: cfg,
+		p2pCancel:       p2pCancel,
+		blockTopics:     blockTopics,
 	}, nil
 }
 
-func newBlockTopic(ctx context.Context, topicId string, ps *pubsub.PubSub, log log.Logger, gossipIn GossipIn, validator pubsub.ValidatorEx) (*blockTopic, error) {
+func newBlockTopic(ctx context.Context, chainID eth.ChainID, topicId string, ps *pubsub.PubSub, log log.Logger, gossipIn GossipIn, validator pubsub.ValidatorEx) (*blockTopic, error) {
 	err := ps.RegisterTopicValidator(topicId,
 		validator,
 		pubsub.WithValidatorTimeout(3*time.Second),
@@ -694,7 +696,7 @@ func newBlockTopic(ctx context.Context, topicId string, ps *pubsub.PubSub, log l
 		return nil, fmt.Errorf("failed to subscribe to blocks gossip topic: %w", err)
 	}
 
-	subscriber := MakeSubscriber(log, BlocksHandler(gossipIn.OnUnsafeL2Payload))
+	subscriber := MakeSubscriber(log, BlocksHandler(chainID, gossipIn.OnUnsafeL2Payload))
 	go subscriber(ctx, subscription)
 
 	return &blockTopic{
@@ -707,13 +709,13 @@ func newBlockTopic(ctx context.Context, topicId string, ps *pubsub.PubSub, log l
 type TopicSubscriber func(ctx context.Context, sub *pubsub.Subscription)
 type MessageHandler func(ctx context.Context, from peer.ID, msg any) error
 
-func BlocksHandler(onBlock func(ctx context.Context, from peer.ID, msg *eth.ExecutionPayloadEnvelope) error) MessageHandler {
+func BlocksHandler(chainID eth.ChainID, onBlock func(ctx context.Context, chainID eth.ChainID, from peer.ID, msg *eth.ExecutionPayloadEnvelope) error) MessageHandler {
 	return func(ctx context.Context, from peer.ID, msg any) error {
 		payload, ok := msg.(*eth.ExecutionPayloadEnvelope)
 		if !ok {
 			return fmt.Errorf("expected topic validator to parse and validate data into execution payload, but got %T", msg)
 		}
-		return onBlock(ctx, from, payload)
+		return onBlock(ctx, chainID, from, payload)
 	}
 }
 

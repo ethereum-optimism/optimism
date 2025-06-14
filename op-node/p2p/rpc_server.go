@@ -176,7 +176,13 @@ func (s *APIBackend) Peers(ctx context.Context, connected bool) (*apis.PeerDump,
 			dump.TotalConnected += 1
 		}
 	}
-	for _, id := range s.node.GossipOut().AllBlockTopicsPeers() {
+	gossipPeers := make(map[peer.ID]struct{})
+	for _, topicName := range s.node.GossipSub().GetTopics() {
+		for _, peerID := range s.node.GossipSub().ListPeers(topicName) {
+			gossipPeers[peerID] = struct{}{}
+		}
+	}
+	for id := range gossipPeers {
 		if p, ok := dump.Peers[id.String()]; ok {
 			p.GossipBlocks = true
 		}
@@ -194,15 +200,17 @@ func (s *APIBackend) PeerStats(_ context.Context) (*apis.PeerStats, error) {
 	nw := h.Network()
 	pstore := h.Peerstore()
 
+	gossipPeersByTopic := make(map[string]uint)
+	for _, topicName := range s.node.GossipSub().GetTopics() {
+		peerIDs := s.node.GossipSub().ListPeers(topicName)
+		gossipPeersByTopic[topicName] = uint(len(peerIDs))
+	}
 	stats := &apis.PeerStats{
-		Connected:     uint(len(nw.Peers())),
-		Table:         0,
-		BlocksTopic:   uint(len(s.node.GossipOut().BlocksTopicV1Peers())),
-		BlocksTopicV2: uint(len(s.node.GossipOut().BlocksTopicV2Peers())),
-		BlocksTopicV3: uint(len(s.node.GossipOut().BlocksTopicV3Peers())),
-		BlocksTopicV4: uint(len(s.node.GossipOut().BlocksTopicV4Peers())),
-		Banned:        0,
-		Known:         uint(len(pstore.Peers())),
+		Connected:          uint(len(nw.Peers())),
+		Table:              0,
+		GossipPeersByTopic: gossipPeersByTopic,
+		Banned:             0,
+		Known:              uint(len(pstore.Peers())),
 	}
 	if gater := s.node.ConnectionGater(); gater != nil {
 		stats.Banned = uint(len(gater.ListBlockedPeers()))

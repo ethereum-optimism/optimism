@@ -63,7 +63,8 @@ func TestSystemMockP2P(t *testing.T) {
 
 	verifierPeerID := sys.RollupNodes["verifier"].P2P().Host().ID()
 	check := func() bool {
-		sequencerBlocksTopicPeers := sys.RollupNodes["sequencer"].P2P().GossipOut().AllBlockTopicsPeers()
+		blocksTopic := eth.BlockV4.BlocksTopic(eth.ChainIDFromBig(sys.RollupConfig.L2ChainID))
+		sequencerBlocksTopicPeers := sys.RollupNodes["sequencer"].P2P().GossipSub().ListPeers(blocksTopic)
 		return slices.Contains[[]peer.ID](sequencerBlocksTopicPeers, verifierPeerID)
 	}
 

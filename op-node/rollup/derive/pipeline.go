@@ -17,7 +17,6 @@ var ErrEngineResetReq = errors.New("cannot continue derivation until Engine has 
 
 type Metrics interface {
 	RecordL1Ref(name string, ref eth.L1BlockRef)
-	RecordL2Ref(name string, ref eth.L2BlockRef)
 	RecordChannelInputBytes(inputCompressedBytes int)
 	RecordHeadChannelOpened()
 	RecordChannelTimedOut()

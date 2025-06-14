@@ -86,6 +86,13 @@ type CrossUnsafeWorker struct {
 	chainID eth.ChainID
 	d       CrossUnsafeDeps
 	linker  depset.LinkChecker
+	emitter event.Emitter
+}
+
+var _ event.AttachEmitter = (*CrossUnsafeWorker)(nil)
+
+func (c *CrossUnsafeWorker) AttachEmitter(em event.Emitter) {
+	c.emitter = em
 }
 
 func (c *CrossUnsafeWorker) OnEvent(ctx context.Context, ev event.Event) bool {
@@ -97,6 +104,7 @@ func (c *CrossUnsafeWorker) OnEvent(ctx context.Context, ev event.Event) bool {
 			} else {
 				c.logger.Warn("Failed to process work", "err", err)
 			}
+			c.emitter.Emit(ctx, superevents.CrossUnsafeWorkErrEvent{ChainID: c.chainID, Err: err})
 		}
 	default:
 		return false

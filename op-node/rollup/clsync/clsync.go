@@ -39,7 +39,7 @@ func NewCLSync(log log.Logger, cfg *rollup.Config, metrics Metrics) *CLSync {
 		log:            log,
 		cfg:            cfg,
 		metrics:        metrics,
-		unsafePayloads: NewPayloadsQueue(log, maxUnsafePayloadsMemory, payloadMemSize),
+		unsafePayloads: NewPayloadsQueue(log, maxUnsafePayloadsMemory, PayloadMemSize),
 	}
 }
 

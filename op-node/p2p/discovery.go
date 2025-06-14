@@ -12,7 +12,9 @@ import (
 	"time"
 
 	decredSecp "github.com/decred/dcrd/dcrec/secp256k1/v4"
+	"github.com/libp2p/go-libp2p/core/connmgr"
 	"github.com/libp2p/go-libp2p/core/crypto"
+	"github.com/libp2p/go-libp2p/core/host"
 	"github.com/libp2p/go-libp2p/core/network"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/multiformats/go-multiaddr"
@@ -29,6 +31,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-node/p2p/store"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
+	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
 
 // force to use the new chainhash module, and not the legacy chainhash package btcd module
@@ -51,7 +54,19 @@ const (
 	collectiveDialTimeout  = time.Second * 30
 )
 
-func (conf *Config) Discovery(log log.Logger, rollupCfg *rollup.Config, tcpPort uint16) (*enode.LocalNode, *discover.UDPv5, error) {
+type LocalNodeModFn func(localNode *enode.LocalNode)
+
+func WithSingleChainOPStackENR(rollupCfg *rollup.Config) LocalNodeModFn {
+	return func(localNode *enode.LocalNode) {
+		dat := OpStackENRData{
+			ChainID: rollupCfg.L2ChainID.Uint64(),
+			Version: 0,
+		}
+		localNode.Set(&dat)
+	}
+}
+
+func (conf *Config) Discovery(log log.Logger, localNodeMods LocalNodeModFn, tcpPort uint16) (*enode.LocalNode, *discover.UDPv5, error) {
 	if conf.NoDiscovery {
 		return nil, nil, nil
 	}
@@ -76,11 +91,6 @@ func (conf *Config) Discovery(log log.Logger, rollupCfg *rollup.Config, tcpPort 
 	} else {
 		return nil, nil, fmt.Errorf("no TCP port to put in discovery record")
 	}
-	dat := OpStackENRData{
-		chainID: rollupCfg.L2ChainID.Uint64(),
-		version: 0,
-	}
-	localNode.Set(&dat)
 
 	udpAddr := &net.UDPAddr{
 		IP:   conf.ListenIP,
@@ -95,6 +105,8 @@ func (conf *Config) Discovery(log log.Logger, rollupCfg *rollup.Config, tcpPort 
 		localUDPAddr := conn.LocalAddr().(*net.UDPAddr)
 		localNode.SetFallbackUDP(localUDPAddr.Port)
 	}
+
+	localNodeMods(localNode)
 
 	cfg := discover.Config{
 		PrivateKey:   priv,
@@ -171,8 +183,8 @@ func enrToAddrInfo(r *enode.Node) (*peer.AddrInfo, *crypto.Secp256k1PublicKey, e
 // The discovery ENRs are just key-value lists, and we filter them by records tagged with the "opstack" key,
 // and then check the chain ID and version.
 type OpStackENRData struct {
-	chainID uint64
-	version uint64
+	ChainID uint64
+	Version uint64
 }
 
 func (o *OpStackENRData) ENRKey() string {
@@ -181,8 +193,8 @@ func (o *OpStackENRData) ENRKey() string {
 
 func (o *OpStackENRData) EncodeRLP(w io.Writer) error {
 	out := make([]byte, 2*binary.MaxVarintLen64)
-	offset := binary.PutUvarint(out, o.chainID)
-	offset += binary.PutUvarint(out[offset:], o.version)
+	offset := binary.PutUvarint(out, o.ChainID)
+	offset += binary.PutUvarint(out[offset:], o.Version)
 	out = out[:offset]
 	// encode as byte-string
 	return rlp.Encode(w, out)
@@ -204,51 +216,66 @@ func (o *OpStackENRData) DecodeRLP(s *rlp.Stream) error {
 	if err != nil {
 		return fmt.Errorf("failed to read version var int: %w", err)
 	}
-	o.chainID = chainID
-	o.version = version
+	o.ChainID = chainID
+	o.Version = version
 	return nil
 }
 
 var _ enr.Entry = (*OpStackENRData)(nil)
 
-func FilterEnodes(log log.Logger, cfg *rollup.Config) func(node *enode.Node) bool {
-	return func(node *enode.Node) bool {
-		var dat OpStackENRData
-		err := node.Load(&dat)
-		// if the entry does not exist, or if it is invalid, then ignore the node
-		if err != nil {
-			log.Trace("discovered node record has no opstack info", "node", node.ID(), "err", err)
-			return false
-		}
-		// check chain ID matches
-		if cfg.L2ChainID.Uint64() != dat.chainID {
-			log.Trace("discovered node record has no matching chain ID", "node", node.ID(), "got", dat.chainID, "expected", cfg.L2ChainID.Uint64())
-			return false
-		}
-		// check version matches
-		if dat.version != 0 {
-			log.Trace("discovered node record has no matching version", "node", node.ID(), "got", dat.version, "expected", 0)
-			return false
-		}
-		return true
+type NodeFilter interface {
+	Allow(node *enode.Node) bool
+}
+
+type SingleChainFilter struct {
+	Log            log.Logger
+	AllowedChainID eth.ChainID
+}
+
+// Allow filters the node record. If it returns false then the node is not accepted.
+func (f *SingleChainFilter) Allow(node *enode.Node) bool {
+	var dat OpStackENRData
+	err := node.Load(&dat)
+	// if the entry does not exist, or if it is invalid, then ignore the node
+	if err != nil {
+		f.Log.Trace("discovered node record has no opstack info", "node", node.ID(), "err", err)
+		return false
 	}
+	// check chain ID matches
+	if eth.ChainIDFromUInt64(dat.ChainID) != f.AllowedChainID {
+		f.Log.Trace("discovered node record has no matching chain ID", "node", node.ID(), "got", dat.ChainID)
+		return false
+	}
+	// check version matches
+	if dat.Version != 0 {
+		f.Log.Trace("discovered node record has no matching version", "node", node.ID(), "got", dat.Version, "expected", 0)
+		return false
+	}
+	return true
+}
+
+type NodeWithDiscovery interface {
+	Dv5Udp() *discover.UDPv5
+	Host() host.Host
+	ConnectionManager() connmgr.ConnManager
+	Dv5Local() *enode.LocalNode
 }
 
 // DiscoveryProcess runs a discovery process that randomly walks the DHT to fill the peerstore,
 // and connects to nodes in the peerstore that we are not already connected to.
 // Nodes from the peerstore will be shuffled, unsuccessful connection attempts will cause peers to be avoided,
 // and only nodes with addresses (under TTL) will be connected to.
-func (n *NodeP2P) DiscoveryProcess(ctx context.Context, log log.Logger, cfg *rollup.Config, connectGoal uint) {
-	if n.dv5Udp == nil {
+func DiscoveryProcess(ctx context.Context, log log.Logger, n NodeWithDiscovery, nodeFilter NodeFilter, connectGoal uint) {
+	dv5Udp := n.Dv5Udp()
+	if dv5Udp == nil {
 		log.Warn("peer discovery is disabled")
 		return
 	}
-	filter := FilterEnodes(log, cfg)
 	// We pull nodes from discv5 DHT in random order to find new peers.
 	// Eventually we'll find a peer record that matches our filter.
-	randomNodeIter := n.dv5Udp.RandomNodes()
+	randomNodeIter := dv5Udp.RandomNodes()
 
-	randomNodeIter = enode.Filter(randomNodeIter, filter)
+	randomNodeIter = enode.Filter(randomNodeIter, nodeFilter.Allow)
 	defer randomNodeIter.Close()
 
 	// We pull from the DHT in a slow/fast interval, depending on the need to find more peers
@@ -329,8 +356,8 @@ func (n *NodeP2P) DiscoveryProcess(ctx context.Context, log log.Logger, cfg *rol
 		// At the start we might have trouble walking the DHT,
 		// but we do have a table with some nodes,
 		// so take the table and feed it into the discovery process
-		for _, rec := range n.dv5Udp.AllNodes() {
-			if filter(rec) {
+		for _, rec := range dv5Udp.AllNodes() {
+			if nodeFilter.Allow(rec) {
 				select {
 				case randomNodesCh <- rec:
 					continue
@@ -361,7 +388,7 @@ func (n *NodeP2P) DiscoveryProcess(ctx context.Context, log log.Logger, cfg *rol
 			if eps, ok := pstore.(store.ExtendedPeerstore); ok {
 				_, err := eps.SetPeerMetadata(info.ID, store.PeerMetadata{
 					ENR:       found.String(),
-					OPStackID: dat.chainID,
+					OPStackID: dat.ChainID,
 				})
 				if err != nil {
 					log.Warn("failed to set peer metadata", "peer", info.ID, "err", err)
@@ -375,14 +402,15 @@ func (n *NodeP2P) DiscoveryProcess(ctx context.Context, log log.Logger, cfg *rol
 			// Tag the peer, we'd rather have the connection manager prune away old peers,
 			// or peers on different chains, or anyone we have not seen via discovery.
 			// There is no tag score decay yet, so just set it to 42.
-			n.ConnectionManager().TagPeer(info.ID, fmt.Sprintf("opstack-%d-%d", dat.chainID, dat.version), 42)
+			n.ConnectionManager().TagPeer(info.ID, fmt.Sprintf("opstack-%d-%d", dat.ChainID, dat.Version), 42)
 			log.Debug("discovered peer", "peer", info.ID, "nodeID", found.ID(), "addr", info.Addrs[0])
 		case <-connectTicker.C:
 			connected := n.Host().Network().Peers()
+			dv5Local := n.Dv5Local()
 			log.Debug("peering tick", "connected", len(connected),
-				"advertised_udp", n.dv5Local.Node().UDP(),
-				"advertised_tcp", n.dv5Local.Node().TCP(),
-				"advertised_ip", n.dv5Local.Node().IP())
+				"advertised_udp", dv5Local.Node().UDP(),
+				"advertised_tcp", dv5Local.Node().TCP(),
+				"advertised_ip", dv5Local.Node().IP())
 			if uint(len(connected)) < connectGoal {
 				// Start looking for more peers more actively again
 				faster()

@@ -37,6 +37,7 @@ type L2EthClient interface {
 }
 
 type L2EthExtendedClient interface {
+	L2EthClient
 	EthExtendedClient
 	SystemConfigFetcher
 	OutputRootFetcher

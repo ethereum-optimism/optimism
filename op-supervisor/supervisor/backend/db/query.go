@@ -183,6 +183,10 @@ func (db *ChainsDB) CrossUnsafe(chainID eth.ChainID) (types.BlockSeal, error) {
 	return crossUnsafe, nil
 }
 
+// AcceptedBlock checks if a block may be indexed,
+// by checking if it's not conflicting with the local-safe DB.
+// Otherwise, we may end up in a loop of indexing logs of an unsafe chain
+// while rewinding it because of divergence with the higher level of safety.
 func (db *ChainsDB) AcceptedBlock(chainID eth.ChainID, id eth.BlockID) error {
 	localDB, ok := db.localDBs.Get(chainID)
 	if !ok {
@@ -192,7 +196,7 @@ func (db *ChainsDB) AcceptedBlock(chainID eth.ChainID, id eth.BlockID) error {
 	if err != nil {
 		return fmt.Errorf("failed to get revision: %w", err)
 	}
-	db.logger.Info("Checking if accepted", "chain", chainID, "id", id, "revision", revision)
+	db.logger.Debug("Checking if accepted", "chain", chainID, "id", id, "revision", revision)
 	// If the block is not cross-safe, then the revision will be the latest
 	// (assuming the trailing local-safe data only has 1 revision;
 	//  the same or something net-new exactly starting after cross-safe).
@@ -226,20 +230,20 @@ func (db *ChainsDB) FinalizedL1() eth.BlockRef {
 	return db.finalizedL1.Get()
 }
 
-func (db *ChainsDB) Finalized(chainID eth.ChainID) (types.BlockSeal, error) {
+func (db *ChainsDB) Finalized(chainID eth.ChainID) (types.DerivedBlockSealPair, error) {
 	finalizedL1 := db.finalizedL1.Get()
 	if finalizedL1 == (eth.L1BlockRef{}) {
-		return types.BlockSeal{}, fmt.Errorf("no finalized L1 signal, cannot determine L2 finality of chain %s yet: %w", chainID, types.ErrFuture)
+		return types.DerivedBlockSealPair{}, fmt.Errorf("no finalized L1 signal, cannot determine L2 finality of chain %s yet: %w", chainID, types.ErrFuture)
 	}
 
 	// compare the finalized L1 block with the last derived block in the cross DB
 	xDB, ok := db.crossDBs.Get(chainID)
 	if !ok {
-		return types.BlockSeal{}, types.ErrUnknownChain
+		return types.DerivedBlockSealPair{}, types.ErrUnknownChain
 	}
 	latest, err := xDB.Last()
 	if err != nil {
-		return types.BlockSeal{}, fmt.Errorf("could not get the latest derived pair for chain %s: %w", chainID, err)
+		return types.DerivedBlockSealPair{}, fmt.Errorf("could not get the latest derived pair for chain %s: %w", chainID, err)
 	}
 	// if the finalized L1 block is newer than the latest L1 block used to derive L2 blocks,
 	// the finality signal automatically applies to all previous blocks, including the latest derived block
@@ -249,15 +253,18 @@ func (db *ChainsDB) Finalized(chainID eth.ChainID) (types.BlockSeal, error) {
 			"finalizedL1", finalizedL1.Number,
 			"latestSource", latest.Source,
 			"latestDerived", latest.Derived)
-		return latest.Derived, nil
+		return latest, nil
 	}
 
 	// otherwise, use the finalized L1 block to determine the final L2 block that was derived from it
 	derived, err := db.CrossSourceToLastDerived(chainID, finalizedL1.ID())
 	if err != nil {
-		return types.BlockSeal{}, fmt.Errorf("could not find what was last derived in L2 chain %s from the finalized L1 block %s: %w", chainID, finalizedL1, err)
+		return types.DerivedBlockSealPair{}, fmt.Errorf("could not find what was last derived in L2 chain %s from the finalized L1 block %s: %w", chainID, finalizedL1, err)
 	}
-	return derived, nil
+	return types.DerivedBlockSealPair{
+		Source:  types.BlockSealFromRef(finalizedL1),
+		Derived: derived,
+	}, nil
 }
 
 func (db *ChainsDB) CrossSourceToLastDerived(chainID eth.ChainID, source eth.BlockID) (derived types.BlockSeal, err error) {

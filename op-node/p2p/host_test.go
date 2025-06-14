@@ -73,12 +73,12 @@ func TestP2PSimple(t *testing.T) {
 }
 
 type mockGossipIn struct {
-	OnUnsafeL2PayloadFn func(ctx context.Context, from peer.ID, msg *eth.ExecutionPayloadEnvelope) error
+	OnUnsafeL2PayloadFn func(ctx context.Context, chainID eth.ChainID, from peer.ID, msg *eth.ExecutionPayloadEnvelope) error
 }
 
-func (m *mockGossipIn) OnUnsafeL2Payload(ctx context.Context, from peer.ID, msg *eth.ExecutionPayloadEnvelope) error {
+func (m *mockGossipIn) OnUnsafeL2Payload(ctx context.Context, chainID eth.ChainID, from peer.ID, msg *eth.ExecutionPayloadEnvelope) error {
 	if m.OnUnsafeL2PayloadFn != nil {
-		return m.OnUnsafeL2PayloadFn(ctx, from, msg)
+		return m.OnUnsafeL2PayloadFn(ctx, chainID, from, msg)
 	}
 	return nil
 }
@@ -321,11 +321,13 @@ func TestDiscovery(t *testing.T) {
 	resourcesCtx, resourcesCancel := context.WithCancel(context.Background())
 	defer resourcesCancel()
 
+	allowedNodes := &SingleChainFilter{AllowedChainID: eth.ChainIDFromBig(rollupCfg.L2ChainID)}
+
 	nodeA, err := NewNodeP2P(context.Background(), rollupCfg, logA, &confA, &mockGossipIn{}, nil, runCfgA, metrics.NoopMetrics, false)
 	require.NoError(t, err)
 	defer nodeA.Close()
 	hostA := nodeA.Host()
-	go nodeA.DiscoveryProcess(resourcesCtx, logA, rollupCfg, 10)
+	go nodeA.DiscoveryProcess(resourcesCtx, logA, allowedNodes, 10)
 
 	// Add A as bootnode to B
 	confB.Bootnodes = []*enode.Node{nodeA.Dv5Udp().Self()}
@@ -340,7 +342,7 @@ func TestDiscovery(t *testing.T) {
 	require.NoError(t, err)
 	defer nodeB.Close()
 	hostB := nodeB.Host()
-	go nodeB.DiscoveryProcess(resourcesCtx, logB, rollupCfg, 10)
+	go nodeB.DiscoveryProcess(resourcesCtx, logB, allowedNodes, 10)
 
 	// Track connections to B
 	connsB := make(chan network.Conn, 2)
@@ -355,7 +357,7 @@ func TestDiscovery(t *testing.T) {
 	require.NoError(t, err)
 	defer nodeC.Close()
 	hostC := nodeC.Host()
-	go nodeC.DiscoveryProcess(resourcesCtx, logC, rollupCfg, 10)
+	go nodeC.DiscoveryProcess(resourcesCtx, logC, allowedNodes, 10)
 
 	// B and C don't know each other yet, but both have A as a bootnode.
 	// It should only be a matter of time for them to connect, if they discover each other via A.

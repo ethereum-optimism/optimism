@@ -235,6 +235,10 @@ type ExecutionPayloadEnvelope struct {
 	ExecutionPayload      *ExecutionPayload `json:"executionPayload"`
 }
 
+func (env *ExecutionPayloadEnvelope) BlockRef() BlockRef {
+	return env.ExecutionPayload.BlockRef()
+}
+
 func (env *ExecutionPayloadEnvelope) ID() BlockID {
 	return env.ExecutionPayload.ID()
 }

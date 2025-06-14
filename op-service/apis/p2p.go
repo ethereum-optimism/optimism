@@ -61,12 +61,9 @@ type PeerInfo struct {
 }
 
 type PeerStats struct {
-	Connected     uint `json:"connected"`
-	Table         uint `json:"table"`
-	BlocksTopic   uint `json:"blocksTopic"`
-	BlocksTopicV2 uint `json:"blocksTopicV2"`
-	BlocksTopicV3 uint `json:"blocksTopicV3"`
-	BlocksTopicV4 uint `json:"blocksTopicV4"`
-	Banned        uint `json:"banned"`
-	Known         uint `json:"known"`
+	Connected          uint            `json:"connected"`
+	Table              uint            `json:"table"`
+	GossipPeersByTopic map[string]uint `json:"gossipPeersByTopic"`
+	Banned             uint            `json:"banned"`
+	Known              uint            `json:"known"`
 }

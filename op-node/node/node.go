@@ -540,7 +540,8 @@ func (n *OpNode) initP2P(cfg *config.Config) (err error) {
 			return
 		}
 		if n.p2pNode.Dv5Udp() != nil {
-			go n.p2pNode.DiscoveryProcess(n.resourcesCtx, n.log, &cfg.Rollup, cfg.P2P.TargetPeers())
+			allowedNodes := &p2p.SingleChainFilter{AllowedChainID: eth.ChainIDFromBig(cfg.Rollup.L2ChainID)}
+			go n.p2pNode.DiscoveryProcess(n.resourcesCtx, n.log, allowedNodes, cfg.P2P.TargetPeers())
 		}
 	}
 	return nil
@@ -591,7 +592,8 @@ func (n *OpNode) PublishBlock(ctx context.Context, signedEnvelope *opsigner.Sign
 	n.apiEmitter.Emit(ctx, tracer.TracePublishBlockEvent{Envelope: signedEnvelope.Envelope})
 	if p2pNode := n.getP2PNodeIfEnabled(); p2pNode != nil {
 		n.log.Info("Publishing signed execution payload on p2p", "id", signedEnvelope.ID())
-		return p2pNode.GossipOut().PublishSignedL2Payload(ctx, signedEnvelope)
+		chainID := eth.ChainIDFromBig(n.cfg.Rollup.L2ChainID)
+		return p2pNode.GossipOut().PublishSignedL2Payload(ctx, chainID, signedEnvelope)
 	}
 	return errors.New("P2P not enabled")
 }
@@ -604,7 +606,8 @@ func (n *OpNode) SignAndPublishL2Payload(ctx context.Context, envelope *eth.Exec
 			return fmt.Errorf("node has no p2p signer, payload %s cannot be published", envelope.ID())
 		}
 		n.log.Info("Publishing signed execution payload on p2p", "id", envelope.ID())
-		return p2pNode.GossipOut().SignAndPublishL2Payload(ctx, envelope, n.p2pSigner)
+		chainID := eth.ChainIDFromBig(n.cfg.Rollup.L2ChainID)
+		return p2pNode.GossipOut().SignAndPublishL2Payload(ctx, chainID, envelope, n.p2pSigner)
 	}
 	// if p2p is not enabled then we just don't publish the payload
 	return nil

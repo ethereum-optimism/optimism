@@ -96,7 +96,7 @@ func MakeStreamHandler(resourcesCtx context.Context, log log.Logger, fn requestH
 
 type newStreamFn func(ctx context.Context, peerId peer.ID, protocolId ...protocol.ID) (network.Stream, error)
 
-type receivePayloadFn func(ctx context.Context, from peer.ID, payload *eth.ExecutionPayloadEnvelope) error
+type receivePayloadFn func(ctx context.Context, chainID eth.ChainID, from peer.ID, payload *eth.ExecutionPayloadEnvelope) error
 
 type rangeRequest struct {
 	start uint64
@@ -508,7 +508,8 @@ func (s *SyncClient) tryPromote(h common.Hash) {
 func (s *SyncClient) promote(ctx context.Context, res syncResult) {
 	s.log.Debug("promoting p2p sync result", "payload", res.payload.ExecutionPayload.ID(), "peer", res.peer)
 
-	if err := s.receivePayload(ctx, res.peer, res.payload); err != nil {
+	chainID := eth.ChainIDFromBig(s.cfg.L2ChainID)
+	if err := s.receivePayload(ctx, chainID, res.peer, res.payload); err != nil {
 		s.log.Warn("failed to promote payload, receiver error", "err", err)
 		return
 	}

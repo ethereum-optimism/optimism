@@ -50,11 +50,6 @@ func TestGuardGossipValidator(t *testing.T) {
 	require.Equal(t, pubsub.ValidationIgnore, val(context.Background(), "bob", nil))
 }
 
-func TestCombinePeers(t *testing.T) {
-	res := combinePeers([]peer.ID{"foo", "bar"}, []peer.ID{"bar", "baz"})
-	require.Equal(t, []peer.ID{"foo", "bar", "baz"}, res)
-}
-
 func TestVerifyBlockSignature(t *testing.T) {
 	logger := testlog.Logger(t, log.LevelCrit)
 	cfg := &rollup.Config{
@@ -65,37 +60,43 @@ func TestVerifyBlockSignature(t *testing.T) {
 	require.NoError(t, err)
 	msg := []byte("any msg")
 
+	chainID := eth.ChainIDFromBig(cfg.L2ChainID)
+
 	t.Run("Valid", func(t *testing.T) {
 		runCfg := &testutils.MockRuntimeConfig{P2PSeqAddress: crypto.PubkeyToAddress(secrets.PublicKey)}
 		signer := &PreparedSigner{Signer: opsigner.NewLocalSigner(secrets)}
-		sig, err := signer.SignBlockV1(context.Background(), eth.ChainIDFromBig(cfg.L2ChainID), opsigner.PayloadHash(msg))
+		sig, err := signer.SignBlockV1(context.Background(), chainID, opsigner.PayloadHash(msg))
 		require.NoError(t, err)
-		result := verifyBlockSignature(logger, cfg, runCfg, peerId, sig, msg)
+		gCfg := &SingleChainGossip{RollupCfg: cfg, P2PSequencerAuth: runCfg}
+		result := verifyBlockSignature(logger, chainID, gCfg, peerId, sig, msg)
 		require.Equal(t, pubsub.ValidationAccept, result)
 	})
 
 	t.Run("WrongSigner", func(t *testing.T) {
 		runCfg := &testutils.MockRuntimeConfig{P2PSeqAddress: common.HexToAddress("0x1234")}
 		signer := &PreparedSigner{Signer: opsigner.NewLocalSigner(secrets)}
-		sig, err := signer.SignBlockV1(context.Background(), eth.ChainIDFromBig(cfg.L2ChainID), opsigner.PayloadHash(msg))
+		sig, err := signer.SignBlockV1(context.Background(), chainID, opsigner.PayloadHash(msg))
 		require.NoError(t, err)
-		result := verifyBlockSignature(logger, cfg, runCfg, peerId, sig, msg)
+		gCfg := &SingleChainGossip{RollupCfg: cfg, P2PSequencerAuth: runCfg}
+		result := verifyBlockSignature(logger, chainID, gCfg, peerId, sig, msg)
 		require.Equal(t, pubsub.ValidationReject, result)
 	})
 
 	t.Run("InvalidSignature", func(t *testing.T) {
 		runCfg := &testutils.MockRuntimeConfig{P2PSeqAddress: crypto.PubkeyToAddress(secrets.PublicKey)}
 		sig := eth.Bytes65{}
-		result := verifyBlockSignature(logger, cfg, runCfg, peerId, sig, msg)
+		gCfg := &SingleChainGossip{RollupCfg: cfg, P2PSequencerAuth: runCfg}
+		result := verifyBlockSignature(logger, chainID, gCfg, peerId, sig, msg)
 		require.Equal(t, pubsub.ValidationReject, result)
 	})
 
 	t.Run("NoSequencer", func(t *testing.T) {
 		runCfg := &testutils.MockRuntimeConfig{}
 		signer := &PreparedSigner{Signer: opsigner.NewLocalSigner(secrets)}
-		sig, err := signer.SignBlockV1(context.Background(), eth.ChainIDFromBig(cfg.L2ChainID), opsigner.PayloadHash(msg))
+		sig, err := signer.SignBlockV1(context.Background(), chainID, opsigner.PayloadHash(msg))
 		require.NoError(t, err)
-		result := verifyBlockSignature(logger, cfg, runCfg, peerId, sig, msg)
+		gCfg := &SingleChainGossip{RollupCfg: cfg, P2PSequencerAuth: runCfg}
+		result := verifyBlockSignature(logger, chainID, gCfg, peerId, sig, msg)
 		require.Equal(t, pubsub.ValidationIgnore, result)
 	})
 }
@@ -153,9 +154,11 @@ func TestBlockValidator(t *testing.T) {
 	// Params Set 2: Call the validation function
 	peerID := peer.ID("foo")
 
-	v2Validator := BuildBlocksValidator(testlog.Logger(t, log.LevelCrit), cfg, runCfg, eth.BlockV2)
-	v3Validator := BuildBlocksValidator(testlog.Logger(t, log.LevelCrit), cfg, runCfg, eth.BlockV3)
-	v4Validator := BuildBlocksValidator(testlog.Logger(t, log.LevelCrit), cfg, runCfg, eth.BlockV4)
+	chainID := eth.ChainIDFromBig(cfg.L2ChainID)
+	gCfg := &SingleChainGossip{RollupCfg: cfg, P2PSequencerAuth: runCfg}
+	v2Validator := BuildBlocksValidator(testlog.Logger(t, log.LevelCrit), chainID, gCfg, eth.BlockV2)
+	v3Validator := BuildBlocksValidator(testlog.Logger(t, log.LevelCrit), chainID, gCfg, eth.BlockV3)
+	v4Validator := BuildBlocksValidator(testlog.Logger(t, log.LevelCrit), chainID, gCfg, eth.BlockV4)
 
 	zero, one := uint64(0), uint64(1)
 	beaconHash, withdrawalsRoot := common.HexToHash("0x1234"), common.HexToHash("0x9876")

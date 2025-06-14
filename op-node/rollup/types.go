@@ -43,8 +43,13 @@ type Genesis struct {
 	L1 eth.BlockID `json:"l1"`
 	// The L2 block the rollup starts from (no transactions, pre-configured state)
 	L2 eth.BlockID `json:"l2"`
-	// Timestamp of L2 block
+	// Timestamp of the L2 block
 	L2Time uint64 `json:"l2_time"`
+	// Timestamp of the L1 block.
+	// WARNING: This is set to 0 for rollup configs pre-interop.
+	// This may also be 0 post-interop.
+	// If zero, the user is expected to load the timestamp from the L1 block to prepare the config.
+	L1Time uint64 `json:"l1_time,omitempty"`
 	// Initial system configuration values.
 	// The L2 genesis block may not include transactions, and thus cannot encode the config values,
 	// unlike later L2 blocks.

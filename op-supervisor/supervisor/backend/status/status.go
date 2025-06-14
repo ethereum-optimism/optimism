@@ -73,7 +73,7 @@ func (su *StatusTracker) OnEvent(ctx context.Context, ev event.Event) bool {
 		status.CrossSafe = x.NewCrossSafe.Derived
 	case superevents.FinalizedL2UpdateEvent:
 		status := loadStatusRef(x.ChainID)
-		status.Finalized = x.FinalizedL2
+		status.Finalized = x.FinalizedL2.Derived
 	case superevents.FinalizedL1UpdateEvent:
 		log.Debug("Updated finalized L1", "finalizedL1", x.FinalizedL1)
 	default:

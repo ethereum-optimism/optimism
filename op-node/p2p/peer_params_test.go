@@ -9,6 +9,7 @@ import (
 	"github.com/stretchr/testify/suite"
 
 	"github.com/ethereum-optimism/optimism/op-node/chaincfg"
+	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
 
 // PeerParamsTestSuite tests peer parameterization.
@@ -68,7 +69,7 @@ func (testSuite *PeerParamsTestSuite) TestGetPeerScoreParams_Light() {
 	testSuite.NoError(err)
 	// Topics should not contain options for any block topic
 	testSuite.Len(peerParams.Topics, 0)
-	_, ok := peerParams.Topics[blocksTopicV1(cfg)]
+	_, ok := peerParams.Topics[eth.BlockV1.BlocksTopic(eth.ChainIDFromBig(cfg.L2ChainID))]
 	testSuite.False(ok, "should not have block topic params")
 
 	testSuite.Equal(peerParams.AppSpecificWeight, float64(1))

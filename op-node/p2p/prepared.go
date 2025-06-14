@@ -13,8 +13,6 @@ import (
 	"github.com/ethereum/go-ethereum/p2p/discover"
 	"github.com/ethereum/go-ethereum/p2p/enode"
 	"github.com/ethereum/go-ethereum/p2p/enr"
-
-	"github.com/ethereum-optimism/optimism/op-node/rollup"
 )
 
 // Prepared provides a p2p host and discv5 service that is already set up.
@@ -49,23 +47,19 @@ func (p *Prepared) Host(log log.Logger, reporter metrics.Reporter, metrics HostM
 }
 
 // Discovery creates a disc-v5 service. Returns nil, nil, nil if discovery is disabled.
-func (p *Prepared) Discovery(log log.Logger, rollupCfg *rollup.Config, tcpPort uint16) (*enode.LocalNode, *discover.UDPv5, error) {
+func (p *Prepared) Discovery(log log.Logger, localNodeMods LocalNodeModFn, tcpPort uint16) (*enode.LocalNode, *discover.UDPv5, error) {
 	if p.LocalNode != nil {
-		dat := OpStackENRData{
-			chainID: rollupCfg.L2ChainID.Uint64(),
-			version: 0,
-		}
-		p.LocalNode.Set(&dat)
 		if tcpPort != 0 {
 			p.LocalNode.Set(enr.TCP(tcpPort))
 		}
+		localNodeMods(p.LocalNode)
 	}
 	return p.LocalNode, p.UDPv5, nil
 }
 
-func (p *Prepared) ConfigureGossip(rollupCfg *rollup.Config) []pubsub.Option {
+func (p *Prepared) ConfigureGossip() []pubsub.Option {
 	return []pubsub.Option{
-		pubsub.WithGossipSubParams(BuildGlobalGossipParams(rollupCfg)),
+		pubsub.WithGossipSubParams(BuildGlobalGossipParams()),
 	}
 }
 

@@ -14,12 +14,22 @@ import (
 
 type BlockVersion int
 
-const ( // iota is reset to 0
+// zero-indexed: V1 is index 0, etc. etc.
+const (
 	BlockV1 BlockVersion = iota
 	BlockV2
 	BlockV3
 	BlockV4
 )
+
+func (v BlockVersion) String() string {
+	return fmt.Sprintf("v%d", int(v)+1)
+}
+
+func (v BlockVersion) BlocksTopic(chainID ChainID) string {
+	// ChainID in decimal, followed by 0-indexed block version
+	return fmt.Sprintf("/optimism/%s/%d/blocks", chainID.String(), int(v))
+}
 
 // ExecutionPayload and ExecutionPayloadEnvelope are the only SSZ types we have to marshal/unmarshal,
 // so instead of importing a SSZ lib we implement the bare minimum.

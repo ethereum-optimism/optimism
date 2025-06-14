@@ -84,7 +84,7 @@ func (ev FinalizedL1UpdateEvent) String() string {
 
 type FinalizedL2UpdateEvent struct {
 	ChainID     eth.ChainID
-	FinalizedL2 types.BlockSeal
+	FinalizedL2 types.DerivedBlockSealPair
 }
 
 func (ev FinalizedL2UpdateEvent) String() string {
@@ -195,4 +195,33 @@ type ChainIndexingContinueEvent struct {
 
 func (ev ChainIndexingContinueEvent) String() string {
 	return "chain-indexing-continue"
+}
+
+// ChainIndexingIdleEvent is informational, used by op-node-v2 only
+type ChainIndexingIdleEvent struct {
+	ChainID eth.ChainID
+}
+
+func (ev ChainIndexingIdleEvent) String() string {
+	return "chain-indexing-idle"
+}
+
+// CrossSafeWorkErrEvent is informational, used by op-node-v2 only
+type CrossSafeWorkErrEvent struct {
+	ChainID eth.ChainID
+	Err     error
+}
+
+func (ev CrossSafeWorkErrEvent) String() string {
+	return "cross-safe-work-err"
+}
+
+// CrossUnsafeWorkErrEvent is informational, used by op-node-v2 only
+type CrossUnsafeWorkErrEvent struct {
+	ChainID eth.ChainID
+	Err     error
+}
+
+func (ev CrossUnsafeWorkErrEvent) String() string {
+	return "cross-unsafe-work-err"
 }

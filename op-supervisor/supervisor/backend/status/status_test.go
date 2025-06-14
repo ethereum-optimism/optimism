@@ -97,6 +97,11 @@ func TestUpdateFinalized(t *testing.T) {
 	chain2 := eth.ChainIDFromUInt64(2)
 	chains := []eth.ChainID{chain1, chain2}
 	tracker := NewStatusTracker(chains)
+	srcFinalized := types.BlockSeal{
+		Number:    10000,
+		Hash:      common.Hash{0x11},
+		Timestamp: 1234256,
+	}
 	chain1Finalized := types.BlockSeal{
 		Number:    204,
 		Hash:      common.Hash{0xaa},
@@ -109,11 +114,11 @@ func TestUpdateFinalized(t *testing.T) {
 	}
 	tracker.OnEvent(context.Background(), superevents.FinalizedL2UpdateEvent{
 		ChainID:     chain1,
-		FinalizedL2: chain1Finalized,
+		FinalizedL2: types.DerivedBlockSealPair{Source: srcFinalized, Derived: chain1Finalized},
 	})
 	tracker.OnEvent(context.Background(), superevents.FinalizedL2UpdateEvent{
 		ChainID:     chain2,
-		FinalizedL2: chain2Finalized,
+		FinalizedL2: types.DerivedBlockSealPair{Source: srcFinalized, Derived: chain2Finalized},
 	})
 	status, err := tracker.SyncStatus()
 	require.NoError(t, err)

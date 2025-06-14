@@ -18,6 +18,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/flags"
 	"github.com/ethereum-optimism/optimism/op-node/metrics"
 	"github.com/ethereum-optimism/optimism/op-node/node"
+	service2 "github.com/ethereum-optimism/optimism/op-node/opnv2/service"
 	"github.com/ethereum-optimism/optimism/op-node/version"
 	opservice "github.com/ethereum-optimism/optimism/op-service"
 	"github.com/ethereum-optimism/optimism/op-service/cliapp"
@@ -35,6 +36,19 @@ var (
 var VersionWithMeta = opservice.FormatVersion(version.Version, GitCommit, GitDate, version.Meta)
 
 func main() {
+	if os.Getenv("OP_NODE_V2") == "true" {
+		ctx := ctxinterrupt.WithSignalWaiterMain(context.Background())
+		err := service2.RunCmd(ctx, os.Args, service2.VersionConfig{
+			Version:   version.Version,
+			GitCommit: GitCommit,
+			GitDate:   GitDate,
+		}, service2.LifecycleFromConfig)
+		if err != nil {
+			log.Crit("Application failed", "message", err)
+		}
+		return
+	}
+
 	// Set up logger with a default INFO level in case we fail to parse flags,
 	// otherwise the final critical log won't show what the parsing error was.
 	oplog.SetupDefaults()

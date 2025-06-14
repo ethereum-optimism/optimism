@@ -20,9 +20,9 @@ func NewFilterSelf(self peer.ID, inner GossipIn) *FilterSelf {
 	return &FilterSelf{self: self, inner: inner}
 }
 
-func (f *FilterSelf) OnUnsafeL2Payload(ctx context.Context, from peer.ID, msg *eth.ExecutionPayloadEnvelope) error {
+func (f *FilterSelf) OnUnsafeL2Payload(ctx context.Context, chainID eth.ChainID, from peer.ID, msg *eth.ExecutionPayloadEnvelope) error {
 	if f.self == from {
 		return nil // ignore blocks that we published ourselves
 	}
-	return f.inner.OnUnsafeL2Payload(ctx, from, msg)
+	return f.inner.OnUnsafeL2Payload(ctx, chainID, from, msg)
 }

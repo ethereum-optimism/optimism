@@ -200,6 +200,9 @@ func (s *ChainProcessor) index() {
 	}
 	s.log.Debug("Idling indexing, reached latest block", "head", target)
 	s.running.Store(false)
+	s.emitter.Emit(s.systemContext, superevents.ChainIndexingIdleEvent{
+		ChainID: s.chain,
+	})
 }
 
 // nextActiveClient advances the client index and sets the active client.

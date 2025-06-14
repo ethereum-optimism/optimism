@@ -24,7 +24,14 @@ const (
 	InteropOverrideFlagName            = "override.interop"
 )
 
-func CLIFlags(envPrefix string, category string) []cli.Flag {
+func CLIFlags(envPrefix string, category string) (out []cli.Flag) {
+	out = append(out, OverrideCLIFlags(envPrefix, category)...)
+	out = append(out, CLINetworkFlag(envPrefix, category))
+	out = append(out, CLIRollupConfigFlag(envPrefix, category))
+	return out
+}
+
+func OverrideCLIFlags(envPrefix string, category string) []cli.Flag {
 	return []cli.Flag{
 		&cli.Uint64Flag{
 			Name:     CanyonOverrideFlagName,
@@ -89,8 +96,6 @@ func CLIFlags(envPrefix string, category string) []cli.Flag {
 			Hidden:   false,
 			Category: category,
 		},
-		CLINetworkFlag(envPrefix, category),
-		CLIRollupConfigFlag(envPrefix, category),
 	}
 }
 

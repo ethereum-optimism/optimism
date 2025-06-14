@@ -78,6 +78,7 @@ func (cfg *L1EndpointConfig) Setup(ctx context.Context, log log.Logger, defaultC
 		client.WithHttpPollInterval(cfg.HttpPollInterval),
 		client.WithDialAttempts(10),
 		client.WithRPCRecorder(metrics.NewRecorder("l1")),
+		client.WithLazyDial(),
 	}
 	if cfg.RateLimit != 0 {
 		opts = append(opts, client.WithRateLimit(cfg.RateLimit, cfg.BatchSize))

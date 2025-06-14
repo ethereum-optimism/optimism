@@ -12,6 +12,7 @@ import (
 )
 
 type ReceivedBlockEvent struct {
+	ChainID  eth.ChainID
 	From     peer.ID
 	Envelope *eth.ExecutionPayloadEnvelope
 }
@@ -21,7 +22,7 @@ func (ev ReceivedBlockEvent) String() string {
 }
 
 type BlockReceiverMetrics interface {
-	RecordReceivedUnsafePayload(payload *eth.ExecutionPayloadEnvelope)
+	RecordReceivedUnsafePayload(chainID eth.ChainID, payload *eth.ExecutionPayloadEnvelope)
 }
 
 // BlockReceiver can be plugged into the P2P gossip stack,
@@ -42,11 +43,11 @@ func NewBlockReceiver(log log.Logger, em event.Emitter, metrics BlockReceiverMet
 	}
 }
 
-func (g *BlockReceiver) OnUnsafeL2Payload(ctx context.Context, from peer.ID, msg *eth.ExecutionPayloadEnvelope) error {
+func (g *BlockReceiver) OnUnsafeL2Payload(ctx context.Context, chainID eth.ChainID, from peer.ID, msg *eth.ExecutionPayloadEnvelope) error {
 	g.log.Debug("Received signed execution payload from p2p",
 		"id", msg.ExecutionPayload.ID(),
 		"peer", from, "txs", len(msg.ExecutionPayload.Transactions))
-	g.metrics.RecordReceivedUnsafePayload(msg)
-	g.emitter.Emit(ctx, ReceivedBlockEvent{From: from, Envelope: msg})
+	g.metrics.RecordReceivedUnsafePayload(chainID, msg)
+	g.emitter.Emit(ctx, ReceivedBlockEvent{ChainID: chainID, From: from, Envelope: msg})
 	return nil
 }

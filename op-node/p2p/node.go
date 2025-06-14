@@ -160,11 +160,17 @@ func (n *NodeP2P) init(
 	// notify of any new connections/streams/etc.
 	n.host.Network().Notify(NewNetworkNotifier(log, metrics))
 	// note: the IDDelta functionality was removed from libP2P, and no longer needs to be explicitly disabled.
-	n.gs, err = NewGossipSub(resourcesCtx, n.host, rollupCfg, setup, n.scorer, metrics, log)
+
+	gossipChainCfg := &SingleChainGossip{
+		RollupCfg:        rollupCfg,
+		P2PSequencerAuth: runCfg,
+	}
+	n.gs, err = NewGossipSub(resourcesCtx, n.host, gossipChainCfg, setup, n.scorer, metrics, log)
 	if err != nil {
 		return fmt.Errorf("failed to start gossipsub router: %w", err)
 	}
-	n.gsOut, err = JoinGossip(n.host.ID(), n.gs, log, rollupCfg, runCfg, gossipIn)
+
+	n.gsOut, err = JoinGossip(n.host.ID(), n.gs, log, gossipChainCfg, gossipIn)
 	if err != nil {
 		return fmt.Errorf("failed to join blocks gossip topic: %w", err)
 	}
@@ -176,7 +182,8 @@ func (n *NodeP2P) init(
 	}
 
 	// All nil if disabled.
-	n.dv5Local, n.dv5Udp, err = setup.Discovery(log.New("p2p", "discv5"), rollupCfg, tcpPort)
+	n.dv5Local, n.dv5Udp, err = setup.Discovery(log.New("p2p", "discv5"),
+		WithSingleChainOPStackENR(rollupCfg), tcpPort)
 	if err != nil {
 		return fmt.Errorf("failed to start discv5: %w", err)
 	}
@@ -242,7 +249,7 @@ func (n *NodeP2P) GetPeerScore(id peer.ID) (float64, error) {
 }
 
 func (n *NodeP2P) IsStatic(id peer.ID) bool {
-	return n.connMgr != nil && n.connMgr.IsProtected(id, staticPeerTag)
+	return n.connMgr != nil && n.connMgr.IsProtected(id, StaticPeerTag)
 }
 
 func (n *NodeP2P) BanPeer(id peer.ID, expiration time.Time) error {
@@ -273,6 +280,10 @@ func (n *NodeP2P) BanIP(ip net.IP, expiration time.Time) error {
 		}
 	}
 	return nil
+}
+
+func (n *NodeP2P) DiscoveryProcess(ctx context.Context, log log.Logger, nodeFilter NodeFilter, connectGoal uint) {
+	DiscoveryProcess(ctx, log, n, nodeFilter, connectGoal)
 }
 
 func (n *NodeP2P) Close() error {

@@ -42,10 +42,11 @@ func CLIFlagsWithFlagPrefix(envPrefix string, flagPrefix string, category string
 	}
 	return []cli.Flag{
 		&cli.BoolFlag{
-			Name:    prefixFunc(TLSEnabledFlagName),
-			Usage:   "Enable or disable TLS client authentication for the signer",
-			Value:   defaultTLSEnabled,
-			EnvVars: prefixEnvVars("TLS_ENABLED"),
+			Name:     prefixFunc(TLSEnabledFlagName),
+			Usage:    "Enable or disable TLS client authentication for the signer",
+			Value:    defaultTLSEnabled,
+			EnvVars:  prefixEnvVars("TLS_ENABLED"),
+			Category: category,
 		},
 		&cli.StringFlag{
 			Name:     prefixFunc(TLSCaCertFlagName),

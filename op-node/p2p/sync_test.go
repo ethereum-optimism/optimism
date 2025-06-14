@@ -141,7 +141,7 @@ func TestSinglePeerSync(t *testing.T) {
 
 	// collect received payloads in a buffered channel, so we can verify we get everything
 	received := make(chan *eth.ExecutionPayloadEnvelope, 100)
-	receivePayload := receivePayloadFn(func(ctx context.Context, from peer.ID, payload *eth.ExecutionPayloadEnvelope) error {
+	receivePayload := receivePayloadFn(func(ctx context.Context, chainID eth.ChainID, from peer.ID, payload *eth.ExecutionPayloadEnvelope) error {
 		received <- payload
 		return nil
 	})
@@ -214,7 +214,7 @@ func TestMultiPeerSync(t *testing.T) {
 
 		// collect received payloads in a buffered channel, so we can verify we get everything
 		received := make(chan *eth.ExecutionPayloadEnvelope, 100)
-		receivePayload := receivePayloadFn(func(ctx context.Context, from peer.ID, payload *eth.ExecutionPayloadEnvelope) error {
+		receivePayload := receivePayloadFn(func(ctx context.Context, chainID eth.ChainID, from peer.ID, payload *eth.ExecutionPayloadEnvelope) error {
 			received <- payload
 			return nil
 		})
@@ -368,7 +368,7 @@ func TestNetworkNotifyAddPeerAndRemovePeer(t *testing.T) {
 	require.NoError(t, err, "failed to launch host B")
 	defer hostB.Close()
 
-	syncCl := NewSyncClient(log, cfg, hostA, func(ctx context.Context, from peer.ID, payload *eth.ExecutionPayloadEnvelope) error {
+	syncCl := NewSyncClient(log, cfg, hostA, func(ctx context.Context, chainID eth.ChainID, from peer.ID, payload *eth.ExecutionPayloadEnvelope) error {
 		return nil
 	}, metrics.NoopMetrics, &NoopApplicationScorer{})
 

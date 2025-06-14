@@ -57,7 +57,7 @@ const (
 	payloadTxMemOverhead uint64 = 24
 )
 
-func payloadMemSize(p *eth.ExecutionPayloadEnvelope) uint64 {
+func PayloadMemSize(p *eth.ExecutionPayloadEnvelope) uint64 {
 	out := payloadMemFixedCost
 	if p == nil {
 		return out
@@ -81,6 +81,8 @@ type PayloadsQueue struct {
 	currentSize uint64
 	MaxSize     uint64
 	blockHashes map[common.Hash]struct{}
+	firstByNum  map[uint64]*eth.ExecutionPayloadEnvelope
+	highest     *eth.ExecutionPayloadEnvelope
 	SizeFn      func(p *eth.ExecutionPayloadEnvelope) uint64
 	log         log.Logger
 }
@@ -91,6 +93,8 @@ func NewPayloadsQueue(log log.Logger, maxSize uint64, sizeFn func(p *eth.Executi
 		currentSize: 0,
 		MaxSize:     maxSize,
 		blockHashes: make(map[common.Hash]struct{}),
+		firstByNum:  make(map[uint64]*eth.ExecutionPayloadEnvelope),
+		highest:     nil,
 		SizeFn:      sizeFn,
 		log:         log,
 	}
@@ -131,6 +135,13 @@ func (upq *PayloadsQueue) Push(e *eth.ExecutionPayloadEnvelope) error {
 		env := upq.Pop()
 		upq.log.Info("Dropping payload from payload queue because the payload queue is too large", "id", env.ExecutionPayload.ID())
 	}
+	num := uint64(e.ExecutionPayload.BlockNumber)
+	if _, ok := upq.firstByNum[num]; !ok {
+		upq.firstByNum[num] = e
+	}
+	if upq.highest == nil || uint64(upq.highest.ExecutionPayload.BlockNumber) < num {
+		upq.highest = e
+	}
 	upq.blockHashes[e.ExecutionPayload.BlockHash] = struct{}{}
 	return nil
 }
@@ -145,6 +156,11 @@ func (upq *PayloadsQueue) Peek() *eth.ExecutionPayloadEnvelope {
 	return upq.pq[0].envelope
 }
 
+// Last retrieves the payload with the highest block number from the queue in O(1), or nil if the queue is empty.
+func (upq *PayloadsQueue) Last() *eth.ExecutionPayloadEnvelope {
+	return upq.highest
+}
+
 // Pop removes the payload with the lowest block number from the queue in O(log(N)),
 // and may return nil if the queue is empty.
 func (upq *PayloadsQueue) Pop() *eth.ExecutionPayloadEnvelope {
@@ -154,6 +170,29 @@ func (upq *PayloadsQueue) Pop() *eth.ExecutionPayloadEnvelope {
 	ps := heap.Pop(&upq.pq).(payloadAndSize) // nosemgrep
 	upq.currentSize -= ps.size
 	// remove the key from the block hashes map
-	delete(upq.blockHashes, ps.envelope.ExecutionPayload.BlockHash)
+	hash := ps.envelope.ExecutionPayload.BlockHash
+	delete(upq.blockHashes, hash)
+	num := uint64(ps.envelope.ExecutionPayload.BlockNumber)
+	// Once we pop the first-seen payload with this number, also unregister it from first-seen.
+	if prev, ok := upq.firstByNum[num]; ok && prev.ID() == ps.envelope.ID() {
+		delete(upq.firstByNum, num)
+	}
+	// if we removed the highest, then unset highest.
+	if upq.highest != nil && upq.highest.ID() == ps.envelope.ID() {
+		upq.highest = nil
+	}
+	// If we have another remaining payload with the same number, then register that as new block.
+	if first := upq.Peek(); first != nil {
+		if uint64(first.ExecutionPayload.BlockNumber) == num {
+			upq.firstByNum[num] = first
+		}
+		if upq.highest == nil { // possible when we have equivocating highest blocks
+			upq.highest = first
+		}
+	}
 	return ps.envelope
+}
+
+func (upq *PayloadsQueue) ByNumber(num uint64) *eth.ExecutionPayloadEnvelope {
+	return upq.firstByNum[num]
 }

@@ -39,7 +39,7 @@ type Metricer interface {
 	RecordEmittedEvent(eventName string, emitter string)
 	RecordProcessedEvent(eventName string, deriver string, duration time.Duration)
 	RecordEventsRateLimited()
-	RecordReceivedUnsafePayload(payload *eth.ExecutionPayloadEnvelope)
+	RecordReceivedUnsafePayload(chainID eth.ChainID, payload *eth.ExecutionPayloadEnvelope)
 	RecordRef(layer string, name string, num uint64, timestamp uint64, h common.Hash)
 	RecordL1Ref(name string, ref eth.L1BlockRef)
 	RecordL2Ref(name string, ref eth.L2BlockRef)
@@ -460,7 +460,7 @@ func (m *Metrics) RecordDerivationError() {
 	m.DerivationErrors.Record()
 }
 
-func (m *Metrics) RecordReceivedUnsafePayload(payload *eth.ExecutionPayloadEnvelope) {
+func (m *Metrics) RecordReceivedUnsafePayload(chainID eth.ChainID, payload *eth.ExecutionPayloadEnvelope) {
 	m.UnsafePayloads.Record()
 	m.RecordRef("l2", "received_payload", uint64(payload.ExecutionPayload.BlockNumber), uint64(payload.ExecutionPayload.Timestamp), payload.ExecutionPayload.BlockHash)
 }
@@ -662,7 +662,7 @@ func (n *noopMetricer) RecordPublishingError() {
 func (n *noopMetricer) RecordDerivationError() {
 }
 
-func (n *noopMetricer) RecordReceivedUnsafePayload(payload *eth.ExecutionPayloadEnvelope) {
+func (n *noopMetricer) RecordReceivedUnsafePayload(chainID eth.ChainID, payload *eth.ExecutionPayloadEnvelope) {
 }
 
 func (n *noopMetricer) RecordRef(layer string, name string, num uint64, timestamp uint64, h common.Hash) {

@@ -142,7 +142,7 @@ func (m *ManagedNode) OnEvent(ctx context.Context, ev event.Event) bool {
 		if x.ChainID != m.chainID {
 			return false
 		}
-		m.onFinalizedL2(x.FinalizedL2)
+		m.onFinalizedL2(x.FinalizedL2.Derived)
 	case superevents.ChainRewoundEvent:
 		if x.ChainID != m.chainID {
 			return false

@@ -33,9 +33,10 @@ func CLIFlags(envPrefix string, category string) []cli.Flag {
 			Category: category,
 		},
 		&cli.StringSliceFlag{
-			Name:    HeadersFlagName,
-			Usage:   "Headers to pass to the remote signer. Format `key=value`. Value can contain any character allowed in a HTTP header. When using env vars, split with commas. When using flags one key value pair per flag.",
-			EnvVars: opservice.PrefixEnvVar(envPrefix, "HEADER"),
+			Name:     HeadersFlagName,
+			Usage:    "Headers to pass to the remote signer. Format `key=value`. Value can contain any character allowed in a HTTP header. When using env vars, split with commas. When using flags one key value pair per flag.",
+			EnvVars:  opservice.PrefixEnvVar(envPrefix, "HEADER"),
+			Category: category,
 		},
 	}
 	flags = append(flags, optls.CLIFlagsWithFlagPrefix(envPrefix, "signer", category)...)

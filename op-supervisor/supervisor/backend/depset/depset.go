@@ -29,7 +29,7 @@ type DependencySet interface {
 
 // FromRegistry loads a dependency set from the superchain-registry.
 // Returns error of type superchain.ErrUnknownChain if the chain is not available in the superchain registry.
-func FromRegistry(chainID eth.ChainID) (DependencySet, error) {
+func FromRegistry(chainID eth.ChainID) (*StaticConfigDependencySet, error) {
 	id, ok := chainID.Uint64()
 	if !ok {
 		return nil, fmt.Errorf("%w: %v", superchain.ErrUnknownChain, chainID)
