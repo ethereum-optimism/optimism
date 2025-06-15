@@ -511,7 +511,7 @@ func (db *DB) find(reverse bool, acceptClosest bool, cmpFn func(link LinkEntry) 
 		entry, err := db.readAt(at)
 		if err != nil {
 			searchErr = err
-			return false
+			return true
 		}
 		return cmpFn(entry) >= 0
 	})
