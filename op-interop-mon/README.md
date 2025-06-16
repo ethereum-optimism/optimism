@@ -4,8 +4,7 @@
 The Optimism Interop Monitor is a service that monitors Executing Messages between OP Protocol chains to detect and report any invalid messages on chains. It helps ensure the reliability and correctness of cross-chain communication.
 
 Interop Monitor's primary output is a collection of metrics which can alert operators for fast response and insight.
-The design of this service follows the [Design Doc](https://github.com/ethereum-optimism/design-docs/pull/222),
-and boilerplate structure was pulled from the adjacent `op-dripper`.
+The design of this service follows the [Design Doc](https://github.com/ethereum-optimism/design-docs/pull/222).
 
 ## Architecture
 The service consists of several key components working together:
@@ -14,71 +13,73 @@ The service consists of several key components working together:
 - A set of RPC Clients specified from command line, and given to each sub-component
 - Multiple `Finder` instances that scan chains for relevant transactions
 - Multiple `Updater` instances that take `job`s for their chain and update them
-- A `Maintainer` that processes and tracks the state of Executing Messages
-- Metrics reporting for monitoring and alerting
+- A `MetricCollector` that regularly scans ongoing jobs to emit gauge metrics
 
-The components communicate through channels and maintain state about message status.
-
+The components use a collection of channels, callbacks and visitor-pattern style data collection to share Job information.
 
 ```mermaid
-architecture-beta
-  group mon(cloud)[opInteropMon]
+flowchart TD
 
-  service rfa(internet)[RPC_A]
-  service rua(internet)[RPC_A]
-  service rfb(internet)[RPC_B]
-  service rub(internet)[RPC_B]
+  subgraph op-node A
+    ra[RPC]
+  end
 
-  service m(database)[maintainer] in mon
-  service fa(disk)[Fetcher_A] in mon
-  service ub(disk)[Updater_B] in mon
-  service fb(disk)[Fetcher_B] in mon
-  service ua(disk)[Updater_A] in mon
+  subgraph op-node B
+    rb[RPC]
+  end
 
-  junction lm
-  junction lt
-  junction lb
+  subgraph grafana
+   g[Grafana]
+  end
 
-  junction rm
-  junction rt
-  junction rb
+  %% Main Monitoring Group
+  subgraph service["op-interop-mon"]
+    s[Service Routing]
+    m[Metric Collector]
+    fa[Chain A Finder]
+    fb[Chain B Finder]
+    ua[Chain A Updater️]
+    ub[Chain B Updater]
+  end
 
-  m:L<--R:lm
-  lm:T--B:lt
-  lm:B--T:lb
+  ra --"New Unsafe and Finalized Blocks"--> fa
+  ra --"Receipt Data for EM Validation"--> ua
+  fa --"Execcuting Messages and Finality" --> s
+  s --"New Jobs and Expiry Info" --> ub
+  rb --"New Unsafe and Finalized Blocks"--> fb
+  rb --"Receipt Data for EM Validation"--> ub
+  fb --"Executing Messages and Finality" --> s
+  s --"New Jobs and Expiry Info" --> ua
+  ua --"All Current Jobs"--> m
+  ub --"All Current Jobs"--> m
+  m --"Executing and Initiating Message Prometheus Stats"--> g
 
-  m:R<--L:rm
-  rm:T--B:rt
-  rm:B--T:rb
-
-  lt:L--R:fa
-  lb:L--R:fb
-
-  rt:R-->L:ua
-  rb:R-->L:ub
-
-  rfa:R-->L:fa
-  rfb:R-->L:fb
-
-  rua:L-->R:ua
-  rub:L-->R:ub
 ```
 
-## Maintainer
-The `Maintainer` is responsible for routing `job`s to updaters, and collecting metrics. It:
+## MetricCollector
+The `MetricCollector` consolidates metrics from all jobs across chains. It:
 
-- Receives `job`s from Finders
-- Sends `job`s to appropriate updaters
-- Collects all `job`s from updaters during Metric Collection
-- Emits Metrics after evaluating all `job`s
+- Scans all jobs from all updaters periodically
+- Tracks executing message metrics by:
+  - Chain ID
+  - Block number
+  - Block hash
+  - Message status
+- Tracks initiating message metrics by:
+  - Chain ID
+  - Block number
+  - Message status
+- Detects and records terminal state changes (valid->invalid or invalid->valid)
+- Emits metrics for:
+  - Executing message stats per chain/block/status
+  - Initiating message stats per chain/block/status
+  - Terminal status changes between chains
 
 ### Updaters
-`Updater`s are chain specific processors that take `job`s and update them. They can be used to batch requests and run in parallel, but
-are currently built naively. Each Updater:
-- Enqueues new `job`s to an inbox
+`Updater`s are chain specific processors that take `job`s and update them:
 - Maintains a map of all `job`s it is updating
 - Evaluates all `job`s regularly
-- Expires old `job`s
+- Expires old `job`s based on Finality of both Initiating and Executing side
 - Operates independently per chain
 
 ## Finders

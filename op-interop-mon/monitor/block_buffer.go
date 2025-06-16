@@ -54,3 +54,21 @@ func (r *BlockBuffer) Reset() {
 		r.buffer[i] = nil
 	}
 }
+
+func (r *BlockBuffer) Pop() (eth.BlockInfo, error) {
+	// if the buffer is empty, return an error
+	if r.total == 0 {
+		return nil, ErrBlockNotFound
+	}
+	// get the previous index, wrap around if necessary
+	prevIndex := (r.idx + len(r.buffer) - 1) % len(r.buffer)
+	block := r.buffer[prevIndex]
+	// if the block is nil, the buffer is empty
+	if block == nil {
+		return nil, ErrBlockNotFound
+	}
+	// decrement and wrap the index around the buffer
+	r.idx = prevIndex
+	r.total--
+	return block, nil
+}

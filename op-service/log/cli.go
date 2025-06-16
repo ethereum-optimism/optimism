@@ -1,6 +1,7 @@
 package log
 
 import (
+	"context"
 	"flag"
 	"fmt"
 	"io"
@@ -15,6 +16,7 @@ import (
 
 	opservice "github.com/ethereum-optimism/optimism/op-service"
 	"github.com/ethereum-optimism/optimism/op-service/cliapp"
+	"github.com/ethereum-optimism/optimism/op-service/log/logfilter"
 )
 
 const (
@@ -22,6 +24,14 @@ const (
 	FormatFlagName = "log.format"
 	ColorFlagName  = "log.color"
 	PidFlagName    = "log.pid"
+)
+
+// These flag configurations are used during testing, where level is set to trace.
+var (
+	flLevel  = flag.String(LevelFlagName, "trace", "Lowest log level that will be output")
+	flFormat = flag.String(FormatFlagName, "text", "Log format: text|terminal|logfmt|json|json-pretty")
+	flColor  = flag.Bool(ColorFlagName, false, "Color the log output if in terminal mode: true|false")
+	flPID    = flag.Bool(PidFlagName, false, "Show pid in the log")
 )
 
 func CLIFlags(envPrefix string) []cli.Flag {
@@ -230,7 +240,10 @@ func NewLogger(wr io.Writer, cfg CLIConfig) log.Logger {
 // Geth and other components may use the global logger however,
 // and it is thus recommended to set the global log handler to catch these logs.
 func SetGlobalLogHandler(h slog.Handler) {
-	log.SetDefault(log.NewLogger(h))
+	l := log.NewLogger(h)
+	ctx := logfilter.AddLogAttrToContext(context.Background(), "global", true)
+	l.SetContext(ctx)
+	log.SetDefault(l)
 }
 
 // DefaultCLIConfig creates a default log configuration.
@@ -254,17 +267,9 @@ func ReadCLIConfig(ctx *cli.Context) CLIConfig {
 	return cfg
 }
 
+// ReadTestCLIConfig reads the CLI config from flags and environment variables into a CLIConfig.
+// flag.Parse() must be called before calling this function.
 func ReadTestCLIConfig() CLIConfig {
-	cfg := DefaultCLIConfig()
-	cfg.Level = log.LevelTrace // Overriding this default with a new default for tests
-
-	flLevel := flag.String(LevelFlagName, "info", "Lowest log level that will be output")
-	flFormat := flag.String(FormatFlagName, "text", "Log format: text|terminal|logfmt|json|json-pretty")
-	flColor := flag.Bool(ColorFlagName, true, "Color the log output if in terminal mode: true|false")
-	flPID := flag.Bool(PidFlagName, false, "Show pid in the log")
-
-	flag.Parse()
-
 	if v := os.Getenv("LOG_LEVEL"); v != "" {
 		*flLevel = v
 	}
@@ -280,14 +285,13 @@ func ReadTestCLIConfig() CLIConfig {
 
 	lvl, err := LevelFromString(*flLevel)
 	if err != nil {
-		panic(err)
+		panic(fmt.Errorf("failed to parse log level: %w", err))
 	}
-	cfg.Level = lvl
 
-	cfg.Format = FormatType(*flFormat)
-	cfg.Color = *flColor
-	cfg.Pid = *flPID
-
-	return cfg
-
+	return CLIConfig{
+		Level:  lvl,
+		Format: FormatType(*flFormat),
+		Color:  term.IsTerminal(int(os.Stdout.Fd())) || *flColor,
+		Pid:    *flPID,
+	}
 }

@@ -12,6 +12,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/client"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/httputil"
+	"github.com/ethereum-optimism/optimism/op-service/locks"
 	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
 	"github.com/ethereum-optimism/optimism/op-service/oppprof"
 	oprpc "github.com/ethereum-optimism/optimism/op-service/rpc"
@@ -32,10 +33,10 @@ type InteropMonitorService struct {
 
 	InteropMonitorConfig
 
-	clients    map[eth.ChainID]*sources.EthClient
-	maintainer *Maintainer
-	finders    []Finder
-	updaters   []Updater
+	finders   map[eth.ChainID]Finder
+	updaters  map[eth.ChainID]Updater
+	collector *MetricCollector
+	expiry    *locks.RWMap[eth.ChainID, eth.NumberAndHash]
 
 	Version string
 
@@ -62,59 +63,110 @@ func (ms *InteropMonitorService) initFromCLIConfig(ctx context.Context, version 
 
 	ms.PollInterval = cfg.PollInterval
 
-	ms.maintainer = NewMaintainer(ms.Log, ms.Metrics)
+	// Initialize the expiry map
+	ms.expiry = locks.RWMapFromMap(make(map[eth.ChainID]eth.NumberAndHash))
 
-	ms.clients = make(map[eth.ChainID]*sources.EthClient)
-	for _, l2Rpc := range cfg.L2Rpcs {
-		if err := ms.dialAndRegister(ctx, l2Rpc); err != nil {
-			return fmt.Errorf("failed to dial and register: %w", err)
-		}
+	// Initialize all clients
+	clients, err := ms.initClients(ctx, cfg.L2Rpcs)
+	if err != nil {
+		return fmt.Errorf("failed to init clients: %w", err)
 	}
+
+	// Initialize all updaters
+	ms.updaters = make(map[eth.ChainID]Updater)
+	if err := ms.initUpdaters(clients); err != nil {
+		return fmt.Errorf("failed to init updaters: %w", err)
+	}
+
+	// Initialize all finders
+	ms.finders = make(map[eth.ChainID]Finder)
+	if err := ms.initFinders(clients); err != nil {
+		return fmt.Errorf("failed to init finders: %w", err)
+	}
+
+	// Initialize the metric collector, with access to all updaters
+	ms.collector = NewMetricCollector(ms.Log, ms.Metrics, ms.updaters)
 
 	if err := ms.initMetricsServer(cfg); err != nil {
-		return fmt.Errorf("failed to start metrics server: %w", err)
-	}
-	if err := ms.initPProf(cfg); err != nil {
-		return fmt.Errorf("failed to init pprof server: %w", err)
-	}
-	if err := ms.initRPCServer(cfg); err != nil {
-		return fmt.Errorf("failed to start rpc server: %w", err)
-	}
+		if err := ms.initMetricsServer(cfg); err != nil {
+			return fmt.Errorf("failed to start metrics server: %w", err)
+		}
+		if err := ms.initPProf(cfg); err != nil {
+			return fmt.Errorf("failed to init pprof server: %w", err)
+		}
+		if err := ms.initRPCServer(cfg); err != nil {
+			return fmt.Errorf("failed to start rpc server: %w", err)
+		}
 
-	ms.Metrics.RecordInfo(ms.Version)
-	ms.Metrics.RecordUp()
-	fmt.Println("initialized from cli config")
+		ms.Metrics.RecordInfo(ms.Version)
+		ms.Metrics.RecordUp()
+		fmt.Println("initialized from cli config")
+		return nil
+	}
 	return nil
 }
 
-func (ms *InteropMonitorService) dialAndRegister(ctx context.Context, l2Rpc string) error {
-	fmt.Println("dialing and registering", l2Rpc)
+// initClients initializes the clients for the given L2 RPCs
+func (ms *InteropMonitorService) initClients(ctx context.Context, l2Rpcs []string) (map[eth.ChainID]*sources.EthClient, error) {
+	clients := make(map[eth.ChainID]*sources.EthClient)
+	for _, l2Rpc := range l2Rpcs {
+		ethClient, err := ms.dial(ctx, l2Rpc)
+		if err != nil {
+			return nil, fmt.Errorf("failed to dial: %w", err)
+		}
+		chainIDBig, err := ethClient.ChainID(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get chain ID: %w", err)
+		}
+		chainID := eth.ChainIDFromBig(chainIDBig)
+		clients[chainID] = ethClient
+	}
+	return clients, nil
+}
+
+// dial dials a new client and returns it
+func (ms *InteropMonitorService) dial(ctx context.Context, l2Rpc string) (*sources.EthClient, error) {
 	client, err := client.NewRPC(ctx, ms.Log, l2Rpc)
 	if err != nil {
-		return fmt.Errorf("failed to create client: %w", err)
+		return nil, fmt.Errorf("failed to create client: %w", err)
 	}
 	ethClient, err := sources.NewEthClient(client, ms.Log, nil, sources.DefaultEthClientConfig(1000))
 	if err != nil {
-		return fmt.Errorf("failed to create eth client: %w", err)
+		return nil, fmt.Errorf("failed to create eth client: %w", err)
 	}
-	fmt.Println("created eth client")
-	chainIDBig, err := ethClient.ChainID(ctx)
-	if err != nil {
-		return fmt.Errorf("failed to get chain ID: %w", err)
-	}
-	chainID := eth.ChainIDFromBig(chainIDBig)
-	ms.clients[chainID] = ethClient
-	fmt.Println("added eth client to map")
+	return ethClient, nil
+}
 
-	finder := NewFinder(chainID, ethClient, BlockReceiptsToJobs, ms.maintainer.EnqueueNew, ms.Log)
-	updater := NewUpdater(chainID, ethClient, ms.Log)
-	ms.finders = append(ms.finders, finder)
-	ms.updaters = append(ms.updaters, updater)
-	ms.maintainer.AddClient(chainID, ethClient)
-	ms.maintainer.AddFinder(chainID, finder)
-	ms.maintainer.AddUpdater(chainID, updater)
-	fmt.Println("added finder and updater to maintainer")
+// initUpdaters initializes the updaters for the given clients
+func (ms *InteropMonitorService) initUpdaters(clients map[eth.ChainID]*sources.EthClient) error {
+	for chainID, ethClient := range clients {
+		updater := NewUpdater(chainID, ethClient, ms.expiry, ms.Log)
+		ms.updaters[chainID] = updater
+	}
 	return nil
+}
+
+// initFinders initializes the finders for the given clients
+func (ms *InteropMonitorService) initFinders(clients map[eth.ChainID]*sources.EthClient) error {
+	for chainID, ethClient := range clients {
+		finder := NewFinder(chainID, ethClient, BlockReceiptsToJobs, ms.RouteNewJob, ms.SetExpiry, 1000, ms.Log)
+		ms.finders[chainID] = finder
+	}
+	return nil
+}
+
+// RouteNewJob routes a new job to the appropriate updater by simply enqueuing to the initiating chain's updater
+func (ms *InteropMonitorService) RouteNewJob(job *Job) {
+	if updater, ok := ms.updaters[job.initiating.ChainID]; ok {
+		updater.Enqueue(job)
+	} else {
+		ms.Log.Error("no updater found for chain ID", "chain_id", job.initiating.ChainID)
+	}
+}
+
+// SetExpiry sets the expiry for a chain ID
+func (ms *InteropMonitorService) SetExpiry(chainID eth.ChainID, expiry eth.BlockInfo) {
+	ms.expiry.Set(chainID, expiry)
 }
 
 func (ms *InteropMonitorService) initMetrics(cfg *CLIConfig) {
@@ -182,7 +234,7 @@ func (ms *InteropMonitorService) initRPCServer(cfg *CLIConfig) error {
 }
 
 func (ms *InteropMonitorService) Start(ctx context.Context) error {
-	err := ms.maintainer.Start()
+	err := ms.collector.Start()
 	if err != nil {
 		return fmt.Errorf("failed to start maintainer: %w", err)
 	}
@@ -231,7 +283,7 @@ func (ms *InteropMonitorService) Stop(ctx context.Context) error {
 	}
 
 	ms.Log.Info("stopping maintainer")
-	if err := ms.maintainer.Stop(); err != nil {
+	if err := ms.collector.Stop(); err != nil {
 		result = errors.Join(result, fmt.Errorf("failed to stop maintainer: %w", err))
 		ms.Log.Error("failed to stop maintainer", "error", err)
 	}
@@ -267,6 +319,6 @@ func (ms *InteropMonitorService) Stop(ctx context.Context) error {
 
 var _ cliapp.Lifecycle = (*InteropMonitorService)(nil)
 
-func (ms *InteropMonitorService) Maintainer() *Maintainer {
-	return ms.maintainer
+func (ms *InteropMonitorService) Maintainer() *MetricCollector {
+	return ms.collector
 }

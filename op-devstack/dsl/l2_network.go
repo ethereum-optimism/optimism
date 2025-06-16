@@ -94,34 +94,48 @@ func (n *L2Network) PrintChain() {
 	biAddr := n.inner.RollupConfig().BatchInboxAddress
 	dgfAddr := n.inner.Deployment().DisputeGameFactoryProxyAddr()
 
-	ref := n.unsafeHeadRef()
-
 	var entries []string
-	totalL2Txs := 0
-	for i := ref.Number; i > 0; i-- {
-		ref, err := l2_el.L2EthClient().L2BlockRefByNumber(n.ctx, i)
-		n.require.NoError(err, "Expected to get block ref by hash")
+	var totalL2Txs int
+	err := retry.Do0(n.ctx, 3, &retry.FixedStrategy{Dur: 200 * time.Millisecond}, func() error {
+		entries = []string{}
+		totalL2Txs = 0
 
-		_, l2Txs, err := l2_el.EthClient().InfoAndTxsByHash(n.ctx, ref.Hash)
-		n.require.NoError(err, "Expected to get block ref by hash")
+		ref := n.unsafeHeadRef()
 
-		_, txs, err := l1_el.EthClient().InfoAndTxsByHash(n.ctx, ref.L1Origin.Hash)
-		n.require.NoError(err, "Expected to get info and txs by hash from L1")
-
-		var batchTxs, dgfTxs int
-		for _, tx := range txs {
-			to := tx.To()
-			if to != nil && *to == biAddr {
-				batchTxs++
+		for i := ref.Number; i > 0; i-- {
+			ref, err := l2_el.L2EthClient().L2BlockRefByNumber(n.ctx, i)
+			if err != nil {
+				return err
 			}
-			if to != nil && *to == dgfAddr {
-				dgfTxs++
+
+			_, l2Txs, err := l2_el.EthClient().InfoAndTxsByHash(n.ctx, ref.Hash)
+			if err != nil {
+				return err
 			}
+
+			_, txs, err := l1_el.EthClient().InfoAndTxsByHash(n.ctx, ref.L1Origin.Hash)
+			if err != nil {
+				return err
+			}
+
+			var batchTxs, dgfTxs int
+			for _, tx := range txs {
+				to := tx.To()
+				if to != nil && *to == biAddr {
+					batchTxs++
+				}
+				if to != nil && *to == dgfAddr {
+					dgfTxs++
+				}
+			}
+
+			entries = append(entries, fmt.Sprintf("Time: %d Block: %s Parent: %s L1 Origin: %s Txs (L2: %d; Batch: %d; DGF: %d)", ref.Time, ref, ref.ParentID(), ref.L1Origin, len(l2Txs), batchTxs, dgfTxs))
+			totalL2Txs += len(l2Txs)
 		}
 
-		entries = append(entries, fmt.Sprintf("Time: %d Block: %s Parent: %s L1 Origin: %s Txs (L2: %d; Batch: %d; DGF: %d)", ref.Time, ref, ref.ParentID(), ref.L1Origin, len(l2Txs), batchTxs, dgfTxs))
-		totalL2Txs += len(l2Txs)
-	}
+		return nil
+	})
+	n.require.NoError(err, "could not PrintChain after many attempts")
 
 	syncStatus, err := l2_cl.RollupAPI().SyncStatus(n.ctx)
 	n.require.NoError(err, "Expected to get sync status")
