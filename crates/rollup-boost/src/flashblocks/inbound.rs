@@ -254,7 +254,7 @@ mod tests {
 
         // start a new server with the same address
         let (term, send_msg, _, _url) = start(addr).await?;
-        let _ = send_msg
+        send_msg
             .send(FlashblocksPayloadV1::default())
             .await
             .expect("Failed to send message");
@@ -282,7 +282,7 @@ mod tests {
 
         // even if we do not send any messages, we should receive pings to keep the connection alive
         for _ in 0..10 {
-            let _ = ping_rx.recv().await.expect("Failed to receive ping");
+            ping_rx.recv().await.expect("Failed to receive ping");
         }
 
         Ok(())

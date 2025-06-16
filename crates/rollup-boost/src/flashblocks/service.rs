@@ -246,19 +246,35 @@ impl FlashblocksService {
                 );
 
                 // make sure the payload id matches the current payload id
-                if *self.current_payload_id.read().await != payload.payload_id {
+                let local_payload_id = *self.current_payload_id.read().await;
+                if local_payload_id != payload.payload_id {
                     self.metrics.current_payload_id_mismatch.increment(1);
-                    error!(message = "Payload ID mismatch",);
+                    error!(
+                        message = "Payload ID mismatch",
+                        payload_id = %payload.payload_id,
+                        %local_payload_id,
+                        index = payload.index,
+                    );
                     return;
                 }
 
                 if let Err(e) = self.best_payload.write().await.extend(payload.clone()) {
                     self.metrics.extend_payload_errors.increment(1);
-                    error!(message = "Failed to extend payload", error = %e);
+                    error!(
+                        message = "Failed to extend payload",
+                        error = %e,
+                        payload_id = %payload.payload_id,
+                        index = payload.index,
+                    );
                 } else {
                     // Broadcast the valid message
                     if let Err(e) = self.ws_pub.publish(&payload) {
-                        error!(message = "Failed to broadcast payload", error = %e);
+                        error!(
+                            message = "Failed to broadcast payload",
+                            error = %e,
+                            payload_id = %payload.payload_id,
+                            index = payload.index,
+                        );
                     }
                 }
             }
