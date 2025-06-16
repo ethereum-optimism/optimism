@@ -29,15 +29,11 @@ func (o *Orchestrator) hydrateL1(system stack.ExtensibleSystem) {
 
 	opts := []client.RPCOption{}
 
-	txTimeout := 5 * time.Minute
-	switch o.compatType {
-	case compat.Kurtosis:
-		txTimeout = 30 * time.Second
-	case compat.Persistent:
+	txTimeout := 30 * time.Second
+	if o.compatType == compat.Persistent {
+		txTimeout = 5 * time.Minute
 		// Increase the timeout by default for persistent devnets, but not for kurtosis
 		opts = append(opts, client.WithCallTimeout(time.Minute*5), client.WithBatchCallTimeout(time.Minute*10))
-	default:
-		panic(fmt.Sprintf("unknown compat type: %s", o.compatType))
 	}
 
 	for idx, node := range env.Env.L1.Nodes {
