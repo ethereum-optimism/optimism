@@ -82,10 +82,13 @@ func TestParseSpecErrors(t *testing.T) {
 			yaml: `
 optimism_package:
   chains:
-    - participants:
-        - el_type: op-geth
-      additional_services:
-        - blockscout`,
+    op_kurtosis:
+      participants:
+        node0:
+          el:
+            type: op-geth
+      blockscout_params:
+        enabled: true`,
 		},
 		{
 			name: "missing chains",
