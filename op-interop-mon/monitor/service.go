@@ -236,7 +236,7 @@ func (ms *InteropMonitorService) initRPCServer(cfg *CLIConfig) error {
 func (ms *InteropMonitorService) Start(ctx context.Context) error {
 	err := ms.collector.Start()
 	if err != nil {
-		return fmt.Errorf("failed to start maintainer: %w", err)
+		return fmt.Errorf("failed to start metric collector: %w", err)
 	}
 	for _, updater := range ms.updaters {
 		if err := updater.Start(ctx); err != nil {
@@ -282,10 +282,10 @@ func (ms *InteropMonitorService) Stop(ctx context.Context) error {
 		}
 	}
 
-	ms.Log.Info("stopping maintainer")
+	ms.Log.Info("stopping metric collector")
 	if err := ms.collector.Stop(); err != nil {
-		result = errors.Join(result, fmt.Errorf("failed to stop maintainer: %w", err))
-		ms.Log.Error("failed to stop maintainer", "error", err)
+		result = errors.Join(result, fmt.Errorf("failed to stop metric collector: %w", err))
+		ms.Log.Error("failed to stop metric collector", "error", err)
 	}
 
 	ms.Log.Info("stopping rpc server")
@@ -318,7 +318,3 @@ func (ms *InteropMonitorService) Stop(ctx context.Context) error {
 }
 
 var _ cliapp.Lifecycle = (*InteropMonitorService)(nil)
-
-func (ms *InteropMonitorService) Maintainer() *MetricCollector {
-	return ms.collector
-}

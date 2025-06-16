@@ -88,7 +88,7 @@ The `MetricCollector` consolidates metrics from all jobs across chains. It:
 - Subscribes to new blocks on its assigned chain
 - Processes block receipts to identify Executing Messages
 - Creates `job`s for each relevant transaction found
-- Sends `job`s to the Maintainer for tracking
+- Sends `job`s to the Finders (via a centralized router)
 - Operates independently per chain
 
 ## Jobs
@@ -99,4 +99,4 @@ The `MetricCollector` consolidates metrics from all jobs across chains. It:
 - Current status and status history
 - More, as needed by the service
 
-`job`s move through different states (unknown -> valid/invalid/missing) as the Maintainer processes them.
+`job`s move through different states (unknown -> valid/invalid/missing) as the updater processes them.

@@ -28,7 +28,7 @@ type UpdaterClient interface {
 
 var _ UpdaterClient = &sources.EthClient{}
 
-// Updaters are responsible for updating jobs from a chain for the Maintainer to track
+// Updaters are responsible for updating jobs from a chain for the metric collector to track
 type Updater interface {
 	Start(ctx context.Context) error
 	Enqueue(job *Job)
