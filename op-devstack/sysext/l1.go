@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/ethereum-optimism/optimism/op-devstack/compat"
 	"github.com/ethereum-optimism/optimism/op-devstack/shim"
 	"github.com/ethereum-optimism/optimism/op-devstack/stack"
 	"github.com/ethereum-optimism/optimism/op-service/client"
@@ -29,13 +30,14 @@ func (o *Orchestrator) hydrateL1(system stack.ExtensibleSystem) {
 	opts := []client.RPCOption{}
 
 	txTimeout := 5 * time.Minute
-	if o.isKurtosis() {
+	switch o.compatType {
+	case compat.Kurtosis:
 		txTimeout = 30 * time.Second
-	}
-
-	// Increase the timeout by default for persistent devnets, but not for kurtosis
-	if !o.isKurtosis() {
+	case compat.Persistent:
+		// Increase the timeout by default for persistent devnets, but not for kurtosis
 		opts = append(opts, client.WithCallTimeout(time.Minute*5), client.WithBatchCallTimeout(time.Minute*10))
+	default:
+		panic(fmt.Sprintf("unknown compat type: %s", o.compatType))
 	}
 
 	for idx, node := range env.Env.L1.Nodes {

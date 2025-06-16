@@ -113,10 +113,6 @@ func (o *Orchestrator) isInterop() bool {
 	return isInterop(o.env.Env) && len(o.env.Env.L2) > 0
 }
 
-func (o *Orchestrator) isKurtosis() bool {
-	return strings.HasPrefix(os.Getenv("DEVNET_ENV_URL"), "kt://")
-}
-
 func WithPrivatePorts() OrchestratorOption {
 	return func(orchestrator *Orchestrator) {
 		orchestrator.usePrivatePorts = true
