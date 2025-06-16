@@ -19,7 +19,7 @@ optimism_package:
       network_params:
         network_id: "3151909"
       blockscout_params:
-	    enabled: true
+        enabled: true
     op-rollup-two:
       participants:
         node0:
