@@ -428,12 +428,10 @@ contract DeployOPChain is Script {
         _doo.set(_doo.permissionedDisputeGame.selector, address(deployOutput.permissionedDisputeGame));
         _doo.set(_doo.delayedWETHPermissionedGameProxy.selector, address(deployOutput.delayedWETHPermissionedGameProxy));
         // TODO: Eventually switch from Permissioned to Permissionless.
-        if (address(deployOutput.delayedWETHPermissionlessGameProxy) != address(0)) {
-            _doo.set(
-                _doo.delayedWETHPermissionlessGameProxy.selector,
-                address(deployOutput.delayedWETHPermissionlessGameProxy)
-            );
-        }
+        // _doo.set(
+        //     _doo.delayedWETHPermissionlessGameProxy.selector,
+        //     address(deployOutput.delayedWETHPermissionlessGameProxy)
+        // );
 
         checkOutput(_doi, _doo);
     }
