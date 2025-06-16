@@ -184,12 +184,16 @@ func (t *RPCUpdater) UpdateJob(job *Job) error {
 }
 
 func (t *RPCUpdater) UpdateJobStatus(job *Job) {
-	_, receipts, err := t.client.FetchReceiptsByNumber(context.Background(), job.initiating.BlockNumber)
+	blockInfo, receipts, err := t.client.FetchReceiptsByNumber(context.Background(), job.initiating.BlockNumber)
 	if err != nil {
 		t.log.Error("error getting block receipts", "error", err)
 		job.UpdateStatus(jobStatusUnknown)
 		return
 	}
+
+	// Add the block hash to the job's initiating hashes
+	job.AddInitiatingHash(blockInfo.Hash())
+
 	log, err := t.findLogEvent(receipts, job)
 	if err == ErrLogNotFound {
 		t.log.Error("log not found", "error", err)
