@@ -33,6 +33,7 @@ reth-rpc-builder = { workspace = true, optional = true }
 reth-exex = { workspace = true, optional = true }
 reth-transaction-pool = { workspace = true, optional = true }
 reth-trie = { workspace = true, optional = true }
+reth-trie-db = { workspace = true, optional = true }
 reth-node-builder = { workspace = true, optional = true }
 reth-tasks = { workspace = true, optional = true }
 reth-cli-util = { workspace = true, optional = true }
@@ -84,6 +85,7 @@ test-utils = [
     "reth-trie?/test-utils",
     "reth-transaction-pool?/test-utils",
     "reth-node-builder?/test-utils",
+    "reth-trie-db?/test-utils",
 ]
 
 full = ["consensus", "evm", "node", "provider", "rpc", "trie", "pool", "network"]
@@ -106,7 +108,7 @@ node = [
     "dep:reth-optimism-node",
     "dep:reth-node-builder",
     "rpc",
-    "trie",
+    "trie-db",
 ]
 rpc = [
     "tasks",
@@ -123,3 +125,4 @@ provider = ["storage-api", "tasks", "dep:reth-provider", "dep:reth-db"]
 pool = ["dep:reth-transaction-pool"]
 storage-api = ["dep:reth-storage-api"]
 trie = ["dep:reth-trie"]
+trie-db = ["trie", "dep:reth-trie-db"]
