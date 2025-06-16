@@ -150,7 +150,7 @@ func createTestServiceMap() inspect.ServiceMap {
 				networkIDLabel: "2151908",
 			},
 		},
-		"op-cl-2151908-1-op-node-op-geth-op-kurtosis-1": &inspect.Service{
+		"op-cl-2151908-1": &inspect.Service{
 			Ports: inspect.PortMap{
 				"http":          &descriptors.PortInfo{Port: 32785},
 				"metrics":       &descriptors.PortInfo{Port: 32786},
@@ -158,8 +158,13 @@ func createTestServiceMap() inspect.ServiceMap {
 				"tcp-discovery": &descriptors.PortInfo{Port: 32787},
 				"udp-discovery": &descriptors.PortInfo{Port: 32771},
 			},
+			Labels: map[string]string{
+				kindLabel:      "cl",
+				networkIDLabel: "2151908",
+				nodeIndexLabel: "0",
+			},
 		},
-		"op-el-2151908-1-op-geth-op-node-op-kurtosis-1": &inspect.Service{
+		"op-el-2151908-1": &inspect.Service{
 			Ports: inspect.PortMap{
 				"engine-rpc":    &descriptors.PortInfo{Port: 32782},
 				"metrics":       &descriptors.PortInfo{Port: 32783},
@@ -167,6 +172,11 @@ func createTestServiceMap() inspect.ServiceMap {
 				"tcp-discovery": &descriptors.PortInfo{Port: 32784},
 				"udp-discovery": &descriptors.PortInfo{Port: 32770},
 				"ws":            &descriptors.PortInfo{Port: 32781},
+			},
+			Labels: map[string]string{
+				kindLabel:      "el",
+				networkIDLabel: "2151908",
+				nodeIndexLabel: "0",
 			},
 		},
 		"proxyd-2151908": &inspect.Service{
@@ -201,7 +211,7 @@ func createTestServiceMap() inspect.ServiceMap {
 				networkIDLabel: "2151909",
 			},
 		},
-		"op-cl-2151909-1-op-node-op-geth-op-kurtosis-2": &inspect.Service{
+		"op-cl-2151909-1": &inspect.Service{
 			Ports: inspect.PortMap{
 				"http":          &descriptors.PortInfo{Port: 32800},
 				"metrics":       &descriptors.PortInfo{Port: 32801},
@@ -209,8 +219,13 @@ func createTestServiceMap() inspect.ServiceMap {
 				"tcp-discovery": &descriptors.PortInfo{Port: 32802},
 				"udp-discovery": &descriptors.PortInfo{Port: 32773},
 			},
+			Labels: map[string]string{
+				kindLabel:      "cl",
+				networkIDLabel: "2151909",
+				nodeIndexLabel: "0",
+			},
 		},
-		"op-el-2151909-1-op-geth-op-node-op-kurtosis-2": &inspect.Service{
+		"op-el-2151909-1": &inspect.Service{
 			Ports: inspect.PortMap{
 				"engine-rpc":    &descriptors.PortInfo{Port: 32797},
 				"metrics":       &descriptors.PortInfo{Port: 32798},
@@ -218,6 +233,11 @@ func createTestServiceMap() inspect.ServiceMap {
 				"tcp-discovery": &descriptors.PortInfo{Port: 32799},
 				"udp-discovery": &descriptors.PortInfo{Port: 32772},
 				"ws":            &descriptors.PortInfo{Port: 32796},
+			},
+			Labels: map[string]string{
+				kindLabel:      "el",
+				networkIDLabel: "2151909",
+				nodeIndexLabel: "0",
 			},
 		},
 		"proxyd-2151909": &inspect.Service{

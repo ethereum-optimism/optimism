@@ -2,7 +2,6 @@ package kurtosis
 
 import (
 	"encoding/json"
-	"slices"
 	"strconv"
 	"strings"
 
@@ -26,10 +25,6 @@ type ServiceFinder struct {
 	depsets  map[string]descriptors.DepSet
 
 	triagedServices []*triagedService
-
-	// TODO: remove once we move node services recognition to labels
-	nodeNames2Index map[string]int
-	nodeNextIndex   int
 }
 
 // ServiceFinderOption configures a ServiceFinder
@@ -55,9 +50,6 @@ func NewServiceFinder(services inspect.ServiceMap, opts ...ServiceFinderOption) 
 		services:        services,
 		nodeServices:    []string{"cl", "el"},
 		l2ServicePrefix: "op-",
-
-		nodeNames2Index: make(map[string]int),
-		nodeNextIndex:   0,
 	}
 	for _, opt := range opts {
 		opt(f)
@@ -225,6 +217,7 @@ const (
 	kindLabel      = "op.kind"
 	networkIDLabel = "op.network.id"
 	nodeNameLabel  = "op.network.participant.name"
+	nodeIndexLabel = "op.network.participant.index"
 )
 
 func (f *ServiceFinder) triageByLabels(svc *inspect.Service, name string, endpoints descriptors.EndpointMap) *triagedService {
@@ -236,20 +229,13 @@ func (f *ServiceFinder) triageByLabels(svc *inspect.Service, name string, endpoi
 	if !ok {
 		return nil
 	}
-
-	// TODO: we really don't need numeric index for nodes, but it's a quick fix until
-	// we move node services recognition to labels entirely.
 	idx := -1
-	if slices.Contains(f.nodeServices, tag) { // those are grouped into nodes
-		if name, ok := svc.Labels[nodeNameLabel]; ok {
-			if val, ok := f.nodeNames2Index[name]; ok {
-				idx = val
-			} else {
-				idx = f.nodeNextIndex
-				f.nodeNames2Index[name] = idx
-				f.nodeNextIndex++
-			}
+	if val, ok := svc.Labels[nodeIndexLabel]; ok {
+		i, err := strconv.Atoi(val)
+		if err != nil {
+			return nil
 		}
+		idx = i
 	}
 	return &triagedService{
 		tag: tag,
