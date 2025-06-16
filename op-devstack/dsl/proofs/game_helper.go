@@ -55,7 +55,7 @@ func (g *FaultDisputeGameHelper) Attack(eoa *dsl.EOA, claimIdx int64, newClaim c
 	newPosition := claim.Position.Attack().ToGIndex()
 	requiredBond := contract.Read(g.game.GetRequiredBond(newPosition))
 
-	receipt := contract.Write(eoa, g.game.Attack(claim.Value, claim.Position.ToGIndex(), newClaim), txplan.WithValue(requiredBond))
+	receipt := contract.Write(eoa, g.game.Attack(claim.Value, big.NewInt(claimIdx), newClaim), txplan.WithValue(requiredBond))
 	g.require.Equal(types.ReceiptStatusSuccessful, receipt.Status)
 }
 
