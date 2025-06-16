@@ -8,7 +8,9 @@ import { UnsupportedStateVersion } from "src/cannon/libraries/CannonErrors.sol";
 import { IPreimageOracle } from "interfaces/cannon/IPreimageOracle.sol";
 import { IMIPS2 } from "interfaces/cannon/IMIPS2.sol";
 
-contract MIPS64_Test is Test {
+/// @title MIPS64_TestInit
+/// @notice Reusable test initialization for `MIPS64` tests.
+contract MIPS64_TestInit is Test {
     IPreimageOracle oracle;
 
     // Store some data about acceptable versions
@@ -36,6 +38,21 @@ contract MIPS64_Test is Test {
         }
     }
 
+    /// @notice Deploys new MIPS64 contract with the given version parameter.
+    function deployVm(uint256 version) internal returns (IMIPS2) {
+        return IMIPS2(
+            DeployUtils.create1({
+                _name: "MIPS64",
+                _args: DeployUtils.encodeConstructor(abi.encodeCall(IMIPS2.__constructor__, (oracle, version)))
+            })
+        );
+    }
+}
+
+/// @title MIPS64_Unclassified_Test
+/// @notice General tests that are not testing any function directly of the `MIPS64` contract or
+///         are testing multiple functions at once.
+contract MIPS64_Unclassified_Test is MIPS64_TestInit {
     /// @notice Test the we can deploy MIPS64 with a valid version parameter.
     function test_deploy_supportedVersions_succeeds() external {
         for (uint256 i = 0; i < validVersions.length; i++) {
@@ -55,15 +72,5 @@ contract MIPS64_Test is Test {
             vm.expectRevert(abi.encodeWithSelector(UnsupportedStateVersion.selector));
             deployVm(ver);
         }
-    }
-
-    /// @notice Deploys new MIPS64 contract with the given version parameter.
-    function deployVm(uint256 version) internal returns (IMIPS2) {
-        return IMIPS2(
-            DeployUtils.create1({
-                _name: "MIPS64",
-                _args: DeployUtils.encodeConstructor(abi.encodeCall(IMIPS2.__constructor__, (oracle, version)))
-            })
-        );
     }
 }

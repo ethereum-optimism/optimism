@@ -21,7 +21,7 @@ func TestReorgUnsafeHead(gt *testing.T) {
 	sys := presets.NewSimpleInterop(t)
 	l := sys.Log
 
-	ia := sys.TestSequencer.Escape().IndividualAPI(sys.L2ChainA.ChainID())
+	ia := sys.TestSequencer.Escape().ControlAPI(sys.L2ChainA.ChainID())
 
 	// stop batcher on chain A
 	sys.L2BatcherA.Stop()
@@ -43,8 +43,7 @@ func TestReorgUnsafeHead(gt *testing.T) {
 	var originalRef_A eth.L2BlockRef
 	// prepare and sequence a conflicting block for the L2A chain
 	{
-		unsafeHeadRef, err := sys.L2ELA.Escape().L2EthClient().L2BlockRefByHash(ctx, unsafeHead)
-		require.NoError(t, err, "Expected to be able to call L2BlockRefByHash API, but got error")
+		unsafeHeadRef := sys.L2ELA.BlockRefByLabel(eth.Unsafe)
 
 		l.Info("Current unsafe ref", "unsafeHead", unsafeHead, "parent", unsafeHeadRef.ParentID().Hash, "l1_origin", unsafeHeadRef.L1Origin)
 
@@ -60,7 +59,7 @@ func TestReorgUnsafeHead(gt *testing.T) {
 
 		// sequence a conflicting block with a simple transfer tx, based on the parent of the parent of the unsafe head
 		{
-			err = ia.New(ctx, seqtypes.BuildOpts{
+			err := ia.New(ctx, seqtypes.BuildOpts{
 				Parent:   parentOfUnsafeHead.Hash,
 				L1Origin: nil,
 			})
@@ -92,7 +91,7 @@ func TestReorgUnsafeHead(gt *testing.T) {
 	{
 		l.Info("Sequencing with op-test-sequencer (no L1 origin override)")
 		err := ia.New(ctx, seqtypes.BuildOpts{
-			Parent:   sys.L2ChainA.UnsafeHeadRef().Hash,
+			Parent:   sys.L2ELA.BlockRefByLabel(eth.Unsafe).Hash,
 			L1Origin: nil,
 		})
 		require.NoError(t, err, "Expected to be able to create a new block job for sequencing on op-test-sequencer, but got error")

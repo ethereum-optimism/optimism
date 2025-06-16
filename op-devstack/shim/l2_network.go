@@ -39,15 +39,15 @@ type presetL2Network struct {
 
 	els locks.RWMap[stack.L2ELNodeID, stack.L2ELNode]
 	cls locks.RWMap[stack.L2CLNodeID, stack.L2CLNode]
+
+	conductors locks.RWMap[stack.ConductorID, stack.Conductor]
+	fbBuilders locks.RWMap[stack.FlashblocksBuilderID, stack.FlashblocksBuilderNode]
 }
 
 var _ stack.L2Network = (*presetL2Network)(nil)
 
 func NewL2Network(cfg L2NetworkConfig) stack.ExtensibleL2Network {
-	ctx := cfg.T.Ctx()
-	ctx = stack.ContextWithKind(ctx, stack.L2NetworkKind)
-	ctx = stack.ContextWithChainID(ctx, cfg.ID.ChainID())
-	cfg.T = cfg.T.WithCtx(ctx, "chainID", cfg.ID.ChainID(), "id", cfg.ID)
+	cfg.T = cfg.T.WithCtx(stack.ContextWithID(cfg.T.Ctx(), cfg.ID))
 	// sanity-check the configs match the expected chains
 	require.Equal(cfg.T, cfg.ID.ChainID(), eth.ChainIDFromBig(cfg.NetworkConfig.ChainConfig.ChainID), "chain config must match expected chain")
 	require.Equal(cfg.T, cfg.L1.ChainID(), eth.ChainIDFromBig(cfg.RollupConfig.L1ChainID), "rollup config must match expected L1 chain")
@@ -106,8 +106,30 @@ func (p *presetL2Network) L2Batcher(m stack.L2BatcherMatcher) stack.L2Batcher {
 
 func (p *presetL2Network) AddL2Batcher(v stack.L2Batcher) {
 	id := v.ID()
-	p.require().Equal(p.chainID, id.ChainID, "l2 batcher %s must be on chain %s", id, p.chainID)
+	p.require().Equal(p.chainID, id.ChainID(), "l2 batcher %s must be on chain %s", id, p.chainID)
 	p.require().True(p.batchers.SetIfMissing(id, v), "l2 batcher %s must not already exist", id)
+}
+
+func (p *presetL2Network) Conductor(m stack.ConductorMatcher) stack.Conductor {
+	v, ok := findMatch(m, p.conductors.Get, p.Conductors)
+	p.require().True(ok, "must find L2 conductor %s", m)
+	return v
+}
+
+func (p *presetL2Network) AddConductor(v stack.Conductor) {
+	id := v.ID()
+	p.require().True(p.conductors.SetIfMissing(id, v), "conductor %s must not already exist", id)
+}
+
+func (p *presetL2Network) FlashblocksBuilder(m stack.FlashblocksBuilderMatcher) stack.FlashblocksBuilderNode {
+	v, ok := findMatch(m, p.fbBuilders.Get, p.FlashblocksBuilders)
+	p.require().True(ok, "must find flashblocks builder %s", m)
+	return v
+}
+
+func (p *presetL2Network) AddFlashblocksBuilder(v stack.FlashblocksBuilderNode) {
+	id := v.ID()
+	p.require().True(p.fbBuilders.SetIfMissing(id, v), "flashblocks builder %s must not already exist", id)
 }
 
 func (p *presetL2Network) L2Proposer(m stack.L2ProposerMatcher) stack.L2Proposer {
@@ -118,7 +140,7 @@ func (p *presetL2Network) L2Proposer(m stack.L2ProposerMatcher) stack.L2Proposer
 
 func (p *presetL2Network) AddL2Proposer(v stack.L2Proposer) {
 	id := v.ID()
-	p.require().Equal(p.chainID, id.ChainID, "l2 proposer %s must be on chain %s", id, p.chainID)
+	p.require().Equal(p.chainID, id.ChainID(), "l2 proposer %s must be on chain %s", id, p.chainID)
 	p.require().True(p.proposers.SetIfMissing(id, v), "l2 proposer %s must not already exist", id)
 }
 
@@ -142,7 +164,7 @@ func (p *presetL2Network) L2CLNode(m stack.L2CLMatcher) stack.L2CLNode {
 
 func (p *presetL2Network) AddL2CLNode(v stack.L2CLNode) {
 	id := v.ID()
-	p.require().Equal(p.chainID, id.ChainID, "l2 CL node %s must be on chain %s", id, p.chainID)
+	p.require().Equal(p.chainID, id.ChainID(), "l2 CL node %s must be on chain %s", id, p.chainID)
 	p.require().True(p.cls.SetIfMissing(id, v), "l2 CL node %s must not already exist", id)
 }
 
@@ -154,7 +176,7 @@ func (p *presetL2Network) L2ELNode(m stack.L2ELMatcher) stack.L2ELNode {
 
 func (p *presetL2Network) AddL2ELNode(v stack.L2ELNode) {
 	id := v.ID()
-	p.require().Equal(p.chainID, id.ChainID, "l2 EL node %s must be on chain %s", id, p.chainID)
+	p.require().Equal(p.chainID, id.ChainID(), "l2 EL node %s must be on chain %s", id, p.chainID)
 	p.require().True(p.els.SetIfMissing(id, v), "l2 EL node %s must not already exist", id)
 }
 
@@ -180,6 +202,16 @@ func (p *presetL2Network) L2ChallengerIDs() []stack.L2ChallengerID {
 
 func (p *presetL2Network) L2Challengers() []stack.L2Challenger {
 	return stack.SortL2Challengers(p.challengers.Values())
+}
+
+func (p *presetL2Network) Conductors() []stack.Conductor {
+	output := stack.SortConductors(p.conductors.Values())
+	p.require().NotEmpty(output, "l2 chain %s must have at least one conductor", p.ID())
+	return output
+}
+
+func (p *presetL2Network) FlashblocksBuilders() []stack.FlashblocksBuilderNode {
+	return stack.SortFlashblocksBuilders(p.fbBuilders.Values())
 }
 
 func (p *presetL2Network) L2CLNodeIDs() []stack.L2CLNodeID {

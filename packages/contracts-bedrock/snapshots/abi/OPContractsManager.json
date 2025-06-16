@@ -840,6 +840,19 @@
     "type": "function"
   },
   {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": false,
+        "internalType": "bool",
+        "name": "_isRC",
+        "type": "bool"
+      }
+    ],
+    "name": "Released",
+    "type": "event"
+  },
+  {
     "inputs": [
       {
         "internalType": "address",

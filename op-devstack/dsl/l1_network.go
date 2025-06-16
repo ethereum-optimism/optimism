@@ -2,7 +2,6 @@ package dsl
 
 import (
 	"fmt"
-	"time"
 
 	"github.com/davecgh/go-spew/spew"
 	"github.com/ethereum-optimism/optimism/op-devstack/stack"
@@ -50,10 +49,10 @@ func (n *L1Network) PrintChain() {
 
 	var entries []string
 	for i := unsafeHeadRef.NumberU64(); i > 0; i-- {
-		ref, err := l1_el.EthClient().BlockRefByNumber(n.ctx, i)
+		ref, txs, err := l1_el.EthClient().InfoAndTxsByNumber(n.ctx, i)
 		n.require.NoError(err, "Expected to get block ref by number")
 
-		entries = append(entries, fmt.Sprintln("Time: ", time.Unix(int64(ref.Time), 0).Format(time.RFC3339), "Number: ", ref.Number, "Hash: ", ref.Hash.Hex(), "Parent: ", ref.ParentID().Hash.Hex()))
+		entries = append(entries, fmt.Sprintf("Time: %d Block: %s Txs: %d Parent: %s", ref.Time(), eth.InfoToL1BlockRef(ref), len(txs), ref.ParentHash()))
 	}
 
 	n.log.Info("Printing block hashes and parent hashes", "network", n.String(), "chain", n.ChainID())

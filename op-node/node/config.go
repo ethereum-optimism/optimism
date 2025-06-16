@@ -154,13 +154,11 @@ func (cfg *Config) Check() error {
 			return fmt.Errorf("misconfigured L1 Beacon API endpoint: %w", err)
 		}
 	}
-	if cfg.Rollup.InteropTime != nil {
-		if cfg.InteropConfig == nil {
-			return fmt.Errorf("the Interop upgrade is scheduled (timestamp = %d) but no interop node config is set", *cfg.Rollup.InteropTime)
-		}
-		if err := cfg.InteropConfig.Check(); err != nil {
-			return fmt.Errorf("misconfigured interop: %w", err)
-		}
+	if cfg.InteropConfig == nil {
+		return errors.New("missing interop config")
+	}
+	if err := cfg.InteropConfig.Check(); err != nil {
+		return fmt.Errorf("misconfigured interop: %w", err)
 	}
 	if err := cfg.Rollup.Check(); err != nil {
 		return fmt.Errorf("rollup config error: %w", err)

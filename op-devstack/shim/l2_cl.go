@@ -37,10 +37,7 @@ var _ stack.L2CLNode = (*rpcL2CLNode)(nil)
 var _ stack.LinkableL2CLNode = (*rpcL2CLNode)(nil)
 
 func NewL2CLNode(cfg L2CLNodeConfig) stack.L2CLNode {
-	ctx := cfg.T.Ctx()
-	ctx = stack.ContextWithKind(ctx, stack.L2CLNodeKind)
-	ctx = stack.ContextWithChainID(ctx, cfg.ID.ChainID)
-	cfg.T = cfg.T.WithCtx(ctx, "chainID", cfg.ID.ChainID, "id", cfg.ID)
+	cfg.T = cfg.T.WithCtx(stack.ContextWithID(cfg.T.Ctx(), cfg.ID))
 	return &rpcL2CLNode{
 		commonImpl:       newCommon(cfg.CommonConfig),
 		id:               cfg.ID,

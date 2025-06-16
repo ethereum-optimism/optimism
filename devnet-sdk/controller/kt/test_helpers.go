@@ -44,6 +44,10 @@ func (m *testServiceContext) GetPrivatePorts() map[string]interfaces.PortSpec {
 	return m.privatePorts
 }
 
+func (m *testServiceContext) GetLabels() map[string]string {
+	return make(map[string]string)
+}
+
 // mockEnclaveFS implements fs.EnclaveContextIface for testing
 type mockEnclaveFS struct {
 	env *descriptors.DevnetEnvironment

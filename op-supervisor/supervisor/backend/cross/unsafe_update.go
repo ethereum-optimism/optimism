@@ -9,11 +9,14 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup/event"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/depset"
+	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/reads"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/superevents"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 )
 
 type CrossUnsafeDeps interface {
+	reads.Acquirer
+
 	CrossUnsafe(chainID eth.ChainID) (types.BlockSeal, error)
 
 	UnsafeStartDeps
@@ -25,6 +28,9 @@ type CrossUnsafeDeps interface {
 }
 
 func CrossUnsafeUpdate(logger log.Logger, chainID eth.ChainID, d CrossUnsafeDeps, linker depset.LinkChecker) error {
+	h := d.AcquireHandle()
+	defer h.Release()
+
 	var candidate types.BlockSeal
 
 	// fetch cross-head to determine next cross-unsafe candidate
@@ -48,6 +54,7 @@ func CrossUnsafeUpdate(logger log.Logger, chainID eth.ChainID, d CrossUnsafeDeps
 		}
 		candidate = types.BlockSealFromRef(bl)
 	}
+	h.DependOnDerivedTime(candidate.Timestamp)
 
 	hazards, err := CrossUnsafeHazards(d, linker, logger, chainID, candidate)
 	if err != nil {
@@ -59,6 +66,11 @@ func CrossUnsafeUpdate(logger log.Logger, chainID eth.ChainID, d CrossUnsafeDeps
 	}
 	if err := HazardCycleChecks(d, candidate.Timestamp, hazards); err != nil {
 		return fmt.Errorf("failed to verify block %s in cross-unsafe check for cycle hazards: %w", candidate, err)
+	}
+
+	if !h.IsValid() {
+		logger.Warn("Reads were inconsistent, aborting cross-unsafe update", "aborted", candidate)
+		return types.ErrInvalidatedRead
 	}
 
 	// promote the candidate block to cross-unsafe

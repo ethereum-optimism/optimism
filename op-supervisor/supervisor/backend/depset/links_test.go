@@ -80,7 +80,8 @@ func TestLinkChecker(t *testing.T) {
 	req.True(linker.CanExecute(chainA, 2399, chainB, 2000), "near expiry")
 	req.True(linker.CanExecute(chainA, 2400, chainB, 2000), "at expiry")
 	req.False(linker.CanExecute(chainA, 2401, chainB, 2000), "expired")
-	req.False(linker.CanExecute(chainA, (^uint64(0))-200, chainB, (^uint64(0))-300), "claimed init msg causes overflow")
+	// Technicality: if executing close to the end, and not expiring until after the end, allow it.
+	req.True(linker.CanExecute(chainA, (^uint64(0))-200, chainB, (^uint64(0))-300), "claimed init msg causes overflow")
 
 	req.True(linker.CanExecute(chainA, 1001, chainA, 1001), "with self")
 	req.False(linker.CanExecute(chainA, 1001, chainA, 1000), "no init at activation")

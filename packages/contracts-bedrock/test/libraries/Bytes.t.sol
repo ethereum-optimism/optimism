@@ -13,9 +13,38 @@ contract Bytes_Harness {
     }
 }
 
-contract Bytes_slice_Test is Test {
+/// @title Bytes_TestInit
+/// @notice Reusable test initialization for `Bytes` tests.
+contract Bytes_TestInit is Test {
     Bytes_Harness harness;
 
+    /// @notice Manually checks equality of two dynamic `bytes` arrays in memory.
+    /// @param _a The first `bytes` array to compare.
+    /// @param _b The second `bytes` array to compare.
+    /// @return True if the two `bytes` arrays are equal in memory.
+    function manualEq(bytes memory _a, bytes memory _b) internal pure returns (bool) {
+        bool _eq;
+        assembly {
+            _eq :=
+                and(
+                    // Check if the contents of the two bytes arrays are equal in memory.
+                    eq(keccak256(add(0x20, _a), mload(_a)), keccak256(add(0x20, _b), mload(_b))),
+                    // Check if the length of the two bytes arrays are equal in memory.
+                    // This is redundant given the above check, but included for completeness.
+                    eq(mload(_a), mload(_b))
+                )
+        }
+        return _eq;
+    }
+
+    function setUp() public {
+        harness = new Bytes_Harness();
+    }
+}
+
+/// @title Bytes_Slice_Test
+/// @notice Tests the `slice` function of the `Bytes` library.
+contract Bytes_Slice_Test is Bytes_TestInit {
     /// @notice Tests that the `slice` function works as expected when starting from index 0.
     function test_slice_fromZeroIdx_works() public pure {
         bytes memory input = hex"11223344556677889900";
@@ -52,9 +81,9 @@ contract Bytes_slice_Test is Test {
         assertEq(Bytes.slice(input, 1, 9), hex"223344556677889900");
     }
 
-    /// @notice Tests that the `slice` function works as expected when slicing between multiple words
-    ///         in memory. In this case, we test that a 2 byte slice between the 32nd byte of the
-    ///         first word and the 1st byte of the second word is correct.
+    /// @notice Tests that the `slice` function works as expected when slicing between multiple
+    ///         words in memory. In this case, we test that a 2 byte slice between the 32nd byte of
+    ///         the first word and the 1st byte of the second word is correct.
     function test_slice_acrossWords_works() public pure {
         bytes memory input =
             hex"00000000000000000000000000000000000000000000000000000000000000112200000000000000000000000000000000000000000000000000000000000000";
@@ -63,8 +92,8 @@ contract Bytes_slice_Test is Test {
     }
 
     /// @notice Tests that the `slice` function works as expected when slicing between multiple
-    ///         words in memory. In this case, we test that a 34 byte slice between 3 separate words
-    ///        returns the correct result.
+    ///         words in memory. In this case, we test that a 34 byte slice between 3 separate
+    ///         words returns the correct result.
     function test_slice_acrossMultipleWords_works() public pure {
         bytes memory input =
             hex"000000000000000000000000000000000000000000000000000000000000001122FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF1100000000000000000000000000000000000000000000000000000000000000";
@@ -112,13 +141,13 @@ contract Bytes_slice_Test is Test {
             // If the slice length is zero, only 32 bytes of memory should have been allocated.
             assertEq(finalPtr, initPtr + 0x20);
         } else {
-            // If the slice length is greater than zero, the memory allocated should be the
-            // length of the slice rounded up to the next 32 byte word + 32 bytes for the
-            // length of the byte array.
+            // If the slice length is greater than zero, the memory allocated should be the length
+            // of the slice rounded up to the next 32 byte word + 32 bytes for the length of the
+            // byte array.
             //
-            // Note that we use a slightly less efficient, but equivalent method of rounding
-            // up `_length` to the next multiple of 32 than is used in the `slice` function.
-            // This is to diff test the method used in `slice`.
+            // Note that we use a slightly less efficient, but equivalent method of rounding up
+            // `_length` to the next multiple of 32 than is used in the `slice` function. This is
+            // to diff test the method used in `slice`.
             uint64 _expectedPtr = uint64(((initPtr + 0x20 + _length + 0x1F) >> 5) << 5);
             assertEq(finalPtr, _expectedPtr);
 
@@ -129,17 +158,9 @@ contract Bytes_slice_Test is Test {
         // The slice length should be equal to `_length`
         assertEq(slice.length, _length);
     }
-}
 
-contract Bytes_slice_TestFail is Test {
-    Bytes_Harness harness;
-
-    function setUp() public {
-        harness = new Bytes_Harness();
-    }
-
-    /// @notice Tests that, when given an input bytes array of length `n`, the `slice` function will
-    ///         always revert if `_start + _length > n`.
+    /// @notice Tests that, when given an input bytes array of length `n`, the `slice` function
+    ///         will always revert if `_start + _length > n`.
     function testFuzz_slice_outOfBounds_reverts(bytes memory _input, uint256 _start, uint256 _length) public {
         // We want a valid start index that will not overflow.
         if (_input.length == 0) {
@@ -173,8 +194,8 @@ contract Bytes_slice_TestFail is Test {
     ///         `type(uint256).max - n`, the `slice` function reverts.
     ///         The calls to `bound` are to reduce the number of times that `assume` is triggered.
     function testFuzz_slice_rangeOverflows_reverts(bytes memory _input, uint256 _start, uint256 _length) public {
-        // Ensure that `_length` is a realistic length of a slice. This is to make sure
-        // we revert on the correct require statement.
+        // Ensure that `_length` is a realistic length of a slice. This is to make sure we revert
+        // on the correct require statement.
         _length = bound(_length, 0, _input.length == 0 ? 0 : _input.length - 1);
         vm.assume(_length < _input.length);
 
@@ -187,7 +208,9 @@ contract Bytes_slice_TestFail is Test {
     }
 }
 
-contract Bytes_toNibbles_Test is Test {
+/// @title Bytes_ToNibbles_Test
+/// @notice Tests the `toNibbles` function of the `Bytes` library.
+contract Bytes_ToNibbles_Test is Bytes_TestInit {
     /// @notice Tests that, given an input of 5 bytes, the `toNibbles` function returns an array of
     ///         10 nibbles corresponding to the input data.
     function test_toNibbles_expectedResult5Bytes_works() public pure {
@@ -228,8 +251,8 @@ contract Bytes_toNibbles_Test is Test {
         assertEq(actual, expected);
     }
 
-    /// @notice Tests that the `toNibbles` function correctly updates the free memory pointer depending
-    ///         on the length of the resulting array.
+    /// @notice Tests that the `toNibbles` function correctly updates the free memory pointer
+    ///         depending on the length of the resulting array.
     function testFuzz_toNibbles_memorySafety_succeeds(bytes memory _input) public {
         // Grab the free memory pointer before the `toNibbles` operation
         uint64 initPtr;
@@ -257,12 +280,12 @@ contract Bytes_toNibbles_Test is Test {
             // If the input length is zero, only 32 bytes of memory should have been allocated.
             assertEq(finalPtr, initPtr + 0x20);
         } else {
-            // If the input length is greater than zero, the memory allocated should be the
-            // length of the input * 2 + 32 bytes for the length field.
+            // If the input length is greater than zero, the memory allocated should be the length
+            // of the input * 2 + 32 bytes for the length field.
             //
-            // Note that we use a slightly less efficient, but equivalent method of rounding
-            // up `_length` to the next multiple of 32 than is used in the `toNibbles` function.
-            // This is to diff test the method used in `toNibbles`.
+            // Note that we use a slightly less efficient, but equivalent method of rounding up
+            // `_length` to the next multiple of 32 than is used in the `toNibbles` function. This
+            // is to diff test the method used in `toNibbles`.
             uint64 _expectedPtr = uint64(initPtr + 0x20 + (((_input.length * 2 + 0x1F) >> 5) << 5));
             assertEq(finalPtr, _expectedPtr);
 
@@ -275,26 +298,9 @@ contract Bytes_toNibbles_Test is Test {
     }
 }
 
-contract Bytes_equal_Test is Test {
-    /// @notice Manually checks equality of two dynamic `bytes` arrays in memory.
-    /// @param _a The first `bytes` array to compare.
-    /// @param _b The second `bytes` array to compare.
-    /// @return True if the two `bytes` arrays are equal in memory.
-    function manualEq(bytes memory _a, bytes memory _b) internal pure returns (bool) {
-        bool _eq;
-        assembly {
-            _eq :=
-                and(
-                    // Check if the contents of the two bytes arrays are equal in memory.
-                    eq(keccak256(add(0x20, _a), mload(_a)), keccak256(add(0x20, _b), mload(_b))),
-                    // Check if the length of the two bytes arrays are equal in memory.
-                    // This is redundant given the above check, but included for completeness.
-                    eq(mload(_a), mload(_b))
-                )
-        }
-        return _eq;
-    }
-
+/// @title Bytes_Equal_Test
+/// @notice Tests the `equal` function of the `Bytes` library.
+contract Bytes_Equal_Test is Bytes_TestInit {
     /// @notice Tests that the `equal` function in the `Bytes` library returns `false` if given two
     ///         non-equal byte arrays.
     function testFuzz_equal_notEqual_works(bytes memory _a, bytes memory _b) public pure {

@@ -40,20 +40,14 @@ func (o *Orchestrator) hydrateL1(system stack.ExtensibleSystem) {
 				Client:       o.rpcClient(t, elService, RPCProtocol, "/"),
 				ChainID:      l1ID,
 			},
-			ID: stack.L1ELNodeID{
-				Key:     elService.Name,
-				ChainID: l1ID,
-			},
+			ID: stack.NewL1ELNodeID(elService.Name, l1ID),
 		}))
 
 		clService, ok := node.Services[CLServiceName]
 		require.True(ok, "need L1 CL service %d", idx)
 
 		l1.AddL1CLNode(shim.NewL1CLNode(shim.L1CLNodeConfig{
-			ID: stack.L1CLNodeID{
-				Key:     clService.Name,
-				ChainID: l1ID,
-			},
+			ID:           stack.NewL1CLNodeID(clService.Name, l1ID),
 			CommonConfig: commonConfig,
 			Client:       o.httpClient(t, clService, HTTPProtocol, "/"),
 		}))
@@ -64,7 +58,7 @@ func (o *Orchestrator) hydrateL1(system stack.ExtensibleSystem) {
 			l1.AddFaucet(shim.NewFaucet(shim.FaucetConfig{
 				CommonConfig: commonConfig,
 				Client:       o.rpcClient(t, instance, RPCProtocol, fmt.Sprintf("/chain/%s", env.Env.L1.Config.ChainID.String())),
-				ID:           stack.FaucetID{Key: instance.Name, ChainID: l1ID},
+				ID:           stack.NewFaucetID(instance.Name, l1ID),
 			}))
 		}
 	}

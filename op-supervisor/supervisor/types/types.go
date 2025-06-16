@@ -305,6 +305,9 @@ const (
 )
 
 type ExecutingDescriptor struct {
+	// ChainID of the executing message
+	ChainID eth.ChainID
+
 	// Timestamp is the timestamp of the executing message
 	Timestamp uint64
 
@@ -313,51 +316,15 @@ type ExecutingDescriptor struct {
 	Timeout uint64
 }
 
-func (ed *ExecutingDescriptor) AccessCheck(expiryWindow uint64, initMsgTimestamp uint64) error {
-	// Check upper-bound invariant, strictly
-	// (for access-lists we don't afford to check intra-timestamp dependencies)
-	if ed.Timestamp < initMsgTimestamp {
-		return fmt.Errorf("message broke timestamp invariant: exec: %d, init: %d, %w",
-			ed.Timestamp, initMsgTimestamp, ErrConflict)
-	}
-	if ed.Timestamp == initMsgTimestamp {
-		return fmt.Errorf("access-list check does not allow intra-timestamp (%d): %w", ed.Timestamp, ErrConflict)
-	}
-
-	// Check message expiry
-	expiryAt := initMsgTimestamp + expiryWindow
-	if expiryAt < initMsgTimestamp {
-		return fmt.Errorf("message timestamp too high, overflows: %d, %w",
-			initMsgTimestamp, ErrConflict)
-	}
-	if ed.Timestamp > expiryAt {
-		return fmt.Errorf("cannot message execute at %d, message expired at %d: %w",
-			ed.Timestamp, expiryAt, ErrConflict)
-	}
-	if ed.Timeout == 0 {
-		// If no timeout, then just checking the exact execution time was sufficient
-		return nil
-	}
-
-	// If a timeout is set, check if executing late is still within the expiry window
-	if ed.Timestamp+ed.Timeout < ed.Timestamp {
-		return fmt.Errorf("message timeout too high, overflows: %d, %w",
-			ed.Timestamp, ErrConflict)
-	}
-	if v := ed.Timestamp + ed.Timeout; v > expiryAt {
-		return fmt.Errorf("cannot execute message at timeout %d, expired at %d: %w",
-			v, expiryAt, ErrConflict)
-	}
-	return nil
-}
-
 type executingDescriptorMarshaling struct {
+	ChainID   eth.ChainID    `json:"chainID"`
 	Timestamp hexutil.Uint64 `json:"timestamp"`
 	Timeout   hexutil.Uint64 `json:"timeout,omitempty"`
 }
 
 func (ed ExecutingDescriptor) MarshalJSON() ([]byte, error) {
 	var enc executingDescriptorMarshaling
+	enc.ChainID = ed.ChainID
 	enc.Timestamp = hexutil.Uint64(ed.Timestamp)
 	enc.Timeout = hexutil.Uint64(ed.Timeout)
 	return json.Marshal(&enc)
@@ -368,24 +335,16 @@ func (ed *ExecutingDescriptor) UnmarshalJSON(input []byte) error {
 	if err := json.Unmarshal(input, &dec); err != nil {
 		return err
 	}
+	ed.ChainID = dec.ChainID
 	ed.Timestamp = uint64(dec.Timestamp)
 	ed.Timeout = uint64(dec.Timeout)
 	return nil
 }
 
-type ReferenceView struct {
-	Local eth.BlockID `json:"local"`
-	Cross eth.BlockID `json:"cross"`
-}
-
-func (v ReferenceView) String() string {
-	return fmt.Sprintf("View(local: %s, cross: %s)", v.Local, v.Cross)
-}
-
 type BlockSeal struct {
-	Hash      common.Hash
-	Number    uint64
-	Timestamp uint64
+	Hash      common.Hash `json:"hash"`
+	Number    uint64      `json:"number"`
+	Timestamp uint64      `json:"timestamp"`
 }
 
 func (s BlockSeal) String() string {
@@ -416,6 +375,17 @@ func (s BlockSeal) WithParent(parent eth.BlockID) (eth.BlockRef, error) {
 		ParentHash: parent.Hash,
 		Time:       s.Timestamp,
 	}, nil
+}
+
+// WithZeroParent returns [s] with a zero parent hash. This should only be used
+// where a BlockRef is required, but from the calling context it is guaranteed that
+// the parent hash is not needed.
+func (s BlockSeal) WithZeroParent() eth.BlockRef {
+	return eth.BlockRef{
+		Hash:   s.Hash,
+		Number: s.Number,
+		Time:   s.Timestamp,
+	}
 }
 
 func (s BlockSeal) ForceWithParent(parent eth.BlockID) eth.BlockRef {
@@ -548,6 +518,15 @@ type Access struct {
 	LogIndex    uint32
 	ChainID     eth.ChainID
 	Checksum    MessageChecksum
+}
+
+func (acc Access) Query() ContainsQuery {
+	return ContainsQuery{
+		Timestamp: acc.Timestamp,
+		BlockNum:  acc.BlockNumber,
+		LogIdx:    acc.LogIndex,
+		Checksum:  acc.Checksum,
+	}
 }
 
 // lookupEntry encodes a lookup entry for an access-list

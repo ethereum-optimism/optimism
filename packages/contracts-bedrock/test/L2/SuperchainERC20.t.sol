@@ -14,9 +14,9 @@ import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { ISuperchainERC20 } from "interfaces/L2/ISuperchainERC20.sol";
 import { MockSuperchainERC20Implementation } from "test/mocks/SuperchainERC20Implementation.sol";
 
-/// @title SuperchainERC20Test
-/// @notice Contract for testing the SuperchainERC20 contract.
-contract SuperchainERC20Test is Test {
+/// @title SuperchainERC20_TestInit
+/// @notice Reusable test initialization for `SuperchainERC20` tests.
+contract SuperchainERC20_TestInit is Test {
     address internal constant ZERO_ADDRESS = address(0);
     address internal constant SUPERCHAIN_TOKEN_BRIDGE = Predeploys.SUPERCHAIN_TOKEN_BRIDGE;
     address internal constant MESSENGER = Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER;
@@ -33,8 +33,12 @@ contract SuperchainERC20Test is Test {
         vm.mockCall(_receiver, _calldata, _returned);
         vm.expectCall(_receiver, _calldata);
     }
+}
 
-    /// @notice Tests the `mint` function reverts when the caller is not the bridge.
+/// @title SuperchainERC20_CrosschainMint_Test
+/// @notice Tests the `crosschainMint` function of the `SuperchainERC20` contract.
+contract SuperchainERC20_CrosschainMint_Test is SuperchainERC20_TestInit {
+    /// @notice Tests the `crosschainMint` function reverts when the caller is not the bridge.
     function testFuzz_crosschainMint_callerNotBridge_reverts(address _caller, address _to, uint256 _amount) public {
         // Ensure the caller is not the bridge
         vm.assume(_caller != SUPERCHAIN_TOKEN_BRIDGE);
@@ -47,12 +51,13 @@ contract SuperchainERC20Test is Test {
         superchainERC20.crosschainMint(_to, _amount);
     }
 
-    /// @notice Tests the `mint` succeeds and emits the `Mint` event.
+    /// @notice Tests the `crosschainMint` succeeds and emits the `CrosschainMint` event.
     function testFuzz_crosschainMint_succeeds(address _to, uint256 _amount) public {
         // Ensure `_to` is not the zero address
         vm.assume(_to != ZERO_ADDRESS);
 
-        // Get the total supply and balance of `_to` before the mint to compare later on the assertions
+        // Get the total supply and balance of `_to` before the mint to compare later on the
+        // assertions
         uint256 _totalSupplyBefore = superchainERC20.totalSupply();
         uint256 _toBalanceBefore = superchainERC20.balanceOf(_to);
 
@@ -72,8 +77,12 @@ contract SuperchainERC20Test is Test {
         assertEq(superchainERC20.totalSupply(), _totalSupplyBefore + _amount);
         assertEq(superchainERC20.balanceOf(_to), _toBalanceBefore + _amount);
     }
+}
 
-    /// @notice Tests the `burn` function reverts when the caller is not the bridge.
+/// @title SuperchainERC20_CrosschainBurn_Test
+/// @notice Tests the `crosschainBurn` function of the `SuperchainERC20` contract.
+contract SuperchainERC20_CrosschainBurn_Test is SuperchainERC20_TestInit {
+    /// @notice Tests the `crosschainBurn` function reverts when the caller is not the bridge.
     function testFuzz_crosschainBurn_callerNotBridge_reverts(address _caller, address _from, uint256 _amount) public {
         // Ensure the caller is not the bridge
         vm.assume(_caller != SUPERCHAIN_TOKEN_BRIDGE);
@@ -86,7 +95,7 @@ contract SuperchainERC20Test is Test {
         superchainERC20.crosschainBurn(_from, _amount);
     }
 
-    /// @notice Tests the `burn` burns the amount and emits the `CrosschainBurn` event.
+    /// @notice Tests the `crosschainBurn` burns the amount and emits the `CrosschainBurn` event.
     function testFuzz_crosschainBurn_succeeds(address _from, uint256 _amount) public {
         // Ensure `_from` is not the zero address
         vm.assume(_from != ZERO_ADDRESS);
@@ -95,7 +104,8 @@ contract SuperchainERC20Test is Test {
         vm.prank(SUPERCHAIN_TOKEN_BRIDGE);
         superchainERC20.crosschainMint(_from, _amount);
 
-        // Get the total supply and balance of `_from` before the burn to compare later on the assertions
+        // Get the total supply and balance of `_from` before the burn to compare later on the
+        // assertions
         uint256 _totalSupplyBefore = superchainERC20.totalSupply();
         uint256 _fromBalanceBefore = superchainERC20.balanceOf(_from);
 
@@ -115,16 +125,21 @@ contract SuperchainERC20Test is Test {
         assertEq(superchainERC20.totalSupply(), _totalSupplyBefore - _amount);
         assertEq(superchainERC20.balanceOf(_from), _fromBalanceBefore - _amount);
     }
+}
 
-    /// @notice Tests that the `supportsInterface` function returns true for the `IERC7802` interface.
+/// @title SuperchainERC20_SupportsInterfaces_Test
+/// @notice Tests the `supportsInterface` function of the `SuperchainERC20` contract.
+contract SuperchainERC20_SupportsInterfaces_Test is SuperchainERC20_TestInit {
+    /// @notice Tests that the `supportsInterface` function returns true for the `IERC7802`
+    ///         interface.
     function test_supportInterface_succeeds() public view {
         assertTrue(superchainERC20.supportsInterface(type(IERC165).interfaceId));
         assertTrue(superchainERC20.supportsInterface(type(IERC7802).interfaceId));
         assertTrue(superchainERC20.supportsInterface(type(IERC20).interfaceId));
     }
 
-    /// @notice Tests that the `supportsInterface` function returns false for any other interface than the
-    /// `IERC7802` one.
+    /// @notice Tests that the `supportsInterface` function returns false for any other interface
+    ///         than the `IERC7802` one.
     function testFuzz_supportInterface_works(bytes4 _interfaceId) public view {
         vm.assume(_interfaceId != type(IERC165).interfaceId);
         vm.assume(_interfaceId != type(IERC7802).interfaceId);

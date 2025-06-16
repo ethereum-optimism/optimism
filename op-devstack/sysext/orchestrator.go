@@ -2,9 +2,11 @@ package sysext
 
 import (
 	"os"
+	"strings"
 
 	"github.com/ethereum-optimism/optimism/devnet-sdk/descriptors"
 	"github.com/ethereum-optimism/optimism/devnet-sdk/shell/env"
+	"github.com/ethereum-optimism/optimism/op-devstack/compat"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/stack"
 )
@@ -27,12 +29,29 @@ type Orchestrator struct {
 	// sysHook is called after hydration of a new test-scope system frontend,
 	// essentially a test-case preamble.
 	sysHook stack.SystemHook
+
+	compatType compat.Type
 }
 
 var _ stack.Orchestrator = (*Orchestrator)(nil)
 
 func (o *Orchestrator) ControlPlane() stack.ControlPlane {
 	return o.controlPlane
+}
+
+func (o *Orchestrator) Type() compat.Type {
+	return o.compatType
+}
+
+func getCompatType(url string) compat.Type {
+	// if the scheme is overridden, use that
+	if scheme := os.Getenv(env.EnvURLVar); scheme != "" {
+		url = scheme
+	}
+	if strings.HasPrefix(url, "kt") { // kt:// and ktnative:// are the same for this purpose
+		return compat.Kurtosis
+	}
+	return compat.Persistent
 }
 
 func NewOrchestrator(p devtest.P, sysHook stack.SystemHook) *Orchestrator {
@@ -43,10 +62,14 @@ func NewOrchestrator(p devtest.P, sysHook stack.SystemHook) *Orchestrator {
 	}
 	env, err := env.LoadDevnetFromURL(url)
 	p.Require().NoError(err, "Error loading devnet environment")
+	p.Require().NotNil(env, "Error loading devnet environment: DevnetEnv is nil")
+	p.Require().NotNil(env.Env, "Error loading devnet environment: DevnetEnvironment is nil")
+
 	orch := &Orchestrator{
-		env:     env,
-		p:       p,
-		sysHook: sysHook,
+		env:        env,
+		p:          p,
+		sysHook:    sysHook,
+		compatType: getCompatType(url),
 	}
 	orch.controlPlane = &ControlPlane{
 		o: orch,
@@ -59,6 +82,10 @@ func (o *Orchestrator) P() devtest.P {
 }
 
 func (o *Orchestrator) Hydrate(sys stack.ExtensibleSystem) {
+	if o.env == nil || o.env.Env == nil {
+		panic("orchestrator not properly initialized: env is nil")
+	}
+
 	o.sysHook.PreHydrate(sys)
 	o.hydrateL1(sys)
 	o.hydrateSuperchain(sys)

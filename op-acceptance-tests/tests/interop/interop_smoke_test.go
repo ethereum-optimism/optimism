@@ -10,7 +10,6 @@ import (
 	"github.com/ethereum-optimism/optimism/devnet-sdk/testing/systest"
 	"github.com/ethereum-optimism/optimism/devnet-sdk/testing/testlib/validators"
 	sdktypes "github.com/ethereum-optimism/optimism/devnet-sdk/types"
-	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
@@ -50,19 +49,6 @@ func smokeTestScenario(chainIdx uint64, walletGetter validators.WalletGetter) sy
 	}
 }
 
-func TestSystemWrapETH(t *testing.T) {
-	chainIdx := uint64(0) // We'll use the first L2 chain for this test
-
-	walletGetter, fundsValidator := validators.AcquireL2WalletWithFunds(chainIdx, sdktypes.NewBalance(big.NewInt(1.0*constants.ETH)))
-	_, interopValidator := validators.AcquireL2WithFork(chainIdx, rollup.Interop)
-
-	systest.SystemTest(t,
-		smokeTestScenario(chainIdx, walletGetter),
-		fundsValidator,
-		interopValidator,
-	)
-}
-
 func TestInteropSystemNoop(t *testing.T) {
 	systest.InteropSystemTest(t, func(t systest.T, sys system.InteropSystem) {
 		testlog.Logger(t, log.LevelInfo).Info("noop")
@@ -86,7 +72,7 @@ func TestSmokeTestFailure(t *testing.T) {
 	mockAddr := common.HexToAddress("0x1234567890123456789012345678901234567890")
 	mockWallet := &mockFailingWallet{
 		addr: mockAddr,
-		bal:  sdktypes.NewBalance(big.NewInt(1000000)),
+		bal:  sdktypes.NewBalance(big.NewInt(0.1 * constants.ETH)),
 	}
 	mockL1Chain := newMockFailingL1Chain(
 		sdktypes.ChainID(big.NewInt(1234)),

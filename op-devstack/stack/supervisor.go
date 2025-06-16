@@ -1,16 +1,28 @@
 package stack
 
 import (
+	"log/slog"
+
 	"github.com/ethereum-optimism/optimism/op-service/apis"
 )
 
 // SupervisorID identifies a Supervisor by name and chainID, is type-safe, and can be value-copied and used as map key.
 type SupervisorID genericID
 
+var _ GenericID = (*SupervisorID)(nil)
+
 const SupervisorKind Kind = "Supervisor"
 
 func (id SupervisorID) String() string {
 	return genericID(id).string(SupervisorKind)
+}
+
+func (id SupervisorID) Kind() Kind {
+	return SupervisorKind
+}
+
+func (id SupervisorID) LogValue() slog.Value {
+	return slog.StringValue(id.String())
 }
 
 func (id SupervisorID) MarshalText() ([]byte, error) {

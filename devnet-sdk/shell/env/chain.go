@@ -6,6 +6,7 @@ import (
 	"html/template"
 	"net/url"
 	"path/filepath"
+	"strings"
 
 	"github.com/ethereum-optimism/optimism/devnet-sdk/descriptors"
 )
@@ -50,7 +51,11 @@ func (c *ChainConfig) getRpcUrl(nodeIndex int) func() (string, error) {
 			return "", fmt.Errorf("no RPC endpoint found for chain '%s'", c.chain.Name)
 		}
 
-		return fmt.Sprintf("http://%s:%d", rpcEndpoint.Host, rpcEndpoint.Port), nil
+		scheme := rpcEndpoint.Scheme
+		if scheme == "" {
+			scheme = "http"
+		}
+		return fmt.Sprintf("%s://%s:%d", scheme, rpcEndpoint.Host, rpcEndpoint.Port), nil
 	}
 }
 
@@ -152,10 +157,29 @@ func (c *ChainConfig) GetEnv(opts ...ChainConfigOption) (*ChainEnv, error) {
 }
 
 func (e *ChainEnv) ApplyToEnv(env []string) []string {
-	for key, value := range e.envVars {
-		env = append(env, fmt.Sprintf("%s=%s", key, value))
+	// first identify which env vars to clear
+	clearEnv := make(map[string]interface{})
+	for key := range e.envVars {
+		clearEnv[key] = nil
 	}
-	return env
+
+	// then actually remove these from the env
+	cleanEnv := make([]string, 0)
+	for _, s := range env {
+		key := strings.SplitN(s, "=", 2)[0]
+		if _, ok := clearEnv[key]; !ok {
+			cleanEnv = append(cleanEnv, s)
+		}
+	}
+
+	// then add the remaining env vars
+	for key, value := range e.envVars {
+		if value == "" {
+			continue
+		}
+		cleanEnv = append(cleanEnv, fmt.Sprintf("%s=%s", key, value))
+	}
+	return cleanEnv
 }
 
 func (e *ChainEnv) GetMotd() string {

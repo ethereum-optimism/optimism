@@ -621,8 +621,8 @@ func TestEVM_MMap(t *testing.T) {
 				expected.PC = state.GetCpu().NextPC
 				expected.NextPC = state.GetCpu().NextPC + 4
 				if c.shouldFail {
-					expected.Registers[2] = exec.SysErrorSignal
-					expected.Registers[7] = exec.MipsEINVAL
+					expected.Registers[2] = exec.MipsEINVAL
+					expected.Registers[7] = exec.SysErrorSignal
 				} else {
 					expected.Heap = c.expectedHeap
 					if c.address == 0 {
@@ -1055,6 +1055,75 @@ func TestEVM_RandomProgram(t *testing.T) {
 					require.NoError(t, err)
 					require.NotEqual(t, uint64(0), randVal, "random int should be non-zero")
 				}
+			}
+		})
+	}
+}
+
+func TestEVM_SyscallEventFdProgram(t *testing.T) {
+	if os.Getenv("SKIP_SLOW_TESTS") == "true" {
+		t.Skip("Skipping slow test because SKIP_SLOW_TESTS is enabled")
+	}
+
+	t.Parallel()
+	versionCases := GetMipsVersionTestCases(t)
+
+	for _, v := range versionCases {
+		v := v
+		t.Run(v.Name, func(t *testing.T) {
+			t.Parallel()
+
+			validator := testutil.NewEvmValidator(t, v.StateHashFn, v.Contracts)
+
+			var stdOutBuf, stdErrBuf bytes.Buffer
+			elfFile := testutil.ProgramPath("syscall-eventfd", v.GoTarget)
+			goVm := v.ElfVMFactory(t, elfFile, nil, io.MultiWriter(&stdOutBuf, os.Stdout), io.MultiWriter(&stdErrBuf, os.Stderr), testutil.CreateLogger())
+			state := goVm.GetState()
+
+			start := time.Now()
+			for i := 0; i < 500_000; i++ {
+				step := goVm.GetState().GetStep()
+				if goVm.GetState().GetExited() {
+					break
+				}
+				insn := testutil.GetInstruction(state.GetMemory(), state.GetPC())
+				if i%100_000 == 0 { // avoid spamming test logs, we are executing many steps
+					t.Logf("step: %4d pc: 0x%08x insn: 0x%08x", state.GetStep(), state.GetPC(), insn)
+				}
+
+				stepWitness, err := goVm.Step(true)
+				require.NoError(t, err)
+				validator.ValidateEVM(t, stepWitness, step, goVm)
+			}
+			end := time.Now()
+			delta := end.Sub(start)
+			t.Logf("test took %s, %d instructions, %s per instruction", delta, state.GetStep(), delta/time.Duration(state.GetStep()))
+
+			require.True(t, state.GetExited(), "must complete program")
+			require.Equal(t, uint8(0), state.GetExitCode(), "exit with 0")
+
+			// Check output
+			output := stdOutBuf.String()
+			require.Contains(t, output, "call eventfd with valid flags: '0x80080'")
+			require.Contains(t, output, "call eventfd with valid flags: '0xFFFFFFFFFFFFFFFF'")
+			require.Contains(t, output, "call eventfd with valid flags: '0x80'")
+			require.Contains(t, output, "call eventfd with invalid flags: '0x0'")
+			require.Contains(t, output, "call eventfd with invalid flags: '0xFFFFFFFFFFFFFF7F'")
+			require.Contains(t, output, "call eventfd with invalid flags: '0x80000'")
+			require.Contains(t, output, "write to eventfd object")
+			require.Contains(t, output, "read from eventfd object")
+			require.Contains(t, output, "done")
+
+			// Check fd value
+			pattern := `eventfd2 fd = '(.+)'`
+			re, err := regexp.Compile(pattern)
+			require.NoError(t, err)
+			matches := re.FindAllStringSubmatch(output, -1)
+
+			expectedMatches := 3
+			require.Equal(t, expectedMatches, len(matches))
+			for i := 0; i < expectedMatches; i++ {
+				require.Equal(t, "100", matches[i][1])
 			}
 		})
 	}

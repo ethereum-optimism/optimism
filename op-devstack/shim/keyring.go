@@ -3,22 +3,21 @@ package shim
 import (
 	"crypto/ecdsa"
 
-	"github.com/stretchr/testify/require"
-
 	"github.com/ethereum/go-ethereum/common"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/devkeys"
 	"github.com/ethereum-optimism/optimism/op-devstack/stack"
+	"github.com/ethereum-optimism/optimism/op-service/testreq"
 )
 
 type keyringImpl struct {
 	keys    devkeys.Keys
-	require *require.Assertions
+	require *testreq.Assertions
 }
 
 var _ stack.Keys = (*keyringImpl)(nil)
 
-func NewKeyring(keys devkeys.Keys, req *require.Assertions) stack.Keys {
+func NewKeyring(keys devkeys.Keys, req *testreq.Assertions) stack.Keys {
 	return &keyringImpl{
 		keys:    keys,
 		require: req,

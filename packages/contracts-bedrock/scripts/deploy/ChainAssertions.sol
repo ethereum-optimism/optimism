@@ -36,23 +36,6 @@ import { IETHLockbox } from "interfaces/L1/IETHLockbox.sol";
 library ChainAssertions {
     Vm internal constant vm = Vm(0x7109709ECfa91a80626fF3989D68f67F5b1DD12D);
 
-    /// @notice Asserts the correctness of an L1 deployment. This function expects that all contracts
-    ///         within the `prox` ContractSet are proxies that have been setup and initialized.
-    function postDeployAssertions(Types.ContractSet memory _prox, DeployConfig _cfg, Vm _vm) internal view {
-        console.log("Running post-deploy assertions");
-        IResourceMetering.ResourceConfig memory rcfg = ISystemConfig(_prox.SystemConfig).resourceConfig();
-        IResourceMetering.ResourceConfig memory dflt = Constants.DEFAULT_RESOURCE_CONFIG();
-        require(keccak256(abi.encode(rcfg)) == keccak256(abi.encode(dflt)), "CHECK-RCFG-10");
-
-        checkSystemConfig({ _contracts: _prox, _cfg: _cfg, _isProxy: true });
-        checkL1CrossDomainMessenger({ _contracts: _prox, _vm: _vm, _isProxy: true });
-        checkL1StandardBridge({ _contracts: _prox, _isProxy: true });
-        checkOptimismMintableERC20Factory({ _contracts: _prox, _isProxy: true });
-        checkL1ERC721Bridge({ _contracts: _prox, _isProxy: true });
-        checkOptimismPortal2({ _contracts: _prox, _cfg: _cfg, _isProxy: true });
-        checkProtocolVersions({ _contracts: _prox, _cfg: _cfg, _isProxy: true });
-    }
-
     /// @notice Asserts that the SystemConfig is setup correctly
     function checkSystemConfig(Types.ContractSet memory _contracts, DeployConfig _cfg, bool _isProxy) internal view {
         ISystemConfig config = ISystemConfig(_contracts.SystemConfig);
@@ -244,36 +227,6 @@ library ChainAssertions {
             require(weth.systemConfig() == ISystemConfig(_contracts.SystemConfig), "CHECK-DWETH-40");
         } else {
             require(weth.delay() == _cfg.faultGameWithdrawalDelay(), "CHECK-DWETH-50");
-        }
-    }
-
-    /// @notice Asserts that the permissioned DelayedWETH is setup correctly
-    function checkPermissionedDelayedWETH(
-        Types.ContractSet memory _contracts,
-        DeployConfig _cfg,
-        bool _isProxy,
-        address _expectedOwner
-    )
-        internal
-        view
-    {
-        IDelayedWETH weth = IDelayedWETH(payable(_contracts.PermissionedDelayedWETH));
-        console.log(
-            "Running chain assertions on the PermissionedDelayedWETH %s at %s",
-            _isProxy ? "proxy" : "implementation",
-            address(weth)
-        );
-        require(address(weth) != address(0), "CHECK-PDWETH-10");
-
-        // Check that the contract is initialized
-        DeployUtils.assertInitialized({ _contractAddress: address(weth), _isProxy: _isProxy, _slot: 0, _offset: 0 });
-
-        if (_isProxy) {
-            require(weth.proxyAdminOwner() == _expectedOwner, "CHECK-PDWETH-20");
-            require(weth.delay() == _cfg.faultGameWithdrawalDelay(), "CHECK-PDWETH-30");
-            require(weth.systemConfig() == ISystemConfig(_contracts.SystemConfig), "CHECK-PDWETH-40");
-        } else {
-            require(weth.delay() == _cfg.faultGameWithdrawalDelay(), "CHECK-PDWETH-50");
         }
     }
 

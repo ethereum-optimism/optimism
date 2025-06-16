@@ -9,6 +9,10 @@ elf: elf64
 .PHONY: dump
 dump: $(patsubst %/go.mod,bin/%.dump,$(wildcard */go.mod))
 
+.PHONY: clean
+clean:
+	@[ -d bin ] && find bin -maxdepth 1 -type f -delete
+
 bin:
 	mkdir bin
 

@@ -1,14 +1,44 @@
 package stack
 
-import "github.com/ethereum-optimism/optimism/op-service/apis"
+import (
+	"log/slog"
+
+	"github.com/ethereum-optimism/optimism/op-service/apis"
+	"github.com/ethereum-optimism/optimism/op-service/eth"
+)
 
 // FaucetID identifies a Faucet by name and chainID, is type-safe, and can be value-copied and used as map key.
 type FaucetID idWithChain
 
+var _ IDWithChain = (*FaucetID)(nil)
+
 const FaucetKind Kind = "Faucet"
+
+func NewFaucetID(key string, chainID eth.ChainID) FaucetID {
+	return FaucetID{
+		key:     key,
+		chainID: chainID,
+	}
+}
 
 func (id FaucetID) String() string {
 	return idWithChain(id).string(FaucetKind)
+}
+
+func (id FaucetID) ChainID() eth.ChainID {
+	return idWithChain(id).chainID
+}
+
+func (id FaucetID) Kind() Kind {
+	return FaucetKind
+}
+
+func (id FaucetID) Key() string {
+	return id.key
+}
+
+func (id FaucetID) LogValue() slog.Value {
+	return slog.StringValue(id.String())
 }
 
 func (id FaucetID) MarshalText() ([]byte, error) {

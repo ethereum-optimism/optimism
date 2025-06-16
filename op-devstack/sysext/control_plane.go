@@ -31,7 +31,7 @@ func (c *ControlPlane) SupervisorState(id stack.SupervisorID, mode stack.Control
 }
 
 func (c *ControlPlane) L2CLNodeState(id stack.L2CLNodeID, mode stack.ControlAction) {
-	c.setLifecycleState(id.Key, mode)
+	c.setLifecycleState(id.Key(), mode)
 }
 
 func (c *ControlPlane) FakePoSState(id stack.L1CLNodeID, mode stack.ControlAction) {

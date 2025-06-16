@@ -271,7 +271,7 @@ func (dp *DerivationPipeline) initialReset(ctx context.Context, resetL2Safe eth.
 
 func (db *DerivationPipeline) transformStages(oldOrigin, newOrigin eth.L1BlockRef) {
 	fork := db.rollupCfg.IsActivationBlock(oldOrigin.Time, newOrigin.Time)
-	if fork == "" {
+	if fork == rollup.None {
 		return
 	}
 

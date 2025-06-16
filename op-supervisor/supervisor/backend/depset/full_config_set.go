@@ -2,6 +2,7 @@ package depset
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
@@ -42,6 +43,12 @@ func NewFullConfigSetMerged(rollupConfigSet RollupConfigSet, dependencySet Depen
 }
 
 func (f FullConfigSetMerged) CheckChains() error {
+	if f.RollupConfigSet == nil {
+		return errors.New("missing RollupConfigSet")
+	}
+	if f.DependencySet == nil {
+		return errors.New("missing DependencySet")
+	}
 	rollupChains := make(map[eth.ChainID]struct{})
 	for _, chainID := range f.RollupConfigSet.Chains() {
 		rollupChains[chainID] = struct{}{}

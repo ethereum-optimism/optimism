@@ -22,7 +22,7 @@ type presetCluster struct {
 var _ stack.Cluster = (*presetCluster)(nil)
 
 func NewCluster(cfg ClusterConfig) stack.Cluster {
-	cfg.T = cfg.T.WithCtx(stack.ContextWithKind(cfg.T.Ctx(), stack.ClusterKind), "id", cfg.ID)
+	cfg.T = cfg.T.WithCtx(stack.ContextWithID(cfg.T.Ctx(), cfg.ID))
 	return &presetCluster{
 		id:         cfg.ID,
 		commonImpl: newCommon(cfg.CommonConfig),

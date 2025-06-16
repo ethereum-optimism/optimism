@@ -107,6 +107,12 @@ func WithSender(sender common.Address) Option {
 	}
 }
 
+func WithGasRatio(ratio float64) Option {
+	return func(tx *PlannedTx) {
+		tx.GasRatio.Set(ratio)
+	}
+}
+
 func WithStaticNonce(nonce uint64) Option {
 	return func(tx *PlannedTx) {
 		tx.Nonce.Set(nonce)

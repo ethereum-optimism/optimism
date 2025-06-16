@@ -27,18 +27,24 @@ func (h *tracingHandler) Unwrap() slog.Handler {
 	return h.Handler
 }
 
+func (h *tracingHandler) WithAttrs(attrs []slog.Attr) slog.Handler {
+	return &tracingHandler{Handler: h.Handler.WithAttrs(attrs)}
+}
+
+func (h *tracingHandler) WithGroup(name string) slog.Handler {
+	return &tracingHandler{Handler: h.Handler.WithGroup(name)}
+}
+
 func (h *tracingHandler) Handle(ctx context.Context, record slog.Record) error {
 	// Send log entries as events to the tracer
-	if h.Handler.Enabled(ctx, record.Level) {
-		span := trace.SpanFromContext(ctx)
-		if span.IsRecording() {
-			attrRecorder := &attrAccumulator{}
-			record.Attrs(func(a slog.Attr) bool {
-				attrRecorder.register(a)
-				return true
-			})
-			span.AddEvent(record.Message, trace.WithAttributes(attrRecorder.kv...))
-		}
+	span := trace.SpanFromContext(ctx)
+	if span.IsRecording() {
+		attrRecorder := &attrAccumulator{}
+		record.Attrs(func(a slog.Attr) bool {
+			attrRecorder.register(a)
+			return true
+		})
+		span.AddEvent(record.Message, trace.WithAttributes(attrRecorder.kv...))
 	}
 
 	// Conversely add tracing data to the local logs

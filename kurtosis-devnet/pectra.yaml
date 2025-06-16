@@ -46,7 +46,7 @@ optimism_package:
         game_type: 1
         proposal_interval: 10m
       mev_params:
-        rollup_boost_image: ""
+        image: ""
         builder_host: ""
         builder_port: ""
       additional_services: []

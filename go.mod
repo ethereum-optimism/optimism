@@ -12,13 +12,14 @@ require (
 	github.com/btcsuite/btcd v0.24.2
 	github.com/btcsuite/btcd/chaincfg/chainhash v1.1.0
 	github.com/cockroachdb/pebble v1.1.5
+	github.com/coder/websocket v1.8.13
 	github.com/consensys/gnark-crypto v0.16.0
 	github.com/crate-crypto/go-kzg-4844 v1.1.0
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc
 	github.com/decred/dcrd/dcrec/secp256k1/v4 v4.3.0
 	github.com/docker/docker v27.5.1+incompatible
 	github.com/ethereum-optimism/go-ethereum-hdwallet v0.1.3
-	github.com/ethereum-optimism/superchain-registry/validation v0.0.0-20250521132634-76f6d741b33f
+	github.com/ethereum-optimism/superchain-registry/validation v0.0.0-20250603144016-9c45ca7d4508
 	github.com/ethereum/go-ethereum v1.15.11
 	github.com/fatih/color v1.18.0
 	github.com/fsnotify/fsnotify v1.9.0
@@ -37,7 +38,7 @@ require (
 	github.com/ipfs/go-datastore v0.6.0
 	github.com/ipfs/go-ds-leveldb v0.5.0
 	github.com/klauspost/compress v1.18.0
-	github.com/kurtosis-tech/kurtosis/api/golang v1.8.1
+	github.com/kurtosis-tech/kurtosis/api/golang v1.8.2-0.20250602144112-2b7d06430e48
 	github.com/libp2p/go-libp2p v0.36.2
 	github.com/libp2p/go-libp2p-mplex v0.9.0
 	github.com/libp2p/go-libp2p-pubsub v0.12.0
@@ -65,18 +66,24 @@ require (
 	golang.org/x/crypto v0.35.0
 	golang.org/x/exp v0.0.0-20241009180824-f66d83c29e7c
 	golang.org/x/mod v0.22.0
-	golang.org/x/sync v0.11.0
+	golang.org/x/sync v0.14.0
 	golang.org/x/term v0.29.0
-	golang.org/x/text v0.22.0
+	golang.org/x/text v0.25.0
 	golang.org/x/time v0.11.0
+	gonum.org/v1/plot v0.16.0
 	gopkg.in/yaml.v3 v3.0.1
 )
 
 require (
+	codeberg.org/go-fonts/liberation v0.5.0 // indirect
+	codeberg.org/go-latex/latex v0.1.0 // indirect
+	codeberg.org/go-pdf/fpdf v0.10.0 // indirect
+	git.sr.ht/~sbinet/gg v0.6.0 // indirect
 	github.com/DataDog/zstd v1.5.6-0.20230824185856-869dae002e5e // indirect
 	github.com/Microsoft/go-winio v0.6.2 // indirect
 	github.com/VictoriaMetrics/fastcache v1.12.2 // indirect
 	github.com/adrg/xdg v0.4.0 // indirect
+	github.com/ajstarks/svgo v0.0.0-20211024235047-1546f124cd8b // indirect
 	github.com/allegro/bigcache v1.2.1 // indirect
 	github.com/armon/go-metrics v0.4.1 // indirect
 	github.com/benbjohnson/clock v1.3.5 // indirect
@@ -86,6 +93,7 @@ require (
 	github.com/btcsuite/btcd/btcec/v2 v2.3.4 // indirect
 	github.com/btcsuite/btcd/btcutil v1.1.5 // indirect
 	github.com/btcsuite/btclog v0.0.0-20170628155309-84c8d2346e9f // indirect
+	github.com/campoy/embedmd v1.0.0 // indirect
 	github.com/cenkalti/backoff/v4 v4.3.0 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/cockroachdb/errors v1.11.3 // indirect
@@ -134,6 +142,7 @@ require (
 	github.com/gofrs/flock v0.8.1 // indirect
 	github.com/gogo/protobuf v1.3.2 // indirect
 	github.com/golang-jwt/jwt/v4 v4.5.2 // indirect
+	github.com/golang/freetype v0.0.0-20170609003504-e2365dfdc4a0 // indirect
 	github.com/google/gopacket v1.1.19 // indirect
 	github.com/google/pprof v0.0.0-20241009165004-a3522334989c // indirect
 	github.com/graph-gophers/graphql-go v1.3.0 // indirect
@@ -280,6 +289,7 @@ require (
 	go.uber.org/mock v0.4.0 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
 	go.uber.org/zap v1.27.0 // indirect
+	golang.org/x/image v0.25.0 // indirect
 	golang.org/x/net v0.36.0 // indirect
 	golang.org/x/sys v0.30.0 // indirect
 	golang.org/x/tools v0.29.0 // indirect
@@ -294,7 +304,7 @@ require (
 	rsc.io/tmplfunc v0.0.3 // indirect
 )
 
-replace github.com/ethereum/go-ethereum => github.com/ethereum-optimism/op-geth v1.101511.1-0.20250523133920-e3f85bf38455
+replace github.com/ethereum/go-ethereum => github.com/ethereum-optimism/op-geth v1.101511.1-dev.1.0.20250608235258-6005dd53e1b5
 
 //replace github.com/ethereum/go-ethereum => ../op-geth
 

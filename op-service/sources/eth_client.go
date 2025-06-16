@@ -28,6 +28,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/apis"
 	"github.com/ethereum-optimism/optimism/op-service/client"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/sources/batching"
 	"github.com/ethereum-optimism/optimism/op-service/sources/caching"
 )
 
@@ -333,6 +334,16 @@ func (s *EthClient) PayloadByLabel(ctx context.Context, label eth.BlockLabel) (*
 	return s.payloadCall(ctx, "eth_getBlockByNumber", label)
 }
 
+// FetchReceiptsByNumber returns a block info and all of the receipts associated with transactions in the block.
+// It fetches the block hash and calls FetchReceipts.
+func (s *EthClient) FetchReceiptsByNumber(ctx context.Context, number uint64) (eth.BlockInfo, types.Receipts, error) {
+	blockHash, err := s.InfoByNumber(ctx, number)
+	if err != nil {
+		return nil, nil, fmt.Errorf("querying block: %w", err)
+	}
+	return s.FetchReceipts(ctx, blockHash.Hash())
+}
+
 // FetchReceipts returns a block info and all of the receipts associated with transactions in the block.
 // It verifies the receipt hash in the block header against the receipt hash of the fetched receipts
 // to ensure that the execution engine did not fail to return any receipts.
@@ -583,4 +594,8 @@ func (s *EthClient) CodeAtHash(ctx context.Context, account common.Address, bloc
 	var result hexutil.Bytes
 	err := s.client.CallContext(ctx, &result, "eth_getCode", account, blockHash)
 	return result, err
+}
+
+func (s *EthClient) NewMultiCaller(batchSize int) *batching.MultiCaller {
+	return batching.NewMultiCaller(s.client, batchSize)
 }

@@ -3,8 +3,8 @@ package devtest
 import (
 	"context"
 	"fmt"
-	"log/slog"
 	"os"
+	"runtime"
 	"strconv"
 	"testing"
 	"time"
@@ -16,10 +16,10 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 
 	"github.com/ethereum-optimism/optimism/devnet-sdk/telemetry"
-	oplog "github.com/ethereum-optimism/optimism/op-service/log"
-	"github.com/ethereum-optimism/optimism/op-service/logfilter"
+	"github.com/ethereum-optimism/optimism/op-service/log/logfilter"
 	"github.com/ethereum-optimism/optimism/op-service/logmods"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
+	"github.com/ethereum-optimism/optimism/op-service/testreq"
 )
 
 const ExpectPreconditionsMet = "DEVNET_EXPECT_PRECONDITIONS_MET"
@@ -53,8 +53,7 @@ type T interface {
 	// WithCtx makes a copy of T with a specific context.
 	// The ctx must match the test-scope of the existing context.
 	// This function is used to create a T with annotated context, e.g. a specific resource, rather than a sub-scope.
-	// The logger may be annotated with additional arguments.
-	WithCtx(ctx context.Context, args ...any) T
+	WithCtx(ctx context.Context) T
 
 	// Parallel signals that this test is to be run in parallel with (and only with) other parallel tests.
 	Parallel()
@@ -70,12 +69,12 @@ type T interface {
 	SkipNow()
 
 	// Gate provides everything that Require does, but skips instead of fails the test upon error.
-	Gate() *require.Assertions
+	Gate() *testreq.Assertions
 
 	// Deadline reports the time at which the test binary will have
 	// exceeded the timeout specified by the -timeout flag.
 	//
-	// The ok result is false if the -timeout flag indicates “no timeout” (0).
+	// The ok result is false if the -timeout flag indicates "no timeout" (0).
 	Deadline() (deadline time.Time, ok bool)
 
 	// This distinguishes the interface from other testing interfaces,
@@ -92,8 +91,8 @@ type testingT struct {
 	logger log.Logger
 	tracer trace.Tracer
 	ctx    context.Context
-	req    *require.Assertions
-	gate   *require.Assertions
+	req    *testreq.Assertions
+	gate   *testreq.Assertions
 }
 
 func mustNotSkip() bool {
@@ -102,13 +101,43 @@ func mustNotSkip() bool {
 	return out
 }
 
-func (t *testingT) Errorf(format string, args ...interface{}) {
+func (t *testingT) Error(args ...any) {
 	t.t.Helper()
-	t.t.Errorf(format, args...)
+	// Note: the test-logger catches panics when the test is logged to after test-end.
+	// Note: we do not use t.Error directly, to keep the log-formatting more consistent.
+	t.logger.Error(fmt.Sprintln(args...))
+	t.Fail()
+}
+
+func (t *testingT) Errorf(format string, args ...any) {
+	t.t.Helper()
+	// Note: the test-logger catches panics when the test is logged to after test-end.
+	// Note: we do not use t.Errorf directly, to keep the log-formatting more consistent.
+	t.logger.Error(fmt.Sprintf(format, args...))
+	t.Fail()
+}
+
+func (t *testingT) Fail() {
+	t.t.Helper()
+	// if we already closed and failed, then this error is stale
+	if t.ctx.Err() != nil && t.t.Failed() {
+		return
+	}
+	t.t.Fail()
 }
 
 func (t *testingT) FailNow() {
 	t.t.Helper()
+	// If we already closed and failed the test-scope, then there is nothing to do.
+	// This happens on e.g. a go-routine spawned by require.Eventually, when the time runs out,
+	// the ctx is closed, a shared resource fails to do a lookup because of the ctx-timeout,
+	// and the eventually-condition then does a no-error check, causing the test-scope to error after it already had.
+	if t.ctx.Err() != nil && t.t.Failed() {
+		// Exit the go-routine that is running us (actual testing.T FailNow does this too).
+		// Still runs deferred calls on this go-routine.
+		runtime.Goexit()
+		return
+	}
 	t.t.FailNow()
 }
 
@@ -120,9 +149,17 @@ func (t *testingT) Cleanup(fn func()) {
 	t.t.Cleanup(fn)
 }
 
+func (t *testingT) Log(args ...any) {
+	t.t.Helper()
+	// Note: the test-logger catches panics when the test is logged to after test-end.
+	// Note: we do not use t.Log directly, to keep the log-formatting more consistent.
+	t.logger.Info(fmt.Sprintln(args...))
+}
+
 func (t *testingT) Logf(format string, args ...any) {
 	t.t.Helper()
-	// Note: we do not use t.Log directly, to keep the log-formatting more consistent
+	// Note: the test-logger catches panics when the test is logged to after test-end.
+	// Note: we do not use t.Logf directly, to keep the log-formatting more consistent.
 	t.logger.Info(fmt.Sprintf(format, args...))
 }
 
@@ -146,11 +183,11 @@ func (t *testingT) Ctx() context.Context {
 	return t.ctx
 }
 
-func (t *testingT) WithCtx(ctx context.Context, args ...any) T {
+func (t *testingT) WithCtx(ctx context.Context) T {
 	expected := TestScope(t.ctx)
 	got := TestScope(ctx)
 	t.req.Equal(expected, got, "cannot replace context with different test-scope")
-	logger := t.logger.New(args...)
+	logger := t.logger.New()
 	logger.SetContext(ctx)
 	out := &testingT{
 		t:      t.t,
@@ -158,12 +195,12 @@ func (t *testingT) WithCtx(ctx context.Context, args ...any) T {
 		tracer: t.tracer,
 		ctx:    ctx,
 	}
-	out.req = require.New(out)
-	out.gate = require.New(&gateAdapter{out})
+	out.req = testreq.New(out)
+	out.gate = testreq.New(&gateAdapter{out})
 	return out
 }
 
-func (t *testingT) Require() *require.Assertions {
+func (t *testingT) Require() *testreq.Assertions {
 	return t.req
 }
 
@@ -180,7 +217,7 @@ func (t *testingT) Run(name string, fn func(T)) {
 		subGoT.Cleanup(func() {
 			span.End()
 		})
-		logger := t.logger.New("subtest", name)
+		logger := t.logger.New()
 		logger.SetContext(ctx) // attach the sub-test context as default log-context
 
 		subT := &testingT{
@@ -189,8 +226,8 @@ func (t *testingT) Run(name string, fn func(T)) {
 			tracer: tracer,
 			ctx:    ctx,
 		}
-		subT.req = require.New(subT)
-		subT.gate = require.New(&gateAdapter{subT})
+		subT.req = testreq.New(subT)
+		subT.gate = testreq.New(&gateAdapter{subT})
 		fn(subT)
 	})
 }
@@ -203,10 +240,11 @@ func (t *testingT) Parallel() {
 func (t *testingT) Skip(args ...any) {
 	t.t.Helper()
 	if mustNotSkip() {
-		t.t.Error(args...)
+		t.Error("Unexpected test-skip!", fmt.Sprintln(args...))
 		return
 	}
-	t.t.Skip(args...)
+	t.Log(args...)
+	t.t.SkipNow()
 }
 
 func (t *testingT) Skipped() bool {
@@ -217,29 +255,30 @@ func (t *testingT) Skipped() bool {
 func (t *testingT) Skipf(format string, args ...any) {
 	t.t.Helper()
 	if mustNotSkip() {
-		t.t.Errorf(format, args...)
+		t.Error("Unexpected test-skip!", fmt.Sprintf(format, args...))
 		return
 	}
-	t.t.Skipf(format, args...)
+	t.Logf(format, args...)
+	t.t.SkipNow()
 }
 
 func (t *testingT) SkipNow() {
 	t.t.Helper()
 	if mustNotSkip() {
-		t.t.FailNow()
+		t.FailNow()
 		return
 	}
 	t.t.SkipNow()
 }
 
-func (t *testingT) Gate() *require.Assertions {
+func (t *testingT) Gate() *testreq.Assertions {
 	return t.gate
 }
 
 // Deadline reports the time at which the test binary will have
 // exceeded the timeout specified by the -timeout flag.
 //
-// The ok result is false if the -timeout flag indicates “no timeout” (0).
+// The ok result is false if the -timeout flag indicates "no timeout" (0).
 func (t *testingT) Deadline() (deadline time.Time, ok bool) {
 	return t.t.Deadline()
 }
@@ -250,19 +289,8 @@ func (t *testingT) _TestOnly() {
 
 var _ T = (*testingT)(nil)
 
-// DefaultTestLogLevel is set to the TEST_LOG_LEVEL env var value, and defaults to info-level if not set.
-var DefaultTestLogLevel = func() slog.Level {
-	logLevel := os.Getenv("TEST_LOG_LEVEL")
-	if logLevel == "" {
-		return log.LevelInfo
-	}
-	level, err := oplog.LevelFromString(logLevel)
-	if err != nil {
-		_, _ = fmt.Fprintf(os.Stderr, "invalid TEST_LOG_LEVEL env var: %v\n", err)
-		return log.LevelInfo
-	}
-	return level
-}()
+// DefaultTestLogLevel is set to info level to show relevant logs without being overly verbose unless configured otherwise.
+var DefaultTestLogLevel = log.LevelInfo
 
 // SerialT wraps around a test-logger and turns it into a T for devstack testing.
 func SerialT(t *testing.T) T {
@@ -285,11 +313,11 @@ func SerialT(t *testing.T) T {
 
 	// Set the lowest default log-level, so the log-filters on top can apply correctly
 	logger := testlog.LoggerWithHandlerMod(t, log.LevelTrace,
-		telemetry.WrapHandler, logfilter.WrapFilterHandler)
-	h, ok := logmods.FindHandler[logfilter.Handler](logger.Handler())
+		telemetry.WrapHandler, logfilter.WrapFilterHandler, logfilter.WrapContextHandler)
+	h, ok := logmods.FindHandler[logfilter.FilterHandler](logger.Handler())
 	if ok {
 		// Apply default log level. This may be overridden later.
-		h.Set(logfilter.Minimum(DefaultTestLogLevel))
+		h.Set(logfilter.DefaultMute(logfilter.Level(log.LevelInfo).Show()))
 	}
 	logger.SetContext(ctx) // Set the default context; any log call without context will use this
 
@@ -299,8 +327,8 @@ func SerialT(t *testing.T) T {
 		tracer: tracer,
 		ctx:    ctx,
 	}
-	out.req = require.New(out)
-	out.gate = require.New(&gateAdapter{out})
+	out.req = testreq.New(out)
+	out.gate = testreq.New(&gateAdapter{out})
 	return out
 }
 

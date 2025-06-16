@@ -149,7 +149,7 @@ func makeArgs(argCount int, getType func(i int) reflect.Type) (abi.Arguments, er
 	out := make(abi.Arguments, argCount)
 	for i := 0; i < argCount; i++ {
 		argType := getType(i)
-		abiTyp, err := GoTypeToABIType(argType)
+		abiTyp, err := goTypeToABIType(argType)
 		if err != nil {
 			return nil, fmt.Errorf("failed to determine ABI type of input arg %d: %w", i, err)
 		}
@@ -343,18 +343,8 @@ func convertType(src, dest any) (out any, err error) {
 	return
 }
 
-// GoTypeToABIType infers the geth ABI type definition from a Go reflect type definition.
-func GoTypeToABIType(typ reflect.Type) (abi.Type, error) {
-	// temporal hardcode for tuple types
-	if typ == reflect.TypeFor[ABIIdentifier]() {
-		return abi.NewType("tuple", "", []abi.ArgumentMarshaling{
-			{Name: "Origin", Type: "address"},
-			{Name: "BlockNumber", Type: "uint256"},
-			{Name: "LogIndex", Type: "uint256"},
-			{Name: "Timestamp", Type: "uint256"},
-			{Name: "ChainId", Type: "uint256"},
-		})
-	}
+// goTypeToABIType infers the geth ABI type definition from a Go reflect type definition.
+func goTypeToABIType(typ reflect.Type) (abi.Type, error) {
 	solType, internalType, err := goTypeToSolidityType(typ)
 	if err != nil {
 		return abi.Type{}, err
@@ -369,14 +359,6 @@ type ABIInt256 big.Int
 var abiInt256Type = typeFor[ABIInt256]()
 
 var abiUint256Type = typeFor[uint256.Int]()
-
-type ABIIdentifier struct {
-	Origin      common.Address
-	BlockNumber *big.Int
-	LogIndex    *big.Int
-	Timestamp   *big.Int
-	ChainId     *big.Int
-}
 
 // goTypeToSolidityType converts a Go type to the solidity ABI type definition.
 // The "internalType" is a quirk of the Geth ABI utils, for nested structures.
@@ -512,7 +494,7 @@ func (p *Precompile[E]) setupStructField(fieldDef *reflect.StructField, fieldVal
 			fieldDef.Name, m.abiSignature, m.goName, byte4Sig)
 	}
 	// Determine the type to ABI-encode the Go field value into
-	abiTyp, err := GoTypeToABIType(fieldDef.Type)
+	abiTyp, err := goTypeToABIType(fieldDef.Type)
 	if err != nil {
 		return fmt.Errorf("failed to determine ABI type of struct field of type %s: %w", fieldDef.Type, err)
 	}

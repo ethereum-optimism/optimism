@@ -13,7 +13,7 @@ import { IDeputyPauseModule } from "interfaces/safe/IDeputyPauseModule.sol";
 import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
 
 /// @title DeputyPauseModule_TestInit
-/// @notice Base test setup for the DeputyPauseModule.
+/// @notice Reusable test initialization for `DeputyPauseModule` tests.
 contract DeputyPauseModule_TestInit is CommonTest, SafeTestTools {
     using SafeTestLib for SafeInstance;
 
@@ -203,7 +203,7 @@ contract DeputyPauseModule_TestInit is CommonTest, SafeTestTools {
 }
 
 /// @title DeputyPauseModule_Constructor_Test
-/// @notice Tests that the constructor works.
+/// @notice Tests the constructor of the `DeputyPauseModule` contract.
 contract DeputyPauseModule_Constructor_Test is DeputyPauseModule_TestInit {
     /// @notice Tests that the constructor works.
     function test_constructor_validParameters_succeeds() external {
@@ -226,12 +226,9 @@ contract DeputyPauseModule_Constructor_Test is DeputyPauseModule_TestInit {
             })
         );
     }
-}
 
-/// @title DeputyPauseModule_Constructor_TestFail
-/// @notice Tests that the constructor fails when it should.
-contract DeputyPauseModule_Constructor_TestFail is DeputyPauseModule_TestInit {
-    /// @notice Tests that the constructor reverts when the signature is not the deputy auth message.
+    /// @notice Tests that the constructor reverts when the signature is not the deputy auth
+    ///         message.
     function testFuzz_constructor_signatureNotNextContract_reverts(address _nextContract) external {
         // Make sure that the next contract is not correct.
         vm.assume(_nextContract != getNextContract());
@@ -254,7 +251,8 @@ contract DeputyPauseModule_Constructor_TestFail is DeputyPauseModule_TestInit {
         );
     }
 
-    /// @notice Tests that the constructor reverts when the signature is not the deputy auth message.
+    /// @notice Tests that the constructor reverts when the signature is not the deputy auth
+    ///         message.
     function testFuzz_constructor_signatureNotOverDeputy_reverts(address _deputy) external {
         // Make sure that the deputy is not correct.
         vm.assume(_deputy != deputy);
@@ -326,7 +324,8 @@ contract DeputyPauseModule_Constructor_TestFail is DeputyPauseModule_TestInit {
         );
     }
 
-    /// @notice Tests that the constructor reverts when the signature is not the deputy auth message.
+    /// @notice Tests that the constructor reverts when the signature is not the deputy auth
+    ///         message.
     function test_constructor_signatureNotAuthMessage_reverts() external {
         // Create the signature.
         bytes memory signature = makePauseSignature(getNextContract(), bytes32(0), address(0), deputyKey);
@@ -347,22 +346,52 @@ contract DeputyPauseModule_Constructor_TestFail is DeputyPauseModule_TestInit {
     }
 }
 
-/// @title DeputyPauseModule_Getters_Test
-/// @notice Tests that the getters work.
-contract DeputyPauseModule_Getters_Test is DeputyPauseModule_TestInit {
-    /// @notice Tests that the getters work.
-    function test_getters_works() external view {
-        assertEq(address(deputyPauseModule.guardianSafe()), address(guardianSafeInstance.safe));
-        assertEq(address(deputyPauseModule.foundationSafe()), address(foundationSafeInstance.safe));
-        assertEq(address(deputyPauseModule.superchainConfig()), address(superchainConfig));
+/// @title DeputyPauseModule_SetDeputy_Test
+/// @notice Tests the `setDeputy` function of the `DeputyPauseModule` contract.
+contract DeputyPauseModule_SetDeputy_Test is DeputyPauseModule_TestInit {
+    /// @notice Tests that setDeputy() succeeds when called from the safe.
+    /// @param _seed Seed used to generate a private key.
+    function testFuzz_setDeputy_fromSafe_succeeds(bytes32 _seed) external {
+        (address newDeputy, uint256 newDeputyKey) = makeAddrAndKey(string(abi.encodePacked(_seed)));
+
+        // Make sure the private key is not the existing deputy's private key.
+        vm.assume(newDeputyKey != deputyKey);
+
+        // Sign the message.
+        bytes memory signature = makeAuthSignature(address(deputyPauseModule), newDeputyKey, newDeputy);
+
+        // Set the deputy address.
+        vm.expectEmit(address(deputyPauseModule));
+        emit DeputySet(newDeputy);
+        vm.prank(address(foundationSafeInstance.safe));
+        deputyPauseModule.setDeputy(newDeputy, signature);
+
+        // Assert that the deputy address has been set.
+        assertEq(deputyPauseModule.deputy(), newDeputy);
+    }
+
+    /// @notice Tests that setDeputy() reverts when called by an address other than the safe.
+    function testFuzz_setDeputy_notSafe_reverts(address _sender) external {
+        // Make sure that the sender is not the safe.
+        vm.assume(_sender != address(foundationSafeInstance.safe));
+
+        // Create the key.
+        (address newDeputy, uint256 newDeputyKey) = makeAddrAndKey("whatever");
+
+        // Sign the message.
+        bytes memory signature = makeAuthSignature(address(deputyPauseModule), newDeputyKey, newDeputy);
+
+        // Expect a revert.
+        vm.expectRevert(abi.encodeWithSelector(IDeputyPauseModule.DeputyPauseModule_NotFromSafe.selector));
+        deputyPauseModule.setDeputy(newDeputy, signature);
+
+        // Make sure deputy has not changed.
         assertEq(deputyPauseModule.deputy(), deputy);
-        assertEq(deputyPauseModule.pauseMessageTypehash(), PAUSE_MESSAGE_TYPEHASH);
-        assertEq(deputyPauseModule.deputyAuthMessageTypehash(), DEPUTY_AUTH_MESSAGE_TYPEHASH);
     }
 }
 
 /// @title DeputyPauseModule_Pause_Test
-/// @notice Tests that the pause() function works.
+/// @notice Tests the `pause` function of the `DeputyPauseModule` contract.
 contract DeputyPauseModule_Pause_Test is DeputyPauseModule_TestInit {
     /// @notice Tests that pause() successfully pauses when called by the deputy.
     /// @param _nonce Signature nonce.
@@ -427,11 +456,7 @@ contract DeputyPauseModule_Pause_Test is DeputyPauseModule_TestInit {
         // within a short period of time.
         assertLt(gasUsed, 1000000);
     }
-}
 
-/// @title DeputyPauseModule_Pause_TestFail
-/// @notice Tests that the pause() function reverts when it should.
-contract DeputyPauseModule_Pause_TestFail is DeputyPauseModule_TestInit {
     /// @notice Tests that pause() reverts when called by an address other than the deputy.
     /// @param _privateKey The private key to use to sign the message.
     function testFuzz_pause_notDeputy_reverts(uint256 _privateKey) external {
@@ -540,7 +565,8 @@ contract DeputyPauseModule_Pause_TestFail is DeputyPauseModule_TestInit {
         deputyPauseModule.pause(SOME_VALID_NONCE, address(0), signature);
     }
 
-    /// @notice Tests that pause() reverts when the verifying contract is not the deputy pause module.
+    /// @notice Tests that pause() reverts when the verifying contract is not the deputy pause
+    ///         module.
     /// @param _verifyingContract The verifying contract.
     function testFuzz_pause_wrongVerifyingContract_reverts(address _verifyingContract) external {
         // Make sure that the verifying contract is not the deputy pause module.
@@ -591,50 +617,17 @@ contract DeputyPauseModule_Pause_TestFail is DeputyPauseModule_TestInit {
     }
 }
 
-/// @title DeputyPauseModule_SetDeputy_Test
-/// @notice Tests that the setDeputy() function works.
-contract DeputyPauseModule_SetDeputy_Test is DeputyPauseModule_TestInit {
-    /// @notice Tests that setDeputy() succeeds when called from the safe.
-    /// @param _seed Seed used to generate a private key.
-    function testFuzz_setDeputy_fromSafe_succeeds(bytes32 _seed) external {
-        (address newDeputy, uint256 newDeputyKey) = makeAddrAndKey(string(abi.encodePacked(_seed)));
-
-        // Make sure the private key is not the existing deputy's private key.
-        vm.assume(newDeputyKey != deputyKey);
-
-        // Sign the message.
-        bytes memory signature = makeAuthSignature(address(deputyPauseModule), newDeputyKey, newDeputy);
-
-        // Set the deputy address.
-        vm.expectEmit(address(deputyPauseModule));
-        emit DeputySet(newDeputy);
-        vm.prank(address(foundationSafeInstance.safe));
-        deputyPauseModule.setDeputy(newDeputy, signature);
-
-        // Assert that the deputy address has been set.
-        assertEq(deputyPauseModule.deputy(), newDeputy);
-    }
-}
-
-/// @title DeputyPauseModule_SetDeputy_TestFail
-/// @notice Tests that the setDeputy() function reverts when it should.
-contract DeputyPauseModule_SetDeputy_TestFail is DeputyPauseModule_TestInit {
-    /// @notice Tests that setDeputy() reverts when called by an address other than the safe.
-    function testFuzz_setDeputy_notSafe_reverts(address _sender) external {
-        // Make sure that the sender is not the safe.
-        vm.assume(_sender != address(foundationSafeInstance.safe));
-
-        // Create the key.
-        (address newDeputy, uint256 newDeputyKey) = makeAddrAndKey("whatever");
-
-        // Sign the message.
-        bytes memory signature = makeAuthSignature(address(deputyPauseModule), newDeputyKey, newDeputy);
-
-        // Expect a revert.
-        vm.expectRevert(abi.encodeWithSelector(IDeputyPauseModule.DeputyPauseModule_NotFromSafe.selector));
-        deputyPauseModule.setDeputy(newDeputy, signature);
-
-        // Make sure deputy has not changed.
+/// @title L1CrossDomainMessenger_Unclassified_Test
+/// @notice General tests that are not testing any function directly of the `DeputyPauseModule`
+///         contract or are testing multiple functions at once.
+contract DeputyPauseModule_Unclassified_Test is DeputyPauseModule_TestInit {
+    /// @notice Tests that the getters work.
+    function test_getters_works() external view {
+        assertEq(address(deputyPauseModule.guardianSafe()), address(guardianSafeInstance.safe));
+        assertEq(address(deputyPauseModule.foundationSafe()), address(foundationSafeInstance.safe));
+        assertEq(address(deputyPauseModule.superchainConfig()), address(superchainConfig));
         assertEq(deputyPauseModule.deputy(), deputy);
+        assertEq(deputyPauseModule.pauseMessageTypehash(), PAUSE_MESSAGE_TYPEHASH);
+        assertEq(deputyPauseModule.deputyAuthMessageTypehash(), DEPUTY_AUTH_MESSAGE_TYPEHASH);
     }
 }

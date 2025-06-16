@@ -7,12 +7,21 @@
 
 
 gates:
+  - id: conductor
+    description: "Sanity/smoke acceptance tests for networks with conductors."
+    tests:
+      - package: github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/base/conductor
+        timeout: 10m
+
   - id: base
     description: "Sanity/smoke acceptance tests for all networks."
     tests:
       - package: github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/base
       - package: github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/base/deposit
         timeout: 10m
+      # TODO(infra#401): Re-enable the test when the sysext missing toolset is implemented
+      #- package: github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/base/withdrawal
+      #  timeout: 10m
 
   - id: holocene
     inherits:
@@ -49,3 +58,4 @@ gates:
         timeout: 10m
       - package: github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/interop/message
       - package: github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/interop/sync
+      - package: github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/interop/smoke

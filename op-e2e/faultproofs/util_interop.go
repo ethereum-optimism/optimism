@@ -13,7 +13,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
 	"github.com/ethereum-optimism/optimism/op-e2e/interop"
 	"github.com/ethereum-optimism/optimism/op-e2e/system/e2esys"
-
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/stretchr/testify/require"
 )
@@ -55,6 +54,7 @@ func StartInteropFaultDisputeSystem(t *testing.T, opts ...faultDisputeConfigOpts
 
 	ctx := context.Background()
 	// wait for the supervisor to sync genesis
+	// Also ensures the L1 has advanced past genesis which can otherwise cause gas estimation problems
 	var lastError error
 	err = wait.For(ctx, 1*time.Minute, func() (bool, error) {
 		status, err := s2.SupervisorClient().SyncStatus(ctx)
@@ -62,7 +62,7 @@ func StartInteropFaultDisputeSystem(t *testing.T, opts ...faultDisputeConfigOpts
 			lastError = err
 			return false, nil
 		}
-		return status.SafeTimestamp != 0, nil
+		return status.SafeTimestamp > recipe.GenesisTimestamp && status.MinSyncedL1.Number > 0, nil
 	})
 	require.NoErrorf(t, err, "failed to wait for supervisor to sync genesis: %v", lastError)
 

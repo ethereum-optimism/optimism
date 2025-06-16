@@ -38,6 +38,8 @@ contract VerifyOPCM_Harness is VerifyOPCM {
     }
 }
 
+/// @title VerifyOPCM_TestInit
+/// @notice Reusable test initialization for `VerifyOPCM` tests.
 contract VerifyOPCM_TestInit is OPContractsManager_TestInit {
     VerifyOPCM_Harness internal harness;
 
@@ -55,7 +57,9 @@ contract VerifyOPCM_TestInit is OPContractsManager_TestInit {
     }
 }
 
-contract VerifyOPCM_run_Test is VerifyOPCM_TestInit {
+/// @title VerifyOPCM_Run_Test
+/// @notice Tests the `run` function of the `VerifyOPCM` script.
+contract VerifyOPCM_Run_Test is VerifyOPCM_TestInit {
     /// @notice Tests that the script succeeds when no changes are introduced.
     function test_run_succeeds() public {
         // Coverage changes bytecode and causes failures, skip.

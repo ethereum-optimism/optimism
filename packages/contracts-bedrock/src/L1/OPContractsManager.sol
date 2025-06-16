@@ -1634,6 +1634,11 @@ contract OPContractsManagerInteropMigrator is OPContractsManagerBase {
 }
 
 contract OPContractsManager is ISemver {
+    // -------- Events --------
+
+    /// @notice Emitted when the OPCM setRC function is called.
+    event Released(bool _isRC);
+
     // -------- Structs --------
 
     /// @notice Represents the roles that can be set when deploying a standard OP Stack chain.
@@ -1754,9 +1759,9 @@ contract OPContractsManager is ISemver {
 
     // -------- Constants and Variables --------
 
-    /// @custom:semver 2.4.0
+    /// @custom:semver 2.4.1
     function version() public pure virtual returns (string memory) {
-        return "2.4.0";
+        return "2.4.1";
     }
 
     OPContractsManagerGameTypeAdder public immutable opcmGameTypeAdder;
@@ -1948,6 +1953,8 @@ contract OPContractsManager is ISemver {
     function setRC(bool _isRC) external {
         if (msg.sender != upgradeController) revert OnlyUpgradeController();
         isRC = _isRC;
+
+        emit Released(_isRC);
     }
 
     /// @notice Helper function to perform a delegatecall to a target contract

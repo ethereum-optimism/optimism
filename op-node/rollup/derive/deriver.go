@@ -137,6 +137,11 @@ func (d *PipelineDeriver) OnEvent(ev event.Event) bool {
 		}
 		if err == io.EOF {
 			d.pipeline.log.Debug("Derivation process went idle", "progress", d.pipeline.Origin(), "err", err)
+			if d.pipeline.Origin() != d.pipeline.attrib.Origin() {
+				d.pipeline.log.Warn("Inconsistent derivation L1 traversal",
+					"progress", d.pipeline.Origin(),
+					"attribOrigin", d.pipeline.attrib.Origin())
+			}
 			d.emitter.Emit(DeriverIdleEvent{Origin: d.pipeline.Origin()})
 			d.emitter.Emit(ExhaustedL1Event{L1Ref: d.pipeline.Origin(), LastL2: x.PendingSafe})
 		} else if err != nil && errors.Is(err, EngineELSyncing) {

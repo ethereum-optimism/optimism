@@ -2,13 +2,17 @@ package eth
 
 import (
 	"fmt"
+	"log/slog"
 	"math/big"
 	"sort"
+	"strings"
 
 	"github.com/holiman/uint256"
 )
 
 type ChainID uint256.Int
+
+var _ slog.LogValuer = ChainID(uint256.Int{})
 
 func ChainIDFromBig(chainID *big.Int) ChainID {
 	return ChainID(*uint256.MustFromBig(chainID))
@@ -16,6 +20,13 @@ func ChainIDFromBig(chainID *big.Int) ChainID {
 
 func ChainIDFromUInt64(i uint64) ChainID {
 	return ChainID(*uint256.NewInt(i))
+}
+
+func ChainIDFromString(id string) (ChainID, error) {
+	if strings.HasPrefix(id, "0x") {
+		return ParseHexChainID(id)
+	}
+	return ParseDecimalChainID(id)
 }
 
 func ChainIDFromBytes32(b [32]byte) ChainID {
@@ -29,6 +40,18 @@ func ParseDecimalChainID(chainID string) (ChainID, error) {
 		return ChainID{}, err
 	}
 	return ChainID(*v), nil
+}
+
+func ParseHexChainID(chainID string) (ChainID, error) {
+	v, err := uint256.FromHex(chainID)
+	if err != nil {
+		return ChainID{}, err
+	}
+	return ChainID(*v), nil
+}
+
+func (id ChainID) LogValue() slog.Value {
+	return slog.StringValue(id.String())
 }
 
 // String encodes the chainID in decimal form.

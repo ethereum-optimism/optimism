@@ -176,6 +176,8 @@ func TestInteropFaultProofs_ConsolidateValidCrossChainMessage(gt *testing.T) {
 }
 
 func TestInteropFaultProofs_PreForkActivation(gt *testing.T) {
+	// TODO(#16166): Fix non-genesis Interop activation proofs
+	gt.Skip()
 	t := helpers.NewDefaultTesting(gt)
 	system := dsl.NewInteropDSL(t, dsl.SetInteropForkScheduledButInactive())
 

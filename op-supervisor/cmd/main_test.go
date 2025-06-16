@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/ethereum/go-ethereum/superchain"
 	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum/go-ethereum/log"
@@ -83,6 +84,58 @@ func TestMockRun(t *testing.T) {
 	})
 }
 
+func TestConfig(t *testing.T) {
+	t.Run("SingleNetwork", func(t *testing.T) {
+		cfg := configForArgs(t, addRequiredArgsExceptConfig(
+			"--network", "op-mainnet"))
+		require.NoError(t, cfg.Check())
+	})
+
+	t.Run("MultipleNetworks", func(t *testing.T) {
+		cfg := configForArgs(t, addRequiredArgsExceptConfig(
+			"--network", "op-mainnet,unichain-mainnet"))
+		require.NoError(t, cfg.Check())
+	})
+
+	t.Run("UnknownNetwork", func(t *testing.T) {
+		verifyArgsInvalid(t,
+			superchain.ErrUnknownChain.Error(),
+			addRequiredArgsExceptConfig(
+				"--network", "unknown-chain"))
+	})
+
+	t.Run("RollupConfigRequiredWhenNoNetwork", func(t *testing.T) {
+		verifyArgsInvalid(t,
+			"required flag is missing: either networks or dependency-set and one of rollup-config-set, rollup-config-paths must be set",
+			addRequiredArgsExcept("--rollup-config-set"))
+	})
+
+	t.Run("DependencySetRequiredWhenNoNetwork", func(t *testing.T) {
+		verifyArgsInvalid(t,
+			"required flag is missing: either networks or dependency-set and one of rollup-config-set, rollup-config-paths must be set",
+			addRequiredArgsExcept("--dependency-set"))
+	})
+
+	t.Run("DependencySetAndRollupConfigPaths", func(t *testing.T) {
+		cfg := configForArgs(t, addRequiredArgsExceptConfig(
+			"--dependency-set", "depset.json", "--rollup-config-paths", "test-paths"))
+		require.NoError(t, cfg.Check())
+	})
+
+	t.Run("DependencySetAndRollupConfigSet", func(t *testing.T) {
+		cfg := configForArgs(t, addRequiredArgsExceptConfig(
+			"--dependency-set", "depset.json", "--rollup-config-set", "test-set"))
+		require.NoError(t, cfg.Check())
+	})
+
+	t.Run("MustNotSetRollupConfigSetAndRollupConfigPathsTogether", func(t *testing.T) {
+		verifyArgsInvalid(t,
+			"conflicting flags: only one of rollup-config-paths, rollup-config-set can be set",
+			addRequiredArgsExceptConfig(
+				"--dependency-set", "depset.json", "--rollup-config-set", "test-set", "--rollup-config-paths", "test-paths"))
+	})
+}
+
 func verifyArgsInvalid(t *testing.T, messageContains string, cliArgs []string) {
 	_, _, err := dryRunWithArgs(cliArgs)
 	require.ErrorContains(t, err, messageContains)
@@ -119,6 +172,18 @@ func addRequiredArgs(args ...string) []string {
 func addRequiredArgsExcept(name string, optionalArgs ...string) []string {
 	req := requiredArgs()
 	delete(req, name)
+	return append(toArgList(req), optionalArgs...)
+}
+
+func addRequiredArgsExceptConfig(optionalArgs ...string) []string {
+	return addRequiredArgsExceptMultiple([]string{"--rollup-config-set", "--dependency-set"}, optionalArgs...)
+}
+
+func addRequiredArgsExceptMultiple(names []string, optionalArgs ...string) []string {
+	req := requiredArgs()
+	for _, name := range names {
+		delete(req, name)
+	}
 	return append(toArgList(req), optionalArgs...)
 }
 

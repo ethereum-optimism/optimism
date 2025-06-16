@@ -23,6 +23,7 @@ build-contracts:
 lint-go: ## Lints Go code with specific linters
 	golangci-lint run -E goimports,sqlclosecheck,bodyclose,asciicheck,misspell,errorlint --timeout 5m -e "errors.As" -e "errors.Is" ./...
 	golangci-lint run -E err113 --timeout 5m -e "errors.As" -e "errors.Is" ./op-program/client/...
+	go mod tidy -diff
 .PHONY: lint-go
 
 lint-go-fix: ## Lints Go code with specific linters and fixes reported issues
@@ -280,6 +281,21 @@ go-tests-short: $(TEST_DEPS) ## Runs comprehensive Go tests with -short flag
 	go test -short -parallel=$$PARALLEL -timeout=$(TEST_TIMEOUT) $(TEST_PKGS)
 .PHONY: go-tests-short
 
+go-tests-short-ci: ## Runs short Go tests with gotestsum for CI (assumes deps built by CI)
+	@echo "Setting up test directories..."
+	mkdir -p ./tmp/test-results ./tmp/testlogs
+	@echo "Running Go tests with gotestsum..."
+	$(DEFAULT_TEST_ENV_VARS) && \
+	$(CI_ENV_VARS) && \
+	gotestsum --format=testname \
+		--junitfile=./tmp/test-results/results.xml \
+		--jsonfile=./tmp/testlogs/log.json \
+		--rerun-fails=3 \
+		--rerun-fails-max-failures=50 \
+		--packages="$(TEST_PKGS) $(RPC_TEST_PKGS) $(FRAUD_PROOF_TEST_PKGS)" \
+		-- -parallel=$$PARALLEL -coverprofile=coverage.out -short -timeout=$(TEST_TIMEOUT) -tags="ci"
+.PHONY: go-tests-short-ci
+
 go-tests-ci: ## Runs comprehensive Go tests with gotestsum for CI (assumes deps built by CI)
 	@echo "Setting up test directories..."
 	mkdir -p ./tmp/test-results ./tmp/testlogs
@@ -292,7 +308,7 @@ go-tests-ci: ## Runs comprehensive Go tests with gotestsum for CI (assumes deps 
 		--rerun-fails=3 \
 		--rerun-fails-max-failures=50 \
 		--packages="$(TEST_PKGS) $(RPC_TEST_PKGS) $(FRAUD_PROOF_TEST_PKGS)" \
-		-- -parallel=$$PARALLEL -coverprofile=coverage.out -timeout=$(TEST_TIMEOUT)
+		-- -parallel=$$PARALLEL -coverprofile=coverage.out -timeout=$(TEST_TIMEOUT) -tags="ci"
 .PHONY: go-tests-ci
 
 go-tests-fraud-proofs-ci: ## Runs fraud proofs Go tests with gotestsum for CI (assumes deps built by CI)

@@ -36,12 +36,39 @@ func (el *elNode) WaitForBlock() eth.BlockRef {
 	return el.waitForNextBlock(1)
 }
 
+func (el *elNode) WaitForBlockNumber(targetBlock uint64) eth.BlockRef {
+	var newRef eth.BlockRef
+
+	err := wait.For(el.ctx, 500*time.Millisecond, func() (bool, error) {
+		newBlock, err := el.inner.EthClient().InfoByLabel(el.ctx, eth.Unsafe)
+		if err != nil {
+			return false, err
+		}
+
+		newRef = eth.InfoToL1BlockRef(newBlock)
+		if newBlock.NumberU64() >= targetBlock {
+			el.log.Info("Target block reached", "block", newRef)
+			return true, nil
+		}
+		return false, nil
+	})
+	el.require.NoError(err, "Expected to reach target block")
+	return newRef
+}
+
 func (el *elNode) WaitForOnline() {
 	el.require.Eventually(func() bool {
 		el.log.Info("Waiting for online")
 		_, err := el.inner.EthClient().InfoByLabel(el.ctx, eth.Unsafe)
 		return err == nil
 	}, 10*time.Second, 500*time.Millisecond, "Expected to be online")
+}
+
+func (el *elNode) IsCanonical(ref eth.BlockID) bool {
+	blk, err := el.inner.EthClient().BlockRefByNumber(el.t.Ctx(), ref.Number)
+	el.require.NoError(err)
+
+	return blk.Hash == ref.Hash
 }
 
 // waitForNextBlockWithTimeout waits until the specified block number is present

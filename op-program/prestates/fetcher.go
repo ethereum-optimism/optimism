@@ -27,6 +27,9 @@ func LoadReleases(overrideFile string) (*Prestates, error) {
 			return nil, fmt.Errorf("failed to download standard prestates from %v: %w", standardPrestatesUrl, err)
 		}
 		defer resp.Body.Close()
+		if resp.StatusCode != http.StatusOK {
+			return nil, fmt.Errorf("failed to download standard prestates from %v: received status code %d", standardPrestatesUrl, resp.StatusCode)
+		}
 		data, err = io.ReadAll(resp.Body)
 		if err != nil {
 			return nil, fmt.Errorf("failed to read standard prestates from %v: %w", standardPrestatesUrl, err)

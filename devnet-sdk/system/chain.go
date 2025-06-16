@@ -140,7 +140,12 @@ func (c *chain) ID() types.ChainID {
 	if c.id == "" {
 		return types.ChainID(big.NewInt(0))
 	}
-	id, ok := new(big.Int).SetString(c.id, 10)
+	base := 10
+	if len(c.id) >= 2 && c.id[0:2] == "0x" {
+		c.id = c.id[2:]
+		base = 16
+	}
+	id, ok := new(big.Int).SetString(c.id, base)
 	if !ok {
 		return types.ChainID(big.NewInt(0))
 	}
