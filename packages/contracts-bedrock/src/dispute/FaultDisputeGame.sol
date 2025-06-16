@@ -125,7 +125,6 @@ contract FaultDisputeGame is Clone, ISemver {
 
     /// @notice The absolute prestate of the instruction trace. This is a constant that is defined
     ///         by the program that is being used to execute the trace.
-    // Claim internal immutable ABSOLUTE_PRESTATE;
 
     /// @notice The max depth of the game.
     uint256 internal immutable MAX_GAME_DEPTH;
