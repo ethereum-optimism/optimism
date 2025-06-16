@@ -269,9 +269,9 @@ func (f *ServiceFinder) triage() {
 		// We should expect the rules to be gradually removed to make way for
 		// this code path. Ultimately we'll rely only on labels, and most of the
 		// code in this file will disappear as a result.
-		triaged := rules.apply(serviceName, endpoints)
+		triaged := f.triageByLabels(svc, serviceName, endpoints)
 		if triaged == nil {
-			triaged = f.triageByLabels(svc, serviceName, endpoints)
+			triaged = rules.apply(serviceName, endpoints)
 		}
 
 		if triaged != nil {
