@@ -44,12 +44,12 @@ flowchart TD
 
   ra --"New Unsafe and Finalized Blocks"--> fa
   ra --"Receipt Data for EM Validation"--> ua
-  fa --"Executing Messages and Finality" --> s
-  s --"New Jobs and Expiry Info" --> ub
+  fa --"Executing Messages and Finalized Block Info" --> s
+  s --"New Jobs and Finalized Block Info" --> ub
   rb --"New Unsafe and Finalized Blocks"--> fb
   rb --"Receipt Data for EM Validation"--> ub
-  fb --"Executing Messages and Finality" --> s
-  s --"New Jobs and Expiry Info" --> ua
+  fb --"Executing Messages and Finalized Block Info" --> s
+  s --"New Jobs and Finalized Block Info" --> ua
   ua --"All Current Jobs"--> m
   ub --"All Current Jobs"--> m
   m --"Executing and Initiating Message Prometheus Stats"--> g

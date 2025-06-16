@@ -36,7 +36,7 @@ type InteropMonitorService struct {
 	finders   map[eth.ChainID]Finder
 	updaters  map[eth.ChainID]Updater
 	collector *MetricCollector
-	expiry    *locks.RWMap[eth.ChainID, eth.NumberAndHash]
+	finalized *locks.RWMap[eth.ChainID, eth.NumberAndHash]
 
 	Version string
 
@@ -64,7 +64,7 @@ func (ms *InteropMonitorService) initFromCLIConfig(ctx context.Context, version 
 	ms.PollInterval = cfg.PollInterval
 
 	// Initialize the expiry map
-	ms.expiry = locks.RWMapFromMap(make(map[eth.ChainID]eth.NumberAndHash))
+	ms.finalized = locks.RWMapFromMap(make(map[eth.ChainID]eth.NumberAndHash))
 
 	// Initialize all clients
 	clients, err := ms.initClients(ctx, cfg.L2Rpcs)
@@ -140,7 +140,7 @@ func (ms *InteropMonitorService) dial(ctx context.Context, l2Rpc string) (*sourc
 // initUpdaters initializes the updaters for the given clients
 func (ms *InteropMonitorService) initUpdaters(clients map[eth.ChainID]*sources.EthClient) error {
 	for chainID, ethClient := range clients {
-		updater := NewUpdater(chainID, ethClient, ms.expiry, ms.Log)
+		updater := NewUpdater(chainID, ethClient, ms.finalized, ms.Log)
 		ms.updaters[chainID] = updater
 	}
 	return nil
@@ -166,7 +166,7 @@ func (ms *InteropMonitorService) RouteNewJob(job *Job) {
 
 // SetExpiry sets the expiry for a chain ID
 func (ms *InteropMonitorService) SetExpiry(chainID eth.ChainID, expiry eth.BlockInfo) {
-	ms.expiry.Set(chainID, expiry)
+	ms.finalized.Set(chainID, expiry)
 }
 
 func (ms *InteropMonitorService) initMetrics(cfg *CLIConfig) {
