@@ -84,13 +84,13 @@ func (h *DisputeGameFactoryHelper) StartSuperCannonGame(eoa *dsl.EOA, rootClaim 
 
 func (h *DisputeGameFactoryHelper) startSuperCannonGameOfType(eoa *dsl.EOA, timestamp uint64, rootClaim common.Hash, gameType uint32, opts ...GameOpt) *SuperCannonGameHelper {
 	cfg := NewGameCfg(opts...)
-	extraData := h.CreateSuperGameExtraData(timestamp, cfg)
+	extraData := h.createSuperGameExtraData(timestamp, cfg)
 	game := h.createNewGame(eoa, gameType, rootClaim, extraData)
 
 	return NewSuperCannonGameHelper(h.t, h.require, game)
 }
 
-func (h *DisputeGameFactoryHelper) CreateSuperGameExtraData(timestamp uint64, cfg *GameCfg) []byte {
+func (h *DisputeGameFactoryHelper) createSuperGameExtraData(timestamp uint64, cfg *GameCfg) []byte {
 	if !cfg.allowFuture {
 		require.Eventually(h.t, func() bool {
 			status := h.supervisor.FetchSyncStatus()
