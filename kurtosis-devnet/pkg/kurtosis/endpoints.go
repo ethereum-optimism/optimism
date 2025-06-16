@@ -255,7 +255,7 @@ func (f *ServiceFinder) triageByLabels(svc *inspect.Service, name string, endpoi
 		tag: tag,
 		idx: idx,
 		// TODO: eventually we can retire the "name" part, but it doesn't hurt for now
-		accept: acceptNamesOrIDs(strings.Split(id, ",")...),
+		accept: acceptNamesOrIDs(strings.Split(id, "-")...),
 		svc: &descriptors.Service{
 			Name:      name,
 			Endpoints: endpoints,

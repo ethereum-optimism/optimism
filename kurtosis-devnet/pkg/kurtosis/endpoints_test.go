@@ -243,7 +243,7 @@ func createTestServiceMap() inspect.ServiceMap {
 			},
 			Labels: map[string]string{
 				kindLabel:      "challenger",
-				networkIDLabel: "2151908,2151909",
+				networkIDLabel: "2151908-2151909",
 			},
 		},
 		"op-supervisor-service-superchain": &inspect.Service{
