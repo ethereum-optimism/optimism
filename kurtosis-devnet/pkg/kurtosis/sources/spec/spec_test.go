@@ -82,7 +82,7 @@ func TestParseSpecErrors(t *testing.T) {
 			yaml: `
 optimism_package:
   chains:
-    op_kurtosis:
+    opkurtosis:
       participants:
         node0:
           el:

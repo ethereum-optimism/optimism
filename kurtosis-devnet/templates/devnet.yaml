@@ -18,7 +18,7 @@ optimism_package:
 {{ end }}
   chains:
   {{ range $l2_id, $l2 := $l2s }}
-    op_kurtosis_{{ $l2_id }}:
+    opkurtosis{{ $l2_id }}:
       {{ include "l2.yaml" (dict "chain_id" $l2_id "overrides" $overrides "nodes" $l2.nodes) }}
   {{ end }}
   op_contract_deployer_params:

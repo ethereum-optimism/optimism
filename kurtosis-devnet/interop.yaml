@@ -35,7 +35,7 @@ optimism_package:
       extra_params:
       - {{ $flags.log_level }}
   chains:
-    op_kurtosis_1:
+    opkurtosis1:
       participants:
         node0: &x-node
           el:
@@ -89,7 +89,7 @@ optimism_package:
         game_type: 1
         proposal_interval: 10m
       additional_services: []
-    op_kurtosis_2:
+    opkurtosis2:
       participants:
         node0: *x-node
       network_params:
