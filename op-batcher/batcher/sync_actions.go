@@ -68,7 +68,7 @@ func computeSyncActions[T channelStatuser](
 		"syncStatus.unsafeL2", newSyncStatus.UnsafeL2.TerminalString(),
 	)
 
-	// We do _not_ want to use the SafeL2 (aka Cross Safe) field.
+	// We do _not_ want to use the SafeL2 (aka Cross Safe) field,
 	// since that introduces extra dependencies post interop.
 	safeL2 := newSyncStatus.LocalSafeL2
 
