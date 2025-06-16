@@ -16,7 +16,7 @@ type SimpleFlashblocks struct {
 	FlashblocksBuilderSets map[stack.L2NetworkID]dsl.FlashblocksBuilderSet
 }
 
-// TODO: shift this to a different sysgo constructor once the sysgo implementation supports flashblocks / rbuilders
+// TODO(#16450): shift this to a different sysgo constructor once the sysgo implementation supports flashblocks / rbuilders
 func WithSimpleFlashblocks() stack.CommonOption {
 	return stack.MakeCommon(sysgo.DefaultMinimalSystem(&sysgo.DefaultMinimalSystemIDs{}))
 }

@@ -24,8 +24,7 @@ const (
 	MetricsProtocol              = "metrics"
 	WebsocketFlashblocksProtocol = "ws-flashblocks"
 
-	FeatureInterop     = "interop"
-	FeatureFlashblocks = "flashblocks"
+	FeatureInterop = "interop"
 )
 
 func (orch *Orchestrator) rpcClient(t devtest.T, service *descriptors.Service, protocol string, path string, opts ...client.RPCOption) client.RPC {

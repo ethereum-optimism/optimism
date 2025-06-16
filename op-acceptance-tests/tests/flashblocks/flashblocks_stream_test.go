@@ -7,6 +7,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"os"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -19,6 +21,11 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/gorilla/websocket"
 	"github.com/stretchr/testify/require"
+)
+
+var (
+	flashblocksStreamRate  = os.Getenv("FLASHBLOCKS_STREAM_RATE_MS")
+	maxExpectedFlashblocks = 20
 )
 
 // Define a struct to represent the flashblock data structure
@@ -63,6 +70,16 @@ func TestFlashblocksStream(gt *testing.T) {
 	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 
+	if flashblocksStreamRate == "" {
+		logger.Warn("FLASHBLOCKS_STREAM_RATE_MS is not set, using default of 250ms")
+		flashblocksStreamRate = "250"
+	}
+
+	flashblocksStreamRateMs, err := strconv.Atoi(flashblocksStreamRate)
+	require.NoError(t, err, "failed to parse FLASHBLOCKS_STREAM_RATE_MS: %s", err)
+
+	logger.Info("Flashblocks stream rate", "rate", flashblocksStreamRateMs)
+
 	// Test all L2 chains in the system
 	for l2Chain, flashblocksBuilderSet := range sys.FlashblocksBuilderSets {
 		_, span = tracer.Start(ctx, "test chain")
@@ -88,15 +105,20 @@ func TestFlashblocksStream(gt *testing.T) {
 					mode = FlashblocksStreamMode_Leader
 				}
 
-				testFlashblocksStream(tt, logger, dsl.NewFlashblocksBuilderNode(flashblocksBuilderNodeStack), mode)
+				testFlashblocksStream(tt, logger, dsl.NewFlashblocksBuilderNode(flashblocksBuilderNodeStack), mode, flashblocksStreamRateMs)
 			}
 		})
 	}
 }
 
-// testFlashblocksStream tests the presence / absence of a flashblocks stream operating at a 250ms rate
-func testFlashblocksStream(t devtest.T, logger log.Logger, flashblocksBuilderNode *dsl.FlashblocksBuilderNode, mode FlashblocksStreamMode) {
+// testFlashblocksStream tests the presence / absence of a flashblocks stream operating at a 250ms (configurable via env var FLASHBLOCKS_STREAM_RATE) rate
+func testFlashblocksStream(t devtest.T, logger log.Logger, flashblocksBuilderNode *dsl.FlashblocksBuilderNode, mode FlashblocksStreamMode, expectedFlashblocksStreamRateMs int) {
 	t.Run(fmt.Sprintf("Flashblocks_Stream_%s", mode), func(t devtest.T) {
+		testDuration := time.Duration(int64(expectedFlashblocksStreamRateMs*maxExpectedFlashblocks)) * time.Millisecond
+		failureTolerance := int(0.15 * float64(maxExpectedFlashblocks))
+
+		logger.Debug("Test duration", "duration", testDuration, "failure tolerance (of flashblocks)", failureTolerance)
+
 		require.Contains(t, []FlashblocksStreamMode{FlashblocksStreamMode_Leader, FlashblocksStreamMode_Follower}, mode, "mode should be either leader or follower")
 		require.NotNil(t, flashblocksBuilderNode, "flashblocksBuilderNode should not be nil")
 
@@ -144,15 +166,14 @@ func testFlashblocksStream(t devtest.T, logger log.Logger, flashblocksBuilderNod
 		require.Greater(t, len(streamedMessages), 0, "should have received at least one message from WebSocket")
 		flashblocks := make([]Flashblock, len(streamedMessages))
 
-		failureTolerance := 3
-
+		failures := 0
 		for i, msg := range streamedMessages {
 			var flashblock Flashblock
 			if err := json.Unmarshal([]byte(msg), &flashblock); err != nil {
 				logger.Warn("Failed to unmarshal WebSocket message", "error", err)
-				failureTolerance--
-				if failureTolerance < 0 {
-					logger.Error("failed to unmarshal stramed messages into flashblocks beyond the failure tolerance of %d", failureTolerance)
+				failures++
+				if failures > failureTolerance {
+					logger.Error("failed to unmarshal streamed messages into flashblocks beyond the failure tolerance of %d", failureTolerance)
 					t.FailNow()
 				}
 				continue
@@ -192,7 +213,18 @@ func testFlashblocksStream(t devtest.T, logger log.Logger, flashblocksBuilderNod
 			lastBlockNumber = currentBlockNumber
 		}
 
-		require.Greater(t, totalFlashblocksProduced, 17, "total flashblocks produced should be greater than 17 (20 over 5s with a 250ms rate with a failure tolerance of 3 flashblocks)")
+		minExpectedFlashblocks := maxExpectedFlashblocks - failureTolerance
+
+		require.Greater(t,
+			totalFlashblocksProduced, minExpectedFlashblocks,
+			fmt.Sprintf("total flashblocks produced should be greater than %d (%d over %s with a %dms rate with a failure tolerance of %d flashblocks)",
+				minExpectedFlashblocks,
+				maxExpectedFlashblocks,
+				testDuration,
+				expectedFlashblocksStreamRateMs,
+				failureTolerance,
+			),
+		)
 
 		logger.Info("Flashblocks stream validation completed", "total_flashblocks_produced", totalFlashblocksProduced)
 	})
