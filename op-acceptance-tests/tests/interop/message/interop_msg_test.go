@@ -588,7 +588,12 @@ func TestExecMessageInvalidAttributes(gt *testing.T) {
 		{mismatchedLogIndex}, {mismatchedTimestamp}, {msgNotPresent}, {logIndexGreaterOrEqualToEventCnt},
 	}
 
-	// save correct nonce to avoid flakiness while validating message
+	// Save correct nonce to avoid flakiness while validating message:
+	// There is a time gap between invalid validating message is dropped from the L2EL txpool.
+	// While not dropped yet, the client may call pendingNonceAt RPC which is a nonce which eventually becomes
+	// non-consecutive nonce after previous invalid tx has dropped, causing the valid tx not to be included in the block but live in the mempool.
+	// To remove this race, fetch nonce before sending invalid messages.
+
 	nonce := bob.PendingNonce()
 
 	for _, faults := range faultsLists {
