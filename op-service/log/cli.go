@@ -233,7 +233,7 @@ func NewLogger(wr io.Writer, cfg CLIConfig) log.Logger {
 // and it is thus recommended to set the global log handler to catch these logs.
 func SetGlobalLogHandler(h slog.Handler) {
 	l := log.NewLogger(h)
-	ctx := logfilter.AddLogAttrToContext(context.Background(), "global", "true")
+	ctx := logfilter.AddLogAttrToContext(context.Background(), "global", true)
 	l.SetContext(ctx)
 	log.SetDefault(l)
 }
