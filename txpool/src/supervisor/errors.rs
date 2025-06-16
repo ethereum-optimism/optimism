@@ -1,6 +1,6 @@
 use alloy_json_rpc::RpcError;
 use core::error;
-use op_alloy_rpc_types::InvalidInboxEntry;
+use op_alloy_rpc_types::SuperchainDAError;
 
 /// Failures occurring during validation of inbox entries.
 #[derive(thiserror::Error, Debug)]
@@ -11,7 +11,7 @@ pub enum InteropTxValidatorError {
 
     /// Message does not satisfy validation requirements
     #[error(transparent)]
-    InvalidEntry(#[from] InvalidInboxEntry),
+    InvalidEntry(#[from] SuperchainDAError),
 
     /// Catch-all variant.
     #[error("supervisor server error: {0}")]
@@ -36,10 +36,10 @@ impl InteropTxValidatorError {
     {
         // Try to extract error details from the RPC error
         if let Some(error_payload) = err.as_error_resp() {
-            let code = error_payload.code;
+            let code = error_payload.code as i32;
 
-            // Try to convert the error code to an InvalidInboxEntry variant
-            if let Ok(invalid_entry) = InvalidInboxEntry::try_from(code) {
+            // Try to convert the error code to an SuperchainDAError variant
+            if let Ok(invalid_entry) = SuperchainDAError::try_from(code) {
                 return Self::InvalidEntry(invalid_entry);
             }
         }
