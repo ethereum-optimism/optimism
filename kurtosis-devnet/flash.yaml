@@ -13,6 +13,9 @@ optimism_package:
             image: {{ localDockerImage "op-node" }}
             builder_type: "op-rbuilder"
             builder_image: "us-docker.pkg.dev/oplabs-tools-artifacts/dev-images/op-rbuilder:sha-4aee498"
+          mev_params:
+            type: "rollup-boost"
+            image: "docker.io/flashbots/rollup-boost:0.6.2"
         node1: *x-node
       network_params:
         network: "kurtosis"
@@ -34,9 +37,6 @@ optimism_package:
         extra_params: []
         game_type: 1
         proposal_interval: 10m
-      mev_params:
-        type: "rollup-boost"
-        image: "docker.io/flashbots/rollup-boost:0.6.2"
       additional_services: [
         "rollup-boost",
       ]

@@ -27,3 +27,7 @@ cl:
   max_cpu: 0
   min_mem: 0
   max_mem: 0
+mev_params:
+  image: ""
+  builder_host: ""
+  builder_port: ""
