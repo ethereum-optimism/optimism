@@ -1895,6 +1895,8 @@ workflows:
             - circleci-repo-readonly-authenticated-github-token
       - go-tests:
           name: go-tests-short
+          no_output_timeout: 19m
+          test_timeout: 20m
           requires:
             - contracts-bedrock-build
             - cannon-prestate-quick
