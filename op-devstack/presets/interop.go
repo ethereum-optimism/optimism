@@ -1,6 +1,8 @@
 package presets
 
 import (
+	"time"
+
 	"github.com/ethereum/go-ethereum/log"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/devkeys"
@@ -79,6 +81,12 @@ func (s *SingleChainInterop) L2Networks() []*dsl.L2Network {
 	return []*dsl.L2Network{
 		s.L2ChainA,
 	}
+}
+
+func (s *SingleChainInterop) AdvanceTime(amount time.Duration) {
+	ttSys, ok := s.system.(stack.TimeTravelSystem)
+	s.T.Require().True(ok, "attempting to advance time on incompatible system")
+	ttSys.AdvanceTime(amount)
 }
 
 // WithSingleChainInterop specifies a system that meets the SingleChainInterop criteria.
