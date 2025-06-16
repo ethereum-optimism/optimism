@@ -32,6 +32,10 @@ optimism_package:
             max_cpu: 0
             min_mem: 0
             max_mem: 0
+          mev_params:
+            image: ""
+            builder_host: ""
+            builder_port: ""
       network_params:
         network: "kurtosis"
         network_id: "2151908"
@@ -48,10 +52,6 @@ optimism_package:
         extra_params: []
         game_type: 1
         proposal_interval: 10m
-      mev_params:
-        image: ""
-        builder_host: ""
-        builder_port: ""
       additional_services: []
   challengers:
     challenger:
