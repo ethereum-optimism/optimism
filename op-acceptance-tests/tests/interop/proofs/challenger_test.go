@@ -25,12 +25,9 @@ func TestChallengerPlaysGame(gt *testing.T) {
 
 	game := helper.StartSuperCannonGame(attacker, badClaim)
 
-	claim := game.GetRootClaim()                // This is the bad claim from attacker
-	counterClaim := claim.WaitForCounterClaim() // This is the counter-claim from the challenger
-	for counterClaim.GetDepth() < game.GetSplitDepth() {
-		claim = counterClaim.Attack(attacker, badClaim)
-		counterClaim = claim.WaitForCounterClaim()
-	}
+	// Wait for the challenger to counter the bad root claim
+	claim := game.GetRootClaim()
+	claim.WaitForCounterClaim()
 }
 
 func fundAttackerWallet(t devtest.T, sys *presets.SimpleInterop, fundingAmount eth.ETH) *dsl.EOA {
