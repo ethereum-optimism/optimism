@@ -115,6 +115,10 @@ type BatchSubmitter struct {
 	channelMgrMutex sync.Mutex // guards channelMgr and prevCurrentL1
 	channelMgr      *channelManager
 	prevCurrentL1   eth.L1BlockRef // cached CurrentL1 from the last syncStatus
+
+	throttleController    ThrottleController
+	throttleMutex         sync.RWMutex
+	currentThrottleParams ThrottleParams
 }
 
 // NewBatchSubmitter initializes the BatchSubmitter driver from a preconfigured DriverSetup
@@ -124,9 +128,43 @@ func NewBatchSubmitter(setup DriverSetup) *BatchSubmitter {
 		state.SetChannelOutFactory(setup.ChannelOutFactory)
 	}
 
+	factory := NewThrottleControllerFactory()
+
+	var pidConfig *PIDControllerConfig
+	if setup.Config.ThrottlePidConfig != nil {
+		pidConfig = setup.Config.ThrottlePidConfig
+	}
+
+	throttleController, err := factory.CreateController(
+		setup.Config.ThrottleControllerType,
+		setup.Config.ThrottleThreshold,
+		setup.Config.ThrottleTxSize,
+		setup.Config.ThrottleBlockSize,
+		setup.Config.ThrottleAlwaysBlockSize,
+		pidConfig,
+	)
+	if err != nil {
+		setup.Log.Error("Failed to create throttle controller, falling back to step controller", "err", err)
+		throttleController = NewStepController(
+			setup.Config.ThrottleThreshold,
+			setup.Config.ThrottleTxSize,
+			setup.Config.ThrottleBlockSize,
+			setup.Config.ThrottleAlwaysBlockSize,
+		)
+	}
+
+	// Record controller type in metrics
+	if metr, ok := setup.Metr.(interface{ RecordThrottleControllerType(string) }); ok {
+		metr.RecordThrottleControllerType(string(throttleController.GetType()))
+	}
+
 	return &BatchSubmitter{
-		DriverSetup: setup,
-		channelMgr:  state,
+		DriverSetup:        setup,
+		channelMgr:         state,
+		throttleController: throttleController,
+		currentThrottleParams: ThrottleParams{
+			MaxBlockSize: setup.Config.ThrottleAlwaysBlockSize,
+		},
 	}
 }
 
@@ -551,9 +589,6 @@ func (l *BatchSubmitter) singleEndpointThrottler(wg *sync.WaitGroup, throttleSig
 
 	client, err := rpc.Dial(endpoint)
 	if err != nil {
-		// rpc.Dial returns an error if e.g. the URL is malformed
-		// If the server is unavailable, we will get an error when performing the first call
-		// and retries for that are handled below. Therefore  we don't need any retry logic here
 		l.Log.Error("Failed to Dial endpoint", "endpoint", endpoint, "err", err)
 		return
 	}
@@ -568,18 +603,16 @@ func (l *BatchSubmitter) singleEndpointThrottler(wg *sync.WaitGroup, throttleSig
 		ctx, cancel := context.WithTimeout(l.shutdownCtx, l.Config.NetworkTimeout)
 		defer cancel()
 
-		maxTxSize := uint64(0)
-		maxBlockSize := l.Config.ThrottleAlwaysBlockSize
-		if l.throttling.Load() {
-			maxTxSize = l.Config.ThrottleTxSize
-			if maxBlockSize == 0 || (l.Config.ThrottleBlockSize != 0 && l.Config.ThrottleBlockSize < maxBlockSize) {
-				maxBlockSize = l.Config.ThrottleBlockSize
-			}
-		}
+		// Get current throttle parameters from controller
+		l.throttleMutex.RLock()
+		params := l.currentThrottleParams
+		l.throttleMutex.RUnlock()
 
 		var success bool
 		err := client.CallContext(
-			ctx, &success, SetMaxDASizeMethod, hexutil.Uint64(maxTxSize), hexutil.Uint64(maxBlockSize),
+			ctx, &success, SetMaxDASizeMethod,
+			hexutil.Uint64(params.MaxTxSize),
+			hexutil.Uint64(params.MaxBlockSize),
 		)
 
 		if errors.Is(ctx.Err(), context.Canceled) {
@@ -615,8 +648,10 @@ func (l *BatchSubmitter) singleEndpointThrottler(wg *sync.WaitGroup, throttleSig
 
 		l.Log.Debug("Successfully set max DA size on endpoint",
 			"endpoint", endpoint,
-			"max_tx_size", maxTxSize,
-			"max_block_size", maxBlockSize)
+			"max_tx_size", params.MaxTxSize,
+			"max_block_size", params.MaxBlockSize,
+			"intensity", params.Intensity,
+			"controller_type", l.throttleController.GetType())
 	}
 
 	for {
@@ -638,7 +673,7 @@ func (l *BatchSubmitter) singleEndpointThrottler(wg *sync.WaitGroup, throttleSig
 // and fans out the pending bytes updates to each endpoint
 func (l *BatchSubmitter) throttlingLoop(wg *sync.WaitGroup, pendingBytesUpdated chan int64) {
 	defer wg.Done()
-	l.Log.Info("Starting DA throttling loop")
+	l.Log.Info("Starting enhanced DA throttling loop", "controller_type", l.throttleController.GetType())
 	updateChans := make([]chan struct{}, len(l.Config.ThrottlingEndpoints))
 
 	innerWg := sync.WaitGroup{}
@@ -650,10 +685,35 @@ func (l *BatchSubmitter) throttlingLoop(wg *sync.WaitGroup, pendingBytesUpdated 
 	}
 
 	for pb := range pendingBytesUpdated {
-		throttling := uint64(pb) > l.Config.ThrottleThreshold
+		// Update throttle controller
+		l.throttleMutex.Lock()
+		targetPendingBytes := uint64(0) // Use 0 to let controller use its own target
+		l.currentThrottleParams = l.throttleController.Update(uint64(pb), targetPendingBytes)
+		l.throttleMutex.Unlock()
+
+		// Record metrics
+		if metr, ok := l.Metr.(interface {
+			RecordThrottleIntensity(float64)
+			RecordThrottleParams(uint64, uint64)
+			RecordPendingBytesVsThreshold(uint64, uint64)
+		}); ok {
+			metr.RecordThrottleIntensity(l.currentThrottleParams.Intensity)
+			metr.RecordThrottleParams(l.currentThrottleParams.MaxTxSize, l.currentThrottleParams.MaxBlockSize)
+			metr.RecordPendingBytesVsThreshold(uint64(pb), l.Config.ThrottleThreshold)
+		}
+
+		// Update throttling state
+		throttling := l.currentThrottleParams.Intensity > 0
 		l.throttling.Store(throttling)
+
 		if throttling {
-			l.Log.Warn("Throttling loop: pending bytes above threshold, endpoints will be throttled", "pending_bytes", pb, "threshold", l.Config.ThrottleThreshold)
+			l.Log.Debug("Throttling loop: applying throttling",
+				"pending_bytes", pb,
+				"threshold", l.Config.ThrottleThreshold,
+				"intensity", l.currentThrottleParams.Intensity,
+				"max_tx_size", l.currentThrottleParams.MaxTxSize,
+				"max_block_size", l.currentThrottleParams.MaxBlockSize,
+				"controller_type", l.throttleController.GetType())
 		}
 
 		for i, updateChan := range updateChans {

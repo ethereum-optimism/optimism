@@ -119,6 +119,17 @@ type CLIConfig struct {
 	// AdditionalThrottlingEndpoints is a list of additional endpoints to throttle.
 	AdditionalThrottlingEndpoints []string
 
+	// ThrottleControllerType is the type of throttle controller to use. Set to step by default
+	ThrottleControllerType string
+
+	// PID Controller specific parameters
+	ThrottlePidKp          float64
+	ThrottlePidKi          float64
+	ThrottlePidKd          float64
+	ThrottlePidIntegralMax float64
+	ThrottlePidOutputMax   float64
+	ThrottlePidSampleTime  time.Duration
+
 	TxMgrConfig   txmgr.CLIConfig
 	LogConfig     oplog.CLIConfig
 	MetricsConfig opmetrics.CLIConfig
@@ -170,6 +181,12 @@ func (c *CLIConfig) Check() error {
 	if c.DataAvailabilityType != flags.CalldataType && c.TargetNumFrames > maxBlobsPerBlock {
 		return fmt.Errorf("too many frames for blob transactions, max %d", maxBlobsPerBlock)
 	}
+
+	// Validate PID controller config
+	if c.ThrottleControllerType != "step" && c.ThrottleControllerType != "linear" && c.ThrottleControllerType != "quadratic" && c.ThrottleControllerType != "pid" {
+		return fmt.Errorf("invalid throttle controller type: %s (must be 'step', 'linear', 'quadratic', 'pid')", c.ThrottleControllerType)
+	}
+
 	if err := c.MetricsConfig.Check(); err != nil {
 		return err
 	}
@@ -222,5 +239,12 @@ func NewConfig(ctx *cli.Context) *CLIConfig {
 		ThrottleAlwaysBlockSize:       ctx.Uint64(flags.ThrottleAlwaysBlockSizeFlag.Name),
 		PreferLocalSafeL2:             ctx.Bool(flags.PreferLocalSafeL2Flag.Name),
 		AdditionalThrottlingEndpoints: ctx.StringSlice(flags.AdditionalThrottlingEndpointsFlag.Name),
+		ThrottleControllerType:        ctx.String(flags.ThrottleControllerTypeFlag.Name),
+		ThrottlePidKp:                 ctx.Float64(flags.ThrottlePidKpFlag.Name),
+		ThrottlePidKi:                 ctx.Float64(flags.ThrottlePidKiFlag.Name),
+		ThrottlePidKd:                 ctx.Float64(flags.ThrottlePidKdFlag.Name),
+		ThrottlePidIntegralMax:        ctx.Float64(flags.ThrottlePidIntegralMaxFlag.Name),
+		ThrottlePidOutputMax:          ctx.Float64(flags.ThrottlePidOutputMaxFlag.Name),
+		ThrottlePidSampleTime:         ctx.Duration(flags.ThrottlePidSampleTimeFlag.Name),
 	}
 }

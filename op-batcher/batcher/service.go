@@ -50,6 +50,9 @@ type BatcherConfig struct {
 	ThrottleBlockSize, ThrottleAlwaysBlockSize uint64
 	ThrottlingEndpoints                        []string
 
+	ThrottleControllerType ThrottleControllerType
+	ThrottlePidConfig      *PIDControllerConfig
+
 	PreferLocalSafeL2 bool
 }
 
@@ -116,6 +119,28 @@ func (bs *BatcherService) initFromCLIConfig(ctx context.Context, version string,
 
 	// Combine the L2EthRpc and RollupRpc into a single list of endpoints for throttling.
 	bs.ThrottlingEndpoints = slices.Union(cfg.L2EthRpc, cfg.AdditionalThrottlingEndpoints)
+
+	// Initialize throttle controller configuration
+	bs.ThrottleControllerType = ThrottleControllerType(cfg.ThrottleControllerType)
+
+	// Initialize PID configuration if using PID controller
+	if bs.ThrottleControllerType == PIDControllerType {
+		bs.ThrottlePidConfig = &PIDControllerConfig{
+			Kp:          cfg.ThrottlePidKp,
+			Ki:          cfg.ThrottlePidKi,
+			Kd:          cfg.ThrottlePidKd,
+			IntegralMax: cfg.ThrottlePidIntegralMax,
+			OutputMax:   cfg.ThrottlePidOutputMax,
+			SampleTime:  cfg.ThrottlePidSampleTime,
+		}
+		bs.Log.Info("Initialized PID throttle controller",
+			"kp", bs.ThrottlePidConfig.Kp,
+			"ki", bs.ThrottlePidConfig.Ki,
+			"kd", bs.ThrottlePidConfig.Kd,
+			"integral_max", bs.ThrottlePidConfig.IntegralMax,
+			"output_max", bs.ThrottlePidConfig.OutputMax,
+			"sample_time", bs.ThrottlePidConfig.SampleTime)
+	}
 
 	bs.PreferLocalSafeL2 = cfg.PreferLocalSafeL2
 

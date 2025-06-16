@@ -191,6 +191,54 @@ var (
 		Usage:   "Comma-separated list of endpoints to distribute throttling configuration to (in addition to the L2 endpoints specified with --l2-eth-rpc).",
 		EnvVars: prefixEnvVars("ADDITIONAL_THROTTLING_ENDPOINTS"),
 	}
+	ThrottleControllerTypeFlag = &cli.StringFlag{
+		Name:    "throttle-controller-type",
+		Usage:   "Type of throttle controller to use: 'step' for default only, 'linear', 'quadratic', 'pid'",
+		Value:   "step",
+		EnvVars: prefixEnvVars("THROTTLE_CONTROLLER_TYPE"),
+	}
+
+	ThrottlePidKpFlag = &cli.Float64Flag{
+		Name:    "throttle-pid-kp",
+		Usage:   "PID controller proportional gain. Only relevant if --throttle-controller-type is set to 'PID'",
+		Value:   1.0,
+		EnvVars: prefixEnvVars("THROTTLE_PID_KP"),
+	}
+
+	ThrottlePidKiFlag = &cli.Float64Flag{
+		Name:    "throttle-pid-ki",
+		Usage:   "PID controller integral gain. Only relevant if --throttle-controller-type is set to 'PID'",
+		Value:   0.1,
+		EnvVars: prefixEnvVars("THROTTLE_PID_KI"),
+	}
+
+	ThrottlePidKdFlag = &cli.Float64Flag{
+		Name:    "throttle-pid-kd",
+		Usage:   "PID controller derivative gain. Only relevant if --throttle-controller-type is set to 'PID'",
+		Value:   0.05,
+		EnvVars: prefixEnvVars("THROTTLE_PID_KD"),
+	}
+
+	ThrottlePidIntegralMaxFlag = &cli.Float64Flag{
+		Name:    "throttle-pid-integral-max",
+		Usage:   "PID controller maximum integral windup. Only relevant if --throttle-controller-type is set to 'PID'",
+		Value:   1000.0,
+		EnvVars: prefixEnvVars("THROTTLE_PID_INTEGRAL_MAX"),
+	}
+
+	ThrottlePidOutputMaxFlag = &cli.Float64Flag{
+		Name:    "throttle-pid-output-max",
+		Usage:   "PID controller maximum output. Only relevant if --throttle-controller-type is set to 'PID'",
+		Value:   1.0,
+		EnvVars: prefixEnvVars("THROTTLE_PID_OUTPUT_MAX"),
+	}
+
+	ThrottlePidSampleTimeFlag = &cli.DurationFlag{
+		Name:    "throttle-pid-sample-time",
+		Usage:   "PID controller sample time interval",
+		Value:   5 * time.Second,
+		EnvVars: prefixEnvVars("THROTTLE_PID_SAMPLE_TIME"),
+	}
 	// Legacy Flags
 	SequencerHDPathFlag = txmgr.SequencerHDPathFlag
 )
@@ -225,6 +273,13 @@ var optionalFlags = []cli.Flag{
 	ThrottleAlwaysBlockSizeFlag,
 	AdditionalThrottlingEndpointsFlag,
 	PreferLocalSafeL2Flag,
+	ThrottleControllerTypeFlag,
+	ThrottlePidKpFlag,
+	ThrottlePidKiFlag,
+	ThrottlePidKdFlag,
+	ThrottlePidIntegralMaxFlag,
+	ThrottlePidOutputMaxFlag,
+	ThrottlePidSampleTimeFlag,
 }
 
 func init() {
