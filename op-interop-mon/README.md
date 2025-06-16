@@ -20,11 +20,11 @@ The components use a collection of channels, callbacks and visitor-pattern style
 ```mermaid
 flowchart TD
 
-  subgraph op-node A
+  subgraph execution-client A
     ra[RPC]
   end
 
-  subgraph op-node B
+  subgraph execution-client B
     rb[RPC]
   end
 
@@ -44,7 +44,7 @@ flowchart TD
 
   ra --"New Unsafe and Finalized Blocks"--> fa
   ra --"Receipt Data for EM Validation"--> ua
-  fa --"Execcuting Messages and Finality" --> s
+  fa --"Executing Messages and Finality" --> s
   s --"New Jobs and Expiry Info" --> ub
   rb --"New Unsafe and Finalized Blocks"--> fb
   rb --"Receipt Data for EM Validation"--> ub
