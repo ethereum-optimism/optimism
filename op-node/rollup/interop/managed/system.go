@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
@@ -21,6 +22,13 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/rpc"
 	supervisortypes "github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 )
+
+// managedEventStream abstracts the event stream functionality for testing
+type managedEventStream interface {
+	Send(event *supervisortypes.ManagedEvent)
+	Serve() (*supervisortypes.ManagedEvent, error)
+	Subscribe(ctx context.Context) (*gethrpc.Subscription, error)
+}
 
 type L2Source interface {
 	L2BlockRefByHash(ctx context.Context, hash common.Hash) (eth.L2BlockRef, error)
@@ -48,7 +56,15 @@ type ManagedMode struct {
 	l1 L1Source
 	l2 L2Source
 
-	events *rpc.Stream[supervisortypes.ManagedEvent]
+	events managedEventStream
+
+	// outgoing event timestamp trackers
+	lastReset         eventTimestamp[struct{}]
+	lastUnsafe        eventTimestamp[eth.BlockID]
+	lastSafe          eventTimestamp[eth.BlockID]
+	lastL1Traversal   eventTimestamp[eth.BlockID]
+	lastExhaustedL1   eventTimestamp[eth.BlockID]
+	lastReplacedBlock eventTimestamp[eth.BlockID]
 
 	cfg *rollup.Config
 
@@ -65,6 +81,13 @@ func NewManagedMode(log log.Logger, cfg *rollup.Config, addr string, port int, j
 		l2:        l2,
 		jwtSecret: jwtSecret,
 		events:    rpc.NewStream[supervisortypes.ManagedEvent](log, 100),
+
+		lastReset:         newEventTimestamp[struct{}](100 * time.Millisecond),
+		lastUnsafe:        newEventTimestamp[eth.BlockID](100 * time.Millisecond),
+		lastSafe:          newEventTimestamp[eth.BlockID](100 * time.Millisecond),
+		lastL1Traversal:   newEventTimestamp[eth.BlockID](500 * time.Millisecond),
+		lastExhaustedL1:   newEventTimestamp[eth.BlockID](500 * time.Millisecond),
+		lastReplacedBlock: newEventTimestamp[eth.BlockID](100 * time.Millisecond),
 	}
 
 	out.srv = rpc.NewServer(addr, port, "v0.0.0",
@@ -79,6 +102,17 @@ func NewManagedMode(log log.Logger, cfg *rollup.Config, addr string, port int, j
 		Authenticated: true,
 	})
 	return out
+}
+
+// TestDisableEventDeduplication is a test-only function that disables event deduplication.
+// It is necessary to make action tests work.
+func (m *ManagedMode) TestDisableEventDeduplication() {
+	m.lastReset.ttl = 0
+	m.lastUnsafe.ttl = 0
+	m.lastSafe.ttl = 0
+	m.lastL1Traversal.ttl = 0
+	m.lastExhaustedL1.ttl = 0
+	m.lastReplacedBlock.ttl = 0
 }
 
 func (m *ManagedMode) Start(ctx context.Context) error {
@@ -122,31 +156,54 @@ func (m *ManagedMode) AttachEmitter(em event.Emitter) {
 func (m *ManagedMode) OnEvent(ev event.Event) bool {
 	switch x := ev.(type) {
 	case rollup.ResetEvent:
+		logger := m.log.New("err", x.Err)
+		logger.Warn("Sending reset request to supervisor")
+		if !m.lastReset.Update(struct{}{}) {
+			logger.Warn("Skipped sending duplicate reset request")
+			return true
+		}
 		msg := x.Err.Error()
 		m.events.Send(&supervisortypes.ManagedEvent{Reset: &msg})
+
 	case engine.UnsafeUpdateEvent:
+		logger := m.log.New("unsafe", x.Ref)
 		if !m.cfg.IsInterop(x.Ref.Time) {
-			m.log.Debug("Ignoring non-Interop local unsafe update", "unsafe", x.Ref)
+			logger.Debug("Ignoring non-Interop local unsafe update")
 			return false
+		} else if !m.lastUnsafe.Update(x.Ref.ID()) {
+			logger.Warn("Skipped sending duplicate local unsafe update event")
+			return true
 		}
 		ref := x.Ref.BlockRef()
 		m.events.Send(&supervisortypes.ManagedEvent{UnsafeBlock: &ref})
+
 	case engine.LocalSafeUpdateEvent:
+		logger := m.log.New("derivedFrom", x.Source, "derived", x.Ref)
 		if !m.cfg.IsInterop(x.Ref.Time) {
-			m.log.Debug("Ignoring non-Interop local safe update", "derivedFrom", x.Source, "derived", x.Ref)
+			logger.Debug("Ignoring non-Interop local safe update")
 			return false
+		} else if !m.lastSafe.Update(x.Ref.ID()) {
+			logger.Warn("Skipped sending duplicate derivation update (new local safe)")
+			return true
 		}
-		m.log.Info("Emitting local safe update because of L2 block", "derivedFrom", x.Source, "derived", x.Ref)
-		m.events.Send(&supervisortypes.ManagedEvent{DerivationUpdate: &supervisortypes.DerivedBlockRefPair{
-			Source:  x.Source,
-			Derived: x.Ref.BlockRef(),
-		}})
+		logger.Info("Sending derivation update to supervisor (new local safe)")
+		m.events.Send(&supervisortypes.ManagedEvent{
+			DerivationUpdate: &supervisortypes.DerivedBlockRefPair{
+				Source:  x.Source,
+				Derived: x.Ref.BlockRef(),
+			},
+		})
+
 	case derive.DeriverL1StatusEvent:
+		logger := m.log.New("derivedFrom", x.Origin, "derived", x.LastL2)
 		if !m.cfg.IsInterop(x.LastL2.Time) {
-			m.log.Debug("Ignoring non-Interop L1 traversal", "origin", x.Origin, "lastL2", x.LastL2)
+			logger.Debug("Ignoring non-Interop L1 traversal")
 			return false
+		} else if !m.lastL1Traversal.Update(x.Origin.ID()) {
+			logger.Warn("Skipped sending duplicate derivation update (L1 traversal)")
+			return true
 		}
-		m.log.Info("Emitting local safe update because of L1 traversal", "derivedFrom", x.Origin, "derived", x.LastL2)
+		logger.Info("Sending derivation update to supervisor (L1 traversal)")
 		m.events.Send(&supervisortypes.ManagedEvent{
 			DerivationUpdate: &supervisortypes.DerivedBlockRefPair{
 				Source:  x.Origin,
@@ -154,23 +211,38 @@ func (m *ManagedMode) OnEvent(ev event.Event) bool {
 			},
 			DerivationOriginUpdate: &x.Origin,
 		})
+
 	case derive.ExhaustedL1Event:
-		m.log.Info("Exhausted L1 data", "derivedFrom", x.L1Ref, "derived", x.LastL2)
-		m.events.Send(&supervisortypes.ManagedEvent{ExhaustL1: &supervisortypes.DerivedBlockRefPair{
-			Source:  x.L1Ref,
-			Derived: x.LastL2.BlockRef(),
-		}})
+		logger := m.log.New("derivedFrom", x.L1Ref, "derived", x.LastL2)
+		logger.Info("Exhausted L1 data")
+		if !m.lastExhaustedL1.Update(x.L1Ref.ID()) {
+			logger.Warn("Skipped sending duplicate exhausted L1 event", "derivedFrom", x.L1Ref, "derived", x.LastL2)
+			return true
+		}
+		m.events.Send(&supervisortypes.ManagedEvent{
+			ExhaustL1: &supervisortypes.DerivedBlockRefPair{
+				Source:  x.L1Ref,
+				Derived: x.LastL2.BlockRef(),
+			},
+		})
+
 	case engine.InteropReplacedBlockEvent:
-		m.log.Info("Replaced block", "replacement", x.Ref)
+		logger := m.log.New("replacement", x.Ref)
+		logger.Info("Replaced block")
+		if !m.lastReplacedBlock.Update(x.Ref.ID()) {
+			logger.Warn("Skipped sending duplicate replaced block event", "replacement", x.Ref)
+			return true
+		}
 		out, err := DecodeInvalidatedBlockTxFromReplacement(x.Envelope.ExecutionPayload.Transactions)
 		if err != nil {
-			m.log.Error("Failed to parse replacement block", "err", err)
+			logger.Error("Failed to parse replacement block", "err", err)
 			return true
 		}
 		m.events.Send(&supervisortypes.ManagedEvent{ReplaceBlock: &supervisortypes.BlockReplacement{
 			Replacement: x.Ref,
 			Invalidated: out.BlockHash,
 		}})
+
 	default:
 		return false
 	}

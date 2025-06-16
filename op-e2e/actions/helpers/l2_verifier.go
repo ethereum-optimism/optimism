@@ -130,7 +130,9 @@ func NewL2Verifier(t Testing, log log.Logger, l1 derive.L1Fetcher,
 
 	var interopSys interop.SubSystem
 	if cfg.InteropTime != nil {
-		interopSys = managed.NewManagedMode(log, cfg, "127.0.0.1", 0, interopJWTSecret, l1, eng, &opmetrics.NoopRPCMetrics{})
+		mm := managed.NewManagedMode(log, cfg, "127.0.0.1", 0, interopJWTSecret, l1, eng, &opmetrics.NoopRPCMetrics{})
+		mm.TestDisableEventDeduplication()
+		interopSys = mm
 		sys.Register("interop", interopSys, opts)
 		require.NoError(t, interopSys.Start(context.Background()))
 		t.Cleanup(func() {
