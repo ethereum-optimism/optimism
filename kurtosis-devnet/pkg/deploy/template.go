@@ -244,17 +244,16 @@ func (f *Templater) Render(ctx context.Context) (*bytes.Buffer, error) {
 				return nil, fmt.Errorf("error building docker image for %s: %w", job.projectName, job.err)
 			}
 		}
-
-		// Now reopen the template file for the second pass
-		tmplFile.Close()
-		tmplFile, err = os.Open(f.templateFile)
-		if err != nil {
-			return nil, fmt.Errorf("error reopening template file: %w", err)
-		}
-		defer tmplFile.Close()
 	} else {
 		buildWg.Wait()
 	}
+	// Now reopen the template file for the second pass
+	tmplFile.Close()
+	tmplFile, err = os.Open(f.templateFile)
+	if err != nil {
+		return nil, fmt.Errorf("error reopening template file: %w", err)
+	}
+	defer tmplFile.Close()
 
 	// Second pass: Render with actual build results
 	buf := bytes.NewBuffer(nil)
