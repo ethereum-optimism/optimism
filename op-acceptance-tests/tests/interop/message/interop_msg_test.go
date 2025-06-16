@@ -588,6 +588,9 @@ func TestExecMessageInvalidAttributes(gt *testing.T) {
 		{mismatchedLogIndex}, {mismatchedTimestamp}, {msgNotPresent}, {logIndexGreaterOrEqualToEventCnt},
 	}
 
+	// save correct nonce to avoid flakiness while validating message
+	nonce := bob.PendingNonce()
+
 	for _, faults := range faultsLists {
 		logger.Info("Attempt to validate message with invalid attribute", "faults", faults)
 		// Intent to validate message on chain B
@@ -613,7 +616,7 @@ func TestExecMessageInvalidAttributes(gt *testing.T) {
 
 	// we now attempt to execute msg correctly
 	// Intent to validate message on chain B
-	txB := txintent.NewIntent[*txintent.MultiTrigger, *txintent.InteropOutput](bob.Plan())
+	txB := txintent.NewIntent[*txintent.MultiTrigger, *txintent.InteropOutput](bob.Plan(), txplan.WithNonce(nonce))
 	txB.Content.DependOn(&txA.Result)
 
 	// Three events in tx so use every index

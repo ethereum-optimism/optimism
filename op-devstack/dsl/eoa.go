@@ -198,3 +198,12 @@ func (u *EOA) SendPackedExecMessages(dependOn *txintent.IntentTx[*txintent.Multi
 	}
 	return tx, receipt, nil
 }
+
+// PendingNonce looks up the user nonce in the pending state.
+func (u *EOA) PendingNonce() uint64 {
+	result, err := retry.Do(u.ctx, 3, retry.Exponential(), func() (uint64, error) {
+		return u.el.stackEL().EthClient().PendingNonceAt(u.ctx, u.Address())
+	})
+	u.t.Require().NoError(err, "must lookup balance")
+	return result
+}
