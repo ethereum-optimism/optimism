@@ -17,11 +17,6 @@ pub struct RollupArgs {
     #[arg(long = "rollup.disable-tx-pool-gossip")]
     pub disable_txpool_gossip: bool,
 
-    /// Enable walkback to genesis on startup. This is useful for re-validating the existing DB
-    /// prior to beginning normal syncing.
-    #[arg(long = "rollup.enable-genesis-walkback")]
-    pub enable_genesis_walkback: bool,
-
     /// By default the pending block equals the latest block
     /// to save resources and not leak txs from the tx-pool,
     /// this flag enables computing of the pending block
@@ -70,7 +65,6 @@ impl Default for RollupArgs {
         Self {
             sequencer: None,
             disable_txpool_gossip: false,
-            enable_genesis_walkback: false,
             compute_pending_block: false,
             discovery_v4: false,
             enable_tx_conditional: false,
@@ -99,15 +93,6 @@ mod tests {
         let default_args = RollupArgs::default();
         let args = CommandParser::<RollupArgs>::parse_from(["reth"]).args;
         assert_eq!(args, default_args);
-    }
-
-    #[test]
-    fn test_parse_optimism_walkback_args() {
-        let expected_args = RollupArgs { enable_genesis_walkback: true, ..Default::default() };
-        let args =
-            CommandParser::<RollupArgs>::parse_from(["reth", "--rollup.enable-genesis-walkback"])
-                .args;
-        assert_eq!(args, expected_args);
     }
 
     #[test]
@@ -162,7 +147,6 @@ mod tests {
         let expected_args = RollupArgs {
             disable_txpool_gossip: true,
             compute_pending_block: true,
-            enable_genesis_walkback: true,
             enable_tx_conditional: true,
             sequencer: Some("http://host:port".into()),
             ..Default::default()
@@ -171,7 +155,6 @@ mod tests {
             "reth",
             "--rollup.disable-tx-pool-gossip",
             "--rollup.compute-pending-block",
-            "--rollup.enable-genesis-walkback",
             "--rollup.enable-tx-conditional",
             "--rollup.sequencer-http",
             "http://host:port",
