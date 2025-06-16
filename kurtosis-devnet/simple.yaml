@@ -3,7 +3,7 @@ optimism_package:
     enabled: true
     image: {{ localDockerImage "op-faucet" }}
   chains:
-    opkurtosis:
+    op-kurtosis:
       participants:
         node0:
           el:

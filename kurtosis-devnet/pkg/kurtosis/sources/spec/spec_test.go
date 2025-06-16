@@ -11,7 +11,7 @@ func TestParseSpec(t *testing.T) {
 	yamlContent := `
 optimism_package:
   chains:
-    op_rollup_one:
+    op-rollup-one:
       participants:
         node0:
           el:
@@ -20,7 +20,7 @@ optimism_package:
         network_id: "3151909"
       additional_services:
         - blockscout
-    op_rollup_two:
+    op-rollup-two:
       participants:
         node0:
           el:
@@ -43,11 +43,11 @@ ethereum_package:
 
 	expectedChains := []ChainSpec{
 		{
-			Name:      "op_rollup_one",
+			Name:      "op-rollup-one",
 			NetworkID: "3151909",
 		},
 		{
-			Name:      "op_rollup_two",
+			Name:      "op-rollup-two",
 			NetworkID: "3151910",
 		},
 	}
@@ -82,7 +82,7 @@ func TestParseSpecErrors(t *testing.T) {
 			yaml: `
 optimism_package:
   chains:
-    opkurtosis:
+    op-kurtosis:
       participants:
         node0:
           el:

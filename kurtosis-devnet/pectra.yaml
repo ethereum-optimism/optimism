@@ -1,6 +1,6 @@
 optimism_package:
   chains:
-    opkurtosis:
+    op-kurtosis:
       participants:
         node0:
           el:
