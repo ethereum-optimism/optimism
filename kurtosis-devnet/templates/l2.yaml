@@ -32,4 +32,3 @@ proposer_params:
   - {{ dig "overrides" "flags" "log_level" "!!str" $context }}
   game_type: 1
   proposal_interval: 10m
-additional_services: []

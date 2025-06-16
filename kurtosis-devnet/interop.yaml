@@ -88,7 +88,6 @@ optimism_package:
         - {{ $flags.log_level }}
         game_type: 1
         proposal_interval: 10m
-      additional_services: []
     op-kurtosis2:
       participants:
         node0: *x-node
@@ -111,7 +110,6 @@ optimism_package:
         - {{ $flags.log_level }}
         game_type: 1
         proposal_interval: 10m
-      additional_services: []
   challengers:
     challenger:
       enabled: true

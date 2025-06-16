@@ -45,7 +45,6 @@ optimism_package:
         extra_params: []
         game_type: 1
         proposal_interval: 10m
-      additional_services: []
   challengers:
     challenger:
       enabled: true

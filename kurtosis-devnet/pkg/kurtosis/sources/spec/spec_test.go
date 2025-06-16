@@ -18,8 +18,8 @@ optimism_package:
             type: op-geth
       network_params:
         network_id: "3151909"
-      additional_services:
-        - blockscout
+	  blockscout_params:
+	    enabled: true
     op-rollup-two:
       participants:
         node0:
@@ -27,8 +27,6 @@ optimism_package:
             type: op-geth
       network_params:
         network_id: "3151910"
-      additional_services:
-        - blockscout
 ethereum_package:
   participants:
     - el_type: geth
