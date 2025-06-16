@@ -54,6 +54,7 @@ func TestRegularMessage(gt *testing.T) {
 	sendMsgReceipt, err := txA.PlannedTx.Included.Eval(t.Ctx())
 	require.NoError(err, "send msg receipt not found")
 	require.Equal(1, len(sendMsgReceipt.Logs)) // SentMessage event
+	require.Equal(constants.L2ToL2CrossDomainMessenger, sendMsgReceipt.Logs[0].Address)
 
 	// Make sure supervisor syncs the chain A events
 	sys.Supervisor.WaitForUnsafeHeadToAdvance(alice.ChainID(), 2)
