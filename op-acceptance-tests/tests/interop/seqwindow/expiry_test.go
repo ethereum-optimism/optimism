@@ -7,8 +7,10 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
+	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 )
 
 // TestSequencingWindowExpiry tests that the sequencing window may expire,
@@ -129,10 +131,13 @@ func TestSequencingWindowExpiry(gt *testing.T) {
 	// For now it uses singular batches to work-around.
 
 	// Build the missing blocks, catch up on local-safe chain
-	t.Require().Eventually(func() bool {
-		status := sys.L2CLA.SyncStatus()
-		return status.LocalSafeL2.Number+10 > status.UnsafeL2.Number
-	}, windowDuration+time.Second*60, 5*time.Second, "wait for local-safe to recover near unsafe head")
+	dsl.CheckAll(t,
+		sys.L2CLA.AdvancedFn(types.LocalSafe, 20, 100),
+		sys.L2CLA.AdvancedFn(types.LocalUnsafe, 20, 100),
+	)
+
+	syncStatus := sys.L2CLA.SyncStatus()
+	t.Logger().Info("Sync status for L2CLA", "local-unsafe", syncStatus.UnsafeL2, "local-safe", syncStatus.LocalSafeL2)
 
 	// Once we have enough margin to not get reorged again before the batch-submitter acts,
 	// exit recovery mode, so we can include txs again.
