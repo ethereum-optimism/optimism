@@ -18,7 +18,6 @@ optimism_package:
         image: "flashbots/rollup-boost:develop"
       additional_services: 
         - rollup-boost
-        - blockscout
 ethereum_package:
   participants:
   - el_type: geth
