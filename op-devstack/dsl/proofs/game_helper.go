@@ -68,7 +68,7 @@ func (g *FaultDisputeGameHelper) getClaimAtIndex(claimIndex int64) bindings.Clai
 }
 
 func (g *FaultDisputeGameHelper) getAllClaims() []bindings.Claim {
-	// TODO - do we need to batch these? See: op-service/sources/batching.ReadArray
+	// TODO(#15948) - do we need to batch these? See: op-service/sources/batching.ReadArray
 	claimCount := contract.Read(g.game.ClaimDataLen())
 	var claims []bindings.Claim
 	for i := int64(0); i < claimCount.Int64(); i++ {
@@ -98,7 +98,7 @@ func (g *FaultDisputeGameHelper) waitForClaim(timeout time.Duration, errorMsg st
 		return false, nil
 	})
 	g.require.NoError(err, errorMsg)
-	// TODO - copy over gameData logic
+	// TODO(#15948) - Log GameData()
 	//if err != nil { // Avoid waiting time capturing game data when there's no error
 	//	g.require.NoErrorf(err, "%v\n%v", errorMsg, g.GameData(ctx))
 	//}
