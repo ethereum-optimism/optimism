@@ -3,6 +3,7 @@ package altda
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -21,16 +22,17 @@ var ErrInvalidInput = errors.New("invalid input")
 // See https://github.com/ethereum-optimism/specs/issues/434
 var ErrAltDADown = errors.New("alt DA is down: failover to eth DA")
 
-// InvalidCommitmentError is returned when the altda commitment is invalid
-// and should be dropped from the derivation pipeline.
-// Validity conditions for altda commitments are altda-layer-specific, so are done in da-servers.
-// They should be returned as 418 (I'M A TEAPOT) errors, with a body containing the reason.
+// InvalidCommitmentError is returned when the eigenda-proxy returns a 418 TEAPOT error,
+// which signifies that the cert in the altda commitment is invalid and should be dropped
+// from the derivation pipeline.
+// This error should be contained in the response body of the 418 TEAPOT error.
 type InvalidCommitmentError struct {
-	Reason string
+	StatusCode int
+	Msg        string
 }
 
 func (e InvalidCommitmentError) Error() string {
-	return fmt.Sprintf("Invalid AltDA Commitment: %v", e.Reason)
+	return fmt.Sprintf("Invalid AltDA Commitment: cert verification failed with status code %v: %v", e.StatusCode, e.Msg)
 }
 
 // DAClient is an HTTP client to communicate with a DA storage service.
@@ -76,11 +78,19 @@ func (c *DAClient) GetInput(ctx context.Context, comm CommitmentData, l1Inclusio
 	if resp.StatusCode == http.StatusTeapot {
 		defer resp.Body.Close()
 		// Limit the body to 1000 bytes to prevent being DDoSed with a large error message.
-		bytesLimitedBody := http.MaxBytesReader(nil, resp.Body, 1000)
-		// We discard the error as it only contains the reason for invalidity.
-		// We might read a partial or missing reason, but the commitment should still be skipped.
-		invalidCommitmentReason, _ := io.ReadAll(bytesLimitedBody)
-		return nil, InvalidCommitmentError{Reason: string(invalidCommitmentReason)}
+		bytesLimitedBody := io.LimitReader(resp.Body, 1000)
+		bodyBytes, _ := io.ReadAll(bytesLimitedBody)
+
+		var invalidCommitmentErr InvalidCommitmentError
+		// We assume that the body of the 418 TEAPOT error is a JSON object,
+		// which was introduced in https://github.com/Layr-Labs/eigenda-proxy/pull/406
+		// If it isn't because an older version of the proxy is used, then we just set the Msg field to the body bytes.
+		if err := json.Unmarshal(bodyBytes, &invalidCommitmentErr); err != nil {
+			fmt.Println("DAClient.GetInput: Failed to decode 418 HTTP error body into an InvalidCommitmentError: "+
+				"consider updating proxy to a more recent version that contains https://github.com/Layr-Labs/eigenda-proxy/pull/406: ", err)
+			invalidCommitmentErr.Msg = string(bodyBytes)
+		}
+		return nil, invalidCommitmentErr
 	}
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("failed to get preimage: %v", resp.StatusCode)
