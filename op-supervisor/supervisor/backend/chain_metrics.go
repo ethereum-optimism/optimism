@@ -13,10 +13,10 @@ type Metrics interface {
 	CacheAdd(chainID eth.ChainID, label string, cacheSize int, evicted bool)
 	CacheGet(chainID eth.ChainID, label string, hit bool)
 
-	RecordCrossUnsafeRef(chainID eth.ChainID, ref types.BlockSeal)
-	RecordCrossSafeRef(chainID eth.ChainID, ref types.BlockSeal)
-	RecordLocalSafeRef(chainID eth.ChainID, ref types.BlockSeal)
-	RecordLocalUnsafeRef(chainID eth.ChainID, ref types.BlockSeal)
+	RecordCrossUnsafe(chainID eth.ChainID, ref types.BlockSeal)
+	RecordCrossSafe(chainID eth.ChainID, ref types.BlockSeal)
+	RecordLocalSafe(chainID eth.ChainID, ref types.BlockSeal)
+	RecordLocalUnsafe(chainID eth.ChainID, ref types.BlockSeal)
 
 	RecordDBEntryCount(chainID eth.ChainID, kind string, count int64)
 	RecordDBSearchEntriesRead(chainID eth.ChainID, count int64)
@@ -41,20 +41,20 @@ func newChainMetrics(chainID eth.ChainID, delegate Metrics) *chainMetrics {
 	}
 }
 
-func (c *chainMetrics) RecordCrossUnsafeRef(ref types.BlockSeal) {
-	c.delegate.RecordCrossUnsafeRef(c.chainID, ref)
+func (c *chainMetrics) RecordCrossUnsafe(seal types.BlockSeal) {
+	c.delegate.RecordCrossUnsafe(c.chainID, seal)
 }
 
-func (c *chainMetrics) RecordCrossSafeRef(ref types.BlockSeal) {
-	c.delegate.RecordCrossSafeRef(c.chainID, ref)
+func (c *chainMetrics) RecordCrossSafe(seal types.BlockSeal) {
+	c.delegate.RecordCrossSafe(c.chainID, seal)
 }
 
-func (c *chainMetrics) RecordLocalSafeRef(ref types.BlockSeal) {
-	c.delegate.RecordLocalSafeRef(c.chainID, ref)
+func (c *chainMetrics) RecordLocalSafe(seal types.BlockSeal) {
+	c.delegate.RecordLocalSafe(c.chainID, seal)
 }
 
-func (c *chainMetrics) RecordLocalUnsafeRef(ref types.BlockSeal) {
-	c.delegate.RecordLocalUnsafeRef(c.chainID, ref)
+func (c *chainMetrics) RecordLocalUnsafe(seal types.BlockSeal) {
+	c.delegate.RecordLocalUnsafe(c.chainID, seal)
 }
 
 func (c *chainMetrics) CacheAdd(label string, cacheSize int, evicted bool) {

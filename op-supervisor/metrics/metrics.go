@@ -15,10 +15,10 @@ type Metricer interface {
 	RecordUp()
 
 	opmetrics.RPCMetricer
-	RecordCrossUnsafeRef(chainID eth.ChainID, r types.BlockSeal)
-	RecordCrossSafeRef(chainID eth.ChainID, r types.BlockSeal)
-	RecordLocalSafeRef(chainID eth.ChainID, r types.BlockSeal)
-	RecordLocalUnsafeRef(chainID eth.ChainID, r types.BlockSeal)
+	RecordCrossUnsafe(chainID eth.ChainID, s types.BlockSeal)
+	RecordCrossSafe(chainID eth.ChainID, s types.BlockSeal)
+	RecordLocalSafe(chainID eth.ChainID, s types.BlockSeal)
+	RecordLocalUnsafe(chainID eth.ChainID, s types.BlockSeal)
 
 	CacheAdd(chainID eth.ChainID, label string, cacheSize int, evicted bool)
 	CacheGet(chainID eth.ChainID, label string, hit bool)
@@ -164,20 +164,20 @@ func (m *Metrics) RecordUp() {
 	m.up.Set(1)
 }
 
-func (m *Metrics) RecordCrossUnsafeRef(chainID eth.ChainID, ref types.BlockSeal) {
-	m.RefMetrics.RecordRef("l2", "cross_unsafe", ref.Number, ref.Timestamp, ref.Hash, chainID)
+func (m *Metrics) RecordCrossUnsafe(chainID eth.ChainID, seal types.BlockSeal) {
+	m.RefMetrics.RecordRef("l2", "cross_unsafe", seal.Number, seal.Timestamp, seal.Hash, chainID)
 }
 
-func (m *Metrics) RecordCrossSafeRef(chainID eth.ChainID, ref types.BlockSeal) {
-	m.RefMetrics.RecordRef("l2", "cross_safe", ref.Number, ref.Timestamp, ref.Hash, chainID)
+func (m *Metrics) RecordCrossSafe(chainID eth.ChainID, seal types.BlockSeal) {
+	m.RefMetrics.RecordRef("l2", "cross_safe", seal.Number, seal.Timestamp, seal.Hash, chainID)
 }
 
-func (m *Metrics) RecordLocalSafeRef(chainID eth.ChainID, ref types.BlockSeal) {
-	m.RefMetrics.RecordRef("l2", "local_safe", ref.Number, ref.Timestamp, ref.Hash, chainID)
+func (m *Metrics) RecordLocalSafe(chainID eth.ChainID, seal types.BlockSeal) {
+	m.RefMetrics.RecordRef("l2", "local_safe", seal.Number, seal.Timestamp, seal.Hash, chainID)
 }
 
-func (m *Metrics) RecordLocalUnsafeRef(chainID eth.ChainID, ref types.BlockSeal) {
-	m.RefMetrics.RecordRef("l2", "local_unsafe", ref.Number, ref.Timestamp, ref.Hash, chainID)
+func (m *Metrics) RecordLocalUnsafe(chainID eth.ChainID, seal types.BlockSeal) {
+	m.RefMetrics.RecordRef("l2", "local_unsafe", seal.Number, seal.Timestamp, seal.Hash, chainID)
 }
 
 func (m *Metrics) CacheAdd(chainID eth.ChainID, label string, cacheSize int, evicted bool) {

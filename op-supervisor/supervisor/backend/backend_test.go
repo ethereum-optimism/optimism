@@ -333,10 +333,10 @@ func TestBackendCallsMetrics(t *testing.T) {
 
 	// Set up mock metrics
 	mockMetrics.Mock.On("RecordDBEntryCount", chainA, mock.AnythingOfType("string"), mock.AnythingOfType("int64")).Return()
-	mockMetrics.Mock.On("RecordCrossUnsafeRef", chainA, mock.MatchedBy(func(_ types.BlockSeal) bool { return true })).Return()
-	mockMetrics.Mock.On("RecordCrossSafeRef", chainA, mock.MatchedBy(func(_ types.BlockSeal) bool { return true })).Return()
-	mockMetrics.Mock.On("RecordLocalSafeRef", chainA, mock.MatchedBy(func(_ types.BlockSeal) bool { return true })).Return()
-	mockMetrics.Mock.On("RecordLocalUnsafeRef", chainA, mock.MatchedBy(func(_ types.BlockSeal) bool { return true })).Return()
+	mockMetrics.Mock.On("RecordCrossUnsafe", chainA, mock.MatchedBy(func(_ types.BlockSeal) bool { return true })).Return()
+	mockMetrics.Mock.On("RecordCrossSafe", chainA, mock.MatchedBy(func(_ types.BlockSeal) bool { return true })).Return()
+	mockMetrics.Mock.On("RecordLocalSafe", chainA, mock.MatchedBy(func(_ types.BlockSeal) bool { return true })).Return()
+	mockMetrics.Mock.On("RecordLocalUnsafe", chainA, mock.MatchedBy(func(_ types.BlockSeal) bool { return true })).Return()
 
 	fullCfgSet := fullConfigSet(t, 1)
 	cfg := &config.Config{
@@ -382,16 +382,16 @@ func TestBackendCallsMetrics(t *testing.T) {
 		ChainID: chainA,
 	})
 	// Assert that metrics are called on safety level updates
-	mockMetrics.Mock.AssertCalled(t, "RecordLocalUnsafeRef", chainA, mock.MatchedBy(func(ref types.BlockSeal) bool {
+	mockMetrics.Mock.AssertCalled(t, "RecordLocalUnsafe", chainA, mock.MatchedBy(func(ref types.BlockSeal) bool {
 		return ref.Hash == block.Hash && ref.Number == block.Number && ref.Timestamp == block.Time
 	}))
-	mockMetrics.Mock.AssertCalled(t, "RecordLocalSafeRef", chainA, mock.MatchedBy(func(ref types.BlockSeal) bool {
+	mockMetrics.Mock.AssertCalled(t, "RecordLocalSafe", chainA, mock.MatchedBy(func(ref types.BlockSeal) bool {
 		return ref.Hash == block.Hash && ref.Number == block.Number && ref.Timestamp == block.Time
 	}))
-	mockMetrics.Mock.AssertCalled(t, "RecordCrossUnsafeRef", chainA, mock.MatchedBy(func(ref types.BlockSeal) bool {
+	mockMetrics.Mock.AssertCalled(t, "RecordCrossUnsafe", chainA, mock.MatchedBy(func(ref types.BlockSeal) bool {
 		return ref.Hash == block.Hash && ref.Number == block.Number && ref.Timestamp == block.Time
 	}))
-	mockMetrics.Mock.AssertCalled(t, "RecordCrossSafeRef", chainA, mock.MatchedBy(func(ref types.BlockSeal) bool {
+	mockMetrics.Mock.AssertCalled(t, "RecordCrossSafe", chainA, mock.MatchedBy(func(ref types.BlockSeal) bool {
 		return ref.Hash == block.Hash && ref.Number == block.Number && ref.Timestamp == block.Time
 	}))
 	mockMetrics.Mock.AssertCalled(t, "RecordDBEntryCount", chainA, "cross_derived", int64(1))
@@ -420,20 +420,20 @@ func (m *MockMetrics) CacheGet(chainID eth.ChainID, label string, hit bool) {
 	m.Mock.Called(chainID, label, hit)
 }
 
-func (m *MockMetrics) RecordCrossUnsafeRef(chainID eth.ChainID, ref types.BlockSeal) {
-	m.Mock.Called(chainID, ref)
+func (m *MockMetrics) RecordCrossUnsafe(chainID eth.ChainID, seal types.BlockSeal) {
+	m.Mock.Called(chainID, seal)
 }
 
-func (m *MockMetrics) RecordCrossSafeRef(chainID eth.ChainID, ref types.BlockSeal) {
-	m.Mock.Called(chainID, ref)
+func (m *MockMetrics) RecordCrossSafe(chainID eth.ChainID, seal types.BlockSeal) {
+	m.Mock.Called(chainID, seal)
 }
 
-func (m *MockMetrics) RecordLocalSafeRef(chainID eth.ChainID, ref types.BlockSeal) {
-	m.Mock.Called(chainID, ref)
+func (m *MockMetrics) RecordLocalSafe(chainID eth.ChainID, seal types.BlockSeal) {
+	m.Mock.Called(chainID, seal)
 }
 
-func (m *MockMetrics) RecordLocalUnsafeRef(chainID eth.ChainID, ref types.BlockSeal) {
-	m.Mock.Called(chainID, ref)
+func (m *MockMetrics) RecordLocalUnsafe(chainID eth.ChainID, seal types.BlockSeal) {
+	m.Mock.Called(chainID, seal)
 }
 
 func (m *MockMetrics) RecordDBEntryCount(chainID eth.ChainID, kind string, count int64) {

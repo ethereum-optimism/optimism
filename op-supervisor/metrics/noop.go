@@ -19,10 +19,10 @@ func (*noopMetrics) Document() []opmetrics.DocumentedMetric { return nil }
 func (*noopMetrics) RecordInfo(version string) {}
 func (*noopMetrics) RecordUp()                 {}
 
-func (m *noopMetrics) RecordCrossUnsafeRef(_ eth.ChainID, _ types.BlockSeal) {}
-func (m *noopMetrics) RecordCrossSafeRef(_ eth.ChainID, _ types.BlockSeal)   {}
-func (m *noopMetrics) RecordLocalSafeRef(_ eth.ChainID, _ types.BlockSeal)   {}
-func (m *noopMetrics) RecordLocalUnsafeRef(_ eth.ChainID, _ types.BlockSeal) {}
+func (m *noopMetrics) RecordCrossUnsafe(_ eth.ChainID, _ types.BlockSeal) {}
+func (m *noopMetrics) RecordCrossSafe(_ eth.ChainID, _ types.BlockSeal)   {}
+func (m *noopMetrics) RecordLocalSafe(_ eth.ChainID, _ types.BlockSeal)   {}
+func (m *noopMetrics) RecordLocalUnsafe(_ eth.ChainID, _ types.BlockSeal) {}
 
 func (m *noopMetrics) CacheAdd(_ eth.ChainID, _ string, _ int, _ bool) {}
 func (m *noopMetrics) CacheGet(_ eth.ChainID, _ string, _ bool)        {}

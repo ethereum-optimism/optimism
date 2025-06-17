@@ -48,7 +48,7 @@ func (db *ChainsDB) sealBlock(chain eth.ChainID, block eth.BlockRef, mayInit boo
 		ChainID:        chain,
 		NewLocalUnsafe: block,
 	})
-	db.m.RecordLocalUnsafeRef(chain, types.BlockSealFromRef(block))
+	db.m.RecordLocalUnsafe(chain, types.BlockSealFromRef(block))
 	return nil
 }
 
@@ -131,7 +131,7 @@ func (db *ChainsDB) initializedUpdateLocalSafe(chain eth.ChainID, source eth.Blo
 			Derived: derived,
 		},
 	})
-	db.m.RecordLocalSafeRef(chain, derived)
+	db.m.RecordLocalSafe(chain, derived)
 }
 
 func (db *ChainsDB) UpdateCrossUnsafe(chain eth.ChainID, crossUnsafe types.BlockSeal) error {
@@ -148,7 +148,7 @@ func (db *ChainsDB) UpdateCrossUnsafe(chain eth.ChainID, crossUnsafe types.Block
 		ChainID:        chain,
 		NewCrossUnsafe: crossUnsafe,
 	})
-	db.m.RecordCrossUnsafeRef(chain, crossUnsafe)
+	db.m.RecordCrossUnsafe(chain, crossUnsafe)
 	return nil
 }
 
@@ -185,7 +185,7 @@ func (db *ChainsDB) initializedUpdateCrossSafe(chain eth.ChainID, l1View eth.Blo
 			Derived: lastCrossDerivedBlockSeal,
 		},
 	})
-	db.m.RecordCrossSafeRef(chain, lastCrossDerivedBlockSeal)
+	db.m.RecordCrossSafe(chain, lastCrossDerivedBlockSeal)
 
 	// compare new cross-safe to recorded cross-unsafe
 	crossUnsafe, err := db.CrossUnsafe(chain)
@@ -378,7 +378,7 @@ func (db *ChainsDB) onReplaceBlock(chainID eth.ChainID, replacement eth.BlockRef
 		ChainID:      chainID,
 		NewLocalSafe: seals,
 	})
-	db.m.RecordLocalSafeRef(chainID, seals.Derived)
+	db.m.RecordLocalSafe(chainID, seals.Derived)
 	// The event-DB will start indexing, and then unblock cross-safe update
 	// of the new replaced block, via regular cross-safe update worker routine.
 }
