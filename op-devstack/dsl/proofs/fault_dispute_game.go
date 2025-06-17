@@ -43,6 +43,10 @@ func (g *FaultDisputeGame) RootClaim() *Claim {
 	return g.ClaimAtIndex(int64(0))
 }
 
+func (g *FaultDisputeGame) L2SequenceNumber() *big.Int {
+	return contract.Read(g.game.L2SequenceNumber())
+}
+
 func (g *FaultDisputeGame) ClaimAtIndex(claimIndex int64) *Claim {
 	claim := g.claimAtIndex(claimIndex)
 	return g.newClaim(claimIndex, claim)
