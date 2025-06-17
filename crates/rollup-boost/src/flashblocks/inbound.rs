@@ -4,6 +4,7 @@ use super::{metrics::FlashblocksWsInboundMetrics, primitives::FlashblocksPayload
 use futures::{SinkExt, StreamExt};
 use tokio::{sync::mpsc, time::interval};
 use tokio_tungstenite::{connect_async, tungstenite::Message};
+use tokio_util::sync::CancellationToken;
 use tracing::{error, info};
 use url::Url;
 
@@ -68,6 +69,9 @@ impl FlashblocksReceiverService {
         info!("Connected to Flashblocks receiver at {}", self.url);
         self.metrics.connection_status.set(1);
 
+        let cancel_token = CancellationToken::new();
+        let cancel_for_ping = cancel_token.clone();
+
         let ping_task = tokio::spawn(async move {
             let mut ping_interval = interval(Duration::from_millis(500));
 
@@ -78,6 +82,10 @@ impl FlashblocksReceiverService {
                             return Err(FlashblocksReceiverError::PingFailed);
                         }
                     }
+                    _ = cancel_for_ping.cancelled() => {
+                        tracing::debug!("Ping task cancelled");
+                        return Ok(());
+                    }
                 }
             }
         });
@@ -85,7 +93,7 @@ impl FlashblocksReceiverService {
         let sender = self.sender.clone();
         let metrics = self.metrics.clone();
 
-        let read_timeout = Duration::from_millis(500);
+        let read_timeout = Duration::from_millis(1500);
         let message_handle = tokio::spawn(async move {
             loop {
                 let result = tokio::time::timeout(read_timeout, read.next())
@@ -128,6 +136,7 @@ impl FlashblocksReceiverService {
             },
         };
 
+        cancel_token.cancel();
         result
     }
 }
