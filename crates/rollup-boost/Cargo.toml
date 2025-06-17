@@ -15,6 +15,7 @@ serde_json.workspace = true
 metrics.workspace = true
 tokio.workspace = true
 eyre.workspace = true
+sha2.workspace = true
 
 op-alloy-rpc-types-engine.workspace = true
 alloy-rpc-types-engine.workspace = true

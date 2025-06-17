@@ -1,10 +1,12 @@
-use alloy_primitives::{B256, Bytes};
+use alloy_primitives::private::alloy_rlp::Encodable;
+use alloy_primitives::{B256, Bytes, keccak256};
 use futures::{StreamExt as _, stream};
 use moka::future::Cache;
 
 use alloy_rpc_types_engine::{ExecutionPayload, ExecutionPayloadV3, PayloadId};
 use op_alloy_rpc_types_engine::{
     OpExecutionPayloadEnvelopeV3, OpExecutionPayloadEnvelopeV4, OpExecutionPayloadV4,
+    OpPayloadAttributes,
 };
 
 const CACHE_SIZE: u64 = 100;
@@ -265,4 +267,71 @@ impl PayloadTraceContext {
             }
         }
     }
+}
+
+/// Generates the payload id for the configured payload from the [`OpPayloadAttributes`].
+///
+/// Returns an 8-byte identifier by hashing the payload components with sha256 hash.
+pub(crate) fn payload_id_optimism(
+    parent: &B256,
+    attributes: &OpPayloadAttributes,
+    payload_version: u8,
+) -> PayloadId {
+    use sha2::Digest;
+    let mut hasher = sha2::Sha256::new();
+    hasher.update(parent.as_slice());
+    hasher.update(&attributes.payload_attributes.timestamp.to_be_bytes()[..]);
+    hasher.update(attributes.payload_attributes.prev_randao.as_slice());
+    hasher.update(
+        attributes
+            .payload_attributes
+            .suggested_fee_recipient
+            .as_slice(),
+    );
+    if let Some(withdrawals) = &attributes.payload_attributes.withdrawals {
+        let mut buf = Vec::new();
+        withdrawals.encode(&mut buf);
+        hasher.update(buf);
+    }
+
+    if let Some(parent_beacon_block) = attributes.payload_attributes.parent_beacon_block_root {
+        hasher.update(parent_beacon_block);
+    }
+
+    let no_tx_pool = attributes.no_tx_pool.unwrap_or_default();
+    if no_tx_pool
+        || attributes
+            .transactions
+            .as_ref()
+            .is_some_and(|txs| !txs.is_empty())
+    {
+        hasher.update([no_tx_pool as u8]);
+        let txs_len = attributes
+            .transactions
+            .as_ref()
+            .map(|txs| txs.len())
+            .unwrap_or_default();
+        hasher.update(&txs_len.to_be_bytes()[..]);
+        if let Some(txs) = &attributes.transactions {
+            for tx in txs {
+                // we have to just hash the bytes here because otherwise we would need to decode
+                // the transactions here which really isn't ideal
+                let tx_hash = keccak256(tx);
+                // maybe we can try just taking the hash and not decoding
+                hasher.update(tx_hash)
+            }
+        }
+    }
+
+    if let Some(gas_limit) = attributes.gas_limit {
+        hasher.update(gas_limit.to_be_bytes());
+    }
+
+    if let Some(eip_1559_params) = attributes.eip_1559_params {
+        hasher.update(eip_1559_params.as_slice());
+    }
+
+    let mut out = hasher.finalize();
+    out[0] = payload_version;
+    PayloadId::new(out.as_slice()[..8].try_into().expect("sufficient length"))
 }

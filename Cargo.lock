@@ -4195,6 +4195,7 @@ dependencies = [
  "rustls",
  "serde",
  "serde_json",
+ "sha2",
  "testcontainers",
  "thiserror 2.0.12",
  "time",
