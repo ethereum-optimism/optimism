@@ -5,7 +5,6 @@ import (
 	"os"
 	"testing"
 
-	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/arch"
@@ -13,7 +12,6 @@ import (
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/multithreaded"
 	mtutil "github.com/ethereum-optimism/optimism/cannon/mipsevm/multithreaded/testutil"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/testutil"
-	preimage "github.com/ethereum-optimism/optimism/op-preimage"
 )
 
 type operatorTestCase struct {
@@ -247,117 +245,6 @@ func testBranch(t *testing.T, cases []branchTestCase) {
 			})
 		}
 	}
-}
-
-type testMTStoreOpsClearMemReservationTestCase struct {
-	// name is the test name
-	name string
-	// opcode is the instruction opcode
-	opcode uint32
-	// offset is the immediate offset encoded in the instruction
-	offset uint32
-	// base is the base/rs register prestate
-	base Word
-	// effAddr is the address used to set the prestate preMem value. It is also used as the base LLAddress that can be adjusted reservation assertions
-	effAddr Word
-	// premem is the prestate value of the word located at effrAddr
-	preMem Word
-	// postMem is the expected post-state value of the word located at effAddr
-	postMem Word
-}
-
-func testMTStoreOpsClearMemReservation(t *testing.T, cases []testMTStoreOpsClearMemReservationTestCase) {
-	rt := Word(0x12_34_56_78)
-	//rt := Word(0x12_34_56_78_12_34_56_78)
-	baseReg := uint32(5)
-	rtReg := uint32(6)
-
-	testNamer := func(testCase testMTStoreOpsClearMemReservationTestCase, vmVersion string, llTestCase string) string {
-		return fmt.Sprintf("%v (%v,%v)", testCase.name, vmVersion, llTestCase)
-	}
-	MemoryReservationHandlingTester(t, cases, func(t *testing.T, vm VersionedVMTestCase, reservation MemoryReservationTestCase, testCase testMTStoreOpsClearMemReservationTestCase, i int) {
-		insn := uint32((testCase.opcode << 26) | (baseReg & 0x1F << 21) | (rtReg & 0x1F << 16) | (0xFFFF & testCase.offset))
-		goVm := vm.VMFactory(nil, os.Stdout, os.Stderr, testutil.CreateLogger(), mtutil.WithRandomization(int64(i)), mtutil.WithPCAndNextPC(0x08))
-		state := mtutil.GetMtState(t, goVm)
-		step := state.GetStep()
-
-		// Setup state
-		state.GetRegistersRef()[rtReg] = rt
-		state.GetRegistersRef()[baseReg] = testCase.base
-		testutil.StoreInstruction(state.GetMemory(), state.GetPC(), insn)
-		state.GetMemory().SetWord(testCase.effAddr, testCase.preMem)
-		reservation.SetupState(state, testCase.effAddr)
-
-		// Setup expectations
-		expected := mtutil.NewExpectedState(t, state)
-		expected.ExpectStep()
-		expected.ExpectMemoryWordWrite(testCase.effAddr, testCase.postMem)
-		reservation.SetExpectations(expected)
-
-		stepWitness, err := goVm.Step(true)
-		require.NoError(t, err)
-
-		// Check expectations
-		expected.Validate(t, state)
-		testutil.ValidateEVM(t, stepWitness, step, goVm, multithreaded.GetStateHashFn(), vm.Contracts)
-	}, testNamer)
-}
-
-type testMTSysReadPreimageTestCase struct {
-	name           string
-	addr           Word
-	count          Word
-	writeLen       Word
-	preimageOffset Word
-	prestateMem    Word
-	postateMem     Word
-	shouldPanic    bool
-}
-
-func testMTSysReadPreimage(t *testing.T, preimageValue []byte, cases []testMTSysReadPreimageTestCase) {
-	testNamer := func(testCase testMTSysReadPreimageTestCase, vmVersion string, llTestCase string) string {
-		return fmt.Sprintf("%v (%v,%v)", testCase.name, vmVersion, llTestCase)
-	}
-	MemoryReservationHandlingTester(t, cases, func(t *testing.T, vm VersionedVMTestCase, reservation MemoryReservationTestCase, testCase testMTSysReadPreimageTestCase, i int) {
-		effAddr := arch.AddressMask & testCase.addr
-		preimageKey := preimage.Keccak256Key(crypto.Keccak256Hash(preimageValue)).PreimageKey()
-		oracle := testutil.StaticOracle(t, preimageValue)
-		goVm := vm.VMFactory(oracle, os.Stdout, os.Stderr, testutil.CreateLogger(), mtutil.WithRandomization(int64(i)))
-		state := mtutil.GetMtState(t, goVm)
-		step := state.GetStep()
-
-		// Set up state
-		state.PreimageKey = preimageKey
-		state.PreimageOffset = testCase.preimageOffset
-		state.GetRegistersRef()[2] = arch.SysRead
-		state.GetRegistersRef()[4] = exec.FdPreimageRead
-		state.GetRegistersRef()[5] = testCase.addr
-		state.GetRegistersRef()[6] = testCase.count
-		testutil.StoreInstruction(state.GetMemory(), state.GetPC(), syscallInsn)
-		state.GetMemory().SetWord(effAddr, testCase.prestateMem)
-		reservation.SetupState(state, effAddr)
-
-		// Setup expectations
-		expected := mtutil.NewExpectedState(t, state)
-		expected.ExpectStep()
-		expected.ActiveThread().Registers[2] = testCase.writeLen
-		expected.ActiveThread().Registers[7] = 0 // no error
-		expected.PreimageOffset += testCase.writeLen
-		expected.ExpectMemoryWordWrite(effAddr, testCase.postateMem)
-		reservation.SetExpectations(expected)
-
-		if testCase.shouldPanic {
-			require.Panics(t, func() { _, _ = goVm.Step(true) })
-			testutil.AssertPreimageOracleReverts(t, preimageKey, preimageValue, testCase.preimageOffset, vm.Contracts)
-		} else {
-			stepWitness, err := goVm.Step(true)
-			require.NoError(t, err)
-
-			// Check expectations
-			expected.Validate(t, state)
-			testutil.ValidateEVM(t, stepWitness, step, goVm, multithreaded.GetStateHashFn(), vm.Contracts)
-		}
-	}, testNamer)
 }
 
 type MemoryReservationTestCase struct {
