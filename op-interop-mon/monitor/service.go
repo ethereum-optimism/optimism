@@ -84,25 +84,24 @@ func (ms *InteropMonitorService) initFromCLIConfig(ctx context.Context, version 
 		return fmt.Errorf("failed to init finders: %w", err)
 	}
 
-	// Initialize the metric collector, with access to all updaters
-	ms.collector = NewMetricCollector(ms.Log, ms.Metrics, ms.updaters)
-
-	if err := ms.initMetricsServer(cfg); err != nil {
-		if err := ms.initMetricsServer(cfg); err != nil {
-			return fmt.Errorf("failed to start metrics server: %w", err)
-		}
-		if err := ms.initPProf(cfg); err != nil {
-			return fmt.Errorf("failed to init pprof server: %w", err)
-		}
-		if err := ms.initRPCServer(cfg); err != nil {
-			return fmt.Errorf("failed to start rpc server: %w", err)
-		}
-
-		ms.Metrics.RecordInfo(ms.Version)
-		ms.Metrics.RecordUp()
-		fmt.Println("initialized from cli config")
-		return nil
+	if cfg.MetricsConfig.Enabled {
+		// Initialize the metric collector, with access to all updaters
+		ms.collector = NewMetricCollector(ms.Log, ms.Metrics, ms.updaters)
 	}
+	if err := ms.initMetricsServer(cfg); err != nil {
+		return fmt.Errorf("failed to start metrics server: %w", err)
+	}
+
+	if err := ms.initPProf(cfg); err != nil {
+		return fmt.Errorf("failed to init pprof server: %w", err)
+	}
+	if err := ms.initRPCServer(cfg); err != nil {
+		return fmt.Errorf("failed to start rpc server: %w", err)
+	}
+
+	ms.Metrics.RecordInfo(ms.Version)
+	ms.Metrics.RecordUp()
+
 	return nil
 }
 
@@ -234,9 +233,11 @@ func (ms *InteropMonitorService) initRPCServer(cfg *CLIConfig) error {
 }
 
 func (ms *InteropMonitorService) Start(ctx context.Context) error {
-	err := ms.collector.Start()
-	if err != nil {
-		return fmt.Errorf("failed to start maintainer: %w", err)
+	if ms.collector != nil {
+		err := ms.collector.Start()
+		if err != nil {
+			return fmt.Errorf("failed to start metric collector: %w", err)
+		}
 	}
 	for _, updater := range ms.updaters {
 		if err := updater.Start(ctx); err != nil {
