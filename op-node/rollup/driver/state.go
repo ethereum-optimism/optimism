@@ -280,7 +280,6 @@ func (s *SyncDeriver) onIncomingP2PBlock(envelope *eth.ExecutionPayloadEnvelope)
 	if s.SyncCfg.SyncMode == sync.CLSync || !s.Engine.IsEngineSyncing() {
 		s.Log.Info("Optimistically queueing unsafe L2 execution payload", "id", envelope.ExecutionPayload.ID())
 		s.Emitter.Emit(clsync.ReceivedUnsafePayloadEvent{Envelope: envelope})
-		s.Emitter.Emit(StepReqEvent{})
 	} else if s.SyncCfg.SyncMode == sync.ELSync {
 		ref, err := derive.PayloadToBlockRef(s.Config, envelope.ExecutionPayload)
 		if err != nil {

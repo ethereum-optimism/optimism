@@ -6,14 +6,17 @@ import (
 	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
 	"github.com/ethereum-optimism/optimism/op-service/sources/caching"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/db/logs"
+	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 )
 
 type Metrics interface {
 	CacheAdd(chainID eth.ChainID, label string, cacheSize int, evicted bool)
 	CacheGet(chainID eth.ChainID, label string, hit bool)
 
-	RecordCrossUnsafeRef(chainID eth.ChainID, ref eth.BlockRef)
-	RecordCrossSafeRef(chainID eth.ChainID, ref eth.BlockRef)
+	RecordCrossUnsafe(chainID eth.ChainID, ref types.BlockSeal)
+	RecordCrossSafe(chainID eth.ChainID, ref types.BlockSeal)
+	RecordLocalSafe(chainID eth.ChainID, ref types.BlockSeal)
+	RecordLocalUnsafe(chainID eth.ChainID, ref types.BlockSeal)
 
 	RecordDBEntryCount(chainID eth.ChainID, kind string, count int64)
 	RecordDBSearchEntriesRead(chainID eth.ChainID, count int64)
@@ -38,12 +41,20 @@ func newChainMetrics(chainID eth.ChainID, delegate Metrics) *chainMetrics {
 	}
 }
 
-func (c *chainMetrics) RecordCrossUnsafeRef(ref eth.BlockRef) {
-	c.delegate.RecordCrossUnsafeRef(c.chainID, ref)
+func (c *chainMetrics) RecordCrossUnsafe(seal types.BlockSeal) {
+	c.delegate.RecordCrossUnsafe(c.chainID, seal)
 }
 
-func (c *chainMetrics) RecordCrossSafeRef(ref eth.BlockRef) {
-	c.delegate.RecordCrossSafeRef(c.chainID, ref)
+func (c *chainMetrics) RecordCrossSafe(seal types.BlockSeal) {
+	c.delegate.RecordCrossSafe(c.chainID, seal)
+}
+
+func (c *chainMetrics) RecordLocalSafe(seal types.BlockSeal) {
+	c.delegate.RecordLocalSafe(c.chainID, seal)
+}
+
+func (c *chainMetrics) RecordLocalUnsafe(seal types.BlockSeal) {
+	c.delegate.RecordLocalUnsafe(c.chainID, seal)
 }
 
 func (c *chainMetrics) CacheAdd(label string, cacheSize int, evicted bool) {

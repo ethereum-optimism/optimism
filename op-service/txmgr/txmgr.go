@@ -472,6 +472,15 @@ func (m *SimpleTxManager) SetFeeThreshold(val *big.Int) {
 	m.l.Info("txmgr config val changed: SetFeeThreshold", "newVal", val)
 }
 
+func (m *SimpleTxManager) GetRebroadcastInterval() time.Duration {
+	return time.Duration(m.cfg.RebroadcastInterval.Load())
+}
+
+func (m *SimpleTxManager) SetRebroadcastInterval(val time.Duration) {
+	m.cfg.RebroadcastInterval.Store(int64(val))
+	m.l.Info("txmgr config val changed: SetRebroadcastInterval", "newVal", val)
+}
+
 func (m *SimpleTxManager) GetBumpFeeRetryTime() time.Duration {
 	return time.Duration(m.cfg.ResubmissionTimeout.Load())
 }
@@ -567,9 +576,9 @@ func (m *SimpleTxManager) sendTx(ctx context.Context, tx *types.Transaction) (*t
 	sendState := NewSendState(m.cfg.SafeAbortNonceTooLowCount, m.cfg.TxNotInMempoolTimeout)
 	retryCount := uint64(0)
 	receiptChan := make(chan *types.Receipt, 1)
-	resubmissionTimeout := m.GetBumpFeeRetryTime()
-	resubmissionTicker := time.NewTicker(resubmissionTimeout)
-	defer resubmissionTicker.Stop()
+	bumpFeeTimeout := m.GetBumpFeeRetryTime()
+	bumpFeeTicker := time.NewTicker(bumpFeeTimeout)
+	defer bumpFeeTicker.Stop()
 
 	for {
 		retryTicker := &time.Ticker{}
@@ -588,6 +597,10 @@ func (m *SimpleTxManager) sendTx(ctx context.Context, tx *types.Transaction) (*t
 					defer wg.Done()
 					m.waitForTx(ctx, tx, sendState, receiptChan)
 				}()
+				rebroadcastInterval := m.GetRebroadcastInterval()
+				if rebroadcastInterval > 0 {
+					retryTicker = time.NewTicker(rebroadcastInterval)
+				}
 			} else if err != nil {
 				if retryCount >= m.cfg.MaxRetries {
 					m.txLogger(tx, false).Warn("Aborting transaction submission retry", "err", err, "retries", retryCount)
@@ -608,8 +621,11 @@ func (m *SimpleTxManager) sendTx(ctx context.Context, tx *types.Transaction) (*t
 		}
 
 		select {
-		case <-resubmissionTicker.C:
 		case <-retryTicker.C:
+
+		case <-bumpFeeTicker.C:
+			// Enough time has passed, so bump the fees on the next publish attempt in order to avoid delays.
+			sendState.bumpFees = true
 
 		case <-ctx.Done():
 			return nil, ctx.Err()
@@ -664,16 +680,12 @@ func (m *SimpleTxManager) publishTx(ctx context.Context, tx *types.Transaction, 
 		sendState.ProcessSendError(err)
 
 		if err == nil || errStringContainsAny(err, m.cfg.AlreadyPublishedCustomErrs) {
-			// only empty error strings are recorded as successful publishes
 			m.metr.TxPublished("")
 			if err == nil {
 				l.Info("Transaction successfully published", "tx", tx.Hash())
 			} else {
 				l.Info("Transaction successfully published (custom RPC error)", "tx", tx.Hash(), "err", err)
 			}
-			// Tx made it into the mempool, so we'll need a fee bump if we end up trying to replace
-			// it with another publish attempt.
-			sendState.bumpFees = true
 			return tx, true, nil
 		}
 
@@ -691,8 +703,9 @@ func (m *SimpleTxManager) publishTx(ctx context.Context, tx *types.Transaction, 
 			l.Warn("transaction send canceled", "err", err)
 			m.metr.TxPublished("context_canceled")
 		case errStringMatch(err, txpool.ErrAlreadyKnown):
-			l.Warn("resubmitted already known transaction", "err", err)
+			l.Info("resubmitted already known transaction", "err", err)
 			m.metr.TxPublished("tx_already_known")
+			return tx, true, nil
 		case errStringMatch(err, txpool.ErrReplaceUnderpriced):
 			l.Warn("transaction replacement is underpriced", "err", err)
 			m.metr.TxPublished("tx_replacement_underpriced")

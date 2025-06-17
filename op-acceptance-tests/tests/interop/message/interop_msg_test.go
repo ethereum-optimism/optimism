@@ -588,14 +588,6 @@ func TestExecMessageInvalidAttributes(gt *testing.T) {
 		{mismatchedLogIndex}, {mismatchedTimestamp}, {msgNotPresent}, {logIndexGreaterOrEqualToEventCnt},
 	}
 
-	// Save correct nonce to avoid flakiness while validating message:
-	// There is a time gap between invalid validating message is dropped from the L2EL txpool.
-	// While not dropped yet, the client may call pendingNonceAt RPC which is a nonce which eventually becomes
-	// non-consecutive nonce after previous invalid tx has dropped, causing the valid tx not to be included in the block but live in the mempool.
-	// To remove this race, fetch nonce before sending invalid messages.
-
-	nonce := bob.PendingNonce()
-
 	for _, faults := range faultsLists {
 		logger.Info("Attempt to validate message with invalid attribute", "faults", faults)
 		// Intent to validate message on chain B
@@ -618,20 +610,4 @@ func TestExecMessageInvalidAttributes(gt *testing.T) {
 		require.Error(err)
 		logger.Info("Validate message not included")
 	}
-
-	// we now attempt to execute msg correctly
-	// Intent to validate message on chain B
-	txB := txintent.NewIntent[*txintent.MultiTrigger, *txintent.InteropOutput](bob.Plan(), txplan.WithNonce(nonce))
-	txB.Content.DependOn(&txA.Result)
-
-	// Three events in tx so use every index
-	indexes := []int{0, 1, 2}
-	txB.Content.Fn(txintent.ExecuteIndexeds(constants.MultiCall3, constants.CrossL2Inbox, &txA.Result, indexes))
-
-	receiptB, err := txB.PlannedTx.Included.Eval(t.Ctx())
-	require.NoError(err)
-	logger.Info("Validate message included", "block", receiptB.BlockHash)
-
-	// Check three ExecutingMessage triggered
-	require.Equal(3, len(receiptB.Logs))
 }

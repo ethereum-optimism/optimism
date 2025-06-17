@@ -2,7 +2,6 @@ package kurtosis
 
 import (
 	"encoding/json"
-	"slices"
 	"strconv"
 	"strings"
 
@@ -26,10 +25,6 @@ type ServiceFinder struct {
 	depsets  map[string]descriptors.DepSet
 
 	triagedServices []*triagedService
-
-	// TODO: remove once we move node services recognition to labels
-	nodeNames2Index map[string]int
-	nodeNextIndex   int
 }
 
 // ServiceFinderOption configures a ServiceFinder
@@ -53,11 +48,8 @@ func WithDepSets(depsets map[string]descriptors.DepSet) ServiceFinderOption {
 func NewServiceFinder(services inspect.ServiceMap, opts ...ServiceFinderOption) *ServiceFinder {
 	f := &ServiceFinder{
 		services:        services,
-		nodeServices:    []string{"cl", "el"},
+		nodeServices:    []string{"cl", "el", "cl-builder", "el-builder", "conductor", "mev"},
 		l2ServicePrefix: "op-",
-
-		nodeNames2Index: make(map[string]int),
-		nodeNextIndex:   0,
 	}
 	for _, opt := range opts {
 		opt(f)
@@ -225,6 +217,7 @@ const (
 	kindLabel      = "op.kind"
 	networkIDLabel = "op.network.id"
 	nodeNameLabel  = "op.network.participant.name"
+	nodeIndexLabel = "op.network.participant.index"
 )
 
 func (f *ServiceFinder) triageByLabels(svc *inspect.Service, name string, endpoints descriptors.EndpointMap) *triagedService {
@@ -236,26 +229,19 @@ func (f *ServiceFinder) triageByLabels(svc *inspect.Service, name string, endpoi
 	if !ok {
 		return nil
 	}
-
-	// TODO: we really don't need numeric index for nodes, but it's a quick fix until
-	// we move node services recognition to labels entirely.
 	idx := -1
-	if slices.Contains(f.nodeServices, tag) { // those are grouped into nodes
-		if name, ok := svc.Labels[nodeNameLabel]; ok {
-			if val, ok := f.nodeNames2Index[name]; ok {
-				idx = val
-			} else {
-				idx = f.nodeNextIndex
-				f.nodeNames2Index[name] = idx
-				f.nodeNextIndex++
-			}
+	if val, ok := svc.Labels[nodeIndexLabel]; ok {
+		i, err := strconv.Atoi(val)
+		if err != nil {
+			return nil
 		}
+		idx = i
 	}
 	return &triagedService{
 		tag: tag,
 		idx: idx,
 		// TODO: eventually we can retire the "name" part, but it doesn't hurt for now
-		accept: acceptNamesOrIDs(strings.Split(id, ",")...),
+		accept: acceptNamesOrIDs(strings.Split(id, "-")...),
 		svc: &descriptors.Service{
 			Name:      name,
 			Endpoints: endpoints,
@@ -279,13 +265,12 @@ func (f *ServiceFinder) triage() {
 			endpoints[portName] = portInfo
 		}
 
-		// TODO: for now, use labels as a fallback, so it's currently inactive.
-		// We should expect the rules to be gradually removed to make way for
-		// this code path. Ultimately we'll rely only on labels, and most of the
-		// code in this file will disappear as a result.
-		triaged := rules.apply(serviceName, endpoints)
+		// Ultimately we'll rely only on labels, and most of the code in this file will disappear as a result.
+		//
+		// For now though the L1 services are still not tagged properly so we rely on the name resolution as a fallback
+		triaged := f.triageByLabels(svc, serviceName, endpoints)
 		if triaged == nil {
-			triaged = f.triageByLabels(svc, serviceName, endpoints)
+			triaged = rules.apply(serviceName, endpoints)
 		}
 
 		if triaged != nil {

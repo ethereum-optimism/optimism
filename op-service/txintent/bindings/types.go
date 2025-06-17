@@ -17,6 +17,27 @@ var abiInt256Type = reflect.TypeFor[ABIInt256]()
 
 var abiUint256Type = reflect.TypeFor[uint256.Int]()
 
+type Uint128 big.Int
+type Int128 big.Int
+
+func (u Uint128) ToBig() *big.Int {
+	return new(big.Int).Set((*big.Int)(&u))
+}
+
+func (u Int128) ToBig() *big.Int {
+	return new(big.Int).Set((*big.Int)(&u))
+}
+
+var abiUint128Type = reflect.TypeFor[Uint128]()
+var abiInt128Type = reflect.TypeFor[Int128]()
+
+var bigIntType = reflect.TypeOf(big.Int{})
+
+var customIntTypes = map[reflect.Type]bool{
+	reflect.TypeOf(Uint128{}): true,
+	reflect.TypeOf(Int128{}):  true,
+}
+
 func goStructTypeToABIType(t reflect.Type) (abi.Type, []abi.ArgumentMarshaling, error) {
 	if t.Kind() != reflect.Struct {
 		return abi.Type{}, nil, errors.New("input must be a struct type")
@@ -106,6 +127,14 @@ func goTypeToABIType(typ reflect.Type) (abi.Type, []abi.ArgumentMarshaling, erro
 		abiType, err := abi.NewType(fmt.Sprintf("%s[]", elemType), "", innerComponents)
 		return abiType, innerComponents, err
 	case reflect.Struct:
+		switch {
+		case typ == abiInt128Type:
+			abiType, err := abi.NewType("int128", "", nil)
+			return abiType, nil, err
+		case typ == abiUint128Type:
+			abiType, err := abi.NewType("uint128", "", nil)
+			return abiType, nil, err
+		}
 		if typ.AssignableTo(abiInt256Type) {
 			abiType, err := abi.NewType("int256", "", nil)
 			return abiType, nil, err

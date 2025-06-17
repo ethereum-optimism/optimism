@@ -42,6 +42,10 @@ type Orchestrator interface {
 	Type() compat.Type
 }
 
+type TimeTravelOrchestrator interface {
+	EnableTimeTravel()
+}
+
 // GateWithRemediation is an example of a test-gate that checks a system and may use an orchestrator to remediate any shortcomings.
 // func GateWithRemediation(sys System, orchestrator Orchestrator) {
 // step 1: check if system already does the right thing

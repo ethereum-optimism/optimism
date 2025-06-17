@@ -80,10 +80,6 @@ func (c *AddGameTypeConfig) Check() error {
 		return fmt.Errorf("opChainProxyAdmin address must be specified")
 	}
 
-	if c.DisputeGameType == 0 {
-		return fmt.Errorf("disputeGameType must be non-zero")
-	}
-
 	if c.DisputeAbsolutePrestate == (common.Hash{}) {
 		return fmt.Errorf("disputeAbsolutePrestate must be specified")
 	}
