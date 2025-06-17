@@ -378,14 +378,6 @@ func TestDecodeCustomInt(t *testing.T) {
 		require.NoError(t, err)
 		require.True(t, big.NewInt(-7331).Cmp(value.ToBig()) == 0)
 	}
-	{
-		call := testContract.TestFunc9(TestIntStruct{})
-		data := hexutil.MustDecode("0x0000000000000000000000000000000000000000000000000000000000000539ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe35d")
-		value, err := call.DecodeOutput(data)
-		require.NoError(t, err)
-		_ = value
-		panic(value)
-	}
 }
 
 func TestDecodeArray(t *testing.T) {
