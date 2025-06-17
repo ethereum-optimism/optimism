@@ -88,6 +88,9 @@ type TestIntTypeStruct struct {
 }
 
 func TestTypeConversion(t *testing.T) {
+	a := (*Uint128)(big.NewInt(0))
+	b := (*Int128)(big.NewInt(0))
+
 	type testCase struct {
 		value    any
 		want     string
@@ -198,12 +201,22 @@ func TestTypeConversion(t *testing.T) {
 		{
 			value:    (*Uint128)(big.NewInt(0)),
 			want:     "uint128",
-			testName: "uint128",
+			testName: "uint128 (value)",
 		},
 		{
 			value:    (*Int128)(big.NewInt(0)),
 			want:     "int128",
-			testName: "int128",
+			testName: "int128 (value)",
+		},
+		{
+			value:    &a,
+			want:     "uint128",
+			testName: "uint128 (pointer)",
+		},
+		{
+			value:    &b,
+			want:     "int128",
+			testName: "int128 (pointer)",
 		},
 		{
 			value:    TestIntTypeStruct{},
