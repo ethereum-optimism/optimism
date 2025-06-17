@@ -18,13 +18,13 @@ type expectedMessageStatusCall struct {
 	executingChainID  string
 	initiatingChainID string
 	status            string
-	value             float64
+	count             float64
 }
 
 type expectedTerminalCall struct {
 	executingChainID  string
 	initiatingChainID string
-	value             float64
+	count             float64
 }
 
 type expectedBlockRangeCall struct {
@@ -65,8 +65,8 @@ func (m *mockUpdater) Stop() error {
 type mockMetrics struct {
 	recordInfoFn                 func(version string)
 	recordUpFn                   func()
-	recordMessageStatusFn        func(executingChainID string, initiatingChainID string, status string, value float64)
-	recordTerminalStatusChangeFn func(executingChainID string, initiatingChainID string, value float64)
+	recordMessageStatusFn        func(executingChainID string, initiatingChainID string, status string, count float64)
+	recordTerminalStatusChangeFn func(executingChainID string, initiatingChainID string, count float64)
 	recordExecutingBlockRangeFn  func(chainID string, min uint64, max uint64)
 	recordInitiatingBlockRangeFn func(chainID string, min uint64, max uint64)
 
@@ -89,27 +89,27 @@ func (m *mockMetrics) RecordUp() {
 	}
 }
 
-func (m *mockMetrics) RecordMessageStatus(executingChainID string, initiatingChainID string, status string, value float64) {
+func (m *mockMetrics) RecordMessageStatus(executingChainID string, initiatingChainID string, status string, count float64) {
 	if m.recordMessageStatusFn != nil {
-		m.recordMessageStatusFn(executingChainID, initiatingChainID, status, value)
+		m.recordMessageStatusFn(executingChainID, initiatingChainID, status, count)
 	} else {
 		m.actualMessageStatusCalls = append(m.actualMessageStatusCalls, expectedMessageStatusCall{
 			executingChainID:  executingChainID,
 			initiatingChainID: initiatingChainID,
 			status:            status,
-			value:             value,
+			count:             count,
 		})
 	}
 }
 
-func (m *mockMetrics) RecordTerminalStatusChange(executingChainID string, initiatingChainID string, value float64) {
+func (m *mockMetrics) RecordTerminalStatusChange(executingChainID string, initiatingChainID string, count float64) {
 	if m.recordTerminalStatusChangeFn != nil {
-		m.recordTerminalStatusChangeFn(executingChainID, initiatingChainID, value)
+		m.recordTerminalStatusChangeFn(executingChainID, initiatingChainID, count)
 	} else {
 		m.actualTerminalCalls = append(m.actualTerminalCalls, expectedTerminalCall{
 			executingChainID:  executingChainID,
 			initiatingChainID: initiatingChainID,
-			value:             value,
+			count:             count,
 		})
 	}
 }
@@ -241,7 +241,7 @@ func TestCollectMetrics(t *testing.T) {
 					executingChainID:  "1",
 					initiatingChainID: "2",
 					status:            "future",
-					value:             1,
+					count:             1,
 				},
 			},
 			expectedTerminalCalls: []expectedTerminalCall{},
@@ -272,14 +272,14 @@ func TestCollectMetrics(t *testing.T) {
 					executingChainID:  "1",
 					initiatingChainID: "2",
 					status:            "invalid",
-					value:             1,
+					count:             1,
 				},
 			},
 			expectedTerminalCalls: []expectedTerminalCall{
 				{
 					executingChainID:  "1",
 					initiatingChainID: "2",
-					value:             1,
+					count:             1,
 				},
 			},
 			expectedExecutingRangeCalls: []expectedBlockRangeCall{
@@ -310,7 +310,7 @@ func TestCollectMetrics(t *testing.T) {
 					executingChainID:  "1",
 					initiatingChainID: "2",
 					status:            "future",
-					value:             2,
+					count:             2,
 				},
 			},
 			expectedTerminalCalls: []expectedTerminalCall{},
@@ -345,19 +345,19 @@ func TestCollectMetrics(t *testing.T) {
 					executingChainID:  "1",
 					initiatingChainID: "2",
 					status:            "future",
-					value:             1,
+					count:             1,
 				},
 				{
 					executingChainID:  "2",
 					initiatingChainID: "3",
 					status:            "valid",
-					value:             1,
+					count:             1,
 				},
 				{
 					executingChainID:  "3",
 					initiatingChainID: "1",
 					status:            "invalid",
-					value:             1,
+					count:             1,
 				},
 			},
 			expectedTerminalCalls: []expectedTerminalCall{},
@@ -418,19 +418,19 @@ func TestCollectMetrics(t *testing.T) {
 					executingChainID:  "1",
 					initiatingChainID: "2",
 					status:            "future",
-					value:             3,
+					count:             3,
 				},
 				{
 					executingChainID:  "2",
 					initiatingChainID: "1",
 					status:            "valid",
-					value:             3,
+					count:             3,
 				},
 				{
 					executingChainID:  "3",
 					initiatingChainID: "3",
 					status:            "invalid",
-					value:             3,
+					count:             3,
 				},
 			},
 			expectedTerminalCalls: []expectedTerminalCall{},

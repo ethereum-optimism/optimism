@@ -217,11 +217,9 @@ func (j *Job) AddInitiatingHash(hash common.Hash) {
 	j.rwLock.Lock()
 	defer j.rwLock.Unlock()
 
-	// Check if hash already exists
-	for _, existingHash := range j.initiatingHash {
-		if existingHash == hash {
-			return
-		}
+	// Check if latest initiating hash is the same as the hash to be added
+	if len(j.initiatingHash) > 0 && j.initiatingHash[len(j.initiatingHash)-1] == hash {
+		return
 	}
 
 	j.initiatingHash = append(j.initiatingHash, hash)

@@ -13,8 +13,8 @@ var _ opmetrics.RegistryMetricer = (*Metrics)(nil)
 type Metricer interface {
 	RecordInfo(version string)
 	RecordUp()
-	RecordMessageStatus(executingChainID string, initiatingChainID string, status string, value float64)
-	RecordTerminalStatusChange(executingChainID string, initiatingChainID string, value float64)
+	RecordMessageStatus(executingChainID string, initiatingChainID string, status string, count float64)
+	RecordTerminalStatusChange(executingChainID string, initiatingChainID string, count float64)
 	RecordExecutingBlockRange(chainID string, min uint64, max uint64)
 	RecordInitiatingBlockRange(chainID string, min uint64, max uint64)
 
@@ -128,25 +128,25 @@ func (m *Metrics) RecordMessageStatus(
 	executingChainID string,
 	initiatingChainID string,
 	status string,
-	value float64,
+	count float64,
 ) {
 	m.messageStatus.WithLabelValues(
 		executingChainID,
 		initiatingChainID,
 		status,
-	).Set(value)
+	).Set(count)
 }
 
 // RecordTerminalStatusChange records a terminal status change with detailed logging
 func (m *Metrics) RecordTerminalStatusChange(
 	executingChainID string,
 	initiatingChainID string,
-	value float64,
+	count float64,
 ) {
 	m.terminalStatusChanges.WithLabelValues(
 		executingChainID,
 		initiatingChainID,
-	).Set(value)
+	).Set(count)
 }
 
 // RecordExecutingBlockRange records the min/max executing block numbers seen for a chain
