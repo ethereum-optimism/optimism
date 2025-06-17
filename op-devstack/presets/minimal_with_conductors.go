@@ -21,9 +21,11 @@ type MinimalWithConductors struct {
 func WithMinimalWithConductors() stack.CommonOption {
 	return stack.Combine(
 		stack.MakeCommon(sysgo.DefaultMinimalSystem(&sysgo.DefaultMinimalSystemIDs{})),
-		// TODO(#15152): add kurtosis support
 		// TODO(#16418) add sysgo support
-		WithCompatibleTypes(compat.Persistent),
+		WithCompatibleTypes(
+			compat.Persistent,
+			compat.Kurtosis,
+		),
 	)
 }
 
