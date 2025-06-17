@@ -290,6 +290,13 @@ func (s *Sys) emit(name string, derivContext uint64, ev Event, emitPriority Prio
 	// The Sys cannot decide if an event is important or not, so all events should be considered critical.
 	if err != nil {
 		s.log.Error("Failed to enqueue event", "emitter", name, "event", ev, "context", derivContext)
+
+		byType := s.executor.CountByType()
+		byType.Range(func(key, value any) bool {
+			s.log.Error("Event type count", "event_type", key, "count", value)
+			return true // continue iteration
+		})
+
 		panic(err)
 	}
 }

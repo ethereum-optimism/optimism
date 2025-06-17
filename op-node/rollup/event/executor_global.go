@@ -22,6 +22,9 @@ type prioritizedEvents struct {
 	// keyed by priority. May contain empty lists.
 	byPriority [priorityCount]*eventsList
 
+	// keyed by event type for debug purposes
+	byType sync.Map
+
 	// number of events
 	count uint64
 
@@ -38,6 +41,12 @@ func (a *prioritizedEvents) Add(event AnnotatedEvent) {
 	p := a.byPriority[event.EmitPriority-priorityMin]
 	p.Events = append(p.Events, event)
 	a.count += 1
+
+	// Load, increment, store within byType sync.Map
+	val, _ := a.byType.LoadOrStore(event.Event.String(), 0)
+	count := val.(int)
+	count++
+	a.byType.Store(event.Event.String(), count)
 }
 
 // Pop returns the highest-priority event, and removes it at the same time.
@@ -49,6 +58,13 @@ func (a *prioritizedEvents) Pop() AnnotatedEvent {
 			out := pe.Events[0]
 			pe.Events = pe.Events[1:]
 			a.count -= 1
+
+			// Load, increment, store within byType sync.Map
+			val, _ := a.byType.LoadOrStore(out.Event.String(), 0)
+			count := val.(int)
+			count--
+			a.byType.Store(out.Event.String(), count)
+
 			return out
 		}
 	}
@@ -70,6 +86,10 @@ func (a *prioritizedEvents) Peek() AnnotatedEvent {
 // Count returns the number of currently queued events
 func (a *prioritizedEvents) Count() uint64 {
 	return a.count
+}
+
+func (a *prioritizedEvents) CountByType() *sync.Map {
+	return &a.byType
 }
 
 type GlobalSyncExec struct {
@@ -146,6 +166,10 @@ func (gs *GlobalSyncExec) Enqueue(ev AnnotatedEvent) error {
 		gs.queued = nil  // To everyone in the future: they will need to Await for a new event again
 	}
 	return nil
+}
+
+func (gs *GlobalSyncExec) CountByType() *sync.Map {
+	return gs.events.CountByType()
 }
 
 func (gs *GlobalSyncExec) processEvent(ev AnnotatedEvent) {

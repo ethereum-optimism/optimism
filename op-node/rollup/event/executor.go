@@ -1,5 +1,7 @@
 package event
 
+import "sync"
+
 type Executable interface {
 	RunEvent(ev AnnotatedEvent)
 }
@@ -16,4 +18,5 @@ func (fn ExecutableFunc) RunEvent(ev AnnotatedEvent) {
 type Executor interface {
 	Add(d Executable, cfg *ExecutorConfig) (leaveExecutor func())
 	Enqueue(ev AnnotatedEvent) error
+	CountByType() *sync.Map // used for debug purposes
 }

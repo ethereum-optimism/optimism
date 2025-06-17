@@ -141,8 +141,12 @@ func (s *ChainProcessor) UpdateTarget(newTarget uint64) {
 	s.target = newTarget
 }
 
-// index is the main processing loop. It triggers a r
+// index is the main processing loop. It triggers a rangeUpdate and processes the results.
 func (s *ChainProcessor) index() {
+	defer func(now time.Time) {
+		s.log.Debug("ChainProcessor indexing", "elapsed_ms", fmt.Sprintf("%.3f", float64(time.Since(now).Nanoseconds())/1e6), "target", s.target)
+	}(time.Now())
+
 	// evaluate if indexing is needed
 	target := s.target
 	next := s.nextNum()
