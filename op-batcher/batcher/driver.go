@@ -131,7 +131,7 @@ func NewBatchSubmitter(setup DriverSetup) *BatchSubmitter {
 
 	factory := NewThrottleControllerFactory()
 
-	var pidConfig *PIDControllerConfig
+	var pidConfig *config.PIDConfig
 	if setup.Config.ThrottlePidConfig != nil {
 		pidConfig = setup.Config.ThrottlePidConfig
 	}
@@ -154,10 +154,7 @@ func NewBatchSubmitter(setup DriverSetup) *BatchSubmitter {
 		)
 	}
 
-	// Record controller type in metrics
-	if metr, ok := setup.Metr.(interface{ RecordThrottleControllerType(ThrottleControllerType) }); ok {
-		metr.RecordThrottleControllerType(throttleController.GetType())
-	}
+	setup.Metr.RecordThrottleControllerType(throttleController.GetType())
 
 	return &BatchSubmitter{
 		DriverSetup:        setup,
@@ -693,16 +690,9 @@ func (l *BatchSubmitter) throttlingLoop(wg *sync.WaitGroup, pendingBytesUpdated 
 		l.currentThrottleParams = l.throttleController.Update(uint64(pb), targetPendingBytes)
 		l.throttleMutex.Unlock()
 
-		// Record metrics
-		if metr, ok := l.Metr.(interface {
-			RecordThrottleIntensity(float64, ThrottleControllerType)
-			RecordThrottleParams(uint64, uint64)
-			RecordPendingBytesVsThreshold(uint64, uint64, ThrottleControllerType)
-		}); ok {
-			metr.RecordThrottleIntensity(l.currentThrottleParams.Intensity, l.throttleController.GetType())
-			metr.RecordThrottleParams(l.currentThrottleParams.MaxTxSize, l.currentThrottleParams.MaxBlockSize)
-			metr.RecordPendingBytesVsThreshold(uint64(pb), l.Config.ThrottleThreshold, l.throttleController.GetType())
-		}
+		l.Metr.RecordThrottleIntensity(l.currentThrottleParams.Intensity, l.throttleController.GetType())
+		l.Metr.RecordThrottleParams(l.currentThrottleParams.MaxTxSize, l.currentThrottleParams.MaxBlockSize)
+		l.Metr.RecordPendingBytesVsThreshold(uint64(pb), l.Config.ThrottleThreshold, l.throttleController.GetType())
 
 		// Update throttling state
 		throttling := l.currentThrottleParams.Intensity > 0
@@ -1106,36 +1096,31 @@ func (l *BatchSubmitter) checkTxpool(queue *txmgr.Queue[txRef], receiptsCh chan 
 func (l *BatchSubmitter) SetThrottleController(controllerType string, pidConfig *config.PIDConfig) error {
 	l.Log.Info("Changing throttle controller", "from", l.throttleController.GetType(), "to", controllerType)
 
-	var newType ThrottleControllerType
+	var newType config.ThrottleControllerType
 	switch controllerType {
 	case "step":
-		newType = StepControllerType
+		newType = config.StepControllerType
 	case "linear":
-		newType = LinearControllerType
+		newType = config.LinearControllerType
 	case "quadratic":
-		newType = QuadraticControllerType
+		newType = config.QuadraticControllerType
 	case "pid":
-		newType = PIDControllerType
+		newType = config.PIDControllerType
 	default:
 		return fmt.Errorf("invalid controller type: %s", controllerType)
 	}
 
 	factory := NewThrottleControllerFactory()
 
-	var pidControllerConfig *PIDControllerConfig
-	if newType == PIDControllerType && pidConfig != nil {
-		sampleTime, err := time.ParseDuration(pidConfig.SampleTime)
-		if err != nil {
-			return fmt.Errorf("invalid sample time duration '%s': %w", pidConfig.SampleTime, err)
-		}
-
-		pidControllerConfig = &PIDControllerConfig{
+	var pidControllerConfig *config.PIDConfig
+	if newType == config.PIDControllerType && pidConfig != nil {
+		pidControllerConfig = &config.PIDConfig{
 			Kp:          pidConfig.Kp,
 			Ki:          pidConfig.Ki,
 			Kd:          pidConfig.Kd,
 			IntegralMax: pidConfig.IntegralMax,
 			OutputMax:   pidConfig.OutputMax,
-			SampleTime:  sampleTime,
+			SampleTime:  pidConfig.SampleTime,
 		}
 	}
 
@@ -1174,10 +1159,7 @@ func (l *BatchSubmitter) SetThrottleController(controllerType string, pidConfig 
 	}
 	l.throttleMutex.Unlock()
 
-	// Update metrics
-	if metr, ok := l.Metr.(interface{ RecordThrottleControllerType(string) }); ok {
-		metr.RecordThrottleControllerType(string(newController.GetType()))
-	}
+	l.Metr.RecordThrottleControllerType(newController.GetType())
 
 	l.Log.Info("Successfully changed throttle controller",
 		"old_type", oldController.GetType(),
@@ -1229,14 +1211,8 @@ func (l *BatchSubmitter) ResetThrottleController() error {
 		Intensity:    0.0,
 	}
 
-	// Update metrics
-	if metr, ok := l.Metr.(interface {
-		RecordThrottleIntensity(float64)
-		RecordThrottleParams(uint64, uint64)
-	}); ok {
-		metr.RecordThrottleIntensity(0.0)
-		metr.RecordThrottleParams(0, l.Config.ThrottleAlwaysBlockSize)
-	}
+	l.Metr.RecordThrottleIntensity(0.0, l.throttleController.GetType())
+	l.Metr.RecordThrottleParams(0, l.Config.ThrottleAlwaysBlockSize)
 
 	l.Log.Info("Successfully reset throttle controller state")
 	return nil

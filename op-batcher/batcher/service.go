@@ -12,6 +12,7 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 
 	altda "github.com/ethereum-optimism/optimism/op-alt-da"
+	"github.com/ethereum-optimism/optimism/op-batcher/config"
 	"github.com/ethereum-optimism/optimism/op-batcher/flags"
 	"github.com/ethereum-optimism/optimism/op-batcher/metrics"
 	"github.com/ethereum-optimism/optimism/op-batcher/rpc"
@@ -50,8 +51,8 @@ type BatcherConfig struct {
 	ThrottleBlockSize, ThrottleAlwaysBlockSize uint64
 	ThrottlingEndpoints                        []string
 
-	ThrottleControllerType ThrottleControllerType
-	ThrottlePidConfig      *PIDControllerConfig
+	ThrottleControllerType config.ThrottleControllerType
+	ThrottlePidConfig      *config.PIDConfig
 
 	PreferLocalSafeL2 bool
 }
@@ -121,11 +122,11 @@ func (bs *BatcherService) initFromCLIConfig(ctx context.Context, version string,
 	bs.ThrottlingEndpoints = slices.Union(cfg.L2EthRpc, cfg.AdditionalThrottlingEndpoints)
 
 	// Initialize throttle controller configuration
-	bs.ThrottleControllerType = ThrottleControllerType(cfg.ThrottleControllerType)
+	bs.ThrottleControllerType = config.ThrottleControllerType(cfg.ThrottleControllerType)
 
 	// Initialize PID configuration if using PID controller
-	if bs.ThrottleControllerType == PIDControllerType {
-		bs.ThrottlePidConfig = &PIDControllerConfig{
+	if bs.ThrottleControllerType == config.PIDControllerType {
+		bs.ThrottlePidConfig = &config.PIDConfig{
 			Kp:          cfg.ThrottlePidKp,
 			Ki:          cfg.ThrottlePidKi,
 			Kd:          cfg.ThrottlePidKd,

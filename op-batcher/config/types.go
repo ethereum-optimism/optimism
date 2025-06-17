@@ -1,5 +1,7 @@
 package config
 
+import "time"
+
 // ThrottleControllerType represents the type of throttle controller
 type ThrottleControllerType string
 
@@ -23,10 +25,10 @@ type ThrottleControllerInfo struct {
 
 // PIDConfig represents PID controller configuration for RPC
 type PIDConfig struct {
-	Kp          float64 `json:"kp"`
-	Ki          float64 `json:"ki"`
-	Kd          float64 `json:"kd"`
-	IntegralMax float64 `json:"integral_max"`
-	OutputMax   float64 `json:"output_max"`
-	SampleTime  string  `json:"sample_time"`
+	Kp          float64       `json:"kp"`
+	Ki          float64       `json:"ki"`
+	Kd          float64       `json:"kd"`
+	IntegralMax float64       `json:"integral_max"`
+	OutputMax   float64       `json:"output_max"`
+	SampleTime  time.Duration `json:"sample_time"`
 }

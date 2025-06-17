@@ -5,16 +5,8 @@ import (
 	"math"
 	"sync"
 	"time"
-)
 
-// ThrottleControllerType represents the type of throttle controller
-type ThrottleControllerType string
-
-const (
-	StepControllerType      ThrottleControllerType = "step"
-	LinearControllerType    ThrottleControllerType = "linear"
-	QuadraticControllerType ThrottleControllerType = "quadratic"
-	PIDControllerType       ThrottleControllerType = "pid"
+	"github.com/ethereum-optimism/optimism/op-batcher/config"
 )
 
 // ThrottleParams holds the current throttling parameters
@@ -31,7 +23,7 @@ type ThrottleController interface {
 	// Reset resets the controller state
 	Reset()
 	// GetType returns the controller type
-	GetType() ThrottleControllerType
+	GetType() config.ThrottleControllerType
 }
 
 // StepController implements binary on/off throttling (existing behavior)
@@ -75,8 +67,8 @@ func (s *StepController) Reset() {
 	// No state to reset for step controller
 }
 
-func (s *StepController) GetType() ThrottleControllerType {
-	return StepControllerType
+func (s *StepController) GetType() config.ThrottleControllerType {
+	return config.StepControllerType
 }
 
 // LinearController implements linear throttling based on pending bytes
@@ -144,8 +136,8 @@ func (l *LinearController) Reset() {
 	// No state to reset for linear controller
 }
 
-func (l *LinearController) GetType() ThrottleControllerType {
-	return LinearControllerType
+func (l *LinearController) GetType() config.ThrottleControllerType {
+	return config.LinearControllerType
 }
 
 // QuadraticController implements quadratic throttling for more aggressive scaling
@@ -211,23 +203,13 @@ func (q *QuadraticController) Reset() {
 	// No state to reset for quadratic controller
 }
 
-func (q *QuadraticController) GetType() ThrottleControllerType {
-	return QuadraticControllerType
-}
-
-// PIDControllerConfig holds PID controller configuration
-type PIDControllerConfig struct {
-	Kp          float64       // Proportional gain
-	Ki          float64       // Integral gain
-	Kd          float64       // Derivative gain
-	IntegralMax float64       // Maximum integral windup
-	OutputMax   float64       // Maximum output
-	SampleTime  time.Duration // Sample time interval
+func (q *QuadraticController) GetType() config.ThrottleControllerType {
+	return config.QuadraticControllerType
 }
 
 // PIDController implements PID-based throttling
 type PIDController struct {
-	config            PIDControllerConfig
+	config            config.PIDConfig
 	threshold         uint64
 	throttleTxSize    uint64
 	throttleBlockSize uint64
@@ -246,7 +228,7 @@ type PIDController struct {
 	}
 }
 
-func NewPIDController(threshold, throttleTxSize, throttleBlockSize, alwaysBlockSize uint64, config PIDControllerConfig) *PIDController {
+func NewPIDController(threshold, throttleTxSize, throttleBlockSize, alwaysBlockSize uint64, config config.PIDConfig) *PIDController {
 	return &PIDController{
 		config:            config,
 		threshold:         threshold,
@@ -386,8 +368,8 @@ func (p *PIDController) Reset() {
 	p.initialized = false
 }
 
-func (p *PIDController) GetType() ThrottleControllerType {
-	return PIDControllerType
+func (p *PIDController) GetType() config.ThrottleControllerType {
+	return config.PIDControllerType
 }
 
 // ThrottleControllerFactory creates throttle controllers based on configuration
@@ -398,18 +380,18 @@ func NewThrottleControllerFactory() *ThrottleControllerFactory {
 }
 
 func (f *ThrottleControllerFactory) CreateController(
-	controllerType ThrottleControllerType,
+	controllerType config.ThrottleControllerType,
 	threshold, throttleTxSize, throttleBlockSize, alwaysBlockSize uint64,
-	pidConfig *PIDControllerConfig,
+	pidConfig *config.PIDConfig,
 ) (ThrottleController, error) {
 	switch controllerType {
-	case StepControllerType:
+	case config.StepControllerType:
 		return NewStepController(threshold, throttleTxSize, throttleBlockSize, alwaysBlockSize), nil
-	case LinearControllerType:
+	case config.LinearControllerType:
 		return NewLinearController(threshold, throttleTxSize, throttleBlockSize, alwaysBlockSize), nil
-	case QuadraticControllerType:
+	case config.QuadraticControllerType:
 		return NewQuadraticController(threshold, throttleTxSize, throttleBlockSize, alwaysBlockSize), nil
-	case PIDControllerType:
+	case config.PIDControllerType:
 		if pidConfig == nil {
 			return nil, fmt.Errorf("PID configuration required for PID controller")
 		}

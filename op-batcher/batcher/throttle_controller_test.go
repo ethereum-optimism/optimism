@@ -5,6 +5,8 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/ethereum-optimism/optimism/op-batcher/config"
 )
 
 // TestStepController tests the step controller behavior
@@ -189,7 +191,7 @@ func TestQuadraticController(t *testing.T) {
 
 // TestPIDController tests the PID controller behavior
 func TestPIDController(t *testing.T) {
-	config := PIDControllerConfig{
+	config := config.PIDConfig{
 		Kp:          0.2,
 		Ki:          0.1,
 		Kd:          0.05,
@@ -261,7 +263,7 @@ func TestPIDController(t *testing.T) {
 
 // TestPIDControllerWithMetrics tests PID controller with metrics integration
 func TestPIDControllerWithMetrics(t *testing.T) {
-	config := PIDControllerConfig{
+	config := config.PIDConfig{
 		Kp:          0.2,
 		Ki:          0.1,
 		Kd:          0.05,
@@ -299,32 +301,32 @@ func TestControllerFactory(t *testing.T) {
 
 	tests := []struct {
 		name           string
-		controllerType ThrottleControllerType
-		pidConfig      *PIDControllerConfig
+		controllerType config.ThrottleControllerType
+		pidConfig      *config.PIDConfig
 		expectError    bool
 	}{
 		{
 			name:           "step controller",
-			controllerType: StepControllerType,
+			controllerType: config.StepControllerType,
 			pidConfig:      nil,
 			expectError:    false,
 		},
 		{
 			name:           "linear controller",
-			controllerType: LinearControllerType,
+			controllerType: config.LinearControllerType,
 			pidConfig:      nil,
 			expectError:    false,
 		},
 		{
 			name:           "quadratic controller",
-			controllerType: QuadraticControllerType,
+			controllerType: config.QuadraticControllerType,
 			pidConfig:      nil,
 			expectError:    false,
 		},
 		{
 			name:           "pid controller with config",
-			controllerType: PIDControllerType,
-			pidConfig: &PIDControllerConfig{
+			controllerType: config.PIDControllerType,
+			pidConfig: &config.PIDConfig{
 				Kp: 0.2, Ki: 0.1, Kd: 0.05,
 				IntegralMax: 100.0, OutputMax: 1.0, SampleTime: time.Second,
 			},
@@ -332,7 +334,7 @@ func TestControllerFactory(t *testing.T) {
 		},
 		{
 			name:           "pid controller without config",
-			controllerType: PIDControllerType,
+			controllerType: config.PIDControllerType,
 			pidConfig:      nil,
 			expectError:    true,
 		},
@@ -382,7 +384,7 @@ func TestControllerConcurrency(t *testing.T) {
 		{"step", NewStepController(1000000, 5000, 21000, 130000)},
 		{"linear", NewLinearController(1000000, 5000, 21000, 130000)},
 		{"quadratic", NewQuadraticController(1000000, 5000, 21000, 130000)},
-		{"pid", NewPIDController(1000000, 5000, 21000, 130000, PIDControllerConfig{
+		{"pid", NewPIDController(1000000, 5000, 21000, 130000, config.PIDConfig{
 			Kp: 0.2, Ki: 0.1, Kd: 0.05,
 			IntegralMax: 100.0, OutputMax: 1.0, SampleTime: time.Millisecond,
 		})},
@@ -429,7 +431,7 @@ func TestControllerBehaviorComparison(t *testing.T) {
 		"step":      NewStepController(1000000, 5000, 21000, 130000),
 		"linear":    NewLinearController(1000000, 5000, 21000, 130000),
 		"quadratic": NewQuadraticController(1000000, 5000, 21000, 130000),
-		"pid": NewPIDController(1000000, 5000, 21000, 130000, PIDControllerConfig{
+		"pid": NewPIDController(1000000, 5000, 21000, 130000, config.PIDConfig{
 			Kp: 0.2, Ki: 0.1, Kd: 0.05,
 			IntegralMax: 100.0, OutputMax: 1.0, SampleTime: time.Millisecond,
 		}),
@@ -507,7 +509,7 @@ func TestLoadSpikeResponse(t *testing.T) {
 		"step":      NewStepController(1000000, 5000, 21000, 130000),
 		"linear":    NewLinearController(1000000, 5000, 21000, 130000),
 		"quadratic": NewQuadraticController(1000000, 5000, 21000, 130000),
-		"pid": NewPIDController(1000000, 5000, 21000, 130000, PIDControllerConfig{
+		"pid": NewPIDController(1000000, 5000, 21000, 130000, config.PIDConfig{
 			Kp: 0.5, Ki: 0.2, Kd: 0.1, // More responsive for this test
 			IntegralMax: 100.0, OutputMax: 1.0, SampleTime: time.Millisecond,
 		}),
@@ -574,7 +576,7 @@ func TestEdgeCases(t *testing.T) {
 	})
 
 	t.Run("pid with zero gains", func(t *testing.T) {
-		config := PIDControllerConfig{
+		config := config.PIDConfig{
 			Kp: 0, Ki: 0, Kd: 0,
 			IntegralMax: 100.0, OutputMax: 1.0, SampleTime: time.Millisecond,
 		}
@@ -590,7 +592,7 @@ func TestEdgeCases(t *testing.T) {
 	})
 
 	t.Run("very high sample time", func(t *testing.T) {
-		config := PIDControllerConfig{
+		config := config.PIDConfig{
 			Kp: 0.2, Ki: 0.1, Kd: 0.05,
 			IntegralMax: 100.0, OutputMax: 1.0, SampleTime: time.Hour, // Very high
 		}
@@ -612,7 +614,7 @@ func TestParameterValidation(t *testing.T) {
 	factory := NewThrottleControllerFactory()
 
 	t.Run("invalid pid config", func(t *testing.T) {
-		invalidConfigs := []*PIDControllerConfig{
+		invalidConfigs := []*config.PIDConfig{
 			nil, // No config provided
 			{Kp: -1, Ki: 0.1, Kd: 0.05, IntegralMax: 100, OutputMax: 1, SampleTime: time.Second},   // Negative Kp
 			{Kp: 0.1, Ki: -1, Kd: 0.05, IntegralMax: 100, OutputMax: 1, SampleTime: time.Second},   // Negative Ki
@@ -623,8 +625,8 @@ func TestParameterValidation(t *testing.T) {
 			{Kp: 0.1, Ki: 0.1, Kd: 0.05, IntegralMax: 100, OutputMax: 1, SampleTime: -time.Second}, // Negative SampleTime
 		}
 
-		for i, config := range invalidConfigs {
-			_, err := factory.CreateController(PIDControllerType, 1000000, 5000, 21000, 130000, config)
+		for i, invalidConfig := range invalidConfigs {
+			_, err := factory.CreateController(config.PIDControllerType, 1000000, 5000, 21000, 130000, invalidConfig)
 			if err == nil {
 				t.Errorf("config %d: expected error for invalid PID config but got none", i)
 			}
@@ -641,7 +643,7 @@ func BenchmarkControllerUpdates(b *testing.B) {
 		{"Step", NewStepController(1000000, 5000, 21000, 130000)},
 		{"Linear", NewLinearController(1000000, 5000, 21000, 130000)},
 		{"Quadratic", NewQuadraticController(1000000, 5000, 21000, 130000)},
-		{"PID", NewPIDController(1000000, 5000, 21000, 130000, PIDControllerConfig{
+		{"PID", NewPIDController(1000000, 5000, 21000, 130000, config.PIDConfig{
 			Kp: 0.2, Ki: 0.1, Kd: 0.05,
 			IntegralMax: 100.0, OutputMax: 1.0, SampleTime: time.Microsecond,
 		})},

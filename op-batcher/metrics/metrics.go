@@ -44,6 +44,10 @@ type Metricer interface {
 	RecordChannelFullySubmitted(id derive.ChannelID)
 	RecordChannelTimedOut(id derive.ChannelID)
 	RecordChannelQueueLength(len int)
+	RecordThrottleIntensity(intensity float64, controllerType config.ThrottleControllerType)
+	RecordThrottleParams(maxTxSize, maxBlockSize uint64)
+	RecordThrottleControllerType(controllerType config.ThrottleControllerType)
+	RecordPendingBytesVsThreshold(pendingBytes, threshold uint64, controllerType config.ThrottleControllerType)
 
 	// ClearAllStateMetrics resets any metrics that track current ChannelManager state
 	// It should be called when clearing the ChannelManager state.
@@ -408,7 +412,7 @@ func (m *Metrics) RecordThrottleParams(maxTxSize, maxBlockSize uint64) {
 }
 
 func (m *Metrics) RecordThrottleControllerType(controllerType config.ThrottleControllerType) {
-	m.throttleControllerType.WithLabelValues(string(controllerType)).Set(1)
+	m.throttleControllerType.WithLabelValues(string(controllerType)).Set(float64(1))
 }
 
 func (m *Metrics) RecordPendingBytesVsThreshold(pendingBytes, threshold uint64, controllerType config.ThrottleControllerType) {
