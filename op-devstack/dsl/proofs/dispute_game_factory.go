@@ -86,6 +86,18 @@ func (f *DisputeGameFactory) GameAtIndex(idx int64) *FaultDisputeGame {
 	return NewFaultDisputeGame(f.t, f.require, game)
 }
 
+func (f *DisputeGameFactory) WaitForGame() *FaultDisputeGame {
+	initialCount := f.GameCount()
+	f.t.Require().Eventually(func() bool {
+		gameCount := f.GameCount()
+		check := gameCount > initialCount
+		f.t.Logf("waiting for new game. current=%d new=%d", initialCount, gameCount)
+		return check
+	}, time.Minute*10, time.Second*5)
+
+	return f.GameAtIndex(initialCount)
+}
+
 func (f *DisputeGameFactory) StartSuperCannonGame(eoa *dsl.EOA, rootClaim common.Hash, opts ...GameOpt) *SuperFaultDisputeGame {
 	block := f.l1Network.WaitForBlock()
 
