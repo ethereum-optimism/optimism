@@ -14,16 +14,16 @@ import (
 
 const defaultTimeout = 20 * time.Minute
 
-type ClaimHelper struct {
+type Claim struct {
 	t       devtest.T
 	require *require.Assertions
 	Index   int64
 	claim   bindings.Claim
-	game    *FaultDisputeGameHelper
+	game    *FaultDisputeGame
 }
 
-func newClaimHelper(t devtest.T, require *require.Assertions, claimIndex int64, claim bindings.Claim, game *FaultDisputeGameHelper) *ClaimHelper {
-	return &ClaimHelper{
+func newClaim(t devtest.T, require *require.Assertions, claimIndex int64, claim bindings.Claim, game *FaultDisputeGame) *Claim {
+	return &Claim{
 		t:       t,
 		require: require,
 		Index:   claimIndex,
@@ -32,20 +32,20 @@ func newClaimHelper(t devtest.T, require *require.Assertions, claimIndex int64, 
 	}
 }
 
-func (c *ClaimHelper) GetDepth() uint64 {
+func (c *Claim) GetDepth() uint64 {
 	return uint64(c.claim.Depth())
 }
 
 // WaitForCounterClaim waits for the claim to be countered by another claim being posted.
-// It returns a helper for the claim that countered this one.
-func (c *ClaimHelper) WaitForCounterClaim() *ClaimHelper {
+// Return the new claim that counters this claim.
+func (c *Claim) WaitForCounterClaim() *Claim {
 	counterIdx, counterClaim := c.game.waitForClaim(defaultTimeout, fmt.Sprintf("failed to find claim with parent idx %v", c.Index), func(claimIdx int64, claim bindings.Claim) bool {
 		return int64(claim.ParentContractIndex) == c.Index
 	})
-	return newClaimHelper(c.t, c.require, counterIdx, counterClaim, c.game)
+	return newClaim(c.t, c.require, counterIdx, counterClaim, c.game)
 }
 
-func (c *ClaimHelper) Attack(eoa *dsl.EOA, newClaim common.Hash) *ClaimHelper {
+func (c *Claim) Attack(eoa *dsl.EOA, newClaim common.Hash) *Claim {
 	c.game.Attack(eoa, c.Index, newClaim)
 	return c.WaitForCounterClaim()
 }

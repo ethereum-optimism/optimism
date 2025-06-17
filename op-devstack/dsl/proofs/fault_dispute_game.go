@@ -17,38 +17,38 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/txplan"
 )
 
-type FaultDisputeGameHelper struct {
+type FaultDisputeGame struct {
 	t       devtest.T
 	require *require.Assertions
 	game    *bindings.FaultDisputeGame
 }
 
-func NewFaultDisputeGameHelper(t devtest.T, require *require.Assertions, game *bindings.FaultDisputeGame) *FaultDisputeGameHelper {
-	return &FaultDisputeGameHelper{
+func NewFaultDisputeGame(t devtest.T, require *require.Assertions, game *bindings.FaultDisputeGame) *FaultDisputeGame {
+	return &FaultDisputeGame{
 		t:       t,
 		require: require,
 		game:    game,
 	}
 }
 
-func (g *FaultDisputeGameHelper) GetMaxDepth() uint64 {
+func (g *FaultDisputeGame) GetMaxDepth() uint64 {
 	return contract.Read(g.game.MaxGameDepth()).Uint64()
 }
 
-func (g *FaultDisputeGameHelper) GetSplitDepth() uint64 {
+func (g *FaultDisputeGame) GetSplitDepth() uint64 {
 	return contract.Read(g.game.SplitDepth()).Uint64()
 }
 
-func (g *FaultDisputeGameHelper) GetRootClaim() *ClaimHelper {
+func (g *FaultDisputeGame) GetRootClaim() *Claim {
 	return g.GetClaimAtIndex(int64(0))
 }
 
-func (g *FaultDisputeGameHelper) GetClaimAtIndex(claimIndex int64) *ClaimHelper {
+func (g *FaultDisputeGame) GetClaimAtIndex(claimIndex int64) *Claim {
 	claim := g.getClaimAtIndex(claimIndex)
-	return g.newClaimHelper(claimIndex, claim)
+	return g.newClaim(claimIndex, claim)
 }
 
-func (g *FaultDisputeGameHelper) Attack(eoa *dsl.EOA, claimIdx int64, newClaim common.Hash) {
+func (g *FaultDisputeGame) Attack(eoa *dsl.EOA, claimIdx int64, newClaim common.Hash) {
 	claim := g.getClaimAtIndex(claimIdx)
 	g.t.Logf("Attacking claim %v (depth: %d) with counter-claim %v", claimIdx, claim.Position.Depth(), newClaim)
 
@@ -59,15 +59,15 @@ func (g *FaultDisputeGameHelper) Attack(eoa *dsl.EOA, claimIdx int64, newClaim c
 	g.require.Equal(types.ReceiptStatusSuccessful, receipt.Status)
 }
 
-func (g *FaultDisputeGameHelper) newClaimHelper(claimIndex int64, claim bindings.Claim) *ClaimHelper {
-	return newClaimHelper(g.t, g.require, claimIndex, claim, g)
+func (g *FaultDisputeGame) newClaim(claimIndex int64, claim bindings.Claim) *Claim {
+	return newClaim(g.t, g.require, claimIndex, claim, g)
 }
 
-func (g *FaultDisputeGameHelper) getClaimAtIndex(claimIndex int64) bindings.Claim {
+func (g *FaultDisputeGame) getClaimAtIndex(claimIndex int64) bindings.Claim {
 	return contract.Read(g.game.ClaimData(big.NewInt(claimIndex))).Decode()
 }
 
-func (g *FaultDisputeGameHelper) getAllClaims() []bindings.Claim {
+func (g *FaultDisputeGame) getAllClaims() []bindings.Claim {
 	// TODO(#15948) - do we need to batch these? See: op-service/sources/batching.ReadArray
 	claimCount := contract.Read(g.game.ClaimDataLen())
 	var claims []bindings.Claim
@@ -79,7 +79,7 @@ func (g *FaultDisputeGameHelper) getAllClaims() []bindings.Claim {
 	return claims
 }
 
-func (g *FaultDisputeGameHelper) waitForClaim(timeout time.Duration, errorMsg string, predicate func(claimIdx int64, claim bindings.Claim) bool) (int64, bindings.Claim) {
+func (g *FaultDisputeGame) waitForClaim(timeout time.Duration, errorMsg string, predicate func(claimIdx int64, claim bindings.Claim) bool) (int64, bindings.Claim) {
 	timedCtx, cancel := context.WithTimeout(g.t.Ctx(), timeout)
 	defer cancel()
 	var matchedClaim bindings.Claim

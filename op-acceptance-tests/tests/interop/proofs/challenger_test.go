@@ -19,9 +19,9 @@ func TestChallengerPlaysGame(gt *testing.T) {
 
 	badClaim := common.HexToHash("0xdeadbeef00000000000000000000000000000000000000000000000000000000")
 	attacker := sys.FunderL1.NewFundedEOA(eth.Ether(2))
-	helper := proofs.DisputeGameFactoryForNetwork(t, sys.L1Network, sys.L1EL.EthClient(), sys.L2ChainA.DisputeGameFactoryProxyAddr(), sys.Supervisor)
+	dgf := proofs.DisputeGameFactoryForNetwork(t, sys.L1Network, sys.L1EL.EthClient(), sys.L2ChainA.DisputeGameFactoryProxyAddr(), sys.Supervisor)
 
-	game := helper.StartSuperCannonGame(attacker, badClaim)
+	game := dgf.StartSuperCannonGame(attacker, badClaim)
 
 	// Wait for the challenger to counter the bad root claim
 	claim := game.GetRootClaim()

@@ -18,7 +18,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/txplan"
 )
 
-type DisputeGameFactoryHelper struct {
+type DisputeGameFactory struct {
 	t          devtest.T
 	require    *require.Assertions
 	log        log.Logger
@@ -28,8 +28,8 @@ type DisputeGameFactoryHelper struct {
 	supervisor *dsl.Supervisor
 }
 
-func DisputeGameFactoryForNetwork(t devtest.T, l1Network *dsl.L1Network, ethClient apis.EthClient, dgfAddr common.Address, supervisor *dsl.Supervisor) *DisputeGameFactoryHelper {
-	return &DisputeGameFactoryHelper{
+func DisputeGameFactoryForNetwork(t devtest.T, l1Network *dsl.L1Network, ethClient apis.EthClient, dgfAddr common.Address, supervisor *dsl.Supervisor) *DisputeGameFactory {
+	return &DisputeGameFactory{
 		t:          t,
 		require:    require.New(t),
 		log:        t.Logger(),
@@ -73,25 +73,25 @@ func NewGameCfg(opts ...GameOpt) *GameCfg {
 	return cfg
 }
 
-func (h *DisputeGameFactoryHelper) StartSuperCannonGame(eoa *dsl.EOA, rootClaim common.Hash, opts ...GameOpt) *SuperCannonGameHelper {
-	block := h.l1Network.WaitForBlock()
+func (f *DisputeGameFactory) StartSuperCannonGame(eoa *dsl.EOA, rootClaim common.Hash, opts ...GameOpt) *SuperFaultDisputeGame {
+	block := f.l1Network.WaitForBlock()
 
 	gameType := uint32(cTypes.SuperCannonGameType)
-	return h.startSuperCannonGameOfType(eoa, block.Time, rootClaim, gameType, opts...)
+	return f.startSuperCannonGameOfType(eoa, block.Time, rootClaim, gameType, opts...)
 }
 
-func (h *DisputeGameFactoryHelper) startSuperCannonGameOfType(eoa *dsl.EOA, timestamp uint64, rootClaim common.Hash, gameType uint32, opts ...GameOpt) *SuperCannonGameHelper {
+func (f *DisputeGameFactory) startSuperCannonGameOfType(eoa *dsl.EOA, timestamp uint64, rootClaim common.Hash, gameType uint32, opts ...GameOpt) *SuperFaultDisputeGame {
 	cfg := NewGameCfg(opts...)
-	extraData := h.createSuperGameExtraData(timestamp, cfg)
-	game := h.createNewGame(eoa, gameType, rootClaim, extraData)
+	extraData := f.createSuperGameExtraData(timestamp, cfg)
+	game := f.createNewGame(eoa, gameType, rootClaim, extraData)
 
-	return NewSuperCannonGameHelper(h.t, h.require, game)
+	return NewSuperFaultDisputeGame(f.t, f.require, game)
 }
 
-func (h *DisputeGameFactoryHelper) createSuperGameExtraData(timestamp uint64, cfg *GameCfg) []byte {
+func (f *DisputeGameFactory) createSuperGameExtraData(timestamp uint64, cfg *GameCfg) []byte {
 	if !cfg.allowFuture {
-		require.Eventually(h.t, func() bool {
-			status := h.supervisor.FetchSyncStatus()
+		require.Eventually(f.t, func() bool {
+			status := f.supervisor.FetchSyncStatus()
 			return status.SafeTimestamp >= timestamp
 		}, time.Minute, 5*time.Second, "Safe head did not reach proposal timestamp")
 	}
@@ -100,23 +100,23 @@ func (h *DisputeGameFactoryHelper) createSuperGameExtraData(timestamp uint64, cf
 	return extraData
 }
 
-func (h *DisputeGameFactoryHelper) createNewGame(eoa *dsl.EOA, gameType uint32, claim common.Hash, extraData []byte) *bindings.FaultDisputeGame {
-	h.log.Info("Creating dispute game", "gameType", gameType, "claim", claim.Hex(), "extradata", common.Bytes2Hex(extraData))
+func (f *DisputeGameFactory) createNewGame(eoa *dsl.EOA, gameType uint32, claim common.Hash, extraData []byte) *bindings.FaultDisputeGame {
+	f.log.Info("Creating dispute game", "gameType", gameType, "claim", claim.Hex(), "extradata", common.Bytes2Hex(extraData))
 
-	dgf := bindings.NewDisputeGameFactory(bindings.WithClient(h.ethClient), bindings.WithTo(h.dgfAddr), bindings.WithTest(h.t))
+	dgf := bindings.NewDisputeGameFactory(bindings.WithClient(f.ethClient), bindings.WithTo(f.dgfAddr), bindings.WithTest(f.t))
 
 	// Pull some metadata we need to construct a new game
 	requiredBonds := contract.Read(dgf.InitBonds(gameType))
 
 	receipt := contract.Write(eoa, dgf.Create(gameType, claim, extraData), txplan.WithValue(requiredBonds), txplan.WithGasRatio(2))
-	h.require.Equal(types.ReceiptStatusSuccessful, receipt.Status)
+	f.require.Equal(types.ReceiptStatusSuccessful, receipt.Status)
 
 	// Extract logs from receipt
-	h.require.Equal(2, len(receipt.Logs))
+	f.require.Equal(2, len(receipt.Logs))
 	createdLog, err := dgf.ParseDisputeGameCreated(receipt.Logs[1])
-	h.require.NoError(err)
+	f.require.NoError(err)
 
 	gameAddr := createdLog.DisputeProxy
 	log.Info("Dispute game created", "address", gameAddr.Hex())
-	return bindings.NewFaultDisputeGame(bindings.WithClient(h.ethClient), bindings.WithTo(gameAddr), bindings.WithTest(h.t))
+	return bindings.NewFaultDisputeGame(bindings.WithClient(f.ethClient), bindings.WithTo(gameAddr), bindings.WithTest(f.t))
 }
