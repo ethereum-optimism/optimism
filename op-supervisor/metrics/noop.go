@@ -4,6 +4,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup/event"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
+	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 )
 
 type noopMetrics struct {
@@ -18,8 +19,10 @@ func (*noopMetrics) Document() []opmetrics.DocumentedMetric { return nil }
 func (*noopMetrics) RecordInfo(version string) {}
 func (*noopMetrics) RecordUp()                 {}
 
-func (m *noopMetrics) RecordCrossUnsafeRef(_ eth.ChainID, _ eth.BlockRef) {}
-func (m *noopMetrics) RecordCrossSafeRef(_ eth.ChainID, _ eth.BlockRef)   {}
+func (m *noopMetrics) RecordCrossUnsafe(_ eth.ChainID, _ types.BlockSeal) {}
+func (m *noopMetrics) RecordCrossSafe(_ eth.ChainID, _ types.BlockSeal)   {}
+func (m *noopMetrics) RecordLocalSafe(_ eth.ChainID, _ types.BlockSeal)   {}
+func (m *noopMetrics) RecordLocalUnsafe(_ eth.ChainID, _ types.BlockSeal) {}
 
 func (m *noopMetrics) CacheAdd(_ eth.ChainID, _ string, _ int, _ bool) {}
 func (m *noopMetrics) CacheGet(_ eth.ChainID, _ string, _ bool)        {}

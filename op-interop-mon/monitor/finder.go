@@ -16,7 +16,7 @@ import (
 var ErrBlockNotFound = errors.New("block not found")
 
 // JobFilter is a function that turns any executing messages from a slice of receipts
-// into a slice of jobs which can be added to the Maintainer's inbox
+// into a slice of jobs which can be added to an Updater's inbox
 type JobFilter func(receipts []*types.Receipt) []*Job
 
 // NewCallback is a function to be called when a new job is created
@@ -35,7 +35,7 @@ type FinderClient interface {
 
 var _ FinderClient = &sources.EthClient{}
 
-// Finders are responsible for finding new jobs from a chain for the Maintainer to track
+// Finders are responsible for finding new jobs from a chain for an Updater to track
 type Finder interface {
 	Start(ctx context.Context) error
 	Stop() error

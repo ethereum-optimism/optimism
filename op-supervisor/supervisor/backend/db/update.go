@@ -48,6 +48,7 @@ func (db *ChainsDB) sealBlock(chain eth.ChainID, block eth.BlockRef, mayInit boo
 		ChainID:        chain,
 		NewLocalUnsafe: block,
 	})
+	db.m.RecordLocalUnsafe(chain, types.BlockSealFromRef(block))
 	return nil
 }
 
@@ -122,13 +123,15 @@ func (db *ChainsDB) initializedUpdateLocalSafe(chain eth.ChainID, source eth.Blo
 		return
 	}
 	logger.Info("Updated local safe DB")
+	derived := types.BlockSealFromRef(lastDerived)
 	db.emitter.Emit(superevents.LocalSafeUpdateEvent{
 		ChainID: chain,
 		NewLocalSafe: types.DerivedBlockSealPair{
 			Source:  types.BlockSealFromRef(source),
-			Derived: types.BlockSealFromRef(lastDerived),
+			Derived: derived,
 		},
 	})
+	db.m.RecordLocalSafe(chain, derived)
 }
 
 func (db *ChainsDB) UpdateCrossUnsafe(chain eth.ChainID, crossUnsafe types.BlockSeal) error {
@@ -145,11 +148,7 @@ func (db *ChainsDB) UpdateCrossUnsafe(chain eth.ChainID, crossUnsafe types.Block
 		ChainID:        chain,
 		NewCrossUnsafe: crossUnsafe,
 	})
-	db.m.RecordCrossUnsafeRef(chain, eth.BlockRef{
-		Number: crossUnsafe.Number,
-		Time:   crossUnsafe.Timestamp,
-		Hash:   crossUnsafe.Hash,
-	})
+	db.m.RecordCrossUnsafe(chain, crossUnsafe)
 	return nil
 }
 
@@ -178,14 +177,15 @@ func (db *ChainsDB) initializedUpdateCrossSafe(chain eth.ChainID, l1View eth.Blo
 		return err
 	}
 	db.logger.Info("Updated cross-safe", "chain", chain, "l1View", l1View, "lastCrossDerived", lastCrossDerived)
+	lastCrossDerivedBlockSeal := types.BlockSealFromRef(lastCrossDerived)
 	db.emitter.Emit(superevents.CrossSafeUpdateEvent{
 		ChainID: chain,
 		NewCrossSafe: types.DerivedBlockSealPair{
 			Source:  types.BlockSealFromRef(l1View),
-			Derived: types.BlockSealFromRef(lastCrossDerived),
+			Derived: lastCrossDerivedBlockSeal,
 		},
 	})
-	db.m.RecordCrossSafeRef(chain, lastCrossDerived)
+	db.m.RecordCrossSafe(chain, lastCrossDerivedBlockSeal)
 
 	// compare new cross-safe to recorded cross-unsafe
 	crossUnsafe, err := db.CrossUnsafe(chain)
@@ -373,10 +373,12 @@ func (db *ChainsDB) onReplaceBlock(chainID eth.ChainID, replacement eth.BlockRef
 		NewLocalUnsafe: replacement,
 	})
 	// The local-safe DB changed, so emit an event, so other sub-systems can react to the change.
+	seals := result.Seals()
 	db.emitter.Emit(superevents.LocalSafeUpdateEvent{
 		ChainID:      chainID,
-		NewLocalSafe: result.Seals(),
+		NewLocalSafe: seals,
 	})
+	db.m.RecordLocalSafe(chainID, seals.Derived)
 	// The event-DB will start indexing, and then unblock cross-safe update
 	// of the new replaced block, via regular cross-safe update worker routine.
 }

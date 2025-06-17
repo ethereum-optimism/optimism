@@ -102,8 +102,10 @@ var _ DerivationStorage = (*fromda.DB)(nil)
 var _ LogStorage = (*logs.DB)(nil)
 
 type Metrics interface {
-	RecordCrossUnsafeRef(chainID eth.ChainID, ref eth.BlockRef)
-	RecordCrossSafeRef(chainID eth.ChainID, ref eth.BlockRef)
+	RecordCrossUnsafe(chainID eth.ChainID, seal types.BlockSeal)
+	RecordCrossSafe(chainID eth.ChainID, seal types.BlockSeal)
+	RecordLocalSafe(chainID eth.ChainID, seal types.BlockSeal)
+	RecordLocalUnsafe(chainID eth.ChainID, seal types.BlockSeal)
 }
 
 // ChainsDB is a database that stores logs and derived-from data for multiple chains.

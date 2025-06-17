@@ -36,7 +36,7 @@ type InteropMonitorService struct {
 	finders   map[eth.ChainID]Finder
 	updaters  map[eth.ChainID]Updater
 	collector *MetricCollector
-	expiry    *locks.RWMap[eth.ChainID, eth.NumberAndHash]
+	finalized *locks.RWMap[eth.ChainID, eth.NumberAndHash]
 
 	Version string
 
@@ -64,7 +64,7 @@ func (ms *InteropMonitorService) initFromCLIConfig(ctx context.Context, version 
 	ms.PollInterval = cfg.PollInterval
 
 	// Initialize the expiry map
-	ms.expiry = locks.RWMapFromMap(make(map[eth.ChainID]eth.NumberAndHash))
+	ms.finalized = locks.RWMapFromMap(make(map[eth.ChainID]eth.NumberAndHash))
 
 	// Initialize all clients
 	clients, err := ms.initClients(ctx, cfg.L2Rpcs)
@@ -139,7 +139,7 @@ func (ms *InteropMonitorService) dial(ctx context.Context, l2Rpc string) (*sourc
 // initUpdaters initializes the updaters for the given clients
 func (ms *InteropMonitorService) initUpdaters(clients map[eth.ChainID]*sources.EthClient) error {
 	for chainID, ethClient := range clients {
-		updater := NewUpdater(chainID, ethClient, ms.expiry, ms.Log)
+		updater := NewUpdater(chainID, ethClient, ms.finalized, ms.Log)
 		ms.updaters[chainID] = updater
 	}
 	return nil
@@ -165,7 +165,7 @@ func (ms *InteropMonitorService) RouteNewJob(job *Job) {
 
 // SetExpiry sets the expiry for a chain ID
 func (ms *InteropMonitorService) SetExpiry(chainID eth.ChainID, expiry eth.BlockInfo) {
-	ms.expiry.Set(chainID, expiry)
+	ms.finalized.Set(chainID, expiry)
 }
 
 func (ms *InteropMonitorService) initMetrics(cfg *CLIConfig) {
@@ -283,10 +283,10 @@ func (ms *InteropMonitorService) Stop(ctx context.Context) error {
 		}
 	}
 
-	ms.Log.Info("stopping maintainer")
+	ms.Log.Info("stopping metric collector")
 	if err := ms.collector.Stop(); err != nil {
-		result = errors.Join(result, fmt.Errorf("failed to stop maintainer: %w", err))
-		ms.Log.Error("failed to stop maintainer", "error", err)
+		result = errors.Join(result, fmt.Errorf("failed to stop metric collector: %w", err))
+		ms.Log.Error("failed to stop metric collector", "error", err)
 	}
 
 	ms.Log.Info("stopping rpc server")
@@ -319,7 +319,3 @@ func (ms *InteropMonitorService) Stop(ctx context.Context) error {
 }
 
 var _ cliapp.Lifecycle = (*InteropMonitorService)(nil)
-
-func (ms *InteropMonitorService) Maintainer() *MetricCollector {
-	return ms.collector
-}
