@@ -161,16 +161,14 @@ func setupL2(t devtest.T, wallet *dsl.HDWallet, blockTime time.Duration, config 
 			reliableEL,
 			txinclude.WithBudget(txinclude.NewTxBudget(budget, txinclude.WithOPCostOracle(oracle))),
 		)
-		eoas = append(eoas, &SyncEOA{
-			Plan:     eoa.Plan(),
-			Includer: p,
-		})
+		eoas = append(eoas, NewSyncEOA(p, eoa.Plan()))
 	}
 	return &L2{
 		Config:    config,
 		BlockTime: blockTime,
 		EOAs:      NewRoundRobin(eoas),
 		EL:        el,
+		Wallet:    wallet,
 	}
 }
 

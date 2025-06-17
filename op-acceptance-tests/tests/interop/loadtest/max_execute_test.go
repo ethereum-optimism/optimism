@@ -52,25 +52,25 @@ func (p *messagePool) Append(msg *suptypes.Message) {
 	p.messages = append(p.messages, msg)
 }
 
-// MaxExecutor is a spammer that executes messages from a source and sends those executing messages
-// as initiating messages to a sink.
-type MaxExecutor struct {
+// ExecMsgSpammer is a spammer that executes messages from a source and sends those executing
+// messages as initiating messages to a sink.
+type ExecMsgSpammer struct {
 	l2     *L2
 	source messageSource
 	sink   messageSink
 }
 
-var _ Spammer = (*MaxExecutor)(nil)
+var _ Spammer = (*ExecMsgSpammer)(nil)
 
-func NewMaxExecutor(source messageSource, sink messageSink, dest *L2) *MaxExecutor {
-	return &MaxExecutor{
+func NewExecMsgSpammer(source messageSource, sink messageSink, dest *L2) *ExecMsgSpammer {
+	return &ExecMsgSpammer{
 		l2:     dest,
 		source: source,
 		sink:   sink,
 	}
 }
 
-func (e *MaxExecutor) Spam(t devtest.T) error {
+func (e *ExecMsgSpammer) Spam(t devtest.T) error {
 	// Get an initiating message from the source and execute it.
 	initMsg := e.source.Get()
 	start := time.Now()
@@ -91,9 +91,9 @@ func (e *MaxExecutor) Spam(t devtest.T) error {
 	return nil
 }
 
-// TestMaxExecutingMessagesBurst runs the MaxExecutor spammer on a Burst schedule on both chains.
-// The executing messages emitted by one spammer become initiating messages for the other spammer.
-// The test aims to maximize load on the supervisor (indexing and access list checks).
+// TestMaxExecutingMessagesBurst runs the ExecMsgSpammer on a Burst schedule on both chains. The
+// executing messages emitted by one spammer become initiating messages for the other spammer. The
+// test aims to maximize load on the supervisor (indexing and access list checks).
 func TestMaxExecutingMessagesBurst(gt *testing.T) {
 	t, l2A, l2B := setupLoadTest(gt)
 
@@ -122,12 +122,12 @@ func TestMaxExecutingMessagesBurst(gt *testing.T) {
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		NewBurst(l2A.BlockTime, WithAIMDObserver(aimdObserver(l2A.EL.ChainID()))).Run(t, NewMaxExecutor(initMsgsFromB, initMsgsFromA, l2A))
+		NewBurst(l2A.BlockTime, WithAIMDObserver(aimdObserver(l2A.EL.ChainID()))).Run(t, NewExecMsgSpammer(initMsgsFromB, initMsgsFromA, l2A))
 	}()
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		NewBurst(l2B.BlockTime, WithAIMDObserver(aimdObserver(l2B.EL.ChainID()))).Run(t, NewMaxExecutor(initMsgsFromA, initMsgsFromB, l2B))
+		NewBurst(l2B.BlockTime, WithAIMDObserver(aimdObserver(l2B.EL.ChainID()))).Run(t, NewExecMsgSpammer(initMsgsFromA, initMsgsFromB, l2B))
 	}()
 }
 

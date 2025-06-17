@@ -46,6 +46,7 @@ var _ AIMDObserver = NoOpAIMDObserver{}
 func (NoOpAIMDObserver) UpdateRPS(uint64) {}
 
 type aimdConfig struct {
+	baseRPS           uint64
 	increaseDelta     uint64       // additive delta
 	decreaseFactor    float64      // multiplicative factor
 	failRateThreshold float64      // when to start decreasing (e.g., 0.05 of all requests are failures)
@@ -55,6 +56,7 @@ type aimdConfig struct {
 
 func NewAIMD(baseRPS uint64, slotTime time.Duration, opts ...AIMDOption) *AIMD {
 	cfg := &aimdConfig{
+		baseRPS:           baseRPS,
 		increaseDelta:     max(baseRPS/10, 1),
 		decreaseFactor:    0.5,
 		failRateThreshold: 0.05,
@@ -70,7 +72,7 @@ func NewAIMD(baseRPS uint64, slotTime time.Duration, opts ...AIMDOption) *AIMD {
 		metrics:  aimdMetrics{},
 		cfg:      cfg,
 	}
-	aimd.rps.Store(baseRPS)
+	aimd.rps.Store(cfg.baseRPS)
 	aimd.cfg.observer.UpdateRPS(baseRPS)
 	return aimd
 }
@@ -82,6 +84,12 @@ func WithAIMDOptsCombined(opts ...AIMDOption) AIMDOption {
 		for _, opt := range opts {
 			opt(cfg)
 		}
+	}
+}
+
+func WithBaseRPS(rps uint64) AIMDOption {
+	return func(cfg *aimdConfig) {
+		cfg.baseRPS = rps
 	}
 }
 
@@ -295,6 +303,35 @@ func (s *Steady) Run(t devtest.T, spammer Spammer) {
 				t.Require().NoError(err)
 			}
 			t.Logger().Warn("Spammer error", "err", err)
+		}()
+	}
+}
+
+type Constant struct {
+	blockTime time.Duration
+	aimdOpts  []AIMDOption
+}
+
+var _ Schedule = (*Constant)(nil)
+
+func NewConstant(blockTime time.Duration, aimdOpts ...AIMDOption) *Constant {
+	return &Constant{
+		blockTime: blockTime,
+		aimdOpts:  aimdOpts,
+	}
+}
+
+func (c *Constant) Run(t devtest.T, spammer Spammer) {
+	aimd := setupAIMD(t, c.blockTime, c.aimdOpts...)
+	var wg sync.WaitGroup
+	defer wg.Wait()
+	for range aimd.Ready() {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			if err := spammer.Spam(t); err != nil {
+				t.Logger().Warn("Spammer error", "err", err)
+			}
 		}()
 	}
 }

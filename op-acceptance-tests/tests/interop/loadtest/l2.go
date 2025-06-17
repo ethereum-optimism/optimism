@@ -31,8 +31,24 @@ func (p *RoundRobin[T]) Get() T {
 }
 
 type SyncEOA struct {
-	Plan     txplan.Option
-	Includer txinclude.Includer
+	plan     txplan.Option
+	includer txinclude.Includer
+}
+
+func NewSyncEOA(includer txinclude.Includer, plan txplan.Option) *SyncEOA {
+	return &SyncEOA{
+		plan:     plan,
+		includer: includer,
+	}
+}
+
+// Include attempts to include the transaction specified by opts.
+func (eoa *SyncEOA) Include(t devtest.T, opts ...txplan.Option) (*txinclude.IncludedTx, error) {
+	unsigned, err := txplan.NewPlannedTx(eoa.plan, txplan.Combine(opts...)).Unsigned.Eval(t.Ctx())
+	if err != nil {
+		return nil, err
+	}
+	return eoa.includer.Include(t.Ctx(), unsigned)
 }
 
 type L2 struct {
@@ -41,6 +57,7 @@ type L2 struct {
 	EL          *dsl.L2ELNode
 	EOAs        *RoundRobin[*SyncEOA]
 	EventLogger common.Address
+	Wallet      *dsl.HDWallet
 }
 
 func (l2 *L2) DeployEventLogger(t devtest.T) {
@@ -49,17 +66,12 @@ func (l2 *L2) DeployEventLogger(t devtest.T) {
 	l2.EventLogger = tx.Receipt.ContractAddress
 }
 
+// Include includes the transaction on l2. It guarantees that the returned transaction was executed
+// successfully when the error is non-nil.
 func (l2 *L2) Include(t devtest.T, opts ...txplan.Option) (*txinclude.IncludedTx, error) {
-	eoa := l2.EOAs.Get()
-	unsigned, err := txplan.NewPlannedTx(eoa.Plan, txplan.Combine(opts...)).Unsigned.Eval(t.Ctx())
+	includedTx, err := l2.EOAs.Get().Include(t, opts...)
 	if err != nil {
-		// Context cancelations and i/o timeouts can cause an error (there may be other scenarios).
-		// Let the caller handle it.
 		return nil, err
-	}
-	includedTx, err := eoa.Includer.Include(t.Ctx(), unsigned)
-	if err != nil {
-		return nil, err // Allow the caller to check for budget overdrafts and context cancelation.
 	}
 	t.Require().Equal(ethtypes.ReceiptStatusSuccessful, includedTx.Receipt.Status)
 	return includedTx, nil

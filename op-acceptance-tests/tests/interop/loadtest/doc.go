@@ -8,8 +8,8 @@
 // There are two schedulers:
 //
 //   - Steady: spams until the NAT_STEADY_TIMEOUT (see below) before exiting successfully. It
-//     attempts to approach but not exceed gas target, simulating benign but heavy
-//     load. Budget overdraft is the only fatal error.
+//     attempts to approach but not exceed gas target, simulating benign but heavy load. Budget
+//     overdraft is the only fatal error.
 //   - Burst: spams as fast as possible until the budget is depleted. All non-overdraft errors are
 //     ignored, although they may reduce the spammer's frequency. Burst is intended to simulate a
 //     DoS attack.
@@ -18,9 +18,9 @@
 //
 //   - NAT_INTEROP_LOADTEST_TARGET (default: 100): the initial number of messages that should be
 //     passed per L2 slot in each test.
-//   - NAT_INTEROP_LOADTEST_BUDGET (default: 1): the max amount of ETH to spend per L2 in each
-//     test. It may be a float. The test will panic if the total overflows a uint256.
-//     budget may be used during test setup, e.g., to deploy contracts.
+//   - NAT_INTEROP_LOADTEST_BUDGET (default: 1): the max amount of ETH to spend per L2 per test. It
+//     may be a float. The test will panic if it overflows a uint256. Funds may be used during test
+//     setup to, e.g., deploy contracts.
 //   - NAT_STEADY_TIMEOUT (default: min(3m, go test timeout)): the amount of time to run the
 //     spammer in each Steady test. Also see https://github.com/golang/go/issues/48157.
 //

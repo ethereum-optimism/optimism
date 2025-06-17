@@ -10,22 +10,22 @@ import (
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 )
 
-// Relayer is a Spammer that initiates messages on one chain and executes them on the other.
-type Relayer struct {
+// RelaySpammer initiates messages on one chain and executes them on the other.
+type RelaySpammer struct {
 	source *L2
 	dest   *L2
 }
 
-var _ Spammer = (*Relayer)(nil)
+var _ Spammer = (*RelaySpammer)(nil)
 
-func NewRelayer(source, dest *L2) *Relayer {
-	return &Relayer{
+func NewRelaySpammer(source, dest *L2) *RelaySpammer {
+	return &RelaySpammer{
 		source: source,
 		dest:   dest,
 	}
 }
 
-func (r *Relayer) Spam(t devtest.T) error {
+func (r *RelaySpammer) Spam(t devtest.T) error {
 	startE2E := time.Now()
 
 	startInit := startE2E
@@ -57,7 +57,7 @@ func (r *Relayer) Spam(t devtest.T) error {
 func TestRelaySteady(gt *testing.T) {
 	t, l2A, l2B := setupLoadTest(gt)
 	s := NewSteady(l2B.EL.Escape().EthClient(), l2B.Config.ElasticityMultiplier(), l2B.BlockTime, WithAIMDObserver(aimdObserver{}))
-	s.Run(t, NewRelayer(l2A, l2B))
+	s.Run(t, NewRelaySpammer(l2A, l2B))
 }
 
 // TestRelayBurst runs the Relay spammer on a Burst schedule. See TestRelaySteady for more details
@@ -65,5 +65,5 @@ func TestRelaySteady(gt *testing.T) {
 func TestRelayBurst(gt *testing.T) {
 	t, l2A, l2B := setupLoadTest(gt)
 	burst := NewBurst(l2B.BlockTime, WithAIMDObserver(aimdObserver{}))
-	burst.Run(t, NewRelayer(l2A, l2B))
+	burst.Run(t, NewRelaySpammer(l2A, l2B))
 }
