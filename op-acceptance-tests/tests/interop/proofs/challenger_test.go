@@ -23,6 +23,6 @@ func TestChallengerPlaysGame(gt *testing.T) {
 	game := dgf.StartSuperCannonGame(attacker, badClaim)
 
 	// Wait for the challenger to counter the bad root claim
-	claim := game.GetRootClaim()
+	claim := game.RootClaim()
 	claim.WaitForCounterClaim()
 }

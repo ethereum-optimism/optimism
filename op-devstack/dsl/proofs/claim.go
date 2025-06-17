@@ -32,7 +32,7 @@ func newClaim(t devtest.T, require *require.Assertions, claimIndex int64, claim 
 	}
 }
 
-func (c *Claim) GetDepth() uint64 {
+func (c *Claim) Depth() uint64 {
 	return uint64(c.claim.Depth())
 }
 

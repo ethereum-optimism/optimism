@@ -31,25 +31,25 @@ func NewFaultDisputeGame(t devtest.T, require *require.Assertions, game *binding
 	}
 }
 
-func (g *FaultDisputeGame) GetMaxDepth() uint64 {
+func (g *FaultDisputeGame) MaxDepth() uint64 {
 	return contract.Read(g.game.MaxGameDepth()).Uint64()
 }
 
-func (g *FaultDisputeGame) GetSplitDepth() uint64 {
+func (g *FaultDisputeGame) SplitDepth() uint64 {
 	return contract.Read(g.game.SplitDepth()).Uint64()
 }
 
-func (g *FaultDisputeGame) GetRootClaim() *Claim {
-	return g.GetClaimAtIndex(int64(0))
+func (g *FaultDisputeGame) RootClaim() *Claim {
+	return g.ClaimAtIndex(int64(0))
 }
 
-func (g *FaultDisputeGame) GetClaimAtIndex(claimIndex int64) *Claim {
-	claim := g.getClaimAtIndex(claimIndex)
+func (g *FaultDisputeGame) ClaimAtIndex(claimIndex int64) *Claim {
+	claim := g.claimAtIndex(claimIndex)
 	return g.newClaim(claimIndex, claim)
 }
 
 func (g *FaultDisputeGame) Attack(eoa *dsl.EOA, claimIdx int64, newClaim common.Hash) {
-	claim := g.getClaimAtIndex(claimIdx)
+	claim := g.claimAtIndex(claimIdx)
 	g.t.Logf("Attacking claim %v (depth: %d) with counter-claim %v", claimIdx, claim.Position.Depth(), newClaim)
 
 	newPosition := claim.Position.Attack().ToGIndex()
@@ -63,16 +63,16 @@ func (g *FaultDisputeGame) newClaim(claimIndex int64, claim bindings.Claim) *Cla
 	return newClaim(g.t, g.require, claimIndex, claim, g)
 }
 
-func (g *FaultDisputeGame) getClaimAtIndex(claimIndex int64) bindings.Claim {
+func (g *FaultDisputeGame) claimAtIndex(claimIndex int64) bindings.Claim {
 	return contract.Read(g.game.ClaimData(big.NewInt(claimIndex))).Decode()
 }
 
-func (g *FaultDisputeGame) getAllClaims() []bindings.Claim {
+func (g *FaultDisputeGame) allClaims() []bindings.Claim {
 	// TODO(#15948) - do we need to batch these? See: op-service/sources/batching.ReadArray
 	claimCount := contract.Read(g.game.ClaimDataLen())
 	var claims []bindings.Claim
 	for i := int64(0); i < claimCount.Int64(); i++ {
-		claim := g.getClaimAtIndex(i)
+		claim := g.claimAtIndex(i)
 		claims = append(claims, claim)
 	}
 
@@ -85,7 +85,7 @@ func (g *FaultDisputeGame) waitForClaim(timeout time.Duration, errorMsg string, 
 	var matchedClaim bindings.Claim
 	var matchClaimIdx int64
 	err := wait.For(timedCtx, time.Second, func() (bool, error) {
-		claims := g.getAllClaims()
+		claims := g.allClaims()
 		// Search backwards because the new claims are at the end and more likely the ones we want.
 		for i := len(claims) - 1; i >= 0; i-- {
 			claim := claims[i]
