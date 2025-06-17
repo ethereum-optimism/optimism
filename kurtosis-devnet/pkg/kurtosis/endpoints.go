@@ -62,6 +62,7 @@ type serviceParser func(string) (int, chainAcceptor, bool)
 type triagedService struct {
 	tag    string // service tag
 	idx    int    // service index (for nodes)
+	name   string // service name (for nodes)
 	svc    *descriptors.Service
 	accept chainAcceptor
 }
@@ -208,6 +209,7 @@ func (f *ServiceFinder) triageByLabels(svc *inspect.Service, name string, endpoi
 	return &triagedService{
 		tag:    tag,
 		idx:    idx,
+		name:   svc.Labels[nodeNameLabel],
 		accept: accept,
 		svc: &descriptors.Service{
 			Name:      name,
@@ -273,6 +275,7 @@ func (f *ServiceFinder) findChainServices(chain *spec.ChainSpec) ([]descriptors.
 				node.Services = make(descriptors.ServiceMap)
 			}
 			node.Services[svc.tag] = svc.svc
+			node.Name = svc.name
 			nodes[svc.idx] = node
 		} else {
 			services[svc.tag] = append(services[svc.tag], svc.svc)
