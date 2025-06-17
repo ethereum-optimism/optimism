@@ -335,6 +335,7 @@ func TestBackendCallsMetrics(t *testing.T) {
 	mockMetrics.Mock.On("RecordDBEntryCount", chainA, mock.AnythingOfType("string"), mock.AnythingOfType("int64")).Return()
 	mockMetrics.Mock.On("RecordCrossUnsafeRef", chainA, mock.MatchedBy(func(_ types.BlockSeal) bool { return true })).Return()
 	mockMetrics.Mock.On("RecordCrossSafeRef", chainA, mock.MatchedBy(func(_ types.BlockSeal) bool { return true })).Return()
+	mockMetrics.Mock.On("RecordLocalSafeRef", chainA, mock.MatchedBy(func(_ types.BlockSeal) bool { return true })).Return()
 
 	fullCfgSet := fullConfigSet(t, 1)
 	cfg := &config.Config{
@@ -373,6 +374,11 @@ func TestBackendCallsMetrics(t *testing.T) {
 
 	b.chainDBs.ForceInitialized(chainA) // force init for test
 	// Assert that metrics are called on safety level updates
+	b.chainDBs.UpdateLocalSafe(chainA, block, block, "test")
+	mockMetrics.Mock.AssertCalled(t, "RecordLocalSafeRef", chainA, mock.MatchedBy(func(ref types.BlockSeal) bool {
+		return ref.Hash == block.Hash && ref.Number == block.Number && ref.Timestamp == block.Time
+	}))
+	mockMetrics.Mock.AssertCalled(t, "RecordDBEntryCount", chainA, "local_derived", int64(1))
 	err = b.chainDBs.UpdateCrossUnsafe(chainA, types.BlockSeal{
 		Hash:      block.Hash,
 		Number:    block.Number,
@@ -416,6 +422,10 @@ func (m *MockMetrics) RecordCrossUnsafeRef(chainID eth.ChainID, ref types.BlockS
 }
 
 func (m *MockMetrics) RecordCrossSafeRef(chainID eth.ChainID, ref types.BlockSeal) {
+	m.Mock.Called(chainID, ref)
+}
+
+func (m *MockMetrics) RecordLocalSafeRef(chainID eth.ChainID, ref types.BlockSeal) {
 	m.Mock.Called(chainID, ref)
 }
 

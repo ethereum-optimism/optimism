@@ -17,6 +17,7 @@ type Metricer interface {
 	opmetrics.RPCMetricer
 	RecordCrossUnsafeRef(chainID eth.ChainID, r types.BlockSeal)
 	RecordCrossSafeRef(chainID eth.ChainID, r types.BlockSeal)
+	RecordLocalSafeRef(chainID eth.ChainID, r types.BlockSeal)
 
 	CacheAdd(chainID eth.ChainID, label string, cacheSize int, evicted bool)
 	CacheGet(chainID eth.ChainID, label string, hit bool)
@@ -168,6 +169,10 @@ func (m *Metrics) RecordCrossUnsafeRef(chainID eth.ChainID, ref types.BlockSeal)
 
 func (m *Metrics) RecordCrossSafeRef(chainID eth.ChainID, ref types.BlockSeal) {
 	m.RefMetrics.RecordRef("l2", "cross_safe", ref.Number, ref.Timestamp, ref.Hash, chainID)
+}
+
+func (m *Metrics) RecordLocalSafeRef(chainID eth.ChainID, ref types.BlockSeal) {
+	m.RefMetrics.RecordRef("l2", "local_safe", ref.Number, ref.Timestamp, ref.Hash, chainID)
 }
 
 func (m *Metrics) CacheAdd(chainID eth.ChainID, label string, cacheSize int, evicted bool) {

@@ -122,13 +122,15 @@ func (db *ChainsDB) initializedUpdateLocalSafe(chain eth.ChainID, source eth.Blo
 		return
 	}
 	logger.Info("Updated local safe DB")
+	derived := types.BlockSealFromRef(lastDerived)
 	db.emitter.Emit(superevents.LocalSafeUpdateEvent{
 		ChainID: chain,
 		NewLocalSafe: types.DerivedBlockSealPair{
 			Source:  types.BlockSealFromRef(source),
-			Derived: types.BlockSealFromRef(lastDerived),
+			Derived: derived,
 		},
 	})
+	db.m.RecordLocalSafeRef(chain, derived)
 }
 
 func (db *ChainsDB) UpdateCrossUnsafe(chain eth.ChainID, crossUnsafe types.BlockSeal) error {
@@ -370,10 +372,12 @@ func (db *ChainsDB) onReplaceBlock(chainID eth.ChainID, replacement eth.BlockRef
 		NewLocalUnsafe: replacement,
 	})
 	// The local-safe DB changed, so emit an event, so other sub-systems can react to the change.
+	seals := result.Seals()
 	db.emitter.Emit(superevents.LocalSafeUpdateEvent{
 		ChainID:      chainID,
-		NewLocalSafe: result.Seals(),
+		NewLocalSafe: seals,
 	})
+	db.m.RecordLocalSafeRef(chainID, seals.Derived)
 	// The event-DB will start indexing, and then unblock cross-safe update
 	// of the new replaced block, via regular cross-safe update worker routine.
 }

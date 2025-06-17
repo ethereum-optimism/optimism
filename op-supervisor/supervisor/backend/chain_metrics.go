@@ -15,6 +15,7 @@ type Metrics interface {
 
 	RecordCrossUnsafeRef(chainID eth.ChainID, ref types.BlockSeal)
 	RecordCrossSafeRef(chainID eth.ChainID, ref types.BlockSeal)
+	RecordLocalSafeRef(chainID eth.ChainID, ref types.BlockSeal)
 
 	RecordDBEntryCount(chainID eth.ChainID, kind string, count int64)
 	RecordDBSearchEntriesRead(chainID eth.ChainID, count int64)
@@ -45,6 +46,10 @@ func (c *chainMetrics) RecordCrossUnsafeRef(ref types.BlockSeal) {
 
 func (c *chainMetrics) RecordCrossSafeRef(ref types.BlockSeal) {
 	c.delegate.RecordCrossSafeRef(c.chainID, ref)
+}
+
+func (c *chainMetrics) RecordLocalSafeRef(ref types.BlockSeal) {
+	c.delegate.RecordLocalSafeRef(c.chainID, ref)
 }
 
 func (c *chainMetrics) CacheAdd(label string, cacheSize int, evicted bool) {
