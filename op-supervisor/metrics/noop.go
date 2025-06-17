@@ -22,6 +22,7 @@ func (*noopMetrics) RecordUp()                 {}
 func (m *noopMetrics) RecordCrossUnsafeRef(_ eth.ChainID, _ types.BlockSeal) {}
 func (m *noopMetrics) RecordCrossSafeRef(_ eth.ChainID, _ types.BlockSeal)   {}
 func (m *noopMetrics) RecordLocalSafeRef(_ eth.ChainID, _ types.BlockSeal)   {}
+func (m *noopMetrics) RecordLocalUnsafeRef(_ eth.ChainID, _ types.BlockSeal) {}
 
 func (m *noopMetrics) CacheAdd(_ eth.ChainID, _ string, _ int, _ bool) {}
 func (m *noopMetrics) CacheGet(_ eth.ChainID, _ string, _ bool)        {}

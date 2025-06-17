@@ -48,6 +48,7 @@ func (db *ChainsDB) sealBlock(chain eth.ChainID, block eth.BlockRef, mayInit boo
 		ChainID:        chain,
 		NewLocalUnsafe: block,
 	})
+	db.m.RecordLocalUnsafeRef(chain, types.BlockSealFromRef(block))
 	return nil
 }
 
