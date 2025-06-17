@@ -19,12 +19,12 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestDetector_CheckOutputRootAgreement(t *testing.T) {
+func TestOutputAgreementEnricher(t *testing.T) {
 	t.Parallel()
 
 	t.Run("ErrorWhenNoRollupClient", func(t *testing.T) {
 		validator, _, _ := setupOutputValidatorTest(t)
-		validator.client = nil
+		validator.clients = []OutputRollupClient{}
 		game := &types.EnrichedGameData{
 			GameMetadata: challengerTypes.GameMetadata{
 				GameType: 0,
@@ -43,7 +43,7 @@ func TestDetector_CheckOutputRootAgreement(t *testing.T) {
 			gameType := gameType
 			t.Run(fmt.Sprintf("GameType_%d", gameType), func(t *testing.T) {
 				validator, _, metrics := setupOutputValidatorTest(t)
-				validator.client = nil // Should not error even though there's no rollup client
+				validator.clients = []OutputRollupClient{} // Should not error even though there's no rollup client
 				game := &types.EnrichedGameData{
 					GameMetadata: challengerTypes.GameMetadata{
 						GameType: gameType,
@@ -80,39 +80,48 @@ func TestDetector_CheckOutputRootAgreement(t *testing.T) {
 		}
 	})
 
-	t.Run("OutputFetchFails", func(t *testing.T) {
-		validator, rollup, metrics := setupOutputValidatorTest(t)
-		rollup.outputErr = errors.New("boom")
+	t.Run("AllNodesReturnError", func(t *testing.T) {
+		validator, clients, metrics := setupMultiNodeTest(t, 3)
+		for _, client := range clients {
+			client.outputErr = errors.New("boom")
+		}
 		game := &types.EnrichedGameData{
 			L1HeadNum:     100,
 			L2BlockNumber: 0,
 			RootClaim:     mockRootClaim,
 		}
 		err := validator.Enrich(context.Background(), rpcblock.Latest, nil, game)
-		require.ErrorIs(t, err, rollup.outputErr)
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "all nodes returned errors")
 		require.Equal(t, common.Hash{}, game.ExpectedRootClaim)
 		require.False(t, game.AgreeWithClaim)
 		require.Zero(t, metrics.fetchTime)
 	})
 
-	t.Run("OutputMismatch_Safe", func(t *testing.T) {
-		validator, _, metrics := setupOutputValidatorTest(t)
+	t.Run("AllNodesReturnNotFound", func(t *testing.T) {
+		validator, clients, metrics := setupMultiNodeTest(t, 3)
+		for _, client := range clients {
+			client.outputErr = errors.New("not found")
+		}
 		game := &types.EnrichedGameData{
 			L1HeadNum:     100,
 			L2BlockNumber: 0,
-			RootClaim:     common.Hash{},
+			RootClaim:     mockRootClaim,
 		}
 		err := validator.Enrich(context.Background(), rpcblock.Latest, nil, game)
 		require.NoError(t, err)
-		require.Equal(t, mockRootClaim, game.ExpectedRootClaim)
+		require.Equal(t, common.Hash{}, game.ExpectedRootClaim)
 		require.False(t, game.AgreeWithClaim)
-		require.NotZero(t, metrics.fetchTime)
+		require.Zero(t, metrics.fetchTime)
 	})
 
-	t.Run("OutputMatches_Safe", func(t *testing.T) {
-		validator, _, metrics := setupOutputValidatorTest(t)
+	t.Run("SomeNodesOutOfSync", func(t *testing.T) {
+		validator, clients, metrics := setupMultiNodeTest(t, 3)
+		clients[0].outputErr = errors.New("not found")
+		clients[1].outputErr = nil
+		clients[2].outputErr = nil
 		game := &types.EnrichedGameData{
-			L1HeadNum:     200,
+			L1HeadNum:     100,
 			L2BlockNumber: 0,
 			RootClaim:     mockRootClaim,
 		}
@@ -123,79 +132,92 @@ func TestDetector_CheckOutputRootAgreement(t *testing.T) {
 		require.NotZero(t, metrics.fetchTime)
 	})
 
-	t.Run("OutputMismatch_NotSafe", func(t *testing.T) {
-		validator, client, metrics := setupOutputValidatorTest(t)
-		client.safeHeadNum = 99
+	t.Run("NodesDiverged_FirstNodeAgrees", func(t *testing.T) {
+		validator, clients, metrics := setupMultiNodeTest(t, 3)
+		divergedRoot := common.HexToHash("0x5678")
+		clients[0].outputRoot = mockRootClaim
+		clients[1].outputRoot = divergedRoot
+		clients[2].outputRoot = divergedRoot
 		game := &types.EnrichedGameData{
 			L1HeadNum:     100,
-			L2BlockNumber: 0,
-			RootClaim:     common.Hash{},
-		}
-		err := validator.Enrich(context.Background(), rpcblock.Latest, nil, game)
-		require.NoError(t, err)
-		require.Equal(t, mockRootClaim, game.ExpectedRootClaim)
-		require.False(t, game.AgreeWithClaim)
-		require.NotZero(t, metrics.fetchTime)
-	})
-
-	t.Run("OutputMatches_SafeHeadError", func(t *testing.T) {
-		validator, client, metrics := setupOutputValidatorTest(t)
-		client.safeHeadErr = errors.New("boom")
-		game := &types.EnrichedGameData{
-			L1HeadNum:     200,
 			L2BlockNumber: 0,
 			RootClaim:     mockRootClaim,
 		}
 		err := validator.Enrich(context.Background(), rpcblock.Latest, nil, game)
 		require.NoError(t, err)
 		require.Equal(t, mockRootClaim, game.ExpectedRootClaim)
-		require.True(t, game.AgreeWithClaim) // Assume safe if we can't retrieve the safe head so monitoring isn't dependent on safe head db
+		require.True(t, game.AgreeWithClaim)
 		require.NotZero(t, metrics.fetchTime)
 	})
 
-	t.Run("OutputMismatch_SafeHeadError", func(t *testing.T) {
-		validator, client, metrics := setupOutputValidatorTest(t)
-		client.safeHeadErr = errors.New("boom")
+	t.Run("NodesDiverged_FirstNodeDisagrees", func(t *testing.T) {
+		validator, clients, metrics := setupMultiNodeTest(t, 3)
+		divergedRoot := common.HexToHash("0x5678")
+		clients[0].outputRoot = divergedRoot
+		clients[1].outputRoot = mockRootClaim
+		clients[2].outputRoot = mockRootClaim
 		game := &types.EnrichedGameData{
 			L1HeadNum:     100,
 			L2BlockNumber: 0,
+			RootClaim:     mockRootClaim,
+		}
+		err := validator.Enrich(context.Background(), rpcblock.Latest, nil, game)
+		require.NoError(t, err)
+		require.NotEqual(t, mockRootClaim, game.ExpectedRootClaim)
+		require.False(t, game.AgreeWithClaim)
+		require.NotZero(t, metrics.fetchTime)
+	})
+
+	t.Run("AllNodesAgree", func(t *testing.T) {
+		validator, clients, metrics := setupMultiNodeTest(t, 3)
+		clients[0].safeHeadNum = 100
+		clients[1].safeHeadNum = 99
+		clients[2].safeHeadNum = 101
+		game := &types.EnrichedGameData{
+			L1HeadNum:     100,
+			L2BlockNumber: 0,
+			RootClaim:     mockRootClaim,
 		}
 		err := validator.Enrich(context.Background(), rpcblock.Latest, nil, game)
 		require.NoError(t, err)
 		require.Equal(t, mockRootClaim, game.ExpectedRootClaim)
-		require.False(t, game.AgreeWithClaim) // Not agreed because the root doesn't match
+		require.True(t, game.AgreeWithClaim) // Should be true because at least one node reports it as safe
+		require.NotZero(t, metrics.fetchTime)
+	})
+
+	t.Run("SafeHeadError", func(t *testing.T) {
+		validator, clients, metrics := setupMultiNodeTest(t, 3)
+		clients[0].safeHeadErr = errors.New("boom")
+		clients[1].safeHeadErr = nil
+		clients[2].safeHeadErr = nil
+		game := &types.EnrichedGameData{
+			L1HeadNum:     100,
+			L2BlockNumber: 0,
+			RootClaim:     mockRootClaim,
+		}
+		err := validator.Enrich(context.Background(), rpcblock.Latest, nil, game)
+		require.NoError(t, err)
+		require.Equal(t, mockRootClaim, game.ExpectedRootClaim)
+		require.True(t, game.AgreeWithClaim) // Should be true because we assume safe on error
 		require.NotZero(t, metrics.fetchTime)
 	})
 
 	t.Run("OutputMatches_NotSafe", func(t *testing.T) {
-		validator, client, metrics := setupOutputValidatorTest(t)
-		client.safeHeadNum = 99
+		validator, clients, metrics := setupMultiNodeTest(t, 3)
+		// Set safe head numbers below the L2 block number
+		clients[0].safeHeadNum = 50
+		clients[1].safeHeadNum = 60
+		clients[2].safeHeadNum = 70
 		game := &types.EnrichedGameData{
-			L1HeadNum:     200,
-			L2BlockNumber: 100,
+			L1HeadNum:     100,
+			L2BlockNumber: 80, // Higher than all safe head numbers
 			RootClaim:     mockRootClaim,
 		}
 		err := validator.Enrich(context.Background(), rpcblock.Latest, nil, game)
 		require.NoError(t, err)
 		require.Equal(t, mockRootClaim, game.ExpectedRootClaim)
-		require.False(t, game.AgreeWithClaim)
+		require.False(t, game.AgreeWithClaim) // Should be false because not safe
 		require.NotZero(t, metrics.fetchTime)
-	})
-
-	t.Run("OutputNotFound", func(t *testing.T) {
-		validator, rollup, metrics := setupOutputValidatorTest(t)
-		// This crazy error is what we actually get back from the API
-		rollup.outputErr = errors.New("failed to get L2 block ref with sync status: failed to determine L2BlockRef of height 42984924, could not get payload: not found")
-		game := &types.EnrichedGameData{
-			L1HeadNum:     100,
-			L2BlockNumber: 42984924,
-			RootClaim:     mockRootClaim,
-		}
-		err := validator.Enrich(context.Background(), rpcblock.Latest, nil, game)
-		require.NoError(t, err)
-		require.Equal(t, common.Hash{}, game.ExpectedRootClaim)
-		require.False(t, game.AgreeWithClaim)
-		require.Zero(t, metrics.fetchTime)
 	})
 
 	t.Run("BlockNumberLargerThanInt64", func(t *testing.T) {
@@ -220,8 +242,24 @@ func setupOutputValidatorTest(t *testing.T) (*OutputAgreementEnricher, *stubRoll
 	logger := testlog.Logger(t, log.LvlInfo)
 	client := &stubRollupClient{safeHeadNum: 99999999999}
 	metrics := &stubOutputMetrics{}
-	validator := NewOutputAgreementEnricher(logger, metrics, client, clock.NewDeterministicClock(time.Unix(9824924, 499)))
+	validator := NewOutputAgreementEnricher(logger, metrics, []OutputRollupClient{client}, clock.NewDeterministicClock(time.Unix(9824924, 499)))
 	return validator, client, metrics
+}
+
+func setupMultiNodeTest(t *testing.T, numNodes int) (*OutputAgreementEnricher, []*stubRollupClient, *stubOutputMetrics) {
+	logger := testlog.Logger(t, log.LvlInfo)
+	clients := make([]*stubRollupClient, numNodes)
+	rollupClients := make([]OutputRollupClient, numNodes)
+	for i := range clients {
+		clients[i] = &stubRollupClient{
+			safeHeadNum: 99999999999,
+			outputRoot:  mockRootClaim,
+		}
+		rollupClients[i] = clients[i]
+	}
+	metrics := &stubOutputMetrics{}
+	validator := NewOutputAgreementEnricher(logger, metrics, rollupClients, clock.NewDeterministicClock(time.Unix(9824924, 499)))
+	return validator, clients, metrics
 }
 
 type stubOutputMetrics struct {
@@ -237,11 +275,15 @@ type stubRollupClient struct {
 	outputErr   error
 	safeHeadErr error
 	safeHeadNum uint64
+	outputRoot  common.Hash
 }
 
 func (s *stubRollupClient) OutputAtBlock(_ context.Context, blockNum uint64) (*eth.OutputResponse, error) {
 	s.blockNum = blockNum
-	return &eth.OutputResponse{OutputRoot: eth.Bytes32(mockRootClaim)}, s.outputErr
+	if s.outputErr != nil {
+		return nil, s.outputErr
+	}
+	return &eth.OutputResponse{OutputRoot: eth.Bytes32(s.outputRoot)}, nil
 }
 
 func (s *stubRollupClient) SafeHeadAtL1Block(_ context.Context, _ uint64) (*eth.SafeHeadResponse, error) {

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"math"
 	"strings"
+	"sync"
 
 	monTypes "github.com/ethereum-optimism/optimism/op-dispute-mon/mon/types"
 	"github.com/ethereum-optimism/optimism/op-service/clock"
@@ -44,6 +45,13 @@ func NewOutputAgreementEnricher(logger log.Logger, metrics OutputMetrics, client
 	}
 }
 
+type outputResult struct {
+	outputRoot common.Hash
+	isSafe     bool
+	notFound   bool
+	err        error
+}
+
 // Enrich validates the specified root claim against the output at the given block number.
 func (o *OutputAgreementEnricher) Enrich(ctx context.Context, block rpcblock.Block, caller GameCaller, game *monTypes.EnrichedGameData) error {
 	if !game.UsesOutputRoots() {
@@ -59,33 +67,110 @@ func (o *OutputAgreementEnricher) Enrich(ctx context.Context, block rpcblock.Blo
 		game.AgreeWithClaim = false
 		return nil
 	}
-	output, err := o.clients[0].OutputAtBlock(ctx, game.L2BlockNumber)
-	if err != nil {
-		// string match as the error comes from the remote server so we can't use Errors.Is sadly.
-		if strings.Contains(err.Error(), "not found") {
-			// Output root doesn't exist, so we must disagree with it.
-			game.AgreeWithClaim = false
-			return nil
-		}
-		return fmt.Errorf("failed to get output at block: %w", err)
+
+	results := make([]outputResult, len(o.clients))
+	var wg sync.WaitGroup
+	for i, client := range o.clients {
+		wg.Add(1)
+		go func(i int, client OutputRollupClient) {
+			defer wg.Done()
+			output, err := client.OutputAtBlock(ctx, game.L2BlockNumber)
+			if err != nil {
+				// string match as the error comes from the remote server so we can't use Errors.Is sadly.
+				if strings.Contains(err.Error(), "not found") {
+					results[i] = outputResult{notFound: true}
+					return
+				}
+				results[i] = outputResult{err: err}
+				return
+			}
+
+			outputRoot := common.Hash(output.OutputRoot)
+			results[i] = outputResult{outputRoot: outputRoot}
+
+			// Only check if the output root is safe if it matches the game's root claim
+			if outputRoot == game.RootClaim {
+				safeHead, err := client.SafeHeadAtL1Block(ctx, game.L1HeadNum)
+				if err != nil {
+					o.log.Warn("Unable to verify proposed block was safe", "l1HeadNum", game.L1HeadNum, "l2BlockNum", game.L2BlockNumber, "err", err)
+					// If safe head data isn't available, assume the output root was safe
+					// Avoids making the dispute mon dependent on safe head db being available
+					results[i].isSafe = true
+					return
+				}
+				results[i].isSafe = safeHead.SafeHead.Number >= game.L2BlockNumber
+			}
+		}(i, client)
 	}
-	o.metrics.RecordOutputFetchTime(float64(o.clock.Now().Unix()))
-	game.ExpectedRootClaim = common.Hash(output.OutputRoot)
-	rootMatches := game.RootClaim == game.ExpectedRootClaim
-	if !rootMatches {
+	wg.Wait()
+
+	// Filter out results with errors (except "not found")
+	validResults := make([]outputResult, 0, len(results))
+	for _, result := range results {
+		if result.err == nil {
+			validResults = append(validResults, result)
+		}
+	}
+
+	// If all results were errors, return an error
+	if len(validResults) == 0 {
+		return fmt.Errorf("failed to get output at block: all nodes returned errors")
+	}
+
+	// If all remaining nodes returned "not found", set game.AgreeWithClaim = false
+	allNotFound := true
+	for _, result := range validResults {
+		if !result.notFound {
+			allNotFound = false
+			break
+		}
+	}
+	if allNotFound {
 		game.AgreeWithClaim = false
+		game.ExpectedRootClaim = common.Hash{}
 		return nil
 	}
 
-	// If the root matches, also check that l2 block is safe at the L1 head
-	safeHead, err := o.clients[0].SafeHeadAtL1Block(ctx, game.L1HeadNum)
-	if err != nil {
-		o.log.Warn("Unable to verify proposed block was safe", "l1HeadNum", game.L1HeadNum, "l2BlockNum", game.L2BlockNumber, "err", err)
-		// If safe head data isn't available, assume the output root was safe
-		// Avoids making the dispute mon dependent on safe head db being available
-		game.AgreeWithClaim = true
-		return nil
+	// Filter out nodes that returned "not found" as they're out of sync
+	syncedResults := make([]outputResult, 0, len(validResults))
+	for _, result := range validResults {
+		if !result.notFound {
+			syncedResults = append(syncedResults, result)
+		}
 	}
-	game.AgreeWithClaim = safeHead.SafeHead.Number >= game.L2BlockNumber
+	if len(syncedResults) < len(validResults) {
+		o.log.Warn("Some nodes are out of sync", "totalNodes", len(validResults), "syncedNodes", len(syncedResults))
+	}
+
+	// Check if nodes have diverged
+	firstOutputRoot := syncedResults[0].outputRoot
+	diverged := false
+	for _, result := range syncedResults[1:] {
+		if result.outputRoot != firstOutputRoot {
+			diverged = true
+			break
+		}
+	}
+
+	if diverged {
+		o.log.Error("Nodes have diverged", "firstNodeOutput", firstOutputRoot)
+		// Use the result from the first node in the list
+		game.ExpectedRootClaim = firstOutputRoot
+		game.AgreeWithClaim = firstOutputRoot == game.RootClaim && syncedResults[0].isSafe
+	} else {
+		// All nodes agree on the output root
+		game.ExpectedRootClaim = firstOutputRoot
+		// Consider the output root "safe" if any node reported it as safe
+		isSafe := false
+		for _, result := range syncedResults {
+			if result.isSafe {
+				isSafe = true
+				break
+			}
+		}
+		game.AgreeWithClaim = firstOutputRoot == game.RootClaim && isSafe
+	}
+
+	o.metrics.RecordOutputFetchTime(float64(o.clock.Now().Unix()))
 	return nil
 }

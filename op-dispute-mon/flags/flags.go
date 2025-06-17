@@ -168,7 +168,7 @@ func NewConfigFromCLI(ctx *cli.Context) (*config.Config, error) {
 	return &config.Config{
 		L1EthRpc:           ctx.String(L1EthRpcFlag.Name),
 		GameFactoryAddress: gameFactoryAddress,
-		RollupRpc:          strings.Join(ctx.StringSlice(RollupRpcFlag.Name), ","),
+		RollupRpc:          ctx.StringSlice(RollupRpcFlag.Name),
 		SupervisorRpc:      ctx.String(SupervisorRpcFlag.Name),
 
 		HonestActors:    actors,
