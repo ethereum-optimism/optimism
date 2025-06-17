@@ -177,15 +177,15 @@ func (db *ChainsDB) initializedUpdateCrossSafe(chain eth.ChainID, l1View eth.Blo
 		return err
 	}
 	db.logger.Info("Updated cross-safe", "chain", chain, "l1View", l1View, "lastCrossDerived", lastCrossDerived)
-	lastCrossDerivedBlockRef := types.BlockSealFromRef(lastCrossDerived)
+	lastCrossDerivedBlockSeal := types.BlockSealFromRef(lastCrossDerived)
 	db.emitter.Emit(superevents.CrossSafeUpdateEvent{
 		ChainID: chain,
 		NewCrossSafe: types.DerivedBlockSealPair{
 			Source:  types.BlockSealFromRef(l1View),
-			Derived: lastCrossDerivedBlockRef,
+			Derived: lastCrossDerivedBlockSeal,
 		},
 	})
-	db.m.RecordCrossSafeRef(chain, lastCrossDerivedBlockRef)
+	db.m.RecordCrossSafeRef(chain, lastCrossDerivedBlockSeal)
 
 	// compare new cross-safe to recorded cross-unsafe
 	crossUnsafe, err := db.CrossUnsafe(chain)
