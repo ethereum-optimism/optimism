@@ -1,0 +1,32 @@
+package config
+
+// ThrottleControllerType represents the type of throttle controller
+type ThrottleControllerType string
+
+const (
+	StepControllerType      ThrottleControllerType = "step"
+	LinearControllerType    ThrottleControllerType = "linear"
+	QuadraticControllerType ThrottleControllerType = "quadratic"
+	PIDControllerType       ThrottleControllerType = "pid"
+)
+
+// ThrottleControllerInfo represents throttle controller information
+type ThrottleControllerInfo struct {
+	Type         string  `json:"type"`
+	Threshold    uint64  `json:"threshold"`
+	CurrentLoad  uint64  `json:"current_load"`
+	Intensity    float64 `json:"intensity"`
+	MaxTxSize    uint64  `json:"max_tx_size"`
+	MaxBlockSize uint64  `json:"max_block_size"`
+	IsThrottling bool    `json:"is_throttling"`
+}
+
+// PIDConfig represents PID controller configuration for RPC
+type PIDConfig struct {
+	Kp          float64 `json:"kp"`
+	Ki          float64 `json:"ki"`
+	Kd          float64 `json:"kd"`
+	IntegralMax float64 `json:"integral_max"`
+	OutputMax   float64 `json:"output_max"`
+	SampleTime  string  `json:"sample_time"`
+}

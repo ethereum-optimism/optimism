@@ -11,6 +11,7 @@ import (
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/log"
 
+	"github.com/ethereum-optimism/optimism/op-batcher/config"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
@@ -97,11 +98,11 @@ type Metrics struct {
 
 	blobUsedBytes prometheus.Histogram
 
-	throttleIntensity      prometheus.Gauge
+	throttleIntensity      prometheus.GaugeVec
 	throttleMaxTxSize      prometheus.Gauge
 	throttleMaxBlockSize   prometheus.Gauge
-	throttleControllerType prometheus.Gauge
-	pendingBytesRatio      prometheus.Gauge
+	throttleControllerType prometheus.GaugeVec
+	pendingBytesRatio      prometheus.GaugeVec
 	throttleHistory        prometheus.Summary
 }
 
@@ -218,11 +219,11 @@ func NewMetrics(procName string) *Metrics {
 
 		batcherTxEvs: opmetrics.NewEventVec(factory, ns, "", "batcher_tx", "BatcherTx", []string{"stage"}),
 
-		throttleIntensity: factory.NewGauge(prometheus.GaugeOpts{
+		throttleIntensity: *factory.NewGaugeVec(prometheus.GaugeOpts{
 			Namespace: ns,
 			Name:      "throttle_intensity",
 			Help:      "Current throttling intensity (0.0 = no throttling, 1.0 = max throttling)",
-		}),
+		}, []string{"type"}),
 		throttleMaxTxSize: factory.NewGauge(prometheus.GaugeOpts{
 			Namespace: ns,
 			Name:      "throttle_max_tx_size",
@@ -233,16 +234,16 @@ func NewMetrics(procName string) *Metrics {
 			Name:      "throttle_max_block_size",
 			Help:      "Current maximum block size when throttling",
 		}),
-		throttleControllerType: factory.NewGauge(prometheus.GaugeOpts{
+		throttleControllerType: *factory.NewGaugeVec(prometheus.GaugeOpts{
 			Namespace: ns,
 			Name:      "throttle_controller_type",
-			Help:      "Type of throttle controller in use (0=step, 1=linear, 2=quadratic, 3=pid)",
-		}),
-		pendingBytesRatio: factory.NewGauge(prometheus.GaugeOpts{
+			Help:      "Type of throttle controller in use",
+		}, []string{"type"}),
+		pendingBytesRatio: *factory.NewGaugeVec(prometheus.GaugeOpts{
 			Namespace: ns,
 			Name:      "pending_bytes_ratio",
 			Help:      "Ratio of pending bytes to threshold",
-		}),
+		}, []string{"type"}),
 		throttleHistory: factory.NewSummary(prometheus.SummaryOpts{
 			Namespace: ns,
 			Name:      "throttle_intensity_history",
@@ -396,8 +397,8 @@ func (m *Metrics) RecordChannelQueueLength(len int) {
 	m.channelQueueLength.Set(float64(len))
 }
 
-func (m *Metrics) RecordThrottleIntensity(intensity float64) {
-	m.throttleIntensity.Set(intensity)
+func (m *Metrics) RecordThrottleIntensity(intensity float64, controllerType config.ThrottleControllerType) {
+	m.throttleIntensity.WithLabelValues(string(controllerType)).Set(intensity)
 	m.throttleHistory.Observe(intensity)
 }
 
@@ -406,29 +407,16 @@ func (m *Metrics) RecordThrottleParams(maxTxSize, maxBlockSize uint64) {
 	m.throttleMaxBlockSize.Set(float64(maxBlockSize))
 }
 
-func (m *Metrics) RecordThrottleControllerType(controllerType string) {
-	var typeValue float64
-	switch controllerType {
-	case "step":
-		typeValue = 0
-	case "linear":
-		typeValue = 1
-	case "quadratic":
-		typeValue = 2
-	case "pid":
-		typeValue = 3
-	default:
-		typeValue = -1
-	}
-	m.throttleControllerType.Set(typeValue)
+func (m *Metrics) RecordThrottleControllerType(controllerType config.ThrottleControllerType) {
+	m.throttleControllerType.WithLabelValues(string(controllerType)).Set(1)
 }
 
-func (m *Metrics) RecordPendingBytesVsThreshold(pendingBytes, threshold uint64) {
+func (m *Metrics) RecordPendingBytesVsThreshold(pendingBytes, threshold uint64, controllerType config.ThrottleControllerType) {
 	ratio := 0.0
 	if threshold > 0 {
 		ratio = float64(pendingBytes) / float64(threshold)
 	}
-	m.pendingBytesRatio.Set(ratio)
+	m.pendingBytesRatio.WithLabelValues(string(controllerType)).Set(ratio)
 }
 
 // ClearAllStateMetrics clears all state metrics.

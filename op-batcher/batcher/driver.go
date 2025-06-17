@@ -22,6 +22,7 @@ import (
 	"github.com/ethereum/go-ethereum/rpc"
 
 	altda "github.com/ethereum-optimism/optimism/op-alt-da"
+	config "github.com/ethereum-optimism/optimism/op-batcher/config"
 	"github.com/ethereum-optimism/optimism/op-batcher/metrics"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
@@ -154,8 +155,8 @@ func NewBatchSubmitter(setup DriverSetup) *BatchSubmitter {
 	}
 
 	// Record controller type in metrics
-	if metr, ok := setup.Metr.(interface{ RecordThrottleControllerType(string) }); ok {
-		metr.RecordThrottleControllerType(string(throttleController.GetType()))
+	if metr, ok := setup.Metr.(interface{ RecordThrottleControllerType(ThrottleControllerType) }); ok {
+		metr.RecordThrottleControllerType(throttleController.GetType())
 	}
 
 	return &BatchSubmitter{
@@ -589,6 +590,9 @@ func (l *BatchSubmitter) singleEndpointThrottler(wg *sync.WaitGroup, throttleSig
 
 	client, err := rpc.Dial(endpoint)
 	if err != nil {
+		// rpc.Dial returns an error if e.g. the URL is malformed
+		// If the server is unavailable, we will get an error when performing the first call
+		// and retries for that are handled below. Therefore  we don't need any retry logic here
 		l.Log.Error("Failed to Dial endpoint", "endpoint", endpoint, "err", err)
 		return
 	}
@@ -610,9 +614,7 @@ func (l *BatchSubmitter) singleEndpointThrottler(wg *sync.WaitGroup, throttleSig
 
 		var success bool
 		err := client.CallContext(
-			ctx, &success, SetMaxDASizeMethod,
-			hexutil.Uint64(params.MaxTxSize),
-			hexutil.Uint64(params.MaxBlockSize),
+			ctx, &success, SetMaxDASizeMethod, hexutil.Uint64(params.MaxTxSize), hexutil.Uint64(params.MaxBlockSize),
 		)
 
 		if errors.Is(ctx.Err(), context.Canceled) {
@@ -673,7 +675,7 @@ func (l *BatchSubmitter) singleEndpointThrottler(wg *sync.WaitGroup, throttleSig
 // and fans out the pending bytes updates to each endpoint
 func (l *BatchSubmitter) throttlingLoop(wg *sync.WaitGroup, pendingBytesUpdated chan int64) {
 	defer wg.Done()
-	l.Log.Info("Starting enhanced DA throttling loop", "controller_type", l.throttleController.GetType())
+	l.Log.Info("Starting DA throttling loop", "controller_type", l.throttleController.GetType())
 	updateChans := make([]chan struct{}, len(l.Config.ThrottlingEndpoints))
 
 	innerWg := sync.WaitGroup{}
@@ -693,13 +695,13 @@ func (l *BatchSubmitter) throttlingLoop(wg *sync.WaitGroup, pendingBytesUpdated 
 
 		// Record metrics
 		if metr, ok := l.Metr.(interface {
-			RecordThrottleIntensity(float64)
+			RecordThrottleIntensity(float64, ThrottleControllerType)
 			RecordThrottleParams(uint64, uint64)
-			RecordPendingBytesVsThreshold(uint64, uint64)
+			RecordPendingBytesVsThreshold(uint64, uint64, ThrottleControllerType)
 		}); ok {
-			metr.RecordThrottleIntensity(l.currentThrottleParams.Intensity)
+			metr.RecordThrottleIntensity(l.currentThrottleParams.Intensity, l.throttleController.GetType())
 			metr.RecordThrottleParams(l.currentThrottleParams.MaxTxSize, l.currentThrottleParams.MaxBlockSize)
-			metr.RecordPendingBytesVsThreshold(uint64(pb), l.Config.ThrottleThreshold)
+			metr.RecordPendingBytesVsThreshold(uint64(pb), l.Config.ThrottleThreshold, l.throttleController.GetType())
 		}
 
 		// Update throttling state
@@ -1098,6 +1100,146 @@ func (l *BatchSubmitter) checkTxpool(queue *txmgr.Queue[txRef], receiptsCh chan 
 	r := l.txpoolState == TxpoolGood
 	l.txpoolMutex.Unlock()
 	return r
+}
+
+// SetThrottleController changes the throttle controller type at runtime
+func (l *BatchSubmitter) SetThrottleController(controllerType string, pidConfig *config.PIDConfig) error {
+	l.Log.Info("Changing throttle controller", "from", l.throttleController.GetType(), "to", controllerType)
+
+	var newType ThrottleControllerType
+	switch controllerType {
+	case "step":
+		newType = StepControllerType
+	case "linear":
+		newType = LinearControllerType
+	case "quadratic":
+		newType = QuadraticControllerType
+	case "pid":
+		newType = PIDControllerType
+	default:
+		return fmt.Errorf("invalid controller type: %s", controllerType)
+	}
+
+	factory := NewThrottleControllerFactory()
+
+	var pidControllerConfig *PIDControllerConfig
+	if newType == PIDControllerType && pidConfig != nil {
+		sampleTime, err := time.ParseDuration(pidConfig.SampleTime)
+		if err != nil {
+			return fmt.Errorf("invalid sample time duration '%s': %w", pidConfig.SampleTime, err)
+		}
+
+		pidControllerConfig = &PIDControllerConfig{
+			Kp:          pidConfig.Kp,
+			Ki:          pidConfig.Ki,
+			Kd:          pidConfig.Kd,
+			IntegralMax: pidConfig.IntegralMax,
+			OutputMax:   pidConfig.OutputMax,
+			SampleTime:  sampleTime,
+		}
+	}
+
+	newController, err := factory.CreateController(
+		newType,
+		l.Config.ThrottleThreshold,
+		l.Config.ThrottleTxSize,
+		l.Config.ThrottleBlockSize,
+		l.Config.ThrottleAlwaysBlockSize,
+		pidControllerConfig,
+	)
+	if err != nil {
+		return fmt.Errorf("failed to create new throttle controller: %w", err)
+	}
+
+	// Set up metrics for PID controller if applicable
+	if pidController, ok := newController.(*PIDController); ok {
+		if metr, ok := l.Metr.(interface {
+			RecordThrottleControllerState(error, integral, derivative float64)
+			RecordThrottleResponseTime(time.Duration)
+		}); ok {
+			pidController.SetMetrics(metr)
+		}
+	}
+
+	// Atomically replace the controller
+	l.throttleMutex.Lock()
+	oldController := l.throttleController
+	l.throttleController = newController
+
+	// Reset throttle params to safe defaults
+	l.currentThrottleParams = ThrottleParams{
+		MaxBlockSize: l.Config.ThrottleAlwaysBlockSize,
+		MaxTxSize:    0,
+		Intensity:    0.0,
+	}
+	l.throttleMutex.Unlock()
+
+	// Update metrics
+	if metr, ok := l.Metr.(interface{ RecordThrottleControllerType(string) }); ok {
+		metr.RecordThrottleControllerType(string(newController.GetType()))
+	}
+
+	l.Log.Info("Successfully changed throttle controller",
+		"old_type", oldController.GetType(),
+		"new_type", newController.GetType())
+
+	return nil
+}
+
+// GetThrottleControllerInfo returns current throttle controller information
+func (l *BatchSubmitter) GetThrottleControllerInfo() (config.ThrottleControllerInfo, error) {
+	l.throttleMutex.RLock()
+	controller := l.throttleController
+	params := l.currentThrottleParams
+	l.throttleMutex.RUnlock()
+
+	// Get current pending bytes
+	l.channelMgrMutex.Lock()
+	currentLoad := uint64(l.channelMgr.PendingDABytes())
+	l.channelMgrMutex.Unlock()
+
+	info := config.ThrottleControllerInfo{
+		Type:         string(controller.GetType()),
+		Threshold:    l.Config.ThrottleThreshold,
+		CurrentLoad:  currentLoad,
+		Intensity:    params.Intensity,
+		MaxTxSize:    params.MaxTxSize,
+		MaxBlockSize: params.MaxBlockSize,
+		IsThrottling: params.Intensity > 0,
+	}
+
+	return info, nil
+}
+
+// ResetThrottleController resets the current throttle controller state
+func (l *BatchSubmitter) ResetThrottleController() error {
+	l.throttleMutex.Lock()
+	defer l.throttleMutex.Unlock()
+
+	controllerType := l.throttleController.GetType()
+	l.Log.Info("Resetting throttle controller state", "type", controllerType)
+
+	// Reset the controller
+	l.throttleController.Reset()
+
+	// Reset current throttle params
+	l.currentThrottleParams = ThrottleParams{
+		MaxBlockSize: l.Config.ThrottleAlwaysBlockSize,
+		MaxTxSize:    0,
+		Intensity:    0.0,
+	}
+
+	// Update metrics
+	if metr, ok := l.Metr.(interface {
+		RecordThrottleIntensity(float64)
+		RecordThrottleParams(uint64, uint64)
+	}); ok {
+		metr.RecordThrottleIntensity(0.0)
+		metr.RecordThrottleParams(0, l.Config.ThrottleAlwaysBlockSize)
+	}
+
+	l.Log.Info("Successfully reset throttle controller state")
+	return nil
 }
 
 func logFields(xs ...any) (fs []any) {

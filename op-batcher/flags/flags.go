@@ -197,42 +197,36 @@ var (
 		Value:   "step",
 		EnvVars: prefixEnvVars("THROTTLE_CONTROLLER_TYPE"),
 	}
-
 	ThrottlePidKpFlag = &cli.Float64Flag{
 		Name:    "throttle-pid-kp",
 		Usage:   "PID controller proportional gain. Only relevant if --throttle-controller-type is set to 'PID'",
 		Value:   1.0,
 		EnvVars: prefixEnvVars("THROTTLE_PID_KP"),
 	}
-
 	ThrottlePidKiFlag = &cli.Float64Flag{
 		Name:    "throttle-pid-ki",
 		Usage:   "PID controller integral gain. Only relevant if --throttle-controller-type is set to 'PID'",
 		Value:   0.1,
 		EnvVars: prefixEnvVars("THROTTLE_PID_KI"),
 	}
-
 	ThrottlePidKdFlag = &cli.Float64Flag{
 		Name:    "throttle-pid-kd",
 		Usage:   "PID controller derivative gain. Only relevant if --throttle-controller-type is set to 'PID'",
 		Value:   0.05,
 		EnvVars: prefixEnvVars("THROTTLE_PID_KD"),
 	}
-
 	ThrottlePidIntegralMaxFlag = &cli.Float64Flag{
 		Name:    "throttle-pid-integral-max",
 		Usage:   "PID controller maximum integral windup. Only relevant if --throttle-controller-type is set to 'PID'",
 		Value:   1000.0,
 		EnvVars: prefixEnvVars("THROTTLE_PID_INTEGRAL_MAX"),
 	}
-
 	ThrottlePidOutputMaxFlag = &cli.Float64Flag{
 		Name:    "throttle-pid-output-max",
 		Usage:   "PID controller maximum output. Only relevant if --throttle-controller-type is set to 'PID'",
 		Value:   1.0,
 		EnvVars: prefixEnvVars("THROTTLE_PID_OUTPUT_MAX"),
 	}
-
 	ThrottlePidSampleTimeFlag = &cli.DurationFlag{
 		Name:    "throttle-pid-sample-time",
 		Usage:   "PID controller sample time interval",
