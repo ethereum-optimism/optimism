@@ -12,7 +12,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 // TestInteropMon is testing that the op-interop-mon metrics are correctly collected
@@ -25,6 +24,8 @@ func TestInteropMon(gt *testing.T) {
 		sys.L2ELB.Escape().RPCURL(),
 	}
 
+	require := t.Require()
+
 	// Start op-interop-mon in the test context and attach to the devstack
 	t.Logf("Starting op-interop-mon with l2 rpcs: %v", l2Rpcs)
 	im, err := monitor.InteropMonitorServiceFromCLIConfig(t.Ctx(), "test", &monitor.CLIConfig{
@@ -35,8 +36,7 @@ func TestInteropMon(gt *testing.T) {
 		},
 	}, t.Logger())
 	t.Require().NoError(err)
-	im.Start(t.Ctx())
-	defer im.Stop(t.Ctx())
+	require.NoError(im.Start(t.Ctx()))
 
 	// two EOAs for triggering the init and exec interop txs
 	alice := sys.FunderA.NewFundedEOA(eth.OneEther)
@@ -51,9 +51,11 @@ func TestInteropMon(gt *testing.T) {
 	_, _ = bob.SendExecMessage(initTx, 0)
 
 	// Ensure the metrics are generated
-	require.EventuallyWithT(t, func(t *assert.CollectT) {
+	require.EventuallyWithT(func(t *assert.CollectT) {
 		checker := opmetrics.NewMetricChecker(t, im.Metrics.(opmetrics.RegistryMetricer).Registry())
 		checker.FindByName("op_interop_mon_default_executing_messages")
 	}, 1*time.Second, 100*time.Millisecond)
 	t.Log("op-interop-mon metrics check successful")
+
+	require.NoError(im.Stop(t.Ctx()))
 }
