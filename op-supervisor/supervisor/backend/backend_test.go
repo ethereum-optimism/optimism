@@ -336,6 +336,7 @@ func TestBackendCallsMetrics(t *testing.T) {
 	mockMetrics.Mock.On("RecordCrossUnsafeRef", chainA, mock.MatchedBy(func(_ types.BlockSeal) bool { return true })).Return()
 	mockMetrics.Mock.On("RecordCrossSafeRef", chainA, mock.MatchedBy(func(_ types.BlockSeal) bool { return true })).Return()
 	mockMetrics.Mock.On("RecordLocalSafeRef", chainA, mock.MatchedBy(func(_ types.BlockSeal) bool { return true })).Return()
+	mockMetrics.Mock.On("RecordLocalUnsafeRef", chainA, mock.MatchedBy(func(_ types.BlockSeal) bool { return true })).Return()
 
 	fullCfgSet := fullConfigSet(t, 1)
 	cfg := &config.Config{
@@ -371,30 +372,32 @@ func TestBackendCallsMetrics(t *testing.T) {
 		ParentHash: common.Hash{0xbb},
 		Time:       10000,
 	}
-
-	b.chainDBs.ForceInitialized(chainA) // force init for test
+	safe := types.DerivedBlockRefPair{
+		Source:  block, // dummy value
+		Derived: block,
+	}
+	// update local unsafe/safe, cross unsafe/safe
+	b.chainDBs.OnEvent(superevents.SafeActivationBlockEvent{
+		Safe:    safe,
+		ChainID: chainA,
+	})
 	// Assert that metrics are called on safety level updates
-	b.chainDBs.UpdateLocalSafe(chainA, block, block, "test")
+	mockMetrics.Mock.AssertCalled(t, "RecordLocalUnsafeRef", chainA, mock.MatchedBy(func(ref types.BlockSeal) bool {
+		return ref.Hash == block.Hash && ref.Number == block.Number && ref.Timestamp == block.Time
+	}))
 	mockMetrics.Mock.AssertCalled(t, "RecordLocalSafeRef", chainA, mock.MatchedBy(func(ref types.BlockSeal) bool {
 		return ref.Hash == block.Hash && ref.Number == block.Number && ref.Timestamp == block.Time
 	}))
-	mockMetrics.Mock.AssertCalled(t, "RecordDBEntryCount", chainA, "local_derived", int64(1))
-	err = b.chainDBs.UpdateCrossUnsafe(chainA, types.BlockSeal{
-		Hash:      block.Hash,
-		Number:    block.Number,
-		Timestamp: block.Time,
-	})
-	require.NoError(t, err)
 	mockMetrics.Mock.AssertCalled(t, "RecordCrossUnsafeRef", chainA, mock.MatchedBy(func(ref types.BlockSeal) bool {
 		return ref.Hash == block.Hash && ref.Number == block.Number && ref.Timestamp == block.Time
 	}))
-
-	err = b.chainDBs.UpdateCrossSafe(chainA, block, block)
-	require.NoError(t, err)
-	mockMetrics.Mock.AssertCalled(t, "RecordDBEntryCount", chainA, "cross_derived", int64(1))
 	mockMetrics.Mock.AssertCalled(t, "RecordCrossSafeRef", chainA, mock.MatchedBy(func(ref types.BlockSeal) bool {
 		return ref.Hash == block.Hash && ref.Number == block.Number && ref.Timestamp == block.Time
 	}))
+	mockMetrics.Mock.AssertCalled(t, "RecordDBEntryCount", chainA, "cross_derived", int64(1))
+	mockMetrics.Mock.AssertCalled(t, "RecordDBEntryCount", chainA, "local_derived", int64(1))
+	// db entry: searchCheckpoint, canonicalHash
+	mockMetrics.Mock.AssertCalled(t, "RecordDBEntryCount", chainA, "log", int64(2))
 
 	// Stop the backend
 	err = b.Stop(context.Background())
@@ -426,6 +429,10 @@ func (m *MockMetrics) RecordCrossSafeRef(chainID eth.ChainID, ref types.BlockSea
 }
 
 func (m *MockMetrics) RecordLocalSafeRef(chainID eth.ChainID, ref types.BlockSeal) {
+	m.Mock.Called(chainID, ref)
+}
+
+func (m *MockMetrics) RecordLocalUnsafeRef(chainID eth.ChainID, ref types.BlockSeal) {
 	m.Mock.Called(chainID, ref)
 }
 
