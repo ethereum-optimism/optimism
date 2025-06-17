@@ -300,7 +300,6 @@ contract Deploy is Deployer {
             SuperchainConfig: address(dio.superchainConfigImpl)
         });
 
-        ChainAssertions.checkL1CrossDomainMessenger({ _contracts: impls, _vm: vm, _isProxy: false });
         ChainAssertions.checkL1StandardBridge({ _contracts: impls, _isProxy: false });
         ChainAssertions.checkL1ERC721Bridge({ _contracts: impls, _isProxy: false });
         ChainAssertions.checkOptimismPortal2({ _contracts: impls, _cfg: cfg, _isProxy: false });

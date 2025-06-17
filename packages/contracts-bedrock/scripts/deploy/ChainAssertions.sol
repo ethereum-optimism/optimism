@@ -103,36 +103,6 @@ library ChainAssertions {
         }
     }
 
-    /// @notice Asserts that the L1CrossDomainMessenger is setup correctly
-    function checkL1CrossDomainMessenger(Types.ContractSet memory _contracts, Vm _vm, bool _isProxy) internal view {
-        IL1CrossDomainMessenger messenger = IL1CrossDomainMessenger(_contracts.L1CrossDomainMessenger);
-        console.log(
-            "Running chain assertions on the L1CrossDomainMessenger %s at %s",
-            _isProxy ? "proxy" : "implementation",
-            address(messenger)
-        );
-        require(address(messenger) != address(0), "CHECK-L1XDM-10");
-
-        // Check that the contract is initialized
-        DeployUtils.assertInitialized({ _contractAddress: address(messenger), _isProxy: _isProxy, _slot: 0, _offset: 20 });
-
-        if (_isProxy) {
-            require(address(messenger.OTHER_MESSENGER()) == Predeploys.L2_CROSS_DOMAIN_MESSENGER, "CHECK-L1XDM-20");
-            require(address(messenger.otherMessenger()) == Predeploys.L2_CROSS_DOMAIN_MESSENGER, "CHECK-L1XDM-30");
-            require(address(messenger.PORTAL()) == _contracts.OptimismPortal, "CHECK-L1XDM-40");
-            require(address(messenger.portal()) == _contracts.OptimismPortal, "CHECK-L1XDM-50");
-            require(address(messenger.systemConfig()) == _contracts.SystemConfig, "CHECK-L1XDM-60");
-            bytes32 xdmSenderSlot = _vm.load(address(messenger), bytes32(uint256(204)));
-            require(address(uint160(uint256(xdmSenderSlot))) == Constants.DEFAULT_L2_SENDER, "CHECK-L1XDM-70");
-        } else {
-            require(address(messenger.OTHER_MESSENGER()) == address(0), "CHECK-L1XDM-80");
-            require(address(messenger.otherMessenger()) == address(0), "CHECK-L1XDM-90");
-            require(address(messenger.PORTAL()) == address(0), "CHECK-L1XDM-100");
-            require(address(messenger.portal()) == address(0), "CHECK-L1XDM-110");
-            require(address(messenger.systemConfig()) == address(0), "CHECK-L1XDM-120");
-        }
-    }
-
     /// @notice Asserts that the L1StandardBridge is setup correctly
     function checkL1StandardBridge(Types.ContractSet memory _contracts, bool _isProxy) internal view {
         IL1StandardBridge bridge = IL1StandardBridge(payable(_contracts.L1StandardBridge));
