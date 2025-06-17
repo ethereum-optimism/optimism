@@ -28,7 +28,7 @@ type DisputeGameFactory struct {
 	supervisor *dsl.Supervisor
 }
 
-func DisputeGameFactoryForNetwork(t devtest.T, l1Network *dsl.L1Network, ethClient apis.EthClient, dgfAddr common.Address, supervisor *dsl.Supervisor) *DisputeGameFactory {
+func NewDisputeGameFactory(t devtest.T, l1Network *dsl.L1Network, ethClient apis.EthClient, dgfAddr common.Address, supervisor *dsl.Supervisor) *DisputeGameFactory {
 	return &DisputeGameFactory{
 		t:          t,
 		require:    require.New(t),

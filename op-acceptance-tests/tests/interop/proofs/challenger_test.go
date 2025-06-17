@@ -6,7 +6,6 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
-	"github.com/ethereum-optimism/optimism/op-devstack/dsl/proofs"
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
@@ -19,7 +18,7 @@ func TestChallengerPlaysGame(gt *testing.T) {
 
 	badClaim := common.HexToHash("0xdeadbeef00000000000000000000000000000000000000000000000000000000")
 	attacker := sys.FunderL1.NewFundedEOA(eth.Ether(2))
-	dgf := proofs.DisputeGameFactoryForNetwork(t, sys.L1Network, sys.L1EL.EthClient(), sys.L2ChainA.DisputeGameFactoryProxyAddr(), sys.Supervisor)
+	dgf := sys.DisputeGameFactory()
 
 	game := dgf.StartSuperCannonGame(attacker, badClaim)
 
