@@ -24,17 +24,19 @@ type DisputeGameFactory struct {
 	log        log.Logger
 	l1Network  *dsl.L1Network
 	ethClient  apis.EthClient
-	dgfAddr    common.Address
+	dgf        *bindings.DisputeGameFactory
 	supervisor *dsl.Supervisor
 }
 
 func NewDisputeGameFactory(t devtest.T, l1Network *dsl.L1Network, ethClient apis.EthClient, dgfAddr common.Address, supervisor *dsl.Supervisor) *DisputeGameFactory {
+	dgf := bindings.NewDisputeGameFactory(bindings.WithClient(ethClient), bindings.WithTo(dgfAddr), bindings.WithTest(t))
+
 	return &DisputeGameFactory{
 		t:          t,
 		require:    require.New(t),
 		log:        t.Logger(),
 		l1Network:  l1Network,
-		dgfAddr:    dgfAddr,
+		dgf:        dgf,
 		supervisor: supervisor,
 		ethClient:  ethClient,
 	}
@@ -103,17 +105,15 @@ func (f *DisputeGameFactory) createSuperGameExtraData(timestamp uint64, cfg *Gam
 func (f *DisputeGameFactory) createNewGame(eoa *dsl.EOA, gameType uint32, claim common.Hash, extraData []byte) *bindings.FaultDisputeGame {
 	f.log.Info("Creating dispute game", "gameType", gameType, "claim", claim.Hex(), "extradata", common.Bytes2Hex(extraData))
 
-	dgf := bindings.NewDisputeGameFactory(bindings.WithClient(f.ethClient), bindings.WithTo(f.dgfAddr), bindings.WithTest(f.t))
-
 	// Pull some metadata we need to construct a new game
-	requiredBonds := contract.Read(dgf.InitBonds(gameType))
+	requiredBonds := contract.Read(f.dgf.InitBonds(gameType))
 
-	receipt := contract.Write(eoa, dgf.Create(gameType, claim, extraData), txplan.WithValue(requiredBonds), txplan.WithGasRatio(2))
+	receipt := contract.Write(eoa, f.dgf.Create(gameType, claim, extraData), txplan.WithValue(requiredBonds), txplan.WithGasRatio(2))
 	f.require.Equal(types.ReceiptStatusSuccessful, receipt.Status)
 
 	// Extract logs from receipt
 	f.require.Equal(2, len(receipt.Logs))
-	createdLog, err := dgf.ParseDisputeGameCreated(receipt.Logs[1])
+	createdLog, err := f.dgf.ParseDisputeGameCreated(receipt.Logs[1])
 	f.require.NoError(err)
 
 	gameAddr := createdLog.DisputeProxy
