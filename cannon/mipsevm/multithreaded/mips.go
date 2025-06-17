@@ -227,7 +227,6 @@ func (m *InstrumentedState) handleSyscall() error {
 func (m *InstrumentedState) syscallGetRandom(a0, a1 uint64) (v0, v1 uint64) {
 	// Get existing memory value at target address
 	effAddr := a0 & arch.AddressMask
-	m.memoryTracker.TrackMemAccess(effAddr)
 	memVal := m.state.Memory.GetWord(effAddr)
 
 	// Generate some pseudorandom data
@@ -248,6 +247,9 @@ func (m *InstrumentedState) syscallGetRandom(a0, a1 uint64) (v0, v1 uint64) {
 	randDataMask >>= targetByteIndex * 8
 	newMemVal := (memVal & ^randDataMask) | (randomWord & randDataMask)
 	m.state.Memory.SetWord(effAddr, newMemVal)
+
+	m.memoryTracker.TrackMemAccess(effAddr)
+	m.handleMemoryUpdate(effAddr)
 
 	v0 = byteCount
 	v1 = 0
