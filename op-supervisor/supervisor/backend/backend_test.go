@@ -333,8 +333,8 @@ func TestBackendCallsMetrics(t *testing.T) {
 
 	// Set up mock metrics
 	mockMetrics.Mock.On("RecordDBEntryCount", chainA, mock.AnythingOfType("string"), mock.AnythingOfType("int64")).Return()
-	mockMetrics.Mock.On("RecordCrossUnsafeRef", chainA, mock.MatchedBy(func(_ eth.BlockRef) bool { return true })).Return()
-	mockMetrics.Mock.On("RecordCrossSafeRef", chainA, mock.MatchedBy(func(_ eth.BlockRef) bool { return true })).Return()
+	mockMetrics.Mock.On("RecordCrossUnsafeRef", chainA, mock.MatchedBy(func(_ types.BlockSeal) bool { return true })).Return()
+	mockMetrics.Mock.On("RecordCrossSafeRef", chainA, mock.MatchedBy(func(_ types.BlockSeal) bool { return true })).Return()
 
 	fullCfgSet := fullConfigSet(t, 1)
 	cfg := &config.Config{
@@ -379,15 +379,15 @@ func TestBackendCallsMetrics(t *testing.T) {
 		Timestamp: block.Time,
 	})
 	require.NoError(t, err)
-	mockMetrics.Mock.AssertCalled(t, "RecordCrossUnsafeRef", chainA, mock.MatchedBy(func(ref eth.BlockRef) bool {
-		return ref.Hash == block.Hash && ref.Number == block.Number && ref.Time == block.Time
+	mockMetrics.Mock.AssertCalled(t, "RecordCrossUnsafeRef", chainA, mock.MatchedBy(func(ref types.BlockSeal) bool {
+		return ref.Hash == block.Hash && ref.Number == block.Number && ref.Timestamp == block.Time
 	}))
 
 	err = b.chainDBs.UpdateCrossSafe(chainA, block, block)
 	require.NoError(t, err)
 	mockMetrics.Mock.AssertCalled(t, "RecordDBEntryCount", chainA, "cross_derived", int64(1))
-	mockMetrics.Mock.AssertCalled(t, "RecordCrossSafeRef", chainA, mock.MatchedBy(func(ref eth.BlockRef) bool {
-		return ref.Hash == block.Hash && ref.Number == block.Number && ref.Time == block.Time
+	mockMetrics.Mock.AssertCalled(t, "RecordCrossSafeRef", chainA, mock.MatchedBy(func(ref types.BlockSeal) bool {
+		return ref.Hash == block.Hash && ref.Number == block.Number && ref.Timestamp == block.Time
 	}))
 
 	// Stop the backend
@@ -411,11 +411,11 @@ func (m *MockMetrics) CacheGet(chainID eth.ChainID, label string, hit bool) {
 	m.Mock.Called(chainID, label, hit)
 }
 
-func (m *MockMetrics) RecordCrossUnsafeRef(chainID eth.ChainID, ref eth.BlockRef) {
+func (m *MockMetrics) RecordCrossUnsafeRef(chainID eth.ChainID, ref types.BlockSeal) {
 	m.Mock.Called(chainID, ref)
 }
 
-func (m *MockMetrics) RecordCrossSafeRef(chainID eth.ChainID, ref eth.BlockRef) {
+func (m *MockMetrics) RecordCrossSafeRef(chainID eth.ChainID, ref types.BlockSeal) {
 	m.Mock.Called(chainID, ref)
 }
 
