@@ -273,7 +273,7 @@ func TestEncodeCustomIntStruct(t *testing.T) {
 	testContract := NewBindings[TestContract]()
 
 	{
-		call := testContract.GetRequiredBond((*Uint128)(new(big.Int).SetUint64(1337)))
+		call := testContract.GetRequiredBond((*Uint128)(big.NewInt(1337)))
 		calldata, err := call.EncodeInputLambda()
 		require.NoError(t, err)
 		require.Equal(t, "c395e1ca0000000000000000000000000000000000000000000000000000000000000539",
@@ -282,8 +282,8 @@ func TestEncodeCustomIntStruct(t *testing.T) {
 	}
 	{
 		arg := TestIntStruct{
-			A: (*Uint128)(new(big.Int).SetUint64(1337)),
-			B: Int128(*new(big.Int).SetInt64(-7331)),
+			A: (*Uint128)(big.NewInt(1337)),
+			B: Int128(*big.NewInt(-7331)),
 		}
 		call := testContract.TestFunc9(arg)
 		calldata, err := call.EncodeInputLambda()
@@ -296,15 +296,15 @@ func TestEncodeCustomIntStruct(t *testing.T) {
 		arg := [3]TestIntStruct{
 			{
 				A: (*Uint128)(new(big.Int).SetUint64(1337)),
-				B: Int128(*new(big.Int).SetInt64(-1)),
+				B: Int128(*big.NewInt(-1)),
 			},
 			{
 				A: (*Uint128)(new(big.Int).SetUint64(123456789123456789)),
-				B: Int128(*new(big.Int).SetInt64(-123456789)),
+				B: Int128(*big.NewInt(-123456789)),
 			},
 			{
 				A: (*Uint128)(new(big.Int).SetUint64(13)),
-				B: Int128(*new(big.Int).SetInt64(-37)),
+				B: Int128(*big.NewInt(-37)),
 			},
 		}
 		call := testContract.TestFunc11(arg)
@@ -329,14 +329,14 @@ func TestEncodeCustomIntStructWithDynamic(t *testing.T) {
 	{
 		arg := [2]TestDynamicIntStruct{
 			{
-				A: (*Uint128)(new(big.Int).SetUint64(1337)),
+				A: (*Uint128)(big.NewInt(1337)),
 				B: []byte{0x13, 0x33, 0x37},
-				C: Int128(*new(big.Int).SetInt64(-7331)),
+				C: Int128(*big.NewInt(-7331)),
 			},
 			{
-				A: (*Uint128)(new(big.Int).SetUint64(13)),
+				A: (*Uint128)(big.NewInt(13)),
 				B: []byte{0x37, 0x33, 0x33, 0x31},
-				C: Int128(*new(big.Int).SetInt64(-24)),
+				C: Int128(*big.NewInt(-24)),
 			},
 		}
 		call := testContract.TestFunc12(arg)
@@ -355,28 +355,28 @@ func TestDecodeCustomInt(t *testing.T) {
 		data := hexutil.MustDecode("0x0000000000000000000000000000000000000000000000000000000000000539")
 		value, err := call.DecodeOutput(data)
 		require.NoError(t, err)
-		require.True(t, new(big.Int).SetUint64(1337).Cmp(value.ToBig()) == 0)
+		require.True(t, big.NewInt(1337).Cmp(value.ToBig()) == 0)
 	}
 	{
 		call := testContract.TestFunc8()
 		data := hexutil.MustDecode("0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe35d")
 		value, err := call.DecodeOutput(data)
 		require.NoError(t, err)
-		require.True(t, new(big.Int).SetInt64(-7331).Cmp(value.ToBig()) == 0)
+		require.True(t, big.NewInt(-7331).Cmp(value.ToBig()) == 0)
 	}
 	{
 		call := testContract.TestFunc13()
 		data := hexutil.MustDecode("0x0000000000000000000000000000000000000000000000000000000000000539")
 		value, err := call.DecodeOutput(data)
 		require.NoError(t, err)
-		require.True(t, new(big.Int).SetInt64(1337).Cmp(value.ToBig()) == 0)
+		require.True(t, big.NewInt(1337).Cmp(value.ToBig()) == 0)
 	}
 	{
 		call := testContract.TestFunc14()
 		data := hexutil.MustDecode("0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe35d")
 		value, err := call.DecodeOutput(data)
 		require.NoError(t, err)
-		require.True(t, new(big.Int).SetInt64(-7331).Cmp(value.ToBig()) == 0)
+		require.True(t, big.NewInt(-7331).Cmp(value.ToBig()) == 0)
 	}
 	{
 		call := testContract.TestFunc9(TestIntStruct{})
@@ -384,6 +384,7 @@ func TestDecodeCustomInt(t *testing.T) {
 		value, err := call.DecodeOutput(data)
 		require.NoError(t, err)
 		_ = value
+		panic(value)
 	}
 }
 

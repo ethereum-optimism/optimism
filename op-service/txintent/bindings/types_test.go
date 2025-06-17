@@ -196,12 +196,12 @@ func TestTypeConversion(t *testing.T) {
 			testName: "int64",
 		},
 		{
-			value:    (*Uint128)(new(big.Int).SetUint64(0)),
+			value:    (*Uint128)(big.NewInt(0)),
 			want:     "uint128",
 			testName: "uint128",
 		},
 		{
-			value:    (*Int128)(new(big.Int).SetUint64(0)),
+			value:    (*Int128)(big.NewInt(0)),
 			want:     "int128",
 			testName: "int128",
 		},
