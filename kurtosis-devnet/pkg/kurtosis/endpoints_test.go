@@ -75,7 +75,7 @@ func TestFindChainServices(t *testing.T) {
 
 	// Test L2 services for both chains
 	for _, chain := range chains {
-		t.Run(fmt.Sprintf("L2 %s services", chain), func(t *testing.T) {
+		t.Run(fmt.Sprintf("L2 %s services", chain.Name), func(t *testing.T) {
 			nodes, services := finder.FindL2Services(chain)
 
 			assert.Equal(t, 1, len(nodes), "Should have exactly 1 node")
@@ -256,6 +256,9 @@ func createTestServiceMap() inspect.ServiceMap {
 			Ports: inspect.PortMap{
 				"rpc": &descriptors.PortInfo{Port: 32813},
 			},
+			Labels: map[string]string{
+				kindLabel: "faucet",
+			},
 		},
 		"challenger-service": &inspect.Service{ // intentionally not following conventions, to force use of labels.
 			Ports: inspect.PortMap{
@@ -270,6 +273,10 @@ func createTestServiceMap() inspect.ServiceMap {
 			Ports: inspect.PortMap{
 				"metrics": &descriptors.PortInfo{Port: 32811},
 				"rpc":     &descriptors.PortInfo{Port: 32810},
+			},
+			Labels: map[string]string{
+				kindLabel:                 "supervisor",
+				supervisorSuperchainLabel: "superchain",
 			},
 		},
 		"validator-key-generation-cl-validator-keystore": {},
@@ -301,9 +308,7 @@ func createTestDepSets(t *testing.T) map[string]descriptors.DepSet {
 func TestTriageFunctions(t *testing.T) {
 	// Create a minimal finder with default values
 	finder := &ServiceFinder{
-		services:        make(inspect.ServiceMap),
-		nodeServices:    []string{"cl", "el"},
-		l2ServicePrefix: "op-",
+		services: make(inspect.ServiceMap),
 	}
 
 	// Test the triageNode function for recognizing services
@@ -317,125 +322,13 @@ func TestTriageFunctions(t *testing.T) {
 		assert.Equal(t, 0, idx, "Should extract index 0 from L1 CL node")
 		assert.True(t, accept(&spec.ChainSpec{Name: l1Placeholder}), "Should accept L1")
 
-		// Test L2 node format
-		idx, accept, ok = parser("op-cl-2151908-1-op-node-op-geth-op-kurtosis-1")
-		assert.True(t, ok, "Should recognize L2 CL node")
-		assert.Equal(t, 0, idx, "Should extract index 0 from L2 CL node")
-		assert.True(t, accept(&spec.ChainSpec{NetworkID: "2151908"}), "Should accept matching chain ID")
-		assert.False(t, accept(&spec.ChainSpec{NetworkID: "2151909"}), "Should not accept different chain ID")
-
 		// Test with various suffixes to see what is recognized
 		_, _, ok = parser("cl-1-teku-geth-with-extra-parts")
 		assert.True(t, ok, "Should recognize L1 CL node regardless of suffix")
 
-		_, _, ok = parser("op-cl-2151908-1-op-node-op-geth-op-kurtosis-1-with-extra-parts")
-		assert.True(t, ok, "Should recognize L2 CL node regardless of suffix")
-
 		// This is considered invalid
 		_, _, ok = parser("cl")
 		assert.False(t, ok, "Should not recognize simple 'cl'")
-
-		_, _, ok = parser("op-cl")
-		assert.False(t, ok, "Should not recognize simple 'op-cl'")
-	})
-
-	// Test the exclusive L2 service parser (batcher, proposer, proxyd)
-	t.Run("triageExclusiveL2Service", func(t *testing.T) {
-		parser := finder.triageExclusiveL2Service("op-batcher-")
-
-		// Valid format
-		idx, accept, ok := parser("op-batcher-123456")
-		assert.True(t, ok, "Should recognize batcher")
-		assert.Equal(t, -1, idx, "Exclusive services have -1 index")
-		assert.True(t, accept(&spec.ChainSpec{NetworkID: "123456"}), "Should accept chain with matching ID")
-		assert.False(t, accept(&spec.ChainSpec{NetworkID: "654321"}), "Should not accept chain with different ID")
-
-		// With suffix
-		_, _, ok = parser("op-batcher-123456-with-suffix")
-		assert.True(t, ok, "Should recognize batcher regardless of suffix")
-
-		// Invalid formats
-		_, _, ok = parser("batcher-123456")
-		assert.False(t, ok, "Should not recognize batcher without op- prefix")
-
-		_, _, ok = parser("op-batcher")
-		assert.False(t, ok, "Should not recognize op-batcher without chain ID")
-	})
-
-	// Test the multi-chain service parser (challenger)
-	t.Run("triageMultiL2Service", func(t *testing.T) {
-		parser := finder.triageMultiL2Service("op-challenger-")
-
-		// Valid format with service identifier and two chain IDs
-		idx, accept, ok := parser("op-challenger-any-123456-654321")
-		assert.True(t, ok, "Should recognize challenger for two chains")
-		assert.Equal(t, -1, idx, "Multi-chain services have -1 index")
-		assert.True(t, accept(&spec.ChainSpec{NetworkID: "123456"}), "Should accept first chain")
-		assert.True(t, accept(&spec.ChainSpec{NetworkID: "654321"}), "Should accept second chain")
-		assert.False(t, accept(&spec.ChainSpec{NetworkID: "789012"}), "Should not accept unrelated chain")
-
-		// Valid format with service identifier and one chain ID
-		_, accept, ok = parser("op-challenger-any-123456")
-		assert.True(t, ok, "Should recognize challenger for one chain")
-		assert.True(t, accept(&spec.ChainSpec{NetworkID: "123456"}), "Should accept the only chain")
-		assert.False(t, accept(&spec.ChainSpec{NetworkID: "654321"}), "Should not accept different chain")
-
-		// Invalid formats
-		_, _, ok = parser("challenger-123456")
-		assert.False(t, ok, "Should not recognize challenger without prefix")
-
-		_, _, ok = parser("op-challenger")
-		assert.False(t, ok, "Should not recognize op-challenger without service ID")
-	})
-
-	// Test the superchain service parser (supervisor)
-	t.Run("triageSuperchainService", func(t *testing.T) {
-		// Create some chains for the dependency set
-		chain1 := eth.ChainIDFromUInt64(123456)
-		chain2 := eth.ChainIDFromUInt64(654321)
-
-		// Create a dependency set
-		depSetData := map[eth.ChainID]*depset.StaticConfigDependency{
-			chain1: {},
-			chain2: {},
-		}
-		depSet, err := depset.NewStaticConfigDependencySet(depSetData)
-		require.NoError(t, err)
-
-		// Serialize dependency set
-		jsonData, err := json.Marshal(depSet)
-		require.NoError(t, err)
-
-		// Create a new finder with the dependency set
-		finderWithDS := &ServiceFinder{
-			services:        make(inspect.ServiceMap),
-			nodeServices:    []string{"cl", "el"},
-			l2ServicePrefix: "op-",
-			depsets: map[string]descriptors.DepSet{
-				"superchain": descriptors.DepSet(jsonData),
-			},
-		}
-
-		parser := finderWithDS.triageSuperchainService("op-supervisor-")
-
-		// Valid format - "op-supervisor-{service_id}-{depset_name}"
-		idx, accept, ok := parser("op-supervisor-id-superchain")
-		assert.True(t, ok, "Should recognize supervisor")
-		assert.Equal(t, -1, idx, "Superchain services have -1 index")
-		assert.True(t, accept(&spec.ChainSpec{NetworkID: "123456"}), "Should accept chain1")
-		assert.True(t, accept(&spec.ChainSpec{NetworkID: "654321"}), "Should accept chain2")
-		assert.False(t, accept(&spec.ChainSpec{NetworkID: "789012"}), "Should not accept unrelated chain")
-
-		// Invalid formats
-		_, _, ok = parser("supervisor-superchain")
-		assert.False(t, ok, "Should not recognize supervisor without prefix")
-
-		_, _, ok = parser("op-supervisor")
-		assert.False(t, ok, "Should not recognize op-supervisor without service ID and depset name")
-
-		// Test with non-existing depset
-		_, _, ok = parser("op-supervisor-id-nonexistent")
-		assert.False(t, ok, "Should not recognize supervisor with non-existent depset")
 	})
 
 	// Test the universal L2 service parser (faucet)
