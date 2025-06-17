@@ -95,6 +95,8 @@ func testL2ReorgAfterL1Reorg(gt *testing.T, n int, preChecks, postChecks checksF
 	// pre reorg trigger validations and checks
 	preChecks(t, sys)
 
+	tipL2_preReorg := sys.L2ELA.BlockRefByLabel(eth.Unsafe)
+
 	// reorg the L1 chain -- sequence an alternative L1 block from divergence block parent
 	sequenceL1Block(t, ts, divergence.ParentHash)
 
@@ -103,6 +105,9 @@ func testL2ReorgAfterL1Reorg(gt *testing.T, n int, preChecks, postChecks checksF
 
 	// confirm L1 reorged
 	sys.L1EL.ReorgTriggered(divergence, 5)
+
+	// wait until L2 chain A caught up to where it was before the reorg
+	sys.L2ELA.WaitForBlockNumber(tipL2_preReorg.Number)
 
 	// test that latest chain A unsafe is not referencing a reorged L1 block (through the L1Origin field)
 	require.Eventually(t, func() bool {
