@@ -26,10 +26,10 @@ type mockSyncControl struct {
 	updateCrossSafeFn   func(ctx context.Context, derived, source eth.BlockID) error
 	updateCrossUnsafeFn func(ctx context.Context, derived eth.BlockID) error
 	updateFinalizedFn   func(ctx context.Context, id eth.BlockID) error
-	pullEventFn         func(ctx context.Context) (*types.ManagedEvent, error)
+	pullEventFn         func(ctx context.Context) (*types.IndexingEvent, error)
 	blockRefByNumFn     func(ctx context.Context, number uint64) (eth.BlockRef, error)
 
-	subscribeEvents gethevent.FeedOf[*types.ManagedEvent]
+	subscribeEvents gethevent.FeedOf[*types.IndexingEvent]
 }
 
 func (m *mockSyncControl) InvalidateBlock(ctx context.Context, seal types.BlockSeal) error {
@@ -64,14 +64,14 @@ func (m *mockSyncControl) ResetPreInterop(ctx context.Context) error {
 	return nil
 }
 
-func (m *mockSyncControl) PullEvent(ctx context.Context) (*types.ManagedEvent, error) {
+func (m *mockSyncControl) PullEvent(ctx context.Context) (*types.IndexingEvent, error) {
 	if m.pullEventFn != nil {
 		return m.pullEventFn(ctx)
 	}
 	return nil, nil
 }
 
-func (m *mockSyncControl) SubscribeEvents(ctx context.Context, ch chan *types.ManagedEvent) (ethereum.Subscription, error) {
+func (m *mockSyncControl) SubscribeEvents(ctx context.Context, ch chan *types.IndexingEvent) (ethereum.Subscription, error) {
 	return m.subscribeEvents.Subscribe(ch), nil
 }
 

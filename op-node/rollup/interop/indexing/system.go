@@ -1,4 +1,4 @@
-package managed
+package indexing
 
 import (
 	"context"
@@ -23,10 +23,10 @@ import (
 	supervisortypes "github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 )
 
-// managedEventStream abstracts the event stream functionality for testing
-type managedEventStream interface {
-	Send(event *supervisortypes.ManagedEvent)
-	Serve() (*supervisortypes.ManagedEvent, error)
+// indexingEventStream abstracts the event stream functionality for testing
+type indexingEventStream interface {
+	Send(event *supervisortypes.IndexingEvent)
+	Serve() (*supervisortypes.IndexingEvent, error)
 	Subscribe(ctx context.Context) (*gethrpc.Subscription, error)
 }
 
@@ -46,9 +46,9 @@ type L1Source interface {
 	L1BlockRefByNumber(ctx context.Context, num uint64) (eth.L1BlockRef, error)
 }
 
-// ManagedMode makes the op-node managed by an op-supervisor,
+// IndexingMode makes the op-node managed by an op-supervisor,
 // by serving sync work and updating the canonical chain based on instructions.
-type ManagedMode struct {
+type IndexingMode struct {
 	log log.Logger
 
 	emitter event.Emitter
@@ -56,7 +56,7 @@ type ManagedMode struct {
 	l1 L1Source
 	l2 L2Source
 
-	events managedEventStream
+	events indexingEventStream
 
 	// outgoing event timestamp trackers
 	lastReset         eventTimestamp[struct{}]
@@ -72,15 +72,15 @@ type ManagedMode struct {
 	jwtSecret eth.Bytes32
 }
 
-func NewManagedMode(log log.Logger, cfg *rollup.Config, addr string, port int, jwtSecret eth.Bytes32, l1 L1Source, l2 L2Source, m opmetrics.RPCMetricer) *ManagedMode {
-	log = log.With("mode", "managed", "chainId", cfg.L2ChainID)
-	out := &ManagedMode{
+func NewIndexingMode(log log.Logger, cfg *rollup.Config, addr string, port int, jwtSecret eth.Bytes32, l1 L1Source, l2 L2Source, m opmetrics.RPCMetricer) *IndexingMode {
+	log = log.With("mode", "indexing", "chainId", cfg.L2ChainID)
+	out := &IndexingMode{
 		log:       log,
 		cfg:       cfg,
 		l1:        l1,
 		l2:        l2,
 		jwtSecret: jwtSecret,
-		events:    rpc.NewStream[supervisortypes.ManagedEvent](log, 100),
+		events:    rpc.NewStream[supervisortypes.IndexingEvent](log, 100),
 
 		lastReset:         newEventTimestamp[struct{}](100 * time.Millisecond),
 		lastUnsafe:        newEventTimestamp[eth.BlockID](100 * time.Millisecond),
@@ -94,7 +94,7 @@ func NewManagedMode(log log.Logger, cfg *rollup.Config, addr string, port int, j
 		rpc.WithWebsocketEnabled(),
 		rpc.WithLogger(log),
 		rpc.WithJWTSecret(jwtSecret[:]),
-		rpc.WithRPCRecorder(m.NewRecorder("interop_managed")),
+		rpc.WithRPCRecorder(m.NewRecorder("interop_indexing")),
 	)
 	out.srv.AddAPI(gethrpc.API{
 		Namespace:     "interop",
@@ -106,7 +106,7 @@ func NewManagedMode(log log.Logger, cfg *rollup.Config, addr string, port int, j
 
 // TestDisableEventDeduplication is a test-only function that disables event deduplication.
 // It is necessary to make action tests work.
-func (m *ManagedMode) TestDisableEventDeduplication() {
+func (m *IndexingMode) TestDisableEventDeduplication() {
 	m.lastReset.ttl = 0
 	m.lastUnsafe.ttl = 0
 	m.lastSafe.ttl = 0
@@ -115,7 +115,7 @@ func (m *ManagedMode) TestDisableEventDeduplication() {
 	m.lastReplacedBlock.ttl = 0
 }
 
-func (m *ManagedMode) Start(ctx context.Context) error {
+func (m *IndexingMode) Start(ctx context.Context) error {
 	if m.emitter == nil {
 		return errors.New("must have emitter before starting")
 	}
@@ -126,19 +126,19 @@ func (m *ManagedMode) Start(ctx context.Context) error {
 	return nil
 }
 
-func (m *ManagedMode) WSEndpoint() string {
+func (m *IndexingMode) WSEndpoint() string {
 	return fmt.Sprintf("ws://%s", m.srv.Endpoint())
 }
 
-func (m *ManagedMode) WSPort() (int, error) {
+func (m *IndexingMode) WSPort() (int, error) {
 	return m.srv.Port()
 }
 
-func (m *ManagedMode) JWTSecret() eth.Bytes32 {
+func (m *IndexingMode) JWTSecret() eth.Bytes32 {
 	return m.jwtSecret
 }
 
-func (m *ManagedMode) Stop(ctx context.Context) error {
+func (m *IndexingMode) Stop(ctx context.Context) error {
 	// stop RPC server
 	if err := m.srv.Stop(); err != nil {
 		return fmt.Errorf("failed to stop interop sub-system RPC server: %w", err)
@@ -148,12 +148,12 @@ func (m *ManagedMode) Stop(ctx context.Context) error {
 	return nil
 }
 
-func (m *ManagedMode) AttachEmitter(em event.Emitter) {
+func (m *IndexingMode) AttachEmitter(em event.Emitter) {
 	m.emitter = em
 }
 
 // Outgoing events to supervisor
-func (m *ManagedMode) OnEvent(ev event.Event) bool {
+func (m *IndexingMode) OnEvent(ev event.Event) bool {
 	switch x := ev.(type) {
 	case rollup.ResetEvent:
 		logger := m.log.New("err", x.Err)
@@ -163,7 +163,7 @@ func (m *ManagedMode) OnEvent(ev event.Event) bool {
 			return true
 		}
 		msg := x.Err.Error()
-		m.events.Send(&supervisortypes.ManagedEvent{Reset: &msg})
+		m.events.Send(&supervisortypes.IndexingEvent{Reset: &msg})
 
 	case engine.UnsafeUpdateEvent:
 		logger := m.log.New("unsafe", x.Ref)
@@ -175,7 +175,7 @@ func (m *ManagedMode) OnEvent(ev event.Event) bool {
 			return true
 		}
 		ref := x.Ref.BlockRef()
-		m.events.Send(&supervisortypes.ManagedEvent{UnsafeBlock: &ref})
+		m.events.Send(&supervisortypes.IndexingEvent{UnsafeBlock: &ref})
 
 	case engine.LocalSafeUpdateEvent:
 		logger := m.log.New("derivedFrom", x.Source, "derived", x.Ref)
@@ -187,7 +187,7 @@ func (m *ManagedMode) OnEvent(ev event.Event) bool {
 			return true
 		}
 		logger.Info("Sending derivation update to supervisor (new local safe)")
-		m.events.Send(&supervisortypes.ManagedEvent{
+		m.events.Send(&supervisortypes.IndexingEvent{
 			DerivationUpdate: &supervisortypes.DerivedBlockRefPair{
 				Source:  x.Source,
 				Derived: x.Ref.BlockRef(),
@@ -204,7 +204,7 @@ func (m *ManagedMode) OnEvent(ev event.Event) bool {
 			return true
 		}
 		logger.Info("Sending derivation update to supervisor (L1 traversal)")
-		m.events.Send(&supervisortypes.ManagedEvent{
+		m.events.Send(&supervisortypes.IndexingEvent{
 			DerivationUpdate: &supervisortypes.DerivedBlockRefPair{
 				Source:  x.Origin,
 				Derived: x.LastL2.BlockRef(),
@@ -219,7 +219,7 @@ func (m *ManagedMode) OnEvent(ev event.Event) bool {
 			logger.Warn("Skipped sending duplicate exhausted L1 event", "derivedFrom", x.L1Ref, "derived", x.LastL2)
 			return true
 		}
-		m.events.Send(&supervisortypes.ManagedEvent{
+		m.events.Send(&supervisortypes.IndexingEvent{
 			ExhaustL1: &supervisortypes.DerivedBlockRefPair{
 				Source:  x.L1Ref,
 				Derived: x.LastL2.BlockRef(),
@@ -238,7 +238,7 @@ func (m *ManagedMode) OnEvent(ev event.Event) bool {
 			logger.Error("Failed to parse replacement block", "err", err)
 			return true
 		}
-		m.events.Send(&supervisortypes.ManagedEvent{ReplaceBlock: &supervisortypes.BlockReplacement{
+		m.events.Send(&supervisortypes.IndexingEvent{ReplaceBlock: &supervisortypes.BlockReplacement{
 			Replacement: x.Ref,
 			Invalidated: out.BlockHash,
 		}})
@@ -249,15 +249,15 @@ func (m *ManagedMode) OnEvent(ev event.Event) bool {
 	return true
 }
 
-func (m *ManagedMode) PullEvent() (*supervisortypes.ManagedEvent, error) {
+func (m *IndexingMode) PullEvent() (*supervisortypes.IndexingEvent, error) {
 	return m.events.Serve()
 }
 
-func (m *ManagedMode) Events(ctx context.Context) (*gethrpc.Subscription, error) {
+func (m *IndexingMode) Events(ctx context.Context) (*gethrpc.Subscription, error) {
 	return m.events.Subscribe(ctx)
 }
 
-func (m *ManagedMode) UpdateCrossUnsafe(ctx context.Context, id eth.BlockID) error {
+func (m *IndexingMode) UpdateCrossUnsafe(ctx context.Context, id eth.BlockID) error {
 	l2Ref, err := m.l2.L2BlockRefByHash(ctx, id.Hash)
 	if err != nil {
 		return fmt.Errorf("failed to get L2BlockRef: %w", err)
@@ -271,7 +271,7 @@ func (m *ManagedMode) UpdateCrossUnsafe(ctx context.Context, id eth.BlockID) err
 	return nil
 }
 
-func (m *ManagedMode) UpdateCrossSafe(ctx context.Context, derived eth.BlockID, derivedFrom eth.BlockID) error {
+func (m *IndexingMode) UpdateCrossSafe(ctx context.Context, derived eth.BlockID, derivedFrom eth.BlockID) error {
 	l2Ref, err := m.l2.L2BlockRefByHash(ctx, derived.Hash)
 	if err != nil {
 		return fmt.Errorf("failed to get L2BlockRef: %w", err)
@@ -290,7 +290,7 @@ func (m *ManagedMode) UpdateCrossSafe(ctx context.Context, derived eth.BlockID, 
 	return nil
 }
 
-func (m *ManagedMode) UpdateFinalized(ctx context.Context, id eth.BlockID) error {
+func (m *IndexingMode) UpdateFinalized(ctx context.Context, id eth.BlockID) error {
 	l2Ref, err := m.l2.L2BlockRefByHash(ctx, id.Hash)
 	if err != nil {
 		return fmt.Errorf("failed to get L2BlockRef: %w", err)
@@ -301,7 +301,7 @@ func (m *ManagedMode) UpdateFinalized(ctx context.Context, id eth.BlockID) error
 	return nil
 }
 
-func (m *ManagedMode) InvalidateBlock(ctx context.Context, seal supervisortypes.BlockSeal) error {
+func (m *IndexingMode) InvalidateBlock(ctx context.Context, seal supervisortypes.BlockSeal) error {
 	m.log.Info("Invalidating block", "block", seal)
 
 	// Fetch the block we invalidate, so we can re-use the attributes that stay.
@@ -332,7 +332,7 @@ func (m *ManagedMode) InvalidateBlock(ctx context.Context, seal supervisortypes.
 	return nil
 }
 
-func (m *ManagedMode) AnchorPoint(ctx context.Context) (supervisortypes.DerivedBlockRefPair, error) {
+func (m *IndexingMode) AnchorPoint(ctx context.Context) (supervisortypes.DerivedBlockRefPair, error) {
 	// TODO: maybe cache non-genesis anchor point when seeing safe Interop activation block?
 	//  Only needed if we don't test for activation block in the supervisor.
 	if !m.cfg.IsInterop(m.cfg.Genesis.L2Time) {
@@ -364,13 +364,13 @@ const (
 )
 
 // TODO: add ResetPreInterop, called by supervisor if bisection went pre-Interop. Emit ResetEngineRequestEvent.
-func (m *ManagedMode) ResetPreInterop(ctx context.Context) error {
+func (m *IndexingMode) ResetPreInterop(ctx context.Context) error {
 	m.log.Info("Received pre-interop reset request")
 	m.emitter.Emit(engine.ResetEngineRequestEvent{Ctx: event.WrapCtx(ctx)})
 	return nil
 }
 
-func (m *ManagedMode) Reset(ctx context.Context, lUnsafe, xUnsafe, lSafe, xSafe, finalized eth.BlockID) error {
+func (m *IndexingMode) Reset(ctx context.Context, lUnsafe, xUnsafe, lSafe, xSafe, finalized eth.BlockID) error {
 	logger := m.log.New(
 		"localUnsafe", lUnsafe,
 		"crossUnsafe", xUnsafe,
@@ -457,7 +457,7 @@ func (m *ManagedMode) Reset(ctx context.Context, lUnsafe, xUnsafe, lSafe, xSafe,
 
 // findLatestValidLocalUnsafe searches and returns the latest valid block of the L2 chain
 // starting from `l2UnsafeTarget` and checking until the latest unsafe block.
-func (m *ManagedMode) findLatestValidLocalUnsafe(ctx context.Context, l2UnsafeTarget eth.BlockID) (eth.L2BlockRef, error) {
+func (m *IndexingMode) findLatestValidLocalUnsafe(ctx context.Context, l2UnsafeTarget eth.BlockID) (eth.L2BlockRef, error) {
 	latestUnsafe, err := m.l2.L2BlockRefByLabel(ctx, eth.Unsafe)
 	if err != nil {
 		return eth.L2BlockRef{}, err
@@ -520,7 +520,7 @@ func (m *ManagedMode) findLatestValidLocalUnsafe(ctx context.Context, l2UnsafeTa
 }
 
 // verifyBlock
-func (m *ManagedMode) verifyBlock(ctx context.Context, logger log.Logger, blockNum uint64) (eth.L2BlockRef, error) {
+func (m *IndexingMode) verifyBlock(ctx context.Context, logger log.Logger, blockNum uint64) (eth.L2BlockRef, error) {
 	current, err := m.l2.L2BlockRefByNumber(ctx, blockNum)
 	if err != nil {
 		return eth.L2BlockRef{}, err
@@ -539,7 +539,7 @@ func (m *ManagedMode) verifyBlock(ctx context.Context, logger log.Logger, blockN
 	return current, nil
 }
 
-func (m *ManagedMode) ProvideL1(ctx context.Context, nextL1 eth.BlockRef) error {
+func (m *IndexingMode) ProvideL1(ctx context.Context, nextL1 eth.BlockRef) error {
 	m.log.Info("Received next L1 block", "nextL1", nextL1)
 	m.emitter.Emit(derive.ProvideL1Traversal{
 		NextL1: nextL1,
@@ -548,20 +548,20 @@ func (m *ManagedMode) ProvideL1(ctx context.Context, nextL1 eth.BlockRef) error 
 	return nil
 }
 
-func (m *ManagedMode) FetchReceipts(ctx context.Context, blockHash common.Hash) (types.Receipts, error) {
+func (m *IndexingMode) FetchReceipts(ctx context.Context, blockHash common.Hash) (types.Receipts, error) {
 	_, receipts, err := m.l2.FetchReceipts(ctx, blockHash)
 	return receipts, err
 }
 
-func (m *ManagedMode) BlockRefByNumber(ctx context.Context, num uint64) (eth.BlockRef, error) {
+func (m *IndexingMode) BlockRefByNumber(ctx context.Context, num uint64) (eth.BlockRef, error) {
 	return m.l2.BlockRefByNumber(ctx, num)
 }
 
-func (m *ManagedMode) ChainID(ctx context.Context) (eth.ChainID, error) {
+func (m *IndexingMode) ChainID(ctx context.Context) (eth.ChainID, error) {
 	return eth.ChainIDFromBig(m.cfg.L2ChainID), nil
 }
 
-func (m *ManagedMode) OutputV0AtTimestamp(ctx context.Context, timestamp uint64) (*eth.OutputV0, error) {
+func (m *IndexingMode) OutputV0AtTimestamp(ctx context.Context, timestamp uint64) (*eth.OutputV0, error) {
 	ref, err := m.L2BlockRefByTimestamp(ctx, timestamp)
 	if err != nil {
 		return nil, err
@@ -569,7 +569,7 @@ func (m *ManagedMode) OutputV0AtTimestamp(ctx context.Context, timestamp uint64)
 	return m.l2.OutputV0AtBlock(ctx, ref.Hash)
 }
 
-func (m *ManagedMode) PendingOutputV0AtTimestamp(ctx context.Context, timestamp uint64) (*eth.OutputV0, error) {
+func (m *IndexingMode) PendingOutputV0AtTimestamp(ctx context.Context, timestamp uint64) (*eth.OutputV0, error) {
 	ref, err := m.L2BlockRefByTimestamp(ctx, timestamp)
 	if err != nil {
 		return nil, err
@@ -593,7 +593,7 @@ func (m *ManagedMode) PendingOutputV0AtTimestamp(ctx context.Context, timestamp 
 	return optimisticOutput, nil
 }
 
-func (m *ManagedMode) L2BlockRefByTimestamp(ctx context.Context, timestamp uint64) (eth.L2BlockRef, error) {
+func (m *IndexingMode) L2BlockRefByTimestamp(ctx context.Context, timestamp uint64) (eth.L2BlockRef, error) {
 	num, err := m.cfg.TargetBlockNumber(timestamp)
 	if err != nil {
 		return eth.L2BlockRef{}, err

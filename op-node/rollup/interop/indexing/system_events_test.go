@@ -1,4 +1,4 @@
-package managed
+package indexing
 
 import (
 	"context"
@@ -22,14 +22,14 @@ import (
 
 // mockEventStream implements ManagedEventStream for testing
 type mockEventStream struct {
-	events []*supervisortypes.ManagedEvent
+	events []*supervisortypes.IndexingEvent
 }
 
-func (m *mockEventStream) Send(event *supervisortypes.ManagedEvent) {
+func (m *mockEventStream) Send(event *supervisortypes.IndexingEvent) {
 	m.events = append(m.events, event)
 }
 
-func (m *mockEventStream) Serve() (*supervisortypes.ManagedEvent, error) {
+func (m *mockEventStream) Serve() (*supervisortypes.IndexingEvent, error) {
 	panic("not implemented")
 }
 
@@ -37,7 +37,7 @@ func (m *mockEventStream) Subscribe(ctx context.Context) (*gethrpc.Subscription,
 	panic("not implemented")
 }
 
-func (m *mockEventStream) drainEvents() []*supervisortypes.ManagedEvent {
+func (m *mockEventStream) drainEvents() []*supervisortypes.IndexingEvent {
 	events := m.events
 	m.events = nil
 	return events
@@ -53,7 +53,7 @@ func TestManagedMode_OnEvent_Deduplication(t *testing.T) {
 	mockStream := &mockEventStream{}
 
 	// Create ManagedMode with only the necessary fields for testing
-	mm := &ManagedMode{
+	mm := &IndexingMode{
 		log:    logger,
 		cfg:    cfg,
 		events: mockStream,
@@ -357,7 +357,7 @@ func TestManagedMode_OnEvent_Deduplication(t *testing.T) {
 			InteropTime: &interopTime,
 		}
 
-		preInteropMM := &ManagedMode{
+		preInteropMM := &IndexingMode{
 			log:        logger,
 			cfg:        preInteropCfg,
 			events:     &mockEventStream{},

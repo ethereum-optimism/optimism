@@ -26,7 +26,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup/engine"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/finality"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/interop"
-	"github.com/ethereum-optimism/optimism/op-node/rollup/interop/managed"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/interop/indexing"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/status"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/sync"
 	"github.com/ethereum-optimism/optimism/op-service/client"
@@ -90,7 +90,7 @@ type L2Verifier struct {
 
 type L2API interface {
 	engine.Engine
-	managed.L2Source
+	indexing.L2Source
 	L2BlockRefByNumber(ctx context.Context, num uint64) (eth.L2BlockRef, error)
 	InfoByHash(ctx context.Context, hash common.Hash) (eth.BlockInfo, error)
 	// GetProof returns a proof of the account, it may return a nil result without error if the address was not found.
@@ -130,7 +130,7 @@ func NewL2Verifier(t Testing, log log.Logger, l1 derive.L1Fetcher,
 
 	var interopSys interop.SubSystem
 	if cfg.InteropTime != nil {
-		mm := managed.NewManagedMode(log, cfg, "127.0.0.1", 0, interopJWTSecret, l1, eng, &opmetrics.NoopRPCMetrics{})
+		mm := indexing.NewIndexingMode(log, cfg, "127.0.0.1", 0, interopJWTSecret, l1, eng, &opmetrics.NoopRPCMetrics{})
 		mm.TestDisableEventDeduplication()
 		interopSys = mm
 		sys.Register("interop", interopSys, opts)
@@ -161,8 +161,8 @@ func NewL2Verifier(t Testing, log log.Logger, l1 derive.L1Fetcher,
 	sys.Register("attributes-handler",
 		attributes.NewAttributesHandler(log, cfg, ctx, eng), opts)
 
-	managedMode := interopSys != nil
-	pipeline := derive.NewDerivationPipeline(log, cfg, depSet, l1, blobsSrc, altDASrc, eng, metrics, managedMode)
+	indexingMode := interopSys != nil
+	pipeline := derive.NewDerivationPipeline(log, cfg, depSet, l1, blobsSrc, altDASrc, eng, metrics, indexingMode)
 	sys.Register("pipeline", derive.NewPipelineDeriver(ctx, pipeline), opts)
 
 	testActionEmitter := sys.Register("test-action", nil, opts)
@@ -171,17 +171,17 @@ func NewL2Verifier(t Testing, log log.Logger, l1 derive.L1Fetcher,
 	sys.Register("status", syncStatusTracker, opts)
 
 	sys.Register("sync", &driver.SyncDeriver{
-		Derivation:     pipeline,
-		SafeHeadNotifs: safeHeadListener,
-		CLSync:         clSync,
-		Engine:         ec,
-		SyncCfg:        syncCfg,
-		Config:         cfg,
-		L1:             l1,
-		L2:             eng,
-		Log:            log,
-		Ctx:            ctx,
-		ManagedMode:    managedMode,
+		Derivation:          pipeline,
+		SafeHeadNotifs:      safeHeadListener,
+		CLSync:              clSync,
+		Engine:              ec,
+		SyncCfg:             syncCfg,
+		Config:              cfg,
+		L1:                  l1,
+		L2:                  eng,
+		Log:                 log,
+		Ctx:                 ctx,
+		ManagedBySupervisor: indexingMode,
 	}, opts)
 
 	sys.Register("engine", engine.NewEngDeriver(log, ctx, cfg, metrics, ec), opts)
@@ -236,7 +236,7 @@ func NewL2Verifier(t Testing, log log.Logger, l1 derive.L1Fetcher,
 
 func (v *L2Verifier) InteropSyncNode(t Testing) syncnode.SyncNode {
 	require.NotNil(t, v.interopSys, "interop sub-system must be running")
-	m, ok := v.interopSys.(*managed.ManagedMode)
+	m, ok := v.interopSys.(*indexing.IndexingMode)
 	require.True(t, ok, "Interop sub-system must be in managed-mode if used as sync-node")
 	auth := rpc.WithHTTPAuth(gnode.NewJWTAuth(m.JWTSecret()))
 	opts := []client.RPCOption{client.WithGethRPCOptions(auth)}

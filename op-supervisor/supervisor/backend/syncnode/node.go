@@ -53,7 +53,7 @@ type ManagedNode struct {
 
 	// When the node has an update for us
 	// Nil when node events are pulled synchronously.
-	nodeEvents chan *types.ManagedEvent
+	nodeEvents chan *types.IndexingEvent
 
 	subscriptions []gethevent.Subscription
 
@@ -159,7 +159,7 @@ func (m *ManagedNode) OnEvent(ev event.Event) bool {
 }
 
 func (m *ManagedNode) SubscribeToNodeEvents() {
-	m.nodeEvents = make(chan *types.ManagedEvent, 10)
+	m.nodeEvents = make(chan *types.IndexingEvent, 10)
 
 	// Resubscribe, since the RPC subscription might fail intermittently.
 	// And fall back to polling, if RPC subscriptions are not supported.
@@ -178,7 +178,7 @@ func (m *ManagedNode) SubscribeToNodeEvents() {
 					}
 				}
 				// When the subscription fails, the channel may have been immediately closed
-				m.nodeEvents = make(chan *types.ManagedEvent, 10)
+				m.nodeEvents = make(chan *types.IndexingEvent, 10)
 			}
 			sub, err := m.Node.SubscribeEvents(ctx, m.nodeEvents)
 			if err != nil {
@@ -256,7 +256,7 @@ func (m *ManagedNode) PullEvents(ctx context.Context) (pulledAny bool, err error
 }
 
 // onNodeEvents handles the incoming events from the node.
-func (m *ManagedNode) onNodeEvent(ev *types.ManagedEvent) {
+func (m *ManagedNode) onNodeEvent(ev *types.IndexingEvent) {
 	if m.resetCancel != nil {
 		m.log.Debug("Ignoring event during ongoing reset", "event", ev)
 		return

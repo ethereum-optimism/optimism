@@ -228,7 +228,7 @@ type SyncDeriver struct {
 
 	// When in interop, and managed by an op-supervisor,
 	// the node performs a reset based on the instructions of the op-supervisor.
-	ManagedMode bool
+	ManagedBySupervisor bool
 }
 
 func (s *SyncDeriver) AttachEmitter(em event.Emitter) {
@@ -344,9 +344,9 @@ func (s *SyncDeriver) onEngineConfirmedReset(x engine.EngineResetConfirmedEvent)
 }
 
 func (s *SyncDeriver) onResetEvent(x rollup.ResetEvent) {
-	if s.ManagedMode {
-		s.Log.Warn("Encountered reset in Managed Mode, waiting for op-supervisor", "err", x.Err)
-		// ManagedMode will pick up the ResetEvent
+	if s.ManagedBySupervisor {
+		s.Log.Warn("Encountered reset when managed by op-supervisor, waiting for op-supervisor", "err", x.Err)
+		// IndexingMode will pick up the ResetEvent
 		return
 	}
 	// If the system corrupts, e.g. due to a reorg, simply reset it
@@ -384,7 +384,7 @@ func (s *SyncDeriver) SyncStep() {
 
 	// If interop is configured, we have to run the engine events,
 	// to ensure cross-L2 safety is continuously verified against the interop-backend.
-	if s.Config.InteropTime != nil && !s.ManagedMode {
+	if s.Config.InteropTime != nil && !s.ManagedBySupervisor {
 		s.Emitter.Emit(engine.CrossUpdateRequestEvent{Ctx: event.WrapCtx(s.Ctx)})
 	}
 }

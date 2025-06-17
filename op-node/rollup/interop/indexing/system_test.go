@@ -1,4 +1,4 @@
-package managed
+package indexing
 
 import (
 	"context"
@@ -147,7 +147,7 @@ func TestManagedMode_findLatestValidLocalUnsafe(t *testing.T) {
 				}
 			}
 
-			managedMode := &ManagedMode{
+			managedMode := &IndexingMode{
 				log: logger,
 				l1:  mockL1,
 				l2:  mockL2,

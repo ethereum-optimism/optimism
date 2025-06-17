@@ -174,7 +174,7 @@ func NewDriver(
 	syncCfg *sync.Config,
 	sequencerConductor conductor.SequencerConductor,
 	altDA AltDAIface,
-	managedMode bool,
+	indexingMode bool,
 ) *Driver {
 	driverCtx, driverCancel := context.WithCancel(context.Background())
 
@@ -207,23 +207,23 @@ func NewDriver(
 	sys.Register("attributes-handler",
 		attributes.NewAttributesHandler(log, cfg, driverCtx, l2))
 
-	derivationPipeline := derive.NewDerivationPipeline(log, cfg, depSet, verifConfDepth, l1Blobs, altDA, l2, metrics, managedMode)
+	derivationPipeline := derive.NewDerivationPipeline(log, cfg, depSet, verifConfDepth, l1Blobs, altDA, l2, metrics, indexingMode)
 
 	sys.Register("pipeline",
 		derive.NewPipelineDeriver(driverCtx, derivationPipeline))
 
 	syncDeriver := &SyncDeriver{
-		Derivation:     derivationPipeline,
-		SafeHeadNotifs: safeHeadListener,
-		CLSync:         clSync,
-		Engine:         ec,
-		SyncCfg:        syncCfg,
-		Config:         cfg,
-		L1:             l1,
-		L2:             l2,
-		Log:            log,
-		Ctx:            driverCtx,
-		ManagedMode:    managedMode,
+		Derivation:          derivationPipeline,
+		SafeHeadNotifs:      safeHeadListener,
+		CLSync:              clSync,
+		Engine:              ec,
+		SyncCfg:             syncCfg,
+		Config:              cfg,
+		L1:                  l1,
+		L2:                  l2,
+		Log:                 log,
+		Ctx:                 driverCtx,
+		ManagedBySupervisor: indexingMode,
 	}
 	sys.Register("sync", syncDeriver)
 

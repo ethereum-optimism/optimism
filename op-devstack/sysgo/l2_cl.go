@@ -125,7 +125,7 @@ func (n *L2CLNode) Stop() {
 	n.opNode = nil
 }
 
-func WithL2CLNode(l2CLID stack.L2CLNodeID, isSequencer bool, managedMode bool, l1CLID stack.L1CLNodeID, l1ELID stack.L1ELNodeID, l2ELID stack.L2ELNodeID) stack.Option[*Orchestrator] {
+func WithL2CLNode(l2CLID stack.L2CLNodeID, isSequencer bool, indexingMode bool, l1CLID stack.L1CLNodeID, l1ELID stack.L1ELNodeID, l2ELID stack.L2ELNodeID) stack.Option[*Orchestrator] {
 	return stack.AfterDeploy(func(orch *Orchestrator) {
 		p := orch.P().WithCtx(stack.ContextWithID(orch.P().Ctx(), l2CLID))
 
@@ -194,10 +194,10 @@ func WithL2CLNode(l2CLID stack.L2CLNodeID, isSequencer bool, managedMode bool, l
 			require.NoError(err, "failed to load p2p config")
 		}
 
-		// specify interop config, but do not configure anything, to disable managed mode
+		// specify interop config, but do not configure anything, to disable indexing mode
 		interopCfg := &interop.Config{}
 
-		if managedMode {
+		if indexingMode {
 			interopCfg = &interop.Config{
 				RPCAddr: "127.0.0.1",
 				// When L2CL starts, store its RPC port here

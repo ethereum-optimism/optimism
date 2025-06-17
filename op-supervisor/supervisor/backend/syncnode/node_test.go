@@ -69,13 +69,13 @@ func TestEventResponse(t *testing.T) {
 		emitter.Emit(superevents.CrossSafeUpdateEvent{ChainID: chainID, Ctx: testCtx})
 		emitter.Emit(superevents.FinalizedL2UpdateEvent{ChainID: chainID, Ctx: testCtx})
 
-		syncCtrl.subscribeEvents.Send(&types.ManagedEvent{
+		syncCtrl.subscribeEvents.Send(&types.IndexingEvent{
 			UnsafeBlock: &eth.BlockRef{Number: 1}})
-		syncCtrl.subscribeEvents.Send(&types.ManagedEvent{
+		syncCtrl.subscribeEvents.Send(&types.IndexingEvent{
 			DerivationUpdate: &types.DerivedBlockRefPair{Source: eth.BlockRef{Number: 1}, Derived: eth.BlockRef{Number: 2}}})
-		syncCtrl.subscribeEvents.Send(&types.ManagedEvent{
+		syncCtrl.subscribeEvents.Send(&types.IndexingEvent{
 			ExhaustL1: &types.DerivedBlockRefPair{Source: eth.BlockRef{Number: 1}, Derived: eth.BlockRef{Number: 2}}})
-		syncCtrl.subscribeEvents.Send(&types.ManagedEvent{
+		syncCtrl.subscribeEvents.Send(&types.IndexingEvent{
 			DerivationOriginUpdate: &eth.BlockRef{Number: 1}})
 
 		require.NoError(t, ex.Drain())

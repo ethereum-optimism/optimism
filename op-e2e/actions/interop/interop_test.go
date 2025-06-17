@@ -12,7 +12,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-e2e/actions/interop/dsl"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/contracts/bindings/emit"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
-	"github.com/ethereum-optimism/optimism/op-node/rollup/interop/managed"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/interop/indexing"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/event"
 	stypes "github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
@@ -326,7 +326,7 @@ func TestInteropLocalSafeInvalidation(gt *testing.T) {
 	replacementBlock, err := actors.ChainB.SequencerEngine.EthClient().BlockByHash(t.Ctx(), status.SafeL2.Hash)
 	require.NoError(t, err)
 	txs := replacementBlock.Transactions()
-	out, err := managed.DecodeInvalidatedBlockTx(txs[len(txs)-1])
+	out, err := indexing.DecodeInvalidatedBlockTx(txs[len(txs)-1])
 	require.NoError(t, err)
 	require.Equal(t, originalOutput.OutputRoot, eth.OutputRoot(out))
 
