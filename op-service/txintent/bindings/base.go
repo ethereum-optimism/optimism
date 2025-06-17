@@ -358,15 +358,13 @@ func replaceStruct(val reflect.Value) (any, error) {
 	return newStruct.Interface(), nil
 }
 
-func replaceSlice(val reflect.Value) (any, error) {
+func replaceSequence(val reflect.Value, makeContainer func(reflect.Type, int) reflect.Value) (any, error) {
 	length := val.Len()
 	if length == 0 {
 		return val.Interface(), nil
 	}
-
 	var resultElemType reflect.Type
 	elemValues := make([]reflect.Value, length)
-
 	for i := range length {
 		converted, err := replaceCustomIntValue(val.Index(i))
 		if err != nil {
@@ -376,38 +374,23 @@ func replaceSlice(val reflect.Value) (any, error) {
 		elemValues[i] = elem
 		resultElemType = elem.Type()
 	}
-
-	newSlice := reflect.MakeSlice(reflect.SliceOf(resultElemType), length, length)
-	for i := range elemValues {
-		newSlice.Index(i).Set(elemValues[i])
+	container := makeContainer(resultElemType, length)
+	for i := range length {
+		container.Index(i).Set(elemValues[i])
 	}
-	return newSlice.Interface(), nil
+	return container.Interface(), nil
+}
+
+func replaceSlice(val reflect.Value) (any, error) {
+	return replaceSequence(val, func(elemType reflect.Type, length int) reflect.Value {
+		return reflect.MakeSlice(reflect.SliceOf(elemType), length, length)
+	})
 }
 
 func replaceArray(val reflect.Value) (any, error) {
-	length := val.Len()
-	if length == 0 {
-		return val.Interface(), nil
-	}
-
-	var resultElemType reflect.Type
-	elemValues := make([]reflect.Value, length)
-
-	for i := range length {
-		converted, err := replaceCustomIntValue(val.Index(i))
-		if err != nil {
-			return nil, err
-		}
-		elem := reflect.ValueOf(converted)
-		elemValues[i] = elem
-		resultElemType = elem.Type()
-	}
-
-	newArray := reflect.New(reflect.ArrayOf(length, resultElemType)).Elem()
-	for i := range elemValues {
-		newArray.Index(i).Set(elemValues[i])
-	}
-	return newArray.Interface(), nil
+	return replaceSequence(val, func(elemType reflect.Type, length int) reflect.Value {
+		return reflect.New(reflect.ArrayOf(length, elemType)).Elem()
+	})
 }
 
 // CustomValueToABIValue converts custom value to abi value
