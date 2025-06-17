@@ -161,15 +161,15 @@ func TestCustomIntConversion(t *testing.T) {
 	c := &b
 	d := &c
 	arg := ComplexStruct{
-		A: (*Uint128)(new(big.Int).SetUint64(1337)),
-		B: new(big.Int).SetUint64(7331),
+		A: (*Uint128)(big.NewInt(1337)),
+		B: big.NewInt(7331),
 		C: &TestStruct2{
 			B: common.Address{},
 			C: []byte{0x12, 0x34},
 		},
-		D: Int128(*new(big.Int).SetInt64(-7331)),
+		D: Int128(*big.NewInt(-7331)),
 		E: TestRecursivePointerStruct{
-			A: Uint128(*new(big.Int).SetInt64(1234)),
+			A: Uint128(*big.NewInt(1234)),
 			B: d,
 		},
 	}
@@ -295,15 +295,15 @@ func TestEncodeCustomIntStruct(t *testing.T) {
 	{
 		arg := [3]TestIntStruct{
 			{
-				A: (*Uint128)(new(big.Int).SetUint64(1337)),
+				A: (*Uint128)(big.NewInt(1337)),
 				B: Int128(*big.NewInt(-1)),
 			},
 			{
-				A: (*Uint128)(new(big.Int).SetUint64(123456789123456789)),
+				A: (*Uint128)(big.NewInt(123456789123456789)),
 				B: Int128(*big.NewInt(-123456789)),
 			},
 			{
-				A: (*Uint128)(new(big.Int).SetUint64(13)),
+				A: (*Uint128)(big.NewInt(13)),
 				B: Int128(*big.NewInt(-37)),
 			},
 		}
