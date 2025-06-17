@@ -60,7 +60,7 @@ type FaucetConfig struct {
 type OptimismPackage struct {
 	Faucet      FaucetConfig                `yaml:"faucet"`
 	Superchains map[string]SuperchainConfig `yaml:"superchains"`
-	Chains      []ChainConfig               `yaml:"chains"`
+	Chains      map[string]ChainConfig      `yaml:"chains"`
 }
 
 // YAMLSpec represents the root of the YAML document
@@ -121,9 +121,9 @@ func (s *Spec) ExtractData(r io.Reader) (*EnclaveSpec, error) {
 	}
 
 	// Extract chain specifications
-	for _, chain := range yamlSpec.OptimismPackage.Chains {
+	for name, chain := range yamlSpec.OptimismPackage.Chains {
 		result.Chains = append(result.Chains, &ChainSpec{
-			Name:      chain.NetworkParams.Name,
+			Name:      name,
 			NetworkID: chain.NetworkParams.NetworkID,
 		})
 	}

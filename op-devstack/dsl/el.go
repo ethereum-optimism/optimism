@@ -47,7 +47,7 @@ func (el *elNode) WaitForBlockNumber(targetBlock uint64) eth.BlockRef {
 
 		newRef = eth.InfoToL1BlockRef(newBlock)
 		if newBlock.NumberU64() >= targetBlock {
-			el.log.Info("Target block reached", "block", newRef)
+			el.log.Info("Target block reached", "chain", el.ChainID(), "block", newRef)
 			return true, nil
 		}
 		return false, nil

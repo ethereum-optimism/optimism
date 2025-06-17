@@ -20,11 +20,19 @@ The components use a collection of channels, callbacks and visitor-pattern style
 ```mermaid
 flowchart TD
 
+<<<<<<< HEAD
   subgraph op-geth A
     ra[RPC]
   end
 
   subgraph op-geth B
+=======
+  subgraph execution-client A
+    ra[RPC]
+  end
+
+  subgraph execution-client B
+>>>>>>> origin
     rb[RPC]
   end
 
@@ -44,12 +52,17 @@ flowchart TD
 
   ra --"New Unsafe and Finalized Blocks"--> fa
   ra --"Receipt Data for EM Validation"--> ua
+<<<<<<< HEAD
   fa --"Executing Messages and Finality" --> s
   s --"New Jobs and Expiry Info" --> ub
+=======
+  fa --"Executing Messages and Finalized Block Info" --> s
+  s --"New Jobs and Finalized Block Info" --> ub
+>>>>>>> origin
   rb --"New Unsafe and Finalized Blocks"--> fb
   rb --"Receipt Data for EM Validation"--> ub
-  fb --"Executing Messages and Finality" --> s
-  s --"New Jobs and Expiry Info" --> ua
+  fb --"Executing Messages and Finalized Block Info" --> s
+  s --"New Jobs and Finalized Block Info" --> ua
   ua --"All Current Jobs"--> m
   ub --"All Current Jobs"--> m
   m --"Executing and Initiating Message Prometheus Stats"--> g
@@ -88,7 +101,7 @@ The `MetricCollector` consolidates metrics from all jobs across chains. It:
 - Subscribes to new blocks on its assigned chain
 - Processes block receipts to identify Executing Messages
 - Creates `job`s for each relevant transaction found
-- Sends `job`s to the Maintainer for tracking
+- Sends `job`s to the Finders (via a centralized router)
 - Operates independently per chain
 
 ## Jobs
@@ -99,4 +112,4 @@ The `MetricCollector` consolidates metrics from all jobs across chains. It:
 - Current status and status history
 - More, as needed by the service
 
-`job`s move through different states (unknown -> valid/invalid/missing) as the Maintainer processes them.
+`job`s move through different states (unknown -> valid/invalid/missing) as the updater processes them.

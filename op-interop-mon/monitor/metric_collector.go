@@ -45,7 +45,7 @@ func (m *MetricCollector) Stopped() bool {
 	}
 }
 
-// Run is the main loop for the maintainer
+// Run is the main loop for the metric collector
 func (m *MetricCollector) Run() {
 	// set up a ticker to run every 1s
 	ticker := time.NewTicker(1 * time.Second)

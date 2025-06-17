@@ -151,8 +151,8 @@ func TestUpdaterJobExpiration(t *testing.T) {
 			}
 
 			// Set expiry blocks
-			updater.expiry.Set(tt.initiatingInfo.ChainID, tt.initExpiry)
-			updater.expiry.Set(job.executingChain, tt.execExpiry)
+			updater.finalized.Set(tt.initiatingInfo.ChainID, tt.initExpiry)
+			updater.finalized.Set(job.executingChain, tt.execExpiry)
 
 			// Check if job should expire
 			shouldExpire := updater.ShouldExpire(job)
