@@ -25,8 +25,8 @@ func TestInteropMon(gt *testing.T) {
 		sys.L2ELB.Escape().RPCURL(),
 	}
 
+	// Start op-interop-mon in the test context and attach to the devstack
 	t.Logf("Starting op-interop-mon with l2 rpcs: %v", l2Rpcs)
-
 	im, err := monitor.InteropMonitorServiceFromCLIConfig(t.Ctx(), "test", &monitor.CLIConfig{
 		PollInterval: 50 * time.Millisecond,
 		L2Rpcs:       l2Rpcs,
@@ -35,29 +35,22 @@ func TestInteropMon(gt *testing.T) {
 		},
 	}, t.Logger())
 	t.Require().NoError(err)
-
 	im.Start(t.Ctx())
 	defer im.Stop(t.Ctx())
 
 	// two EOAs for triggering the init and exec interop txs
 	alice := sys.FunderA.NewFundedEOA(eth.OneEther)
 	bob := sys.FunderB.NewFundedEOA(eth.OneEther)
-
 	eventLoggerAddress := alice.DeployEventLogger()
-
-	// wait for chain B to catch up to chain A if necessary
-	sys.L2ChainB.CatchUpTo(sys.L2ChainA)
 
 	// send initiating message on chain A
 	rng := rand.New(rand.NewSource(time.Now().UnixNano()))
 	initTx, _ := alice.SendInitMessage(interop.RandomInitTrigger(rng, eventLoggerAddress, rng.Intn(3), rng.Intn(10)))
 
-	// at least one block between the init tx on chain A and the exec tx on chain B
-	sys.L2ChainB.WaitForBlock()
-
 	// send executing message on chain B
 	_, _ = bob.SendExecMessage(initTx, 0)
 
+	// Ensure the metrics are generated
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		checker := opmetrics.NewMetricChecker(t, im.Metrics.(opmetrics.RegistryMetricer).Registry())
 		checker.FindByName("op_interop_mon_default_executing_messages")
