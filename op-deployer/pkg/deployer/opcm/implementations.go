@@ -1,10 +1,12 @@
 package opcm
 
 import (
+	"fmt"
 	"math/big"
 
-	"github.com/ethereum-optimism/optimism/op-chain-ops/script"
 	"github.com/ethereum/go-ethereum/common"
+
+	"github.com/ethereum-optimism/optimism/op-chain-ops/script"
 )
 
 type DeployImplementationsInput struct {
@@ -22,6 +24,10 @@ type DeployImplementationsInput struct {
 	UpgradeController     common.Address
 }
 
+func (input *DeployImplementationsInput) InputSet() bool {
+	return true
+}
+
 type DeployImplementationsOutput struct {
 	Opcm                             common.Address `json:"opcmAddress"`
 	OpcmContractsContainer           common.Address `json:"opcmContractsContainerAddress"`
@@ -31,7 +37,7 @@ type DeployImplementationsOutput struct {
 	OpcmInteropMigrator              common.Address `json:"opcmInteropMigratorAddress"`
 	DelayedWETHImpl                  common.Address `json:"delayedWETHImplAddress"`
 	OptimismPortalImpl               common.Address `json:"optimismPortalImplAddress"`
-	ETHLockboxImpl                   common.Address `json:"ethLockboxImplAddress" abi:"ethLockboxImpl"`
+	ETHLockboxImpl                   common.Address `json:"ethLockboxImplAddress" evm:"ethLockboxImpl"`
 	PreimageOracleSingleton          common.Address `json:"preimageOracleSingletonAddress"`
 	MipsSingleton                    common.Address `json:"mipsSingletonAddress"`
 	SystemConfigImpl                 common.Address `json:"systemConfigImplAddress"`
@@ -45,9 +51,56 @@ type DeployImplementationsOutput struct {
 	ProtocolVersionsImpl             common.Address `json:"protocolVersionsImplAddress"`
 }
 
-type DeployImplementationsScript script.DeployScriptWithOutput[DeployImplementationsInput, DeployImplementationsOutput]
+func (output *DeployImplementationsOutput) CheckOutput(input common.Address) error {
+	return nil
+}
 
-// NewDeployImplementationsScript loads and validates the DeployImplementations script contract
-func NewDeployImplementationsScript(host *script.Host) (DeployImplementationsScript, error) {
-	return script.NewDeployScriptWithOutputFromFile[DeployImplementationsInput, DeployImplementationsOutput](host, "DeployImplementations.s.sol", "DeployImplementations")
+type DeployImplementationsScript struct {
+	Run func(input, output common.Address) error
+}
+
+func DeployImplementations(
+	host *script.Host,
+	input DeployImplementationsInput,
+) (DeployImplementationsOutput, error) {
+	var output DeployImplementationsOutput
+	inputAddr := host.NewScriptAddress()
+	outputAddr := host.NewScriptAddress()
+
+	cleanupInput, err := script.WithPrecompileAtAddress[*DeployImplementationsInput](host, inputAddr, &input)
+	if err != nil {
+		return output, fmt.Errorf("failed to insert DeployImplementationsInput precompile: %w", err)
+	}
+	defer cleanupInput()
+
+	cleanupOutput, err := script.WithPrecompileAtAddress[*DeployImplementationsOutput](host, outputAddr, &output,
+		script.WithFieldSetter[*DeployImplementationsOutput])
+	if err != nil {
+		return output, fmt.Errorf("failed to insert DeployImplementationsOutput precompile: %w", err)
+	}
+	defer cleanupOutput()
+
+	implContract := "DeployImplementations"
+	deployScript, cleanupDeploy, err := script.WithScript[DeployImplementationsScript](host, "DeployImplementations.s.sol", implContract)
+	if err != nil {
+		return output, fmt.Errorf("failed to load %s script: %w", implContract, err)
+	}
+	defer cleanupDeploy()
+
+	opcmContract := "OPContractsManager"
+	if err := host.RememberOnLabel("OPContractsManager", opcmContract+".sol", opcmContract); err != nil {
+		return output, fmt.Errorf("failed to link OPContractsManager label: %w", err)
+	}
+
+	// So we can see in detail where the SystemConfig interop initializer fails
+	sysConfig := "SystemConfig"
+	if err := host.RememberOnLabel("SystemConfigImpl", sysConfig+".sol", sysConfig); err != nil {
+		return output, fmt.Errorf("failed to link SystemConfig label: %w", err)
+	}
+
+	if err := deployScript.Run(inputAddr, outputAddr); err != nil {
+		return output, fmt.Errorf("failed to run %s script: %w", implContract, err)
+	}
+
+	return output, nil
 }

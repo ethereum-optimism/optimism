@@ -1,31 +1,52 @@
 package opcm
 
 import (
+	"math/big"
+
+	"github.com/ethereum-optimism/optimism/op-chain-ops/foundry"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/script"
+	opcrypto "github.com/ethereum-optimism/optimism/op-service/crypto"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/ethclient"
+	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
 )
 
 type DeploySuperchainInput struct {
-	Guardian                   common.Address         `toml:"guardian"`
-	ProtocolVersionsOwner      common.Address         `toml:"protocolVersionsOwner"`
 	SuperchainProxyAdminOwner  common.Address         `toml:"superchainProxyAdminOwner"`
+	ProtocolVersionsOwner      common.Address         `toml:"protocolVersionsOwner"`
+	Guardian                   common.Address         `toml:"guardian"`
 	Paused                     bool                   `toml:"paused"`
-	RecommendedProtocolVersion params.ProtocolVersion `toml:"recommendedProtocolVersion"`
 	RequiredProtocolVersion    params.ProtocolVersion `toml:"requiredProtocolVersion"`
+	RecommendedProtocolVersion params.ProtocolVersion `toml:"recommendedProtocolVersion"`
+}
+
+func (dsi *DeploySuperchainInput) InputSet() bool {
+	return true
 }
 
 type DeploySuperchainOutput struct {
-	ProtocolVersionsImpl  common.Address `json:"protocolVersionsImplAddress"`
-	ProtocolVersionsProxy common.Address `json:"protocolVersionsProxyAddress"`
+	SuperchainProxyAdmin  common.Address `json:"proxyAdminAddress"`
 	SuperchainConfigImpl  common.Address `json:"superchainConfigImplAddress"`
 	SuperchainConfigProxy common.Address `json:"superchainConfigProxyAddress"`
-	SuperchainProxyAdmin  common.Address `json:"proxyAdminAddress"`
+	ProtocolVersionsImpl  common.Address `json:"protocolVersionsImplAddress"`
+	ProtocolVersionsProxy common.Address `json:"protocolVersionsProxyAddress"`
 }
 
-type DeploySuperchainScript script.DeployScriptWithOutput[DeploySuperchainInput, DeploySuperchainOutput]
+func (output *DeploySuperchainOutput) CheckOutput(input common.Address) error {
+	return nil
+}
 
-// NewDeploySuperchainScript loads and validates the DeploySuperchain script contract
-func NewDeploySuperchainScript(host *script.Host) (DeploySuperchainScript, error) {
-	return script.NewDeployScriptWithOutputFromFile[DeploySuperchainInput, DeploySuperchainOutput](host, "DeploySuperchain.s.sol", "DeploySuperchain")
+type DeploySuperchainOpts struct {
+	ChainID     *big.Int
+	ArtifactsFS foundry.StatDirFs
+	Deployer    common.Address
+	Signer      opcrypto.SignerFn
+	Input       DeploySuperchainInput
+	Client      *ethclient.Client
+	Logger      log.Logger
+}
+
+func DeploySuperchain(h *script.Host, input DeploySuperchainInput) (DeploySuperchainOutput, error) {
+	return RunScriptSingle[DeploySuperchainInput, DeploySuperchainOutput](h, input, "DeploySuperchain.s.sol", "DeploySuperchain")
 }
