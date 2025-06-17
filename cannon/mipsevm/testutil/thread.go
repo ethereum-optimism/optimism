@@ -33,7 +33,7 @@ func InitializeSingleThread(randSeed int, state *multithreaded.State, traverseRi
 		state.LeftThreadStack = []*multithreaded.ThreadState{singleThread}
 	}
 
-	mutator := NewStateMutatorMultiThreaded(state)
+	mutator := NewStateMutator(state)
 	for _, opt := range opts {
 		opt(mutator)
 	}

@@ -19,7 +19,7 @@ type VMFactory func(po mipsevm.PreimageOracle, stdOut, stdErr io.Writer, log log
 
 func multiThreadedVmFactory(po mipsevm.PreimageOracle, stdOut, stdErr io.Writer, log log.Logger, features mipsevm.FeatureToggles, opts ...testutil.StateOption) mipsevm.FPVM {
 	state := multithreaded.CreateEmptyState()
-	mutator := testutil.NewStateMutatorMultiThreaded(state)
+	mutator := testutil.NewStateMutator(state)
 	for _, opt := range opts {
 		opt(mutator)
 	}
