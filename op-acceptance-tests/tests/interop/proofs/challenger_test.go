@@ -4,10 +4,8 @@ import (
 	"testing"
 
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
-	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl/proofs"
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
@@ -15,25 +13,17 @@ import (
 
 func TestChallengerPlaysGame(gt *testing.T) {
 	// Setup
-	t := devtest.SerialT(gt)
+	t := devtest.ParallelT(gt)
 	sys := presets.NewSimpleInterop(t)
 	sys.L1Network.WaitForOnline()
 
 	badClaim := common.HexToHash("0xdeadbeef00000000000000000000000000000000000000000000000000000000")
-	attacker := fundAttackerWallet(t, sys, eth.OneEther.Mul(2))
-	helper := proofs.HelperFromInteropPreset(t, sys, sys.L2ChainA)
+	attacker := sys.FunderL1.NewFundedEOA(eth.Ether(2))
+	helper := proofs.DisputeGameFactoryForNetwork(t, sys.L1Network, sys.L1EL.EthClient(), sys.L2ChainA.DisputeGameFactoryProxyAddr(), sys.Supervisor)
 
 	game := helper.StartSuperCannonGame(attacker, badClaim)
 
 	// Wait for the challenger to counter the bad root claim
 	claim := game.GetRootClaim()
 	claim.WaitForCounterClaim()
-}
-
-func fundAttackerWallet(t devtest.T, sys *presets.SimpleInterop, fundingAmount eth.ETH) *dsl.EOA {
-	wallet := sys.Wallet.NewEOA(sys.L1EL)
-	initialBalance := sys.FunderL1.FundAtLeast(wallet, fundingAmount)
-	require.GreaterOrEqual(t, initialBalance.ToBig().Int64(), fundingAmount.ToBig().Int64())
-
-	return wallet
 }

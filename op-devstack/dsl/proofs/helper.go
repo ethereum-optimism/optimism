@@ -13,7 +13,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl/contract"
-	"github.com/ethereum-optimism/optimism/op-devstack/presets"
 	"github.com/ethereum-optimism/optimism/op-service/apis"
 	"github.com/ethereum-optimism/optimism/op-service/txintent/bindings"
 	"github.com/ethereum-optimism/optimism/op-service/txplan"
@@ -24,20 +23,19 @@ type DisputeGameFactoryHelper struct {
 	require    *require.Assertions
 	log        log.Logger
 	l1Network  *dsl.L1Network
-	l2Network  *dsl.L2Network
-	supervisor *dsl.Supervisor
 	ethClient  apis.EthClient
+	dgfAddr    common.Address
+	supervisor *dsl.Supervisor
 }
 
-func HelperFromInteropPreset(t devtest.T, sys *presets.SimpleInterop, l2Network *dsl.L2Network) *DisputeGameFactoryHelper {
-	ethClient := sys.L1EL.EthClient()
+func DisputeGameFactoryForNetwork(t devtest.T, l1Network *dsl.L1Network, ethClient apis.EthClient, dgfAddr common.Address, supervisor *dsl.Supervisor) *DisputeGameFactoryHelper {
 	return &DisputeGameFactoryHelper{
 		t:          t,
 		require:    require.New(t),
 		log:        t.Logger(),
-		l1Network:  sys.L1Network,
-		l2Network:  l2Network,
-		supervisor: sys.Supervisor,
+		l1Network:  l1Network,
+		dgfAddr:    dgfAddr,
+		supervisor: supervisor,
 		ethClient:  ethClient,
 	}
 }
@@ -105,8 +103,7 @@ func (h *DisputeGameFactoryHelper) createSuperGameExtraData(timestamp uint64, cf
 func (h *DisputeGameFactoryHelper) createNewGame(eoa *dsl.EOA, gameType uint32, claim common.Hash, extraData []byte) *bindings.FaultDisputeGame {
 	h.log.Info("Creating dispute game", "gameType", gameType, "claim", claim.Hex(), "extradata", common.Bytes2Hex(extraData))
 
-	dgfAddr := h.l2Network.DisputeGameFactoryProxyAddr()
-	dgf := bindings.NewDisputeGameFactory(bindings.WithClient(h.ethClient), bindings.WithTo(dgfAddr), bindings.WithTest(h.t))
+	dgf := bindings.NewDisputeGameFactory(bindings.WithClient(h.ethClient), bindings.WithTo(h.dgfAddr), bindings.WithTest(h.t))
 
 	// Pull some metadata we need to construct a new game
 	requiredBonds := contract.Read(dgf.InitBonds(gameType))
