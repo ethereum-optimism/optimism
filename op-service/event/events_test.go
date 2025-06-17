@@ -7,7 +7,9 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-type TestEvent struct{}
+type TestEvent struct {
+	Ctx
+}
 
 func (ev TestEvent) String() string {
 	return "X"

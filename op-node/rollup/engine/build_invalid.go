@@ -1,11 +1,13 @@
 package engine
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/event"
 )
 
 // BuildInvalidEvent is an internal engine event, to post-process upon invalid attributes.
@@ -13,6 +15,7 @@ import (
 type BuildInvalidEvent struct {
 	Attributes *derive.AttributesWithParent
 	Err        error
+	event.Ctx
 }
 
 func (ev BuildInvalidEvent) String() string {
@@ -23,6 +26,7 @@ func (ev BuildInvalidEvent) String() string {
 type InvalidPayloadAttributesEvent struct {
 	Attributes *derive.AttributesWithParent
 	Err        error
+	event.Ctx
 }
 
 func (ev InvalidPayloadAttributesEvent) String() string {
@@ -36,12 +40,15 @@ func (eq *EngDeriver) onBuildInvalid(ev BuildInvalidEvent) {
 	// block is somehow invalid, there is nothing we can do to recover & we should exit.
 	if ev.Attributes.Attributes.IsDepositsOnly() {
 		eq.log.Error("deposit only block was invalid", "parent", ev.Attributes.Parent, "err", ev.Err)
-		eq.emitter.Emit(rollup.CriticalErrorEvent{Err: fmt.Errorf("failed to process block with only deposit transactions: %w", ev.Err)})
+		eq.emitter.Emit(rollup.CriticalErrorEvent{
+			Err: fmt.Errorf("failed to process block with only deposit transactions: %w", ev.Err),
+			Ctx: ev.Ctx,
+		})
 		return
 	}
 
 	if ev.Attributes.IsDerived() && eq.cfg.IsHolocene(ev.Attributes.DerivedFrom.Time) {
-		eq.emitDepositsOnlyPayloadAttributesRequest(ev.Attributes.Parent.ID(), ev.Attributes.DerivedFrom)
+		eq.emitDepositsOnlyPayloadAttributesRequest(ev.Context(), ev.Attributes.Parent.ID(), ev.Attributes.DerivedFrom)
 		return
 	}
 
@@ -60,11 +67,12 @@ func (eq *EngDeriver) onBuildInvalid(ev BuildInvalidEvent) {
 	eq.emitter.Emit(InvalidPayloadAttributesEvent(ev))
 }
 
-func (eq *EngDeriver) emitDepositsOnlyPayloadAttributesRequest(parent eth.BlockID, derivedFrom eth.L1BlockRef) {
+func (eq *EngDeriver) emitDepositsOnlyPayloadAttributesRequest(ctx context.Context, parent eth.BlockID, derivedFrom eth.L1BlockRef) {
 	eq.log.Warn("Holocene active, requesting deposits-only attributes", "parent", parent, "derived_from", derivedFrom)
 	// request deposits-only version
 	eq.emitter.Emit(derive.DepositsOnlyPayloadAttributesRequestEvent{
 		Parent:      parent,
 		DerivedFrom: derivedFrom,
+		Ctx:         event.WrapCtx(ctx),
 	})
 }

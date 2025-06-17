@@ -6,13 +6,17 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-type FooEvent struct{}
+type FooEvent struct {
+	Ctx
+}
 
 func (ev FooEvent) String() string {
 	return "foo"
 }
 
-type BarEvent struct{}
+type BarEvent struct {
+	Ctx
+}
 
 func (ev BarEvent) String() string {
 	return "bar"

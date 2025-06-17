@@ -18,9 +18,9 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/engine"
-	"github.com/ethereum-optimism/optimism/op-node/rollup/event"
 	"github.com/ethereum-optimism/optimism/op-service/clock"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/event"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum-optimism/optimism/op-service/testutils"
 )
@@ -76,14 +76,17 @@ func (c *ChaoticEngine) OnEvent(ev event.Event) bool {
 			c.emitter.Emit(engine.BuildInvalidEvent{
 				Attributes: x.Attributes,
 				Err:        errors.New("mock start invalid error"),
+				Ctx:        x.Ctx,
 			})
 		case p < 0.07: // 2 %
 			c.emitter.Emit(rollup.ResetEvent{
 				Err: errors.New("mock reset on start error"),
+				Ctx: x.Ctx,
 			})
 		case p < 0.12: // 5%
 			c.emitter.Emit(rollup.EngineTemporaryErrorEvent{
 				Err: errors.New("mock temp start error"),
+				Ctx: x.Ctx,
 			})
 		default:
 			c.currentAttributes = x.Attributes
@@ -93,6 +96,7 @@ func (c *ChaoticEngine) OnEvent(ev event.Event) bool {
 				Parent:       x.Attributes.Parent,
 				Concluding:   false,
 				DerivedFrom:  eth.L1BlockRef{},
+				Ctx:          x.Ctx,
 			})
 		}
 	case rollup.EngineTemporaryErrorEvent:
@@ -112,6 +116,7 @@ func (c *ChaoticEngine) OnEvent(ev event.Event) bool {
 			LocalSafe:   c.safe,
 			CrossSafe:   c.safe,
 			Finalized:   c.finalized,
+			Ctx:         x.Ctx,
 		})
 	case engine.BuildInvalidEvent:
 		// Engine translates the internal BuildInvalidEvent event
@@ -130,6 +135,7 @@ func (c *ChaoticEngine) OnEvent(ev event.Event) bool {
 				Err:         errors.New("job was cancelled"),
 				Concluding:  false,
 				DerivedFrom: eth.L1BlockRef{},
+				Ctx:         x.Ctx,
 			})
 			return true
 		}
@@ -148,6 +154,7 @@ func (c *ChaoticEngine) OnEvent(ev event.Event) bool {
 				Err:         errors.New("mock invalid seal"),
 				Concluding:  x.Concluding,
 				DerivedFrom: x.DerivedFrom,
+				Ctx:         x.Ctx,
 			})
 		case p < 0.08: // 5%
 			c.emitter.Emit(engine.PayloadSealExpiredErrorEvent{
@@ -155,6 +162,7 @@ func (c *ChaoticEngine) OnEvent(ev event.Event) bool {
 				Err:         errors.New("mock temp engine error"),
 				Concluding:  x.Concluding,
 				DerivedFrom: x.DerivedFrom,
+				Ctx:         x.Ctx,
 			})
 		default:
 			payloadEnvelope := &eth.ExecutionPayloadEnvelope{
@@ -185,6 +193,7 @@ func (c *ChaoticEngine) OnEvent(ev event.Event) bool {
 				Ref:         payloadRef,
 				Concluding:  x.Concluding,
 				DerivedFrom: x.DerivedFrom,
+				Ctx:         x.Ctx,
 			})
 		}
 		c.currentPayloadInfo = eth.PayloadInfo{}
@@ -197,6 +206,7 @@ func (c *ChaoticEngine) OnEvent(ev event.Event) bool {
 			UnsafeL2Head:    c.unsafe,
 			SafeL2Head:      c.safe,
 			FinalizedL2Head: c.finalized,
+			Ctx:             x.Ctx,
 		})
 	case engine.PayloadProcessEvent:
 		// Move forward time, to simulate time consumption
@@ -207,11 +217,13 @@ func (c *ChaoticEngine) OnEvent(ev event.Event) bool {
 		case p < 0.05: // 5%
 			c.emitter.Emit(rollup.EngineTemporaryErrorEvent{
 				Err: errors.New("mock temp engine error"),
+				Ctx: x.Ctx,
 			})
 		case p < 0.08: // 3%
 			c.emitter.Emit(engine.PayloadInvalidEvent{
 				Envelope: x.Envelope,
 				Err:      errors.New("mock invalid payload"),
+				Ctx:      x.Ctx,
 			})
 		default:
 			if p < 0.13 { // 5% chance it is an extra slow block
@@ -224,9 +236,10 @@ func (c *ChaoticEngine) OnEvent(ev event.Event) bool {
 				BuildStarted: x.BuildStarted,
 				Envelope:     x.Envelope,
 				Ref:          x.Ref,
+				Ctx:          x.Ctx,
 			})
 			// With event delay, the engine would update and signal the new forkchoice.
-			c.emitter.Emit(engine.ForkchoiceRequestEvent{})
+			c.emitter.Emit(engine.ForkchoiceRequestEvent{Ctx: x.Ctx})
 		}
 	default:
 		return false
@@ -355,7 +368,7 @@ func testSequencerChaosWithSeed(t *testing.T, seed int64) {
 			t.Fatalf("No action scheduled, but also no events to change inputs left")
 		}
 		if ok && testClock.Now().After(nextTime) {
-			testEm.Emit(SequencerActionEvent{})
+			testEm.Emit(SequencerActionEvent{Ctx: event.WrapCtx(context.Background())})
 		} else {
 			waitTime := nextTime.Sub(eng.clock.Now())
 			if drainErr == io.EOF {

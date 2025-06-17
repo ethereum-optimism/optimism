@@ -8,8 +8,8 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/engine"
-	"github.com/ethereum-optimism/optimism/op-node/rollup/event"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/event"
 )
 
 // Max memory used for buffering unsafe payloads
@@ -61,6 +61,7 @@ func (eq *CLSync) LowestQueuedUnsafeBlock() eth.L2BlockRef {
 
 type ReceivedUnsafePayloadEvent struct {
 	Envelope *eth.ExecutionPayloadEnvelope
+	event.Ctx
 }
 
 func (ev ReceivedUnsafePayloadEvent) String() string {
@@ -123,7 +124,7 @@ func (eq *CLSync) onForkchoiceUpdate(x engine.ForkchoiceUpdateEvent) {
 
 	// We don't pop from the queue. If there is a temporary error then we can retry.
 	// Upon next forkchoice update or invalid-payload event we can remove it from the queue.
-	eq.emitter.Emit(engine.ProcessUnsafePayloadEvent{Envelope: firstEnvelope})
+	eq.emitter.Emit(engine.ProcessUnsafePayloadEvent{Envelope: firstEnvelope, Ctx: x.Ctx})
 }
 
 // fromQueue determines what to do with the tip of the payloads-queue, given the forkchoice pre-state.
@@ -181,5 +182,5 @@ func (eq *CLSync) onUnsafePayload(x ReceivedUnsafePayloadEvent) {
 	eq.log.Trace("Next unsafe payload to process", "next", p.ExecutionPayload.ID(), "timestamp", uint64(p.ExecutionPayload.Timestamp))
 
 	// request forkchoice signal, so we can process the payload maybe
-	eq.emitter.Emit(engine.ForkchoiceRequestEvent{})
+	eq.emitter.Emit(engine.ForkchoiceRequestEvent{Ctx: x.Ctx})
 }

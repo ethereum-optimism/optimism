@@ -14,10 +14,10 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
-	"github.com/ethereum-optimism/optimism/op-node/rollup/event"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/sync"
 	"github.com/ethereum-optimism/optimism/op-service/clock"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/event"
 )
 
 type syncStatusEnum int
@@ -331,7 +331,7 @@ func (e *EngineController) TryUpdateEngine(ctx context.Context) error {
 	}
 	if e.unsafeHead.Number < e.finalizedHead.Number {
 		err := fmt.Errorf("invalid forkchoice state, unsafe head %s is behind finalized head %s", e.unsafeHead, e.finalizedHead)
-		e.emitter.Emit(rollup.CriticalErrorEvent{Err: err}) // make the node exit, things are very wrong.
+		e.emitter.Emit(rollup.CriticalErrorEvent{Err: err, Ctx: event.WrapCtx(ctx)}) // make the node exit, things are very wrong.
 		return err
 	}
 	fc := eth.ForkchoiceState{
@@ -360,6 +360,7 @@ func (e *EngineController) TryUpdateEngine(ctx context.Context) error {
 			UnsafeL2Head:    e.unsafeHead,
 			SafeL2Head:      e.safeHead,
 			FinalizedL2Head: e.finalizedHead,
+			Ctx:             event.WrapCtx(ctx),
 		})
 	}
 	if e.unsafeHead == e.safeHead && e.safeHead == e.pendingSafeHead {
@@ -394,7 +395,11 @@ func (e *EngineController) InsertUnsafePayload(ctx context.Context, envelope *et
 		return derive.NewTemporaryError(fmt.Errorf("failed to update insert payload: %w", err))
 	}
 	if status.Status == eth.ExecutionInvalid {
-		e.emitter.Emit(PayloadInvalidEvent{Envelope: envelope, Err: eth.NewPayloadErr(envelope.ExecutionPayload, status)})
+		e.emitter.Emit(PayloadInvalidEvent{
+			Envelope: envelope,
+			Err:      eth.NewPayloadErr(envelope.ExecutionPayload, status),
+			Ctx:      event.WrapCtx(ctx),
+		})
 	}
 	if !e.checkNewPayloadStatus(status.Status) {
 		payload := envelope.ExecutionPayload
@@ -413,10 +418,10 @@ func (e *EngineController) InsertUnsafePayload(ctx context.Context, envelope *et
 		fc.SafeBlockHash = envelope.ExecutionPayload.BlockHash
 		fc.FinalizedBlockHash = envelope.ExecutionPayload.BlockHash
 		e.SetUnsafeHead(ref) // ensure that the unsafe head stays ahead of safe/finalized labels.
-		e.emitter.Emit(UnsafeUpdateEvent{Ref: ref})
+		e.emitter.Emit(UnsafeUpdateEvent{Ref: ref, Ctx: event.WrapCtx(ctx)})
 		e.SetLocalSafeHead(ref)
 		e.SetSafeHead(ref)
-		e.emitter.Emit(CrossSafeUpdateEvent{LocalSafe: ref, CrossSafe: ref})
+		e.emitter.Emit(CrossSafeUpdateEvent{LocalSafe: ref, CrossSafe: ref, Ctx: event.WrapCtx(ctx)})
 		e.SetFinalizedHead(ref)
 	}
 	logFn := e.logSyncProgressMaybe()
@@ -444,7 +449,7 @@ func (e *EngineController) InsertUnsafePayload(ctx context.Context, envelope *et
 	fcu2Finish := time.Now()
 	e.SetUnsafeHead(ref)
 	e.needFCUCall = false
-	e.emitter.Emit(UnsafeUpdateEvent{Ref: ref})
+	e.emitter.Emit(UnsafeUpdateEvent{Ref: ref, Ctx: event.WrapCtx(ctx)})
 
 	if e.syncStatus == syncStatusFinishedELButNotFinalized {
 		e.log.Info("Finished EL sync", "sync_duration", e.clock.Since(e.elStart), "finalized_block", ref.ID().String())
@@ -456,6 +461,7 @@ func (e *EngineController) InsertUnsafePayload(ctx context.Context, envelope *et
 			UnsafeL2Head:    e.unsafeHead,
 			SafeL2Head:      e.safeHead,
 			FinalizedL2Head: e.finalizedHead,
+			Ctx:             event.WrapCtx(ctx),
 		})
 	}
 
@@ -537,6 +543,7 @@ func (e *EngineController) TryBackupUnsafeReorg(ctx context.Context) (bool, erro
 			UnsafeL2Head:    e.backupUnsafeHead,
 			SafeL2Head:      e.safeHead,
 			FinalizedL2Head: e.finalizedHead,
+			Ctx:             event.WrapCtx(ctx),
 		})
 		// Execution engine accepted the reorg.
 		e.log.Info("successfully reorged unsafe head using backupUnsafe", "unsafe", e.backupUnsafeHead.ID())

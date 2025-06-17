@@ -8,10 +8,12 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/event"
 )
 
 type BuildStartEvent struct {
 	Attributes *derive.AttributesWithParent
+	event.Ctx
 }
 
 func (ev BuildStartEvent) String() string {
@@ -33,10 +35,11 @@ func (eq *EngDeriver) onBuildStart(ev BuildStartEvent) {
 		UnsafeL2Head:    ev.Attributes.Parent,
 		SafeL2Head:      eq.ec.safeHead,
 		FinalizedL2Head: eq.ec.finalizedHead,
+		Ctx:             ev.Ctx,
 	}
 	if fcEvent.UnsafeL2Head.Number < fcEvent.FinalizedL2Head.Number {
 		err := fmt.Errorf("invalid block-building pre-state, unsafe head %s is behind finalized head %s", fcEvent.UnsafeL2Head, fcEvent.FinalizedL2Head)
-		eq.emitter.Emit(rollup.CriticalErrorEvent{Err: err}) // make the node exit, things are very wrong.
+		eq.emitter.Emit(rollup.CriticalErrorEvent{Err: err, Ctx: ev.Ctx}) // make the node exit, things are very wrong.
 		return
 	}
 	fc := eth.ForkchoiceState{
@@ -50,16 +53,25 @@ func (eq *EngDeriver) onBuildStart(ev BuildStartEvent) {
 		switch errTyp {
 		case BlockInsertTemporaryErr:
 			// RPC errors are recoverable, we can retry the buffered payload attributes later.
-			eq.emitter.Emit(rollup.EngineTemporaryErrorEvent{Err: fmt.Errorf("temporarily cannot insert new safe block: %w", err)})
+			eq.emitter.Emit(rollup.EngineTemporaryErrorEvent{
+				Err: fmt.Errorf("temporarily cannot insert new safe block: %w", err),
+				Ctx: ev.Ctx,
+			})
 			return
 		case BlockInsertPrestateErr:
-			eq.emitter.Emit(rollup.ResetEvent{Err: fmt.Errorf("need reset to resolve pre-state problem: %w", err)})
+			eq.emitter.Emit(rollup.ResetEvent{
+				Err: fmt.Errorf("need reset to resolve pre-state problem: %w", err),
+				Ctx: ev.Ctx,
+			})
 			return
 		case BlockInsertPayloadErr:
-			eq.emitter.Emit(BuildInvalidEvent{Attributes: ev.Attributes, Err: err})
+			eq.emitter.Emit(BuildInvalidEvent{Attributes: ev.Attributes, Err: err, Ctx: ev.Ctx})
 			return
 		default:
-			eq.emitter.Emit(rollup.CriticalErrorEvent{Err: fmt.Errorf("unknown error type %d: %w", errTyp, err)})
+			eq.emitter.Emit(rollup.CriticalErrorEvent{
+				Err: fmt.Errorf("unknown error type %d: %w", errTyp, err),
+				Ctx: ev.Ctx,
+			})
 			return
 		}
 	}
@@ -71,5 +83,6 @@ func (eq *EngDeriver) onBuildStart(ev BuildStartEvent) {
 		Concluding:   ev.Attributes.Concluding,
 		DerivedFrom:  ev.Attributes.DerivedFrom,
 		Parent:       ev.Attributes.Parent,
+		Ctx:          ev.Ctx,
 	})
 }

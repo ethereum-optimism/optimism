@@ -12,8 +12,8 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/engine"
-	"github.com/ethereum-optimism/optimism/op-node/rollup/event"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/sync"
+	"github.com/ethereum-optimism/optimism/op-service/event"
 )
 
 var errTooManyEvents = errors.New("way too many events queued up, something is wrong")
@@ -78,7 +78,7 @@ func (d *Driver) Emit(ev event.Event) {
 
 func (d *Driver) RunComplete() (eth.L2BlockRef, error) {
 	// Initial reset
-	d.Emit(engine.ResetEngineRequestEvent{})
+	d.Emit(engine.ResetEngineRequestEvent{Ctx: event.WrapCtx(context.Background())})
 
 	for !d.end.Closing() {
 		if len(d.events) == 0 {

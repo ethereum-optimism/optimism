@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/event"
 )
 
 type BuildStartedEvent struct {
@@ -17,6 +18,7 @@ type BuildStartedEvent struct {
 	Concluding bool
 	// payload is promoted to pending-safe if non-zero
 	DerivedFrom eth.L1BlockRef
+	event.Ctx
 }
 
 func (ev BuildStartedEvent) String() string {
@@ -31,6 +33,7 @@ func (eq *EngDeriver) onBuildStarted(ev BuildStartedEvent) {
 			BuildStarted: ev.BuildStarted,
 			Concluding:   ev.Concluding,
 			DerivedFrom:  ev.DerivedFrom,
+			Ctx:          ev.Ctx,
 		})
 	}
 }

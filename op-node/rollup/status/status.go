@@ -9,13 +9,14 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/engine"
-	"github.com/ethereum-optimism/optimism/op-node/rollup/event"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/finality"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/event"
 )
 
 type L1UnsafeEvent struct {
 	L1Unsafe eth.L1BlockRef
+	event.Ctx
 }
 
 func (ev L1UnsafeEvent) String() string {
@@ -24,6 +25,7 @@ func (ev L1UnsafeEvent) String() string {
 
 type L1SafeEvent struct {
 	L1Safe eth.L1BlockRef
+	event.Ctx
 }
 
 func (ev L1SafeEvent) String() string {

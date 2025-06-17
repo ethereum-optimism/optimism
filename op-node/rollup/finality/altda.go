@@ -7,8 +7,8 @@ import (
 
 	altda "github.com/ethereum-optimism/optimism/op-alt-da"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
-	"github.com/ethereum-optimism/optimism/op-node/rollup/event"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/event"
 )
 
 type AltDABackend interface {
@@ -37,7 +37,7 @@ func NewAltDAFinalizer(ctx context.Context, log log.Logger, cfg *rollup.Config,
 	// Finality signal will come from the DA contract or L1 finality whichever is last.
 	// The AltDA module will then call the inner.Finalize function when applicable.
 	backend.OnFinalizedHeadSignal(func(ref eth.L1BlockRef) {
-		inner.OnEvent(FinalizeL1Event{FinalizedL1: ref})
+		inner.OnEvent(FinalizeL1Event{FinalizedL1: ref, Ctx: event.WrapCtx(ctx)})
 	})
 
 	return &AltDAFinalizer{

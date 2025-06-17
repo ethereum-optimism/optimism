@@ -7,6 +7,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/event"
 )
 
 type PayloadProcessEvent struct {
@@ -18,6 +19,7 @@ type PayloadProcessEvent struct {
 
 	Envelope *eth.ExecutionPayloadEnvelope
 	Ref      eth.L2BlockRef
+	event.Ctx
 }
 
 func (ev PayloadProcessEvent) String() string {
@@ -34,6 +36,7 @@ func (eq *EngDeriver) onPayloadProcess(ev PayloadProcessEvent) {
 	if err != nil {
 		eq.emitter.Emit(rollup.EngineTemporaryErrorEvent{
 			Err: fmt.Errorf("failed to insert execution payload: %w", err),
+			Ctx: ev.Ctx,
 		})
 		return
 	}
@@ -42,13 +45,14 @@ func (eq *EngDeriver) onPayloadProcess(ev PayloadProcessEvent) {
 		// Depending on execution engine, not all block-validity checks run immediately on build-start
 		// at the time of the forkchoiceUpdated engine-API call, nor during getPayload.
 		if ev.DerivedFrom != (eth.L1BlockRef{}) && eq.cfg.IsHolocene(ev.DerivedFrom.Time) {
-			eq.emitDepositsOnlyPayloadAttributesRequest(ev.Ref.ParentID(), ev.DerivedFrom)
+			eq.emitDepositsOnlyPayloadAttributesRequest(ev.Context(), ev.Ref.ParentID(), ev.DerivedFrom)
 			return
 		}
 
 		eq.emitter.Emit(PayloadInvalidEvent{
 			Envelope: ev.Envelope,
 			Err:      eth.NewPayloadErr(ev.Envelope.ExecutionPayload, status),
+			Ctx:      ev.Ctx,
 		})
 		return
 	case eth.ExecutionValid:
@@ -59,11 +63,13 @@ func (eq *EngDeriver) onPayloadProcess(ev PayloadProcessEvent) {
 			InsertStarted: insertStart,
 			Envelope:      ev.Envelope,
 			Ref:           ev.Ref,
+			Ctx:           ev.Ctx,
 		})
 		return
 	default:
 		eq.emitter.Emit(rollup.EngineTemporaryErrorEvent{
 			Err: eth.NewPayloadErr(ev.Envelope.ExecutionPayload, status),
+			Ctx: ev.Ctx,
 		})
 		return
 	}

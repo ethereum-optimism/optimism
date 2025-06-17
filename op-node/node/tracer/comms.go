@@ -6,9 +6,9 @@ import (
 	"github.com/libp2p/go-libp2p/core/peer"
 
 	"github.com/ethereum-optimism/optimism/op-node/p2p"
-	"github.com/ethereum-optimism/optimism/op-node/rollup/event"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/status"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/event"
 )
 
 // Tracer configures the OpNode to share events
@@ -20,6 +20,7 @@ type Tracer interface {
 
 type TracePublishBlockEvent struct {
 	Envelope *eth.ExecutionPayloadEnvelope
+	event.Ctx
 }
 
 func (ev TracePublishBlockEvent) String() string {
