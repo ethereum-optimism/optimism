@@ -8,15 +8,15 @@ import (
 	"os"
 	"strings"
 
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/depset"
+	"github.com/urfave/cli/v2"
+
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
-	"github.com/urfave/cli/v2"
 
 	altda "github.com/ethereum-optimism/optimism/op-alt-da"
 	"github.com/ethereum-optimism/optimism/op-node/chaincfg"
+	"github.com/ethereum-optimism/optimism/op-node/config"
 	"github.com/ethereum-optimism/optimism/op-node/flags"
-	"github.com/ethereum-optimism/optimism/op-node/node"
 	p2pcli "github.com/ethereum-optimism/optimism/op-node/p2p/cli"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/driver"
@@ -24,13 +24,15 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup/interop"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/sync"
 	opflags "github.com/ethereum-optimism/optimism/op-service/flags"
+	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
 	"github.com/ethereum-optimism/optimism/op-service/oppprof"
 	"github.com/ethereum-optimism/optimism/op-service/rpc"
 	"github.com/ethereum-optimism/optimism/op-service/sources"
+	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/depset"
 )
 
 // NewConfig creates a Config from the provided flags or environment variables.
-func NewConfig(ctx *cli.Context, log log.Logger) (*node.Config, error) {
+func NewConfig(ctx *cli.Context, log log.Logger) (*config.Config, error) {
 	if err := flags.CheckRequired(ctx); err != nil {
 		return nil, err
 	}
@@ -87,24 +89,16 @@ func NewConfig(ctx *cli.Context, log log.Logger) (*node.Config, error) {
 		log.Warn("Heartbeat functionality is not supported anymore, CLI flags will be removed in following release.")
 	}
 	conductorRPCEndpoint := ctx.String(flags.ConductorRpcFlag.Name)
-	cfg := &node.Config{
-		L1:            l1Endpoint,
-		L2:            l2Endpoint,
-		Rollup:        *rollupConfig,
-		DependencySet: depSet,
-		Driver:        *driverConfig,
-		Beacon:        NewBeaconEndpointConfig(ctx),
-		InteropConfig: NewSupervisorEndpointConfig(ctx),
-		RPC: node.RPCConfig{
-			ListenAddr:  ctx.String(flags.RPCListenAddr.Name),
-			ListenPort:  ctx.Int(flags.RPCListenPort.Name),
-			EnableAdmin: ctx.Bool(flags.RPCEnableAdmin.Name),
-		},
-		Metrics: node.MetricsConfig{
-			Enabled:    ctx.Bool(flags.MetricsEnabledFlag.Name),
-			ListenAddr: ctx.String(flags.MetricsAddrFlag.Name),
-			ListenPort: ctx.Int(flags.MetricsPortFlag.Name),
-		},
+	cfg := &config.Config{
+		L1:                          l1Endpoint,
+		L2:                          l2Endpoint,
+		Rollup:                      *rollupConfig,
+		DependencySet:               depSet,
+		Driver:                      *driverConfig,
+		Beacon:                      NewBeaconEndpointConfig(ctx),
+		InteropConfig:               NewSupervisorEndpointConfig(ctx),
+		RPC:                         rpc.ReadCLIConfig(ctx),
+		Metrics:                     opmetrics.ReadCLIConfig(ctx),
 		Pprof:                       oppprof.ReadCLIConfig(ctx),
 		P2P:                         p2pConfig,
 		P2PSigner:                   p2pSignerSetup,
@@ -152,8 +146,8 @@ func NewSupervisorEndpointConfig(ctx *cli.Context) *interop.Config {
 	}
 }
 
-func NewBeaconEndpointConfig(ctx *cli.Context) node.L1BeaconEndpointSetup {
-	return &node.L1BeaconEndpointConfig{
+func NewBeaconEndpointConfig(ctx *cli.Context) config.L1BeaconEndpointSetup {
+	return &config.L1BeaconEndpointConfig{
 		BeaconAddr:             ctx.String(flags.BeaconAddr.Name),
 		BeaconHeader:           ctx.String(flags.BeaconHeader.Name),
 		BeaconFallbackAddrs:    ctx.StringSlice(flags.BeaconFallbackAddrs.Name),
@@ -162,8 +156,8 @@ func NewBeaconEndpointConfig(ctx *cli.Context) node.L1BeaconEndpointSetup {
 	}
 }
 
-func NewL1EndpointConfig(ctx *cli.Context) *node.L1EndpointConfig {
-	return &node.L1EndpointConfig{
+func NewL1EndpointConfig(ctx *cli.Context) *config.L1EndpointConfig {
+	return &config.L1EndpointConfig{
 		L1NodeAddr:       ctx.String(flags.L1NodeAddr.Name),
 		L1TrustRPC:       ctx.Bool(flags.L1TrustRPC.Name),
 		L1RPCKind:        sources.RPCProviderKind(strings.ToLower(ctx.String(flags.L1RPCProviderKind.Name))),
@@ -175,7 +169,7 @@ func NewL1EndpointConfig(ctx *cli.Context) *node.L1EndpointConfig {
 	}
 }
 
-func NewL2EndpointConfig(ctx *cli.Context, logger log.Logger) (*node.L2EndpointConfig, error) {
+func NewL2EndpointConfig(ctx *cli.Context, logger log.Logger) (*config.L2EndpointConfig, error) {
 	l2Addr := ctx.String(flags.L2EngineAddr.Name)
 	fileName := ctx.String(flags.L2EngineJWTSecret.Name)
 	secret, err := rpc.ObtainJWTSecret(logger, fileName, true)
@@ -183,19 +177,19 @@ func NewL2EndpointConfig(ctx *cli.Context, logger log.Logger) (*node.L2EndpointC
 		return nil, err
 	}
 	l2RpcTimeout := ctx.Duration(flags.L2EngineRpcTimeout.Name)
-	return &node.L2EndpointConfig{
+	return &config.L2EndpointConfig{
 		L2EngineAddr:        l2Addr,
 		L2EngineJWTSecret:   secret,
 		L2EngineCallTimeout: l2RpcTimeout,
 	}, nil
 }
 
-func NewConfigPersistence(ctx *cli.Context) node.ConfigPersistence {
+func NewConfigPersistence(ctx *cli.Context) config.ConfigPersistence {
 	stateFile := ctx.String(flags.RPCAdminPersistence.Name)
 	if stateFile == "" {
-		return node.DisabledConfigPersistence{}
+		return config.DisabledConfigPersistence{}
 	}
-	return node.NewConfigPersistence(stateFile)
+	return config.NewConfigPersistence(stateFile)
 }
 
 func NewDriverConfig(ctx *cli.Context) *driver.Config {

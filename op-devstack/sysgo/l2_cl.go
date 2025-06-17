@@ -14,8 +14,8 @@ import (
 	"github.com/ethereum-optimism/optimism/op-devstack/shim"
 	"github.com/ethereum-optimism/optimism/op-devstack/stack"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/opnode"
+	"github.com/ethereum-optimism/optimism/op-node/config"
 	opNodeFlags "github.com/ethereum-optimism/optimism/op-node/flags"
-	"github.com/ethereum-optimism/optimism/op-node/node"
 	"github.com/ethereum-optimism/optimism/op-node/p2p"
 	p2pcli "github.com/ethereum-optimism/optimism/op-node/p2p/cli"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/driver"
@@ -24,8 +24,10 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/apis"
 	"github.com/ethereum-optimism/optimism/op-service/client"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
 	"github.com/ethereum-optimism/optimism/op-service/oppprof"
 	"github.com/ethereum-optimism/optimism/op-service/retry"
+	oprpc "github.com/ethereum-optimism/optimism/op-service/rpc"
 	"github.com/ethereum-optimism/optimism/op-service/sources"
 	"github.com/ethereum-optimism/optimism/op-service/testreq"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/depset"
@@ -42,7 +44,7 @@ type L2CLNode struct {
 	userRPC          string
 	interopEndpoint  string
 	interopJwtSecret eth.Bytes32
-	cfg              *node.Config
+	cfg              *config.Config
 	p                devtest.P
 	logger           log.Logger
 	el               stack.L2ELNodeID
@@ -205,8 +207,8 @@ func WithL2CLNode(l2CLID stack.L2CLNodeID, isSequencer bool, managedMode bool, l
 			}
 		}
 
-		nodeCfg := &node.Config{
-			L1: &node.L1EndpointConfig{
+		nodeCfg := &config.Config{
+			L1: &config.L1EndpointConfig{
 				L1NodeAddr:       l1EL.userRPC,
 				L1TrustRPC:       false,
 				L1RPCKind:        sources.RPCKindDebugGeth,
@@ -216,11 +218,11 @@ func WithL2CLNode(l2CLID stack.L2CLNodeID, isSequencer bool, managedMode bool, l
 				MaxConcurrency:   10,
 				CacheSize:        0, // auto-adjust to sequence window
 			},
-			L2: &node.L2EndpointConfig{
+			L2: &config.L2EndpointConfig{
 				L2EngineAddr:      l2EL.authRPC,
 				L2EngineJWTSecret: jwtSecret,
 			},
-			Beacon: &node.L1BeaconEndpointConfig{
+			Beacon: &config.L1BeaconEndpointConfig{
 				BeaconAddr: l1CL.beacon.BeaconAddr(),
 			},
 			Driver: driver.Config{
@@ -230,7 +232,7 @@ func WithL2CLNode(l2CLID stack.L2CLNodeID, isSequencer bool, managedMode bool, l
 			Rollup:        *l2Net.rollupCfg,
 			DependencySet: depSet,
 			P2PSigner:     p2pSignerSetup, // nil when not sequencer
-			RPC: node.RPCConfig{
+			RPC: oprpc.CLIConfig{
 				ListenAddr: "127.0.0.1",
 				// When L2CL starts, store its RPC port here
 				// given by the os, to reclaim when restart.
@@ -247,8 +249,8 @@ func WithL2CLNode(l2CLID stack.L2CLNodeID, isSequencer bool, managedMode bool, l
 				SkipSyncStartCheck:             false,
 				SupportsPostFinalizationELSync: false,
 			},
-			ConfigPersistence:               node.DisabledConfigPersistence{},
-			Metrics:                         node.MetricsConfig{},
+			ConfigPersistence:               config.DisabledConfigPersistence{},
+			Metrics:                         opmetrics.CLIConfig{},
 			Pprof:                           oppprof.CLIConfig{},
 			SafeDBPath:                      "",
 			RollupHalt:                      "",
