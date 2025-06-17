@@ -148,7 +148,7 @@ func (m *MetricCollector) CollectMetrics() {
 		// Check for multiple initiating hashes
 		initiatingHashes := job.InitiatingHashes()
 		if len(initiatingHashes) > 1 {
-			m.log.Warn("Initiating BlockNumber found multiple Blocks (potential reorg of initiating block)",
+			m.log.Warn("Initiating BlockNumber found multiple Blocks (reorg of initiating block)",
 				"executing_chain_id", job.executingChain,
 				"initiating_chain_id", job.initiating.ChainID,
 				"executing_block_height", job.executingBlock.Number,
