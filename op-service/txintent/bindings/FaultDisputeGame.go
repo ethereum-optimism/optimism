@@ -47,7 +47,7 @@ type FaultDisputeGame struct {
 	// IFaultDisputeGame.sol read methods
 	ClaimDataLen    func() TypedCall[*big.Int]                                                 `sol:"claimDataLen"`
 	ClaimData       func(*big.Int) TypedCall[ClaimData]                                        `sol:"claimData"`
-	GetRequiredBond func(position *big.Int) TypedCall[*big.Int]                                `sol:"getRequiredBond"`
+	GetRequiredBond func(position *Uint128) TypedCall[*big.Int]                                `sol:"getRequiredBond"`
 	MaxGameDepth    func() TypedCall[*big.Int]                                                 `sol:"maxGameDepth"`
 	SplitDepth      func() TypedCall[*big.Int]                                                 `sol:"splitDepth"`
 	SubGame         func(parentClaimIndex *big.Int, subGameIndex *big.Int) TypedCall[*big.Int] `sol:"subgame"`
