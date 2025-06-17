@@ -105,8 +105,11 @@ contract DeployImplementations is Script {
         deployDisputeGameFactoryImpl(output_);
         deployAnchorStateRegistryImpl(_input, output_);
 
+        // Create blueprints for OPCM.
+        IOPContractsManager.Blueprints memory blueprints = createBlueprints();
+
         // Deploy the OP Contracts Manager with the new implementations set.
-        deployOPContractsManager(_input, output_);
+        deployOPContractsManager(_input, output_, blueprints);
 
         assertValidOutput(_input, output_);
     }
@@ -195,12 +198,14 @@ contract DeployImplementations is Script {
         );
     }
 
-    function deployOPContractsManager(Input memory _input, Output memory _output) private {
-        string memory l1ContractsRelease = _input.l1ContractsRelease;
-
+    function createBlueprints() private returns (IOPContractsManager.Blueprints memory blueprints) {
+        // OPCM uses Blueprints and stores references to their addresses because it deploys these as implementations for
+        // OP Stack Chains
+        /// Blueprints prevent these child contracts from bloating the runtime bytecode size of OPCM
         // First we deploy the blueprints for the singletons deployed by OPCM.
+        /// TODO: snevins - Unintuitive for why we use start broadcast here and it's not in the
+        /// createDeterministicBlueprint function
         // forgefmt: disable-start
-        IOPContractsManager.Blueprints memory blueprints;
         vm.startBroadcast(msg.sender);
         address checkAddress;
         (blueprints.addressManager, checkAddress) = DeployUtils.createDeterministicBlueprint(vm.getCode("AddressManager"), _salt);
@@ -221,8 +226,18 @@ contract DeployImplementations is Script {
         (blueprints.superPermissionlessDisputeGame1, blueprints.superPermissionlessDisputeGame2) = DeployUtils.createDeterministicBlueprint(vm.getCode("SuperFaultDisputeGame"), _salt);
         // forgefmt: disable-end
         vm.stopBroadcast();
+    }
 
-        IOPContractsManager opcm = createOPCMContract(_input, _output, blueprints, l1ContractsRelease);
+    function deployOPContractsManager(
+        Input memory _input,
+        Output memory _output,
+        IOPContractsManager.Blueprints memory _blueprints
+    )
+        private
+    {
+        string memory l1ContractsRelease = _input.l1ContractsRelease;
+
+        IOPContractsManager opcm = createOPCMContract(_input, _output, _blueprints, l1ContractsRelease);
 
         vm.label(address(opcm), "OPContractsManager");
         _output.opcm = opcm;
