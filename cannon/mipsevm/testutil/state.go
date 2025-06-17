@@ -2,8 +2,6 @@ package testutil
 
 import (
 	"encoding/binary"
-	"fmt"
-	"testing"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
@@ -11,7 +9,6 @@ import (
 
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/arch"
-	"github.com/ethereum-optimism/optimism/cannon/mipsevm/memory"
 )
 
 func AddHintLengthPrefix(data []byte) []byte {
@@ -134,66 +131,7 @@ func BoundStep(step uint64) uint64 {
 	return step
 }
 
-type ExpectedState struct {
-	PreimageKey    common.Hash
-	PreimageOffset arch.Word
-	PC             arch.Word
-	NextPC         arch.Word
-	HI             arch.Word
-	LO             arch.Word
-	Heap           arch.Word
-	ExitCode       uint8
-	Exited         bool
-	Step           uint64
-	LastHint       hexutil.Bytes
-	Registers      [32]arch.Word
-	MemoryRoot     common.Hash
-	expectedMemory *memory.Memory
-}
-
-func NewExpectedState(fromState mipsevm.FPVMState) *ExpectedState {
-	return &ExpectedState{
-		PreimageKey:    fromState.GetPreimageKey(),
-		PreimageOffset: fromState.GetPreimageOffset(),
-		PC:             fromState.GetPC(),
-		NextPC:         fromState.GetCpu().NextPC,
-		HI:             fromState.GetCpu().HI,
-		LO:             fromState.GetCpu().LO,
-		Heap:           fromState.GetHeap(),
-		ExitCode:       fromState.GetExitCode(),
-		Exited:         fromState.GetExited(),
-		Step:           fromState.GetStep(),
-		LastHint:       fromState.GetLastHint(),
-		Registers:      *fromState.GetRegistersRef(),
-		MemoryRoot:     fromState.GetMemory().MerkleRoot(),
-		expectedMemory: fromState.GetMemory().Copy(),
-	}
-}
-
-func (e *ExpectedState) ExpectStep() {
-	// Set some standard expectations for a normal step
-	e.Step += 1
-	e.PC += 4
-	e.NextPC += 4
-}
-
-func (e *ExpectedState) ExpectMemoryWriteWord(addr arch.Word, val arch.Word) {
-	e.expectedMemory.SetWord(addr, val)
-	e.MemoryRoot = e.expectedMemory.MerkleRoot()
-}
-
-func (e *ExpectedState) Validate(t testing.TB, actualState mipsevm.FPVMState) {
-	require.Equal(t, e.PreimageKey, actualState.GetPreimageKey(), fmt.Sprintf("Expect preimageKey = %v", e.PreimageKey))
-	require.Equal(t, e.PreimageOffset, actualState.GetPreimageOffset(), fmt.Sprintf("Expect preimageOffset = %v", e.PreimageOffset))
-	require.Equal(t, e.PC, actualState.GetCpu().PC, fmt.Sprintf("Expect PC = 0x%x", e.PC))
-	require.Equal(t, e.NextPC, actualState.GetCpu().NextPC, fmt.Sprintf("Expect nextPC = 0x%x", e.NextPC))
-	require.Equal(t, e.HI, actualState.GetCpu().HI, fmt.Sprintf("Expect HI = 0x%x", e.HI))
-	require.Equal(t, e.LO, actualState.GetCpu().LO, fmt.Sprintf("Expect LO = 0x%x", e.LO))
-	require.Equal(t, e.Heap, actualState.GetHeap(), fmt.Sprintf("Expect heap = 0x%x", e.Heap))
-	require.Equal(t, e.ExitCode, actualState.GetExitCode(), fmt.Sprintf("Expect exitCode = 0x%x", e.ExitCode))
-	require.Equal(t, e.Exited, actualState.GetExited(), fmt.Sprintf("Expect exited = %v", e.Exited))
-	require.Equal(t, e.Step, actualState.GetStep(), fmt.Sprintf("Expect step = %d", e.Step))
-	require.Equal(t, e.LastHint, actualState.GetLastHint(), fmt.Sprintf("Expect lastHint = %v", e.LastHint))
-	require.Equal(t, e.Registers, *actualState.GetRegistersRef(), fmt.Sprintf("Expect registers = %v", e.Registers))
-	require.Equal(t, e.MemoryRoot, common.Hash(actualState.GetMemory().MerkleRoot()), fmt.Sprintf("Expect memory root = %v", e.MemoryRoot))
+func NewExpectedState(t require.TestingT, fromState mipsevm.FPVMState) *ExpectedMTState {
+	mtState := ToMTState(t, fromState)
+	return NewExpectedMTState(mtState)
 }

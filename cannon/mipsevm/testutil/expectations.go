@@ -8,10 +8,10 @@ import (
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/stretchr/testify/require"
 
+	"github.com/ethereum-optimism/optimism/cannon/mipsevm"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/arch"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/memory"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/multithreaded"
-	"github.com/ethereum-optimism/optimism/cannon/mipsevm/testutil"
 )
 
 // ExpectedMTState is a test utility that basically stores a copy of a state that can be explicitly mutated
@@ -118,7 +118,7 @@ func (e *ExpectedMTState) ExpectMemoryWriteUint32(t require.TestingT, addr arch.
 	addr = addr & ^arch.Word(3)
 
 	// Set 4 bytes at addr
-	data := testutil.Uint32ToBytes(val)
+	data := Uint32ToBytes(val)
 	err := e.expectedMemory.SetMemoryRange(addr, bytes.NewReader(data))
 	require.NoError(t, err)
 
@@ -171,7 +171,14 @@ func (e *ExpectedMTState) Thread(threadId arch.Word) *ExpectedThreadState {
 	return e.threadExpectations[threadId]
 }
 
-func (e *ExpectedMTState) Validate(t require.TestingT, actualState *multithreaded.State) {
+func (e *ExpectedMTState) ExpectMemoryWriteWord(addr arch.Word, val arch.Word) {
+	e.expectedMemory.SetWord(addr, val)
+	e.MemoryRoot = e.expectedMemory.MerkleRoot()
+}
+
+func (e *ExpectedMTState) Validate(t require.TestingT, state mipsevm.FPVMState) {
+	actualState := ToMTState(t, state)
+
 	require.Equalf(t, e.PreimageKey, actualState.GetPreimageKey(), "Expect preimageKey = %v", e.PreimageKey)
 	require.Equalf(t, e.PreimageOffset, actualState.GetPreimageOffset(), "Expect preimageOffset = %v", e.PreimageOffset)
 	require.Equalf(t, e.Heap, actualState.GetHeap(), "Expect heap = 0x%x", e.Heap)

@@ -9,21 +9,20 @@ import (
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/arch"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/exec"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/multithreaded"
-	"github.com/ethereum-optimism/optimism/cannon/mipsevm/testutil"
 )
 
 type StateMutatorMultiThreaded struct {
 	state *multithreaded.State
 }
 
-var _ testutil.StateMutator = (*StateMutatorMultiThreaded)(nil)
+var _ StateMutator = (*StateMutatorMultiThreaded)(nil)
 
-func NewStateMutatorMultiThreaded(state *multithreaded.State) testutil.StateMutator {
+func NewStateMutatorMultiThreaded(state *multithreaded.State) StateMutator {
 	return &StateMutatorMultiThreaded{state: state}
 }
 
 func (m *StateMutatorMultiThreaded) Randomize(randSeed int64) {
-	r := testutil.NewRandHelper(randSeed)
+	r := NewRandHelper(randSeed)
 
 	step := r.RandStep()
 

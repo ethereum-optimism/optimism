@@ -30,12 +30,10 @@ func FuzzStateSyscallBrk(f *testing.F) {
 				testutil.StoreInstruction(state.GetMemory(), state.GetPC(), syscallInsn)
 				step := state.GetStep()
 
-				expected := testutil.NewExpectedState(state)
-				expected.Step += 1
-				expected.PC = state.GetCpu().NextPC
-				expected.NextPC = state.GetCpu().NextPC + 4
-				expected.Registers[2] = program.PROGRAM_BREAK // Return fixed BRK value
-				expected.Registers[7] = 0                     // No error
+				expected := testutil.NewExpectedState(t, state)
+				expected.ExpectStep()
+				expected.ActiveThread().Registers[2] = program.PROGRAM_BREAK // Return fixed BRK value
+				expected.ActiveThread().Registers[7] = 0                     // No error
 
 				stepWitness, err := goVm.Step(true)
 				require.NoError(t, err)
@@ -69,10 +67,8 @@ func FuzzStateSyscallMmap(f *testing.F) {
 				state.GetRegistersRef()[5] = siz
 				testutil.StoreInstruction(state.GetMemory(), state.GetPC(), syscallInsn)
 
-				expected := testutil.NewExpectedState(state)
-				expected.Step += 1
-				expected.PC = state.GetCpu().NextPC
-				expected.NextPC = state.GetCpu().NextPC + 4
+				expected := testutil.NewExpectedState(t, state)
+				expected.ExpectStep()
 				if addr == 0 {
 					sizAlign := siz
 					if sizAlign&memory.PageAddrMask != 0 { // adjust size to align with page size
@@ -80,16 +76,16 @@ func FuzzStateSyscallMmap(f *testing.F) {
 					}
 					newHeap := heap + sizAlign
 					if newHeap > program.HEAP_END || newHeap < heap || sizAlign < siz {
-						expected.Registers[2] = exec.MipsEINVAL
-						expected.Registers[7] = exec.SysErrorSignal
+						expected.ActiveThread().Registers[2] = exec.MipsEINVAL
+						expected.ActiveThread().Registers[7] = exec.SysErrorSignal
 					} else {
 						expected.Heap = heap + sizAlign
-						expected.Registers[2] = heap
-						expected.Registers[7] = 0 // no error
+						expected.ActiveThread().Registers[2] = heap
+						expected.ActiveThread().Registers[7] = 0 // no error
 					}
 				} else {
-					expected.Registers[2] = addr
-					expected.Registers[7] = 0 // no error
+					expected.ActiveThread().Registers[2] = addr
+					expected.ActiveThread().Registers[7] = 0 // no error
 				}
 
 				stepWitness, err := goVm.Step(true)
@@ -116,7 +112,7 @@ func FuzzStateSyscallExitGroup(f *testing.F) {
 				testutil.StoreInstruction(state.GetMemory(), state.GetPC(), syscallInsn)
 				step := state.GetStep()
 
-				expected := testutil.NewExpectedState(state)
+				expected := testutil.NewExpectedState(t, state)
 				expected.Step += 1
 				expected.Exited = true
 				expected.ExitCode = exitCode
@@ -146,35 +142,33 @@ func FuzzStateSyscallFcntl(f *testing.F) {
 				testutil.StoreInstruction(state.GetMemory(), state.GetPC(), syscallInsn)
 				step := state.GetStep()
 
-				expected := testutil.NewExpectedState(state)
-				expected.Step += 1
-				expected.PC = state.GetCpu().NextPC
-				expected.NextPC = state.GetCpu().NextPC + 4
+				expected := testutil.NewExpectedState(t, state)
+				expected.ExpectStep()
 				if cmd == 1 {
 					switch fd {
 					case exec.FdStdin, exec.FdStdout, exec.FdStderr,
 						exec.FdPreimageRead, exec.FdHintRead, exec.FdPreimageWrite, exec.FdHintWrite:
-						expected.Registers[2] = 0
-						expected.Registers[7] = 0
+						expected.ActiveThread().Registers[2] = 0
+						expected.ActiveThread().Registers[7] = 0
 					default:
-						expected.Registers[2] = exec.MipsEBADF
-						expected.Registers[7] = exec.SysErrorSignal
+						expected.ActiveThread().Registers[2] = exec.MipsEBADF
+						expected.ActiveThread().Registers[7] = exec.SysErrorSignal
 					}
 				} else if cmd == 3 {
 					switch fd {
 					case exec.FdStdin, exec.FdPreimageRead, exec.FdHintRead:
-						expected.Registers[2] = 0
-						expected.Registers[7] = 0
+						expected.ActiveThread().Registers[2] = 0
+						expected.ActiveThread().Registers[7] = 0
 					case exec.FdStdout, exec.FdStderr, exec.FdPreimageWrite, exec.FdHintWrite:
-						expected.Registers[2] = 1
-						expected.Registers[7] = 0
+						expected.ActiveThread().Registers[2] = 1
+						expected.ActiveThread().Registers[7] = 0
 					default:
-						expected.Registers[2] = exec.MipsEBADF
-						expected.Registers[7] = exec.SysErrorSignal
+						expected.ActiveThread().Registers[2] = exec.MipsEBADF
+						expected.ActiveThread().Registers[7] = exec.SysErrorSignal
 					}
 				} else {
-					expected.Registers[2] = exec.MipsEINVAL
-					expected.Registers[7] = exec.SysErrorSignal
+					expected.ActiveThread().Registers[2] = exec.MipsEINVAL
+					expected.ActiveThread().Registers[7] = exec.SysErrorSignal
 				}
 
 				stepWitness, err := goVm.Step(true)
@@ -207,12 +201,10 @@ func FuzzStateHintRead(f *testing.F) {
 				testutil.StoreInstruction(state.GetMemory(), state.GetPC(), syscallInsn)
 				step := state.GetStep()
 
-				expected := testutil.NewExpectedState(state)
-				expected.Step += 1
-				expected.PC = state.GetCpu().NextPC
-				expected.NextPC = state.GetCpu().NextPC + 4
-				expected.Registers[2] = count
-				expected.Registers[7] = 0 // no error
+				expected := testutil.NewExpectedState(t, state)
+				expected.ExpectStep()
+				expected.ActiveThread().Registers[2] = count
+				expected.ActiveThread().Registers[7] = 0 // no error
 
 				stepWitness, err := goVm.Step(true)
 				require.NoError(t, err)
@@ -263,12 +255,10 @@ func FuzzStatePreimageRead(f *testing.F) {
 					writeLen = preimageDataLen - preimageOffset
 				}
 
-				expected := testutil.NewExpectedState(state)
-				expected.Step += 1
-				expected.PC = state.GetCpu().NextPC
-				expected.NextPC = state.GetCpu().NextPC + 4
-				expected.Registers[2] = writeLen
-				expected.Registers[7] = 0 // no error
+				expected := testutil.NewExpectedState(t, state)
+				expected.ExpectStep()
+				expected.ActiveThread().Registers[2] = writeLen
+				expected.ActiveThread().Registers[7] = 0 // no error
 				expected.PreimageOffset += writeLen
 				if writeLen > 0 {
 					// Expect a memory write
@@ -334,12 +324,10 @@ func FuzzStateHintWrite(f *testing.F) {
 				testutil.StoreInstruction(state.GetMemory(), state.GetPC(), syscallInsn)
 
 				// Set up expectations
-				expected := testutil.NewExpectedState(state)
-				expected.Step += 1
-				expected.PC = state.GetCpu().NextPC
-				expected.NextPC = state.GetCpu().NextPC + 4
-				expected.Registers[2] = count
-				expected.Registers[7] = 0 // no error
+				expected := testutil.NewExpectedState(t, state)
+				expected.ExpectStep()
+				expected.ActiveThread().Registers[2] = count
+				expected.ActiveThread().Registers[7] = 0 // no error
 				// Figure out hint expectations
 				var expectedHints [][]byte
 				expectedLastHint := make([]byte, 0)
@@ -405,13 +393,11 @@ func FuzzStatePreimageWrite(f *testing.F) {
 					expectBytesWritten = sz
 				}
 
-				expected := testutil.NewExpectedState(state)
-				expected.Step += 1
-				expected.PC = state.GetCpu().NextPC
-				expected.NextPC = state.GetCpu().NextPC + 4
+				expected := testutil.NewExpectedState(t, state)
+				expected.ExpectStep()
 				expected.PreimageOffset = 0
-				expected.Registers[2] = expectBytesWritten
-				expected.Registers[7] = 0 // No error
+				expected.ActiveThread().Registers[2] = expectBytesWritten
+				expected.ActiveThread().Registers[7] = 0 // No error
 				expected.PreimageKey = preimageKey
 				if expectBytesWritten > 0 {
 					// Copy original preimage key, but shift it left by expectBytesWritten

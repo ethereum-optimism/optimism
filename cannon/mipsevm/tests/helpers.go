@@ -4,14 +4,14 @@ import (
 	"io"
 	"os"
 
-	"github.com/ethereum-optimism/optimism/cannon/mipsevm/versions"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/stretchr/testify/require"
+
+	"github.com/ethereum-optimism/optimism/cannon/mipsevm/versions"
 
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/arch"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/multithreaded"
-	mttestutil "github.com/ethereum-optimism/optimism/cannon/mipsevm/multithreaded/testutil"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/testutil"
 )
 
@@ -19,7 +19,7 @@ type VMFactory func(po mipsevm.PreimageOracle, stdOut, stdErr io.Writer, log log
 
 func multiThreadedVmFactory(po mipsevm.PreimageOracle, stdOut, stdErr io.Writer, log log.Logger, features mipsevm.FeatureToggles, opts ...testutil.StateOption) mipsevm.FPVM {
 	state := multithreaded.CreateEmptyState()
-	mutator := mttestutil.NewStateMutatorMultiThreaded(state)
+	mutator := testutil.NewStateMutatorMultiThreaded(state)
 	for _, opt := range opts {
 		opt(mutator)
 	}
@@ -119,6 +119,6 @@ func GenerateEmptyThreadProofVariations(t require.TestingT) []threadProofTestcas
 func setupWithTestCase(t require.TestingT, v VersionedVMTestCase, randomSeed int, preimageOracle mipsevm.PreimageOracle, opts ...testutil.StateOption) (mipsevm.FPVM, *multithreaded.State, *testutil.ContractMetadata) {
 	allOpts := append([]testutil.StateOption{testutil.WithRandomization(int64(randomSeed))}, opts...)
 	vm := v.VMFactory(preimageOracle, os.Stdout, os.Stderr, testutil.CreateLogger(), allOpts...)
-	state := mttestutil.GetMtState(t, vm)
+	state := testutil.GetMtState(t, vm)
 	return vm, state, v.Contracts
 }

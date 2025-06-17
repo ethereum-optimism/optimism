@@ -9,7 +9,6 @@ import (
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/arch"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/exec"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/multithreaded"
-	mttestutil "github.com/ethereum-optimism/optimism/cannon/mipsevm/multithreaded/testutil"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/register"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/testutil"
 )
@@ -20,10 +19,10 @@ func FuzzStateSyscallCloneMT(f *testing.F) {
 	f.Fuzz(func(t *testing.T, nextThreadId, stackPtr Word, seed int64, version uint) {
 		v := versions[int(version)%len(versions)]
 		goVm := v.VMFactory(nil, os.Stdout, os.Stderr, testutil.CreateLogger(), testutil.WithRandomization(seed))
-		state := mttestutil.GetMtState(t, goVm)
+		state := testutil.GetMtState(t, goVm)
 		// Update existing threads to avoid collision with nextThreadId
-		if mttestutil.FindThread(state, nextThreadId) != nil {
-			for i, t := range mttestutil.GetAllThreads(state) {
+		if testutil.FindThread(state, nextThreadId) != nil {
+			for i, t := range testutil.GetAllThreads(state) {
 				t.ThreadId = nextThreadId - Word(i+1)
 			}
 		}
@@ -37,7 +36,7 @@ func FuzzStateSyscallCloneMT(f *testing.F) {
 		step := state.GetStep()
 
 		// Set up expectations
-		expected := mttestutil.NewExpectedMTState(state)
+		expected := testutil.NewExpectedMTState(state)
 		expected.Step += 1
 		// Set original thread expectations
 		expected.PrestateActiveThread().PC = state.GetCpu().NextPC

@@ -8,7 +8,10 @@ import (
 )
 
 func GetMtState(t require.TestingT, vm mipsevm.FPVM) *multithreaded.State {
-	state := vm.GetState()
+	return ToMTState(t, vm.GetState())
+}
+
+func ToMTState(t require.TestingT, state mipsevm.FPVMState) *multithreaded.State {
 	mtState, ok := state.(*multithreaded.State)
 	if !ok {
 		require.Fail(t, "Failed to cast FPVMState to multithreaded State type")

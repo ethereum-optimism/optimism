@@ -164,9 +164,9 @@ func TestEVM_SingleStep_Shift64(t *testing.T) {
 				step := state.GetStep()
 
 				// Setup expectations
-				expected := testutil.NewExpectedState(state)
+				expected := testutil.NewExpectedState(t, state)
 				expected.ExpectStep()
-				expected.Registers[rdReg] = tt.expectRes
+				expected.ActiveThread().Registers[rdReg] = tt.expectRes
 
 				stepWitness, err := goVm.Step(true)
 				require.NoError(t, err)
@@ -555,9 +555,9 @@ func TestEVM_SingleStep_DCloDClz64(t *testing.T) {
 
 				features := versions.FeaturesForVersion(v.Version)
 				if features.SupportDclzDclo {
-					expected := testutil.NewExpectedState(state)
+					expected := testutil.NewExpectedState(t, state)
 					expected.ExpectStep()
-					expected.Registers[rdReg] = tt.expectedResult
+					expected.ActiveThread().Registers[rdReg] = tt.expectedResult
 					stepWitness, err := goVm.Step(true)
 					require.NoError(t, err)
 					expected.Validate(t, state)

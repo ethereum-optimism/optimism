@@ -8,13 +8,13 @@ import (
 	"slices"
 	"testing"
 
-	"github.com/ethereum-optimism/optimism/cannon/mipsevm/exec"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/exp/maps"
 
+	"github.com/ethereum-optimism/optimism/cannon/mipsevm/exec"
+
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/arch"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/multithreaded"
-	mttestutil "github.com/ethereum-optimism/optimism/cannon/mipsevm/multithreaded/testutil"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/testutil"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/versions"
 )
@@ -55,7 +55,7 @@ func TestEVM_MT64_LL(t *testing.T) {
 					baseReg := 6
 					insn := uint32((0b11_0000 << 26) | (baseReg & 0x1F << 21) | (retReg & 0x1F << 16) | (0xFFFF & c.offset))
 					goVm := v.VMFactory(nil, os.Stdout, os.Stderr, testutil.CreateLogger(), testutil.WithRandomization(int64(i)), testutil.WithPCAndNextPC(0x40))
-					state := mttestutil.GetMtState(t, goVm)
+					state := testutil.GetMtState(t, goVm)
 					step := state.GetStep()
 
 					// Set up state
@@ -73,7 +73,7 @@ func TestEVM_MT64_LL(t *testing.T) {
 					}
 
 					// Set up expectations
-					expected := mttestutil.NewExpectedMTState(state)
+					expected := testutil.NewExpectedMTState(state)
 					expected.ExpectStep()
 					expected.LLReservationStatus = multithreaded.LLStatusActive32bit
 					expected.LLAddress = c.addr
@@ -144,8 +144,8 @@ func TestEVM_MT64_SC(t *testing.T) {
 					baseReg := 6
 					insn := uint32((0b11_1000 << 26) | (baseReg & 0x1F << 21) | (rtReg & 0x1F << 16) | (0xFFFF & c.offset))
 					goVm := ver.VMFactory(nil, os.Stdout, os.Stderr, testutil.CreateLogger(), testutil.WithRandomization(int64(i)))
-					state := mttestutil.GetMtState(t, goVm)
-					mttestutil.InitializeSingleThread(i*23456, state, i%2 == 1, testutil.WithPCAndNextPC(0x40))
+					state := testutil.GetMtState(t, goVm)
+					testutil.InitializeSingleThread(i*23456, state, i%2 == 1, testutil.WithPCAndNextPC(0x40))
 					step := state.GetStep()
 
 					// Define LL-related params
@@ -171,7 +171,7 @@ func TestEVM_MT64_SC(t *testing.T) {
 					state.LLOwnerThread = llOwnerThread
 
 					// Setup expectations
-					expected := mttestutil.NewExpectedMTState(state)
+					expected := testutil.NewExpectedMTState(state)
 					expected.ExpectStep()
 					var retVal Word
 					if llVar.shouldSucceed {
@@ -235,7 +235,7 @@ func TestEVM_MT64_LLD(t *testing.T) {
 					baseReg := 6
 					insn := uint32((0b11_0100 << 26) | (baseReg & 0x1F << 21) | (retReg & 0x1F << 16) | (0xFFFF & c.offset))
 					goVm := v.VMFactory(nil, os.Stdout, os.Stderr, testutil.CreateLogger(), testutil.WithRandomization(int64(i)), testutil.WithPCAndNextPC(0x40))
-					state := mttestutil.GetMtState(t, goVm)
+					state := testutil.GetMtState(t, goVm)
 					step := state.GetStep()
 
 					// Set up state
@@ -253,7 +253,7 @@ func TestEVM_MT64_LLD(t *testing.T) {
 					}
 
 					// Set up expectations
-					expected := mttestutil.NewExpectedMTState(state)
+					expected := testutil.NewExpectedMTState(state)
 					expected.ExpectStep()
 					expected.LLReservationStatus = multithreaded.LLStatusActive64bit
 					expected.LLAddress = c.addr
@@ -325,8 +325,8 @@ func TestEVM_MT64_SCD(t *testing.T) {
 					baseReg := 6
 					insn := uint32((0b11_1100 << 26) | (baseReg & 0x1F << 21) | (rtReg & 0x1F << 16) | (0xFFFF & c.offset))
 					goVm := ver.VMFactory(nil, os.Stdout, os.Stderr, testutil.CreateLogger(), testutil.WithRandomization(int64(i)))
-					state := mttestutil.GetMtState(t, goVm)
-					mttestutil.InitializeSingleThread(i*23456, state, i%2 == 1, testutil.WithPCAndNextPC(0x40))
+					state := testutil.GetMtState(t, goVm)
+					testutil.InitializeSingleThread(i*23456, state, i%2 == 1, testutil.WithPCAndNextPC(0x40))
 					step := state.GetStep()
 
 					// Define LL-related params
@@ -352,7 +352,7 @@ func TestEVM_MT64_SCD(t *testing.T) {
 					state.LLOwnerThread = llOwnerThread
 
 					// Setup expectations
-					expected := mttestutil.NewExpectedMTState(state)
+					expected := testutil.NewExpectedMTState(state)
 					expected.ExpectStep()
 					var retVal Word
 					if llVar.shouldSucceed {
@@ -433,7 +433,7 @@ func TestEVM_MT_SysRead_FromEventFd(t *testing.T) {
 			addr := Word(0x00_00_FF_00)
 			effAddr := arch.AddressMask & addr
 			goVm := ver.VMFactory(nil, os.Stdout, os.Stderr, testutil.CreateLogger(), testutil.WithRandomization(int64(i)))
-			state := mttestutil.GetMtState(t, goVm)
+			state := testutil.GetMtState(t, goVm)
 			step := state.GetStep()
 
 			// Define LL-related params
@@ -452,7 +452,7 @@ func TestEVM_MT_SysRead_FromEventFd(t *testing.T) {
 			state.GetMemory().SetWord(effAddr, Word(0x12_EE_EE_EE_FF_FF_FF_FF))
 
 			// Setup expectations
-			expected := mttestutil.NewExpectedMTState(state)
+			expected := testutil.NewExpectedMTState(state)
 			expected.ExpectStep()
 			expected.ActiveThread().Registers[2] = exec.MipsEAGAIN
 			expected.ActiveThread().Registers[7] = exec.SysErrorSignal
@@ -476,7 +476,7 @@ func TestEVM_MT_SysWrite_ToEventFd(t *testing.T) {
 			addr := Word(0x00_00_FF_00)
 			effAddr := arch.AddressMask & addr
 			goVm := ver.VMFactory(nil, os.Stdout, os.Stderr, testutil.CreateLogger(), testutil.WithRandomization(int64(i)))
-			state := mttestutil.GetMtState(t, goVm)
+			state := testutil.GetMtState(t, goVm)
 			step := state.GetStep()
 
 			// Define LL-related params
@@ -495,7 +495,7 @@ func TestEVM_MT_SysWrite_ToEventFd(t *testing.T) {
 			state.GetMemory().SetWord(effAddr, Word(0x12_EE_EE_EE_FF_FF_FF_FF))
 
 			// Setup expectations
-			expected := mttestutil.NewExpectedMTState(state)
+			expected := testutil.NewExpectedMTState(state)
 			expected.ExpectStep()
 			expected.ActiveThread().Registers[2] = exec.MipsEAGAIN
 			expected.ActiveThread().Registers[7] = exec.SysErrorSignal

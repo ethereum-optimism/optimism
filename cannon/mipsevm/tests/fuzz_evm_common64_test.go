@@ -110,7 +110,7 @@ func mulOpConsistencyCheck(
 			step := state.GetStep()
 
 			// mere sanity checks
-			expected := testutil.NewExpectedState(state)
+			expected := testutil.NewExpectedState(t, state)
 			expected.ExpectStep()
 
 			stepWitness, err := goVm.Step(true)
@@ -118,10 +118,10 @@ func mulOpConsistencyCheck(
 
 			// use the post-state rdReg or LO and HI just so we can run sanity checks
 			if expectRdReg {
-				expected.Registers[rdReg] = state.GetRegistersRef()[rdReg]
+				expected.ActiveThread().Registers[rdReg] = state.GetRegistersRef()[rdReg]
 			} else {
-				expected.LO = state.GetCpu().LO
-				expected.HI = state.GetCpu().HI
+				expected.ActiveThread().LO = state.GetCpu().LO
+				expected.ActiveThread().HI = state.GetCpu().HI
 			}
 			expected.Validate(t, state)
 
