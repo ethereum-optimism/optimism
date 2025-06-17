@@ -80,7 +80,7 @@ contract SetDisputeGameImpl is Script {
         IAnchorStateRegistry anchorStateRegistry = _input.anchorStateRegistry();
 
         bytes memory implArgs = abi.encodePacked(_input.absolutePrestate(), _input.bigStepper(), anchorStateRegistry);
-        
+
         vm.broadcast(msg.sender);
         factory.setImplementation(gameType, impl, implArgs);
 
