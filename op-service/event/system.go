@@ -47,9 +47,14 @@ type Unattacher interface {
 }
 
 type AnnotatedEvent struct {
-	Event        Event
-	EmitContext  uint64   // uniquely identifies the emission of the event, useful for debugging and creating diagrams
-	EmitPriority Priority // how important the emitter is, higher is more important
+	Event               Event
+	EmitContext         uint64   // uniquely identifies the emission of the event, useful for debugging and creating diagrams
+	EmitPriority        Priority // how important the emitter is, higher is more important
+	PostProcessCallback func()   // callback to be called after the event is processed by all derivers
+}
+
+func (e AnnotatedEvent) Equals(other AnnotatedEvent) bool {
+	return e.Event == other.Event && e.EmitContext == other.EmitContext && e.EmitPriority == other.EmitPriority
 }
 
 // systemActor is a deriver and/or emitter, registered in System with a name.
@@ -269,6 +274,14 @@ func (s *Sys) recordRateLimited(name string, derivContext uint64) {
 	}
 }
 
+func (s *Sys) recordAfterProcessed(evtype string) {
+	s.tracersLock.RLock()
+	defer s.tracersLock.RUnlock()
+	for _, t := range s.tracers {
+		t.OnAfterProcessed(evtype)
+	}
+}
+
 func (s *Sys) recordEmit(name string, ev AnnotatedEvent, derivContext uint64, emitTime time.Time) {
 	s.tracersLock.RLock()
 	defer s.tracersLock.RUnlock()
@@ -282,7 +295,14 @@ func (s *Sys) recordEmit(name string, ev AnnotatedEvent, derivContext uint64, em
 // The name of the emitter is provided to further contextualize the event.
 func (s *Sys) emit(name string, derivContext uint64, ev Event, emitPriority Priority) {
 	emitContext := s.emitContext.Add(1)
-	annotated := AnnotatedEvent{Event: ev, EmitContext: emitContext, EmitPriority: emitPriority}
+	annotated := AnnotatedEvent{
+		Event:        ev,
+		EmitContext:  emitContext,
+		EmitPriority: emitPriority,
+		PostProcessCallback: func() {
+			s.recordAfterProcessed(ev.String())
+		},
+	}
 
 	// As soon as anything emits a critical event,
 	// make the system aware, before the executor event schedules it for processing.

@@ -136,6 +136,7 @@ optimism_package:
         - github.com/op-rs/kona/docker/recipes/kona-node/grafana
         - github.com/paradigmxyz/reth/etc/grafana
         - github.com/geoknee/grafana-dashboards/
+        - github.com/nonsense/op-stack-grafana-dashboards/resources
 ethereum_package:
   participants:
     - el_type: geth

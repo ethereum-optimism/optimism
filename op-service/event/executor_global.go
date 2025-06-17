@@ -87,6 +87,8 @@ type GlobalSyncExec struct {
 	handlesLock sync.RWMutex
 
 	ctx context.Context
+
+	metrics Metrics
 }
 
 var _ Executor = (*GlobalSyncExec)(nil)
@@ -103,8 +105,14 @@ func NewGlobalSynchronous(ctx context.Context) *GlobalSyncExec {
 			byPriority: byPriority,
 			count:      0,
 		},
-		queued: nil,
+		queued:  nil,
+		metrics: &NoopMetrics{},
 	}
+}
+
+func (gs *GlobalSyncExec) WithMetrics(m Metrics) *GlobalSyncExec {
+	gs.metrics = m
+	return gs
 }
 
 func (gs *GlobalSyncExec) Add(d Executable, cfg *ExecutorConfig) (leaveExecutor func()) {
@@ -137,7 +145,9 @@ func (gs *GlobalSyncExec) Enqueue(ev AnnotatedEvent) error {
 	gs.eventsLock.Lock()
 	defer gs.eventsLock.Unlock()
 	// sanity limit, never queue too many events
-	if gs.events.Count() >= sanityEventLimit {
+	count := gs.events.Count()
+	gs.metrics.SetTotalEnqueuedEvents(count)
+	if count >= sanityEventLimit {
 		return fmt.Errorf("something is very wrong, queued up too many events! Dropping event %q", ev.Event)
 	}
 	gs.events.Add(ev)
@@ -153,6 +163,9 @@ func (gs *GlobalSyncExec) processEvent(ev AnnotatedEvent) {
 	defer gs.handlesLock.RUnlock()
 	for _, h := range gs.handles {
 		h.onEvent(ev)
+	}
+	if ev.PostProcessCallback != nil {
+		ev.PostProcessCallback()
 	}
 }
 
@@ -210,7 +223,7 @@ func (gs *GlobalSyncExec) DrainUntil(fn func(ev Event) bool, excl bool) error {
 			stopExcl = true
 		} else {
 			popped := gs.events.Pop()
-			if ev != popped {
+			if !ev.Equals(popped) {
 				panic("expected popped event to match")
 			}
 		}

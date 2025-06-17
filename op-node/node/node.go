@@ -174,7 +174,7 @@ func (n *OpNode) init(ctx context.Context, cfg *config.Config) error {
 
 func (n *OpNode) initEventSystem() {
 	// This executor will be configurable in the future, for parallel event processing
-	executor := event.NewGlobalSynchronous(n.resourcesCtx)
+	executor := event.NewGlobalSynchronous(n.resourcesCtx).WithMetrics(n.metrics)
 	sys := event.NewSystem(n.log, executor)
 	sys.AddTracer(event.NewMetricsTracer(n.metrics))
 	sys.Register("node", event.DeriverFunc(n.onEvent))

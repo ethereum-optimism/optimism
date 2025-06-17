@@ -13,6 +13,9 @@ type Metrics interface {
 	RecordProcessedEvent(eventName string, deriver string, duration time.Duration)
 	RecordEventsRateLimited()
 	RecordDequeuedEvents(eventName string, deriver string)
+	EnqueuedEventIncrement(eventName string)
+	EnqueuedEventDecrement(eventName string)
+	SetTotalEnqueuedEvents(current uint64)
 }
 
 type NoopMetrics struct {
@@ -26,11 +29,19 @@ func (n NoopMetrics) RecordEventsRateLimited() {}
 
 func (n NoopMetrics) RecordDequeuedEvents(eventName string, deriver string) {}
 
+func (n NoopMetrics) SetTotalEnqueuedEvents(current uint64) {}
+
+func (n NoopMetrics) EnqueuedEventIncrement(eventName string) {}
+
+func (n NoopMetrics) EnqueuedEventDecrement(eventName string) {}
+
 var _ Metrics = NoopMetrics{}
 
 type EventMetricsTracker struct {
-	EmittedEvents   *prometheus.CounterVec
-	ProcessedEvents *prometheus.CounterVec
+	EmittedEvents       *prometheus.CounterVec
+	EnqueuedEvents      *prometheus.GaugeVec
+	TotalEnqueuedEvents prometheus.Gauge
+	ProcessedEvents     *prometheus.CounterVec
 
 	// We don't use a histogram for observing time durations,
 	// as each vec entry (event-type, deriver type) is synchronous with other occurrences of the same entry key,
@@ -53,6 +64,21 @@ func NewMetricsTracker(ns string, factory metrics.Factory) *EventMetricsTracker 
 				Name:      "emitted",
 				Help:      "number of emitted events",
 			}, []string{"event_type", "emitter"}),
+
+		TotalEnqueuedEvents: factory.NewGauge(prometheus.GaugeOpts{
+			Namespace: ns,
+			Subsystem: "events",
+			Name:      "total_enqueued",
+			Help:      "Gauge representing the current total number of enqueued events",
+		}),
+
+		EnqueuedEvents: factory.NewGaugeVec(
+			prometheus.GaugeOpts{
+				Namespace: ns,
+				Subsystem: "events",
+				Name:      "enqueued",
+				Help:      "Gauge representing the number of enqueued events per type",
+			}, []string{"event_type"}),
 
 		ProcessedEvents: factory.NewCounterVec(
 			prometheus.CounterOpts{
@@ -84,6 +110,18 @@ func NewMetricsTracker(ns string, factory metrics.Factory) *EventMetricsTracker 
 
 func (m *EventMetricsTracker) RecordEmittedEvent(eventName string, emitter string) {
 	m.EmittedEvents.WithLabelValues(eventName, emitter).Inc()
+}
+
+func (m *EventMetricsTracker) EnqueuedEventIncrement(eventName string) {
+	m.EnqueuedEvents.WithLabelValues(eventName).Inc()
+}
+
+func (m *EventMetricsTracker) EnqueuedEventDecrement(eventName string) {
+	m.EnqueuedEvents.WithLabelValues(eventName).Dec()
+}
+
+func (m *EventMetricsTracker) SetTotalEnqueuedEvents(current uint64) {
+	m.TotalEnqueuedEvents.Set(float64(current))
 }
 
 func (m *EventMetricsTracker) RecordProcessedEvent(eventName string, deriver string, duration time.Duration) {
