@@ -58,9 +58,10 @@ func (o *Orchestrator) hydrateL2(net *descriptors.L2Chain, system stack.Extensib
 
 	if faucet, ok := net.Services["faucet"]; ok {
 		for _, instance := range faucet {
+			faucetClient, _ := o.rpcClient(t, instance, RPCProtocol, fmt.Sprintf("/chain/%s", l2.ChainID().String()))
 			l2.AddFaucet(shim.NewFaucet(shim.FaucetConfig{
 				CommonConfig: commonConfig,
-				Client:       o.rpcClient(t, instance, RPCProtocol, fmt.Sprintf("/chain/%s", l2.ChainID().String())),
+				Client:       faucetClient,
 				ID:           stack.NewFaucetID(instance.Name, l2.ChainID()),
 			}))
 		}
@@ -75,7 +76,7 @@ func (o *Orchestrator) hydrateL2ELCL(node *descriptors.Node, l2Net stack.Extensi
 
 	elService, ok := node.Services[ELServiceName]
 	require.True(ok, "need L2 EL service for chain", l2ID)
-	elClient := o.rpcClient(l2Net.T(), elService, RPCProtocol, "/")
+	elClient, endpoint := o.rpcClient(l2Net.T(), elService, RPCProtocol, "/")
 	l2EL := shim.NewL2ELNode(shim.L2ELNodeConfig{
 		RollupCfg: l2Net.RollupConfig(),
 		ELNodeConfig: shim.ELNodeConfig{
@@ -83,7 +84,8 @@ func (o *Orchestrator) hydrateL2ELCL(node *descriptors.Node, l2Net stack.Extensi
 			Client:       elClient,
 			ChainID:      l2ID.ChainID(),
 		},
-		ID: stack.NewL2ELNodeID(elService.Name, l2ID.ChainID()),
+		ID:     stack.NewL2ELNodeID(elService.Name, l2ID.ChainID()),
+		RPCURL: endpoint,
 	})
 	if strings.Contains(node.Name, "geth") {
 		l2EL.SetLabel(match.LabelVendor, string(match.OpGeth))
@@ -96,7 +98,7 @@ func (o *Orchestrator) hydrateL2ELCL(node *descriptors.Node, l2Net stack.Extensi
 	clService, ok := node.Services[CLServiceName]
 	require.True(ok, "need L2 CL service for chain", l2ID)
 
-	clClient := o.rpcClient(l2Net.T(), clService, RPCProtocol, "/")
+	clClient, _ := o.rpcClient(l2Net.T(), clService, RPCProtocol, "/")
 	l2CL := shim.NewL2CLNode(shim.L2CLNodeConfig{
 		ID:           stack.NewL2CLNodeID(clService.Name, l2ID.ChainID()),
 		CommonConfig: shim.NewCommonConfig(l2Net.T()),
@@ -157,11 +159,12 @@ func (o *Orchestrator) hydrateFlashblocksBuilderIfPresent(node *descriptors.Node
 	flashblocksWsUrl, _, err := o.findProtocolService(rbuilderService, WebsocketFlashblocksProtocol)
 	require.NoError(err, "failed to find websocket service for rbuilder")
 
+	flashblocksBuilderClient, _ := o.rpcClient(l2Net.T(), rbuilderService, RPCProtocol, "/")
 	flashblocksBuilder := shim.NewFlashblocksBuilderNode(shim.FlashblocksBuilderNodeConfig{
 		ID: stack.NewFlashblocksBuilderID(rbuilderService.Name, l2ID.ChainID()),
 		ELNodeConfig: shim.ELNodeConfig{
 			CommonConfig: shim.NewCommonConfig(l2Net.T()),
-			Client:       o.rpcClient(l2Net.T(), rbuilderService, RPCProtocol, "/"),
+			Client:       flashblocksBuilderClient,
 			ChainID:      l2ID.ChainID(),
 		},
 		ConductorID:      stack.ConductorID(associatedConductorService.Name),
@@ -183,14 +186,16 @@ func (o *Orchestrator) hydrateL2ProxydMaybe(net *descriptors.L2Chain, l2Net stac
 	}
 
 	for _, instance := range proxydService {
+		proxydClient, endpoint := o.rpcClient(l2Net.T(), instance, RPCProtocol, "/")
 		l2Proxyd := shim.NewL2ELNode(shim.L2ELNodeConfig{
 			ELNodeConfig: shim.ELNodeConfig{
 				CommonConfig: shim.NewCommonConfig(l2Net.T()),
-				Client:       o.rpcClient(l2Net.T(), instance, HTTPProtocol, "/"),
+				Client:       proxydClient,
 				ChainID:      l2ID.ChainID(),
 			},
 			RollupCfg: l2Net.RollupConfig(),
 			ID:        stack.NewL2ELNodeID(instance.Name, l2ID.ChainID()),
+			RPCURL:    endpoint,
 		})
 		l2Proxyd.SetLabel(match.LabelVendor, string(match.Proxyd))
 		l2Net.AddL2ELNode(l2Proxyd)
@@ -209,10 +214,11 @@ func (o *Orchestrator) hydrateBatcherMaybe(net *descriptors.L2Chain, l2Net stack
 	}
 
 	for _, instance := range batcherService {
+		batcherClient, _ := o.rpcClient(l2Net.T(), instance, RPCProtocol, "/")
 		l2Net.AddL2Batcher(shim.NewL2Batcher(shim.L2BatcherConfig{
 			CommonConfig: shim.NewCommonConfig(l2Net.T()),
 			ID:           stack.NewL2BatcherID(instance.Name, l2ID.ChainID()),
-			Client:       o.rpcClient(l2Net.T(), instance, HTTPProtocol, "/"),
+			Client:       batcherClient,
 		}))
 	}
 }
@@ -229,10 +235,11 @@ func (o *Orchestrator) hydrateProposerMaybe(net *descriptors.L2Chain, l2Net stac
 	}
 
 	for _, instance := range proposerService {
+		proposerClient, _ := o.rpcClient(l2Net.T(), instance, RPCProtocol, "/")
 		l2Net.AddL2Proposer(shim.NewL2Proposer(shim.L2ProposerConfig{
 			CommonConfig: shim.NewCommonConfig(l2Net.T()),
 			ID:           stack.NewL2ProposerID(instance.Name, l2ID.ChainID()),
-			Client:       o.rpcClient(l2Net.T(), instance, HTTPProtocol, "/"),
+			Client:       proposerClient,
 		}))
 	}
 }

@@ -31,7 +31,8 @@ func (n *L2ELNode) hydrate(system stack.ExtensibleSystem) {
 			Client:       rpcCl,
 			ChainID:      n.id.ChainID(),
 		},
-		ID: n.id,
+		ID:     n.id,
+		RPCURL: n.userRPC,
 	})
 	sysL2EL.SetLabel(match.LabelVendor, string(match.OpGeth))
 	l2Net.(stack.ExtensibleL2Network).AddL2ELNode(sysL2EL)

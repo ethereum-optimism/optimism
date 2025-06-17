@@ -46,10 +46,12 @@ func (o *Orchestrator) hydrateL1(system stack.ExtensibleSystem) {
 
 		require.True(ok, "need L1 EL service %d", idx)
 
+		elClient, _ := o.rpcClient(t, elService, RPCProtocol, "/", opts...)
+
 		l1.AddL1ELNode(shim.NewL1ELNode(shim.L1ELNodeConfig{
 			ELNodeConfig: shim.ELNodeConfig{
 				CommonConfig:       commonConfig,
-				Client:             o.rpcClient(t, elService, RPCProtocol, "/", opts...),
+				Client:             elClient,
 				ChainID:            l1ID,
 				TransactionTimeout: txTimeout,
 			},
@@ -68,9 +70,10 @@ func (o *Orchestrator) hydrateL1(system stack.ExtensibleSystem) {
 
 	if faucet, ok := env.Env.L1.Services["faucet"]; ok {
 		for _, instance := range faucet {
+			faucetClient, _ := o.rpcClient(t, instance, RPCProtocol, fmt.Sprintf("/chain/%s", env.Env.L1.Config.ChainID.String()), opts...)
 			l1.AddFaucet(shim.NewFaucet(shim.FaucetConfig{
 				CommonConfig: commonConfig,
-				Client:       o.rpcClient(t, instance, RPCProtocol, fmt.Sprintf("/chain/%s", env.Env.L1.Config.ChainID.String()), opts...),
+				Client:       faucetClient,
 				ID:           stack.NewFaucetID(instance.Name, l1ID),
 			}))
 		}
