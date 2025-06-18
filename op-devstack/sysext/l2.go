@@ -186,7 +186,7 @@ func (o *Orchestrator) hydrateL2ProxydMaybe(net *descriptors.L2Chain, l2Net stac
 	}
 
 	for _, instance := range proxydService {
-		proxydClient, endpoint := o.rpcClient(l2Net.T(), instance, RPCProtocol, "/")
+		proxydClient, endpoint := o.rpcClient(l2Net.T(), instance, HTTPProtocol, "/")
 		l2Proxyd := shim.NewL2ELNode(shim.L2ELNodeConfig{
 			ELNodeConfig: shim.ELNodeConfig{
 				CommonConfig: shim.NewCommonConfig(l2Net.T()),
@@ -214,7 +214,7 @@ func (o *Orchestrator) hydrateBatcherMaybe(net *descriptors.L2Chain, l2Net stack
 	}
 
 	for _, instance := range batcherService {
-		batcherClient, _ := o.rpcClient(l2Net.T(), instance, RPCProtocol, "/")
+		batcherClient, _ := o.rpcClient(l2Net.T(), instance, HTTPProtocol, "/")
 		l2Net.AddL2Batcher(shim.NewL2Batcher(shim.L2BatcherConfig{
 			CommonConfig: shim.NewCommonConfig(l2Net.T()),
 			ID:           stack.NewL2BatcherID(instance.Name, l2ID.ChainID()),
@@ -235,7 +235,7 @@ func (o *Orchestrator) hydrateProposerMaybe(net *descriptors.L2Chain, l2Net stac
 	}
 
 	for _, instance := range proposerService {
-		proposerClient, _ := o.rpcClient(l2Net.T(), instance, RPCProtocol, "/")
+		proposerClient, _ := o.rpcClient(l2Net.T(), instance, HTTPProtocol, "/")
 		l2Net.AddL2Proposer(shim.NewL2Proposer(shim.L2ProposerConfig{
 			CommonConfig: shim.NewCommonConfig(l2Net.T()),
 			ID:           stack.NewL2ProposerID(instance.Name, l2ID.ChainID()),
