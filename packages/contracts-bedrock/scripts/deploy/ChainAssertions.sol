@@ -32,9 +32,21 @@ import { IPreimageOracle } from "interfaces/cannon/IPreimageOracle.sol";
 import { IMIPS } from "interfaces/cannon/IMIPS.sol";
 import { IProxyAdmin } from "interfaces/universal/IProxyAdmin.sol";
 import { IETHLockbox } from "interfaces/L1/IETHLockbox.sol";
+import { IProxyAdminOwnedBase } from "interfaces/L1/IProxyAdminOwnedBase.sol";
 
 library ChainAssertions {
     Vm internal constant vm = Vm(0x7109709ECfa91a80626fF3989D68f67F5b1DD12D);
+
+    /// @notice Checks that a call to the proxyAdmin function on a contract that follows the ProxyAdminOwnedBase
+    /// interface fails.
+    /// @dev This is used to check that the proxyAdmin is not set on the contract. E.g Implementation contracts.
+    /// @param _contract The address of the contract that follows the ProxyAdminOwnedBase interface.
+    /// @return true if the call fails with the ProxyAdminOwnedBase_NotResolvedDelegateProxy() error, false otherwise.
+    function checkProxyAdminCallFails(address _contract, bytes4 _errorSelector) internal view returns (bool) {
+        (bool success, bytes memory data) =
+            address(_contract).staticcall(abi.encodeCall(IProxyAdminOwnedBase.proxyAdmin, ()));
+        return (!success && data.length == 4 && bytes4(data) == _errorSelector);
+    }
 
     /// @notice Asserts that the SystemConfig is setup correctly
     function checkSystemConfig(Types.ContractSet memory _contracts, DeployConfig _cfg, bool _isProxy) internal view {
@@ -125,7 +137,12 @@ library ChainAssertions {
             require(address(messenger.PORTAL()) == address(0), "CHECK-L1XDM-100");
             require(address(messenger.portal()) == address(0), "CHECK-L1XDM-110");
             require(address(messenger.systemConfig()) == address(0), "CHECK-L1XDM-120");
-            require(address(messenger.proxyAdmin()) == address(0), "CHECK-L1XDM-130");
+            require(
+                checkProxyAdminCallFails(
+                    address(messenger), IProxyAdminOwnedBase.ProxyAdminOwnedBase_NotResolvedDelegateProxy.selector
+                ),
+                "CHECK-L1XDM-130"
+            );
         }
     }
 

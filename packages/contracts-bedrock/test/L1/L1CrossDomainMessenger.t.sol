@@ -74,6 +74,8 @@ contract L1CrossDomainMessenger_Constructor_Test is L1CrossDomainMessenger_TestI
         returnIfForkTest("L1CrossDomainMessenger_Test: impl storage differs on forked network");
         assertEq(address(impl.OTHER_MESSENGER()), address(0));
         assertEq(address(impl.otherMessenger()), address(0));
+        vm.expectRevert(IProxyAdminOwnedBase.ProxyAdminOwnedBase_NotResolvedDelegateProxy.selector);
+        impl.proxyAdmin();
     }
 }
 
@@ -87,6 +89,7 @@ contract L1CrossDomainMessenger_Initialize_Test is L1CrossDomainMessenger_TestIn
         assertEq(address(l1CrossDomainMessenger.portal()), address(optimismPortal2));
         assertEq(address(l1CrossDomainMessenger.OTHER_MESSENGER()), Predeploys.L2_CROSS_DOMAIN_MESSENGER);
         assertEq(address(l1CrossDomainMessenger.otherMessenger()), Predeploys.L2_CROSS_DOMAIN_MESSENGER);
+        assertEq(address(l1CrossDomainMessenger.proxyAdmin()), address(proxyAdmin));
     }
 
     /// @notice Tests that the initializer value is correct. Trivial test for normal

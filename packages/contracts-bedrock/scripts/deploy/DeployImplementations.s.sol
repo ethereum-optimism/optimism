@@ -32,6 +32,7 @@ import { IL1CrossDomainMessenger } from "interfaces/L1/IL1CrossDomainMessenger.s
 import { IL1ERC721Bridge } from "interfaces/L1/IL1ERC721Bridge.sol";
 import { IL1StandardBridge } from "interfaces/L1/IL1StandardBridge.sol";
 import { IOptimismMintableERC20Factory } from "interfaces/universal/IOptimismMintableERC20Factory.sol";
+import { IProxyAdminOwnedBase } from "interfaces/L1/IProxyAdminOwnedBase.sol";
 import { IProxyAdmin } from "interfaces/universal/IProxyAdmin.sol";
 import { DeployUtils } from "scripts/libraries/DeployUtils.sol";
 import { Solarray } from "scripts/libraries/Solarray.sol";
@@ -686,10 +687,15 @@ contract DeployImplementations is Script {
         require(address(messenger.PORTAL()) == address(0), "L1xDM-30");
         require(address(messenger.portal()) == address(0), "L1xDM-40");
         require(address(messenger.systemConfig()) == address(0), "L1xDM-50");
-        require(address(messenger.proxyAdmin()) == address(0), "L1SB-60");
+        require(
+            checkProxyAdminCallFails(
+                address(messenger), IProxyAdminOwnedBase.ProxyAdminOwnedBase_NotResolvedDelegateProxy.selector
+            ),
+            "L1xDM-60"
+        );
 
         bytes32 xdmSenderSlot = vm.load(address(messenger), bytes32(uint256(204)));
-        require(address(uint160(uint256(xdmSenderSlot))) == address(0), "L1xDM-60");
+        require(address(uint160(uint256(xdmSenderSlot))) == address(0), "L1xDM-70");
     }
 
     function assertValidL1ERC721BridgeImpl(Input memory, Output memory _output) private view {
@@ -737,5 +743,16 @@ contract DeployImplementations is Script {
         IAnchorStateRegistry registry = _output.anchorStateRegistryImpl;
 
         DeployUtils.assertInitialized({ _contractAddress: address(registry), _isProxy: false, _slot: 0, _offset: 0 });
+    }
+
+    /// @notice Checks that a call to the proxyAdmin function on a contract that follows the ProxyAdminOwnedBase
+    /// interface fails.
+    /// @dev This is used to check that the proxyAdmin is not set on the contract. E.g Implementation contracts.
+    /// @param _contract The address of the contract that follows the ProxyAdminOwnedBase interface.
+    /// @return true if the call fails with the ProxyAdminOwnedBase_NotResolvedDelegateProxy() error, false otherwise.
+    function checkProxyAdminCallFails(address _contract, bytes4 _errorSelector) internal view returns (bool) {
+        (bool success, bytes memory data) =
+            address(_contract).staticcall(abi.encodeCall(IProxyAdminOwnedBase.proxyAdmin, ()));
+        return (!success && data.length == 4 && bytes4(data) == _errorSelector);
     }
 }
