@@ -6,7 +6,7 @@ import (
 	"encoding/binary"
 	"math/big"
 
-	optimiseth "github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/eth"
 	supervisortypes "github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -29,7 +29,7 @@ func TestJob_UpdateStatus(t *testing.T) {
 
 func TestJobFromExecutingMessageLog_Error(t *testing.T) {
 	log := &types.Log{}
-	_, err := JobFromExecutingMessageLog(log)
+	_, err := JobFromExecutingMessageLog(log, eth.ChainIDFromBig(big.NewInt(1)))
 	require.Error(t, err, "expected error for empty log")
 }
 
@@ -39,7 +39,9 @@ func TestJobFromLog(t *testing.T) {
 	blockHash := common.HexToHash("0xdeadbeef")
 	blockNumber := uint64(42)
 	logIndex := uint32(7)
-	chainID := big.NewInt(10)
+	initiatingChainID := big.NewInt(9)
+	executingChainID := big.NewInt(10)
+
 	timestamp := uint64(123456)
 
 	// Build valid data for the event
@@ -54,7 +56,7 @@ func TestJobFromLog(t *testing.T) {
 	binary.BigEndian.PutUint64(data[96+24:96+32], timestamp)
 	// chainID (32 bytes, big endian)
 	chainIDBytes := make([]byte, 32)
-	chainID.FillBytes(chainIDBytes)
+	initiatingChainID.FillBytes(chainIDBytes)
 	copy(data[128:160], chainIDBytes)
 
 	tests := []struct {
@@ -93,15 +95,15 @@ func TestJobFromLog(t *testing.T) {
 			expectsErr: false,
 			expectsJob: &Job{
 				executingAddress: address,
-				executingChain:   optimiseth.ChainIDFromBig(chainID),
-				executingBlock:   optimiseth.BlockID{Hash: blockHash, Number: blockNumber},
+				executingChain:   eth.ChainIDFromBig(executingChainID),
+				executingBlock:   eth.BlockID{Hash: blockHash, Number: blockNumber},
 				executingPayload: payloadHash,
 				initiating: &supervisortypes.Identifier{
 					Origin:      address,
 					BlockNumber: blockNumber,
 					LogIndex:    logIndex,
 					Timestamp:   timestamp,
-					ChainID:     optimiseth.ChainIDFromBig(chainID),
+					ChainID:     eth.ChainIDFromBig(initiatingChainID),
 				},
 			},
 		},
@@ -109,7 +111,7 @@ func TestJobFromLog(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			job, err := JobFromExecutingMessageLog(tc.log)
+			job, err := JobFromExecutingMessageLog(tc.log, eth.ChainIDFromBig(executingChainID))
 			if tc.expectsErr {
 				require.Error(t, err)
 			} else {
@@ -123,4 +125,38 @@ func TestJobFromLog(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestJobId(t *testing.T) {
+	executingBlockNumber := uint64(400)
+	executingPayload := common.HexToHash("0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef")
+	executingChain := eth.ChainIDFromBig(big.NewInt(10))
+	initiatingBlockNumber := uint64(400)
+	logIndex := uint32(7)
+	initiatingChain := eth.ChainIDFromBig(big.NewInt(9))
+
+	jobID := JobId(
+		executingBlockNumber,
+		executingPayload,
+		executingChain,
+		initiatingBlockNumber,
+		logIndex,
+		initiatingChain,
+	)
+
+	expected := "block-400.0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef@chain-10:block-400.log-7@chain-9"
+	require.Equal(t, JobID(expected), jobID, "JobId should format the ID correctly")
+
+	// Test with different values
+	jobID2 := JobId(
+		uint64(100),
+		common.HexToHash("0xabcd"),
+		eth.ChainIDFromBig(big.NewInt(1)),
+		uint64(50),
+		uint32(3),
+		eth.ChainIDFromBig(big.NewInt(2)),
+	)
+
+	expected2 := "block-100.0x000000000000000000000000000000000000000000000000000000000000abcd@chain-1:block-50.log-3@chain-2"
+	require.Equal(t, JobID(expected2), jobID2, "JobId should format different values correctly")
 }
