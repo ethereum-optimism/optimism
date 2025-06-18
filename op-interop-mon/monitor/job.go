@@ -136,6 +136,28 @@ func (j *Job) String() string {
 		j.LatestStatus().String())
 }
 
+func JobId(
+	executingBlockNumber uint64,
+	executingLogIndex uint,
+	executingPayload common.Hash,
+	executingChain eth.ChainID,
+	intitiatingBlockNumber uint64,
+	logIndex uint32,
+	initiatingChain eth.ChainID,
+) JobID {
+	return JobID(
+		fmt.Sprintf(
+			"block-%d.%d.%s@chain-%s:block-%d.log-%d@chain-%s",
+			executingBlockNumber,
+			executingLogIndex,
+			executingPayload.String(),
+			executingChain.String(),
+			intitiatingBlockNumber,
+			logIndex,
+			initiatingChain.String(),
+		))
+}
+
 // JobFromExecutingMessageLog converts a log to a job
 func JobFromExecutingMessageLog(log *types.Log, executingChain eth.ChainID) (Job, error) {
 	msg, err := processors.MessageFromLog(log)

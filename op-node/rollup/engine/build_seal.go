@@ -10,6 +10,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/event"
 )
 
 // PayloadSealInvalidEvent identifies a permanent in-consensus problem with the payload sealing.
@@ -19,6 +20,7 @@ type PayloadSealInvalidEvent struct {
 
 	Concluding  bool
 	DerivedFrom eth.L1BlockRef
+	event.Ctx
 }
 
 func (ev PayloadSealInvalidEvent) String() string {
@@ -35,6 +37,7 @@ type PayloadSealExpiredErrorEvent struct {
 
 	Concluding  bool
 	DerivedFrom eth.L1BlockRef
+	event.Ctx
 }
 
 func (ev PayloadSealExpiredErrorEvent) String() string {
@@ -48,6 +51,7 @@ type BuildSealEvent struct {
 	Concluding bool
 	// payload is promoted to pending-safe if non-zero
 	DerivedFrom eth.L1BlockRef
+	event.Ctx
 }
 
 func (ev BuildSealEvent) String() string {
@@ -77,6 +81,7 @@ func (eq *EngDeriver) onBuildSeal(ev BuildSealEvent) {
 			Err:         fmt.Errorf("failed to seal execution payload (ID: %s): %w", ev.Info.ID, err),
 			Concluding:  ev.Concluding,
 			DerivedFrom: ev.DerivedFrom,
+			Ctx:         ev.Ctx,
 		})
 		return
 	}
@@ -88,6 +93,7 @@ func (eq *EngDeriver) onBuildSeal(ev BuildSealEvent) {
 				ev.Info.ID, envelope.ExecutionPayload.BlockHash, err),
 			Concluding:  ev.Concluding,
 			DerivedFrom: ev.DerivedFrom,
+			Ctx:         ev.Ctx,
 		})
 		return
 	}
@@ -99,6 +105,7 @@ func (eq *EngDeriver) onBuildSeal(ev BuildSealEvent) {
 			Err:         fmt.Errorf("failed to decode L2 block ref from payload: %w", err),
 			Concluding:  ev.Concluding,
 			DerivedFrom: ev.DerivedFrom,
+			Ctx:         ev.Ctx,
 		})
 		return
 	}
@@ -123,5 +130,6 @@ func (eq *EngDeriver) onBuildSeal(ev BuildSealEvent) {
 		Info:         ev.Info,
 		Envelope:     envelope,
 		Ref:          ref,
+		Ctx:          ev.Ctx,
 	})
 }

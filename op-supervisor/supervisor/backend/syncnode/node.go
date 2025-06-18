@@ -14,8 +14,8 @@ import (
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/log"
 
-	"github.com/ethereum-optimism/optimism/op-node/rollup/event"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/event"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/superevents"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 	gethevent "github.com/ethereum/go-ethereum/event"
@@ -353,6 +353,7 @@ func (m *ManagedNode) onUnsafeBlock(unsafeRef eth.BlockRef) {
 	m.emitter.Emit(superevents.LocalUnsafeReceivedEvent{
 		ChainID:        m.chainID,
 		NewLocalUnsafe: unsafeRef,
+		Ctx:            event.WrapCtx(m.ctx),
 	})
 	m.lastNodeLocalUnsafe = unsafeRef.ID()
 	m.resetIfInconsistent()
@@ -365,6 +366,7 @@ func (m *ManagedNode) onDerivationUpdate(pair types.DerivedBlockRefPair) {
 		ChainID: m.chainID,
 		Derived: pair,
 		NodeID:  m.Node.String(),
+		Ctx:     event.WrapCtx(m.ctx),
 	})
 	m.lastNodeLocalSafe = pair.Derived.ID()
 	m.resetIfInconsistent()
@@ -375,6 +377,7 @@ func (m *ManagedNode) onDerivationOriginUpdate(origin eth.BlockRef) {
 	m.emitter.Emit(superevents.LocalDerivedOriginUpdateEvent{
 		ChainID: m.chainID,
 		Origin:  origin,
+		Ctx:     event.WrapCtx(m.ctx),
 	})
 }
 
@@ -425,6 +428,7 @@ func (m *ManagedNode) onReplaceBlock(replacement types.BlockReplacement) {
 	m.emitter.Emit(superevents.ReplaceBlockEvent{
 		ChainID:     m.chainID,
 		Replacement: replacement,
+		Ctx:         event.WrapCtx(m.ctx),
 	})
 	// if the node replaced a block, both the unsafe and safe are reset to this point
 	m.lastNodeLocalSafe = replacement.Replacement.ID()
@@ -484,7 +488,8 @@ func (m *ManagedNode) resetIfAhead() {
 	lastDBLocalSafe, err := m.backend.LocalSafe(ctx, m.chainID)
 	if errors.Is(err, types.ErrFuture) {
 		m.log.Info("no activation block yet, initiating pre-Interop reset")
-		m.emitter.Emit(superevents.ResetPreInteropRequestEvent{ChainID: m.chainID})
+		m.emitter.Emit(superevents.ResetPreInteropRequestEvent{
+			ChainID: m.chainID, Ctx: event.WrapCtx(m.ctx)})
 		return
 	} else if err != nil {
 		m.log.Error("failed to get last local safe block", "err", err)
@@ -511,7 +516,8 @@ func (m *ManagedNode) resetFullRange() {
 	dbLast, err := m.backend.LocalSafe(internalCtx, m.chainID)
 	if errors.Is(err, types.ErrFuture) {
 		m.log.Info("no activation block yet, initiating pre-Interop reset")
-		m.emitter.Emit(superevents.ResetPreInteropRequestEvent{ChainID: m.chainID})
+		m.emitter.Emit(superevents.ResetPreInteropRequestEvent{
+			ChainID: m.chainID, Ctx: event.WrapCtx(m.ctx)})
 		return
 	} else if err != nil {
 		m.log.Error("failed to get last local safe block", "err", err)

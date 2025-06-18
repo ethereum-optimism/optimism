@@ -26,7 +26,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/conductor"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/driver"
-	"github.com/ethereum-optimism/optimism/op-node/rollup/event"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/finality"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/interop"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/interop/managed"
@@ -35,6 +34,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup/sync"
 	"github.com/ethereum-optimism/optimism/op-service/client"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/event"
 	"github.com/ethereum-optimism/optimism/op-service/httputil"
 	"github.com/ethereum-optimism/optimism/op-service/oppprof"
 	"github.com/ethereum-optimism/optimism/op-service/retry"
@@ -209,13 +209,13 @@ func (n *OpNode) initL1(ctx context.Context, cfg *config.Config) error {
 
 	emitter := n.eventSys.Register("l1-signals", nil)
 	onL1Head := func(ctx context.Context, sig eth.L1BlockRef) {
-		emitter.Emit(status.L1UnsafeEvent{L1Unsafe: sig})
+		emitter.Emit(status.L1UnsafeEvent{L1Unsafe: sig, Ctx: event.WrapCtx(ctx)})
 	}
 	onL1Safe := func(ctx context.Context, sig eth.L1BlockRef) {
-		emitter.Emit(status.L1SafeEvent{L1Safe: sig})
+		emitter.Emit(status.L1SafeEvent{L1Safe: sig, Ctx: event.WrapCtx(ctx)})
 	}
 	onL1Finalized := func(ctx context.Context, sig eth.L1BlockRef) {
-		emitter.Emit(finality.FinalizeL1Event{FinalizedL1: sig})
+		emitter.Emit(finality.FinalizeL1Event{FinalizedL1: sig, Ctx: event.WrapCtx(ctx)})
 	}
 
 	// Keep subscribed to the L1 heads, which keeps the L1 maintainer pointing to the best headers to sync
@@ -588,7 +588,7 @@ func (n *OpNode) onEvent(ev event.Event) bool {
 }
 
 func (n *OpNode) PublishBlock(ctx context.Context, signedEnvelope *opsigner.SignedExecutionPayloadEnvelope) error {
-	n.apiEmitter.Emit(tracer.TracePublishBlockEvent{Envelope: signedEnvelope.Envelope})
+	n.apiEmitter.Emit(tracer.TracePublishBlockEvent{Envelope: signedEnvelope.Envelope, Ctx: event.WrapCtx(ctx)})
 	if p2pNode := n.getP2PNodeIfEnabled(); p2pNode != nil {
 		n.log.Info("Publishing signed execution payload on p2p", "id", signedEnvelope.ID())
 		return p2pNode.GossipOut().PublishSignedL2Payload(ctx, signedEnvelope)
@@ -597,7 +597,7 @@ func (n *OpNode) PublishBlock(ctx context.Context, signedEnvelope *opsigner.Sign
 }
 
 func (n *OpNode) SignAndPublishL2Payload(ctx context.Context, envelope *eth.ExecutionPayloadEnvelope) error {
-	n.apiEmitter.Emit(tracer.TracePublishBlockEvent{Envelope: envelope})
+	n.apiEmitter.Emit(tracer.TracePublishBlockEvent{Envelope: envelope, Ctx: event.WrapCtx(ctx)})
 	// publish to p2p, if we are running p2p at all
 	if p2pNode := n.getP2PNodeIfEnabled(); p2pNode != nil {
 		if n.p2pSigner == nil {

@@ -17,6 +17,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/engine"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/event"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum-optimism/optimism/op-service/testutils"
 )
@@ -256,21 +257,24 @@ func TestAttributesHandler(t *testing.T) {
 			// Call during consolidation.
 			// The payloadA1 is going to get reorged out in favor of attrA1Alt (turns into payloadA1Alt)
 			l2.ExpectPayloadByNumber(refA1.Number, payloadA1, nil)
+			testCtx := context.Background()
 			// fail consolidation, perform force reorg
-			emitter.ExpectOnce(engine.BuildStartEvent{Attributes: attrA1Alt})
+			emitter.ExpectOnce(engine.BuildStartEvent{Attributes: attrA1Alt, Ctx: event.WrapCtx(testCtx)})
 			ah.OnEvent(engine.PendingSafeUpdateEvent{
 				PendingSafe: refA0,
 				Unsafe:      refA1,
+				Ctx:         event.WrapCtx(testCtx),
 			})
 			l2.AssertExpectations(t)
 			emitter.AssertExpectations(t)
 			require.NotNil(t, ah.attributes, "still have attributes, processing still unconfirmed")
 
-			emitter.ExpectOnce(derive.PipelineStepEvent{PendingSafe: refA1Alt})
+			emitter.ExpectOnce(derive.PipelineStepEvent{PendingSafe: refA1Alt, Ctx: event.WrapCtx(testCtx)})
 			// recognize reorg as complete
 			ah.OnEvent(engine.PendingSafeUpdateEvent{
 				PendingSafe: refA1Alt,
 				Unsafe:      refA1Alt,
+				Ctx:         event.WrapCtx(testCtx),
 			})
 			emitter.AssertExpectations(t)
 			require.Nil(t, ah.attributes, "drop when attributes are successful")
@@ -298,14 +302,17 @@ func TestAttributesHandler(t *testing.T) {
 				// Call during consolidation.
 				l2.ExpectPayloadByNumber(refA1.Number, payloadA1, nil)
 
+				testCtx := context.Background()
 				emitter.ExpectOnce(engine.PromotePendingSafeEvent{
 					Ref:        refA1,
 					Concluding: concluding,
 					Source:     refB,
+					Ctx:        event.WrapCtx(testCtx),
 				})
 				ah.OnEvent(engine.PendingSafeUpdateEvent{
 					PendingSafe: refA0,
 					Unsafe:      refA1,
+					Ctx:         event.WrapCtx(testCtx),
 				})
 				l2.AssertExpectations(t)
 				emitter.AssertExpectations(t)

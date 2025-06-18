@@ -7,15 +7,17 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
-	"github.com/ethereum-optimism/optimism/op-node/rollup/event"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/sync"
+	"github.com/ethereum-optimism/optimism/op-service/event"
 )
 
 // ResetEngineRequestEvent requests the EngineResetDeriver to walk
 // the L2 chain backwards until it finds a plausible unsafe head,
 // and find an L2 safe block that is guaranteed to still be from the L1 chain.
 // This event is not used in interop.
-type ResetEngineRequestEvent struct{}
+type ResetEngineRequestEvent struct {
+	event.Ctx
+}
 
 func (ev ResetEngineRequestEvent) String() string {
 	return "reset-engine-request"
@@ -49,11 +51,14 @@ func (d *EngineResetDeriver) AttachEmitter(em event.Emitter) {
 }
 
 func (d *EngineResetDeriver) OnEvent(ev event.Event) bool {
-	switch ev.(type) {
+	switch x := ev.(type) {
 	case ResetEngineRequestEvent:
 		result, err := sync.FindL2Heads(d.ctx, d.cfg, d.l1, d.l2, d.log, d.syncCfg)
 		if err != nil {
-			d.emitter.Emit(rollup.ResetEvent{Err: fmt.Errorf("failed to find the L2 Heads to start from: %w", err)})
+			d.emitter.Emit(rollup.ResetEvent{
+				Err: fmt.Errorf("failed to find the L2 Heads to start from: %w", err),
+				Ctx: x.Ctx,
+			})
 			return true
 		}
 		d.emitter.Emit(rollup.ForceResetEvent{
@@ -62,6 +67,7 @@ func (d *EngineResetDeriver) OnEvent(ev event.Event) bool {
 			LocalSafe:   result.Safe,
 			CrossSafe:   result.Safe,
 			Finalized:   result.Finalized,
+			Ctx:         x.Ctx,
 		})
 	default:
 		return false

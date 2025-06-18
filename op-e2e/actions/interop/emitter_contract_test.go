@@ -20,8 +20,8 @@ import (
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/contracts/bindings/emit"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/contracts/bindings/inbox"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
-	"github.com/ethereum-optimism/optimism/op-node/rollup/event"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/event"
 	"github.com/ethereum-optimism/optimism/op-service/predeploys"
 	stypes "github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 )

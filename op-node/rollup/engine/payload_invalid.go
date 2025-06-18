@@ -1,10 +1,15 @@
 package engine
 
-import "github.com/ethereum-optimism/optimism/op-service/eth"
+import (
+	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/event"
+)
 
 type PayloadInvalidEvent struct {
 	Envelope *eth.ExecutionPayloadEnvelope
 	Err      error
+
+	event.Ctx
 }
 
 func (ev PayloadInvalidEvent) String() string {

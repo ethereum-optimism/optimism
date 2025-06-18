@@ -11,6 +11,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/p2p"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/status"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/event"
 	"github.com/ethereum-optimism/optimism/op-service/testutils"
 )
 
@@ -48,11 +49,11 @@ func TestTracer(t *testing.T) {
 		ExecutionPayload: &eth.ExecutionPayload{
 			BlockHash: id.Hash, BlockNumber: eth.Uint64Quantity(id.Number)}}
 
-	d.OnEvent(p2p.ReceivedBlockEvent{From: "foo", Envelope: block})
+	d.OnEvent(p2p.ReceivedBlockEvent{From: "foo", Envelope: block, Ctx: event.WrapCtx(context.Background())})
 	require.Equal(t, "P2P in: from: foo id: "+id.String()+"\n", tr.got)
 	tr.got = ""
 
-	d.OnEvent(TracePublishBlockEvent{Envelope: block})
+	d.OnEvent(TracePublishBlockEvent{Envelope: block, Ctx: event.WrapCtx(context.Background())})
 	require.Equal(t, "P2P out: "+id.String()+"\n", tr.got)
 	tr.got = ""
 

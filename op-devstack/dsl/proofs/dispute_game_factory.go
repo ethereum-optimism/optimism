@@ -2,6 +2,7 @@ package proofs
 
 import (
 	"encoding/binary"
+	"math/big"
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -73,6 +74,28 @@ func NewGameCfg(opts ...GameOpt) *GameCfg {
 		opt.Apply(cfg)
 	}
 	return cfg
+}
+
+func (f *DisputeGameFactory) GameCount() int64 {
+	return contract.Read(f.dgf.GameCount()).Int64()
+}
+
+func (f *DisputeGameFactory) GameAtIndex(idx int64) *FaultDisputeGame {
+	gameInfo := contract.Read(f.dgf.GameAtIndex(big.NewInt(idx)))
+	game := bindings.NewFaultDisputeGame(bindings.WithClient(f.ethClient), bindings.WithTo(gameInfo.Proxy), bindings.WithTest(f.t))
+	return NewFaultDisputeGame(f.t, f.require, game)
+}
+
+func (f *DisputeGameFactory) WaitForGame() *FaultDisputeGame {
+	initialCount := f.GameCount()
+	f.t.Require().Eventually(func() bool {
+		gameCount := f.GameCount()
+		check := gameCount > initialCount
+		f.t.Logf("waiting for new game. current=%d new=%d", initialCount, gameCount)
+		return check
+	}, time.Minute*10, time.Second*5)
+
+	return f.GameAtIndex(initialCount)
 }
 
 func (f *DisputeGameFactory) StartSuperCannonGame(eoa *dsl.EOA, rootClaim common.Hash, opts ...GameOpt) *SuperFaultDisputeGame {

@@ -13,9 +13,9 @@ import (
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/log"
 
-	"github.com/ethereum-optimism/optimism/op-node/rollup/event"
 	"github.com/ethereum-optimism/optimism/op-service/client"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/event"
 	"github.com/ethereum-optimism/optimism/op-service/locks"
 	"github.com/ethereum-optimism/optimism/op-service/safemath"
 	"github.com/ethereum-optimism/optimism/op-service/sources"
@@ -191,6 +191,7 @@ func (su *SupervisorBackend) OnEvent(ev event.Event) bool {
 			su.emitter.Emit(superevents.UnsafeActivationBlockEvent{
 				ChainID: x.ChainID,
 				Unsafe:  x.NewLocalUnsafe,
+				Ctx:     x.Ctx,
 			})
 			// don't process events of the activation block
 			return true
@@ -198,14 +199,17 @@ func (su *SupervisorBackend) OnEvent(ev event.Event) bool {
 		su.emitter.Emit(superevents.ChainProcessEvent{
 			ChainID: x.ChainID,
 			Target:  x.NewLocalUnsafe.Number,
+			Ctx:     x.Ctx,
 		})
 	case superevents.LocalUnsafeUpdateEvent:
 		su.emitter.Emit(superevents.UpdateCrossUnsafeRequestEvent{
 			ChainID: x.ChainID,
+			Ctx:     x.Ctx,
 		})
 	case superevents.CrossUnsafeUpdateEvent:
 		su.emitter.Emit(superevents.UpdateCrossUnsafeRequestEvent{
 			ChainID: x.ChainID,
+			Ctx:     x.Ctx,
 		})
 	case superevents.LocalDerivedEvent:
 		if !su.cfgSet.IsInterop(x.ChainID, x.Derived.Derived.Time) {
@@ -215,19 +219,23 @@ func (su *SupervisorBackend) OnEvent(ev event.Event) bool {
 			su.emitter.Emit(superevents.SafeActivationBlockEvent{
 				ChainID: x.ChainID,
 				Safe:    x.Derived,
+				Ctx:     x.Ctx,
 			})
 		}
 	case superevents.LocalSafeUpdateEvent:
 		su.emitter.Emit(superevents.ChainProcessEvent{
 			ChainID: x.ChainID,
 			Target:  x.NewLocalSafe.Derived.Number,
+			Ctx:     x.Ctx,
 		})
 		su.emitter.Emit(superevents.UpdateCrossSafeRequestEvent{
 			ChainID: x.ChainID,
+			Ctx:     x.Ctx,
 		})
 	case superevents.CrossSafeUpdateEvent:
 		su.emitter.Emit(superevents.UpdateCrossSafeRequestEvent{
 			ChainID: x.ChainID,
+			Ctx:     x.Ctx,
 		})
 	default:
 		return false
@@ -338,6 +346,7 @@ func (su *SupervisorBackend) openChainDBs(chainID eth.ChainID) error {
 				Source:  genesis.L1.WithZeroParent(),
 				Derived: genesis.L2.WithZeroParent(),
 			},
+			Ctx: event.WrapCtx(su.sysContext),
 		})
 	}
 
@@ -440,6 +449,7 @@ func (su *SupervisorBackend) Stop(ctx context.Context) error {
 	su.l1Accessor.UnsubscribeFinalityHandler()
 	su.l1Accessor.UnsubscribeLatestHandler()
 
+	su.rewinder.Close()
 	su.chainProcessors.Clear()
 
 	su.syncNodesController.Close()

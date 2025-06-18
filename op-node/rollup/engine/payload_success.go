@@ -5,6 +5,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/event"
 )
 
 type PayloadSuccessEvent struct {
@@ -17,6 +18,7 @@ type PayloadSuccessEvent struct {
 
 	Envelope *eth.ExecutionPayloadEnvelope
 	Ref      eth.L2BlockRef
+	event.Ctx
 }
 
 func (ev PayloadSuccessEvent) String() string {
@@ -34,19 +36,21 @@ func (eq *EngDeriver) onPayloadSuccess(ev PayloadSuccessEvent) {
 			LocalSafe:   ev.Ref,
 			CrossSafe:   ev.Ref,
 			Finalized:   eq.ec.Finalized(),
+			Ctx:         ev.Ctx,
 		})
 		eq.emitter.Emit(InteropReplacedBlockEvent{
 			Envelope: ev.Envelope,
 			Ref:      ev.Ref.BlockRef(),
+			Ctx:      ev.Ctx,
 		})
 		// Apply it to the execution engine
-		eq.emitter.Emit(TryUpdateEngineEvent{})
+		eq.emitter.Emit(TryUpdateEngineEvent{Ctx: ev.Ctx})
 		// Not a regular reset, since we don't wind back to any L2 block.
 		// We start specifically from the replacement block.
 		return
 	}
 
-	eq.emitter.Emit(PromoteUnsafeEvent{Ref: ev.Ref})
+	eq.emitter.Emit(PromoteUnsafeEvent{Ref: ev.Ref, Ctx: ev.Ctx})
 
 	// If derived from L1, then it can be considered (pending) safe
 	if ev.DerivedFrom != (eth.L1BlockRef{}) {
@@ -54,6 +58,7 @@ func (eq *EngDeriver) onPayloadSuccess(ev PayloadSuccessEvent) {
 			Ref:        ev.Ref,
 			Concluding: ev.Concluding,
 			Source:     ev.DerivedFrom,
+			Ctx:        ev.Ctx,
 		})
 	}
 
@@ -61,5 +66,6 @@ func (eq *EngDeriver) onPayloadSuccess(ev PayloadSuccessEvent) {
 		BuildStarted:  ev.BuildStarted,
 		InsertStarted: ev.InsertStarted,
 		Envelope:      ev.Envelope,
+		Ctx:           ev.Ctx,
 	})
 }

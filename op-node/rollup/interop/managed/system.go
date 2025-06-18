@@ -15,9 +15,9 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/engine"
-	"github.com/ethereum-optimism/optimism/op-node/rollup/event"
 	"github.com/ethereum-optimism/optimism/op-service/binary"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/event"
 	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
 	"github.com/ethereum-optimism/optimism/op-service/rpc"
 	supervisortypes "github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
@@ -264,6 +264,7 @@ func (m *ManagedMode) UpdateCrossUnsafe(ctx context.Context, id eth.BlockID) err
 	}
 	m.emitter.Emit(engine.PromoteCrossUnsafeEvent{
 		Ref: l2Ref,
+		Ctx: event.WrapCtx(ctx),
 	})
 	// We return early: there is no point waiting for the cross-unsafe engine-update synchronously.
 	// All error-feedback comes to the supervisor by aborting derivation tasks with an error.
@@ -282,6 +283,7 @@ func (m *ManagedMode) UpdateCrossSafe(ctx context.Context, derived eth.BlockID, 
 	m.emitter.Emit(engine.PromoteSafeEvent{
 		Ref:    l2Ref,
 		Source: l1Ref,
+		Ctx:    event.WrapCtx(ctx),
 	})
 	// We return early: there is no point waiting for the cross-safe engine-update synchronously.
 	// All error-feedback comes to the supervisor by aborting derivation tasks with an error.
@@ -293,7 +295,7 @@ func (m *ManagedMode) UpdateFinalized(ctx context.Context, id eth.BlockID) error
 	if err != nil {
 		return fmt.Errorf("failed to get L2BlockRef: %w", err)
 	}
-	m.emitter.Emit(engine.PromoteFinalizedEvent{Ref: l2Ref})
+	m.emitter.Emit(engine.PromoteFinalizedEvent{Ref: l2Ref, Ctx: event.WrapCtx(ctx)})
 	// We return early: there is no point waiting for the finalized engine-update synchronously.
 	// All error-feedback comes to the supervisor by aborting derivation tasks with an error.
 	return nil
@@ -323,7 +325,8 @@ func (m *ManagedMode) InvalidateBlock(ctx context.Context, seal supervisortypes.
 		DerivedFrom: engine.ReplaceBlockSource,
 	}
 
-	m.emitter.Emit(engine.InteropInvalidateBlockEvent{Invalidated: ref, Attributes: annotated})
+	m.emitter.Emit(engine.InteropInvalidateBlockEvent{
+		Invalidated: ref, Attributes: annotated, Ctx: event.WrapCtx(ctx)})
 
 	// The node will send an event once the replacement is ready
 	return nil
@@ -363,7 +366,7 @@ const (
 // TODO: add ResetPreInterop, called by supervisor if bisection went pre-Interop. Emit ResetEngineRequestEvent.
 func (m *ManagedMode) ResetPreInterop(ctx context.Context) error {
 	m.log.Info("Received pre-interop reset request")
-	m.emitter.Emit(engine.ResetEngineRequestEvent{})
+	m.emitter.Emit(engine.ResetEngineRequestEvent{Ctx: event.WrapCtx(ctx)})
 	return nil
 }
 
@@ -447,6 +450,7 @@ func (m *ManagedMode) Reset(ctx context.Context, lUnsafe, xUnsafe, lSafe, xSafe,
 		LocalSafe:   lSafeRef,
 		CrossSafe:   xSafeRef,
 		Finalized:   finalizedRef,
+		Ctx:         event.WrapCtx(ctx),
 	})
 	return nil
 }
@@ -539,6 +543,7 @@ func (m *ManagedMode) ProvideL1(ctx context.Context, nextL1 eth.BlockRef) error 
 	m.log.Info("Received next L1 block", "nextL1", nextL1)
 	m.emitter.Emit(derive.ProvideL1Traversal{
 		NextL1: nextL1,
+		Ctx:    event.WrapCtx(ctx),
 	})
 	return nil
 }

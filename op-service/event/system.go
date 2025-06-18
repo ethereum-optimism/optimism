@@ -6,6 +6,7 @@ import (
 	"slices"
 	"sync"
 	"sync/atomic"
+	"testing"
 	"time"
 
 	"github.com/ethereum/go-ethereum/log"
@@ -75,6 +76,14 @@ type systemActor struct {
 
 // Emit is called by the end-user
 func (r *systemActor) Emit(ev Event) {
+	if ev.Context() == nil {
+		if testing.Testing() {
+			panic(fmt.Errorf("emitter %s must attach a context to the emitted event %s", r.name, ev.String()))
+		} else {
+			// if not testing, then we will be more graceful, and allow the event to happen. The context may not be used.
+			r.sys.log.Error("Event without context emitted", "emitter", r.name, "event", ev.String())
+		}
+	}
 	if r.ctx.Err() != nil {
 		return
 	}

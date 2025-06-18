@@ -8,11 +8,13 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/event"
 )
 
 type BuildCancelEvent struct {
 	Info  eth.PayloadInfo
 	Force bool
+	event.Ctx
 }
 
 func (ev BuildCancelEvent) String() string {
@@ -33,7 +35,7 @@ func (eq *EngDeriver) onBuildCancel(ev BuildCancelEvent) {
 		}
 		eq.log.Error("failed to cancel block building job", "info", ev.Info, "err", err)
 		if !ev.Force {
-			eq.emitter.Emit(rollup.EngineTemporaryErrorEvent{Err: err})
+			eq.emitter.Emit(rollup.EngineTemporaryErrorEvent{Err: err, Ctx: ev.Ctx})
 		}
 	}
 }
