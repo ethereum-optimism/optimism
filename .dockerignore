@@ -1,7 +1,9 @@
 # Version control
-.git
 .github
 .gitignore
+
+# Include for vergen constants
+!/.git
 
 # Build artifacts
 **/target
