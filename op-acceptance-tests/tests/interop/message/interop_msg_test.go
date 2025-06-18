@@ -34,8 +34,8 @@ func TestInitExecMsg(gt *testing.T) {
 	t := devtest.SerialT(gt)
 	sys := presets.NewSimpleInterop(t)
 	rng := rand.New(rand.NewSource(1234))
-	alice := sys.FunderA.NewFundedEOA(eth.OneEther)
-	bob := sys.FunderB.NewFundedEOA(eth.OneEther)
+	alice := sys.FunderA.NewFundedEOA(eth.OneTenthEther)
+	bob := sys.FunderB.NewFundedEOA(eth.OneTenthEther)
 
 	eventLoggerAddress := alice.DeployEventLogger()
 	// Trigger random init message at chain A
@@ -51,8 +51,8 @@ func TestInitExecMsgWithDSL(gt *testing.T) {
 	t := devtest.SerialT(gt)
 	sys := presets.NewSimpleInterop(t)
 	rng := rand.New(rand.NewSource(1234))
-	alice := sys.FunderA.NewFundedEOA(eth.OneEther)
-	bob := sys.FunderB.NewFundedEOA(eth.OneEther)
+	alice := sys.FunderA.NewFundedEOA(eth.OneTenthEther)
+	bob := sys.FunderB.NewFundedEOA(eth.OneTenthEther)
 	require := t.Require()
 
 	eventLoggerAddress := alice.DeployEventLogger()
@@ -133,8 +133,8 @@ func TestRandomDirectedGraph(gt *testing.T) {
 	// interop network has at least two chains
 	l2ChainNum := 2
 
-	alice := sys.FunderA.NewFundedEOA(eth.OneEther)
-	bob := sys.FunderB.NewFundedEOA(eth.OneEther)
+	alice := sys.FunderA.NewFundedEOA(eth.OneTenthEther)
+	bob := sys.FunderB.NewFundedEOA(eth.OneTenthEther)
 
 	// Deploy eventLoggers per every L2 chains because initiating messages can happen on any L2 chains
 	eventLoggerAddresses := []common.Address{alice.DeployEventLogger(), bob.DeployEventLogger()}
@@ -251,7 +251,7 @@ func TestInitExecMultipleMsg(gt *testing.T) {
 	logger := t.Logger()
 
 	rng := rand.New(rand.NewSource(1234))
-	alice, bob := sys.FunderA.NewFundedEOA(eth.OneEther), sys.FunderB.NewFundedEOA(eth.OneEther)
+	alice, bob := sys.FunderA.NewFundedEOA(eth.OneTenthEther), sys.FunderB.NewFundedEOA(eth.OneTenthEther)
 
 	eventLoggerAddress := alice.DeployEventLogger()
 	// Intent to initiate two message(or emit event) on chain A
@@ -296,7 +296,7 @@ func TestExecSameMsgTwice(gt *testing.T) {
 	logger := t.Logger()
 
 	rng := rand.New(rand.NewSource(1234))
-	alice, bob := sys.FunderA.NewFundedEOA(eth.OneEther), sys.FunderB.NewFundedEOA(eth.OneEther)
+	alice, bob := sys.FunderA.NewFundedEOA(eth.OneTenthEther), sys.FunderB.NewFundedEOA(eth.OneTenthEther)
 
 	eventLoggerAddress := alice.DeployEventLogger()
 
@@ -340,7 +340,7 @@ func TestExecDifferentTopicCount(gt *testing.T) {
 	logger := t.Logger()
 
 	rng := rand.New(rand.NewSource(1234))
-	alice, bob := sys.FunderA.NewFundedEOA(eth.OneEther), sys.FunderB.NewFundedEOA(eth.OneEther)
+	alice, bob := sys.FunderA.NewFundedEOA(eth.OneTenthEther), sys.FunderB.NewFundedEOA(eth.OneTenthEther)
 
 	eventLoggerAddress := alice.DeployEventLogger()
 
@@ -390,7 +390,7 @@ func TestExecMsgOpaqueData(gt *testing.T) {
 	logger := t.Logger()
 
 	rng := rand.New(rand.NewSource(1234))
-	alice, bob := sys.FunderA.NewFundedEOA(eth.OneEther), sys.FunderB.NewFundedEOA(eth.OneEther)
+	alice, bob := sys.FunderA.NewFundedEOA(eth.OneTenthEther), sys.FunderB.NewFundedEOA(eth.OneTenthEther)
 
 	eventLoggerAddress := alice.DeployEventLogger()
 
@@ -440,7 +440,7 @@ func TestExecMsgDifferEventIndexInSingleTx(gt *testing.T) {
 	logger := t.Logger()
 
 	rng := rand.New(rand.NewSource(1234))
-	alice, bob := sys.FunderA.NewFundedEOA(eth.OneEther), sys.FunderB.NewFundedEOA(eth.OneEther)
+	alice, bob := sys.FunderA.NewFundedEOA(eth.OneTenthEther), sys.FunderB.NewFundedEOA(eth.OneTenthEther)
 
 	eventLoggerAddress := alice.DeployEventLogger()
 
@@ -558,7 +558,7 @@ func TestExecMessageInvalidAttributes(gt *testing.T) {
 	logger := t.Logger()
 
 	rng := rand.New(rand.NewSource(1234))
-	alice, bob := sys.FunderA.NewFundedEOA(eth.OneEther), sys.FunderB.NewFundedEOA(eth.OneEther)
+	alice, bob := sys.FunderA.NewFundedEOA(eth.OneTenthEther), sys.FunderB.NewFundedEOA(eth.OneTenthEther)
 
 	eventLoggerAddress := alice.DeployEventLogger()
 

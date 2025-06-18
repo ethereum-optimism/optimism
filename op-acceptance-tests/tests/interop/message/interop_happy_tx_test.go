@@ -22,8 +22,8 @@ func TestInteropHappyTx(gt *testing.T) {
 	sys := presets.NewSimpleInterop(t)
 
 	// two EOAs for triggering the init and exec interop txs
-	alice := sys.FunderA.NewFundedEOA(eth.OneEther)
-	bob := sys.FunderB.NewFundedEOA(eth.OneEther)
+	alice := sys.FunderA.NewFundedEOA(eth.OneTenthEther)
+	bob := sys.FunderB.NewFundedEOA(eth.OneTenthEther)
 
 	eventLoggerAddress := alice.DeployEventLogger()
 

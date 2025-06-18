@@ -22,7 +22,7 @@ func TestRegularMessage(gt *testing.T) {
 	logger := t.Logger()
 	rng := rand.New(rand.NewSource(1234))
 
-	alice, bob := sys.FunderA.NewFundedEOA(eth.OneEther), sys.FunderB.NewFundedEOA(eth.OneEther)
+	alice, bob := sys.FunderA.NewFundedEOA(eth.OneTenthEther), sys.FunderB.NewFundedEOA(eth.OneTenthEther)
 
 	// deploy event logger at chain B
 	eventLoggerAddress := bob.DeployEventLogger()

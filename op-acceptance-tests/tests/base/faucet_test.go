@@ -15,12 +15,12 @@ func TestFaucetFund(gt *testing.T) {
 	ctx := t.Ctx()
 
 	ctx, span := tracer.Start(ctx, "acquire wallets")
-	funded := sys.Funder.NewFundedEOA(eth.Ether(2))
+	funded := sys.Funder.NewFundedEOA(eth.FiveHundredthsEther)
 	unfunded := sys.Wallet.NewEOA(sys.L2EL)
 	span.End()
 
 	_, span = tracer.Start(ctx, "transfer funds")
-	amount := eth.OneEther
+	amount := eth.OneHundredthEther
 	funded.Transfer(unfunded.Address(), amount)
 	t.Logger().InfoContext(ctx, "funds transferred", "amount", amount)
 	span.End()
