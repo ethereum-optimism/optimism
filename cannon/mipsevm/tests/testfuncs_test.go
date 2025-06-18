@@ -291,7 +291,7 @@ var memoryReservationTestCases = []MemoryReservationTestCase{
 }
 
 type MemoryHandlingTest[T any] = func(t *testing.T, vmVersion VersionedVMTestCase, llVariation MemoryReservationTestCase, testCase T, index int)
-type MemoryTestNamer[T any] = func(testCase T, vmVersion string, llTestCase string) string
+type MemoryTestNamer[T any] = func(testCase T, vmVersion string, memoryTestCase string) string
 
 func MemoryReservationHandlingTester[T any](t *testing.T, cases []T, testFn MemoryHandlingTest[T], testNamer MemoryTestNamer[T]) {
 	vmVersions := GetMipsVersionTestCases(t)

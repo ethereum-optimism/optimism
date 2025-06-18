@@ -437,8 +437,8 @@ func TestEVM_MT_SysRead_Preimage64(t *testing.T) {
 		{name: "Offset just out of bounds", addr: 0x00_00_FF_00, count: 4, writeLen: 0, preimageOffset: 16, prestateMem: prestateMem, postateMem: 0xEE_EE_EE_EE_FF_FF_FF_FF, shouldPanic: true},
 		{name: "Offset out of bounds", addr: 0x00_00_FF_00, count: 4, writeLen: 0, preimageOffset: 17, prestateMem: prestateMem, postateMem: 0xEE_EE_EE_EE_FF_FF_FF_FF, shouldPanic: true},
 	}
-	testNamer := func(testCase testMTSysReadPreimageTestCase, vmVersion string, llTestCase string) string {
-		return fmt.Sprintf("%v (%v,%v)", testCase.name, vmVersion, llTestCase)
+	testNamer := func(testCase testMTSysReadPreimageTestCase, vmVersion string, memoryTestCase string) string {
+		return fmt.Sprintf("%v (%v,%v)", testCase.name, vmVersion, memoryTestCase)
 	}
 	MemoryReservationHandlingTester(t, cases, func(t *testing.T, vm VersionedVMTestCase, reservation MemoryReservationTestCase, testCase testMTSysReadPreimageTestCase, i int) {
 		effAddr := arch.AddressMask & testCase.addr
@@ -604,8 +604,8 @@ func TestEVM_MT_StoreOpsClearMemReservation64(t *testing.T) {
 	baseReg := uint32(5)
 	rtReg := uint32(6)
 
-	testNamer := func(testCase testMTStoreOpsClearMemReservationTestCase, vmVersion string, llTestCase string) string {
-		return fmt.Sprintf("%v (%v,%v)", testCase.name, vmVersion, llTestCase)
+	testNamer := func(testCase testMTStoreOpsClearMemReservationTestCase, vmVersion string, memoryTestCase string) string {
+		return fmt.Sprintf("%v (%v,%v)", testCase.name, vmVersion, memoryTestCase)
 	}
 	MemoryReservationHandlingTester(t, cases, func(t *testing.T, vm VersionedVMTestCase, reservation MemoryReservationTestCase, testCase testMTStoreOpsClearMemReservationTestCase, i int) {
 		insn := uint32((testCase.opcode << 26) | (baseReg & 0x1F << 21) | (rtReg & 0x1F << 16) | (0xFFFF & testCase.offset))
