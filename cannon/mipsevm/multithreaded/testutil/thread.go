@@ -3,11 +3,11 @@ package testutil
 import (
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/arch"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/multithreaded"
-	mtutil "github.com/ethereum-optimism/optimism/cannon/mipsevm/testutil"
+	"github.com/ethereum-optimism/optimism/cannon/mipsevm/testutil"
 )
 
 func RandomThread(randSeed int64) *multithreaded.ThreadState {
-	r := mtutil.NewRandHelper(randSeed)
+	r := testutil.NewRandHelper(randSeed)
 	thread := multithreaded.CreateEmptyThread()
 
 	pc := r.RandPC()

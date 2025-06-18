@@ -12,7 +12,7 @@ import (
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/arch"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/exec"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/multithreaded"
-	mtutil "github.com/ethereum-optimism/optimism/cannon/mipsevm/testutil"
+	"github.com/ethereum-optimism/optimism/cannon/mipsevm/testutil"
 )
 
 func AddHintLengthPrefix(data []byte) []byte {
@@ -42,7 +42,7 @@ func NewStateMutator(state *multithreaded.State) *StateMutator {
 }
 
 func (m *StateMutator) Randomize(randSeed int64) {
-	r := mtutil.NewRandHelper(randSeed)
+	r := testutil.NewRandHelper(randSeed)
 
 	step := r.RandStep()
 
