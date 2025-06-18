@@ -53,7 +53,7 @@ func TestInteropMon(gt *testing.T) {
 	// Ensure the metrics are generated
 	require.EventuallyWithT(func(t *assert.CollectT) {
 		checker := opmetrics.NewMetricChecker(t, im.Metrics.(opmetrics.RegistryMetricer).Registry())
-		checker.FindByName("op_interop_mon_default_executing_messages")
+		checker.FindByName("op_interop_mon_default_message_status")
 	}, 1*time.Second, 100*time.Millisecond)
 	t.Log("op-interop-mon metrics check successful")
 
