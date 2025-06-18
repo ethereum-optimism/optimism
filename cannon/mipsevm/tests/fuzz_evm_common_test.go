@@ -115,6 +115,7 @@ func FuzzStateSyscallExitGroup(f *testing.F) {
 
 				expected := mtutil.NewExpectedState(t, state)
 				expected.Step += 1
+				expected.StepsSinceLastContextSwitch += 1
 				expected.Exited = true
 				expected.ExitCode = exitCode
 
