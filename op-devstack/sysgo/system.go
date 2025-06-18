@@ -15,8 +15,9 @@ type DefaultMinimalSystemIDs struct {
 	L2CL stack.L2CLNodeID
 	L2EL stack.L2ELNodeID
 
-	L2Batcher  stack.L2BatcherID
-	L2Proposer stack.L2ProposerID
+	L2Batcher    stack.L2BatcherID
+	L2Proposer   stack.L2ProposerID
+	L2Challenger stack.L2ChallengerID
 
 	TestSequencer stack.TestSequencerID
 }
@@ -31,6 +32,7 @@ func NewDefaultMinimalSystemIDs(l1ID, l2ID eth.ChainID) DefaultMinimalSystemIDs 
 		L2EL:          stack.NewL2ELNodeID("sequencer", l2ID),
 		L2Batcher:     stack.NewL2BatcherID("main", l2ID),
 		L2Proposer:    stack.NewL2ProposerID("main", l2ID),
+		L2Challenger:  stack.NewL2ChallengerID("main", l2ID),
 		TestSequencer: "test-sequencer",
 	}
 	return ids
@@ -67,6 +69,10 @@ func DefaultMinimalSystem(dest *DefaultMinimalSystemIDs) stack.Option[*Orchestra
 	opt.Add(WithFaucets([]stack.L1ELNodeID{ids.L1EL}, []stack.L2ELNodeID{ids.L2EL}))
 
 	opt.Add(WithTestSequencer(ids.TestSequencer, ids.L1CL, ids.L2CL, ids.L1EL, ids.L2EL))
+
+	opt.Add(WithL2Challenger(ids.L2Challenger, ids.L1EL, ids.L1CL, nil, nil, &ids.L2CL, []stack.L2ELNodeID{
+		ids.L2EL,
+	}))
 
 	opt.Add(stack.Finally(func(orch *Orchestrator) {
 		*dest = ids

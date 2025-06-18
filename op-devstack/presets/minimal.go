@@ -41,6 +41,10 @@ func (m *Minimal) L2Networks() []*dsl.L2Network {
 	}
 }
 
+func (m *Minimal) StandardBridge() *dsl.StandardBridge {
+	return dsl.NewStandardBridge(m.T, m.L2Chain, nil)
+}
+
 func WithMinimal() stack.CommonOption {
 	return stack.MakeCommon(sysgo.DefaultMinimalSystem(&sysgo.DefaultMinimalSystemIDs{}))
 }

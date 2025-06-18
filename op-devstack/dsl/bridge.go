@@ -129,7 +129,15 @@ func (b *StandardBridge) UsesSuperRoots() bool {
 	return superRootsActive
 }
 
-func (b *StandardBridge) Deposit(amount eth.ETH, from *EOA) {
+type Deposit struct {
+	l1Receipt *types.Receipt
+}
+
+func (d Deposit) GasCost() eth.ETH {
+	return gasCost(d.l1Receipt)
+}
+
+func (b *StandardBridge) Deposit(amount eth.ETH, from *EOA) Deposit {
 	depositTx := from.Transfer(b.l1PortalAddr, amount)
 	l1DepositReceipt, err := depositTx.Included.Eval(b.ctx)
 	b.require.NoErrorf(err, "Failed to send deposit transaction from %v for %v", from, amount)
@@ -147,12 +155,16 @@ func (b *StandardBridge) Deposit(amount eth.ETH, from *EOA) {
 		return err == nil
 	}, 60*time.Second, 500*time.Millisecond, "L2 Deposit never found")
 	b.require.Equal(types.ReceiptStatusSuccessful, l2DepositReceipt.Status)
+	return Deposit{
+		l1Receipt: l1DepositReceipt,
+	}
 }
 
 func (b *StandardBridge) InitiateWithdrawal(amount eth.ETH, from *EOA) *Withdrawal {
 	withdrawTx := from.Transfer(predeploys.L2ToL1MessagePasserAddr, amount)
 	withdrawRcpt, err := withdrawTx.Included.Eval(b.ctx)
 	b.require.NoErrorf(err, "Failed to initiate withdrawal from %v for %v", from, amount)
+	b.require.Equal(types.ReceiptStatusSuccessful, withdrawRcpt.Status, "initiating withdrawal failed")
 	return &Withdrawal{
 		commonImpl:  commonFromT(b.t),
 		bridge:      b,
@@ -196,7 +208,7 @@ func (b *StandardBridge) forGamePublished(l2BlockNumber *big.Int) disputeGame {
 		seqNum, err := contractio.Read(gameContract.L2SequenceNumber(), b.ctx)
 		b.require.NoError(err, "Failed to read sequence number")
 		gameSeqNum = seqNum.Uint64()
-		b.log.Info("Got game", "index", gameIndex, "seqNum", gameSeqNum)
+		b.log.Info("Found latest game", "index", gameIndex, "seqNum", gameSeqNum)
 		return gameSeqNum >= l2SequenceNumber
 	}, 90*time.Second, 100*time.Millisecond, "did not find a game of type %v at or after l2 sequence number %v", respectedGameType, l2SequenceNumber)
 
@@ -243,8 +255,23 @@ type Withdrawal struct {
 	bridge      *StandardBridge
 	initReceipt *types.Receipt
 
-	proveParams  ProvenWithdrawalParameters
-	proveReceipt *types.Receipt
+	proveParams     ProvenWithdrawalParameters
+	proveReceipt    *types.Receipt
+	finalizeReceipt *types.Receipt
+}
+
+func (w *Withdrawal) InitiateGasCost() eth.ETH {
+	return gasCost(w.initReceipt)
+}
+
+func (w *Withdrawal) ProveGasCost() eth.ETH {
+	w.require.NotNil(w.proveReceipt, "Must have proven withdrawal before calculating gas cost")
+	return gasCost(w.proveReceipt)
+}
+
+func (w *Withdrawal) FinalizeGasCost() eth.ETH {
+	w.require.NotNil(w.finalizeReceipt, "Must have finalized withdrawal before calculating gas cost")
+	return gasCost(w.finalizeReceipt)
 }
 
 func (w *Withdrawal) Prove(user *EOA) {
@@ -425,15 +452,16 @@ func (w *Withdrawal) Finalize(user *EOA) {
 
 	// Finalize withdrawal
 	w.log.Info("FinalizeWithdrawal: finalizing withdrawal...")
-	var finalizeWithdrawalReceipt *types.Receipt
+	var finalizeReceipt *types.Receipt
 	var err error
 	// Retry as the air gap delay needs to have expired at the head block timestamp for estimateGas to work
 	w.require.Eventually(func() bool {
-		finalizeWithdrawalReceipt, err = contractio.Write(w.bridge.l1Portal.FinalizeWithdrawalTransaction(wd.WithdrawalTransaction()), w.ctx, user.Plan())
+		finalizeReceipt, err = contractio.Write(w.bridge.l1Portal.FinalizeWithdrawalTransaction(wd.WithdrawalTransaction()), w.ctx, user.Plan())
 		if err != nil {
 			return false
 		}
-		return types.ReceiptStatusSuccessful == finalizeWithdrawalReceipt.Status
+		w.finalizeReceipt = finalizeReceipt
+		return types.ReceiptStatusSuccessful == finalizeReceipt.Status
 	}, 60*time.Second, 100*time.Millisecond, "finalize withdrawal failed")
 }
 
@@ -450,4 +478,12 @@ func (w *Withdrawal) WaitForDisputeGameResolved() {
 		w.log.Info("Waiting for dispute game to resolve", "currentStatus", status)
 		return gameTypes.GameStatus(status) == gameTypes.GameStatusDefenderWon
 	}, 60*time.Second, 100*time.Millisecond, "wait for dispute game resolved")
+}
+
+func gasCost(rcpt *types.Receipt) eth.ETH {
+	cost := eth.WeiBig(new(big.Int).Mul(new(big.Int).SetUint64(rcpt.GasUsed), rcpt.EffectiveGasPrice))
+	if rcpt.L1Fee != nil {
+		cost = cost.Add(eth.WeiBig(rcpt.L1Fee))
+	}
+	return cost
 }
