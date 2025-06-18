@@ -17,21 +17,20 @@ func TestWithdrawal(gt *testing.T) {
 	bridge := sys.StandardBridge()
 	require.EqualValues(faultTypes.FastGameType, bridge.RespectedGameType(), "Respected game type must be FastGame")
 
-	initialL1Balance, initialL2Balance := eth.OneThirdEther, eth.OneTenthEther
+	initialL1Balance := eth.OneThirdEther
 
 	// l1User and l2User share same private key
-	l2User := sys.FunderL2.NewFundedEOA(initialL2Balance)
-	l1User := l2User.AsEL(sys.L1EL)
-	sys.FunderL1.Fund(l1User, initialL1Balance)
+	l1User := sys.FunderL1.NewFundedEOA(initialL1Balance)
+	l2User := l1User.AsEL(sys.L2EL) // Only receives funds via the deposit
 	depositAmount := eth.OneTenthEther
-	withdrawalAmount := eth.OneTenthEther
+	withdrawalAmount := eth.OneHundredthEther
 
 	// The max amount of withdrawal is limited to the total amount of deposit
 	// We trigger deposit first to fund the L1 ETHLockbox to satisfy the invariant
 	deposit := bridge.Deposit(depositAmount, l1User)
 	expectedL1UserBalance := initialL1Balance.Sub(depositAmount).Sub(deposit.GasCost())
 	l1User.VerifyBalanceExact(expectedL1UserBalance)
-	expectedL2UserBalance := initialL2Balance.Add(depositAmount)
+	expectedL2UserBalance := depositAmount
 	l2User.VerifyBalanceExact(expectedL2UserBalance)
 
 	withdrawal := bridge.InitiateWithdrawal(withdrawalAmount, l2User)

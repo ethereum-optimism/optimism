@@ -14,16 +14,13 @@ func TestSuperRootWithdrawal(gt *testing.T) {
 	sys := presets.NewSimpleInterop(t)
 	sys.L1Network.WaitForOnline()
 
-	initialL1Balance := eth.OneThirdEther
-	initialL2Balance := eth.Ether(1)
-	depositAmount := eth.OneTenthEther
+	initialL1Balance := eth.OneEther
+	initialL2Balance := eth.ZeroWei // L2 only gets funds from the deposit
+	depositAmount := eth.OneThirdEther
 	withdrawalAmount := eth.OneTenthEther
 
-	l2User := sys.FunderA.NewFundedEOA(initialL2Balance)
-	l1User := l2User.AsEL(sys.L1EL)
-	sys.FunderL1.FundAtLeast(l1User, initialL1Balance)
-	// Use a separate account to prove the withdrawal to make balance checks simpler
-	l1Prover := sys.FunderL1.NewFundedEOA(eth.OneTenthEther)
+	l1User := sys.FunderL1.NewFundedEOA(initialL1Balance)
+	l2User := l1User.AsEL(sys.L2ELA)
 
 	bridge := sys.StandardBridge(sys.L2ChainA)
 	require.True(t, bridge.UsesSuperRoots(), "Expected interop system to be using super roots")
@@ -33,7 +30,7 @@ func TestSuperRootWithdrawal(gt *testing.T) {
 	l2User.VerifyBalanceExact(initialL2Balance.Add(depositAmount))
 
 	withdrawal := bridge.InitiateWithdrawal(withdrawalAmount, l2User)
-	withdrawal.Prove(l1Prover)
+	withdrawal.Prove(l1User)
 	l2User.VerifyBalanceExact(initialL2Balance.Add(depositAmount).Sub(withdrawalAmount).Sub(withdrawal.InitiateGasCost()))
 
 	// Advance time until game is resolvable
@@ -41,8 +38,16 @@ func TestSuperRootWithdrawal(gt *testing.T) {
 	withdrawal.WaitForDisputeGameResolved()
 
 	// Advance time to when game finalization and proof finalization delay has expired
-	sys.AdvanceTime(max(bridge.WithdrawalDelay(), bridge.DisputeGameFinalityDelay()))
-	withdrawal.Finalize(l1Prover)
+	sys.AdvanceTime(max(bridge.WithdrawalDelay()-bridge.GameResolutionDelay(), bridge.DisputeGameFinalityDelay()))
+	withdrawal.Finalize(l1User)
 
-	l1User.VerifyBalanceExact(initialL1Balance.Sub(depositAmount).Sub(deposit.GasCost()).Add(withdrawalAmount))
+	l1User.VerifyBalanceExact(initialL1Balance.
+		// Less cost of deposit
+		Sub(depositAmount).
+		Sub(deposit.GasCost()).
+		// Less withdrawal L1 gas costs
+		Sub(withdrawal.ProveGasCost()).
+		Sub(withdrawal.FinalizeGasCost()).
+		// Plus received withdrawal amount
+		Add(withdrawalAmount))
 }
