@@ -70,7 +70,27 @@ type TestRecursiveStruct3 struct {
 	a TestRecursiveStruct2
 }
 
+//nolint:unused
+type TestIntTypeStruct struct {
+	a uint8
+	b uint16
+	c uint32
+	d uint64
+	e Uint128
+	f uint256.Int
+
+	g int8
+	h int16
+	i int32
+	j int64
+	k Int128
+	l *big.Int
+}
+
 func TestTypeConversion(t *testing.T) {
+	a := (*Uint128)(big.NewInt(0))
+	b := (*Int128)(big.NewInt(0))
+
 	type testCase struct {
 		value    any
 		want     string
@@ -167,6 +187,41 @@ func TestTypeConversion(t *testing.T) {
 			value:    ABIIdentifier{},
 			want:     "(address,uint256,uint256,uint256,uint256)",
 			testName: "supervisor Identifier",
+		},
+		{
+			value:    uint64(0),
+			want:     "uint64",
+			testName: "uint64",
+		},
+		{
+			value:    int64(0),
+			want:     "int64",
+			testName: "int64",
+		},
+		{
+			value:    (*Uint128)(big.NewInt(0)),
+			want:     "uint128",
+			testName: "uint128 (value)",
+		},
+		{
+			value:    (*Int128)(big.NewInt(0)),
+			want:     "int128",
+			testName: "int128 (value)",
+		},
+		{
+			value:    &a,
+			want:     "uint128",
+			testName: "uint128 (pointer)",
+		},
+		{
+			value:    &b,
+			want:     "int128",
+			testName: "int128 (pointer)",
+		},
+		{
+			value:    TestIntTypeStruct{},
+			want:     "(uint8,uint16,uint32,uint64,uint128,uint256,int8,int16,int32,int64,int128,uint256)",
+			testName: "int types",
 		},
 	}
 

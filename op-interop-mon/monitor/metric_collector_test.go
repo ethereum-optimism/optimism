@@ -14,25 +14,23 @@ import (
 )
 
 // Test helper types
-type expectedExecutingCall struct {
-	chainID   string
-	blockNum  uint64
-	blockHash string
-	status    string
-	value     float64
-}
-
-type expectedInitiatingCall struct {
-	chainID  string
-	blockNum uint64
-	status   string
-	value    float64
+type expectedMessageStatusCall struct {
+	executingChainID  string
+	initiatingChainID string
+	status            string
+	count             float64
 }
 
 type expectedTerminalCall struct {
 	executingChainID  string
 	initiatingChainID string
-	value             float64
+	count             float64
+}
+
+type expectedBlockRangeCall struct {
+	chainID string
+	min     uint64
+	max     uint64
 }
 
 // mockUpdater implements the Updater interface with configurable function implementations
@@ -65,16 +63,18 @@ func (m *mockUpdater) Stop() error {
 // mockMetrics implements the metrics.Metricer interface with configurable function implementations
 // by default, it records the calls to the metrics functions
 type mockMetrics struct {
-	recordInfoFn                   func(version string)
-	recordUpFn                     func()
-	recordInitiatingMessageStatsFn func(chainID string, blockHeight uint64, status string, value float64)
-	recordExecutingMessageStatsFn  func(chainID string, blockHeight uint64, blockHash string, status string, value float64)
-	recordTerminalStatusChangeFn   func(executingChainID string, initiatingChainID string, value float64)
+	recordInfoFn                 func(version string)
+	recordUpFn                   func()
+	recordMessageStatusFn        func(executingChainID string, initiatingChainID string, status string, count float64)
+	recordTerminalStatusChangeFn func(executingChainID string, initiatingChainID string, count float64)
+	recordExecutingBlockRangeFn  func(chainID string, min uint64, max uint64)
+	recordInitiatingBlockRangeFn func(chainID string, min uint64, max uint64)
 
 	// Recording slices for test verification
-	actualExecutingCalls  []expectedExecutingCall
-	actualInitiatingCalls []expectedInitiatingCall
-	actualTerminalCalls   []expectedTerminalCall
+	actualMessageStatusCalls   []expectedMessageStatusCall
+	actualTerminalCalls        []expectedTerminalCall
+	actualExecutingRangeCalls  []expectedBlockRangeCall
+	actualInitiatingRangeCalls []expectedBlockRangeCall
 }
 
 func (m *mockMetrics) RecordInfo(version string) {
@@ -89,41 +89,51 @@ func (m *mockMetrics) RecordUp() {
 	}
 }
 
-func (m *mockMetrics) RecordInitiatingMessageStats(chainID string, blockHeight uint64, status string, value float64) {
-	if m.recordInitiatingMessageStatsFn != nil {
-		m.recordInitiatingMessageStatsFn(chainID, blockHeight, status, value)
+func (m *mockMetrics) RecordMessageStatus(executingChainID string, initiatingChainID string, status string, count float64) {
+	if m.recordMessageStatusFn != nil {
+		m.recordMessageStatusFn(executingChainID, initiatingChainID, status, count)
 	} else {
-		m.actualInitiatingCalls = append(m.actualInitiatingCalls, expectedInitiatingCall{
-			chainID:  chainID,
-			blockNum: blockHeight,
-			status:   status,
-			value:    value,
+		m.actualMessageStatusCalls = append(m.actualMessageStatusCalls, expectedMessageStatusCall{
+			executingChainID:  executingChainID,
+			initiatingChainID: initiatingChainID,
+			status:            status,
+			count:             count,
 		})
 	}
 }
 
-func (m *mockMetrics) RecordExecutingMessageStats(chainID string, blockHeight uint64, blockHash string, status string, value float64) {
-	if m.recordExecutingMessageStatsFn != nil {
-		m.recordExecutingMessageStatsFn(chainID, blockHeight, blockHash, status, value)
-	} else {
-		m.actualExecutingCalls = append(m.actualExecutingCalls, expectedExecutingCall{
-			chainID:   chainID,
-			blockNum:  blockHeight,
-			blockHash: blockHash,
-			status:    status,
-			value:     value,
-		})
-	}
-}
-
-func (m *mockMetrics) RecordTerminalStatusChange(executingChainID string, initiatingChainID string, value float64) {
+func (m *mockMetrics) RecordTerminalStatusChange(executingChainID string, initiatingChainID string, count float64) {
 	if m.recordTerminalStatusChangeFn != nil {
-		m.recordTerminalStatusChangeFn(executingChainID, initiatingChainID, value)
+		m.recordTerminalStatusChangeFn(executingChainID, initiatingChainID, count)
 	} else {
 		m.actualTerminalCalls = append(m.actualTerminalCalls, expectedTerminalCall{
 			executingChainID:  executingChainID,
 			initiatingChainID: initiatingChainID,
-			value:             value,
+			count:             count,
+		})
+	}
+}
+
+func (m *mockMetrics) RecordExecutingBlockRange(chainID string, min uint64, max uint64) {
+	if m.recordExecutingBlockRangeFn != nil {
+		m.recordExecutingBlockRangeFn(chainID, min, max)
+	} else {
+		m.actualExecutingRangeCalls = append(m.actualExecutingRangeCalls, expectedBlockRangeCall{
+			chainID: chainID,
+			min:     min,
+			max:     max,
+		})
+	}
+}
+
+func (m *mockMetrics) RecordInitiatingBlockRange(chainID string, min uint64, max uint64) {
+	if m.recordInitiatingBlockRangeFn != nil {
+		m.recordInitiatingBlockRangeFn(chainID, min, max)
+	} else {
+		m.actualInitiatingRangeCalls = append(m.actualInitiatingRangeCalls, expectedBlockRangeCall{
+			chainID: chainID,
+			min:     min,
+			max:     max,
 		})
 	}
 }
@@ -202,20 +212,22 @@ func TestCollectMetrics(t *testing.T) {
 		updater2Jobs map[JobID]*Job
 		updater3Jobs map[JobID]*Job
 		// Expected metric calls
-		expectedExecutingCalls  []expectedExecutingCall
-		expectedInitiatingCalls []expectedInitiatingCall
-		expectedTerminalCalls   []expectedTerminalCall
+		expectedMessageStatusCalls   []expectedMessageStatusCall
+		expectedTerminalCalls        []expectedTerminalCall
+		expectedExecutingRangeCalls  []expectedBlockRangeCall
+		expectedInitiatingRangeCalls []expectedBlockRangeCall
 	}
 
 	tests := []testCase{
 		{
-			name:                    "empty job maps",
-			updater1Jobs:            map[JobID]*Job{},
-			updater2Jobs:            map[JobID]*Job{},
-			updater3Jobs:            map[JobID]*Job{},
-			expectedExecutingCalls:  []expectedExecutingCall{},
-			expectedInitiatingCalls: []expectedInitiatingCall{},
-			expectedTerminalCalls:   []expectedTerminalCall{},
+			name:                         "empty job maps",
+			updater1Jobs:                 map[JobID]*Job{},
+			updater2Jobs:                 map[JobID]*Job{},
+			updater3Jobs:                 map[JobID]*Job{},
+			expectedMessageStatusCalls:   []expectedMessageStatusCall{},
+			expectedTerminalCalls:        []expectedTerminalCall{},
+			expectedExecutingRangeCalls:  []expectedBlockRangeCall{},
+			expectedInitiatingRangeCalls: []expectedBlockRangeCall{},
 		},
 		{
 			name: "single job with future status",
@@ -224,24 +236,29 @@ func TestCollectMetrics(t *testing.T) {
 			},
 			updater2Jobs: map[JobID]*Job{},
 			updater3Jobs: map[JobID]*Job{},
-			expectedExecutingCalls: []expectedExecutingCall{
+			expectedMessageStatusCalls: []expectedMessageStatusCall{
 				{
-					chainID:   "1",
-					blockNum:  100,
-					blockHash: "0x0000000000000000000000000000000000000000000000000000000000000123",
-					status:    "future",
-					value:     1,
-				},
-			},
-			expectedInitiatingCalls: []expectedInitiatingCall{
-				{
-					chainID:  "2",
-					blockNum: 200,
-					status:   "future",
-					value:    1,
+					executingChainID:  "1",
+					initiatingChainID: "2",
+					status:            "future",
+					count:             1,
 				},
 			},
 			expectedTerminalCalls: []expectedTerminalCall{},
+			expectedExecutingRangeCalls: []expectedBlockRangeCall{
+				{
+					chainID: "1",
+					min:     100,
+					max:     100,
+				},
+			},
+			expectedInitiatingRangeCalls: []expectedBlockRangeCall{
+				{
+					chainID: "2",
+					min:     200,
+					max:     200,
+				},
+			},
 		},
 		{
 			name: "job with terminal status change",
@@ -250,28 +267,33 @@ func TestCollectMetrics(t *testing.T) {
 			},
 			updater2Jobs: map[JobID]*Job{},
 			updater3Jobs: map[JobID]*Job{},
-			expectedExecutingCalls: []expectedExecutingCall{
+			expectedMessageStatusCalls: []expectedMessageStatusCall{
 				{
-					chainID:   "1",
-					blockNum:  100,
-					blockHash: "0x0000000000000000000000000000000000000000000000000000000000000123",
-					status:    "invalid",
-					value:     1,
-				},
-			},
-			expectedInitiatingCalls: []expectedInitiatingCall{
-				{
-					chainID:  "2",
-					blockNum: 200,
-					status:   "invalid",
-					value:    1,
+					executingChainID:  "1",
+					initiatingChainID: "2",
+					status:            "invalid",
+					count:             1,
 				},
 			},
 			expectedTerminalCalls: []expectedTerminalCall{
 				{
 					executingChainID:  "1",
 					initiatingChainID: "2",
-					value:             1,
+					count:             1,
+				},
+			},
+			expectedExecutingRangeCalls: []expectedBlockRangeCall{
+				{
+					chainID: "1",
+					min:     100,
+					max:     100,
+				},
+			},
+			expectedInitiatingRangeCalls: []expectedBlockRangeCall{
+				{
+					chainID: "2",
+					min:     200,
+					max:     200,
 				},
 			},
 		},
@@ -283,37 +305,29 @@ func TestCollectMetrics(t *testing.T) {
 			},
 			updater2Jobs: map[JobID]*Job{},
 			updater3Jobs: map[JobID]*Job{},
-			expectedExecutingCalls: []expectedExecutingCall{
+			expectedMessageStatusCalls: []expectedMessageStatusCall{
 				{
-					chainID:   "1",
-					blockNum:  100,
-					blockHash: "0x0000000000000000000000000000000000000000000000000000000000000123",
-					status:    "future",
-					value:     1,
-				},
-				{
-					chainID:   "1",
-					blockNum:  101,
-					blockHash: "0x0000000000000000000000000000000000000000000000000000000000000456",
-					status:    "future",
-					value:     1,
-				},
-			},
-			expectedInitiatingCalls: []expectedInitiatingCall{
-				{
-					chainID:  "2",
-					blockNum: 200,
-					status:   "future",
-					value:    1,
-				},
-				{
-					chainID:  "2",
-					blockNum: 201,
-					status:   "future",
-					value:    1,
+					executingChainID:  "1",
+					initiatingChainID: "2",
+					status:            "future",
+					count:             2,
 				},
 			},
 			expectedTerminalCalls: []expectedTerminalCall{},
+			expectedExecutingRangeCalls: []expectedBlockRangeCall{
+				{
+					chainID: "1",
+					min:     100,
+					max:     101,
+				},
+			},
+			expectedInitiatingRangeCalls: []expectedBlockRangeCall{
+				{
+					chainID: "2",
+					min:     200,
+					max:     201,
+				},
+			},
 		},
 		{
 			name: "jobs across different chains",
@@ -326,50 +340,134 @@ func TestCollectMetrics(t *testing.T) {
 			updater3Jobs: map[JobID]*Job{
 				"job3": jobForTest(3, 500, "0x789", 1, 600, jobStatusInvalid),
 			},
-			expectedExecutingCalls: []expectedExecutingCall{
+			expectedMessageStatusCalls: []expectedMessageStatusCall{
 				{
-					chainID:   "1",
-					blockNum:  100,
-					blockHash: "0x0000000000000000000000000000000000000000000000000000000000000123",
-					status:    "future",
-					value:     1,
+					executingChainID:  "1",
+					initiatingChainID: "2",
+					status:            "future",
+					count:             1,
 				},
 				{
-					chainID:   "2",
-					blockNum:  300,
-					blockHash: "0x0000000000000000000000000000000000000000000000000000000000000456",
-					status:    "valid",
-					value:     1,
+					executingChainID:  "2",
+					initiatingChainID: "3",
+					status:            "valid",
+					count:             1,
 				},
 				{
-					chainID:   "3",
-					blockNum:  500,
-					blockHash: "0x0000000000000000000000000000000000000000000000000000000000000789",
-					status:    "invalid",
-					value:     1,
-				},
-			},
-			expectedInitiatingCalls: []expectedInitiatingCall{
-				{
-					chainID:  "2",
-					blockNum: 200,
-					status:   "future",
-					value:    1,
-				},
-				{
-					chainID:  "3",
-					blockNum: 400,
-					status:   "valid",
-					value:    1,
-				},
-				{
-					chainID:  "1",
-					blockNum: 600,
-					status:   "invalid",
-					value:    1,
+					executingChainID:  "3",
+					initiatingChainID: "1",
+					status:            "invalid",
+					count:             1,
 				},
 			},
 			expectedTerminalCalls: []expectedTerminalCall{},
+			expectedExecutingRangeCalls: []expectedBlockRangeCall{
+				{
+					chainID: "1",
+					min:     100,
+					max:     100,
+				},
+				{
+					chainID: "2",
+					min:     300,
+					max:     300,
+				},
+				{
+					chainID: "3",
+					min:     500,
+					max:     500,
+				},
+			},
+			expectedInitiatingRangeCalls: []expectedBlockRangeCall{
+				{
+					chainID: "1",
+					min:     600,
+					max:     600,
+				},
+				{
+					chainID: "2",
+					min:     200,
+					max:     200,
+				},
+				{
+					chainID: "3",
+					min:     400,
+					max:     400,
+				},
+			},
+		},
+		{
+			name: "complex block ranges",
+			updater1Jobs: map[JobID]*Job{
+				"job1": jobForTest(1, 100, "0x123", 2, 200, jobStatusFuture),
+				"job2": jobForTest(1, 50, "0x456", 2, 250, jobStatusFuture),
+				"job3": jobForTest(1, 150, "0x789", 2, 150, jobStatusFuture),
+			},
+			updater2Jobs: map[JobID]*Job{
+				"job4": jobForTest(2, 300, "0xabc", 1, 400, jobStatusValid),
+				"job5": jobForTest(2, 250, "0xdef", 1, 450, jobStatusValid),
+				"job6": jobForTest(2, 350, "0xghi", 1, 350, jobStatusValid),
+			},
+			updater3Jobs: map[JobID]*Job{
+				"job7": jobForTest(3, 500, "0xjkl", 3, 600, jobStatusInvalid),
+				"job8": jobForTest(3, 450, "0xmno", 3, 650, jobStatusInvalid),
+				"job9": jobForTest(3, 550, "0xpqr", 3, 550, jobStatusInvalid),
+			},
+			expectedMessageStatusCalls: []expectedMessageStatusCall{
+				{
+					executingChainID:  "1",
+					initiatingChainID: "2",
+					status:            "future",
+					count:             3,
+				},
+				{
+					executingChainID:  "2",
+					initiatingChainID: "1",
+					status:            "valid",
+					count:             3,
+				},
+				{
+					executingChainID:  "3",
+					initiatingChainID: "3",
+					status:            "invalid",
+					count:             3,
+				},
+			},
+			expectedTerminalCalls: []expectedTerminalCall{},
+			expectedExecutingRangeCalls: []expectedBlockRangeCall{
+				{
+					chainID: "1",
+					min:     50,
+					max:     150,
+				},
+				{
+					chainID: "2",
+					min:     250,
+					max:     350,
+				},
+				{
+					chainID: "3",
+					min:     450,
+					max:     550,
+				},
+			},
+			expectedInitiatingRangeCalls: []expectedBlockRangeCall{
+				{
+					chainID: "1",
+					min:     350,
+					max:     450,
+				},
+				{
+					chainID: "2",
+					min:     150,
+					max:     250,
+				},
+				{
+					chainID: "3",
+					min:     550,
+					max:     650,
+				},
+			},
 		},
 	}
 
@@ -416,9 +514,10 @@ func TestCollectMetrics(t *testing.T) {
 			collector.CollectMetrics()
 
 			// Verify metric calls
-			require.ElementsMatch(t, tt.expectedExecutingCalls, mockMetrics.actualExecutingCalls, "executing message stats calls should match")
-			require.ElementsMatch(t, tt.expectedInitiatingCalls, mockMetrics.actualInitiatingCalls, "initiating message stats calls should match")
+			require.ElementsMatch(t, tt.expectedMessageStatusCalls, mockMetrics.actualMessageStatusCalls, "message status calls should match")
 			require.ElementsMatch(t, tt.expectedTerminalCalls, mockMetrics.actualTerminalCalls, "terminal status change calls should match")
+			require.ElementsMatch(t, tt.expectedExecutingRangeCalls, mockMetrics.actualExecutingRangeCalls, "executing block range calls should match")
+			require.ElementsMatch(t, tt.expectedInitiatingRangeCalls, mockMetrics.actualInitiatingRangeCalls, "initiating block range calls should match")
 		})
 	}
 }

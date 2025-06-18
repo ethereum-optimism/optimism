@@ -72,10 +72,9 @@ interface IL2ToL2CrossDomainMessenger {
     /// @return Nonce of the next message to be sent, with added message version.
     function messageNonce() external view returns (uint256);
 
-    /// @notice Mapping of message hashes to boolean sent values. Note that a message will only be present in this
+    /// @notice Mapping of message nonces to message hashes. Note that a message will only be present in this
     ///         mapping if it has been sent from this chain to a destination chain.
-    /// @return Returns true if the message corresponding to the `_msgHash` was successfully sent.
-    function sentMessages(bytes32) external view returns (bool);
+    function sentMessages(uint256) external view returns (bytes32);
 
     /// @notice Retrieves the sender of the current cross domain message.
     /// @return sender_ Address of the sender of the current cross domain message.

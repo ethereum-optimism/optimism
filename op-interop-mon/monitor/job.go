@@ -74,7 +74,8 @@ type Job struct {
 	executingBlock   eth.BlockID
 	executingPayload common.Hash
 
-	initiating *supervisortypes.Identifier
+	initiating     *supervisortypes.Identifier
+	initiatingHash []common.Hash
 
 	// track each status seen over time
 	status []jobStatus
@@ -141,7 +142,11 @@ func (j *Job) ID() JobID {
 func (j *Job) Statuses() []jobStatus {
 	j.rwLock.RLock()
 	defer j.rwLock.RUnlock()
-	return j.status
+
+	// Return a copy to prevent external modification
+	statuses := make([]jobStatus, len(j.status))
+	copy(statuses, j.status)
+	return statuses
 }
 
 // LatestStatus returns the latest status of the job
@@ -205,4 +210,28 @@ func (j *Job) DidMetrics() bool {
 // SetDidMetrics sets the did metrics flag of the job
 func (j *Job) SetDidMetrics() {
 	j.didMetrics.Store(true)
+}
+
+// AddInitiatingHash adds a hash to the initiatingHash slice if it hasn't been seen before
+func (j *Job) AddInitiatingHash(hash common.Hash) {
+	j.rwLock.Lock()
+	defer j.rwLock.Unlock()
+
+	// Check if latest initiating hash is the same as the hash to be added
+	if len(j.initiatingHash) > 0 && j.initiatingHash[len(j.initiatingHash)-1] == hash {
+		return
+	}
+
+	j.initiatingHash = append(j.initiatingHash, hash)
+}
+
+// InitiatingHashes returns a copy of the initiating hashes
+func (j *Job) InitiatingHashes() []common.Hash {
+	j.rwLock.RLock()
+	defer j.rwLock.RUnlock()
+
+	// Return a copy to prevent external modification
+	hashes := make([]common.Hash, len(j.initiatingHash))
+	copy(hashes, j.initiatingHash)
+	return hashes
 }

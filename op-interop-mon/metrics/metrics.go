@@ -1,8 +1,6 @@
 package metrics
 
 import (
-	"fmt"
-
 	"github.com/prometheus/client_golang/prometheus"
 
 	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
@@ -15,9 +13,10 @@ var _ opmetrics.RegistryMetricer = (*Metrics)(nil)
 type Metricer interface {
 	RecordInfo(version string)
 	RecordUp()
-	RecordInitiatingMessageStats(chainID string, blockHeight uint64, status string, value float64)
-	RecordExecutingMessageStats(chainID string, blockHeight uint64, blockHash string, status string, value float64)
-	RecordTerminalStatusChange(executingChainID string, initiatingChainID string, value float64)
+	RecordMessageStatus(executingChainID string, initiatingChainID string, status string, count float64)
+	RecordTerminalStatusChange(executingChainID string, initiatingChainID string, count float64)
+	RecordExecutingBlockRange(chainID string, min uint64, max uint64)
+	RecordInitiatingBlockRange(chainID string, min uint64, max uint64)
 
 	opmetrics.RefMetricer
 	opmetrics.RPCMetricer
@@ -35,9 +34,10 @@ type Metrics struct {
 	up   prometheus.Gauge
 
 	// Message metrics
-	executingMessages     prometheus.GaugeVec
-	initiatingMessages    prometheus.GaugeVec
+	messageStatus         prometheus.GaugeVec
 	terminalStatusChanges prometheus.GaugeVec
+	executingBlockRange   prometheus.GaugeVec
+	initiatingBlockRange  prometheus.GaugeVec
 }
 
 var _ Metricer = (*Metrics)(nil)
@@ -71,23 +71,13 @@ func NewMetrics(procName string) *Metrics {
 			Name:      "up",
 			Help:      "1 if the op-interop-mon has finished starting up",
 		}),
-		executingMessages: *factory.NewGaugeVec(prometheus.GaugeOpts{
+		messageStatus: *factory.NewGaugeVec(prometheus.GaugeOpts{
 			Namespace: ns,
-			Name:      "executing_messages",
-			Help:      "Number of messages being executed",
+			Name:      "message_status",
+			Help:      "Number of messages by executing chain, initiating chain, and status",
 		}, []string{
-			"chain_id",
-			"block_height",
-			"block_hash",
-			"status",
-		}),
-		initiatingMessages: *factory.NewGaugeVec(prometheus.GaugeOpts{
-			Namespace: ns,
-			Name:      "initiating_messages",
-			Help:      "Number of messages being referenced by executing messages",
-		}, []string{
-			"chain_id",
-			"block_height",
+			"executing_chain_id",
+			"initiating_chain_id",
 			"status",
 		}),
 		terminalStatusChanges: *factory.NewGaugeVec(prometheus.GaugeOpts{
@@ -97,6 +87,22 @@ func NewMetrics(procName string) *Metrics {
 		}, []string{
 			"executing_chain_id",
 			"initiating_chain_id",
+		}),
+		executingBlockRange: *factory.NewGaugeVec(prometheus.GaugeOpts{
+			Namespace: ns,
+			Name:      "executing_block_range",
+			Help:      "Range of blocks containing Executing Messages currently tracked by the monitor",
+		}, []string{
+			"chain_id",
+			"range_type",
+		}),
+		initiatingBlockRange: *factory.NewGaugeVec(prometheus.GaugeOpts{
+			Namespace: ns,
+			Name:      "initiating_block_range",
+			Help:      "Range of blocks being referenced by Executing Messages currently tracked by the monitor",
+		}, []string{
+			"chain_id",
+			"range_type",
 		}),
 	}
 }
@@ -117,44 +123,40 @@ func (m *Metrics) Document() []opmetrics.DocumentedMetric {
 	return m.factory.Document()
 }
 
-// RecordExecutingMessageStats records metrics for messages being executed
-func (m *Metrics) RecordExecutingMessageStats(
-	chainID string,
-	blockHeight uint64,
-	blockHash string,
+// RecordMessageStatus records metrics for messages by their executing chain, initiating chain, and status
+func (m *Metrics) RecordMessageStatus(
+	executingChainID string,
+	initiatingChainID string,
 	status string,
-	value float64,
+	count float64,
 ) {
-	m.executingMessages.WithLabelValues(
-		chainID,
-		fmt.Sprintf("%d", blockHeight),
-		blockHash,
+	m.messageStatus.WithLabelValues(
+		executingChainID,
+		initiatingChainID,
 		status,
-	).Set(value)
-}
-
-// RecordInitiatingMessageStats records metrics for messages being initiated
-func (m *Metrics) RecordInitiatingMessageStats(
-	chainID string,
-	blockHeight uint64,
-	status string,
-	value float64,
-) {
-	m.initiatingMessages.WithLabelValues(
-		chainID,
-		fmt.Sprintf("%d", blockHeight),
-		status,
-	).Set(value)
+	).Set(count)
 }
 
 // RecordTerminalStatusChange records a terminal status change with detailed logging
 func (m *Metrics) RecordTerminalStatusChange(
 	executingChainID string,
 	initiatingChainID string,
-	value float64,
+	count float64,
 ) {
 	m.terminalStatusChanges.WithLabelValues(
 		executingChainID,
 		initiatingChainID,
-	).Set(value)
+	).Set(count)
+}
+
+// RecordExecutingBlockRange records the min/max executing block numbers seen for a chain
+func (m *Metrics) RecordExecutingBlockRange(chainID string, min uint64, max uint64) {
+	m.executingBlockRange.WithLabelValues(chainID, "min").Set(float64(min))
+	m.executingBlockRange.WithLabelValues(chainID, "max").Set(float64(max))
+}
+
+// RecordInitiatingBlockRange records the min/max initiating block numbers seen for a chain
+func (m *Metrics) RecordInitiatingBlockRange(chainID string, min uint64, max uint64) {
+	m.initiatingBlockRange.WithLabelValues(chainID, "min").Set(float64(min))
+	m.initiatingBlockRange.WithLabelValues(chainID, "max").Set(float64(max))
 }

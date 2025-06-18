@@ -14,6 +14,7 @@ type Deriver interface {
 }
 
 type Emitter interface {
+	// Events emitted by the same module will arrive in the same order as they were sent. Across different emitters there’s no guarantee
 	Emit(ev Event)
 }
 

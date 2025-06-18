@@ -8,6 +8,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-chain-ops/devkeys"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
+	"github.com/ethereum-optimism/optimism/op-devstack/dsl/proofs"
 	"github.com/ethereum-optimism/optimism/op-devstack/shim"
 	"github.com/ethereum-optimism/optimism/op-devstack/stack"
 	"github.com/ethereum-optimism/optimism/op-devstack/stack/match"
@@ -110,6 +111,10 @@ func (s *SimpleInterop) L2Networks() []*dsl.L2Network {
 	return []*dsl.L2Network{
 		s.L2ChainA, s.L2ChainB,
 	}
+}
+
+func (s *SimpleInterop) DisputeGameFactory() *proofs.DisputeGameFactory {
+	return proofs.NewDisputeGameFactory(s.T, s.L1Network, s.L1EL.EthClient(), s.L2ChainA.DisputeGameFactoryProxyAddr(), s.Supervisor)
 }
 
 // WithSimpleInterop specifies a system that meets the SimpleInterop criteria.
