@@ -200,11 +200,6 @@ func BoundStep(step uint64) uint64 {
 	return step
 }
 
-func NewExpectedState(t require.TestingT, fromState mipsevm.FPVMState) *ExpectedMTState {
-	mtState := ToMTState(t, fromState)
-	return NewExpectedMTState(mtState)
-}
-
 func GetMtState(t require.TestingT, vm mipsevm.FPVM) *multithreaded.State {
 	return ToMTState(t, vm.GetState())
 }

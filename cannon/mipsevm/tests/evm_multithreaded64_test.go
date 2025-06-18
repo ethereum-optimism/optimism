@@ -73,7 +73,7 @@ func TestEVM_MT64_LL(t *testing.T) {
 					}
 
 					// Set up expectations
-					expected := testutil.NewExpectedMTState(state)
+					expected := testutil.NewExpectedState(t, state)
 					expected.ExpectStep()
 					expected.LLReservationStatus = multithreaded.LLStatusActive32bit
 					expected.LLAddress = c.addr
@@ -171,7 +171,7 @@ func TestEVM_MT64_SC(t *testing.T) {
 					state.LLOwnerThread = llOwnerThread
 
 					// Setup expectations
-					expected := testutil.NewExpectedMTState(state)
+					expected := testutil.NewExpectedState(t, state)
 					expected.ExpectStep()
 					var retVal Word
 					if llVar.shouldSucceed {
@@ -253,7 +253,7 @@ func TestEVM_MT64_LLD(t *testing.T) {
 					}
 
 					// Set up expectations
-					expected := testutil.NewExpectedMTState(state)
+					expected := testutil.NewExpectedState(t, state)
 					expected.ExpectStep()
 					expected.LLReservationStatus = multithreaded.LLStatusActive64bit
 					expected.LLAddress = c.addr
@@ -352,7 +352,7 @@ func TestEVM_MT64_SCD(t *testing.T) {
 					state.LLOwnerThread = llOwnerThread
 
 					// Setup expectations
-					expected := testutil.NewExpectedMTState(state)
+					expected := testutil.NewExpectedState(t, state)
 					expected.ExpectStep()
 					var retVal Word
 					if llVar.shouldSucceed {
@@ -452,7 +452,7 @@ func TestEVM_MT_SysRead_FromEventFd(t *testing.T) {
 			state.GetMemory().SetWord(effAddr, Word(0x12_EE_EE_EE_FF_FF_FF_FF))
 
 			// Setup expectations
-			expected := testutil.NewExpectedMTState(state)
+			expected := testutil.NewExpectedState(t, state)
 			expected.ExpectStep()
 			expected.ActiveThread().Registers[2] = exec.MipsEAGAIN
 			expected.ActiveThread().Registers[7] = exec.SysErrorSignal
@@ -495,7 +495,7 @@ func TestEVM_MT_SysWrite_ToEventFd(t *testing.T) {
 			state.GetMemory().SetWord(effAddr, Word(0x12_EE_EE_EE_FF_FF_FF_FF))
 
 			// Setup expectations
-			expected := testutil.NewExpectedMTState(state)
+			expected := testutil.NewExpectedState(t, state)
 			expected.ExpectStep()
 			expected.ActiveThread().Registers[2] = exec.MipsEAGAIN
 			expected.ActiveThread().Registers[7] = exec.SysErrorSignal

@@ -72,7 +72,7 @@ func TestEVM_MT_LL(t *testing.T) {
 					}
 
 					// Set up expectations
-					expected := testutil.NewExpectedMTState(state)
+					expected := testutil.NewExpectedState(t, state)
 					expected.ExpectStep()
 					expected.LLReservationStatus = multithreaded.LLStatusActive32bit
 					expected.LLAddress = Word(c.expectedAddr)
@@ -166,7 +166,7 @@ func TestEVM_MT_SC(t *testing.T) {
 					state.LLOwnerThread = llOwnerThread
 
 					// Setup expectations
-					expected := testutil.NewExpectedMTState(state)
+					expected := testutil.NewExpectedState(t, state)
 					expected.ExpectStep()
 					var retVal Word
 					if llVar.shouldSucceed {
@@ -278,7 +278,7 @@ func TestEVM_SysClone_Successful(t *testing.T) {
 				require.Equal(t, Word(1), state.NextThreadId)
 
 				// Setup expectations
-				expected := testutil.NewExpectedMTState(state)
+				expected := testutil.NewExpectedState(t, state)
 				expected.Step += 1
 				expectedNewThread := expected.ExpectNewThread()
 				expected.ActiveThreadId = expectedNewThread.ThreadId
@@ -340,7 +340,7 @@ func TestEVM_SysGetTID(t *testing.T) {
 				step := state.Step
 
 				// Set up post-state expectations
-				expected := testutil.NewExpectedMTState(state)
+				expected := testutil.NewExpectedState(t, state)
 				expected.ExpectStep()
 				expected.ActiveThread().Registers[2] = c.threadId
 				expected.ActiveThread().Registers[7] = 0
@@ -388,7 +388,7 @@ func TestEVM_SysExit(t *testing.T) {
 				step := state.Step
 
 				// Set up expectations
-				expected := testutil.NewExpectedMTState(state)
+				expected := testutil.NewExpectedState(t, state)
 				expected.Step += 1
 				expected.StepsSinceLastContextSwitch += 1
 				expected.ActiveThread().Exited = true
@@ -441,7 +441,7 @@ func TestEVM_PopExitedThread(t *testing.T) {
 				threadToPop.ExitCode = 1
 
 				// Set up expectations
-				expected := testutil.NewExpectedMTState(state)
+				expected := testutil.NewExpectedState(t, state)
 				expected.Step += 1
 				expected.ActiveThreadId = testutil.FindNextThreadExcluding(state, threadToPop.ThreadId).ThreadId
 				expected.StepsSinceLastContextSwitch = 0
@@ -511,7 +511,7 @@ func TestEVM_SysFutex_WaitPrivate(t *testing.T) {
 				state.GetRegistersRef()[7] = Word(c.timeout)
 
 				// Setup expectations
-				expected := testutil.NewExpectedMTState(state)
+				expected := testutil.NewExpectedState(t, state)
 				expected.Step += 1
 				expected.ActiveThread().PC = state.GetCpu().NextPC
 				expected.ActiveThread().NextPC = state.GetCpu().NextPC + 4
@@ -580,7 +580,7 @@ func TestEVM_SysFutex_WakePrivate(t *testing.T) {
 				state.GetRegistersRef()[5] = exec.FutexWakePrivate
 
 				// Set up post-state expectations
-				expected := testutil.NewExpectedMTState(state)
+				expected := testutil.NewExpectedState(t, state)
 				expected.ExpectStep()
 				expected.ActiveThread().Registers[2] = 0
 				expected.ActiveThread().Registers[7] = 0
@@ -658,7 +658,7 @@ func TestEVM_SysFutex_UnsupportedOp(t *testing.T) {
 				state.GetRegistersRef()[5] = op
 
 				// Setup expectations
-				expected := testutil.NewExpectedMTState(state)
+				expected := testutil.NewExpectedState(t, state)
 				expected.Step += 1
 				expected.StepsSinceLastContextSwitch += 1
 				expected.ActiveThread().PC = state.GetCpu().NextPC
@@ -716,7 +716,7 @@ func runPreemptSyscall(t *testing.T, syscallName string, syscallNum uint32) {
 					step := state.Step
 
 					// Set up post-state expectations
-					expected := testutil.NewExpectedMTState(state)
+					expected := testutil.NewExpectedState(t, state)
 					expected.ExpectStep()
 					expected.ExpectPreemption(state)
 					expected.PrestateActiveThread().Registers[2] = 0
@@ -749,7 +749,7 @@ func TestEVM_SysOpen(t *testing.T) {
 			step := state.Step
 
 			// Set up post-state expectations
-			expected := testutil.NewExpectedMTState(state)
+			expected := testutil.NewExpectedState(t, state)
 			expected.ExpectStep()
 			expected.ActiveThread().Registers[2] = exec.MipsEBADF
 			expected.ActiveThread().Registers[7] = exec.SysErrorSignal
@@ -780,7 +780,7 @@ func TestEVM_SysGetPID(t *testing.T) {
 			step := state.Step
 
 			// Set up post-state expectations
-			expected := testutil.NewExpectedMTState(state)
+			expected := testutil.NewExpectedState(t, state)
 			expected.ExpectStep()
 			expected.ActiveThread().Registers[2] = 0
 			expected.ActiveThread().Registers[7] = 0
@@ -871,7 +871,7 @@ func testEVM_SysClockGettime(t *testing.T, clkid Word) {
 					state.LLAddress = llAddress
 					state.LLOwnerThread = llOwnerThread
 
-					expected := testutil.NewExpectedMTState(state)
+					expected := testutil.NewExpectedState(t, state)
 					expected.ExpectStep()
 					expected.ActiveThread().Registers[2] = 0
 					expected.ActiveThread().Registers[7] = 0
@@ -917,7 +917,7 @@ func TestEVM_SysClockGettimeNonMonotonic(t *testing.T) {
 			state.GetRegistersRef()[5] = timespecAddr         // a1
 			step := state.Step
 
-			expected := testutil.NewExpectedMTState(state)
+			expected := testutil.NewExpectedState(t, state)
 			expected.ExpectStep()
 			expected.ActiveThread().Registers[2] = exec.MipsEINVAL
 			expected.ActiveThread().Registers[7] = exec.SysErrorSignal
@@ -1038,7 +1038,7 @@ func TestEVM_NormalTraversal_Full(t *testing.T) {
 						state.GetRegistersRef()[2] = Word(arch.SysSchedYield)
 
 						// Set up post-state expectations
-						expected := testutil.NewExpectedMTState(state)
+						expected := testutil.NewExpectedState(t, state)
 						expected.ActiveThread().Registers[2] = 0
 						expected.ActiveThread().Registers[7] = 0
 						expected.ExpectStep()
@@ -1085,7 +1085,7 @@ func TestEVM_SchedQuantumThreshold(t *testing.T) {
 				step := state.Step
 
 				// Set up post-state expectations
-				expected := testutil.NewExpectedMTState(state)
+				expected := testutil.NewExpectedState(t, state)
 				if c.shouldPreempt {
 					expected.Step += 1
 					expected.ExpectPreemption(state)

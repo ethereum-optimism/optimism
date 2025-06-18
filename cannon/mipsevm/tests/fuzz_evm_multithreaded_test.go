@@ -36,7 +36,7 @@ func FuzzStateSyscallCloneMT(f *testing.F) {
 		step := state.GetStep()
 
 		// Set up expectations
-		expected := testutil.NewExpectedMTState(state)
+		expected := testutil.NewExpectedState(t, state)
 		expected.Step += 1
 		// Set original thread expectations
 		expected.PrestateActiveThread().PC = state.GetCpu().NextPC

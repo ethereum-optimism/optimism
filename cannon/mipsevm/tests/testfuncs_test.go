@@ -318,7 +318,7 @@ func testMTStoreOpsClearMemReservation(t *testing.T, cases []testMTStoreOpsClear
 					state.LLOwnerThread = llOwnerThread
 
 					// Setup expectations
-					expected := testutil.NewExpectedMTState(state)
+					expected := testutil.NewExpectedState(t, state)
 					expected.ExpectStep()
 					expected.ExpectMemoryWordWrite(c.effAddr, c.postMem)
 					if llVariation.shouldClearReservation {
@@ -402,7 +402,7 @@ func testMTSysReadPreimage(t *testing.T, preimageValue []byte, cases []testMTSys
 					state.GetMemory().SetWord(effAddr, c.prestateMem)
 
 					// Setup expectations
-					expected := testutil.NewExpectedMTState(state)
+					expected := testutil.NewExpectedState(t, state)
 					expected.ExpectStep()
 					expected.ActiveThread().Registers[2] = c.writeLen
 					expected.ActiveThread().Registers[7] = 0 // no error
@@ -442,7 +442,7 @@ func testNoopSyscall(t *testing.T, version VersionedVMTestCase, syscalls map[str
 			step := state.Step
 
 			// Set up post-state expectations
-			expected := testutil.NewExpectedMTState(state)
+			expected := testutil.NewExpectedState(t, state)
 			expected.ExpectStep()
 			expected.ActiveThread().Registers[2] = 0
 			expected.ActiveThread().Registers[7] = 0
