@@ -9,17 +9,14 @@ import (
 	"fmt"
 	"os"
 	"strconv"
-	"strings"
 	"testing"
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
-	"github.com/ethereum-optimism/optimism/op-devstack/stack"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum/go-ethereum/log"
-	"github.com/gorilla/websocket"
 	"github.com/stretchr/testify/require"
 )
 
@@ -89,23 +86,14 @@ func TestFlashblocksStream(gt *testing.T) {
 		t.Run(fmt.Sprintf("L2_Chain_%s", networkName), func(tt devtest.T) {
 			expectedChainID := l2Chain.ChainID().ToBig()
 			for _, flashblocksBuilderNode := range flashblocksBuilderSet {
-				flashblocksBuilderNodeStack := flashblocksBuilderNode.Escape()
-				require.Equal(t, flashblocksBuilderNodeStack.ChainID().ToBig(), expectedChainID, "flashblocks builder node chain id should match expected chain id")
-
-				var associatedConductor stack.Conductor
-				for _, conductor := range sys.ConductorSets[l2Chain] {
-					if flashblocksBuilderNodeStack.ConductorID() == conductor.Escape().ID() {
-						associatedConductor = conductor.Escape()
-					}
-				}
-				require.NotNil(t, associatedConductor, "there must be a conductor associated with the flashblocks builder node")
+				require.Equal(t, flashblocksBuilderNode.Escape().ChainID().ToBig(), expectedChainID, "flashblocks builder node chain id should match expected chain id")
 
 				mode := FlashblocksStreamMode_Follower
-				if dsl.NewConductor(associatedConductor).IsLeader() {
+				if dsl.NewConductor(flashblocksBuilderNode.Escape().Conductor()).IsLeader() {
 					mode = FlashblocksStreamMode_Leader
 				}
 
-				testFlashblocksStream(tt, logger, dsl.NewFlashblocksBuilderNode(flashblocksBuilderNodeStack), mode, flashblocksStreamRateMs)
+				testFlashblocksStream(tt, logger, flashblocksBuilderNode, mode, flashblocksStreamRateMs)
 			}
 		})
 	}
@@ -122,40 +110,22 @@ func testFlashblocksStream(t devtest.T, logger log.Logger, flashblocksBuilderNod
 		require.Contains(t, []FlashblocksStreamMode{FlashblocksStreamMode_Leader, FlashblocksStreamMode_Follower}, mode, "mode should be either leader or follower")
 		require.NotNil(t, flashblocksBuilderNode, "flashblocksBuilderNode should not be nil")
 
-		wsURL := flashblocksBuilderNode.Escape().FlashblocksWsUrl()
-		logger.Info("Testing WebSocket connection to", "url", wsURL)
-
-		dialer := &websocket.Dialer{
-			HandshakeTimeout: 6 * time.Second,
-		}
-
-		conn, _, err := dialer.Dial(wsURL, nil)
-		require.NoError(t, err, "failed to connect to FLashblocks WebSocket endpoint", "url", wsURL)
-		defer conn.Close()
-
-		logger.Info("WebSocket connection established, reading stream for 5 seconds")
-
+		output := make(chan []byte, maxExpectedFlashblocks)
+		doneListening := make(chan struct{})
 		streamedMessages := make([]string, 0)
+		go flashblocksBuilderNode.ListenFor(logger, testDuration, output, doneListening)
 
-		timeout := time.After(5 * time.Second)
 		for {
 			select {
-			case <-timeout:
+			case <-doneListening:
 				goto done
-			default:
-				err = conn.SetReadDeadline(time.Now().Add(5 * time.Second))
-				require.NoError(t, err, "failed to set read deadline")
-				_, message, err := conn.ReadMessage()
-				if err != nil && !strings.Contains(err.Error(), "timeout") {
-					logger.Error("Error reading WebSocket message", "error", err)
-					break
-				}
-				if err == nil {
-					streamedMessages = append(streamedMessages, string(message))
-				}
+			case msg := <-output:
+				streamedMessages = append(streamedMessages, string(msg))
 			}
 		}
 	done:
+
+		defer close(output)
 
 		logger.Info("Completed WebSocket stream reading", "message_count", len(streamedMessages))
 		if mode == FlashblocksStreamMode_Follower {
