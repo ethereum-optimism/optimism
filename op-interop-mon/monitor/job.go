@@ -61,7 +61,6 @@ func (s jobStatus) String() string {
 // it is used to track the status of the job over time
 // its getters and setters are thread safe
 type Job struct {
-	id     JobID
 	rwLock sync.RWMutex
 
 	firstSeen     time.Time
@@ -86,6 +85,9 @@ type Job struct {
 func (j *Job) ID() JobID {
 	j.rwLock.RLock()
 	defer j.rwLock.RUnlock()
+	if j.initiating == nil {
+		panic("cannot compute job ID for job with nil initiating")
+	}
 	return jobId(
 		j.executingBlock.Number,
 		j.executingLogIndex,

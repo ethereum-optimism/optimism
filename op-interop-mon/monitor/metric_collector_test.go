@@ -9,7 +9,6 @@ import (
 	supervisortypes "github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
-	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 )
 
@@ -147,7 +146,6 @@ func jobForTest(
 	status ...jobStatus,
 ) *Job {
 	return &Job{
-		id:             JobID(uuid.New().String()),
 		executingChain: eth.ChainIDFromUInt64(executingChainID),
 		executingBlock: eth.BlockID{Number: executingBlockNum, Hash: common.HexToHash(executingBlockHash)},
 		initiating:     &supervisortypes.Identifier{ChainID: eth.ChainIDFromUInt64(initiatingChainID), BlockNumber: initiatingBlockNum},
