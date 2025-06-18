@@ -56,7 +56,7 @@ func (m *mockClient) FetchReceiptsByNumber(ctx context.Context, number uint64) (
 	}
 }
 
-func mockReceiptsToCases(receipts []*types.Receipt) []*Job {
+func mockReceiptsToCases(receipts []*types.Receipt, executingChain eth.ChainID) []*Job {
 	return nil
 }
 
@@ -87,7 +87,7 @@ func TestRPCFinder_processBlock(t *testing.T) {
 	logger := testlog.Logger(t, slog.LevelDebug)
 
 	// create a single empty job regardless of the receipts
-	fakeReceiptsToCases := func(receipts []*types.Receipt) []*Job {
+	fakeReceiptsToCases := func(receipts []*types.Receipt, executingChain eth.ChainID) []*Job {
 		return []*Job{
 			{},
 		}

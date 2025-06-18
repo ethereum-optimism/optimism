@@ -96,8 +96,28 @@ func (j *Job) String() string {
 		j.LatestStatus().String())
 }
 
+func JobId(
+	executingBlockNumber uint64,
+	executingPayload common.Hash,
+	executingChain eth.ChainID,
+	intitiatingBlockNumber uint64,
+	logIndex uint32,
+	initiatingChain eth.ChainID,
+) JobID {
+	return JobID(
+		fmt.Sprintf(
+			"block-%d.%s@chain-%d:block-%d.log-%d@chain-%d",
+			executingBlockNumber,
+			executingPayload.String(),
+			executingChain,
+			intitiatingBlockNumber,
+			logIndex,
+			initiatingChain,
+		))
+}
+
 // JobFromExecutingMessageLog converts a log to a job
-func JobFromExecutingMessageLog(log *types.Log) (Job, error) {
+func JobFromExecutingMessageLog(log *types.Log, executingChain eth.ChainID) (Job, error) {
 	msg, err := processors.MessageFromLog(log)
 	if err != nil {
 		return Job{}, err
@@ -106,9 +126,16 @@ func JobFromExecutingMessageLog(log *types.Log) (Job, error) {
 		return Job{}, ErrNotExecutingMessage
 	}
 	return Job{
-		id:               JobID(fmt.Sprintf("%s@%d:%s:%d", log.Address.String(), msg.Identifier.ChainID, log.BlockHash.String(), log.Index)),
+		id: JobId(
+			log.BlockNumber,
+			msg.PayloadHash,
+			executingChain,
+			msg.Identifier.BlockNumber,
+			msg.Identifier.LogIndex,
+			msg.Identifier.ChainID,
+		),
 		executingAddress: log.Address,
-		executingChain:   eth.ChainID(msg.Identifier.ChainID),
+		executingChain:   executingChain,
 		executingBlock:   eth.BlockID{Hash: log.BlockHash, Number: log.BlockNumber},
 		executingPayload: msg.PayloadHash,
 
@@ -117,11 +144,11 @@ func JobFromExecutingMessageLog(log *types.Log) (Job, error) {
 }
 
 // BlockReceiptsToJobs converts a slice of receipts to a slice of jobs
-func BlockReceiptsToJobs(receipts []*types.Receipt) []*Job {
+func BlockReceiptsToJobs(receipts []*types.Receipt, executingChain eth.ChainID) []*Job {
 	jobs := make([]*Job, 0, len(receipts))
 	for _, receipt := range receipts {
 		for _, log := range receipt.Logs {
-			job, err := JobFromExecutingMessageLog(log)
+			job, err := JobFromExecutingMessageLog(log, executingChain)
 			if err != nil {
 				continue
 			}

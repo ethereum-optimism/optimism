@@ -17,7 +17,7 @@ var ErrBlockNotFound = errors.New("block not found")
 
 // JobFilter is a function that turns any executing messages from a slice of receipts
 // into a slice of jobs which can be added to an Updater's inbox
-type JobFilter func(receipts []*types.Receipt) []*Job
+type JobFilter func(receipts []*types.Receipt, executingChain eth.ChainID) []*Job
 
 // NewCallback is a function to be called when a new job is created
 type NewCallback func(*Job)
@@ -165,7 +165,7 @@ func (t *RPCFinder) processBlock(blockInfo eth.BlockInfo, receipts types.Receipt
 			return ErrBlockNotContiguous
 		}
 	}
-	jobs := t.toJobs([]*types.Receipt(receipts))
+	jobs := t.toJobs([]*types.Receipt(receipts), t.chainID)
 	firstSeen := time.Now()
 	for _, job := range jobs {
 		job.firstSeen = firstSeen
