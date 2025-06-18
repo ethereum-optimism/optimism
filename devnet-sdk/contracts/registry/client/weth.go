@@ -12,7 +12,7 @@ import (
 type WETHBinding struct {
 	contractAddress types.Address
 	client          *ethclient.Client
-	binding         *bindings.SuperchainWETH
+	binding         *bindings.SuperchainETHBridge
 }
 
 var _ interfaces.WETH = (*WETHBinding)(nil)
