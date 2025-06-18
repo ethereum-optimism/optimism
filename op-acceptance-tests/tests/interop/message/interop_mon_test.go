@@ -11,6 +11,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-interop-mon/monitor"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
+	"github.com/ethereum-optimism/optimism/op-service/sources"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -19,22 +20,21 @@ func TestInteropMon(gt *testing.T) {
 	t := devtest.SerialT(gt)
 	sys := presets.NewSimpleInterop(t)
 
-	l2Rpcs := []string{
-		sys.L2ELA.Escape().RPCURL(),
-		sys.L2ELB.Escape().RPCURL(),
+	clients := map[eth.ChainID]*sources.EthClient{
+		sys.L2ELA.Escape().ChainID(): sys.L2ELA.Escape().EthClient().(*sources.EthClient),
+		sys.L2ELB.Escape().ChainID(): sys.L2ELB.Escape().EthClient().(*sources.EthClient),
 	}
 
 	require := t.Require()
 
 	// Start op-interop-mon in the test context and attach to the devstack
-	t.Logf("Starting op-interop-mon with l2 rpcs: %v", l2Rpcs)
-	im, err := monitor.InteropMonitorServiceFromCLIConfig(t.Ctx(), "test", &monitor.CLIConfig{
+	im, err := monitor.InteropMonitorServiceFromClients(t.Ctx(), "test", &monitor.CLIConfig{
 		PollInterval: 50 * time.Millisecond,
-		L2Rpcs:       l2Rpcs,
+		L2Rpcs:       []string{}, // unused here
 		MetricsConfig: opmetrics.CLIConfig{
 			Enabled: true,
 		},
-	}, t.Logger())
+	}, clients, t.Logger())
 	t.Require().NoError(err)
 	require.NoError(im.Start(t.Ctx()))
 

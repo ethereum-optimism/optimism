@@ -55,7 +55,27 @@ func InteropMonitorServiceFromCLIConfig(ctx context.Context, version string, cfg
 	return &ms, nil
 }
 
+// InteropMonitorServiceFromClients creates a new InteropMonitorService with pre-initialized clients
+func InteropMonitorServiceFromClients(ctx context.Context, version string, cfg *CLIConfig, clients map[eth.ChainID]*sources.EthClient, log log.Logger) (*InteropMonitorService, error) {
+	var ms InteropMonitorService
+	if err := ms.initFromClients(ctx, version, cfg, clients, log); err != nil {
+		return nil, errors.Join(err, ms.Start(ctx))
+	}
+	return &ms, nil
+}
+
 func (ms *InteropMonitorService) initFromCLIConfig(ctx context.Context, version string, cfg *CLIConfig, log log.Logger) error {
+	// Initialize all clients
+	clients, err := ms.initClients(ctx, cfg.L2Rpcs)
+	if err != nil {
+		return fmt.Errorf("failed to init clients: %w", err)
+	}
+
+	return ms.initFromClients(ctx, version, cfg, clients, log)
+}
+
+// initFromClients initializes the service with pre-created clients
+func (ms *InteropMonitorService) initFromClients(ctx context.Context, version string, cfg *CLIConfig, clients map[eth.ChainID]*sources.EthClient, log log.Logger) error {
 	ms.Version = version
 	ms.Log = log
 
@@ -65,12 +85,6 @@ func (ms *InteropMonitorService) initFromCLIConfig(ctx context.Context, version 
 
 	// Initialize the expiry map
 	ms.finalized = locks.RWMapFromMap(make(map[eth.ChainID]eth.NumberAndHash))
-
-	// Initialize all clients
-	clients, err := ms.initClients(ctx, cfg.L2Rpcs)
-	if err != nil {
-		return fmt.Errorf("failed to init clients: %w", err)
-	}
 
 	// Initialize all updaters
 	ms.updaters = make(map[eth.ChainID]Updater)
