@@ -282,7 +282,7 @@ func TestUpdaterJobStatusUpdate(t *testing.T) {
 				if tt.receipts == nil {
 					return nil, nil, errors.New("mock error")
 				}
-				return nil, tt.receipts, nil
+				return eth.HeaderBlockInfo(&ethtypes.Header{}), tt.receipts, nil
 			}
 
 			// Update job status
