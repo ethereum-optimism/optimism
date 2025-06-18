@@ -190,7 +190,7 @@ func WithL2CLNode(l2CLID stack.L2CLNodeID, isSequencer bool, managedMode bool, l
 				require.NoError(err, "failed to load p2p signer")
 				logger.Info("Sequencer key acquired")
 			}
-			p2pConfig, err = p2pcli.NewConfig(cliCtx, l2Net.rollupCfg)
+			p2pConfig, err = p2pcli.NewConfig(cliCtx, l2Net.rollupCfg.BlockTime)
 			require.NoError(err, "failed to load p2p config")
 		}
 
