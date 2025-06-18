@@ -686,6 +686,7 @@ contract DeployImplementations is Script {
         require(address(messenger.PORTAL()) == address(0), "L1xDM-30");
         require(address(messenger.portal()) == address(0), "L1xDM-40");
         require(address(messenger.systemConfig()) == address(0), "L1xDM-50");
+        require(address(messenger.proxyAdmin()) == address(0), "L1SB-60");
 
         bytes32 xdmSenderSlot = vm.load(address(messenger), bytes32(uint256(204)));
         require(address(uint160(uint256(xdmSenderSlot))) == address(0), "L1xDM-60");
@@ -713,7 +714,6 @@ contract DeployImplementations is Script {
         require(address(bridge.OTHER_BRIDGE()) == address(0), "L1SB-30");
         require(address(bridge.otherBridge()) == address(0), "L1SB-40");
         require(address(bridge.systemConfig()) == address(0), "L1SB-50");
-        require(address(bridge.proxyAdmin()) == address(0), "L1SB-60");
     }
 
     function assertValidOptimismMintableERC20FactoryImpl(Input memory, Output memory _output) private view {
