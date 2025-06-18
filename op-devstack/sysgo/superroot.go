@@ -178,15 +178,8 @@ func WithSuperRoots(l1ChainID eth.ChainID, l1ELID stack.L1ELNodeID, l2CLID stack
 				delegateCallProxy,
 				oldDisputeGameFactories,
 			)
-			transferOwnershipForDelegateCallProxy(
-				t,
-				l1ChainID.ToBig(),
-				l1PAOKey,
-				client,
-				delegateCallProxy,
-				superchainProxyAdmin,
-				oldSuperchainProxyAdminOwner,
-			)
+			superchainProxyAdminOwner := getOwner(t, w3Client, superchainProxyAdmin)
+			t.Require().Equal(oldSuperchainProxyAdminOwner, superchainProxyAdminOwner, "superchain proxy admin owner is not the L1PAO")
 
 			for _, l2Deployment := range o.wb.outL2Deployment {
 				l2Deployment.disputeGameFactoryProxy = sharedDGF
@@ -239,6 +232,8 @@ var (
 	gameImplsFn           = w3.MustNewFunc("gameImpls(uint32)", "address")
 	ownerFn               = w3.MustNewFunc("owner()", "address")
 	proxyAdminFn          = w3.MustNewFunc("proxyAdmin()", "address")
+	adminFn               = w3.MustNewFunc("admin()", "address")
+	proxyAdminOwnerFn     = w3.MustNewFunc("proxyAdminOwner()", "address")
 	ethLockboxFn          = w3.MustNewFunc("ethLockbox()", "address")
 	anchorStateRegistryFn = w3.MustNewFunc("anchorStateRegistry()", "address")
 	wethFn                = w3.MustNewFunc("weth()", "address")
@@ -271,6 +266,20 @@ func getOwner(t devtest.CommonT, client *w3.Client, addr common.Address) common.
 	err := client.Call(w3eth.CallFunc(addr, ownerFn).Returns(&owner))
 	t.Require().NoError(err)
 	return owner
+}
+
+func getAdmin(t devtest.CommonT, client *w3.Client, addr common.Address) common.Address {
+	var admin common.Address
+	err := client.Call(w3eth.CallFunc(addr, adminFn).Returns(&admin))
+	t.Require().NoError(err)
+	return admin
+}
+
+func getProxyAdminOwner(t devtest.CommonT, client *w3.Client, addr common.Address) common.Address {
+	var proxyAdminOwner common.Address
+	err := client.Call(w3eth.CallFunc(addr, proxyAdminOwnerFn).Returns(&proxyAdminOwner))
+	t.Require().NoError(err)
+	return proxyAdminOwner
 }
 
 func getProxyAdmin(t devtest.CommonT, client *w3.Client, addr common.Address) common.Address {
@@ -324,36 +333,6 @@ func transferOwnershipForDelegateCallProxy(
 	t.Require().Equal(receipt.Status, types.ReceiptStatusSuccessful, "transferOwnership failed")
 }
 
-func changeAdminForDelegateCallProxy(
-	t devtest.CommonT,
-	transactChainID *big.Int,
-	privateKey *ecdsa.PrivateKey,
-	client *ethclient.Client,
-	delegateCallProxy common.Address,
-	proxyAdminOwned common.Address,
-	newOwner common.Address,
-) {
-	transactOpts, err := bind.NewKeyedTransactorWithChainID(privateKey, transactChainID)
-	t.Require().NoError(err, "must have transact opts")
-	transactOpts.Context = t.Ctx()
-
-	abi, err := delegatecallproxy.DelegatecallproxyMetaData.GetAbi()
-	t.Require().NoError(err, "failed to get abi")
-	contract := batching.NewBoundContract(abi, delegateCallProxy)
-	call := contract.Call("changeAdmin", proxyAdminOwned, newOwner)
-	data, err := call.Pack()
-	t.Require().NoError(err)
-
-	candidate := txmgr.TxCandidate{
-		To:       &delegateCallProxy,
-		TxData:   data,
-		GasLimit: 1_000_000,
-	}
-	_, receipt, err := transactions.SendTx(t.Ctx(), client, candidate, privateKey)
-	t.Require().NoErrorf(err, "changeAdmin failed: %v", errutil.TryAddRevertReason(err))
-	t.Require().Equal(receipt.Status, types.ReceiptStatusSuccessful, "changeAdmin failed")
-}
-
 func resetOwnershipAfterMigration(
 	t devtest.CommonT,
 	o *Orchestrator,
@@ -379,41 +358,37 @@ func resetOwnershipAfterMigration(
 		l1PAO,
 	)
 
-	// TODO(#16037): fix ownership reset of new proxies
-	todo := false
-	if todo {
-		changeAdmin := func(proxyAdminOwned common.Address) {
-			changeAdminForDelegateCallProxy(
-				t,
-				l1ChainID,
-				ownerPrivateKey,
-				client,
-				delegateCallProxy,
-				proxyAdminOwned,
-				l1PAO,
-			)
-		}
+	var sharedEthLockboxProxy common.Address
+	err = w3Client.Call(w3eth.CallFunc(portal0, ethLockboxFn).Returns(&sharedEthLockboxProxy))
+	t.Require().NoError(err)
+	proxyAdmin := getAdmin(t, w3Client, sharedEthLockboxProxy)
+	transferOwnershipForDelegateCallProxy(
+		t,
+		l1ChainID,
+		ownerPrivateKey,
+		client,
+		delegateCallProxy,
+		proxyAdmin,
+		l1PAO,
+	)
 
-		var sharedEthLockboxProxy common.Address
-		err = w3Client.Call(w3eth.CallFunc(portal0, ethLockboxFn).Returns(&sharedEthLockboxProxy))
+	// The Proxy Admin owner is changed. Assert that the admin of other proxies are consistent
+	var sharedAnchorStateRegistryProxy common.Address
+	err = w3Client.Call(w3eth.CallFunc(portal0, anchorStateRegistryFn).Returns(&sharedAnchorStateRegistryProxy))
+	t.Require().NoError(err)
+	asrAAdminOwner := getProxyAdminOwner(t, w3Client, sharedAnchorStateRegistryProxy)
+	t.Require().Equal(l1PAO, asrAAdminOwner, "sharedAnchorStateRegistryProxy proxy admin owner is not the L1PAO")
+
+	gameTypes := []uint32{superPermissionedGameType, superCannonGameType}
+	for _, gameType := range gameTypes {
+		var game common.Address
+		err = w3Client.Call(w3eth.CallFunc(sharedDGF, gameImplsFn, gameType).Returns(&game))
 		t.Require().NoError(err)
-		changeAdmin(sharedEthLockboxProxy)
-
-		var sharedAnchorStateRegistryProxy common.Address
-		err = w3Client.Call(w3eth.CallFunc(portal0, anchorStateRegistryFn).Returns(&sharedAnchorStateRegistryProxy))
-		t.Require().NoError(err)
-		changeAdmin(sharedAnchorStateRegistryProxy)
-
-		gameTypes := []uint32{superPermissionedGameType, superCannonGameType}
-		for _, gameType := range gameTypes {
-			var game common.Address
-			err = w3Client.Call(w3eth.CallFunc(sharedDGF, gameImplsFn, gameType).Returns(&game))
-			t.Require().NoError(err)
-			var wethProxy common.Address
-			err = w3Client.Call(w3eth.CallFunc(game, wethFn).Returns(&wethProxy))
-			t.Require().NoError(err, "failed to get weth proxy")
-			changeAdmin(wethProxy)
-		}
+		var wethProxy common.Address
+		err = w3Client.Call(w3eth.CallFunc(game, wethFn).Returns(&wethProxy))
+		t.Require().NoError(err, "failed to get weth proxy")
+		wethAdminOwner := getProxyAdminOwner(t, w3Client, wethProxy)
+		t.Require().Equal(l1PAO, wethAdminOwner, "wethProxy proxy admin owner is not the L1PAO")
 	}
 }
 
