@@ -28,13 +28,13 @@ func TestSuperRootWithdrawal(gt *testing.T) {
 	bridge := sys.StandardBridge(sys.L2ChainA)
 	require.True(t, bridge.UsesSuperRoots(), "Expected interop system to be using super roots")
 
-	bridge.Deposit(depositAmount, l1User)
+	deposit := bridge.Deposit(depositAmount, l1User)
+	l1User.VerifyBalanceExact(initialL1Balance.Sub(depositAmount).Sub(deposit.GasCost()))
 	l2User.VerifyBalanceExact(initialL2Balance.Add(depositAmount))
-	l1User.VerifyBalanceLessThan(initialL1Balance.Sub(depositAmount))
-	postDepositBalance := l1User.GetBalance()
 
 	withdrawal := bridge.InitiateWithdrawal(withdrawalAmount, l2User)
 	withdrawal.Prove(l1Prover)
+	l2User.VerifyBalanceExact(initialL2Balance.Add(depositAmount).Sub(withdrawalAmount).Sub(withdrawal.InitiateGasCost()))
 
 	// Advance time until game is resolvable
 	sys.AdvanceTime(bridge.GameResolutionDelay())
@@ -44,5 +44,5 @@ func TestSuperRootWithdrawal(gt *testing.T) {
 	sys.AdvanceTime(max(bridge.WithdrawalDelay(), bridge.DisputeGameFinalityDelay()))
 	withdrawal.Finalize(l1Prover)
 
-	l1User.VerifyBalanceExact(postDepositBalance.Add(withdrawalAmount))
+	l1User.VerifyBalanceExact(initialL1Balance.Sub(depositAmount).Sub(deposit.GasCost()).Add(withdrawalAmount))
 }
