@@ -10,6 +10,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-devstack/stack/match"
 	"github.com/ethereum-optimism/optimism/op-service/apis"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 	"github.com/ethereum-optimism/optimism/op-test-sequencer/sequencer/seqtypes"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/stretchr/testify/require"
@@ -106,8 +107,8 @@ func testL2ReorgAfterL1Reorg(gt *testing.T, n int, preChecks, postChecks checksF
 	// confirm L1 reorged
 	sys.L1EL.ReorgTriggered(divergence, 5)
 
-	// wait until L2 chain A caught up to where it was before the reorg
-	sys.L2ELA.WaitForBlockNumber(tipL2_preReorg.Number)
+	// wait until L2 chain A cross-safe ref caught up to where it was before the reorg
+	sys.L2CLA.Reached(types.CrossSafe, tipL2_preReorg.Number, 50)
 
 	// test that latest chain A unsafe is not referencing a reorged L1 block (through the L1Origin field)
 	require.Eventually(t, func() bool {
