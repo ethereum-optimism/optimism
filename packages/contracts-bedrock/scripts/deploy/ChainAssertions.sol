@@ -116,8 +116,7 @@ library ChainAssertions {
     }
 
     /// @notice Asserts that the L1CrossDomainMessenger is setup correctly
-    function checkL1CrossDomainMessenger(Types.ContractSet memory _contracts, Vm _vm, bool _isProxy) internal view {
-        IL1CrossDomainMessenger messenger = IL1CrossDomainMessenger(_contracts.L1CrossDomainMessenger);
+    function checkL1CrossDomainMessenger(IL1CrossDomainMessenger messenger, Vm _vm, bool _isProxy) internal view {
         console.log(
             "Running chain assertions on the L1CrossDomainMessenger %s at %s",
             _isProxy ? "proxy" : "implementation",
