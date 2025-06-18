@@ -12,6 +12,7 @@ import (
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/arch"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/exec"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/multithreaded"
+	mtutil "github.com/ethereum-optimism/optimism/cannon/mipsevm/testutil"
 )
 
 func AddHintLengthPrefix(data []byte) []byte {
@@ -41,7 +42,7 @@ func NewStateMutator(state *multithreaded.State) *StateMutator {
 }
 
 func (m *StateMutator) Randomize(randSeed int64) {
-	r := NewRandHelper(randSeed)
+	r := mtutil.NewRandHelper(randSeed)
 
 	step := r.RandStep()
 
@@ -180,24 +181,6 @@ func WithRandomization(seed int64) StateOption {
 	return func(mut *StateMutator) {
 		mut.Randomize(seed)
 	}
-}
-
-func AlignPC(pc arch.Word) arch.Word {
-	// Memory-align random pc and leave room for nextPC
-	pc = pc & arch.AddressMask // Align address
-	if pc >= arch.AddressMask {
-		// Leave room to set and then increment nextPC
-		pc = arch.AddressMask - 8
-	}
-	return pc
-}
-
-func BoundStep(step uint64) uint64 {
-	// Leave room to increment step at least once
-	if step == ^uint64(0) {
-		step -= 1
-	}
-	return step
 }
 
 func GetMtState(t require.TestingT, vm mipsevm.FPVM) *multithreaded.State {

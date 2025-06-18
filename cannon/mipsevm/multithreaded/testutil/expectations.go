@@ -12,6 +12,7 @@ import (
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/arch"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/memory"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/multithreaded"
+	"github.com/ethereum-optimism/optimism/cannon/mipsevm/testutil"
 )
 
 // ExpectedState is a test utility that basically stores a copy of a state that can be explicitly mutated
@@ -120,7 +121,7 @@ func (e *ExpectedState) ExpectMemoryWriteUint32(t require.TestingT, addr arch.Wo
 	addr = addr & ^arch.Word(3)
 
 	// Set 4 bytes at addr
-	data := Uint32ToBytes(val)
+	data := testutil.Uint32ToBytes(val)
 	err := e.expectedMemory.SetMemoryRange(addr, bytes.NewReader(data))
 	require.NoError(t, err)
 
