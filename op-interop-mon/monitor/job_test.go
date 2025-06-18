@@ -136,30 +136,61 @@ func TestJobId(t *testing.T) {
 	logIndex := uint32(7)
 	initiatingChain := eth.ChainIDFromBig(big.NewInt(9))
 
-	jobID := JobId(
-		executingBlockNumber,
-		executingLogIndex,
-		executingPayload,
-		executingChain,
-		initiatingBlockNumber,
-		logIndex,
-		initiatingChain,
-	)
+	job := Job{
+		executingAddress:  common.Address{},
+		executingLogIndex: executingLogIndex,
+		executingPayload:  executingPayload,
+		executingChain:    executingChain,
+		executingBlock: eth.BlockID{
+			Hash:   common.Hash{},
+			Number: executingBlockNumber,
+		},
+		initiating: &supervisortypes.Identifier{
+			Origin:      common.Address{},
+			BlockNumber: initiatingBlockNumber,
+			LogIndex:    logIndex,
+			Timestamp:   0,
+			ChainID:     initiatingChain,
+		},
+	}
+
+	jobID := job.ID()
 
 	expected := "block-400.5.0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef@chain-10:block-400.log-7@chain-9"
 	require.Equal(t, JobID(expected), jobID, "JobId should format the ID correctly")
 
-	// Test with different values
-	jobID2 := JobId(
-		uint64(100),
-		executingLogIndex,
-		common.HexToHash("0xabcd"),
-		eth.ChainIDFromBig(big.NewInt(1)),
-		uint64(50),
-		uint32(3),
-		eth.ChainIDFromBig(big.NewInt(2)),
-	)
+	job.executingBlock.Number++
+	require.NotEqual(t, JobID(expected), job.ID(), "The job ID must change when the job changes")
+	job.executingBlock.Number--
+	require.Equal(t, JobID(expected), job.ID(), "Test mutation was not reverted")
 
-	expected2 := "block-100.5.0x000000000000000000000000000000000000000000000000000000000000abcd@chain-1:block-50.log-3@chain-2"
-	require.Equal(t, JobID(expected2), jobID2, "JobId should format different values correctly")
+	job.executingLogIndex++
+	require.NotEqual(t, JobID(expected), job.ID(), "The job ID must change when the job changes")
+	job.executingLogIndex--
+	require.Equal(t, JobID(expected), job.ID(), "Test mutation was not reverted")
+
+	job.executingPayload = common.HexToHash("0xdeadbeef")
+	require.NotEqual(t, JobID(expected), job.ID(), "The job ID must change when the job's executing payload changes")
+	job.executingPayload = executingPayload
+	require.Equal(t, JobID(expected), job.ID(), "Test mutation was not reverted")
+
+	job.executingChain = eth.ChainIDFromBig(big.NewInt(11))
+	require.NotEqual(t, JobID(expected), job.ID(), "The job ID must change when the job changes")
+	job.executingChain = executingChain
+	require.Equal(t, JobID(expected), job.ID(), "Test mutation was not reverted")
+
+	job.initiating.BlockNumber++
+	require.NotEqual(t, JobID(expected), job.ID(), "The job ID must change when the job changes")
+	job.initiating.BlockNumber--
+	require.Equal(t, JobID(expected), job.ID(), "Test mutation was not reverted")
+
+	job.initiating.LogIndex++
+	require.NotEqual(t, JobID(expected), job.ID(), "The job ID must change when the job changes")
+	job.initiating.LogIndex--
+	require.Equal(t, JobID(expected), job.ID(), "Test mutation was not reverted")
+
+	job.initiating.ChainID = eth.ChainIDFromBig(big.NewInt(12))
+	require.NotEqual(t, JobID(expected), job.ID(), "The job ID must change when the job changes")
+	job.initiating.ChainID = initiatingChain
+	require.Equal(t, JobID(expected), job.ID(), "Test mutation was not reverted")
 }

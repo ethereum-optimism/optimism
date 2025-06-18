@@ -69,10 +69,11 @@ type Job struct {
 	terminalAt    time.Time
 	didMetrics    atomic.Bool
 
-	executingAddress common.Address
-	executingChain   eth.ChainID
-	executingBlock   eth.BlockID
-	executingPayload common.Hash
+	executingAddress  common.Address
+	executingChain    eth.ChainID
+	executingBlock    eth.BlockID
+	executingLogIndex uint
+	executingPayload  common.Hash
 
 	initiating     *supervisortypes.Identifier
 	initiatingHash []common.Hash
@@ -81,22 +82,22 @@ type Job struct {
 	status []jobStatus
 }
 
-// String returns a string representation of the job
-func (j *Job) String() string {
+// ID returns the ID of the job
+func (j *Job) ID() JobID {
 	j.rwLock.RLock()
 	defer j.rwLock.RUnlock()
-	return fmt.Sprintf("Job{executing: %s@%d:%s, payload: %s, initiating: %s@%d:%d, status: %v}",
-		j.executingChain,
+	return jobId(
 		j.executingBlock.Number,
-		j.executingBlock.Hash.String()[:10],
-		j.executingPayload.String()[:10],
-		j.initiating.ChainID,
+		j.executingLogIndex,
+		j.executingPayload,
+		j.executingChain,
 		j.initiating.BlockNumber,
 		j.initiating.LogIndex,
-		j.LatestStatus().String())
+		j.initiating.ChainID,
+	)
 }
 
-func JobId(
+func jobId(
 	executingBlockNumber uint64,
 	executingLogIndex uint,
 	executingPayload common.Hash,
@@ -118,6 +119,21 @@ func JobId(
 		))
 }
 
+// String returns a string representation of the job
+func (j *Job) String() string {
+	j.rwLock.RLock()
+	defer j.rwLock.RUnlock()
+	return fmt.Sprintf("Job{executing: %s@%d:%s, payload: %s, initiating: %s@%d:%d, status: %v}",
+		j.executingChain,
+		j.executingBlock.Number,
+		j.executingBlock.Hash.String()[:10],
+		j.executingPayload.String()[:10],
+		j.initiating.ChainID,
+		j.initiating.BlockNumber,
+		j.initiating.LogIndex,
+		j.LatestStatus().String())
+}
+
 // JobFromExecutingMessageLog converts a log to a job
 func JobFromExecutingMessageLog(log *types.Log, executingChain eth.ChainID) (Job, error) {
 	msg, err := processors.MessageFromLog(log)
@@ -128,19 +144,11 @@ func JobFromExecutingMessageLog(log *types.Log, executingChain eth.ChainID) (Job
 		return Job{}, ErrNotExecutingMessage
 	}
 	return Job{
-		id: JobId(
-			log.BlockNumber,
-			log.Index,
-			msg.PayloadHash,
-			executingChain,
-			msg.Identifier.BlockNumber,
-			msg.Identifier.LogIndex,
-			msg.Identifier.ChainID,
-		),
-		executingAddress: log.Address,
-		executingChain:   executingChain,
-		executingBlock:   eth.BlockID{Hash: log.BlockHash, Number: log.BlockNumber},
-		executingPayload: msg.PayloadHash,
+		executingAddress:  log.Address,
+		executingLogIndex: log.Index,
+		executingChain:    executingChain,
+		executingBlock:    eth.BlockID{Hash: log.BlockHash, Number: log.BlockNumber},
+		executingPayload:  msg.PayloadHash,
 
 		initiating: &msg.Identifier,
 	}, nil
@@ -159,13 +167,6 @@ func BlockReceiptsToJobs(receipts []*types.Receipt, executingChain eth.ChainID) 
 		}
 	}
 	return jobs
-}
-
-// ID returns the ID of the job
-func (j *Job) ID() JobID {
-	j.rwLock.RLock()
-	defer j.rwLock.RUnlock()
-	return j.id
 }
 
 // Statuses returns the states of the job
