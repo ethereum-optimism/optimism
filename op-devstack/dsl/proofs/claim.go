@@ -32,6 +32,10 @@ func newClaim(t devtest.T, require *require.Assertions, claimIndex int64, claim 
 	}
 }
 
+func (c *Claim) Value() common.Hash {
+	return c.claim.Value
+}
+
 func (c *Claim) Depth() uint64 {
 	return uint64(c.claim.Depth())
 }

@@ -13,7 +13,6 @@ import (
 	ethtypes "github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/log"
-	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 )
 
@@ -134,7 +133,6 @@ func TestUpdaterJobExpiration(t *testing.T) {
 
 			// Create a test job
 			job := &Job{
-				id:             JobID(uuid.New().String()),
 				initiating:     tt.initiatingInfo,
 				executingBlock: tt.executingInfo,
 				executingChain: eth.ChainIDFromUInt64(2),
@@ -273,7 +271,6 @@ func TestUpdaterJobStatusUpdate(t *testing.T) {
 
 			// Create a test job
 			job := &Job{
-				id:               JobID(uuid.New().String()),
 				initiating:       tt.initiatingInfo,
 				executingBlock:   tt.executingInfo,
 				executingChain:   eth.ChainIDFromUInt64(2),
@@ -285,7 +282,7 @@ func TestUpdaterJobStatusUpdate(t *testing.T) {
 				if tt.receipts == nil {
 					return nil, nil, errors.New("mock error")
 				}
-				return nil, tt.receipts, nil
+				return eth.HeaderBlockInfo(&ethtypes.Header{}), tt.receipts, nil
 			}
 
 			// Update job status

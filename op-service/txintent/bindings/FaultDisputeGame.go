@@ -42,7 +42,8 @@ func (d ClaimData) Decode() Claim {
 
 type FaultDisputeGame struct {
 	// IDisputeGame.sol read methods
-	L1Head func() TypedCall[common.Hash] `sol:"l1Head"`
+	L1Head           func() TypedCall[common.Hash] `sol:"l1Head"`
+	L2SequenceNumber func() TypedCall[*big.Int]    `sol:"l2SequenceNumber"`
 
 	// IFaultDisputeGame.sol read methods
 	ClaimDataLen    func() TypedCall[*big.Int]                                                 `sol:"claimDataLen"`
