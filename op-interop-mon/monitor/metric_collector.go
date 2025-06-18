@@ -67,49 +67,63 @@ func (m *MetricCollector) Stop() error {
 
 // CollectMetrics scans the jobMaps, consolidates them, and updates the metrics
 func (m *MetricCollector) CollectMetrics() {
+	allChainIDs := []eth.ChainID{}
 	jobMap := map[JobID]*Job{}
-	for _, updater := range m.updaters {
+	for chainID, updater := range m.updaters {
+		allChainIDs = append(allChainIDs, chainID)
 		jobMap = updater.CollectForMetrics(jobMap)
 	}
-	// message metrics are dimensioned by:
-	// - executing chain id
-	// - initiating chain id
-	// - status
-	messageStatus := map[eth.ChainID]map[eth.ChainID]map[string]int{}
-	terminalStatusChanges := map[eth.ChainID]map[eth.ChainID]int{}
 
-	// Track block number ranges for each chain
+	// Initialize all possible combinations of chain IDs and statuses
+	messageStatus := map[eth.ChainID]map[eth.ChainID]map[string]int{}
+	for _, chainID := range allChainIDs {
+		messageStatus[chainID] = map[eth.ChainID]map[string]int{}
+		for _, otherChainID := range allChainIDs {
+			messageStatus[chainID][otherChainID] = map[string]int{}
+			for _, status := range []string{
+				jobStatusValid.String(),
+				jobStatusInvalid.String(),
+				jobStatusUnknown.String(),
+			} {
+				messageStatus[chainID][otherChainID][status] = 0
+			}
+		}
+	}
+	// Initialize terminal status changes for all combinations
+	terminalStatusChanges := map[eth.ChainID]map[eth.ChainID]int{}
+	for _, chainID := range allChainIDs {
+		terminalStatusChanges[chainID] = map[eth.ChainID]int{}
+		for _, otherChainID := range allChainIDs {
+			terminalStatusChanges[chainID][otherChainID] = 0
+		}
+	}
+
+	// Initialize executing and initiating ranges for all chains
 	executingRanges := map[eth.ChainID]struct {
 		min, max uint64
 	}{}
 	initiatingRanges := map[eth.ChainID]struct {
 		min, max uint64
 	}{}
+	for _, chainID := range allChainIDs {
+		executingRanges[chainID] = struct {
+			min, max uint64
+		}{min: 0, max: 0}
+		initiatingRanges[chainID] = struct {
+			min, max uint64
+		}{min: 0, max: 0}
+	}
+	executingMinSet := map[eth.ChainID]bool{}
+	initiatingMinSet := map[eth.ChainID]bool{}
 
+	// Process jobs and update metrics
 	for _, job := range jobMap {
-		// Initialize executing ranges for this chain if not seen before
-		if _, exists := executingRanges[job.executingChain]; !exists {
-			executingRanges[job.executingChain] = struct {
-				min, max uint64
-			}{
-				min: job.executingBlock.Number,
-				max: job.executingBlock.Number,
-			}
-		}
-
-		// Initialize initiating ranges for this chain if not seen before
-		if _, exists := initiatingRanges[job.initiating.ChainID]; !exists {
-			initiatingRanges[job.initiating.ChainID] = struct {
-				min, max uint64
-			}{
-				min: job.initiating.BlockNumber,
-				max: job.initiating.BlockNumber,
-			}
-		}
-
 		// Update executing ranges
 		execRange := executingRanges[job.executingChain]
-		if job.executingBlock.Number < execRange.min {
+		if !executingMinSet[job.executingChain] {
+			execRange.min = job.executingBlock.Number
+			executingMinSet[job.executingChain] = true
+		} else if job.executingBlock.Number < execRange.min {
 			execRange.min = job.executingBlock.Number
 		}
 		if job.executingBlock.Number > execRange.max {
@@ -119,7 +133,10 @@ func (m *MetricCollector) CollectMetrics() {
 
 		// Update initiating ranges
 		initRange := initiatingRanges[job.initiating.ChainID]
-		if job.initiating.BlockNumber < initRange.min {
+		if !initiatingMinSet[job.initiating.ChainID] {
+			initRange.min = job.initiating.BlockNumber
+			initiatingMinSet[job.initiating.ChainID] = true
+		} else if job.initiating.BlockNumber < initRange.min {
 			initRange.min = job.initiating.BlockNumber
 		}
 		if job.initiating.BlockNumber > initRange.max {
@@ -132,10 +149,10 @@ func (m *MetricCollector) CollectMetrics() {
 			m.log.Warn("Job has no statuses", "job", job)
 			continue
 		}
-		current := statuses[len(statuses)-1].String()
+		current := statuses[len(statuses)-1]
 
 		// Log invalid statuses
-		if current == jobStatusInvalid.String() {
+		if current == jobStatusInvalid {
 			m.log.Warn("Invalid Executing Message Detected",
 				"executing_chain_id", job.executingChain,
 				"initiating_chain_id", job.initiating.ChainID,
@@ -158,17 +175,8 @@ func (m *MetricCollector) CollectMetrics() {
 			)
 		}
 
-		// Lazy increment the message status metrics
-		if _, ok := messageStatus[job.executingChain]; !ok {
-			messageStatus[job.executingChain] = make(map[eth.ChainID]map[string]int)
-		}
-		if _, ok := messageStatus[job.executingChain][job.initiating.ChainID]; !ok {
-			messageStatus[job.executingChain][job.initiating.ChainID] = make(map[string]int)
-		}
-		if _, ok := messageStatus[job.executingChain][job.initiating.ChainID][current]; !ok {
-			messageStatus[job.executingChain][job.initiating.ChainID][current] = 0
-		}
-		messageStatus[job.executingChain][job.initiating.ChainID][current]++
+		// Increment the message status metrics
+		messageStatus[job.executingChain][job.initiating.ChainID][current.String()]++
 
 		// Evaluate the job for a terminal state change
 		hasBeenValid := false
@@ -189,17 +197,11 @@ func (m *MetricCollector) CollectMetrics() {
 				"initiating_block_height", job.initiating.BlockNumber,
 				"executing_block_hash", job.executingBlock.Hash,
 			)
-			if _, ok := terminalStatusChanges[job.executingChain]; !ok {
-				terminalStatusChanges[job.executingChain] = make(map[eth.ChainID]int)
-			}
-			if _, ok := terminalStatusChanges[job.executingChain][job.initiating.ChainID]; !ok {
-				terminalStatusChanges[job.executingChain][job.initiating.ChainID] = 0
-			}
 			terminalStatusChanges[job.executingChain][job.initiating.ChainID]++
 		}
 	}
-	// now we have the metrics consolidated, we can update the metrics
-	// message status
+
+	// Update metrics for all combinations
 	for executingChainID, initiatingChainMap := range messageStatus {
 		for initiatingChainID, statusMap := range initiatingChainMap {
 			for status, count := range statusMap {
@@ -228,18 +230,19 @@ func (m *MetricCollector) CollectMetrics() {
 			}
 		}
 	}
-	// terminal status changes
-	for chainID, initiatingChainIDMap := range terminalStatusChanges {
+
+	// Record terminal status changes for all combinations
+	for executingChainID, initiatingChainIDMap := range terminalStatusChanges {
 		for initiatingChainID, count := range initiatingChainIDMap {
 			m.m.RecordTerminalStatusChange(
-				chainID.String(),
+				executingChainID.String(),
 				initiatingChainID.String(),
 				float64(count),
 			)
 		}
 	}
 
-	// Record block number ranges
+	// Record block number ranges for all chains
 	for chainID, ranges := range executingRanges {
 		m.m.RecordExecutingBlockRange(
 			chainID.String(),
