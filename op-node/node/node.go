@@ -588,7 +588,9 @@ func (n *OpNode) onEvent(ev event.Event) bool {
 }
 
 func (n *OpNode) PublishBlock(ctx context.Context, signedEnvelope *opsigner.SignedExecutionPayloadEnvelope) error {
-	n.apiEmitter.Emit(tracer.TracePublishBlockEvent{Envelope: signedEnvelope.Envelope})
+	if n.cfg.Tracer != nil {
+		n.apiEmitter.Emit(tracer.TracePublishBlockEvent{Envelope: signedEnvelope.Envelope})
+	}
 	if p2pNode := n.getP2PNodeIfEnabled(); p2pNode != nil {
 		n.log.Info("Publishing signed execution payload on p2p", "id", signedEnvelope.ID())
 		return p2pNode.GossipOut().PublishSignedL2Payload(ctx, signedEnvelope)
@@ -597,7 +599,9 @@ func (n *OpNode) PublishBlock(ctx context.Context, signedEnvelope *opsigner.Sign
 }
 
 func (n *OpNode) SignAndPublishL2Payload(ctx context.Context, envelope *eth.ExecutionPayloadEnvelope) error {
-	n.apiEmitter.Emit(tracer.TracePublishBlockEvent{Envelope: envelope})
+	if n.cfg.Tracer != nil {
+		n.apiEmitter.Emit(tracer.TracePublishBlockEvent{Envelope: envelope})
+	}
 	// publish to p2p, if we are running p2p at all
 	if p2pNode := n.getP2PNodeIfEnabled(); p2pNode != nil {
 		if n.p2pSigner == nil {
