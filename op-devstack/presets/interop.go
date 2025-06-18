@@ -117,6 +117,10 @@ func (s *SimpleInterop) DisputeGameFactory() *proofs.DisputeGameFactory {
 	return proofs.NewDisputeGameFactory(s.T, s.L1Network, s.L1EL.EthClient(), s.L2ChainA.DisputeGameFactoryProxyAddr(), s.Supervisor)
 }
 
+func (s *SingleChainInterop) StandardBridge(l2Chain *dsl.L2Network) *dsl.StandardBridge {
+	return dsl.NewStandardBridge(s.T, l2Chain, s.Supervisor)
+}
+
 // WithSimpleInterop specifies a system that meets the SimpleInterop criteria.
 func WithSimpleInterop() stack.CommonOption {
 	return stack.MakeCommon(sysgo.DefaultInteropSystem(&sysgo.DefaultInteropSystemIDs{}))

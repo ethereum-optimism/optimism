@@ -44,14 +44,16 @@ type FaultDisputeGame struct {
 	// IDisputeGame.sol read methods
 	L1Head           func() TypedCall[common.Hash] `sol:"l1Head"`
 	L2SequenceNumber func() TypedCall[*big.Int]    `sol:"l2SequenceNumber"`
+	Status           func() TypedCall[uint8]       `sol:"status"`
 
 	// IFaultDisputeGame.sol read methods
-	ClaimDataLen    func() TypedCall[*big.Int]                                                 `sol:"claimDataLen"`
-	ClaimData       func(*big.Int) TypedCall[ClaimData]                                        `sol:"claimData"`
-	GetRequiredBond func(position *Uint128) TypedCall[*big.Int]                                `sol:"getRequiredBond"`
-	MaxGameDepth    func() TypedCall[*big.Int]                                                 `sol:"maxGameDepth"`
-	SplitDepth      func() TypedCall[*big.Int]                                                 `sol:"splitDepth"`
-	SubGame         func(parentClaimIndex *big.Int, subGameIndex *big.Int) TypedCall[*big.Int] `sol:"subgame"`
+	ClaimDataLen     func() TypedCall[*big.Int]                                                 `sol:"claimDataLen"`
+	ClaimData        func(*big.Int) TypedCall[ClaimData]                                        `sol:"claimData"`
+	GetRequiredBond  func(position *Uint128) TypedCall[*big.Int]                                `sol:"getRequiredBond"`
+	MaxGameDepth     func() TypedCall[*big.Int]                                                 `sol:"maxGameDepth"`
+	SplitDepth       func() TypedCall[*big.Int]                                                 `sol:"splitDepth"`
+	SubGame          func(parentClaimIndex *big.Int, subGameIndex *big.Int) TypedCall[*big.Int] `sol:"subgame"`
+	MaxClockDuration func() TypedCall[uint64]                                                   `sol:"maxClockDuration"`
 
 	// IFaultDisputeGame.sol write methods
 	Move   func(targetClaim common.Hash, targetClaimIndex *big.Int, newClaim common.Hash, isAttack bool) TypedCall[any] `sol:"move"`

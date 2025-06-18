@@ -19,16 +19,18 @@ type GameSearchResult struct {
 	ExtraData []byte
 }
 
+type DisputeGame struct {
+	GameType  uint32
+	Timestamp uint64
+	Proxy     common.Address
+}
+
 type DisputeGameFactory struct {
 	// Read-only functions
-	GameCount   func() TypedCall[*big.Int] `sol:"gameCount"`
-	GameAtIndex func(index *big.Int) TypedCall[struct {
-		GameType  uint32
-		Timestamp uint64
-		Proxy     common.Address
-	}] `sol:"gameAtIndex"`
-	GameImpls func(gameType uint32) TypedCall[common.Address] `sol:"gameImpls"`
-	Games     func(gameType uint32, rootClaim common.Hash, extraData []byte) TypedCall[struct {
+	GameCount   func() TypedCall[*big.Int]                      `sol:"gameCount"`
+	GameAtIndex func(index *big.Int) TypedCall[DisputeGame]     `sol:"gameAtIndex"`
+	GameImpls   func(gameType uint32) TypedCall[common.Address] `sol:"gameImpls"`
+	Games       func(gameType uint32, rootClaim common.Hash, extraData []byte) TypedCall[struct {
 		Proxy     common.Address
 		Timestamp uint64
 	}] `sol:"games"`
