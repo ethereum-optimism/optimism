@@ -133,6 +133,7 @@ func (db *ChainsDB) initializedUpdateLocalSafe(chain eth.ChainID, source eth.Blo
 			Source:  types.BlockSealFromRef(source),
 			Derived: derived,
 		},
+		Ctx: event.WrapCtx(db.rootCtx),
 	})
 	db.m.RecordLocalSafe(chain, derived)
 }
