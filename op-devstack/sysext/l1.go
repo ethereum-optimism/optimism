@@ -31,8 +31,8 @@ func (o *Orchestrator) hydrateL1(system stack.ExtensibleSystem) {
 
 	txTimeout := 30 * time.Second
 	if o.compatType == compat.Persistent {
-		txTimeout = 5 * time.Minute
 		// Increase the timeout by default for persistent devnets, but not for kurtosis
+		txTimeout = 5 * time.Minute
 		opts = append(opts, client.WithCallTimeout(time.Minute*5), client.WithBatchCallTimeout(time.Minute*10))
 	}
 

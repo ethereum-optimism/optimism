@@ -36,7 +36,7 @@ func TestWithdrawal(gt *testing.T) {
 	initialL1Balance, initialL2Balance := eth.OneThirdEther, eth.OneTenthEther
 
 	// l1User and l2User share same private key
-	l2User := sys.Funder.NewFundedEOA(initialL2Balance)
+	l2User := sys.FunderL2.NewFundedEOA(initialL2Balance)
 	l1User := l2User.AsEL(sys.L1EL)
 	sys.FunderL1.Fund(l1User, initialL1Balance)
 	userAddr := l1User.Address()

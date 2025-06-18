@@ -25,7 +25,7 @@ func NewFunder(w *HDWallet, f *Faucet, el ELNode) *Funder {
 
 func (f *Funder) NewFundedEOA(amount eth.ETH) *EOA {
 	eoa := f.wallet.NewEOA(f.el)
-	f.faucet.Fund(eoa.Address(), amount)
+	f.FundAtLeast(eoa, amount)
 	return eoa
 }
 
@@ -55,8 +55,12 @@ func (f *Funder) Fund(wallet *EOA, amount eth.ETH) eth.ETH {
 	currentBalance := wallet.balance()
 	f.faucet.Fund(wallet.Address(), amount)
 	finalBalance := currentBalance.Add(amount)
-	wallet.VerifyBalanceExact(finalBalance)
+	wallet.WaitForBalance(finalBalance)
 	return finalBalance
+}
+
+func (f *Funder) FundNoWait(wallet *EOA, amount eth.ETH) {
+	f.faucet.Fund(wallet.Address(), amount)
 }
 
 func (f *Funder) FundAtLeast(wallet *EOA, amount eth.ETH) eth.ETH {

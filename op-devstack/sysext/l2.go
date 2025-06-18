@@ -4,13 +4,16 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/ethereum-optimism/optimism/devnet-sdk/descriptors"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/devkeys"
+	"github.com/ethereum-optimism/optimism/op-devstack/compat"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/shim"
 	"github.com/ethereum-optimism/optimism/op-devstack/stack"
 	"github.com/ethereum-optimism/optimism/op-devstack/stack/match"
+	"github.com/ethereum-optimism/optimism/op-service/client"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum/go-ethereum/rpc"
 )
@@ -44,12 +47,19 @@ func (o *Orchestrator) hydrateL2(net *descriptors.L2Chain, system stack.Extensib
 		cfg.Cluster = system.Cluster(stack.ClusterID(env.Env.Name))
 	}
 
+	opts := []client.RPCOption{}
+
+	if o.compatType == compat.Persistent {
+		// Increase the timeout by default for persistent devnets, but not for kurtosis
+		opts = append(opts, client.WithCallTimeout(time.Minute*5), client.WithBatchCallTimeout(time.Minute*10))
+	}
+
 	l2 := shim.NewL2Network(cfg)
 
 	for _, node := range net.Nodes {
-		o.hydrateL2ELCL(&node, l2)
+		o.hydrateL2ELCL(&node, l2, opts)
 		o.hydrateConductors(&node, l2)
-		o.hydrateFlashblocksBuilderIfPresent(&node, l2)
+		o.hydrateFlashblocksBuilderIfPresent(&node, l2, opts)
 	}
 	o.hydrateBatcherMaybe(net, l2)
 	o.hydrateProposerMaybe(net, l2)
@@ -60,7 +70,7 @@ func (o *Orchestrator) hydrateL2(net *descriptors.L2Chain, system stack.Extensib
 		for _, instance := range faucet {
 			l2.AddFaucet(shim.NewFaucet(shim.FaucetConfig{
 				CommonConfig: commonConfig,
-				Client:       o.rpcClient(t, instance, RPCProtocol, fmt.Sprintf("/chain/%s", l2.ChainID().String())),
+				Client:       o.rpcClient(t, instance, RPCProtocol, fmt.Sprintf("/chain/%s", l2.ChainID().String()), opts...),
 				ID:           stack.NewFaucetID(instance.Name, l2.ChainID()),
 			}))
 		}
@@ -69,19 +79,25 @@ func (o *Orchestrator) hydrateL2(net *descriptors.L2Chain, system stack.Extensib
 	system.AddL2Network(l2)
 }
 
-func (o *Orchestrator) hydrateL2ELCL(node *descriptors.Node, l2Net stack.ExtensibleL2Network) {
+func (o *Orchestrator) hydrateL2ELCL(node *descriptors.Node, l2Net stack.ExtensibleL2Network, opts []client.RPCOption) {
 	require := l2Net.T().Require()
 	l2ID := l2Net.ID()
 
+	txTimeout := 30 * time.Second
+	if o.compatType == compat.Persistent {
+		txTimeout = 5 * time.Minute
+	}
+
 	elService, ok := node.Services[ELServiceName]
 	require.True(ok, "need L2 EL service for chain", l2ID)
-	elClient := o.rpcClient(l2Net.T(), elService, RPCProtocol, "/")
+	elClient := o.rpcClient(l2Net.T(), elService, RPCProtocol, "/", opts...)
 	l2EL := shim.NewL2ELNode(shim.L2ELNodeConfig{
 		RollupCfg: l2Net.RollupConfig(),
 		ELNodeConfig: shim.ELNodeConfig{
-			CommonConfig: shim.NewCommonConfig(l2Net.T()),
-			Client:       elClient,
-			ChainID:      l2ID.ChainID(),
+			CommonConfig:       shim.NewCommonConfig(l2Net.T()),
+			Client:             elClient,
+			ChainID:            l2ID.ChainID(),
+			TransactionTimeout: txTimeout,
 		},
 		ID: stack.NewL2ELNodeID(elService.Name, l2ID.ChainID()),
 	})
@@ -96,7 +112,7 @@ func (o *Orchestrator) hydrateL2ELCL(node *descriptors.Node, l2Net stack.Extensi
 	clService, ok := node.Services[CLServiceName]
 	require.True(ok, "need L2 CL service for chain", l2ID)
 
-	clClient := o.rpcClient(l2Net.T(), clService, RPCProtocol, "/")
+	clClient := o.rpcClient(l2Net.T(), clService, RPCProtocol, "/", opts...)
 	l2CL := shim.NewL2CLNode(shim.L2CLNodeConfig{
 		ID:           stack.NewL2CLNodeID(clService.Name, l2ID.ChainID()),
 		CommonConfig: shim.NewCommonConfig(l2Net.T()),
@@ -141,7 +157,7 @@ func (o *Orchestrator) hydrateConductors(node *descriptors.Node, l2Net stack.Ext
 	l2Net.AddConductor(conductor)
 }
 
-func (o *Orchestrator) hydrateFlashblocksBuilderIfPresent(node *descriptors.Node, l2Net stack.ExtensibleL2Network) {
+func (o *Orchestrator) hydrateFlashblocksBuilderIfPresent(node *descriptors.Node, l2Net stack.ExtensibleL2Network, opts []client.RPCOption) {
 	require := l2Net.T().Require()
 	l2ID := l2Net.ID()
 
@@ -161,7 +177,7 @@ func (o *Orchestrator) hydrateFlashblocksBuilderIfPresent(node *descriptors.Node
 		ID: stack.NewFlashblocksBuilderID(rbuilderService.Name, l2ID.ChainID()),
 		ELNodeConfig: shim.ELNodeConfig{
 			CommonConfig: shim.NewCommonConfig(l2Net.T()),
-			Client:       o.rpcClient(l2Net.T(), rbuilderService, RPCProtocol, "/"),
+			Client:       o.rpcClient(l2Net.T(), rbuilderService, RPCProtocol, "/", opts...),
 			ChainID:      l2ID.ChainID(),
 		},
 		ConductorID:      stack.ConductorID(associatedConductorService.Name),

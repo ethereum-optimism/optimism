@@ -22,8 +22,8 @@ func TestWrapETH(gt *testing.T) {
 	sys := presets.NewMinimal(t)
 
 	// alice and bob are funded with 0.1 ETH
-	alice := sys.Funder.NewFundedEOA(eth.OneTenthEther)
-	bob := sys.Funder.NewFundedEOA(eth.OneTenthEther)
+	alice := sys.FunderL2.NewFundedEOA(eth.OneTenthEther)
+	bob := sys.FunderL2.NewFundedEOA(eth.OneTenthEther)
 
 	client := sys.L2EL.Escape().EthClient()
 

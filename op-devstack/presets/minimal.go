@@ -30,9 +30,9 @@ type Minimal struct {
 	Wallet *dsl.HDWallet
 
 	FaucetL1 *dsl.Faucet
-	Faucet   *dsl.Faucet
+	FaucetL2 *dsl.Faucet
 	FunderL1 *dsl.Funder
-	Funder   *dsl.Funder
+	FunderL2 *dsl.Funder
 }
 
 func (m *Minimal) L2Networks() []*dsl.L2Network {
@@ -66,10 +66,10 @@ func NewMinimal(t devtest.T) *Minimal {
 		L2CL:          dsl.NewL2CLNode(l2.L2CLNode(match.Assume(t, match.FirstL2CL)), orch.ControlPlane()),
 		TestSequencer: dsl.NewTestSequencer(system.TestSequencer(match.Assume(t, match.FirstTestSequencer))),
 		Wallet:        dsl.NewHDWallet(t, devkeys.TestMnemonic, 30),
-		Faucet:        dsl.NewFaucet(l2.Faucet(match.Assume(t, match.FirstFaucet))),
+		FaucetL2:      dsl.NewFaucet(l2.Faucet(match.Assume(t, match.FirstFaucet))),
 	}
 	out.FaucetL1 = dsl.NewFaucet(out.L1Network.Escape().Faucet(match.Assume(t, match.FirstFaucet)))
 	out.FunderL1 = dsl.NewFunder(out.Wallet, out.FaucetL1, out.L1EL)
-	out.Funder = dsl.NewFunder(out.Wallet, out.Faucet, out.L2EL)
+	out.FunderL2 = dsl.NewFunder(out.Wallet, out.FaucetL2, out.L2EL)
 	return out
 }

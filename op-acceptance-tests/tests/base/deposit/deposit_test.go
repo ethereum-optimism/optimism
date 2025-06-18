@@ -28,9 +28,9 @@ func TestL1ToL2Deposit(gt *testing.T) {
 
 	// Fund Alice on L1
 	fundingAmount := eth.ThreeHundredthsEther
-	alice := sys.Wallet.NewEOA(sys.L1EL)
+	alice := sys.FunderL1.NewFundedEOA(fundingAmount)
 	t.Log("Alice L1 address", alice.Address())
-	initialBalance := sys.FunderL1.FundAtLeast(alice, fundingAmount)
+	initialBalance := alice.GetBalance()
 	t.Log("Alice L1 balance", initialBalance)
 
 	alicel2 := alice.AsEL(sys.L2EL)
