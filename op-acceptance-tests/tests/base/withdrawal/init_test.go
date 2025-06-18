@@ -17,10 +17,10 @@ func TestMain(m *testing.M) {
 		// Guardian must be L1PAO to make AnchorStateRegistry's setRespectedGameType method work
 		presets.WithGuardianMatchL1PAO(),
 		// Fast finalization for fast withdrawal
-		presets.WithFinalizationPeriodSeconds(2),
+		presets.WithFinalizationPeriodSeconds(1),
 		// Satisfy OptimismPortal2 PROOF_MATURITY_DELAY_SECONDS check, avoid OptimismPortal_ProofNotOldEnough() revert
-		presets.WithProofMaturityDelaySeconds(12),
+		presets.WithProofMaturityDelaySeconds(2),
 		// Satisfy AnchorStateRegistry DISPUTE_GAME_FINALITY_DELAY_SECONDS check, avoid OptimismPortal_InvalidRootClaim() revert
-		presets.WithDisputeGameFinalityDelaySeconds(6),
+		presets.WithDisputeGameFinalityDelaySeconds(2),
 	)
 }
