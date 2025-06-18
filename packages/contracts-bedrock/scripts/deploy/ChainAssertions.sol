@@ -113,9 +113,19 @@ library ChainAssertions {
         );
         require(address(messenger) != address(0), "CHECK-L1XDM-10");
 
+        // Check that the contract is initialized
+        DeployUtils.assertInitialized({ _contractAddress: address(messenger), _isProxy: _isProxy, _slot: 0, _offset: 20 });
+
         if (_isProxy) {
             bytes32 xdmSenderSlot = _vm.load(address(messenger), bytes32(uint256(204)));
             require(address(uint160(uint256(xdmSenderSlot))) == Constants.DEFAULT_L2_SENDER, "CHECK-L1XDM-70");
+        } else {
+            require(address(messenger.OTHER_MESSENGER()) == address(0), "CHECK-L1XDM-80");
+            require(address(messenger.otherMessenger()) == address(0), "CHECK-L1XDM-90");
+            require(address(messenger.PORTAL()) == address(0), "CHECK-L1XDM-100");
+            require(address(messenger.portal()) == address(0), "CHECK-L1XDM-110");
+            require(address(messenger.systemConfig()) == address(0), "CHECK-L1XDM-120");
+            require(address(messenger.proxyAdmin()) == address(0), "CHECK-L1XDM-130");
         }
     }
 

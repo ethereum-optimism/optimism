@@ -713,6 +713,7 @@ contract DeployImplementations is Script {
         require(address(bridge.OTHER_BRIDGE()) == address(0), "L1SB-30");
         require(address(bridge.otherBridge()) == address(0), "L1SB-40");
         require(address(bridge.systemConfig()) == address(0), "L1SB-50");
+        require(address(bridge.proxyAdmin()) == address(0), "L1SB-60");
     }
 
     function assertValidOptimismMintableERC20FactoryImpl(Input memory, Output memory _output) private view {

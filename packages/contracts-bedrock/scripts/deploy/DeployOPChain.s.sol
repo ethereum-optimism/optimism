@@ -569,17 +569,10 @@ contract DeployOPChain is Script {
         );
     }
 
-    function assertValidL1CrossDomainMessenger(DeployOPChainOutput _doo) internal {
+    function assertValidL1CrossDomainMessenger(DeployOPChainOutput _doo) internal view {
         IL1CrossDomainMessenger messenger = _doo.l1CrossDomainMessengerProxy();
 
         DeployUtils.assertInitialized({ _contractAddress: address(messenger), _isProxy: true, _slot: 0, _offset: 20 });
-
-        require(address(messenger.OTHER_MESSENGER()) == Predeploys.L2_CROSS_DOMAIN_MESSENGER, "L1xDM-10");
-        require(address(messenger.otherMessenger()) == Predeploys.L2_CROSS_DOMAIN_MESSENGER, "L1xDM-20");
-
-        require(address(messenger.PORTAL()) == address(_doo.optimismPortalProxy()), "L1xDM-30");
-        require(address(messenger.portal()) == address(_doo.optimismPortalProxy()), "L1xDM-40");
-        require(address(messenger.systemConfig()) == address(_doo.systemConfigProxy()), "L1xDM-50");
 
         bytes32 xdmSenderSlot = vm.load(address(messenger), bytes32(uint256(204)));
         require(address(uint160(uint256(xdmSenderSlot))) == Constants.DEFAULT_L2_SENDER, "L1xDM-60");
