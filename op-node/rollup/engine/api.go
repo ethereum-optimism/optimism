@@ -10,6 +10,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-service/apis"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/event"
 	opsigner "github.com/ethereum-optimism/optimism/op-service/signer"
 )
 
@@ -137,7 +138,7 @@ func (ec *EngineController) CommitBlock(ctx context.Context, signed *opsigner.Si
 	}
 
 	ec.SetUnsafeHead(ref)
-	ec.emitter.Emit(UnsafeUpdateEvent{Ref: ref})
+	ec.emitter.Emit(UnsafeUpdateEvent{Ref: ref, Ctx: event.WrapCtx(ctx)})
 	if err := ec.TryUpdateEngine(ctx); err != nil {
 		return fmt.Errorf("failed to update engine forkchoice: %w", err)
 	}

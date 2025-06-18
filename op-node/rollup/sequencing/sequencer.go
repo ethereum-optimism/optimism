@@ -16,8 +16,8 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup/conductor"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/engine"
-	"github.com/ethereum-optimism/optimism/op-node/rollup/event"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/event"
 )
 
 // sealingDuration defines the expected time it takes to seal the block
@@ -57,7 +57,9 @@ type AsyncGossiper interface {
 // This event is used to prioritize sequencer work over derivation work,
 // by emitting it before e.g. a derivation-pipeline step.
 // A future sequencer in an async world may manage its own execution.
-type SequencerActionEvent struct{}
+type SequencerActionEvent struct {
+	event.Ctx
+}
 
 func (ev SequencerActionEvent) String() string {
 	return "sequencer-action"
@@ -214,6 +216,7 @@ func (d *Sequencer) onBuildStarted(x engine.BuildStartedEvent) {
 		d.emitter.Emit(engine.BuildCancelEvent{
 			Info:  x.Info,
 			Force: true,
+			Ctx:   x.Ctx,
 		})
 		d.handleInvalid()
 		return
@@ -275,6 +278,7 @@ func (d *Sequencer) onBuildSealed(x engine.BuildSealedEvent) {
 	if err := d.conductor.CommitUnsafePayload(ctx, x.Envelope); err != nil {
 		d.emitter.Emit(rollup.EngineTemporaryErrorEvent{
 			Err: fmt.Errorf("failed to commit unsafe payload to conductor: %w", err),
+			Ctx: x.Ctx,
 		})
 		return
 	}
@@ -290,6 +294,7 @@ func (d *Sequencer) onBuildSealed(x engine.BuildSealedEvent) {
 		BuildStarted: x.BuildStarted,
 		Envelope:     x.Envelope,
 		Ref:          x.Ref,
+		Ctx:          x.Ctx,
 	})
 	d.latest.Ref = x.Ref
 	d.latestSealed = x.Ref
@@ -339,7 +344,7 @@ func (d *Sequencer) onPayloadSuccess(x engine.PayloadSuccessEvent) {
 	d.asyncGossip.Clear()
 }
 
-func (d *Sequencer) onSequencerAction(SequencerActionEvent) {
+func (d *Sequencer) onSequencerAction(ev SequencerActionEvent) {
 	d.log.Debug("Sequencer action")
 	payload := d.asyncGossip.Get()
 	if payload != nil {
@@ -365,6 +370,7 @@ func (d *Sequencer) onSequencerAction(SequencerActionEvent) {
 			DerivedFrom: eth.L1BlockRef{},
 			Envelope:    payload,
 			Ref:         ref,
+			Ctx:         ev.Ctx,
 		})
 		d.latest.Ref = ref
 	} else {
@@ -378,6 +384,7 @@ func (d *Sequencer) onSequencerAction(SequencerActionEvent) {
 				BuildStarted: d.latest.Started,
 				Concluding:   false,
 				DerivedFrom:  eth.L1BlockRef{},
+				Ctx:          ev.Ctx,
 			})
 		} else if d.latest == (BuildingState{}) {
 			// If we have not started building anything, start building.
@@ -414,7 +421,7 @@ func (d *Sequencer) onReset(x rollup.ResetEvent) {
 	d.metrics.RecordSequencerReset()
 	// try to cancel any ongoing payload building job
 	if d.latest.Info != (eth.PayloadInfo{}) {
-		d.emitter.Emit(engine.BuildCancelEvent{Info: d.latest.Info})
+		d.emitter.Emit(engine.BuildCancelEvent{Info: d.latest.Info, Ctx: x.Ctx})
 	}
 	d.latest = BuildingState{}
 	// no action to perform until we get a reset-confirmation
@@ -483,7 +490,7 @@ func (d *Sequencer) startBuildingBlock() {
 
 	// If we do not have data to know what to build on, then request a forkchoice update
 	if l2Head == (eth.L2BlockRef{}) {
-		d.emitter.Emit(engine.ForkchoiceRequestEvent{})
+		d.emitter.Emit(engine.ForkchoiceRequestEvent{Ctx: event.WrapCtx(d.ctx)})
 		return
 	}
 	// If we have already started trying to build on top of this block, we can avoid starting over again.
@@ -499,14 +506,17 @@ func (d *Sequencer) startBuildingBlock() {
 		d.nextAction = d.timeNow().Add(time.Second)
 		d.nextActionOK = d.active.Load()
 		d.log.Error("Error finding next L1 Origin", "err", err)
-		d.emitter.Emit(rollup.L1TemporaryErrorEvent{Err: err})
+		d.emitter.Emit(rollup.L1TemporaryErrorEvent{Err: err, Ctx: event.WrapCtx(d.ctx)})
 		return
 	}
 
 	if !(l2Head.L1Origin.Hash == l1Origin.ParentHash || l2Head.L1Origin.Hash == l1Origin.Hash) {
 		d.metrics.RecordSequencerInconsistentL1Origin(l2Head.L1Origin, l1Origin.ID())
-		d.emitter.Emit(rollup.ResetEvent{Err: fmt.Errorf("cannot build new L2 block with L1 origin %s (parent L1 %s) on current L2 head %s with L1 origin %s",
-			l1Origin, l1Origin.ParentHash, l2Head, l2Head.L1Origin)})
+		d.emitter.Emit(rollup.ResetEvent{
+			Err: fmt.Errorf("cannot build new L2 block with L1 origin %s (parent L1 %s) on current L2 head %s with L1 origin %s",
+				l1Origin, l1Origin.ParentHash, l2Head, l2Head.L1Origin),
+			Ctx: event.WrapCtx(d.ctx),
+		})
 		return
 	}
 
@@ -518,16 +528,19 @@ func (d *Sequencer) startBuildingBlock() {
 	attrs, err := d.attrBuilder.PreparePayloadAttributes(fetchCtx, l2Head, l1Origin.ID())
 	if err != nil {
 		if errors.Is(err, derive.ErrTemporary) {
-			d.emitter.Emit(rollup.EngineTemporaryErrorEvent{Err: err})
+			d.emitter.Emit(rollup.EngineTemporaryErrorEvent{Err: err, Ctx: event.WrapCtx(d.ctx)})
 			return
 		} else if errors.Is(err, derive.ErrReset) {
-			d.emitter.Emit(rollup.ResetEvent{Err: err})
+			d.emitter.Emit(rollup.ResetEvent{Err: err, Ctx: event.WrapCtx(d.ctx)})
 			return
 		} else if errors.Is(err, derive.ErrCritical) {
-			d.emitter.Emit(rollup.CriticalErrorEvent{Err: err})
+			d.emitter.Emit(rollup.CriticalErrorEvent{Err: err, Ctx: event.WrapCtx(d.ctx)})
 			return
 		} else {
-			d.emitter.Emit(rollup.CriticalErrorEvent{Err: fmt.Errorf("unexpected attributes-preparation error: %w", err)})
+			d.emitter.Emit(rollup.CriticalErrorEvent{
+				Err: fmt.Errorf("unexpected attributes-preparation error: %w", err),
+				Ctx: event.WrapCtx(d.ctx),
+			})
 			return
 		}
 	}
@@ -593,6 +606,7 @@ func (d *Sequencer) startBuildingBlock() {
 
 	d.emitter.Emit(engine.BuildStartEvent{
 		Attributes: withParent,
+		Ctx:        event.WrapCtx(d.ctx),
 	})
 }
 
@@ -640,7 +654,7 @@ func (d *Sequencer) Init(ctx context.Context, active bool) error {
 	d.asyncGossip.Start()
 
 	// The `latestHead` should be updated, so we can handle start-sequencer requests
-	d.emitter.Emit(engine.ForkchoiceRequestEvent{})
+	d.emitter.Emit(engine.ForkchoiceRequestEvent{Ctx: event.WrapCtx(d.ctx)})
 
 	if active {
 		return d.forceStart()

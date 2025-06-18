@@ -5,11 +5,12 @@ import (
 
 	"github.com/ethereum/go-ethereum/log"
 
-	"github.com/ethereum-optimism/optimism/op-node/rollup/event"
+	"github.com/ethereum-optimism/optimism/op-service/event"
 	"github.com/ethereum-optimism/optimism/op-service/retry"
 )
 
 type ResetStepBackoffEvent struct {
+	event.Ctx
 }
 
 func (ev ResetStepBackoffEvent) String() string {
@@ -18,6 +19,7 @@ func (ev ResetStepBackoffEvent) String() string {
 
 type StepDelayedReqEvent struct {
 	Delay time.Duration
+	event.Ctx
 }
 
 func (ev StepDelayedReqEvent) String() string {
@@ -26,19 +28,24 @@ func (ev StepDelayedReqEvent) String() string {
 
 type StepReqEvent struct {
 	ResetBackoff bool
+	event.Ctx
 }
 
 func (ev StepReqEvent) String() string {
 	return "step-req"
 }
 
-type StepAttemptEvent struct{}
+type StepAttemptEvent struct {
+	event.Ctx
+}
 
 func (ev StepAttemptEvent) String() string {
 	return "step-attempt"
 }
 
-type StepEvent struct{}
+type StepEvent struct {
+	event.Ctx
+}
 
 func (ev StepEvent) String() string {
 	return "step"
@@ -138,7 +145,7 @@ func (s *StepSchedulingDeriver) OnEvent(ev event.Event) bool {
 		}
 		// count as attempt by default. We reset to 0 if we are making healthy progress.
 		s.stepAttempts += 1
-		s.emitter.Emit(StepEvent{})
+		s.emitter.Emit(StepEvent(x))
 	case ResetStepBackoffEvent:
 		s.stepAttempts = 0
 	default:

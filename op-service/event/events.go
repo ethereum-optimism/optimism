@@ -1,12 +1,33 @@
 package event
 
-import "github.com/ethereum/go-ethereum/log"
+import (
+	"context"
+
+	"github.com/ethereum/go-ethereum/log"
+)
 
 type Event interface {
 	// String returns the name of the event.
 	// The name must be simple and identify the event type, not the event content.
 	// This name is used for metric-labeling.
 	String() string
+
+	// Context is attached to an event to provide meta-data about the source,
+	// the intention, and control any expiry (the event may become stale).
+	// Warning: this may return nil on some original event code that did not attach a context.
+	Context() context.Context
+}
+
+type Ctx struct {
+	ctx context.Context
+}
+
+func (v Ctx) Context() context.Context {
+	return v.ctx
+}
+
+func WrapCtx(ctx context.Context) Ctx {
+	return Ctx{ctx: ctx}
 }
 
 type Deriver interface {
@@ -79,6 +100,7 @@ func (e NoopEmitter) Emit(ev Event) {}
 
 type CriticalErrorEvent struct {
 	Err error
+	Ctx
 }
 
 var _ Event = CriticalErrorEvent{}

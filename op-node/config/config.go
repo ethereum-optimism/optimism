@@ -1,23 +1,25 @@
-package node
+package config
 
 import (
 	"context"
 	"errors"
 	"fmt"
-	"math"
 	"time"
 
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/depset"
 	"github.com/ethereum/go-ethereum/log"
 
 	altda "github.com/ethereum-optimism/optimism/op-alt-da"
 	"github.com/ethereum-optimism/optimism/op-node/flags"
+	"github.com/ethereum-optimism/optimism/op-node/node/tracer"
 	"github.com/ethereum-optimism/optimism/op-node/p2p"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/driver"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/interop"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/sync"
+	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
 	"github.com/ethereum-optimism/optimism/op-service/oppprof"
+	oprpc "github.com/ethereum-optimism/optimism/op-service/rpc"
+	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/depset"
 )
 
 type Config struct {
@@ -38,11 +40,11 @@ type Config struct {
 	// if the node is sequencing and if the p2p stack is enabled
 	P2PSigner p2p.SignerSetup
 
-	RPC RPCConfig
+	RPC oprpc.CLIConfig
 
 	P2P p2p.SetupP2P
 
-	Metrics MetricsConfig
+	Metrics opmetrics.CLIConfig
 
 	Pprof oppprof.CLIConfig
 
@@ -61,7 +63,7 @@ type Config struct {
 	RuntimeConfigReloadInterval time.Duration
 
 	// Optional
-	Tracer Tracer
+	Tracer tracer.Tracer
 
 	Sync sync.Config
 
@@ -89,34 +91,6 @@ type Config struct {
 
 // ConductorRPCFunc retrieves the endpoint. The RPC may not immediately be available.
 type ConductorRPCFunc func(ctx context.Context) (string, error)
-
-type RPCConfig struct {
-	ListenAddr  string
-	ListenPort  int
-	EnableAdmin bool
-}
-
-func (cfg *RPCConfig) HttpEndpoint() string {
-	return fmt.Sprintf("http://%s:%d", cfg.ListenAddr, cfg.ListenPort)
-}
-
-type MetricsConfig struct {
-	Enabled    bool
-	ListenAddr string
-	ListenPort int
-}
-
-func (m MetricsConfig) Check() error {
-	if !m.Enabled {
-		return nil
-	}
-
-	if m.ListenPort < 0 || m.ListenPort > math.MaxUint16 {
-		return errors.New("invalid metrics port")
-	}
-
-	return nil
-}
 
 func (cfg *Config) LoadPersisted(log log.Logger) error {
 	if !cfg.Driver.SequencerEnabled {

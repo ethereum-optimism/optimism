@@ -86,7 +86,9 @@ func (s *Supervisor) FetchSyncStatus() eth.SupervisorSyncStatus {
 	ctx, cancel := context.WithTimeout(s.ctx, DefaultTimeout)
 	defer cancel()
 	syncStatus, err := retry.Do(ctx, 2, retry.Fixed(500*time.Millisecond), func() (eth.SupervisorSyncStatus, error) {
-		syncStatus, err := s.inner.QueryAPI().SyncStatus(s.ctx)
+		ctx, cancel := context.WithTimeout(s.ctx, 300*time.Millisecond)
+		defer cancel()
+		syncStatus, err := s.inner.QueryAPI().SyncStatus(ctx)
 		if errors.Is(err, status.ErrStatusTrackerNotReady) {
 			s.log.Debug("Sync status not ready from supervisor")
 		}

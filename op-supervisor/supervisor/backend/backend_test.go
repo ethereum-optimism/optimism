@@ -13,8 +13,8 @@ import (
 	types2 "github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
 
-	"github.com/ethereum-optimism/optimism/op-node/rollup/event"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/event"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
 	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
 	"github.com/ethereum-optimism/optimism/op-service/oppprof"
@@ -136,6 +136,7 @@ func TestBackendLifetime_InteropAtGenesis(t *testing.T) {
 	b.emitter.Emit(superevents.LocalUnsafeReceivedEvent{
 		ChainID:        chainA,
 		NewLocalUnsafe: blockY,
+		Ctx:            event.WrapCtx(context.Background()),
 	})
 	require.NoError(t, ex.Drain())
 	src.AssertExpectations(t)
@@ -162,6 +163,7 @@ func TestBackendLifetime_InteropAtGenesis(t *testing.T) {
 		Derived: types.DerivedBlockRefPair{
 			Derived: blockX,
 		},
+		Ctx: event.WrapCtx(context.Background()),
 	})
 	require.NoError(t, ex.Drain())
 	src.AssertExpectations(t)
@@ -260,6 +262,7 @@ func TestBackendLifetime_InteropPostGenesis(t *testing.T) {
 	b.emitter.Emit(superevents.LocalUnsafeReceivedEvent{
 		ChainID:        chainA,
 		NewLocalUnsafe: blockX,
+		Ctx:            event.WrapCtx(context.Background()),
 	})
 	require.NoError(t, ex.Drain())
 	src.AssertExpectations(t)
@@ -280,6 +283,7 @@ func TestBackendLifetime_InteropPostGenesis(t *testing.T) {
 	b.emitter.Emit(superevents.LocalUnsafeReceivedEvent{
 		ChainID:        chainA,
 		NewLocalUnsafe: blockY,
+		Ctx:            event.WrapCtx(context.Background()),
 	})
 	require.NoError(t, ex.Drain())
 	src.AssertExpectations(t)
@@ -294,6 +298,7 @@ func TestBackendLifetime_InteropPostGenesis(t *testing.T) {
 		Derived: types.DerivedBlockRefPair{
 			Derived: blockX,
 		},
+		Ctx: event.WrapCtx(context.Background()),
 	})
 	require.NoError(t, ex.Drain())
 	src.AssertExpectations(t)
@@ -313,6 +318,7 @@ func TestBackendLifetime_InteropPostGenesis(t *testing.T) {
 		Derived: types.DerivedBlockRefPair{
 			Derived: blockY,
 		},
+		Ctx: event.WrapCtx(context.Background()),
 	})
 	require.NoError(t, ex.Drain())
 	// cross-safe now at block Y

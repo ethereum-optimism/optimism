@@ -12,6 +12,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/engine"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/event"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum-optimism/optimism/op-service/testutils"
 )
@@ -160,7 +161,9 @@ func TestProgramDeriver(t *testing.T) {
 	})
 }
 
-type TestEvent struct{}
+type TestEvent struct {
+	event.Ctx
+}
 
 func (ev TestEvent) String() string {
 	return "test-event"

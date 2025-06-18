@@ -63,6 +63,7 @@ func TestQueueSanityLimit(t *testing.T) {
 
 type CyclicEvent struct {
 	Count int
+	Ctx
 }
 
 func (ev CyclicEvent) String() string {

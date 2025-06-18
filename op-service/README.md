@@ -21,6 +21,7 @@ Pull requests: [monorepo](https://github.com/ethereum-optimism/optimism/pulls?q=
 ├── enum            - Utils to create enums
 ├── errutil         - Utils to work with customized errors
 ├── eth             - Common Ethereum data types and OP-Stack extension types
+├── event           - Broadcast event system
 ├── flags           - Utils and flag types for CLI usage
 ├── httputil        - Utils to create enhanced HTTP Server
 ├── ioutil          - File utils, including atomic files and compression

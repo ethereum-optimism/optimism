@@ -12,7 +12,9 @@ import (
 	openum "github.com/ethereum-optimism/optimism/op-service/enum"
 	opflags "github.com/ethereum-optimism/optimism/op-service/flags"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
+	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
 	"github.com/ethereum-optimism/optimism/op-service/oppprof"
+	oprpc "github.com/ethereum-optimism/optimism/op-service/rpc"
 	"github.com/ethereum-optimism/optimism/op-service/sources"
 )
 
@@ -114,26 +116,6 @@ var (
 			return &out
 		}(),
 		Category: RollupCategory,
-	}
-	RPCListenAddr = &cli.StringFlag{
-		Name:     "rpc.addr",
-		Usage:    "RPC listening address",
-		EnvVars:  prefixEnvVars("RPC_ADDR"),
-		Value:    "127.0.0.1",
-		Category: OperationsCategory,
-	}
-	RPCListenPort = &cli.IntFlag{
-		Name:     "rpc.port",
-		Usage:    "RPC listening port",
-		EnvVars:  prefixEnvVars("RPC_PORT"),
-		Value:    9545, // Note: op-service/rpc/cli.go uses 8545 as the default.
-		Category: OperationsCategory,
-	}
-	RPCEnableAdmin = &cli.BoolFlag{
-		Name:     "rpc.enable-admin",
-		Usage:    "Enable the admin API (experimental)",
-		EnvVars:  prefixEnvVars("RPC_ENABLE_ADMIN"),
-		Category: OperationsCategory,
 	}
 	RPCAdminPersistence = &cli.StringFlag{
 		Name:     "rpc.admin-state",
@@ -276,26 +258,6 @@ var (
 		EnvVars:  prefixEnvVars("L1_RUNTIME_CONFIG_RELOAD_INTERVAL"),
 		Value:    time.Minute * 10,
 		Category: L1RPCCategory,
-	}
-	MetricsEnabledFlag = &cli.BoolFlag{
-		Name:     "metrics.enabled",
-		Usage:    "Enable the metrics server",
-		EnvVars:  prefixEnvVars("METRICS_ENABLED"),
-		Category: OperationsCategory,
-	}
-	MetricsAddrFlag = &cli.StringFlag{
-		Name:     "metrics.addr",
-		Usage:    "Metrics listening address",
-		Value:    "0.0.0.0", // TODO: Switch to 127.0.0.1
-		EnvVars:  prefixEnvVars("METRICS_ADDR"),
-		Category: OperationsCategory,
-	}
-	MetricsPortFlag = &cli.IntFlag{
-		Name:     "metrics.port",
-		Usage:    "Metrics listening port",
-		Value:    7300,
-		EnvVars:  prefixEnvVars("METRICS_PORT"),
-		Category: OperationsCategory,
 	}
 	SnapshotLog = &cli.StringFlag{
 		Name:     "snapshotlog.file",
@@ -468,8 +430,6 @@ var optionalFlags = []cli.Flag{
 	BeaconFetchAllSidecars,
 	SyncModeFlag,
 	FetchWithdrawalRootFromState,
-	RPCListenAddr,
-	RPCListenPort,
 	L1TrustRPC,
 	L1RPCProviderKind,
 	L1RPCRateLimit,
@@ -485,11 +445,7 @@ var optionalFlags = []cli.Flag{
 	SequencerRecoverMode,
 	L1EpochPollIntervalFlag,
 	RuntimeConfigReloadIntervalFlag,
-	RPCEnableAdmin,
 	RPCAdminPersistence,
-	MetricsEnabledFlag,
-	MetricsAddrFlag,
-	MetricsPortFlag,
 	SnapshotLog,
 	HeartbeatEnabledFlag,
 	HeartbeatMonikerFlag,
@@ -522,11 +478,19 @@ var DeprecatedFlags = []cli.Flag{
 // Flags contains the list of configuration options available to the binary.
 var Flags []cli.Flag
 
+var rpcDefaults = oprpc.CLIConfig{
+	ListenAddr:  "0.0.0.0", // TODO(#16487): Switch to 127.0.0.1
+	ListenPort:  9545,      // op-node defaults to a different port than ethereum EL (8545)
+	EnableAdmin: false,
+}
+
 func init() {
 	DeprecatedFlags = append(DeprecatedFlags, deprecatedP2PFlags(EnvVarPrefix)...)
 	optionalFlags = append(optionalFlags, P2PFlags(EnvVarPrefix)...)
 	optionalFlags = append(optionalFlags, oplog.CLIFlagsWithCategory(EnvVarPrefix, OperationsCategory)...)
 	optionalFlags = append(optionalFlags, oppprof.CLIFlagsWithCategory(EnvVarPrefix, OperationsCategory)...)
+	optionalFlags = append(optionalFlags, opmetrics.CLIFlagsWithCategory(EnvVarPrefix, OperationsCategory)...)
+	optionalFlags = append(optionalFlags, oprpc.CLIFlagsWithCategory(EnvVarPrefix, OperationsCategory, rpcDefaults)...)
 	optionalFlags = append(optionalFlags, DeprecatedFlags...)
 	optionalFlags = append(optionalFlags, opflags.CLIFlags(EnvVarPrefix, RollupCategory)...)
 	optionalFlags = append(optionalFlags, altda.CLIFlags(EnvVarPrefix, AltDACategory)...)
