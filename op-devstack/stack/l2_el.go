@@ -71,7 +71,6 @@ func (id L2ELNodeID) Match(elems []L2ELNode) []L2ELNode {
 type L2ELNode interface {
 	ID() L2ELNodeID
 	L2EthClient() apis.L2EthClient
-	RPCURL() string
 
 	ELNode
 }

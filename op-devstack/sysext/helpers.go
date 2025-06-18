@@ -27,7 +27,7 @@ const (
 	FeatureInterop = "interop"
 )
 
-func (orch *Orchestrator) rpcClient(t devtest.T, service *descriptors.Service, protocol string, path string, opts ...client.RPCOption) (client.RPC, string) {
+func (orch *Orchestrator) rpcClient(t devtest.T, service *descriptors.Service, protocol string, path string, opts ...client.RPCOption) client.RPC {
 	t.Helper()
 
 	endpoint, header, err := orch.findProtocolService(service, protocol)
@@ -56,7 +56,7 @@ func (orch *Orchestrator) rpcClient(t devtest.T, service *descriptors.Service, p
 	cl, err := client.NewRPC(t.Ctx(), t.Logger(), endpoint, opts...)
 	t.Require().NoError(err)
 	t.Cleanup(cl.Close)
-	return cl, endpoint
+	return cl
 }
 
 func (orch *Orchestrator) httpClient(t devtest.T, service *descriptors.Service, protocol string, path string) *client.BasicHTTPClient {

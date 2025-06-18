@@ -57,11 +57,10 @@ func (o *Orchestrator) hydrateSupervisorsMaybe(sys stack.ExtensibleSystem) {
 					continue
 				}
 				supervisors[id] = true
-				supervisorClient, _ := o.rpcClient(sys.T(), instance, RPCProtocol, "/")
 				sys.AddSupervisor(shim.NewSupervisor(shim.SupervisorConfig{
 					CommonConfig: shim.NewCommonConfig(sys.T()),
 					ID:           id,
-					Client:       supervisorClient,
+					Client:       o.rpcClient(sys.T(), instance, RPCProtocol, "/"),
 				}))
 			}
 		}
