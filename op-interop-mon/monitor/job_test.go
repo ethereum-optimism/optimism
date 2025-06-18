@@ -129,6 +129,7 @@ func TestJobFromLog(t *testing.T) {
 
 func TestJobId(t *testing.T) {
 	executingBlockNumber := uint64(400)
+	executingLogIndex := uint(5)
 	executingPayload := common.HexToHash("0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef")
 	executingChain := eth.ChainIDFromBig(big.NewInt(10))
 	initiatingBlockNumber := uint64(400)
@@ -137,6 +138,7 @@ func TestJobId(t *testing.T) {
 
 	jobID := JobId(
 		executingBlockNumber,
+		executingLogIndex,
 		executingPayload,
 		executingChain,
 		initiatingBlockNumber,
@@ -144,12 +146,13 @@ func TestJobId(t *testing.T) {
 		initiatingChain,
 	)
 
-	expected := "block-400.0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef@chain-10:block-400.log-7@chain-9"
+	expected := "block-400.5.0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef@chain-10:block-400.log-7@chain-9"
 	require.Equal(t, JobID(expected), jobID, "JobId should format the ID correctly")
 
 	// Test with different values
 	jobID2 := JobId(
 		uint64(100),
+		executingLogIndex,
 		common.HexToHash("0xabcd"),
 		eth.ChainIDFromBig(big.NewInt(1)),
 		uint64(50),
@@ -157,6 +160,6 @@ func TestJobId(t *testing.T) {
 		eth.ChainIDFromBig(big.NewInt(2)),
 	)
 
-	expected2 := "block-100.0x000000000000000000000000000000000000000000000000000000000000abcd@chain-1:block-50.log-3@chain-2"
+	expected2 := "block-100.5.0x000000000000000000000000000000000000000000000000000000000000abcd@chain-1:block-50.log-3@chain-2"
 	require.Equal(t, JobID(expected2), jobID2, "JobId should format different values correctly")
 }

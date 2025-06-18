@@ -98,6 +98,7 @@ func (j *Job) String() string {
 
 func JobId(
 	executingBlockNumber uint64,
+	executingLogIndex uint,
 	executingPayload common.Hash,
 	executingChain eth.ChainID,
 	intitiatingBlockNumber uint64,
@@ -106,13 +107,14 @@ func JobId(
 ) JobID {
 	return JobID(
 		fmt.Sprintf(
-			"block-%d.%s@chain-%d:block-%d.log-%d@chain-%d",
+			"block-%d.%d.%s@chain-%s:block-%d.log-%d@chain-%s",
 			executingBlockNumber,
+			executingLogIndex,
 			executingPayload.String(),
-			executingChain,
+			executingChain.String(),
 			intitiatingBlockNumber,
 			logIndex,
-			initiatingChain,
+			initiatingChain.String(),
 		))
 }
 
@@ -128,6 +130,7 @@ func JobFromExecutingMessageLog(log *types.Log, executingChain eth.ChainID) (Job
 	return Job{
 		id: JobId(
 			log.BlockNumber,
+			log.Index,
 			msg.PayloadHash,
 			executingChain,
 			msg.Identifier.BlockNumber,
