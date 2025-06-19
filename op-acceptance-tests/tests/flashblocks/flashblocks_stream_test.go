@@ -113,7 +113,7 @@ func testFlashblocksStream(t devtest.T, logger log.Logger, flashblocksBuilderNod
 		output := make(chan []byte, maxExpectedFlashblocks)
 		doneListening := make(chan struct{})
 		streamedMessages := make([]string, 0)
-		go flashblocksBuilderNode.ListenFor(logger, testDuration, output, doneListening)
+		go flashblocksBuilderNode.ListenFor(logger, testDuration, output, doneListening) //nolint:errcheck
 
 		for {
 			select {

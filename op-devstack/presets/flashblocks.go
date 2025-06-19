@@ -1,6 +1,7 @@
 package presets
 
 import (
+	"github.com/ethereum-optimism/optimism/op-devstack/compat"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
 	"github.com/ethereum-optimism/optimism/op-devstack/shim"
@@ -16,9 +17,13 @@ type SimpleFlashblocks struct {
 	FlashblocksBuilderSets map[stack.L2NetworkID]dsl.FlashblocksBuilderSet
 }
 
-// TODO(#16450): shift this to a different sysgo constructor once the sysgo implementation supports flashblocks / rbuilders
 func WithSimpleFlashblocks() stack.CommonOption {
-	return stack.MakeCommon(sysgo.DefaultMinimalSystem(&sysgo.DefaultMinimalSystemIDs{}))
+	return stack.Combine(
+		stack.MakeCommon(sysgo.DefaultMinimalSystem(&sysgo.DefaultMinimalSystemIDs{})),
+		// TODO(#16450): add sysgo support for flashblocks
+		// TODO(#16514): add kurtosis support for flashblocks
+		WithCompatibleTypes(compat.Persistent),
+	)
 }
 
 func NewSimpleFlashblocks(t devtest.T) *SimpleFlashblocks {
