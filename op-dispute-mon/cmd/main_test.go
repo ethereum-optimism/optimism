@@ -92,7 +92,7 @@ func TestSupervisorRpc(t *testing.T) {
 	t.Run("Valid", func(t *testing.T) {
 		url := "http://example.com:9999"
 		cfg := configForArgs(t, addRequiredArgsExcept("--rollup-rpc", "--supervisor-rpc", url))
-		require.Equal(t, url, cfg.SupervisorRpc)
+		require.Equal(t, []string{url}, cfg.SupervisorRpcs)
 	})
 }
 

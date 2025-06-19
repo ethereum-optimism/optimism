@@ -179,10 +179,10 @@ func (s *Service) initOutputRollupClient(ctx context.Context, cfg *config.Config
 }
 
 func (s *Service) initSupervisorClient(ctx context.Context, cfg *config.Config) error {
-	if cfg.SupervisorRpc == "" {
+	if len(cfg.SupervisorRpcs) == 0 {
 		return nil
 	}
-	rpcClient, err := dial.DialRPCClientWithTimeout(ctx, dial.DefaultDialTimeout, s.logger, cfg.SupervisorRpc)
+	rpcClient, err := dial.DialRPCClientWithTimeout(ctx, dial.DefaultDialTimeout, s.logger, cfg.SupervisorRpcs[0])
 	if err != nil {
 		return fmt.Errorf("failed to dial supervisor client: %w", err)
 	}
