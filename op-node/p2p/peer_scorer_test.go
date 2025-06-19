@@ -105,5 +105,4 @@ func (testSuite *PeerScorerTestSuite) TestScorer_SnapshotHook() {
 		},
 	}
 	inspectFn(snapshotMap)
-	testSuite.T().Log("TODO")
 }

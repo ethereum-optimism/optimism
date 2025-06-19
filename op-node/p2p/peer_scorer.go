@@ -70,7 +70,7 @@ func (s *scorer) SnapshotHook() pubsub.ExtendedPeerScoreInspectFn {
 			// All allow-listed topics are block-topics,
 			// And the total performance is what we care about, regardless of number of past forks.
 			// So add up the data. And consider the time-in-mesh of the most used topic:
-			// alt CL implementations may choose to not stay on legacy topics).
+			// alt CL implementations may choose to not stay on legacy topics.
 			for _, topSnap := range snap.Topics {
 				diff.Blocks.TimeInMesh = max(diff.Blocks.TimeInMesh, float64(topSnap.TimeInMesh)/float64(time.Second))
 				diff.Blocks.MeshMessageDeliveries += topSnap.MeshMessageDeliveries
