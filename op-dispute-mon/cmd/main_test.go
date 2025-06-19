@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"testing"
 	"time"
 
@@ -304,7 +305,7 @@ func addRequiredArgsExcept(name string, optionalArgs ...string) []string {
 func requiredArgs() map[string]string {
 	args := map[string]string{
 		"--l1-eth-rpc":           l1EthRpc,
-		"--rollup-rpc":           rollupRpc[0],
+		"--rollup-rpc":           strings.Join(rollupRpc, ","),
 		"--game-factory-address": gameFactoryAddressValue,
 	}
 	return args

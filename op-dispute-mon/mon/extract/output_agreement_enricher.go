@@ -17,7 +17,8 @@ import (
 )
 
 var (
-	ErrRollupRpcRequired = errors.New("rollup rpc required")
+	ErrRollupRpcRequired   = errors.New("rollup rpc required")
+	ErrAllNodesUnavailable = errors.New("all nodes returned errors")
 )
 
 type OutputRollupClient interface {
@@ -104,42 +105,33 @@ func (o *OutputAgreementEnricher) Enrich(ctx context.Context, block rpcblock.Blo
 	}
 	wg.Wait()
 
-	// Filter out results with errors (except "not found")
 	validResults := make([]outputResult, 0, len(results))
-	for _, result := range results {
-		if result.err == nil {
-			validResults = append(validResults, result)
+	syncedResults := make([]outputResult, 0, len(results))
+	for idx, result := range results {
+		if result.err != nil {
+			o.log.Error("Failed to fetch output root", "clientIndex", idx, "l2BlockNum", game.L2BlockNumber, "err", result.err)
+			continue
+		}
+
+		validResults = append(validResults, result)
+
+		if result.notFound {
+			o.log.Warn("Node is out of sync", "clientIndex", idx, "l2BlockNum", game.L2BlockNumber)
+		} else {
+			syncedResults = append(syncedResults, result)
 		}
 	}
 
 	// If all results were errors, return an error
 	if len(validResults) == 0 {
-		return fmt.Errorf("failed to get output at block: all nodes returned errors")
+		return fmt.Errorf("failed to get output at block: %w", ErrAllNodesUnavailable)
 	}
 
 	// If all remaining nodes returned "not found", set game.AgreeWithClaim = false
-	allNotFound := true
-	for _, result := range validResults {
-		if !result.notFound {
-			allNotFound = false
-			break
-		}
-	}
-	if allNotFound {
+	if len(syncedResults) == 0 {
 		game.AgreeWithClaim = false
 		game.ExpectedRootClaim = common.Hash{}
 		return nil
-	}
-
-	// Filter out nodes that returned "not found" as they're out of sync
-	syncedResults := make([]outputResult, 0, len(validResults))
-	for _, result := range validResults {
-		if !result.notFound {
-			syncedResults = append(syncedResults, result)
-		}
-	}
-	if len(syncedResults) < len(validResults) {
-		o.log.Warn("Some nodes are out of sync", "totalNodes", len(validResults), "syncedNodes", len(syncedResults))
 	}
 
 	// Check if nodes have diverged

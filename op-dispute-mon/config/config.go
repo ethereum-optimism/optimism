@@ -51,7 +51,7 @@ type Config struct {
 }
 
 func NewInteropConfig(gameFactoryAddress common.Address, l1EthRpc string, supervisorRpc string) Config {
-	return NewCombinedConfig(gameFactoryAddress, l1EthRpc, []string{}, supervisorRpc)
+	return NewCombinedConfig(gameFactoryAddress, l1EthRpc, nil, supervisorRpc)
 }
 
 func NewConfig(gameFactoryAddress common.Address, l1EthRpc string, rollupRpc []string) Config {

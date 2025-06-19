@@ -24,7 +24,7 @@ func TestOutputAgreementEnricher(t *testing.T) {
 
 	t.Run("ErrorWhenNoRollupClient", func(t *testing.T) {
 		validator, _, _ := setupOutputValidatorTest(t)
-		validator.clients = []OutputRollupClient{}
+		validator.clients = nil
 		game := &types.EnrichedGameData{
 			GameMetadata: challengerTypes.GameMetadata{
 				GameType: 0,
@@ -43,7 +43,7 @@ func TestOutputAgreementEnricher(t *testing.T) {
 			gameType := gameType
 			t.Run(fmt.Sprintf("GameType_%d", gameType), func(t *testing.T) {
 				validator, _, metrics := setupOutputValidatorTest(t)
-				validator.clients = []OutputRollupClient{} // Should not error even though there's no rollup client
+				validator.clients = nil // Should not error even though there's no rollup client
 				game := &types.EnrichedGameData{
 					GameMetadata: challengerTypes.GameMetadata{
 						GameType: gameType,
@@ -92,7 +92,7 @@ func TestOutputAgreementEnricher(t *testing.T) {
 		}
 		err := validator.Enrich(context.Background(), rpcblock.Latest, nil, game)
 		require.Error(t, err)
-		require.Contains(t, err.Error(), "all nodes returned errors")
+		require.ErrorIs(t, err, ErrAllNodesUnavailable)
 		require.Equal(t, common.Hash{}, game.ExpectedRootClaim)
 		require.False(t, game.AgreeWithClaim)
 		require.Zero(t, metrics.fetchTime)
