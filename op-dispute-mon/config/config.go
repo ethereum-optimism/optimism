@@ -61,7 +61,7 @@ func NewConfig(gameFactoryAddress common.Address, l1EthRpc string, rollupRpcs []
 func NewCombinedConfig(gameFactoryAddress common.Address, l1EthRpc string, rollupRpcs []string, supervisorRpcs []string) Config {
 	return Config{
 		L1EthRpc:           l1EthRpc,
-		RollupRpcs:          rollupRpcs,
+		RollupRpcs:         rollupRpcs,
 		SupervisorRpcs:     supervisorRpcs,
 		GameFactoryAddress: gameFactoryAddress,
 
