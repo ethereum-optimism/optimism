@@ -129,6 +129,14 @@ func (s *Service) initGameCallerCreator() {
 	s.game = extract.NewGameCallerCreator(s.metrics, s.l1Caller)
 }
 
+func (s *Service) asOutputRollupClients() []extract.OutputRollupClient {
+	clients := make([]extract.OutputRollupClient, len(s.rollupClients))
+	for i, client := range s.rollupClients {
+		clients[i] = client
+	}
+	return clients
+}
+
 func (s *Service) initExtractor(cfg *config.Config) {
 	s.extractor = extract.NewExtractor(
 		s.logger,
@@ -144,13 +152,7 @@ func (s *Service) initExtractor(cfg *config.Config) {
 		extract.NewBalanceEnricher(),
 		extract.NewL1HeadBlockNumEnricher(s.l1Client),
 		extract.NewSuperAgreementEnricher(s.logger, s.metrics, s.supervisorClient, clock.SystemClock),
-		extract.NewOutputAgreementEnricher(s.logger, s.metrics, func() []extract.OutputRollupClient {
-			clients := make([]extract.OutputRollupClient, len(s.rollupClients))
-			for i, client := range s.rollupClients {
-				clients[i] = client
-			}
-			return clients
-		}(), clock.SystemClock),
+		extract.NewOutputAgreementEnricher(s.logger, s.metrics, s.asOutputRollupClients(), clock.SystemClock),
 	)
 }
 
