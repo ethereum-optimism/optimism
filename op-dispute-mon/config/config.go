@@ -39,7 +39,7 @@ type Config struct {
 	GameFactoryAddress common.Address // Address of the dispute game factory
 
 	HonestActors    []common.Address // List of honest actors to monitor claims for.
-	RollupRpc       []string         // The rollup node RPC URLs.
+	RollupRpcs      []string         // The rollup node RPC URLs.
 	SupervisorRpcs  []string         // The supervisor RPC URLs.
 	MonitorInterval time.Duration    // Frequency to check for new games to monitor.
 	GameWindow      time.Duration    // Maximum window to look for games to monitor.
@@ -54,14 +54,14 @@ func NewInteropConfig(gameFactoryAddress common.Address, l1EthRpc string, superv
 	return NewCombinedConfig(gameFactoryAddress, l1EthRpc, nil, supervisorRpcs)
 }
 
-func NewConfig(gameFactoryAddress common.Address, l1EthRpc string, rollupRpc []string) Config {
-	return NewCombinedConfig(gameFactoryAddress, l1EthRpc, rollupRpc, nil)
+func NewConfig(gameFactoryAddress common.Address, l1EthRpc string, rollupRpcs []string) Config {
+	return NewCombinedConfig(gameFactoryAddress, l1EthRpc, rollupRpcs, nil)
 }
 
-func NewCombinedConfig(gameFactoryAddress common.Address, l1EthRpc string, rollupRpc []string, supervisorRpcs []string) Config {
+func NewCombinedConfig(gameFactoryAddress common.Address, l1EthRpc string, rollupRpcs []string, supervisorRpcs []string) Config {
 	return Config{
 		L1EthRpc:           l1EthRpc,
-		RollupRpc:          rollupRpc,
+		RollupRpcs:          rollupRpcs,
 		SupervisorRpcs:     supervisorRpcs,
 		GameFactoryAddress: gameFactoryAddress,
 
@@ -78,7 +78,7 @@ func (c Config) Check() error {
 	if c.L1EthRpc == "" {
 		return ErrMissingL1EthRPC
 	}
-	if len(c.RollupRpc) == 0 && len(c.SupervisorRpcs) == 0 {
+	if len(c.RollupRpcs) == 0 && len(c.SupervisorRpcs) == 0 {
 		return ErrMissingRollupAndSupervisorRpc
 	}
 	if c.GameFactoryAddress == (common.Address{}) {

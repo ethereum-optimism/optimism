@@ -173,10 +173,10 @@ func (s *Service) initBonds() {
 }
 
 func (s *Service) initOutputRollupClient(ctx context.Context, cfg *config.Config) error {
-	if len(cfg.RollupRpc) == 0 {
+	if len(cfg.RollupRpcs) == 0 {
 		return nil
 	}
-	for _, rpc := range cfg.RollupRpc {
+	for _, rpc := range cfg.RollupRpcs {
 		client, err := dial.DialRollupClientWithTimeout(ctx, dial.DefaultDialTimeout, s.logger, rpc)
 		if err != nil {
 			return fmt.Errorf("failed to dial rollup client %s: %w", rpc, err)
