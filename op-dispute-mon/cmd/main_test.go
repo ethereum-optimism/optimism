@@ -94,6 +94,13 @@ func TestSupervisorRpc(t *testing.T) {
 		cfg := configForArgs(t, addRequiredArgsExcept("--rollup-rpc", "--supervisor-rpc", url))
 		require.Equal(t, []string{url}, cfg.SupervisorRpcs)
 	})
+
+	t.Run("MultipleValues", func(t *testing.T) {
+		url1 := "http://example1.com:9999"
+		url2 := "http://example2.com:8888"
+		cfg := configForArgs(t, addRequiredArgsExcept("--rollup-rpc", "--supervisor-rpc", url1, "--supervisor-rpc", url2))
+		require.Equal(t, []string{url1, url2}, cfg.SupervisorRpcs)
+	})
 }
 
 func TestGameFactoryAddress(t *testing.T) {
