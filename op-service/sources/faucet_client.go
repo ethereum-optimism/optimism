@@ -30,3 +30,9 @@ func (cl *FaucetClient) ChainID(ctx context.Context) (eth.ChainID, error) {
 func (cl *FaucetClient) RequestETH(ctx context.Context, addr common.Address, amount eth.ETH) error {
 	return cl.client.CallContext(ctx, nil, "faucet_requestETH", addr, amount)
 }
+
+func (cl *FaucetClient) Balance(ctx context.Context) (eth.ETH, error) {
+	var result eth.ETH
+	err := cl.client.CallContext(ctx, &result, "faucet_balance")
+	return result, err
+}
