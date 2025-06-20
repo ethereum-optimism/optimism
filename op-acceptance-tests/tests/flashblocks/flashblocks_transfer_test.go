@@ -26,6 +26,15 @@ type timedMessage struct {
 }
 
 // TestFlashblocksTransfer checks that a transfer gets reflected in a flashblock before the transaction is confirmed in a block
+// This test concurrently:
+// - listens to the Flashblocks stream for 20s and collects all those streamed Flashblocks along with the timestamp when they were received.
+// - Makes a transaction from Alice to Bob with a pre-known amount and records an approximated txn confirmation time (with upto nanosecond granularity) just after that txn was done.
+
+// Expectations:
+// - After flashblock streaming is done (20s), the transaction's already included in a (real) block.
+// - There must have been a Flashblock containing a new_account_balance corresponding to Bob's account. This flashblock would be representative of the flashblock including Alice-to-Bob transaction.
+// - That Flashblock's time (in seconds) must be less than or equal to the Transaction's block time (in seconds). (Can't check the block time beyond the granularity of seconds)
+// - That Flashblock's time in nanoseconds must be before the approximated transaction confirmation time recorded previously.
 func TestFlashblocksTransfer(gt *testing.T) {
 	t := devtest.SerialT(gt)
 	sys := presets.NewSimpleFlashblocks(t)
@@ -70,7 +79,6 @@ func TestFlashblocksTransfer(gt *testing.T) {
 			// transactor
 			go func() {
 				time.Sleep(6 * time.Second) // warm up for the websocket handshake to be established
-				// Create two L2 wallets
 				bobBalance := bob.GetBalance()
 
 				depositAmount := eth.OneHundredthEther

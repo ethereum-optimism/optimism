@@ -31,7 +31,7 @@ const (
 	FlashblocksStreamMode_Follower FlashblocksStreamMode = "follower"
 )
 
-// UnmarshalJSON implements custom unmarshaling for Flashblock to lower case the keys of
+// UnmarshalJSON implements custom unmarshaling for Flashblock to lower case the keys of .metadata.new_account_balances.
 func (f *Flashblock) UnmarshalJSON(data []byte) error {
 	type TempFlashblock Flashblock // need a type alias to avoid infinite recursion
 	temp := (*TempFlashblock)(f)
