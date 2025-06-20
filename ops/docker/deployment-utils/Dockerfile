@@ -1,6 +1,6 @@
 FROM golang:1.22.7-bookworm AS go-base
 
-RUN go install github.com/tomwright/dasel/v2/cmd/dasel@master
+RUN go install github.com/tomwright/dasel/v2/cmd/dasel@e96f281f05a1c1f01ed251f7041dfd0f49325b1a
 
 FROM debian:12.7-slim AS base
 

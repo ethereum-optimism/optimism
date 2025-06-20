@@ -1,6 +1,6 @@
 {
   inputs = {
-    nixpkgs.url = "github:nixos/nixpkgs?ref=nixos-unstable";
+    nixpkgs.url = "github:nixos/nixpkgs/nixos-unstable";
     flake-utils.url = "github:numtide/flake-utils";
     foundry.url = "github:shazow/foundry.nix/main";
   };
@@ -13,8 +13,9 @@
         overlays = [
           inputs.foundry.overlay
         ];
+        pkgs = import inputs.nixpkgs { inherit overlays system; };
 
-        go_1_22_7 = pkgs.go_1_22.overrideAttrs (oldAttrs: rec {
+        go_1_22_7 = pkgs.go_1_22.overrideAttrs (oldAttrs: {
           version = "1.22.7";
 
           src = pkgs.fetchurl {
@@ -23,43 +24,72 @@
           };
         });
 
-        pkgs = import inputs.nixpkgs { inherit overlays system; };
-        espressoGoLibVersion = "0.2.1";
-        baseUrl = "https://github.com/EspressoSystems/espresso-network/releases/download/sdks%2Fgo%2Fv${espressoGoLibVersion}";
-        espressoGoLibFile =
-          if system == "x86_64-linux" then
-            pkgs.fetchurl {
-              url = baseUrl + "/libespresso_crypto_helper-x86_64-unknown-linux-gnu.so";
-              sha256 = "sha256:b3e28f7dc755d72b27a2a43c2bcfdc0e4e82096e03596a01447bd8f406e6653c";
-            }
-          else if system == "x86_64-darwin" then
-            pkgs.fetchurl {
-              url = baseUrl + "/libespresso_crypto_helper-x86_64-apple-darwin.dylib";
-              sha256 = "sha256:716cb9eb548222ed1c7b5d1585bd5f03d0680cbae3f8db14cbf37837f54b9788";
-            }
-          # aarch64-darwin
-          else
-            pkgs.fetchurl {
-              url = baseUrl + "/libespresso_crypto_helper-aarch64-apple-darwin.dylib";
-              sha256 = "sha256:6c74ec631ccd9d23258ff99a8060068a548740fac814633ceab2ad7c7dc90a74";
-            };
-        cgo_ld_flags =
-          if system == "x86_64-linux" then
-            "-L/tmp -lespresso_crypto_helper-x86_64-unknown-linux-gnu"
-          else if system == "x86_64-darwin" then
-            "-L/tmp -lespresso_crypto_helper-x86_64-apple-darwin -framework Foundation -framework SystemConfiguration"
-          else
-            "-L/tmp -lespresso_crypto_helper-aarch64-apple-darwin -framework Foundation -framework SystemConfiguration" # aarch64-darwin
-        ;
+        espressoGoLibFile = pkgs.stdenv.mkDerivation rec {
+          pname = "libespresso_crypto_helper";
+          version = "0.2.1";
 
-        target_link =
-          if system == "x86_64-linux" then
-            "/tmp/libespresso_crypto_helper-x86_64-unknown-linux-gnu.so"
-          else if system == "x86_64-darwin" then
-            "/tmp/libespresso_crypto_helper-x86_64-apple-darwin.dylib"
-          else
-            "/tmp/libespresso_crypto_helper-aarch64-apple-darwin.dylib" # aarch64-darwin
-        ;
+          baseUrl = "https://github.com/EspressoSystems/espresso-network/releases/download/sdks%2Fgo%2Fv${version}";
+          source =
+            {
+              "x86_64-linux" = pkgs.fetchurl {
+                url = baseUrl + "/libespresso_crypto_helper-x86_64-unknown-linux-gnu.so";
+                sha256 = "sha256:b3e28f7dc755d72b27a2a43c2bcfdc0e4e82096e03596a01447bd8f406e6653c";
+              };
+              "x86_64-darwin" = pkgs.fetchurl {
+                url = baseUrl + "/libespresso_crypto_helper-x86_64-apple-darwin.dylib";
+                sha256 = "sha256:716cb9eb548222ed1c7b5d1585bd5f03d0680cbae3f8db14cbf37837f54b9788";
+              };
+              "aarch64-linux" = pkgs.fetchurl {
+                url = baseUrl + "/libespresso_crypto_helper-aarch64-unknown-linux-gnu.so";
+                sha256 = "sha256:886aef8aeaa0d5695abc6a9ae54f085899a031371c10755218e387442ecb331f";
+              };
+              "aarch64-darwin" = pkgs.fetchurl {
+                url = baseUrl + "/libespresso_crypto_helper-aarch64-apple-darwin.dylib";
+                sha256 = "sha256:6c74ec631ccd9d23258ff99a8060068a548740fac814633ceab2ad7c7dc90a74";
+              };
+            }
+            ."${system}";
+
+          dontUnpack = true;
+          installPhase = ''
+            mkdir -p $out/lib
+            cp ${source} $out/lib/
+          '';
+        };
+
+        eth-beacon-genesis = pkgs.buildGoModule rec {
+          pname = "eth-beacon-genesis";
+          version = "703e97a";
+
+          src = pkgs.fetchFromGitHub {
+            owner = "ethpandaops";
+            repo = pname;
+            rev = version;
+            hash = "sha256-Toal70A8cnIAtR4iCacRQ5vT+MHUlMc81l1dzjj56mA=";
+          };
+
+          vendorHash = "sha256-keBJHjl42o6guAAAWoESJateXVG3hotdSnDv2pf1Lv4=";
+          proxyVendor = true;
+
+          doCheck = false;
+        };
+
+        eth2-val-tools = pkgs.buildGoModule rec {
+          pname = "eth2-val-tools";
+          version = "662955e";
+
+          src = pkgs.fetchFromGitHub {
+            owner = "protolambda";
+            repo = pname;
+            rev = version;
+            hash = "sha256-UpQmCS/FrY667EnNH2XCTJhzhLOpsfS5GUhGvXGG65U=";
+          };
+
+          vendorHash = "sha256-IblAuZgk7EBkfcFoEugzb9pO454zfHq6RxIfgvUFBDo=";
+          proxyVendor = true;
+
+          doCheck = false;
+        };
 
         enclaver = pkgs.rustPlatform.buildRustPackage rec {
           pname = "enclaver";
@@ -80,38 +110,40 @@
 
       in
       {
-
         formatter = pkgs.nixfmt-rfc-style;
 
         devShells = {
           default = pkgs.mkShell {
-            packages = [
+            buildInputs = [
               pkgs.zlib
+              espressoGoLibFile
+            ];
+
+            packages = [
               enclaver
-              pkgs.jq
-              pkgs.yq-go
-              pkgs.uv
-              pkgs.shellcheck
-              pkgs.python311
-              pkgs.foundry-bin
-              pkgs.just
+              eth-beacon-genesis
+              eth2-val-tools
               go_1_22_7
-              pkgs.gotools
-              pkgs.go-ethereum
-              pkgs.golangci-lint
+
               pkgs.awscli2
+              pkgs.cargo
+              pkgs.dasel
+              pkgs.foundry-bin
+              pkgs.go-ethereum
+              pkgs.jq
+              pkgs.just
               pkgs.just
               pkgs.pnpm
-              pkgs.cargo
+              pkgs.python311
+              pkgs.shellcheck
+              pkgs.uv
+              pkgs.yq-go
             ];
+
             shellHook = ''
               export FOUNDRY_DISABLE_NIGHTLY_WARNING=1
-              export DOWNLOADED_FILE_PATH=${espressoGoLibFile}
-              echo "Espresso go library v${espressoGoLibVersion} stored at $DOWNLOADED_FILE_PATH"
-              ln -sf ${espressoGoLibFile} ${target_link}
-              export CGO_LDFLAGS="${cgo_ld_flags} -L${pkgs.zlib}/lib"
-              export LD_LIBRARY_PATH=/tmp:${pkgs.zlib}/lib:$LD_LIBRARY_PATH
               export MACOSX_DEPLOYMENT_TARGET=14.5
+              export PATH=$PATH:$PWD/op-deployer/bin
             '';
           };
         };

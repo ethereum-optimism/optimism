@@ -26,6 +26,7 @@ cache
 
 packages/contracts-bedrock/deployments/anvil
 
+
 # vim
 *.sw*
 
@@ -34,8 +35,13 @@ packages/contracts-bedrock/deployments/anvil
 
 .secrets
 .env
+<<<<<<< HEAD
 .envrc
 !espresso/.env
+||||||| parent of 3207b7b526 (Working devnet)
+!espresso/.env
+=======
+>>>>>>> 3207b7b526 (Working devnet)
 !.env.example
 !.envrc.example
 *.log

@@ -15,12 +15,12 @@ RUN curl https://mise.run | MISE_INSTALL_PATH=/usr/local/bin/mise sh
 
 # Install yq
 RUN case "$TARGETARCH" in \
-        "amd64") YQ_ARCH="amd64" ;; \
-        "arm64") YQ_ARCH="arm64" ;; \
-        *) YQ_ARCH="amd64" ;; \
-    esac && \
-    wget https://github.com/mikefarah/yq/releases/latest/download/yq_linux_$YQ_ARCH -O /usr/local/bin/yq && \
-    chmod +x /usr/local/bin/yq
+  "amd64") YQ_ARCH="amd64" ;; \
+  "arm64") YQ_ARCH="arm64" ;; \
+  *) YQ_ARCH="amd64" ;; \
+  esac && \
+  wget https://github.com/mikefarah/yq/releases/latest/download/yq_linux_$YQ_ARCH -O /usr/local/bin/yq && \
+  chmod +x /usr/local/bin/yq
 
 # Install versioned toolchain
 COPY ./mise.toml .
@@ -80,9 +80,9 @@ COPY . /app
 FROM op-cgo-builder AS op-node-builder
 ARG OP_NODE_VERSION=v0.0.0
 RUN --mount=type=cache,target=/go/pkg/mod --mount=type=cache,target=/root/.cache/go-build cd op-node && \
-    CGO_ENABLED=0 GOOS=$TARGETOS GOARCH=$TARGETARCH \
-    go build -a -ldflags '-extldflags "-static"' \
-    -o bin/op-node ./cmd/main.go
+  CGO_ENABLED=0 GOOS=$TARGETOS GOARCH=$TARGETARCH \
+  go build -a -ldflags '-extldflags "-static"' \
+  -o bin/op-node ./cmd/main.go
 
 # Build op-batcher
 FROM op-cgo-builder AS op-batcher-builder
@@ -106,10 +106,6 @@ COPY --from=op-node-builder /app/op-node/bin/op-node /usr/local/bin/
 
 # Create config directory
 RUN mkdir -p /config
-
-# Include the secret and the rollup files.
-COPY espresso/docker/op-geth/jwt.txt /config/jwt.txt
-COPY espresso/docker/op-geth/rollup-devnet.json /config/rollup-devnet.json
 
 CMD ["op-node"]
 

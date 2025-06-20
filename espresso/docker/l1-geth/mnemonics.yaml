@@ -1,0 +1,6 @@
+- mnemonic: "wheel cinnamon indoor tooth addict pumpkin fold finger volcano family cloud conduct rotate art gospel merry clock fine club liar ladder spot ring chief" # a 24 word BIP 39 mnemonic
+  start: 0
+  count: 1
+  balance: 32000000000
+  wd_address: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"
+  wd_prefix: "0x02"

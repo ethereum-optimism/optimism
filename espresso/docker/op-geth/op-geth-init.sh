@@ -2,8 +2,8 @@
 set -e
 
 # Set the default ports if not provided.
-ESPRESSO_L1_PORT=${ESPRESSO_L1_PORT:-8545}
-ESPRESSO_GETH_PORT=${ESPRESSO_GETH_PORT:-8551}
+OP_HTTP_PORT=${OP_HTTP_PORT:-8546}
+OP_ENGINE_PORT=$${OP_ENGINE_PORT:-8552}
 
 # Initialize database if not already done.
 if [ ! -f /data/geth/chaindata/CURRENT ]; then
@@ -20,12 +20,12 @@ exec geth \
     --networkid=1 \
     --http \
     --http.addr=0.0.0.0 \
-    --http.port=${ESPRESSO_L1_PORT} \
+    --http.port=${OP_HTTP_PORT} \
     --http.api=eth,net,web3,debug,admin,txpool \
     --http.vhosts=* \
     --http.corsdomain=* \
     --authrpc.addr=0.0.0.0 \
-    --authrpc.port=${ESPRESSO_GETH_PORT} \
+    --authrpc.port=${OP_ENGINE_PORT} \
     --authrpc.vhosts=* \
     --authrpc.jwtsecret=/config/jwt.txt \
     --rollup.disabletxpoolgossip=true \
