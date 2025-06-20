@@ -119,7 +119,7 @@ func (f *Faucet) RequestETH(ctx context.Context, request *ftypes.FaucetRequest) 
 		logger.Warn("Failed to get balance, optimistically continuing the request")
 	} else {
 		if balance.ToBig().Cmp(request.Amount.ToBig()) < 0 {
-			logger.Info("Insufficient balance", "balance", balance.String(), "amount", request.Amount)
+			logger.Error("Insufficient balance", "balance", balance.String(), "amount", request.Amount)
 			return errors.New("insufficient balance")
 		}
 	}
