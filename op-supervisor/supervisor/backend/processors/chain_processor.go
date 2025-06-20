@@ -115,11 +115,12 @@ func (s *ChainProcessor) OnEvent(ev event.Event) bool {
 		}
 		// always update the target
 		s.UpdateTarget(x.Target)
+
 		// and if not already running, begin indexing
-		if !s.running.Load() {
-			s.running.Store(true)
+		if s.running.CompareAndSwap(false, true) {
 			s.index()
 		}
+
 	case superevents.ChainIndexingContinueEvent:
 		if x.ChainID != s.chain {
 			return false
