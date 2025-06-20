@@ -171,6 +171,81 @@ func (c *chain) SupportsEIP(ctx context.Context, eip uint64) bool {
 	return c.nodes[0].SupportsEIP(ctx, eip)
 }
 
+// validateChainDescriptor validates a Chain descriptor for common issues
+func validateChainDescriptor(d *descriptors.Chain) error {
+	if d == nil {
+		return fmt.Errorf("chain descriptor is nil")
+	}
+
+	if d.ID == "" {
+		return fmt.Errorf("chain ID is empty")
+	}
+
+	if len(d.Nodes) == 0 {
+		return fmt.Errorf("chain has no nodes")
+	}
+
+	for i, node := range d.Nodes {
+		if err := validateNodeDescriptor(&node, i); err != nil {
+			return fmt.Errorf("node %d validation failed: %w", i, err)
+		}
+	}
+
+	return nil
+}
+
+// validateNodeDescriptor validates a Node descriptor
+func validateNodeDescriptor(node *descriptors.Node, index int) error {
+	if node == nil {
+		return fmt.Errorf("node descriptor is nil")
+	}
+
+	elService, exists := node.Services["el"]
+	if !exists {
+		return fmt.Errorf("node missing required 'el' service")
+	}
+
+	if elService == nil {
+		return fmt.Errorf("'el' service is nil")
+	}
+
+	rpcEndpoint, exists := elService.Endpoints["rpc"]
+	if !exists {
+		return fmt.Errorf("'el' service missing required 'rpc' endpoint")
+	}
+
+	if rpcEndpoint == nil {
+		return fmt.Errorf("'rpc' endpoint is nil")
+	}
+
+	if rpcEndpoint.Host == "" {
+		return fmt.Errorf("'rpc' endpoint host is empty")
+	}
+
+	if rpcEndpoint.Port <= 0 {
+		return fmt.Errorf("'rpc' endpoint port must be positive, got %d", rpcEndpoint.Port)
+	}
+
+	return nil
+}
+
+// validateL2ChainDescriptor validates an L2Chain descriptor
+func validateL2ChainDescriptor(d *descriptors.L2Chain) error {
+	if d == nil {
+		return fmt.Errorf("L2 chain descriptor is nil")
+	}
+
+	if d.Chain == nil {
+		return fmt.Errorf("L2 chain descriptor missing embedded Chain")
+	}
+
+	if err := validateChainDescriptor(d.Chain); err != nil {
+		return fmt.Errorf("embedded chain validation failed: %w", err)
+	}
+
+	return nil
+}
+
 func checkHeader(ctx context.Context, client *sources.EthClient, check func(eth.BlockInfo) bool) bool {
 	info, err := client.InfoByLabel(ctx, eth.Unsafe)
 	if err != nil {
@@ -195,7 +270,10 @@ func newNodesFromDescriptor(d *descriptors.Chain) []Node {
 }
 
 func newChainFromDescriptor(d *descriptors.Chain) (*chain, error) {
-	// TODO: handle incorrect descriptors better. We could panic here.
+	// Validate descriptor before proceeding
+	if err := validateChainDescriptor(d); err != nil {
+		return nil, fmt.Errorf("invalid chain descriptor: %w", err)
+	}
 
 	nodes := newNodesFromDescriptor(d)
 	c := newChain(d.ID, nil, d.Config, AddressMap(d.Addresses), nodes) // Create chain first
@@ -221,7 +299,10 @@ func newChain(chainID string, wallets WalletMap, chainConfig *params.ChainConfig
 }
 
 func newL2ChainFromDescriptor(d *descriptors.L2Chain) (*l2Chain, error) {
-	// TODO: handle incorrect descriptors better. We could panic here.
+	// Validate descriptor before proceeding
+	if err := validateL2ChainDescriptor(d); err != nil {
+		return nil, fmt.Errorf("invalid L2 chain descriptor: %w", err)
+	}
 
 	nodes := newNodesFromDescriptor(d.Chain)
 	c := newL2Chain(d.ID, nil, nil, d.Config, AddressMap(d.L1Addresses), AddressMap(d.Addresses), nodes) // Create chain first
