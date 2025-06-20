@@ -80,7 +80,7 @@ func TestChainFromDescriptor(t *testing.T) {
 	// Compare the underlying big.Int values
 	chainID := chain.ID()
 	expectedID := big.NewInt(1)
-	assert.Equal(t, 0, expectedID.Cmp(chainID))
+	assert.Equal(t, expectedID.Cmp(chainID), 0)
 }
 
 func TestL2ChainFromDescriptor(t *testing.T) {
@@ -130,7 +130,7 @@ func TestL2ChainFromDescriptor(t *testing.T) {
 	// Compare the underlying big.Int values
 	chainID := chain.ID()
 	expectedID := big.NewInt(1)
-	assert.Equal(t, 0, expectedID.Cmp(chainID))
+	assert.Equal(t, expectedID.Cmp(chainID), 0)
 }
 
 func TestChainWallet(t *testing.T) {
@@ -245,5 +245,192 @@ func TestContractsRegistry(t *testing.T) {
 		registry1 := chain.Nodes()[0].ContractsRegistry()
 		registry2 := chain.Nodes()[0].ContractsRegistry()
 		assert.Same(t, registry1, registry2)
+	})
+}
+
+// TestChainFromDescriptorValidation tests validation of invalid chain descriptors
+func TestChainFromDescriptorValidation(t *testing.T) {
+	t.Run("nil descriptor", func(t *testing.T) {
+		_, err := newChainFromDescriptor(nil)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "chain descriptor is nil")
+	})
+
+	t.Run("empty chain ID", func(t *testing.T) {
+		descriptor := &descriptors.Chain{
+			ID: "",
+			Nodes: []descriptors.Node{
+				{
+					Services: descriptors.ServiceMap{
+						"el": &descriptors.Service{
+							Endpoints: descriptors.EndpointMap{
+								"rpc": &descriptors.PortInfo{
+									Host: "localhost",
+									Port: 8545,
+								},
+							},
+						},
+					},
+				},
+			},
+		}
+		_, err := newChainFromDescriptor(descriptor)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "chain ID is empty")
+	})
+
+	t.Run("no nodes", func(t *testing.T) {
+		descriptor := &descriptors.Chain{
+			ID:    "1",
+			Nodes: []descriptors.Node{},
+		}
+		_, err := newChainFromDescriptor(descriptor)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "chain has no nodes")
+	})
+
+	t.Run("missing el service", func(t *testing.T) {
+		descriptor := &descriptors.Chain{
+			ID: "1",
+			Nodes: []descriptors.Node{
+				{
+					Services: descriptors.ServiceMap{},
+				},
+			},
+		}
+		_, err := newChainFromDescriptor(descriptor)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "node missing required 'el' service")
+	})
+
+	t.Run("nil el service", func(t *testing.T) {
+		descriptor := &descriptors.Chain{
+			ID: "1",
+			Nodes: []descriptors.Node{
+				{
+					Services: descriptors.ServiceMap{
+						"el": nil,
+					},
+				},
+			},
+		}
+		_, err := newChainFromDescriptor(descriptor)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "'el' service is nil")
+	})
+
+	t.Run("missing rpc endpoint", func(t *testing.T) {
+		descriptor := &descriptors.Chain{
+			ID: "1",
+			Nodes: []descriptors.Node{
+				{
+					Services: descriptors.ServiceMap{
+						"el": &descriptors.Service{
+							Endpoints: descriptors.EndpointMap{},
+						},
+					},
+				},
+			},
+		}
+		_, err := newChainFromDescriptor(descriptor)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "'el' service missing required 'rpc' endpoint")
+	})
+
+	t.Run("nil rpc endpoint", func(t *testing.T) {
+		descriptor := &descriptors.Chain{
+			ID: "1",
+			Nodes: []descriptors.Node{
+				{
+					Services: descriptors.ServiceMap{
+						"el": &descriptors.Service{
+							Endpoints: descriptors.EndpointMap{
+								"rpc": nil,
+							},
+						},
+					},
+				},
+			},
+		}
+		_, err := newChainFromDescriptor(descriptor)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "'rpc' endpoint is nil")
+	})
+
+	t.Run("empty host", func(t *testing.T) {
+		descriptor := &descriptors.Chain{
+			ID: "1",
+			Nodes: []descriptors.Node{
+				{
+					Services: descriptors.ServiceMap{
+						"el": &descriptors.Service{
+							Endpoints: descriptors.EndpointMap{
+								"rpc": &descriptors.PortInfo{
+									Host: "",
+									Port: 8545,
+								},
+							},
+						},
+					},
+				},
+			},
+		}
+		_, err := newChainFromDescriptor(descriptor)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "'rpc' endpoint host is empty")
+	})
+
+	t.Run("invalid port", func(t *testing.T) {
+		descriptor := &descriptors.Chain{
+			ID: "1",
+			Nodes: []descriptors.Node{
+				{
+					Services: descriptors.ServiceMap{
+						"el": &descriptors.Service{
+							Endpoints: descriptors.EndpointMap{
+								"rpc": &descriptors.PortInfo{
+									Host: "localhost",
+									Port: -1,
+								},
+							},
+						},
+					},
+				},
+			},
+		}
+		_, err := newChainFromDescriptor(descriptor)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "'rpc' endpoint port must be positive")
+	})
+}
+
+// TestL2ChainFromDescriptorValidation tests validation of invalid L2 chain descriptors
+func TestL2ChainFromDescriptorValidation(t *testing.T) {
+	t.Run("nil descriptor", func(t *testing.T) {
+		_, err := newL2ChainFromDescriptor(nil)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "L2 chain descriptor is nil")
+	})
+
+	t.Run("nil embedded chain", func(t *testing.T) {
+		descriptor := &descriptors.L2Chain{
+			Chain: nil,
+		}
+		_, err := newL2ChainFromDescriptor(descriptor)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "L2 chain descriptor missing embedded Chain")
+	})
+
+	t.Run("invalid embedded chain", func(t *testing.T) {
+		descriptor := &descriptors.L2Chain{
+			Chain: &descriptors.Chain{
+				ID:    "", // Invalid: empty ID
+				Nodes: []descriptors.Node{},
+			},
+		}
+		_, err := newL2ChainFromDescriptor(descriptor)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "embedded chain validation failed")
+		assert.Contains(t, err.Error(), "chain ID is empty")
 	})
 }
