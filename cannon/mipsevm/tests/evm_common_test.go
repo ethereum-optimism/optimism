@@ -697,7 +697,7 @@ func TestEVM_SysGetRandom(t *testing.T) {
 	testNamer := func(testCase GetRandomTestCase, vmVersion string, reservationTestCase string) string {
 		return fmt.Sprintf("%v (%v,%v)", testCase.name, vmVersion, reservationTestCase)
 	}
-	MemoryReservationHandlingTester(t, cases, func(t *testing.T, vm VersionedVMTestCase, reservation MemoryReservationTestCase, testCase GetRandomTestCase, i int) {
+	MemoryReservationTester(t, cases, func(t *testing.T, vm VersionedVMTestCase, reservation MemoryReservationTestCase, testCase GetRandomTestCase, i int) {
 		isNoop := !versions.FeaturesForVersion(vm.Version).SupportWorkingSysGetRandom
 		expectedMemory := testCase.expectedRandDataMask&randomData | ^testCase.expectedRandDataMask&startingMemory
 

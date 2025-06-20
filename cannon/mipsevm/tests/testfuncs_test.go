@@ -290,10 +290,10 @@ var memoryReservationTestCases = []MemoryReservationTestCase{
 	{name: "no reservation, mismatched addr", llReservationStatus: multithreaded.LLStatusNone, matchThreadId: true, effAddrOffset: 8, shouldClearReservation: false},
 }
 
-type MemoryHandlingTest[T any] = func(t *testing.T, vmVersion VersionedVMTestCase, llVariation MemoryReservationTestCase, testCase T, index int)
+type MemoryReservationTest[T any] = func(t *testing.T, vmVersion VersionedVMTestCase, llVariation MemoryReservationTestCase, testCase T, index int)
 type MemoryTestNamer[T any] = func(testCase T, vmVersion string, memoryTestCase string) string
 
-func MemoryReservationHandlingTester[T any](t *testing.T, cases []T, testFn MemoryHandlingTest[T], testNamer MemoryTestNamer[T]) {
+func MemoryReservationTester[T any](t *testing.T, cases []T, testFn MemoryReservationTest[T], testNamer MemoryTestNamer[T]) {
 	vmVersions := GetMipsVersionTestCases(t)
 	for _, vmVersion := range vmVersions {
 		for i, c := range cases {

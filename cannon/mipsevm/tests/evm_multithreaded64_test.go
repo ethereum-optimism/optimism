@@ -440,7 +440,7 @@ func TestEVM_MT_SysRead_Preimage64(t *testing.T) {
 	testNamer := func(testCase testMTSysReadPreimageTestCase, vmVersion string, memoryTestCase string) string {
 		return fmt.Sprintf("%v (%v,%v)", testCase.name, vmVersion, memoryTestCase)
 	}
-	MemoryReservationHandlingTester(t, cases, func(t *testing.T, vm VersionedVMTestCase, reservation MemoryReservationTestCase, testCase testMTSysReadPreimageTestCase, i int) {
+	MemoryReservationTester(t, cases, func(t *testing.T, vm VersionedVMTestCase, reservation MemoryReservationTestCase, testCase testMTSysReadPreimageTestCase, i int) {
 		effAddr := arch.AddressMask & testCase.addr
 		preimageKey := preimage.Keccak256Key(crypto.Keccak256Hash(preimageValue)).PreimageKey()
 		oracle := testutil.StaticOracle(t, preimageValue)
@@ -607,7 +607,7 @@ func TestEVM_MT_StoreOpsClearMemReservation64(t *testing.T) {
 	testNamer := func(testCase testMTStoreOpsClearMemReservationTestCase, vmVersion string, memoryTestCase string) string {
 		return fmt.Sprintf("%v (%v,%v)", testCase.name, vmVersion, memoryTestCase)
 	}
-	MemoryReservationHandlingTester(t, cases, func(t *testing.T, vm VersionedVMTestCase, reservation MemoryReservationTestCase, testCase testMTStoreOpsClearMemReservationTestCase, i int) {
+	MemoryReservationTester(t, cases, func(t *testing.T, vm VersionedVMTestCase, reservation MemoryReservationTestCase, testCase testMTStoreOpsClearMemReservationTestCase, i int) {
 		insn := uint32((testCase.opcode << 26) | (baseReg & 0x1F << 21) | (rtReg & 0x1F << 16) | (0xFFFF & testCase.offset))
 		goVm := vm.VMFactory(nil, os.Stdout, os.Stderr, testutil.CreateLogger(), mtutil.WithRandomization(int64(i)), mtutil.WithPCAndNextPC(0x08))
 		state := mtutil.GetMtState(t, goVm)
