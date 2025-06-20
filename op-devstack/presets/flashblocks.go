@@ -15,6 +15,9 @@ type SimpleFlashblocks struct {
 
 	ConductorSets          map[stack.L2NetworkID]dsl.ConductorSet
 	FlashblocksBuilderSets map[stack.L2NetworkID]dsl.FlashblocksBuilderSet
+	Faucets                map[stack.L2NetworkID]*dsl.Faucet
+	Funders                map[stack.L2NetworkID]*dsl.Funder
+	L2ELNodes              map[stack.L2NetworkID]*dsl.L2ELNode
 }
 
 func WithSimpleFlashblocks() stack.CommonOption {
@@ -31,18 +34,33 @@ func NewSimpleFlashblocks(t devtest.T) *SimpleFlashblocks {
 	orch := Orchestrator()
 	orch.Hydrate(system)
 	chains := system.L2Networks()
+
+	minimalPreset := NewMinimal(t)
+
 	conductorSets := make(map[stack.L2NetworkID]dsl.ConductorSet)
 	flashblocksBuilderSets := make(map[stack.L2NetworkID]dsl.FlashblocksBuilderSet)
+	faucets := make(map[stack.L2NetworkID]*dsl.Faucet)
+	funders := make(map[stack.L2NetworkID]*dsl.Funder)
+	l2ELNodes := make(map[stack.L2NetworkID]*dsl.L2ELNode)
+
 	for _, chain := range chains {
 		chainMatcher := match.L2ChainById(chain.ID())
 		l2 := system.L2Network(match.Assume(t, chainMatcher))
+		firstELNode := dsl.NewL2ELNode(l2.L2ELNode(match.FirstL2EL))
+		firstFaucet := dsl.NewFaucet(l2.Faucet(match.Assume(t, match.FirstFaucet)))
 
 		conductorSets[chain.ID()] = dsl.NewConductorSet(l2.Conductors())
 		flashblocksBuilderSets[chain.ID()] = dsl.NewFlashblocksBuilderSet(l2.FlashblocksBuilders())
+		faucets[chain.ID()] = firstFaucet
+		funders[chain.ID()] = dsl.NewFunder(minimalPreset.Wallet, firstFaucet, firstELNode)
+		l2ELNodes[chain.ID()] = firstELNode
 	}
 	return &SimpleFlashblocks{
-		Minimal:                NewMinimal(t),
+		Minimal:                minimalPreset,
 		ConductorSets:          conductorSets,
 		FlashblocksBuilderSets: flashblocksBuilderSets,
+		Faucets:                faucets,
+		Funders:                funders,
+		L2ELNodes:              l2ELNodes,
 	}
 }

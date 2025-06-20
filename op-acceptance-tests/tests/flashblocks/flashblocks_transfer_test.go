@@ -43,14 +43,13 @@ func TestFlashblocksTransfer(gt *testing.T) {
 	ctx := t.Ctx()
 	logger.Info("Started Flashblocks Transfer test")
 
-	ctx, span := tracer.Start(ctx, "test chains")
+	topLevelCtx, span := tracer.Start(ctx, "test chains")
 	defer span.End()
-
-	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
-	defer cancel()
 
 	// Test all L2 chains in the system
 	for l2Chain, flashblocksBuilderSet := range sys.FlashblocksBuilderSets {
+		ctx, cancel := context.WithTimeout(topLevelCtx, 45*time.Second)
+		defer cancel()
 		_, span = tracer.Start(ctx, fmt.Sprintf("test chain %s", l2Chain.String()))
 		defer span.End()
 
@@ -65,8 +64,8 @@ func TestFlashblocksTransfer(gt *testing.T) {
 			doneListening := make(chan struct{})
 			output := make(chan []byte, 100)
 
-			alice := sys.Funder.NewFundedEOA(eth.ThreeHundredthsEther)
-			bob := sys.Wallet.NewEOA(sys.L2EL)
+			alice := sys.Funders[l2Chain].NewFundedEOA(eth.ThreeHundredthsEther)
+			bob := sys.Wallet.NewEOA(sys.L2ELNodes[l2Chain])
 			bobAddress := bob.Address().Hex()
 
 			// flashblocks listener
