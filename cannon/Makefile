@@ -39,8 +39,10 @@ cannon: cannon-embeds
 clean:
 	rm -rf bin multicannon/embeds/cannon*
 
-elf:
-	make -C ./testdata elf
+elf: elf-go-123
+
+elf-go-123:
+	make -C ./testdata/go-1-23 elf
 
 sanitize-program:
 	mips-linux-gnu-objdump -d -j .text $$GUEST_PROGRAM > ./bin/dump.txt
