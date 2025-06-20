@@ -686,8 +686,8 @@ contract MIPS64 is ISemver {
         randDataMask <<= (arch.WORD_SIZE_BYTES - byteCount) * 8;
         randDataMask >>= targetByteIndex * 8;
         uint64 newMemVal = (memVal & ~randDataMask) | (randomWord & randDataMask);
-        memRoot_ = MIPS64Memory.writeMem(effAddr, memProofOffset, newMemVal);
 
+        memRoot_ = MIPS64Memory.writeMem(effAddr, memProofOffset, newMemVal);
         handleMemoryUpdate(_state, effAddr);
 
         v0_ = byteCount;
