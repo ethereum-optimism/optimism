@@ -217,7 +217,7 @@ mod tests {
         assert!(result.is_none());
     }
 
-    /// Tests that the function doesn't parse anyhing if the parameter is not a valid block id.
+    /// Tests that the function doesn't parse anything if the parameter is not a valid block id.
     #[test]
     fn returns_error_for_invalid_input() {
         let params = Params::new(Some(r#"[true]"#));
