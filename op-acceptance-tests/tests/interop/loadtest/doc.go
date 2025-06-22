@@ -7,6 +7,8 @@
 //     passed per L2 slot in each test.
 //   - NAT_INTEROP_LOADTEST_BUDGET (default: 1): the max amount of ETH to spend per L2 in each
 //     test.
+//   - NAT_INTEROP_LOADTEST_EOAS (default: 300): the number of EOAs to create for load testing.
+//     Lower values may improve performance by reducing contention.
 //
 // Individual tests may define their own environment variables of the form NAT_<test>_<name>. See
 // their go doc comments for details.
@@ -25,4 +27,5 @@
 //
 //	NAT_INTEROP_LOADTEST_BUDGET=2 go test -v -run Burst
 //	NAT_INTEROP_LOADTEST_TARGET=500 go test -v -timeout 5m -run Steady
+//	NAT_INTEROP_LOADTEST_EOAS=50 go test -v -run BurstOptimized  # Use fewer EOAs for better performance
 package loadtest
