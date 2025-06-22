@@ -118,7 +118,7 @@ func (s *SimpleInterop) DisputeGameFactory() *proofs.DisputeGameFactory {
 }
 
 func (s *SingleChainInterop) StandardBridge(l2Chain *dsl.L2Network) *dsl.StandardBridge {
-	return dsl.NewStandardBridge(s.T, l2Chain, s.Supervisor)
+	return dsl.NewStandardBridge(s.T, l2Chain, s.Supervisor, s.L1EL)
 }
 
 // WithSimpleInterop specifies a system that meets the SimpleInterop criteria.

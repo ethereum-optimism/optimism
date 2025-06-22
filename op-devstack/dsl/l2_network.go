@@ -234,3 +234,7 @@ func (n *L2Network) AwaitActivation(t devtest.T, forkName rollup.ForkName) eth.B
 func (n *L2Network) DisputeGameFactoryProxyAddr() common.Address {
 	return n.inner.Deployment().DisputeGameFactoryProxyAddr()
 }
+
+func (n *L2Network) DepositContractAddr() common.Address {
+	return n.inner.RollupConfig().DepositContractAddress
+}

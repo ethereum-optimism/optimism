@@ -42,7 +42,7 @@ func (m *Minimal) L2Networks() []*dsl.L2Network {
 }
 
 func (m *Minimal) StandardBridge() *dsl.StandardBridge {
-	return dsl.NewStandardBridge(m.T, m.L2Chain, nil)
+	return dsl.NewStandardBridge(m.T, m.L2Chain, nil, m.L1EL)
 }
 
 func WithMinimal() stack.CommonOption {

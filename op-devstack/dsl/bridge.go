@@ -25,7 +25,6 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/ethclient/gethclient"
 	"github.com/holiman/uint256"
-	"github.com/stretchr/testify/require"
 )
 
 // ProvenWithdrawalParameters is the set of parameters to pass to the ProveWithdrawalTransaction
@@ -58,9 +57,9 @@ type StandardBridge struct {
 	supervisorClient apis.SupervisorQueryAPI
 }
 
-func NewStandardBridge(t devtest.T, l2Network *L2Network, supervisor *Supervisor) *StandardBridge {
-	l1Client := l2Network.inner.L1().L1ELNode(match.FirstL1EL).EthClient()
-	l1PortalAddr := l2Network.inner.RollupConfig().DepositContractAddress
+func NewStandardBridge(t devtest.T, l2Network *L2Network, supervisor *Supervisor, l1EL *L1ELNode) *StandardBridge {
+	l1Client := l1EL.EthClient()
+	l1PortalAddr := l2Network.DepositContractAddr()
 	l1Portal := bindings.NewBindings[bindings.OptimismPortal2](
 		bindings.WithClient(l1Client),
 		bindings.WithTo(l1PortalAddr),
@@ -71,11 +70,9 @@ func NewStandardBridge(t devtest.T, l2Network *L2Network, supervisor *Supervisor
 		bindings.WithTo(predeploys.L2ToL1MessagePasserAddr),
 		bindings.WithTest(t))
 
-	addr, err := contractio.Read(l1Portal.DisputeGameFactoryAddr(), t.Ctx())
-	require.NoError(t, err, "Failed to read dispute game factory address")
 	disputeGameFactory := bindings.NewBindings[bindings.DisputeGameFactory](
 		bindings.WithClient(l1Client),
-		bindings.WithTo(addr))
+		bindings.WithTo(l2Network.DisputeGameFactoryProxyAddr()))
 
 	var supervisorClient apis.SupervisorQueryAPI
 	if supervisor != nil {
@@ -275,11 +272,6 @@ func (w *Withdrawal) FinalizeGasCost() eth.ETH {
 }
 
 func (w *Withdrawal) Prove(user *EOA) {
-	// Wait for another block to be mined so that the timestamp increases. Otherwise,
-	// proveWithdrawalTransaction gas estimation may fail because the current timestamp is the same
-	// as the dispute game creation timestamp.
-	//sys.L1Network.WaitForBlock()
-
 	var params ProvenWithdrawalParameters
 
 	w.t.Log("proveWithdrawal: proving withdrawal...")
