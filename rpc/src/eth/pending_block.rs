@@ -13,7 +13,7 @@ use reth_primitives_traits::{RecoveredBlock, SealedHeader};
 use reth_rpc_eth_api::{
     helpers::{LoadPendingBlock, SpawnBlocking},
     types::RpcTypes,
-    EthApiTypes, FromEthApiError, FromEvmError, RpcNodeCore,
+    EthApiTypes, FromEthApiError, FromEvmError, RpcNodeCore, TransactionCompat,
 };
 use reth_rpc_eth_types::{EthApiError, PendingBlock};
 use reth_storage_api::{
@@ -30,6 +30,7 @@ where
                 Header = alloy_rpc_types_eth::Header<ProviderHeader<Self::Provider>>,
             >,
             Error: FromEvmError<Self::Evm>,
+            TransactionCompat: TransactionCompat<Network = Self::NetworkTypes>,
         >,
     N: RpcNodeCore<
         Provider: BlockReaderIdExt
