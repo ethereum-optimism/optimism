@@ -25,33 +25,6 @@ var (
 	maxExpectedFlashblocks = 20
 )
 
-// Define a struct to represent the flashblock data structure
-type Flashblock struct {
-	PayloadID string `json:"payload_id"`
-	Index     int    `json:"index"`
-	Diff      struct {
-		StateRoot    string `json:"state_root"`
-		ReceiptsRoot string `json:"receipts_root"`
-		LogsBloom    string `json:"logs_bloom"`
-		GasUsed      string `json:"gas_used"`
-		BlockHash    string `json:"block_hash"`
-		Transactions []any  `json:"transactions"`
-		Withdrawals  []any  `json:"withdrawals"`
-	} `json:"diff"`
-	Metadata struct {
-		BlockNumber        int                    `json:"block_number"`
-		NewAccountBalances map[string]string      `json:"new_account_balances"`
-		Receipts           map[string]interface{} `json:"receipts"`
-	} `json:"metadata"`
-}
-
-type FlashblocksStreamMode string
-
-const (
-	FlashblocksStreamMode_Leader   FlashblocksStreamMode = "leader"
-	FlashblocksStreamMode_Follower FlashblocksStreamMode = "follower"
-)
-
 // TestFlashblocksStream checks we can connect to the flashblocks stream
 func TestFlashblocksStream(gt *testing.T) {
 	t := devtest.SerialT(gt)
@@ -84,6 +57,10 @@ func TestFlashblocksStream(gt *testing.T) {
 
 		networkName := l2Chain.String()
 		t.Run(fmt.Sprintf("L2_Chain_%s", networkName), func(tt devtest.T) {
+			if len(flashblocksBuilderSet) == 0 {
+				tt.Skip("no flashblocks builders for chain", l2Chain.String())
+			}
+
 			expectedChainID := l2Chain.ChainID().ToBig()
 			for _, flashblocksBuilderNode := range flashblocksBuilderSet {
 				require.Equal(t, flashblocksBuilderNode.Escape().ChainID().ToBig(), expectedChainID, "flashblocks builder node chain id should match expected chain id")
