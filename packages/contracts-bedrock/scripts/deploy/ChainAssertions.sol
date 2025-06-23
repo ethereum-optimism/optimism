@@ -41,7 +41,8 @@ library ChainAssertions {
     /// interface fails.
     /// @dev This is used to check that the proxyAdmin is not set on the contract. E.g Implementation contracts.
     /// @param _contract The address of the contract that follows the ProxyAdminOwnedBase interface.
-    /// @return true if the call fails with the ProxyAdminOwnedBase_NotResolvedDelegateProxy() error, false otherwise.
+    /// @param _errorSelector The error selector to check for.
+    /// @return true if the call fails with the error selector, false otherwise.
     function checkProxyAdminCallFails(address _contract, bytes4 _errorSelector) internal view returns (bool) {
         (bool success, bytes memory data) =
             address(_contract).staticcall(abi.encodeCall(IProxyAdminOwnedBase.proxyAdmin, ()));
