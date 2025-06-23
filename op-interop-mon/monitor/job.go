@@ -22,7 +22,6 @@ type jobStatus int
 
 const (
 	jobStatusUnknown jobStatus = iota
-	jobStatusFuture
 	jobStatusValid
 	jobStatusInvalid
 )
@@ -53,7 +52,8 @@ func (s jobStatus) String() string {
 
 // Job is a job that is being tracked by the monitor
 // it represents an executing message and initiating message pair
-// it is used to track the status of the job over time
+// it is used to track the status of the executing message over time
+// along with pertinent metadata about the initiating message
 // its getters and setters are thread safe
 type Job struct {
 	id     JobID

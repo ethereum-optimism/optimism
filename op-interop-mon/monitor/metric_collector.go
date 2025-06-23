@@ -67,63 +67,52 @@ func (m *MetricCollector) Stop() error {
 
 // CollectMetrics scans the jobMaps, consolidates them, and updates the metrics
 func (m *MetricCollector) CollectMetrics() {
-	allChainIDs := []eth.ChainID{}
+	chains := []eth.ChainID{}
 	jobMap := map[JobID]*Job{}
 	for chainID, updater := range m.updaters {
-		allChainIDs = append(allChainIDs, chainID)
+		chains = append(chains, chainID)
 		jobMap = updater.CollectForMetrics(jobMap)
 	}
 
-	// Initialize all possible combinations of chain IDs and statuses
+	// Initialize all metrics with zero values
+	// Message Status: [executingChainID][initiatingChainID][status]
+	// Terminal Status Changes: [executingChainID][initiatingChainID]
+	// Executing Block Range: [chainID][min, max]
+	// Initiating Block Range: [chainID][min, max]
 	messageStatus := map[eth.ChainID]map[eth.ChainID]map[string]int{}
-	for _, chainID := range allChainIDs {
-		messageStatus[chainID] = map[eth.ChainID]map[string]int{}
-		for _, otherChainID := range allChainIDs {
-			messageStatus[chainID][otherChainID] = map[string]int{}
+	terminalStatusChanges := map[eth.ChainID]map[eth.ChainID]int{}
+	executingRanges := map[eth.ChainID]struct{ min, max uint64 }{}
+	initiatingRanges := map[eth.ChainID]struct{ min, max uint64 }{}
+	for _, exeChain := range chains {
+		executingRanges[exeChain] = struct {
+			min, max uint64
+		}{min: 0, max: 0}
+		initiatingRanges[exeChain] = struct {
+			min, max uint64
+		}{min: 0, max: 0}
+		messageStatus[exeChain] = map[eth.ChainID]map[string]int{}
+		terminalStatusChanges[exeChain] = map[eth.ChainID]int{}
+		for _, initChain := range chains {
+			terminalStatusChanges[exeChain][initChain] = 0
+			messageStatus[exeChain][initChain] = map[string]int{}
 			for _, status := range []string{
 				jobStatusValid.String(),
 				jobStatusInvalid.String(),
 				jobStatusUnknown.String(),
 			} {
-				messageStatus[chainID][otherChainID][status] = 0
+				messageStatus[exeChain][initChain][status] = 0
 			}
 		}
 	}
-	// Initialize terminal status changes for all combinations
-	terminalStatusChanges := map[eth.ChainID]map[eth.ChainID]int{}
-	for _, chainID := range allChainIDs {
-		terminalStatusChanges[chainID] = map[eth.ChainID]int{}
-		for _, otherChainID := range allChainIDs {
-			terminalStatusChanges[chainID][otherChainID] = 0
-		}
-	}
-
-	// Initialize executing and initiating ranges for all chains
-	executingRanges := map[eth.ChainID]struct {
-		min, max uint64
-	}{}
-	initiatingRanges := map[eth.ChainID]struct {
-		min, max uint64
-	}{}
-	for _, chainID := range allChainIDs {
-		executingRanges[chainID] = struct {
-			min, max uint64
-		}{min: 0, max: 0}
-		initiatingRanges[chainID] = struct {
-			min, max uint64
-		}{min: 0, max: 0}
-	}
-	executingMinSet := map[eth.ChainID]bool{}
-	initiatingMinSet := map[eth.ChainID]bool{}
 
 	// Process jobs and update metrics
 	for _, job := range jobMap {
 		// Update executing ranges
 		execRange := executingRanges[job.executingChain]
-		if !executingMinSet[job.executingChain] {
+		if execRange.min == 0 {
 			execRange.min = job.executingBlock.Number
-			executingMinSet[job.executingChain] = true
-		} else if job.executingBlock.Number < execRange.min {
+		}
+		if job.executingBlock.Number < execRange.min {
 			execRange.min = job.executingBlock.Number
 		}
 		if job.executingBlock.Number > execRange.max {
@@ -133,10 +122,10 @@ func (m *MetricCollector) CollectMetrics() {
 
 		// Update initiating ranges
 		initRange := initiatingRanges[job.initiating.ChainID]
-		if !initiatingMinSet[job.initiating.ChainID] {
+		if initRange.min == 0 {
 			initRange.min = job.initiating.BlockNumber
-			initiatingMinSet[job.initiating.ChainID] = true
-		} else if job.initiating.BlockNumber < initRange.min {
+		}
+		if job.initiating.BlockNumber < initRange.min {
 			initRange.min = job.initiating.BlockNumber
 		}
 		if job.initiating.BlockNumber > initRange.max {
@@ -144,6 +133,20 @@ func (m *MetricCollector) CollectMetrics() {
 		}
 		initiatingRanges[job.initiating.ChainID] = initRange
 
+		// Check for multiple initiating hashes
+		initiatingHashes := job.InitiatingHashes()
+		if len(initiatingHashes) > 1 {
+			m.log.Warn("Initiating BlockNumber found multiple Blocks (reorg of initiating block)",
+				"executing_chain_id", job.executingChain,
+				"initiating_chain_id", job.initiating.ChainID,
+				"executing_block_height", job.executingBlock.Number,
+				"initiating_block_height", job.initiating.BlockNumber,
+				"executing_block_hash", job.executingBlock.Hash,
+				"initiating_hashes", initiatingHashes,
+			)
+		}
+
+		// Collect the statuses of the job
 		statuses := job.Statuses()
 		if len(statuses) == 0 {
 			m.log.Warn("Job has no statuses", "job", job)
@@ -159,19 +162,6 @@ func (m *MetricCollector) CollectMetrics() {
 				"executing_block_height", job.executingBlock.Number,
 				"initiating_block_height", job.initiating.BlockNumber,
 				"executing_block_hash", job.executingBlock.Hash,
-			)
-		}
-
-		// Check for multiple initiating hashes
-		initiatingHashes := job.InitiatingHashes()
-		if len(initiatingHashes) > 1 {
-			m.log.Warn("Initiating BlockNumber found multiple Blocks (reorg of initiating block)",
-				"executing_chain_id", job.executingChain,
-				"initiating_chain_id", job.initiating.ChainID,
-				"executing_block_height", job.executingBlock.Number,
-				"initiating_block_height", job.initiating.BlockNumber,
-				"executing_block_hash", job.executingBlock.Hash,
-				"initiating_hashes", initiatingHashes,
 			)
 		}
 
