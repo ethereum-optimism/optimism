@@ -113,8 +113,6 @@ contract DeployOPChainOutput_Test is Test {
     IAddressManager addressManager = DeployUtils.buildAddressManager();
     IProxyAdmin opChainProxyAdmin = IProxyAdmin(makeAddr("opChainProxyAdmin"));
     IAnchorStateRegistry anchorStateRegistryImpl = IAnchorStateRegistry(makeAddr("anchorStateRegistryImpl"));
-    IFaultDisputeGame faultDisputeGame = IFaultDisputeGame(makeAddr("faultDisputeGame"));
-    IPermissionedDisputeGame permissionedDisputeGame = IPermissionedDisputeGame(makeAddr("permissionedDisputeGame"));
 
     function setUp() public {
         doo = new DeployOPChainOutput();
@@ -133,8 +131,6 @@ contract DeployOPChainOutput_Test is Test {
         (IProxy disputeGameFactoryProxy) = DeployUtils.buildERC1967ProxyWithImpl("disputeGameFactoryProxy");
         (IProxy anchorStateRegistryProxy) = DeployUtils.buildERC1967ProxyWithImpl("anchorStateRegistryProxy");
         vm.etch(address(anchorStateRegistryImpl), hex"01");
-        vm.etch(address(faultDisputeGame), hex"01");
-        vm.etch(address(permissionedDisputeGame), hex"01");
         // TODO: Eventually switch from Permissioned to Permissionless.
         // (IProxy delayedWETHPermissionlessGameProxy) =
         // DeployUtils.buildERC1967ProxyWithImpl("delayedWETHPermissionlessGameProxy");
@@ -151,8 +147,6 @@ contract DeployOPChainOutput_Test is Test {
         doo.set(doo.optimismPortalProxy.selector, address(optimismPortalProxy));
         doo.set(doo.disputeGameFactoryProxy.selector, address(disputeGameFactoryProxy));
         doo.set(doo.anchorStateRegistryProxy.selector, address(anchorStateRegistryProxy));
-        doo.set(doo.faultDisputeGame.selector, address(faultDisputeGame));
-        doo.set(doo.permissionedDisputeGame.selector, address(permissionedDisputeGame));
         doo.set(doo.delayedWETHPermissionedGameProxy.selector, address(delayedWETHPermissionedGameProxy));
         // TODO: Eventually switch from Permissioned to Permissionless.
         // doo.set(doo.delayedWETHPermissionlessGameProxy.selector, address(delayedWETHPermissionlessGameProxy));
@@ -167,8 +161,6 @@ contract DeployOPChainOutput_Test is Test {
         assertEq(address(optimismPortalProxy), address(doo.optimismPortalProxy()), "800");
         assertEq(address(disputeGameFactoryProxy), address(doo.disputeGameFactoryProxy()), "900");
         assertEq(address(anchorStateRegistryProxy), address(doo.anchorStateRegistryProxy()), "1100");
-        assertEq(address(faultDisputeGame), address(doo.faultDisputeGame()), "1300");
-        assertEq(address(permissionedDisputeGame), address(doo.permissionedDisputeGame()), "1400");
         assertEq(address(delayedWETHPermissionedGameProxy), address(doo.delayedWETHPermissionedGameProxy()), "1500");
         // TODO: Eventually switch from Permissioned to Permissionless.
         // assertEq(address(delayedWETHPermissionlessGameProxy), address(doo.delayedWETHPermissionlessGameProxy()),
@@ -207,12 +199,6 @@ contract DeployOPChainOutput_Test is Test {
 
         vm.expectRevert(expectedErr);
         doo.anchorStateRegistryProxy();
-
-        vm.expectRevert(expectedErr);
-        doo.faultDisputeGame();
-
-        vm.expectRevert(expectedErr);
-        doo.permissionedDisputeGame();
 
         vm.expectRevert(expectedErr);
         doo.delayedWETHPermissionedGameProxy();
@@ -265,14 +251,6 @@ contract DeployOPChainOutput_Test is Test {
         doo.set(doo.anchorStateRegistryProxy.selector, emptyAddr);
         vm.expectRevert(expectedErr);
         doo.anchorStateRegistryProxy();
-
-        doo.set(doo.faultDisputeGame.selector, emptyAddr);
-        vm.expectRevert(expectedErr);
-        doo.faultDisputeGame();
-
-        doo.set(doo.permissionedDisputeGame.selector, emptyAddr);
-        vm.expectRevert(expectedErr);
-        doo.permissionedDisputeGame();
 
         doo.set(doo.delayedWETHPermissionedGameProxy.selector, emptyAddr);
         vm.expectRevert(expectedErr);
@@ -373,7 +351,10 @@ contract DeployOPChain_TestBase is Test {
                 protocolVersionsProxy: protocolVersionsProxy,
                 superchainProxyAdmin: superchainProxyAdmin,
                 upgradeController: upgradeController,
-                challenger: challenger
+                gameMaxGameDepth: 73,
+                gameSplitDepth: 30,
+                gameClockExtension: 10800,
+                gameMaxClockDuration: 302400
             })
         );
 
@@ -450,12 +431,10 @@ contract DeployOPChain_Test is DeployOPChain_TestBase {
         address batcherActual = address(uint160(uint256(doo.systemConfigProxy().batcherHash())));
         assertEq(batcherActual, batcher, "2300");
         assertEq(address(doo.systemConfigProxy().unsafeBlockSigner()), unsafeBlockSigner, "2400");
-        assertEq(address(doo.permissionedDisputeGame().proposer()), proposer, "2500");
-        assertEq(address(doo.permissionedDisputeGame().challenger()), challenger, "2600");
 
-        // TODO once we deploy the Permissionless Dispute Game
-        // assertEq(address(doo.faultDisputeGame().proposer()), proposer, "2610");
-        // assertEq(address(doo.faultDisputeGame().challenger()), challenger, "2620");
+        // Skip checks on dispute game implementation properties since OPCM now uses shared
+        // implementations. These properties are only available on game instances created by the factory.
+        // TODO: Consider checking the game implementation set in the DisputeGameFactory instead.
 
         // Verify that the initial bonds are zero.
         assertEq(doo.disputeGameFactoryProxy().initBonds(GameTypes.CANNON), 0, "2700");
@@ -463,16 +442,6 @@ contract DeployOPChain_Test is DeployOPChain_TestBase {
 
         (Hash actualRoot,) = doo.anchorStateRegistryProxy().anchors(GameTypes.PERMISSIONED_CANNON);
         assertEq(Hash.unwrap(actualRoot), 0xdead000000000000000000000000000000000000000000000000000000000000, "2900");
-        assertEq(doo.permissionedDisputeGame().l2BlockNumber(), 0, "3000");
-        // assertEq(
-        //     Claim.unwrap(doo.permissionedDisputeGame().absolutePrestate()),
-        //     0x038512e02c4c3f7bdaec27d00edf55b7155e0905301e1a88083e4e0a6764d54c,
-        //     "3100"
-        // );
-        assertEq(Duration.unwrap(doo.permissionedDisputeGame().clockExtension()), 10800, "3200");
-        assertEq(Duration.unwrap(doo.permissionedDisputeGame().maxClockDuration()), 302400, "3300");
-        assertEq(doo.permissionedDisputeGame().splitDepth(), 30, "3400");
-        assertEq(doo.permissionedDisputeGame().maxGameDepth(), 73, "3500");
 
         assertEq(address(doo.opChainProxyAdmin().addressManager().owner()), address(doo.opChainProxyAdmin()), "3600");
         assertEq(address(doo.opChainProxyAdmin().addressManager()), address(doo.addressManager()), "3700");
@@ -480,6 +449,7 @@ contract DeployOPChain_Test is DeployOPChain_TestBase {
     }
 
     function test_customDisputeGame_customDisabled_reverts() public {
+        vm.skip(true); // TODO: steven - since opcm isn't deploying dg implementations anymore we don't need this test
         setDOI();
         doi.set(doi.disputeSplitDepth.selector, disputeSplitDepth + 1);
         vm.expectRevert("DPG-90");
@@ -487,11 +457,12 @@ contract DeployOPChain_Test is DeployOPChain_TestBase {
     }
 
     function test_customDisputeGame_customEnabled_succeeds() public {
+        vm.skip(true); // TODO: steven - since opcm isn't deploying dg implementations anymore we don't need this test
         setDOI();
         doi.set(doi.allowCustomDisputeParameters.selector, true);
         doi.set(doi.disputeSplitDepth.selector, disputeSplitDepth + 1);
         deployOPChain.run(doi, doo);
-        assertEq(doo.permissionedDisputeGame().splitDepth(), disputeSplitDepth + 1);
+        // assertEq(doo.permissionedDisputeGame().splitDepth(), disputeSplitDepth + 1);
     }
 
     function setDOI() internal {

@@ -6,6 +6,7 @@ import { Script } from "forge-std/Script.sol";
 // Libraries
 import { Chains } from "scripts/libraries/Chains.sol";
 import { LibString } from "@solady/utils/LibString.sol";
+import { GameType, GameTypes, Duration } from "src/dispute/lib/Types.sol";
 
 // Interfaces
 import { IResourceMetering } from "interfaces/L1/IResourceMetering.sol";
@@ -17,14 +18,17 @@ import { IMIPS } from "interfaces/cannon/IMIPS.sol";
 import { IMIPS2 } from "interfaces/cannon/IMIPS2.sol";
 import { IDisputeGameFactory } from "interfaces/dispute/IDisputeGameFactory.sol";
 import { IAnchorStateRegistry } from "interfaces/dispute/IAnchorStateRegistry.sol";
+import { IFaultDisputeGame } from "interfaces/dispute/IFaultDisputeGame.sol";
+import { IPermissionedDisputeGame } from "interfaces/dispute/IPermissionedDisputeGame.sol";
+import { ISuperFaultDisputeGame } from "interfaces/dispute/ISuperFaultDisputeGame.sol";
+import { ISuperPermissionedDisputeGame } from "interfaces/dispute/ISuperPermissionedDisputeGame.sol";
 import {
     IOPContractsManager,
     IOPContractsManagerGameTypeAdder,
     IOPContractsManagerDeployer,
     IOPContractsManagerUpgrader,
     IOPContractsManagerContractsContainer,
-    IOPContractsManagerInteropMigrator,
-    IOPContractsManagerStandardValidator
+    IOPContractsManagerInteropMigrator
 } from "interfaces/L1/IOPContractsManager.sol";
 import { IOptimismPortal2 as IOptimismPortal } from "interfaces/L1/IOptimismPortal2.sol";
 import { IETHLockbox } from "interfaces/L1/IETHLockbox.sol";
@@ -34,10 +38,8 @@ import { IL1ERC721Bridge } from "interfaces/L1/IL1ERC721Bridge.sol";
 import { IL1StandardBridge } from "interfaces/L1/IL1StandardBridge.sol";
 import { IOptimismMintableERC20Factory } from "interfaces/universal/IOptimismMintableERC20Factory.sol";
 import { IProxyAdmin } from "interfaces/universal/IProxyAdmin.sol";
-import { IOPContractsManagerStandardValidator } from "interfaces/L1/IOPContractsManagerStandardValidator.sol";
 import { DeployUtils } from "scripts/libraries/DeployUtils.sol";
 import { Solarray } from "scripts/libraries/Solarray.sol";
-import { ChainAssertions } from "scripts/deploy/ChainAssertions.sol";
 
 contract DeployImplementations is Script {
     struct Input {
@@ -55,7 +57,11 @@ contract DeployImplementations is Script {
         IProtocolVersions protocolVersionsProxy;
         IProxyAdmin superchainProxyAdmin;
         address upgradeController;
-        address challenger;
+        // Game implementation template parameters
+        uint256 gameMaxGameDepth;
+        uint256 gameSplitDepth;
+        uint256 gameClockExtension;
+        uint256 gameMaxClockDuration;
     }
 
     struct Output {
@@ -65,7 +71,6 @@ contract DeployImplementations is Script {
         IOPContractsManagerDeployer opcmDeployer;
         IOPContractsManagerUpgrader opcmUpgrader;
         IOPContractsManagerInteropMigrator opcmInteropMigrator;
-        IOPContractsManagerStandardValidator opcmStandardValidator;
         IDelayedWETH delayedWETHImpl;
         IOptimismPortal optimismPortalImpl;
         IETHLockbox ethLockboxImpl;
@@ -80,6 +85,10 @@ contract DeployImplementations is Script {
         IAnchorStateRegistry anchorStateRegistryImpl;
         ISuperchainConfig superchainConfigImpl;
         IProtocolVersions protocolVersionsImpl;
+        IFaultDisputeGame faultDisputeGameImpl;
+        IPermissionedDisputeGame permissionedDisputeGameImpl;
+        ISuperFaultDisputeGame superFaultDisputeGameImpl;
+        ISuperPermissionedDisputeGame superPermissionedDisputeGameImpl;
     }
 
     bytes32 internal _salt = DeployUtils.DEFAULT_SALT;
@@ -104,6 +113,10 @@ contract DeployImplementations is Script {
         deployMipsSingleton(_input, output_);
         deployDisputeGameFactoryImpl(output_);
         deployAnchorStateRegistryImpl(_input, output_);
+        deployFaultDisputeGameImpl(_input, output_);
+        deployPermissionedDisputeGameImpl(_input, output_);
+        deploySuperFaultDisputeGameImpl(_input, output_);
+        deploySuperPermissionedDisputeGameImpl(_input, output_);
 
         // Create blueprints for OPCM.
         IOPContractsManager.Blueprints memory blueprints = createBlueprints();
@@ -140,7 +153,11 @@ contract DeployImplementations is Script {
             disputeGameFactoryImpl: address(_output.disputeGameFactoryImpl),
             anchorStateRegistryImpl: address(_output.anchorStateRegistryImpl),
             delayedWETHImpl: address(_output.delayedWETHImpl),
-            mipsImpl: address(_output.mipsSingleton)
+            mipsImpl: address(_output.mipsSingleton),
+            faultDisputeGameImpl: address(_output.faultDisputeGameImpl),
+            permissionedDisputeGameImpl: address(_output.permissionedDisputeGameImpl),
+            superFaultDisputeGameImpl: address(_output.superFaultDisputeGameImpl),
+            superPermissionedDisputeGameImpl: address(_output.superPermissionedDisputeGameImpl)
         });
 
         deployOPCMBPImplsContainer(_output, _blueprints, implementations);
@@ -148,7 +165,6 @@ contract DeployImplementations is Script {
         deployOPCMDeployer(_input, _output);
         deployOPCMUpgrader(_output);
         deployOPCMInteropMigrator(_output);
-        deployOPCMStandardValidator(_input, _output, implementations);
 
         // Semgrep rule will fail because the arguments are encoded inside of a separate function.
         opcm_ = IOPContractsManager(
@@ -187,7 +203,6 @@ contract DeployImplementations is Script {
                     _output.opcmDeployer,
                     _output.opcmUpgrader,
                     _output.opcmInteropMigrator,
-                    _output.opcmStandardValidator,
                     _input.superchainConfigProxy,
                     _input.protocolVersionsProxy,
                     _input.superchainProxyAdmin,
@@ -218,12 +233,6 @@ contract DeployImplementations is Script {
         require(checkAddress == address(0), "OPCM-40");
         (blueprints.resolvedDelegateProxy, checkAddress) = DeployUtils.createDeterministicBlueprint(vm.getCode("ResolvedDelegateProxy"), _salt);
         require(checkAddress == address(0), "OPCM-50");
-        // The max initcode/runtimecode size is 48KB/24KB.
-        // But for Blueprint, the initcode is stored as runtime code, that's why it's necessary to split into 2 parts.
-        (blueprints.permissionedDisputeGame1, blueprints.permissionedDisputeGame2) = DeployUtils.createDeterministicBlueprint(vm.getCode("PermissionedDisputeGame"), _salt);
-        (blueprints.permissionlessDisputeGame1, blueprints.permissionlessDisputeGame2) = DeployUtils.createDeterministicBlueprint(vm.getCode("FaultDisputeGame"), _salt);
-        (blueprints.superPermissionedDisputeGame1, blueprints.superPermissionedDisputeGame2) = DeployUtils.createDeterministicBlueprint(vm.getCode("SuperPermissionedDisputeGame"), _salt);
-        (blueprints.superPermissionlessDisputeGame1, blueprints.superPermissionlessDisputeGame2) = DeployUtils.createDeterministicBlueprint(vm.getCode("SuperFaultDisputeGame"), _salt);
         // forgefmt: disable-end
         vm.stopBroadcast();
     }
@@ -471,6 +480,102 @@ contract DeployImplementations is Script {
         _output.anchorStateRegistryImpl = impl;
     }
 
+    function deployFaultDisputeGameImpl(Input memory _input, Output memory _output) private {
+        // Create minimal constructor params for the implementation template
+        IFaultDisputeGame.GameConstructorParams memory params = IFaultDisputeGame.GameConstructorParams({
+            gameType: GameTypes.CANNON,
+            maxGameDepth: _input.gameMaxGameDepth,
+            splitDepth: _input.gameSplitDepth,
+            clockExtension: Duration.wrap(uint64(_input.gameClockExtension)),
+            maxClockDuration: Duration.wrap(uint64(_input.gameMaxClockDuration)),
+            weth: IDelayedWETH(payable(address(0))), // Will be set during clone initialization
+            l2ChainId: 0 // Will be set during clone initialization
+         });
+
+        IFaultDisputeGame impl = IFaultDisputeGame(
+            DeployUtils.createDeterministic({
+                _name: "FaultDisputeGame",
+                _args: DeployUtils.encodeConstructor(abi.encodeCall(IFaultDisputeGame.__constructor__, (params))),
+                _salt: _salt
+            })
+        );
+        vm.label(address(impl), "FaultDisputeGameImpl");
+        _output.faultDisputeGameImpl = impl;
+    }
+
+    function deployPermissionedDisputeGameImpl(Input memory _input, Output memory _output) private {
+        // Create minimal constructor params for the implementation template
+        IFaultDisputeGame.GameConstructorParams memory params = IFaultDisputeGame.GameConstructorParams({
+            gameType: GameTypes.PERMISSIONED_CANNON,
+            maxGameDepth: _input.gameMaxGameDepth,
+            splitDepth: _input.gameSplitDepth,
+            clockExtension: Duration.wrap(uint64(_input.gameClockExtension)),
+            maxClockDuration: Duration.wrap(uint64(_input.gameMaxClockDuration)),
+            weth: IDelayedWETH(payable(address(0))), // Will be set during clone initialization
+            l2ChainId: 0 // Will be set during clone initialization
+         });
+
+        IPermissionedDisputeGame impl = IPermissionedDisputeGame(
+            DeployUtils.createDeterministic({
+                _name: "PermissionedDisputeGame",
+                _args: DeployUtils.encodeConstructor(
+                    abi.encodeCall(IPermissionedDisputeGame.__constructor__, (params, address(0), address(0)))
+                ),
+                _salt: _salt
+            })
+        );
+        vm.label(address(impl), "PermissionedDisputeGameImpl");
+        _output.permissionedDisputeGameImpl = impl;
+    }
+
+    function deploySuperFaultDisputeGameImpl(Input memory _input, Output memory _output) private {
+        // Create minimal constructor params for the implementation template
+        ISuperFaultDisputeGame.GameConstructorParams memory params = ISuperFaultDisputeGame.GameConstructorParams({
+            gameType: GameTypes.SUPER_CANNON,
+            maxGameDepth: _input.gameMaxGameDepth,
+            splitDepth: _input.gameSplitDepth,
+            clockExtension: Duration.wrap(uint64(_input.gameClockExtension)),
+            maxClockDuration: Duration.wrap(uint64(_input.gameMaxClockDuration)),
+            weth: IDelayedWETH(payable(address(0))), // Will be set during clone initialization
+            l2ChainId: 0 // Will be set during clone initialization
+         });
+
+        ISuperFaultDisputeGame impl = ISuperFaultDisputeGame(
+            DeployUtils.createDeterministic({
+                _name: "SuperFaultDisputeGame",
+                _args: DeployUtils.encodeConstructor(abi.encodeCall(ISuperFaultDisputeGame.__constructor__, (params))),
+                _salt: _salt
+            })
+        );
+        vm.label(address(impl), "SuperFaultDisputeGameImpl");
+        _output.superFaultDisputeGameImpl = impl;
+    }
+
+    function deploySuperPermissionedDisputeGameImpl(Input memory _input, Output memory _output) private {
+        // Create minimal constructor params for the implementation template
+        ISuperFaultDisputeGame.GameConstructorParams memory params = ISuperFaultDisputeGame.GameConstructorParams({
+            gameType: GameTypes.SUPER_PERMISSIONED_CANNON,
+            maxGameDepth: _input.gameMaxGameDepth,
+            splitDepth: _input.gameSplitDepth,
+            clockExtension: Duration.wrap(uint64(_input.gameClockExtension)),
+            maxClockDuration: Duration.wrap(uint64(_input.gameMaxClockDuration)),
+            weth: IDelayedWETH(payable(address(0))), // Will be set during clone initialization
+            l2ChainId: 0 // Will be set during clone initialization
+         });
+
+        ISuperPermissionedDisputeGame impl = ISuperPermissionedDisputeGame(
+            DeployUtils.createDeterministic({
+                _name: "SuperPermissionedDisputeGame",
+                _args: DeployUtils.encodeConstructor(
+                    abi.encodeCall(ISuperPermissionedDisputeGame.__constructor__, (params, address(0), address(0)))
+                ),
+                _salt: _salt
+            })
+        );
+        vm.label(address(impl), "SuperPermissionedDisputeGameImpl");
+        _output.superPermissionedDisputeGameImpl = impl;
+    }
+
     function deployOPCMBPImplsContainer(
         Output memory _output,
         IOPContractsManager.Blueprints memory _blueprints,
@@ -547,48 +652,6 @@ contract DeployImplementations is Script {
         _output.opcmInteropMigrator = impl;
     }
 
-    function deployOPCMStandardValidator(
-        Input memory _input,
-        Output memory _output,
-        IOPContractsManager.Implementations memory _implementations
-    )
-        private
-    {
-        IOPContractsManagerStandardValidator.Implementations memory opcmImplementations;
-        opcmImplementations.l1ERC721BridgeImpl = _implementations.l1ERC721BridgeImpl;
-        opcmImplementations.optimismPortalImpl = _implementations.optimismPortalImpl;
-        opcmImplementations.ethLockboxImpl = _implementations.ethLockboxImpl;
-        opcmImplementations.systemConfigImpl = _implementations.systemConfigImpl;
-        opcmImplementations.optimismMintableERC20FactoryImpl = _implementations.optimismMintableERC20FactoryImpl;
-        opcmImplementations.l1CrossDomainMessengerImpl = _implementations.l1CrossDomainMessengerImpl;
-        opcmImplementations.l1StandardBridgeImpl = _implementations.l1StandardBridgeImpl;
-        opcmImplementations.disputeGameFactoryImpl = _implementations.disputeGameFactoryImpl;
-        opcmImplementations.anchorStateRegistryImpl = _implementations.anchorStateRegistryImpl;
-        opcmImplementations.delayedWETHImpl = _implementations.delayedWETHImpl;
-        opcmImplementations.mipsImpl = _implementations.mipsImpl;
-
-        IOPContractsManagerStandardValidator impl = IOPContractsManagerStandardValidator(
-            DeployUtils.createDeterministic({
-                _name: "OPContractsManagerStandardValidator.sol:OPContractsManagerStandardValidator",
-                _args: DeployUtils.encodeConstructor(
-                    abi.encodeCall(
-                        IOPContractsManagerStandardValidator.__constructor__,
-                        (
-                            opcmImplementations,
-                            _input.superchainConfigProxy,
-                            _input.upgradeController, // Proxy admin owner
-                            _input.challenger,
-                            _input.withdrawalDelaySeconds
-                        )
-                    )
-                ),
-                _salt: _salt
-            })
-        );
-        vm.label(address(impl), "OPContractsManagerStandardValidatorImpl");
-        _output.opcmStandardValidator = impl;
-    }
-
     function assertValidInput(Input memory _input) private pure {
         require(_input.withdrawalDelaySeconds != 0, "DeployImplementations: withdrawalDelaySeconds not set");
         require(_input.minProposalSizeBytes != 0, "DeployImplementations: minProposalSizeBytes not set");
@@ -613,11 +676,15 @@ contract DeployImplementations is Script {
             address(_input.superchainProxyAdmin) != address(0), "DeployImplementations: superchainProxyAdmin not set"
         );
         require(address(_input.upgradeController) != address(0), "DeployImplementations: upgradeController not set");
+        require(_input.gameMaxGameDepth != 0, "DeployImplementations: gameMaxGameDepth not set");
+        require(_input.gameSplitDepth != 0, "DeployImplementations: gameSplitDepth not set");
+        require(_input.gameClockExtension != 0, "DeployImplementations: gameClockExtension not set");
+        require(_input.gameMaxClockDuration != 0, "DeployImplementations: gameMaxClockDuration not set");
     }
 
     function assertValidOutput(Input memory _input, Output memory _output) private view {
-        // With 12 addresses, we'd get a stack too deep error if we tried to do this inline as a
-        // single call to `Solarray.addresses`. So we split it into two calls.
+        // With more addresses, we'd get a stack too deep error if we tried to do this inline as a
+        // single call to `Solarray.addresses`. So we split it into three calls.
         address[] memory addrs1 = Solarray.addresses(
             address(_output.opcm),
             address(_output.optimismPortalImpl),
@@ -639,12 +706,19 @@ contract DeployImplementations is Script {
             address(_output.ethLockboxImpl)
         );
 
-        DeployUtils.assertValidContractAddresses(Solarray.extend(addrs1, addrs2));
+        address[] memory addrs3 = Solarray.addresses(
+            address(_output.faultDisputeGameImpl),
+            address(_output.permissionedDisputeGameImpl),
+            address(_output.superFaultDisputeGameImpl),
+            address(_output.superPermissionedDisputeGameImpl)
+        );
+
+        DeployUtils.assertValidContractAddresses(Solarray.extend(Solarray.extend(addrs1, addrs2), addrs3));
 
         assertValidDelayedWETHImpl(_input, _output);
         assertValidDisputeGameFactoryImpl(_input, _output);
         assertValidAnchorStateRegistryImpl(_input, _output);
-        ChainAssertions.checkL1CrossDomainMessenger(_output.l1CrossDomainMessengerImpl, vm, false);
+        assertValidL1CrossDomainMessengerImpl(_input, _output);
         assertValidL1ERC721BridgeImpl(_input, _output);
         assertValidL1StandardBridgeImpl(_input, _output);
         assertValidMipsSingleton(_input, _output);
@@ -654,6 +728,10 @@ contract DeployImplementations is Script {
         assertValidETHLockboxImpl(_input, _output);
         assertValidPreimageOracleSingleton(_input, _output);
         assertValidSystemConfigImpl(_input, _output);
+        assertValidFaultDisputeGameImpl(_input, _output);
+        assertValidPermissionedDisputeGameImpl(_input, _output);
+        assertValidSuperFaultDisputeGameImpl(_input, _output);
+        assertValidSuperPermissionedDisputeGameImpl(_input, _output);
     }
 
     function assertValidOpcm(Input memory _input, Output memory _output) private view {
@@ -740,6 +818,21 @@ contract DeployImplementations is Script {
         require(systemConfig.optimismMintableERC20Factory() == address(0), "SYSCON-210");
     }
 
+    function assertValidL1CrossDomainMessengerImpl(Input memory, Output memory _output) private view {
+        IL1CrossDomainMessenger messenger = _output.l1CrossDomainMessengerImpl;
+
+        DeployUtils.assertInitialized({ _contractAddress: address(messenger), _isProxy: false, _slot: 0, _offset: 20 });
+
+        require(address(messenger.OTHER_MESSENGER()) == address(0), "L1xDM-10");
+        require(address(messenger.otherMessenger()) == address(0), "L1xDM-20");
+        require(address(messenger.PORTAL()) == address(0), "L1xDM-30");
+        require(address(messenger.portal()) == address(0), "L1xDM-40");
+        require(address(messenger.systemConfig()) == address(0), "L1xDM-50");
+
+        bytes32 xdmSenderSlot = vm.load(address(messenger), bytes32(uint256(204)));
+        require(address(uint160(uint256(xdmSenderSlot))) == address(0), "L1xDM-60");
+    }
+
     function assertValidL1ERC721BridgeImpl(Input memory, Output memory _output) private view {
         IL1ERC721Bridge bridge = _output.l1ERC721BridgeImpl;
 
@@ -785,5 +878,25 @@ contract DeployImplementations is Script {
         IAnchorStateRegistry registry = _output.anchorStateRegistryImpl;
 
         DeployUtils.assertInitialized({ _contractAddress: address(registry), _isProxy: false, _slot: 0, _offset: 0 });
+    }
+
+    function assertValidFaultDisputeGameImpl(Input memory, Output memory _output) private view {
+        IFaultDisputeGame game = _output.faultDisputeGameImpl;
+        require(address(game).code.length > 0, "FDG-10");
+    }
+
+    function assertValidPermissionedDisputeGameImpl(Input memory, Output memory _output) private view {
+        IPermissionedDisputeGame game = _output.permissionedDisputeGameImpl;
+        require(address(game).code.length > 0, "PDG-10");
+    }
+
+    function assertValidSuperFaultDisputeGameImpl(Input memory, Output memory _output) private view {
+        ISuperFaultDisputeGame game = _output.superFaultDisputeGameImpl;
+        require(address(game).code.length > 0, "SFDG-10");
+    }
+
+    function assertValidSuperPermissionedDisputeGameImpl(Input memory, Output memory _output) private view {
+        ISuperPermissionedDisputeGame game = _output.superPermissionedDisputeGameImpl;
+        require(address(game).code.length > 0, "SPDG-10");
     }
 }

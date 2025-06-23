@@ -271,7 +271,11 @@ contract Deploy is Deployer {
                 protocolVersionsProxy: IProtocolVersions(artifacts.mustGetAddress("ProtocolVersionsProxy")),
                 superchainConfigProxy: superchainConfigProxy,
                 superchainProxyAdmin: superchainProxyAdmin,
-                upgradeController: superchainProxyAdmin.owner()
+                upgradeController: superchainProxyAdmin.owner(),
+                gameMaxGameDepth: 73,
+                gameSplitDepth: 30,
+                gameClockExtension: 10800,
+                gameMaxClockDuration: 302400
             })
         );
 
@@ -351,7 +355,6 @@ contract Deploy is Deployer {
         artifacts.save("DisputeGameFactoryProxy", address(deployOutput.disputeGameFactoryProxy));
         artifacts.save("PermissionedDelayedWETHProxy", address(deployOutput.delayedWETHPermissionedGameProxy));
         artifacts.save("AnchorStateRegistryProxy", address(deployOutput.anchorStateRegistryProxy));
-        artifacts.save("PermissionedDisputeGame", address(deployOutput.permissionedDisputeGame));
         artifacts.save("OptimismPortalProxy", address(deployOutput.optimismPortalProxy));
         artifacts.save("OptimismPortal2Proxy", address(deployOutput.optimismPortalProxy));
 
