@@ -19,9 +19,6 @@ gates:
       - package: github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/base
       - package: github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/base/deposit
         timeout: 10m
-      # TODO(infra#401): Re-enable the test when the sysext missing toolset is implemented
-      #- package: github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/base/withdrawal
-      #  timeout: 10m
 
   - id: holocene
     inherits:
@@ -39,6 +36,8 @@ gates:
         timeout: 6h
       - package: github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/isthmus/operator_fee
         timeout: 6h
+      - package: github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/isthmus/withdrawal_root
+        timeout: 20m
 
   - id: pre-interop
     inherits:

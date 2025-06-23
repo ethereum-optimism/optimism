@@ -271,6 +271,18 @@ func (w *Withdrawal) FinalizeGasCost() eth.ETH {
 	return gasCost(w.finalizeReceipt)
 }
 
+func (w *Withdrawal) WithdrawalRoot() common.Hash {
+	return w.initReceipt.BlockHash
+}
+
+func (w *Withdrawal) WithdrawalReceipt() *types.Receipt {
+	return w.initReceipt
+}
+
+func (w *Withdrawal) ProveReceipt() *types.Receipt {
+	return w.proveReceipt
+}
+
 func (w *Withdrawal) Prove(user *EOA) {
 	var params ProvenWithdrawalParameters
 
