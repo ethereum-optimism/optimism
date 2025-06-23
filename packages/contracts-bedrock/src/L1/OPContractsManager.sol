@@ -1512,9 +1512,8 @@ contract OPContractsManagerInteropMigrator is OPContractsManagerBase {
                 abi.encodeCall(IDelayedWETH.initialize, (portals[0].systemConfig()))
             );
 
-            /// TODO: Now should jsut set the superPDG
-
-            address newSuperPDG;
+            // Get the shared super permissioned dispute game implementation.
+            address newSuperPDG = getImplementations().superPermissionedDisputeGameImpl;
             // TODO: snevins - validate opChainConfig array
             bytes memory implArgs = abi.encodePacked(
                 _input.opChainConfigs[0].absolutePrestate,
@@ -1550,8 +1549,8 @@ contract OPContractsManagerInteropMigrator is OPContractsManagerBase {
                 abi.encodeCall(IDelayedWETH.initialize, (portals[0].systemConfig()))
             );
 
-            /// TODO: now should jsut set the dispute game
-            address newSuperFDG;
+            // Get the shared super fault dispute game implementation.
+            address newSuperFDG = getImplementations().superFaultDisputeGameImpl;
 
             // TODO: snevins - validate opChainConfig array
             bytes memory implArgs = abi.encodePacked(

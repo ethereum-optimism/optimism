@@ -115,9 +115,6 @@ contract StandardValidator_TestInit is CommonTest {
         // Grab the deploy input for later use.
         deployInput = deploy.getDeployInput();
 
-        // Load the PermissionedDisputeGame once, we'll need it later.
-        pdg = IPermissionedDisputeGame(artifacts.mustGetAddress("PermissionedDisputeGame"));
-
         // Load the PreimageOracle once, we'll need it later.
         preimageOracle = IPreimageOracle(artifacts.mustGetAddress("PreimageOracle"));
 
@@ -128,11 +125,50 @@ contract StandardValidator_TestInit is CommonTest {
         if (isForkTest()) {
             l2ChainId = uint256(uint160(address(artifacts.mustGetAddress("L2ChainId"))));
             absolutePrestate = Claim.wrap(bytes32(keccak256("absolutePrestate")));
-            challenger = pdg.challenger();
+            challenger = deployInput.roles.challenger; // Can't get challenger from pdg before it's created
         } else {
             l2ChainId = deployInput.l2ChainId;
             absolutePrestate = deployInput.disputeAbsolutePrestate;
             challenger = deployInput.roles.challenger;
+        }
+
+        // For fork tests, get the actual deployed instance from the DisputeGameFactory
+        // For local tests, we need to create a concrete instance since the template has placeholder values
+        if (isForkTest()) {
+            // In fork tests, get the PermissionedDisputeGame implementation from artifacts (saved by ForkLive.s.sol)
+            pdg = IPermissionedDisputeGame(artifacts.mustGetAddress("PermissionedDisputeGame"));
+        } else {
+            // In local tests, create a concrete instance with proper parameters for validation testing
+            // This is necessary because the shared template implementation has placeholder values (address(0), chainId 0)
+            // that would cause validation to fail
+            pdg = IPermissionedDisputeGame(
+                DeployUtils.create1({
+                    _name: "PermissionedDisputeGame",
+                    _args: DeployUtils.encodeConstructor(
+                        abi.encodeCall(
+                            IPermissionedDisputeGame.__constructor__,
+                            (
+                                IFaultDisputeGame.GameConstructorParams({
+                                    gameType: GameTypes.PERMISSIONED_CANNON,
+                                    maxGameDepth: 73,
+                                    splitDepth: 30,
+                                    clockExtension: Duration.wrap(10800),
+                                    maxClockDuration: Duration.wrap(302400),
+                                    weth: delayedWeth,
+                                    l2ChainId: l2ChainId
+                                }),
+                                deployInput.roles.proposer,
+                                deployInput.roles.challenger
+                            )
+                        )
+                    )
+                })
+            );
+
+            // Register this concrete instance with the DisputeGameFactory for validation
+            bytes memory pdgImplArgs = abi.encode(absolutePrestate, mips, anchorStateRegistry);
+            vm.prank(disputeGameFactory.owner());
+            disputeGameFactory.setImplementation(GameTypes.PERMISSIONED_CANNON, IDisputeGame(address(pdg)), pdgImplArgs);
         }
 
         // Deploy the validator.
