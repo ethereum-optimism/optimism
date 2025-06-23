@@ -288,34 +288,34 @@ func (db *ChainsDB) InvalidateLocalSafe(chainID eth.ChainID, candidate types.Der
 	return nil
 }
 
-// RewindLocalSafe removes all local-safe blocks after the given new derived-from scope.
+// RewindLocalSafeSource removes all local-safe blocks after the given new derived-from source.
+// If the source is before the start of the DB, the DB will be emptied.
 // Note that this drop L1 blocks that resulted in a previously invalidated local-safe block.
 // This returns ErrFuture if the block is newer than the last known block.
 // This returns ErrConflict if a different block at the given height is known.
-func (db *ChainsDB) RewindLocalSafe(chainID eth.ChainID, scope eth.BlockID) error {
+func (db *ChainsDB) RewindLocalSafeSource(chainID eth.ChainID, source eth.BlockID) error {
 	localSafeDB, ok := db.localDBs.Get(chainID)
 	if !ok {
 		return fmt.Errorf("cannot find local-safe DB of chain %s for invalidation: %w", chainID, types.ErrUnknownChain)
 	}
-	if err := localSafeDB.RewindToScope(db.readRegistry, scope); err != nil {
+	if err := localSafeDB.RewindToSource(db.readRegistry, source); err != nil {
 		return fmt.Errorf("failed to rewind local-safe: %w", err)
 	}
-
 	return nil
 }
 
-// RewindCrossSafe removes all cross-safe blocks after the given new derived-from scope.
+// RewindCrossSafeSource removes all cross-safe blocks after the given new derived-from source.
+// If the source is before the start of the DB, the DB will be emptied.
 // This returns ErrFuture if the block is newer than the last known block.
 // This returns ErrConflict if a different block at the given height is known.
-func (db *ChainsDB) RewindCrossSafe(chainID eth.ChainID, scope eth.BlockID) error {
+func (db *ChainsDB) RewindCrossSafeSource(chainID eth.ChainID, source eth.BlockID) error {
 	crossSafeDB, ok := db.crossDBs.Get(chainID)
 	if !ok {
 		return fmt.Errorf("cannot find cross-safe DB of chain %s for invalidation: %w", chainID, types.ErrUnknownChain)
 	}
-	if err := crossSafeDB.RewindToScope(db.readRegistry, scope); err != nil {
+	if err := crossSafeDB.RewindToSource(db.readRegistry, source); err != nil {
 		return fmt.Errorf("failed to rewind cross-safe: %w", err)
 	}
-
 	return nil
 }
 

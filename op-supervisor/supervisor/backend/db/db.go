@@ -94,7 +94,7 @@ type DerivationStorage interface {
 
 	// rewinding
 	RewindAndInvalidate(inv reads.Invalidator, invalidated types.DerivedBlockRefPair) error
-	RewindToScope(inv reads.Invalidator, scope eth.BlockID) error
+	RewindToSource(inv reads.Invalidator, scope eth.BlockID) error
 	RewindToFirstDerived(inv reads.Invalidator, v eth.BlockID, revision types.Revision) error
 }
 

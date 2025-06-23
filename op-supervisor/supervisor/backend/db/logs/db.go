@@ -587,15 +587,31 @@ func (db *DB) AddLog(logHash common.Hash, parentBlock eth.BlockID, logIdx uint32
 	return db.flush()
 }
 
-// Rewind the database to remove any blocks after headBlockNum
+// Rewind the database to remove any blocks after newHead.
 // The block at newHead.Number itself is not removed.
+// If the newHead is before the start of the DB, then this empties the DB.
 func (db *DB) Rewind(inv reads.Invalidator, newHead eth.BlockID) error {
 	db.rwLock.Lock()
 	defer db.rwLock.Unlock()
+	defer db.updateEntryCountMetric()
 	// Even if the last fully-processed block matches headBlockNum,
 	// we might still have trailing log events to get rid of.
 	iter, err := db.newIteratorAt(newHead.Number, 0)
 	if err != nil {
+		if errors.Is(err, types.ErrPreviousToFirst) || errors.Is(err, types.ErrSkipped) {
+			release, invalidateErr := inv.TryInvalidate(reads.InvalidationRules{
+				reads.DerivedInvalidation{Timestamp: 0},
+			})
+			if invalidateErr != nil {
+				return invalidateErr
+			}
+			defer release()
+			if truncateErr := db.store.Truncate(-1); truncateErr != nil {
+				return fmt.Errorf("failed to empty DB, upon rewinding to log block %s before first block: %w", newHead, truncateErr)
+			}
+			db.lastEntryContext = logContext{}
+			return nil
+		}
 		return err
 	}
 	if hash, num, ok := iter.SealedBlock(); !ok {
