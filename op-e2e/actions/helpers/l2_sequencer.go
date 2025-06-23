@@ -104,7 +104,7 @@ func (s *L2Sequencer) ActL2StartBlock(t Testing) {
 		t.InvalidAction("already started building L2 block")
 		return
 	}
-	s.synchronousEvents.Emit(sequencing.SequencerActionEvent{Ctx: event.WrapCtx(t.Ctx())})
+	s.synchronousEvents.Emit(t.Ctx(), sequencing.SequencerActionEvent{})
 	require.NoError(t, s.drainer.DrainUntil(event.Is[engine.BuildStartedEvent], false),
 		"failed to start block building")
 
@@ -119,14 +119,14 @@ func (s *L2Sequencer) ActL2EndBlock(t Testing) {
 	}
 	s.l2Building = false
 
-	s.synchronousEvents.Emit(sequencing.SequencerActionEvent{Ctx: event.WrapCtx(t.Ctx())})
+	s.synchronousEvents.Emit(t.Ctx(), sequencing.SequencerActionEvent{})
 	require.NoError(t, s.drainer.DrainUntil(event.Is[engine.PayloadSuccessEvent], false),
 		"failed to complete block building")
 
 	// After having built a L2 block, make sure to get an engine update processed.
 	// This will ensure the sync-status and such reflect the latest changes.
-	s.synchronousEvents.Emit(engine.TryUpdateEngineEvent{Ctx: event.WrapCtx(t.Ctx())})
-	s.synchronousEvents.Emit(engine.ForkchoiceRequestEvent{Ctx: event.WrapCtx(t.Ctx())})
+	s.synchronousEvents.Emit(t.Ctx(), engine.TryUpdateEngineEvent{})
+	s.synchronousEvents.Emit(t.Ctx(), engine.ForkchoiceRequestEvent{})
 	require.NoError(t, s.drainer.DrainUntil(func(ev event.Event) bool {
 		x, ok := ev.(engine.ForkchoiceUpdateEvent)
 		return ok && x.UnsafeL2Head == s.engine.UnsafeL2Head()

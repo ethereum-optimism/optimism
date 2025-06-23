@@ -66,7 +66,7 @@ func (r *Rewinder) AttachEmitter(em event.Emitter) {
 	r.emitter = em
 }
 
-func (r *Rewinder) OnEvent(ev event.Event) bool {
+func (r *Rewinder) OnEvent(ctx context.Context, ev event.Event) bool {
 	switch x := ev.(type) {
 	case superevents.RewindL1Event:
 		r.handleRewindL1Event(x)
@@ -150,7 +150,7 @@ func (r *Rewinder) handleLocalDerivedEvent(ev superevents.LocalSafeUpdateEvent) 
 	}
 
 	// Emit event to trigger node reset with new heads
-	r.emitter.Emit(superevents.ChainRewoundEvent{ChainID: ev.ChainID, Ctx: event.WrapCtx(r.rootCtx)})
+	r.emitter.Emit(r.rootCtx, superevents.ChainRewoundEvent{ChainID: ev.ChainID})
 }
 
 // rewindL1ChainIfReorged rewinds the L1 chain for the given chain ID if a reorg is detected
@@ -257,9 +257,8 @@ func (r *Rewinder) rewindL1ChainIfReorged(chainID eth.ChainID, newTip eth.BlockI
 	}
 
 	// Emit rewound event for sync node
-	r.emitter.Emit(superevents.ChainRewoundEvent{
+	r.emitter.Emit(r.rootCtx, superevents.ChainRewoundEvent{
 		ChainID: chainID,
-		Ctx:     event.WrapCtx(r.rootCtx),
 	})
 	return nil
 }

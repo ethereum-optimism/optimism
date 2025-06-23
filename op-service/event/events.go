@@ -11,32 +11,24 @@ type Event interface {
 	// The name must be simple and identify the event type, not the event content.
 	// This name is used for metric-labeling.
 	String() string
-
-	// Context is attached to an event to provide meta-data about the source,
-	// the intention, and control any expiry (the event may become stale).
-	// Warning: this may return nil on some original event code that did not attach a context.
-	Context() context.Context
-}
-
-type Ctx struct {
-	ctx context.Context
-}
-
-func (v Ctx) Context() context.Context {
-	return v.ctx
-}
-
-func WrapCtx(ctx context.Context) Ctx {
-	return Ctx{ctx: ctx}
 }
 
 type Deriver interface {
-	OnEvent(ev Event) bool
+	// OnEvent runs the event with the context that was used to emit the event.
+	// The context is managed by the emitter,
+	// and may be used to continue work after OnEvent if compatible with the emitter.
+	// OnEvent returns true if it recognizes the event as "processed",
+	// for tracing/metrics purposes primarily.
+	OnEvent(ctx context.Context, ev Event) bool
 }
 
 type Emitter interface {
-	// Events emitted by the same module will arrive in the same order as they were sent. Across different emitters there’s no guarantee
-	Emit(ev Event)
+	// Emit emits an event, broadcasting it to all derivers (including the emitter itself).
+	// The context is provided to the deriver OnEvent function.
+	//
+	// Events emitted by the same module will arrive in the same order as they were sent.
+	// Across different emitters there’s no guarantee.
+	Emit(ctx context.Context, ev Event)
 }
 
 type Drainer interface {
@@ -53,20 +45,20 @@ type EmitterDrainer interface {
 	Drainer
 }
 
-type EmitterFunc func(ev Event)
+type EmitterFunc func(ctx context.Context, ev Event)
 
-func (fn EmitterFunc) Emit(ev Event) {
-	fn(ev)
+func (fn EmitterFunc) Emit(ctx context.Context, ev Event) {
+	fn(ctx, ev)
 }
 
 // DeriverMux takes an event-signal as deriver, and synchronously fans it out to all contained Deriver ends.
 // Technically this is a DeMux: single input to multi output.
 type DeriverMux []Deriver
 
-func (s *DeriverMux) OnEvent(ev Event) bool {
+func (s *DeriverMux) OnEvent(ctx context.Context, ev Event) bool {
 	out := false
 	for _, d := range *s {
-		out = d.OnEvent(ev) || out
+		out = d.OnEvent(ctx, ev) || out
 	}
 	return out
 }
@@ -77,30 +69,29 @@ type DebugDeriver struct {
 	Log log.Logger
 }
 
-func (d DebugDeriver) OnEvent(ev Event) {
+func (d DebugDeriver) OnEvent(ctx context.Context, ev Event) {
 	d.Log.Debug("on-event", "event", ev)
 }
 
 type NoopDeriver struct{}
 
-func (d NoopDeriver) OnEvent(ev Event) {}
+func (d NoopDeriver) OnEvent(ctx context.Context, ev Event) {}
 
 // DeriverFunc implements the Deriver interface as a function,
 // similar to how the std-lib http HandlerFunc implements a Handler.
 // This can be used for small in-place derivers, test helpers, etc.
-type DeriverFunc func(ev Event) bool
+type DeriverFunc func(ctx context.Context, ev Event) bool
 
-func (fn DeriverFunc) OnEvent(ev Event) bool {
-	return fn(ev)
+func (fn DeriverFunc) OnEvent(ctx context.Context, ev Event) bool {
+	return fn(ctx, ev)
 }
 
 type NoopEmitter struct{}
 
-func (e NoopEmitter) Emit(ev Event) {}
+func (e NoopEmitter) Emit(ctx context.Context, ev Event) {}
 
 type CriticalErrorEvent struct {
 	Err error
-	Ctx
 }
 
 var _ Event = CriticalErrorEvent{}

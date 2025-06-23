@@ -107,7 +107,7 @@ func (s *ChainProcessor) nextNum() uint64 {
 	return headNum + 1
 }
 
-func (s *ChainProcessor) OnEvent(ev event.Event) bool {
+func (s *ChainProcessor) OnEvent(ctx context.Context, ev event.Event) bool {
 	switch x := ev.(type) {
 	case superevents.ChainProcessEvent:
 		if x.ChainID != s.chain {
@@ -174,9 +174,8 @@ func (s *ChainProcessor) index() {
 		if s.clientsTried < len(s.clients) {
 			s.log.Debug("Active client found no blocks, trying again with next client", "activeClient", s.activeClient)
 			s.nextActiveClient()
-			s.emitter.Emit(superevents.ChainIndexingContinueEvent{
+			s.emitter.Emit(s.systemContext, superevents.ChainIndexingContinueEvent{
 				ChainID: s.chain,
-				Ctx:     event.WrapCtx(s.systemContext),
 			})
 			return
 		} else {
@@ -194,9 +193,8 @@ func (s *ChainProcessor) index() {
 	// if the next block is within the target, we need to continue indexing
 	if next <= s.target {
 		s.log.Debug("More indexing needed, continuing", "target", target, "next", next)
-		s.emitter.Emit(superevents.ChainIndexingContinueEvent{
+		s.emitter.Emit(s.systemContext, superevents.ChainIndexingContinueEvent{
 			ChainID: s.chain,
-			Ctx:     event.WrapCtx(s.systemContext),
 		})
 		return
 	}

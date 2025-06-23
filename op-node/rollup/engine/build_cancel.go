@@ -8,25 +8,23 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-	"github.com/ethereum-optimism/optimism/op-service/event"
 )
 
 type BuildCancelEvent struct {
 	Info  eth.PayloadInfo
 	Force bool
-	event.Ctx
 }
 
 func (ev BuildCancelEvent) String() string {
 	return "build-cancel"
 }
 
-func (eq *EngDeriver) onBuildCancel(ev BuildCancelEvent) {
-	ctx, cancel := context.WithTimeout(eq.ctx, buildCancelTimeout)
+func (eq *EngDeriver) onBuildCancel(ctx context.Context, ev BuildCancelEvent) {
+	rpcCtx, cancel := context.WithTimeout(eq.ctx, buildCancelTimeout)
 	defer cancel()
 	// the building job gets wrapped up as soon as the payload is retrieved, there's no explicit cancel in the Engine API
 	eq.log.Warn("cancelling old block building job", "info", ev.Info)
-	_, err := eq.ec.engine.GetPayload(ctx, ev.Info)
+	_, err := eq.ec.engine.GetPayload(rpcCtx, ev.Info)
 	if err != nil {
 		var rpcErr rpc.Error
 		if errors.As(err, &rpcErr) && eth.ErrorCode(rpcErr.ErrorCode()) == eth.UnknownPayload {
@@ -35,7 +33,7 @@ func (eq *EngDeriver) onBuildCancel(ev BuildCancelEvent) {
 		}
 		eq.log.Error("failed to cancel block building job", "info", ev.Info, "err", err)
 		if !ev.Force {
-			eq.emitter.Emit(rollup.EngineTemporaryErrorEvent{Err: err, Ctx: ev.Ctx})
+			eq.emitter.Emit(ctx, rollup.EngineTemporaryErrorEvent{Err: err})
 		}
 	}
 }

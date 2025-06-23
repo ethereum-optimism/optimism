@@ -66,6 +66,9 @@ type IndexingMode struct {
 	lastExhaustedL1   eventTimestamp[eth.BlockID]
 	lastReplacedBlock eventTimestamp[eth.BlockID]
 
+	ctx    context.Context
+	cancel context.CancelFunc
+
 	cfg *rollup.Config
 
 	srv       *rpc.Server
@@ -74,6 +77,7 @@ type IndexingMode struct {
 
 func NewIndexingMode(log log.Logger, cfg *rollup.Config, addr string, port int, jwtSecret eth.Bytes32, l1 L1Source, l2 L2Source, m opmetrics.RPCMetricer) *IndexingMode {
 	log = log.With("mode", "indexing", "chainId", cfg.L2ChainID)
+	ctx, cancel := context.WithCancel(context.Background())
 	out := &IndexingMode{
 		log:       log,
 		cfg:       cfg,
@@ -88,6 +92,9 @@ func NewIndexingMode(log log.Logger, cfg *rollup.Config, addr string, port int, 
 		lastL1Traversal:   newEventTimestamp[eth.BlockID](500 * time.Millisecond),
 		lastExhaustedL1:   newEventTimestamp[eth.BlockID](500 * time.Millisecond),
 		lastReplacedBlock: newEventTimestamp[eth.BlockID](100 * time.Millisecond),
+
+		ctx:    ctx,
+		cancel: cancel,
 	}
 
 	out.srv = rpc.NewServer(addr, port, "v0.0.0",
@@ -144,6 +151,8 @@ func (m *IndexingMode) Stop(ctx context.Context) error {
 		return fmt.Errorf("failed to stop interop sub-system RPC server: %w", err)
 	}
 
+	m.cancel()
+
 	m.log.Info("Interop sub-system stopped")
 	return nil
 }
@@ -153,7 +162,7 @@ func (m *IndexingMode) AttachEmitter(em event.Emitter) {
 }
 
 // Outgoing events to supervisor
-func (m *IndexingMode) OnEvent(ev event.Event) bool {
+func (m *IndexingMode) OnEvent(ctx context.Context, ev event.Event) bool {
 	switch x := ev.(type) {
 	case rollup.ResetEvent:
 		logger := m.log.New("err", x.Err)
@@ -262,9 +271,8 @@ func (m *IndexingMode) UpdateCrossUnsafe(ctx context.Context, id eth.BlockID) er
 	if err != nil {
 		return fmt.Errorf("failed to get L2BlockRef: %w", err)
 	}
-	m.emitter.Emit(engine.PromoteCrossUnsafeEvent{
+	m.emitter.Emit(m.ctx, engine.PromoteCrossUnsafeEvent{
 		Ref: l2Ref,
-		Ctx: event.WrapCtx(ctx),
 	})
 	// We return early: there is no point waiting for the cross-unsafe engine-update synchronously.
 	// All error-feedback comes to the supervisor by aborting derivation tasks with an error.
@@ -280,10 +288,9 @@ func (m *IndexingMode) UpdateCrossSafe(ctx context.Context, derived eth.BlockID,
 	if err != nil {
 		return fmt.Errorf("failed to get L1BlockRef: %w", err)
 	}
-	m.emitter.Emit(engine.PromoteSafeEvent{
+	m.emitter.Emit(m.ctx, engine.PromoteSafeEvent{
 		Ref:    l2Ref,
 		Source: l1Ref,
-		Ctx:    event.WrapCtx(ctx),
 	})
 	// We return early: there is no point waiting for the cross-safe engine-update synchronously.
 	// All error-feedback comes to the supervisor by aborting derivation tasks with an error.
@@ -295,7 +302,7 @@ func (m *IndexingMode) UpdateFinalized(ctx context.Context, id eth.BlockID) erro
 	if err != nil {
 		return fmt.Errorf("failed to get L2BlockRef: %w", err)
 	}
-	m.emitter.Emit(engine.PromoteFinalizedEvent{Ref: l2Ref, Ctx: event.WrapCtx(ctx)})
+	m.emitter.Emit(m.ctx, engine.PromoteFinalizedEvent{Ref: l2Ref})
 	// We return early: there is no point waiting for the finalized engine-update synchronously.
 	// All error-feedback comes to the supervisor by aborting derivation tasks with an error.
 	return nil
@@ -325,8 +332,8 @@ func (m *IndexingMode) InvalidateBlock(ctx context.Context, seal supervisortypes
 		DerivedFrom: engine.ReplaceBlockSource,
 	}
 
-	m.emitter.Emit(engine.InteropInvalidateBlockEvent{
-		Invalidated: ref, Attributes: annotated, Ctx: event.WrapCtx(ctx)})
+	m.emitter.Emit(m.ctx, engine.InteropInvalidateBlockEvent{
+		Invalidated: ref, Attributes: annotated})
 
 	// The node will send an event once the replacement is ready
 	return nil
@@ -366,7 +373,7 @@ const (
 // TODO: add ResetPreInterop, called by supervisor if bisection went pre-Interop. Emit ResetEngineRequestEvent.
 func (m *IndexingMode) ResetPreInterop(ctx context.Context) error {
 	m.log.Info("Received pre-interop reset request")
-	m.emitter.Emit(engine.ResetEngineRequestEvent{Ctx: event.WrapCtx(ctx)})
+	m.emitter.Emit(ctx, engine.ResetEngineRequestEvent{})
 	return nil
 }
 
@@ -444,13 +451,12 @@ func (m *IndexingMode) Reset(ctx context.Context, lUnsafe, xUnsafe, lSafe, xSafe
 		return err
 	}
 
-	m.emitter.Emit(rollup.ForceResetEvent{
+	m.emitter.Emit(ctx, rollup.ForceResetEvent{
 		LocalUnsafe: latestLocalUnsafe,
 		CrossUnsafe: xUnsafeRef,
 		LocalSafe:   lSafeRef,
 		CrossSafe:   xSafeRef,
 		Finalized:   finalizedRef,
-		Ctx:         event.WrapCtx(ctx),
 	})
 	return nil
 }
@@ -541,9 +547,8 @@ func (m *IndexingMode) verifyBlock(ctx context.Context, logger log.Logger, block
 
 func (m *IndexingMode) ProvideL1(ctx context.Context, nextL1 eth.BlockRef) error {
 	m.log.Info("Received next L1 block", "nextL1", nextL1)
-	m.emitter.Emit(derive.ProvideL1Traversal{
+	m.emitter.Emit(m.ctx, derive.ProvideL1Traversal{
 		NextL1: nextL1,
-		Ctx:    event.WrapCtx(ctx),
 	})
 	return nil
 }

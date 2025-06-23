@@ -7,7 +7,6 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-	"github.com/ethereum-optimism/optimism/op-service/event"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/superevents"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 )
@@ -45,10 +44,9 @@ func (db *ChainsDB) sealBlock(chain eth.ChainID, block eth.BlockRef, mayInit boo
 		return fmt.Errorf("failed to seal block %v: %w", block, err)
 	}
 	db.logger.Info("Updated local unsafe", "chain", chain, "block", block)
-	db.emitter.Emit(superevents.LocalUnsafeUpdateEvent{
+	db.emitter.Emit(db.rootCtx, superevents.LocalUnsafeUpdateEvent{
 		ChainID:        chain,
 		NewLocalUnsafe: block,
-		Ctx:            event.WrapCtx(db.rootCtx),
 	})
 	db.m.RecordLocalUnsafe(chain, types.BlockSealFromRef(block))
 	return nil
@@ -117,23 +115,21 @@ func (db *ChainsDB) initializedUpdateLocalSafe(chain eth.ChainID, source eth.Blo
 			return
 		}
 		logger.Warn("Failed to update local safe", "err", err)
-		db.emitter.Emit(superevents.UpdateLocalSafeFailedEvent{
+		db.emitter.Emit(db.rootCtx, superevents.UpdateLocalSafeFailedEvent{
 			ChainID: chain,
 			Err:     err,
 			NodeID:  nodeId,
-			Ctx:     event.WrapCtx(db.rootCtx),
 		})
 		return
 	}
 	logger.Info("Updated local safe DB")
 	derived := types.BlockSealFromRef(lastDerived)
-	db.emitter.Emit(superevents.LocalSafeUpdateEvent{
+	db.emitter.Emit(db.rootCtx, superevents.LocalSafeUpdateEvent{
 		ChainID: chain,
 		NewLocalSafe: types.DerivedBlockSealPair{
 			Source:  types.BlockSealFromRef(source),
 			Derived: derived,
 		},
-		Ctx: event.WrapCtx(db.rootCtx),
 	})
 	db.m.RecordLocalSafe(chain, derived)
 }
@@ -148,10 +144,9 @@ func (db *ChainsDB) UpdateCrossUnsafe(chain eth.ChainID, crossUnsafe types.Block
 	// crossed Interop yet, so the ChainsDB isn't fully initialized yet.
 	v.Set(crossUnsafe)
 	db.logger.Info("Updated cross-unsafe", "chain", chain, "crossUnsafe", crossUnsafe)
-	db.emitter.Emit(superevents.CrossUnsafeUpdateEvent{
+	db.emitter.Emit(db.rootCtx, superevents.CrossUnsafeUpdateEvent{
 		ChainID:        chain,
 		NewCrossUnsafe: crossUnsafe,
-		Ctx:            event.WrapCtx(db.rootCtx),
 	})
 	db.m.RecordCrossUnsafe(chain, crossUnsafe)
 	return nil
@@ -183,13 +178,12 @@ func (db *ChainsDB) initializedUpdateCrossSafe(chain eth.ChainID, l1View eth.Blo
 	}
 	db.logger.Info("Updated cross-safe", "chain", chain, "l1View", l1View, "lastCrossDerived", lastCrossDerived)
 	lastCrossDerivedBlockSeal := types.BlockSealFromRef(lastCrossDerived)
-	db.emitter.Emit(superevents.CrossSafeUpdateEvent{
+	db.emitter.Emit(db.rootCtx, superevents.CrossSafeUpdateEvent{
 		ChainID: chain,
 		NewCrossSafe: types.DerivedBlockSealPair{
 			Source:  types.BlockSealFromRef(l1View),
 			Derived: lastCrossDerivedBlockSeal,
 		},
-		Ctx: event.WrapCtx(db.rootCtx),
 	})
 	db.m.RecordCrossSafe(chain, lastCrossDerivedBlockSeal)
 
@@ -229,9 +223,8 @@ func (db *ChainsDB) onFinalizedL1(finalized eth.BlockRef) {
 	db.finalizedL1.Unlock()
 
 	// TODO: There seems to be no consumer of this event?
-	db.emitter.Emit(superevents.FinalizedL1UpdateEvent{
+	db.emitter.Emit(db.rootCtx, superevents.FinalizedL1UpdateEvent{
 		FinalizedL1: finalized,
-		Ctx:         event.WrapCtx(db.rootCtx),
 	})
 	// whenever the L1 Finalized changes, the L2 Finalized may change, notify subscribers
 	for _, chain := range db.depSet.Chains() {
@@ -244,8 +237,8 @@ func (db *ChainsDB) onFinalizedL1(finalized eth.BlockRef) {
 			db.logger.Warn("Unable to determine finalized L2 block", "chain", chain, "l1Finalized", finalized)
 			continue
 		}
-		db.emitter.Emit(superevents.FinalizedL2UpdateEvent{
-			ChainID: chain, FinalizedL2: fin, Ctx: event.WrapCtx(db.rootCtx)})
+		db.emitter.Emit(db.rootCtx, superevents.FinalizedL2UpdateEvent{
+			ChainID: chain, FinalizedL2: fin})
 	}
 }
 
@@ -280,10 +273,9 @@ func (db *ChainsDB) InvalidateLocalSafe(chainID eth.ChainID, candidate types.Der
 
 	// Create an event, that subscribed sync-nodes can listen to,
 	// to start finding the replacement block.
-	db.emitter.Emit(superevents.InvalidateLocalSafeEvent{
+	db.emitter.Emit(db.rootCtx, superevents.InvalidateLocalSafeEvent{
 		ChainID:   chainID,
 		Candidate: candidate,
-		Ctx:       event.WrapCtx(db.rootCtx),
 	})
 	return nil
 }
@@ -377,17 +369,15 @@ func (db *ChainsDB) onReplaceBlock(chainID eth.ChainID, replacement eth.BlockRef
 	db.logger.Info("Replaced block", "chain", chainID, "replacement", replacement, "revision", revision)
 
 	// Consider the replacement as a new local-unsafe block, so we can try to index the new event-data.
-	db.emitter.Emit(superevents.LocalUnsafeReceivedEvent{
+	db.emitter.Emit(db.rootCtx, superevents.LocalUnsafeReceivedEvent{
 		ChainID:        chainID,
 		NewLocalUnsafe: replacement,
-		Ctx:            event.WrapCtx(db.rootCtx),
 	})
 	// The local-safe DB changed, so emit an event, so other sub-systems can react to the change.
 	seals := result.Seals()
-	db.emitter.Emit(superevents.LocalSafeUpdateEvent{
+	db.emitter.Emit(db.rootCtx, superevents.LocalSafeUpdateEvent{
 		ChainID:      chainID,
 		NewLocalSafe: seals,
-		Ctx:          event.WrapCtx(db.rootCtx),
 	})
 	db.m.RecordLocalSafe(chainID, seals.Derived)
 	// The event-DB will start indexing, and then unblock cross-safe update

@@ -110,7 +110,7 @@ func TestAltDAFinalityData(t *testing.T) {
 	// and post processing.
 	for i := uint64(0); i < 200; i++ {
 		if i == 10 { // finalize a L1 commitment
-			fi.OnEvent(FinalizeL1Event{FinalizedL1: l1parent})
+			fi.OnEvent(context.Background(), FinalizeL1Event{FinalizedL1: l1parent})
 			emitter.AssertExpectations(t) // no events emitted upon L1 finality
 			require.Equal(t, l1parent, commitmentInclusionFinalized, "altda backend received L1 signal")
 		}
@@ -132,20 +132,20 @@ func TestAltDAFinalityData(t *testing.T) {
 				L1Origin:       previous.ID(), // reference previous origin, not the block the batch was included in
 				SequenceNumber: j,
 			}
-			fi.OnEvent(engine.SafeDerivedEvent{Safe: l2parent, Source: l1parent})
+			fi.OnEvent(context.Background(), engine.SafeDerivedEvent{Safe: l2parent, Source: l1parent})
 			emitter.AssertExpectations(t)
 		}
 		// might trigger finalization attempt, if expired finality delay
 		emitter.ExpectMaybeRun(func(ev event.Event) {
 			require.IsType(t, TryFinalizeEvent{}, ev)
 		})
-		fi.OnEvent(derive.DeriverIdleEvent{})
+		fi.OnEvent(context.Background(), derive.DeriverIdleEvent{})
 		emitter.AssertExpectations(t)
 		// clear expectations
 		emitter.Mock.ExpectedCalls = nil
 
 		// no L2 finalize event, as no L1 finality signal has been forwarded by altda backend yet
-		fi.OnEvent(TryFinalizeEvent{})
+		fi.OnEvent(context.Background(), TryFinalizeEvent{})
 		emitter.AssertExpectations(t)
 
 		// Pretend to be the altda backend,
@@ -155,7 +155,7 @@ func TestAltDAFinalityData(t *testing.T) {
 		altdaFinalization := commitmentInclusionFinalized.Number + cfg.AltDAConfig.DAChallengeWindow
 		if commitmentInclusionFinalized != (eth.L1BlockRef{}) && l1parent.Number == altdaFinalization {
 			// When the signal is forwarded, a finalization attempt will be scheduled
-			emitter.ExpectOnce(TryFinalizeEvent{Ctx: event.WrapCtx(fi.ctx)})
+			emitter.ExpectOnce(TryFinalizeEvent{})
 			altDABackend.forwardTo(commitmentInclusionFinalized)
 			emitter.AssertExpectations(t)
 			require.Equal(t, commitmentInclusionFinalized, fi.finalizedL1, "finality signal now made its way in regular finalizer")
@@ -175,12 +175,12 @@ func TestAltDAFinalityData(t *testing.T) {
 					t.Fatalf("expected L2 finalization, but got: %s", ev)
 				}
 			})
-			fi.OnEvent(TryFinalizeEvent{})
+			fi.OnEvent(context.Background(), TryFinalizeEvent{})
 			l1F.AssertExpectations(t)
 			emitter.AssertExpectations(t)
 			require.Equal(t, commitmentInclusionFinalized.Number, finalizedL2.L1Origin.Number+1)
 			// Confirm finalization, so there will be no repeats of the PromoteFinalizedEvent
-			fi.OnEvent(engine.ForkchoiceUpdateEvent{FinalizedL2Head: finalizedL2})
+			fi.OnEvent(context.Background(), engine.ForkchoiceUpdateEvent{FinalizedL2Head: finalizedL2})
 			emitter.AssertExpectations(t)
 		}
 	}

@@ -1,6 +1,7 @@
 package status
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"sync"
@@ -42,7 +43,7 @@ func NewStatusTracker(chains []eth.ChainID) *StatusTracker {
 	}
 }
 
-func (su *StatusTracker) OnEvent(ev event.Event) bool {
+func (su *StatusTracker) OnEvent(ctx context.Context, ev event.Event) bool {
 	su.mu.Lock()
 	defer su.mu.Unlock()
 

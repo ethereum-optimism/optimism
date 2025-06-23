@@ -67,7 +67,7 @@ func (p *L1Accessor) AttachEmitter(em event.Emitter) {
 	p.emitter = em
 }
 
-func (p *L1Accessor) OnEvent(ev event.Event) bool {
+func (p *L1Accessor) OnEvent(ctx context.Context, ev event.Event) bool {
 	return false
 }
 
@@ -165,7 +165,7 @@ func (p *L1Accessor) PullLatest() error {
 }
 
 func (p *L1Accessor) onFinalized(ctx context.Context, ref eth.L1BlockRef) {
-	p.emitter.Emit(superevents.FinalizedL1RequestEvent{FinalizedL1: ref, Ctx: event.WrapCtx(ctx)})
+	p.emitter.Emit(ctx, superevents.FinalizedL1RequestEvent{FinalizedL1: ref})
 }
 
 func (p *L1Accessor) onLatest(ctx context.Context, ref eth.L1BlockRef) {
@@ -181,9 +181,8 @@ func (p *L1Accessor) onLatest(ctx context.Context, ref eth.L1BlockRef) {
 
 	// If the incoming block is not the child of the current tip, signal a potential reorg
 	if ref.ParentHash != p.tip.Hash {
-		p.emitter.Emit(superevents.RewindL1Event{
+		p.emitter.Emit(ctx, superevents.RewindL1Event{
 			IncomingBlock: ref.ID(),
-			Ctx:           event.WrapCtx(ctx),
 		})
 		p.log.Info("Reorg detected", "ref", ref)
 	}

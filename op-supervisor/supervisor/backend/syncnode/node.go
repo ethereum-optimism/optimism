@@ -103,7 +103,7 @@ func (m *ManagedNode) AttachEmitter(em event.Emitter) {
 
 // OnEvent handles internal supervisor events and translates these into outgoing actions/signals for
 // the managed node.
-func (m *ManagedNode) OnEvent(ev event.Event) bool {
+func (m *ManagedNode) OnEvent(ctx context.Context, ev event.Event) bool {
 	// if we're resetting, ignore all events
 	if m.resetCancel != nil {
 		// even if we are resetting, cancel the reset if the L1 rewinds
@@ -350,10 +350,9 @@ func (m *ManagedNode) onResetPreInteropRequest() {
 
 func (m *ManagedNode) onUnsafeBlock(unsafeRef eth.BlockRef) {
 	m.log.Info("Node has new unsafe block", "unsafeBlock", unsafeRef)
-	m.emitter.Emit(superevents.LocalUnsafeReceivedEvent{
+	m.emitter.Emit(m.ctx, superevents.LocalUnsafeReceivedEvent{
 		ChainID:        m.chainID,
 		NewLocalUnsafe: unsafeRef,
-		Ctx:            event.WrapCtx(m.ctx),
 	})
 	m.lastNodeLocalUnsafe = unsafeRef.ID()
 	m.resetIfInconsistent()
@@ -362,11 +361,10 @@ func (m *ManagedNode) onUnsafeBlock(unsafeRef eth.BlockRef) {
 func (m *ManagedNode) onDerivationUpdate(pair types.DerivedBlockRefPair) {
 	m.log.Info("Node derived new block", "derived", pair.Derived,
 		"derivedParent", pair.Derived.ParentID(), "source", pair.Source)
-	m.emitter.Emit(superevents.LocalDerivedEvent{
+	m.emitter.Emit(m.ctx, superevents.LocalDerivedEvent{
 		ChainID: m.chainID,
 		Derived: pair,
 		NodeID:  m.Node.String(),
-		Ctx:     event.WrapCtx(m.ctx),
 	})
 	m.lastNodeLocalSafe = pair.Derived.ID()
 	m.resetIfInconsistent()
@@ -374,10 +372,9 @@ func (m *ManagedNode) onDerivationUpdate(pair types.DerivedBlockRefPair) {
 
 func (m *ManagedNode) onDerivationOriginUpdate(origin eth.BlockRef) {
 	m.log.Info("Node derived new origin", "origin", origin)
-	m.emitter.Emit(superevents.LocalDerivedOriginUpdateEvent{
+	m.emitter.Emit(m.ctx, superevents.LocalDerivedOriginUpdateEvent{
 		ChainID: m.chainID,
 		Origin:  origin,
-		Ctx:     event.WrapCtx(m.ctx),
 	})
 }
 
@@ -425,10 +422,9 @@ func (m *ManagedNode) onInvalidateLocalSafe(invalidated types.DerivedBlockRefPai
 func (m *ManagedNode) onReplaceBlock(replacement types.BlockReplacement) {
 	m.log.Info("Node provided replacement block",
 		"ref", replacement.Replacement, "invalidated", replacement.Invalidated)
-	m.emitter.Emit(superevents.ReplaceBlockEvent{
+	m.emitter.Emit(m.ctx, superevents.ReplaceBlockEvent{
 		ChainID:     m.chainID,
 		Replacement: replacement,
-		Ctx:         event.WrapCtx(m.ctx),
 	})
 	// if the node replaced a block, both the unsafe and safe are reset to this point
 	m.lastNodeLocalSafe = replacement.Replacement.ID()
@@ -488,8 +484,7 @@ func (m *ManagedNode) resetIfAhead() {
 	lastDBLocalSafe, err := m.backend.LocalSafe(ctx, m.chainID)
 	if errors.Is(err, types.ErrFuture) {
 		m.log.Info("no activation block yet, initiating pre-Interop reset")
-		m.emitter.Emit(superevents.ResetPreInteropRequestEvent{
-			ChainID: m.chainID, Ctx: event.WrapCtx(m.ctx)})
+		m.emitter.Emit(m.ctx, superevents.ResetPreInteropRequestEvent{ChainID: m.chainID})
 		return
 	} else if err != nil {
 		m.log.Error("failed to get last local safe block", "err", err)
@@ -516,8 +511,8 @@ func (m *ManagedNode) resetFullRange() {
 	dbLast, err := m.backend.LocalSafe(internalCtx, m.chainID)
 	if errors.Is(err, types.ErrFuture) {
 		m.log.Info("no activation block yet, initiating pre-Interop reset")
-		m.emitter.Emit(superevents.ResetPreInteropRequestEvent{
-			ChainID: m.chainID, Ctx: event.WrapCtx(m.ctx)})
+		m.emitter.Emit(m.ctx, superevents.ResetPreInteropRequestEvent{
+			ChainID: m.chainID})
 		return
 	} else if err != nil {
 		m.log.Error("failed to get last local safe block", "err", err)

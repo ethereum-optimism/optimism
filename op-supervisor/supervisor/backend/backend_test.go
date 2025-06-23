@@ -133,10 +133,9 @@ func TestBackendLifetime_InteropAtGenesis(t *testing.T) {
 	src.ExpectFetchReceipts(blockX.Hash, nil, nil)
 	src.ExpectBlockRefByNumber(2, blockY, nil)
 	src.ExpectFetchReceipts(blockY.Hash, nil, nil)
-	b.emitter.Emit(superevents.LocalUnsafeReceivedEvent{
+	b.emitter.Emit(context.Background(), superevents.LocalUnsafeReceivedEvent{
 		ChainID:        chainA,
 		NewLocalUnsafe: blockY,
-		Ctx:            event.WrapCtx(context.Background()),
 	})
 	require.NoError(t, ex.Drain())
 	src.AssertExpectations(t)
@@ -158,12 +157,11 @@ func TestBackendLifetime_InteropAtGenesis(t *testing.T) {
 
 	// Receive derived block X from node
 
-	b.emitter.Emit(superevents.LocalDerivedEvent{
+	b.emitter.Emit(context.Background(), superevents.LocalDerivedEvent{
 		ChainID: chainA,
 		Derived: types.DerivedBlockRefPair{
 			Derived: blockX,
 		},
-		Ctx: event.WrapCtx(context.Background()),
 	})
 	require.NoError(t, ex.Drain())
 	src.AssertExpectations(t)
@@ -259,10 +257,9 @@ func TestBackendLifetime_InteropPostGenesis(t *testing.T) {
 
 	// src.ExpectBlockRefByNumber(1, blockX, nil)
 	// src.ExpectFetchReceipts(blockX.Hash, nil, nil)
-	b.emitter.Emit(superevents.LocalUnsafeReceivedEvent{
+	b.emitter.Emit(context.Background(), superevents.LocalUnsafeReceivedEvent{
 		ChainID:        chainA,
 		NewLocalUnsafe: blockX,
-		Ctx:            event.WrapCtx(context.Background()),
 	})
 	require.NoError(t, ex.Drain())
 	src.AssertExpectations(t)
@@ -280,10 +277,9 @@ func TestBackendLifetime_InteropPostGenesis(t *testing.T) {
 
 	src.ExpectBlockRefByNumber(blockY.Number, blockY, nil)
 	src.ExpectFetchReceipts(blockY.Hash, nil, nil)
-	b.emitter.Emit(superevents.LocalUnsafeReceivedEvent{
+	b.emitter.Emit(context.Background(), superevents.LocalUnsafeReceivedEvent{
 		ChainID:        chainA,
 		NewLocalUnsafe: blockY,
-		Ctx:            event.WrapCtx(context.Background()),
 	})
 	require.NoError(t, ex.Drain())
 	src.AssertExpectations(t)
@@ -293,12 +289,11 @@ func TestBackendLifetime_InteropPostGenesis(t *testing.T) {
 
 	// Receive derived block X from node
 
-	b.emitter.Emit(superevents.LocalDerivedEvent{
+	b.emitter.Emit(context.Background(), superevents.LocalDerivedEvent{
 		ChainID: chainA,
 		Derived: types.DerivedBlockRefPair{
 			Derived: blockX,
 		},
-		Ctx: event.WrapCtx(context.Background()),
 	})
 	require.NoError(t, ex.Drain())
 	src.AssertExpectations(t)
@@ -313,12 +308,11 @@ func TestBackendLifetime_InteropPostGenesis(t *testing.T) {
 
 	// Receive derived block Y from node
 
-	b.emitter.Emit(superevents.LocalDerivedEvent{
+	b.emitter.Emit(context.Background(), superevents.LocalDerivedEvent{
 		ChainID: chainA,
 		Derived: types.DerivedBlockRefPair{
 			Derived: blockY,
 		},
-		Ctx: event.WrapCtx(context.Background()),
 	})
 	require.NoError(t, ex.Drain())
 	// cross-safe now at block Y
@@ -383,7 +377,7 @@ func TestBackendCallsMetrics(t *testing.T) {
 		Derived: block,
 	}
 	// update local unsafe/safe, cross unsafe/safe
-	b.chainDBs.OnEvent(superevents.SafeActivationBlockEvent{
+	b.chainDBs.OnEvent(context.Background(), superevents.SafeActivationBlockEvent{
 		Safe:    safe,
 		ChainID: chainA,
 	})

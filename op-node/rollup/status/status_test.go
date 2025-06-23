@@ -1,6 +1,7 @@
 package status
 
 import (
+	"context"
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
@@ -23,7 +24,7 @@ func TestStatus(t *testing.T) {
 	status := tracker.SyncStatus()
 	require.Equal(t, eth.SyncStatus{}, *status)
 
-	tracker.OnEvent(engine.ForkchoiceUpdateEvent{
+	tracker.OnEvent(context.Background(), engine.ForkchoiceUpdateEvent{
 		UnsafeL2Head:    eth.L2BlockRef{Number: 101},
 		SafeL2Head:      eth.L2BlockRef{Number: 102},
 		FinalizedL2Head: eth.L2BlockRef{Number: 99},
@@ -42,7 +43,7 @@ func TestStatus(t *testing.T) {
 	// which would cause a major issue:
 	require.NotZero(t, status.LocalSafeL2.Number)
 
-	tracker.OnEvent(rollup.ResetEvent{})
+	tracker.OnEvent(context.Background(), rollup.ResetEvent{})
 	status = tracker.SyncStatus()
 
 	require.Zero(t, status.LocalSafeL2.Number)

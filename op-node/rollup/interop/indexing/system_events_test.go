@@ -73,6 +73,8 @@ func TestManagedMode_OnEvent_Deduplication(t *testing.T) {
 	l2Ref1 := eth.L2BlockRef{Hash: common.Hash{1}, Number: 100, Time: 1000}
 	l2Ref2 := eth.L2BlockRef{Hash: common.Hash{2}, Number: 101, Time: 1000}
 
+	ctx := context.Background()
+
 	t.Run("ResetEvent", func(t *testing.T) {
 		logs.Clear()
 
@@ -80,7 +82,7 @@ func TestManagedMode_OnEvent_Deduplication(t *testing.T) {
 		resetErr := errors.New("test reset error")
 		resetEvent := rollup.ResetEvent{Err: resetErr}
 
-		result := mm.OnEvent(resetEvent)
+		result := mm.OnEvent(ctx, resetEvent)
 		require.True(t, result, "ResetEvent should be handled")
 
 		events := mockStream.drainEvents()
@@ -93,7 +95,7 @@ func TestManagedMode_OnEvent_Deduplication(t *testing.T) {
 		require.Nil(t, logs.FindLog(testlog.NewLevelFilter(log.LevelWarn), hasSkipLog), "No skip log for first event")
 
 		// Immediate duplicate should be skipped (within TTL)
-		result = mm.OnEvent(resetEvent)
+		result = mm.OnEvent(ctx, resetEvent)
 		require.True(t, result, "ResetEvent should be handled but skipped")
 
 		events = mockStream.drainEvents()
@@ -106,7 +108,7 @@ func TestManagedMode_OnEvent_Deduplication(t *testing.T) {
 		time.Sleep(60 * time.Millisecond) // TTL is 50ms
 		logs.Clear()
 
-		result = mm.OnEvent(resetEvent)
+		result = mm.OnEvent(ctx, resetEvent)
 		require.True(t, result, "ResetEvent should be handled after TTL")
 
 		events = mockStream.drainEvents()
@@ -122,7 +124,7 @@ func TestManagedMode_OnEvent_Deduplication(t *testing.T) {
 
 		// First unsafe update should be sent
 		unsafeEvent1 := engine.UnsafeUpdateEvent{Ref: l2Ref1}
-		result := mm.OnEvent(unsafeEvent1)
+		result := mm.OnEvent(ctx, unsafeEvent1)
 		require.True(t, result, "UnsafeUpdateEvent should be handled")
 
 		events := mockStream.drainEvents()
@@ -135,7 +137,7 @@ func TestManagedMode_OnEvent_Deduplication(t *testing.T) {
 		require.Nil(t, logs.FindLog(testlog.NewLevelFilter(log.LevelWarn), hasSkipLog), "No skip log for first event")
 
 		// Duplicate should be skipped
-		result = mm.OnEvent(unsafeEvent1)
+		result = mm.OnEvent(ctx, unsafeEvent1)
 		require.True(t, result, "Duplicate UnsafeUpdateEvent should be handled but skipped")
 
 		events = mockStream.drainEvents()
@@ -147,7 +149,7 @@ func TestManagedMode_OnEvent_Deduplication(t *testing.T) {
 		// Different reference should be sent
 		logs.Clear()
 		unsafeEvent2 := engine.UnsafeUpdateEvent{Ref: l2Ref2}
-		result = mm.OnEvent(unsafeEvent2)
+		result = mm.OnEvent(ctx, unsafeEvent2)
 		require.True(t, result, "UnsafeUpdateEvent with different ref should be handled")
 
 		events = mockStream.drainEvents()
@@ -164,7 +166,7 @@ func TestManagedMode_OnEvent_Deduplication(t *testing.T) {
 
 		// First safe update should be sent
 		safeEvent1 := engine.LocalSafeUpdateEvent{Source: l1Ref1, Ref: l2Ref1}
-		result := mm.OnEvent(safeEvent1)
+		result := mm.OnEvent(ctx, safeEvent1)
 		require.True(t, result, "LocalSafeUpdateEvent should be handled")
 
 		events := mockStream.drainEvents()
@@ -178,7 +180,7 @@ func TestManagedMode_OnEvent_Deduplication(t *testing.T) {
 		require.Nil(t, logs.FindLog(testlog.NewLevelFilter(log.LevelWarn), hasSkipLog), "No skip log for first event")
 
 		// Duplicate should be skipped
-		result = mm.OnEvent(safeEvent1)
+		result = mm.OnEvent(ctx, safeEvent1)
 		require.True(t, result, "Duplicate LocalSafeUpdateEvent should be handled but skipped")
 
 		events = mockStream.drainEvents()
@@ -190,7 +192,7 @@ func TestManagedMode_OnEvent_Deduplication(t *testing.T) {
 		// Different reference should be sent
 		logs.Clear()
 		safeEvent2 := engine.LocalSafeUpdateEvent{Source: l1Ref1, Ref: l2Ref2}
-		result = mm.OnEvent(safeEvent2)
+		result = mm.OnEvent(ctx, safeEvent2)
 		require.True(t, result, "LocalSafeUpdateEvent with different ref should be handled")
 
 		events = mockStream.drainEvents()
@@ -207,7 +209,7 @@ func TestManagedMode_OnEvent_Deduplication(t *testing.T) {
 
 		// First L1 status event should be sent
 		l1StatusEvent1 := derive.DeriverL1StatusEvent{Origin: l1Ref1, LastL2: l2Ref1}
-		result := mm.OnEvent(l1StatusEvent1)
+		result := mm.OnEvent(ctx, l1StatusEvent1)
 		require.True(t, result, "DeriverL1StatusEvent should be handled")
 
 		events := mockStream.drainEvents()
@@ -222,7 +224,7 @@ func TestManagedMode_OnEvent_Deduplication(t *testing.T) {
 		require.Nil(t, logs.FindLog(testlog.NewLevelFilter(log.LevelWarn), hasSkipLog), "No skip log for first event")
 
 		// Duplicate should be skipped
-		result = mm.OnEvent(l1StatusEvent1)
+		result = mm.OnEvent(ctx, l1StatusEvent1)
 		require.True(t, result, "Duplicate DeriverL1StatusEvent should be handled but skipped")
 
 		events = mockStream.drainEvents()
@@ -234,7 +236,7 @@ func TestManagedMode_OnEvent_Deduplication(t *testing.T) {
 		// Different origin should be sent
 		logs.Clear()
 		l1StatusEvent2 := derive.DeriverL1StatusEvent{Origin: l1Ref2, LastL2: l2Ref1}
-		result = mm.OnEvent(l1StatusEvent2)
+		result = mm.OnEvent(ctx, l1StatusEvent2)
 		require.True(t, result, "DeriverL1StatusEvent with different origin should be handled")
 
 		events = mockStream.drainEvents()
@@ -251,7 +253,7 @@ func TestManagedMode_OnEvent_Deduplication(t *testing.T) {
 
 		// First exhausted L1 event should be sent
 		exhaustedEvent1 := derive.ExhaustedL1Event{L1Ref: l1Ref1, LastL2: l2Ref1}
-		result := mm.OnEvent(exhaustedEvent1)
+		result := mm.OnEvent(ctx, exhaustedEvent1)
 		require.True(t, result, "ExhaustedL1Event should be handled")
 
 		events := mockStream.drainEvents()
@@ -265,7 +267,7 @@ func TestManagedMode_OnEvent_Deduplication(t *testing.T) {
 		require.Nil(t, logs.FindLog(testlog.NewLevelFilter(log.LevelWarn), hasSkipLog), "No skip log for first event")
 
 		// Duplicate should be skipped
-		result = mm.OnEvent(exhaustedEvent1)
+		result = mm.OnEvent(ctx, exhaustedEvent1)
 		require.True(t, result, "Duplicate ExhaustedL1Event should be handled but skipped")
 
 		events = mockStream.drainEvents()
@@ -277,7 +279,7 @@ func TestManagedMode_OnEvent_Deduplication(t *testing.T) {
 		// Different L1 ref should be sent
 		logs.Clear()
 		exhaustedEvent2 := derive.ExhaustedL1Event{L1Ref: l1Ref2, LastL2: l2Ref1}
-		result = mm.OnEvent(exhaustedEvent2)
+		result = mm.OnEvent(ctx, exhaustedEvent2)
 		require.True(t, result, "ExhaustedL1Event with different L1Ref should be handled")
 
 		events = mockStream.drainEvents()
@@ -311,7 +313,7 @@ func TestManagedMode_OnEvent_Deduplication(t *testing.T) {
 
 		// First replaced block event should be sent
 		replacedEvent1 := engine.InteropReplacedBlockEvent{Ref: l2Ref1.BlockRef(), Envelope: envelope}
-		result := mm.OnEvent(replacedEvent1)
+		result := mm.OnEvent(ctx, replacedEvent1)
 		require.True(t, result, "InteropReplacedBlockEvent should be handled")
 
 		events := mockStream.drainEvents()
@@ -325,7 +327,7 @@ func TestManagedMode_OnEvent_Deduplication(t *testing.T) {
 		require.Nil(t, logs.FindLog(testlog.NewLevelFilter(log.LevelWarn), hasSkipLog), "No skip log for first event")
 
 		// Duplicate should be skipped
-		result = mm.OnEvent(replacedEvent1)
+		result = mm.OnEvent(ctx, replacedEvent1)
 		require.True(t, result, "Duplicate InteropReplacedBlockEvent should be handled but skipped")
 
 		events = mockStream.drainEvents()
@@ -337,7 +339,7 @@ func TestManagedMode_OnEvent_Deduplication(t *testing.T) {
 		// Different reference should be sent
 		logs.Clear()
 		replacedEvent2 := engine.InteropReplacedBlockEvent{Ref: l2Ref2.BlockRef(), Envelope: envelope}
-		result = mm.OnEvent(replacedEvent2)
+		result = mm.OnEvent(ctx, replacedEvent2)
 		require.True(t, result, "InteropReplacedBlockEvent with different ref should be handled")
 
 		events = mockStream.drainEvents()
@@ -371,7 +373,7 @@ func TestManagedMode_OnEvent_Deduplication(t *testing.T) {
 		}
 
 		unsafeEvent := engine.UnsafeUpdateEvent{Ref: ref}
-		result := preInteropMM.OnEvent(unsafeEvent)
+		result := preInteropMM.OnEvent(ctx, unsafeEvent)
 		require.False(t, result, "Pre-Interop UnsafeUpdateEvent should not be handled")
 
 		events := preInteropMM.events.(*mockEventStream).drainEvents()

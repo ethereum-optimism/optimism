@@ -2,14 +2,12 @@ package superevents
 
 import (
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-	"github.com/ethereum-optimism/optimism/op-service/event"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 )
 
 type ChainProcessEvent struct {
 	ChainID eth.ChainID
 	Target  uint64
-	event.Ctx
 }
 
 func (ev ChainProcessEvent) String() string {
@@ -18,7 +16,6 @@ func (ev ChainProcessEvent) String() string {
 
 type UpdateCrossUnsafeRequestEvent struct {
 	ChainID eth.ChainID
-	event.Ctx
 }
 
 func (ev UpdateCrossUnsafeRequestEvent) String() string {
@@ -27,7 +24,6 @@ func (ev UpdateCrossUnsafeRequestEvent) String() string {
 
 type UpdateCrossSafeRequestEvent struct {
 	ChainID eth.ChainID
-	event.Ctx
 }
 
 func (ev UpdateCrossSafeRequestEvent) String() string {
@@ -37,7 +33,6 @@ func (ev UpdateCrossSafeRequestEvent) String() string {
 type LocalUnsafeUpdateEvent struct {
 	ChainID        eth.ChainID
 	NewLocalUnsafe eth.BlockRef
-	event.Ctx
 }
 
 func (ev LocalUnsafeUpdateEvent) String() string {
@@ -47,7 +42,6 @@ func (ev LocalUnsafeUpdateEvent) String() string {
 type LocalSafeUpdateEvent struct {
 	ChainID      eth.ChainID
 	NewLocalSafe types.DerivedBlockSealPair
-	event.Ctx
 }
 
 func (ev LocalSafeUpdateEvent) String() string {
@@ -57,7 +51,6 @@ func (ev LocalSafeUpdateEvent) String() string {
 type CrossUnsafeUpdateEvent struct {
 	ChainID        eth.ChainID
 	NewCrossUnsafe types.BlockSeal
-	event.Ctx
 }
 
 func (ev CrossUnsafeUpdateEvent) String() string {
@@ -67,7 +60,6 @@ func (ev CrossUnsafeUpdateEvent) String() string {
 type CrossSafeUpdateEvent struct {
 	ChainID      eth.ChainID
 	NewCrossSafe types.DerivedBlockSealPair
-	event.Ctx
 }
 
 func (ev CrossSafeUpdateEvent) String() string {
@@ -76,7 +68,6 @@ func (ev CrossSafeUpdateEvent) String() string {
 
 type FinalizedL1RequestEvent struct {
 	FinalizedL1 eth.BlockRef
-	event.Ctx
 }
 
 func (ev FinalizedL1RequestEvent) String() string {
@@ -85,7 +76,6 @@ func (ev FinalizedL1RequestEvent) String() string {
 
 type FinalizedL1UpdateEvent struct {
 	FinalizedL1 eth.BlockRef
-	event.Ctx
 }
 
 func (ev FinalizedL1UpdateEvent) String() string {
@@ -95,7 +85,6 @@ func (ev FinalizedL1UpdateEvent) String() string {
 type FinalizedL2UpdateEvent struct {
 	ChainID     eth.ChainID
 	FinalizedL2 types.BlockSeal
-	event.Ctx
 }
 
 func (ev FinalizedL2UpdateEvent) String() string {
@@ -105,7 +94,6 @@ func (ev FinalizedL2UpdateEvent) String() string {
 type LocalUnsafeReceivedEvent struct {
 	ChainID        eth.ChainID
 	NewLocalUnsafe eth.BlockRef
-	event.Ctx
 }
 
 func (ev LocalUnsafeReceivedEvent) String() string {
@@ -116,7 +104,6 @@ type LocalDerivedEvent struct {
 	ChainID eth.ChainID
 	Derived types.DerivedBlockRefPair
 	NodeID  string
-	event.Ctx
 }
 
 func (ev LocalDerivedEvent) String() string {
@@ -126,7 +113,6 @@ func (ev LocalDerivedEvent) String() string {
 type LocalDerivedOriginUpdateEvent struct {
 	ChainID eth.ChainID
 	Origin  eth.BlockRef
-	event.Ctx
 }
 
 func (ev LocalDerivedOriginUpdateEvent) String() string {
@@ -135,7 +121,6 @@ func (ev LocalDerivedOriginUpdateEvent) String() string {
 
 type ResetPreInteropRequestEvent struct {
 	ChainID eth.ChainID
-	event.Ctx
 }
 
 func (ev ResetPreInteropRequestEvent) String() string {
@@ -145,7 +130,6 @@ func (ev ResetPreInteropRequestEvent) String() string {
 type UnsafeActivationBlockEvent struct {
 	Unsafe  eth.BlockRef
 	ChainID eth.ChainID
-	event.Ctx
 }
 
 func (ev UnsafeActivationBlockEvent) String() string {
@@ -155,7 +139,6 @@ func (ev UnsafeActivationBlockEvent) String() string {
 type SafeActivationBlockEvent struct {
 	Safe    types.DerivedBlockRefPair
 	ChainID eth.ChainID
-	event.Ctx
 }
 
 func (ev SafeActivationBlockEvent) String() string {
@@ -165,7 +148,6 @@ func (ev SafeActivationBlockEvent) String() string {
 type InvalidateLocalSafeEvent struct {
 	ChainID   eth.ChainID
 	Candidate types.DerivedBlockRefPair
-	event.Ctx
 }
 
 func (ev InvalidateLocalSafeEvent) String() string {
@@ -174,7 +156,6 @@ func (ev InvalidateLocalSafeEvent) String() string {
 
 type RewindL1Event struct {
 	IncomingBlock eth.BlockID
-	event.Ctx
 }
 
 func (ev RewindL1Event) String() string {
@@ -184,7 +165,6 @@ func (ev RewindL1Event) String() string {
 type ReplaceBlockEvent struct {
 	ChainID     eth.ChainID
 	Replacement types.BlockReplacement
-	event.Ctx
 }
 
 func (ev ReplaceBlockEvent) String() string {
@@ -193,7 +173,6 @@ func (ev ReplaceBlockEvent) String() string {
 
 type ChainRewoundEvent struct {
 	ChainID eth.ChainID
-	event.Ctx
 }
 
 func (ev ChainRewoundEvent) String() string {
@@ -204,7 +183,6 @@ type UpdateLocalSafeFailedEvent struct {
 	ChainID eth.ChainID
 	Err     error
 	NodeID  string
-	event.Ctx
 }
 
 func (ev UpdateLocalSafeFailedEvent) String() string {
@@ -213,7 +191,6 @@ func (ev UpdateLocalSafeFailedEvent) String() string {
 
 type ChainIndexingContinueEvent struct {
 	ChainID eth.ChainID
-	event.Ctx
 }
 
 func (ev ChainIndexingContinueEvent) String() string {

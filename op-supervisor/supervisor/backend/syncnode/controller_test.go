@@ -214,7 +214,7 @@ type eventMonitor struct {
 	localDerivedOriginUpdate int
 }
 
-func (m *eventMonitor) OnEvent(ev event.Event) bool {
+func (m *eventMonitor) OnEvent(ctx context.Context, ev event.Event) bool {
 	switch ev.(type) {
 	case superevents.LocalDerivedEvent:
 		m.localDerived += 1

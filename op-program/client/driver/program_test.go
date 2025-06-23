@@ -1,6 +1,7 @@
 package driver
 
 import (
+	"context"
 	"errors"
 	"testing"
 
@@ -12,7 +13,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/engine"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-	"github.com/ethereum-optimism/optimism/op-service/event"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum-optimism/optimism/op-service/testutils"
 )
@@ -40,7 +40,7 @@ func TestProgramDeriver(t *testing.T) {
 		p, m := newProgram(t, 1000)
 		m.ExpectOnce(derive.ConfirmPipelineResetEvent{})
 		m.ExpectOnce(engine.PendingSafeRequestEvent{})
-		p.OnEvent(engine.EngineResetConfirmedEvent{})
+		p.OnEvent(context.Background(), engine.EngineResetConfirmedEvent{})
 		m.AssertExpectations(t)
 		require.False(t, p.closing)
 		require.NoError(t, p.resultError)
@@ -52,7 +52,7 @@ func TestProgramDeriver(t *testing.T) {
 		p, m := newProgram(t, 1000)
 		ref := eth.L2BlockRef{Number: 123}
 		m.ExpectOnce(derive.PipelineStepEvent{PendingSafe: ref})
-		p.OnEvent(engine.PendingSafeUpdateEvent{PendingSafe: ref})
+		p.OnEvent(context.Background(), engine.PendingSafeUpdateEvent{PendingSafe: ref})
 		m.AssertExpectations(t)
 		require.False(t, p.closing)
 		require.NoError(t, p.resultError)
@@ -61,7 +61,7 @@ func TestProgramDeriver(t *testing.T) {
 	t.Run("deriver more", func(t *testing.T) {
 		p, m := newProgram(t, 1000)
 		m.ExpectOnce(engine.PendingSafeRequestEvent{})
-		p.OnEvent(derive.DeriverMoreEvent{})
+		p.OnEvent(context.Background(), derive.DeriverMoreEvent{})
 		m.AssertExpectations(t)
 		require.False(t, p.closing)
 		require.NoError(t, p.resultError)
@@ -72,7 +72,7 @@ func TestProgramDeriver(t *testing.T) {
 		attrib := &derive.AttributesWithParent{Parent: eth.L2BlockRef{Number: 123}}
 		m.ExpectOnce(derive.ConfirmReceivedAttributesEvent{})
 		m.ExpectOnce(engine.BuildStartEvent{Attributes: attrib})
-		p.OnEvent(derive.DerivedAttributesEvent{Attributes: attrib})
+		p.OnEvent(context.Background(), derive.DerivedAttributesEvent{Attributes: attrib})
 		m.AssertExpectations(t)
 		require.False(t, p.closing)
 		require.NoError(t, p.resultError)
@@ -81,7 +81,7 @@ func TestProgramDeriver(t *testing.T) {
 	t.Run("invalid payload", func(t *testing.T) {
 		p, m := newProgram(t, 1000)
 		m.ExpectOnce(engine.PendingSafeRequestEvent{})
-		p.OnEvent(engine.InvalidPayloadAttributesEvent{Attributes: &derive.AttributesWithParent{}})
+		p.OnEvent(context.Background(), engine.InvalidPayloadAttributesEvent{Attributes: &derive.AttributesWithParent{}})
 		m.AssertExpectations(t)
 		require.False(t, p.closing)
 		require.NoError(t, p.resultError)
@@ -91,21 +91,21 @@ func TestProgramDeriver(t *testing.T) {
 	t.Run("forkchoice update", func(t *testing.T) {
 		t.Run("surpassed", func(t *testing.T) {
 			p, m := newProgram(t, 42)
-			p.OnEvent(engine.ForkchoiceUpdateEvent{SafeL2Head: eth.L2BlockRef{Number: 42 + 1}})
+			p.OnEvent(context.Background(), engine.ForkchoiceUpdateEvent{SafeL2Head: eth.L2BlockRef{Number: 42 + 1}})
 			m.AssertExpectations(t)
 			require.True(t, p.closing)
 			require.NoError(t, p.resultError)
 		})
 		t.Run("completed", func(t *testing.T) {
 			p, m := newProgram(t, 42)
-			p.OnEvent(engine.ForkchoiceUpdateEvent{SafeL2Head: eth.L2BlockRef{Number: 42}})
+			p.OnEvent(context.Background(), engine.ForkchoiceUpdateEvent{SafeL2Head: eth.L2BlockRef{Number: 42}})
 			m.AssertExpectations(t)
 			require.True(t, p.closing)
 			require.NoError(t, p.resultError)
 		})
 		t.Run("incomplete", func(t *testing.T) {
 			p, m := newProgram(t, 42)
-			p.OnEvent(engine.ForkchoiceUpdateEvent{SafeL2Head: eth.L2BlockRef{Number: 42 - 1}})
+			p.OnEvent(context.Background(), engine.ForkchoiceUpdateEvent{SafeL2Head: eth.L2BlockRef{Number: 42 - 1}})
 			m.AssertExpectations(t)
 			require.False(t, p.closing)
 			require.NoError(t, p.resultError)
@@ -114,7 +114,7 @@ func TestProgramDeriver(t *testing.T) {
 	// Do not stop processing when the deriver is idle, the engine may still be busy and create further events.
 	t.Run("deriver idle", func(t *testing.T) {
 		p, m := newProgram(t, 1000)
-		p.OnEvent(derive.DeriverIdleEvent{})
+		p.OnEvent(context.Background(), derive.DeriverIdleEvent{})
 		m.AssertExpectations(t)
 		require.False(t, p.closing)
 		require.NoError(t, p.resultError)
@@ -122,7 +122,7 @@ func TestProgramDeriver(t *testing.T) {
 	// on inconsistent chain data: stop with error
 	t.Run("reset event", func(t *testing.T) {
 		p, m := newProgram(t, 1000)
-		p.OnEvent(rollup.ResetEvent{Err: errTestReset})
+		p.OnEvent(context.Background(), rollup.ResetEvent{Err: errTestReset})
 		m.AssertExpectations(t)
 		require.True(t, p.closing)
 		require.Error(t, p.resultError)
@@ -130,7 +130,7 @@ func TestProgramDeriver(t *testing.T) {
 	// on L1 temporary error: stop with error
 	t.Run("L1 temporary error event", func(t *testing.T) {
 		p, m := newProgram(t, 1000)
-		p.OnEvent(rollup.L1TemporaryErrorEvent{Err: errTestTemp})
+		p.OnEvent(context.Background(), rollup.L1TemporaryErrorEvent{Err: errTestTemp})
 		m.AssertExpectations(t)
 		require.True(t, p.closing)
 		require.Error(t, p.resultError)
@@ -139,7 +139,7 @@ func TestProgramDeriver(t *testing.T) {
 	t.Run("engine temp error event", func(t *testing.T) {
 		p, m := newProgram(t, 1000)
 		m.ExpectOnce(engine.PendingSafeRequestEvent{})
-		p.OnEvent(rollup.EngineTemporaryErrorEvent{Err: errTestTemp})
+		p.OnEvent(context.Background(), rollup.EngineTemporaryErrorEvent{Err: errTestTemp})
 		m.AssertExpectations(t)
 		require.False(t, p.closing)
 		require.NoError(t, p.resultError)
@@ -147,14 +147,14 @@ func TestProgramDeriver(t *testing.T) {
 	// on critical error: stop
 	t.Run("critical error event", func(t *testing.T) {
 		p, m := newProgram(t, 1000)
-		p.OnEvent(rollup.ResetEvent{Err: errTestCrit})
+		p.OnEvent(context.Background(), rollup.ResetEvent{Err: errTestCrit})
 		m.AssertExpectations(t)
 		require.True(t, p.closing)
 		require.Error(t, p.resultError)
 	})
 	t.Run("unknown event", func(t *testing.T) {
 		p, m := newProgram(t, 1000)
-		p.OnEvent(TestEvent{})
+		p.OnEvent(context.Background(), TestEvent{})
 		m.AssertExpectations(t)
 		require.False(t, p.closing)
 		require.NoError(t, p.resultError)
@@ -162,7 +162,6 @@ func TestProgramDeriver(t *testing.T) {
 }
 
 type TestEvent struct {
-	event.Ctx
 }
 
 func (ev TestEvent) String() string {

@@ -52,7 +52,7 @@ func TestFailover(t *testing.T) {
 
 type mockEmitter struct{}
 
-func (m *mockEmitter) Emit(ev event.Event) {
+func (m *mockEmitter) Emit(ctx context.Context, ev event.Event) {
 }
 
 type mockSource struct {

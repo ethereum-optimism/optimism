@@ -174,7 +174,7 @@ func (db *ChainsDB) AttachEmitter(em event.Emitter) {
 	db.emitter = em
 }
 
-func (db *ChainsDB) OnEvent(ev event.Event) bool {
+func (db *ChainsDB) OnEvent(ctx context.Context, ev event.Event) bool {
 	switch x := ev.(type) {
 	case superevents.UnsafeActivationBlockEvent:
 		if !db.isInitialized(x.ChainID) {

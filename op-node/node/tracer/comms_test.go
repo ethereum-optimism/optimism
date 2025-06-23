@@ -11,7 +11,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/p2p"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/status"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-	"github.com/ethereum-optimism/optimism/op-service/event"
 	"github.com/ethereum-optimism/optimism/op-service/testutils"
 )
 
@@ -40,7 +39,7 @@ func TestTracer(t *testing.T) {
 	rng := rand.New(rand.NewSource(123))
 
 	l1Head := testutils.RandomBlockRef(rng)
-	d.OnEvent(status.L1UnsafeEvent{L1Unsafe: l1Head})
+	d.OnEvent(context.Background(), status.L1UnsafeEvent{L1Unsafe: l1Head})
 	require.Equal(t, "L1Head: "+l1Head.ID().String()+"\n", tr.got)
 	tr.got = ""
 
@@ -49,11 +48,11 @@ func TestTracer(t *testing.T) {
 		ExecutionPayload: &eth.ExecutionPayload{
 			BlockHash: id.Hash, BlockNumber: eth.Uint64Quantity(id.Number)}}
 
-	d.OnEvent(p2p.ReceivedBlockEvent{From: "foo", Envelope: block, Ctx: event.WrapCtx(context.Background())})
+	d.OnEvent(context.Background(), p2p.ReceivedBlockEvent{From: "foo", Envelope: block})
 	require.Equal(t, "P2P in: from: foo id: "+id.String()+"\n", tr.got)
 	tr.got = ""
 
-	d.OnEvent(TracePublishBlockEvent{Envelope: block, Ctx: event.WrapCtx(context.Background())})
+	d.OnEvent(context.Background(), TracePublishBlockEvent{Envelope: block})
 	require.Equal(t, "P2P out: "+id.String()+"\n", tr.got)
 	tr.got = ""
 

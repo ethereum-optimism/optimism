@@ -7,7 +7,6 @@ import (
 )
 
 type FooEvent struct {
-	Ctx
 }
 
 func (ev FooEvent) String() string {
@@ -15,7 +14,6 @@ func (ev FooEvent) String() string {
 }
 
 type BarEvent struct {
-	Ctx
 }
 
 func (ev BarEvent) String() string {

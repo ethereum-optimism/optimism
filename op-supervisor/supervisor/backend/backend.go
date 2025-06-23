@@ -181,61 +181,53 @@ func NewSupervisorBackend(ctx context.Context, logger log.Logger,
 	return super, nil
 }
 
-func (su *SupervisorBackend) OnEvent(ev event.Event) bool {
+func (su *SupervisorBackend) OnEvent(ctx context.Context, ev event.Event) bool {
 	switch x := ev.(type) {
 	case superevents.LocalUnsafeReceivedEvent:
 		if !su.cfgSet.IsInterop(x.ChainID, x.NewLocalUnsafe.Time) {
 			su.logger.Warn("ignoring local unsafe received event for pre-interop block", "chainID", x.ChainID, "unsafe", x.NewLocalUnsafe)
 			return false
 		} else if su.cfgSet.IsInteropActivationBlock(x.ChainID, x.NewLocalUnsafe.Time) {
-			su.emitter.Emit(superevents.UnsafeActivationBlockEvent{
+			su.emitter.Emit(ctx, superevents.UnsafeActivationBlockEvent{
 				ChainID: x.ChainID,
 				Unsafe:  x.NewLocalUnsafe,
-				Ctx:     x.Ctx,
 			})
 			// don't process events of the activation block
 			return true
 		}
-		su.emitter.Emit(superevents.ChainProcessEvent{
+		su.emitter.Emit(ctx, superevents.ChainProcessEvent{
 			ChainID: x.ChainID,
 			Target:  x.NewLocalUnsafe.Number,
-			Ctx:     x.Ctx,
 		})
 	case superevents.LocalUnsafeUpdateEvent:
-		su.emitter.Emit(superevents.UpdateCrossUnsafeRequestEvent{
+		su.emitter.Emit(ctx, superevents.UpdateCrossUnsafeRequestEvent{
 			ChainID: x.ChainID,
-			Ctx:     x.Ctx,
 		})
 	case superevents.CrossUnsafeUpdateEvent:
-		su.emitter.Emit(superevents.UpdateCrossUnsafeRequestEvent{
+		su.emitter.Emit(ctx, superevents.UpdateCrossUnsafeRequestEvent{
 			ChainID: x.ChainID,
-			Ctx:     x.Ctx,
 		})
 	case superevents.LocalDerivedEvent:
 		if !su.cfgSet.IsInterop(x.ChainID, x.Derived.Derived.Time) {
 			su.logger.Warn("ignoring local derived event for pre-interop block", "chainID", x.ChainID, "derived", x.Derived.Derived)
 			return false
 		} else if su.cfgSet.IsInteropActivationBlock(x.ChainID, x.Derived.Derived.Time) {
-			su.emitter.Emit(superevents.SafeActivationBlockEvent{
+			su.emitter.Emit(ctx, superevents.SafeActivationBlockEvent{
 				ChainID: x.ChainID,
 				Safe:    x.Derived,
-				Ctx:     x.Ctx,
 			})
 		}
 	case superevents.LocalSafeUpdateEvent:
-		su.emitter.Emit(superevents.ChainProcessEvent{
+		su.emitter.Emit(ctx, superevents.ChainProcessEvent{
 			ChainID: x.ChainID,
 			Target:  x.NewLocalSafe.Derived.Number,
-			Ctx:     x.Ctx,
 		})
-		su.emitter.Emit(superevents.UpdateCrossSafeRequestEvent{
+		su.emitter.Emit(ctx, superevents.UpdateCrossSafeRequestEvent{
 			ChainID: x.ChainID,
-			Ctx:     x.Ctx,
 		})
 	case superevents.CrossSafeUpdateEvent:
-		su.emitter.Emit(superevents.UpdateCrossSafeRequestEvent{
+		su.emitter.Emit(ctx, superevents.UpdateCrossSafeRequestEvent{
 			ChainID: x.ChainID,
-			Ctx:     x.Ctx,
 		})
 	default:
 		return false
@@ -339,14 +331,13 @@ func (su *SupervisorBackend) openChainDBs(chainID eth.ChainID) error {
 	// can initialize, if needed.
 	genesis := su.cfgSet.Genesis(chainID)
 	if su.cfgSet.IsInterop(chainID, genesis.L2.Timestamp) {
-		su.emitter.Emit(superevents.SafeActivationBlockEvent{
+		su.emitter.Emit(su.sysContext, superevents.SafeActivationBlockEvent{
 			ChainID: chainID,
 			Safe: types.DerivedBlockRefPair{
 				// Initialization skips parent checks, so zero parents are ok.
 				Source:  genesis.L1.WithZeroParent(),
 				Derived: genesis.L2.WithZeroParent(),
 			},
-			Ctx: event.WrapCtx(su.sysContext),
 		})
 	}
 

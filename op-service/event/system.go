@@ -47,6 +47,7 @@ type Unattacher interface {
 }
 
 type AnnotatedEvent struct {
+	Ctx                 context.Context // Ctx passed in via Emit, and provided via executor to OnEvent handlers
 	Event               Event
 	EmitContext         uint64   // uniquely identifies the emission of the event, useful for debugging and creating diagrams
 	EmitPriority        Priority // how important the emitter is, higher is more important
@@ -80,19 +81,20 @@ type systemActor struct {
 }
 
 // Emit is called by the end-user
-func (r *systemActor) Emit(ev Event) {
-	if ev.Context() == nil {
+func (r *systemActor) Emit(ctx context.Context, ev Event) {
+	if ctx == nil {
 		if testing.Testing() {
-			panic(fmt.Errorf("emitter %s must attach a context to the emitted event %s", r.name, ev.String()))
+			panic(fmt.Errorf("emitter %s must provide a context with the emitted event %s", r.name, ev.String()))
 		} else {
 			// if not testing, then we will be more graceful, and allow the event to happen. The context may not be used.
 			r.sys.log.Error("Event without context emitted", "emitter", r.name, "event", ev.String())
+			ctx = context.Background()
 		}
 	}
 	if r.ctx.Err() != nil {
 		return
 	}
-	r.sys.emit(r.name, r.currentEvent, ev, r.emitPriority)
+	r.sys.emit(r.name, r.currentEvent, ctx, ev, r.emitPriority)
 }
 
 // RunEvent is called by the events executor.
@@ -112,7 +114,7 @@ func (r *systemActor) RunEvent(ev AnnotatedEvent) {
 	prev := r.currentEvent
 	start := time.Now()
 	r.currentEvent = r.sys.recordDerivStart(r.name, ev, start)
-	effect := r.deriv.OnEvent(ev.Event)
+	effect := r.deriv.OnEvent(ev.Ctx, ev.Event)
 	elapsed := time.Since(start)
 	r.sys.recordDerivEnd(r.name, ev, r.currentEvent, start, elapsed, effect)
 	r.currentEvent = prev
@@ -293,9 +295,10 @@ func (s *Sys) recordEmit(name string, ev AnnotatedEvent, derivContext uint64, em
 // emit an event [ev] during the derivation of another event, referenced by derivContext.
 // If the event was emitted not as part of deriver event execution, then the derivContext is 0.
 // The name of the emitter is provided to further contextualize the event.
-func (s *Sys) emit(name string, derivContext uint64, ev Event, emitPriority Priority) {
+func (s *Sys) emit(name string, derivContext uint64, ctx context.Context, ev Event, emitPriority Priority) {
 	emitContext := s.emitContext.Add(1)
 	annotated := AnnotatedEvent{
+		Ctx:          ctx,
 		Event:        ev,
 		EmitContext:  emitContext,
 		EmitPriority: emitPriority,

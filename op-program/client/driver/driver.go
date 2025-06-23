@@ -69,7 +69,7 @@ func NewDriver(logger log.Logger, cfg *rollup.Config, depSet derive.DependencySe
 	return d
 }
 
-func (d *Driver) Emit(ev event.Event) {
+func (d *Driver) Emit(ctx context.Context, ev event.Event) {
 	if d.end.Closing() {
 		return
 	}
@@ -78,7 +78,7 @@ func (d *Driver) Emit(ev event.Event) {
 
 func (d *Driver) RunComplete() (eth.L2BlockRef, error) {
 	// Initial reset
-	d.Emit(engine.ResetEngineRequestEvent{Ctx: event.WrapCtx(context.Background())})
+	d.Emit(context.Background(), engine.ResetEngineRequestEvent{})
 
 	for !d.end.Closing() {
 		if len(d.events) == 0 {
@@ -90,7 +90,7 @@ func (d *Driver) RunComplete() (eth.L2BlockRef, error) {
 		}
 		ev := d.events[0]
 		d.events = d.events[1:]
-		d.deriver.OnEvent(ev)
+		d.deriver.OnEvent(context.Background(), ev)
 	}
 	return d.end.Result()
 }
