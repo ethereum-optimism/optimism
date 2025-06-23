@@ -94,8 +94,6 @@ templates:
       abis:
         - name: FaultDisputeGame
           file: ./abis/FaultDisputeGame.json
-        - name: PermissionedDisputeGame
-          file: ./abis/PermissionedDisputeGame.json
       eventHandlers:
         - event: Resolved(indexed uint8,indexed bytes32,indexed uint256)
           handler: handleResolvedLegacy
@@ -113,8 +111,6 @@ templates:
       entities:
         - Resolved
       abis:
-        - name: FaultDisputeGame
-          file: ./abis/FaultDisputeGame.json
         - name: PermissionedDisputeGame
           file: ./abis/PermissionedDisputeGame.json
       eventHandlers:
