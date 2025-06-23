@@ -47,12 +47,14 @@ type L2Chain interface {
 
 type Node interface {
 	Name() string
+	CLName() string
 	GasPrice(ctx context.Context) (*big.Int, error)
 	GasLimit(ctx context.Context, tx TransactionData) (uint64, error)
 	PendingNonceAt(ctx context.Context, address common.Address) (uint64, error)
 	BlockByNumber(ctx context.Context, number *big.Int) (eth.BlockInfo, error)
 	ContractsRegistry() interfaces.ContractsRegistry
 	SupportsEIP(ctx context.Context, eip uint64) bool
+	CLRPC() string
 	RPCURL() string
 	Client() (*sources.EthClient, error)
 	GethClient() (*ethclient.Client, error)

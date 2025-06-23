@@ -58,6 +58,14 @@ func TestChainFromDescriptor(t *testing.T) {
 							},
 						},
 					},
+					"cl": &descriptors.Service{
+						Endpoints: descriptors.EndpointMap{
+							"http": &descriptors.PortInfo{
+								Host: "localhost",
+								Port: 8543,
+							},
+						},
+					},
 				},
 			},
 		},
@@ -76,6 +84,7 @@ func TestChainFromDescriptor(t *testing.T) {
 	assert.Nil(t, err)
 	assert.NotNil(t, chain)
 	assert.Equal(t, "http://localhost:8545", chain.Nodes()[0].RPCURL())
+	assert.Equal(t, "http://localhost:8543", chain.Nodes()[0].CLRPC())
 
 	// Compare the underlying big.Int values
 	chainID := chain.ID()
@@ -95,6 +104,14 @@ func TestL2ChainFromDescriptor(t *testing.T) {
 								"rpc": &descriptors.PortInfo{
 									Host: "localhost",
 									Port: 8545,
+								},
+							},
+						},
+						"cl": &descriptors.Service{
+							Endpoints: descriptors.EndpointMap{
+								"http": &descriptors.PortInfo{
+									Host: "localhost",
+									Port: 8543,
 								},
 							},
 						},
@@ -126,6 +143,7 @@ func TestL2ChainFromDescriptor(t *testing.T) {
 	assert.Nil(t, err)
 	assert.NotNil(t, chain)
 	assert.Equal(t, "http://localhost:8545", chain.Nodes()[0].RPCURL())
+	assert.Equal(t, "http://localhost:8543", chain.Nodes()[0].CLRPC())
 
 	// Compare the underlying big.Int values
 	chainID := chain.ID()

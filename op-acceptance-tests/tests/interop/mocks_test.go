@@ -187,6 +187,8 @@ func (m *mockFailingNode) SupportsEIP(ctx context.Context, eip uint64) bool {
 	return true
 }
 func (m *mockFailingNode) RPCURL() string                                  { return "mock://failing" }
+func (m *mockFailingNode) CLRPC() string                                   { return "mock://failing" }
+func (m *mockFailingNode) CLName() string                                  { return "mock" }
 func (m *mockFailingNode) ContractsRegistry() interfaces.ContractsRegistry { return m.reg }
 func (m *mockFailingNode) GethClient() (*ethclient.Client, error) {
 	return nil, fmt.Errorf("not implemented")

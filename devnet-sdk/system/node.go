@@ -23,13 +23,15 @@ var (
 type node struct {
 	rpcUrl   string
 	name     string
+	clRpcUrl string
+	clName   string
 	clients  *clientManager
 	mu       sync.Mutex
 	registry interfaces.ContractsRegistry
 }
 
-func newNode(rpcUrl string, name string, clients *clientManager) *node {
-	return &node{rpcUrl: rpcUrl, name: name, clients: clients}
+func newNode(rpcUrl string, name string, clRpcUrl string, clName string, clients *clientManager) *node {
+	return &node{rpcUrl: rpcUrl, name: name, clRpcUrl: clRpcUrl, clName: clName, clients: clients}
 }
 
 func (n *node) GasPrice(ctx context.Context) (*big.Int, error) {
@@ -112,6 +114,14 @@ func (n *node) ContractsRegistry() interfaces.ContractsRegistry {
 
 func (n *node) RPCURL() string {
 	return n.rpcUrl
+}
+
+func (n *node) CLRPC() string {
+	return n.clRpcUrl
+}
+
+func (n *node) CLName() string {
+	return n.clName
 }
 
 func (n *node) SupportsEIP(ctx context.Context, eip uint64) bool {

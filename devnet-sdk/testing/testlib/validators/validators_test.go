@@ -320,11 +320,19 @@ func (m *mockNode) RPCURL() string {
 	return ""
 }
 
+func (m *mockNode) CLRPC() string {
+	return ""
+}
+
 func (m *mockNode) ContractsRegistry() interfaces.ContractsRegistry {
 	return nil
 }
 
 func (m *mockNode) Name() string {
+	return "mock"
+}
+
+func (m *mockNode) CLName() string {
 	return "mock"
 }
 

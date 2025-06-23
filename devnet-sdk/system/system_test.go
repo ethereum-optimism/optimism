@@ -32,6 +32,15 @@ func TestNewSystemFromEnv(t *testing.T) {
 							},
 						},
 					},
+					"cl": {
+						Name: "lighthouse",
+						Endpoints: descriptors.EndpointMap{
+							"http": &descriptors.PortInfo{
+								Host: "localhost",
+								Port: 8543,
+							},
+						},
+					},
 				},
 			}},
 			Wallets: descriptors.WalletMap{
@@ -56,6 +65,15 @@ func TestNewSystemFromEnv(t *testing.T) {
 									"rpc": &descriptors.PortInfo{
 										Host: "localhost",
 										Port: 8546,
+									},
+								},
+							},
+							"cl": {
+								Name: "op-node",
+								Endpoints: descriptors.EndpointMap{
+									"http": &descriptors.PortInfo{
+										Host: "localhost",
+										Port: 8543,
 									},
 								},
 							},
@@ -103,6 +121,15 @@ func TestSystemFromDevnet(t *testing.T) {
 					"rpc": &descriptors.PortInfo{
 						Host: "localhost",
 						Port: 8545,
+					},
+				},
+			},
+			"cl": {
+				Name: "op-node",
+				Endpoints: descriptors.EndpointMap{
+					"http": &descriptors.PortInfo{
+						Host: "localhost",
+						Port: 8543,
 					},
 				},
 			},

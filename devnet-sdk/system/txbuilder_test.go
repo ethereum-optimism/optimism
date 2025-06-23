@@ -182,12 +182,22 @@ func (m *mockNode) RPCURL() string {
 	return args.Get(0).(string)
 }
 
+func (m *mockNode) CLRPC() string {
+	args := m.Called()
+	return args.Get(0).(string)
+}
+
 func (m *mockNode) SupportsEIP(ctx context.Context, eip uint64) bool {
 	args := m.Called(ctx, eip)
 	return args.Bool(0)
 }
 
 func (m *mockNode) Name() string {
+	args := m.Called()
+	return args.String(0)
+}
+
+func (m *mockNode) CLName() string {
 	args := m.Called()
 	return args.String(0)
 }

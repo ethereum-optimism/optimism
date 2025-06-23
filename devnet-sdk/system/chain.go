@@ -189,7 +189,17 @@ func newNodesFromDescriptor(d *descriptors.Chain) []Node {
 		if rpc.Scheme == "" {
 			rpc.Scheme = "http"
 		}
-		nodes[i] = newNode(fmt.Sprintf("%s://%s:%d", rpc.Scheme, rpc.Host, rpc.Port), name, clients)
+
+		clSvc := node.Services["cl"]
+		clName := clSvc.Name
+
+		// Note: it seems that for CL endpoints, the service that serves the RPC endpoint is using HTTP by default in kurtosis.
+		clRpc := clSvc.Endpoints["rpc"]
+		if clRpc.Scheme == "" {
+			clRpc.Scheme = "http"
+		}
+
+		nodes[i] = newNode(fmt.Sprintf("%s://%s:%d", rpc.Scheme, rpc.Host, rpc.Port), name, fmt.Sprintf("%s://%s:%d", clRpc.Scheme, clRpc.Host, clRpc.Port), clName, clients)
 	}
 	return nodes
 }
