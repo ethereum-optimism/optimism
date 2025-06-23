@@ -11,8 +11,11 @@ import { stdJson } from "forge-std/StdJson.sol";
 
 /// @title GenerateOPCMMigrateCalldata
 /// @notice Script to generate the calldata for the OPCM.migrate function. Useful for constructing public devnets.
-/// @dev Usage: forge script ./scripts/deploy/GenerateOPCMMigrateCalldata.sol --sig 'run(string)'
+/// @dev Usage:
+///
+/// forge script ./scripts/deploy/GenerateOPCMMigrateCalldata.sol --sig 'run(string)' \
 /// ./deploy-config/opcm-migrate-config.json
+///
 /// Due to foundry file access restrictions, the opcm-migrate-config.json file must be located in the deploy-config
 /// directory located at foundry root.
 /// Config example:
@@ -70,18 +73,41 @@ contract GenerateOPCMMigrateCalldata is Script {
         }
 
         absolutePrestate = stdJson.readBytes32(json, "$.absolutePrestate");
+        require(absolutePrestate != bytes32(0), "GenerateOPCMMigrateCalldata: absolutePrestate cannot be 0");
+
         usePermissionlessGame = stdJson.readBool(json, "$.usePermissionlessGame");
         startingAnchorRoot = Proposal({
             root: Hash.wrap(stdJson.readBytes32(json, "$.startingAnchorRoot.root")),
             l2SequenceNumber: stdJson.readUint(json, "$.startingAnchorRoot.l2SequenceNumber")
         });
+        require(
+            Hash.unwrap(startingAnchorRoot.root) != bytes32(0),
+            "GenerateOPCMMigrateCalldata: startingAnchorRoot.root cannot be 0"
+        );
+        require(
+            startingAnchorRoot.l2SequenceNumber != 0,
+            "GenerateOPCMMigrateCalldata: startingAnchorRoot.l2SequenceNumber must be non-zero"
+        );
+
         proposer = stdJson.readAddress(json, "$.proposer");
+        require(proposer != address(0), "GenerateOPCMMigrateCalldata: proposer cannot be 0");
+
         challenger = stdJson.readAddress(json, "$.challenger");
+        require(challenger != address(0), "GenerateOPCMMigrateCalldata: challenger cannot be 0");
+
         maxGameDepth = uint64(stdJson.readUint(json, "$.maxGameDepth"));
+        require(maxGameDepth != 0, "GenerateOPCMMigrateCalldata: maxGameDepth must be non-zero");
+
         splitDepth = uint64(stdJson.readUint(json, "$.splitDepth"));
+        require(splitDepth != 0, "GenerateOPCMMigrateCalldata: splitDepth must be non-zero");
+
         initBond = stdJson.readUint(json, "$.initBond");
+
         clockExtension = Duration.wrap(uint64(stdJson.readUint(json, "$.clockExtension")));
+        require(Duration.unwrap(clockExtension) != 0, "GenerateOPCMMigrateCalldata: clockExtension must be non-zero");
+
         maxClockDuration = Duration.wrap(uint64(stdJson.readUint(json, "$.maxClockDuration")));
+        require(Duration.unwrap(maxClockDuration) != 0, "GenerateOPCMMigrateCalldata: maxClockDuration must be non-zero");
 
         OpChainConfigJson[] memory j = abi.decode(
             vm.parseJsonTypeArray(
@@ -96,6 +122,14 @@ contract GenerateOPCMMigrateCalldata is Script {
                 proxyAdmin: IProxyAdmin(j[i].proxyAdmin),
                 absolutePrestate: Claim.wrap(absolutePrestate)
             });
+            require(
+                opChainConfigs[i].systemConfigProxy != ISystemConfig(address(0)),
+                "GenerateOPCMMigrateCalldata: systemConfigProxy cannot be 0"
+            );
+            require(
+                opChainConfigs[i].proxyAdmin != IProxyAdmin(address(0)),
+                "GenerateOPCMMigrateCalldata: proxyAdmin cannot be 0"
+            );
         }
 
         return IOPContractsManagerInteropMigrator.MigrateInput({

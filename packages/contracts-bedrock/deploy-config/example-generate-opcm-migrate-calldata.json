@@ -3,7 +3,7 @@
     "usePermissionlessGame": true,
     "startingAnchorRoot": {
         "root": "dd69e5f8f65f27ed413cb31f80070ec961b3dd5ca8898269cade08699d9303f6",
-        "l2SequenceNumber": 1743027458 
+        "l2SequenceNumber": 1743027458
     },
     "proposer": "0x4d522194aa103df731F2e6eB74cF2005FD6C48F5",
     "challenger": "0x544078E6C0A7dFC220E096026E99ee87773d1624",
