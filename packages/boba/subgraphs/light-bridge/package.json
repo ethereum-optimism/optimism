@@ -16,7 +16,7 @@
     "prepare:boba-bnb-testnet": "mustache config/boba-bnb-testnet.json subgraph.template.yaml > subgraph.yaml",
     "codegen": "graph codegen",
     "build": "graph build",
-    "deploy": "graph deploy --node https://api.studio.thegraph.com/deploy/ lightbridge",
+    "deploy": "graph deploy --node https://api.studio.thegraph.com/deploy/ light-bridge",
     "create-local": "graph create --node http://localhost:8020/ lightbridge",
     "remove-local": "graph remove --node http://localhost:8020/ lightbridge",
     "deploy-local": "graph deploy --node http://localhost:8020/ --ipfs http://localhost:5001 lightbridge",
