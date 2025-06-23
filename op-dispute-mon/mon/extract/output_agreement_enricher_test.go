@@ -128,11 +128,49 @@ func TestOutputAgreementEnricher(t *testing.T) {
 		err := validator.Enrich(context.Background(), rpcblock.Latest, nil, game)
 		require.NoError(t, err)
 		require.Equal(t, mockRootClaim, game.ExpectedRootClaim)
-		require.True(t, game.AgreeWithClaim)
+		require.False(t, game.AgreeWithClaim)
 		require.NotZero(t, metrics.fetchTime)
 	})
 
-	t.Run("NodesDiverged_FirstNodeAgrees", func(t *testing.T) {
+	t.Run("MixedResponses_FoundNodesMatchClaimAndSafe", func(t *testing.T) {
+		validator, clients, metrics := setupMultiNodeTest(t, 4)
+		clients[0].outputErr = errors.New("not found")
+		clients[1].outputErr = errors.New("not found")
+		clients[2].outputRoot = mockRootClaim
+		clients[2].safeHeadNum = 100
+		clients[3].outputRoot = mockRootClaim
+		clients[3].safeHeadNum = 100
+		game := &types.EnrichedGameData{
+			L1HeadNum:     100,
+			L2BlockNumber: 50,
+			RootClaim:     mockRootClaim,
+		}
+		err := validator.Enrich(context.Background(), rpcblock.Latest, nil, game)
+		require.NoError(t, err)
+		require.Equal(t, mockRootClaim, game.ExpectedRootClaim)
+		require.False(t, game.AgreeWithClaim)
+		require.NotZero(t, metrics.fetchTime)
+	})
+
+	t.Run("MixedResponses_FoundNodesDontMatchClaim", func(t *testing.T) {
+		validator, clients, metrics := setupMultiNodeTest(t, 3)
+		differentRoot := common.HexToHash("0x9999")
+		clients[0].outputErr = errors.New("not found")
+		clients[1].outputRoot = differentRoot
+		clients[2].outputRoot = differentRoot
+		game := &types.EnrichedGameData{
+			L1HeadNum:     100,
+			L2BlockNumber: 50,
+			RootClaim:     mockRootClaim,
+		}
+		err := validator.Enrich(context.Background(), rpcblock.Latest, nil, game)
+		require.NoError(t, err)
+		require.Equal(t, differentRoot, game.ExpectedRootClaim)
+		require.False(t, game.AgreeWithClaim)
+		require.NotZero(t, metrics.fetchTime)
+	})
+
+	t.Run("NodesDiverged", func(t *testing.T) {
 		validator, clients, metrics := setupMultiNodeTest(t, 3)
 		divergedRoot := common.HexToHash("0x5678")
 		clients[0].outputRoot = mockRootClaim
@@ -146,24 +184,6 @@ func TestOutputAgreementEnricher(t *testing.T) {
 		err := validator.Enrich(context.Background(), rpcblock.Latest, nil, game)
 		require.NoError(t, err)
 		require.Equal(t, mockRootClaim, game.ExpectedRootClaim)
-		require.True(t, game.AgreeWithClaim)
-		require.NotZero(t, metrics.fetchTime)
-	})
-
-	t.Run("NodesDiverged_FirstNodeDisagrees", func(t *testing.T) {
-		validator, clients, metrics := setupMultiNodeTest(t, 3)
-		divergedRoot := common.HexToHash("0x5678")
-		clients[0].outputRoot = divergedRoot
-		clients[1].outputRoot = mockRootClaim
-		clients[2].outputRoot = mockRootClaim
-		game := &types.EnrichedGameData{
-			L1HeadNum:     100,
-			L2BlockNumber: 0,
-			RootClaim:     mockRootClaim,
-		}
-		err := validator.Enrich(context.Background(), rpcblock.Latest, nil, game)
-		require.NoError(t, err)
-		require.NotEqual(t, mockRootClaim, game.ExpectedRootClaim)
 		require.False(t, game.AgreeWithClaim)
 		require.NotZero(t, metrics.fetchTime)
 	})
@@ -181,7 +201,7 @@ func TestOutputAgreementEnricher(t *testing.T) {
 		err := validator.Enrich(context.Background(), rpcblock.Latest, nil, game)
 		require.NoError(t, err)
 		require.Equal(t, mockRootClaim, game.ExpectedRootClaim)
-		require.True(t, game.AgreeWithClaim) // Should be true because at least one node reports it as safe
+		require.True(t, game.AgreeWithClaim)
 		require.NotZero(t, metrics.fetchTime)
 	})
 
@@ -198,25 +218,67 @@ func TestOutputAgreementEnricher(t *testing.T) {
 		err := validator.Enrich(context.Background(), rpcblock.Latest, nil, game)
 		require.NoError(t, err)
 		require.Equal(t, mockRootClaim, game.ExpectedRootClaim)
-		require.True(t, game.AgreeWithClaim) // Should be true because we assume safe on error
+		require.True(t, game.AgreeWithClaim)
 		require.NotZero(t, metrics.fetchTime)
 	})
 
 	t.Run("OutputMatches_NotSafe", func(t *testing.T) {
 		validator, clients, metrics := setupMultiNodeTest(t, 3)
-		// Set safe head numbers below the L2 block number
 		clients[0].safeHeadNum = 50
 		clients[1].safeHeadNum = 60
 		clients[2].safeHeadNum = 70
 		game := &types.EnrichedGameData{
 			L1HeadNum:     100,
-			L2BlockNumber: 80, // Higher than all safe head numbers
+			L2BlockNumber: 80,
 			RootClaim:     mockRootClaim,
 		}
 		err := validator.Enrich(context.Background(), rpcblock.Latest, nil, game)
 		require.NoError(t, err)
-		require.Equal(t, mockRootClaim, game.ExpectedRootClaim)
-		require.False(t, game.AgreeWithClaim) // Should be false because not safe
+		require.Equal(t, common.Hash{}, game.ExpectedRootClaim)
+		require.False(t, game.AgreeWithClaim)
+		require.NotZero(t, metrics.fetchTime)
+	})
+
+	t.Run("AllNodesAgree_OutputMatchesClaim_NoneReportSafe", func(t *testing.T) {
+		validator, clients, metrics := setupMultiNodeTest(t, 3)
+
+		for _, client := range clients {
+			client.outputRoot = mockRootClaim
+			client.safeHeadNum = 40
+		}
+
+		game := &types.EnrichedGameData{
+			L1HeadNum:     100,
+			L2BlockNumber: 50, // Higher than all safe heads
+			RootClaim:     mockRootClaim,
+		}
+
+		err := validator.Enrich(context.Background(), rpcblock.Latest, nil, game)
+		require.NoError(t, err)
+		require.Equal(t, common.Hash{}, game.ExpectedRootClaim, "Should set ExpectedRootClaim to empty hash when not safe")
+		require.False(t, game.AgreeWithClaim, "Should disagree because none report it as safe")
+		require.NotZero(t, metrics.fetchTime)
+	})
+
+	t.Run("AllNodesAgree_OutputDifferentFromClaim", func(t *testing.T) {
+		validator, clients, metrics := setupMultiNodeTest(t, 3)
+
+		differentRoot := common.HexToHash("0xdifferent")
+		for _, client := range clients {
+			client.outputRoot = differentRoot
+			// Safe head numbers don't matter here since the output doesn't match the claim
+		}
+
+		game := &types.EnrichedGameData{
+			L1HeadNum:     100,
+			L2BlockNumber: 50,
+			RootClaim:     mockRootClaim,
+		}
+
+		err := validator.Enrich(context.Background(), rpcblock.Latest, nil, game)
+		require.NoError(t, err)
+		require.Equal(t, differentRoot, game.ExpectedRootClaim, "Should set ExpectedRootClaim to the agreed output")
+		require.False(t, game.AgreeWithClaim, "Should disagree because output doesn't match claim")
 		require.NotZero(t, metrics.fetchTime)
 	})
 

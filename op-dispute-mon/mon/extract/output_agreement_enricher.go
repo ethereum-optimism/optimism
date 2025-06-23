@@ -106,7 +106,7 @@ func (o *OutputAgreementEnricher) Enrich(ctx context.Context, block rpcblock.Blo
 	wg.Wait()
 
 	validResults := make([]outputResult, 0, len(results))
-	syncedResults := make([]outputResult, 0, len(results))
+	foundResults := make([]outputResult, 0, len(results))
 	for idx, result := range results {
 		if result.err != nil {
 			o.log.Error("Failed to fetch output root", "clientIndex", idx, "l2BlockNum", game.L2BlockNumber, "err", result.err)
@@ -116,9 +116,9 @@ func (o *OutputAgreementEnricher) Enrich(ctx context.Context, block rpcblock.Blo
 		validResults = append(validResults, result)
 
 		if result.notFound {
-			o.log.Warn("Node is out of sync", "clientIndex", idx, "l2BlockNum", game.L2BlockNumber)
+			o.log.Info("Node has not seen block", "clientIndex", idx, "l2BlockNum", game.L2BlockNumber)
 		} else {
-			syncedResults = append(syncedResults, result)
+			foundResults = append(foundResults, result)
 		}
 	}
 
@@ -127,42 +127,68 @@ func (o *OutputAgreementEnricher) Enrich(ctx context.Context, block rpcblock.Blo
 		return fmt.Errorf("failed to get output at block: %w", ErrAllNodesUnavailable)
 	}
 
-	// If all remaining nodes returned "not found", set game.AgreeWithClaim = false
-	if len(syncedResults) == 0 {
+	// If all remaining nodes returned "not found", we disagree with any claim.
+	if len(foundResults) == 0 {
 		game.AgreeWithClaim = false
 		game.ExpectedRootClaim = common.Hash{}
 		return nil
 	}
 
-	// Check if nodes have diverged
-	firstOutputRoot := syncedResults[0].outputRoot
-	diverged := false
-	for _, result := range syncedResults[1:] {
-		if result.outputRoot != firstOutputRoot {
-			diverged = true
-			break
+	// At least one node returned an output root, record the fetch time.
+	o.metrics.RecordOutputFetchTime(float64(o.clock.Now().Unix()))
+
+	// Check for disagreements among nodes.
+	// A disagreement is any of:
+	// - Mixed "found" and "not found" responses.
+	// - Different output roots from nodes that found an output.
+	firstResult := foundResults[0]
+	diverged := len(foundResults) < len(validResults)
+	if !diverged {
+		for _, result := range foundResults[1:] {
+			if result.outputRoot != firstResult.outputRoot {
+				diverged = true
+				break
+			}
 		}
 	}
 
 	if diverged {
-		o.log.Error("Nodes have diverged", "firstNodeOutput", firstOutputRoot)
-		// Use the result from the first node in the list
-		game.ExpectedRootClaim = firstOutputRoot
-		game.AgreeWithClaim = firstOutputRoot == game.RootClaim && syncedResults[0].isSafe
-	} else {
-		// All nodes agree on the output root
-		game.ExpectedRootClaim = firstOutputRoot
-		// Consider the output root "safe" if any node reported it as safe
-		isSafe := false
-		for _, result := range syncedResults {
-			if result.isSafe {
-				isSafe = true
-				break
-			}
-		}
-		game.AgreeWithClaim = firstOutputRoot == game.RootClaim && isSafe
+		o.log.Warn("Nodes disagree on output root",
+			"l2BlockNum", game.L2BlockNumber,
+			"firstOutput", firstResult.outputRoot,
+			"found", len(foundResults),
+			"valid", len(validResults))
+		game.AgreeWithClaim = false
+		game.ExpectedRootClaim = firstResult.outputRoot
+		return nil
 	}
 
-	o.metrics.RecordOutputFetchTime(float64(o.clock.Now().Unix()))
+	// All nodes that found an output agree on the root.
+	// Now check if the output is considered safe by at least one node.
+	atLeastOneSafe := false
+	for _, result := range foundResults {
+		if result.isSafe {
+			atLeastOneSafe = true
+			break
+		}
+	}
+
+	// If no node considers the output safe, we disagree.
+	if !atLeastOneSafe {
+		o.log.Warn("All nodes agree on output root, but none consider it safe",
+			"l2BlockNum", game.L2BlockNumber, "root", firstResult.outputRoot)
+		game.AgreeWithClaim = false
+		if firstResult.outputRoot == game.RootClaim {
+			game.ExpectedRootClaim = common.Hash{}
+		} else {
+			game.ExpectedRootClaim = firstResult.outputRoot
+		}
+		return nil
+	}
+
+	// All nodes agree and at least one considers the output safe.
+	// We agree with the claim if the game's root claim matches.
+	game.ExpectedRootClaim = firstResult.outputRoot
+	game.AgreeWithClaim = game.RootClaim == firstResult.outputRoot
 	return nil
 }
