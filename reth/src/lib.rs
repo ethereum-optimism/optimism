@@ -100,6 +100,10 @@ pub mod provider {
     pub use reth_db as db;
 }
 
+/// Re-exported codec crate
+#[cfg(feature = "provider")]
+pub use reth_codecs as codec;
+
 /// Re-exported reth storage api types
 #[cfg(feature = "storage-api")]
 pub mod storage {
