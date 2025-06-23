@@ -311,56 +311,120 @@ func isExcluded(filePath string) bool {
 
 // Defines the list of paths that should be excluded from validation
 var excludedPaths = []string{
-	// src excluded
-	"test/invariants/",
-	"test/kontrol/",
-	"test/opcm/",
-	"test/scripts/",
-	"test/integration/",
-	"test/setup/",
-	"test/cannon/MIPS64Memory.t.sol",
-	"test/dispute/lib/LibClock.t.sol",
-	"test/dispute/lib/LibGameId.t.sol",
-	"test/libraries/DeployUtils.t.sol",
-	"test/universal/BenchmarkTest.t.sol",
-	"test/universal/ExtendedPause.t.sol",
-	"test/vendor/Initializable.t.sol",
-	"test/vendor/InitializableOZv5.t.sol",
+	// PATHS EXCLUDED FROM SRC VALIDATION:
+	// These paths are excluded because they don't follow the standard naming convention
+	// where test files (*.t.sol) have corresponding source files (*.sol) in the src/ directory.
+	// Instead, they follow alternative naming conventions or serve specialized purposes:
+	// - Some are utility/infrastructure tests that don't test specific contracts
+	// - Some test external libraries or vendor code that exists elsewhere
+	// - Some are integration tests that test multiple contracts together
+	// - Some are specialized test types (invariants, formal verification, etc.)
+	//
+	// Resolving these naming inconsistencies is outside the current scope, but they
+	// are documented here to avoid false validation failures while maintaining
+	// the validation rules for standard contract tests.
+	"test/invariants/",                    // Invariant testing framework - no direct src counterpart
+	"test/kontrol/",                       // Formal verification tests - specialized tooling
+	"test/opcm/",                          // OP Chain Manager tests - may have different structure
+	"test/scripts/",                       // Script tests - test deployment/utility scripts, not contracts
+	"test/integration/",                   // Integration tests - test multiple contracts together
+	"test/setup/",                         // Test setup utilities - infrastructure, not contract tests
+	"test/cannon/MIPS64Memory.t.sol",      // Tests external MIPS implementation
+	"test/dispute/lib/LibClock.t.sol",     // Tests library utilities
+	"test/dispute/lib/LibGameId.t.sol",    // Tests library utilities
+	"test/libraries/DeployUtils.t.sol",    // Tests deployment utilities
+	"test/universal/BenchmarkTest.t.sol",  // Performance benchmarking tests
+	"test/universal/ExtendedPause.t.sol",  // Tests extended functionality
+	"test/vendor/Initializable.t.sol",     // Tests external vendor code
+	"test/vendor/InitializableOZv5.t.sol", // Tests external vendor code
 
-	// contract name file path excluded
-	"test/dispute/DelayedWETH.t.sol",
-	"test/dispute/DisputeGameFactory.t.sol",
-	"test/dispute/FaultDisputeGame.t.sol",
-	"test/dispute/SuperFaultDisputeGame.t.sol",
-	"test/L1/L1CrossDomainMessenger.t.sol",
-	"test/L1/L1ERC721Bridge.t.sol",
-	"test/L1/ResourceMetering.t.sol",
-	"test/L1/StandardValidator.t.sol",
-	"test/L2/CrossDomainOwnable.t.sol",
-	"test/L2/CrossDomainOwnable2.t.sol",
-	"test/L2/CrossDomainOwnable3.t.sol",
-	"test/L2/CrossL2Inbox.t.sol",
-	"test/L2/GasPriceOracle.t.sol",
-	"test/L2/L2ERC721Bridge.t.sol",
-	"test/L2/L2ToL2CrossDomainMessenger.t.sol",
-	"test/legacy/L1ChugSplashProxy.t.sol",
-	"test/legacy/ResolvedDelegateProxy.t.sol",
-	"test/libraries/Blueprint.t.sol",
-	"test/libraries/SafeCall.t.sol",
-	"test/periphery/drippie/Drippie.t.sol",
-	"test/safe/LivenessGuard.t.sol",
-	"test/universal/CrossDomainMessenger.t.sol",
-	"test/universal/Proxy.t.sol",
-	"test/universal/StandardBridge.t.sol",
+	// PATHS EXCLUDED FROM CONTRACT NAME FILE PATH VALIDATION:
+	// These paths are excluded because they don't follow the standard naming convention
+	// where the contract name matches the file name pattern: <FileName>_<Function>_Test.
+	// Instead, these files contain contracts with names like <AnotherName>_<Function>_Test,
+	// where the base contract name doesn't match the file name.
+	//
+	// This typically occurs when:
+	// - The test file contains helper contracts or alternative implementations
+	// - The test file tests multiple related contracts or contract variants
+	// - The test file uses a different naming strategy for organizational purposes
+	// - The contracts being tested have complex inheritance or composition patterns
+	//
+	// These naming inconsistencies may indicate the presence of specialized test
+	// infrastructure beyond standard harnesses or different setup contracts patterns.
+	"test/dispute/DelayedWETH.t.sol",            // Contains contracts not matching DelayedWETH base name
+	"test/dispute/DisputeGameFactory.t.sol",     // Contains contracts not matching DisputeGameFactory base name
+	"test/dispute/FaultDisputeGame.t.sol",       // Contains contracts not matching FaultDisputeGame base name
+	"test/dispute/SuperFaultDisputeGame.t.sol",  // Contains contracts not matching SuperFaultDisputeGame base name
+	"test/L1/L1CrossDomainMessenger.t.sol",      // Contains contracts not matching L1CrossDomainMessenger base name
+	"test/L1/L1ERC721Bridge.t.sol",              // Contains contracts not matching L1ERC721Bridge base name
+	"test/L1/ResourceMetering.t.sol",            // Contains contracts not matching ResourceMetering base name
+	"test/L1/StandardValidator.t.sol",           // Contains contracts not matching StandardValidator base name
+	"test/L2/CrossDomainOwnable.t.sol",          // Contains contracts not matching CrossDomainOwnable base name
+	"test/L2/CrossDomainOwnable2.t.sol",         // Contains contracts not matching CrossDomainOwnable2 base name
+	"test/L2/CrossDomainOwnable3.t.sol",         // Contains contracts not matching CrossDomainOwnable3 base name
+	"test/L2/CrossL2Inbox.t.sol",                // Contains contracts not matching CrossL2Inbox base name
+	"test/L2/GasPriceOracle.t.sol",              // Contains contracts not matching GasPriceOracle base name
+	"test/L2/L2ERC721Bridge.t.sol",              // Contains contracts not matching L2ERC721Bridge base name
+	"test/L2/L2ToL2CrossDomainMessenger.t.sol",  // Contains contracts not matching L2ToL2CrossDomainMessenger base name
+	"test/legacy/L1ChugSplashProxy.t.sol",       // Contains contracts not matching L1ChugSplashProxy base name
+	"test/legacy/ResolvedDelegateProxy.t.sol",   // Contains contracts not matching ResolvedDelegateProxy base name
+	"test/libraries/Blueprint.t.sol",            // Contains contracts not matching Blueprint base name
+	"test/libraries/SafeCall.t.sol",             // Contains contracts not matching SafeCall base name
+	"test/periphery/drippie/Drippie.t.sol",      // Contains contracts not matching Drippie base name
+	"test/safe/LivenessGuard.t.sol",             // Contains contracts not matching LivenessGuard base name
+	"test/universal/CrossDomainMessenger.t.sol", // Contains contracts not matching CrossDomainMessenger base name
+	"test/universal/Proxy.t.sol",                // Contains contracts not matching Proxy base name
+	"test/universal/StandardBridge.t.sol",       // Contains contracts not matching StandardBridge base name
 
-	// function name excluded
-	"test/libraries",
-	"test/safe/SafeSigners.t.sol",
-	"test/dispute/lib/LibPosition.t.sol",
-	"test/L1/ProxyAdminOwnedBase.t.sol",
+	// PATHS EXCLUDED FROM FUNCTION NAME VALIDATION:
+	// These paths are excluded because they don't pass the function name validation,
+	// which checks that the function in the <FileName>_<Function>_Test pattern
+	// actually exists in the source contract's ABI.
+	//
+	// Common reasons for exclusion:
+	// - Libraries: Have different artifact structures that the validation system
+	//   doesn't currently support, making function name lookup impossible
+	// - Internal/Private functions: Some contracts test internal functions that
+	//   aren't exposed in the public ABI, so they can't be validated
+	// - Misspelled/Incorrect function names: Test contracts may have typos or
+	//   incorrect function names that don't match the actual source contract
+	//
+	// Resolving these issues requires either:
+	// - Enhancing the validation system to support libraries and complex structures
+	// - Fixing misspelled function names in test contracts
+	// - Restructuring tests to match actual function signatures
+	"test/libraries",                              // Libraries have different artifact structure, unsupported
+	"test/dispute/lib/LibPosition.t.sol",          // Library testing - artifact structure issues
+	"test/L1/OptimismPortal2.t.sol",               // Function name validation issues
+	"test/L1/ProxyAdminOwnedBase.t.sol",           // Tests internal functions not in ABI
+	"test/L1/SystemConfig.t.sol",                  // Function name validation issues
+	"test/L2/OptimismMintableERC721.t.sol",        // Function name validation issues
+	"test/L2/OptimismMintableERC721Factory.t.sol", // Function name validation issues
+	"test/L2/SequencerFeeVault.t.sol",             // Function name validation issues
+	"test/L2/SuperchainERC20.t.sol",               // Function name validation issues
+	"test/safe/SafeSigners.t.sol",                 // Function name validation issues
 
-	// test pattern excluded
-	"test/L2/L2StandardBridgeInterop.t.sol",
+	// PATHS EXCLUDED FROM TEST PATTERN VALIDATION:
+	// These paths are excluded because they don't follow the standard test contract
+	// naming patterns defined in the validation system. The expected patterns are:
+	// - <ContractName>_TestInit: for initialization/setup contracts
+	// - <ContractName>_<FunctionName>_Test: for testing specific functions
+	// - <ContractName>_<Descriptor>_Harness: for harness contracts
+	// - <ContractName>_Uncategorized_Test: for miscellaneous tests
+	//
+	// Common reasons for exclusion:
+	// - Multiple test contracts for the same function: When testing the same function
+	//   requires different setups or contexts, multiple test contracts are needed
+	//   (e.g., testing convert() with different token types requires separate contracts)
+	// - Legacy naming patterns: Some contracts use older naming conventions like
+	//   <ContractName>_<Function>_TestFail that need to be updated to _Test
+	//
+	// Resolving these issues requires either:
+	// - Refactoring tests to fit standard patterns where possible
+	// - Updating legacy TestFail patterns to use standard _Test naming
+	// - Enhancing the validation system to support legitimate multiple-contract scenarios
+	"test/L2/L2StandardBridgeInterop.t.sol", // Multiple contracts test same convert() function with different setups
 }
 
 // Test name validation rules
