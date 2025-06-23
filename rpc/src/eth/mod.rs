@@ -117,9 +117,9 @@ where
 {
     type Error = OpEthApiError;
     type NetworkTypes = NetworkT;
-    type TransactionCompat = RpcConverter<NetworkT, N::Evm, OpEthApiError, OpTxInfoMapper<N>>;
+    type RpcConvert = RpcConverter<NetworkT, N::Evm, OpEthApiError, OpTxInfoMapper<N>>;
 
-    fn tx_resp_builder(&self) -> &Self::TransactionCompat {
+    fn tx_resp_builder(&self) -> &Self::RpcConvert {
         &self.tx_resp_builder
     }
 }
