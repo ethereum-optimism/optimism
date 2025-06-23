@@ -48,6 +48,7 @@ pub mod consensus {
 }
 
 /// Re-exported from `reth_chainspec`
+#[allow(ambiguous_glob_reexports)]
 pub mod chainspec {
     #[doc(inline)]
     pub use reth_chainspec::*;
