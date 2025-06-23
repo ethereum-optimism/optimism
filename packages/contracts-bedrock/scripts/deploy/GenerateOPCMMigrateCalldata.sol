@@ -53,6 +53,11 @@ contract GenerateOPCMMigrateCalldata is Script {
     Duration clockExtension;
     Duration maxClockDuration;
 
+    struct OpChainConfigJson {
+        address systemConfigProxy;
+        address proxyAdmin;
+    }
+
     function readConfig(string memory _configFile)
         internal
         returns (IOPContractsManagerInteropMigrator.MigrateInput memory)
@@ -78,17 +83,20 @@ contract GenerateOPCMMigrateCalldata is Script {
         clockExtension = Duration.wrap(uint64(stdJson.readUint(json, "$.clockExtension")));
         maxClockDuration = Duration.wrap(uint64(stdJson.readUint(json, "$.maxClockDuration")));
 
-        IOPContractsManager.OpChainConfig[] memory opChainConfigs = new IOPContractsManager.OpChainConfig[](2);
-        opChainConfigs[0] = IOPContractsManager.OpChainConfig({
-            systemConfigProxy: ISystemConfig(stdJson.readAddress(json, "$.opChainConfigs[0].systemConfigProxy")),
-            proxyAdmin: IProxyAdmin(stdJson.readAddress(json, "$.opChainConfigs[0].proxyAdmin")),
-            absolutePrestate: Claim.wrap(absolutePrestate)
-        });
-        opChainConfigs[1] = IOPContractsManager.OpChainConfig({
-            systemConfigProxy: ISystemConfig(stdJson.readAddress(json, "$.opChainConfigs[1].systemConfigProxy")),
-            proxyAdmin: IProxyAdmin(stdJson.readAddress(json, "$.opChainConfigs[1].proxyAdmin")),
-            absolutePrestate: Claim.wrap(absolutePrestate)
-        });
+        OpChainConfigJson[] memory j = abi.decode(
+            vm.parseJsonTypeArray(
+                json, "$.opChainConfigs", "OpChainConfigJson(address systemConfigProxy, address proxyAdmin)"
+            ),
+            (OpChainConfigJson[])
+        );
+        IOPContractsManager.OpChainConfig[] memory opChainConfigs = new IOPContractsManager.OpChainConfig[](j.length);
+        for (uint256 i = 0; i < j.length; i++) {
+            opChainConfigs[i] = IOPContractsManager.OpChainConfig({
+                systemConfigProxy: ISystemConfig(j[i].systemConfigProxy),
+                proxyAdmin: IProxyAdmin(j[i].proxyAdmin),
+                absolutePrestate: Claim.wrap(absolutePrestate)
+            });
+        }
 
         return IOPContractsManagerInteropMigrator.MigrateInput({
             usePermissionlessGame: usePermissionlessGame,
