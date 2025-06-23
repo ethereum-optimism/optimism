@@ -68,7 +68,6 @@ if [ -z "$BRANCH" ] || [ -z "$ORG_NAME" ] || [ -z "$REPO_NAME" ] || [ -z "$CIRCL
   echo "ORG_NAME: $ORG_NAME"
   echo "REPO_NAME: $REPO_NAME"
   echo "CIRCLE_API_TOKEN length: ${#CIRCLE_API_TOKEN}"
-  echo "CIRCLE_API_TOKEN first 10 chars: ${CIRCLE_API_TOKEN:0:10}..."
   exit 1
 fi
 

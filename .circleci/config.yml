@@ -1770,15 +1770,6 @@ jobs:
             # Make the script executable
             chmod +x ./op-acceptance-tests/scripts/generate-flaky-tests-report.sh
 
-            # print the below variables
-            echo "CIRCLE_BRANCH: ${CIRCLE_BRANCH}"
-            echo "CIRCLE_PROJECT_USERNAME: ${CIRCLE_PROJECT_USERNAME}"
-            echo "CIRCLE_PROJECT_REPONAME: ${CIRCLE_PROJECT_REPONAME}"
-            # for token just print the first 10 characters
-            echo "CIRCLE_API_TOKEN: ${CIRCLE_API_TOKEN:0:10}..."
-            echo "CIRCLE_API_TOKEN length: ${#CIRCLE_API_TOKEN}"
-
-
             # Run the script
             ./op-acceptance-tests/scripts/generate-flaky-tests-report.sh \
               --branch "${CIRCLE_BRANCH:-develop}" \
