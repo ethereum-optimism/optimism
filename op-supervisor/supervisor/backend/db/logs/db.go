@@ -587,6 +587,24 @@ func (db *DB) AddLog(logHash common.Hash, parentBlock eth.BlockID, logIdx uint32
 	return db.flush()
 }
 
+// Clear clears the DB such that there is no data left.
+// An invalidator is required as argument, to force users to invalidate any current open reads.
+func (db *DB) Clear(inv reads.Invalidator) error {
+	release, invalidateErr := inv.TryInvalidate(reads.InvalidationRules{
+		reads.DerivedInvalidation{Timestamp: 0},
+	})
+	if invalidateErr != nil {
+		return invalidateErr
+	}
+	defer release()
+	defer db.updateEntryCountMetric()
+	if truncateErr := db.store.Truncate(-1); truncateErr != nil {
+		return fmt.Errorf("failed to empty DB: %w", truncateErr)
+	}
+	db.lastEntryContext = logContext{}
+	return nil
+}
+
 // Rewind the database to remove any blocks after newHead.
 // The block at newHead.Number itself is not removed.
 // If the newHead is before the start of the DB, then this empties the DB.
@@ -599,17 +617,9 @@ func (db *DB) Rewind(inv reads.Invalidator, newHead eth.BlockID) error {
 	iter, err := db.newIteratorAt(newHead.Number, 0)
 	if err != nil {
 		if errors.Is(err, types.ErrPreviousToFirst) || errors.Is(err, types.ErrSkipped) {
-			release, invalidateErr := inv.TryInvalidate(reads.InvalidationRules{
-				reads.DerivedInvalidation{Timestamp: 0},
-			})
-			if invalidateErr != nil {
-				return invalidateErr
+			if err := db.Clear(inv); err != nil {
+				return fmt.Errorf("failed to clear logs DB, upon rewinding to log block %s before first block: %w", newHead, err)
 			}
-			defer release()
-			if truncateErr := db.store.Truncate(-1); truncateErr != nil {
-				return fmt.Errorf("failed to empty DB, upon rewinding to log block %s before first block: %w", newHead, truncateErr)
-			}
-			db.lastEntryContext = logContext{}
 			return nil
 		}
 		return err

@@ -151,6 +151,25 @@ func (db *DB) Rewind(inv reads.Invalidator, target types.DerivedBlockSealPair, i
 	return db.rewindLocked(inv, target, including)
 }
 
+// Clear clears the DB such that there is no data left.
+// An invalidator is required as argument, to force users to invalidate any current open reads.
+func (db *DB) Clear(inv reads.Invalidator) error {
+	// aggressively invalidate everything, since we are clearing the DB.
+	release, invalidateErr := inv.TryInvalidate(reads.InvalidationRules{
+		reads.SourceInvalidation{Number: 0},
+		reads.DerivedInvalidation{Timestamp: 0},
+	})
+	if invalidateErr != nil {
+		return invalidateErr
+	}
+	defer release()
+	if truncateErr := db.store.Truncate(-1); truncateErr != nil {
+		return fmt.Errorf("failed to empty DB: %w", truncateErr)
+	}
+	db.m.RecordDBDerivedEntryCount(0)
+	return nil
+}
+
 // RewindToSource rewinds the DB to the last entry with
 // a source value matching the given scope (excluded from the rewind, included after in DB).
 // If the source is before the start of the DB, the DB will be emptied.
@@ -164,19 +183,9 @@ func (db *DB) RewindToSource(inv reads.Invalidator, source eth.BlockID) error {
 	if err != nil {
 		// If the rewind-point is before the first block in the DB, then drop all content of the DB.
 		if errors.Is(err, types.ErrSkipped) || errors.Is(err, types.ErrPreviousToFirst) {
-			// aggressively invalidate everything, since we are clearing the DB.
-			release, invalidateErr := inv.TryInvalidate(reads.InvalidationRules{
-				reads.SourceInvalidation{Number: 0},
-				reads.DerivedInvalidation{Timestamp: 0},
-			})
-			if invalidateErr != nil {
-				return invalidateErr
+			if err := db.Clear(inv); err != nil {
+				return fmt.Errorf("failed to clear DA DB, upon rewinding to source block %s before first block: %w", source, err)
 			}
-			defer release()
-			if truncateErr := db.store.Truncate(-1); truncateErr != nil {
-				return fmt.Errorf("failed to empty DB, upon rewinding to source block %s before first block: %w", source, truncateErr)
-			}
-			db.m.RecordDBDerivedEntryCount(0)
 			return nil
 		}
 		return fmt.Errorf("failed to find last derived %d: %w", source.Number, err)
