@@ -45,7 +45,12 @@ rules:
       - pattern: vm.expectRevert()
     paths:
       exclude:
+<<<<<<< HEAD
         - packages/contracts-bedrock/test/universal/WETH98.t.sol
+=======
+        - packages/contracts-bedrock/test/dispute/WETH98.t.sol
+        - packages/contracts-bedrock/src/governance/ApprovalVotingModule.sol
+>>>>>>> feat: add submit funding proposal (#411)
 
   - id: sol-safety-natspec-semver-match
     languages: [generic]
@@ -110,6 +115,7 @@ rules:
       exclude:
         - packages/contracts-bedrock/test
         - packages/contracts-bedrock/scripts
+        - packages/contracts-bedrock/src/governance/ApprovalVotingModule.sol
 
   - id: sol-style-input-arg-fmt
     languages: [solidity]
@@ -126,6 +132,7 @@ rules:
         - packages/contracts-bedrock/src/L2/SuperchainETHBridge.sol
         - packages/contracts-bedrock/src/governance/GovernanceToken.sol
         - packages/contracts-bedrock/src/governance/VotingModule.sol
+        - packages/contracts-bedrock/src/governance/ApprovalVotingModule.sol
 
   - id: sol-style-return-arg-fmt
     languages: [solidity]
@@ -141,6 +148,7 @@ rules:
         - packages/contracts-bedrock/scripts/libraries/Solarray.sol
         - packages/contracts-bedrock/scripts/interfaces/IGnosisSafe.sol
         - packages/contracts-bedrock/src/governance/VotingModule.sol
+        - packages/contracts-bedrock/src/governance/ApprovalVotingModule.sol
 
   - id: sol-style-doc-comment
     languages: [solidity]
@@ -150,6 +158,7 @@ rules:
     paths:
       exclude:
         - packages/contracts-bedrock/test/safe-tools/CompatibilityFallbackHandler_1_3_0.sol
+        - packages/contracts-bedrock/src/governance/ApprovalVotingModule.sol
 
   - id: sol-style-malformed-require
     languages: [solidity]
@@ -167,6 +176,14 @@ rules:
       exclude:
         - packages/contracts-bedrock/src/libraries/Bytes.sol
         - packages/contracts-bedrock/src/legacy/LegacyMintableERC20.sol
+<<<<<<< HEAD
+=======
+        - packages/contracts-bedrock/src/cannon/MIPS.sol
+        - packages/contracts-bedrock/src/cannon/MIPS2.sol
+        - packages/contracts-bedrock/src/cannon/libraries/MIPSMemory.sol
+        - packages/contracts-bedrock/src/cannon/libraries/MIPSInstructions.sol
+        - packages/contracts-bedrock/src/governance/ApprovalVotingModule.sol
+>>>>>>> feat: add submit funding proposal (#411)
 
   - id: sol-style-malformed-revert
     languages: [solidity]
@@ -180,6 +197,13 @@ rules:
       - pattern-not-regex: string\.concat\(\"(\w+:\s[^"]*)\"\,.+\)
       - pattern-not-regex: \"([a-zA-Z0-9\s]+-[a-zA-Z0-9\s]+)\"
       - pattern-not-regex: \"([a-zA-Z0-9\s]+-[a-zA-Z0-9\s]+-[a-zA-Z0-9\s]+)\"
+<<<<<<< HEAD
+=======
+    paths:
+      exclude:
+        - packages/contracts-bedrock/src/cannon/libraries/MIPSInstructions.sol
+        - packages/contracts-bedrock/src/governance/ApprovalVotingModule.sol
+>>>>>>> feat: add submit funding proposal (#411)
 
   - id: sol-style-use-abi-encodecall
     languages: [solidity]
@@ -195,6 +219,7 @@ rules:
     paths:
       exclude:
         - packages/contracts-bedrock/src/legacy/L1ChugSplashProxy.sol
+        - packages/contracts-bedrock/src/governance/ApprovalVotingModule.sol
 
   - id: sol-style-enforce-require-msg
     languages: [solidity]
@@ -206,6 +231,7 @@ rules:
     paths:
       exclude:
         - packages/contracts-bedrock/src/universal/WETH98.sol
+        - packages/contracts-bedrock/src/governance/ApprovalVotingModule.sol
 
   - id: sol-style-no-bare-imports
     languages: [solidity]
@@ -215,6 +241,7 @@ rules:
     paths:
       exclude:
         - packages/contracts-bedrock/test
+        - packages/contracts-bedrock/src/governance/ApprovalVotingModule.sol
 
   - id: sol-style-error-format
     languages: [generic]
@@ -236,6 +263,7 @@ rules:
         - packages/contracts-bedrock/src/dispute/lib/Errors.sol
         - packages/contracts-bedrock/src/dispute/SuperFaultDisputeGame.sol
         - packages/contracts-bedrock/src/governance/VotingModule.sol
+        - packages/contracts-bedrock/src/governance/ApprovalVotingModule.sol
         - packages/contracts-bedrock/src/cannon/libraries/MIPS64Instructions.sol
         - packages/contracts-bedrock/src/cannon/libraries/CannonErrors.sol
         - packages/contracts-bedrock/src/L2/SuperchainETHBridge.sol
@@ -337,6 +365,7 @@ rules:
         - packages/contracts-bedrock/src/governance/ProposalValidator.sol
         - packages/contracts-bedrock/src/governance/VotingModule.sol
         - packages/contracts-bedrock/src/governance/ProposalValidator.sol
+        - packages/contracts-bedrock/src/governance/ApprovalVotingModule.sol
         - packages/contracts-bedrock/src/periphery/TransferOnion.sol
         - packages/contracts-bedrock/src/periphery/faucet/Faucet.sol
         - packages/contracts-bedrock/src/periphery/faucet/authmodules/AdminFaucetAuthModule.sol

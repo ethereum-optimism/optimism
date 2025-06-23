@@ -5,6 +5,7 @@ pragma solidity ^0.8.0;
 import {IGovernanceToken} from './IGovernanceToken.sol';
 import {IOptimismGovernor} from './IOptimismGovernor.sol';
 import { ISemver } from "interfaces/universal/ISemver.sol";
+import { IProposalTypesConfigurator } from './IProposalTypesConfigurator.sol';
 
 /// @title IProposalValidator
 /// @notice Interface for the ProposalValidator contract.
@@ -18,6 +19,9 @@ interface IProposalValidator is ISemver {
     error ProposalValidator_VotingCycleAlreadySet();
     error ProposalValidator_ProposalTypesDataLengthMismatch();
     error ReinitializableBase_ZeroInitVersion();
+    error ProposalValidator_InvalidFundingProposalType();
+    error ProposalValidator_ExceedsDistributionThreshold();
+    error ProposalValidator_InvalidOptionsLength();
 
     struct ProposalData {
         address proposer;
@@ -56,13 +60,29 @@ interface IProposalValidator is ISemver {
 
     event DistributionThresholdSet(uint256 newDistributionThreshold);
 
-    event ProposalTypeDataSet(ProposalType proposalType, uint256 requiredApprovals, uint8 proposalVotingModule);
+    event ProposalTypeDataSet(
+        ProposalType proposalType,
+        uint256 requiredApprovals,
+        uint8 proposalVotingModule
+    );
+
+    event ProposalVotingModuleData(
+        bytes32 indexed proposalHash,
+        bytes encodedVotingModuleData
+    );
     
     event VotingCycleDataSet(
         uint256 cycleNumber, 
         uint256 startBlock, 
         uint256 duration, 
         uint256 votingCycleDistributionLimit
+    );
+
+    event ProposalSubmitted(
+        bytes32 indexed proposalHash,
+        address indexed proposer,
+        string description,
+        ProposalType proposalType
     );
     
     event Initialized(uint8 version);
@@ -79,7 +99,7 @@ interface IProposalValidator is ISemver {
     function setMinimumVotingPower(uint256 _minimumVotingPower) external;
 
     function setDistributionThreshold(uint256 _distributionThreshold) external;
-    
+
     function setProposalTypeData(
         ProposalType _proposalType,
         ProposalTypeData memory _proposalTypeData
@@ -91,9 +111,19 @@ interface IProposalValidator is ISemver {
         uint256 _duration,
         uint256 _votingCycleDistributionLimit
     ) external;
-    
+
+    function submitFundingProposal(
+        uint128 _criteriaValue,
+        string[] memory _optionsDescriptions,
+        address[] memory _optionsRecipients,
+        uint256[] memory _optionsAmounts,
+        string memory _description,
+        ProposalType _proposalType
+    ) external returns (bytes32 proposalHash_);
+
     function initialize(
         address _owner,
+        IProposalTypesConfigurator _proposalTypesConfigurator,
         uint256 _minimumVotingPower,
         uint256 _cycleNumber,
         uint256 _startBlock,
@@ -123,9 +153,11 @@ interface IProposalValidator is ISemver {
     function initVersion() external view returns (uint8);
 
     function ATTESTATION_SCHEMA_UID() external view returns (bytes32);
+
+    function proposalTypesConfigurator() external view returns (IProposalTypesConfigurator);
     
     function proposalTypesData(ProposalType) external view returns (uint256 requiredApprovals, uint8 proposalVotingModule);
-    
+
     function votingCycles(uint256) external view returns (
         uint256 startingBlock, 
         uint256 duration, 
