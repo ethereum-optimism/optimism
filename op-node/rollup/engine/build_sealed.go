@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/event"
 )
 
 // BuildSealedEvent is emitted by the engine when a payload finished building,
@@ -18,6 +19,7 @@ type BuildSealedEvent struct {
 	Info     eth.PayloadInfo
 	Envelope *eth.ExecutionPayloadEnvelope
 	Ref      eth.L2BlockRef
+	event.Ctx
 }
 
 func (ev BuildSealedEvent) String() string {
@@ -33,6 +35,7 @@ func (eq *EngDeriver) onBuildSealed(ev BuildSealedEvent) {
 			Envelope:     ev.Envelope,
 			Ref:          ev.Ref,
 			BuildStarted: ev.BuildStarted,
+			Ctx:          ev.Ctx,
 		})
 	}
 }

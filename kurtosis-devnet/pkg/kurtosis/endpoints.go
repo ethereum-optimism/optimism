@@ -17,18 +17,12 @@ const (
 
 // ServiceFinder is the main entry point for finding services and their endpoints
 type ServiceFinder struct {
-	services        inspect.ServiceMap
-	nodeServices    []string
-	l2ServicePrefix string
+	services inspect.ServiceMap
 
 	l2Chains []*spec.ChainSpec
 	depsets  map[string]descriptors.DepSet
 
 	triagedServices []*triagedService
-
-	// TODO: remove once we move node services recognition to labels
-	nodeNames2Index map[string]int
-	nodeNextIndex   int
 }
 
 // ServiceFinderOption configures a ServiceFinder
@@ -51,9 +45,7 @@ func WithDepSets(depsets map[string]descriptors.DepSet) ServiceFinderOption {
 // NewServiceFinder creates a new ServiceFinder with the given options
 func NewServiceFinder(services inspect.ServiceMap, opts ...ServiceFinderOption) *ServiceFinder {
 	f := &ServiceFinder{
-		services:        services,
-		nodeServices:    []string{"cl", "el"},
-		l2ServicePrefix: "op-",
+		services: services,
 	}
 	for _, opt := range opts {
 		opt(f)
@@ -70,6 +62,7 @@ type serviceParser func(string) (int, chainAcceptor, bool)
 type triagedService struct {
 	tag    string // service tag
 	idx    int    // service index (for nodes)
+	name   string // service name (for nodes)
 	svc    *descriptors.Service
 	accept chainAcceptor
 }
@@ -78,22 +71,22 @@ func acceptAll(c *spec.ChainSpec) bool {
 	return true
 }
 
-func acceptNameOrID(s string) chainAcceptor {
+func acceptID(s string) chainAcceptor {
 	return func(c *spec.ChainSpec) bool {
-		return c.Name == s || c.NetworkID == s
+		return c.NetworkID == s
 	}
 }
 
-func acceptNamesOrIDs(names ...string) chainAcceptor {
+func acceptIDs(ids ...string) chainAcceptor {
 	acceptors := make([]chainAcceptor, 0)
-	for _, name := range names {
-		acceptors = append(acceptors, acceptNameOrID(name))
+	for _, id := range ids {
+		acceptors = append(acceptors, acceptID(id))
 	}
 	return combineAcceptors(acceptors...)
 }
 
 func acceptL1() chainAcceptor {
-	return acceptNameOrID(l1Placeholder)
+	return acceptID(l1Placeholder)
 }
 
 func combineAcceptors(acceptors ...chainAcceptor) chainAcceptor {
@@ -107,6 +100,7 @@ func combineAcceptors(acceptors ...chainAcceptor) chainAcceptor {
 	}
 }
 
+// This is now for L1 only. L2 is handled through labels.
 func (f *ServiceFinder) triageNode(prefix string) serviceParser {
 	return func(serviceName string) (int, chainAcceptor, bool) {
 		extractIndex := func(s string) int {
@@ -123,67 +117,7 @@ func (f *ServiceFinder) triageNode(prefix string) serviceParser {
 			return idx, acceptL1(), true
 		}
 
-		l2Prefix := f.l2ServicePrefix + prefix
-		if strings.HasPrefix(serviceName, l2Prefix) {
-			serviceName = strings.TrimPrefix(serviceName, l2Prefix)
-			// first we have the chain ID
-			parts := strings.Split(serviceName, "-")
-			chainID := parts[0]
-			idx := extractIndex(parts[1])
-			return idx, acceptNameOrID(chainID), true
-		}
-
 		return 0, nil, false
-	}
-}
-
-func (f *ServiceFinder) triageExclusiveL2Service(prefix string) serviceParser {
-	idx := -1
-	return func(serviceName string) (int, chainAcceptor, bool) {
-		if strings.HasPrefix(serviceName, prefix) {
-			suffix := strings.TrimPrefix(serviceName, prefix)
-			return idx, acceptNameOrID(suffix), true
-		}
-		return idx, nil, false
-	}
-}
-
-func (f *ServiceFinder) triageMultiL2Service(prefix string) serviceParser {
-	idx := -1
-	return func(serviceName string) (int, chainAcceptor, bool) {
-		if strings.HasPrefix(serviceName, prefix) {
-			suffix := strings.TrimPrefix(serviceName, prefix)
-			parts := strings.Split(suffix, "-")
-			// parts[0] is the service ID
-			return idx, acceptNamesOrIDs(parts[1:]...), true
-		}
-		return idx, nil, false
-	}
-}
-
-func (f *ServiceFinder) triageSuperchainService(prefix string) serviceParser {
-	idx := -1
-	return func(serviceName string) (int, chainAcceptor, bool) {
-		if strings.HasPrefix(serviceName, prefix) {
-			suffix := strings.TrimPrefix(serviceName, prefix)
-			parts := strings.Split(suffix, "-")
-			// parts[0] is the service ID
-			ds, ok := f.depsets[parts[1]]
-			if !ok {
-				return idx, nil, false
-			}
-			var depSet depset.StaticConfigDependencySet
-			if err := json.Unmarshal(ds, &depSet); err != nil {
-				return idx, nil, false
-			}
-
-			chains := make([]string, 0)
-			for _, chain := range depSet.Chains() {
-				chains = append(chains, chain.String())
-			}
-			return idx, acceptNamesOrIDs(chains...), true
-		}
-		return idx, nil, false
 	}
 }
 
@@ -218,38 +152,65 @@ func (spr serviceParserRules) apply(serviceName string, endpoints descriptors.En
 
 // TODO: this might need some adjustments as we stabilize labels in optimism-package
 const (
-	kindLabel      = "op.kind"
-	networkIDLabel = "op.network.id"
-	nodeNameLabel  = "op.network.participant.name"
+	kindLabel                 = "op.kind"
+	networkIDLabel            = "op.network.id"
+	nodeNameLabel             = "op.network.participant.name"
+	nodeIndexLabel            = "op.network.participant.index"
+	supervisorSuperchainLabel = "op.network.supervisor.superchain"
 )
+
+func (f *ServiceFinder) getNetworkIDs(svc *inspect.Service) []string {
+	var network_ids []string
+	id, ok := svc.Labels[networkIDLabel]
+	if !ok {
+		// network IDs might be specified through a superchain
+		superchain, ok := svc.Labels[supervisorSuperchainLabel]
+		if !ok {
+			return nil
+		}
+		ds, ok := f.depsets[superchain]
+		if !ok {
+			return nil
+		}
+		var depSet depset.StaticConfigDependencySet
+		err := json.Unmarshal(ds, &depSet)
+		if err != nil {
+			return nil
+		}
+		for _, chain := range depSet.Chains() {
+			network_ids = append(network_ids, chain.String())
+		}
+	} else {
+		network_ids = strings.Split(id, "-")
+	}
+
+	return network_ids
+}
 
 func (f *ServiceFinder) triageByLabels(svc *inspect.Service, name string, endpoints descriptors.EndpointMap) *triagedService {
 	tag, ok := svc.Labels[kindLabel]
 	if !ok {
 		return nil
 	}
-	id, ok := svc.Labels[networkIDLabel]
-	if !ok {
-		return nil
+	network_ids := f.getNetworkIDs(svc)
+	idx := -1
+	if val, ok := svc.Labels[nodeIndexLabel]; ok {
+		i, err := strconv.Atoi(val)
+		if err != nil {
+			return nil
+		}
+		idx = i
 	}
 
-	// TODO: we really don't need numeric index for nodes, but it's a quick fix until
-	// we move node services recognition to labels entirely.
-	idx := -1
-	if name, ok := svc.Labels[nodeNameLabel]; ok {
-		if val, ok := f.nodeNames2Index[name]; ok {
-			idx = val
-		} else {
-			idx = f.nodeNextIndex
-			f.nodeNames2Index[name] = idx
-			f.nodeNextIndex++
-		}
+	accept := acceptIDs(network_ids...)
+	if len(network_ids) == 0 { // TODO: this is only for faucet right now, we can remove this once we have a proper label for all services
+		accept = acceptAll
 	}
 	return &triagedService{
-		tag: tag,
-		idx: idx,
-		// TODO: eventually we can retire the "name" part, but it doesn't hurt for now
-		accept: acceptNamesOrIDs(strings.Split(id, ",")...),
+		tag:    tag,
+		idx:    idx,
+		name:   svc.Labels[nodeNameLabel],
+		accept: accept,
 		svc: &descriptors.Service{
 			Name:      name,
 			Endpoints: endpoints,
@@ -259,14 +220,8 @@ func (f *ServiceFinder) triageByLabels(svc *inspect.Service, name string, endpoi
 
 func (f *ServiceFinder) triage() {
 	rules := serviceParserRules{
-		"el":         f.triageNode("el-"),
-		"cl":         f.triageNode("cl-"),
-		"batcher":    f.triageExclusiveL2Service("op-batcher-"),
-		"proposer":   f.triageExclusiveL2Service("op-proposer-"),
-		"proxyd":     f.triageExclusiveL2Service("proxyd-"),
-		"supervisor": f.triageSuperchainService("op-supervisor-"),
-		"challenger": f.triageMultiL2Service("op-challenger-"),
-		"faucet":     f.triageUniversalL2Service("op-faucet"),
+		"el": f.triageNode("el-"),
+		"cl": f.triageNode("cl-"),
 	}
 
 	triagedServices := []*triagedService{}
@@ -276,13 +231,12 @@ func (f *ServiceFinder) triage() {
 			endpoints[portName] = portInfo
 		}
 
-		// TODO: for now, use labels as a fallback, so it's currently inactive.
-		// We should expect the rules to be gradually removed to make way for
-		// this code path. Ultimately we'll rely only on labels, and most of the
-		// code in this file will disappear as a result.
-		triaged := rules.apply(serviceName, endpoints)
+		// Ultimately we'll rely only on labels, and most of the code in this file will disappear as a result.
+		//
+		// For now though the L1 services are still not tagged properly so we rely on the name resolution as a fallback
+		triaged := f.triageByLabels(svc, serviceName, endpoints)
 		if triaged == nil {
-			triaged = f.triageByLabels(svc, serviceName, endpoints)
+			triaged = rules.apply(serviceName, endpoints)
 		}
 
 		if triaged != nil {
@@ -321,6 +275,7 @@ func (f *ServiceFinder) findChainServices(chain *spec.ChainSpec) ([]descriptors.
 				node.Services = make(descriptors.ServiceMap)
 			}
 			node.Services[svc.tag] = svc.svc
+			node.Name = svc.name
 			nodes[svc.idx] = node
 		} else {
 			services[svc.tag] = append(services[svc.tag], svc.svc)

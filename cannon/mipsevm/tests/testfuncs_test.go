@@ -7,13 +7,14 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/ethereum/go-ethereum/crypto"
+
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/arch"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/exec"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/multithreaded"
-	mttestutil "github.com/ethereum-optimism/optimism/cannon/mipsevm/multithreaded/testutil"
+	mtutil "github.com/ethereum-optimism/optimism/cannon/mipsevm/multithreaded/testutil"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/testutil"
 	preimage "github.com/ethereum-optimism/optimism/op-preimage"
-	"github.com/ethereum/go-ethereum/crypto"
 )
 
 type operatorTestCase struct {
@@ -41,7 +42,7 @@ func testOperators(t *testing.T, cases []operatorTestCase, mips32Insn bool) {
 			testName := fmt.Sprintf("%v (%v)", tt.name, v.Name)
 			t.Run(testName, func(t *testing.T) {
 				validator := testutil.NewEvmValidator(t, v.StateHashFn, v.Contracts)
-				goVm := v.VMFactory(nil, os.Stdout, os.Stderr, testutil.CreateLogger(), testutil.WithRandomization(int64(i)), testutil.WithPC(0), testutil.WithNextPC(4))
+				goVm := v.VMFactory(nil, os.Stdout, os.Stderr, testutil.CreateLogger(), mtutil.WithRandomization(int64(i)), mtutil.WithPC(0), mtutil.WithNextPC(4))
 				state := goVm.GetState()
 				var insn uint32
 				var baseReg uint32 = 17
@@ -63,14 +64,12 @@ func testOperators(t *testing.T, cases []operatorTestCase, mips32Insn bool) {
 				step := state.GetStep()
 
 				// Setup expectations
-				expected := testutil.NewExpectedState(state)
-				expected.Step += 1
-				expected.PC = 4
-				expected.NextPC = 8
+				expected := mtutil.NewExpectedState(t, state)
+				expected.ExpectStep()
 				if tt.isImm {
-					expected.Registers[rtReg] = tt.expectRes
+					expected.ActiveThread().Registers[rtReg] = tt.expectRes
 				} else {
-					expected.Registers[rdReg] = tt.expectRes
+					expected.ActiveThread().Registers[rdReg] = tt.expectRes
 				}
 
 				stepWitness, err := goVm.Step(true)
@@ -112,7 +111,7 @@ func testMulDiv(t *testing.T, cases []mulDivTestCase, mips32Insn bool) {
 
 			testName := fmt.Sprintf("%v (%v)", tt.name, v.Name)
 			t.Run(testName, func(t *testing.T) {
-				goVm := v.VMFactory(nil, os.Stdout, os.Stderr, testutil.CreateLogger(), testutil.WithRandomization(int64(i)), testutil.WithPC(0), testutil.WithNextPC(4))
+				goVm := v.VMFactory(nil, os.Stdout, os.Stderr, testutil.CreateLogger(), mtutil.WithRandomization(int64(i)), mtutil.WithPC(0), mtutil.WithNextPC(4))
 				state := goVm.GetState()
 				var insn uint32
 				baseReg := uint32(0x9)
@@ -135,13 +134,13 @@ func testMulDiv(t *testing.T, cases []mulDivTestCase, mips32Insn bool) {
 
 				step := state.GetStep()
 				// Setup expectations
-				expected := testutil.NewExpectedState(state)
+				expected := mtutil.NewExpectedState(t, state)
 				expected.ExpectStep()
 				if tt.expectRes != 0 {
-					expected.Registers[tt.rdReg] = tt.expectRes
+					expected.ActiveThread().Registers[tt.rdReg] = tt.expectRes
 				} else {
-					expected.HI = tt.expectHi
-					expected.LO = tt.expectLo
+					expected.ActiveThread().HI = tt.expectHi
+					expected.ActiveThread().LO = tt.expectLo
 				}
 
 				stepWitness, err := goVm.Step(true)
@@ -177,7 +176,7 @@ func testLoadStore(t *testing.T, cases []loadStoreTestCase) {
 				addr := tt.base + Word(tt.imm)
 				effAddr := arch.AddressMask & addr
 
-				goVm := v.VMFactory(nil, os.Stdout, os.Stderr, testutil.CreateLogger(), testutil.WithRandomization(int64(i)), testutil.WithPCAndNextPC(0))
+				goVm := v.VMFactory(nil, os.Stdout, os.Stderr, testutil.CreateLogger(), mtutil.WithRandomization(int64(i)), mtutil.WithPCAndNextPC(0))
 				state := goVm.GetState()
 
 				insn := tt.opcode<<26 | baseReg<<21 | rtReg<<16 | uint32(tt.imm)
@@ -189,12 +188,12 @@ func testLoadStore(t *testing.T, cases []loadStoreTestCase) {
 				step := state.GetStep()
 
 				// Setup expectations
-				expected := testutil.NewExpectedState(state)
+				expected := mtutil.NewExpectedState(t, state)
 				expected.ExpectStep()
 				if tt.expectMemVal != 0 {
 					expected.ExpectMemoryWriteWord(effAddr, tt.expectMemVal)
 				} else {
-					expected.Registers[rtReg] = tt.expectRes
+					expected.ActiveThread().Registers[rtReg] = tt.expectRes
 				}
 				stepWitness, err := goVm.Step(true)
 				require.NoError(t, err)
@@ -224,7 +223,7 @@ func testBranch(t *testing.T, cases []branchTestCase) {
 		for i, tt := range cases {
 			testName := fmt.Sprintf("%v (%v)", tt.name, v.Name)
 			t.Run(testName, func(t *testing.T) {
-				goVm := v.VMFactory(nil, os.Stdout, os.Stderr, testutil.CreateLogger(), testutil.WithRandomization(int64(i)), testutil.WithPCAndNextPC(tt.pc))
+				goVm := v.VMFactory(nil, os.Stdout, os.Stderr, testutil.CreateLogger(), mtutil.WithRandomization(int64(i)), mtutil.WithPCAndNextPC(tt.pc))
 				state := goVm.GetState()
 				const rsReg = 8 // t0
 				insn := tt.opcode<<26 | rsReg<<21 | tt.regimm<<16 | uint32(tt.offset)
@@ -233,12 +232,11 @@ func testBranch(t *testing.T, cases []branchTestCase) {
 				step := state.GetStep()
 
 				// Setup expectations
-				expected := testutil.NewExpectedState(state)
-				expected.Step += 1
-				expected.PC = state.GetCpu().NextPC
-				expected.NextPC = tt.expectNextPC
+				expected := mtutil.NewExpectedState(t, state)
+				expected.ExpectStep()
+				expected.ActiveThread().NextPC = tt.expectNextPC
 				if tt.expectLink {
-					expected.Registers[31] = state.GetPC() + 8
+					expected.ActiveThread().Registers[31] = state.GetPC() + 8
 				}
 
 				stepWitness, err := goVm.Step(true)
@@ -300,8 +298,8 @@ func testMTStoreOpsClearMemReservation(t *testing.T, cases []testMTStoreOpsClear
 				t.Run(tName, func(t *testing.T) {
 					t.Parallel()
 					insn := uint32((c.opcode << 26) | (baseReg & 0x1F << 21) | (rtReg & 0x1F << 16) | (0xFFFF & c.offset))
-					goVm := ver.VMFactory(nil, os.Stdout, os.Stderr, testutil.CreateLogger(), testutil.WithRandomization(int64(i)), testutil.WithPCAndNextPC(0x08))
-					state := mttestutil.GetMtState(t, goVm)
+					goVm := ver.VMFactory(nil, os.Stdout, os.Stderr, testutil.CreateLogger(), mtutil.WithRandomization(int64(i)), mtutil.WithPCAndNextPC(0x08))
+					state := mtutil.GetMtState(t, goVm)
 					step := state.GetStep()
 
 					// Define LL-related params
@@ -321,7 +319,7 @@ func testMTStoreOpsClearMemReservation(t *testing.T, cases []testMTStoreOpsClear
 					state.LLOwnerThread = llOwnerThread
 
 					// Setup expectations
-					expected := mttestutil.NewExpectedMTState(state)
+					expected := mtutil.NewExpectedState(t, state)
 					expected.ExpectStep()
 					expected.ExpectMemoryWordWrite(c.effAddr, c.postMem)
 					if llVariation.shouldClearReservation {
@@ -380,8 +378,8 @@ func testMTSysReadPreimage(t *testing.T, preimageValue []byte, cases []testMTSys
 					effAddr := arch.AddressMask & c.addr
 					preimageKey := preimage.Keccak256Key(crypto.Keccak256Hash(preimageValue)).PreimageKey()
 					oracle := testutil.StaticOracle(t, preimageValue)
-					goVm := ver.VMFactory(oracle, os.Stdout, os.Stderr, testutil.CreateLogger(), testutil.WithRandomization(int64(i)))
-					state := mttestutil.GetMtState(t, goVm)
+					goVm := ver.VMFactory(oracle, os.Stdout, os.Stderr, testutil.CreateLogger(), mtutil.WithRandomization(int64(i)))
+					state := mtutil.GetMtState(t, goVm)
 					step := state.GetStep()
 
 					// Define LL-related params
@@ -405,7 +403,7 @@ func testMTSysReadPreimage(t *testing.T, preimageValue []byte, cases []testMTSys
 					state.GetMemory().SetWord(effAddr, c.prestateMem)
 
 					// Setup expectations
-					expected := mttestutil.NewExpectedMTState(state)
+					expected := mtutil.NewExpectedState(t, state)
 					expected.ExpectStep()
 					expected.ActiveThread().Registers[2] = c.writeLen
 					expected.ActiveThread().Registers[7] = 0 // no error
@@ -445,7 +443,7 @@ func testNoopSyscall(t *testing.T, version VersionedVMTestCase, syscalls map[str
 			step := state.Step
 
 			// Set up post-state expectations
-			expected := mttestutil.NewExpectedMTState(state)
+			expected := mtutil.NewExpectedState(t, state)
 			expected.ExpectStep()
 			expected.ActiveThread().Registers[2] = 0
 			expected.ActiveThread().Registers[7] = 0

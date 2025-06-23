@@ -143,8 +143,6 @@ func (bs *BatcherService) initFromCLIConfig(ctx context.Context, version string,
 			"sample_time", bs.ThrottlePidConfig.SampleTime)
 	}
 
-	bs.PreferLocalSafeL2 = cfg.PreferLocalSafeL2
-
 	if err := bs.initRPCClients(ctx, cfg); err != nil {
 		return err
 	}

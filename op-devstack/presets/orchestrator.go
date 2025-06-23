@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"runtime/debug"
+	"slices"
 	"sync/atomic"
 	"testing"
 
@@ -12,13 +13,15 @@ import (
 	"go.opentelemetry.io/otel"
 
 	"github.com/ethereum-optimism/optimism/devnet-sdk/telemetry"
+	"github.com/ethereum-optimism/optimism/op-devstack/compat"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/stack"
 	"github.com/ethereum-optimism/optimism/op-devstack/sysext"
 	"github.com/ethereum-optimism/optimism/op-devstack/sysgo"
+	"github.com/ethereum-optimism/optimism/op-service/flags"
 	"github.com/ethereum-optimism/optimism/op-service/locks"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
-	"github.com/ethereum-optimism/optimism/op-service/logfilter"
+	"github.com/ethereum-optimism/optimism/op-service/log/logfilter"
 )
 
 // lockedOrchestrator is the global variable that stores
@@ -55,18 +58,14 @@ func DoMain(m *testing.M, opts ...stack.CommonOption) {
 			}
 		}()
 
-		// This may be tuned with env or CLI flags in the future, to customize test output
-		logHandler := oplog.NewLogHandler(os.Stdout, oplog.CLIConfig{
-			Level:  log.LevelTrace,
-			Color:  true,
-			Format: oplog.FormatTerminal,
-			Pid:    false,
-		})
+		cfg := flags.ReadTestConfig()
+		logHandler := oplog.NewLogHandler(os.Stdout, cfg.LogConfig)
 		logHandler = logfilter.WrapFilterHandler(logHandler)
-		logHandler.(logfilter.Handler).Set(logfilter.Minimum(devtest.DefaultTestLogLevel))
-		logHandler = oplog.WrapContextHandler(logHandler)
-		// The default can be changed using the WithLogFiltersReset option
+		logHandler.(logfilter.FilterHandler).Set(logfilter.DefaultMute(logfilter.Level(log.LevelInfo).Show()))
+		logHandler = logfilter.WrapContextHandler(logHandler)
+		// The default can be changed using the WithLogFilters option which replaces this default
 		logger := log.NewLogger(logHandler)
+		oplog.SetGlobalLogHandler(logHandler)
 
 		ctx, otelShutdown, err := telemetry.SetupOpenTelemetry(context.Background())
 		if err != nil {
@@ -84,14 +83,20 @@ func DoMain(m *testing.M, opts ...stack.CommonOption) {
 		// Make the package-level logger use this context
 		logger.SetContext(ctx)
 
-		p := devtest.NewP(ctx, logger, func(now bool) {
+		onFail := func(now bool) {
 			logger.Error("Main failed")
 			debug.PrintStack()
 			failed.Store(true)
 			if now {
 				panic("critical Main fail")
 			}
-		})
+		}
+
+		onSkipNow := func() {
+			logger.Info("Main skipped")
+			os.Exit(0)
+		}
+		p := devtest.NewP(ctx, logger, onFail, onSkipNow)
 		defer p.Close()
 
 		p.Require().NotEmpty(opts, "Expecting orchestrator options")
@@ -156,4 +161,27 @@ Add a TestMain to your test package init the orchestrator:
 `)
 	}
 	return out
+}
+
+// WithCompatibleTypes is a common option that can be used to ensure that the orchestrator is compatible with the preset.
+// If the orchestrator is not compatible, the test will either:
+// - fail with a non-zero exit code (42) if DEVNET_EXPECT_PRECONDITIONS_MET is non-empty
+// - skip the whole test otherwise
+// This is useful to ensure that the preset is only used with the correct orchestrator type.
+// Do yourself a favor, if you use this option, add a good comment (or a TODO) justifying it!
+func WithCompatibleTypes(t ...compat.Type) stack.CommonOption {
+	return stack.FnOption[stack.Orchestrator]{
+		BeforeDeployFn: func(orch stack.Orchestrator) {
+			if !slices.Contains(t, orch.Type()) {
+				p := orch.P()
+
+				if os.Getenv(devtest.ExpectPreconditionsMet) != "" {
+					p.Errorf("Orchestrator type %s is incompatible with this preset", orch.Type())
+					os.Exit(compat.CompatErrorCode)
+				} else {
+					p.SkipNow()
+				}
+			}
+		},
+	}
 }

@@ -25,7 +25,10 @@ func HazardSafeFrontierChecks(d SafeFrontierCheckDeps, inL1Source eth.BlockID, h
 			if errors.Is(err, types.ErrFuture) {
 				// If not in cross-safe scope, then check if it's the candidate cross-safe block.
 				candidate, err := d.CandidateCrossSafe(hazardChainID)
-				if err != nil {
+				// ErrOutOfScope should be translated to an ErrFuture, since the dependency being out of scope does not warrant a Scope Bump of this chain.
+				if errors.Is(err, types.ErrOutOfScope) {
+					return fmt.Errorf("hazard dependency %s (chain %s) is out of scope: %w", hazardBlock, hazardChainID, types.ErrFuture)
+				} else if err != nil {
 					return fmt.Errorf("failed to determine cross-safe candidate block of hazard dependency %s (chain %s): %w", hazardBlock, hazardChainID, err)
 				}
 				if candidate.Derived.Number == hazardBlock.Number && candidate.Derived.ID() != hazardBlock.ID() {

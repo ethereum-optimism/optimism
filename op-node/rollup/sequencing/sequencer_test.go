@@ -18,9 +18,9 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup/conductor"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/engine"
-	"github.com/ethereum-optimism/optimism/op-node/rollup/event"
 	"github.com/ethereum-optimism/optimism/op-service/clock"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/event"
 	"github.com/ethereum-optimism/optimism/op-service/predeploys"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum-optimism/optimism/op-service/testutils"
@@ -173,8 +173,9 @@ func TestSequencer_StartStop(t *testing.T) {
 	// Also see issue #11121 for context: the conductor is checked by the infra, when initialized in active state.
 	deps.conductor.leader = true
 
-	emitter.ExpectOnce(engine.ForkchoiceRequestEvent{})
-	require.NoError(t, seq.Init(context.Background(), false))
+	testCtx := context.Background()
+	emitter.ExpectOnce(engine.ForkchoiceRequestEvent{Ctx: event.WrapCtx(testCtx)})
+	require.NoError(t, seq.Init(testCtx, false))
 	emitter.AssertExpectations(t)
 	require.False(t, deps.conductor.closed, "conductor is ready")
 	require.True(t, deps.asyncGossip.started, "async gossip is always started on initialization")
@@ -262,8 +263,9 @@ func TestSequencer_StaleBuild(t *testing.T) {
 	seq.AttachEmitter(emitter)
 	deps.conductor.leader = true
 
-	emitter.ExpectOnce(engine.ForkchoiceRequestEvent{})
-	require.NoError(t, seq.Init(context.Background(), false))
+	testCtx := context.Background()
+	emitter.ExpectOnce(engine.ForkchoiceRequestEvent{Ctx: event.WrapCtx(testCtx)})
+	require.NoError(t, seq.Init(testCtx, false))
 	emitter.AssertExpectations(t)
 	require.False(t, deps.conductor.closed, "conductor is ready")
 	require.True(t, deps.asyncGossip.started, "async gossip is always started on initialization")
@@ -470,15 +472,16 @@ func TestSequencerBuild(t *testing.T) {
 	emitter := &testutils.MockEmitter{}
 	seq.AttachEmitter(emitter)
 
+	testCtx := context.Background()
 	// Init will request a forkchoice update
-	emitter.ExpectOnce(engine.ForkchoiceRequestEvent{})
-	require.NoError(t, seq.Init(context.Background(), true))
+	emitter.ExpectOnce(engine.ForkchoiceRequestEvent{Ctx: event.WrapCtx(testCtx)})
+	require.NoError(t, seq.Init(testCtx, true))
 	emitter.AssertExpectations(t)
 	require.True(t, seq.Active(), "started in active mode")
 
 	// It will request a forkchoice update, it needs the head before being able to build on top of it
-	emitter.ExpectOnce(engine.ForkchoiceRequestEvent{})
-	seq.OnEvent(SequencerActionEvent{})
+	emitter.ExpectOnce(engine.ForkchoiceRequestEvent{Ctx: event.WrapCtx(testCtx)})
+	seq.OnEvent(SequencerActionEvent{Ctx: event.WrapCtx(testCtx)})
 	emitter.AssertExpectations(t)
 
 	// Now send the forkchoice data, for the sequencer to learn what to build on top of.
@@ -627,15 +630,16 @@ func TestSequencerL1TemporaryErrorEvent(t *testing.T) {
 	emitter := &testutils.MockEmitter{}
 	seq.AttachEmitter(emitter)
 
+	testCtx := context.Background()
 	// Init will request a forkchoice update
-	emitter.ExpectOnce(engine.ForkchoiceRequestEvent{})
-	require.NoError(t, seq.Init(context.Background(), true))
+	emitter.ExpectOnce(engine.ForkchoiceRequestEvent{Ctx: event.WrapCtx(testCtx)})
+	require.NoError(t, seq.Init(testCtx, true))
 	emitter.AssertExpectations(t)
 	require.True(t, seq.Active(), "started in active mode")
 
 	// It will request a forkchoice update, it needs the head before being able to build on top of it
-	emitter.ExpectOnce(engine.ForkchoiceRequestEvent{})
-	seq.OnEvent(SequencerActionEvent{})
+	emitter.ExpectOnce(engine.ForkchoiceRequestEvent{Ctx: event.WrapCtx(testCtx)})
+	seq.OnEvent(SequencerActionEvent{Ctx: event.WrapCtx(testCtx)})
 	emitter.AssertExpectations(t)
 
 	// Now send the forkchoice data, for the sequencer to learn what to build on top of.

@@ -118,6 +118,7 @@ func configWithNumConfs(numConfirmations uint64) *Config {
 		MaxRetries:    5,
 	}
 
+	cfg.RebroadcastInterval.Store(int64(time.Second / 2))
 	cfg.ResubmissionTimeout.Store(int64(time.Second))
 	cfg.FeeLimitMultiplier.Store(5)
 	cfg.MinBlobTxFee.Store(defaultMinBlobTxFee)
@@ -757,6 +758,49 @@ func TestTxMgrOnlyOnePublicationSucceeds(t *testing.T) {
 	require.Equal(t, h.gasPricer.expGasFeeCap().Uint64(), receipt.GasUsed)
 }
 
+// TestTxMgrRebroadcastsWithoutGasPriceIncrease tests that the tx manager will rebroadcast a transaction
+// without increasing the gas price if the transaction is not mined after the resubmission timeout.
+// This is intended to simulate unreliable network conditions where a transaction may be dropped from the mempool.
+func TestTxMgrRebroadcastsWithoutGasPriceIncrease(t *testing.T) {
+	t.Parallel()
+
+	cfg := configWithNumConfs(1)
+	cfg.RebroadcastInterval.Store(int64(time.Second / 2))
+	cfg.ResubmissionTimeout.Store(int64(time.Hour))
+	h := newTestHarnessWithConfig(t, cfg)
+
+	gasTipCap, gasFeeCap, _ := h.gasPricer.sample()
+	txToSend := types.NewTx(&types.DynamicFeeTx{
+		GasTipCap: gasTipCap,
+		GasFeeCap: gasFeeCap,
+	})
+
+	sameTxPublishAttempts := 0
+	// only mine the tx after receiving it at least 3 times
+	sendTx := func(ctx context.Context, tx *types.Transaction) error {
+		txHash := tx.Hash()
+		if txHash != txToSend.Hash() {
+			return errors.New("unexpected tx hash")
+		}
+		sameTxPublishAttempts++
+		if sameTxPublishAttempts >= 3 {
+			h.backend.mine(&txHash, tx.GasFeeCap(), nil)
+			return nil
+		} else if sameTxPublishAttempts > 1 {
+			return txpool.ErrAlreadyKnown
+		}
+		return nil
+	}
+	h.backend.setTxSender(sendTx)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	receipt, err := h.mgr.sendTx(ctx, txToSend)
+	require.Nil(t, err)
+	require.NotNil(t, receipt)
+	require.Equal(t, txToSend.Hash(), receipt.TxHash)
+}
+
 // TestTxMgrConfirmsMinGasPriceAfterBumping delays the mining of the initial tx
 // with the minimum gas price, and asserts that its receipt is returned even
 // if the gas price has been bumped in other goroutines.
@@ -1125,7 +1169,7 @@ func doGasPriceIncrease(t *testing.T, txTipCap, txFeeCap, newTip, newBaseFee int
 }
 
 func TestIncreaseGasPrice(t *testing.T) {
-	// t.Parallel()
+	t.Parallel()
 	require.Equal(t, int64(10), priceBump, "test must be updated if priceBump is adjusted")
 	tests := []struct {
 		name string

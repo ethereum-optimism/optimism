@@ -115,6 +115,11 @@ interface IOPContractsManagerInteropMigrator {
 }
 
 interface IOPContractsManager {
+    // -------- Events --------
+
+    /// @notice Emitted when the OPCM setRC function is called.
+    event Released(bool _isRC);
+
     // -------- Structs --------
 
     /// @notice Represents the roles that can be set when deploying a standard OP Stack chain.

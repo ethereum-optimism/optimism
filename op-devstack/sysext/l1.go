@@ -2,9 +2,12 @@ package sysext
 
 import (
 	"fmt"
+	"time"
 
+	"github.com/ethereum-optimism/optimism/op-devstack/compat"
 	"github.com/ethereum-optimism/optimism/op-devstack/shim"
 	"github.com/ethereum-optimism/optimism/op-devstack/stack"
+	"github.com/ethereum-optimism/optimism/op-service/client"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
 
@@ -24,6 +27,15 @@ func (o *Orchestrator) hydrateL1(system stack.ExtensibleSystem) {
 		ID: stack.L1NetworkID(l1ID),
 	})
 
+	opts := []client.RPCOption{}
+
+	txTimeout := 30 * time.Second
+	if o.compatType == compat.Persistent {
+		// Increase the timeout by default for persistent devnets, but not for kurtosis
+		txTimeout = 5 * time.Minute
+		opts = append(opts, client.WithCallTimeout(time.Minute*5), client.WithBatchCallTimeout(time.Minute*10))
+	}
+
 	for idx, node := range env.Env.L1.Nodes {
 		elService, ok := node.Services[ELServiceName]
 
@@ -36,9 +48,10 @@ func (o *Orchestrator) hydrateL1(system stack.ExtensibleSystem) {
 
 		l1.AddL1ELNode(shim.NewL1ELNode(shim.L1ELNodeConfig{
 			ELNodeConfig: shim.ELNodeConfig{
-				CommonConfig: commonConfig,
-				Client:       o.rpcClient(t, elService, RPCProtocol, "/"),
-				ChainID:      l1ID,
+				CommonConfig:       commonConfig,
+				Client:             o.rpcClient(t, elService, RPCProtocol, "/", opts...),
+				ChainID:            l1ID,
+				TransactionTimeout: txTimeout,
 			},
 			ID: stack.NewL1ELNodeID(elService.Name, l1ID),
 		}))
@@ -57,7 +70,7 @@ func (o *Orchestrator) hydrateL1(system stack.ExtensibleSystem) {
 		for _, instance := range faucet {
 			l1.AddFaucet(shim.NewFaucet(shim.FaucetConfig{
 				CommonConfig: commonConfig,
-				Client:       o.rpcClient(t, instance, RPCProtocol, fmt.Sprintf("/chain/%s", env.Env.L1.Config.ChainID.String())),
+				Client:       o.rpcClient(t, instance, RPCProtocol, fmt.Sprintf("/chain/%s", env.Env.L1.Config.ChainID.String()), opts...),
 				ID:           stack.NewFaucetID(instance.Name, l1ID),
 			}))
 		}

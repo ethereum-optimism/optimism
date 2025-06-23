@@ -9,13 +9,14 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/engine"
-	"github.com/ethereum-optimism/optimism/op-node/rollup/event"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/finality"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/event"
 )
 
 type L1UnsafeEvent struct {
 	L1Unsafe eth.L1BlockRef
+	event.Ctx
 }
 
 func (ev L1UnsafeEvent) String() string {
@@ -24,6 +25,7 @@ func (ev L1UnsafeEvent) String() string {
 
 type L1SafeEvent struct {
 	L1Safe eth.L1BlockRef
+	event.Ctx
 }
 
 func (ev L1SafeEvent) String() string {
@@ -66,6 +68,9 @@ func (st *StatusTracker) OnEvent(ev event.Event) bool {
 		st.log.Debug("Forkchoice update", "unsafe", x.UnsafeL2Head, "safe", x.SafeL2Head, "finalized", x.FinalizedL2Head)
 		st.data.UnsafeL2 = x.UnsafeL2Head
 		st.data.SafeL2 = x.SafeL2Head
+		if st.data.LocalSafeL2.Number < x.SafeL2Head.Number {
+			st.data.LocalSafeL2 = x.SafeL2Head
+		}
 		st.data.FinalizedL2 = x.FinalizedL2Head
 	case engine.PendingSafeUpdateEvent:
 		st.data.UnsafeL2 = x.Unsafe
@@ -116,6 +121,7 @@ func (st *StatusTracker) OnEvent(ev event.Event) bool {
 	case rollup.ResetEvent:
 		st.data.UnsafeL2 = eth.L2BlockRef{}
 		st.data.SafeL2 = eth.L2BlockRef{}
+		st.data.LocalSafeL2 = eth.L2BlockRef{}
 		st.data.CurrentL1 = eth.L1BlockRef{}
 	case engine.EngineResetConfirmedEvent:
 		st.data.UnsafeL2 = x.LocalUnsafe

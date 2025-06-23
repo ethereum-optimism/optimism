@@ -10,7 +10,7 @@ import (
 )
 
 type AddGameTypeInput struct {
-	Prank                   common.Address
+	L1ProxyAdminOwner       common.Address `abi:"prank"`
 	OPCMImpl                common.Address `abi:"opcmImpl"`
 	SystemConfigProxy       common.Address
 	OPChainProxyAdmin       common.Address `abi:"opChainProxyAdmin"`
@@ -51,7 +51,7 @@ func (a *AddGameTypeInput) UnmarshalJSON(b []byte) error {
 		return err
 	}
 
-	a.Prank = alias.Prank
+	a.L1ProxyAdminOwner = alias.Prank
 	a.OPCMImpl = alias.OPCMImpl
 	a.SystemConfigProxy = alias.SystemConfigProxy
 	a.OPChainProxyAdmin = alias.OPChainProxyAdmin
@@ -83,7 +83,7 @@ func (a *AddGameTypeInput) UnmarshalJSON(b []byte) error {
 
 func (a AddGameTypeInput) MarshalJSON() ([]byte, error) {
 	alias := addGameTypeInputJSON{
-		Prank:                   a.Prank,
+		Prank:                   a.L1ProxyAdminOwner,
 		OPCMImpl:                a.OPCMImpl,
 		SystemConfigProxy:       a.SystemConfigProxy,
 		OPChainProxyAdmin:       a.OPChainProxyAdmin,

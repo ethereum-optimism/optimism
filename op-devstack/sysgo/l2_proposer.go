@@ -41,6 +41,14 @@ func (p *L2Proposer) hydrate(system stack.ExtensibleSystem) {
 	l2Net.(stack.ExtensibleL2Network).AddL2Proposer(bFrontend)
 }
 
+type ProposerOption func(id stack.L2ProposerID, cfg *ps.CLIConfig)
+
+func WithProposerOption(opt ProposerOption) stack.Option[*Orchestrator] {
+	return stack.BeforeDeploy(func(o *Orchestrator) {
+		o.proposerOptions = append(o.proposerOptions, opt)
+	})
+}
+
 func WithProposer(proposerID stack.L2ProposerID, l1ELID stack.L1ELNodeID,
 	l2CLID *stack.L2CLNodeID, supervisorID *stack.SupervisorID) stack.Option[*Orchestrator] {
 	return stack.AfterDeploy(func(orch *Orchestrator) {
@@ -58,9 +66,8 @@ func WithSuperProposer(proposerID stack.L2ProposerID, l1ELID stack.L1ELNodeID,
 func WithProposerPostDeploy(orch *Orchestrator, proposerID stack.L2ProposerID, l1ELID stack.L1ELNodeID,
 	l2CLID *stack.L2CLNodeID, supervisorID *stack.SupervisorID) {
 	ctx := orch.P().Ctx()
-	ctx = stack.ContextWithChainID(ctx, proposerID.ChainID())
-	ctx = stack.ContextWithKind(ctx, stack.L2ProposerKind)
-	p := orch.P().WithCtx(ctx, "service", "op-proposer", "id", proposerID)
+	ctx = stack.ContextWithID(ctx, proposerID)
+	p := orch.P().WithCtx(ctx)
 
 	require := p.Require()
 	require.False(orch.proposers.Has(proposerID), "proposer must not already exist")
@@ -101,6 +108,9 @@ func WithProposerPostDeploy(orch *Orchestrator, proposerID stack.L2ProposerID, l
 		DisputeGameType:              uint32(disputeGameType),
 		ActiveSequencerCheckDuration: time.Second * 5,
 		WaitNodeSync:                 false,
+	}
+	for _, opt := range orch.proposerOptions {
+		opt(proposerID, proposerCLIConfig)
 	}
 
 	// If interop is scheduled, or if we cannot do the pre-interop connection, then set up with supervisor

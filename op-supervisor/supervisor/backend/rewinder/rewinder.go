@@ -8,8 +8,8 @@ import (
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/log"
 
-	"github.com/ethereum-optimism/optimism/op-node/rollup/event"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/event"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/depset"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/superevents"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
@@ -46,13 +46,19 @@ type Rewinder struct {
 	emitter event.Emitter
 	l1Node  l1Node
 	db      rewinderDB
+
+	rootCtx       context.Context
+	rootCtxCancel context.CancelFunc
 }
 
 func New(log log.Logger, db rewinderDB, l1Node l1Node) *Rewinder {
+	ctx, cancel := context.WithCancel(context.Background())
 	return &Rewinder{
-		log:    log.New("component", "rewinder"),
-		db:     db,
-		l1Node: l1Node,
+		log:           log.New("component", "rewinder"),
+		db:            db,
+		l1Node:        l1Node,
+		rootCtx:       ctx,
+		rootCtxCancel: cancel,
 	}
 }
 
@@ -144,7 +150,7 @@ func (r *Rewinder) handleLocalDerivedEvent(ev superevents.LocalSafeUpdateEvent) 
 	}
 
 	// Emit event to trigger node reset with new heads
-	r.emitter.Emit(superevents.ChainRewoundEvent{ChainID: ev.ChainID})
+	r.emitter.Emit(superevents.ChainRewoundEvent{ChainID: ev.ChainID, Ctx: event.WrapCtx(r.rootCtx)})
 }
 
 // rewindL1ChainIfReorged rewinds the L1 chain for the given chain ID if a reorg is detected
@@ -253,6 +259,11 @@ func (r *Rewinder) rewindL1ChainIfReorged(chainID eth.ChainID, newTip eth.BlockI
 	// Emit rewound event for sync node
 	r.emitter.Emit(superevents.ChainRewoundEvent{
 		ChainID: chainID,
+		Ctx:     event.WrapCtx(r.rootCtx),
 	})
 	return nil
+}
+
+func (r *Rewinder) Close() {
+	r.rootCtxCancel()
 }

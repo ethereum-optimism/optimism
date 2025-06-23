@@ -33,6 +33,7 @@ type L1Configurator interface {
 
 type SuperchainConfigurator interface {
 	ID() SuperchainID
+	L1ChainID() eth.ChainID
 	WithSuperchainConfigProxy(address common.Address) SuperchainConfigurator
 	WithProxyAdminOwner(address common.Address) SuperchainConfigurator
 	WithGuardian(address common.Address) SuperchainConfigurator
@@ -44,6 +45,8 @@ type L2Configurator interface {
 	ChainID() eth.ChainID
 	WithBlockTime(uint64)
 	WithL1StartBlockHash(hash common.Hash)
+	WithAdditionalDisputeGames(games []state.AdditionalDisputeGame)
+	WithFinalizationPeriodSeconds(value uint64)
 	ContractsConfigurator
 	L2VaultsConfigurator
 	L2RolesConfigurator
@@ -106,9 +109,8 @@ func WithDevkeyVaults(t require.TestingT, dk devkeys.Keys, configurator L2Config
 	configurator.WithL1FeeVaultRecipient(addrFor(devkeys.L1FeeVaultRecipientRole))
 }
 
-func WithDevkeyRoles(t require.TestingT, dk devkeys.Keys, configurator L2Configurator) {
+func WithDevkeyL2Roles(t require.TestingT, dk devkeys.Keys, configurator L2Configurator) {
 	addrFor := RoleToAddrProvider(t, dk, configurator.ChainID())
-	configurator.WithL1ProxyAdminOwner(addrFor(devkeys.L1ProxyAdminOwnerRole))
 	configurator.WithL2ProxyAdminOwner(addrFor(devkeys.L2ProxyAdminOwnerRole))
 	configurator.WithSystemConfigOwner(addrFor(devkeys.SystemConfigOwner))
 	configurator.WithUnsafeBlockSigner(addrFor(devkeys.SequencerP2PRole))
@@ -117,11 +119,21 @@ func WithDevkeyRoles(t require.TestingT, dk devkeys.Keys, configurator L2Configu
 	configurator.WithChallenger(addrFor(devkeys.ChallengerRole))
 }
 
+func WithDevkeyL1Roles(t require.TestingT, dk devkeys.Keys, configurator L2Configurator, l1ChainID eth.ChainID) {
+	addrFor := RoleToAddrProvider(t, dk, l1ChainID)
+	configurator.WithL1ProxyAdminOwner(addrFor(devkeys.L1ProxyAdminOwnerRole))
+}
+
 func WithDevkeySuperRoles(t require.TestingT, dk devkeys.Keys, l1ID eth.ChainID, configurator SuperchainConfigurator) {
 	addrFor := RoleToAddrProvider(t, dk, l1ID)
 	configurator.WithGuardian(addrFor(devkeys.SuperchainConfigGuardianKey))
 	configurator.WithProtocolVersionsOwner(addrFor(devkeys.SuperchainDeployerKey))
 	configurator.WithProxyAdminOwner(addrFor(devkeys.L1ProxyAdminOwnerRole))
+}
+
+func WithOverrideGuardianToL1PAO(t require.TestingT, dk devkeys.Keys, l1ID eth.ChainID, configurator SuperchainConfigurator) {
+	addrFor := RoleToAddrProvider(t, dk, l1ID)
+	configurator.WithGuardian(addrFor(devkeys.L1ProxyAdminOwnerRole))
 }
 
 func KeyToAddrProvider(t require.TestingT, dk devkeys.Keys) func(k devkeys.Key) common.Address {
@@ -215,6 +227,10 @@ type superchainConfigurator struct {
 
 func (c *superchainConfigurator) ID() SuperchainID {
 	return "main"
+}
+
+func (c *superchainConfigurator) L1ChainID() eth.ChainID {
+	return eth.ChainIDFromUInt64(c.builder.intent.L1ChainID)
 }
 
 func (c *superchainConfigurator) WithSuperchainConfigProxy(address common.Address) SuperchainConfigurator {
@@ -416,4 +432,16 @@ func (c *l2Configurator) initL2DevGenesisParams() *state.L2DevGenesisParams {
 func (c *l2Configurator) WithPrefundedAccount(addr common.Address, amount uint256.Int) L2Configurator {
 	c.initL2DevGenesisParams().Prefund[addr] = (*hexutil.U256)(&amount)
 	return c
+}
+
+func (c *l2Configurator) WithAdditionalDisputeGames(games []state.AdditionalDisputeGame) {
+	chain := c.builder.intent.Chains[c.chainIndex]
+	if chain.AdditionalDisputeGames == nil {
+		chain.AdditionalDisputeGames = make([]state.AdditionalDisputeGame, 0)
+	}
+	chain.AdditionalDisputeGames = append(chain.AdditionalDisputeGames, games...)
+}
+
+func (c *l2Configurator) WithFinalizationPeriodSeconds(value uint64) {
+	c.builder.intent.Chains[c.chainIndex].DeployOverrides["l2FinalizationPeriodSeconds"] = value
 }

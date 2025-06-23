@@ -126,7 +126,7 @@ func (n *NodeP2P) init(
 	scoreParams := setup.PeerScoringParams()
 
 	if scoreParams != nil {
-		n.appScorer = newPeerApplicationScorer(resourcesCtx, log, clock.SystemClock, &scoreParams.ApplicationScoring, eps, n.host.Network().Peers)
+		n.appScorer = NewPeerApplicationScorer(resourcesCtx, log, clock.SystemClock, &scoreParams.ApplicationScoring, eps, n.host.Network().Peers)
 	} else {
 		n.appScorer = &NoopApplicationScorer{}
 	}
@@ -156,7 +156,7 @@ func (n *NodeP2P) init(
 			n.host.SetStreamHandler(PayloadByNumberProtocolID(rollupCfg.L2ChainID), payloadByNumber)
 		}
 	}
-	n.scorer = NewScorer(rollupCfg, eps, metrics, n.appScorer, log)
+	n.scorer = NewScorer(eps, metrics, n.appScorer, log)
 	// notify of any new connections/streams/etc.
 	n.host.Network().Notify(NewNetworkNotifier(log, metrics))
 	// note: the IDDelta functionality was removed from libP2P, and no longer needs to be explicitly disabled.
@@ -189,7 +189,7 @@ func (n *NodeP2P) init(
 		n.peerMonitor = monitor.NewPeerMonitor(resourcesCtx, log, clock.SystemClock, n, setup.BanThreshold(), setup.BanDuration())
 		n.peerMonitor.Start()
 	}
-	n.appScorer.start()
+	n.appScorer.Start()
 	return nil
 }
 
@@ -299,7 +299,7 @@ func (n *NodeP2P) Close() error {
 		}
 	}
 	if n.appScorer != nil {
-		n.appScorer.stop()
+		n.appScorer.Stop()
 	}
 	return result.ErrorOrNil()
 }

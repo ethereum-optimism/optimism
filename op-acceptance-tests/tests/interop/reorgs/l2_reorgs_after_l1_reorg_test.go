@@ -10,6 +10,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-devstack/stack/match"
 	"github.com/ethereum-optimism/optimism/op-service/apis"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 	"github.com/ethereum-optimism/optimism/op-test-sequencer/sequencer/seqtypes"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/stretchr/testify/require"
@@ -95,6 +96,8 @@ func testL2ReorgAfterL1Reorg(gt *testing.T, n int, preChecks, postChecks checksF
 	// pre reorg trigger validations and checks
 	preChecks(t, sys)
 
+	tipL2_preReorg := sys.L2ELA.BlockRefByLabel(eth.Unsafe)
+
 	// reorg the L1 chain -- sequence an alternative L1 block from divergence block parent
 	sequenceL1Block(t, ts, divergence.ParentHash)
 
@@ -103,6 +106,9 @@ func testL2ReorgAfterL1Reorg(gt *testing.T, n int, preChecks, postChecks checksF
 
 	// confirm L1 reorged
 	sys.L1EL.ReorgTriggered(divergence, 5)
+
+	// wait until L2 chain A cross-safe ref caught up to where it was before the reorg
+	sys.L2CLA.Reached(types.CrossSafe, tipL2_preReorg.Number, 50)
 
 	// test that latest chain A unsafe is not referencing a reorged L1 block (through the L1Origin field)
 	require.Eventually(t, func() bool {
@@ -114,7 +120,7 @@ func testL2ReorgAfterL1Reorg(gt *testing.T, n int, preChecks, postChecks checksF
 			return false
 		}
 
-		sys.Log.Info("current unsafe ref", "tip", unsafe, "tip.L1Origin", unsafe.L1Origin, "L1 block", eth.InfoToL1BlockRef(block))
+		sys.Log.Info("current unsafe ref", "tip", unsafe, "tip_origin", unsafe.L1Origin, "l1blk", eth.InfoToL1BlockRef(block))
 
 		// print the chains so we have information to debug if the test fails
 		sys.L2ChainA.PrintChain()
@@ -124,16 +130,30 @@ func testL2ReorgAfterL1Reorg(gt *testing.T, n int, preChecks, postChecks checksF
 	}, 120*time.Second, 7*time.Second, "L1 block origin hash should match hash of block on L1 at that number. If not, it means there was a reorg, and L2 blocks L1Origin field is referencing a reorged block.")
 
 	// confirm all L1Origin fields point to canonical blocks
-	{
+	require.Eventually(t, func() bool {
 		ref := sys.L2ELA.BlockRefByLabel(eth.Unsafe)
 		var err error
+
+		// wait until L2 chains' L1Origin points to a L1 block after the one that was reorged
+		if ref.L1Origin.Number < divergence.Number {
+			return false
+		}
+
+		sys.Log.Info("L2 chain progressed, pointing to newer L1 block", "ref", ref, "ref_origin", ref.L1Origin, "divergence", divergence)
+
 		for i := ref.Number; i > 0 && ref.L1Origin.Number >= divergence.Number; i-- {
 			ref, err = sys.L2ELA.Escape().L2EthClient().L2BlockRefByNumber(ctx, i)
-			require.NoError(t, err, "Expected to get block ref by number", "number", i)
+			if err != nil {
+				return false
+			}
 
-			require.True(t, sys.L1EL.IsCanonical(ref.L1Origin), "L1 block origin should be canonical")
+			if !sys.L1EL.IsCanonical(ref.L1Origin) {
+				return false
+			}
 		}
-	}
+
+		return true
+	}, 120*time.Second, 5*time.Second, "all L1Origin fields should point to canonical L1 blocks")
 
 	// post reorg test validations and checks
 	postChecks(t, sys)

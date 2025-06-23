@@ -55,6 +55,8 @@ type TestSequencerMatcher = Matcher[TestSequencerID, TestSequencer]
 
 type ConductorMatcher = Matcher[ConductorID, Conductor]
 
+type FlashblocksBuilderMatcher = Matcher[FlashblocksBuilderID, FlashblocksBuilderNode]
+
 type L2ELMatcher = Matcher[L2ELNodeID, L2ELNode]
 
 type FaucetMatcher = Matcher[FaucetID, Faucet]

@@ -7,8 +7,10 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
+	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 )
 
 // TestSequencingWindowExpiry tests that the sequencing window may expire,
@@ -71,7 +73,7 @@ func TestSequencingWindowExpiry(gt *testing.T) {
 	receipt2, err := tx2.Included.Eval(t.Ctx())
 	require.NoError(err)
 	// Now get the block that included the tx. This block will change.
-	old := eth.BlockID{Hash: receipt2.BlockHash, Number: receipt2.BlockNumber.Uint64()}
+	old := eth.L2BlockRef{Hash: receipt2.BlockHash, Number: receipt2.BlockNumber.Uint64()}
 	t.Logger().Info("Confirmed tx 2, which will be reorged out later",
 		"tx", receipt2.TxHash, "l2Block", old)
 	// The logs will show a "Chain reorg detected" from op-geth.
@@ -84,12 +86,10 @@ func TestSequencingWindowExpiry(gt *testing.T) {
 	t.Logger().Info("Turning on recovery-mode")
 	t.Require().NoError(sys.L2CLA.Escape().RollupAPI().SetRecoverMode(t.Ctx(), true))
 
-	t.Logger().Info("Waiting for sequencing window expiry induced reorg now")
+	t.Logger().Info("Waiting for sequencing window expiry induced reorg now", "windowDuration", windowDuration)
+
 	// Monitor that the old unsafe chain is reorged out as expected
-	require.Eventually(func() bool {
-		latest := sys.L2ELA.BlockRefByNumber(old.Number)
-		return latest.Hash != old.Hash
-	}, windowDuration+time.Second*20, time.Second, "expecting old block to be reorged out")
+	sys.L2ELA.ReorgTriggered(old, 50)
 
 	// Wait for the tx to no longer be included.
 	// The tx-indexer may still return the old block or be stale.
@@ -102,7 +102,7 @@ func TestSequencingWindowExpiry(gt *testing.T) {
 		}
 		t.Logger().Info("Checking tx 2 nonce", "latest", latestNonce, "tx2", tx2.Nonce.Value())
 		return latestNonce <= tx2.Nonce.Value()
-	}, windowDuration+time.Second*20, time.Second, "tx should be reorged out and not come back")
+	}, windowDuration+time.Second*60, 5*time.Second, "tx should be reorged out and not come back")
 
 	t.Logger().Info("Waiting for supervisor to surpass pre-reorg chain now")
 	// Monitor that the supervisor can continue to sync.
@@ -111,7 +111,7 @@ func TestSequencingWindowExpiry(gt *testing.T) {
 		safe, err := sys.Supervisor.Escape().QueryAPI().CrossSafe(t.Ctx(), sys.L2ChainA.ChainID())
 		require.NoError(err)
 		return safe.Source.Number > estimatedExpiryNum
-	}, windowDuration+time.Second*20, time.Second, "expecting supervisor to sync cross-safe data, after resolving sequencing window expiry")
+	}, windowDuration+time.Second*60, 5*time.Second, "expecting supervisor to sync cross-safe data, after resolving sequencing window expiry")
 
 	t.Logger().Info("Sanity-checking now")
 	// Sanity-check the unsafe head of the supervisor is also updated
@@ -131,10 +131,13 @@ func TestSequencingWindowExpiry(gt *testing.T) {
 	// For now it uses singular batches to work-around.
 
 	// Build the missing blocks, catch up on local-safe chain
-	t.Require().Eventually(func() bool {
-		status := sys.L2CLA.SyncStatus()
-		return status.LocalSafeL2.Number+10 > status.UnsafeL2.Number
-	}, windowDuration, time.Second*2, "wait for local-safe to recover near unsafe head")
+	dsl.CheckAll(t,
+		sys.L2CLA.AdvancedFn(types.LocalSafe, 20, 100),
+		sys.L2CLA.AdvancedFn(types.LocalUnsafe, 20, 100),
+	)
+
+	syncStatus := sys.L2CLA.SyncStatus()
+	t.Logger().Info("Sync status for L2CLA", "local-unsafe", syncStatus.UnsafeL2, "local-safe", syncStatus.LocalSafeL2)
 
 	// Once we have enough margin to not get reorged again before the batch-submitter acts,
 	// exit recovery mode, so we can include txs again.

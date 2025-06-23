@@ -23,7 +23,7 @@ func compareBigInt(a, b *big.Int) bool {
 // use require.Equal directly because zero *big.Int structs can either be nil or a zero value, which trips up the
 // equality checker.
 func compareAddGameTypeInputs(t *testing.T, expected, actual AddGameTypeInput) {
-	require.Equal(t, expected.Prank, actual.Prank)
+	require.Equal(t, expected.L1ProxyAdminOwner, actual.L1ProxyAdminOwner)
 	require.Equal(t, expected.OPCMImpl, actual.OPCMImpl)
 	require.Equal(t, expected.SystemConfigProxy, actual.SystemConfigProxy)
 	require.Equal(t, expected.OPChainProxyAdmin, actual.OPChainProxyAdmin)
@@ -51,7 +51,7 @@ func TestAddGameTypeInput_MarshalUnmarshalJSON(t *testing.T) {
 		{
 			name: "basic",
 			input: AddGameTypeInput{
-				Prank:                   common.HexToAddress("0x1111111111111111111111111111111111111111"),
+				L1ProxyAdminOwner:       common.HexToAddress("0x1111111111111111111111111111111111111111"),
 				OPCMImpl:                common.HexToAddress("0x2222222222222222222222222222222222222222"),
 				SystemConfigProxy:       common.HexToAddress("0x3333333333333333333333333333333333333333"),
 				OPChainProxyAdmin:       common.HexToAddress("0x4444444444444444444444444444444444444444"),
@@ -71,7 +71,7 @@ func TestAddGameTypeInput_MarshalUnmarshalJSON(t *testing.T) {
 		{
 			name: "nil big.Int fields",
 			input: AddGameTypeInput{
-				Prank:                   common.HexToAddress("0x1111111111111111111111111111111111111111"),
+				L1ProxyAdminOwner:       common.HexToAddress("0x1111111111111111111111111111111111111111"),
 				OPCMImpl:                common.HexToAddress("0x2222222222222222222222222222222222222222"),
 				SystemConfigProxy:       common.HexToAddress("0x3333333333333333333333333333333333333333"),
 				OPChainProxyAdmin:       common.HexToAddress("0x4444444444444444444444444444444444444444"),

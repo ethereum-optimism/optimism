@@ -7,23 +7,22 @@ import (
 	"testing"
 	"time"
 
-	op_e2e "github.com/ethereum-optimism/optimism/op-e2e"
+	"github.com/stretchr/testify/require"
 
-	"github.com/ethereum-optimism/optimism/op-e2e/system/e2esys"
 	"github.com/ethereum/go-ethereum/common/hexutil"
-
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/rpc"
-	"github.com/stretchr/testify/require"
 
 	bss "github.com/ethereum-optimism/optimism/op-batcher/batcher"
 	batcherFlags "github.com/ethereum-optimism/optimism/op-batcher/flags"
 	con "github.com/ethereum-optimism/optimism/op-conductor/conductor"
 	"github.com/ethereum-optimism/optimism/op-conductor/consensus"
 	conrpc "github.com/ethereum-optimism/optimism/op-conductor/rpc"
+	op_e2e "github.com/ethereum-optimism/optimism/op-e2e"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/setuputils"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
-	rollupNode "github.com/ethereum-optimism/optimism/op-node/node"
+	"github.com/ethereum-optimism/optimism/op-e2e/system/e2esys"
+	"github.com/ethereum-optimism/optimism/op-node/config"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/driver"
@@ -344,8 +343,8 @@ func sequencerFailoverSystemConfig(t *testing.T, conductorRPCEndpoints func(ctx 
 	return cfg
 }
 
-func sequencerCfg(conductorRPCEndpoint rollupNode.ConductorRPCFunc) *rollupNode.Config {
-	return &rollupNode.Config{
+func sequencerCfg(conductorRPCEndpoint config.ConductorRPCFunc) *config.Config {
+	return &config.Config{
 		Driver: driver.Config{
 			VerifierConfDepth:  0,
 			SequencerConfDepth: 0,
@@ -353,7 +352,7 @@ func sequencerCfg(conductorRPCEndpoint rollupNode.ConductorRPCFunc) *rollupNode.
 			SequencerStopped:   true,
 		},
 		// Submitter PrivKey is set in system start for rollup nodes where sequencer = true
-		RPC: rollupNode.RPCConfig{
+		RPC: oprpc.CLIConfig{
 			ListenAddr:  localhost,
 			ListenPort:  0,
 			EnableAdmin: true,
@@ -361,7 +360,7 @@ func sequencerCfg(conductorRPCEndpoint rollupNode.ConductorRPCFunc) *rollupNode.
 		InteropConfig:               &interop.Config{},
 		L1EpochPollInterval:         time.Second * 2,
 		RuntimeConfigReloadInterval: time.Minute * 10,
-		ConfigPersistence:           &rollupNode.DisabledConfigPersistence{},
+		ConfigPersistence:           &config.DisabledConfigPersistence{},
 		Sync:                        sync.Config{SyncMode: sync.CLSync},
 		ConductorEnabled:            true,
 		ConductorRpc:                conductorRPCEndpoint,

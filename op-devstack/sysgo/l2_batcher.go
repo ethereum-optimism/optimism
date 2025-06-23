@@ -105,7 +105,6 @@ func WithBatcher(batcherID stack.L2BatcherID, l1ELID stack.L1ELNodeID, l2CLID st
 			Stopped:               false,
 			BatchType:             derive.SpanBatchType,
 			MaxBlocksPerSpanBatch: 10,
-			PreferLocalSafeL2:     l2CL.cfg.Rollup.InteropTime != nil,
 			DataAvailabilityType:  batcherFlags.CalldataType,
 			CompressionAlgo:       derive.Brotli,
 			RPC: oprpc.CLIConfig{

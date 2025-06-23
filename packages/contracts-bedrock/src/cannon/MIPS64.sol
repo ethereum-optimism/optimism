@@ -66,8 +66,8 @@ contract MIPS64 is ISemver {
     }
 
     /// @notice The semantic version of the MIPS64 contract.
-    /// @custom:semver 1.5.0
-    string public constant version = "1.5.0";
+    /// @custom:semver 1.7.0
+    string public constant version = "1.7.0";
 
     /// @notice The preimage oracle contract.
     IPreimageOracle internal immutable ORACLE;
@@ -503,22 +503,22 @@ contract MIPS64 is ISemver {
                     uint32 futexVal = getFutexValue(effFutexAddr);
                     uint32 targetVal = uint32(a2);
                     if (futexVal != targetVal) {
-                        v0 = sys.SYS_ERROR_SIGNAL;
-                        v1 = sys.EAGAIN;
+                        v0 = sys.EAGAIN;
+                        v1 = sys.SYS_ERROR_SIGNAL;
                     } else {
                         return syscallYield(state, thread);
                     }
                 } else if (a1 == sys.FUTEX_WAKE_PRIVATE) {
                     return syscallYield(state, thread);
                 } else {
-                    v0 = sys.SYS_ERROR_SIGNAL;
-                    v1 = sys.EINVAL;
+                    v0 = sys.EINVAL;
+                    v1 = sys.SYS_ERROR_SIGNAL;
                 }
             } else if (syscall_no == sys.SYS_SCHED_YIELD || syscall_no == sys.SYS_NANOSLEEP) {
                 return syscallYield(state, thread);
             } else if (syscall_no == sys.SYS_OPEN) {
-                v0 = sys.SYS_ERROR_SIGNAL;
-                v1 = sys.EBADF;
+                v0 = sys.EBADF;
+                v1 = sys.SYS_ERROR_SIGNAL;
             } else if (syscall_no == sys.SYS_CLOCKGETTIME) {
                 if (a0 == sys.CLOCK_GETTIME_REALTIME_FLAG || a0 == sys.CLOCK_GETTIME_MONOTONIC_FLAG) {
                     v0 = 0;
@@ -554,8 +554,8 @@ contract MIPS64 is ISemver {
                         MIPS64Memory.writeMem(effAddr + 8, MIPS64Memory.memoryProofOffset(MEM_PROOF_OFFSET, 2), nsecs);
                     handleMemoryUpdate(state, effAddr + 8);
                 } else {
-                    v0 = sys.SYS_ERROR_SIGNAL;
-                    v1 = sys.EINVAL;
+                    v0 = sys.EINVAL;
+                    v1 = sys.SYS_ERROR_SIGNAL;
                 }
             } else if (syscall_no == sys.SYS_GETPID) {
                 v0 = 0;
@@ -630,8 +630,18 @@ contract MIPS64 is ISemver {
             } else if (syscall_no == sys.SYS_LSEEK) {
                 // ignored
             } else if (syscall_no == sys.SYS_EVENTFD2) {
-                if (!st.featuresForVersion(STATE_VERSION).supportNoopSysEventFd2) {
+                if (!st.featuresForVersion(STATE_VERSION).supportMinimalSysEventFd2) {
                     revert("MIPS64: unimplemented syscall");
+                }
+
+                // a0 = initial value, a1 = flags
+                // Validate flags
+                if (a1 & sys.EFD_NONBLOCK == 0) {
+                    // The non-block flag was not set, but we only support non-block requests, so error
+                    v0 = sys.EINVAL;
+                    v1 = sys.SYS_ERROR_SIGNAL;
+                } else {
+                    v0 = sys.FD_EVENTFD;
                 }
             } else {
                 revert("MIPS64: unimplemented syscall");

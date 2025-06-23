@@ -8,12 +8,14 @@ import (
 
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/core/vm"
+	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/log"
 
 	"github.com/ethereum-optimism/optimism/op-faucet/faucet/backend/config"
 	ftypes "github.com/ethereum-optimism/optimism/op-faucet/faucet/backend/types"
 	"github.com/ethereum-optimism/optimism/op-faucet/faucet/frontend"
 	"github.com/ethereum-optimism/optimism/op-faucet/metrics"
+	"github.com/ethereum-optimism/optimism/op-service/apis"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
 )
@@ -24,9 +26,10 @@ type Faucet struct {
 	log log.Logger
 	m   metrics.Metricer
 
-	id      ftypes.FaucetID
-	chainID eth.ChainID
-	txMgr   txmgr.TxManager
+	id       ftypes.FaucetID
+	chainID  eth.ChainID
+	txMgr    txmgr.TxManager
+	elClient apis.EthBalance
 
 	// true when the faucet is disabled and may not serve any new faucet requests
 	disabled bool
@@ -44,16 +47,21 @@ func FaucetFromConfig(logger log.Logger, m metrics.Metricer, fID ftypes.FaucetID
 	if err != nil {
 		return nil, fmt.Errorf("failed to start tx manager: %w", err)
 	}
-	return faucetWithTxManager(logger, m, fID, txMgr), nil
+	elClient, err := ethclient.Dial(fCfg.ELRPC.Value.RPC())
+	if err != nil {
+		return nil, fmt.Errorf("failed to dial EL client: %w", err)
+	}
+	return faucetWithTxManager(logger, m, fID, txMgr, elClient), nil
 }
 
-func faucetWithTxManager(logger log.Logger, m metrics.Metricer, fID ftypes.FaucetID, txMgr txmgr.TxManager) *Faucet {
+func faucetWithTxManager(logger log.Logger, m metrics.Metricer, fID ftypes.FaucetID, txMgr txmgr.TxManager, elClient apis.EthBalance) *Faucet {
 	return &Faucet{
 		log:      logger,
 		m:        m,
 		id:       fID,
 		chainID:  txMgr.ChainID(),
 		txMgr:    txMgr,
+		elClient: elClient,
 		disabled: false,
 	}
 }
@@ -78,6 +86,18 @@ func (f *Faucet) Close() {
 	f.txMgr.Close()
 }
 
+func (f *Faucet) Balance() (eth.ETH, error) {
+	wallet := f.txMgr.From()
+	balance, err := f.elClient.BalanceAt(context.Background(), wallet, nil)
+
+	var ethBalance eth.ETH
+	if err != nil {
+		f.log.Error("Failed to get balance", "err", err)
+		return ethBalance, err
+	}
+	return eth.WeiBig(balance), nil
+}
+
 func (f *Faucet) ChainID() eth.ChainID {
 	return f.chainID
 }
@@ -93,6 +113,16 @@ func (f *Faucet) RequestETH(ctx context.Context, request *ftypes.FaucetRequest) 
 	}
 
 	logger.Info("Sending funds")
+
+	balance, err := f.Balance()
+	if err != nil {
+		logger.Warn("Failed to get balance, optimistically continuing the request")
+	} else {
+		if balance.ToBig().Cmp(request.Amount.ToBig()) < 0 {
+			logger.Error("Insufficient balance", "balance", balance.String(), "amount", request.Amount)
+			return errors.New("insufficient balance")
+		}
+	}
 
 	onDone := f.m.RecordFundAction(f.id, f.chainID, request.Amount)
 	defer func() {

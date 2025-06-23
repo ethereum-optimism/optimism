@@ -213,7 +213,7 @@ contract L2ToL2CrossDomainMessenger_SendMessage_Test is L2ToL2CrossDomainMesseng
 
         // Check that the message nonce has been incremented and the message hash has been stored
         assertEq(l2ToL2CrossDomainMessenger.messageNonce(), messageNonce + 1);
-        assertEq(l2ToL2CrossDomainMessenger.sentMessages(msgHash), true);
+        assertEq(l2ToL2CrossDomainMessenger.sentMessages(messageNonce), msgHash);
     }
 
     /// @notice Tests that the `sendMessage` function reverts when sending a ETH
@@ -295,10 +295,7 @@ contract L2ToL2CrossDomainMessenger_ResendMessage_Test is L2ToL2CrossDomainMesse
     )
         external
     {
-        // Get the message hash and ensure it has not been sent yet
-        bytes32 msgHash =
-            Hashing.hashL2toL2CrossDomainMessage(_destination, block.chainid, _nonce, _sender, _target, _message);
-        vm.assume(l2ToL2CrossDomainMessenger.sentMessages(msgHash) == false);
+        vm.assume(l2ToL2CrossDomainMessenger.sentMessages(_nonce) == bytes32(0));
 
         // Expect a revert with the InvalidMessage selector
         vm.expectRevert(InvalidMessage.selector);
@@ -352,7 +349,7 @@ contract L2ToL2CrossDomainMessenger_ResendMessage_Test is L2ToL2CrossDomainMesse
 
         // Check that the message nonce has been incremented and the message hash has been stored
         assertEq(l2ToL2CrossDomainMessenger.messageNonce(), messageNonce + 1);
-        assertEq(l2ToL2CrossDomainMessenger.sentMessages(msgHash), true);
+        assertEq(l2ToL2CrossDomainMessenger.sentMessages(messageNonce), msgHash);
 
         // Call the `resendMessage` function
         bytes32 resendMsgHash =

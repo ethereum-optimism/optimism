@@ -1,6 +1,7 @@
 package db
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -8,8 +9,8 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
 
-	"github.com/ethereum-optimism/optimism/op-node/rollup/event"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/event"
 	"github.com/ethereum-optimism/optimism/op-service/locks"
 	"github.com/ethereum-optimism/optimism/op-supervisor/metrics"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/db/fromda"
@@ -102,8 +103,10 @@ var _ DerivationStorage = (*fromda.DB)(nil)
 var _ LogStorage = (*logs.DB)(nil)
 
 type Metrics interface {
-	RecordCrossUnsafeRef(chainID eth.ChainID, ref eth.BlockRef)
-	RecordCrossSafeRef(chainID eth.ChainID, ref eth.BlockRef)
+	RecordCrossUnsafe(chainID eth.ChainID, seal types.BlockSeal)
+	RecordCrossSafe(chainID eth.ChainID, seal types.BlockSeal)
+	RecordLocalSafe(chainID eth.ChainID, seal types.BlockSeal)
+	RecordLocalUnsafe(chainID eth.ChainID, seal types.BlockSeal)
 }
 
 // ChainsDB is a database that stores logs and derived-from data for multiple chains.
@@ -145,6 +148,9 @@ type ChainsDB struct {
 	emitter event.Emitter
 
 	m Metrics
+
+	rootCtx       context.Context
+	rootCtxCancel context.CancelFunc
 }
 
 var _ event.AttachEmitter = (*ChainsDB)(nil)
@@ -153,12 +159,14 @@ func NewChainsDB(l log.Logger, depSet depset.DependencySet, m Metrics) *ChainsDB
 	if m == nil {
 		m = metrics.NoopMetrics
 	}
-
+	ctx, cancel := context.WithCancel(context.Background())
 	return &ChainsDB{
-		logger:       l,
-		depSet:       depSet,
-		m:            m,
-		readRegistry: reads.NewRegistry(l),
+		logger:        l,
+		depSet:        depSet,
+		m:             m,
+		readRegistry:  reads.NewRegistry(l),
+		rootCtx:       ctx,
+		rootCtxCancel: cancel,
 	}
 }
 
@@ -278,6 +286,7 @@ func (db *ChainsDB) DependencySet() depset.DependencySet {
 }
 
 func (db *ChainsDB) Close() error {
+	db.rootCtxCancel()
 	var combined error
 	db.logDBs.Range(func(id eth.ChainID, logDB LogStorage) bool {
 		if err := logDB.Close(); err != nil {

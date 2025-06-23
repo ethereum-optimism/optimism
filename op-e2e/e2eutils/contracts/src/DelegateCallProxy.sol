@@ -28,14 +28,4 @@ contract DelegateCallProxy {
         (bool success, ) = _proxyAdmin.call(data);
         require(success, "TransferOwnership: failed");
     }
-
-    function changeAdmin(address _proxy, address _newAdmin) external {
-        if (msg.sender != owner) {
-            revert NotOwner();
-        }
-        // nosemgrep: sol-style-use-abi-encodecall
-        bytes memory data = abi.encodeWithSignature("changeAdmin(address)", _newAdmin);
-        (bool success, ) = _proxy.call(data);
-        require(success, "ChangeAdmin: failed");
-    }
 }

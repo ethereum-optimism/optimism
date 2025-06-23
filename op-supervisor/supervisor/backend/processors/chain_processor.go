@@ -14,8 +14,8 @@ import (
 	gethtypes "github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
 
-	"github.com/ethereum-optimism/optimism/op-node/rollup/event"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/event"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/superevents"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 )
@@ -115,11 +115,12 @@ func (s *ChainProcessor) OnEvent(ev event.Event) bool {
 		}
 		// always update the target
 		s.UpdateTarget(x.Target)
+
 		// and if not already running, begin indexing
-		if !s.running.Load() {
-			s.running.Store(true)
+		if s.running.CompareAndSwap(false, true) {
 			s.index()
 		}
+
 	case superevents.ChainIndexingContinueEvent:
 		if x.ChainID != s.chain {
 			return false
@@ -175,6 +176,7 @@ func (s *ChainProcessor) index() {
 			s.nextActiveClient()
 			s.emitter.Emit(superevents.ChainIndexingContinueEvent{
 				ChainID: s.chain,
+				Ctx:     event.WrapCtx(s.systemContext),
 			})
 			return
 		} else {
@@ -194,6 +196,7 @@ func (s *ChainProcessor) index() {
 		s.log.Debug("More indexing needed, continuing", "target", target, "next", next)
 		s.emitter.Emit(superevents.ChainIndexingContinueEvent{
 			ChainID: s.chain,
+			Ctx:     event.WrapCtx(s.systemContext),
 		})
 		return
 	}

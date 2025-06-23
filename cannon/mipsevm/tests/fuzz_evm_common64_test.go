@@ -4,8 +4,10 @@ import (
 	"os"
 	"testing"
 
-	"github.com/ethereum-optimism/optimism/cannon/mipsevm/testutil"
 	"github.com/stretchr/testify/require"
+
+	mtutil "github.com/ethereum-optimism/optimism/cannon/mipsevm/multithreaded/testutil"
+	"github.com/ethereum-optimism/optimism/cannon/mipsevm/testutil"
 )
 
 func FuzzStateConsistencyMulOp(f *testing.F) {
@@ -102,7 +104,7 @@ func mulOpConsistencyCheck(
 			}
 
 			insn := opcode<<26 | rsReg<<21 | rtReg<<16 | rdReg<<11 | funct
-			goVm := v.VMFactory(nil, os.Stdout, os.Stderr, testutil.CreateLogger(), testutil.WithRandomization(seed), testutil.WithPCAndNextPC(0))
+			goVm := v.VMFactory(nil, os.Stdout, os.Stderr, testutil.CreateLogger(), mtutil.WithRandomization(seed), mtutil.WithPCAndNextPC(0))
 			state := goVm.GetState()
 			state.GetRegistersRef()[rsReg] = rs
 			state.GetRegistersRef()[rtReg] = rt
@@ -110,7 +112,7 @@ func mulOpConsistencyCheck(
 			step := state.GetStep()
 
 			// mere sanity checks
-			expected := testutil.NewExpectedState(state)
+			expected := mtutil.NewExpectedState(t, state)
 			expected.ExpectStep()
 
 			stepWitness, err := goVm.Step(true)
@@ -118,10 +120,10 @@ func mulOpConsistencyCheck(
 
 			// use the post-state rdReg or LO and HI just so we can run sanity checks
 			if expectRdReg {
-				expected.Registers[rdReg] = state.GetRegistersRef()[rdReg]
+				expected.ActiveThread().Registers[rdReg] = state.GetRegistersRef()[rdReg]
 			} else {
-				expected.LO = state.GetCpu().LO
-				expected.HI = state.GetCpu().HI
+				expected.ActiveThread().LO = state.GetCpu().LO
+				expected.ActiveThread().HI = state.GetCpu().HI
 			}
 			expected.Validate(t, state)
 

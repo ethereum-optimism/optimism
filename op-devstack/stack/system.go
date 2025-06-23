@@ -1,6 +1,10 @@
 package stack
 
-import "github.com/ethereum-optimism/optimism/op-service/eth"
+import (
+	"time"
+
+	"github.com/ethereum-optimism/optimism/op-service/eth"
+)
 
 // System represents a collection of L1 and L2 chains, any superchains or clusters, and any peripherals.
 type System interface {
@@ -41,4 +45,16 @@ type ExtensibleSystem interface {
 	AddL2Network(v L2Network)
 	AddSupervisor(v Supervisor)
 	AddTestSequencer(v TestSequencer)
+}
+
+type TimeTravelClock interface {
+	AdvanceTime(d time.Duration)
+}
+
+// TimeTravelSystem is an extension-interface to support time travel.
+type TimeTravelSystem interface {
+	System
+	SetTimeTravelClock(cl TimeTravelClock)
+	TimeTravelEnabled() bool
+	AdvanceTime(amount time.Duration)
 }

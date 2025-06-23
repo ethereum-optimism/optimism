@@ -13,6 +13,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/retry"
+	"github.com/ethereum/go-ethereum/common"
 )
 
 // L2Network wraps a stack.L2Network interface for DSL operations
@@ -93,34 +94,48 @@ func (n *L2Network) PrintChain() {
 	biAddr := n.inner.RollupConfig().BatchInboxAddress
 	dgfAddr := n.inner.Deployment().DisputeGameFactoryProxyAddr()
 
-	ref := n.unsafeHeadRef()
-
 	var entries []string
-	totalL2Txs := 0
-	for i := ref.Number; i > 0; i-- {
-		ref, err := l2_el.L2EthClient().L2BlockRefByNumber(n.ctx, i)
-		n.require.NoError(err, "Expected to get block ref by hash")
+	var totalL2Txs int
+	err := retry.Do0(n.ctx, 3, &retry.FixedStrategy{Dur: 200 * time.Millisecond}, func() error {
+		entries = []string{}
+		totalL2Txs = 0
 
-		_, l2Txs, err := l2_el.EthClient().InfoAndTxsByHash(n.ctx, ref.Hash)
-		n.require.NoError(err, "Expected to get block ref by hash")
+		ref := n.unsafeHeadRef()
 
-		_, txs, err := l1_el.EthClient().InfoAndTxsByHash(n.ctx, ref.L1Origin.Hash)
-		n.require.NoError(err, "Expected to get info and txs by hash from L1")
-
-		var batchTxs, dgfTxs int
-		for _, tx := range txs {
-			to := tx.To()
-			if to != nil && *to == biAddr {
-				batchTxs++
+		for i := ref.Number; i > 0; i-- {
+			ref, err := l2_el.L2EthClient().L2BlockRefByNumber(n.ctx, i)
+			if err != nil {
+				return err
 			}
-			if to != nil && *to == dgfAddr {
-				dgfTxs++
+
+			_, l2Txs, err := l2_el.EthClient().InfoAndTxsByHash(n.ctx, ref.Hash)
+			if err != nil {
+				return err
 			}
+
+			_, txs, err := l1_el.EthClient().InfoAndTxsByHash(n.ctx, ref.L1Origin.Hash)
+			if err != nil {
+				return err
+			}
+
+			var batchTxs, dgfTxs int
+			for _, tx := range txs {
+				to := tx.To()
+				if to != nil && *to == biAddr {
+					batchTxs++
+				}
+				if to != nil && *to == dgfAddr {
+					dgfTxs++
+				}
+			}
+
+			entries = append(entries, fmt.Sprintf("Time: %d Block: %s Parent: %s L1 Origin: %s Txs (L2: %d; Batch: %d; DGF: %d)", ref.Time, ref, ref.ParentID(), ref.L1Origin, len(l2Txs), batchTxs, dgfTxs))
+			totalL2Txs += len(l2Txs)
 		}
 
-		entries = append(entries, fmt.Sprintf("Time: %d Block: %s Parent: %s L1 Origin: %s Txs (L2: %d; Batch: %d; DGF: %d)", ref.Time, ref, ref.ParentID(), ref.L1Origin, len(l2Txs), batchTxs, dgfTxs))
-		totalL2Txs += len(l2Txs)
-	}
+		return nil
+	})
+	n.require.NoError(err, "could not PrintChain after many attempts")
 
 	syncStatus, err := l2_cl.RollupAPI().SyncStatus(n.ctx)
 	n.require.NoError(err, "Expected to get sync status")
@@ -152,6 +167,18 @@ func (n *L2Network) unsafeHeadRef() eth.L2BlockRef {
 	n.require.NoError(err, "Expected to get block ref by hash")
 
 	return unsafeHeadRef
+}
+
+// IsActivated checks if a given fork has been activated
+func (n *L2Network) IsActivated(timestamp uint64) bool {
+	blockNum, err := n.Escape().RollupConfig().TargetBlockNumber(timestamp)
+	n.require.NoError(err)
+
+	el := n.Escape().L2ELNode(match.FirstL2EL)
+	head, err := el.EthClient().BlockRefByLabel(n.ctx, eth.Unsafe)
+	n.require.NoError(err)
+
+	return head.Number >= blockNum
 }
 
 // LatestBlockBeforeTimestamp finds the latest block before fork activation
@@ -202,4 +229,12 @@ func (n *L2Network) AwaitActivation(t devtest.T, forkName rollup.ForkName) eth.B
 	t.Logger().Info("Activation block", "block", unsafeHead.ID())
 
 	return unsafeHead.ID()
+}
+
+func (n *L2Network) DisputeGameFactoryProxyAddr() common.Address {
+	return n.inner.Deployment().DisputeGameFactoryProxyAddr()
+}
+
+func (n *L2Network) DepositContractAddr() common.Address {
+	return n.inner.RollupConfig().DepositContractAddress
 }

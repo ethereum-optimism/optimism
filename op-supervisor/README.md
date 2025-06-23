@@ -98,12 +98,12 @@ flowchart TD
 
 Op-nodes, or any compatible consensus-layer L2 node can interact with op-supervisor in two modes:
 
-#### Managed Mode
+#### Indexing Mode
 
-In managed mode, nodes cede control over aspects of the derivation process to the supervisor, which maintains the node's sync status.
+In indexing mode, nodes cede control over aspects of the derivation process to the supervisor, which maintains the node's sync status.
 This is done to give the supervisor a clear picture of the data across multiple chains, and to ensure the supervisor can recover/reset as needed.
 
-Managed nodes can be thought of integral to the supervisor. There must be *at least* one managed node per chain connected
+Indexing nodes can be thought of integral to the supervisor. There must be *at least* one indexing node per chain connected
 to a supervisor for it to supply accurate data.
 
 The Supervisor subscribes to events from the op-node in order to react appropriately.
@@ -123,17 +123,17 @@ Additionally, the supervisor sends control signals to the op-node triggered by *
 | New cross-safe head  | Supervisor sends the head to the node, where it is recorded as the cross-safe head |
 | New finalized head  | Supervisor sends the head to the node, where it is recorded as the finalized head |
 
-Nodes in managed mode *do not* discover their own L1 blocks.
+Nodes in indexing mode *do not* discover their own L1 blocks.
 Instead, the supervisor watches the L1 and sends the block hash to the node, which is used instead of L1 traversal.
-In this way, all managed nodes are guaranteed to share the same L1 chain, and their data can be aggregated consistently.
+In this way, all indexing nodes are guaranteed to share the same L1 chain, and their data can be aggregated consistently.
 
-#### Standard Mode
-(Standard mode is in development)
+#### Following Mode
+(Following mode is in development)
 
-In standard mode, an `op-node` continues to handle derivation and L1 discovery as it would without a supervisor.
-However, it calls out to the supervisor periodically to update its cross-heads. Standard nodes do not affect the supervisor's data in any way.
+In following mode, an `op-node` continues to handle derivation and L1 discovery as it would without a supervisor.
+However, it calls out to the supervisor periodically to update its cross-heads. Following nodes do not affect the supervisor's data in any way.
 
-In this way, standard nodes can optimistically follow cross-safety without requiring the larger infrastructure of multiple nodes and a supervisor.
+In this way, following nodes can optimistically follow cross-safety without requiring the larger infrastructure of multiple nodes and a supervisor.
 
 ### Data Flow Visualization
 
@@ -143,7 +143,7 @@ sequenceDiagram
 autonumber
 
 participant super as op-supervisor
-participant node as op-node (managed)
+participant node as op-node (indexing)
 participant geth as op-geth
 
 super ->> node: RPC connection established
@@ -169,7 +169,7 @@ sequenceDiagram
 autonumber
 
 participant super as op-supervisor
-participant node as op-node (managed)
+participant node as op-node (indexing)
 participant p2p as p2p
 
 p2p ->> node: New unsafe block from gossip network
