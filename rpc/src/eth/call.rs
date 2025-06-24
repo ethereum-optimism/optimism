@@ -1,11 +1,12 @@
 use super::OpNodeCore;
 use crate::{OpEthApi, OpEthApiError};
+use alloy_rpc_types_eth::TransactionRequest;
 use op_revm::OpTransaction;
 use reth_evm::{execute::BlockExecutorFactory, ConfigureEvm, EvmFactory, TxEnvFor};
 use reth_node_api::NodePrimitives;
 use reth_rpc_eth_api::{
     helpers::{estimate::EstimateCall, Call, EthCall, LoadBlock, LoadState, SpawnBlocking},
-    FromEvmError, FullEthApiTypes, RpcConvert,
+    FromEvmError, FullEthApiTypes, RpcConvert, RpcTypes,
 };
 use reth_storage_api::{errors::ProviderError, ProviderHeader, ProviderTx};
 use revm::context::TxEnv;
@@ -37,7 +38,8 @@ where
                     EvmFactory: EvmFactory<Tx = OpTransaction<TxEnv>>,
                 >,
             >,
-            RpcConvert: RpcConvert<TxEnv = TxEnvFor<Self::Evm>>,
+            RpcConvert: RpcConvert<TxEnv = TxEnvFor<Self::Evm>, Network = Self::NetworkTypes>,
+            NetworkTypes: RpcTypes<TransactionRequest: From<TransactionRequest>>,
             Error: FromEvmError<Self::Evm>
                        + From<<Self::RpcConvert as RpcConvert>::Error>
                        + From<ProviderError>,
