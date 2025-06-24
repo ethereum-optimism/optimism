@@ -41,6 +41,12 @@
     - [Logged Information](#logged-information)
     - [Implementation Approach](#implementation-approach)
     - [Relationship with Registry](#relationship-with-registry)
+- [Block Builder TEE Proofs](#block-builder-tee-proofs)
+  - [Core Mechanism](#core-mechanism)
+  - [Block Building Process](#block-building-process)
+  - [Verification Contract](#verification-contract)
+  - [Security Properties](#security-properties)
+  - [Integration with Rollup Systems](#integration-with-rollup-systems)
 - [Security Assumptions](#security-assumptions)
 - [Rationale](#rationale)
   - [Replacement Model](#replacement-model)
@@ -682,3 +688,85 @@ This separation enables each component to evolve independently, with governance 
 
 The Flashtestation Registry also provides direct access to stored attestation quotes, allowing external systems to perform their own verification or analysis without requiring additional onchain transactions.
 
+## Block Builder TEE Proofs
+
+The Flashtestations protocol can be extended to provide cryptographic guarantees that blocks were constructed by an authorized TEE-based block builder. This section describes how block builders running in a TEE can prove block authenticity through an onchain verification mechanism.
+
+### Core Mechanism
+
+The block builder TEE proof system works through a final transaction appended to each block. This transaction:
+
+1. Calls a designated smart contract method that accepts a block content hash
+2. Verifies the caller's authorization using `isAllowedPolicy(block_builder_policy_id, msg.sender)`
+
+The key insight is that the required private key to sign this transaction is protected within the TEE environment. Thus, only a genuine TEE-based block builder with the proper attestation can successfully execute this transaction.
+
+### Block Building Process
+
+When building a block, the TEE block builder:
+
+1. Produces a block according to the L2 protocol rules
+2. Computes the block content hash using the `ComputeBlockContentHash` function:
+
+```solidity
+function ComputeBlockContentHash(block, transactions) {
+    // Create ordered list of all transaction hashes
+    transactionHashes = []
+    for each tx in transactions:
+        txHash = keccak256(rlp_encode(tx))
+        transactionHashes.append(txHash)
+    
+    // Compute a single hash over block data and transaction hashes
+    // This ensures the hash covers the exact transaction set and order
+    return keccak256(abi.encode(
+        block.parentHash,
+        block.number,
+        block.timestamp,
+        transactionHashes
+    ))
+}
+```
+
+This block content hash formulation provides a balance between rollup compatibility and verification strength:
+- Contains the minimal set of elements needed to uniquely identify a block's contents
+- Compatible with data available on L1 for most optimistic and ZK rollup implementations
+- Enables signature verification without requiring state root dependencies
+
+### Verification Contract
+
+The smart contract that verifies block builder TEE proofs includes a `version` parameter to enable forward compatibility. This allows the system to evolve the `blockContentHash` calculation method while maintaining backward compatibility and enabling offchain verifiers to understand which hash calculation method to use for verification.
+
+```solidity
+// Block builder verification contract
+function verifyBlockBuilderProof(uint8 version, bytes32 blockContentHash) external {
+    // Check if the caller is an authorized TEE block builder
+    require(
+        IPolicyRegistry(POLICY_REGISTRY_CONTRACT).isAllowedPolicy(BLOCK_BUILDER_POLICY_ID, msg.sender),
+        "Unauthorized block builder"
+    );
+    
+    // At this point, we know:
+    // 1. The caller is a registered TEE-controlled address from an attested TEE
+    // 2. The TEE is running an approved block builder workload (via policy)
+    
+    // Note: Due to EVM limitations (no retrospection), we cannot validate the blockContentHash
+    // onchain. We rely on the TEE workload to correctly compute this hash according to the
+    // specified version of the calculation method.
+    
+    emit BlockBuilderProofVerified(
+        msg.sender,
+        block.number,
+        version,
+        blockContentHash
+    );
+}
+```
+
+### Security Properties
+
+This mechanism provides several important security guarantees:
+
+1. **Block Authenticity**: Each block contains cryptographic proof that it was produced by an authorized TEE block builder
+2. **Non-Transferability**: The proof cannot be stolen or reused by unauthorized parties due to TEE protection of signing keys
+3. **Policy Flexibility**: The system can adapt to new block builder implementations by updating the policy without contract changes
+4. **Auditability**: All proofs are recorded onchain for transparency and verification
