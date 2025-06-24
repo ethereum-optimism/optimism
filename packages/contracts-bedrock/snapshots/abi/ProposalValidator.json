@@ -384,6 +384,40 @@
       },
       {
         "internalType": "string[]",
+        "name": "_optionDescriptions",
+        "type": "string[]"
+      },
+      {
+        "internalType": "string",
+        "name": "_proposalDescription",
+        "type": "string"
+      },
+      {
+        "internalType": "bytes32",
+        "name": "_attestationUid",
+        "type": "bytes32"
+      }
+    ],
+    "name": "submitCouncilMemberElectionsProposal",
+    "outputs": [
+      {
+        "internalType": "bytes32",
+        "name": "proposalHash_",
+        "type": "bytes32"
+      }
+    ],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint128",
+        "name": "_criteriaValue",
+        "type": "uint128"
+      },
+      {
+        "internalType": "string[]",
         "name": "_optionsDescriptions",
         "type": "string[]"
       },
@@ -694,6 +728,11 @@
   {
     "inputs": [],
     "name": "ProposalValidator_InvalidAttestation",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "ProposalValidator_InvalidCriteriaValue",
     "type": "error"
   },
   {

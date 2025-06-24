@@ -22,6 +22,7 @@ interface IProposalValidator is ISemver {
     error ProposalValidator_InvalidFundingProposalType();
     error ProposalValidator_ExceedsDistributionThreshold();
     error ProposalValidator_InvalidOptionsLength();
+    error ProposalValidator_InvalidCriteriaValue();
 
     struct ProposalData {
         address proposer;
@@ -111,6 +112,13 @@ interface IProposalValidator is ISemver {
         uint256 _duration,
         uint256 _votingCycleDistributionLimit
     ) external;
+
+    function submitCouncilMemberElectionsProposal(
+        uint128 _criteriaValue,
+        string[] memory _optionDescriptions,
+        string memory _proposalDescription,
+        bytes32 _attestationUid
+    ) external returns (bytes32 proposalHash_);
 
     function submitFundingProposal(
         uint128 _criteriaValue,
