@@ -173,9 +173,7 @@ func TestEVM_MT_SC(t *testing.T) {
 					if llVar.shouldSucceed {
 						retVal = 1
 						expected.ExpectMemoryWriteUint32(t, Word(c.expectedAddr), c.storeValue)
-						expected.LLReservationStatus = multithreaded.LLStatusNone
-						expected.LLAddress = 0
-						expected.LLOwnerThread = 0
+						expected.ExpectMemoryReservationCleared()
 					} else {
 						retVal = 0
 					}
@@ -885,9 +883,7 @@ func testEVM_SysClockGettime(t *testing.T, clkid Word) {
 					expected.ExpectMemoryWrite(effAddr, secs)
 					expected.ExpectMemoryWrite(effAddr2, nsecs)
 					if llVar.shouldClearReservation {
-						expected.LLReservationStatus = multithreaded.LLStatusNone
-						expected.LLAddress = 0
-						expected.LLOwnerThread = 0
+						expected.ExpectMemoryReservationCleared()
 					}
 
 					var err error

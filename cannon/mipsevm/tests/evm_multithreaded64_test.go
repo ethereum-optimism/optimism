@@ -182,9 +182,7 @@ func TestEVM_MT64_SC(t *testing.T) {
 					if llVar.shouldSucceed {
 						retVal = 1
 						expected.ExpectMemoryWrite(effAddr, c.expectedMemVal)
-						expected.LLReservationStatus = multithreaded.LLStatusNone
-						expected.LLAddress = 0
-						expected.LLOwnerThread = 0
+						expected.ExpectMemoryReservationCleared()
 					} else {
 						retVal = 0
 					}
@@ -363,9 +361,7 @@ func TestEVM_MT64_SCD(t *testing.T) {
 					if llVar.shouldSucceed {
 						retVal = 1
 						expected.ExpectMemoryWrite(effAddr, value)
-						expected.LLReservationStatus = multithreaded.LLStatusNone
-						expected.LLAddress = 0
-						expected.LLOwnerThread = 0
+						expected.ExpectMemoryReservationCleared()
 					} else {
 						retVal = 0
 					}

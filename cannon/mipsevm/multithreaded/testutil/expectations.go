@@ -116,6 +116,12 @@ func (e *ExpectedState) ExpectStep() {
 	e.StepsSinceLastContextSwitch += 1
 }
 
+func (e *ExpectedState) ExpectMemoryReservationCleared() {
+	e.LLReservationStatus = multithreaded.LLStatusNone
+	e.LLAddress = 0
+	e.LLOwnerThread = 0
+}
+
 func (e *ExpectedState) ExpectMemoryWriteUint32(t require.TestingT, addr arch.Word, val uint32) {
 	// Align address to 4-byte boundaries
 	addr = addr & ^arch.Word(3)

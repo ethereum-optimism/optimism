@@ -269,9 +269,7 @@ func (m MemoryReservationTestCase) SetupState(state *multithreaded.State, effAdd
 
 func (m MemoryReservationTestCase) SetExpectations(expected *mtutil.ExpectedState) {
 	if m.shouldClearReservation {
-		expected.LLReservationStatus = multithreaded.LLStatusNone
-		expected.LLAddress = 0
-		expected.LLOwnerThread = 0
+		expected.ExpectMemoryReservationCleared()
 	}
 }
 
