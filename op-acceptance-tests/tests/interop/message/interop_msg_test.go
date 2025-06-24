@@ -558,7 +558,12 @@ func TestExecMessageInvalidAttributes(gt *testing.T) {
 	logger := t.Logger()
 
 	rng := rand.New(rand.NewSource(1234))
-	alice, bob := sys.FunderA.NewFundedEOA(eth.OneTenthEther), sys.FunderB.NewFundedEOA(eth.OneTenthEther)
+	// honest EOA which initiates messages
+	alice := sys.FunderA.NewFundedEOA(eth.OneTenthEther)
+	// honest EOA which executes messages
+	bob := sys.FunderB.NewFundedEOA(eth.OneTenthEther)
+	// malicious EOA which creates executing messages with invalid attributes
+	chuck := sys.FunderB.NewFundedEOA(eth.OneTenthEther)
 
 	eventLoggerAddress := alice.DeployEventLogger()
 
@@ -591,23 +596,39 @@ func TestExecMessageInvalidAttributes(gt *testing.T) {
 	for _, faults := range faultsLists {
 		logger.Info("Attempt to validate message with invalid attribute", "faults", faults)
 		// Intent to validate message on chain B
-		txB := txintent.NewIntent[*txintent.ExecTrigger, *txintent.InteropOutput](bob.Plan())
-		txB.Content.DependOn(&txA.Result)
+		txC := txintent.NewIntent[*txintent.ExecTrigger, *txintent.InteropOutput](chuck.Plan())
+		txC.Content.DependOn(&txA.Result)
 
 		// Random select event index in tx for injecting faults
 		eventIdx := rng.Intn(len(initCalls))
-		txB.Content.Fn(executeIndexedFault(constants.CrossL2Inbox, &txA.Result, eventIdx, rng, faults, bob.ChainID()))
+		txC.Content.Fn(executeIndexedFault(constants.CrossL2Inbox, &txA.Result, eventIdx, rng, faults, chuck.ChainID()))
 
 		// make sure that the transaction is not reverted by CrossL2Inbox...
-		gas, err := txB.PlannedTx.Gas.Eval(t.Ctx())
+		gas, err := txC.PlannedTx.Gas.Eval(t.Ctx())
 		require.NoError(err)
 		require.Greater(gas, uint64(0))
 
 		// but rather not included at chain B because of supervisor check
 		// chain B L2 EL will query supervisor to check whether given message is valid
 		// supervisor will throw ErrConflict(conflicting data), and L2 EL will drop tx
-		_, err = txB.PlannedTx.Included.Eval(t.Ctx())
+		_, err = txC.PlannedTx.Included.Eval(t.Ctx())
 		require.Error(err)
 		logger.Info("Validate message not included")
 	}
+
+	// we now attempt to execute msg correctly
+	// Intent to validate message on chain B
+	txB := txintent.NewIntent[*txintent.MultiTrigger, *txintent.InteropOutput](bob.Plan())
+	txB.Content.DependOn(&txA.Result)
+
+	// Three events in tx so use every index
+	indexes := []int{0, 1, 2}
+	txB.Content.Fn(txintent.ExecuteIndexeds(constants.MultiCall3, constants.CrossL2Inbox, &txA.Result, indexes))
+
+	receiptB, err := txB.PlannedTx.Included.Eval(t.Ctx())
+	require.NoError(err)
+	logger.Info("Validate message included", "block", receiptB.BlockHash)
+
+	// Check three ExecutingMessage triggered
+	require.Equal(3, len(receiptB.Logs))
 }
