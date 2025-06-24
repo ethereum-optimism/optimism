@@ -62,6 +62,7 @@ parking_lot.workspace = true
 tokio.workspace = true
 reqwest = { workspace = true, features = ["rustls-tls-native-roots"] }
 async-trait.workspace = true
+tower.workspace = true
 
 # rpc
 jsonrpsee-core.workspace = true

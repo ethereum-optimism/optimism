@@ -26,12 +26,12 @@ use reth_node_builder::{
     },
     node::{FullNodeTypes, NodeTypes},
     rpc::{
-        EngineApiBuilder, EngineValidatorAddOn, EngineValidatorBuilder, EthApiBuilder,
-        RethRpcAddOns, RethRpcServerHandles, RpcAddOns, RpcContext, RpcHandle, RpcServiceBuilder,
+        EngineApiBuilder, EngineValidatorAddOn, EngineValidatorBuilder, EthApiBuilder, Identity,
+        RethRpcAddOns, RethRpcMiddleware, RethRpcServerHandles, RpcAddOns, RpcContext, RpcHandle,
     },
     BuilderContext, DebugNode, Node, NodeAdapter, NodeComponentsBuilder,
 };
-use reth_optimism_chainspec::OpChainSpec;
+use reth_optimism_chainspec::{OpChainSpec, OpHardfork};
 use reth_optimism_consensus::OpBeaconConsensus;
 use reth_optimism_evm::{OpEvmConfig, OpNextBlockEnvAttributes, OpRethReceiptBuilder};
 use reth_optimism_forks::OpHardforks;
@@ -43,6 +43,7 @@ use reth_optimism_payload_builder::{
 use reth_optimism_primitives::{DepositReceipt, OpPrimitives};
 use reth_optimism_rpc::{
     eth::{ext::OpEthExtApi, OpEthApiBuilder},
+    historical::{HistoricalRpc, HistoricalRpcClient},
     miner::{MinerApiExtServer, OpMinerExtApi},
     witness::{DebugExecutionWitnessApiServer, OpDebugWitnessApi},
     OpEthApi, OpEthApiError, SequencerClient,
@@ -231,6 +232,7 @@ where
             .with_da_config(self.da_config.clone())
             .with_enable_tx_conditional(self.args.enable_tx_conditional)
             .with_min_suggested_priority_fee(self.args.min_suggested_priority_fee)
+            .with_historical_rpc(self.args.historical_rpc.clone())
             .build()
     }
 }
@@ -259,10 +261,11 @@ impl NodeTypes for OpNode {
 /// This type provides optimism-specific addons to the node and exposes the RPC server and engine
 /// API.
 #[derive(Debug)]
-pub struct OpAddOns<N: FullNodeComponents, EthB: EthApiBuilder<N>, EV, EB> {
+pub struct OpAddOns<N: FullNodeComponents, EthB: EthApiBuilder<N>, EV, EB, RpcMiddleware = Identity>
+{
     /// Rpc add-ons responsible for launching the RPC servers and instantiating the RPC handlers
     /// and eth-api.
-    pub rpc_add_ons: RpcAddOns<N, EthB, EV, EB>,
+    pub rpc_add_ons: RpcAddOns<N, EthB, EV, EB, RpcMiddleware>,
     /// Data availability configuration for the OP builder.
     pub da_config: OpDAConfig,
     /// Sequencer client, configured to forward submitted transactions to sequencer of given OP
@@ -270,6 +273,10 @@ pub struct OpAddOns<N: FullNodeComponents, EthB: EthApiBuilder<N>, EV, EB> {
     pub sequencer_url: Option<String>,
     /// Headers to use for the sequencer client requests.
     pub sequencer_headers: Vec<String>,
+    /// RPC endpoint for historical data.
+    ///
+    /// This can be used to forward pre-bedrock rpc requests (op-mainnet).
+    pub historical_rpc: Option<String>,
     /// Enable transaction conditionals.
     enable_tx_conditional: bool,
     min_suggested_priority_fee: u64,
@@ -308,18 +315,22 @@ where
     }
 }
 
-impl<N, EthB, EV, EB> OpAddOns<N, EthB, EV, EB>
+impl<N, EthB, EV, EB, RpcMiddleware> OpAddOns<N, EthB, EV, EB, RpcMiddleware>
 where
     N: FullNodeComponents,
     EthB: EthApiBuilder<N>,
 {
     /// Maps the [`reth_node_builder::rpc::EngineApiBuilder`] builder type.
-    pub fn with_engine_api<T>(self, engine_api_builder: T) -> OpAddOns<N, EthB, EV, T> {
+    pub fn with_engine_api<T>(
+        self,
+        engine_api_builder: T,
+    ) -> OpAddOns<N, EthB, EV, T, RpcMiddleware> {
         let Self {
             rpc_add_ons,
             da_config,
             sequencer_url,
             sequencer_headers,
+            historical_rpc,
             enable_tx_conditional,
             min_suggested_priority_fee,
         } = self;
@@ -329,12 +340,16 @@ where
             sequencer_url,
             sequencer_headers,
             enable_tx_conditional,
+            historical_rpc,
             min_suggested_priority_fee,
         }
     }
 
     /// Maps the [`EngineValidatorBuilder`] builder type.
-    pub fn with_engine_validator<T>(self, engine_validator_builder: T) -> OpAddOns<N, EthB, T, EB> {
+    pub fn with_engine_validator<T>(
+        self,
+        engine_validator_builder: T,
+    ) -> OpAddOns<N, EthB, T, EB, RpcMiddleware> {
         let Self {
             rpc_add_ons,
             da_config,
@@ -342,6 +357,7 @@ where
             sequencer_headers,
             enable_tx_conditional,
             min_suggested_priority_fee,
+            historical_rpc,
         } = self;
         OpAddOns {
             rpc_add_ons: rpc_add_ons.with_engine_validator(engine_validator_builder),
@@ -350,6 +366,35 @@ where
             sequencer_headers,
             enable_tx_conditional,
             min_suggested_priority_fee,
+            historical_rpc,
+        }
+    }
+
+    /// Sets the RPC middleware stack for processing RPC requests.
+    ///
+    /// This method configures a custom middleware stack that will be applied to all RPC requests
+    /// across HTTP, `WebSocket`, and IPC transports. The middleware is applied to the RPC service
+    /// layer, allowing you to intercept, modify, or enhance RPC request processing.
+    ///
+    /// See also [`RpcAddOns::with_rpc_middleware`].
+    pub fn with_rpc_middleware<T>(self, rpc_middleware: T) -> OpAddOns<N, EthB, EV, EB, T> {
+        let Self {
+            rpc_add_ons,
+            da_config,
+            sequencer_url,
+            sequencer_headers,
+            enable_tx_conditional,
+            min_suggested_priority_fee,
+            historical_rpc,
+        } = self;
+        OpAddOns {
+            rpc_add_ons: rpc_add_ons.with_rpc_middleware(rpc_middleware),
+            da_config,
+            sequencer_url,
+            sequencer_headers,
+            enable_tx_conditional,
+            min_suggested_priority_fee,
+            historical_rpc,
         }
     }
 
@@ -374,7 +419,8 @@ where
     }
 }
 
-impl<N, NetworkT, EV, EB> NodeAddOns<N> for OpAddOns<N, OpEthApiBuilder<NetworkT>, EV, EB>
+impl<N, NetworkT, EV, EB, RpcMiddleware> NodeAddOns<N>
+    for OpAddOns<N, OpEthApiBuilder<NetworkT>, EV, EB, RpcMiddleware>
 where
     N: FullNodeComponents<
         Types: OpFullNodeTypes,
@@ -388,6 +434,7 @@ where
     NetworkT: op_alloy_network::Network + Unpin,
     EV: EngineValidatorBuilder<N>,
     EB: EngineApiBuilder<N>,
+    RpcMiddleware: RethRpcMiddleware,
 {
     type Handle = RpcHandle<N, OpEthApi<N, NetworkT>>;
 
@@ -401,8 +448,31 @@ where
             sequencer_url,
             sequencer_headers,
             enable_tx_conditional,
+            historical_rpc,
             ..
         } = self;
+
+        let maybe_pre_bedrock_historical_rpc = historical_rpc
+            .and_then(|historical_rpc| {
+                ctx.node
+                    .provider()
+                    .chain_spec()
+                    .op_fork_activation(OpHardfork::Bedrock)
+                    .block_number()
+                    .filter(|activation| *activation > 0)
+                    .map(|bedrock_block| (historical_rpc, bedrock_block))
+            })
+            .map(|(historical_rpc, bedrock_block)| -> eyre::Result<_> {
+                info!(target: "reth::cli", %bedrock_block, ?historical_rpc, "Using historical RPC endpoint pre bedrock");
+                let provider = ctx.node.provider().clone();
+                let client = HistoricalRpcClient::new(&historical_rpc)?;
+                let layer = HistoricalRpc::new(provider, client, bedrock_block);
+                Ok(layer)
+            })
+            .transpose()?
+            ;
+
+        let rpc_add_ons = rpc_add_ons.option_layer_rpc_middleware(maybe_pre_bedrock_historical_rpc);
 
         let builder = reth_optimism_payload_builder::OpPayloadBuilder::new(
             ctx.node.pool().clone(),
@@ -513,6 +583,8 @@ pub struct OpAddOnsBuilder<NetworkT> {
     sequencer_url: Option<String>,
     /// Headers to use for the sequencer client requests.
     sequencer_headers: Vec<String>,
+    /// RPC endpoint for historical data.
+    historical_rpc: Option<String>,
     /// Data availability configuration for the OP builder.
     da_config: Option<OpDAConfig>,
     /// Enable transaction conditionals.
@@ -528,6 +600,7 @@ impl<NetworkT> Default for OpAddOnsBuilder<NetworkT> {
         Self {
             sequencer_url: None,
             sequencer_headers: Vec::new(),
+            historical_rpc: None,
             da_config: None,
             enable_tx_conditional: false,
             min_suggested_priority_fee: 1_000_000,
@@ -566,6 +639,12 @@ impl<NetworkT> OpAddOnsBuilder<NetworkT> {
         self.min_suggested_priority_fee = min;
         self
     }
+
+    /// Configures the endpoint for historical RPC forwarding.
+    pub fn with_historical_rpc(mut self, historical_rpc: Option<String>) -> Self {
+        self.historical_rpc = historical_rpc;
+        self
+    }
 }
 
 impl<NetworkT> OpAddOnsBuilder<NetworkT> {
@@ -583,6 +662,7 @@ impl<NetworkT> OpAddOnsBuilder<NetworkT> {
             da_config,
             enable_tx_conditional,
             min_suggested_priority_fee,
+            historical_rpc,
             ..
         } = self;
 
@@ -594,11 +674,12 @@ impl<NetworkT> OpAddOnsBuilder<NetworkT> {
                     .with_min_suggested_priority_fee(min_suggested_priority_fee),
                 EV::default(),
                 EB::default(),
-                RpcServiceBuilder::new(),
+                Default::default(),
             ),
             da_config: da_config.unwrap_or_default(),
             sequencer_url,
             sequencer_headers,
+            historical_rpc,
             enable_tx_conditional,
             min_suggested_priority_fee,
         }

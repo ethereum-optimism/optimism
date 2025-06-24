@@ -25,7 +25,7 @@ pub struct HistoricalRpcClient {
 
 impl HistoricalRpcClient {
     /// Constructs a new historical RPC client with the given endpoint URL.
-    pub async fn new(endpoint: &str) -> Result<Self, Error> {
+    pub fn new(endpoint: &str) -> Result<Self, Error> {
         let client = RpcClient::new_http(
             endpoint.parse::<reqwest::Url>().map_err(|err| Error::InvalidUrl(err.to_string()))?,
         );
@@ -75,6 +75,30 @@ struct HistoricalRpcClientInner {
     client: RpcClient,
 }
 
+/// A layer that provides historical RPC forwarding functionality for a given service.
+#[derive(Debug, Clone)]
+pub struct HistoricalRpc<P> {
+    inner: Arc<HistoricalRpcInner<P>>,
+}
+
+impl<P> HistoricalRpc<P> {
+    /// Constructs a new historical RPC layer with the given provider, client and bedrock block
+    /// number.
+    pub fn new(provider: P, client: HistoricalRpcClient, bedrock_block: BlockNumber) -> Self {
+        let inner = Arc::new(HistoricalRpcInner { provider, client, bedrock_block });
+
+        Self { inner }
+    }
+}
+
+impl<S, P> tower::Layer<S> for HistoricalRpc<P> {
+    type Service = HistoricalRpcService<S, P>;
+
+    fn layer(&self, inner: S) -> Self::Service {
+        HistoricalRpcService::new(inner, self.inner.clone())
+    }
+}
+
 /// A service that intercepts RPC calls and forwards pre-bedrock historical requests
 /// to a dedicated endpoint.
 ///
@@ -84,12 +108,16 @@ struct HistoricalRpcClientInner {
 pub struct HistoricalRpcService<S, P> {
     /// The inner service that handles regular RPC requests
     inner: S,
-    /// Client used to forward historical requests
-    historical_client: HistoricalRpcClient,
-    /// Provider used to determine if a block is pre-bedrock
-    provider: P,
-    /// Bedrock transition block number
-    bedrock_block: BlockNumber,
+    /// The context required to forward historical requests.
+    historical: Arc<HistoricalRpcInner<P>>,
+}
+
+impl<S, P> HistoricalRpcService<S, P> {
+    /// Constructs a new historical RPC service with the given inner service, historical client,
+    /// provider, and bedrock block number.
+    const fn new(inner: S, historical: Arc<HistoricalRpcInner<P>>) -> Self {
+        Self { inner, historical }
+    }
 }
 
 impl<S, P> RpcServiceT for HistoricalRpcService<S, P>
@@ -104,9 +132,7 @@ where
 
     fn call<'a>(&self, req: Request<'a>) -> impl Future<Output = Self::MethodResponse> + Send + 'a {
         let inner_service = self.inner.clone();
-        let historical_client = self.historical_client.clone();
-        let provider = self.provider.clone();
-        let bedrock_block = self.bedrock_block;
+        let historical = self.historical.clone();
 
         Box::pin(async move {
             let maybe_block_id = match req.method_name() {
@@ -125,8 +151,10 @@ where
 
             // if we've extracted a block ID, check if it's pre-Bedrock
             if let Some(block_id) = maybe_block_id {
-                let is_pre_bedrock = if let Ok(Some(num)) = provider.block_number_for_id(block_id) {
-                    num < bedrock_block
+                let is_pre_bedrock = if let Ok(Some(num)) =
+                    historical.provider.block_number_for_id(block_id)
+                {
+                    num < historical.bedrock_block
                 } else {
                     // If we can't convert the hash to a number, assume it's post-Bedrock
                     debug!(target: "rpc::historical", ?block_id, "hash unknown; not forwarding");
@@ -140,7 +168,8 @@ where
                     let params = req.params();
                     let params = params.as_str().unwrap_or("[]");
                     if let Ok(params) = serde_json::from_str::<serde_json::Value>(params) {
-                        if let Ok(raw) = historical_client
+                        if let Ok(raw) = historical
+                            .client
                             .request::<_, serde_json::Value>(req.method_name(), params)
                             .await
                         {
@@ -169,6 +198,16 @@ where
     }
 }
 
+#[derive(Debug)]
+struct HistoricalRpcInner<P> {
+    /// Provider used to determine if a block is pre-bedrock
+    provider: P,
+    /// Client used to forward historical requests
+    client: HistoricalRpcClient,
+    /// Bedrock transition block number
+    bedrock_block: BlockNumber,
+}
+
 /// Parses a `BlockId` from the given parameters at the specified position.
 fn parse_block_id_from_params(params: &Params<'_>, position: usize) -> Option<BlockId> {
     let values: Vec<serde_json::Value> = params.parse().ok()?;
@@ -181,6 +220,17 @@ mod tests {
     use super::*;
     use alloy_eips::{BlockId, BlockNumberOrTag};
     use jsonrpsee::types::Params;
+    use jsonrpsee_core::middleware::layer::Either;
+    use reth_node_builder::rpc::RethRpcMiddleware;
+    use reth_storage_api::noop::NoopProvider;
+    use tower::layer::util::Identity;
+
+    #[test]
+    fn check_historical_rpc() {
+        fn assert_historical_rpc<T: RethRpcMiddleware>() {}
+        assert_historical_rpc::<HistoricalRpc<NoopProvider>>();
+        assert_historical_rpc::<Either<HistoricalRpc<NoopProvider>, Identity>>();
+    }
 
     /// Tests that various valid id types can be parsed from the first parameter.
     #[test]
