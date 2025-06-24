@@ -1173,7 +1173,12 @@ jobs:
   op-acceptance-tests:
     parameters:
       devnet:
-        description: The name of the devnet to run the acceptance tests against. The devnet must have a recipe defined in kurtosis-devnet/Justfile with the name <devnet>-devnet.
+        description: |
+          The name of the pre-defined kurtosis devnet to run the acceptance tests against
+          (e.g. 'simple', 'isthmus', 'interop'). Empty string uses
+          in-process testing (sysgo orchestrator). Named devnets use
+          external testing (sysext orchestrator) and must have a
+          recipe defined in kurtosis-devnet/Justfile.
         type: string
         default: ""
       gate:
@@ -1190,39 +1195,31 @@ jobs:
       - utils/checkout-with-mise
       - install-contracts-dependencies
       - run:
-          name: Setup Kurtosis
+          name: Setup Kurtosis (if needed)
           command: |
-            echo "Setting up Kurtosis..."
+            if [[ "<<parameters.devnet>>" != "" ]]; then
+              echo "Setting up Kurtosis for external devnet testing..."
 
-            # Print Kurtosis version
-            echo "Using Kurtosis from: $(which kurtosis || echo 'not found')"
-            kurtosis version
+              # Print Kurtosis version
+              echo "Using Kurtosis from: $(which kurtosis || echo 'not found')"
+              kurtosis version
 
-            # Start Kurtosis engine
-            echo "Starting Kurtosis engine..."
-            kurtosis engine start || true
+              # Start Kurtosis engine
+              echo "Starting Kurtosis engine..."
+              kurtosis engine start || true
 
-            # Clean old instances
-            echo "Cleaning old instances..."
-            kurtosis clean -a || true
+              # Clean old instances
+              echo "Cleaning old instances..."
+              kurtosis clean -a || true
 
-            # Check engine status
-            kurtosis engine status || true
+              # Check engine status
+              kurtosis engine status || true
 
-            echo "Kurtosis setup complete"
-      # Start our devnet
-      - run:
-          name: Start devnet (<<parameters.devnet>>)
-          working_directory: kurtosis-devnet
-          command: |
-            echo "Starting <<parameters.devnet>> devnet..."
-            just <<parameters.devnet>>-devnet
-
-            echo "<<parameters.devnet>> devnet started successfully"
-
-            # Print devnet info for debugging
-            kurtosis enclave inspect <<parameters.devnet>>-devnet || true
-      # Notify us of a devnet failure
+              echo "Kurtosis setup complete"
+            else
+              echo "Using in-process testing (sysgo orchestrator) - no Kurtosis setup needed"
+            fi
+      # Notify us of a setup failure
       - when:
           condition: on_fail
           steps:
@@ -1258,12 +1255,6 @@ jobs:
             GO111MODULE: "on"
             GOGC: "0"
           command: |
-            # Check if the devnet is running before attempting to run tests
-            if ! kurtosis enclave ls | grep -q "<<parameters.devnet>>-devnet"; then
-              echo "Devnet <<parameters.devnet>>-devnet is not running. Skipping tests."
-              exit 1
-            fi
-
             # Run the tests
             just acceptance-test "<<parameters.devnet>>" "<<parameters.gate>>"
       - run:
@@ -1308,22 +1299,25 @@ jobs:
           steps:
             - store_artifacts:
                 path: ./op-acceptance-tests/logs
-      # Before we have a more sturdy log dump solution, we'll simply use the kurtosis-specific dump command
-      # to store all service logs as job artifacts
+      # Dump kurtosis logs if external devnet was used
       - run:
-          name: Dump kurtosis logs
+          name: Dump kurtosis logs (if external devnet was used)
           when: on_fail
           command: |
-            # Dump logs & specs
-            kurtosis dump ./.kurtosis-dump
+            if [[ "<<parameters.devnet>>" != "" ]]; then
+              # Dump logs & specs
+              kurtosis dump ./.kurtosis-dump
 
-            # Remove spec.json files
-            rm -rf ./.kurtosis-dump/enclaves/**/*.json
+              # Remove spec.json files
+              rm -rf ./.kurtosis-dump/enclaves/**/*.json
 
-            # Remove all unnecessary logs
-            rm -rf ./.kurtosis-dump/enclaves/*/kurtosis-api--*
-            rm -rf ./.kurtosis-dump/enclaves/*/kurtosis-logs-collector--*
-            rm -rf ./.kurtosis-dump/enclaves/*/task-*
+              # Remove all unnecessary logs
+              rm -rf ./.kurtosis-dump/enclaves/*/kurtosis-api--*
+              rm -rf ./.kurtosis-dump/enclaves/*/kurtosis-logs-collector--*
+              rm -rf ./.kurtosis-dump/enclaves/*/task-*
+            else
+              echo "In-process testing was used - no kurtosis logs to dump"
+            fi
       - when:
           condition: always
           steps:
