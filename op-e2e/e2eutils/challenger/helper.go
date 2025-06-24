@@ -202,15 +202,15 @@ func NewChallengerConfig(t *testing.T, sys EndpointProvider, l2NodeName string, 
 
 	if cfg.Cannon.VmBin != "" {
 		_, err := os.Stat(cfg.Cannon.VmBin)
-		require.NoError(t, err, "cannon should be built. Make sure you've run make cannon-prestate")
+		require.NoError(t, err, "cannon should be built. Make sure you've run make cannon-prestates")
 	}
 	if cfg.Cannon.Server != "" {
 		_, err := os.Stat(cfg.Cannon.Server)
-		require.NoError(t, err, "op-program should be built. Make sure you've run make cannon-prestate")
+		require.NoError(t, err, "op-program should be built. Make sure you've run make cannon-prestates")
 	}
 	if cfg.CannonAbsolutePreState != "" {
 		_, err := os.Stat(cfg.CannonAbsolutePreState)
-		require.NoError(t, err, "cannon pre-state should be built. Make sure you've run make cannon-prestate")
+		require.NoError(t, err, "cannon pre-state should be built. Make sure you've run make cannon-prestates")
 	}
 	if cfg.PollInterval == 0 {
 		cfg.PollInterval = time.Second
