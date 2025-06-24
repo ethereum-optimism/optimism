@@ -56,7 +56,7 @@
   "boba-sepolia": {
     "LightBridge": {
       "address": "0x2dE73Bd1660Fbf4D521a52Ec2a91CCc106113801",
-      "startBlock": 11353910
+      "startBlock": 13353910
     }
   }
 }
