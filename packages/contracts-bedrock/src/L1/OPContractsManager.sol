@@ -4,7 +4,6 @@ pragma solidity 0.8.15;
 // Libraries
 import { Blueprint } from "src/libraries/Blueprint.sol";
 import { Constants } from "src/libraries/Constants.sol";
-import { Bytes } from "src/libraries/Bytes.sol";
 import { Claim, Duration, GameType, Hash, GameTypes, Proposal } from "src/dispute/lib/Types.sol";
 import { Strings } from "@openzeppelin/contracts/utils/Strings.sol";
 
@@ -170,55 +169,6 @@ abstract contract OPContractsManagerBase {
         if (_who.code.length == 0) revert OPContractsManager.AddressHasNoCode(_who);
     }
 
-    function encodePermissionlessFDGConstructor(IFaultDisputeGame.GameConstructorParams memory _params)
-        internal
-        view
-        virtual
-        returns (bytes memory)
-    {
-        bytes memory dataWithSelector = abi.encodeCall(IFaultDisputeGame.__constructor__, (_params));
-        return Bytes.slice(dataWithSelector, 4);
-    }
-
-    function encodePermissionedFDGConstructor(
-        IFaultDisputeGame.GameConstructorParams memory _params,
-        address _proposer,
-        address _challenger
-    )
-        internal
-        view
-        virtual
-        returns (bytes memory)
-    {
-        bytes memory dataWithSelector =
-            abi.encodeCall(IPermissionedDisputeGame.__constructor__, (_params, _proposer, _challenger));
-        return Bytes.slice(dataWithSelector, 4);
-    }
-
-    function encodePermissionlessSuperFDGConstructor(ISuperFaultDisputeGame.GameConstructorParams memory _params)
-        internal
-        view
-        virtual
-        returns (bytes memory)
-    {
-        bytes memory dataWithSelector = abi.encodeCall(ISuperFaultDisputeGame.__constructor__, (_params));
-        return Bytes.slice(dataWithSelector, 4);
-    }
-
-    function encodePermissionedSuperFDGConstructor(
-        ISuperFaultDisputeGame.GameConstructorParams memory _params,
-        address _proposer,
-        address _challenger
-    )
-        internal
-        view
-        virtual
-        returns (bytes memory)
-    {
-        bytes memory dataWithSelector =
-            abi.encodeCall(ISuperPermissionedDisputeGame.__constructor__, (_params, _proposer, _challenger));
-        return Bytes.slice(dataWithSelector, 4);
-    }
 
     /// @notice Returns the implementation contract address for a given game type.
     function getGameImplementation(
@@ -452,35 +402,6 @@ contract OPContractsManagerGameTypeAdder is OPContractsManagerBase {
             IFaultDisputeGame existingGame =
                 IFaultDisputeGame(address(getGameImplementation(dgf, gameConfig.disputeGameType)));
 
-            // Encode the constructor data for the game type.
-            bytes memory constructorData;
-            if (gameConfig.permissioned) {
-                constructorData = encodePermissionedFDGConstructor(
-                    IFaultDisputeGame.GameConstructorParams(
-                        gameConfig.disputeGameType,
-                        gameConfig.disputeMaxGameDepth,
-                        gameConfig.disputeSplitDepth,
-                        gameConfig.disputeClockExtension,
-                        gameConfig.disputeMaxClockDuration,
-                        outputs[i].delayedWETH,
-                        gameL2ChainId
-                    ),
-                    getProposer(IPermissionedDisputeGame(address(existingGame))),
-                    getChallenger(IPermissionedDisputeGame(address(existingGame)))
-                );
-            } else {
-                constructorData = encodePermissionlessFDGConstructor(
-                    IFaultDisputeGame.GameConstructorParams(
-                        gameConfig.disputeGameType,
-                        gameConfig.disputeMaxGameDepth,
-                        gameConfig.disputeSplitDepth,
-                        gameConfig.disputeClockExtension,
-                        gameConfig.disputeMaxClockDuration,
-                        outputs[i].delayedWETH,
-                        gameL2ChainId
-                    )
-                );
-            }
 
             // Use the shared implementation directly from the implementations.
             outputs[i].faultDisputeGame = IFaultDisputeGame(gameImplementation);
