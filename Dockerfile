@@ -9,6 +9,7 @@
 FROM rust:1.85.1 AS base
 
 ARG FEATURES
+ARG RELEASE=true
 
 RUN cargo install sccache --version ^0.9
 RUN cargo install cargo-chef --version ^0.1
@@ -43,14 +44,18 @@ ARG ROLLUP_BOOST_BIN="rollup-boost"
 COPY --from=planner /app/recipe.json recipe.json
 
 RUN --mount=type=cache,target=$SCCACHE_DIR,sharing=locked \
-    cargo chef cook --release --recipe-path recipe.json
+    PROFILE_FLAG=$([ "$RELEASE" = "true" ] && echo "--release" || echo "") && \
+    cargo chef cook $PROFILE_FLAG --recipe-path recipe.json
 
 COPY . .
 
 RUN --mount=type=cache,target=/usr/local/cargo/registry \
     --mount=type=cache,target=/usr/local/cargo/git \
     --mount=type=cache,target=$SCCACHE_DIR,sharing=locked \
-    cargo build --release --features="$FEATURES" --package=${ROLLUP_BOOST_BIN}
+    PROFILE_FLAG=$([ "$RELEASE" = "true" ] && echo "--release" || echo "") && \
+    TARGET_DIR=$([ "$RELEASE" = "true" ] && echo "release" || echo "debug") && \
+    cargo build $PROFILE_FLAG --features="$FEATURES" --package=${ROLLUP_BOOST_BIN}; \
+    cp target/$TARGET_DIR/${ROLLUP_BOOST_BIN} /tmp/final_binary
 
 #
 # Runtime container
@@ -59,6 +64,6 @@ FROM gcr.io/distroless/cc-debian12
 WORKDIR /app
 
 ARG ROLLUP_BOOST_BIN="rollup-boost"
-COPY --from=builder /app/target/release/${ROLLUP_BOOST_BIN} /usr/local/bin/
+COPY --from=builder /tmp/final_binary /usr/local/bin/rollup-boost
 
 ENTRYPOINT ["/usr/local/bin/rollup-boost"]
