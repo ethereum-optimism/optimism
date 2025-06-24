@@ -882,8 +882,8 @@ func testEVM_SysClockGettime(t *testing.T, clkid Word) {
 						secs = Word(next / exec.HZ)
 						nsecs = Word((next % exec.HZ) * (1_000_000_000 / exec.HZ))
 					}
-					expected.ExpectMemoryWordWrite(effAddr, secs)
-					expected.ExpectMemoryWordWrite(effAddr2, nsecs)
+					expected.ExpectMemoryWrite(effAddr, secs)
+					expected.ExpectMemoryWrite(effAddr2, nsecs)
 					if llVar.shouldClearReservation {
 						expected.LLReservationStatus = multithreaded.LLStatusNone
 						expected.LLAddress = 0

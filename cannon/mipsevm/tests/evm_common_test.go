@@ -720,7 +720,7 @@ func TestEVM_SysGetRandom(t *testing.T) {
 		} else {
 			expected.ActiveThread().Registers[register.RegSyscallRet1] = testCase.expectedReturnValue
 			expected.ActiveThread().Registers[register.RegSyscallErrno] = 0
-			expected.ExpectMemoryWriteWord(effAddr, expectedMemory)
+			expected.ExpectMemoryWrite(effAddr, expectedMemory)
 			reservation.SetExpectations(expected)
 		}
 

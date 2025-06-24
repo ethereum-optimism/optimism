@@ -128,7 +128,7 @@ func (e *ExpectedState) ExpectMemoryWriteUint32(t require.TestingT, addr arch.Wo
 	e.MemoryRoot = e.expectedMemory.MerkleRoot()
 }
 
-func (e *ExpectedState) ExpectMemoryWordWrite(addr arch.Word, val arch.Word) {
+func (e *ExpectedState) ExpectMemoryWrite(addr arch.Word, val arch.Word) {
 	e.expectedMemory.SetWord(addr, val)
 	e.MemoryRoot = e.expectedMemory.MerkleRoot()
 }
@@ -172,11 +172,6 @@ func (e *ExpectedState) PrestateActiveThread() *ExpectedThreadState {
 
 func (e *ExpectedState) Thread(threadId arch.Word) *ExpectedThreadState {
 	return e.threadExpectations[threadId]
-}
-
-func (e *ExpectedState) ExpectMemoryWriteWord(addr arch.Word, val arch.Word) {
-	e.expectedMemory.SetWord(addr, val)
-	e.MemoryRoot = e.expectedMemory.MerkleRoot()
 }
 
 func (e *ExpectedState) Validate(t require.TestingT, state mipsevm.FPVMState) {
