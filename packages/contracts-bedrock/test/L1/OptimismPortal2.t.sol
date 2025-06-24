@@ -488,9 +488,9 @@ contract OptimismPortal2_MigrateLiquidity_Test is CommonTest {
     }
 }
 
-/// @title OptimismPortal2_MigrateToSuperRoot_Test
+/// @title OptimismPortal2_MigrateToSuperRoots_Test
 /// @notice Test contract for OptimismPortal2 `migrateToSuperRoots` function.
-contract OptimismPortal2_MigrateToSuperRoot_Test is OptimismPortal2_TestInit {
+contract OptimismPortal2_MigrateToSuperRoots_Test is OptimismPortal2_TestInit {
     /// @notice Tests that `migrateToSuperRoots` reverts if the caller is not the proxy admin
     ///         owner.
     function testFuzz_migrateToSuperRoots_notProxyAdminOwner_reverts(address _caller) external {

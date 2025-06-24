@@ -394,16 +394,11 @@ var excludedPaths = []string{
 	// - Enhancing the validation system to support libraries and complex structures
 	// - Fixing misspelled function names in test contracts
 	// - Restructuring tests to match actual function signatures
-	"test/libraries",                              // Libraries have different artifact structure, unsupported
-	"test/dispute/lib/LibPosition.t.sol",          // Library testing - artifact structure issues
-	"test/L1/OptimismPortal2.t.sol",               // Function name validation issues
-	"test/L1/ProxyAdminOwnedBase.t.sol",           // Tests internal functions not in ABI
-	"test/L1/SystemConfig.t.sol",                  // Function name validation issues
-	"test/L2/OptimismMintableERC721.t.sol",        // Function name validation issues
-	"test/L2/OptimismMintableERC721Factory.t.sol", // Function name validation issues
-	"test/L2/SequencerFeeVault.t.sol",             // Function name validation issues
-	"test/L2/SuperchainERC20.t.sol",               // Function name validation issues
-	"test/safe/SafeSigners.t.sol",                 // Function name validation issues
+	"test/libraries",                     // Libraries have different artifact structure, unsupported
+	"test/dispute/lib/LibPosition.t.sol", // Library testing - artifact structure issues
+	"test/L1/ProxyAdminOwnedBase.t.sol",  // Tests internal functions not in ABI
+	"test/L1/SystemConfig.t.sol",         // Tests internal functions not in ABI
+	"test/safe/SafeSigners.t.sol",        // Function name validation issues
 
 	// PATHS EXCLUDED FROM TEST PATTERN VALIDATION:
 	// These paths are excluded because they don't follow the standard test contract
