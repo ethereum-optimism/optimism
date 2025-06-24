@@ -95,4 +95,4 @@ templates:
           file: ./abis/PermissionedDisputeGame.json
       eventHandlers:
         - event: Resolved(indexed uint8)
-          handler: handleResolvedNew
+          handler: handleResolved

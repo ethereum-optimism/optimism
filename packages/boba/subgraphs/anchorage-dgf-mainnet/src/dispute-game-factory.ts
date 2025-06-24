@@ -14,8 +14,8 @@ import {
   DisputeGameCreatedIndex,
 } from "../generated/schema"
 import { PermissionedDisputeGame } from "../generated/templates"
-import { FaultDisputeGame as FaultDisputeGameContract } from "../generated/templates/FaultDisputeGame/FaultDisputeGame"
-import { BigInt, Bytes, ethereum } from "@graphprotocol/graph-ts"
+import { PermissionedDisputeGame as PermissionedDisputeGameContract } from "../generated/templates/PermissionedDisputeGame/PermissionedDisputeGame"
+import { BigInt, Bytes } from "@graphprotocol/graph-ts"
 import { log } from '@graphprotocol/graph-ts'
 
 export function handleDisputeGameCreated(event: DisputeGameCreatedEvent): void {
@@ -23,7 +23,6 @@ export function handleDisputeGameCreated(event: DisputeGameCreatedEvent): void {
     return
   }
 
-  // so we can retrieve it in our FaultDisputeGame subgraph
   let entity = new DisputeGameCreated(event.params.disputeProxy)
 
   let newIndex = BigInt.fromI32(0)
@@ -46,7 +45,7 @@ export function handleDisputeGameCreated(event: DisputeGameCreatedEvent): void {
   // reversion below, but don't re-use this contract with additional
   // methods without realizing PermissionedDisputeGame must support
   // the ABI as well
-  let contract = FaultDisputeGameContract.bind(event.params.disputeProxy)
+  let contract = PermissionedDisputeGameContract.bind(event.params.disputeProxy)
   let l2BlockNumberResult = contract.try_l2BlockNumber()
   if (!l2BlockNumberResult.reverted) {
     entity.l2BlockNumber = l2BlockNumberResult.value

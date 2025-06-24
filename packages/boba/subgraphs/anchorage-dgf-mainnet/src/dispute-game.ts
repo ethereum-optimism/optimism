@@ -1,12 +1,12 @@
 import {
-  Resolved as ResolvedNewEvent,
+  Resolved as ResolvedEvent,
   PermissionedDisputeGame as PermissionedDisputeGameContract
 } from "../generated/templates/PermissionedDisputeGame/PermissionedDisputeGame"
 import { DisputeGameCreated } from "../generated/schema"
 import { log } from '@graphprotocol/graph-ts'
 
 
-export function handleResolvedNew(event: ResolvedNewEvent): void {
+export function handleResolved(event: ResolvedEvent): void {
   // update dispute game
   let disputeGame = DisputeGameCreated.load(event.address)
   if (disputeGame == null) {
