@@ -724,15 +724,4 @@ contract DeployImplementations is Script {
 
         DeployUtils.assertInitialized({ _contractAddress: address(registry), _isProxy: false, _slot: 0, _offset: 0 });
     }
-
-    /// @notice Checks that a call to the proxyAdmin function on a contract that follows the ProxyAdminOwnedBase
-    /// interface fails.
-    /// @dev This is used to check that the proxyAdmin is not set on the contract. E.g Implementation contracts.
-    /// @param _contract The address of the contract that follows the ProxyAdminOwnedBase interface.
-    /// @return true if the call fails with the ProxyAdminOwnedBase_NotResolvedDelegateProxy() error, false otherwise.
-    function checkProxyAdminCallFails(address _contract, bytes4 _errorSelector) internal view returns (bool) {
-        (bool success, bytes memory data) =
-            address(_contract).staticcall(abi.encodeCall(IProxyAdminOwnedBase.proxyAdmin, ()));
-        return (!success && data.length == 4 && bytes4(data) == _errorSelector);
-    }
 }
