@@ -13,8 +13,8 @@ use tokio::signal::unix::{SignalKind, signal as unix_signal};
 use tracing::{Level, info};
 
 use crate::{
-    BlockSelectionPolicy, DebugClient, EngineApiExt, Flashblocks, FlashblocksArgs, ProxyLayer,
-    RollupBoostServer, RpcClient,
+    BlockSelectionPolicy, DebugClient, Flashblocks, FlashblocksArgs, ProxyLayer, RollupBoostServer,
+    RpcClient,
     client::rpc::{BuilderArgs, L2ClientArgs},
     debug_api::ExecutionMode,
     get_version, init_metrics,
@@ -166,40 +166,52 @@ impl Args {
         )?;
 
         let (probe_layer, probes) = ProbeLayer::new();
+        let execution_mode = Arc::new(Mutex::new(self.execution_mode));
 
-        let builder_client: Arc<dyn EngineApiExt> = if self.flashblocks.flashblocks {
+        let (rpc_module, health_handle): (RpcModule<()>, _) = if self.flashblocks.flashblocks {
             let inbound_url = self.flashblocks.flashblocks_builder_url;
             let outbound_addr = SocketAddr::new(
                 IpAddr::from_str(&self.flashblocks.flashblocks_host)?,
                 self.flashblocks.flashblocks_port,
             );
 
-            Arc::new(Flashblocks::run(
+            let builder_client = Arc::new(Flashblocks::run(
                 builder_client.clone(),
                 inbound_url,
                 outbound_addr,
                 self.flashblocks.flashblock_builder_ws_reconnect_ms,
-            )?)
+            )?);
+
+            let rollup_boost = RollupBoostServer::new(
+                l2_client,
+                builder_client,
+                execution_mode.clone(),
+                self.block_selection_policy,
+                probes.clone(),
+            );
+
+            let health_handle = rollup_boost
+                .spawn_health_check(self.health_check_interval, self.max_unsafe_interval);
+
+            // Spawn the debug server
+            rollup_boost.start_debug_server(debug_addr.as_str()).await?;
+            (rollup_boost.try_into()?, health_handle)
         } else {
-            Arc::new(builder_client)
+            let rollup_boost = RollupBoostServer::new(
+                l2_client,
+                Arc::new(builder_client),
+                execution_mode.clone(),
+                self.block_selection_policy,
+                probes.clone(),
+            );
+
+            let health_handle = rollup_boost
+                .spawn_health_check(self.health_check_interval, self.max_unsafe_interval);
+
+            // Spawn the debug server
+            rollup_boost.start_debug_server(debug_addr.as_str()).await?;
+            (rollup_boost.try_into()?, health_handle)
         };
-
-        let execution_mode = Arc::new(Mutex::new(self.execution_mode));
-        let rollup_boost = RollupBoostServer::new(
-            l2_client,
-            builder_client,
-            execution_mode.clone(),
-            self.block_selection_policy,
-            probes.clone(),
-        );
-
-        let health_handle =
-            rollup_boost.spawn_health_check(self.health_check_interval, self.max_unsafe_interval);
-
-        // Spawn the debug server
-        rollup_boost.start_debug_server(debug_addr.as_str()).await?;
-
-        let module: RpcModule<()> = rollup_boost.try_into()?;
 
         // Build and start the server
         info!("Starting server on :{}", self.rpc_port);
@@ -216,11 +228,12 @@ impl Args {
                     builder_args.builder_timeout,
                 ));
 
+        // NOTE: clean this up
         let server = Server::builder()
             .set_http_middleware(http_middleware)
             .build(format!("{}:{}", self.rpc_host, self.rpc_port).parse::<SocketAddr>()?)
             .await?;
-        let handle = server.start(module);
+        let handle = server.start(rpc_module);
 
         let stop_handle = handle.clone();
 

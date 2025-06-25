@@ -44,19 +44,22 @@ pub type BufferedRequest = http::Request<Full<bytes::Bytes>>;
 pub type BufferedResponse = http::Response<Full<bytes::Bytes>>;
 
 #[derive(Clone)]
-pub struct RollupBoostServer {
+pub struct RollupBoostServer<T: EngineApiExt> {
     pub l2_client: Arc<RpcClient>,
-    pub builder_client: Arc<dyn EngineApiExt>,
+    pub builder_client: Arc<T>,
     pub payload_trace_context: Arc<PayloadTraceContext>,
     block_selection_policy: Option<BlockSelectionPolicy>,
     execution_mode: Arc<Mutex<ExecutionMode>>,
     probes: Arc<Probes>,
 }
 
-impl RollupBoostServer {
+impl<T> RollupBoostServer<T>
+where
+    T: EngineApiExt,
+{
     pub fn new(
         l2_client: RpcClient,
-        builder_client: Arc<dyn EngineApiExt>,
+        builder_client: Arc<T>,
         initial_execution_mode: Arc<Mutex<ExecutionMode>>,
         block_selection_policy: Option<BlockSelectionPolicy>,
         probes: Arc<Probes>,
@@ -264,7 +267,10 @@ impl RollupBoostServer {
     }
 }
 
-impl TryInto<RpcModule<()>> for RollupBoostServer {
+impl<T> TryInto<RpcModule<()>> for RollupBoostServer<T>
+where
+    T: EngineApiExt,
+{
     type Error = RegisterMethodError;
 
     fn try_into(self) -> Result<RpcModule<()>, Self::Error> {
@@ -322,7 +328,10 @@ pub trait EngineApi {
 }
 
 #[async_trait]
-impl EngineApiServer for RollupBoostServer {
+impl<T> EngineApiServer for RollupBoostServer<T>
+where
+    T: EngineApiExt,
+{
     #[instrument(
         skip_all,
         err,
