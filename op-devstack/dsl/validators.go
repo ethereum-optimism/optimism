@@ -118,21 +118,3 @@ func RequiresL2WithoutFork(ctx context.Context, system L2NetworkProvider, networ
 
 	return nil
 }
-
-// RequiresSufficientL2Nodes ensures a specific L2 network has at least the specified number of nodes.
-func RequiresSufficientL2Nodes(ctx context.Context, system L2NetworkProvider, networkIdx int, minNodes int) error {
-	l2Networks := system.L2Networks()
-	if len(l2Networks) <= networkIdx {
-		return fmt.Errorf("network index %d out of range, only %d L2 networks available", networkIdx, len(l2Networks))
-	}
-
-	network := l2Networks[networkIdx]
-	underlyingNetwork := network.Escape()
-	nodeCount := len(underlyingNetwork.L2ELNodes())
-
-	if nodeCount < minNodes {
-		return fmt.Errorf("insufficient nodes for L2 network %d: has %d, requires %d", networkIdx, nodeCount, minNodes)
-	}
-
-	return nil
-}
