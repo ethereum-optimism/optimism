@@ -356,6 +356,7 @@ func (s *channelManager) ensureChannelWithSpace(l1Head eth.BlockID) error {
 
 	s.channelQueue = append(s.channelQueue, pc)
 	s.metr.RecordChannelQueueLength(len(s.channelQueue))
+	s.log.Debug("Channel queue length", "length", len(s.channelQueue))
 
 	return nil
 }
