@@ -19,6 +19,8 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 )
 
+const DefaultChainID = 77799777
+
 type Anvil struct {
 	args      map[string]string
 	proc      *exec.Cmd
@@ -169,7 +171,7 @@ func (r *Anvil) RPCUrl() string {
 }
 
 func DefaultAnvilRPC(t *testing.T, lgr log.Logger) (string, *ethclient.Client) {
-	anvil, err := NewAnvil(lgr, WithChainID(77799777))
+	anvil, err := NewAnvil(lgr, WithChainID(DefaultChainID))
 	require.NoError(t, err)
 	require.NoError(t, anvil.Start())
 	t.Cleanup(func() {
