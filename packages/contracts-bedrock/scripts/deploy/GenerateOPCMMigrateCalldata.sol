@@ -107,7 +107,9 @@ contract GenerateOPCMMigrateCalldata is Script {
         require(Duration.unwrap(clockExtension) != 0, "GenerateOPCMMigrateCalldata: clockExtension must be non-zero");
 
         maxClockDuration = Duration.wrap(uint64(stdJson.readUint(json, "$.maxClockDuration")));
-        require(Duration.unwrap(maxClockDuration) != 0, "GenerateOPCMMigrateCalldata: maxClockDuration must be non-zero");
+        require(
+            Duration.unwrap(maxClockDuration) != 0, "GenerateOPCMMigrateCalldata: maxClockDuration must be non-zero"
+        );
 
         OpChainConfigJson[] memory j = abi.decode(
             vm.parseJsonTypeArray(
