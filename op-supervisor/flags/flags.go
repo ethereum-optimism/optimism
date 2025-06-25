@@ -95,6 +95,12 @@ var (
 		EnvVars: prefixEnvVars("RPC_VERIFICATION_WARNINGS"),
 		Value:   false,
 	}
+	AutoStopFlag = &cli.BoolFlag{
+		Name:    "auto-stop",
+		Usage:   "start the supervisor with auto-stop enabled",
+		EnvVars: prefixEnvVars("AUTO_STOP"),
+		Value:   false,
+	}
 )
 
 var requiredFlags = []cli.Flag{
@@ -112,6 +118,7 @@ var optionalFlags = []cli.Flag{
 	DependencySetFlag,
 	RollupConfigPathsFlag,
 	RollupConfigSetFlag,
+	AutoStopFlag,
 }
 
 func init() {
@@ -188,6 +195,7 @@ func ConfigFromCLI(ctx *cli.Context, version string) (*config.Config, error) {
 		RPC:                     oprpc.ReadCLIConfig(ctx),
 		MockRun:                 ctx.Bool(MockRunFlag.Name),
 		RPCVerificationWarnings: ctx.Bool(RPCVerificationWarningsFlag.Name),
+		AutoStop:                ctx.Bool(AutoStopFlag.Name),
 		L1RPC:                   ctx.String(L1RPCFlag.Name),
 		SyncSources:             syncSourceSetups(ctx),
 		Datadir:                 ctx.Path(DataDirFlag.Name),

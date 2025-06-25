@@ -163,6 +163,8 @@ func NewSupervisorBackend(ctx context.Context, logger log.Logger,
 
 		rpcVerificationWarnings: cfg.RPCVerificationWarnings,
 	}
+	// Set auto-stop from config
+	super.SetAutoStop(ctx, cfg.AutoStop)
 	eventSys.Register("backend", super)
 	eventSys.Register("rewinder", super.rewinder)
 

@@ -649,3 +649,49 @@ func TestAutoStop(t *testing.T) {
 	err = b.CheckAccessList(context.Background(), []common.Hash{}, types.LocalUnsafe, types.ExecutingDescriptor{})
 	require.NoError(t, err, "CheckAccessList should work normally when auto-stop is disabled")
 }
+
+// TestAutoStopConfigInitialization confirms the configured auto-stop state is correctly initialized
+func TestAutoStopConfigInitialization(t *testing.T) {
+	logger := testlog.Logger(t, log.LvlInfo)
+	m := metrics.NoopMetrics
+	dataDir := t.TempDir()
+	fullCfgSet := fullConfigSet(t, 1)
+
+	testCases := []struct {
+		name          string
+		autoStop      bool
+		expectEnabled bool
+	}{
+		{
+			name:     "AutoStopEnabled",
+			autoStop: true,
+		},
+		{
+			name:     "AutoStopDisabled",
+			autoStop: false,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			cfg := &config.Config{
+				Version:               "test",
+				FullConfigSetSource:   fullCfgSet,
+				SynchronousProcessors: true,
+				MockRun:               false,
+				SyncSources:           &syncnode.CLISyncNodes{},
+				Datadir:               dataDir,
+				AutoStop:              tc.autoStop,
+			}
+
+			ex := event.NewGlobalSynchronous(context.Background())
+			b, err := NewSupervisorBackend(context.Background(), logger, m, cfg, ex)
+			require.NoError(t, err)
+
+			// Verify that auto-stop state matches config after initialization
+			enabled, err := b.GetAutoStop(context.Background())
+			require.NoError(t, err)
+			require.Equal(t, tc.autoStop, enabled, "auto-stop state should match config setting")
+		})
+	}
+}
