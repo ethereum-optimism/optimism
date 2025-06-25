@@ -296,6 +296,7 @@ func (l *BatchSubmitter) loadBlockIntoState(ctx context.Context, blockNumber uin
 	defer cancel()
 
 	block, err := l2Client.BlockByNumber(cCtx, new(big.Int).SetUint64(blockNumber))
+	l.Log.Debug("Loaded L2 block", "size", block.Size())
 	if err != nil {
 		return nil, fmt.Errorf("getting L2 block: %w", err)
 	}
@@ -440,8 +441,8 @@ func (l *BatchSubmitter) syncAndPrune(syncStatus *eth.SyncStatus) *inclusiveBloc
 	if syncActions.clearState != nil {
 		l.channelMgr.Clear(*syncActions.clearState)
 	} else {
-		l.channelMgr.PruneSafeBlocks(syncActions.blocksToPrune)
-		l.channelMgr.PruneChannels(syncActions.channelsToPrune)
+		// l.channelMgr.PruneSafeBlocks(syncActions.blocksToPrune) // TODO this is a hack to expose memory inefficiencies
+		// l.channelMgr.PruneChannels(syncActions.channelsToPrune) // TODO this is a hack to expose memory inefficiencies
 	}
 	return syncActions.blocksToLoad
 }
