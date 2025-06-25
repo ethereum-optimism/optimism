@@ -169,7 +169,6 @@ abstract contract OPContractsManagerBase {
         if (_who.code.length == 0) revert OPContractsManager.AddressHasNoCode(_who);
     }
 
-
     /// @notice Returns the implementation contract address for a given game type.
     function getGameImplementation(
         IDisputeGameFactory _disputeGameFactory,
@@ -401,7 +400,6 @@ contract OPContractsManagerGameTypeAdder is OPContractsManagerBase {
             // Grab the existing game implementation from the DisputeGameFactory.
             IFaultDisputeGame existingGame =
                 IFaultDisputeGame(address(getGameImplementation(dgf, gameConfig.disputeGameType)));
-
 
             // Use the shared implementation directly from the implementations.
             outputs[i].faultDisputeGame = IFaultDisputeGame(gameImplementation);
@@ -1749,8 +1747,7 @@ contract OPContractsManager is ISemver {
     function addGameType(AddGameInput[] memory _gameConfigs) public virtual returns (AddGameOutput[] memory) {
         if (address(this) == address(thisOPCM)) revert OnlyDelegatecall();
 
-        bytes memory data =
-            abi.encodeWithSelector(OPContractsManagerGameTypeAdder.addGameType.selector, _gameConfigs, superchainConfig);
+        bytes memory data = abi.encodeWithSelector(OPContractsManagerGameTypeAdder.addGameType.selector, _gameConfigs);
 
         bytes memory returnData = _performDelegateCall(address(opcmGameTypeAdder), data);
         return abi.decode(returnData, (AddGameOutput[]));
@@ -1761,9 +1758,8 @@ contract OPContractsManager is ISemver {
     function updatePrestate(OpChainConfig[] memory _prestateUpdateInputs) public {
         if (address(this) == address(thisOPCM)) revert OnlyDelegatecall();
 
-        bytes memory data = abi.encodeWithSelector(
-            OPContractsManagerGameTypeAdder.updatePrestate.selector, _prestateUpdateInputs, superchainConfig
-        );
+        bytes memory data =
+            abi.encodeWithSelector(OPContractsManagerGameTypeAdder.updatePrestate.selector, _prestateUpdateInputs);
 
         _performDelegateCall(address(opcmGameTypeAdder), data);
     }
