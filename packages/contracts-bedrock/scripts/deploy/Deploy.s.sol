@@ -285,6 +285,8 @@ contract Deploy is Deployer {
         artifacts.save("OPContractsManager", address(dio.opcm));
         artifacts.save("DelayedWETHImpl", address(dio.delayedWETHImpl));
         artifacts.save("PreimageOracle", address(dio.preimageOracleSingleton));
+        artifacts.save("FaultDisputeGame", address(dio.faultDisputeGameImpl));
+        artifacts.save("PermissionedDisputeGame", address(dio.permissionedDisputeGameImpl));
 
         // Get a contract set from the implementation addresses which were just deployed.
         Types.ContractSet memory impls = Types.ContractSet({
