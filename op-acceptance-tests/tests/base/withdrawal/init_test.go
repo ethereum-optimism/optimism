@@ -10,6 +10,7 @@ import (
 
 func TestMain(m *testing.M) {
 	presets.DoMain(m,
+		// TODO(infra#401): Re-enable the test when the sysext missing toolset is implemented
 		presets.WithCompatibleTypes(compat.SysGo),
 		presets.WithMinimal(),
 		presets.WithProposerGameType(faultTypes.FastGameType),
