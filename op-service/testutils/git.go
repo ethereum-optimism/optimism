@@ -1,6 +1,7 @@
 package testutils
 
 import (
+	"os"
 	"os/exec"
 	"regexp"
 	"strings"
@@ -10,6 +11,15 @@ import (
 )
 
 func currentBranch() (string, error) {
+	// CircleCI sometimes checks out the branch then changes it to something else (I've seen it show
+	// up as "ranch" in some cases). This is probably a bug in CircleCI, but we can work around it
+	// by using the CIRCLE_BRANCH env var if it's available. This is always set to the branch that
+	// CircleCI is currently checking out.
+	circleBranch := os.Getenv("CIRCLE_BRANCH")
+	if circleBranch != "" {
+		return circleBranch, nil
+	}
+
 	cmd := exec.Command("git", "rev-parse", "--abbrev-ref", "HEAD")
 	out, err := cmd.Output()
 	if err != nil {
