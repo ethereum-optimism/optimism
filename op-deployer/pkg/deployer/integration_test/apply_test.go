@@ -3,13 +3,18 @@ package integration_test
 import (
 	"bytes"
 	"context"
+	"crypto/ecdsa"
 	"encoding/hex"
-	"fmt"
 	"log/slog"
 	"math/big"
-	"os"
+	"regexp"
 	"strings"
 	"testing"
+	"time"
+
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/bootstrap"
+	"github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum/go-ethereum/params"
 
 	"github.com/ethereum-optimism/optimism/op-service/testutils"
 	"github.com/ethereum-optimism/optimism/op-service/testutils/devnet"
@@ -54,82 +59,7 @@ func (d *deployerKey) String() string {
 	return "deployer-key"
 }
 
-func TestLiveChain(t *testing.T) {
-	t.Skip("requires backport")
-
-	op_e2e.InitParallel(t)
-
-	for _, network := range []string{"mainnet", "sepolia"} {
-		t.Run(network, func(t *testing.T) {
-			testLiveChainNetwork(t, network)
-		})
-	}
-}
-
-func testLiveChainNetwork(t *testing.T, network string) {
-	op_e2e.InitParallel(t)
-	lgr := testlog.Logger(t, slog.LevelInfo)
-	rpcURL := os.Getenv(fmt.Sprintf("%s_RPC_URL", strings.ToUpper(network)))
-	require.NotEmpty(t, rpcURL)
-
-	forkedL1, cleanup, err := devnet.NewForked(lgr, rpcURL)
-	require.NoError(t, err)
-	t.Cleanup(func() {
-		require.NoError(t, cleanup())
-	})
-
-	l1Client, err := ethclient.Dial(forkedL1.RPCUrl())
-	require.NoError(t, err)
-
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	l1ChainID, err := l1Client.ChainID(ctx)
-	require.NoError(t, err)
-
-	pk, err := crypto.HexToECDSA("ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80")
-	require.NoError(t, err)
-	dk, err := devkeys.NewMnemonicDevKeys(devkeys.TestMnemonic)
-	require.NoError(t, err)
-
-	testCacheDir := testutils.IsolatedTestDirWithAutoCleanup(t)
-
-	intent, st := newIntent(
-		t,
-		l1ChainID,
-		dk,
-		uint256.NewInt(9999),
-		artifacts.DefaultL1ContractsLocator,
-		artifacts.DefaultL2ContractsLocator,
-	)
-	cg := ethClientCodeGetter(ctx, l1Client)
-
-	require.NoError(t, deployer.ApplyPipeline(
-		ctx,
-		deployer.ApplyPipelineOpts{
-			DeploymentTarget:   deployer.DeploymentTargetLive,
-			L1RPCUrl:           forkedL1.RPCUrl(),
-			DeployerPrivateKey: pk,
-			Intent:             intent,
-			State:              st,
-			Logger:             lgr,
-			StateWriter:        pipeline.NoopStateWriter(),
-			CacheDir:           testCacheDir,
-		},
-	))
-
-	validateSuperchainDeployment(t, st, cg, false)
-	validateOPChainDeployment(t, cg, st, intent, false)
-}
-
-func TestEndToEndApply(t *testing.T) {
-	op_e2e.InitParallel(t)
-
-	lgr := testlog.Logger(t, slog.LevelDebug)
-
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
+func anvilRPC(t *testing.T, lgr log.Logger) (string, *ethclient.Client) {
 	anvil, err := devnet.NewAnvil(lgr, devnet.WithChainID(77799777))
 	require.NoError(t, err)
 	require.NoError(t, anvil.Start())
@@ -139,20 +69,127 @@ func TestEndToEndApply(t *testing.T) {
 	l1RPC := anvil.RPCUrl()
 	l1Client, err := ethclient.Dial(l1RPC)
 	require.NoError(t, err)
+	return l1RPC, l1Client
+}
 
-	pk, err := crypto.HexToECDSA("ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80")
+func cannedPrivkey(t *testing.T) (string, *ecdsa.PrivateKey, *devkeys.MnemonicDevKeys) {
+	pkHex := "ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"
+	pk, err := crypto.HexToECDSA(pkHex)
 	require.NoError(t, err)
 
-	l1ChainID := new(big.Int).SetUint64(defaultL1ChainID)
 	dk, err := devkeys.NewMnemonicDevKeys(devkeys.TestMnemonic)
 	require.NoError(t, err)
 
+	return pkHex, pk, dk
+}
+
+// TestEndToEndBootstrapApply tests that a system can be fully bootstrapped and applied, both from
+// local artifacts and the default tagged artifacts. The tagged artifacts test only runs on proposal
+// or backports branches, since those are the only branches with an SLA to support tagged artifacts.
+func TestEndToEndBootstrapApply(t *testing.T) {
+	op_e2e.InitParallel(t)
+
+	lgr := testlog.Logger(t, slog.LevelDebug)
+	l1RPC, l1Client := anvilRPC(t, lgr)
+	pkHex, pk, dk := cannedPrivkey(t)
+	l1ChainID := new(big.Int).SetUint64(defaultL1ChainID)
+	l2ChainID := uint256.NewInt(1)
+	testCacheDir := testutils.IsolatedTestDirWithAutoCleanup(t)
+	superchainPAO := common.Address{'S', 'P', 'A', 'O'}
+
+	apply := func(t *testing.T, loc *artifacts.Locator) {
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+
+		bstrap, err := bootstrap.Superchain(ctx, bootstrap.SuperchainConfig{
+			L1RPCUrl:                   l1RPC,
+			PrivateKey:                 pkHex,
+			Logger:                     lgr,
+			ArtifactsLocator:           loc,
+			CacheDir:                   testCacheDir,
+			SuperchainProxyAdminOwner:  superchainPAO,
+			ProtocolVersionsOwner:      common.Address{'P', 'V', 'O'},
+			Guardian:                   common.Address{'G'},
+			Paused:                     false,
+			RecommendedProtocolVersion: params.ProtocolVersion{0x01, 0x02, 0x03, 0x04},
+			RequiredProtocolVersion:    params.ProtocolVersion{0x01, 0x02, 0x03, 0x04},
+		})
+		require.NoError(t, err)
+
+		var release string
+		if !loc.IsTag() {
+			release = "dev"
+		}
+
+		impls, err := bootstrap.Implementations(ctx, bootstrap.ImplementationsConfig{
+			L1RPCUrl:                        l1RPC,
+			PrivateKey:                      pkHex,
+			ArtifactsLocator:                loc,
+			L1ContractsRelease:              release,
+			MIPSVersion:                     int(standard.MIPSVersion),
+			WithdrawalDelaySeconds:          standard.WithdrawalDelaySeconds,
+			MinProposalSizeBytes:            standard.MinProposalSizeBytes,
+			ChallengePeriodSeconds:          standard.ChallengePeriodSeconds,
+			ProofMaturityDelaySeconds:       standard.ProofMaturityDelaySeconds,
+			DisputeGameFinalityDelaySeconds: standard.DisputeGameFinalityDelaySeconds,
+			SuperchainConfigProxy:           bstrap.SuperchainConfigProxy,
+			ProtocolVersionsProxy:           bstrap.ProtocolVersionsProxy,
+			UpgradeController:               superchainPAO,
+			SuperchainProxyAdmin:            bstrap.SuperchainProxyAdmin,
+			CacheDir:                        testCacheDir,
+			Logger:                          lgr,
+		})
+		require.NoError(t, err)
+
+		intent, st := newIntent(t, l1ChainID, dk, l2ChainID, loc, loc)
+		intent.SuperchainRoles = nil
+		intent.OPCMAddress = &impls.Opcm
+
+		require.NoError(t, deployer.ApplyPipeline(
+			ctx,
+			deployer.ApplyPipelineOpts{
+				DeploymentTarget:   deployer.DeploymentTargetLive,
+				L1RPCUrl:           l1RPC,
+				DeployerPrivateKey: pk,
+				Intent:             intent,
+				State:              st,
+				Logger:             lgr,
+				StateWriter:        pipeline.NoopStateWriter(),
+				CacheDir:           testCacheDir,
+			},
+		))
+
+		cg := ethClientCodeGetter(ctx, l1Client)
+		validateOPChainDeployment(t, cg, st, intent, false)
+	}
+
+	t.Run("default tagged artifacts", func(t *testing.T) {
+		op_e2e.InitParallel(t)
+		testutils.RunOnBranch(t, regexp.MustCompile(`^(backports/op-deployer|proposal/op-contracts)/*`))
+		apply(t, artifacts.DefaultL1ContractsLocator)
+	})
+
+	t.Run("local artifacts", func(t *testing.T) {
+		op_e2e.InitParallel(t)
+		loc, _ := testutil.LocalArtifacts(t)
+		apply(t, loc)
+	})
+}
+
+func TestEndToEndApply(t *testing.T) {
+	op_e2e.InitParallel(t)
+
+	lgr := testlog.Logger(t, slog.LevelDebug)
+	l1RPC, l1Client := anvilRPC(t, lgr)
+	_, pk, dk := cannedPrivkey(t)
+	l1ChainID := new(big.Int).SetUint64(defaultL1ChainID)
 	l2ChainID1 := uint256.NewInt(1)
 	l2ChainID2 := uint256.NewInt(2)
-
 	loc, _ := testutil.LocalArtifacts(t)
-
 	testCacheDir := testutils.IsolatedTestDirWithAutoCleanup(t)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
 
 	t.Run("two chains one after another", func(t *testing.T) {
 		intent, st := newIntent(t, l1ChainID, dk, l2ChainID1, loc, loc)
@@ -175,31 +212,6 @@ func TestEndToEndApply(t *testing.T) {
 		// create a new environment with wiped state to ensure we can continue using the
 		// state from the previous deployment
 		intent.Chains = append(intent.Chains, newChainIntent(t, dk, l1ChainID, l2ChainID2))
-
-		require.NoError(t, deployer.ApplyPipeline(
-			ctx,
-			deployer.ApplyPipelineOpts{
-				DeploymentTarget:   deployer.DeploymentTargetLive,
-				L1RPCUrl:           l1RPC,
-				DeployerPrivateKey: pk,
-				Intent:             intent,
-				State:              st,
-				Logger:             lgr,
-				StateWriter:        pipeline.NoopStateWriter(),
-				CacheDir:           testCacheDir,
-			},
-		))
-
-		validateSuperchainDeployment(t, st, cg, true)
-		validateOPChainDeployment(t, cg, st, intent, false)
-	})
-
-	t.Run("chain with tagged artifacts", func(t *testing.T) {
-		t.Skip("requires backport")
-		intent, st := newIntent(t, l1ChainID, dk, l2ChainID1, loc, loc)
-		intent.L1ContractsLocator = artifacts.DefaultL1ContractsLocator
-		intent.L2ContractsLocator = artifacts.DefaultL2ContractsLocator
-		cg := ethClientCodeGetter(ctx, l1Client)
 
 		require.NoError(t, deployer.ApplyPipeline(
 			ctx,
