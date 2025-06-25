@@ -35,6 +35,7 @@ func TestFindChainServices(t *testing.T) {
 	// Create service finder with the test data
 	finder := NewServiceFinder(
 		services,
+		WithL1Chain(&spec.ChainSpec{NetworkID: "0"}),
 		WithL2Chains(chains),
 		WithDepSets(depSets),
 	)
@@ -306,9 +307,11 @@ func createTestDepSets(t *testing.T) map[string]descriptors.DepSet {
 
 // TestTriageFunctions tests the actual implementation of triage functions
 func TestTriageFunctions(t *testing.T) {
+	l1Spec := &spec.ChainSpec{NetworkID: "123456"}
 	// Create a minimal finder with default values
 	finder := &ServiceFinder{
 		services: make(inspect.ServiceMap),
+		l1Chain:  l1Spec,
 	}
 
 	// Test the triageNode function for recognizing services
@@ -320,7 +323,7 @@ func TestTriageFunctions(t *testing.T) {
 		idx, accept, ok := parser("cl-1-teku-geth")
 		assert.True(t, ok, "Should recognize L1 CL node")
 		assert.Equal(t, 0, idx, "Should extract index 0 from L1 CL node")
-		assert.True(t, accept(&spec.ChainSpec{Name: l1Placeholder}), "Should accept L1")
+		assert.True(t, accept(l1Spec), "Should accept L1")
 
 		// Test with various suffixes to see what is recognized
 		_, _, ok = parser("cl-1-teku-geth-with-extra-parts")
@@ -329,24 +332,5 @@ func TestTriageFunctions(t *testing.T) {
 		// This is considered invalid
 		_, _, ok = parser("cl")
 		assert.False(t, ok, "Should not recognize simple 'cl'")
-	})
-
-	// Test the universal L2 service parser (faucet)
-	t.Run("triageUniversalL2Service", func(t *testing.T) {
-		parser := finder.triageUniversalL2Service("op-faucet")
-
-		// Valid format
-		idx, accept, ok := parser("op-faucet")
-		assert.True(t, ok, "Should recognize faucet")
-		assert.Equal(t, -1, idx, "Universal services have -1 index")
-		assert.True(t, accept(&spec.ChainSpec{NetworkID: "123456"}), "Should accept any chain")
-		assert.True(t, accept(&spec.ChainSpec{NetworkID: "654321"}), "Should accept any chain")
-
-		// Invalid formats
-		_, _, ok = parser("faucet")
-		assert.False(t, ok, "Should not recognize faucet without prefix")
-
-		_, _, ok = parser("op-faucet-with-suffix")
-		assert.False(t, ok, "Should not recognize op-faucet with suffix")
 	})
 }

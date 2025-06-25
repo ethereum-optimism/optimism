@@ -11,14 +11,11 @@ import (
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/depset"
 )
 
-const (
-	l1Placeholder = ""
-)
-
 // ServiceFinder is the main entry point for finding services and their endpoints
 type ServiceFinder struct {
 	services inspect.ServiceMap
 
+	l1Chain  *spec.ChainSpec
 	l2Chains []*spec.ChainSpec
 	depsets  map[string]descriptors.DepSet
 
@@ -27,6 +24,13 @@ type ServiceFinder struct {
 
 // ServiceFinderOption configures a ServiceFinder
 type ServiceFinderOption func(*ServiceFinder)
+
+// WithL1Chain sets the L1 chain
+func WithL1Chain(chain *spec.ChainSpec) ServiceFinderOption {
+	return func(f *ServiceFinder) {
+		f.l1Chain = chain
+	}
+}
 
 // WithL2Chains sets the L2 networks
 func WithL2Chains(networks []*spec.ChainSpec) ServiceFinderOption {
@@ -85,10 +89,6 @@ func acceptIDs(ids ...string) chainAcceptor {
 	return combineAcceptors(acceptors...)
 }
 
-func acceptL1() chainAcceptor {
-	return acceptID(l1Placeholder)
-}
-
 func combineAcceptors(acceptors ...chainAcceptor) chainAcceptor {
 	return func(c *spec.ChainSpec) bool {
 		for _, acceptor := range acceptors {
@@ -114,20 +114,10 @@ func (f *ServiceFinder) triageNode(prefix string) serviceParser {
 
 		if strings.HasPrefix(serviceName, prefix) { // L1
 			idx := extractIndex(strings.TrimPrefix(serviceName, prefix))
-			return idx, acceptL1(), true
+			return idx, acceptID(f.l1Chain.NetworkID), true
 		}
 
 		return 0, nil, false
-	}
-}
-
-func (f *ServiceFinder) triageUniversalL2Service(name string) serviceParser {
-	idx := -1
-	return func(serviceName string) (int, chainAcceptor, bool) {
-		if serviceName == name {
-			return idx, acceptAll, true
-		}
-		return idx, nil, false
 	}
 }
 
@@ -287,11 +277,7 @@ func (f *ServiceFinder) findChainServices(chain *spec.ChainSpec) ([]descriptors.
 
 // FindL1Services finds L1 nodes.
 func (f *ServiceFinder) FindL1Services() ([]descriptors.Node, descriptors.RedundantServiceMap) {
-	chain := &spec.ChainSpec{
-		Name:      l1Placeholder,
-		NetworkID: l1Placeholder,
-	}
-	return f.findChainServices(chain)
+	return f.findChainServices(f.l1Chain)
 }
 
 // FindL2Services finds L2 nodes and services for a specific network
