@@ -10,7 +10,6 @@ import (
 
 	"math/big"
 
-	"github.com/ethereum-optimism/optimism/op-service/apis"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/retry"
 	"github.com/ethereum/go-ethereum/common"
@@ -22,23 +21,6 @@ type HeaderProvider interface {
 	InfoByNumber(ctx context.Context, number uint64) (eth.BlockInfo, error)
 	InfoByLabel(ctx context.Context, label eth.BlockLabel) (eth.BlockInfo, error)
 	InfoByHash(ctx context.Context, hash common.Hash) (eth.BlockInfo, error)
-}
-
-// getEthClients extracts HeaderProvider clients from a chain's nodes
-func getEthClients(chain interface {
-	Nodes() []interface {
-		Name() string
-		EthClient() apis.EthClient
-	}
-}) ([]HeaderProvider, error) {
-	hps := make([]HeaderProvider, 0, len(chain.Nodes()))
-	for _, n := range chain.Nodes() {
-		ethClient := n.EthClient()
-		if !regexp.MustCompile(`snapsync-\d+$`).MatchString(n.Name()) {
-			hps = append(hps, ethClient)
-		}
-	}
-	return hps, nil
 }
 
 // CheckForChainFork checks that the L2 chain has not forked now, and returns a
