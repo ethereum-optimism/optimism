@@ -48,6 +48,9 @@ func (*noopMetrics) RecordBlobUsedBytes(int) {}
 func (*noopMetrics) StartBalanceMetrics(log.Logger, *ethclient.Client, common.Address) io.Closer {
 	return nil
 }
+func (*noopMetrics) StartMemoryMetrics(log.Logger) io.Closer {
+	return nil
+}
 func (nm *noopMetrics) PendingDABytes() float64 {
 	return 0.0
 }

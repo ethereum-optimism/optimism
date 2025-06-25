@@ -32,6 +32,7 @@ type Metricer interface {
 	opmetrics.RPCMetricer
 
 	StartBalanceMetrics(l log.Logger, client *ethclient.Client, account common.Address) io.Closer
+	StartMemoryMetrics(l log.Logger) io.Closer
 
 	RecordLatestL1Block(l1ref eth.L1BlockRef)
 	RecordL2BlocksLoaded(l2ref eth.L2BlockRef)
@@ -96,6 +97,8 @@ type Metrics struct {
 	batcherTxEvs opmetrics.EventVec
 
 	blobUsedBytes prometheus.Histogram
+
+	memoryAllocBytes prometheus.Gauge
 }
 
 var _ Metricer = (*Metrics)(nil)
@@ -209,6 +212,12 @@ func NewMetrics(procName string) *Metrics {
 			Buckets:   prometheus.LinearBuckets(0.0, eth.MaxBlobDataSize/13, 14),
 		}),
 
+		memoryAllocBytes: factory.NewGauge(prometheus.GaugeOpts{
+			Namespace: ns,
+			Name:      "memory_alloc_bytes",
+			Help:      "Number of bytes allocated and still in use by the go runtime.",
+		}),
+
 		batcherTxEvs: opmetrics.NewEventVec(factory, ns, "", "batcher_tx", "BatcherTx", []string{"stage"}),
 	}
 	m.pendingDABytesGaugeFunc = factory.NewGaugeFunc(prometheus.GaugeOpts{
@@ -236,6 +245,10 @@ func (m *Metrics) PendingDABytes() float64 {
 
 func (m *Metrics) StartBalanceMetrics(l log.Logger, client *ethclient.Client, account common.Address) io.Closer {
 	return opmetrics.LaunchBalanceMetrics(l, m.registry, m.ns, client, account)
+}
+
+func (m *Metrics) StartMemoryMetrics(l log.Logger) io.Closer {
+	return opmetrics.LaunchMemoryMetrics(l, m.registry, m.ns, m.memoryAllocBytes)
 }
 
 // RecordInfo sets a pseudo-metric that contains versioning and

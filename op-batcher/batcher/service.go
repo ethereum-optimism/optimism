@@ -75,6 +75,7 @@ type BatcherService struct {
 	rpcServer    *oprpc.Server
 
 	balanceMetricer io.Closer
+	memoryMetricer  io.Closer
 	stopped         atomic.Bool
 
 	NotSubmittingOnStart bool
@@ -178,6 +179,7 @@ func (bs *BatcherService) initMetrics(cfg *CLIConfig) {
 	if cfg.MetricsConfig.Enabled {
 		procName := "default"
 		bs.Metrics = metrics.NewMetrics(procName)
+		bs.memoryMetricer = bs.Metrics.StartMemoryMetrics(bs.Log)
 	} else {
 		bs.Metrics = metrics.NoopMetrics
 	}
@@ -446,6 +448,11 @@ func (bs *BatcherService) Stop(ctx context.Context) error {
 	if bs.balanceMetricer != nil {
 		if err := bs.balanceMetricer.Close(); err != nil {
 			result = errors.Join(result, fmt.Errorf("failed to close balance metricer: %w", err))
+		}
+	}
+	if bs.memoryMetricer != nil {
+		if err := bs.memoryMetricer.Close(); err != nil {
+			result = errors.Join(result, fmt.Errorf("failed to close memory metricer: %w", err))
 		}
 	}
 

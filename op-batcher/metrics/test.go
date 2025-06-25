@@ -1,7 +1,10 @@
 package metrics
 
 import (
+	"io"
+
 	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/log"
 )
 
 type TestMetrics struct {
@@ -34,3 +37,5 @@ func (m *TestMetrics) ClearAllStateMetrics() {
 	m.ChannelQueueLength = 0
 	m.pendingDABytes = 0
 }
+
+func (m *TestMetrics) StartMemoryMetrics(log.Logger) io.Closer { return nil }
