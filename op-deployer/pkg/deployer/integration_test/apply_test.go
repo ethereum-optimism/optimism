@@ -3,7 +3,6 @@ package integration_test
 import (
 	"bytes"
 	"context"
-	"crypto/ecdsa"
 	"encoding/hex"
 	"log/slog"
 	"math/big"
