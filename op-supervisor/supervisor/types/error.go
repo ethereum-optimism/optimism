@@ -44,4 +44,6 @@ var (
 	ErrNoRPCSource = errors.New("no RPC client configured")
 	// ErrUninitialized happens when a chain database is not initialized yet
 	ErrUninitialized = errors.New("uninitialized chain database")
+	// ErrAutoStop is when auto-stop is enabled and the request is rejected
+	ErrAutoStop = errors.New("auto-stop is enabled")
 )

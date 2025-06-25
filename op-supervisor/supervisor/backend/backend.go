@@ -83,6 +83,9 @@ type SupervisorBackend struct {
 
 	// rpcVerificationWarnings enables asynchronous RPC verification of DB checkAccess call in the CheckAccessList endpoint, indicating warnings as a metric
 	rpcVerificationWarnings bool
+
+	// autoStop controls whether the supervisor should automatically stop
+	autoStop atomic.Bool
 }
 
 var (
@@ -550,6 +553,12 @@ func (su *SupervisorBackend) checkSafety(chainID eth.ChainID, blockID eth.BlockI
 
 func (su *SupervisorBackend) CheckAccessList(ctx context.Context, inboxEntries []common.Hash,
 	minSafety types.SafetyLevel, execDescr types.ExecutingDescriptor) error {
+	// Check if auto-stop is enabled
+	if su.isAutoStop() {
+		su.logger.Debug("Auto-stop is enabled, rejecting access-list check")
+		return types.ErrAutoStop
+	}
+
 	switch minSafety {
 	case types.LocalUnsafe, types.CrossUnsafe, types.LocalSafe, types.CrossSafe, types.Finalized:
 		// valid safety level
@@ -820,4 +829,23 @@ func (su *SupervisorBackend) SetConfDepthL1(depth uint64) {
 // Rewind rolls back the state of the supervisor for the given chain.
 func (su *SupervisorBackend) Rewind(ctx context.Context, chain eth.ChainID, block eth.BlockID) error {
 	return su.chainDBs.Rewind(chain, block)
+}
+
+// SetAutoStop sets the auto-stop configuration for the supervisor.
+func (su *SupervisorBackend) SetAutoStop(ctx context.Context, enabled bool) error {
+	su.autoStop.Store(enabled)
+	return nil
+}
+
+// GetAutoStop gets the current auto-stop configuration for the supervisor.
+func (su *SupervisorBackend) GetAutoStop(ctx context.Context) (bool, error) {
+	return su.isAutoStop(), nil
+}
+
+// isAutoStop returns whether auto-stop is enabled.
+// If a more complex AutoStop functionality is needed,
+// this function can be extended to make those calls
+// For now, it just returns the current state of the autoStop flag.
+func (su *SupervisorBackend) isAutoStop() bool {
+	return su.autoStop.Load()
 }

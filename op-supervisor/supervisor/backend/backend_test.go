@@ -601,3 +601,51 @@ func TestAsyncVerifyAccessWithRPC(t *testing.T) {
 	// No error + match         => 0 failures
 	runScenario("NoErr_match", sealA, nil, idA)
 }
+
+func TestAutoStop(t *testing.T) {
+	logger := testlog.Logger(t, log.LvlInfo)
+	m := metrics.NoopMetrics
+	dataDir := t.TempDir()
+	fullCfgSet := fullConfigSet(t, 1)
+
+	cfg := &config.Config{
+		Version:               "test",
+		FullConfigSetSource:   fullCfgSet,
+		SynchronousProcessors: true,
+		MockRun:               false,
+		SyncSources:           &syncnode.CLISyncNodes{},
+		Datadir:               dataDir,
+	}
+
+	ex := event.NewGlobalSynchronous(context.Background())
+	b, err := NewSupervisorBackend(context.Background(), logger, m, cfg, ex)
+	require.NoError(t, err)
+
+	// Test initial state - auto-stop should be disabled by default
+	enabled, err := b.GetAutoStop(context.Background())
+	require.NoError(t, err)
+	require.False(t, enabled, "auto-stop should be disabled by default")
+	// Test that CheckAccessList works normally in initial state
+	err = b.CheckAccessList(context.Background(), []common.Hash{}, types.LocalUnsafe, types.ExecutingDescriptor{})
+	require.NoError(t, err, "CheckAccessList should work normally when auto-stop is disabled")
+
+	// Test setting auto-stop to true
+	err = b.SetAutoStop(context.Background(), true)
+	require.NoError(t, err)
+	enabled, err = b.GetAutoStop(context.Background())
+	require.NoError(t, err)
+	require.True(t, enabled, "auto-stop should be enabled after setting to true")
+	// Test that CheckAccessList returns ErrAutoStop when auto-stop is enabled
+	err = b.CheckAccessList(context.Background(), []common.Hash{}, types.LocalUnsafe, types.ExecutingDescriptor{})
+	require.ErrorIs(t, err, types.ErrAutoStop, "CheckAccessList should return ErrAutoStop when auto-stop is enabled")
+
+	// Test setting auto-stop to false
+	err = b.SetAutoStop(context.Background(), false)
+	require.NoError(t, err)
+	enabled, err = b.GetAutoStop(context.Background())
+	require.NoError(t, err)
+	require.False(t, enabled, "auto-stop should be disabled after setting to false")
+	// Test that CheckAccessList works normally when auto-stop is disabled
+	err = b.CheckAccessList(context.Background(), []common.Hash{}, types.LocalUnsafe, types.ExecutingDescriptor{})
+	require.NoError(t, err, "CheckAccessList should work normally when auto-stop is disabled")
+}

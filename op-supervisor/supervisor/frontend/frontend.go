@@ -89,3 +89,13 @@ func (a *AdminFrontend) Rewind(ctx context.Context, chain eth.ChainID, block eth
 	// TODO(#15665) add logging here to track when rewinds are requested
 	return a.Supervisor.Rewind(ctx, chain, block)
 }
+
+// SetAutoStop sets the auto-stop configuration for the supervisor.
+func (a *AdminFrontend) SetAutoStop(ctx context.Context, enabled bool) error {
+	return a.Supervisor.SetAutoStop(ctx, enabled)
+}
+
+// GetAutoStop gets the current auto-stop configuration for the supervisor.
+func (a *AdminFrontend) GetAutoStop(ctx context.Context) (bool, error) {
+	return a.Supervisor.GetAutoStop(ctx)
+}
