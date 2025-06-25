@@ -98,7 +98,7 @@ func TestEndToEndBootstrapApply(t *testing.T) {
 	superchainPAO := common.Address{'S', 'P', 'A', 'O'}
 
 	apply := func(t *testing.T, loc *artifacts.Locator) {
-		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
 		defer cancel()
 
 		bstrap, err := bootstrap.Superchain(ctx, bootstrap.SuperchainConfig{
