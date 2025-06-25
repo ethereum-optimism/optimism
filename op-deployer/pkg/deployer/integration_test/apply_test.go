@@ -13,7 +13,6 @@ import (
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/bootstrap"
-	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
 
 	"github.com/ethereum-optimism/optimism/op-service/testutils"
@@ -59,30 +58,6 @@ func (d *deployerKey) String() string {
 	return "deployer-key"
 }
 
-func anvilRPC(t *testing.T, lgr log.Logger) (string, *ethclient.Client) {
-	anvil, err := devnet.NewAnvil(lgr, devnet.WithChainID(77799777))
-	require.NoError(t, err)
-	require.NoError(t, anvil.Start())
-	t.Cleanup(func() {
-		require.NoError(t, anvil.Stop())
-	})
-	l1RPC := anvil.RPCUrl()
-	l1Client, err := ethclient.Dial(l1RPC)
-	require.NoError(t, err)
-	return l1RPC, l1Client
-}
-
-func cannedPrivkey(t *testing.T) (string, *ecdsa.PrivateKey, *devkeys.MnemonicDevKeys) {
-	pkHex := "ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"
-	pk, err := crypto.HexToECDSA(pkHex)
-	require.NoError(t, err)
-
-	dk, err := devkeys.NewMnemonicDevKeys(devkeys.TestMnemonic)
-	require.NoError(t, err)
-
-	return pkHex, pk, dk
-}
-
 // TestEndToEndBootstrapApply tests that a system can be fully bootstrapped and applied, both from
 // local artifacts and the default tagged artifacts. The tagged artifacts test only runs on proposal
 // or backports branches, since those are the only branches with an SLA to support tagged artifacts.
@@ -90,8 +65,8 @@ func TestEndToEndBootstrapApply(t *testing.T) {
 	op_e2e.InitParallel(t)
 
 	lgr := testlog.Logger(t, slog.LevelDebug)
-	l1RPC, l1Client := anvilRPC(t, lgr)
-	pkHex, pk, dk := cannedPrivkey(t)
+	l1RPC, l1Client := devnet.DefaultAnvilRPC(t, lgr)
+	pkHex, pk, dk := testutils.DefaultPrivkey(t)
 	l1ChainID := new(big.Int).SetUint64(defaultL1ChainID)
 	l2ChainID := uint256.NewInt(1)
 	testCacheDir := testutils.IsolatedTestDirWithAutoCleanup(t)
@@ -180,8 +155,8 @@ func TestEndToEndApply(t *testing.T) {
 	op_e2e.InitParallel(t)
 
 	lgr := testlog.Logger(t, slog.LevelDebug)
-	l1RPC, l1Client := anvilRPC(t, lgr)
-	_, pk, dk := cannedPrivkey(t)
+	l1RPC, l1Client := devnet.DefaultAnvilRPC(t, lgr)
+	_, pk, dk := testutils.DefaultPrivkey(t)
 	l1ChainID := new(big.Int).SetUint64(defaultL1ChainID)
 	l2ChainID1 := uint256.NewInt(1)
 	l2ChainID2 := uint256.NewInt(2)
