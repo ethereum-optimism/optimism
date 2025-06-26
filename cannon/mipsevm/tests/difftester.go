@@ -31,27 +31,26 @@ func NewDiffTester[T TestCase](testCases []T, opts ...mtutil.StateOption) *DiffT
 type TestCase interface {
 	Name() string
 }
-type InitializeStateFn[T TestCase] func(testCase T, state *StateInitializer, ctx *TestContext)
+type InitializeStateFn[T TestCase] func(testCase T, state *StateInitializer, vm VersionedVMTestCase)
 type SetExpectationsFn[T TestCase] func(testCase T, expected *StateExpectations)
 
 func (d *DiffTester[T]) Run(t *testing.T, stateInit InitializeStateFn[T], expectations SetExpectationsFn[T], opts ...TestOption) {
 	cfg := newTestConfig(opts...)
-	for _, v := range GetMipsVersionTestCases(t) {
+	for _, vm := range GetMipsVersionTestCases(t) {
 		for i, testCase := range d.testCases {
-			testName := fmt.Sprintf("%v (%v)", testCase.Name(), v.Name)
+			testName := fmt.Sprintf("%v (%v)", testCase.Name(), vm.Name)
 			t.Run(testName, func(t *testing.T) {
-				ctx := NewTestContext(cfg, v)
 
 				// TODO - Figure out better random seed method
 				stateOpts := []mtutil.StateOption{mtutil.WithRandomization(int64(i))}
 				stateOpts = append(stateOpts, d.stateOpts...)
-				goVm := v.VMFactory(cfg.po(), cfg.stdOut(), cfg.stdErr(), cfg.logger, stateOpts...)
+				goVm := vm.VMFactory(cfg.po(), cfg.stdOut(), cfg.stdErr(), cfg.logger, stateOpts...)
 				state := mtutil.GetMtState(t, goVm)
 				step := state.GetStep()
 
 				// Set up state
 				stateInitializer := &StateInitializer{state: state}
-				stateInit(testCase, stateInitializer, ctx)
+				stateInit(testCase, stateInitializer, vm)
 				// Set up expectations
 				stateExpectations := &StateExpectations{e: mtutil.NewExpectedState(t, state)}
 				expectations(testCase, stateExpectations)
@@ -67,7 +66,7 @@ func (d *DiffTester[T]) Run(t *testing.T, stateInit InitializeStateFn[T], expect
 
 				// Validate
 				stateExpectations.Validate(t, state)
-				testutil.ValidateEVM(t, stepWitness, step, goVm, v.StateHashFn, v.Contracts)
+				testutil.ValidateEVM(t, stepWitness, step, goVm, vm.StateHashFn, vm.Contracts)
 			})
 		}
 	}
@@ -166,31 +165,11 @@ func (s *StateInitializer) SetMemoryReservation(status multithreaded.LLReservati
 	s.state.LLOwnerThread = owner
 }
 
-type TestContext struct {
-	vm     VersionedVMTestCase
-	po     mipsevm.PreimageOracle
-	stdOut io.Writer
-	stdErr io.Writer
-	logger log.Logger
-}
-
-func NewTestContext(config *TestConfig, vm VersionedVMTestCase) *TestContext {
-	return &TestContext{
-		vm:     vm,
-		po:     config.po(),
-		stdOut: config.stdOut(),
-		stdErr: config.stdErr(),
-		logger: config.logger,
-	}
-}
-
-type DiffTestValidator func(t *testing.T, state mipsevm.FPVMState, ctx *TestContext)
 type TestConfig struct {
-	po        func() mipsevm.PreimageOracle
-	stdOut    func() io.Writer
-	stdErr    func() io.Writer
-	logger    log.Logger
-	validator DiffTestValidator
+	po     func() mipsevm.PreimageOracle
+	stdOut func() io.Writer
+	stdErr func() io.Writer
+	logger log.Logger
 }
 
 type TestOption func(*TestConfig)
@@ -201,19 +180,12 @@ func WithPreimageOracle(po func() mipsevm.PreimageOracle) TestOption {
 	}
 }
 
-func WithValidator(validator func(t *testing.T, state mipsevm.FPVMState, ctx *TestContext)) TestOption {
-	return func(tc *TestConfig) {
-		tc.validator = validator
-	}
-}
-
 func newTestConfig(opts ...TestOption) *TestConfig {
 	testConfig := &TestConfig{
-		po:        func() mipsevm.PreimageOracle { return nil },
-		stdOut:    func() io.Writer { return os.Stdout },
-		stdErr:    func() io.Writer { return os.Stderr },
-		logger:    testutil.CreateLogger(),
-		validator: func(t *testing.T, state mipsevm.FPVMState, ctx *TestContext) {},
+		po:     func() mipsevm.PreimageOracle { return nil },
+		stdOut: func() io.Writer { return os.Stdout },
+		stdErr: func() io.Writer { return os.Stderr },
+		logger: testutil.CreateLogger(),
 	}
 
 	for _, opt := range opts {
