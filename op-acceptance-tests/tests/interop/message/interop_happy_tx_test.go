@@ -48,12 +48,12 @@ func TestInteropHappyTx(gt *testing.T) {
 		sys.L2CLA.ReachedRefFn(stypes.CrossSafe, eth.BlockID{
 			Number: initReceipt.BlockNumber.Uint64(),
 			Hash:   initReceipt.BlockHash,
-			// TODO(#): Make this relative to the block time
+			// TODO(#16598): Make this relative to the block time
 		}, 500),
 		sys.L2CLB.ReachedRefFn(stypes.CrossSafe, eth.BlockID{
 			Number: execReceipt.BlockNumber.Uint64(),
 			Hash:   execReceipt.BlockHash,
-			// TODO(#): Make this relative to the block time
+			// TODO(#16598): Make this relative to the block time
 		}, 500),
 	)
 
