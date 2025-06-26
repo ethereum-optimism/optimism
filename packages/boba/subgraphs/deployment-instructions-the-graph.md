@@ -34,6 +34,19 @@ The subgraph.yaml file always contains the latest network chosen:
 - Deploy a single subgraph with the `network` option and the dedicated the-graph `PROJECT_NAME` \
   ```npx graph deploy --studio PROJECT_NAME --network NETWORK```
 
+### Subgraph Debug
+Check on Subgraph UI if it is syncing with latest block:
+
+```
+query MyQuery {
+  _meta {
+    block {
+      number
+    }
+  }
+}
+```
+
 ### Miscellaneous
 
 #### LightBridge
