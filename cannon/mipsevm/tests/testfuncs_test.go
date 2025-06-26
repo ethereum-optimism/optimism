@@ -162,45 +162,39 @@ type loadStoreTestCase struct {
 	expectRes    Word
 }
 
+func (t loadStoreTestCase) effAddr() arch.Word {
+	addr := t.base + Word(t.imm)
+	return arch.AddressMask & addr
+}
+
+func (t loadStoreTestCase) Name() string {
+	return t.name
+}
+
 func testLoadStore(t *testing.T, cases []loadStoreTestCase) {
 	baseReg := uint32(9)
 	rtReg := uint32(8)
 
-	for _, v := range GetMipsVersionTestCases(t) {
-		for i, tt := range cases {
-			testName := fmt.Sprintf("%v %v", v.Name, tt.name)
-			t.Run(testName, func(t *testing.T) {
-				addr := tt.base + Word(tt.imm)
-				effAddr := arch.AddressMask & addr
+	initializeState := func(tt loadStoreTestCase, state *StateInitializer, ctx *TestContext) {
+		insn := tt.opcode<<26 | baseReg<<21 | rtReg<<16 | uint32(tt.imm)
 
-				goVm := v.VMFactory(nil, os.Stdout, os.Stderr, testutil.CreateLogger(), mtutil.WithRandomization(int64(i)), mtutil.WithPCAndNextPC(0))
-				state := goVm.GetState()
+		state.StoreInstruction(0, insn)
+		state.SetMemory(tt.effAddr(), tt.memVal)
+		state.SetRegister(int(rtReg), tt.rt)
+		state.SetRegister(int(baseReg), tt.base)
+	}
 
-				insn := tt.opcode<<26 | baseReg<<21 | rtReg<<16 | uint32(tt.imm)
-				state.GetRegistersRef()[rtReg] = tt.rt
-				state.GetRegistersRef()[baseReg] = tt.base
-
-				testutil.StoreInstruction(state.GetMemory(), 0, insn)
-				state.GetMemory().SetWord(effAddr, tt.memVal)
-				step := state.GetStep()
-
-				// Setup expectations
-				expected := mtutil.NewExpectedState(t, state)
-				expected.ExpectStep()
-				if tt.expectMemVal != 0 {
-					expected.ExpectMemoryWrite(effAddr, tt.expectMemVal)
-				} else {
-					expected.ActiveThread().Registers[rtReg] = tt.expectRes
-				}
-				stepWitness, err := goVm.Step(true)
-				require.NoError(t, err)
-
-				// Check expectations
-				expected.Validate(t, state)
-				testutil.ValidateEVM(t, stepWitness, step, goVm, v.StateHashFn, v.Contracts)
-			})
+	setExpectations := func(tt loadStoreTestCase, expect *StateExpectations) {
+		expect.Step()
+		if tt.expectMemVal != 0 {
+			expect.MemoryWrite(tt.effAddr(), tt.expectMemVal)
+		} else {
+			expect.ActiveRegister(int(rtReg), tt.expectRes)
 		}
 	}
+
+	tester := NewDiffTester(cases, mtutil.WithPCAndNextPC(0))
+	tester.Run(t, initializeState, setExpectations)
 }
 
 type branchTestCase struct {
