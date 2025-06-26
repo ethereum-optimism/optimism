@@ -37,9 +37,6 @@ contract ProposalValidator is OwnableUpgradeable, ReinitializableBase, ISemver {
     /// @notice Thrown when attempting to move a proposal to vote that is already in voting.
     error ProposalValidator_ProposalAlreadySubmitted();
 
-    /// @notice Thrown when a delegate has insufficient voting power to approve a proposal.
-    error ProposalValidator_InsufficientVotingPower();
-
     /// @notice Thrown when an invalid attestation is provided for a proposal.
     error ProposalValidator_InvalidAttestation();
 
@@ -60,6 +57,12 @@ contract ProposalValidator is OwnableUpgradeable, ReinitializableBase, ISemver {
 
     /// @notice Thrown when the options length is invalid (zero or exceeds uint8 max).
     error ProposalValidator_InvalidOptionsLength();
+
+    /// @notice Thrown when an attestation is revoked.
+    error ProposalValidator_AttestationRevoked();
+
+    /// @notice Thrown when an attestation schema is invalid.
+    error ProposalValidator_InvalidAttestationSchema();
 
     /// @notice Thrown when the criteria value is invalid for council elections (must not exceed options length).
     error ProposalValidator_InvalidCriteriaValue();
@@ -142,10 +145,6 @@ contract ProposalValidator is OwnableUpgradeable, ReinitializableBase, ISemver {
     /// @param executor The address that executed the move to vote.
     event ProposalMovedToVote(bytes32 indexed proposalHash, address indexed executor);
 
-    /// @notice Emitted when the minimum voting power is set.
-    /// @param newMinimumVotingPower The new minimum voting power.
-    event MinimumVotingPowerSet(uint256 newMinimumVotingPower);
-
     /// @notice Emitted when the voting cycle data is set.
     /// @param cycleNumber The number of the voting cycle.
     /// @param startBlock The block number of the starting block of the voting cycle.
@@ -170,21 +169,23 @@ contract ProposalValidator is OwnableUpgradeable, ReinitializableBase, ISemver {
     /// @param encodedVotingModuleData The encoded voting module data.
     event ProposalVotingModuleData(bytes32 indexed proposalHash, bytes encodedVotingModuleData);
 
-    /// @notice The schema UID for attestations in the Ethereum Attestation Service.
+    /// @notice The schema UID for attestations in the Ethereum Attestation Service for checking if the caller
+    ///         is an approved proposer.
     /// @dev Schema format: { approvedProposer: address, proposalType: uint8 }
-    bytes32 public immutable ATTESTATION_SCHEMA_UID;
+    bytes32 public immutable APPROVED_PROPOSER_ATTESTATION_SCHEMA_UID;
+
+    /// @notice The schema UID for attestations in the Ethereum Attestation Service for checking if the caller
+    ///         is part of the top100 delegates.
+    bytes32 public immutable TOP_DELEGATES_ATTESTATION_SCHEMA_UID;
 
     /// @notice The Optimism Governor contract that will handle the voting phase.
     IOptimismGovernor public immutable GOVERNOR;
 
-    /// @notice The token used to determine voting power.
+    /// @notice The governance token contract.
     IGovernanceToken public immutable VOTING_TOKEN;
 
     /// @notice The proposal types configurator contract.
     IProposalTypesConfigurator public proposalTypesConfigurator;
-
-    /// @notice The minimum voting power required for a delegate to approve proposals.
-    uint256 public minimumVotingPower;
 
     /// @notice The max amount of tokens that can be distributed in a proposal.
     uint256 public distributionThreshold;
@@ -205,17 +206,21 @@ contract ProposalValidator is OwnableUpgradeable, ReinitializableBase, ISemver {
     }
 
     /// @notice Constructs the ProposalValidator contract.
-    /// @param _attestationSchemaUid The schema UID for attestations in EAS.
+    /// @param _approvedProposerAttestationSchemaUid The schema UID for attestations in EAS for submitting proposals.
+    /// @param _topDelegatesAttestationSchemaUid The schema UID for attestations in EAS for checking if the caller
+    ///        is part of the top100 delegates.
     /// @param _governor The Optimism Governor contract address.
     /// @param _votingToken The token used to determine voting power.
     constructor(
-        bytes32 _attestationSchemaUid,
+        bytes32 _approvedProposerAttestationSchemaUid,
+        bytes32 _topDelegatesAttestationSchemaUid,
         IOptimismGovernor _governor,
         IGovernanceToken _votingToken
     )
         ReinitializableBase(1)
     {
-        ATTESTATION_SCHEMA_UID = _attestationSchemaUid;
+        APPROVED_PROPOSER_ATTESTATION_SCHEMA_UID = _approvedProposerAttestationSchemaUid;
+        TOP_DELEGATES_ATTESTATION_SCHEMA_UID = _topDelegatesAttestationSchemaUid;
         GOVERNOR = _governor;
         VOTING_TOKEN = _votingToken;
         _disableInitializers();
@@ -224,7 +229,6 @@ contract ProposalValidator is OwnableUpgradeable, ReinitializableBase, ISemver {
     /// @notice Initializes the ProposalValidator contract.
     /// @param _owner The address that will own the contract.
     /// @param _proposalTypesConfigurator The proposal types configurator contract address.
-    /// @param _minimumVotingPower The minimum voting power required for a delegate to approve proposals.
     /// @param _cycleNumber The number of the current voting cycle.
     /// @param _startBlock The block number of the starting block of the voting cycle.
     /// @param _duration The duration of the voting cycle.
@@ -235,7 +239,6 @@ contract ProposalValidator is OwnableUpgradeable, ReinitializableBase, ISemver {
     function initialize(
         address _owner,
         IProposalTypesConfigurator _proposalTypesConfigurator,
-        uint256 _minimumVotingPower,
         uint256 _cycleNumber,
         uint256 _startBlock,
         uint256 _duration,
@@ -252,7 +255,6 @@ contract ProposalValidator is OwnableUpgradeable, ReinitializableBase, ISemver {
         }
 
         proposalTypesConfigurator = _proposalTypesConfigurator;
-        _setMinimumVotingPower(_minimumVotingPower);
         _setVotingCycleData(_cycleNumber, _startBlock, _duration, _votingCycleDistributionLimit);
         _setDistributionThreshold(_distributionThreshold);
 
@@ -281,7 +283,7 @@ contract ProposalValidator is OwnableUpgradeable, ReinitializableBase, ISemver {
         returns (bytes32 proposalHash_)
     {
         // Validate EAS attestation - must be called by owner-approved address
-        _validateAttestation(_attestationUid, ProposalType.CouncilMemberElections);
+        _validateApprovedProposerAttestation(_attestationUid, ProposalType.CouncilMemberElections);
 
         // Validate options length bounds
         uint256 optionsLength = _optionDescriptions.length;
@@ -456,23 +458,31 @@ contract ProposalValidator is OwnableUpgradeable, ReinitializableBase, ISemver {
         emit ProposalVotingModuleData(proposalHash_, proposalVotingModuleData);
     }
 
-    /// @notice Approve a proposal (only callable by delegates with sufficient voting power)
+    /// @notice Approves a proposal before being moved for voting.
+    /// @dev This function should only be called by the top delegates.
     /// @param _proposalHash The hash of the proposal to approve
-    function approveProposal(bytes32 _proposalHash) external {
-        if (!canSignOff(msg.sender)) {
-            revert ProposalValidator_InsufficientVotingPower();
+    /// @param _attestationUid The UID of the attestation for the delegate to approve the proposal
+    function approveProposal(bytes32 _proposalHash, bytes32 _attestationUid) external {
+        address _delegate = _msgSender();
+        ProposalData storage proposal = _proposals[_proposalHash];
+        // check if the proposal exists
+        if (proposal.proposer == address(0)) {
+            revert ProposalValidator_ProposalDoesNotExist();
         }
 
-        ProposalData storage proposal = _proposals[_proposalHash];
-
-        if (proposal.delegateApprovals[msg.sender]) {
+        // check if the caller has already approved the proposal
+        if (proposal.delegateApprovals[_delegate]) {
             revert ProposalValidator_ProposalAlreadyApproved();
         }
 
-        proposal.delegateApprovals[msg.sender] = true;
+        // validate the attestation
+        _validateTopDelegateAttestation(_attestationUid, _msgSender());
+
+        // store the approval
+        proposal.delegateApprovals[_delegate] = true;
         proposal.approvalCount++;
 
-        emit ProposalApproved(_proposalHash, msg.sender);
+        emit ProposalApproved(_proposalHash, _delegate);
     }
 
     /// @notice Move a proposal to voting phase after sufficient delegate approvals
@@ -516,17 +526,12 @@ contract ProposalValidator is OwnableUpgradeable, ReinitializableBase, ISemver {
         emit ProposalMovedToVote(_proposalHash, msg.sender);
     }
 
-    /// @notice Returns whether a delegate has enough voting power to approve a proposal.
-    /// @param _delegate The address of the delegate to check.
-    /// @return canSignOff_ True if the delegate has sufficient voting power, false otherwise.
-    function canSignOff(address _delegate) public view returns (bool canSignOff_) {
-        canSignOff_ = VOTING_TOKEN.balanceOf(_delegate) >= minimumVotingPower;
-    }
-
-    /// @notice Sets the minimum voting power required for a delegate to approve proposals.
-    /// @param _minimumVotingPower The new minimum voting power threshold.
-    function setMinimumVotingPower(uint256 _minimumVotingPower) external onlyOwner {
-        _setMinimumVotingPower(_minimumVotingPower);
+    /// @notice Checks if a delegate can approve a proposal.
+    /// @dev Helper function for UI integration.
+    /// @param _attestationUid The UID of the attestation to check.
+    /// @return canApprove_ True if the delegate can approve the proposal, false otherwise.
+    function canApproveProposal(bytes32 _attestationUid, address _delegate) external view returns (bool canApprove_) {
+        canApprove_ = _validateTopDelegateAttestation(_attestationUid, _delegate);
     }
 
     /// @notice Sets the data of a voting cycle.
@@ -571,7 +576,13 @@ contract ProposalValidator is OwnableUpgradeable, ReinitializableBase, ISemver {
     ///      Reverts with ProposalValidator_InvalidAttestation if validation fails.
     /// @param _attestationUid The UID of the attestation to validate.
     /// @param _expectedProposalType The expected proposal type from the attestation.
-    function _validateAttestation(bytes32 _attestationUid, ProposalType _expectedProposalType) internal view {
+    function _validateApprovedProposerAttestation(
+        bytes32 _attestationUid,
+        ProposalType _expectedProposalType
+    )
+        internal
+        view
+    {
         Attestation memory attestation = IEAS(Predeploys.EAS).getAttestation(_attestationUid);
 
         // Check if attestation exists, equivalent to calling EAS.isAttestationValid(_attestationUid)
@@ -582,11 +593,45 @@ contract ProposalValidator is OwnableUpgradeable, ReinitializableBase, ISemver {
         (address approvedDelegate, uint8 proposalType) = abi.decode(attestation.data, (address, uint8));
 
         if (
-            attestation.attester != owner() || attestation.schema != ATTESTATION_SCHEMA_UID
+            attestation.attester != owner() || attestation.schema != APPROVED_PROPOSER_ATTESTATION_SCHEMA_UID
                 || approvedDelegate != msg.sender || proposalType != uint8(_expectedProposalType)
         ) {
             revert ProposalValidator_InvalidAttestation();
         }
+    }
+
+    /// @notice Validates the attestation data for a delegate that tries to approve a proposal.
+    /// @dev Only acceptes attestations that does NOT include partial delegation.
+    /// @param _attestationUid The UID of the attestation to validate.
+    /// @param _delegate The delegate to validate the attestation for.
+    /// @return canApprove_ True if the attestation is valid, false otherwise.
+    function _validateTopDelegateAttestation(
+        bytes32 _attestationUid,
+        address _delegate
+    )
+        internal
+        view
+        returns (bool canApprove_)
+    {
+        Attestation memory attestation = IEAS(Predeploys.EAS).getAttestation(_attestationUid);
+        (, bool _includePartialDelegation,) = abi.decode(attestation.data, (string, bool, string));
+
+        // check if the schema is correct
+        if (attestation.schema != TOP_DELEGATES_ATTESTATION_SCHEMA_UID) {
+            revert ProposalValidator_InvalidAttestationSchema();
+        }
+
+        // check if the attestation is revoked
+        if (attestation.revocationTime != 0) {
+            revert ProposalValidator_AttestationRevoked();
+        }
+
+        // check if the attestation includes partial delegation or the recipient is not the caller
+        if (_includePartialDelegation || attestation.recipient != _delegate) {
+            revert ProposalValidator_InvalidAttestation();
+        }
+
+        canApprove_ = true;
     }
 
     /// @notice Calculate `proposalId` hashing similarly to `hashProposal` but based on `module` and `proposalData`.
@@ -604,13 +649,6 @@ contract ProposalValidator is OwnableUpgradeable, ReinitializableBase, ISemver {
         returns (bytes32)
     {
         return keccak256(abi.encode(address(GOVERNOR), _module, _proposalData, _descriptionHash));
-    }
-
-    /// @notice Private function to set the minimum voting power and emit event.
-    /// @param _minimumVotingPower The new minimum voting power threshold.
-    function _setMinimumVotingPower(uint256 _minimumVotingPower) private {
-        minimumVotingPower = _minimumVotingPower;
-        emit MinimumVotingPowerSet(_minimumVotingPower);
     }
 
     /// @notice Private function to set the voting cycle data and emit event.
