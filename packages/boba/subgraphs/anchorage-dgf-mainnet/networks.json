@@ -1,6 +1,6 @@
 {
-  "sepolia": {
-    "OptimismPortalProxy": {
+  "mainnet": {
+    "OptimismPortal": {
       "address": "0x7B02D13904D8e6E0f0Efaf756aB14Cb0FF21eE7e",
       "startBlock": 22748716
     },
