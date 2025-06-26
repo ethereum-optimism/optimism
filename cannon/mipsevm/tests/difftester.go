@@ -35,17 +35,17 @@ type InitializeStateFn[T TestCase] func(testCase T, state *StateInitializer, ctx
 type SetExpectationsFn[T TestCase] func(testCase T, expected *StateExpectations)
 
 func (d *DiffTester[T]) Run(t *testing.T, stateInit InitializeStateFn[T], expectations SetExpectationsFn[T], opts ...TestOption) {
+	cfg := newTestConfig(opts...)
 	for _, v := range GetMipsVersionTestCases(t) {
 		for i, testCase := range d.testCases {
 			testName := fmt.Sprintf("%v (%v)", testCase.Name(), v.Name)
 			t.Run(testName, func(t *testing.T) {
-				cfg := newTestConfig(opts...)
 				ctx := NewTestContext(cfg, v)
 
 				// TODO - Figure out better random seed method
 				stateOpts := []mtutil.StateOption{mtutil.WithRandomization(int64(i))}
 				stateOpts = append(stateOpts, d.stateOpts...)
-				goVm := v.VMFactory(cfg.po, cfg.stdOut, cfg.stdErr, cfg.logger, stateOpts...)
+				goVm := v.VMFactory(cfg.po(), cfg.stdOut(), cfg.stdErr(), cfg.logger, stateOpts...)
 				state := mtutil.GetMtState(t, goVm)
 				step := state.GetStep()
 
@@ -177,25 +177,25 @@ type TestContext struct {
 func NewTestContext(config *TestConfig, vm VersionedVMTestCase) *TestContext {
 	return &TestContext{
 		vm:     vm,
-		po:     config.po,
-		stdOut: config.stdOut,
-		stdErr: config.stdErr,
+		po:     config.po(),
+		stdOut: config.stdOut(),
+		stdErr: config.stdErr(),
 		logger: config.logger,
 	}
 }
 
 type DiffTestValidator func(t *testing.T, state mipsevm.FPVMState, ctx *TestContext)
 type TestConfig struct {
-	po        mipsevm.PreimageOracle
-	stdOut    io.Writer
-	stdErr    io.Writer
+	po        func() mipsevm.PreimageOracle
+	stdOut    func() io.Writer
+	stdErr    func() io.Writer
 	logger    log.Logger
 	validator DiffTestValidator
 }
 
 type TestOption func(*TestConfig)
 
-func WithPreimageOracle(po mipsevm.PreimageOracle) TestOption {
+func WithPreimageOracle(po func() mipsevm.PreimageOracle) TestOption {
 	return func(tc *TestConfig) {
 		tc.po = po
 	}
@@ -209,9 +209,9 @@ func WithValidator(validator func(t *testing.T, state mipsevm.FPVMState, ctx *Te
 
 func newTestConfig(opts ...TestOption) *TestConfig {
 	testConfig := &TestConfig{
-		po:        nil,
-		stdOut:    os.Stdout,
-		stdErr:    os.Stderr,
+		po:        func() mipsevm.PreimageOracle { return nil },
+		stdOut:    func() io.Writer { return os.Stdout },
+		stdErr:    func() io.Writer { return os.Stderr },
 		logger:    testutil.CreateLogger(),
 		validator: func(t *testing.T, state mipsevm.FPVMState, ctx *TestContext) {},
 	}
