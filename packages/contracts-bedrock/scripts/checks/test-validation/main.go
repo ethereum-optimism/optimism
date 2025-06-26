@@ -332,7 +332,6 @@ var excludedPaths = []string{
 	"test/cannon/MIPS64Memory.t.sol",      // Tests external MIPS implementation
 	"test/dispute/lib/LibClock.t.sol",     // Tests library utilities
 	"test/dispute/lib/LibGameId.t.sol",    // Tests library utilities
-	"test/libraries/DeployUtils.t.sol",    // Tests deployment utilities
 	"test/universal/BenchmarkTest.t.sol",  // Performance benchmarking tests
 	"test/universal/ExtendedPause.t.sol",  // Tests extended functionality
 	"test/vendor/Initializable.t.sol",     // Tests external vendor code
@@ -352,8 +351,6 @@ var excludedPaths = []string{
 	//
 	// These naming inconsistencies may indicate the presence of specialized test
 	// infrastructure beyond standard harnesses or different setup contracts patterns.
-	"test/dispute/DelayedWETH.t.sol",            // Contains contracts not matching DelayedWETH base name
-	"test/dispute/DisputeGameFactory.t.sol",     // Contains contracts not matching DisputeGameFactory base name
 	"test/dispute/FaultDisputeGame.t.sol",       // Contains contracts not matching FaultDisputeGame base name
 	"test/dispute/SuperFaultDisputeGame.t.sol",  // Contains contracts not matching SuperFaultDisputeGame base name
 	"test/L1/L1CrossDomainMessenger.t.sol",      // Contains contracts not matching L1CrossDomainMessenger base name
