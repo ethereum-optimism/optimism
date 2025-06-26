@@ -267,6 +267,7 @@ func (d *Sequencer) onBuildSealed(x engine.BuildSealedEvent) {
 	d.log.Info("Sequencer sealed block", "payloadID", x.Info.ID,
 		"block", x.Envelope.ExecutionPayload.ID(),
 		"parent", x.Envelope.ExecutionPayload.ParentID(),
+		"l1origin", x.Ref.L1Origin,
 		"txs", len(x.Envelope.ExecutionPayload.Transactions),
 		"time", uint64(x.Envelope.ExecutionPayload.Timestamp))
 
@@ -423,6 +424,8 @@ func (d *Sequencer) onReset(x rollup.ResetEvent) {
 }
 
 func (d *Sequencer) onEngineResetConfirmedEvent(engine.EngineResetConfirmedEvent) {
+	// TODO: we may as well reset here again, so that supervisor induced resets also reset the building state
+	d.latest = BuildingState{}
 	d.nextActionOK = d.active.Load()
 	// Before sequencing we can wait a block,
 	// assuming the execution-engine just churned through some work for the reset.

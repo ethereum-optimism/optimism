@@ -169,6 +169,8 @@ func (los *L1OriginSelector) maybeSetNextOrigin(nextOrigin eth.L1BlockRef) {
 	// Set the next origin if it is the immediate child of the current origin.
 	if nextOrigin.ParentHash == los.currentOrigin.Hash {
 		los.nextOrigin = nextOrigin
+	} else if nextOrigin.Number == los.currentOrigin.Number+1 {
+		los.log.Warn("Next origin has different parent, potential reorg miss")
 	}
 }
 

@@ -408,6 +408,43 @@ func (db *ChainsDB) InvalidateLocalSafe(chainID eth.ChainID, candidate types.Der
 	return nil
 }
 
+func (db *ChainsDB) RewindToSource(chainID eth.ChainID, source eth.BlockID) error {
+	logger := db.logger.New("chain", chainID, "source", source)
+	crossSafeDB, ok := db.crossDBs.Get(chainID)
+	if !ok {
+		return fmt.Errorf("cannot find cross-safe DB of chain %s for invalidation: %w", chainID, types.ErrUnknownChain)
+	}
+	logger.Warn("Rewinding cross-safe DB")
+	target, err := crossSafeDB.RewindToSource(db.readRegistry, source)
+	if errors.Is(err, types.ErrFuture) {
+		logger.Warn("Cross-safe DB behind rewind target", "err", err)
+	} else if err != nil {
+		return fmt.Errorf("failed to rewind cross-safe: %w", err)
+	}
+	// Pre-interop, only the cross-safe DB is maintained.
+	if !db.cfg.IsInterop(chainID, target.Derived.Timestamp) {
+		// TODO: clear local and logs DBs, rewind may have crossed activation boundary
+		return nil
+	}
+
+	localSafeDB, ok := db.localDBs.Get(chainID)
+	if !ok {
+		return fmt.Errorf("cannot find local-safe DB of chain %s for invalidation: %w", chainID, types.ErrUnknownChain)
+	}
+	logger.Warn("Rewinding local-safe DB")
+	target, err = localSafeDB.RewindToSource(db.readRegistry, source)
+	if errors.Is(err, types.ErrFuture) {
+		logger.Warn("Local-safe DB behind rewind target", "err", err)
+		// Won't rewind logs DB, no target L2 block
+		return nil
+	} else if err != nil {
+		return fmt.Errorf("failed to rewind local-safe: %w", err)
+	}
+
+	return db.RewindLogs(chainID, target.Derived)
+}
+
+// TODO: remove
 // RewindLocalSafeSource removes all local-safe blocks after the given new derived-from source.
 // If the source is before the start of the DB, the DB will be emptied.
 // Note that this drop L1 blocks that resulted in a previously invalidated local-safe block.
@@ -418,12 +455,13 @@ func (db *ChainsDB) RewindLocalSafeSource(chainID eth.ChainID, source eth.BlockI
 	if !ok {
 		return fmt.Errorf("cannot find local-safe DB of chain %s for invalidation: %w", chainID, types.ErrUnknownChain)
 	}
-	if err := localSafeDB.RewindToSource(db.readRegistry, source); err != nil {
+	if _, err := localSafeDB.RewindToSource(db.readRegistry, source); err != nil {
 		return fmt.Errorf("failed to rewind local-safe: %w", err)
 	}
 	return nil
 }
 
+// TODO: remove
 // RewindCrossSafeSource removes all cross-safe blocks after the given new derived-from source.
 // If the source is before the start of the DB, the DB will be emptied.
 // This returns ErrFuture if the block is newer than the last known block.
@@ -433,7 +471,7 @@ func (db *ChainsDB) RewindCrossSafeSource(chainID eth.ChainID, source eth.BlockI
 	if !ok {
 		return fmt.Errorf("cannot find cross-safe DB of chain %s for invalidation: %w", chainID, types.ErrUnknownChain)
 	}
-	if err := crossSafeDB.RewindToSource(db.readRegistry, source); err != nil {
+	if _, err := crossSafeDB.RewindToSource(db.readRegistry, source); err != nil {
 		return fmt.Errorf("failed to rewind cross-safe: %w", err)
 	}
 	return nil
@@ -444,6 +482,7 @@ func (db *ChainsDB) RewindLogs(chainID eth.ChainID, newHead types.BlockSeal) err
 	if !ok {
 		return fmt.Errorf("cannot find events DB of chain %s for invalidation: %w", chainID, types.ErrUnknownChain)
 	}
+	db.logger.Warn("Rewinding logs DB", "chain", chainID, "newHead", newHead)
 	if err := eventsDB.Rewind(db.readRegistry, newHead.ID()); err != nil {
 		return fmt.Errorf("failed to rewind logs of chain %s: %w", chainID, err)
 	}

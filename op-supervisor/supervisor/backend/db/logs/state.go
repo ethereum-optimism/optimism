@@ -405,7 +405,7 @@ func (l *logContext) SealBlock(parent common.Hash, upd eth.BlockID, timestamp ui
 			return err
 		}
 		if l.blockHash != parent {
-			return fmt.Errorf("%w: cannot apply block %s (parent %s) on top of %s", types.ErrConflict, upd, parent, l.blockHash)
+			return fmt.Errorf("%w: cannot apply block %s (parent %s) on top of %s:%d", types.ErrConflict, upd, parent, l.blockHash, l.blockNum)
 		}
 		if l.blockHash != (common.Hash{}) && l.blockNum+1 != upd.Number {
 			return fmt.Errorf("%w: cannot apply block %d on top of %d", types.ErrConflict, upd.Number, l.blockNum)

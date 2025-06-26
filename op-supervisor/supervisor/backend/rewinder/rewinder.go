@@ -27,8 +27,7 @@ type rewinderDB interface {
 	LocalSafe(eth.ChainID) (types.DerivedBlockSealPair, error)
 	CrossSafe(eth.ChainID) (types.DerivedBlockSealPair, error)
 
-	RewindLocalSafeSource(eth.ChainID, eth.BlockID) error
-	RewindCrossSafeSource(eth.ChainID, eth.BlockID) error
+	RewindToSource(eth.ChainID, eth.BlockID) error
 	RewindLogs(chainID eth.ChainID, newHead types.BlockSeal) error
 
 	FindSealedBlock(eth.ChainID, uint64) (types.BlockSeal, error)
@@ -251,22 +250,8 @@ func (r *Rewinder) rewindL1ChainIfReorged(chainID eth.ChainID, newTip eth.BlockI
 		currentL1 = prevSource.ID()
 	}
 
-	// Rewind LocalSafe to not include data derived from the old L1 chain
-	if err := r.db.RewindLocalSafeSource(chainID, commonL1Ancestor); err != nil {
-		if errors.Is(err, types.ErrFuture) {
-			r.log.Warn("Rewinding on L1 reorg, but local-safe DB does not have L1 block", "block", commonL1Ancestor, "err", err)
-		} else {
-			return fmt.Errorf("failed to rewind local-safe for chain %s: %w", chainID, err)
-		}
-	}
-
-	// Rewind CrossSafe to not include data derived from the old L1 chain
-	if err := r.db.RewindCrossSafeSource(chainID, commonL1Ancestor); err != nil {
-		if errors.Is(err, types.ErrFuture) {
-			r.log.Warn("Rewinding on L1 reorg, but cross-safe DB does not have L1 block", "block", commonL1Ancestor, "err", err)
-		} else {
-			return fmt.Errorf("failed to rewind cross-safe for chain %s: %w", chainID, err)
-		}
+	if err := r.db.RewindToSource(chainID, commonL1Ancestor); err != nil {
+		return fmt.Errorf("failed to rewind chain %s to source %s: %w", chainID, commonL1Ancestor, err)
 	}
 
 	// Emit rewound event for sync node

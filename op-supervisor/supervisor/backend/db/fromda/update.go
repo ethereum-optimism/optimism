@@ -170,7 +170,7 @@ func (db *DB) Clear(inv reads.Invalidator) error {
 // Note that this drop L1 blocks that resulted in a previously invalidated local-safe block.
 // This returns ErrFuture if the block is newer than the last known block.
 // This returns ErrConflict if a different block at the given height is known.
-func (db *DB) RewindToSource(inv reads.Invalidator, source eth.BlockID) error {
+func (db *DB) RewindToSource(inv reads.Invalidator, source eth.BlockID) (types.DerivedBlockSealPair, error) {
 	db.rwLock.Lock()
 	defer db.rwLock.Unlock()
 	_, link, err := db.sourceNumToLastDerived(source.Number)
@@ -178,19 +178,20 @@ func (db *DB) RewindToSource(inv reads.Invalidator, source eth.BlockID) error {
 		// If the rewind-point is before the first block in the DB, then drop all content of the DB.
 		if errors.Is(err, types.ErrSkipped) || errors.Is(err, types.ErrPreviousToFirst) {
 			if err := db.Clear(inv); err != nil {
-				return fmt.Errorf("failed to clear DA DB, upon rewinding to source block %s before first block: %w", source, err)
+				return types.DerivedBlockSealPair{}, fmt.Errorf("failed to clear DA DB, upon rewinding to source block %s before first block: %w", source, err)
 			}
-			return nil
+			return types.DerivedBlockSealPair{}, nil
 		}
-		return fmt.Errorf("failed to find last derived %d: %w", source.Number, err)
+		return types.DerivedBlockSealPair{}, fmt.Errorf("failed to find last derived %d: %w", source.Number, err)
 	}
 	if link.source.ID() != source {
-		return fmt.Errorf("found derived-from %s but expected %s: %w", link.source, source, types.ErrConflict)
+		return types.DerivedBlockSealPair{}, fmt.Errorf("found derived-from %s but expected %s: %w", link.source, source, types.ErrConflict)
 	}
-	return db.rewindLocked(inv, types.DerivedBlockSealPair{
+	target := types.DerivedBlockSealPair{
 		Source:  link.source,
 		Derived: link.derived,
-	}, false)
+	}
+	return target, db.rewindLocked(inv, target, false)
 }
 
 // RewindToFirstDerived rewinds to the first time

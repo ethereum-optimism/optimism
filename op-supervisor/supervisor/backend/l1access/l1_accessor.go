@@ -184,7 +184,7 @@ func (p *L1Accessor) onLatest(ctx context.Context, ref eth.L1BlockRef) {
 		p.emitter.Emit(ctx, superevents.RewindL1Event{
 			IncomingBlock: ref.ID(),
 		})
-		p.log.Info("Reorg detected", "ref", ref)
+		p.log.Warn("Reorg detected", "ref", ref)
 	}
 
 	// Update the tip
