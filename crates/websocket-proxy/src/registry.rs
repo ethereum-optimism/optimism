@@ -30,6 +30,7 @@ impl Registry {
                         Ok(_) => {
                             trace!(message = "message sent to client", client = client.id());
                             metrics.sent_messages.increment(1);
+                            metrics.bytes_broadcasted.increment(msg.len() as u64);
                         }
                         Err(e) => {
                             warn!(

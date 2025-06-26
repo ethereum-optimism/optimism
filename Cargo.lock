@@ -1839,10 +1839,10 @@ dependencies = [
  "metrics-derive",
  "metrics-exporter-prometheus 0.17.0",
  "redis",
- "redis-test",
  "reqwest",
- "ring",
  "serde_json",
+ "testcontainers",
+ "testcontainers-modules",
  "thiserror 2.0.12",
  "tokio",
  "tokio-tungstenite",
@@ -3987,18 +3987,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "redis-test"
-version = "0.10.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "967d3ffa2d2ead5a95b2e8561d7453c4719c9fe9dbba521673e058e513cb1c24"
-dependencies = [
- "rand 0.9.1",
- "redis",
- "socket2",
- "tempfile",
-]
-
-[[package]]
 name = "redox_syscall"
 version = "0.3.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5027,6 +5015,15 @@ dependencies = [
  "tokio-tar",
  "tokio-util",
  "url",
+]
+
+[[package]]
+name = "testcontainers-modules"
+version = "0.11.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4d43ed4e8f58424c3a2c6c56dbea6643c3c23e8666a34df13c54f0a184e6c707"
+dependencies = [
+ "testcontainers",
 ]
 
 [[package]]

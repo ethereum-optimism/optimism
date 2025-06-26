@@ -1,26 +1,23 @@
 mod auth;
 mod client;
-#[cfg(all(feature = "integration", test))]
-mod integration;
 mod metrics;
 mod rate_limit;
 mod registry;
 mod server;
 mod subscriber;
 
-use crate::metrics::Metrics;
-use crate::rate_limit::{InMemoryRateLimit, RateLimit};
-use crate::registry::Registry;
-use crate::server::Server;
-use crate::subscriber::WebsocketSubscriber;
 use axum::http::Uri;
 use clap::Parser;
 use dotenvy::dotenv;
+use metrics::Metrics;
 use metrics_exporter_prometheus::PrometheusBuilder;
-use rate_limit::RedisRateLimit;
+use rate_limit::{InMemoryRateLimit, RateLimit, RedisRateLimit};
+use registry::Registry;
+use server::Server;
 use std::io::Write;
 use std::net::SocketAddr;
 use std::sync::Arc;
+use subscriber::WebsocketSubscriber;
 use tokio::signal::unix::{signal, SignalKind};
 use tokio::sync::broadcast;
 use tokio_util::sync::CancellationToken;

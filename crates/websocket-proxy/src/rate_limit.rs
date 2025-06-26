@@ -447,6 +447,9 @@ impl RateLimit for RedisRateLimit {
 mod tests {
     use super::*;
     use std::str::FromStr;
+    use std::time::Duration;
+    use testcontainers::runners::AsyncRunner;
+    use testcontainers_modules::redis::Redis;
 
     const GLOBAL_LIMIT: usize = 3;
     const PER_IP_LIMIT: usize = 2;
@@ -675,13 +678,10 @@ mod tests {
     }
 
     #[tokio::test]
-    #[cfg(all(feature = "integration", test))]
     async fn test_instance_tracking_and_cleanup() {
-        use redis_test::server::RedisServer;
-        use std::time::Duration;
-
-        let server = RedisServer::new();
-        let client_addr = format!("redis://{}", server.client_addr());
+        let container = Redis::default().start().await.unwrap();
+        let host_port = container.get_host_port_ipv4(6379).await.unwrap();
+        let client_addr = format!("redis://127.0.0.1:{}", host_port);
 
         tokio::time::sleep(Duration::from_millis(100)).await;
 
@@ -714,7 +714,7 @@ mod tests {
                 let mut conn = redis_client.get_connection().unwrap();
 
                 let exists: bool = redis::cmd("EXISTS")
-                    .arg(format!("test:instance:instance1:heartbeat"))
+                    .arg("test:instance:instance1:heartbeat".to_string())
                     .query(&mut conn)
                     .unwrap();
                 assert!(exists, "Instance1 heartbeat should exist initially");
@@ -739,7 +739,7 @@ mod tests {
             let mut conn = redis_client.get_connection().unwrap();
 
             let exists: bool = redis::cmd("EXISTS")
-                .arg(format!("test:instance:instance1:heartbeat"))
+                .arg("test:instance:instance1:heartbeat".to_string())
                 .query(&mut conn)
                 .unwrap();
             assert!(

@@ -5,6 +5,8 @@ use futures::StreamExt;
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::select;
+use tokio_tungstenite::tungstenite::Error::ConnectionClosed;
+use tokio_tungstenite::tungstenite::Message;
 use tokio_tungstenite::{connect_async, tungstenite::Error};
 use tokio_util::sync::CancellationToken;
 use tracing::{error, info, trace, warn};
@@ -131,26 +133,51 @@ where
         let (_, mut read) = ws_stream.split();
 
         while let Some(message) = read.next().await {
-            match message {
-                Ok(msg) => {
-                    let text = msg.to_text()?;
-                    trace!(
-                        message = "received message",
-                        uri = self.uri.to_string(),
-                        payload = text
-                    );
-                    self.metrics.upstream_messages.increment(1);
-                    (self.handler)(text.into());
-                }
-                Err(e) => {
-                    error!(
-                        message = "error receiving message",
-                        uri = self.uri.to_string(),
-                        error = e.to_string()
-                    );
-                    return Err(e);
-                }
+            self.handle_message(message).await?;
+        }
+
+        Ok(())
+    }
+
+    async fn handle_message(&self, message: Result<Message, Error>) -> Result<(), Error> {
+        let msg = match message {
+            Ok(msg) => msg,
+            Err(e) => {
+                error!(
+                    message = "error receiving message",
+                    uri = self.uri.to_string(),
+                    error = e.to_string()
+                );
+                return Err(e);
             }
+        };
+
+        match msg {
+            Message::Text(text) => {
+                trace!(
+                    message = "received text message",
+                    uri = self.uri.to_string(),
+                    payload = text.as_str()
+                );
+                self.metrics
+                    .message_received_from_upstream(self.uri.to_string().as_str());
+                (self.handler)(text.to_string());
+            }
+            Message::Binary(data) => {
+                warn!(
+                    message = "received binary message, unsupported",
+                    uri = self.uri.to_string(),
+                    size = data.len()
+                );
+            }
+            Message::Close(_) => {
+                info!(
+                    message = "received close frame from upstream",
+                    uri = self.uri.to_string()
+                );
+                return Err(ConnectionClosed);
+            }
+            _ => {}
         }
 
         Ok(())
