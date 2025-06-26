@@ -163,8 +163,8 @@ func NewSupervisorBackend(ctx context.Context, logger log.Logger,
 
 		rpcVerificationWarnings: cfg.RPCVerificationWarnings,
 	}
-	// Set auto-stop from config
-	super.SetFailsafeEnabled(ctx, cfg.FailsafeEnabled)
+	// Set failsafe from config
+	super.setFailsafeEnabled(cfg.FailsafeEnabled)
 	eventSys.Register("backend", super)
 	eventSys.Register("rewinder", super.rewinder)
 
@@ -835,8 +835,14 @@ func (su *SupervisorBackend) Rewind(ctx context.Context, chain eth.ChainID, bloc
 
 // SetFailsafeEnabled sets the failsafe mode configuration for the supervisor.
 func (su *SupervisorBackend) SetFailsafeEnabled(ctx context.Context, enabled bool) error {
-	su.failsafeEnabled.Store(enabled)
+	su.setFailsafeEnabled(enabled)
 	return nil
+}
+
+// setFailsafeEnabled sets the failsafe mode configuration for the supervisor.
+// it is an internal function because it does not need context, nor does it return an error.
+func (su *SupervisorBackend) setFailsafeEnabled(enabled bool) {
+	su.failsafeEnabled.Store(enabled)
 }
 
 // GetFailsafeEnabled gets the current failsafe mode configuration for the supervisor.
