@@ -41,6 +41,8 @@ type SuperchainProofParams struct {
 type Intent struct {
 	ConfigType            IntentType         `json:"configType" toml:"configType"`
 	L1ChainID             uint64             `json:"l1ChainID" toml:"l1ChainID"`
+	OPCMAddress           *common.Address    `json:"opcmAddress" toml:"opcmAddress"`
+	SuperchainConfigProxy *common.Address    `json:"superchainConfigProxy" toml:"superchainConfigProxy"`
 	SuperchainRoles       *SuperchainRoles   `json:"superchainRoles" toml:"superchainRoles,omitempty"`
 	FundDevAccounts       bool               `json:"fundDevAccounts" toml:"fundDevAccounts"`
 	UseInterop            bool               `json:"useInterop" toml:"useInterop"`
@@ -85,16 +87,23 @@ func (c *Intent) validateCustomConfig() error {
 		(c.L1ContractsLocator.Tag == "" && c.L1ContractsLocator.URL == &url.URL{}) {
 		return ErrL1ContractsLocatorUndefined
 	}
+
 	if c.L2ContractsLocator == nil ||
 		(c.L2ContractsLocator.Tag == "" && c.L2ContractsLocator.URL == &url.URL{}) {
 		return ErrL2ContractsLocatorUndefined
 	}
 
-	if c.SuperchainRoles == nil {
-		return errors.New("SuperchainRoles is set to nil")
-	}
-	if err := c.SuperchainRoles.CheckNoZeroAddresses(); err != nil {
-		return err
+	if c.OPCMAddress == nil {
+		if c.SuperchainRoles == nil {
+			return fmt.Errorf("%w: must set superchain roles if OPCM address is nil", ErrIncompatibleValue)
+		}
+		if err := c.SuperchainRoles.CheckNoZeroAddresses(); err != nil {
+			return err
+		}
+	} else {
+		if c.SuperchainRoles != nil {
+			return fmt.Errorf("%w: must not set superchain roles if OPCM address is set", ErrIncompatibleValue)
+		}
 	}
 
 	if len(c.Chains) == 0 {
@@ -121,12 +130,20 @@ func (c *Intent) validateStandardValues() error {
 		return err
 	}
 
-	standardSuperchainRoles, err := GetStandardSuperchainRoles(c.L1ChainID)
-	if err != nil {
-		return fmt.Errorf("error getting standard superchain roles: %w", err)
+	if c.SuperchainConfigProxy != nil {
+		return ErrIncompatibleValue
 	}
-	if c.SuperchainRoles == nil || *c.SuperchainRoles != *standardSuperchainRoles {
-		return fmt.Errorf("SuperchainRoles does not match standard value")
+
+	if c.SuperchainRoles != nil {
+		return ErrIncompatibleValue
+	}
+
+	standardOPCM, err := standard.OPCMImplAddressFor(c.L1ChainID, c.L1ContractsLocator.Tag)
+	if err != nil {
+		return fmt.Errorf("error getting OPCM address: %w", err)
+	}
+	if c.OPCMAddress == nil || *c.OPCMAddress != standardOPCM {
+		return fmt.Errorf("%w: opcmAddress=%s", ErrNonStandardValue, standardOPCM)
 	}
 
 	for _, chain := range c.Chains {
@@ -235,6 +252,14 @@ func (c *Intent) checkL1Prod() error {
 		return fmt.Errorf("tag '%s' not found in standard versions", c.L1ContractsLocator.Tag)
 	}
 
+	opcmAddr, err := standard.OPCMImplAddressFor(c.L1ChainID, c.L1ContractsLocator.Tag)
+	if err != nil {
+		return fmt.Errorf("error getting OPCM address: %w", err)
+	}
+	if c.OPCMAddress == nil || *c.OPCMAddress != opcmAddr {
+		return fmt.Errorf("%w: opcmAddress=%s", ErrNonStandardValue, opcmAddr)
+	}
+
 	return nil
 }
 
@@ -279,18 +304,18 @@ func NewIntentCustom(l1ChainId uint64, l2ChainIds []common.Hash) (Intent, error)
 }
 
 func NewIntentStandard(l1ChainId uint64, l2ChainIds []common.Hash) (Intent, error) {
+	opcmAddr, err := standard.OPCMImplAddressFor(l1ChainId, artifacts.DefaultL1ContractsLocator.Tag)
+	if err != nil {
+		return Intent{}, fmt.Errorf("error getting OPCM impl address: %w", err)
+	}
+
 	intent := Intent{
 		ConfigType:         IntentTypeStandard,
 		L1ChainID:          l1ChainId,
 		L1ContractsLocator: artifacts.DefaultL1ContractsLocator,
 		L2ContractsLocator: artifacts.DefaultL2ContractsLocator,
+		OPCMAddress:        &opcmAddr,
 	}
-
-	superchainRoles, err := GetStandardSuperchainRoles(l1ChainId)
-	if err != nil {
-		return Intent{}, fmt.Errorf("error getting standard superchain roles: %w", err)
-	}
-	intent.SuperchainRoles = superchainRoles
 
 	challenger, err := standard.ChallengerAddressFor(l1ChainId)
 	if err != nil {

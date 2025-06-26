@@ -41,6 +41,7 @@ func DeploySuperchain(env *Env, intent *state.Intent, st *state.State) error {
 		ProtocolVersionsProxyAddress: dso.ProtocolVersionsProxy,
 		ProtocolVersionsImplAddress:  dso.ProtocolVersionsImpl,
 	}
+	st.SuperchainRoles = intent.SuperchainRoles
 
 	return nil
 }
