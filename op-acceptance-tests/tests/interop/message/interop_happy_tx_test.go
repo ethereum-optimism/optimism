@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/interop"
+	"github.com/ethereum-optimism/optimism/op-devstack/compat"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
@@ -20,6 +21,8 @@ import (
 func TestInteropHappyTx(gt *testing.T) {
 	t := devtest.SerialT(gt)
 	sys := presets.NewSimpleInterop(t)
+
+	// Check if the network type is persistent
 
 	// two EOAs for triggering the init and exec interop txs
 	alice := sys.FunderA.NewFundedEOA(eth.OneHundredthEther)
@@ -45,10 +48,19 @@ func TestInteropHappyTx(gt *testing.T) {
 		sys.L2CLA.ReachedRefFn(stypes.CrossSafe, eth.BlockID{
 			Number: initReceipt.BlockNumber.Uint64(),
 			Hash:   initReceipt.BlockHash,
+			// TODO(#): Make this relative to the block time
 		}, 500),
 		sys.L2CLB.ReachedRefFn(stypes.CrossSafe, eth.BlockID{
 			Number: execReceipt.BlockNumber.Uint64(),
 			Hash:   execReceipt.BlockHash,
+			// TODO(#): Make this relative to the block time
 		}, 500),
 	)
+
+	orch := presets.Orchestrator()
+	// Do not print the chain on persistent devnets
+	if orch.Type() != compat.Persistent {
+		sys.L2ChainA.PrintChain()
+		sys.L2ChainB.PrintChain()
+	}
 }
