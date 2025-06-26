@@ -56,9 +56,9 @@ func testReorgInvalidExecMsg(gt *testing.T, txModifierFn func(msg *suptypes.Mess
 	ia := sys.TestSequencer.Escape().ControlAPI(sys.L2ChainA.ChainID())
 
 	// three EOAs for triggering the init and exec interop txs, as well as a simple transfer tx
-	alice := sys.FunderA.NewFundedEOA(eth.OneEther)
-	bob := sys.FunderB.NewFundedEOA(eth.OneEther)
-	cathrine := sys.FunderA.NewFundedEOA(eth.OneEther)
+	alice := sys.FunderA.NewFundedEOA(eth.OneHundredthEther)
+	bob := sys.FunderB.NewFundedEOA(eth.OneHundredthEther)
+	cathrine := sys.FunderA.NewFundedEOA(eth.OneHundredthEther)
 
 	sys.L1Network.WaitForBlock()
 	sys.L2ChainA.WaitForBlock()

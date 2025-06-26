@@ -34,8 +34,8 @@ func TestInitExecMsg(gt *testing.T) {
 	t := devtest.SerialT(gt)
 	sys := presets.NewSimpleInterop(t)
 	rng := rand.New(rand.NewSource(1234))
-	alice := sys.FunderA.NewFundedEOA(eth.OneTenthEther)
-	bob := sys.FunderB.NewFundedEOA(eth.OneTenthEther)
+	alice := sys.FunderA.NewFundedEOA(eth.OneHundredthEther)
+	bob := sys.FunderB.NewFundedEOA(eth.OneHundredthEther)
 
 	eventLoggerAddress := alice.DeployEventLogger()
 	// Trigger random init message at chain A
@@ -51,8 +51,8 @@ func TestInitExecMsgWithDSL(gt *testing.T) {
 	t := devtest.SerialT(gt)
 	sys := presets.NewSimpleInterop(t)
 	rng := rand.New(rand.NewSource(1234))
-	alice := sys.FunderA.NewFundedEOA(eth.OneTenthEther)
-	bob := sys.FunderB.NewFundedEOA(eth.OneTenthEther)
+	alice := sys.FunderA.NewFundedEOA(eth.OneHundredthEther)
+	bob := sys.FunderB.NewFundedEOA(eth.OneHundredthEther)
 	require := t.Require()
 
 	eventLoggerAddress := alice.DeployEventLogger()
@@ -133,8 +133,8 @@ func TestRandomDirectedGraph(gt *testing.T) {
 	// interop network has at least two chains
 	l2ChainNum := 2
 
-	alice := sys.FunderA.NewFundedEOA(eth.OneTenthEther)
-	bob := sys.FunderB.NewFundedEOA(eth.OneTenthEther)
+	alice := sys.FunderA.NewFundedEOA(eth.OneHundredthEther)
+	bob := sys.FunderB.NewFundedEOA(eth.OneHundredthEther)
 
 	// Deploy eventLoggers per every L2 chains because initiating messages can happen on any L2 chains
 	eventLoggerAddresses := []common.Address{alice.DeployEventLogger(), bob.DeployEventLogger()}

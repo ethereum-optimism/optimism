@@ -27,7 +27,7 @@ func TestReorgUnsafeHead(gt *testing.T) {
 	sys.L2BatcherA.Stop()
 
 	// two EOAs for a sample transfer tx used later in a conflicting block
-	alice := sys.FunderA.NewFundedEOA(eth.OneEther)
+	alice := sys.FunderA.NewFundedEOA(eth.OneHundredthEther)
 	bob := sys.Wallet.NewEOA(sys.L2ELA)
 
 	sys.L1Network.WaitForBlock()
