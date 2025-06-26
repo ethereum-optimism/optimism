@@ -87,11 +87,11 @@ func (m *MockBackend) Rewind(ctx context.Context, chain eth.ChainID, block eth.B
 	return nil
 }
 
-func (m *MockBackend) SetAutoStop(ctx context.Context, enabled bool) error {
+func (m *MockBackend) SetFailsafeEnabled(ctx context.Context, enabled bool) error {
 	return nil
 }
 
-func (m *MockBackend) GetAutoStop(ctx context.Context) (bool, error) {
+func (m *MockBackend) GetFailsafeEnabled(ctx context.Context) (bool, error) {
 	return false, nil
 }
 

@@ -45,8 +45,8 @@ type Config struct {
 	// RPCVerificationWarnings enables asynchronous RPC verification of DB checkAccess call in the CheckAccessList endpoint, indicating warnings as a metric
 	RPCVerificationWarnings bool
 
-	// AutoStop enables automatic rejection from the supervisor at start-up
-	AutoStop bool
+	// FailsafeEnabled enables failsafe mode for the supervisor
+	FailsafeEnabled bool
 }
 
 func (c *Config) Check() error {

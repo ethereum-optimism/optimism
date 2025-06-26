@@ -602,7 +602,7 @@ func TestAsyncVerifyAccessWithRPC(t *testing.T) {
 	runScenario("NoErr_match", sealA, nil, idA)
 }
 
-func TestAutoStop(t *testing.T) {
+func TestFailsafeEnabled(t *testing.T) {
 	logger := testlog.Logger(t, log.LvlInfo)
 	m := metrics.NoopMetrics
 	dataDir := t.TempDir()
@@ -621,54 +621,56 @@ func TestAutoStop(t *testing.T) {
 	b, err := NewSupervisorBackend(context.Background(), logger, m, cfg, ex)
 	require.NoError(t, err)
 
-	// Test initial state - auto-stop should be disabled by default
-	enabled, err := b.GetAutoStop(context.Background())
+	// Test initial state - failsafe should be disabled by default
+	enabled, err := b.GetFailsafeEnabled(context.Background())
 	require.NoError(t, err)
-	require.False(t, enabled, "auto-stop should be disabled by default")
+	require.False(t, enabled, "failsafe should be disabled by default")
+
 	// Test that CheckAccessList works normally in initial state
 	err = b.CheckAccessList(context.Background(), []common.Hash{}, types.LocalUnsafe, types.ExecutingDescriptor{})
-	require.NoError(t, err, "CheckAccessList should work normally when auto-stop is disabled")
+	require.NoError(t, err, "CheckAccessList should work normally when failsafe is disabled")
 
-	// Test setting auto-stop to true
-	err = b.SetAutoStop(context.Background(), true)
+	// Test setting failsafe to true
+	err = b.SetFailsafeEnabled(context.Background(), true)
 	require.NoError(t, err)
-	enabled, err = b.GetAutoStop(context.Background())
+	enabled, err = b.GetFailsafeEnabled(context.Background())
 	require.NoError(t, err)
-	require.True(t, enabled, "auto-stop should be enabled after setting to true")
-	// Test that CheckAccessList returns ErrAutoStop when auto-stop is enabled
-	err = b.CheckAccessList(context.Background(), []common.Hash{}, types.LocalUnsafe, types.ExecutingDescriptor{})
-	require.ErrorIs(t, err, types.ErrAutoStop, "CheckAccessList should return ErrAutoStop when auto-stop is enabled")
+	require.True(t, enabled, "failsafe should be enabled after setting to true")
 
-	// Test setting auto-stop to false
-	err = b.SetAutoStop(context.Background(), false)
-	require.NoError(t, err)
-	enabled, err = b.GetAutoStop(context.Background())
-	require.NoError(t, err)
-	require.False(t, enabled, "auto-stop should be disabled after setting to false")
-	// Test that CheckAccessList works normally when auto-stop is disabled
+	// Test that CheckAccessList returns ErrFailsafeEnabled when failsafe is enabled
 	err = b.CheckAccessList(context.Background(), []common.Hash{}, types.LocalUnsafe, types.ExecutingDescriptor{})
-	require.NoError(t, err, "CheckAccessList should work normally when auto-stop is disabled")
+	require.ErrorIs(t, err, types.ErrFailsafeEnabled, "CheckAccessList should return ErrFailsafeEnabled when failsafe is enabled")
+
+	// Test setting failsafe to false
+	err = b.SetFailsafeEnabled(context.Background(), false)
+	require.NoError(t, err)
+	enabled, err = b.GetFailsafeEnabled(context.Background())
+	require.NoError(t, err)
+	require.False(t, enabled, "failsafe should be disabled after setting to false")
+
+	// Test that CheckAccessList works normally when failsafe is disabled
+	err = b.CheckAccessList(context.Background(), []common.Hash{}, types.LocalUnsafe, types.ExecutingDescriptor{})
+	require.NoError(t, err, "CheckAccessList should work normally when failsafe is disabled")
 }
 
-// TestAutoStopConfigInitialization confirms the configured auto-stop state is correctly initialized
-func TestAutoStopConfigInitialization(t *testing.T) {
+// TestFailsafeEnabledConfigInitialization confirms the configured failsafe state is correctly initialized
+func TestFailsafeEnabledConfigInitialization(t *testing.T) {
 	logger := testlog.Logger(t, log.LvlInfo)
 	m := metrics.NoopMetrics
 	dataDir := t.TempDir()
 	fullCfgSet := fullConfigSet(t, 1)
 
 	testCases := []struct {
-		name          string
-		autoStop      bool
-		expectEnabled bool
+		name            string
+		failsafeEnabled bool
 	}{
 		{
-			name:     "AutoStopEnabled",
-			autoStop: true,
+			name:            "FailsafeEnabled",
+			failsafeEnabled: true,
 		},
 		{
-			name:     "AutoStopDisabled",
-			autoStop: false,
+			name:            "FailsafeDisabled",
+			failsafeEnabled: false,
 		},
 	}
 
@@ -681,17 +683,17 @@ func TestAutoStopConfigInitialization(t *testing.T) {
 				MockRun:               false,
 				SyncSources:           &syncnode.CLISyncNodes{},
 				Datadir:               dataDir,
-				AutoStop:              tc.autoStop,
+				FailsafeEnabled:       tc.failsafeEnabled,
 			}
 
 			ex := event.NewGlobalSynchronous(context.Background())
 			b, err := NewSupervisorBackend(context.Background(), logger, m, cfg, ex)
 			require.NoError(t, err)
 
-			// Verify that auto-stop state matches config after initialization
-			enabled, err := b.GetAutoStop(context.Background())
+			// Verify that failsafe state matches config after initialization
+			enabled, err := b.GetFailsafeEnabled(context.Background())
 			require.NoError(t, err)
-			require.Equal(t, tc.autoStop, enabled, "auto-stop state should match config setting")
+			require.Equal(t, tc.failsafeEnabled, enabled, "failsafe state should match config setting")
 		})
 	}
 }

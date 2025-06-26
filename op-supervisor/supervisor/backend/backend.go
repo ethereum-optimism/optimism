@@ -84,8 +84,8 @@ type SupervisorBackend struct {
 	// rpcVerificationWarnings enables asynchronous RPC verification of DB checkAccess call in the CheckAccessList endpoint, indicating warnings as a metric
 	rpcVerificationWarnings bool
 
-	// autoStop controls whether the supervisor should automatically stop
-	autoStop atomic.Bool
+	// failsafeEnabled controls whether the supervisor should enable failsafe mode
+	failsafeEnabled atomic.Bool
 }
 
 var (
@@ -164,7 +164,7 @@ func NewSupervisorBackend(ctx context.Context, logger log.Logger,
 		rpcVerificationWarnings: cfg.RPCVerificationWarnings,
 	}
 	// Set auto-stop from config
-	super.SetAutoStop(ctx, cfg.AutoStop)
+	super.SetFailsafeEnabled(ctx, cfg.FailsafeEnabled)
 	eventSys.Register("backend", super)
 	eventSys.Register("rewinder", super.rewinder)
 
@@ -555,10 +555,10 @@ func (su *SupervisorBackend) checkSafety(chainID eth.ChainID, blockID eth.BlockI
 
 func (su *SupervisorBackend) CheckAccessList(ctx context.Context, inboxEntries []common.Hash,
 	minSafety types.SafetyLevel, execDescr types.ExecutingDescriptor) error {
-	// Check if auto-stop is enabled
-	if su.isAutoStop() {
-		su.logger.Debug("Auto-stop is enabled, rejecting access-list check")
-		return types.ErrAutoStop
+	// Check if failsafe is enabled
+	if su.isFailsafeEnabled() {
+		su.logger.Debug("Failsafe is enabled, rejecting access-list check")
+		return types.ErrFailsafeEnabled
 	}
 
 	switch minSafety {
@@ -833,21 +833,19 @@ func (su *SupervisorBackend) Rewind(ctx context.Context, chain eth.ChainID, bloc
 	return su.chainDBs.Rewind(chain, block)
 }
 
-// SetAutoStop sets the auto-stop configuration for the supervisor.
-func (su *SupervisorBackend) SetAutoStop(ctx context.Context, enabled bool) error {
-	su.autoStop.Store(enabled)
+// SetFailsafeEnabled sets the failsafe mode configuration for the supervisor.
+func (su *SupervisorBackend) SetFailsafeEnabled(ctx context.Context, enabled bool) error {
+	su.failsafeEnabled.Store(enabled)
 	return nil
 }
 
-// GetAutoStop gets the current auto-stop configuration for the supervisor.
-func (su *SupervisorBackend) GetAutoStop(ctx context.Context) (bool, error) {
-	return su.isAutoStop(), nil
+// GetFailsafeEnabled gets the current failsafe mode configuration for the supervisor.
+func (su *SupervisorBackend) GetFailsafeEnabled(ctx context.Context) (bool, error) {
+	return su.isFailsafeEnabled(), nil
 }
 
-// isAutoStop returns whether auto-stop is enabled.
-// If a more complex AutoStop functionality is needed,
-// this function can be extended to make those calls
-// For now, it just returns the current state of the autoStop flag.
-func (su *SupervisorBackend) isAutoStop() bool {
-	return su.autoStop.Load()
+// isFailsafeEnabled returns whether failsafe is enabled.
+func (su *SupervisorBackend) isFailsafeEnabled() bool {
+	// presently the failsafe bool is 1:1 with failsafe being enabled
+	return su.failsafeEnabled.Load()
 }

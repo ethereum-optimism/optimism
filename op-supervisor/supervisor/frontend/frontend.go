@@ -90,12 +90,12 @@ func (a *AdminFrontend) Rewind(ctx context.Context, chain eth.ChainID, block eth
 	return a.Supervisor.Rewind(ctx, chain, block)
 }
 
-// SetAutoStop sets the auto-stop configuration for the supervisor.
-func (a *AdminFrontend) SetAutoStop(ctx context.Context, enabled bool) error {
-	return a.Supervisor.SetAutoStop(ctx, enabled)
+// SetFailsafeEnabled sets the failsafe mode configuration for the supervisor.
+func (a *AdminFrontend) SetFailsafeEnabled(ctx context.Context, enabled bool) error {
+	return a.Supervisor.SetFailsafeEnabled(ctx, enabled)
 }
 
-// GetAutoStop gets the current auto-stop configuration for the supervisor.
-func (a *AdminFrontend) GetAutoStop(ctx context.Context) (bool, error) {
-	return a.Supervisor.GetAutoStop(ctx)
+// GetFailsafeEnabled gets the current failsafe mode configuration for the supervisor.
+func (a *AdminFrontend) GetFailsafeEnabled(ctx context.Context) (bool, error) {
+	return a.Supervisor.GetFailsafeEnabled(ctx)
 }
