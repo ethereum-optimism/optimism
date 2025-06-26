@@ -3,6 +3,7 @@ package integration_test
 import (
 	"bytes"
 	"context"
+	"crypto/ecdsa"
 	"encoding/hex"
 	"log/slog"
 	"math/big"
@@ -45,8 +46,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-const defaultL1ChainID uint64 = 77799777
-
 type deployerKey struct{}
 
 func (d *deployerKey) HDPath() string {
@@ -57,6 +56,17 @@ func (d *deployerKey) String() string {
 	return "deployer-key"
 }
 
+func defaultPrivkey(t *testing.T) (string, *ecdsa.PrivateKey, *devkeys.MnemonicDevKeys) {
+	pkHex := "ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"
+	pk, err := crypto.HexToECDSA(pkHex)
+	require.NoError(t, err)
+
+	dk, err := devkeys.NewMnemonicDevKeys(devkeys.TestMnemonic)
+	require.NoError(t, err)
+
+	return pkHex, pk, dk
+}
+
 // TestEndToEndBootstrapApply tests that a system can be fully bootstrapped and applied, both from
 // local artifacts and the default tagged artifacts. The tagged artifacts test only runs on proposal
 // or backports branches, since those are the only branches with an SLA to support tagged artifacts.
@@ -65,8 +75,8 @@ func TestEndToEndBootstrapApply(t *testing.T) {
 
 	lgr := testlog.Logger(t, slog.LevelDebug)
 	l1RPC, l1Client := devnet.DefaultAnvilRPC(t, lgr)
-	pkHex, pk, dk := testutils.DefaultPrivkey(t)
-	l1ChainID := new(big.Int).SetUint64(defaultL1ChainID)
+	pkHex, pk, dk := defaultPrivkey(t)
+	l1ChainID := new(big.Int).SetUint64(devnet.DefaultChainID)
 	l2ChainID := uint256.NewInt(1)
 	testCacheDir := testutils.IsolatedTestDirWithAutoCleanup(t)
 	superchainPAO := common.Address{'S', 'P', 'A', 'O'}
@@ -155,8 +165,8 @@ func TestEndToEndApply(t *testing.T) {
 
 	lgr := testlog.Logger(t, slog.LevelDebug)
 	l1RPC, l1Client := devnet.DefaultAnvilRPC(t, lgr)
-	_, pk, dk := testutils.DefaultPrivkey(t)
-	l1ChainID := new(big.Int).SetUint64(defaultL1ChainID)
+	_, pk, dk := defaultPrivkey(t)
+	l1ChainID := new(big.Int).SetUint64(devnet.DefaultChainID)
 	l2ChainID1 := uint256.NewInt(1)
 	l2ChainID2 := uint256.NewInt(2)
 	loc, _ := testutil.LocalArtifacts(t)
@@ -241,7 +251,7 @@ func TestGlobalOverrides(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	opts, intent, st := setupGenesisChain(t, defaultL1ChainID)
+	opts, intent, st := setupGenesisChain(t, devnet.DefaultChainID)
 	expectedGasLimit := strings.ToLower("0x1C9C380")
 	expectedBaseFeeVaultRecipient := common.HexToAddress("0x0000000000000000000000000000000000000001")
 	expectedL1FeeVaultRecipient := common.HexToAddress("0x0000000000000000000000000000000000000002")
@@ -300,7 +310,7 @@ func TestApplyGenesisStrategy(t *testing.T) {
 	}
 
 	deployChain := func(l1DevGenesisParams *state.L1DevGenesisParams) *state.State {
-		opts, intent, st := setupGenesisChain(t, defaultL1ChainID)
+		opts, intent, st := setupGenesisChain(t, devnet.DefaultChainID)
 		intent.L1DevGenesisParams = l1DevGenesisParams
 		require.NoError(t, deployer.ApplyPipeline(ctx, opts))
 		cg := stateDumpCodeGetter(st)
@@ -335,7 +345,7 @@ func TestProofParamOverrides(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	opts, intent, st := setupGenesisChain(t, defaultL1ChainID)
+	opts, intent, st := setupGenesisChain(t, devnet.DefaultChainID)
 	intent.GlobalDeployOverrides = map[string]any{
 		"faultGameWithdrawalDelay":                standard.WithdrawalDelaySeconds + 1,
 		"preimageOracleMinProposalSize":           standard.MinProposalSizeBytes + 1,
@@ -432,7 +442,7 @@ func TestAltDADeployment(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	opts, intent, st := setupGenesisChain(t, defaultL1ChainID)
+	opts, intent, st := setupGenesisChain(t, devnet.DefaultChainID)
 	altDACfg := genesis.AltDADeployConfig{
 		UseAltDA:                   true,
 		DACommitmentType:           altda.KeccakCommitmentString,
@@ -510,7 +520,7 @@ func TestInvalidL2Genesis(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			opts, intent, _ := setupGenesisChain(t, defaultL1ChainID)
+			opts, intent, _ := setupGenesisChain(t, devnet.DefaultChainID)
 			intent.GlobalDeployOverrides = tt.overrides
 
 			mockPreStateBuilder := devnet.NewMockPreStateBuilder()
@@ -530,7 +540,7 @@ func TestAdditionalDisputeGames(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	opts, intent, st := setupGenesisChain(t, defaultL1ChainID)
+	opts, intent, st := setupGenesisChain(t, devnet.DefaultChainID)
 	deployerAddr := crypto.PubkeyToAddress(opts.DeployerPrivateKey.PublicKey)
 	(&intent.Chains[0].Roles).L1ProxyAdminOwner = deployerAddr
 	intent.SuperchainRoles.SuperchainGuardian = deployerAddr
@@ -614,7 +624,7 @@ func TestIntentConfiguration(t *testing.T) {
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
 
-			opts, intent, st := setupGenesisChain(t, defaultL1ChainID)
+			opts, intent, st := setupGenesisChain(t, devnet.DefaultChainID)
 			tt.mutator(intent)
 			require.NoError(t, deployer.ApplyPipeline(ctx, opts))
 			tt.assertions(t, st)
