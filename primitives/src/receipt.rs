@@ -377,8 +377,6 @@ impl InMemorySize for OpReceipt {
     }
 }
 
-impl reth_primitives_traits::Receipt for OpReceipt {}
-
 /// Trait for deposit receipt.
 pub trait DepositReceipt: reth_primitives_traits::Receipt {
     /// Converts a `Receipt` into a mutable Optimism deposit receipt.
