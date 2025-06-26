@@ -69,7 +69,7 @@ func TestStepController(t *testing.T) {
 
 // TestLinearController tests the linear controller behavior
 func TestLinearController(t *testing.T) {
-	controller := NewLinearController(1000000, 5000, 21000, 130000)
+	controller := NewLinearController(1000000, 5000, 21000, 130000, 2)
 
 	tests := []struct {
 		name              string
@@ -137,7 +137,7 @@ func TestLinearController(t *testing.T) {
 
 // TestQuadraticController tests the quadratic controller behavior
 func TestQuadraticController(t *testing.T) {
-	controller := NewQuadraticController(1000000, 5000, 21000, 130000)
+	controller := NewQuadraticController(1000000, 5000, 21000, 130000, 2)
 
 	tests := []struct {
 		name              string
@@ -349,7 +349,7 @@ func TestControllerFactory(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			controller, err := factory.CreateController(
-				tt.controllerType, 1000000, 5000, 21000, 130000, tt.pidConfig)
+				tt.controllerType, 1000000, 5000, 21000, 130000, 2, tt.pidConfig)
 
 			if tt.expectError {
 				if err == nil {
@@ -382,8 +382,8 @@ func TestControllerConcurrency(t *testing.T) {
 		controller ThrottleController
 	}{
 		{"step", NewStepController(1000000, 5000, 21000, 130000)},
-		{"linear", NewLinearController(1000000, 5000, 21000, 130000)},
-		{"quadratic", NewQuadraticController(1000000, 5000, 21000, 130000)},
+		{"linear", NewLinearController(1000000, 5000, 21000, 130000, 2)},
+		{"quadratic", NewQuadraticController(1000000, 5000, 21000, 130000, 2)},
 		{"pid", NewPIDController(1000000, 5000, 21000, 130000, config.PIDConfig{
 			Kp: 0.2, Ki: 0.1, Kd: 0.05,
 			IntegralMax: 100.0, OutputMax: 1.0, SampleTime: time.Millisecond,

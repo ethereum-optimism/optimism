@@ -49,6 +49,7 @@ type BatcherConfig struct {
 	// For throttling DA. See CLIConfig in config.go for details on these parameters.
 	ThrottleThreshold, ThrottleTxSize          uint64
 	ThrottleBlockSize, ThrottleAlwaysBlockSize uint64
+	ThrottleThresholdMultiplier                int
 	ThrottlingEndpoints                        []string
 
 	ThrottleControllerType config.ThrottleControllerType
@@ -117,6 +118,7 @@ func (bs *BatcherService) initFromCLIConfig(ctx context.Context, version string,
 	bs.ThrottleTxSize = cfg.ThrottleTxSize
 	bs.ThrottleBlockSize = cfg.ThrottleBlockSize
 	bs.ThrottleAlwaysBlockSize = cfg.ThrottleAlwaysBlockSize
+	bs.ThrottleThresholdMultiplier = cfg.ThrottleThresholdMultiplier
 
 	// Combine the L2EthRpc and RollupRpc into a single list of endpoints for throttling.
 	bs.ThrottlingEndpoints = slices.Union(cfg.L2EthRpc, cfg.AdditionalThrottlingEndpoints)

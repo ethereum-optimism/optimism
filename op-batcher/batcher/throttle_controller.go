@@ -80,9 +80,9 @@ type LinearController struct {
 	alwaysBlockSize   uint64
 }
 
-func NewLinearController(threshold, throttleTxSize, throttleBlockSize, alwaysBlockSize uint64) *LinearController {
-	// Set max threshold to 2x the base threshold for linear scaling
-	maxThreshold := threshold * 2
+func NewLinearController(threshold, throttleTxSize, throttleBlockSize, alwaysBlockSize uint64, multiplier int) *LinearController {
+	// Set max threshold to multiplier * base threshold for linear scaling
+	maxThreshold := threshold * uint64(multiplier)
 	return &LinearController{
 		threshold:         threshold,
 		maxThreshold:      maxThreshold,
@@ -149,8 +149,8 @@ type QuadraticController struct {
 	alwaysBlockSize   uint64
 }
 
-func NewQuadraticController(threshold, throttleTxSize, throttleBlockSize, alwaysBlockSize uint64) *QuadraticController {
-	maxThreshold := threshold * 2
+func NewQuadraticController(threshold, throttleTxSize, throttleBlockSize, alwaysBlockSize uint64, multiplier int) *QuadraticController {
+	maxThreshold := threshold * uint64(multiplier)
 	return &QuadraticController{
 		threshold:         threshold,
 		maxThreshold:      maxThreshold,
@@ -382,15 +382,16 @@ func NewThrottleControllerFactory() *ThrottleControllerFactory {
 func (f *ThrottleControllerFactory) CreateController(
 	controllerType config.ThrottleControllerType,
 	threshold, throttleTxSize, throttleBlockSize, alwaysBlockSize uint64,
+	thresholdMultiplier int,
 	pidConfig *config.PIDConfig,
 ) (ThrottleController, error) {
 	switch controllerType {
 	case config.StepControllerType:
 		return NewStepController(threshold, throttleTxSize, throttleBlockSize, alwaysBlockSize), nil
 	case config.LinearControllerType:
-		return NewLinearController(threshold, throttleTxSize, throttleBlockSize, alwaysBlockSize), nil
+		return NewLinearController(threshold, throttleTxSize, throttleBlockSize, alwaysBlockSize, thresholdMultiplier), nil
 	case config.QuadraticControllerType:
-		return NewQuadraticController(threshold, throttleTxSize, throttleBlockSize, alwaysBlockSize), nil
+		return NewQuadraticController(threshold, throttleTxSize, throttleBlockSize, alwaysBlockSize, thresholdMultiplier), nil
 	case config.PIDControllerType:
 		if pidConfig == nil {
 			return nil, fmt.Errorf("PID configuration required for PID controller")

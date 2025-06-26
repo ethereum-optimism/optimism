@@ -227,6 +227,12 @@ var (
 		Value:   5 * time.Second,
 		EnvVars: prefixEnvVars("THROTTLE_PID_SAMPLE_TIME"),
 	}
+	ThrottleThresholdMultiplierFlag = &cli.IntFlag{
+		Name:    "throttle-threshold-multiplier",
+		Usage:   "Multiplier for the max threshold used by linear and quadratic controllers (multiplied by base threshold)",
+		Value:   2,
+		EnvVars: prefixEnvVars("THROTTLE_THRESHOLD_MULTIPLIER"),
+	}
 	// Legacy Flags
 	SequencerHDPathFlag = txmgr.SequencerHDPathFlag
 )
@@ -267,6 +273,7 @@ var optionalFlags = []cli.Flag{
 	ThrottlePidIntegralMaxFlag,
 	ThrottlePidOutputMaxFlag,
 	ThrottlePidSampleTimeFlag,
+	ThrottleThresholdMultiplierFlag,
 }
 
 func init() {

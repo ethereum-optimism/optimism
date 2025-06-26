@@ -142,6 +142,7 @@ func NewBatchSubmitter(setup DriverSetup) *BatchSubmitter {
 		setup.Config.ThrottleTxSize,
 		setup.Config.ThrottleBlockSize,
 		setup.Config.ThrottleAlwaysBlockSize,
+		setup.Config.ThrottleThresholdMultiplier,
 		pidConfig,
 	)
 	if err != nil {
@@ -1130,6 +1131,7 @@ func (l *BatchSubmitter) SetThrottleController(controllerType string, pidConfig 
 		l.Config.ThrottleTxSize,
 		l.Config.ThrottleBlockSize,
 		l.Config.ThrottleAlwaysBlockSize,
+		l.Config.ThrottleThresholdMultiplier,
 		pidControllerConfig,
 	)
 	if err != nil {
