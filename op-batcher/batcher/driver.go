@@ -700,7 +700,7 @@ func (l *BatchSubmitter) throttlingLoop(wg *sync.WaitGroup, pendingBytesUpdated 
 		l.throttling.Store(throttling)
 
 		if throttling {
-			l.Log.Debug("Throttling loop: applying throttling",
+			l.Log.Warn("Throttling loop: pending bytes above threshold, endpoints will be throttled",
 				"pending_bytes", pb,
 				"threshold", l.Config.ThrottleThreshold,
 				"intensity", l.currentThrottleParams.Intensity,
