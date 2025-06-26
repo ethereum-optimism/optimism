@@ -479,6 +479,23 @@ PolicyId → [WorkloadId₁, WorkloadId₂, ..., WorkloadIdₙ]
 
 This abstraction allows contracts to reference a policy (e.g., "L2-BlockBuilding-Production") rather than specific workloads, enabling governance to update which workloads are acceptable without modifying contract code.
 
+### Workload Metadata
+
+To provide transparency and allow end-users to verify the source code running within a TEE, the Policy Registry can store metadata that links a `workloadId` to its source code commit.
+
+This is achieved by storing a direct reference to the specific Git commit hash and a list of locators where the source code can be found.
+
+```python
+class WorkloadMetadata():
+    # The Git commit hash of the source code.
+    commitHash: string
+
+    # An array of URIs pointing to the source code.
+    sourceLocators: List[string]
+```
+
+This structure provides flexibility in retrieving the source code. The `sourceLocators` array can include multiple URI schemes to ensure redundancy and support for both traditional and decentralized storage. For example, it may contain `https://`, `git://`, and `ipfs://` URIs.
+
 ### Policy Operations
 
 The Policy layer provides these operations:
@@ -490,6 +507,10 @@ function isAllowedPolicy(policyId, teeAddress) → boolean
 // Governance operations
 function addWorkloadToPolicy(policyId, workloadId)
 function removeWorkloadFromPolicy(policyId, workloadId)
+function setWorkloadMetadata(workloadId, commitHash, sourceLocators)
+
+// View operations
+function getWorkloadMetadata(workloadId) → (commitHash, sourceLocators)
 ```
 
 The key function `isAllowedPolicy` checks if an address is valid for ANY of the workloads in the policy group. Conceptually:
@@ -510,7 +531,38 @@ function isAllowedPolicy(policyId, teeAddress) {
 
 ## End-to-End Flow
 
-The complete verification flow connects attestation, the registry, and the policy layer:
+The complete verification flow connects attestation, the registry, and the policy layer. The following diagram illustrates the interactions between all components, from initial registration to runtime authorization and frontend source code verification.
+
+```mermaid
+sequenceDiagram
+    participant TEE Workload
+    participant Onchain Verifier
+    participant Flashtestation Registry
+    participant Policy Registry
+    participant Consumer Contract
+    participant Frontend
+
+    Note over TEE Workload, Consumer Contract: 1. Attestation & Registration
+    TEE Workload->>Onchain Verifier: registerTEEService(quote)
+    Onchain Verifier->>Flashtestation Registry: _recordValidAttestation(workloadId, teeAddress, quote)
+    Flashtestation Registry-->>Onchain Verifier: Success
+    Onchain Verifier-->>TEE Workload: Success
+
+    Note over TEE Workload, Consumer Contract: 2. Runtime Authorization
+    TEE Workload->>Consumer Contract: executeProtectedOperation()
+    Consumer Contract->>Policy Registry: isAllowedPolicy(policyId, teeAddress)
+    Policy Registry->>Flashtestation Registry: isValidWorkload(workloadId, teeAddress)
+    Flashtestation Registry-->>Policy Registry: true
+    Policy Registry-->>Consumer Contract: true
+    Consumer Contract-->>TEE Workload: Success
+
+    Note over Frontend, Policy Registry: 3. Frontend Source Verification
+    Frontend->>Flashtestation Registry: getQuoteForAddress(teeAddress)
+    Flashtestation Registry-->>Frontend: quote
+    Frontend->>Frontend: Computes workloadId from quote
+    Frontend->>Policy Registry: getWorkloadMetadata(workloadId)
+    Policy Registry-->>Frontend: commitHash, sourceLocators
+```
 
 ### Attestation and Registration
 
