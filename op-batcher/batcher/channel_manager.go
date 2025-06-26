@@ -460,6 +460,9 @@ func (s *channelManager) outputFrames() error {
 		"full_reason", s.currentChannel.FullErr(),
 		"compr_ratio", comprRatio,
 	)
+
+	s.currentChannel.channelBuilder.co.DiscardCompressor() // Free up memory by discarding the compressor
+
 	return nil
 }
 
