@@ -84,7 +84,7 @@ func (e *SuperAgreementEnricher) Enrich(ctx context.Context, block rpcblock.Bloc
 	wg.Wait()
 
 	validResults := make([]superRootResult, 0, len(results))
-	syncedResults := make([]superRootResult, 0, len(results))
+	foundResults := make([]superRootResult, 0, len(results))
 	for idx, result := range results {
 		if result.err != nil {
 			e.log.Error("Failed to fetch super root", "clientIndex", idx, "l2BlockNum", game.L2BlockNumber, "err", result.err)
@@ -93,10 +93,8 @@ func (e *SuperAgreementEnricher) Enrich(ctx context.Context, block rpcblock.Bloc
 
 		validResults = append(validResults, result)
 
-		if result.notFound {
-			e.log.Warn("Supervisor node is out of sync", "clientIndex", idx, "l2BlockNum", game.L2BlockNumber)
-		} else {
-			syncedResults = append(syncedResults, result)
+		if !result.notFound {
+			foundResults = append(foundResults, result)
 		}
 	}
 
@@ -106,41 +104,65 @@ func (e *SuperAgreementEnricher) Enrich(ctx context.Context, block rpcblock.Bloc
 	}
 
 	// If all remaining nodes returned "not found", set game.AgreeWithClaim = false
-	if len(syncedResults) == 0 {
+	if len(foundResults) == 0 {
 		game.AgreeWithClaim = false
 		game.ExpectedRootClaim = common.Hash{}
 		return nil
 	}
 
-	// Check if nodes have diverged
-	firstSuperRoot := syncedResults[0].superRoot
-	diverged := false
-	for _, result := range syncedResults[1:] {
-		if result.superRoot != firstSuperRoot {
-			diverged = true
-			break
+	// At least one node returned a super root, record the fetch time.
+	e.metrics.RecordOutputFetchTime(float64(e.clock.Now().Unix()))
+
+	// Check for disagreements among nodes.
+	// A disagreement is any of:
+	// - Mixed "found" and "not found" responses.
+	// - Different super roots from nodes that found data.
+	firstResult := foundResults[0]
+	diverged := len(foundResults) < len(validResults)
+	if !diverged {
+		for _, result := range foundResults[1:] {
+			if result.superRoot != firstResult.superRoot {
+				diverged = true
+				break
+			}
 		}
 	}
 
 	if diverged {
-		e.log.Error("Supervisor nodes have diverged", "firstNodeSuperRoot", firstSuperRoot)
-		// Use the result from the first node in the list
-		game.ExpectedRootClaim = firstSuperRoot
-		game.AgreeWithClaim = firstSuperRoot == game.RootClaim && syncedResults[0].isSafe
-	} else {
-		// All nodes agree on the super root
-		game.ExpectedRootClaim = firstSuperRoot
-		// Consider the super root "safe" if any node reported it as safe
-		isSafe := false
-		for _, result := range syncedResults {
-			if result.isSafe {
-				isSafe = true
-				break
-			}
-		}
-		game.AgreeWithClaim = firstSuperRoot == game.RootClaim && isSafe
+		e.log.Warn("Supervisor nodes disagree on super root",
+			"l2BlockNum", game.L2BlockNumber,
+			"firstSuperRoot", firstResult.superRoot,
+			"found", len(foundResults),
+			"valid", len(validResults))
+		game.AgreeWithClaim = false
+		game.ExpectedRootClaim = firstResult.superRoot
+		return nil
 	}
 
-	e.metrics.RecordOutputFetchTime(float64(e.clock.Now().Unix()))
+	// All nodes that found a super root agree on the root.
+	// Now check if the super root is considered safe by at least one node.
+	atLeastOneSafe := false
+	for _, result := range foundResults {
+		if result.isSafe {
+			atLeastOneSafe = true
+			break
+		}
+	}
+
+	// If no node considers the super root safe, we disagree.
+	if !atLeastOneSafe {
+		game.AgreeWithClaim = false
+		if firstResult.superRoot == game.RootClaim {
+			game.ExpectedRootClaim = common.Hash{}
+		} else {
+			game.ExpectedRootClaim = firstResult.superRoot
+		}
+		return nil
+	}
+
+	// All nodes agree and at least one considers the super root safe.
+	// We agree with the claim if the game's root claim matches.
+	game.ExpectedRootClaim = firstResult.superRoot
+	game.AgreeWithClaim = game.RootClaim == firstResult.superRoot
 	return nil
 }
