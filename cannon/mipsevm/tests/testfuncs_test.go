@@ -175,7 +175,7 @@ func testLoadStore(t *testing.T, cases []loadStoreTestCase) {
 	baseReg := uint32(9)
 	rtReg := uint32(8)
 
-	initializeState := func(tt loadStoreTestCase, state *StateInitializer, ctx *TestContext) {
+	initializeState := func(tt loadStoreTestCase, state *StateInitializer, vm VersionedVMTestCase) {
 		insn := tt.opcode<<26 | baseReg<<21 | rtReg<<16 | uint32(tt.imm)
 
 		state.StoreInstruction(0, insn)
@@ -194,7 +194,7 @@ func testLoadStore(t *testing.T, cases []loadStoreTestCase) {
 	}
 
 	tester := NewDiffTester(cases, mtutil.WithPCAndNextPC(0))
-	tester.Run(t, initializeState, setExpectations)
+	tester.Run(t, initializeState, setExpectations, 1234)
 }
 
 type branchTestCase struct {

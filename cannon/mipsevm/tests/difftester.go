@@ -34,84 +34,107 @@ type TestCase interface {
 type InitializeStateFn[T TestCase] func(testCase T, state *StateInitializer, vm VersionedVMTestCase)
 type SetExpectationsFn[T TestCase] func(testCase T, expected *StateExpectations)
 
-func (d *DiffTester[T]) Run(t *testing.T, stateInit InitializeStateFn[T], expectations SetExpectationsFn[T], opts ...TestOption) {
-	cfg := newTestConfig(opts...)
+func (d *DiffTester[T]) Run(t *testing.T, stateInit InitializeStateFn[T], expectations SetExpectationsFn[T], randSeed int64, opts ...TestOption) {
 	for _, vm := range GetMipsVersionTestCases(t) {
 		for i, testCase := range d.testCases {
-			testName := fmt.Sprintf("%v (%v)", testCase.Name(), vm.Name)
-			t.Run(testName, func(t *testing.T) {
+			cfg := newTestConfig(opts...)
+			cfg.randSeed = randSeed + int64(i)
+			mods := d.generateTestModifiers(t, testCase, vm, expectations, cfg)
+			for _, mod := range mods {
+				testName := fmt.Sprintf("%v%v (%v)", testCase.Name(), mod.name, vm.Name)
+				t.Run(testName, func(t *testing.T) {
+					stateOpts := []mtutil.StateOption{mtutil.WithRandomization(cfg.randSeed)}
+					stateOpts = append(stateOpts, d.stateOpts...)
+					goVm := vm.VMFactory(cfg.po(), cfg.stdOut(), cfg.stdErr(), cfg.logger, stateOpts...)
+					state := mtutil.GetMtState(t, goVm)
+					step := state.GetStep()
 
-				// TODO - Figure out better random seed method
-				stateOpts := []mtutil.StateOption{mtutil.WithRandomization(int64(i))}
-				stateOpts = append(stateOpts, d.stateOpts...)
-				goVm := vm.VMFactory(cfg.po(), cfg.stdOut(), cfg.stdErr(), cfg.logger, stateOpts...)
-				state := mtutil.GetMtState(t, goVm)
-				step := state.GetStep()
+					// Set up state
+					stateInitializer := &StateInitializer{state: state}
+					stateInit(testCase, stateInitializer, vm)
+					mod.stateMod(state)
 
-				// Set up state
-				stateInitializer := &StateInitializer{state: state}
-				stateInit(testCase, stateInitializer, vm)
-				// Set up expectations
-				stateExpectations := &StateExpectations{e: mtutil.NewExpectedState(t, state)}
-				expectations(testCase, stateExpectations)
+					// Set up expectations
+					stateExpectations := &StateExpectations{e: mtutil.NewExpectedState(t, state)}
+					expectations(testCase, stateExpectations)
+					mod.expectMod(stateExpectations)
 
-				// Apply standard expectations
-				// TODO - these automatic expectations should be on be default, but with the ability to disable
-				// Or maybe run with and without modifications
-				d.applyStandardTestModifications(t, stateInitializer, stateExpectations)
+					// Step the VM
+					stepWitness, err := goVm.Step(true)
+					require.NoError(t, err)
 
-				// Step the VM
-				stepWitness, err := goVm.Step(true)
-				require.NoError(t, err)
-
-				// Validate
-				stateExpectations.Validate(t, state)
-				testutil.ValidateEVM(t, stepWitness, step, goVm, vm.StateHashFn, vm.Contracts)
-			})
+					// Validate
+					stateExpectations.Validate(t, state)
+					testutil.ValidateEVM(t, stepWitness, step, goVm, vm.StateHashFn, vm.Contracts)
+				})
+			}
 		}
 	}
 }
 
-func (d *DiffTester[T]) applyStandardTestModifications(t *testing.T, init *StateInitializer, expect *StateExpectations) {
-	d.testMemoryReservationClearing(t, init, expect)
+type testModifier struct {
+	name      string
+	stateMod  func(state *multithreaded.State)
+	expectMod func(expected *StateExpectations)
 }
 
-func (d *DiffTester[T]) testMemoryReservationClearing(t *testing.T, init *StateInitializer, expect *StateExpectations) {
-	// If we are testing a memory write, force create a conflicting memory reservation so we can be sure that
-	// all writes to memory will clear any existing reservation
-	d.maybeInitMemoryReservation(t, init, expect)
-
-	for _, memTarget := range expect.memoryWrites {
-		effAddr := memTarget & arch.AddressMask
-		reservedAddr := init.state.LLAddress & arch.AddressMask
-		if effAddr == reservedAddr {
-			t.Logf("Automatically set expectation that memory reservation at 0x%x will be cleared", init.state.LLAddress)
-			expect.ExpectMemoryReservationCleared()
-			return
-		}
+func newTestModifier(name string) *testModifier {
+	return &testModifier{
+		name:      name,
+		stateMod:  func(state *multithreaded.State) {},
+		expectMod: func(expected *StateExpectations) {},
 	}
 }
 
-func (d *DiffTester[T]) maybeInitMemoryReservation(t *testing.T, init *StateInitializer, expect *StateExpectations) {
+func (d *DiffTester[T]) generateTestModifiers(t require.TestingT, testCase T, vm VersionedVMTestCase, expect SetExpectationsFn[T], cfg *TestConfig) []*testModifier {
+	modifiers := []*testModifier{
+		newTestModifier(""), // Always return a noop
+	}
+
+	// Process expectations
+	goVm := vm.VMFactory(nil, nil, nil, nil)
+	state := mtutil.GetMtState(t, goVm)
+	stateExpectations := &StateExpectations{e: mtutil.NewExpectedState(t, state)}
+	expect(testCase, stateExpectations)
+
+	// Generate test modifiers based on expectations
+	modifiers = append(modifiers, d.memReservationTestModifier(cfg, stateExpectations)...)
+
+	return modifiers
+}
+
+// memReservationTestModifier updates tests that write to memory, to ensure any overlapping memory reservation
+// is cleared
+func (d *DiffTester[T]) memReservationTestModifier(cfg *TestConfig, expect *StateExpectations) []*testModifier {
+	var modifiers []*testModifier
+
 	memTargets := expect.memoryWrites
-	if len(memTargets) == 0 || init.memReservationSet {
-		// If a memory reservation was explicitly set, or we don't expect any memory writes,
-		// there is no need to initialize a memory reservation
-		return
+	if cfg.skipAutomaticMemoryReservationTests || len(memTargets) == 0 {
+		// If we are explicitly skipping these mods, or memory is not written to at all, there is nothing to do
+		return modifiers
 	}
 
-	// Set up a memory reservation that overlaps with the effective address of the target memory word
-	r := testutil.NewRandHelperFromState(init.state)
-	targetMemAddr := memTargets[r.Intn(len(memTargets))]
-	effAddr := targetMemAddr & arch.AddressMask
+	modifiers = append(modifiers, &testModifier{
+		name: " [mod:overlappingMemReservation]",
+		stateMod: func(state *multithreaded.State) {
+			// Set up a memory reservation that overlaps with the effective address of the target memory word
+			r := testutil.NewRandHelper(cfg.randSeed + 10000)
+			targetMemAddr := memTargets[r.Intn(len(memTargets))]
+			effAddr := targetMemAddr & arch.AddressMask
 
-	t.Logf("Automatically set up memory reservation on initial state targeting memory address 0x%x", targetMemAddr)
+			state.LLReservationStatus = multithreaded.LLReservationStatus(r.Intn(2) + 1)
+			state.LLAddress = effAddr + arch.Word(r.Intn(arch.WordSizeBytes))
+			state.LLOwnerThread = arch.Word(r.Intn(10))
+		},
+		expectMod: func(expected *StateExpectations) {
+			expected.ExpectMemoryReservationCleared()
+		},
+	})
 
-	init.state.LLReservationStatus = multithreaded.LLReservationStatus(r.Intn(2) + 1)
-	init.state.LLAddress = effAddr + arch.Word(r.Intn(arch.WordSizeBytes))
-	init.state.LLOwnerThread = arch.Word(r.Intn(10))
+	return modifiers
 }
 
+// TODO - get rid of this struct and just update ExpectedState to remember modifications
 type StateExpectations struct {
 	e *mtutil.ExpectedState
 	// Remember some special expectations
@@ -140,6 +163,7 @@ func (s *StateExpectations) ExpectMemoryReservationCleared() {
 	s.e.ExpectMemoryReservationCleared()
 }
 
+// TODO - get rid of this struct
 type StateInitializer struct {
 	state *multithreaded.State
 	// Remember some special initializations
@@ -166,10 +190,13 @@ func (s *StateInitializer) SetMemoryReservation(status multithreaded.LLReservati
 }
 
 type TestConfig struct {
-	po     func() mipsevm.PreimageOracle
-	stdOut func() io.Writer
-	stdErr func() io.Writer
-	logger log.Logger
+	randSeed int64
+	po       func() mipsevm.PreimageOracle
+	stdOut   func() io.Writer
+	stdErr   func() io.Writer
+	logger   log.Logger
+	// Allow consumer to control automated test generation
+	skipAutomaticMemoryReservationTests bool
 }
 
 type TestOption func(*TestConfig)
@@ -177,6 +204,12 @@ type TestOption func(*TestConfig)
 func WithPreimageOracle(po func() mipsevm.PreimageOracle) TestOption {
 	return func(tc *TestConfig) {
 		tc.po = po
+	}
+}
+
+func SkipAutomaticMemoryReservationTests() TestOption {
+	return func(tc *TestConfig) {
+		tc.skipAutomaticMemoryReservationTests = true
 	}
 }
 
