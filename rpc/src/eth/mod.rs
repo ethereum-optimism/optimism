@@ -270,7 +270,11 @@ where
 
 impl<N, NetworkT> EthFees for OpEthApi<N, NetworkT>
 where
-    Self: LoadFee,
+    Self: LoadFee<
+        Provider: ChainSpecProvider<
+            ChainSpec: EthChainSpec<Header = ProviderHeader<Self::Provider>>,
+        >,
+    >,
     N: OpNodeCore,
 {
 }

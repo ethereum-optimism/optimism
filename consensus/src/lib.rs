@@ -57,8 +57,10 @@ impl<ChainSpec> OpBeaconConsensus<ChainSpec> {
     }
 }
 
-impl<ChainSpec: EthChainSpec + OpHardforks, N: NodePrimitives<Receipt: DepositReceipt>>
-    FullConsensus<N> for OpBeaconConsensus<ChainSpec>
+impl<N, ChainSpec> FullConsensus<N> for OpBeaconConsensus<ChainSpec>
+where
+    N: NodePrimitives<Receipt: DepositReceipt>,
+    ChainSpec: EthChainSpec<Header = N::BlockHeader> + OpHardforks + Debug + Send + Sync,
 {
     fn validate_block_post_execution(
         &self,
@@ -69,8 +71,10 @@ impl<ChainSpec: EthChainSpec + OpHardforks, N: NodePrimitives<Receipt: DepositRe
     }
 }
 
-impl<ChainSpec: EthChainSpec + OpHardforks, B: Block> Consensus<B>
-    for OpBeaconConsensus<ChainSpec>
+impl<B, ChainSpec> Consensus<B> for OpBeaconConsensus<ChainSpec>
+where
+    B: Block,
+    ChainSpec: EthChainSpec<Header = B::Header> + OpHardforks + Debug + Send + Sync,
 {
     type Error = ConsensusError;
 
@@ -128,8 +132,10 @@ impl<ChainSpec: EthChainSpec + OpHardforks, B: Block> Consensus<B>
     }
 }
 
-impl<ChainSpec: EthChainSpec + OpHardforks, H: BlockHeader> HeaderValidator<H>
-    for OpBeaconConsensus<ChainSpec>
+impl<H, ChainSpec> HeaderValidator<H> for OpBeaconConsensus<ChainSpec>
+where
+    H: BlockHeader,
+    ChainSpec: EthChainSpec<Header = H> + OpHardforks + Debug + Send + Sync,
 {
     fn validate_header(&self, header: &SealedHeader<H>) -> Result<(), ConsensusError> {
         let header = header.header();

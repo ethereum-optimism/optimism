@@ -101,7 +101,7 @@ impl<ChainSpec: OpHardforks, N: NodePrimitives, R> OpEvmConfig<ChainSpec, N, R> 
 
 impl<ChainSpec, N, R> ConfigureEvm for OpEvmConfig<ChainSpec, N, R>
 where
-    ChainSpec: EthChainSpec + OpHardforks,
+    ChainSpec: EthChainSpec<Header = Header> + OpHardforks,
     N: NodePrimitives<
         Receipt = R::Receipt,
         SignedTx = R::Transaction,

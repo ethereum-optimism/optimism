@@ -189,9 +189,9 @@ pub fn decode_holocene_base_fee(
 /// Read from parent to determine the base fee for the next block
 ///
 /// See also [Base fee computation](https://github.com/ethereum-optimism/specs/blob/main/specs/protocol/holocene/exec-engine.md#base-fee-computation)
-pub fn next_block_base_fee(
-    chain_spec: impl EthChainSpec + OpHardforks,
-    parent: impl BlockHeader,
+pub fn next_block_base_fee<H: BlockHeader>(
+    chain_spec: impl EthChainSpec<Header = H> + OpHardforks,
+    parent: &H,
     timestamp: u64,
 ) -> Result<u64, EIP1559ParamError> {
     // If we are in the Holocene, we need to use the base fee params
@@ -200,7 +200,7 @@ pub fn next_block_base_fee(
     if chain_spec.is_holocene_active_at_timestamp(parent.timestamp()) {
         Ok(decode_holocene_base_fee(chain_spec, parent, timestamp)?)
     } else {
-        Ok(chain_spec.next_block_base_fee(&parent, timestamp).unwrap_or_default())
+        Ok(chain_spec.next_block_base_fee(parent, timestamp).unwrap_or_default())
     }
 }
 
