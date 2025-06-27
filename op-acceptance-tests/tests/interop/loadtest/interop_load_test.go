@@ -118,11 +118,9 @@ func setupL2s(t devtest.T) (*L2, *L2) {
 	sys := presets.NewSimpleInterop(t)
 	blockTimeA := time.Duration(sys.L2ChainA.Escape().RollupConfig().BlockTime) * time.Second
 	blockTimeB := time.Duration(sys.L2ChainB.Escape().RollupConfig().BlockTime) * time.Second
-	t.Require().Equal(blockTimeA, blockTimeB)
-	blockTime := blockTimeA
 
-	l2A := setupL2(t, sys.Wallet, blockTime, sys.L2ChainA.Escape().ChainConfig(), sys.L2ChainA.PublicRPC(), sys.FaucetA)
-	l2B := setupL2(t, sys.Wallet, blockTime, sys.L2ChainB.Escape().ChainConfig(), sys.L2ChainB.PublicRPC(), sys.FaucetB)
+	l2A := setupL2(t, sys.Wallet, blockTimeA, sys.L2ChainA.Escape().ChainConfig(), sys.L2ChainA.PublicRPC(), sys.FaucetA)
+	l2B := setupL2(t, sys.Wallet, blockTimeB, sys.L2ChainB.Escape().ChainConfig(), sys.L2ChainB.PublicRPC(), sys.FaucetB)
 
 	var deployWg sync.WaitGroup
 	defer deployWg.Wait()
