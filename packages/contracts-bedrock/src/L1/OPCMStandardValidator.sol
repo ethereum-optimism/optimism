@@ -28,6 +28,7 @@ import { IPreimageOracle } from "interfaces/cannon/IPreimageOracle.sol";
 import { IMIPS64 } from "interfaces/cannon/IMIPS64.sol";
 import { ISemver } from "interfaces/universal/ISemver.sol";
 import { IProxyAdminOwnedBase } from "interfaces/L1/IProxyAdminOwnedBase.sol";
+import "forge-std/console2.sol";
 
 /// @title OPCMStandardValidator
 /// @notice This contract is used to validate the configuration of the L1 contracts of an OP Stack chain.
@@ -380,6 +381,7 @@ contract OPCMStandardValidator is ISemver {
         _errors = internalRequire(
             LibString.eq(getVersion(address(_factory)), optimismMintableERC20FactoryVersion()), "MERC20F-10", _errors
         );
+
         _errors = internalRequire(
             getProxyImplementation(_admin, address(_factory)) == optimismMintableERC20FactoryImpl, "MERC20F-20", _errors
         );
@@ -598,6 +600,9 @@ contract OPCMStandardValidator is ISemver {
         _errors = internalRequire(
             GameType.unwrap(_game.gameType()) == GameType.unwrap(_gameType), string.concat(_errorPrefix, "-30"), _errors
         );
+
+        console2.logBytes32(_absolutePrestate);
+        console2.logBytes32(Claim.unwrap(_game.absolutePrestate()));
         _errors = internalRequire(
             Claim.unwrap(_game.absolutePrestate()) == _absolutePrestate, string.concat(_errorPrefix, "-40"), _errors
         );

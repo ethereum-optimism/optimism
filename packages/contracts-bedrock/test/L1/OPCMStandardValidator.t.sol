@@ -86,9 +86,6 @@ contract OPCMStandardValidator_TestInit is CommonTest {
     /// @notice The absolute prestate, either from config or dummy value if fork test.
     Claim absolutePrestate;
 
-    /// @notice The challenger address, either from config or live system if fork test.
-    address challenger;
-
     /// @notice The PermissionedDisputeGame instance.
     IPermissionedDisputeGame pdg;
 
@@ -104,7 +101,7 @@ contract OPCMStandardValidator_TestInit is CommonTest {
     /// @notice Sets up the test suite.
     function setUp() public virtual override {
         super.setUp();
-        skipIfForkTest("Skipping fork test for OPCMStandardValidator tests");
+        // skipIfForkTest("Skipping fork test for OPCMStandardValidator tests");
 
         // Grab the deploy input for later use.
         deployInput = deploy.getDeployInput();
@@ -123,6 +120,30 @@ contract OPCMStandardValidator_TestInit is CommonTest {
             opcm.opcmStandardValidator(), disputeGameFactory, IDisputeGameFactory(address(0xbad))
         );
 
+        if (isForkTest()) {
+            vm.mockCall(
+                address(proxyAdmin),
+                abi.encodeCall(IProxyAdmin.getProxyImplementation, (address(l1OptimismMintableERC20Factory))),
+                abi.encode(opcm.opcmStandardValidator().optimismMintableERC20FactoryImpl())
+            );
+            vm.mockCall(
+                address(pdg),
+                abi.encodeCall(IPermissionedDisputeGame.absolutePrestate, ()),
+                abi.encode(absolutePrestate)
+            );
+            vm.mockCall(address(pdg), abi.encodeCall(IPermissionedDisputeGame.l2ChainId, ()), abi.encode(l2ChainId));
+            vm.mockCall(
+                address(pdg),
+                abi.encodeCall(IPermissionedDisputeGame.challenger, ()),
+                abi.encode(opcm.opcmStandardValidator().challenger())
+            );
+        }
+
+        // Deploy the DelayedWETH.
+        IDelayedWETH permissionlessDelayedWeth =
+            IDelayedWETH(payable(address(uint160(uint256(keccak256("delayedWeth2"))))));
+        vm.cloneAccount(address(delayedWeth), address(permissionlessDelayedWeth));
+
         // Deploy the FaultDisputeGame.
         fdg = IFaultDisputeGame(
             DeployUtils.create1({
@@ -139,7 +160,7 @@ contract OPCMStandardValidator_TestInit is CommonTest {
                                 clockExtension: Duration.wrap(10800),
                                 maxClockDuration: Duration.wrap(302400),
                                 vm: mips,
-                                weth: delayedWeth,
+                                weth: permissionlessDelayedWeth,
                                 anchorStateRegistry: anchorStateRegistry,
                                 l2ChainId: l2ChainId
                             })
@@ -169,7 +190,7 @@ contract OPCMStandardValidator_TestInit is CommonTest {
         );
     }
 
-    /// @notice Runs the OPCMStandardValidator.validate function.
+    /// @notice Runs the OPCMStandardValidator.validateWithOverrides function.
     /// @param _allowFailure Whether to allow failure.
     /// @return The error message(s) from the validate function.
     function _validateWithOverrides(
