@@ -6,7 +6,7 @@ import { Bytes32AddressLib } from "@rari-capital/solmate/src/utils/Bytes32Addres
 import { IProxy } from "interfaces/universal/IProxy.sol";
 import { DeployUtils } from "scripts/libraries/DeployUtils.sol";
 
-contract SimpleStorage {
+contract Proxy_SimpleStorage_Harness {
     mapping(uint256 => uint256) internal store;
 
     function get(uint256 key) external payable returns (uint256) {
@@ -18,7 +18,7 @@ contract SimpleStorage {
     }
 }
 
-contract Clasher {
+contract Proxy_Clasher_Harness {
     function upgradeTo(address) external pure {
         revert("Clasher: upgradeTo");
     }
@@ -37,7 +37,7 @@ contract Proxy_TestInit is Test {
     bytes32 internal constant OWNER_KEY = bytes32(uint256(keccak256("eip1967.proxy.admin")) - 1);
 
     IProxy proxy;
-    SimpleStorage simpleStorage;
+    Proxy_SimpleStorage_Harness simpleStorage;
 
     function setUp() external {
         // Deploy a proxy and simple storage contract as the implementation
@@ -47,7 +47,7 @@ contract Proxy_TestInit is Test {
                 _args: DeployUtils.encodeConstructor(abi.encodeCall(IProxy.__constructor__, (alice)))
             })
         );
-        simpleStorage = new SimpleStorage();
+        simpleStorage = new Proxy_SimpleStorage_Harness();
 
         vm.prank(alice);
         proxy.upgradeTo(address(simpleStorage));
@@ -77,7 +77,7 @@ contract Proxy_UpgradeTo_Test is Proxy_TestInit {
 
     function test_upgradeTo_clashingFunctionSignatures_succeeds() external {
         // Clasher has a clashing function with the proxy.
-        Clasher clasher = new Clasher();
+        Proxy_Clasher_Harness clasher = new Proxy_Clasher_Harness();
 
         // Set the clasher as the implementation.
         vm.prank(alice);
@@ -113,21 +113,21 @@ contract Proxy_UpgradeToAndCall_Test is Proxy_TestInit {
     function test_upgradeToAndCall_succeeds() external {
         {
             // There should be nothing in the current proxy storage
-            uint256 expect = SimpleStorage(address(proxy)).get(1);
+            uint256 expect = Proxy_SimpleStorage_Harness(address(proxy)).get(1);
             assertEq(expect, 0);
         }
 
         // Deploy a new SimpleStorage
-        simpleStorage = new SimpleStorage();
+        simpleStorage = new Proxy_SimpleStorage_Harness();
 
         // Set the new SimpleStorage as the implementation and call.
         vm.expectEmit(true, true, true, true);
         emit Upgraded(address(simpleStorage));
         vm.prank(alice);
-        proxy.upgradeToAndCall(address(simpleStorage), abi.encodeCall(SimpleStorage.set, (1, 1)));
+        proxy.upgradeToAndCall(address(simpleStorage), abi.encodeCall(Proxy_SimpleStorage_Harness.set, (1, 1)));
 
         // The call should have impacted the state
-        uint256 result = SimpleStorage(address(proxy)).get(1);
+        uint256 result = Proxy_SimpleStorage_Harness(address(proxy)).get(1);
         assertEq(result, 1);
     }
 
@@ -138,7 +138,7 @@ contract Proxy_UpgradeToAndCall_Test is Proxy_TestInit {
         assertEq(impl, address(simpleStorage));
 
         // Deploy a new SimpleStorage
-        simpleStorage = new SimpleStorage();
+        simpleStorage = new Proxy_SimpleStorage_Harness();
 
         // Set the new SimpleStorage as the implementation and call. This reverts because the
         // calldata doesn't match a function on the implementation.
@@ -262,14 +262,14 @@ contract Proxy_Implementation_Test is Proxy_TestInit {
 contract Proxy_Unclassified_Test is Proxy_TestInit {
     function test_delegatesToImpl_succeeds() external {
         // Call the storage setter on the proxy
-        SimpleStorage(address(proxy)).set(1, 1);
+        Proxy_SimpleStorage_Harness(address(proxy)).set(1, 1);
 
         // The key should not be set in the implementation
         uint256 result = simpleStorage.get(1);
         assertEq(result, 0);
         {
             // The key should be set in the proxy
-            uint256 expect = SimpleStorage(address(proxy)).get(1);
+            uint256 expect = Proxy_SimpleStorage_Harness(address(proxy)).get(1);
             assertEq(expect, 1);
         }
 
@@ -277,7 +277,7 @@ contract Proxy_Unclassified_Test is Proxy_TestInit {
             // The owner should be able to call through the proxy when there is not a function
             // selector crash.
             vm.prank(alice);
-            uint256 expect = SimpleStorage(address(proxy)).get(1);
+            uint256 expect = Proxy_SimpleStorage_Harness(address(proxy)).get(1);
             assertEq(expect, 1);
         }
     }

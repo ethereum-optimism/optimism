@@ -351,23 +351,21 @@ var excludedPaths = []string{
 	//
 	// These naming inconsistencies may indicate the presence of specialized test
 	// infrastructure beyond standard harnesses or different setup contracts patterns.
-	"test/dispute/FaultDisputeGame.t.sol",       // Contains contracts not matching FaultDisputeGame base name
-	"test/dispute/SuperFaultDisputeGame.t.sol",  // Contains contracts not matching SuperFaultDisputeGame base name
-	"test/L1/ResourceMetering.t.sol",            // Contains contracts not matching ResourceMetering base name
-	"test/L1/StandardValidator.t.sol",           // Contains contracts not matching StandardValidator base name
-	"test/L2/CrossDomainOwnable.t.sol",          // Contains contracts not matching CrossDomainOwnable base name
-	"test/L2/CrossDomainOwnable2.t.sol",         // Contains contracts not matching CrossDomainOwnable2 base name
-	"test/L2/CrossDomainOwnable3.t.sol",         // Contains contracts not matching CrossDomainOwnable3 base name
-	"test/L2/GasPriceOracle.t.sol",              // Contains contracts not matching GasPriceOracle base name
-	"test/legacy/L1ChugSplashProxy.t.sol",       // Contains contracts not matching L1ChugSplashProxy base name
-	"test/legacy/ResolvedDelegateProxy.t.sol",   // Contains contracts not matching ResolvedDelegateProxy base name
-	"test/libraries/Blueprint.t.sol",            // Contains contracts not matching Blueprint base name
-	"test/libraries/SafeCall.t.sol",             // Contains contracts not matching SafeCall base name
-	"test/periphery/drippie/Drippie.t.sol",      // Contains contracts not matching Drippie base name
-	"test/safe/LivenessGuard.t.sol",             // Contains contracts not matching LivenessGuard base name
-	"test/universal/CrossDomainMessenger.t.sol", // Contains contracts not matching CrossDomainMessenger base name
-	"test/universal/Proxy.t.sol",                // Contains contracts not matching Proxy base name
-	"test/universal/StandardBridge.t.sol",       // Contains contracts not matching StandardBridge base name
+	"test/dispute/FaultDisputeGame.t.sol",      // Contains contracts not matching FaultDisputeGame base name
+	"test/dispute/SuperFaultDisputeGame.t.sol", // Contains contracts not matching SuperFaultDisputeGame base name
+	"test/L1/ResourceMetering.t.sol",           // Contains contracts not matching ResourceMetering base name
+	"test/L1/StandardValidator.t.sol",          // Contains contracts not matching StandardValidator base name
+	"test/L2/CrossDomainOwnable.t.sol",         // Contains contracts not matching CrossDomainOwnable base name
+	"test/L2/CrossDomainOwnable2.t.sol",        // Contains contracts not matching CrossDomainOwnable2 base name
+	"test/L2/CrossDomainOwnable3.t.sol",        // Contains contracts not matching CrossDomainOwnable3 base name
+	"test/L2/GasPriceOracle.t.sol",             // Contains contracts not matching GasPriceOracle base name
+	"test/legacy/L1ChugSplashProxy.t.sol",      // Contains contracts not matching L1ChugSplashProxy base name
+	"test/legacy/ResolvedDelegateProxy.t.sol",  // Contains contracts not matching ResolvedDelegateProxy base name
+	"test/libraries/Blueprint.t.sol",           // Contains contracts not matching Blueprint base name
+	"test/libraries/SafeCall.t.sol",            // Contains contracts not matching SafeCall base name
+	"test/periphery/drippie/Drippie.t.sol",     // Contains contracts not matching Drippie base name
+	"test/safe/LivenessGuard.t.sol",            // Contains contracts not matching LivenessGuard base name
+	"test/universal/StandardBridge.t.sol",      // Contains contracts not matching StandardBridge base name
 
 	// PATHS EXCLUDED FROM FUNCTION NAME VALIDATION:
 	// These paths are excluded because they don't pass the function name validation,
