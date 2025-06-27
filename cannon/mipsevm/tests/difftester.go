@@ -32,7 +32,7 @@ type TestCase interface {
 	Name() string
 }
 type InitializeStateFn[T TestCase] func(testCase T, state *StateInitializer, vm VersionedVMTestCase)
-type SetExpectationsFn[T TestCase] func(testCase T, expected *StateExpectations)
+type SetExpectationsFn[T TestCase] func(testCase T, expect *mtutil.ExpectedState)
 
 func (d *DiffTester[T]) Run(t *testing.T, stateInit InitializeStateFn[T], expectations SetExpectationsFn[T], randSeed int64, opts ...TestOption) {
 	for _, vm := range GetMipsVersionTestCases(t) {
@@ -55,16 +55,16 @@ func (d *DiffTester[T]) Run(t *testing.T, stateInit InitializeStateFn[T], expect
 					mod.stateMod(state)
 
 					// Set up expectations
-					stateExpectations := &StateExpectations{e: mtutil.NewExpectedState(t, state)}
-					expectations(testCase, stateExpectations)
-					mod.expectMod(stateExpectations)
+					expect := mtutil.NewExpectedState(t, state)
+					expectations(testCase, expect)
+					mod.expectMod(expect)
 
 					// Step the VM
 					stepWitness, err := goVm.Step(true)
 					require.NoError(t, err)
 
 					// Validate
-					stateExpectations.Validate(t, state)
+					expect.Validate(t, state)
 					testutil.ValidateEVM(t, stepWitness, step, goVm, vm.StateHashFn, vm.Contracts)
 				})
 			}
@@ -75,14 +75,14 @@ func (d *DiffTester[T]) Run(t *testing.T, stateInit InitializeStateFn[T], expect
 type testModifier struct {
 	name      string
 	stateMod  func(state *multithreaded.State)
-	expectMod func(expected *StateExpectations)
+	expectMod func(expect *mtutil.ExpectedState)
 }
 
 func newTestModifier(name string) *testModifier {
 	return &testModifier{
 		name:      name,
 		stateMod:  func(state *multithreaded.State) {},
-		expectMod: func(expected *StateExpectations) {},
+		expectMod: func(expect *mtutil.ExpectedState) {},
 	}
 }
 
@@ -94,7 +94,7 @@ func (d *DiffTester[T]) generateTestModifiers(t require.TestingT, testCase T, vm
 	// Process expectations
 	goVm := vm.VMFactory(nil, nil, nil, nil)
 	state := mtutil.GetMtState(t, goVm)
-	stateExpectations := &StateExpectations{e: mtutil.NewExpectedState(t, state)}
+	stateExpectations := mtutil.NewExpectedState(t, state)
 	expect(testCase, stateExpectations)
 
 	// Generate test modifiers based on expectations
@@ -105,10 +105,10 @@ func (d *DiffTester[T]) generateTestModifiers(t require.TestingT, testCase T, vm
 
 // memReservationTestModifier updates tests that write to memory, to ensure any overlapping memory reservation
 // is cleared
-func (d *DiffTester[T]) memReservationTestModifier(cfg *TestConfig, expect *StateExpectations) []*testModifier {
+func (d *DiffTester[T]) memReservationTestModifier(cfg *TestConfig, expect *mtutil.ExpectedState) []*testModifier {
 	var modifiers []*testModifier
 
-	memTargets := expect.memoryWrites
+	memTargets := expect.ExpectedMemoryWrites()
 	if cfg.skipAutomaticMemoryReservationTests || len(memTargets) == 0 {
 		// If we are explicitly skipping these mods, or memory is not written to at all, there is nothing to do
 		return modifiers
@@ -126,41 +126,12 @@ func (d *DiffTester[T]) memReservationTestModifier(cfg *TestConfig, expect *Stat
 			state.LLAddress = effAddr + arch.Word(r.Intn(arch.WordSizeBytes))
 			state.LLOwnerThread = arch.Word(r.Intn(10))
 		},
-		expectMod: func(expected *StateExpectations) {
-			expected.ExpectMemoryReservationCleared()
+		expectMod: func(expect *mtutil.ExpectedState) {
+			expect.ExpectMemoryReservationCleared()
 		},
 	})
 
 	return modifiers
-}
-
-// TODO - get rid of this struct and just update ExpectedState to remember modifications
-type StateExpectations struct {
-	e *mtutil.ExpectedState
-	// Remember some special expectations
-	memoryWrites []arch.Word
-}
-
-func (s *StateExpectations) Validate(t require.TestingT, state mipsevm.FPVMState) {
-	s.e.Validate(t, state)
-}
-
-func (s *StateExpectations) Step() {
-	s.e.ExpectStep()
-}
-
-func (s *StateExpectations) MemoryWrite(addr arch.Word, val arch.Word) {
-	// TODO: Update regular ExpectMemoryWrite method
-	s.e.ExpectMemoryWrite(addr, val)
-	s.memoryWrites = append(s.memoryWrites, addr)
-}
-
-func (s *StateExpectations) ActiveRegister(reg int, val arch.Word) {
-	s.e.ActiveThread().Registers[reg] = val
-}
-
-func (s *StateExpectations) ExpectMemoryReservationCleared() {
-	s.e.ExpectMemoryReservationCleared()
 }
 
 // TODO - get rid of this struct

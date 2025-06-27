@@ -184,12 +184,12 @@ func testLoadStore(t *testing.T, cases []loadStoreTestCase) {
 		state.SetRegister(int(baseReg), tt.base)
 	}
 
-	setExpectations := func(tt loadStoreTestCase, expect *StateExpectations) {
-		expect.Step()
+	setExpectations := func(tt loadStoreTestCase, expect *mtutil.ExpectedState) {
+		expect.ExpectStep()
 		if tt.expectMemVal != 0 {
-			expect.MemoryWrite(tt.effAddr(), tt.expectMemVal)
+			expect.ExpectMemoryWrite(tt.effAddr(), tt.expectMemVal)
 		} else {
-			expect.ActiveRegister(int(rtReg), tt.expectRes)
+			expect.ActiveThread().Registers[rtReg] = tt.expectRes
 		}
 	}
 
