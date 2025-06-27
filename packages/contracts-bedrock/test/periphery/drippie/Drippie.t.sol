@@ -12,7 +12,7 @@ import { SimpleStorage } from "test/mocks/SimpleStorage.sol";
 ///         `Drippie.DripState` causes stack too deep errors without `--vir-ir` which causes the
 ///         compile time to go up by ~4x. Each of the methods is a simple getter around parts of
 ///         the `DripState`.
-contract TestDrippie is Drippie {
+contract Drippie_Test_Harness is Drippie {
     constructor(address owner) Drippie(owner) { }
 
     function dripStateLast(string memory name) external view returns (uint256) {
@@ -57,7 +57,7 @@ contract Drippie_TestInit is Test {
     SimpleStorage simpleStorage;
 
     /// @notice Address of the Drippie contract.
-    TestDrippie drippie;
+    Drippie_Test_Harness drippie;
 
     /// @notice Address of the Drippie owner
     address constant alice = address(0x42);
@@ -72,7 +72,7 @@ contract Drippie_TestInit is Test {
         check = IDripCheck(new CheckTrue());
         simpleStorage = new SimpleStorage();
 
-        drippie = new TestDrippie(alice);
+        drippie = new Drippie_Test_Harness(alice);
         vm.deal(address(drippie), 1 ether);
     }
 

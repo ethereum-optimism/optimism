@@ -312,17 +312,17 @@ func isExcluded(filePath string) bool {
 // Defines the list of paths that should be excluded from validation
 var excludedPaths = []string{
 	// PATHS EXCLUDED FROM SRC VALIDATION:
-	// These paths are excluded because they don't follow the standard naming convention
-	// where test files (*.t.sol) have corresponding source files (*.sol) in the src/ directory.
-	// Instead, they follow alternative naming conventions or serve specialized purposes:
+	// These paths are excluded because they don't follow the standard naming convention where test
+	// files (*.t.sol) have corresponding source files (*.sol) in the src/ directory. Instead, they
+	// follow alternative naming conventions or serve specialized purposes:
 	// - Some are utility/infrastructure tests that don't test specific contracts
 	// - Some test external libraries or vendor code that exists elsewhere
 	// - Some are integration tests that test multiple contracts together
 	// - Some are specialized test types (invariants, formal verification, etc.)
 	//
-	// Resolving these naming inconsistencies is outside the current scope, but they
-	// are documented here to avoid false validation failures while maintaining
-	// the validation rules for standard contract tests.
+	// Resolving these naming inconsistencies is outside the script's scope, but they are
+	// documented here to avoid false validation failures while maintaining the validation rules
+	// for standard contract tests.
 	"test/invariants/",                    // Invariant testing framework - no direct src counterpart
 	"test/kontrol/",                       // Formal verification tests - specialized tooling
 	"test/opcm/",                          // OP Chain Manager tests - may have different structure
@@ -338,10 +338,10 @@ var excludedPaths = []string{
 	"test/vendor/InitializableOZv5.t.sol", // Tests external vendor code
 
 	// PATHS EXCLUDED FROM CONTRACT NAME FILE PATH VALIDATION:
-	// These paths are excluded because they don't follow the standard naming convention
-	// where the contract name matches the file name pattern: <FileName>_<Function>_Test.
-	// Instead, these files contain contracts with names like <AnotherName>_<Function>_Test,
-	// where the base contract name doesn't match the file name.
+	// These paths are excluded because they don't follow the standard naming convention where the
+	// contract name matches the file name pattern: <FileName>_<Function>_Test. Instead, these
+	// files contain contracts with names like <AnotherName>_<Function>_Test, where the base
+	// contract name doesn't match the file name.
 	//
 	// This typically occurs when:
 	// - The test file contains helper contracts or alternative implementations
@@ -355,22 +355,17 @@ var excludedPaths = []string{
 	"test/dispute/SuperFaultDisputeGame.t.sol",          // Contains contracts not matching SuperFaultDisputeGame base name
 	"test/L1/ResourceMetering.t.sol",                    // Contains contracts not matching ResourceMetering base name
 	"test/L1/OPContractsManagerStandardValidator.t.sol", // Contains contracts not matching OPContractsManagerStandardValidator base name
+	"test/L1/StandardValidator.t.sol",                   // Contains contracts not matching StandardValidator base name
 	"test/L2/CrossDomainOwnable.t.sol",                  // Contains contracts not matching CrossDomainOwnable base name
 	"test/L2/CrossDomainOwnable2.t.sol",                 // Contains contracts not matching CrossDomainOwnable2 base name
 	"test/L2/CrossDomainOwnable3.t.sol",                 // Contains contracts not matching CrossDomainOwnable3 base name
 	"test/L2/GasPriceOracle.t.sol",                      // Contains contracts not matching GasPriceOracle base name
-	"test/legacy/L1ChugSplashProxy.t.sol",               // Contains contracts not matching L1ChugSplashProxy base name
-	"test/legacy/ResolvedDelegateProxy.t.sol",           // Contains contracts not matching ResolvedDelegateProxy base name
-	"test/libraries/Blueprint.t.sol",                    // Contains contracts not matching Blueprint base name
-	"test/libraries/SafeCall.t.sol",                     // Contains contracts not matching SafeCall base name
-	"test/periphery/drippie/Drippie.t.sol",              // Contains contracts not matching Drippie base name
-	"test/safe/LivenessGuard.t.sol",                     // Contains contracts not matching LivenessGuard base name
 	"test/universal/StandardBridge.t.sol",               // Contains contracts not matching StandardBridge base name
 
 	// PATHS EXCLUDED FROM FUNCTION NAME VALIDATION:
-	// These paths are excluded because they don't pass the function name validation,
-	// which checks that the function in the <FileName>_<Function>_Test pattern
-	// actually exists in the source contract's ABI.
+	// These paths are excluded because they don't pass the function name validation, which checks
+	// that the function in the <FileName>_<Function>_Test pattern actually exists in the source
+	// contract's ABI.
 	//
 	// Common reasons for exclusion:
 	// - Libraries: Have different artifact structures that the validation system
@@ -389,30 +384,7 @@ var excludedPaths = []string{
 	"test/L1/ProxyAdminOwnedBase.t.sol",  // Tests internal functions not in ABI
 	"test/L1/SystemConfig.t.sol",         // Tests internal functions not in ABI
 	"test/safe/SafeSigners.t.sol",        // Function name validation issues
-
-	// PATHS EXCLUDED FROM TEST PATTERN VALIDATION:
-	// These paths are excluded because they don't follow the standard test contract
-	// naming patterns defined in the validation system. The expected patterns are:
-	// - <ContractName>_TestInit: for initialization/setup contracts
-	// - <ContractName>_<FunctionName>_Test: for testing specific functions
-	// - <ContractName>_<Descriptor>_Harness: for harness contracts
-	// - <ContractName>_Uncategorized_Test: for miscellaneous tests
-	//
-	// Common reasons for exclusion:
-	// - Multiple test contracts for the same function: When testing the same function
-	//   requires different setups or contexts, multiple test contracts are needed
-	//   (e.g., testing convert() with different token types requires separate contracts)
-	// - Legacy naming patterns: Some contracts use older naming conventions like
-	//   <ContractName>_<Function>_TestFail that need to be updated to _Test
-	//
-	// Resolving these issues requires either:
-	// - Refactoring tests to fit standard patterns where possible
-	// - Updating legacy TestFail patterns to use standard _Test naming
-	// - Enhancing the validation system to support legitimate multiple-contract scenarios
-	"test/L2/L2StandardBridgeInterop.t.sol", // Multiple contracts test same convert() function with different setups
 }
-
-// Test name validation rules
 
 // Defines the signature for test name validation functions
 type CheckFunc func(parts []string) bool
