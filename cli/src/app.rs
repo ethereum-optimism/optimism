@@ -6,7 +6,7 @@ use reth_cli_runner::CliRunner;
 use reth_node_metrics::recorder::install_prometheus_recorder;
 use reth_optimism_chainspec::OpChainSpec;
 use reth_optimism_consensus::OpBeaconConsensus;
-use reth_optimism_node::{OpExecutorProvider, OpNetworkPrimitives, OpNode};
+use reth_optimism_node::{OpExecutorProvider, OpNode};
 use reth_tracing::{FileWorkerGuard, Layers};
 use std::fmt;
 use tracing::info;
@@ -84,13 +84,11 @@ where
             Commands::DumpGenesis(command) => runner.run_blocking_until_ctrl_c(command.execute()),
             Commands::Db(command) => runner.run_blocking_until_ctrl_c(command.execute::<OpNode>()),
             Commands::Stage(command) => runner.run_command_until_exit(|ctx| {
-                command.execute::<OpNode, _, _, OpNetworkPrimitives>(ctx, |spec| {
+                command.execute::<OpNode, _>(ctx, |spec| {
                     (OpExecutorProvider::optimism(spec.clone()), OpBeaconConsensus::new(spec))
                 })
             }),
-            Commands::P2P(command) => {
-                runner.run_until_ctrl_c(command.execute::<OpNetworkPrimitives>())
-            }
+            Commands::P2P(command) => runner.run_until_ctrl_c(command.execute::<OpNode>()),
             Commands::Config(command) => runner.run_until_ctrl_c(command.execute()),
             Commands::Recover(command) => {
                 runner.run_command_until_exit(|ctx| command.execute::<OpNode>(ctx))
