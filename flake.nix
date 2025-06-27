@@ -108,6 +108,7 @@
               ln -sf ${espressoGoLibFile} ${target_link}
               export CGO_LDFLAGS="${cgo_ld_flags}"
               export MACOSX_DEPLOYMENT_TARGET=14.5
+              export PATH=$PATH:$PWD/op-deployer/bin
             '';
           };
         };
