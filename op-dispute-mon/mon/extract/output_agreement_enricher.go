@@ -115,9 +115,7 @@ func (o *OutputAgreementEnricher) Enrich(ctx context.Context, block rpcblock.Blo
 
 		validResults = append(validResults, result)
 
-		if result.notFound {
-			o.log.Info("Node has not seen block", "clientIndex", idx, "l2BlockNum", game.L2BlockNumber)
-		} else {
+		if !result.notFound {
 			foundResults = append(foundResults, result)
 		}
 	}
@@ -175,8 +173,6 @@ func (o *OutputAgreementEnricher) Enrich(ctx context.Context, block rpcblock.Blo
 
 	// If no node considers the output safe, we disagree.
 	if !atLeastOneSafe {
-		o.log.Warn("All nodes agree on output root, but none consider it safe",
-			"l2BlockNum", game.L2BlockNumber, "root", firstResult.outputRoot)
 		game.AgreeWithClaim = false
 		if firstResult.outputRoot == game.RootClaim {
 			game.ExpectedRootClaim = common.Hash{}
