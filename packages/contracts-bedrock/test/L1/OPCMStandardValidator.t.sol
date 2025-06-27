@@ -101,7 +101,6 @@ contract OPCMStandardValidator_TestInit is CommonTest {
     /// @notice Sets up the test suite.
     function setUp() public virtual override {
         super.setUp();
-        // skipIfForkTest("Skipping fork test for OPCMStandardValidator tests");
 
         // Grab the deploy input for later use.
         deployInput = deploy.getDeployInput();
@@ -130,6 +129,9 @@ contract OPCMStandardValidator_TestInit is CommonTest {
                 abi.encodeCall(IPermissionedDisputeGame.challenger, ()),
                 abi.encode(opcm.opcmStandardValidator().challenger())
             );
+            vm.mockCall(address(proxyAdmin), abi.encodeCall(IProxyAdmin.owner, ()), abi.encode(proxyAdminOwner));
+            vm.mockCall(address(delayedWeth), abi.encodeCall(IProxyAdmin.owner, ()), abi.encode(proxyAdminOwner));
+            vm.mockCall(address(disputeGameFactory), abi.encodeCall(IProxyAdmin.owner, ()), abi.encode(proxyAdminOwner));
         } else {
             l2ChainId = deployInput.l2ChainId;
             absolutePrestate = deployInput.disputeAbsolutePrestate;
