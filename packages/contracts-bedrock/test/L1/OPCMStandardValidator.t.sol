@@ -130,8 +130,12 @@ contract OPCMStandardValidator_TestInit is CommonTest {
                 abi.encode(opcm.opcmStandardValidator().challenger())
             );
             vm.mockCall(address(proxyAdmin), abi.encodeCall(IProxyAdmin.owner, ()), abi.encode(proxyAdminOwner));
-            vm.mockCall(address(delayedWeth), abi.encodeCall(IProxyAdmin.owner, ()), abi.encode(proxyAdminOwner));
-            vm.mockCall(address(disputeGameFactory), abi.encodeCall(IProxyAdmin.owner, ()), abi.encode(proxyAdminOwner));
+            vm.mockCall(
+                address(delayedWeth), abi.encodeCall(IDelayedWETH.proxyAdminOwner, ()), abi.encode(proxyAdminOwner)
+            );
+            vm.mockCall(
+                address(disputeGameFactory), abi.encodeCall(IDisputeGameFactory.owner, ()), abi.encode(proxyAdminOwner)
+            );
         } else {
             l2ChainId = deployInput.l2ChainId;
             absolutePrestate = deployInput.disputeAbsolutePrestate;
@@ -260,6 +264,9 @@ contract OPCMStandardValidator_GeneralOverride_Test is OPCMStandardValidator_Tes
     function test_validateOverrides_noErrors_succeeds() public {
         IOPCMStandardValidator.ValidationOverrides memory overrides =
             IOPCMStandardValidator.ValidationOverrides({ l1PAOMultisig: address(0xbad), challenger: address(0xc0ffee) });
+        vm.mockCall(
+            address(delayedWeth), abi.encodeCall(IDelayedWETH.proxyAdminOwner, ()), abi.encode(overrides.l1PAOMultisig)
+        );
         vm.mockCall(address(proxyAdmin), abi.encodeCall(IProxyAdmin.owner, ()), abi.encode(overrides.l1PAOMultisig));
         vm.mockCall(
             address(disputeGameFactory),
@@ -310,6 +317,7 @@ contract OPCMStandardValidator_ProxyAdmin_Test is OPCMStandardValidator_TestInit
     ///         ProxyAdmin owner is not correct.
     function test_validate_invalidProxyAdminOwner_succeeds() public {
         vm.mockCall(address(proxyAdmin), abi.encodeCall(IProxyAdmin.owner, ()), abi.encode(address(0xbad)));
+        vm.mockCall(address(delayedWeth), abi.encodeCall(IDelayedWETH.proxyAdminOwner, ()), abi.encode(address(0xbad)));
         assertEq("PROXYA-10,PDDG-DWETH-30,PLDG-DWETH-30", _validate(true));
     }
 
@@ -318,6 +326,7 @@ contract OPCMStandardValidator_ProxyAdmin_Test is OPCMStandardValidator_TestInit
     function test_validate_overridenProxyAdminOwner_succeeds() public {
         IOPCMStandardValidator.ValidationOverrides memory overrides = _defaultValidationOverrides();
         overrides.l1PAOMultisig = address(0xbad);
+        vm.mockCall(address(delayedWeth), abi.encodeCall(IDelayedWETH.proxyAdminOwner, ()), abi.encode(0xbad));
         vm.mockCall(address(proxyAdmin), abi.encodeCall(IProxyAdmin.owner, ()), abi.encode(address(0xbad)));
         vm.mockCall(
             address(disputeGameFactory),
