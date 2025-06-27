@@ -14,7 +14,7 @@ import { IL2ERC721Bridge } from "interfaces/L2/IL2ERC721Bridge.sol";
 
 /// @title TestERC721
 /// @notice A test ERC721 token used for `L2ERC721Bridge` tests.
-contract TestERC721 is ERC721 {
+contract L2ERC721Bridge_TestERC721_Harness is ERC721 {
     constructor() ERC721("Test", "TST") { }
 
     function mint(address to, uint256 tokenId) public {
@@ -24,7 +24,7 @@ contract TestERC721 is ERC721 {
 
 /// @title TestMintableERC721
 /// @notice A test OptimismMintableERC721 token used for `L2ERC721Bridge` tests.
-contract TestMintableERC721 is OptimismMintableERC721 {
+contract L2ERC721Bridge_TestMintableERC721_Harness is OptimismMintableERC721 {
     constructor(
         address _bridge,
         address _remoteToken
@@ -41,7 +41,7 @@ contract TestMintableERC721 is OptimismMintableERC721 {
 /// @notice A non-compliant ERC721 token that does not implement the full ERC721 interface.
 ///         This is used to test that the bridge will revert if the token does not claim to
 ///         support the ERC721 interface.
-contract NonCompliantERC721 {
+contract L2ERC721Bridge_NonCompliantERC721_Harness {
     address internal immutable owner;
 
     constructor(address _owner) {
@@ -68,8 +68,8 @@ contract NonCompliantERC721 {
 /// @title L2ERC721Bridge_TestInit
 /// @notice Reusable test initialization for `L2ERC721Bridge` tests.
 contract L2ERC721Bridge_TestInit is CommonTest {
-    TestMintableERC721 internal localToken;
-    TestERC721 internal remoteToken;
+    L2ERC721Bridge_TestMintableERC721_Harness internal localToken;
+    L2ERC721Bridge_TestERC721_Harness internal remoteToken;
     uint256 internal constant tokenId = 1;
 
     event ERC721BridgeInitiated(
@@ -94,8 +94,8 @@ contract L2ERC721Bridge_TestInit is CommonTest {
     function setUp() public override {
         super.setUp();
 
-        remoteToken = new TestERC721();
-        localToken = new TestMintableERC721(address(l2ERC721Bridge), address(remoteToken));
+        remoteToken = new L2ERC721Bridge_TestERC721_Harness();
+        localToken = new L2ERC721Bridge_TestMintableERC721_Harness(address(l2ERC721Bridge), address(remoteToken));
 
         // Mint alice a token.
         localToken.mint(alice, tokenId);
@@ -108,7 +108,7 @@ contract L2ERC721Bridge_TestInit is CommonTest {
 
 /// @title L2ERC721Bridge_Test_Constructor
 /// @notice Tests the `constructor` of the `L2ERC721Bridge` contract.
-contract L2ERC721Bridge_Test_Constructor is L2ERC721Bridge_TestInit {
+contract L2ERC721Bridge_Constructor_Test is L2ERC721Bridge_TestInit {
     /// @notice Tests that the constructor sets the correct variables.
     function test_constructor_succeeds() public view {
         assertEq(address(l2ERC721Bridge.MESSENGER()), address(l2CrossDomainMessenger));
@@ -148,7 +148,8 @@ contract L2ERC721Bridge_FinalizeBridgeERC721_Test is L2ERC721Bridge_TestInit {
     ///         `IOptimismMintableERC721` interface.
     function test_finalizeBridgeERC721_interfaceNotCompliant_reverts() external {
         // Create a non-compliant token
-        NonCompliantERC721 nonCompliantToken = new NonCompliantERC721(alice);
+        L2ERC721Bridge_NonCompliantERC721_Harness nonCompliantToken =
+            new L2ERC721Bridge_NonCompliantERC721_Harness(alice);
 
         // Bridge the non-compliant token.
         vm.prank(alice, alice);
@@ -219,9 +220,10 @@ contract L2ERC721Bridge_FinalizeBridgeERC721_Test is L2ERC721Bridge_TestInit {
     }
 }
 
-/// @title L2ERC721Bridge_Unclassified_Test
-/// @notice General tests that are not testing any function directly of the `L2ERC721Bridge` contract.
-contract L2ERC721Bridge_Unclassified_Test is L2ERC721Bridge_TestInit {
+/// @title L2ERC721Bridge_Uncategorized_Test
+/// @notice General tests that are not testing any function directly of the `L2ERC721Bridge`
+///         contract or are testing multiple functions at once.
+contract L2ERC721Bridge_Uncategorized_Test is L2ERC721Bridge_TestInit {
     /// @notice Ensures that the L2ERC721Bridge is always not paused. The pausability happens on L1
     ///         and not L2.
     function test_paused_succeeds() external view {
