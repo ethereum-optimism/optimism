@@ -98,9 +98,6 @@ contract OPCMStandardValidator_TestInit is CommonTest {
     /// @notice The BadDisputeGameFactoryReturner instance.
     BadDisputeGameFactoryReturner badDisputeGameFactoryReturner;
 
-    /// @notice The PermissionlessDelayedWETH instance.
-    IDelayedWETH permissionlessDelayedWeth;
-
     /// @notice Sets up the test suite.
     function setUp() public virtual override {
         super.setUp();
@@ -115,15 +112,14 @@ contract OPCMStandardValidator_TestInit is CommonTest {
         // Load the PreimageOracle once, we'll need it later.
         preimageOracle = IPreimageOracle(artifacts.mustGetAddress("PreimageOracle"));
 
-        l2ChainId = deployInput.l2ChainId;
-        absolutePrestate = deployInput.disputeAbsolutePrestate;
-
-        // Deploy the BadDisputeGameFactoryReturner once.
-        badDisputeGameFactoryReturner = new BadDisputeGameFactoryReturner(
-            opcm.opcmStandardValidator(), disputeGameFactory, IDisputeGameFactory(address(0xbad))
-        );
-
+        // Values are slightly different for fork tests vs local tests. Most we can get from
+        // reasonable sources, challenger we need to get from live system because there's no other
+        // consistent way to get it right now. Means we're cheating a tiny bit for the challenger
+        // address in fork tests but it's fine.
         if (isForkTest()) {
+            l2ChainId = uint256(uint160(address(artifacts.mustGetAddress("L2ChainId"))));
+            absolutePrestate = Claim.wrap(bytes32(keccak256("absolutePrestate")));
+
             vm.mockCall(
                 address(proxyAdmin),
                 abi.encodeCall(IProxyAdmin.getProxyImplementation, (address(l1OptimismMintableERC20Factory))),
@@ -131,46 +127,49 @@ contract OPCMStandardValidator_TestInit is CommonTest {
             );
             vm.mockCall(
                 address(pdg),
-                abi.encodeCall(IPermissionedDisputeGame.absolutePrestate, ()),
-                abi.encode(absolutePrestate)
-            );
-            vm.mockCall(address(pdg), abi.encodeCall(IPermissionedDisputeGame.l2ChainId, ()), abi.encode(l2ChainId));
-            vm.mockCall(
-                address(pdg),
                 abi.encodeCall(IPermissionedDisputeGame.challenger, ()),
                 abi.encode(opcm.opcmStandardValidator().challenger())
             );
+        } else {
+            l2ChainId = deployInput.l2ChainId;
+            absolutePrestate = deployInput.disputeAbsolutePrestate;
         }
 
-        // Deploy the DelayedWETH.
-        permissionlessDelayedWeth = IDelayedWETH(payable(address(uint160(uint256(keccak256("delayedWeth2"))))));
-        vm.cloneAccount(address(delayedWeth), address(permissionlessDelayedWeth));
+        // Deploy the BadDisputeGameFactoryReturner once.
+        badDisputeGameFactoryReturner = new BadDisputeGameFactoryReturner(
+            opcm.opcmStandardValidator(), disputeGameFactory, IDisputeGameFactory(address(0xbad))
+        );
 
-        // Deploy the FaultDisputeGame.
-        fdg = IFaultDisputeGame(
-            DeployUtils.create1({
-                _name: "FaultDisputeGame",
-                _args: DeployUtils.encodeConstructor(
-                    abi.encodeCall(
-                        IFaultDisputeGame.__constructor__,
-                        (
-                            IFaultDisputeGame.GameConstructorParams({
-                                gameType: GameTypes.CANNON,
-                                absolutePrestate: absolutePrestate,
-                                maxGameDepth: 73,
-                                splitDepth: 30,
-                                clockExtension: Duration.wrap(10800),
-                                maxClockDuration: Duration.wrap(302400),
-                                vm: mips,
-                                weth: permissionlessDelayedWeth,
-                                anchorStateRegistry: anchorStateRegistry,
-                                l2ChainId: l2ChainId
-                            })
+        if (isForkTest()) {
+            // Load the FaultDisputeGame once, we'll need it later.
+            fdg = IFaultDisputeGame(artifacts.mustGetAddress("FaultDisputeGame"));
+        } else {
+            // Deploy the FaultDisputeGame.
+            fdg = IFaultDisputeGame(
+                DeployUtils.create1({
+                    _name: "FaultDisputeGame",
+                    _args: DeployUtils.encodeConstructor(
+                        abi.encodeCall(
+                            IFaultDisputeGame.__constructor__,
+                            (
+                                IFaultDisputeGame.GameConstructorParams({
+                                    gameType: GameTypes.CANNON,
+                                    absolutePrestate: absolutePrestate,
+                                    maxGameDepth: 73,
+                                    splitDepth: 30,
+                                    clockExtension: Duration.wrap(10800),
+                                    maxClockDuration: Duration.wrap(302400),
+                                    vm: mips,
+                                    weth: delayedWeth,
+                                    anchorStateRegistry: anchorStateRegistry,
+                                    l2ChainId: l2ChainId
+                                })
+                            )
                         )
                     )
-                )
-            })
-        );
+                })
+            );
+        }
 
         // Add the FaultDisputeGame to the DisputeGameFactory.
         vm.prank(disputeGameFactory.owner());
@@ -1005,7 +1004,6 @@ contract OPCMStandardValidator_DelayedWETH_Test is OPCMStandardValidator_TestIni
     ///         DelayedWETH version is invalid.
     function test_validate_delayedWETHInvalidVersion_succeeds() public {
         vm.mockCall(address(delayedWeth), abi.encodeCall(ISemver.version, ()), abi.encode("0.0.1"));
-        vm.mockCall(address(permissionlessDelayedWeth), abi.encodeCall(ISemver.version, ()), abi.encode("0.0.1"));
 
         // One last mess here, during local tests delayedWeth refers to the contract attached to
         // the FaultDisputeGame, but during fork tests it refers to the one attached to the
@@ -1025,11 +1023,6 @@ contract OPCMStandardValidator_DelayedWETH_Test is OPCMStandardValidator_TestIni
             abi.encodeCall(IProxyAdmin.getProxyImplementation, (address(delayedWeth))),
             abi.encode(address(0xbad))
         );
-        vm.mockCall(
-            address(proxyAdmin),
-            abi.encodeCall(IProxyAdmin.getProxyImplementation, (address(permissionlessDelayedWeth))),
-            abi.encode(address(0xbad))
-        );
 
         if (isForkTest()) {
             assertEq("PDDG-DWETH-20", _validate(true));
@@ -1044,11 +1037,6 @@ contract OPCMStandardValidator_DelayedWETH_Test is OPCMStandardValidator_TestIni
         vm.mockCall(
             address(delayedWeth), abi.encodeCall(IProxyAdminOwnedBase.proxyAdminOwner, ()), abi.encode(address(0xbad))
         );
-        vm.mockCall(
-            address(permissionlessDelayedWeth),
-            abi.encodeCall(IProxyAdminOwnedBase.proxyAdminOwner, ()),
-            abi.encode(address(0xbad))
-        );
 
         if (isForkTest()) {
             assertEq("PDDG-DWETH-30", _validate(true));
@@ -1061,7 +1049,6 @@ contract OPCMStandardValidator_DelayedWETH_Test is OPCMStandardValidator_TestIni
     ///         DelayedWETH delay is invalid.
     function test_validate_delayedWETHInvalidDelay_succeeds() public {
         vm.mockCall(address(delayedWeth), abi.encodeCall(IDelayedWETH.delay, ()), abi.encode(1000));
-        vm.mockCall(address(permissionlessDelayedWeth), abi.encodeCall(IDelayedWETH.delay, ()), abi.encode(1000));
 
         if (isForkTest()) {
             assertEq("PDDG-DWETH-40", _validate(true));
@@ -1074,11 +1061,6 @@ contract OPCMStandardValidator_DelayedWETH_Test is OPCMStandardValidator_TestIni
     ///         DelayedWETH systemConfig is invalid.
     function test_validate_delayedWETHInvalidSystemConfig_succeeds() public {
         vm.mockCall(address(delayedWeth), abi.encodeCall(IDelayedWETH.systemConfig, ()), abi.encode(address(0xbad)));
-        vm.mockCall(
-            address(permissionlessDelayedWeth),
-            abi.encodeCall(IDelayedWETH.systemConfig, ()),
-            abi.encode(address(0xbad))
-        );
 
         if (isForkTest()) {
             assertEq("PDDG-DWETH-50", _validate(true));
@@ -1092,11 +1074,6 @@ contract OPCMStandardValidator_DelayedWETH_Test is OPCMStandardValidator_TestIni
     function test_validate_delayedWETHInvalidProxyAdmin_succeeds() public {
         vm.mockCall(
             address(delayedWeth), abi.encodeCall(IProxyAdminOwnedBase.proxyAdmin, ()), abi.encode(address(0xbad))
-        );
-        vm.mockCall(
-            address(permissionlessDelayedWeth),
-            abi.encodeCall(IProxyAdminOwnedBase.proxyAdmin, ()),
-            abi.encode(address(0xbad))
         );
 
         if (isForkTest()) {
