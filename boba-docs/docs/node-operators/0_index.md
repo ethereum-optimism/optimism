@@ -1,8 +1,8 @@
 # Overview
 
-The anchorage is activated on Sepolia Testnet. For other networks, please refer to [Replica Node (Legacy)](https://github.com/bobanetwork/boba_legacy/blob/develop/boba_community/boba-node/README.md).
+The anchorage now is activate on Boba Mainnet and Boba Sepolia Testnet. For other networks, please refer to [Replica Node (Legacy)](https://github.com/bobanetwork/boba_legacy/blob/develop/boba_community/boba-node/README.md).
 
-The repliace node section is a collection of guides and tutorials help you run your own BOBA node.
+The replica node section is a collection of guides and tutorials help you run your own BOBA node.
 
 ## Node Architecture
 
@@ -18,7 +18,7 @@ The Execution Client takes care of running the block information it gets from th
 
 ### Legacy Geth
 
-Boba switched its database from **Geth** to **Erigon** during a significant update called the [Anchorage Upgrade](https://github.com/bobanetwork/boba/blob/develop/boba-chain-ops/README.md#migration). The old data from Geth, before this upgrade, can still be accessed with the new system but needs a special part called Legacy Geth to work properly. This means if you need to use certain commands, like `eth_call`, on the old data, you'll have to use Legacy Geth.
+The legacy Geth database format is incompatible with the new Geth binary.  During a significant update called the [Anchorage Upgrade](https://github.com/bobanetwork/boba/blob/develop/boba-chain-ops/README.md#migration), the old blockchain state was used to initialize new starting databases for the newer execution clients.  These databases contain all of the old state (like token balances, DeFi positions, etc.), but do not contain the legacy blocks and transactions that are not compatible with the newer binaries.  To run a local copy of the node, the easiest way to start is from a copy of one of these databases. The old data from Geth, before this upgrade, can still be accessed with the new system but needs a special part called Legacy Geth to work properly. This means if you need to use certain commands, like `eth_call`, on the old data, you'll have to use Legacy Geth.
 
 You don't always need Legacy Geth, though. It's mainly for those who want to keep a full historical record of Boba nodes.
 
