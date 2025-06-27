@@ -175,13 +175,13 @@ func testLoadStore(t *testing.T, cases []loadStoreTestCase) {
 	baseReg := uint32(9)
 	rtReg := uint32(8)
 
-	initializeState := func(tt loadStoreTestCase, state *StateInitializer, vm VersionedVMTestCase) {
-		insn := tt.opcode<<26 | baseReg<<21 | rtReg<<16 | uint32(tt.imm)
+	initializeState := func(tt loadStoreTestCase, state *multithreaded.State, vm VersionedVMTestCase) {
+		insn := tt.opcode<<26 | baseReg<<21 | rtReg<<16 | tt.imm
 
-		state.StoreInstruction(0, insn)
-		state.SetMemory(tt.effAddr(), tt.memVal)
-		state.SetRegister(int(rtReg), tt.rt)
-		state.SetRegister(int(baseReg), tt.base)
+		testutil.StoreInstruction(state.GetMemory(), 0, insn)
+		state.GetMemory().SetWord(tt.effAddr(), tt.memVal)
+		state.GetRegistersRef()[rtReg] = tt.rt
+		state.GetRegistersRef()[baseReg] = tt.base
 	}
 
 	setExpectations := func(tt loadStoreTestCase, expect *mtutil.ExpectedState) {

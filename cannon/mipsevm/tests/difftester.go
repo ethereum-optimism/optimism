@@ -31,15 +31,15 @@ func NewDiffTester[T TestCase](testCases []T, opts ...mtutil.StateOption) *DiffT
 type TestCase interface {
 	Name() string
 }
-type InitializeStateFn[T TestCase] func(testCase T, state *StateInitializer, vm VersionedVMTestCase)
+type InitializeStateFn[T TestCase] func(testCase T, state *multithreaded.State, vm VersionedVMTestCase)
 type SetExpectationsFn[T TestCase] func(testCase T, expect *mtutil.ExpectedState)
 
-func (d *DiffTester[T]) Run(t *testing.T, stateInit InitializeStateFn[T], expectations SetExpectationsFn[T], randSeed int64, opts ...TestOption) {
+func (d *DiffTester[T]) Run(t *testing.T, initState InitializeStateFn[T], setExpectations SetExpectationsFn[T], randSeed int64, opts ...TestOption) {
 	for _, vm := range GetMipsVersionTestCases(t) {
 		for i, testCase := range d.testCases {
 			cfg := newTestConfig(opts...)
 			cfg.randSeed = randSeed + int64(i)
-			mods := d.generateTestModifiers(t, testCase, vm, expectations, cfg)
+			mods := d.generateTestModifiers(t, testCase, vm, setExpectations, cfg)
 			for _, mod := range mods {
 				testName := fmt.Sprintf("%v%v (%v)", testCase.Name(), mod.name, vm.Name)
 				t.Run(testName, func(t *testing.T) {
@@ -47,19 +47,18 @@ func (d *DiffTester[T]) Run(t *testing.T, stateInit InitializeStateFn[T], expect
 					stateOpts = append(stateOpts, d.stateOpts...)
 					goVm := vm.VMFactory(cfg.po(), cfg.stdOut(), cfg.stdErr(), cfg.logger, stateOpts...)
 					state := mtutil.GetMtState(t, goVm)
-					step := state.GetStep()
 
 					// Set up state
-					stateInitializer := &StateInitializer{state: state}
-					stateInit(testCase, stateInitializer, vm)
+					initState(testCase, state, vm)
 					mod.stateMod(state)
 
 					// Set up expectations
 					expect := mtutil.NewExpectedState(t, state)
-					expectations(testCase, expect)
+					setExpectations(testCase, expect)
 					mod.expectMod(expect)
 
 					// Step the VM
+					step := state.GetStep()
 					stepWitness, err := goVm.Step(true)
 					require.NoError(t, err)
 
@@ -86,7 +85,7 @@ func newTestModifier(name string) *testModifier {
 	}
 }
 
-func (d *DiffTester[T]) generateTestModifiers(t require.TestingT, testCase T, vm VersionedVMTestCase, expect SetExpectationsFn[T], cfg *TestConfig) []*testModifier {
+func (d *DiffTester[T]) generateTestModifiers(t require.TestingT, testCase T, vm VersionedVMTestCase, setExpectations SetExpectationsFn[T], cfg *TestConfig) []*testModifier {
 	modifiers := []*testModifier{
 		newTestModifier(""), // Always return a noop
 	}
@@ -94,11 +93,11 @@ func (d *DiffTester[T]) generateTestModifiers(t require.TestingT, testCase T, vm
 	// Process expectations
 	goVm := vm.VMFactory(nil, nil, nil, nil)
 	state := mtutil.GetMtState(t, goVm)
-	stateExpectations := mtutil.NewExpectedState(t, state)
-	expect(testCase, stateExpectations)
+	expect := mtutil.NewExpectedState(t, state)
+	setExpectations(testCase, expect)
 
 	// Generate test modifiers based on expectations
-	modifiers = append(modifiers, d.memReservationTestModifier(cfg, stateExpectations)...)
+	modifiers = append(modifiers, d.memReservationTestModifier(cfg, expect)...)
 
 	return modifiers
 }
@@ -132,32 +131,6 @@ func (d *DiffTester[T]) memReservationTestModifier(cfg *TestConfig, expect *mtut
 	})
 
 	return modifiers
-}
-
-// TODO - get rid of this struct
-type StateInitializer struct {
-	state *multithreaded.State
-	// Remember some special initializations
-	memReservationSet bool
-}
-
-func (s *StateInitializer) SetRegister(register int, value arch.Word) {
-	s.state.GetRegistersRef()[register] = value
-}
-
-func (s *StateInitializer) StoreInstruction(pc arch.Word, insn uint32) {
-	testutil.StoreInstruction(s.state.GetMemory(), pc, insn)
-}
-
-func (s *StateInitializer) SetMemory(addr arch.Word, value arch.Word) {
-	s.state.GetMemory().SetWord(addr, value)
-}
-
-func (s *StateInitializer) SetMemoryReservation(status multithreaded.LLReservationStatus, addr arch.Word, owner arch.Word) {
-	s.memReservationSet = true
-	s.state.LLReservationStatus = status
-	s.state.LLAddress = addr
-	s.state.LLOwnerThread = owner
 }
 
 type TestConfig struct {
