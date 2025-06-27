@@ -98,6 +98,9 @@ contract OPCMStandardValidator_TestInit is CommonTest {
     /// @notice The BadDisputeGameFactoryReturner instance.
     BadDisputeGameFactoryReturner badDisputeGameFactoryReturner;
 
+    /// @notice The PermissionlessDelayedWETH instance.
+    IDelayedWETH permissionlessDelayedWeth;
+
     /// @notice Sets up the test suite.
     function setUp() public virtual override {
         super.setUp();
@@ -140,8 +143,7 @@ contract OPCMStandardValidator_TestInit is CommonTest {
         }
 
         // Deploy the DelayedWETH.
-        IDelayedWETH permissionlessDelayedWeth =
-            IDelayedWETH(payable(address(uint160(uint256(keccak256("delayedWeth2"))))));
+        permissionlessDelayedWeth = IDelayedWETH(payable(address(uint160(uint256(keccak256("delayedWeth2"))))));
         vm.cloneAccount(address(delayedWeth), address(permissionlessDelayedWeth));
 
         // Deploy the FaultDisputeGame.
@@ -1003,6 +1005,7 @@ contract OPCMStandardValidator_DelayedWETH_Test is OPCMStandardValidator_TestIni
     ///         DelayedWETH version is invalid.
     function test_validate_delayedWETHInvalidVersion_succeeds() public {
         vm.mockCall(address(delayedWeth), abi.encodeCall(ISemver.version, ()), abi.encode("0.0.1"));
+        vm.mockCall(address(permissionlessDelayedWeth), abi.encodeCall(ISemver.version, ()), abi.encode("0.0.1"));
 
         // One last mess here, during local tests delayedWeth refers to the contract attached to
         // the FaultDisputeGame, but during fork tests it refers to the one attached to the
@@ -1022,6 +1025,11 @@ contract OPCMStandardValidator_DelayedWETH_Test is OPCMStandardValidator_TestIni
             abi.encodeCall(IProxyAdmin.getProxyImplementation, (address(delayedWeth))),
             abi.encode(address(0xbad))
         );
+        vm.mockCall(
+            address(proxyAdmin),
+            abi.encodeCall(IProxyAdmin.getProxyImplementation, (address(permissionlessDelayedWeth))),
+            abi.encode(address(0xbad))
+        );
 
         if (isForkTest()) {
             assertEq("PDDG-DWETH-20", _validate(true));
@@ -1036,6 +1044,11 @@ contract OPCMStandardValidator_DelayedWETH_Test is OPCMStandardValidator_TestIni
         vm.mockCall(
             address(delayedWeth), abi.encodeCall(IProxyAdminOwnedBase.proxyAdminOwner, ()), abi.encode(address(0xbad))
         );
+        vm.mockCall(
+            address(permissionlessDelayedWeth),
+            abi.encodeCall(IProxyAdminOwnedBase.proxyAdminOwner, ()),
+            abi.encode(address(0xbad))
+        );
 
         if (isForkTest()) {
             assertEq("PDDG-DWETH-30", _validate(true));
@@ -1048,6 +1061,7 @@ contract OPCMStandardValidator_DelayedWETH_Test is OPCMStandardValidator_TestIni
     ///         DelayedWETH delay is invalid.
     function test_validate_delayedWETHInvalidDelay_succeeds() public {
         vm.mockCall(address(delayedWeth), abi.encodeCall(IDelayedWETH.delay, ()), abi.encode(1000));
+        vm.mockCall(address(permissionlessDelayedWeth), abi.encodeCall(IDelayedWETH.delay, ()), abi.encode(1000));
 
         if (isForkTest()) {
             assertEq("PDDG-DWETH-40", _validate(true));
@@ -1060,6 +1074,11 @@ contract OPCMStandardValidator_DelayedWETH_Test is OPCMStandardValidator_TestIni
     ///         DelayedWETH systemConfig is invalid.
     function test_validate_delayedWETHInvalidSystemConfig_succeeds() public {
         vm.mockCall(address(delayedWeth), abi.encodeCall(IDelayedWETH.systemConfig, ()), abi.encode(address(0xbad)));
+        vm.mockCall(
+            address(permissionlessDelayedWeth),
+            abi.encodeCall(IDelayedWETH.systemConfig, ()),
+            abi.encode(address(0xbad))
+        );
 
         if (isForkTest()) {
             assertEq("PDDG-DWETH-50", _validate(true));
@@ -1073,6 +1092,11 @@ contract OPCMStandardValidator_DelayedWETH_Test is OPCMStandardValidator_TestIni
     function test_validate_delayedWETHInvalidProxyAdmin_succeeds() public {
         vm.mockCall(
             address(delayedWeth), abi.encodeCall(IProxyAdminOwnedBase.proxyAdmin, ()), abi.encode(address(0xbad))
+        );
+        vm.mockCall(
+            address(permissionlessDelayedWeth),
+            abi.encodeCall(IProxyAdminOwnedBase.proxyAdmin, ()),
+            abi.encode(address(0xbad))
         );
 
         if (isForkTest()) {
