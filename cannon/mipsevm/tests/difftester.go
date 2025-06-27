@@ -16,30 +16,45 @@ import (
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/testutil"
 )
 
-type DiffTester[T TestCase] struct {
-	testCases []T
-	stateOpts []mtutil.StateOption
-}
-
-func NewDiffTester[T TestCase](testCases []T, opts ...mtutil.StateOption) *DiffTester[T] {
-	return &DiffTester[T]{
-		testCases: testCases,
-		stateOpts: opts,
-	}
-}
-
 type TestCase interface {
 	Name() string
 }
+
 type InitializeStateFn[T TestCase] func(testCase T, state *multithreaded.State, vm VersionedVMTestCase)
 type SetExpectationsFn[T TestCase] func(testCase T, expect *mtutil.ExpectedState)
 
-func (d *DiffTester[T]) Run(t *testing.T, initState InitializeStateFn[T], setExpectations SetExpectationsFn[T], randSeed int64, opts ...TestOption) {
+type DiffTester[T TestCase] struct {
+	stateOpts       []mtutil.StateOption
+	initState       InitializeStateFn[T]
+	setExpectations SetExpectationsFn[T]
+}
+
+func NewDiffTester[T TestCase]() *DiffTester[T] {
+	return &DiffTester[T]{}
+}
+
+func (d *DiffTester[T]) InitState(initStateFn InitializeStateFn[T], opts ...mtutil.StateOption) *DiffTester[T] {
+	d.initState = initStateFn
+	d.stateOpts = opts
+
+	return d
+}
+
+func (d *DiffTester[T]) SetExpectations(setExpectationsFn SetExpectationsFn[T]) *DiffTester[T] {
+	d.setExpectations = setExpectationsFn
+
+	return d
+}
+
+func (d *DiffTester[T]) Run(t *testing.T, testCases []T, randSeed int64, opts ...TestOption) {
+	if !d.isConfigValid(t) {
+		t.Fatalf("DiffTester is misconfigured")
+	}
+
 	for _, vm := range GetMipsVersionTestCases(t) {
-		for i, testCase := range d.testCases {
-			cfg := newTestConfig(opts...)
-			cfg.randSeed = randSeed + int64(i)
-			mods := d.generateTestModifiers(t, testCase, vm, setExpectations, cfg)
+		for i, testCase := range testCases {
+			cfg := newTestConfig(randSeed*int64(i), opts...)
+			mods := d.generateTestModifiers(t, testCase, vm, d.setExpectations, cfg)
 			for _, mod := range mods {
 				testName := fmt.Sprintf("%v%v (%v)", testCase.Name(), mod.name, vm.Name)
 				t.Run(testName, func(t *testing.T) {
@@ -49,12 +64,12 @@ func (d *DiffTester[T]) Run(t *testing.T, initState InitializeStateFn[T], setExp
 					state := mtutil.GetMtState(t, goVm)
 
 					// Set up state
-					initState(testCase, state, vm)
+					d.initState(testCase, state, vm)
 					mod.stateMod(state)
 
 					// Set up expectations
 					expect := mtutil.NewExpectedState(t, state)
-					setExpectations(testCase, expect)
+					d.setExpectations(testCase, expect)
 					mod.expectMod(expect)
 
 					// Step the VM
@@ -69,6 +84,19 @@ func (d *DiffTester[T]) Run(t *testing.T, initState InitializeStateFn[T], setExp
 			}
 		}
 	}
+}
+
+func (d *DiffTester[T]) isConfigValid(t *testing.T) bool {
+	isValid := true
+	if d.initState == nil {
+		t.Errorf("Must configure initial state via InitState()")
+		isValid = false
+	}
+	if d.setExpectations == nil {
+		t.Errorf("Must configure expectations via SetExpectations()")
+		isValid = false
+	}
+	return isValid
 }
 
 type testModifier struct {
@@ -157,12 +185,13 @@ func SkipAutomaticMemoryReservationTests() TestOption {
 	}
 }
 
-func newTestConfig(opts ...TestOption) *TestConfig {
+func newTestConfig(randSeed int64, opts ...TestOption) *TestConfig {
 	testConfig := &TestConfig{
-		po:     func() mipsevm.PreimageOracle { return nil },
-		stdOut: func() io.Writer { return os.Stdout },
-		stdErr: func() io.Writer { return os.Stderr },
-		logger: testutil.CreateLogger(),
+		randSeed: randSeed,
+		po:       func() mipsevm.PreimageOracle { return nil },
+		stdOut:   func() io.Writer { return os.Stdout },
+		stdErr:   func() io.Writer { return os.Stderr },
+		logger:   testutil.CreateLogger(),
 	}
 
 	for _, opt := range opts {

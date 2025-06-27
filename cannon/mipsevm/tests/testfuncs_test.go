@@ -174,11 +174,12 @@ func (t loadStoreTestCase) Name() string {
 func testLoadStore(t *testing.T, cases []loadStoreTestCase) {
 	baseReg := uint32(9)
 	rtReg := uint32(8)
+	pc := arch.Word(0)
 
-	initializeState := func(tt loadStoreTestCase, state *multithreaded.State, vm VersionedVMTestCase) {
+	initState := func(tt loadStoreTestCase, state *multithreaded.State, vm VersionedVMTestCase) {
 		insn := tt.opcode<<26 | baseReg<<21 | rtReg<<16 | tt.imm
 
-		testutil.StoreInstruction(state.GetMemory(), 0, insn)
+		testutil.StoreInstruction(state.GetMemory(), pc, insn)
 		state.GetMemory().SetWord(tt.effAddr(), tt.memVal)
 		state.GetRegistersRef()[rtReg] = tt.rt
 		state.GetRegistersRef()[baseReg] = tt.base
@@ -193,8 +194,10 @@ func testLoadStore(t *testing.T, cases []loadStoreTestCase) {
 		}
 	}
 
-	tester := NewDiffTester(cases, mtutil.WithPCAndNextPC(0))
-	tester.Run(t, initializeState, setExpectations, 1234)
+	NewDiffTester[loadStoreTestCase]().
+		InitState(initState, mtutil.WithPCAndNextPC(pc)).
+		SetExpectations(setExpectations).
+		Run(t, cases, 1234)
 }
 
 type branchTestCase struct {
