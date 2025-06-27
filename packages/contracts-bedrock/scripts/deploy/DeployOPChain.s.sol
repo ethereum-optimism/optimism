@@ -8,7 +8,6 @@ import { SafeCast } from "@openzeppelin/contracts/utils/math/SafeCast.sol";
 import { DeployUtils } from "scripts/libraries/DeployUtils.sol";
 import { Solarray } from "scripts/libraries/Solarray.sol";
 import { BaseDeployIO } from "scripts/deploy/BaseDeployIO.sol";
-import { DeployConfig } from "scripts/deploy/DeployConfig.s.sol";
 
 import { ChainAssertions } from "scripts/deploy/ChainAssertions.sol";
 import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
@@ -361,9 +360,6 @@ contract DeployOPChainOutput is BaseDeployIO {
 }
 
 contract DeployOPChain is Script {
-    DeployConfig public constant cfg =
-        DeployConfig(address(uint160(uint256(keccak256(abi.encode("optimism.deployconfig"))))));
-
     // -------- Core Deployment Methods --------
 
     function run(DeployOPChainInput _doi, DeployOPChainOutput _doo) public {
@@ -480,7 +476,7 @@ contract DeployOPChain is Script {
             OptimismPortal: address(_doo.optimismPortalProxy()),
             ETHLockbox: address(_doo.ethLockboxProxy()),
             SystemConfig: address(_doo.systemConfigProxy()),
-            L1ERC721Bridge: address(_doo.l1StandardBridgeProxy()),
+            L1ERC721Bridge: address(_doo.l1ERC721BridgeProxy()),
             ProtocolVersions: address(0),
             SuperchainConfig: address(0)
         });
@@ -495,7 +491,7 @@ contract DeployOPChain is Script {
         assertValidOptimismPortal(_doi, _doo);
         assertValidETHLockbox(_doi, _doo);
         assertValidPermissionedDisputeGame(_doi, _doo);
-        ChainAssertions.checkSystemConfig(proxies, cfg, true);
+        ChainAssertions.checkSystemConfig(proxies, _doi, true);
         assertValidAddressManager(_doi, _doo);
         assertValidOPChainProxyAdmin(_doi, _doo);
     }

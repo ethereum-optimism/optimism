@@ -320,7 +320,11 @@ contract Deploy is Deployer {
             _mips: IMIPS(address(dio.mipsSingleton)),
             _superchainProxyAdmin: superchainProxyAdmin
         });
-        ChainAssertions.checkSystemConfig({ _contracts: impls, _cfg: cfg, _isProxy: false });
+        ChainAssertions.checkSystemConfig({
+            _contracts: impls,
+            _doi: ChainAssertions.cfgToDeployOPChainInput(cfg, address(dio.opcm)),
+            _isProxy: false
+        });
     }
 
     /// @notice Deploy all of the OP Chain specific contracts

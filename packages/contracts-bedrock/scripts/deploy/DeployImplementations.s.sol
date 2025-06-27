@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
-import { Script } from "forge-std/Script.sol";
-
 // Libraries
 import { Chains } from "scripts/libraries/Chains.sol";
 import { LibString } from "@solady/utils/LibString.sol";
@@ -37,11 +35,9 @@ import { DeployUtils } from "scripts/libraries/DeployUtils.sol";
 import { Solarray } from "scripts/libraries/Solarray.sol";
 import { ChainAssertions } from "scripts/deploy/ChainAssertions.sol";
 import { DeployConfig } from "scripts/deploy/DeployConfig.s.sol";
+import { Deployer } from "scripts/deploy/Deployer.sol";
 
-contract DeployImplementations is Script {
-    DeployConfig public constant cfg =
-        DeployConfig(address(uint160(uint256(keccak256(abi.encode("optimism.deployconfig"))))));
-
+contract DeployImplementations is Deployer {
     struct Input {
         uint256 withdrawalDelaySeconds;
         uint256 minProposalSizeBytes;
@@ -87,6 +83,9 @@ contract DeployImplementations is Script {
     // -------- Core Deployment Methods --------
 
     function run(Input memory _input) public returns (Output memory output_) {
+        vm.label(address(cfg), "DeployConfig");
+        Deployer.setUp();
+
         assertValidInput(_input);
 
         // Deploy the implementations.
@@ -556,7 +555,7 @@ contract DeployImplementations is Script {
         require(address(_input.upgradeController) != address(0), "DeployImplementations: upgradeController not set");
     }
 
-    function assertValidOutput(Input memory _input, Output memory _output) private view {
+    function assertValidOutput(Input memory _input, Output memory _output) private {
         // With 12 addresses, we'd get a stack too deep error if we tried to do this inline as a
         // single call to `Solarray.addresses`. So we split it into two calls.
         address[] memory addrs1 = Solarray.addresses(
@@ -611,7 +610,9 @@ contract DeployImplementations is Script {
         assertValidOptimismPortalImpl(_input, _output);
         assertValidETHLockboxImpl(_input, _output);
         assertValidPreimageOracleSingleton(_input, _output);
-        ChainAssertions.checkSystemConfig(impls, cfg, false);
+        ChainAssertions.checkSystemConfig(
+            impls, ChainAssertions.cfgToDeployOPChainInput(cfg, address(_output.opcm)), false
+        );
     }
 
     function assertValidOpcm(Input memory _input, Output memory _output) private view {
