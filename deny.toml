@@ -7,10 +7,13 @@ allow = [
   "MPL-2.0",
   "ISC",
   "CC0-1.0",
+  "BSD-2-Clause",
   "BSD-3-Clause",
+  "0BSD",
   "Zlib",
   "OpenSSL",
   "CDLA-Permissive-2.0",
+  "Unlicense",
 ]
 confidence-threshold = 0.8
 
@@ -23,6 +26,9 @@ ignore = [
   # instant crate is unmaintained  
   "RUSTSEC-2024-0384",
 ]
+
+[graph]
+exclude = ["rollup-boost"]
 
 [bans]
 multiple-versions = "allow"

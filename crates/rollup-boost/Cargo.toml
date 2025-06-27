@@ -15,6 +15,7 @@ serde_json.workspace = true
 metrics.workspace = true
 tokio.workspace = true
 eyre.workspace = true
+url.workspace = true
 sha2.workspace = true
 
 op-alloy-rpc-types-engine.workspace = true
@@ -25,6 +26,7 @@ alloy-serde.workspace = true
 
 tokio-tungstenite.workspace = true
 metrics-derive.workspace = true
+testcontainers.workspace = true
 
 # TODO: update to latest release when it is published
 # jsonrpsee = { version = "0.25.1", features = ["server", "http-client", "macros"] }
@@ -60,7 +62,6 @@ metrics-exporter-prometheus = "0.16.0"
 metrics-util = "0.19.0"
 paste = "1.0.15"
 parking_lot = "0.12.3"
-url = "2.2.0"
 tokio-util = { version = "0.7.13" }
 
 [dev-dependencies]
@@ -70,7 +71,6 @@ op-alloy-consensus = "0.17.2"
 alloy-eips = { version = "1.0.9", features = ["serde"] }
 alloy-consensus = { version = "1.0.9", features = ["serde"] }
 anyhow = "1.0"
-testcontainers = { version = "0.23.3" }
 assert_cmd = "2.0.10"
 predicates = "3.1.2"
 tokio-util = { version = "0.7.13" }

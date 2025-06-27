@@ -13,8 +13,10 @@ futures.workspace = true
 thiserror.workspace = true
 serde_json.workspace = true
 metrics.workspace = true
+metrics-derive.workspace = true
 tokio.workspace = true
 tokio-tungstenite.workspace = true
+eyre.workspace = true
 
 metrics-exporter-prometheus = { version = "0.17.0", features = [
     "http-listener",
@@ -26,7 +28,7 @@ backoff = "0.4.0"
 reqwest = { version = "0.12.15", default-features = false, features = [
     "native-tls",
 ] }
-metrics-derive.workspace = true
+
 hostname = "0.4.0"
 redis = "0.30.0"
 uuid = { version = "1.16.0", features = ["v4"] }

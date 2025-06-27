@@ -52,6 +52,9 @@ jobs:
   docker:
     name: Docker Build
     runs-on: warp-ubuntu-latest-x64-16x
+    defaults:
+      run:
+        working-directory: "./crates/websocket-proxy"
     steps:
       - uses: actions/checkout@v4
 

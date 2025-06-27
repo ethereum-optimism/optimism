@@ -1,0 +1,53 @@
+[package]
+name = "flashblocks-rpc"
+version = "0.1.0"
+edition = "2024"
+license = "MIT"
+
+[dependencies]
+rollup-boost.workspace = true
+
+reth-optimism-node = { git = "https://github.com/paradigmxyz/reth", tag = "v1.5.0" }
+reth-optimism-cli = { git = "https://github.com/paradigmxyz/reth", tag = "v1.5.0" }
+reth-rpc-eth-api = { git = "https://github.com/paradigmxyz/reth", tag = "v1.5.0" }
+reth-optimism-primitives = { git = "https://github.com/paradigmxyz/reth", tag = "v1.5.0" }
+reth-optimism-chainspec = { git = "https://github.com/paradigmxyz/reth", tag = "v1.5.0" }
+reth-optimism-rpc = { git = "https://github.com/paradigmxyz/reth", tag = "v1.5.0" }
+reth-optimism-evm = { git = "https://github.com/paradigmxyz/reth", tag = "v1.5.0" }
+reth-optimism-forks = { git = "https://github.com/paradigmxyz/reth", tag = "v1.5.0" }
+reth-provider = { git = "https://github.com/paradigmxyz/reth", tag = "v1.5.0" }
+reth-primitives = { git = "https://github.com/paradigmxyz/reth", tag = "v1.5.0" }
+reth-primitives-traits = { git = "https://github.com/paradigmxyz/reth", tag = "v1.5.0" }
+
+alloy-eips.workspace = true
+alloy-primitives.workspace = true
+alloy-json-rpc.workspace = true
+alloy-rpc-types.workspace = true
+alloy-rpc-types-engine.workspace = true
+alloy-rpc-types-eth.workspace = true
+alloy-consensus.workspace = true
+op-alloy-network.workspace = true
+op-alloy-consensus.workspace = true
+op-alloy-rpc-types.workspace = true
+
+tokio.workspace = true
+tokio-tungstenite.workspace = true
+url.workspace = true
+tracing.workspace = true
+clap.workspace = true
+eyre.workspace = true
+metrics.workspace = true
+metrics-derive.workspace = true
+serde_json.workspace = true
+serde.workspace = true
+
+jsonrpsee = { version = "0.25.1" }
+futures-util = "0.3.31"
+brotli = "8.0.1"
+
+[[bin]]
+name = "flashblocks-rpc"
+path = "src/bin/main.rs"
+
+[lib]
+path = "src/lib.rs"
