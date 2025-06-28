@@ -52,6 +52,7 @@ services:
       --network=boba-mainnet
       --rpc.addr=0.0.0.0
       --rpc.port=8545
+      --p2p.bootnodes="enode://a38db98391708094dd679aacdd356efdbe10ad7c9ba4b87d8f4b79eb24ac26328e7fdf911f8c5c3b7786c2505bc77d896a0ecd1816bd56107592f728dcff3945@35.153.183.193:0?discport=30301,enode://a92b84bac2893ef868659364a6784a6eeb146cb04ec0bb3b1e9925f5bb895af9e1c50deaf0703ab26db366a3d82272e710e06d925cb0b7245129ed76d54ccac9@13.221.254.11:0?discport=30301"
     # Optional flags
     # These flags are optional and can be used to identify the node and store the peerstore and discovery data.
     # We recommend adding these flags to your configuration to help identify your node and store the peerstore and discovery data.
