@@ -57,6 +57,7 @@ func run(ctx context.Context, args []string, action ConfiguredLifecycle) error {
 		ResolveCommand,
 		ResolveClaimCommand,
 		RunTraceCommand,
+		CheckStateHistoryCommand,
 	}
 	app.Action = cliapp.LifecycleCmd(func(ctx *cli.Context, close context.CancelCauseFunc) (cliapp.Lifecycle, error) {
 		logger, err := setupLogging(ctx)
