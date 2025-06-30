@@ -2,6 +2,14 @@ name: Build Docker Image
 
 on:
   workflow_dispatch:
+    inputs:
+      service_name:
+        description: 'Name of the service to build'
+        default: 'rollup-boost'
+        type: choice
+        options:
+          - "rollup-boost"
+          - "flashblocks-rpc"
   push:
     branches:
       - main
@@ -12,7 +20,7 @@ permissions:
   contents: write
 
 env:
-  REGISTRY_IMAGE: flashbots/rollup-boost
+  REGISTRY_IMAGE: flashbots/${{ inputs.service_name || 'rollup-boost' }}
 
 jobs:
   build:
@@ -61,6 +69,8 @@ jobs:
           context: .
           platforms: ${{ matrix.config.platform }}
           labels: ${{ steps.meta.outputs.labels }}
+          build-args: |
+            SERVICE_NAME=${{ inputs.service_name || 'rollup-boost' }}
           outputs: type=image,name=${{ env.REGISTRY_IMAGE }},push-by-digest=true,name-canonical=true,push=true
 
       - name: Export digest

@@ -40,7 +40,7 @@ RUN --mount=type=cache,target=/usr/local/cargo/registry \
 FROM base AS builder
 WORKDIR /app
 # Default binary filename
-ARG ROLLUP_BOOST_BIN="rollup-boost"
+ARG SERVICE_NAME="rollup-boost"
 COPY --from=planner /app/recipe.json recipe.json
 
 RUN --mount=type=cache,target=$SCCACHE_DIR,sharing=locked \
@@ -54,8 +54,8 @@ RUN --mount=type=cache,target=/usr/local/cargo/registry \
     --mount=type=cache,target=$SCCACHE_DIR,sharing=locked \
     PROFILE_FLAG=$([ "$RELEASE" = "true" ] && echo "--release" || echo "") && \
     TARGET_DIR=$([ "$RELEASE" = "true" ] && echo "release" || echo "debug") && \
-    cargo build $PROFILE_FLAG --features="$FEATURES" --package=${ROLLUP_BOOST_BIN}; \
-    cp target/$TARGET_DIR/${ROLLUP_BOOST_BIN} /tmp/final_binary
+    cargo build $PROFILE_FLAG --features="$FEATURES" --package=${SERVICE_NAME}; \
+    cp target/$TARGET_DIR/${SERVICE_NAME} /tmp/final_binary
 
 #
 # Runtime container
@@ -63,7 +63,10 @@ RUN --mount=type=cache,target=/usr/local/cargo/registry \
 FROM gcr.io/distroless/cc-debian12
 WORKDIR /app
 
-ARG ROLLUP_BOOST_BIN="rollup-boost"
-COPY --from=builder /tmp/final_binary /usr/local/bin/rollup-boost
+ARG SERVICE_NAME
+# Copy binary with its proper service name
+COPY --from=builder /tmp/final_binary /usr/local/bin/${SERVICE_NAME}
+# Also copy as a fixed entrypoint name
+COPY --from=builder /tmp/final_binary /usr/local/bin/entrypoint
 
-ENTRYPOINT ["/usr/local/bin/rollup-boost"]
+ENTRYPOINT ["/usr/local/bin/entrypoint"]
