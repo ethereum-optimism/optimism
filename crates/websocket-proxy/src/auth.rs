@@ -23,13 +23,13 @@ impl std::fmt::Display for AuthenticationParseError {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
             NoData() => write!(f, "No API Keys Provided"),
-            MissingApplicationArgument(arg) => write!(f, "Missing application argument: [{}]", arg),
-            MissingAPIKeyArgument(app) => write!(f, "Missing API Key argument: [{}]", app),
-            TooManyComponents(app) => write!(f, "Too many components: [{}]", app),
+            MissingApplicationArgument(arg) => write!(f, "Missing application argument: [{arg}]"),
+            MissingAPIKeyArgument(app) => write!(f, "Missing API Key argument: [{app}]"),
+            TooManyComponents(app) => write!(f, "Too many components: [{app}]"),
             DuplicateApplicationArgument(app) => {
-                write!(f, "Duplicate application argument: [{}]", app)
+                write!(f, "Duplicate application argument: [{app}]")
             }
-            DuplicateAPIKeyArgument(app) => write!(f, "Duplicate API key: [{}]", app),
+            DuplicateAPIKeyArgument(app) => write!(f, "Duplicate API key: [{app}]"),
         }
     }
 }

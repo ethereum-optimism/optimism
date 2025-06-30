@@ -119,7 +119,7 @@ impl RpcClient {
         timeout: u64,
         payload_source: PayloadSource,
     ) -> Result<Self, RpcClientError> {
-        let version = format!("{}-{}", CARGO_PKG_VERSION, VERGEN_GIT_SHA);
+        let version = format!("{CARGO_PKG_VERSION}-{VERGEN_GIT_SHA}");
         let mut headers = HeaderMap::new();
         headers.insert("User-Agent", version.parse().unwrap());
 

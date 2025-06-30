@@ -378,7 +378,7 @@ impl RateLimit for RedisRateLimit {
 
         if total_ip_connections >= self.per_ip_limit {
             return Err(RateLimitError::Limit {
-                reason: format!("Per-IP connection limit reached for {}", addr),
+                reason: format!("Per-IP connection limit reached for {addr}"),
             });
         }
 

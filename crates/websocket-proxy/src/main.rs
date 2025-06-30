@@ -161,7 +161,7 @@ async fn main() {
         match auth::Authentication::try_from(api_keys) {
             Ok(auth) => Some(auth),
             Err(e) => {
-                panic!("Failed to parse API Keys: {}", e)
+                panic!("Failed to parse API Keys: {e}")
             }
         }
     };
