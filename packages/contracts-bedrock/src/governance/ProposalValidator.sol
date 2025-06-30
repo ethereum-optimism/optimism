@@ -17,7 +17,13 @@ import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { ISemver } from "interfaces/universal/ISemver.sol";
 
 // Modules
-import { ProposalSettings, ProposalOption, PassingCriteria } from "src/governance/ApprovalVotingModule.sol";
+import {
+    ProposalSettings as ApprovalProposalSettings,
+    ProposalOption,
+    PassingCriteria
+} from "src/governance/ApprovalVotingModule.sol";
+import { ProposalSettings as OptimisticProposalSettings } from "src/governance/OptimisticModule.sol";
+import { VotingModule } from "src/governance/VotingModule.sol";
 
 /// @custom:proxied true
 /// @title ProposalValidator
@@ -66,6 +72,12 @@ contract ProposalValidator is OwnableUpgradeable, ReinitializableBase, ISemver {
 
     /// @notice Thrown when the criteria value is invalid for council elections (must not exceed options length).
     error ProposalValidator_InvalidCriteriaValue();
+
+    /// @notice Thrown when the against threshold is invalid (must be > 0 and <= 10000 basis points).
+    error ProposalValidator_InvalidAgainstThreshold();
+
+    /// @notice Thrown when an invalid proposal type is provided for upgrade proposals.
+    error ProposalValidator_InvalidUpgradeProposalType();
 
     /*//////////////////////////////////////////////////////////////
                                  STRUCTS
@@ -121,6 +133,14 @@ contract ProposalValidator is OwnableUpgradeable, ReinitializableBase, ISemver {
         GovernanceFund,
         CouncilBudget
     }
+
+    /*//////////////////////////////////////////////////////////////
+                               CONSTANTS
+    //////////////////////////////////////////////////////////////*/
+
+    /// @notice The divisor used for percentage calculations in optimistic voting modules.
+    /// @dev Represents 100% in basis points (10,000 = 100%).
+    uint256 public constant OPTIMISTIC_MODULE_PERCENT_DIVISOR = 10_000;
 
     /*//////////////////////////////////////////////////////////////
                                  EVENTS
@@ -266,6 +286,84 @@ contract ProposalValidator is OwnableUpgradeable, ReinitializableBase, ISemver {
         transferOwnership(_owner);
     }
 
+    /// @notice Submits a Protocol/Governor Upgrade or Maintenance Upgrade proposal.
+    /// @param _againstThreshold The percentage that will be used to calculate the fraction of the votable supply
+    /// that the proposal will need in votes against it to fail.
+    /// @param _proposalDescription Description of the proposal.
+    /// @param _attestationUid The UID of the attestation for the approved proposer.
+    /// @param _proposalType The type of proposal (ProtocolOrGovernorUpgrade or MaintenanceUpgrade).
+    /// @return proposalHash_ The hash of the submitted proposal.
+    function submitUpgradeProposal(
+        uint248 _againstThreshold,
+        string memory _proposalDescription,
+        bytes32 _attestationUid,
+        ProposalType _proposalType
+    )
+        external
+        returns (bytes32 proposalHash_)
+    {
+        // Validate proposal type is valid for upgrade proposals
+        if (_proposalType != ProposalType.ProtocolOrGovernorUpgrade && _proposalType != ProposalType.MaintenanceUpgrade)
+        {
+            revert ProposalValidator_InvalidUpgradeProposalType();
+        }
+
+        // Validate EAS attestation - must be called by owner-approved address
+        _validateApprovedProposerAttestation(_attestationUid, _proposalType);
+
+        // Validate againstThreshold is non-zero and within bounds for percentage-based thresholds
+        if (_againstThreshold == 0 || _againstThreshold > OPTIMISTIC_MODULE_PERCENT_DIVISOR) {
+            revert ProposalValidator_InvalidAgainstThreshold();
+        }
+
+        // Create OptimisticModule ProposalSettings with required parameters
+        OptimisticProposalSettings memory optimisticSettings = OptimisticProposalSettings({
+            againstThreshold: _againstThreshold,
+            isRelativeToVotableSupply: true // MUST always be true
+         });
+
+        // Optimistic proposals are signal-only, no execution targets/calldatas needed
+        bytes memory proposalVotingModuleData = abi.encode(optimisticSettings);
+
+        // Get the optimistic module address from configurator
+        address votingModule =
+            proposalTypesConfigurator.proposalTypes(proposalTypesData[_proposalType].proposalVotingModule).module;
+
+        // Generate unique proposal hash
+        proposalHash_ =
+            _hashProposalWithModule(votingModule, proposalVotingModuleData, keccak256(bytes(_proposalDescription)));
+
+        ProposalData storage proposal = _proposals[proposalHash_];
+
+        // Prevent duplicate proposals
+        if (proposal.proposer != address(0)) {
+            revert ProposalValidator_ProposalAlreadySubmitted();
+        }
+
+        // Check if proposal already exists in OptimismGovernor
+        if (GOVERNOR.proposalSnapshot(uint256(proposalHash_)) != 0) {
+            revert ProposalValidator_ProposalAlreadySubmitted();
+        }
+
+        // Store proposal metadata
+        proposal.proposer = msg.sender;
+        proposal.proposalType = _proposalType;
+
+        emit ProposalSubmitted(proposalHash_, msg.sender, _proposalDescription, _proposalType);
+        emit ProposalVotingModuleData(proposalHash_, proposalVotingModuleData);
+
+        // MaintenanceUpgrade proposals move directly to voting (atomic operation)
+        if (_proposalType == ProposalType.MaintenanceUpgrade) {
+            proposal.inVoting = true;
+
+            GOVERNOR.proposeWithModule(
+                VotingModule(votingModule), proposalVotingModuleData, _proposalDescription, uint8(_proposalType)
+            );
+
+            emit ProposalMovedToVote(proposalHash_, msg.sender);
+        }
+    }
+
     /// @notice Submits a Council Member Elections proposal for approval and voting.
     /// @param _criteriaValue Since the passing criteria type is "TopChoices" this number represents the amount
     /// of top choices that can pass the voting.
@@ -314,7 +412,7 @@ contract ProposalValidator is OwnableUpgradeable, ReinitializableBase, ISemver {
         }
 
         // Configure approval voting settings with TopChoices criteria
-        ProposalSettings memory settings = ProposalSettings({
+        ApprovalProposalSettings memory settings = ApprovalProposalSettings({
             maxApprovals: uint8(optionsLength),
             criteria: uint8(PassingCriteria.TopChoices),
             budgetToken: address(0), // No budget token for elections
@@ -421,7 +519,7 @@ contract ProposalValidator is OwnableUpgradeable, ReinitializableBase, ISemver {
         }
 
         // Configure approval voting settings
-        ProposalSettings memory settings = ProposalSettings({
+        ApprovalProposalSettings memory settings = ApprovalProposalSettings({
             maxApprovals: uint8(optionsLength),
             criteria: uint8(PassingCriteria.Threshold),
             budgetToken: Predeploys.GOVERNANCE_TOKEN,

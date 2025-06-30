@@ -129,6 +129,7 @@ rules:
         - packages/contracts-bedrock/src/governance/GovernanceToken.sol
         - packages/contracts-bedrock/src/governance/VotingModule.sol
         - packages/contracts-bedrock/src/governance/ApprovalVotingModule.sol
+        - packages/contracts-bedrock/src/governance/OptimisticModule.sol
 
   - id: sol-style-return-arg-fmt
     languages: [solidity]
@@ -155,6 +156,7 @@ rules:
       exclude:
         - packages/contracts-bedrock/test/safe-tools/CompatibilityFallbackHandler_1_3_0.sol
         - packages/contracts-bedrock/src/governance/ApprovalVotingModule.sol
+        - packages/contracts-bedrock/src/governance/OptimisticModule.sol
 
   - id: sol-style-malformed-require
     languages: [solidity]
@@ -255,6 +257,7 @@ rules:
         - packages/contracts-bedrock/src/dispute/SuperFaultDisputeGame.sol
         - packages/contracts-bedrock/src/governance/VotingModule.sol
         - packages/contracts-bedrock/src/governance/ApprovalVotingModule.sol
+        - packages/contracts-bedrock/src/governance/OptimisticModule.sol
         - packages/contracts-bedrock/src/cannon/libraries/MIPS64Instructions.sol
         - packages/contracts-bedrock/src/cannon/libraries/CannonErrors.sol
         - packages/contracts-bedrock/src/L2/SuperchainETHBridge.sol

@@ -453,6 +453,40 @@
   {
     "inputs": [
       {
+        "internalType": "uint248",
+        "name": "_againstThreshold",
+        "type": "uint248"
+      },
+      {
+        "internalType": "string",
+        "name": "_proposalDescription",
+        "type": "string"
+      },
+      {
+        "internalType": "bytes32",
+        "name": "_attestationUid",
+        "type": "bytes32"
+      },
+      {
+        "internalType": "enum ProposalValidator.ProposalType",
+        "name": "_proposalType",
+        "type": "uint8"
+      }
+    ],
+    "name": "submitUpgradeProposal",
+    "outputs": [
+      {
+        "internalType": "bytes32",
+        "name": "proposalHash_",
+        "type": "bytes32"
+      }
+    ],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
         "internalType": "address",
         "name": "newOwner",
         "type": "address"
@@ -711,6 +745,11 @@
   },
   {
     "inputs": [],
+    "name": "ProposalValidator_InvalidAgainstThreshold",
+    "type": "error"
+  },
+  {
+    "inputs": [],
     "name": "ProposalValidator_InvalidAttestation",
     "type": "error"
   },
@@ -726,17 +765,17 @@
   },
   {
     "inputs": [],
-    "name": "ProposalValidator_InvalidCriteriaValue",
-    "type": "error"
-  },
-  {
-    "inputs": [],
     "name": "ProposalValidator_InvalidFundingProposalType",
     "type": "error"
   },
   {
     "inputs": [],
     "name": "ProposalValidator_InvalidOptionsLength",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "ProposalValidator_InvalidUpgradeProposalType",
     "type": "error"
   },
   {

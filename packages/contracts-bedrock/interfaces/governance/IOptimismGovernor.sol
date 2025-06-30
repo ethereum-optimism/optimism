@@ -2,6 +2,7 @@
 pragma solidity ^0.8.0;
 
 import {VotingModule} from "src/governance/VotingModule.sol";
+import {IVotesUpgradeable} from "@openzeppelin/contracts-upgradeable/governance/utils/IVotesUpgradeable.sol";
 
 interface IOptimismGovernor {
     function propose(
@@ -20,6 +21,17 @@ interface IOptimismGovernor {
     ) external returns (uint256 proposalId);
 
     function timelock() external view returns (address);
+
+    function PROPOSAL_TYPES_CONFIGURATOR() external view returns (address);
+
+    function token() external view returns (IVotesUpgradeable);
+
+    function getProposalType(uint256 proposalId) external view returns (uint8);
+
+    function proposalVotes(uint256 proposalId)
+        external
+        view
+        returns (uint256 againstVotes, uint256 forVotes, uint256 abstainVotes);
 
     /// @notice Returns the snapshot block number for a proposal, 0 if proposal doesn't exist
     /// @param proposalId The ID of the proposal

@@ -24,6 +24,8 @@ interface IProposalValidator is ISemver {
     error ProposalValidator_AttestationRevoked();
     error ProposalValidator_InvalidAttestationSchema();
     error ProposalValidator_InvalidCriteriaValue();
+    error ProposalValidator_InvalidUpgradeProposalType();
+    error ProposalValidator_InvalidAgainstThreshold();
 
     struct ProposalData {
         address proposer;
@@ -83,9 +85,9 @@ interface IProposalValidator is ISemver {
         bytes encodedVotingModuleData
     );
 
-    event OwnershipTransferred(address indexed previousOwner, address indexed newOwner);
-
     event Initialized(uint8 version);
+
+    event OwnershipTransferred(address indexed previousOwner, address indexed newOwner);
 
     function approveProposal(bytes32 _proposalHash, bytes32 _attestationUid) external;
 
@@ -126,6 +128,13 @@ interface IProposalValidator is ISemver {
         ProposalType _proposalType
     ) external returns (bytes32 proposalHash_);
 
+    function submitUpgradeProposal(
+        uint248 _againstThreshold,
+        string memory _proposalDescription,
+        bytes32 _attestationUid,
+        ProposalType _proposalType
+    ) external returns (bytes32 proposalHash_);
+
     function initialize(
         address _owner,
         IProposalTypesConfigurator _proposalTypesConfigurator,
@@ -140,9 +149,9 @@ interface IProposalValidator is ISemver {
 
     function renounceOwnership() external;
 
-    function canApproveProposal(bytes32 _attestationUid, address _delegate) external view returns (bool canApprove_);
-
     function transferOwnership(address newOwner) external;
+
+    function canApproveProposal(bytes32 _attestationUid, address _delegate) external view returns (bool canApprove_);
 
     function distributionThreshold() external view returns (uint256);
 
