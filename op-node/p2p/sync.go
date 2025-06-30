@@ -866,25 +866,31 @@ func (srv *ReqRespServer) handleSyncRequest(ctx context.Context, stream network.
 	}
 
 	// find rate limiting data of peer, or add otherwise
-	srv.peerStatsLock.Lock()
-	ps, _ := srv.peerRateLimits.Get(peerId)
-	if ps == nil {
-		ps = &peerStat{
-			Requests: rate.NewLimiter(peerServerBlocksRateLimit, peerServerBlocksBurst),
-		}
-		srv.peerRateLimits.Add(peerId, ps)
-		ps.Requests.Reserve() // count the hit, but make it delay the next request rather than immediately waiting
-	} else {
-		// Only wait if it's an existing peer, otherwise the instant rate-limit Wait call always errors.
+	if err := func() error {
+		srv.peerStatsLock.Lock()
+		defer srv.peerStatsLock.Unlock()
 
-		// If the requester thinks we're taking too long, then it's their problem and they can disconnect.
-		// We'll disconnect ourselves only when failing to read/write,
-		// if the work is invalid (range validation), or when individual sub tasks timeout.
-		if err := ps.Requests.Wait(ctx); err != nil {
-			return 0, fmt.Errorf("timed out waiting for global sync rate limit: %w", err)
+		ps, _ := srv.peerRateLimits.Get(peerId)
+		if ps == nil {
+			ps = &peerStat{
+				Requests: rate.NewLimiter(peerServerBlocksRateLimit, peerServerBlocksBurst),
+			}
+			srv.peerRateLimits.Add(peerId, ps)
+			ps.Requests.Reserve() // count the hit, but make it delay the next request rather than immediately waiting
+		} else {
+			// Only wait if it's an existing peer, otherwise the instant rate-limit Wait call always errors.
+
+			// If the requester thinks we're taking too long, then it's their problem and they can disconnect.
+			// We'll disconnect ourselves only when failing to read/write,
+			// if the work is invalid (range validation), or when individual sub tasks timeout.
+			if err := ps.Requests.Wait(ctx); err != nil {
+				return fmt.Errorf("timed out waiting for peer sync rate limit: %w", err)
+			}
 		}
+		return nil
+	}(); err != nil {
+		return 0, err
 	}
-	srv.peerStatsLock.Unlock()
 
 	// Set read deadline, if available
 	_ = stream.SetReadDeadline(time.Now().Add(serverReadRequestTimeout))
