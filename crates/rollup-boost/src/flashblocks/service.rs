@@ -27,7 +27,7 @@ use tokio::sync::RwLock;
 use tokio::sync::mpsc;
 use tracing::{error, info};
 
-#[derive(Debug, Error)]
+#[derive(Debug, Error, PartialEq)]
 pub enum FlashblocksError {
     #[error("Missing base payload for initial flashblock")]
     MissingBasePayload,
@@ -438,6 +438,64 @@ mod tests {
 
         let get_payload_requests_builder = builder_mock.get_payload_requests.clone();
         assert_eq!(get_payload_requests_builder.lock().len(), 1);
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_flashblocks_builder() -> eyre::Result<()> {
+        let mut builder = FlashblockBuilder::new();
+
+        // Error: First payload must have a base
+        let result = builder.extend(FlashblocksPayloadV1 {
+            payload_id: PayloadId::default(),
+            index: 0,
+            ..Default::default()
+        });
+        assert!(result.is_err());
+        assert_eq!(result.unwrap_err(), FlashblocksError::MissingBasePayload);
+
+        // Error: First payload must have index 0
+        let result = builder.extend(FlashblocksPayloadV1 {
+            payload_id: PayloadId::default(),
+            index: 1,
+            base: Some(ExecutionPayloadBaseV1 {
+                ..Default::default()
+            }),
+            ..Default::default()
+        });
+        assert!(result.is_err());
+        assert_eq!(result.unwrap_err(), FlashblocksError::UnexpectedBasePayload);
+
+        // Ok: First payload is correct if it has base and index 0
+        let result = builder.extend(FlashblocksPayloadV1 {
+            payload_id: PayloadId::default(),
+            index: 0,
+            base: Some(ExecutionPayloadBaseV1 {
+                ..Default::default()
+            }),
+            ..Default::default()
+        });
+        assert!(result.is_ok());
+
+        // Error: Second payload must have a follow-up index
+        let result = builder.extend(FlashblocksPayloadV1 {
+            payload_id: PayloadId::default(),
+            index: 2,
+            base: None,
+            ..Default::default()
+        });
+        assert!(result.is_err());
+        assert_eq!(result.unwrap_err(), FlashblocksError::InvalidIndex);
+
+        // Ok: Second payload has the correct index
+        let result = builder.extend(FlashblocksPayloadV1 {
+            payload_id: PayloadId::default(),
+            index: 1,
+            base: None,
+            ..Default::default()
+        });
+        assert!(result.is_ok());
 
         Ok(())
     }
