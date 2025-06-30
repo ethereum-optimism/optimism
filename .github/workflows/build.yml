@@ -54,13 +54,13 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Login to DockerHub
+      - name: Login to Docker Hub
         uses: docker/login-action@v3
         with:
           username: ${{ secrets.FLASHBOTS_DOCKERHUB_USERNAME }}
           password: ${{ secrets.FLASHBOTS_DOCKERHUB_TOKEN }}
 
-      - name: Build and push
+      - name: Build and push to docker hub
         id: build
         uses: docker/build-push-action@v6
         with:
@@ -69,9 +69,10 @@ jobs:
           context: .
           platforms: ${{ matrix.config.platform }}
           labels: ${{ steps.meta.outputs.labels }}
+          outputs: type=registry,name=${{ env.REGISTRY_IMAGE }},push-by-digest=true,name-canonical=true
           build-args: |
             SERVICE_NAME=${{ inputs.service_name || 'rollup-boost' }}
-          outputs: type=image,name=${{ env.REGISTRY_IMAGE }},push-by-digest=true,name-canonical=true,push=true
+          outputs: type=registry,name=${{ env.REGISTRY_IMAGE }},push-by-digest=true,name-canonical=true
 
       - name: Export digest
         run: |
@@ -89,6 +90,9 @@ jobs:
 
   merge:
     runs-on: warp-ubuntu-latest-x64-16x
+    permissions:
+      contents: read
+      packages: write
     needs:
       - build
     steps:
@@ -105,6 +109,13 @@ jobs:
           username: ${{ secrets.FLASHBOTS_DOCKERHUB_USERNAME }}
           password: ${{ secrets.FLASHBOTS_DOCKERHUB_TOKEN }}
 
+      - name: Login to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.FLASHBOTS_GHCR_TOKEN }}
+
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
@@ -120,8 +131,22 @@ jobs:
       - name: Create manifest list and push
         working-directory: /tmp/digests
         run: |
-          docker buildx imagetools create $(jq -cr '.tags | map("-t " + .) | join(" ")' <<< "$DOCKER_METADATA_OUTPUT_JSON") \
-            $(printf '${{ env.REGISTRY_IMAGE }}@sha256:%s ' *)
+          image=$(
+            jq -cr '.tags | first' <<< "$DOCKER_METADATA_OUTPUT_JSON"
+          )
+
+          docker buildx imagetools create -t $image $(
+            printf '${{ env.REGISTRY_IMAGE }}@sha256:%s ' *
+          )
+
+      - name: Install regctl
+        uses: regclient/actions/regctl-installer@main
+
+      - name: Push to GHCR
+        run: |
+          regctl image copy \
+            ${{ env.REGISTRY_IMAGE }}:${{ steps.meta.outputs.version }} \
+            ghcr.io/${{ env.REGISTRY_IMAGE }}:${{ steps.meta.outputs.version }}
 
       - name: Inspect image
         run: |
