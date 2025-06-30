@@ -5,7 +5,7 @@ on:
   workflow_dispatch:
   # Run nightly at 00:00 UTC
   schedule:
-    - cron: '0 0 * * *'
+    - cron: "0 0 * * *"
   push:
     branches:
       - main
@@ -97,12 +97,12 @@ jobs:
       - name: Devnet Up
         run: |
           eval $(minikube -p minikube docker-env)
-          just devnet-up
+          just kurtosis-devnet-up
 
       - name: Stress Tests
         run: |
-          just stress-test
+          just kurtosis-stress-test
 
       - name: Devnet Down
         run: |
-          just devnet-down
+          just kurtosis-devnet-down

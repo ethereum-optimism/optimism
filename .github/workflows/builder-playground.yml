@@ -1,0 +1,45 @@
+name: Builder Playground Integration Tests
+
+on:
+  # Allow manual trigger
+  workflow_dispatch:
+  # Run nightly at 00:00 UTC
+  schedule:
+    - cron: "0 0 * * *"
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  integration-tests:
+    name: Run Builder Playground Integration Tests
+    runs-on: warp-ubuntu-latest-x64-16x
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install Builder playground
+        uses: flashbots/flashbots-toolchain@v0.2
+        with:
+          builder-playground: latest
+
+      - name: Setup Rust
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          profile: minimal
+
+      - name: Install Just
+        uses: taiki-e/install-action@just
+
+      - name: Build Rollup boost image
+        run: |
+          just build
+
+      - name: Run Builder Playground
+        run: |
+          builder-playground cook opstack --override rollup-boost=flashbots/rollup-boost:develop --external-builder op-reth --timeout 5m --watchdog
