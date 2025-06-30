@@ -198,23 +198,22 @@ Prints the list of current claims in a dispute game.
 ```
 
 * `NETWORK_NAME` - the name of a predefined L2 network.
-* `L1_ETH_RPC` - the RPC endpoint of the L1 endpoint to use (e.g. `http://localhost:8545`).
-* `L1_BEACON` - the REST endpoint of the L1 beacon node to use (e.g. `http://localhost:5100`).
-* `L2_ETH_RPC` - the RPC endpoint of the L2 execution client to use
-* `ROLLUP_RPC` - the RPC endpoint of the L2 consensus client to use
-* `DATA_DIR` - the directory to use to store data
-* `PRESTATES_URL` - the base URL to download required prestates from
-* `RUN_CONFIG` - the trace providers and prestates to run. e.g. `cannon,asterisc-kona/kona-0.1.0-alpha.5/0x03c50fbef46a05f93ea7665fa89015c2108e10c1b4501799c0663774bd35a9c5`
 
-Testing utility that continuously runs the specified trace providers against real chain data. The trace providers can be
-configured with multiple different prestates. This allows testing both the current and potential future prestates with
-the fault proofs virtual machine used by the trace provider.
+### check-state-history
 
-The same CLI options as `op-challenger` itself are supported to configure the trace providers. The additional `--run`
-option allows specifying which prestates to use. The format is `traceType/name/prestateHash` where traceType is the
-trace type to use with the prestate (e.g cannon or asterisc-kona), name is an arbitrary name for the prestate to use
-when reporting metrics and prestateHash is the hex encoded absolute prestate commitment to use. If name is omitted the
-trace type name is used. If the prestateHash is omitted, the absolute prestate hash used for new games on-chain is used.
+```shell
+./bin/op-challenger check-state-history \
+  --l1-eth-rpc <L1_ETH_RPC> \
+  --l2-eth-rpc <L2_ETH_RPC> \
+  [--rollup-rpc <ROLLUP_RPC>] \
+  [--history-depth <DEPTH>]
+```
 
-For example to run both the production cannon prestate and a custom
-prestate, use `--run cannon,cannon/next-prestate/0x03c1f0d45248190f80430a4c31e24f8108f05f80ff8b16ecb82d20df6b1b43f3`.
+Checks if sufficient state history is available for the challenger to operate properly.
+This command verifies that L1, L2, and optionally rollup nodes have the required
+historical block data accessible for dispute game operations.
+
+* `L1_ETH_RPC` - the RPC endpoint of the L1 execution client to check (e.g. `http://localhost:8545`).
+* `L2_ETH_RPC` - the RPC endpoint of the L2 execution client to check (e.g. `http://localhost:9545`).
+* `ROLLUP_RPC` - (optional) the RPC endpoint of the rollup node to check (e.g. `http://localhost:9546`).
+* `DEPTH` - (optional) number of historical blocks to verify accessibility (default: 1000).
