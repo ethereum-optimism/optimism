@@ -28,7 +28,13 @@ import { Proxy } from "src/universal/Proxy.sol";
 import { Predeploys } from "src/libraries/Predeploys.sol";
 
 // Modules
-import { ProposalSettings, ProposalOption, PassingCriteria } from "src/governance/ApprovalVotingModule.sol";
+import {
+    ProposalSettings as ApprovalProposalSettings,
+    ProposalOption,
+    PassingCriteria
+} from "src/governance/ApprovalVotingModule.sol";
+import { ProposalSettings as OptimisticProposalSettings } from "src/governance/OptimisticModule.sol";
+import { VotingModule } from "src/governance/VotingModule.sol";
 
 // Testing utilities
 import { stdStorage, StdStorage } from "forge-std/Test.sol";
@@ -109,7 +115,10 @@ contract ProposalValidator_Init is CommonTest {
     uint256 public constant DISTRIBUTION_LIMIT = 10000 ether;
     uint256 public constant DISTRIBUTION_THRESHOLD = 10000 ether;
     uint256 public constant PROPOSAL_REQUIRED_APPROVALS = 4;
-    uint8 public constant APPROVAL_VOTING_MODULE_ID = 3;
+    uint256 public constant MINIMUM_VOTING_POWER = 10000 ether;
+    uint256 public constant OPTIMISTIC_MODULE_PERCENT_DIVISOR = 10_000;
+    uint8 public constant APPROVAL_VOTING_MODULE_ID = 1;
+    uint8 public constant OPTIMISTIC_VOTING_MODULE_ID = 2;
 
     address owner;
     address user;
@@ -122,6 +131,7 @@ contract ProposalValidator_Init is CommonTest {
     bytes32 topDelegateAttestation_C;
     bytes32 topDelegateAttestation_D;
     address approvalVotingModule;
+    address optimisticVotingModule;
 
     ProposalValidatorForTest public validator;
     ProposalValidatorForTest public impl;
@@ -147,6 +157,7 @@ contract ProposalValidator_Init is CommonTest {
     event ProposalTypeDataSet(
         ProposalValidator.ProposalType proposalType, uint256 requiredApprovals, uint8 proposalVotingModule
     );
+    event ProposalVotingModuleData(bytes32 indexed proposalHash, bytes encodedVotingModuleData);
 
     /// @notice Helper function to setup a mock and expect a call to it.
     function _mockAndExpect(address _receiver, bytes memory _calldata, bytes memory _returned) internal {
@@ -207,6 +218,34 @@ contract ProposalValidator_Init is CommonTest {
     function _setFundingProposalTypes() internal {
         _setGovernanceFundProposalType();
         _setCouncilBudgetProposalType();
+    }
+
+    /// @notice Helper function to set ProtocolOrGovernorUpgrade proposal type data.
+    function _setProtocolOrGovernorUpgradeProposalType() internal {
+        _setProposalTypeData(
+            ProposalValidator.ProposalType.ProtocolOrGovernorUpgrade,
+            ProposalValidator.ProposalTypeData({
+                requiredApprovals: PROPOSAL_REQUIRED_APPROVALS,
+                proposalVotingModule: OPTIMISTIC_VOTING_MODULE_ID
+            })
+        );
+    }
+
+    /// @notice Helper function to set MaintenanceUpgrade proposal type data.
+    function _setMaintenanceUpgradeProposalType() internal {
+        _setProposalTypeData(
+            ProposalValidator.ProposalType.MaintenanceUpgrade,
+            ProposalValidator.ProposalTypeData({
+                requiredApprovals: 0, // MaintenanceUpgrade moves directly to voting
+                proposalVotingModule: OPTIMISTIC_VOTING_MODULE_ID
+            })
+        );
+    }
+
+    /// @notice Helper function to set both upgrade proposal types.
+    function _setUpgradeProposalTypes() internal {
+        _setProtocolOrGovernorUpgradeProposalType();
+        _setMaintenanceUpgradeProposalType();
     }
     /// @notice Helper to create minimal valid arrays for funding proposal error tests
 
@@ -299,7 +338,7 @@ contract ProposalValidator_Init is CommonTest {
         }
 
         // Construct ProposalSettings
-        ProposalSettings memory settings = ProposalSettings({
+        ApprovalProposalSettings memory settings = ApprovalProposalSettings({
             maxApprovals: uint8(descriptions.length),
             criteria: uint8(PassingCriteria.Threshold),
             budgetToken: Predeploys.GOVERNANCE_TOKEN,
@@ -337,7 +376,7 @@ contract ProposalValidator_Init is CommonTest {
         }
 
         // Construct ProposalSettings with TopChoices criteria
-        ProposalSettings memory settings = ProposalSettings({
+        ApprovalProposalSettings memory settings = ApprovalProposalSettings({
             maxApprovals: uint8(descriptions.length),
             criteria: uint8(PassingCriteria.TopChoices),
             budgetToken: address(0),
@@ -348,26 +387,36 @@ contract ProposalValidator_Init is CommonTest {
         return abi.encode(options, settings);
     }
 
-    /// @notice Helper function to setup proposal types configurator mocks
-    function _setupProposalTypesConfiguratorMocks() internal {
-        // Mock calls for different proposal type IDs
-        for (uint8 i = 0; i < 5; i++) {
-            address moduleAddress = (i == 2 || i == APPROVAL_VOTING_MODULE_ID) ? approvalVotingModule : address(0);
+    /// @notice Helper function to construct voting module data for upgrade proposals
+    function _constructOptimisticVotingModuleData(uint248 againstThreshold) internal pure returns (bytes memory) {
+        OptimisticProposalSettings memory settings =
+            OptimisticProposalSettings({ againstThreshold: againstThreshold, isRelativeToVotableSupply: true });
 
-            vm.mockCall(
-                address(proposalTypesConfigurator),
-                abi.encodeCall(IProposalTypesConfigurator.proposalTypes, (i)),
-                abi.encode(
-                    IProposalTypesConfigurator.ProposalType({
-                        quorum: 100,
-                        approvalThreshold: 100,
-                        name: "Test Proposal Type",
-                        description: "Test Description",
-                        module: moduleAddress
-                    })
-                )
-            );
+        return abi.encode(settings);
+    }
+
+    /// @notice Helper function to setup proposal types configurator mocks
+    function _mockProposalTypesConfiguratorCall(uint8 _votingModuleId) internal {
+        address moduleAddress;
+        if (_votingModuleId == APPROVAL_VOTING_MODULE_ID) {
+            moduleAddress = approvalVotingModule;
+        } else if (_votingModuleId == OPTIMISTIC_VOTING_MODULE_ID) {
+            moduleAddress = optimisticVotingModule;
         }
+
+        _mockAndExpect(
+            address(proposalTypesConfigurator),
+            abi.encodeCall(IProposalTypesConfigurator.proposalTypes, (_votingModuleId)),
+            abi.encode(
+                IProposalTypesConfigurator.ProposalType({
+                    quorum: 100,
+                    approvalThreshold: 100,
+                    name: "Test Proposal Type",
+                    description: "Test Description",
+                    module: moduleAddress
+                })
+            )
+        );
     }
 
     /// @notice Initializes the validator
@@ -379,9 +428,6 @@ contract ProposalValidator_Init is CommonTest {
 
         // Create mock addresses
         proposalTypesConfigurator = IProposalTypesConfigurator(makeAddr("proposalTypesConfigurator"));
-
-        // Setup mocks
-        _setupProposalTypesConfiguratorMocks();
 
         impl = new ProposalValidatorForTest(
             APPROVED_PROPOSER_ATTESTATION_SCHEMA_UID, TOP_DELEGATES_ATTESTATION_SCHEMA_UID, governor, governanceToken
@@ -415,6 +461,7 @@ contract ProposalValidator_Init is CommonTest {
         user = makeAddr("user");
         governor = IOptimismGovernor(makeAddr("governor"));
         approvalVotingModule = makeAddr("approvalVotingModule");
+        optimisticVotingModule = makeAddr("optimisticVotingModule");
 
         // Create schemas
         vm.prank(owner);
@@ -786,13 +833,13 @@ contract ProposalValidator_ApproveProposal_TestFail is ProposalValidator_Init {
 /// @title ProposalValidator_CanApproveProposal_Test
 /// @notice Tests for the canApproveProposal function
 contract ProposalValidator_CanApproveProposal_Test is ProposalValidator_Init {
-    function test_canApproveProposal_ReturnsTrue_succeeds() public {
+    function test_canApproveProposal_returnsTrue_succeeds() public {
         // Attestation already created in setUp
         bool canApprove = validator.canApproveProposal(topDelegateAttestation_A, topDelegate_A);
         assertTrue(canApprove);
     }
 
-    function test_canApproveProposal_ReturnsFalse_succeeds(bytes32 _attestationUid, address _delegate) public {
+    function test_canApproveProposal_returnsFalse_succeeds(bytes32 _attestationUid, address _delegate) public {
         // Ensure the attestation uid is not one of the top delegates
         vm.assume(
             _attestationUid != topDelegateAttestation_A && _attestationUid != topDelegateAttestation_B
@@ -955,8 +1002,6 @@ contract ProposalValidator_SubmitFundingProposal_Test is ProposalValidator_Init 
     uint256[] optionsAmounts;
     string description;
 
-    event ProposalVotingModuleData(bytes32 indexed proposalHash, bytes encodedVotingModuleData);
-
     function setUp() public override {
         super.setUp();
 
@@ -1016,6 +1061,8 @@ contract ProposalValidator_SubmitFundingProposal_Test is ProposalValidator_Init 
         vm.expectEmit(address(validator));
         emit ProposalVotingModuleData(expectedHash, votingModuleData);
 
+        _mockProposalTypesConfiguratorCall(APPROVAL_VOTING_MODULE_ID);
+
         vm.prank(proposer);
         bytes32 proposalHash =
             validator.submitFundingProposal(criteriaValue, descriptions, recipients, amounts, description, proposalType);
@@ -1050,7 +1097,6 @@ contract ProposalValidator_SubmitFundingProposal_TestFail is ProposalValidator_I
     }
 
     function testFuzz_submitFundingProposal_invalidProposalType_reverts(uint8 proposalTypeValue) public {
-        // Bound to proposal types that are NOT funding proposals (0, 1, 2)
         // Valid funding proposal types are GovernanceFund (3) and CouncilBudget (4)
         proposalTypeValue = uint8(bound(proposalTypeValue, 0, 2));
         ProposalValidator.ProposalType proposalType = ProposalValidator.ProposalType(proposalTypeValue);
@@ -1210,6 +1256,8 @@ contract ProposalValidator_SubmitFundingProposal_TestFail is ProposalValidator_I
             abi.encode(0)
         );
 
+        _mockProposalTypesConfiguratorCall(APPROVAL_VOTING_MODULE_ID);
+
         // Submit first proposal
         vm.prank(user);
         validator.submitFundingProposal(
@@ -1218,6 +1266,9 @@ contract ProposalValidator_SubmitFundingProposal_TestFail is ProposalValidator_I
 
         // Attempt to submit identical proposal
         vm.expectRevert(ProposalValidator.ProposalValidator_ProposalAlreadySubmitted.selector);
+
+        _mockProposalTypesConfiguratorCall(APPROVAL_VOTING_MODULE_ID);
+
         vm.prank(user);
         validator.submitFundingProposal(
             FUNDING_CRITERIA_VALUE, descriptions, recipients, amounts, description, proposalType
@@ -1246,6 +1297,9 @@ contract ProposalValidator_SubmitFundingProposal_TestFail is ProposalValidator_I
         );
 
         vm.expectRevert(ProposalValidator.ProposalValidator_ProposalAlreadySubmitted.selector);
+
+        _mockProposalTypesConfiguratorCall(APPROVAL_VOTING_MODULE_ID);
+
         vm.prank(user);
         validator.submitFundingProposal(
             FUNDING_CRITERIA_VALUE, descriptions, recipients, amounts, description, proposalType
@@ -1298,14 +1352,10 @@ contract ProposalValidator_Initialize_Test is ProposalValidator_Init {
         // Create mock addresses
         proposalTypesConfigurator = IProposalTypesConfigurator(makeAddr("proposalTypesConfigurator"));
 
-        // Setup mocks
-        _setupProposalTypesConfiguratorMocks();
-
         impl = new ProposalValidatorForTest(
             APPROVED_PROPOSER_ATTESTATION_SCHEMA_UID, TOP_DELEGATES_ATTESTATION_SCHEMA_UID, governor, governanceToken
         );
         validator = ProposalValidatorForTest(address(new Proxy(owner)));
-        // Initialize will be tested manually
     }
 
     function test_initialize_succeeds() public {
@@ -1404,8 +1454,6 @@ contract ProposalValidator_Initialize_Test is ProposalValidator_Init {
 contract ProposalValidator_SubmitCouncilMemberElectionsProposal_Test is ProposalValidator_Init {
     string proposalDescription;
 
-    event ProposalVotingModuleData(bytes32 indexed proposalHash, bytes encodedVotingModuleData);
-
     function setUp() public override {
         super.setUp();
 
@@ -1451,6 +1499,8 @@ contract ProposalValidator_SubmitCouncilMemberElectionsProposal_Test is Proposal
         // Expect ProposalVotingModuleData event
         vm.expectEmit(address(validator));
         emit ProposalVotingModuleData(expectedHash, votingModuleData);
+
+        _mockProposalTypesConfiguratorCall(APPROVAL_VOTING_MODULE_ID);
 
         vm.prank(topDelegate_A);
         bytes32 proposalHash = validator.submitCouncilMemberElectionsProposal(
@@ -1543,6 +1593,8 @@ contract ProposalValidator_SubmitCouncilMemberElectionsProposal_TestFail is Prop
             abi.encode(0)
         );
 
+        _mockProposalTypesConfiguratorCall(APPROVAL_VOTING_MODULE_ID);
+
         // Submit first proposal
         vm.prank(topDelegate_A);
         validator.submitCouncilMemberElectionsProposal(
@@ -1555,6 +1607,9 @@ contract ProposalValidator_SubmitCouncilMemberElectionsProposal_TestFail is Prop
 
         // Attempt to submit identical proposal should revert
         vm.expectRevert(ProposalValidator.ProposalValidator_ProposalAlreadySubmitted.selector);
+
+        _mockProposalTypesConfiguratorCall(APPROVAL_VOTING_MODULE_ID);
+
         vm.prank(topDelegate_B);
         validator.submitCouncilMemberElectionsProposal(
             criteriaValue, optionDescriptions, proposalDescription, secondAttestation
@@ -1576,6 +1631,9 @@ contract ProposalValidator_SubmitCouncilMemberElectionsProposal_TestFail is Prop
         );
 
         vm.expectRevert(ProposalValidator.ProposalValidator_ProposalAlreadySubmitted.selector);
+
+        _mockProposalTypesConfiguratorCall(APPROVAL_VOTING_MODULE_ID);
+
         vm.prank(topDelegate_A);
         validator.submitCouncilMemberElectionsProposal(
             criteriaValue, optionDescriptions, proposalDescription, attestationUid
@@ -1623,5 +1681,332 @@ contract ProposalValidator_SubmitCouncilMemberElectionsProposal_TestFail is Prop
         validator.submitCouncilMemberElectionsProposal(
             invalidCriteriaValue, optionDescriptions, proposalDescription, attestationUid
         );
+    }
+}
+
+/// @title ProposalValidator_SubmitUpgradeProposal_Test
+/// @notice Happy path tests for submitUpgradeProposal function
+contract ProposalValidator_SubmitUpgradeProposal_Test is ProposalValidator_Init {
+    string proposalDescription;
+
+    function setUp() public override {
+        super.setUp();
+
+        _setUpgradeProposalTypes();
+
+        proposalDescription = "Protocol Upgrade Proposal";
+    }
+
+    function testFuzz_submitUpgradeProposal_maintenanceUpgrade_succeeds(
+        uint248 againstThreshold,
+        address proposer
+    )
+        public
+    {
+        // Assume proposer is not zero address
+        vm.assume(proposer != address(0));
+
+        ProposalValidator.ProposalType proposalType = ProposalValidator.ProposalType.MaintenanceUpgrade;
+
+        // Bound againstThreshold to valid range (1 to 10000 basis points)
+        againstThreshold = uint248(bound(againstThreshold, 1, OPTIMISTIC_MODULE_PERCENT_DIVISOR));
+
+        // Create attestation for the proposal
+        bytes32 attestationUid = _createApprovedProposerAttestation(proposer, proposalType);
+
+        // Calculate expected proposal hash
+        bytes memory votingModuleData = _constructOptimisticVotingModuleData(againstThreshold);
+        bytes32 expectedHash = validator.hashProposalWithModule(
+            optimisticVotingModule, votingModuleData, keccak256(bytes(proposalDescription))
+        );
+
+        // Mock proposalSnapshot to return 0 (proposal doesn't exist in governor)
+        _mockAndExpect(
+            address(governor),
+            abi.encodeCall(IOptimismGovernor.proposalSnapshot, (uint256(expectedHash))),
+            abi.encode(0)
+        );
+
+        _mockProposalTypesConfiguratorCall(OPTIMISTIC_VOTING_MODULE_ID);
+
+        // Mock the governor.proposeWithModule call
+        _mockAndExpect(
+            address(governor),
+            abi.encodeCall(
+                IOptimismGovernor.proposeWithModule,
+                (VotingModule(optimisticVotingModule), votingModuleData, proposalDescription, uint8(proposalType))
+            ),
+            abi.encode(uint256(expectedHash))
+        );
+
+        // For MaintenanceUpgrade, events are: ProposalSubmitted, ProposalVotingModuleData, ProposalMovedToVote
+        vm.expectEmit(address(validator));
+        emit ProposalSubmitted(expectedHash, proposer, proposalDescription, proposalType);
+
+        vm.expectEmit(address(validator));
+        emit ProposalVotingModuleData(expectedHash, votingModuleData);
+
+        vm.expectEmit(address(validator));
+        emit ProposalMovedToVote(expectedHash, proposer);
+
+        vm.prank(proposer);
+        bytes32 proposalHash =
+            validator.submitUpgradeProposal(againstThreshold, proposalDescription, attestationUid, proposalType);
+
+        assertEq(proposalHash, expectedHash);
+
+        // Verify proposal data was stored correctly
+        (
+            address storedProposer,
+            ProposalValidator.ProposalType storedProposalType,
+            bool inVoting,
+            uint256 approvalCount
+        ) = validator.getProposalData(proposalHash);
+
+        assertEq(storedProposer, proposer, "Proposer should match input");
+        assertEq(uint8(storedProposalType), uint8(proposalType), "Proposal type should match input");
+        assertTrue(inVoting, "MaintenanceUpgrade should be in voting immediately");
+        assertEq(approvalCount, 0, "Approval count should be 0");
+    }
+
+    function testFuzz_submitUpgradeProposal_protocolOrGovernorUpgrade_succeeds(
+        uint248 againstThreshold,
+        address proposer
+    )
+        public
+    {
+        // Assume proposer is not zero address
+        vm.assume(proposer != address(0));
+
+        // Bound againstThreshold to valid range (1 to 10000 basis points)
+        againstThreshold = uint248(bound(againstThreshold, 1, OPTIMISTIC_MODULE_PERCENT_DIVISOR));
+
+        ProposalValidator.ProposalType proposalType = ProposalValidator.ProposalType.ProtocolOrGovernorUpgrade;
+
+        // Create attestation for the proposal
+        bytes32 attestationUid = _createApprovedProposerAttestation(proposer, proposalType);
+
+        // Calculate expected proposal hash
+        bytes memory votingModuleData = _constructOptimisticVotingModuleData(againstThreshold);
+        bytes32 expectedHash = validator.hashProposalWithModule(
+            optimisticVotingModule, votingModuleData, keccak256(bytes(proposalDescription))
+        );
+
+        // Mock proposalSnapshot to return 0 (proposal doesn't exist in governor)
+        _mockAndExpect(
+            address(governor),
+            abi.encodeCall(IOptimismGovernor.proposalSnapshot, (uint256(expectedHash))),
+            abi.encode(0)
+        );
+
+        _mockProposalTypesConfiguratorCall(OPTIMISTIC_VOTING_MODULE_ID);
+
+        // For ProtocolOrGovernorUpgrade, only ProposalSubmitted and ProposalVotingModuleData events
+        vm.expectEmit(address(validator));
+        emit ProposalSubmitted(expectedHash, proposer, proposalDescription, proposalType);
+
+        vm.expectEmit(address(validator));
+        emit ProposalVotingModuleData(expectedHash, votingModuleData);
+
+        vm.prank(proposer);
+        bytes32 proposalHash =
+            validator.submitUpgradeProposal(againstThreshold, proposalDescription, attestationUid, proposalType);
+
+        assertEq(proposalHash, expectedHash);
+
+        // Verify proposal data was stored correctly
+        (
+            address storedProposer,
+            ProposalValidator.ProposalType storedProposalType,
+            bool inVoting,
+            uint256 approvalCount
+        ) = validator.getProposalData(proposalHash);
+
+        assertEq(storedProposer, proposer, "Proposer should match input");
+        assertEq(uint8(storedProposalType), uint8(proposalType), "Proposal type should match input");
+        assertFalse(inVoting, "ProtocolOrGovernorUpgrade should not be in voting yet");
+        assertEq(approvalCount, 0, "Approval count should be 0");
+    }
+}
+
+/// @title ProposalValidator_SubmitUpgradeProposal_TestFail
+/// @notice Sad path tests for submitUpgradeProposal function
+contract ProposalValidator_SubmitUpgradeProposal_TestFail is ProposalValidator_Init {
+    string proposalDescription;
+
+    function setUp() public override {
+        super.setUp();
+
+        _setUpgradeProposalTypes();
+
+        proposalDescription = "Test upgrade proposal";
+    }
+
+    function testFuzz_submitUpgradeProposal_invalidProposalType_reverts(uint8 proposalTypeValue) public {
+        // Valid upgrade proposal types are ProtocolOrGovernorUpgrade (0) and MaintenanceUpgrade (1)
+        proposalTypeValue = uint8(bound(proposalTypeValue, 2, 4));
+        ProposalValidator.ProposalType proposalType = ProposalValidator.ProposalType(proposalTypeValue);
+
+        uint248 againstThreshold = 5000; // 50%
+        bytes32 attestationUid = _createApprovedProposerAttestation(topDelegate_A, proposalType);
+
+        vm.expectRevert(ProposalValidator.ProposalValidator_InvalidUpgradeProposalType.selector);
+        vm.prank(topDelegate_A);
+        validator.submitUpgradeProposal(againstThreshold, proposalDescription, attestationUid, proposalType);
+    }
+
+    function testFuzz_submitUpgradeProposal_invalidAttestation_reverts(bytes32 fuzzedAttestationUid) public {
+        uint248 againstThreshold = 5000;
+        ProposalValidator.ProposalType proposalType = ProposalValidator.ProposalType.ProtocolOrGovernorUpgrade;
+        bytes32 validAttestationUid = _createApprovedProposerAttestation(topDelegate_A, proposalType);
+
+        vm.assume(fuzzedAttestationUid != validAttestationUid); // Ensure it's different from valid attestation
+
+        vm.expectRevert(ProposalValidator.ProposalValidator_InvalidAttestation.selector);
+        vm.prank(topDelegate_A);
+        validator.submitUpgradeProposal(againstThreshold, proposalDescription, fuzzedAttestationUid, proposalType);
+    }
+
+    function testFuzz_submitUpgradeProposal_unattestedProposer_reverts(address fuzzedProposer) public {
+        vm.assume(fuzzedProposer != topDelegate_A); // Ensure it's different from attested proposer
+
+        uint248 againstThreshold = 5000;
+        ProposalValidator.ProposalType proposalType = ProposalValidator.ProposalType.ProtocolOrGovernorUpgrade;
+        bytes32 attestationUid = _createApprovedProposerAttestation(topDelegate_A, proposalType);
+
+        // Try to submit with different address than attested
+        vm.expectRevert(ProposalValidator.ProposalValidator_InvalidAttestation.selector);
+        vm.prank(fuzzedProposer); // Different from attested topDelegate_A
+        validator.submitUpgradeProposal(againstThreshold, proposalDescription, attestationUid, proposalType);
+    }
+
+    function test_submitUpgradeProposal_zeroAgainstThreshold_reverts() public {
+        uint248 zeroThreshold = 0;
+        ProposalValidator.ProposalType proposalType = ProposalValidator.ProposalType.ProtocolOrGovernorUpgrade;
+        bytes32 attestationUid = _createApprovedProposerAttestation(topDelegate_A, proposalType);
+
+        vm.expectRevert(ProposalValidator.ProposalValidator_InvalidAgainstThreshold.selector);
+        vm.prank(topDelegate_A);
+        validator.submitUpgradeProposal(zeroThreshold, proposalDescription, attestationUid, proposalType);
+    }
+
+    function testFuzz_submitUpgradeProposal_exceedsMaxAgainstThreshold_reverts(uint248 excessiveThreshold) public {
+        // Bound excessive threshold to be greater than OPTIMISTIC_MODULE_PERCENT_DIVISOR
+        excessiveThreshold =
+            uint248(bound(excessiveThreshold, OPTIMISTIC_MODULE_PERCENT_DIVISOR + 1, type(uint248).max));
+
+        ProposalValidator.ProposalType proposalType = ProposalValidator.ProposalType.ProtocolOrGovernorUpgrade;
+        bytes32 attestationUid = _createApprovedProposerAttestation(topDelegate_A, proposalType);
+
+        vm.expectRevert(ProposalValidator.ProposalValidator_InvalidAgainstThreshold.selector);
+        vm.prank(topDelegate_A);
+        validator.submitUpgradeProposal(excessiveThreshold, proposalDescription, attestationUid, proposalType);
+    }
+
+    function testFuzz_submitUpgradeProposal_duplicateProposal_reverts(uint8 proposalTypeValue) public {
+        // Bound proposal type to only upgrade proposals (0 = ProtocolOrGovernorUpgrade, 1 = MaintenanceUpgrade)
+        proposalTypeValue = uint8(bound(proposalTypeValue, 0, 1));
+        ProposalValidator.ProposalType proposalType = ProposalValidator.ProposalType(proposalTypeValue);
+
+        uint248 againstThreshold = 5000;
+        bytes32 attestationUid = _createApprovedProposerAttestation(topDelegate_A, proposalType);
+
+        // Calculate expected proposal hash
+        bytes memory votingModuleData = _constructOptimisticVotingModuleData(againstThreshold);
+        bytes32 expectedHash = validator.hashProposalWithModule(
+            optimisticVotingModule, votingModuleData, keccak256(bytes(proposalDescription))
+        );
+
+        // Mock proposalSnapshot to return 0 for first submission
+        _mockAndExpect(
+            address(governor),
+            abi.encodeCall(IOptimismGovernor.proposalSnapshot, (uint256(expectedHash))),
+            abi.encode(0)
+        );
+
+        _mockProposalTypesConfiguratorCall(OPTIMISTIC_VOTING_MODULE_ID);
+
+        // For MaintenanceUpgrade, mock the governor.proposeWithModule call
+        if (proposalType == ProposalValidator.ProposalType.MaintenanceUpgrade) {
+            _mockAndExpect(
+                address(governor),
+                abi.encodeCall(
+                    IOptimismGovernor.proposeWithModule,
+                    (VotingModule(optimisticVotingModule), votingModuleData, proposalDescription, uint8(proposalType))
+                ),
+                abi.encode(uint256(expectedHash))
+            );
+        }
+
+        // Submit first proposal
+        vm.prank(topDelegate_A);
+        validator.submitUpgradeProposal(againstThreshold, proposalDescription, attestationUid, proposalType);
+
+        // Create new attestation for second attempt
+        bytes32 secondAttestation = _createApprovedProposerAttestation(topDelegate_B, proposalType);
+
+        // Attempt to submit identical proposal should revert
+        vm.expectRevert(ProposalValidator.ProposalValidator_ProposalAlreadySubmitted.selector);
+
+        _mockProposalTypesConfiguratorCall(OPTIMISTIC_VOTING_MODULE_ID);
+
+        vm.prank(topDelegate_B);
+        validator.submitUpgradeProposal(againstThreshold, proposalDescription, secondAttestation, proposalType);
+    }
+
+    function testFuzz_submitUpgradeProposal_proposalExistsInGovernor_reverts(uint8 proposalTypeValue) public {
+        // Bound proposal type to only upgrade proposals (0 = ProtocolOrGovernorUpgrade, 1 = MaintenanceUpgrade)
+        proposalTypeValue = uint8(bound(proposalTypeValue, 0, 1));
+        ProposalValidator.ProposalType proposalType = ProposalValidator.ProposalType(proposalTypeValue);
+
+        uint248 againstThreshold = 5000;
+        bytes32 attestationUid = _createApprovedProposerAttestation(topDelegate_A, proposalType);
+
+        // Calculate expected proposal hash
+        bytes memory votingModuleData = _constructOptimisticVotingModuleData(againstThreshold);
+        bytes32 expectedHash = validator.hashProposalWithModule(
+            optimisticVotingModule, votingModuleData, keccak256(bytes(proposalDescription))
+        );
+
+        // Mock proposalSnapshot to return non-zero (proposal already exists in governor)
+        _mockAndExpect(
+            address(governor),
+            abi.encodeCall(IOptimismGovernor.proposalSnapshot, (uint256(expectedHash))),
+            abi.encode(1000) // Non-zero indicates proposal exists
+        );
+
+        vm.expectRevert(ProposalValidator.ProposalValidator_ProposalAlreadySubmitted.selector);
+
+        _mockProposalTypesConfiguratorCall(OPTIMISTIC_VOTING_MODULE_ID);
+
+        vm.prank(topDelegate_A);
+        validator.submitUpgradeProposal(againstThreshold, proposalDescription, attestationUid, proposalType);
+    }
+
+    function testFuzz_submitUpgradeProposal_attestationNotFromOwner_reverts(address fuzzedAttester) public {
+        vm.assume(fuzzedAttester != owner); // Ensure it's not the approved owner
+
+        uint248 againstThreshold = 5000;
+        ProposalValidator.ProposalType proposalType = ProposalValidator.ProposalType.ProtocolOrGovernorUpgrade;
+
+        // Create attestation but don't use proper owner as attester
+        vm.prank(fuzzedAttester); // Not the owner
+        bytes32 invalidAttestation = IEAS(Predeploys.EAS).attest(
+            AttestationRequest({
+                schema: APPROVED_PROPOSER_ATTESTATION_SCHEMA_UID,
+                data: AttestationRequestData({
+                    recipient: address(0),
+                    expirationTime: 0,
+                    revocable: false,
+                    refUID: bytes32(0),
+                    data: abi.encode(topDelegate_A, proposalType),
+                    value: 0
+                })
+            })
+        );
+
+        vm.expectRevert(ProposalValidator.ProposalValidator_InvalidAttestation.selector);
+        vm.prank(topDelegate_A);
+        validator.submitUpgradeProposal(againstThreshold, proposalDescription, invalidAttestation, proposalType);
     }
 }
