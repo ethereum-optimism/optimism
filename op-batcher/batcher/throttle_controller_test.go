@@ -7,7 +7,13 @@ import (
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-batcher/config"
+	"github.com/ethereum/go-ethereum/log"
 )
+
+// noopLogger creates a logger that discards all output for testing
+func noopLogger() log.Logger {
+	return log.Root()
+}
 
 // TestStepController tests the step controller behavior
 func TestStepController(t *testing.T) {
@@ -69,7 +75,7 @@ func TestStepController(t *testing.T) {
 
 // TestLinearController tests the linear controller behavior
 func TestLinearController(t *testing.T) {
-	controller := NewLinearController(1000000, 5000, 21000, 130000, 2)
+	controller := NewLinearController(1000000, 5000, 21000, 130000, 2, noopLogger())
 
 	tests := []struct {
 		name              string
@@ -137,7 +143,7 @@ func TestLinearController(t *testing.T) {
 
 // TestQuadraticController tests the quadratic controller behavior
 func TestQuadraticController(t *testing.T) {
-	controller := NewQuadraticController(1000000, 5000, 21000, 130000, 2)
+	controller := NewQuadraticController(1000000, 5000, 21000, 130000, 2, noopLogger())
 
 	tests := []struct {
 		name              string
@@ -297,7 +303,7 @@ func TestPIDControllerWithMetrics(t *testing.T) {
 
 // TestControllerFactory tests the factory pattern
 func TestControllerFactory(t *testing.T) {
-	factory := NewThrottleControllerFactory()
+	factory := NewThrottleControllerFactory(noopLogger())
 
 	tests := []struct {
 		name           string
@@ -382,8 +388,8 @@ func TestControllerConcurrency(t *testing.T) {
 		controller ThrottleController
 	}{
 		{"step", NewStepController(1000000, 5000, 21000, 130000)},
-		{"linear", NewLinearController(1000000, 5000, 21000, 130000, 2)},
-		{"quadratic", NewQuadraticController(1000000, 5000, 21000, 130000, 2)},
+		{"linear", NewLinearController(1000000, 5000, 21000, 130000, 2, noopLogger())},
+		{"quadratic", NewQuadraticController(1000000, 5000, 21000, 130000, 2, noopLogger())},
 		{"pid", NewPIDController(1000000, 5000, 21000, 130000, config.PIDConfig{
 			Kp: 0.2, Ki: 0.1, Kd: 0.05,
 			IntegralMax: 100.0, OutputMax: 1.0, SampleTime: time.Millisecond,
@@ -429,8 +435,8 @@ func TestControllerConcurrency(t *testing.T) {
 func TestControllerBehaviorComparison(t *testing.T) {
 	controllers := map[string]ThrottleController{
 		"step":      NewStepController(1000000, 5000, 21000, 130000),
-		"linear":    NewLinearController(1000000, 5000, 21000, 130000),
-		"quadratic": NewQuadraticController(1000000, 5000, 21000, 130000),
+		"linear":    NewLinearController(1000000, 5000, 21000, 130000, 2, noopLogger()),
+		"quadratic": NewQuadraticController(1000000, 5000, 21000, 130000, 2, noopLogger()),
 		"pid": NewPIDController(1000000, 5000, 21000, 130000, config.PIDConfig{
 			Kp: 0.2, Ki: 0.1, Kd: 0.05,
 			IntegralMax: 100.0, OutputMax: 1.0, SampleTime: time.Millisecond,
@@ -507,8 +513,8 @@ func TestControllerBehaviorComparison(t *testing.T) {
 func TestLoadSpikeResponse(t *testing.T) {
 	controllers := map[string]ThrottleController{
 		"step":      NewStepController(1000000, 5000, 21000, 130000),
-		"linear":    NewLinearController(1000000, 5000, 21000, 130000),
-		"quadratic": NewQuadraticController(1000000, 5000, 21000, 130000),
+		"linear":    NewLinearController(1000000, 5000, 21000, 130000, 2, noopLogger()),
+		"quadratic": NewQuadraticController(1000000, 5000, 21000, 130000, 2, noopLogger()),
 		"pid": NewPIDController(1000000, 5000, 21000, 130000, config.PIDConfig{
 			Kp: 0.5, Ki: 0.2, Kd: 0.1, // More responsive for this test
 			IntegralMax: 100.0, OutputMax: 1.0, SampleTime: time.Millisecond,
@@ -611,7 +617,7 @@ func TestEdgeCases(t *testing.T) {
 
 // TestParameterValidation tests parameter validation and error cases
 func TestParameterValidation(t *testing.T) {
-	factory := NewThrottleControllerFactory()
+	factory := NewThrottleControllerFactory(noopLogger())
 
 	t.Run("invalid pid config", func(t *testing.T) {
 		invalidConfigs := []*config.PIDConfig{
@@ -626,7 +632,7 @@ func TestParameterValidation(t *testing.T) {
 		}
 
 		for i, invalidConfig := range invalidConfigs {
-			_, err := factory.CreateController(config.PIDControllerType, 1000000, 5000, 21000, 130000, invalidConfig)
+			_, err := factory.CreateController(config.PIDControllerType, 1000000, 5000, 21000, 130000, 2, invalidConfig)
 			if err == nil {
 				t.Errorf("config %d: expected error for invalid PID config but got none", i)
 			}
@@ -641,8 +647,8 @@ func BenchmarkControllerUpdates(b *testing.B) {
 		controller ThrottleController
 	}{
 		{"Step", NewStepController(1000000, 5000, 21000, 130000)},
-		{"Linear", NewLinearController(1000000, 5000, 21000, 130000)},
-		{"Quadratic", NewQuadraticController(1000000, 5000, 21000, 130000)},
+		{"Linear", NewLinearController(1000000, 5000, 21000, 130000, 2, noopLogger())},
+		{"Quadratic", NewQuadraticController(1000000, 5000, 21000, 130000, 2, noopLogger())},
 		{"PID", NewPIDController(1000000, 5000, 21000, 130000, config.PIDConfig{
 			Kp: 0.2, Ki: 0.1, Kd: 0.05,
 			IntegralMax: 100.0, OutputMax: 1.0, SampleTime: time.Microsecond,

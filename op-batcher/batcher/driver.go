@@ -129,7 +129,7 @@ func NewBatchSubmitter(setup DriverSetup) *BatchSubmitter {
 		state.SetChannelOutFactory(setup.ChannelOutFactory)
 	}
 
-	factory := NewThrottleControllerFactory()
+	factory := NewThrottleControllerFactory(setup.Log)
 
 	var pidConfig *config.PIDConfig
 	if setup.Config.ThrottlePidConfig != nil {
@@ -1111,7 +1111,7 @@ func (l *BatchSubmitter) SetThrottleController(controllerType string, pidConfig 
 		return fmt.Errorf("invalid controller type: %s", controllerType)
 	}
 
-	factory := NewThrottleControllerFactory()
+	factory := NewThrottleControllerFactory(l.Log)
 
 	var pidControllerConfig *config.PIDConfig
 	if newType == config.PIDControllerType && pidConfig != nil {

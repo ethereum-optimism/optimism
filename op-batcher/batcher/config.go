@@ -128,7 +128,7 @@ type CLIConfig struct {
 	ThrottlePidSampleTime  time.Duration
 
 	// ThrottleThresholdMultiplier is the threshold multiplier for linear and quadratic controllers
-	ThrottleThresholdMultiplier int
+	ThrottleThresholdMultiplier float64
 
 	TxMgrConfig   txmgr.CLIConfig
 	LogConfig     oplog.CLIConfig
@@ -245,6 +245,6 @@ func NewConfig(ctx *cli.Context) *CLIConfig {
 		ThrottlePidIntegralMax:        ctx.Float64(flags.ThrottlePidIntegralMaxFlag.Name),
 		ThrottlePidOutputMax:          ctx.Float64(flags.ThrottlePidOutputMaxFlag.Name),
 		ThrottlePidSampleTime:         ctx.Duration(flags.ThrottlePidSampleTimeFlag.Name),
-		ThrottleThresholdMultiplier:   ctx.Int(flags.ThrottleThresholdMultiplierFlag.Name),
+		ThrottleThresholdMultiplier:   ctx.Float64(flags.ThrottleThresholdMultiplierFlag.Name),
 	}
 }

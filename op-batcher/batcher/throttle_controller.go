@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-batcher/config"
+	"github.com/ethereum/go-ethereum/log"
 )
 
 // ThrottleParams holds the current throttling parameters
@@ -80,9 +81,14 @@ type LinearController struct {
 	alwaysBlockSize   uint64
 }
 
-func NewLinearController(threshold, throttleTxSize, throttleBlockSize, alwaysBlockSize uint64, multiplier int) *LinearController {
+func NewLinearController(threshold, throttleTxSize, throttleBlockSize, alwaysBlockSize uint64, multiplier float64, log log.Logger) *LinearController {
 	// Set max threshold to multiplier * base threshold for linear scaling
 	maxThreshold := threshold * uint64(multiplier)
+	// Ensure maxThreshold is always greater than threshold to prevent division by zero
+	if maxThreshold <= threshold {
+		maxThreshold = threshold + 1
+		log.Warn("maxThreshold is less than or equal to threshold, setting maxThreshold to threshold + 1", "threshold", threshold, "multiplier", multiplier, "maxThreshold", maxThreshold)
+	}
 	return &LinearController{
 		threshold:         threshold,
 		maxThreshold:      maxThreshold,
@@ -149,8 +155,13 @@ type QuadraticController struct {
 	alwaysBlockSize   uint64
 }
 
-func NewQuadraticController(threshold, throttleTxSize, throttleBlockSize, alwaysBlockSize uint64, multiplier int) *QuadraticController {
+func NewQuadraticController(threshold, throttleTxSize, throttleBlockSize, alwaysBlockSize uint64, multiplier float64, log log.Logger) *QuadraticController {
 	maxThreshold := threshold * uint64(multiplier)
+	// Ensure maxThreshold is always greater than threshold to prevent division by zero
+	if maxThreshold <= threshold {
+		maxThreshold = threshold + 1
+		log.Warn("maxThreshold is less than or equal to threshold, setting maxThreshold to threshold + 1", "threshold", threshold, "multiplier", multiplier, "maxThreshold", maxThreshold)
+	}
 	return &QuadraticController{
 		threshold:         threshold,
 		maxThreshold:      maxThreshold,
@@ -373,25 +384,29 @@ func (p *PIDController) GetType() config.ThrottleControllerType {
 }
 
 // ThrottleControllerFactory creates throttle controllers based on configuration
-type ThrottleControllerFactory struct{}
+type ThrottleControllerFactory struct {
+	log log.Logger
+}
 
-func NewThrottleControllerFactory() *ThrottleControllerFactory {
-	return &ThrottleControllerFactory{}
+func NewThrottleControllerFactory(log log.Logger) *ThrottleControllerFactory {
+	return &ThrottleControllerFactory{
+		log: log,
+	}
 }
 
 func (f *ThrottleControllerFactory) CreateController(
 	controllerType config.ThrottleControllerType,
 	threshold, throttleTxSize, throttleBlockSize, alwaysBlockSize uint64,
-	thresholdMultiplier int,
+	thresholdMultiplier float64,
 	pidConfig *config.PIDConfig,
 ) (ThrottleController, error) {
 	switch controllerType {
 	case config.StepControllerType:
 		return NewStepController(threshold, throttleTxSize, throttleBlockSize, alwaysBlockSize), nil
 	case config.LinearControllerType:
-		return NewLinearController(threshold, throttleTxSize, throttleBlockSize, alwaysBlockSize, thresholdMultiplier), nil
+		return NewLinearController(threshold, throttleTxSize, throttleBlockSize, alwaysBlockSize, thresholdMultiplier, f.log), nil
 	case config.QuadraticControllerType:
-		return NewQuadraticController(threshold, throttleTxSize, throttleBlockSize, alwaysBlockSize, thresholdMultiplier), nil
+		return NewQuadraticController(threshold, throttleTxSize, throttleBlockSize, alwaysBlockSize, thresholdMultiplier, f.log), nil
 	case config.PIDControllerType:
 		if pidConfig == nil {
 			return nil, fmt.Errorf("PID configuration required for PID controller")

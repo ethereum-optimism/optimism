@@ -190,36 +190,75 @@ var (
 		Usage:   "Type of throttle controller to use: 'step' for default only, 'linear', 'quadratic', 'pid'",
 		Value:   "step",
 		EnvVars: prefixEnvVars("THROTTLE_CONTROLLER_TYPE"),
+		Action: func(ctx *cli.Context, value string) error {
+			validTypes := []string{"step", "linear", "quadratic", "pid"}
+			for _, validType := range validTypes {
+				if value == validType {
+					return nil
+				}
+			}
+			return fmt.Errorf("throttle-controller-type must be one of %v, got %s", validTypes, value)
+		},
 	}
 	ThrottlePidKpFlag = &cli.Float64Flag{
 		Name:    "throttle-pid-kp",
 		Usage:   "PID controller proportional gain. Only relevant if --throttle-controller-type is set to 'PID'",
 		Value:   1.0,
 		EnvVars: prefixEnvVars("THROTTLE_PID_KP"),
+		Action: func(ctx *cli.Context, value float64) error {
+			if value < 0 {
+				return fmt.Errorf("throttle-pid-kp must be >= 0, got %f", value)
+			}
+			return nil
+		},
 	}
 	ThrottlePidKiFlag = &cli.Float64Flag{
 		Name:    "throttle-pid-ki",
 		Usage:   "PID controller integral gain. Only relevant if --throttle-controller-type is set to 'PID'",
 		Value:   0.1,
 		EnvVars: prefixEnvVars("THROTTLE_PID_KI"),
+		Action: func(ctx *cli.Context, value float64) error {
+			if value < 0 {
+				return fmt.Errorf("throttle-pid-ki must be >= 0, got %f", value)
+			}
+			return nil
+		},
 	}
 	ThrottlePidKdFlag = &cli.Float64Flag{
 		Name:    "throttle-pid-kd",
 		Usage:   "PID controller derivative gain. Only relevant if --throttle-controller-type is set to 'PID'",
 		Value:   0.05,
 		EnvVars: prefixEnvVars("THROTTLE_PID_KD"),
+		Action: func(ctx *cli.Context, value float64) error {
+			if value < 0 {
+				return fmt.Errorf("throttle-pid-kd must be >= 0, got %f", value)
+			}
+			return nil
+		},
 	}
 	ThrottlePidIntegralMaxFlag = &cli.Float64Flag{
 		Name:    "throttle-pid-integral-max",
 		Usage:   "PID controller maximum integral windup. Only relevant if --throttle-controller-type is set to 'PID'",
 		Value:   1000.0,
 		EnvVars: prefixEnvVars("THROTTLE_PID_INTEGRAL_MAX"),
+		Action: func(ctx *cli.Context, value float64) error {
+			if value <= 0 {
+				return fmt.Errorf("throttle-pid-integral-max must be > 0, got %f", value)
+			}
+			return nil
+		},
 	}
 	ThrottlePidOutputMaxFlag = &cli.Float64Flag{
 		Name:    "throttle-pid-output-max",
 		Usage:   "PID controller maximum output. Only relevant if --throttle-controller-type is set to 'PID'",
 		Value:   1.0,
 		EnvVars: prefixEnvVars("THROTTLE_PID_OUTPUT_MAX"),
+		Action: func(ctx *cli.Context, value float64) error {
+			if value <= 0 || value > 1.0 {
+				return fmt.Errorf("throttle-pid-output-max must be between 0 and 1, got %f", value)
+			}
+			return nil
+		},
 	}
 	ThrottlePidSampleTimeFlag = &cli.DurationFlag{
 		Name:    "throttle-pid-sample-time",
@@ -227,11 +266,17 @@ var (
 		Value:   5 * time.Second,
 		EnvVars: prefixEnvVars("THROTTLE_PID_SAMPLE_TIME"),
 	}
-	ThrottleThresholdMultiplierFlag = &cli.IntFlag{
+	ThrottleThresholdMultiplierFlag = &cli.Float64Flag{
 		Name:    "throttle-threshold-multiplier",
 		Usage:   "Multiplier for the max threshold used by linear and quadratic controllers (multiplied by base threshold)",
 		Value:   2,
 		EnvVars: prefixEnvVars("THROTTLE_THRESHOLD_MULTIPLIER"),
+		Action: func(ctx *cli.Context, value float64) error {
+			if value < 1 {
+				return fmt.Errorf("throttle-threshold-multiplier must be >= 1, got %f", value)
+			}
+			return nil
+		},
 	}
 	// Legacy Flags
 	SequencerHDPathFlag = txmgr.SequencerHDPathFlag

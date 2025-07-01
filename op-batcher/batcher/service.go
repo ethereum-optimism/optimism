@@ -49,7 +49,7 @@ type BatcherConfig struct {
 	// For throttling DA. See CLIConfig in config.go for details on these parameters.
 	ThrottleThreshold, ThrottleTxSize          uint64
 	ThrottleBlockSize, ThrottleAlwaysBlockSize uint64
-	ThrottleThresholdMultiplier                int
+	ThrottleThresholdMultiplier                float64
 	ThrottlingEndpoints                        []string
 
 	ThrottleControllerType config.ThrottleControllerType
