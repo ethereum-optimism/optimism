@@ -118,8 +118,8 @@ type BatchSubmitter struct {
 	prevCurrentL1   eth.L1BlockRef // cached CurrentL1 from the last syncStatus
 
 	throttleController    ThrottleController
-	throttleMutex         sync.RWMutex
-	currentThrottleParams ThrottleParams
+	throttleMutex         sync.RWMutex // only guards throttleController
+	currentThrottleParams atomic.Pointer[ThrottleParams]
 }
 
 // NewBatchSubmitter initializes the BatchSubmitter driver from a preconfigured DriverSetup
@@ -157,14 +157,19 @@ func NewBatchSubmitter(setup DriverSetup) *BatchSubmitter {
 
 	setup.Metr.RecordThrottleControllerType(throttleController.GetType())
 
-	return &BatchSubmitter{
+	batcher := &BatchSubmitter{
 		DriverSetup:        setup,
 		channelMgr:         state,
 		throttleController: throttleController,
-		currentThrottleParams: ThrottleParams{
-			MaxBlockSize: setup.Config.ThrottleAlwaysBlockSize,
-		},
 	}
+
+	// Initialize atomic pointer
+	initialParams := &ThrottleParams{
+		MaxBlockSize: setup.Config.ThrottleAlwaysBlockSize,
+	}
+	batcher.currentThrottleParams.Store(initialParams)
+
+	return batcher
 }
 
 func (l *BatchSubmitter) StartBatchSubmitting() error {
@@ -606,9 +611,11 @@ func (l *BatchSubmitter) singleEndpointThrottler(wg *sync.WaitGroup, throttleSig
 		defer cancel()
 
 		// Get current throttle parameters from controller
-		l.throttleMutex.RLock()
-		params := l.currentThrottleParams
-		l.throttleMutex.RUnlock()
+		params := l.currentThrottleParams.Load()
+		if params == nil {
+			l.Log.Warn("No throttle parameters available, skipping update for endpoint", "endpoint", endpoint)
+			return
+		}
 
 		var success bool
 		err := client.CallContext(
@@ -686,27 +693,31 @@ func (l *BatchSubmitter) throttlingLoop(wg *sync.WaitGroup, pendingBytesUpdated 
 
 	for pb := range pendingBytesUpdated {
 		// Update throttle controller
-		l.throttleMutex.Lock()
+		l.throttleMutex.RLock()
 		targetPendingBytes := uint64(0) // Use 0 to let controller use its own target
-		l.currentThrottleParams = l.throttleController.Update(uint64(pb), targetPendingBytes)
-		l.throttleMutex.Unlock()
+		newParams := l.throttleController.Update(uint64(pb), targetPendingBytes)
+		controllerType := l.throttleController.GetType()
+		l.throttleMutex.RUnlock()
 
-		l.Metr.RecordThrottleIntensity(l.currentThrottleParams.Intensity, l.throttleController.GetType())
-		l.Metr.RecordThrottleParams(l.currentThrottleParams.MaxTxSize, l.currentThrottleParams.MaxBlockSize)
-		l.Metr.RecordPendingBytesVsThreshold(uint64(pb), l.Config.ThrottleThreshold, l.throttleController.GetType())
+		// Store the new parameters atomically
+		l.currentThrottleParams.Store(&newParams)
+
+		l.Metr.RecordThrottleIntensity(newParams.Intensity, controllerType)
+		l.Metr.RecordThrottleParams(newParams.MaxTxSize, newParams.MaxBlockSize)
+		l.Metr.RecordPendingBytesVsThreshold(uint64(pb), l.Config.ThrottleThreshold, controllerType)
 
 		// Update throttling state
-		throttling := l.currentThrottleParams.Intensity > 0
+		throttling := newParams.Intensity > 0
 		l.throttling.Store(throttling)
 
 		if throttling {
 			l.Log.Warn("Throttling loop: pending bytes above threshold, endpoints will be throttled",
 				"pending_bytes", pb,
 				"threshold", l.Config.ThrottleThreshold,
-				"intensity", l.currentThrottleParams.Intensity,
-				"max_tx_size", l.currentThrottleParams.MaxTxSize,
-				"max_block_size", l.currentThrottleParams.MaxBlockSize,
-				"controller_type", l.throttleController.GetType())
+				"intensity", newParams.Intensity,
+				"max_tx_size", newParams.MaxTxSize,
+				"max_block_size", newParams.MaxBlockSize,
+				"controller_type", controllerType)
 		}
 
 		for i, updateChan := range updateChans {
@@ -1152,14 +1163,15 @@ func (l *BatchSubmitter) SetThrottleController(controllerType string, pidConfig 
 	l.throttleMutex.Lock()
 	oldController := l.throttleController
 	l.throttleController = newController
+	l.throttleMutex.Unlock()
 
 	// Reset throttle params to safe defaults
-	l.currentThrottleParams = ThrottleParams{
+	resetParams := &ThrottleParams{
 		MaxBlockSize: l.Config.ThrottleAlwaysBlockSize,
 		MaxTxSize:    0,
 		Intensity:    0.0,
 	}
-	l.throttleMutex.Unlock()
+	l.currentThrottleParams.Store(resetParams)
 
 	l.Metr.RecordThrottleControllerType(newController.GetType())
 
@@ -1174,8 +1186,12 @@ func (l *BatchSubmitter) SetThrottleController(controllerType string, pidConfig 
 func (l *BatchSubmitter) GetThrottleControllerInfo() (config.ThrottleControllerInfo, error) {
 	l.throttleMutex.RLock()
 	controller := l.throttleController
-	params := l.currentThrottleParams
 	l.throttleMutex.RUnlock()
+
+	params := l.currentThrottleParams.Load()
+	if params == nil {
+		return config.ThrottleControllerInfo{}, fmt.Errorf("throttle parameters not initialized")
+	}
 
 	// Get current pending bytes
 	l.channelMgrMutex.Lock()
@@ -1207,11 +1223,12 @@ func (l *BatchSubmitter) ResetThrottleController() error {
 	l.throttleController.Reset()
 
 	// Reset current throttle params
-	l.currentThrottleParams = ThrottleParams{
+	resetParams := &ThrottleParams{
 		MaxBlockSize: l.Config.ThrottleAlwaysBlockSize,
 		MaxTxSize:    0,
 		Intensity:    0.0,
 	}
+	l.currentThrottleParams.Store(resetParams)
 
 	l.Metr.RecordThrottleIntensity(0.0, l.throttleController.GetType())
 	l.Metr.RecordThrottleParams(0, l.Config.ThrottleAlwaysBlockSize)
