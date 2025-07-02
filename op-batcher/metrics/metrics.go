@@ -3,6 +3,7 @@ package metrics
 import (
 	"io"
 	"sync/atomic"
+	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
 
@@ -48,6 +49,10 @@ type Metricer interface {
 	RecordThrottleParams(maxTxSize, maxBlockSize uint64)
 	RecordThrottleControllerType(controllerType config.ThrottleControllerType)
 	RecordPendingBytesVsThreshold(pendingBytes, threshold uint64, controllerType config.ThrottleControllerType)
+
+	// PID Controller specific metrics
+	RecordThrottleControllerState(error, integral, derivative float64)
+	RecordThrottleResponseTime(duration time.Duration)
 
 	// ClearAllStateMetrics resets any metrics that track current ChannelManager state
 	// It should be called when clearing the ChannelManager state.
@@ -108,6 +113,12 @@ type Metrics struct {
 	throttleControllerType prometheus.GaugeVec
 	pendingBytesRatio      prometheus.GaugeVec
 	throttleHistory        prometheus.Summary
+
+	// PID Controller specific metrics
+	pidControllerError      prometheus.Gauge
+	pidControllerIntegral   prometheus.Gauge
+	pidControllerDerivative prometheus.Gauge
+	pidResponseTime         prometheus.Histogram
 }
 
 var _ Metricer = (*Metrics)(nil)
@@ -257,6 +268,27 @@ func NewMetrics(procName string) *Metrics {
 				0.9:  0.01,  // 90th percentile with 1% error
 				0.99: 0.001, // 99th percentile with 0.1% error
 			},
+		}),
+		pidControllerError: factory.NewGauge(prometheus.GaugeOpts{
+			Namespace: ns,
+			Name:      "pid_controller_error",
+			Help:      "Error term of the PID controller",
+		}),
+		pidControllerIntegral: factory.NewGauge(prometheus.GaugeOpts{
+			Namespace: ns,
+			Name:      "pid_controller_integral",
+			Help:      "Integral term of the PID controller",
+		}),
+		pidControllerDerivative: factory.NewGauge(prometheus.GaugeOpts{
+			Namespace: ns,
+			Name:      "pid_controller_derivative",
+			Help:      "Derivative term of the PID controller",
+		}),
+		pidResponseTime: factory.NewHistogram(prometheus.HistogramOpts{
+			Namespace: ns,
+			Name:      "pid_response_time",
+			Help:      "Response time of the PID controller",
+			Buckets:   prometheus.DefBuckets,
 		}),
 	}
 	m.pendingDABytesGaugeFunc = factory.NewGaugeFunc(prometheus.GaugeOpts{
@@ -452,4 +484,16 @@ func estimateBatchSize(block *types.Block) (daSize, rawSize uint64) {
 		rawSize += tx.Size() + 2
 	}
 	return
+}
+
+// RecordThrottleControllerState records the state of the PID controller
+func (m *Metrics) RecordThrottleControllerState(error, integral, derivative float64) {
+	m.pidControllerError.Set(error)
+	m.pidControllerIntegral.Set(integral)
+	m.pidControllerDerivative.Set(derivative)
+}
+
+// RecordThrottleResponseTime records the response time of the PID controller
+func (m *Metrics) RecordThrottleResponseTime(duration time.Duration) {
+	m.pidResponseTime.Observe(duration.Seconds())
 }

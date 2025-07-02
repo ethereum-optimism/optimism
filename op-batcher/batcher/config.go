@@ -10,6 +10,7 @@ import (
 
 	altda "github.com/ethereum-optimism/optimism/op-alt-da"
 	"github.com/ethereum-optimism/optimism/op-batcher/compressor"
+	"github.com/ethereum-optimism/optimism/op-batcher/config"
 	"github.com/ethereum-optimism/optimism/op-batcher/flags"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
@@ -183,7 +184,7 @@ func (c *CLIConfig) Check() error {
 	}
 
 	// Validate PID controller config
-	if c.ThrottleControllerType != "step" && c.ThrottleControllerType != "linear" && c.ThrottleControllerType != "quadratic" && c.ThrottleControllerType != "pid" {
+	if c.ThrottleControllerType != string(config.StepControllerType) && c.ThrottleControllerType != string(config.LinearControllerType) && c.ThrottleControllerType != string(config.QuadraticControllerType) && c.ThrottleControllerType != string(config.PIDControllerType) {
 		return fmt.Errorf("invalid throttle controller type: %s (must be 'step', 'linear', 'quadratic', 'pid')", c.ThrottleControllerType)
 	}
 

@@ -12,6 +12,11 @@ const (
 	PIDControllerType       ThrottleControllerType = "pid"
 )
 
+// String returns the string representation of ThrottleControllerType
+func (t ThrottleControllerType) String() string {
+	return string(t)
+}
+
 // ThrottleControllerInfo represents throttle controller information
 type ThrottleControllerInfo struct {
 	Type         string  `json:"type"`

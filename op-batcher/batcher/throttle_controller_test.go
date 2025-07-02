@@ -17,7 +17,8 @@ func noopLogger() log.Logger {
 
 // TestStepController tests the step controller behavior
 func TestStepController(t *testing.T) {
-	controller := NewStepController(1000000, 5000, 21000, 130000)
+	strategy := NewStepStrategy(1000000, 5000, 21000, 130000)
+	controller := NewThrottleController(strategy)
 
 	tests := []struct {
 		name              string
@@ -75,7 +76,8 @@ func TestStepController(t *testing.T) {
 
 // TestLinearController tests the linear controller behavior
 func TestLinearController(t *testing.T) {
-	controller := NewLinearController(1000000, 5000, 21000, 130000, 2, noopLogger())
+	strategy := NewLinearStrategy(1000000, 5000, 21000, 130000, 2, noopLogger())
+	controller := NewThrottleController(strategy)
 
 	tests := []struct {
 		name              string
@@ -143,7 +145,8 @@ func TestLinearController(t *testing.T) {
 
 // TestQuadraticController tests the quadratic controller behavior
 func TestQuadraticController(t *testing.T) {
-	controller := NewQuadraticController(1000000, 5000, 21000, 130000, 2, noopLogger())
+	strategy := NewQuadraticStrategy(1000000, 5000, 21000, 130000, 2, noopLogger())
+	controller := NewThrottleController(strategy)
 
 	tests := []struct {
 		name              string
@@ -206,7 +209,8 @@ func TestPIDController(t *testing.T) {
 		SampleTime:  time.Millisecond * 10,
 	}
 
-	controller := NewPIDController(1000000, 5000, 21000, 130000, config)
+	strategy := NewPIDStrategy(1000000, 5000, 21000, 130000, config)
+	controller := NewThrottleController(strategy)
 
 	t.Run("below threshold", func(t *testing.T) {
 		params := controller.Update(800000, 1000000)
@@ -278,26 +282,39 @@ func TestPIDControllerWithMetrics(t *testing.T) {
 		SampleTime:  time.Millisecond * 10,
 	}
 
-	controller := NewPIDController(1000000, 5000, 21000, 130000, config)
+	strategy := NewPIDStrategy(1000000, 5000, 21000, 130000, config)
+	controller := NewThrottleController(strategy)
 
 	// Mock metrics
 	metrics := &mockMetrics{}
-	controller.SetMetrics(metrics)
+	strategy.SetMetrics(metrics)
 
-	// Test with load above threshold
+	// Test with load above threshold - first call to initialize
 	time.Sleep(time.Millisecond * 15)
 	params := controller.Update(1500000, 1000000)
 
+	// Debug output to understand what's happening
+	t.Logf("First update - Intensity: %f, Error: %f, ResponseTime: %v",
+		params.Intensity, metrics.GetLastError(), metrics.GetResponseTime())
+
+	// The first call initializes the controller, subsequent calls should show response
+	time.Sleep(time.Millisecond * 15)
+	params = controller.Update(1500000, 1000000)
+
+	t.Logf("Second update - Intensity: %f, Error: %f, ResponseTime: %v",
+		params.Intensity, metrics.GetLastError(), metrics.GetResponseTime())
+
 	if params.Intensity <= 0 {
-		t.Errorf("expected positive intensity for load above threshold")
+		t.Errorf("expected positive intensity for load above threshold, got %f", params.Intensity)
 	}
 
-	if metrics.lastError <= 0 {
-		t.Errorf("expected positive error for load above target, got %f", metrics.lastError)
+	// Check metrics were recorded - note that we record the raw error, not normalized
+	if metrics.GetLastError() <= 0 {
+		t.Errorf("expected positive error for load above target, got %f", metrics.GetLastError())
 	}
 
-	if metrics.responseTime <= 0 {
-		t.Errorf("expected positive response time to be recorded, got %v", metrics.responseTime)
+	if metrics.GetResponseTime() <= 0 {
+		t.Errorf("expected positive response time to be recorded, got %v", metrics.GetResponseTime())
 	}
 }
 
@@ -385,15 +402,15 @@ func TestControllerFactory(t *testing.T) {
 func TestControllerConcurrency(t *testing.T) {
 	controllers := []struct {
 		name       string
-		controller ThrottleController
+		controller *ThrottleController
 	}{
-		{"step", NewStepController(1000000, 5000, 21000, 130000)},
-		{"linear", NewLinearController(1000000, 5000, 21000, 130000, 2, noopLogger())},
-		{"quadratic", NewQuadraticController(1000000, 5000, 21000, 130000, 2, noopLogger())},
-		{"pid", NewPIDController(1000000, 5000, 21000, 130000, config.PIDConfig{
+		{"step", NewThrottleController(NewStepStrategy(1000000, 5000, 21000, 130000))},
+		{"linear", NewThrottleController(NewLinearStrategy(1000000, 5000, 21000, 130000, 2, noopLogger()))},
+		{"quadratic", NewThrottleController(NewQuadraticStrategy(1000000, 5000, 21000, 130000, 2, noopLogger()))},
+		{"pid", NewThrottleController(NewPIDStrategy(1000000, 5000, 21000, 130000, config.PIDConfig{
 			Kp: 0.2, Ki: 0.1, Kd: 0.05,
 			IntegralMax: 100.0, OutputMax: 1.0, SampleTime: time.Millisecond,
-		})},
+		}))},
 	}
 
 	for _, ctrl := range controllers {
@@ -433,14 +450,14 @@ func TestControllerConcurrency(t *testing.T) {
 
 // TestControllerBehaviorComparison compares all controllers with same inputs
 func TestControllerBehaviorComparison(t *testing.T) {
-	controllers := map[string]ThrottleController{
-		"step":      NewStepController(1000000, 5000, 21000, 130000),
-		"linear":    NewLinearController(1000000, 5000, 21000, 130000, 2, noopLogger()),
-		"quadratic": NewQuadraticController(1000000, 5000, 21000, 130000, 2, noopLogger()),
-		"pid": NewPIDController(1000000, 5000, 21000, 130000, config.PIDConfig{
+	controllers := map[string]*ThrottleController{
+		"step":      NewThrottleController(NewStepStrategy(1000000, 5000, 21000, 130000)),
+		"linear":    NewThrottleController(NewLinearStrategy(1000000, 5000, 21000, 130000, 2, noopLogger())),
+		"quadratic": NewThrottleController(NewQuadraticStrategy(1000000, 5000, 21000, 130000, 2, noopLogger())),
+		"pid": NewThrottleController(NewPIDStrategy(1000000, 5000, 21000, 130000, config.PIDConfig{
 			Kp: 0.2, Ki: 0.1, Kd: 0.05,
 			IntegralMax: 100.0, OutputMax: 1.0, SampleTime: time.Millisecond,
-		}),
+		})),
 	}
 
 	loadScenarios := []uint64{500000, 1000000, 1250000, 1500000, 2000000}
@@ -511,14 +528,14 @@ func TestControllerBehaviorComparison(t *testing.T) {
 
 // TestLoadSpikeResponse tests how controllers respond to sudden load changes
 func TestLoadSpikeResponse(t *testing.T) {
-	controllers := map[string]ThrottleController{
-		"step":      NewStepController(1000000, 5000, 21000, 130000),
-		"linear":    NewLinearController(1000000, 5000, 21000, 130000, 2, noopLogger()),
-		"quadratic": NewQuadraticController(1000000, 5000, 21000, 130000, 2, noopLogger()),
-		"pid": NewPIDController(1000000, 5000, 21000, 130000, config.PIDConfig{
+	controllers := map[string]*ThrottleController{
+		"step":      NewThrottleController(NewStepStrategy(1000000, 5000, 21000, 130000)),
+		"linear":    NewThrottleController(NewLinearStrategy(1000000, 5000, 21000, 130000, 2, noopLogger())),
+		"quadratic": NewThrottleController(NewQuadraticStrategy(1000000, 5000, 21000, 130000, 2, noopLogger())),
+		"pid": NewThrottleController(NewPIDStrategy(1000000, 5000, 21000, 130000, config.PIDConfig{
 			Kp: 0.5, Ki: 0.2, Kd: 0.1, // More responsive for this test
 			IntegralMax: 100.0, OutputMax: 1.0, SampleTime: time.Millisecond,
-		}),
+		})),
 	}
 
 	// Simulate: low -> high -> low load pattern
@@ -560,7 +577,7 @@ func TestLoadSpikeResponse(t *testing.T) {
 // TestEdgeCases tests edge cases and boundary conditions
 func TestEdgeCases(t *testing.T) {
 	t.Run("zero threshold", func(t *testing.T) {
-		controller := NewStepController(0, 5000, 21000, 130000)
+		controller := NewThrottleController(NewStepStrategy(0, 5000, 21000, 130000))
 		params := controller.Update(1000, 0)
 
 		// Should throttle immediately since any load > 0 threshold
@@ -570,7 +587,7 @@ func TestEdgeCases(t *testing.T) {
 	})
 
 	t.Run("zero throttle sizes", func(t *testing.T) {
-		controller := NewStepController(1000000, 0, 0, 0)
+		controller := NewThrottleController(NewStepStrategy(1000000, 0, 0, 0))
 		params := controller.Update(2000000, 0)
 
 		if params.MaxTxSize != 0 {
@@ -586,7 +603,7 @@ func TestEdgeCases(t *testing.T) {
 			Kp: 0, Ki: 0, Kd: 0,
 			IntegralMax: 100.0, OutputMax: 1.0, SampleTime: time.Millisecond,
 		}
-		controller := NewPIDController(1000000, 5000, 21000, 130000, config)
+		controller := NewThrottleController(NewPIDStrategy(1000000, 5000, 21000, 130000, config))
 
 		time.Sleep(time.Millisecond * 2)
 		params := controller.Update(2000000, 1000000)
@@ -602,7 +619,7 @@ func TestEdgeCases(t *testing.T) {
 			Kp: 0.2, Ki: 0.1, Kd: 0.05,
 			IntegralMax: 100.0, OutputMax: 1.0, SampleTime: time.Hour, // Very high
 		}
-		controller := NewPIDController(1000000, 5000, 21000, 130000, config)
+		controller := NewThrottleController(NewPIDStrategy(1000000, 5000, 21000, 130000, config))
 
 		// Multiple quick calls should return same result due to sample time
 		params1 := controller.Update(2000000, 1000000)
@@ -644,15 +661,15 @@ func TestParameterValidation(t *testing.T) {
 func BenchmarkControllerUpdates(b *testing.B) {
 	controllers := []struct {
 		name       string
-		controller ThrottleController
+		controller *ThrottleController
 	}{
-		{"Step", NewStepController(1000000, 5000, 21000, 130000)},
-		{"Linear", NewLinearController(1000000, 5000, 21000, 130000, 2, noopLogger())},
-		{"Quadratic", NewQuadraticController(1000000, 5000, 21000, 130000, 2, noopLogger())},
-		{"PID", NewPIDController(1000000, 5000, 21000, 130000, config.PIDConfig{
+		{"Step", NewThrottleController(NewStepStrategy(1000000, 5000, 21000, 130000))},
+		{"Linear", NewThrottleController(NewLinearStrategy(1000000, 5000, 21000, 130000, 2, noopLogger()))},
+		{"Quadratic", NewThrottleController(NewQuadraticStrategy(1000000, 5000, 21000, 130000, 2, noopLogger()))},
+		{"PID", NewThrottleController(NewPIDStrategy(1000000, 5000, 21000, 130000, config.PIDConfig{
 			Kp: 0.2, Ki: 0.1, Kd: 0.05,
 			IntegralMax: 100.0, OutputMax: 1.0, SampleTime: time.Microsecond,
-		})},
+		}))},
 	}
 
 	for _, ctrl := range controllers {
@@ -699,4 +716,54 @@ func (m *mockMetrics) GetResponseTime() time.Duration {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 	return m.responseTime
+}
+
+// TestPIDMetricsSetup tests that PID metrics are properly configured during controller setup
+func TestPIDMetricsSetup(t *testing.T) {
+	factory := NewThrottleControllerFactory(noopLogger())
+
+	pidConfig := &config.PIDConfig{
+		Kp: 0.2, Ki: 0.1, Kd: 0.05,
+		IntegralMax: 100.0, OutputMax: 1.0, SampleTime: time.Millisecond * 10,
+	}
+
+	// Create a PID controller
+	controller, err := factory.CreateController(
+		config.PIDControllerType, 1000000, 5000, 21000, 130000, 2, pidConfig)
+	if err != nil {
+		t.Fatalf("Failed to create PID controller: %v", err)
+	}
+
+	// Verify we can access the PID strategy
+	pidStrategy := controller.GetPIDStrategy()
+	if pidStrategy == nil {
+		t.Fatal("Expected PID strategy but got nil")
+	}
+
+	// Setup mock metrics
+	metrics := &mockMetrics{}
+	pidStrategy.SetMetrics(metrics)
+
+	// Trigger two updates to generate metrics (first call initializes, second generates metrics)
+	time.Sleep(time.Millisecond * 15)   // Ensure sample time passes
+	controller.Update(1500000, 1000000) // First call initializes
+
+	time.Sleep(time.Millisecond * 15)             // Ensure sample time passes
+	params := controller.Update(1500000, 1000000) // Second call generates metrics
+
+	if params.Intensity <= 0 {
+		t.Errorf("Expected positive intensity for load above threshold, got %f", params.Intensity)
+	}
+
+	// Verify metrics were recorded
+	if metrics.GetLastError() <= 0 {
+		t.Errorf("Expected metrics to be recorded but got error %f", metrics.GetLastError())
+	}
+
+	if metrics.GetResponseTime() <= 0 {
+		t.Errorf("Expected response time to be recorded but got %v", metrics.GetResponseTime())
+	}
+
+	t.Logf("PID metrics successfully recorded - Error: %f, ResponseTime: %v",
+		metrics.GetLastError(), metrics.GetResponseTime())
 }

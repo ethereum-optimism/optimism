@@ -117,9 +117,7 @@ type BatchSubmitter struct {
 	channelMgr      *channelManager
 	prevCurrentL1   eth.L1BlockRef // cached CurrentL1 from the last syncStatus
 
-	throttleController    ThrottleController
-	throttleMutex         sync.RWMutex // only guards throttleController
-	currentThrottleParams atomic.Pointer[ThrottleParams]
+	throttleController *ThrottleController
 }
 
 // NewBatchSubmitter initializes the BatchSubmitter driver from a preconfigured DriverSetup
@@ -147,12 +145,20 @@ func NewBatchSubmitter(setup DriverSetup) *BatchSubmitter {
 	)
 	if err != nil {
 		setup.Log.Error("Failed to create throttle controller, falling back to step controller", "err", err)
-		throttleController = NewStepController(
+		stepStrategy := NewStepStrategy(
 			setup.Config.ThrottleThreshold,
 			setup.Config.ThrottleTxSize,
 			setup.Config.ThrottleBlockSize,
 			setup.Config.ThrottleAlwaysBlockSize,
 		)
+		throttleController = NewThrottleController(stepStrategy)
+	}
+
+	if throttleController.GetType() == config.PIDControllerType {
+		if pidStrategy := throttleController.GetPIDStrategy(); pidStrategy != nil {
+			pidStrategy.SetMetrics(setup.Metr)
+			setup.Log.Info("PID metrics configured for initial controller")
+		}
 	}
 
 	setup.Metr.RecordThrottleControllerType(throttleController.GetType())
@@ -162,12 +168,6 @@ func NewBatchSubmitter(setup DriverSetup) *BatchSubmitter {
 		channelMgr:         state,
 		throttleController: throttleController,
 	}
-
-	// Initialize atomic pointer
-	initialParams := &ThrottleParams{
-		MaxBlockSize: setup.Config.ThrottleAlwaysBlockSize,
-	}
-	batcher.currentThrottleParams.Store(initialParams)
 
 	return batcher
 }
@@ -611,9 +611,9 @@ func (l *BatchSubmitter) singleEndpointThrottler(wg *sync.WaitGroup, throttleSig
 		defer cancel()
 
 		// Get current throttle parameters from controller
-		params := l.currentThrottleParams.Load()
-		if params == nil {
-			l.Log.Warn("No throttle parameters available, skipping update for endpoint", "endpoint", endpoint)
+		_, params := l.throttleController.Load()
+		if params.Intensity == 0 {
+			l.Log.Debug("No throttling currently active, skipping update for endpoint", "endpoint", endpoint)
 			return
 		}
 
@@ -693,14 +693,9 @@ func (l *BatchSubmitter) throttlingLoop(wg *sync.WaitGroup, pendingBytesUpdated 
 
 	for pb := range pendingBytesUpdated {
 		// Update throttle controller
-		l.throttleMutex.RLock()
 		targetPendingBytes := uint64(0) // Use 0 to let controller use its own target
 		newParams := l.throttleController.Update(uint64(pb), targetPendingBytes)
 		controllerType := l.throttleController.GetType()
-		l.throttleMutex.RUnlock()
-
-		// Store the new parameters atomically
-		l.currentThrottleParams.Store(&newParams)
 
 		l.Metr.RecordThrottleIntensity(newParams.Intensity, controllerType)
 		l.Metr.RecordThrottleParams(newParams.MaxTxSize, newParams.MaxBlockSize)
@@ -1110,13 +1105,13 @@ func (l *BatchSubmitter) SetThrottleController(controllerType string, pidConfig 
 
 	var newType config.ThrottleControllerType
 	switch controllerType {
-	case "step":
+	case string(config.StepControllerType):
 		newType = config.StepControllerType
-	case "linear":
+	case string(config.LinearControllerType):
 		newType = config.LinearControllerType
-	case "quadratic":
+	case string(config.QuadraticControllerType):
 		newType = config.QuadraticControllerType
-	case "pid":
+	case string(config.PIDControllerType):
 		newType = config.PIDControllerType
 	default:
 		return fmt.Errorf("invalid controller type: %s", controllerType)
@@ -1149,34 +1144,23 @@ func (l *BatchSubmitter) SetThrottleController(controllerType string, pidConfig 
 		return fmt.Errorf("failed to create new throttle controller: %w", err)
 	}
 
-	// Set up metrics for PID controller if applicable
-	if pidController, ok := newController.(*PIDController); ok {
-		if metr, ok := l.Metr.(interface {
-			RecordThrottleControllerState(error, integral, derivative float64)
-			RecordThrottleResponseTime(time.Duration)
-		}); ok {
-			pidController.SetMetrics(metr)
+	if newController.GetType() == config.PIDControllerType {
+		if pidStrategy := newController.GetPIDStrategy(); pidStrategy != nil {
+			pidStrategy.SetMetrics(l.Metr)
+			l.Log.Info("PID metrics configured successfully")
+		} else {
+			l.Log.Warn("Failed to access PID strategy for metrics setup")
 		}
 	}
 
-	// Atomically replace the controller
-	l.throttleMutex.Lock()
-	oldController := l.throttleController
+	// Replace the controller with new strategy
+	oldType := l.throttleController.GetType()
 	l.throttleController = newController
-	l.throttleMutex.Unlock()
-
-	// Reset throttle params to safe defaults
-	resetParams := &ThrottleParams{
-		MaxBlockSize: l.Config.ThrottleAlwaysBlockSize,
-		MaxTxSize:    0,
-		Intensity:    0.0,
-	}
-	l.currentThrottleParams.Store(resetParams)
 
 	l.Metr.RecordThrottleControllerType(newController.GetType())
 
 	l.Log.Info("Successfully changed throttle controller",
-		"old_type", oldController.GetType(),
+		"old_type", oldType,
 		"new_type", newController.GetType())
 
 	return nil
@@ -1184,14 +1168,7 @@ func (l *BatchSubmitter) SetThrottleController(controllerType string, pidConfig 
 
 // GetThrottleControllerInfo returns current throttle controller information
 func (l *BatchSubmitter) GetThrottleControllerInfo() (config.ThrottleControllerInfo, error) {
-	l.throttleMutex.RLock()
-	controller := l.throttleController
-	l.throttleMutex.RUnlock()
-
-	params := l.currentThrottleParams.Load()
-	if params == nil {
-		return config.ThrottleControllerInfo{}, fmt.Errorf("throttle parameters not initialized")
-	}
+	controllerType, params := l.throttleController.Load()
 
 	// Get current pending bytes
 	l.channelMgrMutex.Lock()
@@ -1199,7 +1176,7 @@ func (l *BatchSubmitter) GetThrottleControllerInfo() (config.ThrottleControllerI
 	l.channelMgrMutex.Unlock()
 
 	info := config.ThrottleControllerInfo{
-		Type:         string(controller.GetType()),
+		Type:         string(controllerType),
 		Threshold:    l.Config.ThrottleThreshold,
 		CurrentLoad:  currentLoad,
 		Intensity:    params.Intensity,
@@ -1213,27 +1190,95 @@ func (l *BatchSubmitter) GetThrottleControllerInfo() (config.ThrottleControllerI
 
 // ResetThrottleController resets the current throttle controller state
 func (l *BatchSubmitter) ResetThrottleController() error {
-	l.throttleMutex.Lock()
-	defer l.throttleMutex.Unlock()
+	l.Log.Info("Resetting throttle controller state", "type", l.throttleController.GetType())
 
-	controllerType := l.throttleController.GetType()
-	l.Log.Info("Resetting throttle controller state", "type", controllerType)
-
-	// Reset the controller
 	l.throttleController.Reset()
-
-	// Reset current throttle params
-	resetParams := &ThrottleParams{
-		MaxBlockSize: l.Config.ThrottleAlwaysBlockSize,
-		MaxTxSize:    0,
-		Intensity:    0.0,
-	}
-	l.currentThrottleParams.Store(resetParams)
-
 	l.Metr.RecordThrottleIntensity(0.0, l.throttleController.GetType())
 	l.Metr.RecordThrottleParams(0, l.Config.ThrottleAlwaysBlockSize)
 
 	l.Log.Info("Successfully reset throttle controller state")
+	return nil
+}
+
+// SetThrottleControllerType changes only the throttle controller type without changing parameters
+func (l *BatchSubmitter) SetThrottleControllerType(controllerType string) error {
+	l.Log.Info("Changing throttle controller type", "from", l.throttleController.GetType(), "to", controllerType)
+
+	var newType config.ThrottleControllerType
+	switch controllerType {
+	case string(config.StepControllerType):
+		newType = config.StepControllerType
+	case string(config.LinearControllerType):
+		newType = config.LinearControllerType
+	case string(config.QuadraticControllerType):
+		newType = config.QuadraticControllerType
+	default:
+		return fmt.Errorf("invalid controller type: %s (PID not supported in this method)", controllerType)
+	}
+
+	factory := NewThrottleControllerFactory(l.Log)
+
+	newController, err := factory.CreateController(
+		newType,
+		l.Config.ThrottleThreshold,
+		l.Config.ThrottleTxSize,
+		l.Config.ThrottleBlockSize,
+		l.Config.ThrottleAlwaysBlockSize,
+		l.Config.ThrottleThresholdMultiplier,
+		nil,
+	)
+	if err != nil {
+		return fmt.Errorf("failed to create new throttle controller: %w", err)
+	}
+
+	// Replace the controller with new strategy
+	oldType := l.throttleController.GetType()
+	l.throttleController = newController
+
+	l.Metr.RecordThrottleControllerType(newController.GetType())
+
+	l.Log.Info("Successfully changed throttle controller type",
+		"old_type", oldType,
+		"new_type", newController.GetType())
+
+	return nil
+}
+
+// SetThrottleControllerPIDConfig updates the PID controller configuration
+func (l *BatchSubmitter) SetThrottleControllerPIDConfig(pidConfig *config.PIDConfig) error {
+	currentType := l.throttleController.GetType()
+	if currentType != config.PIDControllerType {
+		return fmt.Errorf("current controller is not PID type (%s), cannot update PID config", currentType)
+	}
+
+	l.Log.Info("Updating PID controller configuration", "config", pidConfig)
+
+	factory := NewThrottleControllerFactory(l.Log)
+
+	newController, err := factory.CreateController(
+		config.PIDControllerType,
+		l.Config.ThrottleThreshold,
+		l.Config.ThrottleTxSize,
+		l.Config.ThrottleBlockSize,
+		l.Config.ThrottleAlwaysBlockSize,
+		l.Config.ThrottleThresholdMultiplier,
+		pidConfig,
+	)
+	if err != nil {
+		return fmt.Errorf("failed to create new PID controller: %w", err)
+	}
+
+	// Set up metrics for the new PID strategy
+	if pidStrategy := newController.GetPIDStrategy(); pidStrategy != nil {
+		pidStrategy.SetMetrics(l.Metr)
+		l.Log.Debug("PID metrics configured for updated controller")
+	}
+
+	// Replace the controller with new PID strategy
+	l.throttleController = newController
+
+	l.Log.Info("Successfully updated PID controller configuration")
+
 	return nil
 }
 

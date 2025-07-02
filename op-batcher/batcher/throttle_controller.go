@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"math"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-batcher/config"
@@ -17,26 +18,113 @@ type ThrottleParams struct {
 	Intensity    float64 // Throttling intensity (0.0 = no throttling, 1.0 = max throttling)
 }
 
-// ThrottleController defines the interface for throttle controllers
-type ThrottleController interface {
+// ThrottleStrategy defines the interface for throttle strategies using the Strategy pattern
+type ThrottleStrategy interface {
 	// Update calculates new throttling parameters based on current pending bytes
 	Update(currentPendingBytes, targetPendingBytes uint64) ThrottleParams
-	// Reset resets the controller state
+	// Reset resets the strategy state
 	Reset()
-	// GetType returns the controller type
+	// GetType returns the strategy type
 	GetType() config.ThrottleControllerType
+	// Load returns the current throttle type and parameters atomically
+	Load() (config.ThrottleControllerType, ThrottleParams)
 }
 
-// StepController implements binary on/off throttling (existing behavior)
-type StepController struct {
+// ThrottleController manages throttling using a pluggable strategy
+type ThrottleController struct {
+	mu            sync.RWMutex
+	strategy      ThrottleStrategy
+	currentParams atomic.Pointer[ThrottleParams]
+}
+
+func NewThrottleController(strategy ThrottleStrategy) *ThrottleController {
+	controller := &ThrottleController{
+		strategy: strategy,
+	}
+
+	// Initialize with default params
+	initialParams := &ThrottleParams{
+		MaxTxSize:    0,
+		MaxBlockSize: 0,
+		Intensity:    0.0,
+	}
+	controller.currentParams.Store(initialParams)
+
+	return controller
+}
+
+// Update updates the throttle parameters and returns the new params
+func (tc *ThrottleController) Update(currentPendingBytes, targetPendingBytes uint64) ThrottleParams {
+	tc.mu.RLock()
+	strategy := tc.strategy
+	tc.mu.RUnlock()
+
+	newParams := strategy.Update(currentPendingBytes, targetPendingBytes)
+	tc.currentParams.Store(&newParams)
+
+	return newParams
+}
+
+// Load returns the current controller type and parameters atomically
+func (tc *ThrottleController) Load() (config.ThrottleControllerType, ThrottleParams) {
+	tc.mu.RLock()
+	controllerType := tc.strategy.GetType()
+	tc.mu.RUnlock()
+
+	params := tc.currentParams.Load()
+	if params == nil {
+		return controllerType, ThrottleParams{}
+	}
+
+	return controllerType, *params
+}
+
+// SetStrategy changes the throttle strategy at runtime
+func (tc *ThrottleController) SetStrategy(strategy ThrottleStrategy, resetParams ThrottleParams) {
+	tc.mu.Lock()
+	tc.strategy = strategy
+	tc.mu.Unlock()
+
+	tc.currentParams.Store(&resetParams)
+}
+
+// Reset resets the current strategy state
+func (tc *ThrottleController) Reset() {
+	tc.mu.RLock()
+	strategy := tc.strategy
+	tc.mu.RUnlock()
+
+	strategy.Reset()
+}
+
+// GetType returns the current strategy type
+func (tc *ThrottleController) GetType() config.ThrottleControllerType {
+	tc.mu.RLock()
+	defer tc.mu.RUnlock()
+	return tc.strategy.GetType()
+}
+
+// GetPIDStrategy returns the PID strategy if the current strategy is PID, otherwise returns nil
+func (tc *ThrottleController) GetPIDStrategy() *PIDStrategy {
+	tc.mu.RLock()
+	defer tc.mu.RUnlock()
+
+	if pidStrategy, ok := tc.strategy.(*PIDStrategy); ok {
+		return pidStrategy
+	}
+	return nil
+}
+
+// StepStrategy implements binary on/off throttling (existing behavior)
+type StepStrategy struct {
 	threshold         uint64
 	throttleTxSize    uint64
 	throttleBlockSize uint64
 	alwaysBlockSize   uint64
 }
 
-func NewStepController(threshold, throttleTxSize, throttleBlockSize, alwaysBlockSize uint64) *StepController {
-	return &StepController{
+func NewStepStrategy(threshold, throttleTxSize, throttleBlockSize, alwaysBlockSize uint64) *StepStrategy {
+	return &StepStrategy{
 		threshold:         threshold,
 		throttleTxSize:    throttleTxSize,
 		throttleBlockSize: throttleBlockSize,
@@ -44,7 +132,7 @@ func NewStepController(threshold, throttleTxSize, throttleBlockSize, alwaysBlock
 	}
 }
 
-func (s *StepController) Update(currentPendingBytes, targetPendingBytes uint64) ThrottleParams {
+func (s *StepStrategy) Update(currentPendingBytes, targetPendingBytes uint64) ThrottleParams {
 	maxBlockSize := s.alwaysBlockSize
 	var maxTxSize uint64 = 0
 	var intensity float64 = 0.0
@@ -64,16 +152,20 @@ func (s *StepController) Update(currentPendingBytes, targetPendingBytes uint64) 
 	}
 }
 
-func (s *StepController) Reset() {
-	// No state to reset for step controller
+func (s *StepStrategy) Reset() {
+	// No state to reset for step strategy
 }
 
-func (s *StepController) GetType() config.ThrottleControllerType {
+func (s *StepStrategy) GetType() config.ThrottleControllerType {
 	return config.StepControllerType
 }
 
-// LinearController implements linear throttling based on pending bytes
-type LinearController struct {
+func (s *StepStrategy) Load() (config.ThrottleControllerType, ThrottleParams) {
+	return s.GetType(), ThrottleParams{}
+}
+
+// LinearStrategy implements linear throttling based on pending bytes
+type LinearStrategy struct {
 	threshold         uint64
 	maxThreshold      uint64 // Point at which maximum throttling is applied
 	throttleTxSize    uint64
@@ -81,7 +173,7 @@ type LinearController struct {
 	alwaysBlockSize   uint64
 }
 
-func NewLinearController(threshold, throttleTxSize, throttleBlockSize, alwaysBlockSize uint64, multiplier float64, log log.Logger) *LinearController {
+func NewLinearStrategy(threshold, throttleTxSize, throttleBlockSize, alwaysBlockSize uint64, multiplier float64, log log.Logger) *LinearStrategy {
 	// Set max threshold to multiplier * base threshold for linear scaling
 	maxThreshold := threshold * uint64(multiplier)
 	// Ensure maxThreshold is always greater than threshold to prevent division by zero
@@ -89,7 +181,7 @@ func NewLinearController(threshold, throttleTxSize, throttleBlockSize, alwaysBlo
 		maxThreshold = threshold + 1
 		log.Warn("maxThreshold is less than or equal to threshold, setting maxThreshold to threshold + 1", "threshold", threshold, "multiplier", multiplier, "maxThreshold", maxThreshold)
 	}
-	return &LinearController{
+	return &LinearStrategy{
 		threshold:         threshold,
 		maxThreshold:      maxThreshold,
 		throttleTxSize:    throttleTxSize,
@@ -98,7 +190,7 @@ func NewLinearController(threshold, throttleTxSize, throttleBlockSize, alwaysBlo
 	}
 }
 
-func (l *LinearController) Update(currentPendingBytes, targetPendingBytes uint64) ThrottleParams {
+func (l *LinearStrategy) Update(currentPendingBytes, targetPendingBytes uint64) ThrottleParams {
 	maxBlockSize := l.alwaysBlockSize
 	var maxTxSize uint64 = 0
 	var intensity float64 = 0.0
@@ -138,16 +230,20 @@ func (l *LinearController) Update(currentPendingBytes, targetPendingBytes uint64
 	}
 }
 
-func (l *LinearController) Reset() {
-	// No state to reset for linear controller
+func (l *LinearStrategy) Reset() {
+	// No state to reset for linear strategy
 }
 
-func (l *LinearController) GetType() config.ThrottleControllerType {
+func (l *LinearStrategy) GetType() config.ThrottleControllerType {
 	return config.LinearControllerType
 }
 
-// QuadraticController implements quadratic throttling for more aggressive scaling
-type QuadraticController struct {
+func (l *LinearStrategy) Load() (config.ThrottleControllerType, ThrottleParams) {
+	return l.GetType(), ThrottleParams{}
+}
+
+// QuadraticStrategy implements quadratic throttling for more aggressive scaling
+type QuadraticStrategy struct {
 	threshold         uint64
 	maxThreshold      uint64
 	throttleTxSize    uint64
@@ -155,14 +251,14 @@ type QuadraticController struct {
 	alwaysBlockSize   uint64
 }
 
-func NewQuadraticController(threshold, throttleTxSize, throttleBlockSize, alwaysBlockSize uint64, multiplier float64, log log.Logger) *QuadraticController {
+func NewQuadraticStrategy(threshold, throttleTxSize, throttleBlockSize, alwaysBlockSize uint64, multiplier float64, log log.Logger) *QuadraticStrategy {
 	maxThreshold := threshold * uint64(multiplier)
 	// Ensure maxThreshold is always greater than threshold to prevent division by zero
 	if maxThreshold <= threshold {
 		maxThreshold = threshold + 1
 		log.Warn("maxThreshold is less than or equal to threshold, setting maxThreshold to threshold + 1", "threshold", threshold, "multiplier", multiplier, "maxThreshold", maxThreshold)
 	}
-	return &QuadraticController{
+	return &QuadraticStrategy{
 		threshold:         threshold,
 		maxThreshold:      maxThreshold,
 		throttleTxSize:    throttleTxSize,
@@ -171,7 +267,7 @@ func NewQuadraticController(threshold, throttleTxSize, throttleBlockSize, always
 	}
 }
 
-func (q *QuadraticController) Update(currentPendingBytes, targetPendingBytes uint64) ThrottleParams {
+func (q *QuadraticStrategy) Update(currentPendingBytes, targetPendingBytes uint64) ThrottleParams {
 	maxBlockSize := q.alwaysBlockSize
 	var maxTxSize uint64 = 0
 	var intensity float64 = 0.0
@@ -210,16 +306,20 @@ func (q *QuadraticController) Update(currentPendingBytes, targetPendingBytes uin
 	}
 }
 
-func (q *QuadraticController) Reset() {
-	// No state to reset for quadratic controller
+func (q *QuadraticStrategy) Reset() {
+	// No state to reset for quadratic strategy
 }
 
-func (q *QuadraticController) GetType() config.ThrottleControllerType {
+func (q *QuadraticStrategy) GetType() config.ThrottleControllerType {
 	return config.QuadraticControllerType
 }
 
-// PIDController implements PID-based throttling
-type PIDController struct {
+func (q *QuadraticStrategy) Load() (config.ThrottleControllerType, ThrottleParams) {
+	return q.GetType(), ThrottleParams{}
+}
+
+// PIDStrategy implements PID-based throttling
+type PIDStrategy struct {
 	config            config.PIDConfig
 	threshold         uint64
 	throttleTxSize    uint64
@@ -239,8 +339,8 @@ type PIDController struct {
 	}
 }
 
-func NewPIDController(threshold, throttleTxSize, throttleBlockSize, alwaysBlockSize uint64, config config.PIDConfig) *PIDController {
-	return &PIDController{
+func NewPIDStrategy(threshold, throttleTxSize, throttleBlockSize, alwaysBlockSize uint64, config config.PIDConfig) *PIDStrategy {
+	return &PIDStrategy{
 		config:            config,
 		threshold:         threshold,
 		throttleTxSize:    throttleTxSize,
@@ -249,21 +349,20 @@ func NewPIDController(threshold, throttleTxSize, throttleBlockSize, alwaysBlockS
 	}
 }
 
-func (p *PIDController) SetMetrics(metrics interface {
+func (p *PIDStrategy) SetMetrics(metrics interface {
 	RecordThrottleControllerState(error, integral, derivative float64)
 	RecordThrottleResponseTime(time.Duration)
 }) {
 	p.metrics = metrics
 }
 
-func (p *PIDController) Update(currentPendingBytes, targetPendingBytes uint64) ThrottleParams {
+func (p *PIDStrategy) Update(currentPendingBytes, targetPendingBytes uint64) ThrottleParams {
 	startTime := time.Now()
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
 	now := time.Now()
 
-	// Initialize on first call
 	if !p.initialized {
 		p.lastUpdateTime = now
 		p.initialized = true
@@ -274,29 +373,29 @@ func (p *PIDController) Update(currentPendingBytes, targetPendingBytes uint64) T
 	// Check if enough time has passed since last update
 	dt := now.Sub(p.lastUpdateTime)
 	if dt < p.config.SampleTime {
-		// Return current state if not enough time has passed
 		intensity := p.calculateCurrentIntensity()
 		return p.buildThrottleParams(intensity)
 	}
 
 	p.lastUpdateTime = now
 
-	// Use threshold as target if no explicit target provided
 	if targetPendingBytes == 0 {
 		targetPendingBytes = p.threshold
 	}
 
 	// Calculate error (positive when above target)
-	error := float64(int64(currentPendingBytes) - int64(targetPendingBytes))
+	pendingBytesError := float64(int64(currentPendingBytes) - int64(targetPendingBytes))
 
 	// Only apply PID control if we're above the base threshold
 	var intensity float64 = 0.0
 	if currentPendingBytes > p.threshold {
-		// Proportional term
-		proportional := p.config.Kp * error
+		// Normalize error by threshold to get a reasonable scale
+		normalizedError := pendingBytesError / float64(p.threshold)
 
-		// Integral term with windup protection
-		p.integral += error * dt.Seconds()
+		proportional := p.config.Kp * normalizedError
+
+		// Update integral term with windup protection
+		p.integral += normalizedError * dt.Seconds()
 		if p.integral > p.config.IntegralMax {
 			p.integral = p.config.IntegralMax
 		} else if p.integral < -p.config.IntegralMax {
@@ -304,34 +403,24 @@ func (p *PIDController) Update(currentPendingBytes, targetPendingBytes uint64) T
 		}
 		integralTerm := p.config.Ki * p.integral
 
-		// Derivative term
-		derivative := 0.0
-		if dt.Seconds() > 0 {
-			derivative = (error - p.lastError) / dt.Seconds()
-		}
+		// Calculate derivative term
+		derivative := (normalizedError - p.lastError) / dt.Seconds()
 		derivativeTerm := p.config.Kd * derivative
 
-		// Calculate PID output
-		output := proportional + integralTerm + derivativeTerm
+		// Combine PID terms
+		pidOutput := proportional + integralTerm + derivativeTerm
 
-		// Normalize output to [0, 1] range
-		normalizedOutput := output / float64(p.threshold)
-		if normalizedOutput > p.config.OutputMax {
-			normalizedOutput = p.config.OutputMax
-		} else if normalizedOutput < 0 {
-			normalizedOutput = 0
-		}
+		// Clamp output to valid range [0, OutputMax]
+		intensity = math.Max(0, math.Min(p.config.OutputMax, pidOutput))
 
-		intensity = normalizedOutput
-		p.lastError = error
+		p.lastError = normalizedError
 
-		// Record PID-specific metrics if available
 		if p.metrics != nil {
-			p.metrics.RecordThrottleControllerState(error, p.integral, derivative)
+			p.metrics.RecordThrottleControllerState(pendingBytesError, p.integral, derivative)
 			p.metrics.RecordThrottleResponseTime(time.Since(startTime))
 		}
 	} else {
-		// Reset integral when below threshold
+		// Below threshold - reset integral term to prevent windup
 		p.integral = 0
 		p.lastError = 0
 	}
@@ -339,13 +428,11 @@ func (p *PIDController) Update(currentPendingBytes, targetPendingBytes uint64) T
 	return p.buildThrottleParams(intensity)
 }
 
-func (p *PIDController) calculateCurrentIntensity() float64 {
-	// This is a simplified calculation for when we haven't updated recently
-	// In a real implementation, you might want to store the last calculated intensity
-	return 0.0
+func (p *PIDStrategy) calculateCurrentIntensity() float64 {
+	return math.Max(0, math.Min(1, p.config.Kp*p.lastError))
 }
 
-func (p *PIDController) buildThrottleParams(intensity float64) ThrottleParams {
+func (p *PIDStrategy) buildThrottleParams(intensity float64) ThrottleParams {
 	maxBlockSize := p.alwaysBlockSize
 	var maxTxSize uint64 = 0
 
@@ -370,7 +457,7 @@ func (p *PIDController) buildThrottleParams(intensity float64) ThrottleParams {
 	}
 }
 
-func (p *PIDController) Reset() {
+func (p *PIDStrategy) Reset() {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
@@ -379,8 +466,12 @@ func (p *PIDController) Reset() {
 	p.initialized = false
 }
 
-func (p *PIDController) GetType() config.ThrottleControllerType {
+func (p *PIDStrategy) GetType() config.ThrottleControllerType {
 	return config.PIDControllerType
+}
+
+func (p *PIDStrategy) Load() (config.ThrottleControllerType, ThrottleParams) {
+	return p.GetType(), ThrottleParams{}
 }
 
 // ThrottleControllerFactory creates throttle controllers based on configuration
@@ -399,20 +490,45 @@ func (f *ThrottleControllerFactory) CreateController(
 	threshold, throttleTxSize, throttleBlockSize, alwaysBlockSize uint64,
 	thresholdMultiplier float64,
 	pidConfig *config.PIDConfig,
-) (ThrottleController, error) {
+) (*ThrottleController, error) {
+	var strategy ThrottleStrategy
+
 	switch controllerType {
 	case config.StepControllerType:
-		return NewStepController(threshold, throttleTxSize, throttleBlockSize, alwaysBlockSize), nil
+		strategy = NewStepStrategy(threshold, throttleTxSize, throttleBlockSize, alwaysBlockSize)
 	case config.LinearControllerType:
-		return NewLinearController(threshold, throttleTxSize, throttleBlockSize, alwaysBlockSize, thresholdMultiplier, f.log), nil
+		strategy = NewLinearStrategy(threshold, throttleTxSize, throttleBlockSize, alwaysBlockSize, thresholdMultiplier, f.log)
 	case config.QuadraticControllerType:
-		return NewQuadraticController(threshold, throttleTxSize, throttleBlockSize, alwaysBlockSize, thresholdMultiplier, f.log), nil
+		strategy = NewQuadraticStrategy(threshold, throttleTxSize, throttleBlockSize, alwaysBlockSize, thresholdMultiplier, f.log)
 	case config.PIDControllerType:
 		if pidConfig == nil {
 			return nil, fmt.Errorf("PID configuration required for PID controller")
 		}
-		return NewPIDController(threshold, throttleTxSize, throttleBlockSize, alwaysBlockSize, *pidConfig), nil
+
+		// Validate PID configuration parameters
+		if pidConfig.Kp < 0 {
+			return nil, fmt.Errorf("PID Kp gain must be non-negative, got %f", pidConfig.Kp)
+		}
+		if pidConfig.Ki < 0 {
+			return nil, fmt.Errorf("PID Ki gain must be non-negative, got %f", pidConfig.Ki)
+		}
+		if pidConfig.Kd < 0 {
+			return nil, fmt.Errorf("PID Kd gain must be non-negative, got %f", pidConfig.Kd)
+		}
+		if pidConfig.IntegralMax <= 0 {
+			return nil, fmt.Errorf("PID IntegralMax must be positive, got %f", pidConfig.IntegralMax)
+		}
+		if pidConfig.OutputMax <= 0 || pidConfig.OutputMax > 1 {
+			return nil, fmt.Errorf("PID OutputMax must be between 0 and 1, got %f", pidConfig.OutputMax)
+		}
+		if pidConfig.SampleTime <= 0 {
+			return nil, fmt.Errorf("PID SampleTime must be positive, got %v", pidConfig.SampleTime)
+		}
+
+		strategy = NewPIDStrategy(threshold, throttleTxSize, throttleBlockSize, alwaysBlockSize, *pidConfig)
 	default:
 		return nil, fmt.Errorf("unknown throttle controller type: %s", controllerType)
 	}
+
+	return NewThrottleController(strategy), nil
 }

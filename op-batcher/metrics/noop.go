@@ -3,6 +3,7 @@ package metrics
 import (
 	"io"
 	"math"
+	"time"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -48,6 +49,10 @@ func (*noopMetrics) RecordThrottleParams(maxTxSize, maxBlockSize uint64)        
 func (*noopMetrics) RecordThrottleControllerType(controllerType config.ThrottleControllerType) {}
 func (*noopMetrics) RecordPendingBytesVsThreshold(pendingBytes, threshold uint64, controllerType config.ThrottleControllerType) {
 }
+
+// PID Controller specific metrics
+func (*noopMetrics) RecordThrottleControllerState(error, integral, derivative float64) {}
+func (*noopMetrics) RecordThrottleResponseTime(duration time.Duration)                 {}
 
 func (*noopMetrics) RecordBatchTxSubmitted() {}
 func (*noopMetrics) RecordBatchTxSuccess()   {}
