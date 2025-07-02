@@ -6,7 +6,6 @@ use crate::RpcClientError;
 use crate::flashblocks::metrics::FlashblocksServiceMetrics;
 use crate::{
     ClientResult, EngineApiExt, NewPayload, OpExecutionPayloadEnvelope, PayloadVersion, RpcClient,
-    payload_id_optimism,
 };
 use alloy_primitives::U256;
 use alloy_rpc_types_engine::{
@@ -20,6 +19,7 @@ use op_alloy_rpc_types_engine::{
     OpExecutionPayloadEnvelopeV3, OpExecutionPayloadEnvelopeV4, OpExecutionPayloadV4,
     OpPayloadAttributes,
 };
+use reth_optimism_payload_builder::payload_id_optimism;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use thiserror::Error;

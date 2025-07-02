@@ -9649,6 +9649,7 @@ dependencies = [
  "predicates",
  "rand 0.9.1",
  "reqwest",
+ "reth-optimism-payload-builder",
  "reth-rpc-layer 1.4.7",
  "rustls",
  "serde",

@@ -24,6 +24,9 @@ eyre = "0.6.12"
 url = "2.2.0"
 sha2 = { version = "0.10", default-features = false }
 
+# Reth deps
+reth-optimism-payload-builder = { git = "https://github.com/paradigmxyz/reth", tag = "v1.5.0" }
+
 # Alloy libraries
 alloy-rpc-types-engine = "1.0.13"
 alloy-rpc-types-eth = "1.0.13"
