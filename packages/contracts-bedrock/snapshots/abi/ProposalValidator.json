@@ -53,6 +53,19 @@
   },
   {
     "inputs": [],
+    "name": "OPTIMISTIC_MODULE_PERCENT_DIVISOR",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
     "name": "TOP_DELEGATES_ATTESTATION_SCHEMA_UID",
     "outputs": [
       {
