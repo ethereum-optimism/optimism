@@ -887,6 +887,15 @@ contract ProposalValidator_CanApproveProposal_Test is ProposalValidator_Init {
     }
 }
 
+/// @title ProposalValidator_Version_Test
+/// @notice Tests for the version function
+contract ProposalValidator_Version_Test is ProposalValidator_Init {
+    function test_version_succeeds() public {
+        string memory versionString = validator.version();
+        assertEq(versionString, "1.0.0-beta.1");
+    }
+}
+
 /// @title ProposalValidator_Setters_Test
 /// @notice Tests for setter functions
 contract ProposalValidator_Setters_Test is ProposalValidator_Init {
