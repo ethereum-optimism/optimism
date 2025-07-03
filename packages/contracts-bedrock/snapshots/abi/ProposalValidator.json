@@ -226,32 +226,95 @@
   {
     "inputs": [
       {
+        "internalType": "uint128",
+        "name": "_criteriaValue",
+        "type": "uint128"
+      },
+      {
+        "internalType": "string[]",
+        "name": "_optionsDescriptions",
+        "type": "string[]"
+      },
+      {
+        "internalType": "string",
+        "name": "_proposalDescription",
+        "type": "string"
+      }
+    ],
+    "name": "moveToVoteCouncilMemberElectionsProposal",
+    "outputs": [
+      {
+        "internalType": "bytes32",
+        "name": "proposalHash_",
+        "type": "bytes32"
+      }
+    ],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint128",
+        "name": "_criteriaValue",
+        "type": "uint128"
+      },
+      {
+        "internalType": "string[]",
+        "name": "_optionsDescriptions",
+        "type": "string[]"
+      },
+      {
         "internalType": "address[]",
-        "name": "_targets",
+        "name": "_optionsRecipients",
         "type": "address[]"
       },
       {
         "internalType": "uint256[]",
-        "name": "_values",
+        "name": "_optionsAmounts",
         "type": "uint256[]"
-      },
-      {
-        "internalType": "bytes[]",
-        "name": "_calldatas",
-        "type": "bytes[]"
       },
       {
         "internalType": "string",
         "name": "_description",
         "type": "string"
+      },
+      {
+        "internalType": "enum ProposalValidator.ProposalType",
+        "name": "_proposalType",
+        "type": "uint8"
       }
     ],
-    "name": "moveToVote",
+    "name": "moveToVoteFundingProposal",
     "outputs": [
       {
-        "internalType": "uint256",
-        "name": "governorProposalId_",
-        "type": "uint256"
+        "internalType": "bytes32",
+        "name": "proposalHash_",
+        "type": "bytes32"
+      }
+    ],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint248",
+        "name": "_againstThreshold",
+        "type": "uint248"
+      },
+      {
+        "internalType": "string",
+        "name": "_proposalDescription",
+        "type": "string"
+      }
+    ],
+    "name": "moveToVoteProtocolOrGovernorUpgradeProposal",
+    "outputs": [
+      {
+        "internalType": "bytes32",
+        "name": "proposalHash_",
+        "type": "bytes32"
       }
     ],
     "stateMutability": "nonpayable",
@@ -406,6 +469,11 @@
         "internalType": "bytes32",
         "name": "_attestationUid",
         "type": "bytes32"
+      },
+      {
+        "internalType": "uint256",
+        "name": "_votingCycle",
+        "type": "uint256"
       }
     ],
     "name": "submitCouncilMemberElectionsProposal",
@@ -450,6 +518,11 @@
         "internalType": "enum ProposalValidator.ProposalType",
         "name": "_proposalType",
         "type": "uint8"
+      },
+      {
+        "internalType": "uint256",
+        "name": "_votingCycle",
+        "type": "uint256"
       }
     ],
     "name": "submitFundingProposal",
@@ -484,6 +557,11 @@
         "internalType": "enum ProposalValidator.ProposalType",
         "name": "_proposalType",
         "type": "uint8"
+      },
+      {
+        "internalType": "uint256",
+        "name": "_votingCycle",
+        "type": "uint256"
       }
     ],
     "name": "submitUpgradeProposal",
@@ -546,6 +624,11 @@
       {
         "internalType": "uint256",
         "name": "votingCycleDistributionLimit",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "movedToVoteTokenCount",
         "type": "uint256"
       }
     ],
@@ -793,7 +876,17 @@
   },
   {
     "inputs": [],
+    "name": "ProposalValidator_InvalidVotingCycle",
+    "type": "error"
+  },
+  {
+    "inputs": [],
     "name": "ProposalValidator_ProposalAlreadyApproved",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "ProposalValidator_ProposalAlreadyMovedToVote",
     "type": "error"
   },
   {
@@ -804,6 +897,11 @@
   {
     "inputs": [],
     "name": "ProposalValidator_ProposalDoesNotExist",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "ProposalValidator_ProposalIdMismatch",
     "type": "error"
   },
   {
