@@ -610,12 +610,7 @@ func (l *BatchSubmitter) singleEndpointThrottler(wg *sync.WaitGroup, throttleSig
 		ctx, cancel := context.WithTimeout(l.shutdownCtx, l.Config.NetworkTimeout)
 		defer cancel()
 
-		// Get current throttle parameters from controller
 		_, params := l.throttleController.Load()
-		if params.Intensity == 0 {
-			l.Log.Debug("No throttling currently active, skipping update for endpoint", "endpoint", endpoint)
-			return
-		}
 
 		var success bool
 		err := client.CallContext(
