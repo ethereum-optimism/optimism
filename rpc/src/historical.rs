@@ -181,8 +181,7 @@ where
                             .request::<_, serde_json::Value>(req.method_name(), params)
                             .await
                         {
-                            let payload =
-                                jsonrpsee_types::ResponsePayload::success(raw.to_string()).into();
+                            let payload = jsonrpsee_types::ResponsePayload::success(raw).into();
                             return MethodResponse::response(req.id, payload, usize::MAX);
                         }
                     }
