@@ -640,10 +640,7 @@ contract ProposalValidator is OwnableUpgradeable, ReinitializableBase, ISemver {
 
         // Propose with module on the Governor
         uint256 proposalId = GOVERNOR.proposeWithModule(
-            VotingModule(votingModule),
-            proposalVotingModuleData,
-            _proposalDescription,
-            uint8(proposalType)
+            VotingModule(votingModule), proposalVotingModuleData, _proposalDescription, uint8(proposalType)
         );
 
         // Make sure the proposalId is the same as the proposalHash
