@@ -2,7 +2,7 @@
 
 mod tx_type;
 
-/// Kept for concistency tests
+/// Kept for consistency tests
 #[cfg(test)]
 mod signed;
 
