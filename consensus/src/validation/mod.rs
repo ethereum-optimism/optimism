@@ -6,7 +6,8 @@ pub mod isthmus;
 use crate::proof::calculate_receipt_root_optimism;
 use alloc::vec::Vec;
 use alloy_consensus::{BlockHeader, TxReceipt, EMPTY_OMMER_ROOT_HASH};
-use alloy_primitives::{Bloom, B256};
+use alloy_eips::Encodable2718;
+use alloy_primitives::{Bloom, Bytes, B256};
 use alloy_trie::EMPTY_ROOT_HASH;
 use op_alloy_consensus::{decode_holocene_extra_data, EIP1559ParamError};
 use reth_chainspec::{BaseFeeParams, EthChainSpec};
@@ -99,6 +100,10 @@ pub fn validate_block_post_execution<R: DepositReceipt>(
             chain_spec,
             header.timestamp(),
         ) {
+            let receipts = receipts
+                .iter()
+                .map(|r| Bytes::from(r.with_bloom_ref().encoded_2718()))
+                .collect::<Vec<_>>();
             tracing::debug!(%error, ?receipts, "receipts verification failed");
             return Err(error)
         }
