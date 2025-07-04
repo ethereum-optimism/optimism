@@ -438,6 +438,7 @@ where
             gas_delta,
             tx_count_delta,
             builder_has_payload,
+            flashblocks_count,
         )
     )]
     async fn get_payload_v3(

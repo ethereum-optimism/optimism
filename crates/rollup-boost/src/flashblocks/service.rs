@@ -228,6 +228,11 @@ impl FlashblocksService {
         // consume the best payload and reset the builder
         let payload = {
             let mut builder = self.best_payload.write().await;
+            let flashblocks_number = builder.flashblocks.len();
+            self.metrics
+                .flashblocks_used
+                .record(flashblocks_number as f64);
+            tracing::Span::current().record("flashblocks_count", flashblocks_number);
             // Take payload and place new one in its place in one go to avoid double locking
             std::mem::replace(&mut *builder, FlashblockBuilder::new()).into_envelope(version)?
         };
