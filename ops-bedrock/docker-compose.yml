@@ -25,7 +25,7 @@ services:
       - "7060:6060"
     volumes:
       - "l1_data:/db"
-      - "${PWD}/../.devnet/genesis-l1.json:/genesis.json"
+      - "./genesis.json:/genesis.json"
       - "${PWD}/test-jwt-secret.txt:/config/jwt-secret.txt"
     environment:
       GETH_MINER_RECOMMIT: 100ms
@@ -44,7 +44,7 @@ services:
       - "${PWD}/test-jwt-secret.txt:/config/jwt-secret.txt"
       - "${PWD}/beacon-data/config.yaml:/genesis/config.yaml"
       - "${PWD}/beacon-data/deposit_contract_block.txt:/genesis/deposit_contract_block.txt"
-      - "${PWD}/../.devnet/genesis-l1.ssz:/genesis/genesis.ssz"
+      - "./genesis-l1.ssz:/genesis/genesis.ssz"
     environment:
       LH_EXECUTION_ENDPOINT: "http://l1:8551"
     entrypoint:
@@ -64,7 +64,7 @@ services:
       - "${PWD}/beacon-data/data/secrets:/validator_setup/secrets"
       - "${PWD}/beacon-data/config.yaml:/genesis/config.yaml"
       - "${PWD}/beacon-data/deposit_contract_block.txt:/genesis/deposit_contract_block.txt"
-      - "${PWD}/../.devnet/genesis-l1.ssz:/genesis/genesis.ssz"
+      - "./genesis-l1.ssz:/genesis/genesis.ssz"
     environment:
       LH_BEACON_NODES: "http://l1-bn:5052/"
     entrypoint:
@@ -80,7 +80,7 @@ services:
       - "8060:6060"
     volumes:
       - "l2_data:/db"
-      - "${PWD}/../.devnet/genesis-l2.json:/genesis.json"
+      - "./genesis-l2.json:/genesis.json"
       - "${PWD}/test-jwt-secret.txt:/config/jwt-secret.txt"
     entrypoint:  # pass the L2 specific flags by overriding the entry-point and adding extra arguments
       - "/bin/sh"
@@ -98,7 +98,7 @@ services:
       context: ../
       dockerfile: ops/docker/op-stack-go/Dockerfile
       target: op-node-target
-    image: us-docker.pkg.dev/oplabs-tools-artifacts/images/op-node:devnet
+    image: us-docker.pkg.dev/oplabs-tools-artifacts/images/op-node:${OP_STACK_VERSION:-devnet}
     command: >
       op-node
       --l1=ws://l1:8546
@@ -139,7 +139,7 @@ services:
       - "${PWD}/p2p-sequencer-key.txt:/config/p2p-sequencer-key.txt"
       - "${PWD}/p2p-node-key.txt:/config/p2p-node-key.txt"
       - "${PWD}/test-jwt-secret.txt:/config/jwt-secret.txt"
-      - "${PWD}/../.devnet/rollup.json:/rollup.json"
+      - "./rollup.json:/rollup.json"
       - op_log:/op_log
 
   op-proposer:
@@ -151,7 +151,7 @@ services:
       context: ../
       dockerfile: ops/docker/op-stack-go/Dockerfile
       target: op-proposer-target
-    image: us-docker.pkg.dev/oplabs-tools-artifacts/images/op-proposer:devnet
+    image: us-docker.pkg.dev/oplabs-tools-artifacts/images/op-proposer:${OP_STACK_VERSION:-devnet}
     ports:
       - "6062:6060"
       - "7302:7300"
@@ -181,7 +181,7 @@ services:
       context: ../
       dockerfile: ops/docker/op-stack-go/Dockerfile
       target: op-batcher-target
-    image: us-docker.pkg.dev/oplabs-tools-artifacts/images/op-batcher:devnet
+    image: us-docker.pkg.dev/oplabs-tools-artifacts/images/op-batcher:${OP_STACK_VERSION:-devnet}
     ports:
       - "6061:6060"
       - "7301:7300"
@@ -229,8 +229,8 @@ services:
       # before the L2 genesis is known.
       OP_CHALLENGER_UNSAFE_ALLOW_INVALID_PRESTATE: "true"
       OP_CHALLENGER_DATADIR: /db
-      OP_CHALLENGER_CANNON_ROLLUP_CONFIG: ./.devnet/rollup.json
-      OP_CHALLENGER_CANNON_L2_GENESIS: ./.devnet/genesis-l2.json
+      OP_CHALLENGER_CANNON_ROLLUP_CONFIG: ./rollup.json
+      OP_CHALLENGER_CANNON_L2_GENESIS: ././genesis-l2.json
       OP_CHALLENGER_CANNON_BIN: ./cannon/bin/cannon
       OP_CHALLENGER_CANNON_SERVER: /op-program/op-program
       OP_CHALLENGER_CANNON_PRESTATE: /op-program/prestate.json
@@ -260,7 +260,7 @@ services:
   sentinel:
     image: quarry/sentinel # TODO(10141): We need a public image for this (sentinel is out of repo)
     volumes:
-      - "${PWD}/../.devnet/rollup.json:/rollup.json"
+      - "./rollup.json:/rollup.json"
     # private-key is mnemonic index 5 of the test mnemonic.
     command: >
       sentinel
