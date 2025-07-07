@@ -15,11 +15,6 @@
         "internalType": "contract IOptimismGovernor",
         "name": "_governor",
         "type": "address"
-      },
-      {
-        "internalType": "contract IGovernanceToken",
-        "name": "_votingToken",
-        "type": "address"
       }
     ],
     "stateMutability": "nonpayable",
@@ -78,19 +73,6 @@
     "type": "function"
   },
   {
-    "inputs": [],
-    "name": "VOTING_TOKEN",
-    "outputs": [
-      {
-        "internalType": "contract IGovernanceToken",
-        "name": "",
-        "type": "address"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
     "inputs": [
       {
         "internalType": "bytes32",
@@ -127,19 +109,6 @@
         "internalType": "bool",
         "name": "canApprove_",
         "type": "bool"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [],
-    "name": "distributionThreshold",
-    "outputs": [
-      {
-        "internalType": "uint256",
-        "name": "",
-        "type": "uint256"
       }
     ],
     "stateMutability": "view",
@@ -192,7 +161,7 @@
       },
       {
         "internalType": "uint256",
-        "name": "_distributionThreshold",
+        "name": "_proposalDistributionThreshold",
         "type": "uint256"
       },
       {
@@ -335,6 +304,19 @@
   },
   {
     "inputs": [],
+    "name": "proposalDistributionThreshold",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
     "name": "proposalTypesConfigurator",
     "outputs": [
       {
@@ -381,11 +363,11 @@
     "inputs": [
       {
         "internalType": "uint256",
-        "name": "_distributionThreshold",
+        "name": "_proposalDistributionThreshold",
         "type": "uint256"
       }
     ],
-    "name": "setDistributionThreshold",
+    "name": "setProposalDistributionThreshold",
     "outputs": [],
     "stateMutability": "nonpayable",
     "type": "function"
@@ -640,19 +622,6 @@
     "inputs": [
       {
         "indexed": false,
-        "internalType": "uint256",
-        "name": "newDistributionThreshold",
-        "type": "uint256"
-      }
-    ],
-    "name": "DistributionThresholdSet",
-    "type": "event"
-  },
-  {
-    "anonymous": false,
-    "inputs": [
-      {
-        "indexed": false,
         "internalType": "uint8",
         "name": "version",
         "type": "uint8"
@@ -697,6 +666,19 @@
       }
     ],
     "name": "ProposalApproved",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "newProposalDistributionThreshold",
+        "type": "uint256"
+      }
+    ],
+    "name": "ProposalDistributionThresholdSet",
     "type": "event"
   },
   {
