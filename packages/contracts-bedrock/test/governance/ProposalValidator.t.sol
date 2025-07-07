@@ -120,8 +120,8 @@ contract ProposalValidator_Init is CommonTest {
     using stdStorage for StdStorage;
 
     uint256 public constant CYCLE_NUMBER = 1;
-    uint256 public constant START_BLOCK = 1000000;
-    uint256 public constant DURATION = 100;
+    uint256 public constant START_TIMESTAMP = 1000000;
+    uint256 public constant DURATION = 1 days;
     uint256 public constant DISTRIBUTION_LIMIT = 20000 ether;
     uint256 public constant DISTRIBUTION_THRESHOLD = 10000 ether;
     uint256 public constant PROPOSAL_REQUIRED_APPROVALS = 1;
@@ -155,7 +155,7 @@ contract ProposalValidator_Init is CommonTest {
     event ProposalMovedToVote(bytes32 indexed proposalHash, address indexed executor);
     event MinimumVotingPowerSet(uint256 newMinimumVotingPower);
     event VotingCycleDataSet(
-        uint256 cycleNumber, uint256 startBlock, uint256 duration, uint256 votingCycleDistributionLimit
+        uint256 cycleNumber, uint256 startingTimestamp, uint256 duration, uint256 votingCycleDistributionLimit
     );
     event DistributionThresholdSet(uint256 newDistributionThreshold);
     event ProposalTypeDataSet(
@@ -242,19 +242,18 @@ contract ProposalValidator_Init is CommonTest {
 
     /// @notice Helper to create minimal valid arrays for funding proposal error tests
 
-    function _createMinimalFundingArrays()
+    function _createMinimalFundingArrays(uint256 _length)
         internal
-        pure
         returns (string[] memory descriptions_, address[] memory recipients_, uint256[] memory amounts_)
     {
-        descriptions_ = new string[](1);
-        descriptions_[0] = "Option A";
-
-        recipients_ = new address[](1);
-        recipients_[0] = address(0x1);
-
-        amounts_ = new uint256[](1);
-        amounts_[0] = 100 ether;
+        descriptions_ = new string[](_length);
+        recipients_ = new address[](_length);
+        amounts_ = new uint256[](_length);
+        for (uint256 i = 0; i < _length; i++) {
+            descriptions_[i] = string.concat("Option ", vm.toString(i + 1));
+            recipients_[i] = makeAddr(string.concat("recipient", vm.toString(i + 1)));
+            amounts_[i] = 100 ether * (i + 1);
+        }
     }
 
     function _getProposalTypesAndData()
@@ -516,7 +515,7 @@ contract ProposalValidator_Init is CommonTest {
                     owner,
                     proposalTypesConfigurator,
                     CYCLE_NUMBER,
-                    START_BLOCK,
+                    START_TIMESTAMP,
                     DURATION,
                     DISTRIBUTION_LIMIT,
                     DISTRIBUTION_THRESHOLD,
@@ -599,7 +598,7 @@ contract ProposalValidator_Init is CommonTest {
 /// @title ProposalValidator_Version_Test
 /// @notice Tests for the version function
 contract ProposalValidator_Version_Test is ProposalValidator_Init {
-    function test_version_succeeds() public {
+    function test_version_succeeds() public view {
         string memory versionString = validator.version();
         assertEq(versionString, "1.0.0-beta.1");
     }
@@ -634,7 +633,7 @@ contract ProposalValidator_Initialize_Test is ProposalValidator_Init {
                     owner,
                     proposalTypesConfigurator,
                     CYCLE_NUMBER,
-                    START_BLOCK,
+                    START_TIMESTAMP,
                     DURATION,
                     DISTRIBUTION_LIMIT,
                     DISTRIBUTION_THRESHOLD,
@@ -649,9 +648,9 @@ contract ProposalValidator_Initialize_Test is ProposalValidator_Init {
         assertEq(validator.owner(), owner);
 
         // Verify voting cycle data
-        (uint256 startBlock, uint256 duration, uint256 distributionLimit, uint256 movedToVoteTokenCount) =
+        (uint256 startingTimestamp, uint256 duration, uint256 distributionLimit, uint256 movedToVoteTokenCount) =
             validator.votingCycles(CYCLE_NUMBER);
-        assertEq(startBlock, START_BLOCK);
+        assertEq(startingTimestamp, START_TIMESTAMP);
         assertEq(duration, DURATION);
         assertEq(distributionLimit, DISTRIBUTION_LIMIT);
         assertEq(movedToVoteTokenCount, 0);
@@ -706,7 +705,7 @@ contract ProposalValidator_Initialize_Test is ProposalValidator_Init {
                     owner,
                     proposalTypesConfigurator,
                     CYCLE_NUMBER,
-                    START_BLOCK,
+                    START_TIMESTAMP,
                     DURATION,
                     DISTRIBUTION_LIMIT,
                     DISTRIBUTION_THRESHOLD,
@@ -1386,11 +1385,10 @@ contract ProposalValidator_SubmitFundingProposal_Test is ProposalValidator_Init 
 
         // Start with minimal arrays and extend based on option count
         (string[] memory descriptions, address[] memory recipients, uint256[] memory amounts) =
-            _createMinimalFundingArrays();
+            _createMinimalFundingArrays(optionCount);
 
+        // fuzz the amounts
         for (uint256 i = 0; i < optionCount; i++) {
-            descriptions[i] = descriptions[0];
-            recipients[i] = recipients[0];
             amounts[i] = amount;
         }
 
@@ -1460,7 +1458,7 @@ contract ProposalValidator_SubmitFundingProposal_TestFail is ProposalValidator_I
         ProposalValidator.ProposalType proposalType = ProposalValidator.ProposalType(proposalTypeValue);
 
         (string[] memory descriptions, address[] memory recipients, uint256[] memory amounts) =
-            _createMinimalFundingArrays();
+            _createMinimalFundingArrays(1);
 
         vm.expectRevert(ProposalValidator.ProposalValidator_InvalidFundingProposalType.selector);
         vm.prank(user);
@@ -1586,7 +1584,7 @@ contract ProposalValidator_SubmitFundingProposal_TestFail is ProposalValidator_I
 
         // Create arrays with excessive amount
         (string[] memory descriptions, address[] memory recipients, uint256[] memory amounts) =
-            _createMinimalFundingArrays();
+            _createMinimalFundingArrays(1);
         amounts[0] = excessAmount;
 
         vm.expectRevert(ProposalValidator.ProposalValidator_ExceedsDistributionThreshold.selector);
@@ -1602,7 +1600,7 @@ contract ProposalValidator_SubmitFundingProposal_TestFail is ProposalValidator_I
         ProposalValidator.ProposalType proposalType = ProposalValidator.ProposalType(proposalTypeValue);
 
         (string[] memory descriptions, address[] memory recipients, uint256[] memory amounts) =
-            _createMinimalFundingArrays();
+            _createMinimalFundingArrays(1);
 
         // Calculate expected proposal hash
         bytes memory votingModuleData =
@@ -1642,7 +1640,7 @@ contract ProposalValidator_SubmitFundingProposal_TestFail is ProposalValidator_I
         ProposalValidator.ProposalType proposalType = ProposalValidator.ProposalType(proposalTypeValue);
 
         (string[] memory descriptions, address[] memory recipients, uint256[] memory amounts) =
-            _createMinimalFundingArrays();
+            _createMinimalFundingArrays(1);
 
         // Calculate expected proposal hash
         bytes memory votingModuleData =
@@ -1921,7 +1919,7 @@ contract ProposalValidator_ApproveProposal_TestFail is ProposalValidator_Init {
 /// @title ProposalValidator_CanApproveProposal_Test
 /// @notice Tests for the canApproveProposal function
 contract ProposalValidator_CanApproveProposal_Test is ProposalValidator_Init {
-    function test_canApproveProposal_returnTrue_succeeds() public {
+    function test_canApproveProposal_returnTrue_succeeds() public view {
         // Attestation already created in setUp
         bool canApprove = validator.canApproveProposal(topDelegateAttestation_A, topDelegate_A);
         assertTrue(canApprove);
@@ -2111,7 +2109,7 @@ contract ProposalValidator_MoveToVoteCouncilMemberElectionsProposal_Test is Prop
         emit ProposalMovedToVote(expectedHash, approvedProposer);
 
         // Move to vote
-        vm.roll(START_BLOCK + 1);
+        vm.warp(START_TIMESTAMP + 1);
         vm.prank(approvedProposer);
         validator.moveToVoteCouncilMemberElectionsProposal(criteriaValue, optionsDescriptions, proposalDescription);
 
@@ -2192,7 +2190,7 @@ contract ProposalValidator_MoveToVoteCouncilMemberElectionsProposal_TestFail is 
         _mockProposalTypesConfiguratorCall(APPROVAL_VOTING_MODULE_ID);
 
         vm.expectRevert(IProposalValidator.ProposalValidator_InvalidVotingCycle.selector);
-        vm.roll(block.number + DURATION + 1);
+        vm.warp(START_TIMESTAMP + DURATION + 1);
         vm.prank(approvedProposer);
         validator.moveToVoteCouncilMemberElectionsProposal(criteriaValue, optionsDescriptions, proposalDescription);
     }
@@ -2214,7 +2212,7 @@ contract ProposalValidator_MoveToVoteCouncilMemberElectionsProposal_TestFail is 
         );
 
         vm.expectRevert(IProposalValidator.ProposalValidator_ProposalIdMismatch.selector);
-        vm.roll(START_BLOCK + 1);
+        vm.warp(START_TIMESTAMP + 1);
         vm.prank(approvedProposer);
         validator.moveToVoteCouncilMemberElectionsProposal(criteriaValue, optionsDescriptions, proposalDescription);
     }
@@ -2294,7 +2292,7 @@ contract ProposalValidator_MoveToVoteFundingProposal_Test is ProposalValidator_I
         emit ProposalMovedToVote(expectedGovernanceFundHash, approvedProposer);
 
         // Move to vote
-        vm.roll(START_BLOCK + 1);
+        vm.warp(START_TIMESTAMP + 1);
         vm.prank(approvedProposer);
         validator.moveToVoteFundingProposal(
             criteriaValue,
@@ -2334,7 +2332,7 @@ contract ProposalValidator_MoveToVoteFundingProposal_Test is ProposalValidator_I
         emit ProposalMovedToVote(expectedCouncilBudgetHash, approvedProposer);
 
         // Move to vote
-        vm.roll(START_BLOCK + 1);
+        vm.warp(START_TIMESTAMP + 1);
         vm.prank(approvedProposer);
         validator.moveToVoteFundingProposal(
             criteriaValue,
@@ -2364,7 +2362,7 @@ contract ProposalValidator_MoveToVoteFundingProposal_TestFail is ProposalValidat
     function setUp() public override {
         super.setUp();
 
-        (optionsDescriptions, optionsRecipients, optionsAmounts) = _createMinimalFundingArrays();
+        (optionsDescriptions, optionsRecipients, optionsAmounts) = _createMinimalFundingArrays(1);
         (governanceFundExpectedHash, governanceFundVotingModuleData) = _createFundingProposalForMoveToVote(
             approvedProposer,
             criteriaValue,
@@ -2546,7 +2544,7 @@ contract ProposalValidator_MoveToVoteFundingProposal_TestFail is ProposalValidat
         _mockProposalTypesConfiguratorCall(APPROVAL_VOTING_MODULE_ID);
 
         vm.expectRevert(IProposalValidator.ProposalValidator_InvalidVotingCycle.selector);
-        vm.roll(START_BLOCK + DURATION + 1);
+        vm.warp(START_TIMESTAMP + DURATION + 1);
         vm.prank(approvedProposer);
         validator.moveToVoteFundingProposal(
             criteriaValue, optionsDescriptions, optionsRecipients, optionsAmounts, proposalDescription, proposalType
@@ -2622,7 +2620,7 @@ contract ProposalValidator_MoveToVoteFundingProposal_TestFail is ProposalValidat
 
         vm.expectRevert(IProposalValidator.ProposalValidator_ExceedsDistributionThreshold.selector);
         vm.prank(approvedProposer);
-        vm.roll(START_BLOCK + 1);
+        vm.warp(START_TIMESTAMP + 1);
         validator.moveToVoteFundingProposal(
             criteriaValue, _optionsDescriptions, _optionsRecipients, _optionsAmounts, proposalDescription, proposalType
         );
@@ -2664,7 +2662,7 @@ contract ProposalValidator_MoveToVoteFundingProposal_TestFail is ProposalValidat
         );
 
         vm.expectRevert(IProposalValidator.ProposalValidator_ProposalIdMismatch.selector);
-        vm.roll(START_BLOCK + 1);
+        vm.warp(START_TIMESTAMP + 1);
         vm.prank(approvedProposer);
         validator.moveToVoteFundingProposal(
             criteriaValue, optionsDescriptions, optionsRecipients, optionsAmounts, proposalDescription, proposalType
@@ -2677,7 +2675,7 @@ contract ProposalValidator_MoveToVoteFundingProposal_TestFail is ProposalValidat
 contract ProposalValidator_Setters_Test is ProposalValidator_Init {
     function testFuzz_setVotingCycleData_succeeds(
         uint256 cycleNumber,
-        uint256 startBlock,
+        uint256 startingTimestamp,
         uint256 duration,
         uint256 distributionLimit
     )
@@ -2687,19 +2685,19 @@ contract ProposalValidator_Setters_Test is ProposalValidator_Init {
 
         // Expect the VotingCycleDataSet event to be emitted
         vm.expectEmit(address(validator));
-        emit VotingCycleDataSet(cycleNumber, startBlock, duration, distributionLimit);
+        emit VotingCycleDataSet(cycleNumber, startingTimestamp, duration, distributionLimit);
 
         vm.prank(owner);
-        validator.setVotingCycleData(cycleNumber, startBlock, duration, distributionLimit);
+        validator.setVotingCycleData(cycleNumber, startingTimestamp, duration, distributionLimit);
 
         (
-            uint256 actualStartBlock,
+            uint256 actualStartingTimestamp,
             uint256 actualDuration,
             uint256 actualDistributionLimit,
             uint256 actualMovedToVoteTokenCount
         ) = validator.votingCycles(cycleNumber);
 
-        assertEq(actualStartBlock, startBlock);
+        assertEq(actualStartingTimestamp, startingTimestamp);
         assertEq(actualDuration, duration);
         assertEq(actualDistributionLimit, distributionLimit);
         assertEq(actualMovedToVoteTokenCount, 0);
@@ -2708,7 +2706,7 @@ contract ProposalValidator_Setters_Test is ProposalValidator_Init {
     function testFuzz_setVotingCycleData_notOwner_reverts(
         address caller,
         uint256 cycleNumber,
-        uint256 startBlock,
+        uint256 startingTimestamp,
         uint256 duration,
         uint256 distributionLimit
     )
@@ -2718,11 +2716,11 @@ contract ProposalValidator_Setters_Test is ProposalValidator_Init {
 
         vm.prank(caller);
         vm.expectRevert("Ownable: caller is not the owner");
-        validator.setVotingCycleData(cycleNumber, startBlock, duration, distributionLimit);
+        validator.setVotingCycleData(cycleNumber, startingTimestamp, duration, distributionLimit);
     }
 
     function testFuzz_setVotingCycleData_votingCycleAlreadySet_reverts(
-        uint256 startBlock,
+        uint256 startingTimestamp,
         uint256 duration,
         uint256 distributionLimit
     )
@@ -2730,7 +2728,7 @@ contract ProposalValidator_Setters_Test is ProposalValidator_Init {
     {
         vm.expectRevert(ProposalValidator.ProposalValidator_VotingCycleAlreadySet.selector);
         vm.prank(owner);
-        validator.setVotingCycleData(CYCLE_NUMBER, startBlock, duration, distributionLimit);
+        validator.setVotingCycleData(CYCLE_NUMBER, startingTimestamp, duration, distributionLimit);
     }
 
     function testFuzz_setDistributionThreshold_succeeds(uint256 newDistributionThreshold) public {
@@ -2801,6 +2799,7 @@ contract ProposalValidator_HashProposalWithModule_Test is ProposalValidator_Init
         bytes32 descriptionHash
     )
         public
+        view
     {
         bytes32 hash = validator.hashProposalWithModule(module, proposalData, descriptionHash);
         bytes32 expectedHash =

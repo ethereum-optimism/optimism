@@ -177,7 +177,7 @@
       },
       {
         "internalType": "uint256",
-        "name": "_startBlock",
+        "name": "_startingTimestamp",
         "type": "uint256"
       },
       {
@@ -429,7 +429,7 @@
       },
       {
         "internalType": "uint256",
-        "name": "_startBlock",
+        "name": "_startingTimestamp",
         "type": "uint256"
       },
       {
@@ -613,7 +613,7 @@
     "outputs": [
       {
         "internalType": "uint256",
-        "name": "startingBlock",
+        "name": "startingTimestamp",
         "type": "uint256"
       },
       {
@@ -805,7 +805,7 @@
       {
         "indexed": false,
         "internalType": "uint256",
-        "name": "startBlock",
+        "name": "startingTimestamp",
         "type": "uint256"
       },
       {
@@ -867,6 +867,16 @@
   {
     "inputs": [],
     "name": "ProposalValidator_InvalidOptionsLength",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "ProposalValidator_InvalidProposal",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "ProposalValidator_InvalidProposer",
     "type": "error"
   },
   {
