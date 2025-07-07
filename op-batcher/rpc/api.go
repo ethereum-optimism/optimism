@@ -68,13 +68,13 @@ func (a *adminAPI) SetThrottleControllerType(_ context.Context, controllerType s
 
 	// For PID controller, we need config, so this method cannot be used
 	if controllerType == string(config.PIDControllerType) {
-		return fmt.Errorf("cannot set PID controller type without configuration, use SetThrottleControllerPIDConfig instead")
+		return fmt.Errorf("cannot set PID controller type without configuration, use admin_setThrottleControllerPIDConfig instead")
 	}
 
 	return a.b.SetThrottleControllerType(controllerType)
 }
 
-// SetThrottleControllerPIDConfig updates the PID controller configuration
+// SetThrottleControllerPIDConfig updates the PID controller configuration or switches to PID controller
 func (a *adminAPI) SetThrottleControllerPIDConfig(_ context.Context, pidConfig *config.PIDConfig) error {
 	if pidConfig == nil {
 		return fmt.Errorf("PID configuration cannot be nil")

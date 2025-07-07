@@ -1239,14 +1239,15 @@ func (l *BatchSubmitter) SetThrottleControllerType(controllerType string) error 
 	return nil
 }
 
-// SetThrottleControllerPIDConfig updates the PID controller configuration
+// SetThrottleControllerPIDConfig updates the PID controller configuration or switches to PID controller
 func (l *BatchSubmitter) SetThrottleControllerPIDConfig(pidConfig *config.PIDConfig) error {
 	currentType := l.throttleController.GetType()
-	if currentType != config.PIDControllerType {
-		return fmt.Errorf("current controller is not PID type (%s), cannot update PID config", currentType)
-	}
 
-	l.Log.Info("Updating PID controller configuration", "config", pidConfig)
+	if currentType == config.PIDControllerType {
+		l.Log.Info("Updating PID controller configuration", "config", pidConfig)
+	} else {
+		l.Log.Info("Switching to PID controller", "from", currentType, "config", pidConfig)
+	}
 
 	factory := NewThrottleControllerFactory(l.Log)
 
@@ -1272,7 +1273,7 @@ func (l *BatchSubmitter) SetThrottleControllerPIDConfig(pidConfig *config.PIDCon
 	// Replace the controller with new PID strategy
 	l.throttleController = newController
 
-	l.Log.Info("Successfully updated PID controller configuration")
+	l.Log.Info("Successfully configured PID controller")
 
 	return nil
 }
