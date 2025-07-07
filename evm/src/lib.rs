@@ -135,7 +135,7 @@ where
         let blob_excess_gas_and_price = spec
             .into_eth_spec()
             .is_enabled_in(SpecId::CANCUN)
-            .then_some(BlobExcessGasAndPrice { excess_blob_gas: 0, blob_gasprice: 0 });
+            .then_some(BlobExcessGasAndPrice { excess_blob_gas: 0, blob_gasprice: 1 });
 
         let block_env = BlockEnv {
             number: U256::from(header.number()),
@@ -177,7 +177,7 @@ where
         let blob_excess_gas_and_price = spec_id
             .into_eth_spec()
             .is_enabled_in(SpecId::CANCUN)
-            .then_some(BlobExcessGasAndPrice { excess_blob_gas: 0, blob_gasprice: 0 });
+            .then_some(BlobExcessGasAndPrice { excess_blob_gas: 0, blob_gasprice: 1 });
 
         let block_env = BlockEnv {
             number: U256::from(parent.number() + 1),
