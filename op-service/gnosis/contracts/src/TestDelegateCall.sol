@@ -2,10 +2,10 @@
 pragma solidity ^0.8.19;
 
 contract TestDelegateCall {
-    function setTestValue(uint256 value) external {
+    function setTestValue(uint256 _value) external {
         bytes32 slot = keccak256("TestDelegateCall.testValue");
         assembly {
-            sstore(slot, value)
+            sstore(slot, _value)
         }
     }
 

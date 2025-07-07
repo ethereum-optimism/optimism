@@ -72,7 +72,11 @@ func deploySafeContracts(t *testing.T, rpcUrl string, privateKey string) (common
 	// Change to contracts directory
 	originalDir, err := os.Getwd()
 	require.NoError(t, err)
-	defer os.Chdir(originalDir)
+	defer func() {
+		if err := os.Chdir(originalDir); err != nil {
+			t.Errorf("Failed to restore original directory: %v", err)
+		}
+	}()
 
 	err = os.Chdir(contractsDirAbs)
 	require.NoError(t, err)

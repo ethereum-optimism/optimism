@@ -25,16 +25,18 @@ contract DeploySafe is Script {
         uint256 threshold = 1; // Only need 1 signature for testing
 
         // Create Safe setup data
-        bytes memory setupData = abi.encodeWithSelector(
-            GnosisSafe.setup.selector,
-            owners,                          // _owners
-            threshold,                       // _threshold
-            address(0),                      // to (for setup call)
-            "",                              // data (for setup call)
-            address(0),                      // fallbackHandler
-            address(0),                      // paymentToken
-            0,                               // payment
-            address(0)                       // paymentReceiver
+        bytes memory setupData = abi.encodeCall(
+            GnosisSafe.setup,
+            (
+                owners,
+                threshold,
+                address(0),         // to (for setup call)
+                "",                 // data (for setup call)
+                address(0),         // fallbackHandler
+                address(0),         // paymentToken
+                0,                  // payment
+                payable(address(0)) // paymentReceiver
+            )
         );
 
         // Deploy Safe proxy

@@ -109,7 +109,7 @@ func TestGnosisClient(t *testing.T) {
 	t.Run("TestDelegateCall", func(t *testing.T) {
 		// Create ABI for TestDelegateCall
 		testContractABI, err := abi.JSON(strings.NewReader(`[
-			{"inputs":[{"type":"uint256","name":"value"}],"name":"setTestValue","type":"function"},
+			{"inputs":[{"type":"uint256","name":"_value"}],"name":"setTestValue","type":"function"},
 			{"inputs":[],"name":"getTestValue","type":"function","outputs":[{"type":"uint256"}],"stateMutability":"view"}
 		]`))
 		require.NoError(t, err)
