@@ -296,10 +296,12 @@ func (l *BatchSubmitter) loadBlockIntoState(ctx context.Context, blockNumber uin
 	defer cancel()
 
 	block, err := l2Client.BlockByNumber(cCtx, new(big.Int).SetUint64(blockNumber))
-	l.Log.Debug("Loaded L2 block", "size", block.Size())
+
 	if err != nil {
 		return nil, fmt.Errorf("getting L2 block: %w", err)
 	}
+
+	l.Log.Debug("Loaded L2 block", "size", block.Size())
 
 	l.channelMgrMutex.Lock()
 	defer l.channelMgrMutex.Unlock()
