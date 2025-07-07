@@ -1,0 +1,6 @@
+# Compiler files
+cache/
+out/
+
+# Ignores broadcast logs
+/broadcast
