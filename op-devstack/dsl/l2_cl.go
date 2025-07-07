@@ -8,6 +8,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-devstack/stack"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
+	"github.com/ethereum-optimism/optimism/op-node/node/safedb"
 	"github.com/ethereum-optimism/optimism/op-service/apis"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/retry"
@@ -29,6 +30,10 @@ func NewL2CLNode(inner stack.L2CLNode, control stack.ControlPlane) *L2CLNode {
 		inner:      inner,
 		control:    control,
 	}
+}
+
+func (cl *L2CLNode) ID() stack.L2CLNodeID {
+	return cl.inner.ID()
 }
 
 func (cl *L2CLNode) String() string {
@@ -237,6 +242,15 @@ func (cl *L2CLNode) ChainSyncStatus(chainID eth.ChainID, lvl types.SafetyLevel) 
 	return cl.HeadBlockRef(lvl).ID()
 }
 
+func (cl *L2CLNode) safeHeadAtL1Block(l1BlockNum uint64) *eth.SafeHeadResponse {
+	resp, err := cl.inner.RollupAPI().SafeHeadAtL1Block(cl.ctx, l1BlockNum)
+	if errors.Is(err, safedb.ErrNotFound) {
+		return nil
+	}
+	cl.require.NoErrorf(err, "failed to get safe head at l1 block %v", l1BlockNum)
+	return resp
+}
+
 // LaggedFn returns a lambda that checks the L2CL chain head with given safety level is lagged with the reference chain sync status provider
 // Composable with other lambdas to wait in parallel
 func (cl *L2CLNode) LaggedFn(refNode SyncStatusProvider, lvl types.SafetyLevel, attempts int, allowMatch bool) CheckFunc {
@@ -290,4 +304,9 @@ func (cl *L2CLNode) ConnectPeer(peer *L2CLNode) {
 		return cl.inner.P2PAPI().ConnectPeer(cl.ctx, peerInfo.Addresses[0])
 	})
 	cl.require.NoError(err, "failed to connect peer")
+}
+
+func (cl *L2CLNode) VerifySafeHeadDatabaseMatches(sourceOfTruth *L2CLNode) {
+	l1Block := cl.SyncStatus().CurrentL1.Number
+	checkSafeHeadConsistent(cl.t, l1Block, cl, sourceOfTruth)
 }

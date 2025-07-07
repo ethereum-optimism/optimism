@@ -599,3 +599,7 @@ func (s *EthClient) CodeAtHash(ctx context.Context, account common.Address, bloc
 func (s *EthClient) NewMultiCaller(batchSize int) *batching.MultiCaller {
 	return batching.NewMultiCaller(s.client, batchSize)
 }
+
+func (s *EthClient) RPC() client.RPC {
+	return s.client
+}
