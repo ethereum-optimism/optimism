@@ -66,7 +66,7 @@ func deploySafeContracts(t *testing.T, rpcUrl string, privateKey string) (common
 	// Check if safe-contracts is available in shared lib
 	safeContractsDir := filepath.Join(sharedLibDirAbs, "safe-contracts")
 	if _, err := os.Stat(safeContractsDir); os.IsNotExist(err) {
-		t.Fatalf("safe-contracts not found in shared lib at: %s", safeContractsDir)
+		t.Fatalf("safe-contracts not found in shared lib at: %s.\n Try running 'forge install' in packages/contracts-bedrock first.", safeContractsDir)
 	}
 
 	// Change to contracts directory
@@ -81,22 +81,19 @@ func deploySafeContracts(t *testing.T, rpcUrl string, privateKey string) (common
 	err = os.Chdir(contractsDirAbs)
 	require.NoError(t, err)
 
-	// Check if contracts are built (local out directory)
-	if _, err := os.Stat("out"); os.IsNotExist(err) {
-		t.Log("Building contracts...")
-		buildCmd := exec.Command("forge", "build")
-		output, err := buildCmd.CombinedOutput()
-		require.NoError(t, err, "Failed to build contracts: %s", string(output))
-		t.Log("Contracts built successfully")
-	}
+	t.Log("Building contracts...")
+	buildCmd := exec.Command("forge", "build")
+	output, err := buildCmd.CombinedOutput()
+	require.NoError(t, err, "Failed to build contracts: %s", string(output))
+	t.Log("Contracts built successfully")
 
-	// Now deploy
+	// Run forge script to deploy contracts
 	cmd := exec.Command("forge", "script", "script/DeploySafe.s.sol:DeploySafe",
 		"--rpc-url", rpcUrl,
 		"--broadcast",
 		"--private-key", privateKey)
 
-	output, err := cmd.CombinedOutput()
+	output, err = cmd.CombinedOutput()
 	require.NoError(t, err, "Failed to deploy Safe contracts: %s", string(output))
 
 	// Parse the output to extract deployed addresses
