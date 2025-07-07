@@ -51,7 +51,7 @@ interface IProposalValidator is ISemver {
 
     event VotingCycleDataSet(
         uint256 cycleNumber,
-        uint256 startBlock,
+        uint256 startingTimestamp,
         uint256 duration,
         uint256 votingCycleDistributionLimit
     );
@@ -88,7 +88,7 @@ interface IProposalValidator is ISemver {
     }
 
     struct VotingCycleData {
-        uint256 startingBlock;
+        uint256 startingTimestamp;
         uint256 duration;
         uint256 votingCycleDistributionLimit;
         uint256 movedToVoteTokenCount;
@@ -154,7 +154,7 @@ interface IProposalValidator is ISemver {
 
     function setVotingCycleData(
         uint256 _cycleNumber,
-        uint256 _startBlock,
+        uint256 _startingTimestamp,
         uint256 _duration,
         uint256 _votingCycleDistributionLimit
     ) external;
@@ -170,7 +170,7 @@ interface IProposalValidator is ISemver {
         address _owner,
         IProposalTypesConfigurator _proposalTypesConfigurator,
         uint256 _cycleNumber,
-        uint256 _startBlock,
+        uint256 _startingTimestamp,
         uint256 _duration,
         uint256 _votingCycleDistributionLimit,
         uint256 _distributionThreshold,
@@ -203,7 +203,7 @@ interface IProposalValidator is ISemver {
     function proposalTypesData(ProposalType) external view returns (uint256 requiredApprovals, uint8 proposalVotingModule);
 
     function votingCycles(uint256) external view returns (
-        uint256 startingBlock,
+        uint256 startingTimestamp,
         uint256 duration,
         uint256 votingCycleDistributionLimit,
         uint256 movedToVoteTokenCount

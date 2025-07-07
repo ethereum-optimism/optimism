@@ -119,11 +119,11 @@ contract ProposalValidator is OwnableUpgradeable, ReinitializableBase, ISemver {
 
     /// @notice Emitted when the voting cycle data is set.
     /// @param cycleNumber The number of the voting cycle.
-    /// @param startBlock The block number of the starting block of the voting cycle.
+    /// @param startingTimestamp The starting timestamp of the voting cycle.
     /// @param duration The duration of the voting cycle.
     /// @param votingCycleDistributionLimit The max amount of tokens that can be distributed during the voting cycle.
     event VotingCycleDataSet(
-        uint256 cycleNumber, uint256 startBlock, uint256 duration, uint256 votingCycleDistributionLimit
+        uint256 cycleNumber, uint256 startingTimestamp, uint256 duration, uint256 votingCycleDistributionLimit
     );
 
     /// @notice Emitted when the distribution threshold is set.
@@ -171,12 +171,13 @@ contract ProposalValidator is OwnableUpgradeable, ReinitializableBase, ISemver {
     }
 
     /// @notice Struct for storing voting cycle data.
-    /// @param startingBlock The block number of the starting block of the voting cycle.
-    /// @param duration The duration of the voting cycle.
+    /// @param startingTimestamp The starting timestamp of the voting cycle.
+    /// @param duration The duration of the voting cycle. Should be 1 day which is the end of Week 2 and start of Week 3
+    /// of the voting cycle.
     /// @param votingCycleDistributionLimit The max amount of tokens that can be distributed in a proposal.
     /// @param movedToVoteTokenCount The total amount of tokens to possibly be distributed in the voting cycle.
     struct VotingCycleData {
-        uint256 startingBlock;
+        uint256 startingTimestamp;
         uint256 duration;
         uint256 votingCycleDistributionLimit;
         uint256 movedToVoteTokenCount;
@@ -273,7 +274,7 @@ contract ProposalValidator is OwnableUpgradeable, ReinitializableBase, ISemver {
     /// @param _owner The address that will own the contract.
     /// @param _proposalTypesConfigurator The proposal types configurator contract address.
     /// @param _cycleNumber The number of the current voting cycle.
-    /// @param _startBlock The block number of the starting block of the voting cycle.
+    /// @param _startingTimestamp The starting timestamp of the voting cycle.
     /// @param _duration The duration of the voting cycle.
     /// @param _votingCycleDistributionLimit The max amount of tokens that can be distributed during the voting cycle.
     /// @param _distributionThreshold The max amount of tokens that can be distributed in a proposal.
@@ -283,7 +284,7 @@ contract ProposalValidator is OwnableUpgradeable, ReinitializableBase, ISemver {
         address _owner,
         IProposalTypesConfigurator _proposalTypesConfigurator,
         uint256 _cycleNumber,
-        uint256 _startBlock,
+        uint256 _startingTimestamp,
         uint256 _duration,
         uint256 _votingCycleDistributionLimit,
         uint256 _distributionThreshold,
@@ -298,7 +299,7 @@ contract ProposalValidator is OwnableUpgradeable, ReinitializableBase, ISemver {
         }
 
         proposalTypesConfigurator = _proposalTypesConfigurator;
-        _setVotingCycleData(_cycleNumber, _startBlock, _duration, _votingCycleDistributionLimit);
+        _setVotingCycleData(_cycleNumber, _startingTimestamp, _duration, _votingCycleDistributionLimit);
         _setDistributionThreshold(_distributionThreshold);
 
         for (uint256 i = 0; i < _proposalTypes.length; i++) {
@@ -712,10 +713,9 @@ contract ProposalValidator is OwnableUpgradeable, ReinitializableBase, ISemver {
 
         // Check if the voting cycle is valid
         VotingCycleData memory votingCycleData = votingCycles[proposal.votingCycle];
-        // TODO: is + duration correct?
         if (
-            votingCycleData.startingBlock > block.number
-                || votingCycleData.startingBlock + votingCycleData.duration < block.number
+            votingCycleData.startingTimestamp > block.timestamp
+                || votingCycleData.startingTimestamp + votingCycleData.duration < block.timestamp
         ) {
             revert ProposalValidator_InvalidVotingCycle();
         }
@@ -805,10 +805,9 @@ contract ProposalValidator is OwnableUpgradeable, ReinitializableBase, ISemver {
 
         // Check if proposal can be moved to vote
         VotingCycleData memory votingCycleData = votingCycles[proposal.votingCycle];
-        // TODO: is + duration correct?
         if (
-            votingCycleData.startingBlock > block.number
-                || votingCycleData.startingBlock + votingCycleData.duration < block.number
+            votingCycleData.startingTimestamp > block.timestamp
+                || votingCycleData.startingTimestamp + votingCycleData.duration < block.timestamp
         ) {
             revert ProposalValidator_InvalidVotingCycle();
         }
@@ -837,19 +836,21 @@ contract ProposalValidator is OwnableUpgradeable, ReinitializableBase, ISemver {
 
     /// @notice Sets the data of a voting cycle.
     /// @param _cycleNumber The number of the voting cycle to set.
-    /// @param _startBlock The block number of the starting block of the voting cycle.
-    /// @param _duration The duration of the voting cycle.
+    /// @param _startingTimestamp The starting timestamp of the voting cycle.
+    /// @param _duration The duration of the voting cycle. Should be 1 day which is the end of Week 2 and start of Week
+    /// 3
+    /// of the voting cycle.
     /// @param _votingCycleDistributionLimit The max amount of tokens that can be distributed during the voting cycle.
     function setVotingCycleData(
         uint256 _cycleNumber,
-        uint256 _startBlock,
+        uint256 _startingTimestamp,
         uint256 _duration,
         uint256 _votingCycleDistributionLimit
     )
         external
         onlyOwner
     {
-        _setVotingCycleData(_cycleNumber, _startBlock, _duration, _votingCycleDistributionLimit);
+        _setVotingCycleData(_cycleNumber, _startingTimestamp, _duration, _votingCycleDistributionLimit);
     }
 
     /// @notice Sets the max amount of tokens that can be distributed in a proposal.
@@ -1021,28 +1022,30 @@ contract ProposalValidator is OwnableUpgradeable, ReinitializableBase, ISemver {
 
     /// @notice Private function to set the voting cycle data and emit event.
     /// @param _cycleNumber The number of the voting cycle to set.
-    /// @param _startBlock The block number of the starting block of the voting cycle.
-    /// @param _duration The duration of the voting cycle.
+    /// @param _startingTimestamp The starting timestamp of the voting cycle.
+    /// @param _duration The duration of the voting cycle. Should be 1 day which is the end of Week 2 and start of Week
+    /// 3
+    /// of the voting cycle.
     /// @param _votingCycleDistributionLimit The max amount of tokens that can be distributed during the voting cycle.
     function _setVotingCycleData(
         uint256 _cycleNumber,
-        uint256 _startBlock,
+        uint256 _startingTimestamp,
         uint256 _duration,
         uint256 _votingCycleDistributionLimit
     )
         private
     {
-        if (votingCycles[_cycleNumber].startingBlock != 0) {
+        if (votingCycles[_cycleNumber].startingTimestamp != 0) {
             revert ProposalValidator_VotingCycleAlreadySet();
         }
 
         votingCycles[_cycleNumber] = VotingCycleData({
-            startingBlock: _startBlock,
+            startingTimestamp: _startingTimestamp,
             duration: _duration,
             votingCycleDistributionLimit: _votingCycleDistributionLimit,
             movedToVoteTokenCount: 0
         });
-        emit VotingCycleDataSet(_cycleNumber, _startBlock, _duration, _votingCycleDistributionLimit);
+        emit VotingCycleDataSet(_cycleNumber, _startingTimestamp, _duration, _votingCycleDistributionLimit);
     }
 
     /// @notice Private function to set the distribution threshold and emit event.
