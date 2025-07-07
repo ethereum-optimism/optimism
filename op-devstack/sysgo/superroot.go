@@ -88,7 +88,7 @@ func WithSuperRoots(l1ChainID eth.ChainID, l1ELID stack.L1ELNodeID, l2CLID stack
 			opcmAddr := o.wb.output.ImplementationsDeployment.OpcmImpl
 			contract := batching.NewBoundContract(opcmABI, opcmAddr)
 			migrateInput := bindings.OPContractsManagerInteropMigratorMigrateInput{
-				UsePermissionlessGame: false,
+				UsePermissionlessGame: true,
 				StartingAnchorRoot: bindings.Proposal{
 					Root:             common.Hash(superRoot),
 					L2SequenceNumber: big.NewInt(int64(header.Time)),

@@ -131,6 +131,10 @@ func WithSuperInterop() stack.CommonOption {
 	return stack.MakeCommon(sysgo.DefaultInteropProofsSystem(&sysgo.DefaultInteropSystemIDs{}))
 }
 
+func WithIsthmusSuper() stack.CommonOption {
+	return stack.MakeCommon(sysgo.DefaultIsthmusSuperProofsSystem(&sysgo.DefaultInteropSystemIDs{}))
+}
+
 // WithUnscheduledInterop adds a test-gate to not run the test if the interop upgrade is scheduled.
 // If the backend is sysgo, it will disable the interop configuration
 func WithUnscheduledInterop() stack.CommonOption {
