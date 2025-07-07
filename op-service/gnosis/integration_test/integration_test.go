@@ -2,7 +2,6 @@ package integration_test
 
 import (
 	"context"
-	"errors"
 	"math/big"
 	"os"
 	"strings"
@@ -10,36 +9,33 @@ import (
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-service/log"
+	"github.com/ethereum-optimism/optimism/op-service/testutils/devnet"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
-	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum-optimism/optimism/op-service/gnosis"
 )
 
+const privateKey = "ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"
+
 func TestGnosisClient(t *testing.T) {
-	if os.Getenv("GNOSIS_INTEGRATION_TEST") == "" {
-		t.Skip("Skipping integration test. Set GNOSIS_INTEGRATION_TEST to run.")
-	}
-
-	safeAddress := common.HexToAddress("0x275e6dAbBE578fAae19f3Ed9e6d758F6aBF44A13")
-	recipientAddress := common.HexToAddress("0x70997970C51812dc3A010C7d01b50e0d17dc79C8")
-
 	// Use anvil's first account private key
-	privateKey := "ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"
 	signerAddress := common.HexToAddress("0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266")
+	recipientAddress := common.HexToAddress("0x70997970C51812dc3A010C7d01b50e0d17dc79C8")
 
 	privateKeyEcdsa, err := crypto.HexToECDSA(privateKey)
 	require.NoError(t, err)
 
 	// Create Safe gnosis
 	lgr := log.NewLogger(os.Stdout, log.DefaultCLIConfig())
-	rpcUrl := "http://localhost:8545"
+	rpcUrl, ethClient := devnet.DefaultAnvilRPC(t, lgr)
+	safeAddress, testContractAddr := deploySafeContracts(t, rpcUrl, privateKey)
+
 	gnosisClient, err := gnosis.NewGnosisClient(
 		lgr,
 		rpcUrl,
@@ -53,9 +49,6 @@ func TestGnosisClient(t *testing.T) {
 	)
 	require.NoError(t, err)
 	defer gnosisClient.Close()
-
-	ethClient, err := ethclient.Dial(rpcUrl)
-	require.NoError(t, err)
 
 	ctx := context.Background()
 
@@ -114,9 +107,6 @@ func TestGnosisClient(t *testing.T) {
 	})
 
 	t.Run("TestDelegateCall", func(t *testing.T) {
-		// Deploy address from your deployment logs
-		testContractAddr := common.HexToAddress("0xCf7Ed3AccA5a467e9e704C703E8D87F634fB0Fc9")
-
 		// Create ABI for TestDelegateCall
 		testContractABI, err := abi.JSON(strings.NewReader(`[
 			{"inputs":[{"type":"uint256","name":"value"}],"name":"setTestValue","type":"function"},
@@ -158,19 +148,4 @@ func TestGnosisClient(t *testing.T) {
 		require.NoError(t, err)
 		require.True(t, contractValue.Cmp(big.NewInt(0)) == 0, "Test contract's storage should remain unchanged (expected 0, got %s)", contractValue.String())
 	})
-
-}
-
-// Helper function for waiting for regular Ethereum transactions in tests
-func waitForTransaction(t *testing.T, ctx context.Context, ethClient *ethclient.Client, txHash common.Hash) *types.Receipt {
-	for {
-		receipt, err := ethClient.TransactionReceipt(ctx, txHash)
-		if err == nil {
-			return receipt
-		}
-		if !errors.Is(err, ethereum.NotFound) {
-			require.NoError(t, err)
-		}
-		time.Sleep(100 * time.Millisecond)
-	}
 }

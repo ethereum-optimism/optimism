@@ -51,7 +51,7 @@ contract DeploySafe is Script {
 
         console.log("Safe Singleton deployed at:", address(safeSingleton));
         console.log("Safe Proxy Factory deployed at:", address(proxyFactory));
-        console.log("Safe deployed at:", address(safe));
+        console.log("Safe instance deployed at:", address(safe));
         console.log("Safe owners:", owners[0], owners[1]);
         console.log("Safe threshold:", threshold);
         console.log("TestDelegateCall deployed at:", address(testContract));
