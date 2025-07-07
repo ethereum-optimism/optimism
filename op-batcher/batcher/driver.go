@@ -441,8 +441,8 @@ func (l *BatchSubmitter) syncAndPrune(syncStatus *eth.SyncStatus) *inclusiveBloc
 	if syncActions.clearState != nil {
 		l.channelMgr.Clear(*syncActions.clearState)
 	} else {
-		// l.channelMgr.PruneSafeBlocks(syncActions.blocksToPrune) // TODO this is a hack to expose memory inefficiencies
-		// l.channelMgr.PruneChannels(syncActions.channelsToPrune) // TODO this is a hack to expose memory inefficiencies
+		l.channelMgr.PruneSafeBlocks(syncActions.blocksToPrune)
+		l.channelMgr.PruneChannels(syncActions.channelsToPrune)
 	}
 	return syncActions.blocksToLoad
 }
