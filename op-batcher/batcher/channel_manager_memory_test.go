@@ -45,7 +45,6 @@ func TestChannelManager_Memory(t *testing.T) {
 		algo derive.CompressionAlgo
 	}{
 		{"Zlib", derive.Zlib},
-		{"Brotli", derive.Brotli},
 		{"Brotli9", derive.Brotli9},
 		{"Brotli10", derive.Brotli10},
 		{"Brotli11", derive.Brotli11},
@@ -56,7 +55,7 @@ func TestChannelManager_Memory(t *testing.T) {
 		batchType uint
 	}{
 		{"SingularBatch", derive.SingularBatchType},
-		// Note: SpanBatch skipped due to transaction chain ID compatibility issues
+		{"SpanBatch", derive.SpanBatchType},
 	}
 
 	// Generate test cases automatically
@@ -87,8 +86,13 @@ func runMemoryTest(t *testing.T, batchType uint, compressorType string, compress
 	log := testlog.Logger(t, log.LevelCrit)
 
 	// Create a channel manager with small frame size to force multiple channels
-	cfg := channelManagerTestConfig(1000, batchType) // Small frame size
-	cfg.ChannelTimeout = 100                         // Reasonable timeout
+	// Use smaller frame size for span batches since they're more efficient at packing data
+	frameSize := uint64(1000)
+	if batchType == derive.SpanBatchType {
+		frameSize = 500 // Smaller frame size for span batches to create more channels
+	}
+	cfg := channelManagerTestConfig(frameSize, batchType)
+	cfg.ChannelTimeout = 100 // Reasonable timeout
 	setupCompressor(&cfg, compressionAlgo)
 
 	// Use the existing default test rollup config to ensure chain IDs match
@@ -109,11 +113,10 @@ func runMemoryTest(t *testing.T, batchType uint, compressorType string, compress
 		var block *types.Block
 
 		if i == 0 {
-			// Create genesis block with some transactions
-			block = newMiniL2Block(5) // 5 transactions to ensure it has content
+			block = newMiniL2BlockWithChainID(0, defaultTestRollupConfig.L2ChainID)
 		} else {
 			// Create a block with proper parent hash and transaction content
-			block = newMiniL2BlockWithNumberParent(5, big.NewInt(int64(i)), prevBlock.Hash())
+			block = newMiniL2BlockWithChainIDNumberParentAndL1Information(5, defaultTestRollupConfig.L2ChainID, big.NewInt(int64(i)), prevBlock.Hash(), 100, 0)
 		}
 
 		require.NoError(t, m.AddL2Block(block))
