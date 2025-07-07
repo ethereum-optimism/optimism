@@ -124,6 +124,6 @@ func (el *elNode) WaitForFinalization() eth.BlockRef {
 			return true
 		}
 		return false
-	}, 30*time.Second, 500*time.Millisecond, "Expected to be online")
+	}, 5*time.Minute, 500*time.Millisecond, "Expected to be online")
 	return finalizedBlock
 }
