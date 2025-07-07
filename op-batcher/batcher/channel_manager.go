@@ -35,7 +35,7 @@ type channelManager struct {
 
 	outFactory ChannelOutFactory
 
-	// All blocks since the last request for new tx data.
+	// All blocks which are not yet safe
 	blocks queue.Queue[*types.Block]
 	// blockCursor is an index into blocks queue. It points at the next block
 	// to build a channel with. blockCursor = len(blocks) is reserved for when
