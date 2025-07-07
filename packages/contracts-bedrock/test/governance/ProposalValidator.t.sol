@@ -4,7 +4,6 @@ pragma solidity 0.8.15;
 // Interfaces
 import { IProposalValidator } from "interfaces/governance/IProposalValidator.sol";
 import { IOptimismGovernor } from "interfaces/governance/IOptimismGovernor.sol";
-import { IGovernanceToken } from "interfaces/governance/IGovernanceToken.sol";
 import { IProposalTypesConfigurator } from "interfaces/governance/IProposalTypesConfigurator.sol";
 import {
     IEAS,
@@ -16,6 +15,8 @@ import {
 import { ISchemaRegistry, ISchemaResolver } from "src/vendor/eas/ISchemaRegistry.sol";
 import { IProxy } from "interfaces/universal/IProxy.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import { IApprovalVotingModule } from "interfaces/governance/IApprovalVotingModule.sol";
+import { IOptimisticModule } from "interfaces/governance/IOptimisticModule.sol";
 
 // Testing utilities
 import { stdStorage, StdStorage } from "forge-std/Test.sol";
@@ -27,15 +28,6 @@ import { Proxy } from "src/universal/Proxy.sol";
 // Libraries
 import { Predeploys } from "src/libraries/Predeploys.sol";
 
-// Modules
-import {
-    ProposalSettings as ApprovalProposalSettings,
-    ProposalOption,
-    PassingCriteria
-} from "src/governance/ApprovalVotingModule.sol";
-import { ProposalSettings as OptimisticProposalSettings } from "src/governance/OptimisticModule.sol";
-import { VotingModule } from "src/governance/VotingModule.sol";
-
 // Testing utilities
 import { stdStorage, StdStorage } from "forge-std/Test.sol";
 import { CommonTest } from "test/setup/CommonTest.sol";
@@ -46,15 +38,9 @@ contract ProposalValidatorForTest is ProposalValidator {
     constructor(
         bytes32 _approvedProposerAttestationSchemaUid,
         bytes32 _topDelegatesAttestationSchemaUid,
-        IOptimismGovernor _governor,
-        IGovernanceToken _governanceToken
+        IOptimismGovernor _governor
     )
-        ProposalValidator(
-            _approvedProposerAttestationSchemaUid,
-            _topDelegatesAttestationSchemaUid,
-            _governor,
-            _governanceToken
-        )
+        ProposalValidator(_approvedProposerAttestationSchemaUid, _topDelegatesAttestationSchemaUid, _governor)
     { }
 
     function hashProposalWithModule(
@@ -157,7 +143,7 @@ contract ProposalValidator_Init is CommonTest {
     event VotingCycleDataSet(
         uint256 cycleNumber, uint256 startingTimestamp, uint256 duration, uint256 votingCycleDistributionLimit
     );
-    event DistributionThresholdSet(uint256 newDistributionThreshold);
+    event ProposalDistributionThresholdSet(uint256 newProposalDistributionThreshold);
     event ProposalTypeDataSet(
         ProposalValidator.ProposalType proposalType, uint256 requiredApprovals, uint8 proposalVotingModule
     );
@@ -309,7 +295,8 @@ contract ProposalValidator_Init is CommonTest {
         returns (bytes memory)
     {
         // Construct ProposalOption array
-        ProposalOption[] memory options = new ProposalOption[](descriptions.length);
+        IApprovalVotingModule.ProposalOption[] memory options =
+            new IApprovalVotingModule.ProposalOption[](descriptions.length);
 
         for (uint256 i = 0; i < descriptions.length; i++) {
             address[] memory targets = new address[](1);
@@ -319,7 +306,7 @@ contract ProposalValidator_Init is CommonTest {
             targets[0] = Predeploys.GOVERNANCE_TOKEN;
             calldatas[0] = abi.encodeCall(IERC20.transfer, (recipients[i], amounts[i]));
 
-            options[i] = ProposalOption({
+            options[i] = IApprovalVotingModule.ProposalOption({
                 budgetTokensSpent: amounts[i],
                 targets: targets,
                 values: values,
@@ -335,9 +322,9 @@ contract ProposalValidator_Init is CommonTest {
         }
 
         // Construct ProposalSettings
-        ApprovalProposalSettings memory settings = ApprovalProposalSettings({
+        IApprovalVotingModule.ProposalSettings memory settings = IApprovalVotingModule.ProposalSettings({
             maxApprovals: uint8(descriptions.length),
-            criteria: uint8(PassingCriteria.Threshold),
+            criteria: uint8(IApprovalVotingModule.PassingCriteria.Threshold),
             budgetToken: Predeploys.GOVERNANCE_TOKEN,
             criteriaValue: criteriaValue,
             budgetAmount: uint128(totalBudget)
@@ -356,14 +343,15 @@ contract ProposalValidator_Init is CommonTest {
         returns (bytes memory)
     {
         // Construct ProposalOption array for elections (no execution calls)
-        ProposalOption[] memory options = new ProposalOption[](descriptions.length);
+        IApprovalVotingModule.ProposalOption[] memory options =
+            new IApprovalVotingModule.ProposalOption[](descriptions.length);
 
         for (uint256 i = 0; i < descriptions.length; i++) {
             address[] memory targets = new address[](0);
             uint256[] memory values = new uint256[](0);
             bytes[] memory calldatas = new bytes[](0);
 
-            options[i] = ProposalOption({
+            options[i] = IApprovalVotingModule.ProposalOption({
                 budgetTokensSpent: 0,
                 targets: targets,
                 values: values,
@@ -373,9 +361,9 @@ contract ProposalValidator_Init is CommonTest {
         }
 
         // Construct ProposalSettings with TopChoices criteria
-        ApprovalProposalSettings memory settings = ApprovalProposalSettings({
+        IApprovalVotingModule.ProposalSettings memory settings = IApprovalVotingModule.ProposalSettings({
             maxApprovals: uint8(descriptions.length),
-            criteria: uint8(PassingCriteria.TopChoices),
+            criteria: uint8(IApprovalVotingModule.PassingCriteria.TopChoices),
             budgetToken: address(0),
             criteriaValue: criteriaValue,
             budgetAmount: 0
@@ -386,8 +374,8 @@ contract ProposalValidator_Init is CommonTest {
 
     /// @notice Helper function to construct voting module data for upgrade proposals
     function _constructOptimisticVotingModuleData(uint248 againstThreshold) internal pure returns (bytes memory) {
-        OptimisticProposalSettings memory settings =
-            OptimisticProposalSettings({ againstThreshold: againstThreshold, isRelativeToVotableSupply: true });
+        IOptimisticModule.ProposalSettings memory settings =
+            IOptimisticModule.ProposalSettings({ againstThreshold: againstThreshold, isRelativeToVotableSupply: true });
 
         return abi.encode(settings);
     }
@@ -502,7 +490,7 @@ contract ProposalValidator_Init is CommonTest {
         proposalTypesConfigurator = IProposalTypesConfigurator(makeAddr("proposalTypesConfigurator"));
 
         impl = new ProposalValidatorForTest(
-            APPROVED_PROPOSER_ATTESTATION_SCHEMA_UID, TOP_DELEGATES_ATTESTATION_SCHEMA_UID, governor, governanceToken
+            APPROVED_PROPOSER_ATTESTATION_SCHEMA_UID, TOP_DELEGATES_ATTESTATION_SCHEMA_UID, governor
         );
         validator = ProposalValidatorForTest(address(new Proxy(owner)));
 
@@ -600,7 +588,7 @@ contract ProposalValidator_Init is CommonTest {
 contract ProposalValidator_Version_Test is ProposalValidator_Init {
     function test_version_succeeds() public view {
         string memory versionString = validator.version();
-        assertEq(versionString, "1.0.0-beta.1");
+        assertEq(versionString, "1.0.0");
     }
 }
 
@@ -613,7 +601,7 @@ contract ProposalValidator_Initialize_Test is ProposalValidator_Init {
         proposalTypesConfigurator = IProposalTypesConfigurator(makeAddr("proposalTypesConfigurator"));
 
         impl = new ProposalValidatorForTest(
-            APPROVED_PROPOSER_ATTESTATION_SCHEMA_UID, TOP_DELEGATES_ATTESTATION_SCHEMA_UID, governor, governanceToken
+            APPROVED_PROPOSER_ATTESTATION_SCHEMA_UID, TOP_DELEGATES_ATTESTATION_SCHEMA_UID, governor
         );
         validator = ProposalValidatorForTest(address(new Proxy(owner)));
     }
@@ -644,7 +632,7 @@ contract ProposalValidator_Initialize_Test is ProposalValidator_Init {
         );
 
         // Verify initialization was successful
-        assertEq(validator.distributionThreshold(), DISTRIBUTION_THRESHOLD);
+        assertEq(validator.proposalDistributionThreshold(), DISTRIBUTION_THRESHOLD);
         assertEq(validator.owner(), owner);
 
         // Verify voting cycle data
@@ -768,7 +756,7 @@ contract ProposalValidator_SubmitUpgradeProposal_Test is ProposalValidator_Init 
             address(governor),
             abi.encodeCall(
                 IOptimismGovernor.proposeWithModule,
-                (VotingModule(optimisticVotingModule), votingModuleData, proposalDescription, uint8(proposalType))
+                (optimisticVotingModule, votingModuleData, proposalDescription, uint8(proposalType))
             ),
             abi.encode(uint256(expectedHash))
         );
@@ -981,7 +969,7 @@ contract ProposalValidator_SubmitUpgradeProposal_TestFail is ProposalValidator_I
                 address(governor),
                 abi.encodeCall(
                     IOptimismGovernor.proposeWithModule,
-                    (VotingModule(optimisticVotingModule), votingModuleData, proposalDescription, uint8(proposalType))
+                    (optimisticVotingModule, votingModuleData, proposalDescription, uint8(proposalType))
                 ),
                 abi.encode(uint256(expectedHash))
             );
@@ -1569,7 +1557,7 @@ contract ProposalValidator_SubmitFundingProposal_TestFail is ProposalValidator_I
         );
     }
 
-    function testFuzz_submitFundingProposal_exceedsDistributionThreshold_reverts(
+    function testFuzz_submitFundingProposal_exceedsProposalDistributionThreshold_reverts(
         uint256 excessAmount,
         uint8 proposalTypeValue
     )
@@ -1967,7 +1955,7 @@ contract ProposalValidator_MoveToVoteProtocolOrGovernorUpgradeProposal_Test is P
             address(governor),
             abi.encodeCall(
                 IOptimismGovernor.proposeWithModule,
-                (VotingModule(optimisticVotingModule), votingModuleData, proposalDescription, uint8(proposalType))
+                (optimisticVotingModule, votingModuleData, proposalDescription, uint8(proposalType))
             ),
             abi.encode(uint256(expectedHash))
         );
@@ -2060,7 +2048,7 @@ contract ProposalValidator_MoveToVoteProtocolOrGovernorUpgradeProposal_TestFail 
             address(governor),
             abi.encodeCall(
                 IOptimismGovernor.proposeWithModule,
-                (VotingModule(optimisticVotingModule), votingModuleData, proposalDescription, uint8(proposalType))
+                (optimisticVotingModule, votingModuleData, proposalDescription, uint8(proposalType))
             ),
             abi.encode(uint256(_randomHash))
         );
@@ -2099,7 +2087,7 @@ contract ProposalValidator_MoveToVoteCouncilMemberElectionsProposal_Test is Prop
             address(governor),
             abi.encodeCall(
                 IOptimismGovernor.proposeWithModule,
-                (VotingModule(approvalVotingModule), votingModuleData, proposalDescription, uint8(proposalType))
+                (approvalVotingModule, votingModuleData, proposalDescription, uint8(proposalType))
             ),
             abi.encode(uint256(expectedHash))
         );
@@ -2206,7 +2194,7 @@ contract ProposalValidator_MoveToVoteCouncilMemberElectionsProposal_TestFail is 
             address(governor),
             abi.encodeCall(
                 IOptimismGovernor.proposeWithModule,
-                (VotingModule(approvalVotingModule), votingModuleData, proposalDescription, uint8(proposalType))
+                (approvalVotingModule, votingModuleData, proposalDescription, uint8(proposalType))
             ),
             abi.encode(uint256(_randomHash))
         );
@@ -2278,7 +2266,7 @@ contract ProposalValidator_MoveToVoteFundingProposal_Test is ProposalValidator_I
             abi.encodeCall(
                 IOptimismGovernor.proposeWithModule,
                 (
-                    VotingModule(approvalVotingModule),
+                    approvalVotingModule,
                     governanceFundVotingModuleData,
                     governanceFundProposalDescription,
                     uint8(governanceFundProposalType)
@@ -2318,7 +2306,7 @@ contract ProposalValidator_MoveToVoteFundingProposal_Test is ProposalValidator_I
             abi.encodeCall(
                 IOptimismGovernor.proposeWithModule,
                 (
-                    VotingModule(approvalVotingModule),
+                    approvalVotingModule,
                     councilBudgetVotingModuleData,
                     councilBudgetProposalDescription,
                     uint8(councilBudgetProposalType)
@@ -2551,7 +2539,7 @@ contract ProposalValidator_MoveToVoteFundingProposal_TestFail is ProposalValidat
         );
     }
 
-    function test_moveToVoteFundingProposal_buildApprovalModuleOptionsExceedsDistributionThreshold_reverts(
+    function test_moveToVoteFundingProposal_buildApprovalModuleOptionsExceedsProposalDistributionThreshold_reverts(
         uint8 _proposalTypeValue
     )
         public
@@ -2656,7 +2644,7 @@ contract ProposalValidator_MoveToVoteFundingProposal_TestFail is ProposalValidat
             address(governor),
             abi.encodeCall(
                 IOptimismGovernor.proposeWithModule,
-                (VotingModule(approvalVotingModule), votingModuleData, proposalDescription, uint8(proposalType))
+                (approvalVotingModule, votingModuleData, proposalDescription, uint8(proposalType))
             ),
             abi.encode(uint256(_randomHash))
         );
@@ -2731,23 +2719,23 @@ contract ProposalValidator_Setters_Test is ProposalValidator_Init {
         validator.setVotingCycleData(CYCLE_NUMBER, startingTimestamp, duration, distributionLimit);
     }
 
-    function testFuzz_setDistributionThreshold_succeeds(uint256 newDistributionThreshold) public {
-        // Expect the DistributionThresholdSet event to be emitted
+    function testFuzz_setProposalDistributionThreshold_succeeds(uint256 newProposalDistributionThreshold) public {
+        // Expect the ProposalDistributionThresholdSet event to be emitted
         vm.expectEmit(address(validator));
-        emit DistributionThresholdSet(newDistributionThreshold);
+        emit ProposalDistributionThresholdSet(newProposalDistributionThreshold);
 
         vm.prank(owner);
-        validator.setDistributionThreshold(newDistributionThreshold);
+        validator.setProposalDistributionThreshold(newProposalDistributionThreshold);
 
-        assertEq(validator.distributionThreshold(), newDistributionThreshold);
+        assertEq(validator.proposalDistributionThreshold(), newProposalDistributionThreshold);
     }
 
-    function testFuzz_setDistributionThreshold_notOwner_reverts(address caller, uint256 threshold) public {
+    function testFuzz_setProposalDistributionThreshold_notOwner_reverts(address caller, uint256 threshold) public {
         vm.assume(caller != owner);
 
         vm.prank(caller);
         vm.expectRevert("Ownable: caller is not the owner");
-        validator.setDistributionThreshold(threshold);
+        validator.setProposalDistributionThreshold(threshold);
     }
 
     function testFuzz_setProposalTypeData_succeeds(

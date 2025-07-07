@@ -2,7 +2,6 @@
 pragma solidity ^0.8.0;
 
 // Interfaces
-import {IGovernanceToken} from './IGovernanceToken.sol';
 import {IOptimismGovernor} from './IOptimismGovernor.sol';
 import { ISemver } from "interfaces/universal/ISemver.sol";
 import { IProposalTypesConfigurator } from './IProposalTypesConfigurator.sol';
@@ -56,7 +55,7 @@ interface IProposalValidator is ISemver {
         uint256 votingCycleDistributionLimit
     );
 
-    event DistributionThresholdSet(uint256 newDistributionThreshold);
+    event ProposalDistributionThresholdSet(uint256 newProposalDistributionThreshold);
 
     event ProposalTypeDataSet(
         ProposalType proposalType,
@@ -159,7 +158,7 @@ interface IProposalValidator is ISemver {
         uint256 _votingCycleDistributionLimit
     ) external;
 
-    function setDistributionThreshold(uint256 _distributionThreshold) external;
+    function setProposalDistributionThreshold(uint256 _proposalDistributionThreshold) external;
 
     function setProposalTypeData(
         ProposalType _proposalType,
@@ -173,7 +172,7 @@ interface IProposalValidator is ISemver {
         uint256 _startingTimestamp,
         uint256 _duration,
         uint256 _votingCycleDistributionLimit,
-        uint256 _distributionThreshold,
+        uint256 _proposalDistributionThreshold,
         ProposalType[] memory _proposalTypes,
         ProposalTypeData[] memory _proposalTypesData
     ) external;
@@ -182,9 +181,7 @@ interface IProposalValidator is ISemver {
 
     function transferOwnership(address newOwner) external;
 
-    function distributionThreshold() external view returns (uint256);
-
-    function VOTING_TOKEN() external view returns (IGovernanceToken);
+    function proposalDistributionThreshold() external view returns (uint256);
 
     function GOVERNOR() external view returns (IOptimismGovernor);
 
@@ -212,7 +209,6 @@ interface IProposalValidator is ISemver {
     function __constructor__(
         bytes32 _approvedProposerAttestationSchemaUid,
         bytes32 _topDelegatesAttestationSchemaUid,
-        IOptimismGovernor _governor,
-        IGovernanceToken _votingToken
+        IOptimismGovernor _governor
     ) external;
 }

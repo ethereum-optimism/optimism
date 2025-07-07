@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
-import {VotingModule} from "src/governance/VotingModule.sol";
 import {IVotesUpgradeable} from "@openzeppelin/contracts-upgradeable/governance/utils/IVotesUpgradeable.sol";
 
 interface IOptimismGovernor {
@@ -14,7 +13,7 @@ interface IOptimismGovernor {
     ) external returns (uint256 proposalId);
 
     function proposeWithModule(
-        VotingModule module,
+        address module,
         bytes memory proposalData,
         string memory description,
         uint8 proposalType

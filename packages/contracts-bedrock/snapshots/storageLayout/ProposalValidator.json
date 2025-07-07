@@ -43,7 +43,7 @@
   },
   {
     "bytes": "32",
-    "label": "distributionThreshold",
+    "label": "proposalDistributionThreshold",
     "offset": 0,
     "slot": "102",
     "type": "uint256"
