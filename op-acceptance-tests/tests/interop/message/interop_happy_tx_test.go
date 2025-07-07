@@ -22,8 +22,6 @@ func TestInteropHappyTx(gt *testing.T) {
 	t := devtest.SerialT(gt)
 	sys := presets.NewSimpleInterop(t)
 
-	// Check if the network type is persistent
-
 	// two EOAs for triggering the init and exec interop txs
 	alice := sys.FunderA.NewFundedEOA(eth.OneHundredthEther)
 	bob := sys.FunderB.NewFundedEOA(eth.OneHundredthEther)
