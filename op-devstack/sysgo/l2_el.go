@@ -3,6 +3,7 @@ package sysgo
 import (
 	"context"
 	"net/url"
+	"slices"
 	"strconv"
 	"sync"
 	"time"
@@ -16,7 +17,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/client"
 	"github.com/ethereum-optimism/optimism/op-service/dial"
 	"github.com/ethereum-optimism/optimism/op-service/testreq"
-	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/eth/ethconfig"
 	"github.com/ethereum/go-ethereum/log"
 	gn "github.com/ethereum/go-ethereum/node"
@@ -193,11 +193,17 @@ func ConnectP2P(ctx context.Context, require *testreq.Assertions, initiator RpcC
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 	err := wait.For(ctx, time.Second, func() (bool, error) {
-		var peerCount hexutil.Uint64
-		if err := initiator.CallContext(ctx, &peerCount, "net_peerCount"); err != nil {
+		var peers []peer
+		if err := initiator.CallContext(ctx, &peers, "admin_peers"); err != nil {
 			return false, err
 		}
-		return peerCount >= hexutil.Uint64(1), nil
+		return slices.ContainsFunc(peers, func(p peer) bool {
+			return p.ID == targetInfo.ID
+		}), nil
 	})
-	require.NoError(err, "wait for a peer to be connected")
+	require.NoError(err, "The peer was not connected")
+}
+
+type peer struct {
+	ID string `json:"id"`
 }
