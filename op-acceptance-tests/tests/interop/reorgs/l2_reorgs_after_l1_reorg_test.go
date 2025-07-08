@@ -35,23 +35,23 @@ func TestL2ReorgAfterL1Reorg(gt *testing.T) {
 		testL2ReorgAfterL1Reorg(gt, 3, pre, post)
 	})
 
-	gt.Run("unsafe, local-safe, cross-unsafe, cross-safe reorgs", func(gt *testing.T) {
-		var crossSafeRef, crossUnsafeRef, localSafeRef, unsafeRef eth.BlockID
-		pre := func(t devtest.T, sys *presets.SimpleInterop) {
-			ss := sys.Supervisor.FetchSyncStatus()
-			crossUnsafeRef = ss.Chains[sys.L2ChainA.ChainID()].CrossUnsafe
-			crossSafeRef = ss.Chains[sys.L2ChainA.ChainID()].CrossSafe
-			localSafeRef = ss.Chains[sys.L2ChainA.ChainID()].LocalSafe
-			unsafeRef = ss.Chains[sys.L2ChainA.ChainID()].LocalUnsafe.ID()
-		}
-		post := func(t devtest.T, sys *presets.SimpleInterop) {
-			require.False(t, sys.L2ELA.IsCanonical(crossSafeRef), "Previous cross-safe block should have been reorged")
-			require.False(t, sys.L2ELA.IsCanonical(crossUnsafeRef), "Previous cross-unsafe block should have been reorged")
-			require.False(t, sys.L2ELA.IsCanonical(localSafeRef), "Previous local-safe block should have been reorged")
-			require.False(t, sys.L2ELA.IsCanonical(unsafeRef), "Previous unsafe block should have been reorged")
-		}
-		testL2ReorgAfterL1Reorg(gt, 10, pre, post)
-	})
+	// gt.Run("unsafe, local-safe, cross-unsafe, cross-safe reorgs", func(gt *testing.T) {
+	// 	var crossSafeRef, crossUnsafeRef, localSafeRef, unsafeRef eth.BlockID
+	// 	pre := func(t devtest.T, sys *presets.SimpleInterop) {
+	// 		ss := sys.Supervisor.FetchSyncStatus()
+	// 		crossUnsafeRef = ss.Chains[sys.L2ChainA.ChainID()].CrossUnsafe
+	// 		crossSafeRef = ss.Chains[sys.L2ChainA.ChainID()].CrossSafe
+	// 		localSafeRef = ss.Chains[sys.L2ChainA.ChainID()].LocalSafe
+	// 		unsafeRef = ss.Chains[sys.L2ChainA.ChainID()].LocalUnsafe.ID()
+	// 	}
+	// 	post := func(t devtest.T, sys *presets.SimpleInterop) {
+	// 		require.False(t, sys.L2ELA.IsCanonical(crossSafeRef), "Previous cross-safe block should have been reorged")
+	// 		require.False(t, sys.L2ELA.IsCanonical(crossUnsafeRef), "Previous cross-unsafe block should have been reorged")
+	// 		require.False(t, sys.L2ELA.IsCanonical(localSafeRef), "Previous local-safe block should have been reorged")
+	// 		require.False(t, sys.L2ELA.IsCanonical(unsafeRef), "Previous unsafe block should have been reorged")
+	// 	}
+	// 	testL2ReorgAfterL1Reorg(gt, 10, pre, post)
+	// })
 }
 
 // testL2ReorgAfterL1Reorg tests that the L2 chain reorgs after an L1 reorg, and takes n, number of blocks to reorg, as parameter

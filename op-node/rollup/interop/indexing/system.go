@@ -389,6 +389,11 @@ func (m *IndexingMode) Reset(ctx context.Context, lUnsafe, xUnsafe, lSafe, xSafe
 		"localSafe", lSafe,
 		"crossSafe", xSafe,
 		"finalized", finalized)
+	test, _ := m.l2.L2BlockRefByLabel(ctx, eth.Unsafe)
+
+	myLog := m.log.New()
+	myLog.Info("localUnsafe comparision", "current", test, "target", lUnsafe)
+
 	verify := func(ref eth.BlockID, name string) (eth.L2BlockRef, error) {
 		result, err := m.l2.L2BlockRefByNumber(ctx, ref.Number)
 		if err != nil {
