@@ -531,7 +531,8 @@ func TestMutexUnlocks(t *testing.T) {
 			stream2.Close()
 		}()
 
-		time.Sleep(10 * time.Millisecond)
+		// Wait for request to fail
+		time.Sleep(100 * time.Millisecond)
 
 		// Test if mutex is stuck - should not hang on lock(), even if error is returned
 		done := make(chan struct{})
