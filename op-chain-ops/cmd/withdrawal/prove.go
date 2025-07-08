@@ -221,7 +221,7 @@ func txDataForSuperRootProof(ctx *cli.Context, proofClient *gethclient.Client, l
 		"(uint256 Nonce, address Sender, address Target, uint256 Value, uint256 GasLimit, bytes Data),"+
 		"address DisputeGameProxy,"+
 		"uint256 OutputRootIndex,"+
-		"(bytes1 Version, uint64 Timestamp, (uint256 ChainId,bytes32 Root)[] OutputRoots),"+
+		"(bytes1 Version, uint64 Timestamp, (uint256 ChainID, bytes32 Root)[] OutputRoots),"+
 		"(bytes32 Version, bytes32 StateRoot, bytes32 MessagePasserStorageRoot, bytes32 LatestBlockhash),"+
 		"bytes[])", "").EncodeArgs(
 		bindingspreview.TypesWithdrawalTransaction{

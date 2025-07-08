@@ -55,6 +55,17 @@ type ProvenWithdrawalParameters struct {
 	WithdrawalProof [][]byte // List of trie nodes to prove L2 storage
 }
 
+type SuperRootProofOutputRoot struct {
+	ChainID *big.Int
+	Root    common.Hash
+}
+
+type SuperRootProof struct {
+	Version     [1]byte
+	Timestamp   uint64
+	OutputRoots []SuperRootProofOutputRoot
+}
+
 type ProvenWithdrawalParametersSuperRoots struct {
 	Nonce            *big.Int
 	Sender           common.Address
@@ -64,7 +75,7 @@ type ProvenWithdrawalParametersSuperRoots struct {
 	Data             []byte
 	DisputeGameProxy common.Address
 	OutputRootIndex  *big.Int // index of the output root in the super root
-	SuperRootProof   []byte
+	SuperRootProof   SuperRootProof
 	OutputRootProof  bindings.TypesOutputRootProof
 	WithdrawalProof  [][]byte // List of trie nodes to prove L2 storage
 }
@@ -155,6 +166,14 @@ func ProveWithdrawalParametersSuperRoots(
 	if err != nil {
 		return ProvenWithdrawalParametersSuperRoots{}, err
 	}
+
+	outputRoots := make([]SuperRootProofOutputRoot, len(superRoot.Chains))
+	for i, chain := range superRoot.Chains {
+		outputRoots[i] = SuperRootProofOutputRoot{
+			ChainID: chain.ChainID.ToBig(),
+			Root:    common.Hash(chain.Canonical),
+		}
+	}
 	return ProvenWithdrawalParametersSuperRoots{
 		Nonce:            ev.Nonce,
 		Sender:           ev.Sender,
@@ -164,7 +183,11 @@ func ProveWithdrawalParametersSuperRoots(
 		Data:             ev.Data,
 		DisputeGameProxy: disputeGame.Proxy,
 		OutputRootIndex:  outputRootIndex,
-		SuperRootProof:   superRoot.SuperRoot[:],
+		SuperRootProof: SuperRootProof{
+			Version:     [1]byte{superRoot.Version},
+			Timestamp:   superRoot.Timestamp,
+			OutputRoots: outputRoots,
+		},
 		OutputRootProof: bindings.TypesOutputRootProof{
 			Version:                  [32]byte{}, // Empty for version 1
 			StateRoot:                l2Header.Root,
