@@ -6,6 +6,7 @@ import (
 	"math/big"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -14,6 +15,7 @@ import (
 	"github.com/libp2p/go-libp2p/core/peer"
 	mocknet "github.com/libp2p/go-libp2p/p2p/net/mock"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/time/rate"
 
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
@@ -465,4 +467,103 @@ func TestRequestResultErr_Error(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestMutexUnlocksInBothSuccessAndErrorCases(t *testing.T) {
+	cfg, payloads := setupSyncTestData(10)
+
+	mockL2 := mockPayloadFn(func(n uint64) (*eth.ExecutionPayloadEnvelope, error) {
+		p, ok := payloads.getPayload(n)
+		if !ok {
+			return nil, ethereum.NotFound
+		}
+		return p, nil
+	})
+
+	srv := NewReqRespServer(cfg, mockL2, metrics.NoopMetrics)
+
+	t.Run("SuccessCase", func(t *testing.T) {
+		var wg sync.WaitGroup
+		successCount := int32(0)
+
+		testPeerID := peer.ID("test-peer")
+
+		for i := 0; i < 5; i++ {
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+
+				func() {
+					srv.peerStatsLock.Lock()
+					defer srv.peerStatsLock.Unlock()
+
+					ps, _ := srv.peerRateLimits.Get(testPeerID)
+					if ps == nil {
+						ps = &peerStat{
+							Requests: rate.NewLimiter(peerServerBlocksRateLimit, peerServerBlocksBurst),
+						}
+						srv.peerRateLimits.Add(testPeerID, ps)
+					}
+					atomic.AddInt32(&successCount, 1)
+				}()
+			}()
+		}
+
+		done := make(chan struct{})
+		go func() {
+			wg.Wait()
+			close(done)
+		}()
+
+		select {
+		case <-done:
+			require.Equal(t, int32(5), successCount, "All operations should have succeeded")
+			t.Logf("All goroutines completed successfully. Success count: %d", successCount)
+		case <-time.After(5 * time.Second):
+			t.Fatal("Test timed out - likely due to mutex not being unlocked")
+		}
+	})
+
+	t.Run("ErrorCase", func(t *testing.T) {
+		var wg sync.WaitGroup
+		errorCount := int32(0)
+
+		testPeerID := peer.ID("test-peer-error")
+
+		for i := 0; i < 3; i++ {
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+
+				func() {
+					srv.peerStatsLock.Lock()
+					defer srv.peerStatsLock.Unlock()
+
+					ps, _ := srv.peerRateLimits.Get(testPeerID)
+					if ps == nil {
+						ps = &peerStat{
+							Requests: rate.NewLimiter(peerServerBlocksRateLimit, peerServerBlocksBurst),
+						}
+						srv.peerRateLimits.Add(testPeerID, ps)
+					}
+
+					atomic.AddInt32(&errorCount, 1)
+				}()
+			}()
+		}
+
+		done := make(chan struct{})
+		go func() {
+			wg.Wait()
+			close(done)
+		}()
+
+		select {
+		case <-done:
+			require.Equal(t, int32(3), errorCount, "All operations should have completed")
+			t.Logf("All goroutines completed as expected. Error count: %d", errorCount)
+		case <-time.After(5 * time.Second):
+			t.Fatal("Test timed out - likely due to mutex not being unlocked due to error")
+		}
+	})
 }
