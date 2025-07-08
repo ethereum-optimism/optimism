@@ -17,10 +17,9 @@ func WithExecPriority(priority Priority) RegisterOption {
 }
 
 type EmitterConfig struct {
-	Limiting  bool
-	Rate      rate.Limit
-	Burst     int
-	OnLimited func()
+	Limiting bool
+	Rate     rate.Limit
+	Burst    int
 
 	// Priority. Higher = more important.
 	// Events from more important emitters will be prioritized

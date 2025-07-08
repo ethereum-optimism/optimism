@@ -3,22 +3,23 @@ package event
 import (
 	"context"
 	"fmt"
+	"golang.org/x/time/rate"
+	"reflect"
 	"slices"
 	"sync"
 	"sync/atomic"
-	"testing"
 	"time"
 
 	"github.com/ethereum/go-ethereum/log"
 )
 
 type Registry interface {
-	// Register registers a named event-emitter, optionally processing events itself:
-	// deriver may be nil, not all registrants have to process events.
-	// A non-nil deriver may implement AttachEmitter to automatically attach the Emitter to it,
-	// before the deriver itself becomes executable.
-	// A non-nil deriver may implement Unattacher to close resources upon being unregistered.
-	Register(name string, deriver Deriver, opts ...RegisterOption) Emitter
+	// Register registers a named actor, optionally processing events itself:
+	// the actor is not required to register events, not all registrants have to process events.
+	// A non-nil actor may implement Actor to setup event handlers,
+	// before the actor itself becomes executable.
+	// A non-nil actor may implement Unattacher to close resources upon being unregistered.
+	Register(name string, deriver Actor, opts ...RegisterOption) Bus
 	// Unregister removes a named emitter,
 	// also removing it from the set of events-receiving derivers (if registered with non-nil deriver).
 	// If the originally attached Deriver implements Unattacher it will be notified.
@@ -35,10 +36,6 @@ type System interface {
 	RemoveTracer(t Tracer)
 	// Stop shuts down the System by un-registering all derivers/emitters.
 	Stop()
-}
-
-type AttachEmitter interface {
-	AttachEmitter(em Emitter)
 }
 
 // Unattacher is called when a deriver/emitter is unregistered from the system.
@@ -68,7 +65,9 @@ type systemActor struct {
 	ctx    context.Context
 	cancel context.CancelFunc
 
-	deriv         Deriver
+	limiter *rate.Limiter
+
+	actor         Actor
 	leaveExecutor func()
 
 	// 0 if event does not originate from Deriver-handling of another event
@@ -78,29 +77,95 @@ type systemActor struct {
 	// Emitted events from actors with a higher emit priority
 	// will be prioritized over other queued up events.
 	emitPriority Priority
+
+	// handlers to run
+	handlers map[reflect.Type]*handlersBundle
 }
 
+func newSystemActor(name string, actor Actor, sys *Sys, cfg *RegisterConfig) *systemActor {
+	ctx, cancel := context.WithCancel(context.Background())
+	r := &systemActor{
+		name:   name,
+		actor:  actor,
+		sys:    sys,
+		ctx:    ctx,
+		cancel: cancel,
+		// prioritize the outgoing messages
+		emitPriority: cfg.Emitter.Priority,
+	}
+	if cfg.Emitter.Limiting {
+		r.limiter = rate.NewLimiter(cfg.Emitter.Rate, cfg.Emitter.Burst)
+	}
+	return r
+}
+
+type handlersBundle struct {
+	entries []*handlerEntry
+}
+
+func (b *handlersBundle) AddHandler(h Handler, cfg *HandlerConfig) {
+	b.entries = append(b.entries, &handlerEntry{
+		h:   h,
+		cfg: cfg,
+	})
+}
+func (b *handlersBundle) Serve(ctx context.Context, ev Event) {
+	for _, h := range b.entries {
+		if !h.cfg.Filter(ctx, ev) {
+			continue
+		}
+		h.h.Serve(ctx, ev)
+	}
+}
+
+type handlerEntry struct {
+	h   Handler
+	cfg *HandlerConfig
+}
+
+func (r *systemActor) Handle(handler Handler, opts ...HandlerOption) {
+	cfg := &HandlerConfig{}
+	for _, opt := range opts {
+		opt(cfg)
+	}
+	k := handler.EventType()
+	if _, ok := r.handlers[k]; !ok {
+		r.handlers[k] = &handlersBundle{}
+	}
+	handlers := r.handlers[k]
+	handlers.AddHandler(handler, cfg)
+}
+
+func (r *systemActor) Emitter() Emitter {
+	return r
+}
+
+var _ Bus = (*systemActor)(nil)
+
 // Emit is called by the end-user
-func (r *systemActor) Emit(ctx context.Context, ev Event) {
+func (r *systemActor) Emit(ctx context.Context, ev Event) error {
 	if ctx == nil {
-		if testing.Testing() {
-			panic(fmt.Errorf("emitter %s must provide a context with the emitted event %s", r.name, ev.String()))
-		} else {
-			// if not testing, then we will be more graceful, and allow the event to happen. The context may not be used.
-			r.sys.log.Error("Event without context emitted", "emitter", r.name, "event", ev.String())
-			ctx = context.Background()
+		return fmt.Errorf("emitter %s must provide a context with the emitted event %s", r.name, ev.String())
+	}
+	if e := r.ctx.Err(); e != nil {
+		return e
+	}
+	if r.limiter != nil {
+		r.sys.recordRateLimited(r.name, r.currentEvent)
+		if err := r.limiter.Wait(ctx); err != nil {
+			return err
 		}
 	}
-	if r.ctx.Err() != nil {
-		return
-	}
-	r.sys.emit(r.name, r.currentEvent, ctx, ev, r.emitPriority)
+	return r.sys.emit(r.name, r.currentEvent, ctx, ev, r.emitPriority)
 }
+
+// TODO: refactor this to yield every handler instead,
+// so that the executor can match and run each handler individually.
 
 // RunEvent is called by the events executor.
 // While different things may execute in parallel, only one event is executed per entry at a time.
 func (r *systemActor) RunEvent(ev AnnotatedEvent) {
-	if r.deriv == nil {
+	if r.actor == nil {
 		return
 	}
 	if r.ctx.Err() != nil {
@@ -114,7 +179,19 @@ func (r *systemActor) RunEvent(ev AnnotatedEvent) {
 	prev := r.currentEvent
 	start := time.Now()
 	r.currentEvent = r.sys.recordDerivStart(r.name, ev, start)
-	effect := r.deriv.OnEvent(ev.Ctx, ev.Event)
+	typ := reflect.TypeOf(ev.Event)
+	// TODO fix legacy metric
+	effect := false
+	// apply the event to all handlers of the matching type
+	if b, ok := r.handlers[typ]; ok {
+		b.Serve(ev.Ctx, ev.Event)
+		effect = true
+	}
+	// apply the event to all handlers that just do catch-all typing
+	if b, ok := r.handlers[reflect.TypeFor[Event]()]; ok {
+		b.Serve(ev.Ctx, ev.Event)
+		effect = true
+	}
 	elapsed := time.Since(start)
 	r.sys.recordDerivEnd(r.name, ev, r.currentEvent, start, elapsed, effect)
 	r.currentEvent = prev
@@ -149,7 +226,7 @@ func NewSystem(log log.Logger, ex Executor) *Sys {
 	}
 }
 
-func (s *Sys) Register(name string, deriver Deriver, opts ...RegisterOption) Emitter {
+func (s *Sys) Register(name string, actor Actor, opts ...RegisterOption) Bus {
 	s.regsLock.Lock()
 	defer s.regsLock.Unlock()
 
@@ -162,37 +239,14 @@ func (s *Sys) Register(name string, deriver Deriver, opts ...RegisterOption) Emi
 		opt(cfg)
 	}
 
-	ctx, cancel := context.WithCancel(context.Background())
-	r := &systemActor{
-		name:   name,
-		deriv:  deriver,
-		sys:    s,
-		ctx:    ctx,
-		cancel: cancel,
-		// prioritize the outgoing messages
-		emitPriority: cfg.Emitter.Priority,
-	}
-	s.regs[name] = r
-	var em Emitter = r
-	if cfg.Emitter.Limiting {
-		limitedCallback := cfg.Emitter.OnLimited
-		em = NewLimiter(ctx, r, cfg.Emitter.Rate, cfg.Emitter.Burst, func() {
-			r.sys.recordRateLimited(name, r.currentEvent)
-			if limitedCallback != nil {
-				limitedCallback()
-			}
-		})
-	}
+	r := newSystemActor(name, actor, s, cfg)
 
-	// If it can derive, add it to the executor (and only after attaching the emitter)
-	if deriver != nil {
-		// If it can emit, attach an emitter to it
-		if attachTo, ok := deriver.(AttachEmitter); ok {
-			attachTo.AttachEmitter(em)
-		}
-		r.leaveExecutor = s.executor.Add(r, &cfg.Executor)
-	}
-	return em
+	s.regs[name] = r
+
+	// run setup function of the actor, to make it register handlers etc.
+	actor.Events(r)
+
+	return r
 }
 
 func (s *Sys) Unregister(name string) (previous Emitter) {
@@ -212,7 +266,7 @@ func (s *Sys) unregister(name string) (previous Emitter) {
 		r.leaveExecutor()
 	}
 	delete(s.regs, name)
-	if cl, ok := r.deriv.(Unattacher); ok {
+	if cl, ok := r.actor.(Unattacher); ok {
 		cl.Unattach()
 	}
 	return r
@@ -295,7 +349,7 @@ func (s *Sys) recordEmit(name string, ev AnnotatedEvent, derivContext uint64, em
 // emit an event [ev] during the derivation of another event, referenced by derivContext.
 // If the event was emitted not as part of deriver event execution, then the derivContext is 0.
 // The name of the emitter is provided to further contextualize the event.
-func (s *Sys) emit(name string, derivContext uint64, ctx context.Context, ev Event, emitPriority Priority) {
+func (s *Sys) emit(name string, derivContext uint64, ctx context.Context, ev Event, emitPriority Priority) error {
 	emitContext := s.emitContext.Add(1)
 	annotated := AnnotatedEvent{
 		Ctx:          ctx,
@@ -315,13 +369,5 @@ func (s *Sys) emit(name string, derivContext uint64, ctx context.Context, ev Eve
 
 	emitTime := time.Now()
 	s.recordEmit(name, annotated, derivContext, emitTime)
-
-	err := s.executor.Enqueue(annotated)
-	// If the event system cannot enqueue an event, then it is a critical error
-	// and we should panic to avoid deferred errors creating behaviors that are hard to reason about.
-	// The Sys cannot decide if an event is important or not, so all events should be considered critical.
-	if err != nil {
-		s.log.Error("Failed to enqueue event", "emitter", name, "event", ev, "context", derivContext)
-		panic(err)
-	}
+	return s.executor.Enqueue(annotated)
 }
