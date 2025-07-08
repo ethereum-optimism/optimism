@@ -102,6 +102,8 @@ func rpcPort(require *testreq.Assertions, rpc string) int {
 }
 
 func (n *L2ELNode) Stop() {
+	n.mu.Lock()
+	defer n.mu.Unlock()
 	if n.l2Geth == nil {
 		n.logger.Warn("op-geth already stopped")
 		return
@@ -134,9 +136,6 @@ func WithL2ELNode(id stack.L2ELNodeID, supervisorID *stack.SupervisorID) stack.O
 		}
 
 		logger := p.Logger()
-
-		p.Cleanup(func() {
-		})
 
 		l2EL := &L2ELNode{
 			id:            id,

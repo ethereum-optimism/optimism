@@ -124,6 +124,16 @@ func (cl *L2CLNode) ChainID() eth.ChainID {
 	return cl.inner.ID().ChainID()
 }
 
+func (cl *L2CLNode) AwaitMinL1Processed(minL1 uint64) {
+	ctx, cancel := context.WithTimeout(cl.ctx, DefaultTimeout)
+	defer cancel()
+	// Wait for CurrentL1 to be at least one block _past_ minL1 since CurrentL1 may not yet be fully processed.
+	err := wait.For(ctx, 1*time.Second, func() (bool, error) {
+		return cl.SyncStatus().CurrentL1.Number > minL1, nil
+	})
+	cl.require.NoErrorf(err, "CurrentL1 did not reach %v", minL1+1)
+}
+
 // AdvancedFn returns a lambda that checks the L2CL chain head with given safety level advanced more than delta block number
 // Composable with other lambdas to wait in parallel
 func (cl *L2CLNode) AdvancedFn(lvl types.SafetyLevel, delta uint64, attempts int) CheckFunc {
@@ -308,5 +318,8 @@ func (cl *L2CLNode) ConnectPeer(peer *L2CLNode) {
 
 func (cl *L2CLNode) VerifySafeHeadDatabaseMatches(sourceOfTruth *L2CLNode) {
 	l1Block := cl.SyncStatus().CurrentL1.Number
+	cl.log.Info("Verifying safe head database matches", "maxL1Block", l1Block)
+	cl.AwaitMinL1Processed(l1Block) // Ensure this block is fully processed before checking safe head db
+	sourceOfTruth.AwaitMinL1Processed(l1Block)
 	checkSafeHeadConsistent(cl.t, l1Block, cl, sourceOfTruth)
 }

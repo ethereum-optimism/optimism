@@ -19,7 +19,7 @@ func checkSafeHeadConsistent(t testreq.TestingT, maxL1BlockNum uint64, checkNode
 		if actual == nil {
 			// No further safe head data available
 			// Stop iterating as long as we found _some_ data
-			require.True(matchedSomething, "no safe head data available")
+			require.Truef(matchedSomething, "no safe head data available at L1 block %v", l1BlockNum)
 			return
 		}
 
