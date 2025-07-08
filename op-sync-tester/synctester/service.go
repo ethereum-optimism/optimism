@@ -173,7 +173,7 @@ func (s *Service) initHTTPServer(cfg *config.Config) error {
 			}
 			num, err := strconv.ParseUint(val, 10, 64)
 			if err != nil {
-				return 0, fmt.Errorf("invalid %s: %v", name, err)
+				return 0, fmt.Errorf("invalid %s: %w", name, err)
 			}
 			return num, nil
 		}
