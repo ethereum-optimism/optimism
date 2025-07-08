@@ -83,9 +83,6 @@ func (su *StatusTracker) OnEvent(ctx context.Context, ev event.Event) bool {
 }
 
 func (su *StatusTracker) HasInitializedStatuses() bool {
-	su.mu.RLock()
-	defer su.mu.RUnlock()
-
 	for _, nodeStatus := range su.statuses {
 		if nodeStatus != nil && *nodeStatus != (NodeSyncStatus{}) {
 			return true
