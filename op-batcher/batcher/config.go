@@ -128,7 +128,7 @@ type CLIConfig struct {
 	ThrottlePidOutputMax   float64
 	ThrottlePidSampleTime  time.Duration
 
-	// ThrottleThresholdMultiplier is the threshold multiplier for linear and quadratic controllers
+	// ThrottleThresholdMultiplier is the threshold multiplier for the quadratic controller
 	ThrottleThresholdMultiplier float64
 
 	TxMgrConfig   txmgr.CLIConfig
@@ -184,8 +184,8 @@ func (c *CLIConfig) Check() error {
 	}
 
 	// Validate PID controller config
-	if c.ThrottleControllerType != string(config.StepControllerType) && c.ThrottleControllerType != string(config.LinearControllerType) && c.ThrottleControllerType != string(config.QuadraticControllerType) && c.ThrottleControllerType != string(config.PIDControllerType) {
-		return fmt.Errorf("invalid throttle controller type: %s (must be 'step', 'linear', 'quadratic', 'pid')", c.ThrottleControllerType)
+	if c.ThrottleControllerType != string(config.StepControllerType) && c.ThrottleControllerType != string(config.QuadraticControllerType) && c.ThrottleControllerType != string(config.PIDControllerType) {
+		return fmt.Errorf("invalid throttle controller type: %s (must be 'step', 'quadratic', 'pid')", c.ThrottleControllerType)
 	}
 
 	if err := c.MetricsConfig.Check(); err != nil {

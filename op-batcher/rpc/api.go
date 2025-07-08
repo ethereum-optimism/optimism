@@ -15,8 +15,7 @@ import (
 type BatcherDriver interface {
 	StartBatchSubmitting() error
 	StopBatchSubmitting(ctx context.Context) error
-	SetThrottleControllerType(controllerType string) error
-	SetThrottleControllerPIDConfig(pidConfig *config.PIDConfig) error
+	SetThrottleController(controllerType string, pidConfig *config.PIDConfig) error
 	GetThrottleControllerInfo() (config.ThrottleControllerInfo, error)
 	ResetThrottleController() error
 }
@@ -50,10 +49,10 @@ func (a *adminAPI) StopBatcher(ctx context.Context) error {
 	return a.b.StopBatchSubmitting(ctx)
 }
 
-// SetThrottleControllerType changes only the throttle controller type without changing parameters
-func (a *adminAPI) SetThrottleControllerType(_ context.Context, controllerType string) error {
+// SetThrottleController changes only the throttle controller type without changing parameters
+func (a *adminAPI) SetThrottleController(_ context.Context, controllerType string, pidConfig *config.PIDConfig) error {
 	// Validate controller type
-	validTypes := []string{string(config.StepControllerType), string(config.LinearControllerType), string(config.QuadraticControllerType), string(config.PIDControllerType)}
+	validTypes := []string{string(config.StepControllerType), string(config.QuadraticControllerType), string(config.PIDControllerType)}
 	isValid := false
 	for _, valid := range validTypes {
 		if controllerType == valid {
@@ -67,31 +66,22 @@ func (a *adminAPI) SetThrottleControllerType(_ context.Context, controllerType s
 	}
 
 	// For PID controller, we need config, so this method cannot be used
-	if controllerType == string(config.PIDControllerType) {
-		return fmt.Errorf("cannot set PID controller type without configuration, use admin_setThrottleControllerPIDConfig instead")
+	if controllerType == string(config.PIDControllerType) && pidConfig == nil {
+		return fmt.Errorf("cannot set PID controller type without configuration")
+	} else if controllerType == string(config.PIDControllerType) && pidConfig != nil {
+		// Validate PID config
+		if pidConfig.Kp < 0 || pidConfig.Ki < 0 || pidConfig.Kd < 0 {
+			return fmt.Errorf("PID gains must be non-negative")
+		}
+		if pidConfig.IntegralMax <= 0 {
+			return fmt.Errorf("PID IntegralMax must be positive")
+		}
+		if pidConfig.OutputMax <= 0 || pidConfig.OutputMax > 1 {
+			return fmt.Errorf("PID OutputMax must be between 0 and 1")
+		}
 	}
 
-	return a.b.SetThrottleControllerType(controllerType)
-}
-
-// SetThrottleControllerPIDConfig updates the PID controller configuration or switches to PID controller
-func (a *adminAPI) SetThrottleControllerPIDConfig(_ context.Context, pidConfig *config.PIDConfig) error {
-	if pidConfig == nil {
-		return fmt.Errorf("PID configuration cannot be nil")
-	}
-
-	// Validate PID config
-	if pidConfig.Kp < 0 || pidConfig.Ki < 0 || pidConfig.Kd < 0 {
-		return fmt.Errorf("PID gains must be non-negative")
-	}
-	if pidConfig.IntegralMax <= 0 {
-		return fmt.Errorf("PID IntegralMax must be positive")
-	}
-	if pidConfig.OutputMax <= 0 || pidConfig.OutputMax > 1 {
-		return fmt.Errorf("PID OutputMax must be between 0 and 1")
-	}
-
-	return a.b.SetThrottleControllerPIDConfig(pidConfig)
+	return a.b.SetThrottleController(controllerType, pidConfig)
 }
 
 // GetThrottleController returns current throttle controller information

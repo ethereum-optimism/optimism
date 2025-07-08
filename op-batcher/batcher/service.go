@@ -54,8 +54,6 @@ type BatcherConfig struct {
 
 	ThrottleControllerType config.ThrottleControllerType
 	ThrottlePidConfig      *config.PIDConfig
-
-	PreferLocalSafeL2 bool
 }
 
 // BatcherService represents a full batch-submitter instance and its resources,

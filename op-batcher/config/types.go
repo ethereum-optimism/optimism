@@ -7,7 +7,6 @@ type ThrottleControllerType string
 
 const (
 	StepControllerType      ThrottleControllerType = "step"
-	LinearControllerType    ThrottleControllerType = "linear"
 	QuadraticControllerType ThrottleControllerType = "quadratic"
 	PIDControllerType       ThrottleControllerType = "pid"
 )
@@ -25,7 +24,6 @@ type ThrottleControllerInfo struct {
 	Intensity    float64 `json:"intensity"`
 	MaxTxSize    uint64  `json:"max_tx_size"`
 	MaxBlockSize uint64  `json:"max_block_size"`
-	IsThrottling bool    `json:"is_throttling"`
 }
 
 // PIDConfig represents PID controller configuration for RPC

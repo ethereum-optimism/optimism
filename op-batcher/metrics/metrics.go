@@ -448,10 +448,7 @@ func (m *Metrics) RecordThrottleControllerType(controllerType config.ThrottleCon
 }
 
 func (m *Metrics) RecordPendingBytesVsThreshold(pendingBytes, threshold uint64, controllerType config.ThrottleControllerType) {
-	ratio := 0.0
-	if threshold > 0 {
-		ratio = float64(pendingBytes) / float64(threshold)
-	}
+	ratio := float64(pendingBytes) / float64(threshold)
 	m.pendingBytesRatio.WithLabelValues(string(controllerType)).Set(ratio)
 }
 

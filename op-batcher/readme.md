@@ -137,6 +137,185 @@ transaction. But in the case of a DA backlog (as defined by OP_BATCHER_THROTTLE_
 block builder to instead impose a (tighter) block level limit of OP_BATCHER_THROTTLE_BLOCK_SIZE, and a single
 transaction limit of OP_BATCHER_THROTTLE_TRANSACTION_SIZE.
 
+### Enhanced DA Throttling Mechanisms
+
+The batcher now supports multiple advanced throttling strategies beyond simple binary on/off throttling. These controllers dynamically adjust throttling intensity based on the current DA backlog, providing more nuanced control over data availability management.
+
+#### Throttling Controller Types
+
+The batcher supports four throttling controller types, each with different response characteristics:
+
+**Step Controller** (Default)
+- **Behavior**: Binary on/off throttling
+- **Response**: No throttling below threshold, maximum throttling above threshold
+- **Use Case**: Simple, predictable throttling behavior
+
+**Quadratic Controller**
+- **Behavior**: Quadratically scales throttling intensity (slower initial response, faster at high loads)
+- **Response**: Gentle at low overload, aggressive at high overload
+- **Use Case**: Tolerates brief spikes while responding strongly to sustained overload
+
+**PID Controller**
+- **Behavior**: Proportional-Integral-Derivative control with configurable parameters
+- **Response**: Sophisticated control with predictive and corrective components
+- **Use Case**: Complex load patterns requiring precise control and minimal overshoot
+
+#### Visual Representation of Throttling Responses
+
+```
+Throttling Intensity (0.0 = No Throttling, 1.0 = Maximum Throttling)
+
+Step Controller:
+    |
+1.0 |     ████████████████████████████████
+    |     │
+0.5 |     │
+    |     │
+0.0 |█████│
+    +─────┼────────────────────────────────
+         threshold              load →
+
+Quadratic Controller:
+    |
+1.0 |                     ████
+    |                 ████
+0.5 |             ████
+    |         ████
+0.0 |████████████
+    +─────┼─────────────┼────────────────────
+         threshold    max_threshold  load →
+
+PID Controller:
+    |                    ████
+1.0 |                ████    ████
+    |            ████            ████
+0.5 |        ████                    ████
+    |    ████                            ████
+0.0 |████                                    ████
+    +─────────────────────────────────────────────
+                   time / load →
+    (Response depends on Kp, Ki, Kd parameters)
+```
+
+#### Runtime Controller Management via RPC
+
+The batcher exposes admin RPC endpoints to dynamically change throttling behavior without restart:
+
+**Get Current Controller Status**
+```bash
+curl -X POST -H "Content-Type: application/json" \
+  --data '{"jsonrpc":"2.0","method":"admin_getThrottleController","params":[],"id":1}' \
+  http://localhost:6545
+```
+
+**Switch to Step Controller**
+```bash
+curl -X POST -H "Content-Type: application/json" \
+  --data '{"jsonrpc":"2.0","method":"admin_setThrottleController","params":["step", null],"id":1}' \
+  http://localhost:6545
+```
+
+**Switch to Quadratic Controller**
+```bash
+curl -X POST -H "Content-Type: application/json" \
+  --data '{"jsonrpc":"2.0","method":"admin_setThrottleController","params":["quadratic", null],"id":1}' \
+  http://localhost:8545
+```
+
+**Switch to PID Controller**
+```bash
+
+curl -X POST -H "Content-Type: application/json" \
+  --data '{"jsonrpc":"2.0","method":"admin_setThrottleController","params":["pid", {"kp": 1.0, "ki": 0.1, "kd": 0.05, "integral_max": 1000.0, "output_max": 1.0, "sample_time": 5000000000}],"id":1}' \
+  http://localhost:6545
+```
+
+**Reset Controller State**
+```bash
+curl -X POST -H "Content-Type: application/json" \
+  --data '{"jsonrpc":"2.0","method":"admin_resetThrottleController","params":[],"id":1}' \
+  http://localhost:6545
+```
+
+#### PID Controller Configuration
+
+The PID controller offers sophisticated control through six key parameters:
+
+**Core PID Parameters:**
+- `kp` (Proportional Gain): Controls immediate response to current error
+- `ki` (Integral Gain): Controls response to accumulated error over time
+- `kd` (Derivative Gain): Controls response to rate of error change
+
+**Protection Parameters:**
+- `integral_max`: Maximum accumulated integral to prevent windup
+- `output_max`: Maximum controller output (typically 1.0)
+- `sample_time`: Controller update frequency (e.g., "5ms", "10ms")
+
+**Predefined PID Profiles:**
+
+**Gentle Throttling** (Conservative, stable)
+```json
+{
+  "kp": 0.1,
+  "ki": 0.05,
+  "kd": 0.02,
+  "integral_max": 1000.0,
+  "output_max": 1.0,
+  "sample_time": 10000000000
+}
+```
+- **Characteristics**: Slow, stable response
+- **Use Case**: Predictable loads, minimal overshoot
+- **Trade-off**: May be slow to respond to rapid changes
+
+**Balanced Throttling** (Recommended default)
+```json
+{
+  "kp": 0.3,
+  "ki": 0.15,
+  "kd": 0.08,
+  "integral_max": 1000.0,
+  "output_max": 1.0,
+  "sample_time": 2000000000
+}
+```
+- **Characteristics**: Good balance of responsiveness and stability
+- **Use Case**: General-purpose throttling for most scenarios
+- **Trade-off**: Balanced performance across different load patterns
+
+**Aggressive Throttling** (Fast response, may overshoot)
+```json
+{
+  "kp": 0.8,
+  "ki": 0.4,
+  "kd": 0.2,
+  "integral_max": 2000.0,
+  "output_max": 1.0,
+  "sample_time": 2000000000
+}
+```
+- **Characteristics**: Fast response to load changes
+- **Use Case**: Highly variable loads, rapid response needed
+- **Trade-off**: May overshoot and oscillate under some conditions
+
+#### Configuration via CLI
+
+Throttling controllers can also be configured at startup via CLI flags:
+
+```bash
+# Set controller type and threshold multiplier
+--throttle-controller-type=quadratic
+--throttle-threshold-multiplier=2.5
+
+# PID-specific parameters
+--throttle-pid-kp=0.3
+--throttle-pid-ki=0.15
+--throttle-pid-kd=0.08
+--throttle-pid-integral-max=50.0
+--throttle-pid-output-max=1.0
+--throttle-pid-sample-time=5ms
+```
+
 ### Max Channel Duration
 
 The batcher tries to ensure that batches are posted at a minimum frequency specified by `MAX_CHANNEL_DURATION`. To achieve this, it caches the l1 origin of the last submitted channel, and will force close a channel if the timestamp of the l1 head moves beyond the timestamp of that l1 origin plus `MAX_CHANNEL_DURATION`. When clearing its state, e.g. following the detection of a reorg, the batcher will not clear the cached l1 origin: this way, the regular posting of batches will not be disturbed by events like reorgs.
