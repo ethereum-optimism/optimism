@@ -2,11 +2,11 @@ package p2p
 
 import (
 	"context"
+	"encoding/binary"
 	"fmt"
 	"math/big"
 	"strings"
 	"sync"
-	"sync/atomic"
 	"testing"
 	"time"
 
@@ -469,9 +469,8 @@ func TestRequestResultErr_Error(t *testing.T) {
 	}
 }
 
-func TestMutexUnlocksInBothSuccessAndErrorCases(t *testing.T) {
+func TestMutexUnlocks(t *testing.T) {
 	cfg, payloads := setupSyncTestData(10)
-
 	mockL2 := mockPayloadFn(func(n uint64) (*eth.ExecutionPayloadEnvelope, error) {
 		p, ok := payloads.getPayload(n)
 		if !ok {
@@ -479,91 +478,74 @@ func TestMutexUnlocksInBothSuccessAndErrorCases(t *testing.T) {
 		}
 		return p, nil
 	})
-
 	srv := NewReqRespServer(cfg, mockL2, metrics.NoopMetrics)
 
+	mnet, err := mocknet.FullMeshConnected(2)
+	require.NoError(t, err)
+	defer mnet.Close()
+	hosts := mnet.Hosts()
+	hostA, hostB := hosts[0], hosts[1]
+
+	ctx := context.Background()
+	log := testlog.Logger(t, log.LevelError)
+	payloadByNumber := MakeStreamHandler(ctx, log, srv.HandleSyncRequest)
+	hostA.SetStreamHandler(PayloadByNumberProtocolID(cfg.L2ChainID), payloadByNumber)
+
 	t.Run("SuccessCase", func(t *testing.T) {
-		var wg sync.WaitGroup
-		successCount := int32(0)
+		stream, _ := hostB.NewStream(ctx, hostA.ID(), PayloadByNumberProtocolID(cfg.L2ChainID))
+		binary.Write(stream, binary.LittleEndian, uint64(1))
+		stream.CloseWrite()
+		var result [1]byte
+		stream.Read(result[:])
+		require.Equal(t, byte(0), result[0])
+		stream.Close()
 
-		testPeerID := peer.ID("test-peer")
-
-		for i := 0; i < 5; i++ {
-			wg.Add(1)
-			go func() {
-				defer wg.Done()
-
-				func() {
-					srv.peerStatsLock.Lock()
-					defer srv.peerStatsLock.Unlock()
-
-					ps, _ := srv.peerRateLimits.Get(testPeerID)
-					if ps == nil {
-						ps = &peerStat{
-							Requests: rate.NewLimiter(peerServerBlocksRateLimit, peerServerBlocksBurst),
-						}
-						srv.peerRateLimits.Add(testPeerID, ps)
-					}
-					atomic.AddInt32(&successCount, 1)
-				}()
-			}()
-		}
-
-		done := make(chan struct{})
-		go func() {
-			wg.Wait()
-			close(done)
-		}()
-
-		select {
-		case <-done:
-			require.Equal(t, int32(5), successCount, "All operations should have succeeded")
-			t.Logf("All goroutines completed successfully. Success count: %d", successCount)
-		case <-time.After(5 * time.Second):
-			t.Fatal("Test timed out - likely due to mutex not being unlocked")
-		}
+		srv.peerStatsLock.Lock()
+		srv.peerStatsLock.Unlock()
 	})
 
 	t.Run("ErrorCase", func(t *testing.T) {
-		var wg sync.WaitGroup
-		errorCount := int32(0)
+		// First request: establish peer in rate limiter
+		stream, _ := hostB.NewStream(ctx, hostA.ID(), PayloadByNumberProtocolID(cfg.L2ChainID))
+		binary.Write(stream, binary.LittleEndian, uint64(1))
+		stream.CloseWrite()
+		var result [1]byte
+		stream.Read(result[:])
+		stream.Close()
 
-		testPeerID := peer.ID("test-peer-error")
+		// Make rate limiter fail on next request
+		peerId := hostB.ID()
+		srv.peerStatsLock.Lock()
+		ps, _ := srv.peerRateLimits.Get(peerId)
+		ps.Requests = rate.NewLimiter(0, 0)
+		ps.Requests.Reserve()
+		srv.peerStatsLock.Unlock()
 
-		for i := 0; i < 3; i++ {
-			wg.Add(1)
-			go func() {
-				defer wg.Done()
+		// Second request with short timeout - return error but still unlock
+		shortCtx, cancel := context.WithTimeout(ctx, 1*time.Millisecond)
+		defer cancel()
+		go func() {
+			stream2, _ := hostB.NewStream(shortCtx, hostA.ID(), PayloadByNumberProtocolID(cfg.L2ChainID))
+			binary.Write(stream2, binary.LittleEndian, uint64(2))
+			stream2.CloseWrite()
+			stream2.Close()
+		}()
 
-				func() {
-					srv.peerStatsLock.Lock()
-					defer srv.peerStatsLock.Unlock()
+		time.Sleep(10 * time.Millisecond)
 
-					ps, _ := srv.peerRateLimits.Get(testPeerID)
-					if ps == nil {
-						ps = &peerStat{
-							Requests: rate.NewLimiter(peerServerBlocksRateLimit, peerServerBlocksBurst),
-						}
-						srv.peerRateLimits.Add(testPeerID, ps)
-					}
-
-					atomic.AddInt32(&errorCount, 1)
-				}()
-			}()
-		}
-
+		// Test if mutex is stuck - should not hang on lock(), even if error is returned
 		done := make(chan struct{})
 		go func() {
-			wg.Wait()
+			srv.peerStatsLock.Lock()
+			srv.peerStatsLock.Unlock()
 			close(done)
 		}()
 
 		select {
 		case <-done:
-			require.Equal(t, int32(3), errorCount, "All operations should have completed")
-			t.Logf("All goroutines completed as expected. Error count: %d", errorCount)
-		case <-time.After(5 * time.Second):
-			t.Fatal("Test timed out - likely due to mutex not being unlocked due to error")
+			// Mutex unlocked
+		case <-time.After(1 * time.Second):
+			t.Fatal("Mutex deadlock detected - bug exists")
 		}
 	})
 }
