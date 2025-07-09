@@ -22,8 +22,8 @@ func TestInteropHappyTx(gt *testing.T) {
 	sys := presets.NewSimpleInterop(t)
 
 	// two EOAs for triggering the init and exec interop txs
-	alice := sys.FunderA.NewFundedEOA(eth.OneTenthEther)
-	bob := sys.FunderB.NewFundedEOA(eth.OneTenthEther)
+	alice := sys.FunderA.NewFundedEOA(eth.OneHundredthEther)
+	bob := sys.FunderB.NewFundedEOA(eth.OneHundredthEther)
 
 	eventLoggerAddress := alice.DeployEventLogger()
 
@@ -45,13 +45,10 @@ func TestInteropHappyTx(gt *testing.T) {
 		sys.L2CLA.ReachedRefFn(stypes.CrossSafe, eth.BlockID{
 			Number: initReceipt.BlockNumber.Uint64(),
 			Hash:   initReceipt.BlockHash,
-		}, 30),
+		}, 500),
 		sys.L2CLB.ReachedRefFn(stypes.CrossSafe, eth.BlockID{
 			Number: execReceipt.BlockNumber.Uint64(),
 			Hash:   execReceipt.BlockHash,
-		}, 30),
+		}, 500),
 	)
-
-	sys.L2ChainA.PrintChain()
-	sys.L2ChainB.PrintChain()
 }

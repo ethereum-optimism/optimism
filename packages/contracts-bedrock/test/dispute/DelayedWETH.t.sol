@@ -15,9 +15,9 @@ import { IProxyAdmin } from "interfaces/universal/IProxyAdmin.sol";
 import { IProxyAdminOwnedBase } from "interfaces/L1/IProxyAdminOwnedBase.sol";
 import { ISystemConfig } from "interfaces/L1/ISystemConfig.sol";
 
-/// @title FallbackGasUser
+/// @title DelayedWETH_FallbackGasUser_Harness
 /// @notice Contract that burns gas in the fallback function.
-contract FallbackGasUser {
+contract DelayedWETH_FallbackGasUser_Harness {
     /// @notice Amount of gas to use in the fallback function.
     uint256 public gas;
 
@@ -37,9 +37,9 @@ contract FallbackGasUser {
     }
 }
 
-/// @title FallbackReverter
+/// @title DelayedWETH_FallbackReverter_Harness
 /// @notice Contract that reverts in the fallback function.
-contract FallbackReverter {
+contract DelayedWETH_FallbackReverter_Harness {
     /// @notice Revert on fallback.
     fallback() external payable {
         revert("FallbackReverter: revert");
@@ -247,13 +247,9 @@ contract DelayedWETH_Withdraw_Test is DelayedWETH_TestInit {
         vm.prank(alice);
         delayedWeth.withdraw(1 ether);
     }
-}
 
-/// @title DelayedWETH_WithdrawFrom_Test
-/// @notice Tests the `withdraw(address, uint256)` function of the `DelayedWETH` contract.
-contract DelayedWETH_WithdrawFrom_Test is DelayedWETH_TestInit {
     /// @notice Tests that withdrawing while unlocked and delay has passed is successful.
-    function test_withdraw_whileUnlocked_succeeds() public {
+    function test_withdraw_withdrawFromWhileUnlocked_succeeds() public {
         // Deposit some WETH.
         vm.prank(alice);
         delayedWeth.deposit{ value: 1 ether }();
@@ -275,7 +271,7 @@ contract DelayedWETH_WithdrawFrom_Test is DelayedWETH_TestInit {
     }
 
     /// @notice Tests that withdrawing when unlock was not called fails.
-    function test_withdraw_whileLocked_fails() public {
+    function test_withdraw_withdrawFromWhileLocked_fails() public {
         // Deposit some WETH.
         vm.prank(alice);
         delayedWeth.deposit{ value: 1 ether }();
@@ -289,7 +285,7 @@ contract DelayedWETH_WithdrawFrom_Test is DelayedWETH_TestInit {
     }
 
     /// @notice Tests that withdrawing while locked and delay has not passed fails.
-    function test_withdraw_whileLockedNotLongEnough_fails() public {
+    function test_withdraw_withdrawFromWhileLockedNotLongEnough_fails() public {
         // Deposit some WETH.
         vm.prank(alice);
         delayedWeth.deposit{ value: 1 ether }();
@@ -310,7 +306,7 @@ contract DelayedWETH_WithdrawFrom_Test is DelayedWETH_TestInit {
     }
 
     /// @notice Tests that withdrawing more than unlocked amount fails.
-    function test_withdraw_tooMuch_fails() public {
+    function test_withdraw_withdrawFromTooMuch_fails() public {
         // Deposit some WETH.
         vm.prank(alice);
         delayedWeth.deposit{ value: 1 ether }();
@@ -331,7 +327,7 @@ contract DelayedWETH_WithdrawFrom_Test is DelayedWETH_TestInit {
     }
 
     /// @notice Tests that withdrawing while paused fails.
-    function test_withdraw_whenPaused_fails() public {
+    function test_withdraw_withdrawFromWhenPaused_fails() public {
         // Deposit some WETH.
         vm.prank(alice);
         delayedWeth.deposit{ value: 1 ether }();
@@ -369,7 +365,7 @@ contract DelayedWETH_Recover_Test is DelayedWETH_TestInit {
         _fallbackGasUsage = bound(_fallbackGasUsage, 0, 20000000);
 
         // Set up the gas burner.
-        FallbackGasUser gasUser = new FallbackGasUser(_fallbackGasUsage);
+        DelayedWETH_FallbackGasUser_Harness gasUser = new DelayedWETH_FallbackGasUser_Harness(_fallbackGasUsage);
 
         // Mock owner to return the gas user.
         vm.mockCall(address(proxyAdmin), abi.encodeCall(IProxyAdmin.owner, ()), abi.encode(address(gasUser)));
@@ -422,7 +418,7 @@ contract DelayedWETH_Recover_Test is DelayedWETH_TestInit {
     /// @notice Tests that recover reverts when recipient reverts.
     function test_recover_whenRecipientReverts_fails() public {
         // Set up the reverter.
-        FallbackReverter reverter = new FallbackReverter();
+        DelayedWETH_FallbackReverter_Harness reverter = new DelayedWETH_FallbackReverter_Harness();
 
         // Mock owner to return the reverter.
         vm.mockCall(address(proxyAdmin), abi.encodeCall(IProxyAdmin.owner, ()), abi.encode(address(reverter)));

@@ -39,8 +39,8 @@ func TestInteropMon(gt *testing.T) {
 	require.NoError(im.Start(t.Ctx()))
 
 	// two EOAs for triggering the init and exec interop txs
-	alice := sys.FunderA.NewFundedEOA(eth.OneEther)
-	bob := sys.FunderB.NewFundedEOA(eth.OneEther)
+	alice := sys.FunderA.NewFundedEOA(eth.OneHundredthEther)
+	bob := sys.FunderB.NewFundedEOA(eth.OneHundredthEther)
 	eventLoggerAddress := alice.DeployEventLogger()
 
 	// send initiating message on chain A

@@ -22,9 +22,8 @@ type l1Node interface {
 type rewinderDB interface {
 	DependencySet() depset.DependencySet
 
-	CrossSourceToLastDerived(chainID eth.ChainID, source eth.BlockID) (derived types.BlockSeal, err error)
 	PreviousSource(chain eth.ChainID, source eth.BlockID) (prevSource types.BlockSeal, err error)
-	CrossDerivedToSourceRef(chainID eth.ChainID, derived eth.BlockID) (source eth.BlockRef, err error)
+	CrossDerivedToSource(chainID eth.ChainID, derived eth.BlockID) (source types.BlockSeal, err error)
 
 	LocalSafe(eth.ChainID) (types.DerivedBlockSealPair, error)
 	CrossSafe(eth.ChainID) (types.DerivedBlockSealPair, error)
@@ -148,9 +147,6 @@ func (r *Rewinder) handleLocalDerivedEvent(ev superevents.LocalSafeUpdateEvent) 
 		r.log.Error("failed to rewind logs DB", "chain", ev.ChainID, "err", err)
 		return
 	}
-
-	// Emit event to trigger node reset with new heads
-	r.emitter.Emit(r.rootCtx, superevents.ChainRewoundEvent{ChainID: ev.ChainID})
 }
 
 // rewindL1ChainIfReorged rewinds the L1 chain for the given chain ID if a reorg is detected
@@ -187,7 +183,7 @@ func (r *Rewinder) rewindL1ChainIfReorged(chainID eth.ChainID, newTip eth.BlockI
 			return fmt.Errorf("failed to get finalized block for chain %s: %w", chainID, err)
 		}
 	}
-	finalizedL1, err := r.db.CrossDerivedToSourceRef(chainID, finalized.ID())
+	finalizedL1, err := r.db.CrossDerivedToSource(chainID, finalized.ID())
 	if err != nil {
 		return fmt.Errorf("failed to get finalized L1 block for chain %s: %w", chainID, err)
 	}
@@ -256,10 +252,6 @@ func (r *Rewinder) rewindL1ChainIfReorged(chainID eth.ChainID, newTip eth.BlockI
 		}
 	}
 
-	// Emit rewound event for sync node
-	r.emitter.Emit(r.rootCtx, superevents.ChainRewoundEvent{
-		ChainID: chainID,
-	})
 	return nil
 }
 

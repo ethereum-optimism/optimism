@@ -44,6 +44,12 @@ type Config struct {
 
 	// RPCVerificationWarnings enables asynchronous RPC verification of DB checkAccess call in the CheckAccessList endpoint, indicating warnings as a metric
 	RPCVerificationWarnings bool
+
+	// FailsafeEnabled enables failsafe mode for the supervisor
+	FailsafeEnabled bool
+
+	// FailsafeOnInvalidation controls whether failsafe should activate when a block is invalidated
+	FailsafeOnInvalidation bool
 }
 
 func (c *Config) Check() error {
@@ -69,14 +75,16 @@ func (c *Config) Check() error {
 // Required options with no suitable default are passed as parameters.
 func NewConfig(l1RPC string, syncSrcs syncnode.SyncNodeCollection, fullCfgSet depset.FullConfigSetSource, datadir string) *Config {
 	return &Config{
-		LogConfig:           oplog.DefaultCLIConfig(),
-		MetricsConfig:       opmetrics.DefaultCLIConfig(),
-		PprofConfig:         oppprof.DefaultCLIConfig(),
-		RPC:                 oprpc.DefaultCLIConfig(),
-		FullConfigSetSource: fullCfgSet,
-		MockRun:             false,
-		L1RPC:               l1RPC,
-		SyncSources:         syncSrcs,
-		Datadir:             datadir,
+		LogConfig:              oplog.DefaultCLIConfig(),
+		MetricsConfig:          opmetrics.DefaultCLIConfig(),
+		PprofConfig:            oppprof.DefaultCLIConfig(),
+		RPC:                    oprpc.DefaultCLIConfig(),
+		FullConfigSetSource:    fullCfgSet,
+		MockRun:                false,
+		L1RPC:                  l1RPC,
+		SyncSources:            syncSrcs,
+		Datadir:                datadir,
+		FailsafeEnabled:        false,
+		FailsafeOnInvalidation: true,
 	}
 }

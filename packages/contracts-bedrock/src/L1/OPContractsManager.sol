@@ -1772,9 +1772,9 @@ contract OPContractsManager is ISemver {
 
     // -------- Constants and Variables --------
 
-    /// @custom:semver 2.5.0
+    /// @custom:semver 2.6.0
     function version() public pure virtual returns (string memory) {
-        return "2.5.0";
+        return "2.6.0";
     }
 
     OPContractsManagerGameTypeAdder public immutable opcmGameTypeAdder;
@@ -1944,8 +1944,7 @@ contract OPContractsManager is ISemver {
     function addGameType(AddGameInput[] memory _gameConfigs) public virtual returns (AddGameOutput[] memory) {
         if (address(this) == address(thisOPCM)) revert OnlyDelegatecall();
 
-        bytes memory data =
-            abi.encodeWithSelector(OPContractsManagerGameTypeAdder.addGameType.selector, _gameConfigs, superchainConfig);
+        bytes memory data = abi.encodeCall(OPContractsManagerGameTypeAdder.addGameType, (_gameConfigs));
 
         bytes memory returnData = _performDelegateCall(address(opcmGameTypeAdder), data);
         return abi.decode(returnData, (AddGameOutput[]));
@@ -1956,9 +1955,7 @@ contract OPContractsManager is ISemver {
     function updatePrestate(OpChainConfig[] memory _prestateUpdateInputs) public {
         if (address(this) == address(thisOPCM)) revert OnlyDelegatecall();
 
-        bytes memory data = abi.encodeWithSelector(
-            OPContractsManagerGameTypeAdder.updatePrestate.selector, _prestateUpdateInputs, superchainConfig
-        );
+        bytes memory data = abi.encodeCall(OPContractsManagerGameTypeAdder.updatePrestate, (_prestateUpdateInputs));
 
         _performDelegateCall(address(opcmGameTypeAdder), data);
     }

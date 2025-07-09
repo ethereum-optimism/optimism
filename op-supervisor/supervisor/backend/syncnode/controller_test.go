@@ -27,7 +27,7 @@ type mockSyncControl struct {
 	updateCrossUnsafeFn func(ctx context.Context, derived eth.BlockID) error
 	updateFinalizedFn   func(ctx context.Context, id eth.BlockID) error
 	pullEventFn         func(ctx context.Context) (*types.IndexingEvent, error)
-	blockRefByNumFn     func(ctx context.Context, number uint64) (eth.BlockRef, error)
+	l2BlockRefByNumFn   func(ctx context.Context, number uint64) (eth.L2BlockRef, error)
 
 	subscribeEvents gethevent.FeedOf[*types.IndexingEvent]
 }
@@ -96,11 +96,11 @@ func (m *mockSyncControl) UpdateFinalized(ctx context.Context, id eth.BlockID) e
 	return nil
 }
 
-func (m *mockSyncControl) BlockRefByNumber(ctx context.Context, number uint64) (eth.BlockRef, error) {
-	if m.blockRefByNumFn != nil {
-		return m.blockRefByNumFn(ctx, number)
+func (m *mockSyncControl) L2BlockRefByNumber(ctx context.Context, number uint64) (eth.L2BlockRef, error) {
+	if m.l2BlockRefByNumFn != nil {
+		return m.l2BlockRefByNumFn(ctx, number)
 	}
-	return eth.BlockRef{}, nil
+	return eth.L2BlockRef{}, nil
 }
 
 func (m *mockSyncControl) String() string {

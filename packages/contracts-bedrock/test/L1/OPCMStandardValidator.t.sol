@@ -7,6 +7,7 @@ import { CommonTest } from "test/setup/CommonTest.sol";
 // Libraries
 import { GameTypes, Duration, Claim } from "src/dispute/lib/Types.sol";
 import { DeployUtils } from "scripts/libraries/DeployUtils.sol";
+import { ForgeArtifacts } from "scripts/libraries/ForgeArtifacts.sol";
 
 // Interfaces
 import { IOPContractsManager } from "interfaces/L1/IOPContractsManager.sol";
@@ -139,10 +140,12 @@ contract OPCMStandardValidator_TestInit is CommonTest {
                 abi.encodeCall(IDelayedWETH.proxyAdminOwner, ()),
                 abi.encode(opcm.opcmStandardValidator().l1PAOMultisig())
             );
-            vm.mockCall(
+            // Use vm.store so that the .setImplementation call below works.
+            vm.store(
                 address(disputeGameFactory),
-                abi.encodeCall(IDisputeGameFactory.owner, ()),
-                abi.encode(opcm.opcmStandardValidator().l1PAOMultisig())
+                // this assumes that it is not packed with any other value
+                bytes32(ForgeArtifacts.getSlot("DisputeGameFactory", "_owner").slot),
+                bytes32(uint256(uint160(opcm.opcmStandardValidator().l1PAOMultisig())))
             );
         } else {
             l2ChainId = deployInput.l2ChainId;

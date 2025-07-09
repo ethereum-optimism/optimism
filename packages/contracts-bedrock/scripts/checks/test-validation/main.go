@@ -332,7 +332,6 @@ var excludedPaths = []string{
 	"test/cannon/MIPS64Memory.t.sol",      // Tests external MIPS implementation
 	"test/dispute/lib/LibClock.t.sol",     // Tests library utilities
 	"test/dispute/lib/LibGameId.t.sol",    // Tests library utilities
-	"test/libraries/DeployUtils.t.sol",    // Tests deployment utilities
 	"test/universal/BenchmarkTest.t.sol",  // Performance benchmarking tests
 	"test/universal/ExtendedPause.t.sol",  // Tests extended functionality
 	"test/vendor/Initializable.t.sol",     // Tests external vendor code
@@ -352,21 +351,14 @@ var excludedPaths = []string{
 	//
 	// These naming inconsistencies may indicate the presence of specialized test
 	// infrastructure beyond standard harnesses or different setup contracts patterns.
-	"test/dispute/DelayedWETH.t.sol",            // Contains contracts not matching DelayedWETH base name
-	"test/dispute/DisputeGameFactory.t.sol",     // Contains contracts not matching DisputeGameFactory base name
 	"test/dispute/FaultDisputeGame.t.sol",       // Contains contracts not matching FaultDisputeGame base name
 	"test/dispute/SuperFaultDisputeGame.t.sol",  // Contains contracts not matching SuperFaultDisputeGame base name
-	"test/L1/L1CrossDomainMessenger.t.sol",      // Contains contracts not matching L1CrossDomainMessenger base name
-	"test/L1/L1ERC721Bridge.t.sol",              // Contains contracts not matching L1ERC721Bridge base name
 	"test/L1/ResourceMetering.t.sol",            // Contains contracts not matching ResourceMetering base name
 	"test/L1/OPCMStandardValidator.t.sol",       // Contains contracts not matching OPCMStandardValidator base name
 	"test/L2/CrossDomainOwnable.t.sol",          // Contains contracts not matching CrossDomainOwnable base name
 	"test/L2/CrossDomainOwnable2.t.sol",         // Contains contracts not matching CrossDomainOwnable2 base name
 	"test/L2/CrossDomainOwnable3.t.sol",         // Contains contracts not matching CrossDomainOwnable3 base name
-	"test/L2/CrossL2Inbox.t.sol",                // Contains contracts not matching CrossL2Inbox base name
 	"test/L2/GasPriceOracle.t.sol",              // Contains contracts not matching GasPriceOracle base name
-	"test/L2/L2ERC721Bridge.t.sol",              // Contains contracts not matching L2ERC721Bridge base name
-	"test/L2/L2ToL2CrossDomainMessenger.t.sol",  // Contains contracts not matching L2ToL2CrossDomainMessenger base name
 	"test/legacy/L1ChugSplashProxy.t.sol",       // Contains contracts not matching L1ChugSplashProxy base name
 	"test/legacy/ResolvedDelegateProxy.t.sol",   // Contains contracts not matching ResolvedDelegateProxy base name
 	"test/libraries/Blueprint.t.sol",            // Contains contracts not matching Blueprint base name
@@ -394,16 +386,11 @@ var excludedPaths = []string{
 	// - Enhancing the validation system to support libraries and complex structures
 	// - Fixing misspelled function names in test contracts
 	// - Restructuring tests to match actual function signatures
-	"test/libraries",                              // Libraries have different artifact structure, unsupported
-	"test/dispute/lib/LibPosition.t.sol",          // Library testing - artifact structure issues
-	"test/L1/OptimismPortal2.t.sol",               // Function name validation issues
-	"test/L1/ProxyAdminOwnedBase.t.sol",           // Tests internal functions not in ABI
-	"test/L1/SystemConfig.t.sol",                  // Function name validation issues
-	"test/L2/OptimismMintableERC721.t.sol",        // Function name validation issues
-	"test/L2/OptimismMintableERC721Factory.t.sol", // Function name validation issues
-	"test/L2/SequencerFeeVault.t.sol",             // Function name validation issues
-	"test/L2/SuperchainERC20.t.sol",               // Function name validation issues
-	"test/safe/SafeSigners.t.sol",                 // Function name validation issues
+	"test/libraries",                     // Libraries have different artifact structure, unsupported
+	"test/dispute/lib/LibPosition.t.sol", // Library testing - artifact structure issues
+	"test/L1/ProxyAdminOwnedBase.t.sol",  // Tests internal functions not in ABI
+	"test/L1/SystemConfig.t.sol",         // Tests internal functions not in ABI
+	"test/safe/SafeSigners.t.sol",        // Function name validation issues
 
 	// PATHS EXCLUDED FROM TEST PATTERN VALIDATION:
 	// These paths are excluded because they don't follow the standard test contract

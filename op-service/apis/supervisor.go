@@ -20,6 +20,8 @@ type SupervisorAdminAPI interface {
 	Stop(ctx context.Context) error
 	AddL2RPC(ctx context.Context, rpc string, jwtSecret eth.Bytes32) error
 	Rewind(ctx context.Context, chain eth.ChainID, block eth.BlockID) error
+	SetFailsafeEnabled(ctx context.Context, enabled bool) error
+	GetFailsafeEnabled(ctx context.Context) (bool, error)
 }
 
 type SupervisorQueryAPI interface {

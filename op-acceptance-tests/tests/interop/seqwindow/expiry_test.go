@@ -22,7 +22,7 @@ func TestSequencingWindowExpiry(gt *testing.T) {
 	sys := presets.NewSimpleInterop(t)
 	require := t.Require()
 
-	alice := sys.FunderA.NewFundedEOA(eth.OneEther)
+	alice := sys.FunderA.NewFundedEOA(eth.OneHundredthEther)
 
 	// Send a random tx, to ensure there is some activity pre-reorg
 	tx1 := alice.Transfer(common.HexToAddress("0x7777"), eth.GWei(100))

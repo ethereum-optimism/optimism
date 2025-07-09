@@ -42,10 +42,10 @@ contract OptimismMintableERC721Factory_Constructor_Test is OptimismMintableERC72
     }
 }
 
-/// @title OptimismMintableERC721Factory_CreateMintableERC721_Test
+/// @title OptimismMintableERC721Factory_CreateOptimismMintableERC721_Test
 /// @notice Tests the `createOptimismMintableERC721` function of the
 ///         `OptimismMintableERC721Factory` contract.
-contract OptimismMintableERC721Factory_CreateMintableERC721_Test is OptimismMintableERC721Factory_TestInit {
+contract OptimismMintableERC721Factory_CreateOptimismMintableERC721_Test is OptimismMintableERC721Factory_TestInit {
     /// @notice Tests that the `createOptimismMintableERC721` function succeeds.
     function test_createOptimismMintableERC721_succeeds() external {
         address remote = address(1234);

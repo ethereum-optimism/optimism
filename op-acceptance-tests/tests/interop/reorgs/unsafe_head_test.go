@@ -27,7 +27,7 @@ func TestReorgUnsafeHead(gt *testing.T) {
 	sys.L2BatcherA.Stop()
 
 	// two EOAs for a sample transfer tx used later in a conflicting block
-	alice := sys.FunderA.NewFundedEOA(eth.OneEther)
+	alice := sys.FunderA.NewFundedEOA(eth.OneHundredthEther)
 	bob := sys.Wallet.NewEOA(sys.L2ELA)
 
 	sys.L1Network.WaitForBlock()
@@ -50,8 +50,6 @@ func TestReorgUnsafeHead(gt *testing.T) {
 		l.Info("Expect to reorg the chain on current unsafe block", "number", unsafeHeadRef.Number, "head", unsafeHead, "parent", unsafeHeadRef.ParentID().Hash)
 		divergenceBlockNumber_A = unsafeHeadRef.Number
 		originalRef_A = unsafeHeadRef
-
-		sys.L2ChainA.PrintChain()
 
 		parentOfUnsafeHead := unsafeHeadRef.ParentID()
 
@@ -110,8 +108,6 @@ func TestReorgUnsafeHead(gt *testing.T) {
 	reorgedRef_A, err := sys.L2ELA.Escape().EthClient().BlockRefByNumber(ctx, divergenceBlockNumber_A)
 	require.NoError(t, err, "Expected to be able to call BlockRefByNumber API, but got error")
 
-	sys.L2ChainA.PrintChain()
-
 	l.Info("Reorged chain A on divergence block number (prior the reorg)", "number", divergenceBlockNumber_A, "head", originalRef_A.Hash, "parent", originalRef_A.ParentID().Hash)
 	l.Info("Reorged chain A on divergence block number (after the reorg)", "number", divergenceBlockNumber_A, "head", reorgedRef_A.Hash, "parent", reorgedRef_A.ParentID().Hash)
 	require.NotEqual(t, originalRef_A.Hash, reorgedRef_A.Hash, "Expected to get different heads on divergence block number, but got the same hash, so no reorg happened on chain A")
@@ -134,5 +130,4 @@ func TestReorgUnsafeHead(gt *testing.T) {
 		return true, nil
 	})
 	require.NoError(t, err, "Expected to get same safe ref on both supervisor and sequencer eventually")
-	sys.L2ChainA.PrintChain()
 }

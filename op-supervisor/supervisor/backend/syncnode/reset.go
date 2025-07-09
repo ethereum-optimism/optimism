@@ -20,12 +20,25 @@ type managedNodeResetBackend struct {
 var _ resetBackend = (*managedNodeResetBackend)(nil)
 
 func (m *managedNodeResetBackend) BlockIDByNumber(ctx context.Context, n uint64) (eth.BlockID, error) {
-	r, err := m.node.BlockRefByNumber(ctx, n)
+	r, err := m.node.L2BlockRefByNumber(ctx, n)
 	return r.ID(), err
 }
 
 func (m *managedNodeResetBackend) IsLocalSafe(ctx context.Context, block eth.BlockID) error {
 	return m.backend.IsLocalSafe(ctx, m.chainID, block)
+}
+
+func (m *managedNodeResetBackend) L2BlockRefByNumber(ctx context.Context, n uint64) (eth.L2BlockRef, error) {
+	return m.node.L2BlockRefByNumber(ctx, n)
+}
+
+func (m *managedNodeResetBackend) L1BlockIDByNumber(ctx context.Context, n uint64) (eth.BlockID, error) {
+	r, err := m.backend.L1BlockRefByNumber(ctx, n)
+	return r.ID(), err
+}
+
+func (m *managedNodeResetBackend) LocalUnsafe(ctx context.Context) (eth.BlockID, error) {
+	return m.backend.LocalUnsafe(ctx, m.chainID)
 }
 
 func (m *ManagedNode) resetBackend() *managedNodeResetBackend {
@@ -76,11 +89,15 @@ func (t *ManagedNode) resetHeadsFromTarget(ctx context.Context, target eth.Block
 
 	var lUnsafe, xUnsafe, lSafe, xSafe, finalized eth.BlockID
 
-	// We set the local unsafe block to our target (the local-safe block we determined to reset to).
-	// The node checks it for consistency, but if it builds on this target,
-	// it does not revert back the existing unsafe chain.
-	// We do not have to pick the latest possible unsafe target here.
-	lUnsafe = target
+	// local safe
+	lSafe = target
+
+	// We set the local unsafe block by checking L1 reorg, picking latest possible unsafe target.
+	lUnsafe, err := t.resetTracker.FindResetUnsafeHeadTarget(ctx, lSafe)
+	if err != nil {
+		t.log.Error("failed to get valid local unsafe block. cancelling reset", "err", err)
+		return
+	}
 
 	// all other blocks are either the last consistent block, or the last block in the db, whichever is earlier
 	// cross unsafe
@@ -94,9 +111,6 @@ func (t *ManagedNode) resetHeadsFromTarget(ctx context.Context, target eth.Block
 	} else {
 		xUnsafe = target
 	}
-
-	// local safe
-	lSafe = target
 
 	// cross safe
 	lastXSafe, err := t.backend.CrossSafe(iCtx, t.chainID)

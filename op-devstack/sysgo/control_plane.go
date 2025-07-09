@@ -29,6 +29,12 @@ func (c *ControlPlane) L2CLNodeState(id stack.L2CLNodeID, mode stack.ControlActi
 	control(s, mode)
 }
 
+func (c *ControlPlane) L2ELNodeState(id stack.L2ELNodeID, mode stack.ControlAction) {
+	s, ok := c.o.l2ELs.Get(id)
+	c.o.P().Require().True(ok, "need l2el node to change state")
+	control(s, mode)
+}
+
 func (c *ControlPlane) FakePoSState(id stack.L1CLNodeID, mode stack.ControlAction) {
 	s, ok := c.o.l1CLs.Get(id)
 	c.o.P().Require().True(ok, "need l1cl node to change state of fakePoS module")
