@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 
-	faultTypes "github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
 	opnode_bindings "github.com/ethereum-optimism/optimism/op-node/bindings"
 	bindingspreview "github.com/ethereum-optimism/optimism/op-node/bindings/preview"
@@ -113,26 +112,29 @@ func ProveWithdrawal(ctx *cli.Context) error {
 		return fmt.Errorf("could not find a dispute game at or above l2 block number %v: %w", rcpt.BlockNumber, err)
 	}
 
-	respectedGameType, err := portal.RespectedGameType(&bind.CallOpts{Context: ctx.Context})
+	l1EthClient, err := createEthClient(ctx, L1Flag.Name)
 	if err != nil {
-		return fmt.Errorf("failed to fetch respected game type from portal: %w", err)
+		return fmt.Errorf("failed to create L1 eth client: %w", err)
+	}
+	boundPortal := bindings.NewBindings[bindings.OptimismPortal2](bindings.WithClient(l1EthClient), bindings.WithTo(portalAddr))
+	usesSuperRoots, err := contractio.Read(boundPortal.SuperRootsActive(), ctx.Context)
+	if err != nil {
+		return fmt.Errorf("failed to fetch uses super roots from portal: %w", err)
 	}
 
 	var txData []byte
-	if respectedGameType == uint32(faultTypes.CannonGameType) || respectedGameType == uint32(faultTypes.PermissionedGameType) {
-		logger.Info("Proving withdrawal using output root proof", "gameType", respectedGameType)
+	if !usesSuperRoots {
+		logger.Info("Proving withdrawal using output root proof")
 		txData, err = txDataForOutputRootProof(ctx.Context, proofClient, l2Client, txHash, factory, portal)
 		if err != nil {
 			return err
 		}
-	} else if respectedGameType == uint32(faultTypes.SuperCannonGameType) || respectedGameType == uint32(faultTypes.SuperPermissionedGameType) {
-		logger.Info("Proving withdrawal using super root proof", "gameType", respectedGameType)
-		txData, err = txDataForSuperRootProof(ctx, proofClient, l2Client, txHash, factory, portal)
+	} else {
+		logger.Info("Proving withdrawal using super root proof")
+		txData, err = txDataForSuperRootProof(ctx, l1EthClient, proofClient, l2Client, txHash, factory, portal)
 		if err != nil {
 			return err
 		}
-	} else {
-		return fmt.Errorf("unsupported game type %d", respectedGameType)
 	}
 
 	rcpt, err = txMgr.Send(ctx.Context, txmgr.TxCandidate{
@@ -176,7 +178,7 @@ func txDataForOutputRootProof(ctx context.Context, proofClient *gethclient.Clien
 	return txData, nil
 }
 
-func txDataForSuperRootProof(ctx *cli.Context, proofClient *gethclient.Client, l2Client *ethclient.Client, txHash common.Hash, factory *opnode_bindings.DisputeGameFactoryCaller, portal *bindingspreview.OptimismPortal2) ([]byte, error) {
+func txDataForSuperRootProof(ctx *cli.Context, l1EthClient apis.EthClient, proofClient *gethclient.Client, l2Client *ethclient.Client, txHash common.Hash, factory *opnode_bindings.DisputeGameFactoryCaller, portal *bindingspreview.OptimismPortal2) ([]byte, error) {
 	supervisorClient, err := createSupervisorClient(ctx, SupervisorFlag.Name)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create supervisor client: %w", err)
@@ -190,16 +192,12 @@ func txDataForSuperRootProof(ctx *cli.Context, proofClient *gethclient.Client, l
 		return nil, err
 	}
 
-	l1EthClient, err := createEthClient(ctx, L1Flag.Name)
-	if err != nil {
-		return nil, err
-	}
-	portalChainID, err := chainIDForPortal(ctx.Context, l1EthClient, portal)
+	portalL2ChainID, err := l2ChainIDForPortal(ctx.Context, l1EthClient, portal)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get portal chain ID: %w", err)
 	}
-	if portalChainID != rollupCfg.L2ChainID.Uint64() {
-		return nil, fmt.Errorf("portal chain ID %d does not match the provided rollup config chain ID %d", portalChainID, rollupCfg.L2ChainID.Uint64())
+	if portalL2ChainID != rollupCfg.L2ChainID.Uint64() {
+		return nil, fmt.Errorf("portal chain ID %d does not match the provided rollup config chain ID %d", portalL2ChainID, rollupCfg.L2ChainID.Uint64())
 	}
 
 	params, err := withdrawals.ProveWithdrawalParametersSuperRoots(
@@ -244,7 +242,7 @@ func txDataForSuperRootProof(ctx *cli.Context, proofClient *gethclient.Client, l
 	return txData, nil
 }
 
-func chainIDForPortal(ctx context.Context, l1EthClient apis.EthClient, portal *bindingspreview.OptimismPortal2) (uint64, error) {
+func l2ChainIDForPortal(ctx context.Context, l1EthClient apis.EthClient, portal *bindingspreview.OptimismPortal2) (uint64, error) {
 	systemConfigAddr, err := portal.SystemConfig(&bind.CallOpts{Context: ctx})
 	if err != nil {
 		return 0, fmt.Errorf("failed to get system config address from portal: %w", err)
