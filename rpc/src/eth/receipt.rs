@@ -239,13 +239,13 @@ impl OpReceiptBuilder {
         let core_receipt =
             build_receipt(transaction, meta, receipt, all_receipts, None, |receipt_with_bloom| {
                 match receipt {
-                    OpReceipt::Legacy(_) => OpReceiptEnvelope::<Log>::Legacy(receipt_with_bloom),
-                    OpReceipt::Eip2930(_) => OpReceiptEnvelope::<Log>::Eip2930(receipt_with_bloom),
-                    OpReceipt::Eip1559(_) => OpReceiptEnvelope::<Log>::Eip1559(receipt_with_bloom),
-                    OpReceipt::Eip7702(_) => OpReceiptEnvelope::<Log>::Eip7702(receipt_with_bloom),
+                    OpReceipt::Legacy(_) => OpReceiptEnvelope::Legacy(receipt_with_bloom),
+                    OpReceipt::Eip2930(_) => OpReceiptEnvelope::Eip2930(receipt_with_bloom),
+                    OpReceipt::Eip1559(_) => OpReceiptEnvelope::Eip1559(receipt_with_bloom),
+                    OpReceipt::Eip7702(_) => OpReceiptEnvelope::Eip7702(receipt_with_bloom),
                     OpReceipt::Deposit(receipt) => {
-                        OpReceiptEnvelope::<Log>::Deposit(OpDepositReceiptWithBloom::<Log> {
-                            receipt: OpDepositReceipt::<Log> {
+                        OpReceiptEnvelope::Deposit(OpDepositReceiptWithBloom {
+                            receipt: OpDepositReceipt {
                                 inner: receipt_with_bloom.receipt,
                                 deposit_nonce: receipt.deposit_nonce,
                                 deposit_receipt_version: receipt.deposit_receipt_version,
