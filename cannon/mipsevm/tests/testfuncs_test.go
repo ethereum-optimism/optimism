@@ -185,13 +185,14 @@ func testLoadStore(t *testing.T, cases []loadStoreTestCase) {
 		state.GetRegistersRef()[baseReg] = tt.base
 	}
 
-	setExpectations := func(tt loadStoreTestCase, expect *mtutil.ExpectedState) {
+	setExpectations := func(tt loadStoreTestCase, expect *mtutil.ExpectedState, vm VersionedVMTestCase) ExpectedExecResult {
 		expect.ExpectStep()
 		if tt.expectMemVal != 0 {
 			expect.ExpectMemoryWrite(tt.effAddr(), tt.expectMemVal)
 		} else {
 			expect.ActiveThread().Registers[rtReg] = tt.expectRes
 		}
+		return ExpectNormalExecution()
 	}
 
 	NewDiffTester((loadStoreTestCase).Name).

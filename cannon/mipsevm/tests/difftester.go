@@ -18,8 +18,28 @@ import (
 
 type TestNamer[T any] func(testCase T) string
 
+type ExpectedExecResult struct {
+	shouldPanic bool
+	panicMsg    string
+	evmError    string
+}
+
+func ExpectNormalExecution() ExpectedExecResult {
+	return ExpectedExecResult{
+		shouldPanic: false,
+	}
+}
+
+func ExpectPanic(goPanicMsg, evmRevertMsg string) ExpectedExecResult {
+	return ExpectedExecResult{
+		shouldPanic: true,
+		panicMsg:    goPanicMsg,
+		evmError:    evmRevertMsg,
+	}
+}
+
 type InitializeStateFn[T any] func(testCase T, state *multithreaded.State, vm VersionedVMTestCase)
-type SetExpectationsFn[T any] func(testCase T, expect *mtutil.ExpectedState)
+type SetExpectationsFn[T any] func(testCase T, expect *mtutil.ExpectedState, vm VersionedVMTestCase) ExpectedExecResult
 
 type DiffTester[T any] struct {
 	testNamer       TestNamer[T]
@@ -70,17 +90,27 @@ func (d *DiffTester[T]) Run(t *testing.T, testCases []T, randSeed int64, opts ..
 
 					// Set up expectations
 					expect := mtutil.NewExpectedState(t, state)
-					d.setExpectations(testCase, expect)
+					execExpectation := d.setExpectations(testCase, expect, vm)
 					mod.expectMod(expect)
 
-					// Step the VM
-					step := state.GetStep()
-					stepWitness, err := goVm.Step(true)
-					require.NoError(t, err)
+					if execExpectation.shouldPanic {
+						proofData := vm.ProofGenerator(t, state)
+						require.PanicsWithValue(t, execExpectation.panicMsg, func() {
+							_, _ = goVm.Step(
+								false)
+						})
+						errMsg := testutil.CreateErrorStringMatcher(execExpectation.evmError)
+						testutil.AssertEVMReverts(t, state, vm.Contracts, nil, proofData, errMsg)
+					} else {
+						// Step the VM
+						step := state.GetStep()
+						stepWitness, err := goVm.Step(true)
+						require.NoError(t, err)
 
-					// Validate
-					expect.Validate(t, state)
-					testutil.ValidateEVM(t, stepWitness, step, goVm, vm.StateHashFn, vm.Contracts)
+						// Validate
+						expect.Validate(t, state)
+						testutil.ValidateEVM(t, stepWitness, step, goVm, vm.StateHashFn, vm.Contracts)
+					}
 				})
 			}
 		}
@@ -123,7 +153,7 @@ func (d *DiffTester[T]) generateTestModifiers(t require.TestingT, testCase T, vm
 	goVm := vm.VMFactory(nil, nil, nil, nil)
 	state := mtutil.GetMtState(t, goVm)
 	expect := mtutil.NewExpectedState(t, state)
-	setExpectations(testCase, expect)
+	setExpectations(testCase, expect, vm)
 
 	// Generate test modifiers based on expectations
 	modifiers = append(modifiers, d.memReservationTestModifier(cfg, expect)...)
