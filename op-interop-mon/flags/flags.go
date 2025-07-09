@@ -26,13 +26,23 @@ var (
 		EnvVars:  prefixEnvVars("L2_RPCS"),
 		Required: true,
 	}
+
+	// Optional Flags
+	SupervisorEndpointFlag = &cli.StringFlag{
+		Name:     "supervisor-endpoint",
+		Usage:    "The RPC endpoint for the supervisor to call admin_setFailsafeEnabled",
+		EnvVars:  prefixEnvVars("SUPERVISOR_ENDPOINT"),
+		Required: false,
+	}
 )
 
 var requiredFlags = []cli.Flag{
 	L2RpcsFlag,
 }
 
-var optionalFlags = []cli.Flag{}
+var optionalFlags = []cli.Flag{
+	SupervisorEndpointFlag,
+}
 
 func init() {
 	optionalFlags = append(optionalFlags, oprpc.CLIFlags(EnvVarPrefix)...)

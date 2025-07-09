@@ -1,6 +1,7 @@
 package monitor
 
 import (
+	"context"
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
@@ -20,14 +21,18 @@ type MetricCollector struct {
 	closed chan struct{}
 	log    log.Logger
 	m      InteropMessageMetrics
+
+	// Failsafe client for triggering failsafe enable/disable
+	failsafeClient FailsafeClient
 }
 
-func NewMetricCollector(log log.Logger, m InteropMessageMetrics, updaters map[eth.ChainID]Updater) *MetricCollector {
+func NewMetricCollector(log log.Logger, m InteropMessageMetrics, updaters map[eth.ChainID]Updater, failsafeClient FailsafeClient) *MetricCollector {
 	return &MetricCollector{
-		log:      log,
-		m:        m,
-		updaters: updaters,
-		closed:   make(chan struct{}),
+		log:            log,
+		m:              m,
+		updaters:       updaters,
+		failsafeClient: failsafeClient,
+		closed:         make(chan struct{}),
 	}
 }
 
@@ -73,6 +78,9 @@ func (m *MetricCollector) CollectMetrics() {
 		chains = append(chains, chainID)
 		jobMap = updater.CollectForMetrics(jobMap)
 	}
+
+	// Track if we should enable failsafe
+	shouldFailsafe := false
 
 	// Initialize all metrics with zero values
 	// Message Status: [executingChainID][initiatingChainID][status]
@@ -154,7 +162,7 @@ func (m *MetricCollector) CollectMetrics() {
 		}
 		current := statuses[len(statuses)-1]
 
-		// Log invalid statuses
+		// Log invalid statuses and trigger failsafe
 		if current == jobStatusInvalid {
 			m.log.Warn("Invalid Executing Message Detected",
 				"executing_chain_id", job.executingChain,
@@ -163,6 +171,7 @@ func (m *MetricCollector) CollectMetrics() {
 				"initiating_block_height", job.initiating.BlockNumber,
 				"executing_block_hash", job.executingBlock.Hash,
 			)
+			shouldFailsafe = true
 		}
 
 		// Increment the message status metrics
@@ -188,6 +197,7 @@ func (m *MetricCollector) CollectMetrics() {
 				"executing_block_hash", job.executingBlock.Hash,
 			)
 			terminalStatusChanges[job.executingChain][job.initiating.ChainID]++
+			shouldFailsafe = true
 		}
 	}
 
@@ -246,5 +256,15 @@ func (m *MetricCollector) CollectMetrics() {
 			ranges.min,
 			ranges.max,
 		)
+	}
+
+	// Call failsafe API if needed
+	if shouldFailsafe && m.failsafeClient != nil {
+		m.log.Warn("Triggering failsafe due to invalid messages or terminal state transitions")
+		if err := m.failsafeClient.SetFailsafeEnabled(context.Background(), true); err != nil {
+			m.log.Error("Failed to enable failsafe", "error", err)
+		} else {
+			m.log.Info("Successfully enabled failsafe")
+		}
 	}
 }

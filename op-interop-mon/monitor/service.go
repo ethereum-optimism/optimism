@@ -38,6 +38,8 @@ type InteropMonitorService struct {
 	collector *MetricCollector
 	finalized *locks.RWMap[eth.ChainID, eth.NumberAndHash]
 
+	failsafeClient FailsafeClient
+
 	Version string
 
 	pprofService *oppprof.Service
@@ -83,6 +85,18 @@ func (ms *InteropMonitorService) initFromClients(ctx context.Context, version st
 
 	ms.PollInterval = cfg.PollInterval
 
+	// Initialize supervisor client if endpoint is configured
+	if cfg.SupervisorEndpoint != "" {
+		failsafeClient, err := NewSupervisorClient(cfg.SupervisorEndpoint, ms.Log)
+		if err != nil {
+			return fmt.Errorf("failed to initialize supervisor client: %w", err)
+		}
+		ms.failsafeClient = failsafeClient
+		ms.Log.Info("Initialized supervisor client for failsafe control", "endpoint", cfg.SupervisorEndpoint)
+	} else {
+		ms.Log.Info("Supervisor endpoint not configured, failsafe control disabled")
+	}
+
 	// Initialize the expiry map
 	ms.finalized = locks.RWMapFromMap(make(map[eth.ChainID]eth.NumberAndHash))
 
@@ -99,8 +113,8 @@ func (ms *InteropMonitorService) initFromClients(ctx context.Context, version st
 	}
 
 	if cfg.MetricsConfig.Enabled {
-		// Initialize the metric collector, with access to all updaters
-		ms.collector = NewMetricCollector(ms.Log, ms.Metrics, ms.updaters)
+		// Initialize the metric collector, with access to all updaters and failsafe client
+		ms.collector = NewMetricCollector(ms.Log, ms.Metrics, ms.updaters, ms.failsafeClient)
 	}
 	if err := ms.initMetricsServer(cfg); err != nil {
 		return fmt.Errorf("failed to start metrics server: %w", err)
