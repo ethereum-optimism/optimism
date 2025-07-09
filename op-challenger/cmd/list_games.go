@@ -112,7 +112,7 @@ func listGames(ctx context.Context, caller *batching.MultiCaller, factory *contr
 			defer wg.Done()
 			metadata, err := gameContract.GetGameMetadata(ctx, rpcblock.ByHash(block))
 			if err != nil {
-				info.err = fmt.Errorf("failed to retrieve metadata for game %v: %w", gameProxy, err)
+				infos[currIndex].err = fmt.Errorf("failed to retrieve metadata for game %v: %w", gameProxy, err)
 				return
 			}
 			infos[currIndex].status = metadata.Status
@@ -120,7 +120,7 @@ func listGames(ctx context.Context, caller *batching.MultiCaller, factory *contr
 			infos[currIndex].rootClaim = metadata.RootClaim
 			claimCount, err := gameContract.GetClaimCount(ctx)
 			if err != nil {
-				info.err = fmt.Errorf("failed to retrieve claim count for game %v: %w", gameProxy, err)
+				infos[currIndex].err = fmt.Errorf("failed to retrieve claim count for game %v: %w", gameProxy, err)
 				return
 			}
 			infos[currIndex].claimCount = claimCount
