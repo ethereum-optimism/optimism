@@ -129,6 +129,11 @@ func (h *HazardSet) build(deps HazardDeps, linker depset.LinkChecker, logger log
 			}
 			includedIn, err := deps.Contains(msg.ChainID, q)
 			if err != nil {
+				// If the block containing the message was invalidated, we need to signal that
+				// a replacement block is needed before cross-safe progress can be made
+				if errors.Is(err, types.ErrAwaitReplacementBlock) {
+					return fmt.Errorf("executing msg %s references invalidated block: %w", msg, err)
+				}
 				return fmt.Errorf("executing msg %s failed inclusion check: %w", msg, err)
 			}
 
