@@ -13,7 +13,7 @@ func TestYamlLoader_Load(t *testing.T) {
 	x := &YamlLoader{Path: filepath.Join(".", "testdata", "config.yaml")}
 	result, err := x.Load(context.Background())
 	require.NoError(t, err)
-	require.NotEmpty(t, result.ELRPC)
+	require.NotEmpty(t, result.SyncTesters)
 }
 
 func TestYamlLoader_NotFound(t *testing.T) {

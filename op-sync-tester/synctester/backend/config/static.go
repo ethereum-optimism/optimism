@@ -4,10 +4,22 @@ import (
 	"context"
 
 	"github.com/ethereum-optimism/optimism/op-service/endpoint"
+	"github.com/ethereum-optimism/optimism/op-service/eth"
+
+	sttypes "github.com/ethereum-optimism/optimism/op-sync-tester/synctester/backend/types"
 )
 
-type Config struct {
+type SyncTesterEntry struct {
 	ELRPC endpoint.MustRPC `yaml:"el_rpc"`
+
+	// ChainID is used to sanity-check we are connected to the right chain,
+	// and never accidentally try to use a different chain for faucet work.
+	ChainID eth.ChainID `yaml:"chain_id"`
+}
+
+type Config struct {
+	// SyncTesters lists all sync testers by ID
+	SyncTesters map[sttypes.SyncTesterID]*SyncTesterEntry `yaml:"synctesters,omitempty"`
 }
 
 var _ Loader = (*Config)(nil)

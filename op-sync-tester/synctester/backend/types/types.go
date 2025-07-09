@@ -1,0 +1,39 @@
+package types
+
+import (
+	"errors"
+)
+
+const maxIDLength = 100
+
+var ErrInvalidID = errors.New("invalid ID")
+
+// SyncTesterID represents a unique syncTester.
+// There may be multiple syncTester per chain.
+// The op-sync-tester service serves identifies a default syncTester for each chain to serve, see config.
+type SyncTesterID string
+
+func (id SyncTesterID) String() string {
+	return string(id)
+}
+
+func (id SyncTesterID) MarshalText() ([]byte, error) {
+	if len(id) > maxIDLength {
+		return nil, ErrInvalidID
+	}
+	if len(id) == 0 {
+		return nil, ErrInvalidID
+	}
+	return []byte(id), nil
+}
+
+func (id *SyncTesterID) UnmarshalText(data []byte) error {
+	if len(data) > maxIDLength {
+		return ErrInvalidID
+	}
+	if len(data) == 0 {
+		return ErrInvalidID
+	}
+	*id = SyncTesterID(data)
+	return nil
+}

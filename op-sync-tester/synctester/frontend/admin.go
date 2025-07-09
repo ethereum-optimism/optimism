@@ -1,9 +1,11 @@
 package frontend
 
-import "context"
+import (
+	sttypes "github.com/ethereum-optimism/optimism/op-sync-tester/synctester/backend/types"
+)
 
 type AdminBackend interface {
-	ClearSessions(context.Context)
+	ClearSessions(id sttypes.SyncTesterID)
 }
 
 type AdminFrontend struct {
@@ -14,6 +16,6 @@ func NewAdminFrontend(b AdminBackend) *AdminFrontend {
 	return &AdminFrontend{b: b}
 }
 
-func (s *AdminFrontend) ClearSessions(ctx context.Context) {
-	s.b.ClearSessions(ctx)
+func (s *AdminFrontend) ClearSessions(id sttypes.SyncTesterID) {
+	s.b.ClearSessions(id)
 }

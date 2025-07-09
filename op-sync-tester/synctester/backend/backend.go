@@ -4,14 +4,20 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
 	"fmt"
-	"sync"
+	"sort"
 
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/rpc"
 
+	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/locks"
 	"github.com/ethereum-optimism/optimism/op-sync-tester/metrics"
 	"github.com/ethereum-optimism/optimism/op-sync-tester/synctester/backend/config"
+	"github.com/ethereum-optimism/optimism/op-sync-tester/synctester/frontend"
+
+	sttypes "github.com/ethereum-optimism/optimism/op-sync-tester/synctester/backend/types"
 )
 
 type sessionKeyType struct{}
@@ -36,10 +42,10 @@ type APIRouter interface {
 }
 
 type Backend struct {
-	log      log.Logger
-	m        metrics.Metricer
-	mu       sync.Mutex
-	sessions map[string]*Session
+	log log.Logger
+	m   metrics.Metricer
+
+	syncTesters locks.RWMap[sttypes.SyncTesterID, *SyncTester]
 }
 
 func (b *Backend) Stop(ctx context.Context) error {
@@ -48,34 +54,58 @@ func (b *Backend) Stop(ctx context.Context) error {
 	return nil
 }
 
-func FromConfig(log log.Logger, m metrics.Metricer, cfg *config.Config) (*Backend, error) {
+func FromConfig(log log.Logger, m metrics.Metricer, cfg *config.Config, router APIRouter) (*Backend, error) {
 	b := &Backend{
-		log:      log,
-		m:        m,
-		sessions: make(map[string]*Session),
+		log: log,
+		m:   m,
+	}
+	var syncTesterIDs []sttypes.SyncTesterID
+	for stID, stCfg := range cfg.SyncTesters {
+		st, err := SyncTesterFromConfig(log, m, stID, stCfg)
+		if err != nil {
+			return nil, fmt.Errorf("failed to setup sync tester %q: %w", stID, err)
+		}
+		b.syncTesters.Set(stID, st)
+		syncTesterIDs = append(syncTesterIDs, stID)
+	}
+	// Infer defaults for chains that were not explicitly mentioned.
+	// Always use the lowest sync tester ID, so map-iteration doesn't affect defaults.
+	sort.Slice(syncTesterIDs, func(i, j int) bool {
+		return syncTesterIDs[i] < syncTesterIDs[j]
+	})
+	// Set up the faucet routes
+	var syncTesterErr error
+	b.syncTesters.Range(func(id sttypes.SyncTesterID, st *SyncTester) bool {
+		if err := router.AddRPC("/synctest"); err != nil {
+			syncTesterErr = errors.Join(fmt.Errorf("failed to set up synctest route: %w", err))
+			return true
+		}
+		if err := router.AddAPIToRPC("/synctest", rpc.API{
+			Namespace: "sync",
+			Service:   frontend.NewSyncFrontend(st),
+		}); err != nil {
+			syncTesterErr = errors.Join(syncTesterErr, fmt.Errorf("failed to add sync API: %w", err))
+		}
+		return true
+	})
+	if syncTesterErr != nil {
+		return nil, fmt.Errorf("failed to set up sync tester route(s): %w", syncTesterErr)
 	}
 	return b, nil
 }
 
-func (b *Backend) Init(ctx context.Context) error {
-	session, ok := ctx.Value(CtxKeySession).(*Session)
-	if !ok || session == nil {
-		return fmt.Errorf("no session found in context")
-	}
-	b.mu.Lock()
-	defer b.mu.Unlock()
-	if existing, ok := b.sessions[session.ID()]; ok {
-		b.log.Info("Using existing session", "session", existing)
-	} else {
-		b.sessions[session.ID()] = session
-		b.log.Info("Initialized new session", "session", session)
-	}
-	return nil
+func (b *Backend) SyncTesters() (out map[sttypes.SyncTesterID]eth.ChainID) {
+	out = make(map[sttypes.SyncTesterID]eth.ChainID)
+	b.syncTesters.Range(func(key sttypes.SyncTesterID, value *SyncTester) bool {
+		out[key] = value.chainID
+		return true
+	})
+	return out
 }
 
-func (b *Backend) ClearSessions(ctx context.Context) {
-	b.log.Info("Clearing sessions")
-	b.mu.Lock()
-	defer b.mu.Unlock()
-	b.sessions = make(map[string]*Session)
+func (b *Backend) ClearSessions(id sttypes.SyncTesterID) {
+	st, ok := b.syncTesters.Get(id)
+	if ok {
+		st.ClearSessions()
+	}
 }

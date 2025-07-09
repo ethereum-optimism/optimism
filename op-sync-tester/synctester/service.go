@@ -13,6 +13,7 @@ import (
 	"github.com/ethereum/go-ethereum/rpc"
 
 	"github.com/ethereum-optimism/optimism/op-service/cliapp"
+	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/httputil"
 	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
 	"github.com/ethereum-optimism/optimism/op-service/oppprof"
@@ -21,12 +22,14 @@ import (
 	"github.com/ethereum-optimism/optimism/op-sync-tester/metrics"
 	"github.com/ethereum-optimism/optimism/op-sync-tester/synctester/backend"
 	"github.com/ethereum-optimism/optimism/op-sync-tester/synctester/frontend"
+
+	sttypes "github.com/ethereum-optimism/optimism/op-sync-tester/synctester/backend/types"
 )
 
 type serviceBackend interface {
 	frontend.AdminBackend
-	frontend.SyncBackend
 	Stop(ctx context.Context) error
+	SyncTesters() map[sttypes.SyncTesterID]eth.ChainID
 }
 
 var _ serviceBackend = (*backend.Backend)(nil)
@@ -63,11 +66,11 @@ func (s *Service) initFromCLIConfig(ctx context.Context, cfg *config.Config) err
 	if err := s.initMetricsServer(cfg); err != nil {
 		return fmt.Errorf("failed to start Metrics server: %w", err)
 	}
-	if err := s.initBackend(ctx, cfg); err != nil {
-		return fmt.Errorf("failed to start backend: %w", err)
-	}
 	if err := s.initRPCHandler(cfg); err != nil {
 		return fmt.Errorf("failed to start RPC handler: %w", err)
+	}
+	if err := s.initBackend(ctx, cfg); err != nil {
+		return fmt.Errorf("failed to start backend: %w", err)
 	}
 	if err := s.initHTTPServer(cfg); err != nil {
 		return fmt.Errorf("failed to start HTTP server: %w", err)
@@ -126,11 +129,21 @@ func (s *Service) initBackend(ctx context.Context, cfg *config.Config) error {
 	if err != nil {
 		return fmt.Errorf("failed to load sync tester config: %w", err)
 	}
-	b, err := backend.FromConfig(s.log, s.metrics, syncTesterCfg)
+	b, err := backend.FromConfig(s.log, s.metrics, syncTesterCfg, s.rpcHandler)
 	if err != nil {
 		return fmt.Errorf("failed to setup backend: %w", err)
 	}
 	s.backend = b
+	if cfg.RPC.EnableAdmin {
+		s.log.Info("Admin RPC enabled")
+		if err := s.rpcHandler.AddAPI(rpc.API{
+			Namespace:     "admin",
+			Service:       frontend.NewAdminFrontend(b),
+			Authenticated: true,
+		}); err != nil {
+			return fmt.Errorf("failed to add admin API: %w", err)
+		}
+	}
 	return nil
 }
 
@@ -139,25 +152,6 @@ func (s *Service) initRPCHandler(cfg *config.Config) error {
 		oprpc.WithLogger(s.log),
 		oprpc.WithWebsocketEnabled(),
 	)
-	if cfg.RPC.EnableAdmin {
-		s.log.Info("Admin RPC enabled")
-		if err := s.rpcHandler.AddAPI(rpc.API{
-			Namespace:     "admin",
-			Service:       frontend.NewAdminFrontend(s.backend),
-			Authenticated: true,
-		}); err != nil {
-			return fmt.Errorf("failed to add admin API: %w", err)
-		}
-	}
-	if err := s.rpcHandler.AddRPC("/synctest"); err != nil {
-		return fmt.Errorf("failed to set up synctest route: %w", err)
-	}
-	if err := s.rpcHandler.AddAPIToRPC("/synctest", rpc.API{
-		Namespace: "sync",
-		Service:   frontend.NewSyncFrontend(s.backend),
-	}); err != nil {
-		return fmt.Errorf("failed to add sync API: %w", err)
-	}
 	return nil
 }
 
@@ -243,4 +237,16 @@ func (s *Service) Stop(ctx context.Context) error {
 
 func (s *Service) Stopped() bool {
 	return s.closing.Load()
+}
+
+func (s *Service) RPC() string {
+	return s.httpServer.HTTPEndpoint()
+}
+
+func (s *Service) SyncTesterEndpoint(id sttypes.SyncTesterID) string {
+	return s.RPC()
+}
+
+func (s *Service) SyncTesters() map[sttypes.SyncTesterID]eth.ChainID {
+	return s.backend.SyncTesters()
 }
