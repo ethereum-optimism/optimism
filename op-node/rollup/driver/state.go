@@ -269,6 +269,8 @@ func (s *SyncDeriver) OnEvent(ctx context.Context, ev event.Event) bool {
 		s.Emitter.Emit(ctx, StepReqEvent{ResetBackoff: true})
 	case engine.SafeDerivedEvent:
 		s.onSafeDerivedBlock(ctx, x)
+	case engine.ELSyncStartedEvent:
+		s.onELSyncStarted()
 	case derive.ProvideL1Traversal:
 		s.Emitter.Emit(ctx, StepReqEvent{})
 	default:
@@ -307,6 +309,17 @@ func (s *SyncDeriver) onSafeDerivedBlock(ctx context.Context, x engine.SafeDeriv
 			s.Emitter.Emit(ctx, rollup.ResetEvent{
 				Err: fmt.Errorf("safe head notifications failed: %w", err),
 			})
+		}
+	}
+}
+
+func (s *SyncDeriver) onELSyncStarted() {
+	// The EL sync may progress the safe head in the EL without deriving those blocks from L1
+	// which means the safe head db will miss entries so we need to remove all entries to avoid returning bad data
+	s.Log.Warn("Clearing safe head db because EL sync started")
+	if s.SafeHeadNotifs != nil {
+		if err := s.SafeHeadNotifs.SafeHeadReset(eth.L2BlockRef{}); err != nil {
+			s.Log.Error("Failed to notify safe-head reset when optimistically syncing")
 		}
 	}
 }
