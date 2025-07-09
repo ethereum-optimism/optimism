@@ -60,7 +60,7 @@ func TestCrossSafeUpdate(t *testing.T) {
 		err := CrossSafeUpdate(logger, chainID, csd, linkerAny{})
 		require.ErrorContains(t, err, "some error")
 	})
-	t.Run("scopedCrossSafeUpdate returns ErrAwaitReplacementBlock", func(t *testing.T) {
+	t.Run("scopedCrossSafeUpdate returns ErrAwaitReplacementBlock from hazard set", func(t *testing.T) {
 		logger := testlog.Logger(t, log.LevelDebug)
 		chainID := eth.ChainIDFromUInt64(123)
 		csd := &mockCrossSafeDeps{}
@@ -72,12 +72,28 @@ func TestCrossSafeUpdate(t *testing.T) {
 				Derived: candidate,
 			}, nil
 		}
+		// Mock OpenBlock to return an executing message that will trigger Contains check
 		csd.openBlockFn = func(chainID eth.ChainID, blockNum uint64) (ref eth.BlockRef, logCount uint32, execMsgs map[uint32]*types.ExecutingMessage, err error) {
-			return eth.BlockRef{}, 0, nil, types.ErrAwaitReplacementBlock
+			return eth.BlockRef{Hash: candidate.Hash, Number: candidate.Number}, 1, map[uint32]*types.ExecutingMessage{
+				0: {
+					ChainID:   eth.ChainIDFromUInt64(456),
+					BlockNum:  10,
+					LogIdx:    0,
+					Timestamp: candidate.Time,
+					Checksum:  types.MessageChecksum{0x1, 0x2, 0x3},
+				},
+			}, nil
 		}
+		// Mock Contains to return ErrAwaitReplacementBlock (indicating an invalidated block)
+		csd.checkFn = func(chainID eth.ChainID, blockNum uint64, logIdx uint32, checksum types.MessageChecksum) (types.BlockSeal, error) {
+			return types.BlockSeal{}, types.ErrAwaitReplacementBlock
+		}
+		// when hazard set construction encounters an invalidated block,
+		// ErrAwaitReplacementBlock is returned
 		err := CrossSafeUpdate(logger, chainID, csd, linkerAny{})
 		require.ErrorIs(t, err, types.ErrAwaitReplacementBlock)
 	})
+
 	t.Run("scopedCrossSafeUpdate returns ErrConflict and triggers invalidate-local-safe", func(t *testing.T) {
 		logger := testlog.Logger(t, log.LevelDebug)
 		chainID := eth.ChainIDFromUInt64(123)
