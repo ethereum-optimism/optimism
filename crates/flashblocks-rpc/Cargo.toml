@@ -18,6 +18,16 @@ reth-optimism-forks = { git = "https://github.com/paradigmxyz/reth", tag = "v1.5
 reth-provider = { git = "https://github.com/paradigmxyz/reth", tag = "v1.5.0" }
 reth-primitives = { git = "https://github.com/paradigmxyz/reth", tag = "v1.5.0" }
 reth-primitives-traits = { git = "https://github.com/paradigmxyz/reth", tag = "v1.5.0" }
+reth-node-builder = { git = "https://github.com/paradigmxyz/reth", tag = "v1.5.0", features = [
+    "test-utils",
+] }
+reth-e2e-test-utils = { git = "https://github.com/paradigmxyz/reth", tag = "v1.5.0" }
+reth-node-api = { git = "https://github.com/paradigmxyz/reth", tag = "v1.5.0" }
+reth-tasks = { git = "https://github.com/paradigmxyz/reth", tag = "v1.5.0" }
+reth-node-core = { git = "https://github.com/paradigmxyz/reth", tag = "v1.5.0" }
+reth-db = { git = "https://github.com/paradigmxyz/reth", tag = "v1.5.0" }
+reth-tracing = { git = "https://github.com/paradigmxyz/reth", tag = "v1.5.0" }
+reth-rpc-server-types = { git = "https://github.com/paradigmxyz/reth", tag = "v1.5.0" }
 
 alloy-eips.workspace = true
 alloy-primitives.workspace = true
@@ -26,6 +36,9 @@ alloy-rpc-types.workspace = true
 alloy-rpc-types-engine.workspace = true
 alloy-rpc-types-eth.workspace = true
 alloy-consensus.workspace = true
+alloy-genesis.workspace = true
+alloy-rpc-client.workspace = true
+alloy-provider.workspace = true
 op-alloy-network.workspace = true
 op-alloy-consensus.workspace = true
 op-alloy-rpc-types.workspace = true

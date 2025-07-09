@@ -118,7 +118,6 @@ where
                 return Ok(balance);
             }
         }
-
         EthState::balance(&self.eth_api, address, block_number)
             .await
             .map_err(Into::into)

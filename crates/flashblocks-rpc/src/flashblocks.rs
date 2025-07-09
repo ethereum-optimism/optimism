@@ -12,6 +12,7 @@ use tokio_tungstenite::{connect_async, tungstenite::Message};
 use tracing::{debug, error, info};
 use url::Url;
 
+#[derive(Clone)]
 pub struct FlashblocksOverlay {
     url: Url,
     cache: FlashblocksCache,
@@ -98,6 +99,10 @@ impl FlashblocksOverlay {
         });
 
         Ok(())
+    }
+
+    pub fn process_payload(&self, payload: FlashblocksPayloadV1) -> eyre::Result<()> {
+        self.cache.process_payload(payload)
     }
 }
 

@@ -8,3 +8,4 @@ mod metrics;
 pub use metrics::*;
 
 mod cache;
+mod tests;
