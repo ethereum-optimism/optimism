@@ -272,10 +272,10 @@ contract Deploy is Deployer {
                 superchainConfigProxy: superchainConfigProxy,
                 superchainProxyAdmin: superchainProxyAdmin,
                 upgradeController: superchainProxyAdmin.owner(),
-                gameMaxGameDepth: 73,
-                gameSplitDepth: 30,
-                gameClockExtension: 10800,
-                gameMaxClockDuration: 302400
+                gameMaxGameDepth: cfg.faultGameMaxDepth(),
+                gameSplitDepth: cfg.faultGameSplitDepth(),
+                gameClockExtension: cfg.faultGameClockExtension(),
+                gameMaxClockDuration: cfg.faultGameMaxClockDuration()
             })
         );
 
