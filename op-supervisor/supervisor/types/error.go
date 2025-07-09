@@ -47,3 +47,44 @@ var (
 	// ErrFailsafeEnabled is when failsafe is enabled and the request is rejected
 	ErrFailsafeEnabled = errors.New("failsafe is enabled, rejecting all CheckAccessList requests")
 )
+
+var genericInvalidParamsErr = -32602
+
+// GetErrorCode returns the error code for the given error based on interop supervisor spec - https://github.com/ethereum-optimism/specs/blob/28a0fac2428b10f9ee29ee1bfbbe366181cc9ac4/specs/interop/supervisor.md#json-rpc-error-codes
+func GetErrorCode(err error) int {
+	if err == nil {
+		return 0
+	}
+	switch err {
+	case ErrOutOfOrder:
+		return -320900
+	case ErrDataCorruption:
+		return -321501
+	case ErrNotExact:
+		return -321500
+	case ErrSkipped:
+		return -320500
+	case ErrFuture:
+		return -321401
+	case ErrIneffective:
+		return -320601
+	case ErrConflict:
+		return -320600
+	case ErrAwaitReplacementBlock:
+		return -320901
+	case ErrStop:
+		return -321000
+	case ErrOutOfScope:
+		return -321100
+	case ErrPreviousToFirst:
+		return -321200
+	case ErrUnknownChain:
+		return -320501
+	case ErrUninitialized:
+		return -320400
+	case ErrNoRPCSource, ErrFailsafeEnabled, ErrInvalidatedRead, ErrAlreadyInvalidatingRead, ErrRewindFailed:
+		return genericInvalidParamsErr
+	default:
+		return genericInvalidParamsErr
+	}
+}
