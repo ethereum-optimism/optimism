@@ -115,7 +115,6 @@ contract VerifyOPCM is Script {
         sourceNameOverrides["OPContractsManagerDeployer"] = "OPContractsManager";
         sourceNameOverrides["OPContractsManagerUpgrader"] = "OPContractsManager";
         sourceNameOverrides["OPContractsManagerInteropMigrator"] = "OPContractsManager";
-        sourceNameOverrides["OPContractsManagerStandardValidator"] = "OPContractsManager";
 
         // Mark as ready.
         ready = true;
