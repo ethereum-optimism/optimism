@@ -35,6 +35,7 @@ func TestFindChainServices(t *testing.T) {
 	// Create service finder with the test data
 	finder := NewServiceFinder(
 		services,
+		WithL1Chain(&spec.ChainSpec{NetworkID: "0"}),
 		WithL2Chains(chains),
 		WithDepSets(depSets),
 	)
@@ -75,7 +76,7 @@ func TestFindChainServices(t *testing.T) {
 
 	// Test L2 services for both chains
 	for _, chain := range chains {
-		t.Run(fmt.Sprintf("L2 %s services", chain), func(t *testing.T) {
+		t.Run(fmt.Sprintf("L2 %s services", chain.Name), func(t *testing.T) {
 			nodes, services := finder.FindL2Services(chain)
 
 			assert.Equal(t, 1, len(nodes), "Should have exactly 1 node")
@@ -135,14 +136,22 @@ func createTestServiceMap() inspect.ServiceMap {
 				"http":    &descriptors.PortInfo{Port: 32791},
 				"metrics": &descriptors.PortInfo{Port: 32792},
 			},
+			Labels: map[string]string{
+				kindLabel:      "batcher",
+				networkIDLabel: "2151908",
+			},
 		},
 		"op-proposer-op-kurtosis-1": &inspect.Service{
 			Ports: inspect.PortMap{
 				"http":    &descriptors.PortInfo{Port: 32793},
 				"metrics": &descriptors.PortInfo{Port: 32794},
 			},
+			Labels: map[string]string{
+				kindLabel:      "proposer",
+				networkIDLabel: "2151908",
+			},
 		},
-		"op-cl-2151908-1-op-node-op-geth-op-kurtosis-1": &inspect.Service{
+		"op-cl-2151908-1": &inspect.Service{
 			Ports: inspect.PortMap{
 				"http":          &descriptors.PortInfo{Port: 32785},
 				"metrics":       &descriptors.PortInfo{Port: 32786},
@@ -150,8 +159,13 @@ func createTestServiceMap() inspect.ServiceMap {
 				"tcp-discovery": &descriptors.PortInfo{Port: 32787},
 				"udp-discovery": &descriptors.PortInfo{Port: 32771},
 			},
+			Labels: map[string]string{
+				kindLabel:      "cl",
+				networkIDLabel: "2151908",
+				nodeIndexLabel: "0",
+			},
 		},
-		"op-el-2151908-1-op-geth-op-node-op-kurtosis-1": &inspect.Service{
+		"op-el-2151908-1": &inspect.Service{
 			Ports: inspect.PortMap{
 				"engine-rpc":    &descriptors.PortInfo{Port: 32782},
 				"metrics":       &descriptors.PortInfo{Port: 32783},
@@ -160,11 +174,20 @@ func createTestServiceMap() inspect.ServiceMap {
 				"udp-discovery": &descriptors.PortInfo{Port: 32770},
 				"ws":            &descriptors.PortInfo{Port: 32781},
 			},
+			Labels: map[string]string{
+				kindLabel:      "el",
+				networkIDLabel: "2151908",
+				nodeIndexLabel: "0",
+			},
 		},
 		"proxyd-2151908": &inspect.Service{
 			Ports: inspect.PortMap{
 				"http":    &descriptors.PortInfo{Port: 32790},
 				"metrics": &descriptors.PortInfo{Port: 32789},
+			},
+			Labels: map[string]string{
+				kindLabel:      "proxyd",
+				networkIDLabel: "2151908",
 			},
 		},
 
@@ -174,14 +197,22 @@ func createTestServiceMap() inspect.ServiceMap {
 				"http":    &descriptors.PortInfo{Port: 32806},
 				"metrics": &descriptors.PortInfo{Port: 32807},
 			},
+			Labels: map[string]string{
+				kindLabel:      "batcher",
+				networkIDLabel: "2151909",
+			},
 		},
 		"op-proposer-op-kurtosis-2": &inspect.Service{
 			Ports: inspect.PortMap{
 				"http":    &descriptors.PortInfo{Port: 32808},
 				"metrics": &descriptors.PortInfo{Port: 32809},
 			},
+			Labels: map[string]string{
+				kindLabel:      "proposer",
+				networkIDLabel: "2151909",
+			},
 		},
-		"op-cl-2151909-1-op-node-op-geth-op-kurtosis-2": &inspect.Service{
+		"op-cl-2151909-1": &inspect.Service{
 			Ports: inspect.PortMap{
 				"http":          &descriptors.PortInfo{Port: 32800},
 				"metrics":       &descriptors.PortInfo{Port: 32801},
@@ -189,8 +220,13 @@ func createTestServiceMap() inspect.ServiceMap {
 				"tcp-discovery": &descriptors.PortInfo{Port: 32802},
 				"udp-discovery": &descriptors.PortInfo{Port: 32773},
 			},
+			Labels: map[string]string{
+				kindLabel:      "cl",
+				networkIDLabel: "2151909",
+				nodeIndexLabel: "0",
+			},
 		},
-		"op-el-2151909-1-op-geth-op-node-op-kurtosis-2": &inspect.Service{
+		"op-el-2151909-1": &inspect.Service{
 			Ports: inspect.PortMap{
 				"engine-rpc":    &descriptors.PortInfo{Port: 32797},
 				"metrics":       &descriptors.PortInfo{Port: 32798},
@@ -199,11 +235,20 @@ func createTestServiceMap() inspect.ServiceMap {
 				"udp-discovery": &descriptors.PortInfo{Port: 32772},
 				"ws":            &descriptors.PortInfo{Port: 32796},
 			},
+			Labels: map[string]string{
+				kindLabel:      "el",
+				networkIDLabel: "2151909",
+				nodeIndexLabel: "0",
+			},
 		},
 		"proxyd-2151909": &inspect.Service{
 			Ports: inspect.PortMap{
 				"http":    &descriptors.PortInfo{Port: 32805},
 				"metrics": &descriptors.PortInfo{Port: 32804},
+			},
+			Labels: map[string]string{
+				kindLabel:      "proxyd",
+				networkIDLabel: "2151909",
 			},
 		},
 
@@ -212,6 +257,9 @@ func createTestServiceMap() inspect.ServiceMap {
 			Ports: inspect.PortMap{
 				"rpc": &descriptors.PortInfo{Port: 32813},
 			},
+			Labels: map[string]string{
+				kindLabel: "faucet",
+			},
 		},
 		"challenger-service": &inspect.Service{ // intentionally not following conventions, to force use of labels.
 			Ports: inspect.PortMap{
@@ -219,13 +267,17 @@ func createTestServiceMap() inspect.ServiceMap {
 			},
 			Labels: map[string]string{
 				kindLabel:      "challenger",
-				networkIDLabel: "2151908,2151909",
+				networkIDLabel: "2151908-2151909",
 			},
 		},
 		"op-supervisor-service-superchain": &inspect.Service{
 			Ports: inspect.PortMap{
 				"metrics": &descriptors.PortInfo{Port: 32811},
 				"rpc":     &descriptors.PortInfo{Port: 32810},
+			},
+			Labels: map[string]string{
+				kindLabel:                 "supervisor",
+				supervisorSuperchainLabel: "superchain",
 			},
 		},
 		"validator-key-generation-cl-validator-keystore": {},
@@ -255,11 +307,11 @@ func createTestDepSets(t *testing.T) map[string]descriptors.DepSet {
 
 // TestTriageFunctions tests the actual implementation of triage functions
 func TestTriageFunctions(t *testing.T) {
+	l1Spec := &spec.ChainSpec{NetworkID: "123456"}
 	// Create a minimal finder with default values
 	finder := &ServiceFinder{
-		services:        make(inspect.ServiceMap),
-		nodeServices:    []string{"cl", "el"},
-		l2ServicePrefix: "op-",
+		services: make(inspect.ServiceMap),
+		l1Chain:  l1Spec,
 	}
 
 	// Test the triageNode function for recognizing services
@@ -271,145 +323,143 @@ func TestTriageFunctions(t *testing.T) {
 		idx, accept, ok := parser("cl-1-teku-geth")
 		assert.True(t, ok, "Should recognize L1 CL node")
 		assert.Equal(t, 0, idx, "Should extract index 0 from L1 CL node")
-		assert.True(t, accept(&spec.ChainSpec{Name: l1Placeholder}), "Should accept L1")
-
-		// Test L2 node format
-		idx, accept, ok = parser("op-cl-2151908-1-op-node-op-geth-op-kurtosis-1")
-		assert.True(t, ok, "Should recognize L2 CL node")
-		assert.Equal(t, 0, idx, "Should extract index 0 from L2 CL node")
-		assert.True(t, accept(&spec.ChainSpec{NetworkID: "2151908"}), "Should accept matching chain ID")
-		assert.False(t, accept(&spec.ChainSpec{NetworkID: "2151909"}), "Should not accept different chain ID")
+		assert.True(t, accept(l1Spec), "Should accept L1")
 
 		// Test with various suffixes to see what is recognized
 		_, _, ok = parser("cl-1-teku-geth-with-extra-parts")
 		assert.True(t, ok, "Should recognize L1 CL node regardless of suffix")
 
-		_, _, ok = parser("op-cl-2151908-1-op-node-op-geth-op-kurtosis-1-with-extra-parts")
-		assert.True(t, ok, "Should recognize L2 CL node regardless of suffix")
-
 		// This is considered invalid
 		_, _, ok = parser("cl")
 		assert.False(t, ok, "Should not recognize simple 'cl'")
+	})
+}
 
-		_, _, ok = parser("op-cl")
-		assert.False(t, ok, "Should not recognize simple 'op-cl'")
+// TestReorderNodes tests the reorderNodes function with various scenarios
+func TestReorderNodes(t *testing.T) {
+	// Define common nodes to reduce repetition
+	regularNode1 := descriptors.Node{Name: "node1", Services: descriptors.ServiceMap{}}
+	regularNode2 := descriptors.Node{Name: "node2", Services: descriptors.ServiceMap{}}
+	regularNode3 := descriptors.Node{Name: "node3", Services: descriptors.ServiceMap{}}
+
+	sequencerNode := descriptors.Node{
+		Name:   "sequencer",
+		Labels: map[string]string{"sequencer": "true"},
+	}
+	sequencerNode1 := descriptors.Node{
+		Name:   "sequencer1",
+		Labels: map[string]string{"sequencer": "true"},
+	}
+	sequencerNode2 := descriptors.Node{
+		Name:   "sequencer2",
+		Labels: map[string]string{"sequencer": "true"},
+	}
+
+	opGethOpNode := descriptors.Node{
+		Name: "op-node",
+		Services: descriptors.ServiceMap{
+			"el": &descriptors.Service{Name: "op-geth-1"},
+			"cl": &descriptors.Service{Name: "op-node-1"},
+		},
+		Labels: map[string]string{
+			"elType": "op-geth",
+			"clType": "op-node",
+		},
+	}
+
+	elOnlyNode := descriptors.Node{
+		Name: "el-only",
+		Services: descriptors.ServiceMap{
+			"el": &descriptors.Service{Name: "op-geth"},
+		},
+	}
+
+	clOnlyNode := descriptors.Node{
+		Name: "cl-only",
+		Services: descriptors.ServiceMap{
+			"cl": &descriptors.Service{Name: "op-node"},
+		},
+	}
+
+	t.Run("empty slice", func(t *testing.T) {
+		nodes := []descriptors.Node{}
+		result := reorderNodes(nodes)
+		assert.Equal(t, nodes, result, "Empty slice should be returned unchanged")
 	})
 
-	// Test the exclusive L2 service parser (batcher, proposer, proxyd)
-	t.Run("triageExclusiveL2Service", func(t *testing.T) {
-		parser := finder.triageExclusiveL2Service("op-batcher-")
-
-		// Valid format
-		idx, accept, ok := parser("op-batcher-123456")
-		assert.True(t, ok, "Should recognize batcher")
-		assert.Equal(t, -1, idx, "Exclusive services have -1 index")
-		assert.True(t, accept(&spec.ChainSpec{NetworkID: "123456"}), "Should accept chain with matching ID")
-		assert.False(t, accept(&spec.ChainSpec{NetworkID: "654321"}), "Should not accept chain with different ID")
-
-		// With suffix
-		_, _, ok = parser("op-batcher-123456-with-suffix")
-		assert.True(t, ok, "Should recognize batcher regardless of suffix")
-
-		// Invalid formats
-		_, _, ok = parser("batcher-123456")
-		assert.False(t, ok, "Should not recognize batcher without op- prefix")
-
-		_, _, ok = parser("op-batcher")
-		assert.False(t, ok, "Should not recognize op-batcher without chain ID")
+	t.Run("single node", func(t *testing.T) {
+		nodes := []descriptors.Node{regularNode1}
+		result := reorderNodes(nodes)
+		assert.Equal(t, nodes, result, "Single node should be returned unchanged")
 	})
 
-	// Test the multi-chain service parser (challenger)
-	t.Run("triageMultiL2Service", func(t *testing.T) {
-		parser := finder.triageMultiL2Service("op-challenger-")
-
-		// Valid format with service identifier and two chain IDs
-		idx, accept, ok := parser("op-challenger-any-123456-654321")
-		assert.True(t, ok, "Should recognize challenger for two chains")
-		assert.Equal(t, -1, idx, "Multi-chain services have -1 index")
-		assert.True(t, accept(&spec.ChainSpec{NetworkID: "123456"}), "Should accept first chain")
-		assert.True(t, accept(&spec.ChainSpec{NetworkID: "654321"}), "Should accept second chain")
-		assert.False(t, accept(&spec.ChainSpec{NetworkID: "789012"}), "Should not accept unrelated chain")
-
-		// Valid format with service identifier and one chain ID
-		_, accept, ok = parser("op-challenger-any-123456")
-		assert.True(t, ok, "Should recognize challenger for one chain")
-		assert.True(t, accept(&spec.ChainSpec{NetworkID: "123456"}), "Should accept the only chain")
-		assert.False(t, accept(&spec.ChainSpec{NetworkID: "654321"}), "Should not accept different chain")
-
-		// Invalid formats
-		_, _, ok = parser("challenger-123456")
-		assert.False(t, ok, "Should not recognize challenger without prefix")
-
-		_, _, ok = parser("op-challenger")
-		assert.False(t, ok, "Should not recognize op-challenger without service ID")
+	t.Run("sequencer node first", func(t *testing.T) {
+		nodes := []descriptors.Node{sequencerNode, regularNode2, regularNode3}
+		result := reorderNodes(nodes)
+		assert.Equal(t, nodes, result, "Sequencer already first should remain unchanged")
 	})
 
-	// Test the superchain service parser (supervisor)
-	t.Run("triageSuperchainService", func(t *testing.T) {
-		// Create some chains for the dependency set
-		chain1 := eth.ChainIDFromUInt64(123456)
-		chain2 := eth.ChainIDFromUInt64(654321)
+	t.Run("sequencer node moved to front", func(t *testing.T) {
+		nodes := []descriptors.Node{regularNode1, sequencerNode, regularNode3}
+		result := reorderNodes(nodes)
 
-		// Create a dependency set
-		depSetData := map[eth.ChainID]*depset.StaticConfigDependency{
-			chain1: {},
-			chain2: {},
-		}
-		depSet, err := depset.NewStaticConfigDependencySet(depSetData)
-		require.NoError(t, err)
-
-		// Serialize dependency set
-		jsonData, err := json.Marshal(depSet)
-		require.NoError(t, err)
-
-		// Create a new finder with the dependency set
-		finderWithDS := &ServiceFinder{
-			services:        make(inspect.ServiceMap),
-			nodeServices:    []string{"cl", "el"},
-			l2ServicePrefix: "op-",
-			depsets: map[string]descriptors.DepSet{
-				"superchain": descriptors.DepSet(jsonData),
-			},
-		}
-
-		parser := finderWithDS.triageSuperchainService("op-supervisor-")
-
-		// Valid format - "op-supervisor-{service_id}-{depset_name}"
-		idx, accept, ok := parser("op-supervisor-id-superchain")
-		assert.True(t, ok, "Should recognize supervisor")
-		assert.Equal(t, -1, idx, "Superchain services have -1 index")
-		assert.True(t, accept(&spec.ChainSpec{NetworkID: "123456"}), "Should accept chain1")
-		assert.True(t, accept(&spec.ChainSpec{NetworkID: "654321"}), "Should accept chain2")
-		assert.False(t, accept(&spec.ChainSpec{NetworkID: "789012"}), "Should not accept unrelated chain")
-
-		// Invalid formats
-		_, _, ok = parser("supervisor-superchain")
-		assert.False(t, ok, "Should not recognize supervisor without prefix")
-
-		_, _, ok = parser("op-supervisor")
-		assert.False(t, ok, "Should not recognize op-supervisor without service ID and depset name")
-
-		// Test with non-existing depset
-		_, _, ok = parser("op-supervisor-id-nonexistent")
-		assert.False(t, ok, "Should not recognize supervisor with non-existent depset")
+		expected := []descriptors.Node{sequencerNode, regularNode1, regularNode3}
+		assert.Equal(t, expected, result, "Sequencer should be moved to front")
 	})
 
-	// Test the universal L2 service parser (faucet)
-	t.Run("triageUniversalL2Service", func(t *testing.T) {
-		parser := finder.triageUniversalL2Service("op-faucet")
+	t.Run("sequencer node at end", func(t *testing.T) {
+		nodes := []descriptors.Node{regularNode1, regularNode2, sequencerNode}
+		result := reorderNodes(nodes)
 
-		// Valid format
-		idx, accept, ok := parser("op-faucet")
-		assert.True(t, ok, "Should recognize faucet")
-		assert.Equal(t, -1, idx, "Universal services have -1 index")
-		assert.True(t, accept(&spec.ChainSpec{NetworkID: "123456"}), "Should accept any chain")
-		assert.True(t, accept(&spec.ChainSpec{NetworkID: "654321"}), "Should accept any chain")
+		expected := []descriptors.Node{sequencerNode, regularNode1, regularNode2}
+		assert.Equal(t, expected, result, "Sequencer at end should be moved to front")
+	})
 
-		// Invalid formats
-		_, _, ok = parser("faucet")
-		assert.False(t, ok, "Should not recognize faucet without prefix")
+	t.Run("multiple sequencer nodes - first one moved", func(t *testing.T) {
+		nodes := []descriptors.Node{regularNode1, sequencerNode1, regularNode3, sequencerNode2}
+		result := reorderNodes(nodes)
 
-		_, _, ok = parser("op-faucet-with-suffix")
-		assert.False(t, ok, "Should not recognize op-faucet with suffix")
+		expected := []descriptors.Node{sequencerNode1, regularNode1, regularNode3, sequencerNode2}
+		assert.Equal(t, expected, result, "First sequencer should be moved to front")
+	})
+
+	t.Run("op-geth and op-node services moved to front", func(t *testing.T) {
+		nodes := []descriptors.Node{regularNode1, opGethOpNode, regularNode3}
+		result := reorderNodes(nodes)
+
+		expected := []descriptors.Node{opGethOpNode, regularNode1, regularNode3}
+		assert.Equal(t, expected, result, "Node with op-geth and op-node should be moved to front")
+	})
+
+	t.Run("op-geth and op-node services already first", func(t *testing.T) {
+		nodes := []descriptors.Node{opGethOpNode, regularNode2, regularNode3}
+		result := reorderNodes(nodes)
+		assert.Equal(t, nodes, result, "Node with op-geth and op-node already first should remain unchanged")
+	})
+
+	t.Run("only el service - no reordering", func(t *testing.T) {
+		nodes := []descriptors.Node{regularNode1, elOnlyNode, regularNode3}
+		result := reorderNodes(nodes)
+		assert.Equal(t, nodes, result, "Node with only el service should not be reordered")
+	})
+
+	t.Run("only cl service - no reordering", func(t *testing.T) {
+		nodes := []descriptors.Node{regularNode1, clOnlyNode, regularNode3}
+		result := reorderNodes(nodes)
+		assert.Equal(t, nodes, result, "Node with only cl service should not be reordered")
+	})
+
+	t.Run("no special nodes - original order preserved", func(t *testing.T) {
+		nodes := []descriptors.Node{regularNode1, regularNode2, regularNode3}
+		result := reorderNodes(nodes)
+		assert.Equal(t, nodes, result, "Nodes without special properties should maintain original order")
+	})
+
+	t.Run("sequencer takes precedence over op-geth/op-node", func(t *testing.T) {
+		nodes := []descriptors.Node{opGethOpNode, sequencerNode, regularNode3}
+		result := reorderNodes(nodes)
+
+		expected := []descriptors.Node{sequencerNode, opGethOpNode, regularNode3}
+		assert.Equal(t, expected, result, "Sequencer should take precedence over op-geth/op-node")
 	})
 }

@@ -4,11 +4,13 @@ import (
 	"context"
 	"math/big"
 
+	"github.com/ethereum-optimism/optimism/op-service/client"
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/sources/batching"
 )
 
 type ChainID interface {
@@ -123,6 +125,14 @@ type EthCode interface {
 	CodeAtHash(ctx context.Context, account common.Address, blockHash common.Hash) ([]byte, error)
 }
 
+type EthMultiCaller interface {
+	NewMultiCaller(batchSize int) *batching.MultiCaller
+}
+
+type RPCCaller interface {
+	RPC() client.RPC
+}
+
 type EthClient interface {
 	ChainID
 	EthBlockInfo
@@ -137,6 +147,8 @@ type EthClient interface {
 	EthNonce
 	EthBalance
 	EthCode
+	EthMultiCaller
+	RPCCaller
 }
 
 type EthExtendedClient interface {

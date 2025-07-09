@@ -2,7 +2,7 @@
 pragma solidity ^0.8.15;
 
 // Testing
-import { FaultDisputeGame_Init, _changeClaimStatus } from "test/dispute/FaultDisputeGame.t.sol";
+import { BaseFaultDisputeGame_TestInit, _changeClaimStatus } from "test/dispute/FaultDisputeGame.t.sol";
 
 // Libraries
 import { GameType, GameStatus, Hash, Claim, VMStatuses, Proposal } from "src/dispute/lib/Types.sol";
@@ -16,7 +16,7 @@ import { IProxyAdminOwnedBase } from "interfaces/L1/IProxyAdminOwnedBase.sol";
 
 /// @title AnchorStateRegistry_TestInit
 /// @notice Reusable test initialization for `AnchorStateRegistry` tests.
-contract AnchorStateRegistry_TestInit is FaultDisputeGame_Init {
+contract AnchorStateRegistry_TestInit is BaseFaultDisputeGame_TestInit {
     /// @dev A valid l2BlockNumber that comes after the current anchor root block.
     uint256 validL2BlockNumber;
 

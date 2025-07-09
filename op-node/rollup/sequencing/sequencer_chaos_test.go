@@ -18,9 +18,9 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/engine"
-	"github.com/ethereum-optimism/optimism/op-node/rollup/event"
 	"github.com/ethereum-optimism/optimism/op-service/clock"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/event"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum-optimism/optimism/op-service/testutils"
 )
@@ -55,7 +55,7 @@ func (c *ChaoticEngine) clockRandomIncrement(minIncr, maxIncr time.Duration) {
 	c.clock.Set(c.clock.Now().Add(incr))
 }
 
-func (c *ChaoticEngine) OnEvent(ev event.Event) bool {
+func (c *ChaoticEngine) OnEvent(ctx context.Context, ev event.Event) bool {
 	switch x := ev.(type) {
 	case engine.BuildStartEvent:
 		c.currentPayloadInfo = eth.PayloadInfo{}
@@ -73,21 +73,21 @@ func (c *ChaoticEngine) OnEvent(ev event.Event) bool {
 		p := c.rng.Float32()
 		switch {
 		case p < 0.05: // 5%
-			c.emitter.Emit(engine.BuildInvalidEvent{
+			c.emitter.Emit(ctx, engine.BuildInvalidEvent{
 				Attributes: x.Attributes,
 				Err:        errors.New("mock start invalid error"),
 			})
 		case p < 0.07: // 2 %
-			c.emitter.Emit(rollup.ResetEvent{
+			c.emitter.Emit(ctx, rollup.ResetEvent{
 				Err: errors.New("mock reset on start error"),
 			})
 		case p < 0.12: // 5%
-			c.emitter.Emit(rollup.EngineTemporaryErrorEvent{
+			c.emitter.Emit(ctx, rollup.EngineTemporaryErrorEvent{
 				Err: errors.New("mock temp start error"),
 			})
 		default:
 			c.currentAttributes = x.Attributes
-			c.emitter.Emit(engine.BuildStartedEvent{
+			c.emitter.Emit(ctx, engine.BuildStartedEvent{
 				Info:         c.currentPayloadInfo,
 				BuildStarted: c.clock.Now(),
 				Parent:       x.Attributes.Parent,
@@ -106,7 +106,7 @@ func (c *ChaoticEngine) OnEvent(ev event.Event) bool {
 		c.clockRandomIncrement(0, time.Second*4)
 		c.currentPayloadInfo = eth.PayloadInfo{}
 		c.currentAttributes = nil
-		c.emitter.Emit(engine.EngineResetConfirmedEvent{
+		c.emitter.Emit(ctx, engine.EngineResetConfirmedEvent{
 			LocalUnsafe: c.unsafe,
 			CrossUnsafe: c.unsafe,
 			LocalSafe:   c.safe,
@@ -119,13 +119,13 @@ func (c *ChaoticEngine) OnEvent(ev event.Event) bool {
 		c.clockRandomIncrement(0, time.Millisecond*50)
 		c.currentPayloadInfo = eth.PayloadInfo{}
 		c.currentAttributes = nil
-		c.emitter.Emit(engine.InvalidPayloadAttributesEvent(x))
+		c.emitter.Emit(ctx, engine.InvalidPayloadAttributesEvent(x))
 	case engine.BuildSealEvent:
 		// Move forward time, to simulate time consumption on sealing
 		c.clockRandomIncrement(0, time.Millisecond*300)
 
 		if c.currentPayloadInfo == (eth.PayloadInfo{}) {
-			c.emitter.Emit(engine.PayloadSealExpiredErrorEvent{
+			c.emitter.Emit(ctx, engine.PayloadSealExpiredErrorEvent{
 				Info:        x.Info,
 				Err:         errors.New("job was cancelled"),
 				Concluding:  false,
@@ -143,14 +143,14 @@ func (c *ChaoticEngine) OnEvent(ev event.Event) bool {
 		p := c.rng.Float32()
 		switch {
 		case p < 0.03: // 3%
-			c.emitter.Emit(engine.PayloadSealInvalidEvent{
+			c.emitter.Emit(ctx, engine.PayloadSealInvalidEvent{
 				Info:        x.Info,
 				Err:         errors.New("mock invalid seal"),
 				Concluding:  x.Concluding,
 				DerivedFrom: x.DerivedFrom,
 			})
 		case p < 0.08: // 5%
-			c.emitter.Emit(engine.PayloadSealExpiredErrorEvent{
+			c.emitter.Emit(ctx, engine.PayloadSealExpiredErrorEvent{
 				Info:        x.Info,
 				Err:         errors.New("mock temp engine error"),
 				Concluding:  x.Concluding,
@@ -179,7 +179,7 @@ func (c *ChaoticEngine) OnEvent(ev event.Event) bool {
 				L1Origin:       l1Origin,
 				SequenceNumber: 0, // ignored
 			}
-			c.emitter.Emit(engine.BuildSealedEvent{
+			c.emitter.Emit(ctx, engine.BuildSealedEvent{
 				Info:        x.Info,
 				Envelope:    payloadEnvelope,
 				Ref:         payloadRef,
@@ -193,7 +193,7 @@ func (c *ChaoticEngine) OnEvent(ev event.Event) bool {
 		c.currentPayloadInfo = eth.PayloadInfo{}
 		c.currentAttributes = nil
 	case engine.ForkchoiceRequestEvent:
-		c.emitter.Emit(engine.ForkchoiceUpdateEvent{
+		c.emitter.Emit(ctx, engine.ForkchoiceUpdateEvent{
 			UnsafeL2Head:    c.unsafe,
 			SafeL2Head:      c.safe,
 			FinalizedL2Head: c.finalized,
@@ -205,11 +205,11 @@ func (c *ChaoticEngine) OnEvent(ev event.Event) bool {
 		p := c.rng.Float32()
 		switch {
 		case p < 0.05: // 5%
-			c.emitter.Emit(rollup.EngineTemporaryErrorEvent{
+			c.emitter.Emit(ctx, rollup.EngineTemporaryErrorEvent{
 				Err: errors.New("mock temp engine error"),
 			})
 		case p < 0.08: // 3%
-			c.emitter.Emit(engine.PayloadInvalidEvent{
+			c.emitter.Emit(ctx, engine.PayloadInvalidEvent{
 				Envelope: x.Envelope,
 				Err:      errors.New("mock invalid payload"),
 			})
@@ -218,7 +218,7 @@ func (c *ChaoticEngine) OnEvent(ev event.Event) bool {
 				c.clockRandomIncrement(0, time.Second*3)
 			}
 			c.unsafe = x.Ref
-			c.emitter.Emit(engine.PayloadSuccessEvent{
+			c.emitter.Emit(ctx, engine.PayloadSuccessEvent{
 				Concluding:   x.Concluding,
 				DerivedFrom:  x.DerivedFrom,
 				BuildStarted: x.BuildStarted,
@@ -226,7 +226,7 @@ func (c *ChaoticEngine) OnEvent(ev event.Event) bool {
 				Ref:          x.Ref,
 			})
 			// With event delay, the engine would update and signal the new forkchoice.
-			c.emitter.Emit(engine.ForkchoiceRequestEvent{})
+			c.emitter.Emit(ctx, engine.ForkchoiceRequestEvent{})
 		}
 	default:
 		return false
@@ -355,7 +355,7 @@ func testSequencerChaosWithSeed(t *testing.T, seed int64) {
 			t.Fatalf("No action scheduled, but also no events to change inputs left")
 		}
 		if ok && testClock.Now().After(nextTime) {
-			testEm.Emit(SequencerActionEvent{})
+			testEm.Emit(context.Background(), SequencerActionEvent{})
 		} else {
 			waitTime := nextTime.Sub(eng.clock.Now())
 			if drainErr == io.EOF {

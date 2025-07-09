@@ -1,13 +1,14 @@
 package cross
 
 import (
+	"context"
 	"errors"
 	"fmt"
 
 	"github.com/ethereum/go-ethereum/log"
 
-	"github.com/ethereum-optimism/optimism/op-node/rollup/event"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/event"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/depset"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/reads"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/superevents"
@@ -87,7 +88,7 @@ type CrossUnsafeWorker struct {
 	linker  depset.LinkChecker
 }
 
-func (c *CrossUnsafeWorker) OnEvent(ev event.Event) bool {
+func (c *CrossUnsafeWorker) OnEvent(ctx context.Context, ev event.Event) bool {
 	switch ev.(type) {
 	case superevents.UpdateCrossUnsafeRequestEvent:
 		if err := CrossUnsafeUpdate(c.logger, c.chainID, c.d, c.linker); err != nil {

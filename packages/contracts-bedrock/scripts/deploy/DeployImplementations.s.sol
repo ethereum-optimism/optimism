@@ -35,6 +35,7 @@ import { IOptimismMintableERC20Factory } from "interfaces/universal/IOptimismMin
 import { IProxyAdmin } from "interfaces/universal/IProxyAdmin.sol";
 import { DeployUtils } from "scripts/libraries/DeployUtils.sol";
 import { Solarray } from "scripts/libraries/Solarray.sol";
+import { ChainAssertions } from "scripts/deploy/ChainAssertions.sol";
 
 contract DeployImplementations is Script {
     struct Input {
@@ -580,7 +581,7 @@ contract DeployImplementations is Script {
         assertValidDelayedWETHImpl(_input, _output);
         assertValidDisputeGameFactoryImpl(_input, _output);
         assertValidAnchorStateRegistryImpl(_input, _output);
-        assertValidL1CrossDomainMessengerImpl(_input, _output);
+        ChainAssertions.checkL1CrossDomainMessenger(_output.l1CrossDomainMessengerImpl, vm, false);
         assertValidL1ERC721BridgeImpl(_input, _output);
         assertValidL1StandardBridgeImpl(_input, _output);
         assertValidMipsSingleton(_input, _output);
@@ -674,21 +675,6 @@ contract DeployImplementations is Script {
         require(systemConfig.l1StandardBridge() == address(0), "SYSCON-190");
         require(systemConfig.optimismPortal() == address(0), "SYSCON-200");
         require(systemConfig.optimismMintableERC20Factory() == address(0), "SYSCON-210");
-    }
-
-    function assertValidL1CrossDomainMessengerImpl(Input memory, Output memory _output) private view {
-        IL1CrossDomainMessenger messenger = _output.l1CrossDomainMessengerImpl;
-
-        DeployUtils.assertInitialized({ _contractAddress: address(messenger), _isProxy: false, _slot: 0, _offset: 20 });
-
-        require(address(messenger.OTHER_MESSENGER()) == address(0), "L1xDM-10");
-        require(address(messenger.otherMessenger()) == address(0), "L1xDM-20");
-        require(address(messenger.PORTAL()) == address(0), "L1xDM-30");
-        require(address(messenger.portal()) == address(0), "L1xDM-40");
-        require(address(messenger.systemConfig()) == address(0), "L1xDM-50");
-
-        bytes32 xdmSenderSlot = vm.load(address(messenger), bytes32(uint256(204)));
-        require(address(uint160(uint256(xdmSenderSlot))) == address(0), "L1xDM-60");
     }
 
     function assertValidL1ERC721BridgeImpl(Input memory, Output memory _output) private view {

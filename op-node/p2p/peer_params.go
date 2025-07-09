@@ -5,7 +5,6 @@ import (
 	"math"
 	"time"
 
-	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	pubsub "github.com/libp2p/go-libp2p-pubsub"
 	"github.com/libp2p/go-libp2p/core/peer"
 )
@@ -32,8 +31,8 @@ func ScoreDecay(duration time.Duration, slot time.Duration) float64 {
 // See [PeerScoreParams] for detailed documentation.
 //
 // [PeerScoreParams]: https://pkg.go.dev/github.com/libp2p/go-libp2p-pubsub@v0.8.1#PeerScoreParams
-func LightPeerScoreParams(cfg *rollup.Config) pubsub.PeerScoreParams {
-	slot := time.Duration(cfg.BlockTime) * time.Second
+func LightPeerScoreParams(blockTime uint64) pubsub.PeerScoreParams {
+	slot := time.Duration(blockTime) * time.Second
 	if slot == 0 {
 		slot = 2 * time.Second
 	}
@@ -65,12 +64,12 @@ func LightPeerScoreParams(cfg *rollup.Config) pubsub.PeerScoreParams {
 	}
 }
 
-func GetScoringParams(name string, cfg *rollup.Config) (*ScoringParams, error) {
+func GetScoringParams(name string, blockTime uint64) (*ScoringParams, error) {
 	switch name {
 	case "light":
 		return &ScoringParams{
-			PeerScoring:        LightPeerScoreParams(cfg),
-			ApplicationScoring: LightApplicationScoreParams(cfg),
+			PeerScoring:        LightPeerScoreParams(blockTime),
+			ApplicationScoring: LightApplicationScoreParams(blockTime),
 		}, nil
 	case "none":
 		return nil, nil

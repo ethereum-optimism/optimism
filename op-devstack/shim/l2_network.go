@@ -40,7 +40,9 @@ type presetL2Network struct {
 	els locks.RWMap[stack.L2ELNodeID, stack.L2ELNode]
 	cls locks.RWMap[stack.L2CLNodeID, stack.L2CLNode]
 
-	conductors locks.RWMap[stack.ConductorID, stack.Conductor]
+	conductors  locks.RWMap[stack.ConductorID, stack.Conductor]
+	fbBuilders  locks.RWMap[stack.FlashblocksBuilderID, stack.FlashblocksBuilderNode]
+	fbWsProxies locks.RWMap[stack.FlashblocksWebsocketProxyID, stack.FlashblocksWebsocketProxy]
 }
 
 var _ stack.L2Network = (*presetL2Network)(nil)
@@ -120,6 +122,17 @@ func (p *presetL2Network) AddConductor(v stack.Conductor) {
 	p.require().True(p.conductors.SetIfMissing(id, v), "conductor %s must not already exist", id)
 }
 
+func (p *presetL2Network) FlashblocksBuilder(m stack.FlashblocksBuilderMatcher) stack.FlashblocksBuilderNode {
+	v, ok := findMatch(m, p.fbBuilders.Get, p.FlashblocksBuilders)
+	p.require().True(ok, "must find flashblocks builder %s", m)
+	return v
+}
+
+func (p *presetL2Network) AddFlashblocksBuilder(v stack.FlashblocksBuilderNode) {
+	id := v.ID()
+	p.require().True(p.fbBuilders.SetIfMissing(id, v), "flashblocks builder %s must not already exist", id)
+}
+
 func (p *presetL2Network) L2Proposer(m stack.L2ProposerMatcher) stack.L2Proposer {
 	v, ok := findMatch(m, p.proposers.Get, p.L2Proposers)
 	p.require().True(ok, "must find L2 proposer %s", m)
@@ -130,6 +143,12 @@ func (p *presetL2Network) AddL2Proposer(v stack.L2Proposer) {
 	id := v.ID()
 	p.require().Equal(p.chainID, id.ChainID(), "l2 proposer %s must be on chain %s", id, p.chainID)
 	p.require().True(p.proposers.SetIfMissing(id, v), "l2 proposer %s must not already exist", id)
+}
+
+func (p *presetL2Network) AddFlashblocksWebsocketProxy(v stack.FlashblocksWebsocketProxy) {
+	id := v.ID()
+	p.require().Equal(p.chainID, id.ChainID(), "flashblocks websocket proxy %s must be on chain %s", id, p.chainID)
+	p.require().True(p.fbWsProxies.SetIfMissing(id, v), "flashblocks websocket proxy %s must not already exist", id)
 }
 
 func (p *presetL2Network) L2Challenger(m stack.L2ChallengerMatcher) stack.L2Challenger {
@@ -184,6 +203,14 @@ func (p *presetL2Network) L2Proposers() []stack.L2Proposer {
 	return stack.SortL2Proposers(p.proposers.Values())
 }
 
+func (p *presetL2Network) FlashblocksWebsocketProxies() []stack.FlashblocksWebsocketProxy {
+	return stack.SortFlashblocksWebsocketProxies(p.fbWsProxies.Values())
+}
+
+func (p *presetL2Network) FlashblocksWebsocketProxyIDs() []stack.FlashblocksWebsocketProxyID {
+	return stack.SortFlashblocksWebsocketProxyIDs(p.fbWsProxies.Keys())
+}
+
 func (p *presetL2Network) L2ChallengerIDs() []stack.L2ChallengerID {
 	return stack.SortL2ChallengerIDs(p.challengers.Keys())
 }
@@ -196,6 +223,10 @@ func (p *presetL2Network) Conductors() []stack.Conductor {
 	output := stack.SortConductors(p.conductors.Values())
 	p.require().NotEmpty(output, "l2 chain %s must have at least one conductor", p.ID())
 	return output
+}
+
+func (p *presetL2Network) FlashblocksBuilders() []stack.FlashblocksBuilderNode {
+	return stack.SortFlashblocksBuilders(p.fbBuilders.Values())
 }
 
 func (p *presetL2Network) L2CLNodeIDs() []stack.L2CLNodeID {

@@ -1,6 +1,8 @@
 package shim
 
 import (
+	"time"
+
 	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum-optimism/optimism/op-devstack/stack"
@@ -12,8 +14,9 @@ import (
 
 type ELNodeConfig struct {
 	CommonConfig
-	Client  client.RPC
-	ChainID eth.ChainID
+	Client             client.RPC
+	ChainID            eth.ChainID
+	TransactionTimeout time.Duration
 }
 
 type rpcELNode struct {
@@ -22,6 +25,7 @@ type rpcELNode struct {
 	client    client.RPC
 	ethClient *sources.EthClient
 	chainID   eth.ChainID
+	txTimeout time.Duration
 }
 
 var _ stack.ELNode = (*rpcELNode)(nil)
@@ -31,11 +35,16 @@ func newRpcELNode(cfg ELNodeConfig) rpcELNode {
 	ethCl, err := sources.NewEthClient(cfg.Client, cfg.T.Logger(), nil, sources.DefaultEthClientConfig(10))
 	require.NoError(cfg.T, err)
 
+	if cfg.TransactionTimeout == 0 {
+		cfg.TransactionTimeout = 30 * time.Second
+	}
+
 	return rpcELNode{
 		commonImpl: newCommon(cfg.CommonConfig),
 		client:     cfg.Client,
 		ethClient:  ethCl,
 		chainID:    cfg.ChainID,
+		txTimeout:  cfg.TransactionTimeout,
 	}
 }
 
@@ -45,4 +54,8 @@ func (r *rpcELNode) ChainID() eth.ChainID {
 
 func (r *rpcELNode) EthClient() apis.EthClient {
 	return r.ethClient
+}
+
+func (r *rpcELNode) TransactionTimeout() time.Duration {
+	return r.txTimeout
 }

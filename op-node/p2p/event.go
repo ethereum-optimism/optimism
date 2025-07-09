@@ -7,8 +7,8 @@ import (
 
 	"github.com/ethereum/go-ethereum/log"
 
-	"github.com/ethereum-optimism/optimism/op-node/rollup/event"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/event"
 )
 
 type ReceivedBlockEvent struct {
@@ -47,6 +47,6 @@ func (g *BlockReceiver) OnUnsafeL2Payload(ctx context.Context, from peer.ID, msg
 		"id", msg.ExecutionPayload.ID(),
 		"peer", from, "txs", len(msg.ExecutionPayload.Transactions))
 	g.metrics.RecordReceivedUnsafePayload(msg)
-	g.emitter.Emit(ReceivedBlockEvent{From: from, Envelope: msg})
+	g.emitter.Emit(ctx, ReceivedBlockEvent{From: from, Envelope: msg})
 	return nil
 }

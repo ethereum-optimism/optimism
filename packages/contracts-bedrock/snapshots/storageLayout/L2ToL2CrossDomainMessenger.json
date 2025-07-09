@@ -18,6 +18,6 @@
     "label": "sentMessages",
     "offset": 0,
     "slot": "2",
-    "type": "mapping(bytes32 => bool)"
+    "type": "mapping(uint256 => bytes32)"
   }
 ]

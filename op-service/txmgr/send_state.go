@@ -31,8 +31,8 @@ type SendState struct {
 	txInMempoolDeadline       time.Time // deadline to abort at if no transactions are in the mempool
 
 	// Counts of the different types of errors
-	successFullPublishCount uint64 // nil error => tx made it to the mempool
-	nonceTooLowCount        uint64 // nonce too low error
+	successfulPublishCount uint64 // nil error => tx made it to the mempool
+	nonceTooLowCount       uint64 // nonce too low error
 
 	// Whether any attempt to send the tx resulted in ErrAlreadyReserved
 	alreadyReserved bool
@@ -71,8 +71,8 @@ func (s *SendState) ProcessSendError(err error) {
 
 	// Record the type of error
 	switch {
-	case err == nil:
-		s.successFullPublishCount++
+	case err == nil || errStringMatch(err, txpool.ErrAlreadyKnown):
+		s.successfulPublishCount++
 	case errStringMatch(err, core.ErrNonceTooLow):
 		s.nonceTooLowCount++
 	case errStringMatch(err, txpool.ErrAlreadyReserved):
@@ -123,11 +123,11 @@ func (s *SendState) CriticalError() error {
 	case s.nonceTooLowCount >= s.safeAbortNonceTooLowCount:
 		// we have exceeded the nonce too low count
 		return core.ErrNonceTooLow
-	case s.successFullPublishCount == 0 && s.nonceTooLowCount > 0:
+	case s.successfulPublishCount == 0 && s.nonceTooLowCount > 0:
 		// A nonce too low error before successfully publishing any transaction means the tx will
 		// need a different nonce, which we can force by returning error.
 		return core.ErrNonceTooLow
-	case s.successFullPublishCount == 0 && s.now().After(s.txInMempoolDeadline):
+	case s.successfulPublishCount == 0 && s.now().After(s.txInMempoolDeadline):
 		// unable to get the tx into the mempool in the allotted time
 		return ErrMempoolDeadlineExpired
 	case s.alreadyReserved:

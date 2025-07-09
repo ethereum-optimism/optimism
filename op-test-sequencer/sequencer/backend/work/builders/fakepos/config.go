@@ -1,13 +1,10 @@
 package fakepos
 
-import (
-	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/fakebeacon"
-	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/geth"
-)
+import "github.com/ethereum/go-ethereum/eth"
 
 type Config struct {
-	Geth              *geth.GethInstance
-	Beacon            *fakebeacon.FakeBeacon
+	GethBackend       *eth.Ethereum
+	Beacon            Beacon
 	FinalizedDistance uint64
 	SafeDistance      uint64
 	BlockTime         uint64

@@ -4,10 +4,12 @@ import (
 	"os"
 	"path/filepath"
 	"sync"
+	"time"
 
 	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/devkeys"
+	"github.com/ethereum-optimism/optimism/op-devstack/compat"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/stack"
 	"github.com/ethereum-optimism/optimism/op-service/clock"
@@ -27,7 +29,10 @@ type Orchestrator struct {
 	timeTravelClock *clock.AdvancingClock
 
 	// options
-	batcherOptions []BatcherOption
+	batcherOptions          []BatcherOption
+	proposerOptions         []ProposerOption
+	l2CLOptions             []L2CLOption
+	deployerPipelineOptions []DeployerPipelineOption
 
 	superchains    locks.RWMap[stack.SuperchainID, *Superchain]
 	clusters       locks.RWMap[stack.ClusterID, *Cluster]
@@ -56,6 +61,10 @@ type Orchestrator struct {
 	jwtPathOnce sync.Once
 }
 
+func (o *Orchestrator) Type() compat.Type {
+	return compat.SysGo
+}
+
 func (o *Orchestrator) ClusterForL2(chainID eth.ChainID) (*Cluster, bool) {
 	for _, cluster := range o.clusters.Values() {
 		if cluster.DepSet() != nil && cluster.DepSet().HasChain(chainID) {
@@ -67,6 +76,12 @@ func (o *Orchestrator) ClusterForL2(chainID eth.ChainID) (*Cluster, bool) {
 
 func (o *Orchestrator) ControlPlane() stack.ControlPlane {
 	return o.controlPlane
+}
+
+func (o *Orchestrator) EnableTimeTravel() {
+	if o.timeTravelClock == nil {
+		o.timeTravelClock = clock.NewAdvancingClock(100 * time.Millisecond)
+	}
 }
 
 var _ stack.Orchestrator = (*Orchestrator)(nil)
@@ -94,6 +109,12 @@ func (o *Orchestrator) writeDefaultJWT() (jwtPath string, secret [32]byte) {
 
 func (o *Orchestrator) Hydrate(sys stack.ExtensibleSystem) {
 	o.sysHook.PreHydrate(sys)
+	if o.timeTravelClock != nil {
+		ttSys, ok := sys.(stack.TimeTravelSystem)
+		if ok {
+			ttSys.SetTimeTravelClock(o.timeTravelClock)
+		}
+	}
 	o.superchains.Range(rangeHydrateFn[stack.SuperchainID, *Superchain](sys))
 	o.clusters.Range(rangeHydrateFn[stack.ClusterID, *Cluster](sys))
 	o.l1Nets.Range(rangeHydrateFn[eth.ChainID, *L1Network](sys))

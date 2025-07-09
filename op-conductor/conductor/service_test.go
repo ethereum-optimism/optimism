@@ -403,7 +403,7 @@ func (s *OpConductorTestSuite) TestScenario3() {
 	}
 	s.cons.EXPECT().LatestUnsafePayload().Return(mockPayload, nil).Times(1)
 	s.ctrl.EXPECT().LatestUnsafeBlock(mock.Anything).Return(mockBlockInfo, nil).Times(1)
-	s.ctrl.EXPECT().StartSequencer(mock.Anything, mock.Anything).Return(nil).Times(1)
+	s.ctrl.EXPECT().StartSequencer(mock.Anything, mockPayload.ExecutionPayload.BlockHash).Return(nil).Times(1)
 
 	// [follower, healthy, not sequencing]
 	s.False(s.conductor.leader.Load())
@@ -443,7 +443,7 @@ func (s *OpConductorTestSuite) TestScenario4() {
 	s.cons.EXPECT().LatestUnsafePayload().Return(mockPayload, nil).Times(1)
 	s.ctrl.EXPECT().LatestUnsafeBlock(mock.Anything).Return(mockBlockInfo, nil).Times(1)
 	s.ctrl.EXPECT().PostUnsafePayload(mock.Anything, mockPayload).Return(errors.New("simulated PostUnsafePayload failure")).Times(1)
-	s.ctrl.EXPECT().StartSequencer(mock.Anything, mockPayload.ExecutionPayload.BlockHash).Return(nil).Times(1)
+	s.ctrl.EXPECT().StartSequencer(mock.Anything, mockBlockInfo.InfoHash).Return(nil).Times(1)
 
 	s.updateLeaderStatusAndExecuteAction(true)
 
@@ -459,7 +459,7 @@ func (s *OpConductorTestSuite) TestScenario4() {
 	s.cons.EXPECT().LatestUnsafePayload().Return(mockPayload, nil).Times(1)
 	s.ctrl.EXPECT().LatestUnsafeBlock(mock.Anything).Return(mockBlockInfo, nil).Times(1)
 	s.ctrl.EXPECT().PostUnsafePayload(mock.Anything, mockPayload).Return(nil).Times(1)
-	s.ctrl.EXPECT().StartSequencer(mock.Anything, mockBlockInfo.InfoHash).Return(nil).Times(1)
+	s.ctrl.EXPECT().StartSequencer(mock.Anything, mockPayload.ExecutionPayload.BlockHash).Return(nil).Times(1)
 
 	s.executeAction()
 
@@ -995,6 +995,7 @@ func (s *OpConductorTestSuite) TestFlashblocksHandlerIntegration() {
 	defer testCancel()
 
 	serverConnected := make(chan struct{})
+	clientConnected := make(chan struct{})
 	messagesSent := make(chan struct{})
 
 	// Use sync.Once to prevent double-closing channels
@@ -1017,7 +1018,15 @@ func (s *OpConductorTestSuite) TestFlashblocksHandlerIntegration() {
 			close(serverConnected)
 		})
 
-		// Send test messages immediately and signal completion
+		// Wait for client to connect before sending messages
+		select {
+		case <-clientConnected:
+			// Client is connected, proceed with sending messages
+		case <-testCtx.Done():
+			return
+		}
+
+		// Send test messages and signal completion
 		messages := []string{"Hello", "World", "Test"}
 		for _, msg := range messages {
 			err := conn.Write(testCtx, websocket.MessageText, []byte(msg))
@@ -1058,12 +1067,13 @@ func (s *OpConductorTestSuite) TestFlashblocksHandlerIntegration() {
 	// Convert HTTP URL to WebSocket URL for rollup boost
 	rollupBoostWsURL := strings.Replace(rollupBoostServer.URL, "http", "ws", 1)
 
-	// Update the config to include the WebSocket URL and server port
-	s.cfg.RollupBoostWsURL = rollupBoostWsURL
-	s.cfg.WebsocketServerPort = port
+	// Create a copy of the config to avoid modifying the shared config object
+	testCfg := s.cfg
+	testCfg.RollupBoostWsURL = rollupBoostWsURL
+	testCfg.WebsocketServerPort = port
 
 	// Create a new conductor with the updated config
-	conductor, err := NewOpConductor(s.ctx, &s.cfg, s.log, s.metrics, s.version, s.ctrl, s.cons, s.hmon)
+	conductor, err := NewOpConductor(s.ctx, &testCfg, s.log, s.metrics, s.version, s.ctrl, s.cons, s.hmon)
 	s.NoError(err)
 
 	// Set up mock expectation for Leader() calls - the flashblocks handler checks leadership
@@ -1086,16 +1096,8 @@ func (s *OpConductorTestSuite) TestFlashblocksHandlerIntegration() {
 		s.Fail("Timeout waiting for rollup boost server connection")
 	}
 
-	// Wait for messages to be sent (event-driven)
-	select {
-	case <-messagesSent:
-		// Messages sent
-	case <-time.After(2 * time.Second):
-		s.Fail("Timeout waiting for messages to be sent")
-	}
-
-	// Connect to the WebSocket server using event-driven approach
-	wsURL := fmt.Sprintf("ws://localhost:%d/ws", s.cfg.WebsocketServerPort)
+	// Connect to the WebSocket server BEFORE messages are sent
+	wsURL := fmt.Sprintf("ws://localhost:%d/ws", testCfg.WebsocketServerPort)
 
 	// Create connection context
 	connCtx, connCancel := context.WithTimeout(testCtx, 3*time.Second)
@@ -1129,6 +1131,17 @@ func (s *OpConductorTestSuite) TestFlashblocksHandlerIntegration() {
 
 connected:
 	defer client.Close(websocket.StatusNormalClosure, "test complete")
+
+	// Signal that client is connected so rollup boost server can send messages
+	close(clientConnected)
+
+	// Wait for messages to be sent (event-driven)
+	select {
+	case <-messagesSent:
+		// Messages sent
+	case <-time.After(2 * time.Second):
+		s.Fail("Timeout waiting for messages to be sent")
+	}
 
 	// Wait for and verify we receive messages from rollup boost (event-driven)
 	expectedMessages := []string{"Hello", "World", "Test"}

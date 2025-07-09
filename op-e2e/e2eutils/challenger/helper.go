@@ -120,15 +120,24 @@ func handleOptError(t *testing.T, opt shared.Option) Option {
 	}
 }
 func WithCannon(t *testing.T, system System) Option {
-	return handleOptError(t, shared.WithCannon(system.RollupCfgs(), system.L2Geneses(), system.PrestateVariant()))
+	return func(c *config.Config) {
+		handleOptError(t, shared.WithCannonConfig(system.RollupCfgs(), system.L2Geneses(), system.PrestateVariant()))(c)
+		handleOptError(t, shared.WithCannonTraceType())(c)
+	}
 }
 
 func WithPermissioned(t *testing.T, system System) Option {
-	return handleOptError(t, shared.WithPermissioned(system.RollupCfgs(), system.L2Geneses(), system.PrestateVariant()))
+	return func(c *config.Config) {
+		handleOptError(t, shared.WithCannonConfig(system.RollupCfgs(), system.L2Geneses(), system.PrestateVariant()))(c)
+		handleOptError(t, shared.WithPermissionedTraceType())(c)
+	}
 }
 
 func WithSuperCannon(t *testing.T, system System) Option {
-	return handleOptError(t, shared.WithSuperCannon(system.RollupCfgs(), system.L2Geneses(), system.PrestateVariant()))
+	return func(c *config.Config) {
+		handleOptError(t, shared.WithCannonConfig(system.RollupCfgs(), system.L2Geneses(), system.PrestateVariant()))(c)
+		handleOptError(t, shared.WithSuperCannonTraceType())(c)
+	}
 }
 
 func WithAlphabet() Option {
@@ -193,15 +202,15 @@ func NewChallengerConfig(t *testing.T, sys EndpointProvider, l2NodeName string, 
 
 	if cfg.Cannon.VmBin != "" {
 		_, err := os.Stat(cfg.Cannon.VmBin)
-		require.NoError(t, err, "cannon should be built. Make sure you've run make cannon-prestate")
+		require.NoError(t, err, "cannon should be built. Make sure you've run make cannon-prestates")
 	}
 	if cfg.Cannon.Server != "" {
 		_, err := os.Stat(cfg.Cannon.Server)
-		require.NoError(t, err, "op-program should be built. Make sure you've run make cannon-prestate")
+		require.NoError(t, err, "op-program should be built. Make sure you've run make cannon-prestates")
 	}
 	if cfg.CannonAbsolutePreState != "" {
 		_, err := os.Stat(cfg.CannonAbsolutePreState)
-		require.NoError(t, err, "cannon pre-state should be built. Make sure you've run make cannon-prestate")
+		require.NoError(t, err, "cannon pre-state should be built. Make sure you've run make cannon-prestates")
 	}
 	if cfg.PollInterval == 0 {
 		cfg.PollInterval = time.Second

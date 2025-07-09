@@ -93,6 +93,10 @@ variable "OP_FAUCET_VERSION" {
   default = "${GIT_VERSION}"
 }
 
+variable "OP_INTEROP_MON_VERSION" {
+  default = "${GIT_VERSION}"
+}
+
 
 target "op-node" {
   dockerfile = "ops/docker/op-stack-go/Dockerfile"
@@ -286,4 +290,17 @@ target "op-faucet" {
   target = "op-faucet-target"
   platforms = split(",", PLATFORMS)
   tags = [for tag in split(",", IMAGE_TAGS) : "${REGISTRY}/${REPOSITORY}/op-faucet:${tag}"]
+}
+
+target "op-interop-mon" {
+  dockerfile = "ops/docker/op-stack-go/Dockerfile"
+  context = "."
+  args = {
+    GIT_COMMIT = "${GIT_COMMIT}"
+    GIT_DATE = "${GIT_DATE}"
+    OP_INTEROP_MON_VERSION = "${OP_INTEROP_MON_VERSION}"
+  }
+  target = "op-interop-mon-target"
+  platforms = split(",", PLATFORMS)
+  tags = [for tag in split(",", IMAGE_TAGS) : "${REGISTRY}/${REPOSITORY}/op-interop-mon:${tag}"]
 }

@@ -1,16 +1,16 @@
 package node
 
 import (
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/depset"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/rpc"
 
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
 	oprpc "github.com/ethereum-optimism/optimism/op-service/rpc"
+	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/depset"
 )
 
-func newRPCServer(rpcCfg *RPCConfig, rollupCfg *rollup.Config, depSet depset.DependencySet, l2Client l2EthClient, dr driverClient,
+func newRPCServer(rpcCfg *oprpc.CLIConfig, rollupCfg *rollup.Config, depSet depset.DependencySet, l2Client l2EthClient, dr driverClient,
 	safeDB SafeDBReader, log log.Logger, metrics opmetrics.RPCMetricer, appVersion string) *oprpc.Server {
 	server := oprpc.NewServer(rpcCfg.ListenAddr, rpcCfg.ListenPort, appVersion,
 		oprpc.WithLogger(log),

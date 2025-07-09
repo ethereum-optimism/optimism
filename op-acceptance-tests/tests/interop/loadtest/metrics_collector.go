@@ -5,9 +5,12 @@ import (
 	"fmt"
 	"image/color"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"time"
 
+	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/txinclude"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"gonum.org/v1/plot"
@@ -18,42 +21,62 @@ import (
 const (
 	subsystemName = "interop_loadtest"
 
-	inFlightMessagesName       = "inflight_messages"
-	targetMessagesPerBlockName = "target_messages_per_block"
-	messageStatusCountName     = "message_status_count"
-	messageLatencyName         = "message_latency"
+	targetMessagesPerBlockName  = "target_messages_per_block"
+	messageLatencyName          = "message_latency"
+	txSubmissionStatusCountName = "tx_submission_status_count"
 )
 
 var (
-	inFlightMessages = promauto.NewGauge(prometheus.GaugeOpts{
-		Name:      inFlightMessagesName,
-		Subsystem: subsystemName,
-		Help:      "Number of messages currently in flight between L2 chains",
-	})
-
-	targetMessagesPerBlock = promauto.NewGauge(prometheus.GaugeOpts{
+	targetMessagesPerBlock = promauto.NewGaugeVec(prometheus.GaugeOpts{
 		Name:      targetMessagesPerBlockName,
 		Subsystem: subsystemName,
-		Help:      "Current target messages per block from AIMD scheduler",
-	})
-
-	messageStatusCount = promauto.NewCounterVec(prometheus.CounterOpts{
-		Name:      messageStatusCountName,
-		Subsystem: subsystemName,
-		Help:      "Total number of messages by status (success, init_failed, exec_failed)",
-	}, []string{"status"})
+		Help:      "Current target messages per block per chain from the AIMD scheduler",
+	}, []string{"chain"})
 
 	messageLatency = promauto.NewHistogramVec(prometheus.HistogramOpts{
 		Name:      messageLatencyName,
 		Subsystem: subsystemName,
-		Help:      "Message latencies by stage (init, exec, e2e)",
-	}, []string{"stage"})
+		Help:      "Message latencies by chain and stage (init, exec, e2e)",
+	}, []string{"chain", "stage"})
+
+	txSubmissionStatusCount = promauto.NewCounterVec(prometheus.CounterOpts{
+		Name:      txSubmissionStatusCountName,
+		Subsystem: subsystemName,
+		Help:      "Total number of transaction submission attempts by chain and status",
+	}, []string{"chain", "status"})
 )
 
 var (
-	e2eColor  = color.RGBA{R: 0, G: 200, B: 0, A: 255} // Green
-	initColor = color.RGBA{R: 200, G: 0, B: 0, A: 255} // Red
-	execColor = color.RGBA{R: 0, G: 0, B: 200, A: 255} // Blue
+	colors = map[string]color.RGBA{
+		"VividRed":   {R: 242, G: 36, B: 36, A: 255},
+		"OrangeRed":  {R: 242, G: 98, B: 36, A: 255},
+		"Goldenrod":  {R: 242, G: 160, B: 36, A: 255},
+		"YellowGold": {R: 242, G: 222, B: 36, A: 255},
+		"Chartreuse": {R: 201, G: 242, B: 36, A: 255},
+		"Lime":       {R: 139, G: 242, B: 36, A: 255},
+		"Spring":     {R: 78, G: 242, B: 36, A: 255},
+		"Emerald":    {R: 36, G: 242, B: 57, A: 255},
+		"Aqua":       {R: 36, G: 242, B: 119, A: 255},
+		"Turquoise":  {R: 36, G: 242, B: 180, A: 255},
+		"Cyan":       {R: 36, G: 242, B: 242, A: 255},
+		"SkyBlue":    {R: 36, G: 180, B: 242, A: 255},
+		"Azure":      {R: 36, G: 119, B: 242, A: 255},
+		"RoyalBlue":  {R: 36, G: 57, B: 242, A: 255},
+		"Indigo":     {R: 78, G: 36, B: 242, A: 255},
+		"Violet":     {R: 139, G: 36, B: 242, A: 255},
+		"Purple":     {R: 201, G: 36, B: 242, A: 255},
+		"Magenta":    {R: 242, G: 36, B: 222, A: 255},
+		"Fuchsia":    {R: 242, G: 36, B: 160, A: 255},
+		"Crimson":    {R: 242, G: 36, B: 98, A: 255},
+	}
+
+	// colorOrder is a slice of color names that maximizes contrast between consecutive colors by
+	// jumping across the color wheel.
+	colorOrder = []string{
+		"VividRed", "Cyan", "YellowGold", "RoyalBlue", "Lime", "Magenta", "OrangeRed", "Turquoise",
+		"Purple", "Spring", "Crimson", "SkyBlue", "Chartreuse", "Indigo", "Goldenrod", "Aqua",
+		"Fuchsia", "Emerald", "Violet", "Azure",
+	}
 )
 
 // MetricSample represents a single metric sample at a point in time
@@ -65,6 +88,21 @@ type MetricSample struct {
 }
 
 type MetricSamples []MetricSample
+
+func (samples MetricSamples) UniqueLabels(i int) []string {
+	var labels []string
+Outer:
+	for _, sample := range samples {
+		l := sample.Labels[i]
+		for _, label := range labels {
+			if l == label {
+				continue Outer
+			}
+		}
+		labels = append(labels, l)
+	}
+	return labels
+}
 
 func (samples MetricSamples) WithLabels(labels ...string) MetricSamples {
 	newSamples := make([]MetricSample, 0)
@@ -133,7 +171,7 @@ Outer:
 	return true
 }
 
-// MetricsCollector collects metrics samples over time
+// MetricsCollector collects metrics samples over time.
 type MetricsCollector struct {
 	samples   map[string]MetricSamples
 	blockTime time.Duration
@@ -148,7 +186,7 @@ func NewMetricsCollector(blockTime time.Duration) *MetricsCollector {
 	}
 }
 
-// Start begins collecting metrics samples
+// Start begins collecting metrics samples.
 func (mc *MetricsCollector) Start(ctx context.Context) error {
 	mc.startTime = time.Now()
 	ticker := time.NewTicker(mc.blockTime)
@@ -194,38 +232,21 @@ func (mc *MetricsCollector) Start(ctx context.Context) error {
 	}
 }
 
-// SaveGraph generates and saves graphs of collected metrics over time
-func (mc *MetricsCollector) SaveGraph(dir string) error {
-	if err := mc.saveInFlightMessagesGraph(dir); err != nil {
-		return fmt.Errorf("save in-flight messages graph: %w", err)
-	}
+// SaveGraphs generates and saves graphs of collected metrics over time.
+func (mc *MetricsCollector) SaveGraphs(dir string) error {
 	if err := mc.saveTargetMessagesPerBlockGraph(dir); err != nil {
 		return fmt.Errorf("save target messages per block graph: %w", err)
 	}
-	if err := mc.saveMessageStatusCountGraph(dir); err != nil {
-		return fmt.Errorf("save message status count graph: %w", err)
+	if err := mc.saveMessageCountGraph(dir); err != nil {
+		return fmt.Errorf("save message count graph: %w", err)
 	}
 	if err := mc.saveMessageLatencyGraph(dir); err != nil {
 		return fmt.Errorf("save message latency graph: %w", err)
 	}
-	return nil
-}
-
-func (mc *MetricsCollector) saveInFlightMessagesGraph(dir string) error {
-	p := plot.New()
-	p.Title.Text = "In-Flight Messages"
-	p.X.Label.Text = "Time (seconds)"
-	p.Y.Label.Text = "Messages"
-
-	line, err := plotter.NewLine(mc.samples[inFlightMessagesName].ToPoints(mc.startTime))
-	if err != nil {
-		return fmt.Errorf("create line plot: %w", err)
+	if err := mc.saveTxSubmissionStatusCountGraphs(dir); err != nil {
+		return fmt.Errorf("save tx submission status count graphs: %w", err)
 	}
-	p.Add(line)
-
-	p.Add(plotter.NewGrid())
-
-	return savePlot(p, dir, inFlightMessagesName)
+	return nil
 }
 
 func (mc *MetricsCollector) saveTargetMessagesPerBlockGraph(dir string) error {
@@ -234,92 +255,74 @@ func (mc *MetricsCollector) saveTargetMessagesPerBlockGraph(dir string) error {
 	p.X.Label.Text = "Time (seconds)"
 	p.Y.Label.Text = "Target"
 
-	line, err := plotter.NewLine(mc.samples[targetMessagesPerBlockName].ToPoints(mc.startTime))
-	if err != nil {
-		return fmt.Errorf("create line plot: %w", err)
+	samples := mc.samples[targetMessagesPerBlockName]
+	for i, chain := range samples.UniqueLabels(0) {
+		chainSamples := samples.WithLabels(chain)
+		line, err := addLine(p, chainSamples.ToPoints(mc.startTime), colors[colorOrder[i%len(colorOrder)]])
+		if err != nil {
+			return err
+		}
+		p.Legend.Add(chain, line)
 	}
-	p.Add(line)
 
 	p.Add(plotter.NewGrid())
 
 	return savePlot(p, dir, targetMessagesPerBlockName)
 }
 
-func (mc *MetricsCollector) saveMessageStatusCountGraph(dir string) error {
+func (mc *MetricsCollector) saveMessageCountGraph(dir string) error {
 	p := plot.New()
-	p.Title.Text = "Messages by Status"
+	p.Title.Text = "Messages per Block Time"
 	p.X.Label.Text = "Time (seconds)"
 	p.Y.Label.Text = "Messages"
 
-	samples := mc.samples[messageStatusCountName]
+	samples := mc.samples[messageLatencyName]
 
-	successLine, err := plotter.NewLine(samples.WithLabels("success").ToValuePerIntervalPoints(mc.startTime))
-	if err != nil {
-		return fmt.Errorf("create success line: %w", err)
+	latencySamples := samples.WithLabels("exec")
+	countSamples := make(MetricSamples, 0, len(latencySamples))
+	for _, latencySample := range latencySamples {
+		countSamples = append(countSamples, MetricSample{
+			Timestamp: latencySample.Timestamp,
+			Value:     float64(latencySample.Count),
+			Labels:    latencySample.Labels,
+		})
 	}
-	successLine.Color = color.RGBA{R: 0, G: 200, B: 0, A: 255} // Green
-	successLine.Width = vg.Points(2)
-	p.Add(successLine)
-	p.Legend.Add("Success", successLine)
 
-	initFailedLine, err := plotter.NewLine(samples.WithLabels("init_failed").ToValuePerIntervalPoints(mc.startTime))
-	if err != nil {
-		return fmt.Errorf("create init_failed line: %w", err)
+	for i, chain := range countSamples.UniqueLabels(0) {
+		chainSamples := countSamples.WithLabels(chain)
+		line, err := addLine(p, chainSamples.ToValuePerIntervalPoints(mc.startTime), colors[colorOrder[i%len(colorOrder)]])
+		if err != nil {
+			return fmt.Errorf("create line plot: %w", err)
+		}
+		p.Legend.Add(chain, line)
 	}
-	initFailedLine.Color = color.RGBA{R: 200, G: 0, B: 0, A: 255} // Red
-	initFailedLine.Width = vg.Points(2)
-	p.Add(initFailedLine)
-	p.Legend.Add("Init Failed", initFailedLine)
-
-	execFailedLine, err := plotter.NewLine(samples.WithLabels("exec_failed").ToValuePerIntervalPoints(mc.startTime))
-	if err != nil {
-		return fmt.Errorf("create exec_failed line: %w", err)
-	}
-	execFailedLine.Color = color.RGBA{R: 0, G: 0, B: 200, A: 255} // Blue
-	execFailedLine.Width = vg.Points(2)
-	p.Add(execFailedLine)
-	p.Legend.Add("Exec Failed", execFailedLine)
 
 	p.Add(plotter.NewGrid())
-	p.Legend.Top = true
 
-	return savePlot(p, dir, messageStatusCountName)
+	return savePlot(p, dir, "message_count")
 }
 
 func (mc *MetricsCollector) saveMessageLatencyGraph(dir string) error {
 	p := plot.New()
-	p.Title.Text = "Message Latency by Stage"
+	p.Title.Text = "Message Latency by Chain and Stage"
 	p.X.Label.Text = "Time (seconds)"
-	p.Y.Label.Text = "Latency"
+	p.Y.Label.Text = "Latency (seconds)"
 
 	samples := mc.samples[messageLatencyName]
-
-	e2eLine, err := plotter.NewLine(samples.WithLabels("e2e").ToHistogramPoints(mc.startTime))
-	if err != nil {
-		return fmt.Errorf("create success line: %w", err)
+	chains := samples.UniqueLabels(0)
+	var lineIndex int
+	for _, chain := range chains {
+		chainSamples := samples.WithLabels(chain)
+		for _, stage := range chainSamples.UniqueLabels(1) {
+			points := chainSamples.WithLabels(stage).ToHistogramPoints(mc.startTime)
+			line, err := addLine(p, points, colors[colorOrder[lineIndex%len(colorOrder)]])
+			if err != nil {
+				return fmt.Errorf("%s: %w", stage, err)
+			}
+			p.Legend.Add(chain+"_"+stage, line)
+			lineIndex++
+		}
 	}
-	e2eLine.Color = e2eColor
-	e2eLine.Width = vg.Points(2)
-	p.Add(e2eLine)
-	p.Legend.Add("E2E", e2eLine)
-
-	initLine, err := plotter.NewLine(samples.WithLabels("init").ToHistogramPoints(mc.startTime))
-	if err != nil {
-		return fmt.Errorf("create init_failed line: %w", err)
-	}
-	initLine.Color = initColor
-	initLine.Width = vg.Points(2)
-	p.Add(initLine)
-	p.Legend.Add("Init", initLine)
-
-	execLine, err := plotter.NewLine(samples.WithLabels("exec").ToHistogramPoints(mc.startTime))
-	if err != nil {
-		return fmt.Errorf("create exec_failed line: %w", err)
-	}
-	execLine.Color = execColor
-	execLine.Width = vg.Points(2)
-	p.Add(execLine)
-	p.Legend.Add("Exec", execLine)
 
 	p.Add(plotter.NewGrid())
 	p.Legend.Top = true
@@ -327,10 +330,90 @@ func (mc *MetricsCollector) saveMessageLatencyGraph(dir string) error {
 	return savePlot(p, dir, messageLatencyName)
 }
 
+func (mc *MetricsCollector) saveTxSubmissionStatusCountGraphs(dir string) error {
+	samples := mc.samples[txSubmissionStatusCountName]
+	for _, chain := range samples.UniqueLabels(0) {
+		p := plot.New()
+		p.Title.Text = "Transaction Submission Count by Status on Chain " + chain
+		p.X.Label.Text = "Time (seconds)"
+		p.Y.Label.Text = "Count"
+
+		chainSamples := samples.WithLabels(chain)
+		for i, status := range chainSamples.UniqueLabels(1) {
+			statusPoints := chainSamples.WithLabels(status).ToValuePerIntervalPoints(mc.startTime)
+			// Prometheus's Gatherer interface guarantees the statuses are sorted, so we will
+			// always assign them the same colors.
+			line, err := addLine(p, statusPoints, colors[colorOrder[i%len(colorOrder)]])
+			if err != nil {
+				return fmt.Errorf("%s: %w", status, err)
+			}
+			p.Legend.Add(status, line)
+		}
+
+		p.Add(plotter.NewGrid())
+		p.Legend.Top = true
+
+		if err := savePlot(p, dir, txSubmissionStatusCountName+"_"+chain); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func addLine(p *plot.Plot, points plotter.XYs, c color.Color) (*plotter.Line, error) {
+	line, err := plotter.NewLine(points)
+	if err != nil {
+		return nil, fmt.Errorf("create line: %w", err)
+	}
+	line.Color = c
+	line.Width = vg.Points(2)
+	p.Add(line)
+	return line, nil
+}
+
 func savePlot(p *plot.Plot, dir, name string) error {
-	filename := filepath.Join(dir, fmt.Sprintf("%s_%s.png", name, time.Now().Format("20060102_150405")))
+	filename := filepath.Join(dir, name+".png")
 	if err := p.Save(10*vg.Inch, 6*vg.Inch, filename); err != nil {
 		return fmt.Errorf("save plot: %w", err)
 	}
 	return nil
+}
+
+type aimdObserver eth.ChainID
+
+var _ AIMDObserver = aimdObserver{}
+
+func (a aimdObserver) UpdateRPS(rps uint64) {
+	targetMessagesPerBlock.WithLabelValues(eth.ChainID(a).String()).Set(float64(rps))
+}
+
+type ResubmitterObserver eth.ChainID
+
+var _ txinclude.ResubmitterObserver = (*ResubmitterObserver)(nil)
+
+func (m ResubmitterObserver) SubmissionError(err error) {
+	var status string
+	if err == nil {
+		status = "success"
+	} else {
+		status = sanitizePrometheusLabel(err.Error())
+	}
+	txSubmissionStatusCount.WithLabelValues(eth.ChainID(m).String(), status).Add(1)
+}
+
+var (
+	notAllowedRegex = regexp.MustCompile(`[^a-zA-Z0-9_]+`)
+	startingRegex   = regexp.MustCompile(`^[a-zA-Z_]`)
+)
+
+// sanitizePrometheusLabel transforms a string into a valid Prometheus label.
+func sanitizePrometheusLabel(s string) string {
+	// Replace any non-alphanumeric/underscore characters with underscores.
+	sanitized := notAllowedRegex.ReplaceAllString(s, "_")
+	// Ensure it starts with letter or underscore.
+	if len(sanitized) > 0 && !startingRegex.MatchString(sanitized) {
+		sanitized = "_" + sanitized
+	}
+	// Remove trailing underscores for cleanliness.
+	return strings.TrimRight(sanitized, "_")
 }

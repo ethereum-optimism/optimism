@@ -9,7 +9,7 @@ import { console2 as console } from "forge-std/console2.sol";
 import { CommonTest } from "test/setup/CommonTest.sol";
 import { NextImpl } from "test/mocks/NextImpl.sol";
 import { EIP1967Helper } from "test/mocks/EIP1967Helper.sol";
-import { DisputeGameFactory_Init } from "test/dispute/DisputeGameFactory.t.sol";
+import { DisputeGameFactory_TestInit } from "test/dispute/DisputeGameFactory.t.sol";
 
 // Scripts
 import { ForgeArtifacts, StorageSlot } from "scripts/libraries/ForgeArtifacts.sol";
@@ -32,7 +32,7 @@ import { IAnchorStateRegistry } from "interfaces/dispute/IAnchorStateRegistry.so
 import { IETHLockbox } from "interfaces/L1/IETHLockbox.sol";
 import { IProxyAdminOwnedBase } from "interfaces/L1/IProxyAdminOwnedBase.sol";
 
-contract OptimismPortal2_TestInit is DisputeGameFactory_Init {
+contract OptimismPortal2_TestInit is DisputeGameFactory_TestInit {
     address depositor;
 
     Types.WithdrawalTransaction _defaultTx;
@@ -488,9 +488,9 @@ contract OptimismPortal2_MigrateLiquidity_Test is CommonTest {
     }
 }
 
-/// @title OptimismPortal2_MigrateToSuperRoot_Test
+/// @title OptimismPortal2_MigrateToSuperRoots_Test
 /// @notice Test contract for OptimismPortal2 `migrateToSuperRoots` function.
-contract OptimismPortal2_MigrateToSuperRoot_Test is OptimismPortal2_TestInit {
+contract OptimismPortal2_MigrateToSuperRoots_Test is OptimismPortal2_TestInit {
     /// @notice Tests that `migrateToSuperRoots` reverts if the caller is not the proxy admin
     ///         owner.
     function testFuzz_migrateToSuperRoots_notProxyAdminOwner_reverts(address _caller) external {

@@ -20,9 +20,10 @@ const (
 type L2ELVendor string
 
 const (
-	OpReth L2ELVendor = "op-reth"
-	OpGeth L2ELVendor = "op-geth"
-	Proxyd L2ELVendor = "proxyd"
+	OpReth                    L2ELVendor = "op-reth"
+	OpGeth                    L2ELVendor = "op-geth"
+	Proxyd                    L2ELVendor = "proxyd"
+	FlashblocksWebsocketProxy L2ELVendor = "flashblocks-websocket-proxy"
 )
 
 func (v L2ELVendor) Match(elems []stack.L2ELNode) []stack.L2ELNode {

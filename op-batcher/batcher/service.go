@@ -49,8 +49,6 @@ type BatcherConfig struct {
 	ThrottleThreshold, ThrottleTxSize          uint64
 	ThrottleBlockSize, ThrottleAlwaysBlockSize uint64
 	ThrottlingEndpoints                        []string
-
-	PreferLocalSafeL2 bool
 }
 
 // BatcherService represents a full batch-submitter instance and its resources,
@@ -116,8 +114,6 @@ func (bs *BatcherService) initFromCLIConfig(ctx context.Context, version string,
 
 	// Combine the L2EthRpc and RollupRpc into a single list of endpoints for throttling.
 	bs.ThrottlingEndpoints = slices.Union(cfg.L2EthRpc, cfg.AdditionalThrottlingEndpoints)
-
-	bs.PreferLocalSafeL2 = cfg.PreferLocalSafeL2
 
 	if err := bs.initRPCClients(ctx, cfg); err != nil {
 		return err

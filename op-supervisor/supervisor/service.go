@@ -10,9 +10,9 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/rpc"
 
-	"github.com/ethereum-optimism/optimism/op-node/rollup/event"
 	"github.com/ethereum-optimism/optimism/op-service/cliapp"
 	"github.com/ethereum-optimism/optimism/op-service/clock"
+	"github.com/ethereum-optimism/optimism/op-service/event"
 	"github.com/ethereum-optimism/optimism/op-service/httputil"
 	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
 	"github.com/ethereum-optimism/optimism/op-service/oppprof"
@@ -82,7 +82,7 @@ func (su *SupervisorService) initFromCLIConfig(ctx context.Context, cfg *config.
 func (su *SupervisorService) initBackend(ctx context.Context, cfg *config.Config) error {
 	// In the future we may introduce other executors.
 	// For now, we just use a synchronous executor, and poll the drain function of it.
-	ex := event.NewGlobalSynchronous(ctx)
+	ex := event.NewGlobalSynchronous(ctx).WithMetrics(su.metrics)
 	su.poller = tasks.NewPoller(func() {
 		if err := ex.Drain(); err != nil {
 			su.log.Warn("Failed to execute events", "err", err)

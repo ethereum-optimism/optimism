@@ -180,12 +180,6 @@ var (
 		Value:   130_000, // should be larger than the builder's max-l2-tx-size to prevent endlessly throttling some txs
 		EnvVars: prefixEnvVars("THROTTLE_ALWAYS_BLOCK_SIZE"),
 	}
-	PreferLocalSafeL2Flag = &cli.BoolFlag{
-		Name:    "prefer-local-safe-l2",
-		Usage:   "Load unsafe blocks higher than the sequencer's LocalSafeL2 instead of SafeL2",
-		Value:   false,
-		EnvVars: prefixEnvVars("PREFER_LOCAL_SAFE_L2"),
-	}
 	AdditionalThrottlingEndpointsFlag = &cli.StringSliceFlag{
 		Name:    "additional-throttling-endpoints",
 		Usage:   "Comma-separated list of endpoints to distribute throttling configuration to (in addition to the L2 endpoints specified with --l2-eth-rpc).",
@@ -224,7 +218,6 @@ var optionalFlags = []cli.Flag{
 	ThrottleBlockSizeFlag,
 	ThrottleAlwaysBlockSizeFlag,
 	AdditionalThrottlingEndpointsFlag,
-	PreferLocalSafeL2Flag,
 }
 
 func init() {

@@ -1,0 +1,9 @@
+[profile.default]
+src = "src"
+out = "out"
+libs = ["../../../packages/contracts-bedrock/lib"]
+
+remappings = [
+  'forge-std/=../../../packages/contracts-bedrock/lib/forge-std/src',
+  'safe-contracts/=../../../packages/contracts-bedrock/lib/safe-contracts/contracts',
+]

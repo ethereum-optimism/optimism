@@ -7,21 +7,27 @@ import (
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-devstack/stack"
+	"github.com/ethereum-optimism/optimism/op-devstack/sysgo"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/retry"
+	"github.com/ethereum/go-ethereum/common"
 )
+
+var emptyHash = common.Hash{}
 
 // L2ELNode wraps a stack.L2ELNode interface for DSL operations
 type L2ELNode struct {
 	*elNode
-	inner stack.L2ELNode
+	inner   stack.L2ELNode
+	control stack.ControlPlane
 }
 
 // NewL2ELNode creates a new L2ELNode DSL wrapper
-func NewL2ELNode(inner stack.L2ELNode) *L2ELNode {
+func NewL2ELNode(inner stack.L2ELNode, control stack.ControlPlane) *L2ELNode {
 	return &L2ELNode{
-		elNode: newELNode(commonFromT(inner.T()), inner),
-		inner:  inner,
+		elNode:  newELNode(commonFromT(inner.T()), inner),
+		inner:   inner,
+		control: control,
 	}
 }
 
@@ -32,6 +38,10 @@ func (el *L2ELNode) String() string {
 // Escape returns the underlying stack.L2ELNode
 func (el *L2ELNode) Escape() stack.L2ELNode {
 	return el.inner
+}
+
+func (el *L2ELNode) ID() stack.L2ELNodeID {
+	return el.inner.ID()
 }
 
 func (el *L2ELNode) BlockRefByLabel(label eth.BlockLabel) eth.L2BlockRef {
@@ -108,7 +118,7 @@ func (el *L2ELNode) ReorgTriggeredFn(target eth.L2BlockRef, attempts int) CheckF
 					return fmt.Errorf("expected head to reorg %s, but got %s", target, reorged)
 				}
 
-				if target.ParentHash != reorged.ParentHash {
+				if target.ParentHash != reorged.ParentHash && target.ParentHash != emptyHash {
 					return fmt.Errorf("expected parent of target to be the same as the parent of the reorged head, but they are different")
 				}
 
@@ -130,4 +140,21 @@ func (el *L2ELNode) NotAdvanced(label eth.BlockLabel) {
 
 func (el *L2ELNode) ReorgTriggered(target eth.L2BlockRef, attempts int) {
 	el.require.NoError(el.ReorgTriggeredFn(target, attempts)())
+}
+
+func (el *L2ELNode) TransactionTimeout() time.Duration {
+	return el.inner.TransactionTimeout()
+}
+
+func (el *L2ELNode) Stop() {
+	el.log.Info("Stopping", "id", el.inner.ID())
+	el.control.L2ELNodeState(el.inner.ID(), stack.Stop)
+}
+
+func (el *L2ELNode) Start() {
+	el.control.L2ELNodeState(el.inner.ID(), stack.Start)
+}
+
+func (el *L2ELNode) PeerWith(peer *L2ELNode) {
+	sysgo.ConnectP2P(el.ctx, el.require, el.inner.L2EthClient().RPC(), peer.inner.L2EthClient().RPC())
 }

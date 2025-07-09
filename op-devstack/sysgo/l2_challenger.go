@@ -55,13 +55,13 @@ func WithL2ChallengerPostDeploy(orch *Orchestrator, challengerID stack.L2Challen
 	supervisorID *stack.SupervisorID, clusterID *stack.ClusterID, l2CLID *stack.L2CLNodeID, l2ELIDs []stack.L2ELNodeID,
 ) {
 	ctx := orch.P().Ctx()
-	ctx = stack.ContextWithKind(ctx, stack.L2ChallengerKind)
-	p := orch.P().WithCtx(ctx, "service", "op-challenger", "id", challengerID)
+	ctx = stack.ContextWithID(ctx, challengerID)
+	p := orch.P().WithCtx(ctx)
 
 	require := p.Require()
 	require.False(orch.challengers.Has(challengerID), "challenger must not already exist")
 
-	challengerSecret, err := orch.keys.Secret(devkeys.ChallengerRole.Key(l1ELID.ChainID().ToBig()))
+	challengerSecret, err := orch.keys.Secret(devkeys.ChallengerRole.Key(challengerID.ChainID().ToBig()))
 	require.NoError(err)
 
 	logger := p.Logger()
@@ -122,8 +122,9 @@ func WithL2ChallengerPostDeploy(orch *Orchestrator, challengerID stack.L2Challen
 			shared.WithFactoryAddress(disputeGameFactoryAddr),
 			shared.WithPrivKey(challengerSecret),
 			shared.WithDepset(cluster.DepSet()),
-			shared.WithSuperCannon(rollupCfgs, l2Geneses, prestateVariant),
-			shared.WithSuperPermissioned(rollupCfgs, l2Geneses, prestateVariant),
+			shared.WithCannonConfig(rollupCfgs, l2Geneses, prestateVariant),
+			shared.WithSuperCannonTraceType(),
+			shared.WithSuperPermissionedTraceType(),
 		)
 		require.NoError(err, "Failed to create interop challenger config")
 	} else {
@@ -145,8 +146,9 @@ func WithL2ChallengerPostDeploy(orch *Orchestrator, challengerID stack.L2Challen
 		cfg, err = shared.NewPreInteropChallengerConfig(dir, l1EL.userRPC, l1CL.beaconHTTPAddr, l2CL.userRPC, l2EL.userRPC,
 			shared.WithFactoryAddress(disputeGameFactoryAddr),
 			shared.WithPrivKey(challengerSecret),
-			shared.WithCannon(rollupCfgs, l2Geneses, prestateVariant),
-			shared.WithPermissioned(rollupCfgs, l2Geneses, prestateVariant),
+			shared.WithCannonConfig(rollupCfgs, l2Geneses, prestateVariant),
+			shared.WithCannonTraceType(),
+			shared.WithPermissionedTraceType(),
 			shared.WithFastGames(),
 		)
 		require.NoError(err, "Failed to create pre-interop challenger config")

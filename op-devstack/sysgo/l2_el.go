@@ -1,18 +1,39 @@
 package sysgo
 
 import (
-	"github.com/ethereum/go-ethereum/eth/ethconfig"
-	gn "github.com/ethereum/go-ethereum/node"
+	"context"
+	"net/url"
+	"slices"
+	"strconv"
+	"sync"
+	"time"
 
+	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/shim"
 	"github.com/ethereum-optimism/optimism/op-devstack/stack"
 	"github.com/ethereum-optimism/optimism/op-devstack/stack/match"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/geth"
+	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
 	"github.com/ethereum-optimism/optimism/op-service/client"
+	"github.com/ethereum-optimism/optimism/op-service/dial"
+	"github.com/ethereum-optimism/optimism/op-service/testreq"
+	"github.com/ethereum/go-ethereum/eth/ethconfig"
+	"github.com/ethereum/go-ethereum/log"
+	gn "github.com/ethereum/go-ethereum/node"
+	"github.com/ethereum/go-ethereum/p2p"
 )
 
 type L2ELNode struct {
-	id      stack.L2ELNodeID
+	mu sync.Mutex
+
+	p             devtest.P
+	logger        log.Logger
+	id            stack.L2ELNodeID
+	l2Net         *L2Network
+	jwtPath       string
+	supervisorRPC string
+	l2Geth        *geth.GethInstance
+
 	authRPC string
 	userRPC string
 }
@@ -35,6 +56,62 @@ func (n *L2ELNode) hydrate(system stack.ExtensibleSystem) {
 	})
 	sysL2EL.SetLabel(match.LabelVendor, string(match.OpGeth))
 	l2Net.(stack.ExtensibleL2Network).AddL2ELNode(sysL2EL)
+}
+
+func (n *L2ELNode) Start() {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	if n.l2Geth != nil {
+		n.logger.Warn("op-geth already started")
+		return
+	}
+
+	require := n.p.Require()
+	l2Geth, err := geth.InitL2(n.id.String(), n.l2Net.genesis, n.jwtPath,
+		func(ethCfg *ethconfig.Config, nodeCfg *gn.Config) error {
+			ethCfg.InteropMessageRPC = n.supervisorRPC
+			ethCfg.InteropMempoolFiltering = true
+			nodeCfg.P2P = p2p.Config{
+				NoDiscovery: true,
+				ListenAddr:  "127.0.0.1:0",
+				MaxPeers:    10,
+			}
+			if n.authRPC != "" {
+				// Preserve the existing auth rpc port
+				nodeCfg.AuthPort = rpcPort(require, n.authRPC)
+			}
+			if n.userRPC != "" {
+				// Preserve the existing websocket rpc port
+				nodeCfg.WSPort = rpcPort(require, n.userRPC)
+			}
+			return nil
+		})
+	require.NoError(err)
+	require.NoError(l2Geth.Node.Start())
+	n.l2Geth = l2Geth
+	n.authRPC = l2Geth.AuthRPC().RPC()
+	n.userRPC = l2Geth.UserRPC().RPC()
+}
+
+func rpcPort(require *testreq.Assertions, rpc string) int {
+	u, err := url.Parse(rpc)
+	require.NoError(err, "Failed to parse existing rpc url")
+	port, err := strconv.Atoi(u.Port())
+	require.NoError(err, "Invalid rpc port")
+	return port
+}
+
+func (n *L2ELNode) Stop() {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	if n.l2Geth == nil {
+		n.logger.Warn("op-geth already stopped")
+		return
+	}
+	n.logger.Info("Closing op-geth", "id", n.id)
+	closeErr := n.l2Geth.Close()
+	n.logger.Info("Closed op-geth", "id", n.id, "err", closeErr)
+	n.l2Geth = nil
 }
 
 func WithL2ELNode(id stack.L2ELNodeID, supervisorID *stack.SupervisorID) stack.Option[*Orchestrator] {
@@ -60,26 +137,73 @@ func WithL2ELNode(id stack.L2ELNodeID, supervisorID *stack.SupervisorID) stack.O
 
 		logger := p.Logger()
 
-		l2Geth, err := geth.InitL2(id.String(), l2Net.genesis, jwtPath,
-			func(ethCfg *ethconfig.Config, nodeCfg *gn.Config) error {
-				ethCfg.InteropMessageRPC = supervisorRPC
-				ethCfg.InteropMempoolFiltering = true // TODO option
-				return nil
-			})
-		require.NoError(err)
-		require.NoError(l2Geth.Node.Start())
-
-		p.Cleanup(func() {
-			logger.Info("Closing op-geth", "id", id)
-			closeErr := l2Geth.Close()
-			logger.Info("Closed op-geth", "id", id, "err", closeErr)
-		})
-
 		l2EL := &L2ELNode{
-			id:      id,
-			authRPC: l2Geth.AuthRPC().RPC(),
-			userRPC: l2Geth.UserRPC().RPC(),
+			id:            id,
+			p:             orch.P(),
+			logger:        logger,
+			l2Net:         l2Net,
+			jwtPath:       jwtPath,
+			supervisorRPC: supervisorRPC,
 		}
+		l2EL.Start()
+		p.Cleanup(func() {
+			l2EL.Stop()
+		})
 		require.True(orch.l2ELs.SetIfMissing(id, l2EL), "must be unique L2 EL node")
 	})
+}
+
+func WithL2ELP2PConnection(l2EL1ID, l2EL2ID stack.L2ELNodeID) stack.Option[*Orchestrator] {
+	return stack.AfterDeploy(func(orch *Orchestrator) {
+		require := orch.P().Require()
+
+		l2EL1, ok := orch.l2ELs.Get(l2EL1ID)
+		require.True(ok, "looking for L2 EL node 1 to connect p2p")
+		l2EL2, ok := orch.l2ELs.Get(l2EL2ID)
+		require.True(ok, "looking for L2 EL node 2 to connect p2p")
+		require.Equal(l2EL1.l2Net.rollupCfg.L2ChainID, l2EL2.l2Net.rollupCfg.L2ChainID, "must be same l2 chain")
+
+		ctx := orch.P().Ctx()
+		logger := orch.P().Logger()
+
+		rpc1, err := dial.DialRPCClientWithTimeout(ctx, 30*time.Second, logger, l2EL1.userRPC)
+		require.NoError(err, "failed to connect to el1 rpc")
+		defer rpc1.Close()
+		rpc2, err := dial.DialRPCClientWithTimeout(ctx, 30*time.Second, logger, l2EL2.userRPC)
+		require.NoError(err, "failed to connect to el2 rpc")
+		defer rpc2.Close()
+
+		ConnectP2P(orch.P().Ctx(), require, rpc1, rpc2)
+	})
+}
+
+type RpcCaller interface {
+	CallContext(ctx context.Context, result interface{}, method string, args ...interface{}) error
+}
+
+// ConnectP2P creates a p2p peer connection between node1 and node2.
+func ConnectP2P(ctx context.Context, require *testreq.Assertions, initiator RpcCaller, acceptor RpcCaller) {
+	var targetInfo p2p.NodeInfo
+	require.NoError(acceptor.CallContext(ctx, &targetInfo, "admin_nodeInfo"), "get node info")
+
+	var peerAdded bool
+	require.NoError(initiator.CallContext(ctx, &peerAdded, "admin_addPeer", targetInfo.Enode), "add peer")
+	require.True(peerAdded, "should have added peer successfully")
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	err := wait.For(ctx, time.Second, func() (bool, error) {
+		var peers []peer
+		if err := initiator.CallContext(ctx, &peers, "admin_peers"); err != nil {
+			return false, err
+		}
+		return slices.ContainsFunc(peers, func(p peer) bool {
+			return p.ID == targetInfo.ID
+		}), nil
+	})
+	require.NoError(err, "The peer was not connected")
+}
+
+type peer struct {
+	ID string `json:"id"`
 }

@@ -64,8 +64,8 @@ contract L2ToL2CrossDomainMessenger is ISemver, TransientReentrancyAware {
     uint16 public constant messageVersion = uint16(0);
 
     /// @notice Semantic version.
-    /// @custom:semver 1.2.0
-    string public constant version = "1.2.0";
+    /// @custom:semver 1.3.0
+    string public constant version = "1.3.0";
 
     /// @notice Mapping of message hashes to boolean receipt values. Note that a message will only be present in this
     ///         mapping if it has successfully been relayed on this chain, and can therefore not be relayed again.
@@ -76,9 +76,9 @@ contract L2ToL2CrossDomainMessenger is ISemver, TransientReentrancyAware {
     ///         message.
     uint240 internal msgNonce;
 
-    /// @notice Mapping of message hashes to boolean sent values. Note that a message will only be present in this
+    /// @notice Mapping of message nonces to message hashes. Note that a message will only be present in this
     ///         mapping if it has been sent from this chain to a destination chain.
-    mapping(bytes32 => bool) public sentMessages;
+    mapping(uint256 => bytes32) public sentMessages;
 
     /// @notice Emitted whenever a message is sent to a destination
     /// @param destination  Chain ID of the destination chain.
@@ -154,7 +154,7 @@ contract L2ToL2CrossDomainMessenger is ISemver, TransientReentrancyAware {
             _message: _message
         });
 
-        sentMessages[messageHash_] = true;
+        sentMessages[nonce] = messageHash_;
         msgNonce++;
 
         emit SentMessage(_destination, _target, nonce, msg.sender, _message);
@@ -189,7 +189,7 @@ contract L2ToL2CrossDomainMessenger is ISemver, TransientReentrancyAware {
             _message: _message
         });
 
-        if (!sentMessages[messageHash_]) revert InvalidMessage();
+        if (sentMessages[_nonce] != messageHash_) revert InvalidMessage();
 
         emit SentMessage(_destination, _target, _nonce, _sender, _message);
     }

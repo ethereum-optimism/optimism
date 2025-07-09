@@ -708,8 +708,57 @@ func testManyEntryDB(t *testing.T, offsetL1 uint64, offsetL2 uint64) {
 	})
 }
 
-// TestRewindToScope tests what happens if we rewind based on derived-from scope.
-func TestRewindToScope(t *testing.T) {
+// TestRewindToSourceEmptied tests what happens if we rewind based on derived-from source,
+// and rewind to before the first block, emptying the DB.
+func TestRewindToSourceEmptied(t *testing.T) {
+	l1Block2 := mockL1(2)
+	l1Block3 := mockL1(3)
+	l1Block4 := mockL1(4)
+	l1Block5 := mockL1(5)
+
+	l2Block6 := mockL2(6)
+	l2Block7 := mockL2(7)
+	l2Block8 := mockL2(8)
+
+	runDBTest(t, func(t *testing.T, db *DB, m *stubMetrics) {
+		l2Ref7 := toRef(l2Block7, l2Block6.Hash)
+		l2Ref8 := toRef(l2Block8, l2Block7.Hash)
+		// Start from L1 block 3, and L2 block 7
+		require.NoError(t, dbAddDerivedAny(db, toRef(l1Block3, l1Block2.Hash), l2Ref7))
+		require.NoError(t, dbAddDerivedAny(db, toRef(l1Block4, l1Block3.Hash), l2Ref7))
+		// New L1 block that finally produces a new L2 block
+		require.NoError(t, dbAddDerivedAny(db, toRef(l1Block5, l1Block4.Hash), l2Ref7)) // bump scope
+		require.NoError(t, dbAddDerivedAny(db, toRef(l1Block5, l1Block4.Hash), l2Ref8))
+	}, func(t *testing.T, db *DB, m *stubMetrics) {
+
+		pair, err := db.Last()
+		require.NoError(t, err)
+		require.Equal(t, l1Block5, pair.Source)
+		require.Equal(t, l2Block8, pair.Derived)
+
+		inv := &reads.TestInvalidator{}
+		// Rewind to the block before DB started
+		require.NoError(t, db.RewindToSource(inv, l1Block2.ID()))
+		require.True(t, inv.Invalidated)
+		require.Equal(t, uint64(0), inv.InvalidatedSourceNum)
+		require.Equal(t, uint64(0), inv.InvalidatedDerivedTimestamp)
+		pair, err = db.Last()
+		require.ErrorIs(t, err, types.ErrFuture)
+		require.True(t, db.IsEmpty())
+
+		// Test that we can add a new starting point
+		altL1Ref := mockL1Ref(10000)
+		altL2Ref := mockL2Ref(20000)
+		require.NoError(t, dbAddDerivedAny(db, altL1Ref, altL2Ref))
+		pair, err = db.Last()
+		require.NoError(t, err)
+		require.Equal(t, altL1Ref.ID(), pair.Source.ID())
+		require.Equal(t, altL2Ref.ID(), pair.Derived.ID())
+	})
+}
+
+// TestRewindToSource tests what happens if we rewind based on derived-from source.
+func TestRewindToSource(t *testing.T) {
 	l1Block0 := mockL1(0)
 	l1Block1 := mockL1(1)
 	l1Block2 := mockL1(2)
@@ -745,12 +794,12 @@ func TestRewindToScope(t *testing.T) {
 
 		inv := &reads.TestInvalidator{}
 		// Rewind to the future
-		require.ErrorIs(t, db.RewindToScope(inv, l1Block6.ID()), types.ErrFuture)
+		require.ErrorIs(t, db.RewindToSource(inv, l1Block6.ID()), types.ErrFuture)
 		require.False(t, inv.Invalidated)
 
 		inv = &reads.TestInvalidator{}
 		// Rewind to the exact block we're at
-		require.NoError(t, db.RewindToScope(inv, l1Block5.ID()))
+		require.NoError(t, db.RewindToSource(inv, l1Block5.ID()))
 		require.True(t, inv.Invalidated)
 		require.Equal(t, l1Block5.Number, inv.InvalidatedSourceNum)
 		require.Equal(t, l2Block2.Timestamp, inv.InvalidatedDerivedTimestamp)
@@ -761,7 +810,7 @@ func TestRewindToScope(t *testing.T) {
 
 		inv = &reads.TestInvalidator{}
 		// Now rewind to L1 block 3 (inclusive).
-		require.NoError(t, db.RewindToScope(inv, l1Block3.ID()))
+		require.NoError(t, db.RewindToSource(inv, l1Block3.ID()))
 		require.True(t, inv.Invalidated)
 		require.Equal(t, l1Block3.Number, inv.InvalidatedSourceNum)
 		require.Equal(t, l2Block1.Timestamp, inv.InvalidatedDerivedTimestamp)
@@ -774,7 +823,7 @@ func TestRewindToScope(t *testing.T) {
 
 		inv = &reads.TestInvalidator{}
 		// Rewind further to L1 block 1 (inclusive).
-		require.NoError(t, db.RewindToScope(inv, l1Block1.ID()))
+		require.NoError(t, db.RewindToSource(inv, l1Block1.ID()))
 		require.True(t, inv.Invalidated)
 		require.Equal(t, l1Block1.Number, inv.InvalidatedSourceNum)
 		require.Equal(t, l2Block1.Timestamp, inv.InvalidatedDerivedTimestamp)
@@ -784,7 +833,7 @@ func TestRewindToScope(t *testing.T) {
 		require.Equal(t, l2Block1, pair.Derived)
 
 		// Rewind further to L1 block 0 (inclusive).
-		require.NoError(t, db.RewindToScope(inv, l1Block0.ID()))
+		require.NoError(t, db.RewindToSource(inv, l1Block0.ID()))
 		pair, err = db.Last()
 		require.NoError(t, err)
 		require.Equal(t, l1Block0, pair.Source)
@@ -1264,7 +1313,7 @@ func TestRewindToDifferent(t *testing.T) {
 			t.Run("Bad source target", func(t *testing.T) {
 				inv := &reads.TestInvalidator{}
 				// try to rewind, but towards a mismatching block
-				require.ErrorIs(t, db.RewindToScope(inv, l1ID1Alt), types.ErrConflict)
+				require.ErrorIs(t, db.RewindToSource(inv, l1ID1Alt), types.ErrConflict)
 				require.False(t, inv.Invalidated)
 				last, err := db.Last()
 				require.NoError(t, err)

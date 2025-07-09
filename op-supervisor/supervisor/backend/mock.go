@@ -94,6 +94,14 @@ func (m *MockBackend) DependencySetV1(ctx context.Context) (depset.DependencySet
 	return nil, errors.New("not supported")
 }
 
+func (m *MockBackend) SetFailsafeEnabled(ctx context.Context, enabled bool) error {
+	return nil
+}
+
+func (m *MockBackend) GetFailsafeEnabled(ctx context.Context) (bool, error) {
+	return false, nil
+}
+
 func (m *MockBackend) Close() error {
 	return nil
 }

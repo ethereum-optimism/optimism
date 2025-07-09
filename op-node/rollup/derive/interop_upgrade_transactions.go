@@ -92,8 +92,7 @@ func InteropActivateCrossL2InboxTransactions() ([]hexutil.Bytes, error) {
 		Value:               big.NewInt(0),
 		Gas:                 50_000,
 		IsSystemTransaction: false,
-		// TODO(#16041): op-deployer genesis generation does NOT store the implementation at this address
-		Data: upgradeToCalldata(CrossL2InboxAddress),
+		Data:                upgradeToCalldata(CrossL2InboxAddress),
 	}).MarshalBinary()
 	if err != nil {
 		return nil, err

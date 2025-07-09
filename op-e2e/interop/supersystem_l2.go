@@ -14,7 +14,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/opnode"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/services"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/setuputils"
-	"github.com/ethereum-optimism/optimism/op-node/node"
+	"github.com/ethereum-optimism/optimism/op-node/config"
 	"github.com/ethereum-optimism/optimism/op-node/p2p"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/driver"
@@ -25,6 +25,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/dial"
 	"github.com/ethereum-optimism/optimism/op-service/endpoint"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
+	oprpc "github.com/ethereum-optimism/optimism/op-service/rpc"
 	opsigner "github.com/ethereum-optimism/optimism/op-service/signer"
 	"github.com/ethereum-optimism/optimism/op-service/sources"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
@@ -150,18 +151,18 @@ func (s *interopE2ESystem) newNodeForL2(
 ) *opnode.Opnode {
 	logger := s.logger.New("role", "op-node-"+id+"-"+name)
 	p2pKey := operatorKeys[devkeys.SequencerP2PRole]
-	nodeCfg := &node.Config{
-		L1: &node.PreparedL1Endpoint{
+	nodeCfg := &config.Config{
+		L1: &config.PreparedL1Endpoint{
 			Client: client.NewBaseRPCClient(
 				endpoint.DialRPC(endpoint.PreferAnyRPC, s.l1.UserRPC(), mustDial(s.t, logger))),
 			TrustRPC:        false,
 			RPCProviderKind: sources.RPCKindDebugGeth,
 		},
-		L2: &node.L2EndpointConfig{
+		L2: &config.L2EndpointConfig{
 			L2EngineAddr:      l2Geth.AuthRPC().RPC(),
 			L2EngineJWTSecret: testingJWTSecret,
 		},
-		Beacon: &node.L1BeaconEndpointConfig{
+		Beacon: &config.L1BeaconEndpointConfig{
 			BeaconAddr: s.beacon.BeaconAddr(),
 		},
 		Driver: driver.Config{
@@ -171,7 +172,7 @@ func (s *interopE2ESystem) newNodeForL2(
 		DependencySet: depSet,
 		P2PSigner: &p2p.PreparedSigner{
 			Signer: opsigner.NewLocalSigner(&p2pKey)},
-		RPC: node.RPCConfig{
+		RPC: oprpc.CLIConfig{
 			ListenAddr:  "127.0.0.1",
 			ListenPort:  0,
 			EnableAdmin: true,
@@ -191,7 +192,7 @@ func (s *interopE2ESystem) newNodeForL2(
 			SkipSyncStartCheck:             false,
 			SupportsPostFinalizationELSync: false,
 		},
-		ConfigPersistence: node.DisabledConfigPersistence{},
+		ConfigPersistence: config.DisabledConfigPersistence{},
 	}
 	opNode, err := opnode.NewOpnode(logger.New("service", "op-node"),
 		nodeCfg, func(err error) {

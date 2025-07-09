@@ -17,21 +17,24 @@ import (
 	"github.com/ethereum/go-ethereum/rpc"
 
 	altda "github.com/ethereum-optimism/optimism/op-alt-da"
+	"github.com/ethereum-optimism/optimism/op-node/config"
 	"github.com/ethereum-optimism/optimism/op-node/metrics"
+	"github.com/ethereum-optimism/optimism/op-node/node/runcfg"
 	"github.com/ethereum-optimism/optimism/op-node/node/safedb"
+	"github.com/ethereum-optimism/optimism/op-node/node/tracer"
 	"github.com/ethereum-optimism/optimism/op-node/p2p"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/conductor"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/driver"
-	"github.com/ethereum-optimism/optimism/op-node/rollup/event"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/finality"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/interop"
-	"github.com/ethereum-optimism/optimism/op-node/rollup/interop/managed"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/interop/indexing"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/sequencing"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/status"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/sync"
 	"github.com/ethereum-optimism/optimism/op-service/client"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/event"
 	"github.com/ethereum-optimism/optimism/op-service/httputil"
 	"github.com/ethereum-optimism/optimism/op-service/oppprof"
 	"github.com/ethereum-optimism/optimism/op-service/retry"
@@ -50,7 +53,7 @@ type closableSafeDB interface {
 
 type OpNode struct {
 	// Retain the config to test for active features rather than test for runtime state.
-	cfg        *Config
+	cfg        *config.Config
 	log        log.Logger
 	appVersion string
 	metrics    *metrics.Metrics
@@ -69,7 +72,7 @@ type OpNode struct {
 	p2pNode   *p2p.NodeP2P          // P2P node functionality
 	p2pMu     gosync.Mutex          // protects p2pNode
 	p2pSigner p2p.Signer            // p2p gossip application messages will be signed with this signer
-	runCfg    *RuntimeConfig        // runtime configurables
+	runCfg    *runcfg.RuntimeConfig // runtime configurables
 
 	safeDB closableSafeDB
 
@@ -102,7 +105,7 @@ type OpNode struct {
 // New creates a new OpNode instance.
 // The provided ctx argument is for the span of initialization only;
 // the node will immediately Stop(ctx) before finishing initialization if the context is canceled during initialization.
-func New(ctx context.Context, cfg *Config, log log.Logger, appVersion string, m *metrics.Metrics) (*OpNode, error) {
+func New(ctx context.Context, cfg *config.Config, log log.Logger, appVersion string, m *metrics.Metrics) (*OpNode, error) {
 	if err := cfg.Check(); err != nil {
 		return nil, err
 	}
@@ -130,7 +133,7 @@ func New(ctx context.Context, cfg *Config, log log.Logger, appVersion string, m 
 	return n, nil
 }
 
-func (n *OpNode) init(ctx context.Context, cfg *Config) error {
+func (n *OpNode) init(ctx context.Context, cfg *config.Config) error {
 	n.log.Info("Initializing rollup node", "version", n.appVersion)
 	n.initEventSystem()
 	if err := n.initTracer(ctx, cfg); err != nil {
@@ -171,7 +174,7 @@ func (n *OpNode) init(ctx context.Context, cfg *Config) error {
 
 func (n *OpNode) initEventSystem() {
 	// This executor will be configurable in the future, for parallel event processing
-	executor := event.NewGlobalSynchronous(n.resourcesCtx)
+	executor := event.NewGlobalSynchronous(n.resourcesCtx).WithMetrics(n.metrics)
 	sys := event.NewSystem(n.log, executor)
 	sys.AddTracer(event.NewMetricsTracer(n.metrics))
 	sys.Register("node", event.DeriverFunc(n.onEvent))
@@ -180,15 +183,17 @@ func (n *OpNode) initEventSystem() {
 	n.apiEmitter = sys.Register("node-api", nil)
 }
 
-func (n *OpNode) initTracer(ctx context.Context, cfg *Config) error {
+func (n *OpNode) initTracer(ctx context.Context, cfg *config.Config) error {
 	if cfg.Tracer != nil {
-		n.eventSys.Register("tracer", NewTracerDeriver(cfg.Tracer))
+		n.eventSys.Register("tracer", tracer.NewTracerDeriver(cfg.Tracer))
 	}
 	return nil
 }
 
-func (n *OpNode) initL1(ctx context.Context, cfg *Config) error {
-	l1RPC, l1Cfg, err := cfg.L1.Setup(ctx, n.log, &cfg.Rollup, n.metrics)
+func (n *OpNode) initL1(ctx context.Context, cfg *config.Config) error {
+	// Cache 3/2 worth of sequencing window of receipts and txs
+	defaultCacheSize := int(cfg.Rollup.SeqWindowSize) * 3 / 2
+	l1RPC, l1Cfg, err := cfg.L1.Setup(ctx, n.log, defaultCacheSize, n.metrics)
 	if err != nil {
 		return fmt.Errorf("failed to get L1 RPC client: %w", err)
 	}
@@ -204,13 +209,13 @@ func (n *OpNode) initL1(ctx context.Context, cfg *Config) error {
 
 	emitter := n.eventSys.Register("l1-signals", nil)
 	onL1Head := func(ctx context.Context, sig eth.L1BlockRef) {
-		emitter.Emit(status.L1UnsafeEvent{L1Unsafe: sig})
+		emitter.Emit(ctx, status.L1UnsafeEvent{L1Unsafe: sig})
 	}
 	onL1Safe := func(ctx context.Context, sig eth.L1BlockRef) {
-		emitter.Emit(status.L1SafeEvent{L1Safe: sig})
+		emitter.Emit(ctx, status.L1SafeEvent{L1Safe: sig})
 	}
 	onL1Finalized := func(ctx context.Context, sig eth.L1BlockRef) {
-		emitter.Emit(finality.FinalizeL1Event{FinalizedL1: sig})
+		emitter.Emit(ctx, finality.FinalizeL1Event{FinalizedL1: sig})
 	}
 
 	// Keep subscribed to the L1 heads, which keeps the L1 maintainer pointing to the best headers to sync
@@ -237,9 +242,9 @@ func (n *OpNode) initL1(ctx context.Context, cfg *Config) error {
 	return nil
 }
 
-func (n *OpNode) initRuntimeConfig(ctx context.Context, cfg *Config) error {
+func (n *OpNode) initRuntimeConfig(ctx context.Context, cfg *config.Config) error {
 	// attempt to load runtime config, repeat N times
-	n.runCfg = NewRuntimeConfig(n.log, n.l1Source, &cfg.Rollup)
+	n.runCfg = runcfg.NewRuntimeConfig(n.log, n.l1Source, &cfg.Rollup)
 
 	confDepth := cfg.Driver.VerifierConfDepth
 	reload := func(ctx context.Context) (eth.L1BlockRef, error) {
@@ -331,7 +336,7 @@ func (n *OpNode) initRuntimeConfig(ctx context.Context, cfg *Config) error {
 	return nil
 }
 
-func (n *OpNode) initL1BeaconAPI(ctx context.Context, cfg *Config) error {
+func (n *OpNode) initL1BeaconAPI(ctx context.Context, cfg *config.Config) error {
 	// If Ecotone upgrade is not scheduled yet, then there is no need for a Beacon API.
 	if cfg.Rollup.EcotoneTime == nil {
 		return nil
@@ -393,7 +398,7 @@ func (n *OpNode) initL1BeaconAPI(ctx context.Context, cfg *Config) error {
 	}
 }
 
-func (n *OpNode) initL2(ctx context.Context, cfg *Config) error {
+func (n *OpNode) initL2(ctx context.Context, cfg *config.Config) error {
 	rpcClient, rpcCfg, err := cfg.L2.Setup(ctx, n.log, &cfg.Rollup, n.metrics)
 	if err != nil {
 		return fmt.Errorf("failed to setup L2 execution-engine RPC client: %w", err)
@@ -410,12 +415,12 @@ func (n *OpNode) initL2(ctx context.Context, cfg *Config) error {
 		return err
 	}
 
-	managedMode := false
+	indexingMode := false
 	sys, err := cfg.InteropConfig.Setup(ctx, n.log, &n.cfg.Rollup, n.l1Source, n.l2Source, n.metrics)
 	if err != nil {
 		return fmt.Errorf("failed to setup interop: %w", err)
 	} else if sys != nil { // we continue with legacy mode if no interop sub-system is set up.
-		_, managedMode = sys.(*managed.ManagedMode)
+		_, indexingMode = sys.(*indexing.IndexingMode)
 		n.interopSys = sys
 		n.eventSys.Register("interop", n.interopSys)
 	}
@@ -447,11 +452,11 @@ func (n *OpNode) initL2(ctx context.Context, cfg *Config) error {
 	}
 
 	n.l2Driver = driver.NewDriver(n.eventSys, n.eventDrain, &cfg.Driver, &cfg.Rollup, cfg.DependencySet, n.l2Source, n.l1Source,
-		n.beacon, n, n, n.log, n.metrics, cfg.ConfigPersistence, n.safeDB, &cfg.Sync, sequencerConductor, altDA, managedMode)
+		n.beacon, n, n, n.log, n.metrics, cfg.ConfigPersistence, n.safeDB, &cfg.Sync, sequencerConductor, altDA, indexingMode)
 	return nil
 }
 
-func (n *OpNode) initRPCServer(cfg *Config) error {
+func (n *OpNode) initRPCServer(cfg *config.Config) error {
 	server := newRPCServer(&cfg.RPC, &cfg.Rollup, cfg.DependencySet,
 		n.l2Source.L2Client, n.l2Driver, n.safeDB,
 		n.log, n.metrics, n.appVersion)
@@ -485,7 +490,7 @@ func (n *OpNode) initRPCServer(cfg *Config) error {
 	return nil
 }
 
-func (n *OpNode) initMetricsServer(cfg *Config) error {
+func (n *OpNode) initMetricsServer(cfg *config.Config) error {
 	if !cfg.Metrics.Enabled {
 		n.log.Info("metrics disabled")
 		return nil
@@ -500,7 +505,7 @@ func (n *OpNode) initMetricsServer(cfg *Config) error {
 	return nil
 }
 
-func (n *OpNode) initPProf(cfg *Config) error {
+func (n *OpNode) initPProf(cfg *config.Config) error {
 	n.pprofService = oppprof.New(
 		cfg.Pprof.ListenEnabled,
 		cfg.Pprof.ListenAddr,
@@ -521,7 +526,7 @@ func (n *OpNode) p2pEnabled() bool {
 	return n.cfg.P2PEnabled()
 }
 
-func (n *OpNode) initP2P(cfg *Config) (err error) {
+func (n *OpNode) initP2P(cfg *config.Config) (err error) {
 	n.p2pMu.Lock()
 	defer n.p2pMu.Unlock()
 	if n.p2pNode != nil {
@@ -541,7 +546,7 @@ func (n *OpNode) initP2P(cfg *Config) (err error) {
 	return nil
 }
 
-func (n *OpNode) initP2PSigner(ctx context.Context, cfg *Config) (err error) {
+func (n *OpNode) initP2PSigner(ctx context.Context, cfg *config.Config) (err error) {
 	// the p2p signer setup is optional
 	if cfg.P2PSigner == nil {
 		return
@@ -571,7 +576,7 @@ func (n *OpNode) Start(ctx context.Context) error {
 // onEvent handles broadcast events.
 // The OpNode itself is a deriver to catch system-critical events.
 // Other event-handling should be encapsulated into standalone derivers.
-func (n *OpNode) onEvent(ev event.Event) bool {
+func (n *OpNode) onEvent(ctx context.Context, ev event.Event) bool {
 	switch x := ev.(type) {
 	case rollup.CriticalErrorEvent:
 		n.log.Error("Critical error", "err", x.Err)
@@ -583,7 +588,7 @@ func (n *OpNode) onEvent(ev event.Event) bool {
 }
 
 func (n *OpNode) PublishBlock(ctx context.Context, signedEnvelope *opsigner.SignedExecutionPayloadEnvelope) error {
-	n.apiEmitter.Emit(TracePublishBlockEvent{signedEnvelope.Envelope})
+	n.apiEmitter.Emit(ctx, tracer.TracePublishBlockEvent{Envelope: signedEnvelope.Envelope})
 	if p2pNode := n.getP2PNodeIfEnabled(); p2pNode != nil {
 		n.log.Info("Publishing signed execution payload on p2p", "id", signedEnvelope.ID())
 		return p2pNode.GossipOut().PublishSignedL2Payload(ctx, signedEnvelope)
@@ -592,7 +597,7 @@ func (n *OpNode) PublishBlock(ctx context.Context, signedEnvelope *opsigner.Sign
 }
 
 func (n *OpNode) SignAndPublishL2Payload(ctx context.Context, envelope *eth.ExecutionPayloadEnvelope) error {
-	n.apiEmitter.Emit(TracePublishBlockEvent{envelope})
+	n.apiEmitter.Emit(ctx, tracer.TracePublishBlockEvent{Envelope: envelope})
 	// publish to p2p, if we are running p2p at all
 	if p2pNode := n.getP2PNodeIfEnabled(); p2pNode != nil {
 		if n.p2pSigner == nil {
@@ -630,7 +635,7 @@ func (n *OpNode) P2P() p2p.Node {
 	return n.getP2PNodeIfEnabled()
 }
 
-func (n *OpNode) RuntimeConfig() ReadonlyRuntimeConfig {
+func (n *OpNode) RuntimeConfig() runcfg.ReadonlyRuntimeConfig {
 	return n.runCfg
 }
 
@@ -781,7 +786,7 @@ func (n *OpNode) HTTPPort() (int, error) {
 }
 
 func (n *OpNode) InteropRPC() (rpcEndpoint string, jwtSecret eth.Bytes32) {
-	m, ok := n.interopSys.(*managed.ManagedMode)
+	m, ok := n.interopSys.(*indexing.IndexingMode)
 	if !ok {
 		return "", [32]byte{}
 	}
@@ -789,7 +794,7 @@ func (n *OpNode) InteropRPC() (rpcEndpoint string, jwtSecret eth.Bytes32) {
 }
 
 func (n *OpNode) InteropRPCPort() (int, error) {
-	m, ok := n.interopSys.(*managed.ManagedMode)
+	m, ok := n.interopSys.(*indexing.IndexingMode)
 	if !ok {
 		return 0, fmt.Errorf("failed to fetch interop port for op-node")
 	}

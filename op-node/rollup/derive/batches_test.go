@@ -1652,7 +1652,7 @@ func TestValidBatch(t *testing.T) {
 	}
 
 	// Log level can be increased for debugging purposes
-	logger, logs := testlog.CaptureLogger(t, log.LevelDebug)
+	logger, logs := testlog.CaptureLogger(t, log.LevelTrace)
 
 	l2Client := testutils.MockL2Client{}
 	var nilErr error

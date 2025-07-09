@@ -15,7 +15,7 @@ func mockL1BlockRef(num uint64) eth.L1BlockRef {
 }
 
 func newL1HeadEvent(l1Tracker *L1Tracker, head eth.L1BlockRef) {
-	l1Tracker.OnEvent(L1UnsafeEvent{
+	l1Tracker.OnEvent(context.Background(), L1UnsafeEvent{
 		L1Unsafe: head,
 	})
 }
