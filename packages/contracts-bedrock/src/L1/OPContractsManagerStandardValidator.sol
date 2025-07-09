@@ -115,7 +115,7 @@ contract OPContractsManagerStandardValidator is ISemver {
         address challenger;
     }
 
-    /// @notice Constructor for the OPCMStandardValidator contract.
+    /// @notice Constructor for the OPContractsManagerStandardValidator contract.
     constructor(
         Implementations memory _implementations,
         ISuperchainConfig _superchainConfig,
@@ -808,7 +808,7 @@ contract OPContractsManagerStandardValidator is ISemver {
 
         // Handle validation failure
         if (bytes(_errors).length > 0 && !_allowFailure) {
-            revert(string.concat("OPCMStandardValidator: ", finalErrors));
+            revert(string.concat("OPContractsManagerStandardValidator: ", finalErrors));
         }
 
         return finalErrors;
