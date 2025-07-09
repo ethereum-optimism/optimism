@@ -59,7 +59,7 @@ import { IETHLockbox } from "interfaces/L1/IETHLockbox.sol";
 import { IBigStepper } from "interfaces/dispute/IBigStepper.sol";
 import { ISuperFaultDisputeGame } from "interfaces/dispute/ISuperFaultDisputeGame.sol";
 import { ISuperPermissionedDisputeGame } from "interfaces/dispute/ISuperPermissionedDisputeGame.sol";
-import { IOPCMStandardValidator } from "interfaces/L1/IOPCMStandardValidator.sol";
+import { IOPContractsManagerStandardValidator } from "interfaces/L1/IOPContractsManagerStandardValidator.sol";
 
 // Contracts
 import {
@@ -71,7 +71,7 @@ import {
     OPContractsManagerInteropMigrator,
     OPContractsManagerStandardValidator
 } from "src/L1/OPContractsManager.sol";
-import { OPCMStandardValidator } from "src/L1/OPCMStandardValidator.sol";
+import { OPContractsManagerStandardValidator } from "src/L1/OPContractsManagerStandardValidator.sol";
 
 /// @title OPContractsManager_Harness
 /// @notice Exposes internal functions for testing.
@@ -620,7 +620,7 @@ contract OPContractsManager_TestInit is Test {
         );
 
         IOPContractsManager.Implementations memory __opcmImplementations = container.implementations();
-        IOPCMStandardValidator.Implementations memory opcmImplementations;
+        IOPContractsManagerStandardValidator.Implementations memory opcmImplementations;
         assembly {
             opcmImplementations := __opcmImplementations
         }
@@ -771,7 +771,7 @@ contract OPContractsManager_ChainIdToBatchInboxAddress_Test is Test {
             new OPContractsManagerContractsContainer(emptyBlueprints, emptyImpls);
 
         OPContractsManager.Implementations memory __opcmImplementations = container.implementations();
-        OPCMStandardValidator.Implementations memory opcmImplementations;
+        OPContractsManagerStandardValidator.Implementations memory opcmImplementations;
         assembly {
             opcmImplementations := __opcmImplementations
         }

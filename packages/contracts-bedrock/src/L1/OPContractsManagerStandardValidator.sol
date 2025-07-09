@@ -29,13 +29,13 @@ import { IMIPS64 } from "interfaces/cannon/IMIPS64.sol";
 import { ISemver } from "interfaces/universal/ISemver.sol";
 import { IProxyAdminOwnedBase } from "interfaces/L1/IProxyAdminOwnedBase.sol";
 
-/// @title OPCMStandardValidator
+/// @title OPContractsManagerStandardValidator
 /// @notice This contract is used to validate the configuration of the L1 contracts of an OP Stack chain.
 /// It is a stateless contract that can be used to ensure that the L1 contracts are configured correctly.
 /// It is intended to be used by the L1 PAO multisig to validate the configuration of the L1 contracts
 /// before and after an upgrade.
-contract OPCMStandardValidator is ISemver {
-    /// @notice The semantic version of the OPCMStandardValidator contract.
+contract OPContractsManagerStandardValidator is ISemver {
+    /// @notice The semantic version of the OPContractsManagerStandardValidator contract.
     /// @custom:semver 1.5.0
     string public constant version = "1.5.0";
 
@@ -239,15 +239,17 @@ contract OPCMStandardValidator is ISemver {
         return "1.2.0";
     }
 
-    /// @notice Internal function to get version from any contract implementing ISemver
+    /// @notice Internal function to get version from any contract implementing ISemver.
     function getVersion(address _contract) private view returns (string memory) {
         return ISemver(_contract).version();
     }
 
+    /// @notice Internal function to get the ProxyAdmin contract from any contract implementing IProxyAdminOwnedBase.
     function getProxyAdmin(address _contract) private view returns (IProxyAdmin) {
         return IProxyAdminOwnedBase(_contract).proxyAdmin();
     }
 
+    /// @notice Internal function to get the implementation address of any contract via the ProxyAdmin contract.
     function getProxyImplementation(IProxyAdmin _admin, address _contract) private view returns (address) {
         return _admin.getProxyImplementation(_contract);
     }

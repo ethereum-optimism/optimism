@@ -122,6 +122,7 @@ func TestEndToEndBootstrapApply(t *testing.T) {
 			SuperchainProxyAdmin:            bstrap.SuperchainProxyAdmin,
 			CacheDir:                        testCacheDir,
 			Logger:                          lgr,
+			Challenger:                      common.Address{'C'},
 		})
 		require.NoError(t, err)
 

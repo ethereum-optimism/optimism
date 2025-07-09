@@ -32,7 +32,7 @@ import { IL1StandardBridge } from "interfaces/L1/IL1StandardBridge.sol";
 import { IOptimismMintableERC20Factory } from "interfaces/universal/IOptimismMintableERC20Factory.sol";
 import { IHasSuperchainConfig } from "interfaces/L1/IHasSuperchainConfig.sol";
 import { IETHLockbox } from "interfaces/L1/IETHLockbox.sol";
-import { OPCMStandardValidator } from "src/L1/OPCMStandardValidator.sol";
+import { OPContractsManagerStandardValidator } from "src/L1/OPContractsManagerStandardValidator.sol";
 
 contract OPContractsManagerContractsContainer {
     /// @notice Addresses of the Blueprint contracts.
@@ -58,18 +58,6 @@ contract OPContractsManagerContractsContainer {
     function implementations() public view returns (OPContractsManager.Implementations memory) {
         return implementation;
     }
-}
-
-contract OPContractsManagerStandardValidator is OPCMStandardValidator {
-    constructor(
-        Implementations memory _implementations,
-        ISuperchainConfig _superchainConfig,
-        address _l1PAOMultisig,
-        address _challenger,
-        uint256 _withdrawalDelaySeconds
-    )
-        OPCMStandardValidator(_implementations, _superchainConfig, _l1PAOMultisig, _challenger, _withdrawalDelaySeconds)
-    { }
 }
 
 abstract contract OPContractsManagerBase {
@@ -1894,7 +1882,7 @@ contract OPContractsManager is ISemver {
     }
 
     function validate(
-        OPCMStandardValidator.ValidationInput memory _input,
+        OPContractsManagerStandardValidator.ValidationInput memory _input,
         bool _allowFailure
     )
         public
@@ -1905,9 +1893,9 @@ contract OPContractsManager is ISemver {
     }
 
     function validateWithOverrides(
-        OPCMStandardValidator.ValidationInput memory _input,
+        OPContractsManagerStandardValidator.ValidationInput memory _input,
         bool _allowFailure,
-        OPCMStandardValidator.ValidationOverrides memory _overrides
+        OPContractsManagerStandardValidator.ValidationOverrides memory _overrides
     )
         public
         view

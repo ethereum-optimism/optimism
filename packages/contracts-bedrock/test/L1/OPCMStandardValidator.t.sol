@@ -32,7 +32,7 @@ import { IPreimageOracle } from "interfaces/cannon/IPreimageOracle.sol";
 import { IL1StandardBridge } from "interfaces/L1/IL1StandardBridge.sol";
 import { IProxyAdminOwnedBase } from "interfaces/L1/IProxyAdminOwnedBase.sol";
 import { IStandardBridge } from "interfaces/universal/IStandardBridge.sol";
-import { IOPCMStandardValidator } from "interfaces/L1/IOPCMStandardValidator.sol";
+import { IOPContractsManagerStandardValidator } from "interfaces/L1/IOPContractsManagerStandardValidator.sol";
 import { IMIPS64 } from "interfaces/cannon/IMIPS64.sol";
 
 /// @title BadDisputeGameFactoryReturner
@@ -41,7 +41,7 @@ import { IMIPS64 } from "interfaces/cannon/IMIPS64.sol";
 ///         the validation function to revert.
 contract BadDisputeGameFactoryReturner {
     /// @notice Address of the OPCMStandardValidator instance.
-    IOPCMStandardValidator public immutable validator;
+    IOPContractsManagerStandardValidator public immutable validator;
 
     /// @notice Address of the real DisputeGameFactory instance.
     IDisputeGameFactory public immutable realDisputeGameFactory;
@@ -53,7 +53,7 @@ contract BadDisputeGameFactoryReturner {
     /// @param _realDisputeGameFactory The real DisputeGameFactory instance.
     /// @param _fakeDisputeGameFactory The fake DisputeGameFactory instance.
     constructor(
-        IOPCMStandardValidator _validator,
+        IOPContractsManagerStandardValidator _validator,
         IDisputeGameFactory _realDisputeGameFactory,
         IDisputeGameFactory _fakeDisputeGameFactory
     ) {
@@ -75,9 +75,6 @@ contract BadDisputeGameFactoryReturner {
 /// @title OPCMStandardValidator_TestInit
 /// @notice Base contract for `OPCMStandardValidator` tests, handles common setup.
 contract OPCMStandardValidator_TestInit is CommonTest {
-    // /// @notice OPCMStandardValidator instance, used for testing.
-    // IOPCMStandardValidator validator;
-
     /// @notice Deploy input that was used to deploy the contracts being tested.
     IOPContractsManager.DeployInput deployInput;
 
@@ -198,7 +195,7 @@ contract OPCMStandardValidator_TestInit is CommonTest {
     /// @return The error message(s) from the validate function.
     function _validate(bool _allowFailure) internal view returns (string memory) {
         return opcm.validate(
-            IOPCMStandardValidator.ValidationInput({
+            IOPContractsManagerStandardValidator.ValidationInput({
                 proxyAdmin: proxyAdmin,
                 sysCfg: systemConfig,
                 absolutePrestate: absolutePrestate.raw(),
@@ -213,14 +210,14 @@ contract OPCMStandardValidator_TestInit is CommonTest {
     /// @return The error message(s) from the validate function.
     function _validateWithOverrides(
         bool _allowFailure,
-        IOPCMStandardValidator.ValidationOverrides memory _overrides
+        IOPContractsManagerStandardValidator.ValidationOverrides memory _overrides
     )
         internal
         view
         returns (string memory)
     {
         return opcm.validateWithOverrides(
-            IOPCMStandardValidator.ValidationInput({
+            IOPContractsManagerStandardValidator.ValidationInput({
                 proxyAdmin: proxyAdmin,
                 sysCfg: systemConfig,
                 absolutePrestate: absolutePrestate.raw(),
@@ -231,8 +228,15 @@ contract OPCMStandardValidator_TestInit is CommonTest {
         );
     }
 
-    function _defaultValidationOverrides() internal pure returns (IOPCMStandardValidator.ValidationOverrides memory) {
-        return IOPCMStandardValidator.ValidationOverrides({ l1PAOMultisig: address(0), challenger: address(0) });
+    function _defaultValidationOverrides()
+        internal
+        pure
+        returns (IOPContractsManagerStandardValidator.ValidationOverrides memory)
+    {
+        return IOPContractsManagerStandardValidator.ValidationOverrides({
+            l1PAOMultisig: address(0),
+            challenger: address(0)
+        });
     }
 }
 
@@ -260,7 +264,7 @@ contract OPCMStandardValidator_GeneralOverride_Test is OPCMStandardValidator_Tes
     /// @notice Tests that the validate function (with the L1PAOMultisig and Challenger overridden)
     ///         successfully returns the right error when both are invalid.
     function test_validateL1PAOMultisigAndChallengerOverrides_succeeds() public view {
-        IOPCMStandardValidator.ValidationOverrides memory overrides = _defaultValidationOverrides();
+        IOPContractsManagerStandardValidator.ValidationOverrides memory overrides = _defaultValidationOverrides();
         overrides.l1PAOMultisig = address(0xace);
         overrides.challenger = address(0xbad);
         assertEq(
@@ -273,8 +277,8 @@ contract OPCMStandardValidator_GeneralOverride_Test is OPCMStandardValidator_Tes
     ///         successfully returns no error when there is none. That is, it never returns the
     ///         overridden strings alone.
     function test_validateOverrides_noErrors_succeeds() public {
-        IOPCMStandardValidator.ValidationOverrides memory overrides =
-            IOPCMStandardValidator.ValidationOverrides({ l1PAOMultisig: address(0xbad), challenger: address(0xc0ffee) });
+        IOPContractsManagerStandardValidator.ValidationOverrides memory overrides = IOPContractsManagerStandardValidator
+            .ValidationOverrides({ l1PAOMultisig: address(0xbad), challenger: address(0xc0ffee) });
         vm.mockCall(
             address(delayedWeth), abi.encodeCall(IDelayedWETH.proxyAdminOwner, ()), abi.encode(overrides.l1PAOMultisig)
         );
@@ -294,8 +298,8 @@ contract OPCMStandardValidator_GeneralOverride_Test is OPCMStandardValidator_Tes
     /// @notice Tests that the validate function (with overrides) and allow failure set to false,
     ///         returns the errors with the overrides prepended.
     function test_validateOverrides_notAllowFailurePrependsOverrides_succeeds() public {
-        IOPCMStandardValidator.ValidationOverrides memory overrides =
-            IOPCMStandardValidator.ValidationOverrides({ l1PAOMultisig: address(0xbad), challenger: address(0xc0ffee) });
+        IOPContractsManagerStandardValidator.ValidationOverrides memory overrides = IOPContractsManagerStandardValidator
+            .ValidationOverrides({ l1PAOMultisig: address(0xbad), challenger: address(0xc0ffee) });
 
         vm.expectRevert(
             bytes(
@@ -335,7 +339,7 @@ contract OPCMStandardValidator_ProxyAdmin_Test is OPCMStandardValidator_TestInit
     /// @notice Tests that the validate function successfully returns the right overrides error
     ///         when the ProxyAdmin owner is overridden but is correct.
     function test_validate_overridenProxyAdminOwner_succeeds() public {
-        IOPCMStandardValidator.ValidationOverrides memory overrides = _defaultValidationOverrides();
+        IOPContractsManagerStandardValidator.ValidationOverrides memory overrides = _defaultValidationOverrides();
         overrides.l1PAOMultisig = address(0xbad);
         vm.mockCall(address(delayedWeth), abi.encodeCall(IDelayedWETH.proxyAdminOwner, ()), abi.encode(0xbad));
         vm.mockCall(address(proxyAdmin), abi.encodeCall(IProxyAdmin.owner, ()), abi.encode(address(0xbad)));
@@ -350,7 +354,7 @@ contract OPCMStandardValidator_ProxyAdmin_Test is OPCMStandardValidator_TestInit
     /// @notice Tests that the validate function (with an overridden ProxyAdmin owner) successfully
     ///         returns the right error when the ProxyAdmin owner is not correct.
     function test_validateOverrideL1PAOMultisig_invalidProxyAdminOwner_succeeds() public view {
-        IOPCMStandardValidator.ValidationOverrides memory overrides = _defaultValidationOverrides();
+        IOPContractsManagerStandardValidator.ValidationOverrides memory overrides = _defaultValidationOverrides();
         overrides.l1PAOMultisig = address(0xbad);
         assertEq(
             "OVERRIDES-L1PAOMULTISIG,PROXYA-10,DF-30,PDDG-DWETH-30,PLDG-DWETH-30",
@@ -940,7 +944,7 @@ contract OPCMStandardValidator_PermissionedDisputeGame_Test is OPCMStandardValid
     /// @notice Tests that the validate function successfully returns the right overrides error when the
     ///         PermissionedDisputeGame challenger is overridden but is correct.
     function test_validate_overridenPermissionedDisputeGameChallenger_succeeds() public {
-        IOPCMStandardValidator.ValidationOverrides memory overrides = _defaultValidationOverrides();
+        IOPContractsManagerStandardValidator.ValidationOverrides memory overrides = _defaultValidationOverrides();
         overrides.challenger = address(0xbad);
         vm.mockCall(address(pdg), abi.encodeCall(IPermissionedDisputeGame.challenger, ()), abi.encode(address(0xbad)));
         assertEq("OVERRIDES-CHALLENGER", _validateWithOverrides(true, overrides));
@@ -949,7 +953,7 @@ contract OPCMStandardValidator_PermissionedDisputeGame_Test is OPCMStandardValid
     /// @notice Tests that the validate function (with an overridden PermissionedDisputeGame challenger) successfully
     ///         returns the right error when the PermissionedDisputeGame challenger is invalid.
     function test_validateOverridesChallenger_permissionedDisputeGameInvalidChallenger_succeeds() public view {
-        IOPCMStandardValidator.ValidationOverrides memory overrides = _defaultValidationOverrides();
+        IOPContractsManagerStandardValidator.ValidationOverrides memory overrides = _defaultValidationOverrides();
         overrides.challenger = address(0xbad);
         assertEq("OVERRIDES-CHALLENGER,PDDG-130", _validateWithOverrides(true, overrides));
     }
