@@ -1,0 +1,107 @@
+{
+	"fuzzing": {
+		"workers": 10,
+		"workerResetLimit": 50,
+		"timeout": 0,
+		"testLimit": 0,
+		"shrinkLimit": 5000,
+		"callSequenceLength": 100,
+		"corpusDirectory": "corpus",
+		"coverageEnabled": true,
+		"coverageFormats": [
+			"html",
+			"lcov"
+		],
+		"revertReporterEnabled": false,
+		"targetContracts": [
+			"FuzzTest"
+		],
+		"predeployedContracts": {},
+		"targetContractsBalances": [],
+		"constructorArgs": {},
+		"deployerAddress": "0x30000",
+		"senderAddresses": [
+			"0x10000",
+			"0x20000",
+			"0x30000"
+		],
+		"blockNumberDelayMax": 60480,
+		"blockTimestampDelayMax": 604800,
+		"blockGasLimit": 125000000,
+		"transactionGasLimit": 12500000,
+		"testing": {
+			"stopOnFailedTest": true,
+			"stopOnFailedContractMatching": false,
+			"stopOnNoTests": true,
+			"testAllContracts": false,
+			"testViewMethods": false,
+			"verbosity": 1,
+			"assertionTesting": {
+				"enabled": true,
+				"panicCodeConfig": {
+					"failOnCompilerInsertedPanic": false,
+					"failOnAssertion": true,
+					"failOnArithmeticUnderflow": false,
+					"failOnDivideByZero": false,
+					"failOnEnumTypeConversionOutOfBounds": false,
+					"failOnIncorrectStorageAccess": false,
+					"failOnPopEmptyArray": false,
+					"failOnOutOfBoundsArrayAccess": false,
+					"failOnAllocateTooMuchMemory": false,
+					"failOnCallUninitializedVariable": false
+				}
+			},
+			"propertyTesting": {
+				"enabled": true,
+				"testPrefixes": [
+					"property_"
+				]
+			},
+			"optimizationTesting": {
+				"enabled": true,
+				"testPrefixes": [
+					"optimize_"
+				]
+			},
+			"targetFunctionSignatures": [],
+			"excludeFunctionSignatures": []
+		},
+		"chainConfig": {
+			"codeSizeCheckDisabled": true,
+			"cheatCodes": {
+				"cheatCodesEnabled": true,
+				"enableFFI": false
+			},
+			"skipAccountChecks": true,
+			"forkConfig": {
+				"forkModeEnabled": false,
+				"rpcUrl": "",
+				"rpcBlock": 1,
+				"poolSize": 20
+			}
+		}
+	},
+	"compilation": {
+		"platform": "crytic-compile",
+		"platformConfig": {
+			"target": ".",
+			"solcVersion": "",
+			"exportDirectory": "",
+			"args": [
+				"--foundry-compile-all",
+				"--foundry-out-directory",
+				"artifacts"
+			]
+		}
+	},
+	"slither": {
+		"useSlither": true,
+		"cachePath": "slither_results.json",
+		"args": []
+	},
+	"logging": {
+		"level": "info",
+		"logDirectory": "",
+		"noColor": false
+	}
+}

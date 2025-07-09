@@ -153,3 +153,11 @@ src = 'test/kontrol/proofs'
 out = 'kout-proofs'
 test = 'test/kontrol/proofs'
 script = 'test/kontrol/proofs'
+
+
+# Temp profile: Medusa proposal validator
+
+[profile.medusa]
+src = 'test/invariants/governance/'
+test = 'test/invariants/governance/'
+script = 'test/invariants/governance/'

@@ -50,3 +50,9 @@ __pycache__
 
 # Ignore echidna artifacts
 crytic-export
+corpus
+lib
+kontrol
+slither
+yarn.lock
+slither_results.json
