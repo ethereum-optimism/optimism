@@ -23,8 +23,8 @@ import (
 const (
 	EnvVarPrefix                  = "OP_BATCHER"
 	DefaultPIDSampleTime          = 2 * time.Second
-	DefaultPIDKp                  = 0.5
-	DefaultPIDKi                  = 0.1
+	DefaultPIDKp                  = 0.33
+	DefaultPIDKi                  = 0.01
 	DefaultPIDKd                  = 0.05
 	DefaultPIDIntegralMax         = 1000.0
 	DefaultPIDOutputMax           = 1.0
