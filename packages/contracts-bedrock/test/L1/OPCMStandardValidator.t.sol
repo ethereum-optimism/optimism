@@ -129,12 +129,20 @@ contract OPCMStandardValidator_TestInit is CommonTest {
                 abi.encodeCall(IPermissionedDisputeGame.challenger, ()),
                 abi.encode(opcm.opcmStandardValidator().challenger())
             );
-            vm.mockCall(address(proxyAdmin), abi.encodeCall(IProxyAdmin.owner, ()), abi.encode(proxyAdminOwner));
             vm.mockCall(
-                address(delayedWeth), abi.encodeCall(IDelayedWETH.proxyAdminOwner, ()), abi.encode(proxyAdminOwner)
+                address(proxyAdmin),
+                abi.encodeCall(IProxyAdmin.owner, ()),
+                abi.encode(opcm.opcmStandardValidator().l1PAOMultisig())
             );
             vm.mockCall(
-                address(disputeGameFactory), abi.encodeCall(IDisputeGameFactory.owner, ()), abi.encode(proxyAdminOwner)
+                address(delayedWeth),
+                abi.encodeCall(IDelayedWETH.proxyAdminOwner, ()),
+                abi.encode(opcm.opcmStandardValidator().l1PAOMultisig())
+            );
+            vm.mockCall(
+                address(disputeGameFactory),
+                abi.encodeCall(IDisputeGameFactory.owner, ()),
+                abi.encode(opcm.opcmStandardValidator().l1PAOMultisig())
             );
         } else {
             l2ChainId = deployInput.l2ChainId;
