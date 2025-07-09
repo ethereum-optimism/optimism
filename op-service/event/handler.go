@@ -4,9 +4,14 @@ import (
 	"context"
 	"fmt"
 	"reflect"
+
+	"github.com/ethereum/go-ethereum/log"
 )
 
-// Handler receives events. Handler can have extension interfaces to be more specific
+// Handler receives events, and processes them as task or observed event.
+// Handler is over the general Event interface,
+// so handlers for different types can be enumerated in bundles.
+// Use HandlerFn to target a specific event type.
 type Handler interface {
 	// Serve receives an event from the event system, to be processed.
 	// The event system will automatically produce a global event for a context timeout.
@@ -39,6 +44,24 @@ func (fn HandlerFn[E]) EventType() reflect.Type {
 	return reflect.TypeFor[E]()
 }
 
+// HandlerErrFn is a convience version of HandlerFn,
+// to make an event handler with default error handling.
+// Errors are handled with Reject.
+type HandlerErrFn[E Event] func(ctx context.Context, ev E) error
+
+func (fn HandlerErrFn[E]) Serve(ctx context.Context, ev Event) {
+	v, ok := ev.(E)
+	if !ok {
+		panic(fmt.Errorf("typed handler called with unexpected type event %T", ev))
+	}
+	err := fn(ctx, v)
+	Reject(ctx, err)
+}
+
+func (fn HandlerErrFn[E]) EventType() reflect.Type {
+	return reflect.TypeFor[E]()
+}
+
 // HandlerConfig represents the configuration that is
 // accumulated by combining the HandlerOption arguments.
 // This configuration configures when and how a handler is used in the event system.
@@ -48,5 +71,19 @@ type HandlerConfig struct {
 	// We might add an option for parallel handling later
 }
 
+func (cfg *HandlerConfig) ApplyOpts(opts ...HandlerOption) {
+	for _, opt := range opts {
+		opt(cfg)
+	}
+}
+
 // HandlerOption customizes when and how a handler is used in the event system.
 type HandlerOption func(cfg *HandlerConfig)
+
+func DebugDeriver[E Event](logger log.Logger) HandlerFn[E] {
+	return func(ctx context.Context, ev E) {
+		logger.Debug("on-event", "event", ev)
+	}
+}
+
+var NoopHandler = HandlerFn[Event](func(ctx context.Context, ev Event) {})

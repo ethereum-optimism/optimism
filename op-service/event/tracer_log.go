@@ -31,10 +31,6 @@ func (lt *LogTracer) OnDeriveEnd(name string, ev AnnotatedEvent, derivContext ui
 		"event", ev.Event, "emit_context", ev.EmitContext, "deriv_context", derivContext, "effect", effect)
 }
 
-func (lt *LogTracer) OnRateLimited(name string, derivContext uint64) {
-	lt.log.Log(lt.lvl, "Rate-limited event-emission", "emitter", name, "context", derivContext)
-}
-
 func (lt *LogTracer) OnEmit(name string, ev AnnotatedEvent, derivContext uint64, emitTime time.Time) {
 	lt.log.Log(lt.lvl, "Emitting event", "emitter", name, "event", ev.Event, "emit_context", ev.EmitContext, "deriv_context", derivContext)
 }

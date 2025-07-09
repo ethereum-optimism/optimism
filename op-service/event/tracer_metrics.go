@@ -23,10 +23,6 @@ func (mt *MetricsTracer) OnDeriveEnd(name string, ev AnnotatedEvent, derivContex
 	mt.metrics.RecordProcessedEvent(ev.Event.String(), name, duration)
 }
 
-func (mt *MetricsTracer) OnRateLimited(name string, derivContext uint64) {
-	mt.metrics.RecordEventsRateLimited()
-}
-
 func (mt *MetricsTracer) OnEmit(name string, ev AnnotatedEvent, derivContext uint64, emitTime time.Time) {
 	mt.metrics.RecordEmittedEvent(ev.Event.String(), name)
 	mt.metrics.EnqueuedEventIncrement(ev.Event.String())

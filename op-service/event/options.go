@@ -27,12 +27,11 @@ type EmitterConfig struct {
 	Priority Priority
 }
 
-func WithEmitLimiter(rate rate.Limit, burst int, onLimited func()) RegisterOption {
+func WithEmitLimiter(rate rate.Limit, burst int) RegisterOption {
 	return func(cfg *RegisterConfig) {
 		cfg.Emitter.Limiting = true
 		cfg.Emitter.Rate = rate
 		cfg.Emitter.Burst = burst
-		cfg.Emitter.OnLimited = onLimited
 	}
 }
 
@@ -55,6 +54,7 @@ func WithEmitPriority(priority Priority) RegisterOption {
 // new deriver/emitter with that is registered with an event System.
 // These options may be reused for multiple registrations.
 type RegisterConfig struct {
+	Name     string
 	Executor ExecutorConfig
 	Emitter  EmitterConfig
 }
@@ -75,11 +75,10 @@ func defaultRegisterConfig() *RegisterConfig {
 			Priority: Normal,
 		},
 		Emitter: EmitterConfig{
-			Limiting:  true,
-			Rate:      eventsLimit,
-			Burst:     eventsBurst,
-			OnLimited: nil,
-			Priority:  Normal,
+			Limiting: true,
+			Rate:     eventsLimit,
+			Burst:    eventsBurst,
+			Priority: Normal,
 		},
 	}
 }

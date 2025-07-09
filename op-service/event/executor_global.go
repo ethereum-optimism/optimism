@@ -2,12 +2,17 @@ package event
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
+	"reflect"
 	"slices"
 	"sort"
 	"sync"
 	"sync/atomic"
+	"time"
+
+	"golang.org/x/time/rate"
 )
 
 // Don't queue up an endless number of events.
@@ -83,12 +88,22 @@ type GlobalSyncExec struct {
 	queued chan struct{}
 
 	// sorted by descending priority
-	handles     []*globalHandle
+	handles     []*gsBus
 	handlesLock sync.RWMutex
 
 	ctx context.Context
 
+	// if true, no events may be processed, except CriticalError itself
+	abort atomic.Bool
+
+	// used to generate a unique id for each event handler processing call.
+	derivID atomic.Uint64
+	// used to generate a unique id for each event-emission.
+	emitID atomic.Uint64
+
 	metrics Metrics
+
+	tracers *Tracers
 }
 
 var _ Executor = (*GlobalSyncExec)(nil)
@@ -115,20 +130,19 @@ func (gs *GlobalSyncExec) WithMetrics(m Metrics) *GlobalSyncExec {
 	return gs
 }
 
-func (gs *GlobalSyncExec) Add(d Executable, cfg *ExecutorConfig) (leaveExecutor func()) {
+func (gs *GlobalSyncExec) NewBus(cfg *RegisterConfig) Bus {
 	gs.handlesLock.Lock()
 	defer gs.handlesLock.Unlock()
-	h := &globalHandle{d: d, priority: cfg.Priority}
-	h.g.Store(gs)
+	h := newGsBus(gs, cfg)
 	gs.handles = append(gs.handles, h)
-	// sort by descending priority
+	// sort by descending executor priority
 	sort.Slice(gs.handles, func(i, j int) bool {
-		return gs.handles[i].priority > gs.handles[j].priority
+		return gs.handles[i].cfg.Executor.Priority > gs.handles[j].cfg.Executor.Priority
 	})
-	return h.leave
+	return h.bus
 }
 
-func (gs *GlobalSyncExec) remove(h *globalHandle) {
+func (gs *GlobalSyncExec) remove(h *gsBus) {
 	gs.handlesLock.Lock()
 	defer gs.handlesLock.Unlock()
 	// Linear search to delete is fine,
@@ -161,12 +175,16 @@ func (gs *GlobalSyncExec) Enqueue(ev AnnotatedEvent) error {
 func (gs *GlobalSyncExec) processEvent(ev AnnotatedEvent) {
 	gs.handlesLock.RLock() // read lock, to allow Drain() to be called during event processing.
 	defer gs.handlesLock.RUnlock()
+
+	if gs.abort.Load() && !Is[CriticalErrorEvent](ev.Event) {
+		// if aborting, and not the CriticalErrorEvent itself, then do not process the event
+		return
+	}
+
 	for _, h := range gs.handles {
 		h.onEvent(ev)
 	}
-	if ev.PostProcessCallback != nil {
-		ev.PostProcessCallback()
-	}
+	gs.tracers.OnAfterProcessed(ev.Event.String())
 }
 
 // Await returns a channel that is closed if and when event(s) have been queued up.
@@ -252,21 +270,79 @@ func (gs *GlobalSyncExec) DrainUntil(fn func(ev Event) bool, excl bool) error {
 	}
 }
 
-type globalHandle struct {
-	g        atomic.Pointer[GlobalSyncExec]
-	d        Executable
-	priority Priority
+type gsBus struct {
+	name    string
+	g       atomic.Pointer[GlobalSyncExec]
+	bus     *basicBus
+	cfg     *RegisterConfig
+	limiter *rate.Limiter
 }
 
-func (gh *globalHandle) onEvent(ev AnnotatedEvent) {
-	if gh.g.Load() == nil { // don't process more events while we are being removed
+func newGsBus(gs *GlobalSyncExec, cfg *RegisterConfig) *gsBus {
+	g := &gsBus{name: cfg.Name}
+	if cfg.Emitter.Limiting {
+		g.limiter = rate.NewLimiter(cfg.Emitter.Rate, cfg.Emitter.Burst)
+	}
+	b := &basicBus{
+		handlers: make(map[reflect.Type]*handlersBundle),
+		closer:   nil,
+	}
+	h := &gsBus{bus: b, cfg: cfg}
+	h.g.Store(gs)
+	b.closer = h.leave
+	b.emitter = EmitterFunc(h.emit)
+	return g
+}
+
+func (gh *gsBus) emit(ctx context.Context, ev Event) error {
+	g := gh.g.Load()
+	if g == nil {
+		return errors.New("bus was closed")
+	}
+
+	emitID := g.emitID.Add(1)
+
+	// Make the main system aware of a critical error
+	// as soon as anything emits a critical event.
+	if Is[CriticalErrorEvent](ev) {
+		g.abort.Store(true)
+	}
+
+	if ctx == nil {
+		return fmt.Errorf("emitter %s must provide a context with the emitted event %s", gh.name, ev.String())
+	}
+	if e := ctx.Err(); e != nil {
+		return e
+	}
+	if gh.limiter != nil {
+		if err := gh.limiter.Wait(ctx); err != nil {
+			return err
+		}
+	}
+	return g.Enqueue(AnnotatedEvent{
+		Ctx:          ctx,
+		Event:        ev,
+		EmitContext:  emitID,
+		EmitPriority: gh.cfg.Emitter.Priority,
+	})
+}
+
+func (gh *gsBus) onEvent(ev AnnotatedEvent) {
+	g := gh.g.Load()
+	if g == nil { // don't process more events while we are being removed
 		return
 	}
-	gh.d.RunEvent(ev)
+	derivCtx := g.derivID.Add(1)
+	startTime := time.Now()
+	g.tracers.OnDeriveStart(gh.name, ev, derivCtx, startTime)
+	gh.bus.processEvent(ev.Ctx, ev.Event)
+	duration := time.Since(startTime)
+	g.tracers.OnDeriveEnd(gh.name, ev, derivCtx, startTime, duration, true)
 }
 
-func (gh *globalHandle) leave() {
+func (gh *gsBus) leave() {
 	if old := gh.g.Swap(nil); old != nil {
 		old.remove(gh)
 	}
+	return
 }
