@@ -31,6 +31,7 @@ reth-tasks = { workspace = true, optional = true }
 reth-trie-common.workspace = true
 reth-node-core.workspace = true
 reth-rpc-engine-api.workspace = true
+reth-engine-local = { workspace = true, features = ["op"] }
 reth-rpc-api.workspace = true
 
 # op-reth
@@ -78,7 +79,6 @@ reth-tasks.workspace = true
 reth-payload-util.workspace = true
 reth-payload-validator.workspace = true
 reth-revm = { workspace = true, features = ["std"] }
-reth-engine-local = { workspace = true, features = ["op"] }
 
 alloy-primitives.workspace = true
 op-alloy-consensus.workspace = true
