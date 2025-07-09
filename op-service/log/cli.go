@@ -185,7 +185,7 @@ func NewFormatFlagValue(fmtType FormatType) *FormatFlagValue {
 
 func (fv *FormatFlagValue) Set(value string) error {
 	switch FormatType(value) {
-	case FormatText, FormatTerminal, FormatLogFmt, FormatJSON:
+	case FormatText, FormatTerminal, FormatLogFmt, FormatLogFmtMs, FormatJSON, FormatJSONMs:
 		*fv = FormatFlagValue(value)
 		return nil
 	default:
