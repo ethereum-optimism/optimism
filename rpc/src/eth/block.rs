@@ -4,7 +4,6 @@ use alloy_consensus::{transaction::TransactionMeta, BlockHeader};
 use alloy_rpc_types_eth::BlockId;
 use op_alloy_rpc_types::OpTransactionReceipt;
 use reth_chainspec::ChainSpecProvider;
-use reth_node_api::BlockBody;
 use reth_optimism_forks::OpHardforks;
 use reth_optimism_primitives::{OpReceipt, OpTransactionSigned};
 use reth_rpc_eth_api::{
@@ -53,9 +52,7 @@ where
             };
 
             return block
-                .body()
-                .transactions()
-                .iter()
+                .transactions_recovered()
                 .zip(receipts.iter())
                 .enumerate()
                 .map(|(idx, (tx, receipt))| -> Result<_, _> {
