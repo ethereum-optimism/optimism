@@ -49,7 +49,7 @@ func CrossSafeUpdate(logger log.Logger, chainID eth.ChainID, d CrossSafeDeps, li
 		return h.Err() // make sure the read-consistency is still translated into an error
 	}
 	if errors.Is(err, types.ErrAwaitReplacementBlock) {
-		logger.Info("Awaiting replacement block", "err", err)
+		logger.Info("Awaiting replacement block during hazard set construction", "err", err)
 		return err
 	}
 	if errors.Is(err, types.ErrConflict) {
@@ -117,6 +117,10 @@ func scopedCrossSafeUpdate(h reads.Handle, logger log.Logger, chainID eth.ChainI
 
 	hazards, err := CrossSafeHazards(d, linker, logger, chainID, candidate.Source.ID(), types.BlockSealFromRef(candidate.Derived))
 	if err != nil {
+		// If hazard set construction encounters an invalidated block, bubble up the error
+		if errors.Is(err, types.ErrAwaitReplacementBlock) {
+			return candidate, err
+		}
 		return candidate, fmt.Errorf("failed to determine dependencies of cross-safe candidate %s: %w", candidate.Derived, err)
 	}
 	if err := HazardSafeFrontierChecks(d, candidate.Source.ID(), hazards); err != nil {
