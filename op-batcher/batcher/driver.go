@@ -508,7 +508,7 @@ func (l *BatchSubmitter) blockLoadingLoop(ctx context.Context, wg *sync.WaitGrou
 		case <-ticker.C:
 			syncStatus, err := l.getSyncStatus(ctx)
 			if err != nil {
-				l.Log.Warn("could not get sync status", "err", err)
+				l.Log.Warn("could not get sync status, retrying on next tick", "err", err)
 				continue
 			}
 
@@ -516,10 +516,16 @@ func (l *BatchSubmitter) blockLoadingLoop(ctx context.Context, wg *sync.WaitGrou
 
 			if blocksToLoad != nil {
 				// Get fresh unsafe blocks
-				if err := l.loadBlocksIntoState(ctx, blocksToLoad.start, blocksToLoad.end, publishSignal); errors.Is(err, ErrReorg) {
+				err := l.loadBlocksIntoState(ctx, blocksToLoad.start, blocksToLoad.end, publishSignal)
+				switch {
+				case errors.Is(err, ErrReorg):
 					l.Log.Warn("error loading blocks, clearing state and waiting for node sync", "err", err)
 					l.waitNodeSyncAndClearState()
-				} else {
+					continue
+				case err != nil:
+					l.Log.Warn("error loading blocks, retrying on next tick", "err", err)
+					continue
+				default:
 					l.sendToThrottlingLoop(pendingBytesUpdated) // we have increased the pending data. Signal the throttling loop to check if it should throttle.
 				}
 			}
