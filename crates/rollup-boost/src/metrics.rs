@@ -13,9 +13,9 @@ use hyper_util::rt::TokioIo;
 use jsonrpsee::http_client::HttpBody;
 use metrics_exporter_prometheus::PrometheusHandle;
 
-use crate::cli::Args;
+use crate::cli::RollupBoostArgs;
 
-pub fn init_metrics(args: &Args) -> Result<()> {
+pub fn init_metrics(args: &RollupBoostArgs) -> Result<()> {
     if args.metrics {
         let recorder = PrometheusBuilder::new().build_recorder();
         let handle = recorder.handle();
