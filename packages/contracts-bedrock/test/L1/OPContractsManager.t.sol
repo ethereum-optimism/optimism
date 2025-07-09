@@ -1560,15 +1560,18 @@ contract OPContractsManager_Upgrade_Test is OPContractsManager_Upgrade_Harness {
 contract OPContractsManager_Migrate_Test is OPContractsManager_TestInit {
     Claim absolutePrestate1 = Claim.wrap(bytes32(hex"ABBA"));
     Claim absolutePrestate2 = Claim.wrap(bytes32(hex"DEAD"));
+    
+    address proposer = makeAddr("proposer");
+    address challenger = makeAddr("challenger");
 
     /// @notice Helper function to create the default migration input.
     function _getDefaultInput() internal view returns (IOPContractsManagerInteropMigrator.MigrateInput memory) {
         IOPContractsManagerInteropMigrator.GameParameters memory gameParameters = IOPContractsManagerInteropMigrator
             .GameParameters({
-            proposer: address(1234),
-            challenger: address(5678),
-            maxGameDepth: 72,
-            splitDepth: 32,
+            proposer: proposer,
+            challenger: challenger,
+            maxGameDepth: 73,
+            splitDepth: 30,
             initBond: 1 ether,
             clockExtension: Duration.wrap(10800),
             maxClockDuration: Duration.wrap(302400)
