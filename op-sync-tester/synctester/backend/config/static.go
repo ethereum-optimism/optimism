@@ -13,7 +13,7 @@ type SyncTesterEntry struct {
 	ELRPC endpoint.MustRPC `yaml:"el_rpc"`
 
 	// ChainID is used to sanity-check we are connected to the right chain,
-	// and never accidentally try to use a different chain for faucet work.
+	// and never accidentally try to use a different chain for sync tester work.
 	ChainID eth.ChainID `yaml:"chain_id"`
 }
 

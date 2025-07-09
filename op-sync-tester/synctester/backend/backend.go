@@ -73,7 +73,7 @@ func FromConfig(log log.Logger, m metrics.Metricer, cfg *config.Config, router A
 	sort.Slice(syncTesterIDs, func(i, j int) bool {
 		return syncTesterIDs[i] < syncTesterIDs[j]
 	})
-	// Set up the faucet routes
+	// Set up the sync tester routes
 	var syncTesterErr error
 	b.syncTesters.Range(func(id sttypes.SyncTesterID, st *SyncTester) bool {
 		if err := router.AddRPC("/synctest"); err != nil {
