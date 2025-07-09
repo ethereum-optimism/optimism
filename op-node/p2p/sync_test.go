@@ -493,24 +493,25 @@ func TestMutexUnlocks(t *testing.T) {
 
 	t.Run("SuccessCase", func(t *testing.T) {
 		stream, _ := hostB.NewStream(ctx, hostA.ID(), PayloadByNumberProtocolID(cfg.L2ChainID))
-		binary.Write(stream, binary.LittleEndian, uint64(1))
-		stream.CloseWrite()
+		_ = binary.Write(stream, binary.LittleEndian, uint64(1))
+		_ = stream.CloseWrite()
 		var result [1]byte
-		stream.Read(result[:])
+		_, _ = stream.Read(result[:])
 		require.Equal(t, byte(0), result[0])
 		stream.Close()
 
 		srv.peerStatsLock.Lock()
+		_ = srv.peerRateLimits.Len() // needed to satisfy linter
 		srv.peerStatsLock.Unlock()
 	})
 
 	t.Run("ErrorCase", func(t *testing.T) {
 		// First request: establish peer in rate limiter
 		stream, _ := hostB.NewStream(ctx, hostA.ID(), PayloadByNumberProtocolID(cfg.L2ChainID))
-		binary.Write(stream, binary.LittleEndian, uint64(1))
-		stream.CloseWrite()
+		_ = binary.Write(stream, binary.LittleEndian, uint64(1))
+		_ = stream.CloseWrite()
 		var result [1]byte
-		stream.Read(result[:])
+		_, _ = stream.Read(result[:])
 		stream.Close()
 
 		// Make rate limiter fail on next request
@@ -526,8 +527,8 @@ func TestMutexUnlocks(t *testing.T) {
 		defer cancel()
 		go func() {
 			stream2, _ := hostB.NewStream(shortCtx, hostA.ID(), PayloadByNumberProtocolID(cfg.L2ChainID))
-			binary.Write(stream2, binary.LittleEndian, uint64(2))
-			stream2.CloseWrite()
+			_ = binary.Write(stream2, binary.LittleEndian, uint64(2))
+			_ = stream2.CloseWrite()
 			stream2.Close()
 		}()
 
@@ -538,6 +539,7 @@ func TestMutexUnlocks(t *testing.T) {
 		done := make(chan struct{})
 		go func() {
 			srv.peerStatsLock.Lock()
+			_ = srv.peerRateLimits.Len() // needed to satisfy linter
 			srv.peerStatsLock.Unlock()
 			close(done)
 		}()
