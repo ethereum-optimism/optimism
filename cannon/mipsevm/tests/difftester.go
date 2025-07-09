@@ -16,21 +16,22 @@ import (
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/testutil"
 )
 
-type TestCase interface {
-	Name() string
-}
+type TestNamer[T any] func(testCase T) string
 
-type InitializeStateFn[T TestCase] func(testCase T, state *multithreaded.State, vm VersionedVMTestCase)
-type SetExpectationsFn[T TestCase] func(testCase T, expect *mtutil.ExpectedState)
+type InitializeStateFn[T any] func(testCase T, state *multithreaded.State, vm VersionedVMTestCase)
+type SetExpectationsFn[T any] func(testCase T, expect *mtutil.ExpectedState)
 
-type DiffTester[T TestCase] struct {
+type DiffTester[T any] struct {
+	testNamer       TestNamer[T]
 	stateOpts       []mtutil.StateOption
 	initState       InitializeStateFn[T]
 	setExpectations SetExpectationsFn[T]
 }
 
-func NewDiffTester[T TestCase]() *DiffTester[T] {
-	return &DiffTester[T]{}
+func NewDiffTester[T any](testNamer TestNamer[T]) *DiffTester[T] {
+	return &DiffTester[T]{
+		testNamer: testNamer,
+	}
 }
 
 func (d *DiffTester[T]) InitState(initStateFn InitializeStateFn[T], opts ...mtutil.StateOption) *DiffTester[T] {
@@ -56,7 +57,7 @@ func (d *DiffTester[T]) Run(t *testing.T, testCases []T, randSeed int64, opts ..
 			cfg := newTestConfig(randSeed*int64(i), opts...)
 			mods := d.generateTestModifiers(t, testCase, vm, d.setExpectations, cfg)
 			for _, mod := range mods {
-				testName := fmt.Sprintf("%v%v (%v)", testCase.Name(), mod.name, vm.Name)
+				testName := fmt.Sprintf("%v%v (%v)", d.testNamer(testCase), mod.name, vm.Name)
 				t.Run(testName, func(t *testing.T) {
 					stateOpts := []mtutil.StateOption{mtutil.WithRandomization(cfg.randSeed)}
 					stateOpts = append(stateOpts, d.stateOpts...)

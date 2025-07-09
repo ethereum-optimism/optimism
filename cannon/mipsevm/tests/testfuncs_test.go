@@ -194,7 +194,7 @@ func testLoadStore(t *testing.T, cases []loadStoreTestCase) {
 		}
 	}
 
-	NewDiffTester[loadStoreTestCase]().
+	NewDiffTester((loadStoreTestCase).Name).
 		InitState(initState, mtutil.WithPCAndNextPC(pc)).
 		SetExpectations(setExpectations).
 		Run(t, cases, 1234)
