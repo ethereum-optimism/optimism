@@ -2,6 +2,7 @@ package event
 
 import (
 	"context"
+	"fmt"
 	"reflect"
 )
 
@@ -13,9 +14,9 @@ type Bus interface {
 	Name() string
 	String() string
 	// Task registers an event-handler to receive events and handle as tasks.
-	Task(handler Handler, opts ...HandlerOption)
+	Task(opts ...HandlerOption)
 	// Watch registers an event-handler to receive events, just to observe.
-	Watch(handler Handler, opts ...HandlerOption)
+	Watch(opts ...HandlerOption)
 	// Emitter returns an emitter that corresponds to the outgoing events of this bus,
 	// and that is also attached to the call context that is passed into the event handler.
 	Emitter() Emitter
@@ -31,28 +32,17 @@ type Executor interface {
 	NewBus(cfg *RegisterConfig) Bus
 }
 
-type handlerEntry struct {
-	h   Handler
-	cfg *HandlerConfig
-}
-
 type handlersBundle struct {
-	entries []*handlerEntry
+	entries []*Handler
 }
 
-func (b *handlersBundle) AddHandler(h Handler, cfg *HandlerConfig) {
-	b.entries = append(b.entries, &handlerEntry{
-		h:   h,
-		cfg: cfg,
-	})
+func (b *handlersBundle) AddHandler(h *Handler) {
+	b.entries = append(b.entries, h)
 }
 
 func (b *handlersBundle) processEvent(ctx context.Context, ev Event) {
 	for _, h := range b.entries {
-		if !h.cfg.Filter(ctx, ev) {
-			continue
-		}
-		h.h.Serve(ctx, ev)
+		h.Fn(ctx, ev)
 	}
 }
 
@@ -61,7 +51,8 @@ func (b *handlersBundle) processEvent(ctx context.Context, ev Event) {
 type basicBus struct {
 	name string
 
-	handlers map[reflect.Type]*handlersBundle
+	tasks   map[HandlerKey]*Handler
+	watches map[HandlerKey][]*Handler
 
 	emitter Emitter
 
@@ -78,24 +69,19 @@ func (b *basicBus) String() string {
 	return b.name
 }
 
-func (b *basicBus) Task(handler Handler, opts ...HandlerOption) {
-	cfg := &HandlerConfig{}
-	cfg.ApplyOpts(opts...)
-	typ := handler.EventType()
-	if _, ok := b.handlers[typ]; !ok {
-		b.handlers[typ] = &handlersBundle{}
+func (b *basicBus) Task(opts ...HandlerOption) {
+	var h Handler
+	h.Apply(opts...)
+	if _, ok := b.tasks[h.Key]; ok {
+		panic(fmt.Errorf("already have a task handler for key %s", h.Key))
 	}
-	b.handlers[typ].AddHandler(handler, cfg)
+	b.tasks[h.Key] = &h
 }
 
-func (b *basicBus) Watch(handler Handler, opts ...HandlerOption) {
-	cfg := &HandlerConfig{}
-	cfg.ApplyOpts(opts...)
-	typ := handler.EventType()
-	if _, ok := b.handlers[typ]; !ok {
-		b.handlers[typ] = &handlersBundle{}
-	}
-	b.handlers[typ].AddHandler(handler, cfg)
+func (b *basicBus) Watch(opts ...HandlerOption) {
+	var h Handler
+	h.Apply(opts...)
+	b.watches[h.Key] = append(b.watches[h.Key], &h)
 }
 
 func (b *basicBus) Emitter() Emitter {
@@ -107,12 +93,17 @@ func (b *basicBus) Close() {
 }
 
 func (b *basicBus) processEvent(ctx context.Context, ev Event) {
-	// apply the event to all handlers of the matching type
-	if b, ok := b.handlers[reflect.TypeOf(ev)]; ok {
-		b.processEvent(ctx, ev)
+	domain := DomainFromCtx(ctx)
+	fullKey := HandlerKey{
+		EventType: reflect.TypeOf(ev),
+		Domain:    domain,
 	}
-	// apply the event to all handlers that just do catch-all typing
-	if b, ok := b.handlers[reflect.TypeFor[Event]()]; ok {
-		b.processEvent(ctx, ev)
+	for k := range fullKey.Variants {
+		if h, ok := b.tasks[k]; ok {
+			h.Fn(ctx, ev)
+		}
+		for _, h := range b.watches[k] {
+			h.Fn(ctx, ev)
+		}
 	}
 }
