@@ -25,6 +25,9 @@ type Bus interface {
 	// Handlers yields the applicable set of handlers for processing of the given event
 	Handlers(ctx context.Context, ev Event) iter.Seq[*Handler]
 
+	// CancelTask unregisters the given task handler
+	CancelTask(taskID TaskID)
+
 	// Close unregisters all tasks/watches, and stops emitting events.
 	// This decouples the bus from the executor.
 	Close()
@@ -111,6 +114,14 @@ func (b *basicBus) Emitter() Emitter {
 
 func (b *basicBus) Close() {
 	b.closer()
+}
+
+func (b *basicBus) CancelTask(taskID TaskID) {
+	for k := range b.tasks {
+		if k.Task == taskID {
+			delete(b.tasks, k)
+		}
+	}
 }
 
 func (b *basicBus) Handlers(ctx context.Context, ev Event) iter.Seq[*Handler] {

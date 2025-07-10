@@ -7,6 +7,12 @@ import "context"
 // E.g. a ChainID may be a good domain to scope handling to one particular chain.
 type Domain string
 
+var _ HandlerOption = Domain("")
+
+func (d Domain) Apply(h *Handler) {
+	h.Key.Domain = d
+}
+
 func (d Domain) String() string {
 	return string(d)
 }
