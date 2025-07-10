@@ -7,7 +7,7 @@ use reth_cli::chainspec::ChainSpecParser;
 use reth_cli_commands::{
     config_cmd, db, dump_genesis, init_cmd,
     node::{self, NoArgs},
-    p2p, prune, recover, stage,
+    p2p, prune, re_execute, recover, stage,
 };
 use std::{fmt, sync::Arc};
 
@@ -62,6 +62,9 @@ pub enum Commands<Spec: ChainSpecParser = OpChainSpecParser, Ext: clap::Args + f
     #[cfg(feature = "dev")]
     #[command(name = "test-vectors")]
     TestVectors(test_vectors::Command),
+    /// Re-execute blocks in parallel to verify historical sync correctness.
+    #[command(name = "re-execute")]
+    ReExecute(re_execute::Command<Spec>),
 }
 
 impl<
@@ -86,6 +89,7 @@ impl<
             Self::ImportReceiptsOp(cmd) => cmd.chain_spec(),
             #[cfg(feature = "dev")]
             Self::TestVectors(_) => None,
+            Self::ReExecute(cmd) => cmd.chain_spec(),
         }
     }
 }
