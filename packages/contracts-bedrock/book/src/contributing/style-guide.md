@@ -177,8 +177,7 @@ _Note: This is a work in progress, not all test files are compliant with these g
 #### Organizing Principles
 
 - Solidity `contract`s are used to organize the test suite similar to how mocha uses describe.
-- Every non-trivial state changing function should have a separate contract for testing. This helps to make it very obvious where there are not yet tests and provides clear organization by function.
-- Tests should be grouped by per-function contracts following the naming patterns below.
+- Every function should have a separate contract for testing. This helps to make it very obvious where there are not yet tests and provides clear organization by function.
 
 #### Test function naming convention
 
