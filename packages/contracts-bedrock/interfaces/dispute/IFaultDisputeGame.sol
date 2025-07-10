@@ -32,7 +32,6 @@ interface IFaultDisputeGame is IDisputeGame {
         uint256 splitDepth;
         Duration clockExtension;
         Duration maxClockDuration;
-        IDelayedWETH weth;
         uint256 l2ChainId;
     }
 

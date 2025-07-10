@@ -133,43 +133,33 @@ contract StandardValidator_TestInit is CommonTest {
         }
 
         // For fork tests, get the actual deployed instance from the DisputeGameFactory
-        // For local tests, we need to create a concrete instance since the template has placeholder values
+        // For local tests, we get the implementation from the factory
         if (isForkTest()) {
             // In fork tests, get the PermissionedDisputeGame implementation from artifacts (saved by ForkLive.s.sol)
             pdg = IPermissionedDisputeGame(artifacts.mustGetAddress("PermissionedDisputeGame"));
         } else {
-            /// TODO: steven - Look into why this was not accessible from the artifacts.mustGetAddress
-            // In local tests, create a concrete instance with proper parameters for validation testing
-            // This is necessary because the shared template implementation has placeholder values (address(0), chainId
-            // 0)
-            // that would cause validation to fail
-            pdg = IPermissionedDisputeGame(
-                DeployUtils.create1({
-                    _name: "PermissionedDisputeGame",
-                    _args: DeployUtils.encodeConstructor(
-                        abi.encodeCall(
-                            IPermissionedDisputeGame.__constructor__,
-                            (
-                                IFaultDisputeGame.GameConstructorParams({
-                                    gameType: GameTypes.PERMISSIONED_CANNON,
-                                    maxGameDepth: 73,
-                                    splitDepth: 30,
-                                    clockExtension: Duration.wrap(10800),
-                                    maxClockDuration: Duration.wrap(302400),
-                                    l2ChainId: l2ChainId
-                                }),
-                                deployInput.roles.proposer,
-                                deployInput.roles.challenger
-                            )
-                        )
-                    )
-                })
-            );
-
-            // Register this concrete instance with the DisputeGameFactory for validation
-            bytes memory pdgImplArgs = abi.encodePacked(absolutePrestate, mips, anchorStateRegistry, delayedWeth);
-            vm.prank(disputeGameFactory.owner());
-            disputeGameFactory.setImplementation(GameTypes.PERMISSIONED_CANNON, IDisputeGame(address(pdg)), pdgImplArgs);
+            // In local tests, get the implementation that was set up by the Deploy script
+            IDisputeGame existingImpl = disputeGameFactory.gameImpls(GameTypes.PERMISSIONED_CANNON);
+            
+            if (address(existingImpl) == address(0)) {
+                // No implementation set, we need to get it from artifacts and set it
+                address pdgImpl = artifacts.mustGetAddress("PermissionedDisputeGame");
+                
+                // Register the implementation with proper implArgs
+                bytes memory pdgImplArgs = abi.encodePacked(absolutePrestate, mips, anchorStateRegistry, delayedWeth);
+                vm.prank(disputeGameFactory.owner());
+                disputeGameFactory.setImplementation(GameTypes.PERMISSIONED_CANNON, IDisputeGame(pdgImpl), pdgImplArgs);
+                
+                pdg = IPermissionedDisputeGame(pdgImpl);
+            } else {
+                pdg = IPermissionedDisputeGame(address(existingImpl));
+            }
+            
+            // Mock calls on the implementation since it reads from CWIA data
+            // which doesn't exist on the implementation contract itself
+            vm.mockCall(address(pdg), abi.encodeCall(IPermissionedDisputeGame.weth, ()), abi.encode(delayedWeth));
+            vm.mockCall(address(pdg), abi.encodeCall(IPermissionedDisputeGame.l2ChainId, ()), abi.encode(l2ChainId));
+            vm.mockCall(address(pdg), abi.encodeCall(IPermissionedDisputeGame.challenger, ()), abi.encode(challenger));
         }
 
         // Deploy the validator.
@@ -213,32 +203,27 @@ contract StandardValidator_TestInit is CommonTest {
             // Load the FaultDisputeGame once, we'll need it later.
             fdg = IFaultDisputeGame(artifacts.mustGetAddress("FaultDisputeGame"));
         } else {
-            // Deploy the FaultDisputeGame.
-            fdg = IFaultDisputeGame(
-                DeployUtils.create1({
-                    _name: "FaultDisputeGame",
-                    _args: DeployUtils.encodeConstructor(
-                        abi.encodeCall(
-                            IFaultDisputeGame.__constructor__,
-                            (
-                                IFaultDisputeGame.GameConstructorParams({
-                                    gameType: GameTypes.CANNON,
-                                    maxGameDepth: 73,
-                                    splitDepth: 30,
-                                    clockExtension: Duration.wrap(10800),
-                                    maxClockDuration: Duration.wrap(302400),
-                                    l2ChainId: l2ChainId
-                                })
-                            )
-                        )
-                    )
-                })
-            );
-
-            // Add the FaultDisputeGame to the DisputeGameFactory.
-            bytes memory implArgs = abi.encodePacked(absolutePrestate, mips, anchorStateRegistry, delayedWeth);
-            vm.prank(disputeGameFactory.owner());
-            disputeGameFactory.setImplementation(GameTypes.CANNON, IDisputeGame(address(fdg)), implArgs);
+            // In local tests, get the implementation that was set up by the Deploy script
+            IDisputeGame existingImpl = disputeGameFactory.gameImpls(GameTypes.CANNON);
+            
+            if (address(existingImpl) == address(0)) {
+                // No implementation set, we need to get it from artifacts and set it
+                address fdgImpl = artifacts.mustGetAddress("FaultDisputeGame");
+                
+                // Register the implementation with proper implArgs
+                bytes memory fdgImplArgs = abi.encodePacked(absolutePrestate, mips, anchorStateRegistry, delayedWeth);
+                vm.prank(disputeGameFactory.owner());
+                disputeGameFactory.setImplementation(GameTypes.CANNON, IDisputeGame(fdgImpl), fdgImplArgs);
+                
+                fdg = IFaultDisputeGame(fdgImpl);
+            } else {
+                fdg = IFaultDisputeGame(address(existingImpl));
+            }
+            
+            // Mock calls on the implementation since it reads from CWIA data
+            // which doesn't exist on the implementation contract itself
+            vm.mockCall(address(fdg), abi.encodeCall(IFaultDisputeGame.weth, ()), abi.encode(delayedWeth));
+            vm.mockCall(address(fdg), abi.encodeCall(IFaultDisputeGame.l2ChainId, ()), abi.encode(l2ChainId));
         }
 
         // Set the anchorStateRegistry and vm in the validationOverrides struct
@@ -1091,7 +1076,8 @@ contract StandardValidator_DelayedWETH_Test is StandardValidator_TestInit {
         if (isForkTest()) {
             assertEq("PDDG-DWETH-10", _validate(true, validationOverrides));
         } else {
-            assertEq("PLDG-DWETH-10", _validate(true, validationOverrides));
+            // In local tests, both games use the same DelayedWETH proxy, so both report errors
+            assertEq("PDDG-DWETH-10,PLDG-DWETH-10", _validate(true, validationOverrides));
         }
     }
 
@@ -1107,7 +1093,8 @@ contract StandardValidator_DelayedWETH_Test is StandardValidator_TestInit {
         if (isForkTest()) {
             assertEq("PDDG-DWETH-20", _validate(true, validationOverrides));
         } else {
-            assertEq("PLDG-DWETH-20", _validate(true, validationOverrides));
+            // In local tests, both games use the same DelayedWETH proxy, so both report errors
+            assertEq("PDDG-DWETH-20,PLDG-DWETH-20", _validate(true, validationOverrides));
         }
     }
 
@@ -1121,7 +1108,8 @@ contract StandardValidator_DelayedWETH_Test is StandardValidator_TestInit {
         if (isForkTest()) {
             assertEq("PDDG-DWETH-30", _validate(true, validationOverrides));
         } else {
-            assertEq("PLDG-DWETH-30", _validate(true, validationOverrides));
+            // In local tests, both games use the same DelayedWETH proxy, so both report errors
+            assertEq("PDDG-DWETH-30,PLDG-DWETH-30", _validate(true, validationOverrides));
         }
     }
 
@@ -1133,7 +1121,8 @@ contract StandardValidator_DelayedWETH_Test is StandardValidator_TestInit {
         if (isForkTest()) {
             assertEq("PDDG-DWETH-40", _validate(true, validationOverrides));
         } else {
-            assertEq("PLDG-DWETH-40", _validate(true, validationOverrides));
+            // In local tests, both games use the same DelayedWETH proxy, so both report errors
+            assertEq("PDDG-DWETH-40,PLDG-DWETH-40", _validate(true, validationOverrides));
         }
     }
 
@@ -1145,7 +1134,8 @@ contract StandardValidator_DelayedWETH_Test is StandardValidator_TestInit {
         if (isForkTest()) {
             assertEq("PDDG-DWETH-50", _validate(true, validationOverrides));
         } else {
-            assertEq("PLDG-DWETH-50", _validate(true, validationOverrides));
+            // In local tests, both games use the same DelayedWETH proxy, so both report errors
+            assertEq("PDDG-DWETH-50,PLDG-DWETH-50", _validate(true, validationOverrides));
         }
     }
 
@@ -1159,7 +1149,8 @@ contract StandardValidator_DelayedWETH_Test is StandardValidator_TestInit {
         if (isForkTest()) {
             assertEq("PDDG-DWETH-60", _validate(true, validationOverrides));
         } else {
-            assertEq("PLDG-DWETH-60", _validate(true, validationOverrides));
+            // In local tests, both games use the same DelayedWETH proxy, so both report errors
+            assertEq("PDDG-DWETH-60,PLDG-DWETH-60", _validate(true, validationOverrides));
         }
     }
 }
