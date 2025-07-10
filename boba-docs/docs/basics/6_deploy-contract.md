@@ -131,18 +131,13 @@ If so, congrats! You're ready to deploy an application to the Boba network.
 
 ## Deploy the Contract
 
-First, let's create that deployment file. Create a new directory called `deploy` in the topmost path of your project and create a file within it called `contract.deploy.ts`:
+Included in our provided example contract is the deployment file (`contract-example/deploy/contract.deploy.ts`, for the curious user). To use the file, run the following:
 
-
-
-Now we're ready to run our deployment file! Let's go ahead and deploy this contract:
-
-[comment]: # (need yarn or npx or something here too, just hardhat doesn't work)
-```
-hardhat deploy ./contracts/YourContract.sol --network boba_sepolia
+```bash
+npx hardhat deploy --network boba_sepolia
 ```
 
-After a few seconds your contract should be deployed. Now you'll see this in your terminal:
+After a few seconds your contract should deploy, and you should see this in your terminal:
 
 ```bash
 yarn deploy
@@ -190,12 +185,8 @@ Summary
 ✨  Done in 10.11s.
 ```
 
-That's pretty much it. Contracts deployed! Tutorial complete. Hopefully now you know the basics of working with Boba!
+That's all it takes to deploy your contract! This contract is simple enough (it stores and retrieves a single value) to get you started in using more complicated contracts. If you're feeling more ambitious, you can check one of our production-grade projects [here](https://github.com/bobanetwork/light-bridge).
 
 ## Troubleshooting
 
 Example project not working? [Create a Github Issue](https://github.com/bobanetwork/boba/issues).
-
-
-
-You can check a production-grade project [here](https://github.com/bobanetwork/light-bridge).
