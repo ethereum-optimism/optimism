@@ -316,10 +316,21 @@ func (cl *L2CLNode) ConnectPeer(peer *L2CLNode) {
 	cl.require.NoError(err, "failed to connect peer")
 }
 
-func (cl *L2CLNode) VerifySafeHeadDatabaseMatches(sourceOfTruth *L2CLNode) {
+type safeHeadDbMatchOpts struct {
+	minRequiredL2Block *uint64
+}
+
+func WithMinRequiredL2Block(blockNum uint64) func(opts *safeHeadDbMatchOpts) {
+	return func(opts *safeHeadDbMatchOpts) {
+		opts.minRequiredL2Block = &blockNum
+	}
+}
+
+func (cl *L2CLNode) VerifySafeHeadDatabaseMatches(sourceOfTruth *L2CLNode, args ...func(opts *safeHeadDbMatchOpts)) {
+	opts := applyOpts(safeHeadDbMatchOpts{}, args...)
 	l1Block := cl.SyncStatus().CurrentL1.Number
 	cl.log.Info("Verifying safe head database matches", "maxL1Block", l1Block)
 	cl.AwaitMinL1Processed(l1Block) // Ensure this block is fully processed before checking safe head db
 	sourceOfTruth.AwaitMinL1Processed(l1Block)
-	checkSafeHeadConsistent(cl.t, l1Block, cl, sourceOfTruth)
+	checkSafeHeadConsistent(cl.t, l1Block, cl, sourceOfTruth, opts.minRequiredL2Block)
 }
