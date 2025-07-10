@@ -30,7 +30,7 @@ func main() {
 	// If fix-traefik flag is provided, run the fix
 	if fixTraefik {
 		fmt.Println("🔧 Fixing Traefik network configuration...")
-		if err := util.FixTraefikNetwork(ctx); err != nil {
+		if err := util.SetReverseProxyConfig(ctx); err != nil {
 			fmt.Fprintf(os.Stderr, "Error fixing Traefik network: %v\n", err)
 			os.Exit(1)
 		}
