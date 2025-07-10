@@ -67,7 +67,7 @@ require (
 	golang.org/x/exp v0.0.0-20241009180824-f66d83c29e7c
 	golang.org/x/mod v0.22.0
 	golang.org/x/sync v0.14.0
-	golang.org/x/term v0.29.0
+	golang.org/x/term v0.33.0
 	golang.org/x/text v0.25.0
 	golang.org/x/time v0.11.0
 	gonum.org/v1/plot v0.16.0
@@ -291,7 +291,7 @@ require (
 	go.uber.org/zap v1.27.0 // indirect
 	golang.org/x/image v0.25.0 // indirect
 	golang.org/x/net v0.36.0 // indirect
-	golang.org/x/sys v0.30.0 // indirect
+	golang.org/x/sys v0.34.0 // indirect
 	golang.org/x/tools v0.29.0 // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20250115164207-1a7da9e5054f // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20250115164207-1a7da9e5054f // indirect
