@@ -120,7 +120,7 @@ func TestInitLiveStrategy_OPCMReuseLogicSepolia(t *testing.T) {
 				ProtocolVersionsProxy:    superCfg.ProtocolVersionsAddr,
 				ProtocolVersionsImpl:     common.HexToAddress("0x37E15e4d6DFFa9e5E320Ee1eC036922E563CB76C"),
 				SuperchainConfigProxy:    superCfg.SuperchainConfigAddr,
-				SuperchainConfigImpl:     common.HexToAddress("0x4da82a327773965b8d4D85Fa3dB8249b387458E7"),
+				SuperchainConfigImpl:     common.HexToAddress("0xCe28685EB204186b557133766eCA00334EB441E4"),
 			}
 
 			// Tagged locator will reuse the existing superchain and OPCM
