@@ -156,7 +156,6 @@ contract StandardValidator_TestInit is CommonTest {
                                     splitDepth: 30,
                                     clockExtension: Duration.wrap(10800),
                                     maxClockDuration: Duration.wrap(302400),
-                                    weth: delayedWeth,
                                     l2ChainId: l2ChainId
                                 }),
                                 deployInput.roles.proposer,
@@ -168,7 +167,7 @@ contract StandardValidator_TestInit is CommonTest {
             );
 
             // Register this concrete instance with the DisputeGameFactory for validation
-            bytes memory pdgImplArgs = abi.encode(absolutePrestate, mips, anchorStateRegistry);
+            bytes memory pdgImplArgs = abi.encodePacked(absolutePrestate, mips, anchorStateRegistry, delayedWeth);
             vm.prank(disputeGameFactory.owner());
             disputeGameFactory.setImplementation(GameTypes.PERMISSIONED_CANNON, IDisputeGame(address(pdg)), pdgImplArgs);
         }
@@ -228,7 +227,6 @@ contract StandardValidator_TestInit is CommonTest {
                                     splitDepth: 30,
                                     clockExtension: Duration.wrap(10800),
                                     maxClockDuration: Duration.wrap(302400),
-                                    weth: delayedWeth,
                                     l2ChainId: l2ChainId
                                 })
                             )
@@ -238,7 +236,7 @@ contract StandardValidator_TestInit is CommonTest {
             );
 
             // Add the FaultDisputeGame to the DisputeGameFactory.
-            bytes memory implArgs = abi.encode(absolutePrestate, mips, anchorStateRegistry);
+            bytes memory implArgs = abi.encodePacked(absolutePrestate, mips, anchorStateRegistry, delayedWeth);
             vm.prank(disputeGameFactory.owner());
             disputeGameFactory.setImplementation(GameTypes.CANNON, IDisputeGame(address(fdg)), implArgs);
         }

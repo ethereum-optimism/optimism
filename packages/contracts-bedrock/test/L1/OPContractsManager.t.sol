@@ -601,7 +601,6 @@ contract OPContractsManager_TestInit is Test {
                                 splitDepth: 30,
                                 clockExtension: Duration.wrap(10800),
                                 maxClockDuration: Duration.wrap(302400),
-                                weth: IDelayedWETH(payable(address(0))),
                                 l2ChainId: 0
                             })
                         )
@@ -620,7 +619,6 @@ contract OPContractsManager_TestInit is Test {
                                 splitDepth: 30,
                                 clockExtension: Duration.wrap(10800),
                                 maxClockDuration: Duration.wrap(302400),
-                                weth: IDelayedWETH(payable(address(0))),
                                 l2ChainId: 0
                             }),
                             makeAddr("proposer"),
@@ -641,7 +639,6 @@ contract OPContractsManager_TestInit is Test {
                                 splitDepth: 30,
                                 clockExtension: Duration.wrap(10800),
                                 maxClockDuration: Duration.wrap(302400),
-                                weth: IDelayedWETH(payable(address(0))),
                                 l2ChainId: 0
                             })
                         )
@@ -660,7 +657,6 @@ contract OPContractsManager_TestInit is Test {
                                 splitDepth: 30,
                                 clockExtension: Duration.wrap(10800),
                                 maxClockDuration: Duration.wrap(302400),
-                                weth: IDelayedWETH(payable(address(0))),
                                 l2ChainId: 0
                             }),
                             makeAddr("proposer"),

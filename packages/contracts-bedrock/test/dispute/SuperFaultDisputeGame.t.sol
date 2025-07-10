@@ -68,7 +68,6 @@ contract SuperFaultDisputeGame_Init is DisputeGameFactory_Init {
             splitDepth: 2 ** 2,
             clockExtension: Duration.wrap(3 hours),
             maxClockDuration: Duration.wrap(3.5 days),
-            weth: delayedWETH,
             l2ChainId: 10
         });
 
@@ -98,7 +97,6 @@ contract SuperFaultDisputeGame_Init is DisputeGameFactory_Init {
                                 splitDepth: gameParams.splitDepth,
                                 clockExtension: gameParams.clockExtension,
                                 maxClockDuration: gameParams.maxClockDuration,
-                                weth: gameParams.weth,
                                 l2ChainId: 0
                             })
                         )
@@ -107,7 +105,7 @@ contract SuperFaultDisputeGame_Init is DisputeGameFactory_Init {
             })
         );
 
-        bytes memory implArgs = abi.encodePacked(absolutePrestate, _vm, anchorStateRegistry);
+        bytes memory implArgs = abi.encodePacked(absolutePrestate, _vm, anchorStateRegistry, delayedWETH);
 
         // Register the game implementation with the factory.
         disputeGameFactory.setImplementation(GAME_TYPE, gameImpl, implArgs);
@@ -209,7 +207,6 @@ contract SuperFaultDisputeGame_Test is SuperFaultDisputeGame_Init {
                             splitDepth: _maxGameDepth + 1,
                             clockExtension: Duration.wrap(3 hours),
                             maxClockDuration: Duration.wrap(3.5 days),
-                            weth: IDelayedWETH(payable(address(0))),
                             l2ChainId: 0
                         })
                     )
@@ -251,7 +248,6 @@ contract SuperFaultDisputeGame_Test is SuperFaultDisputeGame_Init {
                                 splitDepth: 2 ** 2,
                                 clockExtension: Duration.wrap(3 hours),
                                 maxClockDuration: Duration.wrap(3.5 days),
-                                weth: delayedWETH,
                                 l2ChainId: 0
                             })
                         )
@@ -261,7 +257,7 @@ contract SuperFaultDisputeGame_Test is SuperFaultDisputeGame_Init {
         );
 
         // Register with factory and expect revert on game creation due to initialization
-        bytes memory implArgs = abi.encodePacked(absolutePrestate, alphabetVM, anchorStateRegistry);
+        bytes memory implArgs = abi.encodePacked(absolutePrestate, alphabetVM, anchorStateRegistry, delayedWETH);
         disputeGameFactory.setImplementation(GAME_TYPE, impl, implArgs);
 
         vm.expectRevert(InvalidChallengePeriod.selector);
@@ -296,7 +292,6 @@ contract SuperFaultDisputeGame_Test is SuperFaultDisputeGame_Init {
                             splitDepth: _splitDepth,
                             clockExtension: Duration.wrap(3 hours),
                             maxClockDuration: Duration.wrap(3.5 days),
-                            weth: IDelayedWETH(payable(address(0))),
                             l2ChainId: 0
                         })
                     )
@@ -333,7 +328,6 @@ contract SuperFaultDisputeGame_Test is SuperFaultDisputeGame_Init {
                             splitDepth: _splitDepth,
                             clockExtension: Duration.wrap(3 hours),
                             maxClockDuration: Duration.wrap(3.5 days),
-                            weth: IDelayedWETH(payable(address(0))),
                             l2ChainId: 0
                         })
                     )
@@ -379,7 +373,6 @@ contract SuperFaultDisputeGame_Test is SuperFaultDisputeGame_Init {
                                 splitDepth: 8,
                                 clockExtension: Duration.wrap(_clockExtension),
                                 maxClockDuration: Duration.wrap(_maxClockDuration),
-                                weth: delayedWETH,
                                 l2ChainId: 0
                             })
                         )
@@ -389,7 +382,7 @@ contract SuperFaultDisputeGame_Test is SuperFaultDisputeGame_Init {
         );
 
         // Register with factory and expect revert on game creation due to initialization
-        bytes memory implArgs = abi.encodePacked(absolutePrestate, alphabetVM, anchorStateRegistry);
+        bytes memory implArgs = abi.encodePacked(absolutePrestate, alphabetVM, anchorStateRegistry, delayedWETH);
         disputeGameFactory.setImplementation(GAME_TYPE, impl, implArgs);
 
         vm.expectRevert(InvalidClockExtension.selector);
@@ -422,7 +415,6 @@ contract SuperFaultDisputeGame_Test is SuperFaultDisputeGame_Init {
                             splitDepth: 8,
                             clockExtension: Duration.wrap(3 hours),
                             maxClockDuration: Duration.wrap(3.5 days),
-                            weth: IDelayedWETH(payable(address(0))),
                             l2ChainId: 0
                         })
                     )

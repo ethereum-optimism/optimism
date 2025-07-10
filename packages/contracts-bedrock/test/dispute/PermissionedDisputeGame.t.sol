@@ -58,7 +58,6 @@ contract PermissionedDisputeGame_Init is DisputeGameFactory_Init {
             splitDepth: 2 ** 2,
             clockExtension: Duration.wrap(3 hours),
             maxClockDuration: Duration.wrap(3.5 days),
-            weth: delayedWETH,
             l2ChainId: 10
         });
 
@@ -88,7 +87,6 @@ contract PermissionedDisputeGame_Init is DisputeGameFactory_Init {
                                 splitDepth: _params.splitDepth,
                                 clockExtension: _params.clockExtension,
                                 maxClockDuration: _params.maxClockDuration,
-                                weth: _params.weth,
                                 l2ChainId: _params.l2ChainId
                             }),
                             PROPOSER,
@@ -99,7 +97,7 @@ contract PermissionedDisputeGame_Init is DisputeGameFactory_Init {
             })
         );
 
-        bytes memory implArgs = abi.encodePacked(absolutePrestate, _vm, anchorStateRegistry);
+        bytes memory implArgs = abi.encodePacked(absolutePrestate, _vm, anchorStateRegistry, delayedWETH);
 
         // Register the game implementation with the factory.
         disputeGameFactory.setImplementation(GAME_TYPE, gameImpl, implArgs);

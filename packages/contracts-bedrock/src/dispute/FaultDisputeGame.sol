@@ -102,7 +102,6 @@ contract FaultDisputeGame is Clone, ISemver {
         uint256 splitDepth;
         Duration clockExtension;
         Duration maxClockDuration;
-        IDelayedWETH weth;
         uint256 l2ChainId;
     }
 
@@ -142,8 +141,7 @@ contract FaultDisputeGame is Clone, ISemver {
     /// @notice The game type ID.
     GameType internal immutable GAME_TYPE;
 
-    /// @notice WETH contract for holding ETH.
-    IDelayedWETH internal immutable WETH;
+    // WETH is now retrieved from CWIA args instead of being an immutable variable
 
     /// @notice The anchor state registry.
     // IAnchorStateRegistry internal immutable ANCHOR_STATE_REGISTRY;
@@ -247,7 +245,7 @@ contract FaultDisputeGame is Clone, ISemver {
         SPLIT_DEPTH = _params.splitDepth;
         CLOCK_EXTENSION = _params.clockExtension;
         MAX_CLOCK_DURATION = _params.maxClockDuration;
-        WETH = _params.weth;
+        // WETH is now set via implArgs in the DisputeGameFactory
         L2_CHAIN_ID = _params.l2ChainId;
     }
 
@@ -270,7 +268,8 @@ contract FaultDisputeGame is Clone, ISemver {
         // - 32 bytes: absolutePrestate
         // - 20 bytes: vm address
         // - 20 bytes: anchorStateRegistry address
-        if (msg.data.length != 194) revert BadExtraData();
+        // - 20 bytes: weth address
+        if (msg.data.length != 214) revert BadExtraData();
 
         // SAFETY: Any revert in this function will bubble up to the DisputeGameFactory and
         // prevent the game from being created.
@@ -335,7 +334,7 @@ contract FaultDisputeGame is Clone, ISemver {
 
         // Deposit the bond.
         refundModeCredit[gameCreator()] += msg.value;
-        WETH.deposit{ value: msg.value }();
+        weth().deposit{ value: msg.value }();
 
         // Set the game's starting timestamp
         createdAt = Timestamp.wrap(uint64(block.timestamp));
@@ -551,7 +550,7 @@ contract FaultDisputeGame is Clone, ISemver {
 
         // Deposit the bond.
         refundModeCredit[msg.sender] += msg.value;
-        WETH.deposit{ value: msg.value }();
+        weth().deposit{ value: msg.value }();
 
         // Emit the appropriate event for the attack or defense.
         emit Move(_challengeIndex, _claim, msg.sender);
@@ -885,8 +884,8 @@ contract FaultDisputeGame is Clone, ISemver {
         registry_ = IAnchorStateRegistry(_getArgAddress(168));
     }
 
-    function weth() public view returns (IDelayedWETH) {
-        return WETH;
+    function weth() public pure returns (IDelayedWETH) {
+        return IDelayedWETH(payable(_getArgAddress(188)));
     }
 
     /// @notice A compliant implementation of this interface should return the components of the
@@ -1014,7 +1013,7 @@ contract FaultDisputeGame is Clone, ISemver {
         // credit, we unlock it and return early.
         if (!hasUnlockedCredit[_recipient]) {
             hasUnlockedCredit[_recipient] = true;
-            WETH.unlock(_recipient, recipientCredit);
+            weth().unlock(_recipient, recipientCredit);
             return;
         }
 
@@ -1026,7 +1025,7 @@ contract FaultDisputeGame is Clone, ISemver {
         normalModeCredit[_recipient] = 0;
 
         // Try to withdraw the WETH amount so it can be used here.
-        WETH.withdraw(_recipient, recipientCredit);
+        weth().withdraw(_recipient, recipientCredit);
 
         // Transfer the credit to the recipient.
         (bool success,) = _recipient.call{ value: recipientCredit }(hex"");

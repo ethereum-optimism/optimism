@@ -70,7 +70,6 @@ contract SuperPermissionedDisputeGame_Init is DisputeGameFactory_Init {
             splitDepth: 2 ** 2,
             clockExtension: Duration.wrap(3 hours),
             maxClockDuration: Duration.wrap(3.5 days),
-            weth: _weth,
             l2ChainId: 0
         });
 
@@ -85,7 +84,7 @@ contract SuperPermissionedDisputeGame_Init is DisputeGameFactory_Init {
         );
 
         // Register the game implementation with the factory using CWIA pattern
-        bytes memory implArgs = abi.encodePacked(absolutePrestate, _vm, anchorStateRegistry);
+        bytes memory implArgs = abi.encodePacked(absolutePrestate, _vm, anchorStateRegistry, _weth);
         disputeGameFactory.setImplementation(GAME_TYPE, gameImpl, implArgs);
 
         // Create a new game.

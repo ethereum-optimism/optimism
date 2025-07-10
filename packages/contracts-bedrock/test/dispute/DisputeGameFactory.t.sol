@@ -89,7 +89,6 @@ contract DisputeGameFactory_TestInit is CommonTest {
             splitDepth: 2 ** 2,
             clockExtension: Duration.wrap(3 hours),
             maxClockDuration: Duration.wrap(3.5 days),
-            weth: delayedWeth,
             l2ChainId: 0
         });
     }
@@ -108,7 +107,7 @@ contract DisputeGameFactory_TestInit is CommonTest {
     }
 
     function _setGame(address _gameImpl, GameType _gameType, Claim _absolutePrestate, AlphabetVM _vm) internal {
-        bytes memory implArgs = abi.encodePacked(_absolutePrestate, _vm, anchorStateRegistry);
+        bytes memory implArgs = abi.encodePacked(_absolutePrestate, _vm, anchorStateRegistry, delayedWeth);
 
         vm.startPrank(disputeGameFactory.owner());
         disputeGameFactory.setImplementation(_gameType, IDisputeGame(_gameImpl), implArgs);

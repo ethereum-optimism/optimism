@@ -276,7 +276,6 @@ contract DeployDisputeGame is Script {
             splitDepth: _dgi.splitDepth(),
             clockExtension: Duration.wrap(uint64(_dgi.clockExtension())),
             maxClockDuration: Duration.wrap(uint64(_dgi.maxClockDuration())),
-            weth: _dgi.delayedWethProxy(),
             l2ChainId: _dgi.l2ChainId()
         });
 

@@ -100,7 +100,6 @@ contract SuperFaultDisputeGame is Clone, ISemver {
         uint256 splitDepth;
         Duration clockExtension;
         Duration maxClockDuration;
-        IDelayedWETH weth;
         uint256 l2ChainId;
     }
 
@@ -141,8 +140,7 @@ contract SuperFaultDisputeGame is Clone, ISemver {
     /// @notice The game type ID.
     GameType internal immutable GAME_TYPE;
 
-    /// @notice WETH contract for holding ETH.
-    IDelayedWETH internal immutable WETH;
+    // WETH is now retrieved from CWIA args instead of being an immutable variable
 
     /// @notice The duration of the clock extension. Will be doubled if the grandchild is the root claim of an execution
     ///         trace bisection subgame.
@@ -230,7 +228,7 @@ contract SuperFaultDisputeGame is Clone, ISemver {
         SPLIT_DEPTH = _params.splitDepth;
         CLOCK_EXTENSION = _params.clockExtension;
         MAX_CLOCK_DURATION = _params.maxClockDuration;
-        WETH = _params.weth;
+        // WETH is now set via implArgs in the DisputeGameFactory
     }
 
     /// @notice Initializes the contract.
@@ -253,7 +251,7 @@ contract SuperFaultDisputeGame is Clone, ISemver {
         // - 0x14 vm address (from CWIA gameArgs)
         // - 0x14 anchorStateRegistry address (from CWIA gameArgs)
 
-        if (msg.data.length != 194) revert BadExtraData();
+        if (msg.data.length != 214) revert BadExtraData();
 
         // SAFETY: Any revert in this function will bubble up to the DisputeGameFactory and
         // prevent the game from being created.
@@ -321,7 +319,7 @@ contract SuperFaultDisputeGame is Clone, ISemver {
 
         // Deposit the bond.
         refundModeCredit[gameCreator()] += msg.value;
-        WETH.deposit{ value: msg.value }();
+        weth().deposit{ value: msg.value }();
 
         // Set the game's starting timestamp
         createdAt = Timestamp.wrap(uint64(block.timestamp));
@@ -533,7 +531,7 @@ contract SuperFaultDisputeGame is Clone, ISemver {
 
         // Deposit the bond.
         refundModeCredit[msg.sender] += msg.value;
-        WETH.deposit{ value: msg.value }();
+        weth().deposit{ value: msg.value }();
 
         // Emit the appropriate event for the attack or defense.
         emit Move(_challengeIndex, _claim, msg.sender);
@@ -869,7 +867,7 @@ contract SuperFaultDisputeGame is Clone, ISemver {
         // credit, we unlock it and return early.
         if (!hasUnlockedCredit[_recipient]) {
             hasUnlockedCredit[_recipient] = true;
-            WETH.unlock(_recipient, recipientCredit);
+            weth().unlock(_recipient, recipientCredit);
             return;
         }
 
@@ -881,7 +879,7 @@ contract SuperFaultDisputeGame is Clone, ISemver {
         normalModeCredit[_recipient] = 0;
 
         // Try to withdraw the WETH amount so it can be used here.
-        WETH.withdraw(_recipient, recipientCredit);
+        weth().withdraw(_recipient, recipientCredit);
 
         // Transfer the credit to the recipient.
         (bool success,) = _recipient.call{ value: recipientCredit }(hex"");
@@ -1009,8 +1007,8 @@ contract SuperFaultDisputeGame is Clone, ISemver {
     }
 
     /// @notice Returns the WETH contract for holding ETH.
-    function weth() external view returns (IDelayedWETH weth_) {
-        weth_ = WETH;
+    function weth() public pure returns (IDelayedWETH weth_) {
+        weth_ = IDelayedWETH(payable(_getArgAddress(188)));
     }
 
     /// @notice Getter for the absolute prestate of the instruction trace.

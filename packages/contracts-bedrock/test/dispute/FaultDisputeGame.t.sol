@@ -67,7 +67,6 @@ contract FaultDisputeGame_Init is DisputeGameFactory_Init {
             splitDepth: 2 ** 2,
             clockExtension: Duration.wrap(3 hours),
             maxClockDuration: Duration.wrap(3.5 days),
-            weth: delayedWETH,
             l2ChainId: 10
         });
 
@@ -97,7 +96,6 @@ contract FaultDisputeGame_Init is DisputeGameFactory_Init {
                                 splitDepth: gameParams.splitDepth,
                                 clockExtension: gameParams.clockExtension,
                                 maxClockDuration: gameParams.maxClockDuration,
-                                weth: gameParams.weth,
                                 l2ChainId: gameParams.l2ChainId
                             })
                         )
@@ -106,7 +104,7 @@ contract FaultDisputeGame_Init is DisputeGameFactory_Init {
             })
         );
 
-        bytes memory implArgs = abi.encodePacked(absolutePrestate, _vm, anchorStateRegistry);
+        bytes memory implArgs = abi.encodePacked(absolutePrestate, _vm, anchorStateRegistry, delayedWETH);
 
         // Register the game implementation with the factory.
         disputeGameFactory.setImplementation(GAME_TYPE, gameImpl, implArgs);
@@ -196,7 +194,6 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
             splitDepth: 2 ** 2,
             clockExtension: Duration.wrap(3 hours),
             maxClockDuration: Duration.wrap(3.5 days),
-            weth: delayedWETH,
             l2ChainId: 0
         });
 
@@ -227,7 +224,7 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
         vm.mockCall(address(oracle), abi.encodeCall(IPreimageOracle.challengePeriod, ()), abi.encode(_challengePeriod));
 
         // Set up implementation with the mocked oracle's VM
-        bytes memory implArgs = abi.encodePacked(absolutePrestate, alphabetVM, anchorStateRegistry);
+        bytes memory implArgs = abi.encodePacked(absolutePrestate, alphabetVM, anchorStateRegistry, delayedWETH);
         disputeGameFactory.setImplementation(GAME_TYPE, gameImpl, implArgs);
 
         // The test expects the game creation to revert due to invalid challenge period
@@ -257,7 +254,6 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
             splitDepth: _splitDepth,
             clockExtension: Duration.wrap(3 hours),
             maxClockDuration: Duration.wrap(3.5 days),
-            weth: delayedWETH,
             l2ChainId: 0
         });
 
@@ -290,7 +286,6 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
             splitDepth: _splitDepth,
             clockExtension: Duration.wrap(3 hours),
             maxClockDuration: Duration.wrap(3.5 days),
-            weth: delayedWETH,
             l2ChainId: 0
         });
 
@@ -332,7 +327,6 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
             splitDepth: 2 ** 2,
             clockExtension: Duration.wrap(_clockExtension),
             maxClockDuration: Duration.wrap(_maxClockDuration),
-            weth: delayedWETH,
             l2ChainId: 0
         });
 
@@ -340,7 +334,7 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
         FaultDisputeGame faultDisputeGame = new FaultDisputeGame(params);
 
         // Set up implementation args
-        bytes memory implArgs = abi.encodePacked(absolutePrestate, alphabetVM, anchorStateRegistry);
+        bytes memory implArgs = abi.encodePacked(absolutePrestate, alphabetVM, anchorStateRegistry, delayedWETH);
 
         // Register with factory
         disputeGameFactory.setImplementation(GAME_TYPE, IFaultDisputeGame(address(faultDisputeGame)), implArgs);
@@ -369,7 +363,6 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
             splitDepth: 2 ** 2,
             clockExtension: Duration.wrap(3 hours),
             maxClockDuration: Duration.wrap(3.5 days),
-            weth: delayedWETH,
             l2ChainId: 0
         });
 

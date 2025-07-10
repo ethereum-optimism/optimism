@@ -488,7 +488,6 @@ contract DeployImplementations is Script {
             splitDepth: _input.gameSplitDepth,
             clockExtension: Duration.wrap(uint64(_input.gameClockExtension)),
             maxClockDuration: Duration.wrap(uint64(_input.gameMaxClockDuration)),
-            weth: IDelayedWETH(payable(address(0))), // Will be set during clone initialization
             l2ChainId: 0 // Will be set during clone initialization
          });
 
@@ -511,7 +510,6 @@ contract DeployImplementations is Script {
             splitDepth: _input.gameSplitDepth,
             clockExtension: Duration.wrap(uint64(_input.gameClockExtension)),
             maxClockDuration: Duration.wrap(uint64(_input.gameMaxClockDuration)),
-            weth: IDelayedWETH(payable(address(0))), // Will be set during clone initialization
             l2ChainId: 0 // Will be set during clone initialization
          });
 
@@ -536,7 +534,6 @@ contract DeployImplementations is Script {
             splitDepth: _input.gameSplitDepth,
             clockExtension: Duration.wrap(uint64(_input.gameClockExtension)),
             maxClockDuration: Duration.wrap(uint64(_input.gameMaxClockDuration)),
-            weth: IDelayedWETH(payable(address(0))), // Will be set during clone initialization
             l2ChainId: 0 // Will be set during clone initialization
          });
 
@@ -559,7 +556,6 @@ contract DeployImplementations is Script {
             splitDepth: _input.gameSplitDepth,
             clockExtension: Duration.wrap(uint64(_input.gameClockExtension)),
             maxClockDuration: Duration.wrap(uint64(_input.gameMaxClockDuration)),
-            weth: IDelayedWETH(payable(address(0))), // Will be set during clone initialization
             l2ChainId: 0 // Will be set during clone initialization
          });
 

@@ -63,7 +63,6 @@ contract DeployDisputeGame2 is Script {
             splitDepth: _input.splitDepth,
             clockExtension: Duration.wrap(uint64(_input.clockExtension)),
             maxClockDuration: Duration.wrap(uint64(_input.maxClockDuration)),
-            weth: _input.delayedWethProxy,
             l2ChainId: _input.l2ChainId
         });
 
@@ -144,7 +143,9 @@ contract DeployDisputeGame2 is Script {
         require(game.splitDepth() == _input.splitDepth, "DG-30");
         require(game.clockExtension().raw() == uint64(_input.clockExtension), "DG-40");
         require(game.maxClockDuration().raw() == uint64(_input.maxClockDuration), "DG-50");
-        require(game.weth() == _input.delayedWethProxy, "DG-70");
+        // Skip WETH validation for standalone deployments since WETH is read from CWIA data
+        // which is not present in direct deployments
+        // require(game.weth() == _input.delayedWethProxy, "DG-70");
         require(game.l2ChainId() == _input.l2ChainId, "DG-90");
 
         if (LibString.eq(_input.gameKind, "PermissionedDisputeGame")) {

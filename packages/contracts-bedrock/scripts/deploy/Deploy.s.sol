@@ -23,6 +23,8 @@ import { StandardConstants } from "scripts/deploy/StandardConstants.sol";
 import { Types } from "scripts/libraries/Types.sol";
 import { Duration } from "src/dispute/lib/LibUDT.sol";
 import { GameType, Claim, GameTypes, Proposal, Hash } from "src/dispute/lib/Types.sol";
+import { IFaultDisputeGame } from "interfaces/dispute/IFaultDisputeGame.sol";
+import { IDisputeGame } from "interfaces/dispute/IDisputeGame.sol";
 
 // Interfaces
 import { IOPContractsManager } from "interfaces/L1/IOPContractsManager.sol";
@@ -378,6 +380,28 @@ contract Deploy is Deployer {
             _implementation: delayedWETHImpl,
             _data: abi.encodeCall(IDelayedWETH.initialize, (deployOutput.systemConfigProxy))
         });
+
+        // For tests: Register the fault dispute game implementations with the factory
+        // This is needed because tests create games directly via the factory
+        if (block.chainid == 31337) {
+            // Only on test networks
+            // Get implementation addresses
+            address faultDisputeGameImpl = artifacts.mustGetAddress("FaultDisputeGame");
+            address mipsImpl = artifacts.mustGetAddress("MipsSingleton");
+
+            // Set up implementation args for CANNON game
+            bytes memory cannonImplArgs = abi.encodePacked(
+                cfg.faultGameAbsolutePrestate(),
+                mipsImpl,
+                deployOutput.anchorStateRegistryProxy,
+                deployOutput.delayedWETHPermissionedGameProxy
+            );
+
+            // Register CANNON game type (use the proxy admin as the owner)
+            address owner = factory.owner();
+            vm.broadcast(owner);
+            factory.setImplementation(GameTypes.CANNON, IDisputeGame(faultDisputeGameImpl), cannonImplArgs);
+        }
     }
 
     ////////////////////////////////////////////////////////////////

@@ -238,7 +238,6 @@ abstract contract OPContractsManagerBase {
             splitDepth: _disputeGame.splitDepth(),
             clockExtension: _disputeGame.clockExtension(),
             maxClockDuration: _disputeGame.maxClockDuration(),
-            weth: getWETH(_disputeGame),
             l2ChainId: l2ChainId
         });
     }
@@ -255,11 +254,12 @@ abstract contract OPContractsManagerBase {
         IDisputeGame _newGame,
         Claim _absolutePrestate,
         IBigStepper _vm,
-        IAnchorStateRegistry _anchorStateRegistry
+        IAnchorStateRegistry _anchorStateRegistry,
+        IDelayedWETH _weth
     )
         internal
     {
-        bytes memory implArgs = abi.encodePacked(_absolutePrestate, _vm, _anchorStateRegistry);
+        bytes memory implArgs = abi.encodePacked(_absolutePrestate, _vm, _anchorStateRegistry, _weth);
         _dgf.setImplementation(_gameType, _newGame, implArgs);
     }
 }
@@ -299,7 +299,8 @@ contract OPContractsManagerGameTypeAdder is OPContractsManagerBase {
             IDisputeGame(address(_faultDisputeGame)),
             _gameConfig.disputeAbsolutePrestate,
             _gameConfig.vm,
-            asr
+            asr,
+            _gameConfig.delayedWETH
         );
     }
 
@@ -481,7 +482,7 @@ contract OPContractsManagerGameTypeAdder is OPContractsManagerBase {
                     saltMixer: reusableSaltMixer(_prestateUpdateInputs[i]),
                     systemConfig: _prestateUpdateInputs[i].systemConfigProxy,
                     proxyAdmin: _prestateUpdateInputs[i].proxyAdmin,
-                    delayedWETH: IDelayedWETH(payable(address(gameParams.weth))),
+                    delayedWETH: getWETH(existingGame),
                     disputeGameType: gameParams.gameType,
                     disputeMaxGameDepth: gameParams.maxGameDepth,
                     disputeSplitDepth: gameParams.splitDepth,
@@ -840,7 +841,8 @@ contract OPContractsManagerUpgrader is OPContractsManagerBase {
             IDisputeGame(gameImplementation),
             absolutePrestate,
             IBigStepper(impls.mipsImpl),
-            _newAnchorStateRegistryProxy
+            _newAnchorStateRegistryProxy,
+            _newDelayedWeth
         );
     }
 }
@@ -1016,7 +1018,8 @@ contract OPContractsManagerDeployer is OPContractsManagerBase {
             IDisputeGame(implementation.permissionedDisputeGameImpl),
             _input.disputeAbsolutePrestate,
             IBigStepper(implementation.mipsImpl),
-            output.anchorStateRegistryProxy
+            output.anchorStateRegistryProxy,
+            output.delayedWETHPermissionedGameProxy
         );
 
         transferOwnership(address(output.disputeGameFactoryProxy), address(_input.roles.opChainProxyAdminOwner));
@@ -1434,8 +1437,9 @@ contract OPContractsManagerInteropMigrator is OPContractsManagerBase {
             // TODO: snevins - validate opChainConfig array
             bytes memory implArgs = abi.encodePacked(
                 _input.opChainConfigs[0].absolutePrestate,
-                _input.opChainConfigs[0].absolutePrestate,
-                newAnchorStateRegistry
+                IBigStepper(getImplementations().mipsImpl),
+                newAnchorStateRegistry,
+                newPermissionedDelayedWETHProxy
             );
             // Register the new SuperPermissionedDisputeGame.
             newDisputeGameFactory.setImplementation(
@@ -1472,8 +1476,9 @@ contract OPContractsManagerInteropMigrator is OPContractsManagerBase {
             // TODO: snevins - validate opChainConfig array
             bytes memory implArgs = abi.encodePacked(
                 _input.opChainConfigs[0].absolutePrestate,
-                _input.opChainConfigs[0].absolutePrestate,
-                newAnchorStateRegistry
+                IBigStepper(getImplementations().mipsImpl),
+                newAnchorStateRegistry,
+                newPermissionlessDelayedWETHProxy
             );
             // Register the new SuperFaultDisputeGame.
             newDisputeGameFactory.setImplementation(
