@@ -406,7 +406,6 @@ func FixTraefikNetwork(ctx context.Context) error {
 			return fmt.Errorf("failed to connect to network %s: %w", networkName, err)
 		}
 	}
-	time.Sleep(3 * time.Second)
 
 	// Check if container is running
 	runningContainers, err := apiClient.ContainerList(ctx, container.ListOptions{
@@ -481,7 +480,8 @@ providers:
 
 	for _, net := range networks {
 		// Only include Kurtosis networks (skip bridge, host, none)
-		if !strings.HasPrefix(net.Name, "kt-") {
+		switch net.Name {
+		case "bridge", "host", "none":
 			continue
 		}
 		traefikConfig.WriteString(fmt.Sprintf(`  docker:
