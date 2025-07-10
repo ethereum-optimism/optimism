@@ -13,7 +13,6 @@ use alloy_primitives::U256;
 use eyre::WrapErr;
 use op_alloy_network::Optimism;
 pub use receipt::{OpReceiptBuilder, OpReceiptFieldsBuilder};
-use reth_chain_state::CanonStateSubscriptions;
 use reth_chainspec::{ChainSpecProvider, EthChainSpec, EthereumHardforks};
 use reth_evm::ConfigureEvm;
 use reth_network_api::NetworkInfo;
@@ -83,19 +82,11 @@ impl<N: OpNodeCore, NetworkT> OpEthApi<N, NetworkT> {
             tx_resp_builder: RpcConverter::with_mapper(OpTxInfoMapper::new(inner)),
         }
     }
-}
 
-impl<N, NetworkT> OpEthApi<N, NetworkT>
-where
-    N: OpNodeCore<
-        Provider: BlockReaderIdExt + ChainSpecProvider + CanonStateSubscriptions + Clone + 'static,
-    >,
-{
     /// Returns a reference to the [`EthApiNodeBackend`].
     pub fn eth_api(&self) -> &EthApiNodeBackend<N> {
         self.inner.eth_api()
     }
-
     /// Returns the configured sequencer client, if any.
     pub fn sequencer_client(&self) -> Option<&SequencerClient> {
         self.inner.sequencer_client()

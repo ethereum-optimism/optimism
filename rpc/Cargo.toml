@@ -16,7 +16,6 @@ workspace = true
 reth-evm.workspace = true
 reth-primitives-traits.workspace = true
 reth-storage-api.workspace = true
-reth-chain-state.workspace = true
 reth-rpc-eth-api = { workspace = true, features = ["op"] }
 reth-rpc-eth-types.workspace = true
 reth-rpc-server-types.workspace = true
