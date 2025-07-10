@@ -274,7 +274,7 @@ func (l *BatchSubmitter) loadBlocksIntoState(ctx context.Context, start, end uin
 		}
 		latestBlock = block
 
-		if (i-start)%100 == 0 {
+		if numBlocksLoaded := (i - start + 1); numBlocksLoaded%100 == 0 {
 			// Every 100 blocks, signal the publishing loop to publish.
 			// This allows the batcher to start publishing sooner in the
 			// case of a large backlog of blocks to load.
