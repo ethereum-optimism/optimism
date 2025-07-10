@@ -3,7 +3,6 @@ package util
 import (
 	"context"
 	"fmt"
-	"io"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -301,8 +300,8 @@ func testSupervisor(ctx context.Context, rpcClient *rpc.Client) error {
 	return nil
 }
 
-// FixTraefikNetwork recreates the Traefik container with correct configuration for service routing
-func FixTraefikNetwork(ctx context.Context) error {
+// SetReverseProxyConfig recreates the Traefik container with correct configuration for service routing
+func SetReverseProxyConfig(ctx context.Context) error {
 	apiClient, err := NewDockerClient()
 	if err != nil {
 		return fmt.Errorf("failed to create Docker client: %w", err)
@@ -370,7 +369,7 @@ func FixTraefikNetwork(ctx context.Context) error {
 		return fmt.Errorf("traefik container is not connected to any kurtosis networks")
 	}
 
-	tempDir, err := createTempConfigDir(ctx, correctNetworkID)
+	tempDir, err := createTempConfigDir(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to create temp config directory: %w", err)
 	}
@@ -407,32 +406,12 @@ func FixTraefikNetwork(ctx context.Context) error {
 		}
 	}
 
-	// Check if container is running
-	runningContainers, err := apiClient.ContainerList(ctx, container.ListOptions{
-		Filters: traefikFilters,
-	})
-	if err != nil {
-		return fmt.Errorf("failed to list containers: %w", err)
+	if err := waitForContainerRunning(ctx, apiClient, newContainer.ID, 30*time.Second); err != nil {
+		return fmt.Errorf("container failed to start within timeout: %w", err)
 	}
 
-	containerRunning := false
-	for _, c := range runningContainers {
-		if c.ID == newContainer.ID {
-			containerRunning = true
-			break
-		}
-	}
-
-	if !containerRunning {
-		logs, _ := apiClient.ContainerLogs(ctx, newContainer.ID, container.LogsOptions{
-			ShowStdout: true,
-			ShowStderr: true,
-		})
-		if logs != nil {
-			logData, _ := io.ReadAll(logs)
-			fmt.Printf("Container logs:\n%s\n", string(logData))
-		}
-		return fmt.Errorf("new Traefik container failed to start")
+	if err := waitForTraefikReady(ctx, 30*time.Second); err != nil {
+		fmt.Printf("Warning: Traefik API not ready within timeout: %v\n", err)
 	}
 
 	if err := TestRPCEndpoints(ctx, apiClient); err != nil {
@@ -444,7 +423,63 @@ func FixTraefikNetwork(ctx context.Context) error {
 	return nil
 }
 
-func createTempConfigDir(ctx context.Context, networkID string) (string, error) {
+// waitForContainerRunning polls the container status until it's running or timeout
+func waitForContainerRunning(ctx context.Context, apiClient *client.Client, containerID string, timeout time.Duration) error {
+	ctx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+
+	ticker := time.NewTicker(500 * time.Millisecond)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return fmt.Errorf("timeout waiting for container to start")
+		case <-ticker.C:
+			containerInfo, err := apiClient.ContainerInspect(ctx, containerID)
+			if err != nil {
+				return fmt.Errorf("failed to inspect container: %w", err)
+			}
+			if containerInfo.State.Running {
+				return nil
+			}
+			if containerInfo.State.Status == "exited" {
+				return fmt.Errorf("container exited unexpectedly: %s", containerInfo.State.Error)
+			}
+		}
+	}
+}
+
+// waitForTraefikReady waits for Traefik API to be accessible
+func waitForTraefikReady(ctx context.Context, timeout time.Duration) error {
+	ctx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+
+	ticker := time.NewTicker(500 * time.Millisecond)
+	defer ticker.Stop()
+
+	client := &http.Client{
+		Timeout: 2 * time.Second,
+	}
+
+	for {
+		select {
+		case <-ctx.Done():
+			return fmt.Errorf("timeout waiting for Traefik API to be ready")
+		case <-ticker.C:
+			resp, err := client.Get("http://127.0.0.1:9731/api/rawdata")
+			if err == nil && resp.StatusCode == http.StatusOK {
+				resp.Body.Close()
+				return nil
+			}
+			if resp != nil {
+				resp.Body.Close()
+			}
+		}
+	}
+}
+
+func createTempConfigDir(ctx context.Context) (string, error) {
 	tempDir, err := os.MkdirTemp("", "traefik-fix-*")
 	if err != nil {
 		return "", fmt.Errorf("failed to create temp directory: %w", err)

@@ -211,8 +211,8 @@ func (d *Deployer) deployEnvironment(ctx context.Context, r io.Reader) (*kurtosi
 		return nil, fmt.Errorf("error uploading devnet descriptor: %w", err)
 	}
 
-	if err := util.FixTraefikNetwork(ctx); err != nil {
-		fmt.Printf("Failed to fix Traefik network configuration: %v\n", err)
+	if err := util.SetReverseProxyConfig(ctx); err != nil {
+		return nil, fmt.Errorf("failed to set Traefik network configuration: %w", err)
 	}
 
 	fmt.Printf("Environment running successfully\n")
