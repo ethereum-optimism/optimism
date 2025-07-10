@@ -12,6 +12,7 @@ import (
 // FailsafeClient defines the interface for controlling failsafe functionality
 type FailsafeClient interface {
 	SetFailsafeEnabled(ctx context.Context, enabled bool) error
+	GetFailsafeEnabled(ctx context.Context) (bool, error)
 }
 
 // SupervisorClient provides functionality to call admin_setFailsafeEnabled on the supervisor
@@ -55,4 +56,11 @@ func (sc *SupervisorClient) SetFailsafeEnabled(ctx context.Context, enabled bool
 // Close closes the underlying RPC client
 func (sc *SupervisorClient) Close() {
 	sc.client.Close()
+}
+
+// GetFailsafeEnabled calls admin_getFailsafeEnabled on the supervisor
+func (sc *SupervisorClient) GetFailsafeEnabled(ctx context.Context) (bool, error) {
+	var enabled bool
+	err := sc.client.CallContext(ctx, &enabled, "admin_getFailsafeEnabled")
+	return enabled, err
 }

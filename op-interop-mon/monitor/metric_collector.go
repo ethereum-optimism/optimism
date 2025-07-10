@@ -22,21 +22,27 @@ type MetricCollector struct {
 	log    log.Logger
 	m      InteropMessageMetrics
 
-	// Failsafe client for triggering failsafe enable/disable
-	failsafeClient FailsafeClient
+	// Failsafe clients for triggering failsafe enable/disable
+	failsafeClients []FailsafeClient
+
+	// Whether to trigger failsafe API calls
+	triggerFailsafe bool
 }
 
-func NewMetricCollector(log log.Logger, m InteropMessageMetrics, updaters map[eth.ChainID]Updater, failsafeClient FailsafeClient) *MetricCollector {
+func NewMetricCollector(log log.Logger, m InteropMessageMetrics, updaters map[eth.ChainID]Updater, failsafeClients []FailsafeClient, triggerFailsafe bool) *MetricCollector {
 	return &MetricCollector{
-		log:            log,
-		m:              m,
-		updaters:       updaters,
-		failsafeClient: failsafeClient,
-		closed:         make(chan struct{}),
+		log:             log,
+		m:               m,
+		updaters:        updaters,
+		failsafeClients: failsafeClients,
+		triggerFailsafe: triggerFailsafe,
+		closed:          make(chan struct{}),
 	}
 }
 
 func (m *MetricCollector) Start() error {
+	m.log.Info("Starting metric collector")
+	m.CheckFailsafeStatus()
 	go m.Run()
 	return nil
 }
@@ -258,13 +264,30 @@ func (m *MetricCollector) CollectMetrics() {
 		)
 	}
 
-	// Call failsafe API if needed
-	if shouldFailsafe && m.failsafeClient != nil {
-		m.log.Warn("Triggering failsafe due to invalid messages or terminal state transitions")
-		if err := m.failsafeClient.SetFailsafeEnabled(context.Background(), true); err != nil {
+	if shouldFailsafe && m.triggerFailsafe {
+		m.TriggerFailsafe()
+	} else if shouldFailsafe && !m.triggerFailsafe {
+		m.log.Debug("Failsafe conditions detected but triggering is disabled")
+	}
+}
+
+func (m *MetricCollector) CheckFailsafeStatus() {
+	m.log.Info("Checking failsafe status for all supervisor clients")
+	for _, failsafeClient := range m.failsafeClients {
+		status, err := failsafeClient.GetFailsafeEnabled(context.Background())
+		if err != nil {
+			m.log.Error("Failed to get failsafe status", "error", err)
+		}
+		m.log.Info("Failsafe status", "status", status)
+	}
+}
+func (m *MetricCollector) TriggerFailsafe() {
+	m.log.Error("Triggering failsafe for all supervisor clients!")
+	for _, failsafeClient := range m.failsafeClients {
+		if err := failsafeClient.SetFailsafeEnabled(context.Background(), true); err != nil {
 			m.log.Error("Failed to enable failsafe", "error", err)
 		} else {
-			m.log.Info("Successfully enabled failsafe")
+			m.log.Warn("Successfully enabled failsafe")
 		}
 	}
 }

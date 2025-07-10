@@ -28,11 +28,19 @@ var (
 	}
 
 	// Optional Flags
-	SupervisorEndpointFlag = &cli.StringFlag{
-		Name:     "supervisor-endpoint",
-		Usage:    "The RPC endpoint for the supervisor to call admin_setFailsafeEnabled",
-		EnvVars:  prefixEnvVars("SUPERVISOR_ENDPOINT"),
+	SupervisorEndpointsFlag = &cli.StringSliceFlag{
+		Name:     "supervisor-endpoints",
+		Usage:    "The RPC endpoints for the supervisors to call admin_setFailsafeEnabled",
+		EnvVars:  prefixEnvVars("SUPERVISOR_ENDPOINTS"),
 		Required: false,
+	}
+
+	TriggerFailsafeFlag = &cli.BoolFlag{
+		Name:     "trigger-failsafe",
+		Usage:    "Enable automatic failsafe triggering when invalid messages are detected",
+		EnvVars:  prefixEnvVars("TRIGGER_FAILSAFE"),
+		Required: false,
+		Value:    true,
 	}
 )
 
@@ -41,7 +49,8 @@ var requiredFlags = []cli.Flag{
 }
 
 var optionalFlags = []cli.Flag{
-	SupervisorEndpointFlag,
+	SupervisorEndpointsFlag,
+	TriggerFailsafeFlag,
 }
 
 func init() {
