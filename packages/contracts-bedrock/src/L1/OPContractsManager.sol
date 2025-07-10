@@ -947,6 +947,11 @@ contract OPContractsManagerDeployer is OPContractsManagerBase {
 
     constructor(OPContractsManagerContractsContainer _contractsContainer) OPContractsManagerBase(_contractsContainer) { }
 
+    /// @notice Deploys a new OP Stack chain.
+    /// @param _input The deploy input parameters for the deployment.
+    /// @param _superchainConfig The superchain config for the chain.
+    /// @param _deployer The address to emit as the deployer address.
+    /// @return The deploy output values of the deployment.
     function deploy(
         OPContractsManager.DeployInput calldata _input,
         ISuperchainConfig _superchainConfig,
@@ -1881,6 +1886,7 @@ contract OPContractsManager is ISemver {
         upgradeController = _upgradeController;
     }
 
+    /// @notice Validates the configuration of the L1 contracts.
     function validate(
         OPContractsManagerStandardValidator.ValidationInput memory _input,
         bool _allowFailure
@@ -1892,6 +1898,8 @@ contract OPContractsManager is ISemver {
         return opcmStandardValidator.validate(_input, _allowFailure);
     }
 
+    /// @notice Validates the configuration of the L1 contracts.
+    /// @notice Supports overrides of certain storage values denoted in the ValidationOverrides struct.
     function validateWithOverrides(
         OPContractsManagerStandardValidator.ValidationInput memory _input,
         bool _allowFailure,
@@ -1904,6 +1912,9 @@ contract OPContractsManager is ISemver {
         return opcmStandardValidator.validateWithOverrides(_input, _allowFailure, _overrides);
     }
 
+    /// @notice Deploys a new OP Stack chain.
+    /// @param _input The deploy input parameters for the deployment.
+    /// @return The deploy output values of the deployment.
     function deploy(DeployInput calldata _input) external virtual returns (DeployOutput memory) {
         return opcmDeployer.deploy(_input, superchainConfig, msg.sender);
     }

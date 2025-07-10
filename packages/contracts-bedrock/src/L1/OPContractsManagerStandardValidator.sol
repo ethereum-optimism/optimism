@@ -763,7 +763,8 @@ contract OPContractsManagerStandardValidator is ISemver {
         );
     }
 
-    /// @notice Validates the configuration of the L1 contracts.
+    /// @notice Validates the configuration of the L1 contracts. Supports overrides of certain storage values denoted in
+    /// the ValidationOverrides struct.
     function validateWithOverrides(
         ValidationInput memory _input,
         bool _allowFailure,
