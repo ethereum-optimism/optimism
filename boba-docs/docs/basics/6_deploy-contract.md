@@ -185,7 +185,27 @@ Summary
 ✨  Done in 10.11s.
 ```
 
-That's all it takes to deploy your contract! This contract is simple enough (it stores and retrieves a single value) to get you started in using more complicated contracts. If you're feeling more ambitious, you can check one of our production-grade projects [here](https://github.com/bobanetwork/light-bridge).
+## Verify the Contract
+
+Using our tool [Bobascan](https://testnet.bobascan.com/), you can verify the contract has been deployed and is valid. Sign in by connecting your crypto wallet to Bobascan, then navigate to your transactions. [TODO: ADD IMAGES OF WHERE TO FIND TRANSACTIONS AND CONTRACT ADDRESS] This will lead you to the contract address of your newly deployed contract. Copy this address, then replace "`YOUR_CONTRACT_ADDRESS_HERE`" with it in the command below to verify your contract:
+
+```bash
+npx hardhat verify --network boba_sepolia YOUR_CONTRACT_ADDRESS_HERE
+```
+
+You should see the following output once you've successfully verified your contract:
+
+```console
+Nothing to compile
+Successfully submitted source code for contract
+contracts/YourContract.sol:YourContract at 0xFe0447Eecf08Eb16DfC5a3Fa2210B30dE3f2803d
+for verification on the block explorer. Waiting for verification result...
+
+Successfully verified contract YourContract on Etherscan.
+https://testnet.bobascan.com/address/0xFe0447Eecf08Eb16DfC5a3Fa2210B30dE3f2803d#code
+```
+
+That's all it takes to deploy and verify your contract! This contract is simple enough (it stores and retrieves a single value) to get you started in using more complicated contracts. If you're feeling more ambitious, you can check one of our production-grade projects [here](https://github.com/bobanetwork/light-bridge).
 
 ## Troubleshooting
 
