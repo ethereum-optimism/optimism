@@ -251,7 +251,7 @@ func (l *BatchSubmitter) StopBatchSubmitting(ctx context.Context) error {
 
 // loadBlocksIntoState loads the blocks between start and end (inclusive).
 // If there is a reorg, it will return an error.
-func (l *BatchSubmitter) loadBlocksIntoState(ctx context.Context, start, end uint64, publishSignal chan struct{}) error {
+func (l *BatchSubmitter) loadBlocksIntoState(ctx context.Context, start, end uint64, publishSignal chan struct{}, pendingBytesUpdated chan int64) error {
 	if end < start {
 		return fmt.Errorf("start number is > end number %d,%d", start, end)
 	}
@@ -279,6 +279,7 @@ func (l *BatchSubmitter) loadBlocksIntoState(ctx context.Context, start, end uin
 			// This allows the batcher to start publishing sooner in the
 			// case of a large backlog of blocks to load.
 			trySignal(publishSignal)
+			l.sendToThrottlingLoop(pendingBytesUpdated)
 		}
 
 	}
@@ -517,7 +518,7 @@ func (l *BatchSubmitter) blockLoadingLoop(ctx context.Context, wg *sync.WaitGrou
 
 			if blocksToLoad != nil {
 				// Get fresh unsafe blocks
-				err := l.loadBlocksIntoState(ctx, blocksToLoad.start, blocksToLoad.end, publishSignal)
+				err := l.loadBlocksIntoState(ctx, blocksToLoad.start, blocksToLoad.end, publishSignal, pendingBytesUpdated)
 				switch {
 				case errors.Is(err, ErrReorg):
 					l.Log.Warn("error loading blocks, clearing state and waiting for node sync", "err", err)
