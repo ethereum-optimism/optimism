@@ -591,63 +591,83 @@ contract OPContractsManager_TestInit is Test {
             }),
             faultDisputeGameImpl: DeployUtils.create1({
                 _name: "FaultDisputeGame",
-                _args: DeployUtils.encodeConstructor(abi.encodeCall(IFaultDisputeGame.__constructor__, (
-                    IFaultDisputeGame.GameConstructorParams({
-                        gameType: GameTypes.CANNON,
-                        maxGameDepth: 73,
-                        splitDepth: 30,
-                        clockExtension: Duration.wrap(10800),
-                        maxClockDuration: Duration.wrap(302400),
-                        weth: IDelayedWETH(payable(address(0))),
-                        l2ChainId: 0
-                    })
-                )))
+                _args: DeployUtils.encodeConstructor(
+                    abi.encodeCall(
+                        IFaultDisputeGame.__constructor__,
+                        (
+                            IFaultDisputeGame.GameConstructorParams({
+                                gameType: GameTypes.CANNON,
+                                maxGameDepth: 73,
+                                splitDepth: 30,
+                                clockExtension: Duration.wrap(10800),
+                                maxClockDuration: Duration.wrap(302400),
+                                weth: IDelayedWETH(payable(address(0))),
+                                l2ChainId: 0
+                            })
+                        )
+                    )
+                )
             }),
             permissionedDisputeGameImpl: DeployUtils.create1({
                 _name: "PermissionedDisputeGame",
-                _args: DeployUtils.encodeConstructor(abi.encodeCall(IPermissionedDisputeGame.__constructor__, (
-                    IFaultDisputeGame.GameConstructorParams({
-                        gameType: GameTypes.PERMISSIONED_CANNON,
-                        maxGameDepth: 73,
-                        splitDepth: 30,
-                        clockExtension: Duration.wrap(10800),
-                        maxClockDuration: Duration.wrap(302400),
-                        weth: IDelayedWETH(payable(address(0))),
-                        l2ChainId: 0
-                    }),
-                    makeAddr("proposer"),
-                    makeAddr("challenger")
-                )))
+                _args: DeployUtils.encodeConstructor(
+                    abi.encodeCall(
+                        IPermissionedDisputeGame.__constructor__,
+                        (
+                            IFaultDisputeGame.GameConstructorParams({
+                                gameType: GameTypes.PERMISSIONED_CANNON,
+                                maxGameDepth: 73,
+                                splitDepth: 30,
+                                clockExtension: Duration.wrap(10800),
+                                maxClockDuration: Duration.wrap(302400),
+                                weth: IDelayedWETH(payable(address(0))),
+                                l2ChainId: 0
+                            }),
+                            makeAddr("proposer"),
+                            makeAddr("challenger")
+                        )
+                    )
+                )
             }),
             superFaultDisputeGameImpl: DeployUtils.create1({
                 _name: "SuperFaultDisputeGame",
-                _args: DeployUtils.encodeConstructor(abi.encodeCall(ISuperFaultDisputeGame.__constructor__, (
-                    ISuperFaultDisputeGame.GameConstructorParams({
-                        gameType: GameTypes.SUPER_CANNON,
-                        maxGameDepth: 73,
-                        splitDepth: 30,
-                        clockExtension: Duration.wrap(10800),
-                        maxClockDuration: Duration.wrap(302400),
-                        weth: IDelayedWETH(payable(address(0))),
-                        l2ChainId: 0
-                    })
-                )))
+                _args: DeployUtils.encodeConstructor(
+                    abi.encodeCall(
+                        ISuperFaultDisputeGame.__constructor__,
+                        (
+                            ISuperFaultDisputeGame.GameConstructorParams({
+                                gameType: GameTypes.SUPER_CANNON,
+                                maxGameDepth: 73,
+                                splitDepth: 30,
+                                clockExtension: Duration.wrap(10800),
+                                maxClockDuration: Duration.wrap(302400),
+                                weth: IDelayedWETH(payable(address(0))),
+                                l2ChainId: 0
+                            })
+                        )
+                    )
+                )
             }),
             superPermissionedDisputeGameImpl: DeployUtils.create1({
                 _name: "SuperPermissionedDisputeGame",
-                _args: DeployUtils.encodeConstructor(abi.encodeCall(ISuperPermissionedDisputeGame.__constructor__, (
-                    ISuperFaultDisputeGame.GameConstructorParams({
-                        gameType: GameTypes.SUPER_PERMISSIONED_CANNON,
-                        maxGameDepth: 73,
-                        splitDepth: 30,
-                        clockExtension: Duration.wrap(10800),
-                        maxClockDuration: Duration.wrap(302400),
-                        weth: IDelayedWETH(payable(address(0))),
-                        l2ChainId: 0
-                    }),
-                    makeAddr("proposer"),
-                    makeAddr("challenger")
-                )))
+                _args: DeployUtils.encodeConstructor(
+                    abi.encodeCall(
+                        ISuperPermissionedDisputeGame.__constructor__,
+                        (
+                            ISuperFaultDisputeGame.GameConstructorParams({
+                                gameType: GameTypes.SUPER_PERMISSIONED_CANNON,
+                                maxGameDepth: 73,
+                                splitDepth: 30,
+                                clockExtension: Duration.wrap(10800),
+                                maxClockDuration: Duration.wrap(302400),
+                                weth: IDelayedWETH(payable(address(0))),
+                                l2ChainId: 0
+                            }),
+                            makeAddr("proposer"),
+                            makeAddr("challenger")
+                        )
+                    )
+                )
             })
         });
 
@@ -1560,7 +1580,7 @@ contract OPContractsManager_Upgrade_Test is OPContractsManager_Upgrade_Harness {
 contract OPContractsManager_Migrate_Test is OPContractsManager_TestInit {
     Claim absolutePrestate1 = Claim.wrap(bytes32(hex"ABBA"));
     Claim absolutePrestate2 = Claim.wrap(bytes32(hex"DEAD"));
-    
+
     address proposer = makeAddr("proposer");
     address challenger = makeAddr("challenger");
 

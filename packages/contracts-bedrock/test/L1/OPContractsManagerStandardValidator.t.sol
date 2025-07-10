@@ -140,7 +140,8 @@ contract StandardValidator_TestInit is CommonTest {
         } else {
             /// TODO: steven - Look into why this was not accessible from the artifacts.mustGetAddress
             // In local tests, create a concrete instance with proper parameters for validation testing
-            // This is necessary because the shared template implementation has placeholder values (address(0), chainId 0)
+            // This is necessary because the shared template implementation has placeholder values (address(0), chainId
+            // 0)
             // that would cause validation to fail
             pdg = IPermissionedDisputeGame(
                 DeployUtils.create1({

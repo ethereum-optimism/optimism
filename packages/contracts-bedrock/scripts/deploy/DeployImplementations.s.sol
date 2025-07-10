@@ -6,7 +6,7 @@ import { Script } from "forge-std/Script.sol";
 // Libraries
 import { Chains } from "scripts/libraries/Chains.sol";
 import { LibString } from "@solady/utils/LibString.sol";
-import { GameType, GameTypes, Duration } from "src/dispute/lib/Types.sol";
+import { GameTypes, Duration } from "src/dispute/lib/Types.sol";
 
 // Interfaces
 import { IResourceMetering } from "interfaces/L1/IResourceMetering.sol";
