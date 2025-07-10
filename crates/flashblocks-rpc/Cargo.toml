@@ -57,6 +57,7 @@ serde.workspace = true
 jsonrpsee = { version = "0.25.1" }
 futures-util = "0.3.31"
 brotli = "8.0.1"
+arc-swap = "1.7.1"
 
 [[bin]]
 name = "flashblocks-rpc"

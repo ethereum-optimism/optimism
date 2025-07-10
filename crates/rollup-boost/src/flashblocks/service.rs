@@ -55,7 +55,7 @@ enum FlashblocksEngineMessage {
     FlashblocksPayloadV1(FlashblocksPayloadV1),
 }
 
-#[derive(Debug, Default)]
+#[derive(Clone, Debug, Default)]
 pub struct FlashblockBuilder {
     base: Option<ExecutionPayloadBaseV1>,
     flashblocks: Vec<ExecutionPayloadFlashblockDeltaV1>,

@@ -4,6 +4,7 @@ use alloy_consensus::transaction::TransactionMeta;
 use alloy_primitives::{Address, Sealable, TxHash, U256};
 use alloy_rpc_types::Withdrawals;
 use alloy_rpc_types::{BlockTransactions, Header, TransactionInfo};
+use arc_swap::ArcSwap;
 use op_alloy_consensus::OpTxEnvelope;
 use op_alloy_network::Optimism;
 use op_alloy_rpc_types::OpTransactionReceipt;
@@ -20,11 +21,7 @@ use rollup_boost::{
     FlashblockBuilder, FlashblocksPayloadV1, OpExecutionPayloadEnvelope, PayloadVersion,
 };
 use serde::{Deserialize, Serialize};
-use std::{
-    collections::HashMap,
-    str::FromStr,
-    sync::{Arc, Mutex},
-};
+use std::{collections::HashMap, str::FromStr, sync::Arc};
 
 #[derive(Debug, Deserialize, Serialize, Clone, Default)]
 pub struct Metadata {
@@ -35,37 +32,44 @@ pub struct Metadata {
 
 #[derive(Clone)]
 pub struct FlashblocksCache {
-    inner: Arc<Mutex<FlashblocksCacheInner>>,
+    inner: Arc<ArcSwap<FlashblocksCacheInner>>,
+    // TODO: add arc_swap::Cache to speed it up even more
 }
 
 impl FlashblocksCache {
     pub fn new(chain_spec: Arc<OpChainSpec>) -> Self {
         Self {
-            inner: Arc::new(Mutex::new(FlashblocksCacheInner::new(chain_spec))),
+            inner: Arc::new(ArcSwap::from_pointee(FlashblocksCacheInner::new(
+                chain_spec,
+            ))),
         }
     }
 
     pub fn get_block(&self, full: bool) -> Option<RpcBlock<Optimism>> {
-        self.inner.lock().unwrap().get_block(full)
+        ArcSwap::load(&self.inner).get_block(full)
     }
 
     pub fn get_transaction_count(&self, address: Address) -> Option<u64> {
-        self.inner.lock().unwrap().get_nonce(address)
+        ArcSwap::load(&self.inner).get_nonce(address)
     }
 
     pub fn get_balance(&self, address: Address) -> Option<U256> {
-        self.inner.lock().unwrap().get_balance(address)
+        ArcSwap::load(&self.inner).get_balance(address)
     }
 
     pub fn get_receipt(&self, tx_hash: &TxHash) -> Option<RpcReceipt<Optimism>> {
-        self.inner.lock().unwrap().get_receipt(tx_hash)
+        ArcSwap::load(&self.inner).get_receipt(tx_hash)
     }
 
     pub fn process_payload(&self, payload: FlashblocksPayloadV1) -> eyre::Result<()> {
-        self.inner.lock().unwrap().process_payload(payload)
+        let mut new_state = FlashblocksCacheInner::clone(&self.inner.load_full());
+        new_state.process_payload(payload)?;
+        self.inner.store(Arc::new(new_state));
+        Ok(())
     }
 }
 
+#[derive(Clone)]
 struct FlashblocksCacheInner {
     chain_spec: Arc<OpChainSpec>,
     builder: FlashblockBuilder,

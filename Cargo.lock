@@ -3265,6 +3265,7 @@ dependencies = [
  "alloy-rpc-types",
  "alloy-rpc-types-engine",
  "alloy-rpc-types-eth",
+ "arc-swap",
  "brotli",
  "clap",
  "eyre",
