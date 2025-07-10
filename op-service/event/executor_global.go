@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"reflect"
 	"slices"
 	"sort"
 	"sync"
@@ -184,6 +183,9 @@ func (gs *GlobalSyncExec) processEvent(ev AnnotatedEvent) {
 	for _, h := range gs.handles {
 		h.onEvent(ev)
 	}
+	if taskID := TaskIDFromCtx(ev.Ctx); taskID != UndefinedTask {
+		// TODO: unregister task handler
+	}
 	gs.tracers.OnAfterProcessed(ev.Event.String())
 }
 
@@ -284,8 +286,9 @@ func newGsBus(gs *GlobalSyncExec, cfg *RegisterConfig) *gsBus {
 		g.limiter = rate.NewLimiter(cfg.Emitter.Rate, cfg.Emitter.Burst)
 	}
 	b := &basicBus{
-		handlers: make(map[reflect.Type]*handlersBundle),
-		closer:   nil,
+		tasks:   make(map[HandlerKey]*Handler),
+		watches: make(map[HandlerKey][]*Handler),
+		closer:  nil,
 	}
 	h := &gsBus{bus: b, cfg: cfg}
 	h.g.Store(gs)

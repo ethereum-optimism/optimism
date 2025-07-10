@@ -3,6 +3,7 @@ package event
 import (
 	"context"
 	"fmt"
+	"iter"
 	"reflect"
 )
 
@@ -20,6 +21,10 @@ type Bus interface {
 	// Emitter returns an emitter that corresponds to the outgoing events of this bus,
 	// and that is also attached to the call context that is passed into the event handler.
 	Emitter() Emitter
+
+	// Handlers yields the applicable set of handlers for processing of the given event
+	Handlers(ctx context.Context, ev Event) iter.Seq[*Handler]
+
 	// Close unregisters all tasks/watches, and stops emitting events.
 	// This decouples the bus from the executor.
 	Close()
@@ -30,6 +35,22 @@ type Bus interface {
 // or support more advanced execution, like running each bus in parallel.
 type Executor interface {
 	NewBus(cfg *RegisterConfig) Bus
+}
+
+type busCtxKeyType struct{}
+
+var busCtxKey = busCtxKeyType{}
+
+func CtxWithBus(ctx context.Context, bus Bus) context.Context {
+	return context.WithValue(ctx, busCtxKey, bus)
+}
+
+func BusFromCtx(ctx context.Context) Bus {
+	v := ctx.Value(busCtxKey)
+	if v == nil {
+		return nil
+	}
+	return v.(Bus)
 }
 
 type handlersBundle struct {
@@ -92,18 +113,30 @@ func (b *basicBus) Close() {
 	b.closer()
 }
 
-func (b *basicBus) processEvent(ctx context.Context, ev Event) {
-	domain := DomainFromCtx(ctx)
+func (b *basicBus) Handlers(ctx context.Context, ev Event) iter.Seq[*Handler] {
 	fullKey := HandlerKey{
 		EventType: reflect.TypeOf(ev),
-		Domain:    domain,
+		Domain:    DomainFromCtx(ctx),
+		Task:      TaskIDFromCtx(ctx),
 	}
-	for k := range fullKey.Variants {
-		if h, ok := b.tasks[k]; ok {
-			h.Fn(ctx, ev)
+	return func(yield func(*Handler) bool) {
+		for k := range fullKey.HandledBy {
+			if h, ok := b.tasks[k]; ok {
+				if !yield(h) {
+					return
+				}
+			}
+			for _, h := range b.watches[k] {
+				if !yield(h) {
+					return
+				}
+			}
 		}
-		for _, h := range b.watches[k] {
-			h.Fn(ctx, ev)
-		}
+	}
+}
+
+func (b *basicBus) processEvent(ctx context.Context, ev Event) {
+	for h := range b.Handlers(ctx, ev) {
+		h.Fn(ctx, ev)
 	}
 }
