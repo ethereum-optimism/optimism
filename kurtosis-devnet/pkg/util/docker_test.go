@@ -46,31 +46,6 @@ func TestCreateKurtosisFilter(t *testing.T) {
 	}
 }
 
-func TestFixTraefikNetworkFlow(t *testing.T) {
-	// 1. Function should create a Docker client
-	// 2. Function should find Traefik container with name containing "kurtosis-reverse-proxy"
-	// 3. Function should extract network IDs from Traefik container's own networks (non-bridge networks)
-	// 4. Function should always configure Traefik for all networks it has access to
-	// 5. Function should add dynamic configuration to Traefik for all networks
-
-	t.Run("function flow documentation", func(t *testing.T) {
-		// This test documents the expected flow of the FixTraefikNetwork function
-
-		expectedSteps := []string{
-			"Find Traefik container (kurtosis-reverse-proxy)",
-			"Extract all network IDs from Traefik's network connections",
-			"Check user service containers for unreachable networks",
-			"Configure Traefik providers for all networks",
-			"Create dynamic configuration file",
-		}
-
-		// Verify we have all expected steps documented
-		assert.Len(t, expectedSteps, 5)
-		assert.Contains(t, expectedSteps, "Find Traefik container (kurtosis-reverse-proxy)")
-		assert.Contains(t, expectedSteps, "Configure Traefik providers for all networks")
-	})
-}
-
 // Helper function to create test containers for scenarios
 func createTestContainer(id, name string, networks map[string]*network.EndpointSettings) types.Container {
 	return types.Container{
@@ -89,7 +64,7 @@ func createTestNetworkEndpoint(networkID string) *network.EndpointSettings {
 	}
 }
 
-func TestFixTraefikNetworkLogic(t *testing.T) {
+func TestSetReverseProxyConfigLogic(t *testing.T) {
 	// Test the logic patterns that the function should follow
 	// The function should ALWAYS configure Traefik for ALL networks it has access to
 
@@ -169,39 +144,6 @@ providers:
 		}
 
 		assert.Equal(t, expectedConfig, actualConfig.String())
-	})
-}
-
-func TestFixTraefikNetworkErrorScenarios(t *testing.T) {
-	// Test error scenarios that the function should handle
-
-	t.Run("error scenario patterns", func(t *testing.T) {
-		// Document the expected error patterns
-
-		errorScenarios := []struct {
-			name          string
-			expectedError string
-		}{
-			{
-				name:          "traefik container not found",
-				expectedError: "traefik container (kurtosis-reverse-proxy) not found",
-			},
-			{
-				name:          "no network IDs found",
-				expectedError: "traefik container is not connected to any networks (except bridge)",
-			},
-			{
-				name:          "docker client creation failure",
-				expectedError: "failed to create Docker client",
-			},
-		}
-
-		for _, scenario := range errorScenarios {
-			t.Run(scenario.name, func(t *testing.T) {
-				// This documents the expected error messages
-				assert.Contains(t, scenario.expectedError, scenario.expectedError)
-			})
-		}
 	})
 }
 

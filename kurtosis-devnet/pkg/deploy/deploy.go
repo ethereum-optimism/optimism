@@ -211,8 +211,11 @@ func (d *Deployer) deployEnvironment(ctx context.Context, r io.Reader) (*kurtosi
 		return nil, fmt.Errorf("error uploading devnet descriptor: %w", err)
 	}
 
-	if err := util.SetReverseProxyConfig(ctx); err != nil {
-		return nil, fmt.Errorf("failed to set Traefik network configuration: %w", err)
+	// Only configure Traefik in non-dry-run mode when Docker is available
+	if !d.dryRun {
+		if err := util.SetReverseProxyConfig(ctx); err != nil {
+			return nil, fmt.Errorf("failed to set Traefik network configuration: %w", err)
+		}
 	}
 
 	fmt.Printf("Environment running successfully\n")
