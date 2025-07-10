@@ -21,6 +21,7 @@ import (
 type EngineManager interface {
 	EnsureRunning() error
 	GetEngineType() (string, error)
+	RestartEngine() error
 }
 
 type deployer interface {
@@ -237,6 +238,10 @@ func (d *Deployer) Deploy(ctx context.Context, r io.Reader) (*kurtosis.KurtosisE
 
 	// Clean up the enclave before deploying
 	if d.autofixMode == autofixTypes.AutofixModeNuke {
+		// Recreate the engine
+		if err := d.engineManager.RestartEngine(); err != nil {
+			return nil, fmt.Errorf("error restarting engine: %w", err)
+		}
 		if d.enclaveManager != nil {
 			// Remove all the enclaves and destroy all the docker resources related to kurtosis
 			err := d.enclaveManager.Nuke(ctx)
