@@ -1,0 +1,118 @@
+specVersion: 1.0.0
+indexerHints:
+  prune: auto
+schema:
+  file: ./schema.graphql
+dataSources:
+  - kind: ethereum
+    name: OptimismPortal
+    network: sepolia
+    source:
+      address: "0xB079E6FA9B3eb072fEbf7F746044834eab308dB6"
+      abi: OptimismPortal
+      startBlock: 6424872
+    mapping:
+      kind: ethereum/events
+      apiVersion: 0.0.7
+      language: wasm/assemblyscript
+      entities:
+        - DisputeGameBlacklisted
+        - Initialized
+        - RespectedGameTypeSet
+        - TransactionDeposited
+        - WithdrawalFinalized
+        - WithdrawalProven
+        - WithdrawalProvenExtension1
+      abis:
+        - name: OptimismPortal
+          file: ./abis/OptimismPortal.json
+      eventHandlers:
+        - event: DisputeGameBlacklisted(indexed address)
+          handler: handleDisputeGameBlacklisted
+        - event: Initialized(uint8)
+          handler: handleInitialized
+        - event: RespectedGameTypeSet(indexed uint32,indexed uint64)
+          handler: handleRespectedGameTypeSet
+        - event: TransactionDeposited(indexed address,indexed address,indexed uint256,bytes)
+          handler: handleTransactionDeposited
+        - event: WithdrawalFinalized(indexed bytes32,bool)
+          handler: handleWithdrawalFinalized
+        - event: WithdrawalProven(indexed bytes32,indexed address,indexed address)
+          handler: handleWithdrawalProven
+        - event: WithdrawalProvenExtension1(indexed bytes32,indexed address)
+          handler: handleWithdrawalProvenExtension1
+      file: ./src/optimism-portal-proxy.ts
+  - kind: ethereum
+    name: DisputeGameFactory
+    network: sepolia
+    source:
+      address: "0x29Bd67B23cAC0E6bbDe1373E3859Dd25510f3331"
+      abi: DisputeGameFactory
+      startBlock: 6424872
+    mapping:
+      kind: ethereum/events
+      apiVersion: 0.0.7
+      language: wasm/assemblyscript
+      entities:
+        - DisputeGameCreated
+        - ImplementationSet
+        - InitBondUpdated
+        - DisputeGameFactoryInitialized
+        - OwnershipTransferred
+      abis:
+        - name: DisputeGameFactory
+          file: ./abis/DisputeGameFactory.json
+        - name: PermissionedDisputeGame
+          file: ./abis/PermissionedDisputeGame.json
+        - name: FaultDisputeGame
+          file: ./abis/FaultDisputeGame.json
+      eventHandlers:
+        - event: DisputeGameCreated(indexed address,indexed uint32,indexed bytes32)
+          handler: handleDisputeGameCreated
+        - event: ImplementationSet(indexed address,indexed uint32)
+          handler: handleImplementationSet
+        - event: InitBondUpdated(indexed uint32,indexed uint256)
+          handler: handleInitBondUpdated
+        - event: Initialized(uint8)
+          handler: handleInitialized
+        - event: OwnershipTransferred(indexed address,indexed address)
+          handler: handleOwnershipTransferred
+      file: ./src/dispute-game-factory.ts
+templates:
+  - name: FaultDisputeGame
+    kind: ethereum/contract
+    network: sepolia
+    source:
+      abi: FaultDisputeGame
+    mapping:
+      kind: ethereum/events
+      apiVersion: 0.0.7
+      language: wasm/assemblyscript
+      file: ./src/dispute-game.ts
+      entities:
+        - Resolved
+      abis:
+        - name: FaultDisputeGame
+          file: ./abis/FaultDisputeGame.json
+      eventHandlers:
+        - event: Resolved(indexed uint8,indexed bytes32,indexed uint256)
+          handler: handleResolvedLegacy
+
+  - name: PermissionedDisputeGame
+    kind: ethereum/contract
+    network: sepolia
+    source:
+      abi: PermissionedDisputeGame
+    mapping:
+      kind: ethereum/events
+      apiVersion: 0.0.7
+      language: wasm/assemblyscript
+      file: ./src/dispute-game.ts
+      entities:
+        - Resolved
+      abis:
+        - name: PermissionedDisputeGame
+          file: ./abis/PermissionedDisputeGame.json
+      eventHandlers:
+        - event: Resolved(indexed uint8)
+          handler: handleResolvedNew

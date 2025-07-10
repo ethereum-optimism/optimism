@@ -78,11 +78,11 @@ const config = {
     /** @type {import('@docusaurus/preset-classic').ThemeConfig} */
     ({
       // Replace with your project's social card
-      image: 'img/docusaurus-social-card.jpg',
+      image: 'img/boba_preview.jpg',
       navbar: {
         title: 'Boba Developer Docs',
         logo: {
-          alt: 'My Site Logo',
+          alt: 'For all your Boba needs',
           src: 'img/boba_B.png',
         },
         items: [
