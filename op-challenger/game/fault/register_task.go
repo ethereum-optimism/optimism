@@ -124,6 +124,40 @@ func NewCannonRegisterTask(gameType faultTypes.GameType, cfg *config.Config, m c
 	}
 }
 
+func NewCannonKonaRegisterTask(gameType faultTypes.GameType, cfg *config.Config, m caching.Metrics, serverExecutor vm.OracleServerExecutor, l2Client utils.L2HeaderSource, rollupClient outputs.OutputRollupClient, syncValidator SyncValidator) *RegisterTask {
+	stateConverter := cannon.NewStateConverter(cfg.Cannon)
+	return &RegisterTask{
+		gameType:      gameType,
+		syncValidator: syncValidator,
+		getTopPrestateProvider: func(ctx context.Context, prestateBlock uint64) (faultTypes.PrestateProvider, error) {
+			return outputs.NewPrestateProvider(rollupClient, prestateBlock), nil
+		},
+		getBottomPrestateProvider: cachePrestates(
+			gameType,
+			stateConverter,
+			m,
+			cfg.CannonAbsolutePreStateBaseURL,
+			cfg.CannonAbsolutePreState,
+			filepath.Join(cfg.Datadir, "cannon-kona-prestates"),
+			func(ctx context.Context, path string) faultTypes.PrestateProvider {
+				return vm.NewPrestateProvider(path, stateConverter)
+			}),
+		newTraceAccessor: func(
+			logger log.Logger,
+			m metrics.Metricer,
+			prestateProvider faultTypes.PrestateProvider,
+			vmPrestateProvider faultTypes.PrestateProvider,
+			dir string,
+			l1Head eth.BlockID,
+			splitDepth faultTypes.Depth,
+			prestateBlock uint64,
+			poststateBlock uint64) (*trace.Accessor, error) {
+			provider := vmPrestateProvider.(*vm.PrestateProvider)
+			return outputs.NewOutputCannonKonaTraceAccessor(logger, m, cfg.Cannon, serverExecutor, l2Client, prestateProvider, provider.PrestatePath(), rollupClient, dir, l1Head, splitDepth, prestateBlock, poststateBlock)
+		},
+	}
+}
+
 func NewAsteriscRegisterTask(gameType faultTypes.GameType, cfg *config.Config, m caching.Metrics, serverExecutor vm.OracleServerExecutor, l2Client utils.L2HeaderSource, rollupClient outputs.OutputRollupClient, syncValidator SyncValidator) *RegisterTask {
 	stateConverter := asterisc.NewStateConverter(cfg.Asterisc)
 	return &RegisterTask{
