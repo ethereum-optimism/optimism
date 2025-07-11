@@ -10,13 +10,17 @@ import (
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethclient/gethclient"
 
 	"github.com/ethereum-optimism/optimism/op-node/bindings"
 	bindingspreview "github.com/ethereum-optimism/optimism/op-node/bindings/preview"
+	"github.com/ethereum-optimism/optimism/op-node/rollup"
+	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/predeploys"
+	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/depset"
 )
 
 var MessagePassedTopic = crypto.Keccak256Hash([]byte("MessagePassed(uint256,address,address,uint256,uint256,bytes,bytes32)"))
@@ -33,6 +37,10 @@ type HeaderClient interface {
 	HeaderByNumber(context.Context, *big.Int) (*types.Header, error)
 }
 
+type SupervisorClient interface {
+	SuperRootAtTimestamp(context.Context, hexutil.Uint64) (eth.SuperRootResponse, error)
+}
+
 // ProvenWithdrawalParameters is the set of parameters to pass to the ProveWithdrawalTransaction
 // and FinalizeWithdrawalTransaction functions
 type ProvenWithdrawalParameters struct {
@@ -45,6 +53,31 @@ type ProvenWithdrawalParameters struct {
 	Data            []byte
 	OutputRootProof bindings.TypesOutputRootProof
 	WithdrawalProof [][]byte // List of trie nodes to prove L2 storage
+}
+
+type SuperRootProofOutputRoot struct {
+	ChainID *big.Int
+	Root    common.Hash
+}
+
+type SuperRootProof struct {
+	Version     [1]byte
+	Timestamp   uint64
+	OutputRoots []SuperRootProofOutputRoot
+}
+
+type ProvenWithdrawalParametersSuperRoots struct {
+	Nonce            *big.Int
+	Sender           common.Address
+	Target           common.Address
+	Value            *big.Int
+	GasLimit         *big.Int
+	Data             []byte
+	DisputeGameProxy common.Address
+	OutputRootIndex  *big.Int // index of the output root in the super root
+	SuperRootProof   SuperRootProof
+	OutputRootProof  bindings.TypesOutputRootProof
+	WithdrawalProof  [][]byte // List of trie nodes to prove L2 storage
 }
 
 // ProveWithdrawalParameters calls ProveWithdrawalParametersForBlock with the most recent L2 output after the given header.
@@ -73,6 +106,98 @@ func ProveWithdrawalParametersFaultProofs(ctx context.Context, proofCl ProofClie
 	return ProveWithdrawalParametersForBlock(ctx, proofCl, l2ReceiptCl, txHash, l2Header, l2OutputIndex)
 }
 
+func ProveWithdrawalParametersSuperRoots(
+	ctx context.Context,
+	rollupCfg *rollup.Config,
+	depSet depset.DependencySet,
+	proofCl ProofClient,
+	l2ReceiptCl ReceiptClient,
+	l2HeaderCl HeaderClient,
+	txHash common.Hash,
+	supervisorClient SupervisorClient,
+	disputeGameFactoryContract *bindings.DisputeGameFactoryCaller,
+	optimismPortal2Contract *bindingspreview.OptimismPortal2Caller,
+) (ProvenWithdrawalParametersSuperRoots, error) {
+	var outputRootIndex *big.Int
+	for i, chain := range depSet.Chains() {
+		if chain.Cmp(eth.ChainIDFromBig(rollupCfg.L2ChainID)) == 0 {
+			outputRootIndex = new(big.Int).SetUint64(uint64(i))
+			break
+		}
+	}
+	if outputRootIndex == nil {
+		return ProvenWithdrawalParametersSuperRoots{}, fmt.Errorf("could not find rollup chain ID in dependency set: %v", rollupCfg.L2ChainID)
+	}
+
+	latestGame, err := FindLatestGame(ctx, disputeGameFactoryContract, optimismPortal2Contract)
+	if err != nil {
+		return ProvenWithdrawalParametersSuperRoots{}, fmt.Errorf("failed to find latest game: %w", err)
+	}
+	disputeGame, err := disputeGameFactoryContract.GameAtIndex(&bind.CallOpts{}, latestGame.Index)
+	if err != nil {
+		return ProvenWithdrawalParametersSuperRoots{}, fmt.Errorf("failed to get dispute game: %w", err)
+	}
+	l2SequenceNumber := new(big.Int).SetBytes(latestGame.ExtraData[0:32])
+
+	superRoot, err := supervisorClient.SuperRootAtTimestamp(ctx, hexutil.Uint64(l2SequenceNumber.Uint64()))
+	if err != nil {
+		return ProvenWithdrawalParametersSuperRoots{}, fmt.Errorf("failed to get super root: %w", err)
+	}
+
+	l2BlockNumber, err := rollupCfg.TargetBlockNumber(l2SequenceNumber.Uint64())
+	if err != nil {
+		return ProvenWithdrawalParametersSuperRoots{}, fmt.Errorf("failed to get target block number: %w", err)
+	}
+	l2Header, err := l2HeaderCl.HeaderByNumber(ctx, new(big.Int).SetUint64(l2BlockNumber))
+	if err != nil {
+		return ProvenWithdrawalParametersSuperRoots{}, fmt.Errorf("failed to get l2Block: %w", err)
+	}
+
+	receipt, err := l2ReceiptCl.TransactionReceipt(ctx, txHash)
+	if err != nil {
+		return ProvenWithdrawalParametersSuperRoots{}, err
+	}
+	// Parse the receipt
+	ev, err := ParseMessagePassed(receipt)
+	if err != nil {
+		return ProvenWithdrawalParametersSuperRoots{}, err
+	}
+	withdrawalProof, storageRoot, err := GetWithdrawalProof(ctx, proofCl, ev, l2Header)
+	if err != nil {
+		return ProvenWithdrawalParametersSuperRoots{}, err
+	}
+
+	outputRoots := make([]SuperRootProofOutputRoot, len(superRoot.Chains))
+	for i, chain := range superRoot.Chains {
+		outputRoots[i] = SuperRootProofOutputRoot{
+			ChainID: chain.ChainID.ToBig(),
+			Root:    common.Hash(chain.Canonical),
+		}
+	}
+	return ProvenWithdrawalParametersSuperRoots{
+		Nonce:            ev.Nonce,
+		Sender:           ev.Sender,
+		Target:           ev.Target,
+		Value:            ev.Value,
+		GasLimit:         ev.GasLimit,
+		Data:             ev.Data,
+		DisputeGameProxy: disputeGame.Proxy,
+		OutputRootIndex:  outputRootIndex,
+		SuperRootProof: SuperRootProof{
+			Version:     [1]byte{superRoot.Version},
+			Timestamp:   superRoot.Timestamp,
+			OutputRoots: outputRoots,
+		},
+		OutputRootProof: bindings.TypesOutputRootProof{
+			Version:                  [32]byte{}, // Empty for version 1
+			StateRoot:                l2Header.Root,
+			MessagePasserStorageRoot: storageRoot,
+			LatestBlockhash:          l2Header.Hash(),
+		},
+		WithdrawalProof: withdrawalProof,
+	}, nil
+}
+
 // ProveWithdrawalParametersForBlock queries L1 & L2 to generate all withdrawal parameters and proof necessary to prove a withdrawal on L1.
 // The l2Header provided is very important. It should be a block for which there is a submitted output in the L2 Output Oracle
 // contract. If not, the withdrawal will fail as it the storage proof cannot be verified if there is no submitted state root.
@@ -94,35 +219,10 @@ func ProveWithdrawalParametersForBlock(ctx context.Context, proofCl ProofClient,
 // The l2Header provided is very important. It should be a block for which there is a submitted output in the L2 Output Oracle
 // contract. If not, the withdrawal will fail as it the storage proof cannot be verified if there is no submitted state root.
 func ProveWithdrawalParametersForEvent(ctx context.Context, proofCl ProofClient, ev *bindings.L2ToL1MessagePasserMessagePassed, l2Header *types.Header, l2OutputIndex *big.Int) (ProvenWithdrawalParameters, error) {
-	// Generate then verify the withdrawal proof
-	withdrawalHash, err := WithdrawalHash(ev)
-	if !bytes.Equal(withdrawalHash[:], ev.WithdrawalHash[:]) {
-		return ProvenWithdrawalParameters{}, errors.New("Computed withdrawal hash incorrectly")
-	}
+	withdrawalProof, storageRoot, err := GetWithdrawalProof(ctx, proofCl, ev, l2Header)
 	if err != nil {
 		return ProvenWithdrawalParameters{}, err
 	}
-	slot := StorageSlotOfWithdrawalHash(withdrawalHash)
-
-	p, err := proofCl.GetProof(ctx, predeploys.L2ToL1MessagePasserAddr, []string{slot.String()}, l2Header.Number)
-	if err != nil {
-		return ProvenWithdrawalParameters{}, err
-	}
-	if len(p.StorageProof) != 1 {
-		return ProvenWithdrawalParameters{}, errors.New("invalid amount of storage proofs")
-	}
-
-	err = VerifyProof(l2Header.Root, p)
-	if err != nil {
-		return ProvenWithdrawalParameters{}, err
-	}
-
-	// Encode it as expected by the contract
-	trieNodes := make([][]byte, len(p.StorageProof[0].Proof))
-	for i, s := range p.StorageProof[0].Proof {
-		trieNodes[i] = common.FromHex(s)
-	}
-
 	return ProvenWithdrawalParameters{
 		Nonce:         ev.Nonce,
 		Sender:        ev.Sender,
@@ -134,10 +234,10 @@ func ProveWithdrawalParametersForEvent(ctx context.Context, proofCl ProofClient,
 		OutputRootProof: bindings.TypesOutputRootProof{
 			Version:                  [32]byte{}, // Empty for version 1
 			StateRoot:                l2Header.Root,
-			MessagePasserStorageRoot: p.StorageHash,
+			MessagePasserStorageRoot: storageRoot,
 			LatestBlockhash:          l2Header.Hash(),
 		},
-		WithdrawalProof: trieNodes,
+		WithdrawalProof: withdrawalProof,
 	}, nil
 }
 
@@ -246,4 +346,36 @@ func StorageSlotOfWithdrawalHash(hash common.Hash) common.Hash {
 	buf := make([]byte, 64)
 	copy(buf, hash[:])
 	return crypto.Keccak256Hash(buf)
+}
+
+func GetWithdrawalProof(ctx context.Context, proofCl ProofClient, ev *bindings.L2ToL1MessagePasserMessagePassed, l2Header *types.Header) ([][]byte, common.Hash, error) {
+	// Generate then verify the withdrawal proof
+	withdrawalHash, err := WithdrawalHash(ev)
+	if !bytes.Equal(withdrawalHash[:], ev.WithdrawalHash[:]) {
+		return nil, common.Hash{}, errors.New("Computed withdrawal hash incorrectly")
+	}
+	if err != nil {
+		return nil, common.Hash{}, err
+	}
+	slot := StorageSlotOfWithdrawalHash(withdrawalHash)
+
+	p, err := proofCl.GetProof(ctx, predeploys.L2ToL1MessagePasserAddr, []string{slot.String()}, l2Header.Number)
+	if err != nil {
+		return nil, common.Hash{}, err
+	}
+	if len(p.StorageProof) != 1 {
+		return nil, common.Hash{}, errors.New("invalid amount of storage proofs")
+	}
+
+	err = VerifyProof(l2Header.Root, p)
+	if err != nil {
+		return nil, common.Hash{}, err
+	}
+
+	// Encode it as expected by the contract
+	trieNodes := make([][]byte, len(p.StorageProof[0].Proof))
+	for i, s := range p.StorageProof[0].Proof {
+		trieNodes[i] = common.FromHex(s)
+	}
+	return trieNodes, p.StorageHash, nil
 }

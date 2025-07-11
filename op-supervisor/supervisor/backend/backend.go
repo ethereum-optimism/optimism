@@ -736,11 +736,7 @@ func (su *SupervisorBackend) IsLocalSafe(ctx context.Context, chainID eth.ChainI
 }
 
 func (su *SupervisorBackend) CrossDerivedToSource(ctx context.Context, chainID eth.ChainID, derived eth.BlockID) (source eth.BlockRef, err error) {
-	v, err := su.chainDBs.CrossDerivedToSourceRef(chainID, derived)
-	if err != nil {
-		return eth.BlockRef{}, err
-	}
-	return v, nil
+	return su.chainDBs.CrossDerivedToSourceRef(chainID, derived)
 }
 
 func (su *SupervisorBackend) L1BlockRefByNumber(ctx context.Context, number uint64) (eth.L1BlockRef, error) {

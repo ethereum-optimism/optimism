@@ -51,8 +51,6 @@ func TestReorgUnsafeHead(gt *testing.T) {
 		divergenceBlockNumber_A = unsafeHeadRef.Number
 		originalRef_A = unsafeHeadRef
 
-		sys.L2ChainA.PrintChain()
-
 		parentOfUnsafeHead := unsafeHeadRef.ParentID()
 
 		l.Info("Sequencing a conflicting block", "unsafeHead", unsafeHeadRef, "parent", parentOfUnsafeHead)
@@ -110,8 +108,6 @@ func TestReorgUnsafeHead(gt *testing.T) {
 	reorgedRef_A, err := sys.L2ELA.Escape().EthClient().BlockRefByNumber(ctx, divergenceBlockNumber_A)
 	require.NoError(t, err, "Expected to be able to call BlockRefByNumber API, but got error")
 
-	sys.L2ChainA.PrintChain()
-
 	l.Info("Reorged chain A on divergence block number (prior the reorg)", "number", divergenceBlockNumber_A, "head", originalRef_A.Hash, "parent", originalRef_A.ParentID().Hash)
 	l.Info("Reorged chain A on divergence block number (after the reorg)", "number", divergenceBlockNumber_A, "head", reorgedRef_A.Hash, "parent", reorgedRef_A.ParentID().Hash)
 	require.NotEqual(t, originalRef_A.Hash, reorgedRef_A.Hash, "Expected to get different heads on divergence block number, but got the same hash, so no reorg happened on chain A")
@@ -134,5 +130,4 @@ func TestReorgUnsafeHead(gt *testing.T) {
 		return true, nil
 	})
 	require.NoError(t, err, "Expected to get same safe ref on both supervisor and sequencer eventually")
-	sys.L2ChainA.PrintChain()
 }
