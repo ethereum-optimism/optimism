@@ -50,19 +50,6 @@ func buildPrestate(ctx context.Context, log log.Logger, programELF string, versi
 		return fmt.Errorf("version %d is not supported", version)
 	}
 
-	//./cannon/bin/cannon load-elf --type multithreaded64-4 --path op-program/bin/op-program-client64.elf --out op-program/bin/prestate-mt64.bin.gz --meta op-program/bin/meta-mt64.json
-	//./cannon/bin/cannon run --proof-at '=0' --stop-at '=1' --input op-program/bin/prestate-mt64.bin.gz --meta op-program/bin/meta-mt64.json --proof-fmt 'op-program/bin/%d-mt64.json' --output ""
-	//mv op-program/bin/0-mt64.json op-program/bin/prestate-proof-mt64.json
-	// interop:
-	//./cannon/bin/cannon load-elf --type multithreaded64-4 --path op-program/bin/op-program-client-interop.elf --out op-program/bin/prestate-interop.bin.gz --meta op-program/bin/meta-interop.json
-	//./cannon/bin/cannon run --proof-at '=0' --stop-at '=1' --input op-program/bin/prestate-interop.bin.gz --meta op-program/bin/meta-interop.json --proof-fmt 'op-program/bin/%d-interop.json' --output ""
-	//mv op-program/bin/0-interop.json op-program/bin/prestate-proof-interop.json
-
-	// experimental "next" build:
-	//./cannon/bin/cannon load-elf --type multithreaded64-4 --path op-program/bin/op-program-client64Next.elf --out op-program/bin/prestate-mt64.bin.gz --meta op-program/bin/meta-mt64.json
-	//./cannon/bin/cannon run --proof-at '=0' --stop-at '=1' --input op-program/bin/prestate-mt64.bin.gz --meta op-program/bin/meta-mt64.json --proof-fmt 'op-program/bin/%d-mt64.json' --output ""
-	//mv op-program/bin/0-mt64.json op-program/bin/prestate-proof-mt64.json
-
 	cannonBin := filepath.Join(root, "cannon", "bin", "cannon")
 	if _, err := os.Stat(cannonBin); err != nil {
 		return fmt.Errorf("cannon binary not found: %w. make sure it's built with `make cannon`", err)
@@ -81,7 +68,7 @@ func buildPrestate(ctx context.Context, log log.Logger, programELF string, versi
 	}
 
 	proofFmt := filepath.Join(root, "op-program", "bin", "%d"+suffix+".json")
-	cmd = exec.Command(cannonBin, "run", "--proof-at", "=0", "--stop-at", "=1", "--input", prestate, "--meta", meta, "--proof-fmt", proofFmt, "--output", "")
+	cmd = exec.CommandContext(ctx, cannonBin, "run", "--proof-at", "=0", "--stop-at", "=1", "--input", prestate, "--meta", meta, "--proof-fmt", proofFmt, "--output", "")
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	if err := cmd.Run(); err != nil {
@@ -100,8 +87,8 @@ func buildPrestate(ctx context.Context, log log.Logger, programELF string, versi
 func runBuildPrestates(cliCtx *cli.Context) error {
 	logger := setupLogger()
 	ctx := cliCtx.Context
-
 	releasesOnly := cliCtx.Bool("releases-only")
+	buildNext := versions.GetCurrentVersion() != versions.GetExperimentalVersion()
 
 	root, err := opservice.FindMonorepoRoot(".")
 	if err != nil {
@@ -120,7 +107,7 @@ func runBuildPrestates(cliCtx *cli.Context) error {
 		{programELF, versions.GetCurrentVersion(), "-mt64"},
 		{interopProgramELF, versions.GetCurrentVersion(), "-interop"},
 	}
-	if !releasesOnly && versions.GetCurrentVersion() != versions.GetExperimentalVersion() {
+	if !releasesOnly && buildNext {
 		prestates = append(prestates, prestateInfo{programELF, versions.GetExperimentalVersion(), "-mt64Next"})
 		prestates = append(prestates, prestateInfo{interopProgramELF, versions.GetExperimentalVersion(), "-interopNext"})
 	}
@@ -131,8 +118,8 @@ func runBuildPrestates(cliCtx *cli.Context) error {
 		}
 	}
 
-	if !releasesOnly {
-		// some tests expect a "next" prestate to exist. So let's fake them if they're not built.
+	if !releasesOnly && !buildNext {
+		// some tests expect a "next" prestate to exist. So let's fake them if they weren't built.
 		copies := []struct {
 			src, dst string
 		}{
