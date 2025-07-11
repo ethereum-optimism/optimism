@@ -14,7 +14,7 @@ import (
 	"text/template"
 	"time"
 
-	"github.com/docker/docker/api/types"
+	"github.com/docker/docker/api/types/image"
 	"github.com/docker/docker/client"
 	"go.opentelemetry.io/otel"
 	"golang.org/x/sync/semaphore"
@@ -82,7 +82,7 @@ func defaultCmdFactory(name string, arg ...string) cmdRunner {
 
 // dockerClient interface defines the Docker client methods we use
 type dockerClient interface {
-	ImageInspectWithRaw(ctx context.Context, imageID string) (types.ImageInspect, []byte, error)
+	ImageInspectWithRaw(ctx context.Context, imageID string) (image.InspectResponse, []byte, error)
 	ImageTag(ctx context.Context, source, target string) error
 }
 
