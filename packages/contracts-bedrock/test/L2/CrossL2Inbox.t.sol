@@ -9,9 +9,9 @@ import { VmSafe } from "forge-std/Vm.sol";
 // Interfaces
 import { ICrossL2Inbox, Identifier } from "interfaces/L2/ICrossL2Inbox.sol";
 
-/// @title ValidateMessageRelayer
+/// @title CrossL2Inbox_ValidateMessageRelayer_Harness
 /// @notice For test contract used to validate multiple messages in a single tx.
-contract ValidateMessageRelayer is Test {
+contract CrossL2Inbox_ValidateMessageRelayer_Harness is Test {
     ICrossL2Inbox public immutable CROSS_L2_INBOX;
 
     constructor(address _crossL2Inbox) {
@@ -44,7 +44,7 @@ contract ValidateMessageRelayer is Test {
 contract CrossL2Inbox_TestInit is CommonTest {
     event ExecutingMessage(bytes32 indexed msgHash, Identifier id);
 
-    ValidateMessageRelayer public validateMessageRelayer;
+    CrossL2Inbox_ValidateMessageRelayer_Harness public validateMessageRelayer;
 
     mapping(bytes32 => bool) public relayedMessages;
     mapping(bytes32 => bool) public warmedSlots;
@@ -52,7 +52,7 @@ contract CrossL2Inbox_TestInit is CommonTest {
     function setUp() public override {
         useInteropOverride = true;
         super.setUp();
-        validateMessageRelayer = new ValidateMessageRelayer(address(crossL2Inbox));
+        validateMessageRelayer = new CrossL2Inbox_ValidateMessageRelayer_Harness(address(crossL2Inbox));
     }
 }
 

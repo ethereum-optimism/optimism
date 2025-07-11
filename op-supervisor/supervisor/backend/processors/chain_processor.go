@@ -21,7 +21,7 @@ import (
 )
 
 type Source interface {
-	BlockRefByNumber(ctx context.Context, number uint64) (eth.BlockRef, error)
+	L2BlockRefByNumber(ctx context.Context, number uint64) (eth.L2BlockRef, error)
 	FetchReceipts(ctx context.Context, blockHash common.Hash) (gethtypes.Receipts, error)
 }
 
@@ -262,12 +262,13 @@ func (s *ChainProcessor) rangeUpdate(target uint64) (int, error) {
 
 		// fetch the block ref
 		ctx, cancel := context.WithTimeout(s.systemContext, time.Second*10)
-		next, err := s.activeClient.BlockRefByNumber(ctx, num)
+		nextL2BlockRef, err := s.activeClient.L2BlockRefByNumber(ctx, num)
 		cancel()
 		if err != nil {
 			result.err = err
 			return
 		}
+		next := nextL2BlockRef.BlockRef()
 		if err := s.rewinder.AcceptedBlock(s.chain, next.ID()); err != nil {
 			s.log.Warn("Cannot accept next block into events DB", "next", next.ID(), "err", err)
 			result.err = err

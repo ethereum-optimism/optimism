@@ -23,7 +23,8 @@ import {
     IOPContractsManagerDeployer,
     IOPContractsManagerUpgrader,
     IOPContractsManagerContractsContainer,
-    IOPContractsManagerInteropMigrator
+    IOPContractsManagerInteropMigrator,
+    IOPContractsManagerStandardValidator
 } from "interfaces/L1/IOPContractsManager.sol";
 import { IOptimismPortal2 as IOptimismPortal } from "interfaces/L1/IOptimismPortal2.sol";
 import { IETHLockbox } from "interfaces/L1/IETHLockbox.sol";
@@ -33,6 +34,7 @@ import { IL1ERC721Bridge } from "interfaces/L1/IL1ERC721Bridge.sol";
 import { IL1StandardBridge } from "interfaces/L1/IL1StandardBridge.sol";
 import { IOptimismMintableERC20Factory } from "interfaces/universal/IOptimismMintableERC20Factory.sol";
 import { IProxyAdmin } from "interfaces/universal/IProxyAdmin.sol";
+import { IOPContractsManagerStandardValidator } from "interfaces/L1/IOPContractsManagerStandardValidator.sol";
 import { DeployUtils } from "scripts/libraries/DeployUtils.sol";
 import { Solarray } from "scripts/libraries/Solarray.sol";
 import { ChainAssertions } from "scripts/deploy/ChainAssertions.sol";
@@ -53,6 +55,7 @@ contract DeployImplementations is Script {
         IProtocolVersions protocolVersionsProxy;
         IProxyAdmin superchainProxyAdmin;
         address upgradeController;
+        address challenger;
     }
 
     struct Output {
@@ -62,6 +65,7 @@ contract DeployImplementations is Script {
         IOPContractsManagerDeployer opcmDeployer;
         IOPContractsManagerUpgrader opcmUpgrader;
         IOPContractsManagerInteropMigrator opcmInteropMigrator;
+        IOPContractsManagerStandardValidator opcmStandardValidator;
         IDelayedWETH delayedWETHImpl;
         IOptimismPortal optimismPortalImpl;
         IETHLockbox ethLockboxImpl;
@@ -141,6 +145,7 @@ contract DeployImplementations is Script {
         deployOPCMDeployer(_input, _output);
         deployOPCMUpgrader(_output);
         deployOPCMInteropMigrator(_output);
+        deployOPCMStandardValidator(_input, _output, implementations);
 
         // Semgrep rule will fail because the arguments are encoded inside of a separate function.
         opcm_ = IOPContractsManager(
@@ -179,6 +184,7 @@ contract DeployImplementations is Script {
                     _output.opcmDeployer,
                     _output.opcmUpgrader,
                     _output.opcmInteropMigrator,
+                    _output.opcmStandardValidator,
                     _input.superchainConfigProxy,
                     _input.protocolVersionsProxy,
                     _input.superchainProxyAdmin,
@@ -524,6 +530,48 @@ contract DeployImplementations is Script {
         );
         vm.label(address(impl), "OPContractsManagerInteropMigratorImpl");
         _output.opcmInteropMigrator = impl;
+    }
+
+    function deployOPCMStandardValidator(
+        Input memory _input,
+        Output memory _output,
+        IOPContractsManager.Implementations memory _implementations
+    )
+        private
+    {
+        IOPContractsManagerStandardValidator.Implementations memory opcmImplementations;
+        opcmImplementations.l1ERC721BridgeImpl = _implementations.l1ERC721BridgeImpl;
+        opcmImplementations.optimismPortalImpl = _implementations.optimismPortalImpl;
+        opcmImplementations.ethLockboxImpl = _implementations.ethLockboxImpl;
+        opcmImplementations.systemConfigImpl = _implementations.systemConfigImpl;
+        opcmImplementations.optimismMintableERC20FactoryImpl = _implementations.optimismMintableERC20FactoryImpl;
+        opcmImplementations.l1CrossDomainMessengerImpl = _implementations.l1CrossDomainMessengerImpl;
+        opcmImplementations.l1StandardBridgeImpl = _implementations.l1StandardBridgeImpl;
+        opcmImplementations.disputeGameFactoryImpl = _implementations.disputeGameFactoryImpl;
+        opcmImplementations.anchorStateRegistryImpl = _implementations.anchorStateRegistryImpl;
+        opcmImplementations.delayedWETHImpl = _implementations.delayedWETHImpl;
+        opcmImplementations.mipsImpl = _implementations.mipsImpl;
+
+        IOPContractsManagerStandardValidator impl = IOPContractsManagerStandardValidator(
+            DeployUtils.createDeterministic({
+                _name: "OPContractsManagerStandardValidator.sol:OPContractsManagerStandardValidator",
+                _args: DeployUtils.encodeConstructor(
+                    abi.encodeCall(
+                        IOPContractsManagerStandardValidator.__constructor__,
+                        (
+                            opcmImplementations,
+                            _input.superchainConfigProxy,
+                            _input.upgradeController, // Proxy admin owner
+                            _input.challenger,
+                            _input.withdrawalDelaySeconds
+                        )
+                    )
+                ),
+                _salt: _salt
+            })
+        );
+        vm.label(address(impl), "OPContractsManagerStandardValidatorImpl");
+        _output.opcmStandardValidator = impl;
     }
 
     function assertValidInput(Input memory _input) private pure {

@@ -22,21 +22,22 @@ import { IETHLockbox } from "interfaces/L1/IETHLockbox.sol";
 import { IPermissionedDisputeGame } from "interfaces/dispute/IPermissionedDisputeGame.sol";
 import { IProxyAdmin } from "interfaces/universal/IProxyAdmin.sol";
 import { IDelayedWETH } from "interfaces/dispute/IDelayedWETH.sol";
-import { ISemver } from "interfaces/universal/ISemver.sol";
 import { IResourceMetering } from "interfaces/L1/IResourceMetering.sol";
 import { IOptimismPortal2 } from "interfaces/L1/IOptimismPortal2.sol";
 import { IPreimageOracle } from "interfaces/cannon/IPreimageOracle.sol";
 import { IMIPS64 } from "interfaces/cannon/IMIPS64.sol";
+import { ISemver } from "interfaces/universal/ISemver.sol";
+import { IProxyAdminOwnedBase } from "interfaces/L1/IProxyAdminOwnedBase.sol";
 
-/// @title StandardValidator
+/// @title OPContractsManagerStandardValidator
 /// @notice This contract is used to validate the configuration of the L1 contracts of an OP Stack chain.
 /// It is a stateless contract that can be used to ensure that the L1 contracts are configured correctly.
 /// It is intended to be used by the L1 PAO multisig to validate the configuration of the L1 contracts
 /// before and after an upgrade.
-contract StandardValidator is ISemver {
-    /// @notice The semantic version of the StandardValidator contract.
-    /// @custom:semver 1.4.0
-    string public constant version = "1.4.0";
+contract OPContractsManagerStandardValidator is ISemver {
+    /// @notice The semantic version of the OPContractsManagerStandardValidator contract.
+    /// @custom:semver 1.5.0
+    string public constant version = "1.5.0";
 
     /// @notice The SuperchainConfig contract.
     ISuperchainConfig public superchainConfig;
@@ -114,7 +115,7 @@ contract StandardValidator is ISemver {
         address challenger;
     }
 
-    /// @notice Constructor for the StandardValidator contract.
+    /// @notice Constructor for the OPContractsManagerStandardValidator contract.
     constructor(
         Implementations memory _implementations,
         ISuperchainConfig _superchainConfig,
@@ -238,6 +239,21 @@ contract StandardValidator is ISemver {
         return "1.2.0";
     }
 
+    /// @notice Internal function to get version from any contract implementing ISemver.
+    function getVersion(address _contract) private view returns (string memory) {
+        return ISemver(_contract).version();
+    }
+
+    /// @notice Internal function to get the ProxyAdmin contract from any contract implementing IProxyAdminOwnedBase.
+    function getProxyAdmin(address _contract) private view returns (IProxyAdmin) {
+        return IProxyAdminOwnedBase(_contract).proxyAdmin();
+    }
+
+    /// @notice Internal function to get the implementation address of any contract via the ProxyAdmin contract.
+    function getProxyImplementation(IProxyAdmin _admin, address _contract) private view returns (address) {
+        return _admin.getProxyImplementation(_contract);
+    }
+
     /// @notice Asserts that the SuperchainConfig contract is valid.
     function assertValidSuperchainConfig(string memory _errors) internal view returns (string memory) {
         _errors = internalRequire(!superchainConfig.paused(address(0)), "SPRCFG-10", _errors);
@@ -270,12 +286,12 @@ contract StandardValidator is ISemver {
         virtual
         returns (string memory)
     {
-        ISemver _semver = ISemver(address(_sysCfg));
-        _errors = internalRequire(LibString.eq(_semver.version(), systemConfigVersion()), "SYSCON-10", _errors);
+        _errors =
+            internalRequire(LibString.eq(getVersion(address(_sysCfg)), systemConfigVersion()), "SYSCON-10", _errors);
         _errors = internalRequire(_sysCfg.gasLimit() <= uint64(500_000_000), "SYSCON-20", _errors);
         _errors = internalRequire(_sysCfg.scalar() != 0, "SYSCON-30", _errors);
         _errors =
-            internalRequire(_admin.getProxyImplementation(address(_sysCfg)) == systemConfigImpl, "SYSCON-40", _errors);
+            internalRequire(getProxyImplementation(_admin, address(_sysCfg)) == systemConfigImpl, "SYSCON-40", _errors);
 
         IResourceMetering.ResourceConfig memory outputConfig = _sysCfg.resourceConfig();
         _errors = internalRequire(outputConfig.maxResourceLimit == 20_000_000, "SYSCON-50", _errors);
@@ -286,7 +302,7 @@ contract StandardValidator is ISemver {
         _errors = internalRequire(outputConfig.maximumBaseFee == type(uint128).max, "SYSCON-100", _errors);
         _errors = internalRequire(_sysCfg.operatorFeeScalar() == 0, "SYSCON-110", _errors);
         _errors = internalRequire(_sysCfg.operatorFeeConstant() == 0, "SYSCON-120", _errors);
-        _errors = internalRequire(_sysCfg.proxyAdmin() == _admin, "SYSCON-130", _errors);
+        _errors = internalRequire(getProxyAdmin(address(_sysCfg)) == _admin, "SYSCON-130", _errors);
         _errors = internalRequire(_sysCfg.superchainConfig() == superchainConfig, "SYSCON-140", _errors);
         return _errors;
     }
@@ -302,10 +318,11 @@ contract StandardValidator is ISemver {
         returns (string memory)
     {
         IL1CrossDomainMessenger _messenger = IL1CrossDomainMessenger(_sysCfg.l1CrossDomainMessenger());
-        _errors =
-            internalRequire(LibString.eq(_messenger.version(), l1CrossDomainMessengerVersion()), "L1xDM-10", _errors);
         _errors = internalRequire(
-            _admin.getProxyImplementation(address(_messenger)) == l1CrossDomainMessengerImpl, "L1xDM-20", _errors
+            LibString.eq(getVersion(address(_messenger)), l1CrossDomainMessengerVersion()), "L1xDM-10", _errors
+        );
+        _errors = internalRequire(
+            getProxyImplementation(_admin, address(_messenger)) == l1CrossDomainMessengerImpl, "L1xDM-20", _errors
         );
 
         IOptimismPortal2 _portal = IOptimismPortal2(payable(_sysCfg.optimismPortal()));
@@ -319,7 +336,7 @@ contract StandardValidator is ISemver {
         _errors = internalRequire(address(_messenger.PORTAL()) == address(_portal), "L1xDM-50", _errors);
         _errors = internalRequire(address(_messenger.portal()) == address(_portal), "L1xDM-60", _errors);
         _errors = internalRequire(address(_messenger.systemConfig()) == address(_sysCfg), "L1xDM-70", _errors);
-        _errors = internalRequire(_messenger.proxyAdmin() == _admin, "L1xDM-80", _errors);
+        _errors = internalRequire(getProxyAdmin(address(_messenger)) == _admin, "L1xDM-80", _errors);
         return _errors;
     }
 
@@ -334,9 +351,11 @@ contract StandardValidator is ISemver {
         returns (string memory)
     {
         IL1StandardBridge _bridge = IL1StandardBridge(payable(_sysCfg.l1StandardBridge()));
-        _errors = internalRequire(LibString.eq(_bridge.version(), l1StandardBridgeVersion()), "L1SB-10", _errors);
         _errors =
-            internalRequire(_admin.getProxyImplementation(address(_bridge)) == l1StandardBridgeImpl, "L1SB-20", _errors);
+            internalRequire(LibString.eq(getVersion(address(_bridge)), l1StandardBridgeVersion()), "L1SB-10", _errors);
+        _errors = internalRequire(
+            getProxyImplementation(_admin, address(_bridge)) == l1StandardBridgeImpl, "L1SB-20", _errors
+        );
 
         IL1CrossDomainMessenger _messenger = IL1CrossDomainMessenger(_sysCfg.l1CrossDomainMessenger());
 
@@ -345,7 +364,7 @@ contract StandardValidator is ISemver {
         _errors = internalRequire(address(_bridge.OTHER_BRIDGE()) == Predeploys.L2_STANDARD_BRIDGE, "L1SB-50", _errors);
         _errors = internalRequire(address(_bridge.otherBridge()) == Predeploys.L2_STANDARD_BRIDGE, "L1SB-60", _errors);
         _errors = internalRequire(address(_bridge.systemConfig()) == address(_sysCfg), "L1SB-70", _errors);
-        _errors = internalRequire(_bridge.proxyAdmin() == _admin, "L1SB-80", _errors);
+        _errors = internalRequire(getProxyAdmin(address(_bridge)) == _admin, "L1SB-80", _errors);
         return _errors;
     }
 
@@ -361,10 +380,10 @@ contract StandardValidator is ISemver {
     {
         IOptimismMintableERC20Factory _factory = IOptimismMintableERC20Factory(_sysCfg.optimismMintableERC20Factory());
         _errors = internalRequire(
-            LibString.eq(_factory.version(), optimismMintableERC20FactoryVersion()), "MERC20F-10", _errors
+            LibString.eq(getVersion(address(_factory)), optimismMintableERC20FactoryVersion()), "MERC20F-10", _errors
         );
         _errors = internalRequire(
-            _admin.getProxyImplementation(address(_factory)) == optimismMintableERC20FactoryImpl, "MERC20F-20", _errors
+            getProxyImplementation(_admin, address(_factory)) == optimismMintableERC20FactoryImpl, "MERC20F-20", _errors
         );
 
         IL1StandardBridge _bridge = IL1StandardBridge(payable(_sysCfg.l1StandardBridge()));
@@ -384,9 +403,10 @@ contract StandardValidator is ISemver {
         returns (string memory)
     {
         IL1ERC721Bridge _bridge = IL1ERC721Bridge(_sysCfg.l1ERC721Bridge());
-        _errors = internalRequire(LibString.eq(_bridge.version(), l1ERC721BridgeVersion()), "L721B-10", _errors);
         _errors =
-            internalRequire(_admin.getProxyImplementation(address(_bridge)) == l1ERC721BridgeImpl, "L721B-20", _errors);
+            internalRequire(LibString.eq(getVersion(address(_bridge)), l1ERC721BridgeVersion()), "L721B-10", _errors);
+        _errors =
+            internalRequire(getProxyImplementation(_admin, address(_bridge)) == l1ERC721BridgeImpl, "L721B-20", _errors);
 
         IL1CrossDomainMessenger _l1XDM = IL1CrossDomainMessenger(_sysCfg.l1CrossDomainMessenger());
         _errors = internalRequire(address(_bridge.OTHER_BRIDGE()) == Predeploys.L2_ERC721_BRIDGE, "L721B-30", _errors);
@@ -394,7 +414,7 @@ contract StandardValidator is ISemver {
         _errors = internalRequire(address(_bridge.MESSENGER()) == address(_l1XDM), "L721B-50", _errors);
         _errors = internalRequire(address(_bridge.messenger()) == address(_l1XDM), "L721B-60", _errors);
         _errors = internalRequire(address(_bridge.systemConfig()) == address(_sysCfg), "L721B-70", _errors);
-        _errors = internalRequire(_bridge.proxyAdmin() == _admin, "L721B-80", _errors);
+        _errors = internalRequire(getProxyAdmin(address(_bridge)) == _admin, "L721B-80", _errors);
         return _errors;
     }
 
@@ -409,15 +429,17 @@ contract StandardValidator is ISemver {
         returns (string memory)
     {
         IOptimismPortal2 _portal = IOptimismPortal2(payable(_sysCfg.optimismPortal()));
-        _errors = internalRequire(LibString.eq(_portal.version(), optimismPortalVersion()), "PORTAL-10", _errors);
         _errors =
-            internalRequire(_admin.getProxyImplementation(address(_portal)) == optimismPortalImpl, "PORTAL-20", _errors);
+            internalRequire(LibString.eq(getVersion(address(_portal)), optimismPortalVersion()), "PORTAL-10", _errors);
+        _errors = internalRequire(
+            getProxyImplementation(_admin, address(_portal)) == optimismPortalImpl, "PORTAL-20", _errors
+        );
 
         IDisputeGameFactory _dgf = IDisputeGameFactory(_sysCfg.disputeGameFactory());
         _errors = internalRequire(address(_portal.disputeGameFactory()) == address(_dgf), "PORTAL-30", _errors);
         _errors = internalRequire(address(_portal.systemConfig()) == address(_sysCfg), "PORTAL-40", _errors);
         _errors = internalRequire(_portal.l2Sender() == Constants.DEFAULT_L2_SENDER, "PORTAL-80", _errors);
-        _errors = internalRequire(_portal.proxyAdmin() == _admin, "PORTAL-90", _errors);
+        _errors = internalRequire(getProxyAdmin(address(_portal)) == _admin, "PORTAL-90", _errors);
         return _errors;
     }
 
@@ -434,10 +456,11 @@ contract StandardValidator is ISemver {
         IOptimismPortal2 _portal = IOptimismPortal2(payable(_sysCfg.optimismPortal()));
         IETHLockbox _lockbox = IETHLockbox(_portal.ethLockbox());
 
-        _errors = internalRequire(LibString.eq(_lockbox.version(), ethLockboxVersion()), "LOCKBOX-10", _errors);
         _errors =
-            internalRequire(_admin.getProxyImplementation(address(_lockbox)) == ethLockboxImpl, "LOCKBOX-20", _errors);
-        _errors = internalRequire(_lockbox.proxyAdmin() == _admin, "LOCKBOX-30", _errors);
+            internalRequire(LibString.eq(getVersion(address(_lockbox)), ethLockboxVersion()), "LOCKBOX-10", _errors);
+        _errors =
+            internalRequire(getProxyImplementation(_admin, address(_lockbox)) == ethLockboxImpl, "LOCKBOX-20", _errors);
+        _errors = internalRequire(getProxyAdmin(address(_lockbox)) == _admin, "LOCKBOX-30", _errors);
         _errors = internalRequire(_lockbox.systemConfig() == _sysCfg, "LOCKBOX-40", _errors);
         _errors = internalRequire(_lockbox.authorizedPortals(_portal), "LOCKBOX-50", _errors);
         return _errors;
@@ -456,12 +479,13 @@ contract StandardValidator is ISemver {
     {
         address _l1PAOMultisig = expectedL1PAOMultisig(_overrides);
         IDisputeGameFactory _factory = IDisputeGameFactory(_sysCfg.disputeGameFactory());
-        _errors = internalRequire(LibString.eq(_factory.version(), disputeGameFactoryVersion()), "DF-10", _errors);
+        _errors =
+            internalRequire(LibString.eq(getVersion(address(_factory)), disputeGameFactoryVersion()), "DF-10", _errors);
         _errors = internalRequire(
-            _admin.getProxyImplementation(address(_factory)) == disputeGameFactoryImpl, "DF-20", _errors
+            getProxyImplementation(_admin, address(_factory)) == disputeGameFactoryImpl, "DF-20", _errors
         );
         _errors = internalRequire(_factory.owner() == _l1PAOMultisig, "DF-30", _errors);
-        _errors = internalRequire(_factory.proxyAdmin() == _admin, "DF-40", _errors);
+        _errors = internalRequire(getProxyAdmin(address(_factory)) == _admin, "DF-40", _errors);
         return _errors;
     }
 
@@ -569,7 +593,9 @@ contract StandardValidator is ISemver {
         (Hash anchorRoot,) = _asr.getAnchorRoot();
 
         _errors = internalRequire(
-            LibString.eq(_game.version(), permissionedDisputeGameVersion()), string.concat(_errorPrefix, "-20"), _errors
+            LibString.eq(getVersion(address(_game)), permissionedDisputeGameVersion()),
+            string.concat(_errorPrefix, "-20"),
+            _errors
         );
         _errors = internalRequire(
             GameType.unwrap(_game.gameType()) == GameType.unwrap(_gameType), string.concat(_errorPrefix, "-30"), _errors
@@ -618,10 +644,10 @@ contract StandardValidator is ISemver {
     {
         _errorPrefix = string.concat(_errorPrefix, "-DWETH");
         _errors = internalRequire(
-            LibString.eq(_weth.version(), delayedWETHVersion()), string.concat(_errorPrefix, "-10"), _errors
+            LibString.eq(getVersion(address(_weth)), delayedWETHVersion()), string.concat(_errorPrefix, "-10"), _errors
         );
         _errors = internalRequire(
-            _admin.getProxyImplementation(address(_weth)) == delayedWETHImpl,
+            getProxyImplementation(_admin, address(_weth)) == delayedWETHImpl,
             string.concat(_errorPrefix, "-20"),
             _errors
         );
@@ -630,7 +656,7 @@ contract StandardValidator is ISemver {
             internalRequire(_weth.proxyAdminOwner() == _l1PAOMultisig, string.concat(_errorPrefix, "-30"), _errors);
         _errors = internalRequire(_weth.delay() == withdrawalDelaySeconds, string.concat(_errorPrefix, "-40"), _errors);
         _errors = internalRequire(_weth.systemConfig() == _sysCfg, string.concat(_errorPrefix, "-50"), _errors);
-        _errors = internalRequire(_weth.proxyAdmin() == _admin, string.concat(_errorPrefix, "-60"), _errors);
+        _errors = internalRequire(getProxyAdmin(address(_weth)) == _admin, string.concat(_errorPrefix, "-60"), _errors);
         return _errors;
     }
 
@@ -650,10 +676,12 @@ contract StandardValidator is ISemver {
     {
         _errorPrefix = string.concat(_errorPrefix, "-ANCHORP");
         _errors = internalRequire(
-            LibString.eq(_asr.version(), anchorStateRegistryVersion()), string.concat(_errorPrefix, "-10"), _errors
+            LibString.eq(getVersion(address(_asr)), anchorStateRegistryVersion()),
+            string.concat(_errorPrefix, "-10"),
+            _errors
         );
         _errors = internalRequire(
-            _admin.getProxyImplementation(address(_asr)) == anchorStateRegistryImpl,
+            getProxyImplementation(_admin, address(_asr)) == anchorStateRegistryImpl,
             string.concat(_errorPrefix, "-20"),
             _errors
         );
@@ -661,7 +689,7 @@ contract StandardValidator is ISemver {
             address(_asr.disputeGameFactory()) == address(_dgf), string.concat(_errorPrefix, "-30"), _errors
         );
         _errors = internalRequire(_asr.systemConfig() == _sysCfg, string.concat(_errorPrefix, "-40"), _errors);
-        _errors = internalRequire(_asr.proxyAdmin() == _admin, string.concat(_errorPrefix, "-50"), _errors);
+        _errors = internalRequire(getProxyAdmin(address(_asr)) == _admin, string.concat(_errorPrefix, "-50"), _errors);
         _errors = internalRequire(_asr.retirementTimestamp() > 0, string.concat(_errorPrefix, "-60"), _errors);
         return _errors;
     }
@@ -679,7 +707,7 @@ contract StandardValidator is ISemver {
         _errorPrefix = string.concat(_errorPrefix, "-VM");
         _errors = internalRequire(address(_mips) == mipsImpl, string.concat(_errorPrefix, "-10"), _errors);
         _errors = internalRequire(
-            LibString.eq(ISemver(_mips).version(), mipsVersion()), string.concat(_errorPrefix, "-20"), _errors
+            LibString.eq(getVersion(address(_mips)), mipsVersion()), string.concat(_errorPrefix, "-20"), _errors
         );
         _errors = internalRequire(_mips.stateVersion() == 7, string.concat(_errorPrefix, "-30"), _errors);
         return _errors;
@@ -698,7 +726,9 @@ contract StandardValidator is ISemver {
         _errorPrefix = string.concat(_errorPrefix, "-PIMGO");
         // The preimage oracle's address is correct if the MIPS address is correct.
         _errors = internalRequire(
-            LibString.eq(_oracle.version(), preimageOracleVersion()), string.concat(_errorPrefix, "-10"), _errors
+            LibString.eq(getVersion(address(_oracle)), preimageOracleVersion()),
+            string.concat(_errorPrefix, "-10"),
+            _errors
         );
         _errors = internalRequire(_oracle.challengePeriod() == 86400, string.concat(_errorPrefix, "-20"), _errors);
         _errors = internalRequire(_oracle.minProposalSize() == 126000, string.concat(_errorPrefix, "-30"), _errors);
@@ -728,12 +758,14 @@ contract StandardValidator is ISemver {
 
     /// @notice Validates the configuration of the L1 contracts.
     function validate(ValidationInput memory _input, bool _allowFailure) external view returns (string memory) {
-        return
-            validate(_input, _allowFailure, ValidationOverrides({ l1PAOMultisig: address(0), challenger: address(0) }));
+        return validateWithOverrides(
+            _input, _allowFailure, ValidationOverrides({ l1PAOMultisig: address(0), challenger: address(0) })
+        );
     }
 
-    /// @notice Validates the configuration of the L1 contracts.
-    function validate(
+    /// @notice Validates the configuration of the L1 contracts. Supports overrides of certain storage values denoted in
+    /// the ValidationOverrides struct.
+    function validateWithOverrides(
         ValidationInput memory _input,
         bool _allowFailure,
         ValidationOverrides memory _overrides
@@ -777,7 +809,7 @@ contract StandardValidator is ISemver {
 
         // Handle validation failure
         if (bytes(_errors).length > 0 && !_allowFailure) {
-            revert(string.concat("StandardValidator: ", finalErrors));
+            revert(string.concat("OPContractsManagerStandardValidator: ", finalErrors));
         }
 
         return finalErrors;

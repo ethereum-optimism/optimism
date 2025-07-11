@@ -54,20 +54,26 @@ func NewMinimal(t devtest.T) *Minimal {
 	orch := Orchestrator()
 	orch.Hydrate(system)
 
+	return minimalFromSystem(t, system, orch)
+}
+
+func minimalFromSystem(t devtest.T, system stack.ExtensibleSystem, orch stack.Orchestrator) *Minimal {
 	t.Gate().Equal(len(system.TestSequencers()), 1, "expected exactly one test sequencer")
 
 	l1Net := system.L1Network(match.FirstL1Network)
 	l2 := system.L2Network(match.Assume(t, match.L2ChainA))
+	sequencerCL := l2.L2CLNode(match.Assume(t, match.WithSequencerActive(t.Ctx())))
+	sequencerEL := l2.L2ELNode(match.Assume(t, match.EngineFor(sequencerCL)))
 	out := &Minimal{
 		Log:           t.Logger(),
 		T:             t,
 		ControlPlane:  orch.ControlPlane(),
 		L1Network:     dsl.NewL1Network(system.L1Network(match.FirstL1Network)),
 		L1EL:          dsl.NewL1ELNode(l1Net.L1ELNode(match.Assume(t, match.FirstL1EL))),
-		L2Chain:       dsl.NewL2Network(l2),
+		L2Chain:       dsl.NewL2Network(l2, orch.ControlPlane()),
 		L2Batcher:     dsl.NewL2Batcher(l2.L2Batcher(match.Assume(t, match.FirstL2Batcher))),
-		L2EL:          dsl.NewL2ELNode(l2.L2ELNode(match.Assume(t, match.FirstL2EL))),
-		L2CL:          dsl.NewL2CLNode(l2.L2CLNode(match.Assume(t, match.FirstL2CL)), orch.ControlPlane()),
+		L2EL:          dsl.NewL2ELNode(sequencerEL, orch.ControlPlane()),
+		L2CL:          dsl.NewL2CLNode(sequencerCL, orch.ControlPlane()),
 		TestSequencer: dsl.NewTestSequencer(system.TestSequencer(match.Assume(t, match.FirstTestSequencer))),
 		Wallet:        dsl.NewHDWallet(t, devkeys.TestMnemonic, 30),
 		FaucetL2:      dsl.NewFaucet(l2.Faucet(match.Assume(t, match.FirstFaucet))),

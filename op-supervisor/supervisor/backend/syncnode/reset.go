@@ -20,7 +20,7 @@ type managedNodeResetBackend struct {
 var _ resetBackend = (*managedNodeResetBackend)(nil)
 
 func (m *managedNodeResetBackend) BlockIDByNumber(ctx context.Context, n uint64) (eth.BlockID, error) {
-	r, err := m.node.BlockRefByNumber(ctx, n)
+	r, err := m.node.L2BlockRefByNumber(ctx, n)
 	return r.ID(), err
 }
 
