@@ -68,6 +68,11 @@ func (d *DiffTester[T]) SetExpectations(setExpectationsFn SetExpectationsFn[T]) 
 }
 
 func (d *DiffTester[T]) Run(t *testing.T, testCases []T, randSeed int64, opts ...TestOption) {
+	// Encapsulate core logic in run() for easier unit testing with the testRunner interface
+	d.run(wrapT(t), testCases, randSeed, opts...)
+}
+
+func (d *DiffTester[T]) run(t testRunner, testCases []T, randSeed int64, opts ...TestOption) {
 	if !d.isConfigValid(t) {
 		t.Fatalf("DiffTester is misconfigured")
 	}
@@ -78,7 +83,7 @@ func (d *DiffTester[T]) Run(t *testing.T, testCases []T, randSeed int64, opts ..
 			mods := d.generateTestModifiers(t, testCase, vm, d.setExpectations, cfg)
 			for _, mod := range mods {
 				testName := fmt.Sprintf("%v%v (%v)", d.testNamer(testCase), mod.name, vm.Name)
-				t.Run(testName, func(t *testing.T) {
+				t.Run(testName, func(t testing.TB) {
 					stateOpts := []mtutil.StateOption{mtutil.WithRandomization(cfg.randSeed)}
 					stateOpts = append(stateOpts, d.stateOpts...)
 					goVm := vm.VMFactory(cfg.po(), cfg.stdOut(), cfg.stdErr(), cfg.logger, stateOpts...)
@@ -95,12 +100,9 @@ func (d *DiffTester[T]) Run(t *testing.T, testCases []T, randSeed int64, opts ..
 
 					if execExpectation.shouldPanic {
 						proofData := vm.ProofGenerator(t, state)
-						require.PanicsWithValue(t, execExpectation.panicMsg, func() {
-							_, _ = goVm.Step(
-								false)
-						})
 						errMsg := testutil.CreateErrorStringMatcher(execExpectation.evmError)
 						testutil.AssertEVMReverts(t, state, vm.Contracts, nil, proofData, errMsg)
+						require.PanicsWithValue(t, execExpectation.panicMsg, func() { _, _ = goVm.Step(false) })
 					} else {
 						// Step the VM
 						step := state.GetStep()
@@ -117,7 +119,7 @@ func (d *DiffTester[T]) Run(t *testing.T, testCases []T, randSeed int64, opts ..
 	}
 }
 
-func (d *DiffTester[T]) isConfigValid(t *testing.T) bool {
+func (d *DiffTester[T]) isConfigValid(t testRunner) bool {
 	isValid := true
 	if d.initState == nil {
 		t.Errorf("Must configure initial state via InitState()")
@@ -230,3 +232,19 @@ func newTestConfig(randSeed int64, opts ...TestOption) *TestConfig {
 	}
 	return testConfig
 }
+
+type testFn func(testing.TB)
+type testRunner interface {
+	testing.TB
+	Run(name string, fn testFn) bool
+}
+
+// Adapt *testing.T to internal testRunner interface
+type wrappedT struct{ *testing.T }
+
+func (tr *wrappedT) Run(name string, fn testFn) bool {
+	return tr.T.Run(name, func(t *testing.T) {
+		fn(t)
+	})
+}
+func wrapT(t *testing.T) testRunner { return &wrappedT{t} }
