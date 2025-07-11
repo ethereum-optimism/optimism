@@ -103,7 +103,7 @@ func (e *SuperAgreementEnricher) Enrich(ctx context.Context, block rpcblock.Bloc
 		return fmt.Errorf("failed to get super root at timestamp: %w", ErrAllSupervisorNodesUnavailable)
 	}
 
-	// If all remaining nodes returned "not found", set game.AgreeWithClaim = false
+	// If all remaining nodes returned "not found", we disagree with any claim.
 	if len(foundResults) == 0 {
 		game.AgreeWithClaim = false
 		game.ExpectedRootClaim = common.Hash{}
