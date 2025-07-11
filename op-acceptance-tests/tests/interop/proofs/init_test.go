@@ -7,5 +7,5 @@ import (
 )
 
 func TestMain(m *testing.M) {
-	presets.DoMain(m, presets.WithSuperInterop(), presets.WithTimeTravel())
+	presets.DoMain(m, presets.WithSuperInterop())
 }

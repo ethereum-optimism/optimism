@@ -23,8 +23,9 @@ type EndpointMap map[string]*PortInfo
 
 // Service represents a chain service (e.g. batcher, proposer, challenger)
 type Service struct {
-	Name      string      `json:"name"`
-	Endpoints EndpointMap `json:"endpoints"`
+	Name      string            `json:"name"`
+	Endpoints EndpointMap       `json:"endpoints"`
+	Labels    map[string]string `json:"labels,omitempty"`
 }
 
 // ServiceMap is a map of service names to services.
@@ -36,8 +37,9 @@ type RedundantServiceMap map[string][]*Service
 
 // Node represents a node for a chain
 type Node struct {
-	Name     string     `json:"name"`
-	Services ServiceMap `json:"services"`
+	Name     string            `json:"name"`
+	Services ServiceMap        `json:"services"`
+	Labels   map[string]string `json:"labels,omitempty"`
 }
 
 // AddressMap is a map of address names to their corresponding addresses

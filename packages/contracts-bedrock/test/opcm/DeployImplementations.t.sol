@@ -33,6 +33,7 @@ contract DeployImplementations_Test is Test {
     IProtocolVersions protocolVersionsProxy = IProtocolVersions(makeAddr("protocolVersionsProxy"));
     IProxyAdmin superchainProxyAdmin = IProxyAdmin(makeAddr("superchainProxyAdmin"));
     address upgradeController = makeAddr("upgradeController");
+    address challenger = makeAddr("challenger");
 
     function setUp() public virtual {
         // We'll need to store some code on these two addresses so that the deployment script checks pass
@@ -122,7 +123,8 @@ contract DeployImplementations_Test is Test {
             superchainConfigProxy,
             protocolVersionsProxy,
             superchainProxyAdmin,
-            upgradeController
+            upgradeController,
+            challenger
         );
 
         DeployImplementations.Output memory output = deployImplementations.run(input);
@@ -255,7 +257,8 @@ contract DeployImplementations_Test is Test {
             superchainConfigProxy,
             protocolVersionsProxy,
             superchainProxyAdmin,
-            upgradeController
+            upgradeController,
+            challenger
         );
     }
 }

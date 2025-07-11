@@ -3,6 +3,8 @@ package proofs
 import (
 	"testing"
 
+	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
+	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 	"github.com/ethereum/go-ethereum/common"
 
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
@@ -14,7 +16,10 @@ func TestChallengerPlaysGame(gt *testing.T) {
 	// Setup
 	t := devtest.ParallelT(gt)
 	sys := presets.NewSimpleInterop(t)
-	sys.L1Network.WaitForOnline()
+	dsl.CheckAll(t,
+		sys.L2CLA.AdvancedFn(types.CrossSafe, 1, 30),
+		sys.L2CLB.AdvancedFn(types.CrossSafe, 1, 30),
+	)
 
 	badClaim := common.HexToHash("0xdeadbeef00000000000000000000000000000000000000000000000000000000")
 	attacker := sys.FunderL1.NewFundedEOA(eth.Ether(2))

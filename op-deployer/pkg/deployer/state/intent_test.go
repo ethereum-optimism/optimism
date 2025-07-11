@@ -181,6 +181,7 @@ func setSuperchainRoles(intent *Intent) {
 		SuperchainProxyAdminOwner: common.HexToAddress("0xa"),
 		ProtocolVersionsOwner:     common.HexToAddress("0xb"),
 		SuperchainGuardian:        common.HexToAddress("0xc"),
+		Challenger:                common.HexToAddress("0xd"),
 	}
 }
 

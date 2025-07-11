@@ -23,6 +23,7 @@ import { IL1ERC721Bridge } from "interfaces/L1/IL1ERC721Bridge.sol";
 import { IL1StandardBridge } from "interfaces/L1/IL1StandardBridge.sol";
 import { IOptimismMintableERC20Factory } from "interfaces/universal/IOptimismMintableERC20Factory.sol";
 import { IETHLockbox } from "interfaces/L1/IETHLockbox.sol";
+import { IOPContractsManagerStandardValidator } from "interfaces/L1/IOPContractsManagerStandardValidator.sol";
 
 interface IOPContractsManagerContractsContainer {
     function __constructor__(
@@ -302,6 +303,7 @@ interface IOPContractsManager {
         IOPContractsManagerDeployer _opcmDeployer,
         IOPContractsManagerUpgrader _opcmUpgrader,
         IOPContractsManagerInteropMigrator _opcmInteropMigrator,
+        IOPContractsManagerStandardValidator _opcmStandardValidator,
         ISuperchainConfig _superchainConfig,
         IProtocolVersions _protocolVersions,
         IProxyAdmin _superchainProxyAdmin,
@@ -309,6 +311,23 @@ interface IOPContractsManager {
         address _upgradeController
     )
         external;
+
+    function validateWithOverrides(
+        IOPContractsManagerStandardValidator.ValidationInput calldata _input,
+        bool _allowFailure,
+        IOPContractsManagerStandardValidator.ValidationOverrides calldata _overrides
+    )
+        external
+        view
+        returns (string memory);
+
+    function validate(
+        IOPContractsManagerStandardValidator.ValidationInput calldata _input,
+        bool _allowFailure
+    )
+        external
+        view
+        returns (string memory);
 
     function deploy(DeployInput calldata _input) external returns (DeployOutput memory);
 
@@ -345,6 +364,8 @@ interface IOPContractsManager {
     function opcmGameTypeAdder() external view returns (IOPContractsManagerGameTypeAdder);
 
     function opcmInteropMigrator() external view returns (IOPContractsManagerInteropMigrator);
+
+    function opcmStandardValidator() external view returns (IOPContractsManagerStandardValidator);
 
     /// @notice Returns the implementation contract addresses.
     function implementations() external view returns (Implementations memory);

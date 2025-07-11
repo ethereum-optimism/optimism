@@ -43,6 +43,7 @@ type ImplementationsConfig struct {
 	ProtocolVersionsProxy           common.Address     `cli:"protocol-versions-proxy"`
 	UpgradeController               common.Address     `cli:"upgrade-controller"`
 	SuperchainProxyAdmin            common.Address     `cli:"superchain-proxy-admin"`
+	Challenger                      common.Address     `cli:"challenger"`
 	CacheDir                        string             `cli:"cache-dir"`
 
 	Logger log.Logger
@@ -108,6 +109,9 @@ func (c *ImplementationsConfig) Check() error {
 	}
 	if c.SuperchainProxyAdmin == (common.Address{}) {
 		return errors.New("superchain proxy admin must be specified")
+	}
+	if c.Challenger == (common.Address{}) {
+		return errors.New("challenger must be specified")
 	}
 	return nil
 }
@@ -211,6 +215,7 @@ func Implementations(ctx context.Context, cfg ImplementationsConfig) (opcm.Deplo
 			ProtocolVersionsProxy:           cfg.ProtocolVersionsProxy,
 			SuperchainProxyAdmin:            cfg.SuperchainProxyAdmin,
 			UpgradeController:               cfg.UpgradeController,
+			Challenger:                      cfg.Challenger,
 		},
 	); err != nil {
 		return dio, fmt.Errorf("error deploying implementations: %w", err)

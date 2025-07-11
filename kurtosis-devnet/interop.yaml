@@ -16,6 +16,7 @@
 -}}
 {{- $flags := dict
   "log_level" "--log.level=info"
+  "log_format" "--log.format=logfmtms"
 -}}
 ---
 optimism_package:
@@ -34,6 +35,7 @@ optimism_package:
       image: {{ $local_images.op_supervisor }}
       extra_params:
       - {{ $flags.log_level }}
+      - {{ $flags.log_format }}
   chains:
     op-kurtosis1:
       participants:
@@ -57,7 +59,8 @@ optimism_package:
             log_level: ""
             extra_env_vars: {}
             extra_labels: {}
-            extra_params: []
+            extra_params:
+              - {{ $flags.log_format }}
             tolerations: []
             volume_size: 0
             min_cpu: 0
@@ -82,10 +85,12 @@ optimism_package:
         image: {{ $local_images.op_batcher }}
         extra_params:
         - {{ $flags.log_level }}
+        - {{ $flags.log_format }}
       proposer_params:
         image: {{ $local_images.op_proposer }}
         extra_params:
         - {{ $flags.log_level }}
+        - {{ $flags.log_format }}
         game_type: 1
         proposal_interval: 10m
     op-kurtosis2:
@@ -104,10 +109,12 @@ optimism_package:
         image: {{ $local_images.op_batcher }}
         extra_params:
         - {{ $flags.log_level }}
+        - {{ $flags.log_format }}
       proposer_params:
         image: {{ $local_images.op_proposer }}
         extra_params:
         - {{ $flags.log_level }}
+        - {{ $flags.log_format }}
         game_type: 1
         proposal_interval: 10m
   challengers:
@@ -119,6 +126,7 @@ optimism_package:
       cannon_trace_types: ["super-cannon", "super-permissioned"]
       extra_params:
       - {{ $flags.log_level }}
+      - {{ $flags.log_format }}
   op_contract_deployer_params:
     image: {{ $local_images.op_deployer }}
     l1_artifacts_locator: {{ $urls.l1_artifacts }}

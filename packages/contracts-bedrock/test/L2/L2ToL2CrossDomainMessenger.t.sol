@@ -26,10 +26,10 @@ import {
 // Interfaces
 import { ICrossL2Inbox, Identifier } from "interfaces/L2/ICrossL2Inbox.sol";
 
-/// @title L2ToL2CrossDomainMessengerWithModifiableTransientStorage
+/// @title L2ToL2CrossDomainMessenger_WithModifiableTransientStorage_Harness
 /// @notice L2ToL2CrossDomainMessenger contract with methods to modify the transient storage.
 ///         This is used to test the transient storage of L2ToL2CrossDomainMessenger.
-contract L2ToL2CrossDomainMessengerWithModifiableTransientStorage is L2ToL2CrossDomainMessenger {
+contract L2ToL2CrossDomainMessenger_WithModifiableTransientStorage_Harness is L2ToL2CrossDomainMessenger {
     /// @notice Returns the value of the entered slot in transient storage.
     /// @return Value of the entered slot.
     function entered() external view returns (bool) {
@@ -67,17 +67,18 @@ contract L2ToL2CrossDomainMessenger_TestInit is Test {
     address internal foundryVMAddress = 0x7109709ECfa91a80626fF3989D68f67F5b1DD12D;
 
     /// @notice L2ToL2CrossDomainMessenger contract instance with modifiable transient storage.
-    L2ToL2CrossDomainMessengerWithModifiableTransientStorage l2ToL2CrossDomainMessenger;
+    L2ToL2CrossDomainMessenger_WithModifiableTransientStorage_Harness l2ToL2CrossDomainMessenger;
 
     /// @notice Sets up the test suite.
     function setUp() public {
         // Deploy the L2ToL2CrossDomainMessenger contract
         vm.etch(
             Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER,
-            address(new L2ToL2CrossDomainMessengerWithModifiableTransientStorage()).code
+            address(new L2ToL2CrossDomainMessenger_WithModifiableTransientStorage_Harness()).code
         );
-        l2ToL2CrossDomainMessenger =
-            L2ToL2CrossDomainMessengerWithModifiableTransientStorage(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER);
+        l2ToL2CrossDomainMessenger = L2ToL2CrossDomainMessenger_WithModifiableTransientStorage_Harness(
+            Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER
+        );
     }
 }
 
