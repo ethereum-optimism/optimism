@@ -25,7 +25,7 @@ use std::sync::Arc;
 use thiserror::Error;
 use tokio::sync::RwLock;
 use tokio::sync::mpsc;
-use tracing::{error, info};
+use tracing::{debug, error, info};
 
 #[derive(Debug, Error, PartialEq)]
 pub enum FlashblocksError {
@@ -176,13 +176,15 @@ impl FlashblockBuilder {
 pub struct FlashblocksService {
     client: RpcClient,
 
-    // Current payload ID we're processing (set from external notification)
-    current_payload_id: Arc<RwLock<PayloadId>>,
+    /// Current payload ID we're processing. Set from local payload calculation and updated from
+    /// external source.
+    /// None means rollup-boost has not served FCU with attributes yet.
+    current_payload_id: Arc<RwLock<Option<PayloadId>>>,
 
-    // flashblocks payload being constructed
+    /// The current Flashblock's payload being constructed.
     best_payload: Arc<RwLock<FlashblockBuilder>>,
 
-    // websocket publisher for sending valid preconfirmations to clients
+    /// Websocket publisher for sending valid pre-confirmations to clients.
     ws_pub: Arc<WebSocketPublisher>,
 
     metrics: FlashblocksServiceMetrics,
@@ -194,7 +196,7 @@ impl FlashblocksService {
 
         Ok(Self {
             client,
-            current_payload_id: Arc::new(RwLock::new(PayloadId::default())),
+            current_payload_id: Arc::new(RwLock::new(None)),
             best_payload: Arc::new(RwLock::new(FlashblockBuilder::new())),
             ws_pub,
             metrics: Default::default(),
@@ -207,7 +209,7 @@ impl FlashblocksService {
         payload_id: PayloadId,
     ) -> Result<OpExecutionPayloadEnvelope, FlashblocksError> {
         // Check that we have flashblocks for correct payload
-        if *self.current_payload_id.read().await != payload_id {
+        if *self.current_payload_id.read().await != Some(payload_id) {
             // We have outdated `current_payload_id` so we should fallback to get_payload
             // Clearing best_payload in here would cause situation when old `get_payload` would clear
             // currently built correct flashblocks.
@@ -231,7 +233,7 @@ impl FlashblocksService {
 
     pub async fn set_current_payload_id(&self, payload_id: PayloadId) {
         tracing::debug!(message = "Setting current payload ID", payload_id = %payload_id);
-        *self.current_payload_id.write().await = payload_id;
+        *self.current_payload_id.write().await = Some(payload_id);
         // Current state won't be useful anymore because chain progressed
         *self.best_payload.write().await = FlashblockBuilder::new();
     }
@@ -247,17 +249,30 @@ impl FlashblocksService {
                     index = payload.index
                 );
 
-                // make sure the payload id matches the current payload id
-                let local_payload_id = *self.current_payload_id.read().await;
-                if local_payload_id != payload.payload_id {
-                    self.metrics.current_payload_id_mismatch.increment(1);
-                    error!(
-                        message = "Payload ID mismatch",
-                        payload_id = %payload.payload_id,
-                        %local_payload_id,
-                        index = payload.index,
-                    );
-                    return;
+                // Make sure the payload id matches the current payload id
+                // If local payload id is non then boost is not service FCU with attributes
+                match *self.current_payload_id.read().await {
+                    Some(payload_id) => {
+                        if payload_id != payload.payload_id {
+                            self.metrics.current_payload_id_mismatch.increment(1);
+                            error!(
+                                message = "Payload ID mismatch",
+                                payload_id = %payload.payload_id,
+                                local_payload_id = %payload_id,
+                                index = payload.index,
+                            );
+                            return;
+                        }
+                    }
+                    None => {
+                        // We haven't served FCU with attributes yet, just ignore flashblocks
+                        debug!(
+                            message = "Received flashblocks, but no FCU with attributes was sent",
+                            payload_id = %payload.payload_id,
+                            index = payload.index,
+                        );
+                        return;
+                    }
                 }
 
                 if let Err(e) = self.best_payload.write().await.extend(payload.clone()) {
@@ -311,11 +326,11 @@ impl EngineApiExt for FlashblocksService {
 
         if let Some(payload_id) = resp.payload_id {
             let current_payload = *self.current_payload_id.read().await;
-            if current_payload != payload_id {
+            if current_payload != Some(payload_id) {
                 tracing::error!(
                     message = "Payload id returned by builder differs from calculated. Using builder payload id",
                     builder_payload_id = %payload_id,
-                    calculated_payload_id = %current_payload,
+                    calculated_payload_id = %current_payload.unwrap_or_default(),
                 );
                 self.set_current_payload_id(payload_id).await;
             } else {
@@ -420,7 +435,7 @@ mod tests {
             FlashblocksService::new(builder_client, "127.0.0.1:8001".parse().unwrap()).unwrap();
 
         // Some "random" payload id
-        *service.current_payload_id.write().await = PayloadId::new([1, 1, 1, 1, 1, 1, 1, 1]);
+        *service.current_payload_id.write().await = Some(PayloadId::new([1, 1, 1, 1, 1, 1, 1, 1]));
 
         // We ensure that request will skip rollup-boost and serve payload from backup if payload id
         // don't match
