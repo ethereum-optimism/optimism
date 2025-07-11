@@ -82,10 +82,8 @@ func (su *StatusTracker) OnEvent(ctx context.Context, ev event.Event) bool {
 	return true
 }
 
-func (su *StatusTracker) HasInitializedStatuses() bool {
-	su.mu.RLock()
-	defer su.mu.RUnlock()
-
+// hasInitializedStatuses is not behind a lock, because it is used only internally
+func (su *StatusTracker) hasInitializedStatuses() bool {
 	for _, nodeStatus := range su.statuses {
 		if nodeStatus != nil && *nodeStatus != (NodeSyncStatus{}) {
 			return true
@@ -100,7 +98,7 @@ func (su *StatusTracker) SyncStatus() (eth.SupervisorSyncStatus, error) {
 
 	// after supervisor restarts, there is a timespan where all node's sync status is not fetched yet
 	// error immediately until at least single node sync status is available, which is not empty
-	if !su.HasInitializedStatuses() {
+	if !su.hasInitializedStatuses() {
 		return eth.SupervisorSyncStatus{}, ErrStatusTrackerNotReady
 	}
 

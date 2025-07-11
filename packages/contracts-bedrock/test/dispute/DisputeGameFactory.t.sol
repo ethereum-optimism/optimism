@@ -25,7 +25,7 @@ import { ISuperPermissionedDisputeGame } from "interfaces/dispute/ISuperPermissi
 import { AlphabetVM } from "test/mocks/AlphabetVM.sol";
 
 /// @notice A fake clone used for testing the `DisputeGameFactory` contract's `create` function.
-contract FakeClone {
+contract DisputeGameFactory_FakeClone_Harness {
     function initialize() external payable {
         // noop
     }
@@ -46,7 +46,7 @@ contract FakeClone {
 /// @title DisputeGameFactory_TestInit
 /// @notice Reusable test initialization for `DisputeGameFactory` tests.
 contract DisputeGameFactory_TestInit is CommonTest {
-    FakeClone fakeClone;
+    DisputeGameFactory_FakeClone_Harness fakeClone;
 
     event DisputeGameCreated(address indexed disputeProxy, GameType indexed gameType, Claim indexed rootClaim);
     event ImplementationSet(address indexed impl, GameType indexed gameType);
@@ -54,7 +54,7 @@ contract DisputeGameFactory_TestInit is CommonTest {
 
     function setUp() public virtual override {
         super.setUp();
-        fakeClone = new FakeClone();
+        fakeClone = new DisputeGameFactory_FakeClone_Harness();
 
         // Transfer ownership of the factory to the test contract.
         vm.prank(disputeGameFactory.owner());

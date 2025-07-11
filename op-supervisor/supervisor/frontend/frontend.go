@@ -89,3 +89,13 @@ func (a *AdminFrontend) Rewind(ctx context.Context, chain eth.ChainID, block eth
 	// TODO(#15665) add logging here to track when rewinds are requested
 	return a.Supervisor.Rewind(ctx, chain, block)
 }
+
+// SetFailsafeEnabled sets the failsafe mode configuration for the supervisor.
+func (a *AdminFrontend) SetFailsafeEnabled(ctx context.Context, enabled bool) error {
+	return a.Supervisor.SetFailsafeEnabled(ctx, enabled)
+}
+
+// GetFailsafeEnabled gets the current failsafe mode configuration for the supervisor.
+func (a *AdminFrontend) GetFailsafeEnabled(ctx context.Context) (bool, error) {
+	return a.Supervisor.GetFailsafeEnabled(ctx)
+}

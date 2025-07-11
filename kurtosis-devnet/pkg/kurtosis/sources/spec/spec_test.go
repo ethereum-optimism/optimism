@@ -1,6 +1,7 @@
 package spec
 
 import (
+	"sort"
 	"strings"
 	"testing"
 
@@ -51,6 +52,9 @@ ethereum_package:
 	}
 
 	require.Len(t, result.Chains, len(expectedChains))
+	sort.Slice(result.Chains, func(i, j int) bool {
+		return result.Chains[i].Name < result.Chains[j].Name
+	})
 
 	for i, expected := range expectedChains {
 		actual := result.Chains[i]

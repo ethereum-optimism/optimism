@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math"
 	"testing"
 	"time"
 
@@ -188,6 +189,23 @@ func TestDetector_CheckOutputRootAgreement(t *testing.T) {
 		game := &types.EnrichedGameData{
 			L1HeadNum:     100,
 			L2BlockNumber: 42984924,
+			RootClaim:     mockRootClaim,
+		}
+		err := validator.Enrich(context.Background(), rpcblock.Latest, nil, game)
+		require.NoError(t, err)
+		require.Equal(t, common.Hash{}, game.ExpectedRootClaim)
+		require.False(t, game.AgreeWithClaim)
+		require.Zero(t, metrics.fetchTime)
+	})
+
+	t.Run("BlockNumberLargerThanInt64", func(t *testing.T) {
+		validator, rollup, metrics := setupOutputValidatorTest(t)
+		// RPC block numbers must be a int64 to be valid. Anything bigger than that should be treated as invalid
+		// without even making a request to the node.
+		rollup.outputErr = errors.New("should not have even requested the output root")
+		game := &types.EnrichedGameData{
+			L1HeadNum:     100,
+			L2BlockNumber: uint64(math.MaxInt64) + 1,
 			RootClaim:     mockRootClaim,
 		}
 		err := validator.Enrich(context.Background(), rpcblock.Latest, nil, game)

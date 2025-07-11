@@ -255,7 +255,6 @@ RPC_TEST_PKGS := \
 define DEFAULT_TEST_ENV_VARS
 export ENABLE_KURTOSIS=true && \
 export OP_E2E_CANNON_ENABLED="false" && \
-export OP_E2E_SKIP_SLOW_TEST=true && \
 export OP_E2E_USE_HTTP=true && \
 export ENABLE_ANVIL=true && \
 export PARALLEL=$$(nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 4)

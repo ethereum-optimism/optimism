@@ -81,6 +81,15 @@ func (s *Supervisor) AwaitMinL1(minL1 uint64) {
 	s.require.NoError(err, "Expected sync status not found")
 }
 
+func (s *Supervisor) AwaitMinCrossSafeTimestamp(timestamp uint64) {
+	ctx, cancel := context.WithTimeout(s.ctx, DefaultTimeout)
+	defer cancel()
+	err := wait.For(ctx, 1*time.Second, func() (bool, error) {
+		return s.FetchSyncStatus().SafeTimestamp >= timestamp, nil
+	})
+	s.require.NoError(err, "Expected sync status not found")
+}
+
 func (s *Supervisor) FetchSyncStatus() eth.SupervisorSyncStatus {
 	s.log.Debug("Fetching supervisor sync status")
 	ctx, cancel := context.WithTimeout(s.ctx, DefaultTimeout)

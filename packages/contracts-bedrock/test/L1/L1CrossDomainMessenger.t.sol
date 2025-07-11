@@ -19,9 +19,9 @@ import { IOptimismPortal2 } from "interfaces/L1/IOptimismPortal2.sol";
 import { ISystemConfig } from "interfaces/L1/ISystemConfig.sol";
 import { IProxyAdminOwnedBase } from "interfaces/L1/IProxyAdminOwnedBase.sol";
 
-/// @title Encoding_Harness
+/// @title L1CrossDomainMessenger_Encoding_Harness
 /// @notice A harness contract for testing internal functions of the Encoding library.
-contract Encoding_Harness {
+contract L1CrossDomainMessenger_Encoding_Harness {
     function encodeCrossDomainMessage(
         uint256 nonce,
         address sender,
@@ -48,12 +48,12 @@ contract L1CrossDomainMessenger_TestInit is CommonTest {
     uint256 senderSlotIndex;
 
     /// @dev Encoding library harness.
-    Encoding_Harness encoding;
+    L1CrossDomainMessenger_Encoding_Harness encoding;
 
     function setUp() public virtual override {
         super.setUp();
         senderSlotIndex = ForgeArtifacts.getSlot("OptimismPortal2", "l2Sender").slot;
-        encoding = new Encoding_Harness();
+        encoding = new L1CrossDomainMessenger_Encoding_Harness();
     }
 }
 
@@ -305,7 +305,57 @@ contract L1CrossDomainMessenger_SendMessage_Test is L1CrossDomainMessenger_TestI
 /// @notice General tests that are not testing any function directly of the L1CrossDomainMessenger
 ///         but are testing functionality of the CrossDomainMessenger contract that is inherited
 ///         from.
-contract L1CrossDomainMessenger_Unclassified_Test is L1CrossDomainMessenger_TestInit {
+contract L1CrossDomainMessenger_Uncategorized_Test is L1CrossDomainMessenger_TestInit {
+    // Variables for reentrancy test
+    bool reentrancyAttacked;
+    uint256 constant reentrancyMessageValue = 50;
+    bytes reentrancySelector;
+    address reentrancySender;
+    bytes32 reentrancyHash;
+    address reentrancyTarget;
+
+    function setUp() public virtual override {
+        super.setUp();
+        // Setup for reentrancy test variables (balance setup moved to specific test)
+        reentrancyTarget = address(this);
+        reentrancySender = Predeploys.L2_CROSS_DOMAIN_MESSENGER;
+        reentrancySelector = abi.encodeCall(this.reinitAndReenter, ());
+        reentrancyHash = Hashing.hashCrossDomainMessage(
+            Encoding.encodeVersionedNonce({ _nonce: 0, _version: 1 }),
+            reentrancySender,
+            reentrancyTarget,
+            reentrancyMessageValue,
+            0,
+            reentrancySelector
+        );
+    }
+
+    /// @notice This method will be called by the relayed message, and will attempt to reenter the
+    ///         `relayMessage` function exactly one.
+    function reinitAndReenter() external payable {
+        // only attempt the attack once
+        if (!reentrancyAttacked) {
+            reentrancyAttacked = true;
+            // set initialized to false
+            vm.store(address(l1CrossDomainMessenger), 0, bytes32(uint256(0)));
+
+            // call the initializer function
+            l1CrossDomainMessenger.initialize(ISystemConfig(systemConfig), IOptimismPortal2(optimismPortal2));
+
+            // attempt to re-replay the withdrawal
+            vm.expectEmit(address(l1CrossDomainMessenger));
+            emit FailedRelayedMessage(reentrancyHash);
+            l1CrossDomainMessenger.relayMessage(
+                Encoding.encodeVersionedNonce({ _nonce: 0, _version: 1 }), // nonce
+                reentrancySender,
+                reentrancyTarget,
+                reentrancyMessageValue,
+                0,
+                reentrancySelector
+            );
+        }
+    }
+
     /// @notice Tests that the version can be decoded from the message nonce.
     function test_messageVersion_succeeds() external view {
         (, uint16 version) = Encoding.decodeVersionedNonce(l1CrossDomainMessenger.messageNonce());
@@ -1027,82 +1077,36 @@ contract L1CrossDomainMessenger_Unclassified_Test is L1CrossDomainMessenger_Test
             hex"1111"
         );
     }
-}
 
-/// @title L1CrossDomainMessenger_ReinitReentryTest
-/// @notice A regression test against a reentrancy vulnerability in the `CrossDomainMessenger`
-///         contract, which was possible by intercepting and sandwiching a signed Safe Transaction
-///         to upgrade it.
-contract L1CrossDomainMessenger_ReinitReentryTest is L1CrossDomainMessenger_TestInit {
-    bool attacked;
-
-    // Common values used across functions
-    uint256 constant messageValue = 50;
-    bytes selector = abi.encodeCall(this.reinitAndReenter, ());
-    address sender;
-    bytes32 hash;
-    address target;
-
-    function setUp() public override {
-        super.setUp();
-        target = address(this);
-        sender = Predeploys.L2_CROSS_DOMAIN_MESSENGER;
-        hash = Hashing.hashCrossDomainMessage(
-            Encoding.encodeVersionedNonce({ _nonce: 0, _version: 1 }), sender, target, messageValue, 0, selector
-        );
-        vm.deal(address(l1CrossDomainMessenger), messageValue * 2);
-    }
-
-    /// @notice This method will be called by the relayed message, and will attempt to reenter the
-    ///         `relayMessage` function exactly one.
-    function reinitAndReenter() external payable {
-        // only attempt the attack once
-        if (!attacked) {
-            attacked = true;
-            // set initialized to false
-            vm.store(address(l1CrossDomainMessenger), 0, bytes32(uint256(0)));
-
-            // call the initializer function
-            l1CrossDomainMessenger.initialize(ISystemConfig(systemConfig), IOptimismPortal2(optimismPortal2));
-
-            // attempt to re-replay the withdrawal
-            vm.expectEmit(address(l1CrossDomainMessenger));
-            emit FailedRelayedMessage(hash);
-            l1CrossDomainMessenger.relayMessage(
-                Encoding.encodeVersionedNonce({ _nonce: 0, _version: 1 }), // nonce
-                sender,
-                target,
-                messageValue,
-                0,
-                selector
-            );
-        }
-    }
-
-    /// @notice Tests that the `relayMessage` function cannot be reentered by calling the
-    ///         `initialize` function within the relayed message.
+    /// @notice A regression test against a reentrancy vulnerability in the `CrossDomainMessenger`
+    ///         contract, which was possible by intercepting and sandwiching a signed Safe
+    ///         Transaction to upgrade it. Tests that the `relayMessage` function cannot be
+    ///         reentered by calling the `initialize` function within the relayed message.
     function test_relayMessage_replayStraddlingReinit_reverts() external {
+        // Setup balance for this specific test
+        vm.deal(address(l1CrossDomainMessenger), reentrancyMessageValue * 2);
+
         uint256 balanceBeforeThis = address(this).balance;
         uint256 balanceBeforeMessenger = address(l1CrossDomainMessenger).balance;
 
         // A requisite for the attack is that the message has already been attempted and written
         // to the failedMessages mapping, so that it can be replayed.
-        vm.store(address(l1CrossDomainMessenger), keccak256(abi.encode(hash, 206)), bytes32(uint256(1)));
-        assertTrue(l1CrossDomainMessenger.failedMessages(hash));
+        vm.store(address(l1CrossDomainMessenger), keccak256(abi.encode(reentrancyHash, 206)), bytes32(uint256(1)));
+        assertTrue(l1CrossDomainMessenger.failedMessages(reentrancyHash));
 
         vm.expectEmit(address(l1CrossDomainMessenger));
-        emit FailedRelayedMessage(hash);
+        emit FailedRelayedMessage(reentrancyHash);
         l1CrossDomainMessenger.relayMessage(
             Encoding.encodeVersionedNonce({ _nonce: 0, _version: 1 }), // nonce
-            sender,
-            target,
-            messageValue,
+            reentrancySender,
+            reentrancyTarget,
+            reentrancyMessageValue,
             0,
-            selector
+            reentrancySelector
         );
 
         // The message hash is not in the successfulMessages mapping.
-        assertFalse(l1CrossDomainMessenger.successfulMessages(hash));
+        assertFalse(l1CrossDomainMessenger.successfulMessages(reentrancyHash));
         // The balance of this contract is unchanged.
         assertEq(address(this).balance, balanceBeforeThis);
         // The balance of the messenger contract is unchanged.

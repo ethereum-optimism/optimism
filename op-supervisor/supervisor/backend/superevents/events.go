@@ -171,14 +171,6 @@ func (ev ReplaceBlockEvent) String() string {
 	return "replace-block-event"
 }
 
-type ChainRewoundEvent struct {
-	ChainID eth.ChainID
-}
-
-func (ev ChainRewoundEvent) String() string {
-	return "chain-rewound"
-}
-
 type UpdateLocalSafeFailedEvent struct {
 	ChainID eth.ChainID
 	Err     error

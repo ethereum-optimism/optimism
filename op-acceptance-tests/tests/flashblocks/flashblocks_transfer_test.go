@@ -47,29 +47,38 @@ func TestFlashblocksTransfer(gt *testing.T) {
 	defer span.End()
 
 	// Test all L2 chains in the system
-	for l2Chain, flashblocksBuilderSet := range sys.FlashblocksBuilderSets {
+	for l2Chain, funder := range sys.Funders {
 		ctx, cancel := context.WithTimeout(topLevelCtx, 45*time.Second)
 		defer cancel()
 		_, span = tracer.Start(ctx, fmt.Sprintf("test chain %s", l2Chain.String()))
 		defer span.End()
 
 		t.Run(fmt.Sprintf("L2_Chain_%s", l2Chain.String()), func(tt devtest.T) {
-			if len(flashblocksBuilderSet) == 0 {
-				tt.Skip("no flashblocks builders for chain", l2Chain.String())
+			if len(sys.FlashblocksBuilderSets[l2Chain]) == 0 && len(sys.FlashblocksWebsocketProxies[l2Chain]) == 0 {
+				tt.Skip("no flashblocks builders or websocket proxies found for chain", l2Chain.String())
 			}
-
-			leaderFbBuilder := flashblocksBuilderSet.Leader()
-			require.NotNil(tt, leaderFbBuilder, "should have a leader", "chain", l2Chain.String())
 
 			doneListening := make(chan struct{})
 			output := make(chan []byte, 100)
 
-			alice := sys.Funders[l2Chain].NewFundedEOA(eth.ThreeHundredthsEther)
+			alice := funder.NewFundedEOA(eth.ThreeHundredthsEther)
 			bob := sys.Wallet.NewEOA(sys.L2ELNodes[l2Chain])
 			bobAddress := bob.Address().Hex()
 
 			// flashblocks listener
-			go leaderFbBuilder.ListenFor(logger, 20*time.Second, output, doneListening) //nolint:errcheck
+			fbWsProxies := sys.FlashblocksWebsocketProxies[l2Chain]
+			if len(fbWsProxies) > 0 {
+				fbWsProxy := fbWsProxies[0]
+				logger.Info("Listening for flashblocks via websocket proxy", "proxy", fbWsProxy.String())
+				go fbWsProxy.ListenFor(logger, 20*time.Second, output, doneListening) //nolint:errcheck
+			} else {
+				leaderFbBuilder := sys.FlashblocksBuilderSets[l2Chain].Leader()
+				require.NotNil(tt, leaderFbBuilder, "should have a leader", "chain", l2Chain.String())
+
+				logger.Info("Listening for flashblocks via flashblocks builder", "builder", leaderFbBuilder.String())
+
+				go leaderFbBuilder.ListenFor(logger, 20*time.Second, output, doneListening) //nolint:errcheck
+			}
 
 			var executedTransaction *txplan.PlannedTx
 			var transactionApproxConfirmationTime time.Time

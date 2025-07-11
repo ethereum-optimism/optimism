@@ -44,4 +44,6 @@ var (
 	ErrNoRPCSource = errors.New("no RPC client configured")
 	// ErrUninitialized happens when a chain database is not initialized yet
 	ErrUninitialized = errors.New("uninitialized chain database")
+	// ErrFailsafeEnabled is when failsafe is enabled and the request is rejected
+	ErrFailsafeEnabled = errors.New("failsafe is enabled, rejecting all CheckAccessList requests")
 )

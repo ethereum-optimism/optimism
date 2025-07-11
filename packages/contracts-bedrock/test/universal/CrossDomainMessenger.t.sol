@@ -13,10 +13,10 @@ import { Encoding } from "src/libraries/Encoding.sol";
 
 import { IL1CrossDomainMessenger } from "interfaces/L1/IL1CrossDomainMessenger.sol";
 
-/// @title ExternalRelay
+/// @title CrossDomainMessenger_ExternalRelay_Harness
 /// @notice A mock external contract called via the SafeCall inside the CrossDomainMessenger's
 ///         `relayMessage` function.
-contract ExternalRelay is Test {
+contract CrossDomainMessenger_ExternalRelay_Harness is Test {
     address internal op;
     address internal fuzzedSender;
     IL1CrossDomainMessenger internal l1CrossDomainMessenger;
@@ -74,7 +74,7 @@ contract ExternalRelay is Test {
 
     /// @notice Helper function to get the callData for an `externalCallWithMinGas
     function getCallData() public pure returns (bytes memory) {
-        return abi.encodeCall(ExternalRelay.externalCallWithMinGas, ());
+        return abi.encodeCall(CrossDomainMessenger_ExternalRelay_Harness.externalCallWithMinGas, ());
     }
 
     /// @notice Helper function to set the fuzzed sender
@@ -89,11 +89,11 @@ contract CrossDomainMessenger_TestInit is CommonTest {
     // Storage slot of the l2Sender
     uint256 constant senderSlotIndex = 50;
 
-    ExternalRelay public er;
+    CrossDomainMessenger_ExternalRelay_Harness public er;
 
     function setUp() public override {
         super.setUp();
-        er = new ExternalRelay(l1CrossDomainMessenger, address(optimismPortal2));
+        er = new CrossDomainMessenger_ExternalRelay_Harness(l1CrossDomainMessenger, address(optimismPortal2));
     }
 }
 
