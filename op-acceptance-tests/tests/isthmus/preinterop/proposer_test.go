@@ -8,6 +8,7 @@ import (
 )
 
 func TestProposer(gt *testing.T) {
+	gt.Skip("TODO(#16166): Re-enable once the supervisor endpoint supports super roots before interop")
 	t := devtest.SerialT(gt)
 	sys := presets.NewSimpleInterop(t)
 
