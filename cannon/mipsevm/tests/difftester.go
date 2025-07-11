@@ -63,7 +63,8 @@ func (d *DiffTester[T]) run(t testRunner, testCases []T, randSeed int64, opts ..
 			mods := d.generateTestModifiers(t, testCase, vm, d.setExpectations, cfg)
 			for _, mod := range mods {
 				testName := fmt.Sprintf("%v%v (%v)", d.testNamer(testCase), mod.name, vm.Name)
-				t.Run(testName, func(t testing.TB) {
+				t.Run(testName, func(t testcaseT) {
+					t.Parallel()
 					stateOpts := []mtutil.StateOption{mtutil.WithRandomization(cfg.randSeed)}
 					stateOpts = append(stateOpts, d.stateOpts...)
 					goVm := vm.VMFactory(cfg.po(), cfg.stdOut(), cfg.stdErr(), cfg.logger, stateOpts...)
@@ -233,10 +234,16 @@ func ExpectPanic(goPanicMsg, evmRevertMsg string) ExpectedExecResult {
 	}
 }
 
-type testFn func(testing.TB)
+type testcaseT interface {
+	testing.TB
+	Parallel()
+}
+type testFn func(testcaseT)
+
 type testRunner interface {
 	testing.TB
 	Run(name string, fn testFn) bool
+	Parallel()
 }
 
 // Adapt *testing.T to internal testRunner interface
@@ -247,4 +254,9 @@ func (tr *wrappedT) Run(name string, fn testFn) bool {
 		fn(t)
 	})
 }
+
+func (tr *wrappedT) Parallel() {
+	tr.T.Parallel()
+}
+
 func wrapT(t *testing.T) testRunner { return &wrappedT{t} }

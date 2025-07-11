@@ -264,6 +264,8 @@ func (m *mockTestRunner) Run(name string, fn testFn) bool {
 	return t.failed
 }
 
+func (m *mockTestRunner) Parallel() {}
+
 func (m *mockTestRunner) testFailedOrPanicked(testName string) (bool, error) {
 	runner, ok := m.childTestMocks[testName]
 	if !ok {
@@ -356,5 +358,7 @@ func (m *mockT) TempDir() string {
 func (m *mockT) Context() context.Context {
 	return context.Background()
 }
+
+func (m *mockT) Parallel() {}
 
 var _ testing.TB = (*mockT)(nil)
