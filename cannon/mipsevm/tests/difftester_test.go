@@ -56,7 +56,7 @@ func TestDiffTester_Run_SimpleTest(t *testing.T) {
 				testsPerCase := len(versions)
 				require.Equal(t, testsPerCase, initStateCalled[c.name])
 				// Difftester runs extra calls on the expectations fn in order to analyze the tests
-				require.GreaterOrEqual(t, expectationsCalled[c.name], testsPerCase)
+				require.Equal(t, testsPerCase+len(versions), expectationsCalled[c.name])
 			}
 
 			// Validate that tests ran and passed as expected
@@ -131,7 +131,7 @@ func TestDiffTester_Run_WithMemModifications(t *testing.T) {
 				testsPerCase := len(versions) * (len(mods) + 1)
 				require.Equal(t, testsPerCase, initStateCalled[c.name])
 				// Difftester runs extra calls on the expectations fn in order to analyze the tests
-				require.GreaterOrEqual(t, expectationsCalled[c.name], testsPerCase)
+				require.Equal(t, testsPerCase+len(versions), expectationsCalled[c.name])
 			}
 
 			// Validate that tests ran and passed
@@ -189,7 +189,7 @@ func TestDiffTester_Run_WithPanic(t *testing.T) {
 				testsPerCase := len(versions)
 				require.Equal(t, testsPerCase, initStateCalled[c.name])
 				// Difftester runs extra calls on the expectations fn in order to analyze the tests
-				require.GreaterOrEqual(t, expectationsCalled[c.name], testsPerCase)
+				require.Equal(t, testsPerCase+len(versions), expectationsCalled[c.name])
 			}
 
 			// Validate that tests ran and passed as expected
@@ -244,8 +244,8 @@ var _ testRunner = (*mockTestRunner)(nil)
 
 func newMockTestRunner(tb testing.TB) *mockTestRunner {
 	t := &mockT{name: "MockTestRunner", t: tb, debugTestFailures: false}
-	runners := make(map[string]*mockT)
-	return &mockTestRunner{mockT: t, childTestMocks: runners}
+	childMocks := make(map[string]*mockT)
+	return &mockTestRunner{mockT: t, childTestMocks: childMocks}
 }
 
 func (m *mockTestRunner) Run(name string, fn testFn) bool {
@@ -270,14 +270,6 @@ func (m *mockTestRunner) testFailedOrPanicked(testName string) (bool, error) {
 		return false, fmt.Errorf("test '%v' not found", testName)
 	}
 	return runner.failed || runner.panicked, nil
-}
-
-func (m *mockTestRunner) testFailed(testName string) (bool, error) {
-	runner, ok := m.childTestMocks[testName]
-	if !ok {
-		return false, fmt.Errorf("test '%v' not found", testName)
-	}
-	return runner.failed, nil
 }
 
 func (m *mockTestRunner) testPanicked(testName string) (bool, error) {
