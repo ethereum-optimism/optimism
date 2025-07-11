@@ -122,7 +122,9 @@ where
     {
         let mut this = self.configure();
         this.set_runner(runner);
-        this.run(FnLauncher::new::<C, Ext>(launcher))
+        this.run(FnLauncher::new::<C, Ext>(async move |builder, chain_spec| {
+            launcher(builder, chain_spec).await
+        }))
     }
 }
 
