@@ -18,26 +18,6 @@ import (
 
 type TestNamer[T any] func(testCase T) string
 
-type ExpectedExecResult struct {
-	shouldPanic bool
-	panicMsg    string
-	evmError    string
-}
-
-func ExpectNormalExecution() ExpectedExecResult {
-	return ExpectedExecResult{
-		shouldPanic: false,
-	}
-}
-
-func ExpectPanic(goPanicMsg, evmRevertMsg string) ExpectedExecResult {
-	return ExpectedExecResult{
-		shouldPanic: true,
-		panicMsg:    goPanicMsg,
-		evmError:    evmRevertMsg,
-	}
-}
-
 type InitializeStateFn[T any] func(testCase T, state *multithreaded.State, vm VersionedVMTestCase)
 type SetExpectationsFn[T any] func(testCase T, expect *mtutil.ExpectedState, vm VersionedVMTestCase) ExpectedExecResult
 
@@ -231,6 +211,26 @@ func newTestConfig(randSeed int64, opts ...TestOption) *TestConfig {
 		opt(testConfig)
 	}
 	return testConfig
+}
+
+type ExpectedExecResult struct {
+	shouldPanic bool
+	panicMsg    string
+	evmError    string
+}
+
+func ExpectNormalExecution() ExpectedExecResult {
+	return ExpectedExecResult{
+		shouldPanic: false,
+	}
+}
+
+func ExpectPanic(goPanicMsg, evmRevertMsg string) ExpectedExecResult {
+	return ExpectedExecResult{
+		shouldPanic: true,
+		panicMsg:    goPanicMsg,
+		evmError:    evmRevertMsg,
+	}
 }
 
 type testFn func(testing.TB)
