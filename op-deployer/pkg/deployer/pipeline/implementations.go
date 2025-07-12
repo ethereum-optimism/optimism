@@ -58,6 +58,7 @@ func DeployImplementations(env *Env, intent *state.Intent, st *state.State) erro
 			ProtocolVersionsProxy:           st.SuperchainDeployment.ProtocolVersionsProxy,
 			SuperchainProxyAdmin:            st.SuperchainDeployment.SuperchainProxyAdminImpl,
 			UpgradeController:               st.SuperchainRoles.SuperchainProxyAdminOwner,
+			Challenger:                      st.SuperchainRoles.Challenger,
 		},
 	)
 	if err != nil {
@@ -70,6 +71,7 @@ func DeployImplementations(env *Env, intent *state.Intent, st *state.State) erro
 		OpcmDeployerImpl:                 dio.OpcmDeployer,
 		OpcmUpgraderImpl:                 dio.OpcmUpgrader,
 		OpcmInteropMigratorImpl:          dio.OpcmInteropMigrator,
+		OpcmStandardValidatorImpl:        dio.OpcmStandardValidator,
 		DelayedWethImpl:                  dio.DelayedWETHImpl,
 		OptimismPortalImpl:               dio.OptimismPortalImpl,
 		EthLockboxImpl:                   dio.ETHLockboxImpl,

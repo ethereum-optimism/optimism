@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math"
 	"strings"
 
 	monTypes "github.com/ethereum-optimism/optimism/op-dispute-mon/mon/types"
@@ -50,6 +51,13 @@ func (o *OutputAgreementEnricher) Enrich(ctx context.Context, block rpcblock.Blo
 	}
 	if o.client == nil {
 		return fmt.Errorf("%w but required for game type %v", ErrRollupRpcRequired, game.GameType)
+	}
+	if game.L2BlockNumber > math.MaxInt64 {
+		// The claimed block number is bigger than an int64. The BlockNumber type used by RPCs is an int64 so anything
+		// bigger than that can't be a valid block. So we can determine that this proposal invalid just because it
+		// has a ridiculously big block number which must be far in the future.
+		game.AgreeWithClaim = false
+		return nil
 	}
 	output, err := o.client.OutputAtBlock(ctx, game.L2BlockNumber)
 	if err != nil {

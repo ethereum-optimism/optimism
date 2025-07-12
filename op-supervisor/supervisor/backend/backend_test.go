@@ -88,13 +88,13 @@ func TestBackendLifetime_InteropAtGenesis(t *testing.T) {
 	l1Src := &testutils.MockL1Source{}
 	src := &MockProcessorSource{}
 
-	blockX := eth.BlockRef{
+	blockX := eth.L2BlockRef{
 		Hash:       common.Hash{0xaa},
 		Number:     anchor.Number + 1,
 		ParentHash: anchor.Hash,
 		Time:       anchor.Time + 2,
 	}
-	blockY := eth.BlockRef{
+	blockY := eth.L2BlockRef{
 		Hash:       common.Hash{0xbb},
 		Number:     blockX.Number + 1,
 		ParentHash: blockX.Hash,
@@ -129,13 +129,13 @@ func TestBackendLifetime_InteropAtGenesis(t *testing.T) {
 
 	// Receive unsafe block Y from node
 
-	src.ExpectBlockRefByNumber(1, blockX, nil)
+	src.ExpectL2BlockRefByNumber(1, blockX, nil)
 	src.ExpectFetchReceipts(blockX.Hash, nil, nil)
-	src.ExpectBlockRefByNumber(2, blockY, nil)
+	src.ExpectL2BlockRefByNumber(2, blockY, nil)
 	src.ExpectFetchReceipts(blockY.Hash, nil, nil)
 	b.emitter.Emit(context.Background(), superevents.LocalUnsafeReceivedEvent{
 		ChainID:        chainA,
-		NewLocalUnsafe: blockY,
+		NewLocalUnsafe: blockY.BlockRef(),
 	})
 	require.NoError(t, ex.Drain())
 	src.AssertExpectations(t)
@@ -148,7 +148,7 @@ func TestBackendLifetime_InteropAtGenesis(t *testing.T) {
 	require.Equal(t, anchor.ID(), xsafe.Derived)
 
 	// Revert cross-unafe back to block X
-	err = b.chainDBs.UpdateCrossUnsafe(chainA, types.BlockSealFromRef(blockX))
+	err = b.chainDBs.UpdateCrossUnsafe(chainA, types.BlockSealFromRef(blockX.BlockRef()))
 	require.NoError(t, err)
 
 	xunsafe, err = b.CrossUnsafe(context.Background(), chainA)
@@ -160,7 +160,7 @@ func TestBackendLifetime_InteropAtGenesis(t *testing.T) {
 	b.emitter.Emit(context.Background(), superevents.LocalDerivedEvent{
 		ChainID: chainA,
 		Derived: types.DerivedBlockRefPair{
-			Derived: blockX,
+			Derived: blockX.BlockRef(),
 		},
 	})
 	require.NoError(t, ex.Drain())
@@ -222,7 +222,7 @@ func TestBackendLifetime_InteropPostGenesis(t *testing.T) {
 	l1Src := &testutils.MockL1Source{}
 	src := &MockProcessorSource{}
 
-	blockY := eth.BlockRef{
+	blockY := eth.L2BlockRef{
 		Hash:       common.Hash{0xbb},
 		Number:     blockX.Number + 1,
 		ParentHash: blockX.Hash,
@@ -255,7 +255,7 @@ func TestBackendLifetime_InteropPostGenesis(t *testing.T) {
 
 	// Receive unsafe block X, interop activation block, from node
 
-	// src.ExpectBlockRefByNumber(1, blockX, nil)
+	// src.ExpectL2BlockRefByNumber(1, blockX, nil)
 	// src.ExpectFetchReceipts(blockX.Hash, nil, nil)
 	b.emitter.Emit(context.Background(), superevents.LocalUnsafeReceivedEvent{
 		ChainID:        chainA,
@@ -275,11 +275,11 @@ func TestBackendLifetime_InteropPostGenesis(t *testing.T) {
 
 	// Receive unsafe block Y from node
 
-	src.ExpectBlockRefByNumber(blockY.Number, blockY, nil)
+	src.ExpectL2BlockRefByNumber(blockY.Number, blockY, nil)
 	src.ExpectFetchReceipts(blockY.Hash, nil, nil)
 	b.emitter.Emit(context.Background(), superevents.LocalUnsafeReceivedEvent{
 		ChainID:        chainA,
-		NewLocalUnsafe: blockY,
+		NewLocalUnsafe: blockY.BlockRef(),
 	})
 	require.NoError(t, ex.Drain())
 	src.AssertExpectations(t)
@@ -311,7 +311,7 @@ func TestBackendLifetime_InteropPostGenesis(t *testing.T) {
 	b.emitter.Emit(context.Background(), superevents.LocalDerivedEvent{
 		ChainID: chainA,
 		Derived: types.DerivedBlockRefPair{
-			Derived: blockY,
+			Derived: blockY.BlockRef(),
 		},
 	})
 	require.NoError(t, ex.Drain())
@@ -463,13 +463,13 @@ func (m *MockProcessorSource) ExpectFetchReceipts(hash common.Hash, receipts typ
 	m.Mock.On("FetchReceipts", hash).Once().Return(receipts, err)
 }
 
-func (m *MockProcessorSource) BlockRefByNumber(ctx context.Context, num uint64) (eth.BlockRef, error) {
+func (m *MockProcessorSource) L2BlockRefByNumber(ctx context.Context, num uint64) (eth.L2BlockRef, error) {
 	out := m.Mock.Called(num)
-	return out.Get(0).(eth.BlockRef), out.Error(1)
+	return out.Get(0).(eth.L2BlockRef), out.Error(1)
 }
 
-func (m *MockProcessorSource) ExpectBlockRefByNumber(num uint64, ref eth.BlockRef, err error) {
-	m.Mock.On("BlockRefByNumber", num).Return(ref, err)
+func (m *MockProcessorSource) ExpectL2BlockRefByNumber(num uint64, ref eth.L2BlockRef, err error) {
+	m.Mock.On("L2BlockRefByNumber", num).Return(ref, err)
 }
 
 // fakeSyncSource implements syncnode.SyncSource for testing asyncVerifyAccessWithRPC.
@@ -487,7 +487,7 @@ func (f *fakeSyncSource) ChainID(_ context.Context) (eth.ChainID, error) {
 	return f.chainID, nil
 }
 
-func (f *fakeSyncSource) BlockRefByNumber(_ context.Context, _ uint64) (eth.BlockRef, error) {
+func (f *fakeSyncSource) L2BlockRefByNumber(_ context.Context, _ uint64) (eth.L2BlockRef, error) {
 	panic("should not be called")
 }
 

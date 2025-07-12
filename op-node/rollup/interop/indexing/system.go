@@ -467,10 +467,6 @@ func (m *IndexingMode) FetchReceipts(ctx context.Context, blockHash common.Hash)
 	return receipts, err
 }
 
-func (m *IndexingMode) BlockRefByNumber(ctx context.Context, num uint64) (eth.BlockRef, error) {
-	return m.l2.BlockRefByNumber(ctx, num)
-}
-
 func (m *IndexingMode) ChainID(ctx context.Context) (eth.ChainID, error) {
 	return eth.ChainIDFromBig(m.cfg.L2ChainID), nil
 }

@@ -49,7 +49,7 @@ func NewSimpleFlashblocks(t devtest.T) *SimpleFlashblocks {
 	for _, chain := range chains {
 		chainMatcher := match.L2ChainById(chain.ID())
 		l2 := system.L2Network(match.Assume(t, chainMatcher))
-		firstELNode := dsl.NewL2ELNode(l2.L2ELNode(match.FirstL2EL))
+		firstELNode := dsl.NewL2ELNode(l2.L2ELNode(match.FirstL2EL), orch.ControlPlane())
 		firstFaucet := dsl.NewFaucet(l2.Faucet(match.Assume(t, match.FirstFaucet)))
 
 		conductorSets[chain.ID()] = dsl.NewConductorSet(l2.Conductors())
