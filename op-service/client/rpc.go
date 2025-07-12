@@ -17,7 +17,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/retry"
 )
 
-var httpRegex = regexp.MustCompile("^http(s)?://")
+var httpRegex = regexp.MustCompile("^https?://")
 
 type RPC interface {
 	Close()
