@@ -13,7 +13,7 @@ import { EnumerableSet } from "@openzeppelin/contracts/utils/structs/EnumerableS
 import { LivenessGuard } from "src/safe/LivenessGuard.sol";
 
 /// @notice A wrapper contract exposing the length of the ownersBefore set in the LivenessGuard.
-contract WrappedGuard is LivenessGuard {
+contract LivenessGuard_WrappedGuard_Harness is LivenessGuard {
     using EnumerableSet for EnumerableSet.AddressSet;
 
     constructor(Safe safe) LivenessGuard(safe) { }
@@ -30,7 +30,7 @@ contract LivenessGuard_TestInit is Test, SafeTestTools {
 
     event OwnerRecorded(address owner);
 
-    WrappedGuard livenessGuard;
+    LivenessGuard_WrappedGuard_Harness livenessGuard;
     SafeInstance safeInstance;
 
     // This needs to be non-zero so that the `lastLive` mapping can record non-zero timestamps
@@ -44,7 +44,7 @@ contract LivenessGuard_TestInit is Test, SafeTestTools {
         vm.warp(initTime);
         (, uint256[] memory privKeys) = SafeTestLib.makeAddrsAndKeys("test-owners", ownerCount);
         safeInstance = _setupSafe(privKeys, threshold);
-        livenessGuard = new WrappedGuard(safeInstance.safe);
+        livenessGuard = new LivenessGuard_WrappedGuard_Harness(safeInstance.safe);
         safeInstance.setGuard(address(livenessGuard));
     }
 }
@@ -56,7 +56,7 @@ contract LivenessGuard_Constructor_Test is LivenessGuard_TestInit {
     ///         each owner.
     function test_constructor_works() external {
         address[] memory owners = safeInstance.owners;
-        livenessGuard = new WrappedGuard(safeInstance.safe);
+        livenessGuard = new LivenessGuard_WrappedGuard_Harness(safeInstance.safe);
         for (uint256 i; i < owners.length; i++) {
             assertEq(livenessGuard.lastLive(owners[i]), initTime);
         }
@@ -279,7 +279,7 @@ contract LivenessGuard_Unclassified_Test is StdCheats, StdUtils, LivenessGuard_T
         saltNonce = uint256(keccak256(bytes("LIVENESS GUARD OWNER MANAGEMENT TEST")));
         // Create the new safe and register the guard.
         SafeInstance memory safeInstance = _setupSafe(ownerkeys, threshold);
-        livenessGuard = new WrappedGuard(safeInstance.safe);
+        livenessGuard = new LivenessGuard_WrappedGuard_Harness(safeInstance.safe);
         safeInstance.setGuard(address(livenessGuard));
 
         for (uint256 i; i < changes.length; i++) {
