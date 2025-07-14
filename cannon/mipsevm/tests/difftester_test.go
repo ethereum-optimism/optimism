@@ -110,7 +110,10 @@ func TestDiffTester_Run_WithMemModifications(t *testing.T) {
 			versions := GetMipsVersionTestCases(t)
 			var mods []string
 			if !skipAutomaticMemTests {
-				mods = append(mods, " [mod:overlappingMemReservation]")
+				for _, memTestCase := range memReservationTestCases {
+					modName := fmt.Sprintf(" [mod:%v]", memTestCase.name)
+					mods = append(mods, modName)
+				}
 			}
 			expectedTestCases := generateExpectedTestCases(testCases, versions, mods...)
 

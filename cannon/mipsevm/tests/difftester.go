@@ -146,8 +146,7 @@ func (d *DiffTester[T]) generateTestModifiers(t require.TestingT, testCase T, vm
 	return modifiers
 }
 
-// memReservationTestModifier updates tests that write to memory, to ensure any overlapping memory reservation
-// is cleared
+// memReservationTestModifier updates tests that write to memory, to ensure that memory reservations are handled correctly
 func (d *DiffTester[T]) memReservationTestModifier(cfg *TestConfig, randSeed int64, expect *mtutil.ExpectedState) []*testModifier {
 	var modifiers []*testModifier
 
@@ -157,24 +156,56 @@ func (d *DiffTester[T]) memReservationTestModifier(cfg *TestConfig, randSeed int
 		return modifiers
 	}
 
-	modifiers = append(modifiers, &testModifier{
-		name: " [mod:overlappingMemReservation]",
-		stateMod: func(state *multithreaded.State) {
-			// Set up a memory reservation that overlaps with the effective address of the target memory word
-			r := testutil.NewRandHelper(randSeed + 10000)
-			targetMemAddr := memTargets[r.Intn(len(memTargets))]
-			effAddr := targetMemAddr & arch.AddressMask
+	for i, testCase := range memReservationTestCases {
+		modifiers = append(modifiers, &testModifier{
+			name: fmt.Sprintf(" [mod:%v]", testCase.name),
+			stateMod: func(state *multithreaded.State) {
+				r := testutil.NewRandHelper(randSeed*int64(i) + 10000)
+				targetMemAddr := memTargets[r.Intn(len(memTargets))]
+				effAddr := targetMemAddr & arch.AddressMask
 
-			state.LLReservationStatus = multithreaded.LLReservationStatus(r.Intn(2) + 1)
-			state.LLAddress = effAddr + arch.Word(r.Intn(arch.WordSizeBytes))
-			state.LLOwnerThread = arch.Word(r.Intn(10))
-		},
-		expectMod: func(expect *mtutil.ExpectedState) {
-			expect.ExpectMemoryReservationCleared()
-		},
-	})
+				llAddress := effAddr + testCase.effAddrOffset
+				llOwnerThread := state.GetCurrentThread().ThreadId
+				if !testCase.matchThreadId {
+					llOwnerThread += 1
+				}
+
+				state.LLReservationStatus = testCase.llReservationStatus
+				state.LLAddress = llAddress
+				state.LLOwnerThread = llOwnerThread
+			},
+			expectMod: func(expect *mtutil.ExpectedState) {
+				if testCase.shouldClearReservation {
+					expect.ExpectMemoryReservationCleared()
+				}
+			},
+		})
+	}
 
 	return modifiers
+}
+
+type memReservationTestCase struct {
+	name                   string
+	llReservationStatus    multithreaded.LLReservationStatus
+	matchThreadId          bool
+	effAddrOffset          arch.Word
+	shouldClearReservation bool
+}
+
+var memReservationTestCases []memReservationTestCase = []memReservationTestCase{
+	{name: "matching reservation", llReservationStatus: multithreaded.LLStatusActive32bit, matchThreadId: true, shouldClearReservation: true},
+	{name: "matching reservation, 64-bit", llReservationStatus: multithreaded.LLStatusActive64bit, matchThreadId: true, shouldClearReservation: true},
+	{name: "matching reservation, unaligned", llReservationStatus: multithreaded.LLStatusActive32bit, effAddrOffset: 1, matchThreadId: true, shouldClearReservation: true},
+	{name: "matching reservation, 64-bit, unaligned", llReservationStatus: multithreaded.LLStatusActive64bit, effAddrOffset: 5, matchThreadId: true, shouldClearReservation: true},
+	{name: "matching reservation, diff thread", llReservationStatus: multithreaded.LLStatusActive32bit, matchThreadId: false, shouldClearReservation: true},
+	{name: "matching reservation, diff thread, 64-bit", llReservationStatus: multithreaded.LLStatusActive64bit, matchThreadId: false, shouldClearReservation: true},
+	{name: "mismatched reservation", llReservationStatus: multithreaded.LLStatusActive32bit, matchThreadId: true, effAddrOffset: 8, shouldClearReservation: false},
+	{name: "mismatched reservation, 64-bit", llReservationStatus: multithreaded.LLStatusActive64bit, matchThreadId: true, effAddrOffset: 8, shouldClearReservation: false},
+	{name: "mismatched reservation, diff thread", llReservationStatus: multithreaded.LLStatusActive32bit, matchThreadId: false, effAddrOffset: 8, shouldClearReservation: false},
+	{name: "mismatched reservation, diff thread, 64-bit", llReservationStatus: multithreaded.LLStatusActive64bit, matchThreadId: false, effAddrOffset: 8, shouldClearReservation: false},
+	{name: "no reservation, matching addr", llReservationStatus: multithreaded.LLStatusNone, matchThreadId: true, shouldClearReservation: true},
+	{name: "no reservation, mismatched addr", llReservationStatus: multithreaded.LLStatusNone, matchThreadId: true, effAddrOffset: 8, shouldClearReservation: false},
 }
 
 func randomSeed(t require.TestingT, s string, extraData ...int) int64 {
