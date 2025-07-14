@@ -5,8 +5,6 @@ import (
 	"os"
 	"testing"
 
-	"github.com/stretchr/testify/require"
-
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/arch"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/exec"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/multithreaded"
@@ -297,52 +295,70 @@ func MemoryReservationTester[T any](t *testing.T, cases []T, testFn MemoryReserv
 	}
 }
 
-func testNoopSyscall(t *testing.T, version VersionedVMTestCase, syscalls map[string]uint32) {
-	for noopName, noopVal := range syscalls {
-		t.Run(fmt.Sprintf("%v-%v", version.Name, noopName), func(t *testing.T) {
-			t.Parallel()
-			goVm, state, contracts := setupWithTestCase(t, version, int(noopVal), nil)
-
-			testutil.StoreInstruction(state.Memory, state.GetPC(), syscallInsn)
-			state.GetRegistersRef()[2] = Word(noopVal) // Set syscall number
-			step := state.Step
-
-			// Set up post-state expectations
-			expected := mtutil.NewExpectedState(t, state)
-			expected.ExpectStep()
-			expected.ActiveThread().Registers[2] = 0
-			expected.ActiveThread().Registers[7] = 0
-
-			// State transition
-			stepWitness, err := goVm.Step(true)
-			require.NoError(t, err)
-
-			// Validate post-state
-			expected.Validate(t, state)
-			testutil.ValidateEVM(t, stepWitness, step, goVm, multithreaded.GetStateHashFn(), contracts)
-		})
+func testNoopSyscall(t *testing.T, vm VersionedVMTestCase, syscalls map[string]uint32) {
+	type testCase struct {
+		name      string
+		sycallNum arch.Word
 	}
+
+	testNamer := func(tc testCase) string {
+		return tc.name
+	}
+
+	var cases []testCase
+	for name, syscallNum := range syscalls {
+		cases = append(cases, testCase{name: name, sycallNum: arch.Word(syscallNum)})
+	}
+
+	initState := func(tt testCase, state *multithreaded.State, vm VersionedVMTestCase) {
+		testutil.StoreInstruction(state.Memory, state.GetPC(), syscallInsn)
+		state.GetRegistersRef()[2] = tt.sycallNum // Set syscall number
+	}
+
+	setExpectations := func(tt testCase, expected *mtutil.ExpectedState, vm VersionedVMTestCase) ExpectedExecResult {
+		expected.ExpectStep()
+		expected.ActiveThread().Registers[2] = 0
+		expected.ActiveThread().Registers[7] = 0
+
+		return ExpectNormalExecution()
+	}
+
+	NewDiffTester(testNamer).
+		InitState(initState).
+		SetExpectations(setExpectations).
+		Run(t, cases, WithVm(vm))
 }
 
-func testUnsupportedSyscall(t *testing.T, version VersionedVMTestCase, unsupportedSyscalls []uint32) {
-	for i, syscallNum := range unsupportedSyscalls {
-		testName := fmt.Sprintf("%v Unsupported syscallNum %v", version.Name, syscallNum)
-		i := i
-		syscallNum := syscallNum
-		t.Run(testName, func(t *testing.T) {
-			t.Parallel()
-			goVm, state, contracts := setupWithTestCase(t, version, i*3434, nil)
-			// Setup basic getThreadId syscall instruction
-			testutil.StoreInstruction(state.Memory, state.GetPC(), syscallInsn)
-			state.GetRegistersRef()[2] = Word(syscallNum)
-			proofData := multiThreadedProofGenerator(t, state)
-			// Set up post-state expectations
-			require.Panics(t, func() { _, _ = goVm.Step(true) })
-
-			errorMessage := "unimplemented syscall"
-			testutil.AssertEVMReverts(t, state, contracts, nil, proofData, testutil.CreateErrorStringMatcher(errorMessage))
-		})
+func testUnsupportedSyscall(t *testing.T, vm VersionedVMTestCase, unsupportedSyscalls []uint32) {
+	type testCase struct {
+		name      string
+		sycallNum arch.Word
 	}
+
+	testNamer := func(tc testCase) string {
+		return tc.name
+	}
+
+	var cases []testCase
+	for _, syscallNum := range unsupportedSyscalls {
+		name := fmt.Sprintf("Unsupported syscall %d", syscallNum)
+		cases = append(cases, testCase{name: name, sycallNum: arch.Word(syscallNum)})
+	}
+
+	initState := func(tt testCase, state *multithreaded.State, vm VersionedVMTestCase) {
+		testutil.StoreInstruction(state.Memory, state.GetPC(), syscallInsn)
+		state.GetRegistersRef()[2] = tt.sycallNum // Set syscall number
+	}
+
+	setExpectations := func(tt testCase, expected *mtutil.ExpectedState, vm VersionedVMTestCase) ExpectedExecResult {
+		goErr := fmt.Sprintf("unrecognized syscall: %v", tt.sycallNum)
+		return ExpectPanic(goErr, "unimplemented syscall")
+	}
+
+	NewDiffTester(testNamer).
+		InitState(initState).
+		SetExpectations(setExpectations).
+		Run(t, cases, WithVm(vm))
 }
 
 // signExtend64 is used to sign-extend 32-bit words for 64-bit compatibility
