@@ -11,4 +11,4 @@ Boba Anchorage is derived from Optimism Bedrock and inherits its fee framework. 
 
 Prior to the Anchorage update, the Boba network offered an option to pay fees using the Boba token instead of ETH. Post-Anchorage, this is no longer provided by the core network but will instead be offered through an ERC-4337 Account Abstraction framework. For an overview of the AA paymaster concept, developers may refer to resources such as [this one](https://www.alchemy.com/blog/account-abstraction-paymasters).
 
-To obtain ETH and BOBA on Boba Network you can deposit or bridge via [the gateway](https://gateway.boba.network) on both Sepolia or Mainnet.
+To obtain ETH and BOBA on Boba Network you can deposit or bridge via [Boba Hub](https://hub.boba.network) on both Sepolia or Mainnet.

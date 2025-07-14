@@ -6,7 +6,7 @@ description: Learn more about the Light Bridge
 The light bridge allows you to bridge particular assets into any direction that has been whitelisted. At the day of writing it is the fastest and most convenient way to bridge assets on Boba.
 
 ## How to use LightBridge?
-1. Head over to the [Gateway](https://gateway.boba.network)
+1. Head over to the [Boba Hub](https://hub.boba.network)
 2. Connect your wallet
 3. Select "Light Bridge" in the tabs
 4. Happy bridging!
@@ -15,7 +15,7 @@ The light bridge allows you to bridge particular assets into any direction that 
 
 ## How does it work?
 From a birds-eye perspective we do have 3 components:
-1. The User interacting with the user-interface such as the [Gateway DApp](https://gateway.boba.network/),
+1. The User interacting with the user-interface such as the [Boba Hub](https://hub.boba.network/),
 2. The Smart Contracts ([Proxy](https://github.com/bobanetwork/light-bridge/blob/main/contracts/Lib_ResolvedDelegateProxy.sol) + [Implementation](https://github.com/bobanetwork/light-bridge/blob/main/contracts/LightBridge.sol) contract) and
 3. The [Backend](https://github.com/bobanetwork/light-bridge/tree/main/src)
 

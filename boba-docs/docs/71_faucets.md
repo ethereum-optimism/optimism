@@ -18,4 +18,4 @@ Faucets are tools for developers that give you free ETH (and other tokens) on te
 
 ## Bridge from Sepolia
 
-If you have testnet ETH on Sepolia, you can bridge it to Boba Sepolia (and vice versa) using the [Boba Gateway](https://gateway.boba.network).
+If you have testnet ETH on Sepolia, you can bridge it to Boba Sepolia (and vice versa) using the [Boba Hub](https://hub.boba.network).
