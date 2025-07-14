@@ -5,6 +5,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-devstack/shim"
 	"github.com/ethereum-optimism/optimism/op-devstack/stack"
+	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/depset"
 )
 
@@ -73,5 +74,13 @@ func (o *Orchestrator) hydrateTestSequencersMaybe(sys stack.ExtensibleSystem) {
 		ID:             stack.TestSequencerID("dummy"),
 		Client:         nil,
 		ControlClients: nil,
+	}))
+}
+
+func (o *Orchestrator) hydrateSyncTestersMaybe(sys stack.ExtensibleSystem) {
+	sys.AddSyncTester(shim.NewSyncTester(shim.SyncTesterConfig{
+		CommonConfig: shim.NewCommonConfig(sys.T()),
+		ID:           stack.NewSyncTesterID("dummy", eth.ChainID{}),
+		Client:       nil,
 	}))
 }
