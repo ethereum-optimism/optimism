@@ -115,6 +115,7 @@ func WithDeployer() stack.Option[*Orchestrator] {
 type L2Deployment struct {
 	systemConfigProxyAddr   common.Address
 	disputeGameFactoryProxy common.Address
+	l1StandardBridgeProxy   common.Address
 }
 
 var _ stack.L2Deployment = &L2Deployment{}
@@ -125,6 +126,10 @@ func (d *L2Deployment) SystemConfigProxyAddr() common.Address {
 
 func (d *L2Deployment) DisputeGameFactoryProxyAddr() common.Address {
 	return d.disputeGameFactoryProxy
+}
+
+func (d *L2Deployment) L1StandardBridgeProxyAddr() common.Address {
+	return d.l1StandardBridgeProxy
 }
 
 type InteropMigration struct {
@@ -318,6 +323,7 @@ func (wb *worldBuilder) buildL2DeploymentOutputs() {
 		wb.outL2Deployment[chainID] = &L2Deployment{
 			systemConfigProxyAddr:   ch.SystemConfigProxy,
 			disputeGameFactoryProxy: ch.DisputeGameFactoryProxy,
+			l1StandardBridgeProxy:   ch.L1StandardBridgeProxy,
 		}
 	}
 	wb.outSuperchainDeployment = &SuperchainDeployment{
