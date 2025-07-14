@@ -1,4 +1,4 @@
-package safeheaddb
+package safeheaddb_elsync
 
 import (
 	"testing"
@@ -9,11 +9,11 @@ import (
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 )
 
-func TestTruncateDatabaseOnResync(gt *testing.T) {
+func TestPreserveDatabaseOnCLResync(gt *testing.T) {
 	t := devtest.SerialT(gt)
-	t.Skip("Known issue: safe head db is not currently truncated when EL sync is used")
 	sys := presets.NewSingleChainMultiNode(t)
 
+	startSafeBlock := sys.L2CLB.SafeL2BlockRef().Number
 	dsl.CheckAll(t,
 		sys.L2CL.AdvancedFn(types.LocalSafe, 1, 30),
 		sys.L2CLB.AdvancedFn(types.LocalSafe, 1, 30))
@@ -36,5 +36,6 @@ func TestTruncateDatabaseOnResync(gt *testing.T) {
 	sys.L2CLB.Matched(sys.L2CL, types.LocalSafe, 30)
 	sys.L2CLB.Advanced(types.LocalSafe, 1, 30) // At least one safe head db update after resync
 
-	sys.L2CLB.VerifySafeHeadDatabaseMatches(sys.L2CL)
+	// Safe head db should not have been reset
+	sys.L2CLB.VerifySafeHeadDatabaseMatches(sys.L2CL, dsl.WithMinRequiredL2Block(startSafeBlock))
 }

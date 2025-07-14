@@ -881,6 +881,7 @@ func (srv *ReqRespServer) handleSyncRequest(ctx context.Context, stream network.
 		// We'll disconnect ourselves only when failing to read/write,
 		// if the work is invalid (range validation), or when individual sub tasks timeout.
 		if err := ps.Requests.Wait(ctx); err != nil {
+			srv.peerStatsLock.Unlock()
 			return 0, fmt.Errorf("timed out waiting for global sync rate limit: %w", err)
 		}
 	}

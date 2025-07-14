@@ -14,6 +14,7 @@ import (
 	"github.com/ethereum-optimism/optimism/kurtosis-devnet/pkg/kurtosis/api/engine"
 	"github.com/ethereum-optimism/optimism/kurtosis-devnet/pkg/kurtosis/sources/spec"
 	autofixTypes "github.com/ethereum-optimism/optimism/kurtosis-devnet/pkg/types"
+	"github.com/ethereum-optimism/optimism/kurtosis-devnet/pkg/util"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/trace"
 )
@@ -209,6 +210,15 @@ func (d *Deployer) deployEnvironment(ctx context.Context, r io.Reader) (*kurtosi
 	if err := devnetFS.UploadDevnetDescriptor(ctx, info.DevnetEnvironment); err != nil {
 		return nil, fmt.Errorf("error uploading devnet descriptor: %w", err)
 	}
+
+	// Only configure Traefik in non-dry-run mode when Docker is available
+	if !d.dryRun {
+		if err := util.SetReverseProxyConfig(ctx); err != nil {
+			return nil, fmt.Errorf("failed to set Traefik network configuration: %w", err)
+		}
+	}
+
+	fmt.Printf("Environment running successfully\n")
 
 	return info, nil
 }

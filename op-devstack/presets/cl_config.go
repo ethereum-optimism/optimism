@@ -19,6 +19,13 @@ func WithExecutionLayerSyncOnVerifiers() stack.CommonOption {
 		}))
 }
 
+func WithConsensusLayerSync() stack.CommonOption {
+	return stack.MakeCommon(
+		sysgo.WithL2CLOption(func(_ devtest.P, id stack.L2CLNodeID, cfg *config.Config) {
+			cfg.Sync.SyncMode = sync.CLSync
+		}))
+}
+
 func WithSafeDBEnabled() stack.CommonOption {
 	return stack.MakeCommon(
 		sysgo.WithL2CLOption(func(p devtest.P, _ stack.L2CLNodeID, cfg *config.Config) {

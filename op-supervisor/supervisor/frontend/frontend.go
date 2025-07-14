@@ -5,6 +5,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/ethereum/go-ethereum/rpc"
 
 	"github.com/ethereum-optimism/optimism/op-service/apis"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
@@ -24,7 +25,14 @@ var _ apis.SupervisorQueryAPI = (*QueryFrontend)(nil)
 
 func (q *QueryFrontend) CheckAccessList(ctx context.Context, inboxEntries []common.Hash,
 	minSafety types.SafetyLevel, executingDescriptor types.ExecutingDescriptor) error {
-	return q.Supervisor.CheckAccessList(ctx, inboxEntries, minSafety, executingDescriptor)
+	err := q.Supervisor.CheckAccessList(ctx, inboxEntries, minSafety, executingDescriptor)
+	if err != nil {
+		return &rpc.JsonError{
+			Code:    types.GetErrorCode(err),
+			Message: err.Error(),
+		}
+	}
+	return nil
 }
 
 func (q *QueryFrontend) LocalUnsafe(ctx context.Context, chainID eth.ChainID) (eth.BlockID, error) {

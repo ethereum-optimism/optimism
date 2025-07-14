@@ -44,6 +44,7 @@ func (recipe *InteropDevRecipe) Build(addrs devkeys.Addresses) (*WorldConfig, er
 	}
 
 	superchainOps := devkeys.SuperchainOperatorKeys(l1Cfg.ChainID)
+	chainOps := devkeys.ChainOperatorKeys(l1Cfg.ChainID)
 
 	superchainDeployer, err := addrs.Address(superchainOps(devkeys.SuperchainDeployerKey))
 	if err != nil {
@@ -61,13 +62,19 @@ func (recipe *InteropDevRecipe) Build(addrs devkeys.Addresses) (*WorldConfig, er
 	if err != nil {
 		return nil, err
 	}
+	challenger, err := addrs.Address(chainOps(devkeys.ChallengerRole))
+	if err != nil {
+		return nil, err
+	}
 	l1Cfg.Prefund[superchainDeployer] = Ether(10_000_000)
 	l1Cfg.Prefund[superchainProxyAdmin] = Ether(10_000_000)
 	l1Cfg.Prefund[superchainConfigGuardian] = Ether(10_000_000)
+	l1Cfg.Prefund[challenger] = Ether(10_000_000)
 
 	superchainCfg := &SuperchainConfig{
 		ProxyAdminOwner:       superchainProxyAdmin,
 		ProtocolVersionsOwner: superchainProtocolVersionsOwner,
+		Challenger:            challenger,
 		Deployer:              superchainDeployer,
 		Implementations: OPCMImplementationsConfig{
 			L1ContractsRelease: "dev",
