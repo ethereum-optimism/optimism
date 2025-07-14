@@ -574,5 +574,5 @@ func TestEVM_SingleStep_DCloDClz64(t *testing.T) {
 	NewDiffTester(testNamer).
 		InitState(initState).
 		SetExpectations(setExpectations).
-		Run(t, cases, 9870987)
+		Run(t, cases)
 }

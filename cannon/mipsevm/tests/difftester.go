@@ -2,6 +2,7 @@ package tests
 
 import (
 	"fmt"
+	"hash/fnv"
 	"io"
 	"os"
 	"testing"
@@ -47,25 +48,26 @@ func (d *DiffTester[T]) SetExpectations(setExpectationsFn SetExpectationsFn[T]) 
 	return d
 }
 
-func (d *DiffTester[T]) Run(t *testing.T, testCases []T, randSeed int64, opts ...TestOption) {
+func (d *DiffTester[T]) Run(t *testing.T, testCases []T, opts ...TestOption) {
 	// Encapsulate core logic in run() for easier unit testing with the testRunner interface
-	d.run(wrapT(t), testCases, randSeed, opts...)
+	d.run(wrapT(t), testCases, opts...)
 }
 
-func (d *DiffTester[T]) run(t testRunner, testCases []T, randSeed int64, opts ...TestOption) {
+func (d *DiffTester[T]) run(t testRunner, testCases []T, opts ...TestOption) {
 	if !d.isConfigValid(t) {
 		t.Fatalf("DiffTester is misconfigured")
 	}
 
 	for _, vm := range GetMipsVersionTestCases(t) {
 		for i, testCase := range testCases {
-			cfg := newTestConfig(randSeed*int64(i), opts...)
-			mods := d.generateTestModifiers(t, testCase, vm, d.setExpectations, cfg)
+			cfg := newTestConfig(opts...)
+			randSeed := randomSeed(t, d.testNamer(testCase), i)
+			mods := d.generateTestModifiers(t, testCase, vm, d.setExpectations, cfg, randSeed)
 			for _, mod := range mods {
 				testName := fmt.Sprintf("%v%v (%v)", d.testNamer(testCase), mod.name, vm.Name)
 				t.Run(testName, func(t testcaseT) {
 					t.Parallel()
-					stateOpts := []mtutil.StateOption{mtutil.WithRandomization(cfg.randSeed)}
+					stateOpts := []mtutil.StateOption{mtutil.WithRandomization(randSeed)}
 					stateOpts = append(stateOpts, d.stateOpts...)
 					goVm := vm.VMFactory(cfg.po(), cfg.stdOut(), cfg.stdErr(), cfg.logger, stateOpts...)
 					state := mtutil.GetMtState(t, goVm)
@@ -127,7 +129,7 @@ func newTestModifier(name string) *testModifier {
 	}
 }
 
-func (d *DiffTester[T]) generateTestModifiers(t require.TestingT, testCase T, vm VersionedVMTestCase, setExpectations SetExpectationsFn[T], cfg *TestConfig) []*testModifier {
+func (d *DiffTester[T]) generateTestModifiers(t require.TestingT, testCase T, vm VersionedVMTestCase, setExpectations SetExpectationsFn[T], cfg *TestConfig, randSeed int64) []*testModifier {
 	modifiers := []*testModifier{
 		newTestModifier(""), // Always return a noop
 	}
@@ -139,14 +141,14 @@ func (d *DiffTester[T]) generateTestModifiers(t require.TestingT, testCase T, vm
 	setExpectations(testCase, expect, vm)
 
 	// Generate test modifiers based on expectations
-	modifiers = append(modifiers, d.memReservationTestModifier(cfg, expect)...)
+	modifiers = append(modifiers, d.memReservationTestModifier(cfg, randSeed, expect)...)
 
 	return modifiers
 }
 
 // memReservationTestModifier updates tests that write to memory, to ensure any overlapping memory reservation
 // is cleared
-func (d *DiffTester[T]) memReservationTestModifier(cfg *TestConfig, expect *mtutil.ExpectedState) []*testModifier {
+func (d *DiffTester[T]) memReservationTestModifier(cfg *TestConfig, randSeed int64, expect *mtutil.ExpectedState) []*testModifier {
 	var modifiers []*testModifier
 
 	memTargets := expect.ExpectedMemoryWrites()
@@ -159,7 +161,7 @@ func (d *DiffTester[T]) memReservationTestModifier(cfg *TestConfig, expect *mtut
 		name: " [mod:overlappingMemReservation]",
 		stateMod: func(state *multithreaded.State) {
 			// Set up a memory reservation that overlaps with the effective address of the target memory word
-			r := testutil.NewRandHelper(cfg.randSeed + 10000)
+			r := testutil.NewRandHelper(randSeed + 10000)
 			targetMemAddr := memTargets[r.Intn(len(memTargets))]
 			effAddr := targetMemAddr & arch.AddressMask
 
@@ -175,12 +177,25 @@ func (d *DiffTester[T]) memReservationTestModifier(cfg *TestConfig, expect *mtut
 	return modifiers
 }
 
+func randomSeed(t require.TestingT, s string, extraData ...int) int64 {
+	h := fnv.New64a()
+
+	_, err := h.Write([]byte(s))
+	require.NoError(t, err)
+	for _, extra := range extraData {
+		extraBytes := []byte(fmt.Sprintf("%d", extra))
+		_, err := h.Write(extraBytes)
+		require.NoError(t, err)
+	}
+
+	return int64(h.Sum64())
+}
+
 type TestConfig struct {
-	randSeed int64
-	po       func() mipsevm.PreimageOracle
-	stdOut   func() io.Writer
-	stdErr   func() io.Writer
-	logger   log.Logger
+	po     func() mipsevm.PreimageOracle
+	stdOut func() io.Writer
+	stdErr func() io.Writer
+	logger log.Logger
 	// Allow consumer to control automated test generation
 	skipAutomaticMemoryReservationTests bool
 }
@@ -199,13 +214,12 @@ func SkipAutomaticMemoryReservationTests() TestOption {
 	}
 }
 
-func newTestConfig(randSeed int64, opts ...TestOption) *TestConfig {
+func newTestConfig(opts ...TestOption) *TestConfig {
 	testConfig := &TestConfig{
-		randSeed: randSeed,
-		po:       func() mipsevm.PreimageOracle { return nil },
-		stdOut:   func() io.Writer { return os.Stdout },
-		stdErr:   func() io.Writer { return os.Stderr },
-		logger:   testutil.CreateLogger(),
+		po:     func() mipsevm.PreimageOracle { return nil },
+		stdOut: func() io.Writer { return os.Stdout },
+		stdErr: func() io.Writer { return os.Stderr },
+		logger: testutil.CreateLogger(),
 	}
 
 	for _, opt := range opts {

@@ -141,7 +141,7 @@ func testMulDiv(t *testing.T, templateCases []mulDivTestCase, mips32Insn bool) {
 	NewDiffTester((mulDivTestCase).Name).
 		InitState(initState, mtutil.WithPCAndNextPC(pc)).
 		SetExpectations(setExpectations).
-		Run(t, cases, 837289)
+		Run(t, cases)
 }
 
 type loadStoreTestCase struct {
@@ -191,7 +191,7 @@ func testLoadStore(t *testing.T, cases []loadStoreTestCase) {
 	NewDiffTester((loadStoreTestCase).Name).
 		InitState(initState, mtutil.WithPCAndNextPC(pc)).
 		SetExpectations(setExpectations).
-		Run(t, cases, 1234)
+		Run(t, cases)
 }
 
 type branchTestCase struct {

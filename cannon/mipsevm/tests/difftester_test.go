@@ -49,7 +49,7 @@ func TestDiffTester_Run_SimpleTest(t *testing.T) {
 			NewDiffTester(testNamer).
 				InitState(initState).
 				SetExpectations(setExpectations).
-				run(tRunner, testCases, 0)
+				run(tRunner, testCases)
 
 			// Validate that we invoked initState and setExpectations as expected
 			for _, c := range testCases {
@@ -124,7 +124,7 @@ func TestDiffTester_Run_WithMemModifications(t *testing.T) {
 			NewDiffTester(testNamer).
 				InitState(initState, mtutil.WithPCAndNextPC(pc)).
 				SetExpectations(setExpectations).
-				run(tRunner, testCases, 0, opts...)
+				run(tRunner, testCases, opts...)
 
 			// Validate that we invoked initState and setExpectations as expected
 			for _, c := range testCases {
@@ -182,7 +182,7 @@ func TestDiffTester_Run_WithPanic(t *testing.T) {
 			NewDiffTester(testNamer).
 				InitState(initState).
 				SetExpectations(setExpectations).
-				run(tRunner, testCases, 0)
+				run(tRunner, testCases)
 
 			// Validate that we invoked initState and setExpectations as expected
 			for _, c := range testCases {
