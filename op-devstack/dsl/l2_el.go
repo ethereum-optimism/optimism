@@ -9,6 +9,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-devstack/stack"
 	"github.com/ethereum-optimism/optimism/op-devstack/sysgo"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/predeploys"
 	"github.com/ethereum-optimism/optimism/op-service/retry"
 	"github.com/ethereum/go-ethereum/common"
 )
@@ -144,6 +145,35 @@ func (el *L2ELNode) ReorgTriggered(target eth.L2BlockRef, attempts int) {
 
 func (el *L2ELNode) TransactionTimeout() time.Duration {
 	return el.inner.TransactionTimeout()
+}
+
+// VerifyWithdrawalHashChangedIn verifies that the withdrawal hash changed between the parent and current block
+// This is used to verify that the withdrawal hash changed in the block where the withdrawal was initiated
+func (el *L2ELNode) VerifyWithdrawalHashChangedIn(blockHash common.Hash) {
+	l2Client := el.inner.L2EthClient()
+
+	postBlockWithdrawalInfo, err := l2Client.InfoByHash(el.ctx, blockHash)
+	el.require.NoError(err, "failed to get post-withdrawal block info")
+
+	parentBlockInfo, err := l2Client.InfoByHash(el.ctx, postBlockWithdrawalInfo.ParentHash())
+	el.require.NoError(err, "failed to get parent block info")
+
+	postProof, err := l2Client.GetProof(el.ctx, predeploys.L2ToL1MessagePasserAddr, nil, blockHash.String())
+	el.require.NoError(err, "failed to get post-withdrawal storage proof")
+
+	parentProof, err := l2Client.GetProof(el.ctx, predeploys.L2ToL1MessagePasserAddr, nil, postBlockWithdrawalInfo.ParentHash().String())
+	el.require.NoError(err, "failed to get parent storage proof")
+
+	el.require.NotEqual(parentProof.StorageHash, postProof.StorageHash, "withdrawal hash should have changed between parent and current block")
+
+	el.require.Equal(postProof.StorageHash, *postBlockWithdrawalInfo.WithdrawalsRoot(), "post-withdrawal storage root should match block header withdrawal root")
+	el.require.Equal(parentProof.StorageHash, *parentBlockInfo.WithdrawalsRoot(), "parent storage root should match block header withdrawal root")
+
+	el.log.Info("Withdrawal hash verification successful",
+		"parentBlock", postBlockWithdrawalInfo.ParentHash(),
+		"currentBlock", blockHash,
+		"parentStorageRoot", parentProof.StorageHash,
+		"currentStorageRoot", postProof.StorageHash)
 }
 
 func (el *L2ELNode) Stop() {

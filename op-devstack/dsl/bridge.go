@@ -271,18 +271,8 @@ func (w *Withdrawal) FinalizeGasCost() eth.ETH {
 	return gasCost(w.finalizeReceipt)
 }
 
-func (w *Withdrawal) InitReceipt() *types.Receipt {
-	return w.initReceipt
-}
-
-func (w *Withdrawal) WithdrawalRoot() common.Hash {
-	ev, err := withdrawals.ParseMessagePassed(w.initReceipt)
-	w.require.NoError(err, "failed to parse message passed receipt")
-
-	withdrawalHash, err := withdrawals.WithdrawalHash(ev)
-	w.require.NoError(err, "failed to calculate withdrawal hash")
-
-	return withdrawalHash
+func (w *Withdrawal) InitiateBlockHash() common.Hash {
+	return w.initReceipt.BlockHash
 }
 
 func (w *Withdrawal) Prove(user *EOA) {
