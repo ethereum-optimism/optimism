@@ -151,6 +151,26 @@ func Test_isImportUsed(t *testing.T) {
 			`,
 			expected: true,
 		},
+		{
+			name:         "import name used in comment after code on the same line",
+			importedName: "UsedContract",
+			content: `
+				contract Test {
+					string used = "hi"; // UsedContract
+				}
+			`,
+			expected: false,
+		},
+		{
+			name:         "import name used in code and in comment after the code on the same line",
+			importedName: "UsedContract",
+			content: `
+				contract Test {
+					UsedContract used = "hi"; // UsedContract
+				}
+			`,
+			expected: true,
+		},
 	}
 
 	for _, tt := range tests {
