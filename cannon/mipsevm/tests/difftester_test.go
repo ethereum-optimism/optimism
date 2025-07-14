@@ -209,6 +209,49 @@ func TestDiffTester_Run_WithPanic(t *testing.T) {
 	}
 }
 
+func TestDiffTester_Run_WithVm(t *testing.T) {
+	// Run simple noop instruction (0x0)
+	testCases := []simpleTestCase{
+		{name: "a"},
+		{name: "b"},
+	}
+
+	initStateCalled := make(map[string]int)
+	initState := func(testCase simpleTestCase, state *multithreaded.State, vm VersionedVMTestCase) {
+		initStateCalled[testCase.name] += 1
+		testutil.StoreInstruction(state.GetMemory(), state.GetPC(), testCase.insn)
+	}
+
+	expectationsCalled := make(map[string]int)
+	setExpectations := func(testCase simpleTestCase, expect *mtutil.ExpectedState, vm VersionedVMTestCase) ExpectedExecResult {
+		expectationsCalled[testCase.name] += 1
+		expect.ExpectStep()
+
+		return ExpectNormalExecution()
+	}
+
+	vm := GetMipsVersionTestCases(t)[0]
+	versions := []VersionedVMTestCase{vm}
+	expectedTestCases := generateExpectedTestCases(testCases, versions)
+
+	// Run tests
+	tRunner := newMockTestRunner(t)
+	NewDiffTester(testNamer).
+		InitState(initState).
+		SetExpectations(setExpectations).
+		run(tRunner, testCases, WithVm(vm))
+
+	// Validate that we invoked initState and setExpectations as expected
+	for _, c := range testCases {
+		require.Equal(t, 1, initStateCalled[c.name])
+		// Difftester runs extra calls on the expectations fn in order to analyze the tests
+		require.Equal(t, 2, expectationsCalled[c.name])
+	}
+
+	// Validate that we ran the expected tests
+	require.Equal(t, len(tRunner.childTestMocks), len(expectedTestCases))
+}
+
 // Test case struct for simple test scenarios
 type simpleTestCase struct {
 	name string

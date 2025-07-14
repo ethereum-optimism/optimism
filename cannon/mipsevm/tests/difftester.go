@@ -58,9 +58,9 @@ func (d *DiffTester[T]) run(t testRunner, testCases []T, opts ...TestOption) {
 		t.Fatalf("DiffTester is misconfigured")
 	}
 
-	for _, vm := range GetMipsVersionTestCases(t) {
+	cfg := newTestConfig(t, opts...)
+	for _, vm := range cfg.vms {
 		for i, testCase := range testCases {
-			cfg := newTestConfig(opts...)
 			randSeed := randomSeed(t, d.testNamer(testCase), i)
 			mods := d.generateTestModifiers(t, testCase, vm, d.setExpectations, cfg, randSeed)
 			for _, mod := range mods {
@@ -192,6 +192,7 @@ func randomSeed(t require.TestingT, s string, extraData ...int) int64 {
 }
 
 type TestConfig struct {
+	vms    []VersionedVMTestCase
 	po     func() mipsevm.PreimageOracle
 	stdOut func() io.Writer
 	stdErr func() io.Writer
@@ -214,8 +215,15 @@ func SkipAutomaticMemoryReservationTests() TestOption {
 	}
 }
 
-func newTestConfig(opts ...TestOption) *TestConfig {
+func WithVm(vm VersionedVMTestCase) TestOption {
+	return func(tc *TestConfig) {
+		tc.vms = []VersionedVMTestCase{vm}
+	}
+}
+
+func newTestConfig(t require.TestingT, opts ...TestOption) *TestConfig {
 	testConfig := &TestConfig{
+		vms:    GetMipsVersionTestCases(t),
 		po:     func() mipsevm.PreimageOracle { return nil },
 		stdOut: func() io.Writer { return os.Stdout },
 		stdErr: func() io.Writer { return os.Stderr },
