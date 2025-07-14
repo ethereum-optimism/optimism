@@ -1,4 +1,4 @@
-package sort
+package binary
 
 // SearchWithError is like [sort.Search] but allows f to return an error, and exits earlier on error.
 // The int value returned is the same as what sort.Search returns if no error.

@@ -7,7 +7,7 @@ import (
 	"io"
 	"sync"
 
-	"github.com/ethereum-optimism/optimism/op-service/sort"
+	"github.com/ethereum-optimism/optimism/op-service/binary"
 
 	"github.com/ethereum/go-ethereum/log"
 
@@ -504,7 +504,7 @@ func (db *DB) find(reverse bool, acceptClosest bool, cmpFn func(link LinkEntry) 
 
 	// binary-search for the smallest index i for which cmp(i) >= 0
 	// i.e. find the earliest entry that is bigger or equal than the needle.
-	result, searchErr := sort.SearchWithError(int(n), func(i int) (bool, error) {
+	result, searchErr := binary.SearchWithError(int(n), func(i int) (bool, error) {
 		at := entrydb.EntryIdx(i)
 		if reverse {
 			at = entrydb.EntryIdx(n) - 1 - at
