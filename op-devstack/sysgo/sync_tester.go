@@ -42,8 +42,8 @@ func (n *SyncTesterService) hydrate(system stack.ExtensibleSystem) {
 
 func WithSyncTesters(l2ELs []stack.L2ELNodeID) stack.Option[*Orchestrator] {
 	return stack.AfterDeploy(func(orch *Orchestrator) {
-		faucetID := stack.NewFaucetID("dev-sync-tester", l2ELs[0].ChainID())
-		p := orch.P().WithCtx(stack.ContextWithID(orch.P().Ctx(), faucetID))
+		syncTesterID := stack.NewSyncTesterID("dev-sync-tester", l2ELs[0].ChainID())
+		p := orch.P().WithCtx(stack.ContextWithID(orch.P().Ctx(), syncTesterID))
 
 		require := p.Require()
 
