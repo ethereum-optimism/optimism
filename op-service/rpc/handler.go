@@ -16,6 +16,12 @@ import (
 	optls "github.com/ethereum-optimism/optimism/op-service/tls"
 )
 
+type Router interface {
+	AddAPI(api rpc.API) error
+	AddRPC(route string) error
+	AddAPIToRPC(route string, api rpc.API) error
+}
+
 // the root is "", since the "/" prefix is already assumed to be stripped.
 const rootRoute = ""
 

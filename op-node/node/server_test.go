@@ -14,6 +14,7 @@ import (
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum/go-ethereum/rpc"
 
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/version"
@@ -25,6 +26,23 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/testutils"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/depset"
 )
+
+// newRPCServer is a test helper method to instantiate
+// an RPC server with the node RPC namespace.
+func newRPCServer(rpcCfg *oprpc.CLIConfig, rollupCfg *rollup.Config, depSet depset.DependencySet, l2Client l2EthClient, dr DriverClient,
+	safeDB SafeDBReader, log log.Logger, metrics opmetrics.RPCMetricer, appVersion string) *oprpc.Server {
+	server := oprpc.NewServer(rpcCfg.ListenAddr, rpcCfg.ListenPort, appVersion,
+		oprpc.WithLogger(log),
+		oprpc.WithCORSHosts([]string{"*"}), // CORS is not important on op-node, but we used to do this on the old op-node RPC server, so kept for compatibility.
+		oprpc.WithRPCRecorder(metrics.NewRecorder("main")),
+	)
+	api := NewNodeAPI(rollupCfg, depSet, l2Client, dr, safeDB, log)
+	server.AddAPI(rpc.API{
+		Namespace: "optimism",
+		Service:   api,
+	})
+	return server
+}
 
 func TestOutputAtBlock(t *testing.T) {
 	log := testlog.Logger(t, log.LevelError)

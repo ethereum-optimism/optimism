@@ -41,3 +41,10 @@ func NewLRUCache[K comparable, V any](m Metrics, label string, maxSize int) *LRU
 		inner: cache,
 	}
 }
+
+type NoopMetrics struct{}
+
+var _ Metrics = NoopMetrics{}
+
+func (NoopMetrics) CacheAdd(_ string, _ int, _ bool) {}
+func (NoopMetrics) CacheGet(_ string, _ bool)        {}

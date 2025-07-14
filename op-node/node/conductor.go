@@ -22,7 +22,7 @@ import (
 // ConductorClient is a client for the op-conductor RPC service.
 type ConductorClient struct {
 	cfg     *config.Config
-	metrics *metrics.Metrics
+	metrics metrics.Metricer
 	log     log.Logger
 
 	apiClient locks.RWValue[*conductorRpc.APIClient]
@@ -36,7 +36,7 @@ type ConductorClient struct {
 var _ conductor.SequencerConductor = &ConductorClient{}
 
 // NewConductorClient returns a new conductor client for the op-conductor RPC service.
-func NewConductorClient(cfg *config.Config, log log.Logger, metrics *metrics.Metrics) conductor.SequencerConductor {
+func NewConductorClient(cfg *config.Config, log log.Logger, metrics metrics.Metricer) conductor.SequencerConductor {
 	return &ConductorClient{
 		cfg:     cfg,
 		metrics: metrics,

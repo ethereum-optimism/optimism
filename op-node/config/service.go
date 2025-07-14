@@ -1,4 +1,4 @@
-package opnode
+package config
 
 import (
 	"context"
@@ -15,7 +15,6 @@ import (
 
 	altda "github.com/ethereum-optimism/optimism/op-alt-da"
 	"github.com/ethereum-optimism/optimism/op-node/chaincfg"
-	"github.com/ethereum-optimism/optimism/op-node/config"
 	"github.com/ethereum-optimism/optimism/op-node/flags"
 	p2pcli "github.com/ethereum-optimism/optimism/op-node/p2p/cli"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
@@ -32,7 +31,7 @@ import (
 )
 
 // NewConfig creates a Config from the provided flags or environment variables.
-func NewConfig(ctx *cli.Context, log log.Logger) (*config.Config, error) {
+func NewConfig(ctx *cli.Context, log log.Logger) (*Config, error) {
 	if err := flags.CheckRequired(ctx); err != nil {
 		return nil, err
 	}
@@ -52,7 +51,7 @@ func NewConfig(ctx *cli.Context, log log.Logger) (*config.Config, error) {
 		rollupConfig.ProtocolVersionsAddress = common.Address{}
 	}
 
-	configPersistence := NewConfigPersistence(ctx)
+	configPersistence := NewConfigPersistenceFromCLI(ctx)
 
 	driverConfig := NewDriverConfig(ctx)
 
@@ -89,7 +88,7 @@ func NewConfig(ctx *cli.Context, log log.Logger) (*config.Config, error) {
 		log.Warn("Heartbeat functionality is not supported anymore, CLI flags will be removed in following release.")
 	}
 	conductorRPCEndpoint := ctx.String(flags.ConductorRpcFlag.Name)
-	cfg := &config.Config{
+	cfg := &Config{
 		L1:                          l1Endpoint,
 		L2:                          l2Endpoint,
 		Rollup:                      *rollupConfig,
@@ -146,8 +145,8 @@ func NewSupervisorEndpointConfig(ctx *cli.Context) *interop.Config {
 	}
 }
 
-func NewBeaconEndpointConfig(ctx *cli.Context) config.L1BeaconEndpointSetup {
-	return &config.L1BeaconEndpointConfig{
+func NewBeaconEndpointConfig(ctx *cli.Context) L1BeaconEndpointSetup {
+	return &L1BeaconEndpointConfig{
 		BeaconAddr:             ctx.String(flags.BeaconAddr.Name),
 		BeaconHeader:           ctx.String(flags.BeaconHeader.Name),
 		BeaconFallbackAddrs:    ctx.StringSlice(flags.BeaconFallbackAddrs.Name),
@@ -156,8 +155,8 @@ func NewBeaconEndpointConfig(ctx *cli.Context) config.L1BeaconEndpointSetup {
 	}
 }
 
-func NewL1EndpointConfig(ctx *cli.Context) *config.L1EndpointConfig {
-	return &config.L1EndpointConfig{
+func NewL1EndpointConfig(ctx *cli.Context) *L1EndpointConfig {
+	return &L1EndpointConfig{
 		L1NodeAddr:       ctx.String(flags.L1NodeAddr.Name),
 		L1TrustRPC:       ctx.Bool(flags.L1TrustRPC.Name),
 		L1RPCKind:        sources.RPCProviderKind(strings.ToLower(ctx.String(flags.L1RPCProviderKind.Name))),
@@ -169,7 +168,7 @@ func NewL1EndpointConfig(ctx *cli.Context) *config.L1EndpointConfig {
 	}
 }
 
-func NewL2EndpointConfig(ctx *cli.Context, logger log.Logger) (*config.L2EndpointConfig, error) {
+func NewL2EndpointConfig(ctx *cli.Context, logger log.Logger) (*L2EndpointConfig, error) {
 	l2Addr := ctx.String(flags.L2EngineAddr.Name)
 	fileName := ctx.String(flags.L2EngineJWTSecret.Name)
 	secret, err := rpc.ObtainJWTSecret(logger, fileName, true)
@@ -177,19 +176,19 @@ func NewL2EndpointConfig(ctx *cli.Context, logger log.Logger) (*config.L2Endpoin
 		return nil, err
 	}
 	l2RpcTimeout := ctx.Duration(flags.L2EngineRpcTimeout.Name)
-	return &config.L2EndpointConfig{
+	return &L2EndpointConfig{
 		L2EngineAddr:        l2Addr,
 		L2EngineJWTSecret:   secret,
 		L2EngineCallTimeout: l2RpcTimeout,
 	}, nil
 }
 
-func NewConfigPersistence(ctx *cli.Context) config.ConfigPersistence {
+func NewConfigPersistenceFromCLI(ctx *cli.Context) ConfigPersistence {
 	stateFile := ctx.String(flags.RPCAdminPersistence.Name)
 	if stateFile == "" {
-		return config.DisabledConfigPersistence{}
+		return DisabledConfigPersistence{}
 	}
-	return config.NewConfigPersistence(stateFile)
+	return NewConfigPersistence(stateFile)
 }
 
 func NewDriverConfig(ctx *cli.Context) *driver.Config {

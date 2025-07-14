@@ -35,8 +35,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/client"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/event"
-	"github.com/ethereum-optimism/optimism/op-service/httputil"
-	"github.com/ethereum-optimism/optimism/op-service/oppprof"
 	"github.com/ethereum-optimism/optimism/op-service/retry"
 	oprpc "github.com/ethereum-optimism/optimism/op-service/rpc"
 	opsigner "github.com/ethereum-optimism/optimism/op-service/signer"
@@ -56,7 +54,8 @@ type OpNode struct {
 	cfg        *config.Config
 	log        log.Logger
 	appVersion string
-	metrics    *metrics.Metrics
+	metrics    metrics.Metricer
+	router     oprpc.Router
 
 	l1HeadsSub     ethereum.Subscription // Subscription to get L1 heads (automatically re-subscribes on error)
 	l1SafeSub      ethereum.Subscription // Subscription to get L1 safe blocks, a.k.a. justified data (polling)
@@ -65,10 +64,10 @@ type OpNode struct {
 	eventSys   event.System
 	eventDrain driver.Drain
 
-	l1Source  *sources.L1Client     // L1 Client to fetch data from
-	l2Driver  *driver.Driver        // L2 Engine to Sync
-	l2Source  *sources.EngineClient // L2 Execution Engine RPC bindings
-	server    *oprpc.Server         // RPC server hosting the rollup-node API
+	l1Source *sources.L1Client     // L1 Client to fetch data from
+	l2Driver *driver.Driver        // L2 Engine to Sync
+	l2Source *sources.EngineClient // L2 Execution Engine RPC bindings
+
 	p2pNode   *p2p.NodeP2P          // P2P node functionality
 	p2pMu     gosync.Mutex          // protects p2pNode
 	p2pSigner p2p.Signer            // p2p gossip application messages will be signed with this signer
@@ -77,9 +76,6 @@ type OpNode struct {
 	safeDB closableSafeDB
 
 	rollupHalt string // when to halt the rollup, disabled if empty
-
-	pprofService *oppprof.Service
-	metricsSrv   *httputil.HTTPServer
 
 	beacon *sources.L1BeaconClient
 
@@ -102,10 +98,11 @@ type OpNode struct {
 	halted atomic.Bool
 }
 
-// New creates a new OpNode instance.
+// New creates a new op-node backend.
 // The provided ctx argument is for the span of initialization only;
 // the node will immediately Stop(ctx) before finishing initialization if the context is canceled during initialization.
-func New(ctx context.Context, cfg *config.Config, log log.Logger, appVersion string, m *metrics.Metrics) (*OpNode, error) {
+func New(ctx context.Context, cfg *config.Config, log log.Logger,
+	appVersion string, m metrics.Metricer, router oprpc.Router) (*OpNode, error) {
 	if err := cfg.Check(); err != nil {
 		return nil, err
 	}
@@ -115,6 +112,7 @@ func New(ctx context.Context, cfg *config.Config, log log.Logger, appVersion str
 		log:        log,
 		appVersion: appVersion,
 		metrics:    m,
+		router:     router,
 		rollupHalt: cfg.RollupHalt,
 		cancel:     cfg.Cancel,
 	}
@@ -157,17 +155,8 @@ func (n *OpNode) init(ctx context.Context, cfg *config.Config) error {
 	if err := n.initP2P(cfg); err != nil {
 		return fmt.Errorf("failed to init the P2P stack: %w", err)
 	}
-	// Only expose the server at the end, ensuring all RPC backend components are initialized.
-	if err := n.initRPCServer(cfg); err != nil {
-		return fmt.Errorf("failed to init the RPC server: %w", err)
-	}
-	if err := n.initMetricsServer(cfg); err != nil {
-		return fmt.Errorf("failed to init the metrics server: %w", err)
-	}
-	n.metrics.RecordInfo(n.appVersion)
-	n.metrics.RecordUp()
-	if err := n.initPProf(cfg); err != nil {
-		return fmt.Errorf("failed to init profiling: %w", err)
+	if err := n.initRPCRouter(cfg); err != nil {
+		return fmt.Errorf("failed to set up RPC handler: %w", err)
 	}
 	return nil
 }
@@ -198,7 +187,7 @@ func (n *OpNode) initL1(ctx context.Context, cfg *config.Config) error {
 		return fmt.Errorf("failed to get L1 RPC client: %w", err)
 	}
 
-	n.l1Source, err = sources.NewL1Client(l1RPC, n.log, n.metrics.L1SourceCache, l1Cfg)
+	n.l1Source, err = sources.NewL1Client(l1RPC, n.log, n.metrics.L1SourceCache(), l1Cfg)
 	if err != nil {
 		return fmt.Errorf("failed to create L1 source: %w", err)
 	}
@@ -406,7 +395,7 @@ func (n *OpNode) initL2(ctx context.Context, cfg *config.Config) error {
 
 	rpcCfg.FetchWithdrawalRootFromState = cfg.FetchWithdrawalRootFromState
 
-	n.l2Source, err = sources.NewEngineClient(rpcClient, n.log, n.metrics.L2SourceCache, rpcCfg)
+	n.l2Source, err = sources.NewEngineClient(rpcClient, n.log, n.metrics.L2SourceCache(), rpcCfg)
 	if err != nil {
 		return fmt.Errorf("failed to create Engine client: %w", err)
 	}
@@ -435,7 +424,7 @@ func (n *OpNode) initL2(ctx context.Context, cfg *config.Config) error {
 	if cfg.AltDA.Enabled && err != nil {
 		return fmt.Errorf("failed to get altDA config: %w", err)
 	}
-	altDA := altda.NewAltDA(n.log, cfg.AltDA, rpCfg, n.metrics.AltDAMetrics)
+	altDA := altda.NewAltDA(n.log, cfg.AltDA, rpCfg, n.metrics.AltDAMetrics())
 	if cfg.SafeDBPath != "" {
 		n.log.Info("Safe head database enabled", "path", cfg.SafeDBPath)
 		safeDB, err := safedb.NewSafeDB(n.log, cfg.SafeDBPath)
@@ -456,70 +445,36 @@ func (n *OpNode) initL2(ctx context.Context, cfg *config.Config) error {
 	return nil
 }
 
-func (n *OpNode) initRPCServer(cfg *config.Config) error {
-	server := newRPCServer(&cfg.RPC, &cfg.Rollup, cfg.DependencySet,
-		n.l2Source.L2Client, n.l2Driver, n.safeDB,
-		n.log, n.metrics, n.appVersion)
-	if p2pNode := n.getP2PNodeIfEnabled(); p2pNode != nil {
-		server.AddAPI(rpc.API{
-			Namespace: p2p.NamespaceRPC,
-			Service:   p2p.NewP2PAPIBackend(p2pNode, n.log),
-		})
-		n.log.Info("P2P RPC enabled")
-	}
-	if cfg.ExperimentalOPStackAPI {
-		server.AddAPI(rpc.API{
-			Namespace: "opstack",
-			Service:   NewOpstackAPI(n.l2Driver.Engine, n),
-		})
-		n.log.Info("Experimental OP stack API enabled")
-	}
+func (n *OpNode) initRPCRouter(cfg *config.Config) error {
+	var err error
 	if cfg.RPC.EnableAdmin {
-		server.AddAPI(rpc.API{
+		err = errors.Join(err, n.router.AddAPI(rpc.API{
 			Namespace: "admin",
 			Service:   NewAdminAPI(n.l2Driver, n.log),
-		})
-		n.log.Info("Admin RPC enabled")
-	}
-	n.log.Info("Starting JSON-RPC server")
-	if err := server.Start(); err != nil {
-		return fmt.Errorf("unable to start RPC server: %w", err)
-	}
-	n.log.Info("Started JSON-RPC server", "addr", server.Endpoint())
-	n.server = server
-	return nil
-}
-
-func (n *OpNode) initMetricsServer(cfg *config.Config) error {
-	if !cfg.Metrics.Enabled {
-		n.log.Info("metrics disabled")
-		return nil
-	}
-	n.log.Debug("starting metrics server", "addr", cfg.Metrics.ListenAddr, "port", cfg.Metrics.ListenPort)
-	metricsSrv, err := n.metrics.StartServer(cfg.Metrics.ListenAddr, cfg.Metrics.ListenPort)
-	if err != nil {
-		return fmt.Errorf("failed to start metrics server: %w", err)
-	}
-	n.log.Info("started metrics server", "addr", metricsSrv.Addr())
-	n.metricsSrv = metricsSrv
-	return nil
-}
-
-func (n *OpNode) initPProf(cfg *config.Config) error {
-	n.pprofService = oppprof.New(
-		cfg.Pprof.ListenEnabled,
-		cfg.Pprof.ListenAddr,
-		cfg.Pprof.ListenPort,
-		cfg.Pprof.ProfileType,
-		cfg.Pprof.ProfileDir,
-		cfg.Pprof.ProfileFilename,
-	)
-
-	if err := n.pprofService.Start(); err != nil {
-		return fmt.Errorf("failed to start pprof service: %w", err)
+		}))
 	}
 
-	return nil
+	err = errors.Join(err, n.router.AddAPI(rpc.API{
+		Namespace: "optimism",
+		Service: NewNodeAPI(
+			&n.cfg.Rollup, n.cfg.DependencySet, n.l2Source, n.l2Driver, n.safeDB, n.log),
+	}))
+
+	if n.p2pNode != nil {
+		err = errors.Join(err, n.router.AddAPI(rpc.API{
+			Namespace: p2p.NamespaceRPC,
+			Service:   p2p.NewP2PAPIBackend(n.p2pNode, n.log),
+		}))
+	}
+	if cfg.ExperimentalOPStackAPI {
+		err = errors.Join(err, n.router.AddAPI(rpc.API{
+			Namespace: "opstack",
+			Service:   NewOpstackAPI(n.l2Driver.Engine, n),
+		}))
+		n.log.Info("Experimental OP stack API enabled")
+	}
+
+	return err
 }
 
 func (n *OpNode) p2pEnabled() bool {
@@ -648,12 +603,6 @@ func (n *OpNode) Stop(ctx context.Context) error {
 
 	var result *multierror.Error
 
-	if n.server != nil {
-		if err := n.server.Stop(); err != nil {
-			result = multierror.Append(result, fmt.Errorf("failed to close RPC server: %w", err))
-		}
-	}
-
 	// Stop sequencer and report last hash. l2Driver can be nil if we're cleaning up a failed init.
 	if n.l2Driver != nil {
 		latestHead, err := n.l2Driver.StopSequencer(ctx)
@@ -755,34 +704,11 @@ func (n *OpNode) Stop(ctx context.Context) error {
 		}
 	}
 
-	// Close metrics and pprof only after we are done idling
-	if n.pprofService != nil {
-		if err := n.pprofService.Stop(ctx); err != nil {
-			result = multierror.Append(result, fmt.Errorf("failed to close pprof server: %w", err))
-		}
-	}
-	if n.metricsSrv != nil {
-		if err := n.metricsSrv.Stop(ctx); err != nil {
-			result = multierror.Append(result, fmt.Errorf("failed to close metrics server: %w", err))
-		}
-	}
-
 	return result.ErrorOrNil()
 }
 
 func (n *OpNode) Stopped() bool {
 	return n.closed.Load()
-}
-
-func (n *OpNode) HTTPEndpoint() string {
-	if n.server == nil {
-		return ""
-	}
-	return fmt.Sprintf("http://%s", n.server.Endpoint())
-}
-
-func (n *OpNode) HTTPPort() (int, error) {
-	return n.server.Port()
 }
 
 func (n *OpNode) InteropRPC() (rpcEndpoint string, jwtSecret eth.Bytes32) {

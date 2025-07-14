@@ -2,54 +2,54 @@ package opnode
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/ethereum/go-ethereum/log"
 
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/services"
 	"github.com/ethereum-optimism/optimism/op-node/config"
-	"github.com/ethereum-optimism/optimism/op-node/metrics"
-	rollupNode "github.com/ethereum-optimism/optimism/op-node/node"
 	"github.com/ethereum-optimism/optimism/op-node/node/runcfg"
 	"github.com/ethereum-optimism/optimism/op-node/p2p"
+	"github.com/ethereum-optimism/optimism/op-node/service"
 	"github.com/ethereum-optimism/optimism/op-service/cliapp"
 	"github.com/ethereum-optimism/optimism/op-service/endpoint"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
 
 type Opnode struct {
-	node *rollupNode.OpNode
+	srv *service.Service
 }
 
 func (o *Opnode) InteropRPC() (endpoint string, jwtSecret eth.Bytes32) {
-	return o.node.InteropRPC()
+	return o.srv.Backend().InteropRPC()
 }
 
 func (o *Opnode) InteropRPCPort() (int, error) {
-	return o.node.InteropRPCPort()
+	return o.srv.Backend().InteropRPCPort()
 }
 
 func (o *Opnode) UserRPC() endpoint.RPC {
-	return endpoint.HttpURL(o.node.HTTPEndpoint())
+	return endpoint.HttpURL(o.srv.HttpRPC())
 }
 
 func (o *Opnode) UserRPCPort() (int, error) {
-	return o.node.HTTPPort()
+	return o.srv.Port()
 }
 
 func (o *Opnode) Stop(ctx context.Context) error {
-	return o.node.Stop(ctx)
+	return o.srv.Stop(ctx)
 }
 
 func (o *Opnode) Stopped() bool {
-	return o.node.Stopped()
+	return o.srv.Stopped()
 }
 
 func (o *Opnode) RuntimeConfig() runcfg.ReadonlyRuntimeConfig {
-	return o.node.RuntimeConfig()
+	return o.srv.Backend().RuntimeConfig()
 }
 
 func (o *Opnode) P2P() p2p.Node {
-	return o.node.P2P()
+	return o.srv.Backend().P2P()
 }
 
 var _ services.RollupNode = (*Opnode)(nil)
@@ -67,14 +67,15 @@ func NewOpnode(l log.Logger, c *config.Config, errFn func(error)) (*Opnode, erro
 			l.Warn("closed op-node!")
 		}()
 	}
-	node, err := rollupNode.New(context.Background(), c, l, "", metrics.NewMetrics(""))
+	ctx := context.Background()
+	srv, err := service.FromConfig(ctx, c, l)
+	if err != nil {
+		return nil, fmt.Errorf("failed to setup node service: %w", err)
+	}
+	cycle = srv
+	err = srv.Start(context.Background())
 	if err != nil {
 		return nil, err
 	}
-	cycle = node
-	err = node.Start(context.Background())
-	if err != nil {
-		return nil, err
-	}
-	return &Opnode{node: node}, nil
+	return &Opnode{srv: srv}, nil
 }

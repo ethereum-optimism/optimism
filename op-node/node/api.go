@@ -29,7 +29,7 @@ type l2EthClient interface {
 	OutputV0AtBlock(ctx context.Context, blockHash common.Hash) (*eth.OutputV0, error)
 }
 
-type driverClient interface {
+type DriverClient interface {
 	SyncStatus(ctx context.Context) (*eth.SyncStatus, error)
 	BlockRefWithStatus(ctx context.Context, num uint64) (eth.L2BlockRef, *eth.SyncStatus, error)
 	ResetDerivationPipeline(context.Context) error
@@ -48,12 +48,12 @@ type SafeDBReader interface {
 
 type adminAPI struct {
 	*rpc.CommonAdminAPI
-	dr driverClient
+	dr DriverClient
 }
 
 var _ apis.OpnodeAdminServer = (*adminAPI)(nil)
 
-func NewAdminAPI(dr driverClient, log log.Logger) *adminAPI {
+func NewAdminAPI(dr DriverClient, log log.Logger) *adminAPI {
 	return &adminAPI{
 		CommonAdminAPI: rpc.NewCommonAdminAPI(log),
 		dr:             dr,
@@ -106,14 +106,14 @@ type nodeAPI struct {
 	config *rollup.Config
 	depSet depset.DependencySet
 	client l2EthClient
-	dr     driverClient
+	dr     DriverClient
 	safeDB SafeDBReader
 	log    log.Logger
 }
 
 var _ apis.RollupNodeServer = (*nodeAPI)(nil)
 
-func NewNodeAPI(config *rollup.Config, depSet depset.DependencySet, l2Client l2EthClient, dr driverClient, safeDB SafeDBReader, log log.Logger) *nodeAPI {
+func NewNodeAPI(config *rollup.Config, depSet depset.DependencySet, l2Client l2EthClient, dr DriverClient, safeDB SafeDBReader, log log.Logger) *nodeAPI {
 	return &nodeAPI{
 		config: config,
 		depSet: depSet,

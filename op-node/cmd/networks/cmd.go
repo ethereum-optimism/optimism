@@ -7,7 +7,7 @@ import (
 
 	"github.com/urfave/cli/v2"
 
-	opnode "github.com/ethereum-optimism/optimism/op-node"
+	"github.com/ethereum-optimism/optimism/op-node/config"
 	"github.com/ethereum-optimism/optimism/op-node/flags"
 	opflags "github.com/ethereum-optimism/optimism/op-service/flags"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
@@ -29,7 +29,7 @@ var Subcommands = []*cli.Command{
 				return errors.New("must specify a network name")
 			}
 
-			rCfg, err := opnode.NewRollupConfigFromCLI(logger, ctx)
+			rCfg, err := config.NewRollupConfigFromCLI(logger, ctx)
 			if err != nil {
 				return err
 			}

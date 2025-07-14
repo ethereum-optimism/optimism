@@ -7,12 +7,6 @@ import (
 	"strconv"
 	"time"
 
-	altda "github.com/ethereum-optimism/optimism/op-alt-da"
-	"github.com/ethereum-optimism/optimism/op-node/p2p/store"
-	ophttp "github.com/ethereum-optimism/optimism/op-service/httputil"
-	"github.com/ethereum-optimism/optimism/op-service/metrics"
-	"github.com/ethereum/go-ethereum/params"
-
 	pb "github.com/libp2p/go-libp2p-pubsub/pb"
 	libp2pmetrics "github.com/libp2p/go-libp2p/core/metrics"
 	"github.com/prometheus/client_golang/prometheus"
@@ -20,9 +14,16 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/params"
+	"github.com/ethereum/go-ethereum/rpc"
 
+	altda "github.com/ethereum-optimism/optimism/op-alt-da"
+	"github.com/ethereum-optimism/optimism/op-node/p2p/store"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/event"
+	ophttp "github.com/ethereum-optimism/optimism/op-service/httputil"
+	"github.com/ethereum-optimism/optimism/op-service/metrics"
+	"github.com/ethereum-optimism/optimism/op-service/sources/caching"
 )
 
 const Namespace = "op_node"
@@ -72,6 +73,12 @@ type Metricer interface {
 	RecordDial(allow bool)
 	RecordAccept(allow bool)
 	ReportProtocolVersions(local, engine, recommended, required params.ProtocolVersion)
+	NewRecorder(name string) rpc.Recorder
+	event.Metrics
+	AltDAMetrics() altda.Metricer
+	RecordL1RequestTime(method string, duration time.Duration)
+	L1SourceCache() caching.Metrics
+	L2SourceCache() caching.Metrics
 }
 
 // Metrics tracks all the metrics for the op-node.
@@ -81,8 +88,8 @@ type Metrics struct {
 
 	metrics.RPCMetrics
 
-	L1SourceCache *metrics.CacheMetrics
-	L2SourceCache *metrics.CacheMetrics
+	l1SourceCache *metrics.CacheMetrics
+	l2SourceCache *metrics.CacheMetrics
 
 	DerivationIdle prometheus.Gauge
 
@@ -123,7 +130,7 @@ type Metrics struct {
 
 	TransactionsSequencedTotal *prometheus.CounterVec
 
-	AltDAMetrics altda.Metricer
+	altDAMetrics altda.Metricer
 
 	// Channel Bank Metrics
 	headChannelOpenedEvent *metrics.Event
@@ -183,8 +190,8 @@ func NewMetrics(procName string) *Metrics {
 
 		RPCMetrics: metrics.MakeRPCMetrics(ns, factory),
 
-		L1SourceCache: metrics.NewCacheMetrics(factory, ns, "l1_source_cache", "L1 Source cache"),
-		L2SourceCache: metrics.NewCacheMetrics(factory, ns, "l2_source_cache", "L2 Source cache"),
+		l1SourceCache: metrics.NewCacheMetrics(factory, ns, "l1_source_cache", "L1 Source cache"),
+		l2SourceCache: metrics.NewCacheMetrics(factory, ns, "l2_source_cache", "L2 Source cache"),
 
 		DerivationIdle: factory.NewGauge(prometheus.GaugeOpts{
 			Namespace: ns,
@@ -392,7 +399,7 @@ func NewMetrics(procName string) *Metrics {
 			"required",
 		}),
 
-		AltDAMetrics: altda.MakeMetrics(ns, factory),
+		altDAMetrics: altda.MakeMetrics(ns, factory),
 
 		registry: registry,
 		factory:  factory,
@@ -631,6 +638,18 @@ func (m *Metrics) ReportProtocolVersions(local, engine, recommended, required pa
 	m.ProtocolVersions.WithLabelValues(local.String(), engine.String(), recommended.String(), required.String()).Set(1)
 }
 
+func (m *Metrics) AltDAMetrics() altda.Metricer {
+	return m.altDAMetrics
+}
+
+func (m *Metrics) L1SourceCache() caching.Metrics {
+	return m.l1SourceCache
+}
+
+func (m *Metrics) L2SourceCache() caching.Metrics {
+	return m.l2SourceCache
+}
+
 type noopMetricer struct {
 	metrics.NoopRPCMetrics
 	event.NoopMetrics
@@ -756,4 +775,19 @@ func (n *noopMetricer) RecordDial(allow bool) {
 func (n *noopMetricer) RecordAccept(allow bool) {
 }
 func (n *noopMetricer) ReportProtocolVersions(local, engine, recommended, required params.ProtocolVersion) {
+}
+
+func (n *noopMetricer) AltDAMetrics() altda.Metricer {
+	return &altda.NoopMetrics{}
+}
+
+func (n *noopMetricer) RecordL1RequestTime(method string, duration time.Duration) {
+}
+
+func (n *noopMetricer) L1SourceCache() caching.Metrics {
+	return caching.NoopMetrics{}
+}
+
+func (n *noopMetricer) L2SourceCache() caching.Metrics {
+	return caching.NoopMetrics{}
 }

@@ -23,6 +23,8 @@ import (
 )
 
 type Config struct {
+	Version string
+
 	L1 L1EndpointSetup
 	L2 L2EndpointSetup
 
