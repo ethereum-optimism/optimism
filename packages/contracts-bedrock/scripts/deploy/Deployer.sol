@@ -24,17 +24,13 @@ abstract contract Deployer is Script {
 
     /// @notice Sets up the artifacts contract.
     function setUp() public virtual {
-        if (address(artifacts).code.length == 0) {
-            DeployUtils.etchLabelAndAllowCheatcodes({ _etchTo: address(artifacts), _cname: "Artifacts" });
-            artifacts.setUp();
-        }
+        DeployUtils.etchLabelAndAllowCheatcodes({ _etchTo: address(artifacts), _cname: "Artifacts" });
+        artifacts.setUp();
 
         console.log("Commit hash: %s", gitCommitHash());
 
-        if (address(cfg).code.length == 0) {
-            DeployUtils.etchLabelAndAllowCheatcodes({ _etchTo: address(cfg), _cname: "DeployConfig" });
-            cfg.read(Config.deployConfigPath());
-        }
+        DeployUtils.etchLabelAndAllowCheatcodes({ _etchTo: address(cfg), _cname: "DeployConfig" });
+        cfg.read(Config.deployConfigPath());
     }
 
     /// @notice Returns the commit hash of HEAD. If no git repository is

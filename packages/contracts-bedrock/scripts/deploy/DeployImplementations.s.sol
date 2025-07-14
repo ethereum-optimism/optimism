@@ -36,7 +36,6 @@ import { IOPContractsManagerStandardValidator } from "interfaces/L1/IOPContracts
 import { DeployUtils } from "scripts/libraries/DeployUtils.sol";
 import { Solarray } from "scripts/libraries/Solarray.sol";
 import { ChainAssertions } from "scripts/deploy/ChainAssertions.sol";
-import { DeployConfig } from "scripts/deploy/DeployConfig.s.sol";
 import { Deployer } from "scripts/deploy/Deployer.sol";
 
 contract DeployImplementations is Deployer {
@@ -87,9 +86,6 @@ contract DeployImplementations is Deployer {
     // -------- Core Deployment Methods --------
 
     function run(Input memory _input) public returns (Output memory output_) {
-        vm.label(address(cfg), "DeployConfig");
-        Deployer.setUp();
-
         assertValidInput(_input);
 
         // Deploy the implementations.
