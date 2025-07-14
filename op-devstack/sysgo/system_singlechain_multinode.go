@@ -22,9 +22,7 @@ func NewDefaultSingleChainMultiNodeSystemIDs(l1ID, l2ID eth.ChainID) DefaultSing
 }
 
 func DefaultSingleChainMultiNodeSystem(dest *DefaultSingleChainMultiNodeSystemIDs) stack.Option[*Orchestrator] {
-	l1ID := eth.ChainIDFromUInt64(900)
-	l2ID := eth.ChainIDFromUInt64(901)
-	ids := NewDefaultSingleChainMultiNodeSystemIDs(l1ID, l2ID)
+	ids := NewDefaultSingleChainMultiNodeSystemIDs(DefaultL1ID, DefaultL2AID)
 
 	opt := stack.Combine[*Orchestrator]()
 	opt.Add(DefaultMinimalSystem(&dest.DefaultMinimalSystemIDs))
