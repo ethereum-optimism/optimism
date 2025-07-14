@@ -1191,7 +1191,7 @@ jobs:
         default: 30m
     machine:
       image: ubuntu-2404:edge
-      docker_layer_caching: true # Since we are building docker images for components, we'll chache the layers for faster builds
+      docker_layer_caching: true # Since we are building docker images for components, we'll cache the layers for faster builds
     resource_class: xlarge
     steps:
       - utils/checkout-with-mise
