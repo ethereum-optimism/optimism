@@ -1190,7 +1190,7 @@ jobs:
         type: string
         default: 30m
     machine:
-      image: ubuntu-2404:edge
+      image: ubuntu-2404:current
       docker_layer_caching: true # Since we are building docker images for components, we'll cache the layers for faster builds
     resource_class: xlarge
     steps:
