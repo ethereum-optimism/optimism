@@ -54,9 +54,9 @@ use reth_optimism_txpool::{
     supervisor::{SupervisorClient, DEFAULT_SUPERVISOR_URL},
     OpPooledTx,
 };
-use reth_provider::{providers::ProviderFactoryBuilder, CanonStateSubscriptions};
+use reth_provider::{providers::ProviderFactoryBuilder, CanonStateSubscriptions, ProviderTx};
 use reth_rpc_api::DebugApiServer;
-use reth_rpc_eth_api::{ext::L2EthApiExtServer, FullEthApiServer};
+use reth_rpc_eth_api::{ext::L2EthApiExtServer, FullEthApiServer, RpcTypes, SignableTxRequest};
 use reth_rpc_eth_types::error::FromEvmError;
 use reth_rpc_server_types::RethRpcModule;
 use reth_tracing::tracing::{debug, info};
@@ -440,7 +440,7 @@ where
     <N::Pool as TransactionPool>::Transaction: OpPooledTx,
     EvmFactoryFor<N::Evm>: EvmFactory<Tx = op_revm::OpTransaction<TxEnv>>,
     OpEthApi<N, NetworkT>: FullEthApiServer<Provider = N::Provider, Pool = N::Pool>,
-    NetworkT: op_alloy_network::Network + Unpin,
+    NetworkT: RpcTypes<TransactionRequest: SignableTxRequest<ProviderTx<N::Provider>>>,
     EV: EngineValidatorBuilder<N>,
     EB: EngineApiBuilder<N>,
     RpcMiddleware: RethRpcMiddleware,
@@ -559,7 +559,7 @@ where
     <<N as FullNodeComponents>::Pool as TransactionPool>::Transaction: OpPooledTx,
     EvmFactoryFor<N::Evm>: EvmFactory<Tx = op_revm::OpTransaction<TxEnv>>,
     OpEthApi<N, NetworkT>: FullEthApiServer<Provider = N::Provider, Pool = N::Pool>,
-    NetworkT: op_alloy_network::Network + Unpin,
+    NetworkT: RpcTypes<TransactionRequest: SignableTxRequest<ProviderTx<N::Provider>>>,
     EV: EngineValidatorBuilder<N>,
     EB: EngineApiBuilder<N>,
     RpcMiddleware: RethRpcMiddleware,
