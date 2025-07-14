@@ -249,7 +249,6 @@ func newMockTestRunner(tb testing.TB) *mockTestRunner {
 }
 
 func (m *mockTestRunner) Run(name string, fn testFn) bool {
-	// TODO: How should we handle panics?
 	t := &mockT{name: name, t: m.t, debugTestFailures: m.debugTestFailures}
 	defer func() {
 		if err := recover(); err != nil {
