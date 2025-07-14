@@ -10,7 +10,9 @@ import (
 )
 
 type SyncTesterEntry struct {
-	ELRPC endpoint.MustRPC `yaml:"el_rpc"`
+	ELRPC     endpoint.MustRPC `yaml:"el_rpc"`
+	EngineRPC endpoint.MustRPC `yaml:"engine_rpc"`
+	JwtPath   string           `yaml:"jwt_path"`
 
 	// ChainID is used to sanity-check we are connected to the right chain,
 	// and never accidentally try to use a different chain for sync tester work.

@@ -23,7 +23,7 @@ type Config struct {
 	PprofConfig   oppprof.CLIConfig
 	RPC           oprpc.CLIConfig
 
-	SyncTester stconf.Loader
+	SyncTesters stconf.Loader
 }
 
 func (c *Config) Check() error {
@@ -41,6 +41,6 @@ func DefaultCLIConfig() *Config {
 		MetricsConfig: opmetrics.DefaultCLIConfig(),
 		PprofConfig:   oppprof.DefaultCLIConfig(),
 		RPC:           oprpc.DefaultCLIConfig(),
-		SyncTester:    &stconf.YamlLoader{Path: DefaultConfigYaml},
+		SyncTesters:   &stconf.YamlLoader{Path: DefaultConfigYaml},
 	}
 }

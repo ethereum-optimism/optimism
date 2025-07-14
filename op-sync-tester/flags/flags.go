@@ -63,6 +63,6 @@ func ConfigFromCLI(ctx *cli.Context, version string) *config.Config {
 		MetricsConfig: opmetrics.ReadCLIConfig(ctx),
 		PprofConfig:   oppprof.ReadCLIConfig(ctx),
 		RPC:           oprpc.ReadCLIConfig(ctx),
-		SyncTester:    &stconf.YamlLoader{Path: ctx.String(ConfigFlag.Name)},
+		SyncTesters:   &stconf.YamlLoader{Path: ctx.String(ConfigFlag.Name)},
 	}
 }

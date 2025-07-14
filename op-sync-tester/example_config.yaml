@@ -2,3 +2,5 @@ synctesters:
   local:
     chain_id: 1234
     el_rpc: https://localhost:8545
+    engine_rpc: https://localhost:9545
+    jwt_path: "/tmp/jwt.txt"

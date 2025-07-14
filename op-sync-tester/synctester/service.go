@@ -125,7 +125,7 @@ func (s *Service) initMetricsServer(cfg *config.Config) error {
 }
 
 func (s *Service) initBackend(ctx context.Context, cfg *config.Config) error {
-	syncTesterCfg, err := cfg.SyncTester.Load(ctx)
+	syncTesterCfg, err := cfg.SyncTesters.Load(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to load sync tester config: %w", err)
 	}
@@ -243,8 +243,8 @@ func (s *Service) RPC() string {
 	return s.httpServer.HTTPEndpoint()
 }
 
-func (s *Service) SyncTesterEndpoint(id sttypes.SyncTesterID) string {
-	return s.RPC()
+func (s *Service) SyncTesterEndpoint() string {
+	return fmt.Sprintf("%s/synctest", s.RPC())
 }
 
 func (s *Service) SyncTesters() map[sttypes.SyncTesterID]eth.ChainID {

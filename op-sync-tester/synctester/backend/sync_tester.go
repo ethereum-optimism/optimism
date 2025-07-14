@@ -51,20 +51,25 @@ func SyncTesterFromConfig(logger log.Logger, m metrics.Metricer, stID sttypes.Sy
 	}, nil
 }
 
-func (s *SyncTester) Init(ctx context.Context) error {
+func (s *SyncTester) Init(ctx context.Context) (string, error) {
 	session, ok := ctx.Value(CtxKeySession).(*Session)
 	if !ok || session == nil {
-		return fmt.Errorf("no session found in context")
+		return "", fmt.Errorf("no session found in context")
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if existing, ok := s.sessions[session.ID()]; ok {
+	id := session.ID()
+	if existing, ok := s.sessions[id]; ok {
 		s.log.Info("Using existing session", "session", existing)
 	} else {
-		s.sessions[session.ID()] = session
+		s.sessions[id] = session
 		s.log.Info("Initialized new session", "session", session)
 	}
-	return nil
+	return id, nil
+}
+
+func (s *SyncTester) ChainID(ctx context.Context) (eth.ChainID, error) {
+	return s.chainID, nil
 }
 
 func (s *SyncTester) ClearSessions() {
