@@ -14,10 +14,10 @@ func TestSuperRootWithdrawal(gt *testing.T) {
 	sys := presets.NewSimpleInterop(t)
 	sys.L1Network.WaitForOnline()
 
-	initialL1Balance := eth.OneThirdEther
+	initialL1Balance := eth.HalfEther
 	initialL2Balance := eth.ZeroWei // L2 only gets funds from the deposit
-	depositAmount := eth.OneHundredthEther
-	withdrawalAmount := eth.OneHundredthEther
+	depositAmount := eth.OneThirdEther
+	withdrawalAmount := eth.OneTenthEther
 
 	l1User := sys.FunderL1.NewFundedEOA(initialL1Balance)
 	l2User := l1User.AsEL(sys.L2ELA)
