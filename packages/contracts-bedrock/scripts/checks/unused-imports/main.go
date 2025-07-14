@@ -94,6 +94,21 @@ func isImportUsed(imp, content string) bool {
 		}
 
 		if matched, _ := regexp.MatchString(wordPattern, line); matched {
+			// Check if all occurrences of imp are within quotes
+			allWithinQuotes := true
+			inQuotes := false
+			for i := 0; i < len(line); i++ {
+				if line[i] == '"' || line[i] == '\'' {
+					inQuotes = !inQuotes
+				} else if !inQuotes && i+len(imp) <= len(line) && line[i:i+len(imp)] == imp {
+					// Found imp outside quotes
+					allWithinQuotes = false
+					break
+				}
+			}
+			if allWithinQuotes {
+				continue
+			}
 			return true
 		}
 	}

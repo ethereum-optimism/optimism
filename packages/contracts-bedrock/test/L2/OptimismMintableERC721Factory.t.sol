@@ -3,7 +3,6 @@ pragma solidity 0.8.15;
 
 import { CommonTest } from "test/setup/CommonTest.sol";
 import { OptimismMintableERC721 } from "src/L2/OptimismMintableERC721.sol";
-import { OptimismMintableERC721Factory } from "src/L2/OptimismMintableERC721Factory.sol";
 
 /// @title OptimismMintableERC721Factory_TestInit
 /// @notice Reusable test initialization for `OptimismMintableERC721Factory` tests.
