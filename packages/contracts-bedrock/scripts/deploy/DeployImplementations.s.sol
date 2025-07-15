@@ -630,7 +630,7 @@ contract DeployImplementations is Script {
         assertValidDisputeGameFactoryImpl(_input, _output);
         assertValidAnchorStateRegistryImpl(_input, _output);
         ChainAssertions.checkL1CrossDomainMessenger(_output.l1CrossDomainMessengerImpl, vm, false);
-        assertValidL1ERC721BridgeImpl(_input, _output);
+        ChainAssertions.checkL1ERC721Bridge(_output.l1ERC721BridgeImpl, false);
         assertValidL1StandardBridgeImpl(_input, _output);
         assertValidMipsSingleton(_input, _output);
         assertValidOpcm(_input, _output);
@@ -723,18 +723,6 @@ contract DeployImplementations is Script {
         require(systemConfig.l1StandardBridge() == address(0), "SYSCON-190");
         require(systemConfig.optimismPortal() == address(0), "SYSCON-200");
         require(systemConfig.optimismMintableERC20Factory() == address(0), "SYSCON-210");
-    }
-
-    function assertValidL1ERC721BridgeImpl(Input memory, Output memory _output) private view {
-        IL1ERC721Bridge bridge = _output.l1ERC721BridgeImpl;
-
-        DeployUtils.assertInitialized({ _contractAddress: address(bridge), _isProxy: false, _slot: 0, _offset: 0 });
-
-        require(address(bridge.OTHER_BRIDGE()) == address(0), "L721B-10");
-        require(address(bridge.otherBridge()) == address(0), "L721B-20");
-        require(address(bridge.MESSENGER()) == address(0), "L721B-30");
-        require(address(bridge.messenger()) == address(0), "L721B-40");
-        require(address(bridge.systemConfig()) == address(0), "L721B-50");
     }
 
     function assertValidL1StandardBridgeImpl(Input memory, Output memory _output) private view {

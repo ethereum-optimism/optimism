@@ -468,7 +468,7 @@ contract DeployOPChain is Script {
         assertValidDelayedWETH(_doi, _doo);
         assertValidDisputeGameFactory(_doi, _doo);
         ChainAssertions.checkL1CrossDomainMessenger(_doo.l1CrossDomainMessengerProxy(), vm, true);
-        assertValidL1ERC721Bridge(_doo);
+        ChainAssertions.checkL1ERC721Bridge(_doo.l1ERC721BridgeProxy(), true);
         assertValidL1StandardBridge(_doo);
         assertValidOptimismMintableERC20Factory(_doo);
         assertValidOptimismPortal(_doi, _doo);
@@ -590,19 +590,6 @@ contract DeployOPChain is Script {
 
         require(factory.BRIDGE() == address(_doo.l1StandardBridgeProxy()), "MERC20F-10");
         require(factory.bridge() == address(_doo.l1StandardBridgeProxy()), "MERC20F-20");
-    }
-
-    function assertValidL1ERC721Bridge(DeployOPChainOutput _doo) internal {
-        IL1ERC721Bridge bridge = _doo.l1ERC721BridgeProxy();
-
-        DeployUtils.assertInitialized({ _contractAddress: address(bridge), _isProxy: true, _slot: 0, _offset: 0 });
-
-        require(address(bridge.OTHER_BRIDGE()) == Predeploys.L2_ERC721_BRIDGE, "L721B-10");
-        require(address(bridge.otherBridge()) == Predeploys.L2_ERC721_BRIDGE, "L721B-20");
-
-        require(address(bridge.MESSENGER()) == address(_doo.l1CrossDomainMessengerProxy()), "L721B-30");
-        require(address(bridge.messenger()) == address(_doo.l1CrossDomainMessengerProxy()), "L721B-40");
-        require(address(bridge.systemConfig()) == address(_doo.systemConfigProxy()), "L721B-50");
     }
 
     function assertValidOptimismPortal(DeployOPChainInput _doi, DeployOPChainOutput _doo) internal {
