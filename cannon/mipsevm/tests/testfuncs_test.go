@@ -238,65 +238,6 @@ func testBranch(t *testing.T, cases []branchTestCase) {
 	}
 }
 
-type MemoryReservationTestCase struct {
-	name                   string
-	llReservationStatus    multithreaded.LLReservationStatus
-	matchThreadId          bool
-	effAddrOffset          Word
-	shouldClearReservation bool
-}
-
-func (m MemoryReservationTestCase) SetupState(state *multithreaded.State, effAddr Word) {
-	llAddress := effAddr + m.effAddrOffset
-	llOwnerThread := state.GetCurrentThread().ThreadId
-	if !m.matchThreadId {
-		llOwnerThread += 1
-	}
-
-	state.LLReservationStatus = m.llReservationStatus
-	state.LLAddress = llAddress
-	state.LLOwnerThread = llOwnerThread
-}
-
-func (m MemoryReservationTestCase) SetExpectations(expected *mtutil.ExpectedState) {
-	if m.shouldClearReservation {
-		expected.ExpectMemoryReservationCleared()
-	}
-}
-
-var memoryReservationTestCases = []MemoryReservationTestCase{
-	{name: "matching reservation", llReservationStatus: multithreaded.LLStatusActive32bit, matchThreadId: true, shouldClearReservation: true},
-	{name: "matching reservation, 64-bit", llReservationStatus: multithreaded.LLStatusActive64bit, matchThreadId: true, shouldClearReservation: true},
-	{name: "matching reservation, unaligned", llReservationStatus: multithreaded.LLStatusActive32bit, effAddrOffset: 1, matchThreadId: true, shouldClearReservation: true},
-	{name: "matching reservation, 64-bit, unaligned", llReservationStatus: multithreaded.LLStatusActive64bit, effAddrOffset: 5, matchThreadId: true, shouldClearReservation: true},
-	{name: "matching reservation, diff thread", llReservationStatus: multithreaded.LLStatusActive32bit, matchThreadId: false, shouldClearReservation: true},
-	{name: "matching reservation, diff thread, 64-bit", llReservationStatus: multithreaded.LLStatusActive64bit, matchThreadId: false, shouldClearReservation: true},
-	{name: "mismatched reservation", llReservationStatus: multithreaded.LLStatusActive32bit, matchThreadId: true, effAddrOffset: 8, shouldClearReservation: false},
-	{name: "mismatched reservation, 64-bit", llReservationStatus: multithreaded.LLStatusActive64bit, matchThreadId: true, effAddrOffset: 8, shouldClearReservation: false},
-	{name: "mismatched reservation, diff thread", llReservationStatus: multithreaded.LLStatusActive32bit, matchThreadId: false, effAddrOffset: 8, shouldClearReservation: false},
-	{name: "mismatched reservation, diff thread, 64-bit", llReservationStatus: multithreaded.LLStatusActive64bit, matchThreadId: false, effAddrOffset: 8, shouldClearReservation: false},
-	{name: "no reservation, matching addr", llReservationStatus: multithreaded.LLStatusNone, matchThreadId: true, shouldClearReservation: true},
-	{name: "no reservation, mismatched addr", llReservationStatus: multithreaded.LLStatusNone, matchThreadId: true, effAddrOffset: 8, shouldClearReservation: false},
-}
-
-type MemoryReservationTest[T any] func(t *testing.T, vmVersion VersionedVMTestCase, llVariation MemoryReservationTestCase, testCase T, index int)
-type MemoryTestNamer[T any] func(testCase T, vmVersion string, memoryTestCase string) string
-
-func MemoryReservationTester[T any](t *testing.T, cases []T, testFn MemoryReservationTest[T], testNamer MemoryTestNamer[T]) {
-	vmVersions := GetMipsVersionTestCases(t)
-	for _, vmVersion := range vmVersions {
-		for i, c := range cases {
-			for _, reservationTestCase := range memoryReservationTestCases {
-				tName := testNamer(c, vmVersion.Name, reservationTestCase.name)
-				t.Run(tName, func(t *testing.T) {
-					t.Parallel()
-					testFn(t, vmVersion, reservationTestCase, c, i)
-				})
-			}
-		}
-	}
-}
-
 func testNoopSyscall(t *testing.T, vm VersionedVMTestCase, syscalls map[string]uint32) {
 	type testCase struct {
 		name      string
