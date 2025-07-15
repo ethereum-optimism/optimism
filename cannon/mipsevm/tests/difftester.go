@@ -280,7 +280,7 @@ type vmPanicResult struct {
 	evmError string
 }
 
-func ExpectPanic(goPanicMsg, evmRevertMsg string) ExpectedExecResult {
+func ExpectVmPanic(goPanicMsg, evmRevertMsg string) ExpectedExecResult {
 	return vmPanicResult{
 		panicMsg: goPanicMsg,
 		evmError: evmRevertMsg,

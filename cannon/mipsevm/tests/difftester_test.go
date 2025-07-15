@@ -37,7 +37,7 @@ func TestDiffTester_Run_SimpleTest(t *testing.T) {
 				if useCorrectReturnExpectation {
 					return ExpectNormalExecution()
 				} else {
-					return ExpectPanic("oops", "oops")
+					return ExpectVmPanic("oops", "oops")
 				}
 			}
 
@@ -171,7 +171,7 @@ func TestDiffTester_Run_WithPanic(t *testing.T) {
 				expect.ExpectStep()
 
 				if useCorrectReturnExpectation {
-					return ExpectPanic("unrecognized syscall: 0", "unimplemented syscall")
+					return ExpectVmPanic("unrecognized syscall: 0", "unimplemented syscall")
 				} else {
 					return ExpectNormalExecution()
 				}

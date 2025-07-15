@@ -125,7 +125,7 @@ func testMulDiv(t *testing.T, templateCases []mulDivTestCase, mips32Insn bool) {
 
 	setExpectations := func(tt mulDivTestCase, expected *mtutil.ExpectedState, vm VersionedVMTestCase) ExpectedExecResult {
 		if tt.panicMsg != "" {
-			return ExpectPanic(tt.panicMsg, tt.revertMsg)
+			return ExpectVmPanic(tt.panicMsg, tt.revertMsg)
 		} else {
 			expected.ExpectStep()
 			if tt.expectRes != 0 {
@@ -354,7 +354,7 @@ func testUnsupportedSyscall(t *testing.T, vm VersionedVMTestCase, unsupportedSys
 
 	setExpectations := func(tt testCase, expected *mtutil.ExpectedState, vm VersionedVMTestCase) ExpectedExecResult {
 		goErr := fmt.Sprintf("unrecognized syscall: %v", tt.sycallNum)
-		return ExpectPanic(goErr, "unimplemented syscall")
+		return ExpectVmPanic(goErr, "unimplemented syscall")
 	}
 
 	NewDiffTester(testNamer).

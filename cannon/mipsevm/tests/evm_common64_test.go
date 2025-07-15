@@ -567,7 +567,7 @@ func TestEVM_SingleStep_DCloDClz64(t *testing.T) {
 			return ExpectNormalExecution()
 		} else {
 			expectedMsg := fmt.Sprintf("invalid instruction: %x", insnFn(tt))
-			return ExpectPanic(expectedMsg, "invalid instruction")
+			return ExpectVmPanic(expectedMsg, "invalid instruction")
 		}
 	}
 
