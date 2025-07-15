@@ -13,9 +13,9 @@ var NoopMetrics Metricer = new(noopMetrics)
 
 func (*noopMetrics) RecordInfo(version string) {}
 func (*noopMetrics) RecordUp()                 {}
-func (*noopMetrics) RecordInitiatingMessageStats(chainID string, blockHeight uint64, status string, value float64) {
-}
-func (*noopMetrics) RecordExecutingMessageStats(chainID string, blockHeight uint64, blockHash string, status string, value float64) {
+func (*noopMetrics) RecordMessageStatus(executingChainID string, initiatingChainID string, status string, value float64) {
 }
 func (*noopMetrics) RecordTerminalStatusChange(executingChainID string, initiatingChainID string, value float64) {
 }
+func (*noopMetrics) RecordExecutingBlockRange(chainID string, min uint64, max uint64)  {}
+func (*noopMetrics) RecordInitiatingBlockRange(chainID string, min uint64, max uint64) {}

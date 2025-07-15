@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/ethereum-optimism/optimism/op-service/accounting"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/txpool"
@@ -51,7 +50,7 @@ func WithBudget(budget Budget) PersistentOption {
 func NewPersistent(signer Signer, el EL, opts ...PersistentOption) *Persistent {
 	cfg := &persistentConfig{
 		nonces: newNonceManager(0),
-		budget: accounting.NewBudget(eth.MaxU256Wei),
+		budget: UnlimitedBudget{},
 	}
 	for _, opt := range opts {
 		opt(cfg)
@@ -79,8 +78,8 @@ func (p *Persistent) Include(ctx context.Context, tx types.TxData) (*IncludedTx,
 	unincluded.SetNonce(p.cfg.nonces.Next())
 	state := &tryState{
 		Transaction: unincluded,
-		Budget:      newTxBudget(p.cfg.budget),
-		OldCost:     eth.ZeroWei,
+		Budget:      p.cfg.budget,
+		Cost:        eth.ZeroWei,
 	}
 
 	var included *IncludedTx
@@ -100,8 +99,8 @@ func (p *Persistent) Include(ctx context.Context, tx types.TxData) (*IncludedTx,
 
 type tryState struct {
 	Transaction *unincludedTx
-	Budget      *txBudget
-	OldCost     eth.ETH
+	Budget      Budget
+	Cost        eth.ETH
 }
 
 // try attempts to include the state.Transaction.
@@ -124,11 +123,10 @@ func (p *Persistent) try(parentCtx context.Context, state *tryState, includedCh 
 	}
 
 	// Budget.
-	newCost := maxGasCost(signed)
-	if err := state.Budget.resubmitting(state.OldCost, newCost); err != nil {
+	state.Cost, err = state.Budget.BeforeResubmit(state.Cost, signed)
+	if err != nil {
 		return nil, nil, err
 	}
-	state.OldCost = newCost
 
 	// Submit.
 	wg.Add(1)
@@ -156,7 +154,7 @@ func (p *Persistent) try(parentCtx context.Context, state *tryState, includedCh 
 
 	select {
 	case included := <-includedCh:
-		state.Budget.included(included)
+		state.Budget.AfterIncluded(state.Cost, included)
 		return included, nil, nil
 
 	case <-ctx.Done():
@@ -179,7 +177,7 @@ func (p *Persistent) try(parentCtx context.Context, state *tryState, includedCh 
 }
 
 func (p *Persistent) cancel(state *tryState, tx *types.Transaction) {
-	state.Budget.canceling(state.OldCost)
+	state.Budget.AfterCancel(state.Cost, tx)
 	p.cfg.nonces.InsertGap(tx.Nonce())
 }
 

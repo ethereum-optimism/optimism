@@ -260,6 +260,139 @@ func CustomTypeToGoType(retTyp reflect.Type) reflect.Type {
 	}
 }
 
+// ReplaceCustomInts recursively replaces all Uint128/Int128 (and pointer forms) with *big.Int
+func ReplaceCustomInts(value any) (any, error) {
+	return replaceCustomIntValue(reflect.ValueOf(value))
+}
+
+func unwrapCustomInt(val reflect.Value) (any, bool) {
+	// Unwrap pointer chain
+	for val.Kind() == reflect.Ptr {
+		if val.IsNil() {
+			// Return zero value *big.Int only for known pointer types
+			if customIntTypes[val.Type()] {
+				return new(big.Int), true
+			}
+			return nil, false
+		}
+		val = val.Elem()
+	}
+	if !val.IsValid() {
+		return nil, false
+	}
+	// Must match known custom int type
+	if !customIntTypes[val.Type()] {
+		return nil, false
+	}
+	// Confirm convertible to big.Int
+	if !val.Type().ConvertibleTo(bigIntType) {
+		return nil, false
+	}
+	converted := val.Convert(bigIntType).Interface().(big.Int)
+	b := new(big.Int)
+	b.Set(&converted)
+	return b, true
+}
+
+func replaceCustomIntValue(val reflect.Value) (any, error) {
+	typ := val.Type()
+	// Skip native *big.Int
+	if typ == reflect.TypeOf((*big.Int)(nil)) {
+		return val.Interface(), nil
+	}
+	// custom ints to *big.Int
+	if converted, ok := unwrapCustomInt(val); ok {
+		return converted, nil
+	}
+	switch typ.Kind() {
+	case reflect.Ptr:
+		if val.IsNil() {
+			return nil, nil
+		}
+		elemConverted, err := replaceCustomIntValue(val.Elem())
+		if err != nil {
+			return nil, err
+		}
+		ptr := reflect.New(reflect.TypeOf(elemConverted))
+		ptr.Elem().Set(reflect.ValueOf(elemConverted))
+		return ptr.Interface(), nil
+	case reflect.Struct:
+		return replaceStruct(val)
+	case reflect.Array:
+		return replaceArray(val)
+	case reflect.Slice:
+		return replaceSlice(val)
+	default:
+		return val.Interface(), nil
+	}
+}
+
+func replaceStruct(val reflect.Value) (any, error) {
+	typ := val.Type()
+	var fields []reflect.StructField
+	var values []reflect.Value
+
+	for i := range typ.NumField() {
+		field := typ.Field(i)
+		fieldVal := val.Field(i)
+		if !fieldVal.CanInterface() {
+			return nil, fmt.Errorf("field %s must be exported", field.Name)
+		}
+		converted, err := replaceCustomIntValue(fieldVal)
+		if err != nil {
+			return nil, err
+		}
+		fields = append(fields, reflect.StructField{
+			Name: field.Name,
+			Type: reflect.TypeOf(converted),
+			Tag:  field.Tag,
+		})
+		values = append(values, reflect.ValueOf(converted))
+	}
+
+	newType := reflect.StructOf(fields)
+	newStruct := reflect.New(newType).Elem()
+	for i := range values {
+		newStruct.Field(i).Set(values[i])
+	}
+	return newStruct.Interface(), nil
+}
+
+func replaceSequence(val reflect.Value, makeContainer func(reflect.Type, int) reflect.Value) (any, error) {
+	length := val.Len()
+	if length == 0 {
+		return val.Interface(), nil
+	}
+	var resultElemType reflect.Type
+	elemValues := make([]reflect.Value, length)
+	for i := range length {
+		converted, err := replaceCustomIntValue(val.Index(i))
+		if err != nil {
+			return nil, err
+		}
+		elem := reflect.ValueOf(converted)
+		elemValues[i] = elem
+		resultElemType = elem.Type()
+	}
+	container := makeContainer(resultElemType, length)
+	for i := range length {
+		container.Index(i).Set(elemValues[i])
+	}
+	return container.Interface(), nil
+}
+
+func replaceSlice(val reflect.Value) (any, error) {
+	return replaceSequence(val, func(elemType reflect.Type, length int) reflect.Value {
+		return reflect.MakeSlice(reflect.SliceOf(elemType), length, length)
+	})
+}
+
+func replaceArray(val reflect.Value) (any, error) {
+	return replaceSequence(val, func(elemType reflect.Type, length int) reflect.Value {
+		return reflect.New(reflect.ArrayOf(length, elemType)).Elem()
+	})
+}
+
 // CustomValueToABIValue converts custom value to abi value
 func CustomValueToABIValue(arg any) any {
 	var value any
@@ -278,7 +411,11 @@ func CustomValueToABIValue(arg any) any {
 		}
 		value = identifier
 	default:
-		value = v
+		var err error
+		value, err = ReplaceCustomInts(v)
+		if err != nil {
+			panic(fmt.Errorf("failed to replace custom int: %w", err))
+		}
 	}
 	return value
 }
@@ -301,6 +438,18 @@ func ABIValueToCustomValue[ReturnType any](retTyp reflect.Type, val any) ReturnT
 			return zero
 		}
 		return any(concrete).(ReturnType)
+	case reflect.TypeOf(Uint128{}):
+		bigVal := abi.ConvertType(val, new(big.Int)).(*big.Int)
+		return any(Uint128(*bigVal)).(ReturnType)
+	case reflect.TypeOf(&Uint128{}):
+		bigVal := abi.ConvertType(val, new(big.Int)).(*big.Int)
+		return any((*Uint128)(bigVal)).(ReturnType)
+	case reflect.TypeOf(Int128{}):
+		bigVal := abi.ConvertType(val, new(big.Int)).(*big.Int)
+		return any(Int128(*bigVal)).(ReturnType)
+	case reflect.TypeOf(&Int128{}):
+		bigVal := abi.ConvertType(val, new(big.Int)).(*big.Int)
+		return any((*Int128)(bigVal)).(ReturnType)
 	default:
 		ptr := abi.ConvertType(val, new(ReturnType)).(*ReturnType)
 		return *ptr
@@ -354,7 +503,6 @@ func (c *TypedCall[ReturnType]) DecodeOutput(data []byte) (ReturnType, error) {
 		}
 		return val, nil
 	}
-
 	val := ABIValueToCustomValue[ReturnType](retTyp, decoded[0])
 	return val, nil
 }

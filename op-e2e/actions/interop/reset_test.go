@@ -6,8 +6,8 @@ import (
 	"github.com/ethereum-optimism/optimism/op-e2e/actions/helpers"
 	"github.com/ethereum-optimism/optimism/op-e2e/actions/interop/dsl"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
-	"github.com/ethereum-optimism/optimism/op-node/rollup/event"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/event"
 	"github.com/stretchr/testify/require"
 )
 

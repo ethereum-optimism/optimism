@@ -6,7 +6,7 @@ import (
 	"encoding/binary"
 	"math/big"
 
-	optimiseth "github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/eth"
 	supervisortypes "github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -29,7 +29,7 @@ func TestJob_UpdateStatus(t *testing.T) {
 
 func TestJobFromExecutingMessageLog_Error(t *testing.T) {
 	log := &types.Log{}
-	_, err := JobFromExecutingMessageLog(log)
+	_, err := JobFromExecutingMessageLog(log, eth.ChainIDFromBig(big.NewInt(1)))
 	require.Error(t, err, "expected error for empty log")
 }
 
@@ -39,7 +39,9 @@ func TestJobFromLog(t *testing.T) {
 	blockHash := common.HexToHash("0xdeadbeef")
 	blockNumber := uint64(42)
 	logIndex := uint32(7)
-	chainID := big.NewInt(10)
+	initiatingChainID := big.NewInt(9)
+	executingChainID := big.NewInt(10)
+
 	timestamp := uint64(123456)
 
 	// Build valid data for the event
@@ -54,7 +56,7 @@ func TestJobFromLog(t *testing.T) {
 	binary.BigEndian.PutUint64(data[96+24:96+32], timestamp)
 	// chainID (32 bytes, big endian)
 	chainIDBytes := make([]byte, 32)
-	chainID.FillBytes(chainIDBytes)
+	initiatingChainID.FillBytes(chainIDBytes)
 	copy(data[128:160], chainIDBytes)
 
 	tests := []struct {
@@ -93,15 +95,15 @@ func TestJobFromLog(t *testing.T) {
 			expectsErr: false,
 			expectsJob: &Job{
 				executingAddress: address,
-				executingChain:   optimiseth.ChainIDFromBig(chainID),
-				executingBlock:   optimiseth.BlockID{Hash: blockHash, Number: blockNumber},
+				executingChain:   eth.ChainIDFromBig(executingChainID),
+				executingBlock:   eth.BlockID{Hash: blockHash, Number: blockNumber},
 				executingPayload: payloadHash,
 				initiating: &supervisortypes.Identifier{
 					Origin:      address,
 					BlockNumber: blockNumber,
 					LogIndex:    logIndex,
 					Timestamp:   timestamp,
-					ChainID:     optimiseth.ChainIDFromBig(chainID),
+					ChainID:     eth.ChainIDFromBig(initiatingChainID),
 				},
 			},
 		},
@@ -109,7 +111,7 @@ func TestJobFromLog(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			job, err := JobFromExecutingMessageLog(tc.log)
+			job, err := JobFromExecutingMessageLog(tc.log, eth.ChainIDFromBig(executingChainID))
 			if tc.expectsErr {
 				require.Error(t, err)
 			} else {
@@ -123,4 +125,72 @@ func TestJobFromLog(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestJobId(t *testing.T) {
+	executingBlockNumber := uint64(400)
+	executingLogIndex := uint(5)
+	executingPayload := common.HexToHash("0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef")
+	executingChain := eth.ChainIDFromBig(big.NewInt(10))
+	initiatingBlockNumber := uint64(400)
+	logIndex := uint32(7)
+	initiatingChain := eth.ChainIDFromBig(big.NewInt(9))
+
+	job := Job{
+		executingAddress:  common.Address{},
+		executingLogIndex: executingLogIndex,
+		executingPayload:  executingPayload,
+		executingChain:    executingChain,
+		executingBlock: eth.BlockID{
+			Hash:   common.Hash{},
+			Number: executingBlockNumber,
+		},
+		initiating: &supervisortypes.Identifier{
+			Origin:      common.Address{},
+			BlockNumber: initiatingBlockNumber,
+			LogIndex:    logIndex,
+			Timestamp:   0,
+			ChainID:     initiatingChain,
+		},
+	}
+
+	jobID := job.ID()
+
+	expected := "block-400.5.0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef@chain-10:block-400.log-7@chain-9"
+	require.Equal(t, JobID(expected), jobID, "JobId should format the ID correctly")
+
+	job.executingBlock.Number++
+	require.NotEqual(t, JobID(expected), job.ID(), "The job ID must change when the job changes")
+	job.executingBlock.Number--
+	require.Equal(t, JobID(expected), job.ID(), "Test mutation was not reverted")
+
+	job.executingLogIndex++
+	require.NotEqual(t, JobID(expected), job.ID(), "The job ID must change when the job changes")
+	job.executingLogIndex--
+	require.Equal(t, JobID(expected), job.ID(), "Test mutation was not reverted")
+
+	job.executingPayload = common.HexToHash("0xdeadbeef")
+	require.NotEqual(t, JobID(expected), job.ID(), "The job ID must change when the job's executing payload changes")
+	job.executingPayload = executingPayload
+	require.Equal(t, JobID(expected), job.ID(), "Test mutation was not reverted")
+
+	job.executingChain = eth.ChainIDFromBig(big.NewInt(11))
+	require.NotEqual(t, JobID(expected), job.ID(), "The job ID must change when the job changes")
+	job.executingChain = executingChain
+	require.Equal(t, JobID(expected), job.ID(), "Test mutation was not reverted")
+
+	job.initiating.BlockNumber++
+	require.NotEqual(t, JobID(expected), job.ID(), "The job ID must change when the job changes")
+	job.initiating.BlockNumber--
+	require.Equal(t, JobID(expected), job.ID(), "Test mutation was not reverted")
+
+	job.initiating.LogIndex++
+	require.NotEqual(t, JobID(expected), job.ID(), "The job ID must change when the job changes")
+	job.initiating.LogIndex--
+	require.Equal(t, JobID(expected), job.ID(), "Test mutation was not reverted")
+
+	job.initiating.ChainID = eth.ChainIDFromBig(big.NewInt(12))
+	require.NotEqual(t, JobID(expected), job.ID(), "The job ID must change when the job changes")
+	job.initiating.ChainID = initiatingChain
+	require.Equal(t, JobID(expected), job.ID(), "Test mutation was not reverted")
 }

@@ -54,8 +54,10 @@ func InitLiveStrategy(ctx context.Context, env *Env, intent *state.Intent, st *s
 		}
 		st.SuperchainDeployment = superDeployment
 		st.SuperchainRoles = superRoles
-		st.ImplementationsDeployment = &addresses.ImplementationsContracts{
-			OpcmImpl: *intent.OPCMAddress,
+		if st.ImplementationsDeployment == nil {
+			st.ImplementationsDeployment = &addresses.ImplementationsContracts{
+				OpcmImpl: *intent.OPCMAddress,
+			}
 		}
 	}
 

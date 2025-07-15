@@ -2,7 +2,6 @@ package kurtosis
 
 import (
 	"encoding/json"
-	"slices"
 	"strconv"
 	"strings"
 
@@ -12,28 +11,26 @@ import (
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/depset"
 )
 
-const (
-	l1Placeholder = ""
-)
-
 // ServiceFinder is the main entry point for finding services and their endpoints
 type ServiceFinder struct {
-	services        inspect.ServiceMap
-	nodeServices    []string
-	l2ServicePrefix string
+	services inspect.ServiceMap
 
+	l1Chain  *spec.ChainSpec
 	l2Chains []*spec.ChainSpec
 	depsets  map[string]descriptors.DepSet
 
 	triagedServices []*triagedService
-
-	// TODO: remove once we move node services recognition to labels
-	nodeNames2Index map[string]int
-	nodeNextIndex   int
 }
 
 // ServiceFinderOption configures a ServiceFinder
 type ServiceFinderOption func(*ServiceFinder)
+
+// WithL1Chain sets the L1 chain
+func WithL1Chain(chain *spec.ChainSpec) ServiceFinderOption {
+	return func(f *ServiceFinder) {
+		f.l1Chain = chain
+	}
+}
 
 // WithL2Chains sets the L2 networks
 func WithL2Chains(networks []*spec.ChainSpec) ServiceFinderOption {
@@ -52,12 +49,7 @@ func WithDepSets(depsets map[string]descriptors.DepSet) ServiceFinderOption {
 // NewServiceFinder creates a new ServiceFinder with the given options
 func NewServiceFinder(services inspect.ServiceMap, opts ...ServiceFinderOption) *ServiceFinder {
 	f := &ServiceFinder{
-		services:        services,
-		nodeServices:    []string{"cl", "el"},
-		l2ServicePrefix: "op-",
-
-		nodeNames2Index: make(map[string]int),
-		nodeNextIndex:   0,
+		services: services,
 	}
 	for _, opt := range opts {
 		opt(f)
@@ -74,6 +66,7 @@ type serviceParser func(string) (int, chainAcceptor, bool)
 type triagedService struct {
 	tag    string // service tag
 	idx    int    // service index (for nodes)
+	name   string // service name (for nodes)
 	svc    *descriptors.Service
 	accept chainAcceptor
 }
@@ -82,22 +75,18 @@ func acceptAll(c *spec.ChainSpec) bool {
 	return true
 }
 
-func acceptNameOrID(s string) chainAcceptor {
+func acceptID(s string) chainAcceptor {
 	return func(c *spec.ChainSpec) bool {
-		return c.Name == s || c.NetworkID == s
+		return c.NetworkID == s
 	}
 }
 
-func acceptNamesOrIDs(names ...string) chainAcceptor {
+func acceptIDs(ids ...string) chainAcceptor {
 	acceptors := make([]chainAcceptor, 0)
-	for _, name := range names {
-		acceptors = append(acceptors, acceptNameOrID(name))
+	for _, id := range ids {
+		acceptors = append(acceptors, acceptID(id))
 	}
 	return combineAcceptors(acceptors...)
-}
-
-func acceptL1() chainAcceptor {
-	return acceptNameOrID(l1Placeholder)
 }
 
 func combineAcceptors(acceptors ...chainAcceptor) chainAcceptor {
@@ -111,6 +100,7 @@ func combineAcceptors(acceptors ...chainAcceptor) chainAcceptor {
 	}
 }
 
+// This is now for L1 only. L2 is handled through labels.
 func (f *ServiceFinder) triageNode(prefix string) serviceParser {
 	return func(serviceName string) (int, chainAcceptor, bool) {
 		extractIndex := func(s string) int {
@@ -124,80 +114,10 @@ func (f *ServiceFinder) triageNode(prefix string) serviceParser {
 
 		if strings.HasPrefix(serviceName, prefix) { // L1
 			idx := extractIndex(strings.TrimPrefix(serviceName, prefix))
-			return idx, acceptL1(), true
-		}
-
-		l2Prefix := f.l2ServicePrefix + prefix
-		if strings.HasPrefix(serviceName, l2Prefix) {
-			serviceName = strings.TrimPrefix(serviceName, l2Prefix)
-			// first we have the chain ID
-			parts := strings.Split(serviceName, "-")
-			chainID := parts[0]
-			idx := extractIndex(parts[1])
-			return idx, acceptNameOrID(chainID), true
+			return idx, acceptID(f.l1Chain.NetworkID), true
 		}
 
 		return 0, nil, false
-	}
-}
-
-func (f *ServiceFinder) triageExclusiveL2Service(prefix string) serviceParser {
-	idx := -1
-	return func(serviceName string) (int, chainAcceptor, bool) {
-		if strings.HasPrefix(serviceName, prefix) {
-			suffix := strings.TrimPrefix(serviceName, prefix)
-			return idx, acceptNameOrID(suffix), true
-		}
-		return idx, nil, false
-	}
-}
-
-func (f *ServiceFinder) triageMultiL2Service(prefix string) serviceParser {
-	idx := -1
-	return func(serviceName string) (int, chainAcceptor, bool) {
-		if strings.HasPrefix(serviceName, prefix) {
-			suffix := strings.TrimPrefix(serviceName, prefix)
-			parts := strings.Split(suffix, "-")
-			// parts[0] is the service ID
-			return idx, acceptNamesOrIDs(parts[1:]...), true
-		}
-		return idx, nil, false
-	}
-}
-
-func (f *ServiceFinder) triageSuperchainService(prefix string) serviceParser {
-	idx := -1
-	return func(serviceName string) (int, chainAcceptor, bool) {
-		if strings.HasPrefix(serviceName, prefix) {
-			suffix := strings.TrimPrefix(serviceName, prefix)
-			parts := strings.Split(suffix, "-")
-			// parts[0] is the service ID
-			ds, ok := f.depsets[parts[1]]
-			if !ok {
-				return idx, nil, false
-			}
-			var depSet depset.StaticConfigDependencySet
-			if err := json.Unmarshal(ds, &depSet); err != nil {
-				return idx, nil, false
-			}
-
-			chains := make([]string, 0)
-			for _, chain := range depSet.Chains() {
-				chains = append(chains, chain.String())
-			}
-			return idx, acceptNamesOrIDs(chains...), true
-		}
-		return idx, nil, false
-	}
-}
-
-func (f *ServiceFinder) triageUniversalL2Service(name string) serviceParser {
-	idx := -1
-	return func(serviceName string) (int, chainAcceptor, bool) {
-		if serviceName == name {
-			return idx, acceptAll, true
-		}
-		return idx, nil, false
 	}
 }
 
@@ -222,40 +142,65 @@ func (spr serviceParserRules) apply(serviceName string, endpoints descriptors.En
 
 // TODO: this might need some adjustments as we stabilize labels in optimism-package
 const (
-	kindLabel      = "op.kind"
-	networkIDLabel = "op.network.id"
-	nodeNameLabel  = "op.network.participant.name"
+	kindLabel                 = "op.kind"
+	networkIDLabel            = "op.network.id"
+	nodeNameLabel             = "op.network.participant.name"
+	nodeIndexLabel            = "op.network.participant.index"
+	supervisorSuperchainLabel = "op.network.supervisor.superchain"
 )
+
+func (f *ServiceFinder) getNetworkIDs(svc *inspect.Service) []string {
+	var network_ids []string
+	id, ok := svc.Labels[networkIDLabel]
+	if !ok {
+		// network IDs might be specified through a superchain
+		superchain, ok := svc.Labels[supervisorSuperchainLabel]
+		if !ok {
+			return nil
+		}
+		ds, ok := f.depsets[superchain]
+		if !ok {
+			return nil
+		}
+		var depSet depset.StaticConfigDependencySet
+		err := json.Unmarshal(ds, &depSet)
+		if err != nil {
+			return nil
+		}
+		for _, chain := range depSet.Chains() {
+			network_ids = append(network_ids, chain.String())
+		}
+	} else {
+		network_ids = strings.Split(id, "-")
+	}
+
+	return network_ids
+}
 
 func (f *ServiceFinder) triageByLabels(svc *inspect.Service, name string, endpoints descriptors.EndpointMap) *triagedService {
 	tag, ok := svc.Labels[kindLabel]
 	if !ok {
 		return nil
 	}
-	id, ok := svc.Labels[networkIDLabel]
-	if !ok {
-		return nil
+	network_ids := f.getNetworkIDs(svc)
+	idx := -1
+	if val, ok := svc.Labels[nodeIndexLabel]; ok {
+		i, err := strconv.Atoi(val)
+		if err != nil {
+			return nil
+		}
+		idx = i
 	}
 
-	// TODO: we really don't need numeric index for nodes, but it's a quick fix until
-	// we move node services recognition to labels entirely.
-	idx := -1
-	if slices.Contains(f.nodeServices, tag) { // those are grouped into nodes
-		if name, ok := svc.Labels[nodeNameLabel]; ok {
-			if val, ok := f.nodeNames2Index[name]; ok {
-				idx = val
-			} else {
-				idx = f.nodeNextIndex
-				f.nodeNames2Index[name] = idx
-				f.nodeNextIndex++
-			}
-		}
+	accept := acceptIDs(network_ids...)
+	if len(network_ids) == 0 { // TODO: this is only for faucet right now, we can remove this once we have a proper label for all services
+		accept = acceptAll
 	}
 	return &triagedService{
-		tag: tag,
-		idx: idx,
-		// TODO: eventually we can retire the "name" part, but it doesn't hurt for now
-		accept: acceptNamesOrIDs(strings.Split(id, ",")...),
+		tag:    tag,
+		idx:    idx,
+		name:   svc.Labels[nodeNameLabel],
+		accept: accept,
 		svc: &descriptors.Service{
 			Name:      name,
 			Endpoints: endpoints,
@@ -265,11 +210,8 @@ func (f *ServiceFinder) triageByLabels(svc *inspect.Service, name string, endpoi
 
 func (f *ServiceFinder) triage() {
 	rules := serviceParserRules{
-		"el":         f.triageNode("el-"),
-		"cl":         f.triageNode("cl-"),
-		"supervisor": f.triageSuperchainService("op-supervisor-"),
-		"challenger": f.triageMultiL2Service("op-challenger-"),
-		"faucet":     f.triageUniversalL2Service("op-faucet"),
+		"el": f.triageNode("el-"),
+		"cl": f.triageNode("cl-"),
 	}
 
 	triagedServices := []*triagedService{}
@@ -279,13 +221,12 @@ func (f *ServiceFinder) triage() {
 			endpoints[portName] = portInfo
 		}
 
-		// TODO: for now, use labels as a fallback, so it's currently inactive.
-		// We should expect the rules to be gradually removed to make way for
-		// this code path. Ultimately we'll rely only on labels, and most of the
-		// code in this file will disappear as a result.
-		triaged := rules.apply(serviceName, endpoints)
+		// Ultimately we'll rely only on labels, and most of the code in this file will disappear as a result.
+		//
+		// For now though the L1 services are still not tagged properly so we rely on the name resolution as a fallback
+		triaged := f.triageByLabels(svc, serviceName, endpoints)
 		if triaged == nil {
-			triaged = f.triageByLabels(svc, serviceName, endpoints)
+			triaged = rules.apply(serviceName, endpoints)
 		}
 
 		if triaged != nil {
@@ -324,25 +265,111 @@ func (f *ServiceFinder) findChainServices(chain *spec.ChainSpec) ([]descriptors.
 				node.Services = make(descriptors.ServiceMap)
 			}
 			node.Services[svc.tag] = svc.svc
+			node.Name = svc.name
+
+			if cfg, ok := chain.Nodes[node.Name]; ok {
+				node.Labels = make(map[string]string)
+				if cfg.IsSequencer {
+					node.Labels["sequencer"] = "true"
+				}
+				node.Labels["elType"] = cfg.ELType
+				node.Labels["clType"] = cfg.CLType
+			}
+
 			nodes[svc.idx] = node
 		} else {
 			services[svc.tag] = append(services[svc.tag], svc.svc)
 		}
 	}
 
-	return nodes, services
+	return reorderNodes(nodes), services
 }
 
 // FindL1Services finds L1 nodes.
 func (f *ServiceFinder) FindL1Services() ([]descriptors.Node, descriptors.RedundantServiceMap) {
-	chain := &spec.ChainSpec{
-		Name:      l1Placeholder,
-		NetworkID: l1Placeholder,
-	}
-	return f.findChainServices(chain)
+	return f.findChainServices(f.l1Chain)
 }
 
 // FindL2Services finds L2 nodes and services for a specific network
 func (f *ServiceFinder) FindL2Services(s *spec.ChainSpec) ([]descriptors.Node, descriptors.RedundantServiceMap) {
 	return f.findChainServices(s)
+}
+
+// TODO: remove this once we remove the devnet-sdk/system test framework.
+// At that point the order of the nodes will not be important anymore.
+func reorderNodes(nodes []descriptors.Node) []descriptors.Node {
+	// This is a hack to preserve some compatibililty with prior expectations,
+	// that were embedded in the devnet-sdk/system test framework.
+	//
+	// We need to rearrange the order of the nodes so that:
+	// - either there are nodes in the list that contain a label "sequencer",
+	//   and then one of them must be the first node
+	// - or there are no nodes with the label "sequencer", and there are some
+	//   with el type "op-geth" and cl type "op-node". Then one of them must be
+	//   the first node
+	// - or none of the above, and then we keep the order as is
+
+	if len(nodes) == 0 {
+		return nodes
+	}
+
+	// First, check if any node has the "sequencer" label
+	var sequencerIndex int = -1
+	for i, node := range nodes {
+		if node.Labels != nil && node.Labels["sequencer"] == "true" {
+			sequencerIndex = i
+			break
+		}
+	}
+
+	// If we found a sequencer, move it to the front
+	if sequencerIndex >= 0 {
+		return moveNodeToFront(nodes, sequencerIndex)
+	}
+
+	// If no sequencer found, look for nodes with el type "op-geth" and cl type "op-node"
+	var opGethOpNodeIndex int = -1
+	for i, node := range nodes {
+		if node.Services != nil {
+			hasOpGeth := false
+			hasOpNode := false
+
+			// Check for op-geth service
+			if node.Labels != nil && node.Labels["elType"] == "op-geth" {
+				hasOpGeth = true
+			}
+
+			// Check for op-node service
+			if node.Labels != nil && node.Labels["clType"] == "op-node" {
+				hasOpNode = true
+			}
+
+			if hasOpGeth && hasOpNode {
+				opGethOpNodeIndex = i
+				break
+			}
+		}
+	}
+
+	// If we found a node with both op-geth and op-node, move it to the front
+	if opGethOpNodeIndex >= 0 {
+		return moveNodeToFront(nodes, opGethOpNodeIndex)
+	}
+
+	// If none of the above conditions are met, return the nodes in their original order
+	return nodes
+}
+
+func moveNodeToFront(nodes []descriptors.Node, index int) []descriptors.Node {
+	if index < 0 || index >= len(nodes) {
+		return nodes
+	}
+
+	result := make([]descriptors.Node, len(nodes))
+	copy(result, nodes)
+	// Move the node at the specified index to the front
+	nodeToMove := result[index]
+	copy(result[1:index+1], result[:index])
+	result[0] = nodeToMove
+	return result
 }

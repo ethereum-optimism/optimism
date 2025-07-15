@@ -105,6 +105,8 @@ type L2Network interface {
 	Conductors() []Conductor
 	FlashblocksBuilders() []FlashblocksBuilderNode
 	AddFlashblocksBuilder(v FlashblocksBuilderNode)
+	FlashblocksWebsocketProxies() []FlashblocksWebsocketProxy
+	AddFlashblocksWebsocketProxy(v FlashblocksWebsocketProxy)
 }
 
 // ExtensibleL2Network is an optional extension interface for L2Network,

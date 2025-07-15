@@ -127,9 +127,9 @@ contract SuperchainERC20_CrosschainBurn_Test is SuperchainERC20_TestInit {
     }
 }
 
-/// @title SuperchainERC20_SupportsInterfaces_Test
+/// @title SuperchainERC20_SupportsInterface_Test
 /// @notice Tests the `supportsInterface` function of the `SuperchainERC20` contract.
-contract SuperchainERC20_SupportsInterfaces_Test is SuperchainERC20_TestInit {
+contract SuperchainERC20_SupportsInterface_Test is SuperchainERC20_TestInit {
     /// @notice Tests that the `supportsInterface` function returns true for the `IERC7802`
     ///         interface.
     function test_supportInterface_succeeds() public view {

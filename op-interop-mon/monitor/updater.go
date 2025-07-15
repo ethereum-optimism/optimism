@@ -28,7 +28,7 @@ type UpdaterClient interface {
 
 var _ UpdaterClient = &sources.EthClient{}
 
-// Updaters are responsible for updating jobs from a chain for the Maintainer to track
+// Updaters are responsible for updating jobs from a chain for the metric collector to track
 type Updater interface {
 	Start(ctx context.Context) error
 	Enqueue(job *Job)
@@ -47,8 +47,8 @@ type RPCUpdater struct {
 	inbox  chan *Job
 	closed chan struct{}
 
-	jobs   sync.Map
-	expiry *locks.RWMap[eth.ChainID, eth.NumberAndHash]
+	jobs      sync.Map
+	finalized *locks.RWMap[eth.ChainID, eth.NumberAndHash]
 
 	log log.Logger
 }
@@ -56,7 +56,7 @@ type RPCUpdater struct {
 func NewUpdater(
 	chainID eth.ChainID,
 	client UpdaterClient,
-	expiry *locks.RWMap[eth.ChainID, eth.NumberAndHash],
+	finalized *locks.RWMap[eth.ChainID, eth.NumberAndHash],
 	log log.Logger) *RPCUpdater {
 	return &RPCUpdater{
 		chainID: chainID,
@@ -66,7 +66,7 @@ func NewUpdater(
 		inbox:      make(chan *Job, inboxDepth),
 		closed:     make(chan struct{}),
 		expireTime: 2 * time.Minute,
-		expiry:     expiry,
+		finalized:  finalized,
 	}
 }
 
@@ -156,14 +156,14 @@ func (t *RPCUpdater) ShouldExpire(job *Job) bool {
 		t.log.Trace("job has not been counted for metrics", "job", job.String())
 		return false
 	}
-	initExpiryBlock, ok := t.expiry.Get(job.initiating.ChainID)
+	initExpiryBlock, ok := t.finalized.Get(job.initiating.ChainID)
 	if !ok {
-		t.log.Warn("initiating chain has no expiry block", "job", job.String())
+		t.log.Warn("initiating chain has no final block", "job", job.String())
 		return false
 	}
-	execExpiryBlock, ok := t.expiry.Get(job.executingChain)
+	execExpiryBlock, ok := t.finalized.Get(job.executingChain)
 	if !ok {
-		t.log.Warn("executing chain has no expiry block", "job", job.String())
+		t.log.Warn("executing chain has no final block", "job", job.String())
 		return false
 	}
 	if job.initiating.BlockNumber <= initExpiryBlock.NumberU64() &&
@@ -184,12 +184,16 @@ func (t *RPCUpdater) UpdateJob(job *Job) error {
 }
 
 func (t *RPCUpdater) UpdateJobStatus(job *Job) {
-	_, receipts, err := t.client.FetchReceiptsByNumber(context.Background(), job.initiating.BlockNumber)
+	blockInfo, receipts, err := t.client.FetchReceiptsByNumber(context.Background(), job.initiating.BlockNumber)
 	if err != nil {
 		t.log.Error("error getting block receipts", "error", err)
 		job.UpdateStatus(jobStatusUnknown)
 		return
 	}
+
+	// Add the block hash to the job's initiating hashes
+	job.AddInitiatingHash(blockInfo.Hash())
+
 	log, err := t.findLogEvent(receipts, job)
 	if err == ErrLogNotFound {
 		t.log.Error("log not found", "error", err)

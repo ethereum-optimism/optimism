@@ -1,6 +1,8 @@
 package shim
 
 import (
+	"time"
+
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/stack"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
@@ -15,6 +17,9 @@ type SystemConfig struct {
 
 type presetSystem struct {
 	commonImpl
+
+	// timeTravelClock is the clock used to control time. nil if time travel is not enabled
+	timeTravelClock stack.TimeTravelClock
 
 	superchains locks.RWMap[stack.SuperchainID, stack.Superchain]
 	clusters    locks.RWMap[stack.ClusterID, stack.Cluster]
@@ -157,4 +162,17 @@ func (p *presetSystem) Supervisors() []stack.Supervisor {
 
 func (p *presetSystem) TestSequencers() []stack.TestSequencer {
 	return stack.SortTestSequencers(p.sequencers.Values())
+}
+
+func (p *presetSystem) SetTimeTravelClock(cl stack.TimeTravelClock) {
+	p.timeTravelClock = cl
+}
+
+func (p *presetSystem) TimeTravelEnabled() bool {
+	return p.timeTravelClock != nil
+}
+
+func (p *presetSystem) AdvanceTime(amount time.Duration) {
+	p.require().True(p.TimeTravelEnabled(), "Attempting to advance time when time travel is not enabled")
+	p.timeTravelClock.AdvanceTime(amount)
 }

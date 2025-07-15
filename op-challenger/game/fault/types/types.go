@@ -310,6 +310,14 @@ type Clock struct {
 	Timestamp time.Time
 }
 
+// DecodeClock decodes a uint128 into a Clock duration and timestamp.
+func DecodeClock(clock *big.Int) Clock {
+	maxUint64 := new(big.Int).Add(new(big.Int).SetUint64(math.MaxUint64), big.NewInt(1))
+	remainder := new(big.Int)
+	quotient, _ := new(big.Int).QuoRem(clock, maxUint64, remainder)
+	return NewClock(time.Duration(quotient.Int64())*time.Second, time.Unix(remainder.Int64(), 0))
+}
+
 // NewClock creates a new Clock instance.
 func NewClock(duration time.Duration, timestamp time.Time) Clock {
 	return Clock{

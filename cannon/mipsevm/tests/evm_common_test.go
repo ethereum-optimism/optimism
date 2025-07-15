@@ -17,6 +17,7 @@ import (
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/arch"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/exec"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/memory"
+	mtutil "github.com/ethereum-optimism/optimism/cannon/mipsevm/multithreaded/testutil"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/program"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/register"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/testutil"
@@ -43,18 +44,17 @@ func TestEVM_SingleStep_Jump(t *testing.T) {
 		for i, tt := range cases {
 			testName := fmt.Sprintf("%v (%v)", tt.name, v.Name)
 			t.Run(testName, func(t *testing.T) {
-				goVm := v.VMFactory(nil, os.Stdout, os.Stderr, testutil.CreateLogger(), testutil.WithRandomization(int64(i)), testutil.WithPC(tt.pc), testutil.WithNextPC(tt.nextPC))
+				goVm := v.VMFactory(nil, os.Stdout, os.Stderr, testutil.CreateLogger(), mtutil.WithRandomization(int64(i)), mtutil.WithPC(tt.pc), mtutil.WithNextPC(tt.nextPC))
 				state := goVm.GetState()
 				testutil.StoreInstruction(state.GetMemory(), tt.pc, tt.insn)
 				step := state.GetStep()
 
 				// Setup expectations
-				expected := testutil.NewExpectedState(state)
-				expected.Step += 1
-				expected.PC = state.GetCpu().NextPC
-				expected.NextPC = tt.expectNextPC
+				expected := mtutil.NewExpectedState(t, state)
+				expected.ExpectStep()
+				expected.ActiveThread().NextPC = tt.expectNextPC
 				if tt.expectLink {
-					expected.Registers[31] = state.GetPC() + 8
+					expected.ActiveThread().Registers[31] = state.GetPC() + 8
 				}
 
 				stepWitness, err := goVm.Step(true)
@@ -154,16 +154,16 @@ func TestEVM_SingleStep_Lui(t *testing.T) {
 		for i, tt := range cases {
 			testName := fmt.Sprintf("%v (%v)", tt.name, v.Name)
 			t.Run(testName, func(t *testing.T) {
-				goVm := v.VMFactory(nil, os.Stdout, os.Stderr, testutil.CreateLogger(), testutil.WithRandomization(int64(i)))
+				goVm := v.VMFactory(nil, os.Stdout, os.Stderr, testutil.CreateLogger(), mtutil.WithRandomization(int64(i)))
 				state := goVm.GetState()
 				insn := 0b1111<<26 | uint32(tt.rtReg)<<16 | (tt.imm & 0xFFFF)
 				testutil.StoreInstruction(state.GetMemory(), state.GetPC(), insn)
 				step := state.GetStep()
 
 				// Setup expectations
-				expected := testutil.NewExpectedState(state)
+				expected := mtutil.NewExpectedState(t, state)
 				expected.ExpectStep()
-				expected.Registers[tt.rtReg] = tt.expectRt
+				expected.ActiveThread().Registers[tt.rtReg] = tt.expectRt
 				stepWitness, err := goVm.Step(true)
 				require.NoError(t, err)
 
@@ -202,7 +202,7 @@ func TestEVM_SingleStep_CloClz(t *testing.T) {
 			testName := fmt.Sprintf("%v (%v)", tt.name, v.Name)
 			t.Run(testName, func(t *testing.T) {
 				// Set up state
-				goVm := v.VMFactory(nil, os.Stdout, os.Stderr, testutil.CreateLogger(), testutil.WithRandomization(int64(i)))
+				goVm := v.VMFactory(nil, os.Stdout, os.Stderr, testutil.CreateLogger(), mtutil.WithRandomization(int64(i)))
 				state := goVm.GetState()
 				insn := 0b01_1100<<26 | rsReg<<21 | rdReg<<11 | tt.funct
 				testutil.StoreInstruction(state.GetMemory(), state.GetPC(), insn)
@@ -210,9 +210,9 @@ func TestEVM_SingleStep_CloClz(t *testing.T) {
 				step := state.GetStep()
 
 				// Setup expectations
-				expected := testutil.NewExpectedState(state)
+				expected := mtutil.NewExpectedState(t, state)
 				expected.ExpectStep()
-				expected.Registers[rdReg] = tt.expectedResult
+				expected.ActiveThread().Registers[rdReg] = tt.expectedResult
 				stepWitness, err := goVm.Step(true)
 				require.NoError(t, err)
 
@@ -243,7 +243,7 @@ func TestEVM_SingleStep_MovzMovn(t *testing.T) {
 		for i, tt := range cases {
 			testName := fmt.Sprintf("%v (%v)", tt.name, v.Name)
 			t.Run(testName, func(t *testing.T) {
-				goVm := v.VMFactory(nil, os.Stdout, os.Stderr, testutil.CreateLogger(), testutil.WithRandomization(int64(i)), testutil.WithPC(0), testutil.WithNextPC(4))
+				goVm := v.VMFactory(nil, os.Stdout, os.Stderr, testutil.CreateLogger(), mtutil.WithRandomization(int64(i)), mtutil.WithPC(0), mtutil.WithNextPC(4))
 				state := goVm.GetState()
 				rsReg := uint32(9)
 				rtReg := uint32(10)
@@ -257,10 +257,10 @@ func TestEVM_SingleStep_MovzMovn(t *testing.T) {
 				step := state.GetStep()
 
 				// Setup expectations
-				expected := testutil.NewExpectedState(state)
+				expected := mtutil.NewExpectedState(t, state)
 				expected.ExpectStep()
 				if tt.shouldSucceed {
-					expected.Registers[rdReg] = state.GetRegistersRef()[rsReg]
+					expected.ActiveThread().Registers[rdReg] = state.GetRegistersRef()[rsReg]
 				}
 
 				stepWitness, err := goVm.Step(true)
@@ -290,16 +290,16 @@ func TestEVM_SingleStep_MfhiMflo(t *testing.T) {
 		for i, tt := range cases {
 			testName := fmt.Sprintf("%v (%v)", tt.name, v.Name)
 			t.Run(testName, func(t *testing.T) {
-				goVm := v.VMFactory(nil, os.Stdout, os.Stderr, testutil.CreateLogger(), testutil.WithRandomization(int64(i)), testutil.WithLO(tt.lo), testutil.WithHI(tt.hi))
+				goVm := v.VMFactory(nil, os.Stdout, os.Stderr, testutil.CreateLogger(), mtutil.WithRandomization(int64(i)), mtutil.WithLO(tt.lo), mtutil.WithHI(tt.hi))
 				state := goVm.GetState()
 				rdReg := uint32(8)
 				insn := rdReg<<11 | tt.funct
 				testutil.StoreInstruction(state.GetMemory(), state.GetPC(), insn)
 				step := state.GetStep()
 				// Setup expectations
-				expected := testutil.NewExpectedState(state)
+				expected := mtutil.NewExpectedState(t, state)
 				expected.ExpectStep()
-				expected.Registers[rdReg] = expect
+				expected.ActiveThread().Registers[rdReg] = expect
 				stepWitness, err := goVm.Step(true)
 				require.NoError(t, err)
 				// Check expectations
@@ -361,7 +361,7 @@ func TestEVM_SingleStep_MthiMtlo(t *testing.T) {
 			testName := fmt.Sprintf("%v (%v)", tt.name, v.Name)
 			t.Run(testName, func(t *testing.T) {
 
-				goVm := v.VMFactory(nil, os.Stdout, os.Stderr, testutil.CreateLogger(), testutil.WithRandomization(int64(i)))
+				goVm := v.VMFactory(nil, os.Stdout, os.Stderr, testutil.CreateLogger(), mtutil.WithRandomization(int64(i)))
 				state := goVm.GetState()
 				rsReg := uint32(8)
 				insn := rsReg<<21 | tt.funct
@@ -369,12 +369,12 @@ func TestEVM_SingleStep_MthiMtlo(t *testing.T) {
 				state.GetRegistersRef()[rsReg] = val
 				step := state.GetStep()
 				// Setup expectations
-				expected := testutil.NewExpectedState(state)
+				expected := mtutil.NewExpectedState(t, state)
 				expected.ExpectStep()
 				if tt.funct == 0x11 {
-					expected.HI = state.GetRegistersRef()[rsReg]
+					expected.ActiveThread().HI = state.GetRegistersRef()[rsReg]
 				} else {
-					expected.LO = state.GetRegistersRef()[rsReg]
+					expected.ActiveThread().LO = state.GetRegistersRef()[rsReg]
 				}
 				stepWitness, err := goVm.Step(true)
 				require.NoError(t, err)
@@ -413,7 +413,7 @@ func TestEVM_SingleStep_BeqBne(t *testing.T) {
 		for i, tt := range cases {
 			testName := fmt.Sprintf("%v (%v)", tt.name, v.Name)
 			t.Run(testName, func(t *testing.T) {
-				goVm := v.VMFactory(nil, os.Stdout, os.Stderr, testutil.CreateLogger(), testutil.WithRandomization(int64(i)), testutil.WithPCAndNextPC(initialPC))
+				goVm := v.VMFactory(nil, os.Stdout, os.Stderr, testutil.CreateLogger(), mtutil.WithRandomization(int64(i)), mtutil.WithPCAndNextPC(initialPC))
 				state := goVm.GetState()
 				rsReg := uint32(9)
 				rtReg := uint32(8)
@@ -424,10 +424,9 @@ func TestEVM_SingleStep_BeqBne(t *testing.T) {
 				step := state.GetStep()
 
 				// Setup expectations
-				expected := testutil.NewExpectedState(state)
-				expected.Step = state.GetStep() + 1
-				expected.PC = state.GetCpu().NextPC
-				expected.NextPC = tt.expectedNextPC
+				expected := mtutil.NewExpectedState(t, state)
+				expected.ExpectStep()
+				expected.ActiveThread().NextPC = tt.expectedNextPC
 
 				stepWitness, err := goVm.Step(true)
 				require.NoError(t, err)
@@ -475,7 +474,7 @@ func TestEVM_SingleStep_SlSr(t *testing.T) {
 		for i, tt := range cases {
 			testName := fmt.Sprintf("%v (%v)", tt.name, v.Name)
 			t.Run(testName, func(t *testing.T) {
-				goVm := v.VMFactory(nil, os.Stdout, os.Stderr, testutil.CreateLogger(), testutil.WithRandomization(int64(i)), testutil.WithPC(0), testutil.WithNextPC(4))
+				goVm := v.VMFactory(nil, os.Stdout, os.Stderr, testutil.CreateLogger(), mtutil.WithRandomization(int64(i)), mtutil.WithPC(0), mtutil.WithNextPC(4))
 				state := goVm.GetState()
 				var insn uint32
 				rtReg := uint32(0x9)
@@ -487,10 +486,10 @@ func TestEVM_SingleStep_SlSr(t *testing.T) {
 				step := state.GetStep()
 
 				// Setup expectations
-				expected := testutil.NewExpectedState(state)
+				expected := mtutil.NewExpectedState(t, state)
 				expected.ExpectStep()
 
-				expected.Registers[rdReg] = tt.expectVal
+				expected.ActiveThread().Registers[rdReg] = tt.expectVal
 
 				stepWitness, err := goVm.Step(true)
 				require.NoError(t, err)
@@ -525,7 +524,7 @@ func TestEVM_SingleStep_JrJalr(t *testing.T) {
 		for i, tt := range cases {
 			testName := fmt.Sprintf("%v (%v)", tt.name, v.Name)
 			t.Run(testName, func(t *testing.T) {
-				goVm := v.VMFactory(nil, os.Stdout, os.Stderr, testutil.CreateLogger(), testutil.WithRandomization(int64(i)), testutil.WithPC(tt.pc), testutil.WithNextPC(tt.nextPC))
+				goVm := v.VMFactory(nil, os.Stdout, os.Stderr, testutil.CreateLogger(), mtutil.WithRandomization(int64(i)), mtutil.WithPC(tt.pc), mtutil.WithNextPC(tt.nextPC))
 				state := goVm.GetState()
 				insn := tt.rsReg<<21 | tt.rdReg<<11 | uint32(tt.funct)
 				state.GetRegistersRef()[tt.rsReg] = tt.jumpTo
@@ -539,12 +538,11 @@ func TestEVM_SingleStep_JrJalr(t *testing.T) {
 					testutil.AssertEVMReverts(t, state, v.Contracts, nil, proofData, errorMatcher)
 				} else {
 					// Setup expectations
-					expected := testutil.NewExpectedState(state)
-					expected.Step = state.GetStep() + 1
-					expected.PC = state.GetCpu().NextPC
-					expected.NextPC = tt.jumpTo
+					expected := mtutil.NewExpectedState(t, state)
+					expected.ExpectStep()
+					expected.ActiveThread().NextPC = tt.jumpTo
 					if tt.expectLink {
-						expected.Registers[tt.rdReg] = state.GetPC() + 8
+						expected.ActiveThread().Registers[tt.rdReg] = state.GetPC() + 8
 					}
 
 					stepWitness, err := goVm.Step(true)
@@ -564,13 +562,13 @@ func TestEVM_SingleStep_Sync(t *testing.T) {
 	for _, v := range versions {
 		testName := fmt.Sprintf("Sync (%v)", v.Name)
 		t.Run(testName, func(t *testing.T) {
-			goVm := v.VMFactory(nil, os.Stdout, os.Stderr, testutil.CreateLogger(), testutil.WithRandomization(int64(248)))
+			goVm := v.VMFactory(nil, os.Stdout, os.Stderr, testutil.CreateLogger(), mtutil.WithRandomization(int64(248)))
 			state := goVm.GetState()
 			testutil.StoreInstruction(state.GetMemory(), state.GetPC(), syncInsn)
 			step := state.GetStep()
 
 			// Setup expectations
-			expected := testutil.NewExpectedState(state)
+			expected := mtutil.NewExpectedState(t, state)
 			expected.ExpectStep()
 
 			stepWitness, err := goVm.Step(true)
@@ -607,7 +605,7 @@ func TestEVM_MMap(t *testing.T) {
 		for i, c := range cases {
 			testName := fmt.Sprintf("%v (%v)", c.name, v.Name)
 			t.Run(testName, func(t *testing.T) {
-				goVm := v.VMFactory(nil, os.Stdout, os.Stderr, testutil.CreateLogger(), testutil.WithRandomization(int64(i)), testutil.WithHeap(c.heap))
+				goVm := v.VMFactory(nil, os.Stdout, os.Stderr, testutil.CreateLogger(), mtutil.WithRandomization(int64(i)), mtutil.WithHeap(c.heap))
 				state := goVm.GetState()
 
 				testutil.StoreInstruction(state.GetMemory(), state.GetPC(), syscallInsn)
@@ -616,21 +614,19 @@ func TestEVM_MMap(t *testing.T) {
 				state.GetRegistersRef()[5] = c.size
 				step := state.GetStep()
 
-				expected := testutil.NewExpectedState(state)
-				expected.Step += 1
-				expected.PC = state.GetCpu().NextPC
-				expected.NextPC = state.GetCpu().NextPC + 4
+				expected := mtutil.NewExpectedState(t, state)
+				expected.ExpectStep()
 				if c.shouldFail {
-					expected.Registers[2] = exec.MipsEINVAL
-					expected.Registers[7] = exec.SysErrorSignal
+					expected.ActiveThread().Registers[2] = exec.MipsEINVAL
+					expected.ActiveThread().Registers[7] = exec.SysErrorSignal
 				} else {
 					expected.Heap = c.expectedHeap
 					if c.address == 0 {
-						expected.Registers[2] = state.GetHeap()
-						expected.Registers[7] = 0
+						expected.ActiveThread().Registers[2] = state.GetHeap()
+						expected.ActiveThread().Registers[7] = 0
 					} else {
-						expected.Registers[2] = c.address
-						expected.Registers[7] = 0
+						expected.ActiveThread().Registers[2] = c.address
+						expected.ActiveThread().Registers[7] = 0
 					}
 				}
 
@@ -654,14 +650,14 @@ func TestEVM_SysGetRandom(t *testing.T) {
 	step := uint64(0x1a2b3c4d5e6f7531) - 1
 	randomData := arch.Word(0x4141302768c9e9d0)
 
-	vmVersions := GetMipsVersionTestCases(t)
-	cases := []struct {
+	type GetRandomTestCase struct {
 		name                 string
 		bufAddrOffset        arch.Word
 		bufLen               arch.Word
 		expectedRandDataMask arch.Word
 		expectedReturnValue  arch.Word
-	}{
+	}
+	cases := []GetRandomTestCase{
 		// Test word-aligned buffer address
 		{name: "Word-aligned buffer, zero bytes requested", bufAddrOffset: 0, bufLen: 0, expectedRandDataMask: 0x0000_0000_0000_0000, expectedReturnValue: 0},
 		{name: "Word-aligned buffer, 1 byte requested", bufAddrOffset: 0, bufLen: 1, expectedRandDataMask: 0xFF00_0000_0000_0000, expectedReturnValue: 1},
@@ -687,7 +683,7 @@ func TestEVM_SysGetRandom(t *testing.T) {
 
 	// Assert we have at least one vm with the working getrandom syscall
 	foundVmWithSyscallEnabled := false
-	for _, vers := range vmVersions {
+	for _, vers := range GetMipsVersionTestCases(t) {
 		features := versions.FeaturesForVersion(vers.Version)
 		foundVmWithSyscallEnabled = foundVmWithSyscallEnabled || features.SupportWorkingSysGetRandom
 	}
@@ -697,44 +693,44 @@ func TestEVM_SysGetRandom(t *testing.T) {
 	latestFeatures := versions.FeaturesForVersion(versions.GetExperimentalVersion())
 	require.True(t, latestFeatures.SupportWorkingSysGetRandom)
 
-	// Run test cases
-	for _, v := range vmVersions {
-		for i, c := range cases {
-			testName := fmt.Sprintf("%v (%v)", c.name, v.Name)
-			t.Run(testName, func(t *testing.T) {
-				isNoop := !versions.FeaturesForVersion(v.Version).SupportWorkingSysGetRandom
-				expectedMemory := c.expectedRandDataMask&randomData | ^c.expectedRandDataMask&startingMemory
-
-				goVm := v.VMFactory(nil, os.Stdout, os.Stderr, testutil.CreateLogger(), testutil.WithRandomization(int64(i)), testutil.WithStep(step))
-				state := goVm.GetState()
-
-				testutil.StoreInstruction(state.GetMemory(), state.GetPC(), syscallInsn)
-				state.GetMemory().SetWord(effAddr, startingMemory)
-				state.GetRegistersRef()[register.RegV0] = arch.SysGetRandom
-				state.GetRegistersRef()[register.RegA0] = effAddr + c.bufAddrOffset
-				state.GetRegistersRef()[register.RegA1] = c.bufLen
-				step := state.GetStep()
-
-				expected := testutil.NewExpectedState(state)
-				expected.ExpectStep()
-				if isNoop {
-					expected.Registers[register.RegSyscallRet1] = 0
-					expected.Registers[register.RegSyscallErrno] = 0
-				} else {
-					expected.Registers[register.RegSyscallRet1] = c.expectedReturnValue
-					expected.Registers[register.RegSyscallErrno] = 0
-					expected.ExpectMemoryWriteWord(effAddr, expectedMemory)
-				}
-
-				stepWitness, err := goVm.Step(true)
-				require.NoError(t, err)
-
-				// Check expectations
-				expected.Validate(t, state)
-				testutil.ValidateEVM(t, stepWitness, step, goVm, v.StateHashFn, v.Contracts)
-			})
-		}
+	// Run test cases with memory reservation variations
+	testNamer := func(testCase GetRandomTestCase, vmVersion string, reservationTestCase string) string {
+		return fmt.Sprintf("%v (%v,%v)", testCase.name, vmVersion, reservationTestCase)
 	}
+	MemoryReservationTester(t, cases, func(t *testing.T, vm VersionedVMTestCase, reservation MemoryReservationTestCase, testCase GetRandomTestCase, i int) {
+		isNoop := !versions.FeaturesForVersion(vm.Version).SupportWorkingSysGetRandom
+		expectedMemory := testCase.expectedRandDataMask&randomData | ^testCase.expectedRandDataMask&startingMemory
+
+		goVm := vm.VMFactory(nil, os.Stdout, os.Stderr, testutil.CreateLogger(), mtutil.WithRandomization(int64(i)), mtutil.WithStep(step))
+		state := goVm.GetState()
+		step := state.GetStep()
+
+		testutil.StoreInstruction(state.GetMemory(), state.GetPC(), syscallInsn)
+		state.GetMemory().SetWord(effAddr, startingMemory)
+		state.GetRegistersRef()[register.RegV0] = arch.SysGetRandom
+		state.GetRegistersRef()[register.RegA0] = effAddr + testCase.bufAddrOffset
+		state.GetRegistersRef()[register.RegA1] = testCase.bufLen
+		reservation.SetupState(mtutil.ToMTState(t, state), effAddr)
+
+		expected := mtutil.NewExpectedState(t, state)
+		expected.ExpectStep()
+		if isNoop {
+			expected.ActiveThread().Registers[register.RegSyscallRet1] = 0
+			expected.ActiveThread().Registers[register.RegSyscallErrno] = 0
+		} else {
+			expected.ActiveThread().Registers[register.RegSyscallRet1] = testCase.expectedReturnValue
+			expected.ActiveThread().Registers[register.RegSyscallErrno] = 0
+			expected.ExpectMemoryWriteWord(effAddr, expectedMemory)
+			reservation.SetExpectations(expected)
+		}
+
+		stepWitness, err := goVm.Step(true)
+		require.NoError(t, err)
+
+		// Check expectations
+		expected.Validate(t, state)
+		testutil.ValidateEVM(t, stepWitness, step, goVm, vm.StateHashFn, vm.Contracts)
+	}, testNamer)
 }
 
 func TestEVM_SysWriteHint(t *testing.T) {
@@ -899,7 +895,7 @@ func TestEVM_SysWriteHint(t *testing.T) {
 			testName := fmt.Sprintf("%v (%v)", tt.name, v.Name)
 			t.Run(testName, func(t *testing.T) {
 				oracle := testutil.HintTrackingOracle{}
-				goVm := v.VMFactory(&oracle, os.Stdout, os.Stderr, testutil.CreateLogger(), testutil.WithRandomization(int64(i)), testutil.WithLastHint(tt.lastHint))
+				goVm := v.VMFactory(&oracle, os.Stdout, os.Stderr, testutil.CreateLogger(), mtutil.WithRandomization(int64(i)), mtutil.WithLastHint(tt.lastHint))
 				state := goVm.GetState()
 				state.GetRegistersRef()[2] = arch.SysWrite
 				state.GetRegistersRef()[4] = exec.FdHintWrite
@@ -911,13 +907,11 @@ func TestEVM_SysWriteHint(t *testing.T) {
 				testutil.StoreInstruction(state.GetMemory(), state.GetPC(), insn)
 				step := state.GetStep()
 
-				expected := testutil.NewExpectedState(state)
-				expected.Step += 1
-				expected.PC = state.GetCpu().NextPC
-				expected.NextPC = state.GetCpu().NextPC + 4
+				expected := mtutil.NewExpectedState(t, state)
+				expected.ExpectStep()
 				expected.LastHint = tt.expectedLastHint
-				expected.Registers[2] = arch.Word(tt.bytesToWrite) // Return count of bytes written
-				expected.Registers[7] = 0                          // no Error
+				expected.ActiveThread().Registers[2] = arch.Word(tt.bytesToWrite) // Return count of bytes written
+				expected.ActiveThread().Registers[7] = 0                          // no Error
 
 				stepWitness, err := goVm.Step(true)
 				require.NoError(t, err)
@@ -965,7 +959,7 @@ func TestEVM_Fault(t *testing.T) {
 		for _, tt := range cases {
 			testName := fmt.Sprintf("%v (%v)", tt.name, v.Name)
 			t.Run(testName, func(t *testing.T) {
-				goVm := v.VMFactory(nil, os.Stdout, os.Stderr, testutil.CreateLogger(), testutil.WithPC(tt.pc), testutil.WithNextPC(tt.nextPC))
+				goVm := v.VMFactory(nil, os.Stdout, os.Stderr, testutil.CreateLogger(), mtutil.WithPC(tt.pc), mtutil.WithNextPC(tt.nextPC))
 				state := goVm.GetState()
 				testutil.StoreInstruction(state.GetMemory(), 0, tt.insn)
 				// set the return address ($ra) to jump into when test completes

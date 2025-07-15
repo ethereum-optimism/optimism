@@ -1,13 +1,14 @@
 package syncnode
 
 import (
+	"context"
 	"fmt"
 	"sync/atomic"
 
-	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum/go-ethereum/log"
 
-	"github.com/ethereum-optimism/optimism/op-node/rollup/event"
+	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/event"
 	"github.com/ethereum-optimism/optimism/op-service/locks"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/depset"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
@@ -47,7 +48,7 @@ func (snc *SyncNodesController) AttachEmitter(em event.Emitter) {
 	snc.emitter = em
 }
 
-func (snc *SyncNodesController) OnEvent(ev event.Event) bool {
+func (snc *SyncNodesController) OnEvent(ctx context.Context, ev event.Event) bool {
 	return false
 }
 

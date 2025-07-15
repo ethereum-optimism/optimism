@@ -14,6 +14,7 @@ import (
 type FaucetBackend interface {
 	ChainID() eth.ChainID
 	RequestETH(ctx context.Context, request *ftypes.FaucetRequest) error
+	Balance() (eth.ETH, error)
 }
 
 type FaucetFrontend struct {
@@ -38,4 +39,8 @@ func (f *FaucetFrontend) RequestETH(ctx context.Context, addr common.Address, am
 		Amount:  amount,
 	}
 	return f.b.RequestETH(ctx, request)
+}
+
+func (f *FaucetFrontend) Balance(ctx context.Context) (eth.ETH, error) {
+	return f.b.Balance()
 }

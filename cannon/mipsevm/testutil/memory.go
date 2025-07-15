@@ -4,6 +4,7 @@ import (
 	"encoding/binary"
 	"fmt"
 
+	"github.com/ethereum-optimism/optimism/cannon/mipsevm/arch"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/exec"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/memory"
 )
@@ -23,14 +24,14 @@ func Uint64ToBytes(val uint64) []byte {
 }
 
 // StoreInstruction writes a 4-byte instruction to memory
-func StoreInstruction(mem *memory.Memory, pc Word, insn uint32) {
+func StoreInstruction(mem *memory.Memory, pc arch.Word, insn uint32) {
 	if pc&0x3 != 0 {
 		panic(fmt.Errorf("unaligned memory access: %x", pc))
 	}
-	exec.StoreSubWord(mem, pc, 4, Word(insn), new(exec.NoopMemoryTracker))
+	exec.StoreSubWord(mem, pc, 4, arch.Word(insn), new(exec.NoopMemoryTracker))
 }
 
-func GetInstruction(mem *memory.Memory, pc Word) uint32 {
+func GetInstruction(mem *memory.Memory, pc arch.Word) uint32 {
 	if pc&0x3 != 0 {
 		panic(fmt.Errorf("unaligned memory access: %x", pc))
 	}

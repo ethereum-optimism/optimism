@@ -40,7 +40,7 @@ test-fault-proofs: pre-test
 .PHONY: test-faultproofs
 
 cannon-prestates:
-	make -C .. cannon-prestate-mt64
+	make -C .. cannon-prestates
 .PHONY: cannon-prestates
 
 

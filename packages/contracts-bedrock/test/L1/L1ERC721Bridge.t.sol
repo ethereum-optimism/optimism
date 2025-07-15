@@ -20,7 +20,7 @@ import { IL2ERC721Bridge } from "interfaces/L2/IL2ERC721Bridge.sol";
 import { IProxyAdminOwnedBase } from "interfaces/L1/IProxyAdminOwnedBase.sol";
 
 /// @notice Test ERC721 contract.
-contract TestERC721 is ERC721 {
+contract L1ERC721Bridge_TestERC721_Harness is ERC721 {
     constructor() ERC721("Test", "TST") { }
 
     function mint(address to, uint256 tokenId) public {
@@ -31,8 +31,8 @@ contract TestERC721 is ERC721 {
 /// @title L1ERC721Bridge_TestInit
 /// @notice Test contract for L1ERC721Bridge initialization and setup.
 contract L1ERC721Bridge_TestInit is CommonTest {
-    TestERC721 internal localToken;
-    TestERC721 internal remoteToken;
+    L1ERC721Bridge_TestERC721_Harness internal localToken;
+    L1ERC721Bridge_TestERC721_Harness internal remoteToken;
     uint256 internal constant tokenId = 1;
 
     event ERC721BridgeInitiated(
@@ -59,8 +59,8 @@ contract L1ERC721Bridge_TestInit is CommonTest {
     function setUp() public virtual override {
         super.setUp();
 
-        localToken = new TestERC721();
-        remoteToken = new TestERC721();
+        localToken = new L1ERC721Bridge_TestERC721_Harness();
+        remoteToken = new L1ERC721Bridge_TestERC721_Harness();
 
         // Mint alice a token.
         localToken.mint(alice, tokenId);
@@ -211,9 +211,9 @@ contract L1ERC721Bridge_Upgrade_Test is L1ERC721Bridge_TestInit {
     }
 }
 
-/// @title L1ERC721Bridge_Pause_Test
-/// @notice Test contract for L1ERC721Bridge `pause` functionality.
-contract L1ERC721Bridge_Pause_Test is L1ERC721Bridge_TestInit {
+/// @title L1ERC721Bridge_Paused_Test
+/// @notice Test contract for L1ERC721Bridge `paused` functionality.
+contract L1ERC721Bridge_Paused_Test is L1ERC721Bridge_TestInit {
     /// @dev Verifies that the `paused` accessor returns the same value as the `paused` function of
     ///      the `superchainConfig`.
     function test_paused_succeeds() external view {
@@ -348,10 +348,10 @@ contract L1ERC721Bridge_FinalizeBridgeERC721_Test is L1ERC721Bridge_TestInit {
     }
 }
 
-/// @title L1ERC721Bridge_Test
-/// @notice Test contract for L1ERC721Bridge functionality with test for functions that are
-///         not specific to the L1ERC721Bridge.sol file
-contract L1ERC721Bridge_Test is L1ERC721Bridge_TestInit {
+/// @title L1ERC721Bridge_Uncategorized_Test
+/// @notice General tests that are not testing any function directly of the `L1ERC721Bridge`
+///         contract or are testing multiple functions at once.
+contract L1ERC721Bridge_Uncategorized_Test is L1ERC721Bridge_TestInit {
     /// @notice Tests that the ERC721 can be bridged successfully.
     function test_bridgeERC721_fromEOA_succeeds() public {
         // Expect a call to the messenger.

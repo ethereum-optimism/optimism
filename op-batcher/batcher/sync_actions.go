@@ -58,7 +58,6 @@ func computeSyncActions[T channelStatuser](
 	blocks queue.Queue[*types.Block],
 	channels []T,
 	l log.Logger,
-	preferLocalSafeL2 bool,
 ) (syncActions, bool) {
 
 	m := l.With(
@@ -69,11 +68,9 @@ func computeSyncActions[T channelStatuser](
 		"syncStatus.unsafeL2", newSyncStatus.UnsafeL2.TerminalString(),
 	)
 
-	safeL2 := newSyncStatus.SafeL2
-	if preferLocalSafeL2 {
-		// This is preferred when running interop, but not yet enabled by default.
-		safeL2 = newSyncStatus.LocalSafeL2
-	}
+	// We do _not_ want to use the SafeL2 (aka Cross Safe) field,
+	// since that introduces extra dependencies post interop.
+	safeL2 := newSyncStatus.LocalSafeL2
 
 	// PART 1: Initial checks on the sync status (on fields which should never be empty)
 	if isZero(safeL2) ||

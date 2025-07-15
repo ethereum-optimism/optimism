@@ -56,8 +56,6 @@ func LoadOPStackRollupConfig(chainID uint64) (*Config, error) {
 		}
 	}
 
-	hardforks := chConfig.Hardforks
-	regolithTime := uint64(0)
 	cfg := &Config{
 		Genesis: Genesis{
 			L1: eth.BlockID{
@@ -81,24 +79,29 @@ func LoadOPStackRollupConfig(chainID uint64) (*Config, error) {
 		ChannelTimeoutBedrock:  300,
 		L1ChainID:              new(big.Int).SetUint64(superConfig.L1.ChainID),
 		L2ChainID:              new(big.Int).SetUint64(chConfig.ChainID),
-		RegolithTime:           &regolithTime,
-		CanyonTime:             hardforks.CanyonTime,
-		DeltaTime:              hardforks.DeltaTime,
-		EcotoneTime:            hardforks.EcotoneTime,
-		FjordTime:              hardforks.FjordTime,
-		GraniteTime:            hardforks.GraniteTime,
-		HoloceneTime:           hardforks.HoloceneTime,
-		PectraBlobScheduleTime: hardforks.PectraBlobScheduleTime,
-		IsthmusTime:            hardforks.IsthmusTime,
-		JovianTime:             hardforks.JovianTime,
-		InteropTime:            hardforks.InteropTime,
 		BatchInboxAddress:      chConfig.BatchInboxAddr,
 		DepositContractAddress: *addrs.OptimismPortalProxy,
 		L1SystemConfigAddress:  *addrs.SystemConfigProxy,
 		AltDAConfig:            altDA,
 		ChainOpConfig:          chOpConfig,
 	}
+	applyHardforks(cfg, chConfig.Hardforks)
 
 	cfg.ProtocolVersionsAddress = superConfig.ProtocolVersionsAddr
 	return cfg, nil
+}
+
+func applyHardforks(cfg *Config, hardforks superchain.HardforkConfig) {
+	regolithTime := uint64(0)
+	cfg.RegolithTime = &regolithTime
+	cfg.CanyonTime = hardforks.CanyonTime
+	cfg.DeltaTime = hardforks.DeltaTime
+	cfg.EcotoneTime = hardforks.EcotoneTime
+	cfg.FjordTime = hardforks.FjordTime
+	cfg.GraniteTime = hardforks.GraniteTime
+	cfg.HoloceneTime = hardforks.HoloceneTime
+	cfg.PectraBlobScheduleTime = hardforks.PectraBlobScheduleTime
+	cfg.IsthmusTime = hardforks.IsthmusTime
+	cfg.InteropTime = hardforks.InteropTime
+	cfg.JovianTime = hardforks.JovianTime
 }

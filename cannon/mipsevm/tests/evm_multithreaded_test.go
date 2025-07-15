@@ -6,16 +6,17 @@ import (
 	"os"
 	"testing"
 
+	"github.com/ethereum/go-ethereum/core/tracing"
+	"github.com/stretchr/testify/require"
+
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/arch"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/exec"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/multithreaded"
-	mttestutil "github.com/ethereum-optimism/optimism/cannon/mipsevm/multithreaded/testutil"
+	mtutil "github.com/ethereum-optimism/optimism/cannon/mipsevm/multithreaded/testutil"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/register"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/testutil"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/versions"
-	"github.com/ethereum/go-ethereum/core/tracing"
-	"github.com/stretchr/testify/require"
 )
 
 type Word = arch.Word
@@ -53,8 +54,8 @@ func TestEVM_MT_LL(t *testing.T) {
 					rtReg := c.rtReg
 					baseReg := 6
 					insn := uint32((0b11_0000 << 26) | (baseReg & 0x1F << 21) | (rtReg & 0x1F << 16) | (0xFFFF & c.offset))
-					goVm := ver.VMFactory(nil, os.Stdout, os.Stderr, testutil.CreateLogger(), testutil.WithRandomization(int64(i)), testutil.WithPCAndNextPC(0x40))
-					state := mttestutil.GetMtState(t, goVm)
+					goVm := ver.VMFactory(nil, os.Stdout, os.Stderr, testutil.CreateLogger(), mtutil.WithRandomization(int64(i)), mtutil.WithPCAndNextPC(0x40))
+					state := mtutil.GetMtState(t, goVm)
 					step := state.GetStep()
 
 					// Set up state
@@ -72,7 +73,7 @@ func TestEVM_MT_LL(t *testing.T) {
 					}
 
 					// Set up expectations
-					expected := mttestutil.NewExpectedMTState(state)
+					expected := mtutil.NewExpectedState(t, state)
 					expected.ExpectStep()
 					expected.LLReservationStatus = multithreaded.LLStatusActive32bit
 					expected.LLAddress = Word(c.expectedAddr)
@@ -137,9 +138,9 @@ func TestEVM_MT_SC(t *testing.T) {
 					rtReg := c.rtReg
 					baseReg := 6
 					insn := uint32((0b11_1000 << 26) | (baseReg & 0x1F << 21) | (rtReg & 0x1F << 16) | (0xFFFF & c.offset))
-					goVm := ver.VMFactory(nil, os.Stdout, os.Stderr, testutil.CreateLogger(), testutil.WithRandomization(int64(i)))
-					state := mttestutil.GetMtState(t, goVm)
-					mttestutil.InitializeSingleThread(i*23456, state, i%2 == 1, testutil.WithPCAndNextPC(0x40))
+					goVm := ver.VMFactory(nil, os.Stdout, os.Stderr, testutil.CreateLogger(), mtutil.WithRandomization(int64(i)))
+					state := mtutil.GetMtState(t, goVm)
+					mtutil.InitializeSingleThread(i*23456, state, i%2 == 1, mtutil.WithPCAndNextPC(0x40))
 					step := state.GetStep()
 
 					// Define LL-related params
@@ -166,7 +167,7 @@ func TestEVM_MT_SC(t *testing.T) {
 					state.LLOwnerThread = llOwnerThread
 
 					// Setup expectations
-					expected := mttestutil.NewExpectedMTState(state)
+					expected := mtutil.NewExpectedState(t, state)
 					expected.ExpectStep()
 					var retVal Word
 					if llVar.shouldSucceed {
@@ -265,9 +266,9 @@ func TestEVM_SysClone_Successful(t *testing.T) {
 			t.Run(testName, func(t *testing.T) {
 				stackPtr := Word(100)
 
-				goVm := ver.VMFactory(nil, os.Stdout, os.Stderr, testutil.CreateLogger(), testutil.WithRandomization(int64(i)))
-				state := mttestutil.GetMtState(t, goVm)
-				mttestutil.InitializeSingleThread(i*333, state, c.traverseRight)
+				goVm := ver.VMFactory(nil, os.Stdout, os.Stderr, testutil.CreateLogger(), mtutil.WithRandomization(int64(i)))
+				state := mtutil.GetMtState(t, goVm)
+				mtutil.InitializeSingleThread(i*333, state, c.traverseRight)
 				testutil.StoreInstruction(state.Memory, state.GetPC(), syscallInsn)
 				state.GetRegistersRef()[2] = arch.SysClone        // the syscall number
 				state.GetRegistersRef()[4] = exec.ValidCloneFlags // a0 - first argument, clone flags
@@ -278,7 +279,7 @@ func TestEVM_SysClone_Successful(t *testing.T) {
 				require.Equal(t, Word(1), state.NextThreadId)
 
 				// Setup expectations
-				expected := mttestutil.NewExpectedMTState(state)
+				expected := mtutil.NewExpectedState(t, state)
 				expected.Step += 1
 				expectedNewThread := expected.ExpectNewThread()
 				expected.ActiveThreadId = expectedNewThread.ThreadId
@@ -307,7 +308,7 @@ func TestEVM_SysClone_Successful(t *testing.T) {
 				require.NoError(t, err)
 
 				expected.Validate(t, state)
-				activeStack, inactiveStack := mttestutil.GetThreadStacks(state)
+				activeStack, inactiveStack := mtutil.GetThreadStacks(state)
 				require.Equal(t, 2, len(activeStack))
 				require.Equal(t, 0, len(inactiveStack))
 				testutil.ValidateEVM(t, stepWitness, step, goVm, multithreaded.GetStateHashFn(), ver.Contracts)
@@ -330,9 +331,9 @@ func TestEVM_SysGetTID(t *testing.T) {
 		for i, c := range cases {
 			testName := fmt.Sprintf("%v (%v)", c.name, ver.Name)
 			t.Run(testName, func(t *testing.T) {
-				goVm := ver.VMFactory(nil, os.Stdout, os.Stderr, testutil.CreateLogger(), testutil.WithRandomization(int64(i*789)))
-				state := mttestutil.GetMtState(t, goVm)
-				mttestutil.InitializeSingleThread(i*789, state, false)
+				goVm := ver.VMFactory(nil, os.Stdout, os.Stderr, testutil.CreateLogger(), mtutil.WithRandomization(int64(i*789)))
+				state := mtutil.GetMtState(t, goVm)
+				mtutil.InitializeSingleThread(i*789, state, false)
 
 				state.GetCurrentThread().ThreadId = c.threadId
 				testutil.StoreInstruction(state.Memory, state.GetPC(), syscallInsn)
@@ -340,7 +341,7 @@ func TestEVM_SysGetTID(t *testing.T) {
 				step := state.Step
 
 				// Set up post-state expectations
-				expected := mttestutil.NewExpectedMTState(state)
+				expected := mtutil.NewExpectedState(t, state)
 				expected.ExpectStep()
 				expected.ActiveThread().Registers[2] = c.threadId
 				expected.ActiveThread().Registers[7] = 0
@@ -378,9 +379,9 @@ func TestEVM_SysExit(t *testing.T) {
 			t.Run(testName, func(t *testing.T) {
 				exitCode := uint8(3)
 
-				goVm := ver.VMFactory(nil, os.Stdout, os.Stderr, testutil.CreateLogger(), testutil.WithRandomization(int64(i*133)))
-				state := mttestutil.GetMtState(t, goVm)
-				mttestutil.SetupThreads(int64(i*1111), state, i%2 == 0, c.threadCount, 0)
+				goVm := ver.VMFactory(nil, os.Stdout, os.Stderr, testutil.CreateLogger(), mtutil.WithRandomization(int64(i*133)))
+				state := mtutil.GetMtState(t, goVm)
+				mtutil.SetupThreads(int64(i*1111), state, i%2 == 0, c.threadCount, 0)
 
 				testutil.StoreInstruction(state.Memory, state.GetPC(), syscallInsn)
 				state.GetRegistersRef()[2] = arch.SysExit   // Set syscall number
@@ -388,7 +389,7 @@ func TestEVM_SysExit(t *testing.T) {
 				step := state.Step
 
 				// Set up expectations
-				expected := mttestutil.NewExpectedMTState(state)
+				expected := mtutil.NewExpectedState(t, state)
 				expected.Step += 1
 				expected.StepsSinceLastContextSwitch += 1
 				expected.ActiveThread().Exited = true
@@ -430,9 +431,9 @@ func TestEVM_PopExitedThread(t *testing.T) {
 		for i, c := range cases {
 			testName := fmt.Sprintf("%v (%v)", c.name, ver.Name)
 			t.Run(testName, func(t *testing.T) {
-				goVm := ver.VMFactory(nil, os.Stdout, os.Stderr, testutil.CreateLogger(), testutil.WithRandomization(int64(i*133)))
-				state := mttestutil.GetMtState(t, goVm)
-				mttestutil.SetupThreads(int64(i*222), state, c.traverseRight, c.activeStackThreadCount, 1)
+				goVm := ver.VMFactory(nil, os.Stdout, os.Stderr, testutil.CreateLogger(), mtutil.WithRandomization(int64(i*133)))
+				state := mtutil.GetMtState(t, goVm)
+				mtutil.SetupThreads(int64(i*222), state, c.traverseRight, c.activeStackThreadCount, 1)
 				step := state.Step
 
 				// Setup thread to be dropped
@@ -441,9 +442,9 @@ func TestEVM_PopExitedThread(t *testing.T) {
 				threadToPop.ExitCode = 1
 
 				// Set up expectations
-				expected := mttestutil.NewExpectedMTState(state)
+				expected := mtutil.NewExpectedState(t, state)
 				expected.Step += 1
-				expected.ActiveThreadId = mttestutil.FindNextThreadExcluding(state, threadToPop.ThreadId).ThreadId
+				expected.ActiveThreadId = mtutil.FindNextThreadExcluding(state, threadToPop.ThreadId).ThreadId
 				expected.StepsSinceLastContextSwitch = 0
 				expected.ThreadCount -= 1
 				expected.TraverseRight = c.expectTraverseRightPostState
@@ -497,8 +498,8 @@ func TestEVM_SysFutex_WaitPrivate(t *testing.T) {
 			testName := fmt.Sprintf("%v (%v)", c.name, ver.Name)
 			t.Run(testName, func(t *testing.T) {
 				rand := testutil.NewRandHelper(int64(i * 33))
-				goVm := ver.VMFactory(nil, os.Stdout, os.Stderr, testutil.CreateLogger(), testutil.WithRandomization(int64(i*1234)), testutil.WithPCAndNextPC(0x04))
-				state := mttestutil.GetMtState(t, goVm)
+				goVm := ver.VMFactory(nil, os.Stdout, os.Stderr, testutil.CreateLogger(), mtutil.WithRandomization(int64(i*1234)), mtutil.WithPCAndNextPC(0x04))
+				state := mtutil.GetMtState(t, goVm)
 				step := state.GetStep()
 
 				testutil.StoreInstruction(state.Memory, state.GetPC(), syscallInsn)
@@ -511,7 +512,7 @@ func TestEVM_SysFutex_WaitPrivate(t *testing.T) {
 				state.GetRegistersRef()[7] = Word(c.timeout)
 
 				// Setup expectations
-				expected := mttestutil.NewExpectedMTState(state)
+				expected := mtutil.NewExpectedState(t, state)
 				expected.Step += 1
 				expected.ActiveThread().PC = state.GetCpu().NextPC
 				expected.ActiveThread().NextPC = state.GetCpu().NextPC + 4
@@ -569,9 +570,9 @@ func TestEVM_SysFutex_WakePrivate(t *testing.T) {
 		for i, c := range cases {
 			testName := fmt.Sprintf("%v (%v)", c.name, ver.Name)
 			t.Run(testName, func(t *testing.T) {
-				goVm := ver.VMFactory(nil, os.Stdout, os.Stderr, testutil.CreateLogger(), testutil.WithRandomization(int64(i*1122)))
-				state := mttestutil.GetMtState(t, goVm)
-				mttestutil.SetupThreads(int64(i*2244), state, c.traverseRight, c.activeThreadCount, c.inactiveThreadCount)
+				goVm := ver.VMFactory(nil, os.Stdout, os.Stderr, testutil.CreateLogger(), mtutil.WithRandomization(int64(i*1122)))
+				state := mtutil.GetMtState(t, goVm)
+				mtutil.SetupThreads(int64(i*2244), state, c.traverseRight, c.activeThreadCount, c.inactiveThreadCount)
 				step := state.Step
 
 				testutil.StoreInstruction(state.Memory, state.GetPC(), syscallInsn)
@@ -580,7 +581,7 @@ func TestEVM_SysFutex_WakePrivate(t *testing.T) {
 				state.GetRegistersRef()[5] = exec.FutexWakePrivate
 
 				// Set up post-state expectations
-				expected := mttestutil.NewExpectedMTState(state)
+				expected := mtutil.NewExpectedState(t, state)
 				expected.ExpectStep()
 				expected.ActiveThread().Registers[2] = 0
 				expected.ActiveThread().Registers[7] = 0
@@ -649,8 +650,8 @@ func TestEVM_SysFutex_UnsupportedOp(t *testing.T) {
 		for name, op := range unsupportedFutexOps {
 			testName := fmt.Sprintf("%v (%v)", name, ver.Name)
 			t.Run(testName, func(t *testing.T) {
-				goVm := ver.VMFactory(nil, os.Stdout, os.Stderr, testutil.CreateLogger(), testutil.WithRandomization(int64(op)))
-				state := mttestutil.GetMtState(t, goVm)
+				goVm := ver.VMFactory(nil, os.Stdout, os.Stderr, testutil.CreateLogger(), mtutil.WithRandomization(int64(op)))
+				state := mtutil.GetMtState(t, goVm)
 				step := state.GetStep()
 
 				testutil.StoreInstruction(state.Memory, state.GetPC(), syscallInsn)
@@ -658,7 +659,7 @@ func TestEVM_SysFutex_UnsupportedOp(t *testing.T) {
 				state.GetRegistersRef()[5] = op
 
 				// Setup expectations
-				expected := mttestutil.NewExpectedMTState(state)
+				expected := mtutil.NewExpectedState(t, state)
 				expected.Step += 1
 				expected.StepsSinceLastContextSwitch += 1
 				expected.ActiveThread().PC = state.GetCpu().NextPC
@@ -707,16 +708,16 @@ func runPreemptSyscall(t *testing.T, syscallName string, syscallNum uint32) {
 			for _, traverseRight := range []bool{true, false} {
 				testName := fmt.Sprintf("%v: %v (vm = %v, traverseRight = %v)", syscallName, c.name, ver.Name, traverseRight)
 				t.Run(testName, func(t *testing.T) {
-					goVm := ver.VMFactory(nil, os.Stdout, os.Stderr, testutil.CreateLogger(), testutil.WithRandomization(int64(i*789)))
-					state := mttestutil.GetMtState(t, goVm)
-					mttestutil.SetupThreads(int64(i*3259), state, traverseRight, c.activeThreads, c.inactiveThreads)
+					goVm := ver.VMFactory(nil, os.Stdout, os.Stderr, testutil.CreateLogger(), mtutil.WithRandomization(int64(i*789)))
+					state := mtutil.GetMtState(t, goVm)
+					mtutil.SetupThreads(int64(i*3259), state, traverseRight, c.activeThreads, c.inactiveThreads)
 
 					testutil.StoreInstruction(state.Memory, state.GetPC(), syscallInsn)
 					state.GetRegistersRef()[2] = Word(syscallNum) // Set syscall number
 					step := state.Step
 
 					// Set up post-state expectations
-					expected := mttestutil.NewExpectedMTState(state)
+					expected := mtutil.NewExpectedState(t, state)
 					expected.ExpectStep()
 					expected.ExpectPreemption(state)
 					expected.PrestateActiveThread().Registers[2] = 0
@@ -741,15 +742,15 @@ func TestEVM_SysOpen(t *testing.T) {
 	vmVersions := GetMipsVersionTestCases(t)
 	for _, ver := range vmVersions {
 		t.Run(ver.Name, func(t *testing.T) {
-			goVm := ver.VMFactory(nil, os.Stdout, os.Stderr, testutil.CreateLogger(), testutil.WithRandomization(int64(5512)))
-			state := mttestutil.GetMtState(t, goVm)
+			goVm := ver.VMFactory(nil, os.Stdout, os.Stderr, testutil.CreateLogger(), mtutil.WithRandomization(int64(5512)))
+			state := mtutil.GetMtState(t, goVm)
 
 			testutil.StoreInstruction(state.Memory, state.GetPC(), syscallInsn)
 			state.GetRegistersRef()[2] = arch.SysOpen // Set syscall number
 			step := state.Step
 
 			// Set up post-state expectations
-			expected := mttestutil.NewExpectedMTState(state)
+			expected := mtutil.NewExpectedState(t, state)
 			expected.ExpectStep()
 			expected.ActiveThread().Registers[2] = exec.MipsEBADF
 			expected.ActiveThread().Registers[7] = exec.SysErrorSignal
@@ -772,15 +773,15 @@ func TestEVM_SysGetPID(t *testing.T) {
 	vmVersions := GetMipsVersionTestCases(t)
 	for _, ver := range vmVersions {
 		t.Run(ver.Name, func(t *testing.T) {
-			goVm := ver.VMFactory(nil, os.Stdout, os.Stderr, testutil.CreateLogger(), testutil.WithRandomization(int64(1929)))
-			state := mttestutil.GetMtState(t, goVm)
+			goVm := ver.VMFactory(nil, os.Stdout, os.Stderr, testutil.CreateLogger(), mtutil.WithRandomization(int64(1929)))
+			state := mtutil.GetMtState(t, goVm)
 
 			testutil.StoreInstruction(state.Memory, state.GetPC(), syscallInsn)
 			state.GetRegistersRef()[2] = arch.SysGetpid // Set syscall number
 			step := state.Step
 
 			// Set up post-state expectations
-			expected := mttestutil.NewExpectedMTState(state)
+			expected := mtutil.NewExpectedState(t, state)
 			expected.ExpectStep()
 			expected.ActiveThread().Registers[2] = 0
 			expected.ActiveThread().Registers[7] = 0
@@ -841,9 +842,9 @@ func testEVM_SysClockGettime(t *testing.T, clkid Word) {
 			for _, llVar := range llVariations {
 				tName := fmt.Sprintf("%v (%v,%v)", c.name, ver.Name, llVar.name)
 				t.Run(tName, func(t *testing.T) {
-					goVm := ver.VMFactory(nil, os.Stdout, os.Stderr, testutil.CreateLogger(), testutil.WithRandomization(int64(2101)))
-					state := mttestutil.GetMtState(t, goVm)
-					mttestutil.InitializeSingleThread(2101+i, state, i%2 == 1)
+					goVm := ver.VMFactory(nil, os.Stdout, os.Stderr, testutil.CreateLogger(), mtutil.WithRandomization(int64(2101)))
+					state := mtutil.GetMtState(t, goVm)
+					mtutil.InitializeSingleThread(2101+i, state, i%2 == 1)
 					effAddr := c.timespecAddr & arch.AddressMask
 					effAddr2 := effAddr + arch.WordSizeBytes
 					step := state.Step
@@ -871,7 +872,7 @@ func testEVM_SysClockGettime(t *testing.T, clkid Word) {
 					state.LLAddress = llAddress
 					state.LLOwnerThread = llOwnerThread
 
-					expected := mttestutil.NewExpectedMTState(state)
+					expected := mtutil.NewExpectedState(t, state)
 					expected.ExpectStep()
 					expected.ActiveThread().Registers[2] = 0
 					expected.ActiveThread().Registers[7] = 0
@@ -907,8 +908,8 @@ func TestEVM_SysClockGettimeNonMonotonic(t *testing.T) {
 	vmVersions := GetMipsVersionTestCases(t)
 	for _, ver := range vmVersions {
 		t.Run(ver.Name, func(t *testing.T) {
-			goVm := ver.VMFactory(nil, os.Stdout, os.Stderr, testutil.CreateLogger(), testutil.WithRandomization(int64(2101)))
-			state := mttestutil.GetMtState(t, goVm)
+			goVm := ver.VMFactory(nil, os.Stdout, os.Stderr, testutil.CreateLogger(), mtutil.WithRandomization(int64(2101)))
+			state := mtutil.GetMtState(t, goVm)
 
 			timespecAddr := Word(0x1000)
 			testutil.StoreInstruction(state.Memory, state.GetPC(), syscallInsn)
@@ -917,7 +918,7 @@ func TestEVM_SysClockGettimeNonMonotonic(t *testing.T) {
 			state.GetRegistersRef()[5] = timespecAddr         // a1
 			step := state.Step
 
-			expected := mttestutil.NewExpectedMTState(state)
+			expected := mtutil.NewExpectedState(t, state)
 			expected.ExpectStep()
 			expected.ActiveThread().Registers[2] = exec.MipsEINVAL
 			expected.ActiveThread().Registers[7] = exec.SysErrorSignal
@@ -994,9 +995,9 @@ func TestEVM_EmptyThreadStacks(t *testing.T) {
 			for _, proofCase := range proofVariations {
 				testName := fmt.Sprintf("%v (vm=%v,proofCase=%v)", c.name, ver.Name, proofCase.Name)
 				t.Run(testName, func(t *testing.T) {
-					goVm := ver.VMFactory(nil, os.Stdout, os.Stderr, testutil.CreateLogger(), testutil.WithRandomization(int64(i*123)))
-					state := mttestutil.GetMtState(t, goVm)
-					mttestutil.SetupThreads(int64(i*123), state, c.traverseRight, 0, c.otherStackSize)
+					goVm := ver.VMFactory(nil, os.Stdout, os.Stderr, testutil.CreateLogger(), mtutil.WithRandomization(int64(i*123)))
+					state := mtutil.GetMtState(t, goVm)
+					mtutil.SetupThreads(int64(i*123), state, c.traverseRight, 0, c.otherStackSize)
 
 					require.PanicsWithValue(t, "Active thread stack is empty", func() { _, _ = goVm.Step(false) })
 
@@ -1025,9 +1026,9 @@ func TestEVM_NormalTraversal_Full(t *testing.T) {
 				testName := fmt.Sprintf("%v (vm = %v, traverseRight = %v)", c.name, ver.Name, traverseRight)
 				t.Run(testName, func(t *testing.T) {
 					// Setup
-					goVm := ver.VMFactory(nil, os.Stdout, os.Stderr, testutil.CreateLogger(), testutil.WithRandomization(int64(i*789)))
-					state := mttestutil.GetMtState(t, goVm)
-					mttestutil.SetupThreads(int64(i*2947), state, traverseRight, c.threadCount, 0)
+					goVm := ver.VMFactory(nil, os.Stdout, os.Stderr, testutil.CreateLogger(), mtutil.WithRandomization(int64(i*789)))
+					state := mtutil.GetMtState(t, goVm)
+					mtutil.SetupThreads(int64(i*2947), state, traverseRight, c.threadCount, 0)
 					step := state.Step
 
 					// Loop through all the threads to get back to the starting state
@@ -1038,7 +1039,7 @@ func TestEVM_NormalTraversal_Full(t *testing.T) {
 						state.GetRegistersRef()[2] = Word(arch.SysSchedYield)
 
 						// Set up post-state expectations
-						expected := mttestutil.NewExpectedMTState(state)
+						expected := mtutil.NewExpectedState(t, state)
 						expected.ActiveThread().Registers[2] = 0
 						expected.ActiveThread().Registers[7] = 0
 						expected.ExpectStep()
@@ -1076,8 +1077,8 @@ func TestEVM_SchedQuantumThreshold(t *testing.T) {
 		for i, c := range cases {
 			testName := fmt.Sprintf("%v (%v)", c.name, ver.Name)
 			t.Run(testName, func(t *testing.T) {
-				goVm := ver.VMFactory(nil, os.Stdout, os.Stderr, testutil.CreateLogger(), testutil.WithRandomization(int64(i*789)))
-				state := mttestutil.GetMtState(t, goVm)
+				goVm := ver.VMFactory(nil, os.Stdout, os.Stderr, testutil.CreateLogger(), mtutil.WithRandomization(int64(i*789)))
+				state := mtutil.GetMtState(t, goVm)
 				// Setup basic getThreadId syscall instruction
 				testutil.StoreInstruction(state.Memory, state.GetPC(), syscallInsn)
 				state.GetRegistersRef()[2] = arch.SysGetTID // Set syscall number
@@ -1085,7 +1086,7 @@ func TestEVM_SchedQuantumThreshold(t *testing.T) {
 				step := state.Step
 
 				// Set up post-state expectations
-				expected := mttestutil.NewExpectedMTState(state)
+				expected := mtutil.NewExpectedState(t, state)
 				if c.shouldPreempt {
 					expected.Step += 1
 					expected.ExpectPreemption(state)

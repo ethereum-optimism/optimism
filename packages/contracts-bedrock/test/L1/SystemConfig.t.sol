@@ -313,9 +313,9 @@ contract SystemConfig_Upgrade_Test is SystemConfig_TestInit {
     }
 }
 
-/// @title SystemConfig_StartBlock_TestFail
+/// @title SystemConfig_StartBlock_Test
 /// @notice Test contract for SystemConfig `startBlock` function.
-contract SystemConfig_StartBlock_TestFail is SystemConfig_TestInit {
+contract SystemConfig_StartBlock_Test is SystemConfig_TestInit {
     /// @notice Tests that startBlock is updated correctly when it's zero.
     function test_startBlock_update_succeeds() external {
         // Wipe out the initialized slot so the proxy can be initialized again
@@ -734,9 +734,10 @@ contract SystemConfig_Guardian_Test is SystemConfig_TestInit {
     }
 }
 
-/// @notice This test is not testing any function directly from SystemConfig, but is indirectly
-///      testing the `SuperchainConfig` inherited contract.
-contract SystemConfig_Test is SystemConfig_TestInit {
+/// @title SystemConfig_Uncategorized_Test
+/// @notice General tests that are not testing any function directly of the `SystemConfig` contract
+///         are testing multiple functions at once.
+contract SystemConfig_SuperchainConfig_Test is SystemConfig_TestInit {
     /// @notice Tests that `superchainConfig()` returns the correct address.
     function test_superchainConfig_succeeds() external view {
         assertEq(address(systemConfig.superchainConfig()), address(superchainConfig));

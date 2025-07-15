@@ -38,6 +38,7 @@ type SuperchainConfigurator interface {
 	WithProxyAdminOwner(address common.Address) SuperchainConfigurator
 	WithGuardian(address common.Address) SuperchainConfigurator
 	WithProtocolVersionsOwner(address common.Address) SuperchainConfigurator
+	WithChallenger(address common.Address) SuperchainConfigurator
 }
 
 type L2Configurator interface {
@@ -129,6 +130,7 @@ func WithDevkeySuperRoles(t require.TestingT, dk devkeys.Keys, l1ID eth.ChainID,
 	configurator.WithGuardian(addrFor(devkeys.SuperchainConfigGuardianKey))
 	configurator.WithProtocolVersionsOwner(addrFor(devkeys.SuperchainDeployerKey))
 	configurator.WithProxyAdminOwner(addrFor(devkeys.L1ProxyAdminOwnerRole))
+	configurator.WithChallenger(addrFor(devkeys.ChallengerRole))
 }
 
 func WithOverrideGuardianToL1PAO(t require.TestingT, dk devkeys.Keys, l1ID eth.ChainID, configurator SuperchainConfigurator) {
@@ -250,6 +252,11 @@ func (c *superchainConfigurator) WithGuardian(address common.Address) Superchain
 
 func (c *superchainConfigurator) WithProtocolVersionsOwner(address common.Address) SuperchainConfigurator {
 	c.builder.intent.SuperchainRoles.ProtocolVersionsOwner = address
+	return c
+}
+
+func (c *superchainConfigurator) WithChallenger(address common.Address) SuperchainConfigurator {
+	c.builder.intent.SuperchainRoles.Challenger = address
 	return c
 }
 

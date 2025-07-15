@@ -5,8 +5,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ethereum-optimism/optimism/op-node/rollup/event"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/event"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/superevents"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
@@ -63,18 +63,19 @@ func TestEventResponse(t *testing.T) {
 
 	// send events and continue to do so until at least one of each type has been received
 	require.Eventually(t, func() bool {
+		testCtx := context.Background()
 		// send in one event of each type
-		emitter.Emit(superevents.CrossUnsafeUpdateEvent{ChainID: chainID})
-		emitter.Emit(superevents.CrossSafeUpdateEvent{ChainID: chainID})
-		emitter.Emit(superevents.FinalizedL2UpdateEvent{ChainID: chainID})
+		emitter.Emit(testCtx, superevents.CrossUnsafeUpdateEvent{ChainID: chainID})
+		emitter.Emit(testCtx, superevents.CrossSafeUpdateEvent{ChainID: chainID})
+		emitter.Emit(testCtx, superevents.FinalizedL2UpdateEvent{ChainID: chainID})
 
-		syncCtrl.subscribeEvents.Send(&types.ManagedEvent{
+		syncCtrl.subscribeEvents.Send(&types.IndexingEvent{
 			UnsafeBlock: &eth.BlockRef{Number: 1}})
-		syncCtrl.subscribeEvents.Send(&types.ManagedEvent{
+		syncCtrl.subscribeEvents.Send(&types.IndexingEvent{
 			DerivationUpdate: &types.DerivedBlockRefPair{Source: eth.BlockRef{Number: 1}, Derived: eth.BlockRef{Number: 2}}})
-		syncCtrl.subscribeEvents.Send(&types.ManagedEvent{
+		syncCtrl.subscribeEvents.Send(&types.IndexingEvent{
 			ExhaustL1: &types.DerivedBlockRefPair{Source: eth.BlockRef{Number: 1}, Derived: eth.BlockRef{Number: 2}}})
-		syncCtrl.subscribeEvents.Send(&types.ManagedEvent{
+		syncCtrl.subscribeEvents.Send(&types.IndexingEvent{
 			DerivationOriginUpdate: &eth.BlockRef{Number: 1}})
 
 		require.NoError(t, ex.Drain())

@@ -36,7 +36,7 @@ type InteropMonitorService struct {
 	finders   map[eth.ChainID]Finder
 	updaters  map[eth.ChainID]Updater
 	collector *MetricCollector
-	expiry    *locks.RWMap[eth.ChainID, eth.NumberAndHash]
+	finalized *locks.RWMap[eth.ChainID, eth.NumberAndHash]
 
 	Version string
 
@@ -55,7 +55,62 @@ func InteropMonitorServiceFromCLIConfig(ctx context.Context, version string, cfg
 	return &ms, nil
 }
 
+// InteropMonitorServiceFromClients creates a new InteropMonitorService with pre-initialized clients
+func InteropMonitorServiceFromClients(
+	ctx context.Context,
+	version string,
+	cfg *CLIConfig,
+	clients map[eth.ChainID]*sources.EthClient,
+	failsafeClients []FailsafeClient,
+	log log.Logger,
+) (*InteropMonitorService, error) {
+	var ms InteropMonitorService
+	if err := ms.initFromClients(ctx, version, cfg, clients, failsafeClients, log); err != nil {
+		return nil, errors.Join(err, ms.Start(ctx))
+	}
+	return &ms, nil
+}
+
 func (ms *InteropMonitorService) initFromCLIConfig(ctx context.Context, version string, cfg *CLIConfig, log log.Logger) error {
+	// Initialize all clients
+	clients, err := ms.initClients(ctx, cfg.L2Rpcs)
+	if err != nil {
+		return fmt.Errorf("failed to init clients: %w", err)
+	}
+
+	// check if failsafe and supervisor endpoints are contradictory
+	if cfg.TriggerFailsafe && len(cfg.SupervisorEndpoints) == 0 {
+		log.Warn("trigger-failsafe is enabled, but no supervisor endpoints are provided")
+	}
+	if !cfg.TriggerFailsafe && len(cfg.SupervisorEndpoints) > 0 {
+		log.Warn("trigger-failsafe is disabled, but supervisor endpoints are provided")
+	}
+
+	// initialize failsafe clients if trigger-failsafe is enabled
+	failsafeClients := make([]FailsafeClient, len(cfg.SupervisorEndpoints))
+	if cfg.TriggerFailsafe {
+		for i, endpoint := range cfg.SupervisorEndpoints {
+			failsafeClient, err := NewSupervisorClient(endpoint, log)
+			if err != nil {
+				return fmt.Errorf("failed to init supervisor client: %w", err)
+			}
+			failsafeClients[i] = failsafeClient
+		}
+
+	}
+
+	return ms.initFromClients(ctx, version, cfg, clients, failsafeClients, log)
+}
+
+// initFromClients initializes the service with pre-created clients
+func (ms *InteropMonitorService) initFromClients(
+	ctx context.Context,
+	version string,
+	cfg *CLIConfig,
+	clients map[eth.ChainID]*sources.EthClient,
+	failsafeClients []FailsafeClient,
+	log log.Logger,
+) error {
 	ms.Version = version
 	ms.Log = log
 
@@ -64,13 +119,7 @@ func (ms *InteropMonitorService) initFromCLIConfig(ctx context.Context, version 
 	ms.PollInterval = cfg.PollInterval
 
 	// Initialize the expiry map
-	ms.expiry = locks.RWMapFromMap(make(map[eth.ChainID]eth.NumberAndHash))
-
-	// Initialize all clients
-	clients, err := ms.initClients(ctx, cfg.L2Rpcs)
-	if err != nil {
-		return fmt.Errorf("failed to init clients: %w", err)
-	}
+	ms.finalized = locks.RWMapFromMap(make(map[eth.ChainID]eth.NumberAndHash))
 
 	// Initialize all updaters
 	ms.updaters = make(map[eth.ChainID]Updater)
@@ -84,25 +133,24 @@ func (ms *InteropMonitorService) initFromCLIConfig(ctx context.Context, version 
 		return fmt.Errorf("failed to init finders: %w", err)
 	}
 
-	// Initialize the metric collector, with access to all updaters
-	ms.collector = NewMetricCollector(ms.Log, ms.Metrics, ms.updaters)
-
-	if err := ms.initMetricsServer(cfg); err != nil {
-		if err := ms.initMetricsServer(cfg); err != nil {
-			return fmt.Errorf("failed to start metrics server: %w", err)
-		}
-		if err := ms.initPProf(cfg); err != nil {
-			return fmt.Errorf("failed to init pprof server: %w", err)
-		}
-		if err := ms.initRPCServer(cfg); err != nil {
-			return fmt.Errorf("failed to start rpc server: %w", err)
-		}
-
-		ms.Metrics.RecordInfo(ms.Version)
-		ms.Metrics.RecordUp()
-		fmt.Println("initialized from cli config")
-		return nil
+	if cfg.MetricsConfig.Enabled {
+		// Initialize the metric collector, with access to all updaters and failsafe client
+		ms.collector = NewMetricCollector(ms.Log, ms.Metrics, ms.updaters, failsafeClients, cfg.TriggerFailsafe)
 	}
+	if err := ms.initMetricsServer(cfg); err != nil {
+		return fmt.Errorf("failed to start metrics server: %w", err)
+	}
+
+	if err := ms.initPProf(cfg); err != nil {
+		return fmt.Errorf("failed to init pprof server: %w", err)
+	}
+	if err := ms.initRPCServer(cfg); err != nil {
+		return fmt.Errorf("failed to start rpc server: %w", err)
+	}
+
+	ms.Metrics.RecordInfo(ms.Version)
+	ms.Metrics.RecordUp()
+
 	return nil
 }
 
@@ -140,7 +188,7 @@ func (ms *InteropMonitorService) dial(ctx context.Context, l2Rpc string) (*sourc
 // initUpdaters initializes the updaters for the given clients
 func (ms *InteropMonitorService) initUpdaters(clients map[eth.ChainID]*sources.EthClient) error {
 	for chainID, ethClient := range clients {
-		updater := NewUpdater(chainID, ethClient, ms.expiry, ms.Log)
+		updater := NewUpdater(chainID, ethClient, ms.finalized, ms.Log)
 		ms.updaters[chainID] = updater
 	}
 	return nil
@@ -166,7 +214,7 @@ func (ms *InteropMonitorService) RouteNewJob(job *Job) {
 
 // SetExpiry sets the expiry for a chain ID
 func (ms *InteropMonitorService) SetExpiry(chainID eth.ChainID, expiry eth.BlockInfo) {
-	ms.expiry.Set(chainID, expiry)
+	ms.finalized.Set(chainID, expiry)
 }
 
 func (ms *InteropMonitorService) initMetrics(cfg *CLIConfig) {
@@ -234,9 +282,11 @@ func (ms *InteropMonitorService) initRPCServer(cfg *CLIConfig) error {
 }
 
 func (ms *InteropMonitorService) Start(ctx context.Context) error {
-	err := ms.collector.Start()
-	if err != nil {
-		return fmt.Errorf("failed to start maintainer: %w", err)
+	if ms.collector != nil {
+		err := ms.collector.Start()
+		if err != nil {
+			return fmt.Errorf("failed to start metric collector: %w", err)
+		}
 	}
 	for _, updater := range ms.updaters {
 		if err := updater.Start(ctx); err != nil {
@@ -282,10 +332,10 @@ func (ms *InteropMonitorService) Stop(ctx context.Context) error {
 		}
 	}
 
-	ms.Log.Info("stopping maintainer")
+	ms.Log.Info("stopping metric collector")
 	if err := ms.collector.Stop(); err != nil {
-		result = errors.Join(result, fmt.Errorf("failed to stop maintainer: %w", err))
-		ms.Log.Error("failed to stop maintainer", "error", err)
+		result = errors.Join(result, fmt.Errorf("failed to stop metric collector: %w", err))
+		ms.Log.Error("failed to stop metric collector", "error", err)
 	}
 
 	ms.Log.Info("stopping rpc server")
@@ -318,7 +368,3 @@ func (ms *InteropMonitorService) Stop(ctx context.Context) error {
 }
 
 var _ cliapp.Lifecycle = (*InteropMonitorService)(nil)
-
-func (ms *InteropMonitorService) Maintainer() *MetricCollector {
-	return ms.collector
-}

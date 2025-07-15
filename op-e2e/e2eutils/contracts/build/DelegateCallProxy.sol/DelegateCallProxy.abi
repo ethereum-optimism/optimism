@@ -12,24 +12,6 @@
   },
   {
     "type": "function",
-    "name": "changeAdmin",
-    "inputs": [
-      {
-        "name": "_proxy",
-        "type": "address",
-        "internalType": "address"
-      },
-      {
-        "name": "_newAdmin",
-        "type": "address",
-        "internalType": "address"
-      }
-    ],
-    "outputs": [],
-    "stateMutability": "nonpayable"
-  },
-  {
-    "type": "function",
     "name": "executeDelegateCall",
     "inputs": [
       {

@@ -5,9 +5,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ethereum-optimism/optimism/op-node/chaincfg"
 	pubsub "github.com/libp2p/go-libp2p-pubsub"
 	"github.com/stretchr/testify/suite"
+
+	"github.com/ethereum-optimism/optimism/op-node/chaincfg"
 )
 
 // PeerParamsTestSuite tests peer parameterization.
@@ -43,7 +44,7 @@ func (testSuite *PeerParamsTestSuite) TestNewPeerScoreThresholds() {
 
 // TestGetPeerScoreParams validates the peer score parameters.
 func (testSuite *PeerParamsTestSuite) TestGetPeerScoreParams_None() {
-	params, err := GetScoringParams("none", chaincfg.OPSepolia())
+	params, err := GetScoringParams("none", 2)
 	testSuite.NoError(err)
 	testSuite.Nil(params)
 }
@@ -62,7 +63,7 @@ func (testSuite *PeerParamsTestSuite) TestGetPeerScoreParams_Light() {
 	testSuite.Equal(0.9261187281287935, decay)
 
 	// Test the params
-	scoringParams, err := GetScoringParams("light", cfg)
+	scoringParams, err := GetScoringParams("light", cfg.BlockTime)
 	peerParams := scoringParams.PeerScoring
 	testSuite.NoError(err)
 	// Topics should not contain options for any block topic
@@ -100,7 +101,7 @@ func (testSuite *PeerParamsTestSuite) TestParamsZeroBlockTime() {
 	cfg := chaincfg.OPSepolia()
 	cfg.BlockTime = 0
 	slot := 2 * time.Second
-	params, err := GetScoringParams("light", cfg)
+	params, err := GetScoringParams("light", cfg.BlockTime)
 	testSuite.NoError(err)
 	testSuite.Equal(params.PeerScoring.DecayInterval, slot)
 	testSuite.Equal(params.ApplicationScoring.DecayInterval, slot)

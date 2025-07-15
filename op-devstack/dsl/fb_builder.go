@@ -1,10 +1,22 @@
 package dsl
 
 import (
+	"time"
+
 	"github.com/ethereum-optimism/optimism/op-devstack/stack"
+	"github.com/ethereum/go-ethereum/log"
 )
 
 type FlashblocksBuilderSet []*FlashblocksBuilderNode
+
+func (f FlashblocksBuilderSet) Leader() *FlashblocksBuilderNode {
+	for _, node := range f {
+		if node.Conductor().IsLeader() {
+			return node
+		}
+	}
+	return nil
+}
 
 func NewFlashblocksBuilderSet(inner []stack.FlashblocksBuilderNode) FlashblocksBuilderSet {
 	flashblocksBuilders := make([]*FlashblocksBuilderNode, len(inner))
@@ -32,4 +44,12 @@ func (c *FlashblocksBuilderNode) String() string {
 
 func (c *FlashblocksBuilderNode) Escape() stack.FlashblocksBuilderNode {
 	return c.inner
+}
+
+func (c *FlashblocksBuilderNode) Conductor() *Conductor {
+	return NewConductor(c.inner.Conductor())
+}
+
+func (c *FlashblocksBuilderNode) ListenFor(logger log.Logger, duration time.Duration, output chan<- []byte, done chan<- struct{}) error {
+	return websocketListenFor(logger, c.inner.FlashblocksWsUrl(), duration, output, done)
 }

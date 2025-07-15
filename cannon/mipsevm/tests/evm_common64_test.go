@@ -6,10 +6,12 @@ import (
 	"slices"
 	"testing"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm"
+	mtutil "github.com/ethereum-optimism/optimism/cannon/mipsevm/multithreaded/testutil"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/testutil"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/versions"
-	"github.com/stretchr/testify/require"
 )
 
 func TestEVM_SingleStep_Operators64(t *testing.T) {
@@ -150,7 +152,7 @@ func TestEVM_SingleStep_Shift64(t *testing.T) {
 			testName := fmt.Sprintf("%v %v", v.Name, tt.name)
 			t.Run(testName, func(t *testing.T) {
 				pc := Word(0x0)
-				goVm := v.VMFactory(nil, os.Stdout, os.Stderr, testutil.CreateLogger(), testutil.WithRandomization(int64(i)), testutil.WithPCAndNextPC(pc))
+				goVm := v.VMFactory(nil, os.Stdout, os.Stderr, testutil.CreateLogger(), mtutil.WithRandomization(int64(i)), mtutil.WithPCAndNextPC(pc))
 				state := goVm.GetState()
 				var insn uint32
 				var rtReg uint32
@@ -164,9 +166,9 @@ func TestEVM_SingleStep_Shift64(t *testing.T) {
 				step := state.GetStep()
 
 				// Setup expectations
-				expected := testutil.NewExpectedState(state)
+				expected := mtutil.NewExpectedState(t, state)
 				expected.ExpectStep()
-				expected.Registers[rdReg] = tt.expectRes
+				expected.ActiveThread().Registers[rdReg] = tt.expectRes
 
 				stepWitness, err := goVm.Step(true)
 				require.NoError(t, err)
@@ -546,7 +548,7 @@ func TestEVM_SingleStep_DCloDClz64(t *testing.T) {
 			testName := fmt.Sprintf("%v (%v)", tt.name, v.Name)
 			t.Run(testName, func(t *testing.T) {
 				// Set up state
-				goVm := v.VMFactory(nil, os.Stdout, os.Stderr, testutil.CreateLogger(), testutil.WithRandomization(int64(i)))
+				goVm := v.VMFactory(nil, os.Stdout, os.Stderr, testutil.CreateLogger(), mtutil.WithRandomization(int64(i)))
 				state := goVm.GetState()
 				insn := 0b01_1100<<26 | rsReg<<21 | rdReg<<11 | tt.funct
 				testutil.StoreInstruction(state.GetMemory(), state.GetPC(), insn)
@@ -555,9 +557,9 @@ func TestEVM_SingleStep_DCloDClz64(t *testing.T) {
 
 				features := versions.FeaturesForVersion(v.Version)
 				if features.SupportDclzDclo {
-					expected := testutil.NewExpectedState(state)
+					expected := mtutil.NewExpectedState(t, state)
 					expected.ExpectStep()
-					expected.Registers[rdReg] = tt.expectedResult
+					expected.ActiveThread().Registers[rdReg] = tt.expectedResult
 					stepWitness, err := goVm.Step(true)
 					require.NoError(t, err)
 					expected.Validate(t, state)

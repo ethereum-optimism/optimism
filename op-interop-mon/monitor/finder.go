@@ -16,8 +16,8 @@ import (
 var ErrBlockNotFound = errors.New("block not found")
 
 // JobFilter is a function that turns any executing messages from a slice of receipts
-// into a slice of jobs which can be added to the Maintainer's inbox
-type JobFilter func(receipts []*types.Receipt) []*Job
+// into a slice of jobs which can be added to an Updater's inbox
+type JobFilter func(receipts []*types.Receipt, executingChain eth.ChainID) []*Job
 
 // NewCallback is a function to be called when a new job is created
 type NewCallback func(*Job)
@@ -35,7 +35,7 @@ type FinderClient interface {
 
 var _ FinderClient = &sources.EthClient{}
 
-// Finders are responsible for finding new jobs from a chain for the Maintainer to track
+// Finders are responsible for finding new jobs from a chain for an Updater to track
 type Finder interface {
 	Start(ctx context.Context) error
 	Stop() error
@@ -165,7 +165,7 @@ func (t *RPCFinder) processBlock(blockInfo eth.BlockInfo, receipts types.Receipt
 			return ErrBlockNotContiguous
 		}
 	}
-	jobs := t.toJobs([]*types.Receipt(receipts))
+	jobs := t.toJobs([]*types.Receipt(receipts), t.chainID)
 	firstSeen := time.Now()
 	for _, job := range jobs {
 		job.firstSeen = firstSeen

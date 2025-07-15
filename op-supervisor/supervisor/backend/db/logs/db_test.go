@@ -1207,16 +1207,34 @@ func TestRewind(t *testing.T) {
 				require.NoError(t, db.SealBlock(createHash(49), bl50, t50))
 				require.NoError(t, db.AddLog(createHash(1), bl50, 0, nil))
 				require.NoError(t, db.AddLog(createHash(2), bl50, 1, nil))
-				// cannot go back to an unknown block
+				// wipes the DB if going back to something before the start
 				inv := &reads.TestInvalidator{}
-				require.ErrorIs(t, db.Rewind(inv, createID(25)), types.ErrSkipped)
-				require.ErrorIs(t, db.Rewind(inv, createID(25)), types.ErrSkipped)
-				require.False(t, inv.Invalidated)
+				require.NoError(t, db.Rewind(inv, createID(25)))
+				require.True(t, inv.Invalidated)
+				require.Equal(t, uint64(0), inv.InvalidatedDerivedTimestamp)
 			},
 			func(t *testing.T, db *DB, m *stubMetrics) {
-				// block 51 is not sealed yet
+				// block 50 and 51 do not exist anymore
+				requireFuture(t, db, 50, 0, t50, createHash(1))
 				requireFuture(t, db, 51, 0, t51, createHash(1))
-				requireFuture(t, db, 51, 0, t51, createHash(1))
+
+				// check if we can insert new data as starting point
+				bl100 := eth.BlockID{Hash: createHash(100), Number: 100}
+				t100, t101 := uint64(1000), uint64(1001)
+				require.NoError(t, db.SealBlock(createHash(99), bl100, t100))
+				last, ok := db.LatestSealedBlock()
+				require.True(t, ok)
+				require.Equal(t, bl100, last)
+
+				require.NoError(t, db.AddLog(createHash(12345), bl100, 0, nil))
+				bl101 := eth.BlockID{Hash: createHash(101), Number: 101}
+				require.NoError(t, db.SealBlock(bl100.Hash, bl101, t101))
+				last, ok = db.LatestSealedBlock()
+				require.True(t, ok)
+				require.Equal(t, bl101, last)
+
+				// and if we can do a lookup into the new data now
+				requireContains(t, db, 101, 0, t101, createHash(12345))
 			})
 	})
 

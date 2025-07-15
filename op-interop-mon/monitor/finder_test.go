@@ -56,7 +56,7 @@ func (m *mockClient) FetchReceiptsByNumber(ctx context.Context, number uint64) (
 	}
 }
 
-func mockReceiptsToCases(receipts []*types.Receipt) []*Job {
+func mockReceiptsToJobs(receipts []*types.Receipt, executingChain eth.ChainID) []*Job {
 	return nil
 }
 
@@ -69,7 +69,7 @@ func mockFinalizedCallback(chainID eth.ChainID, block eth.BlockInfo) {
 func TestRPCFinder_StartStop(t *testing.T) {
 	client := &mockClient{}
 	logger := testlog.Logger(t, slog.LevelDebug)
-	finder := NewFinder(eth.ChainIDFromUInt64(1), client, mockReceiptsToCases, mockCallback, mockFinalizedCallback, 1000, logger)
+	finder := NewFinder(eth.ChainIDFromUInt64(1), client, mockReceiptsToJobs, mockCallback, mockFinalizedCallback, 1000, logger)
 
 	require.NoError(t, finder.Start(context.Background()))
 	require.NoError(t, finder.Stop())
@@ -87,7 +87,7 @@ func TestRPCFinder_processBlock(t *testing.T) {
 	logger := testlog.Logger(t, slog.LevelDebug)
 
 	// create a single empty job regardless of the receipts
-	fakeReceiptsToCases := func(receipts []*types.Receipt) []*Job {
+	fakeReceiptsToCases := func(receipts []*types.Receipt, executingChain eth.ChainID) []*Job {
 		return []*Job{
 			{},
 		}
@@ -169,7 +169,7 @@ func TestRPCFinder_walkback(t *testing.T) {
 
 	logger := testlog.Logger(t, slog.LevelDebug)
 
-	finder := NewFinder(eth.ChainIDFromUInt64(1), client, mockReceiptsToCases, mockCallback, mockFinalizedCallback, 1000, logger)
+	finder := NewFinder(eth.ChainIDFromUInt64(1), client, mockReceiptsToJobs, mockCallback, mockFinalizedCallback, 1000, logger)
 
 	finder.seenBlocks.Add(a0)
 	finder.seenBlocks.Add(a1)
@@ -206,7 +206,7 @@ func TestRPCFinder_finality(t *testing.T) {
 		require.Equal(t, uint64(99), block.NumberU64())
 	}
 	logger := testlog.Logger(t, slog.LevelDebug)
-	finder := NewFinder(eth.ChainIDFromUInt64(1), client, mockReceiptsToCases, mockCallback, testFinalizedCallback, 1000, logger)
+	finder := NewFinder(eth.ChainIDFromUInt64(1), client, mockReceiptsToJobs, mockCallback, testFinalizedCallback, 1000, logger)
 
 	finder.checkFinality(context.Background())
 }

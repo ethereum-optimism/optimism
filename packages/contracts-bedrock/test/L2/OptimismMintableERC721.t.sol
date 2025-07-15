@@ -139,12 +139,12 @@ contract OptimismMintableERC721_Burn_Test is OptimismMintableERC721_TestInit {
     }
 }
 
-/// @title OptimismMintableERC721_SupportsInterfaces_Test
-/// @notice Tests the `supportsInterfaces` function of the `OptimismMintableERC721` contract.
-contract OptimismMintableERC721_SupportsInterfaces_Test is OptimismMintableERC721_TestInit {
+/// @title OptimismMintableERC721_SupportsInterface_Test
+/// @notice Tests the `supportsInterface` function of the `OptimismMintableERC721` contract.
+contract OptimismMintableERC721_SupportsInterface_Test is OptimismMintableERC721_TestInit {
     /// @notice Tests that the `supportsInterface` function returns true for
     ///         IOptimismMintableERC721, IERC721Enumerable, IERC721 and IERC165 interfaces.
-    function test_supportsInterfaces_succeeds() external view {
+    function test_supportsInterface_succeeds() external view {
         // Checks if the contract supports the IOptimismMintableERC721 interface.
         assertTrue(L2NFT.supportsInterface(type(IOptimismMintableERC721).interfaceId));
         // Checks if the contract supports the IERC721Enumerable interface.

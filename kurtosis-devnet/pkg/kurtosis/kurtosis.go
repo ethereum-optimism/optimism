@@ -206,6 +206,10 @@ func (d *KurtosisDeployer) GetEnvironmentInfo(ctx context.Context, s *spec.Encla
 	// Find L1 endpoint
 	finder := NewServiceFinder(
 		inspectResult.UserServices,
+		WithL1Chain(&spec.ChainSpec{
+			NetworkID: deployerData.L1ChainID,
+			Name:      "Ethereum",
+		}),
 		WithL2Chains(s.Chains),
 		WithDepSets(depsets),
 	)

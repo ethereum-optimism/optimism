@@ -6,22 +6,24 @@ import (
 	"math/rand"
 	"testing"
 
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/depset"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
+
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/mock"
-	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/version"
 	rpcclient "github.com/ethereum-optimism/optimism/op-service/client"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
+	oprpc "github.com/ethereum-optimism/optimism/op-service/rpc"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum-optimism/optimism/op-service/testutils"
+	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/depset"
 )
 
 func TestOutputAtBlock(t *testing.T) {
@@ -74,7 +76,7 @@ func TestOutputAtBlock(t *testing.T) {
 	err = json.Unmarshal([]byte(resultTestData), &result)
 	assert.NoError(t, err)
 
-	rpcCfg := &RPCConfig{
+	rpcCfg := &oprpc.CLIConfig{
 		ListenAddr: "localhost",
 		ListenPort: 0,
 	}
@@ -131,7 +133,7 @@ func TestVersion(t *testing.T) {
 	l2Client := &testutils.MockL2Client{}
 	drClient := &mockDriverClient{}
 	safeReader := &mockSafeDBReader{}
-	rpcCfg := &RPCConfig{
+	rpcCfg := &oprpc.CLIConfig{
 		ListenAddr: "localhost",
 		ListenPort: 0,
 	}
@@ -159,7 +161,7 @@ func TestDependencySet(t *testing.T) {
 	l2Client := &testutils.MockL2Client{}
 	drClient := &mockDriverClient{}
 	safeReader := &mockSafeDBReader{}
-	rpcCfg := &RPCConfig{
+	rpcCfg := &oprpc.CLIConfig{
 		ListenAddr: "localhost",
 		ListenPort: 0,
 	}
@@ -210,7 +212,7 @@ func TestSyncStatus(t *testing.T) {
 	status := randomSyncStatus(rng)
 	drClient.On("SyncStatus").Return(status)
 
-	rpcCfg := &RPCConfig{
+	rpcCfg := &oprpc.CLIConfig{
 		ListenAddr: "localhost",
 		ListenPort: 0,
 	}
@@ -253,7 +255,7 @@ func TestSafeHeadAtL1Block(t *testing.T) {
 	}
 	safeReader.ExpectSafeHeadAtL1(l1BlockNum, expectedL1, expectedSafeHead, nil)
 
-	rpcCfg := &RPCConfig{
+	rpcCfg := &oprpc.CLIConfig{
 		ListenAddr: "localhost",
 		ListenPort: 0,
 	}

@@ -1,6 +1,6 @@
 REPO_ROOT := `realpath ..`
 KURTOSIS_DIR := REPO_ROOT + "/kurtosis-devnet"
-ACCEPTOR_VERSION := env_var_or_default("ACCEPTOR_VERSION", "v0.4.1")
+ACCEPTOR_VERSION := env_var_or_default("ACCEPTOR_VERSION", "v1.0.0")
 DOCKER_REGISTRY := env_var_or_default("DOCKER_REGISTRY", "us-docker.pkg.dev/oplabs-tools-artifacts/images")
 ACCEPTOR_IMAGE := env_var_or_default("ACCEPTOR_IMAGE", DOCKER_REGISTRY + "/op-acceptor:" + ACCEPTOR_VERSION)
 
@@ -19,7 +19,7 @@ interop:
 
 
 # Run acceptance tests with mise-managed binary
-acceptance-test devnet="simple" gate="holocene":
+acceptance-test devnet="" gate="holocene":
     #!/usr/bin/env bash
     set -euo pipefail
 
@@ -37,14 +37,31 @@ acceptance-test devnet="simple" gate="holocene":
         # Print which binary is being used
         BINARY_PATH=$(mise which op-acceptor)
         echo "Using mise-managed binary: $BINARY_PATH"
-        go run cmd/main.go \
-            --devnet "{{devnet}}-devnet" \
-            --gate {{gate}} \
-            --testdir "{{REPO_ROOT}}" \
-            --validators ./acceptance-tests.yaml \
-            --log.level debug \
-            --kurtosis-dir "{{KURTOSIS_DIR}}" \
-            --acceptor "$BINARY_PATH"
+
+        # Build the command with conditional parameters
+        CMD_ARGS=(
+            "go" "run" "cmd/main.go"
+            "--gate" "{{gate}}"
+            "--testdir" "{{REPO_ROOT}}"
+            "--validators" "./acceptance-tests.yaml"
+            "--log.level" "debug"
+            "--acceptor" "$BINARY_PATH"
+        )
+
+        # Set orchestrator and devnet based on input
+        if [[ "{{devnet}}" == "" ]]; then
+            # In-process testing
+            CMD_ARGS+=("--orchestrator" "sysgo")
+        else
+            # External devnet testing
+            CMD_ARGS+=("--orchestrator" "sysext")
+            CMD_ARGS+=("--devnet" "{{devnet}}")
+            # Include kurtosis-dir for devnet deployment
+            CMD_ARGS+=("--kurtosis-dir" "{{KURTOSIS_DIR}}")
+        fi
+
+        # Execute the command
+        "${CMD_ARGS[@]}"
     else
         echo "Mise not installed, falling back to Docker..."
         just acceptance-test-docker {{devnet}} {{gate}}
@@ -72,6 +89,7 @@ acceptance-test-docker devnet="simple" gate="holocene":
         --gate {{gate}} \
         --validators /acceptance-tests.yaml \
         --log.level debug
+
 
 
 clean:

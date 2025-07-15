@@ -110,3 +110,7 @@ func (el *L1ELNode) ReorgTriggeredFn(target eth.L1BlockRef, attempts int) CheckF
 func (el *L1ELNode) ReorgTriggered(target eth.L1BlockRef, attempts int) {
 	el.require.NoError(el.ReorgTriggeredFn(target, attempts)())
 }
+
+func (el *L1ELNode) TransactionTimeout() time.Duration {
+	return el.inner.TransactionTimeout()
+}

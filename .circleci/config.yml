@@ -1173,7 +1173,12 @@ jobs:
   op-acceptance-tests:
     parameters:
       devnet:
-        description: The name of the devnet to run the acceptance tests against. The devnet must have a recipe defined in kurtosis-devnet/Justfile with the name <devnet>-devnet.
+        description: |
+          The name of the pre-defined kurtosis devnet to run the acceptance tests against
+          (e.g. 'simple', 'isthmus', 'interop'). Empty string uses
+          in-process testing (sysgo orchestrator). Named devnets use
+          external testing (sysext orchestrator) and must have a
+          recipe defined in kurtosis-devnet/Justfile.
         type: string
         default: ""
       gate:
@@ -1184,45 +1189,39 @@ jobs:
         description: Timeout for when CircleCI kills the job if there's no output
         type: string
         default: 30m
-    machine: true
+    machine:
+      image: ubuntu-2404:current
+      docker_layer_caching: true # Since we are building docker images for components, we'll cache the layers for faster builds
     resource_class: xlarge
     steps:
       - utils/checkout-with-mise
       - install-contracts-dependencies
       - run:
-          name: Setup Kurtosis
+          name: Setup Kurtosis (if needed)
           command: |
-            echo "Setting up Kurtosis..."
+            if [[ "<<parameters.devnet>>" != "" ]]; then
+              echo "Setting up Kurtosis for external devnet testing..."
 
-            # Print Kurtosis version
-            echo "Using Kurtosis from: $(which kurtosis || echo 'not found')"
-            kurtosis version
+              # Print Kurtosis version
+              echo "Using Kurtosis from: $(which kurtosis || echo 'not found')"
+              kurtosis version
 
-            # Start Kurtosis engine
-            echo "Starting Kurtosis engine..."
-            kurtosis engine start || true
+              # Start Kurtosis engine
+              echo "Starting Kurtosis engine..."
+              kurtosis engine start || true
 
-            # Clean old instances
-            echo "Cleaning old instances..."
-            kurtosis clean -a || true
+              # Clean old instances
+              echo "Cleaning old instances..."
+              kurtosis clean -a || true
 
-            # Check engine status
-            kurtosis engine status || true
+              # Check engine status
+              kurtosis engine status || true
 
-            echo "Kurtosis setup complete"
-      # Start our devnet
-      - run:
-          name: Start devnet (<<parameters.devnet>>)
-          working_directory: kurtosis-devnet
-          command: |
-            echo "Starting <<parameters.devnet>> devnet..."
-            just <<parameters.devnet>>-devnet
-
-            echo "<<parameters.devnet>> devnet started successfully"
-
-            # Print devnet info for debugging
-            kurtosis enclave inspect <<parameters.devnet>>-devnet || true
-      # Notify us of a devnet failure
+              echo "Kurtosis setup complete"
+            else
+              echo "Using in-process testing (sysgo orchestrator) - no Kurtosis setup needed"
+            fi
+      # Notify us of a setup failure
       - when:
           condition: on_fail
           steps:
@@ -1258,12 +1257,6 @@ jobs:
             GO111MODULE: "on"
             GOGC: "0"
           command: |
-            # Check if the devnet is running before attempting to run tests
-            if ! kurtosis enclave ls | grep -q "<<parameters.devnet>>-devnet"; then
-              echo "Devnet <<parameters.devnet>>-devnet is not running. Skipping tests."
-              exit 1
-            fi
-
             # Run the tests
             just acceptance-test "<<parameters.devnet>>" "<<parameters.gate>>"
       - run:
@@ -1308,22 +1301,25 @@ jobs:
           steps:
             - store_artifacts:
                 path: ./op-acceptance-tests/logs
-      # Before we have a more sturdy log dump solution, we'll simply use the kurtosis-specific dump command
-      # to store all service logs as job artifacts
+      # Dump kurtosis logs if external devnet was used
       - run:
-          name: Dump kurtosis logs
+          name: Dump kurtosis logs (if external devnet was used)
           when: on_fail
           command: |
-            # Dump logs & specs
-            kurtosis dump ./.kurtosis-dump
+            if [[ "<<parameters.devnet>>" != "" ]]; then
+              # Dump logs & specs
+              kurtosis dump ./.kurtosis-dump
 
-            # Remove spec.json files
-            rm -rf ./.kurtosis-dump/enclaves/**/*.json
+              # Remove spec.json files
+              rm -rf ./.kurtosis-dump/enclaves/**/*.json
 
-            # Remove all unnecessary logs
-            rm -rf ./.kurtosis-dump/enclaves/*/kurtosis-api--*
-            rm -rf ./.kurtosis-dump/enclaves/*/kurtosis-logs-collector--*
-            rm -rf ./.kurtosis-dump/enclaves/*/task-*
+              # Remove all unnecessary logs
+              rm -rf ./.kurtosis-dump/enclaves/*/kurtosis-api--*
+              rm -rf ./.kurtosis-dump/enclaves/*/kurtosis-logs-collector--*
+              rm -rf ./.kurtosis-dump/enclaves/*/task-*
+            else
+              echo "In-process testing was used - no kurtosis logs to dump"
+            fi
       - when:
           condition: always
           steps:
@@ -1651,7 +1647,8 @@ jobs:
       - image: <<pipeline.parameters.default_docker_image>>
     resource_class: large
     steps:
-      - setup_remote_docker
+      - setup_remote_docker:
+          docker_layer_caching: true
       - gcp-cli/install
       - gcp-oidc-authenticate:
           gcp_cred_config_file_path: /tmp/gcp_cred_config.json
@@ -1755,6 +1752,33 @@ jobs:
 
             # Upload to the date-partitioned folder structure
             gsutil cp .metrics--authorship--op-acceptance-tests gs://oplabs-tools-data-public-metrics/metrics-authorship/$FOLDER_NAME/metrics-$CIRCLE_SHA1.csv
+
+  generate-flaky-report:
+    machine: true
+    resource_class: medium
+    steps:
+      - utils/checkout-with-mise
+      - run:
+          name: Generate flaky acceptance tests report
+          command: |
+            # Create reports directory
+            mkdir -p ./op-acceptance-tests/reports
+
+            # Make the script executable
+            chmod +x ./op-acceptance-tests/scripts/generate-flaky-tests-report.sh
+
+            # Run the script
+            ./op-acceptance-tests/scripts/generate-flaky-tests-report.sh \
+              --branch "${CIRCLE_BRANCH:-develop}" \
+              --org "${CIRCLE_PROJECT_USERNAME}" \
+              --repo "${CIRCLE_PROJECT_REPONAME}" \
+              --token "${CIRCLE_API_TOKEN}" \
+              --output-dir "./op-acceptance-tests/reports"
+
+      # Store the flaky test reports
+      - store_artifacts:
+          path: ./op-acceptance-tests/reports
+          destination: flaky-test-reports
 
 
 workflows:
@@ -1895,6 +1919,8 @@ workflows:
             - circleci-repo-readonly-authenticated-github-token
       - go-tests:
           name: go-tests-short
+          no_output_timeout: 19m
+          test_timeout: 20m
           requires:
             - contracts-bedrock-build
             - cannon-prestate-quick
@@ -2167,7 +2193,7 @@ workflows:
           name: op-e2e-cannon-tests
           notify: true
           mentions: "@proofs-team"
-          no_output_timeout: 60m
+          no_output_timeout: 90m
           test_timeout: 120m
           resource_class: ethereum-optimism/latitude-fps-1
           context:
@@ -2343,6 +2369,12 @@ workflows:
           context:
             - circleci-repo-readonly-authenticated-github-token
             - discord
+      # Generate flaky test report
+      - generate-flaky-report:
+          name: generate-flaky-tests-report
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+            - circleci-api-token
 
   # Acceptance tests (pre-merge to develop)
   acceptance-tests-pr:
@@ -2383,6 +2415,12 @@ workflows:
           context:
             - circleci-repo-readonly-authenticated-github-token
             - discord
+      # Generate flaky test report
+      - generate-flaky-report:
+          name: generate-flaky-tests-report
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+            - circleci-api-token
 
   close-issue-workflow:
     when:
