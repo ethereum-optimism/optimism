@@ -6,9 +6,6 @@ synctesters:
     jwt_path: "/tmp/jwt.txt"
   sepolia:
     chain_id: 11155420
-    el_rpc: http://localhost:32988/
+    el_rpc:  https://sepolia.optimism.io
     engine_rpc: https://localhost:9546
     jwt_path: "/tmp/jwt.txt"
-
-
-# t: https://sepolia.optimism.io
