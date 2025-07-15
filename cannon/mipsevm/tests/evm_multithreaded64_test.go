@@ -436,7 +436,7 @@ func TestEVM_MT_SysRead_Preimage64(t *testing.T) {
 	preimageValue := make([]byte, 0, 8)
 	preimageValue = binary.BigEndian.AppendUint32(preimageValue, 0x12_34_56_78)
 	preimageValue = binary.BigEndian.AppendUint32(preimageValue, 0x98_76_54_32)
-	initState := func(testCase testCase, state *multithreaded.State, vm VersionedVMTestCase) {
+	initState := func(testCase testCase, state *multithreaded.State, vm VersionedVMTestCase, r *testutil.RandHelper) {
 		state.PreimageKey = testutil.Keccak256Preimage(preimageValue)
 		state.PreimageOffset = testCase.preimageOffset
 		state.GetRegistersRef()[2] = arch.SysRead
@@ -597,7 +597,7 @@ func TestEVM_MT_StoreOpsClearMemReservation64(t *testing.T) {
 	//rt := Word(0x12_34_56_78_12_34_56_78)
 	baseReg := uint32(5)
 	rtReg := uint32(6)
-	initState := func(testCase testCase, state *multithreaded.State, vm VersionedVMTestCase) {
+	initState := func(testCase testCase, state *multithreaded.State, vm VersionedVMTestCase, r *testutil.RandHelper) {
 		insn := uint32((testCase.opcode << 26) | (baseReg & 0x1F << 21) | (rtReg & 0x1F << 16) | (0xFFFF & testCase.offset))
 
 		state.GetRegistersRef()[rtReg] = rt

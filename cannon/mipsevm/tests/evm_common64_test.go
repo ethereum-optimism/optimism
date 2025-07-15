@@ -554,7 +554,7 @@ func TestEVM_SingleStep_DCloDClz64(t *testing.T) {
 		return features.SupportDclzDclo
 	}), "dclz/dclo feature not tested")
 
-	initState := func(tt testCase, state *multithreaded.State, vm VersionedVMTestCase) {
+	initState := func(tt testCase, state *multithreaded.State, vm VersionedVMTestCase, r *testutil.RandHelper) {
 		testutil.StoreInstruction(state.GetMemory(), state.GetPC(), insnFn(tt))
 		state.GetRegistersRef()[rsReg] = tt.rs
 	}
