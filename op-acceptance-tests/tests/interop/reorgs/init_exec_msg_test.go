@@ -5,7 +5,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/davecgh/go-spew/spew"
 	"github.com/ethereum-optimism/optimism/devnet-sdk/contracts/bindings"
 	"github.com/ethereum-optimism/optimism/devnet-sdk/contracts/constants"
 	"github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/interop"
@@ -244,8 +243,4 @@ func TestReorgInitExecMsg(gt *testing.T) {
 		return true, nil
 	})
 	require.NoError(t, err, "Expected to get same safe ref on both supervisor and sequencer eventually")
-
-	sys.L2ChainA.PrintChain()
-	sys.L2ChainB.PrintChain()
-	spew.Dump(sys.Supervisor.FetchSyncStatus())
 }

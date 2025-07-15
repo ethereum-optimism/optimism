@@ -6,7 +6,7 @@ import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
 import { ISystemConfig } from "interfaces/L1/ISystemConfig.sol";
 import { IProxyAdmin } from "interfaces/universal/IProxyAdmin.sol";
 
-interface IStandardValidator {
+interface IOPContractsManagerStandardValidator {
     struct Implementations {
         address l1ERC721BridgeImpl;
         address optimismPortalImpl;
@@ -63,7 +63,7 @@ interface IStandardValidator {
     function systemConfigVersion() external pure returns (string memory);
     function withdrawalDelaySeconds() external view returns (uint256);
 
-    function validate(
+    function validateWithOverrides(
         ValidationInput memory _input,
         bool _allowFailure,
         ValidationOverrides memory _overrides
@@ -74,7 +74,7 @@ interface IStandardValidator {
     function validate(ValidationInput memory _input, bool _allowFailure) external view returns (string memory);
 
     function __constructor__(
-        IStandardValidator.Implementations memory _implementations,
+        Implementations memory _implementations,
         ISuperchainConfig _superchainConfig,
         address _l1PAOMultisig,
         address _challenger,

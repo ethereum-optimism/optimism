@@ -25,7 +25,7 @@ type SyncNodeSetup interface {
 
 type SyncSource interface {
 	Contains(ctx context.Context, query types.ContainsQuery) (includedIn types.BlockSeal, err error)
-	BlockRefByNumber(ctx context.Context, number uint64) (eth.BlockRef, error)
+	L2BlockRefByNumber(ctx context.Context, number uint64) (eth.L2BlockRef, error)
 	FetchReceipts(ctx context.Context, blockHash common.Hash) (gethtypes.Receipts, error)
 	ChainID(ctx context.Context) (eth.ChainID, error)
 	OutputV0AtTimestamp(ctx context.Context, timestamp uint64) (*eth.OutputV0, error)
@@ -38,7 +38,6 @@ type SyncSource interface {
 type SyncControl interface {
 	SubscribeEvents(ctx context.Context, c chan *types.IndexingEvent) (ethereum.Subscription, error)
 	PullEvent(ctx context.Context) (*types.IndexingEvent, error)
-	BlockRefByNumber(ctx context.Context, number uint64) (eth.BlockRef, error)
 	L2BlockRefByNumber(ctx context.Context, number uint64) (eth.L2BlockRef, error)
 
 	UpdateCrossUnsafe(ctx context.Context, id eth.BlockID) error

@@ -21,7 +21,10 @@
     - [Expect Revert with Low Level Calls](#expect-revert-with-low-level-calls)
     - [Organizing Principles](#organizing-principles)
     - [Test function naming convention](#test-function-naming-convention)
+      - [Detailed Naming Rules](#detailed-naming-rules)
     - [Contract Naming Conventions](#contract-naming-conventions)
+    - [Test File Organization](#test-file-organization)
+    - [Test Naming Exceptions](#test-naming-exceptions)
 - [Withdrawing From Fee Vaults](#withdrawing-from-fee-vaults)
 
 <!-- END doctoc generated TOC please keep comment here to allow auto update -->
@@ -156,11 +159,13 @@ Tests are written using Foundry.
 
 All test contracts and functions should be organized and named according to the following guidelines.
 
-These guidelines are also encoded in a script which can be run with:
+These guidelines are enforced by a validation script which can be run with:
 
 ```
-tsx scripts/checks/check-test-names.ts
+just lint-forge-tests-check-no-build
 ```
+
+The script validates both function naming conventions and contract structure requirements.
 
 #### Expect Revert with Low Level Calls
 
@@ -172,9 +177,7 @@ _Note: This is a work in progress, not all test files are compliant with these g
 #### Organizing Principles
 
 - Solidity `contract`s are used to organize the test suite similar to how mocha uses describe.
-- Every non-trivial state changing function should have a separate contract for happy and sad path
-  tests. This helps to make it very obvious where there are not yet sad path tests.
-- Simpler functions like getters and setters are grouped together into test contracts.
+- Every function should have a separate contract for testing. This helps to make it very obvious where there are not yet tests and provides clear organization by function.
 
 #### Test function naming convention
 
@@ -192,16 +195,57 @@ The parts are: `[method]_[FunctionName]_[reason]_[status]`, where:
   - `fails`: used for tests which 'fail' in some way other than reverting
   - `benchmark`: used for tests intended to establish gas costs
 
+##### Detailed Naming Rules
+
+Test function names must follow these strict formatting rules:
+
+- **camelCase**: Each underscore-separated part must start with a lowercase letter
+  - Valid: `test_something_succeeds`
+  - Invalid: `test_Something_succeeds`
+- **No double underscores**: Empty parts between underscores are not allowed
+  - Valid: `test_something_succeeds`
+  - Invalid: `test__something_succeeds`
+- **Part count**: Must have exactly 3 or 4 parts separated by underscores
+- **Failure tests**: Tests ending with `reverts` or `fails` must have 4 parts to include the failure reason
+  - Valid: `test_transfer_insufficientBalance_reverts`
+  - Invalid: `test_transfer_reverts`
+- **Benchmark variants**:
+  - Basic: `test_something_benchmark`
+  - Numbered: `test_something_benchmark_123`
+
 #### Contract Naming Conventions
 
-Test contracts should be named one of the following according to their use:
+Test contracts should be organized with one contract per function being tested, following these naming patterns:
 
-- `TargetContract_Init` for contracts that perform basic setup to be reused in other test contracts.
-- `TargetContract_Function_Test` for contracts containing happy path tests for a given function.
-- `TargetContract_Function_TestFail` for contracts containing sad path tests for a given function.
+- `<ContractName>_TestInit` for contracts that perform initialization/setup to be reused in other test contracts
+- `<ContractName>_<FunctionName>_Test` for contracts containing tests for a specific function
+- `<ContractName>_Harness` for basic harness contracts that extend functionality for testing
+- `<ContractName>_<Descriptor>_Harness` for specialized harness contracts (e.g., `OPContractsManager_Upgrade_Harness`)
+- `<ContractName>_Uncategorized_Test` for miscellaneous tests that don't fit specific function categories
 
-To minimize clutter, getter functions can be grouped together into a single test contract,
-  ie. `TargetContract_Getters_Test`.
+**Legacy Notice:** The older `_TestFail` suffix is deprecated and should be updated to `_Test` with appropriate failure test naming.
+
+#### Test File Organization
+
+Test files must follow specific organizational requirements:
+
+- **File location**: Test files must be placed in the `test/` directory with `.t.sol` extension
+- **Source correspondence**: Each test file should have a corresponding source file in the `src/` directory
+  - Test: `test/L1/OptimismPortal.t.sol`
+  - Source: `src/L1/OptimismPortal.sol`
+- **Name matching**: The base contract name (before first underscore) must match the filename
+- **Function validation**: Function names referenced in test contract names must exist in the source contract's public interface
+
+#### Test Naming Exceptions
+
+Certain types of tests are excluded from standard naming conventions:
+
+- **Invariant tests** (`test/invariants/`): Use specialized invariant testing patterns
+- **Integration tests** (`test/integration/`): May test multiple contracts together
+- **Script tests** (`test/scripts/`): Test deployment and utility scripts
+- **Library tests** (`test/libraries/`): May have different artifact structures
+- **Formal verification** (`test/kontrol/`): Use specialized tooling conventions
+- **Vendor tests** (`test/vendor/`): Test external code with different patterns
 
 ## Withdrawing From Fee Vaults
 

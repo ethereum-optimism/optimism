@@ -31,6 +31,7 @@ type Orchestrator struct {
 	// options
 	batcherOptions          []BatcherOption
 	proposerOptions         []ProposerOption
+	l2CLOptions             []L2CLOption
 	deployerPipelineOptions []DeployerPipelineOption
 
 	superchains    locks.RWMap[stack.SuperchainID, *Superchain]

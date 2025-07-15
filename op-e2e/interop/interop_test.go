@@ -326,10 +326,10 @@ func TestInteropBlockBuilding(t *testing.T) {
 				_, err := s2.ValidateMessage(ctx, chainB, "Alice", identifier, invalidPayloadHash, gethCore.ErrTxFilteredOut)
 				require.ErrorContains(t, err, gethCore.ErrTxFilteredOut.Error())
 			} else {
-				// We expect the miner to be unable to include this tx, and confirmation to thus time out, if mempool filtering is disabled.
+				// The miner will include the tx in the block if mempool filtering is disabled, because interop checks don't happen during block building
+				// this includes invalid interop messages
 				_, err := s2.ValidateMessage(ctx, chainB, "Alice", identifier, invalidPayloadHash, nil)
-				require.ErrorIs(t, err, ctx.Err())
-				require.ErrorIs(t, ctx.Err(), context.DeadlineExceeded)
+				require.NoError(t, err)
 			}
 		}
 

@@ -109,6 +109,16 @@ func setupLoadTest(gt *testing.T) (devtest.T, *L2, *L2) {
 		gt.Skip("skipping load test in short mode")
 	}
 	t := devtest.SerialT(gt)
+
+	ctx, cancel := context.WithTimeout(t.Ctx(), 3*time.Minute)
+	if timeoutStr, exists := os.LookupEnv("NAT_INTEROP_LOADTEST_TIMEOUT"); exists {
+		timeout, err := time.ParseDuration(timeoutStr)
+		t.Require().NoError(err)
+		ctx, cancel = context.WithTimeout(ctx, timeout)
+	}
+	t = t.WithCtx(ctx)
+	t.Cleanup(cancel)
+
 	l2A, l2B := setupL2s(t)
 	collectMetrics(t, l2A.BlockTime)
 	return t, l2A, l2B

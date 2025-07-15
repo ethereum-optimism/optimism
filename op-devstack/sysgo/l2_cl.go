@@ -125,6 +125,14 @@ func (n *L2CLNode) Stop() {
 	n.opNode = nil
 }
 
+type L2CLOption func(p devtest.P, id stack.L2CLNodeID, cfg *config.Config)
+
+func WithL2CLOption(opt L2CLOption) stack.Option[*Orchestrator] {
+	return stack.BeforeDeploy(func(o *Orchestrator) {
+		o.l2CLOptions = append(o.l2CLOptions, opt)
+	})
+}
+
 func WithL2CLNode(l2CLID stack.L2CLNodeID, isSequencer bool, indexingMode bool, l1CLID stack.L1CLNodeID, l1ELID stack.L1ELNodeID, l2ELID stack.L2ELNodeID) stack.Option[*Orchestrator] {
 	return stack.AfterDeploy(func(orch *Orchestrator) {
 		p := orch.P().WithCtx(stack.ContextWithID(orch.P().Ctx(), l2CLID))
@@ -261,6 +269,9 @@ func WithL2CLNode(l2CLID stack.L2CLNodeID, isSequencer bool, indexingMode bool, 
 			AltDA:                           altda.CLIConfig{},
 			IgnoreMissingPectraBlobSchedule: false,
 			ExperimentalOPStackAPI:          true,
+		}
+		for _, opt := range orch.l2CLOptions {
+			opt(orch.P(), l2CLID, nodeCfg)
 		}
 		l2CLNode := &L2CLNode{
 			id:     l2CLID,

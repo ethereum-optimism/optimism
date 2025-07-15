@@ -13,6 +13,7 @@ type SuperchainRoles struct {
 	SuperchainProxyAdminOwner common.Address
 	SuperchainGuardian        common.Address
 	ProtocolVersionsOwner     common.Address
+	Challenger                common.Address
 }
 
 type OpChainRoles struct {

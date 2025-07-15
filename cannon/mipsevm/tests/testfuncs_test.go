@@ -94,61 +94,54 @@ type mulDivTestCase struct {
 	revertMsg string
 }
 
-func testMulDiv(t *testing.T, cases []mulDivTestCase, mips32Insn bool) {
-	versions := GetMipsVersionTestCases(t)
-	for _, v := range versions {
-		for i, tt := range cases {
-			if mips32Insn {
-				tt.rs = randomizeUpperWord(signExtend64(tt.rs))
-				tt.rt = randomizeUpperWord(signExtend64(tt.rt))
-				tt.expectHi = signExtend64(tt.expectHi)
-				tt.expectLo = signExtend64(tt.expectLo)
-				tt.expectRes = signExtend64(tt.expectRes)
+func (c mulDivTestCase) Name() string {
+	return c.name
+}
+
+func testMulDiv(t *testing.T, templateCases []mulDivTestCase, mips32Insn bool) {
+	// Set up cases
+	var cases []mulDivTestCase
+	for _, tt := range templateCases {
+		if mips32Insn {
+			tt.rs = randomizeUpperWord(signExtend64(tt.rs))
+			tt.rt = randomizeUpperWord(signExtend64(tt.rt))
+			tt.expectHi = signExtend64(tt.expectHi)
+			tt.expectLo = signExtend64(tt.expectLo)
+			tt.expectRes = signExtend64(tt.expectRes)
+		}
+		cases = append(cases, tt)
+	}
+
+	baseReg := uint32(0x9)
+	rtReg := uint32(0xa)
+	pc := arch.Word(0)
+
+	initState := func(tt mulDivTestCase, state *multithreaded.State, vm VersionedVMTestCase) {
+		insn := tt.opcode<<26 | baseReg<<21 | rtReg<<16 | tt.rdReg<<11 | tt.funct
+		state.GetRegistersRef()[rtReg] = tt.rt
+		state.GetRegistersRef()[baseReg] = tt.rs
+		testutil.StoreInstruction(state.GetMemory(), pc, insn)
+	}
+
+	setExpectations := func(tt mulDivTestCase, expected *mtutil.ExpectedState, vm VersionedVMTestCase) ExpectedExecResult {
+		if tt.panicMsg != "" {
+			return ExpectPanic(tt.panicMsg, tt.revertMsg)
+		} else {
+			expected.ExpectStep()
+			if tt.expectRes != 0 {
+				expected.ActiveThread().Registers[tt.rdReg] = tt.expectRes
+			} else {
+				expected.ActiveThread().HI = tt.expectHi
+				expected.ActiveThread().LO = tt.expectLo
 			}
-
-			testName := fmt.Sprintf("%v (%v)", tt.name, v.Name)
-			t.Run(testName, func(t *testing.T) {
-				goVm := v.VMFactory(nil, os.Stdout, os.Stderr, testutil.CreateLogger(), mtutil.WithRandomization(int64(i)), mtutil.WithPC(0), mtutil.WithNextPC(4))
-				state := goVm.GetState()
-				var insn uint32
-				baseReg := uint32(0x9)
-				rtReg := uint32(0xa)
-
-				insn = tt.opcode<<26 | baseReg<<21 | rtReg<<16 | tt.rdReg<<11 | tt.funct
-				state.GetRegistersRef()[rtReg] = tt.rt
-				state.GetRegistersRef()[baseReg] = tt.rs
-				testutil.StoreInstruction(state.GetMemory(), 0, insn)
-
-				if tt.panicMsg != "" {
-					proofData := v.ProofGenerator(t, goVm.GetState())
-					require.PanicsWithValue(t, tt.panicMsg, func() {
-						_, _ = goVm.Step(
-							false)
-					})
-					testutil.AssertEVMReverts(t, state, v.Contracts, nil, proofData, testutil.CreateErrorStringMatcher(tt.revertMsg))
-					return
-				}
-
-				step := state.GetStep()
-				// Setup expectations
-				expected := mtutil.NewExpectedState(t, state)
-				expected.ExpectStep()
-				if tt.expectRes != 0 {
-					expected.ActiveThread().Registers[tt.rdReg] = tt.expectRes
-				} else {
-					expected.ActiveThread().HI = tt.expectHi
-					expected.ActiveThread().LO = tt.expectLo
-				}
-
-				stepWitness, err := goVm.Step(true)
-				require.NoError(t, err)
-
-				// Check expectations
-				expected.Validate(t, state)
-				testutil.ValidateEVM(t, stepWitness, step, goVm, v.StateHashFn, v.Contracts)
-			})
+			return ExpectNormalExecution()
 		}
 	}
+
+	NewDiffTester((mulDivTestCase).Name).
+		InitState(initState, mtutil.WithPCAndNextPC(pc)).
+		SetExpectations(setExpectations).
+		Run(t, cases)
 }
 
 type loadStoreTestCase struct {
@@ -162,45 +155,43 @@ type loadStoreTestCase struct {
 	expectRes    Word
 }
 
+func (t loadStoreTestCase) effAddr() arch.Word {
+	addr := t.base + Word(t.imm)
+	return arch.AddressMask & addr
+}
+
+func (t loadStoreTestCase) Name() string {
+	return t.name
+}
+
 func testLoadStore(t *testing.T, cases []loadStoreTestCase) {
 	baseReg := uint32(9)
 	rtReg := uint32(8)
+	pc := arch.Word(0)
 
-	for _, v := range GetMipsVersionTestCases(t) {
-		for i, tt := range cases {
-			testName := fmt.Sprintf("%v %v", v.Name, tt.name)
-			t.Run(testName, func(t *testing.T) {
-				addr := tt.base + Word(tt.imm)
-				effAddr := arch.AddressMask & addr
+	initState := func(tt loadStoreTestCase, state *multithreaded.State, vm VersionedVMTestCase) {
+		insn := tt.opcode<<26 | baseReg<<21 | rtReg<<16 | tt.imm
 
-				goVm := v.VMFactory(nil, os.Stdout, os.Stderr, testutil.CreateLogger(), mtutil.WithRandomization(int64(i)), mtutil.WithPCAndNextPC(0))
-				state := goVm.GetState()
-
-				insn := tt.opcode<<26 | baseReg<<21 | rtReg<<16 | uint32(tt.imm)
-				state.GetRegistersRef()[rtReg] = tt.rt
-				state.GetRegistersRef()[baseReg] = tt.base
-
-				testutil.StoreInstruction(state.GetMemory(), 0, insn)
-				state.GetMemory().SetWord(effAddr, tt.memVal)
-				step := state.GetStep()
-
-				// Setup expectations
-				expected := mtutil.NewExpectedState(t, state)
-				expected.ExpectStep()
-				if tt.expectMemVal != 0 {
-					expected.ExpectMemoryWriteWord(effAddr, tt.expectMemVal)
-				} else {
-					expected.ActiveThread().Registers[rtReg] = tt.expectRes
-				}
-				stepWitness, err := goVm.Step(true)
-				require.NoError(t, err)
-
-				// Check expectations
-				expected.Validate(t, state)
-				testutil.ValidateEVM(t, stepWitness, step, goVm, v.StateHashFn, v.Contracts)
-			})
-		}
+		testutil.StoreInstruction(state.GetMemory(), pc, insn)
+		state.GetMemory().SetWord(tt.effAddr(), tt.memVal)
+		state.GetRegistersRef()[rtReg] = tt.rt
+		state.GetRegistersRef()[baseReg] = tt.base
 	}
+
+	setExpectations := func(tt loadStoreTestCase, expect *mtutil.ExpectedState, vm VersionedVMTestCase) ExpectedExecResult {
+		expect.ExpectStep()
+		if tt.expectMemVal != 0 {
+			expect.ExpectMemoryWrite(tt.effAddr(), tt.expectMemVal)
+		} else {
+			expect.ActiveThread().Registers[rtReg] = tt.expectRes
+		}
+		return ExpectNormalExecution()
+	}
+
+	NewDiffTester((loadStoreTestCase).Name).
+		InitState(initState, mtutil.WithPCAndNextPC(pc)).
+		SetExpectations(setExpectations).
+		Run(t, cases)
 }
 
 type branchTestCase struct {
@@ -269,9 +260,7 @@ func (m MemoryReservationTestCase) SetupState(state *multithreaded.State, effAdd
 
 func (m MemoryReservationTestCase) SetExpectations(expected *mtutil.ExpectedState) {
 	if m.shouldClearReservation {
-		expected.LLReservationStatus = multithreaded.LLStatusNone
-		expected.LLAddress = 0
-		expected.LLOwnerThread = 0
+		expected.ExpectMemoryReservationCleared()
 	}
 }
 

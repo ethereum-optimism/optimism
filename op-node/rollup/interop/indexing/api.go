@@ -56,10 +56,6 @@ func (ib *InteropAPI) FetchReceipts(ctx context.Context, blockHash common.Hash) 
 	return ib.backend.FetchReceipts(ctx, blockHash)
 }
 
-func (ib *InteropAPI) BlockRefByNumber(ctx context.Context, num uint64) (eth.BlockRef, error) {
-	return ib.backend.BlockRefByNumber(ctx, num)
-}
-
 func (ib *InteropAPI) L2BlockRefByNumber(ctx context.Context, num uint64) (eth.L2BlockRef, error) {
 	return ib.backend.L2BlockRefByNumber(ctx, num)
 }

@@ -1,13 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
-struct Identifier {
-    address origin;
-    uint256 blockNumber;
-    uint256 logIndex;
-    uint256 timestamp;
-    uint256 chainId;
-}
+import { Identifier } from "interfaces/L2/ICrossL2Inbox.sol";
 
 /// @title IL2ToL2CrossDomainMessenger
 /// @notice Interface for the L2ToL2CrossDomainMessenger contract.
