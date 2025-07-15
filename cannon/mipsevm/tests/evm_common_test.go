@@ -536,39 +536,49 @@ func TestEVM_SingleStep_JrJalr(t *testing.T) {
 }
 
 func TestEVM_SingleStep_Sync(t *testing.T) {
-	versions := GetMipsVersionTestCases(t)
-	syncInsn := uint32(0x0000_000F)
-	for _, v := range versions {
-		testName := fmt.Sprintf("Sync (%v)", v.Name)
-		t.Run(testName, func(t *testing.T) {
-			goVm := v.VMFactory(nil, os.Stdout, os.Stderr, testutil.CreateLogger(), mtutil.WithRandomization(int64(248)))
-			state := goVm.GetState()
-			testutil.StoreInstruction(state.GetMemory(), state.GetPC(), syncInsn)
-			step := state.GetStep()
-
-			// Setup expectations
-			expected := mtutil.NewExpectedState(t, state)
-			expected.ExpectStep()
-
-			stepWitness, err := goVm.Step(true)
-			require.NoError(t, err)
-			// Check expectations
-			expected.Validate(t, state)
-			testutil.ValidateEVM(t, stepWitness, step, goVm, v.StateHashFn, v.Contracts)
-		})
+	type testCase struct {
+		name string
 	}
+
+	testNamer := func(tc testCase) string {
+		return tc.name
+	}
+
+	cases := []testCase{
+		{name: "simple"},
+	}
+
+	initState := func(tt testCase, state *multithreaded.State, vm VersionedVMTestCase) {
+		syncInsn := uint32(0x0000_000F)
+		testutil.StoreInstruction(state.GetMemory(), state.GetPC(), syncInsn)
+	}
+
+	setExpectations := func(tt testCase, expected *mtutil.ExpectedState, vm VersionedVMTestCase) ExpectedExecResult {
+		expected.ExpectStep()
+		return ExpectNormalExecution()
+	}
+
+	NewDiffTester(testNamer).
+		InitState(initState).
+		SetExpectations(setExpectations).
+		Run(t, cases)
 }
 
 func TestEVM_MMap(t *testing.T) {
-	versions := GetMipsVersionTestCases(t)
-	cases := []struct {
+	type testCase struct {
 		name         string
 		heap         arch.Word
 		address      arch.Word
 		size         arch.Word
 		shouldFail   bool
 		expectedHeap arch.Word
-	}{
+	}
+
+	testNamer := func(tc testCase) string {
+		return tc.name
+	}
+
+	cases := []testCase{
 		{name: "Increment heap by max value", heap: program.HEAP_START, address: 0, size: ^arch.Word(0), shouldFail: true},
 		{name: "Increment heap to 0", heap: program.HEAP_START, address: 0, size: ^arch.Word(0) - program.HEAP_START + 1, shouldFail: true},
 		{name: "Increment heap to previous page", heap: program.HEAP_START, address: 0, size: ^arch.Word(0) - program.HEAP_START - memory.PageSize + 1, shouldFail: true},
@@ -580,44 +590,36 @@ func TestEVM_MMap(t *testing.T) {
 		{name: "Request specific address", heap: program.HEAP_START, address: 0x50_00_00_00, size: 0, shouldFail: false, expectedHeap: program.HEAP_START},
 	}
 
-	for _, v := range versions {
-		for i, c := range cases {
-			testName := fmt.Sprintf("%v (%v)", c.name, v.Name)
-			t.Run(testName, func(t *testing.T) {
-				goVm := v.VMFactory(nil, os.Stdout, os.Stderr, testutil.CreateLogger(), mtutil.WithRandomization(int64(i)), mtutil.WithHeap(c.heap))
-				state := goVm.GetState()
-
-				testutil.StoreInstruction(state.GetMemory(), state.GetPC(), syscallInsn)
-				state.GetRegistersRef()[2] = arch.SysMmap
-				state.GetRegistersRef()[4] = c.address
-				state.GetRegistersRef()[5] = c.size
-				step := state.GetStep()
-
-				expected := mtutil.NewExpectedState(t, state)
-				expected.ExpectStep()
-				if c.shouldFail {
-					expected.ActiveThread().Registers[2] = exec.MipsEINVAL
-					expected.ActiveThread().Registers[7] = exec.SysErrorSignal
-				} else {
-					expected.Heap = c.expectedHeap
-					if c.address == 0 {
-						expected.ActiveThread().Registers[2] = state.GetHeap()
-						expected.ActiveThread().Registers[7] = 0
-					} else {
-						expected.ActiveThread().Registers[2] = c.address
-						expected.ActiveThread().Registers[7] = 0
-					}
-				}
-
-				stepWitness, err := goVm.Step(true)
-				require.NoError(t, err)
-
-				// Check expectations
-				expected.Validate(t, state)
-				testutil.ValidateEVM(t, stepWitness, step, goVm, v.StateHashFn, v.Contracts)
-			})
-		}
+	initState := func(c testCase, state *multithreaded.State, vm VersionedVMTestCase) {
+		testutil.StoreInstruction(state.GetMemory(), state.GetPC(), syscallInsn)
+		state.GetRegistersRef()[2] = arch.SysMmap
+		state.GetRegistersRef()[4] = c.address
+		state.GetRegistersRef()[5] = c.size
+		state.Heap = c.heap
 	}
+
+	setExpectations := func(c testCase, expected *mtutil.ExpectedState, vm VersionedVMTestCase) ExpectedExecResult {
+		expected.ExpectStep()
+		if c.shouldFail {
+			expected.ActiveThread().Registers[2] = exec.MipsEINVAL
+			expected.ActiveThread().Registers[7] = exec.SysErrorSignal
+		} else {
+			expected.Heap = c.expectedHeap
+			if c.address == 0 {
+				expected.ActiveThread().Registers[2] = c.heap
+				expected.ActiveThread().Registers[7] = 0
+			} else {
+				expected.ActiveThread().Registers[2] = c.address
+				expected.ActiveThread().Registers[7] = 0
+			}
+		}
+		return ExpectNormalExecution()
+	}
+
+	NewDiffTester(testNamer).
+		InitState(initState).
+		SetExpectations(setExpectations).
+		Run(t, cases)
 }
 
 func TestEVM_SysGetRandom_isImplemented(t *testing.T) {
