@@ -341,7 +341,7 @@ func testUnsupportedSyscall(t *testing.T, vm VersionedVMTestCase, unsupportedSys
 
 	var cases []testCase
 	for _, syscallNum := range unsupportedSyscalls {
-		name := fmt.Sprintf("Unsupported syscall %d", syscallNum)
+		name := fmt.Sprintf("Syscall %d", syscallNum)
 		cases = append(cases, testCase{name: name, sycallNum: arch.Word(syscallNum)})
 	}
 
