@@ -128,7 +128,7 @@ func NewMinimalWithNChains(t devtest.T, n int) *MinimalWithNChains {
 	l1Net := system.L1Network(match.FirstL1Network)
 	l2Networks := system.L2Networks()
 
-	t.Gate().Equal(len(l2Networks), n, "expected exactly %d L2 networks", n)
+	t.Gate().GreaterOrEqual(len(l2Networks), n, "expected at least %d L2 networks", n)
 
 	out := &MinimalWithNChains{
 		Log:           t.Logger(),
