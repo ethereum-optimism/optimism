@@ -58,14 +58,13 @@ func (s *SyncTester) Init(ctx context.Context) (string, error) {
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	id := session.ID()
-	if existing, ok := s.sessions[id]; ok {
+	if existing, ok := s.sessions[session.SessionID]; ok {
 		s.log.Info("Using existing session", "session", existing)
 	} else {
-		s.sessions[id] = session
+		s.sessions[session.SessionID] = session
 		s.log.Info("Initialized new session", "session", session)
 	}
-	return id, nil
+	return session.SessionID, nil
 }
 
 func (s *SyncTester) ChainID(ctx context.Context) (eth.ChainID, error) {

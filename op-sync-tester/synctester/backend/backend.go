@@ -2,8 +2,6 @@ package backend
 
 import (
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
 	"errors"
 	"fmt"
 	"sort"
@@ -25,15 +23,10 @@ type sessionKeyType struct{}
 var CtxKeySession = sessionKeyType{}
 
 type Session struct {
+	SessionID string
 	Head      uint64
 	Safe      uint64
 	Finalized uint64
-}
-
-func (s *Session) ID() string {
-	key := fmt.Sprintf("head=%d&safe=%d&finalized=%d", s.Head, s.Safe, s.Finalized)
-	hash := sha256.Sum256([]byte(key))
-	return hex.EncodeToString(hash[:8])
 }
 
 type APIRouter interface {
@@ -76,11 +69,12 @@ func FromConfig(log log.Logger, m metrics.Metricer, cfg *config.Config, router A
 	// Set up the sync tester routes
 	var syncTesterErr error
 	b.syncTesters.Range(func(id sttypes.SyncTesterID, st *SyncTester) bool {
-		if err := router.AddRPC("/synctest"); err != nil {
+		path := "/chain/" + st.chainID.String() + "/synctest"
+		if err := router.AddRPC(path); err != nil {
 			syncTesterErr = errors.Join(fmt.Errorf("failed to set up synctest route: %w", err))
 			return true
 		}
-		if err := router.AddAPIToRPC("/synctest", rpc.API{
+		if err := router.AddAPIToRPC(path, rpc.API{
 			Namespace: "sync",
 			Service:   frontend.NewSyncFrontend(st),
 		}); err != nil {

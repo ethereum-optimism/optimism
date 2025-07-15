@@ -7,10 +7,12 @@ import (
 	"net"
 	"net/http"
 	"strconv"
+	"strings"
 	"sync/atomic"
 
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/rpc"
+	"github.com/google/uuid"
 
 	"github.com/ethereum-optimism/optimism/op-service/cliapp"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
@@ -159,29 +161,38 @@ func (s *Service) initHTTPServer(cfg *config.Config) error {
 	endpoint := net.JoinHostPort(cfg.RPC.ListenAddr, strconv.Itoa(cfg.RPC.ListenPort))
 	// middleware to parse http query
 	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		query := r.URL.Query()
-		parseParam := func(name string) (uint64, error) {
-			val := query.Get(name)
-			if val == "" {
-				return 0, fmt.Errorf("missing query parameter: %s", name)
+		segments := strings.Split(strings.Trim(r.URL.Path, "/"), "/")
+		if len(segments) == 4 && segments[0] == "chain" && segments[2] == "synctest" {
+			sessionID := segments[3]
+			if _, err := uuid.Parse(sessionID); err != nil {
+				http.Error(w, "invalid UUID", http.StatusBadRequest)
+				return
 			}
-			num, err := strconv.ParseUint(val, 10, 64)
-			if err != nil {
-				return 0, fmt.Errorf("invalid %s: %w", name, err)
+			fmt.Println(sessionID)
+			query := r.URL.Query()
+			parseParam := func(name string) (uint64, error) {
+				val := query.Get(name)
+				if val == "" {
+					return 0, fmt.Errorf("missing query parameter: %s", name)
+				}
+				return strconv.ParseUint(val, 10, 64)
 			}
-			return num, nil
-		}
-		head, err1 := parseParam("head")
-		safe, err2 := parseParam("safe")
-		finalized, err3 := parseParam("finalized")
-		if err1 == nil && err2 == nil && err3 == nil {
-			session := &backend.Session{Head: head, Safe: safe, Finalized: finalized}
+			head, _ := parseParam(eth.Unsafe)
+			safe, _ := parseParam(eth.Safe)
+			finalized, _ := parseParam(eth.Finalized)
+			session := &backend.Session{
+				SessionID: sessionID,
+				Head:      head,
+				Safe:      safe,
+				Finalized: finalized,
+			}
 			ctx := context.WithValue(r.Context(), backend.CtxKeySession, session)
+			// remove uuid path
+			r.URL.Path = "/" + strings.Join(segments[:3], "/")
 			s.rpcHandler.ServeHTTP(w, r.WithContext(ctx))
-		} else {
-			// silently skip session if any param is missing/invalid
-			s.rpcHandler.ServeHTTP(w, r)
+			return
 		}
+		s.rpcHandler.ServeHTTP(w, r)
 	})
 	s.httpServer = httputil.NewHTTPServer(endpoint, handler)
 	return nil
@@ -243,8 +254,9 @@ func (s *Service) RPC() string {
 	return s.httpServer.HTTPEndpoint()
 }
 
-func (s *Service) SyncTesterEndpoint() string {
-	return fmt.Sprintf("%s/synctest", s.RPC())
+func (s *Service) SyncTesterEndpoint(chainID eth.ChainID) string {
+	uuid := uuid.New()
+	return fmt.Sprintf("%s/chain/%s/synctest/%s", s.RPC(), chainID, uuid)
 }
 
 func (s *Service) SyncTesters() map[sttypes.SyncTesterID]eth.ChainID {
