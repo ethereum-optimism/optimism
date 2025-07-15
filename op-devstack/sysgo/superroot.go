@@ -46,7 +46,7 @@ func WithSuperRoots(l1ChainID eth.ChainID, l1ELID stack.L1ELNodeID, l2CLID stack
 
 			l2CL, ok := o.l2CLs.Get(l2CLID)
 			require.True(ok, "must have L2 CL node")
-			rollupClientProvider, err := dial.NewStaticL2RollupProvider(t.Ctx(), t.Logger(), l2CL.opNode.UserRPC().RPC())
+			rollupClientProvider, err := dial.NewStaticL2RollupProvider(t.Ctx(), t.Logger(), l2CL.UserRPC())
 			require.NoError(err)
 			rollupClient, err := rollupClientProvider.RollupClient(t.Ctx())
 			require.NoError(err)

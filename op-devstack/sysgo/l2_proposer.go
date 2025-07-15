@@ -123,7 +123,7 @@ func WithProposerPostDeploy(orch *Orchestrator, proposerID stack.L2ProposerID, l
 		require.NotNil(l2CLID, "need L2 CL to connect to pre-interop")
 		l2CL, ok := orch.l2CLs.Get(*l2CLID)
 		require.True(ok)
-		proposerCLIConfig.RollupRpc = l2CL.userRPC
+		proposerCLIConfig.RollupRpc = l2CL.UserRPC()
 	}
 
 	proposer, err := ps.ProposerServiceFromCLIConfig(ctx, "0.0.1", proposerCLIConfig, logger)
