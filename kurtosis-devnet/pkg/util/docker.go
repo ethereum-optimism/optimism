@@ -9,7 +9,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/filters"
 	"github.com/docker/docker/api/types/network"
@@ -320,7 +319,7 @@ func SetReverseProxyConfig(ctx context.Context) error {
 		return fmt.Errorf("failed to list containers: %w", err)
 	}
 
-	var traefikContainer *types.Container
+	var traefikContainer *container.Summary
 	for _, c := range traefikContainers {
 		for _, name := range c.Names {
 			if strings.Contains(name, "kurtosis-reverse-proxy") {

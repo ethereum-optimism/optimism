@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/docker/docker/api/types"
+	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/network"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -47,11 +47,11 @@ func TestCreateKurtosisFilter(t *testing.T) {
 }
 
 // Helper function to create test containers for scenarios
-func createTestContainer(id, name string, networks map[string]*network.EndpointSettings) types.Container {
-	return types.Container{
+func createTestContainer(id, name string, networks map[string]*network.EndpointSettings) container.Summary {
+	return container.Summary{
 		ID:    id,
 		Names: []string{name},
-		NetworkSettings: &types.SummaryNetworkSettings{
+		NetworkSettings: &container.NetworkSettingsSummary{
 			Networks: networks,
 		},
 	}
@@ -93,14 +93,14 @@ func TestSetReverseProxyConfigLogic(t *testing.T) {
 
 	t.Run("traefik container identification", func(t *testing.T) {
 		// Test the logic for identifying Traefik containers
-		containers := []types.Container{
+		containers := []container.Summary{
 			createTestContainer("container1", "/some-other-container", nil),
 			createTestContainer("container2", "/kurtosis-reverse-proxy-12345", nil),
 			createTestContainer("container3", "/another-container", nil),
 		}
 
 		// The function should find the container with "kurtosis-reverse-proxy" in the name
-		var traefikContainer *types.Container
+		var traefikContainer *container.Summary
 		for _, c := range containers {
 			if strings.Contains(c.Names[0], "kurtosis-reverse-proxy") {
 				traefikContainer = &c
