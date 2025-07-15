@@ -627,7 +627,7 @@ contract DeployImplementations is Script {
         DeployUtils.assertValidContractAddresses(Solarray.extend(addrs1, addrs2));
 
         assertValidDelayedWETHImpl(_input, _output);
-        assertValidDisputeGameFactoryImpl(_input, _output);
+        ChainAssertions.checkDisputeGameFactory(_output.disputeGameFactoryImpl, address(0), address(0), false);
         assertValidAnchorStateRegistryImpl(_input, _output);
         ChainAssertions.checkL1CrossDomainMessenger(_output.l1CrossDomainMessengerImpl, vm, false);
         assertValidL1ERC721BridgeImpl(_input, _output);
@@ -756,14 +756,6 @@ contract DeployImplementations is Script {
 
         require(address(factory.BRIDGE()) == address(0), "MERC20F-10");
         require(address(factory.bridge()) == address(0), "MERC20F-20");
-    }
-
-    function assertValidDisputeGameFactoryImpl(Input memory, Output memory _output) private view {
-        IDisputeGameFactory factory = _output.disputeGameFactoryImpl;
-
-        DeployUtils.assertInitialized({ _contractAddress: address(factory), _isProxy: false, _slot: 0, _offset: 0 });
-
-        require(address(factory.owner()) == address(0), "DG-10");
     }
 
     function assertValidAnchorStateRegistryImpl(Input memory, Output memory _output) private view {

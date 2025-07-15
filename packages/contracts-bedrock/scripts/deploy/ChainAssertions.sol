@@ -14,6 +14,7 @@ import { Constants } from "src/libraries/Constants.sol";
 import { Predeploys } from "src/libraries/Predeploys.sol";
 import { Types } from "scripts/libraries/Types.sol";
 import { Blueprint } from "src/libraries/Blueprint.sol";
+import { GameTypes } from "src/dispute/lib/Types.sol";
 
 // Interfaces
 import { IOPContractsManager } from "interfaces/L1/IOPContractsManager.sol";
@@ -181,26 +182,28 @@ library ChainAssertions {
 
     /// @notice Asserts that the DisputeGameFactory is setup correctly
     function checkDisputeGameFactory(
-        Types.ContractSet memory _contracts,
+        IDisputeGameFactory _factory,
         address _expectedOwner,
+        address _permissionedDisputeGame,
         bool _isProxy
     )
         internal
         view
     {
-        IDisputeGameFactory factory = IDisputeGameFactory(_contracts.DisputeGameFactory);
         console.log(
             "Running chain assertions on the DisputeGameFactory %s at %s",
             _isProxy ? "proxy" : "implementation",
-            address(factory)
+            address(_factory)
         );
-        require(address(factory) != address(0), "CHECK-DG-10");
+        require(address(_factory) != address(0), "CHECK-DG-10");
 
         // Check that the contract is initialized
-        DeployUtils.assertInitialized({ _contractAddress: address(factory), _isProxy: _isProxy, _slot: 0, _offset: 0 });
+        DeployUtils.assertInitialized({ _contractAddress: address(_factory), _isProxy: _isProxy, _slot: 0, _offset: 0 });
+
+        require(address(_factory.gameImpls(GameTypes.PERMISSIONED_CANNON)) == _permissionedDisputeGame, "CHECK-DG-20");
 
         // The same check is made for both proxy and implementation
-        require(factory.owner() == _expectedOwner, "CHECK-DG-20");
+        require(_factory.owner() == _expectedOwner, "CHECK-DG-30");
     }
 
     /// @notice Asserts that the PreimageOracle is setup correctly
