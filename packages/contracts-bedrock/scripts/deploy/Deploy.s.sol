@@ -36,6 +36,7 @@ import { IMIPS } from "interfaces/cannon/IMIPS.sol";
 import { IPreimageOracle } from "interfaces/cannon/IPreimageOracle.sol";
 import { IProtocolVersions } from "interfaces/L1/IProtocolVersions.sol";
 import { IL1CrossDomainMessenger } from "interfaces/L1/IL1CrossDomainMessenger.sol";
+import { IL1StandardBridge } from "interfaces/L1/IL1StandardBridge.sol";
 
 /// @title Deploy
 /// @notice Script used to deploy a bedrock system. The entire system is deployed within the `run` function.
@@ -303,7 +304,7 @@ contract Deploy is Deployer {
         });
 
         ChainAssertions.checkL1CrossDomainMessenger(IL1CrossDomainMessenger(impls.L1CrossDomainMessenger), vm, false);
-        ChainAssertions.checkL1StandardBridge({ _contracts: impls, _isProxy: false });
+        ChainAssertions.checkL1StandardBridge(IL1StandardBridge(payable(impls.L1StandardBridge)), false);
         ChainAssertions.checkL1ERC721Bridge({ _contracts: impls, _isProxy: false });
         ChainAssertions.checkOptimismPortal2({ _contracts: impls, _cfg: cfg, _isProxy: false });
         ChainAssertions.checkETHLockbox({ _contracts: impls, _cfg: cfg, _isProxy: false });

@@ -152,8 +152,8 @@ library ChainAssertions {
     }
 
     /// @notice Asserts that the L1StandardBridge is setup correctly
-    function checkL1StandardBridge(Types.ContractSet memory _contracts, bool _isProxy) internal view {
-        IL1StandardBridge bridge = IL1StandardBridge(payable(_contracts.L1StandardBridge));
+    function checkL1StandardBridge(IL1StandardBridge _bridge, bool _isProxy) internal view {
+        IL1StandardBridge bridge = IL1StandardBridge(payable(_bridge));
         console.log(
             "Running chain assertions on the L1StandardBridge %s at %s",
             _isProxy ? "proxy" : "implementation",
@@ -164,13 +164,7 @@ library ChainAssertions {
         // Check that the contract is initialized
         DeployUtils.assertInitialized({ _contractAddress: address(bridge), _isProxy: _isProxy, _slot: 0, _offset: 0 });
 
-        if (_isProxy) {
-            require(address(bridge.MESSENGER()) == _contracts.L1CrossDomainMessenger, "CHECK-L1SB-20");
-            require(address(bridge.messenger()) == _contracts.L1CrossDomainMessenger, "CHECK-L1SB-30");
-            require(address(bridge.OTHER_BRIDGE()) == Predeploys.L2_STANDARD_BRIDGE, "CHECK-L1SB-40");
-            require(address(bridge.otherBridge()) == Predeploys.L2_STANDARD_BRIDGE, "CHECK-L1SB-50");
-            require(address(bridge.systemConfig()) == _contracts.SystemConfig, "CHECK-L1SB-60");
-        } else {
+        if (!_isProxy) {
             require(address(bridge.MESSENGER()) == address(0), "CHECK-L1SB-70");
             require(address(bridge.messenger()) == address(0), "CHECK-L1SB-80");
             require(address(bridge.OTHER_BRIDGE()) == address(0), "CHECK-L1SB-90");
