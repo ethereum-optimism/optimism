@@ -2,17 +2,28 @@ package backend
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"math/big"
 	"sync"
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-sync-tester/metrics"
+	"github.com/ethereum/go-ethereum"
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum/go-ethereum/rpc"
 
 	"github.com/ethereum-optimism/optimism/op-sync-tester/synctester/backend/config"
 	sttypes "github.com/ethereum-optimism/optimism/op-sync-tester/synctester/backend/types"
 	"github.com/ethereum-optimism/optimism/op-sync-tester/synctester/frontend"
+)
+
+var (
+	ErrNoSession  = errors.New("no session")
+	ErrNoReceipts = errors.New("no receipts")
 )
 
 type SyncTester struct {
@@ -21,9 +32,8 @@ type SyncTester struct {
 	log log.Logger
 	m   metrics.Metricer
 
-	id      sttypes.SyncTesterID
-	chainID eth.ChainID
-	// elClient
+	id       sttypes.SyncTesterID
+	chainID  eth.ChainID
 	elClient *ethclient.Client
 
 	sessions map[string]*Session
@@ -51,10 +61,10 @@ func SyncTesterFromConfig(logger log.Logger, m metrics.Metricer, stID sttypes.Sy
 	}, nil
 }
 
-func (s *SyncTester) Init(ctx context.Context) (string, error) {
+func (s *SyncTester) fetchSession(ctx context.Context) (*Session, error) {
 	session, ok := ctx.Value(CtxKeySession).(*Session)
 	if !ok || session == nil {
-		return "", fmt.Errorf("no session found in context")
+		return nil, fmt.Errorf("no session found in context")
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -64,7 +74,59 @@ func (s *SyncTester) Init(ctx context.Context) (string, error) {
 		s.sessions[session.SessionID] = session
 		s.log.Info("Initialized new session", "session", session)
 	}
+	return session, nil
+}
+
+func (s *SyncTester) Init(ctx context.Context) (string, error) {
+	session, err := s.fetchSession(ctx)
+	if err != nil {
+		return "", err
+	}
 	return session.SessionID, nil
+}
+
+func (s *SyncTester) GetBlockReceipts(ctx context.Context, blockNrOrHash rpc.BlockNumberOrHash) ([]*types.Receipt, error) {
+	session, err := s.fetchSession(ctx)
+	if err != nil {
+		return nil, ErrNoSession
+	}
+	res, err := s.elClient.BlockReceipts(ctx, blockNrOrHash)
+	if err != nil {
+		return nil, ethereum.NotFound
+	}
+	if len(res) == 0 {
+		return nil, ErrNoReceipts // should never happen because of deposit tx
+	}
+	if res[0].BlockNumber.Uint64() >= session.Head {
+		return nil, ethereum.NotFound
+	}
+	return res, nil
+}
+
+func (s *SyncTester) GetBlockByHash(ctx context.Context, hash common.Hash) (*types.Header, error) {
+	session, err := s.fetchSession(ctx)
+	if err != nil {
+		return nil, ErrNoSession
+	}
+	res, err := s.elClient.HeaderByHash(ctx, hash)
+	if err != nil {
+		return nil, ethereum.NotFound
+	}
+	if res.Number.Uint64() >= session.Head {
+		return nil, ethereum.NotFound
+	}
+	return res, nil
+}
+
+func (s *SyncTester) GetBlockByNumber(ctx context.Context, number *big.Int) (*types.Header, error) {
+	session, err := s.fetchSession(ctx)
+	if err != nil {
+		return nil, ErrNoSession
+	}
+	if number.Uint64() >= session.Head {
+		return nil, ethereum.NotFound
+	}
+	return s.elClient.HeaderByNumber(ctx, number)
 }
 
 func (s *SyncTester) ChainID(ctx context.Context) (eth.ChainID, error) {
