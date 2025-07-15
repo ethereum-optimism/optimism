@@ -1,6 +1,14 @@
 synctesters:
   local:
-    chain_id: 1234
-    el_rpc: https://localhost:8545
+    chain_id: 2151908
+    el_rpc: http://localhost:32988/
     engine_rpc: https://localhost:9545
     jwt_path: "/tmp/jwt.txt"
+  sepolia:
+    chain_id: 11155420
+    el_rpc: http://localhost:32988/
+    engine_rpc: https://localhost:9546
+    jwt_path: "/tmp/jwt.txt"
+
+
+# t: https://sepolia.optimism.io
