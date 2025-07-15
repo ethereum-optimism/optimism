@@ -470,7 +470,7 @@ contract DeployOPChain is Script {
             _doo.disputeGameFactoryProxy(),
             address(_doi.opChainProxyAdminOwner()),
             address(_doo.permissionedDisputeGame()),
-            false
+            true
         );
         ChainAssertions.checkL1CrossDomainMessenger(_doo.l1CrossDomainMessengerProxy(), vm, true);
         assertValidL1ERC721Bridge(_doo);
