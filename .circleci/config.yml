@@ -245,6 +245,29 @@ commands:
           environment:
             FOUNDRY_PROFILE: ci
 
+  # The acceptance tests are running a new docker versions which requires a non-standard
+  # (as in not the default supported by CircleCI) docker version.
+  #
+  # This is a temporary command that updates the engine version until circleci releases a new image
+  # with the dependency updated
+  install-docker-engine-28:
+    steps:
+      #
+      # TEMPORARY Until CircleCI supports docker engine 28 on their machine executor
+      #
+      - run:
+          name: Update docker repo
+          # We need to update the repos so that the 28 versions show up
+          #
+          # To list available docker versions, run:
+          #
+          # apt-cache madison docker-ce | awk '{ print $3 }'
+          command: sudo apt-get update
+      - run:
+          name: Install docker engine 28
+          # Taken from https://docs.docker.com/engine/install/ubuntu/#install-using-the-repository
+          command: sudo apt-get install docker-ce=5:28.3.2-1~ubuntu.24.04~noble
+
 jobs:
   cannon-go-lint-and-test:
     machine: true
@@ -1195,6 +1218,7 @@ jobs:
     resource_class: xlarge
     steps:
       - utils/checkout-with-mise
+      - install-docker-engine-28
       - install-contracts-dependencies
       - run:
           name: Setup Kurtosis (if needed)
