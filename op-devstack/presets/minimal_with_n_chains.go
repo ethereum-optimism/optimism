@@ -151,9 +151,9 @@ func NewMinimalWithNChains(t devtest.T, n int) *MinimalWithNChains {
 		chainMatcher := match.L2ChainById(l2Net.ID())
 		l2 := system.L2Network(match.Assume(t, chainMatcher))
 
-		out.L2Chains[i] = dsl.NewL2Network(l2)
+		out.L2Chains[i] = dsl.NewL2Network(l2, orch.ControlPlane())
 		out.L2Batchers[i] = dsl.NewL2Batcher(l2.L2Batcher(match.Assume(t, match.FirstL2Batcher)))
-		out.L2ELs[i] = dsl.NewL2ELNode(l2.L2ELNode(match.Assume(t, match.FirstL2EL)))
+		out.L2ELs[i] = dsl.NewL2ELNode(l2.L2ELNode(match.Assume(t, match.FirstL2EL)), orch.ControlPlane())
 		out.L2CLs[i] = dsl.NewL2CLNode(l2.L2CLNode(match.Assume(t, match.FirstL2CL)), orch.ControlPlane())
 		out.FaucetL2[i] = dsl.NewFaucet(l2.Faucet(match.Assume(t, match.FirstFaucet)))
 	}
