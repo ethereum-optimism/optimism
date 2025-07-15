@@ -168,7 +168,6 @@ func (s *Service) initHTTPServer(cfg *config.Config) error {
 				http.Error(w, "invalid UUID", http.StatusBadRequest)
 				return
 			}
-			fmt.Println(sessionID)
 			query := r.URL.Query()
 			parseParam := func(name string) (uint64, error) {
 				val := query.Get(name)
