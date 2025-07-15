@@ -8,6 +8,6 @@ import (
 
 func TestMain(m *testing.M) {
 	presets.DoMain(m,
-		presets.WithMinimalWithNChains(2),
+		presets.WithMinimal(),
 	)
 }
