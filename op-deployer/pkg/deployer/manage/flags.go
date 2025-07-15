@@ -13,10 +13,25 @@ var (
 		Usage:   "Address to use for as the proxy admin owner. Not compatible with the --workdir flag.",
 		EnvVars: deployer.PrefixEnvVar("PROXY_ADMIN_OWNER"),
 	}
+	PrankFlag = &cli.StringFlag{
+		Name:    "prank-address",
+		Usage:   "Address to use for the prankster.",
+		EnvVars: deployer.PrefixEnvVar("PRANK_ADDRESS"),
+	}
 	OPCMImplFlag = &cli.StringFlag{
 		Name:    "opcm-impl-address",
 		Usage:   "Address of the OPCM implementation contract. Not compatible with the --workdir flag.",
 		EnvVars: deployer.PrefixEnvVar("OPCM_IMPL_ADDRESS"),
+	}
+	ProposerFlag = &cli.StringFlag{
+		Name:    "proposer-address",
+		Usage:   "Address of the proposer contract.",
+		EnvVars: deployer.PrefixEnvVar("PROPOSER_ADDRESS"),
+	}
+	ChallengerFlag = &cli.StringFlag{
+		Name:    "challenger-address",
+		Usage:   "Address of the challenger contract.",
+		EnvVars: deployer.PrefixEnvVar("CHALLENGER_ADDRESS"),
 	}
 	SystemConfigProxyFlag = &cli.StringFlag{
 		Name:    "system-config-proxy-address",
@@ -86,6 +101,16 @@ var (
 		Usage:   "Boolean indicating if the dispute game should be deployed in permissionless mode.",
 		EnvVars: deployer.PrefixEnvVar("PERMISSIONED"),
 	}
+	StartingAnchorRootFlag = &cli.StringFlag{
+		Name:    "starting-anchor-root",
+		Usage:   "Starting anchor root.",
+		EnvVars: deployer.PrefixEnvVar("STARTING_ANCHOR_ROOT"),
+	}
+	StartingAnchorL2SequenceNumberFlag = &cli.Uint64Flag{
+		Name:    "starting-anchor-l2-sequence-number",
+		Usage:   "Starting anchor L2 sequence number.",
+		EnvVars: deployer.PrefixEnvVar("STARTING_ANCHOR_L2_SEQUENCE_NUMBER"),
+	}
 	SaltMixerFlag = &cli.StringFlag{
 		Name:    "salt-mixer",
 		Usage:   "String value for the salt mixer, used in CREATE2 address calculation. Default to keccak256(\"op-stack-contract-impls-salt-v0\").",
@@ -130,5 +155,34 @@ var Commands = cli.Commands{
 			L2ChainIDFlag,
 		}, oplog.CLIFlags(deployer.EnvVarPrefix)...),
 		Action: AddGameTypeCLI,
+	},
+	&cli.Command{
+		Name:  "migrate",
+		Usage: "Migrates the state from one version to another",
+		Flags: append([]cli.Flag{
+			deployer.CacheDirFlag,
+			deployer.L1RPCURLFlag,
+			deployer.ArtifactsLocatorFlag,
+			L1ProxyAdminOwnerFlag,
+			PrankFlag,
+			OPCMImplFlag,
+			PermissionlessFlag,
+			StartingAnchorRootFlag,
+			StartingAnchorL2SequenceNumberFlag,
+			ProposerFlag,
+			ChallengerFlag,
+			DisputeMaxGameDepthFlag,
+			DisputeSplitDepthFlag,
+			InitialBondFlag,
+			DisputeClockExtensionFlag,
+			DisputeMaxClockDurationFlag,
+			//
+			// The following flags represent one item in The EncodedChainConfigs array
+			//
+			SystemConfigProxyFlag,
+			OPChainProxyAdminFlag,
+			DisputeAbsolutePrestateFlag,
+		}, oplog.CLIFlags(deployer.EnvVarPrefix)...),
+		Action: MigrateCLI,
 	},
 }
