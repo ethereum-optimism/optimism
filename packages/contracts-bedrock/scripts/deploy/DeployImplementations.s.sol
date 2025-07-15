@@ -634,7 +634,7 @@ contract DeployImplementations is Script {
         assertValidL1StandardBridgeImpl(_input, _output);
         assertValidMipsSingleton(_input, _output);
         assertValidOpcm(_input, _output);
-        assertValidOptimismMintableERC20FactoryImpl(_input, _output);
+        ChainAssertions.checkOptimismMintableERC20Factory(_output.optimismMintableERC20FactoryImpl, false);
         assertValidOptimismPortalImpl(_input, _output);
         assertValidETHLockboxImpl(_input, _output);
         assertValidPreimageOracleSingleton(_input, _output);
@@ -747,15 +747,6 @@ contract DeployImplementations is Script {
         require(address(bridge.OTHER_BRIDGE()) == address(0), "L1SB-30");
         require(address(bridge.otherBridge()) == address(0), "L1SB-40");
         require(address(bridge.systemConfig()) == address(0), "L1SB-50");
-    }
-
-    function assertValidOptimismMintableERC20FactoryImpl(Input memory, Output memory _output) private view {
-        IOptimismMintableERC20Factory factory = _output.optimismMintableERC20FactoryImpl;
-
-        DeployUtils.assertInitialized({ _contractAddress: address(factory), _isProxy: false, _slot: 0, _offset: 0 });
-
-        require(address(factory.BRIDGE()) == address(0), "MERC20F-10");
-        require(address(factory.bridge()) == address(0), "MERC20F-20");
     }
 
     function assertValidDisputeGameFactoryImpl(Input memory, Output memory _output) private view {

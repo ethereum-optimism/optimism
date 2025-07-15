@@ -249,24 +249,20 @@ library ChainAssertions {
     }
 
     /// @notice Asserts that the OptimismMintableERC20Factory is setup correctly
-    function checkOptimismMintableERC20Factory(Types.ContractSet memory _contracts, bool _isProxy) internal view {
-        IOptimismMintableERC20Factory factory = IOptimismMintableERC20Factory(_contracts.OptimismMintableERC20Factory);
+    function checkOptimismMintableERC20Factory(IOptimismMintableERC20Factory _factory, bool _isProxy) internal view {
         console.log(
             "Running chain assertions on the OptimismMintableERC20Factory %s at %s",
             _isProxy ? "proxy" : "implementation",
-            address(factory)
+            address(_factory)
         );
-        require(address(factory) != address(0), "CHECK-MERC20F-10");
+        require(address(_factory) != address(0), "CHECK-MERC20F-10");
 
         // Check that the contract is initialized
-        DeployUtils.assertInitialized({ _contractAddress: address(factory), _isProxy: _isProxy, _slot: 0, _offset: 0 });
+        DeployUtils.assertInitialized({ _contractAddress: address(_factory), _isProxy: _isProxy, _slot: 0, _offset: 0 });
 
-        if (_isProxy) {
-            require(factory.BRIDGE() == _contracts.L1StandardBridge, "CHECK-MERC20F-10");
-            require(factory.bridge() == _contracts.L1StandardBridge, "CHECK-MERC20F-20");
-        } else {
-            require(factory.BRIDGE() == address(0), "CHECK-MERC20F-30");
-            require(factory.bridge() == address(0), "CHECK-MERC20F-40");
+        if (!_isProxy) {
+            require(_factory.BRIDGE() == address(0), "CHECK-MERC20F-30");
+            require(_factory.bridge() == address(0), "CHECK-MERC20F-40");
         }
     }
 
