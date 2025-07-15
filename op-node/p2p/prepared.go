@@ -25,6 +25,9 @@ type Prepared struct {
 	UDPv5     *discover.UDPv5
 
 	EnableReqRespSync bool
+
+	// GossipTimestampThreshold is the threshold for rejecting gossip messages with old timestamps
+	GossipTimestampThreshold time.Duration
 }
 
 var _ SetupP2P = (*Prepared)(nil)
@@ -94,5 +97,8 @@ func (p *Prepared) ReqRespSyncEnabled() bool {
 }
 
 func (p *Prepared) GetGossipTimestampThreshold() time.Duration {
-	return 60 * time.Second // Default value for prepared setup
+	if p.GossipTimestampThreshold == 0 {
+		return 60 * time.Second // Default fallback
+	}
+	return p.GossipTimestampThreshold
 }
