@@ -1,3 +1,4 @@
+use axum::extract::ws::Message;
 use metrics::{counter, Counter, Gauge};
 use metrics_derive::Metrics;
 #[derive(Metrics)]
@@ -44,6 +45,19 @@ pub struct Metrics {
 
     #[metric(describe = "Total bytes broadcasted to clients")]
     pub bytes_broadcasted: Counter,
+
+    #[metric(describe = "Count of clients disconnected due to pong timeout")]
+    pub client_pong_disconnects: Counter,
+}
+
+fn get_message_size(msg: &Message) -> u64 {
+    match msg {
+        Message::Text(text) => text.len() as u64,
+        Message::Binary(data) => data.len() as u64,
+        Message::Ping(data) => data.len() as u64,
+        Message::Pong(data) => data.len() as u64,
+        Message::Close(_) => 0,
+    }
 }
 
 impl Metrics {
@@ -54,5 +68,10 @@ impl Metrics {
     pub fn message_received_from_upstream(&self, upstream: &str) {
         counter!("websocket_proxy.upstream_messages", "upstream" => upstream.to_owned())
             .increment(1);
+    }
+
+    pub fn record_message_sent(&self, msg: &Message) {
+        self.sent_messages.increment(1);
+        self.bytes_broadcasted.increment(get_message_size(msg));
     }
 }

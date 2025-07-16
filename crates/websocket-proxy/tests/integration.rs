@@ -1,3 +1,4 @@
+use axum::extract::ws::Message;
 use futures::StreamExt;
 use std::collections::hash_map::Entry;
 use std::collections::HashMap;
@@ -26,7 +27,7 @@ struct TestHarness {
     server: Server,
     server_addr: SocketAddr,
     client_id_to_handle: HashMap<usize, JoinHandle<()>>,
-    sender: Sender<Vec<u8>>,
+    sender: Sender<Message>,
 }
 
 impl TestHarness {
@@ -42,7 +43,7 @@ impl TestHarness {
     fn new_with_auth(addr: SocketAddr, auth: Option<Authentication>) -> TestHarness {
         let (sender, _) = broadcast::channel(5);
         let metrics = Arc::new(Metrics::default());
-        let registry = Registry::new(sender.clone(), metrics.clone());
+        let registry = Registry::new(sender.clone(), metrics.clone(), false, 120000);
         let rate_limited = Arc::new(InMemoryRateLimit::new(3, 10));
 
         Self {
@@ -148,14 +149,37 @@ impl TestHarness {
         client_id
     }
 
-    fn send_messages(&mut self, messages: Vec<&str>) {
-        let messages: Vec<Vec<u8>> = messages
-            .into_iter()
-            .map(|m| m.as_bytes().to_vec())
-            .collect();
+    fn connect_unresponsive_client(&mut self) -> usize {
+        let uri = format!("ws://{}/ws", self.server_addr);
 
-        for message in messages.iter() {
-            match self.sender.send(message.clone()) {
+        let client_id = self.current_client_id;
+        self.current_client_id += 1;
+
+        let failed_conns = self.clients_failed_to_connect.clone();
+
+        let handle = tokio::spawn(async move {
+            let (_ws_stream, _) = match connect_async(uri).await {
+                Ok(results) => results,
+                Err(_) => {
+                    failed_conns.lock().unwrap().insert(client_id, true);
+                    return;
+                }
+            };
+
+            // Do nothing - just keep the connection alive but don't read messages or respond to pings
+            loop {
+                tokio::time::sleep(Duration::from_millis(1000)).await;
+            }
+        });
+
+        self.client_id_to_handle.insert(client_id, handle);
+        client_id
+    }
+
+    fn send_messages(&mut self, messages: Vec<&str>) {
+        for message_str in messages.iter() {
+            let message = Message::Binary(message_str.as_bytes().to_vec().into());
+            match self.sender.send(message) {
                 Ok(_) => {}
                 Err(_) => {
                     assert!(false)
@@ -346,4 +370,44 @@ async fn test_authentication_allows_known_api_keys() {
     assert!(harness.can_connect("ws/key2").await);
     assert!(harness.can_connect("ws/key3").await);
     assert!(!(harness.can_connect("ws/key4").await));
+}
+
+#[tokio::test]
+async fn test_ping_timeout_disconnects_client() {
+    let addr = TestHarness::alloc_port().await;
+
+    let (sender, _) = broadcast::channel(5);
+    let metrics = Arc::new(Metrics::default());
+    let registry = Registry::new(sender.clone(), metrics.clone(), true, 1000);
+    let rate_limited = Arc::new(InMemoryRateLimit::new(3, 10));
+
+    let mut harness = TestHarness {
+        received_messages: Arc::new(Mutex::new(HashMap::new())),
+        clients_failed_to_connect: Arc::new(Mutex::new(HashMap::new())),
+        current_client_id: 0,
+        cancel_token: CancellationToken::new(),
+        server: Server::new(
+            addr,
+            registry,
+            metrics,
+            rate_limited,
+            None,
+            "header".to_string(),
+        ),
+        server_addr: addr,
+        client_id_to_handle: HashMap::new(),
+        sender,
+    };
+
+    harness.start_server().await;
+
+    let _client_id = harness.connect_unresponsive_client();
+    tokio::time::sleep(Duration::from_millis(100)).await;
+
+    assert_eq!(harness.sender.receiver_count(), 1);
+
+    harness.sender.send(Message::Ping(vec![].into())).unwrap();
+    tokio::time::sleep(Duration::from_millis(1500)).await;
+
+    assert_eq!(harness.sender.receiver_count(), 0);
 }
