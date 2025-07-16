@@ -88,8 +88,7 @@ contract DisputeGameFactory_TestInit is CommonTest {
             maxGameDepth: 2 ** 3,
             splitDepth: 2 ** 2,
             clockExtension: Duration.wrap(3 hours),
-            maxClockDuration: Duration.wrap(3.5 days),
-            l2ChainId: 0
+            maxClockDuration: Duration.wrap(3.5 days)
         });
     }
 

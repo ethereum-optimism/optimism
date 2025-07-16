@@ -62,8 +62,7 @@ contract DeployDisputeGame2 is Script {
             maxGameDepth: _input.maxGameDepth,
             splitDepth: _input.splitDepth,
             clockExtension: Duration.wrap(uint64(_input.clockExtension)),
-            maxClockDuration: Duration.wrap(uint64(_input.maxClockDuration)),
-            l2ChainId: _input.l2ChainId
+            maxClockDuration: Duration.wrap(uint64(_input.maxClockDuration))
         });
 
         // PermissionedDisputeGame is used as the type here because it is a superset of

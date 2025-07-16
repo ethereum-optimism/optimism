@@ -487,9 +487,8 @@ contract DeployImplementations is Script {
             maxGameDepth: _input.gameMaxGameDepth,
             splitDepth: _input.gameSplitDepth,
             clockExtension: Duration.wrap(uint64(_input.gameClockExtension)),
-            maxClockDuration: Duration.wrap(uint64(_input.gameMaxClockDuration)),
-            l2ChainId: 0 // Will be set during clone initialization
-         });
+            maxClockDuration: Duration.wrap(uint64(_input.gameMaxClockDuration))
+        });
 
         IFaultDisputeGame impl = IFaultDisputeGame(
             DeployUtils.createDeterministic({
@@ -509,9 +508,8 @@ contract DeployImplementations is Script {
             maxGameDepth: _input.gameMaxGameDepth,
             splitDepth: _input.gameSplitDepth,
             clockExtension: Duration.wrap(uint64(_input.gameClockExtension)),
-            maxClockDuration: Duration.wrap(uint64(_input.gameMaxClockDuration)),
-            l2ChainId: 0 // Will be set during clone initialization
-         });
+            maxClockDuration: Duration.wrap(uint64(_input.gameMaxClockDuration))
+        });
 
         IPermissionedDisputeGame impl = IPermissionedDisputeGame(
             DeployUtils.createDeterministic({
@@ -533,9 +531,8 @@ contract DeployImplementations is Script {
             maxGameDepth: _input.gameMaxGameDepth,
             splitDepth: _input.gameSplitDepth,
             clockExtension: Duration.wrap(uint64(_input.gameClockExtension)),
-            maxClockDuration: Duration.wrap(uint64(_input.gameMaxClockDuration)),
-            l2ChainId: 0 // Will be set during clone initialization
-         });
+            maxClockDuration: Duration.wrap(uint64(_input.gameMaxClockDuration))
+        });
 
         ISuperFaultDisputeGame impl = ISuperFaultDisputeGame(
             DeployUtils.createDeterministic({
@@ -555,9 +552,8 @@ contract DeployImplementations is Script {
             maxGameDepth: _input.gameMaxGameDepth,
             splitDepth: _input.gameSplitDepth,
             clockExtension: Duration.wrap(uint64(_input.gameClockExtension)),
-            maxClockDuration: Duration.wrap(uint64(_input.gameMaxClockDuration)),
-            l2ChainId: 0 // Will be set during clone initialization
-         });
+            maxClockDuration: Duration.wrap(uint64(_input.gameMaxClockDuration))
+        });
 
         ISuperPermissionedDisputeGame impl = ISuperPermissionedDisputeGame(
             DeployUtils.createDeterministic({

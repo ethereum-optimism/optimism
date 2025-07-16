@@ -36,7 +36,6 @@ interface ISuperPermissionedDisputeGame is IDisputeGame {
         IBigStepper vm;
         IDelayedWETH weth;
         IAnchorStateRegistry anchorStateRegistry;
-        uint256 l2ChainId;
     }
 
     error AlreadyInitialized();

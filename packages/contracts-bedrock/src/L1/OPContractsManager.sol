@@ -237,8 +237,7 @@ abstract contract OPContractsManagerBase {
             maxGameDepth: _disputeGame.maxGameDepth(),
             splitDepth: _disputeGame.splitDepth(),
             clockExtension: _disputeGame.clockExtension(),
-            maxClockDuration: _disputeGame.maxClockDuration(),
-            l2ChainId: l2ChainId
+            maxClockDuration: _disputeGame.maxClockDuration()
         });
     }
 
@@ -255,11 +254,18 @@ abstract contract OPContractsManagerBase {
         Claim _absolutePrestate,
         IBigStepper _vm,
         IAnchorStateRegistry _anchorStateRegistry,
-        IDelayedWETH _weth
+        IDelayedWETH _weth,
+        uint256 _l2ChainId
     )
         internal
     {
-        bytes memory implArgs = abi.encodePacked(_absolutePrestate, _vm, _anchorStateRegistry, _weth);
+        // Super game types always use l2ChainId = 0
+        uint256 gameL2ChainId = (
+            _gameType.raw() == GameTypes.SUPER_CANNON.raw()
+                || _gameType.raw() == GameTypes.SUPER_PERMISSIONED_CANNON.raw()
+        ) ? 0 : _l2ChainId;
+
+        bytes memory implArgs = abi.encodePacked(_absolutePrestate, _vm, _anchorStateRegistry, _weth, gameL2ChainId);
         _dgf.setImplementation(_gameType, _newGame, implArgs);
     }
 }
@@ -288,7 +294,8 @@ contract OPContractsManagerGameTypeAdder is OPContractsManagerBase {
     function _setGameImplementation(
         IDisputeGameFactory _dgf,
         OPContractsManager.AddGameInput memory _gameConfig,
-        IFaultDisputeGame _faultDisputeGame
+        IFaultDisputeGame _faultDisputeGame,
+        uint256 _l2ChainId
     )
         private
     {
@@ -300,7 +307,8 @@ contract OPContractsManagerGameTypeAdder is OPContractsManagerBase {
             _gameConfig.disputeAbsolutePrestate,
             _gameConfig.vm,
             asr,
-            _gameConfig.delayedWETH
+            _gameConfig.delayedWETH,
+            _l2ChainId
         );
     }
 
@@ -405,7 +413,7 @@ contract OPContractsManagerGameTypeAdder is OPContractsManagerBase {
 
             // As a last step, register the new game type with the DisputeGameFactory. If the game
             // type already exists, then its implementation will be overwritten.
-            _setGameImplementation(dgf, gameConfig, outputs[i].faultDisputeGame);
+            _setGameImplementation(dgf, gameConfig, outputs[i].faultDisputeGame, l2ChainId);
             dgf.setInitBond(gameConfig.disputeGameType, gameConfig.initialBond);
 
             // Emit event for the newly added game type with the new and old implementations.
@@ -810,40 +818,64 @@ contract OPContractsManagerUpgrader is OPContractsManagerBase {
     )
         internal
     {
-        OPContractsManager.Implementations memory impls = getImplementations();
-
-        // Determine the implementation address for the game type.
-        address gameImplementation;
-        if (GameType.unwrap(_gameType) == GameType.unwrap(GameTypes.PERMISSIONED_CANNON)) {
-            gameImplementation = impls.permissionedDisputeGameImpl;
-        } else if (GameType.unwrap(_gameType) == GameType.unwrap(GameTypes.CANNON)) {
-            gameImplementation = impls.faultDisputeGameImpl;
-        } else if (GameType.unwrap(_gameType) == GameType.unwrap(GameTypes.SUPER_PERMISSIONED_CANNON)) {
-            gameImplementation = impls.superPermissionedDisputeGameImpl;
-        } else if (GameType.unwrap(_gameType) == GameType.unwrap(GameTypes.SUPER_CANNON)) {
-            gameImplementation = impls.superFaultDisputeGameImpl;
-        } else {
-            revert OPContractsManager_InvalidGameType();
-        }
-
         // Grab the DisputeGameFactory from the SystemConfig.
         IDisputeGameFactory dgf = IDisputeGameFactory(_opChainConfig.systemConfigProxy.disputeGameFactory());
 
-        // Set the new implementation.
+        // Determine and set the new implementation directly.
         Claim absolutePrestate = _opChainConfig.absolutePrestate;
         if (Claim.unwrap(absolutePrestate) == bytes32(0)) {
             // If no prestate provided in config, get it from the existing game
             absolutePrestate = IFaultDisputeGame(address(_disputeGame)).absolutePrestate();
         }
-        setDGFImplementation(
-            dgf,
-            _gameType,
-            IDisputeGame(gameImplementation),
-            absolutePrestate,
-            IBigStepper(impls.mipsImpl),
-            _newAnchorStateRegistryProxy,
-            _newDelayedWeth
-        );
+
+        // Set implementation based on game type
+        if (GameType.unwrap(_gameType) == GameType.unwrap(GameTypes.PERMISSIONED_CANNON)) {
+            setDGFImplementation(
+                dgf,
+                _gameType,
+                IDisputeGame(getImplementations().permissionedDisputeGameImpl),
+                absolutePrestate,
+                IBigStepper(getImplementations().mipsImpl),
+                _newAnchorStateRegistryProxy,
+                _newDelayedWeth,
+                _l2ChainId
+            );
+        } else if (GameType.unwrap(_gameType) == GameType.unwrap(GameTypes.CANNON)) {
+            setDGFImplementation(
+                dgf,
+                _gameType,
+                IDisputeGame(getImplementations().faultDisputeGameImpl),
+                absolutePrestate,
+                IBigStepper(getImplementations().mipsImpl),
+                _newAnchorStateRegistryProxy,
+                _newDelayedWeth,
+                _l2ChainId
+            );
+        } else if (GameType.unwrap(_gameType) == GameType.unwrap(GameTypes.SUPER_PERMISSIONED_CANNON)) {
+            setDGFImplementation(
+                dgf,
+                _gameType,
+                IDisputeGame(getImplementations().superPermissionedDisputeGameImpl),
+                absolutePrestate,
+                IBigStepper(getImplementations().mipsImpl),
+                _newAnchorStateRegistryProxy,
+                _newDelayedWeth,
+                _l2ChainId
+            );
+        } else if (GameType.unwrap(_gameType) == GameType.unwrap(GameTypes.SUPER_CANNON)) {
+            setDGFImplementation(
+                dgf,
+                _gameType,
+                IDisputeGame(getImplementations().superFaultDisputeGameImpl),
+                absolutePrestate,
+                IBigStepper(getImplementations().mipsImpl),
+                _newAnchorStateRegistryProxy,
+                _newDelayedWeth,
+                _l2ChainId
+            );
+        } else {
+            revert OPContractsManager_InvalidGameType();
+        }
     }
 }
 
@@ -1019,7 +1051,8 @@ contract OPContractsManagerDeployer is OPContractsManagerBase {
             _input.disputeAbsolutePrestate,
             IBigStepper(implementation.mipsImpl),
             output.anchorStateRegistryProxy,
-            output.delayedWETHPermissionedGameProxy
+            output.delayedWETHPermissionedGameProxy,
+            _input.l2ChainId
         );
 
         transferOwnership(address(output.disputeGameFactoryProxy), address(_input.roles.opChainProxyAdminOwner));

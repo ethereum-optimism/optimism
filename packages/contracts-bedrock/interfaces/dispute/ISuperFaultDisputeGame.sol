@@ -31,7 +31,6 @@ interface ISuperFaultDisputeGame is IDisputeGame {
         uint256 splitDepth;
         Duration clockExtension;
         Duration maxClockDuration;
-        uint256 l2ChainId;
     }
 
     error AlreadyInitialized();

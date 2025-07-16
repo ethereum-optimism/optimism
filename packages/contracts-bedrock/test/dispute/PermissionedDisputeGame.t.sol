@@ -57,8 +57,7 @@ contract PermissionedDisputeGame_Init is DisputeGameFactory_Init {
             maxGameDepth: 2 ** 3,
             splitDepth: 2 ** 2,
             clockExtension: Duration.wrap(3 hours),
-            maxClockDuration: Duration.wrap(3.5 days),
-            l2ChainId: 10
+            maxClockDuration: Duration.wrap(3.5 days)
         });
 
         // Set preimage oracle challenge period to something arbitrary (4 seconds) just so we can
@@ -86,8 +85,7 @@ contract PermissionedDisputeGame_Init is DisputeGameFactory_Init {
                                 maxGameDepth: _params.maxGameDepth,
                                 splitDepth: _params.splitDepth,
                                 clockExtension: _params.clockExtension,
-                                maxClockDuration: _params.maxClockDuration,
-                                l2ChainId: _params.l2ChainId
+                                maxClockDuration: _params.maxClockDuration
                             }),
                             PROPOSER,
                             CHALLENGER

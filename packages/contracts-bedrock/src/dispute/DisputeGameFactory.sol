@@ -175,7 +175,12 @@ contract DisputeGameFactory is ProxyAdminOwnedBase, ReinitializableBase, Ownable
         // │ [20, 52)     │ Root claim                         │
         // │ [52, 84)     │ Parent block hash at creation time │
         // │ [84, 116)    │ Extra data (32 bytes, padded)      │
-        // │ [116, ..)    │ Game-specific constructor args     │
+        // │ [116, 148)   │ Absolute prestate                  │
+        // │ [148, 168)   │ VM address                         │
+        // │ [168, 188)   │ Anchor state registry address      │
+        // │ [188, 208)   │ WETH address                       │
+        // │ [208, 240)   │ L2 Chain ID (32 bytes)             │
+        // │ [240, ..)    │ Additional game-specific args      │
         // └──────────────┴────────────────────────────────────┘
         proxy_ = IDisputeGame(
             address(impl).clone(abi.encodePacked(msg.sender, _rootClaim, parentHash, _extraData, gameArgs[_gameType]))

@@ -140,21 +140,21 @@ contract StandardValidator_TestInit is CommonTest {
         } else {
             // In local tests, get the implementation that was set up by the Deploy script
             IDisputeGame existingImpl = disputeGameFactory.gameImpls(GameTypes.PERMISSIONED_CANNON);
-            
+
             if (address(existingImpl) == address(0)) {
                 // No implementation set, we need to get it from artifacts and set it
                 address pdgImpl = artifacts.mustGetAddress("PermissionedDisputeGame");
-                
+
                 // Register the implementation with proper implArgs
                 bytes memory pdgImplArgs = abi.encodePacked(absolutePrestate, mips, anchorStateRegistry, delayedWeth);
                 vm.prank(disputeGameFactory.owner());
                 disputeGameFactory.setImplementation(GameTypes.PERMISSIONED_CANNON, IDisputeGame(pdgImpl), pdgImplArgs);
-                
+
                 pdg = IPermissionedDisputeGame(pdgImpl);
             } else {
                 pdg = IPermissionedDisputeGame(address(existingImpl));
             }
-            
+
             // Mock calls on the implementation since it reads from CWIA data
             // which doesn't exist on the implementation contract itself
             vm.mockCall(address(pdg), abi.encodeCall(IPermissionedDisputeGame.weth, ()), abi.encode(delayedWeth));
@@ -205,21 +205,21 @@ contract StandardValidator_TestInit is CommonTest {
         } else {
             // In local tests, get the implementation that was set up by the Deploy script
             IDisputeGame existingImpl = disputeGameFactory.gameImpls(GameTypes.CANNON);
-            
+
             if (address(existingImpl) == address(0)) {
                 // No implementation set, we need to get it from artifacts and set it
                 address fdgImpl = artifacts.mustGetAddress("FaultDisputeGame");
-                
+
                 // Register the implementation with proper implArgs
                 bytes memory fdgImplArgs = abi.encodePacked(absolutePrestate, mips, anchorStateRegistry, delayedWeth);
                 vm.prank(disputeGameFactory.owner());
                 disputeGameFactory.setImplementation(GameTypes.CANNON, IDisputeGame(fdgImpl), fdgImplArgs);
-                
+
                 fdg = IFaultDisputeGame(fdgImpl);
             } else {
                 fdg = IFaultDisputeGame(address(existingImpl));
             }
-            
+
             // Mock calls on the implementation since it reads from CWIA data
             // which doesn't exist on the implementation contract itself
             vm.mockCall(address(fdg), abi.encodeCall(IFaultDisputeGame.weth, ()), abi.encode(delayedWeth));

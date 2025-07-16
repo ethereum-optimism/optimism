@@ -600,8 +600,7 @@ contract OPContractsManager_TestInit is Test {
                                 maxGameDepth: 73,
                                 splitDepth: 30,
                                 clockExtension: Duration.wrap(10800),
-                                maxClockDuration: Duration.wrap(302400),
-                                l2ChainId: 0
+                                maxClockDuration: Duration.wrap(302400)
                             })
                         )
                     )
@@ -618,8 +617,7 @@ contract OPContractsManager_TestInit is Test {
                                 maxGameDepth: 73,
                                 splitDepth: 30,
                                 clockExtension: Duration.wrap(10800),
-                                maxClockDuration: Duration.wrap(302400),
-                                l2ChainId: 0
+                                maxClockDuration: Duration.wrap(302400)
                             }),
                             makeAddr("proposer"),
                             makeAddr("challenger")
@@ -638,8 +636,7 @@ contract OPContractsManager_TestInit is Test {
                                 maxGameDepth: 73,
                                 splitDepth: 30,
                                 clockExtension: Duration.wrap(10800),
-                                maxClockDuration: Duration.wrap(302400),
-                                l2ChainId: 0
+                                maxClockDuration: Duration.wrap(302400)
                             })
                         )
                     )
@@ -656,8 +653,7 @@ contract OPContractsManager_TestInit is Test {
                                 maxGameDepth: 73,
                                 splitDepth: 30,
                                 clockExtension: Duration.wrap(10800),
-                                maxClockDuration: Duration.wrap(302400),
-                                l2ChainId: 0
+                                maxClockDuration: Duration.wrap(302400)
                             }),
                             makeAddr("proposer"),
                             makeAddr("challenger")

@@ -67,8 +67,7 @@ contract SuperFaultDisputeGame_Init is DisputeGameFactory_Init {
             maxGameDepth: 2 ** 3,
             splitDepth: 2 ** 2,
             clockExtension: Duration.wrap(3 hours),
-            maxClockDuration: Duration.wrap(3.5 days),
-            l2ChainId: 10
+            maxClockDuration: Duration.wrap(3.5 days)
         });
 
         // Set preimage oracle challenge period to something arbitrary (4 seconds) just so we can
@@ -96,8 +95,7 @@ contract SuperFaultDisputeGame_Init is DisputeGameFactory_Init {
                                 maxGameDepth: gameParams.maxGameDepth,
                                 splitDepth: gameParams.splitDepth,
                                 clockExtension: gameParams.clockExtension,
-                                maxClockDuration: gameParams.maxClockDuration,
-                                l2ChainId: 0
+                                maxClockDuration: gameParams.maxClockDuration
                             })
                         )
                     )
@@ -206,8 +204,7 @@ contract SuperFaultDisputeGame_Test is SuperFaultDisputeGame_Init {
                             maxGameDepth: _maxGameDepth,
                             splitDepth: _maxGameDepth + 1,
                             clockExtension: Duration.wrap(3 hours),
-                            maxClockDuration: Duration.wrap(3.5 days),
-                            l2ChainId: 0
+                            maxClockDuration: Duration.wrap(3.5 days)
                         })
                     )
                 )
@@ -247,8 +244,7 @@ contract SuperFaultDisputeGame_Test is SuperFaultDisputeGame_Init {
                                 maxGameDepth: 2 ** 3,
                                 splitDepth: 2 ** 2,
                                 clockExtension: Duration.wrap(3 hours),
-                                maxClockDuration: Duration.wrap(3.5 days),
-                                l2ChainId: 0
+                                maxClockDuration: Duration.wrap(3.5 days)
                             })
                         )
                     )
@@ -291,8 +287,7 @@ contract SuperFaultDisputeGame_Test is SuperFaultDisputeGame_Init {
                             maxGameDepth: maxGameDepth,
                             splitDepth: _splitDepth,
                             clockExtension: Duration.wrap(3 hours),
-                            maxClockDuration: Duration.wrap(3.5 days),
-                            l2ChainId: 0
+                            maxClockDuration: Duration.wrap(3.5 days)
                         })
                     )
                 )
@@ -327,8 +322,7 @@ contract SuperFaultDisputeGame_Test is SuperFaultDisputeGame_Init {
                             maxGameDepth: 2 ** 3,
                             splitDepth: _splitDepth,
                             clockExtension: Duration.wrap(3 hours),
-                            maxClockDuration: Duration.wrap(3.5 days),
-                            l2ChainId: 0
+                            maxClockDuration: Duration.wrap(3.5 days)
                         })
                     )
                 )
@@ -372,8 +366,7 @@ contract SuperFaultDisputeGame_Test is SuperFaultDisputeGame_Init {
                                 maxGameDepth: 16,
                                 splitDepth: 8,
                                 clockExtension: Duration.wrap(_clockExtension),
-                                maxClockDuration: Duration.wrap(_maxClockDuration),
-                                l2ChainId: 0
+                                maxClockDuration: Duration.wrap(_maxClockDuration)
                             })
                         )
                     )
@@ -414,8 +407,7 @@ contract SuperFaultDisputeGame_Test is SuperFaultDisputeGame_Init {
                             maxGameDepth: 16,
                             splitDepth: 8,
                             clockExtension: Duration.wrap(3 hours),
-                            maxClockDuration: Duration.wrap(3.5 days),
-                            l2ChainId: 0
+                            maxClockDuration: Duration.wrap(3.5 days)
                         })
                     )
                 )

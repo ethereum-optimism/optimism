@@ -66,8 +66,7 @@ contract FaultDisputeGame_Init is DisputeGameFactory_Init {
             maxGameDepth: 2 ** 3,
             splitDepth: 2 ** 2,
             clockExtension: Duration.wrap(3 hours),
-            maxClockDuration: Duration.wrap(3.5 days),
-            l2ChainId: 10
+            maxClockDuration: Duration.wrap(3.5 days)
         });
 
         // Set preimage oracle challenge period to something arbitrary (4 seconds) just so we can
@@ -95,8 +94,7 @@ contract FaultDisputeGame_Init is DisputeGameFactory_Init {
                                 maxGameDepth: gameParams.maxGameDepth,
                                 splitDepth: gameParams.splitDepth,
                                 clockExtension: gameParams.clockExtension,
-                                maxClockDuration: gameParams.maxClockDuration,
-                                l2ChainId: gameParams.l2ChainId
+                                maxClockDuration: gameParams.maxClockDuration
                             })
                         )
                     )
@@ -193,8 +191,7 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
             maxGameDepth: _maxGameDepth,
             splitDepth: 2 ** 2,
             clockExtension: Duration.wrap(3 hours),
-            maxClockDuration: Duration.wrap(3.5 days),
-            l2ChainId: 0
+            maxClockDuration: Duration.wrap(3.5 days)
         });
 
         vm.expectRevert(MaxDepthTooLarge.selector);
@@ -253,8 +250,7 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
             maxGameDepth: maxGameDepth,
             splitDepth: _splitDepth,
             clockExtension: Duration.wrap(3 hours),
-            maxClockDuration: Duration.wrap(3.5 days),
-            l2ChainId: 0
+            maxClockDuration: Duration.wrap(3.5 days)
         });
 
         vm.expectRevert(InvalidSplitDepth.selector);
@@ -285,8 +281,7 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
             maxGameDepth: 2 ** 3,
             splitDepth: _splitDepth,
             clockExtension: Duration.wrap(3 hours),
-            maxClockDuration: Duration.wrap(3.5 days),
-            l2ChainId: 0
+            maxClockDuration: Duration.wrap(3.5 days)
         });
 
         vm.expectRevert(InvalidSplitDepth.selector);
@@ -326,8 +321,7 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
             maxGameDepth: 2 ** 3,
             splitDepth: 2 ** 2,
             clockExtension: Duration.wrap(_clockExtension),
-            maxClockDuration: Duration.wrap(_maxClockDuration),
-            l2ChainId: 0
+            maxClockDuration: Duration.wrap(_maxClockDuration)
         });
 
         // Deploy implementation using the pattern from setUp()
@@ -362,8 +356,7 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
             maxGameDepth: 2 ** 3,
             splitDepth: 2 ** 2,
             clockExtension: Duration.wrap(3 hours),
-            maxClockDuration: Duration.wrap(3.5 days),
-            l2ChainId: 0
+            maxClockDuration: Duration.wrap(3.5 days)
         });
 
         vm.expectRevert(ReservedGameType.selector);

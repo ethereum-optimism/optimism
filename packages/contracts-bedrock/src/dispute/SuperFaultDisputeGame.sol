@@ -100,7 +100,6 @@ contract SuperFaultDisputeGame is Clone, ISemver {
         uint256 splitDepth;
         Duration clockExtension;
         Duration maxClockDuration;
-        uint256 l2ChainId;
     }
 
     ////////////////////////////////////////////////////////////////
@@ -220,7 +219,8 @@ contract SuperFaultDisputeGame is Clone, ISemver {
         // OptimismPortal respected game type trick.
         if (_params.gameType.raw() == type(uint32).max) revert ReservedGameType();
 
-        if (_params.l2ChainId != 0) revert NoChainIdNeeded();
+        // Note: l2ChainId validation removed as it's no longer in constructor params
+        // Super versions always return l2ChainId = 0 via hardcoded getter function
 
         // Set up initial game state.
         GAME_TYPE = _params.gameType;
@@ -609,6 +609,12 @@ contract SuperFaultDisputeGame is Clone, ISemver {
     /// @notice Starting super root of the game.
     function startingRootHash() external view returns (Hash startingRootHash_) {
         startingRootHash_ = startingProposal.root;
+    }
+
+    /// @notice Getter for the L2 chain ID. Super versions always return 0.
+    /// @return l2ChainId_ The L2 chain ID (always 0 for super versions).
+    function l2ChainId() external pure returns (uint256 l2ChainId_) {
+        l2ChainId_ = 0;
     }
 
     ////////////////////////////////////////////////////////////////

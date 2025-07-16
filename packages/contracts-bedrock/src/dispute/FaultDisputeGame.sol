@@ -102,7 +102,6 @@ contract FaultDisputeGame is Clone, ISemver {
         uint256 splitDepth;
         Duration clockExtension;
         Duration maxClockDuration;
-        uint256 l2ChainId;
     }
 
     ////////////////////////////////////////////////////////////////
@@ -146,8 +145,7 @@ contract FaultDisputeGame is Clone, ISemver {
     /// @notice The anchor state registry.
     // IAnchorStateRegistry internal immutable ANCHOR_STATE_REGISTRY;
 
-    /// @notice The chain ID of the L2 network this contract argues about.
-    uint256 internal immutable L2_CHAIN_ID;
+    // L2_CHAIN_ID is now retrieved from CWIA args instead of being an immutable variable
 
     /// @notice The duration of the clock extension. Will be doubled if the grandchild is the root claim of an execution
     ///         trace bisection subgame.
@@ -245,8 +243,7 @@ contract FaultDisputeGame is Clone, ISemver {
         SPLIT_DEPTH = _params.splitDepth;
         CLOCK_EXTENSION = _params.clockExtension;
         MAX_CLOCK_DURATION = _params.maxClockDuration;
-        // WETH is now set via implArgs in the DisputeGameFactory
-        L2_CHAIN_ID = _params.l2ChainId;
+        // WETH and L2_CHAIN_ID are now set via implArgs in the DisputeGameFactory
     }
 
     /// @notice Initializes the contract.
@@ -258,7 +255,7 @@ contract FaultDisputeGame is Clone, ISemver {
         // in the factory, but are not used by the game, which would allow for multiple dispute games for the same
         // output proposal to be created.
         //
-        // Expected length: 194 bytes
+        // Expected length: 246 bytes
         // - 4 bytes: selector
         // - 2 bytes: CWIA length prefix
         // - 20 bytes: creator address
@@ -269,7 +266,8 @@ contract FaultDisputeGame is Clone, ISemver {
         // - 20 bytes: vm address
         // - 20 bytes: anchorStateRegistry address
         // - 20 bytes: weth address
-        if (msg.data.length != 214) revert BadExtraData();
+        // - 32 bytes: l2ChainId
+        if (msg.data.length != 246) revert BadExtraData();
 
         // SAFETY: Any revert in this function will bubble up to the DisputeGameFactory and
         // prevent the game from being created.
@@ -610,7 +608,7 @@ contract FaultDisputeGame is Clone, ISemver {
             oracle.loadLocalData(_ident, uuid.raw(), bytes32(l2Number << 0xC0), 8, _partOffset);
         } else if (_ident == LocalPreimageKey.CHAIN_ID) {
             // Load the chain ID as a big-endian uint64 in the high order 8 bytes of the word.
-            oracle.loadLocalData(_ident, uuid.raw(), bytes32(L2_CHAIN_ID << 0xC0), 8, _partOffset);
+            oracle.loadLocalData(_ident, uuid.raw(), bytes32(l2ChainId() << 0xC0), 8, _partOffset);
         } else {
             revert InvalidLocalIdent();
         }
@@ -932,9 +930,10 @@ contract FaultDisputeGame is Clone, ISemver {
     }
 
     /// @notice Getter for the L2 chain ID.
+    /// @dev `clones-with-immutable-args` argument #10
     /// @return l2ChainId_ The L2 chain ID.
-    function l2ChainId() external view returns (uint256 l2ChainId_) {
-        l2ChainId_ = L2_CHAIN_ID;
+    function l2ChainId() public pure returns (uint256 l2ChainId_) {
+        l2ChainId_ = _getArgUint256(208);
     }
 
     ////////////////////////////////////////////////////////////////
