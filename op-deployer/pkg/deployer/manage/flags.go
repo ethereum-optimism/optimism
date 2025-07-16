@@ -162,6 +162,7 @@ var Commands = cli.Commands{
 		Flags: append([]cli.Flag{
 			deployer.CacheDirFlag,
 			deployer.L1RPCURLFlag,
+			deployer.PrivateKeyFlag,
 			deployer.ArtifactsLocatorFlag,
 			L1ProxyAdminOwnerFlag,
 			PrankFlag,

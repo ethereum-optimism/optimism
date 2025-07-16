@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"math/big"
 	"os"
+	"strings"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/script"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer"
@@ -13,8 +14,11 @@ import (
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/broadcaster"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/opcm"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/env"
+	opcrypto "github.com/ethereum-optimism/optimism/op-service/crypto"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/rpc"
 	"github.com/lmittmann/w3"
 	"github.com/urfave/cli/v2"
@@ -78,11 +82,15 @@ func MigrateCLI(cliCtx *cli.Context) error {
 	ctx, cancel := context.WithCancel(cliCtx.Context)
 	defer cancel()
 
-	cacheDir := cliCtx.String(deployer.CacheDirFlag.Name)
-
 	l1RPCUrl := cliCtx.String(deployer.L1RPCURLFlag.Name)
 	if l1RPCUrl == "" {
 		return fmt.Errorf("missing required flag: %s", deployer.L1RPCURLFlag.Name)
+	}
+
+	privateKey := cliCtx.String(deployer.PrivateKeyFlag.Name)
+	privateKeyECDSA, err := crypto.HexToECDSA(strings.TrimPrefix(privateKey, "0x"))
+	if err != nil {
+		return fmt.Errorf("failed to parse private key: %w", err)
 	}
 
 	input := InteropMigrationInput{
@@ -114,23 +122,41 @@ func MigrateCLI(cliCtx *cli.Context) error {
 		return fmt.Errorf("failed to parse artifacts locator: %w", err)
 	}
 
+	cacheDir := cliCtx.String(deployer.CacheDirFlag.Name)
 	artifactsFS, err := artifacts.Download(ctx, artifactsLocator, artifacts.BarProgressor(), cacheDir)
 	if err != nil {
 		return fmt.Errorf("failed to download artifacts: %w", err)
 	}
-
-	bcaster := new(broadcaster.CalldataBroadcaster)
 
 	l1RPC, err := rpc.Dial(l1RPCUrl)
 	if err != nil {
 		return fmt.Errorf("failed to dial RPC %s: %w", l1RPCUrl, err)
 	}
 
+	l1Client := ethclient.NewClient(l1RPC)
+	l1ChainID, err := l1Client.ChainID(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to get chain ID: %w", err)
+	}
+
+	signer := opcrypto.SignerFnFromBind(opcrypto.PrivateKeySignerFn(privateKeyECDSA, l1ChainID))
+	deployer := crypto.PubkeyToAddress(privateKeyECDSA.PublicKey)
+	bcaster, err := broadcaster.NewKeyedBroadcaster(broadcaster.KeyedBroadcasterOpts{
+		Logger:  lgr,
+		ChainID: l1ChainID,
+		Client:  l1Client,
+		Signer:  signer,
+		From:    deployer,
+	})
+	if err != nil {
+		return fmt.Errorf("failed to create broadcaster: %w", err)
+	}
+
 	l1Host, err := env.DefaultForkedScriptHost(
 		ctx,
 		bcaster,
 		lgr,
-		common.Address{'D'},
+		deployer,
 		artifactsFS,
 		l1RPC,
 	)
