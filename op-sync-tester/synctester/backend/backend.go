@@ -82,7 +82,7 @@ func FromConfig(log log.Logger, m metrics.Metricer, cfg *config.Config, router A
 		}
 		if err := router.AddAPIToRPC(path, rpc.API{
 			Namespace: "eth",
-			Service:   frontend.NewSyncFrontend(st),
+			Service:   frontend.NewEthFrontend(st),
 		}); err != nil {
 			syncTesterErr = errors.Join(syncTesterErr, fmt.Errorf("failed to add sync API: %w", err))
 		}
