@@ -60,8 +60,8 @@ func TestPreNoInbox(gt *testing.T) {
 	// try interop before the upgrade, confirm that messages do not get included
 	{
 		// two EOAs for triggering the init and exec interop txs
-		alice := sys.FunderA.NewFundedEOA(eth.OneEther)
-		bob := sys.FunderB.NewFundedEOA(eth.OneEther)
+		alice := sys.FunderA.NewFundedEOA(eth.OneHundredthEther)
+		bob := sys.FunderB.NewFundedEOA(eth.OneHundredthEther)
 
 		interopTimeA := sys.L2ChainA.Escape().ChainConfig().InteropTime
 		interopTimeB := sys.L2ChainB.Escape().ChainConfig().InteropTime

@@ -15,7 +15,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/engine"
-	"github.com/ethereum-optimism/optimism/op-service/binary"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/event"
 	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
@@ -66,6 +65,9 @@ type IndexingMode struct {
 	lastExhaustedL1   eventTimestamp[eth.BlockID]
 	lastReplacedBlock eventTimestamp[eth.BlockID]
 
+	ctx    context.Context
+	cancel context.CancelFunc
+
 	cfg *rollup.Config
 
 	srv       *rpc.Server
@@ -74,6 +76,7 @@ type IndexingMode struct {
 
 func NewIndexingMode(log log.Logger, cfg *rollup.Config, addr string, port int, jwtSecret eth.Bytes32, l1 L1Source, l2 L2Source, m opmetrics.RPCMetricer) *IndexingMode {
 	log = log.With("mode", "indexing", "chainId", cfg.L2ChainID)
+	ctx, cancel := context.WithCancel(context.Background())
 	out := &IndexingMode{
 		log:       log,
 		cfg:       cfg,
@@ -88,6 +91,9 @@ func NewIndexingMode(log log.Logger, cfg *rollup.Config, addr string, port int, 
 		lastL1Traversal:   newEventTimestamp[eth.BlockID](500 * time.Millisecond),
 		lastExhaustedL1:   newEventTimestamp[eth.BlockID](500 * time.Millisecond),
 		lastReplacedBlock: newEventTimestamp[eth.BlockID](100 * time.Millisecond),
+
+		ctx:    ctx,
+		cancel: cancel,
 	}
 
 	out.srv = rpc.NewServer(addr, port, "v0.0.0",
@@ -144,6 +150,8 @@ func (m *IndexingMode) Stop(ctx context.Context) error {
 		return fmt.Errorf("failed to stop interop sub-system RPC server: %w", err)
 	}
 
+	m.cancel()
+
 	m.log.Info("Interop sub-system stopped")
 	return nil
 }
@@ -153,7 +161,7 @@ func (m *IndexingMode) AttachEmitter(em event.Emitter) {
 }
 
 // Outgoing events to supervisor
-func (m *IndexingMode) OnEvent(ev event.Event) bool {
+func (m *IndexingMode) OnEvent(ctx context.Context, ev event.Event) bool {
 	switch x := ev.(type) {
 	case rollup.ResetEvent:
 		logger := m.log.New("err", x.Err)
@@ -262,9 +270,8 @@ func (m *IndexingMode) UpdateCrossUnsafe(ctx context.Context, id eth.BlockID) er
 	if err != nil {
 		return fmt.Errorf("failed to get L2BlockRef: %w", err)
 	}
-	m.emitter.Emit(engine.PromoteCrossUnsafeEvent{
+	m.emitter.Emit(m.ctx, engine.PromoteCrossUnsafeEvent{
 		Ref: l2Ref,
-		Ctx: event.WrapCtx(ctx),
 	})
 	// We return early: there is no point waiting for the cross-unsafe engine-update synchronously.
 	// All error-feedback comes to the supervisor by aborting derivation tasks with an error.
@@ -280,10 +287,9 @@ func (m *IndexingMode) UpdateCrossSafe(ctx context.Context, derived eth.BlockID,
 	if err != nil {
 		return fmt.Errorf("failed to get L1BlockRef: %w", err)
 	}
-	m.emitter.Emit(engine.PromoteSafeEvent{
+	m.emitter.Emit(m.ctx, engine.PromoteSafeEvent{
 		Ref:    l2Ref,
 		Source: l1Ref,
-		Ctx:    event.WrapCtx(ctx),
 	})
 	// We return early: there is no point waiting for the cross-safe engine-update synchronously.
 	// All error-feedback comes to the supervisor by aborting derivation tasks with an error.
@@ -295,7 +301,7 @@ func (m *IndexingMode) UpdateFinalized(ctx context.Context, id eth.BlockID) erro
 	if err != nil {
 		return fmt.Errorf("failed to get L2BlockRef: %w", err)
 	}
-	m.emitter.Emit(engine.PromoteFinalizedEvent{Ref: l2Ref, Ctx: event.WrapCtx(ctx)})
+	m.emitter.Emit(m.ctx, engine.PromoteFinalizedEvent{Ref: l2Ref})
 	// We return early: there is no point waiting for the finalized engine-update synchronously.
 	// All error-feedback comes to the supervisor by aborting derivation tasks with an error.
 	return nil
@@ -325,8 +331,8 @@ func (m *IndexingMode) InvalidateBlock(ctx context.Context, seal supervisortypes
 		DerivedFrom: engine.ReplaceBlockSource,
 	}
 
-	m.emitter.Emit(engine.InteropInvalidateBlockEvent{
-		Invalidated: ref, Attributes: annotated, Ctx: event.WrapCtx(ctx)})
+	m.emitter.Emit(m.ctx, engine.InteropInvalidateBlockEvent{
+		Invalidated: ref, Attributes: annotated})
 
 	// The node will send an event once the replacement is ready
 	return nil
@@ -366,7 +372,7 @@ const (
 // TODO: add ResetPreInterop, called by supervisor if bisection went pre-Interop. Emit ResetEngineRequestEvent.
 func (m *IndexingMode) ResetPreInterop(ctx context.Context) error {
 	m.log.Info("Received pre-interop reset request")
-	m.emitter.Emit(engine.ResetEngineRequestEvent{Ctx: event.WrapCtx(ctx)})
+	m.emitter.Emit(ctx, engine.ResetEngineRequestEvent{})
 	return nil
 }
 
@@ -412,7 +418,7 @@ func (m *IndexingMode) Reset(ctx context.Context, lUnsafe, xUnsafe, lSafe, xSafe
 	}
 
 	// verify all provided references
-	_, err := verify(lUnsafe, "unsafe")
+	lUnsafeRef, err := verify(lUnsafe, "unsafe")
 	if err != nil {
 		logger.Error("Cannot reset, local-unsafe target invalid")
 		return err
@@ -438,112 +444,20 @@ func (m *IndexingMode) Reset(ctx context.Context, lUnsafe, xUnsafe, lSafe, xSafe
 		return err
 	}
 
-	latestLocalUnsafe, err := m.findLatestValidLocalUnsafe(ctx, lUnsafe)
-	if err != nil {
-		logger.Error("Cannot reset, no valid local-unsafe block found", "err", err)
-		return err
-	}
-
-	m.emitter.Emit(rollup.ForceResetEvent{
-		LocalUnsafe: latestLocalUnsafe,
+	m.emitter.Emit(ctx, rollup.ForceResetEvent{
+		LocalUnsafe: lUnsafeRef,
 		CrossUnsafe: xUnsafeRef,
 		LocalSafe:   lSafeRef,
 		CrossSafe:   xSafeRef,
 		Finalized:   finalizedRef,
-		Ctx:         event.WrapCtx(ctx),
 	})
 	return nil
 }
 
-// findLatestValidLocalUnsafe searches and returns the latest valid block of the L2 chain
-// starting from `l2UnsafeTarget` and checking until the latest unsafe block.
-func (m *IndexingMode) findLatestValidLocalUnsafe(ctx context.Context, l2UnsafeTarget eth.BlockID) (eth.L2BlockRef, error) {
-	latestUnsafe, err := m.l2.L2BlockRefByLabel(ctx, eth.Unsafe)
-	if err != nil {
-		return eth.L2BlockRef{}, err
-	}
-
-	logger := m.log.New("target", l2UnsafeTarget, "latestUnsafe", latestUnsafe)
-	target := l2UnsafeTarget.Number
-
-	logger.Info("Searching for latest valid local unsafe")
-
-	targetDiff := int(latestUnsafe.Number - target)
-	if targetDiff > 0 {
-		// Binary search to find and return the last valid block for idx in [0, targetDiff)
-		// We don't check validity of `target`, `target` is not in the search space, it is checked
-		// in the walkback loop section below if necessary.
-
-		// Search space:
-		// ------------------------------------------------------------------------------------------
-		// target.Number |  idx=0      idx=1      idx=2     ...  idx = targetDiff-1 = latestUnsafe   |
-		// false         |  t/f        t/f        t/f       ...  t/f                                 |
-		// ------------------------------------------------------------------------------------------
-		idx, valid, err := binary.SearchL(targetDiff, func(i int) (bool, eth.L2BlockRef, error) {
-			block, err := m.verifyBlock(ctx, logger, target+1+uint64(i))
-			return block != (eth.L2BlockRef{}), block, err
-		})
-		if err != nil {
-			return eth.L2BlockRef{}, err
-		}
-
-		if idx != -1 {
-			logger.Info("Found last valid block with binary search", "valid", valid)
-			return valid, nil
-		} else {
-			logger.Info("All blocks checked by binary search are invalid between target and latestUnsafe")
-		}
-	} else if targetDiff < 0 {
-		logger.Warn("Latest unsafe block is older than target, using latest unsafe for search")
-		target = latestUnsafe.Number
-	}
-
-	// In the following walkback loop, the following two cases are covered:
-	// 1. targetDiff == 0 or targetDiff < 0 (i.e. target == latestUnsafe), or
-	// 2. all blocks checked by binary search were invalid, so we have to go from `target` backwards indefinitely
-	//    until we find a valid block
-	for n := target; ; n-- {
-		if n == target-1 {
-			logger.Warn("No valid unsafe block found up to target, searching further")
-		}
-
-		valid, err := m.verifyBlock(ctx, logger, n)
-		if err != nil {
-			return eth.L2BlockRef{}, err
-		}
-
-		if valid != (eth.L2BlockRef{}) {
-			logger.Info("Fould last valid block", "valid", valid)
-			return valid, nil
-		}
-	}
-}
-
-// verifyBlock
-func (m *IndexingMode) verifyBlock(ctx context.Context, logger log.Logger, blockNum uint64) (eth.L2BlockRef, error) {
-	current, err := m.l2.L2BlockRefByNumber(ctx, blockNum)
-	if err != nil {
-		return eth.L2BlockRef{}, err
-	}
-
-	// Check if L1Origin has been reorged
-	l1Blk, err := m.l1.L1BlockRefByNumber(ctx, current.L1Origin.Number)
-	if err != nil {
-		return eth.L2BlockRef{}, err
-	}
-	if l1Blk.Hash != current.L1Origin.Hash {
-		logger.Debug("L1Origin field is invalid/outdated, so block is invalid and should be reorged", "currentNumber", current.Number, "currentL1Origin", current.L1Origin, "newL1Origin", l1Blk)
-		return eth.L2BlockRef{}, nil
-	}
-	logger.Trace("L1Origin field points to canonical L1 block, so block is valid", "blocknum", blockNum, "l1Blk", l1Blk)
-	return current, nil
-}
-
 func (m *IndexingMode) ProvideL1(ctx context.Context, nextL1 eth.BlockRef) error {
 	m.log.Info("Received next L1 block", "nextL1", nextL1)
-	m.emitter.Emit(derive.ProvideL1Traversal{
+	m.emitter.Emit(m.ctx, derive.ProvideL1Traversal{
 		NextL1: nextL1,
-		Ctx:    event.WrapCtx(ctx),
 	})
 	return nil
 }
@@ -551,10 +465,6 @@ func (m *IndexingMode) ProvideL1(ctx context.Context, nextL1 eth.BlockRef) error
 func (m *IndexingMode) FetchReceipts(ctx context.Context, blockHash common.Hash) (types.Receipts, error) {
 	_, receipts, err := m.l2.FetchReceipts(ctx, blockHash)
 	return receipts, err
-}
-
-func (m *IndexingMode) BlockRefByNumber(ctx context.Context, num uint64) (eth.BlockRef, error) {
-	return m.l2.BlockRefByNumber(ctx, num)
 }
 
 func (m *IndexingMode) ChainID(ctx context.Context) (eth.ChainID, error) {
@@ -598,5 +508,9 @@ func (m *IndexingMode) L2BlockRefByTimestamp(ctx context.Context, timestamp uint
 	if err != nil {
 		return eth.L2BlockRef{}, err
 	}
+	return m.l2.L2BlockRefByNumber(ctx, num)
+}
+
+func (m *IndexingMode) L2BlockRefByNumber(ctx context.Context, num uint64) (eth.L2BlockRef, error) {
 	return m.l2.L2BlockRefByNumber(ctx, num)
 }

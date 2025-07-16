@@ -11,11 +11,11 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/exp/maps"
 
-	"github.com/ethereum-optimism/optimism/cannon/mipsevm/exec"
-	mtutil "github.com/ethereum-optimism/optimism/cannon/mipsevm/multithreaded/testutil"
-
+	"github.com/ethereum-optimism/optimism/cannon/mipsevm"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/arch"
+	"github.com/ethereum-optimism/optimism/cannon/mipsevm/exec"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/multithreaded"
+	mtutil "github.com/ethereum-optimism/optimism/cannon/mipsevm/multithreaded/testutil"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/testutil"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/versions"
 )
@@ -177,10 +177,8 @@ func TestEVM_MT64_SC(t *testing.T) {
 					var retVal Word
 					if llVar.shouldSucceed {
 						retVal = 1
-						expected.ExpectMemoryWordWrite(effAddr, c.expectedMemVal)
-						expected.LLReservationStatus = multithreaded.LLStatusNone
-						expected.LLAddress = 0
-						expected.LLOwnerThread = 0
+						expected.ExpectMemoryWrite(effAddr, c.expectedMemVal)
+						expected.ExpectMemoryReservationCleared()
 					} else {
 						retVal = 0
 					}
@@ -358,10 +356,8 @@ func TestEVM_MT64_SCD(t *testing.T) {
 					var retVal Word
 					if llVar.shouldSucceed {
 						retVal = 1
-						expected.ExpectMemoryWordWrite(effAddr, value)
-						expected.LLReservationStatus = multithreaded.LLStatusNone
-						expected.LLAddress = 0
-						expected.LLOwnerThread = 0
+						expected.ExpectMemoryWrite(effAddr, value)
+						expected.ExpectMemoryReservationCleared()
 					} else {
 						retVal = 0
 					}
@@ -382,11 +378,25 @@ func TestEVM_MT64_SCD(t *testing.T) {
 }
 
 func TestEVM_MT_SysRead_Preimage64(t *testing.T) {
-	preimageValue := make([]byte, 0, 8)
-	preimageValue = binary.BigEndian.AppendUint32(preimageValue, 0x12_34_56_78)
-	preimageValue = binary.BigEndian.AppendUint32(preimageValue, 0x98_76_54_32)
+	t.Parallel()
+
+	type testCase struct {
+		name           string
+		addr           Word
+		count          Word
+		writeLen       Word
+		preimageOffset Word
+		prestateMem    Word
+		postateMem     Word
+		shouldPanic    bool
+	}
+
+	testNamer := func(tc testCase) string {
+		return tc.name
+	}
+
 	prestateMem := Word(0xEE_EE_EE_EE_FF_FF_FF_FF)
-	cases := []testMTSysReadPreimageTestCase{
+	cases := []testCase{
 		{name: "Aligned addr, write 1 byte", addr: 0x00_00_FF_00, count: 1, writeLen: 1, preimageOffset: 8, prestateMem: prestateMem, postateMem: 0x12_EE_EE_EE_FF_FF_FF_FF},
 		{name: "Aligned addr, write 2 byte", addr: 0x00_00_FF_00, count: 2, writeLen: 2, preimageOffset: 8, prestateMem: prestateMem, postateMem: 0x12_34_EE_EE_FF_FF_FF_FF},
 		{name: "Aligned addr, write 3 byte", addr: 0x00_00_FF_00, count: 3, writeLen: 3, preimageOffset: 8, prestateMem: prestateMem, postateMem: 0x12_34_56_EE_FF_FF_FF_FF},
@@ -422,7 +432,41 @@ func TestEVM_MT_SysRead_Preimage64(t *testing.T) {
 		{name: "Offset just out of bounds", addr: 0x00_00_FF_00, count: 4, writeLen: 0, preimageOffset: 16, prestateMem: prestateMem, postateMem: 0xEE_EE_EE_EE_FF_FF_FF_FF, shouldPanic: true},
 		{name: "Offset out of bounds", addr: 0x00_00_FF_00, count: 4, writeLen: 0, preimageOffset: 17, prestateMem: prestateMem, postateMem: 0xEE_EE_EE_EE_FF_FF_FF_FF, shouldPanic: true},
 	}
-	testMTSysReadPreimage(t, preimageValue, cases)
+
+	preimageValue := make([]byte, 0, 8)
+	preimageValue = binary.BigEndian.AppendUint32(preimageValue, 0x12_34_56_78)
+	preimageValue = binary.BigEndian.AppendUint32(preimageValue, 0x98_76_54_32)
+	initState := func(testCase testCase, state *multithreaded.State, vm VersionedVMTestCase) {
+		state.PreimageKey = testutil.Keccak256Preimage(preimageValue)
+		state.PreimageOffset = testCase.preimageOffset
+		state.GetRegistersRef()[2] = arch.SysRead
+		state.GetRegistersRef()[4] = exec.FdPreimageRead
+		state.GetRegistersRef()[5] = testCase.addr
+		state.GetRegistersRef()[6] = testCase.count
+		testutil.StoreInstruction(state.GetMemory(), state.GetPC(), syscallInsn)
+		state.GetMemory().SetWord(testutil.EffAddr(testCase.addr), testCase.prestateMem)
+	}
+
+	setExpectations := func(testCase testCase, expected *mtutil.ExpectedState, vm VersionedVMTestCase) ExpectedExecResult {
+		expected.ExpectStep()
+		expected.ActiveThread().Registers[2] = testCase.writeLen
+		expected.ActiveThread().Registers[7] = 0 // no error
+		expected.PreimageOffset += testCase.writeLen
+		expected.ExpectMemoryWrite(testutil.EffAddr(testCase.addr), testCase.postateMem)
+
+		if testCase.shouldPanic {
+			preimageKey := testutil.Keccak256Preimage(preimageValue)
+			return ExpectPreimageOraclePanic(preimageKey, preimageValue, testCase.preimageOffset, "Preimage offset out-of-bounds")
+		} else {
+			return ExpectNormalExecution()
+		}
+	}
+
+	po := func() mipsevm.PreimageOracle { return testutil.StaticOracle(t, preimageValue) }
+	NewDiffTester(testNamer).
+		InitState(initState).
+		SetExpectations(setExpectations).
+		Run(t, cases, WithPreimageOracle(po))
 }
 
 func TestEVM_MT_SysRead_FromEventFd(t *testing.T) {
@@ -513,7 +557,29 @@ func TestEVM_MT_SysWrite_ToEventFd(t *testing.T) {
 
 func TestEVM_MT_StoreOpsClearMemReservation64(t *testing.T) {
 	t.Parallel()
-	cases := []testMTStoreOpsClearMemReservationTestCase{
+
+	type testCase struct {
+		// name is the test name
+		name string
+		// opcode is the instruction opcode
+		opcode uint32
+		// offset is the immediate offset encoded in the instruction
+		offset uint32
+		// base is the base/rs register prestate
+		base Word
+		// effAddr is the address used to set the prestate preMem value. It is also used as the base LLAddress that can be adjusted reservation assertions
+		effAddr Word
+		// premem is the prestate value of the word located at effrAddr
+		preMem Word
+		// postMem is the expected post-state value of the word located at effAddr
+		postMem Word
+	}
+
+	testNamer := func(tc testCase) string {
+		return tc.name
+	}
+
+	cases := []testCase{
 		{name: "Store byte", opcode: 0b10_1000, base: 0xFF_00_00_00, offset: 0x10, effAddr: 0xFF_00_00_10, preMem: ^Word(0), postMem: 0x78_FF_FF_FF_FF_FF_FF_FF},
 		{name: "Store byte lower", opcode: 0b10_1000, base: 0xFF_00_00_00, offset: 0x14, effAddr: 0xFF_00_00_10, preMem: ^Word(0), postMem: 0xFF_FF_FF_FF_78_FF_FF_FF},
 		{name: "Store halfword", opcode: 0b10_1001, base: 0xFF_00_00_00, offset: 0x10, effAddr: 0xFF_00_00_10, preMem: ^Word(0), postMem: 0x56_78_FF_FF_FF_FF_FF_FF},
@@ -525,7 +591,31 @@ func TestEVM_MT_StoreOpsClearMemReservation64(t *testing.T) {
 		{name: "Store word right", opcode: 0b10_1110, base: 0xFF_00_00_00, offset: 0x10, effAddr: 0xFF_00_00_10, preMem: ^Word(0), postMem: 0x78_FF_FF_FF_FF_FF_FF_FF},
 		{name: "Store word right lower", opcode: 0b10_1110, base: 0xFF_00_00_00, offset: 0x14, effAddr: 0xFF_00_00_10, preMem: ^Word(0), postMem: 0xFF_FF_FF_FF_78_FF_FF_FF},
 	}
-	testMTStoreOpsClearMemReservation(t, cases)
+
+	pc := Word(0x08)
+	rt := Word(0x12_34_56_78)
+	//rt := Word(0x12_34_56_78_12_34_56_78)
+	baseReg := uint32(5)
+	rtReg := uint32(6)
+	initState := func(testCase testCase, state *multithreaded.State, vm VersionedVMTestCase) {
+		insn := uint32((testCase.opcode << 26) | (baseReg & 0x1F << 21) | (rtReg & 0x1F << 16) | (0xFFFF & testCase.offset))
+
+		state.GetRegistersRef()[rtReg] = rt
+		state.GetRegistersRef()[baseReg] = testCase.base
+		testutil.StoreInstruction(state.GetMemory(), pc, insn)
+		state.GetMemory().SetWord(testCase.effAddr, testCase.preMem)
+	}
+
+	setExpectations := func(testCase testCase, expected *mtutil.ExpectedState, vm VersionedVMTestCase) ExpectedExecResult {
+		expected.ExpectStep()
+		expected.ExpectMemoryWrite(testCase.effAddr, testCase.postMem)
+		return ExpectNormalExecution()
+	}
+
+	NewDiffTester(testNamer).
+		InitState(initState, mtutil.WithPCAndNextPC(pc)).
+		SetExpectations(setExpectations).
+		Run(t, cases)
 }
 
 var NoopSyscalls64 = map[string]uint32{

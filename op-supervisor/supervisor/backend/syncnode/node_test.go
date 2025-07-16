@@ -63,11 +63,11 @@ func TestEventResponse(t *testing.T) {
 
 	// send events and continue to do so until at least one of each type has been received
 	require.Eventually(t, func() bool {
-		testCtx := event.WrapCtx(context.Background())
+		testCtx := context.Background()
 		// send in one event of each type
-		emitter.Emit(superevents.CrossUnsafeUpdateEvent{ChainID: chainID, Ctx: testCtx})
-		emitter.Emit(superevents.CrossSafeUpdateEvent{ChainID: chainID, Ctx: testCtx})
-		emitter.Emit(superevents.FinalizedL2UpdateEvent{ChainID: chainID, Ctx: testCtx})
+		emitter.Emit(testCtx, superevents.CrossUnsafeUpdateEvent{ChainID: chainID})
+		emitter.Emit(testCtx, superevents.CrossSafeUpdateEvent{ChainID: chainID})
+		emitter.Emit(testCtx, superevents.FinalizedL2UpdateEvent{ChainID: chainID})
 
 		syncCtrl.subscribeEvents.Send(&types.IndexingEvent{
 			UnsafeBlock: &eth.BlockRef{Number: 1}})

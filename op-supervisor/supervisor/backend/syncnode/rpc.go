@@ -57,17 +57,11 @@ func (rs *RPCSyncNode) ReconnectRPC(ctx context.Context) error {
 	return nil
 }
 
-func (rs *RPCSyncNode) BlockRefByNumber(ctx context.Context, number uint64) (eth.BlockRef, error) {
-	var out *eth.BlockRef
-	err := rs.cl.CallContext(ctx, &out, "interop_blockRefByNumber", number)
+func (rs *RPCSyncNode) L2BlockRefByNumber(ctx context.Context, number uint64) (eth.L2BlockRef, error) {
+	var out *eth.L2BlockRef
+	err := rs.cl.CallContext(ctx, &out, "interop_l2BlockRefByNumber", number)
 	if err != nil {
-		var jsonErr gethrpc.Error
-		if errors.As(err, &jsonErr) {
-			if jsonErr.ErrorCode() == 0 { // TODO
-				return eth.BlockRef{}, ethereum.NotFound
-			}
-		}
-		return eth.BlockRef{}, err
+		return eth.L2BlockRef{}, eth.MaybeAsNotFoundErr(err)
 	}
 	return *out, nil
 }
@@ -76,13 +70,7 @@ func (rs *RPCSyncNode) FetchReceipts(ctx context.Context, blockHash common.Hash)
 	var out gethtypes.Receipts
 	err := rs.cl.CallContext(ctx, &out, "interop_fetchReceipts", blockHash)
 	if err != nil {
-		var jsonErr gethrpc.Error
-		if errors.As(err, &jsonErr) {
-			if jsonErr.ErrorCode() == 0 { // TODO
-				return nil, ethereum.NotFound
-			}
-		}
-		return nil, err
+		return nil, eth.MaybeAsNotFoundErr(err)
 	}
 	return out, nil
 }
@@ -188,10 +176,11 @@ func (rs *RPCSyncNode) Contains(ctx context.Context, query types.ContainsQuery) 
 		return types.BlockSeal{}, fmt.Errorf("failed to get chain ID for verifying access with RPC: %w", err)
 	}
 
-	blockRef, err := rs.BlockRefByNumber(ctx, query.BlockNum)
+	l2BlockRef, err := rs.L2BlockRefByNumber(ctx, query.BlockNum)
 	if err != nil {
 		return types.BlockSeal{}, types.ErrFuture
 	}
+	blockRef := l2BlockRef.BlockRef()
 
 	log, err := rs.getLogAtIndex(ctx, blockRef.Hash, query.LogIdx)
 	if err != nil {

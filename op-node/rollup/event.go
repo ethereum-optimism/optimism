@@ -8,7 +8,6 @@ import (
 // L1TemporaryErrorEvent identifies a temporary issue with the L1 data.
 type L1TemporaryErrorEvent struct {
 	Err error
-	event.Ctx
 }
 
 var _ event.Event = L1TemporaryErrorEvent{}
@@ -23,7 +22,6 @@ func (ev L1TemporaryErrorEvent) String() string {
 // See L1TemporaryErrorEvent for L1 related temporary errors.
 type EngineTemporaryErrorEvent struct {
 	Err error
-	event.Ctx
 }
 
 var _ event.Event = EngineTemporaryErrorEvent{}
@@ -34,7 +32,6 @@ func (ev EngineTemporaryErrorEvent) String() string {
 
 type ResetEvent struct {
 	Err error
-	event.Ctx
 }
 
 var _ event.Event = ResetEvent{}
@@ -49,7 +46,6 @@ func (ev ResetEvent) String() string {
 // Pre-interop both local and cross values should be set the same.
 type ForceResetEvent struct {
 	LocalUnsafe, CrossUnsafe, LocalSafe, CrossSafe, Finalized eth.L2BlockRef
-	event.Ctx
 }
 
 func (ev ForceResetEvent) String() string {

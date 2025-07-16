@@ -10,7 +10,7 @@ import (
 type FlashblocksBuilderNode interface {
 	ELNode
 	ID() FlashblocksBuilderID
-	ConductorID() ConductorID
+	Conductor() Conductor
 	L2EthClient() apis.L2EthClient
 	FlashblocksWsUrl() string
 }

@@ -1,6 +1,7 @@
 package driver
 
 import (
+	"context"
 	"errors"
 	"testing"
 
@@ -36,7 +37,7 @@ func TestDriver(t *testing.T) {
 			logger: logger,
 			end:    end,
 		}
-		d.deriver = event.DeriverFunc(func(ev event.Event) bool {
+		d.deriver = event.DeriverFunc(func(ctx context.Context, ev event.Event) bool {
 			onEvent(d, end, ev)
 			return true
 		})
@@ -68,7 +69,7 @@ func TestDriver(t *testing.T) {
 				return
 			}
 			count += 1
-			d.Emit(TestEvent{})
+			d.Emit(context.Background(), TestEvent{})
 		})
 		_, err := d.RunComplete()
 		require.NoError(t, err)
@@ -83,7 +84,7 @@ func TestDriver(t *testing.T) {
 				return
 			}
 			count += 1
-			d.Emit(TestEvent{})
+			d.Emit(context.Background(), TestEvent{})
 		})
 		_, err := d.RunComplete()
 		require.ErrorIs(t, mockErr, err)
@@ -93,7 +94,7 @@ func TestDriver(t *testing.T) {
 		count := 0
 		d := newTestDriver(t, func(d *Driver, end *fakeEnd, ev event.Event) {
 			if count < 3 { // stop generating events after a while, without changing end condition
-				d.Emit(TestEvent{})
+				d.Emit(context.Background(), TestEvent{})
 			}
 			count += 1
 		})
@@ -106,8 +107,8 @@ func TestDriver(t *testing.T) {
 		count := 0
 		d := newTestDriver(t, func(d *Driver, end *fakeEnd, ev event.Event) {
 			if count < 3 {
-				d.Emit(TestEvent{})
-				d.Emit(TestEvent{})
+				d.Emit(context.Background(), TestEvent{})
+				d.Emit(context.Background(), TestEvent{})
 			}
 			count += 1
 		})

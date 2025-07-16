@@ -83,6 +83,12 @@ type SupervisorBackend struct {
 
 	// rpcVerificationWarnings enables asynchronous RPC verification of DB checkAccess call in the CheckAccessList endpoint, indicating warnings as a metric
 	rpcVerificationWarnings bool
+
+	// failsafeEnabled controls whether the supervisor should enable failsafe mode
+	failsafeEnabled atomic.Bool
+
+	// failsafeOnInvalidation controls whether failsafe should activate when a block is invalidated
+	failsafeOnInvalidation bool
 }
 
 var (
@@ -160,6 +166,9 @@ func NewSupervisorBackend(ctx context.Context, logger log.Logger,
 
 		rpcVerificationWarnings: cfg.RPCVerificationWarnings,
 	}
+	// Set failsafe from config
+	super.setFailsafeEnabled(cfg.FailsafeEnabled)
+	super.failsafeOnInvalidation = cfg.FailsafeOnInvalidation
 	eventSys.Register("backend", super)
 	eventSys.Register("rewinder", super.rewinder)
 
@@ -181,62 +190,58 @@ func NewSupervisorBackend(ctx context.Context, logger log.Logger,
 	return super, nil
 }
 
-func (su *SupervisorBackend) OnEvent(ev event.Event) bool {
+func (su *SupervisorBackend) OnEvent(ctx context.Context, ev event.Event) bool {
 	switch x := ev.(type) {
 	case superevents.LocalUnsafeReceivedEvent:
 		if !su.cfgSet.IsInterop(x.ChainID, x.NewLocalUnsafe.Time) {
 			su.logger.Warn("ignoring local unsafe received event for pre-interop block", "chainID", x.ChainID, "unsafe", x.NewLocalUnsafe)
 			return false
 		} else if su.cfgSet.IsInteropActivationBlock(x.ChainID, x.NewLocalUnsafe.Time) {
-			su.emitter.Emit(superevents.UnsafeActivationBlockEvent{
+			su.emitter.Emit(ctx, superevents.UnsafeActivationBlockEvent{
 				ChainID: x.ChainID,
 				Unsafe:  x.NewLocalUnsafe,
-				Ctx:     x.Ctx,
 			})
 			// don't process events of the activation block
 			return true
 		}
-		su.emitter.Emit(superevents.ChainProcessEvent{
+		su.emitter.Emit(ctx, superevents.ChainProcessEvent{
 			ChainID: x.ChainID,
 			Target:  x.NewLocalUnsafe.Number,
-			Ctx:     x.Ctx,
 		})
 	case superevents.LocalUnsafeUpdateEvent:
-		su.emitter.Emit(superevents.UpdateCrossUnsafeRequestEvent{
+		su.emitter.Emit(ctx, superevents.UpdateCrossUnsafeRequestEvent{
 			ChainID: x.ChainID,
-			Ctx:     x.Ctx,
 		})
 	case superevents.CrossUnsafeUpdateEvent:
-		su.emitter.Emit(superevents.UpdateCrossUnsafeRequestEvent{
+		su.emitter.Emit(ctx, superevents.UpdateCrossUnsafeRequestEvent{
 			ChainID: x.ChainID,
-			Ctx:     x.Ctx,
 		})
 	case superevents.LocalDerivedEvent:
 		if !su.cfgSet.IsInterop(x.ChainID, x.Derived.Derived.Time) {
 			su.logger.Warn("ignoring local derived event for pre-interop block", "chainID", x.ChainID, "derived", x.Derived.Derived)
 			return false
 		} else if su.cfgSet.IsInteropActivationBlock(x.ChainID, x.Derived.Derived.Time) {
-			su.emitter.Emit(superevents.SafeActivationBlockEvent{
+			su.emitter.Emit(ctx, superevents.SafeActivationBlockEvent{
 				ChainID: x.ChainID,
 				Safe:    x.Derived,
-				Ctx:     x.Ctx,
 			})
 		}
 	case superevents.LocalSafeUpdateEvent:
-		su.emitter.Emit(superevents.ChainProcessEvent{
+		su.emitter.Emit(ctx, superevents.ChainProcessEvent{
 			ChainID: x.ChainID,
 			Target:  x.NewLocalSafe.Derived.Number,
-			Ctx:     x.Ctx,
 		})
-		su.emitter.Emit(superevents.UpdateCrossSafeRequestEvent{
+		su.emitter.Emit(ctx, superevents.UpdateCrossSafeRequestEvent{
 			ChainID: x.ChainID,
-			Ctx:     x.Ctx,
 		})
 	case superevents.CrossSafeUpdateEvent:
-		su.emitter.Emit(superevents.UpdateCrossSafeRequestEvent{
+		su.emitter.Emit(ctx, superevents.UpdateCrossSafeRequestEvent{
 			ChainID: x.ChainID,
-			Ctx:     x.Ctx,
 		})
+	case superevents.InvalidateLocalSafeEvent:
+		if su.failsafeOnInvalidation {
+			su.setFailsafeEnabled(true)
+		}
 	default:
 		return false
 	}
@@ -339,14 +344,13 @@ func (su *SupervisorBackend) openChainDBs(chainID eth.ChainID) error {
 	// can initialize, if needed.
 	genesis := su.cfgSet.Genesis(chainID)
 	if su.cfgSet.IsInterop(chainID, genesis.L2.Timestamp) {
-		su.emitter.Emit(superevents.SafeActivationBlockEvent{
+		su.emitter.Emit(su.sysContext, superevents.SafeActivationBlockEvent{
 			ChainID: chainID,
 			Safe: types.DerivedBlockRefPair{
 				// Initialization skips parent checks, so zero parents are ok.
 				Source:  genesis.L1.WithZeroParent(),
 				Derived: genesis.L2.WithZeroParent(),
 			},
-			Ctx: event.WrapCtx(su.sysContext),
 		})
 	}
 
@@ -559,6 +563,12 @@ func (su *SupervisorBackend) checkSafety(chainID eth.ChainID, blockID eth.BlockI
 
 func (su *SupervisorBackend) CheckAccessList(ctx context.Context, inboxEntries []common.Hash,
 	minSafety types.SafetyLevel, execDescr types.ExecutingDescriptor) error {
+	// Check if failsafe is enabled
+	if su.isFailsafeEnabled() {
+		su.logger.Debug("Failsafe is enabled, rejecting access-list check")
+		return types.ErrFailsafeEnabled
+	}
+
 	switch minSafety {
 	case types.LocalUnsafe, types.CrossUnsafe, types.LocalSafe, types.CrossSafe, types.Finalized:
 		// valid safety level
@@ -726,11 +736,7 @@ func (su *SupervisorBackend) IsLocalSafe(ctx context.Context, chainID eth.ChainI
 }
 
 func (su *SupervisorBackend) CrossDerivedToSource(ctx context.Context, chainID eth.ChainID, derived eth.BlockID) (source eth.BlockRef, err error) {
-	v, err := su.chainDBs.CrossDerivedToSourceRef(chainID, derived)
-	if err != nil {
-		return eth.BlockRef{}, err
-	}
-	return v, nil
+	return su.chainDBs.CrossDerivedToSourceRef(chainID, derived)
 }
 
 func (su *SupervisorBackend) L1BlockRefByNumber(ctx context.Context, number uint64) (eth.L1BlockRef, error) {
@@ -829,4 +835,27 @@ func (su *SupervisorBackend) SetConfDepthL1(depth uint64) {
 // Rewind rolls back the state of the supervisor for the given chain.
 func (su *SupervisorBackend) Rewind(ctx context.Context, chain eth.ChainID, block eth.BlockID) error {
 	return su.chainDBs.Rewind(chain, block)
+}
+
+// SetFailsafeEnabled sets the failsafe mode configuration for the supervisor.
+func (su *SupervisorBackend) SetFailsafeEnabled(ctx context.Context, enabled bool) error {
+	su.setFailsafeEnabled(enabled)
+	return nil
+}
+
+// setFailsafeEnabled sets the failsafe mode configuration for the supervisor.
+// it is an internal function because it does not need context, nor does it return an error.
+func (su *SupervisorBackend) setFailsafeEnabled(enabled bool) {
+	su.failsafeEnabled.Store(enabled)
+}
+
+// GetFailsafeEnabled gets the current failsafe mode configuration for the supervisor.
+func (su *SupervisorBackend) GetFailsafeEnabled(ctx context.Context) (bool, error) {
+	return su.isFailsafeEnabled(), nil
+}
+
+// isFailsafeEnabled returns whether failsafe is enabled.
+func (su *SupervisorBackend) isFailsafeEnabled() bool {
+	// presently the failsafe bool is 1:1 with failsafe being enabled
+	return su.failsafeEnabled.Load()
 }

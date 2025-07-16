@@ -83,7 +83,7 @@ func TestPersistentSuccessfulTxInclusion(t *testing.T) {
 	el := newMockEL(nil, want.Receipt)
 	startingBalance := eth.OneEther
 	budget := accounting.NewBudget(startingBalance)
-	p := txinclude.NewPersistent(newSigner(t), el, txinclude.WithBudget(budget))
+	p := txinclude.NewPersistent(newSigner(t), el, txinclude.WithBudget(txinclude.NewTxBudget(budget)))
 	got, err := p.Include(context.Background(), original)
 	require.NoError(t, err)
 	require.EqualExportedValues(t, want, got)
@@ -111,7 +111,7 @@ func TestPersistentFixesNonceTooLow(t *testing.T) {
 	el := newMockEL([]error{core.ErrNonceTooLow, core.ErrNonceTooLow}, want.Receipt)
 	startingBalance := eth.OneEther
 	budget := accounting.NewBudget(startingBalance)
-	p := txinclude.NewPersistent(newSigner(t), el, txinclude.WithBudget(budget))
+	p := txinclude.NewPersistent(newSigner(t), el, txinclude.WithBudget(txinclude.NewTxBudget(budget)))
 	got, err := p.Include(context.Background(), original)
 	require.NoError(t, err)
 	require.EqualExportedValues(t, want, got)
@@ -135,7 +135,7 @@ func TestPersistentNoChangeOnUnderpriced(t *testing.T) {
 	el := newMockEL([]error{txpool.ErrUnderpriced, txpool.ErrReplaceUnderpriced}, want.Receipt)
 	startingBalance := eth.Ether(1)
 	budget := accounting.NewBudget(startingBalance)
-	p := txinclude.NewPersistent(newSigner(t), el, txinclude.WithBudget(budget))
+	p := txinclude.NewPersistent(newSigner(t), el, txinclude.WithBudget(txinclude.NewTxBudget(budget)))
 	got, err := p.Include(context.Background(), original)
 	require.NoError(t, err)
 	require.NotNil(t, got)
@@ -147,7 +147,7 @@ func TestPersistentContextCanceled(t *testing.T) {
 	el := newMockEL(nil, nil)
 	startingBalance := eth.OneEther
 	budget := accounting.NewBudget(startingBalance)
-	p := txinclude.NewPersistent(newSigner(t), el, txinclude.WithBudget(budget))
+	p := txinclude.NewPersistent(newSigner(t), el, txinclude.WithBudget(txinclude.NewTxBudget(budget)))
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 	got, err := p.Include(ctx, &types.DynamicFeeTx{
@@ -164,7 +164,7 @@ func TestPersistentFatalError(t *testing.T) {
 	el := newMockEL([]error{fatalErr}, nil)
 	startingBalance := eth.OneEther
 	budget := accounting.NewBudget(startingBalance)
-	p := txinclude.NewPersistent(newSigner(t), el, txinclude.WithBudget(budget))
+	p := txinclude.NewPersistent(newSigner(t), el, txinclude.WithBudget(txinclude.NewTxBudget(budget)))
 	got, err := p.Include(context.Background(), &types.DynamicFeeTx{
 		GasFeeCap: eth.OneGWei.ToBig(),
 		Gas:       21_000,

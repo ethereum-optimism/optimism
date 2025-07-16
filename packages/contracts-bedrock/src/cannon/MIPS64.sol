@@ -66,8 +66,8 @@ contract MIPS64 is ISemver {
     }
 
     /// @notice The semantic version of the MIPS64 contract.
-    /// @custom:semver 1.7.0
-    string public constant version = "1.7.0";
+    /// @custom:semver 1.8.0
+    string public constant version = "1.8.0";
 
     /// @notice The preimage oracle contract.
     IPreimageOracle internal immutable ORACLE;
@@ -686,7 +686,9 @@ contract MIPS64 is ISemver {
         randDataMask <<= (arch.WORD_SIZE_BYTES - byteCount) * 8;
         randDataMask >>= targetByteIndex * 8;
         uint64 newMemVal = (memVal & ~randDataMask) | (randomWord & randDataMask);
+
         memRoot_ = MIPS64Memory.writeMem(effAddr, memProofOffset, newMemVal);
+        handleMemoryUpdate(_state, effAddr);
 
         v0_ = byteCount;
         v1_ = 0;

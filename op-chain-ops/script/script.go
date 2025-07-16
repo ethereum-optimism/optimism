@@ -358,6 +358,7 @@ func (h *Host) Call(from common.Address, to common.Address, input []byte, gas ui
 			// an unexpected panic and we should re-raise it.
 			rStr, ok := r.(string)
 			if !ok || !strings.Contains(strings.ToLower(rStr), "revision id 1") {
+				fmt.Println("panic", rStr)
 				panic(r)
 			}
 

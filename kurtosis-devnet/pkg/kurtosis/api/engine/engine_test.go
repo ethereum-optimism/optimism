@@ -138,3 +138,51 @@ fi`
 	assert.NoError(t, err)
 	assert.Equal(t, "default-cluster", engineType)
 }
+
+func TestRestartEngine(t *testing.T) {
+	// Create a temporary directory for testing
+	tempDir, err := os.MkdirTemp("", "kurtosis-test-*")
+	require.NoError(t, err)
+	defer os.RemoveAll(tempDir)
+
+	// Create a mock kurtosis binary that captures and verifies the arguments
+	mockBinary := filepath.Join(tempDir, "kurtosis")
+	mockScript := `#!/bin/sh
+if [ "$1" = "engine" ] && [ "$2" = "restart" ]; then
+    echo "Engine restarted successfully"
+    exit 0
+else
+    echo "Invalid arguments: $@"
+    exit 1
+fi`
+	err = os.WriteFile(mockBinary, []byte(mockScript), 0755)
+	require.NoError(t, err)
+
+	manager := NewEngineManager(WithKurtosisBinary(mockBinary))
+	err = manager.RestartEngine()
+	assert.NoError(t, err)
+}
+
+func TestRestartEngine_Failure(t *testing.T) {
+	// Create a temporary directory for testing
+	tempDir, err := os.MkdirTemp("", "kurtosis-test-*")
+	require.NoError(t, err)
+	defer os.RemoveAll(tempDir)
+
+	// Create a mock kurtosis binary that always fails
+	mockBinary := filepath.Join(tempDir, "kurtosis")
+	mockScript := `#!/bin/sh
+if [ "$1" = "engine" ] && [ "$2" = "restart" ]; then
+    echo "Failed to restart engine"
+    exit 1
+else
+    echo "Invalid arguments: $@"
+    exit 1
+fi`
+	err = os.WriteFile(mockBinary, []byte(mockScript), 0755)
+	require.NoError(t, err)
+
+	manager := NewEngineManager(WithKurtosisBinary(mockBinary))
+	err = manager.RestartEngine()
+	assert.Error(t, err)
+}

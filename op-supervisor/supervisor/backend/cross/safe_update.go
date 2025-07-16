@@ -1,6 +1,7 @@
 package cross
 
 import (
+	"context"
 	"errors"
 	"fmt"
 
@@ -143,7 +144,7 @@ type CrossSafeWorker struct {
 	linker  depset.LinkChecker
 }
 
-func (c *CrossSafeWorker) OnEvent(ev event.Event) bool {
+func (c *CrossSafeWorker) OnEvent(ctx context.Context, ev event.Event) bool {
 	switch ev.(type) {
 	case superevents.UpdateCrossSafeRequestEvent:
 		if err := CrossSafeUpdate(c.logger, c.chainID, c.d, c.linker); err != nil {

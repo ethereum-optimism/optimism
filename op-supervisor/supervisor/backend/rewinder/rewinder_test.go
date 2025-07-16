@@ -97,7 +97,7 @@ func TestRewindL1(t *testing.T) {
 	chain.l1Node.blocks[l1Block2B.Number] = l1Block2B
 
 	// Trigger L1 reorg
-	i.OnEvent(superevents.RewindL1Event{
+	i.OnEvent(context.Background(), superevents.RewindL1Event{
 		IncomingBlock: l1Block2B.ID(),
 	})
 
@@ -167,7 +167,7 @@ func TestRewindL2(t *testing.T) {
 	i.AttachEmitter(&mockEmitter{})
 
 	// Simulate receiving a LocalDerivedDoneEvent for block2B
-	i.OnEvent(superevents.LocalSafeUpdateEvent{
+	i.OnEvent(context.Background(), superevents.LocalSafeUpdateEvent{
 		ChainID: chainID,
 		NewLocalSafe: types.DerivedBlockSealPair{
 			Source: types.BlockSeal{
@@ -236,7 +236,7 @@ func TestNoRewindNeeded(t *testing.T) {
 	}, true)
 
 	// Set genesis L1 block as finalized
-	s.chainsDB.OnEvent(superevents.FinalizedL1RequestEvent{
+	s.chainsDB.OnEvent(context.Background(), superevents.FinalizedL1RequestEvent{
 		FinalizedL1: eth.BlockRef{
 			Hash:   common.HexToHash("0xaaa0"),
 			Number: 0,
@@ -258,7 +258,7 @@ func TestNoRewindNeeded(t *testing.T) {
 	i.AttachEmitter(&mockEmitter{})
 
 	// Trigger L1 reorg check with same L1 block - should not rewind
-	i.OnEvent(superevents.RewindL1Event{
+	i.OnEvent(context.Background(), superevents.RewindL1Event{
 		IncomingBlock: l1Block2.ID(),
 	})
 
@@ -267,7 +267,7 @@ func TestNoRewindNeeded(t *testing.T) {
 	s.verifyCrossSafe(chainID, block2A.ID(), "block2A should still be cross-safe")
 
 	// Trigger LocalDerived check with same L2 block - should not rewind
-	i.OnEvent(superevents.LocalSafeUpdateEvent{
+	i.OnEvent(context.Background(), superevents.LocalSafeUpdateEvent{
 		ChainID: chainID,
 		NewLocalSafe: types.DerivedBlockSealPair{
 			Source: types.BlockSeal{
@@ -341,7 +341,7 @@ func TestRewindLongChain(t *testing.T) {
 	s.makeBlockSafe(chainID, blocks[0], l1Blocks[0], true)
 
 	// Set genesis L1 block as finalized
-	s.chainsDB.OnEvent(superevents.FinalizedL1RequestEvent{
+	s.chainsDB.OnEvent(context.Background(), superevents.FinalizedL1RequestEvent{
 		FinalizedL1: l1Blocks[0],
 	})
 
@@ -369,7 +369,7 @@ func TestRewindLongChain(t *testing.T) {
 	}
 
 	// Trigger LocalDerived event with block96B
-	i.OnEvent(superevents.LocalSafeUpdateEvent{
+	i.OnEvent(context.Background(), superevents.LocalSafeUpdateEvent{
 		ChainID: chainID,
 		NewLocalSafe: types.DerivedBlockSealPair{
 			Source: types.BlockSeal{
@@ -432,7 +432,7 @@ func TestRewindMultiChain(t *testing.T) {
 	}
 
 	// Set genesis as finalized for all chains
-	s.chainsDB.OnEvent(superevents.FinalizedL1RequestEvent{
+	s.chainsDB.OnEvent(context.Background(), superevents.FinalizedL1RequestEvent{
 		FinalizedL1: l1Genesis,
 	})
 
@@ -442,7 +442,7 @@ func TestRewindMultiChain(t *testing.T) {
 
 	// Trigger LocalDerived events for both chains
 	for chainID := range s.chains {
-		i.OnEvent(superevents.LocalSafeUpdateEvent{
+		i.OnEvent(context.Background(), superevents.LocalSafeUpdateEvent{
 			ChainID: chainID,
 			NewLocalSafe: types.DerivedBlockSealPair{
 				Source: types.BlockSeal{
@@ -568,7 +568,7 @@ func TestRewindL2WalkBack(t *testing.T) {
 	s.makeBlockSafe(chainID, genesis, l1Genesis, true)
 
 	// Set genesis L1 block as finalized
-	s.chainsDB.OnEvent(superevents.FinalizedL1RequestEvent{
+	s.chainsDB.OnEvent(context.Background(), superevents.FinalizedL1RequestEvent{
 		FinalizedL1: l1Genesis,
 	})
 
@@ -584,7 +584,7 @@ func TestRewindL2WalkBack(t *testing.T) {
 	i := New(s.logger, s.chainsDB, chain.l1Node)
 	i.AttachEmitter(&mockEmitter{})
 	// Trigger LocalDerived event with block4B
-	i.OnEvent(superevents.LocalSafeUpdateEvent{
+	i.OnEvent(context.Background(), superevents.LocalSafeUpdateEvent{
 		ChainID: chainID,
 		NewLocalSafe: types.DerivedBlockSealPair{
 			Source: types.BlockSeal{
@@ -698,7 +698,7 @@ func TestRewindL1PastCrossSafe(t *testing.T) {
 	s.makeBlockSafe(chainID, genesis, l1Genesis, true)
 
 	// Set l1Genesis as finalized
-	s.chainsDB.OnEvent(superevents.FinalizedL1RequestEvent{
+	s.chainsDB.OnEvent(context.Background(), superevents.FinalizedL1RequestEvent{
 		FinalizedL1: l1Genesis,
 	})
 
@@ -728,7 +728,7 @@ func TestRewindL1PastCrossSafe(t *testing.T) {
 	chain.l1Node.blocks[l1Block3B.Number] = l1Block3B
 
 	// Trigger L1 reorg
-	i.OnEvent(superevents.RewindL1Event{
+	i.OnEvent(context.Background(), superevents.RewindL1Event{
 		IncomingBlock: l1Block3B.ID(),
 	})
 
@@ -784,7 +784,7 @@ func TestRewindL1GenesisOnlyL2(t *testing.T) {
 	s.makeBlockSafe(chainID, genesis, l1Genesis, true)
 
 	// Set genesis L1 block as finalized
-	s.chainsDB.OnEvent(superevents.FinalizedL1RequestEvent{
+	s.chainsDB.OnEvent(context.Background(), superevents.FinalizedL1RequestEvent{
 		FinalizedL1: l1Genesis,
 	})
 
@@ -794,14 +794,14 @@ func TestRewindL1GenesisOnlyL2(t *testing.T) {
 	chain.l1Node.blocks[l1GenesisB.Number] = l1GenesisB
 
 	// Trigger L1 reorg
-	i.OnEvent(superevents.RewindL1Event{
+	i.OnEvent(context.Background(), superevents.RewindL1Event{
 		IncomingBlock: l1GenesisB.ID(),
 	})
 
 	s.verifyHeads(chainID, genesis.ID(), "should still have genesis as head after L1 reorg attempt")
 
 	// Try LocalDerived event with same genesis block
-	i.OnEvent(superevents.LocalSafeUpdateEvent{
+	i.OnEvent(context.Background(), superevents.LocalSafeUpdateEvent{
 		ChainID: chainID,
 		NewLocalSafe: types.DerivedBlockSealPair{
 			Source: types.BlockSeal{
@@ -903,7 +903,7 @@ func TestRewindL1NoL2Impact(t *testing.T) {
 	chain.l1Node.blocks[l1Block2B.Number] = l1Block2B
 
 	// Trigger L1 reorg
-	i.OnEvent(superevents.RewindL1Event{
+	i.OnEvent(context.Background(), superevents.RewindL1Event{
 		IncomingBlock: l1Block2B.ID(),
 	})
 
@@ -1016,7 +1016,7 @@ func TestRewindL1SingleBlockL2Impact(t *testing.T) {
 	chain.l1Node.blocks[l1Block2B.Number] = l1Block2B
 
 	// Trigger L1 reorg
-	i.OnEvent(superevents.RewindL1Event{
+	i.OnEvent(context.Background(), superevents.RewindL1Event{
 		IncomingBlock: l1Block2B.ID(),
 	})
 
@@ -1079,7 +1079,7 @@ func TestRewindL1DeepL2Impact(t *testing.T) {
 	s.makeBlockSafe(chainID, l2Blocks[0], l1Blocks[0], true)
 
 	// Set genesis L1 block as finalized
-	s.chainsDB.OnEvent(superevents.FinalizedL1RequestEvent{
+	s.chainsDB.OnEvent(context.Background(), superevents.FinalizedL1RequestEvent{
 		FinalizedL1: l1Blocks[0],
 	})
 
@@ -1109,7 +1109,7 @@ func TestRewindL1DeepL2Impact(t *testing.T) {
 
 	// Trigger L1 reorg
 	chain.l1Node.reorg(t, l1Block20B)
-	i.OnEvent(superevents.RewindL1Event{
+	i.OnEvent(context.Background(), superevents.RewindL1Event{
 		IncomingBlock: l1Block20B.ID(),
 	})
 
@@ -1220,7 +1220,7 @@ func TestRewindL2LocalDerivationUnsafeMismatch(t *testing.T) {
 	s.verifyCrossSafe(chainID, block2.ID(), "block2 should be cross-safe")
 
 	// Simulate receiving a LocalDerivedEvent for block3B
-	i.OnEvent(superevents.LocalSafeUpdateEvent{
+	i.OnEvent(context.Background(), superevents.LocalSafeUpdateEvent{
 		ChainID: chainID,
 		NewLocalSafe: types.DerivedBlockSealPair{
 			Source: types.BlockSeal{
@@ -1342,13 +1342,13 @@ func TestRewindL2LocalDerivationSafeMismatch(t *testing.T) {
 	s.makeBlockSafe(chainID, block3A, l1Block3A, true)
 
 	// Set L1 blocks as finalized up to l1Block3A
-	s.chainsDB.OnEvent(superevents.FinalizedL1RequestEvent{
+	s.chainsDB.OnEvent(context.Background(), superevents.FinalizedL1RequestEvent{
 		FinalizedL1: l1Block0,
 	})
-	s.chainsDB.OnEvent(superevents.FinalizedL1RequestEvent{
+	s.chainsDB.OnEvent(context.Background(), superevents.FinalizedL1RequestEvent{
 		FinalizedL1: l1Block1,
 	})
-	s.chainsDB.OnEvent(superevents.FinalizedL1RequestEvent{
+	s.chainsDB.OnEvent(context.Background(), superevents.FinalizedL1RequestEvent{
 		FinalizedL1: l1Block2,
 	})
 
@@ -1370,7 +1370,7 @@ func TestRewindL2LocalDerivationSafeMismatch(t *testing.T) {
 
 	// Trigger L1 reorg
 	chain.l1Node.reorg(t, l1Block3B)
-	i.OnEvent(superevents.RewindL1Event{
+	i.OnEvent(context.Background(), superevents.RewindL1Event{
 		IncomingBlock: l1Block3B.ID(),
 	})
 
@@ -1378,7 +1378,7 @@ func TestRewindL2LocalDerivationSafeMismatch(t *testing.T) {
 	s.verifyHeads(chainID, block2.ID(), "should have rewound to block2")
 
 	// Simulate receiving a LocalDerivedEvent for block3B
-	i.OnEvent(superevents.LocalSafeUpdateEvent{
+	i.OnEvent(context.Background(), superevents.LocalSafeUpdateEvent{
 		ChainID: chainID,
 		NewLocalSafe: types.DerivedBlockSealPair{
 			Source: types.BlockSeal{
@@ -1625,7 +1625,7 @@ type mockEmitter struct {
 	events []event.Event
 }
 
-func (m *mockEmitter) Emit(ev event.Event) {
+func (m *mockEmitter) Emit(_ context.Context, ev event.Event) {
 	m.events = append(m.events, ev)
 }
 

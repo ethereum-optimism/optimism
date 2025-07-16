@@ -120,6 +120,57 @@ func Test_isImportUsed(t *testing.T) {
 			`,
 			expected: false,
 		},
+		{
+			name:         "import name used in string quotes",
+			importedName: "UsedContract",
+			content: `
+				contract Test {
+					string used = "a, b, c, UsedContract, d, e, f";
+				}
+			`,
+			expected: false,
+		},
+		{
+			name:         "import name used both in string quotes and outside of quote string",
+			importedName: "UsedContract",
+			content: `
+				contract Test {
+					string used = "a, b, c, UsedContract, d, e, f";
+					UsedContract used2;
+				}
+			`,
+			expected: true,
+		},
+		{
+			name:         "import name used both in string quotes and outside of quote string on the same line",
+			importedName: "UsedContract",
+			content: `
+				contract Test {
+					(UsedContract a, string used) = (aaa, "a, b, c, UsedContract, d, e, f");
+				}
+			`,
+			expected: true,
+		},
+		{
+			name:         "import name used in comment after code on the same line",
+			importedName: "UsedContract",
+			content: `
+				contract Test {
+					string used = "hi"; // UsedContract
+				}
+			`,
+			expected: false,
+		},
+		{
+			name:         "import name used in code and in comment after the code on the same line",
+			importedName: "UsedContract",
+			content: `
+				contract Test {
+					UsedContract used = "hi"; // UsedContract
+				}
+			`,
+			expected: true,
+		},
 	}
 
 	for _, tt := range tests {

@@ -1,6 +1,7 @@
 package status
 
 import (
+	"context"
 	"sync"
 	"sync/atomic"
 
@@ -16,7 +17,6 @@ import (
 
 type L1UnsafeEvent struct {
 	L1Unsafe eth.L1BlockRef
-	event.Ctx
 }
 
 func (ev L1UnsafeEvent) String() string {
@@ -25,7 +25,6 @@ func (ev L1UnsafeEvent) String() string {
 
 type L1SafeEvent struct {
 	L1Safe eth.L1BlockRef
-	event.Ctx
 }
 
 func (ev L1SafeEvent) String() string {
@@ -59,7 +58,7 @@ func NewStatusTracker(log log.Logger, metrics Metrics) *StatusTracker {
 	return st
 }
 
-func (st *StatusTracker) OnEvent(ev event.Event) bool {
+func (st *StatusTracker) OnEvent(ctx context.Context, ev event.Event) bool {
 	st.mu.Lock()
 	defer st.mu.Unlock()
 

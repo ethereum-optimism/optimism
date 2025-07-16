@@ -689,6 +689,18 @@ func (m *SimpleTxManager) publishTx(ctx context.Context, tx *types.Transaction, 
 			return tx, true, nil
 		}
 
+		// If the transaction is being resubmitted or rebroadcasted, we can safely ignore certain errors.
+		if sendState.successfulPublishCount > 0 {
+			switch {
+			case errStringMatch(err, core.ErrNonceTooLow):
+				l.Debug("nonce too low on resubmission", "err", err)
+				return tx, true, nil
+			case errStringMatch(err, txpool.ErrAlreadyKnown):
+				l.Debug("resubmitted already known transaction", "err", err)
+				return tx, true, nil
+			}
+		}
+
 		switch {
 		case errStringMatch(err, txpool.ErrAlreadyReserved):
 			// this can happen if, say, a blob transaction is stuck in the mempool and we try to
@@ -703,7 +715,7 @@ func (m *SimpleTxManager) publishTx(ctx context.Context, tx *types.Transaction, 
 			l.Warn("transaction send canceled", "err", err)
 			m.metr.TxPublished("context_canceled")
 		case errStringMatch(err, txpool.ErrAlreadyKnown):
-			l.Info("resubmitted already known transaction", "err", err)
+			l.Warn("resubmitted already known transaction", "err", err)
 			m.metr.TxPublished("tx_already_known")
 			return tx, true, nil
 		case errStringMatch(err, txpool.ErrReplaceUnderpriced):

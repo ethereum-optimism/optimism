@@ -11,14 +11,11 @@ import (
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/depset"
 )
 
-const (
-	l1Placeholder = ""
-)
-
 // ServiceFinder is the main entry point for finding services and their endpoints
 type ServiceFinder struct {
 	services inspect.ServiceMap
 
+	l1Chain  *spec.ChainSpec
 	l2Chains []*spec.ChainSpec
 	depsets  map[string]descriptors.DepSet
 
@@ -27,6 +24,13 @@ type ServiceFinder struct {
 
 // ServiceFinderOption configures a ServiceFinder
 type ServiceFinderOption func(*ServiceFinder)
+
+// WithL1Chain sets the L1 chain
+func WithL1Chain(chain *spec.ChainSpec) ServiceFinderOption {
+	return func(f *ServiceFinder) {
+		f.l1Chain = chain
+	}
+}
 
 // WithL2Chains sets the L2 networks
 func WithL2Chains(networks []*spec.ChainSpec) ServiceFinderOption {
@@ -85,10 +89,6 @@ func acceptIDs(ids ...string) chainAcceptor {
 	return combineAcceptors(acceptors...)
 }
 
-func acceptL1() chainAcceptor {
-	return acceptID(l1Placeholder)
-}
-
 func combineAcceptors(acceptors ...chainAcceptor) chainAcceptor {
 	return func(c *spec.ChainSpec) bool {
 		for _, acceptor := range acceptors {
@@ -114,20 +114,10 @@ func (f *ServiceFinder) triageNode(prefix string) serviceParser {
 
 		if strings.HasPrefix(serviceName, prefix) { // L1
 			idx := extractIndex(strings.TrimPrefix(serviceName, prefix))
-			return idx, acceptL1(), true
+			return idx, acceptID(f.l1Chain.NetworkID), true
 		}
 
 		return 0, nil, false
-	}
-}
-
-func (f *ServiceFinder) triageUniversalL2Service(name string) serviceParser {
-	idx := -1
-	return func(serviceName string) (int, chainAcceptor, bool) {
-		if serviceName == name {
-			return idx, acceptAll, true
-		}
-		return idx, nil, false
 	}
 }
 
@@ -276,25 +266,110 @@ func (f *ServiceFinder) findChainServices(chain *spec.ChainSpec) ([]descriptors.
 			}
 			node.Services[svc.tag] = svc.svc
 			node.Name = svc.name
+
+			if cfg, ok := chain.Nodes[node.Name]; ok {
+				node.Labels = make(map[string]string)
+				if cfg.IsSequencer {
+					node.Labels["sequencer"] = "true"
+				}
+				node.Labels["elType"] = cfg.ELType
+				node.Labels["clType"] = cfg.CLType
+			}
+
 			nodes[svc.idx] = node
 		} else {
 			services[svc.tag] = append(services[svc.tag], svc.svc)
 		}
 	}
 
-	return nodes, services
+	return reorderNodes(nodes), services
 }
 
 // FindL1Services finds L1 nodes.
 func (f *ServiceFinder) FindL1Services() ([]descriptors.Node, descriptors.RedundantServiceMap) {
-	chain := &spec.ChainSpec{
-		Name:      l1Placeholder,
-		NetworkID: l1Placeholder,
-	}
-	return f.findChainServices(chain)
+	return f.findChainServices(f.l1Chain)
 }
 
 // FindL2Services finds L2 nodes and services for a specific network
 func (f *ServiceFinder) FindL2Services(s *spec.ChainSpec) ([]descriptors.Node, descriptors.RedundantServiceMap) {
 	return f.findChainServices(s)
+}
+
+// TODO: remove this once we remove the devnet-sdk/system test framework.
+// At that point the order of the nodes will not be important anymore.
+func reorderNodes(nodes []descriptors.Node) []descriptors.Node {
+	// This is a hack to preserve some compatibililty with prior expectations,
+	// that were embedded in the devnet-sdk/system test framework.
+	//
+	// We need to rearrange the order of the nodes so that:
+	// - either there are nodes in the list that contain a label "sequencer",
+	//   and then one of them must be the first node
+	// - or there are no nodes with the label "sequencer", and there are some
+	//   with el type "op-geth" and cl type "op-node". Then one of them must be
+	//   the first node
+	// - or none of the above, and then we keep the order as is
+
+	if len(nodes) == 0 {
+		return nodes
+	}
+
+	// First, check if any node has the "sequencer" label
+	var sequencerIndex int = -1
+	for i, node := range nodes {
+		if node.Labels != nil && node.Labels["sequencer"] == "true" {
+			sequencerIndex = i
+			break
+		}
+	}
+
+	// If we found a sequencer, move it to the front
+	if sequencerIndex >= 0 {
+		return moveNodeToFront(nodes, sequencerIndex)
+	}
+
+	// If no sequencer found, look for nodes with el type "op-geth" and cl type "op-node"
+	var opGethOpNodeIndex int = -1
+	for i, node := range nodes {
+		if node.Services != nil {
+			hasOpGeth := false
+			hasOpNode := false
+
+			// Check for op-geth service
+			if node.Labels != nil && node.Labels["elType"] == "op-geth" {
+				hasOpGeth = true
+			}
+
+			// Check for op-node service
+			if node.Labels != nil && node.Labels["clType"] == "op-node" {
+				hasOpNode = true
+			}
+
+			if hasOpGeth && hasOpNode {
+				opGethOpNodeIndex = i
+				break
+			}
+		}
+	}
+
+	// If we found a node with both op-geth and op-node, move it to the front
+	if opGethOpNodeIndex >= 0 {
+		return moveNodeToFront(nodes, opGethOpNodeIndex)
+	}
+
+	// If none of the above conditions are met, return the nodes in their original order
+	return nodes
+}
+
+func moveNodeToFront(nodes []descriptors.Node, index int) []descriptors.Node {
+	if index < 0 || index >= len(nodes) {
+		return nodes
+	}
+
+	result := make([]descriptors.Node, len(nodes))
+	copy(result, nodes)
+	// Move the node at the specified index to the front
+	nodeToMove := result[index]
+	copy(result[1:index+1], result[:index])
+	result[0] = nodeToMove
+	return result
 }

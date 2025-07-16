@@ -91,6 +91,14 @@ var taggedReleases = map[string]TaggedRelease{
 	},
 }
 
+func AllTags() []string {
+	allTags := make([]string, 0, len(taggedReleases))
+	for tag := range taggedReleases {
+		allTags = append(allTags, tag)
+	}
+	return allTags
+}
+
 var _ embed.FS
 
 func IsSupportedL1Version(tag string) bool {

@@ -6,6 +6,12 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
 
+var (
+	DefaultL1ID  = eth.ChainIDFromUInt64(900)
+	DefaultL2AID = eth.ChainIDFromUInt64(901)
+	DefaultL2BID = eth.ChainIDFromUInt64(902)
+)
+
 type DefaultMinimalSystemIDs struct {
 	L1   stack.L1NetworkID
 	L1EL stack.L1ELNodeID
@@ -39,9 +45,7 @@ func NewDefaultMinimalSystemIDs(l1ID, l2ID eth.ChainID) DefaultMinimalSystemIDs 
 }
 
 func DefaultMinimalSystem(dest *DefaultMinimalSystemIDs) stack.Option[*Orchestrator] {
-	l1ID := eth.ChainIDFromUInt64(900)
-	l2ID := eth.ChainIDFromUInt64(901)
-	ids := NewDefaultMinimalSystemIDs(l1ID, l2ID)
+	ids := NewDefaultMinimalSystemIDs(DefaultL1ID, DefaultL2AID)
 
 	opt := stack.Combine[*Orchestrator]()
 	opt.Add(stack.BeforeDeploy(func(o *Orchestrator) {
@@ -121,9 +125,7 @@ func NewDefaultSingleChainInteropSystemIDs(l1ID, l2AID eth.ChainID) DefaultSingl
 }
 
 func DefaultSingleChainInteropSystem(dest *DefaultSingleChainInteropSystemIDs) stack.Option[*Orchestrator] {
-	l1ID := eth.ChainIDFromUInt64(900)
-	l2AID := eth.ChainIDFromUInt64(901)
-	ids := NewDefaultSingleChainInteropSystemIDs(l1ID, l2AID)
+	ids := NewDefaultSingleChainInteropSystemIDs(DefaultL1ID, DefaultL2AID)
 	opt := stack.Combine[*Orchestrator]()
 	opt.Add(baseInteropSystem(&ids))
 
@@ -206,10 +208,7 @@ func NewDefaultInteropSystemIDs(l1ID, l2AID, l2BID eth.ChainID) DefaultInteropSy
 }
 
 func DefaultInteropSystem(dest *DefaultInteropSystemIDs) stack.Option[*Orchestrator] {
-	l1ID := eth.ChainIDFromUInt64(900)
-	l2AID := eth.ChainIDFromUInt64(901)
-	l2BID := eth.ChainIDFromUInt64(902)
-	ids := NewDefaultInteropSystemIDs(l1ID, l2AID, l2BID)
+	ids := NewDefaultInteropSystemIDs(DefaultL1ID, DefaultL2AID, DefaultL2BID)
 	opt := stack.Combine[*Orchestrator]()
 
 	// start with single chain interop system
@@ -249,37 +248,39 @@ func DefaultInteropSystem(dest *DefaultInteropSystemIDs) stack.Option[*Orchestra
 	return opt
 }
 
-func DefaultInteropProofsSystem(dest *DefaultInteropSystemIDs) stack.Option[*Orchestrator] {
-	l1ID := eth.ChainIDFromUInt64(900)
-	l2AID := eth.ChainIDFromUInt64(901)
-	l2BID := eth.ChainIDFromUInt64(902)
-	ids := NewDefaultInteropSystemIDs(l1ID, l2AID, l2BID)
+func DefaultIsthmusSuperProofsSystem(dest *DefaultInteropSystemIDs) stack.Option[*Orchestrator] {
+	return defaultSuperProofsSystem(dest)
+}
 
+func DefaultInteropProofsSystem(dest *DefaultInteropSystemIDs) stack.Option[*Orchestrator] {
+	return defaultSuperProofsSystem(dest, WithInteropAtGenesis())
+}
+
+func defaultSuperProofsSystem(dest *DefaultInteropSystemIDs, deployerOpts ...DeployerOption) stack.CombinedOption[*Orchestrator] {
+	ids := NewDefaultInteropSystemIDs(DefaultL1ID, DefaultL2AID, DefaultL2BID)
 	opt := stack.Combine[*Orchestrator]()
+
 	opt.Add(stack.BeforeDeploy(func(o *Orchestrator) {
 		o.P().Logger().Info("Setting up")
 	}))
 
 	opt.Add(WithMnemonicKeys(devkeys.TestMnemonic))
 
-	opt.Add(WithDeployer(),
-		WithDeployerOptions(
+	opt.Add(WithDeployer(), WithDeployerOptions(
+		append([]DeployerOption{
 			WithLocalContractSources(),
 			WithCommons(ids.L1.ChainID()),
 			WithPrefundedL2(ids.L1.ChainID(), ids.L2A.ChainID()),
 			WithPrefundedL2(ids.L1.ChainID(), ids.L2B.ChainID()),
-			WithInteropAtGenesis(), // this can be overridden by later options
-		),
-	)
+		}, deployerOpts...)...))
 
 	opt.Add(WithL1Nodes(ids.L1EL, ids.L1CL))
 
 	opt.Add(WithSupervisor(ids.Supervisor, ids.Cluster, ids.L1EL))
 
 	opt.Add(WithL2ELNode(ids.L2AEL, &ids.Supervisor))
-	opt.Add(WithL2ELNode(ids.L2BEL, &ids.Supervisor))
-
 	opt.Add(WithL2CLNode(ids.L2ACL, true, true, ids.L1CL, ids.L1EL, ids.L2AEL))
+	opt.Add(WithL2ELNode(ids.L2BEL, &ids.Supervisor))
 	opt.Add(WithL2CLNode(ids.L2BCL, true, true, ids.L1CL, ids.L1EL, ids.L2BEL))
 
 	opt.Add(WithTestSequencer(ids.TestSequencer, ids.L1CL, ids.L2ACL, ids.L1EL, ids.L2AEL))
@@ -322,16 +323,13 @@ type MultiSupervisorInteropSystemIDs struct {
 }
 
 func MultiSupervisorInteropSystem(dest *MultiSupervisorInteropSystemIDs) stack.Option[*Orchestrator] {
-	l1ID := eth.ChainIDFromUInt64(900)
-	l2AID := eth.ChainIDFromUInt64(901)
-	l2BID := eth.ChainIDFromUInt64(902)
 	ids := MultiSupervisorInteropSystemIDs{
-		DefaultInteropSystemIDs: NewDefaultInteropSystemIDs(l1ID, l2AID, l2BID),
+		DefaultInteropSystemIDs: NewDefaultInteropSystemIDs(DefaultL1ID, DefaultL2AID, DefaultL2BID),
 		SupervisorSecondary:     "2-secondary", // prefix with number for ordering of supervisors
-		L2A2CL:                  stack.NewL2CLNodeID("verifier", l2AID),
-		L2A2EL:                  stack.NewL2ELNodeID("verifier", l2AID),
-		L2B2CL:                  stack.NewL2CLNodeID("verifier", l2BID),
-		L2B2EL:                  stack.NewL2ELNodeID("verifier", l2BID),
+		L2A2CL:                  stack.NewL2CLNodeID("verifier", DefaultL2AID),
+		L2A2EL:                  stack.NewL2ELNodeID("verifier", DefaultL2AID),
+		L2B2CL:                  stack.NewL2CLNodeID("verifier", DefaultL2BID),
+		L2B2EL:                  stack.NewL2ELNodeID("verifier", DefaultL2BID),
 	}
 
 	// start with default interop system

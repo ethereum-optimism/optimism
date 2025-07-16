@@ -41,6 +41,8 @@ type ExpectedState struct {
 	prestateActiveThreadOrig    ExpectedThreadState // Cached for internal use
 	ActiveThreadId              arch.Word
 	threadExpectations          map[arch.Word]*ExpectedThreadState
+	// Remember some actions so we can analyze expectations
+	memoryWrites []arch.Word
 }
 
 type ExpectedThreadState struct {
@@ -108,6 +110,10 @@ func newExpectedThreadState(fromThread *multithreaded.ThreadState) *ExpectedThre
 	}
 }
 
+func (e *ExpectedState) ExpectedMemoryWrites() []arch.Word {
+	return e.memoryWrites
+}
+
 func (e *ExpectedState) ExpectStep() {
 	// Set some standard expectations for a normal step
 	e.Step += 1
@@ -116,7 +122,16 @@ func (e *ExpectedState) ExpectStep() {
 	e.StepsSinceLastContextSwitch += 1
 }
 
+func (e *ExpectedState) ExpectMemoryReservationCleared() {
+	e.LLReservationStatus = multithreaded.LLStatusNone
+	e.LLAddress = 0
+	e.LLOwnerThread = 0
+}
+
 func (e *ExpectedState) ExpectMemoryWriteUint32(t require.TestingT, addr arch.Word, val uint32) {
+	// Track write expectations
+	e.memoryWrites = append(e.memoryWrites, addr)
+
 	// Align address to 4-byte boundaries
 	addr = addr & ^arch.Word(3)
 
@@ -128,7 +143,10 @@ func (e *ExpectedState) ExpectMemoryWriteUint32(t require.TestingT, addr arch.Wo
 	e.MemoryRoot = e.expectedMemory.MerkleRoot()
 }
 
-func (e *ExpectedState) ExpectMemoryWordWrite(addr arch.Word, val arch.Word) {
+func (e *ExpectedState) ExpectMemoryWrite(addr arch.Word, val arch.Word) {
+	// Track write expectations
+	e.memoryWrites = append(e.memoryWrites, addr)
+
 	e.expectedMemory.SetWord(addr, val)
 	e.MemoryRoot = e.expectedMemory.MerkleRoot()
 }
@@ -172,11 +190,6 @@ func (e *ExpectedState) PrestateActiveThread() *ExpectedThreadState {
 
 func (e *ExpectedState) Thread(threadId arch.Word) *ExpectedThreadState {
 	return e.threadExpectations[threadId]
-}
-
-func (e *ExpectedState) ExpectMemoryWriteWord(addr arch.Word, val arch.Word) {
-	e.expectedMemory.SetWord(addr, val)
-	e.MemoryRoot = e.expectedMemory.MerkleRoot()
 }
 
 func (e *ExpectedState) Validate(t require.TestingT, state mipsevm.FPVMState) {

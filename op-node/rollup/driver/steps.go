@@ -1,6 +1,7 @@
 package driver
 
 import (
+	"context"
 	"time"
 
 	"github.com/ethereum/go-ethereum/log"
@@ -10,7 +11,6 @@ import (
 )
 
 type ResetStepBackoffEvent struct {
-	event.Ctx
 }
 
 func (ev ResetStepBackoffEvent) String() string {
@@ -19,7 +19,6 @@ func (ev ResetStepBackoffEvent) String() string {
 
 type StepDelayedReqEvent struct {
 	Delay time.Duration
-	event.Ctx
 }
 
 func (ev StepDelayedReqEvent) String() string {
@@ -28,7 +27,6 @@ func (ev StepDelayedReqEvent) String() string {
 
 type StepReqEvent struct {
 	ResetBackoff bool
-	event.Ctx
 }
 
 func (ev StepReqEvent) String() string {
@@ -36,7 +34,6 @@ func (ev StepReqEvent) String() string {
 }
 
 type StepAttemptEvent struct {
-	event.Ctx
 }
 
 func (ev StepAttemptEvent) String() string {
@@ -44,7 +41,6 @@ func (ev StepAttemptEvent) String() string {
 }
 
 type StepEvent struct {
-	event.Ctx
 }
 
 func (ev StepEvent) String() string {
@@ -106,7 +102,7 @@ func (s *StepSchedulingDeriver) NextDelayedStep() <-chan time.Time {
 	return s.delayedStepReq
 }
 
-func (s *StepSchedulingDeriver) OnEvent(ev event.Event) bool {
+func (s *StepSchedulingDeriver) OnEvent(ctx context.Context, ev event.Event) bool {
 	step := func() {
 		s.delayedStepReq = nil
 		select {
@@ -145,7 +141,7 @@ func (s *StepSchedulingDeriver) OnEvent(ev event.Event) bool {
 		}
 		// count as attempt by default. We reset to 0 if we are making healthy progress.
 		s.stepAttempts += 1
-		s.emitter.Emit(StepEvent(x))
+		s.emitter.Emit(ctx, StepEvent(x))
 	case ResetStepBackoffEvent:
 		s.stepAttempts = 0
 	default:

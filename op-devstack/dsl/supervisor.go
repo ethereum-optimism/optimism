@@ -81,6 +81,15 @@ func (s *Supervisor) AwaitMinL1(minL1 uint64) {
 	s.require.NoError(err, "Expected sync status not found")
 }
 
+func (s *Supervisor) AwaitMinCrossSafeTimestamp(timestamp uint64) {
+	ctx, cancel := context.WithTimeout(s.ctx, DefaultTimeout)
+	defer cancel()
+	err := wait.For(ctx, 1*time.Second, func() (bool, error) {
+		return s.FetchSyncStatus().SafeTimestamp >= timestamp, nil
+	})
+	s.require.NoError(err, "Expected sync status not found")
+}
+
 func (s *Supervisor) FetchSyncStatus() eth.SupervisorSyncStatus {
 	s.log.Debug("Fetching supervisor sync status")
 	ctx, cancel := context.WithTimeout(s.ctx, DefaultTimeout)
@@ -161,18 +170,22 @@ func (s *Supervisor) WaitForL2HeadToAdvanceTo(chainID eth.ChainID, lvl types.Saf
 			"chain", chainID, "label", lvl, "current", chStatus.Number, "target", blockID.Number)
 		if chStatus.Number < blockID.Number {
 			return fmt.Errorf("expected %s head to advance to blockID: %v", lvl, blockID)
-		} else if chStatus == blockID {
-			return nil // success
 		} else if chStatus.Number == blockID.Number && chStatus.Hash != blockID.Hash {
 			err := fmt.Errorf("supervisor %s head with blockID %v for chainID %s does not match target blockID: %v", lvl, chStatus, chainID, blockID)
 			cancel(err)
 			return err
-		} else { // if chStatus.Number > blockID.Number
-			err := fmt.Errorf("supervisor %s head with blockID %v for chainID %s already advanced past target blockID: %v", lvl, chStatus, chainID, blockID)
-			cancel(err)
-			return err
 		}
+		return nil
 	})
+
+	// If we got a context.Canceled error, check if there's a more descriptive cause
+	if err != nil && errors.Is(err, context.Canceled) {
+		if cause := context.Cause(ctx); cause != nil && !errors.Is(cause, context.Canceled) {
+			// Log the original cause for better debugging
+			err = fmt.Errorf("supervisor wait failed: %w (original cause: %w)", err, cause)
+		}
+	}
+
 	s.require.NoError(err)
 }
 

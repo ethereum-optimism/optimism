@@ -11,7 +11,7 @@ import (
 type FlashblocksBuilderNodeConfig struct {
 	ELNodeConfig
 	ID               stack.FlashblocksBuilderID
-	ConductorID      stack.ConductorID
+	Conductor        stack.Conductor
 	FlashblocksWsUrl string
 }
 
@@ -19,8 +19,8 @@ type flashblocksBuilderNode struct {
 	rpcELNode
 	l2Client *sources.L2Client
 
-	id          stack.FlashblocksBuilderID
-	conductorID stack.ConductorID
+	id        stack.FlashblocksBuilderID
+	conductor stack.Conductor
 
 	flashblocksWsUrl string
 }
@@ -37,7 +37,7 @@ func NewFlashblocksBuilderNode(cfg FlashblocksBuilderNodeConfig) stack.Flashbloc
 		rpcELNode:        newRpcELNode(cfg.ELNodeConfig),
 		l2Client:         l2Client,
 		id:               cfg.ID,
-		conductorID:      cfg.ConductorID,
+		conductor:        cfg.Conductor,
 		flashblocksWsUrl: cfg.FlashblocksWsUrl,
 	}
 }
@@ -46,8 +46,8 @@ func (r *flashblocksBuilderNode) ID() stack.FlashblocksBuilderID {
 	return r.id
 }
 
-func (r *flashblocksBuilderNode) ConductorID() stack.ConductorID {
-	return r.conductorID
+func (r *flashblocksBuilderNode) Conductor() stack.Conductor {
+	return r.conductor
 }
 
 func (r *flashblocksBuilderNode) L2EthClient() apis.L2EthClient {

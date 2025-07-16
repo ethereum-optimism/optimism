@@ -1,6 +1,7 @@
 package driver
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
@@ -35,30 +36,30 @@ func (d *ProgramDeriver) Result() (eth.L2BlockRef, error) {
 	return d.result, d.resultError
 }
 
-func (d *ProgramDeriver) OnEvent(ev event.Event) bool {
+func (d *ProgramDeriver) OnEvent(ctx context.Context, ev event.Event) bool {
 	switch x := ev.(type) {
 	case engine.EngineResetConfirmedEvent:
-		d.Emitter.Emit(derive.ConfirmPipelineResetEvent{Ctx: x.Ctx})
+		d.Emitter.Emit(ctx, derive.ConfirmPipelineResetEvent{})
 		// After initial reset we can request the pending-safe block,
 		// where attributes will be generated on top of.
-		d.Emitter.Emit(engine.PendingSafeRequestEvent{Ctx: x.Ctx})
+		d.Emitter.Emit(ctx, engine.PendingSafeRequestEvent{})
 	case engine.PendingSafeUpdateEvent:
-		d.Emitter.Emit(derive.PipelineStepEvent{PendingSafe: x.PendingSafe, Ctx: x.Ctx})
+		d.Emitter.Emit(ctx, derive.PipelineStepEvent{PendingSafe: x.PendingSafe})
 	case derive.DeriverMoreEvent:
-		d.Emitter.Emit(engine.PendingSafeRequestEvent{Ctx: x.Ctx})
+		d.Emitter.Emit(ctx, engine.PendingSafeRequestEvent{})
 	case derive.DerivedAttributesEvent:
 		// Allow new attributes to be generated.
 		// We will process the current attributes synchronously,
 		// triggering a single PendingSafeUpdateEvent or InvalidPayloadAttributesEvent,
 		// to continue derivation from.
-		d.Emitter.Emit(derive.ConfirmReceivedAttributesEvent{Ctx: x.Ctx})
+		d.Emitter.Emit(ctx, derive.ConfirmReceivedAttributesEvent{})
 		// No need to queue the attributes, since there is no unsafe chain to consolidate against,
 		// and no temporary-error retry to perform on block processing.
-		d.Emitter.Emit(engine.BuildStartEvent{Attributes: x.Attributes, Ctx: x.Ctx})
+		d.Emitter.Emit(ctx, engine.BuildStartEvent{Attributes: x.Attributes})
 	case engine.InvalidPayloadAttributesEvent:
 		// If a set of attributes was invalid, then we drop the attributes,
 		// and continue with the next.
-		d.Emitter.Emit(engine.PendingSafeRequestEvent{Ctx: x.Ctx})
+		d.Emitter.Emit(ctx, engine.PendingSafeRequestEvent{})
 	case engine.ForkchoiceUpdateEvent:
 		// Track latest head.
 		if x.SafeL2Head.Number >= d.result.Number {
@@ -93,7 +94,7 @@ func (d *ProgramDeriver) OnEvent(ev event.Event) bool {
 		// (Legacy case): While most temporary errors are due to requests for external data failing which can't happen,
 		// they may also be returned due to other events like channels timing out so need to be handled
 		d.logger.Warn("Temporary error in derivation", "err", x.Err)
-		d.Emitter.Emit(engine.PendingSafeRequestEvent{Ctx: x.Ctx})
+		d.Emitter.Emit(ctx, engine.PendingSafeRequestEvent{})
 	case rollup.CriticalErrorEvent:
 		d.closing = true
 		d.resultError = x.Err

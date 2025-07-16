@@ -54,7 +54,7 @@ func (los *L1OriginSelector) SetRecoverMode(enabled bool) {
 	los.recoverMode.Store(enabled)
 }
 
-func (los *L1OriginSelector) OnEvent(ev event.Event) bool {
+func (los *L1OriginSelector) OnEvent(ctx context.Context, ev event.Event) bool {
 	switch x := ev.(type) {
 	case engine.ForkchoiceUpdateEvent:
 		los.onForkchoiceUpdate(x.UnsafeL2Head)

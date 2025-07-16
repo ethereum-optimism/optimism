@@ -16,6 +16,14 @@ const (
 type ChainSpec struct {
 	Name      string
 	NetworkID string
+	Nodes     map[string]NodeConfig
+}
+
+// NodeConfig represents the configuration for a chain node
+type NodeConfig struct {
+	IsSequencer bool
+	ELType      string
+	CLType      string
 }
 
 type FeatureList []string
@@ -43,7 +51,20 @@ type NetworkParams struct {
 
 // ChainConfig represents a chain configuration in the YAML
 type ChainConfig struct {
-	NetworkParams NetworkParams `yaml:"network_params"`
+	NetworkParams NetworkParams                `yaml:"network_params"`
+	Participants  map[string]ParticipantConfig `yaml:"participants"`
+}
+
+// NodeConfig represents a node configuration in the YAML
+type ParticipantConfig struct {
+	Sequencer bool          `yaml:"sequencer"`
+	EL        ComponentType `yaml:"el"`
+	CL        ComponentType `yaml:"cl"`
+}
+
+// ComponentType represents a component type in the YAML
+type ComponentType struct {
+	Type string `yaml:"type"`
 }
 
 // InteropConfig represents the interop section in the YAML
@@ -122,9 +143,28 @@ func (s *Spec) ExtractData(r io.Reader) (*EnclaveSpec, error) {
 
 	// Extract chain specifications
 	for name, chain := range yamlSpec.OptimismPackage.Chains {
+
+		nodes := make(map[string]NodeConfig, len(chain.Participants))
+		for name, participant := range chain.Participants {
+			elType := participant.EL.Type
+			clType := participant.CL.Type
+			if elType == "" {
+				elType = "op-geth"
+			}
+			if clType == "" {
+				clType = "op-node"
+			}
+			nodes[name] = NodeConfig{
+				IsSequencer: participant.Sequencer,
+				ELType:      elType,
+				CLType:      clType,
+			}
+		}
+
 		result.Chains = append(result.Chains, &ChainSpec{
 			Name:      name,
 			NetworkID: chain.NetworkParams.NetworkID,
+			Nodes:     nodes,
 		})
 	}
 

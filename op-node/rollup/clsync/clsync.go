@@ -1,6 +1,7 @@
 package clsync
 
 import (
+	"context"
 	"sync"
 
 	"github.com/ethereum/go-ethereum/log"
@@ -61,14 +62,13 @@ func (eq *CLSync) LowestQueuedUnsafeBlock() eth.L2BlockRef {
 
 type ReceivedUnsafePayloadEvent struct {
 	Envelope *eth.ExecutionPayloadEnvelope
-	event.Ctx
 }
 
 func (ev ReceivedUnsafePayloadEvent) String() string {
 	return "received-unsafe-payload"
 }
 
-func (eq *CLSync) OnEvent(ev event.Event) bool {
+func (eq *CLSync) OnEvent(ctx context.Context, ev event.Event) bool {
 	// Events may be concurrent in the future. Prevent unsafe concurrent modifications to the payloads queue.
 	eq.mu.Lock()
 	defer eq.mu.Unlock()
@@ -77,9 +77,9 @@ func (eq *CLSync) OnEvent(ev event.Event) bool {
 	case engine.PayloadInvalidEvent:
 		eq.onInvalidPayload(x)
 	case engine.ForkchoiceUpdateEvent:
-		eq.onForkchoiceUpdate(x)
+		eq.onForkchoiceUpdate(ctx, x)
 	case ReceivedUnsafePayloadEvent:
-		eq.onUnsafePayload(x)
+		eq.onUnsafePayload(ctx, x)
 	default:
 		return false
 	}
@@ -104,7 +104,7 @@ func (eq *CLSync) onInvalidPayload(x engine.PayloadInvalidEvent) {
 // onForkchoiceUpdate peeks at the next applicable unsafe payload, if any,
 // to apply on top of the received forkchoice pre-state.
 // The payload is held on to until the forkchoice changes (success case) or the payload is reported to be invalid.
-func (eq *CLSync) onForkchoiceUpdate(x engine.ForkchoiceUpdateEvent) {
+func (eq *CLSync) onForkchoiceUpdate(ctx context.Context, x engine.ForkchoiceUpdateEvent) {
 	eq.log.Debug("CL sync received forkchoice update",
 		"unsafe", x.UnsafeL2Head, "safe", x.SafeL2Head, "finalized", x.FinalizedL2Head)
 
@@ -124,7 +124,7 @@ func (eq *CLSync) onForkchoiceUpdate(x engine.ForkchoiceUpdateEvent) {
 
 	// We don't pop from the queue. If there is a temporary error then we can retry.
 	// Upon next forkchoice update or invalid-payload event we can remove it from the queue.
-	eq.emitter.Emit(engine.ProcessUnsafePayloadEvent{Envelope: firstEnvelope, Ctx: x.Ctx})
+	eq.emitter.Emit(ctx, engine.ProcessUnsafePayloadEvent{Envelope: firstEnvelope})
 }
 
 // fromQueue determines what to do with the tip of the payloads-queue, given the forkchoice pre-state.
@@ -165,7 +165,7 @@ func (eq *CLSync) fromQueue(x engine.ForkchoiceUpdateEvent) (pop bool, abort boo
 }
 
 // AddUnsafePayload schedules an execution payload to be processed, ahead of deriving it from L1.
-func (eq *CLSync) onUnsafePayload(x ReceivedUnsafePayloadEvent) {
+func (eq *CLSync) onUnsafePayload(ctx context.Context, x ReceivedUnsafePayloadEvent) {
 	eq.log.Debug("CL sync received payload", "payload", x.Envelope.ExecutionPayload.ID())
 	envelope := x.Envelope
 	if envelope == nil {
@@ -182,5 +182,5 @@ func (eq *CLSync) onUnsafePayload(x ReceivedUnsafePayloadEvent) {
 	eq.log.Trace("Next unsafe payload to process", "next", p.ExecutionPayload.ID(), "timestamp", uint64(p.ExecutionPayload.Timestamp))
 
 	// request forkchoice signal, so we can process the payload maybe
-	eq.emitter.Emit(engine.ForkchoiceRequestEvent{Ctx: x.Ctx})
+	eq.emitter.Emit(ctx, engine.ForkchoiceRequestEvent{})
 }

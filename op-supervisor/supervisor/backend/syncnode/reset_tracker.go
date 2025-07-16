@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/ethereum-optimism/optimism/op-service/binary"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 	"github.com/ethereum/go-ethereum"
@@ -24,6 +25,10 @@ type resetTracker struct {
 type resetBackend interface {
 	BlockIDByNumber(ctx context.Context, n uint64) (eth.BlockID, error)
 	IsLocalSafe(ctx context.Context, block eth.BlockID) error
+
+	L2BlockRefByNumber(ctx context.Context, n uint64) (eth.L2BlockRef, error)
+	L1BlockIDByNumber(ctx context.Context, n uint64) (eth.BlockID, error)
+	LocalUnsafe(ctx context.Context) (eth.BlockID, error)
 }
 
 // init initializes the reset tracker with
@@ -122,4 +127,82 @@ func (t *resetTracker) bisect(ctx context.Context) error {
 		t.a = nodeI
 	}
 	return nil
+}
+
+// isL1OriginValid compares l1 origin info from the node and compares with l1 block fetched from l1 accessor db
+func (t *resetTracker) isL1OriginValid(ctx context.Context, blockNum uint64) (eth.L2BlockRef, error) {
+	current, err := t.backend.L2BlockRefByNumber(ctx, blockNum)
+	if err != nil {
+		return eth.L2BlockRef{}, err
+	}
+	// Check if L1Origin has been reorged
+	l1Blk, err := t.backend.L1BlockIDByNumber(ctx, current.L1Origin.Number)
+	if err != nil {
+		return eth.L2BlockRef{}, err
+	}
+	if l1Blk.Hash != current.L1Origin.Hash {
+		t.log.Debug("L1Origin field is invalid/outdated, so block is invalid and should be reorged", "currentNumber", current.Number, "currentL1Origin", current, "newL1Origin", l1Blk)
+		return eth.L2BlockRef{}, nil
+	}
+	t.log.Trace("L1Origin field points to canonical L1 block, so block is valid", "blocknum", blockNum, "l1Blk", l1Blk)
+	return current, nil
+}
+
+// FindResetUnsafeHeadTarget searches and returns the latest valid unsafe block of the L2 chain
+// starting from lSafe and checking until the latest unsafe block.
+func (t *resetTracker) FindResetUnsafeHeadTarget(ctx context.Context, lSafe eth.BlockID) (eth.BlockID, error) {
+	latestlUnsafe, err := t.backend.LocalUnsafe(ctx)
+	if err != nil {
+		t.log.Error("failed to get last local unsafe block. cancelling reset", "err", err)
+		return eth.BlockID{}, nil
+	}
+	t.log.Info("Searching for latest valid local unsafe", "latestlUnsafe", latestlUnsafe, "lSafe", lSafe)
+
+	target := lSafe.Number
+	targetDiff := int(latestlUnsafe.Number - target)
+	if targetDiff > 0 {
+		// Binary search to find and return the last valid block for idx in [0, targetDiff)
+		// We don't check validity of `target`, `target` is not in the search space, it is checked
+		// in the walkback loop section below if necessary.
+
+		// Search space:
+		// ------------------------------------------------------------------------------------------
+		// target.Number |  idx=0      idx=1      idx=2     ...  idx = targetDiff-1 = latestUnsafe   |
+		// false         |  t/f        t/f        t/f       ...  t/f                                 |
+		// ------------------------------------------------------------------------------------------
+		idx, valid, err := binary.SearchL(targetDiff, func(i int) (bool, eth.L2BlockRef, error) {
+			block, err := t.isL1OriginValid(ctx, target+1+uint64(i))
+			return block != (eth.L2BlockRef{}), block, err
+		})
+		if err != nil {
+			return eth.BlockID{}, err
+		}
+		if idx != -1 {
+			t.log.Info("Found last valid block with binary search", "valid", valid)
+			return valid.ID(), nil
+		} else {
+			t.log.Info("All blocks checked by binary search are invalid between target and latestUnsafe")
+		}
+	} else if targetDiff < 0 {
+		t.log.Warn("Latest unsafe block is older than target, using latest unsafe for search")
+		target = latestlUnsafe.Number
+	}
+
+	// In the following walkback loop, the following two cases are covered:
+	// 1. targetDiff == 0 or targetDiff < 0 (i.e. target == latestUnsafe), or
+	// 2. all blocks checked by binary search were invalid, so we have to go from `target` backwards indefinitely
+	//    until we find a valid block
+	for n := target; ; n-- {
+		if n == target-1 {
+			t.log.Warn("No valid unsafe block found up to target, searching further")
+		}
+		valid, err := t.isL1OriginValid(ctx, n)
+		if err != nil {
+			return eth.BlockID{}, err
+		}
+		if valid != (eth.L2BlockRef{}) {
+			t.log.Info("Found last valid block", "valid", valid)
+			return valid.ID(), nil
+		}
+	}
 }

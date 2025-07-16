@@ -31,6 +31,7 @@ export PROTOCOL_VERSIONS_PROXY := if NETWORK == "mainnet" { "0x8062AbC286f5e7D94
 export SUPERCHAIN_CONFIG_PROXY := if NETWORK == "mainnet" { "0x95703e0982140D16f8ebA6d158FccEde42f04a4C" } else if NETWORK == "sepolia" { "0xC2Be75506d5724086DEB7245bd260Cc9753911Be" } else { "" }
 export SUPERCHAIN_PROXY_ADMIN := if NETWORK == "mainnet" { "0x543ba4aadbab8f9025686bd03993043599c6fb04" } else if NETWORK == "sepolia" { "0x189abaaaa82dfc015a588a7dbad6f13b1d3485bc" } else { "" }
 export UPGRADE_CONTROLLER := if NETWORK == "mainnet" { "0x5a0Aae59D09fccBdDb6C6CcEB07B7279367C3d2A" } else if NETWORK == "sepolia" { "0x1Eb2fFc903729a0F03966B917003800b145F56E2" } else { "" }
+export CHALLENGER := if NETWORK == "mainnet" { "0x9BA6e03D8B90dE867373Db8cF1A58d2F7F006b3A" } else if NETWORK == "sepolia" { "0xfd1D2e729aE8eEe2E146c033bf4400fE75284301" } else { "" }
 
 # This command should be called before any deployment or verification commands.
 _validate_rpc:
@@ -60,6 +61,7 @@ deploy-opcm release="dev" locator="$DEFAULT_LOCATOR": _validate_rpc
     --upgrade-controller  $UPGRADE_CONTROLLER \
     --l1-contracts-release {{release}} \
     --superchain-proxy-admin $SUPERCHAIN_PROXY_ADMIN \
+    --challenger $CHALLENGER \
     --outfile deploy-${NETWORK}.json
 
 # Verifies the OPCM and the associated implementations contracts on Etherscan.
@@ -72,55 +74,3 @@ verify-opcm locator="$DEFAULT_LOCATOR": _validate_rpc
     --l1-rpc-url $ETH_RPC_URL \
     --etherscan-api-key $ETHERSCAN_API_KEY \
     --input-file deploy-${NETWORK}.json
-
-# The `op-deployer bootstrap validator` command requires a validator config file which can be
-# generated from the deploy-$NETWORK.json file along with:
-# 1. the release string (ie. `op-contracts/vX.Y.Z` and
-# 2. the `challenger` address.
-convert-deploy-outfile-to-validator-config RELEASE CHALLENGER:
-  #!/bin/bash
-  jq --arg release "{{RELEASE}}" --arg challenger "{{CHALLENGER}}" --arg superchainConfig "$SUPERCHAIN_CONFIG_PROXY" --arg upgradeController "$UPGRADE_CONTROLLER" '{
-    "release": $release,
-    "superchainConfig": $superchainConfig,
-    "l1PAOMultisig": $upgradeController,
-    "challenger": $challenger,
-    "superchainConfigImpl": .superchainConfigImplAddress,
-    "protocolVersionsImpl": .protocolVersionsImplAddress,
-    "l1ERC721BridgeImpl": .l1ERC721BridgeImplAddress,
-    "optimismPortalImpl": .optimismPortalImplAddress,
-    "ethLockboxImpl": .ethLockboxImplAddress,
-    "systemConfigImpl": .systemConfigImplAddress,
-    "optimismMintableERC20FactoryImpl": .optimismMintableERC20FactoryImplAddress,
-    "l1CrossDomainMessengerImpl": .l1CrossDomainMessengerImplAddress,
-    "l1StandardBridgeImpl": .l1StandardBridgeImplAddress,
-    "disputeGameFactoryImpl": .disputeGameFactoryImplAddress,
-    "anchorStateRegistryImpl": .anchorStateRegistryImplAddress,
-    "delayedWETHImpl": .delayedWETHImplAddress,
-    "mipsImpl": .mipsSingletonAddress,
-    "withdrawalDelaySeconds": 302400
-  }' deploy-${NETWORK}.json > validator-config-${NETWORK}.json
-
-# Deploys a validator contract, with the validator-config-$NETWORK.json file as input,
-# then converts the outfile for use in the `verify-validator` command.
-deploy-validator locator="$DEFAULT_LOCATOR": _validate_rpc
-  #!/bin/bash
-  echo "Using artifacts locator: {{locator}}"
-  ./bin/op-deployer bootstrap validator \
-    --artifacts-locator {{locator}} \
-    --l1-rpc-url $ETH_RPC_URL \
-    --private-key $PRIVATE_KEY \
-    --config validator-config-${NETWORK}.json \
-    --outfile deploy-validator-${NETWORK}.json
-  sed -i '' 's/validator/StandardValidator/g' deploy-validator-${NETWORK}.json
-
-# Verifies the validator contract on Etherscan.
-# This should be run after the validator is deployed, and requires the deploy-validator-$NETWORK.json file.
-verify-validator locator="$DEFAULT_LOCATOR": _validate_rpc
-  #!/bin/bash
-  echo "Using artifacts locator: {{locator}}"
-  ./bin/op-deployer verify \
-    --contract-name "StandardValidator" \
-    --artifacts-locator {{locator}} \
-    --l1-rpc-url $ETH_RPC_URL \
-    --etherscan-api-key $ETHERSCAN_API_KEY \
-    --input-file deploy-validator-${NETWORK}.json
