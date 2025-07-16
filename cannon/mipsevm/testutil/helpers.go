@@ -5,7 +5,7 @@ type TestCaseVariation[C, V any] struct {
 	Variation V
 }
 
-func ApplyTestVariations[C, V any](cases []C, variations []V) []TestCaseVariation[C, V] {
+func TestVariations[C, V any](cases []C, variations []V) []TestCaseVariation[C, V] {
 	out := make([]TestCaseVariation[C, V], 0, len(cases)*len(variations))
 	for _, baseTestCase := range cases {
 		for _, variation := range variations {

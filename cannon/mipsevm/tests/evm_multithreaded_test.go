@@ -132,7 +132,7 @@ func TestEVM_MT_SC(t *testing.T) {
 	testNamer := func(tc testCase) string {
 		return fmt.Sprintf("%v_%v", tc.Base.name, tc.Variation.name)
 	}
-	cases := testutil.ApplyTestVariations(baseTests, llVariations)
+	cases := testutil.TestVariations(baseTests, llVariations)
 
 	// Set up some test values that will be reused
 	memValue := uint64(0x1122_3344_5566_7788)
@@ -842,7 +842,7 @@ func testEVM_SysClockGettime(t *testing.T, clkid Word) {
 	testNamer := func(tc testCase) string {
 		return fmt.Sprintf("%v_%v", tc.Base.name, tc.Variation.name)
 	}
-	cases := testutil.ApplyTestVariations(baseTests, llVariations)
+	cases := testutil.TestVariations(baseTests, llVariations)
 
 	initState := func(tt testCase, state *multithreaded.State, vm VersionedVMTestCase, r *testutil.RandHelper) {
 		c := tt.Base

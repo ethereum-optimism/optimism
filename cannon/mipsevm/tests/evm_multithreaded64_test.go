@@ -139,7 +139,7 @@ func TestEVM_MT64_SC(t *testing.T) {
 	testNamer := func(tc testCase) string {
 		return fmt.Sprintf("%v_%v", tc.Base.name, tc.Variation.name)
 	}
-	cases := testutil.ApplyTestVariations(baseTests, llVariations)
+	cases := testutil.TestVariations(baseTests, llVariations)
 
 	initState := func(tt testCase, state *multithreaded.State, vm VersionedVMTestCase, r *testutil.RandHelper) {
 		c := tt.Base
@@ -319,7 +319,7 @@ func TestEVM_MT64_SCD(t *testing.T) {
 	testNamer := func(tc testCase) string {
 		return fmt.Sprintf("%v_%v", tc.Base.name, tc.Variation.name)
 	}
-	cases := testutil.ApplyTestVariations(baseTests, llVariations)
+	cases := testutil.TestVariations(baseTests, llVariations)
 
 	value := Word(0x11223344_55667788)
 	initState := func(tt testCase, state *multithreaded.State, vm VersionedVMTestCase, r *testutil.RandHelper) {
