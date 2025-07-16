@@ -145,7 +145,9 @@ contract DeployDisputeGame2 is Script {
         // Skip WETH validation for standalone deployments since WETH is read from CWIA data
         // which is not present in direct deployments
         // require(game.weth() == _input.delayedWethProxy, "DG-70");
-        require(game.l2ChainId() == _input.l2ChainId, "DG-90");
+        // Skip l2ChainId validation for standalone deployments since l2ChainId is read from CWIA data
+        // which is not present in direct deployments
+        // require(game.l2ChainId() == _input.l2ChainId, "DG-90");
 
         if (LibString.eq(_input.gameKind, "PermissionedDisputeGame")) {
             require(game.proposer() == _input.proposer, "DG-100");

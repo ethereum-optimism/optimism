@@ -106,7 +106,19 @@ contract DisputeGameFactory_TestInit is CommonTest {
     }
 
     function _setGame(address _gameImpl, GameType _gameType, Claim _absolutePrestate, AlphabetVM _vm) internal {
-        bytes memory implArgs = abi.encodePacked(_absolutePrestate, _vm, anchorStateRegistry, delayedWeth);
+        bytes memory implArgs;
+        
+        // Different game types require different implementation arguments
+        if (_gameType.raw() == GameTypes.CANNON.raw() || _gameType.raw() == GameTypes.PERMISSIONED_CANNON.raw()) {
+            // FaultDisputeGame and PermissionedDisputeGame require 5 arguments including l2ChainId
+            implArgs = abi.encodePacked(_absolutePrestate, _vm, anchorStateRegistry, delayedWeth, systemConfig.l2ChainId());
+        } else if (_gameType.raw() == GameTypes.SUPER_CANNON.raw() || _gameType.raw() == GameTypes.SUPER_PERMISSIONED_CANNON.raw()) {
+            // SuperFaultDisputeGame and SuperPermissionedDisputeGame require 3 arguments
+            implArgs = abi.encodePacked(_absolutePrestate, _vm, anchorStateRegistry);
+        } else {
+            // Default to 4 arguments for backwards compatibility
+            implArgs = abi.encodePacked(_absolutePrestate, _vm, anchorStateRegistry, delayedWeth);
+        }
 
         vm.startPrank(disputeGameFactory.owner());
         disputeGameFactory.setImplementation(_gameType, IDisputeGame(_gameImpl), implArgs);

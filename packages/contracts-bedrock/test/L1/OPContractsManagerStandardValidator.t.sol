@@ -146,7 +146,7 @@ contract StandardValidator_TestInit is CommonTest {
                 address pdgImpl = artifacts.mustGetAddress("PermissionedDisputeGame");
 
                 // Register the implementation with proper implArgs
-                bytes memory pdgImplArgs = abi.encodePacked(absolutePrestate, mips, anchorStateRegistry, delayedWeth);
+                bytes memory pdgImplArgs = abi.encodePacked(absolutePrestate, mips, anchorStateRegistry, delayedWeth, l2ChainId);
                 vm.prank(disputeGameFactory.owner());
                 disputeGameFactory.setImplementation(GameTypes.PERMISSIONED_CANNON, IDisputeGame(pdgImpl), pdgImplArgs);
 
@@ -211,7 +211,7 @@ contract StandardValidator_TestInit is CommonTest {
                 address fdgImpl = artifacts.mustGetAddress("FaultDisputeGame");
 
                 // Register the implementation with proper implArgs
-                bytes memory fdgImplArgs = abi.encodePacked(absolutePrestate, mips, anchorStateRegistry, delayedWeth);
+                bytes memory fdgImplArgs = abi.encodePacked(absolutePrestate, mips, anchorStateRegistry, delayedWeth, l2ChainId);
                 vm.prank(disputeGameFactory.owner());
                 disputeGameFactory.setImplementation(GameTypes.CANNON, IDisputeGame(fdgImpl), fdgImplArgs);
 
