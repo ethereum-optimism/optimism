@@ -807,14 +807,15 @@ func TestEVM_SysClockGettimeRealtime(t *testing.T) {
 }
 
 func testEVM_SysClockGettime(t *testing.T, clkid Word) {
-	llVariations := []struct {
+	type llVariation struct {
 		name                   string
 		llReservationStatus    multithreaded.LLReservationStatus
 		matchThreadId          bool
 		matchEffAddr           bool
 		matchEffAddr2          bool
 		shouldClearReservation bool
-	}{
+	}
+	llVariations := []llVariation{
 		{name: "matching reservation", llReservationStatus: multithreaded.LLStatusActive32bit, matchThreadId: true, matchEffAddr: true, shouldClearReservation: true},
 		{name: "matching reservation, 64-bit", llReservationStatus: multithreaded.LLStatusActive64bit, matchThreadId: true, matchEffAddr: true, shouldClearReservation: true},
 		{name: "matching reservation, 2nd word", llReservationStatus: multithreaded.LLStatusActive32bit, matchThreadId: true, matchEffAddr2: true, shouldClearReservation: true},
@@ -828,77 +829,82 @@ func testEVM_SysClockGettime(t *testing.T, clkid Word) {
 		{name: "no reservation, mismatched addr", llReservationStatus: multithreaded.LLStatusNone, matchThreadId: true, matchEffAddr: false, shouldClearReservation: false},
 	}
 
-	cases := []struct {
+	type baseTest struct {
 		name         string
 		timespecAddr Word
-	}{
+	}
+	baseTests := []baseTest{
 		{"aligned timespec address", 0x1000},
 		{"unaligned timespec address", 0x1003},
 	}
-	vmVersions := GetMipsVersionTestCases(t)
-	for _, ver := range vmVersions {
-		for i, c := range cases {
-			for _, llVar := range llVariations {
-				tName := fmt.Sprintf("%v (%v,%v)", c.name, ver.Name, llVar.name)
-				t.Run(tName, func(t *testing.T) {
-					goVm := ver.VMFactory(nil, os.Stdout, os.Stderr, testutil.CreateLogger(), mtutil.WithRandomization(int64(2101)))
-					state := mtutil.GetMtState(t, goVm)
-					mtutil.InitializeSingleThread(2101+i, state, i%2 == 1)
-					effAddr := c.timespecAddr & arch.AddressMask
-					effAddr2 := effAddr + arch.WordSizeBytes
-					step := state.Step
 
-					// Define LL-related params
-					var llAddress, llOwnerThread Word
-					if llVar.matchEffAddr {
-						llAddress = effAddr
-					} else if llVar.matchEffAddr2 {
-						llAddress = effAddr2
-					} else {
-						llAddress = effAddr2 + 8
-					}
-					if llVar.matchThreadId {
-						llOwnerThread = state.GetCurrentThread().ThreadId
-					} else {
-						llOwnerThread = state.GetCurrentThread().ThreadId + 1
-					}
-
-					testutil.StoreInstruction(state.Memory, state.GetPC(), syscallInsn)
-					state.GetRegistersRef()[2] = arch.SysClockGetTime // Set syscall number
-					state.GetRegistersRef()[4] = clkid                // a0
-					state.GetRegistersRef()[5] = c.timespecAddr       // a1
-					state.LLReservationStatus = llVar.llReservationStatus
-					state.LLAddress = llAddress
-					state.LLOwnerThread = llOwnerThread
-
-					expected := mtutil.NewExpectedState(t, state)
-					expected.ExpectStep()
-					expected.ActiveThread().Registers[2] = 0
-					expected.ActiveThread().Registers[7] = 0
-					next := state.Step + 1
-					var secs, nsecs Word
-					if clkid == exec.ClockGettimeMonotonicFlag {
-						secs = Word(next / exec.HZ)
-						nsecs = Word((next % exec.HZ) * (1_000_000_000 / exec.HZ))
-					}
-					expected.ExpectMemoryWrite(effAddr, secs)
-					expected.ExpectMemoryWrite(effAddr2, nsecs)
-					if llVar.shouldClearReservation {
-						expected.ExpectMemoryReservationCleared()
-					}
-
-					var err error
-					var stepWitness *mipsevm.StepWitness
-					stepWitness, err = goVm.Step(true)
-					require.NoError(t, err)
-
-					// Validate post-state
-					expected.Validate(t, state)
-					testutil.ValidateEVM(t, stepWitness, step, goVm, multithreaded.GetStateHashFn(), ver.Contracts)
-				})
-			}
-		}
+	type testCase = testutil.TestCaseVariation[baseTest, llVariation]
+	testNamer := func(tc testCase) string {
+		return fmt.Sprintf("%v_%v", tc.Base.name, tc.Variation.name)
 	}
+	cases := testutil.ApplyTestVariations(baseTests, llVariations)
+
+	initState := func(tt testCase, state *multithreaded.State, vm VersionedVMTestCase, r *testutil.RandHelper) {
+		c := tt.Base
+		llVar := tt.Variation
+
+		traverseRight := r.Intn(2) == 1
+		mtutil.InitializeSingleThread(r.Intn(10000), state, traverseRight)
+		effAddr := c.timespecAddr & arch.AddressMask
+		effAddr2 := effAddr + arch.WordSizeBytes
+
+		// Define LL-related params
+		var llAddress, llOwnerThread Word
+		if llVar.matchEffAddr {
+			llAddress = effAddr
+		} else if llVar.matchEffAddr2 {
+			llAddress = effAddr2
+		} else {
+			llAddress = effAddr2 + 8
+		}
+		if llVar.matchThreadId {
+			llOwnerThread = state.GetCurrentThread().ThreadId
+		} else {
+			llOwnerThread = state.GetCurrentThread().ThreadId + 1
+		}
+
+		testutil.StoreInstruction(state.Memory, state.GetPC(), syscallInsn)
+		state.GetRegistersRef()[2] = arch.SysClockGetTime // Set syscall number
+		state.GetRegistersRef()[4] = clkid                // a0
+		state.GetRegistersRef()[5] = c.timespecAddr       // a1
+		state.LLReservationStatus = llVar.llReservationStatus
+		state.LLAddress = llAddress
+		state.LLOwnerThread = llOwnerThread
+	}
+
+	setExpectations := func(tt testCase, expected *mtutil.ExpectedState, vm VersionedVMTestCase) ExpectedExecResult {
+		c := tt.Base
+		llVar := tt.Variation
+
+		effAddr := c.timespecAddr & arch.AddressMask
+		effAddr2 := effAddr + arch.WordSizeBytes
+
+		expected.ExpectStep()
+		incrementedStep := expected.Step
+		expected.ActiveThread().Registers[2] = 0
+		expected.ActiveThread().Registers[7] = 0
+		var secs, nsecs Word
+		if clkid == exec.ClockGettimeMonotonicFlag {
+			secs = Word(incrementedStep / exec.HZ)
+			nsecs = Word((incrementedStep % exec.HZ) * (1_000_000_000 / exec.HZ))
+		}
+		expected.ExpectMemoryWrite(effAddr, secs)
+		expected.ExpectMemoryWrite(effAddr2, nsecs)
+		if llVar.shouldClearReservation {
+			expected.ExpectMemoryReservationCleared()
+		}
+		return ExpectNormalExecution()
+	}
+
+	NewDiffTester(testNamer).
+		InitState(initState).
+		SetExpectations(setExpectations).
+		Run(t, cases, SkipAutomaticMemoryReservationTests())
 }
 
 func TestEVM_SysClockGettimeNonMonotonic(t *testing.T) {
