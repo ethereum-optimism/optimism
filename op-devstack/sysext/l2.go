@@ -414,6 +414,15 @@ func (o *Orchestrator) getWalletMappings(l1Wallets descriptors.WalletMap) map[st
 		mappings[walletRole] = devkeyRole
 	}
 
+	faucetMappings := map[string]devkeys.UserKey{
+		"l1Faucet": devkeys.UserKey(20), // Maps to user-key-20 in devnet
+		"l2Faucet": devkeys.UserKey(0),  // Maps to dev-account-0 in devnet
+	}
+
+	for walletRole, userKey := range faucetMappings {
+		mappings[walletRole] = userKey
+	}
+
 	// Dynamically discover user-key-* mappings from available L1 wallets
 	for walletRole := range l1Wallets {
 		if strings.HasPrefix(walletRole, "user-key-") {
