@@ -167,6 +167,21 @@ abstract contract OPContractsManagerBase {
         if (_who.code.length == 0) revert OPContractsManager.AddressHasNoCode(_who);
     }
 
+    /// @notice Configuration for a specific game type
+    struct GameTypeConfig {
+        GameType gameType;
+        IDisputeGame implementation;
+    }
+
+    /// @notice Arguments for game implementation setup
+    struct GameImplementationArgs {
+        Claim absolutePrestate;
+        IBigStepper vm;
+        IAnchorStateRegistry anchorStateRegistry;
+        IDelayedWETH weth;
+        uint256 l2ChainId;
+    }
+
     /// @notice Returns the implementation contract address for a given game type.
     function getGameImplementation(
         IDisputeGameFactory _disputeGameFactory,
@@ -249,24 +264,21 @@ abstract contract OPContractsManagerBase {
     /// @notice Sets a game implementation on the dispute game factory
     function setDGFImplementation(
         IDisputeGameFactory _dgf,
-        GameType _gameType,
-        IDisputeGame _newGame,
-        Claim _absolutePrestate,
-        IBigStepper _vm,
-        IAnchorStateRegistry _anchorStateRegistry,
-        IDelayedWETH _weth,
-        uint256 _l2ChainId
+        GameTypeConfig memory _gameConfig,
+        GameImplementationArgs memory _implArgs
     )
         internal
     {
         // Super game types always use l2ChainId = 0
         uint256 gameL2ChainId = (
-            _gameType.raw() == GameTypes.SUPER_CANNON.raw()
-                || _gameType.raw() == GameTypes.SUPER_PERMISSIONED_CANNON.raw()
-        ) ? 0 : _l2ChainId;
+            _gameConfig.gameType.raw() == GameTypes.SUPER_CANNON.raw()
+                || _gameConfig.gameType.raw() == GameTypes.SUPER_PERMISSIONED_CANNON.raw()
+        ) ? 0 : _implArgs.l2ChainId;
 
-        bytes memory implArgs = abi.encodePacked(_absolutePrestate, _vm, _anchorStateRegistry, _weth, gameL2ChainId);
-        _dgf.setImplementation(_gameType, _newGame, implArgs);
+        bytes memory implArgs = abi.encodePacked(
+            _implArgs.absolutePrestate, _implArgs.vm, _implArgs.anchorStateRegistry, _implArgs.weth, gameL2ChainId
+        );
+        _dgf.setImplementation(_gameConfig.gameType, _gameConfig.implementation, implArgs);
     }
 }
 
@@ -300,16 +312,21 @@ contract OPContractsManagerGameTypeAdder is OPContractsManagerBase {
         private
     {
         IAnchorStateRegistry asr = getAnchorStateRegistry(_gameConfig.systemConfig);
-        setDGFImplementation(
-            _dgf,
-            _gameConfig.disputeGameType,
-            IDisputeGame(address(_faultDisputeGame)),
-            _gameConfig.disputeAbsolutePrestate,
-            _gameConfig.vm,
-            asr,
-            _gameConfig.delayedWETH,
-            _l2ChainId
-        );
+
+        GameTypeConfig memory gameConfig = GameTypeConfig({
+            gameType: _gameConfig.disputeGameType,
+            implementation: IDisputeGame(address(_faultDisputeGame))
+        });
+
+        GameImplementationArgs memory implArgs = GameImplementationArgs({
+            absolutePrestate: _gameConfig.disputeAbsolutePrestate,
+            vm: _gameConfig.vm,
+            anchorStateRegistry: asr,
+            weth: _gameConfig.delayedWETH,
+            l2ChainId: _l2ChainId
+        });
+
+        setDGFImplementation(_dgf, gameConfig, implArgs);
     }
 
     /// @notice Deploys a new dispute game and installs it into the DisputeGameFactory. Inputted
@@ -828,51 +845,40 @@ contract OPContractsManagerUpgrader is OPContractsManagerBase {
             absolutePrestate = IFaultDisputeGame(address(_disputeGame)).absolutePrestate();
         }
 
+        // Prepare common implementation args
+        GameImplementationArgs memory implArgs = GameImplementationArgs({
+            absolutePrestate: absolutePrestate,
+            vm: IBigStepper(getImplementations().mipsImpl),
+            anchorStateRegistry: _newAnchorStateRegistryProxy,
+            weth: _newDelayedWeth,
+            l2ChainId: _l2ChainId
+        });
+
         // Set implementation based on game type
         if (GameType.unwrap(_gameType) == GameType.unwrap(GameTypes.PERMISSIONED_CANNON)) {
-            setDGFImplementation(
-                dgf,
-                _gameType,
-                IDisputeGame(getImplementations().permissionedDisputeGameImpl),
-                absolutePrestate,
-                IBigStepper(getImplementations().mipsImpl),
-                _newAnchorStateRegistryProxy,
-                _newDelayedWeth,
-                _l2ChainId
-            );
+            GameTypeConfig memory gameConfig = GameTypeConfig({
+                gameType: _gameType,
+                implementation: IDisputeGame(getImplementations().permissionedDisputeGameImpl)
+            });
+            setDGFImplementation(dgf, gameConfig, implArgs);
         } else if (GameType.unwrap(_gameType) == GameType.unwrap(GameTypes.CANNON)) {
-            setDGFImplementation(
-                dgf,
-                _gameType,
-                IDisputeGame(getImplementations().faultDisputeGameImpl),
-                absolutePrestate,
-                IBigStepper(getImplementations().mipsImpl),
-                _newAnchorStateRegistryProxy,
-                _newDelayedWeth,
-                _l2ChainId
-            );
+            GameTypeConfig memory gameConfig = GameTypeConfig({
+                gameType: _gameType,
+                implementation: IDisputeGame(getImplementations().faultDisputeGameImpl)
+            });
+            setDGFImplementation(dgf, gameConfig, implArgs);
         } else if (GameType.unwrap(_gameType) == GameType.unwrap(GameTypes.SUPER_PERMISSIONED_CANNON)) {
-            setDGFImplementation(
-                dgf,
-                _gameType,
-                IDisputeGame(getImplementations().superPermissionedDisputeGameImpl),
-                absolutePrestate,
-                IBigStepper(getImplementations().mipsImpl),
-                _newAnchorStateRegistryProxy,
-                _newDelayedWeth,
-                _l2ChainId
-            );
+            GameTypeConfig memory gameConfig = GameTypeConfig({
+                gameType: _gameType,
+                implementation: IDisputeGame(getImplementations().superPermissionedDisputeGameImpl)
+            });
+            setDGFImplementation(dgf, gameConfig, implArgs);
         } else if (GameType.unwrap(_gameType) == GameType.unwrap(GameTypes.SUPER_CANNON)) {
-            setDGFImplementation(
-                dgf,
-                _gameType,
-                IDisputeGame(getImplementations().superFaultDisputeGameImpl),
-                absolutePrestate,
-                IBigStepper(getImplementations().mipsImpl),
-                _newAnchorStateRegistryProxy,
-                _newDelayedWeth,
-                _l2ChainId
-            );
+            GameTypeConfig memory gameConfig = GameTypeConfig({
+                gameType: _gameType,
+                implementation: IDisputeGame(getImplementations().superFaultDisputeGameImpl)
+            });
+            setDGFImplementation(dgf, gameConfig, implArgs);
         } else {
             revert OPContractsManager_InvalidGameType();
         }
@@ -1044,16 +1050,20 @@ contract OPContractsManagerDeployer is OPContractsManagerBase {
             implementation.disputeGameFactoryImpl,
             data
         );
-        setDGFImplementation(
-            output.disputeGameFactoryProxy,
-            GameTypes.PERMISSIONED_CANNON,
-            IDisputeGame(implementation.permissionedDisputeGameImpl),
-            _input.disputeAbsolutePrestate,
-            IBigStepper(implementation.mipsImpl),
-            output.anchorStateRegistryProxy,
-            output.delayedWETHPermissionedGameProxy,
-            _input.l2ChainId
-        );
+        GameTypeConfig memory gameConfig = GameTypeConfig({
+            gameType: GameTypes.PERMISSIONED_CANNON,
+            implementation: IDisputeGame(implementation.permissionedDisputeGameImpl)
+        });
+
+        GameImplementationArgs memory implArgs = GameImplementationArgs({
+            absolutePrestate: _input.disputeAbsolutePrestate,
+            vm: IBigStepper(implementation.mipsImpl),
+            anchorStateRegistry: output.anchorStateRegistryProxy,
+            weth: output.delayedWETHPermissionedGameProxy,
+            l2ChainId: _input.l2ChainId
+        });
+
+        setDGFImplementation(output.disputeGameFactoryProxy, gameConfig, implArgs);
 
         transferOwnership(address(output.disputeGameFactoryProxy), address(_input.roles.opChainProxyAdminOwner));
 
