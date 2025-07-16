@@ -324,14 +324,13 @@ var excludedPaths = []string{
 	// documented here to avoid false validation failures while maintaining the validation rules
 	// for standard contract tests.
 	"test/invariants/",                    // Invariant testing framework - no direct src counterpart
-	"test/kontrol/",                       // Formal verification tests - specialized tooling
 	"test/opcm/",                          // OP Chain Manager tests - may have different structure
 	"test/scripts/",                       // Script tests - test deployment/utility scripts, not contracts
 	"test/integration/",                   // Integration tests - test multiple contracts together
-	"test/setup/",                         // Test setup utilities - infrastructure, not contract tests
 	"test/cannon/MIPS64Memory.t.sol",      // Tests external MIPS implementation
 	"test/dispute/lib/LibClock.t.sol",     // Tests library utilities
 	"test/dispute/lib/LibGameId.t.sol",    // Tests library utilities
+	"test/setup/DeployVariations.t.sol",   // Tests deployment variations
 	"test/universal/BenchmarkTest.t.sol",  // Performance benchmarking tests
 	"test/universal/ExtendedPause.t.sol",  // Tests extended functionality
 	"test/vendor/Initializable.t.sol",     // Tests external vendor code
@@ -355,7 +354,6 @@ var excludedPaths = []string{
 	"test/dispute/SuperFaultDisputeGame.t.sol",          // Contains contracts not matching SuperFaultDisputeGame base name
 	"test/L1/ResourceMetering.t.sol",                    // Contains contracts not matching ResourceMetering base name
 	"test/L1/OPContractsManagerStandardValidator.t.sol", // Contains contracts not matching OPContractsManagerStandardValidator base name
-	"test/L1/StandardValidator.t.sol",                   // Contains contracts not matching StandardValidator base name
 	"test/L2/CrossDomainOwnable.t.sol",                  // Contains contracts not matching CrossDomainOwnable base name
 	"test/L2/CrossDomainOwnable2.t.sol",                 // Contains contracts not matching CrossDomainOwnable2 base name
 	"test/L2/CrossDomainOwnable3.t.sol",                 // Contains contracts not matching CrossDomainOwnable3 base name
