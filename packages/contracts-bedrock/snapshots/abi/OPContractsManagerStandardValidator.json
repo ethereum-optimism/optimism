@@ -59,7 +59,7 @@
             "type": "address"
           }
         ],
-        "internalType": "struct StandardValidator.Implementations",
+        "internalType": "struct OPContractsManagerStandardValidator.Implementations",
         "name": "_implementations",
         "type": "tuple"
       },
@@ -463,7 +463,7 @@
             "type": "uint256"
           }
         ],
-        "internalType": "struct StandardValidator.ValidationInput",
+        "internalType": "struct OPContractsManagerStandardValidator.ValidationInput",
         "name": "_input",
         "type": "tuple"
       },
@@ -509,7 +509,7 @@
             "type": "uint256"
           }
         ],
-        "internalType": "struct StandardValidator.ValidationInput",
+        "internalType": "struct OPContractsManagerStandardValidator.ValidationInput",
         "name": "_input",
         "type": "tuple"
       },
@@ -531,12 +531,12 @@
             "type": "address"
           }
         ],
-        "internalType": "struct StandardValidator.ValidationOverrides",
+        "internalType": "struct OPContractsManagerStandardValidator.ValidationOverrides",
         "name": "_overrides",
         "type": "tuple"
       }
     ],
-    "name": "validate",
+    "name": "validateWithOverrides",
     "outputs": [
       {
         "internalType": "string",

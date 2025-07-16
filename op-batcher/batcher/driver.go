@@ -473,9 +473,6 @@ func (l *BatchSubmitter) publishingLoop(ctx context.Context, wg *sync.WaitGroup,
 
 	for range publishSignal {
 		l.Log.Debug("publishing loop received signal")
-		if !l.checkTxpool(txQueue, receiptsCh) {
-			continue
-		}
 		l.publishStateToL1(ctx, txQueue, receiptsCh, daGroup)
 	}
 

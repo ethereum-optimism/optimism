@@ -20,6 +20,7 @@ type DeployImplementationsInput struct {
 	ProtocolVersionsProxy common.Address
 	SuperchainProxyAdmin  common.Address
 	UpgradeController     common.Address
+	Challenger            common.Address
 }
 
 type DeployImplementationsOutput struct {
@@ -29,6 +30,7 @@ type DeployImplementationsOutput struct {
 	OpcmDeployer                     common.Address `json:"opcmDeployerAddress"`
 	OpcmUpgrader                     common.Address `json:"opcmUpgraderAddress"`
 	OpcmInteropMigrator              common.Address `json:"opcmInteropMigratorAddress"`
+	OpcmStandardValidator            common.Address `json:"opcmStandardValidatorAddress"`
 	DelayedWETHImpl                  common.Address `json:"delayedWETHImplAddress"`
 	OptimismPortalImpl               common.Address `json:"optimismPortalImplAddress"`
 	ETHLockboxImpl                   common.Address `json:"ethLockboxImplAddress" abi:"ethLockboxImpl"`

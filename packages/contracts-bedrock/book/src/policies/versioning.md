@@ -10,7 +10,6 @@ There are five parts to the versioning and release process:
 - [Monorepo Contracts Release Versioning](#monorepo-contracts-release-versioning): The versioning scheme for monorepo smart contract releases.
 - [Release Process](#release-process): The process for deploying contracts, creating a governance proposal, and the required associated releases.
   - [Additional Release Candidates](#additional-release-candidates): How to handle additional release candidates after an initial `op-contracts/vX.Y.Z-rc.1` release.
-  - [Merging Back to Develop After Governance Approval](#merging-back-to-develop-after-governance-approval): Explains how to choose the resulting contract versions when merging back into `develop`.
 
 > [!NOTE]
 > The rules described in this document must be enforced manually.

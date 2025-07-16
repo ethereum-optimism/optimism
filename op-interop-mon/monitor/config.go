@@ -14,12 +14,14 @@ import (
 )
 
 type CLIConfig struct {
-	L2Rpcs        []string
-	PollInterval  time.Duration
-	RPCConfig     oprpc.CLIConfig
-	LogConfig     oplog.CLIConfig
-	MetricsConfig opmetrics.CLIConfig
-	PprofConfig   oppprof.CLIConfig
+	L2Rpcs              []string
+	PollInterval        time.Duration
+	SupervisorEndpoints []string
+	TriggerFailsafe     bool
+	RPCConfig           oprpc.CLIConfig
+	LogConfig           oplog.CLIConfig
+	MetricsConfig       opmetrics.CLIConfig
+	PprofConfig         oppprof.CLIConfig
 }
 
 func (c *CLIConfig) Check() error {
@@ -46,9 +48,11 @@ func NewConfig(ctx *cli.Context) *CLIConfig {
 		L2Rpcs: ctx.StringSlice(flags.L2RpcsFlag.Name),
 
 		// Optional Flags
-		RPCConfig:     oprpc.ReadCLIConfig(ctx),
-		LogConfig:     oplog.ReadCLIConfig(ctx),
-		MetricsConfig: opmetrics.ReadCLIConfig(ctx),
-		PprofConfig:   oppprof.ReadCLIConfig(ctx),
+		SupervisorEndpoints: ctx.StringSlice(flags.SupervisorEndpointsFlag.Name),
+		TriggerFailsafe:     ctx.Bool(flags.TriggerFailsafeFlag.Name),
+		RPCConfig:           oprpc.ReadCLIConfig(ctx),
+		LogConfig:           oplog.ReadCLIConfig(ctx),
+		MetricsConfig:       opmetrics.ReadCLIConfig(ctx),
+		PprofConfig:         oppprof.ReadCLIConfig(ctx),
 	}
 }

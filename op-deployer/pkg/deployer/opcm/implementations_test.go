@@ -71,6 +71,7 @@ func TestNewDeployImplementationsScript(t *testing.T) {
 			ProtocolVersionsProxy: protocolVersionsAddress,
 			SuperchainProxyAdmin:  proxyAdminAddress,
 			UpgradeController:     common.BigToAddress(big.NewInt(13)),
+			Challenger:            common.BigToAddress(big.NewInt(14)),
 		})
 
 		// And do some simple asserts

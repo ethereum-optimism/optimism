@@ -53,7 +53,7 @@ func newMIPSEVM(t testing.TB, contracts *ContractMetadata, opts ...evmOption) *M
 
 type evmOption func(c *MIPSEVM)
 
-func WithSourceMapTracer(t *testing.T, ver MipsVersion) evmOption {
+func WithSourceMapTracer(t require.TestingT, ver MipsVersion) evmOption {
 	return func(evm *MIPSEVM) {
 		evm.SetSourceMapTracer(t, ver)
 	}
@@ -79,12 +79,12 @@ func (m *MIPSEVM) SetLocalOracle(oracle mipsevm.PreimageOracle) {
 	m.localOracle = oracle
 }
 
-func (m *MIPSEVM) SetSourceMapTracer(t *testing.T, version MipsVersion) {
+func (m *MIPSEVM) SetSourceMapTracer(t require.TestingT, version MipsVersion) {
 	m.env.Config.Tracer = SourceMapTracer(t, version, m.artifacts.MIPS, m.artifacts.Oracle, m.addrs)
 }
 
 // Step is a pure function that computes the poststate from the VM state encoded in the StepWitness.
-func (m *MIPSEVM) Step(t *testing.T, stepWitness *mipsevm.StepWitness, step uint64, stateHashFn mipsevm.HashFn) []byte {
+func (m *MIPSEVM) Step(t testing.TB, stepWitness *mipsevm.StepWitness, step uint64, stateHashFn mipsevm.HashFn) []byte {
 	m.lastStep = step
 	m.lastStepInput = nil
 	m.lastPreimageOracleInput = nil
@@ -123,13 +123,13 @@ func (m *MIPSEVM) Step(t *testing.T, stepWitness *mipsevm.StepWitness, step uint
 	return evmPost
 }
 
-func EncodeStepInput(t *testing.T, wit *mipsevm.StepWitness, localContext mipsevm.LocalContext, mips *foundry.Artifact) []byte {
+func EncodeStepInput(t require.TestingT, wit *mipsevm.StepWitness, localContext mipsevm.LocalContext, mips *foundry.Artifact) []byte {
 	input, err := mips.ABI.Pack("step", wit.State, wit.ProofData, localContext)
 	require.NoError(t, err)
 	return input
 }
 
-func (m *MIPSEVM) encodePreimageOracleInput(t *testing.T, preimageKey [32]byte, preimageValue []byte, preimageOffset arch.Word, localContext mipsevm.LocalContext) ([]byte, error) {
+func (m *MIPSEVM) encodePreimageOracleInput(t require.TestingT, preimageKey [32]byte, preimageValue []byte, preimageOffset arch.Word, localContext mipsevm.LocalContext) ([]byte, error) {
 	if preimageKey == ([32]byte{}) {
 		return nil, errors.New("cannot encode pre-image oracle input, witness has no pre-image to proof")
 	}
@@ -183,7 +183,7 @@ func (m *MIPSEVM) encodePreimageOracleInput(t *testing.T, preimageKey [32]byte, 
 	}
 }
 
-func (m *MIPSEVM) assertPreimageOracleReverts(t *testing.T, preimageKey [32]byte, preimageValue []byte, preimageOffset arch.Word) {
+func (m *MIPSEVM) assertPreimageOracleReverts(t require.TestingT, preimageKey [32]byte, preimageValue []byte, preimageOffset arch.Word) {
 	poInput, err := m.encodePreimageOracleInput(t, preimageKey, preimageValue, preimageOffset, mipsevm.LocalContext{})
 	require.NoError(t, err, "encode preimage oracle input")
 	_, _, evmErr := m.env.Call(m.sender, m.addrs.Oracle, poInput, m.startingGas, common.U2560)
@@ -191,7 +191,7 @@ func (m *MIPSEVM) assertPreimageOracleReverts(t *testing.T, preimageKey [32]byte
 	require.ErrorContains(t, evmErr, "execution reverted")
 }
 
-func LogStepFailureAtCleanup(t *testing.T, mipsEvm *MIPSEVM) {
+func LogStepFailureAtCleanup(t testing.TB, mipsEvm *MIPSEVM) {
 	t.Cleanup(func() {
 		if t.Failed() {
 			// Note: For easier debugging of a failing step, see MIPS.t.sol#test_step_debug_succeeds()
@@ -206,7 +206,7 @@ type EvmValidator struct {
 }
 
 // NewEvmValidator creates a validator that can be run repeatedly across multiple steps
-func NewEvmValidator(t *testing.T, hashFn mipsevm.HashFn, contracts *ContractMetadata, opts ...evmOption) *EvmValidator {
+func NewEvmValidator(t testing.TB, hashFn mipsevm.HashFn, contracts *ContractMetadata, opts ...evmOption) *EvmValidator {
 	evm := newMIPSEVM(t, contracts, opts...)
 	LogStepFailureAtCleanup(t, evm)
 
@@ -216,7 +216,7 @@ func NewEvmValidator(t *testing.T, hashFn mipsevm.HashFn, contracts *ContractMet
 	}
 }
 
-func (v *EvmValidator) ValidateEVM(t *testing.T, stepWitness *mipsevm.StepWitness, step uint64, goVm mipsevm.FPVM) {
+func (v *EvmValidator) ValidateEVM(t testing.TB, stepWitness *mipsevm.StepWitness, step uint64, goVm mipsevm.FPVM) {
 	evmPost := v.evm.Step(t, stepWitness, step, v.hashFn)
 	goPost, _ := goVm.GetState().EncodeWitness()
 	require.Equal(t, hexutil.Bytes(goPost).String(), hexutil.Bytes(evmPost).String(),
@@ -224,20 +224,20 @@ func (v *EvmValidator) ValidateEVM(t *testing.T, stepWitness *mipsevm.StepWitnes
 }
 
 // ValidateEVM runs a single evm step and validates against an FPVM poststate
-func ValidateEVM(t *testing.T, stepWitness *mipsevm.StepWitness, step uint64, goVm mipsevm.FPVM, hashFn mipsevm.HashFn, contracts *ContractMetadata, opts ...evmOption) {
+func ValidateEVM(t testing.TB, stepWitness *mipsevm.StepWitness, step uint64, goVm mipsevm.FPVM, hashFn mipsevm.HashFn, contracts *ContractMetadata, opts ...evmOption) {
 	validator := NewEvmValidator(t, hashFn, contracts, opts...)
 	validator.ValidateEVM(t, stepWitness, step, goVm)
 }
 
-type ErrMatcher func(*testing.T, []byte)
+type ErrMatcher func(require.TestingT, []byte)
 
 func CreateNoopErrorMatcher() ErrMatcher {
-	return func(t *testing.T, ret []byte) {}
+	return func(t require.TestingT, ret []byte) {}
 }
 
 // CreateErrorStringMatcher matches an Error(string)
 func CreateErrorStringMatcher(expect string) ErrMatcher {
-	return func(t *testing.T, ret []byte) {
+	return func(t require.TestingT, ret []byte) {
 		require.Greaterf(t, len(ret), 4, "Return data length should be greater than 4 bytes: %x", ret)
 		unpacked, decodeErr := abi.UnpackRevert(ret)
 		require.NoError(t, decodeErr, "Failed to unpack revert reason")
@@ -247,14 +247,14 @@ func CreateErrorStringMatcher(expect string) ErrMatcher {
 
 // CreateCustomErrorMatcher matches a custom error given the error signature
 func CreateCustomErrorMatcher(sig string) ErrMatcher {
-	return func(t *testing.T, ret []byte) {
+	return func(t require.TestingT, ret []byte) {
 		expect := crypto.Keccak256([]byte(sig))[:4]
 		require.EqualValuesf(t, expect, ret, "return value is %x", ret)
 	}
 }
 
 // AssertEVMReverts runs a single evm step from an FPVM prestate and asserts that the VM panics
-func AssertEVMReverts(t *testing.T, state mipsevm.FPVMState, contracts *ContractMetadata, tracer *tracing.Hooks, ProofData []byte, matcher ErrMatcher) {
+func AssertEVMReverts(t testing.TB, state mipsevm.FPVMState, contracts *ContractMetadata, tracer *tracing.Hooks, ProofData []byte, matcher ErrMatcher) {
 	encodedWitness, _ := state.EncodeWitness()
 	stepWitness := &mipsevm.StepWitness{
 		State:     encodedWitness,
@@ -275,7 +275,7 @@ func AssertEVMReverts(t *testing.T, state mipsevm.FPVMState, contracts *Contract
 	require.Equal(t, 0, len(logs))
 }
 
-func AssertPreimageOracleReverts(t *testing.T, preimageKey [32]byte, preimageValue []byte, preimageOffset arch.Word, contracts *ContractMetadata, opts ...evmOption) {
+func AssertPreimageOracleReverts(t testing.TB, preimageKey [32]byte, preimageValue []byte, preimageOffset arch.Word, contracts *ContractMetadata, opts ...evmOption) {
 	evm := newMIPSEVM(t, contracts, opts...)
 	LogStepFailureAtCleanup(t, evm)
 
