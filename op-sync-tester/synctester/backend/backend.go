@@ -86,6 +86,12 @@ func FromConfig(log log.Logger, m metrics.Metricer, cfg *config.Config, router A
 		}); err != nil {
 			syncTesterErr = errors.Join(syncTesterErr, fmt.Errorf("failed to add eth API: %w", err))
 		}
+		if err := router.AddAPIToRPC(path, rpc.API{
+			Namespace: "engine",
+			Service:   frontend.NewEngineFrontend(st),
+		}); err != nil {
+			syncTesterErr = errors.Join(syncTesterErr, fmt.Errorf("failed to add engine API: %w", err))
+		}
 		return true
 	})
 	if syncTesterErr != nil {
