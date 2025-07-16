@@ -7,6 +7,7 @@ type ThrottleControllerType string
 
 const (
 	StepControllerType      ThrottleControllerType = "step"
+	LinearControllerType    ThrottleControllerType = "linear"
 	QuadraticControllerType ThrottleControllerType = "quadratic"
 	PIDControllerType       ThrottleControllerType = "pid"
 )

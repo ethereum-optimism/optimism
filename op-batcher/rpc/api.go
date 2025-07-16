@@ -52,7 +52,7 @@ func (a *adminAPI) StopBatcher(ctx context.Context) error {
 // SetThrottleController changes only the throttle controller type without changing parameters
 func (a *adminAPI) SetThrottleController(_ context.Context, controllerType string, pidConfig *config.PIDConfig) error {
 	// Validate controller type
-	validTypes := []string{string(config.StepControllerType), string(config.QuadraticControllerType), string(config.PIDControllerType)}
+	validTypes := []string{string(config.StepControllerType), string(config.LinearControllerType), string(config.QuadraticControllerType), string(config.PIDControllerType)}
 	isValid := false
 	for _, valid := range validTypes {
 		if controllerType == valid {
@@ -69,6 +69,9 @@ func (a *adminAPI) SetThrottleController(_ context.Context, controllerType strin
 	if controllerType == string(config.PIDControllerType) && pidConfig == nil {
 		return fmt.Errorf("cannot set PID controller type without configuration")
 	} else if controllerType == string(config.PIDControllerType) && pidConfig != nil {
+		log.Warn("SWITCHING TO EXPERIMENTAL PID CONTROLLER")
+		log.Warn("PID controller is EXPERIMENTAL and should only be used by control theory experts. Improper tuning can cause system instability or performance degradation. Monitor system behavior closely when using PID control.")
+
 		// Validate PID config
 		if pidConfig.Kp < 0 || pidConfig.Ki < 0 || pidConfig.Kd < 0 {
 			return fmt.Errorf("PID gains must be non-negative")

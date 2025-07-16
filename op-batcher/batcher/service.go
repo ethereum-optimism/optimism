@@ -126,6 +126,9 @@ func (bs *BatcherService) initFromCLIConfig(ctx context.Context, version string,
 
 	// Initialize PID configuration if using PID controller
 	if bs.ThrottleControllerType == config.PIDControllerType {
+		bs.Log.Warn("EXPERIMENTAL PID CONTROLLER CONFIGURED")
+		bs.Log.Warn("PID controller is EXPERIMENTAL and should only be used by control theory experts. Improper configuration can lead to system instability or poor performance. Monitor system behavior closely when using PID control.")
+
 		bs.ThrottlePidConfig = &config.PIDConfig{
 			Kp:          cfg.ThrottlePidKp,
 			Ki:          cfg.ThrottlePidKi,

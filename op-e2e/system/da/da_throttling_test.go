@@ -54,7 +54,7 @@ func TestDATxThrottling(t *testing.T) {
 	done := make(chan bool, 1)
 	var bigReceipt *types.Receipt
 	go func() {
-		bigReceipt = sendTx(cfg.Secrets.Alice, 1, bigTxSize)
+		bigReceipt = sendTxWithTimeout(cfg.Secrets.Alice, 1, bigTxSize, cfg.L2ChainIDBig(), l2Seq, 5*time.Minute)
 		done <- true
 	}()
 
@@ -70,10 +70,12 @@ func TestDATxThrottling(t *testing.T) {
 	// second tx should still be throttled
 	require.Nil(t, bigReceipt, "large tx did not get throttled")
 
-	// disable throttling to let big tx through
-	batcher.Config.ThrottleTxSize = 0
+	// disable throttling by resetting the throttle controller and triggering an update
+	err = disableThrottling(batcher)
+	require.NoError(t, err, "failed to disable throttling")
+
 	<-done
-	require.NotNil(t, bigReceipt, "large tx did not get throttled")
+	require.NotNil(t, bigReceipt, "large tx should have been processed after throttling disabled")
 }
 
 func TestDABlockThrottling(t *testing.T) {
@@ -193,4 +195,52 @@ func waitForBlock(t *testing.T, blockNumber *big.Int, cl *ethclient.Client, rc *
 	_, err := geth.WaitForBlock(blockNumber, cl)
 	require.NoError(t, err, "Waiting for block on verifier")
 	require.NoError(t, wait.ForProcessingFullBatch(context.Background(), rc))
+}
+
+func sendTxWithTimeout(senderKey *ecdsa.PrivateKey, nonce uint64, size int, chainID *big.Int, cl *ethclient.Client, timeout time.Duration) *types.Receipt {
+	randomBytes := make([]byte, size)
+	_, err := rand.Read(randomBytes)
+	if err != nil {
+		panic(err)
+	}
+	tx := types.MustSignNewTx(senderKey, types.LatestSignerForChainID(chainID), &types.DynamicFeeTx{
+		ChainID:   chainID,
+		Nonce:     nonce,
+		To:        &common.Address{0xff, 0xff},
+		Value:     big.NewInt(1_000_000_000),
+		GasTipCap: big.NewInt(10),
+		GasFeeCap: big.NewInt(200),
+		Gas:       21_000 + uint64(len(randomBytes))*16,
+		Data:      randomBytes,
+	})
+	err = cl.SendTransaction(context.Background(), tx)
+	if err != nil {
+		panic(err)
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+
+	receipt, err := wait.ForReceiptOK(ctx, cl, tx.Hash())
+	if err != nil {
+		return nil // Return nil on timeout instead of panicking
+	}
+	if receipt.Status != types.ReceiptStatusSuccessful {
+		return nil
+	}
+	return receipt
+}
+
+func disableThrottling(batcher *batcher.TestBatchSubmitter) error {
+	// Reset the throttle controller to disable throttling
+	err := batcher.ResetThrottleController()
+	if err != nil {
+		return err
+	}
+
+	// Wait a bit to allow the throttling system to propagate the reset
+	// The throttling loop runs periodically and needs time to send the update to sequencer endpoints
+	time.Sleep(2 * time.Second)
+
+	return nil
 }

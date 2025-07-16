@@ -196,11 +196,11 @@ var (
 	}
 	ThrottleControllerTypeFlag = &cli.StringFlag{
 		Name:    "throttle-controller-type",
-		Usage:   "Type of throttle controller to use: 'step' (default), 'quadratic' or 'pid' for more advanced throttling",
+		Usage:   "Type of throttle controller to use: 'step' (default), 'linear', 'quadratic' or 'pid' (EXPERIMENTAL - use with caution)",
 		Value:   "step",
 		EnvVars: prefixEnvVars("THROTTLE_CONTROLLER_TYPE"),
 		Action: func(ctx *cli.Context, value string) error {
-			validTypes := []string{"step", "quadratic", "pid"}
+			validTypes := []string{"step", "linear", "quadratic", "pid"}
 			for _, validType := range validTypes {
 				if value == validType {
 					return nil
@@ -211,7 +211,7 @@ var (
 	}
 	ThrottlePidKpFlag = &cli.Float64Flag{
 		Name:    "throttle-pid-kp",
-		Usage:   "PID controller proportional gain. This value determines the speed of the response, it represents how bad the issue is, the higher the value, the faster the response. Only relevant if --throttle-controller-type is set to 'PID'",
+		Usage:   "EXPERIMENTAL: PID controller proportional gain. Only relevant if --throttle-controller-type is set to 'pid'",
 		Value:   DefaultPIDKp,
 		EnvVars: prefixEnvVars("THROTTLE_PID_KP"),
 		Action: func(ctx *cli.Context, value float64) error {
@@ -223,7 +223,7 @@ var (
 	}
 	ThrottlePidKiFlag = &cli.Float64Flag{
 		Name:    "throttle-pid-ki",
-		Usage:   "PID controller integral gain. This value determines the degree of the response, it represents how long the issue has been present, the higher the value, the faster the response. Only relevant if --throttle-controller-type is set to 'PID'",
+		Usage:   "EXPERIMENTAL: PID controller integral gain. Only relevant if --throttle-controller-type is set to 'pid'",
 		Value:   DefaultPIDKi,
 		EnvVars: prefixEnvVars("THROTTLE_PID_KI"),
 		Action: func(ctx *cli.Context, value float64) error {
@@ -235,7 +235,7 @@ var (
 	}
 	ThrottlePidKdFlag = &cli.Float64Flag{
 		Name:    "throttle-pid-kd",
-		Usage:   "PID controller derivative gain. This value determines how fast we are approaching/leaving the target threshold, it represents how fast the issue is changing, the higher the value, the faster the response. Only relevant if --throttle-controller-type is set to 'PID'",
+		Usage:   "EXPERIMENTAL: PID controller derivative gain. Only relevant if --throttle-controller-type is set to 'pid'",
 		Value:   DefaultPIDKd,
 		EnvVars: prefixEnvVars("THROTTLE_PID_KD"),
 		Action: func(ctx *cli.Context, value float64) error {
@@ -247,7 +247,7 @@ var (
 	}
 	ThrottlePidIntegralMaxFlag = &cli.Float64Flag{
 		Name:    "throttle-pid-integral-max",
-		Usage:   "PID controller maximum integral windup. Only relevant if --throttle-controller-type is set to 'PID'",
+		Usage:   "EXPERIMENTAL: PID controller maximum integral windup. Only relevant if --throttle-controller-type is set to 'pid'",
 		Value:   DefaultPIDIntegralMax,
 		EnvVars: prefixEnvVars("THROTTLE_PID_INTEGRAL_MAX"),
 		Action: func(ctx *cli.Context, value float64) error {
@@ -259,7 +259,7 @@ var (
 	}
 	ThrottlePidOutputMaxFlag = &cli.Float64Flag{
 		Name:    "throttle-pid-output-max",
-		Usage:   "PID controller maximum output. Only relevant if --throttle-controller-type is set to 'PID'",
+		Usage:   "EXPERIMENTAL: PID controller maximum output. Only relevant if --throttle-controller-type is set to 'pid'",
 		Value:   DefaultPIDOutputMax,
 		EnvVars: prefixEnvVars("THROTTLE_PID_OUTPUT_MAX"),
 		Action: func(ctx *cli.Context, value float64) error {
@@ -271,7 +271,7 @@ var (
 	}
 	ThrottlePidSampleTimeFlag = &cli.DurationFlag{
 		Name:    "throttle-pid-sample-time",
-		Usage:   "PID controller sample time interval, default is " + DefaultPIDSampleTime.String(),
+		Usage:   "EXPERIMENTAL: PID controller sample time interval, default is " + DefaultPIDSampleTime.String(),
 		Value:   DefaultPIDSampleTime,
 		EnvVars: prefixEnvVars("THROTTLE_PID_SAMPLE_TIME"),
 	}

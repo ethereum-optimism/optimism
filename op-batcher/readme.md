@@ -143,59 +143,32 @@ The batcher now supports multiple advanced throttling strategies beyond simple b
 
 #### Throttling Controller Types
 
-The batcher supports four throttling controller types, each with different response characteristics:
+The batcher supports four throttling controller types, each with different response characteristics. The following images show how different throttling controllers respond to DA load:
 
-**Step Controller** (Default)
+**Step Controller (Default)**
+![Step Controller Response](./images/step_throttling.png)
 - **Behavior**: Binary on/off throttling
 - **Response**: No throttling below threshold, maximum throttling above threshold
 - **Use Case**: Simple, predictable throttling behavior
 
+**Linear Controller**
+![Linear Controller Response](./images/linear_throttling.png)
+- **Behavior**: Linear scaling throttling intensity
+- **Response**: Gradual increase from threshold to maximum threshold
+- **Use Case**: Moderate response to load increases
+
 **Quadratic Controller**
+![Quadratic Controller Response](./images/quadratic_throttling.png)
 - **Behavior**: Quadratically scales throttling intensity (slower initial response, faster at high loads)
 - **Response**: Gentle at low overload, aggressive at high overload
 - **Use Case**: Tolerates brief spikes while responding strongly to sustained overload
 
-**PID Controller**
+**PID Controller (⚠️ EXPERIMENTAL)**
+![PID Controller Response](./images/pid_throttling.png)
 - **Behavior**: Proportional-Integral-Derivative control with configurable parameters
 - **Response**: Sophisticated control with predictive and corrective components
 - **Use Case**: Complex load patterns requiring precise control and minimal overshoot
-
-#### Visual Representation of Throttling Responses
-
-```
-Throttling Intensity (0.0 = No Throttling, 1.0 = Maximum Throttling)
-
-Step Controller:
-    |
-1.0 |     ████████████████████████████████
-    |     │
-0.5 |     │
-    |     │
-0.0 |█████│
-    +─────┼────────────────────────────────
-         threshold              load →
-
-Quadratic Controller:
-    |
-1.0 |                     ████
-    |                 ████
-0.5 |             ████
-    |         ████
-0.0 |████████████
-    +─────┼─────────────┼────────────────────
-         threshold    max_threshold  load →
-
-PID Controller:
-    |                    ████
-1.0 |                ████    ████
-    |            ████            ████
-0.5 |        ████                    ████
-    |    ████                            ████
-0.0 |████                                    ████
-    +─────────────────────────────────────────────
-                   time / load →
-    (Response depends on Kp, Ki, Kd parameters)
-```
+- **⚠️ Warning**: This is an experimental feature. Use with caution and only if you understand PID control theory.
 
 #### Runtime Controller Management via RPC
 
@@ -205,14 +178,14 @@ The batcher exposes admin RPC endpoints to dynamically change throttling behavio
 ```bash
 curl -X POST -H "Content-Type: application/json" \
   --data '{"jsonrpc":"2.0","method":"admin_getThrottleController","params":[],"id":1}' \
-  http://localhost:6545
+  http://localhost:8545
 ```
 
 **Switch to Step Controller**
 ```bash
 curl -X POST -H "Content-Type: application/json" \
   --data '{"jsonrpc":"2.0","method":"admin_setThrottleController","params":["step", null],"id":1}' \
-  http://localhost:6545
+  http://localhost:8545
 ```
 
 **Switch to Quadratic Controller**
@@ -227,17 +200,34 @@ curl -X POST -H "Content-Type: application/json" \
 
 curl -X POST -H "Content-Type: application/json" \
   --data '{"jsonrpc":"2.0","method":"admin_setThrottleController","params":["pid", {"kp": 1.0, "ki": 0.1, "kd": 0.05, "integral_max": 1000.0, "output_max": 1.0, "sample_time": 5000000000}],"id":1}' \
-  http://localhost:6545
+  http://localhost:8545
 ```
 
 **Reset Controller State**
 ```bash
 curl -X POST -H "Content-Type: application/json" \
   --data '{"jsonrpc":"2.0","method":"admin_resetThrottleController","params":[],"id":1}' \
-  http://localhost:6545
+  http://localhost:8545
 ```
 
 #### PID Controller Configuration
+
+> ⚠️  **EXPERIMENTAL FEATURE WARNING** ⚠️
+>
+> **The PID controller is an EXPERIMENTAL feature that should only be used by users with deep understanding of control theory.**
+>
+> **Risks:**
+> - Improper configuration can lead to system instability
+> - May cause oscillations or poor throttling performance
+> - Requires careful tuning based on system characteristics
+> - Not recommended for production use without extensive testing
+>
+> **Requirements:**
+> - Understanding of PID control theory
+> - Ability to tune Kp, Ki, Kd parameters properly
+> - Monitoring and testing capabilities
+>
+> **Use at your own risk and only if you understand the implications.**
 
 The PID controller offers sophisticated control through six key parameters:
 
@@ -252,6 +242,8 @@ The PID controller offers sophisticated control through six key parameters:
 - `sample_time`: Controller update frequency (e.g., "5ms", "10ms")
 
 **Predefined PID Profiles:**
+
+> ⚠️ **EXPERIMENTAL**: These profiles are starting points only. Proper tuning requires understanding your specific system characteristics and extensive testing.
 
 **Gentle Throttling** (Conservative, stable)
 ```json
@@ -297,6 +289,8 @@ The PID controller offers sophisticated control through six key parameters:
 - **Characteristics**: Fast response to load changes
 - **Use Case**: Highly variable loads, rapid response needed
 - **Trade-off**: May overshoot and oscillate under some conditions
+
+> ⚠️ **Warning**: Even these "recommended" profiles may not work properly in your environment. Always test thoroughly and monitor system behavior when using PID control.
 
 #### Configuration via CLI
 

@@ -71,15 +71,13 @@ func (tc *ThrottleController) intensityToParams(intensity float64, config Thrott
 		maxTxSize = config.ThrottleTxSize
 
 		// Apply intensity to block size throttling
-		if config.ThrottleBlockSize != 0 {
-			if maxBlockSize == 0 || config.ThrottleBlockSize < maxBlockSize {
-				targetBlockSize := config.ThrottleBlockSize
-				if maxBlockSize > 0 {
-					// Linear interpolation between always and throttle block sizes
-					targetBlockSize = uint64(float64(maxBlockSize) - intensity*float64(maxBlockSize-config.ThrottleBlockSize))
-				}
-				maxBlockSize = targetBlockSize
+		if maxBlockSize == 0 || (config.ThrottleBlockSize != 0 && config.ThrottleBlockSize < maxBlockSize) {
+			targetBlockSize := config.ThrottleBlockSize
+			if maxBlockSize > 0 {
+				// Linear interpolation between always and throttle block sizes
+				targetBlockSize = uint64(float64(maxBlockSize) - intensity*float64(maxBlockSize-config.ThrottleBlockSize))
 			}
+			maxBlockSize = targetBlockSize
 		}
 	}
 
@@ -184,9 +182,13 @@ func (f *ThrottleControllerFactory) CreateController(
 	switch controllerType {
 	case config.StepControllerType:
 		strategy = NewStepStrategy(threshold)
+	case config.LinearControllerType:
+		strategy = NewLinearStrategy(threshold, thresholdMultiplier, f.log)
 	case config.QuadraticControllerType:
 		strategy = NewQuadraticStrategy(threshold, thresholdMultiplier, f.log)
 	case config.PIDControllerType:
+		log.Warn("EXPERIMENTAL FEATURE")
+		log.Warn("PID controller is an EXPERIMENTAL feature that should only be used by experts. PID controller requires deep understanding of control theory and careful tuning. Improper configuration can lead to system instability or poor performance. Use with extreme caution in production environments.")
 		if pidConfig == nil {
 			return nil, fmt.Errorf("PID configuration is required for PID controller")
 		}

@@ -89,6 +89,9 @@ var (
 	testStepStrategy = func() *StepStrategy {
 		return NewStepStrategy(TestThresholdBytes)
 	}
+	testLinearStrategy = func() *LinearStrategy {
+		return NewLinearStrategy(TestThresholdBytes, TestThresholdMultiplier, testLogger)
+	}
 	testQuadraticStrategy = func() *QuadraticStrategy {
 		return NewQuadraticStrategy(TestThresholdBytes, TestThresholdMultiplier, testLogger)
 	}
@@ -98,6 +101,7 @@ var (
 
 	// Standard controllers - reused across tests
 	testStepController      = func() *ThrottleController { return NewThrottleController(testStepStrategy(), ThrottleConfig{}) }
+	testLinearController    = func() *ThrottleController { return NewThrottleController(testLinearStrategy(), ThrottleConfig{}) }
 	testQuadraticController = func() *ThrottleController { return NewThrottleController(testQuadraticStrategy(), ThrottleConfig{}) }
 	testPIDController       = func() *ThrottleController { return NewThrottleController(testPIDStrategy(), ThrottleConfig{}) }
 
@@ -123,6 +127,12 @@ func TestControllerFactory(t *testing.T) {
 		{
 			name:           "step controller",
 			controllerType: config.StepControllerType,
+			pidConfig:      nil,
+			expectError:    false,
+		},
+		{
+			name:           "linear controller",
+			controllerType: config.LinearControllerType,
 			pidConfig:      nil,
 			expectError:    false,
 		},
@@ -200,6 +210,7 @@ func TestControllerAbstraction(t *testing.T) {
 		strategy   ThrottleStrategy
 	}{
 		{"step", testStepController(), testStepStrategy()},
+		{"linear", testLinearController(), testLinearStrategy()},
 		{"quadratic", testQuadraticController(), testQuadraticStrategy()},
 		{"pid", testPIDController(), testPIDStrategy()},
 	}
@@ -285,6 +296,7 @@ func TestControllerTypeConsistency(t *testing.T) {
 		pidConfig      *config.PIDConfig
 	}{
 		{config.StepControllerType, nil},
+		{config.LinearControllerType, nil},
 		{config.QuadraticControllerType, nil},
 		{config.PIDControllerType, &TestPIDConfig},
 	}

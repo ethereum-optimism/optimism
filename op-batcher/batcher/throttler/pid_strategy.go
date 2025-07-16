@@ -8,6 +8,18 @@ import (
 	"github.com/ethereum-optimism/optimism/op-batcher/config"
 )
 
+// ⚠️  EXPERIMENTAL FEATURE ⚠️
+//
+// PIDStrategy implements PID-based throttling control which is an EXPERIMENTAL feature.
+// This controller should only be used by users with deep understanding of PID control theory.
+// Improper configuration can lead to system instability, oscillations, or poor performance.
+//
+// PID (Proportional-Integral-Derivative) controllers require careful tuning of the
+// Kp, Ki, and Kd parameters based on system characteristics and desired response.
+// Use with extreme caution in production environments.
+//
+// See: https://en.wikipedia.org/wiki/PID_controller for control theory background.
+//
 // PIDStrategy implements PID-based throttling
 type PIDStrategy struct {
 	config    config.PIDConfig
@@ -75,6 +87,9 @@ func (p *PIDStrategy) Update(currentPendingBytes uint64) float64 {
 	var intensity float64 = 0.0
 	if currentPendingBytes > p.threshold {
 		// Calculate error (positive when above target)
+		// Note: Error is always non-negative since we only
+		// throttle when currentPendingBytes > threshold. Similarly, integral accumulates
+		// only positive errors, so it remains non-negative throughout operation.
 		pendingBytesError := float64(int64(currentPendingBytes) - int64(p.threshold))
 
 		// Normalize error by threshold to get a reasonable scale
@@ -85,10 +100,9 @@ func (p *PIDStrategy) Update(currentPendingBytes uint64) float64 {
 		// Update integral term with windup protection (only if dt > 0)
 		if dt > 0 {
 			p.integral += normalizedError * dt.Seconds()
+			// Clamp integral to prevent windup (only positive clamping needed since error is always positive)
 			if p.integral > p.config.IntegralMax {
 				p.integral = p.config.IntegralMax
-			} else if p.integral < -p.config.IntegralMax {
-				p.integral = -p.config.IntegralMax
 			}
 		}
 		integralTerm := p.config.Ki * p.integral
