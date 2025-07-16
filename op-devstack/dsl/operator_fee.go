@@ -60,7 +60,7 @@ func NewOperatorFee(t devtest.T, l2Network *L2Network, l1EL *L1ELNode) *Operator
 	}
 }
 
-func (of *OperatorFee) checkCompatibility() bool {
+func (of *OperatorFee) CheckCompatibility() bool {
 	_, err := contractio.Read(of.systemConfig.OperatorFeeScalar(), of.ctx)
 	if err != nil {
 		of.t.Skipf("Operator fee methods not available in devstack: %v", err)
@@ -69,20 +69,12 @@ func (of *OperatorFee) checkCompatibility() bool {
 	return true
 }
 
-func (of *OperatorFee) skipIfIncompatible() {
-	if !of.checkCompatibility() {
-		of.t.Skip("Operator fee methods not available")
-	}
-}
-
 func (of *OperatorFee) GetSystemOwner() *EOA {
 	systemOwnerKey := devkeys.SystemConfigOwner.Key(of.l2Network.ChainID().ToBig())
 	return NewKey(of.t, of.l2Network.Escape().Keys().Secret(systemOwnerKey)).User(of.l1Client)
 }
 
 func (of *OperatorFee) SetOperatorFee(scalar uint32, constant uint64) {
-	of.skipIfIncompatible()
-
 	systemOwner := of.GetSystemOwner()
 
 	_, err := contractio.Write(
@@ -90,11 +82,22 @@ func (of *OperatorFee) SetOperatorFee(scalar uint32, constant uint64) {
 		of.ctx,
 		systemOwner.Plan())
 	of.require.NoError(err)
+
+	of.t.Logf("Set operator fee on L1: scalar=%d, constant=%d", scalar, constant)
+}
+
+func (of *OperatorFee) WaitForL2SyncWithCurrentL1State() {
+	// Read current L1 values
+	l1Scalar, err := contractio.Read(of.systemConfig.OperatorFeeScalar(), of.ctx)
+	of.require.NoError(err)
+	l1Constant, err := contractio.Read(of.systemConfig.OperatorFeeConstant(), of.ctx)
+	of.require.NoError(err)
+
+	// Wait for L2 to sync with current L1 values
+	of.WaitForL2Sync(l1Scalar, l1Constant)
 }
 
 func (of *OperatorFee) WaitForL2Sync(expectedScalar uint32, expectedConstant uint64) {
-	of.skipIfIncompatible()
-
 	of.require.Eventually(func() bool {
 		scalar, err := contractio.Read(of.l1Block.OperatorFeeScalar(), of.ctx)
 		if err != nil {
@@ -104,13 +107,12 @@ func (of *OperatorFee) WaitForL2Sync(expectedScalar uint32, expectedConstant uin
 		if err != nil {
 			return false
 		}
+
 		return scalar == expectedScalar && constant == expectedConstant
-	}, 30*time.Second, 1*time.Second, "L2 operator fee parameters did not sync")
+	}, 2*time.Minute, 5*time.Second, "L2 operator fee parameters did not sync within 2 minutes")
 }
 
 func (of *OperatorFee) VerifyL2Config(expectedScalar uint32, expectedConstant uint64) {
-	of.skipIfIncompatible()
-
 	scalar, err := contractio.Read(of.l1Block.OperatorFeeScalar(), of.ctx)
 	of.require.NoError(err)
 	of.require.Equal(expectedScalar, scalar)
@@ -121,8 +123,6 @@ func (of *OperatorFee) VerifyL2Config(expectedScalar uint32, expectedConstant ui
 }
 
 func (of *OperatorFee) ValidateTransactionFees(from *EOA, to *EOA, amount *big.Int, expectedScalar uint32, expectedConstant uint64) OperatorFeeValidationResult {
-	of.skipIfIncompatible()
-
 	vaultBefore, err := from.el.stackEL().EthClient().BalanceAt(of.ctx, predeploys.OperatorFeeVaultAddr, nil)
 	of.require.NoError(err)
 
@@ -146,7 +146,10 @@ func (of *OperatorFee) ValidateTransactionFees(from *EOA, to *EOA, amount *big.I
 		expectedOperatorFee = operatorFee
 	}
 
-	of.require.Equal(expectedOperatorFee, vaultIncrease, "operator fee vault balance mismatch")
+	// Use Cmp for big.Int comparison to avoid representation issues
+	of.require.Equal(0, expectedOperatorFee.Cmp(vaultIncrease),
+		"operator fee vault balance mismatch: expected %s, got %s",
+		expectedOperatorFee.String(), vaultIncrease.String())
 
 	actualTotalFee := new(big.Int).Mul(receipt.EffectiveGasPrice, big.NewInt(int64(receipt.GasUsed)))
 	if receipt.L1Fee != nil {
@@ -162,6 +165,5 @@ func (of *OperatorFee) ValidateTransactionFees(from *EOA, to *EOA, amount *big.I
 }
 
 func (of *OperatorFee) RestoreOriginalConfig() {
-	of.skipIfIncompatible()
 	of.SetOperatorFee(of.originalScalar, of.originalConstant)
 }

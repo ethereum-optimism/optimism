@@ -9,8 +9,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-	"github.com/ethereum-optimism/optimism/op-service/txintent/bindings"
-	"github.com/ethereum-optimism/optimism/op-service/txintent/contractio"
 )
 
 func TestOperatorFeeDevstack(gt *testing.T) {
@@ -21,23 +19,18 @@ func TestOperatorFeeDevstack(gt *testing.T) {
 	err := dsl.RequiresL2Fork(t.Ctx(), sys, 0, rollup.Isthmus)
 	require.NoError(err, "Isthmus fork must be active for this test")
 
-	systemConfig := bindings.NewBindings[bindings.SystemConfig](
-		bindings.WithClient(sys.L1EL.EthClient()),
-		bindings.WithTo(sys.L2Chain.Escape().Deployment().SystemConfigProxyAddr()),
-		bindings.WithTest(t))
-
-	_, err = contractio.Read(systemConfig.OperatorFeeScalar(), t.Ctx())
-	if err != nil {
-		t.Skipf("Operator fee methods not available in devstack environment: %v", err)
-		return
-	}
-
 	alice := sys.FunderL2.NewFundedEOA(eth.OneTenthEther)
 	bob := sys.Wallet.NewEOA(sys.L2EL)
 
 	operatorFee := dsl.NewOperatorFee(t, sys.L2Chain, sys.L1EL)
+
+	operatorFee.CheckCompatibility()
 	systemOwner := operatorFee.GetSystemOwner()
-	sys.FunderL1.Fund(systemOwner, eth.OneTenthEther)
+	sys.FunderL1.FundAtLeast(systemOwner, eth.OneTenthEther)
+
+	// First, ensure L2 is synced with current L1 state before starting tests
+	t.Log("Ensuring L2 is synced with current L1 state...")
+	operatorFee.WaitForL2SyncWithCurrentL1State()
 
 	testCases := []struct {
 		name     string
