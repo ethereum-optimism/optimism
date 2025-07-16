@@ -289,6 +289,8 @@ interface IOPContractsManager {
 
     error PrestateRequired();
 
+    error BadExtraData();
+
     // -------- Methods --------
 
     function __constructor__(
@@ -368,6 +370,8 @@ interface IOPContractsManager {
     function isRC() external view returns (bool);
 
     function setRC(bool _isRC) external;
+
+    function l2ChainId() external view returns (uint256 l2ChainId_);
 }
 
 /// @notice Minimal interface only used for calling `implementations()` method but without retrieving the ETHLockbox
