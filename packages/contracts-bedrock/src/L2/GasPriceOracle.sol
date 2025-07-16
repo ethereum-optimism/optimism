@@ -30,8 +30,8 @@ contract GasPriceOracle is ISemver {
     uint256 public constant DECIMALS = 6;
 
     /// @notice Semantic version.
-    /// @custom:semver 1.4.0
-    string public constant version = "1.4.0";
+    /// @custom:semver 1.4.1
+    string public constant version = "1.4.1";
 
     /// @notice This is the intercept value for the linear regression used to estimate the final size of the
     ///         compressed transaction.
@@ -200,7 +200,7 @@ contract GasPriceOracle is ISemver {
         }
 
         return Arithmetic.saturatingAdd(
-            Arithmetic.saturatingMul(_gasUsed, IL1Block(Predeploys.L1_BLOCK_ATTRIBUTES).operatorFeeScalar()) / 1e6,
+            Arithmetic.saturatingMul(_gasUsed, IL1Block(Predeploys.L1_BLOCK_ATTRIBUTES).operatorFeeScalar()) * 1e3,
             IL1Block(Predeploys.L1_BLOCK_ATTRIBUTES).operatorFeeConstant()
         );
     }
