@@ -84,7 +84,7 @@ func FromConfig(log log.Logger, m metrics.Metricer, cfg *config.Config, router A
 			Namespace: "eth",
 			Service:   frontend.NewEthFrontend(st),
 		}); err != nil {
-			syncTesterErr = errors.Join(syncTesterErr, fmt.Errorf("failed to add sync API: %w", err))
+			syncTesterErr = errors.Join(syncTesterErr, fmt.Errorf("failed to add eth API: %w", err))
 		}
 		return true
 	})
