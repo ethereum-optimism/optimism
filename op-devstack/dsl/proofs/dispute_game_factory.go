@@ -99,10 +99,10 @@ func (f *DisputeGameFactory) WaitForGame() *FaultDisputeGame {
 }
 
 func (f *DisputeGameFactory) StartSuperCannonGame(eoa *dsl.EOA, rootClaim common.Hash, opts ...GameOpt) *SuperFaultDisputeGame {
-	block := f.l1Network.WaitForBlock()
+	proposalTimestamp := f.supervisor.FetchSyncStatus().SafeTimestamp
 
 	gameType := uint32(cTypes.SuperCannonGameType)
-	return f.startSuperCannonGameOfType(eoa, block.Time, rootClaim, gameType, opts...)
+	return f.startSuperCannonGameOfType(eoa, proposalTimestamp, rootClaim, gameType, opts...)
 }
 
 func (f *DisputeGameFactory) startSuperCannonGameOfType(eoa *dsl.EOA, timestamp uint64, rootClaim common.Hash, gameType uint32, opts ...GameOpt) *SuperFaultDisputeGame {
@@ -115,10 +115,7 @@ func (f *DisputeGameFactory) startSuperCannonGameOfType(eoa *dsl.EOA, timestamp 
 
 func (f *DisputeGameFactory) createSuperGameExtraData(timestamp uint64, cfg *GameCfg) []byte {
 	if !cfg.allowFuture {
-		require.Eventually(f.t, func() bool {
-			status := f.supervisor.FetchSyncStatus()
-			return status.SafeTimestamp >= timestamp
-		}, time.Minute, 5*time.Second, "Safe head did not reach proposal timestamp")
+		f.supervisor.AwaitMinCrossSafeTimestamp(timestamp)
 	}
 	extraData := make([]byte, 32)
 	binary.BigEndian.PutUint64(extraData[24:], timestamp)

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"testing"
 	"time"
 
@@ -17,7 +18,7 @@ import (
 
 var (
 	l1EthRpc                = "http://example.com:8545"
-	rollupRpc               = "http://example.com:8555"
+	rollupRpc               = []string{"http://example.com:8555"}
 	gameFactoryAddressValue = "0xbb00000000000000000000000000000000000000"
 )
 
@@ -71,7 +72,14 @@ func TestRollupRpc(t *testing.T) {
 	t.Run("Valid", func(t *testing.T) {
 		url := "http://example.com:9999"
 		cfg := configForArgs(t, addRequiredArgsExcept("--rollup-rpc", "--rollup-rpc", url))
-		require.Equal(t, url, cfg.RollupRpc)
+		require.Equal(t, []string{url}, cfg.RollupRpc)
+	})
+
+	t.Run("MultipleValues", func(t *testing.T) {
+		url1 := "http://example1.com:9999"
+		url2 := "http://example2.com:8888"
+		cfg := configForArgs(t, addRequiredArgsExcept("--rollup-rpc", "--rollup-rpc", url1, "--rollup-rpc", url2))
+		require.Equal(t, []string{url1, url2}, cfg.RollupRpc)
 	})
 }
 
@@ -297,7 +305,7 @@ func addRequiredArgsExcept(name string, optionalArgs ...string) []string {
 func requiredArgs() map[string]string {
 	args := map[string]string{
 		"--l1-eth-rpc":           l1EthRpc,
-		"--rollup-rpc":           rollupRpc,
+		"--rollup-rpc":           strings.Join(rollupRpc, ","),
 		"--game-factory-address": gameFactoryAddressValue,
 	}
 	return args

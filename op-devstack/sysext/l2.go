@@ -65,6 +65,7 @@ func (o *Orchestrator) hydrateL2(net *descriptors.L2Chain, system stack.Extensib
 	o.hydrateProposerMaybe(net, l2)
 	o.hydrateChallengerMaybe(net, l2)
 	o.hydrateL2ProxydMaybe(net, l2)
+	o.hydrateFlashblocksWebsocketProxyMaybe(net, l2)
 
 	if faucet, ok := net.Services["faucet"]; ok {
 		for _, instance := range faucet {
@@ -210,6 +211,30 @@ func (o *Orchestrator) hydrateL2ProxydMaybe(net *descriptors.L2Chain, l2Net stac
 		})
 		l2Proxyd.SetLabel(match.LabelVendor, string(match.Proxyd))
 		l2Net.AddL2ELNode(l2Proxyd)
+	}
+}
+
+func (o *Orchestrator) hydrateFlashblocksWebsocketProxyMaybe(net *descriptors.L2Chain, l2Net stack.ExtensibleL2Network) {
+	require := l2Net.T().Require()
+	l2ID := getL2ID(net)
+	require.Equal(l2ID, l2Net.ID(), "must match L2 chain descriptor and target L2 net")
+
+	fbWsProxyService, ok := net.Services["flashblocks-websocket-proxy"]
+	if !ok {
+		return
+	}
+
+	for _, instance := range fbWsProxyService {
+		wsUrl, _, err := o.findProtocolService(instance, WebsocketFlashblocksProtocol)
+		require.NoError(err, "failed to get the websocket url for the flashblocks websocket proxy", "service", instance.Name)
+
+		fbWsProxyShim := shim.NewFlashblocksWebsocketProxy(shim.FlashblocksWebsocketProxyConfig{
+			CommonConfig: shim.NewCommonConfig(l2Net.T()),
+			ID:           stack.NewFlashblocksWebsocketProxyID(instance.Name, l2ID.ChainID()),
+			WsUrl:        wsUrl,
+		})
+		fbWsProxyShim.SetLabel(match.LabelVendor, string(match.FlashblocksWebsocketProxy))
+		l2Net.AddFlashblocksWebsocketProxy(fbWsProxyShim)
 	}
 }
 

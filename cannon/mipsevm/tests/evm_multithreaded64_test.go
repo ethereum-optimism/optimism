@@ -181,10 +181,8 @@ func TestEVM_MT64_SC(t *testing.T) {
 					var retVal Word
 					if llVar.shouldSucceed {
 						retVal = 1
-						expected.ExpectMemoryWordWrite(effAddr, c.expectedMemVal)
-						expected.LLReservationStatus = multithreaded.LLStatusNone
-						expected.LLAddress = 0
-						expected.LLOwnerThread = 0
+						expected.ExpectMemoryWrite(effAddr, c.expectedMemVal)
+						expected.ExpectMemoryReservationCleared()
 					} else {
 						retVal = 0
 					}
@@ -362,10 +360,8 @@ func TestEVM_MT64_SCD(t *testing.T) {
 					var retVal Word
 					if llVar.shouldSucceed {
 						retVal = 1
-						expected.ExpectMemoryWordWrite(effAddr, value)
-						expected.LLReservationStatus = multithreaded.LLStatusNone
-						expected.LLAddress = 0
-						expected.LLOwnerThread = 0
+						expected.ExpectMemoryWrite(effAddr, value)
+						expected.ExpectMemoryReservationCleared()
 					} else {
 						retVal = 0
 					}
@@ -465,7 +461,7 @@ func TestEVM_MT_SysRead_Preimage64(t *testing.T) {
 		expected.ActiveThread().Registers[2] = testCase.writeLen
 		expected.ActiveThread().Registers[7] = 0 // no error
 		expected.PreimageOffset += testCase.writeLen
-		expected.ExpectMemoryWordWrite(effAddr, testCase.postateMem)
+		expected.ExpectMemoryWrite(effAddr, testCase.postateMem)
 		reservation.SetExpectations(expected)
 
 		if testCase.shouldPanic {
@@ -623,7 +619,7 @@ func TestEVM_MT_StoreOpsClearMemReservation64(t *testing.T) {
 		// Setup expectations
 		expected := mtutil.NewExpectedState(t, state)
 		expected.ExpectStep()
-		expected.ExpectMemoryWordWrite(testCase.effAddr, testCase.postMem)
+		expected.ExpectMemoryWrite(testCase.effAddr, testCase.postMem)
 		reservation.SetExpectations(expected)
 
 		stepWitness, err := goVm.Step(true)

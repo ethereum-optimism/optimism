@@ -95,6 +95,20 @@ var (
 		EnvVars: prefixEnvVars("RPC_VERIFICATION_WARNINGS"),
 		Value:   false,
 	}
+	FailsafeEnabledFlag = &cli.BoolFlag{
+		Name: "failsafe-enabled",
+		Usage: "Start the supervisor with failsafe enabled. In failsafe mode, the supervisor will reject all CheckAccessList requests. " +
+			"All other Indexing and Cross Validation actions will continue to operate normally.",
+		EnvVars: prefixEnvVars("FAILSAFE_ENABLED"),
+		Value:   false,
+	}
+	FailsafeOnInvalidationFlag = &cli.BoolFlag{
+		Name: "failsafe-on-invalidation",
+		Usage: "Enable automatic failsafe activation when a block is invalidated. When enabled, the supervisor will automatically " +
+			"enter failsafe mode when a Safe Block is determined to be Invalid on any chain, causing all future CheckAccessList requests to be rejected.",
+		EnvVars: prefixEnvVars("FAILSAFE_ON_INVALIDATION"),
+		Value:   true,
+	}
 )
 
 var requiredFlags = []cli.Flag{
@@ -112,6 +126,8 @@ var optionalFlags = []cli.Flag{
 	DependencySetFlag,
 	RollupConfigPathsFlag,
 	RollupConfigSetFlag,
+	FailsafeEnabledFlag,
+	FailsafeOnInvalidationFlag,
 }
 
 func init() {
@@ -188,6 +204,8 @@ func ConfigFromCLI(ctx *cli.Context, version string) (*config.Config, error) {
 		RPC:                     oprpc.ReadCLIConfig(ctx),
 		MockRun:                 ctx.Bool(MockRunFlag.Name),
 		RPCVerificationWarnings: ctx.Bool(RPCVerificationWarningsFlag.Name),
+		FailsafeEnabled:         ctx.Bool(FailsafeEnabledFlag.Name),
+		FailsafeOnInvalidation:  ctx.Bool(FailsafeOnInvalidationFlag.Name),
 		L1RPC:                   ctx.String(L1RPCFlag.Name),
 		SyncSources:             syncSourceSetups(ctx),
 		Datadir:                 ctx.Path(DataDirFlag.Name),

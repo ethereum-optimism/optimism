@@ -267,7 +267,7 @@ func FuzzStatePreimageRead(f *testing.F) {
 					var expectedMemory []byte
 					expectedMemory = arch.ByteOrderWord.AppendWord(expectedMemory, preexistingMemoryVal)
 					copy(expectedMemory[alignment:], preimageData[preimageOffset:preimageOffset+writeLen])
-					expected.ExpectMemoryWriteWord(effAddr, arch.ByteOrderWord.Word(expectedMemory[:]))
+					expected.ExpectMemoryWrite(effAddr, arch.ByteOrderWord.Word(expectedMemory[:]))
 				}
 
 				stepWitness, err := goVm.Step(true)

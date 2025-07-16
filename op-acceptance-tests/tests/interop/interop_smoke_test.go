@@ -55,18 +55,6 @@ func TestInteropSystemNoop(t *testing.T) {
 	})
 }
 
-func TestInteropSystemSupervisor(t *testing.T) {
-	systest.InteropSystemTest(t, func(t systest.T, sys system.InteropSystem) {
-		ctx := t.Context()
-		supervisor, err := sys.Supervisor(ctx)
-		require.NoError(t, err)
-		block, err := supervisor.FinalizedL1(ctx)
-		require.NoError(t, err)
-		require.NotNil(t, block)
-		testlog.Logger(t, log.LevelInfo).Info("finalized l1 block", "block", block)
-	})
-}
-
 func TestSmokeTestFailure(t *testing.T) {
 	// Create mock failing system
 	mockAddr := common.HexToAddress("0x1234567890123456789012345678901234567890")

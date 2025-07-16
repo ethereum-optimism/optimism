@@ -109,3 +109,8 @@ func (e *EngineManager) GetEngineType() (string, error) {
 
 	return cluster.Type, nil
 }
+
+func (e *EngineManager) RestartEngine() error {
+	cmd := exec.Command(e.kurtosisBinary, "engine", "restart")
+	return cmd.Run()
+}

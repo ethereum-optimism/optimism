@@ -207,10 +207,4 @@ var Commands = []*cli.Command{
 		Flags:  cliapp.ProtectFlags(SuperchainFlags),
 		Action: SuperchainCLI,
 	},
-	{
-		Name:   "validator",
-		Usage:  "Bootstrap the StandardValidator contracts",
-		Flags:  cliapp.ProtectFlags(ValidatorFlags),
-		Action: ValidatorCLI,
-	},
 }

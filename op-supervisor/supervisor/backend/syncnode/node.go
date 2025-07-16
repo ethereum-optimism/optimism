@@ -106,12 +106,6 @@ func (m *ManagedNode) AttachEmitter(em event.Emitter) {
 func (m *ManagedNode) OnEvent(ctx context.Context, ev event.Event) bool {
 	// if we're resetting, ignore all events
 	if m.resetCancel != nil {
-		// even if we are resetting, cancel the reset if the L1 rewinds
-		if _, ok := ev.(superevents.ChainRewoundEvent); ok {
-			m.log.Info("Canceling reset due to L1 rewind")
-			m.resetCancel()
-			return true
-		}
 		m.log.Debug("Ignoring event during ongoing reset", "event", ev)
 		return false
 	}
@@ -143,10 +137,6 @@ func (m *ManagedNode) OnEvent(ctx context.Context, ev event.Event) bool {
 			return false
 		}
 		m.onFinalizedL2(x.FinalizedL2)
-	case superevents.ChainRewoundEvent:
-		if x.ChainID != m.chainID {
-			return false
-		}
 	case superevents.ResetPreInteropRequestEvent:
 		if x.ChainID != m.chainID {
 			return false

@@ -34,6 +34,10 @@ func (c *ControlPlane) L2CLNodeState(id stack.L2CLNodeID, mode stack.ControlActi
 	c.setLifecycleState(id.Key(), mode)
 }
 
+func (c *ControlPlane) L2ELNodeState(id stack.L2ELNodeID, mode stack.ControlAction) {
+	c.setLifecycleState(id.Key(), mode)
+}
+
 func (c *ControlPlane) FakePoSState(id stack.L1CLNodeID, mode stack.ControlAction) {
 	panic("not implemented: plug in kurtosis wrapper, or gate for the test that uses this method to not run in kurtosis")
 }

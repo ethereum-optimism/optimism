@@ -8,7 +8,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/ethereum-optimism/optimism/cannon/mipsevm"
+	"github.com/ethereum-optimism/optimism/cannon/mipsevm/multithreaded"
 	mtutil "github.com/ethereum-optimism/optimism/cannon/mipsevm/multithreaded/testutil"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/testutil"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/versions"
@@ -517,12 +517,23 @@ func TestEVM_SingleStep_Branch64(t *testing.T) {
 func TestEVM_SingleStep_DCloDClz64(t *testing.T) {
 	rsReg := uint32(7)
 	rdReg := uint32(8)
-	cases := []struct {
+
+	type testCase struct {
 		name           string
 		rs             Word
 		funct          uint32
 		expectedResult Word
-	}{
+	}
+
+	testNamer := func(tc testCase) string {
+		return tc.name
+	}
+
+	insnFn := func(tt testCase) uint32 {
+		return 0b01_1100<<26 | rsReg<<21 | rdReg<<11 | tt.funct
+	}
+
+	cases := []testCase{
 		// dclo
 		{name: "dclo", rs: Word(0xFF_FF_FF_FF_FF_FF_FF_FF), expectedResult: Word(64), funct: 0b10_0101},
 		{name: "dclo", rs: Word(0xFF_FF_FF_FF_FF_FF_FF_FE), expectedResult: Word(63), funct: 0b10_0101},
@@ -543,43 +554,25 @@ func TestEVM_SingleStep_DCloDClz64(t *testing.T) {
 		return features.SupportDclzDclo
 	}), "dclz/dclo feature not tested")
 
-	for _, v := range vmVersions {
-		for i, tt := range cases {
-			testName := fmt.Sprintf("%v (%v)", tt.name, v.Name)
-			t.Run(testName, func(t *testing.T) {
-				// Set up state
-				goVm := v.VMFactory(nil, os.Stdout, os.Stderr, testutil.CreateLogger(), mtutil.WithRandomization(int64(i)))
-				state := goVm.GetState()
-				insn := 0b01_1100<<26 | rsReg<<21 | rdReg<<11 | tt.funct
-				testutil.StoreInstruction(state.GetMemory(), state.GetPC(), insn)
-				state.GetRegistersRef()[rsReg] = tt.rs
-				step := state.GetStep()
+	initState := func(tt testCase, state *multithreaded.State, vm VersionedVMTestCase) {
+		testutil.StoreInstruction(state.GetMemory(), state.GetPC(), insnFn(tt))
+		state.GetRegistersRef()[rsReg] = tt.rs
+	}
 
-				features := versions.FeaturesForVersion(v.Version)
-				if features.SupportDclzDclo {
-					expected := mtutil.NewExpectedState(t, state)
-					expected.ExpectStep()
-					expected.ActiveThread().Registers[rdReg] = tt.expectedResult
-					stepWitness, err := goVm.Step(true)
-					require.NoError(t, err)
-					expected.Validate(t, state)
-					testutil.ValidateEVM(t, stepWitness, step, goVm, v.StateHashFn, v.Contracts)
-				} else {
-					assertUnsupportedInstruction(t, v, insn, goVm)
-				}
-			})
+	setExpectations := func(tt testCase, expected *mtutil.ExpectedState, vm VersionedVMTestCase) ExpectedExecResult {
+		features := versions.FeaturesForVersion(vm.Version)
+		if features.SupportDclzDclo {
+			expected.ExpectStep()
+			expected.ActiveThread().Registers[rdReg] = tt.expectedResult
+			return ExpectNormalExecution()
+		} else {
+			expectedMsg := fmt.Sprintf("invalid instruction: %x", insnFn(tt))
+			return ExpectPanic(expectedMsg, "invalid instruction")
 		}
 	}
-}
 
-func assertUnsupportedInstruction(t *testing.T, versionedTestCase VersionedVMTestCase, insn uint32, goVm mipsevm.FPVM) {
-	state := goVm.GetState()
-	proofData := versionedTestCase.ProofGenerator(t, goVm.GetState())
-	goPanicMsg := fmt.Sprintf("invalid instruction: %x", insn)
-	require.PanicsWithValue(t, goPanicMsg, func() {
-		_, _ = goVm.Step(
-			false)
-	})
-	errMsg := testutil.CreateErrorStringMatcher("invalid instruction")
-	testutil.AssertEVMReverts(t, state, versionedTestCase.Contracts, nil, proofData, errMsg)
+	NewDiffTester(testNamer).
+		InitState(initState).
+		SetExpectations(setExpectations).
+		Run(t, cases)
 }

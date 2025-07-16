@@ -384,6 +384,7 @@ func (e *EngineController) InsertUnsafePayload(ctx context.Context, envelope *et
 			e.syncStatus = syncStatusStartedEL
 			e.log.Info("Starting EL sync")
 			e.elStart = e.clock.Now()
+			e.emitter.Emit(ctx, ELSyncStartedEvent{})
 		} else if err == nil {
 			e.syncStatus = syncStatusFinishedEL
 			e.log.Info("Skipping EL sync and going straight to CL sync because there is a finalized block", "id", b.ID())
