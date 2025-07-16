@@ -95,16 +95,14 @@ func TestEVM_MT_LL(t *testing.T) {
 }
 
 func TestEVM_MT_SC(t *testing.T) {
-	// Set up some test values that will be reused
-	memValue := uint64(0x1122_3344_5566_7788)
-
-	llVariations := []struct {
+	type llVariation struct {
 		name                string
 		llReservationStatus multithreaded.LLReservationStatus
 		matchThreadId       bool
 		matchAddr           bool
 		shouldSucceed       bool
-	}{
+	}
+	llVariations := []llVariation{
 		{name: "should succeed", llReservationStatus: multithreaded.LLStatusActive32bit, matchThreadId: true, matchAddr: true, shouldSucceed: true},
 		{name: "mismatch thread", llReservationStatus: multithreaded.LLStatusActive32bit, matchThreadId: false, matchAddr: true, shouldSucceed: false},
 		{name: "mismatched addr", llReservationStatus: multithreaded.LLStatusActive32bit, matchThreadId: true, matchAddr: false, shouldSucceed: false},
@@ -113,8 +111,7 @@ func TestEVM_MT_SC(t *testing.T) {
 		{name: "no active reservation", llReservationStatus: multithreaded.LLStatusNone, matchThreadId: true, matchAddr: true, shouldSucceed: false},
 	}
 
-	// Note: Some parameters are written as 64-bit values. For 32-bit architectures, these values are downcast to 32-bit
-	cases := []struct {
+	type baseTest struct {
 		name         string
 		base         Word
 		offset       int
@@ -122,75 +119,79 @@ func TestEVM_MT_SC(t *testing.T) {
 		storeValue   uint32
 		rtReg        int
 		threadId     Word
-	}{
+	}
+	baseTests := []baseTest{
 		{name: "Aligned addr", base: 0x01, offset: 0x0133, expectedAddr: 0x0134, storeValue: 0xAABB_CCDD, rtReg: 5, threadId: 4},
 		{name: "Aligned addr, signed extended", base: 0x01, offset: 0xFF33, expectedAddr: 0xFFFF_FFFF_FFFF_FF34, storeValue: 0xAABB_CCDD, rtReg: 5, threadId: 4},
 		{name: "Unaligned addr", base: 0xFF12_0001, offset: 0x3404, expectedAddr: 0xFF12_3405, storeValue: 0xAABB_CCDD, rtReg: 5, threadId: 4},
 		{name: "Unaligned addr, sign extended w overflow", base: 0xFF12_0001, offset: 0x8404, expectedAddr: 0xFF_11_8405, storeValue: 0xAABB_CCDD, rtReg: 5, threadId: 4},
 		{name: "Return register set to 0", base: 0xFF12_0001, offset: 0x7403, expectedAddr: 0xFF12_7404, storeValue: 0xAABB_CCDD, rtReg: 0, threadId: 4},
 	}
-	vmVersions := GetMipsVersionTestCases(t)
-	for _, ver := range vmVersions {
-		for i, c := range cases {
-			for _, llVar := range llVariations {
-				tName := fmt.Sprintf("%v (%v,%v)", c.name, ver.Name, llVar.name)
-				t.Run(tName, func(t *testing.T) {
-					rtReg := c.rtReg
-					baseReg := 6
-					insn := uint32((0b11_1000 << 26) | (baseReg & 0x1F << 21) | (rtReg & 0x1F << 16) | (0xFFFF & c.offset))
-					goVm := ver.VMFactory(nil, os.Stdout, os.Stderr, testutil.CreateLogger(), mtutil.WithRandomization(int64(i)))
-					state := mtutil.GetMtState(t, goVm)
-					mtutil.InitializeSingleThread(i*23456, state, i%2 == 1, mtutil.WithPCAndNextPC(0x40))
-					step := state.GetStep()
 
-					// Define LL-related params
-					var llAddress, llOwnerThread Word
-					if llVar.matchAddr {
-						llAddress = Word(c.expectedAddr)
-					} else {
-						llAddress = Word(c.expectedAddr) + 1
-					}
-					if llVar.matchThreadId {
-						llOwnerThread = c.threadId
-					} else {
-						llOwnerThread = c.threadId + 1
-					}
-
-					// Setup state
-					testutil.SetMemoryUint64(t, state.GetMemory(), Word(c.expectedAddr), memValue)
-					state.GetCurrentThread().ThreadId = c.threadId
-					testutil.StoreInstruction(state.GetMemory(), state.GetPC(), insn)
-					state.GetRegistersRef()[baseReg] = c.base
-					state.GetRegistersRef()[rtReg] = Word(c.storeValue)
-					state.LLReservationStatus = llVar.llReservationStatus
-					state.LLAddress = llAddress
-					state.LLOwnerThread = llOwnerThread
-
-					// Setup expectations
-					expected := mtutil.NewExpectedState(t, state)
-					expected.ExpectStep()
-					var retVal Word
-					if llVar.shouldSucceed {
-						retVal = 1
-						expected.ExpectMemoryWriteUint32(t, Word(c.expectedAddr), c.storeValue)
-						expected.ExpectMemoryReservationCleared()
-					} else {
-						retVal = 0
-					}
-					if rtReg != 0 {
-						expected.ActiveThread().Registers[rtReg] = retVal
-					}
-
-					stepWitness, err := goVm.Step(true)
-					require.NoError(t, err)
-
-					// Check expectations
-					expected.Validate(t, state)
-					testutil.ValidateEVM(t, stepWitness, step, goVm, multithreaded.GetStateHashFn(), ver.Contracts)
-				})
-			}
-		}
+	type testCase = testutil.TestCaseVariation[baseTest, llVariation]
+	testNamer := func(tc testCase) string {
+		return fmt.Sprintf("%v_%v", tc.Base.name, tc.Variation.name)
 	}
+	cases := testutil.ApplyTestVariations(baseTests, llVariations)
+
+	// Set up some test values that will be reused
+	memValue := uint64(0x1122_3344_5566_7788)
+	initState := func(tt testCase, state *multithreaded.State, vm VersionedVMTestCase, r *testutil.RandHelper) {
+		c := tt.Base
+		llVar := tt.Variation
+
+		traverseRight := r.Intn(2) == 1
+		mtutil.InitializeSingleThread(r.Intn(10000), state, traverseRight, mtutil.WithPCAndNextPC(0x40))
+
+		// Define LL-related params
+		var llAddress, llOwnerThread Word
+		if llVar.matchAddr {
+			llAddress = Word(c.expectedAddr)
+		} else {
+			llAddress = Word(c.expectedAddr) + 1
+		}
+		if llVar.matchThreadId {
+			llOwnerThread = c.threadId
+		} else {
+			llOwnerThread = c.threadId + 1
+		}
+
+		// Setup state
+		baseReg := 6
+		insn := uint32((0b11_1000 << 26) | (baseReg & 0x1F << 21) | (c.rtReg & 0x1F << 16) | (0xFFFF & c.offset))
+		testutil.SetMemoryUint64(t, state.GetMemory(), Word(c.expectedAddr), memValue)
+		state.GetCurrentThread().ThreadId = c.threadId
+		testutil.StoreInstruction(state.GetMemory(), state.GetPC(), insn)
+		state.GetRegistersRef()[baseReg] = c.base
+		state.GetRegistersRef()[c.rtReg] = Word(c.storeValue)
+		state.LLReservationStatus = llVar.llReservationStatus
+		state.LLAddress = llAddress
+		state.LLOwnerThread = llOwnerThread
+	}
+
+	setExpectations := func(tt testCase, expected *mtutil.ExpectedState, vm VersionedVMTestCase) ExpectedExecResult {
+		c := tt.Base
+		llVar := tt.Variation
+
+		expected.ExpectStep()
+		var retVal Word
+		if llVar.shouldSucceed {
+			retVal = 1
+			expected.ExpectMemoryWriteUint32(t, Word(c.expectedAddr), c.storeValue)
+			expected.ExpectMemoryReservationCleared()
+		} else {
+			retVal = 0
+		}
+		if c.rtReg != 0 {
+			expected.ActiveThread().Registers[c.rtReg] = retVal
+		}
+		return ExpectNormalExecution()
+	}
+
+	NewDiffTester(testNamer).
+		InitState(initState).
+		SetExpectations(setExpectations).
+		Run(t, cases, SkipAutomaticMemoryReservationTests())
 }
 
 func TestEVM_SysClone_FlagHandling(t *testing.T) {
