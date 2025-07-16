@@ -102,7 +102,8 @@ contract FaultDisputeGame_Init is DisputeGameFactory_Init {
             })
         );
 
-        bytes memory implArgs = abi.encodePacked(absolutePrestate, _vm, anchorStateRegistry, delayedWETH, systemConfig.l2ChainId());
+        bytes memory implArgs =
+            abi.encodePacked(absolutePrestate, _vm, anchorStateRegistry, delayedWETH, systemConfig.l2ChainId());
 
         // Register the game implementation with the factory.
         disputeGameFactory.setImplementation(GAME_TYPE, gameImpl, implArgs);

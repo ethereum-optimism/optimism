@@ -23,7 +23,6 @@ import { StandardConstants } from "scripts/deploy/StandardConstants.sol";
 import { Types } from "scripts/libraries/Types.sol";
 import { Duration } from "src/dispute/lib/LibUDT.sol";
 import { GameType, Claim, GameTypes, Proposal, Hash } from "src/dispute/lib/Types.sol";
-import { IFaultDisputeGame } from "interfaces/dispute/IFaultDisputeGame.sol";
 import { IDisputeGame } from "interfaces/dispute/IDisputeGame.sol";
 
 // Interfaces

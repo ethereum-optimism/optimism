@@ -2,7 +2,7 @@
 pragma solidity 0.8.15;
 
 // Testing
-import { Test, stdStorage, StdStorage, console } from "forge-std/Test.sol";
+import { Test, stdStorage, StdStorage } from "forge-std/Test.sol";
 import { VmSafe } from "forge-std/Vm.sol";
 import { CommonTest } from "test/setup/CommonTest.sol";
 import { DeployOPChain_TestBase } from "test/opcm/DeployOPChain.t.sol";
@@ -889,7 +889,7 @@ contract OPContractsManager_AddGameType_Test is OPContractsManager_TestInit {
 
         // Check the values on the new game type.
         IPermissionedDisputeGame newPDG = IPermissionedDisputeGame(address(output.faultDisputeGame));
-        
+
         // Get the existing PermissionedDisputeGame to compare proposer/challenger values
         IPermissionedDisputeGame existingPDG = IPermissionedDisputeGame(
             address(
@@ -898,7 +898,7 @@ contract OPContractsManager_AddGameType_Test is OPContractsManager_TestInit {
                 )
             )
         );
-        
+
         // Assert proposer and challenger match the existing PermissionedDisputeGame
         assertEq(newPDG.proposer(), existingPDG.proposer(), "proposer mismatch");
         assertEq(newPDG.challenger(), existingPDG.challenger(), "challenger mismatch");
@@ -1123,13 +1123,13 @@ contract OPContractsManager_UpdatePrestate_Test is OPContractsManager_TestInit {
         // but the implementation args are updated. We can verify this by checking the args
         // stored in the DisputeGameFactory.
         IDisputeGameFactory dgf = IDisputeGameFactory(chainDeployOutput1.systemConfigProxy.disputeGameFactory());
-        
+
         // Get the implementation args for the game type - this should contain the updated prestate
         bytes memory implArgs = dgf.gameArgs(GameTypes.PERMISSIONED_CANNON);
-        
+
         // The first 32 bytes of implArgs should be the prestate (absolutePrestate)
         bytes32 storedPrestate = bytes32(implArgs);
-        
+
         // Check that the stored prestate matches what we set
         assertEq(storedPrestate, prestate.raw(), "pdg prestate mismatch");
 
@@ -1184,12 +1184,12 @@ contract OPContractsManager_UpdatePrestate_Test is OPContractsManager_TestInit {
 
         // Check the prestate values - with CWIA pattern, check the gameArgs
         IDisputeGameFactory dgf = IDisputeGameFactory(chainDeployOutput1.systemConfigProxy.disputeGameFactory());
-        
+
         // Check PermissionedDisputeGame prestate
         bytes memory pdgArgs = dgf.gameArgs(GameTypes.PERMISSIONED_CANNON);
         bytes32 pdgPrestate = bytes32(pdgArgs);
         assertEq(pdgPrestate, prestate.raw(), "pdg prestate mismatch");
-        
+
         // Check FaultDisputeGame prestate
         bytes memory fdgArgs = dgf.gameArgs(GameTypes.CANNON);
         bytes32 fdgPrestate = bytes32(fdgArgs);
@@ -1228,9 +1228,7 @@ contract OPContractsManager_UpdatePrestate_Test is OPContractsManager_TestInit {
         IDisputeGameFactory dgf = IDisputeGameFactory(chainDeployOutput1.systemConfigProxy.disputeGameFactory());
         address owner = dgf.owner();
         vm.prank(owner);
-        dgf.setImplementation(
-            GameTypes.PERMISSIONED_CANNON, IDisputeGame(payable(address(0))), ""
-        );
+        dgf.setImplementation(GameTypes.PERMISSIONED_CANNON, IDisputeGame(payable(address(0))), "");
 
         // Create the input for the function call.
         Claim prestate = Claim.wrap(bytes32(hex"ABBA"));
@@ -1249,12 +1247,12 @@ contract OPContractsManager_UpdatePrestate_Test is OPContractsManager_TestInit {
         );
 
         // Check the prestate values using gameArgs with CWIA pattern
-        
+
         // Check SuperPermissionedDisputeGame prestate
         bytes memory pdgArgs = dgf.gameArgs(GameTypes.SUPER_PERMISSIONED_CANNON);
         bytes32 pdgPrestate = bytes32(pdgArgs);
         assertEq(pdgPrestate, prestate.raw(), "super pdg prestate mismatch");
-        
+
         // Check SuperFaultDisputeGame prestate
         bytes memory fdgArgs = dgf.gameArgs(GameTypes.SUPER_CANNON);
         bytes32 fdgPrestate = bytes32(fdgArgs);
