@@ -222,7 +222,8 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
         vm.mockCall(address(oracle), abi.encodeCall(IPreimageOracle.challengePeriod, ()), abi.encode(_challengePeriod));
 
         // Set up implementation with the mocked oracle's VM
-        bytes memory implArgs = abi.encodePacked(absolutePrestate, alphabetVM, anchorStateRegistry, delayedWETH);
+        bytes memory implArgs =
+            abi.encodePacked(absolutePrestate, alphabetVM, anchorStateRegistry, delayedWETH, uint256(420));
         disputeGameFactory.setImplementation(GAME_TYPE, gameImpl, implArgs);
 
         // The test expects the game creation to revert due to invalid challenge period
@@ -328,8 +329,9 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
         // Deploy implementation using the pattern from setUp()
         FaultDisputeGame faultDisputeGame = new FaultDisputeGame(params);
 
-        // Set up implementation args
-        bytes memory implArgs = abi.encodePacked(absolutePrestate, alphabetVM, anchorStateRegistry, delayedWETH);
+        // Set up implementation args with the new VM
+        bytes memory implArgs =
+            abi.encodePacked(absolutePrestate, alphabetVM, anchorStateRegistry, delayedWETH, uint256(420));
 
         // Register with factory
         disputeGameFactory.setImplementation(GAME_TYPE, IFaultDisputeGame(address(faultDisputeGame)), implArgs);
