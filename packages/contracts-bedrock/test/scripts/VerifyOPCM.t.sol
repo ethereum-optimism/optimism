@@ -252,7 +252,7 @@ contract VerifyOPCM_Run_Test is VerifyOPCM_TestInit {
     }
 
     /// @notice Tests that the script reverts when contracts have different contractsContainer addresses.
-    function test_verifyContractsContainerConsistency_reverts() public {
+    function test_verifyContractsContainerConsistency_mismatch_reverts() public {
         // Coverage changes bytecode and causes failures, skip.
         skipIfCoverage();
 

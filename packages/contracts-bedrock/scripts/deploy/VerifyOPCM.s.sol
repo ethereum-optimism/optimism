@@ -242,9 +242,10 @@ contract VerifyOPCM is Script {
         address interopMigratorContainer = _getContractsContainerAddress(address(_opcm.opcmInteropMigrator()));
 
         // Verify that all addresses are the same.
-        if (gameTypeAdderContainer != deployerContainer || 
-            deployerContainer != upgraderContainer || 
-            upgraderContainer != interopMigratorContainer) {
+        if (
+            gameTypeAdderContainer != deployerContainer || deployerContainer != upgraderContainer
+                || upgraderContainer != interopMigratorContainer
+        ) {
             console.log("ERROR: contractsContainer addresses are not consistent across all four contracts");
             console.log(string.concat("  GameTypeAdder: ", vm.toString(gameTypeAdderContainer)));
             console.log(string.concat("  Deployer: ", vm.toString(deployerContainer)));
@@ -269,7 +270,6 @@ contract VerifyOPCM is Script {
         }
         return abi.decode(returnData, (address));
     }
-
 
     /// @notice Verifies a single OPCM contract reference (implementation or bytecode).
     /// @param _target The target contract reference to verify.
