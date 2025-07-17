@@ -10,22 +10,23 @@ use reth_rpc_eth_api::{
 use reth_storage_api::{errors::ProviderError, ProviderHeader, ProviderTx};
 use revm::context::TxEnv;
 
-impl<N> EthCall for OpEthApi<N>
+impl<N, Rpc> EthCall for OpEthApi<N, Rpc>
 where
     Self: EstimateCall + LoadBlock + FullEthApiTypes,
     N: OpNodeCore,
+    Rpc: RpcConvert,
 {
 }
 
-impl<N> EstimateCall for OpEthApi<N>
+impl<N, Rpc> EstimateCall for OpEthApi<N, Rpc>
 where
-    Self: Call,
-    Self::Error: From<OpEthApiError>,
+    Self: Call<Error: From<OpEthApiError>>,
     N: OpNodeCore,
+    Rpc: RpcConvert,
 {
 }
 
-impl<N> Call for OpEthApi<N>
+impl<N, Rpc> Call for OpEthApi<N, Rpc>
 where
     Self: LoadState<
             Evm: ConfigureEvm<
@@ -44,6 +45,7 @@ where
         > + SpawnBlocking,
     Self::Error: From<OpEthApiError>,
     N: OpNodeCore,
+    Rpc: RpcConvert,
 {
     #[inline]
     fn call_gas_limit(&self) -> u64 {

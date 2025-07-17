@@ -1,95 +1,28 @@
 //! Loads and formats OP block RPC response.
 
-use alloy_consensus::{transaction::TransactionMeta, BlockHeader};
-use alloy_rpc_types_eth::BlockId;
-use op_alloy_rpc_types::OpTransactionReceipt;
 use reth_chainspec::ChainSpecProvider;
 use reth_optimism_forks::OpHardforks;
-use reth_optimism_primitives::{OpReceipt, OpTransactionSigned};
 use reth_rpc_eth_api::{
-    helpers::{EthBlocks, LoadBlock, LoadPendingBlock, LoadReceipt, SpawnBlocking},
-    types::RpcTypes,
-    RpcReceipt,
+    helpers::{EthBlocks, LoadBlock, LoadPendingBlock, SpawnBlocking},
+    RpcConvert,
 };
-use reth_storage_api::{BlockReader, HeaderProvider, ProviderTx};
+use reth_storage_api::{HeaderProvider, ProviderTx};
 use reth_transaction_pool::{PoolTransaction, TransactionPool};
 
-use crate::{eth::OpNodeCore, OpEthApi, OpEthApiError, OpReceiptBuilder};
+use crate::{eth::OpNodeCore, OpEthApi, OpEthApiError};
 
-impl<N> EthBlocks for OpEthApi<N>
+impl<N, Rpc> EthBlocks for OpEthApi<N, Rpc>
 where
     Self: LoadBlock<
         Error = OpEthApiError,
-        NetworkTypes: RpcTypes<Receipt = OpTransactionReceipt>,
-        Provider: BlockReader<Receipt = OpReceipt, Transaction = OpTransactionSigned>,
+        RpcConvert: RpcConvert<Error = OpEthApiError, Primitives = Self::Primitives>,
     >,
     N: OpNodeCore<Provider: ChainSpecProvider<ChainSpec: OpHardforks> + HeaderProvider>,
+    Rpc: RpcConvert,
 {
-    async fn block_receipts(
-        &self,
-        block_id: BlockId,
-    ) -> Result<Option<Vec<RpcReceipt<Self::NetworkTypes>>>, Self::Error>
-    where
-        Self: LoadReceipt,
-    {
-        if let Some((block, receipts)) = self.load_block_and_receipts(block_id).await? {
-            let block_number = block.number();
-            let base_fee = block.base_fee_per_gas();
-            let block_hash = block.hash();
-            let excess_blob_gas = block.excess_blob_gas();
-            let timestamp = block.timestamp();
-
-            let mut l1_block_info = match reth_optimism_evm::extract_l1_info(block.body()) {
-                Ok(l1_block_info) => l1_block_info,
-                Err(err) => {
-                    // If it is the genesis block (i.e block number is 0), there is no L1 info, so
-                    // we return an empty l1_block_info.
-                    if block_number == 0 {
-                        return Ok(Some(vec![]));
-                    }
-                    return Err(err.into());
-                }
-            };
-
-            return block
-                .transactions_recovered()
-                .zip(receipts.iter())
-                .enumerate()
-                .map(|(idx, (tx, receipt))| -> Result<_, _> {
-                    let meta = TransactionMeta {
-                        tx_hash: tx.tx_hash(),
-                        index: idx as u64,
-                        block_hash,
-                        block_number,
-                        base_fee,
-                        excess_blob_gas,
-                        timestamp,
-                    };
-
-                    // We must clear this cache as different L2 transactions can have different
-                    // L1 costs. A potential improvement here is to only clear the cache if the
-                    // new transaction input has changed, since otherwise the L1 cost wouldn't.
-                    l1_block_info.clear_tx_l1_cost();
-
-                    Ok(OpReceiptBuilder::new(
-                        &self.inner.eth_api.provider().chain_spec(),
-                        tx,
-                        meta,
-                        receipt,
-                        &receipts,
-                        &mut l1_block_info,
-                    )?
-                    .build())
-                })
-                .collect::<Result<Vec<_>, Self::Error>>()
-                .map(Some)
-        }
-
-        Ok(None)
-    }
 }
 
-impl<N> LoadBlock for OpEthApi<N>
+impl<N, Rpc> LoadBlock for OpEthApi<N, Rpc>
 where
     Self: LoadPendingBlock<
             Pool: TransactionPool<
@@ -97,5 +30,6 @@ where
             >,
         > + SpawnBlocking,
     N: OpNodeCore,
+    Rpc: RpcConvert,
 {
 }

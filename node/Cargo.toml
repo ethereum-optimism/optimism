@@ -25,8 +25,6 @@ reth-network.workspace = true
 reth-evm.workspace = true
 reth-trie-db.workspace = true
 reth-rpc-server-types.workspace = true
-reth-rpc-eth-api.workspace = true
-reth-rpc-eth-types.workspace = true
 reth-tasks = { workspace = true, optional = true }
 reth-trie-common.workspace = true
 reth-node-core.workspace = true
@@ -44,10 +42,6 @@ reth-optimism-chainspec.workspace = true
 reth-optimism-consensus = { workspace = true, features = ["std"] }
 reth-optimism-forks.workspace = true
 reth-optimism-primitives = { workspace = true, features = ["serde", "serde-bincode-compat", "reth-codec"] }
-
-# revm with required optimism features
-revm = { workspace = true, features = ["secp256k1", "blst", "c-kzg"] }
-op-revm.workspace = true
 
 # ethereum
 alloy-primitives.workspace = true
@@ -90,7 +84,6 @@ alloy-eips.workspace = true
 default = ["reth-codec"]
 asm-keccak = [
     "alloy-primitives/asm-keccak",
-    "revm/asm-keccak",
     "reth-optimism-node/asm-keccak",
     "reth-node-core/asm-keccak",
 ]

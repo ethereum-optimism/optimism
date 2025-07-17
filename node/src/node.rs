@@ -10,7 +10,7 @@ use op_alloy_consensus::{interop::SafetyLevel, OpPooledTransaction};
 use op_alloy_rpc_types_engine::{OpExecutionData, OpPayloadAttributes};
 use reth_chainspec::{ChainSpecProvider, EthChainSpec, Hardforks};
 use reth_engine_local::LocalPayloadAttributesBuilder;
-use reth_evm::{ConfigureEvm, EvmFactory, EvmFactoryFor};
+use reth_evm::ConfigureEvm;
 use reth_network::{
     types::BasicNetworkPrimitives, NetworkConfig, NetworkHandle, NetworkManager, NetworkPrimitives,
     PeersInfo,
@@ -47,17 +47,15 @@ use reth_optimism_rpc::{
     historical::{HistoricalRpc, HistoricalRpcClient},
     miner::{MinerApiExtServer, OpMinerExtApi},
     witness::{DebugExecutionWitnessApiServer, OpDebugWitnessApi},
-    OpEthApi, OpEthApiError, SequencerClient,
+    SequencerClient,
 };
 use reth_optimism_storage::OpStorage;
 use reth_optimism_txpool::{
     supervisor::{SupervisorClient, DEFAULT_SUPERVISOR_URL},
     OpPooledTx,
 };
-use reth_provider::{providers::ProviderFactoryBuilder, CanonStateSubscriptions, ProviderTx};
-use reth_rpc_api::DebugApiServer;
-use reth_rpc_eth_api::{ext::L2EthApiExtServer, FullEthApiServer, RpcTypes, SignableTxRequest};
-use reth_rpc_eth_types::error::FromEvmError;
+use reth_provider::{providers::ProviderFactoryBuilder, CanonStateSubscriptions};
+use reth_rpc_api::{DebugApiServer, L2EthApiExtServer};
 use reth_rpc_server_types::RethRpcModule;
 use reth_tracing::tracing::{debug, info};
 use reth_transaction_pool::{
@@ -65,7 +63,6 @@ use reth_transaction_pool::{
     TransactionPool, TransactionValidationTaskExecutor,
 };
 use reth_trie_db::MerklePatriciaTrie;
-use revm::context::TxEnv;
 use std::{marker::PhantomData, sync::Arc};
 
 /// Marker trait for Optimism node types with standard engine, chain spec, and primitives.
@@ -289,17 +286,17 @@ pub struct OpAddOns<N: FullNodeComponents, EthB: EthApiBuilder<N>, EV, EB, RpcMi
     min_suggested_priority_fee: u64,
 }
 
-impl<N, NetworkT> Default
+impl<N> Default
     for OpAddOns<
         N,
-        OpEthApiBuilder<NetworkT>,
+        OpEthApiBuilder,
         OpEngineValidatorBuilder,
         OpEngineApiBuilder<OpEngineValidatorBuilder>,
         Identity,
     >
 where
     N: FullNodeComponents<Types: NodeTypes>,
-    OpEthApiBuilder<NetworkT>: EthApiBuilder<N>,
+    OpEthApiBuilder: EthApiBuilder<N>,
 {
     fn default() -> Self {
         Self::builder().build()
@@ -428,24 +425,20 @@ where
     }
 }
 
-impl<N, NetworkT, EV, EB, RpcMiddleware> NodeAddOns<N>
-    for OpAddOns<N, OpEthApiBuilder<NetworkT>, EV, EB, RpcMiddleware>
+impl<N, EthB, EV, EB, RpcMiddleware> NodeAddOns<N> for OpAddOns<N, EthB, EV, EB, RpcMiddleware>
 where
     N: FullNodeComponents<
         Types: OpFullNodeTypes,
         Evm: ConfigureEvm<NextBlockEnvCtx = OpNextBlockEnvAttributes>,
     >,
     N::Types: NodeTypes<Primitives: OpPayloadPrimitives>,
-    OpEthApiError: FromEvmError<N::Evm>,
+    EthB: EthApiBuilder<N>,
     <N::Pool as TransactionPool>::Transaction: OpPooledTx,
-    EvmFactoryFor<N::Evm>: EvmFactory<Tx = op_revm::OpTransaction<TxEnv>>,
-    OpEthApi<N, NetworkT>: FullEthApiServer<Provider = N::Provider, Pool = N::Pool>,
-    NetworkT: RpcTypes<TransactionRequest: SignableTxRequest<ProviderTx<N::Provider>>>,
     EV: EngineValidatorBuilder<N>,
     EB: EngineApiBuilder<N>,
     RpcMiddleware: RethRpcMiddleware,
 {
-    type Handle = RpcHandle<N, OpEthApi<N, NetworkT>>;
+    type Handle = RpcHandle<N, EthB::EthApi>;
 
     async fn launch_add_ons(
         self,
@@ -548,23 +541,19 @@ where
     }
 }
 
-impl<N, NetworkT, EV, EB, RpcMiddleware> RethRpcAddOns<N>
-    for OpAddOns<N, OpEthApiBuilder<NetworkT>, EV, EB, RpcMiddleware>
+impl<N, EthB, EV, EB, RpcMiddleware> RethRpcAddOns<N> for OpAddOns<N, EthB, EV, EB, RpcMiddleware>
 where
     N: FullNodeComponents<
         Types: OpFullNodeTypes,
         Evm: ConfigureEvm<NextBlockEnvCtx = OpNextBlockEnvAttributes>,
     >,
-    OpEthApiError: FromEvmError<N::Evm>,
     <<N as FullNodeComponents>::Pool as TransactionPool>::Transaction: OpPooledTx,
-    EvmFactoryFor<N::Evm>: EvmFactory<Tx = op_revm::OpTransaction<TxEnv>>,
-    OpEthApi<N, NetworkT>: FullEthApiServer<Provider = N::Provider, Pool = N::Pool>,
-    NetworkT: RpcTypes<TransactionRequest: SignableTxRequest<ProviderTx<N::Provider>>>,
+    EthB: EthApiBuilder<N>,
     EV: EngineValidatorBuilder<N>,
     EB: EngineApiBuilder<N>,
     RpcMiddleware: RethRpcMiddleware,
 {
-    type EthApi = OpEthApi<N, NetworkT>;
+    type EthApi = EthB::EthApi;
 
     fn hooks_mut(&mut self) -> &mut reth_node_builder::rpc::RpcHooks<N, Self::EthApi> {
         self.rpc_add_ons.hooks_mut()

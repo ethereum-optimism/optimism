@@ -24,7 +24,7 @@ use reth_storage_api::{
 };
 use reth_transaction_pool::{PoolTransaction, TransactionPool};
 
-impl<N> LoadPendingBlock for OpEthApi<N>
+impl<N, Rpc> LoadPendingBlock for OpEthApi<N, Rpc>
 where
     Self: SpawnBlocking
         + EthApiTypes<
@@ -50,6 +50,7 @@ where
             Block = ProviderBlock<Self::Provider>,
         >,
     >,
+    Rpc: RpcConvert,
 {
     #[inline]
     fn pending_block(
