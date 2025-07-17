@@ -241,6 +241,15 @@ contract VerifyOPCM is Script {
         address upgraderContainer = _getContractsContainerAddress(address(_opcm.opcmUpgrader()));
         address interopMigratorContainer = _getContractsContainerAddress(address(_opcm.opcmInteropMigrator()));
 
+        // Check if any of the calls failed (returned address(0))
+        if (
+            gameTypeAdderContainer == address(0) || deployerContainer == address(0) || upgraderContainer == address(0)
+                || interopMigratorContainer == address(0)
+        ) {
+            console.log("ERROR: Failed to retrieve contractsContainer address from one or more contracts");
+            revert VerifyOPCM_ContractsContainerMismatch();
+        }
+
         // Verify that all addresses are the same.
         if (
             gameTypeAdderContainer != deployerContainer || deployerContainer != upgraderContainer
@@ -266,7 +275,12 @@ contract VerifyOPCM is Script {
         // nosemgrep: sol-style-use-abi-encodecall
         (bool success, bytes memory returnData) = _contract.staticcall(abi.encodeWithSignature("contractsContainer()"));
         if (!success) {
-            revert("Failed to call contractsContainer() function");
+            console.log(
+                string.concat(
+                    "[FAIL] ERROR: Failed to call contractsContainer() function on contract ", vm.toString(_contract)
+                )
+            );
+            return address(0);
         }
         return abi.decode(returnData, (address));
     }
