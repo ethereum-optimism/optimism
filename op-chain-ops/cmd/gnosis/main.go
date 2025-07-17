@@ -7,7 +7,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/version"
 	opservice "github.com/ethereum-optimism/optimism/op-service"
 	"github.com/ethereum-optimism/optimism/op-service/cliapp"
-	"github.com/ethereum-optimism/optimism/op-service/gnosis"
 	"github.com/urfave/cli/v2"
 )
 
@@ -23,14 +22,14 @@ func main() {
 	app := cli.NewApp()
 	app.Version = VersionWithMeta
 	app.Name = "gnosis"
-	app.Usage = "Tool to send tx via Gnosis Safe using calldata"
-	app.Flags = cliapp.ProtectFlags(gnosis.GlobalFlags)
+	app.Usage = "tool to interact with pre-deployed gnosis safe contracts"
+	app.Flags = cliapp.ProtectFlags(GlobalFlags)
 	app.Commands = []*cli.Command{
 		{
 			Name:   "send-tx",
 			Usage:  "send tx via Gnosis Safe using calldata",
-			Flags:  cliapp.ProtectFlags(gnosis.SendGnosisTxFlags),
-			Action: gnosis.SendGnosisTransactionCLI,
+			Flags:  cliapp.ProtectFlags(SendGnosisTxFlags),
+			Action: SendGnosisTransactionCLI,
 		},
 	}
 	app.Writer = os.Stdout

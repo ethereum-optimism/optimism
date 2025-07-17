@@ -1,4 +1,4 @@
-package gnosis
+package main
 
 import (
 	"fmt"
@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/ethereum-optimism/optimism/op-service/ctxinterrupt"
+	"github.com/ethereum-optimism/optimism/op-service/gnosis"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
 	"github.com/ethereum/go-ethereum/common"
@@ -60,8 +61,8 @@ func SendGnosisTransactionCLI(cliCtx *cli.Context) error {
 		return fmt.Errorf("invalid calldata: %s", calldataHex)
 	}
 
-	gnosisClient, err := NewGnosisClient(lgr, rpcUrl, privateKeys, safeAddress,
-		WithCustomTxMgr(func(cfg *txmgr.CLIConfig) { cfg.NumConfirmations = 1 }),
+	gnosisClient, err := gnosis.NewGnosisClient(lgr, rpcUrl, privateKeys, safeAddress,
+		gnosis.WithCustomTxMgr(func(cfg *txmgr.CLIConfig) { cfg.NumConfirmations = 1 }),
 	)
 	if err != nil {
 		return fmt.Errorf("failed to create gnosis client: %w", err)
