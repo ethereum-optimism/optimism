@@ -388,6 +388,30 @@ impl InMemorySize for OpReceipt {
     }
 }
 
+impl From<op_alloy_consensus::OpReceiptEnvelope> for OpReceipt {
+    fn from(envelope: op_alloy_consensus::OpReceiptEnvelope) -> Self {
+        match envelope {
+            op_alloy_consensus::OpReceiptEnvelope::Legacy(receipt) => Self::Legacy(receipt.receipt),
+            op_alloy_consensus::OpReceiptEnvelope::Eip2930(receipt) => {
+                Self::Eip2930(receipt.receipt)
+            }
+            op_alloy_consensus::OpReceiptEnvelope::Eip1559(receipt) => {
+                Self::Eip1559(receipt.receipt)
+            }
+            op_alloy_consensus::OpReceiptEnvelope::Eip7702(receipt) => {
+                Self::Eip7702(receipt.receipt)
+            }
+            op_alloy_consensus::OpReceiptEnvelope::Deposit(receipt) => {
+                Self::Deposit(OpDepositReceipt {
+                    deposit_nonce: receipt.receipt.deposit_nonce,
+                    deposit_receipt_version: receipt.receipt.deposit_receipt_version,
+                    inner: receipt.receipt.inner,
+                })
+            }
+        }
+    }
+}
+
 /// Trait for deposit receipt.
 pub trait DepositReceipt: reth_primitives_traits::Receipt {
     /// Converts a `Receipt` into a mutable Optimism deposit receipt.
