@@ -126,6 +126,22 @@ func (g *SuperCannonGameHelper) ChallengeToPreimageLoad(ctx context.Context, top
 	g.splitGame.LogGameData(ctx)
 }
 
+// SupportClaimIntoTargetTraceIndex supports the specified claim while bisecting to the target trace index at split depth.
+func (g *SuperCannonGameHelper) SupportClaimIntoTargetTraceIndex(ctx context.Context, claim *ClaimHelper, targetTraceIndexAtSplitDepth uint64) {
+	provider := g.createSuperTraceProvider(ctx)
+	g.SupportClaim(ctx, claim, func(claim *ClaimHelper) *ClaimHelper {
+		if claim.IsOutputRoot(ctx) {
+			return topGameTraceBisection(g.t, ctx, claim, g.splitGame.SplitDepth(ctx), targetTraceIndexAtSplitDepth, provider)
+		} else {
+			return claim.Attack(ctx, common.Hash{0xbb})
+		}
+	}, func(parentIdx int64) {
+		g.splitGame.StepFails(ctx, parentIdx, false, []byte{}, []byte{})
+		g.splitGame.StepFails(ctx, parentIdx, true, []byte{}, []byte{})
+	})
+	g.splitGame.LogGameData(ctx)
+}
+
 func (g *SuperCannonGameHelper) createSuperCannonTraceProvider(ctx context.Context, proposal *ClaimHelper, options ...challenger.Option) *cannon.CannonTraceProviderForTest {
 	splitDepth := g.splitGame.SplitDepth(ctx)
 	g.require.EqualValues(proposal.Depth(), splitDepth+1, "outputRootClaim must be the root of an execution game")
@@ -135,15 +151,10 @@ func (g *SuperCannonGameHelper) createSuperCannonTraceProvider(ctx context.Conte
 	opt = append(opt, options...)
 	cfg := challenger.NewChallengerConfig(g.t, g.system, "", opt...)
 
-	rootProvider := g.System.SupervisorClient()
-
 	l1Head := g.GetL1Head(ctx)
-	prestateTimestamp, poststateTimestamp, err := g.Game.GetGameRange(ctx)
+	_, poststateTimestamp, err := g.Game.GetGameRange(ctx)
 	g.require.NoError(err, "Failed to load block range")
-	prestateProvider := super.NewSuperRootPrestateProvider(rootProvider, prestateTimestamp)
-	rollupCfgs, err := super.NewRollupConfigsFromParsed(g.System.RollupCfgs()...)
-	require.NoError(g.T, err, "failed to create rollup configs")
-	superProvider := super.NewSuperTraceProvider(logger, rollupCfgs, prestateProvider, rootProvider, l1Head, splitDepth, prestateTimestamp, poststateTimestamp)
+	superProvider := g.createSuperTraceProvider(ctx)
 
 	var localContext common.Hash
 	selector := split.NewSplitProviderSelector(superProvider, splitDepth, func(ctx context.Context, depth types.Depth, pre types.Claim, post types.Claim) (types.TraceProvider, error) {
@@ -169,4 +180,17 @@ func (g *SuperCannonGameHelper) createSuperCannonTraceProvider(ctx context.Conte
 	g.require.NoError(err)
 	translatingProvider := provider.(*trace.TranslatingProvider)
 	return translatingProvider.Original().(*cannon.CannonTraceProviderForTest)
+}
+
+func (g *SuperCannonGameHelper) createSuperTraceProvider(ctx context.Context) *super.SuperTraceProvider {
+	logger := testlog.Logger(g.t, log.LevelInfo).New("role", "superTraceProvider", "game", g.splitGame.Addr)
+	rootProvider := g.System.SupervisorClient()
+	splitDepth := g.splitGame.SplitDepth(ctx)
+	l1Head := g.GetL1Head(ctx)
+	prestateTimestamp, poststateTimestamp, err := g.Game.GetGameRange(ctx)
+	g.require.NoError(err, "Failed to load block range")
+	prestateProvider := super.NewSuperRootPrestateProvider(rootProvider, prestateTimestamp)
+	rollupCfgs, err := super.NewRollupConfigsFromParsed(g.System.RollupCfgs()...)
+	require.NoError(g.T, err, "failed to create rollup configs")
+	return super.NewSuperTraceProvider(logger, rollupCfgs, prestateProvider, rootProvider, l1Head, splitDepth, prestateTimestamp, poststateTimestamp)
 }

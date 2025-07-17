@@ -14,7 +14,7 @@ func TestSuperRootWithdrawal(gt *testing.T) {
 	sys := presets.NewSimpleInterop(t)
 	sys.L1Network.WaitForOnline()
 
-	initialL1Balance := eth.OneEther
+	initialL1Balance := eth.HalfEther
 	initialL2Balance := eth.ZeroWei // L2 only gets funds from the deposit
 	depositAmount := eth.OneThirdEther
 	withdrawalAmount := eth.OneTenthEther

@@ -17,6 +17,7 @@ import (
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/arch"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/exec"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/memory"
+	"github.com/ethereum-optimism/optimism/cannon/mipsevm/multithreaded"
 	mtutil "github.com/ethereum-optimism/optimism/cannon/mipsevm/multithreaded/testutil"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/program"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/register"
@@ -641,23 +642,37 @@ func TestEVM_MMap(t *testing.T) {
 	}
 }
 
+func TestEVM_SysGetRandom_isImplemented(t *testing.T) {
+	t.Parallel()
+	// Assert we have at least one vm with the working getrandom syscall
+	foundVmWithSyscallEnabled := false
+	for _, vers := range GetMipsVersionTestCases(t) {
+		features := versions.FeaturesForVersion(vers.Version)
+		foundVmWithSyscallEnabled = foundVmWithSyscallEnabled || features.SupportWorkingSysGetRandom
+	}
+	require.True(t, foundVmWithSyscallEnabled)
+
+	// Assert that latest version has a working getrandom ssycall
+	latestFeatures := versions.FeaturesForVersion(versions.GetExperimentalVersion())
+	require.True(t, latestFeatures.SupportWorkingSysGetRandom)
+}
+
 func TestEVM_SysGetRandom(t *testing.T) {
-	startingMemory := arch.Word(0x1234_5678_8765_4321)
-	effAddr := arch.Word(0x1000_0000)
+	t.Parallel()
 
-	// Random data is generated using the incremented step as the random seed
-	// For validation of this random data see instrumented_test.go TestSplitmix64 unit tests
-	step := uint64(0x1a2b3c4d5e6f7531) - 1
-	randomData := arch.Word(0x4141302768c9e9d0)
-
-	type GetRandomTestCase struct {
+	type testCase struct {
 		name                 string
 		bufAddrOffset        arch.Word
 		bufLen               arch.Word
 		expectedRandDataMask arch.Word
 		expectedReturnValue  arch.Word
 	}
-	cases := []GetRandomTestCase{
+
+	testNamer := func(tc testCase) string {
+		return tc.name
+	}
+
+	cases := []testCase{
 		// Test word-aligned buffer address
 		{name: "Word-aligned buffer, zero bytes requested", bufAddrOffset: 0, bufLen: 0, expectedRandDataMask: 0x0000_0000_0000_0000, expectedReturnValue: 0},
 		{name: "Word-aligned buffer, 1 byte requested", bufAddrOffset: 0, bufLen: 1, expectedRandDataMask: 0xFF00_0000_0000_0000, expectedReturnValue: 1},
@@ -681,38 +696,25 @@ func TestEVM_SysGetRandom(t *testing.T) {
 		{name: "Buffer offset by 6, 8 byte requested", bufAddrOffset: 6, bufLen: 8, expectedRandDataMask: 0x0000_0000_0000_FFFF, expectedReturnValue: 2},
 	}
 
-	// Assert we have at least one vm with the working getrandom syscall
-	foundVmWithSyscallEnabled := false
-	for _, vers := range GetMipsVersionTestCases(t) {
-		features := versions.FeaturesForVersion(vers.Version)
-		foundVmWithSyscallEnabled = foundVmWithSyscallEnabled || features.SupportWorkingSysGetRandom
-	}
-	require.True(t, foundVmWithSyscallEnabled)
+	startingMemory := arch.Word(0x1234_5678_8765_4321)
+	effAddr := arch.Word(0x1000_0000)
+	// Random data is generated using the incremented step as the random seed
+	// For validation of this random data see instrumented_test.go TestSplitmix64 unit tests
+	step := uint64(0x1a2b3c4d5e6f7531) - 1
+	randomData := arch.Word(0x4141302768c9e9d0)
 
-	// Assert that latest version has a working getrandom ssycall
-	latestFeatures := versions.FeaturesForVersion(versions.GetExperimentalVersion())
-	require.True(t, latestFeatures.SupportWorkingSysGetRandom)
-
-	// Run test cases with memory reservation variations
-	testNamer := func(testCase GetRandomTestCase, vmVersion string, reservationTestCase string) string {
-		return fmt.Sprintf("%v (%v,%v)", testCase.name, vmVersion, reservationTestCase)
-	}
-	MemoryReservationTester(t, cases, func(t *testing.T, vm VersionedVMTestCase, reservation MemoryReservationTestCase, testCase GetRandomTestCase, i int) {
-		isNoop := !versions.FeaturesForVersion(vm.Version).SupportWorkingSysGetRandom
-		expectedMemory := testCase.expectedRandDataMask&randomData | ^testCase.expectedRandDataMask&startingMemory
-
-		goVm := vm.VMFactory(nil, os.Stdout, os.Stderr, testutil.CreateLogger(), mtutil.WithRandomization(int64(i)), mtutil.WithStep(step))
-		state := goVm.GetState()
-		step := state.GetStep()
-
+	initState := func(testCase testCase, state *multithreaded.State, vm VersionedVMTestCase) {
 		testutil.StoreInstruction(state.GetMemory(), state.GetPC(), syscallInsn)
 		state.GetMemory().SetWord(effAddr, startingMemory)
 		state.GetRegistersRef()[register.RegV0] = arch.SysGetRandom
 		state.GetRegistersRef()[register.RegA0] = effAddr + testCase.bufAddrOffset
 		state.GetRegistersRef()[register.RegA1] = testCase.bufLen
-		reservation.SetupState(mtutil.ToMTState(t, state), effAddr)
+	}
 
-		expected := mtutil.NewExpectedState(t, state)
+	setExpectations := func(testCase testCase, expected *mtutil.ExpectedState, vm VersionedVMTestCase) ExpectedExecResult {
+		isNoop := !versions.FeaturesForVersion(vm.Version).SupportWorkingSysGetRandom
+		expectedMemory := testCase.expectedRandDataMask&randomData | ^testCase.expectedRandDataMask&startingMemory
+
 		expected.ExpectStep()
 		if isNoop {
 			expected.ActiveThread().Registers[register.RegSyscallRet1] = 0
@@ -720,17 +722,15 @@ func TestEVM_SysGetRandom(t *testing.T) {
 		} else {
 			expected.ActiveThread().Registers[register.RegSyscallRet1] = testCase.expectedReturnValue
 			expected.ActiveThread().Registers[register.RegSyscallErrno] = 0
-			expected.ExpectMemoryWriteWord(effAddr, expectedMemory)
-			reservation.SetExpectations(expected)
+			expected.ExpectMemoryWrite(effAddr, expectedMemory)
 		}
+		return ExpectNormalExecution()
+	}
 
-		stepWitness, err := goVm.Step(true)
-		require.NoError(t, err)
-
-		// Check expectations
-		expected.Validate(t, state)
-		testutil.ValidateEVM(t, stepWitness, step, goVm, vm.StateHashFn, vm.Contracts)
-	}, testNamer)
+	NewDiffTester(testNamer).
+		InitState(initState, mtutil.WithStep(step)).
+		SetExpectations(setExpectations).
+		Run(t, cases)
 }
 
 func TestEVM_SysWriteHint(t *testing.T) {

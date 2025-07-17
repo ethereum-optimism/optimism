@@ -22,7 +22,7 @@ func TestChallengerPlaysGame(gt *testing.T) {
 	)
 
 	badClaim := common.HexToHash("0xdeadbeef00000000000000000000000000000000000000000000000000000000")
-	attacker := sys.FunderL1.NewFundedEOA(eth.Ether(2))
+	attacker := sys.FunderL1.NewFundedEOA(eth.OneTenthEther)
 	dgf := sys.DisputeGameFactory()
 
 	game := dgf.StartSuperCannonGame(attacker, badClaim)

@@ -544,3 +544,37 @@ func traceBisection(
 		}
 	}
 }
+
+// topGameBisection performs a bisection of the trace for the top game.
+// It should not be used to bisect a bottom claim.
+func topGameTraceBisection(
+	t *testing.T,
+	ctx context.Context,
+	claim *ClaimHelper,
+	splitDepth types.Depth,
+	targetTraceIndex uint64,
+	provider types.TraceProvider,
+) *ClaimHelper {
+	require.True(t, claim.IsOutputRoot(ctx), "bisecting a bottom claim is not supported")
+
+	claimTraceIndex := claim.Position.TraceIndex(splitDepth).Uint64()
+	if claimTraceIndex < targetTraceIndex {
+		newPosition := claim.Position.Defend()
+		if newPosition.TraceIndex(splitDepth).Uint64() < targetTraceIndex {
+			response, err := provider.Get(ctx, newPosition)
+			require.NoError(t, err)
+			return claim.Defend(ctx, response)
+		} else {
+			return claim.Defend(ctx, common.Hash{0xaa})
+		}
+	} else {
+		newPosition := claim.Position.Attack()
+		if newPosition.TraceIndex(splitDepth).Uint64() < targetTraceIndex {
+			response, err := provider.Get(ctx, newPosition)
+			require.NoError(t, err)
+			return claim.Attack(ctx, response)
+		} else {
+			return claim.Attack(ctx, common.Hash{0xaa})
+		}
+	}
+}

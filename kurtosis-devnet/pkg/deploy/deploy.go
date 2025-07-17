@@ -22,6 +22,7 @@ import (
 type EngineManager interface {
 	EnsureRunning() error
 	GetEngineType() (string, error)
+	RestartEngine() error
 }
 
 type deployer interface {
@@ -247,6 +248,12 @@ func (d *Deployer) Deploy(ctx context.Context, r io.Reader) (*kurtosis.KurtosisE
 
 	// Clean up the enclave before deploying
 	if d.autofixMode == autofixTypes.AutofixModeNuke {
+		// Recreate the engine
+		log.Println("Restarting engine")
+		if err := d.engineManager.RestartEngine(); err != nil {
+			return nil, fmt.Errorf("error restarting engine: %w", err)
+		}
+		log.Println("Nuking enclave")
 		if d.enclaveManager != nil {
 			// Remove all the enclaves and destroy all the docker resources related to kurtosis
 			err := d.enclaveManager.Nuke(ctx)
@@ -255,6 +262,7 @@ func (d *Deployer) Deploy(ctx context.Context, r io.Reader) (*kurtosis.KurtosisE
 			}
 		}
 	} else if d.autofixMode == autofixTypes.AutofixModeNormal {
+		log.Println("Autofixing enclave")
 		if d.enclaveManager != nil {
 			if err := d.enclaveManager.Autofix(ctx, d.enclave); err != nil {
 				return nil, fmt.Errorf("error autofixing enclave: %w", err)

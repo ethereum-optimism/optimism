@@ -15,6 +15,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/engine"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/sync"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/event"
 	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
@@ -444,6 +445,11 @@ func (m *IndexingMode) Reset(ctx context.Context, lUnsafe, xUnsafe, lSafe, xSafe
 		return err
 	}
 
+	// sanity check for max-reorg depth and pre-interop check
+	if err := m.sanityCheck(ctx, logger, lUnsafeRef); err != nil {
+		return err
+	}
+
 	m.emitter.Emit(ctx, rollup.ForceResetEvent{
 		LocalUnsafe: lUnsafeRef,
 		CrossUnsafe: xUnsafeRef,
@@ -513,4 +519,30 @@ func (m *IndexingMode) L2BlockRefByTimestamp(ctx context.Context, timestamp uint
 
 func (m *IndexingMode) L2BlockRefByNumber(ctx context.Context, num uint64) (eth.L2BlockRef, error) {
 	return m.l2.L2BlockRefByNumber(ctx, num)
+}
+
+func (m *IndexingMode) sanityCheck(ctx context.Context, logger log.Logger, proposedUnsafe eth.L2BlockRef) error {
+	currentUnsafe, err := m.l2.L2BlockRefByLabel(ctx, eth.Unsafe)
+	if err != nil {
+		return fmt.Errorf("failed to get previous unsafe block: %w", err)
+	}
+
+	// check we are not reorging L2 incredibly deep
+	if proposedUnsafe.L1Origin.Number+(sync.MaxReorgSeqWindows*m.cfg.SyncLookback()) < currentUnsafe.L1Origin.Number {
+		// If the reorg depth is too large, something is fishy.
+		// This can legitimately happen if L1 goes down for a while. But in that case,
+		// restarting the L2 node with a bigger configured MaxReorgDepth is an acceptable
+		// stopgap solution.
+		logger.Error("reorg is too deep", "proposed_l1origin", proposedUnsafe.L1Origin.Number, "currentUnsafe_l1origin", currentUnsafe.L1Origin.Number, "sync_lookback", m.cfg.SyncLookback())
+		return fmt.Errorf("%w: traversed back to L2 block %s, but too deep compared to previous unsafe block %s", sync.TooDeepReorgErr, proposedUnsafe, currentUnsafe)
+	}
+
+	// check we are not reorging to a non-interop block
+	if !m.cfg.IsInterop(proposedUnsafe.Time) {
+		err := fmt.Errorf("proposed local-unsafe block %s found to be reorged to is not interop-enabled", proposedUnsafe)
+		logger.Error(err.Error(), "block", proposedUnsafe)
+		return err
+	}
+
+	return nil
 }
