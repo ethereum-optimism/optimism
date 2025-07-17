@@ -13,6 +13,16 @@ import { VerifyOPCM } from "scripts/deploy/VerifyOPCM.s.sol";
 // Interfaces
 import { IOPContractsManager } from "interfaces/L1/IOPContractsManager.sol";
 
+/// @title MockContractsContainer
+/// @notice Mock contract that returns a specific contractsContainer address for testing.
+contract MockContractsContainer {
+    address public immutable contractsContainer;
+
+    constructor(address _contractsContainer) {
+        contractsContainer = _contractsContainer;
+    }
+}
+
 contract VerifyOPCM_Harness is VerifyOPCM {
     function loadArtifactInfo(string memory _artifactPath) public view returns (ArtifactInfo memory) {
         return _loadArtifactInfo(_artifactPath);
@@ -35,6 +45,14 @@ contract VerifyOPCM_Harness is VerifyOPCM {
 
     function buildArtifactPath(string memory _contractName) public view returns (string memory) {
         return _buildArtifactPath(_contractName);
+    }
+
+    function verifyContractsContainerConsistency(IOPContractsManager _opcm) public view {
+        return _verifyContractsContainerConsistency(_opcm);
+    }
+
+    function getContractsContainerAddress(address _contract) public view returns (address) {
+        return _getContractsContainerAddress(_contract);
     }
 }
 
@@ -222,5 +240,39 @@ contract VerifyOPCM_Run_Test is VerifyOPCM_TestInit {
         // Run the script.
         vm.expectRevert(VerifyOPCM.VerifyOPCM_Failed.selector);
         harness.run(address(opcm), true);
+    }
+
+    /// @notice Tests that the script verifies all four contracts have the same contractsContainer address.
+    function test_verifyContractsContainerConsistency_succeeds() public {
+        // Coverage changes bytecode and causes failures, skip.
+        skipIfCoverage();
+
+        // This should succeed with the current setup where all contracts have the same containerAddress.
+        harness.verifyContractsContainerConsistency(opcm);
+    }
+
+    /// @notice Tests that the script reverts when contracts have different contractsContainer addresses.
+    function test_verifyContractsContainerConsistency_reverts() public {
+        // Coverage changes bytecode and causes failures, skip.
+        skipIfCoverage();
+
+        // Create a different address to simulate a mismatch.
+        address differentContainer = address(0x9999999999999999999999999999999999999999);
+
+        // Create a mock contract that returns a different contractsContainer address.
+        MockContractsContainer mockContract = new MockContractsContainer(differentContainer);
+
+        // Get one of the original contract addresses to replace.
+        address originalUpgrader = address(opcm.opcmUpgrader());
+
+        // Replace the opcmUpgrader with our mock contract by etching over it.
+        vm.etch(originalUpgrader, address(mockContract).code);
+
+        // Store the different container address in the mock contract's storage.
+        vm.store(originalUpgrader, bytes32(uint256(0)), bytes32(uint256(uint160(differentContainer))));
+
+        // Now the consistency check should fail.
+        vm.expectRevert(VerifyOPCM.VerifyOPCM_ContractsContainerMismatch.selector);
+        harness.verifyContractsContainerConsistency(opcm);
     }
 }
