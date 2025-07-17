@@ -183,9 +183,8 @@ func (c *CLIConfig) Check() error {
 		return fmt.Errorf("too many frames for blob transactions, max %d", maxBlobsPerBlock)
 	}
 
-	// Validate PID controller config
-	if c.ThrottleControllerType != string(config.StepControllerType) && c.ThrottleControllerType != string(config.QuadraticControllerType) && c.ThrottleControllerType != string(config.PIDControllerType) {
-		return fmt.Errorf("invalid throttle controller type: %s (must be 'step', 'quadratic', 'pid')", c.ThrottleControllerType)
+	if c.ThrottleControllerType != string(config.StepControllerType) && c.ThrottleControllerType != string(config.LinearControllerType) && c.ThrottleControllerType != string(config.QuadraticControllerType) && c.ThrottleControllerType != string(config.PIDControllerType) {
+		return fmt.Errorf("invalid throttle controller type: %s (must be 'step', 'linear', 'quadratic', 'pid')", c.ThrottleControllerType)
 	}
 
 	if err := c.MetricsConfig.Check(); err != nil {
