@@ -345,6 +345,8 @@ func (o *Orchestrator) getActualSystemKeys(t devtest.T, net *descriptors.L2Chain
 				keyPath = keyType.Key(chainID).String()
 			case devkeys.UserKey:
 				keyPath = keyType.String()
+			case *FaucetKey:
+				keyPath = keyType.String()
 			default:
 				t.Errorf("Unknown key type for wallet role '%s'", walletRole)
 				continue
@@ -414,28 +416,48 @@ func (o *Orchestrator) getWalletMappings(l1Wallets descriptors.WalletMap) map[st
 		mappings[walletRole] = devkeyRole
 	}
 
-	faucetMappings := map[string]devkeys.UserKey{
-		"l1Faucet": devkeys.UserKey(20), // Maps to user-key-20 in devnet
-		"l2Faucet": devkeys.UserKey(0),  // Maps to dev-account-0 in devnet
-	}
-
-	for walletRole, userKey := range faucetMappings {
-		mappings[walletRole] = userKey
-	}
+	o.addFaucetMappings(mappings, l1Wallets)
 
 	// Dynamically discover user-key-* mappings from available L1 wallets
 	for walletRole := range l1Wallets {
 		if strings.HasPrefix(walletRole, "user-key-") {
-			// Extract the index from user-key-X
-			indexStr := strings.TrimPrefix(walletRole, "user-key-")
-			index := 0
-			if _, err := fmt.Sscanf(indexStr, "%d", &index); err == nil {
-				mappings[walletRole] = devkeys.UserKey(index)
+			if _, alreadyMapped := mappings[walletRole]; !alreadyMapped {
+				indexStr := strings.TrimPrefix(walletRole, "user-key-")
+				index := 0
+				if _, err := fmt.Sscanf(indexStr, "%d", &index); err == nil {
+					mappings[walletRole] = devkeys.UserKey(index)
+				}
 			}
 		}
 	}
 
 	return mappings
+}
+
+// addFaucetMappings implements the faucet wallet fallback logic described in op-acceptor's faucet.go
+func (o *Orchestrator) addFaucetMappings(mappings map[string]interface{}, l1Wallets descriptors.WalletMap) {
+	// L1 faucet logic following op-acceptor convention:
+	// - prefer l1Faucet if available (store under its own name)
+	// - fallback to user-key-20 only if l1Faucet doesn't exist (use devkeys mapping)
+	if _, hasL1Faucet := l1Wallets["l1Faucet"]; hasL1Faucet {
+		mappings["l1Faucet"] = &FaucetKey{name: "l1Faucet"}
+	} else if _, hasUserKey20 := l1Wallets["user-key-20"]; hasUserKey20 {
+		// Only use user-key-20 as fallback when l1Faucet doesn't exist
+		mappings["user-key-20"] = devkeys.UserKey(20)
+	}
+
+	// L2 faucet logic: use l2Faucet if present (store under its own name)
+	if _, hasL2Faucet := l1Wallets["l2Faucet"]; hasL2Faucet {
+		mappings["l2Faucet"] = &FaucetKey{name: "l2Faucet"}
+	}
+}
+
+type FaucetKey struct {
+	name string
+}
+
+func (f *FaucetKey) String() string {
+	return f.name
 }
 
 func (o *Orchestrator) parsePrivateKey(keyStr string) *ecdsa.PrivateKey {
