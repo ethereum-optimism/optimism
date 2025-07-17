@@ -56,6 +56,22 @@ pub fn revm_spec_by_timestamp_after_bedrock(
     }
 }
 
+#[cfg(feature = "rpc")]
+impl<H: alloy_consensus::BlockHeader> reth_rpc_eth_api::helpers::pending_block::BuildPendingEnv<H>
+    for OpNextBlockEnvAttributes
+{
+    fn build_pending_env(parent: &crate::SealedHeader<H>) -> Self {
+        Self {
+            timestamp: parent.timestamp().saturating_add(12),
+            suggested_fee_recipient: parent.beneficiary(),
+            prev_randao: alloy_primitives::B256::random(),
+            gas_limit: parent.gas_limit(),
+            parent_beacon_block_root: parent.parent_beacon_block_root(),
+            extra_data: parent.extra_data().clone(),
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

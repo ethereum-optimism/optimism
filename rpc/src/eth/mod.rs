@@ -19,13 +19,13 @@ pub use receipt::{OpReceiptBuilder, OpReceiptFieldsBuilder};
 use reth_chainspec::{ChainSpecProvider, EthChainSpec, EthereumHardforks};
 use reth_evm::ConfigureEvm;
 use reth_network_api::NetworkInfo;
-use reth_node_api::{FullNodeComponents, FullNodeTypes, NodePrimitives};
+use reth_node_api::{FullNodeComponents, FullNodeTypes, HeaderTy, NodePrimitives};
 use reth_node_builder::rpc::{EthApiBuilder, EthApiCtx};
 use reth_rpc::eth::{core::EthApiInner, DevSigner};
 use reth_rpc_eth_api::{
     helpers::{
-        spec::SignersForApi, AddDevSigners, EthApiSpec, EthFees, EthState, LoadBlock, LoadFee,
-        LoadState, SpawnBlocking, Trace,
+        pending_block::BuildPendingEnv, spec::SignersForApi, AddDevSigners, EthApiSpec, EthFees,
+        EthState, LoadBlock, LoadFee, LoadState, SpawnBlocking, Trace,
     },
     EthApiTypes, FromEvmError, FullEthApiServer, RpcConvert, RpcConverter, RpcNodeCore,
     RpcNodeCoreExt, RpcTypes, SignableTxRequest,
@@ -52,8 +52,8 @@ pub type EthApiNodeBackend<N, Rpc> = EthApiInner<
 >;
 
 /// A helper trait with requirements for [`RpcNodeCore`] to be used in [`OpEthApi`].
-pub trait OpNodeCore: RpcNodeCore<Provider: BlockReader> {}
-impl<T> OpNodeCore for T where T: RpcNodeCore<Provider: BlockReader> {}
+pub trait OpNodeCore: RpcNodeCore<Provider: BlockReader, Evm: ConfigureEvm> {}
+impl<T> OpNodeCore for T where T: RpcNodeCore<Provider: BlockReader, Evm: ConfigureEvm> {}
 
 /// OP-Reth `Eth` API implementation.
 ///
@@ -410,7 +410,7 @@ impl<NetworkT> OpEthApiBuilder<NetworkT> {
 
 impl<N, NetworkT> EthApiBuilder<N> for OpEthApiBuilder<NetworkT>
 where
-    N: FullNodeComponents,
+    N: FullNodeComponents<Evm: ConfigureEvm<NextBlockEnvCtx: BuildPendingEnv<HeaderTy<N::Types>>>>,
     NetworkT: RpcTypes,
     OpRpcConvert<N, NetworkT>: RpcConvert<Network = NetworkT>,
     OpEthApi<N, OpRpcConvert<N, NetworkT>>:

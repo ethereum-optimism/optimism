@@ -3,17 +3,13 @@
 use std::sync::Arc;
 
 use crate::OpEthApi;
-use alloy_consensus::BlockHeader;
 use alloy_eips::BlockNumberOrTag;
-use alloy_primitives::B256;
-use reth_chainspec::{ChainSpecProvider, EthChainSpec};
+use reth_chainspec::ChainSpecProvider;
 use reth_evm::ConfigureEvm;
 use reth_node_api::NodePrimitives;
-use reth_optimism_evm::OpNextBlockEnvAttributes;
-use reth_optimism_forks::OpHardforks;
-use reth_primitives_traits::{RecoveredBlock, SealedHeader};
+use reth_primitives_traits::RecoveredBlock;
 use reth_rpc_eth_api::{
-    helpers::{LoadPendingBlock, SpawnBlocking},
+    helpers::{pending_block::PendingEnvBuilder, LoadPendingBlock, SpawnBlocking},
     types::RpcTypes,
     EthApiTypes, FromEthApiError, FromEvmError, RpcConvert, RpcNodeCore,
 };
@@ -35,14 +31,9 @@ where
             RpcConvert: RpcConvert<Network = Self::NetworkTypes>,
         >,
     N: RpcNodeCore<
-        Provider: BlockReaderIdExt
-                      + ChainSpecProvider<ChainSpec: EthChainSpec + OpHardforks>
-                      + StateProviderFactory,
+        Provider: BlockReaderIdExt + ChainSpecProvider + StateProviderFactory,
         Pool: TransactionPool<Transaction: PoolTransaction<Consensus = ProviderTx<N::Provider>>>,
-        Evm: ConfigureEvm<
-            Primitives = <Self as RpcNodeCore>::Primitives,
-            NextBlockEnvCtx: From<OpNextBlockEnvAttributes>,
-        >,
+        Evm: ConfigureEvm<Primitives = Self::Primitives>,
         Primitives: NodePrimitives<
             BlockHeader = ProviderHeader<Self::Provider>,
             SignedTx = ProviderTx<Self::Provider>,
@@ -61,19 +52,9 @@ where
         self.inner.eth_api.pending_block()
     }
 
-    fn next_env_attributes(
-        &self,
-        parent: &SealedHeader<ProviderHeader<Self::Provider>>,
-    ) -> Result<<Self::Evm as ConfigureEvm>::NextBlockEnvCtx, Self::Error> {
-        Ok(OpNextBlockEnvAttributes {
-            timestamp: parent.timestamp().saturating_add(12),
-            suggested_fee_recipient: parent.beneficiary(),
-            prev_randao: B256::random(),
-            gas_limit: parent.gas_limit(),
-            parent_beacon_block_root: parent.parent_beacon_block_root(),
-            extra_data: parent.extra_data().clone(),
-        }
-        .into())
+    #[inline]
+    fn pending_env_builder(&self) -> &dyn PendingEnvBuilder<Self::Evm> {
+        self.inner.eth_api.pending_env_builder()
     }
 
     /// Returns the locally built pending block
