@@ -1,4 +1,4 @@
-package main
+package gnosis
 
 import (
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
