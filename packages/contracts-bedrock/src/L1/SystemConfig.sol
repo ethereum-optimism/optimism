@@ -28,6 +28,7 @@ contract SystemConfig is ProxyAdminOwnedBase, OwnableUpgradeable, Reinitializabl
     /// @custom:value GAS_LIMIT            Represents an update to gas limit on L2.
     /// @custom:value UNSAFE_BLOCK_SIGNER  Represents an update to the signer key for unsafe
     ///                                    block distrubution.
+    /// @custom:value MIN_BASEFEE_LOG2     Represents an update to the minimum basefee log2.
     enum UpdateType {
         BATCHER,
         FEE_SCALARS,
@@ -35,6 +36,7 @@ contract SystemConfig is ProxyAdminOwnedBase, OwnableUpgradeable, Reinitializabl
         UNSAFE_BLOCK_SIGNER,
         EIP_1559_PARAMS,
         OPERATOR_FEE_PARAMS
+        MIN_BASEFEE_LOG2
     }
 
     /// @notice Struct representing the addresses of L1 system contracts. These should be the
@@ -129,6 +131,9 @@ contract SystemConfig is ProxyAdminOwnedBase, OwnableUpgradeable, Reinitializabl
     /// @notice The operator fee constant.
     uint64 public operatorFeeConstant;
 
+    /// @notice The minimum basefee log2.
+    uint8 public minBasefeeLog2;
+
     /// @notice The L2 chain ID that this SystemConfig configures.
     uint256 public l2ChainId;
 
@@ -142,9 +147,9 @@ contract SystemConfig is ProxyAdminOwnedBase, OwnableUpgradeable, Reinitializabl
     event ConfigUpdate(uint256 indexed version, UpdateType indexed updateType, bytes data);
 
     /// @notice Semantic version.
-    /// @custom:semver 3.4.0
+    /// @custom:semver 3.5.0
     function version() public pure virtual returns (string memory) {
-        return "3.4.0";
+        return "3.5.0";
     }
 
     /// @notice Constructs the SystemConfig contract.
@@ -169,6 +174,7 @@ contract SystemConfig is ProxyAdminOwnedBase, OwnableUpgradeable, Reinitializabl
     /// @param _addresses         Set of L1 contract addresses. These should be the proxies.
     /// @param _l2ChainId         The L2 chain ID that this SystemConfig configures.
     /// @param _superchainConfig  The SuperchainConfig contract address.
+    /// @param _minBasefeeLog2    The minimum basefee log2.
     function initialize(
         address _owner,
         uint32 _basefeeScalar,
@@ -180,7 +186,8 @@ contract SystemConfig is ProxyAdminOwnedBase, OwnableUpgradeable, Reinitializabl
         address _batchInbox,
         SystemConfig.Addresses memory _addresses,
         uint256 _l2ChainId,
-        ISuperchainConfig _superchainConfig
+        ISuperchainConfig _superchainConfig,
+        uint8 _minBasefeeLog2
     )
         public
         reinitializer(initVersion())
@@ -196,6 +203,7 @@ contract SystemConfig is ProxyAdminOwnedBase, OwnableUpgradeable, Reinitializabl
         _setBatcherHash(_batcherHash);
         _setGasConfigEcotone({ _basefeeScalar: _basefeeScalar, _blobbasefeeScalar: _blobbasefeeScalar });
         _setGasLimit(_gasLimit);
+        _setMinBasefeeLog2(_minBasefeeLog2);
 
         Storage.setAddress(UNSAFE_BLOCK_SIGNER_SLOT, _unsafeBlockSigner);
         Storage.setAddress(BATCH_INBOX_SLOT, _batchInbox);
@@ -433,6 +441,19 @@ contract SystemConfig is ProxyAdminOwnedBase, OwnableUpgradeable, Reinitializabl
 
         bytes memory data = abi.encode(uint256(_operatorFeeScalar) << 64 | _operatorFeeConstant);
         emit ConfigUpdate(VERSION, UpdateType.OPERATOR_FEE_PARAMS, data);
+    }
+
+    /// @notice Updates the minimum basefee log2. Can only be called by the owner.
+    /// @param _minBasefeeLog2 The minimum basefee log2.
+    function setMinBasefeeLog2(uint8 _minBasefeeLog2) external onlyOwner {
+        _setMinBasefeeLog2(_minBasefeeLog2);
+    }
+
+    /// @notice Internal function for updating the minimum basefee log2.
+    /// @param _minBasefeeLog2 The minimum basefee log2.
+    function _setMinBasefeeLog2(uint8 _minBasefeeLog2) internal {
+        minBasefeeLog2 = _minBasefeeLog2;
+        emit ConfigUpdate(VERSION, UpdateType.MIN_BASEFEE_LOG2, abi.encode(_minBasefeeLog2));
     }
 
     /// @notice Sets the start block in a backwards compatible way. Proxies
