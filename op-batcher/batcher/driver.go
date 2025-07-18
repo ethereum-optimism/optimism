@@ -125,35 +125,14 @@ func NewBatchSubmitter(setup DriverSetup) *BatchSubmitter {
 		state.SetChannelOutFactory(setup.ChannelOutFactory)
 	}
 
-	factory := throttler.NewThrottleControllerFactory(setup.Log)
+	batcher := &BatchSubmitter{
+		DriverSetup: setup,
+		channelMgr:  state,
+	}
 
-	throttleController, err := factory.CreateController(
-		setup.Config.ThrottleControllerType,
-		setup.Config.ThrottleThreshold,
-		setup.Config.ThrottleTxSize,
-		setup.Config.ThrottleBlockSize,
-		setup.Config.ThrottleAlwaysBlockSize,
-		setup.Config.ThrottleThresholdMultiplier,
-		setup.Config.ThrottlePidConfig,
-	)
-
+	err := batcher.SetThrottleController(setup.Config.ThrottleControllerType, setup.Config.ThrottlePidConfig)
 	if err != nil {
 		panic(err)
-	}
-
-	if throttleController.GetType() == config.PIDControllerType {
-		if pidStrategy := throttleController.GetPIDStrategy(); pidStrategy != nil {
-			pidStrategy.SetMetrics(setup.Metr)
-			setup.Log.Info("PID metrics configured for initial controller")
-		}
-	}
-
-	setup.Metr.RecordThrottleControllerType(throttleController.GetType())
-
-	batcher := &BatchSubmitter{
-		DriverSetup:        setup,
-		channelMgr:         state,
-		throttleController: throttleController,
 	}
 
 	return batcher
