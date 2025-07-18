@@ -166,7 +166,8 @@ contract Initializer_Test is CommonTest {
                             optimismMintableERC20Factory: address(0)
                         }),
                         0,
-                        ISuperchainConfig(address(0))
+                        ISuperchainConfig(address(0)),
+                        24
                     )
                 )
             })
@@ -202,7 +203,8 @@ contract Initializer_Test is CommonTest {
                             optimismMintableERC20Factory: address(0)
                         }),
                         0,
-                        ISuperchainConfig(address(0))
+                        ISuperchainConfig(address(0)),
+                        24
                     )
                 )
             })
