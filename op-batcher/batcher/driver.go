@@ -1064,7 +1064,13 @@ func (l *BatchSubmitter) SetThrottleController(newType config.ThrottleController
 		return fmt.Errorf("invalid controller type: %s (must be one of: %v)", newType, config.ThrottleControllerTypes)
 	}
 
-	l.Log.Info("Changing throttle controller", "from", l.throttleController.GetType(), "to", newType)
+	unset := l.throttleController == nil
+
+	if unset {
+		l.Log.Info("Setting throttle controller", "type", newType)
+	} else {
+		l.Log.Info("Changing throttle controller", "from", l.throttleController.GetType(), "to", newType)
+	}
 
 	factory := throttler.NewThrottleControllerFactory(l.Log)
 
@@ -1106,7 +1112,7 @@ func (l *BatchSubmitter) SetThrottleController(newType config.ThrottleController
 
 	l.Metr.RecordThrottleControllerType(newController.GetType())
 
-	l.Log.Info("Successfully changed throttle controller",
+	l.Log.Info("Successfully set throttle controller",
 		"old_type", oldType,
 		"new_type", newController.GetType())
 
