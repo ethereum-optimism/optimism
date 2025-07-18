@@ -231,13 +231,6 @@ func ValidateEVM(t testing.TB, stepWitness *mipsevm.StepWitness, step uint64, go
 
 type ErrMatcher func(require.TestingT, []byte)
 
-// SilentRevertMatcher matches a low-level empty revert: `revert(0,0)`
-func SilentRevertMatcher() ErrMatcher {
-	return func(t require.TestingT, ret []byte) {
-		require.Equal(t, 0, len(ret), "Expected silent revert via `revert(0,0)`")
-	}
-}
-
 // StringErrorMatcher matches a string message revert: `revert("some string value")`
 func StringErrorMatcher(expect string) ErrMatcher {
 	return func(t require.TestingT, ret []byte) {

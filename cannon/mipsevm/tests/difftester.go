@@ -308,14 +308,6 @@ func ExpectVmPanicWithCustomErr(goPanicMsg interface{}, customErrSignature strin
 	}
 }
 
-func ExpectVmPanicWithSilentRevert(goPanicMsg interface{}, memoryProofAddresses ...arch.Word) ExpectedExecResult {
-	return vmPanicResult{
-		panicValue:           goPanicMsg,
-		evmErrorMatcher:      testutil.SilentRevertMatcher(),
-		memoryProofAddresses: memoryProofAddresses,
-	}
-}
-
 func (e vmPanicResult) assertExpectedResult(t testing.TB, goVm mipsevm.FPVM, vmVersion VersionedVMTestCase, expect *mtutil.ExpectedState, cfg *TestConfig) {
 	state := goVm.GetState()
 	proofData := vmVersion.ProofGenerator(t, state, e.memoryProofAddresses...)
