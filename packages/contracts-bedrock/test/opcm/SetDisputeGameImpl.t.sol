@@ -195,7 +195,8 @@ contract SetDisputeGameImpl_Test is Test {
                     optimismMintableERC20Factory: address(7)
                 }),
                 10,
-                ISuperchainConfig(address(supConfigProxy))
+                ISuperchainConfig(address(supConfigProxy)),
+                24
             )
         );
     }
