@@ -4,7 +4,6 @@ pragma solidity ^0.8.0;
 // Interfaces
 import {IOptimismGovernor} from './IOptimismGovernor.sol';
 import { ISemver } from "interfaces/universal/ISemver.sol";
-import { IProposalTypesConfigurator } from './IProposalTypesConfigurator.sol';
 
 /// @title IProposalValidator
 /// @notice Interface for the ProposalValidator contract.
@@ -167,7 +166,6 @@ interface IProposalValidator is ISemver {
 
     function initialize(
         address _owner,
-        IProposalTypesConfigurator _proposalTypesConfigurator,
         uint256 _cycleNumber,
         uint256 _startingTimestamp,
         uint256 _duration,
@@ -194,8 +192,6 @@ interface IProposalValidator is ISemver {
     function TOP_DELEGATES_ATTESTATION_SCHEMA_UID() external view returns (bytes32);
 
     function OPTIMISTIC_MODULE_PERCENT_DIVISOR() external view returns (uint256);
-
-    function proposalTypesConfigurator() external view returns (IProposalTypesConfigurator);
 
     function proposalTypesData(ProposalType) external view returns (uint256 requiredApprovals, uint8 proposalVotingModule);
 
