@@ -104,6 +104,7 @@ contract VerifyOPCM is Script {
         fieldNameOverrides["superPermissionlessDisputeGame2"] = "SuperFaultDisputeGame";
         fieldNameOverrides["superPermissionedDisputeGame1"] = "SuperPermissionedDisputeGame";
         fieldNameOverrides["superPermissionedDisputeGame2"] = "SuperPermissionedDisputeGame";
+        fieldNameOverrides["contractsContainer"] = "OPContractsManagerContractsContainer";
         fieldNameOverrides["opcmGameTypeAdder"] = "OPContractsManagerGameTypeAdder";
         fieldNameOverrides["opcmDeployer"] = "OPContractsManagerDeployer";
         fieldNameOverrides["opcmUpgrader"] = "OPContractsManagerUpgrader";
@@ -115,6 +116,7 @@ contract VerifyOPCM is Script {
         sourceNameOverrides["OPContractsManagerDeployer"] = "OPContractsManager";
         sourceNameOverrides["OPContractsManagerUpgrader"] = "OPContractsManager";
         sourceNameOverrides["OPContractsManagerInteropMigrator"] = "OPContractsManager";
+        sourceNameOverrides["OPContractsManagerContractsContainer"] = "OPContractsManager";
 
         // Mark as ready.
         ready = true;
@@ -182,9 +184,17 @@ contract VerifyOPCM is Script {
     /// @return Array of OpcmContractRef structs containing contract names/addresses.
     function _collectOpcmContractRefs(IOPContractsManager _opcm) internal returns (OpcmContractRef[] memory) {
         // Collect property references.
-        OpcmContractRef[] memory propRefs = _getOpcmPropertyRefs(_opcm);
+        OpcmContractRef[] memory propRefs = _getOpcmPropertyRefs(address(_opcm), "OPContractsManager");
         if (propRefs.length == 0) {
             revert VerifyOPCM_NoProperties();
+        }
+
+        // Get property refs for each property ref.
+        OpcmContractRef[][] memory nestedPropRefs = new OpcmContractRef[][](propRefs.length);
+        uint256 nestedPropRefLength = 0;
+        for (uint256 i = 0; i < propRefs.length; i++) {
+            nestedPropRefs[i] = _getOpcmPropertyRefs(propRefs[i].addr, propRefs[i].name);
+            nestedPropRefLength += nestedPropRefs[i].length;
         }
 
         // Collect implementation references.
@@ -202,24 +212,32 @@ contract VerifyOPCM is Script {
         // Create a single array to join everything together.
         uint256 extraRefs = 1;
         OpcmContractRef[] memory refs =
-            new OpcmContractRef[](propRefs.length + implRefs.length + bpRefs.length + extraRefs);
+            new OpcmContractRef[](propRefs.length + nestedPropRefLength + implRefs.length + bpRefs.length + extraRefs);
 
         // References for OPCM and linked contracts.
         refs[0] = OpcmContractRef({ field: "opcm", name: "OPContractsManager", addr: address(_opcm), blueprint: false });
 
         // Add the property references.
+        uint256 writeIdx = extraRefs;
         for (uint256 i = 0; i < propRefs.length; i++) {
-            refs[i + extraRefs] = propRefs[i];
+            refs[writeIdx++] = propRefs[i];
+        }
+
+        // Add the nested property references.
+        for (uint256 i = 0; i < nestedPropRefs.length; i++) {
+            for (uint256 j = 0; j < nestedPropRefs[i].length; j++) {
+                refs[writeIdx++] = nestedPropRefs[i][j];
+            }
         }
 
         // Add the implementation references.
         for (uint256 i = 0; i < implRefs.length; i++) {
-            refs[i + extraRefs + propRefs.length] = implRefs[i];
+            refs[writeIdx++] = implRefs[i];
         }
 
         // Add the blueprint references.
         for (uint256 i = 0; i < bpRefs.length; i++) {
-            refs[i + extraRefs + propRefs.length + implRefs.length] = bpRefs[i];
+            refs[writeIdx++] = bpRefs[i];
         }
 
         // Return the combined references.
@@ -455,17 +473,28 @@ contract VerifyOPCM is Script {
     /// @notice Uses the OPContractsManager ABI JSON and the live OPCM contract to extract a list
     ///         of contract names and their corresonding addresses for the various immutable
     ///         references to other OPCM contracts.
-    /// @param _opcm The live OPCM contract.
+    /// @param _contractAddress The address of the contract to get the property refs for.
+    /// @param _contractName The name of the contract to get the property refs for.
     /// @return Array of OpcmContractRef structs containing contract names/addresses.
-    function _getOpcmPropertyRefs(IOPContractsManager _opcm) internal returns (OpcmContractRef[] memory) {
+    function _getOpcmPropertyRefs(
+        address _contractAddress,
+        string memory _contractName
+    )
+        internal
+        returns (OpcmContractRef[] memory)
+    {
         // Find all functions that start with "opcm".
+        // We also include "contractsContainer" because it's a special case that helps us avoid a
+        // whole lot of unnecessary custom code. We probably want to update the contracts so that
+        // the field is called "opcmContainer" or similar to avoid the one-off addition.
         string[] memory functionNames = abi.decode(
             vm.parseJson(
                 Process.bash(
                     string.concat(
-                        "jq -r '[.abi[] | select(.name? and (.name | type == \"string\") and (.name | startswith(\"opcm\"))) | .name]' ",
-                        _buildArtifactPath("OPContractsManager")
-                    )
+                        "jq -r '[.abi[] | select(.name? and (.name | type == \"string\") and ((.name | startswith(\"opcm\")) or (.name == \"contractsContainer\"))) | .name]' ",
+                        _buildArtifactPath(_contractName)
+                    ),
+                    true
                 )
             ),
             (string[])
@@ -480,7 +509,7 @@ contract VerifyOPCM is Script {
             // Call the function to retrieve the encoded address.
             // nosemgrep: sol-style-use-abi-encodecall
             (bool callSuccess, bytes memory returnedData) =
-                address(_opcm).staticcall(abi.encodeWithSignature(string.concat(functionName, "()")));
+                _contractAddress.staticcall(abi.encodeWithSignature(string.concat(functionName, "()")));
             if (!callSuccess) {
                 console.log(string.concat("[FAIL] ERROR: Failed to call ", functionName, "() function on OPCM."));
                 return new OpcmContractRef[](0);
