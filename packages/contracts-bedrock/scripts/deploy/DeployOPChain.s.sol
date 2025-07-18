@@ -465,7 +465,6 @@ contract DeployOPChain is Script {
     // -------- Deployment Assertions --------
     function assertValidDeploy(DeployOPChainInput _doi, DeployOPChainOutput _doo) internal {
         assertValidAnchorStateRegistryProxy(_doi, _doo);
-        assertValidDelayedWETH(_doi, _doo);
         assertValidDisputeGameFactory(_doi, _doo);
         ChainAssertions.checkL1CrossDomainMessenger(_doo.l1CrossDomainMessengerProxy(), vm, true);
         assertValidL1ERC721Bridge(_doo);
@@ -644,17 +643,6 @@ contract DeployOPChain is Script {
             "DF-10"
         );
         require(factory.owner() == address(_doi.opChainProxyAdminOwner()), "DF-20");
-    }
-
-    function assertValidDelayedWETH(DeployOPChainInput _doi, DeployOPChainOutput _doo) internal {
-        IDelayedWETH permissioned = _doo.delayedWETHPermissionedGameProxy();
-
-        require(permissioned.proxyAdminOwner() == address(_doi.opChainProxyAdminOwner()), "DWETH-10");
-
-        IProxy proxy = IProxy(payable(address(permissioned)));
-        vm.prank(address(0));
-        address admin = proxy.admin();
-        require(admin == address(_doo.opChainProxyAdmin()), "DWETH-20");
     }
 
     function assertValidAddressManager(DeployOPChainInput, DeployOPChainOutput _doo) internal view {

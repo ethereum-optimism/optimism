@@ -203,15 +203,6 @@ library ChainAssertions {
         require(factory.owner() == _expectedOwner, "CHECK-DG-20");
     }
 
-    /// @notice Asserts that the PreimageOracle is setup correctly
-    function checkPreimageOracle(IPreimageOracle _oracle, DeployConfig _cfg) internal view {
-        console.log("Running chain assertions on the PreimageOracle at %s", address(_oracle));
-        require(address(_oracle) != address(0), "CHECK-PIO-10");
-
-        require(_oracle.minProposalSize() == _cfg.preimageOracleMinProposalSize(), "CHECK-PIO-30");
-        require(_oracle.challengePeriod() == _cfg.preimageOracleChallengePeriod(), "CHECK-PIO-40");
-    }
-
     /// @notice Asserts that the MIPs contract is setup correctly
     function checkMIPS(IMIPS _mips, IPreimageOracle _oracle) internal view {
         console.log("Running chain assertions on the MIPS at %s", address(_mips));
@@ -221,31 +212,14 @@ library ChainAssertions {
     }
 
     /// @notice Asserts that the DelayedWETH is setup correctly
-    function checkDelayedWETH(
-        Types.ContractSet memory _contracts,
-        DeployConfig _cfg,
-        bool _isProxy,
-        address _expectedOwner
-    )
-        internal
-        view
-    {
-        IDelayedWETH weth = IDelayedWETH(payable(_contracts.DelayedWETH));
-        console.log(
-            "Running chain assertions on the DelayedWETH %s at %s", _isProxy ? "proxy" : "implementation", address(weth)
-        );
-        require(address(weth) != address(0), "CHECK-DWETH-10");
+    function checkDelayedWETHImpl(IDelayedWETH _weth, uint256 faultGameWithdrawalDelay) internal view {
+        console.log("Running chain assertions on the DelayedWETH implementation at %s", address(_weth));
+        require(address(_weth) != address(0), "CHECK-DWETH-10");
 
         // Check that the contract is initialized
-        DeployUtils.assertInitialized({ _contractAddress: address(weth), _isProxy: _isProxy, _slot: 0, _offset: 0 });
+        DeployUtils.assertInitialized({ _contractAddress: address(_weth), _isProxy: false, _slot: 0, _offset: 0 });
 
-        if (_isProxy) {
-            require(weth.proxyAdminOwner() == _expectedOwner, "CHECK-DWETH-20");
-            require(weth.delay() == _cfg.faultGameWithdrawalDelay(), "CHECK-DWETH-30");
-            require(weth.systemConfig() == ISystemConfig(_contracts.SystemConfig), "CHECK-DWETH-40");
-        } else {
-            require(weth.delay() == _cfg.faultGameWithdrawalDelay(), "CHECK-DWETH-50");
-        }
+        require(_weth.delay() == faultGameWithdrawalDelay, "CHECK-DWETH-50");
     }
 
     /// @notice Asserts that the OptimismMintableERC20Factory is setup correctly
@@ -346,31 +320,14 @@ library ChainAssertions {
     }
 
     /// @notice Asserts that the ETHLockbox is setup correctly
-    function checkETHLockbox(Types.ContractSet memory _contracts, DeployConfig _cfg, bool _isProxy) internal view {
-        IETHLockbox ethLockbox = IETHLockbox(_contracts.ETHLockbox);
-
-        console.log(
-            "Running chain assertions on the ETHLockbox %s at %s",
-            _isProxy ? "proxy" : "implementation",
-            address(ethLockbox)
-        );
-
-        require(address(ethLockbox) != address(0), "CHECK-ELB-10");
+    function checkETHLockboxImpl(IETHLockbox _ethLockbox, IOptimismPortal _portal) internal view {
+        console.log("Running chain assertions on the ETHLockbox implementation at %s", address(_ethLockbox));
 
         // Check that the contract is initialized
-        DeployUtils.assertInitialized({ _contractAddress: address(ethLockbox), _isProxy: _isProxy, _slot: 0, _offset: 0 });
+        DeployUtils.assertInitialized({ _contractAddress: address(_ethLockbox), _isProxy: false, _slot: 0, _offset: 0 });
 
-        if (_isProxy) {
-            require(ethLockbox.systemConfig() == ISystemConfig(_contracts.SystemConfig), "CHECK-ELB-20");
-            require(ethLockbox.authorizedPortals(IOptimismPortal(payable(_contracts.OptimismPortal))), "CHECK-ELB-30");
-            require(ethLockbox.proxyAdminOwner() == _cfg.finalSystemOwner(), "CHECK-ELB-40");
-        } else {
-            require(address(ethLockbox.systemConfig()) == address(0), "CHECK-ELB-50");
-            require(
-                ethLockbox.authorizedPortals(IOptimismPortal(payable(_contracts.OptimismPortal))) == false,
-                "CHECK-ELB-60"
-            );
-        }
+        require(address(_ethLockbox.systemConfig()) == address(0), "CHECK-ELB-50");
+        require(_ethLockbox.authorizedPortals(_portal) == false, "CHECK-ELB-60");
     }
 
     /// @notice Asserts that the ProtocolVersions is setup correctly

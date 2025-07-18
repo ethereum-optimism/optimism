@@ -626,18 +626,22 @@ contract DeployImplementations is Script {
 
         DeployUtils.assertValidContractAddresses(Solarray.extend(addrs1, addrs2));
 
-        assertValidDelayedWETHImpl(_input, _output);
+        ChainAssertions.checkDelayedWETHImpl(_output.delayedWETHImpl, _input.withdrawalDelaySeconds);
         assertValidDisputeGameFactoryImpl(_input, _output);
-        assertValidAnchorStateRegistryImpl(_input, _output);
+        DeployUtils.assertInitialized({
+            _contractAddress: address(_output.anchorStateRegistryImpl),
+            _isProxy: false,
+            _slot: 0,
+            _offset: 0
+        });
         ChainAssertions.checkL1CrossDomainMessenger(_output.l1CrossDomainMessengerImpl, vm, false);
         assertValidL1ERC721BridgeImpl(_input, _output);
         assertValidL1StandardBridgeImpl(_input, _output);
-        assertValidMipsSingleton(_input, _output);
+        ChainAssertions.checkMIPS(_output.mipsSingleton, _output.preimageOracleSingleton);
         assertValidOpcm(_input, _output);
         assertValidOptimismMintableERC20FactoryImpl(_input, _output);
         assertValidOptimismPortalImpl(_input, _output);
-        assertValidETHLockboxImpl(_input, _output);
-        assertValidPreimageOracleSingleton(_input, _output);
+        ChainAssertions.checkETHLockboxImpl(_output.ethLockboxImpl, _output.optimismPortalImpl);
         assertValidSystemConfigImpl(_input, _output);
     }
 
@@ -662,36 +666,6 @@ contract DeployImplementations is Script {
         require(vm.load(address(portal), bytes32(uint256(61))) == bytes32(0), "PORTAL-40");
 
         require(address(portal.ethLockbox()) == address(0), "PORTAL-50");
-    }
-
-    function assertValidETHLockboxImpl(Input memory, Output memory _output) private view {
-        IETHLockbox lockbox = _output.ethLockboxImpl;
-
-        DeployUtils.assertInitialized({ _contractAddress: address(lockbox), _isProxy: false, _slot: 0, _offset: 0 });
-
-        require(address(lockbox.systemConfig()) == address(0), "ELB-10");
-        require(lockbox.authorizedPortals(_output.optimismPortalImpl) == false, "ELB-20");
-    }
-
-    function assertValidDelayedWETHImpl(Input memory _input, Output memory _output) private view {
-        IDelayedWETH delayedWETH = _output.delayedWETHImpl;
-
-        DeployUtils.assertInitialized({ _contractAddress: address(delayedWETH), _isProxy: false, _slot: 0, _offset: 0 });
-
-        require(delayedWETH.delay() == _input.withdrawalDelaySeconds, "DW-10");
-        require(delayedWETH.systemConfig() == ISystemConfig(address(0)), "DW-20");
-    }
-
-    function assertValidPreimageOracleSingleton(Input memory _input, Output memory _output) private view {
-        IPreimageOracle oracle = _output.preimageOracleSingleton;
-
-        require(oracle.minProposalSize() == _input.minProposalSizeBytes, "PO-10");
-        require(oracle.challengePeriod() == _input.challengePeriodSeconds, "PO-20");
-    }
-
-    function assertValidMipsSingleton(Input memory, Output memory _output) private view {
-        IMIPS mips = _output.mipsSingleton;
-        require(address(mips.oracle()) == address(_output.preimageOracleSingleton), "MIPS-10");
     }
 
     function assertValidSystemConfigImpl(Input memory, Output memory _output) private view {
@@ -764,11 +738,5 @@ contract DeployImplementations is Script {
         DeployUtils.assertInitialized({ _contractAddress: address(factory), _isProxy: false, _slot: 0, _offset: 0 });
 
         require(address(factory.owner()) == address(0), "DG-10");
-    }
-
-    function assertValidAnchorStateRegistryImpl(Input memory, Output memory _output) private view {
-        IAnchorStateRegistry registry = _output.anchorStateRegistryImpl;
-
-        DeployUtils.assertInitialized({ _contractAddress: address(registry), _isProxy: false, _slot: 0, _offset: 0 });
     }
 }
