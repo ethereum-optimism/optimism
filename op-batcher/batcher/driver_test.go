@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"math/big"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -18,6 +19,8 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum-optimism/optimism/op-service/testutils"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/stretchr/testify/require"
 )
@@ -47,6 +50,21 @@ func (p *mockL2EndpointProvider) RollupClient(context.Context) (dial.RollupClien
 func (p *mockL2EndpointProvider) Close() {}
 
 const genesisL1Origin = uint64(123)
+
+// mockL1Client implements the L1Client interface for testing
+type mockL1Client struct{}
+
+func (m *mockL1Client) HeaderByNumber(ctx context.Context, number *big.Int) (*types.Header, error) {
+	// Return a mock L1 header
+	return &types.Header{
+		Number: big.NewInt(1000),
+		Time:   1000000,
+	}, nil
+}
+
+func (m *mockL1Client) NonceAt(ctx context.Context, account common.Address, blockNumber *big.Int) (uint64, error) {
+	return 0, nil
+}
 
 func setup(t *testing.T) (*BatchSubmitter, *mockL2EndpointProvider) {
 	ep := newEndpointProvider()
@@ -335,4 +353,42 @@ func TestBatchSubmitter_ThrottlingEndpoints(t *testing.T) {
 	t.Run("two normal endpoints", testThrottlingEndpoints(2, 0))
 	t.Run("two failing endpoints", testThrottlingEndpoints(0, 2))
 	t.Run("one normal endpoint, one failing endpoint", testThrottlingEndpoints(1, 1))
+}
+
+func TestBatchSubmitter_FlushBatchSubmitting(t *testing.T) {
+	bs, ep := setup(t)
+
+	// Test that flush fails when batcher is not running
+	err := bs.FlushBatchSubmitting(context.Background())
+	require.Error(t, err)
+	require.Equal(t, ErrBatcherNotRunning, err)
+
+	// Mock L1 tip response - set this up before starting the batcher
+	ep.rollupClient.ExpectSyncStatus(&eth.SyncStatus{
+		HeadL1: eth.L1BlockRef{
+			Number: 1000,
+			Hash:   [32]byte{0x01},
+		},
+	}, nil)
+
+	// Set the L1 client and batcher configuration
+	bs.L1Client = &mockL1Client{}
+	bs.Config = BatcherConfig{
+		PollInterval: 100 * time.Millisecond, // Use a reasonable poll interval for testing
+	}
+
+	// Start the batcher
+	err = bs.StartBatchSubmitting()
+	require.NoError(t, err)
+
+	// Verify that the publish signal channel was created
+	require.NotNil(t, bs.publishSignal)
+
+	// Test that flush succeeds when batcher is running
+	err = bs.FlushBatchSubmitting(context.Background())
+	require.NoError(t, err)
+
+	// Stop the batcher
+	err = bs.StopBatchSubmitting(context.Background())
+	require.NoError(t, err)
 }
