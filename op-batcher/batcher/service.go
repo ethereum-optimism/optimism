@@ -47,13 +47,7 @@ type BatcherConfig struct {
 	CheckRecentTxsDepth int
 
 	// For throttling DA. See CLIConfig in config.go for details on these parameters.
-	ThrottleThreshold, ThrottleTxSize          uint64
-	ThrottleBlockSize, ThrottleAlwaysBlockSize uint64
-	ThrottleThresholdMultiplier                float64
-	ThrottlingEndpoints                        []string
-
-	ThrottleControllerType config.ThrottleControllerType
-	ThrottlePidConfig      *config.PIDConfig
+	ThrottleParams config.ThrottleParams
 }
 
 // BatcherService represents a full batch-submitter instance and its resources,
@@ -112,24 +106,21 @@ func (bs *BatcherService) initFromCLIConfig(ctx context.Context, version string,
 	bs.CheckRecentTxsDepth = cfg.CheckRecentTxsDepth
 	bs.WaitNodeSync = cfg.WaitNodeSync
 
-	bs.ThrottleThreshold = cfg.ThrottleThreshold
-	bs.ThrottleTxSize = cfg.ThrottleTxSize
-	bs.ThrottleBlockSize = cfg.ThrottleBlockSize
-	bs.ThrottleAlwaysBlockSize = cfg.ThrottleAlwaysBlockSize
-	bs.ThrottleThresholdMultiplier = cfg.ThrottleThresholdMultiplier
+	bs.ThrottleParams = config.ThrottleParams{
+		Threshold:           cfg.ThrottleThreshold,
+		TxSize:              cfg.ThrottleTxSize,
+		BlockSize:           cfg.ThrottleBlockSize,
+		AlwaysBlockSize:     cfg.ThrottleAlwaysBlockSize,
+		ThresholdMultiplier: cfg.ThrottleThresholdMultiplier,
+		ControllerType:      cfg.ThrottleControllerType,
+		Endpoints:           slices.Union(cfg.L2EthRpc, cfg.AdditionalThrottlingEndpoints),
+	}
 
-	// Combine the L2EthRpc and RollupRpc into a single list of endpoints for throttling.
-	bs.ThrottlingEndpoints = slices.Union(cfg.L2EthRpc, cfg.AdditionalThrottlingEndpoints)
-
-	// Initialize throttle controller configuration
-	bs.ThrottleControllerType = config.ThrottleControllerType(cfg.ThrottleControllerType)
-
-	// Initialize PID configuration if using PID controller
-	if bs.ThrottleControllerType == config.PIDControllerType {
+	if bs.ThrottleParams.ControllerType == config.PIDControllerType {
 		bs.Log.Warn("EXPERIMENTAL PID CONTROLLER CONFIGURED")
 		bs.Log.Warn("PID controller is EXPERIMENTAL and should only be used by control theory experts. Improper configuration can lead to system instability or poor performance. Monitor system behavior closely when using PID control.")
 
-		bs.ThrottlePidConfig = &config.PIDConfig{
+		bs.ThrottleParams.PIDConfig = &config.PIDConfig{
 			Kp:          cfg.ThrottlePidKp,
 			Ki:          cfg.ThrottlePidKi,
 			Kd:          cfg.ThrottlePidKd,
@@ -138,12 +129,12 @@ func (bs *BatcherService) initFromCLIConfig(ctx context.Context, version string,
 			SampleTime:  cfg.ThrottlePidSampleTime,
 		}
 		bs.Log.Info("Initialized PID throttle controller",
-			"kp", bs.ThrottlePidConfig.Kp,
-			"ki", bs.ThrottlePidConfig.Ki,
-			"kd", bs.ThrottlePidConfig.Kd,
-			"integral_max", bs.ThrottlePidConfig.IntegralMax,
-			"output_max", bs.ThrottlePidConfig.OutputMax,
-			"sample_time", bs.ThrottlePidConfig.SampleTime)
+			"kp", bs.ThrottleParams.PIDConfig.Kp,
+			"ki", bs.ThrottleParams.PIDConfig.Ki,
+			"kd", bs.ThrottleParams.PIDConfig.Kd,
+			"integral_max", bs.ThrottleParams.PIDConfig.IntegralMax,
+			"output_max", bs.ThrottleParams.PIDConfig.OutputMax,
+			"sample_time", bs.ThrottleParams.PIDConfig.SampleTime)
 	}
 
 	if err := bs.initRPCClients(ctx, cfg); err != nil {

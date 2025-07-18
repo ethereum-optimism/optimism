@@ -50,3 +50,14 @@ type PIDConfig struct {
 	OutputMax   float64       `json:"output_max"`
 	SampleTime  time.Duration `json:"sample_time"`
 }
+
+type ThrottleParams struct {
+	Threshold           uint64
+	TxSize              uint64
+	BlockSize           uint64
+	AlwaysBlockSize     uint64
+	ThresholdMultiplier float64
+	PIDConfig           *PIDConfig
+	ControllerType      ThrottleControllerType
+	Endpoints           []string
+}

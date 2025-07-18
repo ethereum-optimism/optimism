@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ethereum-optimism/optimism/op-batcher/config"
 	"github.com/ethereum-optimism/optimism/op-batcher/metrics"
 	"github.com/ethereum-optimism/optimism/op-service/dial"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
@@ -236,11 +237,13 @@ func TestBatchSubmitter_ThrottlingEndpoints(t *testing.T) {
 			bs, _ := setup(t)
 			bs.shutdownCtx = ctx
 			bs.Config = BatcherConfig{
-				NetworkTimeout:      time.Second,
-				ThrottleThreshold:   10000,
-				ThrottleTxSize:      5000,
-				ThrottleBlockSize:   20000,
-				ThrottlingEndpoints: urls,
+				NetworkTimeout: time.Second,
+				ThrottleParams: config.ThrottleParams{
+					Threshold: 10000,
+					TxSize:    5000,
+					BlockSize: 20000,
+					Endpoints: urls,
+				},
 			}
 
 			// Test the throttling loop

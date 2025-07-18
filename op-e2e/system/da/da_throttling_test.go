@@ -38,7 +38,7 @@ func TestDATxThrottling(t *testing.T) {
 		return waitForReceipt(t, hash, l2Seq)
 	}
 
-	require.NotEmpty(t, batcher.Config.ThrottlingEndpoints, "throttling endpoints should not be empty")
+	require.NotEmpty(t, batcher.Config.ThrottleParams.Endpoints, "throttling endpoints should not be empty")
 
 	// send a big transaction before throttling could have started, this transaction should land
 	receipt := sendTx(cfg.Secrets.Alice, 0, bigTxSize)
@@ -157,7 +157,7 @@ func setupTest(t *testing.T, maxTxSize, maxBlockSize uint64) (e2esys.SystemConfi
 	l2Verif := sys.NodeClient("verifier")
 
 	batcher := sys.BatchSubmitter.ThrottlingTestDriver()
-	require.NotEmpty(t, batcher.Config.ThrottlingEndpoints, "throttling endpoints should not be empty")
+	require.NotEmpty(t, batcher.Config.ThrottleParams.Endpoints, "throttling endpoints should not be empty")
 
 	return cfg, rollupClient, l2Seq, l2Verif, batcher
 }
