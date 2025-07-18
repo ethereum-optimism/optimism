@@ -94,7 +94,7 @@ func MigrateCLI(cliCtx *cli.Context) error {
 	}
 
 	input := InteropMigrationInput{
-		Prank:                          common.HexToAddress(cliCtx.String(PrankFlag.Name)),
+		Prank:                          common.Address{}, // The current CLI does not support prank address, so we set it to zero.
 		Opcm:                           common.HexToAddress(cliCtx.String(OPCMImplFlag.Name)),
 		UsePermissionlessGame:          cliCtx.Bool(PermissionlessFlag.Name),
 		StartingAnchorRoot:             common.HexToHash(cliCtx.String(StartingAnchorRootFlag.Name)),

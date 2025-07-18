@@ -13,11 +13,6 @@ var (
 		Usage:   "Address to use for as the proxy admin owner. Not compatible with the --workdir flag.",
 		EnvVars: deployer.PrefixEnvVar("PROXY_ADMIN_OWNER"),
 	}
-	PrankFlag = &cli.StringFlag{
-		Name:    "prank-address",
-		Usage:   "Address to use for the prankster.",
-		EnvVars: deployer.PrefixEnvVar("PRANK_ADDRESS"),
-	}
 	OPCMImplFlag = &cli.StringFlag{
 		Name:    "opcm-impl-address",
 		Usage:   "Address of the OPCM implementation contract. Not compatible with the --workdir flag.",
@@ -158,14 +153,13 @@ var Commands = cli.Commands{
 	},
 	&cli.Command{
 		Name:  "migrate",
-		Usage: "Migrates the state from one version to another",
+		Usage: "Migrates the chain to use superproofs",
 		Flags: append([]cli.Flag{
 			deployer.CacheDirFlag,
 			deployer.L1RPCURLFlag,
 			deployer.PrivateKeyFlag,
 			deployer.ArtifactsLocatorFlag,
 			L1ProxyAdminOwnerFlag,
-			PrankFlag,
 			OPCMImplFlag,
 			PermissionlessFlag,
 			StartingAnchorRootFlag,
