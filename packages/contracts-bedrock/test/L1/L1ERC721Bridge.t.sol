@@ -28,6 +28,69 @@ contract L1ERC721Bridge_TestERC721_Harness is ERC721 {
     }
 }
 
+/// @notice Malicious ERC721 that attempts reentrancy during transfers.
+contract L1ERC721Bridge_MaliciousReentrantERC721_Harness is ERC721 {
+    IL1ERC721Bridge public bridge;
+    address public remoteToken;
+    uint256 public attackTokenId;
+    bool public attacked;
+
+    constructor() ERC721("Malicious", "MAL") { }
+
+    function mint(address to, uint256 tokenId) public {
+        _mint(to, tokenId);
+    }
+
+    function setBridge(address _bridge, address _remoteToken, uint256 _tokenId) external {
+        bridge = IL1ERC721Bridge(_bridge);
+        remoteToken = _remoteToken;
+        attackTokenId = _tokenId;
+    }
+
+    function transferFrom(address from, address to, uint256 tokenId) public override {
+        super.transferFrom(from, to, tokenId);
+        if (!attacked && to == address(bridge)) {
+            attacked = true;
+            // Attempt reentrancy during deposit
+            try bridge.finalizeBridgeERC721(address(this), remoteToken, from, from, attackTokenId, hex"") {
+                // Should not reach here if properly protected
+            } catch {
+                // Expected to fail due to access control
+            }
+        }
+    }
+}
+
+/// @notice ERC721 that reverts on transfers to test error handling.
+contract L1ERC721Bridge_RevertingERC721_Harness is ERC721 {
+    bool public shouldRevert;
+
+    constructor() ERC721("Reverting", "REV") { }
+
+    function mint(address to, uint256 tokenId) public {
+        _mint(to, tokenId);
+    }
+
+    function setShouldRevert(bool _shouldRevert) external {
+        shouldRevert = _shouldRevert;
+    }
+
+    function transferFrom(address from, address to, uint256 tokenId) public override {
+        require(!shouldRevert, "RevertingERC721: transfer disabled");
+        super.transferFrom(from, to, tokenId);
+    }
+
+    function safeTransferFrom(address from, address to, uint256 tokenId) public override {
+        require(!shouldRevert, "RevertingERC721: transfer disabled");
+        super.safeTransferFrom(from, to, tokenId);
+    }
+
+    function safeTransferFrom(address from, address to, uint256 tokenId, bytes memory data) public override {
+        require(!shouldRevert, "RevertingERC721: transfer disabled");
+        super.safeTransferFrom(from, to, tokenId, data);
+    }
+}
+
 /// @title L1ERC721Bridge_TestInit
 /// @notice Test contract for L1ERC721Bridge initialization and setup.
 contract L1ERC721Bridge_TestInit is CommonTest {
@@ -346,6 +409,116 @@ contract L1ERC721Bridge_FinalizeBridgeERC721_Test is L1ERC721Bridge_TestInit {
             _extraData: hex""
         });
     }
+
+    /// @notice Tests that finalizeBridgeERC721 is protected against reentrancy attacks.
+    function test_finalizeBridgeERC721_reentrancyProtection_succeeds() external {
+        L1ERC721Bridge_MaliciousReentrantERC721_Harness maliciousToken =
+            new L1ERC721Bridge_MaliciousReentrantERC721_Harness();
+
+        // Set up the malicious token
+        maliciousToken.mint(alice, tokenId);
+        maliciousToken.setBridge(address(l1ERC721Bridge), address(remoteToken), tokenId + 1);
+
+        // Approve and bridge the malicious token
+        vm.prank(alice);
+        maliciousToken.approve(address(l1ERC721Bridge), tokenId);
+
+        vm.prank(alice, alice);
+        l1ERC721Bridge.bridgeERC721(address(maliciousToken), address(remoteToken), tokenId, 1234, hex"5678");
+
+        // Mock the cross-domain messenger call
+        vm.mockCall(
+            address(l1CrossDomainMessenger),
+            abi.encodeCall(l1CrossDomainMessenger.xDomainMessageSender, ()),
+            abi.encode(Predeploys.L2_ERC721_BRIDGE)
+        );
+
+        // Finalize the withdrawal - reentrancy should be blocked by access control
+        vm.prank(address(l1CrossDomainMessenger));
+        l1ERC721Bridge.finalizeBridgeERC721(
+            address(maliciousToken), address(remoteToken), alice, alice, tokenId, hex"5678"
+        );
+
+        // Verify the attack failed and state is consistent
+        assertTrue(maliciousToken.attacked());
+        assertFalse(l1ERC721Bridge.deposits(address(maliciousToken), address(remoteToken), tokenId));
+        assertEq(maliciousToken.ownerOf(tokenId), alice);
+    }
+
+    /// @notice Tests finalizeBridgeERC721 with a reverting ERC721 contract.
+    function test_finalizeBridgeERC721_revertingToken_reverts() external {
+        L1ERC721Bridge_RevertingERC721_Harness revertingToken = new L1ERC721Bridge_RevertingERC721_Harness();
+
+        // Set up and bridge the token normally
+        revertingToken.mint(alice, tokenId);
+        vm.prank(alice);
+        revertingToken.approve(address(l1ERC721Bridge), tokenId);
+
+        vm.prank(alice, alice);
+        l1ERC721Bridge.bridgeERC721(address(revertingToken), address(remoteToken), tokenId, 1234, hex"5678");
+
+        // Enable reverting behavior
+        revertingToken.setShouldRevert(true);
+
+        // Mock the cross-domain messenger call
+        vm.mockCall(
+            address(l1CrossDomainMessenger),
+            abi.encodeCall(l1CrossDomainMessenger.xDomainMessageSender, ()),
+            abi.encode(Predeploys.L2_ERC721_BRIDGE)
+        );
+
+        // Finalize should revert due to the malicious token
+        vm.prank(address(l1CrossDomainMessenger));
+        vm.expectRevert("RevertingERC721: transfer disabled");
+        l1ERC721Bridge.finalizeBridgeERC721(
+            address(revertingToken), address(remoteToken), alice, alice, tokenId, hex"5678"
+        );
+    }
+
+    /// @notice Tests finalizeBridgeERC721 with extreme tokenId values.
+    /// @param _tokenId Random tokenId to test edge cases.
+    function testFuzz_finalizeBridgeERC721_extremeTokenIds_succeeds(uint256 _tokenId) external {
+        // Skip the tokenId that's already minted in setup (tokenId = 1)
+        vm.assume(_tokenId != tokenId);
+
+        // Bridge the token first
+        localToken.mint(alice, _tokenId);
+        vm.prank(alice);
+        localToken.approve(address(l1ERC721Bridge), _tokenId);
+
+        vm.prank(alice, alice);
+        l1ERC721Bridge.bridgeERC721(address(localToken), address(remoteToken), _tokenId, 1234, hex"5678");
+
+        // Mock the cross-domain messenger call
+        vm.mockCall(
+            address(l1CrossDomainMessenger),
+            abi.encodeCall(l1CrossDomainMessenger.xDomainMessageSender, ()),
+            abi.encode(Predeploys.L2_ERC721_BRIDGE)
+        );
+
+        // Expect successful finalization
+        vm.expectEmit(true, true, true, true);
+        emit ERC721BridgeFinalized(address(localToken), address(remoteToken), alice, alice, _tokenId, hex"5678");
+
+        vm.prank(address(l1CrossDomainMessenger));
+        l1ERC721Bridge.finalizeBridgeERC721(
+            address(localToken), address(remoteToken), alice, alice, _tokenId, hex"5678"
+        );
+
+        // Verify state
+        assertFalse(l1ERC721Bridge.deposits(address(localToken), address(remoteToken), _tokenId));
+        assertEq(localToken.ownerOf(_tokenId), alice);
+    }
+
+    /// @notice Tests that unauthorized callers cannot finalize bridge operations.
+    /// @param _caller Random address to test access control.
+    function testFuzz_finalizeBridgeERC721_unauthorizedCaller_reverts(address _caller) external {
+        vm.assume(_caller != address(l1CrossDomainMessenger));
+
+        vm.prank(_caller);
+        vm.expectRevert("ERC721Bridge: function can only be called from the other bridge");
+        l1ERC721Bridge.finalizeBridgeERC721(address(localToken), address(remoteToken), alice, alice, tokenId, hex"5678");
+    }
 }
 
 /// @title L1ERC721Bridge_Uncategorized_Test
@@ -543,5 +716,162 @@ contract L1ERC721Bridge_Uncategorized_Test is L1ERC721Bridge_TestInit {
         vm.prank(bob);
         vm.expectRevert("ERC721Bridge: nft recipient cannot be address(0)");
         l1ERC721Bridge.bridgeERC721To(address(localToken), address(remoteToken), address(0), tokenId, 1234, hex"5678");
+    }
+
+    /// @notice Tests complete bridge and finalize cycle maintains state consistency.
+    function test_bridgeAndFinalize_stateConsistency_succeeds() external {
+        uint256 tokenId2 = 2;
+        localToken.mint(alice, tokenId2);
+        vm.prank(alice);
+        localToken.approve(address(l1ERC721Bridge), tokenId2);
+
+        // Initial state
+        assertEq(localToken.ownerOf(tokenId), alice);
+        assertEq(localToken.ownerOf(tokenId2), alice);
+        assertFalse(l1ERC721Bridge.deposits(address(localToken), address(remoteToken), tokenId));
+        assertFalse(l1ERC721Bridge.deposits(address(localToken), address(remoteToken), tokenId2));
+
+        // Bridge both tokens
+        vm.prank(alice, alice);
+        l1ERC721Bridge.bridgeERC721(address(localToken), address(remoteToken), tokenId, 1234, hex"5678");
+
+        vm.prank(alice, alice);
+        l1ERC721Bridge.bridgeERC721(address(localToken), address(remoteToken), tokenId2, 1234, hex"9abc");
+
+        // Verify bridged state
+        assertEq(localToken.ownerOf(tokenId), address(l1ERC721Bridge));
+        assertEq(localToken.ownerOf(tokenId2), address(l1ERC721Bridge));
+        assertTrue(l1ERC721Bridge.deposits(address(localToken), address(remoteToken), tokenId));
+        assertTrue(l1ERC721Bridge.deposits(address(localToken), address(remoteToken), tokenId2));
+
+        // Mock cross-domain messenger
+        vm.mockCall(
+            address(l1CrossDomainMessenger),
+            abi.encodeCall(l1CrossDomainMessenger.xDomainMessageSender, ()),
+            abi.encode(Predeploys.L2_ERC721_BRIDGE)
+        );
+
+        // Finalize first token
+        vm.prank(address(l1CrossDomainMessenger));
+        l1ERC721Bridge.finalizeBridgeERC721(address(localToken), address(remoteToken), alice, alice, tokenId, hex"5678");
+
+        // Verify partial finalized state
+        assertEq(localToken.ownerOf(tokenId), alice);
+        assertEq(localToken.ownerOf(tokenId2), address(l1ERC721Bridge));
+        assertFalse(l1ERC721Bridge.deposits(address(localToken), address(remoteToken), tokenId));
+        assertTrue(l1ERC721Bridge.deposits(address(localToken), address(remoteToken), tokenId2));
+
+        // Finalize second token
+        vm.prank(address(l1CrossDomainMessenger));
+        l1ERC721Bridge.finalizeBridgeERC721(address(localToken), address(remoteToken), alice, bob, tokenId2, hex"9abc");
+
+        // Verify final state
+        assertEq(localToken.ownerOf(tokenId), alice);
+        assertEq(localToken.ownerOf(tokenId2), bob);
+        assertFalse(l1ERC721Bridge.deposits(address(localToken), address(remoteToken), tokenId));
+        assertFalse(l1ERC721Bridge.deposits(address(localToken), address(remoteToken), tokenId2));
+    }
+
+    /// @notice Tests that deposit tracking is isolated between different token pairs.
+    function test_depositTracking_tokenPairIsolation_succeeds() external {
+        L1ERC721Bridge_TestERC721_Harness alternateToken = new L1ERC721Bridge_TestERC721_Harness();
+        alternateToken.mint(alice, tokenId);
+        vm.prank(alice);
+        alternateToken.approve(address(l1ERC721Bridge), tokenId);
+
+        // Bridge same tokenId for different token pairs
+        vm.prank(alice, alice);
+        l1ERC721Bridge.bridgeERC721(address(localToken), address(remoteToken), tokenId, 1234, hex"5678");
+
+        vm.prank(alice, alice);
+        l1ERC721Bridge.bridgeERC721(address(alternateToken), address(remoteToken), tokenId, 1234, hex"9abc");
+
+        // Verify deposits are tracked separately
+        assertTrue(l1ERC721Bridge.deposits(address(localToken), address(remoteToken), tokenId));
+        assertTrue(l1ERC721Bridge.deposits(address(alternateToken), address(remoteToken), tokenId));
+
+        // Mock cross-domain messenger
+        vm.mockCall(
+            address(l1CrossDomainMessenger),
+            abi.encodeCall(l1CrossDomainMessenger.xDomainMessageSender, ()),
+            abi.encode(Predeploys.L2_ERC721_BRIDGE)
+        );
+
+        // Finalize one token pair
+        vm.prank(address(l1CrossDomainMessenger));
+        l1ERC721Bridge.finalizeBridgeERC721(address(localToken), address(remoteToken), alice, alice, tokenId, hex"5678");
+
+        // Verify only the finalized pair is affected
+        assertFalse(l1ERC721Bridge.deposits(address(localToken), address(remoteToken), tokenId));
+        assertTrue(l1ERC721Bridge.deposits(address(alternateToken), address(remoteToken), tokenId));
+        assertEq(localToken.ownerOf(tokenId), alice);
+        assertEq(alternateToken.ownerOf(tokenId), address(l1ERC721Bridge));
+    }
+
+    /// @notice Tests bridge operations under pause/unpause scenarios.
+    function test_pauseUnpause_stateTransitions_succeeds() external {
+        // Initial bridge operation
+        vm.prank(alice, alice);
+        l1ERC721Bridge.bridgeERC721(address(localToken), address(remoteToken), tokenId, 1234, hex"5678");
+
+        // Pause the system
+        vm.prank(superchainConfig.guardian());
+        superchainConfig.pause(address(0));
+
+        assertTrue(l1ERC721Bridge.paused());
+
+        // Mock cross-domain messenger
+        vm.mockCall(
+            address(l1CrossDomainMessenger),
+            abi.encodeCall(l1CrossDomainMessenger.xDomainMessageSender, ()),
+            abi.encode(Predeploys.L2_ERC721_BRIDGE)
+        );
+
+        // Finalize should fail when paused
+        vm.prank(address(l1CrossDomainMessenger));
+        vm.expectRevert("L1ERC721Bridge: paused");
+        l1ERC721Bridge.finalizeBridgeERC721(address(localToken), address(remoteToken), alice, alice, tokenId, hex"5678");
+
+        // Unpause the system
+        vm.prank(superchainConfig.guardian());
+        superchainConfig.unpause(address(0));
+
+        assertFalse(l1ERC721Bridge.paused());
+
+        // Finalize should now succeed
+        vm.prank(address(l1CrossDomainMessenger));
+        l1ERC721Bridge.finalizeBridgeERC721(address(localToken), address(remoteToken), alice, alice, tokenId, hex"5678");
+
+        assertEq(localToken.ownerOf(tokenId), alice);
+        assertFalse(l1ERC721Bridge.deposits(address(localToken), address(remoteToken), tokenId));
+    }
+
+    /// @notice Tests protection against double-finalization attacks.
+    function test_doubleFinalization_preventsTokenTheft_succeeds() external {
+        // Bridge the token
+        vm.prank(alice, alice);
+        l1ERC721Bridge.bridgeERC721(address(localToken), address(remoteToken), tokenId, 1234, hex"5678");
+
+        // Mock cross-domain messenger
+        vm.mockCall(
+            address(l1CrossDomainMessenger),
+            abi.encodeCall(l1CrossDomainMessenger.xDomainMessageSender, ()),
+            abi.encode(Predeploys.L2_ERC721_BRIDGE)
+        );
+
+        // First finalization succeeds
+        vm.prank(address(l1CrossDomainMessenger));
+        l1ERC721Bridge.finalizeBridgeERC721(address(localToken), address(remoteToken), alice, alice, tokenId, hex"5678");
+
+        assertEq(localToken.ownerOf(tokenId), alice);
+        assertFalse(l1ERC721Bridge.deposits(address(localToken), address(remoteToken), tokenId));
+
+        // Second finalization should fail
+        vm.prank(address(l1CrossDomainMessenger));
+        vm.expectRevert("L1ERC721Bridge: Token ID is not escrowed in the L1 Bridge");
+        l1ERC721Bridge.finalizeBridgeERC721(address(localToken), address(remoteToken), alice, bob, tokenId, hex"5678");
+
+        // Token remains with alice, not transferred to bob
+        assertEq(localToken.ownerOf(tokenId), alice);
     }
 }
