@@ -484,7 +484,7 @@ contract DeployOPChain is Script {
         assertValidAnchorStateRegistryProxy(_doi, _doo);
         assertValidDelayedWETH(_doi, _doo);
         assertValidDisputeGameFactory(_doi, _doo);
-        ChainAssertions.checkL1CrossDomainMessenger(proxies, vm, true);
+        ChainAssertions.checkL1CrossDomainMessenger(_doo.l1CrossDomainMessengerProxy(), vm, true);
         assertValidL1ERC721Bridge(_doo);
         assertValidL1StandardBridge(_doo);
         assertValidOptimismMintableERC20Factory(_doo);

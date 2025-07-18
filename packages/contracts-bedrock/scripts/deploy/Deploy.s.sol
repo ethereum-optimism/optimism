@@ -9,6 +9,7 @@ import { EIP1967Helper } from "test/mocks/EIP1967Helper.sol";
 
 // Scripts
 import { Deployer } from "scripts/deploy/Deployer.sol";
+import { DeployOPChainInput } from "scripts/deploy/DeployOPChain.s.sol";
 import { Chains } from "scripts/libraries/Chains.sol";
 import { Config } from "scripts/libraries/Config.sol";
 import { StateDiff } from "scripts/libraries/StateDiff.sol";
@@ -35,6 +36,7 @@ import { IAnchorStateRegistry } from "interfaces/dispute/IAnchorStateRegistry.so
 import { IMIPS } from "interfaces/cannon/IMIPS.sol";
 import { IPreimageOracle } from "interfaces/cannon/IPreimageOracle.sol";
 import { IProtocolVersions } from "interfaces/L1/IProtocolVersions.sol";
+import { IL1CrossDomainMessenger } from "interfaces/L1/IL1CrossDomainMessenger.sol";
 
 /// @title Deploy
 /// @notice Script used to deploy a bedrock system. The entire system is deployed within the `run` function.
@@ -301,7 +303,7 @@ contract Deploy is Deployer {
             SuperchainConfig: address(dio.superchainConfigImpl)
         });
 
-        ChainAssertions.checkL1CrossDomainMessenger(impls, vm, false);
+        ChainAssertions.checkL1CrossDomainMessenger(IL1CrossDomainMessenger(impls.L1CrossDomainMessenger), vm, false);
         ChainAssertions.checkL1StandardBridge({ _contracts: impls, _isProxy: false });
         ChainAssertions.checkL1ERC721Bridge({ _contracts: impls, _isProxy: false });
         ChainAssertions.checkOptimismPortal2({ _contracts: impls, _cfg: cfg, _isProxy: false });
@@ -321,11 +323,7 @@ contract Deploy is Deployer {
             _mips: IMIPS(address(dio.mipsSingleton)),
             _superchainProxyAdmin: superchainProxyAdmin
         });
-        ChainAssertions.checkSystemConfig({
-            _contracts: impls,
-            _doi: ChainAssertions.cfgToDeployOPChainInput(cfg, address(dio.opcm)),
-            _isProxy: false
-        });
+        ChainAssertions.checkSystemConfig({ _doi: DeployOPChainInput(address(0)), _contracts: impls, _isProxy: false });
     }
 
     /// @notice Deploy all of the OP Chain specific contracts

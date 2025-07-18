@@ -116,30 +116,34 @@ library ChainAssertions {
     }
 
     /// @notice Asserts that the L1CrossDomainMessenger is setup correctly
-    function checkL1CrossDomainMessenger(Types.ContractSet memory _contracts, Vm _vm, bool _isProxy) internal view {
-        IL1CrossDomainMessenger messenger = IL1CrossDomainMessenger(_contracts.L1CrossDomainMessenger);
+    function checkL1CrossDomainMessenger(IL1CrossDomainMessenger _messenger, Vm _vm, bool _isProxy) internal view {
         console.log(
             "Running chain assertions on the L1CrossDomainMessenger %s at %s",
             _isProxy ? "proxy" : "implementation",
-            address(messenger)
+            address(_messenger)
         );
-        require(address(messenger) != address(0), "CHECK-L1XDM-10");
+        require(address(_messenger) != address(0), "CHECK-L1XDM-10");
 
         // Check that the contract is initialized
-        DeployUtils.assertInitialized({ _contractAddress: address(messenger), _isProxy: _isProxy, _slot: 0, _offset: 20 });
+        DeployUtils.assertInitialized({
+            _contractAddress: address(_messenger),
+            _isProxy: _isProxy,
+            _slot: 0,
+            _offset: 20
+        });
 
         if (_isProxy) {
-            bytes32 xdmSenderSlot = _vm.load(address(messenger), bytes32(uint256(204)));
+            bytes32 xdmSenderSlot = _vm.load(address(_messenger), bytes32(uint256(204)));
             require(address(uint160(uint256(xdmSenderSlot))) == Constants.DEFAULT_L2_SENDER, "CHECK-L1XDM-70");
         } else {
-            require(address(messenger.OTHER_MESSENGER()) == address(0), "CHECK-L1XDM-80");
-            require(address(messenger.otherMessenger()) == address(0), "CHECK-L1XDM-90");
-            require(address(messenger.PORTAL()) == address(0), "CHECK-L1XDM-100");
-            require(address(messenger.portal()) == address(0), "CHECK-L1XDM-110");
-            require(address(messenger.systemConfig()) == address(0), "CHECK-L1XDM-120");
+            require(address(_messenger.OTHER_MESSENGER()) == address(0), "CHECK-L1XDM-80");
+            require(address(_messenger.otherMessenger()) == address(0), "CHECK-L1XDM-90");
+            require(address(_messenger.PORTAL()) == address(0), "CHECK-L1XDM-100");
+            require(address(_messenger.portal()) == address(0), "CHECK-L1XDM-110");
+            require(address(_messenger.systemConfig()) == address(0), "CHECK-L1XDM-120");
             require(
                 checkProxyAdminCallFails(
-                    address(messenger), IProxyAdminOwnedBase.ProxyAdminOwnedBase_NotResolvedDelegateProxy.selector
+                    address(_messenger), IProxyAdminOwnedBase.ProxyAdminOwnedBase_NotResolvedDelegateProxy.selector
                 ),
                 "CHECK-L1XDM-130"
             );
