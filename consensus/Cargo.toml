@@ -32,11 +32,11 @@ alloy-primitives.workspace = true
 alloy-consensus.workspace = true
 alloy-trie.workspace = true
 revm.workspace = true
-op-alloy-consensus.workspace = true
 
 # misc
 tracing.workspace = true
 thiserror.workspace = true
+reth-optimism-chainspec.workspace = true
 
 [dev-dependencies]
 reth-provider = { workspace = true, features = ["test-utils"] }
@@ -49,6 +49,7 @@ reth-db-api = { workspace = true, features = ["op"] }
 
 alloy-chains.workspace = true
 alloy-primitives.workspace = true
+
 op-alloy-consensus.workspace = true
 
 [features]
@@ -69,10 +70,10 @@ std = [
     "alloy-primitives/std",
     "alloy-consensus/std",
     "alloy-trie/std",
-    "op-alloy-consensus/std",
     "reth-revm/std",
     "revm/std",
     "tracing/std",
     "thiserror/std",
     "reth-execution-types/std",
+    "op-alloy-consensus/std",
 ]

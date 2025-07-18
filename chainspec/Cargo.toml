@@ -44,6 +44,7 @@ miniz_oxide = { workspace = true, features = ["with-alloc"], optional = true }
 derive_more.workspace = true
 paste = { workspace = true, optional = true }
 thiserror = { workspace = true, optional = true }
+op-alloy-consensus.workspace = true
 
 [dev-dependencies]
 reth-chainspec = { workspace = true, features = ["test-utils"] }
@@ -71,6 +72,7 @@ std = [
     "serde?/std",
     "miniz_oxide?/std",
     "thiserror?/std",
+    "op-alloy-consensus/std",
 ]
 serde = [
     "alloy-chains/serde",
@@ -84,4 +86,5 @@ serde = [
     "reth-optimism-forks/serde",
     "reth-optimism-primitives/serde",
     "reth-primitives-traits/serde",
+    "op-alloy-consensus/serde",
 ]

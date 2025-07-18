@@ -34,9 +34,7 @@ mod proof;
 pub use proof::calculate_receipt_root_no_memo_optimism;
 
 pub mod validation;
-pub use validation::{
-    canyon, decode_holocene_base_fee, isthmus, next_block_base_fee, validate_block_post_execution,
-};
+pub use validation::{canyon, isthmus, validate_block_post_execution};
 
 pub mod error;
 pub use error::OpConsensusError;
@@ -178,29 +176,11 @@ where
             validate_against_parent_timestamp(header.header(), parent.header())?;
         }
 
-        // EIP1559 base fee validation
-        // <https://github.com/ethereum-optimism/specs/blob/main/specs/protocol/holocene/exec-engine.md#base-fee-computation>
-        // > if Holocene is active in parent_header.timestamp, then the parameters from
-        // > parent_header.extraData are used.
-        if self.chain_spec.is_holocene_active_at_timestamp(parent.timestamp()) {
-            let header_base_fee =
-                header.base_fee_per_gas().ok_or(ConsensusError::BaseFeeMissing)?;
-            let expected_base_fee =
-                decode_holocene_base_fee(&self.chain_spec, parent.header(), header.timestamp())
-                    .map_err(|_| ConsensusError::BaseFeeMissing)?;
-            if expected_base_fee != header_base_fee {
-                return Err(ConsensusError::BaseFeeDiff(GotExpected {
-                    expected: expected_base_fee,
-                    got: header_base_fee,
-                }))
-            }
-        } else {
-            validate_against_parent_eip1559_base_fee(
-                header.header(),
-                parent.header(),
-                &self.chain_spec,
-            )?;
-        }
+        validate_against_parent_eip1559_base_fee(
+            header.header(),
+            parent.header(),
+            &self.chain_spec,
+        )?;
 
         // ensure that the blob gas fields for this block
         if let Some(blob_params) = self.chain_spec.blob_params_at_timestamp(header.timestamp()) {

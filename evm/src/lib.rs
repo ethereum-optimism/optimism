@@ -22,7 +22,6 @@ use op_revm::{OpSpecId, OpTransaction};
 use reth_chainspec::EthChainSpec;
 use reth_evm::{ConfigureEvm, EvmEnv};
 use reth_optimism_chainspec::OpChainSpec;
-use reth_optimism_consensus::next_block_base_fee;
 use reth_optimism_forks::OpHardforks;
 use reth_optimism_primitives::{DepositReceipt, OpPrimitives};
 use reth_primitives_traits::{NodePrimitives, SealedBlock, SealedHeader, SignedTransaction};
@@ -187,7 +186,10 @@ where
             prevrandao: Some(attributes.prev_randao),
             gas_limit: attributes.gas_limit,
             // calculate basefee based on parent block's gas usage
-            basefee: next_block_base_fee(self.chain_spec(), parent, attributes.timestamp)?,
+            basefee: self
+                .chain_spec()
+                .next_block_base_fee(parent, attributes.timestamp)
+                .unwrap_or_default(),
             // calculate excess gas based on parent block's blob gas usage
             blob_excess_gas_and_price,
         };

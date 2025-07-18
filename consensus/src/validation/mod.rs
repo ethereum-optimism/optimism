@@ -3,14 +3,15 @@
 pub mod canyon;
 pub mod isthmus;
 
+// Re-export the decode_holocene_base_fee function for compatibility
+pub use reth_optimism_chainspec::decode_holocene_base_fee;
+
 use crate::proof::calculate_receipt_root_optimism;
 use alloc::vec::Vec;
 use alloy_consensus::{BlockHeader, TxReceipt, EMPTY_OMMER_ROOT_HASH};
 use alloy_eips::Encodable2718;
 use alloy_primitives::{Bloom, Bytes, B256};
 use alloy_trie::EMPTY_ROOT_HASH;
-use op_alloy_consensus::{decode_holocene_extra_data, EIP1559ParamError};
-use reth_chainspec::{BaseFeeParams, EthChainSpec};
 use reth_consensus::ConsensusError;
 use reth_optimism_forks::OpHardforks;
 use reth_optimism_primitives::DepositReceipt;
@@ -171,51 +172,13 @@ fn compare_receipts_root_and_logs_bloom(
     Ok(())
 }
 
-/// Extracts the Holocene 1599 parameters from the encoded extra data from the parent header.
-///
-/// Caution: Caller must ensure that holocene is active in the parent header.
-///
-/// See also [Base fee computation](https://github.com/ethereum-optimism/specs/blob/main/specs/protocol/holocene/exec-engine.md#base-fee-computation)
-pub fn decode_holocene_base_fee(
-    chain_spec: impl EthChainSpec + OpHardforks,
-    parent: impl BlockHeader,
-    timestamp: u64,
-) -> Result<u64, EIP1559ParamError> {
-    let (elasticity, denominator) = decode_holocene_extra_data(parent.extra_data())?;
-    let base_fee_params = if elasticity == 0 && denominator == 0 {
-        chain_spec.base_fee_params_at_timestamp(timestamp)
-    } else {
-        BaseFeeParams::new(denominator as u128, elasticity as u128)
-    };
-
-    Ok(parent.next_block_base_fee(base_fee_params).unwrap_or_default())
-}
-
-/// Read from parent to determine the base fee for the next block
-///
-/// See also [Base fee computation](https://github.com/ethereum-optimism/specs/blob/main/specs/protocol/holocene/exec-engine.md#base-fee-computation)
-pub fn next_block_base_fee<H: BlockHeader>(
-    chain_spec: impl EthChainSpec<Header = H> + OpHardforks,
-    parent: &H,
-    timestamp: u64,
-) -> Result<u64, EIP1559ParamError> {
-    // If we are in the Holocene, we need to use the base fee params
-    // from the parent block's extra data.
-    // Else, use the base fee params (default values) from chainspec
-    if chain_spec.is_holocene_active_at_timestamp(parent.timestamp()) {
-        Ok(decode_holocene_base_fee(chain_spec, parent, timestamp)?)
-    } else {
-        Ok(chain_spec.next_block_base_fee(parent, timestamp).unwrap_or_default())
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
     use alloy_consensus::Header;
     use alloy_primitives::{b256, hex, Bytes, U256};
     use op_alloy_consensus::OpTxEnvelope;
-    use reth_chainspec::{ChainSpec, ForkCondition, Hardfork};
+    use reth_chainspec::{BaseFeeParams, ChainSpec, EthChainSpec, ForkCondition, Hardfork};
     use reth_optimism_chainspec::{OpChainSpec, BASE_SEPOLIA};
     use reth_optimism_forks::{OpHardfork, BASE_SEPOLIA_HARDFORKS};
     use std::sync::Arc;
@@ -255,7 +218,8 @@ mod tests {
             gas_limit: 144000000,
             ..Default::default()
         };
-        let base_fee = next_block_base_fee(&op_chain_spec, &parent, 0);
+        let base_fee =
+            reth_optimism_chainspec::OpChainSpec::next_block_base_fee(&op_chain_spec, &parent, 0);
         assert_eq!(
             base_fee.unwrap(),
             op_chain_spec.next_block_base_fee(&parent, 0).unwrap_or_default()
@@ -273,7 +237,11 @@ mod tests {
             extra_data: Bytes::from_static(&[0, 0, 0, 0, 0, 0, 0, 0, 0]),
             ..Default::default()
         };
-        let base_fee = next_block_base_fee(&op_chain_spec, &parent, 1800000005);
+        let base_fee = reth_optimism_chainspec::OpChainSpec::next_block_base_fee(
+            &op_chain_spec,
+            &parent,
+            1800000005,
+        );
         assert_eq!(
             base_fee.unwrap(),
             op_chain_spec.next_block_base_fee(&parent, 0).unwrap_or_default()
@@ -291,7 +259,11 @@ mod tests {
             ..Default::default()
         };
 
-        let base_fee = next_block_base_fee(holocene_chainspec(), &parent, 1800000005);
+        let base_fee = reth_optimism_chainspec::OpChainSpec::next_block_base_fee(
+            &holocene_chainspec(),
+            &parent,
+            1800000005,
+        );
         assert_eq!(
             base_fee.unwrap(),
             parent
@@ -312,7 +284,12 @@ mod tests {
             ..Default::default()
         };
 
-        let base_fee = next_block_base_fee(&*BASE_SEPOLIA, &parent, 1735315546).unwrap();
+        let base_fee = reth_optimism_chainspec::OpChainSpec::next_block_base_fee(
+            &*BASE_SEPOLIA,
+            &parent,
+            1735315546,
+        )
+        .unwrap();
         assert_eq!(base_fee, 507);
     }
 
