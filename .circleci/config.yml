@@ -1196,6 +1196,13 @@ jobs:
     steps:
       - utils/checkout-with-mise
       - install-contracts-dependencies
+      # Attach workspace for cannon dependencies if using sysgo orchestrator (empty devnet)
+      - when:
+          condition:
+            equal: ["", << parameters.devnet >>]
+          steps:
+            - attach_workspace:
+                at: "."
       - run:
           name: Setup Kurtosis (if needed)
           command: |
@@ -2336,6 +2343,25 @@ workflows:
           - equal: [true, <<pipeline.parameters.acceptance_tests_dispatch>>]
           - equal: ["api",<< pipeline.trigger_source >>]
     jobs:
+      - contracts-bedrock-build:  # needed for sysgo tests
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+      - cannon-prestate-quick:  # needed for sysgo tests
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+      # IN-PROCESS (base)
+      - op-acceptance-tests:
+          # Acceptance Testing params
+          name: memory-base
+          gate: base
+          # CircleCI params
+          no_output_timeout: 10m
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+            - discord
+          requires:
+            - contracts-bedrock-build
+            - cannon-prestate-quick
       # KURTOSIS (Simple)
       - op-acceptance-tests:
           # Acceptance Testing params
@@ -2382,6 +2408,25 @@ workflows:
       not:
         equal: [<< pipeline.git.branch >>, "develop"]
     jobs:
+      - contracts-bedrock-build:  # needed for sysgo tests
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+      - cannon-prestate-quick:  # needed for sysgo tests
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+      # IN-PROCESS (base)
+      - op-acceptance-tests:
+          # Acceptance Testing params
+          name: memory-base
+          gate: base
+          # CircleCI params
+          no_output_timeout: 10m
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+            - discord
+          requires:
+            - contracts-bedrock-build
+            - cannon-prestate-quick
       # KURTOSIS (Simple)
       - op-acceptance-tests:
           # Acceptance Testing params

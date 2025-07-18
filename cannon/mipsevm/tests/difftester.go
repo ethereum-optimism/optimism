@@ -19,7 +19,7 @@ import (
 
 type TestNamer[T any] func(testCase T) string
 
-type InitializeStateFn[T any] func(testCase T, state *multithreaded.State, vm VersionedVMTestCase)
+type InitializeStateFn[T any] func(testCase T, state *multithreaded.State, vm VersionedVMTestCase, r *testutil.RandHelper)
 type SetExpectationsFn[T any] func(testCase T, expect *mtutil.ExpectedState, vm VersionedVMTestCase) ExpectedExecResult
 
 type DiffTester[T any] struct {
@@ -73,7 +73,8 @@ func (d *DiffTester[T]) run(t testRunner, testCases []T, opts ...TestOption) {
 					state := mtutil.GetMtState(t, goVm)
 
 					// Set up state
-					d.initState(testCase, state, vm)
+					r := testutil.NewRandHelper(randSeed * 2)
+					d.initState(testCase, state, vm, r)
 					mod.stateMod(state)
 
 					// Set up expectations
@@ -81,21 +82,7 @@ func (d *DiffTester[T]) run(t testRunner, testCases []T, opts ...TestOption) {
 					execExpectation := d.setExpectations(testCase, expect, vm)
 					mod.expectMod(expect)
 
-					if execExpectation.shouldPanic {
-						proofData := vm.ProofGenerator(t, state)
-						errMsg := testutil.CreateErrorStringMatcher(execExpectation.evmError)
-						testutil.AssertEVMReverts(t, state, vm.Contracts, nil, proofData, errMsg)
-						require.PanicsWithValue(t, execExpectation.panicMsg, func() { _, _ = goVm.Step(false) })
-					} else {
-						// Step the VM
-						step := state.GetStep()
-						stepWitness, err := goVm.Step(true)
-						require.NoError(t, err)
-
-						// Validate
-						expect.Validate(t, state)
-						testutil.ValidateEVM(t, stepWitness, step, goVm, vm.StateHashFn, vm.Contracts)
-					}
+					execExpectation.assertExpectedResult(t, goVm, vm, expect)
 				})
 			}
 		}
@@ -146,8 +133,7 @@ func (d *DiffTester[T]) generateTestModifiers(t require.TestingT, testCase T, vm
 	return modifiers
 }
 
-// memReservationTestModifier updates tests that write to memory, to ensure any overlapping memory reservation
-// is cleared
+// memReservationTestModifier updates tests that write to memory, to ensure that memory reservations are handled correctly
 func (d *DiffTester[T]) memReservationTestModifier(cfg *TestConfig, randSeed int64, expect *mtutil.ExpectedState) []*testModifier {
 	var modifiers []*testModifier
 
@@ -157,24 +143,56 @@ func (d *DiffTester[T]) memReservationTestModifier(cfg *TestConfig, randSeed int
 		return modifiers
 	}
 
-	modifiers = append(modifiers, &testModifier{
-		name: " [mod:overlappingMemReservation]",
-		stateMod: func(state *multithreaded.State) {
-			// Set up a memory reservation that overlaps with the effective address of the target memory word
-			r := testutil.NewRandHelper(randSeed + 10000)
-			targetMemAddr := memTargets[r.Intn(len(memTargets))]
-			effAddr := targetMemAddr & arch.AddressMask
+	for i, testCase := range memReservationTestCases {
+		modifiers = append(modifiers, &testModifier{
+			name: fmt.Sprintf(" [mod:%v]", testCase.name),
+			stateMod: func(state *multithreaded.State) {
+				r := testutil.NewRandHelper(randSeed*int64(i) + 10000)
+				targetMemAddr := memTargets[r.Intn(len(memTargets))]
+				effAddr := targetMemAddr & arch.AddressMask
 
-			state.LLReservationStatus = multithreaded.LLReservationStatus(r.Intn(2) + 1)
-			state.LLAddress = effAddr + arch.Word(r.Intn(arch.WordSizeBytes))
-			state.LLOwnerThread = arch.Word(r.Intn(10))
-		},
-		expectMod: func(expect *mtutil.ExpectedState) {
-			expect.ExpectMemoryReservationCleared()
-		},
-	})
+				llAddress := effAddr + testCase.effAddrOffset
+				llOwnerThread := state.GetCurrentThread().ThreadId
+				if !testCase.matchThreadId {
+					llOwnerThread += 1
+				}
+
+				state.LLReservationStatus = testCase.llReservationStatus
+				state.LLAddress = llAddress
+				state.LLOwnerThread = llOwnerThread
+			},
+			expectMod: func(expect *mtutil.ExpectedState) {
+				if testCase.shouldClearReservation {
+					expect.ExpectMemoryReservationCleared()
+				}
+			},
+		})
+	}
 
 	return modifiers
+}
+
+type memReservationTestCase struct {
+	name                   string
+	llReservationStatus    multithreaded.LLReservationStatus
+	matchThreadId          bool
+	effAddrOffset          arch.Word
+	shouldClearReservation bool
+}
+
+var memReservationTestCases []memReservationTestCase = []memReservationTestCase{
+	{name: "matching reservation", llReservationStatus: multithreaded.LLStatusActive32bit, matchThreadId: true, shouldClearReservation: true},
+	{name: "matching reservation, 64-bit", llReservationStatus: multithreaded.LLStatusActive64bit, matchThreadId: true, shouldClearReservation: true},
+	{name: "matching reservation, unaligned", llReservationStatus: multithreaded.LLStatusActive32bit, effAddrOffset: 1, matchThreadId: true, shouldClearReservation: true},
+	{name: "matching reservation, 64-bit, unaligned", llReservationStatus: multithreaded.LLStatusActive64bit, effAddrOffset: 5, matchThreadId: true, shouldClearReservation: true},
+	{name: "matching reservation, diff thread", llReservationStatus: multithreaded.LLStatusActive32bit, matchThreadId: false, shouldClearReservation: true},
+	{name: "matching reservation, diff thread, 64-bit", llReservationStatus: multithreaded.LLStatusActive64bit, matchThreadId: false, shouldClearReservation: true},
+	{name: "mismatched reservation", llReservationStatus: multithreaded.LLStatusActive32bit, matchThreadId: true, effAddrOffset: 8, shouldClearReservation: false},
+	{name: "mismatched reservation, 64-bit", llReservationStatus: multithreaded.LLStatusActive64bit, matchThreadId: true, effAddrOffset: 8, shouldClearReservation: false},
+	{name: "mismatched reservation, diff thread", llReservationStatus: multithreaded.LLStatusActive32bit, matchThreadId: false, effAddrOffset: 8, shouldClearReservation: false},
+	{name: "mismatched reservation, diff thread, 64-bit", llReservationStatus: multithreaded.LLStatusActive64bit, matchThreadId: false, effAddrOffset: 8, shouldClearReservation: false},
+	{name: "no reservation, matching addr", llReservationStatus: multithreaded.LLStatusNone, matchThreadId: true, shouldClearReservation: true},
+	{name: "no reservation, mismatched addr", llReservationStatus: multithreaded.LLStatusNone, matchThreadId: true, effAddrOffset: 8, shouldClearReservation: false},
 }
 
 func randomSeed(t require.TestingT, s string, extraData ...int) int64 {
@@ -236,24 +254,67 @@ func newTestConfig(t require.TestingT, opts ...TestOption) *TestConfig {
 	return testConfig
 }
 
-type ExpectedExecResult struct {
-	shouldPanic bool
-	panicMsg    string
-	evmError    string
+type ExpectedExecResult interface {
+	assertExpectedResult(t testing.TB, vm mipsevm.FPVM, vmType VersionedVMTestCase, expect *mtutil.ExpectedState)
 }
+
+type normalExecResult struct{}
 
 func ExpectNormalExecution() ExpectedExecResult {
-	return ExpectedExecResult{
-		shouldPanic: false,
+	return normalExecResult{}
+}
+
+func (e normalExecResult) assertExpectedResult(t testing.TB, goVm mipsevm.FPVM, vmVersion VersionedVMTestCase, expect *mtutil.ExpectedState) {
+	// Step the VM
+	state := goVm.GetState()
+	step := state.GetStep()
+	stepWitness, err := goVm.Step(true)
+	require.NoError(t, err)
+
+	// Validate
+	expect.Validate(t, state)
+	testutil.ValidateEVM(t, stepWitness, step, goVm, vmVersion.StateHashFn, vmVersion.Contracts)
+}
+
+type vmPanicResult struct {
+	panicMsg string
+	evmError string
+}
+
+func ExpectVmPanic(goPanicMsg, evmRevertMsg string) ExpectedExecResult {
+	return vmPanicResult{
+		panicMsg: goPanicMsg,
+		evmError: evmRevertMsg,
 	}
 }
 
-func ExpectPanic(goPanicMsg, evmRevertMsg string) ExpectedExecResult {
-	return ExpectedExecResult{
-		shouldPanic: true,
-		panicMsg:    goPanicMsg,
-		evmError:    evmRevertMsg,
+func (e vmPanicResult) assertExpectedResult(t testing.TB, goVm mipsevm.FPVM, vmVersion VersionedVMTestCase, expect *mtutil.ExpectedState) {
+	state := goVm.GetState()
+	proofData := vmVersion.ProofGenerator(t, state)
+	errMsg := testutil.CreateErrorStringMatcher(e.evmError)
+	testutil.AssertEVMReverts(t, state, vmVersion.Contracts, nil, proofData, errMsg)
+	require.PanicsWithValue(t, e.panicMsg, func() { _, _ = goVm.Step(false) })
+}
+
+type preimageOracleRevertResult struct {
+	panicMsg       string
+	preimageKey    [32]byte
+	preimageValue  []byte
+	preimageOffset arch.Word
+}
+
+func ExpectPreimageOraclePanic(preimageKey [32]byte, preimageValue []byte, preimageOffset arch.Word, panicMsg string) ExpectedExecResult {
+	return preimageOracleRevertResult{
+		panicMsg:       panicMsg,
+		preimageKey:    preimageKey,
+		preimageValue:  preimageValue,
+		preimageOffset: preimageOffset,
 	}
+}
+
+func (e preimageOracleRevertResult) assertExpectedResult(t testing.TB, goVm mipsevm.FPVM, vmVersion VersionedVMTestCase, expect *mtutil.ExpectedState) {
+	require.PanicsWithValue(t, e.panicMsg, func() { _, _ = goVm.Step(true) })
+	testutil.AssertPreimageOracleReverts(t, e.preimageKey, e.preimageValue, e.preimageOffset, vmVersion.Contracts)
 }
 
 type testcaseT interface {
