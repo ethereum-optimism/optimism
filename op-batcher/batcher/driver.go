@@ -1107,7 +1107,13 @@ func (l *BatchSubmitter) SetThrottleController(newType config.ThrottleController
 	}
 
 	// Replace the controller with new strategy
-	oldType := l.throttleController.GetType()
+	var oldType config.ThrottleControllerType
+	if !unset {
+		oldType = l.throttleController.GetType()
+	} else {
+		oldType = ""
+	}
+
 	l.throttleController = newController
 
 	l.Metr.RecordThrottleControllerType(newController.GetType())
