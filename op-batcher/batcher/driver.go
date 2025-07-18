@@ -127,11 +127,6 @@ func NewBatchSubmitter(setup DriverSetup) *BatchSubmitter {
 
 	factory := throttler.NewThrottleControllerFactory(setup.Log)
 
-	var pidConfig *config.PIDConfig
-	if setup.Config.ThrottlePidConfig != nil {
-		pidConfig = setup.Config.ThrottlePidConfig
-	}
-
 	throttleController, err := factory.CreateController(
 		setup.Config.ThrottleControllerType,
 		setup.Config.ThrottleThreshold,
@@ -139,8 +134,9 @@ func NewBatchSubmitter(setup DriverSetup) *BatchSubmitter {
 		setup.Config.ThrottleBlockSize,
 		setup.Config.ThrottleAlwaysBlockSize,
 		setup.Config.ThrottleThresholdMultiplier,
-		pidConfig,
+		setup.Config.ThrottlePidConfig,
 	)
+
 	if err != nil {
 		panic(err)
 	}
