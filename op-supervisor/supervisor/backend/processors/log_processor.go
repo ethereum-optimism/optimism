@@ -56,12 +56,16 @@ func (p *logProcessor) ProcessLogs(_ context.Context, block eth.BlockRef, rcpts 
 	return nil
 }
 
+func LogToPayloadHash(l *ethTypes.Log) common.Hash {
+	return crypto.Keccak256Hash(types.LogToMessagePayload(l))
+}
+
 // LogToLogHash transforms a log into a hash that represents the log.
 // it is the concatenation of the log's address and the hash of the log's payload,
 // which is then hashed again. This is the hash that is stored in the log storage.
 // The address is hashed into the payload hash to save space in the log storage,
 // and because they represent paired data.
 func LogToLogHash(l *ethTypes.Log) common.Hash {
-	payloadHash := crypto.Keccak256Hash(types.LogToMessagePayload(l))
+	payloadHash := LogToPayloadHash(l)
 	return types.PayloadHashToLogHash(payloadHash, l.Address)
 }
