@@ -1005,7 +1005,7 @@ func TestEVM_EmptyThreadStacks(t *testing.T) {
 					require.PanicsWithValue(t, "Active thread stack is empty", func() { _, _ = goVm.Step(false) })
 
 					errorMessage := "active thread stack is empty"
-					testutil.AssertEVMReverts(t, state, ver.Contracts, tracer, proofCase.Proof, testutil.CreateErrorStringMatcher(errorMessage))
+					testutil.AssertEVMReverts(t, state, ver.Contracts, tracer, proofCase.Proof, testutil.StringErrorMatcher(errorMessage))
 				})
 			}
 		}

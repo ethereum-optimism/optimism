@@ -728,7 +728,7 @@ func TestEVM_UndefinedSyscall(t *testing.T) {
 
 				require.Panics(t, func() { _, _ = goVm.Step(true) })
 				errorMessage := "unimplemented syscall"
-				testutil.AssertEVMReverts(t, state, contracts, nil, proofData, testutil.CreateErrorStringMatcher(errorMessage))
+				testutil.AssertEVMReverts(t, state, contracts, nil, proofData, testutil.StringErrorMatcher(errorMessage))
 			})
 		}
 	}

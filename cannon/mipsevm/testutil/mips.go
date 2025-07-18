@@ -231,12 +231,15 @@ func ValidateEVM(t testing.TB, stepWitness *mipsevm.StepWitness, step uint64, go
 
 type ErrMatcher func(require.TestingT, []byte)
 
-func CreateNoopErrorMatcher() ErrMatcher {
-	return func(t require.TestingT, ret []byte) {}
+// SilentRevertMatcher matches a low-level empty revert: `revert(0,0)`
+func SilentRevertMatcher() ErrMatcher {
+	return func(t require.TestingT, ret []byte) {
+		require.Equal(t, 0, len(ret), "Expected silent revert via `revert(0,0)`")
+	}
 }
 
-// CreateErrorStringMatcher matches an Error(string)
-func CreateErrorStringMatcher(expect string) ErrMatcher {
+// StringErrorMatcher matches a string message revert: `revert("some string value")`
+func StringErrorMatcher(expect string) ErrMatcher {
 	return func(t require.TestingT, ret []byte) {
 		require.Greaterf(t, len(ret), 4, "Return data length should be greater than 4 bytes: %x", ret)
 		unpacked, decodeErr := abi.UnpackRevert(ret)
@@ -245,8 +248,8 @@ func CreateErrorStringMatcher(expect string) ErrMatcher {
 	}
 }
 
-// CreateCustomErrorMatcher matches a custom error given the error signature
-func CreateCustomErrorMatcher(sig string) ErrMatcher {
+// CustomErrorMatcher matches a custom error (`revert SomeError(someArg)`) given an error signature like “SomeError(uint256)"
+func CustomErrorMatcher(sig string) ErrMatcher {
 	return func(t require.TestingT, ret []byte) {
 		expect := crypto.Keccak256([]byte(sig))[:4]
 		require.EqualValuesf(t, expect, ret, "return value is %x", ret)

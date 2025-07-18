@@ -7,6 +7,7 @@ import (
 	"os"
 	"testing"
 
+	"github.com/ethereum/go-ethereum/core/tracing"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/stretchr/testify/require"
 
@@ -82,7 +83,7 @@ func (d *DiffTester[T]) run(t testRunner, testCases []T, opts ...TestOption) {
 					execExpectation := d.setExpectations(testCase, expect, vm)
 					mod.expectMod(expect)
 
-					execExpectation.assertExpectedResult(t, goVm, vm, expect)
+					execExpectation.assertExpectedResult(t, goVm, vm, expect, cfg)
 				})
 			}
 		}
@@ -215,6 +216,8 @@ type TestConfig struct {
 	stdOut func() io.Writer
 	stdErr func() io.Writer
 	logger log.Logger
+	// no-tracer by default, but see test_util.MarkdownTracer
+	tracingHooks *tracing.Hooks
 	// Allow consumer to control automated test generation
 	skipAutomaticMemoryReservationTests bool
 }
@@ -239,6 +242,13 @@ func WithVm(vm VersionedVMTestCase) TestOption {
 	}
 }
 
+// WithTracingHooks Sets tracing hooks - see: testutil.MarkdownTracer
+func WithTracingHooks(hooks *tracing.Hooks) TestOption {
+	return func(tc *TestConfig) {
+		tc.tracingHooks = hooks
+	}
+}
+
 func newTestConfig(t require.TestingT, opts ...TestOption) *TestConfig {
 	testConfig := &TestConfig{
 		vms:    GetMipsVersionTestCases(t),
@@ -255,7 +265,7 @@ func newTestConfig(t require.TestingT, opts ...TestOption) *TestConfig {
 }
 
 type ExpectedExecResult interface {
-	assertExpectedResult(t testing.TB, vm mipsevm.FPVM, vmType VersionedVMTestCase, expect *mtutil.ExpectedState)
+	assertExpectedResult(t testing.TB, vm mipsevm.FPVM, vmType VersionedVMTestCase, expect *mtutil.ExpectedState, cfg *TestConfig)
 }
 
 type normalExecResult struct{}
@@ -264,7 +274,7 @@ func ExpectNormalExecution() ExpectedExecResult {
 	return normalExecResult{}
 }
 
-func (e normalExecResult) assertExpectedResult(t testing.TB, goVm mipsevm.FPVM, vmVersion VersionedVMTestCase, expect *mtutil.ExpectedState) {
+func (e normalExecResult) assertExpectedResult(t testing.TB, goVm mipsevm.FPVM, vmVersion VersionedVMTestCase, expect *mtutil.ExpectedState, cfg *TestConfig) {
 	// Step the VM
 	state := goVm.GetState()
 	step := state.GetStep()
@@ -277,23 +287,47 @@ func (e normalExecResult) assertExpectedResult(t testing.TB, goVm mipsevm.FPVM, 
 }
 
 type vmPanicResult struct {
-	panicMsg string
-	evmError string
+	panicValue           interface{}
+	evmErrorMatcher      testutil.ErrMatcher
+	memoryProofAddresses []arch.Word
 }
 
-func ExpectVmPanic(goPanicMsg, evmRevertMsg string) ExpectedExecResult {
+func ExpectVmPanic(goPanicValue interface{}, evmRevertMsg string, memoryProofAddresses ...arch.Word) ExpectedExecResult {
 	return vmPanicResult{
-		panicMsg: goPanicMsg,
-		evmError: evmRevertMsg,
+		panicValue:           goPanicValue,
+		evmErrorMatcher:      testutil.StringErrorMatcher(evmRevertMsg),
+		memoryProofAddresses: memoryProofAddresses,
 	}
 }
 
-func (e vmPanicResult) assertExpectedResult(t testing.TB, goVm mipsevm.FPVM, vmVersion VersionedVMTestCase, expect *mtutil.ExpectedState) {
+func ExpectVmPanicWithCustomErr(goPanicMsg interface{}, customErrSignature string, memoryProofAddresses ...arch.Word) ExpectedExecResult {
+	return vmPanicResult{
+		panicValue:           goPanicMsg,
+		evmErrorMatcher:      testutil.CustomErrorMatcher(customErrSignature),
+		memoryProofAddresses: memoryProofAddresses,
+	}
+}
+
+func ExpectVmPanicWithSilentRevert(goPanicMsg interface{}, memoryProofAddresses ...arch.Word) ExpectedExecResult {
+	return vmPanicResult{
+		panicValue:           goPanicMsg,
+		evmErrorMatcher:      testutil.SilentRevertMatcher(),
+		memoryProofAddresses: memoryProofAddresses,
+	}
+}
+
+func (e vmPanicResult) assertExpectedResult(t testing.TB, goVm mipsevm.FPVM, vmVersion VersionedVMTestCase, expect *mtutil.ExpectedState, cfg *TestConfig) {
 	state := goVm.GetState()
-	proofData := vmVersion.ProofGenerator(t, state)
-	errMsg := testutil.CreateErrorStringMatcher(e.evmError)
-	testutil.AssertEVMReverts(t, state, vmVersion.Contracts, nil, proofData, errMsg)
-	require.PanicsWithValue(t, e.panicMsg, func() { _, _ = goVm.Step(false) })
+	proofData := vmVersion.ProofGenerator(t, state, e.memoryProofAddresses...)
+	testutil.AssertEVMReverts(t, state, vmVersion.Contracts, cfg.tracingHooks, proofData, e.evmErrorMatcher)
+
+	if panicErr, ok := e.panicValue.(error); ok {
+		require.PanicsWithError(t, panicErr.Error(), func() { _, _ = goVm.Step(false) })
+	} else if panicStr, ok := e.panicValue.(string); ok {
+		require.PanicsWithValue(t, e.panicValue, func() { _, _ = goVm.Step(false) })
+	} else {
+		t.Fatalf("Invalid panic value provided.  Go panic value must be a string or error.  Got: %v", panicStr)
+	}
 }
 
 type preimageOracleRevertResult struct {
@@ -312,7 +346,7 @@ func ExpectPreimageOraclePanic(preimageKey [32]byte, preimageValue []byte, preim
 	}
 }
 
-func (e preimageOracleRevertResult) assertExpectedResult(t testing.TB, goVm mipsevm.FPVM, vmVersion VersionedVMTestCase, expect *mtutil.ExpectedState) {
+func (e preimageOracleRevertResult) assertExpectedResult(t testing.TB, goVm mipsevm.FPVM, vmVersion VersionedVMTestCase, expect *mtutil.ExpectedState, cfg *TestConfig) {
 	require.PanicsWithValue(t, e.panicMsg, func() { _, _ = goVm.Step(true) })
 	testutil.AssertPreimageOracleReverts(t, e.preimageKey, e.preimageValue, e.preimageOffset, vmVersion.Contracts)
 }
