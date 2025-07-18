@@ -82,7 +82,7 @@ func (su *SupervisorService) initFromCLIConfig(ctx context.Context, cfg *config.
 func (su *SupervisorService) initBackend(ctx context.Context, cfg *config.Config) error {
 	// In the future we may introduce other executors.
 	// For now, we just use a synchronous executor, and poll the drain function of it.
-	ex := event.NewGlobalSynchronous(ctx)
+	ex := event.NewGlobalSynchronous(ctx).WithMetrics(su.metrics)
 	su.poller = tasks.NewPoller(func() {
 		if err := ex.Drain(); err != nil {
 			su.log.Warn("Failed to execute events", "err", err)

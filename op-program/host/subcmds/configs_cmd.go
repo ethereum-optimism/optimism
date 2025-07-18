@@ -114,6 +114,9 @@ func listChain(chainID eth.ChainID) error {
 }
 
 func CheckCustomChains(ctx *cli.Context) error {
+	if err := chainconfig.CheckConfigFilenames(); err != nil {
+		return err
+	}
 	customChainIDs, err := chainconfig.CustomChainIDs()
 	if err != nil {
 		return err

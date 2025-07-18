@@ -28,14 +28,14 @@ func NewLimiter[E Emitter](ctx context.Context, em E, eventRate rate.Limit, even
 }
 
 // Emit is thread-safe, multiple parallel derivers can safely emit events to it.
-func (l *Limiter[E]) Emit(ev Event) {
+func (l *Limiter[E]) Emit(ctx context.Context, ev Event) {
 	if l.onLimited != nil && l.rl.Tokens() < 1.0 {
 		l.onLimited()
 	}
 	if err := l.rl.Wait(l.ctx); err != nil {
 		return // ctx error, safe to ignore.
 	}
-	l.emitter.Emit(ev)
+	l.emitter.Emit(ctx, ev)
 }
 
 // LimiterDrainer is a variant of Limiter that supports event draining.
@@ -45,8 +45,8 @@ func NewLimiterDrainer(ctx context.Context, em EmitterDrainer, eventRate rate.Li
 	return (*LimiterDrainer)(NewLimiter(ctx, em, eventRate, eventBurst, onLimited))
 }
 
-func (l *LimiterDrainer) Emit(ev Event) {
-	l.emitter.Emit(ev)
+func (l *LimiterDrainer) Emit(ctx context.Context, ev Event) {
+	l.emitter.Emit(ctx, ev)
 }
 
 func (l *LimiterDrainer) Drain() error {

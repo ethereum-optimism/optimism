@@ -56,9 +56,16 @@ func InteropMonitorServiceFromCLIConfig(ctx context.Context, version string, cfg
 }
 
 // InteropMonitorServiceFromClients creates a new InteropMonitorService with pre-initialized clients
-func InteropMonitorServiceFromClients(ctx context.Context, version string, cfg *CLIConfig, clients map[eth.ChainID]*sources.EthClient, log log.Logger) (*InteropMonitorService, error) {
+func InteropMonitorServiceFromClients(
+	ctx context.Context,
+	version string,
+	cfg *CLIConfig,
+	clients map[eth.ChainID]*sources.EthClient,
+	failsafeClients []FailsafeClient,
+	log log.Logger,
+) (*InteropMonitorService, error) {
 	var ms InteropMonitorService
-	if err := ms.initFromClients(ctx, version, cfg, clients, log); err != nil {
+	if err := ms.initFromClients(ctx, version, cfg, clients, failsafeClients, log); err != nil {
 		return nil, errors.Join(err, ms.Start(ctx))
 	}
 	return &ms, nil
@@ -71,11 +78,39 @@ func (ms *InteropMonitorService) initFromCLIConfig(ctx context.Context, version 
 		return fmt.Errorf("failed to init clients: %w", err)
 	}
 
-	return ms.initFromClients(ctx, version, cfg, clients, log)
+	// check if failsafe and supervisor endpoints are contradictory
+	if cfg.TriggerFailsafe && len(cfg.SupervisorEndpoints) == 0 {
+		log.Warn("trigger-failsafe is enabled, but no supervisor endpoints are provided")
+	}
+	if !cfg.TriggerFailsafe && len(cfg.SupervisorEndpoints) > 0 {
+		log.Warn("trigger-failsafe is disabled, but supervisor endpoints are provided")
+	}
+
+	// initialize failsafe clients if trigger-failsafe is enabled
+	failsafeClients := make([]FailsafeClient, len(cfg.SupervisorEndpoints))
+	if cfg.TriggerFailsafe {
+		for i, endpoint := range cfg.SupervisorEndpoints {
+			failsafeClient, err := NewSupervisorClient(endpoint, log)
+			if err != nil {
+				return fmt.Errorf("failed to init supervisor client: %w", err)
+			}
+			failsafeClients[i] = failsafeClient
+		}
+
+	}
+
+	return ms.initFromClients(ctx, version, cfg, clients, failsafeClients, log)
 }
 
 // initFromClients initializes the service with pre-created clients
-func (ms *InteropMonitorService) initFromClients(ctx context.Context, version string, cfg *CLIConfig, clients map[eth.ChainID]*sources.EthClient, log log.Logger) error {
+func (ms *InteropMonitorService) initFromClients(
+	ctx context.Context,
+	version string,
+	cfg *CLIConfig,
+	clients map[eth.ChainID]*sources.EthClient,
+	failsafeClients []FailsafeClient,
+	log log.Logger,
+) error {
 	ms.Version = version
 	ms.Log = log
 
@@ -99,8 +134,8 @@ func (ms *InteropMonitorService) initFromClients(ctx context.Context, version st
 	}
 
 	if cfg.MetricsConfig.Enabled {
-		// Initialize the metric collector, with access to all updaters
-		ms.collector = NewMetricCollector(ms.Log, ms.Metrics, ms.updaters)
+		// Initialize the metric collector, with access to all updaters and failsafe client
+		ms.collector = NewMetricCollector(ms.Log, ms.Metrics, ms.updaters, failsafeClients, cfg.TriggerFailsafe)
 	}
 	if err := ms.initMetricsServer(cfg); err != nil {
 		return fmt.Errorf("failed to start metrics server: %w", err)

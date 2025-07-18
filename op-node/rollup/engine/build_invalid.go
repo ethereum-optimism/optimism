@@ -7,7 +7,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-	"github.com/ethereum-optimism/optimism/op-service/event"
 )
 
 // BuildInvalidEvent is an internal engine event, to post-process upon invalid attributes.
@@ -15,7 +14,6 @@ import (
 type BuildInvalidEvent struct {
 	Attributes *derive.AttributesWithParent
 	Err        error
-	event.Ctx
 }
 
 func (ev BuildInvalidEvent) String() string {
@@ -26,29 +24,27 @@ func (ev BuildInvalidEvent) String() string {
 type InvalidPayloadAttributesEvent struct {
 	Attributes *derive.AttributesWithParent
 	Err        error
-	event.Ctx
 }
 
 func (ev InvalidPayloadAttributesEvent) String() string {
 	return "invalid-payload-attributes"
 }
 
-func (eq *EngDeriver) onBuildInvalid(ev BuildInvalidEvent) {
+func (eq *EngDeriver) onBuildInvalid(ctx context.Context, ev BuildInvalidEvent) {
 	eq.log.Warn("could not process payload attributes", "err", ev.Err)
 
 	// Deposit transaction execution errors are suppressed in the execution engine, but if the
 	// block is somehow invalid, there is nothing we can do to recover & we should exit.
 	if ev.Attributes.Attributes.IsDepositsOnly() {
 		eq.log.Error("deposit only block was invalid", "parent", ev.Attributes.Parent, "err", ev.Err)
-		eq.emitter.Emit(rollup.CriticalErrorEvent{
+		eq.emitter.Emit(ctx, rollup.CriticalErrorEvent{
 			Err: fmt.Errorf("failed to process block with only deposit transactions: %w", ev.Err),
-			Ctx: ev.Ctx,
 		})
 		return
 	}
 
 	if ev.Attributes.IsDerived() && eq.cfg.IsHolocene(ev.Attributes.DerivedFrom.Time) {
-		eq.emitDepositsOnlyPayloadAttributesRequest(ev.Context(), ev.Attributes.Parent.ID(), ev.Attributes.DerivedFrom)
+		eq.emitDepositsOnlyPayloadAttributesRequest(ctx, ev.Attributes.Parent.ID(), ev.Attributes.DerivedFrom)
 		return
 	}
 
@@ -64,15 +60,14 @@ func (eq *EngDeriver) onBuildInvalid(ev BuildInvalidEvent) {
 	// drop the payload without inserting it into the engine
 
 	// Signal that we deemed the attributes as unfit
-	eq.emitter.Emit(InvalidPayloadAttributesEvent(ev))
+	eq.emitter.Emit(ctx, InvalidPayloadAttributesEvent(ev))
 }
 
 func (eq *EngDeriver) emitDepositsOnlyPayloadAttributesRequest(ctx context.Context, parent eth.BlockID, derivedFrom eth.L1BlockRef) {
 	eq.log.Warn("Holocene active, requesting deposits-only attributes", "parent", parent, "derived_from", derivedFrom)
 	// request deposits-only version
-	eq.emitter.Emit(derive.DepositsOnlyPayloadAttributesRequestEvent{
+	eq.emitter.Emit(ctx, derive.DepositsOnlyPayloadAttributesRequestEvent{
 		Parent:      parent,
 		DerivedFrom: derivedFrom,
-		Ctx:         event.WrapCtx(ctx),
 	})
 }

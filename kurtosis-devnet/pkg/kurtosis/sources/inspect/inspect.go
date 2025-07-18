@@ -32,6 +32,14 @@ func NewInspector(enclaveID string) *Inspector {
 	return &Inspector{enclaveID: enclaveID}
 }
 
+func ShortenedUUIDString(fullUUID string) string {
+	lengthToTrim := 12
+	if lengthToTrim > len(fullUUID) {
+		lengthToTrim = len(fullUUID)
+	}
+	return fullUUID[:lengthToTrim]
+}
+
 func (e *Inspector) ExtractData(ctx context.Context) (*InspectData, error) {
 	kurtosisCtx, err := wrappers.GetDefaultKurtosisContext()
 	if err != nil {
@@ -80,14 +88,15 @@ func (e *Inspector) ExtractData(ctx context.Context) (*InspectData, error) {
 				Port: int(portSpec.GetNumber()),
 			}
 		}
-
+		shortEnclaveUuid := ShortenedUUIDString(enclaveUUID)
+		shortServiceUuid := ShortenedUUIDString(svcUUID)
 		for port, portSpec := range svcCtx.GetPrivatePorts() {
 			// avoid non-mapped ports, we shouldn't have to use them.
 			if p, ok := portMap[port]; ok {
 				p.PrivatePort = int(portSpec.GetNumber())
 				p.ReverseProxyHeader = http.Header{
 					// This allows going through the kurtosis reverse proxy for each port
-					"Host": []string{fmt.Sprintf("%d-%.12s-%.12s", p.PrivatePort, svcUUID, enclaveUUID)},
+					"Host": []string{fmt.Sprintf("%d-%s-%s", p.PrivatePort, shortServiceUuid, shortEnclaveUuid)},
 				}
 
 				portMap[port] = p

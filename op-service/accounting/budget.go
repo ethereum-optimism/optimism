@@ -35,22 +35,21 @@ func (b *Budget) Balance() eth.ETH {
 	return b.balance
 }
 
-func (b *Budget) Debit(amount eth.ETH) error {
+func (b *Budget) Debit(amount eth.ETH) (eth.ETH, error) {
 	b.balanceMu.Lock()
 	defer b.balanceMu.Unlock()
 	result, underflow := b.balance.SubUnderflow(amount)
 	if underflow {
-		b.balance = eth.ZeroWei
-		return &OverdraftError{
+		return b.balance, &OverdraftError{
 			Remaining: b.balance,
 			Requested: amount,
 		}
 	}
 	b.balance = result
-	return nil
+	return b.balance, nil
 }
 
-func (b *Budget) Credit(amount eth.ETH) {
+func (b *Budget) Credit(amount eth.ETH) eth.ETH {
 	b.balanceMu.Lock()
 	defer b.balanceMu.Unlock()
 	var overflow bool
@@ -58,4 +57,5 @@ func (b *Budget) Credit(amount eth.ETH) {
 	if overflow {
 		b.balance = eth.MaxU256Wei
 	}
+	return b.balance
 }

@@ -102,12 +102,12 @@ func TestOriginSelectorFetchNextError(t *testing.T) {
 
 	l1.ExpectL1BlockRefByNumber(b.Number, eth.L1BlockRef{}, ethereum.NotFound)
 
-	handled := s.OnEvent(engine.ForkchoiceUpdateEvent{UnsafeL2Head: l2Head})
+	handled := s.OnEvent(context.Background(), engine.ForkchoiceUpdateEvent{UnsafeL2Head: l2Head})
 	require.True(t, handled)
 
 	l1.ExpectL1BlockRefByNumber(b.Number, eth.L1BlockRef{}, errors.New("test error"))
 
-	handled = s.OnEvent(engine.ForkchoiceUpdateEvent{UnsafeL2Head: l2Head})
+	handled = s.OnEvent(context.Background(), engine.ForkchoiceUpdateEvent{UnsafeL2Head: l2Head})
 	require.True(t, handled)
 
 	// The next origin should still be `a` because the fetch failed.
@@ -177,7 +177,7 @@ func TestOriginSelectorAdvances(t *testing.T) {
 
 		// Trigger the background fetch via a forkchoice update.
 		// This should be a no-op because the next origin is already cached.
-		handled := s.OnEvent(engine.ForkchoiceUpdateEvent{UnsafeL2Head: l2Head})
+		handled := s.OnEvent(context.Background(), engine.ForkchoiceUpdateEvent{UnsafeL2Head: l2Head})
 		require.True(t, handled)
 
 		requireL1OriginAt(l2Head, b)
@@ -194,7 +194,7 @@ func TestOriginSelectorAdvances(t *testing.T) {
 
 		// Trigger the background fetch via a forkchoice update.
 		// This will actually fetch the next origin because the internal cache is empty.
-		handled = s.OnEvent(engine.ForkchoiceUpdateEvent{UnsafeL2Head: l2Head})
+		handled = s.OnEvent(context.Background(), engine.ForkchoiceUpdateEvent{UnsafeL2Head: l2Head})
 		require.True(t, handled)
 
 		// The next origin should be `c` now.
@@ -270,7 +270,7 @@ func TestOriginSelectorHandlesReset(t *testing.T) {
 	require.Equal(t, b, next)
 
 	// Trigger the pipeline reset
-	handled := s.OnEvent(rollup.ResetEvent{})
+	handled := s.OnEvent(context.Background(), rollup.ResetEvent{})
 	require.True(t, handled)
 
 	// The next origin should be `a` now, but we need to fetch it
@@ -331,7 +331,7 @@ func TestOriginSelectorFetchesNextOrigin(t *testing.T) {
 	require.Equal(t, a, next)
 
 	// Trigger the background fetch via a forkchoice update
-	handled := s.OnEvent(engine.ForkchoiceUpdateEvent{UnsafeL2Head: l2Head})
+	handled := s.OnEvent(context.Background(), engine.ForkchoiceUpdateEvent{UnsafeL2Head: l2Head})
 	require.True(t, handled)
 
 	// The next origin should be `b` now.
@@ -730,6 +730,6 @@ func TestOriginSelectorMiscEvent(t *testing.T) {
 	s := NewL1OriginSelector(ctx, log, cfg, l1)
 
 	// This event is not handled
-	handled := s.OnEvent(rollup.L1TemporaryErrorEvent{})
+	handled := s.OnEvent(context.Background(), rollup.L1TemporaryErrorEvent{})
 	require.False(t, handled)
 }

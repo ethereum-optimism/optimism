@@ -28,7 +28,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup/driver"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/finality"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/interop"
-	"github.com/ethereum-optimism/optimism/op-node/rollup/interop/managed"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/interop/indexing"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/sequencing"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/status"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/sync"
@@ -174,7 +174,7 @@ func (n *OpNode) init(ctx context.Context, cfg *config.Config) error {
 
 func (n *OpNode) initEventSystem() {
 	// This executor will be configurable in the future, for parallel event processing
-	executor := event.NewGlobalSynchronous(n.resourcesCtx)
+	executor := event.NewGlobalSynchronous(n.resourcesCtx).WithMetrics(n.metrics)
 	sys := event.NewSystem(n.log, executor)
 	sys.AddTracer(event.NewMetricsTracer(n.metrics))
 	sys.Register("node", event.DeriverFunc(n.onEvent))
@@ -209,13 +209,13 @@ func (n *OpNode) initL1(ctx context.Context, cfg *config.Config) error {
 
 	emitter := n.eventSys.Register("l1-signals", nil)
 	onL1Head := func(ctx context.Context, sig eth.L1BlockRef) {
-		emitter.Emit(status.L1UnsafeEvent{L1Unsafe: sig, Ctx: event.WrapCtx(ctx)})
+		emitter.Emit(ctx, status.L1UnsafeEvent{L1Unsafe: sig})
 	}
 	onL1Safe := func(ctx context.Context, sig eth.L1BlockRef) {
-		emitter.Emit(status.L1SafeEvent{L1Safe: sig, Ctx: event.WrapCtx(ctx)})
+		emitter.Emit(ctx, status.L1SafeEvent{L1Safe: sig})
 	}
 	onL1Finalized := func(ctx context.Context, sig eth.L1BlockRef) {
-		emitter.Emit(finality.FinalizeL1Event{FinalizedL1: sig, Ctx: event.WrapCtx(ctx)})
+		emitter.Emit(ctx, finality.FinalizeL1Event{FinalizedL1: sig})
 	}
 
 	// Keep subscribed to the L1 heads, which keeps the L1 maintainer pointing to the best headers to sync
@@ -415,12 +415,12 @@ func (n *OpNode) initL2(ctx context.Context, cfg *config.Config) error {
 		return err
 	}
 
-	managedMode := false
+	indexingMode := false
 	sys, err := cfg.InteropConfig.Setup(ctx, n.log, &n.cfg.Rollup, n.l1Source, n.l2Source, n.metrics)
 	if err != nil {
 		return fmt.Errorf("failed to setup interop: %w", err)
 	} else if sys != nil { // we continue with legacy mode if no interop sub-system is set up.
-		_, managedMode = sys.(*managed.ManagedMode)
+		_, indexingMode = sys.(*indexing.IndexingMode)
 		n.interopSys = sys
 		n.eventSys.Register("interop", n.interopSys)
 	}
@@ -452,7 +452,7 @@ func (n *OpNode) initL2(ctx context.Context, cfg *config.Config) error {
 	}
 
 	n.l2Driver = driver.NewDriver(n.eventSys, n.eventDrain, &cfg.Driver, &cfg.Rollup, cfg.DependencySet, n.l2Source, n.l1Source,
-		n.beacon, n, n, n.log, n.metrics, cfg.ConfigPersistence, n.safeDB, &cfg.Sync, sequencerConductor, altDA, managedMode)
+		n.beacon, n, n, n.log, n.metrics, cfg.ConfigPersistence, n.safeDB, &cfg.Sync, sequencerConductor, altDA, indexingMode)
 	return nil
 }
 
@@ -576,7 +576,7 @@ func (n *OpNode) Start(ctx context.Context) error {
 // onEvent handles broadcast events.
 // The OpNode itself is a deriver to catch system-critical events.
 // Other event-handling should be encapsulated into standalone derivers.
-func (n *OpNode) onEvent(ev event.Event) bool {
+func (n *OpNode) onEvent(ctx context.Context, ev event.Event) bool {
 	switch x := ev.(type) {
 	case rollup.CriticalErrorEvent:
 		n.log.Error("Critical error", "err", x.Err)
@@ -588,7 +588,7 @@ func (n *OpNode) onEvent(ev event.Event) bool {
 }
 
 func (n *OpNode) PublishBlock(ctx context.Context, signedEnvelope *opsigner.SignedExecutionPayloadEnvelope) error {
-	n.apiEmitter.Emit(tracer.TracePublishBlockEvent{Envelope: signedEnvelope.Envelope, Ctx: event.WrapCtx(ctx)})
+	n.apiEmitter.Emit(ctx, tracer.TracePublishBlockEvent{Envelope: signedEnvelope.Envelope})
 	if p2pNode := n.getP2PNodeIfEnabled(); p2pNode != nil {
 		n.log.Info("Publishing signed execution payload on p2p", "id", signedEnvelope.ID())
 		return p2pNode.GossipOut().PublishSignedL2Payload(ctx, signedEnvelope)
@@ -597,7 +597,7 @@ func (n *OpNode) PublishBlock(ctx context.Context, signedEnvelope *opsigner.Sign
 }
 
 func (n *OpNode) SignAndPublishL2Payload(ctx context.Context, envelope *eth.ExecutionPayloadEnvelope) error {
-	n.apiEmitter.Emit(tracer.TracePublishBlockEvent{Envelope: envelope, Ctx: event.WrapCtx(ctx)})
+	n.apiEmitter.Emit(ctx, tracer.TracePublishBlockEvent{Envelope: envelope})
 	// publish to p2p, if we are running p2p at all
 	if p2pNode := n.getP2PNodeIfEnabled(); p2pNode != nil {
 		if n.p2pSigner == nil {
@@ -786,7 +786,7 @@ func (n *OpNode) HTTPPort() (int, error) {
 }
 
 func (n *OpNode) InteropRPC() (rpcEndpoint string, jwtSecret eth.Bytes32) {
-	m, ok := n.interopSys.(*managed.ManagedMode)
+	m, ok := n.interopSys.(*indexing.IndexingMode)
 	if !ok {
 		return "", [32]byte{}
 	}
@@ -794,7 +794,7 @@ func (n *OpNode) InteropRPC() (rpcEndpoint string, jwtSecret eth.Bytes32) {
 }
 
 func (n *OpNode) InteropRPCPort() (int, error) {
-	m, ok := n.interopSys.(*managed.ManagedMode)
+	m, ok := n.interopSys.(*indexing.IndexingMode)
 	if !ok {
 		return 0, fmt.Errorf("failed to fetch interop port for op-node")
 	}

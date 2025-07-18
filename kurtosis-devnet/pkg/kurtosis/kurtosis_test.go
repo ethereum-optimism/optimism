@@ -335,7 +335,7 @@ func TestGetEnvironmentInfo(t *testing.T) {
 						"0x123": common.HexToAddress("0x123"),
 					},
 				},
-				L1ChainID: "1234",
+				L1ChainID: "0",
 			},
 			jwt: testJWTs,
 			want: &KurtosisEnvironment{
@@ -343,7 +343,7 @@ func TestGetEnvironmentInfo(t *testing.T) {
 					Name:            DefaultEnclave,
 					ReverseProxyURL: defaultKurtosisReverseProxyURL,
 					L1: &descriptors.Chain{
-						ID:       "1234",
+						ID:       "0",
 						Name:     "Ethereum",
 						Services: make(descriptors.RedundantServiceMap),
 						Nodes: []descriptors.Node{
@@ -416,7 +416,7 @@ func TestGetEnvironmentInfo(t *testing.T) {
 						"0x123": common.HexToAddress("0x123"),
 					},
 				},
-				L1ChainID: "1234",
+				L1ChainID: "0",
 			},
 			jwt: testJWTs,
 			want: &KurtosisEnvironment{
@@ -424,7 +424,7 @@ func TestGetEnvironmentInfo(t *testing.T) {
 					Name:            DefaultEnclave,
 					ReverseProxyURL: defaultKurtosisReverseProxyURL,
 					L1: &descriptors.Chain{
-						ID:       "1234",
+						ID:       "0",
 						Name:     "Ethereum",
 						Services: make(descriptors.RedundantServiceMap),
 						Nodes: []descriptors.Node{
@@ -477,7 +477,7 @@ func TestGetEnvironmentInfo(t *testing.T) {
 						"0x123": common.HexToAddress("0x123"),
 					},
 				},
-				L1ChainID: "1234",
+				L1ChainID: "0",
 			},
 			jwt: testJWTs,
 			want: &KurtosisEnvironment{
@@ -485,7 +485,7 @@ func TestGetEnvironmentInfo(t *testing.T) {
 					Name:            DefaultEnclave,
 					ReverseProxyURL: defaultKurtosisReverseProxyURL,
 					L1: &descriptors.Chain{
-						ID:       "1234",
+						ID:       "0",
 						Name:     "Ethereum",
 						Services: make(descriptors.RedundantServiceMap),
 						Nodes: []descriptors.Node{

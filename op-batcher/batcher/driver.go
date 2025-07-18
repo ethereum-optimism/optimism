@@ -463,9 +463,6 @@ func (l *BatchSubmitter) publishingLoop(ctx context.Context, wg *sync.WaitGroup,
 	txQueue := txmgr.NewQueue[txRef](ctx, l.Txmgr, l.Config.MaxPendingTransactions)
 
 	for range publishSignal {
-		if !l.checkTxpool(txQueue, receiptsCh) {
-			continue
-		}
 		l.publishStateToL1(ctx, txQueue, receiptsCh, daGroup)
 	}
 

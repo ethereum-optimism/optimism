@@ -186,19 +186,19 @@ func applyCommonChallengerOpts(cfg *config.Config, options ...Option) error {
 	if cfg.Cannon.VmBin != "" {
 		_, err := os.Stat(cfg.Cannon.VmBin)
 		if err != nil {
-			return errors.New("cannon should be built. Make sure you've run make cannon-prestate")
+			return errors.New("cannon should be built. Make sure you've run make cannon-prestates")
 		}
 	}
 	if cfg.Cannon.Server != "" {
 		_, err := os.Stat(cfg.Cannon.Server)
 		if err != nil {
-			return errors.New("op-program should be built. Make sure you've run make cannon-prestate")
+			return errors.New("op-program should be built. Make sure you've run make cannon-prestates")
 		}
 	}
 	if cfg.CannonAbsolutePreState != "" {
 		_, err := os.Stat(cfg.CannonAbsolutePreState)
 		if err != nil {
-			return errors.New("cannon pre-state should be built. Make sure you've run make cannon-prestate")
+			return errors.New("cannon pre-state should be built. Make sure you've run make cannon-prestates")
 		}
 	}
 

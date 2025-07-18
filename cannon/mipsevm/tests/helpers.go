@@ -4,22 +4,23 @@ import (
 	"io"
 	"os"
 
-	"github.com/ethereum-optimism/optimism/cannon/mipsevm/versions"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/stretchr/testify/require"
+
+	mtutil "github.com/ethereum-optimism/optimism/cannon/mipsevm/multithreaded/testutil"
+	"github.com/ethereum-optimism/optimism/cannon/mipsevm/versions"
 
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/arch"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/multithreaded"
-	mttestutil "github.com/ethereum-optimism/optimism/cannon/mipsevm/multithreaded/testutil"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/testutil"
 )
 
-type VMFactory func(po mipsevm.PreimageOracle, stdOut, stdErr io.Writer, log log.Logger, opts ...testutil.StateOption) mipsevm.FPVM
+type VMFactory func(po mipsevm.PreimageOracle, stdOut, stdErr io.Writer, log log.Logger, opts ...mtutil.StateOption) mipsevm.FPVM
 
-func multiThreadedVmFactory(po mipsevm.PreimageOracle, stdOut, stdErr io.Writer, log log.Logger, features mipsevm.FeatureToggles, opts ...testutil.StateOption) mipsevm.FPVM {
+func multiThreadedVmFactory(po mipsevm.PreimageOracle, stdOut, stdErr io.Writer, log log.Logger, features mipsevm.FeatureToggles, opts ...mtutil.StateOption) mipsevm.FPVM {
 	state := multithreaded.CreateEmptyState()
-	mutator := mttestutil.NewStateMutatorMultiThreaded(state)
+	mutator := mtutil.NewStateMutator(state)
 	for _, opt := range opts {
 		opt(mutator)
 	}
@@ -72,7 +73,7 @@ func GetMultiThreadedTestCase(t require.TestingT, version versions.StateVersion,
 		Name:        version.String(),
 		Contracts:   testutil.TestContractsSetup(t, testutil.MipsMultithreaded, uint8(version)),
 		StateHashFn: multithreaded.GetStateHashFn(),
-		VMFactory: func(po mipsevm.PreimageOracle, stdOut, stdErr io.Writer, log log.Logger, opts ...testutil.StateOption) mipsevm.FPVM {
+		VMFactory: func(po mipsevm.PreimageOracle, stdOut, stdErr io.Writer, log log.Logger, opts ...mtutil.StateOption) mipsevm.FPVM {
 			return multiThreadedVmFactory(po, stdOut, stdErr, log, features, opts...)
 		},
 		ElfVMFactory: func(t require.TestingT, elfFile string, po mipsevm.PreimageOracle, stdOut, stdErr io.Writer, log log.Logger) mipsevm.FPVM {
@@ -116,9 +117,9 @@ func GenerateEmptyThreadProofVariations(t require.TestingT) []threadProofTestcas
 	}
 }
 
-func setupWithTestCase(t require.TestingT, v VersionedVMTestCase, randomSeed int, preimageOracle mipsevm.PreimageOracle, opts ...testutil.StateOption) (mipsevm.FPVM, *multithreaded.State, *testutil.ContractMetadata) {
-	allOpts := append([]testutil.StateOption{testutil.WithRandomization(int64(randomSeed))}, opts...)
+func setupWithTestCase(t require.TestingT, v VersionedVMTestCase, randomSeed int, preimageOracle mipsevm.PreimageOracle, opts ...mtutil.StateOption) (mipsevm.FPVM, *multithreaded.State, *testutil.ContractMetadata) {
+	allOpts := append([]mtutil.StateOption{mtutil.WithRandomization(int64(randomSeed))}, opts...)
 	vm := v.VMFactory(preimageOracle, os.Stdout, os.Stderr, testutil.CreateLogger(), allOpts...)
-	state := mttestutil.GetMtState(t, vm)
+	state := mtutil.GetMtState(t, vm)
 	return vm, state, v.Contracts
 }

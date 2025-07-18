@@ -192,7 +192,6 @@ rules:
       - pattern-not: vm.expectRevert(abi.encodeWithSelector(...));
     paths:
       exclude:
-        - packages/contracts-bedrock/src/L1/OPContractsManager.sol
         - packages/contracts-bedrock/src/legacy/L1ChugSplashProxy.sol
 
   - id: sol-style-enforce-require-msg

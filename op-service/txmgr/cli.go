@@ -321,6 +321,23 @@ func (m CLIConfig) Check() error {
 	if err := m.SignerCLIConfig.Check(); err != nil {
 		return err
 	}
+	atMostOneIsSet := func(options ...bool) bool {
+		boolToInt := func(b bool) int {
+			if b {
+				return 1
+			}
+			return 0
+		}
+
+		sum := 0
+		for _, option := range options {
+			sum += boolToInt(option)
+		}
+		return sum == 1 || sum == 0
+	}
+	if !atMostOneIsSet(m.PrivateKey != "", m.Mnemonic != "", m.SignerCLIConfig.Enabled()) {
+		return errors.New("can only provide at most one of: [private key, mnemonic, remote signer]")
+	}
 	return nil
 }
 

@@ -10,7 +10,7 @@ import (
 
 func TestLimiter(t *testing.T) {
 	count := uint64(0)
-	em := EmitterFunc(func(ev Event) {
+	em := EmitterFunc(func(ctx context.Context, ev Event) {
 		count += 1
 	})
 	hitRateLimitAt := uint64(0)
@@ -22,7 +22,7 @@ func TestLimiter(t *testing.T) {
 		hitRateLimitAt = count
 	})
 	for i := 0; i < 30; i++ {
-		lim.Emit(TestEvent{})
+		lim.Emit(context.Background(), TestEvent{})
 	}
 	require.LessOrEqual(t, uint64(10), hitRateLimitAt)
 }

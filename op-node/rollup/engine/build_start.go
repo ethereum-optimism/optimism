@@ -8,20 +8,18 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-	"github.com/ethereum-optimism/optimism/op-service/event"
 )
 
 type BuildStartEvent struct {
 	Attributes *derive.AttributesWithParent
-	event.Ctx
 }
 
 func (ev BuildStartEvent) String() string {
 	return "build-start"
 }
 
-func (eq *EngDeriver) onBuildStart(ev BuildStartEvent) {
-	ctx, cancel := context.WithTimeout(eq.ctx, buildStartTimeout)
+func (eq *EngDeriver) onBuildStart(ctx context.Context, ev BuildStartEvent) {
+	rpcCtx, cancel := context.WithTimeout(eq.ctx, buildStartTimeout)
 	defer cancel()
 
 	if ev.Attributes.DerivedFrom != (eth.L1BlockRef{}) &&
@@ -35,11 +33,10 @@ func (eq *EngDeriver) onBuildStart(ev BuildStartEvent) {
 		UnsafeL2Head:    ev.Attributes.Parent,
 		SafeL2Head:      eq.ec.safeHead,
 		FinalizedL2Head: eq.ec.finalizedHead,
-		Ctx:             ev.Ctx,
 	}
 	if fcEvent.UnsafeL2Head.Number < fcEvent.FinalizedL2Head.Number {
 		err := fmt.Errorf("invalid block-building pre-state, unsafe head %s is behind finalized head %s", fcEvent.UnsafeL2Head, fcEvent.FinalizedL2Head)
-		eq.emitter.Emit(rollup.CriticalErrorEvent{Err: err, Ctx: ev.Ctx}) // make the node exit, things are very wrong.
+		eq.emitter.Emit(ctx, rollup.CriticalErrorEvent{Err: err}) // make the node exit, things are very wrong.
 		return
 	}
 	fc := eth.ForkchoiceState{
@@ -48,41 +45,37 @@ func (eq *EngDeriver) onBuildStart(ev BuildStartEvent) {
 		FinalizedBlockHash: fcEvent.FinalizedL2Head.Hash,
 	}
 	buildStartTime := time.Now()
-	id, errTyp, err := startPayload(ctx, eq.ec.engine, fc, ev.Attributes.Attributes)
+	id, errTyp, err := startPayload(rpcCtx, eq.ec.engine, fc, ev.Attributes.Attributes)
 	if err != nil {
 		switch errTyp {
 		case BlockInsertTemporaryErr:
 			// RPC errors are recoverable, we can retry the buffered payload attributes later.
-			eq.emitter.Emit(rollup.EngineTemporaryErrorEvent{
+			eq.emitter.Emit(ctx, rollup.EngineTemporaryErrorEvent{
 				Err: fmt.Errorf("temporarily cannot insert new safe block: %w", err),
-				Ctx: ev.Ctx,
 			})
 			return
 		case BlockInsertPrestateErr:
-			eq.emitter.Emit(rollup.ResetEvent{
+			eq.emitter.Emit(ctx, rollup.ResetEvent{
 				Err: fmt.Errorf("need reset to resolve pre-state problem: %w", err),
-				Ctx: ev.Ctx,
 			})
 			return
 		case BlockInsertPayloadErr:
-			eq.emitter.Emit(BuildInvalidEvent{Attributes: ev.Attributes, Err: err, Ctx: ev.Ctx})
+			eq.emitter.Emit(ctx, BuildInvalidEvent{Attributes: ev.Attributes, Err: err})
 			return
 		default:
-			eq.emitter.Emit(rollup.CriticalErrorEvent{
+			eq.emitter.Emit(ctx, rollup.CriticalErrorEvent{
 				Err: fmt.Errorf("unknown error type %d: %w", errTyp, err),
-				Ctx: ev.Ctx,
 			})
 			return
 		}
 	}
-	eq.emitter.Emit(fcEvent)
+	eq.emitter.Emit(ctx, fcEvent)
 
-	eq.emitter.Emit(BuildStartedEvent{
+	eq.emitter.Emit(ctx, BuildStartedEvent{
 		Info:         eth.PayloadInfo{ID: id, Timestamp: uint64(ev.Attributes.Attributes.Timestamp)},
 		BuildStarted: buildStartTime,
 		Concluding:   ev.Attributes.Concluding,
 		DerivedFrom:  ev.Attributes.DerivedFrom,
 		Parent:       ev.Attributes.Parent,
-		Ctx:          ev.Ctx,
 	})
 }

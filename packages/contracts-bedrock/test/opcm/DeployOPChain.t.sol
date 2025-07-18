@@ -372,7 +372,8 @@ contract DeployOPChain_TestBase is Test {
                 superchainConfigProxy: superchainConfigProxy,
                 protocolVersionsProxy: protocolVersionsProxy,
                 superchainProxyAdmin: superchainProxyAdmin,
-                upgradeController: upgradeController
+                upgradeController: upgradeController,
+                challenger: challenger
             })
         );
 

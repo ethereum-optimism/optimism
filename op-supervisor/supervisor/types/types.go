@@ -485,9 +485,9 @@ type BlockReplacement struct {
 	Invalidated common.Hash  `json:"invalidated"`
 }
 
-// ManagedEvent is an event sent by the managed node to the supervisor,
+// IndexingEvent is an event sent by the indexing node to the supervisor,
 // to share an update. One of the fields will be non-null; different kinds of updates may be sent.
-type ManagedEvent struct {
+type IndexingEvent struct {
 	Reset                  *string              `json:"reset,omitempty"`
 	UnsafeBlock            *eth.BlockRef        `json:"unsafeBlock,omitempty"`
 	DerivationUpdate       *DerivedBlockRefPair `json:"derivationUpdate,omitempty"`

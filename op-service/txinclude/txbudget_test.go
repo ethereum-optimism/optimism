@@ -1,6 +1,7 @@
 package txinclude
 
 import (
+	"math/big"
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-service/accounting"
@@ -8,37 +9,68 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/params"
+	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
 )
 
+type mockOPCostOracle struct {
+	cost *big.Int
+}
+
+var _ OPCostOracle = mockOPCostOracle{}
+
+func (m mockOPCostOracle) OPCost(*types.Transaction) *big.Int {
+	return m.cost
+}
+
 func TestTxBudgetResubmitting(t *testing.T) {
+	tx := types.NewTx(&types.BlobTx{
+		Gas:        1,
+		GasFeeCap:  uint256.NewInt(1),
+		BlobFeeCap: uint256.NewInt(1),
+		BlobHashes: []common.Hash{{}},
+	})
+	oracle := mockOPCostOracle{
+		cost: big.NewInt(1),
+	}
+	// gasCost + opCost + 1 * params.BlobTxBlobGasPerBlob
+	newCost := eth.WeiU64(1 + 1 + 1*params.BlobTxBlobGasPerBlob)
+
 	t.Run("increased cost debits difference", func(t *testing.T) {
-		inner := accounting.NewBudget(eth.WeiU64(1000))
-		tb := newTxBudget(inner)
-		require.NoError(t, tb.resubmitting(eth.WeiU64(100), eth.WeiU64(150)))
-		require.Equal(t, eth.WeiU64(950), inner.Balance())
+		startingBalance := eth.Ether(100)
+		inner := accounting.NewBudget(startingBalance)
+		tb := NewTxBudget(inner, WithOPCostOracle(oracle))
+		oldCost := newCost.Sub(eth.OneWei)
+		cost, err := tb.BeforeResubmit(oldCost, tx)
+		require.NoError(t, err)
+		require.Equal(t, newCost, cost)
+		require.Equal(t, startingBalance.Sub(newCost.Sub(oldCost)), inner.Balance())
 	})
 
 	t.Run("decreased cost credits difference", func(t *testing.T) {
-		inner := accounting.NewBudget(eth.WeiU64(1000))
-		tb := newTxBudget(inner)
-		require.NoError(t, tb.resubmitting(eth.WeiU64(200), eth.WeiU64(150)))
-		require.Equal(t, eth.WeiU64(1050), inner.Balance())
+		startingBalance := eth.Ether(100)
+		inner := accounting.NewBudget(startingBalance)
+		tb := NewTxBudget(inner, WithOPCostOracle(oracle))
+		oldCost := newCost.Add(eth.OneWei)
+		cost, err := tb.BeforeResubmit(oldCost, tx)
+		require.NoError(t, err)
+		require.Equal(t, newCost, cost)
+		require.Equal(t, startingBalance.Add(oldCost.Sub(newCost)), inner.Balance())
 	})
 
 	t.Run("same cost no change", func(t *testing.T) {
-		inner := accounting.NewBudget(eth.WeiU64(1000))
-		tb := newTxBudget(inner)
-		cost := eth.WeiU64(100)
-		require.NoError(t, tb.resubmitting(cost, cost))
-		require.Equal(t, eth.WeiU64(1000), inner.Balance())
+		startingBalance := eth.Ether(100)
+		inner := accounting.NewBudget(startingBalance)
+		tb := NewTxBudget(inner, WithOPCostOracle(oracle))
+		cost, err := tb.BeforeResubmit(newCost, tx)
+		require.NoError(t, err)
+		require.Equal(t, newCost, cost)
+		require.Equal(t, startingBalance, inner.Balance())
 	})
 
 	t.Run("insufficient budget for increase", func(t *testing.T) {
-		inner := accounting.NewBudget(eth.WeiU64(30))
-		tb := newTxBudget(inner)
-		err := tb.resubmitting(eth.WeiU64(100), eth.WeiU64(150))
-		require.Error(t, err)
+		tb := NewTxBudget(accounting.NewBudget(eth.OneWei), WithOPCostOracle(oracle))
+		_, err := tb.BeforeResubmit(eth.OneWei, tx)
 		var overdraftErr *accounting.OverdraftError
 		require.ErrorAs(t, err, &overdraftErr)
 	})
@@ -46,112 +78,49 @@ func TestTxBudgetResubmitting(t *testing.T) {
 
 func TestTxBudgetCanceling(t *testing.T) {
 	inner := accounting.NewBudget(eth.WeiU64(1000))
-	tb := newTxBudget(inner)
-	tb.canceling(eth.WeiU64(250))
+	tb := NewTxBudget(inner)
+	tb.AfterCancel(eth.WeiU64(250), nil)
 	require.Equal(t, eth.WeiU64(1250), inner.Balance())
 }
 
 func TestTxBudgetIncluded(t *testing.T) {
-	t.Run("dynamic fee tx", func(t *testing.T) {
-		startingBalance := eth.ZeroWei
-		inner := accounting.NewBudget(startingBalance)
-		tb := newTxBudget(inner)
-		tb.included(&IncludedTx{
-			Transaction: types.NewTx(&types.DynamicFeeTx{
-				GasFeeCap: eth.GWei(1).ToBig(),
-				Gas:       21000,
-			}),
-			Receipt: &types.Receipt{
-				EffectiveGasPrice: eth.GWei(1).ToBig(),
-				GasUsed:           21000,
-				Type:              types.DynamicFeeTxType,
-			},
-		})
-		require.Equal(t, startingBalance, inner.Balance())
+	tx := types.NewTx(&types.BlobTx{
+		Gas:        1,
+		GasFeeCap:  uint256.NewInt(1),
+		BlobFeeCap: uint256.NewInt(1),
+		BlobHashes: []common.Hash{{}},
 	})
 
-	t.Run("dynamic fee tx less gas", func(t *testing.T) {
-		startingBalance := eth.ZeroWei
-		inner := accounting.NewBudget(startingBalance)
-		tb := newTxBudget(inner)
-		tb.included(&IncludedTx{
-			Transaction: types.NewTx(&types.DynamicFeeTx{
-				GasFeeCap: eth.GWei(1).ToBig(),
-				Gas:       100_000,
-			}),
-			Receipt: &types.Receipt{
-				EffectiveGasPrice: eth.GWei(1).ToBig(),
-				GasUsed:           75_000,
-				Type:              types.DynamicFeeTxType,
-			},
-		})
-		require.Equal(t, startingBalance.Add(eth.GWei(25_000)), inner.Balance())
+	l1Cost, _ := types.NewL1CostFuncFjord(big.NewInt(1), big.NewInt(1), big.NewInt(1), big.NewInt(1))(tx.RollupCostData())
+	l1Cost.Add(l1Cost, big.NewInt(1)) // operator fee
+	oracle := mockOPCostOracle{
+		cost: l1Cost,
+	}
+	// gasCost + opCost + 1 * params.BlobTxBlobGasPerBlob
+	cost := big.NewInt(1) // gas cost
+	cost.Add(cost, oracle.cost)
+	cost.Add(cost, big.NewInt(params.BlobTxBlobGasPerBlob))
+	budgetedCost := eth.WeiBig(cost)
+
+	receipt := &types.Receipt{
+		EffectiveGasPrice: eth.WeiU64(1).ToBig(),
+		GasUsed:           budgetedCost.ToBig().Uint64(),
+		Type:              types.DynamicFeeTxType,
+
+		L1GasPrice:          big.NewInt(1),
+		L1BaseFeeScalar:     ptr(uint64(1)),
+		L1BlobBaseFee:       big.NewInt(1),
+		L1BlobBaseFeeScalar: ptr(uint64(1)),
+		OperatorFeeScalar:   ptr(uint64(1)),
+		OperatorFeeConstant: ptr(uint64(0)),
+	}
+
+	startingBalance := eth.WeiU64(100)
+	inner := accounting.NewBudget(startingBalance)
+	tb := NewTxBudget(inner, WithOPCostOracle(oracle))
+	tb.AfterIncluded(budgetedCost, &IncludedTx{
+		Transaction: tx,
+		Receipt:     receipt,
 	})
-
-	t.Run("dynamic fee tx cheaper gas", func(t *testing.T) {
-		startingBalance := eth.ZeroWei
-		inner := accounting.NewBudget(startingBalance)
-		tb := newTxBudget(inner)
-		tb.included(&IncludedTx{
-			Transaction: types.NewTx(&types.DynamicFeeTx{
-				GasFeeCap: eth.GWei(2).ToBig(),
-				Gas:       100_000,
-			}),
-			Receipt: &types.Receipt{
-				EffectiveGasPrice: eth.GWei(1).ToBig(),
-				GasUsed:           100_000,
-				Type:              types.DynamicFeeTxType,
-			},
-		})
-		require.Equal(t, startingBalance.Add(eth.GWei(100_000)), inner.Balance())
-	})
-
-	t.Run("blob tx", func(t *testing.T) {
-		startingBalance := eth.ZeroWei
-		inner := accounting.NewBudget(startingBalance)
-		tb := newTxBudget(inner)
-		tb.included(&IncludedTx{
-			Transaction: types.NewTx(&types.BlobTx{
-				GasFeeCap: eth.GWei(1).ToU256(),
-				Gas:       21_000,
-
-				BlobFeeCap: eth.GWei(1).ToU256(),
-				BlobHashes: []common.Hash{{}},
-			}),
-			Receipt: &types.Receipt{
-				EffectiveGasPrice: eth.GWei(1).ToBig(),
-				GasUsed:           21_000,
-				Type:              types.BlobTxType,
-
-				BlobGasPrice: eth.GWei(1).ToBig(),
-				BlobGasUsed:  params.BlobTxBlobGasPerBlob,
-			},
-		})
-		require.Equal(t, startingBalance, inner.Balance())
-	})
-
-	t.Run("blob transaction smaller fee", func(t *testing.T) {
-		startingBalance := eth.ZeroWei
-		inner := accounting.NewBudget(startingBalance)
-		tb := newTxBudget(inner)
-		tb.included(&IncludedTx{
-			Transaction: types.NewTx(&types.BlobTx{
-				GasFeeCap: eth.GWei(30).ToU256(),
-				Gas:       22_000,
-
-				BlobFeeCap: eth.GWei(2).ToU256(),
-				BlobHashes: []common.Hash{{}},
-			}),
-			Receipt: &types.Receipt{
-				EffectiveGasPrice: eth.GWei(30).ToBig(),
-				GasUsed:           22_000,
-				Type:              types.BlobTxType,
-
-				BlobGasPrice: eth.GWei(1).ToBig(),
-				BlobGasUsed:  params.BlobTxBlobGasPerBlob,
-			},
-		})
-
-		require.Equal(t, startingBalance.Add(eth.GWei(params.BlobTxBlobGasPerBlob)), inner.Balance())
-	})
+	require.Equal(t, startingBalance, inner.Balance())
 }

@@ -10,7 +10,6 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-	"github.com/ethereum-optimism/optimism/op-service/event"
 )
 
 // PayloadSealInvalidEvent identifies a permanent in-consensus problem with the payload sealing.
@@ -20,7 +19,6 @@ type PayloadSealInvalidEvent struct {
 
 	Concluding  bool
 	DerivedFrom eth.L1BlockRef
-	event.Ctx
 }
 
 func (ev PayloadSealInvalidEvent) String() string {
@@ -37,7 +35,6 @@ type PayloadSealExpiredErrorEvent struct {
 
 	Concluding  bool
 	DerivedFrom eth.L1BlockRef
-	event.Ctx
 }
 
 func (ev PayloadSealExpiredErrorEvent) String() string {
@@ -51,19 +48,18 @@ type BuildSealEvent struct {
 	Concluding bool
 	// payload is promoted to pending-safe if non-zero
 	DerivedFrom eth.L1BlockRef
-	event.Ctx
 }
 
 func (ev BuildSealEvent) String() string {
 	return "build-seal"
 }
 
-func (eq *EngDeriver) onBuildSeal(ev BuildSealEvent) {
-	ctx, cancel := context.WithTimeout(eq.ctx, buildSealTimeout)
+func (eq *EngDeriver) onBuildSeal(ctx context.Context, ev BuildSealEvent) {
+	rpcCtx, cancel := context.WithTimeout(eq.ctx, buildSealTimeout)
 	defer cancel()
 
 	sealingStart := time.Now()
-	envelope, err := eq.ec.engine.GetPayload(ctx, ev.Info)
+	envelope, err := eq.ec.engine.GetPayload(rpcCtx, ev.Info)
 	if err != nil {
 		var rpcErr rpc.Error
 		if errors.As(err, &rpcErr) && eth.ErrorCode(rpcErr.ErrorCode()) == eth.UnknownPayload {
@@ -76,36 +72,33 @@ func (eq *EngDeriver) onBuildSeal(ev BuildSealEvent) {
 		// So the user (attributes-handler or sequencer) should be able to re-attempt the exact
 		// same attributes with a new block-building job from here to recover from this error.
 		// We name it "expired", as this generally identifies a timeout, unknown job, or otherwise invalidated work.
-		eq.emitter.Emit(PayloadSealExpiredErrorEvent{
+		eq.emitter.Emit(ctx, PayloadSealExpiredErrorEvent{
 			Info:        ev.Info,
 			Err:         fmt.Errorf("failed to seal execution payload (ID: %s): %w", ev.Info.ID, err),
 			Concluding:  ev.Concluding,
 			DerivedFrom: ev.DerivedFrom,
-			Ctx:         ev.Ctx,
 		})
 		return
 	}
 
 	if err := sanityCheckPayload(envelope.ExecutionPayload); err != nil {
-		eq.emitter.Emit(PayloadSealInvalidEvent{
+		eq.emitter.Emit(ctx, PayloadSealInvalidEvent{
 			Info: ev.Info,
 			Err: fmt.Errorf("failed sanity-check of execution payload contents (ID: %s, blockhash: %s): %w",
 				ev.Info.ID, envelope.ExecutionPayload.BlockHash, err),
 			Concluding:  ev.Concluding,
 			DerivedFrom: ev.DerivedFrom,
-			Ctx:         ev.Ctx,
 		})
 		return
 	}
 
 	ref, err := derive.PayloadToBlockRef(eq.cfg, envelope.ExecutionPayload)
 	if err != nil {
-		eq.emitter.Emit(PayloadSealInvalidEvent{
+		eq.emitter.Emit(ctx, PayloadSealInvalidEvent{
 			Info:        ev.Info,
 			Err:         fmt.Errorf("failed to decode L2 block ref from payload: %w", err),
 			Concluding:  ev.Concluding,
 			DerivedFrom: ev.DerivedFrom,
-			Ctx:         ev.Ctx,
 		})
 		return
 	}
@@ -123,13 +116,12 @@ func (eq *EngDeriver) onBuildSeal(ev BuildSealEvent) {
 	eq.log.Debug("Built new L2 block", "l2_unsafe", ref, "l1_origin", ref.L1Origin,
 		"txs", txnCount, "deposits", depositCount, "time", ref.Time, "seal_time", sealTime, "build_time", buildTime)
 
-	eq.emitter.Emit(BuildSealedEvent{
+	eq.emitter.Emit(ctx, BuildSealedEvent{
 		Concluding:   ev.Concluding,
 		DerivedFrom:  ev.DerivedFrom,
 		BuildStarted: ev.BuildStarted,
 		Info:         ev.Info,
 		Envelope:     envelope,
 		Ref:          ref,
-		Ctx:          ev.Ctx,
 	})
 }

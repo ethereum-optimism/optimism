@@ -65,8 +65,8 @@ func NewSingleChainInterop(t devtest.T) *SingleChainInterop {
 		ControlPlane:  orch.ControlPlane(),
 		L1Network:     dsl.NewL1Network(l1Net),
 		L1EL:          dsl.NewL1ELNode(l1Net.L1ELNode(match.Assume(t, match.FirstL1EL))),
-		L2ChainA:      dsl.NewL2Network(l2A),
-		L2ELA:         dsl.NewL2ELNode(l2A.L2ELNode(match.Assume(t, match.FirstL2EL))),
+		L2ChainA:      dsl.NewL2Network(l2A, orch.ControlPlane()),
+		L2ELA:         dsl.NewL2ELNode(l2A.L2ELNode(match.Assume(t, match.FirstL2EL)), orch.ControlPlane()),
 		L2CLA:         dsl.NewL2CLNode(l2A.L2CLNode(match.Assume(t, match.FirstL2CL)), orch.ControlPlane()),
 		Wallet:        dsl.NewHDWallet(t, devkeys.TestMnemonic, 30),
 		FaucetA:       dsl.NewFaucet(l2A.Faucet(match.Assume(t, match.FirstFaucet))),
@@ -117,6 +117,10 @@ func (s *SimpleInterop) DisputeGameFactory() *proofs.DisputeGameFactory {
 	return proofs.NewDisputeGameFactory(s.T, s.L1Network, s.L1EL.EthClient(), s.L2ChainA.DisputeGameFactoryProxyAddr(), s.Supervisor)
 }
 
+func (s *SingleChainInterop) StandardBridge(l2Chain *dsl.L2Network) *dsl.StandardBridge {
+	return dsl.NewStandardBridge(s.T, l2Chain, s.Supervisor, s.L1EL)
+}
+
 // WithSimpleInterop specifies a system that meets the SimpleInterop criteria.
 func WithSimpleInterop() stack.CommonOption {
 	return stack.MakeCommon(sysgo.DefaultInteropSystem(&sysgo.DefaultInteropSystemIDs{}))
@@ -125,6 +129,10 @@ func WithSimpleInterop() stack.CommonOption {
 // WithSuperInterop specifies a super root system that meets the SimpleInterop criteria.
 func WithSuperInterop() stack.CommonOption {
 	return stack.MakeCommon(sysgo.DefaultInteropProofsSystem(&sysgo.DefaultInteropSystemIDs{}))
+}
+
+func WithIsthmusSuper() stack.CommonOption {
+	return stack.MakeCommon(sysgo.DefaultIsthmusSuperProofsSystem(&sysgo.DefaultInteropSystemIDs{}))
 }
 
 // WithUnscheduledInterop adds a test-gate to not run the test if the interop upgrade is scheduled.
@@ -151,8 +159,8 @@ func NewSimpleInterop(t devtest.T) *SimpleInterop {
 	l2B := singleChain.system.L2Network(match.Assume(t, match.L2ChainB))
 	out := &SimpleInterop{
 		SingleChainInterop: *singleChain,
-		L2ChainB:           dsl.NewL2Network(l2B),
-		L2ELB:              dsl.NewL2ELNode(l2B.L2ELNode(match.Assume(t, match.FirstL2EL))),
+		L2ChainB:           dsl.NewL2Network(l2B, orch.ControlPlane()),
+		L2ELB:              dsl.NewL2ELNode(l2B.L2ELNode(match.Assume(t, match.FirstL2EL)), orch.ControlPlane()),
 		L2CLB:              dsl.NewL2CLNode(l2B.L2CLNode(match.Assume(t, match.FirstL2CL)), orch.ControlPlane()),
 		FaucetB:            dsl.NewFaucet(l2B.Faucet(match.Assume(t, match.FirstFaucet))),
 		L2BatcherB:         dsl.NewL2Batcher(l2B.L2Batcher(match.Assume(t, match.FirstL2Batcher))),
@@ -241,9 +249,9 @@ func NewMultiSupervisorInterop(t devtest.T) *MultiSupervisorInterop {
 	out := &MultiSupervisorInterop{
 		SimpleInterop:       *simpleInterop,
 		SupervisorSecondary: dsl.NewSupervisor(simpleInterop.system.Supervisor(match.Assume(t, match.SecondSupervisor)), orch.ControlPlane()),
-		L2ELA2:              dsl.NewL2ELNode(l2A.L2ELNode(match.Assume(t, match.SecondL2EL))),
+		L2ELA2:              dsl.NewL2ELNode(l2A.L2ELNode(match.Assume(t, match.SecondL2EL)), orch.ControlPlane()),
 		L2CLA2:              dsl.NewL2CLNode(l2A.L2CLNode(match.Assume(t, match.SecondL2CL)), orch.ControlPlane()),
-		L2ELB2:              dsl.NewL2ELNode(l2B.L2ELNode(match.Assume(t, match.SecondL2EL))),
+		L2ELB2:              dsl.NewL2ELNode(l2B.L2ELNode(match.Assume(t, match.SecondL2EL)), orch.ControlPlane()),
 		L2CLB2:              dsl.NewL2CLNode(l2B.L2CLNode(match.Assume(t, match.SecondL2CL)), orch.ControlPlane()),
 	}
 	return out

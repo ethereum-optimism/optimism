@@ -16,7 +16,7 @@ type DisabledSequencer struct{}
 
 var _ SequencerIface = DisabledSequencer{}
 
-func (ds DisabledSequencer) OnEvent(ev event.Event) bool {
+func (ds DisabledSequencer) OnEvent(ctx context.Context, ev event.Event) bool {
 	return false
 }
 

@@ -17,7 +17,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/engine"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-	"github.com/ethereum-optimism/optimism/op-service/event"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum-optimism/optimism/op-service/testutils"
 )
@@ -176,14 +175,14 @@ func TestAttributesHandler(t *testing.T) {
 
 		emitter.ExpectOnce(derive.ConfirmReceivedAttributesEvent{})
 		emitter.ExpectOnce(engine.PendingSafeRequestEvent{})
-		ah.OnEvent(derive.DerivedAttributesEvent{
+		ah.OnEvent(context.Background(), derive.DerivedAttributesEvent{
 			Attributes: attrA1,
 		})
 		emitter.AssertExpectations(t)
 		require.NotNil(t, ah.attributes, "queue the invalid attributes")
 
 		emitter.ExpectOnce(engine.PendingSafeRequestEvent{})
-		ah.OnEvent(engine.InvalidPayloadAttributesEvent{
+		ah.OnEvent(context.Background(), engine.InvalidPayloadAttributesEvent{
 			Attributes: attrA1,
 		})
 		emitter.AssertExpectations(t)
@@ -198,14 +197,14 @@ func TestAttributesHandler(t *testing.T) {
 
 		emitter.ExpectOnce(derive.ConfirmReceivedAttributesEvent{})
 		emitter.ExpectOnce(engine.PendingSafeRequestEvent{})
-		ah.OnEvent(derive.DerivedAttributesEvent{
+		ah.OnEvent(context.Background(), derive.DerivedAttributesEvent{
 			Attributes: attrA1,
 		})
 		emitter.AssertExpectations(t)
 		require.NotNil(t, ah.attributes)
 		// New attributes will have to get generated after processing the last ones
 		emitter.ExpectOnce(derive.PipelineStepEvent{PendingSafe: refA1Alt})
-		ah.OnEvent(engine.PendingSafeUpdateEvent{
+		ah.OnEvent(context.Background(), engine.PendingSafeUpdateEvent{
 			PendingSafe: refA1Alt,
 			Unsafe:      refA1Alt,
 		})
@@ -223,14 +222,14 @@ func TestAttributesHandler(t *testing.T) {
 
 		emitter.ExpectOnce(derive.ConfirmReceivedAttributesEvent{})
 		emitter.ExpectOnce(engine.PendingSafeRequestEvent{})
-		ah.OnEvent(derive.DerivedAttributesEvent{
+		ah.OnEvent(context.Background(), derive.DerivedAttributesEvent{
 			Attributes: attrA1,
 		})
 		emitter.AssertExpectations(t)
 		require.NotNil(t, ah.attributes)
 
 		emitter.ExpectOnceType("ResetEvent")
-		ah.OnEvent(engine.PendingSafeUpdateEvent{
+		ah.OnEvent(context.Background(), engine.PendingSafeUpdateEvent{
 			PendingSafe: refA0Alt,
 			Unsafe:      refA0Alt,
 		})
@@ -250,31 +249,28 @@ func TestAttributesHandler(t *testing.T) {
 			// attrA1Alt does not match block A1, so will cause force-reorg.
 			emitter.ExpectOnce(derive.ConfirmReceivedAttributesEvent{})
 			emitter.ExpectOnce(engine.PendingSafeRequestEvent{})
-			ah.OnEvent(derive.DerivedAttributesEvent{Attributes: attrA1Alt})
+			ah.OnEvent(context.Background(), derive.DerivedAttributesEvent{Attributes: attrA1Alt})
 			emitter.AssertExpectations(t)
 			require.NotNil(t, ah.attributes, "queued up derived attributes")
 
 			// Call during consolidation.
 			// The payloadA1 is going to get reorged out in favor of attrA1Alt (turns into payloadA1Alt)
 			l2.ExpectPayloadByNumber(refA1.Number, payloadA1, nil)
-			testCtx := context.Background()
 			// fail consolidation, perform force reorg
-			emitter.ExpectOnce(engine.BuildStartEvent{Attributes: attrA1Alt, Ctx: event.WrapCtx(testCtx)})
-			ah.OnEvent(engine.PendingSafeUpdateEvent{
+			emitter.ExpectOnce(engine.BuildStartEvent{Attributes: attrA1Alt})
+			ah.OnEvent(context.Background(), engine.PendingSafeUpdateEvent{
 				PendingSafe: refA0,
 				Unsafe:      refA1,
-				Ctx:         event.WrapCtx(testCtx),
 			})
 			l2.AssertExpectations(t)
 			emitter.AssertExpectations(t)
 			require.NotNil(t, ah.attributes, "still have attributes, processing still unconfirmed")
 
-			emitter.ExpectOnce(derive.PipelineStepEvent{PendingSafe: refA1Alt, Ctx: event.WrapCtx(testCtx)})
+			emitter.ExpectOnce(derive.PipelineStepEvent{PendingSafe: refA1Alt})
 			// recognize reorg as complete
-			ah.OnEvent(engine.PendingSafeUpdateEvent{
+			ah.OnEvent(context.Background(), engine.PendingSafeUpdateEvent{
 				PendingSafe: refA1Alt,
 				Unsafe:      refA1Alt,
-				Ctx:         event.WrapCtx(testCtx),
 			})
 			emitter.AssertExpectations(t)
 			require.Nil(t, ah.attributes, "drop when attributes are successful")
@@ -295,31 +291,28 @@ func TestAttributesHandler(t *testing.T) {
 				}
 				emitter.ExpectOnce(derive.ConfirmReceivedAttributesEvent{})
 				emitter.ExpectOnce(engine.PendingSafeRequestEvent{})
-				ah.OnEvent(derive.DerivedAttributesEvent{Attributes: attr})
+				ah.OnEvent(context.Background(), derive.DerivedAttributesEvent{Attributes: attr})
 				emitter.AssertExpectations(t)
 				require.NotNil(t, ah.attributes, "queued up derived attributes")
 
 				// Call during consolidation.
 				l2.ExpectPayloadByNumber(refA1.Number, payloadA1, nil)
 
-				testCtx := context.Background()
 				emitter.ExpectOnce(engine.PromotePendingSafeEvent{
 					Ref:        refA1,
 					Concluding: concluding,
 					Source:     refB,
-					Ctx:        event.WrapCtx(testCtx),
 				})
-				ah.OnEvent(engine.PendingSafeUpdateEvent{
+				ah.OnEvent(context.Background(), engine.PendingSafeUpdateEvent{
 					PendingSafe: refA0,
 					Unsafe:      refA1,
-					Ctx:         event.WrapCtx(testCtx),
 				})
 				l2.AssertExpectations(t)
 				emitter.AssertExpectations(t)
 				require.NotNil(t, ah.attributes, "still have attributes, processing still unconfirmed")
 
 				emitter.ExpectOnce(derive.PipelineStepEvent{PendingSafe: refA1})
-				ah.OnEvent(engine.PendingSafeUpdateEvent{
+				ah.OnEvent(context.Background(), engine.PendingSafeUpdateEvent{
 					PendingSafe: refA1,
 					Unsafe:      refA1,
 				})
@@ -346,7 +339,7 @@ func TestAttributesHandler(t *testing.T) {
 
 		emitter.ExpectOnce(derive.ConfirmReceivedAttributesEvent{})
 		emitter.ExpectOnce(engine.PendingSafeRequestEvent{})
-		ah.OnEvent(derive.DerivedAttributesEvent{Attributes: attrA1Alt})
+		ah.OnEvent(context.Background(), derive.DerivedAttributesEvent{Attributes: attrA1Alt})
 		emitter.AssertExpectations(t)
 		require.NotNil(t, ah.attributes, "queued up derived attributes")
 
@@ -355,7 +348,7 @@ func TestAttributesHandler(t *testing.T) {
 
 		// attrA1Alt will fit right on top of A0
 		emitter.ExpectOnce(engine.BuildStartEvent{Attributes: attrA1Alt})
-		ah.OnEvent(engine.PendingSafeUpdateEvent{
+		ah.OnEvent(context.Background(), engine.PendingSafeUpdateEvent{
 			PendingSafe: refA0,
 			Unsafe:      refA0,
 		})
@@ -364,7 +357,7 @@ func TestAttributesHandler(t *testing.T) {
 		require.NotNil(t, ah.attributes)
 
 		emitter.ExpectOnce(derive.PipelineStepEvent{PendingSafe: refA1Alt})
-		ah.OnEvent(engine.PendingSafeUpdateEvent{
+		ah.OnEvent(context.Background(), engine.PendingSafeUpdateEvent{
 			PendingSafe: refA1Alt,
 			Unsafe:      refA1Alt,
 		})
@@ -382,7 +375,7 @@ func TestAttributesHandler(t *testing.T) {
 		ah.AttachEmitter(emitter)
 
 		emitter.ExpectOnceType("ResetEvent")
-		ah.OnEvent(engine.PendingSafeUpdateEvent{
+		ah.OnEvent(context.Background(), engine.PendingSafeUpdateEvent{
 			PendingSafe: refA1,
 			Unsafe:      refA0,
 		})
@@ -399,7 +392,7 @@ func TestAttributesHandler(t *testing.T) {
 
 		// If there are no attributes, we expect the pipeline to be requested to generate attributes.
 		emitter.ExpectOnce(derive.PipelineStepEvent{PendingSafe: refA1})
-		ah.OnEvent(engine.PendingSafeUpdateEvent{
+		ah.OnEvent(context.Background(), engine.PendingSafeUpdateEvent{
 			PendingSafe: refA1,
 			Unsafe:      refA1,
 		})

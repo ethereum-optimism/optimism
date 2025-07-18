@@ -247,7 +247,9 @@ func (m *InstrumentedState) syscallGetRandom(a0, a1 uint64) (v0, v1 uint64) {
 	randDataMask <<= (arch.WordSizeBytes - byteCount) * 8
 	randDataMask >>= targetByteIndex * 8
 	newMemVal := (memVal & ^randDataMask) | (randomWord & randDataMask)
+
 	m.state.Memory.SetWord(effAddr, newMemVal)
+	m.handleMemoryUpdate(effAddr)
 
 	v0 = byteCount
 	v1 = 0

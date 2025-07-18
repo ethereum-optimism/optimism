@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"slices"
 	"strings"
 
 	"github.com/ethereum-optimism/optimism/op-node/chaincfg"
@@ -146,4 +147,42 @@ func dependencySetByChainID(chainID eth.ChainID, customChainFS embed.FS) (depset
 		}
 	}
 	return nil, fmt.Errorf("%w: no dependency set config includes chain ID: %v", errChainNotFound, chainID)
+}
+
+func CheckConfigFilenames() error {
+	return checkConfigFilenames(customChainConfigFS, "configs")
+}
+
+func checkConfigFilenames(customChainFS embed.FS, configPath string) error {
+	entries, err := customChainFS.ReadDir(configPath)
+	if err != nil {
+		return fmt.Errorf("failed to check custom configs directory: %w", err)
+	}
+	var rollupChainIDs []eth.ChainID
+	var genesisChainIDs []eth.ChainID
+	for _, entry := range entries {
+		entryName := entry.Name()
+		switch {
+		case "placeholder.json" == entryName:
+		case "depsets.json" == entryName:
+		case strings.HasSuffix(entryName, "-genesis-l2.json"):
+			id, err := eth.ParseDecimalChainID(strings.TrimSuffix(entry.Name(), "-genesis-l2.json"))
+			if err != nil {
+				return fmt.Errorf("incorrectly named genesis-l2 config (%s). expected <chain-id>-genesis-l2.json: %w", entryName, err)
+			}
+			genesisChainIDs = append(genesisChainIDs, id)
+		case strings.HasSuffix(entryName, "-rollup.json"):
+			id, err := eth.ParseDecimalChainID(strings.TrimSuffix(entry.Name(), "-rollup.json"))
+			if err != nil {
+				return fmt.Errorf("incorrectly named rollup config (%s). expected <chain-id>-rollup.json: %w", entryName, err)
+			}
+			rollupChainIDs = append(rollupChainIDs, id)
+		default:
+			return fmt.Errorf("invalid config file name: %s, Make sure that the only files in the custom config directory are placeholder.json, depsets.json, <chain-id>-genesis-l2.json or <chain-id>-rollup.json", entryName)
+		}
+	}
+	if !slices.Equal(rollupChainIDs, genesisChainIDs) {
+		return fmt.Errorf("mismatched chain IDs in custom configs: rollup chain IDs %v, genesis chain IDs %v. Make sure that the rollup and genesis configs have the same set of chain IDs prefixes", rollupChainIDs, genesisChainIDs)
+	}
+	return nil
 }

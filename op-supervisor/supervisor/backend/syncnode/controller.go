@@ -1,6 +1,7 @@
 package syncnode
 
 import (
+	"context"
 	"fmt"
 	"sync/atomic"
 
@@ -47,7 +48,7 @@ func (snc *SyncNodesController) AttachEmitter(em event.Emitter) {
 	snc.emitter = em
 }
 
-func (snc *SyncNodesController) OnEvent(ev event.Event) bool {
+func (snc *SyncNodesController) OnEvent(ctx context.Context, ev event.Event) bool {
 	return false
 }
 

@@ -45,6 +45,7 @@ type SuperchainConfig struct {
 
 	ProxyAdminOwner       common.Address
 	ProtocolVersionsOwner common.Address
+	Challenger            common.Address
 
 	Paused bool
 

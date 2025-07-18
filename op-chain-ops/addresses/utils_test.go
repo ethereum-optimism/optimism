@@ -13,6 +13,7 @@ func TestCheckNoZeroAddresses(t *testing.T) {
 			SuperchainProxyAdminOwner: common.HexToAddress("0x1111111111111111111111111111111111111111"),
 			SuperchainGuardian:        common.HexToAddress("0x2222222222222222222222222222222222222222"),
 			ProtocolVersionsOwner:     common.HexToAddress("0x3333333333333333333333333333333333333333"),
+			Challenger:                common.HexToAddress("0x4444444444444444444444444444444444444444"),
 		}
 
 		err := CheckNoZeroAddresses(roles)
@@ -23,6 +24,7 @@ func TestCheckNoZeroAddresses(t *testing.T) {
 		roles := SuperchainRoles{
 			SuperchainProxyAdminOwner: common.HexToAddress("0x1111111111111111111111111111111111111111"),
 			ProtocolVersionsOwner:     common.HexToAddress("0x3333333333333333333333333333333333333333"),
+			Challenger:                common.HexToAddress("0x4444444444444444444444444444444444444444"),
 		}
 
 		require.Equal(t, roles.SuperchainGuardian, common.HexToAddress("0x0000000000000000000000000000000000000000"))
@@ -54,6 +56,7 @@ func TestCheckNoZeroAddresses(t *testing.T) {
 			SuperchainProxyAdminOwner: common.HexToAddress("0x1111111111111111111111111111111111111111"),
 			SuperchainGuardian:        common.HexToAddress("0x2222222222222222222222222222222222222222"),
 			ProtocolVersionsOwner:     common.HexToAddress("0x3333333333333333333333333333333333333333"),
+			Challenger:                common.HexToAddress("0x4444444444444444444444444444444444444444"),
 		}
 
 		err := CheckNoZeroAddresses(&roles)

@@ -59,6 +59,10 @@ func (n *L1Network) PrintChain() {
 	spew.Dump(entries)
 }
 
+func (n *L1Network) WaitForFinalization() eth.BlockRef {
+	return NewL1ELNode(n.inner.L1ELNode(match.FirstL1EL)).WaitForFinalization()
+}
+
 func (n *L1Network) WaitForOnline() {
 	NewL1ELNode(n.inner.L1ELNode(match.FirstL1EL)).WaitForOnline()
 }

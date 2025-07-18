@@ -99,3 +99,5 @@ func (st *StructTracer) OnEmit(name string, ev AnnotatedEvent, derivContext uint
 		EventTime:    emitTime,
 	})
 }
+
+func (st *StructTracer) OnAfterProcessed(name string) {}

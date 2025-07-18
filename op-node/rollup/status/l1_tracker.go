@@ -23,7 +23,7 @@ func NewL1Tracker(inner derive.L1Fetcher) *L1Tracker {
 	}
 }
 
-func (st *L1Tracker) OnEvent(ev event.Event) bool {
+func (st *L1Tracker) OnEvent(ctx context.Context, ev event.Event) bool {
 	switch x := ev.(type) {
 	case L1UnsafeEvent:
 		st.cache.Insert(x.L1Unsafe)

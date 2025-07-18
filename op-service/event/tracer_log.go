@@ -38,3 +38,6 @@ func (lt *LogTracer) OnRateLimited(name string, derivContext uint64) {
 func (lt *LogTracer) OnEmit(name string, ev AnnotatedEvent, derivContext uint64, emitTime time.Time) {
 	lt.log.Log(lt.lvl, "Emitting event", "emitter", name, "event", ev.Event, "emit_context", ev.EmitContext, "deriv_context", derivContext)
 }
+
+func (lt *LogTracer) OnAfterProcessed(name string) {
+}

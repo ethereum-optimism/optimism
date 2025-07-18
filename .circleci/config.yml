@@ -1173,7 +1173,12 @@ jobs:
   op-acceptance-tests:
     parameters:
       devnet:
-        description: The name of the devnet to run the acceptance tests against. The devnet must have a recipe defined in kurtosis-devnet/Justfile with the name <devnet>-devnet.
+        description: |
+          The name of the pre-defined kurtosis devnet to run the acceptance tests against
+          (e.g. 'simple', 'isthmus', 'interop'). Empty string uses
+          in-process testing (sysgo orchestrator). Named devnets use
+          external testing (sysext orchestrator) and must have a
+          recipe defined in kurtosis-devnet/Justfile.
         type: string
         default: ""
       gate:
@@ -1184,45 +1189,46 @@ jobs:
         description: Timeout for when CircleCI kills the job if there's no output
         type: string
         default: 30m
-    machine: true
+    machine:
+      image: ubuntu-2404:current
+      docker_layer_caching: true # Since we are building docker images for components, we'll cache the layers for faster builds
     resource_class: xlarge
     steps:
       - utils/checkout-with-mise
       - install-contracts-dependencies
+      # Attach workspace for cannon dependencies if using sysgo orchestrator (empty devnet)
+      - when:
+          condition:
+            equal: ["", << parameters.devnet >>]
+          steps:
+            - attach_workspace:
+                at: "."
       - run:
-          name: Setup Kurtosis
+          name: Setup Kurtosis (if needed)
           command: |
-            echo "Setting up Kurtosis..."
+            if [[ "<<parameters.devnet>>" != "" ]]; then
+              echo "Setting up Kurtosis for external devnet testing..."
 
-            # Print Kurtosis version
-            echo "Using Kurtosis from: $(which kurtosis || echo 'not found')"
-            kurtosis version
+              # Print Kurtosis version
+              echo "Using Kurtosis from: $(which kurtosis || echo 'not found')"
+              kurtosis version
 
-            # Start Kurtosis engine
-            echo "Starting Kurtosis engine..."
-            kurtosis engine start || true
+              # Start Kurtosis engine
+              echo "Starting Kurtosis engine..."
+              kurtosis engine start || true
 
-            # Clean old instances
-            echo "Cleaning old instances..."
-            kurtosis clean -a || true
+              # Clean old instances
+              echo "Cleaning old instances..."
+              kurtosis clean -a || true
 
-            # Check engine status
-            kurtosis engine status || true
+              # Check engine status
+              kurtosis engine status || true
 
-            echo "Kurtosis setup complete"
-      # Start our devnet
-      - run:
-          name: Start devnet (<<parameters.devnet>>)
-          working_directory: kurtosis-devnet
-          command: |
-            echo "Starting <<parameters.devnet>> devnet..."
-            just <<parameters.devnet>>-devnet
-
-            echo "<<parameters.devnet>> devnet started successfully"
-
-            # Print devnet info for debugging
-            kurtosis enclave inspect <<parameters.devnet>>-devnet || true
-      # Notify us of a devnet failure
+              echo "Kurtosis setup complete"
+            else
+              echo "Using in-process testing (sysgo orchestrator) - no Kurtosis setup needed"
+            fi
+      # Notify us of a setup failure
       - when:
           condition: on_fail
           steps:
@@ -1258,12 +1264,6 @@ jobs:
             GO111MODULE: "on"
             GOGC: "0"
           command: |
-            # Check if the devnet is running before attempting to run tests
-            if ! kurtosis enclave ls | grep -q "<<parameters.devnet>>-devnet"; then
-              echo "Devnet <<parameters.devnet>>-devnet is not running. Skipping tests."
-              exit 1
-            fi
-
             # Run the tests
             just acceptance-test "<<parameters.devnet>>" "<<parameters.gate>>"
       - run:
@@ -1308,22 +1308,25 @@ jobs:
           steps:
             - store_artifacts:
                 path: ./op-acceptance-tests/logs
-      # Before we have a more sturdy log dump solution, we'll simply use the kurtosis-specific dump command
-      # to store all service logs as job artifacts
+      # Dump kurtosis logs if external devnet was used
       - run:
-          name: Dump kurtosis logs
+          name: Dump kurtosis logs (if external devnet was used)
           when: on_fail
           command: |
-            # Dump logs & specs
-            kurtosis dump ./.kurtosis-dump
+            if [[ "<<parameters.devnet>>" != "" ]]; then
+              # Dump logs & specs
+              kurtosis dump ./.kurtosis-dump
 
-            # Remove spec.json files
-            rm -rf ./.kurtosis-dump/enclaves/**/*.json
+              # Remove spec.json files
+              rm -rf ./.kurtosis-dump/enclaves/**/*.json
 
-            # Remove all unnecessary logs
-            rm -rf ./.kurtosis-dump/enclaves/*/kurtosis-api--*
-            rm -rf ./.kurtosis-dump/enclaves/*/kurtosis-logs-collector--*
-            rm -rf ./.kurtosis-dump/enclaves/*/task-*
+              # Remove all unnecessary logs
+              rm -rf ./.kurtosis-dump/enclaves/*/kurtosis-api--*
+              rm -rf ./.kurtosis-dump/enclaves/*/kurtosis-logs-collector--*
+              rm -rf ./.kurtosis-dump/enclaves/*/task-*
+            else
+              echo "In-process testing was used - no kurtosis logs to dump"
+            fi
       - when:
           condition: always
           steps:
@@ -1651,7 +1654,8 @@ jobs:
       - image: <<pipeline.parameters.default_docker_image>>
     resource_class: large
     steps:
-      - setup_remote_docker
+      - setup_remote_docker:
+          docker_layer_caching: true
       - gcp-cli/install
       - gcp-oidc-authenticate:
           gcp_cred_config_file_path: /tmp/gcp_cred_config.json
@@ -1769,15 +1773,6 @@ jobs:
 
             # Make the script executable
             chmod +x ./op-acceptance-tests/scripts/generate-flaky-tests-report.sh
-
-            # print the below variables
-            echo "CIRCLE_BRANCH: ${CIRCLE_BRANCH}"
-            echo "CIRCLE_PROJECT_USERNAME: ${CIRCLE_PROJECT_USERNAME}"
-            echo "CIRCLE_PROJECT_REPONAME: ${CIRCLE_PROJECT_REPONAME}"
-            # for token just print the first 10 characters
-            echo "CIRCLE_API_TOKEN: ${CIRCLE_API_TOKEN:0:10}..."
-            echo "CIRCLE_API_TOKEN length: ${#CIRCLE_API_TOKEN}"
-
 
             # Run the script
             ./op-acceptance-tests/scripts/generate-flaky-tests-report.sh \
@@ -2205,7 +2200,7 @@ workflows:
           name: op-e2e-cannon-tests
           notify: true
           mentions: "@proofs-team"
-          no_output_timeout: 60m
+          no_output_timeout: 90m
           test_timeout: 120m
           resource_class: ethereum-optimism/latitude-fps-1
           context:
@@ -2348,6 +2343,25 @@ workflows:
           - equal: [true, <<pipeline.parameters.acceptance_tests_dispatch>>]
           - equal: ["api",<< pipeline.trigger_source >>]
     jobs:
+      - contracts-bedrock-build:  # needed for sysgo tests
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+      - cannon-prestate-quick:  # needed for sysgo tests
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+      # IN-PROCESS (base)
+      - op-acceptance-tests:
+          # Acceptance Testing params
+          name: memory-base
+          gate: base
+          # CircleCI params
+          no_output_timeout: 10m
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+            - discord
+          requires:
+            - contracts-bedrock-build
+            - cannon-prestate-quick
       # KURTOSIS (Simple)
       - op-acceptance-tests:
           # Acceptance Testing params
@@ -2394,6 +2408,25 @@ workflows:
       not:
         equal: [<< pipeline.git.branch >>, "develop"]
     jobs:
+      - contracts-bedrock-build:  # needed for sysgo tests
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+      - cannon-prestate-quick:  # needed for sysgo tests
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+      # IN-PROCESS (base)
+      - op-acceptance-tests:
+          # Acceptance Testing params
+          name: memory-base
+          gate: base
+          # CircleCI params
+          no_output_timeout: 10m
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+            - discord
+          requires:
+            - contracts-bedrock-build
+            - cannon-prestate-quick
       # KURTOSIS (Simple)
       - op-acceptance-tests:
           # Acceptance Testing params

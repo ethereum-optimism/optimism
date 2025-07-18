@@ -20,7 +20,6 @@ type Tracer interface {
 
 type TracePublishBlockEvent struct {
 	Envelope *eth.ExecutionPayloadEnvelope
-	event.Ctx
 }
 
 func (ev TracePublishBlockEvent) String() string {
@@ -46,7 +45,7 @@ func NewTracerDeriver(tracer Tracer) *TracerDeriver {
 	}
 }
 
-func (t *TracerDeriver) OnEvent(ev event.Event) bool {
+func (t *TracerDeriver) OnEvent(ctx context.Context, ev event.Event) bool {
 	switch x := ev.(type) {
 	case status.L1UnsafeEvent:
 		t.tracer.OnNewL1Head(t.ctx, x.L1Unsafe)
