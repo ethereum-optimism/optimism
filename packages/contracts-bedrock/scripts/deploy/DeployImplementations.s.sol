@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
+import { Script } from "forge-std/Script.sol";
+
 // Libraries
 import { Chains } from "scripts/libraries/Chains.sol";
 import { LibString } from "@solady/utils/LibString.sol";
@@ -36,9 +38,9 @@ import { IOPContractsManagerStandardValidator } from "interfaces/L1/IOPContracts
 import { DeployUtils } from "scripts/libraries/DeployUtils.sol";
 import { Solarray } from "scripts/libraries/Solarray.sol";
 import { ChainAssertions } from "scripts/deploy/ChainAssertions.sol";
-import { Deployer } from "scripts/deploy/Deployer.sol";
+import { DeployOPChainInput } from "scripts/deploy/DeployOPChain.s.sol";
 
-contract DeployImplementations is Deployer {
+contract DeployImplementations is Script {
     struct Input {
         uint256 withdrawalDelaySeconds;
         uint256 minProposalSizeBytes;
@@ -599,7 +601,7 @@ contract DeployImplementations is Deployer {
         require(address(_input.upgradeController) != address(0), "DeployImplementations: upgradeController not set");
     }
 
-    function assertValidOutput(Input memory _input, Output memory _output) private {
+    function assertValidOutput(Input memory _input, Output memory _output) private view {
         // With 12 addresses, we'd get a stack too deep error if we tried to do this inline as a
         // single call to `Solarray.addresses`. So we split it into two calls.
         address[] memory addrs1 = Solarray.addresses(
@@ -654,9 +656,8 @@ contract DeployImplementations is Deployer {
         assertValidOptimismPortalImpl(_input, _output);
         assertValidETHLockboxImpl(_input, _output);
         assertValidPreimageOracleSingleton(_input, _output);
-        ChainAssertions.checkSystemConfig(
-            impls, ChainAssertions.cfgToDeployOPChainInput(cfg, address(_output.opcm)), false
-        );
+        // We can use DeployOPChainInput(address(0)) here because no method will be called on _doi when isProxy is false
+        ChainAssertions.checkSystemConfig(impls, DeployOPChainInput(address(0)), false);
     }
 
     function assertValidOpcm(Input memory _input, Output memory _output) private view {

@@ -502,6 +502,7 @@ library ChainAssertions {
         );
     }
 
+    /// @notice Converts variables needed from the DeployConfig to a DeployOPChainInput contract
     function cfgToDeployOPChainInput(DeployConfig _cfg, address _opcm) internal returns (DeployOPChainInput doi_) {
         doi_ = new DeployOPChainInput();
 
