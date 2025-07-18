@@ -465,6 +465,12 @@ contract ProposalValidator_Init is CommonTest {
         }
 
         _mockAndExpect(
+            address(governor),
+            abi.encodeCall(IOptimismGovernor.PROPOSAL_TYPES_CONFIGURATOR, ()),
+            abi.encode(proposalTypesConfigurator)
+        );
+
+        _mockAndExpect(
             address(proposalTypesConfigurator),
             abi.encodeCall(IProposalTypesConfigurator.proposalTypes, (_votingModuleId)),
             abi.encode(
@@ -501,7 +507,6 @@ contract ProposalValidator_Init is CommonTest {
                 impl.initialize,
                 (
                     owner,
-                    proposalTypesConfigurator,
                     CYCLE_NUMBER,
                     START_TIMESTAMP,
                     DURATION,
@@ -619,7 +624,6 @@ contract ProposalValidator_Initialize_Test is ProposalValidator_Init {
                 impl.initialize,
                 (
                     owner,
-                    proposalTypesConfigurator,
                     CYCLE_NUMBER,
                     START_TIMESTAMP,
                     DURATION,
@@ -691,7 +695,6 @@ contract ProposalValidator_Initialize_Test is ProposalValidator_Init {
                 impl.initialize,
                 (
                     owner,
-                    proposalTypesConfigurator,
                     CYCLE_NUMBER,
                     START_TIMESTAMP,
                     DURATION,

@@ -217,9 +217,6 @@ contract ProposalValidator is OwnableUpgradeable, ReinitializableBase, ISemver {
     /// @notice The Optimism Governor contract that will handle the voting phase.
     IOptimismGovernor public immutable GOVERNOR;
 
-    /// @notice The proposal types configurator contract.
-    IProposalTypesConfigurator public proposalTypesConfigurator;
-
     /// @notice The max amount of tokens that can be distributed in a proposal.
     uint256 public proposalDistributionThreshold;
 
@@ -258,7 +255,6 @@ contract ProposalValidator is OwnableUpgradeable, ReinitializableBase, ISemver {
 
     /// @notice Initializes the ProposalValidator contract.
     /// @param _owner The address that will own the contract.
-    /// @param _proposalTypesConfigurator The proposal types configurator contract address.
     /// @param _cycleNumber The number of the current voting cycle.
     /// @param _startingTimestamp The starting timestamp of the voting cycle.
     /// @param _duration The duration of the voting cycle.
@@ -268,7 +264,6 @@ contract ProposalValidator is OwnableUpgradeable, ReinitializableBase, ISemver {
     /// @param _proposalTypesData Array of proposal type data corresponding to the proposal types.
     function initialize(
         address _owner,
-        IProposalTypesConfigurator _proposalTypesConfigurator,
         uint256 _cycleNumber,
         uint256 _startingTimestamp,
         uint256 _duration,
@@ -284,7 +279,6 @@ contract ProposalValidator is OwnableUpgradeable, ReinitializableBase, ISemver {
             revert ProposalValidator_ProposalTypesDataLengthMismatch();
         }
 
-        proposalTypesConfigurator = _proposalTypesConfigurator;
         _setVotingCycleData(_cycleNumber, _startingTimestamp, _duration, _votingCycleDistributionLimit);
         _setProposalDistributionThreshold(_proposalDistributionThreshold);
 
@@ -338,8 +332,9 @@ contract ProposalValidator is OwnableUpgradeable, ReinitializableBase, ISemver {
         bytes memory proposalVotingModuleData = abi.encode(optimisticSettings);
 
         // Get the optimistic module address from configurator
-        address votingModule =
-            proposalTypesConfigurator.proposalTypes(proposalTypesData[_proposalType].proposalVotingModule).module;
+        address votingModule = IProposalTypesConfigurator(GOVERNOR.PROPOSAL_TYPES_CONFIGURATOR()).proposalTypes(
+            proposalTypesData[_proposalType].proposalVotingModule
+        ).module;
 
         // Generate unique proposal hash
         proposalHash_ =
@@ -430,7 +425,7 @@ contract ProposalValidator is OwnableUpgradeable, ReinitializableBase, ISemver {
         bytes memory proposalVotingModuleData = abi.encode(options, settings);
 
         // Get the module address from the configurator
-        address votingModule = proposalTypesConfigurator.proposalTypes(
+        address votingModule = IProposalTypesConfigurator(GOVERNOR.PROPOSAL_TYPES_CONFIGURATOR()).proposalTypes(
             proposalTypesData[ProposalType.CouncilMemberElections].proposalVotingModule
         ).module;
 
@@ -517,8 +512,9 @@ contract ProposalValidator is OwnableUpgradeable, ReinitializableBase, ISemver {
         bytes memory proposalVotingModuleData = abi.encode(options, settings);
 
         // Get the module address from the configurator
-        address votingModule =
-            proposalTypesConfigurator.proposalTypes(proposalTypesData[_proposalType].proposalVotingModule).module;
+        address votingModule = IProposalTypesConfigurator(GOVERNOR.PROPOSAL_TYPES_CONFIGURATOR()).proposalTypes(
+            proposalTypesData[_proposalType].proposalVotingModule
+        ).module;
 
         // Generate unique proposal hash
         proposalHash_ = _hashProposalWithModule(votingModule, proposalVotingModuleData, keccak256(bytes(_description)));
@@ -598,7 +594,7 @@ contract ProposalValidator is OwnableUpgradeable, ReinitializableBase, ISemver {
 
         // Get the module address from the configurator
         ProposalType proposalType = ProposalType.ProtocolOrGovernorUpgrade;
-        address votingModule = proposalTypesConfigurator.proposalTypes(
+        address votingModule = IProposalTypesConfigurator(GOVERNOR.PROPOSAL_TYPES_CONFIGURATOR()).proposalTypes(
             proposalTypesData[ProposalType.ProtocolOrGovernorUpgrade].proposalVotingModule
         ).module;
 
@@ -673,8 +669,9 @@ contract ProposalValidator is OwnableUpgradeable, ReinitializableBase, ISemver {
 
         // Get the module address from the configurator
         ProposalType proposalType = ProposalType.CouncilMemberElections;
-        address votingModule =
-            proposalTypesConfigurator.proposalTypes(proposalTypesData[proposalType].proposalVotingModule).module;
+        address votingModule = IProposalTypesConfigurator(GOVERNOR.PROPOSAL_TYPES_CONFIGURATOR()).proposalTypes(
+            proposalTypesData[proposalType].proposalVotingModule
+        ).module;
 
         // Generate unique proposal hash
         proposalHash_ =
@@ -771,8 +768,9 @@ contract ProposalValidator is OwnableUpgradeable, ReinitializableBase, ISemver {
         bytes memory proposalVotingModuleData = abi.encode(options, settings);
 
         // Get the module address from the configurator
-        address votingModule =
-            proposalTypesConfigurator.proposalTypes(proposalTypesData[_proposalType].proposalVotingModule).module;
+        address votingModule = IProposalTypesConfigurator(GOVERNOR.PROPOSAL_TYPES_CONFIGURATOR()).proposalTypes(
+            proposalTypesData[_proposalType].proposalVotingModule
+        ).module;
 
         // Generate unique proposal hash
         proposalHash_ = _hashProposalWithModule(votingModule, proposalVotingModuleData, keccak256(bytes(_description)));
