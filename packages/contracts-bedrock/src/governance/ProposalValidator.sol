@@ -369,9 +369,14 @@ contract ProposalValidator is OwnableUpgradeable, ReinitializableBase, ISemver {
         if (_proposalType == ProposalType.MaintenanceUpgrade) {
             proposal.movedToVote = true;
 
-            GOVERNOR.proposeWithModule(
+            uint256 proposalId = GOVERNOR.proposeWithModule(
                 votingModule, proposalVotingModuleData, _proposalDescription, uint8(_proposalType)
             );
+
+            // Make sure the proposalId is the same as the proposalHash
+            if (proposalId != uint256(proposalHash_)) {
+                revert ProposalValidator_ProposalIdMismatch();
+            }
 
             emit ProposalMovedToVote(proposalHash_, msg.sender);
         }
