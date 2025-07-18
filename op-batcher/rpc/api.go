@@ -15,7 +15,7 @@ import (
 type BatcherDriver interface {
 	StartBatchSubmitting() error
 	StopBatchSubmitting(ctx context.Context) error
-	SetThrottleController(controllerType string, pidConfig *config.PIDConfig) error
+	SetThrottleController(controllerType config.ThrottleControllerType, pidConfig *config.PIDConfig) error
 	GetThrottleControllerInfo() (config.ThrottleControllerInfo, error)
 	ResetThrottleController() error
 }
@@ -50,25 +50,16 @@ func (a *adminAPI) StopBatcher(ctx context.Context) error {
 }
 
 // SetThrottleController changes only the throttle controller type without changing parameters
-func (a *adminAPI) SetThrottleController(_ context.Context, controllerType string, pidConfig *config.PIDConfig) error {
+func (a *adminAPI) SetThrottleController(_ context.Context, controllerType config.ThrottleControllerType, pidConfig *config.PIDConfig) error {
 	// Validate controller type
-	validTypes := []string{string(config.StepControllerType), string(config.LinearControllerType), string(config.QuadraticControllerType), string(config.PIDControllerType)}
-	isValid := false
-	for _, valid := range validTypes {
-		if controllerType == valid {
-			isValid = true
-			break
-		}
-	}
-
-	if !isValid {
-		return fmt.Errorf("invalid controller type '%s', must be one of: %v", controllerType, validTypes)
+	if !config.ValidThrottleControllerType(controllerType) {
+		return fmt.Errorf("invalid controller type '%s', must be one of: %v", controllerType, config.ThrottleControllerTypes)
 	}
 
 	// For PID controller, we need config, so this method cannot be used
-	if controllerType == string(config.PIDControllerType) && pidConfig == nil {
+	if controllerType == config.PIDControllerType && pidConfig == nil {
 		return fmt.Errorf("cannot set PID controller type without configuration")
-	} else if controllerType == string(config.PIDControllerType) && pidConfig != nil {
+	} else if controllerType == config.PIDControllerType && pidConfig != nil {
 		log.Warn("SWITCHING TO EXPERIMENTAL PID CONTROLLER")
 		log.Warn("PID controller is EXPERIMENTAL and should only be used by control theory experts. Improper tuning can cause system instability or performance degradation. Monitor system behavior closely when using PID control.")
 

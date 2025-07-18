@@ -1080,20 +1080,12 @@ func (l *BatchSubmitter) checkTxpool(queue *txmgr.Queue[txRef], receiptsCh chan 
 }
 
 // SetThrottleController changes the throttle controller type at runtime
-func (l *BatchSubmitter) SetThrottleController(controllerType string, pidConfig *config.PIDConfig) error {
-	l.Log.Info("Changing throttle controller", "from", l.throttleController.GetType(), "to", controllerType)
-
-	var newType config.ThrottleControllerType
-	switch controllerType {
-	case string(config.StepControllerType):
-		newType = config.StepControllerType
-	case string(config.QuadraticControllerType):
-		newType = config.QuadraticControllerType
-	case string(config.PIDControllerType):
-		newType = config.PIDControllerType
-	default:
-		return fmt.Errorf("invalid controller type: %s", controllerType)
+func (l *BatchSubmitter) SetThrottleController(newType config.ThrottleControllerType, pidConfig *config.PIDConfig) error {
+	if !config.ValidThrottleControllerType(newType) {
+		return fmt.Errorf("invalid controller type: %s (must be one of: %v)", newType, config.ThrottleControllerTypes)
 	}
+
+	l.Log.Info("Changing throttle controller", "from", l.throttleController.GetType(), "to", newType)
 
 	factory := throttler.NewThrottleControllerFactory(l.Log)
 
