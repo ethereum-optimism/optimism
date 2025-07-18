@@ -86,6 +86,10 @@ func (s *SyncTester) Init(ctx context.Context) (string, error) {
 	return session.SessionID, nil
 }
 
+func (s *SyncTester) ListSession(ctx context.Context) ([]string, error) {
+	return []string{}, nil
+}
+
 func (s *SyncTester) GetBlockReceipts(ctx context.Context, blockNrOrHash rpc.BlockNumberOrHash) ([]*types.Receipt, error) {
 	session, err := s.fetchSession(ctx)
 	if err != nil {
