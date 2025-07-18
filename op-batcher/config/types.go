@@ -1,6 +1,9 @@
 package config
 
-import "time"
+import (
+	"slices"
+	"time"
+)
 
 // ThrottleControllerType represents the type of throttle controller
 type ThrottleControllerType string
@@ -11,6 +14,17 @@ const (
 	QuadraticControllerType ThrottleControllerType = "quadratic"
 	PIDControllerType       ThrottleControllerType = "pid"
 )
+
+var ThrottleControllerTypes = []ThrottleControllerType{
+	StepControllerType,
+	LinearControllerType,
+	QuadraticControllerType,
+	PIDControllerType,
+}
+
+func ValidThrottleControllerType(value ThrottleControllerType) bool {
+	return slices.Contains(ThrottleControllerTypes, value)
+}
 
 // String returns the string representation of ThrottleControllerType
 func (t ThrottleControllerType) String() string {
