@@ -152,24 +152,18 @@ library ChainAssertions {
     }
 
     /// @notice Asserts that the L1StandardBridge is setup correctly
-    function checkL1StandardBridge(IL1StandardBridge _bridge, bool _isProxy) internal view {
-        console.log(
-            "Running chain assertions on the L1StandardBridge %s at %s",
-            _isProxy ? "proxy" : "implementation",
-            address(_bridge)
-        );
+    function checkL1StandardBridgeImpl(IL1StandardBridge _bridge) internal view {
+        console.log("Running chain assertions on the L1StandardBridge implementation at %s", address(_bridge));
         require(address(_bridge) != address(0), "CHECK-L1SB-10");
 
         // Check that the contract is initialized
-        DeployUtils.assertInitialized({ _contractAddress: address(_bridge), _isProxy: _isProxy, _slot: 0, _offset: 0 });
+        DeployUtils.assertInitialized({ _contractAddress: address(_bridge), _isProxy: false, _slot: 0, _offset: 0 });
 
-        if (!_isProxy) {
-            require(address(_bridge.MESSENGER()) == address(0), "CHECK-L1SB-70");
-            require(address(_bridge.messenger()) == address(0), "CHECK-L1SB-80");
-            require(address(_bridge.OTHER_BRIDGE()) == address(0), "CHECK-L1SB-90");
-            require(address(_bridge.otherBridge()) == address(0), "CHECK-L1SB-100");
-            require(address(_bridge.systemConfig()) == address(0), "CHECK-L1SB-110");
-        }
+        require(address(_bridge.MESSENGER()) == address(0), "CHECK-L1SB-70");
+        require(address(_bridge.messenger()) == address(0), "CHECK-L1SB-80");
+        require(address(_bridge.OTHER_BRIDGE()) == address(0), "CHECK-L1SB-90");
+        require(address(_bridge.otherBridge()) == address(0), "CHECK-L1SB-100");
+        require(address(_bridge.systemConfig()) == address(0), "CHECK-L1SB-110");
     }
 
     /// @notice Asserts that the DisputeGameFactory is setup correctly

@@ -304,7 +304,7 @@ contract Deploy is Deployer {
         });
 
         ChainAssertions.checkL1CrossDomainMessenger(IL1CrossDomainMessenger(impls.L1CrossDomainMessenger), vm, false);
-        ChainAssertions.checkL1StandardBridge(IL1StandardBridge(payable(impls.L1StandardBridge)), false);
+        ChainAssertions.checkL1StandardBridgeImpl(IL1StandardBridge(payable(impls.L1StandardBridge)));
         ChainAssertions.checkL1ERC721Bridge({ _contracts: impls, _isProxy: false });
         ChainAssertions.checkOptimismPortal2({ _contracts: impls, _cfg: cfg, _isProxy: false });
         ChainAssertions.checkETHLockbox({ _contracts: impls, _cfg: cfg, _isProxy: false });
