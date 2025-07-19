@@ -200,10 +200,15 @@ library ChainAssertions {
         // Check that the contract is initialized
         DeployUtils.assertInitialized({ _contractAddress: address(_factory), _isProxy: _isProxy, _slot: 0, _offset: 0 });
 
-        require(address(_factory.gameImpls(GameTypes.PERMISSIONED_CANNON)) == _permissionedDisputeGame, "CHECK-DG-20");
-
-        // The same check is made for both proxy and implementation
-        require(_factory.owner() == _expectedOwner, "CHECK-DG-30");
+        if (_isProxy) {
+            require(
+                address(_factory.gameImpls(GameTypes.PERMISSIONED_CANNON)) == _permissionedDisputeGame, "CHECK-DG-20"
+            );
+        } else {
+            require(address(_factory.gameImpls(GameTypes.PERMISSIONED_CANNON)) == address(0), "CHECK-DG-20");
+            // The same check is made for both proxy and implementation
+            require(_factory.owner() == _expectedOwner, "CHECK-DG-30");
+        }
     }
 
     /// @notice Asserts that the PreimageOracle is setup correctly
