@@ -8,6 +8,7 @@ import { console2 as console } from "forge-std/console2.sol";
 // Scripts
 import { DeployConfig } from "scripts/deploy/DeployConfig.s.sol";
 import { DeployOPChainInput } from "scripts/deploy/DeployOPChain.s.sol";
+import { DeployImplementations } from "scripts/deploy/DeployImplementations.s.sol";
 import { DeployUtils } from "scripts/libraries/DeployUtils.sol";
 
 // Libraries
@@ -507,16 +508,26 @@ library ChainAssertions {
     }
 
     /// @notice Converts variables needed from the DeployConfig to a DeployOPChainInput contract
-    function cfgToDeployOPChainInput(DeployConfig _cfg, address _opcm) internal returns (DeployOPChainInput doi_) {
-        doi_ = new DeployOPChainInput();
-
-        doi_.set(doi_.systemConfigOwner.selector, _cfg.finalSystemOwner());
-        doi_.set(doi_.basefeeScalar.selector, _cfg.basefeeScalar());
-        doi_.set(doi_.blobBaseFeeScalar.selector, _cfg.blobbasefeeScalar());
-        doi_.set(doi_.batcher.selector, _cfg.batchSenderAddress());
-        doi_.set(doi_.gasLimit.selector, _cfg.l2GenesisBlockGasLimit());
-        doi_.set(doi_.unsafeBlockSigner.selector, _cfg.p2pSequencerAddress());
-        doi_.set(doi_.l2ChainId.selector, _cfg.l2ChainID());
-        doi_.set(doi_.opcm.selector, _opcm);
+    function dioToContractSet(DeployImplementations.Output memory _output)
+        internal
+        pure
+        returns (Types.ContractSet memory)
+    {
+        return Types.ContractSet({
+            L1CrossDomainMessenger: address(_output.l1CrossDomainMessengerImpl),
+            L1StandardBridge: address(_output.l1StandardBridgeImpl),
+            L2OutputOracle: address(0),
+            DisputeGameFactory: address(_output.disputeGameFactoryImpl),
+            DelayedWETH: address(_output.delayedWETHImpl),
+            PermissionedDelayedWETH: address(_output.delayedWETHImpl),
+            AnchorStateRegistry: address(_output.anchorStateRegistryImpl),
+            OptimismMintableERC20Factory: address(_output.optimismMintableERC20FactoryImpl),
+            OptimismPortal: address(_output.optimismPortalImpl),
+            ETHLockbox: address(_output.ethLockboxImpl),
+            SystemConfig: address(_output.systemConfigImpl),
+            L1ERC721Bridge: address(_output.l1ERC721BridgeImpl),
+            ProtocolVersions: address(_output.protocolVersionsImpl),
+            SuperchainConfig: address(_output.superchainConfigImpl)
+        });
     }
 }

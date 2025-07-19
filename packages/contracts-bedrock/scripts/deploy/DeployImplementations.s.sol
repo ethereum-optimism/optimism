@@ -627,22 +627,7 @@ contract DeployImplementations is Script {
 
         DeployUtils.assertValidContractAddresses(Solarray.extend(addrs1, addrs2));
 
-        Types.ContractSet memory impls = Types.ContractSet({
-            L1CrossDomainMessenger: address(_output.l1CrossDomainMessengerImpl),
-            L1StandardBridge: address(_output.l1StandardBridgeImpl),
-            L2OutputOracle: address(0),
-            DisputeGameFactory: address(_output.disputeGameFactoryImpl),
-            DelayedWETH: address(_output.delayedWETHImpl),
-            PermissionedDelayedWETH: address(_output.delayedWETHImpl),
-            AnchorStateRegistry: address(_output.anchorStateRegistryImpl),
-            OptimismMintableERC20Factory: address(_output.optimismMintableERC20FactoryImpl),
-            OptimismPortal: address(_output.optimismPortalImpl),
-            ETHLockbox: address(_output.ethLockboxImpl),
-            SystemConfig: address(_output.systemConfigImpl),
-            L1ERC721Bridge: address(_output.l1ERC721BridgeImpl),
-            ProtocolVersions: address(_output.protocolVersionsImpl),
-            SuperchainConfig: address(_output.superchainConfigImpl)
-        });
+        Types.ContractSet memory impls = ChainAssertions.dioToContractSet(_output);
 
         assertValidDelayedWETHImpl(_input, _output);
         assertValidDisputeGameFactoryImpl(_input, _output);

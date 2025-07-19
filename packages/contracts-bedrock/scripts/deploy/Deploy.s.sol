@@ -286,22 +286,7 @@ contract Deploy is Deployer {
         artifacts.save("PreimageOracle", address(dio.preimageOracleSingleton));
 
         // Get a contract set from the implementation addresses which were just deployed.
-        Types.ContractSet memory impls = Types.ContractSet({
-            L1CrossDomainMessenger: address(dio.l1CrossDomainMessengerImpl),
-            L1StandardBridge: address(dio.l1StandardBridgeImpl),
-            L2OutputOracle: address(0),
-            DisputeGameFactory: address(dio.disputeGameFactoryImpl),
-            DelayedWETH: address(dio.delayedWETHImpl),
-            PermissionedDelayedWETH: address(dio.delayedWETHImpl),
-            AnchorStateRegistry: address(0),
-            OptimismMintableERC20Factory: address(dio.optimismMintableERC20FactoryImpl),
-            OptimismPortal: address(dio.optimismPortalImpl),
-            ETHLockbox: address(dio.ethLockboxImpl),
-            SystemConfig: address(dio.systemConfigImpl),
-            L1ERC721Bridge: address(dio.l1ERC721BridgeImpl),
-            ProtocolVersions: address(dio.protocolVersionsImpl),
-            SuperchainConfig: address(dio.superchainConfigImpl)
-        });
+        Types.ContractSet memory impls = ChainAssertions.dioToContractSet(dio);
 
         ChainAssertions.checkL1CrossDomainMessenger(IL1CrossDomainMessenger(impls.L1CrossDomainMessenger), vm, false);
         ChainAssertions.checkL1StandardBridge({ _contracts: impls, _isProxy: false });
