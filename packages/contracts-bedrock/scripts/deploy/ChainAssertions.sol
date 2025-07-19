@@ -212,14 +212,14 @@ library ChainAssertions {
     }
 
     /// @notice Asserts that the DelayedWETH is setup correctly
-    function checkDelayedWETHImpl(IDelayedWETH _weth, uint256 faultGameWithdrawalDelay) internal view {
+    function checkDelayedWETHImpl(IDelayedWETH _weth, uint256 _faultGameWithdrawalDelay) internal view {
         console.log("Running chain assertions on the DelayedWETH implementation at %s", address(_weth));
         require(address(_weth) != address(0), "CHECK-DWETH-10");
 
         // Check that the contract is initialized
         DeployUtils.assertInitialized({ _contractAddress: address(_weth), _isProxy: false, _slot: 0, _offset: 0 });
 
-        require(_weth.delay() == faultGameWithdrawalDelay, "CHECK-DWETH-50");
+        require(_weth.delay() == _faultGameWithdrawalDelay, "CHECK-DWETH-50");
     }
 
     /// @notice Asserts that the OptimismMintableERC20Factory is setup correctly
