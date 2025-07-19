@@ -470,7 +470,12 @@ contract DeployOPChain is Script {
         ChainAssertions.checkL1CrossDomainMessenger(_doo.l1CrossDomainMessengerProxy(), vm, true);
         assertValidL1ERC721Bridge(_doo);
         assertValidL1StandardBridge(_doo);
-        ChainAssertions.checkOptimismMintableERC20Factory(_doo.optimismMintableERC20FactoryProxy(), true);
+        DeployUtils.assertInitialized({
+            _contractAddress: address(_doo.optimismMintableERC20FactoryProxy()),
+            _isProxy: true,
+            _slot: 0,
+            _offset: 0
+        });
         assertValidOptimismPortal(_doi, _doo);
         assertValidETHLockbox(_doi, _doo);
         assertValidPermissionedDisputeGame(_doi, _doo);

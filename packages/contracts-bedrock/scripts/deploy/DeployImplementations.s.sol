@@ -634,7 +634,7 @@ contract DeployImplementations is Script {
         assertValidL1StandardBridgeImpl(_input, _output);
         assertValidMipsSingleton(_input, _output);
         assertValidOpcm(_input, _output);
-        ChainAssertions.checkOptimismMintableERC20Factory(_output.optimismMintableERC20FactoryImpl, false);
+        ChainAssertions.checkOptimismMintableERC20FactoryImpl(_output.optimismMintableERC20FactoryImpl);
         assertValidOptimismPortalImpl(_input, _output);
         assertValidETHLockboxImpl(_input, _output);
         assertValidPreimageOracleSingleton(_input, _output);

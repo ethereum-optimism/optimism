@@ -249,21 +249,16 @@ library ChainAssertions {
     }
 
     /// @notice Asserts that the OptimismMintableERC20Factory is setup correctly
-    function checkOptimismMintableERC20Factory(IOptimismMintableERC20Factory _factory, bool _isProxy) internal view {
+    function checkOptimismMintableERC20FactoryImpl(IOptimismMintableERC20Factory _factory) internal view {
         console.log(
-            "Running chain assertions on the OptimismMintableERC20Factory %s at %s",
-            _isProxy ? "proxy" : "implementation",
-            address(_factory)
+            "Running chain assertions on the OptimismMintableERC20Factory implementation at %s", address(_factory)
         );
-        require(address(_factory) != address(0), "CHECK-MERC20F-10");
 
         // Check that the contract is initialized
-        DeployUtils.assertInitialized({ _contractAddress: address(_factory), _isProxy: _isProxy, _slot: 0, _offset: 0 });
+        DeployUtils.assertInitialized({ _contractAddress: address(_factory), _isProxy: false, _slot: 0, _offset: 0 });
 
-        if (!_isProxy) {
-            require(_factory.BRIDGE() == address(0), "CHECK-MERC20F-30");
-            require(_factory.bridge() == address(0), "CHECK-MERC20F-40");
-        }
+        require(_factory.BRIDGE() == address(0), "CHECK-MERC20F-30");
+        require(_factory.bridge() == address(0), "CHECK-MERC20F-40");
     }
 
     /// @notice Asserts that the L1ERC721Bridge is setup correctly
