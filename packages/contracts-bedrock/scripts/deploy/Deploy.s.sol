@@ -305,7 +305,7 @@ contract Deploy is Deployer {
 
         ChainAssertions.checkL1CrossDomainMessenger(IL1CrossDomainMessenger(impls.L1CrossDomainMessenger), vm, false);
         ChainAssertions.checkL1StandardBridge({ _contracts: impls, _isProxy: false });
-        ChainAssertions.checkL1ERC721Bridge(IL1ERC721Bridge(impls.L1ERC721Bridge), false);
+        ChainAssertions.checkL1ERC721BridgeImpl(IL1ERC721Bridge(impls.L1ERC721Bridge));
         ChainAssertions.checkOptimismPortal2({ _contracts: impls, _cfg: cfg, _isProxy: false });
         ChainAssertions.checkETHLockbox({ _contracts: impls, _cfg: cfg, _isProxy: false });
         ChainAssertions.checkOptimismMintableERC20Factory({ _contracts: impls, _isProxy: false });

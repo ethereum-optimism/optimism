@@ -630,7 +630,7 @@ contract DeployImplementations is Script {
         assertValidDisputeGameFactoryImpl(_input, _output);
         assertValidAnchorStateRegistryImpl(_input, _output);
         ChainAssertions.checkL1CrossDomainMessenger(_output.l1CrossDomainMessengerImpl, vm, false);
-        ChainAssertions.checkL1ERC721Bridge(_output.l1ERC721BridgeImpl, false);
+        ChainAssertions.checkL1ERC721BridgeImpl(_output.l1ERC721BridgeImpl);
         assertValidL1StandardBridgeImpl(_input, _output);
         assertValidMipsSingleton(_input, _output);
         assertValidOpcm(_input, _output);
