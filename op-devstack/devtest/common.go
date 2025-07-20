@@ -65,7 +65,12 @@ func TestScope(ctx context.Context) string {
 // and returns a context with the updated scope value.
 func AddTestScope(ctx context.Context, scope string) context.Context {
 	prev := TestScope(ctx)
-	newScope := testScopeValue(prev + "/" + scope)
+	var newScope testScopeValue
+	if prev == "" {
+		newScope = testScopeValue(scope)
+	} else {
+		newScope = testScopeValue(prev + "/" + scope)
+	}
 	ctx = logfilter.AddLogAttrToContext(ctx, "scope", newScope)
 	return context.WithValue(ctx, testScopeCtxKey, newScope)
 }
