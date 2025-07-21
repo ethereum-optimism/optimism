@@ -295,7 +295,7 @@ impl OpReceiptBuilder {
         Ok(Self { core_receipt, op_receipt_fields })
     }
 
-    /// Builds [`OpTransactionReceipt`] by combing core (l1) receipt fields and additional OP
+    /// Builds [`OpTransactionReceipt`] by combining core (l1) receipt fields and additional OP
     /// receipt fields.
     pub fn build(self) -> OpTransactionReceipt {
         let Self { core_receipt: inner, op_receipt_fields } = self;
