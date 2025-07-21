@@ -44,6 +44,11 @@ reth-optimism-consensus = { workspace = true, features = ["std"] }
 reth-optimism-forks.workspace = true
 reth-optimism-primitives = { workspace = true, features = ["serde", "serde-bincode-compat", "reth-codec"] }
 
+# revm with required optimism features
+# Note: this must be kept to ensure all features are poperly enabled/forwarded
+revm = { workspace = true, features = ["secp256k1", "blst", "c-kzg"] }
+op-revm.workspace = true
+
 # ethereum
 alloy-primitives.workspace = true
 op-alloy-consensus.workspace = true
@@ -87,6 +92,7 @@ asm-keccak = [
     "alloy-primitives/asm-keccak",
     "reth-optimism-node/asm-keccak",
     "reth-node-core/asm-keccak",
+    "revm/asm-keccak",
 ]
 js-tracer = ["reth-node-builder/js-tracer"]
 test-utils = [
