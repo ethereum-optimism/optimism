@@ -32,7 +32,7 @@ import { IPreimageOracle } from "interfaces/cannon/IPreimageOracle.sol";
 import { IL1StandardBridge } from "interfaces/L1/IL1StandardBridge.sol";
 import { IProxyAdminOwnedBase } from "interfaces/L1/IProxyAdminOwnedBase.sol";
 import { IStandardBridge } from "interfaces/universal/IStandardBridge.sol";
-import { IStandardValidator } from "interfaces/L1/IStandardValidator.sol";
+import { IOPContractsManagerStandardValidator } from "interfaces/L1/IOPContractsManagerStandardValidator.sol";
 import { IMIPS64 } from "interfaces/cannon/IMIPS64.sol";
 
 /// @title BadDisputeGameFactoryReturner
@@ -41,7 +41,7 @@ import { IMIPS64 } from "interfaces/cannon/IMIPS64.sol";
 ///         the validation function to revert.
 contract BadDisputeGameFactoryReturner {
     /// @notice Address of the StandardValidator instance.
-    IStandardValidator public immutable validator;
+    IOPContractsManagerStandardValidator public immutable validator;
 
     /// @notice Address of the real DisputeGameFactory instance.
     IDisputeGameFactory public immutable realDisputeGameFactory;
@@ -53,7 +53,7 @@ contract BadDisputeGameFactoryReturner {
     /// @param _realDisputeGameFactory The real DisputeGameFactory instance.
     /// @param _fakeDisputeGameFactory The fake DisputeGameFactory instance.
     constructor(
-        IStandardValidator _validator,
+        IOPContractsManagerStandardValidator _validator,
         IDisputeGameFactory _realDisputeGameFactory,
         IDisputeGameFactory _fakeDisputeGameFactory
     ) {
@@ -76,7 +76,7 @@ contract BadDisputeGameFactoryReturner {
 /// @notice Base contract for `StandardValidator` tests, handles common setup.
 contract StandardValidator_TestInit is CommonTest {
     /// @notice StandardValidator instance, used for testing.
-    IStandardValidator validator;
+    IOPContractsManagerStandardValidator validator;
 
     /// @notice Deploy input that was used to deploy the contracts being tested.
     IOPContractsManager.DeployInput deployInput;
@@ -103,7 +103,7 @@ contract StandardValidator_TestInit is CommonTest {
     BadDisputeGameFactoryReturner badDisputeGameFactoryReturner;
 
     /// @notice ValidationOverrides storage struct that gets inherited by all test contracts.
-    IStandardValidator.ValidationOverrides validationOverrides;
+    IOPContractsManagerStandardValidator.ValidationOverrides validationOverrides;
 
     /// @notice Sets up the test suite.
     function setUp() public virtual override {
@@ -164,14 +164,14 @@ contract StandardValidator_TestInit is CommonTest {
         }
 
         // Deploy the validator.
-        validator = IStandardValidator(
+        validator = IOPContractsManagerStandardValidator(
             DeployUtils.create1({
                 _name: "StandardValidator",
                 _args: DeployUtils.encodeConstructor(
                     abi.encodeCall(
-                        IStandardValidator.__constructor__,
+                        IOPContractsManagerStandardValidator.__constructor__,
                         (
-                            IStandardValidator.Implementations({
+                            IOPContractsManagerStandardValidator.Implementations({
                                 systemConfigImpl: impls.systemConfigImpl,
                                 optimismPortalImpl: impls.optimismPortalImpl,
                                 ethLockboxImpl: impls.ethLockboxImpl,
@@ -239,7 +239,7 @@ contract StandardValidator_TestInit is CommonTest {
     /// @return The error message(s) from the validate function.
     function _validate(bool _allowFailure) internal view returns (string memory) {
         return validator.validate(
-            IStandardValidator.ValidationInput({
+            IOPContractsManagerStandardValidator.ValidationInput({
                 proxyAdmin: proxyAdmin,
                 sysCfg: systemConfig,
                 absolutePrestate: absolutePrestate.raw(),
@@ -254,14 +254,14 @@ contract StandardValidator_TestInit is CommonTest {
     /// @return The error message(s) from the validate function.
     function _validate(
         bool _allowFailure,
-        IStandardValidator.ValidationOverrides memory _overrides
+        IOPContractsManagerStandardValidator.ValidationOverrides memory _overrides
     )
         internal
         view
         returns (string memory)
     {
-        return validator.validate(
-            IStandardValidator.ValidationInput({
+        return validator.validateWithOverrides(
+            IOPContractsManagerStandardValidator.ValidationInput({
                 proxyAdmin: proxyAdmin,
                 sysCfg: systemConfig,
                 absolutePrestate: absolutePrestate.raw(),
@@ -272,8 +272,12 @@ contract StandardValidator_TestInit is CommonTest {
         );
     }
 
-    function _defaultValidationOverrides() internal view returns (IStandardValidator.ValidationOverrides memory) {
-        return IStandardValidator.ValidationOverrides({
+    function _defaultValidationOverrides()
+        internal
+        view
+        returns (IOPContractsManagerStandardValidator.ValidationOverrides memory)
+    {
+        return IOPContractsManagerStandardValidator.ValidationOverrides({
             l1PAOMultisig: address(0),
             challenger: address(0),
             anchorStateRegistry: validationOverrides.anchorStateRegistry,
@@ -318,7 +322,7 @@ contract StandardValidator_GeneralOverride_Test is StandardValidator_TestInit {
     ///         successfully returns no error when there is none. That is, it never returns the
     ///         overridden strings alone.
     function test_validateOverrides_noErrors_succeeds() public {
-        IStandardValidator.ValidationOverrides memory overrides = _defaultValidationOverrides();
+        IOPContractsManagerStandardValidator.ValidationOverrides memory overrides = _defaultValidationOverrides();
         overrides.l1PAOMultisig = address(0xbad);
         overrides.challenger = address(0xc0ffee);
         vm.mockCall(address(proxyAdmin), abi.encodeCall(IProxyAdmin.owner, ()), abi.encode(overrides.l1PAOMultisig));
@@ -337,7 +341,7 @@ contract StandardValidator_GeneralOverride_Test is StandardValidator_TestInit {
     /// @notice Tests that the validate function (with overrides) and allow failure set to false,
     ///         returns the errors with the overrides prepended.
     function test_validateOverrides_notAllowFailurePrependsOverrides_succeeds() public {
-        IStandardValidator.ValidationOverrides memory overrides = _defaultValidationOverrides();
+        IOPContractsManagerStandardValidator.ValidationOverrides memory overrides = _defaultValidationOverrides();
         overrides.l1PAOMultisig = address(0xbad);
         overrides.challenger = address(0xc0ffee);
 
@@ -378,7 +382,7 @@ contract StandardValidator_ProxyAdmin_Test is StandardValidator_TestInit {
     /// @notice Tests that the validate function successfully returns the right overrides error
     ///         when the ProxyAdmin owner is overridden but is correct.
     function test_validate_overridenProxyAdminOwner_succeeds() public {
-        IStandardValidator.ValidationOverrides memory overrides = _defaultValidationOverrides();
+        IOPContractsManagerStandardValidator.ValidationOverrides memory overrides = _defaultValidationOverrides();
         overrides.l1PAOMultisig = address(0xbad);
         vm.mockCall(address(proxyAdmin), abi.encodeCall(IProxyAdmin.owner, ()), abi.encode(address(0xbad)));
         vm.mockCall(
@@ -392,7 +396,7 @@ contract StandardValidator_ProxyAdmin_Test is StandardValidator_TestInit {
     /// @notice Tests that the validate function (with an overridden ProxyAdmin owner) successfully
     ///         returns the right error when the ProxyAdmin owner is not correct.
     function test_validateOverrideL1PAOMultisig_invalidProxyAdminOwner_succeeds() public view {
-        IStandardValidator.ValidationOverrides memory overrides = _defaultValidationOverrides();
+        IOPContractsManagerStandardValidator.ValidationOverrides memory overrides = _defaultValidationOverrides();
         overrides.l1PAOMultisig = address(0xbad);
         assertEq("OVERRIDES-L1PAOMULTISIG,PROXYA-10,DF-30,PDDG-DWETH-30,PLDG-DWETH-30", _validate(true, overrides));
     }
@@ -907,7 +911,7 @@ contract StandardValidator_PermissionedDisputeGame_Test is StandardValidator_Tes
         vm.mockCall(address(fdg), abi.encodeCall(IFaultDisputeGame.vm, ()), abi.encode(address(mips)));
 
         // Use overrides with vm set to address(0) so it doesn't override the game's VM
-        IStandardValidator.ValidationOverrides memory overrides = _defaultValidationOverrides();
+        IOPContractsManagerStandardValidator.ValidationOverrides memory overrides = _defaultValidationOverrides();
         overrides.vm = address(0);
         assertEq("PDDG-VM-10,PDDG-VM-20", _validate(true, overrides));
     }
@@ -1233,7 +1237,7 @@ contract StandardValidator_FaultDisputeGame_Test is StandardValidator_TestInit {
         vm.mockCall(address(pdg), abi.encodeCall(IPermissionedDisputeGame.vm, ()), abi.encode(address(mips)));
 
         // Use overrides with vm set to address(0) so it doesn't override the game's VM
-        IStandardValidator.ValidationOverrides memory overrides = _defaultValidationOverrides();
+        IOPContractsManagerStandardValidator.ValidationOverrides memory overrides = _defaultValidationOverrides();
         overrides.vm = address(0);
         assertEq("PLDG-VM-10,PLDG-VM-20", _validate(true, overrides));
     }
