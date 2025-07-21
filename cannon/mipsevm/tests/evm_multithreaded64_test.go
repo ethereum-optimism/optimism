@@ -4,11 +4,9 @@ package tests
 import (
 	"encoding/binary"
 	"fmt"
-	"os"
 	"slices"
 	"testing"
 
-	"github.com/stretchr/testify/require"
 	"golang.org/x/exp/maps"
 
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm"
@@ -483,90 +481,42 @@ func TestEVM_MT_SysRead_Preimage64(t *testing.T) {
 		Run(t, cases, WithPreimageOracle(po))
 }
 
-func TestEVM_MT_SysRead_FromEventFd(t *testing.T) {
+func TestEVM_MT_SysReadWrite_WithEventFd(t *testing.T) {
 	t.Parallel()
-	vmVersions := GetMipsVersionTestCases(t)
-	for i, ver := range vmVersions {
-		t.Run(ver.Name, func(t *testing.T) {
-			t.Parallel()
-			addr := Word(0x00_00_FF_00)
-			effAddr := arch.AddressMask & addr
-			goVm := ver.VMFactory(nil, os.Stdout, os.Stderr, testutil.CreateLogger(), mtutil.WithRandomization(int64(i)))
-			state := mtutil.GetMtState(t, goVm)
-			step := state.GetStep()
 
-			// Define LL-related params
-			llAddress := effAddr
-			llOwnerThread := state.GetCurrentThread().ThreadId
-
-			// Set up state
-			state.GetRegistersRef()[2] = arch.SysRead
-			state.GetRegistersRef()[4] = exec.FdEventFd
-			state.GetRegistersRef()[5] = addr
-			state.GetRegistersRef()[6] = 1
-			testutil.StoreInstruction(state.GetMemory(), state.GetPC(), syscallInsn)
-			state.LLReservationStatus = multithreaded.LLStatusNone
-			state.LLAddress = llAddress
-			state.LLOwnerThread = llOwnerThread
-			state.GetMemory().SetWord(effAddr, Word(0x12_EE_EE_EE_FF_FF_FF_FF))
-
-			// Setup expectations
-			expected := mtutil.NewExpectedState(t, state)
-			expected.ExpectStep()
-			expected.ActiveThread().Registers[2] = exec.MipsEAGAIN
-			expected.ActiveThread().Registers[7] = exec.SysErrorSignal
-
-			stepWitness, err := goVm.Step(true)
-			require.NoError(t, err)
-
-			// Check expectations
-			expected.Validate(t, state)
-			testutil.ValidateEVM(t, stepWitness, step, goVm, multithreaded.GetStateHashFn(), ver.Contracts)
-		})
+	type testCase struct {
+		name       string
+		syscallNum Word
 	}
-}
 
-func TestEVM_MT_SysWrite_ToEventFd(t *testing.T) {
-	t.Parallel()
-	vmVersions := GetMipsVersionTestCases(t)
-	for i, ver := range vmVersions {
-		t.Run(ver.Name, func(t *testing.T) {
-			t.Parallel()
-			addr := Word(0x00_00_FF_00)
-			effAddr := arch.AddressMask & addr
-			goVm := ver.VMFactory(nil, os.Stdout, os.Stderr, testutil.CreateLogger(), mtutil.WithRandomization(int64(i)))
-			state := mtutil.GetMtState(t, goVm)
-			step := state.GetStep()
-
-			// Define LL-related params
-			llAddress := effAddr
-			llOwnerThread := state.GetCurrentThread().ThreadId
-
-			// Set up state
-			state.GetRegistersRef()[2] = arch.SysWrite
-			state.GetRegistersRef()[4] = exec.FdEventFd
-			state.GetRegistersRef()[5] = addr
-			state.GetRegistersRef()[6] = 1
-			testutil.StoreInstruction(state.GetMemory(), state.GetPC(), syscallInsn)
-			state.LLReservationStatus = multithreaded.LLStatusNone
-			state.LLAddress = llAddress
-			state.LLOwnerThread = llOwnerThread
-			state.GetMemory().SetWord(effAddr, Word(0x12_EE_EE_EE_FF_FF_FF_FF))
-
-			// Setup expectations
-			expected := mtutil.NewExpectedState(t, state)
-			expected.ExpectStep()
-			expected.ActiveThread().Registers[2] = exec.MipsEAGAIN
-			expected.ActiveThread().Registers[7] = exec.SysErrorSignal
-
-			stepWitness, err := goVm.Step(true)
-			require.NoError(t, err)
-
-			// Check expectations
-			expected.Validate(t, state)
-			testutil.ValidateEVM(t, stepWitness, step, goVm, multithreaded.GetStateHashFn(), ver.Contracts)
-		})
+	testNamer := func(tc testCase) string {
+		return tc.name
 	}
+
+	cases := []testCase{
+		{name: "SysRead", syscallNum: arch.SysRead},
+		{name: "SysWrite", syscallNum: arch.SysWrite},
+	}
+
+	initState := func(tt testCase, state *multithreaded.State, vm VersionedVMTestCase, r *testutil.RandHelper) {
+		state.GetRegistersRef()[2] = tt.syscallNum
+		state.GetRegistersRef()[4] = exec.FdEventFd
+		state.GetRegistersRef()[5] = 0x00_00_FF_00
+		state.GetRegistersRef()[6] = 1
+		testutil.StoreInstruction(state.GetMemory(), state.GetPC(), syscallInsn)
+	}
+
+	setExpectations := func(tt testCase, expected *mtutil.ExpectedState, vm VersionedVMTestCase) ExpectedExecResult {
+		expected.ExpectStep()
+		expected.ActiveThread().Registers[2] = exec.MipsEAGAIN
+		expected.ActiveThread().Registers[7] = exec.SysErrorSignal
+		return ExpectNormalExecution()
+	}
+
+	NewDiffTester(testNamer).
+		InitState(initState).
+		SetExpectations(setExpectations).
+		Run(t, cases)
 }
 
 func TestEVM_MT_StoreOpsClearMemReservation64(t *testing.T) {
