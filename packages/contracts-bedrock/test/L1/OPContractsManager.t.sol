@@ -58,6 +58,7 @@ import { IETHLockbox } from "interfaces/L1/IETHLockbox.sol";
 import { IBigStepper } from "interfaces/dispute/IBigStepper.sol";
 import { ISuperFaultDisputeGame } from "interfaces/dispute/ISuperFaultDisputeGame.sol";
 import { ISuperPermissionedDisputeGame } from "interfaces/dispute/ISuperPermissionedDisputeGame.sol";
+import { IOPContractsManagerStandardValidator } from "interfaces/L1/IOPContractsManagerStandardValidator.sol";
 
 // Contracts
 import {
@@ -676,6 +677,37 @@ contract OPContractsManager_TestInit is Test {
             })
         );
 
+        IOPContractsManagerStandardValidator standardValidator = IOPContractsManagerStandardValidator(
+            DeployUtils.createDeterministic({
+                _name: "OPContractsManagerStandardValidator",
+                _args: DeployUtils.encodeConstructor(
+                    abi.encodeCall(
+                        IOPContractsManagerStandardValidator.__constructor__,
+                        (
+                            IOPContractsManagerStandardValidator.Implementations({
+                                systemConfigImpl: impls.systemConfigImpl,
+                                optimismPortalImpl: impls.optimismPortalImpl,
+                                ethLockboxImpl: impls.ethLockboxImpl,
+                                l1CrossDomainMessengerImpl: impls.l1CrossDomainMessengerImpl,
+                                l1StandardBridgeImpl: impls.l1StandardBridgeImpl,
+                                l1ERC721BridgeImpl: impls.l1ERC721BridgeImpl,
+                                optimismMintableERC20FactoryImpl: impls.optimismMintableERC20FactoryImpl,
+                                disputeGameFactoryImpl: impls.disputeGameFactoryImpl,
+                                mipsImpl: impls.mipsImpl,
+                                anchorStateRegistryImpl: impls.anchorStateRegistryImpl,
+                                delayedWETHImpl: impls.delayedWETHImpl
+                            }),
+                            superchainConfigProxy,
+                            makeAddr("proxyAdminOwner"),
+                            makeAddr("challenger"),
+                            302400
+                        )
+                    )
+                ),
+                _salt: DeployUtils.DEFAULT_SALT
+            })
+        );
+
         opcm = IOPContractsManager(
             DeployUtils.createDeterministic({
                 _name: "OPContractsManager",
@@ -719,6 +751,7 @@ contract OPContractsManager_TestInit is Test {
                                     _salt: DeployUtils.DEFAULT_SALT
                                 })
                             ),
+                            standardValidator,
                             superchainConfigProxy,
                             protocolVersionsProxy,
                             superchainProxyAdmin,
