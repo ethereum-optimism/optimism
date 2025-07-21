@@ -327,12 +327,15 @@ func ExpectVmPanic(goPanicValue interface{}, evmRevertMsg string, options ...VMP
 	return result
 }
 
-func ExpectVmPanicWithCustomErr(goPanicMsg interface{}, customErrSignature string, memoryProofAddresses ...arch.Word) ExpectedExecResult {
-	return vmPanicResult{
-		panicValue:           goPanicMsg,
-		evmErrorMatcher:      testutil.CustomErrorMatcher(customErrSignature),
-		memoryProofAddresses: memoryProofAddresses,
+func ExpectVmPanicWithCustomErr(goPanicMsg interface{}, customErrSignature string, options ...VMPanicTestOption) ExpectedExecResult {
+	result := vmPanicResult{
+		panicValue:      goPanicMsg,
+		evmErrorMatcher: testutil.CustomErrorMatcher(customErrSignature),
 	}
+	for _, opt := range options {
+		opt(&result)
+	}
+	return result
 }
 
 func (e vmPanicResult) assertExpectedResult(t testing.TB, goVm mipsevm.FPVM, vmVersion VersionedVMTestCase, expect *mtutil.ExpectedState, cfg *TestConfig) {
