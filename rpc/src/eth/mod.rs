@@ -368,17 +368,8 @@ where
         let rpc_converter =
             RpcConverter::new(OpReceiptConverter::new(ctx.components.provider().clone()))
                 .with_mapper(OpTxInfoMapper::new(ctx.components.provider().clone()));
-        let eth_api = reth_rpc::EthApiBuilder::new_with_components(ctx.components.clone())
-            .with_rpc_converter(rpc_converter)
-            .eth_cache(ctx.cache)
-            .task_spawner(ctx.components.task_executor().clone())
-            .gas_cap(ctx.config.rpc_gas_cap.into())
-            .max_simulate_blocks(ctx.config.rpc_max_simulate_blocks)
-            .eth_proof_window(ctx.config.eth_proof_window)
-            .fee_history_cache_config(ctx.config.fee_history_cache)
-            .proof_permits(ctx.config.proof_permits)
-            .gas_oracle_config(ctx.config.gas_oracle)
-            .build_inner();
+
+        let eth_api = ctx.eth_api_builder().with_rpc_converter(rpc_converter).build_inner();
 
         let sequencer_client = if let Some(url) = sequencer_url {
             Some(
