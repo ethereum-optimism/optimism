@@ -24,7 +24,7 @@ var defaultOpConfig = &params.OptimismConfig{
 	EIP1559Elasticity:        6,
 	EIP1559Denominator:       50,
 	EIP1559DenominatorCanyon: ptr(uint64(250)),
-	EIP1559MinBaseFeeLog2:           20,
+	EIP1559MinBaseFeeLog2:    20,
 }
 
 func ptr[T any](t T) *T {
@@ -48,12 +48,8 @@ func jovianArgs() matchArgs {
 		validTx               = testutils.RandomLegacyTxNotProtected(rand.New(rand.NewSource(42)))
 		validTxData, _        = validTx.MarshalBinary()
 
-		// validJovianExtraData = eth.BytesMax32(append([]byte{1}, eip1559.EncodeJovianExtraData(
-		// 	*defaultOpConfig.EIP1559DenominatorCanyon, defaultOpConfig.EIP1559Elasticity, defaultOpConfig.EIP1559MinBaseFeeLog2)...))
-		// validJovianExtraData = eth.BytesMax32(eip1559.EncodeJovianExtraData(
-		//	*defaultOpConfig.EIP1559DenominatorCanyon, defaultOpConfig.EIP1559Elasticity, defaultOpConfig.EIP1559MinBaseFeeLog2))
-		validJovianExtraData = append(eth.BytesMax32{1}, eth.BytesMax32(eip1559.EncodeJovianExtraData(
-			*defaultOpConfig.EIP1559DenominatorCanyon, defaultOpConfig.EIP1559Elasticity, defaultOpConfig.EIP1559MinBaseFeeLog2))...)
+		validJovianExtraData = eth.BytesMax32(eip1559.EncodeJovianExtraData(
+			*defaultOpConfig.EIP1559DenominatorCanyon, defaultOpConfig.EIP1559Elasticity, defaultOpConfig.EIP1559MinBaseFeeLog2))
 		validJovianEIP1559Params = new(eth.Bytes9)
 	)
 	// Populate the EIP1559 params with the encoded values
