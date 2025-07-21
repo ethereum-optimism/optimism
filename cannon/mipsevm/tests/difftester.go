@@ -22,7 +22,7 @@ type TestNamer[T any] func(testCase T) string
 
 type InitializeStateFn[T any] func(testCase T, state *multithreaded.State, vm VersionedVMTestCase, r *testutil.RandHelper)
 type SetExpectationsFn[T any] func(testCase T, expect *mtutil.ExpectedState, vm VersionedVMTestCase) ExpectedExecResult
-type PostStepCheckFn[T any] func(t require.TestingT, testCase T, vm VersionedVMTestCase, deps *TestDependencies)
+type PostStepCheckFn[T any] func(t require.TestingT, testCase T, state *multithreaded.State, vm VersionedVMTestCase, deps *TestDependencies)
 
 type DiffTester[T any] struct {
 	testNamer       TestNamer[T]
@@ -97,7 +97,7 @@ func (d *DiffTester[T]) run(t testRunner, testCases []T, opts ...TestOption) {
 
 					// Run post-step checks
 					if d.postStepCheck != nil {
-						d.postStepCheck(t, testCase, vm, testDeps)
+						d.postStepCheck(t, testCase, state, vm, testDeps)
 					}
 				})
 			}

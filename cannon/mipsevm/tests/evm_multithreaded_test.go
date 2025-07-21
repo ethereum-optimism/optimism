@@ -249,70 +249,71 @@ func TestEVM_SysClone_FlagHandling(t *testing.T) {
 }
 
 func TestEVM_SysClone_Successful(t *testing.T) {
-	cases := []struct {
+	type testCase struct {
 		name          string
 		traverseRight bool
-	}{
+	}
+
+	testNamer := func(tc testCase) string {
+		return tc.name
+	}
+
+	cases := []testCase{
 		{"traverse left", false},
 		{"traverse right", true},
 	}
 
-	vmVersions := GetMipsVersionTestCases(t)
-	for _, ver := range vmVersions {
-		for i, c := range cases {
-			testName := fmt.Sprintf("%v (%v)", c.name, ver.Name)
-			t.Run(testName, func(t *testing.T) {
-				stackPtr := Word(100)
+	stackPtr := Word(100)
+	initState := func(c testCase, state *multithreaded.State, vm VersionedVMTestCase, r *testutil.RandHelper) {
+		mtutil.InitializeSingleThread(r.Intn(10000), state, c.traverseRight)
+		testutil.StoreInstruction(state.Memory, state.GetPC(), syscallInsn)
+		state.GetRegistersRef()[2] = arch.SysClone        // the syscall number
+		state.GetRegistersRef()[4] = exec.ValidCloneFlags // a0 - first argument, clone flags
+		state.GetRegistersRef()[5] = stackPtr             // a1 - the stack pointer
 
-				goVm := ver.VMFactory(nil, os.Stdout, os.Stderr, testutil.CreateLogger(), mtutil.WithRandomization(int64(i)))
-				state := mtutil.GetMtState(t, goVm)
-				mtutil.InitializeSingleThread(i*333, state, c.traverseRight)
-				testutil.StoreInstruction(state.Memory, state.GetPC(), syscallInsn)
-				state.GetRegistersRef()[2] = arch.SysClone        // the syscall number
-				state.GetRegistersRef()[4] = exec.ValidCloneFlags // a0 - first argument, clone flags
-				state.GetRegistersRef()[5] = stackPtr             // a1 - the stack pointer
-				step := state.GetStep()
-
-				// Sanity-check assumptions
-				require.Equal(t, Word(1), state.NextThreadId)
-
-				// Setup expectations
-				expected := mtutil.NewExpectedState(t, state)
-				expected.Step += 1
-				expectedNewThread := expected.ExpectNewThread()
-				expected.ActiveThreadId = expectedNewThread.ThreadId
-				expected.StepsSinceLastContextSwitch = 0
-				if c.traverseRight {
-					expected.RightStackSize += 1
-				} else {
-					expected.LeftStackSize += 1
-				}
-				// Original thread expectations
-				expected.PrestateActiveThread().PC = state.GetCpu().NextPC
-				expected.PrestateActiveThread().NextPC = state.GetCpu().NextPC + 4
-				expected.PrestateActiveThread().Registers[2] = 1
-				expected.PrestateActiveThread().Registers[7] = 0
-				// New thread expectations
-				expectedNewThread.PC = state.GetCpu().NextPC
-				expectedNewThread.NextPC = state.GetCpu().NextPC + 4
-				expectedNewThread.ThreadId = 1
-				expectedNewThread.Registers[register.RegSyscallRet1] = 0
-				expectedNewThread.Registers[register.RegSyscallErrno] = 0
-				expectedNewThread.Registers[register.RegSP] = stackPtr
-
-				var err error
-				var stepWitness *mipsevm.StepWitness
-				stepWitness, err = goVm.Step(true)
-				require.NoError(t, err)
-
-				expected.Validate(t, state)
-				activeStack, inactiveStack := mtutil.GetThreadStacks(state)
-				require.Equal(t, 2, len(activeStack))
-				require.Equal(t, 0, len(inactiveStack))
-				testutil.ValidateEVM(t, stepWitness, step, goVm, multithreaded.GetStateHashFn(), ver.Contracts)
-			})
-		}
+		// Sanity-check assumptions
+		require.Equal(t, Word(1), state.NextThreadId)
 	}
+
+	setExpectations := func(c testCase, expected *mtutil.ExpectedState, vm VersionedVMTestCase) ExpectedExecResult {
+		expected.Step += 1
+		expectedNewThread := expected.ExpectNewThread()
+		expected.ActiveThreadId = expectedNewThread.ThreadId
+		expected.StepsSinceLastContextSwitch = 0
+		if c.traverseRight {
+			expected.RightStackSize += 1
+		} else {
+			expected.LeftStackSize += 1
+		}
+
+		// Original thread expectations
+		prestateNextPC := expected.ActiveThread().NextPC
+		expected.PrestateActiveThread().PC = prestateNextPC
+		expected.PrestateActiveThread().NextPC = prestateNextPC + 4
+		expected.PrestateActiveThread().Registers[2] = 1
+		expected.PrestateActiveThread().Registers[7] = 0
+		// New thread expectations
+		expectedNewThread.PC = prestateNextPC
+		expectedNewThread.NextPC = prestateNextPC + 4
+		expectedNewThread.ThreadId = 1
+		expectedNewThread.Registers[register.RegSyscallRet1] = 0
+		expectedNewThread.Registers[register.RegSyscallErrno] = 0
+		expectedNewThread.Registers[register.RegSP] = stackPtr
+
+		return ExpectNormalExecution()
+	}
+
+	postCheck := func(t require.TestingT, testCase testCase, state *multithreaded.State, vm VersionedVMTestCase, deps *TestDependencies) {
+		activeStack, inactiveStack := mtutil.GetThreadStacks(state)
+		require.Equal(t, 2, len(activeStack))
+		require.Equal(t, 0, len(inactiveStack))
+	}
+
+	NewDiffTester(testNamer).
+		InitState(initState).
+		SetExpectations(setExpectations).
+		PostCheck(postCheck).
+		Run(t, cases)
 }
 
 func TestEVM_SysGetTID(t *testing.T) {
