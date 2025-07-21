@@ -22,12 +22,14 @@ type TestNamer[T any] func(testCase T) string
 
 type InitializeStateFn[T any] func(testCase T, state *multithreaded.State, vm VersionedVMTestCase, r *testutil.RandHelper)
 type SetExpectationsFn[T any] func(testCase T, expect *mtutil.ExpectedState, vm VersionedVMTestCase) ExpectedExecResult
+type PostStepCheckFn[T any] func(t require.TestingT, testCase T, vm VersionedVMTestCase, deps *TestDependencies)
 
 type DiffTester[T any] struct {
 	testNamer       TestNamer[T]
 	stateOpts       []mtutil.StateOption
 	initState       InitializeStateFn[T]
 	setExpectations SetExpectationsFn[T]
+	postStepCheck   PostStepCheckFn[T]
 }
 
 func NewDiffTester[T any](testNamer TestNamer[T]) *DiffTester[T] {
@@ -45,6 +47,12 @@ func (d *DiffTester[T]) InitState(initStateFn InitializeStateFn[T], opts ...mtut
 
 func (d *DiffTester[T]) SetExpectations(setExpectationsFn SetExpectationsFn[T]) *DiffTester[T] {
 	d.setExpectations = setExpectationsFn
+
+	return d
+}
+
+func (d *DiffTester[T]) PostCheck(postStepCheckFn PostStepCheckFn[T]) *DiffTester[T] {
+	d.postStepCheck = postStepCheckFn
 
 	return d
 }
@@ -68,9 +76,11 @@ func (d *DiffTester[T]) run(t testRunner, testCases []T, opts ...TestOption) {
 				testName := fmt.Sprintf("%v%v (%v)", d.testNamer(testCase), mod.name, vm.Name)
 				t.Run(testName, func(t testcaseT) {
 					t.Parallel()
+
+					testDeps := cfg.testDependencies()
 					stateOpts := []mtutil.StateOption{mtutil.WithRandomization(randSeed)}
 					stateOpts = append(stateOpts, d.stateOpts...)
-					goVm := vm.VMFactory(cfg.po(), cfg.stdOut(), cfg.stdErr(), cfg.logger, stateOpts...)
+					goVm := vm.VMFactory(testDeps.po, testDeps.stdOut, testDeps.stdErr, testDeps.logger, stateOpts...)
 					state := mtutil.GetMtState(t, goVm)
 
 					// Set up state
@@ -84,6 +94,11 @@ func (d *DiffTester[T]) run(t testRunner, testCases []T, opts ...TestOption) {
 					mod.expectMod(expect)
 
 					execExpectation.assertExpectedResult(t, goVm, vm, expect, cfg)
+
+					// Run post-step checks
+					if d.postStepCheck != nil {
+						d.postStepCheck(t, testCase, vm, testDeps)
+					}
 				})
 			}
 		}
@@ -219,6 +234,13 @@ func randomSeed(t require.TestingT, s string, extraData ...int) int64 {
 	return int64(h.Sum64())
 }
 
+type TestDependencies struct {
+	po     mipsevm.PreimageOracle
+	stdOut io.Writer
+	stdErr io.Writer
+	logger log.Logger
+}
+
 type TestConfig struct {
 	vms    []VersionedVMTestCase
 	po     func() mipsevm.PreimageOracle
@@ -229,6 +251,15 @@ type TestConfig struct {
 	tracingHooks *tracing.Hooks
 	// Allow consumer to control automated test generation
 	skipAutomaticMemoryReservationTests bool
+}
+
+func (c *TestConfig) testDependencies() *TestDependencies {
+	return &TestDependencies{
+		po:     c.po(),
+		stdOut: c.stdOut(),
+		stdErr: c.stdErr(),
+		logger: c.logger,
+	}
 }
 
 type TestOption func(*TestConfig)

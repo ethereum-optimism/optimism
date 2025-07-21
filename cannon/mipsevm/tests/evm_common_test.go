@@ -13,6 +13,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/ethereum-optimism/optimism/cannon/mipsevm"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/arch"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/exec"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/memory"
@@ -733,8 +734,7 @@ func TestEVM_SysGetRandom(t *testing.T) {
 }
 
 func TestEVM_SysWriteHint(t *testing.T) {
-	versions := GetMipsVersionTestCases(t)
-	cases := []struct {
+	type testCase struct {
 		name             string
 		memOffset        int      // Where the hint data is stored in memory
 		hintData         []byte   // Hint data stored in memory at memOffset
@@ -742,7 +742,13 @@ func TestEVM_SysWriteHint(t *testing.T) {
 		lastHint         []byte   // The buffer that stores lastHint in the state
 		expectedHints    [][]byte // The hints we expect to be processed
 		expectedLastHint []byte   // The lastHint we should expect for the post-state
-	}{
+	}
+
+	testNamer := func(tc testCase) string {
+		return tc.name
+	}
+
+	cases := []testCase{
 		{
 			name:      "write 1 full hint at beginning of page",
 			memOffset: 4096,
@@ -885,42 +891,38 @@ func TestEVM_SysWriteHint(t *testing.T) {
 		},
 	}
 
-	const (
-		insn = uint32(0x00_00_00_0C) // syscall instruction
-	)
-
-	for _, v := range versions {
-		for i, tt := range cases {
-			testName := fmt.Sprintf("%v (%v)", tt.name, v.Name)
-			t.Run(testName, func(t *testing.T) {
-				oracle := testutil.HintTrackingOracle{}
-				goVm := v.VMFactory(&oracle, os.Stdout, os.Stderr, testutil.CreateLogger(), mtutil.WithRandomization(int64(i)), mtutil.WithLastHint(tt.lastHint))
-				state := goVm.GetState()
-				state.GetRegistersRef()[2] = arch.SysWrite
-				state.GetRegistersRef()[4] = exec.FdHintWrite
-				state.GetRegistersRef()[5] = arch.Word(tt.memOffset)
-				state.GetRegistersRef()[6] = arch.Word(tt.bytesToWrite)
-
-				err := state.GetMemory().SetMemoryRange(arch.Word(tt.memOffset), bytes.NewReader(tt.hintData))
-				require.NoError(t, err)
-				testutil.StoreInstruction(state.GetMemory(), state.GetPC(), insn)
-				step := state.GetStep()
-
-				expected := mtutil.NewExpectedState(t, state)
-				expected.ExpectStep()
-				expected.LastHint = tt.expectedLastHint
-				expected.ActiveThread().Registers[2] = arch.Word(tt.bytesToWrite) // Return count of bytes written
-				expected.ActiveThread().Registers[7] = 0                          // no Error
-
-				stepWitness, err := goVm.Step(true)
-				require.NoError(t, err)
-
-				expected.Validate(t, state)
-				require.Equal(t, tt.expectedHints, oracle.Hints())
-				testutil.ValidateEVM(t, stepWitness, step, goVm, v.StateHashFn, v.Contracts)
-			})
-		}
+	initState := func(tt testCase, state *multithreaded.State, vm VersionedVMTestCase, r *testutil.RandHelper) {
+		testutil.StoreInstruction(state.GetMemory(), state.GetPC(), syscallInsn)
+		state.LastHint = tt.lastHint
+		state.GetRegistersRef()[2] = arch.SysWrite
+		state.GetRegistersRef()[4] = exec.FdHintWrite
+		state.GetRegistersRef()[5] = arch.Word(tt.memOffset)
+		state.GetRegistersRef()[6] = arch.Word(tt.bytesToWrite)
+		// Set up memory
+		err := state.GetMemory().SetMemoryRange(arch.Word(tt.memOffset), bytes.NewReader(tt.hintData))
+		require.NoError(t, err)
 	}
+
+	setExpectations := func(tt testCase, expected *mtutil.ExpectedState, vm VersionedVMTestCase) ExpectedExecResult {
+		expected.ExpectStep()
+		expected.LastHint = tt.expectedLastHint
+		expected.ActiveThread().Registers[2] = arch.Word(tt.bytesToWrite) // Return count of bytes written
+		expected.ActiveThread().Registers[7] = 0                          // no Error
+		return ExpectNormalExecution()
+	}
+
+	postCheck := func(t require.TestingT, tt testCase, vm VersionedVMTestCase, deps *TestDependencies) {
+		trackingOracle, ok := deps.po.(*testutil.HintTrackingOracle)
+		require.True(t, ok)
+		require.Equal(t, tt.expectedHints, trackingOracle.Hints())
+	}
+
+	po := func() mipsevm.PreimageOracle { return &testutil.HintTrackingOracle{} }
+	NewDiffTester(testNamer).
+		InitState(initState).
+		SetExpectations(setExpectations).
+		PostCheck(postCheck).
+		Run(t, cases, WithPreimageOracle(po))
 }
 
 func TestEVM_Fault(t *testing.T) {
