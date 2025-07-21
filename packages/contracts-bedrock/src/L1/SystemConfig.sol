@@ -35,7 +35,7 @@ contract SystemConfig is ProxyAdminOwnedBase, OwnableUpgradeable, Reinitializabl
         GAS_LIMIT,
         UNSAFE_BLOCK_SIGNER,
         EIP_1559_PARAMS,
-        OPERATOR_FEE_PARAMS
+        OPERATOR_FEE_PARAMS,
         MIN_BASEFEE_LOG2
     }
 
