@@ -925,14 +925,13 @@ func TestEVM_SysWriteHint(t *testing.T) {
 
 func TestEVM_Fault(t *testing.T) {
 	type testCase struct {
-		name                 string
-		pc                   arch.Word
-		nextPC               arch.Word
-		insn                 uint32
-		goPanicValue         interface{}
-		evmErrStr            string
-		evmErrSig            string
-		memoryProofAddresses []Word
+		name         string
+		pc           arch.Word
+		nextPC       arch.Word
+		insn         uint32
+		goPanicValue interface{}
+		evmErrStr    string
+		evmErrSig    string
 	}
 
 	testNamer := func(tc testCase) string {
@@ -940,7 +939,7 @@ func TestEVM_Fault(t *testing.T) {
 	}
 
 	cases := []testCase{
-		{name: "illegal instruction", nextPC: 0, insn: 0b111110 << 26, evmErrStr: "invalid instruction", goPanicValue: "invalid instruction: f8000000", memoryProofAddresses: []Word{0x0}}, // memoryProof for the zero address at register 0 (+ imm)
+		{name: "illegal instruction", nextPC: 0, insn: 0b111110 << 26, evmErrStr: "invalid instruction", goPanicValue: "invalid instruction: f8000000"},
 		{name: "branch in delay-slot", nextPC: 8, insn: 0x11_02_00_03, evmErrStr: "branch in delay slot", goPanicValue: "branch in delay slot"},
 		{name: "jump in delay-slot", nextPC: 8, insn: 0x0c_00_00_0c, evmErrStr: "jump in delay slot", goPanicValue: "jump in delay slot"},
 		{name: "misaligned instruction", pc: 1, nextPC: 4, insn: 0b110111_00001_00001 << 16, evmErrSig: "InvalidPC()", goPanicValue: fmt.Errorf("invalid pc: 1")},
@@ -958,10 +957,16 @@ func TestEVM_Fault(t *testing.T) {
 	}
 
 	setExpectations := func(tt testCase, expected *mtutil.ExpectedState, vm VersionedVMTestCase) ExpectedExecResult {
+		// Memory is accessed when processing illegal instructions, so we need to make sure to append a memory proof
+		// See: https://github.com/ethereum-optimism/optimism/blob/a08b5b343a0005c6308566cd8afa810dd67e0e8f/cannon/mipsevm/exec/mips_instructions.go#L102-L105
+		rsReg := (tt.insn >> 21) & 0x1F
+		rs := expected.ActiveThread().Registers[rsReg]
+		memAddr := testutil.EffAddr(rs + exec.SignExtendImmediate(tt.insn))
+
 		if tt.evmErrSig != "" {
-			return ExpectVmPanicWithCustomErr(tt.goPanicValue, tt.evmErrSig, tt.memoryProofAddresses...)
+			return ExpectVmPanicWithCustomErr(tt.goPanicValue, tt.evmErrSig, memAddr)
 		} else {
-			return ExpectVmPanic(tt.goPanicValue, tt.evmErrStr, tt.memoryProofAddresses...)
+			return ExpectVmPanic(tt.goPanicValue, tt.evmErrStr, memAddr)
 		}
 	}
 
