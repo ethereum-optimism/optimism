@@ -679,9 +679,7 @@ func (l *BatchSubmitter) throttlingLoop(wg *sync.WaitGroup, pendingBytesUpdated 
 		}
 
 		// Update throttling state
-		throttling := newParams.Intensity > 0
-
-		if throttling {
+		if newParams.IsThrottling() {
 			l.Log.Warn("Throttling loop: pending bytes above threshold, scaling endpoint throttling based on intensity",
 				"pending_bytes", pb,
 				"threshold", l.Config.ThrottleParams.Threshold,
@@ -831,10 +829,11 @@ func (l *BatchSubmitter) publishTxToL1(ctx context.Context, queue *txmgr.Queue[t
 	}
 	l.Metr.RecordLatestL1Block(l1tip)
 
+	_, params := l.throttleController.Load()
 	// Collect next transaction data. This pulls data out of the channel, so we need to make sure
 	// to put it back if ever da or txmgr requests fail, by calling l.recordFailedDARequest/recordFailedTx.
 	l.channelMgrMutex.Lock()
-	txdata, err := l.channelMgr.TxData(l1tip.ID(), isPectra)
+	txdata, err := l.channelMgr.TxData(l1tip.ID(), isPectra, params.IsThrottling())
 	l.channelMgrMutex.Unlock()
 
 	if err == io.EOF {

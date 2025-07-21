@@ -124,7 +124,7 @@ func runMemoryTest(t *testing.T, batchType uint, compressorType string, compress
 			require.NoError(t, m.processBlocks())
 
 			// Try to get transaction data to fill channels
-			_, err := m.TxData(eth.BlockID{}, false)
+			_, err := m.TxData(eth.BlockID{}, false, false)
 			// It's okay if there's no data ready (io.EOF)
 			if err != nil && err.Error() != "EOF" {
 				require.NoError(t, err)
