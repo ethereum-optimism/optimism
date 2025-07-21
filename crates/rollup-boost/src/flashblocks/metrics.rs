@@ -28,6 +28,32 @@ pub struct FlashblocksServiceMetrics {
     #[metric(describe = "Number of messages processed by the service")]
     pub messages_processed: Counter,
 
-    #[metric(describe = "Number of flashblocks used to build a block")]
-    pub flashblocks_used: Histogram,
+    #[metric(describe = "Total number of used flashblocks")]
+    pub flashblocks_gauge: Gauge,
+
+    #[metric(describe = "Total number of used flashblocks")]
+    pub flashblocks_counter: Counter,
+
+    #[metric(describe = "Reduction in flashblocks issued.")]
+    pub flashblocks_missing_histogram: Histogram,
+
+    #[metric(describe = "Reduction in flashblocks issued.")]
+    pub flashblocks_missing_gauge: Gauge,
+
+    #[metric(describe = "Reduction in flashblocks issued.")]
+    pub flashblocks_missing_counter: Counter,
+}
+
+impl FlashblocksServiceMetrics {
+    pub fn record_flashblocks(&self, flashblocks_count: u64, max_flashblocks: u64) {
+        let reduced_flashblocks = max_flashblocks.saturating_sub(flashblocks_count);
+        self.flashblocks_gauge.set(flashblocks_count as f64);
+        self.flashblocks_counter.increment(flashblocks_count);
+        self.flashblocks_missing_histogram
+            .record(reduced_flashblocks as f64);
+        self.flashblocks_missing_gauge
+            .set(reduced_flashblocks as f64);
+        self.flashblocks_missing_counter
+            .increment(reduced_flashblocks);
+    }
 }

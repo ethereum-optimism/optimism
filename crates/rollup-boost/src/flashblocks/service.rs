@@ -22,6 +22,7 @@ use reth_optimism_payload_builder::payload_id_optimism;
 use serde::{Deserialize, Serialize};
 use std::io;
 use std::sync::Arc;
+use std::sync::atomic::{AtomicU64, Ordering};
 use thiserror::Error;
 use tokio::sync::RwLock;
 use tokio::sync::mpsc;
@@ -187,7 +188,12 @@ pub struct FlashblocksService {
     /// Websocket publisher for sending valid pre-confirmations to clients.
     ws_pub: Arc<WebSocketPublisher>,
 
+    /// Metrics
     metrics: FlashblocksServiceMetrics,
+
+    /// Atomic to track absolute maximum number of flashblocks used is block building.
+    /// This used to measures the reduction in flashblocks issued.
+    max_flashblocks: Arc<AtomicU64>,
 }
 
 impl FlashblocksService {
@@ -200,6 +206,7 @@ impl FlashblocksService {
             best_payload: Arc::new(RwLock::new(FlashblockBuilder::new())),
             ws_pub,
             metrics: Default::default(),
+            max_flashblocks: Arc::new(AtomicU64::new(0)),
         })
     }
 
@@ -219,10 +226,13 @@ impl FlashblocksService {
         // consume the best payload and reset the builder
         let payload = {
             let mut builder = self.best_payload.write().await;
-            let flashblocks_number = builder.flashblocks.len();
+            let flashblocks_number = builder.flashblocks.len() as u64;
+            let max_flashblocks = self
+                .max_flashblocks
+                .fetch_max(flashblocks_number, Ordering::Relaxed)
+                .max(flashblocks_number);
             self.metrics
-                .flashblocks_used
-                .record(flashblocks_number as f64);
+                .record_flashblocks(flashblocks_number, max_flashblocks);
             tracing::Span::current().record("flashblocks_count", flashblocks_number);
             // Take payload and place new one in its place in one go to avoid double locking
             std::mem::replace(&mut *builder, FlashblockBuilder::new()).into_envelope(version)?
