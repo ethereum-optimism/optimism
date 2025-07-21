@@ -24,6 +24,7 @@ var defaultOpConfig = &params.OptimismConfig{
 	EIP1559Elasticity:        6,
 	EIP1559Denominator:       50,
 	EIP1559DenominatorCanyon: ptr(uint64(250)),
+	EIP1559MinBaseFeeLog2:           20,
 }
 
 func ptr[T any](t T) *T {
@@ -36,7 +37,7 @@ type matchArgs struct {
 	parentHash common.Hash
 }
 
-func holoceneArgs() matchArgs {
+func jovianArgs() matchArgs {
 	var (
 		validParentHash       = common.HexToHash("0x123")
 		validTimestamp        = eth.Uint64Quantity(50)
@@ -47,10 +48,17 @@ func holoceneArgs() matchArgs {
 		validTx               = testutils.RandomLegacyTxNotProtected(rand.New(rand.NewSource(42)))
 		validTxData, _        = validTx.MarshalBinary()
 
-		validHoloceneExtraData = eth.BytesMax32(eip1559.EncodeHoloceneExtraData(
-			*defaultOpConfig.EIP1559DenominatorCanyon, defaultOpConfig.EIP1559Elasticity))
-		validHoloceneEIP1559Params = new(eth.Bytes8)
+		// validJovianExtraData = eth.BytesMax32(append([]byte{1}, eip1559.EncodeJovianExtraData(
+		// 	*defaultOpConfig.EIP1559DenominatorCanyon, defaultOpConfig.EIP1559Elasticity, defaultOpConfig.EIP1559MinBaseFeeLog2)...))
+		// validJovianExtraData = eth.BytesMax32(eip1559.EncodeJovianExtraData(
+		//	*defaultOpConfig.EIP1559DenominatorCanyon, defaultOpConfig.EIP1559Elasticity, defaultOpConfig.EIP1559MinBaseFeeLog2))
+		validJovianExtraData = append(eth.BytesMax32{1}, eth.BytesMax32(eip1559.EncodeJovianExtraData(
+			*defaultOpConfig.EIP1559DenominatorCanyon, defaultOpConfig.EIP1559Elasticity, defaultOpConfig.EIP1559MinBaseFeeLog2))...)
+		validJovianEIP1559Params = new(eth.Bytes9)
 	)
+	// Populate the EIP1559 params with the encoded values
+	copy((*validJovianEIP1559Params)[:], eip1559.EncodeJovian1559Params(
+		*defaultOpConfig.EIP1559DenominatorCanyon, defaultOpConfig.EIP1559Elasticity, defaultOpConfig.EIP1559MinBaseFeeLog2))
 
 	return matchArgs{
 		envelope: &eth.ExecutionPayloadEnvelope{
@@ -63,7 +71,7 @@ func holoceneArgs() matchArgs {
 				Transactions: []eth.Data{validTxData},
 				Withdrawals:  &types.Withdrawals{},
 				FeeRecipient: validFeeRecipient,
-				ExtraData:    validHoloceneExtraData,
+				ExtraData:    validJovianExtraData,
 			},
 		},
 		attrs: &eth.PayloadAttributes{
@@ -74,10 +82,15 @@ func holoceneArgs() matchArgs {
 			Transactions:          []eth.Data{validTxData},
 			Withdrawals:           &types.Withdrawals{},
 			SuggestedFeeRecipient: validFeeRecipient,
-			EIP1559Params:         validHoloceneEIP1559Params,
+			EIP1559Params:         validJovianEIP1559Params,
 		},
 		parentHash: validParentHash,
 	}
+}
+
+func holoceneArgs() matchArgs {
+	args := jovianArgs()
+	return args
 }
 
 func ecotoneArgs() matchArgs {
@@ -178,7 +191,7 @@ func createMismatchedFeeRecipient() matchArgs {
 }
 
 func createMismatchedEIP1559Params() matchArgs {
-	args := holoceneArgs()
+	args := jovianArgs()
 	args.attrs.EIP1559Params[0]++ // so denominator is != 0
 	return args
 }
@@ -190,6 +203,7 @@ func TestAttributesMatch(t *testing.T) {
 
 	rollupCfgPreCanyon := &rollup.Config{CanyonTime: &futureTime, ChainOpConfig: defaultOpConfig}
 	rollupCfgPreIsthmus := &rollup.Config{CanyonTime: &pastTime, IsthmusTime: &futureTime, ChainOpConfig: defaultOpConfig}
+	rollupCfgPostJovian := &rollup.Config{CanyonTime: &pastTime, JovianTime: &pastTime, ChainOpConfig: defaultOpConfig}
 
 	tests := []struct {
 		args      matchArgs
@@ -222,6 +236,11 @@ func TestAttributesMatch(t *testing.T) {
 			args:      holoceneArgs(),
 			rollupCfg: rollupCfgPreIsthmus,
 			desc:      "validholoceneArgs",
+		},
+		{
+			args:      jovianArgs(),
+			rollupCfg: rollupCfgPostJovian,
+			desc:      "validJovianArgs",
 		},
 		{
 			args:      mismatchedParentHashArgs(),
@@ -489,15 +508,15 @@ func TestWithdrawalsMatch(t *testing.T) {
 }
 
 func TestCheckEIP1559ParamsMatch(t *testing.T) {
-	params := eth.Bytes8{1, 2, 3, 4, 5, 6, 7, 8}
-	paramsAlt := eth.Bytes8{1, 2, 3, 4, 5, 6, 7, 9}
-	paramsInvalid := eth.Bytes8{0, 0, 0, 0, 5, 6, 7, 8}
+	params := eth.Bytes9{1, 2, 3, 4, 5, 6, 7, 8, 9}
+	paramsAlt := eth.Bytes9{1, 2, 3, 4, 5, 6, 7, 9, 9}
+	paramsInvalid := eth.Bytes9{0, 0, 0, 0, 5, 6, 7, 8, 9}
 	defaultExtraData := eth.BytesMax32(eip1559.EncodeHoloceneExtraData(
 		*defaultOpConfig.EIP1559DenominatorCanyon, defaultOpConfig.EIP1559Elasticity))
 
 	for _, test := range []struct {
 		desc           string
-		attrParams     *eth.Bytes8
+		attrParams     *eth.Bytes9
 		blockExtraData eth.BytesMax32
 		err            string
 	}{
@@ -506,7 +525,7 @@ func TestCheckEIP1559ParamsMatch(t *testing.T) {
 		},
 		{
 			desc:           "match-zero-attrs",
-			attrParams:     new(eth.Bytes8),
+			attrParams:     new(eth.Bytes9),
 			blockExtraData: defaultExtraData,
 		},
 		{
@@ -516,7 +535,7 @@ func TestCheckEIP1559ParamsMatch(t *testing.T) {
 		},
 		{
 			desc:           "err-both-zero",
-			attrParams:     new(eth.Bytes8),
+			attrParams:     new(eth.Bytes9),
 			blockExtraData: make(eth.BytesMax32, 9),
 			err:            "eip1559 parameters do not match, attributes: 250, 6 (translated from 0,0), block: 0, 0",
 		},
