@@ -855,6 +855,11 @@
   },
   {
     "inputs": [],
+    "name": "ProposalValidator_InvalidVotingModule",
+    "type": "error"
+  },
+  {
+    "inputs": [],
     "name": "ProposalValidator_ProposalAlreadyApproved",
     "type": "error"
   },

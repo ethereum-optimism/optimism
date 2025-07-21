@@ -176,8 +176,8 @@
     "sourceCodeHash": "0x18f43b227decd0f2a895b8b55e23fa6a47706697c272bbf2482b3f912be446e1"
   },
   "src/governance/ProposalValidator.sol:ProposalValidator": {
-    "initCodeHash": "0xb612561f3182537796ec6bae6a15a4f6b9e63d839e051a165f6b81b3f6ce0807",
-    "sourceCodeHash": "0xbfb241a7033264d5b7097a4326a415b53514c4a4dee01430bd092fa6cbf0872b"
+    "initCodeHash": "0xd072e288107128a1b0f26f41c4b257295919777cadfc06514d2a4738fb96e1d1",
+    "sourceCodeHash": "0x725efcbb68cb4a23af492983ba22969ddaa5d472878fb8490a437eaaa88812a8"
   },
   "src/legacy/DeployerWhitelist.sol:DeployerWhitelist": {
     "initCodeHash": "0x53099379ed48b87f027d55712dbdd1da7d7099925426eb0531da9c0012e02c29",
