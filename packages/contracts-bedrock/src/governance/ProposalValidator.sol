@@ -62,6 +62,9 @@ contract ProposalValidator is OwnableUpgradeable, ReinitializableBase, ISemver {
     /// @notice Thrown when an attestation is revoked.
     error ProposalValidator_AttestationRevoked();
 
+    /// @notice Thrown when the attestation is expired.
+    error ProposalValidator_AttestationExpired();
+
     /// @notice Thrown when an attestation schema is invalid.
     error ProposalValidator_InvalidAttestationSchema();
 
@@ -210,7 +213,7 @@ contract ProposalValidator is OwnableUpgradeable, ReinitializableBase, ISemver {
 
     /// @notice The schema UID for attestations in the Ethereum Attestation Service for checking if the caller
     ///         is an approved proposer.
-    /// @dev Schema format: { approvedProposer: address, proposalType: uint8 }
+    /// @dev Schema format: { proposalType: uint8, date: string }
     bytes32 public immutable APPROVED_PROPOSER_ATTESTATION_SCHEMA_UID;
 
     /// @notice The schema UID for attestations in the Ethereum Attestation Service for checking if the caller
@@ -911,11 +914,16 @@ contract ProposalValidator is OwnableUpgradeable, ReinitializableBase, ISemver {
             revert ProposalValidator_AttestationRevoked();
         }
 
-        (address approvedDelegate, uint8 proposalType) = abi.decode(attestation.data, (address, uint8));
+        // check if the attestation is expired
+        if (attestation.expirationTime != 0 && attestation.expirationTime < block.timestamp) {
+            revert ProposalValidator_AttestationExpired();
+        }
+
+        (uint8 proposalType,) = abi.decode(attestation.data, (uint8, string));
 
         if (
             attestation.attester != owner() || attestation.schema != APPROVED_PROPOSER_ATTESTATION_SCHEMA_UID
-                || approvedDelegate != _msgSender() || proposalType != uint8(_expectedProposalType)
+                || attestation.recipient != _msgSender() || proposalType != uint8(_expectedProposalType)
         ) {
             revert ProposalValidator_InvalidAttestation();
         }

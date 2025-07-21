@@ -21,6 +21,7 @@ interface IProposalValidator is ISemver {
     error ProposalValidator_ExceedsDistributionThreshold();
     error ProposalValidator_InvalidOptionsLength();
     error ProposalValidator_AttestationRevoked();
+    error ProposalValidator_AttestationExpired();
     error ProposalValidator_InvalidAttestationSchema();
     error ProposalValidator_InvalidCriteriaValue();
     error ProposalValidator_InvalidAgainstThreshold();
