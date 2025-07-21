@@ -46,7 +46,7 @@ func TestEVM_SingleStep_Jump(t *testing.T) {
 		{name: "jal non-zero PC region", pc: 0x10000000, nextPC: 0x10000004, insn: 0x0C_00_00_02, expectNextPC: 0x10_00_00_08, expectLink: true}, // jal 0x2
 	}
 
-	initState := func(tt testCase, state *multithreaded.State, vm VersionedVMTestCase) {
+	initState := func(tt testCase, state *multithreaded.State, vm VersionedVMTestCase, r *testutil.RandHelper) {
 		state.GetCurrentThread().Cpu.PC = tt.pc
 		state.GetCurrentThread().Cpu.NextPC = tt.nextPC
 		testutil.StoreInstruction(state.GetMemory(), tt.pc, tt.insn)
@@ -153,7 +153,7 @@ func TestEVM_SingleStep_Lui(t *testing.T) {
 		{name: "lui signed", rtReg: 7, imm: 0x8765, expectRt: signExtend64(0x8765_0000)},
 	}
 
-	initState := func(tt testCase, state *multithreaded.State, vm VersionedVMTestCase) {
+	initState := func(tt testCase, state *multithreaded.State, vm VersionedVMTestCase, r *testutil.RandHelper) {
 		insn := 0b1111<<26 | uint32(tt.rtReg)<<16 | (tt.imm & 0xFFFF)
 		testutil.StoreInstruction(state.GetMemory(), state.GetPC(), insn)
 	}
@@ -196,7 +196,7 @@ func TestEVM_SingleStep_CloClz(t *testing.T) {
 
 	rsReg := uint32(5)
 	rdReg := uint32(6)
-	initState := func(tt testCase, state *multithreaded.State, vm VersionedVMTestCase) {
+	initState := func(tt testCase, state *multithreaded.State, vm VersionedVMTestCase, r *testutil.RandHelper) {
 		insn := 0b01_1100<<26 | rsReg<<21 | rdReg<<11 | tt.funct
 		testutil.StoreInstruction(state.GetMemory(), state.GetPC(), insn)
 		state.GetRegistersRef()[rsReg] = tt.rs
@@ -241,7 +241,7 @@ func TestEVM_SingleStep_MovzMovn(t *testing.T) {
 	rdReg := uint32(8)
 	val := Word(0xb)
 	otherVal := Word(0xa)
-	initState := func(tt testCase, state *multithreaded.State, vm VersionedVMTestCase) {
+	initState := func(tt testCase, state *multithreaded.State, vm VersionedVMTestCase, r *testutil.RandHelper) {
 		insn := rsReg<<21 | rtReg<<16 | rdReg<<11 | tt.funct
 		state.GetRegistersRef()[rtReg] = tt.testValue
 		state.GetRegistersRef()[rsReg] = val
@@ -282,7 +282,7 @@ func TestEVM_SingleStep_MfhiMflo(t *testing.T) {
 	}
 
 	rdReg := uint32(8)
-	initState := func(tt testCase, state *multithreaded.State, vm VersionedVMTestCase) {
+	initState := func(tt testCase, state *multithreaded.State, vm VersionedVMTestCase, r *testutil.RandHelper) {
 		insn := rdReg<<11 | tt.funct
 		testutil.StoreInstruction(state.GetMemory(), state.GetPC(), insn)
 		state.GetCurrentThread().Cpu.HI = tt.hi
@@ -353,7 +353,7 @@ func TestEVM_SingleStep_MthiMtlo(t *testing.T) {
 	}
 
 	val := Word(0xdeadbeef)
-	initState := func(tt testCase, state *multithreaded.State, vm VersionedVMTestCase) {
+	initState := func(tt testCase, state *multithreaded.State, vm VersionedVMTestCase, r *testutil.RandHelper) {
 		rsReg := uint32(8)
 		insn := rsReg<<21 | tt.funct
 		testutil.StoreInstruction(state.GetMemory(), state.GetPC(), insn)
@@ -400,7 +400,7 @@ func TestEVM_SingleStep_BeqBne(t *testing.T) {
 	}
 
 	pc := Word(800)
-	initState := func(tt testCase, state *multithreaded.State, vm VersionedVMTestCase) {
+	initState := func(tt testCase, state *multithreaded.State, vm VersionedVMTestCase, r *testutil.RandHelper) {
 		rsReg := uint32(9)
 		rtReg := uint32(8)
 		insn := tt.opcode<<26 | rsReg<<21 | rtReg<<16 | uint32(tt.imm)
@@ -464,7 +464,7 @@ func TestEVM_SingleStep_SlSr(t *testing.T) {
 
 	pc := Word(0)
 	rdReg := uint32(0x8)
-	initState := func(tt testCase, state *multithreaded.State, vm VersionedVMTestCase) {
+	initState := func(tt testCase, state *multithreaded.State, vm VersionedVMTestCase, r *testutil.RandHelper) {
 		rtReg := uint32(0x9)
 		insn := tt.rsReg<<21 | rtReg<<16 | rdReg<<11 | uint32(tt.funct)
 		state.GetRegistersRef()[rtReg] = tt.rt
@@ -509,7 +509,7 @@ func TestEVM_SingleStep_JrJalr(t *testing.T) {
 	}
 
 	pc := Word(0)
-	initState := func(tt testCase, state *multithreaded.State, vm VersionedVMTestCase) {
+	initState := func(tt testCase, state *multithreaded.State, vm VersionedVMTestCase, r *testutil.RandHelper) {
 		insn := tt.rsReg<<21 | tt.rdReg<<11 | uint32(tt.funct)
 		state.GetRegistersRef()[tt.rsReg] = tt.jumpTo
 		state.GetCurrentThread().Cpu.NextPC = tt.nextPC
@@ -548,7 +548,7 @@ func TestEVM_SingleStep_Sync(t *testing.T) {
 		{name: "simple"},
 	}
 
-	initState := func(tt testCase, state *multithreaded.State, vm VersionedVMTestCase) {
+	initState := func(tt testCase, state *multithreaded.State, vm VersionedVMTestCase, r *testutil.RandHelper) {
 		syncInsn := uint32(0x0000_000F)
 		testutil.StoreInstruction(state.GetMemory(), state.GetPC(), syncInsn)
 	}
@@ -590,7 +590,7 @@ func TestEVM_MMap(t *testing.T) {
 		{name: "Request specific address", heap: program.HEAP_START, address: 0x50_00_00_00, size: 0, shouldFail: false, expectedHeap: program.HEAP_START},
 	}
 
-	initState := func(c testCase, state *multithreaded.State, vm VersionedVMTestCase) {
+	initState := func(c testCase, state *multithreaded.State, vm VersionedVMTestCase, r *testutil.RandHelper) {
 		testutil.StoreInstruction(state.GetMemory(), state.GetPC(), syscallInsn)
 		state.GetRegistersRef()[2] = arch.SysMmap
 		state.GetRegistersRef()[4] = c.address

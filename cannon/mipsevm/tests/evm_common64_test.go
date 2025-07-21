@@ -154,7 +154,7 @@ func TestEVM_SingleStep_Shift64(t *testing.T) {
 
 	pc := Word(0x0)
 	rdReg := uint32(8)
-	initState := func(tt testCase, state *multithreaded.State, vm VersionedVMTestCase) {
+	initState := func(tt testCase, state *multithreaded.State, vm VersionedVMTestCase, r *testutil.RandHelper) {
 		rtReg := uint32(18)
 		insn := rtReg<<16 | rdReg<<11 | tt.sa<<6 | tt.funct
 		state.GetRegistersRef()[rdReg] = tt.rd

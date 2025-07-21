@@ -41,7 +41,7 @@ func testOperators(t *testing.T, testCases []operatorTestCase, mips32Insn bool) 
 	rtReg := uint32(8)
 	rdReg := uint32(18)
 
-	initState := func(tt operatorTestCase, state *multithreaded.State, vm VersionedVMTestCase) {
+	initState := func(tt operatorTestCase, state *multithreaded.State, vm VersionedVMTestCase, r *testutil.RandHelper) {
 		var insn uint32
 		var baseReg uint32 = 17
 		if tt.isImm {
@@ -202,7 +202,7 @@ func (t branchTestCase) Name() string {
 }
 
 func testBranch(t *testing.T, cases []branchTestCase) {
-	initState := func(tt branchTestCase, state *multithreaded.State, vm VersionedVMTestCase) {
+	initState := func(tt branchTestCase, state *multithreaded.State, vm VersionedVMTestCase, r *testutil.RandHelper) {
 		const rsReg = 8 // t0
 		insn := tt.opcode<<26 | rsReg<<21 | tt.regimm<<16 | uint32(tt.offset)
 
