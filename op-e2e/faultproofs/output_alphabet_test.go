@@ -176,7 +176,11 @@ func TestOutputAlphabetGame_ValidOutputRoot(t *testing.T) {
 }
 
 func TestChallengerCompleteExhaustiveDisputeGame(t *testing.T) {
-	op_e2e.InitParallel(t, op_e2e.IsSlow)
+	op_e2e.InitParallel(t)
+
+	if testing.Short() {
+		t.Skip("Skipping exhaustive test during short run")
+	}
 
 	testCase := func(t *testing.T, isRootCorrect bool) {
 		ctx := context.Background()

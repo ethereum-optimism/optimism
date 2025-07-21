@@ -3,7 +3,6 @@ pragma solidity 0.8.15;
 
 // Forge
 import { VmSafe } from "forge-std/Vm.sol";
-import { console2 as console } from "forge-std/console2.sol";
 
 // Testing
 import { CommonTest } from "test/setup/CommonTest.sol";

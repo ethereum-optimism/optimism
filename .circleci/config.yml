@@ -1189,11 +1189,20 @@ jobs:
         description: Timeout for when CircleCI kills the job if there's no output
         type: string
         default: 30m
-    machine: true
+    machine:
+      image: ubuntu-2404:current
+      docker_layer_caching: true # Since we are building docker images for components, we'll cache the layers for faster builds
     resource_class: xlarge
     steps:
       - utils/checkout-with-mise
       - install-contracts-dependencies
+      # Attach workspace for cannon dependencies if using sysgo orchestrator (empty devnet)
+      - when:
+          condition:
+            equal: ["", << parameters.devnet >>]
+          steps:
+            - attach_workspace:
+                at: "."
       - run:
           name: Setup Kurtosis (if needed)
           command: |
@@ -1645,7 +1654,8 @@ jobs:
       - image: <<pipeline.parameters.default_docker_image>>
     resource_class: large
     steps:
-      - setup_remote_docker
+      - setup_remote_docker:
+          docker_layer_caching: true
       - gcp-cli/install
       - gcp-oidc-authenticate:
           gcp_cred_config_file_path: /tmp/gcp_cred_config.json
@@ -2190,7 +2200,7 @@ workflows:
           name: op-e2e-cannon-tests
           notify: true
           mentions: "@proofs-team"
-          no_output_timeout: 60m
+          no_output_timeout: 90m
           test_timeout: 120m
           resource_class: ethereum-optimism/latitude-fps-1
           context:
@@ -2333,6 +2343,25 @@ workflows:
           - equal: [true, <<pipeline.parameters.acceptance_tests_dispatch>>]
           - equal: ["api",<< pipeline.trigger_source >>]
     jobs:
+      - contracts-bedrock-build:  # needed for sysgo tests
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+      - cannon-prestate-quick:  # needed for sysgo tests
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+      # IN-PROCESS (base)
+      - op-acceptance-tests:
+          # Acceptance Testing params
+          name: memory-base
+          gate: base
+          # CircleCI params
+          no_output_timeout: 10m
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+            - discord
+          requires:
+            - contracts-bedrock-build
+            - cannon-prestate-quick
       # KURTOSIS (Simple)
       - op-acceptance-tests:
           # Acceptance Testing params
@@ -2379,6 +2408,25 @@ workflows:
       not:
         equal: [<< pipeline.git.branch >>, "develop"]
     jobs:
+      - contracts-bedrock-build:  # needed for sysgo tests
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+      - cannon-prestate-quick:  # needed for sysgo tests
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+      # IN-PROCESS (base)
+      - op-acceptance-tests:
+          # Acceptance Testing params
+          name: memory-base
+          gate: base
+          # CircleCI params
+          no_output_timeout: 10m
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+            - discord
+          requires:
+            - contracts-bedrock-build
+            - cannon-prestate-quick
       # KURTOSIS (Simple)
       - op-acceptance-tests:
           # Acceptance Testing params

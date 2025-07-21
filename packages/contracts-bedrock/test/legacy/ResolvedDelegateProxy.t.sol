@@ -11,7 +11,7 @@ import { IAddressManager } from "interfaces/legacy/IAddressManager.sol";
 import { IResolvedDelegateProxy } from "interfaces/legacy/IResolvedDelegateProxy.sol";
 import { DeployUtils } from "scripts/libraries/DeployUtils.sol";
 
-contract SimpleImplementation {
+contract ResolvedDelegateProxy_SimpleImplementation_Harness {
     function foo(uint256 _x) public pure returns (uint256) {
         return _x;
     }
@@ -25,8 +25,8 @@ contract SimpleImplementation {
 /// @notice Reusable test initialization for `ResolvedDelegateProxy` tests.
 contract ResolvedDelegateProxy_TestInit is Test {
     IAddressManager internal addressManager;
-    SimpleImplementation internal impl;
-    SimpleImplementation internal proxy;
+    ResolvedDelegateProxy_SimpleImplementation_Harness internal impl;
+    ResolvedDelegateProxy_SimpleImplementation_Harness internal proxy;
 
     /// @notice Sets up the test suite.
     function setUp() public {
@@ -37,11 +37,11 @@ contract ResolvedDelegateProxy_TestInit is Test {
                 _args: DeployUtils.encodeConstructor(abi.encodeCall(IAddressManager.__constructor__, ()))
             })
         );
-        impl = new SimpleImplementation();
+        impl = new ResolvedDelegateProxy_SimpleImplementation_Harness();
         addressManager.setAddress("SimpleImplementation", address(impl));
 
         // Set up the proxy.
-        proxy = SimpleImplementation(
+        proxy = ResolvedDelegateProxy_SimpleImplementation_Harness(
             address(
                 DeployUtils.create1({
                     _name: "ResolvedDelegateProxy",
@@ -79,7 +79,7 @@ contract ResolvedDelegateProxy_Fallback_Test is ResolvedDelegateProxy_TestInit {
                 _args: DeployUtils.encodeConstructor(abi.encodeCall(IAddressManager.__constructor__, ()))
             })
         );
-        SimpleImplementation p = SimpleImplementation(
+        ResolvedDelegateProxy_SimpleImplementation_Harness p = ResolvedDelegateProxy_SimpleImplementation_Harness(
             address(
                 DeployUtils.create1({
                     _name: "ResolvedDelegateProxy",

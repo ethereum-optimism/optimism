@@ -13,9 +13,12 @@ import (
 	"github.com/ethereum-optimism/optimism/devnet-sdk/contracts/bindings"
 	"github.com/ethereum-optimism/optimism/devnet-sdk/contracts/constants"
 	"github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/interop"
+	e2eBindings "github.com/ethereum-optimism/optimism/op-e2e/bindings"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/retry"
 	"github.com/ethereum-optimism/optimism/op-service/txintent"
+	txIntentBindings "github.com/ethereum-optimism/optimism/op-service/txintent/bindings"
+	"github.com/ethereum-optimism/optimism/op-service/txintent/contractio"
 	"github.com/ethereum-optimism/optimism/op-service/txplan"
 )
 
@@ -154,6 +157,16 @@ func (u *EOA) DeployEventLogger() common.Address {
 	return eventLoggerAddress
 }
 
+func (u *EOA) DeployWETH() common.Address {
+	// Use the e2e bindings which contain the WETH bytecode
+	tx := txplan.NewPlannedTx(u.Plan(), txplan.WithData(common.FromHex(e2eBindings.WETHBin)))
+	res, err := tx.Included.Eval(u.ctx)
+	u.t.Require().NoError(err, "failed to deploy WETH")
+	wethAddress := res.ContractAddress
+	u.log.Info("deployed WETH", "chainID", tx.ChainID.Value(), "address", wethAddress)
+	return wethAddress
+}
+
 func (u *EOA) SendInitMessage(trigger *txintent.InitTrigger) (*txintent.IntentTx[*txintent.InitTrigger, *txintent.InteropOutput], *types.Receipt) {
 	tx := txintent.NewIntent[*txintent.InitTrigger, *txintent.InteropOutput](u.Plan())
 	tx.Content.Set(trigger)
@@ -220,4 +233,45 @@ func (u *EOA) PendingNonce() uint64 {
 	})
 	u.t.Require().NoError(err, "must lookup balance")
 	return result
+}
+
+// WaitForTokenBalance waits for a specific token balance to be reached
+func (u *EOA) WaitForTokenBalance(tokenAddr common.Address, expectedBalance eth.ETH) {
+	u.t.Require().Eventually(func() bool {
+		balance := u.GetTokenBalance(tokenAddr)
+		return balance.ToBig().Cmp(expectedBalance.ToBig()) == 0
+	}, u.el.stackEL().TransactionTimeout(), time.Second, "awaiting token balance to be updated")
+}
+
+// GetTokenBalance returns the token balance for this EOA
+func (u *EOA) GetTokenBalance(tokenAddr common.Address) eth.ETH {
+	// Use the txintent bindings for contract calls
+	tokenContract := txIntentBindings.NewBindings[txIntentBindings.OptimismMintableERC20](
+		txIntentBindings.WithTest(u.t),
+		txIntentBindings.WithClient(u.el.stackEL().EthClient()),
+		txIntentBindings.WithTo(tokenAddr),
+	)
+
+	balance, err := contractio.Read(tokenContract.BalanceOf(u.Address()), u.ctx)
+	u.t.Require().NoError(err, "must lookup token balance")
+	return balance
+}
+
+// VerifyTokenBalance verifies the token balance matches expected amount
+func (u *EOA) VerifyTokenBalance(tokenAddr common.Address, expectedBalance eth.ETH) {
+	actual := u.GetTokenBalance(tokenAddr)
+	u.t.Require().Equal(expectedBalance, actual, "must have expected token balance")
+}
+
+// ApproveToken approves a spender to spend tokens on behalf of this EOA
+func (u *EOA) ApproveToken(tokenAddr common.Address, spender common.Address, amount eth.ETH) {
+	tokenContract := txIntentBindings.NewBindings[txIntentBindings.WETH](
+		txIntentBindings.WithTest(u.t),
+		txIntentBindings.WithClient(u.el.stackEL().EthClient()),
+		txIntentBindings.WithTo(tokenAddr),
+	)
+
+	approveCall := tokenContract.Approve(spender, amount)
+	_, err := contractio.Write(approveCall, u.ctx, u.Plan())
+	u.t.Require().NoError(err, "failed to approve token")
 }

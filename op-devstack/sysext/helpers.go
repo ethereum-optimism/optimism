@@ -22,6 +22,7 @@ const (
 	HTTPProtocol                 = "http"
 	RPCProtocol                  = "rpc"
 	MetricsProtocol              = "metrics"
+	WssProtocol                  = "wss"
 	WebsocketFlashblocksProtocol = "ws-flashblocks"
 
 	FeatureInterop = "interop"

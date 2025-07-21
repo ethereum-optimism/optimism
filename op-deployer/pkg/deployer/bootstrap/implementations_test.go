@@ -15,6 +15,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/standard"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/testutil"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/stretchr/testify/require"
 )
@@ -81,6 +82,7 @@ func testImplementations(t *testing.T, forkRPCURL string, cacheDir string) {
 			ProtocolVersionsProxy:           superchain.ProtocolVersionsAddr,
 			SuperchainProxyAdmin:            proxyAdminOwner,
 			UpgradeController:               proxyAdminOwner,
+			Challenger:                      common.Address{'C'},
 			CacheDir:                        cacheDir,
 		})
 		require.NoError(t, err)

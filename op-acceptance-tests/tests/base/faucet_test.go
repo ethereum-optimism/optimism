@@ -23,8 +23,8 @@ func TestFaucetFund(gt *testing.T) {
 
 	_, span = tracer.Start(ctx, "fund wallet")
 	fundAmount := eth.OneHundredthEther
-	sys.FunderL1.FundNoWait(alice, fundAmount)
 	sys.FunderL2.FundNoWait(bob, fundAmount)
+	sys.FunderL1.FundNoWait(alice, fundAmount)
 	span.End()
 
 	_, span = tracer.Start(ctx, "wait for balance")

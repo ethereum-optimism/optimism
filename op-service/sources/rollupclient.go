@@ -3,7 +3,9 @@ package sources
 import (
 	"context"
 	"log/slog"
+	"strings"
 
+	"github.com/ethereum-optimism/optimism/op-node/node/safedb"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/depset"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
@@ -33,6 +35,9 @@ func (r *RollupClient) OutputAtBlock(ctx context.Context, blockNum uint64) (*eth
 func (r *RollupClient) SafeHeadAtL1Block(ctx context.Context, blockNum uint64) (*eth.SafeHeadResponse, error) {
 	var output *eth.SafeHeadResponse
 	err := r.rpc.CallContext(ctx, &output, "optimism_safeHeadAtL1Block", hexutil.Uint64(blockNum))
+	if err != nil && strings.Contains(err.Error(), "not found") {
+		return nil, safedb.ErrNotFound
+	}
 	return output, err
 }
 
