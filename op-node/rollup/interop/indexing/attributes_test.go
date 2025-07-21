@@ -85,9 +85,10 @@ func TestAttributesToReplaceInvalidBlock(t *testing.T) {
 	require.Equal(t, uint8(types.DepositTxType), attrs.Transactions[1][0], "remove user tx, add optimistic block system tx")
 	require.True(t, attrs.NoTxPool)
 	require.Equal(t, invalidatedBlock.ExecutionPayload.GasLimit, *attrs.GasLimit)
-	d, e := eip1559.DecodeHolocene1559Params(attrs.EIP1559Params[:])
+	d, e, m := eip1559.DecodeJovian1559Params(attrs.EIP1559Params[:])
 	require.Equal(t, denominator, d)
 	require.Equal(t, elasticity, e)
+	require.Equal(t, uint64(0), m) // Should be 0 when converted from Holocene
 	result, err := DecodeInvalidatedBlockTxFromReplacement(attrs.Transactions)
 	require.NoError(t, err)
 	require.Equal(t, invalidatedBlock.ExecutionPayload.BlockHash, result.BlockHash)

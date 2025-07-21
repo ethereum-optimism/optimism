@@ -49,7 +49,7 @@ func TestNewPayloadV4(t *testing.T) {
 		require.NotNil(t, engineAPI)
 		genesisBlock := backend.GetHeaderByNumber(0)
 		genesisHash := genesisBlock.Hash()
-		eip1559Params := eth.Bytes8([]byte{0x1, 0x2, 0x3, 0x4, 0x5, 0x6, 0x7, 0x8})
+		eip1559Params := eth.Bytes9([]byte{0x1, 0x2, 0x3, 0x4, 0x5, 0x6, 0x7, 0x8, 0x9})
 		gasLimit := eth.Uint64Quantity(4712388)
 		result, err := engineAPI.ForkchoiceUpdatedV3(context.Background(), &eth.ForkchoiceState{
 			HeadBlockHash:      genesisHash,
@@ -101,7 +101,7 @@ func TestCreatedBlocksAreCached(t *testing.T) {
 	require.NotNil(t, engineAPI)
 	genesis := backend.GetHeaderByNumber(0)
 	genesisHash := genesis.Hash()
-	eip1559Params := eth.Bytes8([]byte{0x1, 0x2, 0x3, 0x4, 0x5, 0x6, 0x7, 0x8})
+	eip1559Params := eth.Bytes9([]byte{0x1, 0x2, 0x3, 0x4, 0x5, 0x6, 0x7, 0x8, 0x9})
 	result, err := engineAPI.ForkchoiceUpdatedV3(context.Background(), &eth.ForkchoiceState{
 		HeadBlockHash:      genesisHash,
 		SafeBlockHash:      genesisHash,
@@ -171,6 +171,7 @@ func createGenesis() *core.Genesis {
 	config.GraniteTime = &zero
 	config.HoloceneTime = &zero
 	config.IsthmusTime = &zero
+	config.JovianTime = &zero
 
 	l2Genesis := &core.Genesis{
 		Config:     &config,

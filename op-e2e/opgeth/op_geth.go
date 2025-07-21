@@ -239,8 +239,8 @@ func (d *OpGeth) CreatePayloadAttributes(txs ...*types.Transaction) (*eth.Payloa
 		Withdrawals:           withdrawals,
 		ParentBeaconBlockRoot: parentBeaconBlockRoot,
 	}
-	if d.L2ChainConfig.IsHolocene(uint64(timestamp)) {
-		attrs.EIP1559Params = new(eth.Bytes8)
+	if d.L2ChainConfig.IsJovian(uint64(timestamp)) || d.L2ChainConfig.IsHolocene(uint64(timestamp)) {
+		attrs.EIP1559Params = new(eth.Bytes9)
 		*attrs.EIP1559Params = d.SystemConfig.EIP1559Params
 	}
 	return &attrs, nil
