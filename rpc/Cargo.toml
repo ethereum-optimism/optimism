@@ -24,7 +24,6 @@ reth-transaction-pool.workspace = true
 reth-rpc.workspace = true
 reth-rpc-api.workspace = true
 reth-node-api.workspace = true
-reth-network-api.workspace = true
 reth-node-builder.workspace = true
 reth-chainspec.workspace = true
 reth-rpc-engine-api.workspace = true
