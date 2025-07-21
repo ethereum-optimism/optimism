@@ -966,7 +966,7 @@ func TestEVM_Fault(t *testing.T) {
 		if tt.evmErrSig != "" {
 			return ExpectVmPanicWithCustomErr(tt.goPanicValue, tt.evmErrSig, memAddr)
 		} else {
-			return ExpectVmPanic(tt.goPanicValue, tt.evmErrStr, memAddr)
+			return ExpectVmPanic(tt.goPanicValue, tt.evmErrStr, WithMemoryProofAddr(memAddr))
 		}
 	}
 

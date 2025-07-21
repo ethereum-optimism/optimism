@@ -79,7 +79,7 @@ func (d *DiffTester[T]) run(t testRunner, testCases []T, opts ...TestOption) {
 					mod.stateMod(state)
 
 					// Set up expectations
-					expect := mtutil.NewExpectedState(t, state)
+					expect := d.expectedState(t, state)
 					execExpectation := d.setExpectations(testCase, expect, vm)
 					mod.expectMod(expect)
 
@@ -88,6 +88,15 @@ func (d *DiffTester[T]) run(t testRunner, testCases []T, opts ...TestOption) {
 			}
 		}
 	}
+}
+
+func (d *DiffTester[T]) expectedState(t require.TestingT, state *multithreaded.State) *mtutil.ExpectedState {
+	if state.ActiveThreadCount() == 0 {
+		// State is invalid, just return an empty expectation
+		// We expect some tests to set up invalid states
+		return &mtutil.ExpectedState{}
+	}
+	return mtutil.NewExpectedState(t, state)
 }
 
 func (d *DiffTester[T]) isConfigValid(t testRunner) bool {
@@ -290,14 +299,32 @@ type vmPanicResult struct {
 	panicValue           interface{}
 	evmErrorMatcher      testutil.ErrMatcher
 	memoryProofAddresses []arch.Word
+	proofData            []byte
 }
 
-func ExpectVmPanic(goPanicValue interface{}, evmRevertMsg string, memoryProofAddresses ...arch.Word) ExpectedExecResult {
-	return vmPanicResult{
-		panicValue:           goPanicValue,
-		evmErrorMatcher:      testutil.StringErrorMatcher(evmRevertMsg),
-		memoryProofAddresses: memoryProofAddresses,
+type VMPanicTestOption func(*vmPanicResult)
+
+func WithProofData(proofData []byte) VMPanicTestOption {
+	return func(vmPanicResult *vmPanicResult) {
+		vmPanicResult.proofData = proofData
 	}
+}
+
+func WithMemoryProofAddr(addr arch.Word) VMPanicTestOption {
+	return func(vmPanicResult *vmPanicResult) {
+		vmPanicResult.memoryProofAddresses = append(vmPanicResult.memoryProofAddresses, addr)
+	}
+}
+
+func ExpectVmPanic(goPanicValue interface{}, evmRevertMsg string, options ...VMPanicTestOption) ExpectedExecResult {
+	result := vmPanicResult{
+		panicValue:      goPanicValue,
+		evmErrorMatcher: testutil.StringErrorMatcher(evmRevertMsg),
+	}
+	for _, opt := range options {
+		opt(&result)
+	}
+	return result
 }
 
 func ExpectVmPanicWithCustomErr(goPanicMsg interface{}, customErrSignature string, memoryProofAddresses ...arch.Word) ExpectedExecResult {
@@ -310,7 +337,10 @@ func ExpectVmPanicWithCustomErr(goPanicMsg interface{}, customErrSignature strin
 
 func (e vmPanicResult) assertExpectedResult(t testing.TB, goVm mipsevm.FPVM, vmVersion VersionedVMTestCase, expect *mtutil.ExpectedState, cfg *TestConfig) {
 	state := goVm.GetState()
-	proofData := vmVersion.ProofGenerator(t, state, e.memoryProofAddresses...)
+	proofData := e.proofData
+	if proofData == nil {
+		proofData = vmVersion.ProofGenerator(t, state, e.memoryProofAddresses...)
+	}
 	testutil.AssertEVMReverts(t, state, vmVersion.Contracts, cfg.tracingHooks, proofData, e.evmErrorMatcher)
 
 	if panicErr, ok := e.panicValue.(error); ok {
