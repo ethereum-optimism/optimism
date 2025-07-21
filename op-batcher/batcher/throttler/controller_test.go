@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-batcher/config"
+	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum/go-ethereum/log"
 )
 
@@ -19,7 +20,7 @@ const (
 	TestThrottleBlockSize = 21_000  // 21KB block size limit during throttling
 	TestAlwaysBlockSize   = 130_000 // 130KB block size limit (always enforced)
 
-	// Multiplier for gradual controllers (quadratic) - defines max throttling point
+	// Multiplier for gradual controllers (linear, quadratic) - defines max throttling point
 	TestThresholdMultiplier = 2.0 // 2x threshold = maximum throttling point (2MB)
 )
 
@@ -83,40 +84,37 @@ const (
 
 // Common test variables - reused across multiple tests
 var (
-	testLogger = noopLogger() // Reused logger instance
-
 	// Standard controller configurations - reused across tests
-	testStepStrategy = func() *StepStrategy {
+	testStepStrategy = func(t *testing.T) *StepStrategy {
 		return NewStepStrategy(TestThresholdBytes)
 	}
-	testLinearStrategy = func() *LinearStrategy {
-		return NewLinearStrategy(TestThresholdBytes, TestThresholdMultiplier, testLogger)
+	testLinearStrategy = func(t *testing.T) *LinearStrategy {
+		return NewLinearStrategy(TestThresholdBytes, TestThresholdMultiplier, newTestLogger(t))
 	}
-	testQuadraticStrategy = func() *QuadraticStrategy {
-		return NewQuadraticStrategy(TestThresholdBytes, TestThresholdMultiplier, testLogger)
+	testQuadraticStrategy = func(t *testing.T) *QuadraticStrategy {
+		return NewQuadraticStrategy(TestThresholdBytes, TestThresholdMultiplier, newTestLogger(t))
 	}
-	testPIDStrategy = func() *PIDStrategy {
+	testPIDStrategy = func(t *testing.T) *PIDStrategy {
 		return NewPIDStrategy(TestThresholdBytes, TestPIDConfig)
 	}
 
 	// Standard controllers - reused across tests
-	testStepController      = func() *ThrottleController { return NewThrottleController(testStepStrategy(), ThrottleConfig{}) }
-	testLinearController    = func() *ThrottleController { return NewThrottleController(testLinearStrategy(), ThrottleConfig{}) }
-	testQuadraticController = func() *ThrottleController { return NewThrottleController(testQuadraticStrategy(), ThrottleConfig{}) }
-	testPIDController       = func() *ThrottleController { return NewThrottleController(testPIDStrategy(), ThrottleConfig{}) }
+	testStepController      = func(t *testing.T) *ThrottleController { return NewThrottleController(testStepStrategy(t), ThrottleConfig{}) }
+	testLinearController    = func(t *testing.T) *ThrottleController { return NewThrottleController(testLinearStrategy(t), ThrottleConfig{}) }
+	testQuadraticController = func(t *testing.T) *ThrottleController { return NewThrottleController(testQuadraticStrategy(t), ThrottleConfig{}) }
+	testPIDController       = func(t *testing.T) *ThrottleController { return NewThrottleController(testPIDStrategy(t), ThrottleConfig{}) }
 
 	// Test factory
-	testFactory = func() *ThrottleControllerFactory { return NewThrottleControllerFactory(testLogger) }
+	testFactory = func(t *testing.T) *ThrottleControllerFactory { return NewThrottleControllerFactory(newTestLogger(t)) }
 )
 
-// noopLogger creates a logger that discards all output for testing
-func noopLogger() log.Logger {
-	return log.Root()
+func newTestLogger(t *testing.T) log.Logger {
+	return testlog.Logger(t, log.LevelDebug)
 }
 
 // TestControllerFactory tests the factory pattern for creating different controller types
 func TestControllerFactory(t *testing.T) {
-	factory := testFactory()
+	factory := testFactory(t)
 
 	tests := []struct {
 		name           string
@@ -209,16 +207,16 @@ func TestControllerAbstraction(t *testing.T) {
 		controller *ThrottleController
 		strategy   ThrottleStrategy
 	}{
-		{"step", testStepController(), testStepStrategy()},
-		{"linear", testLinearController(), testLinearStrategy()},
-		{"quadratic", testQuadraticController(), testQuadraticStrategy()},
-		{"pid", testPIDController(), testPIDStrategy()},
+		{"step", testStepController(t), testStepStrategy(t)},
+		{"linear", testLinearController(t), testLinearStrategy(t)},
+		{"quadratic", testQuadraticController(t), testQuadraticStrategy(t)},
+		{"pid", testPIDController(t), testPIDStrategy(t)},
 	}
 
 	for _, ctrl := range controllers {
 		t.Run(ctrl.name, func(t *testing.T) {
 			// Test that controller properly delegates to strategy
-			controllerParams := ctrl.controller.Update(TestLoadHalfAbove, 0)
+			controllerParams := ctrl.controller.Update(TestLoadHalfAbove)
 
 			// Reset strategy to same state and test directly
 			ctrl.strategy.Reset()
@@ -257,21 +255,21 @@ func TestControllerAbstraction(t *testing.T) {
 // TestControllerStrategySwapping tests changing strategies at runtime
 func TestControllerStrategySwapping(t *testing.T) {
 	// Start with step controller
-	stepStrategy := testStepStrategy()
+	stepStrategy := testStepStrategy(t)
 	controller := NewThrottleController(stepStrategy, ThrottleConfig{})
 
 	// Test initial behavior
-	params := controller.Update(TestLoadHalfAbove, 0)
+	params := controller.Update(TestLoadHalfAbove)
 	if params.Intensity != TestIntensityMax {
 		t.Errorf("expected step controller intensity %f, got %f", TestIntensityMax, params.Intensity)
 	}
 
 	// Switch to quadratic controller
 	resetParams := ThrottleParams{MaxTxSize: 0, MaxBlockSize: TestAlwaysBlockSize, Intensity: 0.0}
-	controller.SetStrategy(testQuadraticStrategy(), resetParams)
+	controller.SetStrategy(testQuadraticStrategy(t), resetParams)
 
 	// Test new behavior
-	params = controller.Update(TestLoadHalfAbove, 0)
+	params = controller.Update(TestLoadHalfAbove)
 	expectedQuadraticIntensity := 0.25
 	if params.Intensity != expectedQuadraticIntensity {
 		t.Errorf("expected quadratic controller intensity %f, got %f", expectedQuadraticIntensity, params.Intensity)
@@ -289,7 +287,7 @@ func TestControllerStrategySwapping(t *testing.T) {
 
 // TestControllerTypeConsistency tests that controller types are reported consistently
 func TestControllerTypeConsistency(t *testing.T) {
-	factory := testFactory()
+	factory := testFactory(t)
 
 	testCases := []struct {
 		controllerType config.ThrottleControllerType
@@ -366,7 +364,7 @@ func TestIntensityToParams(t *testing.T) {
 		AlwaysBlockSize:   TestAlwaysBlockSize,
 	}
 
-	controller := NewThrottleController(testStepStrategy(), testConfig)
+	controller := NewThrottleController(testStepStrategy(t), testConfig)
 
 	tests := []struct {
 		name                 string
@@ -447,7 +445,7 @@ func TestIntensityToParamsBlockSizeInterpolation(t *testing.T) {
 		AlwaysBlockSize:   100_000, // 100KB always block size
 	}
 
-	controller := NewThrottleController(testStepStrategy(), testConfig)
+	controller := NewThrottleController(testStepStrategy(t), testConfig)
 
 	tests := []struct {
 		name                 string
@@ -514,7 +512,7 @@ func TestIntensityToParamsEdgeCases(t *testing.T) {
 			AlwaysBlockSize:   TestAlwaysBlockSize,
 		}
 
-		controller := NewThrottleController(testStepStrategy(), testConfig)
+		controller := NewThrottleController(testStepStrategy(t	), testConfig)
 		params := controller.intensityToParams(0.5, testConfig)
 
 		if params.MaxBlockSize != TestAlwaysBlockSize {
@@ -531,7 +529,7 @@ func TestIntensityToParamsEdgeCases(t *testing.T) {
 			AlwaysBlockSize:   TestAlwaysBlockSize,
 		}
 
-		controller := NewThrottleController(testStepStrategy(), testConfig)
+		controller := NewThrottleController(testStepStrategy(t), testConfig)
 		params := controller.intensityToParams(0.5, testConfig)
 
 		// Should use always block size when throttle block size is greater
@@ -549,7 +547,7 @@ func TestIntensityToParamsEdgeCases(t *testing.T) {
 			AlwaysBlockSize:   0,
 		}
 
-		controller := NewThrottleController(testStepStrategy(), testConfig)
+		controller := NewThrottleController(testStepStrategy(t), testConfig)
 		params := controller.intensityToParams(0.5, testConfig)
 
 		if params.MaxBlockSize != TestThrottleBlockSize {
@@ -568,7 +566,7 @@ func TestIntensityToParamsConsistency(t *testing.T) {
 		AlwaysBlockSize:   TestAlwaysBlockSize,
 	}
 
-	controller := NewThrottleController(testStepStrategy(), testConfig)
+	controller := NewThrottleController(testStepStrategy(t), testConfig)
 
 	// Test that calling intensityToParams multiple times with same input produces same output
 	intensity := 0.7
@@ -597,7 +595,7 @@ func TestIntensityToParamsThreadSafety(t *testing.T) {
 		AlwaysBlockSize:   TestAlwaysBlockSize,
 	}
 
-	controller := NewThrottleController(testStepStrategy(), testConfig)
+	controller := NewThrottleController(testStepStrategy(t), testConfig)
 
 	// Run multiple goroutines calling intensityToParams concurrently
 	const numGoroutines = 10

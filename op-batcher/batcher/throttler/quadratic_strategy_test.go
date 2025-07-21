@@ -18,7 +18,7 @@ const (
 )
 
 func TestQuadraticStrategy_NewQuadraticStrategy(t *testing.T) {
-	strategy := NewQuadraticStrategy(TestQuadraticThreshold, TestQuadraticMultiplier, testLogger)
+	strategy := NewQuadraticStrategy(TestQuadraticThreshold, TestQuadraticMultiplier, newTestLogger(t))
 
 	if strategy.threshold != TestQuadraticThreshold {
 		t.Errorf("expected threshold %d, got %d", TestQuadraticThreshold, strategy.threshold)
@@ -40,77 +40,67 @@ func TestQuadraticStrategy_NewQuadraticStrategy(t *testing.T) {
 }
 
 func TestQuadraticStrategy_Update(t *testing.T) {
-	strategy := NewQuadraticStrategy(TestQuadraticThreshold, TestQuadraticMultiplier, testLogger)
+	strategy := NewQuadraticStrategy(TestQuadraticThreshold, TestQuadraticMultiplier, newTestLogger(t))
 
 	tests := []struct {
 		name              string
 		pendingBytes      uint64
 		targetBytes       uint64
 		expectedIntensity float64
-		tolerance         float64
 	}{
 		{
 			name:              "zero load",
 			pendingBytes:      0,
 			targetBytes:       0,
 			expectedIntensity: TestIntensityMin,
-			tolerance:         TestTolerance,
 		},
 		{
 			name:              "below threshold",
 			pendingBytes:      TestQuadraticThreshold / 2,
 			targetBytes:       0,
 			expectedIntensity: TestIntensityMin,
-			tolerance:         TestTolerance,
 		},
 		{
 			name:              "exactly at threshold",
 			pendingBytes:      TestQuadraticThreshold,
 			targetBytes:       0,
 			expectedIntensity: TestIntensityMin,
-			tolerance:         TestTolerance,
 		},
 		{
 			name:              "25% above threshold",
 			pendingBytes:      TestQuadraticThreshold + TestQuadraticThreshold/4,
 			targetBytes:       0,
 			expectedIntensity: 0.0625, // (0.25)^2
-			tolerance:         TestTolerance,
 		},
 		{
 			name:              "50% above threshold",
 			pendingBytes:      TestQuadraticThreshold + TestQuadraticThreshold/2,
 			targetBytes:       0,
 			expectedIntensity: 0.25, // (0.5)^2
-			tolerance:         TestTolerance,
 		},
 		{
 			name:              "75% above threshold",
 			pendingBytes:      TestQuadraticThreshold + 3*TestQuadraticThreshold/4,
 			targetBytes:       0,
 			expectedIntensity: 0.5625, // (0.75)^2
-			tolerance:         TestTolerance,
 		},
 		{
 			name:              "100% above threshold (max)",
 			pendingBytes:      TestQuadraticMaxThreshold,
 			targetBytes:       0,
 			expectedIntensity: TestIntensityMax,
-			tolerance:         TestTolerance,
 		},
 		{
 			name:              "beyond max threshold",
 			pendingBytes:      TestQuadraticMaxThreshold * 2,
 			targetBytes:       0,
 			expectedIntensity: TestIntensityMax,
-			tolerance:         TestTolerance,
 		},
 		{
 			name:              "with target bytes ignored",
 			pendingBytes:      TestQuadraticThreshold + TestQuadraticThreshold/2,
 			targetBytes:       TestQuadraticThreshold * 10, // Target bytes should be ignored
 			expectedIntensity: 0.25,                        // (0.5)^2
-			tolerance:         TestTolerance,
 		},
 	}
 
@@ -118,15 +108,15 @@ func TestQuadraticStrategy_Update(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			intensity := strategy.Update(tt.pendingBytes)
 
-			if math.Abs(intensity-tt.expectedIntensity) > tt.tolerance {
-				t.Errorf("expected intensity %f ± %f, got %f", tt.expectedIntensity, tt.tolerance, intensity)
+			if math.Abs(intensity-tt.expectedIntensity) > TestTolerance {
+				t.Errorf("expected intensity %f ± %f, got %f", tt.expectedIntensity, TestTolerance, intensity)
 			}
 		})
 	}
 }
 
 func TestQuadraticStrategy_QuadraticScaling(t *testing.T) {
-	strategy := NewQuadraticStrategy(TestQuadraticThreshold, TestQuadraticMultiplier, testLogger)
+	strategy := NewQuadraticStrategy(TestQuadraticThreshold, TestQuadraticMultiplier, newTestLogger(t))
 
 	// Test that intensity scales quadratically between threshold and maxThreshold
 	testPoints := []struct {
@@ -154,7 +144,7 @@ func TestQuadraticStrategy_QuadraticScaling(t *testing.T) {
 }
 
 func TestQuadraticStrategy_GetType(t *testing.T) {
-	strategy := NewQuadraticStrategy(TestQuadraticThreshold, TestQuadraticMultiplier, testLogger)
+	strategy := NewQuadraticStrategy(TestQuadraticThreshold, TestQuadraticMultiplier, newTestLogger(t))
 
 	if strategy.GetType() != config.QuadraticControllerType {
 		t.Errorf("expected GetType() to return %s, got %s", config.QuadraticControllerType, strategy.GetType())
@@ -162,7 +152,7 @@ func TestQuadraticStrategy_GetType(t *testing.T) {
 }
 
 func TestQuadraticStrategy_Reset(t *testing.T) {
-	strategy := NewQuadraticStrategy(TestQuadraticThreshold, TestQuadraticMultiplier, testLogger)
+	strategy := NewQuadraticStrategy(TestQuadraticThreshold, TestQuadraticMultiplier, newTestLogger(t))
 
 	// Update to build some state
 	strategy.Update(TestQuadraticMaxThreshold)
@@ -183,7 +173,7 @@ func TestQuadraticStrategy_Reset(t *testing.T) {
 func TestQuadraticStrategy_EdgeCases(t *testing.T) {
 	t.Run("multiplier less than 1", func(t *testing.T) {
 		// Test when multiplier results in maxThreshold <= threshold
-		strategy := NewQuadraticStrategy(TestQuadraticThreshold, 0.5, testLogger)
+		strategy := NewQuadraticStrategy(TestQuadraticThreshold, 0.5, newTestLogger(t))
 
 		// Should handle this gracefully without division by zero
 		intensity := strategy.Update(TestQuadraticThreshold * 2)
@@ -194,7 +184,7 @@ func TestQuadraticStrategy_EdgeCases(t *testing.T) {
 	})
 
 	t.Run("zero threshold", func(t *testing.T) {
-		strategy := NewQuadraticStrategy(0, TestQuadraticMultiplier, testLogger)
+		strategy := NewQuadraticStrategy(0, TestQuadraticMultiplier, newTestLogger(t))
 
 		intensity := strategy.Update(1)
 
@@ -204,7 +194,7 @@ func TestQuadraticStrategy_EdgeCases(t *testing.T) {
 	})
 
 	t.Run("very large multiplier", func(t *testing.T) {
-		strategy := NewQuadraticStrategy(TestQuadraticThreshold, 100.0, testLogger)
+		strategy := NewQuadraticStrategy(TestQuadraticThreshold, 100.0, newTestLogger(t))
 
 		// Even with very large multiplier, should work correctly
 		intensity := strategy.Update(TestQuadraticThreshold * 2)
@@ -217,7 +207,7 @@ func TestQuadraticStrategy_EdgeCases(t *testing.T) {
 }
 
 func TestQuadraticStrategy_Load(t *testing.T) {
-	strategy := NewQuadraticStrategy(TestQuadraticThreshold, TestQuadraticMultiplier, testLogger)
+	strategy := NewQuadraticStrategy(TestQuadraticThreshold, TestQuadraticMultiplier, newTestLogger(t))
 
 	// Test load consistency after update
 	updateIntensity := strategy.Update(TestQuadraticThreshold + TestQuadraticThreshold/2)
@@ -233,7 +223,7 @@ func TestQuadraticStrategy_Load(t *testing.T) {
 }
 
 func TestQuadraticStrategy_IntensityProgression(t *testing.T) {
-	strategy := NewQuadraticStrategy(TestQuadraticThreshold, TestQuadraticMultiplier, testLogger)
+	strategy := NewQuadraticStrategy(TestQuadraticThreshold, TestQuadraticMultiplier, newTestLogger(t))
 
 	// Test that intensity increases properly as load increases
 	loads := []uint64{

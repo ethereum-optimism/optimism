@@ -7,7 +7,7 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 )
 
-// LinearStrategy implements linear throttling for more aggressive scaling
+// LinearStrategy implements linear throttling for a smoother and more eager response than the step strategy
 type LinearStrategy struct {
 	threshold    uint64
 	maxThreshold uint64

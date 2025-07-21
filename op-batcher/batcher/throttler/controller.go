@@ -35,7 +35,7 @@ func NewThrottleController(strategy ThrottleStrategy, config ThrottleConfig) *Th
 }
 
 // Update updates the throttle parameters and returns the new params
-func (tc *ThrottleController) Update(currentPendingBytes, targetPendingBytes uint64) ThrottleParams {
+func (tc *ThrottleController) Update(currentPendingBytes uint64) ThrottleParams {
 	tc.mu.RLock()
 	defer tc.mu.RUnlock()
 
@@ -56,13 +56,13 @@ func (tc *ThrottleController) intensityToParams(intensity float64, config Thrott
 
 	// Clamp intensity to 1.0 to prevent overflows, should never happen
 	if intensity > 1.0 {
-		log.Warn("throttler: intensity above maximum (should be clamped)", "intensity", intensity)
+		log.Warn("throttler: intensity above maximum (will be clamped)", "intensity", intensity)
 		intensity = 1.0
 	}
 
 	// If intensity is negative, set it to 0
 	if intensity < 0 {
-		log.Warn("throttler: intensity below minimum (should be clamped)", "intensity", intensity)
+		log.Warn("throttler: intensity below minimum (will be clamped)", "intensity", intensity)
 		intensity = 0
 	}
 
@@ -172,11 +172,6 @@ func (f *ThrottleControllerFactory) CreateController(
 		ThrottleTxSize:    throttleTxSize,
 		ThrottleBlockSize: throttleBlockSize,
 		AlwaysBlockSize:   alwaysBlockSize,
-	}
-
-	// Default to step controller if no type is specified
-	if controllerType == "" {
-		controllerType = config.StepControllerType
 	}
 
 	switch controllerType {

@@ -38,7 +38,7 @@ func TestDATxThrottling(t *testing.T) {
 		return waitForReceipt(t, hash, l2Seq)
 	}
 
-	require.NotEmpty(t, batcher.Config.ThrottlingEndpoints, "throttling endpoints should not be empty")
+	require.NotEmpty(t, batcher.Config.ThrottleParams.Endpoints, "throttling endpoints should not be empty")
 
 	// send a big transaction before throttling could have started, this transaction should land
 	receipt := sendTx(cfg.Secrets.Alice, 0, bigTxSize)
@@ -54,7 +54,7 @@ func TestDATxThrottling(t *testing.T) {
 	done := make(chan bool, 1)
 	var bigReceipt *types.Receipt
 	go func() {
-		bigReceipt = sendTxWithTimeout(cfg.Secrets.Alice, 1, bigTxSize, cfg.L2ChainIDBig(), l2Seq, 5*time.Minute)
+		bigReceipt = sendTx(cfg.Secrets.Alice, 1, bigTxSize)
 		done <- true
 	}()
 
@@ -70,12 +70,11 @@ func TestDATxThrottling(t *testing.T) {
 	// second tx should still be throttled
 	require.Nil(t, bigReceipt, "large tx did not get throttled")
 
-	// disable throttling by resetting the throttle controller and triggering an update
-	err = disableThrottling(batcher)
-	require.NoError(t, err, "failed to disable throttling")
+	// disable throttling to let big tx through
+	batcher.Config.ThrottleParams.Threshold = 0
 
 	<-done
-	require.NotNil(t, bigReceipt, "large tx should have been processed after throttling disabled")
+	require.NotNil(t, bigReceipt, "large tx did not get throttled")
 }
 
 func TestDABlockThrottling(t *testing.T) {
@@ -157,7 +156,7 @@ func setupTest(t *testing.T, maxTxSize, maxBlockSize uint64) (e2esys.SystemConfi
 	l2Verif := sys.NodeClient("verifier")
 
 	batcher := sys.BatchSubmitter.ThrottlingTestDriver()
-	require.NotEmpty(t, batcher.Config.ThrottlingEndpoints, "throttling endpoints should not be empty")
+	require.NotEmpty(t, batcher.Config.ThrottleParams.Endpoints, "throttling endpoints should not be empty")
 
 	return cfg, rollupClient, l2Seq, l2Verif, batcher
 }
@@ -195,52 +194,4 @@ func waitForBlock(t *testing.T, blockNumber *big.Int, cl *ethclient.Client, rc *
 	_, err := geth.WaitForBlock(blockNumber, cl)
 	require.NoError(t, err, "Waiting for block on verifier")
 	require.NoError(t, wait.ForProcessingFullBatch(context.Background(), rc))
-}
-
-func sendTxWithTimeout(senderKey *ecdsa.PrivateKey, nonce uint64, size int, chainID *big.Int, cl *ethclient.Client, timeout time.Duration) *types.Receipt {
-	randomBytes := make([]byte, size)
-	_, err := rand.Read(randomBytes)
-	if err != nil {
-		panic(err)
-	}
-	tx := types.MustSignNewTx(senderKey, types.LatestSignerForChainID(chainID), &types.DynamicFeeTx{
-		ChainID:   chainID,
-		Nonce:     nonce,
-		To:        &common.Address{0xff, 0xff},
-		Value:     big.NewInt(1_000_000_000),
-		GasTipCap: big.NewInt(10),
-		GasFeeCap: big.NewInt(200),
-		Gas:       21_000 + uint64(len(randomBytes))*16,
-		Data:      randomBytes,
-	})
-	err = cl.SendTransaction(context.Background(), tx)
-	if err != nil {
-		panic(err)
-	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), timeout)
-	defer cancel()
-
-	receipt, err := wait.ForReceiptOK(ctx, cl, tx.Hash())
-	if err != nil {
-		return nil // Return nil on timeout instead of panicking
-	}
-	if receipt.Status != types.ReceiptStatusSuccessful {
-		return nil
-	}
-	return receipt
-}
-
-func disableThrottling(batcher *batcher.TestBatchSubmitter) error {
-	// Reset the throttle controller to disable throttling
-	err := batcher.ResetThrottleController()
-	if err != nil {
-		return err
-	}
-
-	// Wait a bit to allow the throttling system to propagate the reset
-	// The throttling loop runs periodically and needs time to send the update to sequencer endpoints
-	time.Sleep(2 * time.Second)
-
-	return nil
 }

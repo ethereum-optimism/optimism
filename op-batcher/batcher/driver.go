@@ -125,39 +125,14 @@ func NewBatchSubmitter(setup DriverSetup) *BatchSubmitter {
 		state.SetChannelOutFactory(setup.ChannelOutFactory)
 	}
 
-	factory := throttler.NewThrottleControllerFactory(setup.Log)
-
-	var pidConfig *config.PIDConfig
-	if setup.Config.ThrottlePidConfig != nil {
-		pidConfig = setup.Config.ThrottlePidConfig
+	batcher := &BatchSubmitter{
+		DriverSetup: setup,
+		channelMgr:  state,
 	}
 
-	throttleController, err := factory.CreateController(
-		setup.Config.ThrottleControllerType,
-		setup.Config.ThrottleThreshold,
-		setup.Config.ThrottleTxSize,
-		setup.Config.ThrottleBlockSize,
-		setup.Config.ThrottleAlwaysBlockSize,
-		setup.Config.ThrottleThresholdMultiplier,
-		pidConfig,
-	)
+	err := batcher.SetThrottleController(setup.Config.ThrottleParams.ControllerType, setup.Config.ThrottleParams.PIDConfig)
 	if err != nil {
 		panic(err)
-	}
-
-	if throttleController.GetType() == config.PIDControllerType {
-		if pidStrategy := throttleController.GetPIDStrategy(); pidStrategy != nil {
-			pidStrategy.SetMetrics(setup.Metr)
-			setup.Log.Info("PID metrics configured for initial controller")
-		}
-	}
-
-	setup.Metr.RecordThrottleControllerType(throttleController.GetType())
-
-	batcher := &BatchSubmitter{
-		DriverSetup:        setup,
-		channelMgr:         state,
-		throttleController: throttleController,
 	}
 
 	return batcher
@@ -199,7 +174,7 @@ func (l *BatchSubmitter) StartBatchSubmitting() error {
 	publishSignal := make(chan struct{})
 
 	// DA throttling loop should always be started except for testing (indicated by ThrottleThreshold == 0)
-	if l.Config.ThrottleThreshold > 0 {
+	if l.Config.ThrottleParams.Threshold > 0 {
 		l.wg.Add(1)
 		go l.throttlingLoop(l.wg, pendingBytesUpdated) // ranges over pendingBytesUpdated channel
 	} else {
@@ -418,7 +393,7 @@ const (
 // sendToThrottlingLoop sends the current pending bytes to the throttling loop.
 // It is not blocking, no signal will be sent if the channel is full.
 func (l *BatchSubmitter) sendToThrottlingLoop(pendingBytesUpdated chan int64) {
-	if l.Config.ThrottleThreshold == 0 {
+	if l.Config.ThrottleParams.Threshold == 0 {
 		return
 	}
 
@@ -664,35 +639,33 @@ func (l *BatchSubmitter) singleEndpointThrottler(wg *sync.WaitGroup, throttleSig
 func (l *BatchSubmitter) throttlingLoop(wg *sync.WaitGroup, pendingBytesUpdated chan int64) {
 	defer wg.Done()
 	l.Log.Info("Starting DA throttling loop", "controller_type", l.throttleController.GetType())
-	updateChans := make([]chan struct{}, len(l.Config.ThrottlingEndpoints))
+	updateChans := make([]chan struct{}, len(l.Config.ThrottleParams.Endpoints))
 
 	innerWg := sync.WaitGroup{}
 
-	for i, endpoint := range l.Config.ThrottlingEndpoints {
+	for i, endpoint := range l.Config.ThrottleParams.Endpoints {
 		updateChans[i] = make(chan struct{}, 1)
 		innerWg.Add(1)
 		go l.singleEndpointThrottler(&innerWg, updateChans[i], endpoint)
 	}
 
 	for pb := range pendingBytesUpdated {
-		// Update throttle controller
-		targetPendingBytes := uint64(0) // Use 0 to let controller use its own target
-		newParams := l.throttleController.Update(uint64(pb), targetPendingBytes)
+		newParams := l.throttleController.Update(uint64(pb))
 		controllerType := l.throttleController.GetType()
 
 		l.Metr.RecordThrottleIntensity(newParams.Intensity, controllerType)
 		l.Metr.RecordThrottleParams(newParams.MaxTxSize, newParams.MaxBlockSize)
-		if l.Config.ThrottleThreshold > 0 {
-			l.Metr.RecordPendingBytesVsThreshold(uint64(pb), l.Config.ThrottleThreshold, controllerType)
+		if l.Config.ThrottleParams.Threshold > 0 {
+			l.Metr.RecordPendingBytesVsThreshold(uint64(pb), l.Config.ThrottleParams.Threshold, controllerType)
 		}
 
 		// Update throttling state
 		throttling := newParams.Intensity > 0
 
 		if throttling {
-			l.Log.Warn("Throttling loop: pending bytes above threshold, endpoints will be throttled",
+			l.Log.Warn("Throttling loop: pending bytes above threshold, scaling endpoint throttling based on intensity",
 				"pending_bytes", pb,
-				"threshold", l.Config.ThrottleThreshold,
+				"threshold", l.Config.ThrottleParams.Threshold,
 				"intensity", newParams.Intensity,
 				"max_tx_size", newParams.MaxTxSize,
 				"max_block_size", newParams.MaxBlockSize,
@@ -703,7 +676,7 @@ func (l *BatchSubmitter) throttlingLoop(wg *sync.WaitGroup, pendingBytesUpdated 
 			select {
 			case updateChan <- struct{}{}:
 			default:
-				l.Log.Debug("Throttling loop: channel full, skipping update", "endpoint", l.Config.ThrottlingEndpoints[i])
+				l.Log.Debug("Throttling loop: channel full, skipping update", "endpoint", l.Config.ThrottleParams.Endpoints[i])
 			}
 		}
 	}
@@ -1084,19 +1057,17 @@ func (l *BatchSubmitter) checkTxpool(queue *txmgr.Queue[txRef], receiptsCh chan 
 }
 
 // SetThrottleController changes the throttle controller type at runtime
-func (l *BatchSubmitter) SetThrottleController(controllerType string, pidConfig *config.PIDConfig) error {
-	l.Log.Info("Changing throttle controller", "from", l.throttleController.GetType(), "to", controllerType)
+func (l *BatchSubmitter) SetThrottleController(newType config.ThrottleControllerType, pidConfig *config.PIDConfig) error {
+	if !config.ValidThrottleControllerType(newType) {
+		return fmt.Errorf("invalid controller type: %s (must be one of: %v)", newType, config.ThrottleControllerTypes)
+	}
 
-	var newType config.ThrottleControllerType
-	switch controllerType {
-	case string(config.StepControllerType):
-		newType = config.StepControllerType
-	case string(config.QuadraticControllerType):
-		newType = config.QuadraticControllerType
-	case string(config.PIDControllerType):
-		newType = config.PIDControllerType
-	default:
-		return fmt.Errorf("invalid controller type: %s", controllerType)
+	unset := l.throttleController == nil
+
+	if unset {
+		l.Log.Info("Setting throttle controller", "type", newType)
+	} else {
+		l.Log.Info("Changing throttle controller", "from", l.throttleController.GetType(), "to", newType)
 	}
 
 	factory := throttler.NewThrottleControllerFactory(l.Log)
@@ -1115,11 +1086,11 @@ func (l *BatchSubmitter) SetThrottleController(controllerType string, pidConfig 
 
 	newController, err := factory.CreateController(
 		newType,
-		l.Config.ThrottleThreshold,
-		l.Config.ThrottleTxSize,
-		l.Config.ThrottleBlockSize,
-		l.Config.ThrottleAlwaysBlockSize,
-		l.Config.ThrottleThresholdMultiplier,
+		l.Config.ThrottleParams.Threshold,
+		l.Config.ThrottleParams.TxSize,
+		l.Config.ThrottleParams.BlockSize,
+		l.Config.ThrottleParams.AlwaysBlockSize,
+		l.Config.ThrottleParams.ThresholdMultiplier,
 		pidControllerConfig,
 	)
 	if err != nil {
@@ -1134,12 +1105,18 @@ func (l *BatchSubmitter) SetThrottleController(controllerType string, pidConfig 
 	}
 
 	// Replace the controller with new strategy
-	oldType := l.throttleController.GetType()
+	var oldType config.ThrottleControllerType
+	if !unset {
+		oldType = l.throttleController.GetType()
+	} else {
+		oldType = ""
+	}
+
 	l.throttleController = newController
 
 	l.Metr.RecordThrottleControllerType(newController.GetType())
 
-	l.Log.Info("Successfully changed throttle controller",
+	l.Log.Info("Successfully set throttle controller",
 		"old_type", oldType,
 		"new_type", newController.GetType())
 
@@ -1157,7 +1134,7 @@ func (l *BatchSubmitter) GetThrottleControllerInfo() (config.ThrottleControllerI
 
 	info := config.ThrottleControllerInfo{
 		Type:         string(controllerType),
-		Threshold:    l.Config.ThrottleThreshold,
+		Threshold:    l.Config.ThrottleParams.Threshold,
 		CurrentLoad:  currentLoad,
 		Intensity:    params.Intensity,
 		MaxTxSize:    params.MaxTxSize,
@@ -1173,7 +1150,7 @@ func (l *BatchSubmitter) ResetThrottleController() error {
 
 	l.throttleController.Reset()
 	l.Metr.RecordThrottleIntensity(0.0, l.throttleController.GetType())
-	l.Metr.RecordThrottleParams(0, l.Config.ThrottleAlwaysBlockSize)
+	l.Metr.RecordThrottleParams(0, l.Config.ThrottleParams.AlwaysBlockSize)
 
 	l.Log.Info("Successfully reset throttle controller state")
 	return nil

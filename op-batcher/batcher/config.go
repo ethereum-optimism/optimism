@@ -118,7 +118,7 @@ type CLIConfig struct {
 	AdditionalThrottlingEndpoints []string
 
 	// ThrottleControllerType is the type of throttle controller to use. Set to step by default
-	ThrottleControllerType string
+	ThrottleControllerType config.ThrottleControllerType
 
 	// PID Controller specific parameters
 	ThrottlePidKp          float64
@@ -183,8 +183,8 @@ func (c *CLIConfig) Check() error {
 		return fmt.Errorf("too many frames for blob transactions, max %d", maxBlobsPerBlock)
 	}
 
-	if c.ThrottleControllerType != string(config.StepControllerType) && c.ThrottleControllerType != string(config.LinearControllerType) && c.ThrottleControllerType != string(config.QuadraticControllerType) && c.ThrottleControllerType != string(config.PIDControllerType) {
-		return fmt.Errorf("invalid throttle controller type: %s (must be 'step', 'linear', 'quadratic', 'pid')", c.ThrottleControllerType)
+	if !config.ValidThrottleControllerType(c.ThrottleControllerType) {
+		return fmt.Errorf("invalid throttle controller type: %s (must be one of: %v)", c.ThrottleControllerType, config.ThrottleControllerTypes)
 	}
 
 	if err := c.MetricsConfig.Check(); err != nil {
@@ -238,7 +238,7 @@ func NewConfig(ctx *cli.Context) *CLIConfig {
 		ThrottleBlockSize:             ctx.Uint64(flags.ThrottleBlockSizeFlag.Name),
 		ThrottleAlwaysBlockSize:       ctx.Uint64(flags.ThrottleAlwaysBlockSizeFlag.Name),
 		AdditionalThrottlingEndpoints: ctx.StringSlice(flags.AdditionalThrottlingEndpointsFlag.Name),
-		ThrottleControllerType:        ctx.String(flags.ThrottleControllerTypeFlag.Name),
+		ThrottleControllerType:        config.ThrottleControllerType(ctx.String(flags.ThrottleControllerTypeFlag.Name)),
 		ThrottlePidKp:                 ctx.Float64(flags.ThrottlePidKpFlag.Name),
 		ThrottlePidKi:                 ctx.Float64(flags.ThrottlePidKiFlag.Name),
 		ThrottlePidKd:                 ctx.Float64(flags.ThrottlePidKdFlag.Name),
