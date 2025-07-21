@@ -241,3 +241,145 @@ func TestLocalContractArtifactsOption(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "artifact://contracts", artifacts)
 }
+
+func TestRenderTemplate_PlainYamlFile(t *testing.T) {
+	tmpDir, err := os.MkdirTemp("", "template-test-plain-yaml")
+	require.NoError(t, err)
+	defer os.RemoveAll(tmpDir)
+
+	plainYamlContent := `optimism_package:
+  faucet:
+    enabled: true
+  chains:
+    chain1:
+      participants:
+        node1:
+          el:
+            type: op-geth
+          cl:
+            type: op-node
+      network_params:
+        network: "kurtosis"
+        network_id: "2151908"
+        interop_time_offset: 100
+    chain2:
+      participants:
+        node1:
+          el:
+            type: op-geth
+          cl:
+            type: op-node
+      network_params:
+        network: "kurtosis"
+        network_id: "2151909"
+        interop_time_offset: 5000
+`
+
+	templatePath := filepath.Join(tmpDir, "plain.yaml")
+	err = os.WriteFile(templatePath, []byte(plainYamlContent), 0644)
+	require.NoError(t, err)
+
+	// Create a Templater instance WITHOUT a data file
+	templater := &Templater{
+		enclave:      "test-enclave",
+		dryRun:       true,
+		baseDir:      tmpDir,
+		templateFile: templatePath,
+		dataFile:     "", // No data file - this triggers our plain YAML detection
+		buildDir:     tmpDir,
+		urlBuilder: func(path ...string) string {
+			return "http://localhost:8080/" + strings.Join(path, "/")
+		},
+	}
+
+	buf, err := templater.Render(context.Background())
+	require.NoError(t, err)
+
+	// The output should be exactly the same as the input (no template processing)
+	assert.Equal(t, plainYamlContent, buf.String())
+
+	output := buf.String()
+	assert.Contains(t, output, "interop_time_offset: 100")
+	assert.Contains(t, output, "interop_time_offset: 5000")
+	assert.Contains(t, output, "network_id: \"2151908\"")
+	assert.Contains(t, output, "network_id: \"2151909\"")
+}
+
+func TestRenderTemplate_PlainYamlWithDataFile(t *testing.T) {
+	tmpDir, err := os.MkdirTemp("", "template-test-plain-yaml-with-data")
+	require.NoError(t, err)
+	defer os.RemoveAll(tmpDir)
+
+	plainYamlContent := `optimism_package:
+  chains:
+    test-chain:
+      network_params:
+        network_id: "123456"
+`
+
+	templatePath := filepath.Join(tmpDir, "plain.yaml")
+	err = os.WriteFile(templatePath, []byte(plainYamlContent), 0644)
+	require.NoError(t, err)
+
+	// Create a data file (even though the template doesn't use it)
+	dataContent := `{"someData": "value"}`
+	dataPath := filepath.Join(tmpDir, "data.json")
+	err = os.WriteFile(dataPath, []byte(dataContent), 0644)
+	require.NoError(t, err)
+
+	templater := &Templater{
+		enclave:      "test-enclave",
+		dryRun:       true,
+		baseDir:      tmpDir,
+		templateFile: templatePath,
+		dataFile:     dataPath, // With data file - should still process through template engine
+		buildDir:     tmpDir,
+		urlBuilder: func(path ...string) string {
+			return "http://localhost:8080/" + strings.Join(path, "/")
+		},
+	}
+
+	buf, err := templater.Render(context.Background())
+	require.NoError(t, err)
+
+	// When there's a data file, it should go through template processing
+	// it won't be exactly the same but the content should be preserved
+	output := buf.String()
+	assert.Contains(t, output, "optimism_package:")
+	assert.Contains(t, output, "network_id: \"123456\"")
+}
+
+func TestRenderTemplate_TemplateWithoutDataFile(t *testing.T) {
+	tmpDir, err := os.MkdirTemp("", "template-test-template-no-data")
+	require.NoError(t, err)
+	defer os.RemoveAll(tmpDir)
+
+	// Create a file that DOES contain template syntax
+	templateContent := `optimism_package:
+  chains:
+    {{.chainName}}:
+      network_params:
+        network_id: "{{.networkId}}"
+`
+
+	templatePath := filepath.Join(tmpDir, "template.yaml")
+	err = os.WriteFile(templatePath, []byte(templateContent), 0644)
+	require.NoError(t, err)
+
+	templater := &Templater{
+		enclave:      "test-enclave",
+		dryRun:       true,
+		baseDir:      tmpDir,
+		templateFile: templatePath,
+		dataFile:     "",
+		buildDir:     tmpDir,
+		urlBuilder: func(path ...string) string {
+			return "http://localhost:8080/" + strings.Join(path, "/")
+		},
+	}
+
+	// This should fail because the template has syntax but no data
+	_, err = templater.Render(context.Background())
+	assert.Error(t, err, "Should fail when template has syntax but no data is provided")
+	assert.Contains(t, err.Error(), "failed to execute template")
+}
