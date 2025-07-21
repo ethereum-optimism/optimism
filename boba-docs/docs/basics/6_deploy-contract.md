@@ -107,7 +107,7 @@ yarn test
 
 You should see a set of passing tests for your contract: 
 
-```bash
+```console
 $ hardhat test test/contract.spec.ts --show-stack-traces
 Using network 'boba_sepolia'.
 
@@ -139,7 +139,7 @@ npx hardhat deploy --network boba_sepolia
 
 After a few seconds your contract should deploy, and you should see this in your terminal:
 
-```bash
+```console
 yarn deploy
 yarn run v1.22.15
 hardhat deploy --network boba_sepolia
@@ -185,9 +185,13 @@ Summary
 ✨  Done in 10.11s.
 ```
 
+Take note of the listed contract address in the output; we'll use it later.
+
 ## Verify the Contract
 
-Using our tool [Bobascan](https://testnet.bobascan.com/), you can verify the contract has been deployed and is valid. Sign in by connecting your crypto wallet to Bobascan, then navigate to your transactions. [TODO: ADD IMAGES OF WHERE TO FIND TRANSACTIONS AND CONTRACT ADDRESS] This will lead you to the contract address of your newly deployed contract. Copy this address, then replace "`YOUR_CONTRACT_ADDRESS_HERE`" with it in the command below to verify your contract:
+Using our tool [Bobascan](https://testnet.bobascan.com/), you can verify the contract has been deployed and is valid. 
+
+In case you didn't catch your contract address from the deployment output text, you can find it (among many other things) with Bobascan. Sign in by connecting your crypto wallet to Bobascan, then navigate to your transactions. This will lead you to the contract address of your newly deployed contract. Copy this address, then replace "`YOUR_CONTRACT_ADDRESS_HERE`" with it in the command below to verify your contract:
 
 ```bash
 npx hardhat verify --network boba_sepolia YOUR_CONTRACT_ADDRESS_HERE
