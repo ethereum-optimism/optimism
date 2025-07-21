@@ -19,7 +19,7 @@ contract SuperFaultDisputeGame_Solvency_Invariant is BaseSuperFaultDisputeGame_T
 
     function setUp() public override {
         super.setUp();
-        super.init({ _rootClaim: ROOT_CLAIM, _absolutePrestate: ABSOLUTE_PRESTATE, _l2SequenceNumber: 0x10 });
+        super.init({ rootClaim: ROOT_CLAIM, absolutePrestate: ABSOLUTE_PRESTATE, l2SequenceNumber: 0x10 });
 
         actor = new RandomClaimActor(IFaultDisputeGame(address(gameProxy)), vm);
 
