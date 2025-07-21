@@ -790,6 +790,11 @@
   },
   {
     "inputs": [],
+    "name": "ProposalValidator_AttestationExpired",
+    "type": "error"
+  },
+  {
+    "inputs": [],
     "name": "ProposalValidator_AttestationRevoked",
     "type": "error"
   },
