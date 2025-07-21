@@ -24,7 +24,7 @@ var defaultOpConfig = &params.OptimismConfig{
 	EIP1559Elasticity:        6,
 	EIP1559Denominator:       50,
 	EIP1559DenominatorCanyon: ptr(uint64(250)),
-	EIP1559MinBaseFeeLog2:           20,
+	EIP1559MinBaseFeeLog2:    20,
 }
 
 func ptr[T any](t T) *T {
