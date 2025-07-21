@@ -3,7 +3,7 @@ pragma solidity ^0.8.15;
 
 // Testing
 import { Vm } from "forge-std/Vm.sol";
-import { DisputeGameFactory_Init } from "test/dispute/DisputeGameFactory.t.sol";
+import { DisputeGameFactory_TestInit } from "test/dispute/DisputeGameFactory.t.sol";
 import { AlphabetVM } from "test/mocks/AlphabetVM.sol";
 import { stdError } from "forge-std/StdError.sol";
 
@@ -30,7 +30,7 @@ import { IFaultDisputeGame } from "interfaces/dispute/IFaultDisputeGame.sol";
 import { ISuperFaultDisputeGame } from "interfaces/dispute/ISuperFaultDisputeGame.sol";
 import { IDelayedWETH } from "interfaces/dispute/IDelayedWETH.sol";
 
-contract SuperFaultDisputeGame_Init is DisputeGameFactory_Init {
+contract SuperFaultDisputeGame_TestInit is DisputeGameFactory_TestInit {
     /// @dev The type of the game being tested.
     GameType internal constant GAME_TYPE = GameType.wrap(4);
 
@@ -142,7 +142,10 @@ contract SuperFaultDisputeGame_Init is DisputeGameFactory_Init {
     receive() external payable { }
 }
 
-contract SuperFaultDisputeGame_Test is SuperFaultDisputeGame_Init {
+/// TODO: rename - steven
+contract BaseSuperFaultDisputeGame_TestInit is SuperFaultDisputeGame_TestInit { }
+
+contract SuperFaultDisputeGame_Test is SuperFaultDisputeGame_TestInit {
     /// @dev The root claim of the game.
     Claim internal ROOT_CLAIM;
     /// @dev An arbitrary root claim for testing.
@@ -2372,7 +2375,7 @@ contract SuperFaultDisputeGame_Test is SuperFaultDisputeGame_Init {
     }
 }
 
-contract SuperFaultDispute_1v1_Actors_Test is SuperFaultDisputeGame_Init {
+contract SuperFaultDispute_1v1_Actors_Test is SuperFaultDisputeGame_TestInit {
     /// @dev The honest actor
     DisputeActor internal honest;
     /// @dev The dishonest actor

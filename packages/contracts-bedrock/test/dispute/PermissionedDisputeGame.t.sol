@@ -2,7 +2,7 @@
 pragma solidity ^0.8.15;
 
 // Testing
-import { DisputeGameFactory_Init } from "test/dispute/DisputeGameFactory.t.sol";
+import { DisputeGameFactory_TestInit } from "test/dispute/DisputeGameFactory.t.sol";
 import { AlphabetVM } from "test/mocks/AlphabetVM.sol";
 
 // Scripts
@@ -18,7 +18,7 @@ import { IDelayedWETH } from "interfaces/dispute/IDelayedWETH.sol";
 import { IPermissionedDisputeGame } from "interfaces/dispute/IPermissionedDisputeGame.sol";
 import { IFaultDisputeGame } from "interfaces/dispute/IFaultDisputeGame.sol";
 
-contract PermissionedDisputeGame_Init is DisputeGameFactory_Init {
+contract PermissionedDisputeGame_Init is DisputeGameFactory_TestInit {
     /// @dev The type of the game being tested.
     GameType internal constant GAME_TYPE = GameType.wrap(1);
     /// @dev Mock proposer key

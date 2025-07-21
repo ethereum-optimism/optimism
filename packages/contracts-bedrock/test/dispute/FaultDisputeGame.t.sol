@@ -3,7 +3,7 @@ pragma solidity ^0.8.15;
 
 // Testing
 import { Vm } from "forge-std/Vm.sol";
-import { DisputeGameFactory_Init } from "test/dispute/DisputeGameFactory.t.sol";
+import { DisputeGameFactory_TestInit } from "test/dispute/DisputeGameFactory.t.sol";
 import { AlphabetVM } from "test/mocks/AlphabetVM.sol";
 import { stdError } from "forge-std/StdError.sol";
 
@@ -30,7 +30,7 @@ import { IAnchorStateRegistry } from "interfaces/dispute/IAnchorStateRegistry.so
 import { IFaultDisputeGame } from "interfaces/dispute/IFaultDisputeGame.sol";
 import { IDelayedWETH } from "interfaces/dispute/IDelayedWETH.sol";
 
-contract FaultDisputeGame_Init is DisputeGameFactory_Init {
+contract FaultDisputeGame_TestInit is DisputeGameFactory_TestInit {
     /// @dev The type of the game being tested.
     GameType internal constant GAME_TYPE = GameType.wrap(0);
 
@@ -142,7 +142,12 @@ contract FaultDisputeGame_Init is DisputeGameFactory_Init {
     receive() external payable { }
 }
 
-contract FaultDisputeGame_Test is FaultDisputeGame_Init {
+/// TODO:
+/// @title BaseFaultDisputeGame_TestInit
+/// @notice Alias for FaultDisputeGame_Init for backwards compatibility
+contract BaseFaultDisputeGame_TestInit is FaultDisputeGame_TestInit { }
+
+contract FaultDisputeGame_Test is FaultDisputeGame_TestInit {
     /// @dev The root claim of the game.
     Claim internal ROOT_CLAIM;
     /// @dev An arbitrary root claim for testing.
@@ -2526,7 +2531,7 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
     }
 }
 
-contract FaultDispute_1v1_Actors_Test is FaultDisputeGame_Init {
+contract FaultDispute_1v1_Actors_Test is FaultDisputeGame_TestInit {
     /// @dev The honest actor
     DisputeActor internal honest;
     /// @dev The dishonest actor
