@@ -578,6 +578,11 @@ contract ProposalValidator is OwnableUpgradeable, ReinitializableBase, ISemver {
             revert ProposalValidator_ProposalAlreadyApproved();
         }
 
+        // check if proposal has already moved to vote
+        if (proposal.movedToVote) {
+            revert ProposalValidator_ProposalAlreadyMovedToVote();
+        }
+
         // validate the attestation
         _validateTopDelegateAttestation(_attestationUid, _msgSender());
 
