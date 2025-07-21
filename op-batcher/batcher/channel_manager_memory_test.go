@@ -66,16 +66,10 @@ func TestChannelManager_Memory(t *testing.T) {
 				if compressor.name == "NoneCompressor" && algo.name != "Zlib" {
 					continue
 				}
-
 				testName := compressor.name + "_" + algo.name + "_" + batch.name
 
-				// Capture variables for closure
-				comp := compressor
-				algorithm := algo
-				batchType := batch
-
 				t.Run(testName, func(t *testing.T) {
-					runMemoryTest(t, batchType.batchType, comp.name, algorithm.algo, comp.setupFunc)
+					runMemoryTest(t, batch.batchType, compressor.name, algo.algo, compressor.setupFunc)
 				})
 			}
 		}
