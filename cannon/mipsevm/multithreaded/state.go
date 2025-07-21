@@ -119,11 +119,6 @@ func (s *State) GetCurrentThread() *ThreadState {
 	return activeStack[activeStackSize-1]
 }
 
-func (s *State) ActiveThreadCount() int {
-	activeStack := s.getActiveThreadStack()
-	return len(activeStack)
-}
-
 func (s *State) getActiveThreadStack() []*ThreadState {
 	var activeStack []*ThreadState
 	if s.TraverseRight {

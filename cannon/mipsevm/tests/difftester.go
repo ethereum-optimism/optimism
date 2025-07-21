@@ -91,7 +91,7 @@ func (d *DiffTester[T]) run(t testRunner, testCases []T, opts ...TestOption) {
 }
 
 func (d *DiffTester[T]) expectedState(t require.TestingT, state *multithreaded.State) *mtutil.ExpectedState {
-	if state.ActiveThreadCount() == 0 {
+	if mtutil.ActiveThreadCount(state) == 0 {
 		// State is invalid, just return an empty expectation
 		// We expect some tests to set up invalid states
 		return &mtutil.ExpectedState{}
