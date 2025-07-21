@@ -1881,6 +1881,23 @@ contract ProposalValidator_ApproveProposal_TestFail is ProposalValidator_Init {
         validator.approveProposal(_proposalHash, topDelegateAttestation_A);
     }
 
+    function test_approveProposal_proposalAlreadyMovedToVote_reverts(
+        bytes32 _proposalHash,
+        uint8 proposalTypeValue
+    )
+        public
+    {
+        // Bound the proposal type to valid enum values (0-4)
+        proposalTypeValue = uint8(bound(proposalTypeValue, 0, 4));
+        ProposalValidator.ProposalType proposalType = ProposalValidator.ProposalType(proposalTypeValue);
+        // set proposal data so that the proposal exists and set movedToVote to true
+        validator.setProposalData(_proposalHash, topDelegate_A, proposalType, true, 0, CYCLE_NUMBER);
+
+        vm.expectRevert(IProposalValidator.ProposalValidator_ProposalAlreadyMovedToVote.selector);
+        vm.prank(topDelegate_A);
+        validator.approveProposal(_proposalHash, topDelegateAttestation_A);
+    }
+
     function test_approveProposal_invalidSchema_reverts(bytes32 _proposalHash, uint8 proposalTypeValue) public {
         // Bound the proposal type to valid enum values (0-4)
         proposalTypeValue = uint8(bound(proposalTypeValue, 0, 4));
