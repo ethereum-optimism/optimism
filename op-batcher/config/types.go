@@ -1,6 +1,7 @@
 package config
 
 import (
+	"encoding/json"
 	"slices"
 	"time"
 )
@@ -49,6 +50,40 @@ type PIDConfig struct {
 	IntegralMax float64       `json:"integral_max"`
 	OutputMax   float64       `json:"output_max"`
 	SampleTime  time.Duration `json:"sample_time"`
+}
+
+// UnmarshalJSON implements custom JSON unmarshaling for PIDConfig to handle duration strings
+func (p *PIDConfig) UnmarshalJSON(data []byte) error {
+	// Define a temporary struct with SampleTime as string to handle the duration parsing
+	type pidConfigAlias struct {
+		Kp          float64 `json:"kp"`
+		Ki          float64 `json:"ki"`
+		Kd          float64 `json:"kd"`
+		IntegralMax float64 `json:"integral_max"`
+		OutputMax   float64 `json:"output_max"`
+		SampleTime  string  `json:"sample_time"`
+	}
+
+	var alias pidConfigAlias
+	if err := json.Unmarshal(data, &alias); err != nil {
+		return err
+	}
+
+	// Parse the duration string
+	duration, err := time.ParseDuration(alias.SampleTime)
+	if err != nil {
+		return err
+	}
+
+	// Assign values to the actual struct
+	p.Kp = alias.Kp
+	p.Ki = alias.Ki
+	p.Kd = alias.Kd
+	p.IntegralMax = alias.IntegralMax
+	p.OutputMax = alias.OutputMax
+	p.SampleTime = duration
+
+	return nil
 }
 
 type ThrottleParams struct {
