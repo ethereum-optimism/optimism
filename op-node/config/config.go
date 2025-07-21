@@ -22,6 +22,13 @@ import (
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/depset"
 )
 
+// TracingConfig defines the configuration for distributed tracing
+type TracingConfig struct {
+	Enabled     bool
+	ServiceName string
+	TracerName  string
+}
+
 type Config struct {
 	L1 L1EndpointSetup
 	L2 L2EndpointSetup
@@ -87,6 +94,8 @@ type Config struct {
 
 	// Experimental. Enables new opstack RPC namespace. Used by op-test-sequencer.
 	ExperimentalOPStackAPI bool
+	// Tracing configuration
+	Tracing TracingConfig
 }
 
 // ConductorRPCFunc retrieves the endpoint. The RPC may not immediately be available.

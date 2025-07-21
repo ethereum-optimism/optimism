@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/hashicorp/go-multierror"
+	"github.com/libp2p/go-libp2p/core/peer"
 
 	"github.com/ethereum/go-ethereum"
 	gethevent "github.com/ethereum/go-ethereum/event"
@@ -32,6 +33,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup/sequencing"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/status"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/sync"
+	"github.com/ethereum-optimism/optimism/op-node/tracing"
 	"github.com/ethereum-optimism/optimism/op-service/client"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/event"
@@ -164,6 +166,10 @@ func (n *OpNode) init(ctx context.Context, cfg *config.Config) error {
 	if err := n.initMetricsServer(cfg); err != nil {
 		return fmt.Errorf("failed to init the metrics server: %w", err)
 	}
+	if err := n.initTracing(cfg); err != nil {
+		return fmt.Errorf("failed to init the tracing: %w", err)
+	}
+
 	n.metrics.RecordInfo(n.appVersion)
 	n.metrics.RecordUp()
 	if err := n.initPProf(cfg); err != nil {
@@ -458,7 +464,7 @@ func (n *OpNode) initL2(ctx context.Context, cfg *config.Config) error {
 
 func (n *OpNode) initRPCServer(cfg *config.Config) error {
 	server := newRPCServer(&cfg.RPC, &cfg.Rollup, cfg.DependencySet,
-		n.l2Source.L2Client, n.l2Driver, n.safeDB,
+		n.l2Source.L2Client, newRpcDriver(n.l2Driver), n.safeDB,
 		n.log, n.metrics, n.appVersion)
 	if p2pNode := n.getP2PNodeIfEnabled(); p2pNode != nil {
 		server.AddAPI(rpc.API{
@@ -477,7 +483,7 @@ func (n *OpNode) initRPCServer(cfg *config.Config) error {
 	if cfg.RPC.EnableAdmin {
 		server.AddAPI(rpc.API{
 			Namespace: "admin",
-			Service:   NewAdminAPI(n.l2Driver, n.log),
+			Service:   NewAdminAPI(newRpcDriver(n.l2Driver), n.log),
 		})
 		n.log.Info("Admin RPC enabled")
 	}
@@ -503,6 +509,10 @@ func (n *OpNode) initMetricsServer(cfg *config.Config) error {
 	n.log.Info("started metrics server", "addr", metricsSrv.Addr())
 	n.metricsSrv = metricsSrv
 	return nil
+}
+
+func (n *OpNode) initTracing(cfg *config.Config) error {
+	return tracing.InitTracing(cfg.Tracing.Enabled, cfg.Tracing.ServiceName, cfg.Tracing.TracerName)
 }
 
 func (n *OpNode) initPProf(cfg *config.Config) error {
@@ -637,6 +647,27 @@ func (n *OpNode) P2P() p2p.Node {
 
 func (n *OpNode) RuntimeConfig() runcfg.ReadonlyRuntimeConfig {
 	return n.runCfg
+}
+
+func (n *OpNode) OnUnsafeL2Payload(ctx context.Context, from peer.ID, envelope *eth.ExecutionPayloadEnvelope) error {
+
+	// TODO: Add tracer support here
+	// n.tracer.OnUnsafeL2Payload(ctx, from, envelope)
+
+	envelopeWithContext := tracing.StartTraceProcessL2Payload(envelope)
+
+	n.log.Info("Received signed execution payload from p2p", "id", envelope.ExecutionPayload.ID(), "peer", from,
+		"txs", len(envelope.ExecutionPayload.Transactions))
+
+	// TODO: This timeout is likely too short for large-batch processing.
+	ctx, cancel := context.WithTimeout(ctx, time.Second*30)
+	defer cancel()
+
+	if err := n.l2Driver.OnUnsafeL2Payload(ctx, envelopeWithContext); err != nil {
+		n.log.Warn("failed to notify engine driver of new L2 payload", "err", err, "id", envelope.ExecutionPayload.ID())
+	}
+
+	return nil
 }
 
 // Stop stops the node and closes all resources.

@@ -12,7 +12,7 @@ import (
 )
 
 type payloadAndSize struct {
-	envelope *eth.ExecutionPayloadEnvelope
+	envelope *eth.ExecutionPayloadEnvelopeWithContext
 	size     uint64
 }
 
@@ -111,14 +111,14 @@ func (upq *PayloadsQueue) MemSize() uint64 {
 //
 // We prefer higher block numbers over lower block numbers, since lower block numbers are more likely to be conflicts and/or read from L1 sooner.
 // The higher payload block numbers can be preserved, and once L1 contents meets these, they can all be processed in order.
-func (upq *PayloadsQueue) Push(e *eth.ExecutionPayloadEnvelope) error {
+func (upq *PayloadsQueue) Push(e *eth.ExecutionPayloadEnvelopeWithContext) error {
 	if e == nil || e.ExecutionPayload == nil {
 		return errors.New("cannot add nil payload")
 	}
 	if _, ok := upq.blockHashes[e.ExecutionPayload.BlockHash]; ok {
 		return fmt.Errorf("cannot add duplicate payload %s", e.ExecutionPayload.ID())
 	}
-	size := upq.SizeFn(e)
+	size := upq.SizeFn(e.ExecutionPayloadEnvelope)
 	if size > upq.MaxSize {
 		return fmt.Errorf("cannot add payload %s, payload mem size %d is larger than max queue size %d", e.ExecutionPayload.ID(), size, upq.MaxSize)
 	}
@@ -136,7 +136,7 @@ func (upq *PayloadsQueue) Push(e *eth.ExecutionPayloadEnvelope) error {
 }
 
 // Peek retrieves the payload with the lowest block number from the queue in O(1), or nil if the queue is empty.
-func (upq *PayloadsQueue) Peek() *eth.ExecutionPayloadEnvelope {
+func (upq *PayloadsQueue) Peek() *eth.ExecutionPayloadEnvelopeWithContext {
 	if len(upq.pq) == 0 {
 		return nil
 	}
@@ -147,7 +147,7 @@ func (upq *PayloadsQueue) Peek() *eth.ExecutionPayloadEnvelope {
 
 // Pop removes the payload with the lowest block number from the queue in O(log(N)),
 // and may return nil if the queue is empty.
-func (upq *PayloadsQueue) Pop() *eth.ExecutionPayloadEnvelope {
+func (upq *PayloadsQueue) Pop() *eth.ExecutionPayloadEnvelopeWithContext {
 	if len(upq.pq) == 0 {
 		return nil
 	}

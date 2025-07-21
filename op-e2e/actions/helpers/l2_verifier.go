@@ -442,7 +442,11 @@ func (s *L2Verifier) ActL2PipelineFull(t Testing) {
 // ActL2UnsafeGossipReceive creates an action that can receive an unsafe execution payload, like gossipsub
 func (s *L2Verifier) ActL2UnsafeGossipReceive(payload *eth.ExecutionPayloadEnvelope) Action {
 	return func(t Testing) {
-		s.synchronousEvents.Emit(t.Ctx(), clsync.ReceivedUnsafePayloadEvent{Envelope: payload})
+		payloadWithContext := &eth.ExecutionPayloadEnvelopeWithContext{
+			ExecutionPayloadEnvelope: payload,
+			TraceContext:             t.Ctx(),
+		}
+		s.synchronousEvents.Emit(t.Ctx(), clsync.ReceivedUnsafePayloadEvent{Envelope: payloadWithContext})
 	}
 }
 
@@ -451,7 +455,11 @@ func (s *L2Verifier) ActL2InsertUnsafePayload(payload *eth.ExecutionPayloadEnvel
 	return func(t Testing) {
 		ref, err := derive.PayloadToBlockRef(s.RollupCfg, payload.ExecutionPayload)
 		require.NoError(t, err)
-		err = s.engine.InsertUnsafePayload(t.Ctx(), payload, ref)
+		payloadWithContext := &eth.ExecutionPayloadEnvelopeWithContext{
+			ExecutionPayloadEnvelope: payload,
+			TraceContext:             t.Ctx(),
+		}
+		err = s.engine.InsertUnsafePayload(t.Ctx(), payloadWithContext, ref)
 		require.NoError(t, err)
 	}
 }

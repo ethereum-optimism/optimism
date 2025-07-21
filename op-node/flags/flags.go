@@ -31,6 +31,7 @@ const (
 	AltDACategory      = "6. ALT-DA (EXPERIMENTAL)"
 	MiscCategory       = "7. MISC"
 	InteropCategory    = "8. INTEROP (SUPER EXPERIMENTAL)"
+	TracingCategory    = "9. TRACING"
 )
 
 func init() {
@@ -414,6 +415,28 @@ var (
 		EnvVars:  prefixEnvVars("EXPERIMENTAL_SEQUENCER_API"),
 		Category: MiscCategory,
 	}
+	/* Tracing flags */
+	TracingEnabledFlag = &cli.BoolFlag{
+		Name:     "tracing.enabled",
+		Usage:    "Enable distributed tracing",
+		EnvVars:  prefixEnvVars("TRACING_ENABLED"),
+		Category: TracingCategory,
+		Value:    false,
+	}
+	TracingServiceName = &cli.StringFlag{
+		Name:     "tracing.service-name",
+		Usage:    "Service name for distributed tracing",
+		EnvVars:  prefixEnvVars("TRACING_SERVICE_NAME"),
+		Category: TracingCategory,
+		Value:    "op-node",
+	}
+	TracingTracerName = &cli.StringFlag{
+		Name:     "tracing.tracer-name",
+		Usage:    "Tracer name for distributed tracing",
+		EnvVars:  prefixEnvVars("TRACING_TRACER_NAME"),
+		Category: TracingCategory,
+		Value:    "op-node",
+	}
 )
 
 var requiredFlags = []cli.Flag{
@@ -464,6 +487,9 @@ var optionalFlags = []cli.Flag{
 	InteropDependencySet,
 	IgnoreMissingPectraBlobSchedule,
 	ExperimentalOPStackAPI,
+	TracingEnabledFlag,
+	TracingTracerName,
+	TracingServiceName,
 }
 
 var DeprecatedFlags = []cli.Flag{

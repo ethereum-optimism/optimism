@@ -61,7 +61,7 @@ func (eq *CLSync) LowestQueuedUnsafeBlock() eth.L2BlockRef {
 }
 
 type ReceivedUnsafePayloadEvent struct {
-	Envelope *eth.ExecutionPayloadEnvelope
+	Envelope *eth.ExecutionPayloadEnvelopeWithContext
 }
 
 func (ev ReceivedUnsafePayloadEvent) String() string {

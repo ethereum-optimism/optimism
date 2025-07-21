@@ -12,7 +12,7 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 	"go.opentelemetry.io/otel"
 
-	"github.com/ethereum-optimism/optimism/devnet-sdk/telemetry"
+	"github.com/ethereum-optimism/optimism/op-service/telemetry"
 	"github.com/ethereum-optimism/optimism/op-devstack/compat"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/stack"

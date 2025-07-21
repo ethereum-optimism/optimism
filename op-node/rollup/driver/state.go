@@ -2,6 +2,7 @@ package driver
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	gosync "sync"
 	"time"
@@ -48,6 +49,9 @@ type Driver struct {
 
 	// Interface to signal the L2 block range to sync.
 	altSync AltSync
+
+	// L2 Signals:
+	unsafeL2Payloads chan *eth.ExecutionPayloadEnvelopeWithContext
 
 	sequencer sequencing.SequencerIface
 
@@ -280,10 +284,16 @@ func (s *SyncDeriver) OnEvent(ctx context.Context, ev event.Event) bool {
 }
 
 func (s *SyncDeriver) onIncomingP2PBlock(ctx context.Context, envelope *eth.ExecutionPayloadEnvelope) {
+	// Wrap the envelope with context for tracing
+	envelopeWithContext := &eth.ExecutionPayloadEnvelopeWithContext{
+		ExecutionPayloadEnvelope: envelope,
+		TraceContext:             ctx,
+	}
+	
 	// If we are doing CL sync or done with engine syncing, fallback to the unsafe payload queue & CL P2P sync.
 	if s.SyncCfg.SyncMode == sync.CLSync || !s.Engine.IsEngineSyncing() {
 		s.Log.Info("Optimistically queueing unsafe L2 execution payload", "id", envelope.ExecutionPayload.ID())
-		s.Emitter.Emit(ctx, clsync.ReceivedUnsafePayloadEvent{Envelope: envelope})
+		s.Emitter.Emit(ctx, clsync.ReceivedUnsafePayloadEvent{Envelope: envelopeWithContext})
 	} else if s.SyncCfg.SyncMode == sync.ELSync {
 		ref, err := derive.PayloadToBlockRef(s.Config, envelope.ExecutionPayload)
 		if err != nil {
@@ -294,7 +304,7 @@ func (s *SyncDeriver) onIncomingP2PBlock(ctx context.Context, envelope *eth.Exec
 			return
 		}
 		s.Log.Info("Optimistically inserting unsafe L2 execution payload to drive EL sync", "id", envelope.ExecutionPayload.ID())
-		if err := s.Engine.InsertUnsafePayload(s.Ctx, envelope, ref); err != nil {
+		if err := s.Engine.InsertUnsafePayload(s.Ctx, envelopeWithContext, ref); err != nil {
 			s.Log.Warn("Failed to insert unsafe payload for EL sync", "id", envelope.ExecutionPayload.ID(), "err", err)
 		}
 	}
@@ -418,12 +428,15 @@ func (s *Driver) ResetDerivationPipeline(ctx context.Context) error {
 	}
 }
 
-func (s *Driver) OnUnsafeL2Payload(ctx context.Context, payload *eth.ExecutionPayloadEnvelope) error {
-	s.emitter.Emit(ctx, p2p.ReceivedBlockEvent{
-		From:     "",
-		Envelope: payload,
-	})
-	return nil
+func (s *Driver) OnUnsafeL2Payload(ctx context.Context, envelope *eth.ExecutionPayloadEnvelopeWithContext) error {
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case s.unsafeL2Payloads <- envelope:
+		return nil
+	default:
+		return errors.New("failed to queue unsafe L2 payload")
+	}
 }
 
 func (s *Driver) StartSequencer(ctx context.Context, blockHash common.Hash) error {

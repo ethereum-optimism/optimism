@@ -81,7 +81,7 @@ type EngineController interface {
 	engine.RollupAPI
 	engine.LocalEngineControl
 	IsEngineSyncing() bool
-	InsertUnsafePayload(ctx context.Context, payload *eth.ExecutionPayloadEnvelope, ref eth.L2BlockRef) error
+	InsertUnsafePayload(ctx context.Context, payload *eth.ExecutionPayloadEnvelopeWithContext, ref eth.L2BlockRef) error
 	TryUpdateEngine(ctx context.Context) error
 	TryBackupUnsafeReorg(ctx context.Context) (bool, error)
 }
@@ -248,20 +248,21 @@ func NewDriver(
 
 	driverEmitter := sys.Register("driver", nil)
 	driver := &Driver{
-		statusTracker: statusTracker,
-		SyncDeriver:   syncDeriver,
-		sched:         schedDeriv,
-		emitter:       driverEmitter,
-		drain:         drain,
-		stateReq:      make(chan chan struct{}),
-		forceReset:    make(chan chan struct{}, 10),
-		driverConfig:  driverCfg,
-		driverCtx:     driverCtx,
-		driverCancel:  driverCancel,
-		log:           log,
-		sequencer:     sequencer,
-		metrics:       metrics,
-		altSync:       altSync,
+		statusTracker:    statusTracker,
+		SyncDeriver:      syncDeriver,
+		sched:            schedDeriv,
+		emitter:          driverEmitter,
+		drain:            drain,
+		stateReq:         make(chan chan struct{}),
+		forceReset:       make(chan chan struct{}, 10),
+		driverConfig:     driverCfg,
+		driverCtx:        driverCtx,
+		driverCancel:     driverCancel,
+		log:              log,
+		sequencer:        sequencer,
+		metrics:          metrics,
+		altSync:          altSync,
+		unsafeL2Payloads: make(chan *eth.ExecutionPayloadEnvelopeWithContext, 10),
 	}
 
 	return driver

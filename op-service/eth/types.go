@@ -2,6 +2,7 @@ package eth
 
 import (
 	"bytes"
+	"context"
 	"encoding/binary"
 	"encoding/json"
 	"errors"
@@ -293,6 +294,11 @@ func (payload *ExecutionPayload) BlockRef() BlockRef {
 		ParentHash: payload.ParentHash,
 		Time:       uint64(payload.Timestamp),
 	}
+}
+
+type ExecutionPayloadEnvelopeWithContext struct {
+	*ExecutionPayloadEnvelope
+	TraceContext context.Context
 }
 
 type rawTransactions []Data

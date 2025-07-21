@@ -375,7 +375,7 @@ func (e *EngineController) TryUpdateEngine(ctx context.Context) error {
 	return nil
 }
 
-func (e *EngineController) InsertUnsafePayload(ctx context.Context, envelope *eth.ExecutionPayloadEnvelope, ref eth.L2BlockRef) error {
+func (e *EngineController) InsertUnsafePayload(ctx context.Context, envelope *eth.ExecutionPayloadEnvelopeWithContext, ref eth.L2BlockRef) error {
 	// Check if there is a finalized head once when doing EL sync. If so, transition to CL sync
 	if e.syncStatus == syncStatusWillStartEL {
 		b, err := e.engine.L2BlockRefByLabel(ctx, eth.Finalized)
@@ -401,7 +401,7 @@ func (e *EngineController) InsertUnsafePayload(ctx context.Context, envelope *et
 	}
 	if status.Status == eth.ExecutionInvalid {
 		e.emitter.Emit(ctx, PayloadInvalidEvent{
-			Envelope: envelope,
+			Envelope: envelope.ExecutionPayloadEnvelope,
 			Err:      eth.NewPayloadErr(envelope.ExecutionPayload, status),
 		})
 	}

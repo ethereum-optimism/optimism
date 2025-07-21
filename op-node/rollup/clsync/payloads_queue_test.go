@@ -2,6 +2,7 @@ package clsync
 
 import (
 	"container/heap"
+	"context"
 	"testing"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -16,10 +17,13 @@ func TestPayloadsByNumber(t *testing.T) {
 	p := payloadsByNumber{}
 	mk := func(i uint64) payloadAndSize {
 		return payloadAndSize{
-			envelope: &eth.ExecutionPayloadEnvelope{
-				ExecutionPayload: &eth.ExecutionPayload{
-					BlockNumber: eth.Uint64Quantity(i),
+			envelope: &eth.ExecutionPayloadEnvelopeWithContext{
+				ExecutionPayloadEnvelope: &eth.ExecutionPayloadEnvelope{
+					ExecutionPayload: &eth.ExecutionPayload{
+						BlockNumber: eth.Uint64Quantity(i),
+					},
 				},
+				TraceContext: context.Background(),
 			},
 		}
 	}
@@ -78,8 +82,11 @@ func TestPayloadMemSize(t *testing.T) {
 		}}}), "mixed txs")
 }
 
-func envelope(payload *eth.ExecutionPayload) *eth.ExecutionPayloadEnvelope {
-	return &eth.ExecutionPayloadEnvelope{ExecutionPayload: payload}
+func envelope(payload *eth.ExecutionPayload) *eth.ExecutionPayloadEnvelopeWithContext {
+	return &eth.ExecutionPayloadEnvelopeWithContext{
+		ExecutionPayloadEnvelope: &eth.ExecutionPayloadEnvelope{ExecutionPayload: payload},
+		TraceContext: context.Background(),
+	}
 }
 
 func TestPayloadsQueue(t *testing.T) {

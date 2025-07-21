@@ -7,7 +7,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/ethereum-optimism/optimism/devnet-sdk/telemetry"
+	"github.com/ethereum-optimism/optimism/op-service/telemetry"
 	"github.com/ethereum-optimism/optimism/kurtosis-devnet/pkg/deploy"
 	"github.com/ethereum-optimism/optimism/kurtosis-devnet/pkg/kurtosis"
 	autofixTypes "github.com/ethereum-optimism/optimism/kurtosis-devnet/pkg/types"

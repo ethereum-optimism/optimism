@@ -13,6 +13,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-node/node/safedb"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/driver"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/engine"
 	"github.com/ethereum-optimism/optimism/op-node/version"
 	"github.com/ethereum-optimism/optimism/op-service/apis"
@@ -208,4 +209,23 @@ func (a *opstackAPI) CommitBlockV1(ctx context.Context, envelope *opsigner.Signe
 
 func (a *opstackAPI) PublishBlockV1(ctx context.Context, signed *opsigner.SignedExecutionPayloadEnvelope) error {
 	return a.publisher.PublishBlock(ctx, signed)
+}
+
+// rpcDriver adapts the driver.Driver to the driverClient interface with overrides for the OnUnsafeL2Payload method.
+// This is necessary because the driverClient interface expects a *eth.ExecutionPayloadEnvelope for RPC
+// but the driver uses *eth.ExecutionPayloadEnvelopeWithContext for tracing.
+type rpcDriver struct {
+	*driver.Driver
+}
+
+func (w *rpcDriver) OnUnsafeL2Payload(ctx context.Context, payload *eth.ExecutionPayloadEnvelope) error {
+	payloadWithContext := &eth.ExecutionPayloadEnvelopeWithContext{
+		ExecutionPayloadEnvelope: payload,
+		TraceContext:             ctx,
+	}
+	return w.Driver.OnUnsafeL2Payload(ctx, payloadWithContext)
+}
+
+func newRpcDriver(d *driver.Driver) driverClient {
+	return &rpcDriver{Driver: d}
 }

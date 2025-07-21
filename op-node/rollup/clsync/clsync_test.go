@@ -87,40 +87,46 @@ func TestCLSync(t *testing.T) {
 
 	a1L1Info, err := derive.L1InfoDepositBytes(cfg, cfg.Genesis.SystemConfig, refA1.SequenceNumber, aL1Info, refA1.Time)
 	require.NoError(t, err)
-	payloadA1 := &eth.ExecutionPayloadEnvelope{ExecutionPayload: &eth.ExecutionPayload{
-		ParentHash:    refA1.ParentHash,
-		FeeRecipient:  common.Address{},
-		StateRoot:     eth.Bytes32{},
-		ReceiptsRoot:  eth.Bytes32{},
-		LogsBloom:     eth.Bytes256{},
-		PrevRandao:    eth.Bytes32{},
-		BlockNumber:   eth.Uint64Quantity(refA1.Number),
-		GasLimit:      gasLimit,
-		GasUsed:       0,
-		Timestamp:     eth.Uint64Quantity(refA1.Time),
-		ExtraData:     nil,
-		BaseFeePerGas: eth.Uint256Quantity(*uint256.NewInt(7)),
-		BlockHash:     refA1.Hash,
-		Transactions:  []eth.Data{a1L1Info},
-	}}
+	payloadA1 := &eth.ExecutionPayloadEnvelopeWithContext{
+		ExecutionPayloadEnvelope: &eth.ExecutionPayloadEnvelope{ExecutionPayload: &eth.ExecutionPayload{
+			ParentHash:    refA1.ParentHash,
+			FeeRecipient:  common.Address{},
+			StateRoot:     eth.Bytes32{},
+			ReceiptsRoot:  eth.Bytes32{},
+			LogsBloom:     eth.Bytes256{},
+			PrevRandao:    eth.Bytes32{},
+			BlockNumber:   eth.Uint64Quantity(refA1.Number),
+			GasLimit:      gasLimit,
+			GasUsed:       0,
+			Timestamp:     eth.Uint64Quantity(refA1.Time),
+			ExtraData:     nil,
+			BaseFeePerGas: eth.Uint256Quantity(*uint256.NewInt(7)),
+			BlockHash:     refA1.Hash,
+			Transactions:  []eth.Data{a1L1Info},
+		}},
+		TraceContext: context.Background(),
+	}
 	a2L1Info, err := derive.L1InfoDepositBytes(cfg, cfg.Genesis.SystemConfig, refA2.SequenceNumber, aL1Info, refA2.Time)
 	require.NoError(t, err)
-	payloadA2 := &eth.ExecutionPayloadEnvelope{ExecutionPayload: &eth.ExecutionPayload{
-		ParentHash:    refA2.ParentHash,
-		FeeRecipient:  common.Address{},
-		StateRoot:     eth.Bytes32{},
-		ReceiptsRoot:  eth.Bytes32{},
-		LogsBloom:     eth.Bytes256{},
-		PrevRandao:    eth.Bytes32{},
-		BlockNumber:   eth.Uint64Quantity(refA2.Number),
-		GasLimit:      gasLimit,
-		GasUsed:       0,
-		Timestamp:     eth.Uint64Quantity(refA2.Time),
-		ExtraData:     nil,
-		BaseFeePerGas: eth.Uint256Quantity(*uint256.NewInt(7)),
-		BlockHash:     refA2.Hash,
-		Transactions:  []eth.Data{a2L1Info},
-	}}
+	payloadA2 := &eth.ExecutionPayloadEnvelopeWithContext{
+		ExecutionPayloadEnvelope: &eth.ExecutionPayloadEnvelope{ExecutionPayload: &eth.ExecutionPayload{
+			ParentHash:    refA2.ParentHash,
+			FeeRecipient:  common.Address{},
+			StateRoot:     eth.Bytes32{},
+			ReceiptsRoot:  eth.Bytes32{},
+			LogsBloom:     eth.Bytes256{},
+			PrevRandao:    eth.Bytes32{},
+			BlockNumber:   eth.Uint64Quantity(refA2.Number),
+			GasLimit:      gasLimit,
+			GasUsed:       0,
+			Timestamp:     eth.Uint64Quantity(refA2.Time),
+			ExtraData:     nil,
+			BaseFeePerGas: eth.Uint256Quantity(*uint256.NewInt(7)),
+			BlockHash:     refA2.Hash,
+			Transactions:  []eth.Data{a2L1Info},
+		}},
+		TraceContext: context.Background(),
+	}
 
 	metrics := &testutils.TestDerivationMetrics{}
 
@@ -379,7 +385,7 @@ func TestCLSync(t *testing.T) {
 		emitter.AssertExpectations(t)
 
 		// Pretend the payload is bad. It should not be retried after this.
-		cl.OnEvent(context.Background(), engine.PayloadInvalidEvent{Envelope: payloadA1, Err: errors.New("test err")})
+		cl.OnEvent(context.Background(), engine.PayloadInvalidEvent{Envelope: payloadA1.ExecutionPayloadEnvelope, Err: errors.New("test err")})
 		emitter.AssertExpectations(t)
 		require.Nil(t, cl.unsafePayloads.Peek(), "pop because invalid")
 	})
