@@ -24,6 +24,7 @@ var defaultOpConfig = &params.OptimismConfig{
 	EIP1559Elasticity:        6,
 	EIP1559Denominator:       50,
 	EIP1559DenominatorCanyon: ptr(uint64(250)),
+	EIP1559MinBaseFeeLog2:           20,
 }
 
 func ptr[T any](t T) *T {
@@ -212,7 +213,7 @@ func createMismatchedFeeRecipient() matchArgs {
 }
 
 func createMismatchedEIP1559Params() matchArgs {
-	args := holoceneArgs()
+	args := jovianArgs()
 	args.attrs.EIP1559Params[0]++ // so denominator is != 0
 	return args
 }
@@ -545,15 +546,15 @@ func TestWithdrawalsMatch(t *testing.T) {
 }
 
 func TestCheckEIP1559ParamsMatch(t *testing.T) {
-	params := eth.Bytes8{1, 2, 3, 4, 5, 6, 7, 8}
-	paramsAlt := eth.Bytes8{1, 2, 3, 4, 5, 6, 7, 9}
-	paramsInvalid := eth.Bytes8{0, 0, 0, 0, 5, 6, 7, 8}
+	params := eth.Bytes9{1, 2, 3, 4, 5, 6, 7, 8, 9}
+	paramsAlt := eth.Bytes9{1, 2, 3, 4, 5, 6, 7, 9, 9}
+	paramsInvalid := eth.Bytes9{0, 0, 0, 0, 5, 6, 7, 8, 9}
 	defaultExtraData := eth.BytesMax32(eip1559.EncodeHoloceneExtraData(
 		*defaultOpConfig.EIP1559DenominatorCanyon, defaultOpConfig.EIP1559Elasticity))
 
 	for _, test := range []struct {
 		desc           string
-		attrParams     *eth.Bytes8
+		attrParams     *eth.Bytes9
 		blockExtraData eth.BytesMax32
 		err            string
 	}{
@@ -562,7 +563,7 @@ func TestCheckEIP1559ParamsMatch(t *testing.T) {
 		},
 		{
 			desc:           "match-zero-attrs",
-			attrParams:     new(eth.Bytes8),
+			attrParams:     new(eth.Bytes9),
 			blockExtraData: defaultExtraData,
 		},
 		{
@@ -572,7 +573,7 @@ func TestCheckEIP1559ParamsMatch(t *testing.T) {
 		},
 		{
 			desc:           "err-both-zero",
-			attrParams:     new(eth.Bytes8),
+			attrParams:     new(eth.Bytes9),
 			blockExtraData: make(eth.BytesMax32, 9),
 			err:            "eip1559 parameters do not match, attributes: 250, 6 (translated from 0,0), block: 0, 0",
 		},

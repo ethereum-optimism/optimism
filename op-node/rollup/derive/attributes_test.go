@@ -302,7 +302,7 @@ func TestPreparePayloadAttributes(t *testing.T) {
 		defer l1Fetcher.AssertExpectations(t)
 		l2Parent := testutils.RandomL2BlockRef(rng)
 		l1CfgFetcher := &testutils.MockL2Client{}
-		eip1559Params := eth.Bytes8([]byte{0x1, 0x2, 0x3, 0x4, 0x5, 0x6, 0x7, 0x8})
+		eip1559Params := eth.Bytes9([]byte{0x1, 0x2, 0x3, 0x4, 0x5, 0x6, 0x7, 0x8, 0x9})
 		testSysCfg := eth.SystemConfig{
 			BatcherAddr:   common.Address{42},
 			Overhead:      [32]byte{},

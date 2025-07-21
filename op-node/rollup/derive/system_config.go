@@ -156,7 +156,8 @@ func ProcessSystemConfigUpdateLogEvent(destSysCfg *eth.SystemConfig, ev *types.L
 		if !solabi.EmptyReader(reader) {
 			return NewCriticalError(errors.New("too many bytes"))
 		}
-		copy(destSysCfg.EIP1559Params[:], params[24:32])
+		// Copy 9 bytes for Jovian (was 8 bytes for Holocene): params[23:32] contains denominator(4) + elasticity(4) + minBaseFeeLog2(1)
+		copy(destSysCfg.EIP1559Params[:], params[23:32])
 		return nil
 	case SystemConfigUpdateOperatorFeeParams:
 		if pointer, err := solabi.ReadUint64(reader); err != nil || pointer != 32 {
