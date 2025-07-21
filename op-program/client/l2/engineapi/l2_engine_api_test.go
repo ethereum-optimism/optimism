@@ -10,6 +10,7 @@ import (
 	"github.com/ethereum/go-ethereum/beacon/engine"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/ethereum/go-ethereum/consensus/misc/eip1559"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/rawdb"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -173,13 +174,16 @@ func createGenesis() *core.Genesis {
 	config.IsthmusTime = &zero
 	config.JovianTime = &zero
 
+	// For Jovian upgrade, use the proper EIP1559 extradata format
+	jovianExtraData := eip1559.EncodeJovianExtraData(250, 6, 20)
+
 	l2Genesis := &core.Genesis{
 		Config:     &config,
 		Difficulty: common.Big0,
 		ParentHash: common.Hash{},
 		BaseFee:    big.NewInt(7),
 		Alloc:      map[common.Address]types.Account{},
-		ExtraData:  []byte{0x0, 0x1, 0x2, 0x3, 0x4, 0x5, 0x6, 0x7, 0x8}, // for Holocene eip-1559 params
+		ExtraData:  jovianExtraData, // for Jovian eip-1559 params
 	}
 
 	return l2Genesis
