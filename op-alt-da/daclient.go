@@ -11,8 +11,7 @@ import (
 	"time"
 )
 
-// ErrNotFound is returned when the server could not find the input.
-var ErrNotFound = errors.New("not found")
+// =========== SetInput (PUT path) errors ===========
 
 // ErrInvalidInput is returned when the input is not valid for posting to the DA storage.
 var ErrInvalidInput = errors.New("invalid input")
@@ -22,17 +21,45 @@ var ErrInvalidInput = errors.New("invalid input")
 // See https://github.com/ethereum-optimism/specs/issues/434
 var ErrAltDADown = errors.New("alt DA is down: failover to eth DA")
 
-// InvalidCommitmentError is returned when the eigenda-proxy returns a 418 TEAPOT error,
-// which signifies that the cert in the altda commitment is invalid and should be dropped
-// from the derivation pipeline.
-// This error should be contained in the response body of the 418 TEAPOT error.
-type InvalidCommitmentError struct {
+// =========== GetInput (GET path) errors ===========
+
+// ErrNotFound is returned when the server could not find the input.
+// Note: this error only applies to keccak commitments, and not to EigenDA altda commitments,
+// because a cert that parses correctly and passes the recency check by definition proves
+// the availability of the blob that is certifies.
+// See https://github.com/Layr-Labs/eigenda/blob/f4ef5cd5/docs/spec/src/integration/spec/6-secure-integration.md#derivation-process for more info.
+var ErrNotFound = errors.New("not found")
+
+// DropEigenDACommitmentError is returned when the eigenda-proxy returns a 418 TEAPOT error,
+// which signifies that the commitment should be dropped/skipped from the derivation pipeline, as either:
+//  1. the cert in the commitment is invalid
+//  2. the cert's blob cannot be decoded into a frame (it was not encoded according to one of the supported codecs,
+//     see https://github.com/Layr-Labs/eigenda/blob/f4ef5cd5/api/clients/codecs/blob_codec.go#L7-L15)
+//
+// See https://github.com/Layr-Labs/eigenda/blob/f4ef5cd5/docs/spec/src/integration/spec/6-secure-integration.md#derivation-process for more info.
+//
+// This error is parsed from the json body of the 418 TEAPOT error response.
+// DropEigenDACommitmentError is the only error that can lead to a cert being dropped from the derivation pipeline.
+// It is needed to protect the rollup from liveness attacks (derivation pipeline stalled by malicious batcher).
+type DropEigenDACommitmentError struct {
+	// The StatusCode field MUST be contained in the response body of the 418 TEAPOT error.
 	StatusCode int
-	Msg        string
+	// The Msg field is a human-readable string that explains the error.
+	// It is optional, but should ideally be set to a meaningful value.
+	Msg string
 }
 
-func (e InvalidCommitmentError) Error() string {
+func (e DropEigenDACommitmentError) Error() string {
 	return fmt.Sprintf("Invalid AltDA Commitment: cert verification failed with status code %v: %v", e.StatusCode, e.Msg)
+}
+
+// Validate that the status code is an integer between 1 and 4, and panics if it is not.
+func (e DropEigenDACommitmentError) Validate() {
+	if e.StatusCode < 1 || e.StatusCode > 4 {
+		panic(fmt.Sprintf("DropEigenDACommitmentError: invalid status code %d, must be between 1 and 4", e.StatusCode))
+	}
+	// The Msg field should ideally be a human-readable string that explains the error,
+	// but we don't enforce it.
 }
 
 // DAClient is an HTTP client to communicate with a DA storage service.
@@ -77,19 +104,17 @@ func (c *DAClient) GetInput(ctx context.Context, comm CommitmentData, l1Inclusio
 	}
 	if resp.StatusCode == http.StatusTeapot {
 		defer resp.Body.Close()
-		// Limit the body to 1000 bytes to prevent being DDoSed with a large error message.
-		bytesLimitedBody := io.LimitReader(resp.Body, 1000)
+		// Limit the body to 5000 bytes to prevent being DDoSed with a large error message.
+		bytesLimitedBody := io.LimitReader(resp.Body, 5000)
 		bodyBytes, _ := io.ReadAll(bytesLimitedBody)
 
-		var invalidCommitmentErr InvalidCommitmentError
-		// We assume that the body of the 418 TEAPOT error is a JSON object,
-		// which was introduced in https://github.com/Layr-Labs/eigenda-proxy/pull/406
-		// If it isn't because an older version of the proxy is used, then we just set the Msg field to the body bytes.
+		var invalidCommitmentErr DropEigenDACommitmentError
 		if err := json.Unmarshal(bodyBytes, &invalidCommitmentErr); err != nil {
-			fmt.Println("DAClient.GetInput: Failed to decode 418 HTTP error body into an InvalidCommitmentError: "+
-				"consider updating proxy to a more recent version that contains https://github.com/Layr-Labs/eigenda-proxy/pull/406: ", err)
-			invalidCommitmentErr.Msg = string(bodyBytes)
+			return nil, fmt.Errorf("failed to decode 418 TEAPOT HTTP error body into a DropEigenDACommitmentError. "+
+				"Consider updating proxy to a more recent version that contains https://github.com/Layr-Labs/eigenda/pull/1736: "+
+				"%w", err)
 		}
+		invalidCommitmentErr.Validate()
 		return nil, invalidCommitmentErr
 	}
 	if resp.StatusCode != http.StatusOK {
