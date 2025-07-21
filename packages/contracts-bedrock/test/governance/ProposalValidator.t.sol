@@ -485,6 +485,36 @@ contract ProposalValidator_Init is CommonTest {
         );
     }
 
+    /// @notice Helper function to mock proposal types configurator call with changed module
+    function _mockProposalTypesConfiguratorCallWithUninitializedModule(uint8 _votingModuleId) internal {
+        address moduleAddress;
+        if (_votingModuleId == APPROVAL_VOTING_MODULE_ID) {
+            moduleAddress = approvalVotingModule;
+        } else if (_votingModuleId == OPTIMISTIC_VOTING_MODULE_ID) {
+            moduleAddress = optimisticVotingModule;
+        }
+
+        _mockAndExpect(
+            address(governor),
+            abi.encodeCall(IOptimismGovernor.PROPOSAL_TYPES_CONFIGURATOR, ()),
+            abi.encode(proposalTypesConfigurator)
+        );
+
+        _mockAndExpect(
+            address(proposalTypesConfigurator),
+            abi.encodeCall(IProposalTypesConfigurator.proposalTypes, (_votingModuleId)),
+            abi.encode(
+                IProposalTypesConfigurator.ProposalType({
+                    quorum: 0,
+                    approvalThreshold: 0,
+                    name: "",
+                    description: "",
+                    module: address(0)
+                })
+            )
+        );
+    }
+
     /// @notice Initializes the validator
     function _initializeValidator() internal virtual {
         (
@@ -943,6 +973,21 @@ contract ProposalValidator_SubmitUpgradeProposal_TestFail is ProposalValidator_I
         );
     }
 
+    function test_submitUpgradeProposal_invalidVotingModule_reverts() public {
+        uint248 againstThreshold = 5000; // 50%
+        ProposalValidator.ProposalType proposalType = ProposalValidator.ProposalType.ProtocolOrGovernorUpgrade;
+        bytes32 attestationUid = _createApprovedProposerAttestation(topDelegate_A, proposalType);
+
+        // Mock configurator to return uninitialized module
+        _mockProposalTypesConfiguratorCallWithUninitializedModule(OPTIMISTIC_VOTING_MODULE_ID);
+
+        vm.expectRevert(ProposalValidator.ProposalValidator_InvalidVotingModule.selector);
+        vm.prank(topDelegate_A);
+        validator.submitUpgradeProposal(
+            againstThreshold, proposalDescription, attestationUid, proposalType, CYCLE_NUMBER
+        );
+    }
+
     function testFuzz_submitUpgradeProposal_duplicateProposal_reverts(uint8 proposalTypeValue) public {
         // Bound proposal type to only upgrade proposals (0 = ProtocolOrGovernorUpgrade, 1 = MaintenanceUpgrade)
         proposalTypeValue = uint8(bound(proposalTypeValue, 0, 1));
@@ -1377,6 +1422,20 @@ contract ProposalValidator_SubmitCouncilMemberElectionsProposal_TestFail is Prop
             criteriaValue, optionDescriptions, proposalDescription, revocableAttestationUid, CYCLE_NUMBER
         );
     }
+
+    function test_submitCouncilMemberElectionsProposal_invalidVotingModule_reverts() public {
+        attestationUid =
+            _createApprovedProposerAttestation(topDelegate_A, ProposalValidator.ProposalType.CouncilMemberElections);
+
+        // Mock configurator to return uninitialized module
+        _mockProposalTypesConfiguratorCallWithUninitializedModule(APPROVAL_VOTING_MODULE_ID);
+
+        vm.expectRevert(ProposalValidator.ProposalValidator_InvalidVotingModule.selector);
+        vm.prank(topDelegate_A);
+        validator.submitCouncilMemberElectionsProposal(
+            criteriaValue, optionDescriptions, proposalDescription, attestationUid, CYCLE_NUMBER
+        );
+    }
 }
 
 /// @title ProposalValidator_SubmitFundingProposal_Test
@@ -1740,6 +1799,21 @@ contract ProposalValidator_SubmitFundingProposal_TestFail is ProposalValidator_I
             description,
             proposalType,
             CYCLE_NUMBER
+        );
+    }
+
+    function test_submitFundingProposal_invalidVotingModule_reverts() public {
+        ProposalValidator.ProposalType proposalType = ProposalValidator.ProposalType.GovernanceFund;
+        (string[] memory descriptions, address[] memory recipients, uint256[] memory amounts) =
+            _createMinimalFundingArrays(1);
+
+        // Mock configurator to return uninitialized module
+        _mockProposalTypesConfiguratorCallWithUninitializedModule(APPROVAL_VOTING_MODULE_ID);
+
+        vm.expectRevert(ProposalValidator.ProposalValidator_InvalidVotingModule.selector);
+        vm.prank(user);
+        validator.submitFundingProposal(
+            FUNDING_CRITERIA_VALUE, descriptions, recipients, amounts, description, proposalType, CYCLE_NUMBER
         );
     }
 }
