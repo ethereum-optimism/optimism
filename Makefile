@@ -214,7 +214,6 @@ TEST_PKGS := \
 	./op-deployer/pkg/deployer/broadcaster/... \
 	./op-deployer/pkg/deployer/clean/... \
 	./op-deployer/pkg/deployer/integration_test/... \
-	./op-deployer/pkg/deployer/interop/... \
 	./op-deployer/pkg/deployer/standard/... \
 	./op-deployer/pkg/deployer/state/... \
 	./op-deployer/pkg/deployer/verify/...
