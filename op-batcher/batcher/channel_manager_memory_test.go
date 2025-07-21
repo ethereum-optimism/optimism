@@ -62,10 +62,6 @@ func TestChannelManager_Memory(t *testing.T) {
 	for _, compressor := range compressorConfigs {
 		for _, algo := range compressionAlgos {
 			for _, batch := range batchTypes {
-				// Skip compression algorithms for NoneCompressor (they don't matter)
-				if compressor.name == "NoneCompressor" && algo.name != "Zlib" {
-					continue
-				}
 				testName := compressor.name + "_" + algo.name + "_" + batch.name
 
 				t.Run(testName, func(t *testing.T) {
