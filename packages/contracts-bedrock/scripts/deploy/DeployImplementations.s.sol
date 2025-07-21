@@ -6,6 +6,7 @@ import { Script } from "forge-std/Script.sol";
 // Libraries
 import { Chains } from "scripts/libraries/Chains.sol";
 import { LibString } from "@solady/utils/LibString.sol";
+import { DeployConfig } from "scripts/deploy/DeployConfig.s.sol";
 
 // Interfaces
 import { IResourceMetering } from "interfaces/L1/IResourceMetering.sol";
@@ -635,7 +636,7 @@ contract DeployImplementations is Script {
         assertValidMipsSingleton(_input, _output);
         assertValidOpcm(_input, _output);
         assertValidOptimismMintableERC20FactoryImpl(_input, _output);
-        assertValidOptimismPortalImpl(_input, _output);
+        ChainAssertions.checkOptimismPortal2(ChainAssertions.dioToContractSet(_output), DeployConfig(address(0)), false);
         assertValidETHLockboxImpl(_input, _output);
         assertValidPreimageOracleSingleton(_input, _output);
         assertValidSystemConfigImpl(_input, _output);
@@ -646,22 +647,6 @@ contract DeployImplementations is Script {
         require(address(impl.superchainConfig()) == address(_input.superchainConfigProxy), "OPCMI-10");
         require(address(impl.protocolVersions()) == address(_input.protocolVersionsProxy), "OPCMI-20");
         require(impl.upgradeController() == _input.upgradeController, "OPCMI-30");
-    }
-
-    function assertValidOptimismPortalImpl(Input memory, Output memory _output) private view {
-        IOptimismPortal portal = _output.optimismPortalImpl;
-
-        DeployUtils.assertInitialized({ _contractAddress: address(portal), _isProxy: false, _slot: 0, _offset: 0 });
-
-        require(address(portal.anchorStateRegistry()) == address(0), "PORTAL-10");
-        require(address(portal.systemConfig()) == address(0), "PORTAL-20");
-        require(portal.l2Sender() == address(0), "PORTAL-30");
-
-        // This slot is the custom gas token _balance and this check ensures
-        // that it stays unset for forwards compatibility with custom gas token.
-        require(vm.load(address(portal), bytes32(uint256(61))) == bytes32(0), "PORTAL-40");
-
-        require(address(portal.ethLockbox()) == address(0), "PORTAL-50");
     }
 
     function assertValidETHLockboxImpl(Input memory, Output memory _output) private view {

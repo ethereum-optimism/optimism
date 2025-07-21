@@ -7,6 +7,7 @@ import { console2 as console } from "forge-std/console2.sol";
 
 // Scripts
 import { DeployConfig } from "scripts/deploy/DeployConfig.s.sol";
+import { DeployImplementations } from "scripts/deploy/DeployImplementations.s.sol";
 import { DeployUtils } from "scripts/libraries/DeployUtils.sol";
 
 // Libraries
@@ -319,20 +320,18 @@ library ChainAssertions {
         // Check that the contract is initialized
         DeployUtils.assertInitialized({ _contractAddress: address(portal), _isProxy: _isProxy, _slot: 0, _offset: 0 });
 
-        address guardian = _cfg.superchainConfigGuardian();
-        if (guardian.code.length == 0) {
-            console.log("Guardian has no code: %s", guardian);
-        }
-
         if (_isProxy) {
-            require(address(portal.disputeGameFactory()) == _contracts.DisputeGameFactory, "CHECK-OP2-20");
+            address guardian = _cfg.superchainConfigGuardian();
+            if (guardian.code.length == 0) {
+                console.log("Guardian has no code: %s", guardian);
+            }
             require(address(portal.anchorStateRegistry()) == _contracts.AnchorStateRegistry, "CHECK-OP2-25");
-            require(address(portal.systemConfig()) == _contracts.SystemConfig, "CHECK-OP2-30");
             require(portal.guardian() == guardian, "CHECK-OP2-40");
-            require(address(portal.systemConfig()) == address(_contracts.SystemConfig), "CHECK-OP2-50");
             require(portal.paused() == ISystemConfig(_contracts.SystemConfig).paused(), "CHECK-OP2-60");
             require(portal.l2Sender() == Constants.DEFAULT_L2_SENDER, "CHECK-OP2-70");
             require(address(portal.ethLockbox()) == _contracts.ETHLockbox, "CHECK-OP2-80");
+            require(address(portal.superchainConfig()) == address(_contracts.SuperchainConfig), "CHECK-OP2-90");
+            require(portal.proxyAdminOwner() == _cfg.finalSystemOwner(), "CHECK-OP2-100");
         } else {
             require(address(portal.anchorStateRegistry()) == address(0), "CHECK-OP2-80");
             require(address(portal.systemConfig()) == address(0), "CHECK-OP2-90");
@@ -505,5 +504,29 @@ library ChainAssertions {
             keccak256(fullPermissionedDisputeGameInitcode) == keccak256(vm.getCode("PermissionedDisputeGame")),
             "CHECK-OPCM-210"
         );
+    }
+
+    /// @notice Converts variables needed from the DeployConfig to a DeployOPChainInput contract
+    function dioToContractSet(DeployImplementations.Output memory _output)
+        internal
+        pure
+        returns (Types.ContractSet memory)
+    {
+        return Types.ContractSet({
+            L1CrossDomainMessenger: address(_output.l1CrossDomainMessengerImpl),
+            L1StandardBridge: address(_output.l1StandardBridgeImpl),
+            L2OutputOracle: address(0),
+            DisputeGameFactory: address(_output.disputeGameFactoryImpl),
+            DelayedWETH: address(_output.delayedWETHImpl),
+            PermissionedDelayedWETH: address(_output.delayedWETHImpl),
+            AnchorStateRegistry: address(_output.anchorStateRegistryImpl),
+            OptimismMintableERC20Factory: address(_output.optimismMintableERC20FactoryImpl),
+            OptimismPortal: address(_output.optimismPortalImpl),
+            ETHLockbox: address(_output.ethLockboxImpl),
+            SystemConfig: address(_output.systemConfigImpl),
+            L1ERC721Bridge: address(_output.l1ERC721BridgeImpl),
+            ProtocolVersions: address(_output.protocolVersionsImpl),
+            SuperchainConfig: address(_output.superchainConfigImpl)
+        });
     }
 }
