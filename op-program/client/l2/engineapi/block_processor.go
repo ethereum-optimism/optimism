@@ -56,12 +56,23 @@ func NewBlockProcessorFromPayloadAttributes(provider BlockDataProvider, parent c
 		ParentBeaconRoot: attrs.ParentBeaconBlockRoot,
 	}
 	if attrs.EIP1559Params != nil {
-		d, e := eip1559.DecodeHolocene1559Params(attrs.EIP1559Params[:])
-		if d == 0 {
-			d = provider.Config().BaseFeeChangeDenominator(header.Time)
-			e = provider.Config().ElasticityMultiplier()
+		if provider.Config().IsJovian(header.Time) {
+			d, e, m := eip1559.DecodeJovian1559Params(attrs.EIP1559Params[:])
+			if d == 0 {
+				d = provider.Config().BaseFeeChangeDenominator(header.Time)
+				e = provider.Config().ElasticityMultiplier()
+				m = 20 // Default MinBaseFeeLog2 to 20 when not configured
+			}
+			header.Extra = eip1559.EncodeJovianExtraData(d, e, m)
+		} else {
+			// Backward compatibility: decode as Jovian but encode as Holocene
+			d, e, _ := eip1559.DecodeJovian1559Params(attrs.EIP1559Params[:])
+			if d == 0 {
+				d = provider.Config().BaseFeeChangeDenominator(header.Time)
+				e = provider.Config().ElasticityMultiplier()
+			}
+			header.Extra = eip1559.EncodeHoloceneExtraData(d, e)
 		}
-		header.Extra = eip1559.EncodeHoloceneExtraData(d, e)
 	}
 
 	return NewBlockProcessorFromHeader(provider, header)

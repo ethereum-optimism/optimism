@@ -145,9 +145,14 @@ func blockToDepositsOnlyAttributes(cfg *rollup.Config, block *types.Block, outpu
 		NoTxPool:              true,
 		GasLimit:              &gasLimit,
 	}
-	if cfg.IsHolocene(block.Time()) {
+	if cfg.IsJovian(block.Time()) {
+		d, e, m := eip1559.DecodeJovianExtraData(block.Extra())
+		eip1559Params := eth.Bytes9(eip1559.EncodeJovian1559Params(d, e, m))
+		attrs.EIP1559Params = &eip1559Params
+	} else if cfg.IsHolocene(block.Time()) {
 		d, e := eip1559.DecodeHoloceneExtraData(block.Extra())
-		eip1559Params := eth.Bytes8(eip1559.EncodeHolocene1559Params(d, e))
+		// Convert Holocene to Jovian format with MinBaseFeeLog2 = 0
+		eip1559Params := eth.Bytes9(eip1559.EncodeJovian1559Params(d, e, 0))
 		attrs.EIP1559Params = &eip1559Params
 	}
 	return attrs, nil
