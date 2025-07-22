@@ -3,12 +3,14 @@ package main
 import (
 	"context"
 	"fmt"
+	"log"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
 
 	"github.com/ethereum-optimism/optimism/devnet-sdk/telemetry"
+	"github.com/ethereum-optimism/optimism/op-acceptance-tests/buildcache"
 	"github.com/honeycombio/otel-config-go/otelconfig"
 	"github.com/urfave/cli/v2"
 	"go.opentelemetry.io/otel"
@@ -105,6 +107,72 @@ func main() {
 	}
 }
 
+// ensureContractsBuilt ensures that contract artifacts are built and up-to-date
+func ensureContractsBuilt(ctx context.Context, contractsDir string) error {
+	logger := log.New(os.Stdout, "[BUILD-CACHE] ", log.LstdFlags)
+
+	// Log the start of build optimization process
+	logger.Printf("Starting build optimization for contracts directory: %s", contractsDir)
+
+	// Validate contracts directory exists before proceeding
+	if err := validateContractsDirectory(contractsDir, logger); err != nil {
+		logger.Printf("Contracts directory validation failed: %v", err)
+		return fmt.Errorf("contracts directory validation failed: %w", err)
+	}
+
+	// Create build manager
+	buildManager := buildcache.NewSmartBuildManager(contractsDir, logger)
+
+	// Execute build with optimization
+	if err := buildManager.ExecuteBuild(ctx); err != nil {
+		logger.Printf("Build execution failed: %v", err)
+
+		// Attempt to provide more context about the failure
+		if status, statusErr := buildManager.GetCacheStatus(ctx); statusErr == nil {
+			logger.Printf("Cache status at failure - Valid: %v, Reason: %s, Missing artifacts: %v",
+				status.IsValid, status.Reason, status.MissingArtifacts)
+		}
+
+		return fmt.Errorf("failed to ensure contracts are built: %w", err)
+	}
+
+	logger.Printf("Build optimization completed successfully")
+	return nil
+}
+
+// validateContractsDirectory performs basic validation of the contracts directory
+func validateContractsDirectory(contractsDir string, logger *log.Logger) error {
+	// Check if contracts directory exists
+	info, err := os.Stat(contractsDir)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return fmt.Errorf("contracts directory does not exist: %s", contractsDir)
+		}
+		if os.IsPermission(err) {
+			return fmt.Errorf("permission denied accessing contracts directory: %s", contractsDir)
+		}
+		return fmt.Errorf("error accessing contracts directory %s: %w", contractsDir, err)
+	}
+
+	if !info.IsDir() {
+		return fmt.Errorf("contracts path is not a directory: %s", contractsDir)
+	}
+
+	// Check for expected subdirectories
+	expectedDirs := []string{"src", "foundry.toml"}
+	for _, expectedPath := range expectedDirs {
+		fullPath := filepath.Join(contractsDir, expectedPath)
+		if _, err := os.Stat(fullPath); err != nil {
+			if os.IsNotExist(err) {
+				logger.Printf("Warning: Expected path not found: %s", fullPath)
+				// Don't fail here, just warn - some paths might be optional
+			}
+		}
+	}
+
+	return nil
+}
+
 func runAcceptanceTest(c *cli.Context) error {
 	// Get command line arguments
 	orchestrator := c.String(orchestratorFlag.Name)
@@ -172,6 +240,16 @@ func runAcceptanceTest(c *cli.Context) error {
 	defer span.End()
 
 	steps := []func(ctx context.Context) error{}
+
+	// Add build cache validation step for sysgo orchestrator
+	if orchestrator == "sysgo" {
+		steps = append(steps,
+			func(ctx context.Context) error {
+				contractsDir := filepath.Join(absTestDir, "packages", "contracts-bedrock")
+				return ensureContractsBuilt(ctx, contractsDir)
+			},
+		)
+	}
 
 	// Deploy devnet if needed (simple name devnets only, when not reusing)
 	if needsDeployment {

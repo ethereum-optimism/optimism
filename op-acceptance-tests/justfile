@@ -1,3 +1,12 @@
+# Build Optimization Environment Variables:
+# - FORCE_REBUILD: Set to "true" to force a full clean rebuild of contracts (default: false)
+# - SKIP_BUILD_CHECK: Set to "true" to skip build cache validation and always rebuild (default: false)
+# - BUILD_CACHE_DEBUG: Set to "true" to enable verbose build optimization logging (default: false)
+#
+# Example usage:
+#   FORCE_REBUILD=true just acceptance-test "" base
+#   BUILD_CACHE_DEBUG=true just acceptance-test "" holocene
+
 REPO_ROOT := `realpath ..`
 KURTOSIS_DIR := REPO_ROOT + "/kurtosis-devnet"
 ACCEPTOR_VERSION := env_var_or_default("ACCEPTOR_VERSION", "v1.0.0")
@@ -38,11 +47,11 @@ acceptance-test devnet="" gate="holocene":
     fi
 
     # For sysgo orchestrator (in-process testing) ensure:
-    # - contracts are built
+    # - contracts are built (handled by Go-based build optimization in main.go)
     # - cannon dependencies are built
-    # Note: build contracts only if not in CI (CI jobs already take care of this)
+    # Note: Contract building is now handled by the Go entry point with intelligent caching
     if [[ "{{devnet}}" == "" && -z "${CIRCLECI:-}" ]]; then
-        echo "Building contracts (local build)..."
+        echo "Preparing for local build..."
         cd {{REPO_ROOT}}
         echo " - Updating submodules..."
         git submodule update --init --recursive
@@ -51,9 +60,6 @@ acceptance-test devnet="" gate="holocene":
         cd packages/contracts-bedrock
         echo " - Installing contracts..."
         just install
-        echo " - Cleaning forge..."
-        forge clean
-        just forge-build
         cd {{REPO_ROOT}}
 
         echo "Checking cannon dependencies..."
