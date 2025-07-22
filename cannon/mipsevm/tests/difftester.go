@@ -349,9 +349,9 @@ func (e vmPanicResult) assertExpectedResult(t testing.TB, goVm mipsevm.FPVM, vmV
 	if panicErr, ok := e.panicValue.(error); ok {
 		require.PanicsWithError(t, panicErr.Error(), func() { _, _ = goVm.Step(false) })
 	} else if panicStr, ok := e.panicValue.(string); ok {
-		require.PanicsWithValue(t, e.panicValue, func() { _, _ = goVm.Step(false) })
+		require.PanicsWithValue(t, panicStr, func() { _, _ = goVm.Step(false) })
 	} else {
-		t.Fatalf("Invalid panic value provided.  Go panic value must be a string or error.  Got: %v", panicStr)
+		t.Fatalf("Invalid panic value provided.  Go panic value must be a string or error.  Got: %v", e.panicValue)
 	}
 }
 
