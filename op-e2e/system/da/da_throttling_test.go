@@ -74,7 +74,8 @@ func TestDATxThrottling(t *testing.T) {
 
 	// disable throttling to let big tx through
 	batcher.Config.ThrottleParams.TxSize = math.MaxUint64
-	batcher.SetThrottleController(config.StepControllerType, nil) // We need to set the controller again to propagate the change
+	err = batcher.SetThrottleController(config.StepControllerType, nil) // We need to set the controller again to propagate the change
+	require.NoError(t, err)
 
 	select {
 	case <-done:
