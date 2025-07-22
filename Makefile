@@ -216,7 +216,8 @@ TEST_PKGS := \
 	./op-deployer/pkg/deployer/integration_test/... \
 	./op-deployer/pkg/deployer/standard/... \
 	./op-deployer/pkg/deployer/state/... \
-	./op-deployer/pkg/deployer/verify/...
+	./op-deployer/pkg/deployer/verify/... \
+	./op-sync-tester/...
 
 FRAUD_PROOF_TEST_PKGS := \
 	./op-e2e/faultproofs/...
