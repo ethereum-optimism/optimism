@@ -6,7 +6,6 @@ import (
 	"os"
 	"testing"
 
-	"github.com/ethereum/go-ethereum/core/tracing"
 	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm"
@@ -977,39 +976,43 @@ var NoopSyscalls = map[string]uint32{
 
 func TestEVM_EmptyThreadStacks(t *testing.T) {
 	t.Parallel()
-	var tracer *tracing.Hooks
 
-	cases := []struct {
+	proofVariations := GenerateEmptyThreadProofVariations(t)
+
+	type baseTest struct {
 		name           string
 		otherStackSize int
 		traverseRight  bool
-	}{
+	}
+	baseTests := []baseTest{
 		{name: "Traverse right with empty stacks", otherStackSize: 0, traverseRight: true},
 		{name: "Traverse left with empty stacks", otherStackSize: 0, traverseRight: false},
 		{name: "Traverse right with one non-empty stack on the other side", otherStackSize: 1, traverseRight: true},
 		{name: "Traverse left with one non-empty stack on the other side", otherStackSize: 1, traverseRight: false},
 	}
-	// Generate proof variations
-	proofVariations := GenerateEmptyThreadProofVariations(t)
 
-	vmVersions := GetMipsVersionTestCases(t)
-	for _, ver := range vmVersions {
-		for i, c := range cases {
-			for _, proofCase := range proofVariations {
-				testName := fmt.Sprintf("%v (vm=%v,proofCase=%v)", c.name, ver.Name, proofCase.Name)
-				t.Run(testName, func(t *testing.T) {
-					goVm := ver.VMFactory(nil, os.Stdout, os.Stderr, testutil.CreateLogger(), mtutil.WithRandomization(int64(i*123)))
-					state := mtutil.GetMtState(t, goVm)
-					mtutil.SetupThreads(int64(i*123), state, c.traverseRight, 0, c.otherStackSize)
-
-					require.PanicsWithValue(t, "Active thread stack is empty", func() { _, _ = goVm.Step(false) })
-
-					errorMessage := "active thread stack is empty"
-					testutil.AssertEVMReverts(t, state, ver.Contracts, tracer, proofCase.Proof, testutil.CreateErrorStringMatcher(errorMessage))
-				})
-			}
-		}
+	type testCase = testutil.TestCaseVariation[baseTest, threadProofTestcase]
+	testNamer := func(tc testCase) string {
+		return fmt.Sprintf("%v-%v", tc.Base.name, tc.Variation.Name)
 	}
+
+	cases := testutil.TestVariations(baseTests, proofVariations)
+
+	initState := func(c testCase, state *multithreaded.State, vm VersionedVMTestCase, r *testutil.RandHelper) {
+		b := c.Base
+		mtutil.SetupThreads(r.Int64(1000), state, b.traverseRight, 0, b.otherStackSize)
+	}
+
+	setExpectations := func(c testCase, expected *mtutil.ExpectedState, vm VersionedVMTestCase) ExpectedExecResult {
+		goPanic := "Active thread stack is empty"
+		evmErr := "active thread stack is empty"
+		return ExpectVmPanic(goPanic, evmErr, WithProofData(c.Variation.Proof))
+	}
+
+	NewDiffTester(testNamer).
+		InitState(initState).
+		SetExpectations(setExpectations).
+		Run(t, cases)
 }
 
 func TestEVM_NormalTraversal_Full(t *testing.T) {

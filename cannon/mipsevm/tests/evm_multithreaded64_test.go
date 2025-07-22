@@ -711,25 +711,34 @@ func TestEVM_UnsupportedSyscall64(t *testing.T) {
 
 // Asserts the undefined syscall handling on cannon64 triggers a VM panic
 func TestEVM_UndefinedSyscall(t *testing.T) {
-	// These syscalls all have the same value. We enumerate them here anyways for completeness.
-	undefinedSyscalls := map[string]uint64{
-		"SysFstat64": arch.SysFstat64,
-		"SysStat64":  arch.SysStat64,
-		"SysLlseek":  arch.SysLlseek,
+	type testCase struct {
+		name       string
+		syscallNum Word
 	}
-	for name, val := range undefinedSyscalls {
-		for _, version := range GetMipsVersionTestCases(t) {
-			t.Run(fmt.Sprintf("%v-%v", version.Name, name), func(t *testing.T) {
-				t.Parallel()
-				goVm, state, contracts := setupWithTestCase(t, version, int(val), nil)
-				testutil.StoreInstruction(state.Memory, state.GetPC(), syscallInsn)
-				state.GetRegistersRef()[2] = Word(val) // Set syscall number
-				proofData := multiThreadedProofGenerator(t, state)
 
-				require.Panics(t, func() { _, _ = goVm.Step(true) })
-				errorMessage := "unimplemented syscall"
-				testutil.AssertEVMReverts(t, state, contracts, nil, proofData, testutil.CreateErrorStringMatcher(errorMessage))
-			})
-		}
+	testNamer := func(tc testCase) string {
+		return tc.name
 	}
+
+	cases := []testCase{
+		{"SysFstat64", arch.SysFstat64},
+		{"SysStat64", arch.SysStat64},
+		{"SysLlseek", arch.SysLlseek},
+	}
+
+	initState := func(tt testCase, state *multithreaded.State, vm VersionedVMTestCase, r *testutil.RandHelper) {
+		testutil.StoreInstruction(state.Memory, state.GetPC(), syscallInsn)
+		state.GetRegistersRef()[2] = Word(tt.syscallNum)
+	}
+
+	setExpectations := func(tt testCase, expected *mtutil.ExpectedState, vm VersionedVMTestCase) ExpectedExecResult {
+		goPanic := fmt.Sprintf("unrecognized syscall: %d", tt.syscallNum)
+		evmErr := "unimplemented syscall"
+		return ExpectVmPanic(goPanic, evmErr)
+	}
+
+	NewDiffTester(testNamer).
+		InitState(initState).
+		SetExpectations(setExpectations).
+		Run(t, cases)
 }

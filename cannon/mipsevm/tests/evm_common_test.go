@@ -11,7 +11,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ethereum/go-ethereum/core/tracing"
 	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/arch"
@@ -534,7 +533,7 @@ func TestEVM_SingleStep_JrJalr(t *testing.T) {
 
 				if tt.errorMsg != "" {
 					proofData := v.ProofGenerator(t, goVm.GetState())
-					errorMatcher := testutil.CreateErrorStringMatcher(tt.errorMsg)
+					errorMatcher := testutil.StringErrorMatcher(tt.errorMsg)
 					require.Panics(t, func() { _, _ = goVm.Step(false) })
 					testutil.AssertEVMReverts(t, state, v.Contracts, nil, proofData, errorMatcher)
 				} else {
@@ -925,52 +924,56 @@ func TestEVM_SysWriteHint(t *testing.T) {
 }
 
 func TestEVM_Fault(t *testing.T) {
-	var tracer *tracing.Hooks // no-tracer by default, but see test_util.MarkdownTracer
+	type testCase struct {
+		name         string
+		pc           arch.Word
+		nextPC       arch.Word
+		insn         uint32
+		goPanicValue interface{}
+		evmErrStr    string
+		evmErrSig    string
+	}
 
-	versions := GetMipsVersionTestCases(t)
+	testNamer := func(tc testCase) string {
+		return tc.name
+	}
 
-	misAlignedInstructionErr := func() testutil.ErrMatcher {
-		if arch.IsMips32 {
-			// matches revert(0,0)
-			return testutil.CreateNoopErrorMatcher()
+	cases := []testCase{
+		{name: "illegal instruction", nextPC: 0, insn: 0b111110 << 26, evmErrStr: "invalid instruction", goPanicValue: "invalid instruction: f8000000"},
+		{name: "branch in delay-slot", nextPC: 8, insn: 0x11_02_00_03, evmErrStr: "branch in delay slot", goPanicValue: "branch in delay slot"},
+		{name: "jump in delay-slot", nextPC: 8, insn: 0x0c_00_00_0c, evmErrStr: "jump in delay slot", goPanicValue: "jump in delay slot"},
+		{name: "misaligned instruction", pc: 1, nextPC: 4, insn: 0b110111_00001_00001 << 16, evmErrSig: "InvalidPC()", goPanicValue: fmt.Errorf("invalid pc: 1")},
+		{name: "misaligned instruction", pc: 2, nextPC: 4, insn: 0b110111_00001_00001 << 16, evmErrSig: "InvalidPC()", goPanicValue: fmt.Errorf("invalid pc: 2")},
+		{name: "misaligned instruction", pc: 3, nextPC: 4, insn: 0b110111_00001_00001 << 16, evmErrSig: "InvalidPC()", goPanicValue: fmt.Errorf("invalid pc: 3")},
+		{name: "misaligned instruction", pc: 5, nextPC: 4, insn: 0b110111_00001_00001 << 16, evmErrSig: "InvalidPC()", goPanicValue: fmt.Errorf("invalid pc: 5")},
+	}
+
+	initState := func(tt testCase, state *multithreaded.State, vm VersionedVMTestCase, r *testutil.RandHelper) {
+		testutil.StoreInstruction(state.GetMemory(), 0, tt.insn)
+		state.GetCurrentThread().Cpu.PC = tt.pc
+		state.GetCurrentThread().Cpu.NextPC = tt.nextPC
+		// set the return address ($ra) to jump into when test completes
+		state.GetRegistersRef()[31] = testutil.EndAddr
+	}
+
+	setExpectations := func(tt testCase, expected *mtutil.ExpectedState, vm VersionedVMTestCase) ExpectedExecResult {
+		// Memory is accessed when processing illegal instructions, so we need to make sure to append a memory proof
+		// See: https://github.com/ethereum-optimism/optimism/blob/a08b5b343a0005c6308566cd8afa810dd67e0e8f/cannon/mipsevm/exec/mips_instructions.go#L102-L105
+		rsReg := (tt.insn >> 21) & 0x1F
+		rs := expected.ActiveThread().Registers[rsReg]
+		memAddr := testutil.EffAddr(rs + exec.SignExtendImmediate(tt.insn))
+
+		if tt.evmErrSig != "" {
+			return ExpectVmPanicWithCustomErr(tt.goPanicValue, tt.evmErrSig, WithMemoryProofAddr(memAddr))
 		} else {
-			return testutil.CreateCustomErrorMatcher("InvalidPC()")
+			return ExpectVmPanic(tt.goPanicValue, tt.evmErrStr, WithMemoryProofAddr(memAddr))
 		}
 	}
 
-	cases := []struct {
-		name                 string
-		pc                   arch.Word
-		nextPC               arch.Word
-		insn                 uint32
-		errMsg               testutil.ErrMatcher
-		memoryProofAddresses []Word
-	}{
-		{name: "illegal instruction", nextPC: 0, insn: 0b111110 << 26, errMsg: testutil.CreateErrorStringMatcher("invalid instruction"), memoryProofAddresses: []Word{0x0}}, // memoryProof for the zero address at register 0 (+ imm)
-		{name: "branch in delay-slot", nextPC: 8, insn: 0x11_02_00_03, errMsg: testutil.CreateErrorStringMatcher("branch in delay slot")},
-		{name: "jump in delay-slot", nextPC: 8, insn: 0x0c_00_00_0c, errMsg: testutil.CreateErrorStringMatcher("jump in delay slot")},
-		{name: "misaligned instruction", pc: 1, nextPC: 4, insn: 0b110111_00001_00001 << 16, errMsg: misAlignedInstructionErr()},
-		{name: "misaligned instruction", pc: 2, nextPC: 4, insn: 0b110111_00001_00001 << 16, errMsg: misAlignedInstructionErr()},
-		{name: "misaligned instruction", pc: 3, nextPC: 4, insn: 0b110111_00001_00001 << 16, errMsg: misAlignedInstructionErr()},
-		{name: "misaligned instruction", pc: 5, nextPC: 4, insn: 0b110111_00001_00001 << 16, errMsg: misAlignedInstructionErr()},
-	}
-
-	for _, v := range versions {
-		for _, tt := range cases {
-			testName := fmt.Sprintf("%v (%v)", tt.name, v.Name)
-			t.Run(testName, func(t *testing.T) {
-				goVm := v.VMFactory(nil, os.Stdout, os.Stderr, testutil.CreateLogger(), mtutil.WithPC(tt.pc), mtutil.WithNextPC(tt.nextPC))
-				state := goVm.GetState()
-				testutil.StoreInstruction(state.GetMemory(), 0, tt.insn)
-				// set the return address ($ra) to jump into when test completes
-				state.GetRegistersRef()[31] = testutil.EndAddr
-
-				proofData := v.ProofGenerator(t, goVm.GetState(), tt.memoryProofAddresses...)
-				require.Panics(t, func() { _, _ = goVm.Step(false) })
-				testutil.AssertEVMReverts(t, state, v.Contracts, tracer, proofData, tt.errMsg)
-			})
-		}
-	}
+	NewDiffTester(testNamer).
+		InitState(initState).
+		SetExpectations(setExpectations).
+		Run(t, cases)
 }
 
 func TestEVM_RandomProgram(t *testing.T) {
