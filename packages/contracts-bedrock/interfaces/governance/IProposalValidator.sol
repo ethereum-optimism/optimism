@@ -31,6 +31,7 @@ interface IProposalValidator is ISemver {
     error ProposalValidator_InvalidProposer();
     error ProposalValidator_InvalidProposal();
     error ProposalValidator_InvalidVotingModule();
+    error ProposalValidator_AttestationCreatedAfterLastVotingCycle();
 
     event ProposalSubmitted(
         bytes32 indexed proposalHash,
@@ -130,7 +131,7 @@ interface IProposalValidator is ISemver {
 
     function approveProposal(bytes32 _proposalHash, bytes32 _attestationUid) external;
 
-    function canApproveProposal(bytes32 _attestationUid, address _delegate) external view returns (bool canApprove_);
+    function canApproveProposal(bytes32 _attestationUid, address _delegate, bytes32 _proposalHash) external view returns (bool canApprove_);
 
     function moveToVoteProtocolOrGovernorUpgradeProposal(
         uint248 _againstThreshold,

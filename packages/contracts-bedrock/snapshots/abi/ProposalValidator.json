@@ -101,6 +101,11 @@
         "internalType": "address",
         "name": "_delegate",
         "type": "address"
+      },
+      {
+        "internalType": "bytes32",
+        "name": "_proposalHash",
+        "type": "bytes32"
       }
     ],
     "name": "canApproveProposal",
@@ -787,6 +792,11 @@
     ],
     "name": "VotingCycleDataSet",
     "type": "event"
+  },
+  {
+    "inputs": [],
+    "name": "ProposalValidator_AttestationCreatedAfterLastVotingCycle",
+    "type": "error"
   },
   {
     "inputs": [],
