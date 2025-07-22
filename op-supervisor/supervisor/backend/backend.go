@@ -204,10 +204,13 @@ func (su *SupervisorBackend) OnEvent(ctx context.Context, ev event.Event) bool {
 			// don't process events of the activation block
 			return true
 		}
-		su.emitter.Emit(ctx, superevents.ChainProcessEvent{
-			ChainID: x.ChainID,
-			Target:  x.NewLocalUnsafe.Number,
-		})
+
+		cp, ok := su.chainProcessors.Get(x.ChainID)
+		if !ok {
+			su.logger.Error("chain processor not found", "chainID", x.ChainID)
+			return false
+		}
+		cp.ProcessChain(x.NewLocalUnsafe.Number)
 	case superevents.LocalUnsafeUpdateEvent:
 		su.emitter.Emit(ctx, superevents.UpdateCrossUnsafeRequestEvent{
 			ChainID: x.ChainID,
@@ -227,10 +230,12 @@ func (su *SupervisorBackend) OnEvent(ctx context.Context, ev event.Event) bool {
 			})
 		}
 	case superevents.LocalSafeUpdateEvent:
-		su.emitter.Emit(ctx, superevents.ChainProcessEvent{
-			ChainID: x.ChainID,
-			Target:  x.NewLocalSafe.Derived.Number,
-		})
+		cp, ok := su.chainProcessors.Get(x.ChainID)
+		if !ok {
+			su.logger.Error("chain processor not found", "chainID", x.ChainID)
+			return false
+		}
+		cp.ProcessChain(x.NewLocalSafe.Derived.Number)
 		su.emitter.Emit(ctx, superevents.UpdateCrossSafeRequestEvent{
 			ChainID: x.ChainID,
 		})
