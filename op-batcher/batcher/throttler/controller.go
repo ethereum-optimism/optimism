@@ -174,6 +174,11 @@ func (f *ThrottleControllerFactory) CreateController(
 		AlwaysBlockSize:   alwaysBlockSize,
 	}
 
+	// Default to step controller if no type is specified
+	if controllerType == "" {
+		controllerType = config.StepControllerType
+	}
+
 	switch controllerType {
 	case config.StepControllerType:
 		strategy = NewStepStrategy(threshold)

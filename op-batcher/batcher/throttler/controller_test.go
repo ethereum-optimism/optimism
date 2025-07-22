@@ -161,6 +161,12 @@ func TestControllerFactory(t *testing.T) {
 			expectError:    true,
 		},
 		{
+			name:           "empty controller type defaults to step",
+			controllerType: "",
+			pidConfig:      nil,
+			expectError:    false,
+		},
+		{
 			name:           "invalid controller type",
 			controllerType: "invalid",
 			pidConfig:      nil,
