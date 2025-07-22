@@ -43,7 +43,7 @@ type DeployOPChainInput struct {
 
 	OperatorFeeScalar   uint32
 	OperatorFeeConstant uint64
-	MinBasefeeLog2      uint8
+	MinBaseFeeLog2      uint8
 }
 
 func (input *DeployOPChainInput) InputSet() bool {

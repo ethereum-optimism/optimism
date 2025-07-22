@@ -62,7 +62,7 @@ contract L1Block is ISemver {
     uint32 public operatorFeeScalar;
 
     /// @notice The minimum basefee log2.
-    uint8 public minBasefeeLog2;
+    uint8 public minBaseFeeLog2;
 
     /// @custom:semver 1.7.0
     function version() public pure virtual returns (string memory) {
@@ -230,7 +230,7 @@ contract L1Block is ISemver {
     ///   9. _batcherHash                Versioned hash to authenticate batcher by.
     ///   10. _operatorFeeScalar         Operator fee scalar.
     ///   11. _operatorFeeConstant       Operator fee constant.
-    ///   12. _minBasefeeLog2            Minimum basefee log2.
+    ///   12. _minBaseFeeLog2            Minimum basefee log2.
     function setL1BlockValuesJovian() public {
         _setL1BlockValuesJovian();
     }
@@ -249,12 +249,12 @@ contract L1Block is ISemver {
     ///   9. _batcherHash                Versioned hash to authenticate batcher by.
     ///   10. _operatorFeeScalar         Operator fee scalar.
     ///   11. _operatorFeeConstant       Operator fee constant.
-    ///   12. _minBasefeeLog2            Minimum basefee log2.
+    ///   12. _minBaseFeeLog2            Minimum basefee log2.
     function _setL1BlockValuesJovian() internal {
         _setL1BlockValuesIsthmus();
         assembly {
-            // minBasefeeLog2 (uint8)
-            sstore(minBasefeeLog2.slot, shr(240, calldataload(196)))
+            // minBaseFeeLog2 (uint8)
+            sstore(minBaseFeeLog2.slot, shr(240, calldataload(196)))
         }
     }
 }
