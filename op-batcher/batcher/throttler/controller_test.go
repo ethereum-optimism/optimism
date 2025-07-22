@@ -99,10 +99,18 @@ var (
 	}
 
 	// Standard controllers - reused across tests
-	testStepController      = func(t *testing.T) *ThrottleController { return NewThrottleController(testStepStrategy(t), ThrottleConfig{}) }
-	testLinearController    = func(t *testing.T) *ThrottleController { return NewThrottleController(testLinearStrategy(t), ThrottleConfig{}) }
-	testQuadraticController = func(t *testing.T) *ThrottleController { return NewThrottleController(testQuadraticStrategy(t), ThrottleConfig{}) }
-	testPIDController       = func(t *testing.T) *ThrottleController { return NewThrottleController(testPIDStrategy(t), ThrottleConfig{}) }
+	testStepController = func(t *testing.T) *ThrottleController {
+		return NewThrottleController(testStepStrategy(t), ThrottleConfig{})
+	}
+	testLinearController = func(t *testing.T) *ThrottleController {
+		return NewThrottleController(testLinearStrategy(t), ThrottleConfig{})
+	}
+	testQuadraticController = func(t *testing.T) *ThrottleController {
+		return NewThrottleController(testQuadraticStrategy(t), ThrottleConfig{})
+	}
+	testPIDController = func(t *testing.T) *ThrottleController {
+		return NewThrottleController(testPIDStrategy(t), ThrottleConfig{})
+	}
 
 	// Test factory
 	testFactory = func(t *testing.T) *ThrottleControllerFactory { return NewThrottleControllerFactory(newTestLogger(t)) }
@@ -506,7 +514,7 @@ func TestIntensityToParamsEdgeCases(t *testing.T) {
 			AlwaysBlockSize:   TestAlwaysBlockSize,
 		}
 
-		controller := NewThrottleController(testStepStrategy(t	), testConfig)
+		controller := NewThrottleController(testStepStrategy(t), testConfig)
 		params := controller.intensityToParams(0.5, testConfig)
 
 		if params.MaxBlockSize != TestAlwaysBlockSize {
