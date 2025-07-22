@@ -154,7 +154,7 @@ func TestBlockValidator(t *testing.T) {
 	peerID := peer.ID("foo")
 
 	// Create a mock gossip configuration for testing
-	mockGossipConf := &mockGossipSetupConfigurables{}
+	mockGossipConf := &mockGossipSetupConfigurablesWithThreshold{threshold: 60 * time.Second}
 	v2Validator := BuildBlocksValidator(testlog.Logger(t, log.LevelCrit), cfg, runCfg, eth.BlockV2, mockGossipConf)
 	v3Validator := BuildBlocksValidator(testlog.Logger(t, log.LevelCrit), cfg, runCfg, eth.BlockV3, mockGossipConf)
 	v4Validator := BuildBlocksValidator(testlog.Logger(t, log.LevelCrit), cfg, runCfg, eth.BlockV4, mockGossipConf)
@@ -211,21 +211,6 @@ func TestBlockValidator(t *testing.T) {
 			require.Equal(t, res, test.result)
 		})
 	}
-}
-
-// mockGossipSetupConfigurables implements GossipSetupConfigurables for testing
-type mockGossipSetupConfigurables struct{}
-
-func (m *mockGossipSetupConfigurables) PeerScoringParams() *ScoringParams {
-	return nil
-}
-
-func (m *mockGossipSetupConfigurables) ConfigureGossip(rollupCfg *rollup.Config) []pubsub.Option {
-	return nil
-}
-
-func (m *mockGossipSetupConfigurables) GetGossipTimestampThreshold() time.Duration {
-	return 60 * time.Second // Default value for testing
 }
 
 // TestGossipTimestampThreshold tests that the configurable timestamp threshold works correctly
