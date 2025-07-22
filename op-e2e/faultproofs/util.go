@@ -19,8 +19,9 @@ import (
 )
 
 type faultDisputeConfig struct {
-	sysOpts      []e2esys.SystemConfigOpt
-	cfgModifiers []func(cfg *e2esys.SystemConfig)
+	sysOpts          []e2esys.SystemConfigOpt
+	cfgModifiers     []func(cfg *e2esys.SystemConfig)
+	batcherUsesBlobs bool
 }
 
 type faultDisputeConfigOpts func(cfg *faultDisputeConfig)
@@ -35,6 +36,7 @@ func WithBatcherStopped() faultDisputeConfigOpts {
 
 func WithBlobBatches() faultDisputeConfigOpts {
 	return func(fdc *faultDisputeConfig) {
+		fdc.batcherUsesBlobs = true
 		fdc.cfgModifiers = append(fdc.cfgModifiers, func(cfg *e2esys.SystemConfig) {
 			cfg.DataAvailabilityType = batcherFlags.BlobsType
 
