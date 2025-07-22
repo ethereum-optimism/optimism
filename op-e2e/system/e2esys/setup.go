@@ -868,10 +868,6 @@ func (cfg SystemConfig) Start(t *testing.T, startOpts ...StartOption) (*System, 
 		}
 
 		if p, ok := p2pNodes[name]; ok {
-			// Set the gossip timestamp threshold from the node's P2P config if available
-			if p2pConfig, ok := c.P2P.(*p2p.Config); ok {
-				p.GossipTimestampThreshold = p2pConfig.GetGossipTimestampThreshold()
-			}
 			c.P2P = p
 
 			if c.Driver.SequencerEnabled && c.P2PSigner == nil {
