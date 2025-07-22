@@ -3,7 +3,7 @@ pragma solidity ^0.8.0;
 
 import { ERC721 } from "@rari-capital/solmate/src/tokens/ERC721.sol";
 
-contract TestERC721 is ERC721 {
+contract L2ERC721Bridge_TestERC721_Harness is ERC721 {
     constructor() ERC721("TEST", "TST") { }
 
     function mint(address to, uint256 tokenId) public {
