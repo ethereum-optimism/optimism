@@ -1058,8 +1058,11 @@ func (l *BatchSubmitter) checkTxpool(queue *txmgr.Queue[txRef], receiptsCh chan 
 
 // SetThrottleController changes the throttle controller type at runtime
 func (l *BatchSubmitter) SetThrottleController(newType config.ThrottleControllerType, pidConfig *config.PIDConfig) error {
-	if !config.ValidThrottleControllerType(newType) {
+	if !config.ValidThrottleControllerType(newType) && newType != "" {
 		return fmt.Errorf("invalid controller type: %s (must be one of: %v)", newType, config.ThrottleControllerTypes)
+	} else if newType == "" {
+		newType = config.StepControllerType
+		l.Log.Info("No controller type provided, falling back to step controller")
 	}
 
 	unset := l.throttleController == nil
