@@ -135,7 +135,7 @@ func checkEIP1559ParamsMatch(opCfg *params.OptimismConfig, attrParams *eth.Bytes
 			return fmt.Errorf("eip1559 parameters do not match, attributes: %d, %d, %d%s, block: %d, %d, %d", ad, ae, am, extraErr, bd, be, bm)
 		}
 	} else if len(blockExtraData) > 0 {
-		// When deriving pre-Jovian blocks, the extraData must be empty.
+		// When deriving pre-Holocene blocks, the extraData must be empty.
 		return fmt.Errorf("nil EIP1559Params in attributes but non-nil extraData in block: %v", blockExtraData)
 	}
 	return nil
