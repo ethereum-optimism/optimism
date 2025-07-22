@@ -434,7 +434,13 @@ func (m *Metrics) RecordChannelQueueLength(len int) {
 }
 
 func (m *Metrics) RecordThrottleIntensity(intensity float64, controllerType config.ThrottleControllerType) {
-	m.throttleIntensity.WithLabelValues(string(controllerType)).Set(intensity)
+	for _, t := range config.ThrottleControllerTypes {
+		if t == controllerType {
+			m.throttleIntensity.WithLabelValues(string(t)).Set(intensity)
+		} else {
+			m.throttleIntensity.WithLabelValues(string(t)).Set(0)
+		}
+	}
 	m.throttleHistory.Observe(intensity)
 }
 
@@ -444,12 +450,24 @@ func (m *Metrics) RecordThrottleParams(maxTxSize, maxBlockSize uint64) {
 }
 
 func (m *Metrics) RecordThrottleControllerType(controllerType config.ThrottleControllerType) {
-	m.throttleControllerType.WithLabelValues(string(controllerType)).Set(float64(1))
+	for _, t := range config.ThrottleControllerTypes {
+		if t == controllerType {
+			m.throttleControllerType.WithLabelValues(string(t)).Set(1)
+		} else {
+			m.throttleControllerType.WithLabelValues(string(t)).Set(0)
+		}
+	}
 }
 
 func (m *Metrics) RecordPendingBytesVsThreshold(pendingBytes, threshold uint64, controllerType config.ThrottleControllerType) {
 	ratio := float64(pendingBytes) / float64(threshold)
-	m.pendingBytesRatio.WithLabelValues(string(controllerType)).Set(ratio)
+	for _, t := range config.ThrottleControllerTypes {
+		if t == controllerType {
+			m.pendingBytesRatio.WithLabelValues(string(t)).Set(ratio)
+		} else {
+			m.pendingBytesRatio.WithLabelValues(string(t)).Set(0)
+		}
+	}
 }
 
 // ClearAllStateMetrics clears all state metrics.
