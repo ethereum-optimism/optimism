@@ -21,7 +21,6 @@ import (
 	"github.com/ethereum/go-ethereum/core/rawdb"
 	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/ethdb/leveldb"
 	"github.com/ethereum/go-ethereum/params"
@@ -48,7 +47,11 @@ func OpenGethRawDB(dataDirPath string, readOnly bool) (ethdb.Database, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to open leveldb: %w", err)
 	}
-	db, err := rawdb.NewDatabaseWithFreezer(kvs, filepath.Join(dataDirPath, "ancient"), "", readOnly)
+	db, err := rawdb.Open(kvs, rawdb.OpenOptions{
+		Ancient:          filepath.Join(dataDirPath, "ancient"),
+		MetricsNamespace: "",
+		ReadOnly:         readOnly,
+	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to open db with freezer: %w", err)
 	}
@@ -61,8 +64,7 @@ func OpenGethDB(dataDirPath string, readOnly bool) (*Cheater, error) {
 	if err != nil {
 		return nil, err
 	}
-	ch, err := core.NewBlockChain(db, nil, nil, nil,
-		beacon.New(ethash.NewFullFaker()), vm.Config{}, nil)
+	ch, err := core.NewBlockChain(db, nil, beacon.New(ethash.NewFullFaker()), nil)
 	if err != nil {
 		_ = db.Close()
 		return nil, fmt.Errorf("failed to open blockchain around chain db: %w", err)

@@ -108,12 +108,7 @@ func (f *ForkDB) TrieDB() *triedb.Database {
 		Preimages: false,
 		IsVerkle:  false,
 		HashDB:    nil,
-		PathDB: &pathdb.Config{
-			StateHistory:    0,
-			CleanCacheSize:  0,
-			WriteBufferSize: 0,
-			ReadOnly:        true,
-		},
+		PathDB:    pathdb.ReadOnly,
 	})
 	return tdb
 }
