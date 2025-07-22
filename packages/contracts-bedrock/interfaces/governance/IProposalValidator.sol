@@ -107,7 +107,7 @@ interface IProposalValidator is ISemver {
         string memory _proposalDescription,
         bytes32 _attestationUid,
         ProposalType _proposalType,
-        uint256 _votingCycle
+        uint256 _latestVotingCycle
     ) external returns (bytes32 proposalHash_);
 
     function submitCouncilMemberElectionsProposal(
