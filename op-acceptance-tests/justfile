@@ -51,9 +51,8 @@ acceptance-test devnet="" gate="holocene":
         cd packages/contracts-bedrock
         echo " - Installing contracts..."
         just install
-        echo " - Cleaning forge..."
-        forge clean
-        just forge-build
+        echo " - Forge build..."
+        just build-no-tests
         cd {{REPO_ROOT}}
 
         echo "Checking cannon dependencies..."
@@ -81,7 +80,7 @@ acceptance-test devnet="" gate="holocene":
         "--gate" "{{gate}}"
         "--testdir" "{{REPO_ROOT}}"
         "--validators" "./acceptance-tests.yaml"
-        "--log.level" "debug"
+        "--log.level" "${LOG_LEVEL:-info}"
         "--acceptor" "$BINARY_PATH"
     )
 
