@@ -3,8 +3,9 @@
 use crate::{OpEthApi, OpEthApiError, SequencerClient};
 use alloy_primitives::{Bytes, B256};
 use alloy_rpc_types_eth::TransactionInfo;
-use op_alloy_consensus::{transaction::OpTransactionInfo, OpTxEnvelope};
+use op_alloy_consensus::{transaction::OpTransactionInfo, OpTransaction};
 use reth_optimism_primitives::DepositReceipt;
+use reth_primitives_traits::SignedTransaction;
 use reth_rpc_eth_api::{
     helpers::{spec::SignersForRpc, EthTransactions, LoadTransaction},
     try_into_op_tx_info, FromEthApiError, RpcConvert, RpcNodeCore, TxInfoMapper,
@@ -109,18 +110,15 @@ impl<Provider> OpTxInfoMapper<Provider> {
     }
 }
 
-impl<Provider> TxInfoMapper<&OpTxEnvelope> for OpTxInfoMapper<Provider>
+impl<T, Provider> TxInfoMapper<&T> for OpTxInfoMapper<Provider>
 where
+    T: OpTransaction + SignedTransaction,
     Provider: ReceiptProvider<Receipt: DepositReceipt>,
 {
     type Out = OpTransactionInfo;
     type Err = ProviderError;
 
-    fn try_map(
-        &self,
-        tx: &OpTxEnvelope,
-        tx_info: TransactionInfo,
-    ) -> Result<Self::Out, ProviderError> {
+    fn try_map(&self, tx: &T, tx_info: TransactionInfo) -> Result<Self::Out, ProviderError> {
         try_into_op_tx_info(&self.provider, tx, tx_info)
     }
 }
