@@ -243,7 +243,7 @@ func TestLocalContractArtifactsOption(t *testing.T) {
 }
 
 func TestRenderTemplate_PlainYamlFile(t *testing.T) {
-	tmpDir, err := os.MkdirTemp("", "template-test-plain-yaml")
+	tmpDir, err := os.MkdirTemp("", "template-test")
 	require.NoError(t, err)
 	defer os.RemoveAll(tmpDir)
 
@@ -279,13 +279,11 @@ func TestRenderTemplate_PlainYamlFile(t *testing.T) {
 	err = os.WriteFile(templatePath, []byte(plainYamlContent), 0644)
 	require.NoError(t, err)
 
-	// Create a Templater instance WITHOUT a data file
 	templater := &Templater{
 		enclave:      "test-enclave",
 		dryRun:       true,
 		baseDir:      tmpDir,
 		templateFile: templatePath,
-		dataFile:     "", // No data file - this triggers our plain YAML detection
 		buildDir:     tmpDir,
 		urlBuilder: func(path ...string) string {
 			return "http://localhost:8080/" + strings.Join(path, "/")
@@ -297,16 +295,10 @@ func TestRenderTemplate_PlainYamlFile(t *testing.T) {
 
 	// The output should be exactly the same as the input (no template processing)
 	assert.Equal(t, plainYamlContent, buf.String())
-
-	output := buf.String()
-	assert.Contains(t, output, "interop_time_offset: 100")
-	assert.Contains(t, output, "interop_time_offset: 5000")
-	assert.Contains(t, output, "network_id: \"2151908\"")
-	assert.Contains(t, output, "network_id: \"2151909\"")
 }
 
 func TestRenderTemplate_PlainYamlWithDataFile(t *testing.T) {
-	tmpDir, err := os.MkdirTemp("", "template-test-plain-yaml-with-data")
+	tmpDir, err := os.MkdirTemp("", "template-test-with-data")
 	require.NoError(t, err)
 	defer os.RemoveAll(tmpDir)
 
@@ -332,7 +324,7 @@ func TestRenderTemplate_PlainYamlWithDataFile(t *testing.T) {
 		dryRun:       true,
 		baseDir:      tmpDir,
 		templateFile: templatePath,
-		dataFile:     dataPath, // With data file - should still process through template engine
+		dataFile:     dataPath, // Data file is irrelevant for plain YAML
 		buildDir:     tmpDir,
 		urlBuilder: func(path ...string) string {
 			return "http://localhost:8080/" + strings.Join(path, "/")
@@ -341,16 +333,11 @@ func TestRenderTemplate_PlainYamlWithDataFile(t *testing.T) {
 
 	buf, err := templater.Render(context.Background())
 	require.NoError(t, err)
-
-	// When there's a data file, it should go through template processing
-	// it won't be exactly the same but the content should be preserved
-	output := buf.String()
-	assert.Contains(t, output, "optimism_package:")
-	assert.Contains(t, output, "network_id: \"123456\"")
+	assert.Equal(t, plainYamlContent, buf.String())
 }
 
 func TestRenderTemplate_TemplateWithoutDataFile(t *testing.T) {
-	tmpDir, err := os.MkdirTemp("", "template-test-template-no-data")
+	tmpDir, err := os.MkdirTemp("", "template-test")
 	require.NoError(t, err)
 	defer os.RemoveAll(tmpDir)
 
@@ -382,4 +369,49 @@ func TestRenderTemplate_TemplateWithoutDataFile(t *testing.T) {
 	_, err = templater.Render(context.Background())
 	assert.Error(t, err, "Should fail when template has syntax but no data is provided")
 	assert.Contains(t, err.Error(), "failed to execute template")
+}
+
+func TestRenderTemplate_EmptyFile(t *testing.T) {
+	tmpDir, err := os.MkdirTemp("", "template-test")
+	require.NoError(t, err)
+	defer os.RemoveAll(tmpDir)
+
+	// Create an empty file
+	templatePath := filepath.Join(tmpDir, "empty.yaml")
+	err = os.WriteFile(templatePath, []byte(""), 0644)
+	require.NoError(t, err)
+
+	templater := &Templater{
+		enclave:      "test",
+		dryRun:       true,
+		baseDir:      tmpDir,
+		templateFile: templatePath,
+		buildDir:     tmpDir,
+		urlBuilder:   func(...string) string { return "http://localhost" },
+	}
+
+	_, err = templater.Render(context.Background())
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "template file is empty")
+}
+
+func TestRenderTemplate_FileDoesNotExist(t *testing.T) {
+	tmpDir, err := os.MkdirTemp("", "template-test")
+	require.NoError(t, err)
+	defer os.RemoveAll(tmpDir)
+
+	nonExistentPath := filepath.Join(tmpDir, "nonexistent.yaml")
+
+	templater := &Templater{
+		enclave:      "test",
+		dryRun:       true,
+		baseDir:      tmpDir,
+		templateFile: nonExistentPath,
+		buildDir:     tmpDir,
+		urlBuilder:   func(...string) string { return "http://localhost" },
+	}
+
+	_, err = templater.Render(context.Background())
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "template file does not exist")
 }

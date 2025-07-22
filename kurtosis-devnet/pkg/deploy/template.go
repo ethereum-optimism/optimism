@@ -171,10 +171,19 @@ func (f *Templater) Render(ctx context.Context) (*bytes.Buffer, error) {
 		f.buildJobs = make(map[string]*dockerBuildJob)
 	}
 
+	// Check if template file exists
+	if _, err := os.Stat(f.templateFile); os.IsNotExist(err) {
+		return nil, fmt.Errorf("template file does not exist: %s", f.templateFile)
+	}
+
 	// Check if the template file contains template syntax
 	content, err := os.ReadFile(f.templateFile)
 	if err != nil {
 		return nil, fmt.Errorf("error reading template file: %w", err)
+	}
+
+	if len(content) == 0 {
+		return nil, fmt.Errorf("template file is empty: %s", f.templateFile)
 	}
 
 	contentStr := string(content)
