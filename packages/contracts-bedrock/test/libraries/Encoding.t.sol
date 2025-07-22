@@ -9,7 +9,7 @@ import { Encoding } from "src/libraries/Encoding.sol";
 import { Types } from "src/libraries/Types.sol";
 import { LegacyCrossDomainUtils } from "src/libraries/LegacyCrossDomainUtils.sol";
 
-contract Encoding_Harness {
+contract L1CrossDomainMessenger_Encoding_Harness {
     function encodeCrossDomainMessage(
         uint256 nonce,
         address sender,
@@ -33,11 +33,11 @@ contract Encoding_Harness {
 /// @title Encoding_TestInit
 /// @notice Reusable test initialization for `Encoding` tests.
 contract Encoding_TestInit is CommonTest {
-    Encoding_Harness encoding;
+    L1CrossDomainMessenger_Encoding_Harness encoding;
 
     function setUp() public override {
         super.setUp();
-        encoding = new Encoding_Harness();
+        encoding = new L1CrossDomainMessenger_Encoding_Harness();
     }
 }
 
