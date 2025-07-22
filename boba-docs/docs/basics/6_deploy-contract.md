@@ -4,19 +4,34 @@ description: Contract deployment examples
 
 # Contract Deployment Example
 
-Please refer to the [Contract example](https://github.com/bobanetwork/contract-example) repository.
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
 
-We'll work through that one in this quick tutorial. The example linked above is a simple smart contract that allows you to store a single value and retrieve it.
+This is a quick tutorial to help you learn how to deploy a smart contract to the Boba network. We'll provide an example contract that allows you to store a single value and retrieve it. 
 
-It's a great starting point for learning how to deploy a contract to Boba. Let's begin.
+## Prerequisites
 
-## Step 1
+Before you start, please make sure you have the following installed on your machine:
 
-Compiling a contract for Boba is identical to compiling a contract for Ethereum mainchain. Notably, all standard solidity compiler versions can be used. For this contract, we will use `0.8.9`.
+- [`git`](https://github.com/)
+- [`hardhat`](http://hardhat.org/docs)
+- [`yarn`](https://yarnpkg.com/)
+- [`npx`](https://docs.npmjs.com/cli/v8/commands/npx)
+- A crypto wallet with access to your private key
 
-If you check the `hardhat.config.ts` file, you'll see the following configuration in essence:
+Then clone the [Contract example](https://github.com/bobanetwork/contract-example) repository to your environment; this will be the smart contract we work with in this tutorial. 
 
-```js
+Once you've prepared your environment, you're ready to get started!
+
+## Compile the Contract
+
+Compiling a contract for Boba is identical to compiling a contract for Ethereum mainchain. Notably, all standard [`solidity`](https://soliditylang.org/) compiler versions can be used. For this contract, we will use `0.8.9`.
+
+### Set the Config
+
+Checking the `hardhat.config.ts` file, you'll see some of the following configuration:
+
+```js title="contract-example/hardhat.config.ts"
 networks: {
   boba_sepolia: {
     url: 'https://sepolia.boba.network',
@@ -44,28 +59,56 @@ etherscan: {
     },
   ],
 }
+
+...
+```
+Notice that `process.env.DEPLOYER_PK`. We need to set that variable with your own private key. Navigate to the `.env` file, and you'll find this:
+
+```js title="contract-example/.env"
+DEPLOYER_PK=0xYOUR_PRIVATE_KEY_HERE
 ```
 
-Now add a `.env` file that follows the format of `env.example` with your private key. **NOTE: this account must be funded, i.e. contain enough Sepolia ETH to cover the cost of the deployment.** Then,
+Replace "`YOUR_PRIVATE_KEY_HERE`" with your private key (and keep the preceding `0x`).
 
-```
-hardhat compile
-```
+### Compile the Contract
 
-Yep, it's that easy. You can verify that everything went well by looking for the `build` directory that contains your new JSON files. Now let's move on to testing!
+:::warning
+This account must be funded, i.e. contain enough Sepolia ETH to cover the cost of the deployment.
+:::
 
-## Step 2
+With your config set, you can compile the contract with your choice of package manager by running the following:
 
-Woot! It's time to test our contract. Since the JSON RPC provider URL (for Boba Sepolia) has already been specified in your Hardhat config file, all we need to do next is run the test command. Run:
+<Tabs>
+  <TabItem value="yarn">
 
-```
-yarn test:integration
-```
+  ```bash
+  yarn hardhat compile
+  ```
 
-You should see a set of passing tests for your contract. You can check a production-grade project here: [LightBridge](https://github.com/bobanetwork/light-bridge).
+  </TabItem>
+  <TabItem value="npx">
+
+  ```bash
+  npx hardhat compile
+  ```
+
+  </TabItem>
+</Tabs>
+
+You can verify that everything went well by looking for the `build` directory that contains your new `JSON` files. Now let's move on to testing!
+
+## Test the Contract
+
+We've set the `JSON RPC` provider for Boba Sepolia in the `hardhat` config file, so all we need to do next is run the test command:
 
 ```bash
-hardhat test test/contract.spec.ts --show-stack-traces
+yarn test
+```
+
+You should see a set of passing tests for your contract: 
+
+```console
+$ hardhat test test/contract.spec.ts --show-stack-traces
 Using network 'boba_sepolia'.
 
 Compiling your contracts...
@@ -84,56 +127,19 @@ Contract deployed at:  0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512
 ✨  Done in 3s.
 ```
 
-If so, congrats! You're ready to deploy an application to Boba. It really is that easy.
+If so, congrats! You're ready to deploy an application to the Boba network.
 
-## Step 3
+## Deploy the Contract
 
-Now we're going to deploy a contract using `hardhat`.
-
-First, let's create that deployment file. Create a new directory called `deploy` in the topmost path of your project and create a file within it called `contract.deploy.ts`.
-
-Next, within `contract.deploy.ts`, we're going to add the following logic:
-
-```js
-
-console.log(`'Deploying contract...`)
-
-const provider = hre.ethers.provider
-const network = hre.network
-
-console.log(`Network name=${network?.name}`)
-
-const deployer = new Wallet(network.config.accounts[0], provider)
-
-const Factory__YourContract = new ethers.ContractFactory(
-  YourContractJson.abi,
-  YourContractJson.bytecode,
-  deployer
-)
-
-let gasLimit = prompt("Custom gas limit? [number/N]")
-if (isNaN(gasLimit?.toLowerCase())) {
-  gasLimit = null;
-} else {
-  gasLimit = parseInt(gasLimit)
-}
-
-YourContract = await Factory__YourContract.deploy({gasLimit})
-let res = await YourContract.deployTransaction.wait()
-console.log(`Deployed contract: `, res)
-
-console.log(`Contract deployed to: ${YourContract.address}`)
-```
-
-Now we're ready to run our deployment file! Let's go ahead and deploy this contract:
-
-```
-hardhat deploy ./contracts/YourContract.sol --network boba_sepolia
-```
-
-After a few seconds your contract should be deployed. Now you'll see this in your terminal:
+Included in our provided example contract is the deployment file (`contract-example/deploy/contract.deploy.ts`, for the curious user). To use the file, run the following:
 
 ```bash
+npx hardhat deploy --network boba_sepolia
+```
+
+After a few seconds your contract should deploy, and you should see this in your terminal:
+
+```console
 yarn deploy
 yarn run v1.22.15
 hardhat deploy --network boba_sepolia
@@ -179,7 +185,31 @@ Summary
 ✨  Done in 10.11s.
 ```
 
-That's pretty much it. Contracts deployed! Tutorial complete. Hopefully now you know the basics of working with Boba!
+Take note of the listed contract address in the output; we'll use it later.
+
+## Verify the Contract
+
+Using our tool [Bobascan](https://testnet.bobascan.com/), you can verify the contract has been deployed and is valid. 
+
+In case you didn't catch your contract address from the deployment output text, you can find it (among many other things) with Bobascan. Sign in by connecting your crypto wallet to Bobascan, then navigate to your transactions. This will lead you to the contract address of your newly deployed contract. Copy this address, then replace "`YOUR_CONTRACT_ADDRESS_HERE`" with it in the command below to verify your contract:
+
+```bash
+npx hardhat verify --network boba_sepolia YOUR_CONTRACT_ADDRESS_HERE
+```
+
+You should see the following output once you've successfully verified your contract:
+
+```console
+Nothing to compile
+Successfully submitted source code for contract
+contracts/YourContract.sol:YourContract at 0xFe0447Eecf08Eb16DfC5a3Fa2210B30dE3f2803d
+for verification on the block explorer. Waiting for verification result...
+
+Successfully verified contract YourContract on Etherscan.
+https://testnet.bobascan.com/address/0xFe0447Eecf08Eb16DfC5a3Fa2210B30dE3f2803d#code
+```
+
+That's all it takes to deploy and verify your contract! This contract is simple enough (it stores and retrieves a single value) to get you started in using more complicated contracts. If you're feeling more ambitious, you can check one of our production-grade projects [here](https://github.com/bobanetwork/light-bridge).
 
 ## Troubleshooting
 
