@@ -185,7 +185,7 @@ func (s *Service) initHTTPServer(cfg *config.Config) error {
 				Safe:      safe,
 				Finalized: finalized,
 			}
-			ctx := context.WithValue(r.Context(), backend.CtxKeySession, session)
+			ctx := backend.WithSession(r.Context(), session)
 			// remove uuid path
 			r.URL.Path = "/" + strings.Join(segments[:3], "/")
 			s.rpcHandler.ServeHTTP(w, r.WithContext(ctx))

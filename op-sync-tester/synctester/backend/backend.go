@@ -20,7 +20,18 @@ import (
 
 type sessionKeyType struct{}
 
-var CtxKeySession = sessionKeyType{}
+var ctxKeySession = sessionKeyType{}
+
+// WithSession returns a new context with the given Session.
+func WithSession(ctx context.Context, s *Session) context.Context {
+	return context.WithValue(ctx, ctxKeySession, s)
+}
+
+// SessionFromContext retrieves the Session from the context, if present.
+func SessionFromContext(ctx context.Context) (*Session, bool) {
+	s, ok := ctx.Value(ctxKeySession).(*Session)
+	return s, ok
+}
 
 type Session struct {
 	SessionID string

@@ -63,7 +63,7 @@ func SyncTesterFromConfig(logger log.Logger, m metrics.Metricer, stID sttypes.Sy
 }
 
 func (s *SyncTester) fetchSession(ctx context.Context) (*Session, error) {
-	session, ok := ctx.Value(CtxKeySession).(*Session)
+	session, ok := SessionFromContext(ctx)
 	if !ok || session == nil {
 		return nil, fmt.Errorf("no session found in context")
 	}
