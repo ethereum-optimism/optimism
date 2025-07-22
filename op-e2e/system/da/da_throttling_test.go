@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/ecdsa"
 	"crypto/rand"
+	"math"
 	"math/big"
 	"testing"
 	"time"
@@ -17,6 +18,7 @@ import (
 	"github.com/ethereum/go-ethereum/node"
 
 	"github.com/ethereum-optimism/optimism/op-batcher/batcher"
+	"github.com/ethereum-optimism/optimism/op-batcher/config"
 	op_e2e "github.com/ethereum-optimism/optimism/op-e2e"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/geth"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
@@ -71,10 +73,16 @@ func TestDATxThrottling(t *testing.T) {
 	require.Nil(t, bigReceipt, "large tx did not get throttled")
 
 	// disable throttling to let big tx through
-	batcher.Config.ThrottleParams.Threshold = 0
+	batcher.Config.ThrottleParams.TxSize = math.MaxUint64
+	batcher.SetThrottleController(config.StepControllerType, nil) // We need to set the controller again to propagate the change
 
-	<-done
-	require.NotNil(t, bigReceipt, "large tx did not get throttled")
+	select {
+	case <-done:
+		t.Log("large tx was included after disabling throttling")
+		require.NotNil(t, bigReceipt, "large tx did not get throttled")
+	case <-time.After(45 * time.Second):
+		t.Fatal("large tx should have been included after 45 seconds")
+	}
 }
 
 func TestDABlockThrottling(t *testing.T) {
