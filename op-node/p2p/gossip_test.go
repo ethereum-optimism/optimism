@@ -273,7 +273,7 @@ func TestGossipTimestampThreshold(t *testing.T) {
 			message := &pubsub.Message{Message: &pubsub_pb.Message{Data: data}}
 
 			// Test validation
-			result := validator(context.TODO(), peerID, message)
+			result := validator(context.Background(), peerID, message)
 			require.Equal(t, tc.expectedResult, result)
 		})
 	}
