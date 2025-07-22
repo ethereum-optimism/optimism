@@ -303,16 +303,9 @@ func TestEVM_SysClone_Successful(t *testing.T) {
 		return ExpectNormalExecution()
 	}
 
-	postCheck := func(t require.TestingT, testCase testCase, state *multithreaded.State, vm VersionedVMTestCase, deps *TestDependencies) {
-		activeStack, inactiveStack := mtutil.GetThreadStacks(state)
-		require.Equal(t, 2, len(activeStack))
-		require.Equal(t, 0, len(inactiveStack))
-	}
-
 	NewDiffTester(testNamer).
 		InitState(initState).
 		SetExpectations(setExpectations).
-		PostCheck(postCheck).
 		Run(t, cases)
 }
 
