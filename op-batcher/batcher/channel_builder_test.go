@@ -54,7 +54,7 @@ func addMiniBlock(cb *ChannelBuilder) error {
 //
 // If numTx > 0, that many empty DynamicFeeTxs will be added to the txs.
 func newMiniL2Block(numTx int) *types.Block {
-	return newMiniL2BlockWithNumberParent(numTx, new(big.Int), (common.Hash{}))
+	return newMiniL2BlockWithChainID(numTx, defaultTestRollupConfig.L2ChainID)
 }
 
 // newMiniL2Block returns a minimal L2 block with a minimal valid L1InfoDeposit
@@ -64,19 +64,52 @@ func newMiniL2Block(numTx int) *types.Block {
 //
 // If numTx > 0, that many empty DynamicFeeTxs will be added to the txs.
 func newMiniL2BlockWithNumberParent(numTx int, number *big.Int, parent common.Hash) *types.Block {
-	return newMiniL2BlockWithNumberParentAndL1Information(numTx, number, parent, 100, 0)
+	return newMiniL2BlockWithChainIDAndNumberParent(numTx, defaultTestRollupConfig.L2ChainID, number, parent)
 }
 
 // newMiniL2BlockWithNumberParentAndL1Information returns a minimal L2 block with a minimal valid L1InfoDeposit
 // It allows you to specify the l1 block number and the block time in addition to the parameters exposed in newMiniL2Block.
 func newMiniL2BlockWithNumberParentAndL1Information(numTx int, l2Number *big.Int, parent common.Hash, l1Number int64, blockTime uint64) *types.Block {
+	return newMiniL2BlockWithChainIDNumberParentAndL1Information(numTx, defaultTestRollupConfig.L2ChainID, l2Number, parent, l1Number, blockTime)
+}
+
+// newMiniL2BlockWithChainID returns a minimal L2 block with a minimal valid L1InfoDeposit
+// transaction as first transaction, using the specified chain ID. Both blocks are minimal
+// in the sense that most fields are left at defaults or are unset.
+//
+// If numTx > 0, that many empty DynamicFeeTxs will be added to the txs with the specified chain ID.
+func newMiniL2BlockWithChainID(numTx int, chainID *big.Int) *types.Block {
+	return newMiniL2BlockWithChainIDAndNumberParent(numTx, chainID, new(big.Int), (common.Hash{}))
+}
+
+// newMiniL2BlockWithChainIDAndNumberParent returns a minimal L2 block with a minimal valid L1InfoDeposit
+// transaction as first transaction, using the specified chain ID. Block number and parent hash
+// will be set to the given parameters number and parent.
+//
+// If numTx > 0, that many empty DynamicFeeTxs will be added to the txs with the specified chain ID.
+func newMiniL2BlockWithChainIDAndNumberParent(numTx int, chainID *big.Int, number *big.Int, parent common.Hash) *types.Block {
+	return newMiniL2BlockWithChainIDNumberParentAndL1Information(numTx, chainID, number, parent, 100, 0)
+}
+
+// newMiniL2BlockWithChainIDNumberParentAndL1Information returns a minimal L2 block with a minimal valid L1InfoDeposit
+// transaction as first transaction, using the specified chain ID. It allows you to specify the l1 block number
+// and the block time in addition to the other parameters.
+//
+// If numTx > 0, that many empty DynamicFeeTxs will be added to the txs with the specified chain ID.
+func newMiniL2BlockWithChainIDNumberParentAndL1Information(numTx int, chainID *big.Int, l2Number *big.Int, parent common.Hash, l1Number int64, blockTime uint64) *types.Block {
+	// Create a rollup config with the specified chain ID
+	rollupConfig := &rollup.Config{
+		Genesis:   rollup.Genesis{L2: eth.BlockID{Number: 0}},
+		L2ChainID: chainID,
+	}
+
 	l1Block := types.NewBlock(&types.Header{
 		BaseFee:    big.NewInt(10),
 		Difficulty: common.Big0,
 		Number:     big.NewInt(l1Number),
 		Time:       blockTime,
 	}, nil, nil, trie.NewStackTrie(nil), types.DefaultBlockConfig)
-	l1InfoTx, err := derive.L1InfoDeposit(defaultTestRollupConfig, eth.SystemConfig{}, 0, eth.BlockToInfo(l1Block), blockTime)
+	l1InfoTx, err := derive.L1InfoDeposit(rollupConfig, eth.SystemConfig{}, 0, eth.BlockToInfo(l1Block), blockTime)
 	if err != nil {
 		panic(err)
 	}
@@ -84,7 +117,29 @@ func newMiniL2BlockWithNumberParentAndL1Information(numTx int, l2Number *big.Int
 	txs := make([]*types.Transaction, 0, 1+numTx)
 	txs = append(txs, types.NewTx(l1InfoTx))
 	for i := 0; i < numTx; i++ {
-		txs = append(txs, types.NewTx(&types.DynamicFeeTx{}))
+		// Create DynamicFeeTx with random data that's harder to compress
+		randomData := make([]byte, 100+i*10) // Variable size data
+		for j := range randomData {
+			randomData[j] = byte((i*j + int(l2Number.Int64()) + int(blockTime)) % 256)
+		}
+
+		// Create a random address for the transaction
+		toAddr := common.Address{}
+		for j := range toAddr {
+			toAddr[j] = byte((i*j + int(l2Number.Int64())) % 256)
+		}
+
+		tx := &types.DynamicFeeTx{
+			ChainID:   chainID,
+			To:        &toAddr,
+			Value:     big.NewInt(int64(i + 1000)),
+			Gas:       21000 + uint64(i*1000),
+			GasFeeCap: big.NewInt(int64(1000000 + i*100)),
+			GasTipCap: big.NewInt(int64(1000 + i*10)),
+			Data:      randomData,
+			Nonce:     uint64(i),
+		}
+		txs = append(txs, types.NewTx(tx))
 	}
 
 	return types.NewBlock(&types.Header{

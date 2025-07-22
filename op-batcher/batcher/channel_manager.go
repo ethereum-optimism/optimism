@@ -35,7 +35,7 @@ type channelManager struct {
 
 	outFactory ChannelOutFactory
 
-	// All blocks since the last request for new tx data.
+	// All blocks which are not yet safe
 	blocks queue.Queue[*types.Block]
 	// blockCursor is an index into blocks queue. It points at the next block
 	// to build a channel with. blockCursor = len(blocks) is reserved for when
@@ -356,6 +356,7 @@ func (s *channelManager) ensureChannelWithSpace(l1Head eth.BlockID) error {
 
 	s.channelQueue = append(s.channelQueue, pc)
 	s.metr.RecordChannelQueueLength(len(s.channelQueue))
+	s.log.Debug("Channel queue length", "length", len(s.channelQueue))
 
 	return nil
 }
@@ -459,6 +460,9 @@ func (s *channelManager) outputFrames() error {
 		"full_reason", s.currentChannel.FullErr(),
 		"compr_ratio", comprRatio,
 	)
+
+	s.currentChannel.channelBuilder.co.DiscardCompressor() // Free up memory by discarding the compressor
+
 	return nil
 }
 

@@ -19,7 +19,7 @@ import (
 
 type TestNamer[T any] func(testCase T) string
 
-type InitializeStateFn[T any] func(testCase T, state *multithreaded.State, vm VersionedVMTestCase)
+type InitializeStateFn[T any] func(testCase T, state *multithreaded.State, vm VersionedVMTestCase, r *testutil.RandHelper)
 type SetExpectationsFn[T any] func(testCase T, expect *mtutil.ExpectedState, vm VersionedVMTestCase) ExpectedExecResult
 
 type DiffTester[T any] struct {
@@ -73,7 +73,8 @@ func (d *DiffTester[T]) run(t testRunner, testCases []T, opts ...TestOption) {
 					state := mtutil.GetMtState(t, goVm)
 
 					// Set up state
-					d.initState(testCase, state, vm)
+					r := testutil.NewRandHelper(randSeed * 2)
+					d.initState(testCase, state, vm, r)
 					mod.stateMod(state)
 
 					// Set up expectations

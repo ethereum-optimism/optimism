@@ -703,7 +703,7 @@ func TestEVM_SysGetRandom(t *testing.T) {
 	step := uint64(0x1a2b3c4d5e6f7531) - 1
 	randomData := arch.Word(0x4141302768c9e9d0)
 
-	initState := func(testCase testCase, state *multithreaded.State, vm VersionedVMTestCase) {
+	initState := func(testCase testCase, state *multithreaded.State, vm VersionedVMTestCase, r *testutil.RandHelper) {
 		testutil.StoreInstruction(state.GetMemory(), state.GetPC(), syscallInsn)
 		state.GetMemory().SetWord(effAddr, startingMemory)
 		state.GetRegistersRef()[register.RegV0] = arch.SysGetRandom
