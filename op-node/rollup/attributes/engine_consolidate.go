@@ -138,7 +138,7 @@ func checkExtraDataParamsMatch(cfg *rollup.Config, blockTimestamp uint64, attrPa
 			return fmt.Errorf("minBaseFee does not match, attributes: %d, block: %d", attrMinBaseFee, bm)
 		}
 	} else if len(blockExtraData) > 0 {
-		// When deriving pre-Jovian blocks, the extraData must be empty.
+		// When deriving pre-Holocene blocks, the extraData must be empty.
 		return fmt.Errorf("nil EIP1559Params in attributes but non-nil extraData in block: %v", blockExtraData)
 	}
 	return nil
