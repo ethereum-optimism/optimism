@@ -18,7 +18,7 @@ interface IL1Block {
     function number() external view returns (uint64);
     function operatorFeeScalar() external view returns (uint32);
     function operatorFeeConstant() external view returns (uint64);
-    function minBasefeeLog2() external view returns (uint8);
+    function minBaseFeeLog2() external view returns (uint8);
     function sequenceNumber() external view returns (uint64);
     function setL1BlockValues(
         uint64 _number,
