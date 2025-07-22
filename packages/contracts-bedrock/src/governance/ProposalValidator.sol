@@ -302,14 +302,15 @@ contract ProposalValidator is OwnableUpgradeable, ReinitializableBase, ISemver {
     /// @param _proposalDescription Description of the proposal.
     /// @param _attestationUid The UID of the attestation for the approved proposer.
     /// @param _proposalType The type of proposal (ProtocolOrGovernorUpgrade or MaintenanceUpgrade).
-    /// @param _votingCycle The voting cycle number the proposal is targetted for.
+    /// @param _latestVotingCycle The latest voting cycle number. Even though the upgrade proposal can be submitted
+    /// outside of a voting cycle, we still need the latest voting cycle number to validate top delegates attestations.
     /// @return proposalHash_ The hash of the submitted proposal.
     function submitUpgradeProposal(
         uint248 _againstThreshold,
         string memory _proposalDescription,
         bytes32 _attestationUid,
         ProposalType _proposalType,
-        uint256 _votingCycle
+        uint256 _latestVotingCycle
     )
         external
         returns (bytes32 proposalHash_)
@@ -318,6 +319,12 @@ contract ProposalValidator is OwnableUpgradeable, ReinitializableBase, ISemver {
         if (_proposalType != ProposalType.ProtocolOrGovernorUpgrade && _proposalType != ProposalType.MaintenanceUpgrade)
         {
             revert ProposalValidator_InvalidUpgradeProposalType();
+        }
+
+        // Validate voting cycle exists
+        VotingCycleData memory latestVotingCycleData = votingCycles[_latestVotingCycle];
+        if (latestVotingCycleData.startingTimestamp == 0) {
+            revert ProposalValidator_InvalidVotingCycle();
         }
 
         // Validate EAS attestation - must be called by owner-approved address
@@ -367,7 +374,7 @@ contract ProposalValidator is OwnableUpgradeable, ReinitializableBase, ISemver {
         // Store proposal metadata
         proposal.proposer = _msgSender();
         proposal.proposalType = _proposalType;
-        proposal.votingCycle = _votingCycle;
+        proposal.votingCycle = _latestVotingCycle;
 
         emit ProposalSubmitted(proposalHash_, _msgSender(), _proposalDescription, _proposalType);
         emit ProposalVotingModuleData(proposalHash_, proposalVotingModuleData);
@@ -407,6 +414,12 @@ contract ProposalValidator is OwnableUpgradeable, ReinitializableBase, ISemver {
         external
         returns (bytes32 proposalHash_)
     {
+        // Validate voting cycle exists and is not in the past
+        VotingCycleData memory votingCycleData = votingCycles[_votingCycle];
+        if (votingCycleData.startingTimestamp == 0 || votingCycleData.startingTimestamp < block.timestamp) {
+            revert ProposalValidator_InvalidVotingCycle();
+        }
+
         // Validate EAS attestation - must be called by owner-approved address
         _validateApprovedProposerAttestation(_attestationUid, ProposalType.CouncilMemberElections);
 
@@ -501,6 +514,12 @@ contract ProposalValidator is OwnableUpgradeable, ReinitializableBase, ISemver {
         // Only funding proposal types can use this function
         if (_proposalType != ProposalType.GovernanceFund && _proposalType != ProposalType.CouncilBudget) {
             revert ProposalValidator_InvalidFundingProposalType();
+        }
+
+        // Validate voting cycle exists and is not in the past
+        VotingCycleData memory votingCycleData = votingCycles[_votingCycle];
+        if (votingCycleData.startingTimestamp == 0 || votingCycleData.startingTimestamp < block.timestamp) {
+            revert ProposalValidator_InvalidVotingCycle();
         }
 
         // Validate input arrays have matching lengths
