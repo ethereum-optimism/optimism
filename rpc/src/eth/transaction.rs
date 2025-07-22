@@ -12,7 +12,9 @@ use reth_rpc_eth_api::{
 };
 use reth_rpc_eth_types::utils::recover_raw_transaction;
 use reth_storage_api::{errors::ProviderError, ReceiptProvider};
-use reth_transaction_pool::{PoolTransaction, TransactionOrigin, TransactionPool};
+use reth_transaction_pool::{
+    AddedTransactionOutcome, PoolTransaction, TransactionOrigin, TransactionPool,
+};
 use std::fmt::{Debug, Formatter};
 
 impl<N, Rpc> EthTransactions for OpEthApi<N, Rpc>
@@ -55,7 +57,7 @@ where
         }
 
         // submit the transaction to the pool with a `Local` origin
-        let hash = self
+        let AddedTransactionOutcome { hash, .. } = self
             .pool()
             .add_transaction(TransactionOrigin::Local, pool_transaction)
             .await

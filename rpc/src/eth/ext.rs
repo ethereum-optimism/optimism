@@ -10,7 +10,9 @@ use reth_optimism_txpool::conditional::MaybeConditionalTransaction;
 use reth_rpc_eth_api::L2EthApiExtServer;
 use reth_rpc_eth_types::utils::recover_raw_transaction;
 use reth_storage_api::{BlockReaderIdExt, StateProviderFactory};
-use reth_transaction_pool::{PoolTransaction, TransactionOrigin, TransactionPool};
+use reth_transaction_pool::{
+    AddedTransactionOutcome, PoolTransaction, TransactionOrigin, TransactionPool,
+};
 use std::sync::Arc;
 use tokio::sync::Semaphore;
 
@@ -157,7 +159,7 @@ where
         } else {
             // otherwise, add to pool with the appended conditional
             tx.set_conditional(condition);
-            let hash =
+            let AddedTransactionOutcome { hash, .. } =
                 self.pool().add_transaction(TransactionOrigin::Private, tx).await.map_err(|e| {
                     OpEthApiError::Eth(reth_rpc_eth_types::EthApiError::PoolError(e.into()))
                 })?;
