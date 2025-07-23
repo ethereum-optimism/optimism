@@ -3,13 +3,25 @@ package event
 import (
 	"context"
 	"fmt"
+	"path/filepath"
+	"runtime"
 	"slices"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/ethereum/go-ethereum/log"
+	"github.com/google/uuid"
+)
+
+type eventUuidKeyType struct{}
+type eventStepKeyType struct{}
+
+var (
+	ctxKeyEventUuid = eventUuidKeyType{}
+	ctxKeyEventStep = eventStepKeyType{}
 )
 
 type Registry interface {
@@ -80,6 +92,34 @@ type systemActor struct {
 	emitPriority Priority
 }
 
+func (r *systemActor) traceAndLogEventEmitted(ctx context.Context, ev Event) context.Context {
+	_, path, line, _ := runtime.Caller(2)
+	if strings.Contains(path, "limiter.go") {
+		_, path, line, _ = runtime.Caller(3)
+	}
+
+	file := filepath.Base(path)
+	dir := filepath.Base(filepath.Dir(path))
+
+	var euuid string
+	var estep int
+	if ctx.Value(ctxKeyEventUuid) == nil {
+		euuid = uuid.New().String()[:6]
+		estep = 0
+		ctx = context.WithValue(ctx, ctxKeyEventUuid, euuid)
+		ctx = context.WithValue(ctx, ctxKeyEventStep, estep)
+	} else {
+		euuid = ctx.Value(ctxKeyEventUuid).(string)
+		estep = ctx.Value(ctxKeyEventStep).(int)
+		estep++
+		ctx = context.WithValue(ctx, ctxKeyEventStep, estep)
+	}
+
+	r.sys.log.Info("Event emitted", "euid", fmt.Sprintf("%s:%d", euuid, estep), "ev", ev.String(), "loc", fmt.Sprintf("%s/%s:%d", dir, file, line))
+
+	return ctx
+}
+
 // Emit is called by the end-user
 func (r *systemActor) Emit(ctx context.Context, ev Event) {
 	if ctx == nil {
@@ -91,6 +131,9 @@ func (r *systemActor) Emit(ctx context.Context, ev Event) {
 			ctx = context.Background()
 		}
 	}
+
+	ctx = r.traceAndLogEventEmitted(ctx, ev)
+
 	if r.ctx.Err() != nil {
 		return
 	}
