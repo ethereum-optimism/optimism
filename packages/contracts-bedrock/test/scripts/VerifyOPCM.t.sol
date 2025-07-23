@@ -260,9 +260,8 @@ contract VerifyOPCM_Run_Test is VerifyOPCM_TestInit {
         string memory originalSuperchainConfig = vm.envOr("EXPECTED_SUPERCHAIN_CONFIG", vm.toString(address(0)));
         // nosemgrep: sol-style-vm-env-only-in-config-sol
         string memory originalProtocolVersions = vm.envOr("EXPECTED_PROTOCOL_VERSIONS", vm.toString(address(0)));
-        // nosemgrep: sol-style-vm-env-only-in-config-sol
         string memory originalSuperchainProxyAdmin =
-            vm.envOr("EXPECTED_SUPERCHAIN_PROXY_ADMIN", vm.toString(address(0)));
+            vm.envOr("EXPECTED_SUPERCHAIN_PROXY_ADMIN", vm.toString(address(0))); // nosemgrep: sol-style-vm-env-only-in-config-sol
         // nosemgrep: sol-style-vm-env-only-in-config-sol
         string memory originalUpgradeController = vm.envOr("EXPECTED_UPGRADE_CONTROLLER", vm.toString(address(0)));
 
