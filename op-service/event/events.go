@@ -2,6 +2,8 @@ package event
 
 import (
 	"context"
+	"fmt"
+	"reflect"
 
 	"github.com/ethereum/go-ethereum/log"
 )
@@ -82,7 +84,62 @@ func (d NoopDeriver) OnEvent(ctx context.Context, ev Event) {}
 // This can be used for small in-place derivers, test helpers, etc.
 type DeriverFunc func(ctx context.Context, ev Event) bool
 
+func hasStringUUIDField(val interface{}) bool {
+	v := reflect.ValueOf(val)
+	if v.Kind() == reflect.Pointer {
+		v = v.Elem()
+	}
+	if v.Kind() != reflect.Struct {
+		return false
+	}
+	field := v.FieldByName("UUID")
+	if !field.IsValid() {
+		return false
+	}
+	return field.Kind() == reflect.String
+}
+
+type UUIDKey struct{}
+
+var CtxKeyUUID = UUIDKey{}
+
+func printUUIDIfPresent(val interface{}) string {
+	v := reflect.ValueOf(val)
+	if v.Kind() == reflect.Pointer {
+		v = v.Elem()
+	}
+	if v.Kind() != reflect.Struct {
+		return ""
+	}
+	field := v.FieldByName("UUID")
+	if !field.IsValid() || field.Kind() != reflect.String {
+		return ""
+	}
+	return field.String()
+}
+
+func setUUIDCopy(val interface{}, uuid string) (interface{}, error) {
+	v := reflect.ValueOf(val)
+	if v.Kind() != reflect.Struct {
+		return nil, fmt.Errorf("expected struct value")
+	}
+	vCopy := reflect.New(v.Type()).Elem()
+	vCopy.Set(v)
+
+	field := vCopy.FieldByName("UUID")
+	if !field.IsValid() || !field.CanSet() || field.Kind() != reflect.String {
+		return nil, fmt.Errorf("UUID field not settable or missing")
+	}
+
+	field.SetString(uuid)
+	return vCopy.Interface(), nil
+}
+
 func (fn DeriverFunc) OnEvent(ctx context.Context, ev Event) bool {
+	if hasStringUUIDField(ev) {
+		uuid := printUUIDIfPresent(ev)
+		fmt.Printf("l33t [OnEvent] [%s] %s %s\n", uuid, reflect.TypeOf(ev), ctx)
+	}
 	return fn(ctx, ev)
 }
 

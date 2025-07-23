@@ -3,6 +3,7 @@ package p2p
 import (
 	"context"
 
+	"github.com/google/uuid"
 	"github.com/libp2p/go-libp2p/core/peer"
 
 	"github.com/ethereum/go-ethereum/log"
@@ -14,6 +15,7 @@ import (
 type ReceivedBlockEvent struct {
 	From     peer.ID
 	Envelope *eth.ExecutionPayloadEnvelope
+	UUID     string
 }
 
 func (ev ReceivedBlockEvent) String() string {
@@ -47,6 +49,7 @@ func (g *BlockReceiver) OnUnsafeL2Payload(ctx context.Context, from peer.ID, msg
 		"id", msg.ExecutionPayload.ID(),
 		"peer", from, "txs", len(msg.ExecutionPayload.Transactions))
 	g.metrics.RecordReceivedUnsafePayload(msg)
-	g.emitter.Emit(ctx, ReceivedBlockEvent{From: from, Envelope: msg})
+	// ReceivedBlockEvent is only emitted here
+	g.emitter.Emit(ctx, ReceivedBlockEvent{From: from, Envelope: msg, UUID: uuid.New().String()})
 	return nil
 }

@@ -375,7 +375,7 @@ func (e *EngineController) TryUpdateEngine(ctx context.Context) error {
 	return nil
 }
 
-func (e *EngineController) InsertUnsafePayload(ctx context.Context, envelope *eth.ExecutionPayloadEnvelope, ref eth.L2BlockRef) error {
+func (e *EngineController) InsertUnsafePayload(ctx context.Context, envelope *eth.ExecutionPayloadEnvelope, ref eth.L2BlockRef, eventCtx context.Context) error {
 	// Check if there is a finalized head once when doing EL sync. If so, transition to CL sync
 	if e.syncStatus == syncStatusWillStartEL {
 		b, err := e.engine.L2BlockRefByLabel(ctx, eth.Finalized)
@@ -384,7 +384,7 @@ func (e *EngineController) InsertUnsafePayload(ctx context.Context, envelope *et
 			e.syncStatus = syncStatusStartedEL
 			e.log.Info("Starting EL sync")
 			e.elStart = e.clock.Now()
-			e.emitter.Emit(ctx, ELSyncStartedEvent{})
+			e.emitter.Emit(eventCtx, ELSyncStartedEvent{})
 		} else if err == nil {
 			e.syncStatus = syncStatusFinishedEL
 			e.log.Info("Skipping EL sync and going straight to CL sync because there is a finalized block", "id", b.ID())
@@ -400,7 +400,7 @@ func (e *EngineController) InsertUnsafePayload(ctx context.Context, envelope *et
 		return derive.NewTemporaryError(fmt.Errorf("failed to update insert payload: %w", err))
 	}
 	if status.Status == eth.ExecutionInvalid {
-		e.emitter.Emit(ctx, PayloadInvalidEvent{
+		e.emitter.Emit(eventCtx, PayloadInvalidEvent{
 			Envelope: envelope,
 			Err:      eth.NewPayloadErr(envelope.ExecutionPayload, status),
 		})
@@ -422,10 +422,10 @@ func (e *EngineController) InsertUnsafePayload(ctx context.Context, envelope *et
 		fc.SafeBlockHash = envelope.ExecutionPayload.BlockHash
 		fc.FinalizedBlockHash = envelope.ExecutionPayload.BlockHash
 		e.SetUnsafeHead(ref) // ensure that the unsafe head stays ahead of safe/finalized labels.
-		e.emitter.Emit(ctx, UnsafeUpdateEvent{Ref: ref})
+		e.emitter.Emit(eventCtx, UnsafeUpdateEvent{Ref: ref})
 		e.SetLocalSafeHead(ref)
 		e.SetSafeHead(ref)
-		e.emitter.Emit(ctx, CrossSafeUpdateEvent{LocalSafe: ref, CrossSafe: ref})
+		e.emitter.Emit(eventCtx, CrossSafeUpdateEvent{LocalSafe: ref, CrossSafe: ref})
 		e.SetFinalizedHead(ref)
 	}
 	logFn := e.logSyncProgressMaybe()
@@ -453,7 +453,7 @@ func (e *EngineController) InsertUnsafePayload(ctx context.Context, envelope *et
 	fcu2Finish := time.Now()
 	e.SetUnsafeHead(ref)
 	e.needFCUCall = false
-	e.emitter.Emit(ctx, UnsafeUpdateEvent{Ref: ref})
+	e.emitter.Emit(eventCtx, UnsafeUpdateEvent{Ref: ref})
 
 	if e.syncStatus == syncStatusFinishedELButNotFinalized {
 		e.log.Info("Finished EL sync", "sync_duration", e.clock.Since(e.elStart), "finalized_block", ref.ID().String())
@@ -461,7 +461,7 @@ func (e *EngineController) InsertUnsafePayload(ctx context.Context, envelope *et
 	}
 
 	if fcRes.PayloadStatus.Status == eth.ExecutionValid {
-		e.emitter.Emit(ctx, ForkchoiceUpdateEvent{
+		e.emitter.Emit(eventCtx, ForkchoiceUpdateEvent{
 			UnsafeL2Head:    e.unsafeHead,
 			SafeL2Head:      e.safeHead,
 			FinalizedL2Head: e.finalizedHead,

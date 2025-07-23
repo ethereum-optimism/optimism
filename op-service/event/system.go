@@ -3,6 +3,7 @@ package event
 import (
 	"context"
 	"fmt"
+	"reflect"
 	"slices"
 	"sync"
 	"sync/atomic"
@@ -93,6 +94,37 @@ func (r *systemActor) Emit(ctx context.Context, ev Event) {
 	}
 	if r.ctx.Err() != nil {
 		return
+	}
+
+	// debugging purpose to find out UUID not attached events
+	prev, ok := ctx.Value(CtxKeyUUID).(string)
+	if ok && !hasStringUUIDField(ev) {
+		fmt.Printf("l33t [ Emit  ] [%s] %s <debug>\n", prev, reflect.TypeOf(ev))
+	}
+
+	if hasStringUUIDField(ev) {
+		uuid := printUUIDIfPresent(ev)
+		if uuid != "" {
+			if ctx.Value(CtxKeyUUID) == nil {
+				ctx = context.WithValue(ctx, CtxKeyUUID, uuid)
+			}
+		} else {
+			prev, ok := ctx.Value(CtxKeyUUID).(string)
+			uuid = prev
+			if ok {
+				// very hack since arg ev is value
+				modified, err := setUUIDCopy(ev, uuid)
+				if err != nil {
+					panic(fmt.Sprintf("unable to set uuid field [%s]: %v", uuid, err))
+				}
+				ev = modified.(Event)
+			} else {
+				// panic("uuid not set from parent")
+				// possible
+			}
+
+		}
+		fmt.Printf("l33t [ Emit  ] [%s] %s %s\n", uuid, reflect.TypeOf(ev), ctx)
 	}
 	r.sys.emit(r.name, r.currentEvent, ctx, ev, r.emitPriority)
 }

@@ -37,6 +37,7 @@ type Metrics interface {
 // This helps decouple derivers from the actual engine state,
 // while also not making the derivers wait for a forkchoice update at random.
 type ForkchoiceRequestEvent struct {
+	UUID string
 }
 
 func (ev ForkchoiceRequestEvent) String() string {
@@ -45,6 +46,8 @@ func (ev ForkchoiceRequestEvent) String() string {
 
 type ForkchoiceUpdateEvent struct {
 	UnsafeL2Head, SafeL2Head, FinalizedL2Head eth.L2BlockRef
+
+	UUID string
 }
 
 func (ev ForkchoiceUpdateEvent) String() string {
@@ -58,6 +61,8 @@ func (ev ForkchoiceUpdateEvent) String() string {
 // See EngineController.InsertUnsafePayload.
 type PromoteUnsafeEvent struct {
 	Ref eth.L2BlockRef
+
+	UUID string
 }
 
 func (ev PromoteUnsafeEvent) String() string {
@@ -68,6 +73,8 @@ func (ev PromoteUnsafeEvent) String() string {
 // This is pre-forkchoice update; the change may not be reflected yet in the EL.
 type UnsafeUpdateEvent struct {
 	Ref eth.L2BlockRef
+
+	UUID string
 }
 
 func (ev UnsafeUpdateEvent) String() string {
@@ -77,6 +84,8 @@ func (ev UnsafeUpdateEvent) String() string {
 // PromoteCrossUnsafeEvent signals that the given block may be promoted to cross-unsafe.
 type PromoteCrossUnsafeEvent struct {
 	Ref eth.L2BlockRef
+
+	UUID string
 }
 
 func (ev PromoteCrossUnsafeEvent) String() string {
@@ -87,6 +96,8 @@ func (ev PromoteCrossUnsafeEvent) String() string {
 type CrossUnsafeUpdateEvent struct {
 	CrossUnsafe eth.L2BlockRef
 	LocalUnsafe eth.L2BlockRef
+
+	UUID string
 }
 
 func (ev CrossUnsafeUpdateEvent) String() string {
@@ -172,6 +183,8 @@ func (ev PendingSafeRequestEvent) String() string {
 
 type ProcessUnsafePayloadEvent struct {
 	Envelope *eth.ExecutionPayloadEnvelope
+
+	UUID string
 }
 
 func (ev ProcessUnsafePayloadEvent) String() string {
@@ -191,6 +204,8 @@ type TryUpdateEngineEvent struct {
 	BuildStarted  time.Time
 	InsertStarted time.Time
 	Envelope      *eth.ExecutionPayloadEnvelope
+
+	UUID string
 }
 
 func (ev TryUpdateEngineEvent) String() string {
@@ -396,7 +411,7 @@ func (d *EngDeriver) OnEvent(ctx context.Context, ev event.Event) bool {
 		if ref.BlockRef().ID() == d.ec.UnsafeL2Head().BlockRef().ID() {
 			return true
 		}
-		if err := d.ec.InsertUnsafePayload(d.ctx, x.Envelope, ref); err != nil {
+		if err := d.ec.InsertUnsafePayload(d.ctx, x.Envelope, ref, ctx); err != nil {
 			d.log.Info("failed to insert payload", "ref", ref,
 				"txs", len(x.Envelope.ExecutionPayload.Transactions), "err", err)
 			// yes, duplicate error-handling. After all derivers are interacting with the engine

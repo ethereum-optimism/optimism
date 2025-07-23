@@ -81,7 +81,7 @@ type EngineController interface {
 	engine.RollupAPI
 	engine.LocalEngineControl
 	IsEngineSyncing() bool
-	InsertUnsafePayload(ctx context.Context, payload *eth.ExecutionPayloadEnvelope, ref eth.L2BlockRef) error
+	InsertUnsafePayload(ctx context.Context, payload *eth.ExecutionPayloadEnvelope, ref eth.L2BlockRef, eventCtx context.Context) error
 	TryUpdateEngine(ctx context.Context) error
 	TryBackupUnsafeReorg(ctx context.Context) (bool, error)
 }

@@ -294,7 +294,7 @@ func (s *SyncDeriver) onIncomingP2PBlock(ctx context.Context, envelope *eth.Exec
 			return
 		}
 		s.Log.Info("Optimistically inserting unsafe L2 execution payload to drive EL sync", "id", envelope.ExecutionPayload.ID())
-		if err := s.Engine.InsertUnsafePayload(s.Ctx, envelope, ref); err != nil {
+		if err := s.Engine.InsertUnsafePayload(s.Ctx, envelope, ref, ctx); err != nil {
 			s.Log.Warn("Failed to insert unsafe payload for EL sync", "id", envelope.ExecutionPayload.ID(), "err", err)
 		}
 	}

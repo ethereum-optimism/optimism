@@ -451,7 +451,7 @@ func (s *L2Verifier) ActL2InsertUnsafePayload(payload *eth.ExecutionPayloadEnvel
 	return func(t Testing) {
 		ref, err := derive.PayloadToBlockRef(s.RollupCfg, payload.ExecutionPayload)
 		require.NoError(t, err)
-		err = s.engine.InsertUnsafePayload(t.Ctx(), payload, ref)
+		err = s.engine.InsertUnsafePayload(t.Ctx(), payload, ref, t.Ctx())
 		require.NoError(t, err)
 	}
 }
