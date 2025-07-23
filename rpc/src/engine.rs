@@ -14,7 +14,8 @@ use op_alloy_rpc_types_engine::{
     SuperchainSignal,
 };
 use reth_chainspec::EthereumHardforks;
-use reth_node_api::{EngineTypes, EngineValidator};
+use reth_engine_tree::tree::EngineValidator;
+use reth_node_api::EngineTypes;
 use reth_rpc_api::IntoEngineApiRpcModule;
 use reth_rpc_engine_api::EngineApi;
 use reth_storage_api::{BlockReader, HeaderProvider, StateProviderFactory};
