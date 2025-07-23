@@ -13,6 +13,9 @@ import { VerifyOPCM } from "scripts/deploy/VerifyOPCM.s.sol";
 // Interfaces
 import { IOPContractsManager } from "interfaces/L1/IOPContractsManager.sol";
 
+// Libraries
+import { Config } from "scripts/libraries/Config.sol";
+
 contract VerifyOPCM_Harness is VerifyOPCM {
     function loadArtifactInfo(string memory _artifactPath) public view returns (ArtifactInfo memory) {
         return _loadArtifactInfo(_artifactPath);
