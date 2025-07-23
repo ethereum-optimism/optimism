@@ -410,12 +410,12 @@ func (l *BatchSubmitter) sendToThrottlingLoop(pendingBytesUpdated chan int64) {
 	}
 
 	l.channelMgrMutex.Lock()
-	pendingBytes := l.channelMgr.PendingDABytes()
+	pendingBytes := l.channelMgr.blocks.PendingSize()
 	l.channelMgrMutex.Unlock()
 
 	// notify the throttling loop it may be time to initiate throttling without blocking
 	select {
-	case pendingBytesUpdated <- pendingBytes:
+	case pendingBytesUpdated <- int64(pendingBytes):
 	default:
 	}
 }
@@ -674,9 +674,8 @@ func (l *BatchSubmitter) throttlingLoop(wg *sync.WaitGroup, pendingBytesUpdated 
 
 		l.Metr.RecordThrottleIntensity(newParams.Intensity, controllerType)
 		l.Metr.RecordThrottleParams(newParams.MaxTxSize, newParams.MaxBlockSize)
-		if l.Config.ThrottleParams.Threshold > 0 {
-			l.Metr.RecordPendingBytesVsThreshold(uint64(pb), l.Config.ThrottleParams.Threshold, controllerType)
-		}
+
+		l.Metr.RecordPendingBytes(uint64(pb))
 
 		// Update throttling state
 		if newParams.IsThrottling() {
@@ -1150,7 +1149,7 @@ func (l *BatchSubmitter) GetThrottleControllerInfo() (config.ThrottleControllerI
 
 	// Get current pending bytes
 	l.channelMgrMutex.Lock()
-	currentLoad := uint64(l.channelMgr.PendingDABytes())
+	currentLoad := uint64(l.channelMgr.blocks.PendingSize())
 	l.channelMgrMutex.Unlock()
 
 	info := config.ThrottleControllerInfo{

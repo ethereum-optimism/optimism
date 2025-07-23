@@ -2,7 +2,6 @@ package metrics
 
 import (
 	"io"
-	"sync/atomic"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -39,8 +38,6 @@ type Metricer interface {
 	RecordL2BlocksLoaded(l2ref eth.L2BlockRef)
 	RecordChannelOpened(id derive.ChannelID, numPendingBlocks int)
 	RecordL2BlocksAdded(l2ref eth.L2BlockRef, numBlocksAdded, numPendingBlocks, inputBytes, outputComprBytes int)
-	RecordL2BlockInPendingQueue(block *types.Block)
-	RecordL2BlockDequeued(block *types.Block)
 	RecordChannelClosed(id derive.ChannelID, numPendingBlocks int, numFrames int, inputBytes int, outputComprBytes int, reason error)
 	RecordChannelFullySubmitted(id derive.ChannelID)
 	RecordChannelTimedOut(id derive.ChannelID)
@@ -48,7 +45,7 @@ type Metricer interface {
 	RecordThrottleIntensity(intensity float64, controllerType config.ThrottleControllerType)
 	RecordThrottleParams(maxTxSize, maxBlockSize uint64)
 	RecordThrottleControllerType(controllerType config.ThrottleControllerType)
-	RecordPendingBytesVsThreshold(pendingBytes, threshold uint64, controllerType config.ThrottleControllerType)
+	RecordPendingBytes(pendingBytes uint64)
 
 	// PID Controller specific metrics
 	RecordThrottleControllerState(error, integral, derivative float64)
@@ -65,8 +62,6 @@ type Metricer interface {
 	RecordBlobUsedBytes(num int)
 
 	Document() []opmetrics.DocumentedMetric
-
-	PendingDABytes() float64
 }
 
 type Metrics struct {
@@ -84,12 +79,10 @@ type Metrics struct {
 	// label by opened, closed, fully_submitted, timed_out
 	channelEvs opmetrics.EventVec
 
-	pendingBlocksCount        prometheus.GaugeVec
-	pendingBlocksBytesTotal   prometheus.Counter
-	pendingBlocksBytesCurrent prometheus.Gauge
+	pendingBlocksCount      prometheus.GaugeVec
+	pendingBlocksBytesTotal prometheus.Counter
 
-	pendingDABytes          int64
-	pendingDABytesGaugeFunc prometheus.GaugeFunc
+	pendingDABytes prometheus.Gauge
 
 	blocksAddedCount prometheus.Gauge
 
@@ -135,7 +128,7 @@ func NewMetrics(procName string) *Metrics {
 	registry := opmetrics.NewRegistry()
 	factory := opmetrics.With(registry)
 
-	m := &Metrics{
+	return &Metrics{
 		ns:       ns,
 		registry: registry,
 		factory:  factory,
@@ -169,10 +162,10 @@ func NewMetrics(procName string) *Metrics {
 			Name:      "pending_blocks_bytes_total",
 			Help:      "Total size of transactions in pending blocks as they are fetched from L2",
 		}),
-		pendingBlocksBytesCurrent: factory.NewGauge(prometheus.GaugeOpts{
+		pendingDABytes: factory.NewGauge(prometheus.GaugeOpts{
 			Namespace: ns,
-			Name:      "pending_blocks_bytes_current",
-			Help:      "Current size of transactions in the pending (fetched from L2 but not in a channel) stage.",
+			Name:      "pending_da_bytes",
+			Help:      "The estimated amount of data currently pending to be written to the DA layer (from blocks fetched from L2 but not yet in a channel).",
 		}),
 		blocksAddedCount: factory.NewGauge(prometheus.GaugeOpts{
 			Namespace: ns,
@@ -254,11 +247,6 @@ func NewMetrics(procName string) *Metrics {
 			Name:      "throttle_controller_type",
 			Help:      "Type of throttle controller in use",
 		}, []string{"type"}),
-		pendingBytesRatio: *factory.NewGaugeVec(prometheus.GaugeOpts{
-			Namespace: ns,
-			Name:      "pending_bytes_ratio",
-			Help:      "Ratio of pending bytes to threshold",
-		}, []string{"type"}),
 		throttleHistory: factory.NewSummary(prometheus.SummaryOpts{
 			Namespace: ns,
 			Name:      "throttle_intensity_history",
@@ -291,13 +279,6 @@ func NewMetrics(procName string) *Metrics {
 			Buckets:   prometheus.DefBuckets,
 		}),
 	}
-	m.pendingDABytesGaugeFunc = factory.NewGaugeFunc(prometheus.GaugeOpts{
-		Namespace: ns,
-		Name:      "pending_da_bytes",
-		Help:      "The estimated amount of data currently pending to be written to the DA layer (from blocks fetched from L2 but not yet in a channel).",
-	}, m.PendingDABytes)
-
-	return m
 }
 
 func (m *Metrics) Registry() *prometheus.Registry {
@@ -306,12 +287,6 @@ func (m *Metrics) Registry() *prometheus.Registry {
 
 func (m *Metrics) Document() []opmetrics.DocumentedMetric {
 	return m.factory.Document()
-}
-
-// PendingDABytes returns the current number of bytes pending to be written to the DA layer (from blocks fetched from L2
-// but not yet in a channel).
-func (m *Metrics) PendingDABytes() float64 {
-	return float64(atomic.LoadInt64(&m.pendingDABytes))
 }
 
 func (m *Metrics) StartBalanceMetrics(l log.Logger, client *ethclient.Client, account common.Address) io.Closer {
@@ -386,20 +361,6 @@ func (m *Metrics) RecordChannelClosed(id derive.ChannelID, numPendingBlocks int,
 	m.channelClosedReason.Set(float64(ClosedReasonToNum(reason)))
 }
 
-func (m *Metrics) RecordL2BlockInPendingQueue(block *types.Block) {
-	daSize, rawSize := estimateBatchSize(block)
-	m.pendingBlocksBytesTotal.Add(float64(rawSize))
-	m.pendingBlocksBytesCurrent.Add(float64(rawSize))
-	atomic.AddInt64(&m.pendingDABytes, int64(daSize))
-}
-
-func (m *Metrics) RecordL2BlockDequeued(block *types.Block) {
-	daSize, rawSize := estimateBatchSize(block)
-	m.pendingBlocksBytesCurrent.Add(-1.0 * float64(rawSize))
-	atomic.AddInt64(&m.pendingDABytes, -1*int64(daSize))
-	// Refer to RecordL2BlocksAdded to see the current + count of bytes added to a channel
-}
-
 func ClosedReasonToNum(reason error) int {
 	// CLI-3640
 	return 0
@@ -459,15 +420,8 @@ func (m *Metrics) RecordThrottleControllerType(controllerType config.ThrottleCon
 	}
 }
 
-func (m *Metrics) RecordPendingBytesVsThreshold(pendingBytes, threshold uint64, controllerType config.ThrottleControllerType) {
-	ratio := float64(pendingBytes) / float64(threshold)
-	for _, t := range config.ThrottleControllerTypes {
-		if t == controllerType {
-			m.pendingBytesRatio.WithLabelValues(string(t)).Set(ratio)
-		} else {
-			m.pendingBytesRatio.WithLabelValues(string(t)).Set(0)
-		}
-	}
+func (m *Metrics) RecordPendingBytes(pendingBytes uint64) {
+	m.pendingDABytes.Set(float64(pendingBytes))
 }
 
 // ClearAllStateMetrics clears all state metrics.
@@ -477,8 +431,6 @@ func (m *Metrics) RecordPendingBytesVsThreshold(pendingBytes, threshold uint64, 
 // Gauge Metrics which are "set" will get the right value the next time they are updated and don't need to be reset.
 func (m *Metrics) ClearAllStateMetrics() {
 	m.RecordChannelQueueLength(0)
-	atomic.StoreInt64(&m.pendingDABytes, 0)
-	m.pendingBlocksBytesCurrent.Set(0)
 }
 
 // estimateBatchSize returns the estimated size of the block in a batch both with compression ('daSize') and without

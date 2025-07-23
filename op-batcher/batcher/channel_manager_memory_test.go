@@ -156,7 +156,7 @@ func runMemoryTest(t *testing.T, batchType uint, compressorType string, compress
 	t.Logf("Channel manager memory usage: %d bytes (%.2f MB)",
 		memUsed, float64(memUsed)/1024/1024)
 	t.Logf("Number of channels in queue: %d", len(m.channelQueue))
-	t.Logf("Number of blocks processed: %d", len(m.blocks))
+	t.Logf("Number of blocks processed: %d", m.blocks.Len())
 
 	// Verify we actually created multiple channels (unless using none compressor which might behave differently)
 	if compressorType != "none" {
@@ -165,10 +165,12 @@ func runMemoryTest(t *testing.T, batchType uint, compressorType string, compress
 
 	// Verify that blocks form a proper chain by checking parent hashes
 	// (This verifies our block creation logic is correct)
-	require.Greater(t, len(m.blocks), 1, "Expected multiple blocks to be queued")
-	if len(m.blocks) > 1 {
-		for i := 1; i < len(m.blocks); i++ {
-			require.Equal(t, m.blocks[i-1].Hash(), m.blocks[i].ParentHash(),
+	require.Greater(t, m.blocks.Len(), 1, "Expected multiple blocks to be queued")
+	if m.blocks.Len() > 1 {
+		for i := 1; i < m.blocks.Len(); i++ {
+			want, _ := m.blocks.PeekN(i - 1)
+			got, _ := m.blocks.PeekN(i)
+			require.Equal(t, want.Hash(), got.ParentHash(),
 				"Block %d should have parent hash matching block %d", i, i-1)
 		}
 	}

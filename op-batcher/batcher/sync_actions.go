@@ -3,9 +3,8 @@ package batcher
 import (
 	"fmt"
 
+	"github.com/ethereum-optimism/optimism/op-batcher/queue"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-	"github.com/ethereum-optimism/optimism/op-service/queue"
-	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
 )
 
@@ -55,7 +54,7 @@ func isZero[T comparable](x T) bool {
 func computeSyncActions[T channelStatuser](
 	newSyncStatus eth.SyncStatus,
 	prevCurrentL1 eth.L1BlockRef,
-	blocks queue.Queue[*types.Block],
+	blocks *queue.Queue,
 	channels []T,
 	l log.Logger,
 ) (syncActions, bool) {
@@ -122,7 +121,7 @@ func computeSyncActions[T channelStatuser](
 	}
 
 	// PART 3: checks involving all blocks in state
-	newestBlockInState := blocks[blocks.Len()-1]
+	newestBlockInState, _ := blocks.PeekN(blocks.Len() - 1)
 	newestBlockInStateNum := newestBlockInState.NumberU64()
 
 	numBlocksToDequeue := nextSafeBlockNum - oldestBlockInStateNum
@@ -138,11 +137,14 @@ func computeSyncActions[T channelStatuser](
 		return startAfresh, false
 	}
 
-	if numBlocksToDequeue > 0 && blocks[numBlocksToDequeue-1].Hash() != safeL2.Hash {
-		m.Warn("safe chain reorg, clearing channel manager state",
-			"syncActions", startAfresh.TerminalString(),
-			"existingBlock", eth.ToBlockID(blocks[numBlocksToDequeue-1]).TerminalString())
-		return startAfresh, false
+	if numBlocksToDequeue > 0 {
+		lastBlock, _ := blocks.PeekN(int(numBlocksToDequeue) - 1)
+		if lastBlock.Hash() != safeL2.Hash {
+			m.Warn("safe chain reorg, clearing channel manager state",
+				"syncActions", startAfresh.TerminalString(),
+				"existingBlock", eth.ToBlockID(lastBlock).TerminalString())
+			return startAfresh, false
+		}
 	}
 
 	// PART 4: checks involving channels

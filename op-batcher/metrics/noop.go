@@ -47,7 +47,7 @@ func (*noopMetrics) RecordThrottleIntensity(intensity float64, controllerType co
 }
 func (*noopMetrics) RecordThrottleParams(maxTxSize, maxBlockSize uint64)                       {}
 func (*noopMetrics) RecordThrottleControllerType(controllerType config.ThrottleControllerType) {}
-func (*noopMetrics) RecordPendingBytesVsThreshold(pendingBytes, threshold uint64, controllerType config.ThrottleControllerType) {
+func (*noopMetrics) RecordPendingBytes(uint64) {
 }
 
 // PID Controller specific metrics
@@ -60,9 +60,6 @@ func (*noopMetrics) RecordBatchTxFailed()    {}
 func (*noopMetrics) RecordBlobUsedBytes(int) {}
 func (*noopMetrics) StartBalanceMetrics(log.Logger, *ethclient.Client, common.Address) io.Closer {
 	return nil
-}
-func (nm *noopMetrics) PendingDABytes() float64 {
-	return 0.0
 }
 
 // ThrottlingMetrics is a noopMetrics that always returns a max value for PendingDABytes, to use in testing batcher
