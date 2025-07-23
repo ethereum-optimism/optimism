@@ -55,6 +55,9 @@ type StandardBridge struct {
 	l1Client         apis.EthClient
 	l2Client         apis.EthClient
 	supervisorClient apis.SupervisorQueryAPI
+
+	// L1 bridge contract
+	l1StandardBridge bindings.L1StandardBridge
 }
 
 func NewStandardBridge(t devtest.T, l2Network *L2Network, supervisor *Supervisor, l1EL *L1ELNode) *StandardBridge {
@@ -74,6 +77,11 @@ func NewStandardBridge(t devtest.T, l2Network *L2Network, supervisor *Supervisor
 		bindings.WithClient(l1Client),
 		bindings.WithTo(l2Network.DisputeGameFactoryProxyAddr()))
 
+	l1StandardBridge := bindings.NewBindings[bindings.L1StandardBridge](
+		bindings.WithClient(l1Client),
+		bindings.WithTo(l2Network.Escape().Deployment().L1StandardBridgeProxyAddr()),
+		bindings.WithTest(t))
+
 	var supervisorClient apis.SupervisorQueryAPI
 	if supervisor != nil {
 		supervisorClient = supervisor.inner.QueryAPI()
@@ -89,6 +97,7 @@ func NewStandardBridge(t devtest.T, l2Network *L2Network, supervisor *Supervisor
 		l1Client:         l1Client,
 		l2Client:         l2Client,
 		supervisorClient: supervisorClient,
+		l1StandardBridge: l1StandardBridge,
 	}
 }
 
@@ -167,6 +176,71 @@ func (b *StandardBridge) InitiateWithdrawal(amount eth.ETH, from *EOA) *Withdraw
 		bridge:      b,
 		initReceipt: withdrawRcpt,
 	}
+}
+
+// ERC20Deposit performs an ERC20 deposit from L1 to L2
+func (b *StandardBridge) ERC20Deposit(l1TokenAddr common.Address, l2TokenAddr common.Address, amount eth.ETH, from *EOA) *Deposit {
+	// Use the l1StandardBridge to deposit ERC20 tokens
+	depositCall := b.l1StandardBridge.DepositERC20To(l1TokenAddr, l2TokenAddr, from.Address(), amount, 200000, []byte{})
+	depositReceipt, err := contractio.Write(depositCall, b.ctx, from.Plan())
+	b.require.NoError(err, "Failed to send ERC20 deposit transaction")
+	b.require.Equal(types.ReceiptStatusSuccessful, depositReceipt.Status, "ERC20 deposit should succeed")
+
+	// Wait for the deposit to be processed on the L2
+	// Find the deposit log to get the L2 deposit transaction
+	var l2DepositTx *types.DepositTx
+	for _, log := range depositReceipt.Logs {
+		if l2DepositTx, err = derive.UnmarshalDepositLogEvent(log); err == nil {
+			break
+		}
+	}
+	b.require.NotNil(l2DepositTx, "Could not find L2 deposit transaction in logs")
+
+	l2DepositTxHash := types.NewTx(l2DepositTx).Hash()
+
+	// Give time for L2CL to include the L2 deposit tx
+	var l2DepositReceipt *types.Receipt
+	b.require.Eventually(func() bool {
+		l2DepositReceipt, err = b.l2Client.TransactionReceipt(b.ctx, l2DepositTxHash)
+		return err == nil
+	}, 60*time.Second, 500*time.Millisecond, "L2 ERC20 deposit never found")
+	b.require.Equal(types.ReceiptStatusSuccessful, l2DepositReceipt.Status, "L2 ERC20 deposit should succeed")
+
+	return &Deposit{
+		l1Receipt: depositReceipt,
+	}
+}
+
+// CreateL2Token creates an L2 token using OptimismMintableERC20Factory and returns the token address
+func (b *StandardBridge) CreateL2Token(l1TokenAddr common.Address, name string, symbol string, from *EOA) common.Address {
+	factoryContract := bindings.NewBindings[bindings.OptimismMintableERC20Factory](
+		bindings.WithTest(b.t),
+		bindings.WithClient(b.l2Client),
+		bindings.WithTo(predeploys.OptimismMintableERC20FactoryAddr),
+	)
+
+	createCall := factoryContract.CreateOptimismMintableERC20(l1TokenAddr, name, symbol)
+	createReceipt, err := contractio.Write(createCall, b.ctx, from.Plan())
+	b.require.NoError(err, "Failed to create L2 token")
+	b.require.Equal(types.ReceiptStatusSuccessful, createReceipt.Status, "L2 token creation should succeed")
+
+	// Extract L2 token address from logs
+	l2TokenAddress := b.extractL2TokenFromLogs(createReceipt)
+	b.log.Info("Created L2 token", "l1Token", l1TokenAddr, "l2Token", l2TokenAddress, "name", name, "symbol", symbol)
+	return l2TokenAddress
+}
+
+// extractL2TokenFromLogs extracts the L2 token address from OptimismMintableERC20Created event
+func (b *StandardBridge) extractL2TokenFromLogs(receipt *types.Receipt) common.Address {
+	// Look for the OptimismMintableERC20Created event
+	for _, log := range receipt.Logs {
+		if log.Address == predeploys.OptimismMintableERC20FactoryAddr && len(log.Topics) > 2 {
+			// The token address is in the indexed topics
+			return common.HexToAddress(log.Topics[2].Hex())
+		}
+	}
+	b.require.Fail("Failed to find L2 token address from events")
+	return common.Address{} // Never reached
 }
 
 type disputeGame struct {

@@ -18,7 +18,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis/beacondeposit"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/script"
-	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/interop"
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/manage"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/opcm"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
@@ -259,10 +259,10 @@ func MigrateInterop(
 ) (*InteropDeployment, error) {
 	l2ChainIDs := maps.Keys(l2Deployments)
 	sort.Strings(l2ChainIDs)
-	chainConfigs := make([]interop.OPChainConfig, len(l2Deployments))
+	chainConfigs := make([]manage.OPChainConfig, len(l2Deployments))
 	for i, l2ChainID := range l2ChainIDs {
 		l2Deployment := l2Deployments[l2ChainID]
-		chainConfigs[i] = interop.OPChainConfig{
+		chainConfigs[i] = manage.OPChainConfig{
 			SystemConfigProxy: l2Deployment.SystemConfigProxy,
 			ProxyAdmin:        superDeployment.ProxyAdmin,
 			AbsolutePrestate:  l2Cfgs[l2ChainID].DisputeAbsolutePrestate,
@@ -273,7 +273,7 @@ func MigrateInterop(
 	l2ChainID := l2ChainIDs[0]
 	// We don't have a super root at genesis. But stub the starting anchor root anyways to facilitate super DG testing.
 	startingAnchorRoot := common.Hash(opcm.PermissionedGameStartingAnchorRoot)
-	imi := interop.InteropMigrationInput{
+	imi := manage.InteropMigrationInput{
 		Prank:                          superCfg.ProxyAdminOwner,
 		Opcm:                           superDeployment.Opcm,
 		UsePermissionlessGame:          true,
@@ -288,7 +288,7 @@ func MigrateInterop(
 		MaxClockDuration:               l2Cfgs[l2ChainID].DisputeMaxClockDuration,
 		EncodedChainConfigs:            chainConfigs,
 	}
-	output, err := interop.Migrate(l1Host, imi)
+	output, err := manage.Migrate(l1Host, imi)
 	if err != nil {
 		return nil, fmt.Errorf("failed to migrate interop: %w", err)
 	}
