@@ -450,8 +450,7 @@ func TestEVM_PopExitedThread(t *testing.T) {
 }
 
 func TestEVM_SysFutex_WaitPrivate(t *testing.T) {
-	// Note: parameters are written as 64-bit values. For 32-bit architectures, these values are downcast to 32-bit
-	cases := []struct {
+	type testCase struct {
 		name         string
 		addressParam uint64
 		effAddr      uint64
@@ -459,7 +458,13 @@ func TestEVM_SysFutex_WaitPrivate(t *testing.T) {
 		actualValue  uint32
 		timeout      uint64
 		shouldFail   bool
-	}{
+	}
+
+	testNamer := func(tc testCase) string {
+		return tc.name
+	}
+
+	cases := []testCase{
 		{name: "successful wait, no timeout", addressParam: 0xFF_FF_FF_FF_FF_FF_12_38, effAddr: 0xFF_FF_FF_FF_FF_FF_12_38, targetValue: 0xFF_FF_FF_01, actualValue: 0xFF_FF_FF_01},
 		{name: "successful wait, no timeout, unaligned addr #1", addressParam: 0xFF_FF_FF_FF_FF_FF_12_33, effAddr: 0xFF_FF_FF_FF_FF_FF_12_30, targetValue: 0x01, actualValue: 0x01},
 		{name: "successful wait, no timeout, unaligned addr #2", addressParam: 0xFF_FF_FF_FF_FF_FF_12_37, effAddr: 0xFF_FF_FF_FF_FF_FF_12_34, targetValue: 0x01, actualValue: 0x01},
@@ -472,51 +477,39 @@ func TestEVM_SysFutex_WaitPrivate(t *testing.T) {
 		{name: "memory mismatch w timeout", addressParam: 0xFF_FF_FF_FF_FF_FF_12_00, effAddr: 0xFF_FF_FF_FF_FF_FF_12_00, targetValue: 0xFF_FF_FF_F8, actualValue: 0xF8, timeout: 2000000, shouldFail: true},
 		{name: "memory mismatch w timeout, unaligned", addressParam: 0xFF_FF_FF_FF_FF_FF_12_0F, effAddr: 0xFF_FF_FF_FF_FF_FF_12_0C, targetValue: 0xFF_FF_FF_01, actualValue: 0xFF_FF_FF_02, timeout: 2000000, shouldFail: true},
 	}
-	vmVersions := GetMipsVersionTestCases(t)
-	for _, ver := range vmVersions {
-		for i, c := range cases {
-			testName := fmt.Sprintf("%v (%v)", c.name, ver.Name)
-			t.Run(testName, func(t *testing.T) {
-				rand := testutil.NewRandHelper(int64(i * 33))
-				goVm := ver.VMFactory(nil, os.Stdout, os.Stderr, testutil.CreateLogger(), mtutil.WithRandomization(int64(i*1234)), mtutil.WithPCAndNextPC(0x04))
-				state := mtutil.GetMtState(t, goVm)
-				step := state.GetStep()
 
-				testutil.StoreInstruction(state.Memory, state.GetPC(), syscallInsn)
-				testutil.RandomizeWordAndSetUint32(state.GetMemory(), Word(c.effAddr), c.actualValue, int64(i+22))
-				state.GetRegistersRef()[2] = arch.SysFutex // Set syscall number
-				state.GetRegistersRef()[4] = Word(c.addressParam)
-				state.GetRegistersRef()[5] = exec.FutexWaitPrivate
-				// Randomize upper bytes of futex target
-				state.GetRegistersRef()[6] = (rand.Word() & ^Word(0xFF_FF_FF_FF)) | Word(c.targetValue)
-				state.GetRegistersRef()[7] = Word(c.timeout)
-
-				// Setup expectations
-				expected := mtutil.NewExpectedState(t, state)
-				expected.Step += 1
-				expected.ActiveThread().PC = state.GetCpu().NextPC
-				expected.ActiveThread().NextPC = state.GetCpu().NextPC + 4
-				if c.shouldFail {
-					expected.ExpectNoContextSwitch()
-					expected.ActiveThread().Registers[2] = exec.MipsEAGAIN
-					expected.ActiveThread().Registers[7] = exec.SysErrorSignal
-				} else {
-					// Return empty result and preempt thread
-					expected.ActiveThread().Registers[2] = 0
-					expected.ActiveThread().Registers[7] = 0
-					expected.ExpectPreemption()
-				}
-
-				// State transition
-				stepWitness, err := goVm.Step(true)
-				require.NoError(t, err)
-
-				// Validate post-state
-				expected.Validate(t, state)
-				testutil.ValidateEVM(t, stepWitness, step, goVm, multithreaded.GetStateHashFn(), ver.Contracts)
-			})
-		}
+	initState := func(c testCase, state *multithreaded.State, vm VersionedVMTestCase, r *testutil.RandHelper) {
+		testutil.StoreInstruction(state.Memory, state.GetPC(), syscallInsn)
+		testutil.RandomizeWordAndSetUint32(state.GetMemory(), Word(c.effAddr), c.actualValue, r.Int64(1000))
+		state.GetRegistersRef()[2] = arch.SysFutex // Set syscall number
+		state.GetRegistersRef()[4] = Word(c.addressParam)
+		state.GetRegistersRef()[5] = exec.FutexWaitPrivate
+		// Randomize upper bytes of futex target
+		state.GetRegistersRef()[6] = (rand.Word() & ^Word(0xFF_FF_FF_FF)) | Word(c.targetValue)
+		state.GetRegistersRef()[7] = Word(c.timeout)
 	}
+
+	setExpectations := func(c testCase, expected *mtutil.ExpectedState, vm VersionedVMTestCase) ExpectedExecResult {
+		expected.Step += 1
+		expected.ActiveThread().PC = expected.ActiveThread().NextPC
+		expected.ActiveThread().NextPC = expected.ActiveThread().NextPC + 4
+		if c.shouldFail {
+			expected.ExpectNoContextSwitch()
+			expected.ActiveThread().Registers[2] = exec.MipsEAGAIN
+			expected.ActiveThread().Registers[7] = exec.SysErrorSignal
+		} else {
+			// Return empty result and preempt thread
+			expected.ActiveThread().Registers[2] = 0
+			expected.ActiveThread().Registers[7] = 0
+			expected.ExpectPreemption()
+		}
+		return ExpectNormalExecution()
+	}
+
+	NewDiffTester(testNamer).
+		InitState(initState).
+		SetExpectations(setExpectations).
+		Run(t, cases)
 }
 
 func TestEVM_SysFutex_WakePrivate(t *testing.T) {
