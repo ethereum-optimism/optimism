@@ -708,60 +708,8 @@ contract OPContractsManager_TestInit is Test {
             })
         );
 
-        opcm = IOPContractsManager(
-            DeployUtils.createDeterministic({
-                _name: "OPContractsManager",
-                _args: DeployUtils.encodeConstructor(
-                    abi.encodeCall(
-                        IOPContractsManager.__constructor__,
-                        (
-                            IOPContractsManagerGameTypeAdder(
-                                DeployUtils.createDeterministic({
-                                    _name: "OPContractsManagerGameTypeAdder",
-                                    _args: DeployUtils.encodeConstructor(
-                                        abi.encodeCall(IOPContractsManagerGameTypeAdder.__constructor__, (container))
-                                    ),
-                                    _salt: DeployUtils.DEFAULT_SALT
-                                })
-                            ),
-                            IOPContractsManagerDeployer(
-                                DeployUtils.createDeterministic({
-                                    _name: "OPContractsManagerDeployer",
-                                    _args: DeployUtils.encodeConstructor(
-                                        abi.encodeCall(IOPContractsManagerDeployer.__constructor__, (container))
-                                    ),
-                                    _salt: DeployUtils.DEFAULT_SALT
-                                })
-                            ),
-                            IOPContractsManagerUpgrader(
-                                DeployUtils.createDeterministic({
-                                    _name: "OPContractsManagerUpgrader",
-                                    _args: DeployUtils.encodeConstructor(
-                                        abi.encodeCall(IOPContractsManagerUpgrader.__constructor__, (container))
-                                    ),
-                                    _salt: DeployUtils.DEFAULT_SALT
-                                })
-                            ),
-                            IOPContractsManagerInteropMigrator(
-                                DeployUtils.createDeterministic({
-                                    _name: "OPContractsManagerInteropMigrator",
-                                    _args: DeployUtils.encodeConstructor(
-                                        abi.encodeCall(IOPContractsManagerInteropMigrator.__constructor__, (container))
-                                    ),
-                                    _salt: DeployUtils.DEFAULT_SALT
-                                })
-                            ),
-                            standardValidator,
-                            superchainConfigProxy,
-                            protocolVersionsProxy,
-                            superchainProxyAdmin,
-                            "dev",
-                            address(this)
-                        )
-                    )
-                ),
-                _salt: DeployUtils.DEFAULT_SALT
-            })
+        opcm = _deployOPContractsManager(
+            container, standardValidator, superchainConfigProxy, protocolVersionsProxy, superchainProxyAdmin
         );
 
         chainDeployOutput1 = createChainContracts(100);
@@ -776,6 +724,82 @@ contract OPContractsManager_TestInit is Test {
         // Fund the lockboxes for testing.
         vm.deal(address(chainDeployOutput1.ethLockboxProxy), 100 ether);
         vm.deal(address(chainDeployOutput2.ethLockboxProxy), 100 ether);
+    }
+
+    /// @notice Helper function to deploy OPContractsManager with reduced stack depth
+    function _deployOPContractsManager(
+        IOPContractsManagerContractsContainer _container,
+        IOPContractsManagerStandardValidator _standardValidator,
+        ISuperchainConfig _superchainConfigProxy,
+        IProtocolVersions _protocolVersionsProxy,
+        IProxyAdmin _superchainProxyAdmin
+    )
+        private
+        returns (IOPContractsManager)
+    {
+        IOPContractsManagerGameTypeAdder gameTypeAdder = IOPContractsManagerGameTypeAdder(
+            DeployUtils.createDeterministic({
+                _name: "OPContractsManagerGameTypeAdder",
+                _args: DeployUtils.encodeConstructor(
+                    abi.encodeCall(IOPContractsManagerGameTypeAdder.__constructor__, (_container))
+                ),
+                _salt: DeployUtils.DEFAULT_SALT
+            })
+        );
+
+        IOPContractsManagerDeployer deployer = IOPContractsManagerDeployer(
+            DeployUtils.createDeterministic({
+                _name: "OPContractsManagerDeployer",
+                _args: DeployUtils.encodeConstructor(
+                    abi.encodeCall(IOPContractsManagerDeployer.__constructor__, (_container))
+                ),
+                _salt: DeployUtils.DEFAULT_SALT
+            })
+        );
+
+        IOPContractsManagerUpgrader upgrader = IOPContractsManagerUpgrader(
+            DeployUtils.createDeterministic({
+                _name: "OPContractsManagerUpgrader",
+                _args: DeployUtils.encodeConstructor(
+                    abi.encodeCall(IOPContractsManagerUpgrader.__constructor__, (_container))
+                ),
+                _salt: DeployUtils.DEFAULT_SALT
+            })
+        );
+
+        IOPContractsManagerInteropMigrator migrator = IOPContractsManagerInteropMigrator(
+            DeployUtils.createDeterministic({
+                _name: "OPContractsManagerInteropMigrator",
+                _args: DeployUtils.encodeConstructor(
+                    abi.encodeCall(IOPContractsManagerInteropMigrator.__constructor__, (_container))
+                ),
+                _salt: DeployUtils.DEFAULT_SALT
+            })
+        );
+
+        return IOPContractsManager(
+            DeployUtils.createDeterministic({
+                _name: "OPContractsManager",
+                _args: DeployUtils.encodeConstructor(
+                    abi.encodeCall(
+                        IOPContractsManager.__constructor__,
+                        (
+                            gameTypeAdder,
+                            deployer,
+                            upgrader,
+                            migrator,
+                            _standardValidator,
+                            _superchainConfigProxy,
+                            _protocolVersionsProxy,
+                            _superchainProxyAdmin,
+                            "dev",
+                            address(this)
+                        )
+                    )
+                ),
+                _salt: DeployUtils.DEFAULT_SALT
+            })
+        );
     }
 
     /// @notice Helper function to deploy a new set of L1 contracts via OPCM.
