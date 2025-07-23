@@ -252,10 +252,16 @@ contract VerifyOPCM_Run_Test is VerifyOPCM_TestInit {
         // Coverage changes bytecode and causes failures, skip.
         skipIfCoverage();
 
+        // Take a snapshot before modifications for test isolation
+        uint256 snapshot = vm.snapshot();
+
         // Test that the immutable variables are correctly verified.
         // Environment variables are set in setUp() to match the actual OPCM addresses.
         bool result = harness.verifyOpcmImmutableVariables(opcm);
         assertTrue(result, "OPCM immutable variables should be valid");
+
+        // Restore state to prevent test interference
+        vm.revertTo(snapshot);
     }
 
     /// @notice Tests that the script fails when OPCM immutable variables are invalid.
@@ -263,6 +269,9 @@ contract VerifyOPCM_Run_Test is VerifyOPCM_TestInit {
     function test_verifyOpcmImmutableVariables_fails() public {
         // Coverage changes bytecode and causes failures, skip.
         skipIfCoverage();
+
+        // Take a snapshot before modifications for test isolation
+        uint256 snapshot = vm.snapshot();
 
         // Store original environment variable values to restore later
         address originalSuperchainConfig = Config.expectedSuperchainConfig();
@@ -305,5 +314,8 @@ contract VerifyOPCM_Run_Test is VerifyOPCM_TestInit {
         vm.setEnv("EXPECTED_PROTOCOL_VERSIONS", vm.toString(originalProtocolVersions));
         vm.setEnv("EXPECTED_SUPERCHAIN_PROXY_ADMIN", vm.toString(originalSuperchainProxyAdmin));
         vm.setEnv("EXPECTED_UPGRADE_CONTROLLER", vm.toString(originalUpgradeController));
+
+        // Restore state to prevent test interference
+        vm.revertTo(snapshot);
     }
 }
