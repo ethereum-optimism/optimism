@@ -351,11 +351,18 @@ contract VerifyOPCM is Script {
         
         bool success = true;
         
+        // Get expected addresses from environment variables
+        address expectedSuperchainConfig = vm.envOr("EXPECTED_SUPERCHAIN_CONFIG", address(0));
+        address expectedProtocolVersions = vm.envOr("EXPECTED_PROTOCOL_VERSIONS", address(0));
+        address expectedSuperchainProxyAdmin = vm.envOr("EXPECTED_SUPERCHAIN_PROXY_ADMIN", address(0));
+        address expectedUpgradeController = vm.envOr("EXPECTED_UPGRADE_CONTROLLER", address(0));
+        
         // Check superchainConfig
         address actualSuperchainConfig = address(_opcm.superchainConfig());
         console.log(string.concat("    superchainConfig: ", vm.toString(actualSuperchainConfig)));
-        if (actualSuperchainConfig == address(0)) {
-            console.log("    [FAIL] ERROR: superchainConfig is zero address");
+        console.log(string.concat("    expected: ", vm.toString(expectedSuperchainConfig)));
+        if (actualSuperchainConfig != expectedSuperchainConfig) {
+            console.log("    [FAIL] ERROR: superchainConfig mismatch");
             success = false;
         } else {
             console.log("    [OK] superchainConfig verified");
@@ -364,8 +371,9 @@ contract VerifyOPCM is Script {
         // Check protocolVersions
         address actualProtocolVersions = address(_opcm.protocolVersions());
         console.log(string.concat("    protocolVersions: ", vm.toString(actualProtocolVersions)));
-        if (actualProtocolVersions == address(0)) {
-            console.log("    [FAIL] ERROR: protocolVersions is zero address");
+        console.log(string.concat("    expected: ", vm.toString(expectedProtocolVersions)));
+        if (actualProtocolVersions != expectedProtocolVersions) {
+            console.log("    [FAIL] ERROR: protocolVersions mismatch");
             success = false;
         } else {
             console.log("    [OK] protocolVersions verified");
@@ -374,8 +382,9 @@ contract VerifyOPCM is Script {
         // Check superchainProxyAdmin
         address actualSuperchainProxyAdmin = address(_opcm.superchainProxyAdmin());
         console.log(string.concat("    superchainProxyAdmin: ", vm.toString(actualSuperchainProxyAdmin)));
-        if (actualSuperchainProxyAdmin == address(0)) {
-            console.log("    [FAIL] ERROR: superchainProxyAdmin is zero address");
+        console.log(string.concat("    expected: ", vm.toString(expectedSuperchainProxyAdmin)));
+        if (actualSuperchainProxyAdmin != expectedSuperchainProxyAdmin) {
+            console.log("    [FAIL] ERROR: superchainProxyAdmin mismatch");
             success = false;
         } else {
             console.log("    [OK] superchainProxyAdmin verified");
@@ -384,8 +393,9 @@ contract VerifyOPCM is Script {
         // Check upgradeController
         address actualUpgradeController = _opcm.upgradeController();
         console.log(string.concat("    upgradeController: ", vm.toString(actualUpgradeController)));
-        if (actualUpgradeController == address(0)) {
-            console.log("    [FAIL] ERROR: upgradeController is zero address");
+        console.log(string.concat("    expected: ", vm.toString(expectedUpgradeController)));
+        if (actualUpgradeController != expectedUpgradeController) {
+            console.log("    [FAIL] ERROR: upgradeController mismatch");
             success = false;
         } else {
             console.log("    [OK] upgradeController verified");

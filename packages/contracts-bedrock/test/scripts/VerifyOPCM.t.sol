@@ -47,7 +47,7 @@ contract VerifyOPCM_Harness is VerifyOPCM {
 contract VerifyOPCM_TestInit is OPContractsManager_TestInit {
     VerifyOPCM_Harness internal harness;
 
-    function setUp() public override {
+    function setUp() public virtual override {
         super.setUp();
         harness = new VerifyOPCM_Harness();
         harness.setUp();
@@ -64,6 +64,15 @@ contract VerifyOPCM_TestInit is OPContractsManager_TestInit {
 /// @title VerifyOPCM_Run_Test
 /// @notice Tests the `run` function of the `VerifyOPCM` script.
 contract VerifyOPCM_Run_Test is VerifyOPCM_TestInit {
+    function setUp() public override {
+        super.setUp();
+        
+        // Set up environment variables with the actual OPCM addresses for tests that need them
+        vm.setEnv("EXPECTED_SUPERCHAIN_CONFIG", vm.toString(address(opcm.superchainConfig())));
+        vm.setEnv("EXPECTED_PROTOCOL_VERSIONS", vm.toString(address(opcm.protocolVersions())));
+        vm.setEnv("EXPECTED_SUPERCHAIN_PROXY_ADMIN", vm.toString(address(opcm.superchainProxyAdmin())));
+        vm.setEnv("EXPECTED_UPGRADE_CONTROLLER", vm.toString(opcm.upgradeController()));
+    }
     /// @notice Tests that the script succeeds when no changes are introduced.
     function test_run_succeeds() public {
         // Coverage changes bytecode and causes failures, skip.
@@ -234,40 +243,50 @@ contract VerifyOPCM_Run_Test is VerifyOPCM_TestInit {
         skipIfCoverage();
 
         // Test that the immutable variables are correctly verified.
+        // Environment variables are set in setUp() to match the actual OPCM addresses.
         bool result = harness.verifyOpcmImmutableVariables(opcm);
         assertTrue(result, "OPCM immutable variables should be valid");
     }
 
     /// @notice Tests that the script fails when OPCM immutable variables are invalid.
-    /// We test this by deploying a new OPCM with invalid immutable variables.
+    /// We test this by setting expected addresses and mocking OPCM methods to return different addresses.
     function test_verifyOpcmImmutableVariables_fails() public {
         // Coverage changes bytecode and causes failures, skip.
         skipIfCoverage();
 
-        // Create a mock OPCM that returns zero addresses for immutable variables
-        MockOPCM mockOpcm = new MockOPCM();
+        // Store original environment variable values to restore later
+        string memory originalSuperchainConfig = vm.envOr("EXPECTED_SUPERCHAIN_CONFIG", vm.toString(address(0)));
+        string memory originalProtocolVersions = vm.envOr("EXPECTED_PROTOCOL_VERSIONS", vm.toString(address(0)));
+        string memory originalSuperchainProxyAdmin = vm.envOr("EXPECTED_SUPERCHAIN_PROXY_ADMIN", vm.toString(address(0)));
+        string memory originalUpgradeController = vm.envOr("EXPECTED_UPGRADE_CONTROLLER", vm.toString(address(0)));
+
+        // Set expected addresses via environment variables
+        address expectedSuperchainConfig = address(0x1111);
+        address expectedProtocolVersions = address(0x2222);
+        address expectedSuperchainProxyAdmin = address(0x3333);
+        address expectedUpgradeController = address(0x4444);
+        
+        vm.setEnv("EXPECTED_SUPERCHAIN_CONFIG", vm.toString(expectedSuperchainConfig));
+        vm.setEnv("EXPECTED_PROTOCOL_VERSIONS", vm.toString(expectedProtocolVersions));
+        vm.setEnv("EXPECTED_SUPERCHAIN_PROXY_ADMIN", vm.toString(expectedSuperchainProxyAdmin));
+        vm.setEnv("EXPECTED_UPGRADE_CONTROLLER", vm.toString(expectedUpgradeController));
+
+        // Mock all OPCM methods to return different addresses (causing mismatch)
+        vm.mockCall(address(opcm), abi.encodeWithSignature("superchainConfig()"), abi.encode(address(0x5555)));
+        vm.mockCall(address(opcm), abi.encodeWithSignature("protocolVersions()"), abi.encode(address(0x6666)));
+        vm.mockCall(address(opcm), abi.encodeWithSignature("superchainProxyAdmin()"), abi.encode(address(0x7777)));
+        vm.mockCall(address(opcm), abi.encodeWithSignature("upgradeController()"), abi.encode(address(0x8888)));
 
         // Verify that immutable variables fail validation
-        bool result = harness.verifyOpcmImmutableVariables(IOPContractsManager(address(mockOpcm)));
+        bool result = harness.verifyOpcmImmutableVariables(opcm);
         assertFalse(result, "OPCM with invalid immutable variables should fail verification");
+        
+        // Clear mock calls and restore original environment variables to avoid test isolation issues
+        vm.clearMockedCalls();
+        vm.setEnv("EXPECTED_SUPERCHAIN_CONFIG", originalSuperchainConfig);
+        vm.setEnv("EXPECTED_PROTOCOL_VERSIONS", originalProtocolVersions);
+        vm.setEnv("EXPECTED_SUPERCHAIN_PROXY_ADMIN", originalSuperchainProxyAdmin);
+        vm.setEnv("EXPECTED_UPGRADE_CONTROLLER", originalUpgradeController);
     }
 }
 
-/// @notice Mock OPCM contract that returns zero addresses for immutable variables
-contract MockOPCM {
-    function superchainConfig() external pure returns (address) {
-        return address(0);
-    }
-
-    function protocolVersions() external pure returns (address) {
-        return address(0);
-    }
-
-    function superchainProxyAdmin() external pure returns (address) {
-        return address(0);
-    }
-
-    function upgradeController() external pure returns (address) {
-        return address(0);
-    }
-}
