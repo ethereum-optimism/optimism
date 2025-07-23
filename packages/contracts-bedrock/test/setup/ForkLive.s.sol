@@ -201,7 +201,6 @@ contract ForkLive is Deployer {
         IOPContractsManager.OpChainConfig[] memory opChains = new IOPContractsManager.OpChainConfig[](1);
         opChains[0] = IOPContractsManager.OpChainConfig({
             systemConfigProxy: systemConfig,
-            proxyAdmin: proxyAdmin,
             absolutePrestate: Claim.wrap(bytes32(keccak256("absolutePrestate")))
         });
 

@@ -154,11 +154,7 @@ contract OPContractsManager_Upgrade_Harness is CommonTest {
         vm.etch(upgrader, vm.getDeployedCode("test/mocks/Callers.sol:DelegateCaller"));
 
         opChainConfigs.push(
-            IOPContractsManager.OpChainConfig({
-                systemConfigProxy: systemConfig,
-                proxyAdmin: proxyAdmin,
-                absolutePrestate: absolutePrestate
-            })
+            IOPContractsManager.OpChainConfig({ systemConfigProxy: systemConfig, absolutePrestate: absolutePrestate })
         );
 
         // Retrieve the l2ChainId, which was read from the superchain-registry, and saved in
@@ -1104,9 +1100,7 @@ contract OPContractsManager_UpdatePrestate_Test is OPContractsManager_TestInit {
         // Create the input for the function call.
         Claim prestate = Claim.wrap(bytes32(hex"ABBA"));
         IOPContractsManager.OpChainConfig[] memory inputs = new IOPContractsManager.OpChainConfig[](1);
-        inputs[0] = IOPContractsManager.OpChainConfig(
-            chainDeployOutput1.systemConfigProxy, chainDeployOutput1.opChainProxyAdmin, prestate
-        );
+        inputs[0] = IOPContractsManager.OpChainConfig(chainDeployOutput1.systemConfigProxy, prestate);
 
         // Turn the ProxyAdmin owner into a DelegateCaller.
         address proxyAdminOwner = chainDeployOutput1.opChainProxyAdmin.owner();
@@ -1144,9 +1138,7 @@ contract OPContractsManager_UpdatePrestate_Test is OPContractsManager_TestInit {
         // Create the input for the function call.
         Claim prestate = Claim.wrap(bytes32(hex"ABBA"));
         IOPContractsManager.OpChainConfig[] memory inputs = new IOPContractsManager.OpChainConfig[](1);
-        inputs[0] = IOPContractsManager.OpChainConfig(
-            chainDeployOutput1.systemConfigProxy, chainDeployOutput1.opChainProxyAdmin, prestate
-        );
+        inputs[0] = IOPContractsManager.OpChainConfig(chainDeployOutput1.systemConfigProxy, prestate);
 
         // Turn the ProxyAdmin owner into a DelegateCaller.
         address proxyAdminOwner = chainDeployOutput1.opChainProxyAdmin.owner();
@@ -1225,9 +1217,7 @@ contract OPContractsManager_UpdatePrestate_Test is OPContractsManager_TestInit {
         // Create the input for the function call.
         Claim prestate = Claim.wrap(bytes32(hex"ABBA"));
         IOPContractsManager.OpChainConfig[] memory inputs = new IOPContractsManager.OpChainConfig[](1);
-        inputs[0] = IOPContractsManager.OpChainConfig(
-            chainDeployOutput1.systemConfigProxy, chainDeployOutput1.opChainProxyAdmin, prestate
-        );
+        inputs[0] = IOPContractsManager.OpChainConfig(chainDeployOutput1.systemConfigProxy, prestate);
 
         // Turn the ProxyAdmin owner into a DelegateCaller.
         address proxyAdminOwner = chainDeployOutput1.opChainProxyAdmin.owner();
@@ -1274,9 +1264,7 @@ contract OPContractsManager_UpdatePrestate_Test is OPContractsManager_TestInit {
         // Create the input for the function call.
         Claim prestate = Claim.wrap(bytes32(hex"ABBA"));
         IOPContractsManager.OpChainConfig[] memory inputs = new IOPContractsManager.OpChainConfig[](1);
-        inputs[0] = IOPContractsManager.OpChainConfig(
-            chainDeployOutput1.systemConfigProxy, chainDeployOutput1.opChainProxyAdmin, prestate
-        );
+        inputs[0] = IOPContractsManager.OpChainConfig(chainDeployOutput1.systemConfigProxy, prestate);
 
         // Turn the ProxyAdmin owner into a DelegateCaller.
         address proxyAdminOwner = chainDeployOutput1.opChainProxyAdmin.owner();
@@ -1296,7 +1284,6 @@ contract OPContractsManager_UpdatePrestate_Test is OPContractsManager_TestInit {
         IOPContractsManager.OpChainConfig[] memory inputs = new IOPContractsManager.OpChainConfig[](1);
         inputs[0] = IOPContractsManager.OpChainConfig({
             systemConfigProxy: chainDeployOutput1.systemConfigProxy,
-            proxyAdmin: chainDeployOutput1.opChainProxyAdmin,
             absolutePrestate: Claim.wrap(bytes32(0))
         });
 
@@ -1569,12 +1556,8 @@ contract OPContractsManager_Migrate_Test is OPContractsManager_TestInit {
         });
 
         IOPContractsManager.OpChainConfig[] memory opChainConfigs = new IOPContractsManager.OpChainConfig[](2);
-        opChainConfigs[0] = IOPContractsManager.OpChainConfig(
-            chainDeployOutput1.systemConfigProxy, chainDeployOutput1.opChainProxyAdmin, absolutePrestate1
-        );
-        opChainConfigs[1] = IOPContractsManager.OpChainConfig(
-            chainDeployOutput2.systemConfigProxy, chainDeployOutput2.opChainProxyAdmin, absolutePrestate1
-        );
+        opChainConfigs[0] = IOPContractsManager.OpChainConfig(chainDeployOutput1.systemConfigProxy, absolutePrestate1);
+        opChainConfigs[1] = IOPContractsManager.OpChainConfig(chainDeployOutput2.systemConfigProxy, absolutePrestate1);
 
         return IOPContractsManagerInteropMigrator.MigrateInput({
             usePermissionlessGame: true,
@@ -1862,12 +1845,12 @@ contract OPContractsManager_Migrate_Test is OPContractsManager_TestInit {
 
         // Mock out the owners of the ProxyAdmins to be different.
         vm.mockCall(
-            address(input.opChainConfigs[0].proxyAdmin),
+            address(input.opChainConfigs[0].systemConfigProxy.proxyAdmin()),
             abi.encodeCall(IProxyAdmin.owner, ()),
             abi.encode(address(1234))
         );
         vm.mockCall(
-            address(input.opChainConfigs[1].proxyAdmin),
+            address(input.opChainConfigs[1].systemConfigProxy.proxyAdmin()),
             abi.encodeCall(IProxyAdmin.owner, ()),
             abi.encode(address(5678))
         );

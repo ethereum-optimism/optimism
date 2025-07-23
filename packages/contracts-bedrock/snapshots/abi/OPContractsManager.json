@@ -629,11 +629,6 @@
                 "type": "address"
               },
               {
-                "internalType": "contract IProxyAdmin",
-                "name": "proxyAdmin",
-                "type": "address"
-              },
-              {
                 "internalType": "Claim",
                 "name": "absolutePrestate",
                 "type": "bytes32"
@@ -781,11 +776,6 @@
             "type": "address"
           },
           {
-            "internalType": "contract IProxyAdmin",
-            "name": "proxyAdmin",
-            "type": "address"
-          },
-          {
             "internalType": "Claim",
             "name": "absolutePrestate",
             "type": "bytes32"
@@ -808,11 +798,6 @@
           {
             "internalType": "contract ISystemConfig",
             "name": "systemConfigProxy",
-            "type": "address"
-          },
-          {
-            "internalType": "contract IProxyAdmin",
-            "name": "proxyAdmin",
             "type": "address"
           },
           {

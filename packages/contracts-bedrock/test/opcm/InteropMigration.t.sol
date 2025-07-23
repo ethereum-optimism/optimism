@@ -7,7 +7,6 @@ import { InteropMigrationInput, InteropMigration, InteropMigrationOutput } from 
 import { IOPContractsManagerInteropMigrator, IOPContractsManager } from "interfaces/L1/IOPContractsManager.sol";
 import { IOptimismPortal2 as IOptimismPortal } from "interfaces/L1/IOptimismPortal2.sol";
 import { ISystemConfig } from "interfaces/L1/ISystemConfig.sol";
-import { IProxyAdmin } from "interfaces/universal/IProxyAdmin.sol";
 import { Claim } from "src/dispute/lib/Types.sol";
 
 contract InteropMigrationInput_Test is Test {
@@ -81,7 +80,6 @@ contract InteropMigrationInput_Test is Test {
 
         configs[0] = IOPContractsManager.OpChainConfig({
             systemConfigProxy: ISystemConfig(systemConfig1),
-            proxyAdmin: IProxyAdmin(proxyAdmin1),
             absolutePrestate: Claim.wrap(bytes32(uint256(1)))
         });
 
@@ -93,7 +91,6 @@ contract InteropMigrationInput_Test is Test {
 
         configs[1] = IOPContractsManager.OpChainConfig({
             systemConfigProxy: ISystemConfig(systemConfig2),
-            proxyAdmin: IProxyAdmin(proxyAdmin2),
             absolutePrestate: Claim.wrap(bytes32(uint256(2)))
         });
 
@@ -143,7 +140,6 @@ contract InteropMigrationInput_Test is Test {
 
         configs[0] = IOPContractsManager.OpChainConfig({
             systemConfigProxy: ISystemConfig(mockSystemConfig),
-            proxyAdmin: IProxyAdmin(mockProxyAdmin),
             absolutePrestate: Claim.wrap(bytes32(uint256(1)))
         });
 
@@ -153,13 +149,11 @@ contract InteropMigrationInput_Test is Test {
 }
 
 contract MockOPCM {
-    event MigrateCalled(address indexed sysCfgProxy, address indexed proxyAdmin, bytes32 indexed absolutePrestate);
+    event MigrateCalled(address indexed sysCfgProxy, bytes32 indexed absolutePrestate);
 
     function migrate(IOPContractsManagerInteropMigrator.MigrateInput memory _input) public {
         emit MigrateCalled(
-            address(_input.opChainConfigs[0].systemConfigProxy),
-            address(_input.opChainConfigs[0].proxyAdmin),
-            Claim.unwrap(_input.opChainConfigs[0].absolutePrestate)
+            address(_input.opChainConfigs[0].systemConfigProxy), Claim.unwrap(_input.opChainConfigs[0].absolutePrestate)
         );
     }
 }
@@ -171,7 +165,7 @@ contract InteropMigration_Test is Test {
     InteropMigration migration;
     address prank;
 
-    event MigrateCalled(address indexed sysCfgProxy, address indexed proxyAdmin, bytes32 indexed absolutePrestate);
+    event MigrateCalled(address indexed sysCfgProxy, bytes32 indexed absolutePrestate);
 
     function setUp() public {
         mockOPCM = new MockOPCM();
@@ -179,7 +173,6 @@ contract InteropMigration_Test is Test {
         input.set(input.opcm.selector, address(mockOPCM));
         config = IOPContractsManager.OpChainConfig({
             systemConfigProxy: ISystemConfig(makeAddr("systemConfigProxy")),
-            proxyAdmin: IProxyAdmin(makeAddr("proxyAdmin")),
             absolutePrestate: Claim.wrap(keccak256("absolutePrestate"))
         });
         IOPContractsManager.OpChainConfig[] memory configs = new IOPContractsManager.OpChainConfig[](1);
@@ -205,9 +198,7 @@ contract InteropMigration_Test is Test {
     function test_migrate_succeeds() public {
         // MigrateCalled should be emitted by the prank since it's a delegatecall.
         vm.expectEmit(address(prank));
-        emit MigrateCalled(
-            address(config.systemConfigProxy), address(config.proxyAdmin), Claim.unwrap(config.absolutePrestate)
-        );
+        emit MigrateCalled(address(config.systemConfigProxy), Claim.unwrap(config.absolutePrestate));
 
         // mocks for post-migration checks
         address portal = makeAddr("optimismPortal");
