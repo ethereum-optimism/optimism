@@ -129,6 +129,26 @@ library Config {
         env_ = vm.envString("ETHERSCAN_API_KEY");
     }
 
+    /// @notice Returns the expected superchain config address for OPCM verification.
+    function expectedSuperchainConfig() internal view returns (address env_) {
+        env_ = vm.envOr("EXPECTED_SUPERCHAIN_CONFIG", address(0));
+    }
+
+    /// @notice Returns the expected protocol versions address for OPCM verification.
+    function expectedProtocolVersions() internal view returns (address env_) {
+        env_ = vm.envOr("EXPECTED_PROTOCOL_VERSIONS", address(0));
+    }
+
+    /// @notice Returns the expected superchain proxy admin address for OPCM verification.
+    function expectedSuperchainProxyAdmin() internal view returns (address env_) {
+        env_ = vm.envOr("EXPECTED_SUPERCHAIN_PROXY_ADMIN", address(0));
+    }
+
+    /// @notice Returns the expected upgrade controller address for OPCM verification.
+    function expectedUpgradeController() internal view returns (address env_) {
+        env_ = vm.envOr("EXPECTED_UPGRADE_CONTROLLER", address(0));
+    }
+
     /// @notice Returns the OutputMode for genesis allocs generation.
     ///         It reads the mode from the environment variable OUTPUT_MODE.
     ///         If it is unset, OutputMode.ALL is returned.

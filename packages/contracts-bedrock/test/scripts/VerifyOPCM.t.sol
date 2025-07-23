@@ -256,14 +256,10 @@ contract VerifyOPCM_Run_Test is VerifyOPCM_TestInit {
         skipIfCoverage();
 
         // Store original environment variable values to restore later
-        // nosemgrep: sol-style-vm-env-only-in-config-sol
-        string memory originalSuperchainConfig = vm.envOr("EXPECTED_SUPERCHAIN_CONFIG", vm.toString(address(0)));
-        // nosemgrep: sol-style-vm-env-only-in-config-sol
-        string memory originalProtocolVersions = vm.envOr("EXPECTED_PROTOCOL_VERSIONS", vm.toString(address(0)));
-        string memory originalSuperchainProxyAdmin =
-            vm.envOr("EXPECTED_SUPERCHAIN_PROXY_ADMIN", vm.toString(address(0))); // nosemgrep: sol-style-vm-env-only-in-config-sol
-        // nosemgrep: sol-style-vm-env-only-in-config-sol
-        string memory originalUpgradeController = vm.envOr("EXPECTED_UPGRADE_CONTROLLER", vm.toString(address(0)));
+        address originalSuperchainConfig = Config.expectedSuperchainConfig();
+        address originalProtocolVersions = Config.expectedProtocolVersions();
+        address originalSuperchainProxyAdmin = Config.expectedSuperchainProxyAdmin();
+        address originalUpgradeController = Config.expectedUpgradeController();
 
         // Set expected addresses via environment variables
         address expectedSuperchainConfig = address(0x1111);
@@ -296,9 +292,9 @@ contract VerifyOPCM_Run_Test is VerifyOPCM_TestInit {
 
         // Clear mock calls and restore original environment variables to avoid test isolation issues
         vm.clearMockedCalls();
-        vm.setEnv("EXPECTED_SUPERCHAIN_CONFIG", originalSuperchainConfig);
-        vm.setEnv("EXPECTED_PROTOCOL_VERSIONS", originalProtocolVersions);
-        vm.setEnv("EXPECTED_SUPERCHAIN_PROXY_ADMIN", originalSuperchainProxyAdmin);
-        vm.setEnv("EXPECTED_UPGRADE_CONTROLLER", originalUpgradeController);
+        vm.setEnv("EXPECTED_SUPERCHAIN_CONFIG", vm.toString(originalSuperchainConfig));
+        vm.setEnv("EXPECTED_PROTOCOL_VERSIONS", vm.toString(originalProtocolVersions));
+        vm.setEnv("EXPECTED_SUPERCHAIN_PROXY_ADMIN", vm.toString(originalSuperchainProxyAdmin));
+        vm.setEnv("EXPECTED_UPGRADE_CONTROLLER", vm.toString(originalUpgradeController));
     }
 }

@@ -352,14 +352,10 @@ contract VerifyOPCM is Script {
         bool success = true;
 
         // Get expected addresses from environment variables
-        // nosemgrep: sol-style-vm-env-only-in-config-sol
-        address expectedSuperchainConfig = vm.envOr("EXPECTED_SUPERCHAIN_CONFIG", address(0));
-        // nosemgrep: sol-style-vm-env-only-in-config-sol
-        address expectedProtocolVersions = vm.envOr("EXPECTED_PROTOCOL_VERSIONS", address(0));
-        // nosemgrep: sol-style-vm-env-only-in-config-sol
-        address expectedSuperchainProxyAdmin = vm.envOr("EXPECTED_SUPERCHAIN_PROXY_ADMIN", address(0));
-        // nosemgrep: sol-style-vm-env-only-in-config-sol
-        address expectedUpgradeController = vm.envOr("EXPECTED_UPGRADE_CONTROLLER", address(0));
+        address expectedSuperchainConfig = Config.expectedSuperchainConfig();
+        address expectedProtocolVersions = Config.expectedProtocolVersions();
+        address expectedSuperchainProxyAdmin = Config.expectedSuperchainProxyAdmin();
+        address expectedUpgradeController = Config.expectedUpgradeController();
 
         // Check superchainConfig
         address actualSuperchainConfig = address(_opcm.superchainConfig());
