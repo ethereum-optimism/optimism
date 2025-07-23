@@ -207,6 +207,9 @@ contract VerifyOPCM_Run_Test is VerifyOPCM_TestInit {
         // Coverage changes bytecode and causes failures, skip.
         skipIfCoverage();
 
+        // Take a snapshot before modifications for test isolation
+        uint256 snapshot = vm.snapshot();
+
         // Grab the list of blueprints.
         VerifyOPCM.OpcmContractRef[] memory refs = harness.getOpcmContractRefs(opcm, "blueprints", true);
 
@@ -239,6 +242,9 @@ contract VerifyOPCM_Run_Test is VerifyOPCM_TestInit {
         // Run the script.
         vm.expectRevert(VerifyOPCM.VerifyOPCM_Failed.selector);
         harness.run(address(opcm), true);
+
+        // Restore state to prevent test interference
+        vm.revertTo(snapshot);
     }
 
     /// @notice Tests that immutable variables are correctly verified in the OPCM contract.
