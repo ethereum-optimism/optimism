@@ -9,12 +9,14 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-sync-tester/metrics"
+	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/rpc"
+	"github.com/holiman/uint256"
 
 	"github.com/ethereum-optimism/optimism/op-sync-tester/synctester/backend/config"
 	sttypes "github.com/ethereum-optimism/optimism/op-sync-tester/synctester/backend/types"
@@ -76,7 +78,6 @@ func (s *SyncTester) fetchSession(ctx context.Context) (*Session, error) {
 }
 
 func (s *SyncTester) GetSession(ctx context.Context) error {
-	// example session logic
 	_, err := s.fetchSession(ctx)
 	if err != nil {
 		return ErrNoSession
@@ -85,26 +86,77 @@ func (s *SyncTester) GetSession(ctx context.Context) error {
 }
 
 func (s *SyncTester) DeleteSession(ctx context.Context) error {
+	session, err := s.fetchSession(ctx)
+	if err != nil {
+		return ErrNoSession
+	}
+	delete(s.sessions, session.SessionID)
 	return nil
 }
 
 func (s *SyncTester) ListSessions(ctx context.Context) ([]string, error) {
-	return []string{}, nil
+	panic("not implemented")
 }
 
 func (s *SyncTester) GetBlockReceipts(ctx context.Context, blockNrOrHash rpc.BlockNumberOrHash) ([]*types.Receipt, error) {
-	return nil, nil
+	session, err := s.fetchSession(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	receipts, err := s.elClient.BlockReceipts(ctx, blockNrOrHash)
+	if err != nil {
+		return nil, err
+	}
+
+	if len(receipts) == 0 {
+		return nil, ErrNoReceipts
+	}
+
+	if receipts[0].BlockNumber.Uint64() > session.Latest {
+		return nil, ethereum.NotFound
+	}
+
+	return receipts, nil
 }
 
-func (s *SyncTester) GetBlockByHash(ctx context.Context, hash common.Hash) (*types.Header, error) {
-	return nil, nil
+func (s *SyncTester) GetBlockByHash(ctx context.Context, hash common.Hash) (*types.Block, error) {
+	session, err := s.fetchSession(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	block, err := s.elClient.BlockByHash(ctx, hash)
+	if err != nil {
+		return nil, err
+	}
+
+	if block.NumberU64() > session.Latest {
+		return nil, ethereum.NotFound
+	}
+
+	return block, nil
 }
 
-func (s *SyncTester) GetBlockByNumber(ctx context.Context, number *big.Int) (*types.Header, error) {
-	return nil, nil
+func (s *SyncTester) GetBlockByNumber(ctx context.Context, number *big.Int) (*types.Block, error) {
+	session, err := s.fetchSession(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	if number.Uint64() > session.Latest {
+		return nil, ethereum.NotFound
+	}
+
+	return s.elClient.BlockByNumber(ctx, number)
 }
 
 func (s *SyncTester) ChainId(ctx context.Context) (eth.ChainID, error) {
+	_, err := s.fetchSession(ctx)
+	if err != nil {
+		return eth.ChainID(uint256.Int{}), err
+	}
+
 	return s.chainID, nil
 }
 
