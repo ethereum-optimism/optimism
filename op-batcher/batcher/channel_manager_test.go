@@ -442,9 +442,8 @@ func TestChannelManager_handleChannelInvalidated(t *testing.T) {
 	// Assert that at least one block was processed into the channel
 	require.Equal(t, 1, m.blockCursor)
 
-	// Check metric decreased
-	metricsDelta := metrics.PendingBlocksBytesCurrent - pendingBytesBefore
-	require.Negative(t, metricsDelta)
+	// Check metric didn't change.
+	require.Equal(t, pendingBytesBefore, metrics.PendingBlocksBytesCurrent)
 
 	l1OriginBefore := m.l1OriginLastSubmittedChannel
 
@@ -467,7 +466,7 @@ func TestChannelManager_handleChannelInvalidated(t *testing.T) {
 	require.Len(t, m.channelQueue, 1)
 	require.Equal(t, metrics.ChannelQueueLength, 1)
 
-	// Check metric came back up to previous value
+	// Check metric didn't change.
 	require.Equal(t, pendingBytesBefore, metrics.PendingBlocksBytesCurrent)
 
 	// Ensure the l1OriginLastSubmittedChannel was
@@ -566,11 +565,16 @@ func TestChannelManager_PruneBlocks(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			l := testlog.Logger(t, log.LevelCrit)
-			m := NewChannelManager(l, metrics.NoopMetrics, cfg, defaultTestRollupConfig)
-			m.blocks = tc.initialQ
+			metr := &metrics.TestMetrics{}
+			m := NewChannelManager(l, metr, cfg, defaultTestRollupConfig)
+			for _, block := range tc.initialQ {
+				require.NoError(t, m.AddL2Block(block))
+			}
 			m.blockCursor = tc.initialBlockCursor
 			if tc.expectedQ != nil {
+				initialPendingBytes := metr.PendingDABytes()
 				m.PruneSafeBlocks(tc.numChannelsToPrune)
+				require.Greater(t, initialPendingBytes, metr.PendingDABytes())
 				require.Equal(t, tc.expectedQ, m.blocks)
 			} else {
 				require.Panics(t, func() { m.PruneSafeBlocks(tc.numChannelsToPrune) })

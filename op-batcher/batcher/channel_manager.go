@@ -129,21 +129,11 @@ func (s *channelManager) TxConfirmed(_id txID, inclusionBlock eth.BlockID) {
 // in the block queue and the blockCursor is ahead of it.
 // Panics if the block is not in state.
 func (s *channelManager) rewindToBlock(block eth.BlockID) {
-	initialCursor := s.blockCursor
 	idx := block.Number - s.blocks[0].Number().Uint64()
 	if s.blocks[idx].Hash() == block.Hash && idx < uint64(s.blockCursor) {
 		s.blockCursor = int(idx)
 	} else {
 		panic("rewindToBlock: tried to rewind to nonexistent block")
-	}
-
-	// Ensure metrics stay in sync by re-adding blocks which the cursor rewound over
-	for i := initialCursor - 1; i >= s.blockCursor; i-- {
-		block, ok := s.blocks.PeekN(i)
-		if !ok {
-			panic("rewindToBlock: block not found at index " + fmt.Sprint(i))
-		}
-		s.metr.RecordL2BlockInPendingQueue(block)
 	}
 }
 
@@ -414,7 +404,6 @@ func (s *channelManager) processBlocks() error {
 
 		blocksAdded += 1
 		latestL2ref = l2BlockRefFromBlockAndL1Info(block, l1info)
-		s.metr.RecordL2BlockInChannel(block)
 		// current block got added but channel is now full
 		if s.currentChannel.IsFull() {
 			break
@@ -496,9 +485,12 @@ var ErrPendingAfterClose = errors.New("pending channels remain after closing cha
 
 // PruneSafeBlocks dequeues the provided number of blocks from the internal blocks queue
 func (s *channelManager) PruneSafeBlocks(num int) {
-	_, ok := s.blocks.DequeueN(int(num))
+	blocks, ok := s.blocks.DequeueN(int(num))
 	if !ok {
 		panic("tried to prune more blocks than available")
+	}
+	for _, block := range blocks {
+		s.metr.RecordL2BlockDequeued(block)
 	}
 	s.blockCursor -= int(num)
 	if s.blockCursor < 0 {
