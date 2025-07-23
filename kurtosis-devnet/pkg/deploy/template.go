@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"strings"
 	"sync"
 
 	"github.com/ethereum-optimism/optimism/kurtosis-devnet/pkg/build"
@@ -168,6 +169,27 @@ func (f *Templater) Render(ctx context.Context) (*bytes.Buffer, error) {
 	// Initialize the build jobs map if it's nil
 	if f.buildJobs == nil {
 		f.buildJobs = make(map[string]*dockerBuildJob)
+	}
+
+	// Check if template file exists
+	if _, err := os.Stat(f.templateFile); os.IsNotExist(err) {
+		return nil, fmt.Errorf("template file does not exist: %s", f.templateFile)
+	}
+
+	// Check if the template file contains template syntax
+	content, err := os.ReadFile(f.templateFile)
+	if err != nil {
+		return nil, fmt.Errorf("error reading template file: %w", err)
+	}
+
+	if len(content) == 0 {
+		return nil, fmt.Errorf("template file is empty: %s", f.templateFile)
+	}
+
+	contentStr := string(content)
+	if !strings.Contains(contentStr, "{{") && !strings.Contains(contentStr, "}}") {
+		// This is a plain YAML file, return it as-is
+		return bytes.NewBuffer(content), nil
 	}
 
 	buildWg := &sync.WaitGroup{}

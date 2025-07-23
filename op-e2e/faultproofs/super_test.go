@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/devkeys"
+	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/super"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/utils"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
 	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
@@ -39,6 +40,15 @@ func TestSuperCannonGame(t *testing.T) {
 	RunTestAcrossVmTypes(t, func(t *testing.T, allocType config.AllocType) {
 		ctx := context.Background()
 		sys, disputeGameFactory, _ := StartInteropFaultDisputeSystem(t, WithAllocType(allocType))
+		game := disputeGameFactory.StartSuperCannonGame(ctx, common.Hash{0x01})
+		testCannonGame(t, ctx, createSuperGameArena(t, sys, game), &game.SplitGameHelper)
+	})
+}
+
+func TestSuperCannonGame_WithBlobs(t *testing.T) {
+	RunTestAcrossVmTypes(t, func(t *testing.T, allocType config.AllocType) {
+		ctx := context.Background()
+		sys, disputeGameFactory, _ := StartInteropFaultDisputeSystem(t, WithAllocType(allocType), WithBlobBatches())
 		game := disputeGameFactory.StartSuperCannonGame(ctx, common.Hash{0x01})
 		testCannonGame(t, ctx, createSuperGameArena(t, sys, game), &game.SplitGameHelper)
 	})
@@ -368,7 +378,7 @@ func TestSuperInvalidateUnsafeProposal(t *testing.T) {
 		status, err = client.SyncStatus(ctx)
 		require.NoError(t, err, "Failed to get sync status")
 
-		// Wait for any client to advance its unsafe head past the safe chain. We know this head will remain unsafe since the batc
+		// Wait for any client to advance its unsafe head past the safe chain. We know this head will remain unsafe since the batcher is stopped.
 		l2Client := sys.L2GethClient(sys.L2IDs()[0], "sequencer")
 		require.NoError(t, wait.ForNextBlock(ctx, l2Client))
 		head, err := l2Client.BlockByNumber(ctx, nil)
@@ -405,6 +415,56 @@ func TestSuperInvalidateUnsafeProposal(t *testing.T) {
 		game.WaitForGameStatus(ctx, gameTypes.GameStatusChallengerWon)
 		game.LogGameData(ctx)
 	}, WithNextVMOnly[TestCase](), WithTestName(testName))
+}
+
+func TestSuperInalidateUnsafeProposal_SecondChainIsUnsafe(t *testing.T) {
+	ctx := context.Background()
+	RunTestAcrossVmTypes(t, func(t *testing.T, allocType config.AllocType) {
+		sys, disputeGameFactory, _ := StartInteropFaultDisputeSystem(t, WithAllocType(allocType))
+
+		client := sys.SupervisorClient()
+		status, err := client.SyncStatus(ctx)
+		require.NoError(t, err, "Failed to get sync status")
+		// Ensure that the superchain has progressed a bit past the genesis timestamp
+		disputeGameFactory.WaitForSuperTimestamp(status.SafeTimestamp+4, &disputegame.GameCfg{})
+
+		bChain := sys.L2IDs()[1]
+		// halt B's safe chain
+		require.NoError(t, sys.Batcher(bChain).Stop(ctx))
+
+		// Wait for client B to advance its unsafe head past the safe chain B. We know this head will remain unsafe since batcher B is stopped.
+		bL2Client := sys.L2GethClient(bChain, "sequencer")
+		targetBlock, err := bL2Client.BlockByNumber(ctx, nil)
+		require.NoError(t, err, "Failed to get latest block")
+		targetTimestamp := targetBlock.Time()
+
+		// Ensure the target timestamp is behind the game timestamp to inhibit trace extension.
+		require.NoError(t, wait.ForBlock(ctx, bL2Client, targetBlock.NumberU64()+15))
+		head, err := bL2Client.BlockByNumber(ctx, nil)
+		require.NoError(t, err, "Failed to get latest block")
+		gameTimestamp := head.Time()
+
+		// Root claim is _dishonest_ because the required data to construct the chain B output root is not available on L1
+		unsafeSuper := createSuperRoot(t, ctx, sys, gameTimestamp)
+		unsafeRoot := eth.SuperRoot(unsafeSuper)
+		game := disputeGameFactory.StartSuperCannonGameAtTimestamp(ctx, gameTimestamp, common.Hash(unsafeRoot), disputegame.WithFutureProposal())
+
+		prestateTimestamp, _, err := game.Game.GetGameRange(ctx)
+		require.NoError(t, err, "Failed to get game range")
+		// Positions located at odd trace indices are unreachable. Any step>1 will do.
+		const stepAdjustment = 2
+		traceIndexAtSplitDepth := (super.StepsPerTimestamp * (targetTimestamp - prestateTimestamp)) + stepAdjustment
+
+		game.StartChallenger(ctx, "Challenger", challenger.WithPrivKey(aliceKey(t)), challenger.WithDepset(t, sys.DependencySet()))
+		game.SupportClaimIntoTargetTraceIndex(ctx, game.RootClaim(ctx), traceIndexAtSplitDepth)
+
+		// Time travel past when the game will be resolvable.
+		sys.AdvanceL1Time(game.MaxClockDuration(ctx))
+		require.NoError(t, wait.ForNextBlock(ctx, sys.L1GethClient()))
+
+		game.WaitForGameStatus(ctx, gameTypes.GameStatusChallengerWon)
+		game.LogGameData(ctx)
+	}, WithNextVMOnly[any]())
 }
 
 func TestSuperInvalidateProposalForFutureBlock(t *testing.T) {

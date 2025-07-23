@@ -10,12 +10,12 @@ import { Solarray } from "scripts/libraries/Solarray.sol";
 import { BaseDeployIO } from "scripts/deploy/BaseDeployIO.sol";
 
 import { ChainAssertions } from "scripts/deploy/ChainAssertions.sol";
-import { IResourceMetering } from "interfaces/L1/IResourceMetering.sol";
 import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
 import { IBigStepper } from "interfaces/dispute/IBigStepper.sol";
 import { Predeploys } from "src/libraries/Predeploys.sol";
 import { Constants } from "src/libraries/Constants.sol";
 import { Constants as ScriptConstants } from "scripts/libraries/Constants.sol";
+import { Types } from "scripts/libraries/Types.sol";
 
 import { IProxyAdmin } from "interfaces/universal/IProxyAdmin.sol";
 import { IProxy } from "interfaces/universal/IProxy.sol";
@@ -464,9 +464,30 @@ contract DeployOPChain is Script {
 
     // -------- Deployment Assertions --------
     function assertValidDeploy(DeployOPChainInput _doi, DeployOPChainOutput _doo) internal {
+        Types.ContractSet memory proxies = Types.ContractSet({
+            L1CrossDomainMessenger: address(_doo.l1CrossDomainMessengerProxy()),
+            L1StandardBridge: address(_doo.l1StandardBridgeProxy()),
+            L2OutputOracle: address(0),
+            DisputeGameFactory: address(_doo.disputeGameFactoryProxy()),
+            DelayedWETH: address(_doo.delayedWETHPermissionlessGameProxy()),
+            PermissionedDelayedWETH: address(_doo.delayedWETHPermissionedGameProxy()),
+            AnchorStateRegistry: address(_doo.anchorStateRegistryProxy()),
+            OptimismMintableERC20Factory: address(_doo.optimismMintableERC20FactoryProxy()),
+            OptimismPortal: address(_doo.optimismPortalProxy()),
+            ETHLockbox: address(_doo.ethLockboxProxy()),
+            SystemConfig: address(_doo.systemConfigProxy()),
+            L1ERC721Bridge: address(_doo.l1ERC721BridgeProxy()),
+            ProtocolVersions: address(0),
+            SuperchainConfig: address(0)
+        });
+
         assertValidAnchorStateRegistryProxy(_doi, _doo);
-        assertValidDelayedWETH(_doi, _doo);
-        assertValidDisputeGameFactory(_doi, _doo);
+        ChainAssertions.checkDisputeGameFactory(
+            _doo.disputeGameFactoryProxy(),
+            address(_doi.opChainProxyAdminOwner()),
+            address(_doo.permissionedDisputeGame()),
+            true
+        );
         ChainAssertions.checkL1CrossDomainMessenger(_doo.l1CrossDomainMessengerProxy(), vm, true);
         DeployUtils.assertInitialized({
             _contractAddress: address(_doo.l1ERC721BridgeProxy()),
@@ -474,12 +495,17 @@ contract DeployOPChain is Script {
             _slot: 0,
             _offset: 0
         });
-        assertValidL1StandardBridge(_doo);
+        DeployUtils.assertInitialized({
+            _contractAddress: address(_doo.l1StandardBridgeProxy()),
+            _isProxy: true,
+            _slot: 0,
+            _offset: 0
+        });
         assertValidOptimismMintableERC20Factory(_doo);
         assertValidOptimismPortal(_doi, _doo);
         assertValidETHLockbox(_doi, _doo);
         assertValidPermissionedDisputeGame(_doi, _doo);
-        assertValidSystemConfig(_doi, _doo);
+        ChainAssertions.checkSystemConfig(proxies, _doi, true);
         assertValidAddressManager(_doi, _doo);
         assertValidOPChainProxyAdmin(_doi, _doo);
     }
@@ -540,54 +566,6 @@ contract DeployOPChain is Script {
         require(Hash.unwrap(actualRoot) == expectedRoot, "ANCHORP-40");
     }
 
-    function assertValidSystemConfig(DeployOPChainInput _doi, DeployOPChainOutput _doo) internal {
-        ISystemConfig systemConfig = _doo.systemConfigProxy();
-
-        DeployUtils.assertInitialized({ _contractAddress: address(systemConfig), _isProxy: true, _slot: 0, _offset: 0 });
-
-        require(systemConfig.owner() == _doi.systemConfigOwner(), "SYSCON-10");
-        require(systemConfig.basefeeScalar() == _doi.basefeeScalar(), "SYSCON-20");
-        require(systemConfig.blobbasefeeScalar() == _doi.blobBaseFeeScalar(), "SYSCON-30");
-        require(systemConfig.batcherHash() == bytes32(uint256(uint160(_doi.batcher()))), "SYSCON-40");
-        require(systemConfig.gasLimit() == _doi.gasLimit(), "SYSCON-50");
-        require(systemConfig.unsafeBlockSigner() == _doi.unsafeBlockSigner(), "SYSCON-60");
-        require(systemConfig.scalar() >> 248 == 1, "SYSCON-70");
-
-        IResourceMetering.ResourceConfig memory rConfig = Constants.DEFAULT_RESOURCE_CONFIG();
-        IResourceMetering.ResourceConfig memory outputConfig = systemConfig.resourceConfig();
-        require(outputConfig.maxResourceLimit == rConfig.maxResourceLimit, "SYSCON-80");
-        require(outputConfig.elasticityMultiplier == rConfig.elasticityMultiplier, "SYSCON-90");
-        require(outputConfig.baseFeeMaxChangeDenominator == rConfig.baseFeeMaxChangeDenominator, "SYSCON-100");
-        require(outputConfig.systemTxMaxGas == rConfig.systemTxMaxGas, "SYSCON-110");
-        require(outputConfig.minimumBaseFee == rConfig.minimumBaseFee, "SYSCON-120");
-        require(outputConfig.maximumBaseFee == rConfig.maximumBaseFee, "SYSCON-130");
-
-        require(systemConfig.startBlock() == block.number, "SYSCON-140");
-        require(systemConfig.batchInbox() == _doi.opcm().chainIdToBatchInboxAddress(_doi.l2ChainId()), "SYSCON-150");
-
-        require(systemConfig.l1CrossDomainMessenger() == address(_doo.l1CrossDomainMessengerProxy()), "SYSCON-160");
-        require(systemConfig.l1ERC721Bridge() == address(_doo.l1ERC721BridgeProxy()), "SYSCON-170");
-        require(systemConfig.l1StandardBridge() == address(_doo.l1StandardBridgeProxy()), "SYSCON-180");
-        require(systemConfig.optimismPortal() == address(_doo.optimismPortalProxy()), "SYSCON-190");
-        require(
-            systemConfig.optimismMintableERC20Factory() == address(_doo.optimismMintableERC20FactoryProxy()),
-            "SYSCON-200"
-        );
-    }
-
-    function assertValidL1StandardBridge(DeployOPChainOutput _doo) internal {
-        IL1StandardBridge bridge = _doo.l1StandardBridgeProxy();
-        IL1CrossDomainMessenger messenger = _doo.l1CrossDomainMessengerProxy();
-
-        DeployUtils.assertInitialized({ _contractAddress: address(bridge), _isProxy: true, _slot: 0, _offset: 0 });
-
-        require(address(bridge.MESSENGER()) == address(messenger), "L1SB-10");
-        require(address(bridge.messenger()) == address(messenger), "L1SB-20");
-        require(address(bridge.OTHER_BRIDGE()) == Predeploys.L2_STANDARD_BRIDGE, "L1SB-30");
-        require(address(bridge.otherBridge()) == Predeploys.L2_STANDARD_BRIDGE, "L1SB-40");
-        require(address(bridge.systemConfig()) == address(_doo.systemConfigProxy()), "L1SB-50");
-    }
-
     function assertValidOptimismMintableERC20Factory(DeployOPChainOutput _doo) internal {
         IOptimismMintableERC20Factory factory = _doo.optimismMintableERC20FactoryProxy();
 
@@ -624,29 +602,6 @@ contract DeployOPChain is Script {
         require(address(lockbox.systemConfig()) == address(_doo.systemConfigProxy()), "ETHLOCKBOX-10");
         require(lockbox.authorizedPortals(_doo.optimismPortalProxy()), "ETHLOCKBOX-20");
         require(lockbox.proxyAdminOwner() == _doi.opChainProxyAdminOwner(), "ETHLOCKBOX-30");
-    }
-
-    function assertValidDisputeGameFactory(DeployOPChainInput _doi, DeployOPChainOutput _doo) internal {
-        IDisputeGameFactory factory = _doo.disputeGameFactoryProxy();
-
-        DeployUtils.assertInitialized({ _contractAddress: address(factory), _isProxy: true, _slot: 0, _offset: 0 });
-
-        require(
-            address(factory.gameImpls(GameTypes.PERMISSIONED_CANNON)) == address(_doo.permissionedDisputeGame()),
-            "DF-10"
-        );
-        require(factory.owner() == address(_doi.opChainProxyAdminOwner()), "DF-20");
-    }
-
-    function assertValidDelayedWETH(DeployOPChainInput _doi, DeployOPChainOutput _doo) internal {
-        IDelayedWETH permissioned = _doo.delayedWETHPermissionedGameProxy();
-
-        require(permissioned.proxyAdminOwner() == address(_doi.opChainProxyAdminOwner()), "DWETH-10");
-
-        IProxy proxy = IProxy(payable(address(permissioned)));
-        vm.prank(address(0));
-        address admin = proxy.admin();
-        require(admin == address(_doo.opChainProxyAdmin()), "DWETH-20");
     }
 
     function assertValidAddressManager(DeployOPChainInput, DeployOPChainOutput _doo) internal view {
