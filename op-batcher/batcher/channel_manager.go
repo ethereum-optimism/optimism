@@ -414,7 +414,6 @@ func (s *channelManager) processBlocks() error {
 
 		blocksAdded += 1
 		latestL2ref = l2BlockRefFromBlockAndL1Info(block, l1info)
-		s.metr.RecordL2BlockInChannel(block)
 		// current block got added but channel is now full
 		if s.currentChannel.IsFull() {
 			break
@@ -496,9 +495,12 @@ var ErrPendingAfterClose = errors.New("pending channels remain after closing cha
 
 // PruneSafeBlocks dequeues the provided number of blocks from the internal blocks queue
 func (s *channelManager) PruneSafeBlocks(num int) {
-	_, ok := s.blocks.DequeueN(int(num))
+	blocks, ok := s.blocks.DequeueN(int(num))
 	if !ok {
 		panic("tried to prune more blocks than available")
+	}
+	for _, block := range blocks {
+		s.metr.RecordL2BlockDequeued(block)
 	}
 	s.blockCursor -= int(num)
 	if s.blockCursor < 0 {

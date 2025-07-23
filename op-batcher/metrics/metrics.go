@@ -40,7 +40,7 @@ type Metricer interface {
 	RecordChannelOpened(id derive.ChannelID, numPendingBlocks int)
 	RecordL2BlocksAdded(l2ref eth.L2BlockRef, numBlocksAdded, numPendingBlocks, inputBytes, outputComprBytes int)
 	RecordL2BlockInPendingQueue(block *types.Block)
-	RecordL2BlockInChannel(block *types.Block)
+	RecordL2BlockDequeued(block *types.Block)
 	RecordChannelClosed(id derive.ChannelID, numPendingBlocks int, numFrames int, inputBytes int, outputComprBytes int, reason error)
 	RecordChannelFullySubmitted(id derive.ChannelID)
 	RecordChannelTimedOut(id derive.ChannelID)
@@ -393,7 +393,7 @@ func (m *Metrics) RecordL2BlockInPendingQueue(block *types.Block) {
 	atomic.AddInt64(&m.pendingDABytes, int64(daSize))
 }
 
-func (m *Metrics) RecordL2BlockInChannel(block *types.Block) {
+func (m *Metrics) RecordL2BlockDequeued(block *types.Block) {
 	daSize, rawSize := estimateBatchSize(block)
 	m.pendingBlocksBytesCurrent.Add(-1.0 * float64(rawSize))
 	atomic.AddInt64(&m.pendingDABytes, -1*int64(daSize))

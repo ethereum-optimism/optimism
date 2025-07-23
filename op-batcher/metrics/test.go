@@ -18,7 +18,7 @@ func (m *TestMetrics) RecordL2BlockInPendingQueue(block *types.Block) {
 	m.PendingBlocksBytesCurrent += float64(rawSize)
 	m.pendingDABytes += float64(daSize)
 }
-func (m *TestMetrics) RecordL2BlockInChannel(block *types.Block) {
+func (m *TestMetrics) RecordL2BlockDequeued(block *types.Block) {
 	daSize, rawSize := estimateBatchSize(block)
 	m.PendingBlocksBytesCurrent -= float64(rawSize)
 	m.pendingDABytes -= float64(daSize)
