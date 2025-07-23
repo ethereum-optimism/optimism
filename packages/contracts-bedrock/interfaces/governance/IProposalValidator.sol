@@ -62,7 +62,7 @@ interface IProposalValidator is ISemver {
     event ProposalTypeDataSet(
         ProposalType proposalType,
         uint256 requiredApprovals,
-        uint8 proposalVotingModule
+        uint8 idInConfigurator
     );
 
     event ProposalVotingModuleData(
@@ -85,7 +85,7 @@ interface IProposalValidator is ISemver {
 
     struct ProposalTypeData {
         uint256 requiredApprovals;
-        uint8 proposalVotingModule;
+        uint8 idInConfigurator;
     }
 
     struct VotingCycleData {
@@ -196,7 +196,7 @@ interface IProposalValidator is ISemver {
 
     function OPTIMISTIC_MODULE_PERCENT_DIVISOR() external view returns (uint256);
 
-    function proposalTypesData(ProposalType) external view returns (uint256 requiredApprovals, uint8 proposalVotingModule);
+    function proposalTypesData(ProposalType) external view returns (uint256 requiredApprovals, uint8 idInConfigurator);
 
     function votingCycles(uint256) external view returns (
         uint256 startingTimestamp,

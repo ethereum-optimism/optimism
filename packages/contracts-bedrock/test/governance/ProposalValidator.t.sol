@@ -146,7 +146,7 @@ contract ProposalValidator_Init is CommonTest {
     );
     event ProposalDistributionThresholdSet(uint256 newProposalDistributionThreshold);
     event ProposalTypeDataSet(
-        ProposalValidator.ProposalType proposalType, uint256 requiredApprovals, uint8 proposalVotingModule
+        ProposalValidator.ProposalType proposalType, uint256 requiredApprovals, uint8 idInConfigurator
     );
     event ProposalVotingModuleData(bytes32 indexed proposalHash, bytes encodedVotingModuleData);
 
@@ -167,9 +167,9 @@ contract ProposalValidator_Init is CommonTest {
         stdstore.target(address(validator)).sig("proposalTypesData(uint8)").with_key(uint256(_proposalType)).depth(0)
             .checked_write(_data.requiredApprovals);
 
-        // Set proposalVotingModule (depth 1)
+        // Set idInConfigurator (depth 1)
         stdstore.target(address(validator)).sig("proposalTypesData(uint8)").with_key(uint256(_proposalType)).depth(1)
-            .checked_write(_data.proposalVotingModule);
+            .checked_write(_data.idInConfigurator);
     }
 
     /// @notice Helper function to set CouncilMemberElections proposal type data.
@@ -178,7 +178,7 @@ contract ProposalValidator_Init is CommonTest {
             ProposalValidator.ProposalType.CouncilMemberElections,
             ProposalValidator.ProposalTypeData({
                 requiredApprovals: PROPOSAL_REQUIRED_APPROVALS,
-                proposalVotingModule: APPROVAL_VOTING_MODULE_ID
+                idInConfigurator: APPROVAL_VOTING_MODULE_ID
             })
         );
     }
@@ -189,7 +189,7 @@ contract ProposalValidator_Init is CommonTest {
             ProposalValidator.ProposalType.GovernanceFund,
             ProposalValidator.ProposalTypeData({
                 requiredApprovals: PROPOSAL_REQUIRED_APPROVALS,
-                proposalVotingModule: APPROVAL_VOTING_MODULE_ID
+                idInConfigurator: APPROVAL_VOTING_MODULE_ID
             })
         );
     }
@@ -200,7 +200,7 @@ contract ProposalValidator_Init is CommonTest {
             ProposalValidator.ProposalType.CouncilBudget,
             ProposalValidator.ProposalTypeData({
                 requiredApprovals: PROPOSAL_REQUIRED_APPROVALS,
-                proposalVotingModule: APPROVAL_VOTING_MODULE_ID
+                idInConfigurator: APPROVAL_VOTING_MODULE_ID
             })
         );
     }
@@ -211,7 +211,7 @@ contract ProposalValidator_Init is CommonTest {
             ProposalValidator.ProposalType.ProtocolOrGovernorUpgrade,
             ProposalValidator.ProposalTypeData({
                 requiredApprovals: PROPOSAL_REQUIRED_APPROVALS,
-                proposalVotingModule: OPTIMISTIC_VOTING_MODULE_ID
+                idInConfigurator: OPTIMISTIC_VOTING_MODULE_ID
             })
         );
     }
@@ -222,7 +222,7 @@ contract ProposalValidator_Init is CommonTest {
             ProposalValidator.ProposalType.MaintenanceUpgrade,
             ProposalValidator.ProposalTypeData({
                 requiredApprovals: 0, // MaintenanceUpgrade moves directly to voting
-                proposalVotingModule: OPTIMISTIC_VOTING_MODULE_ID
+                idInConfigurator: OPTIMISTIC_VOTING_MODULE_ID
             })
         );
     }
@@ -259,27 +259,25 @@ contract ProposalValidator_Init is CommonTest {
         // ProtocolOrGovernorUpgrade
         proposalTypesData[0] = ProposalValidator.ProposalTypeData({
             requiredApprovals: PROPOSAL_REQUIRED_APPROVALS,
-            proposalVotingModule: OPTIMISTIC_VOTING_MODULE_ID
+            idInConfigurator: OPTIMISTIC_VOTING_MODULE_ID
         });
         // MaintenanceUpgrade
-        proposalTypesData[1] = ProposalValidator.ProposalTypeData({
-            requiredApprovals: 0,
-            proposalVotingModule: OPTIMISTIC_VOTING_MODULE_ID
-        });
+        proposalTypesData[1] =
+            ProposalValidator.ProposalTypeData({ requiredApprovals: 0, idInConfigurator: OPTIMISTIC_VOTING_MODULE_ID });
         // CouncilMemberElections
         proposalTypesData[2] = ProposalValidator.ProposalTypeData({
             requiredApprovals: PROPOSAL_REQUIRED_APPROVALS,
-            proposalVotingModule: APPROVAL_VOTING_MODULE_ID
+            idInConfigurator: APPROVAL_VOTING_MODULE_ID
         });
         // GovernanceFund
         proposalTypesData[3] = ProposalValidator.ProposalTypeData({
             requiredApprovals: PROPOSAL_REQUIRED_APPROVALS,
-            proposalVotingModule: APPROVAL_VOTING_MODULE_ID
+            idInConfigurator: APPROVAL_VOTING_MODULE_ID
         });
         // CouncilBudget
         proposalTypesData[4] = ProposalValidator.ProposalTypeData({
             requiredApprovals: PROPOSAL_REQUIRED_APPROVALS,
-            proposalVotingModule: APPROVAL_VOTING_MODULE_ID
+            idInConfigurator: APPROVAL_VOTING_MODULE_ID
         });
 
         return (proposalTypes, proposalTypesData);
@@ -680,7 +678,7 @@ contract ProposalValidator_Initialize_Test is ProposalValidator_Init {
 
         // Verify proposal type data
         for (uint256 i = 0; i < proposalTypes.length; i++) {
-            (uint256 requiredApprovals, uint8 proposalVotingModule) = validator.proposalTypesData(proposalTypes[i]);
+            (uint256 requiredApprovals, uint8 idInConfigurator) = validator.proposalTypesData(proposalTypes[i]);
             if (proposalTypes[i] == ProposalValidator.ProposalType.MaintenanceUpgrade) {
                 assertEq(requiredApprovals, 0);
             } else {
@@ -693,10 +691,10 @@ contract ProposalValidator_Initialize_Test is ProposalValidator_Init {
                     || proposalTypes[i] == ProposalValidator.ProposalType.CouncilBudget
                     || proposalTypes[i] == ProposalValidator.ProposalType.CouncilMemberElections
             ) {
-                assertEq(proposalVotingModule, APPROVAL_VOTING_MODULE_ID);
+                assertEq(idInConfigurator, APPROVAL_VOTING_MODULE_ID);
             } else {
                 // ProtocolOrGovernorUpgrade and MaintenanceUpgrade use OPTIMISTIC_VOTING_MODULE_ID
-                assertEq(proposalVotingModule, OPTIMISTIC_VOTING_MODULE_ID);
+                assertEq(idInConfigurator, OPTIMISTIC_VOTING_MODULE_ID);
             }
         }
     }
@@ -709,14 +707,10 @@ contract ProposalValidator_Initialize_Test is ProposalValidator_Init {
 
         // Create mismatched array with different length
         ProposalValidator.ProposalTypeData[] memory proposalTypesData = new ProposalValidator.ProposalTypeData[](2);
-        proposalTypesData[0] = ProposalValidator.ProposalTypeData({
-            requiredApprovals: PROPOSAL_REQUIRED_APPROVALS,
-            proposalVotingModule: 0
-        });
-        proposalTypesData[1] = ProposalValidator.ProposalTypeData({
-            requiredApprovals: PROPOSAL_REQUIRED_APPROVALS,
-            proposalVotingModule: 1
-        });
+        proposalTypesData[0] =
+            ProposalValidator.ProposalTypeData({ requiredApprovals: PROPOSAL_REQUIRED_APPROVALS, idInConfigurator: 0 });
+        proposalTypesData[1] =
+            ProposalValidator.ProposalTypeData({ requiredApprovals: PROPOSAL_REQUIRED_APPROVALS, idInConfigurator: 1 });
 
         vm.prank(owner);
         vm.expectRevert("Proxy: delegatecall to new implementation contract failed");
@@ -790,7 +784,7 @@ contract ProposalValidator_SubmitUpgradeProposal_Test is ProposalValidator_Init 
             address(governor),
             abi.encodeCall(
                 IOptimismGovernor.proposeWithModule,
-                (optimisticVotingModule, votingModuleData, proposalDescription, uint8(proposalType))
+                (optimisticVotingModule, votingModuleData, proposalDescription, OPTIMISTIC_VOTING_MODULE_ID)
             ),
             abi.encode(uint256(expectedHash))
         );
@@ -1046,7 +1040,7 @@ contract ProposalValidator_SubmitUpgradeProposal_TestFail is ProposalValidator_I
                 address(governor),
                 abi.encodeCall(
                     IOptimismGovernor.proposeWithModule,
-                    (optimisticVotingModule, votingModuleData, proposalDescription, uint8(proposalType))
+                    (optimisticVotingModule, votingModuleData, proposalDescription, OPTIMISTIC_VOTING_MODULE_ID)
                 ),
                 abi.encode(uint256(expectedHash))
             );
@@ -1176,7 +1170,7 @@ contract ProposalValidator_SubmitUpgradeProposal_TestFail is ProposalValidator_I
             address(governor),
             abi.encodeCall(
                 IOptimismGovernor.proposeWithModule,
-                (optimisticVotingModule, votingModuleData, proposalDescription, uint8(proposalType))
+                (optimisticVotingModule, votingModuleData, proposalDescription, OPTIMISTIC_VOTING_MODULE_ID)
             ),
             abi.encode(proposalId)
         );
@@ -2216,7 +2210,7 @@ contract ProposalValidator_MoveToVoteProtocolOrGovernorUpgradeProposal_Test is P
             address(governor),
             abi.encodeCall(
                 IOptimismGovernor.proposeWithModule,
-                (optimisticVotingModule, votingModuleData, proposalDescription, uint8(proposalType))
+                (optimisticVotingModule, votingModuleData, proposalDescription, OPTIMISTIC_VOTING_MODULE_ID)
             ),
             abi.encode(uint256(expectedHash))
         );
@@ -2309,7 +2303,7 @@ contract ProposalValidator_MoveToVoteProtocolOrGovernorUpgradeProposal_TestFail 
             address(governor),
             abi.encodeCall(
                 IOptimismGovernor.proposeWithModule,
-                (optimisticVotingModule, votingModuleData, proposalDescription, uint8(proposalType))
+                (optimisticVotingModule, votingModuleData, proposalDescription, OPTIMISTIC_VOTING_MODULE_ID)
             ),
             abi.encode(uint256(_randomHash))
         );
@@ -2348,7 +2342,7 @@ contract ProposalValidator_MoveToVoteCouncilMemberElectionsProposal_Test is Prop
             address(governor),
             abi.encodeCall(
                 IOptimismGovernor.proposeWithModule,
-                (approvalVotingModule, votingModuleData, proposalDescription, uint8(proposalType))
+                (approvalVotingModule, votingModuleData, proposalDescription, APPROVAL_VOTING_MODULE_ID)
             ),
             abi.encode(uint256(expectedHash))
         );
@@ -2455,7 +2449,7 @@ contract ProposalValidator_MoveToVoteCouncilMemberElectionsProposal_TestFail is 
             address(governor),
             abi.encodeCall(
                 IOptimismGovernor.proposeWithModule,
-                (approvalVotingModule, votingModuleData, proposalDescription, uint8(proposalType))
+                (approvalVotingModule, votingModuleData, proposalDescription, APPROVAL_VOTING_MODULE_ID)
             ),
             abi.encode(uint256(_randomHash))
         );
@@ -2530,7 +2524,7 @@ contract ProposalValidator_MoveToVoteFundingProposal_Test is ProposalValidator_I
                     approvalVotingModule,
                     governanceFundVotingModuleData,
                     governanceFundProposalDescription,
-                    uint8(governanceFundProposalType)
+                    APPROVAL_VOTING_MODULE_ID
                 )
             ),
             abi.encode(uint256(expectedGovernanceFundHash))
@@ -2570,7 +2564,7 @@ contract ProposalValidator_MoveToVoteFundingProposal_Test is ProposalValidator_I
                     approvalVotingModule,
                     councilBudgetVotingModuleData,
                     councilBudgetProposalDescription,
-                    uint8(councilBudgetProposalType)
+                    APPROVAL_VOTING_MODULE_ID
                 )
             ),
             abi.encode(uint256(expectedCouncilBudgetHash))
@@ -2905,7 +2899,7 @@ contract ProposalValidator_MoveToVoteFundingProposal_TestFail is ProposalValidat
             address(governor),
             abi.encodeCall(
                 IOptimismGovernor.proposeWithModule,
-                (approvalVotingModule, votingModuleData, proposalDescription, uint8(proposalType))
+                (approvalVotingModule, votingModuleData, proposalDescription, APPROVAL_VOTING_MODULE_ID)
             ),
             abi.encode(uint256(_randomHash))
         );
@@ -3012,7 +3006,7 @@ contract ProposalValidator_Setters_Test is ProposalValidator_Init {
 
         ProposalValidator.ProposalTypeData memory newData = ProposalValidator.ProposalTypeData({
             requiredApprovals: newRequiredApprovals,
-            proposalVotingModule: newProposalTypeId
+            idInConfigurator: newProposalTypeId
         });
 
         // Expect the ProposalTypeDataSet event to be emitted
@@ -3022,16 +3016,16 @@ contract ProposalValidator_Setters_Test is ProposalValidator_Init {
         vm.prank(owner);
         validator.setProposalTypeData(proposalType, newData);
 
-        (uint256 requiredApprovals, uint8 proposalVotingModule) = validator.proposalTypesData(proposalType);
+        (uint256 requiredApprovals, uint8 idInConfigurator) = validator.proposalTypesData(proposalType);
         assertEq(requiredApprovals, newRequiredApprovals);
-        assertEq(proposalVotingModule, newProposalTypeId);
+        assertEq(idInConfigurator, newProposalTypeId);
     }
 
     function testFuzz_setProposalTypeData_notOwner_reverts(address caller) public {
         vm.assume(caller != owner);
 
         ProposalValidator.ProposalTypeData memory newData =
-            ProposalValidator.ProposalTypeData({ requiredApprovals: 4, proposalVotingModule: 0 });
+            ProposalValidator.ProposalTypeData({ requiredApprovals: 4, idInConfigurator: 0 });
 
         vm.prank(caller);
         vm.expectRevert("Ownable: caller is not the owner");
