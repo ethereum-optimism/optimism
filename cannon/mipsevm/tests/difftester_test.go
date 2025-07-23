@@ -53,10 +53,10 @@ func TestDiffTester_Run_SimpleTest(t *testing.T) {
 
 			// Validate that we invoked initState and setExpectations as expected
 			for _, c := range testCases {
-				testsPerCase := len(versions)
-				require.Equal(t, testsPerCase, initStateCalled[c.name])
-				// Difftester runs extra calls on the expectations fn in order to analyze the tests
-				require.Equal(t, testsPerCase+len(versions), expectationsCalled[c.name])
+				// Difftester runs extra calls in order to analyze the tests
+				expectedCalls := 2 * len(versions)
+				require.Equal(t, expectedCalls, initStateCalled[c.name])
+				require.Equal(t, expectedCalls, expectationsCalled[c.name])
 			}
 
 			// Validate that tests ran and passed as expected
@@ -131,10 +131,10 @@ func TestDiffTester_Run_WithMemModifications(t *testing.T) {
 
 			// Validate that we invoked initState and setExpectations as expected
 			for _, c := range testCases {
-				testsPerCase := len(versions) * (len(mods) + 1)
-				require.Equal(t, testsPerCase, initStateCalled[c.name])
-				// Difftester runs extra calls on the expectations fn in order to analyze the tests
-				require.Equal(t, testsPerCase+len(versions), expectationsCalled[c.name])
+				// Difftester runs extra calls in order to analyze the tests
+				expectedCalls := len(versions)*(len(mods)+1) + +len(versions)
+				require.Equal(t, expectedCalls, initStateCalled[c.name])
+				require.Equal(t, expectedCalls, expectationsCalled[c.name])
 			}
 
 			// Validate that tests ran and passed
@@ -189,10 +189,10 @@ func TestDiffTester_Run_WithPanic(t *testing.T) {
 
 			// Validate that we invoked initState and setExpectations as expected
 			for _, c := range testCases {
-				testsPerCase := len(versions)
-				require.Equal(t, testsPerCase, initStateCalled[c.name])
-				// Difftester runs extra calls on the expectations fn in order to analyze the tests
-				require.Equal(t, testsPerCase+len(versions), expectationsCalled[c.name])
+				// Difftester runs extra calls in order to analyze the tests
+				expectedCalls := 2 * len(versions)
+				require.Equal(t, expectedCalls, initStateCalled[c.name])
+				require.Equal(t, expectedCalls, expectationsCalled[c.name])
 			}
 
 			// Validate that tests ran and passed as expected
@@ -246,8 +246,8 @@ func TestDiffTester_Run_WithVm(t *testing.T) {
 
 	// Validate that we invoked initState and setExpectations as expected
 	for _, c := range testCases {
-		require.Equal(t, 1, initStateCalled[c.name])
-		// Difftester runs extra calls on the expectations fn in order to analyze the tests
+		// Difftester runs extra calls in order to analyze the tests
+		require.Equal(t, 2, initStateCalled[c.name])
 		require.Equal(t, 2, expectationsCalled[c.name])
 	}
 

@@ -71,7 +71,7 @@ func (d *DiffTester[T]) run(t testRunner, testCases []T, opts ...TestOption) {
 	for _, vm := range cfg.vms {
 		for i, testCase := range testCases {
 			randSeed := randomSeed(t, d.testNamer(testCase), i)
-			mods := d.generateTestModifiers(t, testCase, vm, d.setExpectations, cfg, randSeed)
+			mods := d.generateTestModifiers(t, testCase, vm, cfg, randSeed)
 			for _, mod := range mods {
 				testName := fmt.Sprintf("%v%v (%v)", d.testNamer(testCase), mod.name, vm.Name)
 				t.Run(testName, func(t testcaseT) {
@@ -141,16 +141,19 @@ func newTestModifier(name string) *testModifier {
 	}
 }
 
-func (d *DiffTester[T]) generateTestModifiers(t require.TestingT, testCase T, vm VersionedVMTestCase, setExpectations SetExpectationsFn[T], cfg *TestConfig, randSeed int64) []*testModifier {
+func (d *DiffTester[T]) generateTestModifiers(t require.TestingT, testCase T, vm VersionedVMTestCase, cfg *TestConfig, randSeed int64) []*testModifier {
 	modifiers := []*testModifier{
 		newTestModifier(""), // Always return a noop
 	}
 
-	// Process expectations
-	goVm := vm.VMFactory(nil, nil, nil, nil)
+	// Set up state
+	testDeps := cfg.testDependencies()
+	goVm := vm.VMFactory(testDeps.po, testDeps.stdOut, testDeps.stdErr, testDeps.logger, d.stateOpts...)
 	state := mtutil.GetMtState(t, goVm)
-	expect := mtutil.NewExpectedState(t, state)
-	setExpectations(testCase, expect, vm)
+	d.initState(testCase, state, vm, testutil.NewRandHelper(randSeed))
+	// Process expectations
+	expect := d.expectedState(t, state)
+	d.setExpectations(testCase, expect, vm)
 
 	// Generate test modifiers based on expectations
 	modifiers = append(modifiers, d.memReservationTestModifier(cfg, randSeed, expect)...)
