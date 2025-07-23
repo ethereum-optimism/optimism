@@ -86,7 +86,7 @@ func TestEVM_MT_LL(t *testing.T) {
 		expected.ExpectStep()
 		expected.LLReservationStatus = multithreaded.LLStatusActive32bit
 		expected.LLAddress = Word(c.expectedAddr)
-		expected.LLOwnerThread = expected.ActiveThreadId
+		expected.LLOwnerThread = expected.ActiveThreadId()
 		if c.rtReg != 0 {
 			expected.ActiveThread().Registers[c.rtReg] = Word(c.retVal)
 		}
@@ -284,16 +284,11 @@ func TestEVM_SysClone_Successful(t *testing.T) {
 	setExpectations := func(c testCase, expected *mtutil.ExpectedState, vm VersionedVMTestCase) ExpectedExecResult {
 		expected.Step += 1
 		expectedNewThread := expected.ExpectNewThread()
-		expected.ActiveThreadId = expectedNewThread.ThreadId
-		expected.StepsSinceLastContextSwitch = 0
-		if c.traverseRight {
-			expected.RightStackSize += 1
-		} else {
-			expected.LeftStackSize += 1
-		}
+		expected.ExpectActiveThreadId(expectedNewThread.ThreadId)
+		expected.ExpectContextSwitch()
 
 		// Original thread expectations
-		prestateNextPC := expected.ActiveThread().NextPC
+		prestateNextPC := expected.PrestateActiveThread().NextPC
 		expected.PrestateActiveThread().PC = prestateNextPC
 		expected.PrestateActiveThread().NextPC = prestateNextPC + 4
 		expected.PrestateActiveThread().Registers[2] = 1
@@ -389,7 +384,7 @@ func TestEVM_SysExit(t *testing.T) {
 
 	setExpectations := func(c testCase, expected *mtutil.ExpectedState, vm VersionedVMTestCase) ExpectedExecResult {
 		expected.Step += 1
-		expected.StepsSinceLastContextSwitch += 1
+		expected.ExpectNoContextSwitch()
 		expected.ActiveThread().Exited = true
 		expected.ActiveThread().ExitCode = exitCode
 		if c.Base.shouldExitGlobally {
@@ -436,16 +431,9 @@ func TestEVM_PopExitedThread(t *testing.T) {
 				// Set up expectations
 				expected := mtutil.NewExpectedState(t, state)
 				expected.Step += 1
-				expected.ActiveThreadId = mtutil.FindNextThreadExcluding(state, threadToPop.ThreadId).ThreadId
-				expected.StepsSinceLastContextSwitch = 0
-				expected.ThreadCount -= 1
-				expected.TraverseRight = c.expectTraverseRightPostState
-				expected.Thread(threadToPop.ThreadId).Dropped = true
-				if c.traverseRight {
-					expected.RightStackSize -= 1
-				} else {
-					expected.LeftStackSize -= 1
-				}
+				expected.ExpectPoppedThread()
+				expected.ExpectContextSwitch()
+				expected.ExpectTraverseRight(c.expectTraverseRightPostState)
 
 				// State transition
 				var err error
@@ -509,14 +497,14 @@ func TestEVM_SysFutex_WaitPrivate(t *testing.T) {
 				expected.ActiveThread().PC = state.GetCpu().NextPC
 				expected.ActiveThread().NextPC = state.GetCpu().NextPC + 4
 				if c.shouldFail {
-					expected.StepsSinceLastContextSwitch += 1
+					expected.ExpectNoContextSwitch()
 					expected.ActiveThread().Registers[2] = exec.MipsEAGAIN
 					expected.ActiveThread().Registers[7] = exec.SysErrorSignal
 				} else {
 					// Return empty result and preempt thread
 					expected.ActiveThread().Registers[2] = 0
 					expected.ActiveThread().Registers[7] = 0
-					expected.ExpectPreemption(state)
+					expected.ExpectPreemption()
 				}
 
 				// State transition
@@ -577,7 +565,7 @@ func TestEVM_SysFutex_WakePrivate(t *testing.T) {
 				expected.ExpectStep()
 				expected.ActiveThread().Registers[2] = 0
 				expected.ActiveThread().Registers[7] = 0
-				expected.ExpectPreemption(state)
+				expected.ExpectPreemption()
 
 				// State transition
 				stepWitness, err := goVm.Step(true)
@@ -703,7 +691,7 @@ func runPreemptSyscall(t *testing.T, syscallName string, syscallNum uint32) {
 					// Set up post-state expectations
 					expected := mtutil.NewExpectedState(t, state)
 					expected.ExpectStep()
-					expected.ExpectPreemption(state)
+					expected.ExpectPreemption()
 					expected.PrestateActiveThread().Registers[2] = 0
 					expected.PrestateActiveThread().Registers[7] = 0
 
@@ -990,7 +978,7 @@ func TestEVM_NormalTraversal_Full(t *testing.T) {
 						expected.ActiveThread().Registers[2] = 0
 						expected.ActiveThread().Registers[7] = 0
 						expected.ExpectStep()
-						expected.ExpectPreemption(state)
+						expected.ExpectPreemption()
 
 						// State transition
 						var err error
@@ -1036,7 +1024,7 @@ func TestEVM_SchedQuantumThreshold(t *testing.T) {
 				expected := mtutil.NewExpectedState(t, state)
 				if c.shouldPreempt {
 					expected.Step += 1
-					expected.ExpectPreemption(state)
+					expected.ExpectPreemption()
 				} else {
 					// Otherwise just expect a normal step
 					expected.ExpectStep()

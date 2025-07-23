@@ -84,7 +84,7 @@ func TestEVM_MT64_LL(t *testing.T) {
 		expected.ExpectStep()
 		expected.LLReservationStatus = multithreaded.LLStatusActive32bit
 		expected.LLAddress = testCase.Base.addr
-		expected.LLOwnerThread = expected.ActiveThreadId
+		expected.LLOwnerThread = expected.ActiveThreadId()
 
 		retReg := testCase.Base.retReg
 		if retReg != 0 {
@@ -270,7 +270,7 @@ func TestEVM_MT64_LLD(t *testing.T) {
 		expected.ExpectStep()
 		expected.LLReservationStatus = multithreaded.LLStatusActive64bit
 		expected.LLAddress = c.addr
-		expected.LLOwnerThread = expected.ActiveThreadId
+		expected.LLOwnerThread = expected.ActiveThreadId()
 		if c.retReg != 0 {
 			expected.ActiveThread().Registers[c.retReg] = c.memVal
 		}
