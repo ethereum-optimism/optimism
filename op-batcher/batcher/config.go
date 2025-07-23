@@ -10,6 +10,7 @@ import (
 
 	altda "github.com/ethereum-optimism/optimism/op-alt-da"
 	"github.com/ethereum-optimism/optimism/op-batcher/compressor"
+	"github.com/ethereum-optimism/optimism/op-batcher/config"
 	"github.com/ethereum-optimism/optimism/op-batcher/flags"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
@@ -116,6 +117,20 @@ type CLIConfig struct {
 	// AdditionalThrottlingEndpoints is a list of additional endpoints to throttle.
 	AdditionalThrottlingEndpoints []string
 
+	// ThrottleControllerType is the type of throttle controller to use. Set to step by default
+	ThrottleControllerType config.ThrottleControllerType
+
+	// PID Controller specific parameters
+	ThrottlePidKp          float64
+	ThrottlePidKi          float64
+	ThrottlePidKd          float64
+	ThrottlePidIntegralMax float64
+	ThrottlePidOutputMax   float64
+	ThrottlePidSampleTime  time.Duration
+
+	// ThrottleThresholdMultiplier is the threshold multiplier for the quadratic controller
+	ThrottleThresholdMultiplier float64
+
 	TxMgrConfig   txmgr.CLIConfig
 	LogConfig     oplog.CLIConfig
 	MetricsConfig opmetrics.CLIConfig
@@ -167,6 +182,11 @@ func (c *CLIConfig) Check() error {
 	if c.DataAvailabilityType != flags.CalldataType && c.TargetNumFrames > maxBlobsPerBlock {
 		return fmt.Errorf("too many frames for blob transactions, max %d", maxBlobsPerBlock)
 	}
+
+	if !config.ValidThrottleControllerType(c.ThrottleControllerType) {
+		return fmt.Errorf("invalid throttle controller type: %s (must be one of: %v)", c.ThrottleControllerType, config.ThrottleControllerTypes)
+	}
+
 	if err := c.MetricsConfig.Check(); err != nil {
 		return err
 	}
@@ -218,5 +238,13 @@ func NewConfig(ctx *cli.Context) *CLIConfig {
 		ThrottleBlockSize:             ctx.Uint64(flags.ThrottleBlockSizeFlag.Name),
 		ThrottleAlwaysBlockSize:       ctx.Uint64(flags.ThrottleAlwaysBlockSizeFlag.Name),
 		AdditionalThrottlingEndpoints: ctx.StringSlice(flags.AdditionalThrottlingEndpointsFlag.Name),
+		ThrottleControllerType:        config.ThrottleControllerType(ctx.String(flags.ThrottleControllerTypeFlag.Name)),
+		ThrottlePidKp:                 ctx.Float64(flags.ThrottlePidKpFlag.Name),
+		ThrottlePidKi:                 ctx.Float64(flags.ThrottlePidKiFlag.Name),
+		ThrottlePidKd:                 ctx.Float64(flags.ThrottlePidKdFlag.Name),
+		ThrottlePidIntegralMax:        ctx.Float64(flags.ThrottlePidIntegralMaxFlag.Name),
+		ThrottlePidOutputMax:          ctx.Float64(flags.ThrottlePidOutputMaxFlag.Name),
+		ThrottlePidSampleTime:         ctx.Duration(flags.ThrottlePidSampleTimeFlag.Name),
+		ThrottleThresholdMultiplier:   ctx.Float64(flags.ThrottleThresholdMultiplierFlag.Name),
 	}
 }

@@ -169,7 +169,7 @@ func (s *Service) initOutputRollupClient(ctx context.Context, cfg *config.Config
 		return nil
 	}
 	for _, rpc := range cfg.RollupRpc {
-		client, err := dial.DialRollupClientWithTimeout(ctx, dial.DefaultDialTimeout, s.logger, rpc, rpcclient.WithLazyDial())
+		client, err := dial.DialRollupClientWithTimeout(ctx, dial.DefaultDialTimeout, s.logger, rpc)
 		if err != nil {
 			return fmt.Errorf("failed to dial rollup client %s: %w", rpc, err)
 		}
