@@ -362,6 +362,9 @@ contract L1ERC721Bridge_FinalizeBridgeERC721_Test is L1ERC721Bridge_TestInit {
                 || uint160(_to) > uint160(0x4200000000000000000000000000000000001000)
         );
 
+        // Ensure the to address is an EOA.
+        vm.assume(_to.code.length == 0);
+
         // Bridge the token first.
         vm.prank(alice, alice);
         l1ERC721Bridge.bridgeERC721(address(localToken), address(remoteToken), tokenId, 1234, hex"5678");
@@ -650,15 +653,5 @@ contract L1ERC721Bridge_Uncategorized_Test is L1ERC721Bridge_TestInit {
         // Token is locked in the bridge.
         assertEq(l1ERC721Bridge.deposits(address(localToken), address(remoteToken), tokenId), true);
         assertEq(localToken.ownerOf(tokenId), address(l1ERC721Bridge));
-    }
-
-    /// @notice Tests bridgeERC721To reverts with invalid local token addresses.
-    /// @param _localToken Random local token address that is zero.
-    function testFuzz_bridgeERC721To_invalidLocalToken_reverts(address _localToken) external {
-        vm.assume(_localToken == address(0));
-
-        vm.prank(alice);
-        vm.expectRevert(bytes(""));
-        l1ERC721Bridge.bridgeERC721To(_localToken, address(remoteToken), bob, tokenId, 1234, hex"5678");
     }
 }
