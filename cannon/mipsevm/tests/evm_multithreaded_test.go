@@ -513,15 +513,20 @@ func TestEVM_SysFutex_WaitPrivate(t *testing.T) {
 }
 
 func TestEVM_SysFutex_WakePrivate(t *testing.T) {
-	// Note: parameters are written as 64-bit values. For 32-bit architectures, these values are downcast to 32-bit
-	cases := []struct {
+	type testCase struct {
 		name                string
 		addressParam        uint64
 		effAddr             uint64
 		activeThreadCount   int
 		inactiveThreadCount int
 		traverseRight       bool
-	}{
+	}
+
+	testNamer := func(tc testCase) string {
+		return tc.name
+	}
+
+	cases := []testCase{
 		{name: "Traverse right", addressParam: 0xFF_FF_FF_FF_FF_FF_67_00, effAddr: 0xFF_FF_FF_FF_FF_FF_67_00, activeThreadCount: 2, inactiveThreadCount: 1, traverseRight: true},
 		{name: "Traverse right, unaligned addr #1", addressParam: 0xFF_FF_FF_FF_FF_FF_67_83, effAddr: 0xFF_FF_FF_FF_FF_FF_67_80, activeThreadCount: 2, inactiveThreadCount: 1, traverseRight: true},
 		{name: "Traverse right, unaligned addr #2", addressParam: 0xFF_FF_FF_FF_FF_FF_67_87, effAddr: 0xFF_FF_FF_FF_FF_FF_67_84, activeThreadCount: 2, inactiveThreadCount: 1, traverseRight: true},
@@ -538,38 +543,27 @@ func TestEVM_SysFutex_WakePrivate(t *testing.T) {
 		{name: "Traverse left, single thread", addressParam: 0xFF_FF_FF_FF_FF_FF_67_88, effAddr: 0xFF_FF_FF_FF_FF_FF_67_88, activeThreadCount: 1, inactiveThreadCount: 0, traverseRight: false},
 		{name: "Traverse left, single thread, unaligned", addressParam: 0xFF_FF_FF_FF_FF_FF_67_89, effAddr: 0xFF_FF_FF_FF_FF_FF_67_88, activeThreadCount: 1, inactiveThreadCount: 0, traverseRight: false},
 	}
-	vmVersions := GetMipsVersionTestCases(t)
-	for _, ver := range vmVersions {
-		for i, c := range cases {
-			testName := fmt.Sprintf("%v (%v)", c.name, ver.Name)
-			t.Run(testName, func(t *testing.T) {
-				goVm := ver.VMFactory(nil, os.Stdout, os.Stderr, testutil.CreateLogger(), mtutil.WithRandomization(int64(i*1122)))
-				state := mtutil.GetMtState(t, goVm)
-				mtutil.SetupThreads(int64(i*2244), state, c.traverseRight, c.activeThreadCount, c.inactiveThreadCount)
-				step := state.Step
 
-				testutil.StoreInstruction(state.Memory, state.GetPC(), syscallInsn)
-				state.GetRegistersRef()[2] = arch.SysFutex // Set syscall number
-				state.GetRegistersRef()[4] = Word(c.addressParam)
-				state.GetRegistersRef()[5] = exec.FutexWakePrivate
-
-				// Set up post-state expectations
-				expected := mtutil.NewExpectedState(t, state)
-				expected.ExpectStep()
-				expected.ActiveThread().Registers[2] = 0
-				expected.ActiveThread().Registers[7] = 0
-				expected.ExpectPreemption()
-
-				// State transition
-				stepWitness, err := goVm.Step(true)
-				require.NoError(t, err)
-
-				// Validate post-state
-				expected.Validate(t, state)
-				testutil.ValidateEVM(t, stepWitness, step, goVm, multithreaded.GetStateHashFn(), ver.Contracts)
-			})
-		}
+	initState := func(c testCase, state *multithreaded.State, vm VersionedVMTestCase, r *testutil.RandHelper) {
+		mtutil.SetupThreads(r.Int64(1000), state, c.traverseRight, c.activeThreadCount, c.inactiveThreadCount)
+		testutil.StoreInstruction(state.Memory, state.GetPC(), syscallInsn)
+		state.GetRegistersRef()[2] = arch.SysFutex // Set syscall number
+		state.GetRegistersRef()[4] = Word(c.addressParam)
+		state.GetRegistersRef()[5] = exec.FutexWakePrivate
 	}
+
+	setExpectations := func(tt testCase, expected *mtutil.ExpectedState, vm VersionedVMTestCase) ExpectedExecResult {
+		expected.ExpectStep()
+		expected.ActiveThread().Registers[2] = 0
+		expected.ActiveThread().Registers[7] = 0
+		expected.ExpectPreemption()
+		return ExpectNormalExecution()
+	}
+
+	NewDiffTester(testNamer).
+		InitState(initState).
+		SetExpectations(setExpectations).
+		Run(t, cases)
 }
 
 func TestEVM_SysFutex_UnsupportedOp(t *testing.T) {
