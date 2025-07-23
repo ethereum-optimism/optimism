@@ -36,8 +36,8 @@ enum Fork {
     GRANITE,
     HOLOCENE,
     ISTHMUS,
-    INTEROP,
-    JOVIAN
+    JOVIAN,
+    INTEROP
 }
 
 Fork constant LATEST_FORK = Fork.JOVIAN;
