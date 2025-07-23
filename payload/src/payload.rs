@@ -2,7 +2,7 @@
 
 use std::{fmt::Debug, sync::Arc};
 
-use alloy_consensus::Block;
+use alloy_consensus::{Block, BlockHeader};
 use alloy_eips::{
     eip1559::BaseFeeParams, eip2718::Decodable2718, eip4895::Withdrawals, eip7685::Requests,
 };
@@ -17,9 +17,14 @@ use op_alloy_rpc_types_engine::{
     OpExecutionPayloadEnvelopeV3, OpExecutionPayloadEnvelopeV4, OpExecutionPayloadV4,
 };
 use reth_chain_state::ExecutedBlockWithTrieUpdates;
-use reth_payload_builder::EthPayloadBuilderAttributes;
-use reth_payload_primitives::{BuiltPayload, PayloadBuilderAttributes};
-use reth_primitives_traits::{NodePrimitives, SealedBlock, SignedTransaction, WithEncoded};
+use reth_chainspec::EthChainSpec;
+use reth_optimism_evm::OpNextBlockEnvAttributes;
+use reth_optimism_forks::OpHardforks;
+use reth_payload_builder::{EthPayloadBuilderAttributes, PayloadBuilderError};
+use reth_payload_primitives::{BuildNextEnv, BuiltPayload, PayloadBuilderAttributes};
+use reth_primitives_traits::{
+    NodePrimitives, SealedBlock, SealedHeader, SignedTransaction, WithEncoded,
+};
 
 /// Re-export for use in downstream arguments.
 pub use op_alloy_rpc_types_engine::OpPayloadAttributes;
@@ -65,7 +70,7 @@ impl<T> OpPayloadBuilderAttributes<T> {
     }
 }
 
-impl<T: Decodable2718 + Send + Sync + Debug> PayloadBuilderAttributes
+impl<T: Decodable2718 + Send + Sync + Debug + Unpin + 'static> PayloadBuilderAttributes
     for OpPayloadBuilderAttributes<T>
 {
     type RpcPayloadAttributes = OpPayloadAttributes;
@@ -375,6 +380,39 @@ pub fn payload_id_optimism(
     let mut out = hasher.finalize();
     out[0] = payload_version;
     PayloadId::new(out.as_slice()[..8].try_into().expect("sufficient length"))
+}
+
+impl<H, T, ChainSpec> BuildNextEnv<OpPayloadBuilderAttributes<T>, H, ChainSpec>
+    for OpNextBlockEnvAttributes
+where
+    H: BlockHeader,
+    T: SignedTransaction,
+    ChainSpec: EthChainSpec + OpHardforks,
+{
+    fn build_next_env(
+        attributes: &OpPayloadBuilderAttributes<T>,
+        parent: &SealedHeader<H>,
+        chain_spec: &ChainSpec,
+    ) -> Result<Self, PayloadBuilderError> {
+        let extra_data = if chain_spec.is_holocene_active_at_timestamp(attributes.timestamp()) {
+            attributes
+                .get_holocene_extra_data(
+                    chain_spec.base_fee_params_at_timestamp(attributes.timestamp()),
+                )
+                .map_err(PayloadBuilderError::other)?
+        } else {
+            Default::default()
+        };
+
+        Ok(Self {
+            timestamp: attributes.timestamp(),
+            suggested_fee_recipient: attributes.suggested_fee_recipient(),
+            prev_randao: attributes.prev_randao(),
+            gas_limit: attributes.gas_limit.unwrap_or_else(|| parent.gas_limit()),
+            parent_beacon_block_root: attributes.parent_beacon_block_root(),
+            extra_data,
+        })
+    }
 }
 
 #[cfg(test)]

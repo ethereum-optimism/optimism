@@ -1,6 +1,9 @@
 use alloy_consensus::BlockBody;
 use reth_optimism_primitives::{transaction::OpTransaction, DepositReceipt};
-use reth_primitives_traits::{FullBlockHeader, NodePrimitives, SignedTransaction};
+use reth_payload_primitives::PayloadBuilderAttributes;
+use reth_primitives_traits::{FullBlockHeader, NodePrimitives, SignedTransaction, WithEncoded};
+
+use crate::OpPayloadBuilderAttributes;
 
 /// Helper trait to encapsulate common bounds on [`NodePrimitives`] for OP payload builder.
 pub trait OpPayloadPrimitives:
@@ -30,4 +33,28 @@ where
 {
     type _TX = Tx;
     type _Header = Header;
+}
+
+/// Attributes for the OP payload builder.
+pub trait OpAttributes: PayloadBuilderAttributes {
+    /// Primitive transaction type.
+    type Transaction: SignedTransaction;
+
+    /// Whether to use the transaction pool for the payload.
+    fn no_tx_pool(&self) -> bool;
+
+    /// Sequencer transactions to include in the payload.
+    fn sequencer_transactions(&self) -> &[WithEncoded<Self::Transaction>];
+}
+
+impl<T: SignedTransaction> OpAttributes for OpPayloadBuilderAttributes<T> {
+    type Transaction = T;
+
+    fn no_tx_pool(&self) -> bool {
+        self.no_tx_pool
+    }
+
+    fn sequencer_transactions(&self) -> &[WithEncoded<Self::Transaction>] {
+        &self.transactions
+    }
 }

@@ -3,15 +3,13 @@
 use alloy_primitives::B256;
 use alloy_rpc_types_debug::ExecutionWitness;
 use jsonrpsee_core::{async_trait, RpcResult};
-use op_alloy_rpc_types_engine::OpPayloadAttributes;
 use reth_chainspec::ChainSpecProvider;
 use reth_evm::ConfigureEvm;
-use reth_node_api::NodePrimitives;
-use reth_optimism_evm::OpNextBlockEnvAttributes;
+use reth_node_api::{BuildNextEnv, NodePrimitives};
 use reth_optimism_forks::OpHardforks;
-use reth_optimism_payload_builder::{OpPayloadBuilder, OpPayloadPrimitives};
+use reth_optimism_payload_builder::{OpAttributes, OpPayloadBuilder, OpPayloadPrimitives};
 use reth_optimism_txpool::OpPooledTx;
-use reth_primitives_traits::SealedHeader;
+use reth_primitives_traits::{SealedHeader, TxTy};
 pub use reth_rpc_api::DebugExecutionWitnessApiServer;
 use reth_rpc_server_types::{result::internal_rpc_err, ToRpcResult};
 use reth_storage_api::{
@@ -24,16 +22,16 @@ use std::{fmt::Debug, sync::Arc};
 use tokio::sync::{oneshot, Semaphore};
 
 /// An extension to the `debug_` namespace of the RPC API.
-pub struct OpDebugWitnessApi<Pool, Provider, EvmConfig> {
-    inner: Arc<OpDebugWitnessApiInner<Pool, Provider, EvmConfig>>,
+pub struct OpDebugWitnessApi<Pool, Provider, EvmConfig, Attrs> {
+    inner: Arc<OpDebugWitnessApiInner<Pool, Provider, EvmConfig, Attrs>>,
 }
 
-impl<Pool, Provider, EvmConfig> OpDebugWitnessApi<Pool, Provider, EvmConfig> {
+impl<Pool, Provider, EvmConfig, Attrs> OpDebugWitnessApi<Pool, Provider, EvmConfig, Attrs> {
     /// Creates a new instance of the `OpDebugWitnessApi`.
     pub fn new(
         provider: Provider,
         task_spawner: Box<dyn TaskSpawner>,
-        builder: OpPayloadBuilder<Pool, Provider, EvmConfig>,
+        builder: OpPayloadBuilder<Pool, Provider, EvmConfig, (), Attrs>,
     ) -> Self {
         let semaphore = Arc::new(Semaphore::new(3));
         let inner = OpDebugWitnessApiInner { provider, builder, task_spawner, semaphore };
@@ -41,7 +39,7 @@ impl<Pool, Provider, EvmConfig> OpDebugWitnessApi<Pool, Provider, EvmConfig> {
     }
 }
 
-impl<Pool, Provider, EvmConfig> OpDebugWitnessApi<Pool, Provider, EvmConfig>
+impl<Pool, Provider, EvmConfig, Attrs> OpDebugWitnessApi<Pool, Provider, EvmConfig, Attrs>
 where
     EvmConfig: ConfigureEvm,
     Provider: NodePrimitivesProvider<Primitives: NodePrimitives<BlockHeader = Provider::Header>>
@@ -60,8 +58,8 @@ where
 }
 
 #[async_trait]
-impl<Pool, Provider, EvmConfig> DebugExecutionWitnessApiServer<OpPayloadAttributes>
-    for OpDebugWitnessApi<Pool, Provider, EvmConfig>
+impl<Pool, Provider, EvmConfig, Attrs> DebugExecutionWitnessApiServer<Attrs::RpcPayloadAttributes>
+    for OpDebugWitnessApi<Pool, Provider, EvmConfig, Attrs>
 where
     Pool: TransactionPool<
             Transaction: OpPooledTx<Consensus = <Provider::Primitives as NodePrimitives>::SignedTx>,
@@ -72,13 +70,16 @@ where
         + ChainSpecProvider<ChainSpec: OpHardforks>
         + Clone
         + 'static,
-    EvmConfig: ConfigureEvm<Primitives = Provider::Primitives, NextBlockEnvCtx = OpNextBlockEnvAttributes>
-        + 'static,
+    EvmConfig: ConfigureEvm<
+            Primitives = Provider::Primitives,
+            NextBlockEnvCtx: BuildNextEnv<Attrs, Provider::Header, Provider::ChainSpec>,
+        > + 'static,
+    Attrs: OpAttributes<Transaction = TxTy<EvmConfig::Primitives>>,
 {
     async fn execute_payload(
         &self,
         parent_block_hash: B256,
-        attributes: OpPayloadAttributes,
+        attributes: Attrs::RpcPayloadAttributes,
     ) -> RpcResult<ExecutionWitness> {
         let _permit = self.inner.semaphore.acquire().await;
 
@@ -97,20 +98,24 @@ where
     }
 }
 
-impl<Pool, Provider, EvmConfig> Clone for OpDebugWitnessApi<Pool, Provider, EvmConfig> {
+impl<Pool, Provider, EvmConfig, Attrs> Clone
+    for OpDebugWitnessApi<Pool, Provider, EvmConfig, Attrs>
+{
     fn clone(&self) -> Self {
         Self { inner: Arc::clone(&self.inner) }
     }
 }
-impl<Pool, Provider, EvmConfig> Debug for OpDebugWitnessApi<Pool, Provider, EvmConfig> {
+impl<Pool, Provider, EvmConfig, Attrs> Debug
+    for OpDebugWitnessApi<Pool, Provider, EvmConfig, Attrs>
+{
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("OpDebugWitnessApi").finish_non_exhaustive()
     }
 }
 
-struct OpDebugWitnessApiInner<Pool, Provider, EvmConfig> {
+struct OpDebugWitnessApiInner<Pool, Provider, EvmConfig, Attrs> {
     provider: Provider,
-    builder: OpPayloadBuilder<Pool, Provider, EvmConfig>,
+    builder: OpPayloadBuilder<Pool, Provider, EvmConfig, (), Attrs>,
     task_spawner: Box<dyn TaskSpawner>,
     semaphore: Arc<Semaphore>,
 }
