@@ -348,15 +348,19 @@ contract VerifyOPCM is Script {
     /// @return True if all immutable variables are verified, false otherwise.
     function _verifyOpcmImmutableVariables(IOPContractsManager _opcm) internal view returns (bool) {
         console.log("  Verifying OPCM immutable variables...");
-        
+
         bool success = true;
-        
+
         // Get expected addresses from environment variables
+        // nosemgrep: sol-style-vm-env-only-in-config-sol
         address expectedSuperchainConfig = vm.envOr("EXPECTED_SUPERCHAIN_CONFIG", address(0));
+        // nosemgrep: sol-style-vm-env-only-in-config-sol
         address expectedProtocolVersions = vm.envOr("EXPECTED_PROTOCOL_VERSIONS", address(0));
+        // nosemgrep: sol-style-vm-env-only-in-config-sol
         address expectedSuperchainProxyAdmin = vm.envOr("EXPECTED_SUPERCHAIN_PROXY_ADMIN", address(0));
+        // nosemgrep: sol-style-vm-env-only-in-config-sol
         address expectedUpgradeController = vm.envOr("EXPECTED_UPGRADE_CONTROLLER", address(0));
-        
+
         // Check superchainConfig
         address actualSuperchainConfig = address(_opcm.superchainConfig());
         console.log(string.concat("    superchainConfig: ", vm.toString(actualSuperchainConfig)));
@@ -367,7 +371,7 @@ contract VerifyOPCM is Script {
         } else {
             console.log("    [OK] superchainConfig verified");
         }
-        
+
         // Check protocolVersions
         address actualProtocolVersions = address(_opcm.protocolVersions());
         console.log(string.concat("    protocolVersions: ", vm.toString(actualProtocolVersions)));
@@ -378,7 +382,7 @@ contract VerifyOPCM is Script {
         } else {
             console.log("    [OK] protocolVersions verified");
         }
-        
+
         // Check superchainProxyAdmin
         address actualSuperchainProxyAdmin = address(_opcm.superchainProxyAdmin());
         console.log(string.concat("    superchainProxyAdmin: ", vm.toString(actualSuperchainProxyAdmin)));
@@ -389,7 +393,7 @@ contract VerifyOPCM is Script {
         } else {
             console.log("    [OK] superchainProxyAdmin verified");
         }
-        
+
         // Check upgradeController
         address actualUpgradeController = _opcm.upgradeController();
         console.log(string.concat("    upgradeController: ", vm.toString(actualUpgradeController)));
@@ -400,7 +404,7 @@ contract VerifyOPCM is Script {
         } else {
             console.log("    [OK] upgradeController verified");
         }
-        
+
         return success;
     }
 

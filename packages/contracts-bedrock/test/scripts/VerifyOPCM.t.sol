@@ -66,7 +66,7 @@ contract VerifyOPCM_TestInit is OPContractsManager_TestInit {
 contract VerifyOPCM_Run_Test is VerifyOPCM_TestInit {
     function setUp() public override {
         super.setUp();
-        
+
         // Set up environment variables with the actual OPCM addresses for tests that need them
         vm.setEnv("EXPECTED_SUPERCHAIN_CONFIG", vm.toString(address(opcm.superchainConfig())));
         vm.setEnv("EXPECTED_PROTOCOL_VERSIONS", vm.toString(address(opcm.protocolVersions())));
@@ -74,6 +74,7 @@ contract VerifyOPCM_Run_Test is VerifyOPCM_TestInit {
         vm.setEnv("EXPECTED_UPGRADE_CONTROLLER", vm.toString(opcm.upgradeController()));
     }
     /// @notice Tests that the script succeeds when no changes are introduced.
+
     function test_run_succeeds() public {
         // Coverage changes bytecode and causes failures, skip.
         skipIfCoverage();
@@ -255,9 +256,14 @@ contract VerifyOPCM_Run_Test is VerifyOPCM_TestInit {
         skipIfCoverage();
 
         // Store original environment variable values to restore later
+        // nosemgrep: sol-style-vm-env-only-in-config-sol
         string memory originalSuperchainConfig = vm.envOr("EXPECTED_SUPERCHAIN_CONFIG", vm.toString(address(0)));
+        // nosemgrep: sol-style-vm-env-only-in-config-sol
         string memory originalProtocolVersions = vm.envOr("EXPECTED_PROTOCOL_VERSIONS", vm.toString(address(0)));
-        string memory originalSuperchainProxyAdmin = vm.envOr("EXPECTED_SUPERCHAIN_PROXY_ADMIN", vm.toString(address(0)));
+        // nosemgrep: sol-style-vm-env-only-in-config-sol
+        string memory originalSuperchainProxyAdmin =
+            vm.envOr("EXPECTED_SUPERCHAIN_PROXY_ADMIN", vm.toString(address(0)));
+        // nosemgrep: sol-style-vm-env-only-in-config-sol
         string memory originalUpgradeController = vm.envOr("EXPECTED_UPGRADE_CONTROLLER", vm.toString(address(0)));
 
         // Set expected addresses via environment variables
@@ -265,22 +271,30 @@ contract VerifyOPCM_Run_Test is VerifyOPCM_TestInit {
         address expectedProtocolVersions = address(0x2222);
         address expectedSuperchainProxyAdmin = address(0x3333);
         address expectedUpgradeController = address(0x4444);
-        
+
         vm.setEnv("EXPECTED_SUPERCHAIN_CONFIG", vm.toString(expectedSuperchainConfig));
         vm.setEnv("EXPECTED_PROTOCOL_VERSIONS", vm.toString(expectedProtocolVersions));
         vm.setEnv("EXPECTED_SUPERCHAIN_PROXY_ADMIN", vm.toString(expectedSuperchainProxyAdmin));
         vm.setEnv("EXPECTED_UPGRADE_CONTROLLER", vm.toString(expectedUpgradeController));
 
         // Mock all OPCM methods to return different addresses (causing mismatch)
-        vm.mockCall(address(opcm), abi.encodeWithSignature("superchainConfig()"), abi.encode(address(0x5555)));
-        vm.mockCall(address(opcm), abi.encodeWithSignature("protocolVersions()"), abi.encode(address(0x6666)));
-        vm.mockCall(address(opcm), abi.encodeWithSignature("superchainProxyAdmin()"), abi.encode(address(0x7777)));
-        vm.mockCall(address(opcm), abi.encodeWithSignature("upgradeController()"), abi.encode(address(0x8888)));
+        vm.mockCall(
+            address(opcm), abi.encodeCall(IOPContractsManager.superchainConfig, ()), abi.encode(address(0x5555))
+        );
+        vm.mockCall(
+            address(opcm), abi.encodeCall(IOPContractsManager.protocolVersions, ()), abi.encode(address(0x6666))
+        );
+        vm.mockCall(
+            address(opcm), abi.encodeCall(IOPContractsManager.superchainProxyAdmin, ()), abi.encode(address(0x7777))
+        );
+        vm.mockCall(
+            address(opcm), abi.encodeCall(IOPContractsManager.upgradeController, ()), abi.encode(address(0x8888))
+        );
 
         // Verify that immutable variables fail validation
         bool result = harness.verifyOpcmImmutableVariables(opcm);
         assertFalse(result, "OPCM with invalid immutable variables should fail verification");
-        
+
         // Clear mock calls and restore original environment variables to avoid test isolation issues
         vm.clearMockedCalls();
         vm.setEnv("EXPECTED_SUPERCHAIN_CONFIG", originalSuperchainConfig);
@@ -289,4 +303,3 @@ contract VerifyOPCM_Run_Test is VerifyOPCM_TestInit {
         vm.setEnv("EXPECTED_UPGRADE_CONTROLLER", originalUpgradeController);
     }
 }
-
