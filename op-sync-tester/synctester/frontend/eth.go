@@ -11,8 +11,8 @@ import (
 )
 
 type EthBackend interface {
-	GetBlockByNumber(ctx context.Context, number *big.Int) (*types.Header, error)
-	GetBlockByHash(ctx context.Context, hash common.Hash) (*types.Header, error)
+	GetBlockByNumber(ctx context.Context, number *big.Int) (*types.Block, error)
+	GetBlockByHash(ctx context.Context, hash common.Hash) (*types.Block, error)
 	GetBlockReceipts(ctx context.Context, blockNrOrHash rpc.BlockNumberOrHash) ([]*types.Receipt, error)
 	ChainId(ctx context.Context) (eth.ChainID, error)
 }
@@ -25,11 +25,11 @@ func NewEthFrontend(b EthBackend) *EthFrontend {
 	return &EthFrontend{b: b}
 }
 
-func (e *EthFrontend) GetBlockByNumber(ctx context.Context, number *big.Int) (*types.Header, error) {
+func (e *EthFrontend) GetBlockByNumber(ctx context.Context, number *big.Int) (*types.Block, error) {
 	return e.b.GetBlockByNumber(ctx, number)
 }
 
-func (e *EthFrontend) GetBlockByHash(ctx context.Context, hash common.Hash) (*types.Header, error) {
+func (e *EthFrontend) GetBlockByHash(ctx context.Context, hash common.Hash) (*types.Block, error) {
 	return e.b.GetBlockByHash(ctx, hash)
 }
 
