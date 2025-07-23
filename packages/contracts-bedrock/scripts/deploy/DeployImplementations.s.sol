@@ -629,18 +629,22 @@ contract DeployImplementations is Script {
 
         Types.ContractSet memory impls = ChainAssertions.dioToContractSet(_output);
 
-        assertValidDelayedWETHImpl(_input, _output);
-        assertValidDisputeGameFactoryImpl(_input, _output);
-        assertValidAnchorStateRegistryImpl(_input, _output);
+        ChainAssertions.checkDelayedWETHImpl(_output.delayedWETHImpl, _input.withdrawalDelaySeconds);
+        ChainAssertions.checkDisputeGameFactory(_output.disputeGameFactoryImpl, address(0), address(0), false);
+        DeployUtils.assertInitialized({
+            _contractAddress: address(_output.anchorStateRegistryImpl),
+            _isProxy: false,
+            _slot: 0,
+            _offset: 0
+        });
         ChainAssertions.checkL1CrossDomainMessenger(IL1CrossDomainMessenger(impls.L1CrossDomainMessenger), vm, false);
         assertValidL1ERC721BridgeImpl(_input, _output);
-        assertValidL1StandardBridgeImpl(_input, _output);
-        assertValidMipsSingleton(_input, _output);
+        ChainAssertions.checkL1StandardBridgeImpl(_output.l1StandardBridgeImpl);
+        ChainAssertions.checkMIPS(_output.mipsSingleton, _output.preimageOracleSingleton);
         assertValidOpcm(_input, _output);
         assertValidOptimismMintableERC20FactoryImpl(_input, _output);
         assertValidOptimismPortalImpl(_input, _output);
-        assertValidETHLockboxImpl(_input, _output);
-        assertValidPreimageOracleSingleton(_input, _output);
+        ChainAssertions.checkETHLockboxImpl(_output.ethLockboxImpl, _output.optimismPortalImpl);
         // We can use DeployOPChainInput(address(0)) here because no method will be called on _doi when isProxy is false
         ChainAssertions.checkSystemConfig(impls, DeployOPChainInput(address(0)), false);
     }
@@ -668,36 +672,6 @@ contract DeployImplementations is Script {
         require(address(portal.ethLockbox()) == address(0), "PORTAL-50");
     }
 
-    function assertValidETHLockboxImpl(Input memory, Output memory _output) private view {
-        IETHLockbox lockbox = _output.ethLockboxImpl;
-
-        DeployUtils.assertInitialized({ _contractAddress: address(lockbox), _isProxy: false, _slot: 0, _offset: 0 });
-
-        require(address(lockbox.systemConfig()) == address(0), "ELB-10");
-        require(lockbox.authorizedPortals(_output.optimismPortalImpl) == false, "ELB-20");
-    }
-
-    function assertValidDelayedWETHImpl(Input memory _input, Output memory _output) private view {
-        IDelayedWETH delayedWETH = _output.delayedWETHImpl;
-
-        DeployUtils.assertInitialized({ _contractAddress: address(delayedWETH), _isProxy: false, _slot: 0, _offset: 0 });
-
-        require(delayedWETH.delay() == _input.withdrawalDelaySeconds, "DW-10");
-        require(delayedWETH.systemConfig() == ISystemConfig(address(0)), "DW-20");
-    }
-
-    function assertValidPreimageOracleSingleton(Input memory _input, Output memory _output) private view {
-        IPreimageOracle oracle = _output.preimageOracleSingleton;
-
-        require(oracle.minProposalSize() == _input.minProposalSizeBytes, "PO-10");
-        require(oracle.challengePeriod() == _input.challengePeriodSeconds, "PO-20");
-    }
-
-    function assertValidMipsSingleton(Input memory, Output memory _output) private view {
-        IMIPS mips = _output.mipsSingleton;
-        require(address(mips.oracle()) == address(_output.preimageOracleSingleton), "MIPS-10");
-    }
-
     function assertValidL1ERC721BridgeImpl(Input memory, Output memory _output) private view {
         IL1ERC721Bridge bridge = _output.l1ERC721BridgeImpl;
 
@@ -710,18 +684,6 @@ contract DeployImplementations is Script {
         require(address(bridge.systemConfig()) == address(0), "L721B-50");
     }
 
-    function assertValidL1StandardBridgeImpl(Input memory, Output memory _output) private view {
-        IL1StandardBridge bridge = _output.l1StandardBridgeImpl;
-
-        DeployUtils.assertInitialized({ _contractAddress: address(bridge), _isProxy: false, _slot: 0, _offset: 0 });
-
-        require(address(bridge.MESSENGER()) == address(0), "L1SB-10");
-        require(address(bridge.messenger()) == address(0), "L1SB-20");
-        require(address(bridge.OTHER_BRIDGE()) == address(0), "L1SB-30");
-        require(address(bridge.otherBridge()) == address(0), "L1SB-40");
-        require(address(bridge.systemConfig()) == address(0), "L1SB-50");
-    }
-
     function assertValidOptimismMintableERC20FactoryImpl(Input memory, Output memory _output) private view {
         IOptimismMintableERC20Factory factory = _output.optimismMintableERC20FactoryImpl;
 
@@ -729,19 +691,5 @@ contract DeployImplementations is Script {
 
         require(address(factory.BRIDGE()) == address(0), "MERC20F-10");
         require(address(factory.bridge()) == address(0), "MERC20F-20");
-    }
-
-    function assertValidDisputeGameFactoryImpl(Input memory, Output memory _output) private view {
-        IDisputeGameFactory factory = _output.disputeGameFactoryImpl;
-
-        DeployUtils.assertInitialized({ _contractAddress: address(factory), _isProxy: false, _slot: 0, _offset: 0 });
-
-        require(address(factory.owner()) == address(0), "DG-10");
-    }
-
-    function assertValidAnchorStateRegistryImpl(Input memory, Output memory _output) private view {
-        IAnchorStateRegistry registry = _output.anchorStateRegistryImpl;
-
-        DeployUtils.assertInitialized({ _contractAddress: address(registry), _isProxy: false, _slot: 0, _offset: 0 });
     }
 }

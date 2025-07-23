@@ -107,6 +107,7 @@ type SuperSystem interface {
 type SuperSystemConfig struct {
 	mempoolFiltering  bool
 	SupportTimeTravel bool
+	BatcherUsesBlobs  bool
 }
 
 // NewSuperSystem creates a new SuperSystem from a recipe. It creates an interopE2ESystem.

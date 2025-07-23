@@ -269,6 +269,10 @@ func (s *interopE2ESystem) newBatcherForL2(
 ) *bss.BatcherService {
 	batcherSecret := operatorKeys[devkeys.BatcherRole]
 	logger := s.logger.New("role", "batcher"+id)
+	daType := batcherFlags.CalldataType
+	if s.config.BatcherUsesBlobs {
+		daType = batcherFlags.BlobsType
+	}
 	batcherCLIConfig := &bss.CLIConfig{
 		L1EthRpc:                 s.l1.UserRPC().RPC(),
 		L2EthRpc:                 []string{l2Geth.UserRPC().RPC()},
@@ -289,7 +293,7 @@ func (s *interopE2ESystem) newBatcherForL2(
 		Stopped:               false,
 		BatchType:             derive.SpanBatchType,
 		MaxBlocksPerSpanBatch: 10,
-		DataAvailabilityType:  batcherFlags.CalldataType,
+		DataAvailabilityType:  daType,
 		CompressionAlgo:       derive.Brotli,
 	}
 	batcher, err := bss.BatcherServiceFromCLIConfig(

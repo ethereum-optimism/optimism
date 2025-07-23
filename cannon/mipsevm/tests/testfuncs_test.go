@@ -116,7 +116,7 @@ func testMulDiv(t *testing.T, templateCases []mulDivTestCase, mips32Insn bool) {
 	rtReg := uint32(0xa)
 	pc := arch.Word(0)
 
-	initState := func(tt mulDivTestCase, state *multithreaded.State, vm VersionedVMTestCase) {
+	initState := func(tt mulDivTestCase, state *multithreaded.State, vm VersionedVMTestCase, r *testutil.RandHelper) {
 		insn := tt.opcode<<26 | baseReg<<21 | rtReg<<16 | tt.rdReg<<11 | tt.funct
 		state.GetRegistersRef()[rtReg] = tt.rt
 		state.GetRegistersRef()[baseReg] = tt.rs
@@ -169,7 +169,7 @@ func testLoadStore(t *testing.T, cases []loadStoreTestCase) {
 	rtReg := uint32(8)
 	pc := arch.Word(0)
 
-	initState := func(tt loadStoreTestCase, state *multithreaded.State, vm VersionedVMTestCase) {
+	initState := func(tt loadStoreTestCase, state *multithreaded.State, vm VersionedVMTestCase, r *testutil.RandHelper) {
 		insn := tt.opcode<<26 | baseReg<<21 | rtReg<<16 | tt.imm
 
 		testutil.StoreInstruction(state.GetMemory(), pc, insn)
@@ -253,7 +253,7 @@ func testNoopSyscall(t *testing.T, vm VersionedVMTestCase, syscalls map[string]u
 		cases = append(cases, testCase{name: name, sycallNum: arch.Word(syscallNum)})
 	}
 
-	initState := func(tt testCase, state *multithreaded.State, vm VersionedVMTestCase) {
+	initState := func(tt testCase, state *multithreaded.State, vm VersionedVMTestCase, r *testutil.RandHelper) {
 		testutil.StoreInstruction(state.Memory, state.GetPC(), syscallInsn)
 		state.GetRegistersRef()[2] = tt.sycallNum // Set syscall number
 	}
@@ -288,7 +288,7 @@ func testUnsupportedSyscall(t *testing.T, vm VersionedVMTestCase, unsupportedSys
 		cases = append(cases, testCase{name: name, sycallNum: arch.Word(syscallNum)})
 	}
 
-	initState := func(tt testCase, state *multithreaded.State, vm VersionedVMTestCase) {
+	initState := func(tt testCase, state *multithreaded.State, vm VersionedVMTestCase, r *testutil.RandHelper) {
 		testutil.StoreInstruction(state.Memory, state.GetPC(), syscallInsn)
 		state.GetRegistersRef()[2] = tt.sycallNum // Set syscall number
 	}
