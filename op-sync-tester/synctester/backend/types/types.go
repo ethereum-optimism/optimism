@@ -9,8 +9,6 @@ const maxIDLength = 100
 var ErrInvalidID = errors.New("invalid ID")
 
 // SyncTesterID represents a unique syncTester.
-// There may be multiple syncTester per chain.
-// The op-sync-tester service serves identifies a default syncTester for each chain to serve, see config.
 type SyncTesterID string
 
 func (id SyncTesterID) String() string {
