@@ -30,6 +30,7 @@ import {
     IOPContractsManagerContractsContainer,
     IOPContractsManagerInteropMigrator
 } from "interfaces/L1/IOPContractsManager.sol";
+import { IOPContractsManagerStandardValidator } from "interfaces/L1/IOPContractsManagerStandardValidator.sol";
 import { IOptimismPortal2 as IOptimismPortal } from "interfaces/L1/IOptimismPortal2.sol";
 import { IETHLockbox } from "interfaces/L1/IETHLockbox.sol";
 import { ISystemConfig } from "interfaces/L1/ISystemConfig.sol";
@@ -71,6 +72,7 @@ contract DeployImplementations is Script {
         IOPContractsManagerDeployer opcmDeployer;
         IOPContractsManagerUpgrader opcmUpgrader;
         IOPContractsManagerInteropMigrator opcmInteropMigrator;
+        IOPContractsManagerStandardValidator opcmStandardValidator;
         IDelayedWETH delayedWETHImpl;
         IOptimismPortal optimismPortalImpl;
         IETHLockbox ethLockboxImpl;
@@ -165,6 +167,7 @@ contract DeployImplementations is Script {
         deployOPCMDeployer(_input, _output);
         deployOPCMUpgrader(_output);
         deployOPCMInteropMigrator(_output);
+        deployOPCMStandardValidator(_input, _output);
 
         // Semgrep rule will fail because the arguments are encoded inside of a separate function.
         opcm_ = IOPContractsManager(
@@ -203,6 +206,7 @@ contract DeployImplementations is Script {
                     _output.opcmDeployer,
                     _output.opcmUpgrader,
                     _output.opcmInteropMigrator,
+                    _output.opcmStandardValidator,
                     _input.superchainConfigProxy,
                     _input.protocolVersionsProxy,
                     _input.superchainProxyAdmin,
@@ -642,6 +646,41 @@ contract DeployImplementations is Script {
         );
         vm.label(address(impl), "OPContractsManagerInteropMigratorImpl");
         _output.opcmInteropMigrator = impl;
+    }
+
+    function deployOPCMStandardValidator(Input memory _input, Output memory _output) private {
+        IOPContractsManagerStandardValidator impl = IOPContractsManagerStandardValidator(
+            DeployUtils.createDeterministic({
+                _name: "OPContractsManager.sol:OPContractsManagerStandardValidator",
+                _args: DeployUtils.encodeConstructor(
+                    abi.encodeCall(
+                        IOPContractsManagerStandardValidator.__constructor__,
+                        (
+                            IOPContractsManagerStandardValidator.Implementations({
+                                l1ERC721BridgeImpl: address(_output.l1ERC721BridgeImpl),
+                                optimismPortalImpl: address(_output.optimismPortalImpl),
+                                ethLockboxImpl: address(_output.ethLockboxImpl),
+                                systemConfigImpl: address(_output.systemConfigImpl),
+                                optimismMintableERC20FactoryImpl: address(_output.optimismMintableERC20FactoryImpl),
+                                l1CrossDomainMessengerImpl: address(_output.l1CrossDomainMessengerImpl),
+                                l1StandardBridgeImpl: address(_output.l1StandardBridgeImpl),
+                                disputeGameFactoryImpl: address(_output.disputeGameFactoryImpl),
+                                anchorStateRegistryImpl: address(_output.anchorStateRegistryImpl),
+                                delayedWETHImpl: address(_output.delayedWETHImpl),
+                                mipsImpl: address(_output.mipsSingleton)
+                            }),
+                            _input.superchainConfigProxy,
+                            address(_input.superchainProxyAdmin),
+                            address(_input.superchainProxyAdmin),
+                            _input.withdrawalDelaySeconds
+                        )
+                    )
+                ),
+                _salt: _salt
+            })
+        );
+        vm.label(address(impl), "OPContractsManagerStandardValidatorImpl");
+        _output.opcmStandardValidator = impl;
     }
 
     function assertValidInput(Input memory _input) private pure {
