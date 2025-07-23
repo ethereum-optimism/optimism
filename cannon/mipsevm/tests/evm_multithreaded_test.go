@@ -401,52 +401,43 @@ func TestEVM_SysExit(t *testing.T) {
 }
 
 func TestEVM_PopExitedThread(t *testing.T) {
-	cases := []struct {
+	type testCase struct {
 		name                         string
 		traverseRight                bool
 		activeStackThreadCount       int
 		expectTraverseRightPostState bool
-	}{
+	}
+
+	testNamer := func(tc testCase) string {
+		return tc.name
+	}
+
+	cases := []testCase{
 		{name: "traverse right", traverseRight: true, activeStackThreadCount: 2, expectTraverseRightPostState: true},
 		{name: "traverse right, switch directions", traverseRight: true, activeStackThreadCount: 1, expectTraverseRightPostState: false},
 		{name: "traverse left", traverseRight: false, activeStackThreadCount: 2, expectTraverseRightPostState: false},
 		{name: "traverse left, switch directions", traverseRight: false, activeStackThreadCount: 1, expectTraverseRightPostState: true},
 	}
 
-	vmVersions := GetMipsVersionTestCases(t)
-	for _, ver := range vmVersions {
-		for i, c := range cases {
-			testName := fmt.Sprintf("%v (%v)", c.name, ver.Name)
-			t.Run(testName, func(t *testing.T) {
-				goVm := ver.VMFactory(nil, os.Stdout, os.Stderr, testutil.CreateLogger(), mtutil.WithRandomization(int64(i*133)))
-				state := mtutil.GetMtState(t, goVm)
-				mtutil.SetupThreads(int64(i*222), state, c.traverseRight, c.activeStackThreadCount, 1)
-				step := state.Step
-
-				// Setup thread to be dropped
-				threadToPop := state.GetCurrentThread()
-				threadToPop.Exited = true
-				threadToPop.ExitCode = 1
-
-				// Set up expectations
-				expected := mtutil.NewExpectedState(t, state)
-				expected.Step += 1
-				expected.ExpectPoppedThread()
-				expected.ExpectContextSwitch()
-				expected.ExpectTraverseRight(c.expectTraverseRightPostState)
-
-				// State transition
-				var err error
-				var stepWitness *mipsevm.StepWitness
-				stepWitness, err = goVm.Step(true)
-				require.NoError(t, err)
-
-				// Validate post-state
-				expected.Validate(t, state)
-				testutil.ValidateEVM(t, stepWitness, step, goVm, multithreaded.GetStateHashFn(), ver.Contracts)
-			})
-		}
+	initState := func(c testCase, state *multithreaded.State, vm VersionedVMTestCase, r *testutil.RandHelper) {
+		mtutil.SetupThreads(r.Int64(1000), state, c.traverseRight, c.activeStackThreadCount, 1)
+		threadToPop := state.GetCurrentThread()
+		threadToPop.Exited = true
+		threadToPop.ExitCode = 1
 	}
+
+	setExpectations := func(c testCase, expected *mtutil.ExpectedState, vm VersionedVMTestCase) ExpectedExecResult {
+		expected.Step += 1
+		expected.ExpectPoppedThread()
+		expected.ExpectContextSwitch()
+		expected.ExpectTraverseRight(c.expectTraverseRightPostState)
+		return ExpectNormalExecution()
+	}
+
+	NewDiffTester(testNamer).
+		InitState(initState).
+		SetExpectations(setExpectations).
+		Run(t, cases)
 }
 
 func TestEVM_SysFutex_WaitPrivate(t *testing.T) {
