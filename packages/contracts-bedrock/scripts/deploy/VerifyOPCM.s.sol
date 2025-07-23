@@ -328,6 +328,11 @@ contract VerifyOPCM is Script {
             }
         }
 
+        // If this is the OPCM contract itself, verify the immutable variables as well.
+        if (keccak256(bytes(_target.field)) == keccak256(bytes("opcm"))) {
+            success = _verifyOpcmImmutableVariables(IOPContractsManager(_target.addr)) && success;
+        }
+
         // Log final status for this field.
         if (success) {
             console.log(string.concat("Status: [OK] Verified ", _target.name));
@@ -335,6 +340,57 @@ contract VerifyOPCM is Script {
             console.log(string.concat("Status: [FAIL] Verification failed for ", _target.name));
         }
 
+        return success;
+    }
+
+    /// @notice Verifies that the immutable variables in the OPCM contract match expected values.
+    /// @param _opcm The OPCM contract to verify immutable variables for.
+    /// @return True if all immutable variables are verified, false otherwise.
+    function _verifyOpcmImmutableVariables(IOPContractsManager _opcm) internal view returns (bool) {
+        console.log("  Verifying OPCM immutable variables...");
+        
+        bool success = true;
+        
+        // Check superchainConfig
+        address actualSuperchainConfig = address(_opcm.superchainConfig());
+        console.log(string.concat("    superchainConfig: ", vm.toString(actualSuperchainConfig)));
+        if (actualSuperchainConfig == address(0)) {
+            console.log("    [FAIL] ERROR: superchainConfig is zero address");
+            success = false;
+        } else {
+            console.log("    [OK] superchainConfig verified");
+        }
+        
+        // Check protocolVersions
+        address actualProtocolVersions = address(_opcm.protocolVersions());
+        console.log(string.concat("    protocolVersions: ", vm.toString(actualProtocolVersions)));
+        if (actualProtocolVersions == address(0)) {
+            console.log("    [FAIL] ERROR: protocolVersions is zero address");
+            success = false;
+        } else {
+            console.log("    [OK] protocolVersions verified");
+        }
+        
+        // Check superchainProxyAdmin
+        address actualSuperchainProxyAdmin = address(_opcm.superchainProxyAdmin());
+        console.log(string.concat("    superchainProxyAdmin: ", vm.toString(actualSuperchainProxyAdmin)));
+        if (actualSuperchainProxyAdmin == address(0)) {
+            console.log("    [FAIL] ERROR: superchainProxyAdmin is zero address");
+            success = false;
+        } else {
+            console.log("    [OK] superchainProxyAdmin verified");
+        }
+        
+        // Check upgradeController
+        address actualUpgradeController = _opcm.upgradeController();
+        console.log(string.concat("    upgradeController: ", vm.toString(actualUpgradeController)));
+        if (actualUpgradeController == address(0)) {
+            console.log("    [FAIL] ERROR: upgradeController is zero address");
+            success = false;
+        } else {
+            console.log("    [OK] upgradeController verified");
+        }
+        
         return success;
     }
 

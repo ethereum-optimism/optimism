@@ -36,6 +36,10 @@ contract VerifyOPCM_Harness is VerifyOPCM {
     function buildArtifactPath(string memory _contractName) public view returns (string memory) {
         return _buildArtifactPath(_contractName);
     }
+
+    function verifyOpcmImmutableVariables(IOPContractsManager _opcm) public view returns (bool) {
+        return _verifyOpcmImmutableVariables(_opcm);
+    }
 }
 
 /// @title VerifyOPCM_TestInit
@@ -222,5 +226,48 @@ contract VerifyOPCM_Run_Test is VerifyOPCM_TestInit {
         // Run the script.
         vm.expectRevert(VerifyOPCM.VerifyOPCM_Failed.selector);
         harness.run(address(opcm), true);
+    }
+
+    /// @notice Tests that immutable variables are correctly verified in the OPCM contract.
+    function test_verifyOpcmImmutableVariables_succeeds() public {
+        // Coverage changes bytecode and causes failures, skip.
+        skipIfCoverage();
+
+        // Test that the immutable variables are correctly verified.
+        bool result = harness.verifyOpcmImmutableVariables(opcm);
+        assertTrue(result, "OPCM immutable variables should be valid");
+    }
+
+    /// @notice Tests that the script fails when OPCM immutable variables are invalid.
+    /// We test this by deploying a new OPCM with invalid immutable variables.
+    function test_verifyOpcmImmutableVariables_fails() public {
+        // Coverage changes bytecode and causes failures, skip.
+        skipIfCoverage();
+
+        // Create a mock OPCM that returns zero addresses for immutable variables
+        MockOPCM mockOpcm = new MockOPCM();
+
+        // Verify that immutable variables fail validation
+        bool result = harness.verifyOpcmImmutableVariables(IOPContractsManager(address(mockOpcm)));
+        assertFalse(result, "OPCM with invalid immutable variables should fail verification");
+    }
+}
+
+/// @notice Mock OPCM contract that returns zero addresses for immutable variables
+contract MockOPCM {
+    function superchainConfig() external pure returns (address) {
+        return address(0);
+    }
+
+    function protocolVersions() external pure returns (address) {
+        return address(0);
+    }
+
+    function superchainProxyAdmin() external pure returns (address) {
+        return address(0);
+    }
+
+    function upgradeController() external pure returns (address) {
+        return address(0);
     }
 }
