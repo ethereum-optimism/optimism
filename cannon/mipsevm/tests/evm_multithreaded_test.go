@@ -689,57 +689,41 @@ func runPreemptSyscall(t *testing.T, syscallName string, syscallNum uint32) {
 }
 
 func TestEVM_SysOpen(t *testing.T) {
-	type testCase struct {
-		name string
-	}
-	testNamer := func(tc testCase) string {
-		return tc.name
-	}
-	cases := []testCase{{"Base Case"}}
-
-	initState := func(t require.TestingT, tt testCase, state *multithreaded.State, vm VersionedVMTestCase, r *testutil.RandHelper) {
+	initState := func(t require.TestingT, state *multithreaded.State, vm VersionedVMTestCase, r *testutil.RandHelper) {
 		testutil.StoreInstruction(state.Memory, state.GetPC(), syscallInsn)
 		state.GetRegistersRef()[2] = arch.SysOpen // Set syscall number
 	}
 
-	setExpectations := func(t require.TestingT, tt testCase, expected *mtutil.ExpectedState, vm VersionedVMTestCase) ExpectedExecResult {
+	setExpectations := func(t require.TestingT, expected *mtutil.ExpectedState, vm VersionedVMTestCase) ExpectedExecResult {
 		expected.ExpectStep()
 		expected.ActiveThread().Registers[2] = exec.MipsEBADF
 		expected.ActiveThread().Registers[7] = exec.SysErrorSignal
 		return ExpectNormalExecution()
 	}
 
-	NewDiffTester(testNamer).
+	NewSingletonDiffTester().
 		InitState(initState).
 		SetExpectations(setExpectations).
-		Run(t, cases)
+		Run(t)
 }
 
 func TestEVM_SysGetPID(t *testing.T) {
-	type testCase struct {
-		name string
-	}
-	testNamer := func(tc testCase) string {
-		return tc.name
-	}
-	cases := []testCase{{"Base Case"}}
-
-	initState := func(t require.TestingT, tt testCase, state *multithreaded.State, vm VersionedVMTestCase, r *testutil.RandHelper) {
+	initState := func(t require.TestingT, state *multithreaded.State, vm VersionedVMTestCase, r *testutil.RandHelper) {
 		testutil.StoreInstruction(state.Memory, state.GetPC(), syscallInsn)
 		state.GetRegistersRef()[2] = arch.SysGetpid // Set syscall number
 	}
 
-	setExpectations := func(t require.TestingT, tt testCase, expected *mtutil.ExpectedState, vm VersionedVMTestCase) ExpectedExecResult {
+	setExpectations := func(t require.TestingT, expected *mtutil.ExpectedState, vm VersionedVMTestCase) ExpectedExecResult {
 		expected.ExpectStep()
 		expected.ActiveThread().Registers[2] = 0
 		expected.ActiveThread().Registers[7] = 0
 		return ExpectNormalExecution()
 	}
 
-	NewDiffTester(testNamer).
+	NewSingletonDiffTester().
 		InitState(initState).
 		SetExpectations(setExpectations).
-		Run(t, cases)
+		Run(t)
 }
 
 func TestEVM_SysClockGettimeMonotonic(t *testing.T) {
@@ -852,15 +836,7 @@ func testEVM_SysClockGettime(t *testing.T, clkid Word) {
 }
 
 func TestEVM_SysClockGettimeNonMonotonic(t *testing.T) {
-	type testCase struct {
-		name string
-	}
-	testNamer := func(tc testCase) string {
-		return tc.name
-	}
-	cases := []testCase{{"Base Case"}}
-
-	initState := func(t require.TestingT, tt testCase, state *multithreaded.State, vm VersionedVMTestCase, r *testutil.RandHelper) {
+	initState := func(t require.TestingT, state *multithreaded.State, vm VersionedVMTestCase, r *testutil.RandHelper) {
 		timespecAddr := Word(0x1000)
 		testutil.StoreInstruction(state.Memory, state.GetPC(), syscallInsn)
 		state.GetRegistersRef()[2] = arch.SysClockGetTime // Set syscall number
@@ -868,17 +844,17 @@ func TestEVM_SysClockGettimeNonMonotonic(t *testing.T) {
 		state.GetRegistersRef()[5] = timespecAddr         // a1
 	}
 
-	setExpectations := func(t require.TestingT, tt testCase, expected *mtutil.ExpectedState, vm VersionedVMTestCase) ExpectedExecResult {
+	setExpectations := func(t require.TestingT, expected *mtutil.ExpectedState, vm VersionedVMTestCase) ExpectedExecResult {
 		expected.ExpectStep()
 		expected.ActiveThread().Registers[2] = exec.MipsEINVAL
 		expected.ActiveThread().Registers[7] = exec.SysErrorSignal
 		return ExpectNormalExecution()
 	}
 
-	NewDiffTester(testNamer).
+	NewSingletonDiffTester().
 		InitState(initState).
 		SetExpectations(setExpectations).
-		Run(t, cases)
+		Run(t)
 }
 
 func TestEVM_EmptyThreadStacks(t *testing.T) {

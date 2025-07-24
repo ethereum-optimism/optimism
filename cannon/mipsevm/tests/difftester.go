@@ -20,6 +20,62 @@ import (
 
 type TestNamer[T any] func(testCase T) string
 
+type SingletonInitializeStateFn func(t require.TestingT, state *multithreaded.State, vm VersionedVMTestCase, r *testutil.RandHelper)
+type SingletonSetExpectationsFn func(t require.TestingT, expect *mtutil.ExpectedState, vm VersionedVMTestCase) ExpectedExecResult
+type SingletonPostStepCheckFn func(t require.TestingT, vm VersionedVMTestCase, deps *TestDependencies)
+
+type singletonTestCase struct {
+	name string
+}
+
+type SingletonDiffTester struct {
+	diffTester DiffTester[singletonTestCase]
+}
+
+// NewSingletonDiffTester returns a DiffTester designed to run only a single default test case
+func NewSingletonDiffTester() *SingletonDiffTester {
+	return &SingletonDiffTester{
+		diffTester: *NewDiffTester(func(t singletonTestCase) string {
+			return t.name
+		}),
+	}
+}
+
+func (d *SingletonDiffTester) InitState(initStateFn SingletonInitializeStateFn, opts ...mtutil.StateOption) *SingletonDiffTester {
+	wrappedFn := func(t require.TestingT, testCase singletonTestCase, state *multithreaded.State, vm VersionedVMTestCase, r *testutil.RandHelper) {
+		initStateFn(t, state, vm, r)
+	}
+	d.diffTester.InitState(wrappedFn, opts...)
+
+	return d
+}
+
+func (d *SingletonDiffTester) SetExpectations(setExpectationsFn SingletonSetExpectationsFn) *SingletonDiffTester {
+	wrappedFn := func(t require.TestingT, testCase singletonTestCase, expect *mtutil.ExpectedState, vm VersionedVMTestCase) ExpectedExecResult {
+		return setExpectationsFn(t, expect, vm)
+	}
+	d.diffTester.SetExpectations(wrappedFn)
+
+	return d
+}
+
+func (d *SingletonDiffTester) PostCheck(postStepCheckFn SingletonPostStepCheckFn) *SingletonDiffTester {
+	wrappedFn := func(t require.TestingT, testCase singletonTestCase, vm VersionedVMTestCase, deps *TestDependencies) {
+		postStepCheckFn(t, vm, deps)
+	}
+	d.diffTester.PostCheck(wrappedFn)
+
+	return d
+}
+
+func (d *SingletonDiffTester) Run(t *testing.T, opts ...TestOption) {
+	// Encapsulate core logic in run() for easier unit testing with the testRunner interface
+	singletonTestCases := []singletonTestCase{
+		{name: "singleton"},
+	}
+	d.diffTester.run(wrapT(t), singletonTestCases, opts...)
+}
+
 type InitializeStateFn[T any] func(t require.TestingT, testCase T, state *multithreaded.State, vm VersionedVMTestCase, r *testutil.RandHelper)
 type SetExpectationsFn[T any] func(t require.TestingT, testCase T, expect *mtutil.ExpectedState, vm VersionedVMTestCase) ExpectedExecResult
 type PostStepCheckFn[T any] func(t require.TestingT, testCase T, vm VersionedVMTestCase, deps *TestDependencies)
