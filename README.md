@@ -1,9 +1,7 @@
 <div align="center">
   <br />
   <br />
-  <a href="https://optimism.io"><img alt="Optimism" src="https://raw.githubusercontent.com/ethereum-optimism/brand-kit/main/assets/svg/OPTIMISM-R.svg" width=600></a>
-  <br />
-  <h3><a href="https://optimism.io">Optimism</a> is Ethereum, scaled.</h3>
+  <h3>HashKey Chain Verse is a fork of Optimism for Custom Gas token.</h3>
   <br />
 </div>
 
@@ -25,6 +23,12 @@
 - [License](#license)
 
 <!--TOC-->
+
+## What is Verse?
+
+Verse is an Optimism-forked project designed to offer a Layer 2 (L2) infrastructure that enables the use of custom gas tokens within the Optimism ecosystem.
+
+Verse was first used on HashKey Chain.
 
 ## What is Optimism?
 
