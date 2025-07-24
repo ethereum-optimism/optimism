@@ -122,7 +122,6 @@ func (t *ManagedNode) resetHeadsFromTarget(ctx context.Context, target eth.Block
 		xSafe = lastXSafe.Derived
 	} else {
 		xSafe = target
-		// TODO(#16026): investigate, maybe instead return an error that cross-safe changed.
 		// Resetting to older block should be unneeded.
 		// Note: op-node may not have the same blocks as op-supervisor has,
 		// and thus needs to start from an old forkchoice state.
@@ -141,7 +140,6 @@ func (t *ManagedNode) resetHeadsFromTarget(ctx context.Context, target eth.Block
 		finalized = lastFinalized
 	} else {
 		finalized = target
-		// TODO(#16026): same story as cross-safe.
 	}
 
 	// trigger the reset

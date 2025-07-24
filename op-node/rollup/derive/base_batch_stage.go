@@ -200,8 +200,6 @@ func (bs *baseBatchStage) deriveNextEmptyBatch(ctx context.Context, outOfData bo
 
 	// At this point we have auto generated every batch for the current epoch
 	// that we can, so we can advance to the next epoch.
-	// TODO(12444): Instead of manually advancing the epoch here, it may be better to generate a
-	// batch for the next epoch, so that updateOrigins then properly advances the origin.
 	bs.log.Trace("Advancing internal L1 blocks", "next_timestamp", nextTimestamp, "next_epoch_time", nextEpoch.Time)
 	bs.l1Blocks = bs.l1Blocks[1:]
 	return nil, io.EOF

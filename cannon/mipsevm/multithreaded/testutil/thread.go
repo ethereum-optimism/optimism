@@ -168,3 +168,8 @@ func GetThreadStacks(state *multithreaded.State) (activeStack, inactiveStack []*
 	}
 	return activeStack, inactiveStack
 }
+
+func ActiveThreadCount(state *multithreaded.State) int {
+	activeStack, _ := GetThreadStacks(state)
+	return len(activeStack)
+}

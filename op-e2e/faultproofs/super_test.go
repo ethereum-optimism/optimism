@@ -45,6 +45,15 @@ func TestSuperCannonGame(t *testing.T) {
 	})
 }
 
+func TestSuperCannonGame_WithBlobs(t *testing.T) {
+	RunTestAcrossVmTypes(t, func(t *testing.T, allocType config.AllocType) {
+		ctx := context.Background()
+		sys, disputeGameFactory, _ := StartInteropFaultDisputeSystem(t, WithAllocType(allocType), WithBlobBatches())
+		game := disputeGameFactory.StartSuperCannonGame(ctx, common.Hash{0x01})
+		testCannonGame(t, ctx, createSuperGameArena(t, sys, game), &game.SplitGameHelper)
+	})
+}
+
 func TestSuperCannonGame_ChallengeAllZeroClaim(t *testing.T) {
 	RunTestAcrossVmTypes(t, func(t *testing.T, allocType config.AllocType) {
 		ctx := context.Background()

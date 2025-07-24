@@ -350,7 +350,7 @@ jobs:
   contracts-bedrock-build:
     docker:
       - image: <<pipeline.parameters.default_docker_image>>
-    resource_class: large
+    resource_class: xlarge
     parameters:
       build_args:
         description: Forge build arguments
@@ -1265,7 +1265,7 @@ jobs:
             GOGC: "0"
           command: |
             # Run the tests
-            just acceptance-test "<<parameters.devnet>>" "<<parameters.gate>>"
+            LOG_LEVEL=debug just acceptance-test "<<parameters.devnet>>" "<<parameters.gate>>"
       - run:
           name: Print results (summary)
           working_directory: op-acceptance-tests

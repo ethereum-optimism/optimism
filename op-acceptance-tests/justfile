@@ -1,6 +1,6 @@
 REPO_ROOT := `realpath ..`
 KURTOSIS_DIR := REPO_ROOT + "/kurtosis-devnet"
-ACCEPTOR_VERSION := env_var_or_default("ACCEPTOR_VERSION", "v1.0.0")
+ACCEPTOR_VERSION := env_var_or_default("ACCEPTOR_VERSION", "v1.1.1")
 DOCKER_REGISTRY := env_var_or_default("DOCKER_REGISTRY", "us-docker.pkg.dev/oplabs-tools-artifacts/images")
 ACCEPTOR_IMAGE := env_var_or_default("ACCEPTOR_IMAGE", DOCKER_REGISTRY + "/op-acceptor:" + ACCEPTOR_VERSION)
 
@@ -51,9 +51,8 @@ acceptance-test devnet="" gate="holocene":
         cd packages/contracts-bedrock
         echo " - Installing contracts..."
         just install
-        echo " - Cleaning forge..."
-        forge clean
-        just forge-build
+        echo " - Forge build..."
+        just build-no-tests
         cd {{REPO_ROOT}}
 
         echo "Checking cannon dependencies..."
@@ -81,7 +80,7 @@ acceptance-test devnet="" gate="holocene":
         "--gate" "{{gate}}"
         "--testdir" "{{REPO_ROOT}}"
         "--validators" "./acceptance-tests.yaml"
-        "--log.level" "debug"
+        "--log.level" "${LOG_LEVEL:-info}"
         "--acceptor" "$BINARY_PATH"
     )
 

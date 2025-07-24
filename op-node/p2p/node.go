@@ -164,7 +164,7 @@ func (n *NodeP2P) init(
 	if err != nil {
 		return fmt.Errorf("failed to start gossipsub router: %w", err)
 	}
-	n.gsOut, err = JoinGossip(n.host.ID(), n.gs, log, rollupCfg, runCfg, gossipIn)
+	n.gsOut, err = JoinGossip(n.host.ID(), n.gs, log, rollupCfg, runCfg, gossipIn, setup)
 	if err != nil {
 		return fmt.Errorf("failed to join blocks gossip topic: %w", err)
 	}
