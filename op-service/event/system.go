@@ -111,7 +111,7 @@ func (r *systemActor) Emit(ctx context.Context, ev Event) {
 		ev = modified.(Event)
 		parentUUID, _ := ctx.Value(CtxKeyUUID).(string)
 		// fmt.Printf("l33t [E] [%s]<-[%s] %s %s\n", uuid, parentUUID, reflect.TypeOf(ev), ctx)
-		fmt.Printf("l33t [E] [%s]<-[%s] %s\n", uuid, parentUUID, reflect.TypeOf(ev))
+		fmt.Printf("l33t [E] [%s]<-[%s] %s %s\n", uuid, parentUUID, reflect.TypeOf(ev), r.name)
 	}
 
 	r.sys.emit(r.name, r.currentEvent, ctx, ev, r.emitPriority)
