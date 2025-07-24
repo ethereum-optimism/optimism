@@ -11,17 +11,7 @@ import { OPContractsManager_TestInit } from "test/L1/OPContractsManager.t.sol";
 import { VerifyOPCM } from "scripts/deploy/VerifyOPCM.s.sol";
 
 // Interfaces
-import { IOPContractsManager } from "interfaces/L1/IOPContractsManager.sol";
-
-/// @title MockContractsContainer
-/// @notice Mock contract that returns a specific contractsContainer address for testing.
-contract MockContractsContainer {
-    address public immutable contractsContainer;
-
-    constructor(address _contractsContainer) {
-        contractsContainer = _contractsContainer;
-    }
-}
+import { IOPContractsManager, IOPContractsManagerUpgrader } from "interfaces/L1/IOPContractsManager.sol";
 
 contract VerifyOPCM_Harness is VerifyOPCM {
     function loadArtifactInfo(string memory _artifactPath) public view returns (ArtifactInfo memory) {
@@ -47,12 +37,8 @@ contract VerifyOPCM_Harness is VerifyOPCM {
         return _buildArtifactPath(_contractName);
     }
 
-    function verifyContractsContainerConsistency(IOPContractsManager _opcm) public view {
-        return _verifyContractsContainerConsistency(_opcm);
-    }
-
-    function getContractsContainerAddress(address _contract) public view returns (address) {
-        return _getContractsContainerAddress(_contract);
+    function verifyContractsContainerConsistency(OpcmContractRef[] memory _propRefs) public view {
+        return _verifyContractsContainerConsistency(_propRefs);
     }
 }
 
@@ -242,13 +228,16 @@ contract VerifyOPCM_Run_Test is VerifyOPCM_TestInit {
         harness.run(address(opcm), true);
     }
 
-    /// @notice Tests that the script verifies all four contracts have the same contractsContainer address.
+    /// @notice Tests that the script verifies all component contracts have the same contractsContainer address.
     function test_verifyContractsContainerConsistency_succeeds() public {
         // Coverage changes bytecode and causes failures, skip.
         skipIfCoverage();
 
+        // Get the property references (which include the component addresses)
+        VerifyOPCM.OpcmContractRef[] memory propRefs = harness.getOpcmPropertyRefs(opcm);
+
         // This should succeed with the current setup where all contracts have the same containerAddress.
-        harness.verifyContractsContainerConsistency(opcm);
+        harness.verifyContractsContainerConsistency(propRefs);
     }
 
     /// @notice Tests that the script reverts when contracts have different contractsContainer addresses.
@@ -259,20 +248,19 @@ contract VerifyOPCM_Run_Test is VerifyOPCM_TestInit {
         // Create a different address to simulate a mismatch.
         address differentContainer = address(0x9999999999999999999999999999999999999999);
 
-        // Create a mock contract that returns a different contractsContainer address.
-        MockContractsContainer mockContract = new MockContractsContainer(differentContainer);
+        // Get the opcmUpgrader address and modify its contractsContainer() return value
+        address upgrader = address(opcm.opcmUpgrader());
 
-        // Get one of the original contract addresses to replace.
-        address originalUpgrader = address(opcm.opcmUpgrader());
+        // Mock the contractsContainer() call to return a different address
+        vm.mockCall(
+            upgrader, abi.encodeCall(IOPContractsManagerUpgrader.contractsContainer, ()), abi.encode(differentContainer)
+        );
 
-        // Replace the opcmUpgrader with our mock contract by etching over it.
-        vm.etch(originalUpgrader, address(mockContract).code);
-
-        // Store the different container address in the mock contract's storage.
-        vm.store(originalUpgrader, bytes32(uint256(0)), bytes32(uint256(uint160(differentContainer))));
+        // Get the property references (which include the component addresses)
+        VerifyOPCM.OpcmContractRef[] memory propRefs = harness.getOpcmPropertyRefs(opcm);
 
         // Now the consistency check should fail.
         vm.expectRevert(VerifyOPCM.VerifyOPCM_ContractsContainerMismatch.selector);
-        harness.verifyContractsContainerConsistency(opcm);
+        harness.verifyContractsContainerConsistency(propRefs);
     }
 }

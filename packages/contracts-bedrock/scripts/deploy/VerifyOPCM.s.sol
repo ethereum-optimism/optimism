@@ -112,12 +112,14 @@ contract VerifyOPCM is Script {
         fieldNameOverrides["opcmUpgrader"] = "OPContractsManagerUpgrader";
         fieldNameOverrides["opcmInteropMigrator"] = "OPContractsManagerInteropMigrator";
         fieldNameOverrides["opcmStandardValidator"] = "OPContractsManagerStandardValidator";
+        fieldNameOverrides["contractsContainer"] = "OPContractsManagerContractsContainer";
 
         // Overrides for situations where contracts have differently named source files.
         sourceNameOverrides["OPContractsManagerGameTypeAdder"] = "OPContractsManager";
         sourceNameOverrides["OPContractsManagerDeployer"] = "OPContractsManager";
         sourceNameOverrides["OPContractsManagerUpgrader"] = "OPContractsManager";
         sourceNameOverrides["OPContractsManagerInteropMigrator"] = "OPContractsManager";
+        sourceNameOverrides["OPContractsManagerContractsContainer"] = "OPContractsManager";
 
         // Mark as ready.
         ready = true;
@@ -184,13 +186,26 @@ contract VerifyOPCM is Script {
     /// @param _opcm The live OPCM contract.
     /// @return Array of OpcmContractRef structs containing contract names/addresses.
     function _collectOpcmContractRefs(IOPContractsManager _opcm) internal returns (OpcmContractRef[] memory) {
-        // Verify that all four contracts have the same contractsContainer address.
-        _verifyContractsContainerConsistency(_opcm);
-
         // Collect property references.
         OpcmContractRef[] memory propRefs = _getOpcmPropertyRefs(_opcm);
         if (propRefs.length == 0) {
             revert VerifyOPCM_NoProperties();
+        }
+
+        // Verify that all component contracts have the same contractsContainer address.
+        _verifyContractsContainerConsistency(propRefs);
+
+        // Get the ContractsContainer address from the first component (they're all the same)
+        address contractsContainerAddr = address(0);
+        for (uint256 i = 0; i < propRefs.length; i++) {
+            string memory field = propRefs[i].field;
+            if (
+                LibString.eq(field, "opcmDeployer") || LibString.eq(field, "opcmGameTypeAdder")
+                    || LibString.eq(field, "opcmUpgrader") || LibString.eq(field, "opcmInteropMigrator")
+            ) {
+                contractsContainerAddr = _getContractsContainerAddress(propRefs[i].addr);
+                break;
+            }
         }
 
         // Collect implementation references.
@@ -206,12 +221,18 @@ contract VerifyOPCM is Script {
         }
 
         // Create a single array to join everything together.
-        uint256 extraRefs = 1;
+        uint256 extraRefs = 2; // OPCM + ContractsContainer
         OpcmContractRef[] memory refs =
             new OpcmContractRef[](propRefs.length + implRefs.length + bpRefs.length + extraRefs);
 
         // References for OPCM and linked contracts.
         refs[0] = OpcmContractRef({ field: "opcm", name: "OPContractsManager", addr: address(_opcm), blueprint: false });
+        refs[1] = OpcmContractRef({
+            field: "contractsContainer",
+            name: "OPContractsManagerContractsContainer",
+            addr: contractsContainerAddr,
+            blueprint: false
+        });
 
         // Add the property references.
         for (uint256 i = 0; i < propRefs.length; i++) {
@@ -232,39 +253,70 @@ contract VerifyOPCM is Script {
         return refs;
     }
 
-    /// @notice Verifies that all four OPCM contracts have the same contractsContainer address.
-    /// @param _opcm The live OPCM contract.
-    function _verifyContractsContainerConsistency(IOPContractsManager _opcm) internal view {
-        // Get the contractsContainer addresses from all four contracts.
-        address gameTypeAdderContainer = _getContractsContainerAddress(address(_opcm.opcmGameTypeAdder()));
-        address deployerContainer = _getContractsContainerAddress(address(_opcm.opcmDeployer()));
-        address upgraderContainer = _getContractsContainerAddress(address(_opcm.opcmUpgrader()));
-        address interopMigratorContainer = _getContractsContainerAddress(address(_opcm.opcmInteropMigrator()));
+    /// @notice Verifies that all OPCM component contracts have the same contractsContainer address.
+    /// @param _propRefs Array of property references containing component addresses.
+    function _verifyContractsContainerConsistency(OpcmContractRef[] memory _propRefs) internal view {
+        // Filter components that have contractsContainer() function
+        address[] memory componentAddresses = new address[](_propRefs.length);
+        string[] memory componentNames = new string[](_propRefs.length);
+        uint256 componentCount = 0;
+
+        for (uint256 i = 0; i < _propRefs.length; i++) {
+            // Only check components that have contractsContainer() function
+            string memory field = _propRefs[i].field;
+            if (
+                bytes(field).length > 0
+                    && (
+                        LibString.eq(field, "opcmGameTypeAdder") || LibString.eq(field, "opcmUpgrader")
+                            || LibString.eq(field, "opcmDeployer") || LibString.eq(field, "opcmInteropMigrator")
+                    )
+            ) {
+                componentAddresses[componentCount] = _propRefs[i].addr;
+                componentNames[componentCount] = field;
+                componentCount++;
+            }
+        }
+
+        // Ensure we found at least one component
+        if (componentCount == 0) {
+            console.log("ERROR: No OPCM components found for contractsContainer verification");
+            revert VerifyOPCM_ContractsContainerMismatch();
+        }
+
+        // Get contractsContainer addresses from all components
+        address[] memory containerAddresses = new address[](componentCount);
+        for (uint256 i = 0; i < componentCount; i++) {
+            containerAddresses[i] = _getContractsContainerAddress(componentAddresses[i]);
+        }
 
         // Check if any of the calls failed (returned address(0))
-        if (
-            gameTypeAdderContainer == address(0) || deployerContainer == address(0) || upgraderContainer == address(0)
-                || interopMigratorContainer == address(0)
-        ) {
-            console.log("ERROR: Failed to retrieve contractsContainer address from one or more contracts");
-            revert VerifyOPCM_ContractsContainerMismatch();
+        for (uint256 i = 0; i < componentCount; i++) {
+            if (containerAddresses[i] == address(0)) {
+                console.log(
+                    string.concat("ERROR: Failed to retrieve contractsContainer address from ", componentNames[i])
+                );
+                revert VerifyOPCM_ContractsContainerMismatch();
+            }
         }
 
-        // Verify that all addresses are the same.
-        if (
-            gameTypeAdderContainer != deployerContainer || deployerContainer != upgraderContainer
-                || upgraderContainer != interopMigratorContainer
-        ) {
-            console.log("ERROR: contractsContainer addresses are not consistent across all four contracts");
-            console.log(string.concat("  GameTypeAdder: ", vm.toString(gameTypeAdderContainer)));
-            console.log(string.concat("  Deployer: ", vm.toString(deployerContainer)));
-            console.log(string.concat("  Upgrader: ", vm.toString(upgraderContainer)));
-            console.log(string.concat("  InteropMigrator: ", vm.toString(interopMigratorContainer)));
-            revert VerifyOPCM_ContractsContainerMismatch();
+        // Verify that all addresses are the same
+        address firstContainer = containerAddresses[0];
+        for (uint256 i = 1; i < componentCount; i++) {
+            if (containerAddresses[i] != firstContainer) {
+                console.log("ERROR: contractsContainer addresses are not consistent across all components");
+                for (uint256 j = 0; j < componentCount; j++) {
+                    console.log(string.concat("  ", componentNames[j], ": ", vm.toString(containerAddresses[j])));
+                }
+                revert VerifyOPCM_ContractsContainerMismatch();
+            }
         }
 
-        console.log("OK: All four contracts have the same contractsContainer address");
-        console.log(string.concat("  contractsContainer: ", vm.toString(deployerContainer)));
+        console.log(
+            string.concat(
+                "OK: All ", vm.toString(componentCount), " components have the same contractsContainer address"
+            )
+        );
+        console.log(string.concat("  contractsContainer: ", vm.toString(firstContainer)));
     }
 
     /// @notice Gets the contractsContainer address from a contract.
