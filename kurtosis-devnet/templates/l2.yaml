@@ -2,14 +2,14 @@
 {{- $nodes := dig "nodes" (list "op-geth") $context -}}
 ---
 participants:
-{{- range $node := $nodes }}
-- {{ include "local-op-node.yaml" (dict "overrides" $context.overrides "el_type" $node) }}
+{{- range $node_id, $node := $nodes }}
+  {{ $node_id }}:
+    {{ include "local-op-node.yaml" (dict "overrides" $context.overrides "el_type" $node) }}
 {{- end }}
 network_params:
   network: "kurtosis"
   network_id: "{{ .chain_id }}"
   seconds_per_slot: 2
-  name: "op-kurtosis-{{ .chain_id }}"
   fjord_time_offset: 0
   granite_time_offset: 0
   holocene_time_offset: 0
@@ -32,8 +32,3 @@ proposer_params:
   - {{ dig "overrides" "flags" "log_level" "!!str" $context }}
   game_type: 1
   proposal_interval: 10m
-mev_params:
-  rollup_boost_image: ""
-  builder_host: ""
-  builder_port: ""
-additional_services: []

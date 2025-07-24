@@ -12,9 +12,11 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/engine"
-	"github.com/ethereum-optimism/optimism/op-node/rollup/event"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/sync"
+	"github.com/ethereum-optimism/optimism/op-service/event"
 )
+
+var errTooManyEvents = errors.New("way too many events queued up, something is wrong")
 
 type EndCondition interface {
 	Closing() bool
@@ -30,14 +32,14 @@ type Driver struct {
 	deriver event.Deriver
 }
 
-func NewDriver(logger log.Logger, cfg *rollup.Config, l1Source derive.L1Fetcher,
+func NewDriver(logger log.Logger, cfg *rollup.Config, depSet derive.DependencySet, l1Source derive.L1Fetcher,
 	l1BlobsSource derive.L1BlobsFetcher, l2Source engine.Engine, targetBlockNum uint64) *Driver {
 
 	d := &Driver{
 		logger: logger,
 	}
 
-	pipeline := derive.NewDerivationPipeline(logger, cfg, l1Source, l1BlobsSource, altda.Disabled, l2Source, metrics.NoopMetrics, false)
+	pipeline := derive.NewDerivationPipeline(logger, cfg, depSet, l1Source, l1BlobsSource, altda.Disabled, l2Source, metrics.NoopMetrics, false)
 	pipelineDeriver := derive.NewPipelineDeriver(context.Background(), pipeline)
 	pipelineDeriver.AttachEmitter(d)
 
@@ -67,7 +69,7 @@ func NewDriver(logger log.Logger, cfg *rollup.Config, l1Source derive.L1Fetcher,
 	return d
 }
 
-func (d *Driver) Emit(ev event.Event) {
+func (d *Driver) Emit(ctx context.Context, ev event.Event) {
 	if d.end.Closing() {
 		return
 	}
@@ -76,7 +78,7 @@ func (d *Driver) Emit(ev event.Event) {
 
 func (d *Driver) RunComplete() (eth.L2BlockRef, error) {
 	// Initial reset
-	d.Emit(engine.ResetEngineRequestEvent{})
+	d.Emit(context.Background(), engine.ResetEngineRequestEvent{})
 
 	for !d.end.Closing() {
 		if len(d.events) == 0 {
@@ -84,11 +86,11 @@ func (d *Driver) RunComplete() (eth.L2BlockRef, error) {
 			return d.end.Result()
 		}
 		if len(d.events) > 10000 { // sanity check, in case of bugs. Better than going OOM.
-			return eth.L2BlockRef{}, errors.New("way too many events queued up, something is wrong")
+			return eth.L2BlockRef{}, errTooManyEvents
 		}
 		ev := d.events[0]
 		d.events = d.events[1:]
-		d.deriver.OnEvent(ev)
+		d.deriver.OnEvent(context.Background(), ev)
 	}
 	return d.end.Result()
 }

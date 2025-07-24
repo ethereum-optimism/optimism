@@ -12,7 +12,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-program/chainconfig"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/depset"
-	supervisortypes "github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/stretchr/testify/require"
@@ -96,8 +95,8 @@ func TestInteropBootstrap_ChainConfigCustom(t *testing.T) {
 	mockOracle := newMockInteropBootstrapOracle(expected, true)
 	mockOracle.chainCfgs = []*params.ChainConfig{config1, config2}
 	mockOracle.depset, _ = depset.NewStaticConfigDependencySet(map[eth.ChainID]*depset.StaticConfigDependency{
-		eth.ChainIDFromBig(config1.ChainID): {ChainIndex: supervisortypes.ChainIndex(config1.ChainID.Uint64()), ActivationTime: 0, HistoryMinTime: 0},
-		eth.ChainIDFromBig(config2.ChainID): {ChainIndex: supervisortypes.ChainIndex(config2.ChainID.Uint64()), ActivationTime: 0, HistoryMinTime: 0},
+		eth.ChainIDFromBig(config1.ChainID): {},
+		eth.ChainIDFromBig(config2.ChainID): {},
 	})
 	actual := BootstrapInterop(mockOracle)
 
@@ -122,8 +121,8 @@ func TestInteropBootstrap_DependencySetCustom(t *testing.T) {
 	mockOracle := newMockInteropBootstrapOracle(expected, true)
 	var err error
 	mockOracle.depset, err = depset.NewStaticConfigDependencySet(map[eth.ChainID]*depset.StaticConfigDependency{
-		eth.ChainIDFromBig(config1.ChainID): {ChainIndex: supervisortypes.ChainIndex(config1.ChainID.Uint64()), ActivationTime: 0, HistoryMinTime: 0},
-		eth.ChainIDFromBig(config2.ChainID): {ChainIndex: supervisortypes.ChainIndex(config2.ChainID.Uint64()), ActivationTime: 0, HistoryMinTime: 0},
+		eth.ChainIDFromBig(config1.ChainID): {},
+		eth.ChainIDFromBig(config2.ChainID): {},
 	})
 	require.NoError(t, err)
 	actual := BootstrapInterop(mockOracle)
@@ -135,7 +134,7 @@ func TestInteropBootstrap_DependencySetCustom(t *testing.T) {
 
 func newMockInteropBootstrapOracle(b *BootInfoInterop, custom bool) *mockInteropBootstrapOracle {
 	return &mockInteropBootstrapOracle{
-		mockBoostrapOracle: mockBoostrapOracle{
+		mockBootstrapOracle: mockBootstrapOracle{
 			l1Head:             b.L1Head,
 			l2OutputRoot:       b.AgreedPrestate,
 			l2Claim:            b.Claim,
@@ -146,7 +145,7 @@ func newMockInteropBootstrapOracle(b *BootInfoInterop, custom bool) *mockInterop
 }
 
 type mockInteropBootstrapOracle struct {
-	mockBoostrapOracle
+	mockBootstrapOracle
 	rollupCfgs []*rollup.Config
 	chainCfgs  []*params.ChainConfig
 	depset     *depset.StaticConfigDependencySet
@@ -176,6 +175,6 @@ func (o *mockInteropBootstrapOracle) Get(key preimage.Key) []byte {
 		b, _ := json.Marshal(o.depset)
 		return b
 	default:
-		return o.mockBoostrapOracle.Get(key)
+		return o.mockBootstrapOracle.Get(key)
 	}
 }

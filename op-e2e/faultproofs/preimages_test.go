@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	op_e2e "github.com/ethereum-optimism/optimism/op-e2e"
+	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/challenger"
 	"github.com/ethereum-optimism/optimism/op-program/client/boot"
 
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/disputegame"
@@ -46,7 +47,8 @@ func TestLocalPreimages(t *testing.T) {
 
 			game.LogGameData(ctx)
 
-			game.VerifyPreimage(ctx, claim, test.key)
+			providerFunc := game.NewMemoizedCannonTraceProvider(ctx, "sequencer", claim, challenger.WithPrivKey(disputegame.TestKey))
+			game.VerifyPreimage(ctx, providerFunc, test.key)
 
 			game.LogGameData(ctx)
 		})

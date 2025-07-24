@@ -6,16 +6,17 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ethereum-optimism/optimism/op-e2e/config"
+	"github.com/stretchr/testify/require"
 
-	bindingspreview "github.com/ethereum-optimism/optimism/op-node/bindings/preview"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
-	"github.com/stretchr/testify/require"
 
+	"github.com/ethereum-optimism/optimism/op-e2e/config"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils"
+	bindingspreview "github.com/ethereum-optimism/optimism/op-node/bindings/preview"
+	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 )
 
@@ -28,6 +29,8 @@ type hardforkScheduledTest struct {
 	graniteTime  *hexutil.Uint64
 	holoceneTime *hexutil.Uint64
 	isthmusTime  *hexutil.Uint64
+	interopTime  *hexutil.Uint64
+	jovianTime   *hexutil.Uint64
 	runToFork    string
 	allocType    config.AllocType
 }
@@ -42,6 +45,10 @@ func (tc *hardforkScheduledTest) GetFork(fork string) *uint64 {
 
 func (tc *hardforkScheduledTest) fork(fork string) **hexutil.Uint64 {
 	switch fork {
+	case "jovian":
+		return &tc.jovianTime
+	case "interop":
+		return &tc.interopTime
 	case "isthmus":
 		return &tc.isthmusTime
 	case "holocene":
@@ -63,8 +70,8 @@ func (tc *hardforkScheduledTest) fork(fork string) **hexutil.Uint64 {
 	}
 }
 
-func TestCrossLayerUser_Standard(t *testing.T) {
-	testCrossLayerUser(t, config.AllocTypeStandard)
+func TestCrossLayerUser_Default(t *testing.T) {
+	testCrossLayerUser(t, config.DefaultAllocType)
 }
 
 // TestCrossLayerUser tests that common actions of the CrossLayerUser actor work in various hardfork configurations:
@@ -88,6 +95,8 @@ func testCrossLayerUser(t *testing.T, allocType config.AllocType) {
 		"granite",
 		"holocene",
 		"isthmus",
+		"interop",
+		"jovian",
 	}
 	for i, fork := range forks {
 		i := i
@@ -179,6 +188,7 @@ func runCrossLayerUserTest(gt *testing.T, test hardforkScheduledTest) {
 			ProposerKey:            dp.Secrets.Proposer,
 			AllowNonFinalized:      true,
 			AllocType:              test.allocType,
+			ChainID:                eth.ChainIDFromBig(sd.L1Cfg.Config.ChainID),
 		}, miner.EthClient(), seq.RollupClient())
 	} else {
 		proposer = NewL2Proposer(t, log, &ProposerCfg{
@@ -187,6 +197,7 @@ func runCrossLayerUserTest(gt *testing.T, test hardforkScheduledTest) {
 			ProposalRetryInterval: 3 * time.Second,
 			AllowNonFinalized:     true,
 			AllocType:             test.allocType,
+			ChainID:               eth.ChainIDFromBig(sd.L1Cfg.Config.ChainID),
 		}, miner.EthClient(), seq.RollupClient())
 	}
 

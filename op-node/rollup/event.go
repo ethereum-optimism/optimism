@@ -1,8 +1,8 @@
 package rollup
 
 import (
-	"github.com/ethereum-optimism/optimism/op-node/rollup/event"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/event"
 )
 
 // L1TemporaryErrorEvent identifies a temporary issue with the L1 data.
@@ -45,10 +45,7 @@ func (ev ResetEvent) String() string {
 // Resets may override local-safe, since post-interop we need the local-safe block derivation to continue.
 // Pre-interop both local and cross values should be set the same.
 type ForceResetEvent struct {
-	// LocalUnsafe is optional: the existing chain local-unsafe head will be preserved if this field is zeroed.
-	LocalUnsafe eth.L2BlockRef
-
-	CrossUnsafe, LocalSafe, CrossSafe, Finalized eth.L2BlockRef
+	LocalUnsafe, CrossUnsafe, LocalSafe, CrossSafe, Finalized eth.L2BlockRef
 }
 
 func (ev ForceResetEvent) String() string {

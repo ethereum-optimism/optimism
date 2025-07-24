@@ -50,9 +50,9 @@ func TestChainFromDescriptor(t *testing.T) {
 		Nodes: []descriptors.Node{
 			{
 				Services: descriptors.ServiceMap{
-					"el": descriptors.Service{
+					"el": &descriptors.Service{
 						Endpoints: descriptors.EndpointMap{
-							"rpc": descriptors.PortInfo{
+							"rpc": &descriptors.PortInfo{
 								Host: "localhost",
 								Port: 8545,
 							},
@@ -62,7 +62,7 @@ func TestChainFromDescriptor(t *testing.T) {
 			},
 		},
 		Wallets: descriptors.WalletMap{
-			"user1": descriptors.Wallet{
+			"user1": &descriptors.Wallet{
 				PrivateKey: "1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
 				Address:    common.HexToAddress("0x1234567890123456789012345678901234567890"),
 			},
@@ -85,14 +85,14 @@ func TestChainFromDescriptor(t *testing.T) {
 
 func TestL2ChainFromDescriptor(t *testing.T) {
 	descriptor := &descriptors.L2Chain{
-		Chain: descriptors.Chain{
+		Chain: &descriptors.Chain{
 			ID: "1",
 			Nodes: []descriptors.Node{
 				{
 					Services: descriptors.ServiceMap{
-						"el": descriptors.Service{
+						"el": &descriptors.Service{
 							Endpoints: descriptors.EndpointMap{
-								"rpc": descriptors.PortInfo{
+								"rpc": &descriptors.PortInfo{
 									Host: "localhost",
 									Port: 8545,
 								},
@@ -102,7 +102,7 @@ func TestL2ChainFromDescriptor(t *testing.T) {
 				},
 			},
 			Wallets: descriptors.WalletMap{
-				"user1": descriptors.Wallet{
+				"user1": &descriptors.Wallet{
 					PrivateKey: "1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
 					Address:    common.HexToAddress("0x1234567890123456789012345678901234567890"),
 				},
@@ -115,7 +115,7 @@ func TestL2ChainFromDescriptor(t *testing.T) {
 			"user1": common.HexToAddress("0x1234567890123456789012345678901234567890"),
 		},
 		L1Wallets: descriptors.WalletMap{
-			"user1": descriptors.Wallet{
+			"user1": &descriptors.Wallet{
 				PrivateKey: "1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
 				Address:    common.HexToAddress("0x1234567890123456789012345678901234567890"),
 			},

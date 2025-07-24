@@ -46,6 +46,7 @@ type L2Chain interface {
 }
 
 type Node interface {
+	Name() string
 	GasPrice(ctx context.Context) (*big.Int, error)
 	GasLimit(ctx context.Context, tx TransactionData) (uint64, error)
 	PendingNonceAt(ctx context.Context, address common.Address) (uint64, error)
@@ -77,7 +78,9 @@ type Wallet interface {
 // WalletV2 is a temporary interface for integrating txplan and txintent
 type WalletV2 interface {
 	PrivateKey() *ecdsa.PrivateKey
+	Address() common.Address
 	Client() *sources.EthClient
+	GethClient() *ethclient.Client
 	Ctx() context.Context
 }
 
@@ -139,7 +142,7 @@ type Supervisor interface {
 	CrossSafe(context.Context, eth.ChainID) (supervisorTypes.DerivedIDPair, error)
 	Finalized(context.Context, eth.ChainID) (eth.BlockID, error)
 	FinalizedL1(context.Context) (eth.BlockRef, error)
-	CrossDerivedFrom(context.Context, eth.ChainID, eth.BlockID) (eth.BlockRef, error)
+	CrossDerivedToSource(context.Context, eth.ChainID, eth.BlockID) (eth.BlockRef, error)
 	UpdateLocalUnsafe(context.Context, eth.ChainID, eth.BlockRef) error
 	UpdateLocalSafe(context.Context, eth.ChainID, eth.L1BlockRef, eth.BlockRef) error
 	SuperRootAtTimestamp(context.Context, hexutil.Uint64) (eth.SuperRootResponse, error)

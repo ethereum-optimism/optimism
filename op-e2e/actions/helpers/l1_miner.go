@@ -120,6 +120,10 @@ func (s *L1Miner) ActL1StartBlock(timeDelta uint64) Action {
 			}
 			vmenv := vm.NewEVM(context, statedb, s.l1Chain.Config(), vm.Config{PrecompileOverrides: precompileOverrides})
 			core.ProcessBeaconBlockRoot(*header.ParentBeaconRoot, vmenv)
+
+			if s.l1Chain.Config().IsPrague(header.Number, header.Time) {
+				core.ProcessParentBlockHash(header.ParentHash, vmenv)
+			}
 		}
 
 		s.l1Building = true
@@ -228,14 +232,15 @@ func (s *L1Miner) ActL1EndBlock(t Testing) *types.Block {
 		s.l1BuildingHeader.RequestsHash = &types.EmptyRequestsHash
 	}
 
-	block := types.NewBlock(s.l1BuildingHeader, &types.Body{Transactions: s.L1Transactions, Withdrawals: withdrawals}, s.l1Receipts, trie.NewStackTrie(nil), types.DefaultBlockConfig)
-
 	isCancun := s.l1Cfg.Config.IsCancun(s.l1BuildingHeader.Number, s.l1BuildingHeader.Time)
 	// Write state changes to db
 	root, err := s.l1BuildingState.Commit(s.l1BuildingHeader.Number.Uint64(), s.l1Cfg.Config.IsEIP158(s.l1BuildingHeader.Number), isCancun)
 	if err != nil {
 		t.Fatalf("l1 state write error: %v", err)
 	}
+	require.Equal(t, s.l1BuildingHeader.Root, root, "no unexpected change in state-root")
+	block := types.NewBlock(s.l1BuildingHeader, &types.Body{Transactions: s.L1Transactions, Withdrawals: withdrawals}, s.l1Receipts, trie.NewStackTrie(nil), types.DefaultBlockConfig)
+
 	if err := s.l1BuildingState.Database().TrieDB().Commit(root, false); err != nil {
 		t.Fatalf("l1 trie write error: %v", err)
 	}

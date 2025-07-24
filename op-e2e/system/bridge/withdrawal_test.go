@@ -9,8 +9,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestWithdrawals_Standard(t *testing.T) {
-	testWithdrawals(t, config.AllocTypeStandard)
+func TestWithdrawals_Default(t *testing.T) {
+	testWithdrawals(t, config.DefaultAllocType)
 }
 
 // testWithdrawals checks that a deposit and then withdrawal execution succeeds. It verifies the

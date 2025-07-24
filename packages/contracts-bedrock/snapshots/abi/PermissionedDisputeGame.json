@@ -1134,6 +1134,11 @@
   },
   {
     "inputs": [],
+    "name": "GamePaused",
+    "type": "error"
+  },
+  {
+    "inputs": [],
     "name": "IncorrectBondAmount",
     "type": "error"
   },

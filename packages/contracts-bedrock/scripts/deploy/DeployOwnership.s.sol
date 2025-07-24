@@ -14,7 +14,6 @@ import { DeployUtils } from "scripts/libraries/DeployUtils.sol";
 
 import { LivenessGuard } from "src/safe/LivenessGuard.sol";
 import { LivenessModule } from "src/safe/LivenessModule.sol";
-import { DeputyGuardianModule } from "src/safe/DeputyGuardianModule.sol";
 import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
 
 import { Deploy } from "./Deploy.s.sol";
@@ -67,7 +66,6 @@ contract DeployOwnership is Deploy {
         deployFoundationUpgradeSafe();
         deploySecurityCouncilSafe();
         deployGuardianSafe();
-        configureGuardianSafe();
         configureSecurityCouncilSafe();
 
         console.log("Ownership contracts completed");
@@ -274,24 +272,6 @@ contract DeployOwnership is Deploy {
         console.log("New LivenessModule deployed at %s", address(addr_));
     }
 
-    /// @notice Deploy a DeputyGuardianModule for use on the Security Council Safe.
-    ///         Note this function does not have the broadcast modifier.
-    function deployDeputyGuardianModule() public returns (address addr_) {
-        Safe guardianSafe = Safe(payable(artifacts.mustGetAddress("GuardianSafe")));
-        DeputyGuardianModuleConfig memory deputyGuardianModuleConfig =
-            _getExampleGuardianConfig().deputyGuardianModuleConfig;
-        addr_ = address(
-            new DeputyGuardianModule({
-                _safe: guardianSafe,
-                _superchainConfig: deputyGuardianModuleConfig.superchainConfig,
-                _deputyGuardian: deputyGuardianModuleConfig.deputyGuardian
-            })
-        );
-
-        artifacts.save("DeputyGuardianModule", addr_);
-        console.log("New DeputyGuardianModule deployed at %s", addr_);
-    }
-
     /// @notice Deploy a Security Council Safe.
     function deploySecurityCouncilSafe() public broadcast returns (address addr_) {
         // Deploy the safe with the extra deployer key, and keep the threshold at 1 to allow for further setup.
@@ -331,21 +311,6 @@ contract DeployOwnership is Deploy {
         require(superchainConfig.guardian() == address(0), "SuperchainConfig: guardian must be address(0)");
         bytes32 initialized = vm.load(address(superchainConfig), bytes32(0));
         require(initialized != 0, "SuperchainConfig: must be initialized");
-    }
-
-    /// @notice Configure the Guardian Safe with the DeputyGuardianModule.
-    function configureGuardianSafe() public broadcast returns (address addr_) {
-        addr_ = artifacts.mustGetAddress("GuardianSafe");
-        address deputyGuardianModule = deployDeputyGuardianModule();
-        _callViaSafe({
-            _safe: Safe(payable(addr_)),
-            _target: addr_,
-            _data: abi.encodeCall(ModuleManager.enableModule, (deputyGuardianModule))
-        });
-
-        // Finalize configuration by removing the additional deployer key.
-        removeDeployerFromSafe({ _name: "GuardianSafe", _newThreshold: 1 });
-        console.log("DeputyGuardianModule enabled on GuardianSafe");
     }
 
     /// @notice Configure the Security Council Safe with the LivenessModule and LivenessGuard.

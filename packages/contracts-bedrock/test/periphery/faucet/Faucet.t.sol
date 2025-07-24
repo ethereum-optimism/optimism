@@ -6,7 +6,9 @@ import { Faucet } from "src/periphery/faucet/Faucet.sol";
 import { AdminFaucetAuthModule } from "src/periphery/faucet/authmodules/AdminFaucetAuthModule.sol";
 import { FaucetHelper } from "test/mocks/FaucetHelper.sol";
 
-contract Faucet_Initializer is Test {
+/// @title Faucet_TestInit
+/// @notice Reusable test initialization for `Faucet` tests.
+contract Faucet_TestInit is Test {
     event Drip(string indexed authModule, bytes32 indexed userId, uint256 amount, address indexed recipient);
 
     address internal faucetContractAdmin;
@@ -71,8 +73,8 @@ contract Faucet_Initializer is Test {
         return signature;
     }
 
-    /// @notice Signs a proof with the given private key and returns the signature using
-    ///         the given EIP712 domain separator. This assumes that the issuer's address is the
+    /// @notice Signs a proof with the given private key and returns the signature using the given
+    ///         EIP712 domain separator. This assumes that the issuer's address is the
     ///         corresponding public key to _issuerPrivateKey.
     function issueProofWithEIP712Domain(
         uint256 _issuerPrivateKey,
@@ -98,11 +100,53 @@ contract Faucet_Initializer is Test {
     }
 }
 
-contract FaucetTest is Faucet_Initializer {
-    function test_initialize_succeeds() external view {
+/// @title Faucet_Constructor_Test
+/// @notice Tests the `constructor` of the `Faucet` contract.
+contract Faucet_Constructor_Test is Faucet_TestInit {
+    function test_constructor_succeeds() external view {
         assertEq(faucet.ADMIN(), faucetContractAdmin);
     }
+}
 
+/// @title Faucet_Receive_Test
+/// @notice Tests the `receive` function of the `Faucet` contract.
+contract Faucet_Receive_Test is Faucet_TestInit {
+    function test_receive_succeeds() external {
+        uint256 faucetBalanceBefore = address(faucet).balance;
+
+        vm.prank(nonAdmin);
+        (bool success,) = address(faucet).call{ value: 1 ether }("");
+        assertTrue(success);
+
+        uint256 faucetBalanceAfter = address(faucet).balance;
+        assertEq(faucetBalanceAfter - faucetBalanceBefore, 1 ether, "expect increase of 1 ether");
+    }
+}
+
+/// @title Faucet_Withdraw_Test
+/// @notice Tests the `withdraw` function of the `Faucet` contract.
+contract Faucet_Withdraw_Test is Faucet_TestInit {
+    function test_withdraw_succeeds() external {
+        vm.startPrank(faucetContractAdmin);
+        uint256 recipientBalanceBefore = address(fundsReceiver).balance;
+
+        faucet.withdraw(payable(fundsReceiver), 2 ether);
+
+        uint256 recipientBalanceAfter = address(fundsReceiver).balance;
+        assertEq(recipientBalanceAfter - recipientBalanceBefore, 2 ether, "expect increase of 2 ether");
+        vm.stopPrank();
+    }
+
+    function test_withdraw_nonAdmin_reverts() external {
+        vm.prank(nonAdmin);
+        vm.expectRevert("Faucet: function can only be called by admin");
+        faucet.withdraw(payable(fundsReceiver), 2 ether);
+    }
+}
+
+/// @title Faucet_Configure_Test
+/// @notice Tests the `configure` function of the `Faucet` contract.
+contract Faucet_Configure_Test is Faucet_TestInit {
     function test_configure_whenAdmin_succeeds() external {
         vm.startPrank(faucetContractAdmin);
         faucet.configure(optimistNftFam, Faucet.ModuleConfig("OptimistNftModule", true, 1 days, 1 ether));
@@ -120,8 +164,12 @@ contract FaucetTest is Faucet_Initializer {
         vm.expectRevert("Faucet: function can only be called by admin");
         faucet.configure(optimistNftFam, Faucet.ModuleConfig("OptimistNftModule", true, 1 days, 1 ether));
     }
+}
 
-    function test_authAdmin_drip_succeeds() external {
+/// @title Faucet_Drip_Test
+/// @notice Tests the `drip` function of the `Faucet` contract.
+contract Faucet_Drip_Test is Faucet_TestInit {
+    function test_drip_authAdmin_succeeds() external {
         _enableFaucetAuthModules();
         bytes32 nonce = faucetHelper.consumeNonce();
         bytes memory data = "0x";
@@ -144,7 +192,7 @@ contract FaucetTest is Faucet_Initializer {
         );
     }
 
-    function test_nonAdmin_drip_fails() external {
+    function test_drip_nonAdmin_fails() external {
         _enableFaucetAuthModules();
         bytes32 nonce = faucetHelper.consumeNonce();
         bytes memory data = "0x";
@@ -390,33 +438,5 @@ contract FaucetTest is Faucet_Initializer {
             Faucet.AuthParameters(githubFam, keccak256(abi.encodePacked(fundsReceiver)), signature1)
         );
         vm.stopPrank();
-    }
-
-    function test_withdraw_succeeds() external {
-        vm.startPrank(faucetContractAdmin);
-        uint256 recipientBalanceBefore = address(fundsReceiver).balance;
-
-        faucet.withdraw(payable(fundsReceiver), 2 ether);
-
-        uint256 recipientBalanceAfter = address(fundsReceiver).balance;
-        assertEq(recipientBalanceAfter - recipientBalanceBefore, 2 ether, "expect increase of 2 ether");
-        vm.stopPrank();
-    }
-
-    function test_withdraw_nonAdmin_reverts() external {
-        vm.prank(nonAdmin);
-        vm.expectRevert("Faucet: function can only be called by admin");
-        faucet.withdraw(payable(fundsReceiver), 2 ether);
-    }
-
-    function test_receive_succeeds() external {
-        uint256 faucetBalanceBefore = address(faucet).balance;
-
-        vm.prank(nonAdmin);
-        (bool success,) = address(faucet).call{ value: 1 ether }("");
-        assertTrue(success);
-
-        uint256 faucetBalanceAfter = address(faucet).balance;
-        assertEq(faucetBalanceAfter - faucetBalanceBefore, 1 ether, "expect increase of 1 ether");
     }
 }

@@ -18,8 +18,8 @@ func (ev BuildStartEvent) String() string {
 	return "build-start"
 }
 
-func (eq *EngDeriver) onBuildStart(ev BuildStartEvent) {
-	ctx, cancel := context.WithTimeout(eq.ctx, buildStartTimeout)
+func (eq *EngDeriver) onBuildStart(ctx context.Context, ev BuildStartEvent) {
+	rpcCtx, cancel := context.WithTimeout(eq.ctx, buildStartTimeout)
 	defer cancel()
 
 	if ev.Attributes.DerivedFrom != (eth.L1BlockRef{}) &&
@@ -36,7 +36,7 @@ func (eq *EngDeriver) onBuildStart(ev BuildStartEvent) {
 	}
 	if fcEvent.UnsafeL2Head.Number < fcEvent.FinalizedL2Head.Number {
 		err := fmt.Errorf("invalid block-building pre-state, unsafe head %s is behind finalized head %s", fcEvent.UnsafeL2Head, fcEvent.FinalizedL2Head)
-		eq.emitter.Emit(rollup.CriticalErrorEvent{Err: err}) // make the node exit, things are very wrong.
+		eq.emitter.Emit(ctx, rollup.CriticalErrorEvent{Err: err}) // make the node exit, things are very wrong.
 		return
 	}
 	fc := eth.ForkchoiceState{
@@ -45,27 +45,33 @@ func (eq *EngDeriver) onBuildStart(ev BuildStartEvent) {
 		FinalizedBlockHash: fcEvent.FinalizedL2Head.Hash,
 	}
 	buildStartTime := time.Now()
-	id, errTyp, err := startPayload(ctx, eq.ec.engine, fc, ev.Attributes.Attributes)
+	id, errTyp, err := startPayload(rpcCtx, eq.ec.engine, fc, ev.Attributes.Attributes)
 	if err != nil {
 		switch errTyp {
 		case BlockInsertTemporaryErr:
 			// RPC errors are recoverable, we can retry the buffered payload attributes later.
-			eq.emitter.Emit(rollup.EngineTemporaryErrorEvent{Err: fmt.Errorf("temporarily cannot insert new safe block: %w", err)})
+			eq.emitter.Emit(ctx, rollup.EngineTemporaryErrorEvent{
+				Err: fmt.Errorf("temporarily cannot insert new safe block: %w", err),
+			})
 			return
 		case BlockInsertPrestateErr:
-			eq.emitter.Emit(rollup.ResetEvent{Err: fmt.Errorf("need reset to resolve pre-state problem: %w", err)})
+			eq.emitter.Emit(ctx, rollup.ResetEvent{
+				Err: fmt.Errorf("need reset to resolve pre-state problem: %w", err),
+			})
 			return
 		case BlockInsertPayloadErr:
-			eq.emitter.Emit(BuildInvalidEvent{Attributes: ev.Attributes, Err: err})
+			eq.emitter.Emit(ctx, BuildInvalidEvent{Attributes: ev.Attributes, Err: err})
 			return
 		default:
-			eq.emitter.Emit(rollup.CriticalErrorEvent{Err: fmt.Errorf("unknown error type %d: %w", errTyp, err)})
+			eq.emitter.Emit(ctx, rollup.CriticalErrorEvent{
+				Err: fmt.Errorf("unknown error type %d: %w", errTyp, err),
+			})
 			return
 		}
 	}
-	eq.emitter.Emit(fcEvent)
+	eq.emitter.Emit(ctx, fcEvent)
 
-	eq.emitter.Emit(BuildStartedEvent{
+	eq.emitter.Emit(ctx, BuildStartedEvent{
 		Info:         eth.PayloadInfo{ID: id, Timestamp: uint64(ev.Attributes.Attributes.Timestamp)},
 		BuildStarted: buildStartTime,
 		Concluding:   ev.Attributes.Concluding,

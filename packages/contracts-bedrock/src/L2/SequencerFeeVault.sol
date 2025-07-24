@@ -16,8 +16,8 @@ import { ISemver } from "interfaces/universal/ISemver.sol";
 /// @notice The SequencerFeeVault is the contract that holds any fees paid to the Sequencer during
 ///         transaction processing and block production.
 contract SequencerFeeVault is FeeVault, ISemver {
-    /// @custom:semver 1.5.0-beta.5
-    string public constant version = "1.5.0-beta.5";
+    /// @custom:semver 1.5.1
+    string public constant version = "1.5.1";
 
     /// @notice Constructs the SequencerFeeVault contract.
     /// @param _recipient           Wallet that will receive the fees.

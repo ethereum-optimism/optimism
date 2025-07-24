@@ -140,7 +140,12 @@ func (c *chain) ID() types.ChainID {
 	if c.id == "" {
 		return types.ChainID(big.NewInt(0))
 	}
-	id, ok := new(big.Int).SetString(c.id, 10)
+	base := 10
+	if len(c.id) >= 2 && c.id[0:2] == "0x" {
+		c.id = c.id[2:]
+		base = 16
+	}
+	id, ok := new(big.Int).SetString(c.id, base)
 	if !ok {
 		return types.ChainID(big.NewInt(0))
 	}
@@ -149,7 +154,7 @@ func (c *chain) ID() types.ChainID {
 
 func (c *chain) Config() (*params.ChainConfig, error) {
 	if c.chainConfig == nil {
-		return nil, fmt.Errorf("chain config not configured on L1 chains yet")
+		return nil, fmt.Errorf("chain config is nil")
 	}
 	return c.chainConfig, nil
 }
@@ -178,8 +183,13 @@ func newNodesFromDescriptor(d *descriptors.Chain) []Node {
 	clients := newClientManager()
 	nodes := make([]Node, len(d.Nodes))
 	for i, node := range d.Nodes {
-		rpc := node.Services["el"].Endpoints["rpc"]
-		nodes[i] = newNode(fmt.Sprintf("http://%s:%d", rpc.Host, rpc.Port), clients)
+		svc := node.Services["el"]
+		name := svc.Name
+		rpc := svc.Endpoints["rpc"]
+		if rpc.Scheme == "" {
+			rpc.Scheme = "http"
+		}
+		nodes[i] = newNode(fmt.Sprintf("%s://%s:%d", rpc.Scheme, rpc.Host, rpc.Port), name, clients)
 	}
 	return nodes
 }
@@ -213,7 +223,7 @@ func newChain(chainID string, wallets WalletMap, chainConfig *params.ChainConfig
 func newL2ChainFromDescriptor(d *descriptors.L2Chain) (*l2Chain, error) {
 	// TODO: handle incorrect descriptors better. We could panic here.
 
-	nodes := newNodesFromDescriptor(&d.Chain)
+	nodes := newNodesFromDescriptor(d.Chain)
 	c := newL2Chain(d.ID, nil, nil, d.Config, AddressMap(d.L1Addresses), AddressMap(d.Addresses), nodes) // Create chain first
 
 	l2Wallets, err := newWalletMapFromDescriptorWalletMap(d.Wallets, c)

@@ -17,6 +17,7 @@ import (
 	"github.com/ethereum-optimism/optimism/kurtosis-devnet/pkg/kurtosis"
 	"github.com/ethereum-optimism/optimism/kurtosis-devnet/pkg/util"
 	"github.com/spf13/afero"
+	"go.opentelemetry.io/otel"
 )
 
 const FILESERVER_PACKAGE = "fileserver"
@@ -34,6 +35,9 @@ func (f *FileServer) URL(path ...string) string {
 }
 
 func (f *FileServer) Deploy(ctx context.Context, sourceDir string, stateCh <-chan *fileserverState) (retErr error) {
+	ctx, span := otel.Tracer("fileserver").Start(ctx, "deploy fileserver")
+	defer span.End()
+
 	if f.fs == nil {
 		f.fs = afero.NewOsFs()
 	}

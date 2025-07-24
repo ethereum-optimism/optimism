@@ -100,6 +100,66 @@ type Config struct {
 	PprofConfig   oppprof.CLIConfig
 }
 
+func NewInteropConfig(
+	gameFactoryAddress common.Address,
+	l1EthRpc string,
+	l1BeaconApi string,
+	supervisorRpc string,
+	l2Rpcs []string,
+	datadir string,
+	supportedTraceTypes ...types.TraceType,
+) Config {
+	return Config{
+		L1EthRpc:           l1EthRpc,
+		L1Beacon:           l1BeaconApi,
+		SupervisorRPC:      supervisorRpc,
+		L2Rpcs:             l2Rpcs,
+		GameFactoryAddress: gameFactoryAddress,
+		MaxConcurrency:     uint(runtime.NumCPU()),
+		PollInterval:       DefaultPollInterval,
+
+		TraceTypes: supportedTraceTypes,
+
+		MaxPendingTx: DefaultMaxPendingTx,
+
+		TxMgrConfig:   txmgr.NewCLIConfig(l1EthRpc, txmgr.DefaultChallengerFlagValues),
+		MetricsConfig: opmetrics.DefaultCLIConfig(),
+		PprofConfig:   oppprof.DefaultCLIConfig(),
+
+		Datadir: datadir,
+
+		Cannon: vm.Config{
+			VmType:          types.TraceTypeCannon,
+			L1:              l1EthRpc,
+			L1Beacon:        l1BeaconApi,
+			L2s:             l2Rpcs,
+			SnapshotFreq:    DefaultCannonSnapshotFreq,
+			InfoFreq:        DefaultCannonInfoFreq,
+			DebugInfo:       true,
+			BinarySnapshots: true,
+		},
+		Asterisc: vm.Config{
+			VmType:          types.TraceTypeAsterisc,
+			L1:              l1EthRpc,
+			L1Beacon:        l1BeaconApi,
+			L2s:             l2Rpcs,
+			SnapshotFreq:    DefaultAsteriscSnapshotFreq,
+			InfoFreq:        DefaultAsteriscInfoFreq,
+			BinarySnapshots: true,
+		},
+		AsteriscKona: vm.Config{
+			VmType:          types.TraceTypeAsteriscKona,
+			L1:              l1EthRpc,
+			L1Beacon:        l1BeaconApi,
+			L2s:             l2Rpcs,
+			SnapshotFreq:    DefaultAsteriscSnapshotFreq,
+			InfoFreq:        DefaultAsteriscInfoFreq,
+			BinarySnapshots: true,
+		},
+		GameWindow: DefaultGameWindow,
+	}
+}
+
 func NewConfig(
 	gameFactoryAddress common.Address,
 	l1EthRpc string,
@@ -227,17 +287,20 @@ func (c Config) Check() error {
 		if c.RollupRpc == "" {
 			return ErrMissingRollupRpc
 		}
-		if err := c.AsteriscKona.Check(); err != nil {
-			return fmt.Errorf("asterisc kona: %w", err)
+		if err := c.validateBaseAsteriscKonaOptions(); err != nil {
+			return err
 		}
-		if c.AsteriscKonaAbsolutePreState == "" && c.AsteriscKonaAbsolutePreStateBaseURL == nil {
-			return ErrMissingAsteriscKonaAbsolutePreState
+	}
+	if c.TraceTypeEnabled(types.TraceTypeSuperAsteriscKona) {
+		if c.SupervisorRPC == "" {
+			return ErrMissingSupervisorRpc
 		}
-		if c.AsteriscKona.SnapshotFreq == 0 {
-			return ErrMissingAsteriscKonaSnapshotFreq
+
+		if len(c.AsteriscKona.Networks) == 0 && c.AsteriscKona.DepsetConfigPath == "" {
+			return ErrMissingDepsetConfig
 		}
-		if c.AsteriscKona.InfoFreq == 0 {
-			return ErrMissingAsteriscKonaInfoFreq
+		if err := c.validateBaseAsteriscKonaOptions(); err != nil {
+			return err
 		}
 	}
 	if c.TraceTypeEnabled(types.TraceTypeAlphabet) || c.TraceTypeEnabled(types.TraceTypeFast) {
@@ -269,6 +332,22 @@ func (c Config) validateBaseCannonOptions() error {
 	}
 	if c.Cannon.InfoFreq == 0 {
 		return ErrMissingCannonInfoFreq
+	}
+	return nil
+}
+
+func (c Config) validateBaseAsteriscKonaOptions() error {
+	if err := c.AsteriscKona.Check(); err != nil {
+		return fmt.Errorf("asterisc kona: %w", err)
+	}
+	if c.AsteriscKonaAbsolutePreState == "" && c.AsteriscKonaAbsolutePreStateBaseURL == nil {
+		return ErrMissingAsteriscKonaAbsolutePreState
+	}
+	if c.AsteriscKona.SnapshotFreq == 0 {
+		return ErrMissingAsteriscKonaSnapshotFreq
+	}
+	if c.AsteriscKona.InfoFreq == 0 {
+		return ErrMissingAsteriscKonaInfoFreq
 	}
 	return nil
 }

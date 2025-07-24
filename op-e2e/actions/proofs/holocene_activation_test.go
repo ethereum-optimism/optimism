@@ -106,7 +106,7 @@ func Test_ProgramAction_HoloceneActivation(gt *testing.T) {
 			recs := env.Logs.FindLogs(testlog.NewMessageContainsFilter(filter), testlog.NewAttributesFilter("role", "sequencer"))
 			require.Len(t, recs, 1, "searching for %d instances of '%s' in logs from role %s", 1, filter, "sequencer")
 		}
-		env.RunFaultProofProgram(t, l2SafeHead.Number, testCfg.CheckResult, testCfg.InputParams...)
+		env.RunFaultProofProgramFromGenesis(t, l2SafeHead.Number, testCfg.CheckResult, testCfg.InputParams...)
 	}
 
 	matrix := helpers.NewMatrix[any]()

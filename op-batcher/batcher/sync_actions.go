@@ -43,6 +43,11 @@ func (s syncActions) TerminalString() string {
 		"SyncActions{blocksToPrune: %d, channelsToPrune: %d, clearState: %v, blocksToLoad: %v}", s.blocksToPrune, s.channelsToPrune, cs, btl)
 }
 
+func isZero[T comparable](x T) bool {
+	var y T
+	return (x == y)
+}
+
 // computeSyncActions determines the actions that should be taken based on the inputs provided. The inputs are the current
 // state of the batcher (blocks and channels), the new sync status, and the previous current L1 block. The actions are returned
 // in a struct specifying the number of blocks to prune, the number of channels to prune, whether to wait for node sync, the block
@@ -53,7 +58,6 @@ func computeSyncActions[T channelStatuser](
 	blocks queue.Queue[*types.Block],
 	channels []T,
 	l log.Logger,
-	preferLocalSafeL2 bool,
 ) (syncActions, bool) {
 
 	m := l.With(
@@ -64,15 +68,15 @@ func computeSyncActions[T channelStatuser](
 		"syncStatus.unsafeL2", newSyncStatus.UnsafeL2.TerminalString(),
 	)
 
-	safeL2 := newSyncStatus.SafeL2
-	if preferLocalSafeL2 {
-		// This is preffered when running interop, but not yet enabled by default.
-		safeL2 = newSyncStatus.LocalSafeL2
-	}
+	// We do _not_ want to use the SafeL2 (aka Cross Safe) field,
+	// since that introduces extra dependencies post interop.
+	safeL2 := newSyncStatus.LocalSafeL2
 
-	// PART 1: Initial checks on the sync status
-	if newSyncStatus.HeadL1 == (eth.L1BlockRef{}) {
-		m.Warn("empty sync status")
+	// PART 1: Initial checks on the sync status (on fields which should never be empty)
+	if isZero(safeL2) ||
+		isZero(newSyncStatus.UnsafeL2) ||
+		isZero(newSyncStatus.HeadL1) {
+		m.Warn("empty BlockRef in sync status")
 		return syncActions{}, true
 	}
 

@@ -11,6 +11,11 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/rpc"
 )
 
+var (
+	errNoJWTSecrets  = errors.New("no JWT secrets provided")
+	errSyncNodeCheck = errors.New("sync node check failed")
+)
+
 type CLISyncNodes struct {
 	Endpoints      []string
 	JWTSecretPaths []string
@@ -27,13 +32,13 @@ func (p *CLISyncNodes) Load(ctx context.Context, logger log.Logger) ([]SyncNodeS
 		return nil, nil
 	}
 	if len(p.JWTSecretPaths) == 0 {
-		return nil, errors.New("need at least 1 JWT secret to setup sync-sources")
+		return nil, fmt.Errorf("%w: need at least 1 JWT secret to setup sync-sources", errNoJWTSecrets)
 	}
 	secrets := make([]eth.Bytes32, 0, len(p.JWTSecretPaths))
 	for i, secretPath := range p.JWTSecretPaths {
 		secret, err := rpc.ObtainJWTSecret(logger, secretPath, false)
 		if err != nil {
-			return nil, fmt.Errorf("failed to load JWT secret %d from path %q", i, secretPath)
+			return nil, fmt.Errorf("%w: failed to load JWT secret %d from path %q", err, i, secretPath)
 		}
 		secrets = append(secrets, secret)
 	}
@@ -60,7 +65,7 @@ func (p *CLISyncNodes) Check() error {
 	if len(p.JWTSecretPaths) == 1 {
 		return nil // repeating JWT secret, for any number of endpoints
 	}
-	return fmt.Errorf("expected each sync source endpoint to come with a JWT secret, "+
+	return fmt.Errorf("%w: expected each sync source endpoint to come with a JWT secret, "+
 		"or all share the same JWT secret, but got %d endpoints and %d secrets",
-		len(p.Endpoints), len(p.JWTSecretPaths))
+		errSyncNodeCheck, len(p.Endpoints), len(p.JWTSecretPaths))
 }

@@ -1,6 +1,3 @@
-//go:build cannon64
-// +build cannon64
-
 package arch
 
 import "encoding/binary"
@@ -45,6 +42,7 @@ const (
 	SysNanosleep    = 5034
 	SysClockGetTime = 5222
 	SysGetpid       = 5038
+	SysGetRandom    = 5313
 )
 
 // Noop Syscall numbers
@@ -53,6 +51,7 @@ const (
 	UndefinedSysNr = ^Word(0)
 
 	SysMunmap        = 5011
+	SysMprotect      = 5010
 	SysGetAffinity   = 5196
 	SysMadvise       = 5027
 	SysRtSigprocmask = 5014
@@ -72,7 +71,6 @@ const (
 	SysPipe2         = 5287
 	SysEpollCtl      = 5208
 	SysEpollPwait    = 5272
-	SysGetRandom     = 5313
 	SysUname         = 5061
 	SysStat64        = UndefinedSysNr
 	SysGetuid        = 5100
@@ -82,6 +80,7 @@ const (
 	SysTgkill        = 5225
 	SysGetRLimit     = 5095
 	SysLseek         = 5008
+	SysEventFd2      = 5284
 	// Profiling-related syscalls
 	SysSetITimer    = 5036
 	SysTimerCreate  = 5216

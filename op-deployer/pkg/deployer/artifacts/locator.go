@@ -128,10 +128,6 @@ func unmarshalTag(tag string) (*Locator, error) {
 		return nil, fmt.Errorf("invalid tag: %s", tag)
 	}
 
-	if _, err := standard.ArtifactsURLForTag(tag); err != nil {
-		return nil, err
-	}
-
 	return &Locator{Tag: tag}, nil
 }
 

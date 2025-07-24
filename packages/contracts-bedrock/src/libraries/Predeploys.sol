@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
+import { Fork } from "scripts/libraries/Config.sol";
+
 /// @title Predeploys
 /// @notice Contains constant addresses for protocol contracts that are pre-deployed to the L2 system.
 //          This excludes the preinstalls (non-protocol contracts).
@@ -92,8 +94,8 @@ library Predeploys {
     /// @notice Address of the L2ToL2CrossDomainMessenger predeploy.
     address internal constant L2_TO_L2_CROSS_DOMAIN_MESSENGER = 0x4200000000000000000000000000000000000023;
 
-    /// @notice Address of the SuperchainWETH predeploy.
-    address internal constant SUPERCHAIN_WETH = 0x4200000000000000000000000000000000000024;
+    /// @notice Address of the SuperchainETHBridge predeploy.
+    address internal constant SUPERCHAIN_ETH_BRIDGE = 0x4200000000000000000000000000000000000024;
 
     /// @notice Address of the ETHLiquidity predeploy.
     address internal constant ETH_LIQUIDITY = 0x4200000000000000000000000000000000000025;
@@ -138,7 +140,7 @@ library Predeploys {
         if (_addr == LEGACY_ERC20_ETH) return "LegacyERC20ETH";
         if (_addr == CROSS_L2_INBOX) return "CrossL2Inbox";
         if (_addr == L2_TO_L2_CROSS_DOMAIN_MESSENGER) return "L2ToL2CrossDomainMessenger";
-        if (_addr == SUPERCHAIN_WETH) return "SuperchainWETH";
+        if (_addr == SUPERCHAIN_ETH_BRIDGE) return "SuperchainETHBridge";
         if (_addr == ETH_LIQUIDITY) return "ETHLiquidity";
         if (_addr == OPTIMISM_SUPERCHAIN_ERC20_FACTORY) return "OptimismSuperchainERC20Factory";
         if (_addr == OPTIMISM_SUPERCHAIN_ERC20_BEACON) return "OptimismSuperchainERC20Beacon";
@@ -152,16 +154,24 @@ library Predeploys {
     }
 
     /// @notice Returns true if the address is a defined predeploy that is embedded into new OP-Stack chains.
-    function isSupportedPredeploy(address _addr, bool _useInterop) internal pure returns (bool) {
+    function isSupportedPredeploy(
+        address _addr,
+        uint256 _fork,
+        bool _enableCrossL2Inbox
+    )
+        internal
+        pure
+        returns (bool)
+    {
         return _addr == LEGACY_MESSAGE_PASSER || _addr == DEPLOYER_WHITELIST || _addr == WETH
             || _addr == L2_CROSS_DOMAIN_MESSENGER || _addr == GAS_PRICE_ORACLE || _addr == L2_STANDARD_BRIDGE
             || _addr == SEQUENCER_FEE_WALLET || _addr == OPTIMISM_MINTABLE_ERC20_FACTORY || _addr == L1_BLOCK_NUMBER
             || _addr == L2_ERC721_BRIDGE || _addr == L1_BLOCK_ATTRIBUTES || _addr == L2_TO_L1_MESSAGE_PASSER
             || _addr == OPTIMISM_MINTABLE_ERC721_FACTORY || _addr == PROXY_ADMIN || _addr == BASE_FEE_VAULT
             || _addr == L1_FEE_VAULT || _addr == OPERATOR_FEE_VAULT || _addr == SCHEMA_REGISTRY || _addr == EAS
-            || _addr == GOVERNANCE_TOKEN || (_useInterop && _addr == CROSS_L2_INBOX)
-            || (_useInterop && _addr == L2_TO_L2_CROSS_DOMAIN_MESSENGER) || (_useInterop && _addr == SUPERCHAIN_WETH)
-            || (_useInterop && _addr == ETH_LIQUIDITY) || (_useInterop && _addr == SUPERCHAIN_TOKEN_BRIDGE);
+            || _addr == GOVERNANCE_TOKEN
+            || (_fork >= uint256(Fork.INTEROP) && _enableCrossL2Inbox && _addr == CROSS_L2_INBOX)
+            || (_fork >= uint256(Fork.INTEROP) && _addr == L2_TO_L2_CROSS_DOMAIN_MESSENGER);
     }
 
     function isPredeployNamespace(address _addr) internal pure returns (bool) {

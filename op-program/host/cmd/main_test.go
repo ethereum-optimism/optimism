@@ -110,13 +110,26 @@ func TestNetwork(t *testing.T) {
 		require.Equal(t, *chaincfg.OPSepolia(), *cfg.Rollups[0])
 	})
 
+	t.Run("AllowNetworkAndDependencySet", func(t *testing.T) {
+		configFile, depSet := writeDepset(t)
+		cfg := configForArgs(t, addRequiredArgsExceptMultiple([]string{"--l2.outputroot", "--l2.head"},
+			"--depset.config", configFile, "--l2.agreed-prestate", "0x1234"))
+		require.NotNil(t, cfg.DependencySet)
+		require.Equal(t, depSet.Chains(), cfg.DependencySet.Chains())
+	})
+
 	t.Run("Multiple", func(t *testing.T) {
-		cfg := configForArgs(t, addRequiredArgsExcept("--network", "--network=op-mainnet,op-sepolia"))
+		cfg := configForArgs(t, addRequiredArgsExceptMultiple([]string{"--network", "--l2.head", "--l2.outputroot"},
+			"--network=op-mainnet,op-sepolia", "--l2.agreed-prestate", "0x1234"))
 		require.Len(t, cfg.Rollups, 2)
 		opMainnetCfg, err := chaincfg.GetRollupConfig("op-mainnet")
 		require.NoError(t, err)
 		require.Equal(t, *opMainnetCfg, *cfg.Rollups[0])
 		require.Equal(t, *chaincfg.OPSepolia(), *cfg.Rollups[1])
+
+		depSet, err := depset.FromRegistry(eth.ChainIDFromBig(cfg.Rollups[1].L2ChainID))
+		require.NoError(t, err)
+		require.Equal(t, depSet, cfg.DependencySet)
 	})
 
 	for _, name := range chaincfg.AvailableNetworks() {
@@ -257,10 +270,6 @@ func TestL2Head(t *testing.T) {
 		delete(req, "--l2.head")
 		delete(req, "--l2.outputroot")
 		args := append(toArgList(req), "--l2.agreed-prestate", "0x1234")
-		// TODO(#14416): Remove the --depset.config flag once there's a depset defined for sepolia.
-		// For now we stub a depset path to ensure the run succeeds
-		depsetFile := writeDepset(t)
-		args = append(args, "--depset.config", depsetFile)
 
 		cfg := configForArgs(t, args)
 		require.Equal(t, common.Hash{}, cfg.L2Head)
@@ -279,9 +288,6 @@ func TestL2OutputRoot(t *testing.T) {
 
 	t.Run("NotRequiredWhenAgreedPrestateProvided", func(t *testing.T) {
 		optionalArgs := []string{"--l2.agreed-prestate", "0x1234"}
-		// TODO(#14416): Remove the --depset.config flag once there's a depset defined for sepolia.
-		depsetFile := writeDepset(t)
-		optionalArgs = append(optionalArgs, "--depset.config", depsetFile)
 		configForArgs(t, addRequiredArgsExceptMultiple([]string{"--l2.outputroot", "--l2.head"}, optionalArgs...))
 	})
 
@@ -298,9 +304,6 @@ func TestL2OutputRoot(t *testing.T) {
 func TestL2AgreedPrestate(t *testing.T) {
 	t.Run("NotRequiredWhenL2OutputRootProvided", func(t *testing.T) {
 		optionalArgs := []string{"--l2.agreed-prestate", "0x1234"}
-		// TODO(#14416): Remove the --depset.config flag once there's a depset defined for sepolia.
-		depsetFile := writeDepset(t)
-		optionalArgs = append(optionalArgs, "--depset.config", depsetFile)
 		configForArgs(t, addRequiredArgsExceptMultiple([]string{"--l2.outputroot", "--l2.head"}, optionalArgs...))
 	})
 
@@ -309,9 +312,6 @@ func TestL2AgreedPrestate(t *testing.T) {
 		prestateBytes := common.FromHex(prestate)
 		expectedOutputRoot := crypto.Keccak256Hash(prestateBytes)
 		optionalArgs := []string{"--l2.agreed-prestate", prestate}
-		// TODO(#14416): Remove the --depset.config flag once there's a depset defined for sepolia.
-		depsetFile := writeDepset(t)
-		optionalArgs = append(optionalArgs, "--depset.config", depsetFile)
 		cfg := configForArgs(t, addRequiredArgsExceptMultiple([]string{"--l2.outputroot", "--l2.head"}, optionalArgs...))
 		require.Equal(t, expectedOutputRoot, cfg.L2OutputRoot)
 		require.Equal(t, prestateBytes, cfg.AgreedPrestate)
@@ -535,7 +535,7 @@ func replaceRequiredArg(name string, value string) []string {
 // to create a valid Config
 func requiredArgs() map[string]string {
 	return map[string]string{
-		"--network":        "sepolia",
+		"--network":        "op-sepolia",
 		"--l1.head":        l1HeadValue,
 		"--l2.head":        l2HeadValue,
 		"--l2.outputroot":  l2OutputRoot,
@@ -566,14 +566,19 @@ func writeGenesis(t *testing.T, genesis *core.Genesis) string {
 	return genesisFile
 }
 
-func writeDepset(t *testing.T) string {
-	var depset depset.StaticConfigDependencySet
-	dir := t.TempDir()
-	j, err := json.Marshal(&depset)
+func writeDepset(t *testing.T) (string, depset.DependencySet) {
+	depSet, err := depset.NewStaticConfigDependencySet(map[eth.ChainID]*depset.StaticConfigDependency{
+		eth.ChainIDFromUInt64(42): {},
+		eth.ChainIDFromUInt64(43): {},
+	})
 	require.NoError(t, err)
+	dir := t.TempDir()
+	j, err := json.Marshal(depSet)
+	require.NoError(t, err)
+	fmt.Println(string(j))
 	depsetFile := dir + "/depset.json"
 	require.NoError(t, os.WriteFile(depsetFile, j, 0666))
-	return depsetFile
+	return depsetFile, depSet
 }
 
 func writeValidRollupConfig(t *testing.T) string {

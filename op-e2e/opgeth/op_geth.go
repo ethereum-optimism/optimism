@@ -56,11 +56,11 @@ type OpGeth struct {
 func NewOpGeth(t testing.TB, ctx context.Context, cfg *e2esys.SystemConfig) (*OpGeth, error) {
 	logger := testlog.Logger(t, log.LevelCrit)
 
-	l1Genesis, err := genesis.BuildL1DeveloperGenesis(cfg.DeployConfig, config.L1Allocs(config.AllocTypeStandard), config.L1Deployments(config.AllocTypeStandard))
+	l1Genesis, err := genesis.BuildL1DeveloperGenesis(cfg.DeployConfig, config.L1Allocs(config.DefaultAllocType), config.L1Deployments(config.DefaultAllocType))
 	require.NoError(t, err)
 	l1Block := l1Genesis.ToBlock()
 	allocsMode := e2eutils.GetL2AllocsMode(cfg.DeployConfig, l1Block.Time())
-	l2Allocs := config.L2Allocs(config.AllocTypeStandard, allocsMode)
+	l2Allocs := config.L2Allocs(config.DefaultAllocType, allocsMode)
 	l2Genesis, err := genesis.BuildL2Genesis(cfg.DeployConfig, l2Allocs, eth.BlockRefFromHeader(l1Block.Header()))
 	require.NoError(t, err)
 	l2GenesisBlock := l2Genesis.ToBlock()

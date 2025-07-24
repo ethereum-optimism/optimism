@@ -48,7 +48,7 @@ contract ProtocolGuided is ProtocolHandler, CompatibleAssert {
         try MESSENGER.relayMessageFromQueue(messageIndex) {
             bytes32 deploySalt = MESSENGER.superTokenInitDeploySalts(address(destinationToken));
             (bool success, uint256 currentlyInTransit) = ghost_tokensInTransit.tryGet(deploySalt);
-            // if sendERC20 didnt intialize this, then test suite is broken
+            // if sendERC20 didnt initialize this, then test suite is broken
             compatibleAssert(success);
             ghost_tokensInTransit.set(deploySalt, currentlyInTransit - messageToRelay.amount);
             // 11

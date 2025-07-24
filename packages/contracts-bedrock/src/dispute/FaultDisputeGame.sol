@@ -56,7 +56,8 @@ import {
     GameNotFinalized,
     InvalidBondDistributionMode,
     GameNotResolved,
-    ReservedGameType
+    ReservedGameType,
+    GamePaused
 } from "src/dispute/lib/Errors.sol";
 
 // Interfaces
@@ -170,9 +171,9 @@ contract FaultDisputeGame is Clone, ISemver {
     uint256 internal constant HEADER_BLOCK_NUMBER_INDEX = 8;
 
     /// @notice Semantic version.
-    /// @custom:semver 1.5.0
+    /// @custom:semver 1.7.0
     function version() public pure virtual returns (string memory) {
-        return "1.5.0";
+        return "1.7.0";
     }
 
     /// @notice The starting timestamp of the game
@@ -1004,6 +1005,16 @@ contract FaultDisputeGame is Clone, ISemver {
         } else if (bondDistributionMode != BondDistributionMode.UNDECIDED) {
             // We shouldn't get here, but sanity check just in case.
             revert InvalidBondDistributionMode();
+        }
+
+        // We won't close the game if the system is currently paused. Paused games are temporarily
+        // invalid which would cause the game to go into refund mode and potentially cause some
+        // confusion for honest challengers. By blocking the game from being closed while the
+        // system is paused, the game will only go into refund mode if it ends up being explicitly
+        // invalidated in the AnchorStateRegistry. If the game has already been closed and a refund
+        // mode has been selected, we'll already have returned and we won't hit this revert.
+        if (ANCHOR_STATE_REGISTRY.paused()) {
+            revert GamePaused();
         }
 
         // Make sure that the game is resolved.

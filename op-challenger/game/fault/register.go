@@ -102,6 +102,13 @@ func RegisterGameTypes(
 		}
 		registerTasks = append(registerTasks, NewAsteriscKonaRegisterTask(faultTypes.AsteriscKonaGameType, cfg, m, vm.NewKonaExecutor(), l2HeaderSource, rollupClient, syncValidator))
 	}
+	if cfg.TraceTypeEnabled(faultTypes.TraceTypeSuperAsteriscKona) {
+		rootProvider, syncValidator, err := clients.SuperchainClients()
+		if err != nil {
+			return nil, err
+		}
+		registerTasks = append(registerTasks, NewSuperAsteriscKonaRegisterTask(faultTypes.SuperAsteriscKonaGameType, cfg, m, vm.NewKonaSuperExecutor(), rootProvider, syncValidator))
+	}
 	if cfg.TraceTypeEnabled(faultTypes.TraceTypeFast) {
 		l2HeaderSource, rollupClient, syncValidator, err := clients.SingleChainClients()
 		if err != nil {

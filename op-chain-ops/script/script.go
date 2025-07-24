@@ -442,12 +442,17 @@ func (h *Host) Wipe(addr common.Address) {
 	h.state.SetBalance(addr, uint256.NewInt(0), tracing.BalanceChangeUnspecified)
 }
 
+// SetBalance sets an account's balance in state.
+func (h *Host) SetBalance(addr common.Address, balance *uint256.Int) {
+	h.state.SetBalance(addr, balance, tracing.BalanceChangeUnspecified)
+}
+
 // SetNonce sets an account's nonce in state.
 func (h *Host) SetNonce(addr common.Address, nonce uint64) {
 	h.state.SetNonce(addr, nonce, tracing.NonceChangeUnspecified)
 }
 
-// GetNonce returs an account's nonce from state.
+// GetNonce returns an account's nonce from state.
 func (h *Host) GetNonce(addr common.Address) uint64 {
 	return h.state.GetNonce(addr)
 }

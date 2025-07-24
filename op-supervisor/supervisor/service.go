@@ -10,9 +10,9 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/rpc"
 
-	"github.com/ethereum-optimism/optimism/op-node/rollup/event"
 	"github.com/ethereum-optimism/optimism/op-service/cliapp"
 	"github.com/ethereum-optimism/optimism/op-service/clock"
+	"github.com/ethereum-optimism/optimism/op-service/event"
 	"github.com/ethereum-optimism/optimism/op-service/httputil"
 	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
 	"github.com/ethereum-optimism/optimism/op-service/oppprof"
@@ -24,6 +24,8 @@ import (
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/db/sync"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/frontend"
 )
+
+var errInvalidMetricer = errors.New("invalid metricer")
 
 type Backend interface {
 	frontend.Backend
@@ -80,7 +82,7 @@ func (su *SupervisorService) initFromCLIConfig(ctx context.Context, cfg *config.
 func (su *SupervisorService) initBackend(ctx context.Context, cfg *config.Config) error {
 	// In the future we may introduce other executors.
 	// For now, we just use a synchronous executor, and poll the drain function of it.
-	ex := event.NewGlobalSynchronous(ctx)
+	ex := event.NewGlobalSynchronous(ctx).WithMetrics(su.metrics)
 	su.poller = tasks.NewPoller(func() {
 		if err := ex.Drain(); err != nil {
 			su.log.Warn("Failed to execute events", "err", err)
@@ -134,7 +136,7 @@ func (su *SupervisorService) initMetricsServer(cfg *config.Config) error {
 	}
 	m, ok := su.metrics.(opmetrics.RegistryMetricer)
 	if !ok {
-		return fmt.Errorf("metrics were enabled, but metricer %T does not expose registry for metrics-server", su.metrics)
+		return fmt.Errorf("metrics were enabled, but metricer %T does not expose registry for metrics-server: %w", su.metrics, errInvalidMetricer)
 	}
 	su.log.Debug("Starting metrics server", "addr", cfg.MetricsConfig.ListenAddr, "port", cfg.MetricsConfig.ListenPort)
 	metricsSrv, err := opmetrics.StartServer(m.Registry(), cfg.MetricsConfig.ListenAddr, cfg.MetricsConfig.ListenPort)
@@ -152,6 +154,7 @@ func (su *SupervisorService) initRPCServer(cfg *config.Config) error {
 		cfg.RPC.ListenPort,
 		cfg.Version,
 		oprpc.WithLogger(su.log),
+		oprpc.WithRPCRecorder(su.metrics.NewRecorder("main")),
 	)
 	RegisterRPCs(su.log, cfg, server, su.backend, su.metrics)
 	su.rpcServer = server
@@ -167,13 +170,13 @@ func RegisterRPCs(logger log.Logger, cfg *config.Config, server RpcServer, backe
 		logger.Info("Admin RPC enabled")
 		server.AddAPI(rpc.API{
 			Namespace:     "admin",
-			Service:       &frontend.AdminFrontend{Supervisor: backend, Metrics: m},
+			Service:       &frontend.AdminFrontend{Supervisor: backend},
 			Authenticated: true, // TODO(protocol-quest#286): enforce auth on this or not?
 		})
 	}
 	server.AddAPI(rpc.API{
 		Namespace:     "supervisor",
-		Service:       &frontend.QueryFrontend{Supervisor: backend, Metrics: m},
+		Service:       &frontend.QueryFrontend{Supervisor: backend},
 		Authenticated: false,
 	})
 }
@@ -183,11 +186,11 @@ func (su *SupervisorService) initDBSync(ctx context.Context, cfg *config.Config)
 		DataDir: cfg.Datadir,
 		Logger:  su.log,
 	}
-	depSet, err := cfg.DependencySetSource.LoadDependencySet(ctx)
+	cfgSet, err := cfg.FullConfigSetSource.LoadFullConfigSet(ctx)
 	if err != nil {
-		return fmt.Errorf("failed to load dependency set: %w", err)
+		return fmt.Errorf("failed to load full config set: %w", err)
 	}
-	handler, err := sync.NewServer(syncCfg, depSet.Chains())
+	handler, err := sync.NewServer(syncCfg, cfgSet.Chains())
 	if err != nil {
 		return fmt.Errorf("failed to create db sync handler: %w", err)
 	}
@@ -257,4 +260,8 @@ func (su *SupervisorService) Stopped() bool {
 func (su *SupervisorService) RPC() string {
 	// the RPC endpoint is assumed to be HTTP
 	return "http://" + su.rpcServer.Endpoint()
+}
+
+func (su *SupervisorService) Port() (int, error) {
+	return su.rpcServer.Port()
 }

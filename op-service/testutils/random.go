@@ -6,10 +6,12 @@ import (
 	"math/big"
 	"math/rand"
 
+	"github.com/consensys/gnark-crypto/ecc/bls12-381/fr"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/crypto/kzg4844"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/ethereum/go-ethereum/trie"
 	"github.com/holiman/uint256"
@@ -395,6 +397,22 @@ func RandomBlockPrependTxsWithTime(rng *rand.Rand, txCount int, t uint64, ptxs .
 func RandomBlockPrependTxs(rng *rand.Rand, txCount int, ptxs ...*types.Transaction) (*types.Block, []*types.Receipt) {
 	t := uint64(rng.Int63n(2_000_000_000))
 	return RandomBlockPrependTxsWithTime(rng, txCount, t, ptxs...)
+}
+
+func RandomBlob(rng *rand.Rand) (kzg4844.Blob, kzg4844.Commitment, error) {
+	var blob kzg4844.Blob
+	for i := 0; i < params.BlobTxFieldElementsPerBlob; i++ {
+		fieldEl := fr.NewElement(0)
+		randVal := new(big.Int).SetUint64(rng.Uint64())
+		fieldEl.SetBigInt(randVal)
+
+		fieldElBytes := fieldEl.Bytes()
+		copy(blob[i*32:(i+1)*32], fieldElBytes[:])
+	}
+
+	commitment, err := kzg4844.BlobToCommitment(&blob)
+
+	return blob, commitment, err
 }
 
 func RandomOutputResponse(rng *rand.Rand) *eth.OutputResponse {

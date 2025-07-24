@@ -18,7 +18,7 @@ func NewMockBackend() *MockBackend {
 	return &MockBackend{}
 }
 
-func (ba *MockBackend) CreateJob(ctx context.Context, id seqtypes.BuilderID, opts *seqtypes.BuildOpts) (work.BuildJob, error) {
+func (ba *MockBackend) CreateJob(ctx context.Context, id seqtypes.BuilderID, opts seqtypes.BuildOpts) (work.BuildJob, error) {
 	return nil, noopbuilder.ErrNoBuild
 }
 

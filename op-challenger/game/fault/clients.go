@@ -79,7 +79,7 @@ func (c *clientProvider) SuperchainClients() (super.RootProvider, *super.SyncVal
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to dial supervisor: %w", err)
 	}
-	supervisorClient := sources.NewSupervisorClient(cl, nil)
+	supervisorClient := sources.NewSupervisorClient(cl)
 	c.rootProvider = supervisorClient
 	c.toClose = append(c.toClose, supervisorClient.Close)
 	return supervisorClient, super.NewSyncValidator(supervisorClient), nil

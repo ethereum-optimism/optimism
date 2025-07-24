@@ -27,15 +27,15 @@ func (db *ChainsDB) initFromAnchor(id eth.ChainID, anchor types.DerivedBlockRefP
 	}
 	db.logger.Debug("initializing chain database from anchor point")
 
-	// Initialize the local and cross safe databases
-	if err := db.maybeInitSafeDB(id, anchor); err != nil {
-		db.logger.Warn("failed to initialize local and cross safe databases", "err", err)
+	// Initialize the events database and set cross-unsafe
+	if err := db.maybeInitFromUnsafe(id, anchor.Derived); err != nil {
+		db.logger.Warn("failed to initialize events database", "err", err)
 		return
 	}
 
-	// Initialize the events database
-	if err := db.maybeInitEventsDB(id, anchor); err != nil {
-		db.logger.Warn("failed to initialize events database", "err", err)
+	// Initialize the local and cross safe databases
+	if err := db.maybeInitSafeDB(id, anchor); err != nil {
+		db.logger.Warn("failed to initialize local and cross safe databases", "err", err)
 		return
 	}
 
@@ -75,21 +75,25 @@ func (db *ChainsDB) maybeInitSafeDB(id eth.ChainID, anchor types.DerivedBlockRef
 	return nil
 }
 
-func (db *ChainsDB) maybeInitEventsDB(id eth.ChainID, anchor types.DerivedBlockRefPair) error {
-	logger := db.logger.New("chain", id, "derived", anchor.Derived, "source", anchor.Source)
-	seal, _, _, err := db.OpenBlock(id, 0)
+func (db *ChainsDB) maybeInitFromUnsafe(id eth.ChainID, anchor eth.BlockRef) error {
+	logger := db.logger.New("chain", id, "anchor", anchor)
+	seal, err := db.FindSealedBlock(id, anchor.Number)
 	if errors.Is(err, types.ErrFuture) {
 		logger.Debug("initializing events database")
-		err := db.initializedSealBlock(id, anchor.Derived)
+		err := db.sealBlock(id, anchor, true)
 		if err != nil {
 			return err
 		}
 		logger.Info("Initialized events database")
+		if err := db.UpdateCrossUnsafe(id, types.BlockSealFromRef(anchor)); err != nil {
+			return fmt.Errorf("failed updating cross unsafe: %w", err)
+		}
 	} else if err != nil {
 		return fmt.Errorf("failed to check if logDB is initialized: %w", err)
 	} else {
 		logger.Debug("Events database already initialized")
-		if seal.Hash != anchor.Derived.Hash {
+		// TODO(#15774): make sure the Rewinder can handle reorgs of the activation block
+		if seal.Hash != anchor.Hash {
 			return fmt.Errorf("events database (%s) does not match anchor point (%s): %w",
 				seal,
 				anchor,

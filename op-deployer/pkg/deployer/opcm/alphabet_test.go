@@ -1,37 +1,29 @@
 package opcm
 
 import (
+	"math/big"
 	"testing"
 
-	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/broadcaster"
-	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/testutil"
-	"github.com/ethereum-optimism/optimism/op-deployer/pkg/env"
-	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/log"
 	"github.com/stretchr/testify/require"
 )
 
-func TestDeployAlphabetVM(t *testing.T) {
-	t.Parallel()
+func TestNewDeployAlphabetVMScript(t *testing.T) {
+	t.Run("should not fail with current version of DeployAlphabetVM contract", func(t *testing.T) {
+		// First we grab a test host
+		host1 := createTestHost(t)
 
-	_, artifacts := testutil.LocalArtifacts(t)
+		deployAlphabetVM, err := NewDeployAlphabetVMScript(host1)
+		require.NoError(t, err)
 
-	host, err := env.DefaultScriptHost(
-		broadcaster.NoopBroadcaster(),
-		testlog.Logger(t, log.LevelInfo),
-		common.Address{'D'},
-		artifacts,
-	)
-	require.NoError(t, err)
+		// Now we run the deploy script
+		output, err := deployAlphabetVM.Run(DeployAlphabetVMInput{
+			AbsolutePrestate: common.BigToHash(big.NewInt(1)),
+			PreimageOracle:   common.BigToAddress(big.NewInt(2)),
+		})
 
-	input := DeployAlphabetVMInput{
-		AbsolutePrestate: common.Hash{'A'},
-		PreimageOracle:   common.Address{'O'},
-	}
-
-	output, err := DeployAlphabetVM(host, input)
-	require.NoError(t, err)
-
-	require.NotEmpty(t, output.AlphabetVM)
+		// And do some simple asserts
+		require.NoError(t, err)
+		require.NotNil(t, output)
+	})
 }

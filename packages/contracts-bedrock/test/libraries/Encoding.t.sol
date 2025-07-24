@@ -9,6 +9,29 @@ import { Encoding } from "src/libraries/Encoding.sol";
 import { Types } from "src/libraries/Types.sol";
 import { LegacyCrossDomainUtils } from "src/libraries/LegacyCrossDomainUtils.sol";
 
+contract Encoding_Harness {
+    function encodeCrossDomainMessage(
+        uint256 nonce,
+        address sender,
+        address target,
+        uint256 value,
+        uint256 gasLimit,
+        bytes memory data
+    )
+        external
+        pure
+        returns (bytes memory)
+    {
+        return Encoding.encodeCrossDomainMessage(nonce, sender, target, value, gasLimit, data);
+    }
+
+    function encodeSuperRootProof(Types.SuperRootProof memory proof) external pure returns (bytes memory) {
+        return Encoding.encodeSuperRootProof(proof);
+    }
+}
+
+/// @title Encoding_TestInit
+/// @notice Reusable test initialization for `Encoding` tests.
 contract Encoding_TestInit is CommonTest {
     Encoding_Harness encoding;
 
@@ -18,77 +41,10 @@ contract Encoding_TestInit is CommonTest {
     }
 }
 
-contract Encoding_Test is Encoding_TestInit {
-    /// @dev Tests encoding and decoding a nonce and version.
-    function testFuzz_nonceVersioning_succeeds(uint240 _nonce, uint16 _version) external pure {
-        (uint240 nonce, uint16 version) = Encoding.decodeVersionedNonce(Encoding.encodeVersionedNonce(_nonce, _version));
-        assertEq(version, _version);
-        assertEq(nonce, _nonce);
-    }
-
-    /// @dev Tests decoding a versioned nonce.
-    function testDiff_decodeVersionedNonce_succeeds(uint240 _nonce, uint16 _version) external {
-        uint256 nonce = uint256(Encoding.encodeVersionedNonce(_nonce, _version));
-        (uint256 decodedNonce, uint256 decodedVersion) = ffi.decodeVersionedNonce(nonce);
-
-        assertEq(_version, uint16(decodedVersion));
-
-        assertEq(_nonce, uint240(decodedNonce));
-    }
-
-    /// @dev Tests cross domain message encoding.
-    function testDiff_encodeCrossDomainMessage_succeeds(
-        uint240 _nonce,
-        uint8 _version,
-        address _sender,
-        address _target,
-        uint256 _value,
-        uint256 _gasLimit,
-        bytes memory _data
-    )
-        external
-    {
-        uint8 version = _version % 2;
-        uint256 nonce = Encoding.encodeVersionedNonce(_nonce, version);
-
-        bytes memory encoding = Encoding.encodeCrossDomainMessage(nonce, _sender, _target, _value, _gasLimit, _data);
-
-        bytes memory _encoding = ffi.encodeCrossDomainMessage(nonce, _sender, _target, _value, _gasLimit, _data);
-
-        assertEq(encoding, _encoding);
-    }
-
-    /// @dev Tests legacy cross domain message encoding.
-    function testFuzz_encodeCrossDomainMessageV0_matchesLegacy_succeeds(
-        uint240 _nonce,
-        address _sender,
-        address _target,
-        bytes memory _data
-    )
-        external
-        pure
-    {
-        uint8 version = 0;
-        uint256 nonce = Encoding.encodeVersionedNonce(_nonce, version);
-
-        bytes memory legacyEncoding = LegacyCrossDomainUtils.encodeXDomainCalldata(_target, _sender, _data, nonce);
-
-        bytes memory bedrockEncoding = Encoding.encodeCrossDomainMessageV0(_target, _sender, _data, nonce);
-
-        assertEq(legacyEncoding, bedrockEncoding);
-    }
-
-    /// @dev Tests that encodeCrossDomainMessage reverts if version is greater than 1.
-    function testFuzz_encodeCrossDomainMessage_versionGreaterThanOne_reverts(uint256 nonce) external {
-        // nonce >> 240 must be greater than 1
-        uint256 minInvalidNonce = (uint256(type(uint240).max) + 1) * 2;
-        nonce = bound(nonce, minInvalidNonce, type(uint256).max);
-
-        vm.expectRevert(bytes("Encoding: unknown cross domain message version"));
-        encoding.encodeCrossDomainMessage(nonce, address(this), address(this), 1, 100, hex"");
-    }
-
-    /// @dev Tests deposit transaction encoding.
+/// @title Encoding_EncodeDepositTransaction_Test
+/// @notice Tests the `encodeDepositTransaction` function of the `Encoding` contract.
+contract Encoding_EncodeDepositTransaction_Test is Encoding_TestInit {
+    /// @notice Tests deposit transaction encoding.
     function testDiff_encodeDepositTransaction_succeeds(
         address _from,
         address _to,
@@ -112,7 +68,69 @@ contract Encoding_Test is Encoding_TestInit {
     }
 }
 
-contract Encoding_encodeSuperRootProof_Test is Encoding_TestInit {
+/// @title Encoding_EncodeCrossDomainMessage_Test
+/// @notice Tests the `encodeCrossDomainMessage` function of the `Encoding` contract.
+contract Encoding_EncodeCrossDomainMessage_Test is Encoding_TestInit {
+    /// @notice Tests cross domain message encoding.
+    function testDiff_encodeCrossDomainMessage_succeeds(
+        uint240 _nonce,
+        uint8 _version,
+        address _sender,
+        address _target,
+        uint256 _value,
+        uint256 _gasLimit,
+        bytes memory _data
+    )
+        external
+    {
+        uint8 version = _version % 2;
+        uint256 nonce = Encoding.encodeVersionedNonce(_nonce, version);
+
+        bytes memory encoding = Encoding.encodeCrossDomainMessage(nonce, _sender, _target, _value, _gasLimit, _data);
+
+        bytes memory _encoding = ffi.encodeCrossDomainMessage(nonce, _sender, _target, _value, _gasLimit, _data);
+
+        assertEq(encoding, _encoding);
+    }
+
+    /// @notice Tests that encodeCrossDomainMessage reverts if version is greater than 1.
+    function testFuzz_encodeCrossDomainMessage_versionGreaterThanOne_reverts(uint256 nonce) external {
+        // nonce >> 240 must be greater than 1
+        uint256 minInvalidNonce = (uint256(type(uint240).max) + 1) * 2;
+        nonce = bound(nonce, minInvalidNonce, type(uint256).max);
+
+        vm.expectRevert(bytes("Encoding: unknown cross domain message version"));
+        encoding.encodeCrossDomainMessage(nonce, address(this), address(this), 1, 100, hex"");
+    }
+}
+
+/// @title Encoding_EncodeCrossDomainMessageV0_Test
+/// @notice Tests the `encodeCrossDomainMessageV0` function of the `Encoding` contract.
+contract Encoding_EncodeCrossDomainMessageV0_Test is Encoding_TestInit {
+    /// @notice Tests legacy cross domain message encoding.
+    function testFuzz_encodeCrossDomainMessageV0_matchesLegacy_succeeds(
+        uint240 _nonce,
+        address _sender,
+        address _target,
+        bytes memory _data
+    )
+        external
+        pure
+    {
+        uint8 version = 0;
+        uint256 nonce = Encoding.encodeVersionedNonce(_nonce, version);
+
+        bytes memory legacyEncoding = LegacyCrossDomainUtils.encodeXDomainCalldata(_target, _sender, _data, nonce);
+
+        bytes memory bedrockEncoding = Encoding.encodeCrossDomainMessageV0(_target, _sender, _data, nonce);
+
+        assertEq(legacyEncoding, bedrockEncoding);
+    }
+}
+
+/// @title Encoding_EncodeSuperRootProof_Test
+/// @notice Tests the `encodeSuperRootProof` function of the `Encoding` contract.
+contract Encoding_EncodeSuperRootProof_Test is Encoding_TestInit {
     /// @notice Tests successful encoding of a valid super root proof
     /// @param _timestamp The timestamp of the super root proof
     /// @param _length The number of output roots in the super root proof
@@ -246,9 +264,7 @@ contract Encoding_encodeSuperRootProof_Test is Encoding_TestInit {
         // Compare the results
         assertEq(encoding1, encoding2, "Solidity and FFI implementations should match");
     }
-}
 
-contract Encoding_encodeSuperRootProof_TestFail is Encoding_TestInit {
     /// @notice Tests that encoding fails when version is not 0x01
     /// @param _version The version to use for the super root proof
     /// @param _timestamp The timestamp of the super root proof
@@ -287,23 +303,24 @@ contract Encoding_encodeSuperRootProof_TestFail is Encoding_TestInit {
     }
 }
 
-contract Encoding_Harness {
-    function encodeCrossDomainMessage(
-        uint256 nonce,
-        address sender,
-        address target,
-        uint256 value,
-        uint256 gasLimit,
-        bytes memory data
-    )
-        external
-        pure
-        returns (bytes memory)
-    {
-        return Encoding.encodeCrossDomainMessage(nonce, sender, target, value, gasLimit, data);
+/// @title Encoding_Unclassified_Test
+/// @notice General tests that are not testing any function directly of the `Encoding` contract or
+///         are testing multiple functions at once.
+contract Encoding_Unclassified_Test is Encoding_TestInit {
+    /// @notice Tests encoding and decoding a nonce and version.
+    function testFuzz_nonceVersioning_succeeds(uint240 _nonce, uint16 _version) external pure {
+        (uint240 nonce, uint16 version) = Encoding.decodeVersionedNonce(Encoding.encodeVersionedNonce(_nonce, _version));
+        assertEq(version, _version);
+        assertEq(nonce, _nonce);
     }
 
-    function encodeSuperRootProof(Types.SuperRootProof memory proof) external pure returns (bytes memory) {
-        return Encoding.encodeSuperRootProof(proof);
+    /// @notice Tests decoding a versioned nonce.
+    function testDiff_decodeVersionedNonce_succeeds(uint240 _nonce, uint16 _version) external {
+        uint256 nonce = uint256(Encoding.encodeVersionedNonce(_nonce, _version));
+        (uint256 decodedNonce, uint256 decodedVersion) = ffi.decodeVersionedNonce(nonce);
+
+        assertEq(_version, uint16(decodedVersion));
+
+        assertEq(_nonce, uint240(decodedNonce));
     }
 }

@@ -47,7 +47,6 @@ func TestL1Replica_ActL1RPCFail(gt *testing.T) {
 func TestL1Replica_ActL1Sync(gt *testing.T) {
 	t := NewDefaultTesting(gt)
 	dp := e2eutils.MakeDeployParams(t, DefaultRollupTestParams())
-	dp.DeployConfig.L1CancunTimeOffset = nil
 	sd := e2eutils.Setup(t, dp, DefaultAlloc)
 	log := testlog.Logger(t, log.LevelDebug)
 	genesisBlock := sd.L1Cfg.ToBlock()

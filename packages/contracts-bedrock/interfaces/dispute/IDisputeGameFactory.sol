@@ -3,8 +3,10 @@ pragma solidity ^0.8.0;
 
 import { IDisputeGame } from "interfaces/dispute/IDisputeGame.sol";
 import { GameId, Timestamp, Claim, Hash, GameType } from "src/dispute/lib/Types.sol";
+import { IProxyAdminOwnedBase } from "interfaces/L1/IProxyAdminOwnedBase.sol";
+import { IReinitializableBase } from "interfaces/universal/IReinitializableBase.sol";
 
-interface IDisputeGameFactory {
+interface IDisputeGameFactory is IProxyAdminOwnedBase, IReinitializableBase {
     struct GameSearchResult {
         uint256 index;
         GameId metadata;

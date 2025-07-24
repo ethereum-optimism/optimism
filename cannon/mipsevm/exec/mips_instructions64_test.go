@@ -1,6 +1,3 @@
-//go:build cannon64
-// +build cannon64
-
 // These tests target architectures that are 64-bit or larger
 package exec
 

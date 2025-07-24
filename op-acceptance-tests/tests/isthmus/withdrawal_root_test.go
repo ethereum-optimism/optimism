@@ -30,7 +30,7 @@ func TestWithdrawalsRoot(t *testing.T) {
 
 	walletGetter, fundsValidator := validators.AcquireL2WalletWithFunds(
 		chainIdx,
-		types.NewBalance(big.NewInt(1.0*constants.ETH)),
+		types.NewBalance(big.NewInt(0.1*constants.ETH)),
 	)
 	_, forkValidator := validators.AcquireL2WithFork(chainIdx, rollup.Isthmus)
 
@@ -57,7 +57,7 @@ func withdrawalRootTestScenario(chainIdx uint64, walletGetter validators.WalletG
 		secondCheck, err := systest.CheckForChainFork(t.Context(), chain, logger)
 		require.NoError(t, err, "error checking for chain fork")
 		defer func() {
-			require.NoError(t, secondCheck(), "error checking for chain fork")
+			require.NoError(t, secondCheck(false), "error checking for chain fork")
 		}()
 
 		rpcCl, err := client.NewRPC(ctx, logger, chain.Nodes()[0].RPCURL())

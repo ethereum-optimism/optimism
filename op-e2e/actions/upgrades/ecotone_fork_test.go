@@ -240,6 +240,7 @@ func TestEcotoneNetworkUpgradeTransactions(gt *testing.T) {
 
 // TestEcotoneBeforeL1 tests that the L2 Ecotone fork can activate before L1 Dencun does
 func TestEcotoneBeforeL1(gt *testing.T) {
+	gt.Skip("L1 contracts depend on Cancun, this test is legacy")
 	t := helpers.NewDefaultTesting(gt)
 	dp := e2eutils.MakeDeployParams(t, helpers.DefaultRollupTestParams())
 	offset := hexutil.Uint64(0)

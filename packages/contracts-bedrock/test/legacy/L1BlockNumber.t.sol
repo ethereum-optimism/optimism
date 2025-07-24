@@ -12,13 +12,15 @@ import { DeployUtils } from "scripts/libraries/DeployUtils.sol";
 import { IL1BlockNumber } from "interfaces/legacy/IL1BlockNumber.sol";
 import { IL1Block } from "interfaces/L2/IL1Block.sol";
 
-contract L1BlockNumberTest is Test {
+/// @title L1BlockNumber_TestInit
+/// @notice Reusable test initialization for `L1BlockNumber` tests.
+contract L1BlockNumber_TestInit is Test {
     IL1Block lb;
     IL1BlockNumber bn;
 
     uint64 constant number = 99;
 
-    /// @dev Sets up the test suite.
+    /// @notice Sets up the test suite.
     function setUp() external {
         vm.etch(Predeploys.L1_BLOCK_ATTRIBUTES, vm.getDeployedCode("L1Block.sol:L1Block"));
         lb = IL1Block(Predeploys.L1_BLOCK_ATTRIBUTES);
@@ -41,23 +43,35 @@ contract L1BlockNumberTest is Test {
             _l1FeeScalar: 3
         });
     }
+}
 
-    /// @dev Tests that `getL1BlockNumber` returns the set block number.
-    function test_getL1BlockNumber_succeeds() external view {
-        assertEq(bn.getL1BlockNumber(), number);
+/// @title L1BlockNumber_Receive_Test
+/// @notice Tests the `receive` function of the `L1BlockNumber` contract.
+contract L1BlockNumber_Receive_Test is L1BlockNumber_TestInit {
+    /// @notice Tests that `receive` is correctly dispatched.
+    function test_receive_succeeds() external {
+        (bool success, bytes memory ret) = address(bn).call{ value: 1 }(hex"");
+        assertEq(success, true);
+        assertEq(ret, abi.encode(number));
     }
+}
 
-    /// @dev Tests that `fallback` is correctly dispatched.
+/// @title L1BlockNumber_Fallback_Test
+/// @notice Tests the `fallback` function of the `L1BlockNumber` contract.
+contract L1BlockNumber_Fallback_Test is L1BlockNumber_TestInit {
+    /// @notice Tests that `fallback` is correctly dispatched.
     function test_fallback_succeeds() external {
         (bool success, bytes memory ret) = address(bn).call(hex"11");
         assertEq(success, true);
         assertEq(ret, abi.encode(number));
     }
+}
 
-    /// @dev Tests that `receive` is correctly dispatched.
-    function test_receive_succeeds() external {
-        (bool success, bytes memory ret) = address(bn).call{ value: 1 }(hex"");
-        assertEq(success, true);
-        assertEq(ret, abi.encode(number));
+/// @title L1BlockNumber_GetL1BlockNumber_Test
+/// @notice Tests the `getL1BlockNumber` function of the `L1BlockNumber` contract.
+contract L1BlockNumber_GetL1BlockNumber_Test is L1BlockNumber_TestInit {
+    /// @notice Tests that `getL1BlockNumber` returns the set block number.
+    function test_getL1BlockNumber_succeeds() external view {
+        assertEq(bn.getL1BlockNumber(), number);
     }
 }

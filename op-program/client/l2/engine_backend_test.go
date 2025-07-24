@@ -167,7 +167,7 @@ func TestRejectBlockWithStateRootMismatch(t *testing.T) {
 	invalidBlock := types.NewBlockWithHeader(newBlock.Header())
 
 	_, err := chain.InsertBlockWithoutSetHead(invalidBlock, false)
-	require.ErrorContains(t, err, "block root mismatch")
+	require.ErrorIs(t, err, ErrUnexpectedBlockHash)
 }
 
 func TestGetHeaderByNumber(t *testing.T) {
@@ -331,6 +331,9 @@ func setupOracle(t *testing.T, blockCount int, headBlockNumber int, enableEcoton
 				L1ChainID:   900,
 				L2ChainID:   901,
 				L2BlockTime: 2,
+			},
+			UpgradeScheduleDeployConfig: genesis.UpgradeScheduleDeployConfig{
+				L1CancunTimeOffset: new(hexutil.Uint64),
 			},
 		},
 	}

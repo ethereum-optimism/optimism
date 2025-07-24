@@ -91,6 +91,23 @@ var (
 		Usage:   "HTTP provider URL for execution layer",
 		EnvVars: opservice.PrefixEnvVar(EnvVarPrefix, "EXECUTION_RPC"),
 	}
+	SupervisorRPC = &cli.StringFlag{
+		Name:    "supervisor.rpc",
+		Usage:   "HTTP provider URL for supervisor",
+		EnvVars: opservice.PrefixEnvVar(EnvVarPrefix, "SUPERVISOR_RPC"),
+	}
+	RollupBoostEnabled = &cli.BoolFlag{
+		Name:    "rollup-boost.enabled",
+		Usage:   "Should be set to true if execution.rpc points to a rollup boost instance, false otherwise. If true, rollup boost specific healthchecks will be performed against the rollup boost instance.",
+		EnvVars: opservice.PrefixEnvVar(EnvVarPrefix, "ROLLUP_BOOST_ENABLED"),
+		Value:   false,
+	}
+	RollupBoostHealthcheckTimeout = &cli.DurationFlag{
+		Name:    "rollup-boost.healthcheck-timeout",
+		Usage:   "Timeout for rollup boost healthcheck",
+		EnvVars: opservice.PrefixEnvVar(EnvVarPrefix, "ROLLUP_BOOST_HEALTHCHECK_TIMEOUT"),
+		Value:   5 * time.Second,
+	}
 	HealthCheckInterval = &cli.Uint64Flag{
 		Name:    "healthcheck.interval",
 		Usage:   "Interval between health checks",
@@ -130,6 +147,17 @@ var (
 		EnvVars: opservice.PrefixEnvVar(EnvVarPrefix, "RPC_ENABLE_PROXY"),
 		Value:   true,
 	}
+	RollupBoostWsURL = &cli.StringFlag{
+		Name:    "rollupboost.ws-url",
+		Usage:   "WebSocket URL for the rollup boost to listen for payload streams.",
+		EnvVars: opservice.PrefixEnvVar(EnvVarPrefix, "ROLLUPBOOST_WS_URL"),
+	}
+	WebsocketServerPort = &cli.IntFlag{
+		Name:    "websocket.server-port",
+		Usage:   "Port for the conductor to run a WebSocket server that pushes payload streams out.",
+		EnvVars: opservice.PrefixEnvVar(EnvVarPrefix, "WEBSOCKET_SERVER_PORT"),
+		Value:   8546,
+	}
 )
 
 var requiredFlags = []cli.Flag{
@@ -156,6 +184,9 @@ var optionalFlags = []cli.Flag{
 	RaftTrailingLogs,
 	RaftHeartbeatTimeout,
 	RaftLeaderLeaseTimeout,
+	SupervisorRPC,
+	RollupBoostEnabled,
+	RollupBoostHealthcheckTimeout,
 }
 
 func init() {
@@ -164,7 +195,8 @@ func init() {
 	optionalFlags = append(optionalFlags, opmetrics.CLIFlags(EnvVarPrefix)...)
 	optionalFlags = append(optionalFlags, oppprof.CLIFlags(EnvVarPrefix)...)
 	optionalFlags = append(optionalFlags, opflags.CLIFlags(EnvVarPrefix, "")...)
-
+	optionalFlags = append(optionalFlags, RollupBoostWsURL)
+	optionalFlags = append(optionalFlags, WebsocketServerPort)
 	Flags = append(requiredFlags, optionalFlags...)
 }
 

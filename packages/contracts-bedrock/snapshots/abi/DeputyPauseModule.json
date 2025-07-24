@@ -3,12 +3,12 @@
     "inputs": [
       {
         "internalType": "contract GnosisSafe",
-        "name": "_foundationSafe",
+        "name": "_guardianSafe",
         "type": "address"
       },
       {
-        "internalType": "contract IDeputyGuardianModule",
-        "name": "_deputyGuardianModule",
+        "internalType": "contract GnosisSafe",
+        "name": "_foundationSafe",
         "type": "address"
       },
       {
@@ -54,19 +54,6 @@
       }
     ],
     "stateMutability": "pure",
-    "type": "function"
-  },
-  {
-    "inputs": [],
-    "name": "deputyGuardianModule",
-    "outputs": [
-      {
-        "internalType": "contract IDeputyGuardianModule",
-        "name": "",
-        "type": "address"
-      }
-    ],
-    "stateMutability": "view",
     "type": "function"
   },
   {
@@ -126,11 +113,29 @@
     "type": "function"
   },
   {
+    "inputs": [],
+    "name": "guardianSafe",
+    "outputs": [
+      {
+        "internalType": "contract GnosisSafe",
+        "name": "guardianSafe_",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
     "inputs": [
       {
         "internalType": "bytes32",
         "name": "_nonce",
         "type": "bytes32"
+      },
+      {
+        "internalType": "address",
+        "name": "_identifier",
+        "type": "address"
       },
       {
         "internalType": "bytes",
@@ -170,19 +175,6 @@
       }
     ],
     "name": "setDeputy",
-    "outputs": [],
-    "stateMutability": "nonpayable",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "contract IDeputyGuardianModule",
-        "name": "_deputyGuardianModule",
-        "type": "address"
-      }
-    ],
-    "name": "setDeputyGuardianModule",
     "outputs": [],
     "stateMutability": "nonpayable",
     "type": "function"
@@ -237,19 +229,6 @@
     "inputs": [
       {
         "indexed": true,
-        "internalType": "contract IDeputyGuardianModule",
-        "name": "deputyGuardianModule",
-        "type": "address"
-      }
-    ],
-    "name": "DeputyGuardianModuleSet",
-    "type": "event"
-  },
-  {
-    "anonymous": false,
-    "inputs": [
-      {
-        "indexed": true,
         "internalType": "address",
         "name": "deputy",
         "type": "address"
@@ -278,6 +257,12 @@
         "internalType": "bytes32",
         "name": "nonce",
         "type": "bytes32"
+      },
+      {
+        "indexed": false,
+        "internalType": "address",
+        "name": "identifier",
+        "type": "address"
       }
     ],
     "name": "PauseTriggered",
@@ -297,11 +282,6 @@
   {
     "inputs": [],
     "name": "DeputyPauseModule_InvalidDeputy",
-    "type": "error"
-  },
-  {
-    "inputs": [],
-    "name": "DeputyPauseModule_InvalidDeputyGuardianModule",
     "type": "error"
   },
   {

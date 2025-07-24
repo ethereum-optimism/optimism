@@ -4,11 +4,9 @@ import (
 	"context"
 	"fmt"
 	"slices"
-	"time"
 
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
-	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/stretchr/testify/require"
 )
@@ -81,15 +79,7 @@ func (c *ClaimHelper) WaitForCounterClaim(ctx context.Context, ignoreClaims ...*
 
 // WaitForCountered waits until the claim is countered either by a child claim or by a step call.
 func (c *ClaimHelper) WaitForCountered(ctx context.Context) {
-	timedCtx, cancel := context.WithTimeout(ctx, defaultTimeout)
-	defer cancel()
-	err := wait.For(timedCtx, time.Second, func() (bool, error) {
-		latestData := c.game.getClaim(ctx, c.Index)
-		return latestData.CounteredBy != common.Address{}, nil
-	})
-	if err != nil { // Avoid waiting time capturing game data when there's no error
-		c.require.NoErrorf(err, "Claim %v was not countered\n%v", c.Index, c.game.GameData(ctx))
-	}
+	c.game.WaitForCountered(ctx, c.Index)
 }
 
 func (c *ClaimHelper) RequireCorrectOutputRoot(ctx context.Context) {

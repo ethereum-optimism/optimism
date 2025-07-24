@@ -17,7 +17,7 @@ import (
 
 func createGameInputs(ctx context.Context, log log.Logger, rollupClient *sources.RollupClient, supervisorClient *sources.SupervisorClient, typeName string, traceType types.TraceType) (utils.LocalGameInputs, error) {
 	switch traceType {
-	case types.TraceTypeSuperCannon, types.TraceTypeSuperPermissioned:
+	case types.TraceTypeSuperCannon, types.TraceTypeSuperPermissioned, types.TraceTypeSuperAsteriscKona:
 		if supervisorClient == nil {
 			return utils.LocalGameInputs{}, fmt.Errorf("trace type %s requires supervisor rpc to be set", traceType)
 		}
@@ -81,7 +81,7 @@ func createGameInputsSingle(ctx context.Context, log log.Logger, client *sources
 func createGameInputsInterop(ctx context.Context, log log.Logger, client *sources.SupervisorClient, typeName string) (utils.LocalGameInputs, error) {
 	status, err := client.SyncStatus(ctx)
 	if err != nil {
-		return utils.LocalGameInputs{}, fmt.Errorf("failed to get rollup sync status: %w", err)
+		return utils.LocalGameInputs{}, fmt.Errorf("failed to get supervisor sync status: %w", err)
 	}
 	log.Info("Got sync status", "status", status, "type", typeName)
 
@@ -101,7 +101,7 @@ func createGameInputsInterop(ctx context.Context, log log.Logger, client *source
 	provider := super.NewSuperTraceProvider(log, nil, prestateProvider, client, l1Head.ID(), gameDepth, agreedTimestamp, claimTimestamp+10)
 	var agreedPrestate []byte
 	var claim common.Hash
-	switch 2 { //rand.Intn(3) {
+	switch rand.Intn(3) {
 	case 0: // Derive block on first chain
 		log.Info("Running first chain")
 		prestate, err := prestateProvider.AbsolutePreState(ctx)

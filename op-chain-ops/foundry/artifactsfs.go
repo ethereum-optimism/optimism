@@ -1,6 +1,7 @@
 package foundry
 
 import (
+	"embed"
 	"encoding/json"
 	"fmt"
 	"io/fs"
@@ -21,6 +22,31 @@ func OpenArtifactsDir(dirPath string) *ArtifactsFS {
 	} else {
 		return &ArtifactsFS{FS: d}
 	}
+}
+
+type EmbedFS struct {
+	FS      embed.FS
+	RootDir string // Root directory within the embedded FS
+}
+
+// Open implements fs.FS
+func (e *EmbedFS) Open(name string) (fs.File, error) {
+	return e.FS.Open(path.Join(e.RootDir, name))
+}
+
+// Stat implements fs.StatFS
+func (e *EmbedFS) Stat(name string) (fs.FileInfo, error) {
+	file, err := e.Open(name)
+	if err != nil {
+		return nil, err
+	}
+	defer file.Close()
+	return file.Stat()
+}
+
+// ReadDir implements fs.ReadDirFS
+func (e *EmbedFS) ReadDir(name string) ([]fs.DirEntry, error) {
+	return fs.ReadDir(e.FS, path.Join(e.RootDir, name))
 }
 
 // ArtifactsFS wraps a filesystem (read-only access) of a forge-artifacts bundle.
