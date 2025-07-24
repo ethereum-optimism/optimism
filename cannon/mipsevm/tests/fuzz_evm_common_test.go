@@ -41,7 +41,7 @@ func FuzzStateSyscallBrk(f *testing.F) {
 		SetExpectations(setExpectations)
 
 	f.Fuzz(func(t *testing.T, seed int64) {
-		diffTester.Run(t, WithVms(vms), WithRandomSeed(seed))
+		diffTester.Run(t, fuzzTestOptions(vms, seed)...)
 	})
 }
 
@@ -96,7 +96,7 @@ func FuzzStateSyscallMmap(f *testing.F) {
 
 	f.Fuzz(func(t *testing.T, addr Word, siz Word, heap Word, seed int64) {
 		tests := []testCase{{addr, siz, heap}}
-		diffTester.Run(t, tests, WithVms(vms), WithRandomSeed(seed))
+		diffTester.Run(t, tests, fuzzTestOptions(vms, seed)...)
 	})
 }
 
@@ -417,4 +417,12 @@ func FuzzStatePreimageWrite(f *testing.F) {
 			})
 		}
 	})
+}
+
+func fuzzTestOptions(vms []VersionedVMTestCase, seed int64) []TestOption {
+	return []TestOption{
+		WithVms(vms),
+		WithRandomSeed(seed),
+		SkipAutomaticMemoryReservationTests(),
+	}
 }
