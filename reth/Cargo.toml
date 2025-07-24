@@ -38,6 +38,7 @@ reth-trie-db = { workspace = true, optional = true }
 reth-node-builder = { workspace = true, optional = true }
 reth-tasks = { workspace = true, optional = true }
 reth-cli-util = { workspace = true, optional = true }
+reth-engine-local = { workspace = true, optional = true }
 
 # reth-op
 reth-optimism-primitives.workspace = true
@@ -110,6 +111,7 @@ node = [
     "node-api",
     "dep:reth-optimism-node",
     "dep:reth-node-builder",
+    "dep:reth-engine-local",
     "rpc",
     "trie-db",
 ]

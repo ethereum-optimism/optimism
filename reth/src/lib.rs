@@ -111,7 +111,7 @@ pub mod storage {
     pub use reth_storage_api::*;
 }
 
-/// Re-exported ethereum node
+/// Re-exported optimism node
 #[cfg(feature = "node-api")]
 pub mod node {
     #[doc(inline)]
@@ -122,6 +122,15 @@ pub mod node {
     pub use reth_node_core as core;
     #[cfg(feature = "node")]
     pub use reth_optimism_node::*;
+}
+
+/// Re-exported  engine types
+#[cfg(feature = "node")]
+pub mod engine {
+    #[doc(inline)]
+    pub use reth_engine_local as local;
+    #[doc(inline)]
+    pub use reth_optimism_node::engine::*;
 }
 
 /// Re-exported reth trie types
