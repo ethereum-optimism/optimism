@@ -15,7 +15,6 @@ import (
 	mtutil "github.com/ethereum-optimism/optimism/cannon/mipsevm/multithreaded/testutil"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/register"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/testutil"
-	"github.com/ethereum-optimism/optimism/cannon/mipsevm/versions"
 )
 
 type Word = arch.Word
@@ -200,12 +199,17 @@ func TestEVM_MT_SC(t *testing.T) {
 }
 
 func TestEVM_SysClone_FlagHandling(t *testing.T) {
-
-	cases := []struct {
+	type testCase struct {
 		name  string
 		flags Word
 		valid bool
-	}{
+	}
+
+	testNamer := func(tc testCase) string {
+		return tc.name
+	}
+
+	cases := []testCase{
 		{"the supported flags bitmask", exec.ValidCloneFlags, true},
 		{"no flags", 0, false},
 		{"all flags", ^Word(0), false},
@@ -217,41 +221,33 @@ func TestEVM_SysClone_FlagHandling(t *testing.T) {
 		{"multiple unsupported flags", exec.CloneUntraced | exec.CloneParentSettid, false},
 	}
 
-	for _, c := range cases {
-		c := c
-		for _, version := range GetMipsVersionTestCases(t) {
-			version := version
-			t.Run(fmt.Sprintf("%v-%v", version.Name, c.name), func(t *testing.T) {
-				state := multithreaded.CreateEmptyState()
-				testutil.StoreInstruction(state.Memory, state.GetPC(), syscallInsn)
-				state.GetRegistersRef()[2] = arch.SysClone // Set syscall number
-				state.GetRegistersRef()[4] = c.flags       // Set first argument
-				curStep := state.Step
-
-				var err error
-				var stepWitness *mipsevm.StepWitness
-				goVm := multithreaded.NewInstrumentedState(state, nil, os.Stdout, os.Stderr, nil, nil, versions.FeaturesForVersion(version.Version))
-				if !c.valid {
-					// The VM should exit
-					stepWitness, err = goVm.Step(true)
-					require.NoError(t, err)
-					require.Equal(t, curStep+1, state.GetStep())
-					require.Equal(t, true, goVm.GetState().GetExited())
-					require.Equal(t, uint8(mipsevm.VMStatusPanic), goVm.GetState().GetExitCode())
-					require.Equal(t, 1, state.ThreadCount())
-				} else {
-					stepWitness, err = goVm.Step(true)
-					require.NoError(t, err)
-					require.Equal(t, curStep+1, state.GetStep())
-					require.Equal(t, false, goVm.GetState().GetExited())
-					require.Equal(t, uint8(0), goVm.GetState().GetExitCode())
-					require.Equal(t, 2, state.ThreadCount())
-				}
-
-				testutil.ValidateEVM(t, stepWitness, curStep, goVm, multithreaded.GetStateHashFn(), version.Contracts)
-			})
-		}
+	stackPtr := Word(204)
+	initState := func(c testCase, state *multithreaded.State, vm VersionedVMTestCase, r *testutil.RandHelper) {
+		mtutil.InitializeSingleThread(r.Intn(10000), state, true)
+		testutil.StoreInstruction(state.Memory, state.GetPC(), syscallInsn)
+		state.GetRegistersRef()[2] = arch.SysClone // Set syscall number
+		state.GetRegistersRef()[4] = c.flags       // Set first argument
+		state.GetRegistersRef()[5] = stackPtr      // a1 - the stack pointer
 	}
+
+	setExpectations := func(c testCase, expected *mtutil.ExpectedState, vm VersionedVMTestCase) ExpectedExecResult {
+		if !c.valid {
+			// The VM should exit
+			expected.Step += 1
+			expected.ExpectNoContextSwitch()
+			expected.Exited = true
+			expected.ExitCode = uint8(mipsevm.VMStatusPanic)
+		} else {
+			// Otherwise, we should clone the thread as normal
+			setCloneExpectations(expected, stackPtr)
+		}
+		return ExpectNormalExecution()
+	}
+
+	NewDiffTester(testNamer).
+		InitState(initState).
+		SetExpectations(setExpectations).
+		Run(t, cases)
 }
 
 func TestEVM_SysClone_Successful(t *testing.T) {
@@ -282,32 +278,37 @@ func TestEVM_SysClone_Successful(t *testing.T) {
 	}
 
 	setExpectations := func(c testCase, expected *mtutil.ExpectedState, vm VersionedVMTestCase) ExpectedExecResult {
-		expected.Step += 1
-		expectedNewThread := expected.ExpectNewThread()
-		expected.ExpectActiveThreadId(expectedNewThread.ThreadId)
-		expected.ExpectContextSwitch()
-
-		// Original thread expectations
-		prestateNextPC := expected.PrestateActiveThread().NextPC
-		expected.PrestateActiveThread().PC = prestateNextPC
-		expected.PrestateActiveThread().NextPC = prestateNextPC + 4
-		expected.PrestateActiveThread().Registers[2] = 1
-		expected.PrestateActiveThread().Registers[7] = 0
-		// New thread expectations
-		expectedNewThread.PC = prestateNextPC
-		expectedNewThread.NextPC = prestateNextPC + 4
-		expectedNewThread.ThreadId = 1
-		expectedNewThread.Registers[register.RegSyscallRet1] = 0
-		expectedNewThread.Registers[register.RegSyscallErrno] = 0
-		expectedNewThread.Registers[register.RegSP] = stackPtr
-
-		return ExpectNormalExecution()
+		return setCloneExpectations(expected, stackPtr)
 	}
 
 	NewDiffTester(testNamer).
 		InitState(initState).
 		SetExpectations(setExpectations).
 		Run(t, cases)
+}
+
+// setCloneExpectations sets state expectations assuming we start with 1 thread
+func setCloneExpectations(expected *mtutil.ExpectedState, stackPointer Word) ExpectedExecResult {
+	expected.Step += 1
+	expectedNewThread := expected.ExpectNewThread()
+	expected.ExpectActiveThreadId(expectedNewThread.ThreadId)
+	expected.ExpectContextSwitch()
+
+	// Original thread expectations
+	prestateNextPC := expected.PrestateActiveThread().NextPC
+	expected.PrestateActiveThread().PC = prestateNextPC
+	expected.PrestateActiveThread().NextPC = prestateNextPC + 4
+	expected.PrestateActiveThread().Registers[2] = 1
+	expected.PrestateActiveThread().Registers[7] = 0
+	// New thread expectations
+	expectedNewThread.PC = prestateNextPC
+	expectedNewThread.NextPC = prestateNextPC + 4
+	expectedNewThread.ThreadId = 1
+	expectedNewThread.Registers[register.RegSyscallRet1] = 0
+	expectedNewThread.Registers[register.RegSyscallErrno] = 0
+	expectedNewThread.Registers[register.RegSP] = stackPointer
+
+	return ExpectNormalExecution()
 }
 
 func TestEVM_SysGetTID(t *testing.T) {
