@@ -106,12 +106,12 @@ eigenda-devnet-test-holesky *ARGS="":
     go test ./tests/eigenda/... -run "_Holesky$" -v -timeout 40m {{ARGS}}
 [group('eigenda')]
 eigenda-devnet-add-tx-fuzzer ENCLAVE_NAME="eigenda-devnet" *ARGS="":
-  kurtosis service add {{ENCLAVE_NAME}} tx-fuzz ethpandaops/tx-fuzz:master -- \
-    spam \
-    --sk "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80" \
-    --rpc "http://op-el-1-op-geth-op-node-op-kurtosis:8545" \
+  kurtosis service add {{ENCLAVE_NAME}} tx-fuzz ethpandaops/tx-fuzz:master --cmd \
+    "spam \
+    --sk 0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80 \
+    --rpc http://op-el-2151908-node0-op-geth:8545 \
     --slot-time 2 \
-    --accounts 100 --txcount 1 \
+    --accounts 100 --txcount 1" \
     {{ARGS}}
 
 ##### EigenDA Commands below are for debugging and manual testing #####
@@ -136,13 +136,13 @@ eigenda-devnet-grafana ENCLAVE_NAME="eigenda-devnet":
 [group('eigenda')]
 eigenda-devnet-sync-status ENCLAVE_NAME="eigenda-devnet":
   #!/usr/bin/env bash
-  OPNODE_ENDPOINT=$(kurtosis port print {{ENCLAVE_NAME}} op-cl-1-op-node-op-geth-op-kurtosis http)
+  OPNODE_ENDPOINT=$(kurtosis port print {{ENCLAVE_NAME}} op-cl-2151908-node0-op-node rpc)
   cast rpc optimism_syncStatus --rpc-url $OPNODE_ENDPOINT | jq
 [group('eigenda')]
 eigenda-devnet-configs ENCLAVE_NAME="eigenda-devnet":
   #!/usr/bin/env bash
   echo "OP-NODE ROLLUP CONFIG:"
-  OPNODE_ENDPOINT=$(kurtosis port print {{ENCLAVE_NAME}} op-cl-1-op-node-op-geth-op-kurtosis http)
+  OPNODE_ENDPOINT=$(kurtosis port print {{ENCLAVE_NAME}} op-cl-2151908-node0-op-node http)
   cast rpc optimism_rollupConfig --rpc-url $OPNODE_ENDPOINT | jq
   echo "TEKU L1-CL SPEC:"
   TEKU_ENDPOINT=$(kurtosis port print {{ENCLAVE_NAME}} cl-1-teku-geth http)
@@ -158,49 +158,10 @@ eigenda-devnet-change-proxy-backend backend="V1" ENCLAVE_NAME="eigenda-devnet":
   curl -X PUT $PROXY_ENDPOINT/admin/eigenda-dispersal-backend \
     -H "Content-Type: application/json" \
     -d '{"eigenDADispersalBackend": "{{backend}}"}'
-# We unfortunately have to restart the batcher in this ugly way right now just to change even a single flag.
-# This is b/c op's kurtosis setup right now is not idempotent so if we change a param in a values file
-# and rerun `just eigenda-devnet-start`, the entire devnet gets respun up which takes a long time.
-# Track progress for fixing this in https://github.com/ethereum-optimism/optimism/issues/14390.
-# Kurtosis also doesn't have a simple way to update a running service's config, like `kubectl edit` for k8s.
-# See https://github.com/kurtosis-tech/kurtosis/issues/2628 for this issue.
-# Restart batcher with new flags or image.
+# See https://docs.kurtosis.com/service-update/
 [group('eigenda')]
 eigenda-devnet-restart-batcher ENCLAVE_NAME="eigenda-devnet":
-  #!/usr/bin/env bash
-  # IMAGE=op-batcher:{{ENCLAVE_NAME}}
-  IMAGE=us-docker.pkg.dev/oplabs-tools-artifacts/images/op-batcher:v1.10.0
-  kurtosis service add {{ENCLAVE_NAME}} op-batcher-op-kurtosis \
-    $IMAGE \
-    --ports "http=8548,metrics=9001" \
-    -- op-batcher \
-      --l2-eth-rpc=http://op-el-1-op-geth-op-node-op-kurtosis:8545 \
-      --rollup-rpc=http://op-cl-1-op-node-op-geth-op-kurtosis:8547 \
-      --poll-interval=1s \
-      --sub-safety-margin=6 \
-      --num-confirmations=1 \
-      --safe-abort-nonce-too-low-count=3 \
-      --resubmission-timeout=30s \
-      --rpc.addr=0.0.0.0 \
-      --rpc.port=8548 \
-      --rpc.enable-admin \
-      --metrics.enabled \
-      --metrics.addr=0.0.0.0 \
-      --metrics.port=9001 \
-      --l1-eth-rpc=http://el-1-geth-teku:8545 \
-      --private-key=0xb3d2d558e3491a3709b7c451100a0366b5872520c7aa020c17a0e7fa35b6a8df \
-      --data-availability-type=calldata \
-      --altda.enabled=True \
-      --altda.da-server=http://da-server-op-kurtosis:3100 \
-      --altda.da-service \
-      --altda.max-concurrent-da-requests=100 \
-      --max-pending-tx=100 \
-      --max-channel-duration=10 \
-      --target-num-frames=10 \
-      --max-l1-tx-size-bytes=1000 \
-      --batch-type=1 \
-      --throttle-threshold=500_000 \
-      --throttle-block-size=1000
+  kurtosis service update {{ENCLAVE_NAME}} op-batcher-2151908-op-kurtosis
 
 
 # Simple devnet

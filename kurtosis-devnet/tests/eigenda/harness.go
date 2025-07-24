@@ -75,7 +75,7 @@ func NewHarness(t *testing.T) *Harness {
 	testStartL1BlockNum, err := clients.GethL1Client.BlockNumber(ctxWithTimeout)
 	require.NoError(t, err)
 
-	batcherCtx, err := enclaveCtx.GetServiceContext("op-batcher-op-kurtosis")
+	batcherCtx, err := enclaveCtx.GetServiceContext("op-batcher-2151908-op-kurtosis")
 	require.NoError(t, err)
 
 	return &Harness{
@@ -118,10 +118,10 @@ func (h *Harness) QueryBatcherLogs(ctx context.Context, shouldFollowLogs bool, l
 // using external shell commands like `cast rpc ...` and `cast geth ...`.
 // The public endpoints are the ones that are exposed to the host machine.
 type EnclaveServicePublicEndpoints struct {
-	OpNodeEndpoint       string `kurtosis:"op-cl-1-op-node-op-geth-op-kurtosis,http"`
-	OpGethEndpoint       string `kurtosis:"op-el-1-op-geth-op-node-op-kurtosis,rpc"`
+	OpNodeEndpoint       string `kurtosis:"op-cl-2151908-node0-op-node,rpc"`
+	OpGethEndpoint       string `kurtosis:"op-el-2151908-node0-op-geth,rpc"`
 	GethL1Endpoint       string `kurtosis:"el-1-geth-teku,rpc"`
-	EigendaProxyEndpoint string `kurtosis:"da-server-op-kurtosis,http"`
+	EigendaProxyEndpoint string `kurtosis:"op-da-da-server-2151908-op-kurtosis,http"`
 	// Adding new endpoints is as simple as adding a new field with a kurtosis tag
 	// NewServiceEndpoint   string `kurtosis:"new-service-name,port-name"`
 }

@@ -35,27 +35,29 @@ optimism_package:
     da_bond_size: 0
     da_resolver_refund_percentage: 0
   chains:
-    - participants:
-      - el_type: op-geth
-        # latest tag is currently broken until the next stable release, see https://github.com/ethereum-optimism/op-geth/pull/515
-        # Also see discussion in https://discord.com/channels/1244729134312198194/1260624141497798706/1342556343495692320
-        el_image: "us-docker.pkg.dev/oplabs-tools-artifacts/images/op-geth:optimism"
-        el_log_level: ""
-        el_extra_env_vars: {}
-        el_extra_labels: {}
-        el_extra_params: []
-        cl_type: op-node
-        cl_image: {{ localDockerImage "op-node" }}
-        cl_log_level: "debug"
-        cl_extra_env_vars: {}
-        cl_extra_labels: {}
-        cl_extra_params: []
-        count: 1
+    op-kurtosis:
+      participants:
+        node0:
+          el:
+            type: op-geth
+            # latest tag is currently broken until the next stable release, see https://github.com/ethereum-optimism/op-geth/pull/515
+            # Also see discussion in https://discord.com/channels/1244729134312198194/1260624141497798706/1342556343495692320
+            image: "us-docker.pkg.dev/oplabs-tools-artifacts/images/op-geth:optimism"
+            log_level: ""
+            extra_env_vars: {}
+            extra_labels: {}
+            extra_params: []
+          cl:
+            type: op-node
+            image: {{ localDockerImage "op-node" }}
+            log_level: "debug"
+            extra_env_vars: {}
+            extra_labels: {}
+            extra_params: []
       network_params:
         network: "kurtosis"
         network_id: "2151908"
         seconds_per_slot: 2
-        name: "op-kurtosis"
         fjord_time_offset: 0
         granite_time_offset: 0
         holocene_time_offset: 0
@@ -84,14 +86,8 @@ optimism_package:
         extra_params: []
         game_type: 1
         proposal_interval: 10m
-      challenger_params:
-        # TODO: reenable once we start testing secure integrations
-        enabled: false
-        image: {{ localDockerImage "op-challenger" }}
-        cannon_prestate_path: ""
-        cannon_prestates_url: "http://fileserver/proofs/op-program/cannon"
-        extra_params: []
-      da_server_params:
+      da_params:
+        enabled: true
         image: ghcr.io/layr-labs/eigenda-proxy:v1.7.0
         cmd:
           - --addr=0.0.0.0
@@ -116,8 +112,16 @@ optimism_package:
           - --eigenda.v2.signer-payment-key-hex={{ $eigendaV2SignerKey }}
           - --eigenda.v2.eth-rpc={{ $eigendaBackendEthRpc }}
         {{- end }}
-      additional_services:
-        - da_server
+
+  challengers:
+    challenger:
+      # TODO: reenable once we start testing secure integrations
+      enabled: false
+      image: {{ localDockerImage "op-challenger" }}
+      participants: "*"
+      cannon_prestates_url: {{ localPrestate.URL }}
+      cannon_trace_types: ["cannon", "permissioned"]
+      extra_params: []
   global_log_level: "info"
   global_node_selectors: {}
   global_tolerations: []
