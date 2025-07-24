@@ -187,6 +187,7 @@ func NewDriver(
 	l1 = metered.NewMeteredL1Fetcher(l1Tracker, metrics)
 	verifConfDepth := confdepth.NewConfDepth(driverCfg.VerifierConfDepth, statusTracker.L1Head, l1)
 
+	// necessary actor for p2p unsafe head sync
 	ec := engine.NewEngineController(l2, log, metrics, cfg, syncCfg,
 		sys.Register("engine-controller", nil))
 
@@ -194,6 +195,7 @@ func NewDriver(
 		engine.NewEngineResetDeriver(driverCtx, log, cfg, l1, l2, syncCfg))
 
 	clSync := clsync.NewCLSync(log, cfg, metrics) // alt-sync still uses cl-sync state to determine what to sync to
+	// necessary actor for p2p unsafe head sync
 	sys.Register("cl-sync", clSync)
 
 	var finalizer Finalizer
@@ -225,9 +227,12 @@ func NewDriver(
 		Ctx:                 driverCtx,
 		ManagedBySupervisor: indexingMode,
 	}
+	// necessary actor for p2p unsafe head sync
 	sys.Register("sync", syncDeriver)
 
-	sys.Register("engine", engine.NewEngDeriver(log, driverCtx, cfg, metrics, ec))
+	// necessary actor for p2p unsafe head sync
+	engineDeriver := engine.NewEngDeriver(log, driverCtx, cfg, metrics, ec)
+	sys.Register("engine", engineDeriver)
 
 	schedDeriv := NewStepSchedulingDeriver(log)
 	sys.Register("step-scheduler", schedDeriv)
@@ -263,6 +268,17 @@ func NewDriver(
 		metrics:       metrics,
 		altSync:       altSync,
 	}
+
+	// gather and wire up actors
+	// syncDeriver already embeds clsync
+	syncDeriver.CLSyncWrapper = clSync
+	clSync.EngineDeriver = engineDeriver
+	clSync.Finalizer = finalizer.(*finality.Finalizer) // did not care about AltDA
+	clSync.StatusTracker = statusTracker
+	ec.EngDeriver = engineDeriver
+	ec.CLSyncWrapper = clSync
+	ec.FinalizerWrapper = finalizer.(*finality.Finalizer) // did not care about AltDA
+	engineDeriver.StatusTracker = statusTracker
 
 	return driver
 }

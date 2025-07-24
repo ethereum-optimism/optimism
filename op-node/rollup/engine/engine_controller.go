@@ -50,6 +50,20 @@ type ECMetrics interface {
 	RecordL2Ref(name string, ref eth.L2BlockRef)
 }
 
+type StatusTrackerWrapper interface {
+	CrossUnsafeUpdate(x CrossUnsafeUpdateInfo)
+	ForkchoiceUpdate(x ForkchoiceUpdateInfo)
+}
+
+type CLSyncWrapper interface {
+	OnForkchoiceUpdateSync(ctx context.Context, x ForkchoiceUpdateInfo)
+	OnUnsafePayloadSync(ctx context.Context, envelope *eth.ExecutionPayloadEnvelope)
+}
+
+type FinalizerWrapper interface {
+	SetFinalizedHead(x eth.L2BlockRef)
+}
+
 type EngineController struct {
 	engine     ExecEngine // Underlying execution engine RPC
 	log        log.Logger
@@ -94,6 +108,10 @@ type EngineController struct {
 	// because engine may forgot backupUnsafeHead or backupUnsafeHead is not part
 	// of the chain.
 	needFCUCallForBackupUnsafeReorg bool
+
+	EngDeriver       *EngDeriver
+	CLSyncWrapper    CLSyncWrapper
+	FinalizerWrapper FinalizerWrapper
 }
 
 func NewEngineController(engine ExecEngine, log log.Logger, metrics ECMetrics,
@@ -466,6 +484,136 @@ func (e *EngineController) InsertUnsafePayload(ctx context.Context, envelope *et
 			SafeL2Head:      e.safeHead,
 			FinalizedL2Head: e.finalizedHead,
 		})
+	}
+
+	totalTime := fcu2Finish.Sub(newPayloadStart)
+	e.log.Info("Inserted new L2 unsafe block (synchronous)",
+		"hash", envelope.ExecutionPayload.BlockHash,
+		"number", uint64(envelope.ExecutionPayload.BlockNumber),
+		"newpayload_time", common.PrettyDuration(newPayloadFinish.Sub(newPayloadStart)),
+		"fcu2_time", common.PrettyDuration(fcu2Finish.Sub(fcu2Start)),
+		"total_time", common.PrettyDuration(totalTime),
+		"mgas", float64(envelope.ExecutionPayload.GasUsed)/1000000,
+		"mgasps", float64(envelope.ExecutionPayload.GasUsed)*1000/float64(totalTime))
+
+	return nil
+}
+
+func (e *EngineController) InsertUnsafePayloadSync(ctx context.Context, envelope *eth.ExecutionPayloadEnvelope, ref eth.L2BlockRef, eventCtx context.Context) error {
+	fmt.Println("l33t InsertUnsafePayloadSync")
+	// Check if there is a finalized head once when doing EL sync. If so, transition to CL sync
+	if e.syncStatus == syncStatusWillStartEL {
+		b, err := e.engine.L2BlockRefByLabel(ctx, eth.Finalized)
+		rollupGenesisIsFinalized := b.Hash == e.rollupCfg.Genesis.L2.Hash
+		if errors.Is(err, ethereum.NotFound) || rollupGenesisIsFinalized || e.syncCfg.SupportsPostFinalizationELSync {
+			e.syncStatus = syncStatusStartedEL
+			e.log.Info("Starting EL sync")
+			e.elStart = e.clock.Now()
+			e.emitter.Emit(eventCtx, ELSyncStartedEvent{})
+		} else if err == nil {
+			e.syncStatus = syncStatusFinishedEL
+			e.log.Info("Skipping EL sync and going straight to CL sync because there is a finalized block", "id", b.ID())
+			return nil
+		} else {
+			return derive.NewTemporaryError(fmt.Errorf("failed to fetch finalized head: %w", err))
+		}
+	}
+	// Insert the payload & then call FCU
+	newPayloadStart := time.Now()
+	status, err := e.engine.NewPayload(ctx, envelope.ExecutionPayload, envelope.ParentBeaconBlockRoot)
+	if err != nil {
+		return derive.NewTemporaryError(fmt.Errorf("failed to update insert payload: %w", err))
+	}
+	if status.Status == eth.ExecutionInvalid {
+		e.emitter.Emit(eventCtx, PayloadInvalidEvent{
+			Envelope: envelope,
+			Err:      eth.NewPayloadErr(envelope.ExecutionPayload, status),
+		})
+	}
+	if !e.checkNewPayloadStatus(status.Status) {
+		payload := envelope.ExecutionPayload
+		return derive.NewTemporaryError(fmt.Errorf("cannot process unsafe payload: new - %v; parent: %v; err: %w",
+			payload.ID(), payload.ParentID(), eth.NewPayloadErr(payload, status)))
+	}
+	newPayloadFinish := time.Now()
+
+	// Mark the new payload as valid
+	fc := eth.ForkchoiceState{
+		HeadBlockHash:      envelope.ExecutionPayload.BlockHash,
+		SafeBlockHash:      e.safeHead.Hash,
+		FinalizedBlockHash: e.finalizedHead.Hash,
+	}
+	if e.syncStatus == syncStatusFinishedELButNotFinalized {
+		fc.SafeBlockHash = envelope.ExecutionPayload.BlockHash
+		fc.FinalizedBlockHash = envelope.ExecutionPayload.BlockHash
+		e.SetUnsafeHead(ref) // ensure that the unsafe head stays ahead of safe/finalized labels.
+		e.emitter.Emit(eventCtx, UnsafeUpdateEvent{Ref: ref})
+		e.SetLocalSafeHead(ref)
+		e.SetSafeHead(ref)
+		e.emitter.Emit(eventCtx, CrossSafeUpdateEvent{LocalSafe: ref, CrossSafe: ref})
+		e.SetFinalizedHead(ref)
+	}
+	logFn := e.logSyncProgressMaybe()
+	defer logFn()
+	fcu2Start := time.Now()
+	fcRes, err := e.engine.ForkchoiceUpdate(ctx, &fc, nil)
+	if err != nil {
+		var rpcErr rpc.Error
+		if errors.As(err, &rpcErr) {
+			switch eth.ErrorCode(rpcErr.ErrorCode()) {
+			case eth.InvalidForkchoiceState:
+				return derive.NewResetError(fmt.Errorf("pre-unsafe-block forkchoice update was inconsistent with engine, need reset to resolve: %w", err))
+			default:
+				return derive.NewTemporaryError(fmt.Errorf("unexpected error code in forkchoice-updated response: %w", err))
+			}
+		} else {
+			return derive.NewTemporaryError(fmt.Errorf("failed to update forkchoice to prepare for new unsafe payload: %w", err))
+		}
+	}
+	if !e.checkForkchoiceUpdatedStatus(fcRes.PayloadStatus.Status) {
+		payload := envelope.ExecutionPayload
+		return derive.NewTemporaryError(fmt.Errorf("cannot prepare unsafe chain for new payload: new - %v; parent: %v; err: %w",
+			payload.ID(), payload.ParentID(), eth.ForkchoiceUpdateErr(fcRes.PayloadStatus)))
+	}
+	fcu2Finish := time.Now()
+	e.SetUnsafeHead(ref)
+	e.needFCUCall = false
+	// events.go
+	// e.emitter.Emit(eventCtx,UnsafeUpdateEvent{Ref: ref})
+	e.EngDeriver.OnUnsafeUpdateSync(ctx, ref)
+
+	if e.syncStatus == syncStatusFinishedELButNotFinalized {
+		e.log.Info("Finished EL sync", "sync_duration", e.clock.Since(e.elStart), "finalized_block", ref.ID().String())
+		e.syncStatus = syncStatusFinishedEL
+	}
+
+	if fcRes.PayloadStatus.Status == eth.ExecutionValid {
+		// e.emitter.Emit(eventCtx, ForkchoiceUpdateEvent{
+		// 	UnsafeL2Head:    e.unsafeHead,
+		// 	SafeL2Head:      e.safeHead,
+		// 	FinalizedL2Head: e.finalizedHead,
+		// })
+
+		// 1. case ForkchoiceRequestEvent:
+		// 	d.emitter.Emit(ctx, ForkchoiceUpdateEvent{
+		// 		UnsafeL2Head:    d.ec.UnsafeL2Head(),
+		// 		SafeL2Head:      d.ec.SafeL2Head(),
+		// 		FinalizedL2Head: d.ec.Finalized(),
+		// 	})
+		// 2. {clsync, finalizer, origin_selector, sequencer, status}.go receives it
+		// and do their work
+		// Temporal measure: Do not handle origin_selector, sequencer since it is sequencer code path
+		info := ForkchoiceUpdateInfo{
+			UnsafeL2Head:    e.unsafeHead,
+			SafeL2Head:      e.safeHead,
+			FinalizedL2Head: e.finalizedHead,
+		}
+		// Handle finalizer.go
+		e.FinalizerWrapper.SetFinalizedHead(info.FinalizedL2Head)
+		// Handle status.go
+		e.EngDeriver.StatusTracker.ForkchoiceUpdate(info)
+		// Handle clsync.go (Most heavy one)
+		e.CLSyncWrapper.OnForkchoiceUpdateSync(ctx, info)
 	}
 
 	totalTime := fcu2Finish.Sub(newPayloadStart)

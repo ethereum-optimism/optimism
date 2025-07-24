@@ -2,6 +2,7 @@ package clsync
 
 import (
 	"context"
+	"fmt"
 	"sync"
 
 	"github.com/ethereum/go-ethereum/log"
@@ -9,6 +10,8 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/engine"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/finality"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/status"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/event"
 )
@@ -32,6 +35,10 @@ type CLSync struct {
 	mu sync.Mutex
 
 	unsafePayloads *PayloadsQueue // queue of unsafe payloads, ordered by ascending block number, may have gaps and duplicates
+
+	EngineDeriver *engine.EngDeriver
+	Finalizer     *finality.Finalizer
+	StatusTracker *status.StatusTracker
 }
 
 func NewCLSync(log log.Logger, cfg *rollup.Config, metrics Metrics) *CLSync {
@@ -184,4 +191,80 @@ func (eq *CLSync) onUnsafePayload(ctx context.Context, x ReceivedUnsafePayloadEv
 
 	// request forkchoice signal, so we can process the payload maybe
 	eq.emitter.Emit(ctx, engine.ForkchoiceRequestEvent{})
+}
+
+// AddUnsafePayload schedules an execution payload to be processed, ahead of deriving it from L1.
+func (eq *CLSync) OnUnsafePayloadSync(ctx context.Context, envelope *eth.ExecutionPayloadEnvelope) {
+	fmt.Println("l33t OnUnsafePayloadSync")
+	if envelope == nil {
+		eq.log.Warn("cannot add nil unsafe payload")
+		return
+	}
+	eq.log.Debug("CL sync received payload", "payload", envelope.ExecutionPayload.ID())
+
+	if err := eq.unsafePayloads.Push(envelope); err != nil {
+		eq.log.Warn("Could not add unsafe payload", "id", envelope.ExecutionPayload.ID(), "timestamp", uint64(envelope.ExecutionPayload.Timestamp), "err", err)
+		return
+	}
+	p := eq.unsafePayloads.Peek()
+	eq.metrics.RecordUnsafePayloadsBuffer(uint64(eq.unsafePayloads.Len()), eq.unsafePayloads.MemSize(), p.ExecutionPayload.ID())
+	eq.log.Trace("Next unsafe payload to process", "next", p.ExecutionPayload.ID(), "timestamp", uint64(p.ExecutionPayload.Timestamp))
+
+	// request forkchoice signal, so we can process the payload maybe
+
+	// 1. EngDeriver receives and converts to ForkchoiceUpdateEvent
+	// case ForkchoiceRequestEvent:
+	// 	d.emitter.Emit(ctx, ForkchoiceUpdateEvent{
+	// 		UnsafeL2Head:    d.ec.UnsafeL2Head(),
+	// 		SafeL2Head:      d.ec.SafeL2Head(),
+	// 		FinalizedL2Head: d.ec.Finalized(),
+	// 	})
+	// 2. {clsync, finalizer, origin_selector, sequencer, status}.go receives it
+	// and do their work
+
+	// No event emit:
+	//  eq.emitter.Emit(ctx, engine.ForkchoiceRequestEvent{})
+
+	// bypass ForkchoiceRequestEvent and directly do ForkChoiceUpdate
+	// Temporal measure: Do not handle origin_selector, sequencer since it is sequencer code path
+	info := eq.EngineDeriver.GetForkChoiceUpdateInfo()
+	// Handle finalizer.go
+	eq.Finalizer.SetFinalizedHead(info.FinalizedL2Head)
+	// Handle status.go
+	eq.StatusTracker.ForkchoiceUpdate(info)
+	// Handle clsync.go (Most heavy one)
+	eq.OnForkchoiceUpdateSync(ctx, info)
+}
+
+var _ engine.CLSyncWrapper = (*CLSync)(nil)
+
+func (eq *CLSync) OnForkchoiceUpdateSync(ctx context.Context, x engine.ForkchoiceUpdateInfo) {
+	fmt.Println("l33t OnForkchoiceUpdateSync")
+	eq.log.Debug("CL sync received forkchoice update",
+		"unsafe", x.UnsafeL2Head, "safe", x.SafeL2Head, "finalized", x.FinalizedL2Head)
+
+	for {
+		// some type conversion
+		pop, abort := eq.fromQueue(engine.ForkchoiceUpdateEvent{
+			UnsafeL2Head:    x.UnsafeL2Head,
+			SafeL2Head:      x.SafeL2Head,
+			FinalizedL2Head: x.FinalizedL2Head,
+		})
+		if abort {
+			return
+		}
+		if pop {
+			eq.unsafePayloads.Pop()
+		} else {
+			break
+		}
+	}
+
+	firstEnvelope := eq.unsafePayloads.Peek()
+
+	// We don't pop from the queue. If there is a temporary error then we can retry.
+	// Upon next forkchoice update or invalid-payload event we can remove it from the queue.
+
+	// eq.emitter.Emit(ctx, engine.ProcessUnsafePayloadEvent{Envelope: firstEnvelope})
+	eq.EngineDeriver.OnProcessUnsafePayloadSync(ctx, firstEnvelope)
 }

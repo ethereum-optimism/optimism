@@ -100,6 +100,11 @@ type CrossUnsafeUpdateEvent struct {
 	UUID string
 }
 
+type CrossUnsafeUpdateInfo struct {
+	CrossUnsafe eth.L2BlockRef
+	LocalUnsafe eth.L2BlockRef
+}
+
 func (ev CrossUnsafeUpdateEvent) String() string {
 	return "cross-unsafe-update"
 }
@@ -335,6 +340,8 @@ type EngDeriver struct {
 	ec      *EngineController
 	ctx     context.Context
 	emitter event.Emitter
+
+	StatusTracker StatusTrackerWrapper
 }
 
 var _ event.Deriver = (*EngDeriver)(nil)
@@ -578,6 +585,99 @@ func (d *EngDeriver) OnEvent(ctx context.Context, ev event.Event) bool {
 		return false
 	}
 	return true
+}
+
+type ForkchoiceUpdateInfo struct {
+	UnsafeL2Head, SafeL2Head, FinalizedL2Head eth.L2BlockRef
+}
+
+func (d *EngDeriver) GetForkChoiceUpdateInfo() ForkchoiceUpdateInfo {
+	return ForkchoiceUpdateInfo{
+		UnsafeL2Head:    d.ec.UnsafeL2Head(),
+		SafeL2Head:      d.ec.SafeL2Head(),
+		FinalizedL2Head: d.ec.Finalized(),
+	}
+}
+
+func (d *EngDeriver) OnProcessUnsafePayloadSync(ctx context.Context, envelope *eth.ExecutionPayloadEnvelope) {
+	fmt.Println("l33t OnProcessUnsafePayloadSync")
+	ref, err := derive.PayloadToBlockRef(d.cfg, envelope.ExecutionPayload)
+	if err != nil {
+		d.log.Error("failed to decode L2 block ref from payload", "err", err)
+		return
+	}
+	// Avoid re-processing the same unsafe payload if it has already been processed. Because a FCU event emits the ProcessUnsafePayloadEvent
+	// it is possible to have multiple queueed up ProcessUnsafePayloadEvent for the same L2 block. This becomes an issue when processing
+	// a large number of unsafe payloads at once (like when iterating through the payload queue after the safe head has advanced).
+	if ref.BlockRef().ID() == d.ec.UnsafeL2Head().BlockRef().ID() {
+		return
+	}
+	if err := d.ec.InsertUnsafePayloadSync(d.ctx, envelope, ref, ctx); err != nil {
+		d.log.Info("failed to insert payload", "ref", ref,
+			"txs", len(envelope.ExecutionPayload.Transactions), "err", err)
+		// yes, duplicate error-handling. After all derivers are interacting with the engine
+		// through events, we can drop the engine-controller interface:
+		// unify the events handler with the engine-controller,
+		// remove a lot of code, and not do this error translation.
+		if errors.Is(err, derive.ErrReset) {
+			d.emitter.Emit(ctx, rollup.ResetEvent{Err: err})
+		} else if errors.Is(err, derive.ErrTemporary) {
+			d.emitter.Emit(ctx, rollup.EngineTemporaryErrorEvent{Err: err})
+		} else {
+			d.emitter.Emit(ctx, rollup.CriticalErrorEvent{
+				Err: fmt.Errorf("unexpected InsertUnsafePayload error type: %w", err),
+			})
+		}
+	} else {
+		d.log.Info("successfully processed payload", "ref", ref, "txs", len(envelope.ExecutionPayload.Transactions))
+	}
+}
+
+func (d *EngDeriver) OnUnsafeUpdateSync(ctx context.Context, ref eth.L2BlockRef) {
+	fmt.Println("l33t OnUnsafeUpdateSync")
+	// pre-interop everything that is local-unsafe is also immediately cross-unsafe.
+	if !d.cfg.IsInterop(ref.Time) {
+		// d.emitter.Emit(ctx, PromoteCrossUnsafeEvent{Ref: ref})
+		d.OnPromoteCrossUnsafeSync(ctx, ref)
+	}
+	// Try to apply the forkchoice changes
+	// d.emitter.Emit(ctx, TryUpdateEngineEvent{})
+	d.OnTryUpdateEngineSync(ctx, TryUpdateEngineEvent{})
+}
+
+func (d *EngDeriver) OnPromoteCrossUnsafeSync(ctx context.Context, ref eth.L2BlockRef) {
+	fmt.Println("l33t OnPromoteCrossUnsafeSync")
+	d.ec.SetCrossUnsafeHead(ref)
+
+	// d.emitter.Emit(ctx, CrossUnsafeUpdateEvent{
+	// 	CrossUnsafe: ref,
+	// 	LocalUnsafe: d.ec.UnsafeL2Head(),
+	// })
+	d.StatusTracker.CrossUnsafeUpdate(CrossUnsafeUpdateInfo{
+		CrossUnsafe: ref,
+		LocalUnsafe: d.ec.UnsafeL2Head(),
+	})
+
+}
+
+func (d *EngDeriver) OnTryUpdateEngineSync(ctx context.Context, x TryUpdateEngineEvent) {
+	fmt.Println("l33t OnTryUpdateEngineSync")
+	// If we don't need to call FCU, keep going b/c this was a no-op. If we needed to
+	// perform a network call, then we should yield even if we did not encounter an error.
+	if err := d.ec.TryUpdateEngine(d.ctx); err != nil && !errors.Is(err, ErrNoFCUNeeded) {
+		if errors.Is(err, derive.ErrReset) {
+			d.emitter.Emit(ctx, rollup.ResetEvent{Err: err})
+		} else if errors.Is(err, derive.ErrTemporary) {
+			d.emitter.Emit(ctx, rollup.EngineTemporaryErrorEvent{Err: err})
+		} else {
+			d.emitter.Emit(ctx, rollup.CriticalErrorEvent{
+				Err: fmt.Errorf("unexpected TryUpdateEngine error type: %w", err),
+			})
+		}
+	} else if x.triggeredByPayloadSuccess() {
+		logValues := x.getBlockProcessingMetrics()
+		d.log.Info("Inserted new L2 unsafe block", logValues...)
+	}
 }
 
 type ResetEngineControl interface {

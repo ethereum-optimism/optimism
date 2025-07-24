@@ -158,6 +158,12 @@ func (fi *Finalizer) OnEvent(ctx context.Context, ev event.Event) bool {
 	return true
 }
 
+func (fi *Finalizer) SetFinalizedHead(x eth.L2BlockRef) {
+	fi.lastFinalizedL2 = x
+}
+
+var _ engine.FinalizerWrapper = (*Finalizer)(nil)
+
 // onL1Finalized applies a L1 finality signal
 func (fi *Finalizer) onL1Finalized(l1Origin eth.L1BlockRef) {
 	fi.mu.Lock()

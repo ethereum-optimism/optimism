@@ -228,6 +228,8 @@ type SyncDeriver struct {
 	// When in interop, and managed by an op-supervisor,
 	// the node performs a reset based on the instructions of the op-supervisor.
 	ManagedBySupervisor bool
+
+	CLSyncWrapper engine.CLSyncWrapper
 }
 
 func (s *SyncDeriver) AttachEmitter(em event.Emitter) {
@@ -244,7 +246,9 @@ func (s *SyncDeriver) OnEvent(ctx context.Context, ev event.Event) bool {
 		// On "finalized" L1 blocks: we may be able to mark more L2 data as finalized now.
 		s.Emitter.Emit(ctx, StepReqEvent{})
 	case p2p.ReceivedBlockEvent:
-		s.onIncomingP2PBlock(ctx, x.Envelope)
+		// s.onIncomingP2PBlock(ctx, x.Envelope)
+		// Start Here for the procedural synchronous function call
+		s.OnIncomingP2PBlockSync(ctx, x.Envelope)
 	case StepEvent:
 		s.SyncStep()
 	case rollup.ResetEvent:
@@ -294,6 +298,32 @@ func (s *SyncDeriver) onIncomingP2PBlock(ctx context.Context, envelope *eth.Exec
 			return
 		}
 		s.Log.Info("Optimistically inserting unsafe L2 execution payload to drive EL sync", "id", envelope.ExecutionPayload.ID())
+		if err := s.Engine.InsertUnsafePayload(s.Ctx, envelope, ref, ctx); err != nil {
+			s.Log.Warn("Failed to insert unsafe payload for EL sync", "id", envelope.ExecutionPayload.ID(), "err", err)
+		}
+	}
+}
+
+func (s *SyncDeriver) OnIncomingP2PBlockSync(ctx context.Context, envelope *eth.ExecutionPayloadEnvelope) {
+	fmt.Println("l33t OnIncomingP2PBlockSync")
+	// If we are doing CL sync or done with engine syncing, fallback to the unsafe payload queue & CL P2P sync.
+	if s.SyncCfg.SyncMode == sync.CLSync || !s.Engine.IsEngineSyncing() {
+		s.Log.Info("Optimistically queueing unsafe L2 execution payload", "id", envelope.ExecutionPayload.ID())
+		s.CLSyncWrapper.OnUnsafePayloadSync(ctx, envelope)
+		// s.Emitter.Emit(ctx, clsync.ReceivedUnsafePayloadEvent{Envelope: envelope})
+	} else if s.SyncCfg.SyncMode == sync.ELSync {
+		// pcw109550: track this control flow
+		// not yet migrated
+		ref, err := derive.PayloadToBlockRef(s.Config, envelope.ExecutionPayload)
+		if err != nil {
+			s.Log.Info("Failed to turn execution payload into a block ref", "id", envelope.ExecutionPayload.ID(), "err", err)
+			return
+		}
+		if ref.Number <= s.Engine.UnsafeL2Head().Number {
+			return
+		}
+		s.Log.Info("Optimistically inserting unsafe L2 execution payload to drive EL sync", "id", envelope.ExecutionPayload.ID())
+		// potential for more events
 		if err := s.Engine.InsertUnsafePayload(s.Ctx, envelope, ref, ctx); err != nil {
 			s.Log.Warn("Failed to insert unsafe payload for EL sync", "id", envelope.ExecutionPayload.ID(), "err", err)
 		}
