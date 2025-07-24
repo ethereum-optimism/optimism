@@ -351,54 +351,52 @@ contract VerifyOPCM is Script {
 
         bool success = true;
 
-        // Get expected addresses from environment variables
-        address expectedSuperchainConfig = Config.expectedSuperchainConfig();
-        address expectedProtocolVersions = Config.expectedProtocolVersions();
-        address expectedSuperchainProxyAdmin = Config.expectedSuperchainProxyAdmin();
-        address expectedUpgradeController = Config.expectedUpgradeController();
+        // Define the function names and corresponding environment variable names
+        string[] memory functionNames = new string[](4);
+        functionNames[0] = "superchainConfig";
+        functionNames[1] = "protocolVersions";
+        functionNames[2] = "superchainProxyAdmin";
+        functionNames[3] = "upgradeController";
 
-        // Check superchainConfig
-        address actualSuperchainConfig = address(_opcm.superchainConfig());
-        console.log(string.concat("    superchainConfig: ", vm.toString(actualSuperchainConfig)));
-        console.log(string.concat("    expected: ", vm.toString(expectedSuperchainConfig)));
-        if (actualSuperchainConfig != expectedSuperchainConfig) {
-            console.log("    [FAIL] ERROR: superchainConfig mismatch");
-            success = false;
-        } else {
-            console.log("    [OK] superchainConfig verified");
-        }
+        string[] memory envVarNames = new string[](4);
+        envVarNames[0] = "EXPECTED_SUPERCHAIN_CONFIG";
+        envVarNames[1] = "EXPECTED_PROTOCOL_VERSIONS";
+        envVarNames[2] = "EXPECTED_SUPERCHAIN_PROXY_ADMIN";
+        envVarNames[3] = "EXPECTED_UPGRADE_CONTROLLER";
 
-        // Check protocolVersions
-        address actualProtocolVersions = address(_opcm.protocolVersions());
-        console.log(string.concat("    protocolVersions: ", vm.toString(actualProtocolVersions)));
-        console.log(string.concat("    expected: ", vm.toString(expectedProtocolVersions)));
-        if (actualProtocolVersions != expectedProtocolVersions) {
-            console.log("    [FAIL] ERROR: protocolVersions mismatch");
-            success = false;
-        } else {
-            console.log("    [OK] protocolVersions verified");
-        }
+        // Loop through each property to verify
+        for (uint256 i = 0; i < functionNames.length; i++) {
+            string memory functionName = functionNames[i];
+            string memory envVarName = envVarNames[i];
 
-        // Check superchainProxyAdmin
-        address actualSuperchainProxyAdmin = address(_opcm.superchainProxyAdmin());
-        console.log(string.concat("    superchainProxyAdmin: ", vm.toString(actualSuperchainProxyAdmin)));
-        console.log(string.concat("    expected: ", vm.toString(expectedSuperchainProxyAdmin)));
-        if (actualSuperchainProxyAdmin != expectedSuperchainProxyAdmin) {
-            console.log("    [FAIL] ERROR: superchainProxyAdmin mismatch");
-            success = false;
-        } else {
-            console.log("    [OK] superchainProxyAdmin verified");
-        }
+            // Get expected address from environment variable
+            // nosemgrep: sol-style-vm-env-only-in-config-sol
+            address expectedAddress = vm.envOr(envVarName, address(0));
 
-        // Check upgradeController
-        address actualUpgradeController = _opcm.upgradeController();
-        console.log(string.concat("    upgradeController: ", vm.toString(actualUpgradeController)));
-        console.log(string.concat("    expected: ", vm.toString(expectedUpgradeController)));
-        if (actualUpgradeController != expectedUpgradeController) {
-            console.log("    [FAIL] ERROR: upgradeController mismatch");
-            success = false;
-        } else {
-            console.log("    [OK] upgradeController verified");
+            // Call the function to retrieve the actual address
+            // nosemgrep: sol-style-use-abi-encodecall
+            (bool callSuccess, bytes memory returnedData) =
+                address(_opcm).staticcall(abi.encodeWithSignature(string.concat(functionName, "()")));
+
+            if (!callSuccess) {
+                console.log(string.concat("    [FAIL] ERROR: Failed to call ", functionName, "() function on OPCM."));
+                success = false;
+                continue;
+            }
+
+            // Decode as an address
+            address actualAddress = abi.decode(returnedData, (address));
+
+            // Log the comparison
+            console.log(string.concat("    ", functionName, ": ", vm.toString(actualAddress)));
+            console.log(string.concat("    expected: ", vm.toString(expectedAddress)));
+
+            if (actualAddress != expectedAddress) {
+                console.log(string.concat("    [FAIL] ERROR: ", functionName, " mismatch"));
+                success = false;
+            } else {
+                console.log(string.concat("    [OK] ", functionName, " verified"));
+            }
         }
 
         return success;

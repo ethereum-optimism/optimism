@@ -243,6 +243,12 @@ contract VerifyOPCM_Run_Test is VerifyOPCM_TestInit {
         // Coverage changes bytecode and causes failures, skip.
         skipIfCoverage();
 
+        // Ensure environment variables are set correctly (in case other tests modified them)
+        vm.setEnv("EXPECTED_SUPERCHAIN_CONFIG", vm.toString(address(opcm.superchainConfig())));
+        vm.setEnv("EXPECTED_PROTOCOL_VERSIONS", vm.toString(address(opcm.protocolVersions())));
+        vm.setEnv("EXPECTED_SUPERCHAIN_PROXY_ADMIN", vm.toString(address(opcm.superchainProxyAdmin())));
+        vm.setEnv("EXPECTED_UPGRADE_CONTROLLER", vm.toString(opcm.upgradeController()));
+
         // Test that the immutable variables are correctly verified.
         // Environment variables are set in setUp() to match the actual OPCM addresses.
         bool result = harness.verifyOpcmImmutableVariables(opcm);
@@ -251,7 +257,7 @@ contract VerifyOPCM_Run_Test is VerifyOPCM_TestInit {
 
     /// @notice Tests that the script fails when OPCM immutable variables are invalid.
     /// We test this by setting expected addresses and mocking OPCM methods to return different addresses.
-    function test_verifyOpcmImmutableVariables_fails() public {
+    function test_verifyOpcmImmutableVariables_mismatch_fails() public {
         // Coverage changes bytecode and causes failures, skip.
         skipIfCoverage();
 
@@ -286,5 +292,10 @@ contract VerifyOPCM_Run_Test is VerifyOPCM_TestInit {
 
         // Clear mock calls and restore original environment variables to avoid test isolation issues
         vm.clearMockedCalls();
+        // Reset environment variables to correct values (as set in setUp())
+        vm.setEnv("EXPECTED_SUPERCHAIN_CONFIG", vm.toString(address(opcm.superchainConfig())));
+        vm.setEnv("EXPECTED_PROTOCOL_VERSIONS", vm.toString(address(opcm.protocolVersions())));
+        vm.setEnv("EXPECTED_SUPERCHAIN_PROXY_ADMIN", vm.toString(address(opcm.superchainProxyAdmin())));
+        vm.setEnv("EXPECTED_UPGRADE_CONTROLLER", vm.toString(opcm.upgradeController()));
     }
 }
