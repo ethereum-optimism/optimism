@@ -976,51 +976,44 @@ func TestEVM_NormalTraversal_Full(t *testing.T) {
 }
 
 func TestEVM_SchedQuantumThreshold(t *testing.T) {
-	cases := []struct {
+	type testCase struct {
 		name                        string
 		stepsSinceLastContextSwitch uint64
 		shouldPreempt               bool
-	}{
+	}
+
+	testNamer := func(tc testCase) string {
+		return tc.name
+	}
+
+	cases := []testCase{
 		{name: "just under threshold", stepsSinceLastContextSwitch: exec.SchedQuantum - 1},
 		{name: "at threshold", stepsSinceLastContextSwitch: exec.SchedQuantum, shouldPreempt: true},
 		{name: "beyond threshold", stepsSinceLastContextSwitch: exec.SchedQuantum + 1, shouldPreempt: true},
 	}
 
-	vmVersions := GetMipsVersionTestCases(t)
-	for _, ver := range vmVersions {
-		for i, c := range cases {
-			testName := fmt.Sprintf("%v (%v)", c.name, ver.Name)
-			t.Run(testName, func(t *testing.T) {
-				goVm := ver.VMFactory(nil, os.Stdout, os.Stderr, testutil.CreateLogger(), mtutil.WithRandomization(int64(i*789)))
-				state := mtutil.GetMtState(t, goVm)
-				// Setup basic getThreadId syscall instruction
-				testutil.StoreInstruction(state.Memory, state.GetPC(), syscallInsn)
-				state.GetRegistersRef()[2] = arch.SysGetTID // Set syscall number
-				state.StepsSinceLastContextSwitch = c.stepsSinceLastContextSwitch
-				step := state.Step
-
-				// Set up post-state expectations
-				expected := mtutil.NewExpectedState(t, state)
-				if c.shouldPreempt {
-					expected.Step += 1
-					expected.ExpectPreemption()
-				} else {
-					// Otherwise just expect a normal step
-					expected.ExpectStep()
-					expected.ActiveThread().Registers[2] = state.GetCurrentThread().ThreadId
-					expected.ActiveThread().Registers[7] = 0
-				}
-
-				// State transition
-				var err error
-				var stepWitness *mipsevm.StepWitness
-				stepWitness, err = goVm.Step(true)
-				require.NoError(t, err)
-
-				// Validate post-state
-				expected.Validate(t, state)
-				testutil.ValidateEVM(t, stepWitness, step, goVm, multithreaded.GetStateHashFn(), ver.Contracts)
-			})
-		}
+	initState := func(c testCase, state *multithreaded.State, vm VersionedVMTestCase, r *testutil.RandHelper) {
+		// Setup basic getThreadId syscall instruction
+		testutil.StoreInstruction(state.Memory, state.GetPC(), syscallInsn)
+		state.GetRegistersRef()[2] = arch.SysGetTID // Set syscall number
+		state.StepsSinceLastContextSwitch = c.stepsSinceLastContextSwitch
 	}
+
+	setExpectations := func(c testCase, expected *mtutil.ExpectedState, vm VersionedVMTestCase) ExpectedExecResult {
+		if c.shouldPreempt {
+			expected.Step += 1
+			expected.ExpectPreemption()
+		} else {
+			// Otherwise just expect a normal step
+			expected.ExpectStep()
+			expected.ActiveThread().Registers[2] = expected.ActiveThreadId()
+			expected.ActiveThread().Registers[7] = 0
+		}
+		return ExpectNormalExecution()
+	}
+
+	NewDiffTester(testNamer).
+		InitState(initState).
+		SetExpectations(setExpectations).
+		Run(t, cases)
 }
