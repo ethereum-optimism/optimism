@@ -61,7 +61,7 @@ func NewBlockProcessorFromPayloadAttributes(provider BlockDataProvider, parent c
 			if d == 0 {
 				d = provider.Config().BaseFeeChangeDenominator(header.Time)
 				e = provider.Config().ElasticityMultiplier()
-				m = 20 // Default MinBaseFeeLog2 to 20 when not configured
+				m = 0 // Default MinBaseFeeLog2 when not configured
 			}
 			header.Extra = eip1559.EncodeJovianExtraData(d, e, m)
 		} else {
