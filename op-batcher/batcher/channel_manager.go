@@ -129,21 +129,11 @@ func (s *channelManager) TxConfirmed(_id txID, inclusionBlock eth.BlockID) {
 // in the block queue and the blockCursor is ahead of it.
 // Panics if the block is not in state.
 func (s *channelManager) rewindToBlock(block eth.BlockID) {
-	initialCursor := s.blockCursor
 	idx := block.Number - s.blocks[0].Number().Uint64()
 	if s.blocks[idx].Hash() == block.Hash && idx < uint64(s.blockCursor) {
 		s.blockCursor = int(idx)
 	} else {
 		panic("rewindToBlock: tried to rewind to nonexistent block")
-	}
-
-	// Ensure metrics stay in sync by re-adding blocks which the cursor rewound over
-	for i := initialCursor - 1; i >= s.blockCursor; i-- {
-		block, ok := s.blocks.PeekN(i)
-		if !ok {
-			panic("rewindToBlock: block not found at index " + fmt.Sprint(i))
-		}
-		s.metr.RecordL2BlockInPendingQueue(block)
 	}
 }
 

@@ -466,8 +466,8 @@ func TestChannelManager_handleChannelInvalidated(t *testing.T) {
 	require.Len(t, m.channelQueue, 1)
 	require.Equal(t, metrics.ChannelQueueLength, 1)
 
-	// Check metric increased.
-	require.Less(t, pendingBytesBefore, metrics.PendingBlocksBytesCurrent)
+	// Check metric didn't change.
+	require.Equal(t, pendingBytesBefore, metrics.PendingBlocksBytesCurrent)
 
 	// Ensure the l1OriginLastSubmittedChannel was
 	// not changed. This ensures the next channel
@@ -567,11 +567,14 @@ func TestChannelManager_PruneBlocks(t *testing.T) {
 			l := testlog.Logger(t, log.LevelCrit)
 			metr := &metrics.TestMetrics{}
 			m := NewChannelManager(l, metr, cfg, defaultTestRollupConfig)
-			m.blocks = tc.initialQ
+			for _, block := range tc.initialQ {
+				require.NoError(t, m.AddL2Block(block))
+			}
 			m.blockCursor = tc.initialBlockCursor
 			if tc.expectedQ != nil {
+				initialPendingBytes := metr.PendingDABytes()
 				m.PruneSafeBlocks(tc.numChannelsToPrune)
-				require.Negative(t, metr.PendingDABytes()) // Pruning will subtract from zero.
+				require.Greater(t, initialPendingBytes, metr.PendingDABytes())
 				require.Equal(t, tc.expectedQ, m.blocks)
 			} else {
 				require.Panics(t, func() { m.PruneSafeBlocks(tc.numChannelsToPrune) })
