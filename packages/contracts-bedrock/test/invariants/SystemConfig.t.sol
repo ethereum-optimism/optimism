@@ -47,8 +47,7 @@ contract SystemConfig_GasLimitBoundaries_Invariant is Test {
                         optimismMintableERC20Factory: address(0)
                     }),
                     1234, // _l2ChainId
-                    ISuperchainConfig(address(0)), // _superchainConfig
-                    24 // _minBaseFeeLog2
+                    ISuperchainConfig(address(0)) // _superchainConfig
                 )
             )
         );
