@@ -206,6 +206,10 @@ contract ProposalValidator is OwnableUpgradeable, ReinitializableBase, ISemver {
                                CONSTANTS
     //////////////////////////////////////////////////////////////*/
 
+    /// @notice Semantic version.
+    /// @custom:semver 1.0.0
+    string public constant version = "1.0.0";
+
     /// @notice The divisor used for percentage calculations in optimistic voting modules.
     /// @dev Represents 100% in basis points (10,000 = 100%).
     uint256 public constant OPTIMISTIC_MODULE_PERCENT_DIVISOR = 10_000;
@@ -237,12 +241,6 @@ contract ProposalValidator is OwnableUpgradeable, ReinitializableBase, ISemver {
 
     /// @notice Mapping of proposal hash to their corresponding proposal data.
     mapping(bytes32 => ProposalData) internal _proposals;
-
-    /// @notice Semantic version.
-    /// @custom:semver 1.0.0
-    function version() public pure virtual returns (string memory) {
-        return "1.0.0";
-    }
 
     /// @notice Constructs the ProposalValidator contract.
     /// @param _approvedProposerAttestationSchemaUid The schema UID for attestations in EAS for submitting proposals.
