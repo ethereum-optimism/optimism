@@ -34,19 +34,19 @@ interface IProposalValidator is ISemver {
     error ProposalValidator_AttestationCreatedAfterLastVotingCycle();
 
     event ProposalSubmitted(
-        bytes32 indexed proposalHash,
+        uint256 indexed proposalId,
         address indexed proposer,
         string description,
         ProposalType proposalType
     );
 
     event ProposalApproved(
-        bytes32 indexed proposalHash,
+        uint256 indexed proposalId,
         address indexed approver
     );
 
     event ProposalMovedToVote(
-        bytes32 indexed proposalHash,
+        uint256 indexed proposalId,
         address indexed executor
     );
 
@@ -66,7 +66,7 @@ interface IProposalValidator is ISemver {
     );
 
     event ProposalVotingModuleData(
-        bytes32 indexed proposalHash,
+        uint256 indexed proposalId,
         bytes encodedVotingModuleData
     );
 
@@ -109,7 +109,7 @@ interface IProposalValidator is ISemver {
         bytes32 _attestationUid,
         ProposalType _proposalType,
         uint256 _latestVotingCycle
-    ) external returns (bytes32 proposalHash_);
+    ) external returns (uint256 proposalId_);
 
     function submitCouncilMemberElectionsProposal(
         uint128 _criteriaValue,
@@ -117,7 +117,7 @@ interface IProposalValidator is ISemver {
         string memory _proposalDescription,
         bytes32 _attestationUid,
         uint256 _votingCycle
-    ) external returns (bytes32 proposalHash_);
+    ) external returns (uint256 proposalId_);
 
     function submitFundingProposal(
         uint128 _criteriaValue,
@@ -127,20 +127,20 @@ interface IProposalValidator is ISemver {
         string memory _description,
         ProposalType _proposalType,
         uint256 _votingCycle
-    ) external returns (bytes32 proposalHash_);
+    ) external returns (uint256 proposalId_);
 
-    function approveProposal(bytes32 _proposalHash, bytes32 _attestationUid) external;
+    function approveProposal(uint256 _proposalId, bytes32 _attestationUid) external;
 
     function moveToVoteProtocolOrGovernorUpgradeProposal(
         uint248 _againstThreshold,
         string memory _proposalDescription
-    ) external returns (bytes32 proposalHash_);
+    ) external returns (uint256 proposalId_);
 
     function moveToVoteCouncilMemberElectionsProposal(
         uint128 _criteriaValue,
         string[] memory _optionsDescriptions,
         string memory _proposalDescription
-    ) external returns (bytes32 proposalHash_);
+    ) external returns (uint256 proposalId_);
 
     function moveToVoteFundingProposal(
         uint128 _criteriaValue,
@@ -149,7 +149,7 @@ interface IProposalValidator is ISemver {
         uint256[] memory _optionsAmounts,
         string memory _description,
         ProposalType _proposalType
-    ) external returns (bytes32 proposalHash_);
+    ) external returns (uint256 proposalId_);
 
     function setVotingCycleData(
         uint256 _cycleNumber,
@@ -172,6 +172,8 @@ interface IProposalValidator is ISemver {
         uint256 _duration,
         uint256 _votingCycleDistributionLimit,
         uint256 _proposalDistributionThreshold,
+        bytes32 _approvedProposerAttestationSchemaUid,
+        bytes32 _topDelegatesAttestationSchemaUid,
         ProposalType[] memory _proposalTypes,
         ProposalTypeData[] memory _proposalTypesData
     ) external;
@@ -188,9 +190,9 @@ interface IProposalValidator is ISemver {
 
     function initVersion() external view returns (uint8);
 
-    function APPROVED_PROPOSER_ATTESTATION_SCHEMA_UID() external view returns (bytes32);
+    function approvedProposerAttestationSchemaUid() external view returns (bytes32);
 
-    function TOP_DELEGATES_ATTESTATION_SCHEMA_UID() external view returns (bytes32);
+    function topDelegatesAttestationSchemaUid() external view returns (bytes32);
 
     function OPTIMISTIC_MODULE_PERCENT_DIVISOR() external view returns (uint256);
 
@@ -204,8 +206,6 @@ interface IProposalValidator is ISemver {
     );
 
     function __constructor__(
-        bytes32 _approvedProposerAttestationSchemaUid,
-        bytes32 _topDelegatesAttestationSchemaUid,
         IOptimismGovernor _governor
     ) external;
 }

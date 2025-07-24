@@ -2,16 +2,6 @@
   {
     "inputs": [
       {
-        "internalType": "bytes32",
-        "name": "_approvedProposerAttestationSchemaUid",
-        "type": "bytes32"
-      },
-      {
-        "internalType": "bytes32",
-        "name": "_topDelegatesAttestationSchemaUid",
-        "type": "bytes32"
-      },
-      {
         "internalType": "contract IOptimismGovernor",
         "name": "_governor",
         "type": "address"
@@ -19,19 +9,6 @@
     ],
     "stateMutability": "nonpayable",
     "type": "constructor"
-  },
-  {
-    "inputs": [],
-    "name": "APPROVED_PROPOSER_ATTESTATION_SCHEMA_UID",
-    "outputs": [
-      {
-        "internalType": "bytes32",
-        "name": "",
-        "type": "bytes32"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
   },
   {
     "inputs": [],
@@ -60,24 +37,11 @@
     "type": "function"
   },
   {
-    "inputs": [],
-    "name": "TOP_DELEGATES_ATTESTATION_SCHEMA_UID",
-    "outputs": [
-      {
-        "internalType": "bytes32",
-        "name": "",
-        "type": "bytes32"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
     "inputs": [
       {
-        "internalType": "bytes32",
-        "name": "_proposalHash",
-        "type": "bytes32"
+        "internalType": "uint256",
+        "name": "_proposalId",
+        "type": "uint256"
       },
       {
         "internalType": "bytes32",
@@ -88,6 +52,19 @@
     "name": "approveProposal",
     "outputs": [],
     "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "approvedProposerAttestationSchemaUid",
+    "outputs": [
+      {
+        "internalType": "bytes32",
+        "name": "",
+        "type": "bytes32"
+      }
+    ],
+    "stateMutability": "view",
     "type": "function"
   },
   {
@@ -134,6 +111,16 @@
         "internalType": "uint256",
         "name": "_proposalDistributionThreshold",
         "type": "uint256"
+      },
+      {
+        "internalType": "bytes32",
+        "name": "_approvedProposerAttestationSchemaUid",
+        "type": "bytes32"
+      },
+      {
+        "internalType": "bytes32",
+        "name": "_topDelegatesAttestationSchemaUid",
+        "type": "bytes32"
       },
       {
         "internalType": "enum ProposalValidator.ProposalType[]",
@@ -184,9 +171,9 @@
     "name": "moveToVoteCouncilMemberElectionsProposal",
     "outputs": [
       {
-        "internalType": "bytes32",
-        "name": "proposalHash_",
-        "type": "bytes32"
+        "internalType": "uint256",
+        "name": "proposalId_",
+        "type": "uint256"
       }
     ],
     "stateMutability": "nonpayable",
@@ -228,9 +215,9 @@
     "name": "moveToVoteFundingProposal",
     "outputs": [
       {
-        "internalType": "bytes32",
-        "name": "proposalHash_",
-        "type": "bytes32"
+        "internalType": "uint256",
+        "name": "proposalId_",
+        "type": "uint256"
       }
     ],
     "stateMutability": "nonpayable",
@@ -252,9 +239,9 @@
     "name": "moveToVoteProtocolOrGovernorUpgradeProposal",
     "outputs": [
       {
-        "internalType": "bytes32",
-        "name": "proposalHash_",
-        "type": "bytes32"
+        "internalType": "uint256",
+        "name": "proposalId_",
+        "type": "uint256"
       }
     ],
     "stateMutability": "nonpayable",
@@ -419,9 +406,9 @@
     "name": "submitCouncilMemberElectionsProposal",
     "outputs": [
       {
-        "internalType": "bytes32",
-        "name": "proposalHash_",
-        "type": "bytes32"
+        "internalType": "uint256",
+        "name": "proposalId_",
+        "type": "uint256"
       }
     ],
     "stateMutability": "nonpayable",
@@ -468,9 +455,9 @@
     "name": "submitFundingProposal",
     "outputs": [
       {
-        "internalType": "bytes32",
-        "name": "proposalHash_",
-        "type": "bytes32"
+        "internalType": "uint256",
+        "name": "proposalId_",
+        "type": "uint256"
       }
     ],
     "stateMutability": "nonpayable",
@@ -507,12 +494,25 @@
     "name": "submitUpgradeProposal",
     "outputs": [
       {
-        "internalType": "bytes32",
-        "name": "proposalHash_",
-        "type": "bytes32"
+        "internalType": "uint256",
+        "name": "proposalId_",
+        "type": "uint256"
       }
     ],
     "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "topDelegatesAttestationSchemaUid",
+    "outputs": [
+      {
+        "internalType": "bytes32",
+        "name": "",
+        "type": "bytes32"
+      }
+    ],
+    "stateMutability": "view",
     "type": "function"
   },
   {
@@ -612,9 +612,9 @@
     "inputs": [
       {
         "indexed": true,
-        "internalType": "bytes32",
-        "name": "proposalHash",
-        "type": "bytes32"
+        "internalType": "uint256",
+        "name": "proposalId",
+        "type": "uint256"
       },
       {
         "indexed": true,
@@ -644,9 +644,9 @@
     "inputs": [
       {
         "indexed": true,
-        "internalType": "bytes32",
-        "name": "proposalHash",
-        "type": "bytes32"
+        "internalType": "uint256",
+        "name": "proposalId",
+        "type": "uint256"
       },
       {
         "indexed": true,
@@ -663,9 +663,9 @@
     "inputs": [
       {
         "indexed": true,
-        "internalType": "bytes32",
-        "name": "proposalHash",
-        "type": "bytes32"
+        "internalType": "uint256",
+        "name": "proposalId",
+        "type": "uint256"
       },
       {
         "indexed": true,
@@ -719,9 +719,9 @@
     "inputs": [
       {
         "indexed": true,
-        "internalType": "bytes32",
-        "name": "proposalHash",
-        "type": "bytes32"
+        "internalType": "uint256",
+        "name": "proposalId",
+        "type": "uint256"
       },
       {
         "indexed": false,
