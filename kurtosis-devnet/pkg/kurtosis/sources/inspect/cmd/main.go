@@ -9,6 +9,8 @@ import (
 	"fmt"
 	"os"
 
+	"gopkg.in/yaml.v3"
+
 	"github.com/ethereum-optimism/optimism/kurtosis-devnet/pkg/kurtosis/sources/inspect"
 	"github.com/ethereum-optimism/optimism/kurtosis-devnet/pkg/util"
 )
@@ -46,6 +48,11 @@ func main() {
 		os.Exit(1)
 	}
 
+	conductorConfig, err := inspect.ExtractConductorConfig(ctx, enclaveID)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error extracting conductor configuration: %v\n", err)
+	}
+
 	fmt.Println("File Artifacts:")
 	for _, artifact := range data.FileArtifacts {
 		fmt.Printf("  %s\n", artifact)
@@ -60,6 +67,19 @@ func main() {
 				host = "localhost"
 			}
 			fmt.Printf("    %s: %s:%d\n", portName, host, portInfo.Port)
+		}
+	}
+
+	// Print conductor configuration if available
+	if conductorConfig != nil {
+		fmt.Println("\nConductor Configuration:")
+		fmt.Println("========================")
+
+		yamlData, err := yaml.Marshal(conductorConfig)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error marshaling conductor config to YAML: %v\n", err)
+		} else {
+			fmt.Printf("%s", yamlData)
 		}
 	}
 }
