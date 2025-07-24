@@ -36,30 +36,44 @@
   },
   {
     "bytes": "32",
-    "label": "proposalDistributionThreshold",
+    "label": "approvedProposerAttestationSchemaUid",
     "offset": 0,
     "slot": "101",
+    "type": "bytes32"
+  },
+  {
+    "bytes": "32",
+    "label": "topDelegatesAttestationSchemaUid",
+    "offset": 0,
+    "slot": "102",
+    "type": "bytes32"
+  },
+  {
+    "bytes": "32",
+    "label": "proposalDistributionThreshold",
+    "offset": 0,
+    "slot": "103",
     "type": "uint256"
   },
   {
     "bytes": "32",
     "label": "votingCycles",
     "offset": 0,
-    "slot": "102",
+    "slot": "104",
     "type": "mapping(uint256 => struct ProposalValidator.VotingCycleData)"
   },
   {
     "bytes": "32",
     "label": "proposalTypesData",
     "offset": 0,
-    "slot": "103",
+    "slot": "105",
     "type": "mapping(enum ProposalValidator.ProposalType => struct ProposalValidator.ProposalTypeData)"
   },
   {
     "bytes": "32",
     "label": "_proposals",
     "offset": 0,
-    "slot": "104",
-    "type": "mapping(bytes32 => struct ProposalValidator.ProposalData)"
+    "slot": "106",
+    "type": "mapping(uint256 => struct ProposalValidator.ProposalData)"
   }
 ]
