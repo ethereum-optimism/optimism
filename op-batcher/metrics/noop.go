@@ -49,6 +49,7 @@ func (*noopMetrics) RecordThrottleParams(maxTxSize, maxBlockSize uint64)        
 func (*noopMetrics) RecordThrottleControllerType(controllerType config.ThrottleControllerType) {}
 func (*noopMetrics) RecordUnsafeBytesVsThreshold(unsafeBytes, threshold uint64, controllerType config.ThrottleControllerType) {
 }
+func (*noopMetrics) RecordUnsafeBytes(unsafeBytes uint64) {}
 
 // PID Controller specific metrics
 func (*noopMetrics) RecordThrottleControllerState(error, integral, derivative float64) {}

@@ -7,10 +7,10 @@ import (
 	"math"
 
 	"github.com/ethereum-optimism/optimism/op-batcher/metrics"
+	"github.com/ethereum-optimism/optimism/op-batcher/queue"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-	"github.com/ethereum-optimism/optimism/op-service/queue"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
@@ -36,7 +36,7 @@ type channelManager struct {
 	outFactory ChannelOutFactory
 
 	// All unsafe blocks
-	blocks queue.Queue[*types.Block]
+	blocks *queue.Queue
 	// blockCursor is an index into blocks queue. It points at the next block
 	// to build a channel with. blockCursor = len(blocks) is reserved for when
 	// there are no blocks ready to build with.
@@ -60,6 +60,7 @@ type channelManager struct {
 func NewChannelManager(log log.Logger, metr metrics.Metricer, cfgProvider ChannelConfigProvider, rollupCfg *rollup.Config) *channelManager {
 	return &channelManager{
 		log:         log,
+		blocks:      queue.New(),
 		metr:        metr,
 		cfgProvider: cfgProvider,
 		defaultCfg:  cfgProvider.ChannelConfig(false, false),
@@ -84,7 +85,6 @@ func (s *channelManager) Clear(l1OriginLastSubmittedChannel eth.BlockID) {
 	s.currentChannel = nil
 	s.channelQueue = nil
 
-	// This is particularly important because unsafeDABytes metric controls throttling:
 	s.metr.ClearAllStateMetrics()
 
 	s.txChannels = make(map[string]*channel)
@@ -129,8 +129,8 @@ func (s *channelManager) TxConfirmed(_id txID, inclusionBlock eth.BlockID) {
 // in the block queue and the blockCursor is ahead of it.
 // Panics if the block is not in state.
 func (s *channelManager) rewindToBlock(block eth.BlockID) {
-	idx := block.Number - s.blocks[0].Number().Uint64()
-	if s.blocks[idx].Hash() == block.Hash && idx < uint64(s.blockCursor) {
+	idx := block.Number - s.blocks.MustPeek().Number().Uint64()
+	if s.blocks.MustPeekN(int(idx)).Hash() == block.Hash && idx < uint64(s.blockCursor) {
 		s.blockCursor = int(idx)
 	} else {
 		panic("rewindToBlock: tried to rewind to nonexistent block")
@@ -393,7 +393,7 @@ func (s *channelManager) processBlocks() error {
 			break
 		}
 
-		l1info, err := s.currentChannel.AddBlock(block)
+		l1info, err := s.currentChannel.AddBlock(block.Block)
 		if errors.As(err, &_chFullErr) {
 			// current block didn't get added because channel is already full
 			break
@@ -403,7 +403,7 @@ func (s *channelManager) processBlocks() error {
 		s.log.Debug("Added block to channel", "id", s.currentChannel.ID(), "block", eth.ToBlockID(block))
 
 		blocksAdded += 1
-		latestL2ref = l2BlockRefFromBlockAndL1Info(block, l1info)
+		latestL2ref = l2BlockRefFromBlockAndL1Info(block.Block, l1info)
 		// current block got added but channel is now full
 		if s.currentChannel.IsFull() {
 			break
@@ -463,8 +463,7 @@ func (s *channelManager) AddL2Block(block *types.Block) error {
 		return ErrReorg
 	}
 
-	s.metr.RecordL2BlockInUnsafeQueue(block)
-	s.blocks.Enqueue(block)
+	s.blocks.Enqueue(queue.NewBlock(block))
 	s.tip = block.Hash()
 
 	return nil
@@ -483,12 +482,9 @@ func l2BlockRefFromBlockAndL1Info(block *types.Block, l1info *derive.L1BlockInfo
 
 // PruneSafeBlocks dequeues the provided number of blocks from the internal blocks queue
 func (s *channelManager) PruneSafeBlocks(num int) {
-	blocks, ok := s.blocks.DequeueN(int(num))
+	_, ok := s.blocks.DequeueN(int(num))
 	if !ok {
 		panic("tried to prune more blocks than available")
-	}
-	for _, block := range blocks {
-		s.metr.RecordL2BlockDequeued(block)
 	}
 	s.blockCursor -= int(num)
 	if s.blockCursor < 0 {
@@ -514,12 +510,9 @@ func (s *channelManager) PruneChannels(num int) {
 
 // UnsafeDABytes returns the estimated number of unsafe bytes that will be written to the DA layer.
 func (s *channelManager) UnsafeDABytes() int64 {
-	f := s.metr.UnsafeDABytes()
+	f := s.blocks.DASizeEstimate()
 	if f >= math.MaxInt64 {
 		return math.MaxInt64
-	}
-	if f <= math.MinInt64 {
-		return math.MinInt64
 	}
 	return int64(f)
 }
@@ -528,5 +521,5 @@ func (m *channelManager) LastStoredBlock() eth.BlockID {
 	if m.blocks.Len() == 0 {
 		return eth.BlockID{}
 	}
-	return eth.ToBlockID(m.blocks[m.blocks.Len()-1])
+	return eth.ToBlockID(m.blocks.MustPeekN(m.blocks.Len() - 1))
 }

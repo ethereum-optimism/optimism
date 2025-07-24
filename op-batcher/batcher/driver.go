@@ -669,6 +669,7 @@ func (l *BatchSubmitter) throttlingLoop(wg *sync.WaitGroup, unsafeBytesUpdated c
 	}
 
 	for pb := range unsafeBytesUpdated {
+		l.Metr.RecordUnsafeBytes(uint64(pb))
 		newParams := l.throttleController.Update(uint64(pb))
 		controllerType := l.throttleController.GetType()
 

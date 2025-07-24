@@ -2,7 +2,6 @@ package metrics
 
 import (
 	"io"
-	"sync/atomic"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -39,8 +38,6 @@ type Metricer interface {
 	RecordL2BlocksLoaded(l2ref eth.L2BlockRef)
 	RecordChannelOpened(id derive.ChannelID, numUnsafeBlocks int)
 	RecordL2BlocksAdded(l2ref eth.L2BlockRef, numBlocksAdded, numUnsafeBlocks, inputBytes, outputComprBytes int)
-	RecordL2BlockInUnsafeQueue(block *types.Block)
-	RecordL2BlockDequeued(block *types.Block)
 	RecordChannelClosed(id derive.ChannelID, numUnsafeBlocks int, numFrames int, inputBytes int, outputComprBytes int, reason error)
 	RecordChannelFullySubmitted(id derive.ChannelID)
 	RecordChannelTimedOut(id derive.ChannelID)
@@ -49,6 +46,7 @@ type Metricer interface {
 	RecordThrottleParams(maxTxSize, maxBlockSize uint64)
 	RecordThrottleControllerType(controllerType config.ThrottleControllerType)
 	RecordUnsafeBytesVsThreshold(unsafeBytes, threshold uint64, controllerType config.ThrottleControllerType)
+	RecordUnsafeBytes(unsafeBytes uint64)
 
 	// PID Controller specific metrics
 	RecordThrottleControllerState(error, integral, derivative float64)
@@ -65,8 +63,6 @@ type Metricer interface {
 	RecordBlobUsedBytes(num int)
 
 	Document() []opmetrics.DocumentedMetric
-
-	UnsafeDABytes() float64
 }
 
 type Metrics struct {
@@ -88,8 +84,7 @@ type Metrics struct {
 	unsafeBlocksBytesTotal   prometheus.Counter
 	unsafeBlocksBytesCurrent prometheus.Gauge
 
-	unsafeDABytes          int64
-	unsafeDABytesGaugeFunc prometheus.GaugeFunc
+	unsafeDABytesGauge prometheus.Gauge
 
 	blocksAddedCount prometheus.Gauge
 
@@ -291,11 +286,11 @@ func NewMetrics(procName string) *Metrics {
 			Buckets:   prometheus.DefBuckets,
 		}),
 	}
-	m.unsafeDABytesGaugeFunc = factory.NewGaugeFunc(prometheus.GaugeOpts{
+	m.unsafeDABytesGauge = factory.NewGauge(prometheus.GaugeOpts{
 		Namespace: ns,
 		Name:      "pending_da_bytes",
 		Help:      "The estimated amount of data currently unsafe to be written to the DA layer.",
-	}, m.UnsafeDABytes)
+	})
 
 	return m
 }
@@ -306,11 +301,6 @@ func (m *Metrics) Registry() *prometheus.Registry {
 
 func (m *Metrics) Document() []opmetrics.DocumentedMetric {
 	return m.factory.Document()
-}
-
-// UnsafeDABytes returns the current number of bytes unsafe to be written to the DA layer.
-func (m *Metrics) UnsafeDABytes() float64 {
-	return float64(atomic.LoadInt64(&m.unsafeDABytes))
 }
 
 func (m *Metrics) StartBalanceMetrics(l log.Logger, client *ethclient.Client, account common.Address) io.Closer {
@@ -385,20 +375,6 @@ func (m *Metrics) RecordChannelClosed(id derive.ChannelID, numUnsafeBlocks int, 
 	m.channelClosedReason.Set(float64(ClosedReasonToNum(reason)))
 }
 
-func (m *Metrics) RecordL2BlockInUnsafeQueue(block *types.Block) {
-	daSize, rawSize := estimateBatchSize(block)
-	m.unsafeBlocksBytesTotal.Add(float64(rawSize))
-	m.unsafeBlocksBytesCurrent.Add(float64(rawSize))
-	atomic.AddInt64(&m.unsafeDABytes, int64(daSize))
-}
-
-func (m *Metrics) RecordL2BlockDequeued(block *types.Block) {
-	daSize, rawSize := estimateBatchSize(block)
-	m.unsafeBlocksBytesCurrent.Add(-1.0 * float64(rawSize))
-	atomic.AddInt64(&m.unsafeDABytes, -1*int64(daSize))
-	// Refer to RecordL2BlocksAdded to see the current + count of bytes added to a channel
-}
-
 func ClosedReasonToNum(reason error) int {
 	// CLI-3640
 	return 0
@@ -469,6 +445,10 @@ func (m *Metrics) RecordUnsafeBytesVsThreshold(unsafeBytes, threshold uint64, co
 	}
 }
 
+func (m *Metrics) RecordUnsafeBytes(unsafeBytes uint64) {
+	m.unsafeDABytesGauge.Set(float64(unsafeBytes))
+}
+
 // ClearAllStateMetrics clears all state metrics.
 //
 // This should cover any metric which is a Gauge and is incremented / decremented rather than "set".
@@ -476,7 +456,6 @@ func (m *Metrics) RecordUnsafeBytesVsThreshold(unsafeBytes, threshold uint64, co
 // Gauge Metrics which are "set" will get the right value the next time they are updated and don't need to be reset.
 func (m *Metrics) ClearAllStateMetrics() {
 	m.RecordChannelQueueLength(0)
-	atomic.StoreInt64(&m.unsafeDABytes, 0)
 	m.unsafeBlocksBytesCurrent.Set(0)
 }
 

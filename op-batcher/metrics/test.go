@@ -26,9 +26,6 @@ func (m *TestMetrics) RecordL2BlockDequeued(block *types.Block) {
 func (m *TestMetrics) RecordChannelQueueLength(l int) {
 	m.ChannelQueueLength = l
 }
-func (m *TestMetrics) UnsafeDABytes() float64 {
-	return m.unsafeDABytes
-}
 func (m *TestMetrics) ClearAllStateMetrics() {
 	m.UnsafeBlocksBytesCurrent = 0
 	m.ChannelQueueLength = 0
