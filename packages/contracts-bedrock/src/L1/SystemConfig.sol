@@ -123,6 +123,9 @@ contract SystemConfig is ProxyAdminOwnedBase, OwnableUpgradeable, Reinitializabl
     /// @notice The EIP-1559 elasticity multiplier.
     uint32 public eip1559Elasticity;
 
+    /// @notice The min base fee log2.
+    uint8 public minBaseFeeLog2;
+
     /// @notice The operator fee scalar.
     uint32 public operatorFeeScalar;
 
@@ -417,6 +420,17 @@ contract SystemConfig is ProxyAdminOwnedBase, OwnableUpgradeable, Reinitializabl
 
         bytes memory data = abi.encode(uint256(_denominator) << 32 | uint64(_elasticity));
         emit ConfigUpdate(VERSION, UpdateType.EIP_1559_PARAMS, data);
+    }
+
+    /// @notice Updates the min base fee log2. Can only be called by the owner.
+    /// @param _minBaseFeeLog2 New min base fee log2.
+    function setMinBaseFeeLog2(uint8 _minBaseFeeLog2) external onlyOwner {
+        _setMinBaseFeeLog2(_minBaseFeeLog2);
+    }
+
+    /// @notice Internal function for updating the min base fee log2.
+    function _setMinBaseFeeLog2(uint8 _minBaseFeeLog2) internal {
+        minBaseFeeLog2 = _minBaseFeeLog2;
     }
 
     /// @notice Updates the operator fee parameters. Can only be called by the owner.
