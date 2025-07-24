@@ -37,18 +37,18 @@ type Metricer interface {
 
 	RecordLatestL1Block(l1ref eth.L1BlockRef)
 	RecordL2BlocksLoaded(l2ref eth.L2BlockRef)
-	RecordChannelOpened(id derive.ChannelID, numPendingBlocks int)
-	RecordL2BlocksAdded(l2ref eth.L2BlockRef, numBlocksAdded, numPendingBlocks, inputBytes, outputComprBytes int)
-	RecordL2BlockInPendingQueue(block *types.Block)
+	RecordChannelOpened(id derive.ChannelID, numUnsafeBlocks int)
+	RecordL2BlocksAdded(l2ref eth.L2BlockRef, numBlocksAdded, numUnsafeBlocks, inputBytes, outputComprBytes int)
+	RecordL2BlockInUnsafeQueue(block *types.Block)
 	RecordL2BlockDequeued(block *types.Block)
-	RecordChannelClosed(id derive.ChannelID, numPendingBlocks int, numFrames int, inputBytes int, outputComprBytes int, reason error)
+	RecordChannelClosed(id derive.ChannelID, numUnsafeBlocks int, numFrames int, inputBytes int, outputComprBytes int, reason error)
 	RecordChannelFullySubmitted(id derive.ChannelID)
 	RecordChannelTimedOut(id derive.ChannelID)
 	RecordChannelQueueLength(len int)
 	RecordThrottleIntensity(intensity float64, controllerType config.ThrottleControllerType)
 	RecordThrottleParams(maxTxSize, maxBlockSize uint64)
 	RecordThrottleControllerType(controllerType config.ThrottleControllerType)
-	RecordPendingBytesVsThreshold(pendingBytes, threshold uint64, controllerType config.ThrottleControllerType)
+	RecordUnsafeBytesVsThreshold(unsafeBytes, threshold uint64, controllerType config.ThrottleControllerType)
 
 	// PID Controller specific metrics
 	RecordThrottleControllerState(error, integral, derivative float64)
@@ -66,7 +66,7 @@ type Metricer interface {
 
 	Document() []opmetrics.DocumentedMetric
 
-	PendingDABytes() float64
+	UnsafeDABytes() float64
 }
 
 type Metrics struct {
@@ -84,12 +84,12 @@ type Metrics struct {
 	// label by opened, closed, fully_submitted, timed_out
 	channelEvs opmetrics.EventVec
 
-	pendingBlocksCount        prometheus.GaugeVec
-	pendingBlocksBytesTotal   prometheus.Counter
-	pendingBlocksBytesCurrent prometheus.Gauge
+	unsafeBlocksCount        prometheus.GaugeVec
+	unsafeBlocksBytesTotal   prometheus.Counter
+	unsafeBlocksBytesCurrent prometheus.Gauge
 
-	pendingDABytes          int64
-	pendingDABytesGaugeFunc prometheus.GaugeFunc
+	unsafeDABytes          int64
+	unsafeDABytesGaugeFunc prometheus.GaugeFunc
 
 	blocksAddedCount prometheus.Gauge
 
@@ -111,7 +111,7 @@ type Metrics struct {
 	throttleMaxTxSize      prometheus.Gauge
 	throttleMaxBlockSize   prometheus.Gauge
 	throttleControllerType prometheus.GaugeVec
-	pendingBytesRatio      prometheus.GaugeVec
+	unsafeBytesRatio       prometheus.GaugeVec
 	throttleHistory        prometheus.Summary
 
 	// PID Controller specific metrics
@@ -159,20 +159,20 @@ func NewMetrics(procName string) *Metrics {
 
 		channelEvs: opmetrics.NewEventVec(factory, ns, "", "channel", "Channel", []string{"stage"}),
 
-		pendingBlocksCount: *factory.NewGaugeVec(prometheus.GaugeOpts{
+		unsafeBlocksCount: *factory.NewGaugeVec(prometheus.GaugeOpts{
 			Namespace: ns,
 			Name:      "pending_blocks_count",
-			Help:      "Number of pending blocks, not added to a channel yet.",
+			Help:      "Number of unsafe blocks.",
 		}, []string{"stage"}),
-		pendingBlocksBytesTotal: factory.NewCounter(prometheus.CounterOpts{
+		unsafeBlocksBytesTotal: factory.NewCounter(prometheus.CounterOpts{
 			Namespace: ns,
 			Name:      "pending_blocks_bytes_total",
-			Help:      "Total size of transactions in pending blocks as they are fetched from L2",
+			Help:      "Total size of transactions in unsafe blocks as they are fetched from L2",
 		}),
-		pendingBlocksBytesCurrent: factory.NewGauge(prometheus.GaugeOpts{
+		unsafeBlocksBytesCurrent: factory.NewGauge(prometheus.GaugeOpts{
 			Namespace: ns,
 			Name:      "pending_blocks_bytes_current",
-			Help:      "Current size of transactions in the pending (fetched from L2 but not in a channel) stage.",
+			Help:      "Current size of unsafe transactions.",
 		}),
 		blocksAddedCount: factory.NewGauge(prometheus.GaugeOpts{
 			Namespace: ns,
@@ -254,10 +254,10 @@ func NewMetrics(procName string) *Metrics {
 			Name:      "throttle_controller_type",
 			Help:      "Type of throttle controller in use",
 		}, []string{"type"}),
-		pendingBytesRatio: *factory.NewGaugeVec(prometheus.GaugeOpts{
+		unsafeBytesRatio: *factory.NewGaugeVec(prometheus.GaugeOpts{
 			Namespace: ns,
 			Name:      "pending_bytes_ratio",
-			Help:      "Ratio of pending bytes to threshold",
+			Help:      "Ratio of unsafe bytes to threshold",
 		}, []string{"type"}),
 		throttleHistory: factory.NewSummary(prometheus.SummaryOpts{
 			Namespace: ns,
@@ -291,11 +291,11 @@ func NewMetrics(procName string) *Metrics {
 			Buckets:   prometheus.DefBuckets,
 		}),
 	}
-	m.pendingDABytesGaugeFunc = factory.NewGaugeFunc(prometheus.GaugeOpts{
+	m.unsafeDABytesGaugeFunc = factory.NewGaugeFunc(prometheus.GaugeOpts{
 		Namespace: ns,
 		Name:      "pending_da_bytes",
-		Help:      "The estimated amount of data currently pending to be written to the DA layer (from blocks fetched from L2 but not yet in a channel).",
-	}, m.PendingDABytes)
+		Help:      "The estimated amount of data currently unsafe to be written to the DA layer.",
+	}, m.UnsafeDABytes)
 
 	return m
 }
@@ -308,10 +308,9 @@ func (m *Metrics) Document() []opmetrics.DocumentedMetric {
 	return m.factory.Document()
 }
 
-// PendingDABytes returns the current number of bytes pending to be written to the DA layer (from blocks fetched from L2
-// but not yet in a channel).
-func (m *Metrics) PendingDABytes() float64 {
-	return float64(atomic.LoadInt64(&m.pendingDABytes))
+// UnsafeDABytes returns the current number of bytes unsafe to be written to the DA layer.
+func (m *Metrics) UnsafeDABytes() float64 {
+	return float64(atomic.LoadInt64(&m.unsafeDABytes))
 }
 
 func (m *Metrics) StartBalanceMetrics(l log.Logger, client *ethclient.Client, account common.Address) io.Closer {
@@ -352,25 +351,25 @@ func (m *Metrics) RecordL2BlocksLoaded(l2ref eth.L2BlockRef) {
 	m.RecordL2Ref(StageLoaded, l2ref)
 }
 
-func (m *Metrics) RecordChannelOpened(id derive.ChannelID, numPendingBlocks int) {
+func (m *Metrics) RecordChannelOpened(id derive.ChannelID, numUnsafeBlocks int) {
 	m.channelEvs.Record(StageOpened)
 	m.blocksAddedCount.Set(0) // reset
-	m.pendingBlocksCount.WithLabelValues(StageOpened).Set(float64(numPendingBlocks))
+	m.unsafeBlocksCount.WithLabelValues(StageOpened).Set(float64(numUnsafeBlocks))
 }
 
 // RecordL2BlocksAdded should be called when L2 block were added to the channel
 // builder, with the latest added block.
-func (m *Metrics) RecordL2BlocksAdded(l2ref eth.L2BlockRef, numBlocksAdded, numPendingBlocks, inputBytes, outputComprBytes int) {
+func (m *Metrics) RecordL2BlocksAdded(l2ref eth.L2BlockRef, numBlocksAdded, numUnsafeBlocks, inputBytes, outputComprBytes int) {
 	m.RecordL2Ref(StageAdded, l2ref)
 	m.blocksAddedCount.Add(float64(numBlocksAdded))
-	m.pendingBlocksCount.WithLabelValues(StageAdded).Set(float64(numPendingBlocks))
+	m.unsafeBlocksCount.WithLabelValues(StageAdded).Set(float64(numUnsafeBlocks))
 	m.channelInputBytes.WithLabelValues(StageAdded).Set(float64(inputBytes))
 	m.channelReadyBytes.Set(float64(outputComprBytes))
 }
 
-func (m *Metrics) RecordChannelClosed(id derive.ChannelID, numPendingBlocks int, numFrames int, inputBytes int, outputComprBytes int, reason error) {
+func (m *Metrics) RecordChannelClosed(id derive.ChannelID, numUnsafeBlocks int, numFrames int, inputBytes int, outputComprBytes int, reason error) {
 	m.channelEvs.Record(StageClosed)
-	m.pendingBlocksCount.WithLabelValues(StageClosed).Set(float64(numPendingBlocks))
+	m.unsafeBlocksCount.WithLabelValues(StageClosed).Set(float64(numUnsafeBlocks))
 	m.channelNumFrames.Set(float64(numFrames))
 	m.channelInputBytes.WithLabelValues(StageClosed).Set(float64(inputBytes))
 	m.channelOutputBytes.Set(float64(outputComprBytes))
@@ -386,17 +385,17 @@ func (m *Metrics) RecordChannelClosed(id derive.ChannelID, numPendingBlocks int,
 	m.channelClosedReason.Set(float64(ClosedReasonToNum(reason)))
 }
 
-func (m *Metrics) RecordL2BlockInPendingQueue(block *types.Block) {
+func (m *Metrics) RecordL2BlockInUnsafeQueue(block *types.Block) {
 	daSize, rawSize := estimateBatchSize(block)
-	m.pendingBlocksBytesTotal.Add(float64(rawSize))
-	m.pendingBlocksBytesCurrent.Add(float64(rawSize))
-	atomic.AddInt64(&m.pendingDABytes, int64(daSize))
+	m.unsafeBlocksBytesTotal.Add(float64(rawSize))
+	m.unsafeBlocksBytesCurrent.Add(float64(rawSize))
+	atomic.AddInt64(&m.unsafeDABytes, int64(daSize))
 }
 
 func (m *Metrics) RecordL2BlockDequeued(block *types.Block) {
 	daSize, rawSize := estimateBatchSize(block)
-	m.pendingBlocksBytesCurrent.Add(-1.0 * float64(rawSize))
-	atomic.AddInt64(&m.pendingDABytes, -1*int64(daSize))
+	m.unsafeBlocksBytesCurrent.Add(-1.0 * float64(rawSize))
+	atomic.AddInt64(&m.unsafeDABytes, -1*int64(daSize))
 	// Refer to RecordL2BlocksAdded to see the current + count of bytes added to a channel
 }
 
@@ -459,13 +458,13 @@ func (m *Metrics) RecordThrottleControllerType(controllerType config.ThrottleCon
 	}
 }
 
-func (m *Metrics) RecordPendingBytesVsThreshold(pendingBytes, threshold uint64, controllerType config.ThrottleControllerType) {
-	ratio := float64(pendingBytes) / float64(threshold)
+func (m *Metrics) RecordUnsafeBytesVsThreshold(unsafeBytes, threshold uint64, controllerType config.ThrottleControllerType) {
+	ratio := float64(unsafeBytes) / float64(threshold)
 	for _, t := range config.ThrottleControllerTypes {
 		if t == controllerType {
-			m.pendingBytesRatio.WithLabelValues(string(t)).Set(ratio)
+			m.unsafeBytesRatio.WithLabelValues(string(t)).Set(ratio)
 		} else {
-			m.pendingBytesRatio.WithLabelValues(string(t)).Set(0)
+			m.unsafeBytesRatio.WithLabelValues(string(t)).Set(0)
 		}
 	}
 }
@@ -477,8 +476,8 @@ func (m *Metrics) RecordPendingBytesVsThreshold(pendingBytes, threshold uint64, 
 // Gauge Metrics which are "set" will get the right value the next time they are updated and don't need to be reset.
 func (m *Metrics) ClearAllStateMetrics() {
 	m.RecordChannelQueueLength(0)
-	atomic.StoreInt64(&m.pendingDABytes, 0)
-	m.pendingBlocksBytesCurrent.Set(0)
+	atomic.StoreInt64(&m.unsafeDABytes, 0)
+	m.unsafeBlocksBytesCurrent.Set(0)
 }
 
 // estimateBatchSize returns the estimated size of the block in a batch both with compression ('daSize') and without

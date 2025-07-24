@@ -69,7 +69,7 @@ var (
 	}
 	MaxPendingTransactionsFlag = &cli.Uint64Flag{
 		Name:    "max-pending-tx",
-		Usage:   "The maximum number of pending transactions. 0 for no limit.",
+		Usage:   "The maximum number of transactions that have been submitted but not included. 0 for no limit.",
 		Value:   1,
 		EnvVars: prefixEnvVars("MAX_PENDING_TX"),
 	}
@@ -167,7 +167,7 @@ var (
 	}
 	ThrottleThresholdFlag = &cli.IntFlag{
 		Name:    "throttle-threshold",
-		Usage:   "The threshold on pending-blocks-bytes-current beyond which the batcher will instruct the block builder to start throttling transactions with larger DA demands. Zero disables throttling.",
+		Usage:   "The threshold on unsafe-blocks-bytes-current beyond which the batcher will instruct the block builder to start throttling transactions with larger DA demands. Zero disables throttling.",
 		Value:   1_000_000,
 		EnvVars: prefixEnvVars("THROTTLE_THRESHOLD"),
 	}

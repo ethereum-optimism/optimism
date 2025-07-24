@@ -78,9 +78,9 @@ type ChannelBuilder struct {
 	// frames data queue, to be send as txs
 	frames queue.Queue[frameData]
 	// frameCursor tracks which frames in the queue were submitted
-	// frames[frameCursor] is the next unsubmitted (pending) frame
+	// frames[frameCursor] is the next unsubmitted frame
 	// frameCursor = len(frames) is reserved for when
-	// there are no pending (next unsubmitted) frames
+	// there are no unsubmitted frames
 	frameCursor int
 	// total frames counter
 	numFrames int
@@ -306,11 +306,11 @@ func (c *ChannelBuilder) setFullErr(err error) {
 }
 
 // OutputFrames creates new frames with the channel out. It should be called
-// after AddBlock and before iterating over pending frames with HasFrame and
+// after AddBlock and before iterating over unsubmitted frames with HasFrame and
 // NextFrame.
 //
 // If the channel isn't full yet, it will conservatively only
-// pull pending frames from the compression output.
+// pull unsubmitted frames from the compression output.
 // If it is full, the channel is closed and all remaining
 // frames will be created, possibly with a small leftover frame.
 func (c *ChannelBuilder) OutputFrames() error {
@@ -400,23 +400,23 @@ func (c *ChannelBuilder) TotalFrames() int {
 	return c.numFrames
 }
 
-// HasPendingFrame returns whether there's any pending frame. If true, it can be
+// HasUnsubmittedFrame returns whether there's any unsubmitted frame. If true, it can be
 // dequeued using NextFrame().
 //
 // Call OutputFrames before to create new frames from the channel out
 // compression pipeline.
-func (c *ChannelBuilder) HasPendingFrame() bool {
+func (c *ChannelBuilder) HasUnsubmittedFrame() bool {
 	return c.frameCursor < c.frames.Len()
 }
 
-// PendingFrames returns the number of pending frames in the frames queue.
+// UnsubmittedFrames returns the number of unsubmitted frames in the frames queue.
 // It is larger than zero iff HasFrame() returns true.
-func (c *ChannelBuilder) PendingFrames() int {
+func (c *ChannelBuilder) UnsubmittedFrames() int {
 	return c.frames.Len() - c.frameCursor
 }
 
-// NextFrame returns the next pending frame and increments the frameCursor
-// HasFrame must be called prior to check if there a next pending frame exists.
+// NextFrame returns the next unsubmitted frame and increments the frameCursor
+// HasFrame must be called prior to check if an unsubmitted frame exists.
 // Panics if called when there's no next frame.
 func (c *ChannelBuilder) NextFrame() frameData {
 	if len(c.frames) <= c.frameCursor {

@@ -6,7 +6,7 @@ The `op-batcher` includes sophisticated throttling mechanisms to manage data ava
 
 Data availability throttling addresses situations where transaction volume exceeds the DA layer's throughput capacity. Without throttling, this can lead to:
 
-- Large backlogs of pending data
+- Large backlogs of unsafe data
 - Significant delays between transaction submission and DA posting
 - Substantial cost overruns when DA prices spike during posting
 - Degraded user experience due to delayed transaction finalization
@@ -255,7 +255,7 @@ The PID controller uses six key parameters:
 
 ### How It Works
 
-1. **Monitoring**: Batcher continuously monitors pending DA bytes in its queue
+1. **Monitoring**: Batcher continuously monitors unsafe DA bytes in its queue
 2. **Threshold Checking**: Compares current load against configured threshold
 3. **Intensity Calculation**: Controller calculates throttling intensity (0.0 to 1.0)
 4. **Parameter Mapping**: Intensity maps to specific tx/block size limits
@@ -280,7 +280,7 @@ Each endpoint runs in its own goroutine with:
 The batcher exposes Prometheus metrics for throttling monitoring:
 
 - `op_batcher_throttle_intensity`: Current throttling intensity (0.0-1.0)
-- `op_batcher_throttle_pending_bytes`: Current pending DA bytes
+- `op_batcher_throttle_pending_bytes`: Current unsafe DA bytes
 - `op_batcher_throttle_max_tx_size`: Current max transaction size limit
 - `op_batcher_throttle_max_block_size`: Current max block size limit
 - `op_batcher_throttle_controller_type`: Current controller type

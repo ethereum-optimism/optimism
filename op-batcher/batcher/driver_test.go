@@ -252,14 +252,14 @@ func TestBatchSubmitter_ThrottlingEndpoints(t *testing.T) {
 			}
 
 			// Test the throttling loop
-			pendingBytesUpdated := make(chan int64, 1)
+			unsafeBytesUpdated := make(chan int64, 1)
 			wg1 := sync.WaitGroup{}
 			wg1.Add(1)
 
 			// Start throttling loop in a goroutine
-			go bs.throttlingLoop(&wg1, pendingBytesUpdated)
+			go bs.throttlingLoop(&wg1, unsafeBytesUpdated)
 
-			// Simulate block loading by sending periodically on pendingBytesUpdated
+			// Simulate block loading by sending periodically on unsafeBytesUpdated
 			wg2 := sync.WaitGroup{}
 			blockLoadingCtx, cancelBlockLoading := context.WithCancel(context.Background())
 			defer cancelBlockLoading()
@@ -272,7 +272,7 @@ func TestBatchSubmitter_ThrottlingEndpoints(t *testing.T) {
 						return
 					default:
 						// Simulate block loading
-						pendingBytesUpdated <- 20000 // the value doesn't actually matter for this test
+						unsafeBytesUpdated <- 20000 // the value doesn't actually matter for this test
 					}
 				}
 
@@ -282,7 +282,7 @@ func TestBatchSubmitter_ThrottlingEndpoints(t *testing.T) {
 			t.Cleanup(func() {
 				cancelBlockLoading()
 				wg2.Wait()
-				close(pendingBytesUpdated)
+				close(unsafeBytesUpdated)
 				wg1.Wait()
 			})
 

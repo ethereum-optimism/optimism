@@ -22,9 +22,9 @@ func (p ThrottleParams) IsThrottling() bool {
 // ThrottleStrategy defines the interface for throttle strategies using the Strategy pattern
 // Strategies now only calculate intensity; the controller handles interpolation to final parameters
 type ThrottleStrategy interface {
-	// Update calculates new throttling intensity based on current pending bytes
+	// Update calculates new throttling intensity based on current unsafe bytes
 	// Returns intensity value between 0.0 and 1.0
-	Update(currentPendingBytes uint64) float64
+	Update(currentUnsafeBytes uint64) float64
 	// Reset resets the strategy state
 	Reset()
 	// GetType returns the strategy type

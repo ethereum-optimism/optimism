@@ -44,61 +44,61 @@ func TestQuadraticStrategy_Update(t *testing.T) {
 
 	tests := []struct {
 		name              string
-		pendingBytes      uint64
+		unsafeBytes       uint64
 		targetBytes       uint64
 		expectedIntensity float64
 	}{
 		{
 			name:              "zero load",
-			pendingBytes:      0,
+			unsafeBytes:       0,
 			targetBytes:       0,
 			expectedIntensity: TestIntensityMin,
 		},
 		{
 			name:              "below threshold",
-			pendingBytes:      TestQuadraticThreshold / 2,
+			unsafeBytes:       TestQuadraticThreshold / 2,
 			targetBytes:       0,
 			expectedIntensity: TestIntensityMin,
 		},
 		{
 			name:              "exactly at threshold",
-			pendingBytes:      TestQuadraticThreshold,
+			unsafeBytes:       TestQuadraticThreshold,
 			targetBytes:       0,
 			expectedIntensity: TestIntensityMin,
 		},
 		{
 			name:              "25% above threshold",
-			pendingBytes:      TestQuadraticThreshold + TestQuadraticThreshold/4,
+			unsafeBytes:       TestQuadraticThreshold + TestQuadraticThreshold/4,
 			targetBytes:       0,
 			expectedIntensity: 0.0625, // (0.25)^2
 		},
 		{
 			name:              "50% above threshold",
-			pendingBytes:      TestQuadraticThreshold + TestQuadraticThreshold/2,
+			unsafeBytes:       TestQuadraticThreshold + TestQuadraticThreshold/2,
 			targetBytes:       0,
 			expectedIntensity: 0.25, // (0.5)^2
 		},
 		{
 			name:              "75% above threshold",
-			pendingBytes:      TestQuadraticThreshold + 3*TestQuadraticThreshold/4,
+			unsafeBytes:       TestQuadraticThreshold + 3*TestQuadraticThreshold/4,
 			targetBytes:       0,
 			expectedIntensity: 0.5625, // (0.75)^2
 		},
 		{
 			name:              "100% above threshold (max)",
-			pendingBytes:      TestQuadraticMaxThreshold,
+			unsafeBytes:       TestQuadraticMaxThreshold,
 			targetBytes:       0,
 			expectedIntensity: TestIntensityMax,
 		},
 		{
 			name:              "beyond max threshold",
-			pendingBytes:      TestQuadraticMaxThreshold * 2,
+			unsafeBytes:       TestQuadraticMaxThreshold * 2,
 			targetBytes:       0,
 			expectedIntensity: TestIntensityMax,
 		},
 		{
 			name:              "with target bytes ignored",
-			pendingBytes:      TestQuadraticThreshold + TestQuadraticThreshold/2,
+			unsafeBytes:       TestQuadraticThreshold + TestQuadraticThreshold/2,
 			targetBytes:       TestQuadraticThreshold * 10, // Target bytes should be ignored
 			expectedIntensity: 0.25,                        // (0.5)^2
 		},
@@ -106,7 +106,7 @@ func TestQuadraticStrategy_Update(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			intensity := strategy.Update(tt.pendingBytes)
+			intensity := strategy.Update(tt.unsafeBytes)
 
 			if math.Abs(intensity-tt.expectedIntensity) > TestTolerance {
 				t.Errorf("expected intensity %f ± %f, got %f", tt.expectedIntensity, TestTolerance, intensity)

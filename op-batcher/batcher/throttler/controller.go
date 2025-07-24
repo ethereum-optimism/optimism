@@ -35,13 +35,13 @@ func NewThrottleController(strategy ThrottleStrategy, config ThrottleConfig) *Th
 }
 
 // Update updates the throttle parameters and returns the new params
-func (tc *ThrottleController) Update(currentPendingBytes uint64) ThrottleParams {
+func (tc *ThrottleController) Update(currentUnsafeBytes uint64) ThrottleParams {
 	tc.mu.RLock()
 	defer tc.mu.RUnlock()
 
 	strategy := tc.strategy
 	config := tc.config
-	intensity := strategy.Update(currentPendingBytes)
+	intensity := strategy.Update(currentUnsafeBytes)
 
 	params := tc.intensityToParams(intensity, config)
 	tc.currentParams.Store(&params)

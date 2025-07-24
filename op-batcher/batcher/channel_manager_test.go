@@ -117,9 +117,9 @@ func ChannelManager_Clear(t *testing.T, batchType uint) {
 	log := testlog.Logger(t, log.LevelCrit)
 	rng := rand.New(rand.NewSource(time.Now().UnixNano()))
 	cfg := channelManagerTestConfig(derive.FrameV0OverHeadSize+1, batchType)
-	// Need to set the channel timeout here so we don't clear pending
+	// Need to set the channel timeout here so we don't clear
 	// channels on confirmation. This would result in [TxConfirmed]
-	// clearing confirmed transactions, and resetting the pendingChannels map
+	// clearing confirmed transactions
 	cfg.ChannelTimeout = 10
 	cfg.InitRatioCompressor(1, derive.Zlib)
 	m := NewChannelManager(log, metrics.NewMetrics("test"), cfg, defaultTestRollupConfig)
@@ -149,7 +149,7 @@ func ChannelManager_Clear(t *testing.T, batchType uint) {
 	require.Len(m.currentChannel.confirmedTransactions, 0)
 
 	// Process the blocks
-	// We should have a pending channel with 1 frame
+	// We should have a channel with 1 frame
 	require.NoError(m.processBlocks())
 	require.NoError(m.currentChannel.channelBuilder.co.Flush())
 	require.NoError(m.outputFrames())
@@ -158,7 +158,7 @@ func ChannelManager_Clear(t *testing.T, batchType uint) {
 	require.Equal(m.blockCursor, len(m.blocks))
 	require.NotNil(m.l1OriginLastSubmittedChannel)
 	require.Equal(newL1Tip, m.tip)
-	require.Len(m.currentChannel.pendingTransactions, 1)
+	require.Len(m.currentChannel.submittedTransactions, 1)
 
 	// Add a new block so we can test clearing
 	// the channel manager with a full state
@@ -175,8 +175,8 @@ func ChannelManager_Clear(t *testing.T, batchType uint) {
 	}
 
 	// Artificially pump up some metrics which need to be cleared
-	m.metr.RecordL2BlockInPendingQueue(a)
-	require.NotZero(m.metr.PendingDABytes())
+	m.metr.RecordL2BlockInUnsafeQueue(a)
+	require.NotZero(m.metr.UnsafeDABytes())
 
 	// Clear the channel manager
 	m.Clear(safeL1Origin)
@@ -188,7 +188,7 @@ func ChannelManager_Clear(t *testing.T, batchType uint) {
 	require.Nil(m.currentChannel)
 	require.Empty(m.channelQueue)
 	require.Empty(m.txChannels)
-	require.Zero(m.metr.PendingDABytes())
+	require.Zero(m.metr.UnsafeDABytes())
 }
 
 func ChannelManager_TxResend(t *testing.T, batchType uint) {
@@ -429,9 +429,9 @@ func TestChannelManager_handleChannelInvalidated(t *testing.T) {
 	require.Equal(t, metrics.ChannelQueueLength, 1)
 
 	// Setup initial metrics
-	metrics.RecordL2BlockInPendingQueue(blockA)
-	metrics.RecordL2BlockInPendingQueue(blockB)
-	pendingBytesBefore := metrics.PendingBlocksBytesCurrent
+	metrics.RecordL2BlockInUnsafeQueue(blockA)
+	metrics.RecordL2BlockInUnsafeQueue(blockB)
+	unsafeBytesBefore := metrics.UnsafeBlocksBytesCurrent
 
 	// Trigger the blocks -> channelQueue data pipelining
 	require.NoError(t, m.ensureChannelWithSpace(eth.BlockID{}))
@@ -443,7 +443,7 @@ func TestChannelManager_handleChannelInvalidated(t *testing.T) {
 	require.Equal(t, 1, m.blockCursor)
 
 	// Check metric didn't change.
-	require.Equal(t, pendingBytesBefore, metrics.PendingBlocksBytesCurrent)
+	require.Equal(t, unsafeBytesBefore, metrics.UnsafeBlocksBytesCurrent)
 
 	l1OriginBefore := m.l1OriginLastSubmittedChannel
 
@@ -467,7 +467,7 @@ func TestChannelManager_handleChannelInvalidated(t *testing.T) {
 	require.Equal(t, metrics.ChannelQueueLength, 1)
 
 	// Check metric didn't change.
-	require.Equal(t, pendingBytesBefore, metrics.PendingBlocksBytesCurrent)
+	require.Equal(t, unsafeBytesBefore, metrics.UnsafeBlocksBytesCurrent)
 
 	// Ensure the l1OriginLastSubmittedChannel was
 	// not changed. This ensures the next channel
@@ -572,9 +572,9 @@ func TestChannelManager_PruneBlocks(t *testing.T) {
 			}
 			m.blockCursor = tc.initialBlockCursor
 			if tc.expectedQ != nil {
-				initialPendingBytes := metr.PendingDABytes()
+				initialUnsafeBytes := metr.UnsafeDABytes()
 				m.PruneSafeBlocks(tc.numChannelsToPrune)
-				require.Greater(t, initialPendingBytes, metr.PendingDABytes())
+				require.Greater(t, initialUnsafeBytes, metr.UnsafeDABytes())
 				require.Equal(t, tc.expectedQ, m.blocks)
 			} else {
 				require.Panics(t, func() { m.PruneSafeBlocks(tc.numChannelsToPrune) })

@@ -11,17 +11,17 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 )
 
-// channel is a lightweight wrapper around a ChannelBuilder which keeps track of pending
+// channel is a lightweight wrapper around a ChannelBuilder which keeps track of submitted
 // and confirmed transactions for a single channel.
 type channel struct {
 	log  log.Logger
 	metr metrics.Metricer
 	cfg  ChannelConfig
 
-	// pending channel builder
+	// manages the channel currently being filled with batches.
 	channelBuilder *ChannelBuilder
 	// Set of unconfirmed txID -> tx data. For tx resubmission
-	pendingTransactions map[string]txData
+	submittedTransactions map[string]txData
 	// Set of confirmed txID -> inclusion block. For determining if the channel is timed out
 	confirmedTransactions map[string]eth.BlockID
 
@@ -38,7 +38,7 @@ func newChannel(log log.Logger, metr metrics.Metricer, cfg ChannelConfig, rollup
 		metr:                  metr,
 		cfg:                   cfg,
 		channelBuilder:        cb,
-		pendingTransactions:   make(map[string]txData),
+		submittedTransactions: make(map[string]txData),
 		confirmedTransactions: make(map[string]eth.BlockID),
 		minInclusionBlock:     math.MaxUint64,
 	}
@@ -47,13 +47,13 @@ func newChannel(log log.Logger, metr metrics.Metricer, cfg ChannelConfig, rollup
 // TxFailed records a transaction as failed. It will attempt to resubmit the data
 // in the failed transaction.
 func (c *channel) TxFailed(id string) {
-	if data, ok := c.pendingTransactions[id]; ok {
+	if data, ok := c.submittedTransactions[id]; ok {
 		c.log.Trace("marked transaction as failed", "id", id)
 		// Rewind to the first frame of the failed tx
 		// -- the frames are ordered, and we want to send them
 		// all again.
 		c.channelBuilder.RewindFrameCursor(data.Frames()[0])
-		delete(c.pendingTransactions, id)
+		delete(c.submittedTransactions, id)
 	} else {
 		c.log.Warn("unknown transaction marked as failed", "id", id)
 	}
@@ -66,13 +66,13 @@ func (c *channel) TxFailed(id string) {
 func (c *channel) TxConfirmed(id string, inclusionBlock eth.BlockID) bool {
 	c.metr.RecordBatchTxSuccess()
 	c.log.Debug("marked transaction as confirmed", "id", id, "block", inclusionBlock)
-	if _, ok := c.pendingTransactions[id]; !ok {
+	if _, ok := c.submittedTransactions[id]; !ok {
 		c.log.Warn("unknown transaction marked as confirmed", "id", id, "block", inclusionBlock)
-		// TODO: This can occur if we clear the channel while there are still pending transactions
+		// TODO: This can occur if we clear the channel while there are still submitted transactions
 		// We need to keep track of stale transactions instead
 		return false
 	}
-	delete(c.pendingTransactions, id)
+	delete(c.submittedTransactions, id)
 	c.confirmedTransactions[id] = inclusionBlock
 	c.channelBuilder.FramePublished(inclusionBlock.Number)
 
@@ -85,8 +85,6 @@ func (c *channel) TxConfirmed(id string, inclusionBlock eth.BlockID) bool {
 		c.log.Info("Channel is fully submitted", "id", c.ID(), "min_inclusion_block", c.minInclusionBlock, "max_inclusion_block", c.maxInclusionBlock)
 	}
 
-	// If this channel timed out, put the pending blocks back into the local saved blocks
-	// and then reset this state so it can try to build a new channel.
 	if c.isTimedOut() {
 		c.metr.RecordChannelTimedOut(c.ID())
 		c.log.Warn("Channel timed out", "id", c.ID(), "min_inclusion_block", c.minInclusionBlock, "max_inclusion_block", c.maxInclusionBlock)
@@ -113,11 +111,11 @@ func (c *channel) isTimedOut() bool {
 
 // isFullySubmitted returns true if the channel has been fully submitted (all transactions are confirmed).
 func (c *channel) isFullySubmitted() bool {
-	return c.IsFull() && len(c.pendingTransactions)+c.PendingFrames() == 0
+	return c.IsFull() && len(c.submittedTransactions)+c.UnsubmittedFrames() == 0
 }
 
 func (c *channel) NoneSubmitted() bool {
-	return len(c.confirmedTransactions) == 0 && len(c.pendingTransactions) == 0
+	return len(c.confirmedTransactions) == 0 && len(c.submittedTransactions) == 0
 }
 
 func (c *channel) ID() derive.ChannelID {
@@ -133,14 +131,14 @@ func (c *channel) ID() derive.ChannelID {
 func (c *channel) NextTxData() txData {
 	nf := c.cfg.MaxFramesPerTx()
 	txdata := txData{frames: make([]frameData, 0, nf), asBlob: c.cfg.UseBlobs}
-	for i := 0; i < nf && c.channelBuilder.HasPendingFrame(); i++ {
+	for i := 0; i < nf && c.channelBuilder.HasUnsubmittedFrame(); i++ {
 		frame := c.channelBuilder.NextFrame()
 		txdata.frames = append(txdata.frames, frame)
 	}
 
 	id := txdata.ID().String()
 	c.log.Debug("returning next tx data", "id", id, "num_frames", len(txdata.frames), "as_blob", txdata.asBlob)
-	c.pendingTransactions[id] = txdata
+	c.submittedTransactions[id] = txdata
 
 	return txdata
 }
@@ -148,10 +146,10 @@ func (c *channel) NextTxData() txData {
 func (c *channel) HasTxData() bool {
 	if c.IsFull() || // If the channel is full, we should start to submit it
 		!c.cfg.UseBlobs { // If using calldata, we only send one frame per tx
-		return c.channelBuilder.HasPendingFrame()
+		return c.channelBuilder.HasUnsubmittedFrame()
 	}
 	// Collect enough frames if channel is not full yet
-	return c.channelBuilder.PendingFrames() >= int(c.cfg.MaxFramesPerTx())
+	return c.channelBuilder.UnsubmittedFrames() >= int(c.cfg.MaxFramesPerTx())
 }
 
 func (c *channel) IsFull() bool {
@@ -186,8 +184,8 @@ func (c *channel) TotalFrames() int {
 	return c.channelBuilder.TotalFrames()
 }
 
-func (c *channel) PendingFrames() int {
-	return c.channelBuilder.PendingFrames()
+func (c *channel) UnsubmittedFrames() int {
+	return c.channelBuilder.UnsubmittedFrames()
 }
 
 func (c *channel) OutputFrames() error {

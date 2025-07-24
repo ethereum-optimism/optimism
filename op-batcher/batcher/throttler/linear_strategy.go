@@ -30,16 +30,16 @@ func NewLinearStrategy(threshold uint64, multiplier float64, log log.Logger) *Li
 	}
 }
 
-func (q *LinearStrategy) Update(currentPendingBytes uint64) float64 {
+func (q *LinearStrategy) Update(currentUnsafeBytes uint64) float64 {
 	var intensity float64 = 0.0
 
-	if currentPendingBytes > q.threshold {
+	if currentUnsafeBytes > q.threshold {
 		// Linear scaling from threshold to maxThreshold
-		if currentPendingBytes >= q.maxThreshold {
+		if currentUnsafeBytes >= q.maxThreshold {
 			intensity = 1.0
 		} else {
 			// Linear interpolation (x curve for more aggressive throttling)
-			intensity = float64(currentPendingBytes-q.threshold) / float64(q.maxThreshold-q.threshold)
+			intensity = float64(currentUnsafeBytes-q.threshold) / float64(q.maxThreshold-q.threshold)
 		}
 	}
 

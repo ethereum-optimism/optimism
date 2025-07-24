@@ -6,31 +6,31 @@ import (
 
 type TestMetrics struct {
 	noopMetrics
-	PendingBlocksBytesCurrent float64
-	ChannelQueueLength        int
-	pendingDABytes            float64
+	UnsafeBlocksBytesCurrent float64
+	ChannelQueueLength       int
+	unsafeDABytes            float64
 }
 
 var _ Metricer = new(TestMetrics)
 
-func (m *TestMetrics) RecordL2BlockInPendingQueue(block *types.Block) {
+func (m *TestMetrics) RecordL2BlockInUnsafeQueue(block *types.Block) {
 	daSize, rawSize := estimateBatchSize(block)
-	m.PendingBlocksBytesCurrent += float64(rawSize)
-	m.pendingDABytes += float64(daSize)
+	m.UnsafeBlocksBytesCurrent += float64(rawSize)
+	m.unsafeDABytes += float64(daSize)
 }
 func (m *TestMetrics) RecordL2BlockDequeued(block *types.Block) {
 	daSize, rawSize := estimateBatchSize(block)
-	m.PendingBlocksBytesCurrent -= float64(rawSize)
-	m.pendingDABytes -= float64(daSize)
+	m.UnsafeBlocksBytesCurrent -= float64(rawSize)
+	m.unsafeDABytes -= float64(daSize)
 }
 func (m *TestMetrics) RecordChannelQueueLength(l int) {
 	m.ChannelQueueLength = l
 }
-func (m *TestMetrics) PendingDABytes() float64 {
-	return m.pendingDABytes
+func (m *TestMetrics) UnsafeDABytes() float64 {
+	return m.unsafeDABytes
 }
 func (m *TestMetrics) ClearAllStateMetrics() {
-	m.PendingBlocksBytesCurrent = 0
+	m.UnsafeBlocksBytesCurrent = 0
 	m.ChannelQueueLength = 0
-	m.pendingDABytes = 0
+	m.unsafeDABytes = 0
 }

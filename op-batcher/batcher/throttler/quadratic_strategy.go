@@ -30,16 +30,16 @@ func NewQuadraticStrategy(threshold uint64, multiplier float64, log log.Logger) 
 	}
 }
 
-func (q *QuadraticStrategy) Update(currentPendingBytes uint64) float64 {
+func (q *QuadraticStrategy) Update(currentUnsafeBytes uint64) float64 {
 	var intensity float64 = 0.0
 
-	if currentPendingBytes > q.threshold {
+	if currentUnsafeBytes > q.threshold {
 		// Quadratic scaling from threshold to maxThreshold
-		if currentPendingBytes >= q.maxThreshold {
+		if currentUnsafeBytes >= q.maxThreshold {
 			intensity = 1.0
 		} else {
 			// Quadratic interpolation (x^2 curve for more aggressive throttling)
-			linear := float64(currentPendingBytes-q.threshold) / float64(q.maxThreshold-q.threshold)
+			linear := float64(currentUnsafeBytes-q.threshold) / float64(q.maxThreshold-q.threshold)
 			intensity = linear * linear
 		}
 	}

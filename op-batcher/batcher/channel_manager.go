@@ -23,7 +23,7 @@ type ChannelOutFactory func(cfg ChannelConfig, rollupCfg *rollup.Config) (derive
 // channelManager stores a contiguous set of blocks & turns them into channels.
 // Upon receiving tx confirmation (or a tx failure), it does channel error handling.
 //
-// For simplicity, it only creates a single pending channel at a time & waits for
+// For simplicity, it only creates a single channel at a time & waits for
 // the channel to either successfully be submitted or timeout before creating a new
 // channel.
 // Public functions on channelManager are safe for concurrent access.
@@ -35,7 +35,7 @@ type channelManager struct {
 
 	outFactory ChannelOutFactory
 
-	// All blocks which are not yet safe
+	// All unsafe blocks
 	blocks queue.Queue[*types.Block]
 	// blockCursor is an index into blocks queue. It points at the next block
 	// to build a channel with. blockCursor = len(blocks) is reserved for when
@@ -84,13 +84,13 @@ func (s *channelManager) Clear(l1OriginLastSubmittedChannel eth.BlockID) {
 	s.currentChannel = nil
 	s.channelQueue = nil
 
-	// This is particularly important because pendingDABytes metric controls throttling:
+	// This is particularly important because unsafeDABytes metric controls throttling:
 	s.metr.ClearAllStateMetrics()
 
 	s.txChannels = make(map[string]*channel)
 }
 
-func (s *channelManager) pendingBlocks() int {
+func (s *channelManager) numBlocksNotInChannels() int {
 	return s.blocks.Len() - s.blockCursor
 }
 
@@ -210,7 +210,7 @@ func (s *channelManager) nextTxData(channel *channel) (txData, error) {
 //
 // If the current channel is
 // full, it only returns the remaining frames of this channel until it got
-// successfully fully sent to L1. It returns io.EOF if there's no pending tx data.
+// successfully fully sent to L1. It returns io.EOF if there's no unsubmitted tx data.
 //
 // It will decide whether to switch DA type automatically.
 // When switching DA type, the channelManager state will be rebuilt
@@ -272,17 +272,17 @@ func (s *channelManager) getReadyChannel(l1Head eth.BlockID) (*channel, error) {
 		}
 	}
 
-	dataPending := firstWithTxData != nil
-	s.log.Debug("Requested tx data", "l1Head", l1Head, "txdata_pending", dataPending, "blocks_pending", s.blocks.Len())
+	unsubmittedDataExists := firstWithTxData != nil
+	s.log.Debug("Requested tx data", "l1Head", l1Head, "txdata_unsubmitted", unsubmittedDataExists, "blocks_unsafe", s.blocks.Len())
 
-	// Short circuit if there is pending tx data or the channel manager is closed
-	if dataPending {
+	// Short circuit if there is unsubmitted tx data or the channel manager is closed
+	if unsubmittedDataExists {
 		return firstWithTxData, nil
 	}
 
-	// No pending tx data, so we have to add new blocks to the channel
-	// If we have no saved blocks, we will not be able to create valid frames
-	if s.pendingBlocks() == 0 {
+	// No unsubmitted tx data, so we have to add new blocks to the channel
+	// If we have no blocks ready to batch into channels, we will not be able to create valid frames
+	if s.numBlocksNotInChannels() == 0 {
 		return nil, io.EOF
 	}
 
@@ -294,9 +294,9 @@ func (s *channelManager) getReadyChannel(l1Head eth.BlockID) (*channel, error) {
 		return nil, err
 	}
 
-	// Register current L1 head only after all pending blocks have been
-	// processed. Even if a timeout will be triggered now, it is better to have
-	// all pending blocks be included in this channel for submission.
+	// Register current L1 head only after all unsafe blocks have been
+	// processed into channels. Even if a timeout will be triggered now, it is better to have
+	// all unsafe blocks be included in this channel for submission.
 	s.registerL1Block(l1Head)
 
 	if err := s.outputFrames(); err != nil {
@@ -334,7 +334,7 @@ func (s *channelManager) ensureChannelWithSpace(l1Head eth.BlockID) error {
 	s.log.Info("Created channel",
 		"id", pc.ID(),
 		"l1Head", l1Head,
-		"blocks_pending", s.pendingBlocks(),
+		"blocks_not_in_channels", s.numBlocksNotInChannels(),
 		"l1OriginLastSubmittedChannel", s.l1OriginLastSubmittedChannel,
 		"batch_type", cfg.BatchType,
 		"compression_algo", cfg.CompressorConfig.CompressionAlgo,
@@ -342,7 +342,7 @@ func (s *channelManager) ensureChannelWithSpace(l1Head eth.BlockID) error {
 		"max_frame_size", cfg.MaxFrameSize,
 		"use_blobs", cfg.UseBlobs,
 	)
-	s.metr.RecordChannelOpened(pc.ID(), s.pendingBlocks())
+	s.metr.RecordChannelOpened(pc.ID(), s.numBlocksNotInChannels())
 
 	s.channelQueue = append(s.channelQueue, pc)
 	s.metr.RecordChannelQueueLength(len(s.channelQueue))
@@ -375,12 +375,12 @@ func (s *channelManager) processBlocks() error {
 
 		s.metr.RecordL2BlocksAdded(latestL2ref,
 			blocksAdded,
-			s.pendingBlocks(),
+			s.numBlocksNotInChannels(),
 			s.currentChannel.InputBytes(),
 			s.currentChannel.ReadyBytes())
 		s.log.Debug("Added blocks to channel",
 			"blocks_added", blocksAdded,
-			"blocks_pending", s.pendingBlocks(),
+			"blocks_not_in_channels", s.numBlocksNotInChannels(),
 			"channel_full", s.currentChannel.IsFull(),
 			"input_bytes", s.currentChannel.InputBytes(),
 			"ready_bytes", s.currentChannel.ReadyBytes(),
@@ -424,7 +424,7 @@ func (s *channelManager) outputFrames() error {
 	inBytes, outBytes := s.currentChannel.InputBytes(), s.currentChannel.OutputBytes()
 	s.metr.RecordChannelClosed(
 		s.currentChannel.ID(),
-		s.pendingBlocks(),
+		s.numBlocksNotInChannels(),
 		s.currentChannel.TotalFrames(),
 		inBytes,
 		outBytes,
@@ -438,7 +438,7 @@ func (s *channelManager) outputFrames() error {
 
 	s.log.Info("Channel closed",
 		"id", s.currentChannel.ID(),
-		"blocks_pending", s.pendingBlocks(),
+		"blocks_not_in_channels", s.numBlocksNotInChannels(),
 		"num_frames", s.currentChannel.TotalFrames(),
 		"input_bytes", inBytes,
 		"output_bytes", outBytes,
@@ -463,7 +463,7 @@ func (s *channelManager) AddL2Block(block *types.Block) error {
 		return ErrReorg
 	}
 
-	s.metr.RecordL2BlockInPendingQueue(block)
+	s.metr.RecordL2BlockInUnsafeQueue(block)
 	s.blocks.Enqueue(block)
 	s.tip = block.Hash()
 
@@ -480,8 +480,6 @@ func l2BlockRefFromBlockAndL1Info(block *types.Block, l1info *derive.L1BlockInfo
 		SequenceNumber: l1info.SequenceNumber,
 	}
 }
-
-var ErrPendingAfterClose = errors.New("pending channels remain after closing channel-manager")
 
 // PruneSafeBlocks dequeues the provided number of blocks from the internal blocks queue
 func (s *channelManager) PruneSafeBlocks(num int) {
@@ -514,10 +512,9 @@ func (s *channelManager) PruneChannels(num int) {
 
 }
 
-// PendingDABytes returns the current number of bytes pending to be written to the DA layer (from blocks fetched from L2
-// but not yet in a channel).
-func (s *channelManager) PendingDABytes() int64 {
-	f := s.metr.PendingDABytes()
+// UnsafeDABytes returns the estimated number of unsafe bytes that will be written to the DA layer.
+func (s *channelManager) UnsafeDABytes() int64 {
+	f := s.metr.UnsafeDABytes()
 	if f >= math.MaxInt64 {
 		return math.MaxInt64
 	}

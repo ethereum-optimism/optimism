@@ -57,7 +57,7 @@ func (p *PIDStrategy) SetMetrics(metrics interface {
 	p.metrics = metrics
 }
 
-func (p *PIDStrategy) Update(currentPendingBytes uint64) float64 {
+func (p *PIDStrategy) Update(currentUnsafeBytes uint64) float64 {
 	startTime := time.Now()
 	p.mu.Lock()
 	defer p.mu.Unlock()
@@ -85,15 +85,15 @@ func (p *PIDStrategy) Update(currentPendingBytes uint64) float64 {
 
 	// Only apply PID control if we're above the base threshold
 	var intensity float64 = 0.0
-	if currentPendingBytes > p.threshold {
+	if currentUnsafeBytes > p.threshold {
 		// Calculate error (positive when above target)
 		// Note: Error is always non-negative since we only
-		// throttle when currentPendingBytes > threshold. Similarly, integral accumulates
+		// throttle when currentUnsafeBytes > threshold. Similarly, integral accumulates
 		// only positive errors, so it remains non-negative throughout operation.
-		pendingBytesError := float64(int64(currentPendingBytes) - int64(p.threshold))
+		unsafeBytesError := float64(int64(currentUnsafeBytes) - int64(p.threshold))
 
 		// Normalize error by threshold to get a reasonable scale
-		normalizedError := pendingBytesError / float64(p.threshold)
+		normalizedError := unsafeBytesError / float64(p.threshold)
 
 		proportional := p.config.Kp * normalizedError
 
@@ -123,7 +123,7 @@ func (p *PIDStrategy) Update(currentPendingBytes uint64) float64 {
 		p.lastError = normalizedError
 
 		if p.metrics != nil {
-			p.metrics.RecordThrottleControllerState(pendingBytesError, p.integral, derivative)
+			p.metrics.RecordThrottleControllerState(unsafeBytesError, p.integral, derivative)
 			p.metrics.RecordThrottleResponseTime(time.Since(startTime))
 		}
 	} else {

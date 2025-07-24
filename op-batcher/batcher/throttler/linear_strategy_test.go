@@ -44,61 +44,61 @@ func TestLinearStrategy_Update(t *testing.T) {
 
 	tests := []struct {
 		name              string
-		pendingBytes      uint64
+		unsafeBytes       uint64
 		targetBytes       uint64
 		expectedIntensity float64
 	}{
 		{
 			name:              "zero load",
-			pendingBytes:      0,
+			unsafeBytes:       0,
 			targetBytes:       0,
 			expectedIntensity: TestIntensityMin,
 		},
 		{
 			name:              "below threshold",
-			pendingBytes:      TestLinearThreshold / 2,
+			unsafeBytes:       TestLinearThreshold / 2,
 			targetBytes:       0,
 			expectedIntensity: TestIntensityMin,
 		},
 		{
 			name:              "exactly at threshold",
-			pendingBytes:      TestLinearThreshold,
+			unsafeBytes:       TestLinearThreshold,
 			targetBytes:       0,
 			expectedIntensity: TestIntensityMin,
 		},
 		{
 			name:              "25% above threshold",
-			pendingBytes:      TestLinearThreshold + TestLinearThreshold/4,
+			unsafeBytes:       TestLinearThreshold + TestLinearThreshold/4,
 			targetBytes:       0,
 			expectedIntensity: 0.25,
 		},
 		{
 			name:              "50% above threshold",
-			pendingBytes:      TestLinearThreshold + TestLinearThreshold/2,
+			unsafeBytes:       TestLinearThreshold + TestLinearThreshold/2,
 			targetBytes:       0,
 			expectedIntensity: 0.50,
 		},
 		{
 			name:              "75% above threshold",
-			pendingBytes:      TestLinearThreshold + 3*TestLinearThreshold/4,
+			unsafeBytes:       TestLinearThreshold + 3*TestLinearThreshold/4,
 			targetBytes:       0,
 			expectedIntensity: 0.75,
 		},
 		{
 			name:              "100% above threshold (max)",
-			pendingBytes:      TestLinearMaxThreshold,
+			unsafeBytes:       TestLinearMaxThreshold,
 			targetBytes:       0,
 			expectedIntensity: TestIntensityMax,
 		},
 		{
 			name:              "beyond max threshold",
-			pendingBytes:      TestLinearMaxThreshold * 2,
+			unsafeBytes:       TestLinearMaxThreshold * 2,
 			targetBytes:       0,
 			expectedIntensity: TestIntensityMax,
 		},
 		{
 			name:              "with target bytes ignored",
-			pendingBytes:      TestLinearThreshold + TestLinearThreshold/2,
+			unsafeBytes:       TestLinearThreshold + TestLinearThreshold/2,
 			targetBytes:       TestLinearThreshold * 10, // Target bytes should be ignored
 			expectedIntensity: 0.50,
 		},
@@ -106,7 +106,7 @@ func TestLinearStrategy_Update(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			intensity := strategy.Update(tt.pendingBytes)
+			intensity := strategy.Update(tt.unsafeBytes)
 
 			if math.Abs(intensity-tt.expectedIntensity) > TestTolerance {
 				t.Errorf("expected intensity %f ± %f, got %f", tt.expectedIntensity, TestTolerance, intensity)

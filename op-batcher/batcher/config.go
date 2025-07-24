@@ -53,8 +53,8 @@ type CLIConfig struct {
 	// and creating a new batch.
 	PollInterval time.Duration
 
-	// MaxPendingTransactions is the maximum number of concurrent pending
-	// transactions sent to the transaction manager (0 == no limit).
+	// MaxPendingTransactions is the maximum number of transactions submitted but not yet included.
+	// Sent to the transaction manager (0 == no limit).
 	MaxPendingTransactions uint64
 
 	// MaxL1TxSize is the maximum size of a batch tx submitted to L1.
@@ -100,7 +100,7 @@ type CLIConfig struct {
 	// ActiveSequencerCheckDuration is the duration between checks to determine the active sequencer endpoint.
 	ActiveSequencerCheckDuration time.Duration
 
-	// ThrottleThreshold is the number of pending bytes beyond which the batcher will start throttling future bytes. Set to 0 to
+	// ThrottleThreshold is the number of unsafe bytes beyond which the batcher will start throttling future bytes. Set to 0 to
 	// disable sequencer throttling entirely (only recommended for testing).
 	ThrottleThreshold uint64
 	// ThrottleTxSize is the DA size of a transaction to start throttling when we are over the throttling threshold.

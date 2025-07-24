@@ -21,10 +21,10 @@ func NewStepStrategy(threshold uint64) *StepStrategy {
 	}
 }
 
-func (s *StepStrategy) Update(currentPendingBytes uint64) float64 {
+func (s *StepStrategy) Update(currentUnsafeBytes uint64) float64 {
 	var intensity float64 = 0.0
 
-	if currentPendingBytes > s.threshold {
+	if currentUnsafeBytes > s.threshold {
 		intensity = 1.0
 	}
 

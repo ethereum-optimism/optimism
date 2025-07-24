@@ -170,21 +170,21 @@ func (l *BatchSubmitter) StartBatchSubmitting() error {
 	l.txpoolState = TxpoolGood // no need to lock mutex as no other routines yet exist
 
 	// Channels used to signal between the loops
-	pendingBytesUpdated := make(chan int64, 1)
+	unsafeBytesUpdated := make(chan int64, 1)
 	publishSignal := make(chan struct{}, 1)
 
 	// DA throttling loop should always be started except for testing (indicated by ThrottleThreshold == 0)
 	if l.Config.ThrottleParams.Threshold > 0 {
 		l.wg.Add(1)
-		go l.throttlingLoop(l.wg, pendingBytesUpdated) // ranges over pendingBytesUpdated channel
+		go l.throttlingLoop(l.wg, unsafeBytesUpdated) // ranges over unsafeBytesUpdated channel
 	} else {
 		l.Log.Warn("Throttling loop is DISABLED due to 0 throttle-threshold. This should not be disabled in prod.")
 	}
 
 	l.wg.Add(3)
-	go l.receiptsLoop(l.wg, receiptsCh)                                            // ranges over receiptsCh channel
-	go l.publishingLoop(l.killCtx, l.wg, receiptsCh, publishSignal)                // ranges over publishSignal, spawns routines which send on receiptsCh. Closes receiptsCh when done.
-	go l.blockLoadingLoop(l.shutdownCtx, l.wg, pendingBytesUpdated, publishSignal) // sends on pendingBytesUpdated (if throttling enabled), and publishSignal. Closes them both when done
+	go l.receiptsLoop(l.wg, receiptsCh)                                           // ranges over receiptsCh channel
+	go l.publishingLoop(l.killCtx, l.wg, receiptsCh, publishSignal)               // ranges over publishSignal, spawns routines which send on receiptsCh. Closes receiptsCh when done.
+	go l.blockLoadingLoop(l.shutdownCtx, l.wg, unsafeBytesUpdated, publishSignal) // sends on unsafeBytesUpdated (if throttling enabled), and publishSignal. Closes them both when done
 
 	l.Log.Info("Batch Submitter started")
 	return nil
@@ -259,7 +259,7 @@ func (l *BatchSubmitter) StopBatchSubmitting(ctx context.Context) error {
 
 // loadBlocksIntoState loads the blocks between start and end (inclusive).
 // If there is a reorg, it will return an error.
-func (l *BatchSubmitter) loadBlocksIntoState(ctx context.Context, start, end uint64, publishSignal chan struct{}, pendingBytesUpdated chan int64) error {
+func (l *BatchSubmitter) loadBlocksIntoState(ctx context.Context, start, end uint64, publishSignal chan struct{}, unsafeBytesUpdated chan int64) error {
 	if end < start {
 		return fmt.Errorf("start number is > end number %d,%d", start, end)
 	}
@@ -287,7 +287,7 @@ func (l *BatchSubmitter) loadBlocksIntoState(ctx context.Context, start, end uin
 			// This allows the batcher to start publishing sooner in the
 			// case of a large backlog of blocks to load.
 			trySignal(publishSignal)
-			l.sendToThrottlingLoop(pendingBytesUpdated)
+			l.sendToThrottlingLoop(unsafeBytesUpdated)
 		}
 
 	}
@@ -392,30 +392,30 @@ const (
 	// Txpool states.  Possible state transitions:
 	//   TxpoolGood -> TxpoolBlocked:
 	//     happens when ErrAlreadyReserved is ever returned by the TxMgr.
-	//   TxpoolBlocked -> TxpoolCancelPending:
+	//   TxpoolBlocked -> TxpoolCancelSubmitted:
 	//     happens once the send loop detects the txpool is blocked, and results in attempting to
 	//     send a cancellation transaction.
-	//   TxpoolCancelPending -> TxpoolGood:
+	//   TxpoolCancelSubmitted -> TxpoolGood:
 	//     happens once the cancel transaction completes, whether successfully or in error.
 	TxpoolGood TxPoolState = iota
 	TxpoolBlocked
-	TxpoolCancelPending
+	TxpoolCancelSubmitted
 )
 
-// sendToThrottlingLoop sends the current pending bytes to the throttling loop.
+// sendToThrottlingLoop sends the current unsafe bytes to the throttling loop.
 // It is not blocking, no signal will be sent if the channel is full.
-func (l *BatchSubmitter) sendToThrottlingLoop(pendingBytesUpdated chan int64) {
+func (l *BatchSubmitter) sendToThrottlingLoop(unsafeBytesUpdated chan int64) {
 	if l.Config.ThrottleParams.Threshold == 0 {
 		return
 	}
 
 	l.channelMgrMutex.Lock()
-	pendingBytes := l.channelMgr.PendingDABytes()
+	unsafeBytes := l.channelMgr.UnsafeDABytes()
 	l.channelMgrMutex.Unlock()
 
 	// notify the throttling loop it may be time to initiate throttling without blocking
 	select {
-	case pendingBytesUpdated <- pendingBytes:
+	case unsafeBytesUpdated <- unsafeBytes:
 	default:
 	}
 }
@@ -507,10 +507,10 @@ func (l *BatchSubmitter) publishingLoop(ctx context.Context, wg *sync.WaitGroup,
 // -  polls the sequencer,
 // -  prunes the channel manager state (i.e. safe blocks)
 // -  loads unsafe blocks from the sequencer
-func (l *BatchSubmitter) blockLoadingLoop(ctx context.Context, wg *sync.WaitGroup, pendingBytesUpdated chan int64, publishSignal chan struct{}) {
+func (l *BatchSubmitter) blockLoadingLoop(ctx context.Context, wg *sync.WaitGroup, unsafeBytesUpdated chan int64, publishSignal chan struct{}) {
 	ticker := time.NewTicker(l.Config.PollInterval)
 	defer ticker.Stop()
-	defer close(pendingBytesUpdated)
+	defer close(unsafeBytesUpdated)
 	defer close(publishSignal)
 	defer wg.Done()
 	for {
@@ -526,7 +526,7 @@ func (l *BatchSubmitter) blockLoadingLoop(ctx context.Context, wg *sync.WaitGrou
 
 			if blocksToLoad != nil {
 				// Get fresh unsafe blocks
-				err := l.loadBlocksIntoState(ctx, blocksToLoad.start, blocksToLoad.end, publishSignal, pendingBytesUpdated)
+				err := l.loadBlocksIntoState(ctx, blocksToLoad.start, blocksToLoad.end, publishSignal, unsafeBytesUpdated)
 				switch {
 				case errors.Is(err, ErrReorg):
 					l.Log.Warn("error loading blocks, clearing state and waiting for node sync", "err", err)
@@ -536,7 +536,7 @@ func (l *BatchSubmitter) blockLoadingLoop(ctx context.Context, wg *sync.WaitGrou
 					l.Log.Warn("error loading blocks, retrying on next tick", "err", err)
 					continue
 				default:
-					l.sendToThrottlingLoop(pendingBytesUpdated) // we have increased the pending data. Signal the throttling loop to check if it should throttle.
+					l.sendToThrottlingLoop(unsafeBytesUpdated) // we have increased the unsafe data. Signal the throttling loop to check if it should throttle.
 				}
 			}
 			trySignal(publishSignal) // always signal the write loop to ensure we periodically publish even if we aren't loading blocks
@@ -556,7 +556,7 @@ func (l *BatchSubmitter) receiptsLoop(wg *sync.WaitGroup, receiptsCh chan txmgr.
 		if errors.Is(r.Err, txpool.ErrAlreadyReserved) && l.txpoolState == TxpoolGood {
 			l.setTxPoolState(TxpoolBlocked, r.ID.isBlob)
 			l.Log.Warn("incompatible tx in txpool", "id", r.ID, "is_blob", r.ID.isBlob)
-		} else if r.ID.isCancel && l.txpoolState == TxpoolCancelPending {
+		} else if r.ID.isCancel && l.txpoolState == TxpoolCancelSubmitted {
 			// Set state to TxpoolGood even if the cancellation transaction ended in error
 			// since the stuck transaction could have cleared while we were waiting.
 			l.setTxPoolState(TxpoolGood, l.txpoolBlockedBlob)
@@ -654,8 +654,8 @@ func (l *BatchSubmitter) singleEndpointThrottler(wg *sync.WaitGroup, throttleSig
 }
 
 // throttlingLoop acts as a distributor that spawns individual throttling loops for each endpoint
-// and fans out the pending bytes updates to each endpoint
-func (l *BatchSubmitter) throttlingLoop(wg *sync.WaitGroup, pendingBytesUpdated chan int64) {
+// and fans out the unsafe bytes updates to each endpoint
+func (l *BatchSubmitter) throttlingLoop(wg *sync.WaitGroup, unsafeBytesUpdated chan int64) {
 	defer wg.Done()
 	l.Log.Info("Starting DA throttling loop", "controller_type", l.throttleController.GetType())
 	updateChans := make([]chan struct{}, len(l.Config.ThrottleParams.Endpoints))
@@ -668,20 +668,20 @@ func (l *BatchSubmitter) throttlingLoop(wg *sync.WaitGroup, pendingBytesUpdated 
 		go l.singleEndpointThrottler(&innerWg, updateChans[i], endpoint)
 	}
 
-	for pb := range pendingBytesUpdated {
+	for pb := range unsafeBytesUpdated {
 		newParams := l.throttleController.Update(uint64(pb))
 		controllerType := l.throttleController.GetType()
 
 		l.Metr.RecordThrottleIntensity(newParams.Intensity, controllerType)
 		l.Metr.RecordThrottleParams(newParams.MaxTxSize, newParams.MaxBlockSize)
 		if l.Config.ThrottleParams.Threshold > 0 {
-			l.Metr.RecordPendingBytesVsThreshold(uint64(pb), l.Config.ThrottleParams.Threshold, controllerType)
+			l.Metr.RecordUnsafeBytesVsThreshold(uint64(pb), l.Config.ThrottleParams.Threshold, controllerType)
 		}
 
 		// Update throttling state
 		if newParams.IsThrottling() {
-			l.Log.Warn("Throttling loop: pending bytes above threshold, scaling endpoint throttling based on intensity",
-				"pending_bytes", pb,
+			l.Log.Warn("Throttling loop: unsafe bytes above threshold, scaling endpoint throttling based on intensity",
+				"unsafe_bytes", pb,
 				"threshold", l.Config.ThrottleParams.Threshold,
 				"intensity", newParams.Intensity,
 				"max_tx_size", newParams.MaxTxSize,
@@ -747,7 +747,7 @@ func (l *BatchSubmitter) waitNodeSync() error {
 	return dial.WaitRollupSync(l.shutdownCtx, l.Log, rollupClient, l1TargetBlock, time.Second*12)
 }
 
-// publishStateToL1 queues up all pending TxData to be published to the L1, returning when there is no more data to
+// publishStateToL1 queues up all unsubmitted TxData to be published to the L1, returning when there is no more data to
 // queue for publishing or if there was an error queuing the data.
 func (l *BatchSubmitter) publishStateToL1(ctx context.Context, queue *txmgr.Queue[txRef], receiptsCh chan txmgr.TxReceipt[txRef], daGroup *errgroup.Group) {
 	for {
@@ -905,7 +905,7 @@ func (l *BatchSubmitter) publishToAltDAAndL1(txdata txData, queue *txmgr.Queue[t
 		// TODO: probably shouldn't be using the global shutdownCtx here, see https://go.dev/blog/context-and-structs
 		// but sendTransaction receives l.killCtx as an argument, which currently is only canceled after waiting for the main loop
 		// to exit, which would wait on this DA call to finish, which would take a long time.
-		// So we prefer to mimic the behavior of txmgr and cancel all pending DA/txmgr requests when the batcher is stopped.
+		// So we prefer to mimic the behavior of txmgr and cancel all outstanding DA/txmgr requests when the batcher is stopped.
 		comm, err := l.AltDA.SetInput(l.shutdownCtx, txdata.CallData())
 		if err != nil {
 			// Don't log context cancelled events because they are expected,
@@ -1063,7 +1063,7 @@ func (l *BatchSubmitter) checkTxpool(queue *txmgr.Queue[txRef], receiptsCh chan 
 		// txpoolState is set to Blocked only if Send() is returning
 		// ErrAlreadyReserved. In this case, the TxMgr nonce should be reset to nil,
 		// allowing us to send a cancellation transaction.
-		l.txpoolState = TxpoolCancelPending
+		l.txpoolState = TxpoolCancelSubmitted
 		isBlob := l.txpoolBlockedBlob
 		l.txpoolMutex.Unlock()
 		l.cancelBlockingTx(queue, receiptsCh, isBlob)
@@ -1148,9 +1148,9 @@ func (l *BatchSubmitter) SetThrottleController(newType config.ThrottleController
 func (l *BatchSubmitter) GetThrottleControllerInfo() (config.ThrottleControllerInfo, error) {
 	controllerType, params := l.throttleController.Load()
 
-	// Get current pending bytes
+	// Get current number of unsafe bytes
 	l.channelMgrMutex.Lock()
-	currentLoad := uint64(l.channelMgr.PendingDABytes())
+	currentLoad := uint64(l.channelMgr.UnsafeDABytes())
 	l.channelMgrMutex.Unlock()
 
 	info := config.ThrottleControllerInfo{

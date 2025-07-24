@@ -364,7 +364,7 @@ func TestChannelBuilderBatchType(t *testing.T) {
 		{"ChannelBuilder_MaxRLPBytesPerFjord", ChannelBuilder_MaxRLPBytesPerChannelFjord},
 		{"ChannelBuilder_OutputFramesMaxFrameIndex", ChannelBuilder_OutputFramesMaxFrameIndex},
 		{"ChannelBuilder_AddBlock", ChannelBuilder_AddBlock},
-		{"ChannelBuilder_PendingFrames_TotalFrames", ChannelBuilder_PendingFrames_TotalFrames},
+		{"ChannelBuilder_UnsubmittedFrames_TotalFrames", ChannelBuilder_UnsubmittedFrames_TotalFrames},
 		{"ChannelBuilder_InputBytes", ChannelBuilder_InputBytes},
 		{"ChannelBuilder_OutputBytes", ChannelBuilder_OutputBytes},
 		{"ChannelBuilder_OutputWrongFramePanic", ChannelBuilder_OutputWrongFramePanic},
@@ -412,13 +412,13 @@ func TestChannelBuilder_NextFrame(t *testing.T) {
 	cb.frames = append(cb.frames, frameData)
 
 	// There should only be 1 frame in the channel builder
-	require.Equal(t, 1, cb.PendingFrames())
+	require.Equal(t, 1, cb.UnsubmittedFrames())
 
 	// We should be able to increment to the next frame
 	constructedFrame := cb.NextFrame()
 	require.Equal(t, expectedTx[0], constructedFrame.id)
 	require.Equal(t, expectedBytes, constructedFrame.data)
-	require.Equal(t, 0, cb.PendingFrames())
+	require.Equal(t, 0, cb.UnsubmittedFrames())
 
 	// The next call should panic since the length of frames is 0
 	require.PanicsWithValue(t, "no next frame", func() { cb.NextFrame() })
@@ -469,7 +469,7 @@ func TestChannelBuilder_OutputFrames(t *testing.T) {
 	cb, err := newChannelBuilder(channelConfig, defaultTestRollupConfig, latestL1BlockOrigin)
 	require.NoError(t, err)
 	require.False(t, cb.IsFull())
-	require.Equal(t, 0, cb.PendingFrames())
+	require.Equal(t, 0, cb.UnsubmittedFrames())
 
 	// Calling OutputFrames without having called [AddBlock]
 	// should return no error
@@ -484,7 +484,7 @@ func TestChannelBuilder_OutputFrames(t *testing.T) {
 	// Check how many ready bytes
 	require.Greater(t, uint64(cb.co.ReadyBytes()+derive.FrameV0OverHeadSize), channelConfig.MaxFrameSize)
 
-	require.Equal(t, 0, cb.PendingFrames()) // always 0 because non compressor
+	require.Equal(t, 0, cb.UnsubmittedFrames()) // always 0 because non compressor
 
 	// The channel should not be full
 	// but we want to output the frames for testing anyways
@@ -494,7 +494,7 @@ func TestChannelBuilder_OutputFrames(t *testing.T) {
 	require.NoError(t, cb.OutputFrames())
 
 	// There should be many frames in the channel builder now
-	require.Greater(t, cb.PendingFrames(), 1)
+	require.Greater(t, cb.UnsubmittedFrames(), 1)
 	for _, frame := range cb.frames {
 		require.Len(t, frame.data, int(channelConfig.MaxFrameSize))
 	}
@@ -523,7 +523,7 @@ func ChannelBuilder_OutputFrames_SpanBatch(t *testing.T, algo derive.Compression
 	cb, err := newChannelBuilder(channelConfig, defaultTestRollupConfig, latestL1BlockOrigin)
 	require.NoError(t, err)
 	require.False(t, cb.IsFull())
-	require.Equal(t, 0, cb.PendingFrames())
+	require.Equal(t, 0, cb.UnsubmittedFrames())
 
 	// Calling OutputFrames without having called [AddBlock]
 	// should return no error
@@ -554,13 +554,13 @@ func ChannelBuilder_OutputFrames_SpanBatch(t *testing.T, algo derive.Compression
 	require.GreaterOrEqual(t,
 		cb.co.ReadyBytes()+derive.FrameV0OverHeadSize,
 		int(channelConfig.MaxFrameSize))
-	require.Equal(t, 0, cb.PendingFrames())
+	require.Equal(t, 0, cb.UnsubmittedFrames())
 
 	// We should be able to output the frames
 	require.NoError(t, cb.OutputFrames())
 
 	// There should be several frames in the channel builder now
-	require.Greater(t, cb.PendingFrames(), 1)
+	require.Greater(t, cb.UnsubmittedFrames(), 1)
 	for i := 0; i < cb.numFrames-1; i++ {
 		require.Len(t, cb.frames[i].data, int(channelConfig.MaxFrameSize))
 	}
@@ -647,7 +647,7 @@ func ChannelBuilder_OutputFramesMaxFrameIndex(t *testing.T, batchType uint) {
 	cb, err := newChannelBuilder(channelConfig, defaultTestRollupConfig, latestL1BlockOrigin)
 	require.NoError(t, err)
 	require.False(t, cb.IsFull())
-	require.Equal(t, 0, cb.PendingFrames())
+	require.Equal(t, 0, cb.UnsubmittedFrames())
 	ti := time.Now()
 	for i := 0; ; i++ {
 		a := dtest.RandomL2BlockWithChainIdAndTime(rng, 1000, defaultTestRollupConfig.L2ChainID, ti.Add(time.Duration(i)*time.Second))
@@ -694,11 +694,11 @@ func TestChannelBuilder_FullShadowCompressor(t *testing.T) {
 
 	require.NoError(cb.OutputFrames())
 
-	require.True(cb.HasPendingFrame())
+	require.True(cb.HasUnsubmittedFrame())
 	f := cb.NextFrame()
 	require.Less(len(f.data), int(cfg.MaxFrameSize)) // would fail without fix, full frame
 
-	require.False(cb.HasPendingFrame(), "no leftover frame expected") // would fail without fix
+	require.False(cb.HasUnsubmittedFrame(), "no leftover frame expected") // would fail without fix
 }
 
 func ChannelBuilder_AddBlock(t *testing.T, batchType uint) {
@@ -890,7 +890,7 @@ func TestChannelBuilder_OldestL2(t *testing.T) {
 	require.Equal(t, uint64(1), cb.OldestL2().Number)
 }
 
-func ChannelBuilder_PendingFrames_TotalFrames(t *testing.T, batchType uint) {
+func ChannelBuilder_UnsubmittedFrames_TotalFrames(t *testing.T, batchType uint) {
 	const tnf = 9
 	rng := rand.New(rand.NewSource(94572314))
 	require := require.New(t)
@@ -903,7 +903,7 @@ func ChannelBuilder_PendingFrames_TotalFrames(t *testing.T, batchType uint) {
 	require.NoError(err)
 
 	// initial builder should be empty
-	require.Zero(cb.PendingFrames())
+	require.Zero(cb.UnsubmittedFrames())
 	require.Zero(cb.TotalFrames())
 
 	ti := time.Now()
@@ -923,13 +923,13 @@ func ChannelBuilder_PendingFrames_TotalFrames(t *testing.T, batchType uint) {
 	// (because of compression we won't necessarily land exactly at tnf, that's ok)
 	require.Greater(nf, 1)
 	require.LessOrEqual(nf, tnf)
-	require.Equal(nf, cb.PendingFrames())
+	require.Equal(nf, cb.UnsubmittedFrames())
 
 	// empty queue
 	for pf := nf - 1; pf >= 0; pf-- {
-		require.True(cb.HasPendingFrame())
+		require.True(cb.HasUnsubmittedFrame())
 		_ = cb.NextFrame()
-		require.Equal(cb.PendingFrames(), pf)
+		require.Equal(cb.UnsubmittedFrames(), pf)
 		require.Equal(cb.TotalFrames(), nf)
 	}
 }
@@ -998,10 +998,10 @@ func ChannelBuilder_OutputBytes(t *testing.T, batchType uint) {
 
 	require.NoError(cb.OutputFrames())
 	require.True(cb.IsFull())
-	require.Greater(cb.PendingFrames(), 1)
+	require.Greater(cb.UnsubmittedFrames(), 1)
 
 	var flen int
-	for cb.HasPendingFrame() {
+	for cb.HasUnsubmittedFrame() {
 		f := cb.NextFrame()
 		flen += len(f.data)
 	}

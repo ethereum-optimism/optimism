@@ -34,7 +34,7 @@ func (*noopMetrics) RecordLatestL1Block(l1ref eth.L1BlockRef)               {}
 func (*noopMetrics) RecordL2BlocksLoaded(eth.L2BlockRef)                    {}
 func (*noopMetrics) RecordChannelOpened(derive.ChannelID, int)              {}
 func (*noopMetrics) RecordL2BlocksAdded(eth.L2BlockRef, int, int, int, int) {}
-func (*noopMetrics) RecordL2BlockInPendingQueue(*types.Block)               {}
+func (*noopMetrics) RecordL2BlockInUnsafeQueue(*types.Block)                {}
 func (*noopMetrics) RecordL2BlockDequeued(*types.Block)                     {}
 
 func (*noopMetrics) RecordChannelClosed(derive.ChannelID, int, int, int, int, error) {}
@@ -47,7 +47,7 @@ func (*noopMetrics) RecordThrottleIntensity(intensity float64, controllerType co
 }
 func (*noopMetrics) RecordThrottleParams(maxTxSize, maxBlockSize uint64)                       {}
 func (*noopMetrics) RecordThrottleControllerType(controllerType config.ThrottleControllerType) {}
-func (*noopMetrics) RecordPendingBytesVsThreshold(pendingBytes, threshold uint64, controllerType config.ThrottleControllerType) {
+func (*noopMetrics) RecordUnsafeBytesVsThreshold(unsafeBytes, threshold uint64, controllerType config.ThrottleControllerType) {
 }
 
 // PID Controller specific metrics
@@ -61,17 +61,17 @@ func (*noopMetrics) RecordBlobUsedBytes(int) {}
 func (*noopMetrics) StartBalanceMetrics(log.Logger, *ethclient.Client, common.Address) io.Closer {
 	return nil
 }
-func (nm *noopMetrics) PendingDABytes() float64 {
+func (nm *noopMetrics) UnsafeDABytes() float64 {
 	return 0.0
 }
 
-// ThrottlingMetrics is a noopMetrics that always returns a max value for PendingDABytes, to use in testing batcher
+// ThrottlingMetrics is a noopMetrics that always returns a max value for UnsafeDABytes, to use in testing batcher
 // backlog throttling.
 type ThrottlingMetrics struct {
 	noopMetrics
 }
 
-func (nm *ThrottlingMetrics) PendingDABytes() float64 {
+func (nm *ThrottlingMetrics) UnsafeDABytes() float64 {
 	return math.MaxFloat64
 }
 

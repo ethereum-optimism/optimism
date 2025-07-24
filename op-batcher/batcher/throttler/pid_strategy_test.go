@@ -297,34 +297,34 @@ func TestPIDStrategy_ErrorCalculation(t *testing.T) {
 	strategy := NewPIDStrategy(TestPIDThreshold, TestPIDConfigBasic)
 
 	testCases := []struct {
-		name         string
-		pendingBytes uint64
-		targetBytes  uint64
-		expectError  bool
+		name        string
+		unsafeBytes uint64
+		targetBytes uint64
+		expectError bool
 	}{
 		{
-			name:         "no error at threshold",
-			pendingBytes: TestPIDThreshold,
-			targetBytes:  TestPIDThreshold,
-			expectError:  false,
+			name:        "no error at threshold",
+			unsafeBytes: TestPIDThreshold,
+			targetBytes: TestPIDThreshold,
+			expectError: false,
 		},
 		{
-			name:         "error above threshold",
-			pendingBytes: TestPIDThreshold * 2,
-			targetBytes:  TestPIDThreshold,
-			expectError:  true,
+			name:        "error above threshold",
+			unsafeBytes: TestPIDThreshold * 2,
+			targetBytes: TestPIDThreshold,
+			expectError: true,
 		},
 		{
-			name:         "no error below threshold",
-			pendingBytes: TestPIDThreshold / 2,
-			targetBytes:  TestPIDThreshold,
-			expectError:  false,
+			name:        "no error below threshold",
+			unsafeBytes: TestPIDThreshold / 2,
+			targetBytes: TestPIDThreshold,
+			expectError: false,
 		},
 		{
-			name:         "error with different target",
-			pendingBytes: TestPIDThreshold * 2,
-			targetBytes:  TestPIDThreshold / 2,
-			expectError:  true,
+			name:        "error with different target",
+			unsafeBytes: TestPIDThreshold * 2,
+			targetBytes: TestPIDThreshold / 2,
+			expectError: true,
 		},
 	}
 
@@ -333,7 +333,7 @@ func TestPIDStrategy_ErrorCalculation(t *testing.T) {
 			strategy.Reset()
 
 			time.Sleep(time.Millisecond * TestPIDSampleTimeMs * 2)
-			intensity := strategy.Update(tc.pendingBytes)
+			intensity := strategy.Update(tc.unsafeBytes)
 
 			if tc.expectError {
 				if intensity <= TestIntensityMin {
