@@ -3,13 +3,13 @@ package sysgo
 import (
 	"path/filepath"
 
-	"github.com/ethereum-optimism/optimism/op-devstack/shim"
-	"github.com/ethereum-optimism/optimism/op-devstack/stack"
-	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils"
-	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/fakebeacon"
-	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/geth"
-	"github.com/ethereum-optimism/optimism/op-service/client"
-	"github.com/ethereum-optimism/optimism/op-service/clock"
+	"github.com/HashKeyChain/verse/op-devstack/shim"
+	"github.com/HashKeyChain/verse/op-devstack/stack"
+	"github.com/HashKeyChain/verse/op-e2e/e2eutils"
+	"github.com/HashKeyChain/verse/op-e2e/e2eutils/fakebeacon"
+	"github.com/HashKeyChain/verse/op-e2e/e2eutils/geth"
+	"github.com/HashKeyChain/verse/op-service/client"
+	"github.com/HashKeyChain/verse/op-service/clock"
 )
 
 type L1ELNode struct {

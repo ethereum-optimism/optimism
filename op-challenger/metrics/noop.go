@@ -7,8 +7,8 @@ import (
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/log"
 
-	contractMetrics "github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts/metrics"
-	txmetrics "github.com/ethereum-optimism/optimism/op-service/txmgr/metrics"
+	contractMetrics "github.com/HashKeyChain/verse/op-challenger/game/fault/contracts/metrics"
+	txmetrics "github.com/HashKeyChain/verse/op-service/txmgr/metrics"
 )
 
 type NoopMetricsImpl struct {

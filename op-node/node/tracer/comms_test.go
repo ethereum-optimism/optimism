@@ -8,10 +8,10 @@ import (
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/stretchr/testify/require"
 
-	"github.com/ethereum-optimism/optimism/op-node/p2p"
-	"github.com/ethereum-optimism/optimism/op-node/rollup/status"
-	"github.com/ethereum-optimism/optimism/op-service/eth"
-	"github.com/ethereum-optimism/optimism/op-service/testutils"
+	"github.com/HashKeyChain/verse/op-node/p2p"
+	"github.com/HashKeyChain/verse/op-node/rollup/status"
+	"github.com/HashKeyChain/verse/op-service/eth"
+	"github.com/HashKeyChain/verse/op-service/testutils"
 )
 
 type testTracer struct {

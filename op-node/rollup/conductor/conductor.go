@@ -3,7 +3,7 @@ package conductor
 import (
 	"context"
 
-	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/HashKeyChain/verse/op-service/eth"
 )
 
 // SequencerConductor is an interface for the driver to communicate with the sequencer conductor.

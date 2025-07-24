@@ -10,17 +10,17 @@ import (
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/suite"
 
-	"github.com/ethereum-optimism/optimism/op-conductor/client"
-	clientmocks "github.com/ethereum-optimism/optimism/op-conductor/client/mocks"
-	mocks "github.com/ethereum-optimism/optimism/op-conductor/health/mocks"
-	"github.com/ethereum-optimism/optimism/op-conductor/metrics"
-	"github.com/ethereum-optimism/optimism/op-node/p2p"
-	p2pMocks "github.com/ethereum-optimism/optimism/op-node/p2p/mocks"
-	"github.com/ethereum-optimism/optimism/op-node/rollup"
-	"github.com/ethereum-optimism/optimism/op-service/apis"
-	"github.com/ethereum-optimism/optimism/op-service/eth"
-	"github.com/ethereum-optimism/optimism/op-service/testlog"
-	"github.com/ethereum-optimism/optimism/op-service/testutils"
+	"github.com/HashKeyChain/verse/op-conductor/client"
+	clientmocks "github.com/HashKeyChain/verse/op-conductor/client/mocks"
+	mocks "github.com/HashKeyChain/verse/op-conductor/health/mocks"
+	"github.com/HashKeyChain/verse/op-conductor/metrics"
+	"github.com/HashKeyChain/verse/op-node/p2p"
+	p2pMocks "github.com/HashKeyChain/verse/op-node/p2p/mocks"
+	"github.com/HashKeyChain/verse/op-node/rollup"
+	"github.com/HashKeyChain/verse/op-service/apis"
+	"github.com/HashKeyChain/verse/op-service/eth"
+	"github.com/HashKeyChain/verse/op-service/testlog"
+	"github.com/HashKeyChain/verse/op-service/testutils"
 )
 
 const (

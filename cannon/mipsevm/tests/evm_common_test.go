@@ -13,16 +13,16 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/ethereum-optimism/optimism/cannon/mipsevm"
-	"github.com/ethereum-optimism/optimism/cannon/mipsevm/arch"
-	"github.com/ethereum-optimism/optimism/cannon/mipsevm/exec"
-	"github.com/ethereum-optimism/optimism/cannon/mipsevm/memory"
-	"github.com/ethereum-optimism/optimism/cannon/mipsevm/multithreaded"
-	mtutil "github.com/ethereum-optimism/optimism/cannon/mipsevm/multithreaded/testutil"
-	"github.com/ethereum-optimism/optimism/cannon/mipsevm/program"
-	"github.com/ethereum-optimism/optimism/cannon/mipsevm/register"
-	"github.com/ethereum-optimism/optimism/cannon/mipsevm/testutil"
-	"github.com/ethereum-optimism/optimism/cannon/mipsevm/versions"
+	"github.com/HashKeyChain/verse/cannon/mipsevm"
+	"github.com/HashKeyChain/verse/cannon/mipsevm/arch"
+	"github.com/HashKeyChain/verse/cannon/mipsevm/exec"
+	"github.com/HashKeyChain/verse/cannon/mipsevm/memory"
+	"github.com/HashKeyChain/verse/cannon/mipsevm/multithreaded"
+	mtutil "github.com/HashKeyChain/verse/cannon/mipsevm/multithreaded/testutil"
+	"github.com/HashKeyChain/verse/cannon/mipsevm/program"
+	"github.com/HashKeyChain/verse/cannon/mipsevm/register"
+	"github.com/HashKeyChain/verse/cannon/mipsevm/testutil"
+	"github.com/HashKeyChain/verse/cannon/mipsevm/versions"
 )
 
 func TestEVM_SingleStep_Jump(t *testing.T) {
@@ -960,7 +960,7 @@ func TestEVM_Fault(t *testing.T) {
 
 	setExpectations := func(tt testCase, expected *mtutil.ExpectedState, vm VersionedVMTestCase) ExpectedExecResult {
 		// Memory is accessed when processing illegal instructions, so we need to make sure to append a memory proof
-		// See: https://github.com/ethereum-optimism/optimism/blob/a08b5b343a0005c6308566cd8afa810dd67e0e8f/cannon/mipsevm/exec/mips_instructions.go#L102-L105
+		// See: https://github.com/HashKeyChain/verse/blob/a08b5b343a0005c6308566cd8afa810dd67e0e8f/cannon/mipsevm/exec/mips_instructions.go#L102-L105
 		rsReg := (tt.insn >> 21) & 0x1F
 		rs := expected.ActiveThread().Registers[rsReg]
 		memAddr := testutil.EffAddr(rs + exec.SignExtendImmediate(tt.insn))

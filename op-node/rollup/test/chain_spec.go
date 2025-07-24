@@ -1,6 +1,6 @@
 package test
 
-import "github.com/ethereum-optimism/optimism/op-node/rollup"
+import "github.com/HashKeyChain/verse/op-node/rollup"
 
 // ChainSpec wraps a *rollup.ChainSpec, allowing to optionally override individual values,
 // otherwise just returning the underlying ChainSpec's values.

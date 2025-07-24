@@ -4,19 +4,19 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/clean"
-	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/upgrade"
-	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/verify"
+	"github.com/HashKeyChain/verse/op-deployer/pkg/deployer/clean"
+	"github.com/HashKeyChain/verse/op-deployer/pkg/deployer/upgrade"
+	"github.com/HashKeyChain/verse/op-deployer/pkg/deployer/verify"
 
-	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer"
-	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/bootstrap"
-	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/inspect"
-	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/manage"
-	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/version"
+	"github.com/HashKeyChain/verse/op-deployer/pkg/deployer"
+	"github.com/HashKeyChain/verse/op-deployer/pkg/deployer/bootstrap"
+	"github.com/HashKeyChain/verse/op-deployer/pkg/deployer/inspect"
+	"github.com/HashKeyChain/verse/op-deployer/pkg/deployer/manage"
+	"github.com/HashKeyChain/verse/op-deployer/pkg/deployer/version"
 
-	opservice "github.com/ethereum-optimism/optimism/op-service"
+	opservice "github.com/HashKeyChain/verse/op-service"
 
-	"github.com/ethereum-optimism/optimism/op-service/cliapp"
+	"github.com/HashKeyChain/verse/op-service/cliapp"
 	"github.com/urfave/cli/v2"
 )
 

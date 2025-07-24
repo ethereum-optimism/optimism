@@ -4,8 +4,8 @@ import (
 	"context"
 	"log/slog"
 
-	"github.com/ethereum-optimism/optimism/op-service/eth"
-	"github.com/ethereum-optimism/optimism/op-service/log/logfilter"
+	"github.com/HashKeyChain/verse/op-service/eth"
+	"github.com/HashKeyChain/verse/op-service/log/logfilter"
 )
 
 // ContextWithKind annotates the context with the given kind of service

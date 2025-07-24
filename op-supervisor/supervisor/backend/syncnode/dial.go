@@ -9,9 +9,9 @@ import (
 	gn "github.com/ethereum/go-ethereum/node"
 	"github.com/ethereum/go-ethereum/rpc"
 
-	"github.com/ethereum-optimism/optimism/op-service/client"
-	"github.com/ethereum-optimism/optimism/op-service/eth"
-	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
+	"github.com/HashKeyChain/verse/op-service/client"
+	"github.com/HashKeyChain/verse/op-service/eth"
+	opmetrics "github.com/HashKeyChain/verse/op-service/metrics"
 )
 
 type RPCDialSetup struct {

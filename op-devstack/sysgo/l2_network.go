@@ -3,11 +3,11 @@ package sysgo
 import (
 	"github.com/ethereum/go-ethereum/core"
 
-	"github.com/ethereum-optimism/optimism/op-chain-ops/devkeys"
-	"github.com/ethereum-optimism/optimism/op-devstack/shim"
-	"github.com/ethereum-optimism/optimism/op-devstack/stack"
-	"github.com/ethereum-optimism/optimism/op-node/rollup"
-	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/HashKeyChain/verse/op-chain-ops/devkeys"
+	"github.com/HashKeyChain/verse/op-devstack/shim"
+	"github.com/HashKeyChain/verse/op-devstack/stack"
+	"github.com/HashKeyChain/verse/op-node/rollup"
+	"github.com/HashKeyChain/verse/op-service/eth"
 )
 
 type L2Network struct {

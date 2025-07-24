@@ -1,9 +1,9 @@
 package contracts
 
 import (
-	"github.com/ethereum-optimism/optimism/devnet-sdk/contracts/registry/client"
-	"github.com/ethereum-optimism/optimism/devnet-sdk/contracts/registry/empty"
-	"github.com/ethereum-optimism/optimism/devnet-sdk/interfaces"
+	"github.com/HashKeyChain/verse/devnet-sdk/contracts/registry/client"
+	"github.com/HashKeyChain/verse/devnet-sdk/contracts/registry/empty"
+	"github.com/HashKeyChain/verse/devnet-sdk/interfaces"
 	"github.com/ethereum/go-ethereum/ethclient"
 )
 

@@ -3,7 +3,7 @@ package stack
 import (
 	"log/slog"
 
-	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/HashKeyChain/verse/op-service/eth"
 )
 
 // L2ProposerID identifies a L2Proposer by name and chainID, is type-safe, and can be value-copied and used as map key.

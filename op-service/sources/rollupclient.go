@@ -5,15 +5,15 @@ import (
 	"log/slog"
 	"strings"
 
-	"github.com/ethereum-optimism/optimism/op-node/node/safedb"
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/depset"
+	"github.com/HashKeyChain/verse/op-node/node/safedb"
+	"github.com/HashKeyChain/verse/op-supervisor/supervisor/backend/depset"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 
-	"github.com/ethereum-optimism/optimism/op-node/rollup"
-	"github.com/ethereum-optimism/optimism/op-service/apis"
-	"github.com/ethereum-optimism/optimism/op-service/client"
-	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/HashKeyChain/verse/op-node/rollup"
+	"github.com/HashKeyChain/verse/op-service/apis"
+	"github.com/HashKeyChain/verse/op-service/client"
+	"github.com/HashKeyChain/verse/op-service/eth"
 )
 
 type RollupClient struct {

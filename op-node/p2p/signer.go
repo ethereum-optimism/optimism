@@ -3,7 +3,7 @@ package p2p
 import (
 	"context"
 
-	opsigner "github.com/ethereum-optimism/optimism/op-service/signer"
+	opsigner "github.com/HashKeyChain/verse/op-service/signer"
 )
 
 type Signer interface {

@@ -3,17 +3,17 @@ package backend
 import (
 	"testing"
 
-	"github.com/ethereum-optimism/optimism/op-service/endpoint"
-	"github.com/ethereum-optimism/optimism/op-service/testlog"
+	"github.com/HashKeyChain/verse/op-service/endpoint"
+	"github.com/HashKeyChain/verse/op-service/testlog"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/rpc"
 	"github.com/stretchr/testify/require"
 
-	"github.com/ethereum-optimism/optimism/op-sync-tester/metrics"
-	stconf "github.com/ethereum-optimism/optimism/op-sync-tester/synctester/backend/config"
+	"github.com/HashKeyChain/verse/op-sync-tester/metrics"
+	stconf "github.com/HashKeyChain/verse/op-sync-tester/synctester/backend/config"
 
-	oprpc "github.com/ethereum-optimism/optimism/op-service/rpc"
-	sttypes "github.com/ethereum-optimism/optimism/op-sync-tester/synctester/backend/types"
+	oprpc "github.com/HashKeyChain/verse/op-service/rpc"
+	sttypes "github.com/HashKeyChain/verse/op-sync-tester/synctester/backend/types"
 )
 
 type testAPI struct{}

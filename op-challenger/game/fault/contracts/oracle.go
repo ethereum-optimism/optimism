@@ -9,14 +9,14 @@ import (
 	"math/big"
 	"sync/atomic"
 
-	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
-	"github.com/ethereum-optimism/optimism/op-challenger/game/keccak/merkle"
-	keccakTypes "github.com/ethereum-optimism/optimism/op-challenger/game/keccak/types"
-	preimage "github.com/ethereum-optimism/optimism/op-preimage"
-	"github.com/ethereum-optimism/optimism/op-service/sources/batching"
-	"github.com/ethereum-optimism/optimism/op-service/sources/batching/rpcblock"
-	"github.com/ethereum-optimism/optimism/op-service/txmgr"
-	"github.com/ethereum-optimism/optimism/packages/contracts-bedrock/snapshots"
+	"github.com/HashKeyChain/verse/op-challenger/game/fault/types"
+	"github.com/HashKeyChain/verse/op-challenger/game/keccak/merkle"
+	keccakTypes "github.com/HashKeyChain/verse/op-challenger/game/keccak/types"
+	preimage "github.com/HashKeyChain/verse/op-preimage"
+	"github.com/HashKeyChain/verse/op-service/sources/batching"
+	"github.com/HashKeyChain/verse/op-service/sources/batching/rpcblock"
+	"github.com/HashKeyChain/verse/op-service/txmgr"
+	"github.com/HashKeyChain/verse/packages/contracts-bedrock/snapshots"
 	"github.com/ethereum/go-ethereum/common"
 )
 

@@ -4,8 +4,8 @@ import (
 	"context"
 	"errors"
 
-	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
-	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/HashKeyChain/verse/op-node/rollup/derive"
+	"github.com/HashKeyChain/verse/op-service/eth"
 	"github.com/ethereum/go-ethereum/log"
 )
 

@@ -6,12 +6,12 @@ import (
 	"log/slog"
 	"testing"
 
-	clientmocks "github.com/ethereum-optimism/optimism/op-conductor/client/mocks"
-	consensusmocks "github.com/ethereum-optimism/optimism/op-conductor/consensus/mocks"
-	healthmocks "github.com/ethereum-optimism/optimism/op-conductor/health/mocks"
-	"github.com/ethereum-optimism/optimism/op-conductor/metrics"
-	"github.com/ethereum-optimism/optimism/op-service/testlog"
-	"github.com/ethereum-optimism/optimism/op-service/testutils/mockrpc"
+	clientmocks "github.com/HashKeyChain/verse/op-conductor/client/mocks"
+	consensusmocks "github.com/HashKeyChain/verse/op-conductor/consensus/mocks"
+	healthmocks "github.com/HashKeyChain/verse/op-conductor/health/mocks"
+	"github.com/HashKeyChain/verse/op-conductor/metrics"
+	"github.com/HashKeyChain/verse/op-service/testlog"
+	"github.com/HashKeyChain/verse/op-service/testutils/mockrpc"
 	"github.com/ethereum/go-ethereum/rpc"
 	"github.com/stretchr/testify/require"
 )

@@ -9,10 +9,10 @@ import (
 
 	"github.com/ethereum/go-ethereum/core/types"
 
-	"github.com/ethereum-optimism/optimism/op-e2e/actions/helpers"
-	"github.com/ethereum-optimism/optimism/op-e2e/system/e2esys"
-	"github.com/ethereum-optimism/optimism/op-node/rollup"
-	"github.com/ethereum-optimism/optimism/op-service/testlog"
+	"github.com/HashKeyChain/verse/op-e2e/actions/helpers"
+	"github.com/HashKeyChain/verse/op-e2e/system/e2esys"
+	"github.com/HashKeyChain/verse/op-node/rollup"
+	"github.com/HashKeyChain/verse/op-service/testlog"
 )
 
 func TestHoloceneActivationAtGenesis(gt *testing.T) {

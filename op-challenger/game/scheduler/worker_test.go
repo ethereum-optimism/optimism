@@ -7,9 +7,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ethereum-optimism/optimism/op-challenger/game/scheduler/test"
-	"github.com/ethereum-optimism/optimism/op-challenger/game/types"
-	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
+	"github.com/HashKeyChain/verse/op-challenger/game/scheduler/test"
+	"github.com/HashKeyChain/verse/op-challenger/game/types"
+	"github.com/HashKeyChain/verse/op-e2e/e2eutils/wait"
 
 	"github.com/stretchr/testify/require"
 )

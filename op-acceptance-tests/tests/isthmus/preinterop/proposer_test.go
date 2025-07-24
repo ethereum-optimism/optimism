@@ -3,8 +3,8 @@ package preinterop
 import (
 	"testing"
 
-	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
-	"github.com/ethereum-optimism/optimism/op-devstack/presets"
+	"github.com/HashKeyChain/verse/op-devstack/devtest"
+	"github.com/HashKeyChain/verse/op-devstack/presets"
 )
 
 func TestProposer(gt *testing.T) {

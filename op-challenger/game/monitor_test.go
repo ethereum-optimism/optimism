@@ -8,16 +8,16 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ethereum-optimism/optimism/op-challenger/game/types"
-	"github.com/ethereum-optimism/optimism/op-service/testlog"
+	"github.com/HashKeyChain/verse/op-challenger/game/types"
+	"github.com/HashKeyChain/verse/op-service/testlog"
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
 	ethtypes "github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/stretchr/testify/require"
 
-	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
-	"github.com/ethereum-optimism/optimism/op-service/clock"
+	"github.com/HashKeyChain/verse/op-e2e/e2eutils/wait"
+	"github.com/HashKeyChain/verse/op-service/clock"
 )
 
 // TestMonitorGames tests that the monitor can handle a new head event

@@ -6,10 +6,10 @@ import (
 
 	"github.com/urfave/cli/v2"
 
-	"github.com/ethereum-optimism/optimism/op-batcher/flags"
-	opservice "github.com/ethereum-optimism/optimism/op-service"
-	"github.com/ethereum-optimism/optimism/op-service/cliapp"
-	oplog "github.com/ethereum-optimism/optimism/op-service/log"
+	"github.com/HashKeyChain/verse/op-batcher/flags"
+	opservice "github.com/HashKeyChain/verse/op-service"
+	"github.com/HashKeyChain/verse/op-service/cliapp"
+	oplog "github.com/HashKeyChain/verse/op-service/log"
 )
 
 // Main is the entrypoint into the Batch Submitter.

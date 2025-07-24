@@ -4,8 +4,8 @@ import (
 	"context"
 	"sync"
 
-	"github.com/ethereum-optimism/optimism/op-node/p2p/store"
-	"github.com/ethereum-optimism/optimism/op-service/clock"
+	"github.com/HashKeyChain/verse/op-node/p2p/store"
+	"github.com/HashKeyChain/verse/op-service/clock"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/libp2p/go-libp2p/core/peer"
 )

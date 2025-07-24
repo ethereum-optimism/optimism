@@ -3,14 +3,14 @@ package smoke
 import (
 	"testing"
 
-	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
-	"github.com/ethereum-optimism/optimism/op-devstack/dsl/contract"
-	"github.com/ethereum-optimism/optimism/op-devstack/presets"
-	"github.com/ethereum-optimism/optimism/op-service/eth"
-	"github.com/ethereum-optimism/optimism/op-service/predeploys"
-	"github.com/ethereum-optimism/optimism/op-service/txintent/bindings"
-	"github.com/ethereum-optimism/optimism/op-service/txintent/contractio"
-	"github.com/ethereum-optimism/optimism/op-service/txplan"
+	"github.com/HashKeyChain/verse/op-devstack/devtest"
+	"github.com/HashKeyChain/verse/op-devstack/dsl/contract"
+	"github.com/HashKeyChain/verse/op-devstack/presets"
+	"github.com/HashKeyChain/verse/op-service/eth"
+	"github.com/HashKeyChain/verse/op-service/predeploys"
+	"github.com/HashKeyChain/verse/op-service/txintent/bindings"
+	"github.com/HashKeyChain/verse/op-service/txintent/contractio"
+	"github.com/HashKeyChain/verse/op-service/txplan"
 	"github.com/ethereum/go-ethereum/common"
 )
 

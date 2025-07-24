@@ -4,9 +4,9 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/split"
-	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
-	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/HashKeyChain/verse/op-challenger/game/fault/trace/split"
+	"github.com/HashKeyChain/verse/op-challenger/game/fault/types"
+	"github.com/HashKeyChain/verse/op-service/eth"
 	"github.com/ethereum/go-ethereum/common"
 )
 

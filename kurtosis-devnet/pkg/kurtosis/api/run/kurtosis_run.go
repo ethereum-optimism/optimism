@@ -7,9 +7,9 @@ import (
 	"io"
 	"os"
 
-	"github.com/ethereum-optimism/optimism/kurtosis-devnet/pkg/kurtosis/api/enclave"
-	"github.com/ethereum-optimism/optimism/kurtosis-devnet/pkg/kurtosis/api/interfaces"
-	"github.com/ethereum-optimism/optimism/kurtosis-devnet/pkg/kurtosis/api/wrappers"
+	"github.com/HashKeyChain/verse/kurtosis-devnet/pkg/kurtosis/api/enclave"
+	"github.com/HashKeyChain/verse/kurtosis-devnet/pkg/kurtosis/api/interfaces"
+	"github.com/HashKeyChain/verse/kurtosis-devnet/pkg/kurtosis/api/wrappers"
 	"github.com/kurtosis-tech/kurtosis/api/golang/core/lib/starlark_run_config"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/trace"

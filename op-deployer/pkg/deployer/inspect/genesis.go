@@ -3,15 +3,15 @@ package inspect
 import (
 	"fmt"
 
-	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
-	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/pipeline"
-	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/state"
-	"github.com/ethereum-optimism/optimism/op-node/rollup"
+	"github.com/HashKeyChain/verse/op-chain-ops/genesis"
+	"github.com/HashKeyChain/verse/op-deployer/pkg/deployer/pipeline"
+	"github.com/HashKeyChain/verse/op-deployer/pkg/deployer/state"
+	"github.com/HashKeyChain/verse/op-node/rollup"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core"
 
-	"github.com/ethereum-optimism/optimism/op-service/ioutil"
-	"github.com/ethereum-optimism/optimism/op-service/jsonutil"
+	"github.com/HashKeyChain/verse/op-service/ioutil"
+	"github.com/HashKeyChain/verse/op-service/jsonutil"
 	"github.com/urfave/cli/v2"
 )
 

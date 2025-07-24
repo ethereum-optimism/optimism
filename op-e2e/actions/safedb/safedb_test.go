@@ -4,9 +4,9 @@ import (
 	"context"
 	"testing"
 
-	actionsHelpers "github.com/ethereum-optimism/optimism/op-e2e/actions/helpers"
-	"github.com/ethereum-optimism/optimism/op-e2e/actions/safedb/helpers"
-	"github.com/ethereum-optimism/optimism/op-service/eth"
+	actionsHelpers "github.com/HashKeyChain/verse/op-e2e/actions/helpers"
+	"github.com/HashKeyChain/verse/op-e2e/actions/safedb/helpers"
+	"github.com/HashKeyChain/verse/op-service/eth"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/stretchr/testify/require"

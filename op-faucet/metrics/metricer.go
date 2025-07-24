@@ -1,9 +1,9 @@
 package metrics
 
 import (
-	ftypes "github.com/ethereum-optimism/optimism/op-faucet/faucet/backend/types"
-	"github.com/ethereum-optimism/optimism/op-service/eth"
-	"github.com/ethereum-optimism/optimism/op-service/txmgr/metrics"
+	ftypes "github.com/HashKeyChain/verse/op-faucet/faucet/backend/types"
+	"github.com/HashKeyChain/verse/op-service/eth"
+	"github.com/HashKeyChain/verse/op-service/txmgr/metrics"
 )
 
 type Metricer interface {

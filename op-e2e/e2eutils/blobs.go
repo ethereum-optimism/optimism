@@ -7,8 +7,8 @@ import (
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/crypto/kzg4844"
 
-	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
-	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/HashKeyChain/verse/op-node/rollup/derive"
+	"github.com/HashKeyChain/verse/op-service/eth"
 )
 
 // BlobsStore is a simple in-memory store of blobs, for testing purposes

@@ -5,10 +5,10 @@ import (
 
 	"github.com/ethereum/go-ethereum/log"
 
-	altda "github.com/ethereum-optimism/optimism/op-alt-da"
-	"github.com/ethereum-optimism/optimism/op-node/rollup"
-	"github.com/ethereum-optimism/optimism/op-service/eth"
-	"github.com/ethereum-optimism/optimism/op-service/event"
+	altda "github.com/HashKeyChain/verse/op-alt-da"
+	"github.com/HashKeyChain/verse/op-node/rollup"
+	"github.com/HashKeyChain/verse/op-service/eth"
+	"github.com/HashKeyChain/verse/op-service/event"
 )
 
 type AltDABackend interface {

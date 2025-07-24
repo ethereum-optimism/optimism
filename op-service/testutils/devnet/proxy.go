@@ -10,7 +10,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/ethereum-optimism/optimism/op-service/retry"
+	"github.com/HashKeyChain/verse/op-service/retry"
 	"github.com/ethereum/go-ethereum/log"
 )
 

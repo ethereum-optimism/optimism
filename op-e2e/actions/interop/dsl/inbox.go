@@ -8,11 +8,11 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 
-	"github.com/ethereum-optimism/optimism/op-e2e/actions/helpers"
-	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/contracts/bindings/inbox"
-	"github.com/ethereum-optimism/optimism/op-service/eth"
-	"github.com/ethereum-optimism/optimism/op-service/predeploys"
-	stypes "github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
+	"github.com/HashKeyChain/verse/op-e2e/actions/helpers"
+	"github.com/HashKeyChain/verse/op-e2e/e2eutils/contracts/bindings/inbox"
+	"github.com/HashKeyChain/verse/op-service/eth"
+	"github.com/HashKeyChain/verse/op-service/predeploys"
+	stypes "github.com/HashKeyChain/verse/op-supervisor/supervisor/types"
 )
 
 type InboxContract struct {

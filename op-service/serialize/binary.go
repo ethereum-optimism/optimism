@@ -6,7 +6,7 @@ import (
 	"io"
 	"reflect"
 
-	"github.com/ethereum-optimism/optimism/op-service/ioutil"
+	"github.com/HashKeyChain/verse/op-service/ioutil"
 )
 
 // Deserializable defines functionality for a type that may be deserialized from raw bytes.

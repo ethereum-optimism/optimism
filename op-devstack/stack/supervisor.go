@@ -3,7 +3,7 @@ package stack
 import (
 	"log/slog"
 
-	"github.com/ethereum-optimism/optimism/op-service/apis"
+	"github.com/HashKeyChain/verse/op-service/apis"
 )
 
 // SupervisorID identifies a Supervisor by name and chainID, is type-safe, and can be value-copied and used as map key.

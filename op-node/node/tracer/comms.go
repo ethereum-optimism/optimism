@@ -5,10 +5,10 @@ import (
 
 	"github.com/libp2p/go-libp2p/core/peer"
 
-	"github.com/ethereum-optimism/optimism/op-node/p2p"
-	"github.com/ethereum-optimism/optimism/op-node/rollup/status"
-	"github.com/ethereum-optimism/optimism/op-service/eth"
-	"github.com/ethereum-optimism/optimism/op-service/event"
+	"github.com/HashKeyChain/verse/op-node/p2p"
+	"github.com/HashKeyChain/verse/op-node/rollup/status"
+	"github.com/HashKeyChain/verse/op-service/eth"
+	"github.com/HashKeyChain/verse/op-service/event"
 )
 
 // Tracer configures the OpNode to share events

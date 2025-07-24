@@ -8,9 +8,9 @@ import (
 
 	"github.com/ethereum/go-ethereum/rpc"
 
-	"github.com/ethereum-optimism/optimism/devnet-sdk/descriptors"
-	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
-	"github.com/ethereum-optimism/optimism/op-service/client"
+	"github.com/HashKeyChain/verse/devnet-sdk/descriptors"
+	"github.com/HashKeyChain/verse/op-devstack/devtest"
+	"github.com/HashKeyChain/verse/op-service/client"
 )
 
 const (

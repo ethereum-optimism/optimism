@@ -3,14 +3,14 @@ package erc20bridge
 import (
 	"testing"
 
-	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
-	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
-	"github.com/ethereum-optimism/optimism/op-devstack/dsl/contract"
-	"github.com/ethereum-optimism/optimism/op-devstack/presets"
-	"github.com/ethereum-optimism/optimism/op-node/rollup"
-	"github.com/ethereum-optimism/optimism/op-service/eth"
-	"github.com/ethereum-optimism/optimism/op-service/txintent/bindings"
-	"github.com/ethereum-optimism/optimism/op-service/txplan"
+	"github.com/HashKeyChain/verse/op-devstack/devtest"
+	"github.com/HashKeyChain/verse/op-devstack/dsl"
+	"github.com/HashKeyChain/verse/op-devstack/dsl/contract"
+	"github.com/HashKeyChain/verse/op-devstack/presets"
+	"github.com/HashKeyChain/verse/op-node/rollup"
+	"github.com/HashKeyChain/verse/op-service/eth"
+	"github.com/HashKeyChain/verse/op-service/txintent/bindings"
+	"github.com/HashKeyChain/verse/op-service/txplan"
 )
 
 func TestERC20Bridge(gt *testing.T) {

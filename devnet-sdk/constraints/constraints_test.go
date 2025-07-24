@@ -5,9 +5,9 @@ import (
 	"math/big"
 	"testing"
 
-	"github.com/ethereum-optimism/optimism/devnet-sdk/contracts/bindings"
-	"github.com/ethereum-optimism/optimism/devnet-sdk/system"
-	"github.com/ethereum-optimism/optimism/devnet-sdk/types"
+	"github.com/HashKeyChain/verse/devnet-sdk/contracts/bindings"
+	"github.com/HashKeyChain/verse/devnet-sdk/system"
+	"github.com/HashKeyChain/verse/devnet-sdk/types"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"

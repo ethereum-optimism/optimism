@@ -7,8 +7,8 @@ import (
 	"sync"
 	"time"
 
-	faultTypes "github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
-	keccakTypes "github.com/ethereum-optimism/optimism/op-challenger/game/keccak/types"
+	faultTypes "github.com/HashKeyChain/verse/op-challenger/game/fault/types"
+	keccakTypes "github.com/HashKeyChain/verse/op-challenger/game/keccak/types"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
 )

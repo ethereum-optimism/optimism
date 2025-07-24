@@ -3,9 +3,9 @@ package cross
 import (
 	"fmt"
 
-	"github.com/ethereum-optimism/optimism/op-service/eth"
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/depset"
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
+	"github.com/HashKeyChain/verse/op-service/eth"
+	"github.com/HashKeyChain/verse/op-supervisor/supervisor/backend/depset"
+	"github.com/HashKeyChain/verse/op-supervisor/supervisor/types"
 	"github.com/ethereum/go-ethereum/log"
 )
 

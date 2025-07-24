@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils"
+	"github.com/HashKeyChain/verse/op-e2e/e2eutils"
 )
 
 func RunMain(m *testing.M) {

@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"math/big"
 
-	"github.com/ethereum-optimism/optimism/op-chain-ops/script"
+	"github.com/HashKeyChain/verse/op-chain-ops/script"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 )

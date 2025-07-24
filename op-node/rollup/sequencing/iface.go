@@ -6,7 +6,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 
-	"github.com/ethereum-optimism/optimism/op-service/event"
+	"github.com/HashKeyChain/verse/op-service/event"
 )
 
 type SequencerIface interface {

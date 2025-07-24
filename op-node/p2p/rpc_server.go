@@ -7,11 +7,11 @@ import (
 	"net"
 	"time"
 
-	"github.com/ethereum-optimism/optimism/op-node/p2p/gating"
-	"github.com/ethereum-optimism/optimism/op-service/apis"
+	"github.com/HashKeyChain/verse/op-node/p2p/gating"
+	"github.com/HashKeyChain/verse/op-service/apis"
 
+	"github.com/HashKeyChain/verse/op-node/p2p/store"
 	decredSecp "github.com/decred/dcrd/dcrec/secp256k1/v4"
-	"github.com/ethereum-optimism/optimism/op-node/p2p/store"
 	pubsub "github.com/libp2p/go-libp2p-pubsub"
 	"github.com/libp2p/go-libp2p-testing/netutil"
 	"github.com/libp2p/go-libp2p/core/connmgr"

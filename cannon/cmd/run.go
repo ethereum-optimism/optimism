@@ -18,15 +18,15 @@ import (
 	"github.com/pkg/profile"
 	"github.com/urfave/cli/v2"
 
-	"github.com/ethereum-optimism/optimism/cannon/mipsevm"
-	"github.com/ethereum-optimism/optimism/cannon/mipsevm/arch"
-	mipsexec "github.com/ethereum-optimism/optimism/cannon/mipsevm/exec"
-	"github.com/ethereum-optimism/optimism/cannon/mipsevm/program"
-	"github.com/ethereum-optimism/optimism/cannon/mipsevm/versions"
-	preimage "github.com/ethereum-optimism/optimism/op-preimage"
-	"github.com/ethereum-optimism/optimism/op-service/ioutil"
-	"github.com/ethereum-optimism/optimism/op-service/jsonutil"
-	"github.com/ethereum-optimism/optimism/op-service/serialize"
+	"github.com/HashKeyChain/verse/cannon/mipsevm"
+	"github.com/HashKeyChain/verse/cannon/mipsevm/arch"
+	mipsexec "github.com/HashKeyChain/verse/cannon/mipsevm/exec"
+	"github.com/HashKeyChain/verse/cannon/mipsevm/program"
+	"github.com/HashKeyChain/verse/cannon/mipsevm/versions"
+	preimage "github.com/HashKeyChain/verse/op-preimage"
+	"github.com/HashKeyChain/verse/op-service/ioutil"
+	"github.com/HashKeyChain/verse/op-service/jsonutil"
+	"github.com/HashKeyChain/verse/op-service/serialize"
 )
 
 var (

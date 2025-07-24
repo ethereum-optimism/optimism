@@ -1,7 +1,7 @@
 package mipsevm
 
 import (
-	"github.com/ethereum-optimism/optimism/cannon/mipsevm/arch"
+	"github.com/HashKeyChain/verse/cannon/mipsevm/arch"
 	"github.com/ethereum/go-ethereum/common"
 )
 

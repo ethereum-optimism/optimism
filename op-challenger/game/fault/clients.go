@@ -4,12 +4,12 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/ethereum-optimism/optimism/op-challenger/config"
-	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/super"
-	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/utils"
-	"github.com/ethereum-optimism/optimism/op-service/client"
-	"github.com/ethereum-optimism/optimism/op-service/dial"
-	"github.com/ethereum-optimism/optimism/op-service/sources"
+	"github.com/HashKeyChain/verse/op-challenger/config"
+	"github.com/HashKeyChain/verse/op-challenger/game/fault/trace/super"
+	"github.com/HashKeyChain/verse/op-challenger/game/fault/trace/utils"
+	"github.com/HashKeyChain/verse/op-service/client"
+	"github.com/HashKeyChain/verse/op-service/dial"
+	"github.com/HashKeyChain/verse/op-service/sources"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/log"
 )

@@ -5,7 +5,7 @@ import (
 	"net"
 	"testing"
 
-	"github.com/ethereum-optimism/optimism/op-node/p2p"
+	"github.com/HashKeyChain/verse/op-node/p2p"
 	"github.com/ethereum/go-ethereum/p2p/enode"
 	"github.com/stretchr/testify/require"
 )

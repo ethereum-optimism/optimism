@@ -7,17 +7,17 @@ import (
 	"sync"
 	"time"
 
-	"github.com/ethereum-optimism/optimism/op-service/rpc"
+	"github.com/HashKeyChain/verse/op-service/rpc"
 	gethrpc "github.com/ethereum/go-ethereum/rpc"
 	"github.com/gorilla/websocket"
 
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/log"
 
-	"github.com/ethereum-optimism/optimism/op-service/eth"
-	"github.com/ethereum-optimism/optimism/op-service/event"
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/superevents"
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
+	"github.com/HashKeyChain/verse/op-service/eth"
+	"github.com/HashKeyChain/verse/op-service/event"
+	"github.com/HashKeyChain/verse/op-supervisor/supervisor/backend/superevents"
+	"github.com/HashKeyChain/verse/op-supervisor/supervisor/types"
 	gethevent "github.com/ethereum/go-ethereum/event"
 )
 

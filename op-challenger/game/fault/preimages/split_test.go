@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
+	"github.com/HashKeyChain/verse/op-challenger/game/fault/types"
 	"github.com/stretchr/testify/require"
 )
 

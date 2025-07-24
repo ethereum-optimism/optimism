@@ -3,7 +3,7 @@ package validations
 import (
 	"fmt"
 
-	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/standard"
+	"github.com/HashKeyChain/verse/op-deployer/pkg/deployer/standard"
 
 	"github.com/ethereum/go-ethereum/common"
 )

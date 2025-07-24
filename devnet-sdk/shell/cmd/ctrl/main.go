@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/ethereum-optimism/optimism/devnet-sdk/controller/surface"
-	"github.com/ethereum-optimism/optimism/devnet-sdk/shell/env"
+	"github.com/HashKeyChain/verse/devnet-sdk/controller/surface"
+	"github.com/HashKeyChain/verse/devnet-sdk/shell/env"
 	"github.com/urfave/cli/v2"
 )
 

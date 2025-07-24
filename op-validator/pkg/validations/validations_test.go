@@ -9,15 +9,15 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/standard"
+	"github.com/HashKeyChain/verse/op-deployer/pkg/deployer/standard"
 	"github.com/ethereum-optimism/superchain-registry/validation"
 
-	"github.com/ethereum-optimism/optimism/op-service/testlog"
+	"github.com/HashKeyChain/verse/op-service/testlog"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/rpc"
 	"github.com/stretchr/testify/require"
 
-	"github.com/ethereum-optimism/optimism/op-service/testutils/mockrpc"
+	"github.com/HashKeyChain/verse/op-service/testutils/mockrpc"
 )
 
 const callParamsTemplate = `[

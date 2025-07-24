@@ -8,7 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/ethereum-optimism/optimism/devnet-sdk/telemetry"
+	"github.com/HashKeyChain/verse/devnet-sdk/telemetry"
 	"github.com/honeycombio/otel-config-go/otelconfig"
 	"github.com/urfave/cli/v2"
 	"go.opentelemetry.io/otel"

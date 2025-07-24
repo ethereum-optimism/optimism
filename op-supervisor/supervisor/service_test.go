@@ -5,22 +5,22 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ethereum-optimism/optimism/op-node/rollup"
-	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/HashKeyChain/verse/op-node/rollup"
+	"github.com/HashKeyChain/verse/op-service/eth"
 	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
 
-	"github.com/ethereum-optimism/optimism/op-service/dial"
-	oplog "github.com/ethereum-optimism/optimism/op-service/log"
-	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
-	"github.com/ethereum-optimism/optimism/op-service/oppprof"
-	oprpc "github.com/ethereum-optimism/optimism/op-service/rpc"
-	"github.com/ethereum-optimism/optimism/op-service/testlog"
-	"github.com/ethereum-optimism/optimism/op-supervisor/config"
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/depset"
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
+	"github.com/HashKeyChain/verse/op-service/dial"
+	oplog "github.com/HashKeyChain/verse/op-service/log"
+	opmetrics "github.com/HashKeyChain/verse/op-service/metrics"
+	"github.com/HashKeyChain/verse/op-service/oppprof"
+	oprpc "github.com/HashKeyChain/verse/op-service/rpc"
+	"github.com/HashKeyChain/verse/op-service/testlog"
+	"github.com/HashKeyChain/verse/op-supervisor/config"
+	"github.com/HashKeyChain/verse/op-supervisor/supervisor/backend/depset"
+	"github.com/HashKeyChain/verse/op-supervisor/supervisor/types"
 )
 
 func TestSupervisorService(t *testing.T) {

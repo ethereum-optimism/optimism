@@ -3,8 +3,8 @@ package solver
 import (
 	"testing"
 
-	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/test"
-	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
+	"github.com/HashKeyChain/verse/op-challenger/game/fault/test"
+	"github.com/HashKeyChain/verse/op-challenger/game/fault/types"
 	"github.com/ethereum/go-ethereum/common"
 )
 

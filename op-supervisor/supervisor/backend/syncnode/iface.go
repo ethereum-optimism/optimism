@@ -9,9 +9,9 @@ import (
 	gethtypes "github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
 
-	"github.com/ethereum-optimism/optimism/op-service/eth"
-	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
+	"github.com/HashKeyChain/verse/op-service/eth"
+	opmetrics "github.com/HashKeyChain/verse/op-service/metrics"
+	"github.com/HashKeyChain/verse/op-supervisor/supervisor/types"
 )
 
 type SyncNodeCollection interface {

@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"math/big"
 
-	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/opcm"
-	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/state"
+	"github.com/HashKeyChain/verse/op-deployer/pkg/deployer/opcm"
+	"github.com/HashKeyChain/verse/op-deployer/pkg/deployer/state"
 	"github.com/ethereum/go-ethereum/common"
 )
 

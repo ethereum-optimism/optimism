@@ -5,8 +5,8 @@
 package mocks
 
 import (
-	"github.com/ethereum-optimism/optimism/op-conductor/consensus"
-	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/HashKeyChain/verse/op-conductor/consensus"
+	"github.com/HashKeyChain/verse/op-service/eth"
 	mock "github.com/stretchr/testify/mock"
 )
 

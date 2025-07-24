@@ -6,7 +6,7 @@ import (
 	"os"
 	"strconv"
 
-	"github.com/ethereum-optimism/optimism/op-challenger/game/keccak/merkle"
+	"github.com/HashKeyChain/verse/op-challenger/game/keccak/merkle"
 
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"

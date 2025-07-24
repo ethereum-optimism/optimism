@@ -8,10 +8,10 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/ethereum-optimism/optimism/op-node/metrics"
-	"github.com/ethereum-optimism/optimism/op-node/rollup"
-	rolluptest "github.com/ethereum-optimism/optimism/op-node/rollup/test"
-	"github.com/ethereum-optimism/optimism/op-service/testlog"
+	"github.com/HashKeyChain/verse/op-node/metrics"
+	"github.com/HashKeyChain/verse/op-node/rollup"
+	rolluptest "github.com/HashKeyChain/verse/op-node/rollup/test"
+	"github.com/HashKeyChain/verse/op-service/testlog"
 )
 
 func TestChannelStage_NextData(t *testing.T) {

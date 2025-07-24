@@ -10,12 +10,12 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts"
-	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts/metrics"
-	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/prestates"
-	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/vm"
-	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
-	"github.com/ethereum-optimism/optimism/op-service/sources/batching"
+	"github.com/HashKeyChain/verse/op-challenger/game/fault/contracts"
+	"github.com/HashKeyChain/verse/op-challenger/game/fault/contracts/metrics"
+	"github.com/HashKeyChain/verse/op-challenger/game/fault/trace/prestates"
+	"github.com/HashKeyChain/verse/op-challenger/game/fault/trace/vm"
+	"github.com/HashKeyChain/verse/op-challenger/game/fault/types"
+	"github.com/HashKeyChain/verse/op-service/sources/batching"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
 )

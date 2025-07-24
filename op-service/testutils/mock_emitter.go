@@ -3,7 +3,7 @@ package testutils
 import (
 	"context"
 
-	"github.com/ethereum-optimism/optimism/op-service/event"
+	"github.com/HashKeyChain/verse/op-service/event"
 	"github.com/stretchr/testify/mock"
 )
 

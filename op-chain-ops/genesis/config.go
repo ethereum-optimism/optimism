@@ -16,11 +16,11 @@ import (
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/ethereum/go-ethereum/rpc"
 
-	altda "github.com/ethereum-optimism/optimism/op-alt-da"
-	"github.com/ethereum-optimism/optimism/op-chain-ops/addresses"
-	opparams "github.com/ethereum-optimism/optimism/op-node/params"
-	"github.com/ethereum-optimism/optimism/op-node/rollup"
-	"github.com/ethereum-optimism/optimism/op-service/eth"
+	altda "github.com/HashKeyChain/verse/op-alt-da"
+	"github.com/HashKeyChain/verse/op-chain-ops/addresses"
+	opparams "github.com/HashKeyChain/verse/op-node/params"
+	"github.com/HashKeyChain/verse/op-node/rollup"
+	"github.com/HashKeyChain/verse/op-service/eth"
 )
 
 var (

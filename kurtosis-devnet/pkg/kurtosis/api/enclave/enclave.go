@@ -4,9 +4,9 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/ethereum-optimism/optimism/kurtosis-devnet/pkg/kurtosis/api/interfaces"
-	"github.com/ethereum-optimism/optimism/kurtosis-devnet/pkg/kurtosis/api/wrappers"
-	"github.com/ethereum-optimism/optimism/kurtosis-devnet/pkg/util"
+	"github.com/HashKeyChain/verse/kurtosis-devnet/pkg/kurtosis/api/interfaces"
+	"github.com/HashKeyChain/verse/kurtosis-devnet/pkg/kurtosis/api/wrappers"
+	"github.com/HashKeyChain/verse/kurtosis-devnet/pkg/util"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/trace"
 )

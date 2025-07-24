@@ -1,6 +1,6 @@
 package shim
 
-import "github.com/ethereum-optimism/optimism/op-devstack/stack"
+import "github.com/HashKeyChain/verse/op-devstack/stack"
 
 type L2ChallengerConfig struct {
 	CommonConfig

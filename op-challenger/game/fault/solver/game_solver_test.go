@@ -7,10 +7,10 @@ import (
 	"math/big"
 	"testing"
 
-	faulttest "github.com/ethereum-optimism/optimism/op-challenger/game/fault/test"
-	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace"
-	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
-	"github.com/ethereum-optimism/optimism/op-service/eth"
+	faulttest "github.com/HashKeyChain/verse/op-challenger/game/fault/test"
+	"github.com/HashKeyChain/verse/op-challenger/game/fault/trace"
+	"github.com/HashKeyChain/verse/op-challenger/game/fault/types"
+	"github.com/HashKeyChain/verse/op-service/eth"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/stretchr/testify/require"
 )

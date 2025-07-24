@@ -5,9 +5,9 @@ import (
 
 	"github.com/prometheus/client_golang/prometheus"
 
-	contractMetrics "github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts/metrics"
-	"github.com/ethereum-optimism/optimism/op-challenger/metrics"
-	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
+	contractMetrics "github.com/HashKeyChain/verse/op-challenger/game/fault/contracts/metrics"
+	"github.com/HashKeyChain/verse/op-challenger/metrics"
+	opmetrics "github.com/HashKeyChain/verse/op-service/metrics"
 )
 
 const Namespace = "op_challenger_runner"

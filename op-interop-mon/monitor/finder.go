@@ -5,9 +5,9 @@ import (
 	"errors"
 	"time"
 
-	"github.com/ethereum-optimism/optimism/op-service/buffer"
-	"github.com/ethereum-optimism/optimism/op-service/eth"
-	"github.com/ethereum-optimism/optimism/op-service/sources"
+	"github.com/HashKeyChain/verse/op-service/buffer"
+	"github.com/HashKeyChain/verse/op-service/eth"
+	"github.com/HashKeyChain/verse/op-service/sources"
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"

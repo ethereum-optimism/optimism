@@ -1,9 +1,9 @@
 package client
 
 import (
-	"github.com/ethereum-optimism/optimism/devnet-sdk/contracts/bindings"
-	"github.com/ethereum-optimism/optimism/devnet-sdk/interfaces"
-	"github.com/ethereum-optimism/optimism/devnet-sdk/types"
+	"github.com/HashKeyChain/verse/devnet-sdk/contracts/bindings"
+	"github.com/HashKeyChain/verse/devnet-sdk/interfaces"
+	"github.com/HashKeyChain/verse/devnet-sdk/types"
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/ethclient"
 )

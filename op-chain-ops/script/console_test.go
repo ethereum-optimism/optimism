@@ -7,15 +7,15 @@ import (
 	"math/rand" // nosemgrep
 	"testing"
 
-	"github.com/ethereum-optimism/optimism/op-chain-ops/script/addresses"
+	"github.com/HashKeyChain/verse/op-chain-ops/script/addresses"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/stretchr/testify/require"
 
-	"github.com/ethereum-optimism/optimism/op-service/testlog"
-	"github.com/ethereum-optimism/optimism/op-service/testutils"
+	"github.com/HashKeyChain/verse/op-service/testlog"
+	"github.com/HashKeyChain/verse/op-service/testutils"
 )
 
 func TestConsole(t *testing.T) {

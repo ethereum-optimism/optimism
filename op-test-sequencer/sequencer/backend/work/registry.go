@@ -1,8 +1,8 @@
 package work
 
 import (
-	"github.com/ethereum-optimism/optimism/op-service/locks"
-	"github.com/ethereum-optimism/optimism/op-test-sequencer/sequencer/seqtypes"
+	"github.com/HashKeyChain/verse/op-service/locks"
+	"github.com/HashKeyChain/verse/op-test-sequencer/sequencer/seqtypes"
 )
 
 type JobRegistry struct {

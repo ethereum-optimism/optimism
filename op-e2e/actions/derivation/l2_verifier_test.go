@@ -3,15 +3,15 @@ package derivation
 import (
 	"testing"
 
-	"github.com/ethereum-optimism/optimism/op-e2e/config"
+	"github.com/HashKeyChain/verse/op-e2e/config"
 
-	"github.com/ethereum-optimism/optimism/op-e2e/actions/helpers"
+	"github.com/HashKeyChain/verse/op-e2e/actions/helpers"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/stretchr/testify/require"
 
-	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils"
-	"github.com/ethereum-optimism/optimism/op-service/testlog"
+	"github.com/HashKeyChain/verse/op-e2e/e2eutils"
+	"github.com/HashKeyChain/verse/op-service/testlog"
 )
 
 func TestL2Verifier_SequenceWindow(gt *testing.T) {

@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/ethereum-optimism/optimism/op-service/sources/batching/rpcblock"
+	"github.com/HashKeyChain/verse/op-service/sources/batching/rpcblock"
 	"github.com/ethereum/go-ethereum/rpc"
 )
 

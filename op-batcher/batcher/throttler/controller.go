@@ -5,7 +5,7 @@ import (
 	"sync"
 	"sync/atomic"
 
-	"github.com/ethereum-optimism/optimism/op-batcher/config"
+	"github.com/HashKeyChain/verse/op-batcher/config"
 	"github.com/ethereum/go-ethereum/log"
 )
 

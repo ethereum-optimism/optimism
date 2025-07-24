@@ -6,8 +6,8 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/ethereum-optimism/optimism/kurtosis-devnet/pkg/kurtosis"
-	"github.com/ethereum-optimism/optimism/kurtosis-devnet/pkg/kurtosis/sources/spec"
+	"github.com/HashKeyChain/verse/kurtosis-devnet/pkg/kurtosis"
+	"github.com/HashKeyChain/verse/kurtosis-devnet/pkg/kurtosis/sources/spec"
 	"github.com/spf13/afero"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"

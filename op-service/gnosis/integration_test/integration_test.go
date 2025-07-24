@@ -8,9 +8,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ethereum-optimism/optimism/op-service/log"
-	"github.com/ethereum-optimism/optimism/op-service/testutils/devnet"
-	"github.com/ethereum-optimism/optimism/op-service/txmgr"
+	"github.com/HashKeyChain/verse/op-service/log"
+	"github.com/HashKeyChain/verse/op-service/testutils/devnet"
+	"github.com/HashKeyChain/verse/op-service/txmgr"
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
@@ -18,7 +18,7 @@ import (
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/stretchr/testify/require"
 
-	"github.com/ethereum-optimism/optimism/op-service/gnosis"
+	"github.com/HashKeyChain/verse/op-service/gnosis"
 )
 
 const privateKey = "ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"

@@ -3,7 +3,7 @@ package interop
 import (
 	"os"
 
-	oplog "github.com/ethereum-optimism/optimism/op-service/log"
+	oplog "github.com/HashKeyChain/verse/op-service/log"
 	"github.com/ethereum/go-ethereum/log"
 )
 

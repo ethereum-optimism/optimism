@@ -5,11 +5,11 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/ethereum-optimism/optimism/op-service/metrics"
-	"github.com/ethereum-optimism/optimism/op-service/oppprof"
-	"github.com/ethereum-optimism/optimism/op-service/rpc"
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/depset"
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/syncnode"
+	"github.com/HashKeyChain/verse/op-service/metrics"
+	"github.com/HashKeyChain/verse/op-service/oppprof"
+	"github.com/HashKeyChain/verse/op-service/rpc"
+	"github.com/HashKeyChain/verse/op-supervisor/supervisor/backend/depset"
+	"github.com/HashKeyChain/verse/op-supervisor/supervisor/backend/syncnode"
 )
 
 func TestDefaultConfigIsValid(t *testing.T) {

@@ -9,13 +9,13 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/rpc"
 
-	"github.com/ethereum-optimism/optimism/op-service/eth"
-	"github.com/ethereum-optimism/optimism/op-service/locks"
-	"github.com/ethereum-optimism/optimism/op-sync-tester/metrics"
-	"github.com/ethereum-optimism/optimism/op-sync-tester/synctester/backend/config"
-	"github.com/ethereum-optimism/optimism/op-sync-tester/synctester/frontend"
+	"github.com/HashKeyChain/verse/op-service/eth"
+	"github.com/HashKeyChain/verse/op-service/locks"
+	"github.com/HashKeyChain/verse/op-sync-tester/metrics"
+	"github.com/HashKeyChain/verse/op-sync-tester/synctester/backend/config"
+	"github.com/HashKeyChain/verse/op-sync-tester/synctester/frontend"
 
-	sttypes "github.com/ethereum-optimism/optimism/op-sync-tester/synctester/backend/types"
+	sttypes "github.com/HashKeyChain/verse/op-sync-tester/synctester/backend/types"
 )
 
 type sessionKeyType struct{}

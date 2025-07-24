@@ -4,11 +4,11 @@ import (
 	"os"
 	"strings"
 
-	"github.com/ethereum-optimism/optimism/devnet-sdk/descriptors"
-	"github.com/ethereum-optimism/optimism/devnet-sdk/shell/env"
-	"github.com/ethereum-optimism/optimism/op-devstack/compat"
-	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
-	"github.com/ethereum-optimism/optimism/op-devstack/stack"
+	"github.com/HashKeyChain/verse/devnet-sdk/descriptors"
+	"github.com/HashKeyChain/verse/devnet-sdk/shell/env"
+	"github.com/HashKeyChain/verse/op-devstack/compat"
+	"github.com/HashKeyChain/verse/op-devstack/devtest"
+	"github.com/HashKeyChain/verse/op-devstack/stack"
 )
 
 const defaultDevnetUrl = "kt://interop-devnet"

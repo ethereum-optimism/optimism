@@ -5,7 +5,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/rpc"
 
-	"github.com/ethereum-optimism/optimism/op-test-sequencer/sequencer/seqtypes"
+	"github.com/HashKeyChain/verse/op-test-sequencer/sequencer/seqtypes"
 )
 
 // toJsonError turns the error into a JSON error with error-code,

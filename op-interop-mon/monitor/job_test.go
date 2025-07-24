@@ -6,8 +6,8 @@ import (
 	"encoding/binary"
 	"math/big"
 
-	"github.com/ethereum-optimism/optimism/op-service/eth"
-	supervisortypes "github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
+	"github.com/HashKeyChain/verse/op-service/eth"
+	supervisortypes "github.com/HashKeyChain/verse/op-supervisor/supervisor/types"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/params"

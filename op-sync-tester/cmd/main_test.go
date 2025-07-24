@@ -7,8 +7,8 @@ import (
 	"io"
 	"testing"
 
-	"github.com/ethereum-optimism/optimism/op-service/cliapp"
-	"github.com/ethereum-optimism/optimism/op-sync-tester/config"
+	"github.com/HashKeyChain/verse/op-service/cliapp"
+	"github.com/HashKeyChain/verse/op-sync-tester/config"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/stretchr/testify/require"
 )

@@ -15,11 +15,11 @@ import (
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/log"
 
-	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/utils"
-	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
-	"github.com/ethereum-optimism/optimism/op-challenger/metrics"
-	"github.com/ethereum-optimism/optimism/op-node/chaincfg"
-	"github.com/ethereum-optimism/optimism/op-service/jsonutil"
+	"github.com/HashKeyChain/verse/op-challenger/game/fault/trace/utils"
+	"github.com/HashKeyChain/verse/op-challenger/game/fault/types"
+	"github.com/HashKeyChain/verse/op-challenger/metrics"
+	"github.com/HashKeyChain/verse/op-node/chaincfg"
+	"github.com/HashKeyChain/verse/op-service/jsonutil"
 )
 
 const (

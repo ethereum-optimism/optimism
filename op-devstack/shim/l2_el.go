@@ -3,10 +3,10 @@ package shim
 import (
 	"github.com/stretchr/testify/require"
 
-	"github.com/ethereum-optimism/optimism/op-devstack/stack"
-	"github.com/ethereum-optimism/optimism/op-node/rollup"
-	"github.com/ethereum-optimism/optimism/op-service/apis"
-	"github.com/ethereum-optimism/optimism/op-service/sources"
+	"github.com/HashKeyChain/verse/op-devstack/stack"
+	"github.com/HashKeyChain/verse/op-node/rollup"
+	"github.com/HashKeyChain/verse/op-service/apis"
+	"github.com/HashKeyChain/verse/op-service/sources"
 )
 
 type L2ELNodeConfig struct {

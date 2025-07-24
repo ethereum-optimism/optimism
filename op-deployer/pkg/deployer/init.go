@@ -7,9 +7,9 @@ import (
 	"path"
 	"strings"
 
-	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/state"
+	"github.com/HashKeyChain/verse/op-deployer/pkg/deployer/state"
 
-	op_service "github.com/ethereum-optimism/optimism/op-service"
+	op_service "github.com/HashKeyChain/verse/op-service"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/urfave/cli/v2"

@@ -1,9 +1,9 @@
 package l2
 
 import (
-	interopTypes "github.com/ethereum-optimism/optimism/op-program/client/interop/types"
-	l2Types "github.com/ethereum-optimism/optimism/op-program/client/l2/types"
-	"github.com/ethereum-optimism/optimism/op-service/eth"
+	interopTypes "github.com/HashKeyChain/verse/op-program/client/interop/types"
+	l2Types "github.com/HashKeyChain/verse/op-program/client/l2/types"
+	"github.com/HashKeyChain/verse/op-service/eth"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/hashicorp/golang-lru/v2/simplelru"

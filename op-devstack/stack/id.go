@@ -9,7 +9,7 @@ import (
 	"slices"
 	"sort"
 
-	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/HashKeyChain/verse/op-service/eth"
 )
 
 // Kind represents a kind of component, this is used to make each ID unique, even when encoded as text.

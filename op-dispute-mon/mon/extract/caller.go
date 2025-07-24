@@ -4,16 +4,16 @@ import (
 	"context"
 	"fmt"
 
-	contractMetrics "github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts/metrics"
-	"github.com/ethereum-optimism/optimism/op-service/sources/batching/rpcblock"
+	contractMetrics "github.com/HashKeyChain/verse/op-challenger/game/fault/contracts/metrics"
+	"github.com/HashKeyChain/verse/op-service/sources/batching/rpcblock"
 	"github.com/ethereum/go-ethereum/common"
 
-	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts"
-	"github.com/ethereum-optimism/optimism/op-service/sources/batching"
-	"github.com/ethereum-optimism/optimism/op-service/sources/caching"
+	"github.com/HashKeyChain/verse/op-challenger/game/fault/contracts"
+	"github.com/HashKeyChain/verse/op-service/sources/batching"
+	"github.com/HashKeyChain/verse/op-service/sources/caching"
 
-	faultTypes "github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
-	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
+	faultTypes "github.com/HashKeyChain/verse/op-challenger/game/fault/types"
+	gameTypes "github.com/HashKeyChain/verse/op-challenger/game/types"
 )
 
 const metricsLabel = "game_caller_creator"

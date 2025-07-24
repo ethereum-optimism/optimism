@@ -4,11 +4,11 @@ import (
 	"context"
 	"io"
 
-	"github.com/ethereum-optimism/optimism/devnet-sdk/descriptors"
-	"github.com/ethereum-optimism/optimism/kurtosis-devnet/pkg/kurtosis/sources/deployer"
-	"github.com/ethereum-optimism/optimism/kurtosis-devnet/pkg/kurtosis/sources/inspect"
-	"github.com/ethereum-optimism/optimism/kurtosis-devnet/pkg/kurtosis/sources/jwt"
-	"github.com/ethereum-optimism/optimism/kurtosis-devnet/pkg/kurtosis/sources/spec"
+	"github.com/HashKeyChain/verse/devnet-sdk/descriptors"
+	"github.com/HashKeyChain/verse/kurtosis-devnet/pkg/kurtosis/sources/deployer"
+	"github.com/HashKeyChain/verse/kurtosis-devnet/pkg/kurtosis/sources/inspect"
+	"github.com/HashKeyChain/verse/kurtosis-devnet/pkg/kurtosis/sources/jwt"
+	"github.com/HashKeyChain/verse/kurtosis-devnet/pkg/kurtosis/sources/spec"
 )
 
 type EnclaveSpecifier interface {

@@ -1,6 +1,6 @@
 package dsl
 
-import "github.com/ethereum-optimism/optimism/op-devstack/stack"
+import "github.com/HashKeyChain/verse/op-devstack/stack"
 
 // L2Challenger wraps a stack.L2Challenger interface for DSL operations
 type L2Challenger struct {

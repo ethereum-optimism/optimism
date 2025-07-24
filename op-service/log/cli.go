@@ -14,9 +14,9 @@ import (
 
 	"github.com/ethereum/go-ethereum/log"
 
-	opservice "github.com/ethereum-optimism/optimism/op-service"
-	"github.com/ethereum-optimism/optimism/op-service/cliapp"
-	"github.com/ethereum-optimism/optimism/op-service/log/logfilter"
+	opservice "github.com/HashKeyChain/verse/op-service"
+	"github.com/HashKeyChain/verse/op-service/cliapp"
+	"github.com/HashKeyChain/verse/op-service/log/logfilter"
 )
 
 const (

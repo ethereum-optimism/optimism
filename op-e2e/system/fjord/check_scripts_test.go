@@ -5,18 +5,18 @@ import (
 	"fmt"
 	"testing"
 
-	op_e2e "github.com/ethereum-optimism/optimism/op-e2e"
+	op_e2e "github.com/HashKeyChain/verse/op-e2e"
 
-	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
-	"github.com/ethereum-optimism/optimism/op-e2e/system/e2esys"
+	"github.com/HashKeyChain/verse/op-e2e/e2eutils/wait"
+	"github.com/HashKeyChain/verse/op-e2e/system/e2esys"
 
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/log"
 
 	"github.com/stretchr/testify/require"
 
-	fjordChecks "github.com/ethereum-optimism/optimism/op-chain-ops/cmd/check-fjord/checks"
-	"github.com/ethereum-optimism/optimism/op-service/testlog"
+	fjordChecks "github.com/HashKeyChain/verse/op-chain-ops/cmd/check-fjord/checks"
+	"github.com/HashKeyChain/verse/op-service/testlog"
 )
 
 // TestCheckFjordScript ensures the op-chain-ops/cmd/check-fjord script runs successfully

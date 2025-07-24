@@ -3,8 +3,8 @@ package contractio
 import (
 	"context"
 
-	"github.com/ethereum-optimism/optimism/op-service/txintent/bindings"
-	"github.com/ethereum-optimism/optimism/op-service/txplan"
+	"github.com/HashKeyChain/verse/op-service/txintent/bindings"
+	"github.com/HashKeyChain/verse/op-service/txplan"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 )

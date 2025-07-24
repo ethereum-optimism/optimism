@@ -7,10 +7,10 @@ import (
 
 	"github.com/ethereum/go-ethereum/log"
 
-	ftypes "github.com/ethereum-optimism/optimism/op-faucet/faucet/backend/types"
-	"github.com/ethereum-optimism/optimism/op-service/endpoint"
-	"github.com/ethereum-optimism/optimism/op-service/eth"
-	"github.com/ethereum-optimism/optimism/op-service/txmgr"
+	ftypes "github.com/HashKeyChain/verse/op-faucet/faucet/backend/types"
+	"github.com/HashKeyChain/verse/op-service/endpoint"
+	"github.com/HashKeyChain/verse/op-service/eth"
+	"github.com/HashKeyChain/verse/op-service/txmgr"
 )
 
 var DefaultFaucetTxManagerValues = txmgr.DefaultFlagValues{

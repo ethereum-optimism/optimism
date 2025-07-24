@@ -4,8 +4,8 @@ import (
 	"context"
 	"net"
 
-	"github.com/ethereum-optimism/optimism/op-service/apis"
-	"github.com/ethereum-optimism/optimism/op-service/client"
+	"github.com/HashKeyChain/verse/op-service/apis"
+	"github.com/HashKeyChain/verse/op-service/client"
 	"github.com/ethereum/go-ethereum/p2p/enode"
 	"github.com/libp2p/go-libp2p/core/peer"
 )

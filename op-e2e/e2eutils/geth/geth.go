@@ -22,7 +22,7 @@ import (
 	_ "github.com/ethereum/go-ethereum/eth/tracers/js"
 	_ "github.com/ethereum/go-ethereum/eth/tracers/native"
 
-	"github.com/ethereum-optimism/optimism/op-service/clock"
+	"github.com/HashKeyChain/verse/op-service/clock"
 )
 
 func InitL1(blockTime uint64, finalizedDistance uint64, genesis *core.Genesis, c clock.Clock, blobPoolDir string, beaconSrv Beacon, opts ...GethOption) (*GethInstance, *FakePoS, error) {

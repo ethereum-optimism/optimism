@@ -3,10 +3,10 @@ package config
 import (
 	"context"
 
-	"github.com/ethereum-optimism/optimism/op-service/endpoint"
-	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/HashKeyChain/verse/op-service/endpoint"
+	"github.com/HashKeyChain/verse/op-service/eth"
 
-	sttypes "github.com/ethereum-optimism/optimism/op-sync-tester/synctester/backend/types"
+	sttypes "github.com/HashKeyChain/verse/op-sync-tester/synctester/backend/types"
 )
 
 type SyncTesterEntry struct {

@@ -4,9 +4,9 @@ import (
 	"context"
 	"testing"
 
-	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
-	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/disputegame"
-	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
+	gameTypes "github.com/HashKeyChain/verse/op-challenger/game/types"
+	"github.com/HashKeyChain/verse/op-e2e/e2eutils/disputegame"
+	"github.com/HashKeyChain/verse/op-e2e/e2eutils/wait"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/stretchr/testify/require"
 )

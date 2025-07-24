@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"sort"
 
-	"github.com/ethereum-optimism/optimism/cannon/mipsevm"
+	"github.com/HashKeyChain/verse/cannon/mipsevm"
 )
 
 type Symbol struct {

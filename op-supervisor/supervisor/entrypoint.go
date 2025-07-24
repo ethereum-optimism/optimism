@@ -8,11 +8,11 @@ import (
 
 	"github.com/ethereum/go-ethereum/log"
 
-	opservice "github.com/ethereum-optimism/optimism/op-service"
-	"github.com/ethereum-optimism/optimism/op-service/cliapp"
-	oplog "github.com/ethereum-optimism/optimism/op-service/log"
-	"github.com/ethereum-optimism/optimism/op-supervisor/config"
-	"github.com/ethereum-optimism/optimism/op-supervisor/flags"
+	opservice "github.com/HashKeyChain/verse/op-service"
+	"github.com/HashKeyChain/verse/op-service/cliapp"
+	oplog "github.com/HashKeyChain/verse/op-service/log"
+	"github.com/HashKeyChain/verse/op-supervisor/config"
+	"github.com/HashKeyChain/verse/op-supervisor/flags"
 )
 
 type MainFn func(ctx context.Context, cfg *config.Config, logger log.Logger) (cliapp.Lifecycle, error)

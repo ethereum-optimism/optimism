@@ -11,13 +11,13 @@ import (
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/log"
 
-	"github.com/ethereum-optimism/optimism/op-faucet/faucet/backend/config"
-	ftypes "github.com/ethereum-optimism/optimism/op-faucet/faucet/backend/types"
-	"github.com/ethereum-optimism/optimism/op-faucet/faucet/frontend"
-	"github.com/ethereum-optimism/optimism/op-faucet/metrics"
-	"github.com/ethereum-optimism/optimism/op-service/apis"
-	"github.com/ethereum-optimism/optimism/op-service/eth"
-	"github.com/ethereum-optimism/optimism/op-service/txmgr"
+	"github.com/HashKeyChain/verse/op-faucet/faucet/backend/config"
+	ftypes "github.com/HashKeyChain/verse/op-faucet/faucet/backend/types"
+	"github.com/HashKeyChain/verse/op-faucet/faucet/frontend"
+	"github.com/HashKeyChain/verse/op-faucet/metrics"
+	"github.com/HashKeyChain/verse/op-service/apis"
+	"github.com/HashKeyChain/verse/op-service/eth"
+	"github.com/HashKeyChain/verse/op-service/txmgr"
 )
 
 type Faucet struct {

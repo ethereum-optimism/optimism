@@ -1,7 +1,7 @@
 package transform
 
 import (
-	"github.com/ethereum-optimism/optimism/op-dispute-mon/mon/types"
+	"github.com/HashKeyChain/verse/op-dispute-mon/mon/types"
 )
 
 // CreateBidirectionalTree walks backwards through the list of claims and creates a bidirectional

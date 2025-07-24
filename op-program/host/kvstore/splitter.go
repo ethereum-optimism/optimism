@@ -1,7 +1,7 @@
 package kvstore
 
 import (
-	preimage "github.com/ethereum-optimism/optimism/op-preimage"
+	preimage "github.com/HashKeyChain/verse/op-preimage"
 	"github.com/ethereum/go-ethereum/common"
 )
 

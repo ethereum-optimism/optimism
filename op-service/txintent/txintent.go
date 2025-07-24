@@ -3,9 +3,9 @@ package txintent
 import (
 	"context"
 
-	"github.com/ethereum-optimism/optimism/op-service/eth"
-	"github.com/ethereum-optimism/optimism/op-service/plan"
-	"github.com/ethereum-optimism/optimism/op-service/txplan"
+	"github.com/HashKeyChain/verse/op-service/eth"
+	"github.com/HashKeyChain/verse/op-service/plan"
+	"github.com/HashKeyChain/verse/op-service/txplan"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"

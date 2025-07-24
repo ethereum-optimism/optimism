@@ -1,6 +1,6 @@
 package mipsevm
 
-import "github.com/ethereum-optimism/optimism/cannon/mipsevm/arch"
+import "github.com/HashKeyChain/verse/cannon/mipsevm/arch"
 
 type CpuScalars struct {
 	PC     arch.Word `json:"pc"`

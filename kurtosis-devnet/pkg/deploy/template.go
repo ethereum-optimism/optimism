@@ -10,9 +10,9 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/ethereum-optimism/optimism/kurtosis-devnet/pkg/build"
-	"github.com/ethereum-optimism/optimism/kurtosis-devnet/pkg/kurtosis/api/enclave"
-	"github.com/ethereum-optimism/optimism/kurtosis-devnet/pkg/tmpl"
+	"github.com/HashKeyChain/verse/kurtosis-devnet/pkg/build"
+	"github.com/HashKeyChain/verse/kurtosis-devnet/pkg/kurtosis/api/enclave"
+	"github.com/HashKeyChain/verse/kurtosis-devnet/pkg/tmpl"
 )
 
 var (

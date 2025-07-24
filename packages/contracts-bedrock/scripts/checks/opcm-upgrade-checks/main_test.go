@@ -3,8 +3,8 @@ package main
 import (
 	"testing"
 
-	"github.com/ethereum-optimism/optimism/op-chain-ops/solc"
-	"github.com/ethereum-optimism/optimism/packages/contracts-bedrock/scripts/checks/common"
+	"github.com/HashKeyChain/verse/op-chain-ops/solc"
+	"github.com/HashKeyChain/verse/packages/contracts-bedrock/scripts/checks/common"
 	"github.com/stretchr/testify/assert"
 )
 

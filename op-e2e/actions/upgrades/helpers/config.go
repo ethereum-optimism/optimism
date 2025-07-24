@@ -1,7 +1,7 @@
 package helpers
 
 import (
-	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils"
+	"github.com/HashKeyChain/verse/op-e2e/e2eutils"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 )
 

@@ -4,8 +4,8 @@ import (
 	"context"
 	_ "embed"
 
-	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
-	"github.com/ethereum-optimism/optimism/op-service/sources/batching/rpcblock"
+	"github.com/HashKeyChain/verse/op-challenger/game/fault/types"
+	"github.com/HashKeyChain/verse/op-service/sources/batching/rpcblock"
 )
 
 //go:embed abis/FaultDisputeGame-1.3.1.json

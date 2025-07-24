@@ -5,11 +5,11 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/ethereum-optimism/optimism/devnet-sdk/descriptors"
-	"github.com/ethereum-optimism/optimism/kurtosis-devnet/pkg/kurtosis/sources/inspect"
-	"github.com/ethereum-optimism/optimism/kurtosis-devnet/pkg/kurtosis/sources/spec"
-	"github.com/ethereum-optimism/optimism/op-service/eth"
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/depset"
+	"github.com/HashKeyChain/verse/devnet-sdk/descriptors"
+	"github.com/HashKeyChain/verse/kurtosis-devnet/pkg/kurtosis/sources/inspect"
+	"github.com/HashKeyChain/verse/kurtosis-devnet/pkg/kurtosis/sources/spec"
+	"github.com/HashKeyChain/verse/op-service/eth"
+	"github.com/HashKeyChain/verse/op-supervisor/supervisor/backend/depset"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

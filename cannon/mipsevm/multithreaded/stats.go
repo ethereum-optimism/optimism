@@ -3,7 +3,7 @@ package multithreaded
 import (
 	lru "github.com/hashicorp/golang-lru/v2/simplelru"
 
-	"github.com/ethereum-optimism/optimism/cannon/mipsevm"
+	"github.com/HashKeyChain/verse/cannon/mipsevm"
 )
 
 // Define stats interface

@@ -8,7 +8,7 @@ import (
 	"math/big"
 	"os"
 
-	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/HashKeyChain/verse/op-service/eth"
 )
 
 // These names match those used in the SystemConfig contract

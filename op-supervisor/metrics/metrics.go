@@ -1,10 +1,10 @@
 package metrics
 
 import (
-	"github.com/ethereum-optimism/optimism/op-service/eth"
-	"github.com/ethereum-optimism/optimism/op-service/event"
-	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
+	"github.com/HashKeyChain/verse/op-service/eth"
+	"github.com/HashKeyChain/verse/op-service/event"
+	opmetrics "github.com/HashKeyChain/verse/op-service/metrics"
+	"github.com/HashKeyChain/verse/op-supervisor/supervisor/types"
 	"github.com/prometheus/client_golang/prometheus"
 )
 

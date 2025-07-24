@@ -8,7 +8,7 @@ import (
 
 	"gopkg.in/yaml.v3"
 
-	"github.com/ethereum-optimism/optimism/op-test-sequencer/sequencer/backend/work"
+	"github.com/HashKeyChain/verse/op-test-sequencer/sequencer/backend/work"
 )
 
 // YamlLoader is a Loader that loads a builders configuration from a YAML file path.

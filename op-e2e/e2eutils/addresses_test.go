@@ -3,7 +3,7 @@ package e2eutils
 import (
 	"testing"
 
-	"github.com/ethereum-optimism/optimism/op-e2e/config"
+	"github.com/HashKeyChain/verse/op-e2e/config"
 
 	"github.com/stretchr/testify/require"
 )

@@ -27,8 +27,8 @@ import (
 	"github.com/btcsuite/btcd/blockchain"
 	"github.com/btcsuite/btcd/chaincfg/chainhash"
 
-	"github.com/ethereum-optimism/optimism/op-node/p2p/store"
-	"github.com/ethereum-optimism/optimism/op-node/rollup"
+	"github.com/HashKeyChain/verse/op-node/p2p/store"
+	"github.com/HashKeyChain/verse/op-node/rollup"
 )
 
 // force to use the new chainhash module, and not the legacy chainhash package btcd module

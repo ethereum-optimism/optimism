@@ -6,12 +6,12 @@ import (
 	"testing"
 	"time"
 
-	op_e2e "github.com/ethereum-optimism/optimism/op-e2e"
+	op_e2e "github.com/HashKeyChain/verse/op-e2e"
 
-	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
-	"github.com/ethereum-optimism/optimism/op-e2e/system/e2esys"
-	"github.com/ethereum-optimism/optimism/op-e2e/system/helpers"
-	"github.com/ethereum-optimism/optimism/op-service/testlog"
+	"github.com/HashKeyChain/verse/op-e2e/e2eutils/wait"
+	"github.com/HashKeyChain/verse/op-e2e/system/e2esys"
+	"github.com/HashKeyChain/verse/op-e2e/system/helpers"
+	"github.com/HashKeyChain/verse/op-service/testlog"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"

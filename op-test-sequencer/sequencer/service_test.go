@@ -12,13 +12,13 @@ import (
 	gn "github.com/ethereum/go-ethereum/node"
 	"github.com/ethereum/go-ethereum/rpc"
 
-	"github.com/ethereum-optimism/optimism/op-service/client"
-	oplog "github.com/ethereum-optimism/optimism/op-service/log"
-	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
-	"github.com/ethereum-optimism/optimism/op-service/oppprof"
-	oprpc "github.com/ethereum-optimism/optimism/op-service/rpc"
-	"github.com/ethereum-optimism/optimism/op-service/testlog"
-	"github.com/ethereum-optimism/optimism/op-test-sequencer/config"
+	"github.com/HashKeyChain/verse/op-service/client"
+	oplog "github.com/HashKeyChain/verse/op-service/log"
+	opmetrics "github.com/HashKeyChain/verse/op-service/metrics"
+	"github.com/HashKeyChain/verse/op-service/oppprof"
+	oprpc "github.com/HashKeyChain/verse/op-service/rpc"
+	"github.com/HashKeyChain/verse/op-service/testlog"
+	"github.com/HashKeyChain/verse/op-test-sequencer/config"
 )
 
 func TestService(t *testing.T) {

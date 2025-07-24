@@ -7,8 +7,8 @@ import (
 	"os"
 	"strings"
 
-	"github.com/ethereum-optimism/optimism/kurtosis-devnet/pkg/tmpl"
-	"github.com/ethereum-optimism/optimism/kurtosis-devnet/pkg/tmpl/fake"
+	"github.com/HashKeyChain/verse/kurtosis-devnet/pkg/tmpl"
+	"github.com/HashKeyChain/verse/kurtosis-devnet/pkg/tmpl/fake"
 )
 
 func main() {

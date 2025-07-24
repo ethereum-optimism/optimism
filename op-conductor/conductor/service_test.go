@@ -21,15 +21,15 @@ import (
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/suite"
 
-	clientmocks "github.com/ethereum-optimism/optimism/op-conductor/client/mocks"
-	consensusmocks "github.com/ethereum-optimism/optimism/op-conductor/consensus/mocks"
-	"github.com/ethereum-optimism/optimism/op-conductor/health"
-	healthmocks "github.com/ethereum-optimism/optimism/op-conductor/health/mocks"
-	"github.com/ethereum-optimism/optimism/op-conductor/metrics"
-	"github.com/ethereum-optimism/optimism/op-node/rollup"
-	"github.com/ethereum-optimism/optimism/op-service/eth"
-	"github.com/ethereum-optimism/optimism/op-service/testlog"
-	"github.com/ethereum-optimism/optimism/op-service/testutils"
+	clientmocks "github.com/HashKeyChain/verse/op-conductor/client/mocks"
+	consensusmocks "github.com/HashKeyChain/verse/op-conductor/consensus/mocks"
+	"github.com/HashKeyChain/verse/op-conductor/health"
+	healthmocks "github.com/HashKeyChain/verse/op-conductor/health/mocks"
+	"github.com/HashKeyChain/verse/op-conductor/metrics"
+	"github.com/HashKeyChain/verse/op-node/rollup"
+	"github.com/HashKeyChain/verse/op-service/eth"
+	"github.com/HashKeyChain/verse/op-service/testlog"
+	"github.com/HashKeyChain/verse/op-service/testutils"
 )
 
 func mockConfig(t *testing.T) Config {

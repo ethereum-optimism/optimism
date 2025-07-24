@@ -7,8 +7,8 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
 
-	"github.com/ethereum-optimism/optimism/cannon/mipsevm"
-	"github.com/ethereum-optimism/optimism/cannon/mipsevm/arch"
+	"github.com/HashKeyChain/verse/cannon/mipsevm"
+	"github.com/HashKeyChain/verse/cannon/mipsevm/arch"
 )
 
 const (

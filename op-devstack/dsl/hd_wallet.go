@@ -7,8 +7,8 @@ import (
 
 	"github.com/ethereum/go-ethereum/crypto"
 
-	"github.com/ethereum-optimism/optimism/op-chain-ops/devkeys"
-	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
+	"github.com/HashKeyChain/verse/op-chain-ops/devkeys"
+	"github.com/HashKeyChain/verse/op-devstack/devtest"
 )
 
 const (

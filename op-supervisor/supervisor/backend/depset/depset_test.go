@@ -9,8 +9,8 @@ import (
 	"testing"
 
 	"github.com/BurntSushi/toml"
-	"github.com/ethereum-optimism/optimism/op-node/params"
-	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/HashKeyChain/verse/op-node/params"
+	"github.com/HashKeyChain/verse/op-service/eth"
 	"github.com/ethereum/go-ethereum/superchain"
 	"github.com/stretchr/testify/require"
 )

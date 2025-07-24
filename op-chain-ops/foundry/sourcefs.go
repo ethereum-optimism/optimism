@@ -11,7 +11,7 @@ import (
 
 	"golang.org/x/exp/maps"
 
-	"github.com/ethereum-optimism/optimism/op-chain-ops/srcmap"
+	"github.com/HashKeyChain/verse/op-chain-ops/srcmap"
 )
 
 // SourceMapFS wraps an FS to provide source-maps.

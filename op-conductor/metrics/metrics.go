@@ -3,8 +3,8 @@ package metrics
 import (
 	"strconv"
 
-	"github.com/ethereum-optimism/optimism/op-service/httputil"
-	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
+	"github.com/HashKeyChain/verse/op-service/httputil"
+	opmetrics "github.com/HashKeyChain/verse/op-service/metrics"
 	"github.com/prometheus/client_golang/prometheus"
 )
 

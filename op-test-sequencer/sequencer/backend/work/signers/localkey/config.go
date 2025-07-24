@@ -10,10 +10,10 @@ import (
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/crypto"
 
-	"github.com/ethereum-optimism/optimism/op-service/eth"
-	opsigner "github.com/ethereum-optimism/optimism/op-service/signer"
-	"github.com/ethereum-optimism/optimism/op-test-sequencer/sequencer/backend/work"
-	"github.com/ethereum-optimism/optimism/op-test-sequencer/sequencer/seqtypes"
+	"github.com/HashKeyChain/verse/op-service/eth"
+	opsigner "github.com/HashKeyChain/verse/op-service/signer"
+	"github.com/HashKeyChain/verse/op-test-sequencer/sequencer/backend/work"
+	"github.com/HashKeyChain/verse/op-test-sequencer/sequencer/seqtypes"
 )
 
 type Config struct {

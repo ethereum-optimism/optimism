@@ -1,6 +1,6 @@
 package metrics
 
-import opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
+import opmetrics "github.com/HashKeyChain/verse/op-service/metrics"
 
 type NoopMetricsImpl struct {
 	opmetrics.NoopRPCMetrics

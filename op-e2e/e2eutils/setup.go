@@ -6,8 +6,8 @@ import (
 	"path"
 	"time"
 
-	"github.com/ethereum-optimism/optimism/op-e2e/config/secrets"
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/depset"
+	"github.com/HashKeyChain/verse/op-e2e/config/secrets"
+	"github.com/HashKeyChain/verse/op-supervisor/supervisor/backend/depset"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -16,11 +16,11 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	altda "github.com/ethereum-optimism/optimism/op-alt-da"
-	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
-	"github.com/ethereum-optimism/optimism/op-e2e/config"
-	"github.com/ethereum-optimism/optimism/op-node/rollup"
-	"github.com/ethereum-optimism/optimism/op-service/eth"
+	altda "github.com/HashKeyChain/verse/op-alt-da"
+	"github.com/HashKeyChain/verse/op-chain-ops/genesis"
+	"github.com/HashKeyChain/verse/op-e2e/config"
+	"github.com/HashKeyChain/verse/op-node/rollup"
+	"github.com/HashKeyChain/verse/op-service/eth"
 )
 
 var testingJWTSecret = [32]byte{123}

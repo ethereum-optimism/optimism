@@ -6,8 +6,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/artifacts"
-	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/standard"
+	"github.com/HashKeyChain/verse/op-deployer/pkg/deployer/artifacts"
+	"github.com/HashKeyChain/verse/op-deployer/pkg/deployer/standard"
 	"github.com/stretchr/testify/require"
 )
 

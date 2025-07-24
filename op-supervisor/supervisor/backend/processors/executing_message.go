@@ -6,7 +6,7 @@ import (
 	ethTypes "github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/params"
 
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
+	"github.com/HashKeyChain/verse/op-supervisor/supervisor/types"
 )
 
 type EventDecoderFn func(*ethTypes.Log) (*types.ExecutingMessage, error)

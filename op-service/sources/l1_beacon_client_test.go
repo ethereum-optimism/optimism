@@ -17,14 +17,14 @@ import (
 
 	"github.com/ethereum/go-ethereum/crypto/kzg4844"
 
-	client_mocks "github.com/ethereum-optimism/optimism/op-service/client/mocks"
-	"github.com/ethereum-optimism/optimism/op-service/eth"
-	"github.com/ethereum-optimism/optimism/op-service/sources/mocks"
+	client_mocks "github.com/HashKeyChain/verse/op-service/client/mocks"
+	"github.com/HashKeyChain/verse/op-service/eth"
+	"github.com/HashKeyChain/verse/op-service/sources/mocks"
 )
 
-//go:generate mockery --srcpkg=github.com/ethereum-optimism/optimism/op-service/apis --name BlobSideCarsClient --with-expecter=true
+//go:generate mockery --srcpkg=github.com/HashKeyChain/verse/op-service/apis --name BlobSideCarsClient --with-expecter=true
 
-//go:generate mockery --srcpkg=github.com/ethereum-optimism/optimism/op-service/apis --name BeaconClient --with-expecter=true
+//go:generate mockery --srcpkg=github.com/HashKeyChain/verse/op-service/apis --name BeaconClient --with-expecter=true
 
 func makeTestBlobSidecar(index uint64) (eth.IndexedBlobHash, *eth.BlobSidecar) {
 	blob := kzg4844.Blob{}

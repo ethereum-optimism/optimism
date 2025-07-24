@@ -14,7 +14,7 @@ import (
 	"github.com/ethereum/go-ethereum/p2p/enode"
 	"github.com/ethereum/go-ethereum/p2p/enr"
 
-	"github.com/ethereum-optimism/optimism/op-node/rollup"
+	"github.com/HashKeyChain/verse/op-node/rollup"
 )
 
 // Prepared provides a p2p host and discv5 service that is already set up.

@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/ethereum-optimism/optimism/devnet-sdk/descriptors"
-	"github.com/ethereum-optimism/optimism/kurtosis-devnet/pkg/kurtosis/api/wrappers"
+	"github.com/HashKeyChain/verse/devnet-sdk/descriptors"
+	"github.com/HashKeyChain/verse/kurtosis-devnet/pkg/kurtosis/api/wrappers"
 )
 
 type PortMap map[string]*descriptors.PortInfo

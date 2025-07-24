@@ -1,7 +1,7 @@
 package throttler
 
 import (
-	"github.com/ethereum-optimism/optimism/op-batcher/config"
+	"github.com/HashKeyChain/verse/op-batcher/config"
 )
 
 // ThrottleParams holds the current throttling parameters

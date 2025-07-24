@@ -8,8 +8,8 @@ import (
 	"testing"
 	"time"
 
-	actionsHelpers "github.com/ethereum-optimism/optimism/op-e2e/actions/helpers"
-	upgradesHelpers "github.com/ethereum-optimism/optimism/op-e2e/actions/upgrades/helpers"
+	actionsHelpers "github.com/HashKeyChain/verse/op-e2e/actions/helpers"
+	upgradesHelpers "github.com/HashKeyChain/verse/op-e2e/actions/upgrades/helpers"
 	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum/go-ethereum"
@@ -21,17 +21,17 @@ import (
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/ethereum/go-ethereum/rpc"
 
-	altda "github.com/ethereum-optimism/optimism/op-alt-da"
-	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils"
-	"github.com/ethereum-optimism/optimism/op-node/rollup"
-	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
-	engine2 "github.com/ethereum-optimism/optimism/op-node/rollup/engine"
-	"github.com/ethereum-optimism/optimism/op-node/rollup/sync"
-	"github.com/ethereum-optimism/optimism/op-service/eth"
-	"github.com/ethereum-optimism/optimism/op-service/event"
-	"github.com/ethereum-optimism/optimism/op-service/sources"
-	"github.com/ethereum-optimism/optimism/op-service/testlog"
-	"github.com/ethereum-optimism/optimism/op-service/testutils"
+	altda "github.com/HashKeyChain/verse/op-alt-da"
+	"github.com/HashKeyChain/verse/op-e2e/e2eutils"
+	"github.com/HashKeyChain/verse/op-node/rollup"
+	"github.com/HashKeyChain/verse/op-node/rollup/derive"
+	engine2 "github.com/HashKeyChain/verse/op-node/rollup/engine"
+	"github.com/HashKeyChain/verse/op-node/rollup/sync"
+	"github.com/HashKeyChain/verse/op-service/eth"
+	"github.com/HashKeyChain/verse/op-service/event"
+	"github.com/HashKeyChain/verse/op-service/sources"
+	"github.com/HashKeyChain/verse/op-service/testlog"
+	"github.com/HashKeyChain/verse/op-service/testutils"
 )
 
 func newSpanChannelOut(t actionsHelpers.StatefulTesting, e e2eutils.SetupData) derive.ChannelOut {

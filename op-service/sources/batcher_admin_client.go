@@ -3,8 +3,8 @@ package sources
 import (
 	"context"
 
-	"github.com/ethereum-optimism/optimism/op-service/apis"
-	"github.com/ethereum-optimism/optimism/op-service/client"
+	"github.com/HashKeyChain/verse/op-service/apis"
+	"github.com/HashKeyChain/verse/op-service/client"
 )
 
 type BatcherAdminClient struct {

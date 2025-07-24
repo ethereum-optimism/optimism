@@ -1,6 +1,6 @@
 package solver
 
-import "github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
+import "github.com/HashKeyChain/verse/op-challenger/game/fault/types"
 
 type honestClaimTracker struct {
 	// agreed tracks the existing claims in the game that the honest actor would make

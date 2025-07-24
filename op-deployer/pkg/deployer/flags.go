@@ -6,10 +6,10 @@ import (
 	"os"
 	"path"
 
-	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/state"
+	"github.com/HashKeyChain/verse/op-deployer/pkg/deployer/state"
 
-	op_service "github.com/ethereum-optimism/optimism/op-service"
-	oplog "github.com/ethereum-optimism/optimism/op-service/log"
+	op_service "github.com/HashKeyChain/verse/op-service"
+	oplog "github.com/HashKeyChain/verse/op-service/log"
 	"github.com/urfave/cli/v2"
 )
 

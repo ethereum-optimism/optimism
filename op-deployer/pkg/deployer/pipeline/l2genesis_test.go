@@ -3,11 +3,11 @@ package pipeline
 import (
 	"testing"
 
-	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
-	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/artifacts"
-	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/standard"
-	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/state"
-	op_service "github.com/ethereum-optimism/optimism/op-service"
+	"github.com/HashKeyChain/verse/op-chain-ops/genesis"
+	"github.com/HashKeyChain/verse/op-deployer/pkg/deployer/artifacts"
+	"github.com/HashKeyChain/verse/op-deployer/pkg/deployer/standard"
+	"github.com/HashKeyChain/verse/op-deployer/pkg/deployer/state"
+	op_service "github.com/HashKeyChain/verse/op-service"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 

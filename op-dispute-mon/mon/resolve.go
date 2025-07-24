@@ -5,8 +5,8 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 
-	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
-	monTypes "github.com/ethereum-optimism/optimism/op-dispute-mon/mon/types"
+	gameTypes "github.com/HashKeyChain/verse/op-challenger/game/types"
+	monTypes "github.com/HashKeyChain/verse/op-dispute-mon/mon/types"
 )
 
 // Resolve iterates backwards over the bidirectional tree, iteratively

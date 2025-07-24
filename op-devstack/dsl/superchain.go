@@ -1,6 +1,6 @@
 package dsl
 
-import "github.com/ethereum-optimism/optimism/op-devstack/stack"
+import "github.com/HashKeyChain/verse/op-devstack/stack"
 
 // Superchain wraps a stack.Superchain interface for DSL operations
 type Superchain struct {

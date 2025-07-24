@@ -1,4 +1,4 @@
-module github.com/ethereum-optimism/optimism
+module github.com/HashKeyChain/verse
 
 go 1.23.0
 

@@ -9,11 +9,11 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 
-	"github.com/ethereum-optimism/optimism/op-chain-ops/addresses"
-	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/artifacts"
-	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/standard"
-	"github.com/ethereum-optimism/optimism/op-service/ioutil"
-	"github.com/ethereum-optimism/optimism/op-service/jsonutil"
+	"github.com/HashKeyChain/verse/op-chain-ops/addresses"
+	"github.com/HashKeyChain/verse/op-deployer/pkg/deployer/artifacts"
+	"github.com/HashKeyChain/verse/op-deployer/pkg/deployer/standard"
+	"github.com/HashKeyChain/verse/op-service/ioutil"
+	"github.com/HashKeyChain/verse/op-service/jsonutil"
 	"github.com/ethereum-optimism/superchain-registry/validation"
 )
 

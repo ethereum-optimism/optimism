@@ -3,10 +3,10 @@ package config
 import (
 	"context"
 
-	"github.com/ethereum-optimism/optimism/op-test-sequencer/sequencer/backend/work"
-	"github.com/ethereum-optimism/optimism/op-test-sequencer/sequencer/backend/work/committers/noopcommitter"
-	"github.com/ethereum-optimism/optimism/op-test-sequencer/sequencer/backend/work/committers/standardcommitter"
-	"github.com/ethereum-optimism/optimism/op-test-sequencer/sequencer/seqtypes"
+	"github.com/HashKeyChain/verse/op-test-sequencer/sequencer/backend/work"
+	"github.com/HashKeyChain/verse/op-test-sequencer/sequencer/backend/work/committers/noopcommitter"
+	"github.com/HashKeyChain/verse/op-test-sequencer/sequencer/backend/work/committers/standardcommitter"
+	"github.com/HashKeyChain/verse/op-test-sequencer/sequencer/seqtypes"
 )
 
 type CommitterEntry struct {

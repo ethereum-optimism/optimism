@@ -7,7 +7,7 @@ import (
 
 	"github.com/urfave/cli/v2"
 
-	"github.com/ethereum-optimism/optimism/op-service/ctxinterrupt"
+	"github.com/HashKeyChain/verse/op-service/ctxinterrupt"
 )
 
 type Lifecycle interface {

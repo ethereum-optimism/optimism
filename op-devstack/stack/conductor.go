@@ -1,7 +1,7 @@
 package stack
 
 import (
-	conductorRpc "github.com/ethereum-optimism/optimism/op-conductor/rpc"
+	conductorRpc "github.com/HashKeyChain/verse/op-conductor/rpc"
 )
 
 type ConductorID genericID

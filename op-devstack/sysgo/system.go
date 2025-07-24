@@ -1,9 +1,9 @@
 package sysgo
 
 import (
-	"github.com/ethereum-optimism/optimism/op-chain-ops/devkeys"
-	"github.com/ethereum-optimism/optimism/op-devstack/stack"
-	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/HashKeyChain/verse/op-chain-ops/devkeys"
+	"github.com/HashKeyChain/verse/op-devstack/stack"
+	"github.com/HashKeyChain/verse/op-service/eth"
 )
 
 var (

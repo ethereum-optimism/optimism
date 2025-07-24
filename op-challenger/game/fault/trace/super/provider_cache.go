@@ -3,8 +3,8 @@ package super
 import (
 	"context"
 
-	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
-	"github.com/ethereum-optimism/optimism/op-service/sources/caching"
+	"github.com/HashKeyChain/verse/op-challenger/game/fault/types"
+	"github.com/HashKeyChain/verse/op-service/sources/caching"
 	"github.com/ethereum/go-ethereum/common"
 )
 

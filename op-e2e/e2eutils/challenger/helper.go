@@ -10,9 +10,9 @@ import (
 	"testing"
 	"time"
 
-	shared "github.com/ethereum-optimism/optimism/op-devstack/shared/challenger"
-	"github.com/ethereum-optimism/optimism/op-service/crypto"
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/depset"
+	shared "github.com/HashKeyChain/verse/op-devstack/shared/challenger"
+	"github.com/HashKeyChain/verse/op-service/crypto"
+	"github.com/HashKeyChain/verse/op-supervisor/supervisor/backend/depset"
 
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/stretchr/testify/require"
@@ -21,15 +21,15 @@ import (
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/log"
 
-	challenger "github.com/ethereum-optimism/optimism/op-challenger"
-	"github.com/ethereum-optimism/optimism/op-challenger/config"
-	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
-	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
-	"github.com/ethereum-optimism/optimism/op-node/rollup"
-	"github.com/ethereum-optimism/optimism/op-service/cliapp"
-	"github.com/ethereum-optimism/optimism/op-service/endpoint"
-	"github.com/ethereum-optimism/optimism/op-service/metrics"
-	"github.com/ethereum-optimism/optimism/op-service/testlog"
+	challenger "github.com/HashKeyChain/verse/op-challenger"
+	"github.com/HashKeyChain/verse/op-challenger/config"
+	"github.com/HashKeyChain/verse/op-challenger/game/fault/types"
+	"github.com/HashKeyChain/verse/op-e2e/e2eutils/wait"
+	"github.com/HashKeyChain/verse/op-node/rollup"
+	"github.com/HashKeyChain/verse/op-service/cliapp"
+	"github.com/HashKeyChain/verse/op-service/endpoint"
+	"github.com/HashKeyChain/verse/op-service/metrics"
+	"github.com/HashKeyChain/verse/op-service/testlog"
 )
 
 type EndpointProvider interface {

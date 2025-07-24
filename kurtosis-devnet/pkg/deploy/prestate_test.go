@@ -9,7 +9,7 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/ethereum-optimism/optimism/kurtosis-devnet/pkg/tmpl"
+	"github.com/HashKeyChain/verse/kurtosis-devnet/pkg/tmpl"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"gopkg.in/yaml.v3"

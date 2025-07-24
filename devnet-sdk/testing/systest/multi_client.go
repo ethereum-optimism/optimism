@@ -10,8 +10,8 @@ import (
 	"math/big"
 	"time"
 
-	"github.com/ethereum-optimism/optimism/devnet-sdk/system"
-	"github.com/ethereum-optimism/optimism/op-service/retry"
+	"github.com/HashKeyChain/verse/devnet-sdk/system"
+	"github.com/HashKeyChain/verse/op-service/retry"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/ethclient"

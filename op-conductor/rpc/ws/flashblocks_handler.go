@@ -9,8 +9,8 @@ import (
 
 	"github.com/coder/websocket"
 
-	"github.com/ethereum-optimism/optimism/op-conductor/metrics"
-	"github.com/ethereum-optimism/optimism/op-service/retry"
+	"github.com/HashKeyChain/verse/op-conductor/metrics"
+	"github.com/HashKeyChain/verse/op-service/retry"
 	"github.com/ethereum/go-ethereum/log"
 )
 

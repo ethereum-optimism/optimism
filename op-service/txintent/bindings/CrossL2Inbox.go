@@ -3,8 +3,8 @@ package bindings
 import (
 	"math/big"
 
-	"github.com/ethereum-optimism/optimism/op-service/eth"
-	supTypes "github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
+	"github.com/HashKeyChain/verse/op-service/eth"
+	supTypes "github.com/HashKeyChain/verse/op-supervisor/supervisor/types"
 	"github.com/ethereum/go-ethereum/common"
 )
 

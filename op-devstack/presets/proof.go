@@ -1,11 +1,11 @@
 package presets
 
 import (
-	faultTypes "github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
-	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/state"
-	"github.com/ethereum-optimism/optimism/op-devstack/stack"
-	"github.com/ethereum-optimism/optimism/op-devstack/sysgo"
-	ps "github.com/ethereum-optimism/optimism/op-proposer/proposer"
+	faultTypes "github.com/HashKeyChain/verse/op-challenger/game/fault/types"
+	"github.com/HashKeyChain/verse/op-deployer/pkg/deployer/state"
+	"github.com/HashKeyChain/verse/op-devstack/stack"
+	"github.com/HashKeyChain/verse/op-devstack/sysgo"
+	ps "github.com/HashKeyChain/verse/op-proposer/proposer"
 	"github.com/ethereum/go-ethereum/common"
 )
 

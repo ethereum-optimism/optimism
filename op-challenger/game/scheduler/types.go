@@ -5,7 +5,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 
-	"github.com/ethereum-optimism/optimism/op-challenger/game/types"
+	"github.com/HashKeyChain/verse/op-challenger/game/types"
 )
 
 type GamePlayer interface {

@@ -5,8 +5,8 @@ import (
 
 	"github.com/ethereum/go-ethereum/log"
 
-	"github.com/ethereum-optimism/optimism/op-test-sequencer/sequencer/backend/work"
-	"github.com/ethereum-optimism/optimism/op-test-sequencer/sequencer/seqtypes"
+	"github.com/HashKeyChain/verse/op-test-sequencer/sequencer/backend/work"
+	"github.com/HashKeyChain/verse/op-test-sequencer/sequencer/seqtypes"
 )
 
 type Publisher struct {

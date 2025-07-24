@@ -3,8 +3,8 @@ package proofs
 import (
 	"github.com/stretchr/testify/require"
 
-	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
-	"github.com/ethereum-optimism/optimism/op-service/txintent/bindings"
+	"github.com/HashKeyChain/verse/op-devstack/devtest"
+	"github.com/HashKeyChain/verse/op-service/txintent/bindings"
 )
 
 type SuperFaultDisputeGame struct {

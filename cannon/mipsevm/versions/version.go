@@ -8,7 +8,7 @@ import (
 type StateVersion uint8
 
 const (
-	// VersionSingleThreaded is the version of the Cannon STF found in op-contracts/v1.6.0 - https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.6.0/packages/contracts-bedrock/src/cannon/MIPS.sol
+	// VersionSingleThreaded is the version of the Cannon STF found in op-contracts/v1.6.0 - https://github.com/HashKeyChain/verse/blob/op-contracts/v1.6.0/packages/contracts-bedrock/src/cannon/MIPS.sol
 	VersionSingleThreaded StateVersion = iota
 	// VersionMultiThreaded is the original implementation of 32-bit multithreaded cannon, tagged at cannon/v1.3.0
 	VersionMultiThreaded

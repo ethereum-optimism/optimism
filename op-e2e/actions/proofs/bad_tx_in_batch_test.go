@@ -3,8 +3,8 @@ package proofs
 import (
 	"testing"
 
-	actionsHelpers "github.com/ethereum-optimism/optimism/op-e2e/actions/helpers"
-	"github.com/ethereum-optimism/optimism/op-e2e/actions/proofs/helpers"
+	actionsHelpers "github.com/HashKeyChain/verse/op-e2e/actions/helpers"
+	"github.com/HashKeyChain/verse/op-e2e/actions/proofs/helpers"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/stretchr/testify/require"

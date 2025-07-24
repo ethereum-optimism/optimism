@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/ethereum-optimism/optimism/devnet-sdk/kt"
-	"github.com/ethereum-optimism/optimism/devnet-sdk/manifest"
+	"github.com/HashKeyChain/verse/devnet-sdk/kt"
+	"github.com/HashKeyChain/verse/devnet-sdk/manifest"
 	"github.com/urfave/cli/v2"
 	"gopkg.in/yaml.v3"
 )

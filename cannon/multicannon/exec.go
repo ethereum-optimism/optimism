@@ -9,7 +9,7 @@ import (
 	"os/exec"
 	"path/filepath"
 
-	"github.com/ethereum-optimism/optimism/cannon/mipsevm/versions"
+	"github.com/HashKeyChain/verse/cannon/mipsevm/versions"
 )
 
 // use the all directive to ensure the .gitkeep file is retained and avoid compiler errors

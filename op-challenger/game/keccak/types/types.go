@@ -5,9 +5,9 @@ import (
 	"math/big"
 	"time"
 
-	"github.com/ethereum-optimism/optimism/op-challenger/game/keccak/merkle"
-	"github.com/ethereum-optimism/optimism/op-service/sources/batching/rpcblock"
-	"github.com/ethereum-optimism/optimism/op-service/txmgr"
+	"github.com/HashKeyChain/verse/op-challenger/game/keccak/merkle"
+	"github.com/HashKeyChain/verse/op-service/sources/batching/rpcblock"
+	"github.com/HashKeyChain/verse/op-service/txmgr"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/math"
 	"github.com/ethereum/go-ethereum/crypto"

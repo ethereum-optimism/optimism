@@ -3,10 +3,10 @@ package safeheaddb_elsync
 import (
 	"testing"
 
-	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
-	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
-	"github.com/ethereum-optimism/optimism/op-devstack/presets"
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
+	"github.com/HashKeyChain/verse/op-devstack/devtest"
+	"github.com/HashKeyChain/verse/op-devstack/dsl"
+	"github.com/HashKeyChain/verse/op-devstack/presets"
+	"github.com/HashKeyChain/verse/op-supervisor/supervisor/types"
 )
 
 func TestTruncateDatabaseOnELResync(gt *testing.T) {

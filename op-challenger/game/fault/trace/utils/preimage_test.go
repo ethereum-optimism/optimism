@@ -14,11 +14,11 @@ import (
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/stretchr/testify/require"
 
-	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
-	preimage "github.com/ethereum-optimism/optimism/op-preimage"
-	"github.com/ethereum-optimism/optimism/op-program/client/l1"
-	"github.com/ethereum-optimism/optimism/op-program/host/kvstore"
-	"github.com/ethereum-optimism/optimism/op-service/testutils"
+	"github.com/HashKeyChain/verse/op-challenger/game/fault/types"
+	preimage "github.com/HashKeyChain/verse/op-preimage"
+	"github.com/HashKeyChain/verse/op-program/client/l1"
+	"github.com/HashKeyChain/verse/op-program/host/kvstore"
+	"github.com/HashKeyChain/verse/op-service/testutils"
 )
 
 func TestPreimageLoader_NoPreimage(t *testing.T) {

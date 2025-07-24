@@ -7,11 +7,11 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/ethereum-optimism/optimism/cannon/mipsevm/arch"
-	"github.com/ethereum-optimism/optimism/cannon/mipsevm/exec"
-	"github.com/ethereum-optimism/optimism/cannon/mipsevm/multithreaded"
-	mtutil "github.com/ethereum-optimism/optimism/cannon/mipsevm/multithreaded/testutil"
-	"github.com/ethereum-optimism/optimism/cannon/mipsevm/testutil"
+	"github.com/HashKeyChain/verse/cannon/mipsevm/arch"
+	"github.com/HashKeyChain/verse/cannon/mipsevm/exec"
+	"github.com/HashKeyChain/verse/cannon/mipsevm/multithreaded"
+	mtutil "github.com/HashKeyChain/verse/cannon/mipsevm/multithreaded/testutil"
+	"github.com/HashKeyChain/verse/cannon/mipsevm/testutil"
 )
 
 type operatorTestCase struct {

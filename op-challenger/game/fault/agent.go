@@ -8,12 +8,12 @@ import (
 	"sync"
 	"time"
 
-	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/solver"
-	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
-	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
-	"github.com/ethereum-optimism/optimism/op-challenger/metrics"
-	"github.com/ethereum-optimism/optimism/op-service/clock"
-	"github.com/ethereum-optimism/optimism/op-service/sources/batching/rpcblock"
+	"github.com/HashKeyChain/verse/op-challenger/game/fault/solver"
+	"github.com/HashKeyChain/verse/op-challenger/game/fault/types"
+	gameTypes "github.com/HashKeyChain/verse/op-challenger/game/types"
+	"github.com/HashKeyChain/verse/op-challenger/metrics"
+	"github.com/HashKeyChain/verse/op-service/clock"
+	"github.com/HashKeyChain/verse/op-service/sources/batching/rpcblock"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
 )

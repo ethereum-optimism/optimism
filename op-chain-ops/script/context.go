@@ -3,7 +3,7 @@ package script
 import (
 	"math/big"
 
-	"github.com/ethereum-optimism/optimism/op-chain-ops/script/addresses"
+	"github.com/HashKeyChain/verse/op-chain-ops/script/addresses"
 
 	"github.com/ethereum/go-ethereum/common"
 )

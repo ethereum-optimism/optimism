@@ -7,8 +7,8 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/ethereum-optimism/optimism/cannon/mipsevm/arch"
-	"github.com/ethereum-optimism/optimism/cannon/mipsevm/program/testutil"
+	"github.com/HashKeyChain/verse/cannon/mipsevm/arch"
+	"github.com/HashKeyChain/verse/cannon/mipsevm/program/testutil"
 )
 
 func TestLoadELF(t *testing.T) {

@@ -1,8 +1,8 @@
 package p2p
 
 import (
-	"github.com/ethereum-optimism/optimism/op-service/apis"
-	"github.com/ethereum-optimism/optimism/op-service/sources"
+	"github.com/HashKeyChain/verse/op-service/apis"
+	"github.com/HashKeyChain/verse/op-service/sources"
 )
 
 // backwards compatibility

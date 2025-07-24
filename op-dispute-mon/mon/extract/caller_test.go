@@ -5,15 +5,15 @@ import (
 	"fmt"
 	"testing"
 
-	contractMetrics "github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts/metrics"
-	"github.com/ethereum-optimism/optimism/op-service/sources/batching/rpcblock"
-	"github.com/ethereum-optimism/optimism/packages/contracts-bedrock/snapshots"
+	contractMetrics "github.com/HashKeyChain/verse/op-challenger/game/fault/contracts/metrics"
+	"github.com/HashKeyChain/verse/op-service/sources/batching/rpcblock"
+	"github.com/HashKeyChain/verse/packages/contracts-bedrock/snapshots"
 	"github.com/ethereum/go-ethereum/common"
 
-	faultTypes "github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
-	"github.com/ethereum-optimism/optimism/op-challenger/game/types"
-	"github.com/ethereum-optimism/optimism/op-service/sources/batching"
-	batchingTest "github.com/ethereum-optimism/optimism/op-service/sources/batching/test"
+	faultTypes "github.com/HashKeyChain/verse/op-challenger/game/fault/types"
+	"github.com/HashKeyChain/verse/op-challenger/game/types"
+	"github.com/HashKeyChain/verse/op-service/sources/batching"
+	batchingTest "github.com/HashKeyChain/verse/op-service/sources/batching/test"
 	"github.com/stretchr/testify/require"
 )
 

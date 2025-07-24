@@ -6,9 +6,9 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/rpc"
 
-	ftypes "github.com/ethereum-optimism/optimism/op-faucet/faucet/backend/types"
-	"github.com/ethereum-optimism/optimism/op-service/apis"
-	"github.com/ethereum-optimism/optimism/op-service/eth"
+	ftypes "github.com/HashKeyChain/verse/op-faucet/faucet/backend/types"
+	"github.com/HashKeyChain/verse/op-service/apis"
+	"github.com/HashKeyChain/verse/op-service/eth"
 )
 
 type FaucetBackend interface {

@@ -1,9 +1,9 @@
 package testutil
 
 import (
-	"github.com/ethereum-optimism/optimism/cannon/mipsevm/arch"
-	"github.com/ethereum-optimism/optimism/cannon/mipsevm/multithreaded"
-	"github.com/ethereum-optimism/optimism/cannon/mipsevm/testutil"
+	"github.com/HashKeyChain/verse/cannon/mipsevm/arch"
+	"github.com/HashKeyChain/verse/cannon/mipsevm/multithreaded"
+	"github.com/HashKeyChain/verse/cannon/mipsevm/testutil"
 )
 
 func RandomThread(randSeed int64) *multithreaded.ThreadState {

@@ -5,8 +5,8 @@ import (
 	"math/big"
 	"testing"
 
-	"github.com/ethereum-optimism/optimism/devnet-sdk/contracts/registry/empty"
-	"github.com/ethereum-optimism/optimism/devnet-sdk/descriptors"
+	"github.com/HashKeyChain/verse/devnet-sdk/contracts/registry/empty"
+	"github.com/HashKeyChain/verse/devnet-sdk/descriptors"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/stretchr/testify/assert"
 )

@@ -8,8 +8,8 @@ import (
 
 	"github.com/ethereum/go-ethereum/log"
 
-	"github.com/ethereum-optimism/optimism/op-service/log/logfilter"
-	"github.com/ethereum-optimism/optimism/op-service/testreq"
+	"github.com/HashKeyChain/verse/op-service/log/logfilter"
+	"github.com/HashKeyChain/verse/op-service/testreq"
 )
 
 // CommonT is a subset of testing.T, extended with a few common utils.

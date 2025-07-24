@@ -4,9 +4,9 @@ import (
 	"context"
 	"fmt"
 
-	faultTypes "github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
-	"github.com/ethereum-optimism/optimism/op-service/sources/batching"
-	"github.com/ethereum-optimism/optimism/op-service/sources/batching/rpcblock"
+	faultTypes "github.com/HashKeyChain/verse/op-challenger/game/fault/types"
+	"github.com/HashKeyChain/verse/op-service/sources/batching"
+	"github.com/HashKeyChain/verse/op-service/sources/batching/rpcblock"
 	"github.com/ethereum/go-ethereum/common"
 )
 

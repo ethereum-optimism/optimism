@@ -7,8 +7,8 @@ import (
 	"fmt"
 	"io"
 
+	"github.com/HashKeyChain/verse/op-service/eth"
 	"github.com/andybalholm/brotli"
-	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum/go-ethereum/rlp"
 )
 

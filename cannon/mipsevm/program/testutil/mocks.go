@@ -8,9 +8,9 @@ import (
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/log"
 
-	"github.com/ethereum-optimism/optimism/cannon/mipsevm"
-	"github.com/ethereum-optimism/optimism/cannon/mipsevm/arch"
-	"github.com/ethereum-optimism/optimism/cannon/mipsevm/memory"
+	"github.com/HashKeyChain/verse/cannon/mipsevm"
+	"github.com/HashKeyChain/verse/cannon/mipsevm/arch"
+	"github.com/HashKeyChain/verse/cannon/mipsevm/memory"
 )
 
 // MockELFFile create a mock ELF file with custom program segments

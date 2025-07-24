@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"math/rand"
 
-	"github.com/ethereum-optimism/optimism/op-service/testutils"
-	"github.com/ethereum-optimism/optimism/op-service/txintent"
+	"github.com/HashKeyChain/verse/op-service/testutils"
+	"github.com/HashKeyChain/verse/op-service/txintent"
 	"github.com/ethereum/go-ethereum/common"
 )
 

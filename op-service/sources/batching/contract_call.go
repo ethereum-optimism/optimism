@@ -3,8 +3,8 @@ package batching
 import (
 	"fmt"
 
-	"github.com/ethereum-optimism/optimism/op-service/sources/batching/rpcblock"
-	"github.com/ethereum-optimism/optimism/op-service/txmgr"
+	"github.com/HashKeyChain/verse/op-service/sources/batching/rpcblock"
+	"github.com/HashKeyChain/verse/op-service/txmgr"
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"

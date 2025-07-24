@@ -3,10 +3,10 @@ package proofs_test
 import (
 	"testing"
 
-	"github.com/ethereum-optimism/optimism/op-batcher/flags"
-	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
-	actionsHelpers "github.com/ethereum-optimism/optimism/op-e2e/actions/helpers"
-	"github.com/ethereum-optimism/optimism/op-e2e/actions/proofs/helpers"
+	"github.com/HashKeyChain/verse/op-batcher/flags"
+	"github.com/HashKeyChain/verse/op-chain-ops/genesis"
+	actionsHelpers "github.com/HashKeyChain/verse/op-e2e/actions/helpers"
+	"github.com/HashKeyChain/verse/op-e2e/actions/proofs/helpers"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/stretchr/testify/require"
 )

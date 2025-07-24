@@ -9,12 +9,12 @@ import (
 
 	"github.com/holiman/uint256"
 
-	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/HashKeyChain/verse/op-service/eth"
 
-	"github.com/ethereum-optimism/optimism/op-chain-ops/script"
-	opcrypto "github.com/ethereum-optimism/optimism/op-service/crypto"
-	"github.com/ethereum-optimism/optimism/op-service/txmgr"
-	"github.com/ethereum-optimism/optimism/op-service/txmgr/metrics"
+	"github.com/HashKeyChain/verse/op-chain-ops/script"
+	opcrypto "github.com/HashKeyChain/verse/op-service/crypto"
+	"github.com/HashKeyChain/verse/op-service/txmgr"
+	"github.com/HashKeyChain/verse/op-service/txmgr/metrics"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/ethclient"

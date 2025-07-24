@@ -6,7 +6,7 @@ package wrappers
 import (
 	"fmt"
 
-	"github.com/ethereum-optimism/optimism/kurtosis-devnet/pkg/kurtosis/api/interfaces"
+	"github.com/HashKeyChain/verse/kurtosis-devnet/pkg/kurtosis/api/interfaces"
 	"github.com/kurtosis-tech/kurtosis/api/golang/engine/lib/kurtosis_context"
 )
 

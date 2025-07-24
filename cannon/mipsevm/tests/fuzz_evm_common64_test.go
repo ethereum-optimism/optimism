@@ -6,8 +6,8 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	mtutil "github.com/ethereum-optimism/optimism/cannon/mipsevm/multithreaded/testutil"
-	"github.com/ethereum-optimism/optimism/cannon/mipsevm/testutil"
+	mtutil "github.com/HashKeyChain/verse/cannon/mipsevm/multithreaded/testutil"
+	"github.com/HashKeyChain/verse/cannon/mipsevm/testutil"
 )
 
 func FuzzStateConsistencyMulOp(f *testing.F) {

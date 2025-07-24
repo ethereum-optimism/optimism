@@ -6,8 +6,8 @@ import (
 
 	"github.com/ethereum/go-ethereum/log"
 
-	"github.com/ethereum-optimism/optimism/op-service/event"
-	"github.com/ethereum-optimism/optimism/op-service/retry"
+	"github.com/HashKeyChain/verse/op-service/event"
+	"github.com/HashKeyChain/verse/op-service/retry"
 )
 
 type ResetStepBackoffEvent struct {

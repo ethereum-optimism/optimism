@@ -1,12 +1,12 @@
 package client
 
 import (
-	"github.com/ethereum-optimism/optimism/op-program/client/boot"
-	"github.com/ethereum-optimism/optimism/op-program/client/claim"
-	"github.com/ethereum-optimism/optimism/op-program/client/l1"
-	"github.com/ethereum-optimism/optimism/op-program/client/l2"
-	"github.com/ethereum-optimism/optimism/op-program/client/tasks"
-	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/HashKeyChain/verse/op-program/client/boot"
+	"github.com/HashKeyChain/verse/op-program/client/claim"
+	"github.com/HashKeyChain/verse/op-program/client/l1"
+	"github.com/HashKeyChain/verse/op-program/client/l2"
+	"github.com/HashKeyChain/verse/op-program/client/tasks"
+	"github.com/HashKeyChain/verse/op-service/eth"
 	"github.com/ethereum/go-ethereum/log"
 )
 

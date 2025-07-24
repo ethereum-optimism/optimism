@@ -4,9 +4,9 @@ import (
 	"context"
 	"time"
 
-	"github.com/ethereum-optimism/optimism/op-e2e/actions/helpers"
-	"github.com/ethereum-optimism/optimism/op-program/client/interop/types"
-	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/HashKeyChain/verse/op-e2e/actions/helpers"
+	"github.com/HashKeyChain/verse/op-program/client/interop/types"
+	"github.com/HashKeyChain/verse/op-service/eth"
 	"github.com/stretchr/testify/require"
 )
 

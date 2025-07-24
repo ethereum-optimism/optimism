@@ -7,7 +7,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/stretchr/testify/require"
 
-	"github.com/ethereum-optimism/optimism/op-chain-ops/crossdomain"
+	"github.com/HashKeyChain/verse/op-chain-ops/crossdomain"
 )
 
 func FuzzAliasing(f *testing.F) {

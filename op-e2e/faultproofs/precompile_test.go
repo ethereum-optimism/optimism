@@ -11,10 +11,10 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/ethereum-optimism/optimism/op-e2e/actions/proofs"
-	e2e_config "github.com/ethereum-optimism/optimism/op-e2e/config"
-	"github.com/ethereum-optimism/optimism/op-e2e/system/e2esys"
-	"github.com/ethereum-optimism/optimism/op-e2e/system/helpers"
+	"github.com/HashKeyChain/verse/op-e2e/actions/proofs"
+	e2e_config "github.com/HashKeyChain/verse/op-e2e/config"
+	"github.com/HashKeyChain/verse/op-e2e/system/e2esys"
+	"github.com/HashKeyChain/verse/op-e2e/system/helpers"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
@@ -23,14 +23,14 @@ import (
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/stretchr/testify/require"
 
-	"github.com/ethereum-optimism/optimism/op-challenger/config"
-	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/utils"
-	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/vm"
-	"github.com/ethereum-optimism/optimism/op-challenger/metrics"
-	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/challenger"
-	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/disputegame"
-	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
-	"github.com/ethereum-optimism/optimism/op-service/testlog"
+	"github.com/HashKeyChain/verse/op-challenger/config"
+	"github.com/HashKeyChain/verse/op-challenger/game/fault/trace/utils"
+	"github.com/HashKeyChain/verse/op-challenger/game/fault/trace/vm"
+	"github.com/HashKeyChain/verse/op-challenger/metrics"
+	"github.com/HashKeyChain/verse/op-e2e/e2eutils/challenger"
+	"github.com/HashKeyChain/verse/op-e2e/e2eutils/disputegame"
+	"github.com/HashKeyChain/verse/op-e2e/e2eutils/wait"
+	"github.com/HashKeyChain/verse/op-service/testlog"
 )
 
 func TestPrecompile(t *testing.T) {

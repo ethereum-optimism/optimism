@@ -4,8 +4,8 @@ import (
 	"math/big"
 	"time"
 
-	contractMetrics "github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts/metrics"
-	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
+	contractMetrics "github.com/HashKeyChain/verse/op-challenger/game/fault/contracts/metrics"
+	opmetrics "github.com/HashKeyChain/verse/op-service/metrics"
 	"github.com/ethereum/go-ethereum/common"
 )
 

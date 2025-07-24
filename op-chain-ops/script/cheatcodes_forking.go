@@ -9,7 +9,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 
-	"github.com/ethereum-optimism/optimism/op-chain-ops/script/forking"
+	"github.com/HashKeyChain/verse/op-chain-ops/script/forking"
 )
 
 func (c *CheatCodesPrecompile) CreateFork_31ba3498(urlOrAlias string) (*big.Int, error) {

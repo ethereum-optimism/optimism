@@ -8,14 +8,14 @@ import (
 
 	"github.com/ethereum/go-ethereum/log"
 
-	monitor "github.com/ethereum-optimism/optimism/op-dispute-mon"
-	"github.com/ethereum-optimism/optimism/op-dispute-mon/config"
-	"github.com/ethereum-optimism/optimism/op-dispute-mon/flags"
-	"github.com/ethereum-optimism/optimism/op-dispute-mon/version"
-	opservice "github.com/ethereum-optimism/optimism/op-service"
-	"github.com/ethereum-optimism/optimism/op-service/cliapp"
-	"github.com/ethereum-optimism/optimism/op-service/ctxinterrupt"
-	oplog "github.com/ethereum-optimism/optimism/op-service/log"
+	monitor "github.com/HashKeyChain/verse/op-dispute-mon"
+	"github.com/HashKeyChain/verse/op-dispute-mon/config"
+	"github.com/HashKeyChain/verse/op-dispute-mon/flags"
+	"github.com/HashKeyChain/verse/op-dispute-mon/version"
+	opservice "github.com/HashKeyChain/verse/op-service"
+	"github.com/HashKeyChain/verse/op-service/cliapp"
+	"github.com/HashKeyChain/verse/op-service/ctxinterrupt"
+	oplog "github.com/HashKeyChain/verse/op-service/log"
 )
 
 var (

@@ -7,8 +7,8 @@ import (
 	"math/big"
 	"sync"
 
-	"github.com/ethereum-optimism/optimism/op-service/eth"
-	"github.com/ethereum-optimism/optimism/op-sync-tester/metrics"
+	"github.com/HashKeyChain/verse/op-service/eth"
+	"github.com/HashKeyChain/verse/op-sync-tester/metrics"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -16,9 +16,9 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/rpc"
 
-	"github.com/ethereum-optimism/optimism/op-sync-tester/synctester/backend/config"
-	sttypes "github.com/ethereum-optimism/optimism/op-sync-tester/synctester/backend/types"
-	"github.com/ethereum-optimism/optimism/op-sync-tester/synctester/frontend"
+	"github.com/HashKeyChain/verse/op-sync-tester/synctester/backend/config"
+	sttypes "github.com/HashKeyChain/verse/op-sync-tester/synctester/backend/types"
+	"github.com/HashKeyChain/verse/op-sync-tester/synctester/frontend"
 )
 
 var (

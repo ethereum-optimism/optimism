@@ -8,13 +8,13 @@ import (
 
 	common "github.com/ethereum/go-ethereum/common"
 
-	eth "github.com/ethereum-optimism/optimism/op-service/eth"
+	eth "github.com/HashKeyChain/verse/op-service/eth"
 
 	mock "github.com/stretchr/testify/mock"
 
 	rpc "github.com/ethereum/go-ethereum/rpc"
 
-	txmgr "github.com/ethereum-optimism/optimism/op-service/txmgr"
+	txmgr "github.com/HashKeyChain/verse/op-service/txmgr"
 
 	types "github.com/ethereum/go-ethereum/core/types"
 )

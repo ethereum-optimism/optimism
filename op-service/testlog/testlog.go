@@ -32,8 +32,8 @@ import (
 	"strings"
 	"sync"
 
-	oplog "github.com/ethereum-optimism/optimism/op-service/log"
-	"github.com/ethereum-optimism/optimism/op-service/logmods"
+	oplog "github.com/HashKeyChain/verse/op-service/log"
+	"github.com/HashKeyChain/verse/op-service/logmods"
 	"github.com/ethereum/go-ethereum/log"
 )
 

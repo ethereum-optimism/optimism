@@ -11,17 +11,17 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/ethereum-optimism/optimism/cannon/mipsevm/multithreaded"
+	"github.com/HashKeyChain/verse/cannon/mipsevm/multithreaded"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/stretchr/testify/require"
 
-	"github.com/ethereum-optimism/optimism/cannon/mipsevm/memory"
-	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/utils"
-	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/vm"
-	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
-	"github.com/ethereum-optimism/optimism/op-service/ioutil"
-	"github.com/ethereum-optimism/optimism/op-service/testlog"
+	"github.com/HashKeyChain/verse/cannon/mipsevm/memory"
+	"github.com/HashKeyChain/verse/op-challenger/game/fault/trace/utils"
+	"github.com/HashKeyChain/verse/op-challenger/game/fault/trace/vm"
+	"github.com/HashKeyChain/verse/op-challenger/game/fault/types"
+	"github.com/HashKeyChain/verse/op-service/ioutil"
+	"github.com/HashKeyChain/verse/op-service/testlog"
 )
 
 //go:embed test_data

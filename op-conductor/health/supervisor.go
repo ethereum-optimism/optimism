@@ -3,7 +3,7 @@ package health
 import (
 	"context"
 
-	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/HashKeyChain/verse/op-service/eth"
 )
 
 // SupervisorHealthAPI defines the interface for the supervisor's health check.

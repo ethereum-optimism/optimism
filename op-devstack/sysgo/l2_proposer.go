@@ -7,17 +7,17 @@ import (
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/log"
 
-	"github.com/ethereum-optimism/optimism/op-chain-ops/devkeys"
-	"github.com/ethereum-optimism/optimism/op-devstack/shim"
-	"github.com/ethereum-optimism/optimism/op-devstack/stack"
-	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/setuputils"
-	ps "github.com/ethereum-optimism/optimism/op-proposer/proposer"
-	"github.com/ethereum-optimism/optimism/op-service/client"
-	"github.com/ethereum-optimism/optimism/op-service/endpoint"
-	oplog "github.com/ethereum-optimism/optimism/op-service/log"
-	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
-	"github.com/ethereum-optimism/optimism/op-service/oppprof"
-	oprpc "github.com/ethereum-optimism/optimism/op-service/rpc"
+	"github.com/HashKeyChain/verse/op-chain-ops/devkeys"
+	"github.com/HashKeyChain/verse/op-devstack/shim"
+	"github.com/HashKeyChain/verse/op-devstack/stack"
+	"github.com/HashKeyChain/verse/op-e2e/e2eutils/setuputils"
+	ps "github.com/HashKeyChain/verse/op-proposer/proposer"
+	"github.com/HashKeyChain/verse/op-service/client"
+	"github.com/HashKeyChain/verse/op-service/endpoint"
+	oplog "github.com/HashKeyChain/verse/op-service/log"
+	opmetrics "github.com/HashKeyChain/verse/op-service/metrics"
+	"github.com/HashKeyChain/verse/op-service/oppprof"
+	oprpc "github.com/HashKeyChain/verse/op-service/rpc"
 )
 
 type L2Proposer struct {

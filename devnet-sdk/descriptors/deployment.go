@@ -4,8 +4,8 @@ import (
 	"encoding/json"
 	"net/http"
 
-	"github.com/ethereum-optimism/optimism/devnet-sdk/types"
-	"github.com/ethereum-optimism/optimism/op-node/rollup"
+	"github.com/HashKeyChain/verse/devnet-sdk/types"
+	"github.com/HashKeyChain/verse/op-node/rollup"
 	"github.com/ethereum/go-ethereum/params"
 )
 

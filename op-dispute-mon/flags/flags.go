@@ -4,16 +4,16 @@ import (
 	"fmt"
 	"strings"
 
-	challengerFlags "github.com/ethereum-optimism/optimism/op-challenger/flags"
-	"github.com/ethereum-optimism/optimism/op-node/chaincfg"
-	"github.com/ethereum-optimism/optimism/op-service/flags"
+	challengerFlags "github.com/HashKeyChain/verse/op-challenger/flags"
+	"github.com/HashKeyChain/verse/op-node/chaincfg"
+	"github.com/HashKeyChain/verse/op-service/flags"
 	"github.com/urfave/cli/v2"
 
-	"github.com/ethereum-optimism/optimism/op-dispute-mon/config"
-	opservice "github.com/ethereum-optimism/optimism/op-service"
-	oplog "github.com/ethereum-optimism/optimism/op-service/log"
-	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
-	"github.com/ethereum-optimism/optimism/op-service/oppprof"
+	"github.com/HashKeyChain/verse/op-dispute-mon/config"
+	opservice "github.com/HashKeyChain/verse/op-service"
+	oplog "github.com/HashKeyChain/verse/op-service/log"
+	opmetrics "github.com/HashKeyChain/verse/op-service/metrics"
+	"github.com/HashKeyChain/verse/op-service/oppprof"
 	"github.com/ethereum/go-ethereum/common"
 )
 

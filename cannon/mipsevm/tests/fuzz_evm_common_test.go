@@ -9,13 +9,13 @@ import (
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/stretchr/testify/require"
 
-	"github.com/ethereum-optimism/optimism/cannon/mipsevm/arch"
-	"github.com/ethereum-optimism/optimism/cannon/mipsevm/exec"
-	"github.com/ethereum-optimism/optimism/cannon/mipsevm/memory"
-	mtutil "github.com/ethereum-optimism/optimism/cannon/mipsevm/multithreaded/testutil"
-	"github.com/ethereum-optimism/optimism/cannon/mipsevm/program"
-	"github.com/ethereum-optimism/optimism/cannon/mipsevm/testutil"
-	preimage "github.com/ethereum-optimism/optimism/op-preimage"
+	"github.com/HashKeyChain/verse/cannon/mipsevm/arch"
+	"github.com/HashKeyChain/verse/cannon/mipsevm/exec"
+	"github.com/HashKeyChain/verse/cannon/mipsevm/memory"
+	mtutil "github.com/HashKeyChain/verse/cannon/mipsevm/multithreaded/testutil"
+	"github.com/HashKeyChain/verse/cannon/mipsevm/program"
+	"github.com/HashKeyChain/verse/cannon/mipsevm/testutil"
+	preimage "github.com/HashKeyChain/verse/op-preimage"
 )
 
 const syscallInsn = uint32(0x00_00_00_0c)

@@ -6,9 +6,9 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/ethereum-optimism/optimism/op-challenger/game/keccak/matrix"
-	keccakTypes "github.com/ethereum-optimism/optimism/op-challenger/game/keccak/types"
-	"github.com/ethereum-optimism/optimism/op-service/txmgr"
+	"github.com/HashKeyChain/verse/op-challenger/game/keccak/matrix"
+	keccakTypes "github.com/HashKeyChain/verse/op-challenger/game/keccak/types"
+	"github.com/HashKeyChain/verse/op-service/txmgr"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
 )

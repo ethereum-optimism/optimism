@@ -11,13 +11,13 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/rpc"
 
-	fconf "github.com/ethereum-optimism/optimism/op-faucet/faucet/backend/config"
-	ftypes "github.com/ethereum-optimism/optimism/op-faucet/faucet/backend/types"
-	"github.com/ethereum-optimism/optimism/op-faucet/metrics"
-	"github.com/ethereum-optimism/optimism/op-service/endpoint"
-	"github.com/ethereum-optimism/optimism/op-service/eth"
-	oprpc "github.com/ethereum-optimism/optimism/op-service/rpc"
-	"github.com/ethereum-optimism/optimism/op-service/testlog"
+	fconf "github.com/HashKeyChain/verse/op-faucet/faucet/backend/config"
+	ftypes "github.com/HashKeyChain/verse/op-faucet/faucet/backend/types"
+	"github.com/HashKeyChain/verse/op-faucet/metrics"
+	"github.com/HashKeyChain/verse/op-service/endpoint"
+	"github.com/HashKeyChain/verse/op-service/eth"
+	oprpc "github.com/HashKeyChain/verse/op-service/rpc"
+	"github.com/HashKeyChain/verse/op-service/testlog"
 )
 
 type testAPI struct {

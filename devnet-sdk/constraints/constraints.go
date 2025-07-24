@@ -3,8 +3,8 @@ package constraints
 import (
 	"github.com/ethereum/go-ethereum/log"
 
-	"github.com/ethereum-optimism/optimism/devnet-sdk/system"
-	"github.com/ethereum-optimism/optimism/devnet-sdk/types"
+	"github.com/HashKeyChain/verse/devnet-sdk/system"
+	"github.com/HashKeyChain/verse/devnet-sdk/types"
 )
 
 type WalletConstraint interface {

@@ -3,7 +3,7 @@ package stack
 import (
 	"log/slog"
 
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/depset"
+	"github.com/HashKeyChain/verse/op-supervisor/supervisor/backend/depset"
 )
 
 // ClusterID identifies a Cluster by name, is type-safe, and can be value-copied and used as map key.

@@ -3,9 +3,9 @@ package script
 import (
 	"math"
 
-	"github.com/ethereum-optimism/optimism/op-chain-ops/addresses"
-	"github.com/ethereum-optimism/optimism/op-chain-ops/script"
-	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/opcm"
+	"github.com/HashKeyChain/verse/op-chain-ops/addresses"
+	"github.com/HashKeyChain/verse/op-chain-ops/script"
+	"github.com/HashKeyChain/verse/op-deployer/pkg/deployer/opcm"
 	"github.com/ethereum/go-ethereum/common"
 )
 

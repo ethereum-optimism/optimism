@@ -3,10 +3,10 @@ package withdrawal
 import (
 	"testing"
 
-	faultTypes "github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
-	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
-	"github.com/ethereum-optimism/optimism/op-devstack/presets"
-	"github.com/ethereum-optimism/optimism/op-service/eth"
+	faultTypes "github.com/HashKeyChain/verse/op-challenger/game/fault/types"
+	"github.com/HashKeyChain/verse/op-devstack/devtest"
+	"github.com/HashKeyChain/verse/op-devstack/presets"
+	"github.com/HashKeyChain/verse/op-service/eth"
 )
 
 func TestWithdrawal(gt *testing.T) {

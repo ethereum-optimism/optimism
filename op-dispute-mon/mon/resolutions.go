@@ -3,9 +3,9 @@ package mon
 import (
 	"time"
 
-	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
-	"github.com/ethereum-optimism/optimism/op-dispute-mon/metrics"
-	"github.com/ethereum-optimism/optimism/op-dispute-mon/mon/types"
+	gameTypes "github.com/HashKeyChain/verse/op-challenger/game/types"
+	"github.com/HashKeyChain/verse/op-dispute-mon/metrics"
+	"github.com/HashKeyChain/verse/op-dispute-mon/mon/types"
 	"github.com/ethereum/go-ethereum/log"
 )
 

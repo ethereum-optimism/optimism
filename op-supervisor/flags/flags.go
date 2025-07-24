@@ -4,17 +4,17 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/ethereum-optimism/optimism/op-node/chaincfg"
+	"github.com/HashKeyChain/verse/op-node/chaincfg"
 	"github.com/urfave/cli/v2"
 
-	opservice "github.com/ethereum-optimism/optimism/op-service"
-	oplog "github.com/ethereum-optimism/optimism/op-service/log"
-	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
-	"github.com/ethereum-optimism/optimism/op-service/oppprof"
-	oprpc "github.com/ethereum-optimism/optimism/op-service/rpc"
-	"github.com/ethereum-optimism/optimism/op-supervisor/config"
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/depset"
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/syncnode"
+	opservice "github.com/HashKeyChain/verse/op-service"
+	oplog "github.com/HashKeyChain/verse/op-service/log"
+	opmetrics "github.com/HashKeyChain/verse/op-service/metrics"
+	"github.com/HashKeyChain/verse/op-service/oppprof"
+	oprpc "github.com/HashKeyChain/verse/op-service/rpc"
+	"github.com/HashKeyChain/verse/op-supervisor/config"
+	"github.com/HashKeyChain/verse/op-supervisor/supervisor/backend/depset"
+	"github.com/HashKeyChain/verse/op-supervisor/supervisor/backend/syncnode"
 )
 
 const EnvVarPrefix = "OP_SUPERVISOR"

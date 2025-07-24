@@ -1,8 +1,8 @@
 package stack
 
 import (
-	"github.com/ethereum-optimism/optimism/op-devstack/compat"
-	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
+	"github.com/HashKeyChain/verse/op-devstack/compat"
+	"github.com/HashKeyChain/verse/op-devstack/devtest"
 )
 
 // Lifecycle represents a controllable component by ControlPlane

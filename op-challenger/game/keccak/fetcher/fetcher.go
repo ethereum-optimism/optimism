@@ -6,9 +6,9 @@ import (
 	"fmt"
 	"math/big"
 
-	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts"
-	keccakTypes "github.com/ethereum-optimism/optimism/op-challenger/game/keccak/types"
-	"github.com/ethereum-optimism/optimism/op-service/sources/batching/rpcblock"
+	"github.com/HashKeyChain/verse/op-challenger/game/fault/contracts"
+	keccakTypes "github.com/HashKeyChain/verse/op-challenger/game/keccak/types"
+	"github.com/HashKeyChain/verse/op-service/sources/batching/rpcblock"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"

@@ -5,10 +5,10 @@ import (
 	"math/big"
 	"testing"
 
-	"github.com/ethereum-optimism/optimism/op-service/sources/batching"
-	"github.com/ethereum-optimism/optimism/op-service/sources/batching/rpcblock"
-	batchingTest "github.com/ethereum-optimism/optimism/op-service/sources/batching/test"
-	"github.com/ethereum-optimism/optimism/packages/contracts-bedrock/snapshots"
+	"github.com/HashKeyChain/verse/op-service/sources/batching"
+	"github.com/HashKeyChain/verse/op-service/sources/batching/rpcblock"
+	batchingTest "github.com/HashKeyChain/verse/op-service/sources/batching/test"
+	"github.com/HashKeyChain/verse/packages/contracts-bedrock/snapshots"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/stretchr/testify/require"
 )

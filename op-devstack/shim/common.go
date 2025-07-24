@@ -1,12 +1,12 @@
 package shim
 
 import (
-	"github.com/ethereum-optimism/optimism/op-service/testreq"
+	"github.com/HashKeyChain/verse/op-service/testreq"
 	"github.com/ethereum/go-ethereum/log"
 
-	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
-	"github.com/ethereum-optimism/optimism/op-devstack/stack"
-	"github.com/ethereum-optimism/optimism/op-service/locks"
+	"github.com/HashKeyChain/verse/op-devstack/devtest"
+	"github.com/HashKeyChain/verse/op-devstack/stack"
+	"github.com/HashKeyChain/verse/op-service/locks"
 )
 
 // CommonConfig provides common inputs for creating a new component

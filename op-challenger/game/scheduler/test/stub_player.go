@@ -3,7 +3,7 @@ package test
 import (
 	"context"
 
-	"github.com/ethereum-optimism/optimism/op-challenger/game/types"
+	"github.com/HashKeyChain/verse/op-challenger/game/types"
 	"github.com/ethereum/go-ethereum/common"
 )
 

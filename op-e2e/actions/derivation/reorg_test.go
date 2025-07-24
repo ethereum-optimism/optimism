@@ -6,10 +6,10 @@ import (
 	"path"
 	"testing"
 
-	"github.com/ethereum-optimism/optimism/op-e2e/config"
+	"github.com/HashKeyChain/verse/op-e2e/config"
 
-	actionsHelpers "github.com/ethereum-optimism/optimism/op-e2e/actions/helpers"
-	upgradesHelpers "github.com/ethereum-optimism/optimism/op-e2e/actions/upgrades/helpers"
+	actionsHelpers "github.com/HashKeyChain/verse/op-e2e/actions/helpers"
+	upgradesHelpers "github.com/HashKeyChain/verse/op-e2e/actions/upgrades/helpers"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -18,12 +18,12 @@ import (
 	"github.com/ethereum/go-ethereum/node"
 	"github.com/stretchr/testify/require"
 
-	altda "github.com/ethereum-optimism/optimism/op-alt-da"
-	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils"
-	"github.com/ethereum-optimism/optimism/op-service/client"
-	"github.com/ethereum-optimism/optimism/op-service/eth"
-	"github.com/ethereum-optimism/optimism/op-service/sources"
-	"github.com/ethereum-optimism/optimism/op-service/testlog"
+	altda "github.com/HashKeyChain/verse/op-alt-da"
+	"github.com/HashKeyChain/verse/op-e2e/e2eutils"
+	"github.com/HashKeyChain/verse/op-service/client"
+	"github.com/HashKeyChain/verse/op-service/eth"
+	"github.com/HashKeyChain/verse/op-service/sources"
+	"github.com/HashKeyChain/verse/op-service/testlog"
 )
 
 // TestReorgBatchType run each reorg-related test case in singular batch mode and span batch mode.

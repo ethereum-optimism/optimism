@@ -1,7 +1,7 @@
 package main
 
 import (
-	"github.com/ethereum-optimism/optimism/op-program/client"
+	"github.com/HashKeyChain/verse/op-program/client"
 )
 
 func main() {

@@ -14,10 +14,10 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/stretchr/testify/require"
 
-	"github.com/ethereum-optimism/optimism/cannon/mipsevm"
-	"github.com/ethereum-optimism/optimism/cannon/mipsevm/memory"
-	"github.com/ethereum-optimism/optimism/cannon/mipsevm/program"
-	"github.com/ethereum-optimism/optimism/cannon/mipsevm/testutil"
+	"github.com/HashKeyChain/verse/cannon/mipsevm"
+	"github.com/HashKeyChain/verse/cannon/mipsevm/memory"
+	"github.com/HashKeyChain/verse/cannon/mipsevm/program"
+	"github.com/HashKeyChain/verse/cannon/mipsevm/testutil"
 )
 
 func TestInstrumentedState_Hello(t *testing.T) {

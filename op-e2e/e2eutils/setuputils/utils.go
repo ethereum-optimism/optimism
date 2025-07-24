@@ -4,12 +4,12 @@ import (
 	"crypto/ecdsa"
 	"time"
 
-	"github.com/ethereum-optimism/optimism/op-service/crypto"
+	"github.com/HashKeyChain/verse/op-service/crypto"
 
 	"github.com/ethereum/go-ethereum/common/hexutil"
 
-	"github.com/ethereum-optimism/optimism/op-service/endpoint"
-	"github.com/ethereum-optimism/optimism/op-service/txmgr"
+	"github.com/HashKeyChain/verse/op-service/endpoint"
+	"github.com/HashKeyChain/verse/op-service/txmgr"
 )
 
 func hexPriv(in *ecdsa.PrivateKey) string {

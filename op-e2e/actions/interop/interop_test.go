@@ -8,14 +8,14 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
 
-	"github.com/ethereum-optimism/optimism/op-e2e/actions/helpers"
-	"github.com/ethereum-optimism/optimism/op-e2e/actions/interop/dsl"
-	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/contracts/bindings/emit"
-	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
-	"github.com/ethereum-optimism/optimism/op-node/rollup/interop/indexing"
-	"github.com/ethereum-optimism/optimism/op-service/eth"
-	"github.com/ethereum-optimism/optimism/op-service/event"
-	stypes "github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
+	"github.com/HashKeyChain/verse/op-e2e/actions/helpers"
+	"github.com/HashKeyChain/verse/op-e2e/actions/interop/dsl"
+	"github.com/HashKeyChain/verse/op-e2e/e2eutils/contracts/bindings/emit"
+	"github.com/HashKeyChain/verse/op-node/rollup/derive"
+	"github.com/HashKeyChain/verse/op-node/rollup/interop/indexing"
+	"github.com/HashKeyChain/verse/op-service/eth"
+	"github.com/HashKeyChain/verse/op-service/event"
+	stypes "github.com/HashKeyChain/verse/op-supervisor/supervisor/types"
 )
 
 func TestFullInterop(gt *testing.T) {

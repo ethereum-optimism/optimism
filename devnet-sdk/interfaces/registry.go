@@ -3,7 +3,7 @@ package interfaces
 import (
 	"fmt"
 
-	"github.com/ethereum-optimism/optimism/devnet-sdk/types"
+	"github.com/HashKeyChain/verse/devnet-sdk/types"
 	"github.com/ethereum/go-ethereum/accounts/abi"
 )
 

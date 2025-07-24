@@ -6,9 +6,9 @@ import (
 	"math/big"
 	"testing"
 
-	preimage "github.com/ethereum-optimism/optimism/op-preimage"
+	preimage "github.com/HashKeyChain/verse/op-preimage"
 
-	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
+	"github.com/HashKeyChain/verse/op-challenger/game/fault/types"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/stretchr/testify/require"

@@ -3,10 +3,10 @@ package disputegame
 import (
 	"context"
 
-	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/outputs"
-	"github.com/ethereum-optimism/optimism/op-challenger/metrics"
-	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/challenger"
-	"github.com/ethereum-optimism/optimism/op-service/testlog"
+	"github.com/HashKeyChain/verse/op-challenger/game/fault/trace/outputs"
+	"github.com/HashKeyChain/verse/op-challenger/metrics"
+	"github.com/HashKeyChain/verse/op-e2e/e2eutils/challenger"
+	"github.com/HashKeyChain/verse/op-service/testlog"
 	"github.com/ethereum/go-ethereum/log"
 )
 

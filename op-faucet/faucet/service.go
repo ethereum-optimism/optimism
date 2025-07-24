@@ -11,17 +11,17 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/rpc"
 
-	"github.com/ethereum-optimism/optimism/op-faucet/config"
-	"github.com/ethereum-optimism/optimism/op-faucet/faucet/backend"
-	ftypes "github.com/ethereum-optimism/optimism/op-faucet/faucet/backend/types"
-	"github.com/ethereum-optimism/optimism/op-faucet/faucet/frontend"
-	"github.com/ethereum-optimism/optimism/op-faucet/metrics"
-	"github.com/ethereum-optimism/optimism/op-service/cliapp"
-	"github.com/ethereum-optimism/optimism/op-service/eth"
-	"github.com/ethereum-optimism/optimism/op-service/httputil"
-	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
-	"github.com/ethereum-optimism/optimism/op-service/oppprof"
-	oprpc "github.com/ethereum-optimism/optimism/op-service/rpc"
+	"github.com/HashKeyChain/verse/op-faucet/config"
+	"github.com/HashKeyChain/verse/op-faucet/faucet/backend"
+	ftypes "github.com/HashKeyChain/verse/op-faucet/faucet/backend/types"
+	"github.com/HashKeyChain/verse/op-faucet/faucet/frontend"
+	"github.com/HashKeyChain/verse/op-faucet/metrics"
+	"github.com/HashKeyChain/verse/op-service/cliapp"
+	"github.com/HashKeyChain/verse/op-service/eth"
+	"github.com/HashKeyChain/verse/op-service/httputil"
+	opmetrics "github.com/HashKeyChain/verse/op-service/metrics"
+	"github.com/HashKeyChain/verse/op-service/oppprof"
+	oprpc "github.com/HashKeyChain/verse/op-service/rpc"
 )
 
 type serviceBackend interface {

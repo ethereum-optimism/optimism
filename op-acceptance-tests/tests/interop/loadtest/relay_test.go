@@ -6,8 +6,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/interop"
-	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
+	"github.com/HashKeyChain/verse/op-acceptance-tests/tests/interop"
+	"github.com/HashKeyChain/verse/op-devstack/devtest"
 )
 
 // RelaySpammer initiates messages on one chain and executes them on the other.

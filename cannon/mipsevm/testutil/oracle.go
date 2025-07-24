@@ -11,8 +11,8 @@ import (
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/stretchr/testify/require"
 
-	"github.com/ethereum-optimism/optimism/cannon/mipsevm"
-	preimage "github.com/ethereum-optimism/optimism/op-preimage"
+	"github.com/HashKeyChain/verse/cannon/mipsevm"
+	preimage "github.com/HashKeyChain/verse/op-preimage"
 )
 
 type TestOracle struct {

@@ -66,8 +66,8 @@ import (
 	"log/slog"
 	"sync/atomic"
 
-	"github.com/ethereum-optimism/optimism/op-service/logmods"
-	"github.com/ethereum-optimism/optimism/op-service/tri"
+	"github.com/HashKeyChain/verse/op-service/logmods"
+	"github.com/HashKeyChain/verse/op-service/tri"
 )
 
 // ============================================================================

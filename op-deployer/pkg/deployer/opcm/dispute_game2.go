@@ -5,7 +5,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 
-	"github.com/ethereum-optimism/optimism/op-chain-ops/script"
+	"github.com/HashKeyChain/verse/op-chain-ops/script"
 )
 
 type DeployDisputeGame2Input struct {

@@ -7,8 +7,8 @@ import (
 	"math/rand"
 	"testing"
 
+	"github.com/HashKeyChain/verse/op-service/eth"
 	"github.com/andybalholm/brotli"
-	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/klauspost/compress/zstd"
 	"github.com/stretchr/testify/require"
 )

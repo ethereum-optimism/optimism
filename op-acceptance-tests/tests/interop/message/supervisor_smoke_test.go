@@ -3,8 +3,8 @@ package msg
 import (
 	"testing"
 
-	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
-	"github.com/ethereum-optimism/optimism/op-devstack/presets"
+	"github.com/HashKeyChain/verse/op-devstack/devtest"
+	"github.com/HashKeyChain/verse/op-devstack/presets"
 )
 
 // TestInteropSystemSupervisor tests that the supervisor can provide finalized L1 block information

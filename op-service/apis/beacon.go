@@ -3,7 +3,7 @@ package apis
 import (
 	"context"
 
-	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/HashKeyChain/verse/op-service/eth"
 )
 
 // BeaconClient is a thin wrapper over the Beacon APIs.

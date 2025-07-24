@@ -17,8 +17,8 @@ import (
 	"github.com/libp2p/go-libp2p/core/crypto"
 	"github.com/multiformats/go-multiaddr"
 
-	"github.com/ethereum-optimism/optimism/op-node/flags"
-	"github.com/ethereum-optimism/optimism/op-node/p2p"
+	"github.com/HashKeyChain/verse/op-node/flags"
+	"github.com/HashKeyChain/verse/op-node/p2p"
 
 	"github.com/urfave/cli/v2"
 

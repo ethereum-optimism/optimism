@@ -14,16 +14,16 @@ import (
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/params"
 
-	"github.com/ethereum-optimism/optimism/op-chain-ops/devkeys"
-	"github.com/ethereum-optimism/optimism/op-e2e/actions/helpers"
-	"github.com/ethereum-optimism/optimism/op-e2e/actions/interop/dsl"
-	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/contracts/bindings/emit"
-	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/contracts/bindings/inbox"
-	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
-	"github.com/ethereum-optimism/optimism/op-service/eth"
-	"github.com/ethereum-optimism/optimism/op-service/event"
-	"github.com/ethereum-optimism/optimism/op-service/predeploys"
-	stypes "github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
+	"github.com/HashKeyChain/verse/op-chain-ops/devkeys"
+	"github.com/HashKeyChain/verse/op-e2e/actions/helpers"
+	"github.com/HashKeyChain/verse/op-e2e/actions/interop/dsl"
+	"github.com/HashKeyChain/verse/op-e2e/e2eutils/contracts/bindings/emit"
+	"github.com/HashKeyChain/verse/op-e2e/e2eutils/contracts/bindings/inbox"
+	"github.com/HashKeyChain/verse/op-node/rollup/derive"
+	"github.com/HashKeyChain/verse/op-service/eth"
+	"github.com/HashKeyChain/verse/op-service/event"
+	"github.com/HashKeyChain/verse/op-service/predeploys"
+	stypes "github.com/HashKeyChain/verse/op-supervisor/supervisor/types"
 )
 
 type userWithKeys struct {

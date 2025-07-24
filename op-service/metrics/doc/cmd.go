@@ -9,7 +9,7 @@ import (
 	"github.com/olekukonko/tablewriter"
 	"github.com/urfave/cli/v2"
 
-	"github.com/ethereum-optimism/optimism/op-service/metrics"
+	"github.com/HashKeyChain/verse/op-service/metrics"
 )
 
 type Metrics interface {

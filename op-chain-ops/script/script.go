@@ -9,7 +9,7 @@ import (
 	"math/big"
 	"strings"
 
-	"github.com/ethereum-optimism/optimism/op-chain-ops/script/addresses"
+	"github.com/HashKeyChain/verse/op-chain-ops/script/addresses"
 	"github.com/holiman/uint256"
 
 	"github.com/ethereum/go-ethereum/accounts/abi"
@@ -27,9 +27,9 @@ import (
 	"github.com/ethereum/go-ethereum/triedb"
 	"github.com/ethereum/go-ethereum/triedb/hashdb"
 
-	"github.com/ethereum-optimism/optimism/op-chain-ops/foundry"
-	"github.com/ethereum-optimism/optimism/op-chain-ops/script/forking"
-	"github.com/ethereum-optimism/optimism/op-chain-ops/srcmap"
+	"github.com/HashKeyChain/verse/op-chain-ops/foundry"
+	"github.com/HashKeyChain/verse/op-chain-ops/script/forking"
+	"github.com/HashKeyChain/verse/op-chain-ops/srcmap"
 )
 
 // jumpHistory is the amount of successful jumps to track for debugging.

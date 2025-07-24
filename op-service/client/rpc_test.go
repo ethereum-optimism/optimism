@@ -7,7 +7,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/ethereum-optimism/optimism/op-service/client"
+	"github.com/HashKeyChain/verse/op-service/client"
 	"github.com/ethereum/go-ethereum/rpc"
 	"github.com/stretchr/testify/require"
 )

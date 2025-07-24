@@ -1,9 +1,9 @@
 package manage
 
 import (
-	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer"
-	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/standard"
-	oplog "github.com/ethereum-optimism/optimism/op-service/log"
+	"github.com/HashKeyChain/verse/op-deployer/pkg/deployer"
+	"github.com/HashKeyChain/verse/op-deployer/pkg/deployer/standard"
+	oplog "github.com/HashKeyChain/verse/op-service/log"
 	"github.com/urfave/cli/v2"
 )
 

@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"math/big"
 
-	sdkTypes "github.com/ethereum-optimism/optimism/devnet-sdk/types"
+	sdkTypes "github.com/HashKeyChain/verse/devnet-sdk/types"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/ethclient"
 )

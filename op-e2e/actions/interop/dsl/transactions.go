@@ -3,10 +3,10 @@ package dsl
 import (
 	"math/big"
 
-	"github.com/ethereum-optimism/optimism/op-e2e/actions/helpers"
-	"github.com/ethereum-optimism/optimism/op-e2e/bindingspreview"
-	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/contracts/bindings/inbox"
-	stypes "github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
+	"github.com/HashKeyChain/verse/op-e2e/actions/helpers"
+	"github.com/HashKeyChain/verse/op-e2e/bindingspreview"
+	"github.com/HashKeyChain/verse/op-e2e/e2eutils/contracts/bindings/inbox"
+	stypes "github.com/HashKeyChain/verse/op-supervisor/supervisor/types"
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"

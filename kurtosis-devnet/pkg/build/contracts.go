@@ -14,9 +14,9 @@ import (
 	"text/template"
 	"time"
 
-	ktfs "github.com/ethereum-optimism/optimism/devnet-sdk/kt/fs"
-	"github.com/ethereum-optimism/optimism/kurtosis-devnet/pkg/kurtosis/api/enclave"
-	"github.com/ethereum-optimism/optimism/kurtosis-devnet/pkg/util"
+	ktfs "github.com/HashKeyChain/verse/devnet-sdk/kt/fs"
+	"github.com/HashKeyChain/verse/kurtosis-devnet/pkg/kurtosis/api/enclave"
+	"github.com/HashKeyChain/verse/kurtosis-devnet/pkg/util"
 	"github.com/spf13/afero"
 	"go.opentelemetry.io/otel"
 )

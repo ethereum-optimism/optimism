@@ -8,7 +8,7 @@ import (
 	"log"
 	"strings"
 
-	"github.com/ethereum-optimism/optimism/devnet-sdk/descriptors"
+	"github.com/HashKeyChain/verse/devnet-sdk/descriptors"
 )
 
 const (

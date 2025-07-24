@@ -12,16 +12,16 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 	"go.opentelemetry.io/otel"
 
-	"github.com/ethereum-optimism/optimism/devnet-sdk/telemetry"
-	"github.com/ethereum-optimism/optimism/op-devstack/compat"
-	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
-	"github.com/ethereum-optimism/optimism/op-devstack/stack"
-	"github.com/ethereum-optimism/optimism/op-devstack/sysext"
-	"github.com/ethereum-optimism/optimism/op-devstack/sysgo"
-	"github.com/ethereum-optimism/optimism/op-service/flags"
-	"github.com/ethereum-optimism/optimism/op-service/locks"
-	oplog "github.com/ethereum-optimism/optimism/op-service/log"
-	"github.com/ethereum-optimism/optimism/op-service/log/logfilter"
+	"github.com/HashKeyChain/verse/devnet-sdk/telemetry"
+	"github.com/HashKeyChain/verse/op-devstack/compat"
+	"github.com/HashKeyChain/verse/op-devstack/devtest"
+	"github.com/HashKeyChain/verse/op-devstack/stack"
+	"github.com/HashKeyChain/verse/op-devstack/sysext"
+	"github.com/HashKeyChain/verse/op-devstack/sysgo"
+	"github.com/HashKeyChain/verse/op-service/flags"
+	"github.com/HashKeyChain/verse/op-service/locks"
+	oplog "github.com/HashKeyChain/verse/op-service/log"
+	"github.com/HashKeyChain/verse/op-service/log/logfilter"
 )
 
 // lockedOrchestrator is the global variable that stores

@@ -6,14 +6,14 @@ import (
 
 	"github.com/urfave/cli/v2"
 
-	"github.com/ethereum-optimism/optimism/cannon/mipsevm"
-	"github.com/ethereum-optimism/optimism/cannon/mipsevm/multithreaded"
-	"github.com/ethereum-optimism/optimism/cannon/mipsevm/program"
-	"github.com/ethereum-optimism/optimism/cannon/mipsevm/versions"
-	openum "github.com/ethereum-optimism/optimism/op-service/enum"
-	"github.com/ethereum-optimism/optimism/op-service/ioutil"
-	"github.com/ethereum-optimism/optimism/op-service/jsonutil"
-	"github.com/ethereum-optimism/optimism/op-service/serialize"
+	"github.com/HashKeyChain/verse/cannon/mipsevm"
+	"github.com/HashKeyChain/verse/cannon/mipsevm/multithreaded"
+	"github.com/HashKeyChain/verse/cannon/mipsevm/program"
+	"github.com/HashKeyChain/verse/cannon/mipsevm/versions"
+	openum "github.com/HashKeyChain/verse/op-service/enum"
+	"github.com/HashKeyChain/verse/op-service/ioutil"
+	"github.com/HashKeyChain/verse/op-service/jsonutil"
+	"github.com/HashKeyChain/verse/op-service/serialize"
 )
 
 var (

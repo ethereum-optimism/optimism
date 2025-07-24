@@ -3,10 +3,10 @@ package metrics
 import (
 	"github.com/prometheus/client_golang/prometheus"
 
-	ftypes "github.com/ethereum-optimism/optimism/op-faucet/faucet/backend/types"
-	"github.com/ethereum-optimism/optimism/op-service/eth"
-	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
-	txmetrics "github.com/ethereum-optimism/optimism/op-service/txmgr/metrics"
+	ftypes "github.com/HashKeyChain/verse/op-faucet/faucet/backend/types"
+	"github.com/HashKeyChain/verse/op-service/eth"
+	opmetrics "github.com/HashKeyChain/verse/op-service/metrics"
+	txmetrics "github.com/HashKeyChain/verse/op-service/txmgr/metrics"
 )
 
 const Namespace = "op_faucet"

@@ -3,7 +3,7 @@ package helpers
 import (
 	"math/big"
 
-	"github.com/ethereum-optimism/optimism/op-program/host/prefetcher"
+	"github.com/HashKeyChain/verse/op-program/host/prefetcher"
 	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -18,8 +18,8 @@ import (
 	"github.com/ethereum/go-ethereum/trie"
 	"github.com/ethereum/go-ethereum/triedb"
 
-	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils"
-	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/HashKeyChain/verse/op-e2e/e2eutils"
+	"github.com/HashKeyChain/verse/op-service/eth"
 )
 
 // L1Miner wraps a L1Replica with instrumented block building ability.

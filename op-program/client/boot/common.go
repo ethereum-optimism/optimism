@@ -1,6 +1,6 @@
 package boot
 
-import preimage "github.com/ethereum-optimism/optimism/op-preimage"
+import preimage "github.com/HashKeyChain/verse/op-preimage"
 
 const (
 	L1HeadLocalIndex preimage.LocalIndexKey = iota + 1

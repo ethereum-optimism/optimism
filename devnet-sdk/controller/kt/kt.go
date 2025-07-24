@@ -6,12 +6,12 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/ethereum-optimism/optimism/devnet-sdk/controller/surface"
-	"github.com/ethereum-optimism/optimism/devnet-sdk/descriptors"
-	"github.com/ethereum-optimism/optimism/devnet-sdk/kt/fs"
-	"github.com/ethereum-optimism/optimism/kurtosis-devnet/pkg/kurtosis/api/interfaces"
-	"github.com/ethereum-optimism/optimism/kurtosis-devnet/pkg/kurtosis/api/run"
-	"github.com/ethereum-optimism/optimism/kurtosis-devnet/pkg/kurtosis/api/wrappers"
+	"github.com/HashKeyChain/verse/devnet-sdk/controller/surface"
+	"github.com/HashKeyChain/verse/devnet-sdk/descriptors"
+	"github.com/HashKeyChain/verse/devnet-sdk/kt/fs"
+	"github.com/HashKeyChain/verse/kurtosis-devnet/pkg/kurtosis/api/interfaces"
+	"github.com/HashKeyChain/verse/kurtosis-devnet/pkg/kurtosis/api/run"
+	"github.com/HashKeyChain/verse/kurtosis-devnet/pkg/kurtosis/api/wrappers"
 )
 
 type KurtosisControllerSurface struct {

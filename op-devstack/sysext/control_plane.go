@@ -1,8 +1,8 @@
 package sysext
 
 import (
-	"github.com/ethereum-optimism/optimism/devnet-sdk/controller/surface"
-	"github.com/ethereum-optimism/optimism/op-devstack/stack"
+	"github.com/HashKeyChain/verse/devnet-sdk/controller/surface"
+	"github.com/HashKeyChain/verse/op-devstack/stack"
 )
 
 type ControlPlane struct {

@@ -17,10 +17,10 @@ import (
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/stretchr/testify/require"
 
-	"github.com/ethereum-optimism/optimism/cannon/mipsevm"
-	"github.com/ethereum-optimism/optimism/cannon/mipsevm/arch"
-	"github.com/ethereum-optimism/optimism/op-chain-ops/foundry"
-	preimage "github.com/ethereum-optimism/optimism/op-preimage"
+	"github.com/HashKeyChain/verse/cannon/mipsevm"
+	"github.com/HashKeyChain/verse/cannon/mipsevm/arch"
+	"github.com/HashKeyChain/verse/op-chain-ops/foundry"
+	preimage "github.com/HashKeyChain/verse/op-preimage"
 )
 
 // maxStepGas should be less than the L1 gas limit

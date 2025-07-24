@@ -4,12 +4,12 @@ import (
 	"context"
 	"fmt"
 
-	opservice "github.com/ethereum-optimism/optimism/op-service"
-	oplog "github.com/ethereum-optimism/optimism/op-service/log"
+	opservice "github.com/HashKeyChain/verse/op-service"
+	oplog "github.com/HashKeyChain/verse/op-service/log"
 
-	"github.com/ethereum-optimism/optimism/op-service/cliapp"
-	"github.com/ethereum-optimism/optimism/op-sync-tester/config"
-	"github.com/ethereum-optimism/optimism/op-sync-tester/flags"
+	"github.com/HashKeyChain/verse/op-service/cliapp"
+	"github.com/HashKeyChain/verse/op-sync-tester/config"
+	"github.com/HashKeyChain/verse/op-sync-tester/flags"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/urfave/cli/v2"
 )

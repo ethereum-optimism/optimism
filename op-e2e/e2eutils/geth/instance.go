@@ -4,8 +4,8 @@ import (
 	"github.com/ethereum/go-ethereum/eth"
 	"github.com/ethereum/go-ethereum/node"
 
-	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/services"
-	"github.com/ethereum-optimism/optimism/op-service/endpoint"
+	"github.com/HashKeyChain/verse/op-e2e/e2eutils/services"
+	"github.com/HashKeyChain/verse/op-service/endpoint"
 )
 
 type GethInstance struct {

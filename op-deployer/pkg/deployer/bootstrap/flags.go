@@ -1,9 +1,9 @@
 package bootstrap
 
 import (
-	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer"
-	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/standard"
-	"github.com/ethereum-optimism/optimism/op-service/cliapp"
+	"github.com/HashKeyChain/verse/op-deployer/pkg/deployer"
+	"github.com/HashKeyChain/verse/op-deployer/pkg/deployer/standard"
+	"github.com/HashKeyChain/verse/op-service/cliapp"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/urfave/cli/v2"
 )

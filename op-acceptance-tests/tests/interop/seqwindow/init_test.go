@@ -3,11 +3,11 @@ package seqwindow
 import (
 	"testing"
 
-	bss "github.com/ethereum-optimism/optimism/op-batcher/batcher"
-	"github.com/ethereum-optimism/optimism/op-devstack/presets"
-	"github.com/ethereum-optimism/optimism/op-devstack/stack"
-	"github.com/ethereum-optimism/optimism/op-devstack/sysgo"
-	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
+	bss "github.com/HashKeyChain/verse/op-batcher/batcher"
+	"github.com/HashKeyChain/verse/op-devstack/presets"
+	"github.com/HashKeyChain/verse/op-devstack/stack"
+	"github.com/HashKeyChain/verse/op-devstack/sysgo"
+	"github.com/HashKeyChain/verse/op-node/rollup/derive"
 )
 
 func TestMain(m *testing.M) {

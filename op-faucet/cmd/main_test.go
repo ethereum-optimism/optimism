@@ -11,8 +11,8 @@ import (
 
 	"github.com/ethereum/go-ethereum/log"
 
-	"github.com/ethereum-optimism/optimism/op-faucet/config"
-	"github.com/ethereum-optimism/optimism/op-service/cliapp"
+	"github.com/HashKeyChain/verse/op-faucet/config"
+	"github.com/HashKeyChain/verse/op-service/cliapp"
 )
 
 func TestLogLevel(t *testing.T) {

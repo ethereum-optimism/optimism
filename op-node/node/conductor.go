@@ -9,14 +9,14 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/rpc"
 
-	conductorRpc "github.com/ethereum-optimism/optimism/op-conductor/rpc"
-	"github.com/ethereum-optimism/optimism/op-node/config"
-	"github.com/ethereum-optimism/optimism/op-node/metrics"
-	"github.com/ethereum-optimism/optimism/op-node/rollup/conductor"
-	"github.com/ethereum-optimism/optimism/op-service/dial"
-	"github.com/ethereum-optimism/optimism/op-service/eth"
-	"github.com/ethereum-optimism/optimism/op-service/locks"
-	"github.com/ethereum-optimism/optimism/op-service/retry"
+	conductorRpc "github.com/HashKeyChain/verse/op-conductor/rpc"
+	"github.com/HashKeyChain/verse/op-node/config"
+	"github.com/HashKeyChain/verse/op-node/metrics"
+	"github.com/HashKeyChain/verse/op-node/rollup/conductor"
+	"github.com/HashKeyChain/verse/op-service/dial"
+	"github.com/HashKeyChain/verse/op-service/eth"
+	"github.com/HashKeyChain/verse/op-service/locks"
+	"github.com/HashKeyChain/verse/op-service/retry"
 )
 
 // ConductorClient is a client for the op-conductor RPC service.

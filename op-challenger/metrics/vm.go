@@ -5,7 +5,7 @@ import (
 
 	"github.com/prometheus/client_golang/prometheus"
 
-	"github.com/ethereum-optimism/optimism/op-service/metrics"
+	"github.com/HashKeyChain/verse/op-service/metrics"
 )
 
 type VmMetricer interface {

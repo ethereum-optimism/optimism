@@ -4,7 +4,7 @@ import (
 	"errors"
 	"math"
 
-	opservice "github.com/ethereum-optimism/optimism/op-service"
+	opservice "github.com/HashKeyChain/verse/op-service"
 
 	"github.com/urfave/cli/v2"
 )

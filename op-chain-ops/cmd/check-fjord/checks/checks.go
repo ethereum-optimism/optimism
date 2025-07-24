@@ -21,10 +21,10 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
 
-	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
-	"github.com/ethereum-optimism/optimism/op-e2e/bindings"
-	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
-	"github.com/ethereum-optimism/optimism/op-service/predeploys"
+	"github.com/HashKeyChain/verse/op-chain-ops/genesis"
+	"github.com/HashKeyChain/verse/op-e2e/bindings"
+	"github.com/HashKeyChain/verse/op-node/rollup/derive"
+	"github.com/HashKeyChain/verse/op-service/predeploys"
 )
 
 type CheckFjordConfig struct {

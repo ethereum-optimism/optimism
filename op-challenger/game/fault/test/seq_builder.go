@@ -1,7 +1,7 @@
 package test
 
 import (
-	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
+	"github.com/HashKeyChain/verse/op-challenger/game/fault/types"
 )
 
 type SequenceBuilder struct {

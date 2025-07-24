@@ -4,10 +4,10 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/version"
-	"github.com/ethereum-optimism/optimism/op-fetcher/pkg/fetcher/fetch"
-	opservice "github.com/ethereum-optimism/optimism/op-service"
-	"github.com/ethereum-optimism/optimism/op-service/cliapp"
+	"github.com/HashKeyChain/verse/op-deployer/pkg/deployer/version"
+	"github.com/HashKeyChain/verse/op-fetcher/pkg/fetcher/fetch"
+	opservice "github.com/HashKeyChain/verse/op-service"
+	"github.com/HashKeyChain/verse/op-service/cliapp"
 	"github.com/urfave/cli/v2"
 )
 

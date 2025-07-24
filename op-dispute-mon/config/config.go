@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"time"
 
-	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
-	"github.com/ethereum-optimism/optimism/op-service/oppprof"
+	opmetrics "github.com/HashKeyChain/verse/op-service/metrics"
+	"github.com/HashKeyChain/verse/op-service/oppprof"
 
 	"github.com/ethereum/go-ethereum/common"
 )

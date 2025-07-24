@@ -7,7 +7,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 
-	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/state"
+	"github.com/HashKeyChain/verse/op-deployer/pkg/deployer/state"
 )
 
 // PrefundL2DevGenesis pre-funds accounts in the L2 dev genesis for testing purposes

@@ -5,7 +5,7 @@ import (
 
 	"math/rand"
 
-	"github.com/ethereum-optimism/optimism/cannon/mipsevm/arch"
+	"github.com/HashKeyChain/verse/cannon/mipsevm/arch"
 )
 
 const (

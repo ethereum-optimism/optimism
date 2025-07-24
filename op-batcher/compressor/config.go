@@ -1,7 +1,7 @@
 package compressor
 
 import (
-	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
+	"github.com/HashKeyChain/verse/op-node/rollup/derive"
 )
 
 type Config struct {

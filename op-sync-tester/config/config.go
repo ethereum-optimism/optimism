@@ -3,12 +3,12 @@ package config
 import (
 	"errors"
 
-	stconf "github.com/ethereum-optimism/optimism/op-sync-tester/synctester/backend/config"
+	stconf "github.com/HashKeyChain/verse/op-sync-tester/synctester/backend/config"
 
-	oplog "github.com/ethereum-optimism/optimism/op-service/log"
-	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
-	"github.com/ethereum-optimism/optimism/op-service/oppprof"
-	oprpc "github.com/ethereum-optimism/optimism/op-service/rpc"
+	oplog "github.com/HashKeyChain/verse/op-service/log"
+	opmetrics "github.com/HashKeyChain/verse/op-service/metrics"
+	"github.com/HashKeyChain/verse/op-service/oppprof"
+	oprpc "github.com/HashKeyChain/verse/op-service/rpc"
 )
 
 const (

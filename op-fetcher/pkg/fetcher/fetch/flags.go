@@ -1,7 +1,7 @@
 package fetch
 
 import (
-	oplog "github.com/ethereum-optimism/optimism/op-service/log"
+	oplog "github.com/HashKeyChain/verse/op-service/log"
 	"github.com/urfave/cli/v2"
 )
 

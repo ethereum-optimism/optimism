@@ -3,7 +3,7 @@ package metrics
 import (
 	"math/big"
 
-	"github.com/ethereum-optimism/optimism/op-service/metrics"
+	"github.com/HashKeyChain/verse/op-service/metrics"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/params"
 

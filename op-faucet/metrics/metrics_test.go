@@ -6,9 +6,9 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	ftypes "github.com/ethereum-optimism/optimism/op-faucet/faucet/backend/types"
-	"github.com/ethereum-optimism/optimism/op-service/eth"
-	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
+	ftypes "github.com/HashKeyChain/verse/op-faucet/faucet/backend/types"
+	"github.com/HashKeyChain/verse/op-service/eth"
+	opmetrics "github.com/HashKeyChain/verse/op-service/metrics"
 )
 
 func TestFaucetMetrics(t *testing.T) {

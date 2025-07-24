@@ -9,7 +9,7 @@ import (
 	"github.com/minio/minio-go/v7"
 	"github.com/minio/minio-go/v7/pkg/credentials"
 
-	altda "github.com/ethereum-optimism/optimism/op-alt-da"
+	altda "github.com/HashKeyChain/verse/op-alt-da"
 )
 
 type S3Config struct {

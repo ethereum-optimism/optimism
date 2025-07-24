@@ -3,7 +3,7 @@ package preimages
 import (
 	"context"
 
-	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
+	"github.com/HashKeyChain/verse/op-challenger/game/fault/types"
 )
 
 var _ PreimageUploader = (*SplitPreimageUploader)(nil)

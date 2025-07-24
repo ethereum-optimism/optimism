@@ -5,10 +5,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts"
-	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
-	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/transactions"
-	"github.com/ethereum-optimism/optimism/op-service/sources/batching/rpcblock"
+	"github.com/HashKeyChain/verse/op-challenger/game/fault/contracts"
+	"github.com/HashKeyChain/verse/op-challenger/game/fault/types"
+	"github.com/HashKeyChain/verse/op-e2e/e2eutils/transactions"
+	"github.com/HashKeyChain/verse/op-service/sources/batching/rpcblock"
 	"github.com/stretchr/testify/require"
 )
 

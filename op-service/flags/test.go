@@ -4,7 +4,7 @@ import (
 	"flag"
 	"os"
 
-	"github.com/ethereum-optimism/optimism/op-service/log"
+	"github.com/HashKeyChain/verse/op-service/log"
 )
 
 var flLoadTest = flag.Bool("loadtest", false, "Enable load tests during test run")

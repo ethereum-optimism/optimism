@@ -8,7 +8,7 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 
-	"github.com/ethereum-optimism/optimism/op-service/logmods"
+	"github.com/HashKeyChain/verse/op-service/logmods"
 )
 
 func WrapHandler(h slog.Handler) slog.Handler {

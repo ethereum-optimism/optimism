@@ -13,8 +13,8 @@ import (
 	"strings"
 
 	"github.com/BurntSushi/toml"
-	"github.com/ethereum-optimism/optimism/op-program/prestates"
-	oplog "github.com/ethereum-optimism/optimism/op-service/log"
+	"github.com/HashKeyChain/verse/op-program/prestates"
+	oplog "github.com/HashKeyChain/verse/op-service/log"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/superchain"
@@ -24,7 +24,7 @@ import (
 )
 
 const (
-	monorepoGoModAtTag            = "https://github.com/ethereum-optimism/optimism/raw/refs/tags/%s/go.mod"
+	monorepoGoModAtTag            = "https://github.com/HashKeyChain/verse/raw/refs/tags/%s/go.mod"
 	superchainRegistryCommitAtRef = "https://github.com/ethereum-optimism/op-geth/raw/%s/superchain-registry-commit.txt"
 	superchainConfigsZipAtTag     = "https://github.com/ethereum-optimism/op-geth/raw/refs/tags/%s/superchain/superchain-configs.zip"
 	syncSuperchainScript          = "https://github.com/ethereum-optimism/op-geth/raw/refs/heads/optimism/sync-superchain.sh"

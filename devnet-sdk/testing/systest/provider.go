@@ -1,6 +1,6 @@
 package systest
 
-import "github.com/ethereum-optimism/optimism/devnet-sdk/system"
+import "github.com/HashKeyChain/verse/devnet-sdk/system"
 
 // systemProvider defines the interface for package-level functionality
 type systemProvider interface {

@@ -8,7 +8,7 @@ import (
 
 	"github.com/urfave/cli/v2"
 
-	"github.com/ethereum-optimism/optimism/cannon/mipsevm/versions"
+	"github.com/HashKeyChain/verse/cannon/mipsevm/versions"
 )
 
 func List(ctx *cli.Context) error {

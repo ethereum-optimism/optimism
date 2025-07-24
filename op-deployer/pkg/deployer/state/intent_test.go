@@ -3,7 +3,7 @@ package state
 import (
 	"testing"
 
-	"github.com/ethereum-optimism/optimism/op-chain-ops/addresses"
+	"github.com/HashKeyChain/verse/op-chain-ops/addresses"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/stretchr/testify/require"
 )

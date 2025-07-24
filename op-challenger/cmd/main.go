@@ -4,19 +4,19 @@ import (
 	"context"
 	"os"
 
-	"github.com/ethereum-optimism/optimism/op-challenger/metrics"
+	"github.com/HashKeyChain/verse/op-challenger/metrics"
 	"github.com/urfave/cli/v2"
 
 	"github.com/ethereum/go-ethereum/log"
 
-	challenger "github.com/ethereum-optimism/optimism/op-challenger"
-	"github.com/ethereum-optimism/optimism/op-challenger/config"
-	"github.com/ethereum-optimism/optimism/op-challenger/flags"
-	"github.com/ethereum-optimism/optimism/op-challenger/version"
-	opservice "github.com/ethereum-optimism/optimism/op-service"
-	"github.com/ethereum-optimism/optimism/op-service/cliapp"
-	"github.com/ethereum-optimism/optimism/op-service/ctxinterrupt"
-	oplog "github.com/ethereum-optimism/optimism/op-service/log"
+	challenger "github.com/HashKeyChain/verse/op-challenger"
+	"github.com/HashKeyChain/verse/op-challenger/config"
+	"github.com/HashKeyChain/verse/op-challenger/flags"
+	"github.com/HashKeyChain/verse/op-challenger/version"
+	opservice "github.com/HashKeyChain/verse/op-service"
+	"github.com/HashKeyChain/verse/op-service/cliapp"
+	"github.com/HashKeyChain/verse/op-service/ctxinterrupt"
+	oplog "github.com/HashKeyChain/verse/op-service/log"
 )
 
 var (

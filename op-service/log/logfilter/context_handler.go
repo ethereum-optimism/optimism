@@ -6,7 +6,7 @@ import (
 	"log/slog"
 	"os"
 
-	"github.com/ethereum-optimism/optimism/op-service/logmods"
+	"github.com/HashKeyChain/verse/op-service/logmods"
 )
 
 type contextKey struct {

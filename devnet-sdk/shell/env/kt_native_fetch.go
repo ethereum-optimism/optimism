@@ -8,9 +8,9 @@ import (
 	"os"
 	"strings"
 
-	"github.com/ethereum-optimism/optimism/devnet-sdk/descriptors"
-	"github.com/ethereum-optimism/optimism/kurtosis-devnet/pkg/kurtosis"
-	"github.com/ethereum-optimism/optimism/kurtosis-devnet/pkg/kurtosis/sources/spec"
+	"github.com/HashKeyChain/verse/devnet-sdk/descriptors"
+	"github.com/HashKeyChain/verse/kurtosis-devnet/pkg/kurtosis"
+	"github.com/HashKeyChain/verse/kurtosis-devnet/pkg/kurtosis/sources/spec"
 )
 
 // parseKurtosisNativeURL parses a Kurtosis URL of the form kt://enclave/artifact/file

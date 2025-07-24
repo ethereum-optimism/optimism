@@ -1,7 +1,7 @@
 package metrics
 
 import (
-	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
+	opmetrics "github.com/HashKeyChain/verse/op-service/metrics"
 	"github.com/prometheus/client_golang/prometheus"
 )
 

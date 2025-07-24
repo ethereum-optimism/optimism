@@ -9,8 +9,8 @@ import (
 	"slices"
 	"sync"
 
+	"github.com/HashKeyChain/verse/op-service/eth"
 	"github.com/cockroachdb/pebble"
-	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum/go-ethereum/log"
 )
 

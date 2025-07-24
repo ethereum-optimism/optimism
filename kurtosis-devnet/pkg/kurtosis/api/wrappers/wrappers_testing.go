@@ -6,7 +6,7 @@ package wrappers
 import (
 	"errors"
 
-	"github.com/ethereum-optimism/optimism/kurtosis-devnet/pkg/kurtosis/api/interfaces"
+	"github.com/HashKeyChain/verse/kurtosis-devnet/pkg/kurtosis/api/interfaces"
 )
 
 func GetDefaultKurtosisContext() (interfaces.KurtosisContextInterface, error) {

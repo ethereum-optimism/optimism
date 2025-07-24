@@ -5,10 +5,10 @@ import (
 	"os"
 	"strings"
 
-	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/standard"
+	"github.com/HashKeyChain/verse/op-deployer/pkg/deployer/standard"
 
-	oplog "github.com/ethereum-optimism/optimism/op-service/log"
-	"github.com/ethereum-optimism/optimism/op-validator/pkg/service"
+	oplog "github.com/HashKeyChain/verse/op-service/log"
+	"github.com/HashKeyChain/verse/op-validator/pkg/service"
 	"github.com/urfave/cli/v2"
 )
 

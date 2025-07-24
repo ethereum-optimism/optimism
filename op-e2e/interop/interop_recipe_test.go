@@ -9,10 +9,10 @@ import (
 
 	"github.com/ethereum/go-ethereum/log"
 
-	"github.com/ethereum-optimism/optimism/op-chain-ops/devkeys"
-	"github.com/ethereum-optimism/optimism/op-chain-ops/foundry"
-	"github.com/ethereum-optimism/optimism/op-chain-ops/interopgen"
-	"github.com/ethereum-optimism/optimism/op-service/testlog"
+	"github.com/HashKeyChain/verse/op-chain-ops/devkeys"
+	"github.com/HashKeyChain/verse/op-chain-ops/foundry"
+	"github.com/HashKeyChain/verse/op-chain-ops/interopgen"
+	"github.com/HashKeyChain/verse/op-service/testlog"
 )
 
 func TestInteropDevRecipe(t *testing.T) {

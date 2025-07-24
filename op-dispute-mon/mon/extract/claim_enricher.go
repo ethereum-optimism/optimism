@@ -4,9 +4,9 @@ import (
 	"context"
 	"fmt"
 
-	faultTypes "github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
-	"github.com/ethereum-optimism/optimism/op-dispute-mon/mon/types"
-	"github.com/ethereum-optimism/optimism/op-service/sources/batching/rpcblock"
+	faultTypes "github.com/HashKeyChain/verse/op-challenger/game/fault/types"
+	"github.com/HashKeyChain/verse/op-dispute-mon/mon/types"
+	"github.com/HashKeyChain/verse/op-service/sources/batching/rpcblock"
 )
 
 var _ Enricher = (*ClaimEnricher)(nil)

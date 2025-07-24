@@ -7,9 +7,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/standard"
+	"github.com/HashKeyChain/verse/op-deployer/pkg/deployer/standard"
 
-	op_e2e "github.com/ethereum-optimism/optimism/op-e2e"
+	op_e2e "github.com/HashKeyChain/verse/op-e2e"
 
 	"github.com/ethereum-optimism/superchain-registry/validation"
 	"github.com/ethereum/go-ethereum/rpc"

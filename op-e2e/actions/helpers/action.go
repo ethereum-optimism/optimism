@@ -4,10 +4,10 @@ import (
 	"context"
 	"fmt"
 
-	op_e2e "github.com/ethereum-optimism/optimism/op-e2e"
+	op_e2e "github.com/HashKeyChain/verse/op-e2e"
 	"github.com/stretchr/testify/assert"
 
-	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils"
+	"github.com/HashKeyChain/verse/op-e2e/e2eutils"
 )
 
 // Testing is an interface to Go-like testing,

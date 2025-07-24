@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/ethereum-optimism/optimism/kurtosis-devnet/pkg/kurtosis/sources/depset"
+	"github.com/HashKeyChain/verse/kurtosis-devnet/pkg/kurtosis/sources/depset"
 )
 
 func main() {

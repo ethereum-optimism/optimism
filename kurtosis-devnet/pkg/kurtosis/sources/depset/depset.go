@@ -6,9 +6,9 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/ethereum-optimism/optimism/devnet-sdk/descriptors"
-	ktfs "github.com/ethereum-optimism/optimism/devnet-sdk/kt/fs"
-	"github.com/ethereum-optimism/optimism/kurtosis-devnet/pkg/util"
+	"github.com/HashKeyChain/verse/devnet-sdk/descriptors"
+	ktfs "github.com/HashKeyChain/verse/devnet-sdk/kt/fs"
+	"github.com/HashKeyChain/verse/kurtosis-devnet/pkg/util"
 )
 
 const (

@@ -1,8 +1,8 @@
 package depset
 
 import (
-	"github.com/ethereum-optimism/optimism/op-service/eth"
-	"github.com/ethereum-optimism/optimism/op-service/safemath"
+	"github.com/HashKeyChain/verse/op-service/eth"
+	"github.com/HashKeyChain/verse/op-service/safemath"
 )
 
 type LinkChecker interface {

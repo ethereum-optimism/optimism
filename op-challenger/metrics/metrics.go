@@ -8,12 +8,12 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/prometheus/client_golang/prometheus"
 
-	"github.com/ethereum-optimism/optimism/op-service/httputil"
-	"github.com/ethereum-optimism/optimism/op-service/sources/caching"
+	"github.com/HashKeyChain/verse/op-service/httputil"
+	"github.com/HashKeyChain/verse/op-service/sources/caching"
 
-	contractMetrics "github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts/metrics"
-	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
-	txmetrics "github.com/ethereum-optimism/optimism/op-service/txmgr/metrics"
+	contractMetrics "github.com/HashKeyChain/verse/op-challenger/game/fault/contracts/metrics"
+	opmetrics "github.com/HashKeyChain/verse/op-service/metrics"
+	txmetrics "github.com/HashKeyChain/verse/op-service/txmgr/metrics"
 )
 
 const Namespace = "op_challenger"

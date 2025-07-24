@@ -8,9 +8,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/ethereum-optimism/optimism/op-dripper/bindings"
-	"github.com/ethereum-optimism/optimism/op-dripper/metrics"
-	"github.com/ethereum-optimism/optimism/op-service/txmgr"
+	"github.com/HashKeyChain/verse/op-dripper/bindings"
+	"github.com/HashKeyChain/verse/op-dripper/metrics"
+	"github.com/HashKeyChain/verse/op-service/txmgr"
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"

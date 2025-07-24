@@ -3,8 +3,8 @@ package extract
 import (
 	"context"
 
-	monTypes "github.com/ethereum-optimism/optimism/op-dispute-mon/mon/types"
-	"github.com/ethereum-optimism/optimism/op-service/sources/batching/rpcblock"
+	monTypes "github.com/HashKeyChain/verse/op-dispute-mon/mon/types"
+	"github.com/HashKeyChain/verse/op-service/sources/batching/rpcblock"
 	"github.com/ethereum/go-ethereum/common"
 )
 

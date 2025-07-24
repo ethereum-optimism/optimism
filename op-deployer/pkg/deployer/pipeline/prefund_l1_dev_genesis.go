@@ -3,7 +3,7 @@ package pipeline
 import (
 	"github.com/holiman/uint256"
 
-	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/state"
+	"github.com/HashKeyChain/verse/op-deployer/pkg/deployer/state"
 )
 
 // PrefundL1DevGenesis pre-funds accounts in the L1 dev genesis for testing purposes

@@ -1,8 +1,8 @@
 package sysgo
 
 import (
-	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
-	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/geth"
+	"github.com/HashKeyChain/verse/op-devstack/devtest"
+	"github.com/HashKeyChain/verse/op-e2e/e2eutils/geth"
 )
 
 type FakePoS struct {

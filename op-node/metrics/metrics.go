@@ -7,10 +7,10 @@ import (
 	"strconv"
 	"time"
 
-	altda "github.com/ethereum-optimism/optimism/op-alt-da"
-	"github.com/ethereum-optimism/optimism/op-node/p2p/store"
-	ophttp "github.com/ethereum-optimism/optimism/op-service/httputil"
-	"github.com/ethereum-optimism/optimism/op-service/metrics"
+	altda "github.com/HashKeyChain/verse/op-alt-da"
+	"github.com/HashKeyChain/verse/op-node/p2p/store"
+	ophttp "github.com/HashKeyChain/verse/op-service/httputil"
+	"github.com/HashKeyChain/verse/op-service/metrics"
 	"github.com/ethereum/go-ethereum/params"
 
 	pb "github.com/libp2p/go-libp2p-pubsub/pb"
@@ -21,8 +21,8 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 
-	"github.com/ethereum-optimism/optimism/op-service/eth"
-	"github.com/ethereum-optimism/optimism/op-service/event"
+	"github.com/HashKeyChain/verse/op-service/eth"
+	"github.com/HashKeyChain/verse/op-service/event"
 )
 
 const Namespace = "op_node"

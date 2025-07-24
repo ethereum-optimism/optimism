@@ -8,10 +8,10 @@ import (
 	"strings"
 	"sync"
 
-	monTypes "github.com/ethereum-optimism/optimism/op-dispute-mon/mon/types"
-	"github.com/ethereum-optimism/optimism/op-service/clock"
-	"github.com/ethereum-optimism/optimism/op-service/eth"
-	"github.com/ethereum-optimism/optimism/op-service/sources/batching/rpcblock"
+	monTypes "github.com/HashKeyChain/verse/op-dispute-mon/mon/types"
+	"github.com/HashKeyChain/verse/op-service/clock"
+	"github.com/HashKeyChain/verse/op-service/eth"
+	"github.com/HashKeyChain/verse/op-service/sources/batching/rpcblock"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
 )

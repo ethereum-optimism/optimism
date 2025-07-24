@@ -7,10 +7,10 @@ import (
 
 	"github.com/urfave/cli/v2"
 
-	opnode "github.com/ethereum-optimism/optimism/op-node"
-	"github.com/ethereum-optimism/optimism/op-node/flags"
-	opflags "github.com/ethereum-optimism/optimism/op-service/flags"
-	oplog "github.com/ethereum-optimism/optimism/op-service/log"
+	opnode "github.com/HashKeyChain/verse/op-node"
+	"github.com/HashKeyChain/verse/op-node/flags"
+	opflags "github.com/HashKeyChain/verse/op-service/flags"
+	oplog "github.com/HashKeyChain/verse/op-service/log"
 )
 
 var Subcommands = []*cli.Command{

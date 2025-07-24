@@ -6,12 +6,12 @@ import (
 	"testing"
 	"time"
 
-	op_e2e "github.com/ethereum-optimism/optimism/op-e2e"
+	op_e2e "github.com/HashKeyChain/verse/op-e2e"
 
-	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/geth"
-	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/transactions"
-	"github.com/ethereum-optimism/optimism/op-e2e/system/e2esys"
-	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
+	"github.com/HashKeyChain/verse/op-e2e/e2eutils/geth"
+	"github.com/HashKeyChain/verse/op-e2e/e2eutils/transactions"
+	"github.com/HashKeyChain/verse/op-e2e/system/e2esys"
+	"github.com/HashKeyChain/verse/op-node/rollup/derive"
 	"github.com/stretchr/testify/require"
 )
 

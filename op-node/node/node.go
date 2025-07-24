@@ -16,31 +16,31 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/rpc"
 
-	altda "github.com/ethereum-optimism/optimism/op-alt-da"
-	"github.com/ethereum-optimism/optimism/op-node/config"
-	"github.com/ethereum-optimism/optimism/op-node/metrics"
-	"github.com/ethereum-optimism/optimism/op-node/node/runcfg"
-	"github.com/ethereum-optimism/optimism/op-node/node/safedb"
-	"github.com/ethereum-optimism/optimism/op-node/node/tracer"
-	"github.com/ethereum-optimism/optimism/op-node/p2p"
-	"github.com/ethereum-optimism/optimism/op-node/rollup"
-	"github.com/ethereum-optimism/optimism/op-node/rollup/conductor"
-	"github.com/ethereum-optimism/optimism/op-node/rollup/driver"
-	"github.com/ethereum-optimism/optimism/op-node/rollup/finality"
-	"github.com/ethereum-optimism/optimism/op-node/rollup/interop"
-	"github.com/ethereum-optimism/optimism/op-node/rollup/interop/indexing"
-	"github.com/ethereum-optimism/optimism/op-node/rollup/sequencing"
-	"github.com/ethereum-optimism/optimism/op-node/rollup/status"
-	"github.com/ethereum-optimism/optimism/op-node/rollup/sync"
-	"github.com/ethereum-optimism/optimism/op-service/client"
-	"github.com/ethereum-optimism/optimism/op-service/eth"
-	"github.com/ethereum-optimism/optimism/op-service/event"
-	"github.com/ethereum-optimism/optimism/op-service/httputil"
-	"github.com/ethereum-optimism/optimism/op-service/oppprof"
-	"github.com/ethereum-optimism/optimism/op-service/retry"
-	oprpc "github.com/ethereum-optimism/optimism/op-service/rpc"
-	opsigner "github.com/ethereum-optimism/optimism/op-service/signer"
-	"github.com/ethereum-optimism/optimism/op-service/sources"
+	altda "github.com/HashKeyChain/verse/op-alt-da"
+	"github.com/HashKeyChain/verse/op-node/config"
+	"github.com/HashKeyChain/verse/op-node/metrics"
+	"github.com/HashKeyChain/verse/op-node/node/runcfg"
+	"github.com/HashKeyChain/verse/op-node/node/safedb"
+	"github.com/HashKeyChain/verse/op-node/node/tracer"
+	"github.com/HashKeyChain/verse/op-node/p2p"
+	"github.com/HashKeyChain/verse/op-node/rollup"
+	"github.com/HashKeyChain/verse/op-node/rollup/conductor"
+	"github.com/HashKeyChain/verse/op-node/rollup/driver"
+	"github.com/HashKeyChain/verse/op-node/rollup/finality"
+	"github.com/HashKeyChain/verse/op-node/rollup/interop"
+	"github.com/HashKeyChain/verse/op-node/rollup/interop/indexing"
+	"github.com/HashKeyChain/verse/op-node/rollup/sequencing"
+	"github.com/HashKeyChain/verse/op-node/rollup/status"
+	"github.com/HashKeyChain/verse/op-node/rollup/sync"
+	"github.com/HashKeyChain/verse/op-service/client"
+	"github.com/HashKeyChain/verse/op-service/eth"
+	"github.com/HashKeyChain/verse/op-service/event"
+	"github.com/HashKeyChain/verse/op-service/httputil"
+	"github.com/HashKeyChain/verse/op-service/oppprof"
+	"github.com/HashKeyChain/verse/op-service/retry"
+	oprpc "github.com/HashKeyChain/verse/op-service/rpc"
+	opsigner "github.com/HashKeyChain/verse/op-service/signer"
+	"github.com/HashKeyChain/verse/op-service/sources"
 )
 
 var ErrAlreadyClosed = errors.New("node is already closed")
@@ -448,7 +448,7 @@ func (n *OpNode) initL2(ctx context.Context, cfg *config.Config) error {
 	}
 
 	if cfg.Rollup.ChainOpConfig == nil {
-		return fmt.Errorf("cfg.Rollup.ChainOpConfig is nil. Please see https://github.com/ethereum-optimism/optimism/releases/tag/op-node/v1.11.0: %w", err)
+		return fmt.Errorf("cfg.Rollup.ChainOpConfig is nil. Please see https://github.com/HashKeyChain/verse/releases/tag/op-node/v1.11.0: %w", err)
 	}
 
 	n.l2Driver = driver.NewDriver(n.eventSys, n.eventDrain, &cfg.Driver, &cfg.Rollup, cfg.DependencySet, n.l2Source, n.l1Source,

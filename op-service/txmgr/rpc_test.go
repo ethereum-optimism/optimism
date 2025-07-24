@@ -5,7 +5,7 @@ import (
 	"math/big"
 	"testing"
 
-	oprpc "github.com/ethereum-optimism/optimism/op-service/rpc"
+	oprpc "github.com/HashKeyChain/verse/op-service/rpc"
 	"github.com/ethereum/go-ethereum/rpc"
 	"github.com/stretchr/testify/require"
 )

@@ -9,8 +9,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/ethereum-optimism/optimism/op-service/txmgr"
-	"github.com/ethereum-optimism/optimism/op-service/txmgr/metrics"
+	"github.com/HashKeyChain/verse/op-service/txmgr"
+	"github.com/HashKeyChain/verse/op-service/txmgr/metrics"
 
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"

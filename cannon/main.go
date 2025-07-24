@@ -6,10 +6,10 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/ethereum-optimism/optimism/op-service/ctxinterrupt"
+	"github.com/HashKeyChain/verse/op-service/ctxinterrupt"
 	"github.com/urfave/cli/v2"
 
-	"github.com/ethereum-optimism/optimism/cannon/cmd"
+	"github.com/HashKeyChain/verse/cannon/cmd"
 )
 
 func main() {

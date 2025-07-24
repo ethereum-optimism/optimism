@@ -10,7 +10,7 @@ import (
 	"regexp"
 	"strconv"
 
-	log2 "github.com/ethereum-optimism/optimism/op-service/log"
+	log2 "github.com/HashKeyChain/verse/op-service/log"
 	"github.com/ethereum/go-ethereum/log"
 )
 

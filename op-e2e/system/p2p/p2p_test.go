@@ -3,7 +3,7 @@ package p2p
 import (
 	"testing"
 
-	op_e2e "github.com/ethereum-optimism/optimism/op-e2e"
+	op_e2e "github.com/HashKeyChain/verse/op-e2e"
 )
 
 func TestMain(m *testing.M) {

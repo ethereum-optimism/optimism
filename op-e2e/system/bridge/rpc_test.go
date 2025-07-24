@@ -6,9 +6,9 @@ import (
 	"testing"
 	"time"
 
-	op_e2e "github.com/ethereum-optimism/optimism/op-e2e"
+	op_e2e "github.com/HashKeyChain/verse/op-e2e"
 
-	"github.com/ethereum-optimism/optimism/op-e2e/system/e2esys"
+	"github.com/HashKeyChain/verse/op-e2e/system/e2esys"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"

@@ -10,16 +10,16 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/params"
 
-	"github.com/ethereum-optimism/optimism/devnet-sdk/contracts/bindings"
-	"github.com/ethereum-optimism/optimism/devnet-sdk/contracts/constants"
-	"github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/interop"
-	e2eBindings "github.com/ethereum-optimism/optimism/op-e2e/bindings"
-	"github.com/ethereum-optimism/optimism/op-service/eth"
-	"github.com/ethereum-optimism/optimism/op-service/retry"
-	"github.com/ethereum-optimism/optimism/op-service/txintent"
-	txIntentBindings "github.com/ethereum-optimism/optimism/op-service/txintent/bindings"
-	"github.com/ethereum-optimism/optimism/op-service/txintent/contractio"
-	"github.com/ethereum-optimism/optimism/op-service/txplan"
+	"github.com/HashKeyChain/verse/devnet-sdk/contracts/bindings"
+	"github.com/HashKeyChain/verse/devnet-sdk/contracts/constants"
+	"github.com/HashKeyChain/verse/op-acceptance-tests/tests/interop"
+	e2eBindings "github.com/HashKeyChain/verse/op-e2e/bindings"
+	"github.com/HashKeyChain/verse/op-service/eth"
+	"github.com/HashKeyChain/verse/op-service/retry"
+	"github.com/HashKeyChain/verse/op-service/txintent"
+	txIntentBindings "github.com/HashKeyChain/verse/op-service/txintent/bindings"
+	"github.com/HashKeyChain/verse/op-service/txintent/contractio"
+	"github.com/HashKeyChain/verse/op-service/txplan"
 )
 
 // EOA is an Externally-Owned-Account:

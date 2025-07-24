@@ -1,7 +1,7 @@
 package txintent
 
 import (
-	"github.com/ethereum-optimism/optimism/op-service/apis"
+	"github.com/HashKeyChain/verse/op-service/apis"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 )

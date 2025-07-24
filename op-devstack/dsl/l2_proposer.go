@@ -1,6 +1,6 @@
 package dsl
 
-import "github.com/ethereum-optimism/optimism/op-devstack/stack"
+import "github.com/HashKeyChain/verse/op-devstack/stack"
 
 // L2Proposer wraps a stack.L2Proposer interface for DSL operations
 type L2Proposer struct {

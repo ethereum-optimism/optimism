@@ -7,14 +7,14 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ethereum-optimism/optimism/op-e2e/system/e2esys"
+	"github.com/HashKeyChain/verse/op-e2e/system/e2esys"
 	"github.com/holiman/uint256"
 
-	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
+	"github.com/HashKeyChain/verse/op-e2e/e2eutils/wait"
 
-	"github.com/ethereum-optimism/optimism/op-e2e/bindings"
-	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/transactions"
-	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
+	"github.com/HashKeyChain/verse/op-e2e/bindings"
+	"github.com/HashKeyChain/verse/op-e2e/e2eutils/transactions"
+	"github.com/HashKeyChain/verse/op-node/rollup/derive"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"

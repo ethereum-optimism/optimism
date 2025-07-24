@@ -9,15 +9,15 @@ import (
 
 	"github.com/ethereum/go-ethereum/log"
 
-	opservice "github.com/ethereum-optimism/optimism/op-service"
-	"github.com/ethereum-optimism/optimism/op-service/cliapp"
-	"github.com/ethereum-optimism/optimism/op-service/ctxinterrupt"
-	oplog "github.com/ethereum-optimism/optimism/op-service/log"
-	"github.com/ethereum-optimism/optimism/op-service/metrics/doc"
-	"github.com/ethereum-optimism/optimism/op-sync-tester/config"
-	"github.com/ethereum-optimism/optimism/op-sync-tester/flags"
-	"github.com/ethereum-optimism/optimism/op-sync-tester/metrics"
-	"github.com/ethereum-optimism/optimism/op-sync-tester/synctester"
+	opservice "github.com/HashKeyChain/verse/op-service"
+	"github.com/HashKeyChain/verse/op-service/cliapp"
+	"github.com/HashKeyChain/verse/op-service/ctxinterrupt"
+	oplog "github.com/HashKeyChain/verse/op-service/log"
+	"github.com/HashKeyChain/verse/op-service/metrics/doc"
+	"github.com/HashKeyChain/verse/op-sync-tester/config"
+	"github.com/HashKeyChain/verse/op-sync-tester/flags"
+	"github.com/HashKeyChain/verse/op-sync-tester/metrics"
+	"github.com/HashKeyChain/verse/op-sync-tester/synctester"
 )
 
 var (

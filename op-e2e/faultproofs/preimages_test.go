@@ -5,12 +5,12 @@ import (
 	"fmt"
 	"testing"
 
-	op_e2e "github.com/ethereum-optimism/optimism/op-e2e"
-	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/challenger"
-	"github.com/ethereum-optimism/optimism/op-program/client/boot"
+	op_e2e "github.com/HashKeyChain/verse/op-e2e"
+	"github.com/HashKeyChain/verse/op-e2e/e2eutils/challenger"
+	"github.com/HashKeyChain/verse/op-program/client/boot"
 
-	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/disputegame"
-	preimage "github.com/ethereum-optimism/optimism/op-preimage"
+	"github.com/HashKeyChain/verse/op-e2e/e2eutils/disputegame"
+	preimage "github.com/HashKeyChain/verse/op-preimage"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/stretchr/testify/require"
 )

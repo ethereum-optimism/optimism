@@ -3,10 +3,10 @@ package dsl
 import (
 	"fmt"
 
+	"github.com/HashKeyChain/verse/op-devstack/stack"
+	"github.com/HashKeyChain/verse/op-devstack/stack/match"
+	"github.com/HashKeyChain/verse/op-service/eth"
 	"github.com/davecgh/go-spew/spew"
-	"github.com/ethereum-optimism/optimism/op-devstack/stack"
-	"github.com/ethereum-optimism/optimism/op-devstack/stack/match"
-	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
 
 // L1Network wraps a stack.L1Network interface for DSL operations

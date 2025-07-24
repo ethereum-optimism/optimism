@@ -10,8 +10,8 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 
-	"github.com/ethereum-optimism/optimism/op-service/predeploys"
-	"github.com/ethereum-optimism/optimism/op-service/solabi"
+	"github.com/HashKeyChain/verse/op-service/predeploys"
+	"github.com/HashKeyChain/verse/op-service/solabi"
 )
 
 const UpgradeToFuncSignature = "upgradeTo(address)"

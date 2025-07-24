@@ -16,9 +16,9 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/rpc"
 
-	"github.com/ethereum-optimism/optimism/op-service/eth"
-	optls "github.com/ethereum-optimism/optimism/op-service/tls"
-	"github.com/ethereum-optimism/optimism/op-service/tls/certman"
+	"github.com/HashKeyChain/verse/op-service/eth"
+	optls "github.com/HashKeyChain/verse/op-service/tls"
+	"github.com/HashKeyChain/verse/op-service/tls/certman"
 )
 
 type SignerClient struct {

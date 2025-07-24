@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"reflect"
 
-	"github.com/ethereum-optimism/optimism/op-chain-ops/foundry"
-	"github.com/ethereum-optimism/optimism/op-chain-ops/script/addresses"
+	"github.com/HashKeyChain/verse/op-chain-ops/foundry"
+	"github.com/HashKeyChain/verse/op-chain-ops/script/addresses"
 	"github.com/holiman/uint256"
 
 	"github.com/ethereum/go-ethereum/accounts/abi"

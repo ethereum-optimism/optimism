@@ -8,7 +8,7 @@ import (
 	"slices"
 	"sort"
 
-	"github.com/ethereum-optimism/optimism/cannon/mipsevm/arch"
+	"github.com/HashKeyChain/verse/cannon/mipsevm/arch"
 	"golang.org/x/exp/maps"
 )
 

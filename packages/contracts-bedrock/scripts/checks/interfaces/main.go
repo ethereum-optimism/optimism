@@ -10,7 +10,7 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/ethereum-optimism/optimism/packages/contracts-bedrock/scripts/checks/common"
+	"github.com/HashKeyChain/verse/packages/contracts-bedrock/scripts/checks/common"
 )
 
 // excludeContracts is a list of contracts whose interfaces do not need to match perfectly.

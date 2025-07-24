@@ -11,7 +11,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 
-	"github.com/ethereum-optimism/optimism/op-service/bigs"
+	"github.com/HashKeyChain/verse/op-service/bigs"
 )
 
 // Example account result taken from the Goerli SystemConfig proxy:

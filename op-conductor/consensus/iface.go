@@ -1,7 +1,7 @@
 package consensus
 
 import (
-	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/HashKeyChain/verse/op-service/eth"
 )
 
 // ServerSuffrage determines whether a Server in a Configuration gets a vote.

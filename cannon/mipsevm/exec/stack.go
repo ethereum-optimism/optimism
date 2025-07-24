@@ -4,7 +4,7 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/ethereum-optimism/optimism/cannon/mipsevm"
+	"github.com/HashKeyChain/verse/cannon/mipsevm"
 )
 
 type StackTracker interface {

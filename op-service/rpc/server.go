@@ -9,7 +9,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/rpc"
 
-	"github.com/ethereum-optimism/optimism/op-service/httputil"
+	"github.com/HashKeyChain/verse/op-service/httputil"
 )
 
 // Server is a convenience util, that wraps an httputil.HTTPServer and provides an RPC Handler

@@ -3,9 +3,9 @@ package sysext
 import (
 	"encoding/json"
 
-	"github.com/ethereum-optimism/optimism/op-devstack/shim"
-	"github.com/ethereum-optimism/optimism/op-devstack/stack"
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/depset"
+	"github.com/HashKeyChain/verse/op-devstack/shim"
+	"github.com/HashKeyChain/verse/op-devstack/stack"
+	"github.com/HashKeyChain/verse/op-supervisor/supervisor/backend/depset"
 )
 
 func (o *Orchestrator) hydrateSuperchain(sys stack.ExtensibleSystem) {

@@ -9,7 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/ethereum-optimism/optimism/kurtosis-devnet/pkg/build"
+	"github.com/HashKeyChain/verse/kurtosis-devnet/pkg/build"
 )
 
 type PrestateInfo struct {

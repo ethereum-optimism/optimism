@@ -5,7 +5,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/ethereum-optimism/optimism/op-service/clock"
+	"github.com/HashKeyChain/verse/op-service/clock"
 )
 
 // Poller runs a function on repeat at a set interval.

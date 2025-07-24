@@ -6,7 +6,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/urfave/cli/v2"
 
-	opservice "github.com/ethereum-optimism/optimism/op-service"
+	opservice "github.com/HashKeyChain/verse/op-service"
 )
 
 // TestOptionalFlagsDontSetRequired asserts that all flags deemed optional set

@@ -9,8 +9,8 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/ethereum-optimism/optimism/kurtosis-devnet/pkg/kurtosis/sources/inspect"
-	"github.com/ethereum-optimism/optimism/kurtosis-devnet/pkg/util"
+	"github.com/HashKeyChain/verse/kurtosis-devnet/pkg/kurtosis/sources/inspect"
+	"github.com/HashKeyChain/verse/kurtosis-devnet/pkg/util"
 )
 
 func main() {

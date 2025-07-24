@@ -8,8 +8,8 @@ import (
 	"github.com/mattn/go-isatty"
 	"github.com/urfave/cli/v2"
 
-	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
-	oplog "github.com/ethereum-optimism/optimism/op-service/log"
+	"github.com/HashKeyChain/verse/op-chain-ops/genesis"
+	oplog "github.com/HashKeyChain/verse/op-service/log"
 	"github.com/ethereum/go-ethereum/log"
 )
 

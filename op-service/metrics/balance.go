@@ -11,8 +11,8 @@ import (
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/log"
 
-	"github.com/ethereum-optimism/optimism/op-service/clock"
-	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/HashKeyChain/verse/op-service/clock"
+	"github.com/HashKeyChain/verse/op-service/eth"
 )
 
 // LaunchBalanceMetrics starts a periodic query of the balance of the supplied account and records it

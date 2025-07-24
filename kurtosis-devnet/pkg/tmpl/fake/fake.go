@@ -3,7 +3,7 @@ package fake
 import (
 	"fmt"
 
-	"github.com/ethereum-optimism/optimism/kurtosis-devnet/pkg/tmpl"
+	"github.com/HashKeyChain/verse/kurtosis-devnet/pkg/tmpl"
 )
 
 type PrestateInfo struct {

@@ -4,8 +4,8 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/ethereum-optimism/optimism/devnet-sdk/system"
-	"github.com/ethereum-optimism/optimism/devnet-sdk/testing/systest"
+	"github.com/HashKeyChain/verse/devnet-sdk/system"
+	"github.com/HashKeyChain/verse/devnet-sdk/testing/systest"
 )
 
 // L2NodeCounter is a function type that retrieves the node count from a context.

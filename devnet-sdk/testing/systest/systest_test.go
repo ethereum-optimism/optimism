@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/ethereum-optimism/optimism/devnet-sdk/shell/env"
-	"github.com/ethereum-optimism/optimism/devnet-sdk/system"
+	"github.com/HashKeyChain/verse/devnet-sdk/shell/env"
+	"github.com/HashKeyChain/verse/devnet-sdk/system"
 	"github.com/stretchr/testify/require"
 )
 

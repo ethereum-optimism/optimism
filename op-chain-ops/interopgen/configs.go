@@ -8,7 +8,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
 
-	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
+	"github.com/HashKeyChain/verse/op-chain-ops/genesis"
 )
 
 type L1Config struct {

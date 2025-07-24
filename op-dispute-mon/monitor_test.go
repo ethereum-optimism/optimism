@@ -4,8 +4,8 @@ import (
 	"context"
 	"testing"
 
-	"github.com/ethereum-optimism/optimism/op-dispute-mon/config"
-	"github.com/ethereum-optimism/optimism/op-service/testlog"
+	"github.com/HashKeyChain/verse/op-dispute-mon/config"
+	"github.com/HashKeyChain/verse/op-service/testlog"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/stretchr/testify/require"
 )

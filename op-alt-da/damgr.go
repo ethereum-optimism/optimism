@@ -12,8 +12,8 @@ import (
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/log"
 
-	"github.com/ethereum-optimism/optimism/op-alt-da/bindings"
-	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/HashKeyChain/verse/op-alt-da/bindings"
+	"github.com/HashKeyChain/verse/op-service/eth"
 )
 
 // ErrPendingChallenge is returned when data is not available but can still be challenged/resolved

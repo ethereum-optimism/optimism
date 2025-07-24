@@ -8,10 +8,10 @@ import (
 	"runtime"
 	"testing"
 
-	"github.com/ethereum-optimism/optimism/op-chain-ops/foundry"
-	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/artifacts"
-	op_service "github.com/ethereum-optimism/optimism/op-service"
-	"github.com/ethereum-optimism/optimism/op-service/testutils"
+	"github.com/HashKeyChain/verse/op-chain-ops/foundry"
+	"github.com/HashKeyChain/verse/op-deployer/pkg/deployer/artifacts"
+	op_service "github.com/HashKeyChain/verse/op-service"
+	"github.com/HashKeyChain/verse/op-service/testutils"
 	"github.com/stretchr/testify/require"
 )
 

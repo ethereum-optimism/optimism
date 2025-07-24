@@ -6,10 +6,10 @@ import (
 	"testing"
 	"time"
 
-	op_e2e "github.com/ethereum-optimism/optimism/op-e2e"
+	op_e2e "github.com/HashKeyChain/verse/op-e2e"
 
-	"github.com/ethereum-optimism/optimism/op-e2e/system/e2esys"
-	"github.com/ethereum-optimism/optimism/op-e2e/system/helpers"
+	"github.com/HashKeyChain/verse/op-e2e/system/e2esys"
+	"github.com/HashKeyChain/verse/op-e2e/system/helpers"
 
 	"github.com/stretchr/testify/require"
 
@@ -19,13 +19,13 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/rpc"
 
-	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
-	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/geth"
-	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
-	"github.com/ethereum-optimism/optimism/op-program/client/claim"
-	opp "github.com/ethereum-optimism/optimism/op-program/host"
-	oppconf "github.com/ethereum-optimism/optimism/op-program/host/config"
-	"github.com/ethereum-optimism/optimism/op-service/testlog"
+	"github.com/HashKeyChain/verse/op-chain-ops/genesis"
+	"github.com/HashKeyChain/verse/op-e2e/e2eutils/geth"
+	"github.com/HashKeyChain/verse/op-e2e/e2eutils/wait"
+	"github.com/HashKeyChain/verse/op-program/client/claim"
+	opp "github.com/HashKeyChain/verse/op-program/host"
+	oppconf "github.com/HashKeyChain/verse/op-program/host/config"
+	"github.com/HashKeyChain/verse/op-service/testlog"
 )
 
 func TestVerifyL2OutputRoot(t *testing.T) {

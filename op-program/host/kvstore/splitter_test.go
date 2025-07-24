@@ -3,7 +3,7 @@ package kvstore
 import (
 	"testing"
 
-	preimage "github.com/ethereum-optimism/optimism/op-preimage"
+	preimage "github.com/HashKeyChain/verse/op-preimage"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/stretchr/testify/require"
 )

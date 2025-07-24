@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"math/big"
 
-	"github.com/ethereum-optimism/optimism/op-service/sources/batching/rpcblock"
+	"github.com/HashKeyChain/verse/op-service/sources/batching/rpcblock"
 )
 
 // ReadArray uses batch calls to load all entries from an array.

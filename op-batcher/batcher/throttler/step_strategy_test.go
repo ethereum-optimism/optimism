@@ -3,7 +3,7 @@ package throttler
 import (
 	"testing"
 
-	"github.com/ethereum-optimism/optimism/op-batcher/config"
+	"github.com/HashKeyChain/verse/op-batcher/config"
 )
 
 // Test constants specific to step strategy

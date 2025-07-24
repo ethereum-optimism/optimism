@@ -7,10 +7,10 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/ethereum-optimism/optimism/devnet-sdk/telemetry"
-	"github.com/ethereum-optimism/optimism/kurtosis-devnet/pkg/deploy"
-	"github.com/ethereum-optimism/optimism/kurtosis-devnet/pkg/kurtosis"
-	autofixTypes "github.com/ethereum-optimism/optimism/kurtosis-devnet/pkg/types"
+	"github.com/HashKeyChain/verse/devnet-sdk/telemetry"
+	"github.com/HashKeyChain/verse/kurtosis-devnet/pkg/deploy"
+	"github.com/HashKeyChain/verse/kurtosis-devnet/pkg/kurtosis"
+	autofixTypes "github.com/HashKeyChain/verse/kurtosis-devnet/pkg/types"
 	"github.com/honeycombio/otel-config-go/otelconfig"
 	"github.com/urfave/cli/v2"
 )

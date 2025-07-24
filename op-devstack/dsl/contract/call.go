@@ -3,10 +3,10 @@ package contract
 import (
 	"fmt"
 
-	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
-	"github.com/ethereum-optimism/optimism/op-service/txintent/bindings"
-	"github.com/ethereum-optimism/optimism/op-service/txintent/contractio"
-	"github.com/ethereum-optimism/optimism/op-service/txplan"
+	"github.com/HashKeyChain/verse/op-devstack/dsl"
+	"github.com/HashKeyChain/verse/op-service/txintent/bindings"
+	"github.com/HashKeyChain/verse/op-service/txintent/contractio"
+	"github.com/HashKeyChain/verse/op-service/txplan"
 	"github.com/ethereum/go-ethereum/core/types"
 )
 

@@ -7,8 +7,8 @@ import (
 	"path"
 	"testing"
 
-	"github.com/ethereum-optimism/optimism/op-node/bindings"
-	"github.com/ethereum-optimism/optimism/op-service/testutils"
+	"github.com/HashKeyChain/verse/op-node/bindings"
+	"github.com/HashKeyChain/verse/op-service/testutils"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"
