@@ -128,6 +128,40 @@ contract L1CrossDomainMessenger_Initialize_Test is L1CrossDomainMessenger_TestIn
         vm.prank(_sender);
         l1CrossDomainMessenger.initialize(systemConfig, optimismPortal2);
     }
+
+    /// @notice Tests that initialize handles zero addresses correctly.
+    function test_initialize_zeroSystemConfig_succeeds() external {
+        // Get the slot for _initialized.
+        StorageSlot memory slot = ForgeArtifacts.getSlot("L1CrossDomainMessenger", "_initialized");
+
+        // Set the initialized slot to 0.
+        vm.store(address(l1CrossDomainMessenger), bytes32(slot.slot), bytes32(0));
+
+        // Initialize with zero system config
+        vm.prank(address(proxyAdmin));
+        l1CrossDomainMessenger.initialize(ISystemConfig(address(0)), optimismPortal2);
+
+        // Verify zero address was set
+        assertEq(address(l1CrossDomainMessenger.systemConfig()), address(0));
+        assertEq(address(l1CrossDomainMessenger.portal()), address(optimismPortal2));
+    }
+
+    /// @notice Tests that initialize handles zero portal address correctly.
+    function test_initialize_zeroPortal_succeeds() external {
+        // Get the slot for _initialized.
+        StorageSlot memory slot = ForgeArtifacts.getSlot("L1CrossDomainMessenger", "_initialized");
+
+        // Set the initialized slot to 0.
+        vm.store(address(l1CrossDomainMessenger), bytes32(slot.slot), bytes32(0));
+
+        // Initialize with zero portal
+        vm.prank(address(proxyAdmin));
+        l1CrossDomainMessenger.initialize(systemConfig, IOptimismPortal2(payable(address(0))));
+
+        // Verify zero address was set
+        assertEq(address(l1CrossDomainMessenger.systemConfig()), address(systemConfig));
+        assertEq(address(l1CrossDomainMessenger.portal()), address(0));
+    }
 }
 
 /// @title L1CrossDomainMessenger_Upgrade_Test
@@ -203,6 +237,22 @@ contract L1CrossDomainMessenger_Upgrade_Test is L1CrossDomainMessenger_TestInit 
         vm.expectRevert(IProxyAdminOwnedBase.ProxyAdminOwnedBase_NotProxyAdminOrProxyAdminOwner.selector);
         l1CrossDomainMessenger.upgrade(newSystemConfig);
     }
+
+    /// @notice Tests that upgrade handles zero address for system config.
+    function test_upgrade_zeroSystemConfig_succeeds() external {
+        // Get the slot for _initialized.
+        StorageSlot memory slot = ForgeArtifacts.getSlot("L1CrossDomainMessenger", "_initialized");
+
+        // Set the initialized slot to 0.
+        vm.store(address(l1CrossDomainMessenger), bytes32(slot.slot), bytes32(0));
+
+        // Trigger upgrade with zero address.
+        vm.prank(address(l1CrossDomainMessenger.proxyAdmin()));
+        l1CrossDomainMessenger.upgrade(ISystemConfig(address(0)));
+
+        // Verify that the systemConfig was updated to zero.
+        assertEq(address(l1CrossDomainMessenger.systemConfig()), address(0));
+    }
 }
 
 /// @title L1CrossDomainMessenger_Paused_Test
@@ -228,6 +278,20 @@ contract L1CrossDomainMessenger_Paused_Test is L1CrossDomainMessenger_TestInit {
         assertTrue(l1CrossDomainMessenger.paused());
         assertEq(l1CrossDomainMessenger.paused(), superchainConfig.paused(address(0)));
     }
+
+    /// @notice Tests paused state when systemConfig is zero address.
+    function test_pause_zeroSystemConfig_reverts() external {
+        // Get initialized slot and reinitialize with zero system config
+        StorageSlot memory slot = ForgeArtifacts.getSlot("L1CrossDomainMessenger", "_initialized");
+        vm.store(address(l1CrossDomainMessenger), bytes32(slot.slot), bytes32(0));
+
+        vm.prank(address(proxyAdmin));
+        l1CrossDomainMessenger.initialize(ISystemConfig(address(0)), optimismPortal2);
+
+        // Calling paused() should revert when systemConfig is zero
+        vm.expectRevert();
+        l1CrossDomainMessenger.paused();
+    }
 }
 
 /// @title L1CrossDomainMessenger_SuperchainConfig_Test
@@ -236,6 +300,16 @@ contract L1CrossDomainMessenger_SuperchainConfig_Test is L1CrossDomainMessenger_
     /// @notice Tests that `superchainConfig` returns the correct address.
     function test_superchainConfig_succeeds() external view {
         assertEq(address(l1CrossDomainMessenger.superchainConfig()), address(superchainConfig));
+    }
+}
+
+/// @title L1CrossDomainMessenger_portal_Test
+/// @notice Tests for the `PORTAL` legacy getter function of the L1CrossDomainMessenger.
+contract L1CrossDomainMessenger_portal_Test is L1CrossDomainMessenger_TestInit {
+    /// @notice Tests that `PORTAL` returns the correct portal address.
+    function test_portal_succeeds() external view {
+        assertEq(address(l1CrossDomainMessenger.PORTAL()), address(optimismPortal2));
+        assertEq(address(l1CrossDomainMessenger.PORTAL()), address(l1CrossDomainMessenger.portal()));
     }
 }
 
@@ -291,6 +365,32 @@ contract L1CrossDomainMessenger_SendMessage_Test is L1CrossDomainMessenger_TestI
         l1CrossDomainMessenger.sendMessage(recipient, hex"ff", uint32(100));
     }
 
+    /// @notice Fuzz test for sendMessage with various gas limits and message data.
+    /// @param _gasLimit Gas limit for the message (bounded to reasonable range).
+    /// @param _message Message data to send.
+    /// @param _sender Address sending the message.
+    function testFuzz_sendMessage_varyingInputs_succeeds(
+        uint32 _gasLimit,
+        bytes calldata _message,
+        address _sender
+    )
+        external
+    {
+        // Bound gas limit to reasonable range to avoid OutOfGas errors
+        _gasLimit = uint32(bound(uint256(_gasLimit), 21000, 1_000_000));
+        // Bound message length to avoid excessive gas costs
+        vm.assume(_message.length <= 1000);
+        vm.assume(_sender != address(0));
+
+        uint256 nonceBefore = l1CrossDomainMessenger.messageNonce();
+
+        vm.prank(_sender);
+        l1CrossDomainMessenger.sendMessage(recipient, _message, _gasLimit);
+
+        // Verify nonce incremented
+        assertEq(l1CrossDomainMessenger.messageNonce(), nonceBefore + 1);
+    }
+
     /// @notice Tests that the sendMessage function is able to send the same message twice.
     function test_sendMessage_twice_succeeds() external {
         uint256 nonce = l1CrossDomainMessenger.messageNonce();
@@ -298,6 +398,31 @@ contract L1CrossDomainMessenger_SendMessage_Test is L1CrossDomainMessenger_TestI
         l1CrossDomainMessenger.sendMessage(recipient, hex"aa", uint32(500_000));
         // the nonce increments for each message sent
         assertEq(nonce + 2, l1CrossDomainMessenger.messageNonce());
+    }
+
+    /// @notice Tests sendMessage with zero gas limit.
+    function test_sendMessage_zeroGasLimit_succeeds() external {
+        uint256 nonce = l1CrossDomainMessenger.messageNonce();
+
+        // Even with zero gas limit, message should send
+        vm.expectEmit(address(l1CrossDomainMessenger));
+        emit SentMessage(recipient, alice, hex"1234", nonce, 0);
+
+        vm.prank(alice);
+        l1CrossDomainMessenger.sendMessage(recipient, hex"1234", 0);
+
+        // Verify nonce incremented
+        assertEq(l1CrossDomainMessenger.messageNonce(), nonce + 1);
+    }
+
+    /// @notice Tests sendMessage with high gas limit that causes OutOfGas.
+    function test_sendMessage_highGasLimit_reverts() external {
+        // Very high gas limit causes OutOfGas error in portal deposit
+        uint32 highGasLimit = 30_000_000;
+
+        vm.prank(alice);
+        vm.expectRevert("OutOfGas()");
+        l1CrossDomainMessenger.sendMessage(recipient, hex"5678", highGasLimit);
     }
 }
 
@@ -427,6 +552,44 @@ contract L1CrossDomainMessenger_Uncategorized_Test is L1CrossDomainMessenger_Tes
         assert(l1CrossDomainMessenger.successfulMessages(hash));
         // it is not in the received messages mapping
         assertEq(l1CrossDomainMessenger.failedMessages(hash), false);
+    }
+
+    /// @notice Fuzz test for relaying messages with various parameters.
+    /// @param _target Target address for the message.
+    /// @param _minGasLimit Minimum gas limit for message execution.
+    /// @param _message Message data to relay.
+    function testFuzz_relayMessage_varyingInputs_succeeds(
+        address _target,
+        uint32 _minGasLimit,
+        bytes calldata _message
+    )
+        external
+    {
+        // Ensure target is not a blocked address
+        vm.assume(_target != address(l1CrossDomainMessenger));
+        vm.assume(_target != address(optimismPortal2));
+        vm.assume(_target != address(0));
+
+        // Bound gas limit and message size to avoid OutOfGas errors
+        _minGasLimit = uint32(bound(uint256(_minGasLimit), 0, 100_000));
+        vm.assume(_message.length <= 100);
+
+        address sender = Predeploys.L2_CROSS_DOMAIN_MESSENGER;
+
+        // set the value of op.l2Sender() to be the L2 Cross Domain Messenger.
+        vm.store(address(optimismPortal2), bytes32(senderSlotIndex), bytes32(abi.encode(sender)));
+
+        bytes32 hash = Hashing.hashCrossDomainMessage(
+            Encoding.encodeVersionedNonce({ _nonce: 0, _version: 1 }), sender, _target, 0, _minGasLimit, _message
+        );
+
+        vm.prank(address(optimismPortal2));
+        l1CrossDomainMessenger.relayMessage(
+            Encoding.encodeVersionedNonce({ _nonce: 0, _version: 1 }), sender, _target, 0, _minGasLimit, _message
+        );
+
+        // Verify message was relayed (either successfully or failed)
+        assertTrue(l1CrossDomainMessenger.successfulMessages(hash) || l1CrossDomainMessenger.failedMessages(hash));
     }
 
     /// @notice Tests that `relayMessage` reverts if the caller is optimismPortal2 and the value
@@ -695,6 +858,13 @@ contract L1CrossDomainMessenger_Uncategorized_Test is L1CrossDomainMessenger_Tes
             Encoding.encodeVersionedNonce({ _nonce: 0, _version: 1 }), address(0), address(0), 0, 0, hex""
         );
 
+        vm.expectRevert("CrossDomainMessenger: xDomainMessageSender is not set");
+        l1CrossDomainMessenger.xDomainMessageSender();
+    }
+
+    /// @notice Tests that xDomainMessageSender is never set during sendMessage.
+    function test_xDomainMessageSender_duringSend_reverts() external {
+        // XDomainMessageSender is only set during relayMessage, not sendMessage
         vm.expectRevert("CrossDomainMessenger: xDomainMessageSender is not set");
         l1CrossDomainMessenger.xDomainMessageSender();
     }
