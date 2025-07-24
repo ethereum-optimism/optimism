@@ -46,7 +46,7 @@ reth-optimism-forks.workspace = true
 reth-optimism-primitives = { workspace = true, features = ["serde", "serde-bincode-compat", "reth-codec"] }
 
 # revm with required optimism features
-# Note: this must be kept to ensure all features are poperly enabled/forwarded
+# Note: this must be kept to ensure all features are properly enabled/forwarded
 revm = { workspace = true, features = ["secp256k1", "blst", "c-kzg"] }
 op-revm.workspace = true
 
