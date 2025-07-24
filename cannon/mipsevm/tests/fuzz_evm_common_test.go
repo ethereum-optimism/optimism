@@ -12,6 +12,7 @@ import (
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/arch"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/exec"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/memory"
+	"github.com/ethereum-optimism/optimism/cannon/mipsevm/multithreaded"
 	mtutil "github.com/ethereum-optimism/optimism/cannon/mipsevm/multithreaded/testutil"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/program"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/testutil"
@@ -21,29 +22,25 @@ import (
 const syscallInsn = uint32(0x00_00_00_0c)
 
 func FuzzStateSyscallBrk(f *testing.F) {
-	versions := GetMipsVersionTestCases(f)
+	vms := GetMipsVersionTestCases(f)
+
 	f.Fuzz(func(t *testing.T, seed int64) {
-		for _, v := range versions {
-			t.Run(v.Name, func(t *testing.T) {
-				goVm := v.VMFactory(nil, os.Stdout, os.Stderr, testutil.CreateLogger(), mtutil.WithRandomization(seed))
-				state := goVm.GetState()
-				state.GetRegistersRef()[2] = arch.SysBrk
-				testutil.StoreInstruction(state.GetMemory(), state.GetPC(), syscallInsn)
-				step := state.GetStep()
-
-				expected := mtutil.NewExpectedState(t, state)
-				expected.ExpectStep()
-				expected.ActiveThread().Registers[2] = program.PROGRAM_BREAK // Return fixed BRK value
-				expected.ActiveThread().Registers[7] = 0                     // No error
-
-				stepWitness, err := goVm.Step(true)
-				require.NoError(t, err)
-				require.False(t, stepWitness.HasPreimage())
-
-				expected.Validate(t, state)
-				testutil.ValidateEVM(t, stepWitness, step, goVm, v.StateHashFn, v.Contracts)
-			})
+		initState := func(state *multithreaded.State, vm VersionedVMTestCase, r *testutil.RandHelper) {
+			state.GetRegistersRef()[2] = arch.SysBrk
+			testutil.StoreInstruction(state.GetMemory(), state.GetPC(), syscallInsn)
 		}
+
+		setExpectations := func(expected *mtutil.ExpectedState, vm VersionedVMTestCase) ExpectedExecResult {
+			expected.ExpectStep()
+			expected.ActiveThread().Registers[2] = program.PROGRAM_BREAK // Return fixed BRK value
+			expected.ActiveThread().Registers[7] = 0                     // No error
+			return ExpectNormalExecution()
+		}
+
+		NewSingletonDiffTester().
+			InitState(initState).
+			SetExpectations(setExpectations).
+			Run(t, WithVms(vms), WithRandomSeed(seed))
 	})
 }
 

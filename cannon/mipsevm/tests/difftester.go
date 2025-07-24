@@ -125,7 +125,10 @@ func (d *DiffTester[T]) run(t testRunner, testCases []T, opts ...TestOption) {
 	cfg := newTestConfig(t, opts...)
 	for _, vm := range cfg.vms {
 		for i, testCase := range testCases {
-			randSeed := randomSeed(t, d.testNamer(testCase), i)
+			randSeed := cfg.randomSeed
+			if randSeed == 0 {
+				randSeed = randomSeed(t, d.testNamer(testCase), i)
+			}
 			mods := d.generateTestModifiers(t, testCase, vm, cfg, randSeed)
 			for _, mod := range mods {
 				testName := fmt.Sprintf("%v%v (%v)", d.testNamer(testCase), mod.name, vm.Name)
@@ -313,6 +316,8 @@ type TestConfig struct {
 	tracingHooks *tracing.Hooks
 	// Allow consumer to control automated test generation
 	skipAutomaticMemoryReservationTests bool
+	// Allow consumer to configure a random seed, if not configured (equal to 0) one will be generated
+	randomSeed int64
 }
 
 func (c *TestConfig) testDependencies() *TestDependencies {
@@ -344,6 +349,18 @@ func WithVm(vm VersionedVMTestCase) TestOption {
 	}
 }
 
+func WithVms(vms []VersionedVMTestCase) TestOption {
+	return func(tc *TestConfig) {
+		tc.vms = vms
+	}
+}
+
+func WithRandomSeed(seed int64) TestOption {
+	return func(tc *TestConfig) {
+		tc.randomSeed = seed
+	}
+}
+
 // WithTracingHooks Sets tracing hooks - see: testutil.MarkdownTracer
 func WithTracingHooks(hooks *tracing.Hooks) TestOption {
 	return func(tc *TestConfig) {
@@ -362,7 +379,6 @@ func WithSteps(steps int) TestOption {
 
 func newTestConfig(t require.TestingT, opts ...TestOption) *TestConfig {
 	testConfig := &TestConfig{
-		vms:    GetMipsVersionTestCases(t),
 		po:     func() mipsevm.PreimageOracle { return nil },
 		stdOut: func() io.Writer { return os.Stdout },
 		stdErr: func() io.Writer { return os.Stderr },
@@ -373,6 +389,12 @@ func newTestConfig(t require.TestingT, opts ...TestOption) *TestConfig {
 	for _, opt := range opts {
 		opt(testConfig)
 	}
+
+	// Generating vm versions is expensive, only do it if necessary
+	if testConfig.vms == nil {
+		testConfig.vms = GetMipsVersionTestCases(t)
+	}
+
 	return testConfig
 }
 
