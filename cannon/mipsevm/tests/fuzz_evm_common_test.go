@@ -52,49 +52,51 @@ func FuzzStateSyscallMmap(f *testing.F) {
 	// Check edge case - just within bounds
 	f.Add(Word(0), Word(0x1000), Word(program.HEAP_END-4096), int64(3))
 
-	versions := GetMipsVersionTestCases(f)
-	f.Fuzz(func(t *testing.T, addr Word, siz Word, heap Word, seed int64) {
-		for _, v := range versions {
-			t.Run(v.Name, func(t *testing.T) {
-				goVm := v.VMFactory(nil, os.Stdout, os.Stderr, testutil.CreateLogger(),
-					mtutil.WithRandomization(seed), mtutil.WithHeap(heap))
-				state := goVm.GetState()
-				step := state.GetStep()
+	vms := GetMipsVersionTestCases(f)
+	type testCase struct {
+		addr Word
+		siz  Word
+		heap Word
+	}
 
-				state.GetRegistersRef()[2] = arch.SysMmap
-				state.GetRegistersRef()[4] = addr
-				state.GetRegistersRef()[5] = siz
-				testutil.StoreInstruction(state.GetMemory(), state.GetPC(), syscallInsn)
+	initState := func(t require.TestingT, c testCase, state *multithreaded.State, vm VersionedVMTestCase, r *testutil.RandHelper) {
+		state.Heap = c.heap
+		state.GetRegistersRef()[2] = arch.SysMmap
+		state.GetRegistersRef()[4] = c.addr
+		state.GetRegistersRef()[5] = c.siz
+		testutil.StoreInstruction(state.GetMemory(), state.GetPC(), syscallInsn)
+	}
 
-				expected := mtutil.NewExpectedState(t, state)
-				expected.ExpectStep()
-				if addr == 0 {
-					sizAlign := siz
-					if sizAlign&memory.PageAddrMask != 0 { // adjust size to align with page size
-						sizAlign = siz + memory.PageSize - (siz & memory.PageAddrMask)
-					}
-					newHeap := heap + sizAlign
-					if newHeap > program.HEAP_END || newHeap < heap || sizAlign < siz {
-						expected.ActiveThread().Registers[2] = exec.MipsEINVAL
-						expected.ActiveThread().Registers[7] = exec.SysErrorSignal
-					} else {
-						expected.Heap = heap + sizAlign
-						expected.ActiveThread().Registers[2] = heap
-						expected.ActiveThread().Registers[7] = 0 // no error
-					}
-				} else {
-					expected.ActiveThread().Registers[2] = addr
-					expected.ActiveThread().Registers[7] = 0 // no error
-				}
-
-				stepWitness, err := goVm.Step(true)
-				require.NoError(t, err)
-				require.False(t, stepWitness.HasPreimage())
-
-				expected.Validate(t, state)
-				testutil.ValidateEVM(t, stepWitness, step, goVm, v.StateHashFn, v.Contracts)
-			})
+	setExpectations := func(t require.TestingT, c testCase, expected *mtutil.ExpectedState, vm VersionedVMTestCase) ExpectedExecResult {
+		expected.ExpectStep()
+		if c.addr == 0 {
+			sizAlign := c.siz
+			if sizAlign&memory.PageAddrMask != 0 { // adjust size to align with page size
+				sizAlign = c.siz + memory.PageSize - (c.siz & memory.PageAddrMask)
+			}
+			newHeap := c.heap + sizAlign
+			if newHeap > program.HEAP_END || newHeap < c.heap || sizAlign < c.siz {
+				expected.ActiveThread().Registers[2] = exec.MipsEINVAL
+				expected.ActiveThread().Registers[7] = exec.SysErrorSignal
+			} else {
+				expected.Heap = c.heap + sizAlign
+				expected.ActiveThread().Registers[2] = c.heap
+				expected.ActiveThread().Registers[7] = 0 // no error
+			}
+		} else {
+			expected.ActiveThread().Registers[2] = c.addr
+			expected.ActiveThread().Registers[7] = 0 // no error
 		}
+		return ExpectNormalExecution()
+	}
+
+	diffTester := NewDiffTester(NoopTestNamer[testCase]).
+		InitState(initState).
+		SetExpectations(setExpectations)
+
+	f.Fuzz(func(t *testing.T, addr Word, siz Word, heap Word, seed int64) {
+		tests := []testCase{{addr, siz, heap}}
+		diffTester.Run(t, tests, WithVms(vms), WithRandomSeed(seed))
 	})
 }
 
