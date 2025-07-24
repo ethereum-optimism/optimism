@@ -61,9 +61,9 @@ contract L1Block is ISemver {
     /// @notice The scalar value applied to the operator fee.
     uint32 public operatorFeeScalar;
 
-    /// @custom:semver 1.7.0
+    /// @custom:semver 1.6.1
     function version() public pure virtual returns (string memory) {
-        return "1.7.0";
+        return "1.6.1";
     }
 
     /// @notice Returns the gas paying token, its decimals, name and symbol.
