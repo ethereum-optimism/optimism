@@ -194,10 +194,12 @@ type threadExpectations struct {
 	StepsSinceLastContextSwitch uint64
 	NextThreadId                arch.Word
 	prestateActiveThread        *ExpectedThreadState
-	traverseRight               bool
-	left                        []*ExpectedThreadState
-	right                       []*ExpectedThreadState
-	popped                      []*ExpectedThreadState
+	// Cache the original value of the prestate active thread, so we can keep the original values before any updates
+	prestateActiveThreadValue ExpectedThreadState
+	traverseRight             bool
+	left                      []*ExpectedThreadState
+	right                     []*ExpectedThreadState
+	popped                    []*ExpectedThreadState
 }
 
 func newThreadExpectations(state *multithreaded.State) *threadExpectations {
@@ -215,6 +217,7 @@ func newThreadExpectations(state *multithreaded.State) *threadExpectations {
 		StepsSinceLastContextSwitch: state.StepsSinceLastContextSwitch,
 		NextThreadId:                state.NextThreadId,
 		prestateActiveThread:        prestateActiveThread,
+		prestateActiveThreadValue:   *prestateActiveThread,
 		traverseRight:               state.TraverseRight,
 		left:                        left,
 		right:                       right,
@@ -288,9 +291,9 @@ func (e *threadExpectations) ExpectNewThread() *ExpectedThreadState {
 	newThreadId := e.NextThreadId
 	e.NextThreadId += 1
 
-	// Copy expectations from prestate active thread's original state (bf changing any expectations)
+	// Copy expectations from prestate active thread's original value (before changing any expectations)
 	newThread := &ExpectedThreadState{}
-	*newThread = *e.prestateActiveThread
+	*newThread = e.prestateActiveThreadValue
 
 	newThread.ThreadId = newThreadId
 	if e.traverseRight {

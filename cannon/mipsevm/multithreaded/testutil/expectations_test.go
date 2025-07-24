@@ -152,6 +152,21 @@ func TestValidate_shouldPassUnchangedExpectations(t *testing.T) {
 	}
 }
 
+func TestExpectNewThread_DoesNotInheritChangedExpectations(t *testing.T) {
+	state := RandomState(123)
+	expected := NewExpectedState(t, state)
+
+	// Make some changes to the active thread
+	origHI := expected.ActiveThread().HI
+	expected.ActiveThread().HI = 123
+
+	// Create a new thread
+	newThread := expected.ExpectNewThread()
+
+	// New thread should not carry over changes to the original thread
+	require.Equal(t, origHI, newThread.HI)
+}
+
 type MockTestingT struct {
 	errCount int
 }
