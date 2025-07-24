@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/ethereum/go-ethereum/log"
+	"github.com/google/uuid"
 )
 
 type Registry interface {
@@ -96,36 +97,23 @@ func (r *systemActor) Emit(ctx context.Context, ev Event) {
 		return
 	}
 
-	// debugging purpose to find out UUID not attached events
-	prev, ok := ctx.Value(CtxKeyUUID).(string)
-	if ok && !hasStringUUIDField(ev) {
-		fmt.Printf("l33t [ Emit  ] [%s] %s <debug>\n", prev, reflect.TypeOf(ev))
-	}
+	// we know the name of actor
+	// we know the type of event
+	// we assign uuid to event if possible and not assigned
 
+	// attach uuid field when emitted
 	if hasStringUUIDField(ev) {
-		uuid := printUUIDIfPresent(ev)
-		if uuid != "" {
-			if ctx.Value(CtxKeyUUID) == nil {
-				ctx = context.WithValue(ctx, CtxKeyUUID, uuid)
-			}
-		} else {
-			prev, ok := ctx.Value(CtxKeyUUID).(string)
-			uuid = prev
-			if ok {
-				// very hack since arg ev is value
-				modified, err := setUUIDCopy(ev, uuid)
-				if err != nil {
-					panic(fmt.Sprintf("unable to set uuid field [%s]: %v", uuid, err))
-				}
-				ev = modified.(Event)
-			} else {
-				// panic("uuid not set from parent")
-				// possible
-			}
-
+		uuid := uuid.New().String()
+		modified, err := setUUIDCopy(ev, uuid)
+		if err != nil {
+			panic(fmt.Sprintf("unable to set uuid field [%s]: %v", uuid, err))
 		}
-		fmt.Printf("l33t [ Emit  ] [%s] %s %s\n", uuid, reflect.TypeOf(ev), ctx)
+		ev = modified.(Event)
+		parentUUID, _ := ctx.Value(CtxKeyUUID).(string)
+		// fmt.Printf("l33t [E] [%s]<-[%s] %s %s\n", uuid, parentUUID, reflect.TypeOf(ev), ctx)
+		fmt.Printf("l33t [E] [%s]<-[%s] %s\n", uuid, parentUUID, reflect.TypeOf(ev))
 	}
+
 	r.sys.emit(r.name, r.currentEvent, ctx, ev, r.emitPriority)
 }
 
@@ -146,7 +134,17 @@ func (r *systemActor) RunEvent(ev AnnotatedEvent) {
 	prev := r.currentEvent
 	start := time.Now()
 	r.currentEvent = r.sys.recordDerivStart(r.name, ev, start)
+
+	// set uuid field when
+	if hasStringUUIDField(ev.Event) {
+		uuid := getUUIDIfPresent(ev.Event)
+		// attach parent event uuid to context
+		ev.Ctx = context.WithValue(ev.Ctx, CtxKeyUUID, uuid)
+		// fmt.Printf("l33t [O] [%s] %s\n", uuid, reflect.TypeOf(ev.Event))
+	}
+
 	effect := r.deriv.OnEvent(ev.Ctx, ev.Event)
+
 	elapsed := time.Since(start)
 	r.sys.recordDerivEnd(r.name, ev, r.currentEvent, start, elapsed, effect)
 	r.currentEvent = prev

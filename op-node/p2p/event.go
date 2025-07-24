@@ -2,8 +2,8 @@ package p2p
 
 import (
 	"context"
+	"fmt"
 
-	"github.com/google/uuid"
 	"github.com/libp2p/go-libp2p/core/peer"
 
 	"github.com/ethereum/go-ethereum/log"
@@ -49,7 +49,7 @@ func (g *BlockReceiver) OnUnsafeL2Payload(ctx context.Context, from peer.ID, msg
 		"id", msg.ExecutionPayload.ID(),
 		"peer", from, "txs", len(msg.ExecutionPayload.Transactions))
 	g.metrics.RecordReceivedUnsafePayload(msg)
-	// ReceivedBlockEvent is only emitted here
-	g.emitter.Emit(ctx, ReceivedBlockEvent{From: from, Envelope: msg, UUID: uuid.New().String()})
+	fmt.Printf("l33t event casacade start\n")
+	g.emitter.Emit(ctx, ReceivedBlockEvent{From: from, Envelope: msg})
 	return nil
 }

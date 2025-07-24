@@ -103,7 +103,7 @@ type UUIDKey struct{}
 
 var CtxKeyUUID = UUIDKey{}
 
-func printUUIDIfPresent(val interface{}) string {
+func getUUIDIfPresent(val interface{}) string {
 	v := reflect.ValueOf(val)
 	if v.Kind() == reflect.Pointer {
 		v = v.Elem()
@@ -137,8 +137,8 @@ func setUUIDCopy(val interface{}, uuid string) (interface{}, error) {
 
 func (fn DeriverFunc) OnEvent(ctx context.Context, ev Event) bool {
 	if hasStringUUIDField(ev) {
-		uuid := printUUIDIfPresent(ev)
-		fmt.Printf("l33t [OnEvent] [%s] %s %s\n", uuid, reflect.TypeOf(ev), ctx)
+		// uuid := getUUIDIfPresent(ev)
+		// fmt.Printf("l33t [O] [%s] %s %s\n", uuid, reflect.TypeOf(ev), ctx)
 	}
 	return fn(ctx, ev)
 }
