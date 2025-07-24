@@ -36,6 +36,7 @@ func (t ThrottleControllerType) String() string {
 type ThrottleControllerInfo struct {
 	Type         string  `json:"type"`
 	Threshold    uint64  `json:"threshold"`
+	MaxThreshold float64 `json:"max_threshold"`
 	CurrentLoad  uint64  `json:"current_load"`
 	Intensity    float64 `json:"intensity"`
 	MaxTxSize    uint64  `json:"max_tx_size"`

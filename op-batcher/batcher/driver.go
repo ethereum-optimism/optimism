@@ -657,7 +657,11 @@ func (l *BatchSubmitter) singleEndpointThrottler(wg *sync.WaitGroup, throttleSig
 // and fans out the pending bytes updates to each endpoint
 func (l *BatchSubmitter) throttlingLoop(wg *sync.WaitGroup, pendingBytesUpdated chan int64) {
 	defer wg.Done()
-	l.Log.Info("Starting DA throttling loop", "controller_type", l.throttleController.GetType())
+	l.Log.Info("Starting DA throttling loop",
+		"controller_type", l.throttleController.GetType(),
+		"threshold", l.Config.ThrottleParams.Threshold,
+		"max_threshold", float64(l.Config.ThrottleParams.Threshold)*l.Config.ThrottleParams.ThresholdMultiplier,
+	)
 	updateChans := make([]chan struct{}, len(l.Config.ThrottleParams.Endpoints))
 
 	innerWg := sync.WaitGroup{}
@@ -1157,6 +1161,7 @@ func (l *BatchSubmitter) GetThrottleControllerInfo() (config.ThrottleControllerI
 	info := config.ThrottleControllerInfo{
 		Type:         string(controllerType),
 		Threshold:    l.Config.ThrottleParams.Threshold,
+		MaxThreshold: float64(l.Config.ThrottleParams.Threshold) * l.Config.ThrottleParams.ThresholdMultiplier,
 		CurrentLoad:  currentLoad,
 		Intensity:    params.Intensity,
 		MaxTxSize:    params.MaxTxSize,
