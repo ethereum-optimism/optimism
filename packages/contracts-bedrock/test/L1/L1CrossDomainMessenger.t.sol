@@ -289,7 +289,7 @@ contract L1CrossDomainMessenger_Paused_Test is L1CrossDomainMessenger_TestInit {
         l1CrossDomainMessenger.initialize(ISystemConfig(address(0)), optimismPortal2);
 
         // Calling paused() should revert when systemConfig is zero
-        vm.expectRevert();
+        vm.expectRevert(bytes(""));
         l1CrossDomainMessenger.paused();
     }
 }
