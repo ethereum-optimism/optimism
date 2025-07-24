@@ -131,8 +131,6 @@ interface IProposalValidator is ISemver {
 
     function approveProposal(bytes32 _proposalHash, bytes32 _attestationUid) external;
 
-    function canApproveProposal(bytes32 _attestationUid, address _delegate, bytes32 _proposalHash) external view returns (bool canApprove_);
-
     function moveToVoteProtocolOrGovernorUpgradeProposal(
         uint248 _againstThreshold,
         string memory _proposalDescription

@@ -1971,7 +1971,7 @@ contract ProposalValidator_ApproveProposal_TestFail is ProposalValidator_Init {
     )
         public
     {
-        vm.assume(votingCycle != CYCLE_NUMBER);
+        vm.assume(votingCycle != CYCLE_NUMBER && votingCycle != 0);
         // Bound the proposal type to valid enum values (0-4)
         proposalTypeValue = uint8(bound(proposalTypeValue, 0, 4));
         ProposalValidator.ProposalType proposalType = ProposalValidator.ProposalType(proposalTypeValue);
@@ -2133,55 +2133,6 @@ contract ProposalValidator_ApproveProposal_TestFail is ProposalValidator_Init {
         vm.expectRevert(IProposalValidator.ProposalValidator_InvalidAttestation.selector);
         vm.prank(topDelegate_A);
         validator.approveProposal(_proposalHash, _nonExistentAttestationUid);
-    }
-}
-
-/// @title ProposalValidator_CanApproveProposal_Test
-/// @notice Tests for the canApproveProposal function
-contract ProposalValidator_CanApproveProposal_Test is ProposalValidator_Init {
-    function test_canApproveProposal_returnTrue_succeeds(bytes32 _proposalHash, uint8 proposalTypeValue) public {
-        // Bound the proposal type to valid enum values (0-4)
-        proposalTypeValue = uint8(bound(proposalTypeValue, 0, 4));
-        ProposalValidator.ProposalType proposalType = ProposalValidator.ProposalType(proposalTypeValue);
-        // set the voting cycle data of the previous cycle
-        validator.setProposalData(_proposalHash, topDelegate_A, proposalType, false, 0, CYCLE_NUMBER);
-        vm.prank(owner);
-        validator.setVotingCycleData(CYCLE_NUMBER - 1, START_TIMESTAMP - DURATION, DURATION, DISTRIBUTION_THRESHOLD);
-
-        // Attestation already created in setUp
-        bool canApprove = validator.canApproveProposal(topDelegateAttestation_A, topDelegate_A, _proposalHash);
-        assertTrue(canApprove);
-    }
-
-    function test_canApproveProposal_returnFalseRevert_succeeds(
-        bytes32 _attestationUid,
-        address _delegate,
-        bytes32 _proposalHash
-    )
-        public
-    {
-        // Ensure the attestation uid is not one of the top delegates
-        vm.assume(_attestationUid != topDelegateAttestation_A);
-
-        bool canApprove;
-        // Expect the invalid attestation error to be reverted
-        vm.expectRevert(IProposalValidator.ProposalValidator_InvalidAttestation.selector);
-        try validator.canApproveProposal(_attestationUid, _delegate, _proposalHash) returns (bool result_) {
-            canApprove = result_;
-        } catch {
-            canApprove = false;
-        }
-
-        assertEq(canApprove, false);
-    }
-
-    function test_canApproveProposal_returnFalseProposalNotFound_reverts(bytes32 _proposalHash) public {
-        validator.setProposalData(
-            _proposalHash, topDelegate_A, ProposalValidator.ProposalType.ProtocolOrGovernorUpgrade, false, 0, 0
-        );
-
-        bool canApprove = validator.canApproveProposal(topDelegateAttestation_A, topDelegate_A, _proposalHash);
-        assertEq(canApprove, false);
     }
 }
 

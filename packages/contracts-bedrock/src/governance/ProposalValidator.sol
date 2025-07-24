@@ -624,37 +624,13 @@ contract ProposalValidator is OwnableUpgradeable, ReinitializableBase, ISemver {
         }
 
         // validate the attestation
-        _validateTopDelegateAttestation(_attestationUid, _msgSender(), previousVotingCycle);
+        _validateTopDelegateAttestation(_attestationUid, previousVotingCycle);
 
         // store the approval
         proposal.delegateApprovals[_delegate] = true;
         proposal.approvalCount++;
 
         emit ProposalApproved(_proposalHash, _delegate);
-    }
-
-    /// @notice Checks if a delegate can approve a proposal.
-    /// @dev Helper function for UI integration.
-    /// @param _attestationUid The UID of the attestation to check.
-    /// @param _delegate The delegate to check the attestation for.
-    /// @param _proposalHash The hash of the proposal to check the attestation for.
-    /// @return canApprove_ True if the delegate can approve the proposal, false otherwise.
-    function canApproveProposal(
-        bytes32 _attestationUid,
-        address _delegate,
-        bytes32 _proposalHash
-    )
-        external
-        view
-        returns (bool canApprove_)
-    {
-        // TODO: this function should be fixed in OPT-957
-        ProposalData storage proposal = _proposals[_proposalHash];
-        if (proposal.votingCycle == 0) {
-            return false;
-        }
-
-        canApprove_ = _validateTopDelegateAttestation(_attestationUid, _delegate, proposal.votingCycle - 1);
     }
 
     /// @notice Moves a Protocol or Governor Upgrade proposal to vote by proposing it on the Governor.
@@ -989,17 +965,8 @@ contract ProposalValidator is OwnableUpgradeable, ReinitializableBase, ISemver {
     /// @notice Validates the attestation data for a delegate that tries to approve a proposal.
     /// @dev Only acceptes attestations that does NOT include partial delegation.
     /// @param _attestationUid The UID of the attestation to validate.
-    /// @param _delegate The delegate to validate the attestation for.
-    /// @return canApprove_ True if the attestation is valid, false otherwise.
-    function _validateTopDelegateAttestation(
-        bytes32 _attestationUid,
-        address _delegate,
-        uint256 _lastVotingCycle
-    )
-        internal
-        view
-        returns (bool canApprove_)
-    {
+    /// @param _lastVotingCycle The last voting cycle to validate against.
+    function _validateTopDelegateAttestation(bytes32 _attestationUid, uint256 _lastVotingCycle) internal view {
         Attestation memory attestation = IEAS(Predeploys.EAS).getAttestation(_attestationUid);
         VotingCycleData memory previousVotingCycleData = votingCycles[_lastVotingCycle];
         if (previousVotingCycleData.startingTimestamp == 0) {
@@ -1031,11 +998,9 @@ contract ProposalValidator is OwnableUpgradeable, ReinitializableBase, ISemver {
         (, bool _includePartialDelegation,) = abi.decode(attestation.data, (string, bool, string));
 
         // check if the attestation includes partial delegation or the recipient is not the caller
-        if (_includePartialDelegation || attestation.recipient != _delegate) {
+        if (_includePartialDelegation || attestation.recipient != _msgSender()) {
             revert ProposalValidator_InvalidAttestation();
         }
-
-        canApprove_ = true;
     }
 
     /// @notice Internal function to build proposal options with optional execution data.
