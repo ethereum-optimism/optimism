@@ -23,24 +23,29 @@ const syscallInsn = uint32(0x00_00_00_0c)
 
 func FuzzStateSyscallBrk(f *testing.F) {
 	vms := GetMipsVersionTestCases(f)
+	type testCase struct {
+		seed int64
+	}
+
+	initState := func(t require.TestingT, c testCase, state *multithreaded.State, vm VersionedVMTestCase, r *testutil.RandHelper) {
+		state.GetRegistersRef()[2] = arch.SysBrk
+		testutil.StoreInstruction(state.GetMemory(), state.GetPC(), syscallInsn)
+	}
+
+	setExpectations := func(t require.TestingT, c testCase, expected *mtutil.ExpectedState, vm VersionedVMTestCase) ExpectedExecResult {
+		expected.ExpectStep()
+		expected.ActiveThread().Registers[2] = program.PROGRAM_BREAK // Return fixed BRK value
+		expected.ActiveThread().Registers[7] = 0                     // No error
+		return ExpectNormalExecution()
+	}
+
+	diffTester := NewDiffTester(NoopTestNamer[testCase]).
+		InitState(initState).
+		SetExpectations(setExpectations)
 
 	f.Fuzz(func(t *testing.T, seed int64) {
-		initState := func(state *multithreaded.State, vm VersionedVMTestCase, r *testutil.RandHelper) {
-			state.GetRegistersRef()[2] = arch.SysBrk
-			testutil.StoreInstruction(state.GetMemory(), state.GetPC(), syscallInsn)
-		}
-
-		setExpectations := func(expected *mtutil.ExpectedState, vm VersionedVMTestCase) ExpectedExecResult {
-			expected.ExpectStep()
-			expected.ActiveThread().Registers[2] = program.PROGRAM_BREAK // Return fixed BRK value
-			expected.ActiveThread().Registers[7] = 0                     // No error
-			return ExpectNormalExecution()
-		}
-
-		NewSingletonDiffTester().
-			InitState(initState).
-			SetExpectations(setExpectations).
-			Run(t, WithVms(vms), WithRandomSeed(seed))
+		tests := []testCase{{seed}}
+		diffTester.Run(t, tests, WithVms(vms), WithRandomSeed(seed))
 	})
 }
 
