@@ -91,35 +91,6 @@
     "type": "function"
   },
   {
-    "inputs": [
-      {
-        "internalType": "bytes32",
-        "name": "_attestationUid",
-        "type": "bytes32"
-      },
-      {
-        "internalType": "address",
-        "name": "_delegate",
-        "type": "address"
-      },
-      {
-        "internalType": "bytes32",
-        "name": "_proposalHash",
-        "type": "bytes32"
-      }
-    ],
-    "name": "canApproveProposal",
-    "outputs": [
-      {
-        "internalType": "bool",
-        "name": "canApprove_",
-        "type": "bool"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
     "inputs": [],
     "name": "initVersion",
     "outputs": [
