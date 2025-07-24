@@ -13,9 +13,6 @@ import { VerifyOPCM } from "scripts/deploy/VerifyOPCM.s.sol";
 // Interfaces
 import { IOPContractsManager } from "interfaces/L1/IOPContractsManager.sol";
 
-// Libraries
-import { Config } from "scripts/libraries/Config.sol";
-
 contract VerifyOPCM_Harness is VerifyOPCM {
     function loadArtifactInfo(string memory _artifactPath) public view returns (ArtifactInfo memory) {
         return _loadArtifactInfo(_artifactPath);
@@ -258,12 +255,6 @@ contract VerifyOPCM_Run_Test is VerifyOPCM_TestInit {
         // Coverage changes bytecode and causes failures, skip.
         skipIfCoverage();
 
-        // Store original environment variable values to restore later
-        address originalSuperchainConfig = Config.expectedSuperchainConfig();
-        address originalProtocolVersions = Config.expectedProtocolVersions();
-        address originalSuperchainProxyAdmin = Config.expectedSuperchainProxyAdmin();
-        address originalUpgradeController = Config.expectedUpgradeController();
-
         // Set expected addresses via environment variables
         address expectedSuperchainConfig = address(0x1111);
         address expectedProtocolVersions = address(0x2222);
@@ -295,9 +286,5 @@ contract VerifyOPCM_Run_Test is VerifyOPCM_TestInit {
 
         // Clear mock calls and restore original environment variables to avoid test isolation issues
         vm.clearMockedCalls();
-        vm.setEnv("EXPECTED_SUPERCHAIN_CONFIG", vm.toString(originalSuperchainConfig));
-        vm.setEnv("EXPECTED_PROTOCOL_VERSIONS", vm.toString(originalProtocolVersions));
-        vm.setEnv("EXPECTED_SUPERCHAIN_PROXY_ADMIN", vm.toString(originalSuperchainProxyAdmin));
-        vm.setEnv("EXPECTED_UPGRADE_CONTROLLER", vm.toString(originalUpgradeController));
     }
 }
