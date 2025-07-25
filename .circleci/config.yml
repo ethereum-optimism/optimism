@@ -1217,6 +1217,7 @@ jobs:
         description: The gate to run the acceptance tests against. This gate should be defined in op-acceptance-tests/acceptance-tests.yaml.
         type: string
         default: ""
+
       no_output_timeout:
         description: Timeout for when CircleCI kills the job if there's no output
         type: string
@@ -1280,7 +1281,7 @@ jobs:
           command: go test -v -c -o /dev/null $(go list -f '{{if .TestGoFiles}}{{.ImportPath}}{{end}}' ./tests/...)
       # Run the acceptance tests (if the devnet is running)
       - run:
-          name: Run acceptance tests (gate=<<parameters.gate>>)
+          name: Run acceptance tests
           working_directory: op-acceptance-tests
           no_output_timeout: 1h
           environment:
@@ -1288,7 +1289,11 @@ jobs:
             GO111MODULE: "on"
             GOGC: "0"
           command: |
-            # Run the tests
+            if [[ "<<parameters.gate>>" == "" ]]; then
+              echo "Running in gateless mode - auto-discovering all tests in ./op-acceptance-tests/..."
+            else
+              echo "Running in gate mode (gate=<<parameters.gate>>)"
+            fi
             LOG_LEVEL=debug just acceptance-test "<<parameters.devnet>>" "<<parameters.gate>>"
       - run:
           name: Print results (summary)
@@ -2509,13 +2514,24 @@ workflows:
             - circleci-repo-readonly-authenticated-github-token
           requires:
             - initialize
-      # IN-PROCESS (base)
+      # IN-MEMORY (base)
       - op-acceptance-tests:
           # Acceptance Testing params
           name: memory-base
           gate: base
           # CircleCI params
           no_output_timeout: 10m
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+            - discord
+          requires:
+            - contracts-bedrock-build
+            - cannon-prestate-quick
+      # IN-MEMORY (all)
+      - op-acceptance-tests:
+          name: memory-all
+          gate: ""  # Empty gate = gateless mode
+          no_output_timeout: 60m
           context:
             - circleci-repo-readonly-authenticated-github-token
             - discord
@@ -2587,13 +2603,24 @@ workflows:
             - circleci-repo-readonly-authenticated-github-token
           requires:
             - initialize
-      # IN-PROCESS (base)
+      # IN-MEMORY (base)
       - op-acceptance-tests:
           # Acceptance Testing params
           name: memory-base
           gate: base
           # CircleCI params
           no_output_timeout: 10m
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+            - discord
+          requires:
+            - contracts-bedrock-build
+            - cannon-prestate-quick
+      # IN-MEMORY (all)
+      - op-acceptance-tests:
+          name: memory-all
+          gate: ""  # Empty gate = gateless mode
+          no_output_timeout: 60m
           context:
             - circleci-repo-readonly-authenticated-github-token
             - discord

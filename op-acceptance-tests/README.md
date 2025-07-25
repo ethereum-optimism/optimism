@@ -96,7 +96,8 @@ For rapid test development, use in-process testing:
 
 ```bash
 cd op-acceptance-tests
-just acceptance-test "" base  # Uses sysgo orchestrator - faster!
+# Not providing a network uses the sysgo orchestrator (in-memory network) which is faster and easier to iterate with.
+just acceptance-test "" base
 ```
 
 ### Testing Against External Devnets
@@ -162,6 +163,23 @@ To add new acceptance tests:
    - name: YourTestName
      package: github.com/ethereum-optimism/optimism/your/package/path
    ```
+
+### Quick Development
+
+For rapid development and testing:
+
+```bash
+cd op-acceptance-tests
+
+# Run all tests (sysgo gateless mode) - most comprehensive coverage
+just acceptance-test "" ""
+
+# Run specific gate-based tests (traditional mode)
+just acceptance-test "" base        # In-process (sysgo) with gate
+just acceptance-test simple base    # External devnet (sysext) with gate
+```
+
+Using an empty gate (`""`) triggers gateless mode with the sysgo orchestrator, auto-discovering all tests.
 
 ## Further Information
 
