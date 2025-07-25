@@ -113,9 +113,12 @@ func configWithNumConfs(numConfirmations uint64) *Config {
 		Signer: func(ctx context.Context, from common.Address, tx *types.Transaction) (*types.Transaction, error) {
 			return tx, nil
 		},
-		From: common.Address{},
+		From:          common.Address{},
+		RetryInterval: 1 * time.Millisecond,
+		MaxRetries:    5,
 	}
 
+	cfg.RebroadcastInterval.Store(int64(time.Second / 2))
 	cfg.ResubmissionTimeout.Store(int64(time.Second))
 	cfg.FeeLimitMultiplier.Store(5)
 	cfg.MinBlobTxFee.Store(defaultMinBlobTxFee)
@@ -755,6 +758,49 @@ func TestTxMgrOnlyOnePublicationSucceeds(t *testing.T) {
 	require.Equal(t, h.gasPricer.expGasFeeCap().Uint64(), receipt.GasUsed)
 }
 
+// TestTxMgrRebroadcastsWithoutGasPriceIncrease tests that the tx manager will rebroadcast a transaction
+// without increasing the gas price if the transaction is not mined after the resubmission timeout.
+// This is intended to simulate unreliable network conditions where a transaction may be dropped from the mempool.
+func TestTxMgrRebroadcastsWithoutGasPriceIncrease(t *testing.T) {
+	t.Parallel()
+
+	cfg := configWithNumConfs(1)
+	cfg.RebroadcastInterval.Store(int64(time.Second / 2))
+	cfg.ResubmissionTimeout.Store(int64(time.Hour))
+	h := newTestHarnessWithConfig(t, cfg)
+
+	gasTipCap, gasFeeCap, _ := h.gasPricer.sample()
+	txToSend := types.NewTx(&types.DynamicFeeTx{
+		GasTipCap: gasTipCap,
+		GasFeeCap: gasFeeCap,
+	})
+
+	sameTxPublishAttempts := 0
+	// only mine the tx after receiving it at least 3 times
+	sendTx := func(ctx context.Context, tx *types.Transaction) error {
+		txHash := tx.Hash()
+		if txHash != txToSend.Hash() {
+			return errors.New("unexpected tx hash")
+		}
+		sameTxPublishAttempts++
+		if sameTxPublishAttempts >= 3 {
+			h.backend.mine(&txHash, tx.GasFeeCap(), nil)
+			return nil
+		} else if sameTxPublishAttempts > 1 {
+			return txpool.ErrAlreadyKnown
+		}
+		return nil
+	}
+	h.backend.setTxSender(sendTx)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	receipt, err := h.mgr.sendTx(ctx, txToSend)
+	require.Nil(t, err)
+	require.NotNil(t, receipt)
+	require.Equal(t, txToSend.Hash(), receipt.TxHash)
+}
+
 // TestTxMgrConfirmsMinGasPriceAfterBumping delays the mining of the initial tx
 // with the minimum gas price, and asserts that its receipt is returned even
 // if the gas price has been bumped in other goroutines.
@@ -1123,7 +1169,7 @@ func doGasPriceIncrease(t *testing.T, txTipCap, txFeeCap, newTip, newBaseFee int
 }
 
 func TestIncreaseGasPrice(t *testing.T) {
-	// t.Parallel()
+	t.Parallel()
 	require.Equal(t, int64(10), priceBump, "test must be updated if priceBump is adjusted")
 	tests := []struct {
 		name string
@@ -1657,6 +1703,31 @@ func TestTxMgrCustomPublishError(t *testing.T) {
 	})
 }
 
+func TestTxMgrRetryOnError(t *testing.T) {
+	sendErr := core.ErrNonceTooHigh
+
+	testSendVariants(t, func(t *testing.T, send testSendVariantsFn) {
+		cfg := configWithNumConfs(1)
+		h := newTestHarnessWithConfig(t, cfg)
+		sendAttempts := uint64(0)
+
+		sendTx := func(ctx context.Context, tx *types.Transaction) error {
+			txHash := tx.Hash()
+			h.backend.mine(&txHash, tx.GasFeeCap(), nil)
+			sendAttempts++
+			return sendErr
+		}
+		h.backend.setTxSender(sendTx)
+
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		receipt, err := send(ctx, h, h.createTxCandidate())
+		require.ErrorIs(t, sendErr, err)
+		require.Nil(t, receipt)
+		require.Equal(t, cfg.MaxRetries+1, sendAttempts)
+	})
+}
+
 func TestMakeSidecar(t *testing.T) {
 	var blob eth.Blob
 	_, err := rand.Read(blob[:])
@@ -1685,4 +1756,82 @@ func TestSendAsyncUnbufferedChan(t *testing.T) {
 	require.Panics(t, func() {
 		h.mgr.SendAsync(context.Background(), TxCandidate{}, make(chan SendResponse))
 	})
+}
+
+// TestIncreaseGasPriceSigningError tests that the increaseGasPrice function
+// correctly returns an error when signing fails, rather than returning the
+// original transaction with a nil error.
+func TestIncreaseGasPriceSigningError(t *testing.T) {
+	signingError := errors.New("signing failed")
+	cfg := configWithNumConfs(1)
+	cfg.Signer = func(ctx context.Context, from common.Address, tx *types.Transaction) (*types.Transaction, error) {
+		return nil, signingError
+	}
+	h := newTestHarnessWithConfig(t, cfg)
+
+	tx := types.NewTx(&types.DynamicFeeTx{
+		GasTipCap: h.gasPricer.baseGasTipFee,
+		GasFeeCap: h.gasPricer.baseBaseFee,
+	})
+
+	newTx, err := h.mgr.increaseGasPrice(context.Background(), tx)
+
+	require.Nil(t, newTx, "Expected nil transaction when signing fails")
+	require.ErrorIs(t, err, signingError, "Expected signing error to be returned")
+}
+
+// TestIncreaseGasPriceSigningErrorWithSend tests the error handling path when signing fails
+// during a transaction fee bump. Previously, the increaseGasPrice function would return the
+// original transaction (tx, nil) when signing failed, silently ignoring the signing error.
+// That would lead to a condition where sendState.bumpFees was false and the transaction
+// would be stuck.
+// The test simulates a specific sequence of events:
+// 1. First attempt gets ErrUnderpriced, triggering a fee bump
+// 2. First fee bump attempt fails with a signing error
+// 3. Second fee bump attempt succeeds, transaction is mined
+// This verifies that the error doesn't abort the transaction entirely, and the system
+// can recover when signing later succeeds.
+func TestIncreaseGasPriceSigningErrorWithSend(t *testing.T) {
+	t.Parallel()
+
+	signingError := errors.New("signing failed")
+	sendTxCount := 0
+	var signedHash common.Hash
+	cfg := configWithNumConfs(1)
+	h := newTestHarnessWithConfig(t, cfg)
+
+	cfg.Signer = func(ctx context.Context, from common.Address, tx *types.Transaction) (*types.Transaction, error) {
+		if sendTxCount != 2 {
+			return nil, signingError
+		}
+		signedHash = tx.Hash()
+		return tx, nil
+	}
+
+	h.backend.setTxSender(func(ctx context.Context, tx *types.Transaction) error {
+		if sendTxCount == 0 {
+			sendTxCount = 1
+			return txpool.ErrUnderpriced
+		} else if sendTxCount == 1 {
+			sendTxCount = 2
+			return txpool.ErrAlreadyKnown
+		} else if tx.Hash() == signedHash {
+			txHash := tx.Hash()
+			h.backend.mine(&txHash, tx.GasFeeCap(), nil)
+			return nil
+		} else {
+			return signingError
+		}
+	})
+
+	tx := types.NewTx(&types.DynamicFeeTx{
+		GasTipCap: h.gasPricer.baseGasTipFee,
+		GasFeeCap: h.gasPricer.baseBaseFee,
+	})
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	receipt, err := h.mgr.sendTx(ctx, tx)
+	require.Nil(t, err)
+	require.NotNil(t, receipt)
 }

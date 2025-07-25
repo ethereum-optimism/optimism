@@ -13,17 +13,32 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// stateGetterAdapter adapts the ethclient to implement the StateGetter interface
-type stateGetterAdapter struct {
+type stateGetterAdapterFactory struct {
 	t      systest.T
 	client *ethclient.Client
-	ctx    context.Context
+}
+
+// stateGetterAdapter adapts the ethclient to implement the StateGetter interface
+type stateGetterAdapter struct {
+	t           systest.T
+	client      *ethclient.Client
+	ctx         context.Context
+	blockNumber *big.Int
+}
+
+func (f *stateGetterAdapterFactory) NewStateGetterAdapter(blockNumber *big.Int) *stateGetterAdapter {
+	return &stateGetterAdapter{
+		t:           f.t,
+		client:      f.client,
+		ctx:         f.t.Context(),
+		blockNumber: blockNumber,
+	}
 }
 
 // GetState implements the StateGetter interface
 func (sga *stateGetterAdapter) GetState(addr common.Address, key common.Hash) common.Hash {
 	var result common.Hash
-	val, err := sga.client.StorageAt(sga.ctx, addr, key, nil)
+	val, err := sga.client.StorageAt(sga.ctx, addr, key, sga.blockNumber)
 	require.NoError(sga.t, err)
 	copy(result[:], val)
 	return result
@@ -31,39 +46,40 @@ func (sga *stateGetterAdapter) GetState(addr common.Address, key common.Hash) co
 
 // FeeChecker provides methods to calculate various types of fees
 type FeeChecker struct {
-	config        *params.ChainConfig
-	l1CostFn      gethTypes.L1CostFunc
-	operatorFeeFn gethTypes.OperatorCostFunc
-	logger        log.Logger
+	config     *params.ChainConfig
+	logger     log.Logger
+	sgaFactory *stateGetterAdapterFactory
 }
 
 // NewFeeChecker creates a new FeeChecker instance
 func NewFeeChecker(t systest.T, client *ethclient.Client, chainConfig *params.ChainConfig, logger log.Logger) *FeeChecker {
 	logger.Debug("Creating fee checker", "chainID", chainConfig.ChainID)
-	// Create state getter adapter for L1 cost function
-	sga := &stateGetterAdapter{
+
+	// Create state getter adapter factory
+	sgaFactory := &stateGetterAdapterFactory{
 		t:      t,
 		client: client,
-		ctx:    t.Context(),
 	}
 
-	// Create L1 cost function
-	l1CostFn := gethTypes.NewL1CostFunc(chainConfig, sga)
-
-	// Create operator fee function
-	operatorFeeFn := gethTypes.NewOperatorCostFunc(chainConfig, sga)
-
 	return &FeeChecker{
-		config:        chainConfig,
-		l1CostFn:      l1CostFn,
-		operatorFeeFn: operatorFeeFn,
-		logger:        logger,
+		config:     chainConfig,
+		sgaFactory: sgaFactory,
+		logger:     logger,
 	}
 }
 
 // L1Cost calculates the L1 fee for a transaction
-func (fc *FeeChecker) L1Cost(rcd gethTypes.RollupCostData, blockTime uint64) *big.Int {
-	return fc.l1CostFn(rcd, blockTime)
+func (fc *FeeChecker) L1Cost(rcd gethTypes.RollupCostData, blockTime uint64, blockNumber *big.Int) *big.Int {
+
+	// Create L1 cost function
+	l1CostFn := gethTypes.NewL1CostFunc(fc.config, fc.sgaFactory.NewStateGetterAdapter(blockNumber))
+	return l1CostFn(rcd, blockTime)
+}
+
+// OperatorFee calculates the operator fee for a transaction
+func (fc *FeeChecker) OperatorFee(gasUsed uint64, blockTime uint64, blockNumber *big.Int) *big.Int {
+	operatorFeeFn := gethTypes.NewOperatorCostFunc(fc.config, fc.sgaFactory.NewStateGetterAdapter(blockNumber))
+	return operatorFeeFn(gasUsed, blockTime).ToBig()
 }
 
 // CalculateExpectedBalanceChanges creates a BalanceSnapshot containing expected fee movements
@@ -101,11 +117,13 @@ func (fc *FeeChecker) CalculateExpectedBalanceChanges(
 	l2Fee := new(big.Int).Mul(effectiveTip, gasUsed)
 
 	// Calculate L1 fee
-	l1Fee := fc.L1Cost(tx.RollupCostData(), header.Time)
+
+	fc.logger.Debug("Calculating L1 fee", "rollupCostData", tx.RollupCostData(), "blockTime", header.Time)
+	l1Fee := fc.L1Cost(tx.RollupCostData(), header.Time, header.Number)
 
 	// Calculate operator fee
 	fc.logger.Debug("Calculating operator fee", "gasUsed", gasUsedUint64, "blockTime", header.Time)
-	operatorFee := fc.operatorFeeFn(gasUsedUint64, header.Time).ToBig()
+	operatorFee := fc.OperatorFee(gasUsedUint64, header.Time, header.Number)
 
 	txFeesAndValue := new(big.Int).Set(baseFee)
 	txFeesAndValue.Add(txFeesAndValue, l2Fee)

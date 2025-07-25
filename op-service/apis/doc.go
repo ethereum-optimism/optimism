@@ -1,7 +1,5 @@
-package apis
-
 /*
-Apis is a package that provides Go interfaces for most RPC / HTTP APIs used in the OP-Stack.
+Package apis provides Go interfaces for most RPC / HTTP APIs used in the OP-Stack.
 
 Every interface name ending with "Client" represents a client-binding:
 this provides typing and methods exclusive to the client-side.
@@ -25,3 +23,4 @@ always prefer to consume the smaller fitting interface, to increase compatibilit
 Extension-interfaces, as popularized in the Golang FS design, may also be used on clients,
 to expand scope only when necessary, and maintain simple defaults.
 */
+package apis

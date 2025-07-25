@@ -3,8 +3,8 @@ package dsl
 import (
 	"github.com/ethereum-optimism/optimism/op-e2e/actions/helpers"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
-	"github.com/ethereum-optimism/optimism/op-node/rollup/event"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/event"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/depset"
 	"github.com/stretchr/testify/require"
 )
@@ -43,7 +43,7 @@ func (c *ChainOpts) AddChain(chain *Chain) {
 // Required inputs to methods are specified as normal parameters, so type checking enforces their presence.
 // Optional inputs to methods are specified by a config struct and accept a vararg of functions that can update that struct.
 // This is roughly inline with the typical opts pattern in Golang but with significantly reduced boilerplate code since
-// so many methods wil define their own config. With* methods are only provided for the most common optional args and
+// so many methods will define their own config. With* methods are only provided for the most common optional args and
 // tests will normally supply a custom function that sets all the optional values they need at once.
 // Common options can be extracted to a reusable struct (e.g. ChainOpts above) which may expose helper methods to aid
 // test readability and reduce boilerplate.
@@ -65,8 +65,7 @@ type InteropDSL struct {
 func NewInteropDSL(t helpers.Testing, opts ...setupOption) *InteropDSL {
 	setup := SetupInterop(t, opts...)
 	actors := setup.CreateActors()
-	actors.PrepareChainState(t)
-
+	actors.PrepareAndVerifyInitialState(t)
 	t.Logf("ChainA: %v, ChainB: %v", actors.ChainA.ChainID, actors.ChainB.ChainID)
 
 	allChains := []*Chain{actors.ChainA, actors.ChainB}
@@ -93,7 +92,7 @@ func NewInteropDSL(t helpers.Testing, opts ...setupOption) *InteropDSL {
 }
 
 func (d *InteropDSL) DepSet() *depset.StaticConfigDependencySet {
-	return d.setup.DepSet
+	return d.setup.CfgSet.DependencySet.(*depset.StaticConfigDependencySet)
 }
 
 func (d *InteropDSL) defaultChainOpts() ChainOpts {
@@ -227,6 +226,7 @@ func (d *InteropDSL) ProcessCrossSafe(optionalArgs ...func(*ProcessCrossSafeOpts
 	for _, arg := range optionalArgs {
 		arg(&opts)
 	}
+
 	// Process cross-safe updates
 	d.Actors.Supervisor.ProcessFull(d.t)
 
@@ -244,7 +244,7 @@ func (d *InteropDSL) ProcessCrossSafe(optionalArgs ...func(*ProcessCrossSafeOpts
 	d.Actors.Supervisor.ProcessFull(d.t)
 	for _, chain := range opts.Chains {
 		status := chain.Sequencer.SyncStatus()
-		require.Equalf(d.t, status.UnsafeL2, status.SafeL2, "Chain %v did not fully advance safe head", chain.ChainID)
+		require.Equalf(d.t, status.UnsafeL2, status.SafeL2, "Chain %v did not fully advance cross safe head", chain.ChainID)
 	}
 }
 
@@ -294,6 +294,25 @@ func (d *InteropDSL) AdvanceL1(optionalArgs ...func(*AdvanceL1Opts)) {
 		require.Equalf(d.t, newBlock, status.HeadL1, "Chain %v did not detect new L1 head", chain.ChainID)
 		require.Equalf(d.t, newBlock, status.CurrentL1, "Chain %v did not process new L1 head", chain.ChainID)
 	}
+}
+
+func (d *InteropDSL) FinalizeL1() {
+	opts := d.defaultChainOpts()
+
+	actors := d.Actors
+	preStatus, err := actors.Supervisor.SyncStatus(d.t.Ctx())
+	require.NoError(d.t, err)
+	actors.L1Miner.ActL1SafeNext(d.t)
+	actors.L1Miner.ActL1FinalizeNext(d.t)
+	actors.Supervisor.SignalFinalizedL1(d.t)
+	actors.Supervisor.ProcessFull(d.t)
+	for _, chain := range opts.Chains {
+		chain.Sequencer.ActL2PipelineFull(d.t)
+	}
+
+	postStatus, err := actors.Supervisor.SyncStatus(d.t.Ctx())
+	require.NoError(d.t, err)
+	require.Greater(d.t, postStatus.FinalizedTimestamp, preStatus.FinalizedTimestamp)
 }
 
 // DeployEmitterContracts deploys an emitter contract on both chains
@@ -354,5 +373,29 @@ func (d *InteropDSL) AdvanceL2ToLastBlockOfOrigin(chain *Chain, l1OriginHeight u
 			break
 		}
 		d.AddL2Block(chain)
+	}
+}
+
+func (d *InteropDSL) ActSyncSupernode(t helpers.Testing, opts ...actSyncSupernodeOption) {
+	cfg := &actSyncSupernodeConfig{
+		ChainOpts: d.defaultChainOpts(),
+	}
+	for _, opt := range opts {
+		opt(cfg)
+	}
+
+	// Perform actions
+	if cfg.shouldSendL1LatestSignal {
+		d.Actors.Supervisor.SignalLatestL1(t)
+	}
+	if cfg.shouldSendL1FinalizedSignal {
+		d.Actors.Supervisor.SignalFinalizedL1(t)
+	}
+	for _, chain := range cfg.Chains {
+		chain.Sequencer.SyncSupervisor(t) // supervisor to react to exhaust-L1
+	}
+	d.Actors.Supervisor.ProcessFull(t)
+	for _, chain := range cfg.Chains {
+		chain.Sequencer.ActL2PipelineFull(t) // node to complete syncing to L1 head.
 	}
 }

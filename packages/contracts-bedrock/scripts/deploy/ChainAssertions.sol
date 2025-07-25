@@ -36,23 +36,6 @@ import { IETHLockbox } from "interfaces/L1/IETHLockbox.sol";
 library ChainAssertions {
     Vm internal constant vm = Vm(0x7109709ECfa91a80626fF3989D68f67F5b1DD12D);
 
-    /// @notice Asserts the correctness of an L1 deployment. This function expects that all contracts
-    ///         within the `prox` ContractSet are proxies that have been setup and initialized.
-    function postDeployAssertions(Types.ContractSet memory _prox, DeployConfig _cfg, Vm _vm) internal view {
-        console.log("Running post-deploy assertions");
-        IResourceMetering.ResourceConfig memory rcfg = ISystemConfig(_prox.SystemConfig).resourceConfig();
-        IResourceMetering.ResourceConfig memory dflt = Constants.DEFAULT_RESOURCE_CONFIG();
-        require(keccak256(abi.encode(rcfg)) == keccak256(abi.encode(dflt)), "CHECK-RCFG-10");
-
-        checkSystemConfig({ _contracts: _prox, _cfg: _cfg, _isProxy: true });
-        checkL1CrossDomainMessenger({ _contracts: _prox, _vm: _vm, _isProxy: true });
-        checkL1StandardBridge({ _contracts: _prox, _isProxy: true });
-        checkOptimismMintableERC20Factory({ _contracts: _prox, _isProxy: true });
-        checkL1ERC721Bridge({ _contracts: _prox, _isProxy: true });
-        checkOptimismPortal2({ _contracts: _prox, _cfg: _cfg, _isProxy: true });
-        checkProtocolVersions({ _contracts: _prox, _cfg: _cfg, _isProxy: true });
-    }
-
     /// @notice Asserts that the SystemConfig is setup correctly
     function checkSystemConfig(Types.ContractSet memory _contracts, DeployConfig _cfg, bool _isProxy) internal view {
         ISystemConfig config = ISystemConfig(_contracts.SystemConfig);
@@ -138,7 +121,7 @@ library ChainAssertions {
             require(address(messenger.otherMessenger()) == Predeploys.L2_CROSS_DOMAIN_MESSENGER, "CHECK-L1XDM-30");
             require(address(messenger.PORTAL()) == _contracts.OptimismPortal, "CHECK-L1XDM-40");
             require(address(messenger.portal()) == _contracts.OptimismPortal, "CHECK-L1XDM-50");
-            require(address(messenger.superchainConfig()) == _contracts.SuperchainConfig, "CHECK-L1XDM-60");
+            require(address(messenger.systemConfig()) == _contracts.SystemConfig, "CHECK-L1XDM-60");
             bytes32 xdmSenderSlot = _vm.load(address(messenger), bytes32(uint256(204)));
             require(address(uint160(uint256(xdmSenderSlot))) == Constants.DEFAULT_L2_SENDER, "CHECK-L1XDM-70");
         } else {
@@ -146,7 +129,7 @@ library ChainAssertions {
             require(address(messenger.otherMessenger()) == address(0), "CHECK-L1XDM-90");
             require(address(messenger.PORTAL()) == address(0), "CHECK-L1XDM-100");
             require(address(messenger.portal()) == address(0), "CHECK-L1XDM-110");
-            require(address(messenger.superchainConfig()) == address(0), "CHECK-L1XDM-120");
+            require(address(messenger.systemConfig()) == address(0), "CHECK-L1XDM-120");
         }
     }
 
@@ -168,13 +151,13 @@ library ChainAssertions {
             require(address(bridge.messenger()) == _contracts.L1CrossDomainMessenger, "CHECK-L1SB-30");
             require(address(bridge.OTHER_BRIDGE()) == Predeploys.L2_STANDARD_BRIDGE, "CHECK-L1SB-40");
             require(address(bridge.otherBridge()) == Predeploys.L2_STANDARD_BRIDGE, "CHECK-L1SB-50");
-            require(address(bridge.superchainConfig()) == _contracts.SuperchainConfig, "CHECK-L1SB-60");
+            require(address(bridge.systemConfig()) == _contracts.SystemConfig, "CHECK-L1SB-60");
         } else {
             require(address(bridge.MESSENGER()) == address(0), "CHECK-L1SB-70");
             require(address(bridge.messenger()) == address(0), "CHECK-L1SB-80");
             require(address(bridge.OTHER_BRIDGE()) == address(0), "CHECK-L1SB-90");
             require(address(bridge.otherBridge()) == address(0), "CHECK-L1SB-100");
-            require(address(bridge.superchainConfig()) == address(0), "CHECK-L1SB-110");
+            require(address(bridge.systemConfig()) == address(0), "CHECK-L1SB-110");
         }
     }
 
@@ -239,43 +222,11 @@ library ChainAssertions {
         DeployUtils.assertInitialized({ _contractAddress: address(weth), _isProxy: _isProxy, _slot: 0, _offset: 0 });
 
         if (_isProxy) {
-            require(weth.owner() == _expectedOwner, "CHECK-DWETH-20");
+            require(weth.proxyAdminOwner() == _expectedOwner, "CHECK-DWETH-20");
             require(weth.delay() == _cfg.faultGameWithdrawalDelay(), "CHECK-DWETH-30");
-            require(weth.config() == ISuperchainConfig(_contracts.SuperchainConfig), "CHECK-DWETH-40");
+            require(weth.systemConfig() == ISystemConfig(_contracts.SystemConfig), "CHECK-DWETH-40");
         } else {
-            require(weth.owner() == _expectedOwner, "CHECK-DWETH-50");
-            require(weth.delay() == _cfg.faultGameWithdrawalDelay(), "CHECK-DWETH-60");
-        }
-    }
-
-    /// @notice Asserts that the permissioned DelayedWETH is setup correctly
-    function checkPermissionedDelayedWETH(
-        Types.ContractSet memory _contracts,
-        DeployConfig _cfg,
-        bool _isProxy,
-        address _expectedOwner
-    )
-        internal
-        view
-    {
-        IDelayedWETH weth = IDelayedWETH(payable(_contracts.PermissionedDelayedWETH));
-        console.log(
-            "Running chain assertions on the PermissionedDelayedWETH %s at %s",
-            _isProxy ? "proxy" : "implementation",
-            address(weth)
-        );
-        require(address(weth) != address(0), "CHECK-PDWETH-10");
-
-        // Check that the contract is initialized
-        DeployUtils.assertInitialized({ _contractAddress: address(weth), _isProxy: _isProxy, _slot: 0, _offset: 0 });
-
-        if (_isProxy) {
-            require(weth.owner() == _expectedOwner, "CHECK-PDWETH-20");
-            require(weth.delay() == _cfg.faultGameWithdrawalDelay(), "CHECK-PDWETH-30");
-            require(weth.config() == ISuperchainConfig(_contracts.SuperchainConfig), "CHECK-PDWETH-40");
-        } else {
-            require(weth.owner() == _expectedOwner, "CHECK-PDWETH-50");
-            require(weth.delay() == _cfg.faultGameWithdrawalDelay(), "CHECK-PDWETH-60");
+            require(weth.delay() == _cfg.faultGameWithdrawalDelay(), "CHECK-DWETH-50");
         }
     }
 
@@ -320,13 +271,13 @@ library ChainAssertions {
             require(address(bridge.otherBridge()) == Predeploys.L2_ERC721_BRIDGE, "CHECK-L1ERC721B-20");
             require(address(bridge.MESSENGER()) == _contracts.L1CrossDomainMessenger, "CHECK-L1ERC721B-30");
             require(address(bridge.messenger()) == _contracts.L1CrossDomainMessenger, "CHECK-L1ERC721B-40");
-            require(address(bridge.superchainConfig()) == _contracts.SuperchainConfig, "CHECK-L1ERC721B-50");
+            require(address(bridge.systemConfig()) == _contracts.SystemConfig, "CHECK-L1ERC721B-50");
         } else {
             require(address(bridge.OTHER_BRIDGE()) == address(0), "CHECK-L1ERC721B-60");
             require(address(bridge.otherBridge()) == address(0), "CHECK-L1ERC721B-70");
             require(address(bridge.MESSENGER()) == address(0), "CHECK-L1ERC721B-80");
             require(address(bridge.messenger()) == address(0), "CHECK-L1ERC721B-90");
-            require(address(bridge.superchainConfig()) == address(0), "CHECK-L1ERC721B-100");
+            require(address(bridge.systemConfig()) == address(0), "CHECK-L1ERC721B-100");
         }
     }
 
@@ -360,14 +311,14 @@ library ChainAssertions {
             require(address(portal.anchorStateRegistry()) == _contracts.AnchorStateRegistry, "CHECK-OP2-25");
             require(address(portal.systemConfig()) == _contracts.SystemConfig, "CHECK-OP2-30");
             require(portal.guardian() == guardian, "CHECK-OP2-40");
-            require(address(portal.superchainConfig()) == address(_contracts.SuperchainConfig), "CHECK-OP2-50");
-            require(portal.paused() == ISuperchainConfig(_contracts.SuperchainConfig).paused(), "CHECK-OP2-60");
+            require(address(portal.systemConfig()) == address(_contracts.SystemConfig), "CHECK-OP2-50");
+            require(portal.paused() == ISystemConfig(_contracts.SystemConfig).paused(), "CHECK-OP2-60");
             require(portal.l2Sender() == Constants.DEFAULT_L2_SENDER, "CHECK-OP2-70");
             require(address(portal.ethLockbox()) == _contracts.ETHLockbox, "CHECK-OP2-80");
         } else {
             require(address(portal.anchorStateRegistry()) == address(0), "CHECK-OP2-80");
             require(address(portal.systemConfig()) == address(0), "CHECK-OP2-90");
-            require(address(portal.superchainConfig()) == address(0), "CHECK-OP2-100");
+            require(address(portal.systemConfig()) == address(0), "CHECK-OP2-100");
             require(portal.l2Sender() == address(0), "CHECK-OP2-110");
             require(address(portal.ethLockbox()) == address(0), "CHECK-OP2-120");
         }
@@ -379,7 +330,6 @@ library ChainAssertions {
     /// @notice Asserts that the ETHLockbox is setup correctly
     function checkETHLockbox(Types.ContractSet memory _contracts, DeployConfig _cfg, bool _isProxy) internal view {
         IETHLockbox ethLockbox = IETHLockbox(_contracts.ETHLockbox);
-        ISuperchainConfig superchainConfig = ISuperchainConfig(_contracts.SuperchainConfig);
 
         console.log(
             "Running chain assertions on the ETHLockbox %s at %s",
@@ -393,11 +343,11 @@ library ChainAssertions {
         DeployUtils.assertInitialized({ _contractAddress: address(ethLockbox), _isProxy: _isProxy, _slot: 0, _offset: 0 });
 
         if (_isProxy) {
-            require(ethLockbox.superchainConfig() == superchainConfig, "CHECK-ELB-20");
+            require(ethLockbox.systemConfig() == ISystemConfig(_contracts.SystemConfig), "CHECK-ELB-20");
             require(ethLockbox.authorizedPortals(IOptimismPortal(payable(_contracts.OptimismPortal))), "CHECK-ELB-30");
             require(ethLockbox.proxyAdminOwner() == _cfg.finalSystemOwner(), "CHECK-ELB-40");
         } else {
-            require(address(ethLockbox.superchainConfig()) == address(0), "CHECK-ELB-50");
+            require(address(ethLockbox.systemConfig()) == address(0), "CHECK-ELB-50");
             require(
                 ethLockbox.authorizedPortals(IOptimismPortal(payable(_contracts.OptimismPortal))) == false,
                 "CHECK-ELB-60"
@@ -440,7 +390,6 @@ library ChainAssertions {
     function checkSuperchainConfig(
         Types.ContractSet memory _contracts,
         DeployConfig _cfg,
-        bool _isPaused,
         bool _isProxy
     )
         internal
@@ -464,10 +413,8 @@ library ChainAssertions {
 
         if (_isProxy) {
             require(superchainConfig.guardian() == _cfg.superchainConfigGuardian(), "CHECK-SC-20");
-            require(superchainConfig.paused() == _isPaused, "CHECK-SC-30");
         } else {
             require(superchainConfig.guardian() == address(0), "CHECK-SC-40");
-            require(superchainConfig.paused() == false, "CHECK-SC-50");
         }
     }
 
@@ -491,8 +438,6 @@ library ChainAssertions {
         require(address(_opcm.superchainProxyAdmin()) == address(_superchainProxyAdmin), "CHECK-OPCM-18");
         require(address(_opcm.superchainConfig()) == _proxies.SuperchainConfig, "CHECK-OPCM-19");
 
-        require(bytes(_opcm.l1ContractsRelease()).length > 0, "CHECK-OPCM-40");
-
         // Ensure that the OPCM impls are correctly saved
         IOPContractsManager.Implementations memory impls = _opcm.implementations();
         require(impls.l1ERC721BridgeImpl == _impls.L1ERC721Bridge, "CHECK-OPCM-50");
@@ -511,25 +456,25 @@ library ChainAssertions {
         IOPContractsManager.Blueprints memory blueprints = _opcm.blueprints();
         Blueprint.Preamble memory addressManagerPreamble =
             Blueprint.parseBlueprintPreamble(address(blueprints.addressManager).code);
-        require(keccak256(addressManagerPreamble.initcode) == keccak256(vm.getCode("AddressManager")), "CHECK-OPCM-140");
+        require(keccak256(addressManagerPreamble.initcode) == keccak256(vm.getCode("AddressManager")), "CHECK-OPCM-160");
 
         Blueprint.Preamble memory proxyPreamble = Blueprint.parseBlueprintPreamble(address(blueprints.proxy).code);
-        require(keccak256(proxyPreamble.initcode) == keccak256(vm.getCode("Proxy")), "CHECK-OPCM-150");
+        require(keccak256(proxyPreamble.initcode) == keccak256(vm.getCode("Proxy")), "CHECK-OPCM-170");
 
         Blueprint.Preamble memory proxyAdminPreamble =
             Blueprint.parseBlueprintPreamble(address(blueprints.proxyAdmin).code);
-        require(keccak256(proxyAdminPreamble.initcode) == keccak256(vm.getCode("ProxyAdmin")), "CHECK-OPCM-160");
+        require(keccak256(proxyAdminPreamble.initcode) == keccak256(vm.getCode("ProxyAdmin")), "CHECK-OPCM-180");
 
         Blueprint.Preamble memory l1ChugSplashProxyPreamble =
             Blueprint.parseBlueprintPreamble(address(blueprints.l1ChugSplashProxy).code);
         require(
             keccak256(l1ChugSplashProxyPreamble.initcode) == keccak256(vm.getCode("L1ChugSplashProxy")),
-            "CHECK-OPCM-170"
+            "CHECK-OPCM-190"
         );
 
         Blueprint.Preamble memory rdProxyPreamble =
             Blueprint.parseBlueprintPreamble(address(blueprints.resolvedDelegateProxy).code);
-        require(keccak256(rdProxyPreamble.initcode) == keccak256(vm.getCode("ResolvedDelegateProxy")), "CHECK-OPCM-180");
+        require(keccak256(rdProxyPreamble.initcode) == keccak256(vm.getCode("ResolvedDelegateProxy")), "CHECK-OPCM-200");
 
         Blueprint.Preamble memory pdg1Preamble =
             Blueprint.parseBlueprintPreamble(address(blueprints.permissionedDisputeGame1).code);
@@ -540,7 +485,7 @@ library ChainAssertions {
             abi.encodePacked(pdg1Preamble.initcode, pdg2Preamble.initcode);
         require(
             keccak256(fullPermissionedDisputeGameInitcode) == keccak256(vm.getCode("PermissionedDisputeGame")),
-            "CHECK-OPCM-200"
+            "CHECK-OPCM-210"
         );
     }
 }

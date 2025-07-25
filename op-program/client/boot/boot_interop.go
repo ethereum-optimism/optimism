@@ -32,6 +32,7 @@ type ConfigSource interface {
 	ChainConfig(chainID eth.ChainID) (*params.ChainConfig, error)
 	DependencySet(chainID eth.ChainID) (depset.DependencySet, error)
 }
+
 type OracleConfigSource struct {
 	oracle oracleClient
 
@@ -47,7 +48,7 @@ func (c *OracleConfigSource) RollupConfig(chainID eth.ChainID) (*rollup.Config, 
 		return cfg, nil
 	}
 	cfg, err := chainconfig.RollupConfigByChainID(chainID)
-	if !c.customConfigsLoaded && err != nil {
+	if !c.customConfigsLoaded && errors.Is(err, chainconfig.ErrMissingChainConfig) {
 		c.loadCustomConfigs()
 		if cfg, ok := c.rollupConfigs[chainID]; !ok {
 			return nil, fmt.Errorf("%w: %v", ErrUnknownChainID, chainID)
@@ -66,7 +67,7 @@ func (c *OracleConfigSource) ChainConfig(chainID eth.ChainID) (*params.ChainConf
 		return cfg, nil
 	}
 	cfg, err := chainconfig.ChainConfigByChainID(chainID)
-	if !c.customConfigsLoaded && err != nil {
+	if !c.customConfigsLoaded && errors.Is(err, chainconfig.ErrMissingChainConfig) {
 		c.loadCustomConfigs()
 		if cfg, ok := c.l2ChainConfigs[chainID]; !ok {
 			return nil, fmt.Errorf("%w: %v", ErrUnknownChainID, chainID)
@@ -85,7 +86,7 @@ func (c *OracleConfigSource) DependencySet(chainID eth.ChainID) (depset.Dependen
 		return c.depset, nil
 	}
 	depSet, err := chainconfig.DependencySetByChainID(chainID)
-	if !c.customConfigsLoaded && err != nil {
+	if !c.customConfigsLoaded && errors.Is(err, chainconfig.ErrMissingChainConfig) {
 		c.loadCustomConfigs()
 		if c.depset == nil {
 			return nil, fmt.Errorf("%w: %v", ErrUnknownChainID, chainID)

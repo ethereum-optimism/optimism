@@ -7,8 +7,10 @@ import (
 	"time"
 
 	"github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum/go-ethereum/rpc"
 
 	conductorRpc "github.com/ethereum-optimism/optimism/op-conductor/rpc"
+	"github.com/ethereum-optimism/optimism/op-node/config"
 	"github.com/ethereum-optimism/optimism/op-node/metrics"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/conductor"
 	"github.com/ethereum-optimism/optimism/op-service/dial"
@@ -19,7 +21,7 @@ import (
 
 // ConductorClient is a client for the op-conductor RPC service.
 type ConductorClient struct {
-	cfg     *Config
+	cfg     *config.Config
 	metrics *metrics.Metrics
 	log     log.Logger
 
@@ -34,7 +36,7 @@ type ConductorClient struct {
 var _ conductor.SequencerConductor = &ConductorClient{}
 
 // NewConductorClient returns a new conductor client for the op-conductor RPC service.
-func NewConductorClient(cfg *Config, log log.Logger, metrics *metrics.Metrics) conductor.SequencerConductor {
+func NewConductorClient(cfg *config.Config, log log.Logger, metrics *metrics.Metrics) conductor.SequencerConductor {
 	return &ConductorClient{
 		cfg:     cfg,
 		metrics: metrics,
@@ -55,7 +57,8 @@ func (c *ConductorClient) initialize(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("no conductor RPC endpoint available: %w", err)
 	}
-	conductorRpcClient, err := dial.DialRPCClientWithTimeout(context.Background(), time.Minute*1, c.log, endpoint)
+	metricsOpt := rpc.WithRecorder(c.metrics.NewRecorder("conductor"))
+	conductorRpcClient, err := dial.DialRPCClientWithTimeout(context.Background(), time.Minute*1, c.log, endpoint, metricsOpt)
 	if err != nil {
 		return fmt.Errorf("failed to dial conductor RPC: %w", err)
 	}
@@ -81,9 +84,7 @@ func (c *ConductorClient) Leader(ctx context.Context) (bool, error) {
 	defer cancel()
 
 	isLeader, err := retry.Do(ctx, 2, retry.Fixed(50*time.Millisecond), func() (bool, error) {
-		record := c.metrics.RecordRPCClientRequest("conductor_leader")
 		result, err := c.apiClient.Get().Leader(ctx)
-		record(err)
 		if err != nil {
 			c.log.Error("Failed to check conductor for leadership", "err", err)
 		}
@@ -105,10 +106,7 @@ func (c *ConductorClient) CommitUnsafePayload(ctx context.Context, payload *eth.
 	defer cancel()
 
 	err := retry.Do0(ctx, 2, retry.Fixed(50*time.Millisecond), func() error {
-		record := c.metrics.RecordRPCClientRequest("conductor_commitUnsafePayload")
-		err := c.apiClient.Get().CommitUnsafePayload(ctx, payload)
-		record(err)
-		return err
+		return c.apiClient.Get().CommitUnsafePayload(ctx, payload)
 	})
 	return err
 }

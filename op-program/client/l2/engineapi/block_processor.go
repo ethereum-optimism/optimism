@@ -18,8 +18,10 @@ import (
 )
 
 var (
-	ErrExceedsGasLimit = errors.New("tx gas exceeds block gas limit")
-	ErrUsesTooMuchGas  = errors.New("action takes too much gas")
+	ErrExceedsGasLimit  = errors.New("tx gas exceeds block gas limit")
+	ErrUsesTooMuchGas   = errors.New("action takes too much gas")
+	errInvalidGasLimit  = errors.New("invalid gas limit")
+	errInvalidTimestamp = errors.New("invalid timestamp")
 )
 
 type BlockDataProvider interface {
@@ -69,11 +71,11 @@ func NewBlockProcessorFromHeader(provider BlockDataProvider, h *types.Header) (*
 	header := types.CopyHeader(h) // Copy to avoid mutating the original header
 
 	if header.GasLimit > params.MaxGasLimit {
-		return nil, fmt.Errorf("invalid gasLimit: have %v, max %v", header.GasLimit, params.MaxGasLimit)
+		return nil, fmt.Errorf("%w: have %v, max %v", errInvalidGasLimit, header.GasLimit, params.MaxGasLimit)
 	}
 	parentHeader := provider.GetHeaderByHash(header.ParentHash)
 	if header.Time <= parentHeader.Time {
-		return nil, errors.New("invalid timestamp")
+		return nil, errInvalidTimestamp
 	}
 	statedb, err := provider.StateAt(parentHeader.Root)
 	if err != nil {
@@ -163,9 +165,13 @@ func (b *BlockProcessor) Assemble() (*types.Block, types.Receipts, error) {
 		_requests := [][]byte{}
 		// EIP-6110 - no-op because we just ignore all deposit requests, so no need to parse logs
 		// EIP-7002
-		core.ProcessWithdrawalQueue(&_requests, b.evm)
+		if err := core.ProcessWithdrawalQueue(&_requests, b.evm); err != nil {
+			return nil, nil, err
+		}
 		// EIP-7251
-		core.ProcessConsolidationQueue(&_requests, b.evm)
+		if err := core.ProcessConsolidationQueue(&_requests, b.evm); err != nil {
+			return nil, nil, err
+		}
 	}
 
 	block, err := b.dataProvider.Engine().FinalizeAndAssemble(b.dataProvider, b.header, b.state, &body, b.receipts)

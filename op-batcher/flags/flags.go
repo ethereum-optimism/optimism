@@ -33,12 +33,12 @@ var (
 		Usage:   "HTTP provider URL for L1",
 		EnvVars: prefixEnvVars("L1_ETH_RPC"),
 	}
-	L2EthRpcFlag = &cli.StringFlag{
+	L2EthRpcFlag = &cli.StringSliceFlag{
 		Name:    "l2-eth-rpc",
 		Usage:   "HTTP provider URL for L2 execution engine. A comma-separated list enables the active L2 endpoint provider. Such a list needs to match the number of rollup-rpcs provided.",
 		EnvVars: prefixEnvVars("L2_ETH_RPC"),
 	}
-	RollupRpcFlag = &cli.StringFlag{
+	RollupRpcFlag = &cli.StringSliceFlag{
 		Name:    "rollup-rpc",
 		Usage:   "HTTP provider URL for Rollup node. A comma-separated list enables the active L2 endpoint provider. Such a list needs to match the number of l2-eth-rpcs provided.",
 		EnvVars: prefixEnvVars("ROLLUP_RPC"),
@@ -182,11 +182,10 @@ var (
 		Value:   130_000, // should be larger than the builder's max-l2-tx-size to prevent endlessly throttling some txs
 		EnvVars: prefixEnvVars("THROTTLE_ALWAYS_BLOCK_SIZE"),
 	}
-	PreferLocalSafeL2Flag = &cli.BoolFlag{
-		Name:    "prefer-local-safe-l2",
-		Usage:   "Load unsafe blocks higher than the sequencer's LocalSafeL2 instead of SafeL2",
-		Value:   false,
-		EnvVars: prefixEnvVars("PREFER_LOCAL_SAFE_L2"),
+	AdditionalThrottlingEndpointsFlag = &cli.StringSliceFlag{
+		Name:    "additional-throttling-endpoints",
+		Usage:   "Comma-separated list of endpoints to distribute throttling configuration to (in addition to the L2 endpoints specified with --l2-eth-rpc).",
+		EnvVars: prefixEnvVars("ADDITIONAL_THROTTLING_ENDPOINTS"),
 	}
 	// Legacy Flags
 	SequencerHDPathFlag = txmgr.SequencerHDPathFlag
@@ -220,7 +219,7 @@ var optionalFlags = []cli.Flag{
 	ThrottleTxSizeFlag,
 	ThrottleBlockSizeFlag,
 	ThrottleAlwaysBlockSizeFlag,
-	PreferLocalSafeL2Flag,
+	AdditionalThrottlingEndpointsFlag,
 }
 
 func init() {

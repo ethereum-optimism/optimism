@@ -11,9 +11,9 @@ import { CREATE3, Bytes32AddressLib } from "@rari-capital/solmate/src/utils/CREA
 import { IOptimismSuperchainERC20 } from "interfaces/L2/IOptimismSuperchainERC20.sol";
 import { IERC20Metadata } from "@openzeppelin/contracts/interfaces/IERC20Metadata.sol";
 
-/// @title OptimismSuperchainERC20FactoryTest
-/// @notice Contract for testing the OptimismSuperchainERC20Factory contract.
-contract OptimismSuperchainERC20FactoryTest is CommonTest {
+/// @title OptimismSuperchainERC20Factory_TestInit
+/// @notice Reusable test initialization for `OptimismSuperchainERC20Factory` tests.
+contract OptimismSuperchainERC20Factory_TestInit is CommonTest {
     using Bytes32AddressLib for bytes32;
 
     event OptimismSuperchainERC20Created(
@@ -29,6 +29,18 @@ contract OptimismSuperchainERC20FactoryTest is CommonTest {
         super.setUp();
     }
 
+    /// @notice Precalculates the address of the token contract using CREATE3.
+    function _calculateTokenAddress(bytes32 _salt, address _deployer) internal pure returns (address) {
+        address proxy =
+            keccak256(abi.encodePacked(bytes1(0xFF), _deployer, _salt, CREATE3.PROXY_BYTECODE_HASH)).fromLast20Bytes();
+
+        return keccak256(abi.encodePacked(hex"d694", proxy, hex"01")).fromLast20Bytes();
+    }
+}
+
+/// @title OptimismSuperchainERC20Factory_Deploy_Test
+/// @notice Tests the `deploy` function of the `OptimismSuperchainERC20Factory` contract.
+contract OptimismSuperchainERC20Factory_Deploy_Test is OptimismSuperchainERC20Factory_TestInit {
     /// @notice Test that calling `deploy` with valid parameters succeeds.
     function test_deploy_succeeds(
         address _caller,
@@ -78,13 +90,5 @@ contract OptimismSuperchainERC20FactoryTest is CommonTest {
         // Act
         vm.prank(_caller);
         l2OptimismSuperchainERC20Factory.deploy(_remoteToken, _name, _symbol, _decimals);
-    }
-
-    /// @notice Precalculates the address of the token contract using CREATE3.
-    function _calculateTokenAddress(bytes32 _salt, address _deployer) internal pure returns (address) {
-        address proxy =
-            keccak256(abi.encodePacked(bytes1(0xFF), _deployer, _salt, CREATE3.PROXY_BYTECODE_HASH)).fromLast20Bytes();
-
-        return keccak256(abi.encodePacked(hex"d694", proxy, hex"01")).fromLast20Bytes();
     }
 }

@@ -7,7 +7,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 
-	"github.com/ethereum-optimism/optimism/op-node/rollup/event"
+	"github.com/ethereum-optimism/optimism/op-service/event"
 )
 
 var ErrSequencerNotEnabled = errors.New("sequencer is not enabled")
@@ -16,7 +16,7 @@ type DisabledSequencer struct{}
 
 var _ SequencerIface = DisabledSequencer{}
 
-func (ds DisabledSequencer) OnEvent(ev event.Event) bool {
+func (ds DisabledSequencer) OnEvent(ctx context.Context, ev event.Event) bool {
 	return false
 }
 

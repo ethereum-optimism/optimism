@@ -18,15 +18,7 @@ func runSafeHeadTraceExtensionTest(gt *testing.T, testCfg *helpers.TestCfg[any])
 	env.Sequencer.ActL2StartBlock(t)
 	env.Sequencer.ActL2EndBlock(t)
 
-	// Instruct the batcher to submit the block to L1, and include the transaction.
-	env.Batcher.ActSubmitAll(t)
-	env.Miner.ActL1StartBlock(12)(t)
-	env.Miner.ActL1IncludeTxByHash(env.Batcher.LastSubmitted.Hash())(t)
-	env.Miner.ActL1EndBlock(t)
-
-	// Instruct the sequencer to derive the L2 chain from the data on L1 that the batcher just posted.
-	env.Sequencer.ActL1HeadSignal(t)
-	env.Sequencer.ActL2PipelineFull(t)
+	env.BatchMineAndSync(t)
 
 	l1Head := env.Miner.L1Chain().CurrentBlock()
 	l2SafeHead := env.Engine.L2Chain().CurrentSafeBlock()

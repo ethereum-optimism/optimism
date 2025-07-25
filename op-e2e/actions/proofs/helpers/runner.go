@@ -57,6 +57,7 @@ func WithPreInteropDefaults(t helpers.Testing, l2ClaimBlockNum uint64, l2 *helpe
 	}
 }
 
+// RunFaultProofProgram runs the fault proof program for the transition to the given L2 block number from the preceding one.
 func RunFaultProofProgram(t helpers.Testing, logger log.Logger, l1 *helpers.L1Miner, checkResult CheckResult, fixtureInputParams ...FixtureInputParam) {
 	l1Head := l1.L1Chain().CurrentBlock()
 

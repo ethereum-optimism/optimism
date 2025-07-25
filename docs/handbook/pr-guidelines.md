@@ -35,7 +35,7 @@ This is organized by current state of PR, so it can be easily referenced frequen
 - **Guide PR reviewers:** Let them know about areas of concern, under-tested areas, or vague requirements that should be ironed out.
 
 ### Triggering CI on PRs from external forks
-If the PR is from an external fork, our CI suite will not automatically run on the PR. A reviewer with sufficient permissions (e.g. the automatically assigened reviewer) needs to comment on the PR wih
+If the PR is from an external fork, our CI suite will not automatically run on the PR. A reviewer with sufficient permissions (e.g. the automatically assigened reviewer) needs to comment on the PR with
 
 > /ci authorize COMMITHASH
 

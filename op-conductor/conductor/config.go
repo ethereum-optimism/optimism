@@ -63,6 +63,15 @@ type Config struct {
 	// ExecutionRPC is the HTTP provider URL for execution layer.
 	ExecutionRPC string
 
+	// SupervisorRPC is the HTTP provider URL for supervisor.
+	SupervisorRPC string
+
+	// RollupBoostEnabled is true if the rollup boost is enabled.
+	RollupBoostEnabled bool
+
+	// RollupBoostHealthcheckTimeout is the timeout for rollup boost healthcheck.
+	RollupBoostHealthcheckTimeout time.Duration
+
 	// Paused is true if the conductor should start in a paused state.
 	Paused bool
 
@@ -74,6 +83,13 @@ type Config struct {
 
 	// RPCEnableProxy is true if the sequencer RPC proxy should be enabled.
 	RPCEnableProxy bool
+
+	// The following fields are used to configure the websocket server that op-conductor exposes to get flashblocks from rollup boost and send them to clients.
+	// RollupBoostWsURL is the URL of the rollup boost websocket proxy.
+	RollupBoostWsURL string
+
+	// WebsocketServerPort is the port at which op-conductor exposes its websocket server from which clients can read streams sourced from rollupBoostWsUrl.
+	WebsocketServerPort int
 
 	LogConfig     oplog.CLIConfig
 	MetricsConfig opmetrics.CLIConfig
@@ -136,17 +152,20 @@ func NewConfig(ctx *cli.Context, log log.Logger) (*Config, error) {
 		// The consensus server will advertise the address it binds to if this is empty/unspecified.
 		ConsensusAdvertisedAddr: ctx.String(flags.AdvertisedFullAddr.Name),
 
-		RaftBootstrap:          ctx.Bool(flags.RaftBootstrap.Name),
-		RaftServerID:           ctx.String(flags.RaftServerID.Name),
-		RaftStorageDir:         ctx.String(flags.RaftStorageDir.Name),
-		RaftSnapshotInterval:   ctx.Duration(flags.RaftSnapshotInterval.Name),
-		RaftSnapshotThreshold:  ctx.Uint64(flags.RaftSnapshotThreshold.Name),
-		RaftTrailingLogs:       ctx.Uint64(flags.RaftTrailingLogs.Name),
-		RaftHeartbeatTimeout:   ctx.Duration(flags.RaftHeartbeatTimeout.Name),
-		RaftLeaderLeaseTimeout: ctx.Duration(flags.RaftLeaderLeaseTimeout.Name),
-		NodeRPC:                ctx.String(flags.NodeRPC.Name),
-		ExecutionRPC:           ctx.String(flags.ExecutionRPC.Name),
-		Paused:                 ctx.Bool(flags.Paused.Name),
+		RaftBootstrap:                 ctx.Bool(flags.RaftBootstrap.Name),
+		RaftServerID:                  ctx.String(flags.RaftServerID.Name),
+		RaftStorageDir:                ctx.String(flags.RaftStorageDir.Name),
+		RaftSnapshotInterval:          ctx.Duration(flags.RaftSnapshotInterval.Name),
+		RaftSnapshotThreshold:         ctx.Uint64(flags.RaftSnapshotThreshold.Name),
+		RaftTrailingLogs:              ctx.Uint64(flags.RaftTrailingLogs.Name),
+		RaftHeartbeatTimeout:          ctx.Duration(flags.RaftHeartbeatTimeout.Name),
+		RaftLeaderLeaseTimeout:        ctx.Duration(flags.RaftLeaderLeaseTimeout.Name),
+		NodeRPC:                       ctx.String(flags.NodeRPC.Name),
+		ExecutionRPC:                  ctx.String(flags.ExecutionRPC.Name),
+		SupervisorRPC:                 ctx.String(flags.SupervisorRPC.Name),
+		RollupBoostEnabled:            ctx.Bool(flags.RollupBoostEnabled.Name),
+		RollupBoostHealthcheckTimeout: ctx.Duration(flags.RollupBoostHealthcheckTimeout.Name),
+		Paused:                        ctx.Bool(flags.Paused.Name),
 		HealthCheck: HealthCheckConfig{
 			Interval:       ctx.Uint64(flags.HealthCheckInterval.Name),
 			UnsafeInterval: ctx.Uint64(flags.HealthCheckUnsafeInterval.Name),
@@ -154,12 +173,14 @@ func NewConfig(ctx *cli.Context, log log.Logger) (*Config, error) {
 			SafeInterval:   ctx.Uint64(flags.HealthCheckSafeInterval.Name),
 			MinPeerCount:   ctx.Uint64(flags.HealthCheckMinPeerCount.Name),
 		},
-		RollupCfg:      *rollupCfg,
-		RPCEnableProxy: ctx.Bool(flags.RPCEnableProxy.Name),
-		LogConfig:      oplog.ReadCLIConfig(ctx),
-		MetricsConfig:  opmetrics.ReadCLIConfig(ctx),
-		PprofConfig:    oppprof.ReadCLIConfig(ctx),
-		RPC:            oprpc.ReadCLIConfig(ctx),
+		RollupCfg:           *rollupCfg,
+		RPCEnableProxy:      ctx.Bool(flags.RPCEnableProxy.Name),
+		RollupBoostWsURL:    ctx.String(flags.RollupBoostWsURL.Name),
+		WebsocketServerPort: ctx.Int(flags.WebsocketServerPort.Name),
+		LogConfig:           oplog.ReadCLIConfig(ctx),
+		MetricsConfig:       opmetrics.ReadCLIConfig(ctx),
+		PprofConfig:         oppprof.ReadCLIConfig(ctx),
+		RPC:                 oprpc.ReadCLIConfig(ctx),
 	}, nil
 }
 

@@ -50,7 +50,7 @@ func runSimpleProgramTest(gt *testing.T, testCfg *helpers.TestCfg[any]) {
 	// Ensure the block is marked as safe before we attempt to fault prove it.
 	require.Equal(t, uint64(1), l2SafeHead.Number.Uint64())
 
-	env.RunFaultProofProgram(t, l2SafeHead.Number.Uint64(), testCfg.CheckResult, testCfg.InputParams...)
+	env.RunFaultProofProgramFromGenesis(t, l2SafeHead.Number.Uint64(), testCfg.CheckResult, testCfg.InputParams...)
 }
 
 func Test_ProgramAction_SimpleEmptyChain(gt *testing.T) {

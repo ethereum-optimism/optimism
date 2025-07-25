@@ -1,6 +1,7 @@
 package deploy
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -25,7 +26,7 @@ type localPrestateHolder struct {
 	urlBuilder func(path ...string) string
 }
 
-func (h *localPrestateHolder) GetPrestateInfo() (*PrestateInfo, error) {
+func (h *localPrestateHolder) GetPrestateInfo(ctx context.Context) (*PrestateInfo, error) {
 	if h.info != nil {
 		return h.info, nil
 	}
@@ -46,7 +47,6 @@ func (h *localPrestateHolder) GetPrestateInfo() (*PrestateInfo, error) {
 
 	if h.dryRun {
 		// In dry run, populate with placeholder keys to avoid template errors during first pass
-		info.Hashes["prestate"] = "dry_run_placeholder"
 		info.Hashes["prestate_mt64"] = "dry_run_placeholder"
 		info.Hashes["prestate_interop"] = "dry_run_placeholder"
 		h.info = info
@@ -55,13 +55,12 @@ func (h *localPrestateHolder) GetPrestateInfo() (*PrestateInfo, error) {
 
 	// Map of known file prefixes to their keys
 	fileToKey := map[string]string{
-		"prestate-proof.json":         "prestate",
 		"prestate-proof-mt64.json":    "prestate_mt64",
 		"prestate-proof-interop.json": "prestate_interop",
 	}
 
 	// Build all prestate files directly in the target directory
-	if err := h.builder.Build(buildDir); err != nil {
+	if err := h.builder.Build(ctx, buildDir); err != nil {
 		return nil, fmt.Errorf("failed to build prestates: %w", err)
 	}
 

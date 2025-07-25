@@ -4,9 +4,11 @@ pragma solidity 0.8.15;
 import { SafeSend } from "src/universal/SafeSend.sol";
 import { CommonTest } from "test/setup/CommonTest.sol";
 
-contract SafeSendTest is CommonTest {
+/// @title SafeSend_Constructor_Test
+/// @notice Tests the `constructor` function of the `SafeSend` contract.
+contract SafeSend_Constructor_Test is CommonTest {
     /// @notice Tests that sending to an EOA succeeds.
-    function test_send_toEOA_succeeds() public {
+    function test_constructor_toEOA_succeeds() public {
         assertNotEq(alice, address(0));
         assertNotEq(bob, address(0));
         assertEq(bob.code.length, 0);
@@ -25,10 +27,9 @@ contract SafeSendTest is CommonTest {
         assertEq(bob.balance, bobBalanceBefore + 100 ether);
     }
 
-    /// @notice Tests that sending to a contract succeeds without executing the
-    ///         contract's code.
-    function test_send_toContract_succeeds() public {
-        // etch reverting code into bob
+    /// @notice Tests that sending to a contract succeeds without executing the contract's code
+    function test_constructor_toContract_succeeds() public {
+        // Etch reverting code into bob
         vm.etch(bob, hex"fe");
         vm.deal(alice, 100 ether);
 

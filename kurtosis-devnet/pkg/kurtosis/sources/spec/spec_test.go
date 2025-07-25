@@ -11,20 +11,22 @@ func TestParseSpec(t *testing.T) {
 	yamlContent := `
 optimism_package:
   chains:
-    - participants:
-        - el_type: op-geth
+    op-rollup-one:
+      participants:
+        node0:
+          el:
+            type: op-geth
       network_params:
-        name: op-rollup-one
         network_id: "3151909"
-      additional_services:
-        - blockscout
-    - participants:
-        - el_type: op-geth
+      blockscout_params:
+        enabled: true
+    op-rollup-two:
+      participants:
+        node0:
+          el:
+            type: op-geth
       network_params:
-        name: op-rollup-two
         network_id: "3151910"
-      additional_services:
-        - blockscout
 ethereum_package:
   participants:
     - el_type: geth
@@ -78,10 +80,13 @@ func TestParseSpecErrors(t *testing.T) {
 			yaml: `
 optimism_package:
   chains:
-    - participants:
-        - el_type: op-geth
-      additional_services:
-        - blockscout`,
+    op-kurtosis:
+      participants:
+        node0:
+          el:
+            type: op-geth
+      blockscout_params:
+        enabled: true`,
 		},
 		{
 			name: "missing chains",

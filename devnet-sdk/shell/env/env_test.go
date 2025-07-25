@@ -3,6 +3,7 @@ package env
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/devnet-sdk/descriptors"
@@ -69,8 +70,8 @@ func TestLoadDevnetEnv(t *testing.T) {
 	t.Run("successful load", func(t *testing.T) {
 		env, err := LoadDevnetFromURL(tmpfile.Name())
 		require.NoError(t, err)
-		assert.Equal(t, "l1", env.Config.L1.Name)
-		assert.Equal(t, "op", env.Config.L2[0].Name)
+		assert.Equal(t, "l1", env.Env.L1.Name)
+		assert.Equal(t, "op", env.Env.L2[0].Name)
 	})
 
 	// Test loading non-existent file
@@ -92,7 +93,7 @@ func TestLoadDevnetEnv(t *testing.T) {
 
 func TestGetChain(t *testing.T) {
 	devnet := &DevnetEnv{
-		Config: descriptors.DevnetEnvironment{
+		Env: &descriptors.DevnetEnvironment{
 			L1: &descriptors.Chain{
 				Name: "l1",
 				Nodes: []descriptors.Node{
@@ -116,7 +117,7 @@ func TestGetChain(t *testing.T) {
 			},
 			L2: []*descriptors.L2Chain{
 				{
-					Chain: descriptors.Chain{
+					Chain: &descriptors.Chain{
 						Name: "op",
 						Nodes: []descriptors.Node{
 							{
@@ -141,7 +142,7 @@ func TestGetChain(t *testing.T) {
 						"deployer": common.HexToAddress("0x2345678901234567890123456789012345678901"),
 					},
 					L1Wallets: descriptors.WalletMap{
-						"deployer": descriptors.Wallet{
+						"deployer": &descriptors.Wallet{
 							Address:    common.HexToAddress("0x2345678901234567890123456789012345678901"),
 							PrivateKey: "0x2345678901234567890123456789012345678901",
 						},
@@ -185,8 +186,9 @@ func TestChainConfig(t *testing.T) {
 						"el": {
 							Endpoints: descriptors.EndpointMap{
 								"rpc": {
-									Host: "localhost",
-									Port: 8545,
+									Host:   "localhost",
+									Port:   8545,
+									Scheme: "https",
 								},
 							},
 						},
@@ -209,7 +211,7 @@ func TestChainConfig(t *testing.T) {
 		)
 		require.NoError(t, err)
 
-		assert.Equal(t, "http://localhost:8545", env.envVars["ETH_RPC_URL"])
+		assert.Equal(t, "https://localhost:8545", env.envVars["ETH_RPC_URL"])
 		assert.Equal(t, "1234", env.envVars["ETH_RPC_JWT_SECRET"])
 		assert.Equal(t, "test.json", filepath.Base(env.envVars[EnvURLVar]))
 		assert.Equal(t, "test", env.envVars[ChainNameVar])
@@ -270,4 +272,41 @@ func TestChainConfig(t *testing.T) {
 		)
 		assert.Error(t, err)
 	})
+}
+
+func TestChainEnv_ApplyToEnv(t *testing.T) {
+	originalEnv := []string{
+		"KEEP_ME=old_value",
+		"OVERRIDE_ME=old_value",
+		"REMOVE_ME=old_value",
+	}
+
+	env := &ChainEnv{
+		envVars: map[string]string{
+			"OVERRIDE_ME": "new_value",
+			"REMOVE_ME":   "",
+		},
+	}
+
+	result := env.ApplyToEnv(originalEnv)
+
+	// Convert result to map for easier testing
+	resultMap := make(map[string]string)
+	for _, v := range result {
+		parts := strings.SplitN(v, "=", 2)
+		resultMap[parts[0]] = parts[1]
+	}
+
+	// Test that KEEP_ME was overridden with new value
+	assert.Equal(t, "old_value", resultMap["KEEP_ME"])
+
+	// Test that OVERRIDE_ME was overridden with new value
+	assert.Equal(t, "new_value", resultMap["OVERRIDE_ME"])
+
+	// Test that REMOVE_ME was removed (not present in result)
+	_, exists := resultMap["REMOVE_ME"]
+	assert.False(t, exists, "REMOVE_ME should have been removed")
+
+	// Test that we have exactly 3 variables in the result
+	assert.Equal(t, 2, len(result), "Result should have exactly 3 variables")
 }

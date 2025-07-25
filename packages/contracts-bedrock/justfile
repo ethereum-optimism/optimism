@@ -40,14 +40,8 @@ build-dev *ARGS: lint-fix-no-fail
   just forge-build-dev {{ARGS}}
 
 # Builds the go-ffi tool for contract tests.
-build-go-ffi-default:
+build-go-ffi:
   cd ./scripts/go-ffi && go build
-
-# Builds the go-ffi tool for MIPS64 contract tests.
-build-go-ffi-cannon64:
-  cd ./scripts/go-ffi && go build -tags=cannon64 -o ./go-ffi-cannon64
-
-build-go-ffi: build-go-ffi-default build-go-ffi-cannon64
 
 # Cleans build artifacts and deployments.
 clean:
@@ -222,15 +216,25 @@ snapshots-check: build snapshots-check-no-build
 interfaces-check-no-build:
   go run ./scripts/checks/interfaces
 
+# Checks that, if any L1 source contracts that have an upgrade method,
+# that upgrade method is called in the OPContractsManagerUpgrader.upgrade method.
+# Build the contracts first.
+opcm-upgrade-checks: clean build-dev opcm-upgrade-checks-no-build
+
+# Checks that, if any L1 source contracts that have an upgrade method,
+# that upgrade method is called in the OPContractsManagerUpgrader.upgrade method.
+opcm-upgrade-checks-no-build:
+  go run ./scripts/checks/opcm-upgrade-checks/
+
 # Checks that all interfaces are appropriately named and accurately reflect the corresponding
 # contract that they're meant to represent. We run "clean" before building because leftover
 # artifacts can cause the script to detect issues incorrectly.
 interfaces-check: clean build interfaces-check-no-build
 
-# Checks that all upgrade/initialize funcitons have proper reinitializer modifiers.
+# Checks that all upgrade/initialize functions have proper reinitializer modifiers.
 reinitializer-check: build-source reinitializer-check-no-build
 
-# Checks that all upgrade/initialize funcitons have proper reinitializer modifiers.
+# Checks that all upgrade/initialize functions have proper reinitializer modifiers.
 # Does not build contracts.
 reinitializer-check-no-build:
   go run ./scripts/checks/reinitializer
@@ -251,11 +255,11 @@ semver-diff-check: build semver-diff-check-no-build
 semgrep-test-validity-check:
   forge fmt ../../.semgrep/tests/sol-rules.t.sol --check
 
-# Checks that forge test names are correctly formatted. Does not build contracts.
+# Validates forge test conventions and structure. Does not build contracts.
 lint-forge-tests-check-no-build:
-  go run ./scripts/checks/test-names
+  go run ./scripts/checks/test-validation
 
-# Checks that forge test names are correctly formatted.
+# Validates forge test conventions and structure.
 lint-forge-tests-check: build lint-forge-tests-check-no-build
 
 # Checks that contracts are properly linted.

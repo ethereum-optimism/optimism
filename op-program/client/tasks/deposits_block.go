@@ -2,10 +2,11 @@ package tasks
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
-	"github.com/ethereum-optimism/optimism/op-node/rollup/interop/managed"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/interop/indexing"
 	preimage "github.com/ethereum-optimism/optimism/op-preimage"
 	"github.com/ethereum-optimism/optimism/op-program/client/l1"
 	"github.com/ethereum-optimism/optimism/op-program/client/l2"
@@ -18,6 +19,8 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
 )
+
+var errBadFCUResult = errors.New("bad FCU result")
 
 // BuildDepositOnlyBlock builds a deposits-only block replacement for the specified optimistic block and returns the block hash and output root
 // for the new block.
@@ -65,7 +68,7 @@ func BuildDepositOnlyBlock(
 
 	id := result.PayloadID
 	if id == nil {
-		return common.Hash{}, eth.Bytes32{}, fmt.Errorf("nil id in forkchoice result when expecting a valid ID")
+		return common.Hash{}, eth.Bytes32{}, fmt.Errorf("nil id in forkchoice result when expecting a valid ID: %w", errBadFCUResult)
 	}
 	payload, err := l2Source.GetPayload(context.Background(), eth.PayloadInfo{ID: *id, Timestamp: uint64(attrs.Timestamp)})
 	if err != nil {
@@ -125,7 +128,7 @@ func blockToDepositsOnlyAttributes(cfg *rollup.Config, block *types.Block, outpu
 			deposits = append(deposits, txdata)
 		}
 	}
-	invalidatedBlockTx := managed.InvalidatedBlockSourceDepositTx(output.Marshal())
+	invalidatedBlockTx := indexing.InvalidatedBlockSourceDepositTx(output.Marshal())
 	invalidatedBlockTxData, err := invalidatedBlockTx.MarshalBinary()
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal deposited tx: %w", err)

@@ -7,7 +7,9 @@ import { CommonTest } from "test/setup/CommonTest.sol";
 import { LegacyMintableERC20 } from "src/legacy/LegacyMintableERC20.sol";
 import { ILegacyMintableERC20 } from "interfaces/legacy/ILegacyMintableERC20.sol";
 
-contract LegacyMintableERC20_Test is CommonTest {
+/// @title LegacyMintableERC20_TestInit
+/// @notice Reusable test initialization for `LegacyMintableERC20` tests.
+contract LegacyMintableERC20_TestInit is CommonTest {
     LegacyMintableERC20 legacyMintableERC20;
 
     function setUp() public override {
@@ -15,7 +17,11 @@ contract LegacyMintableERC20_Test is CommonTest {
 
         legacyMintableERC20 = new LegacyMintableERC20(address(l2StandardBridge), address(L1Token), "_L2Token_", "_L2T_");
     }
+}
 
+/// @title LegacyMintableERC20_Constructor_Test
+/// @notice Tests the constructor of the `LegacyMintableERC20` contract.
+contract LegacyMintableERC20_Constructor_Test is LegacyMintableERC20_TestInit {
     /// @notice Tests that the constructor sets the correct values
     function test_constructor_works() public view {
         assertEq(legacyMintableERC20.l2Bridge(), address(l2StandardBridge));
@@ -24,7 +30,11 @@ contract LegacyMintableERC20_Test is CommonTest {
         assertEq(legacyMintableERC20.symbol(), "_L2T_");
         assertEq(legacyMintableERC20.decimals(), 18);
     }
+}
 
+/// @title LegacyMintableERC20_SupportsInterface_Test
+/// @notice Tests the `supportsInterface` function of the `LegacyMintableERC20` contract.
+contract LegacyMintableERC20_SupportsInterface_Test is LegacyMintableERC20_TestInit {
     /// @notice Tests that the contract supports the correct interfaces
     function test_supportsInterface_works() public view {
         assertEq(legacyMintableERC20.supportsInterface(bytes4(keccak256("supportsInterface(bytes4)"))), true);
@@ -36,7 +46,11 @@ contract LegacyMintableERC20_Test is CommonTest {
             true
         );
     }
+}
 
+/// @title LegacyMintableERC20_Mint_Test
+/// @notice Tests the `mint` function of the `LegacyMintableERC20` contract.
+contract LegacyMintableERC20_Mint_Test is LegacyMintableERC20_TestInit {
     /// @notice Tests that the mint function works when called by the bridge
     function test_mint_byBridge_succeeds() public {
         vm.prank(address(l2StandardBridge));
@@ -49,7 +63,11 @@ contract LegacyMintableERC20_Test is CommonTest {
         vm.expectRevert(bytes("Only L2 Bridge can mint and burn"));
         legacyMintableERC20.mint(address(this), 1000);
     }
+}
 
+/// @title LegacyMintableERC20_Burn_Test
+/// @notice Tests the `burn` function of the `LegacyMintableERC20` contract.
+contract LegacyMintableERC20_Burn_Test is LegacyMintableERC20_TestInit {
     /// @notice Tests that the burn function works when called by the bridge
     function test_burn_byBridge_succeeds() public {
         vm.prank(address(l2StandardBridge));

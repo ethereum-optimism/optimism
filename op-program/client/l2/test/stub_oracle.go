@@ -23,7 +23,6 @@ type stateOracle interface {
 type StubBlockOracle struct {
 	t                *testing.T
 	Blocks           map[common.Hash]*gethTypes.Block
-	BlockData        map[common.Hash]*gethTypes.Block
 	Receipts         map[common.Hash]gethTypes.Receipts
 	Outputs          map[common.Hash]eth.Output
 	TransitionStates map[common.Hash]*interopTypes.TransitionState
@@ -35,7 +34,6 @@ func NewStubOracle(t *testing.T) (*StubBlockOracle, *StubStateOracle) {
 	blockOracle := StubBlockOracle{
 		t:                t,
 		Blocks:           make(map[common.Hash]*gethTypes.Block),
-		BlockData:        make(map[common.Hash]*gethTypes.Block),
 		Outputs:          make(map[common.Hash]eth.Output),
 		TransitionStates: make(map[common.Hash]*interopTypes.TransitionState),
 		Receipts:         make(map[common.Hash]gethTypes.Receipts),
@@ -89,7 +87,7 @@ func (o StubBlockOracle) Hinter() l2Types.OracleHinter {
 }
 
 func (o StubBlockOracle) BlockDataByHash(agreedBlockHash, blockHash common.Hash, chainID eth.ChainID) *gethTypes.Block {
-	block, ok := o.BlockData[blockHash]
+	block, ok := o.Blocks[blockHash]
 	if !ok {
 		o.t.Fatalf("requested unknown block %s", blockHash)
 	}

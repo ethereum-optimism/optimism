@@ -8,6 +8,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/script"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/broadcaster"
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/opcm"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/state"
@@ -28,6 +29,7 @@ type Env struct {
 	Broadcaster  broadcaster.Broadcaster
 	Deployer     common.Address
 	Logger       log.Logger
+	Scripts      *opcm.Scripts
 }
 
 type StateWriter interface {

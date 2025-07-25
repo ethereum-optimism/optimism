@@ -5,6 +5,7 @@ import (
 	"errors"
 	"math/big"
 
+	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -74,4 +75,7 @@ func (f *FakeTxMgr) IsClosed() bool {
 }
 func (f *FakeTxMgr) SuggestGasPriceCaps(ctx context.Context) (tipCap *big.Int, baseFee *big.Int, blobBaseFee *big.Int, err error) {
 	return nil, nil, nil, nil
+}
+func (f *FakeTxMgr) ChainID() eth.ChainID {
+	return eth.ChainID{}
 }

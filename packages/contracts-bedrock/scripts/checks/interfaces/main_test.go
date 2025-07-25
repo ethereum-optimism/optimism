@@ -202,7 +202,14 @@ func TestCompareABIs(t *testing.T) {
 	}
 }
 
-func TestIsExcluded(t *testing.T) {
+func TestCheckExclusion(t *testing.T) {
+	// Fixed test list
+	testExcludes := []string{
+		"IERC20",
+		"IEAS",
+		"IERC721",
+	}
+
 	tests := []struct {
 		name         string
 		contractName string
@@ -217,8 +224,8 @@ func TestIsExcluded(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := isExcluded(tt.contractName); got != tt.want {
-				t.Errorf("isExcluded() = %v, want %v", got, tt.want)
+			if got := checkExclusion(tt.contractName, testExcludes); got != tt.want {
+				t.Errorf("checkExclusion() = %v, want %v", got, tt.want)
 			}
 		})
 	}

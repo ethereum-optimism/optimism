@@ -1,164 +1,232 @@
 package operatorfee
 
 import (
-	"context"
-	"math/big"
+	"fmt"
 	"time"
 
 	"github.com/ethereum-optimism/optimism/devnet-sdk/system"
-	"github.com/ethereum-optimism/optimism/devnet-sdk/testing/systest"
+	"github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/isthmus"
 	"github.com/ethereum-optimism/optimism/op-e2e/bindings"
+	"github.com/ethereum-optimism/optimism/op-service/txplan"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
 	gethTypes "github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/ethclient"
-	"github.com/ethereum/go-ethereum/log"
 	"github.com/lmittmann/w3"
-	"github.com/stretchr/testify/require"
 )
 
-func UpdateOperatorFeeParams(t systest.T, l1ChainID *big.Int, client *ethclient.Client, systemConfig *bindings.SystemConfig, systemConfigAddress common.Address, wallet system.Wallet, operatorFeeConstant uint64, operatorFeeScalar uint32, logger log.Logger) (*gethTypes.Transaction, *gethTypes.Receipt) {
-	ctx := t.Context()
-	logger.Info("Updating operator fee params",
-		"constant", operatorFeeConstant,
-		"scalar", operatorFeeScalar)
+var l1ConfigSyncPollInterval = 30 * time.Second
+var l1ConfigSyncMaxWaitTime = 4 * time.Minute
 
-	nonce, err := client.PendingNonceAt(ctx, wallet.Address())
-	require.NoError(t, err)
-	logger.Debug("Using nonce",
-		"nonce", nonce,
-		"wallet", wallet.Address().Hex())
+type TestParams struct {
+	ID                  string
+	OperatorFeeScalar   uint32
+	OperatorFeeConstant uint64
+	L1BaseFeeScalar     uint32
+	L1BlobBaseFeeScalar uint32
+}
 
+func GetFeeParamsL1(systemConfig *bindings.SystemConfig, systemConfigAddress common.Address, l2L1BlockContract *bindings.L1Block, wallet system.WalletV2) (tc TestParams, err error) {
+	operatorFeeConstant, err := systemConfig.OperatorFeeConstant(&bind.CallOpts{BlockNumber: nil})
+	if err != nil {
+		return TestParams{}, fmt.Errorf("failed to get operator fee constant: %w", err)
+	}
+	operatorFeeScalar, err := systemConfig.OperatorFeeScalar(&bind.CallOpts{BlockNumber: nil})
+	if err != nil {
+		return TestParams{}, fmt.Errorf("failed to get operator fee scalar: %w", err)
+	}
+	l1BaseFeeScalar, err := systemConfig.BasefeeScalar(&bind.CallOpts{BlockNumber: nil})
+	if err != nil {
+		return TestParams{}, fmt.Errorf("failed to get l1 base fee scalar: %w", err)
+	}
+	l1BlobBaseFeeScalar, err := systemConfig.BlobbasefeeScalar(&bind.CallOpts{BlockNumber: nil})
+	if err != nil {
+		return TestParams{}, fmt.Errorf("failed to get l1 blob base fee scalar: %w", err)
+	}
+	return TestParams{
+		OperatorFeeConstant: operatorFeeConstant,
+		OperatorFeeScalar:   operatorFeeScalar,
+		L1BaseFeeScalar:     l1BaseFeeScalar,
+		L1BlobBaseFeeScalar: l1BlobBaseFeeScalar,
+	}, nil
+}
+
+func GetFeeParamsL2(l2L1BlockContract *bindings.L1Block, wallet system.WalletV2) (tc TestParams, err error) {
+	operatorFeeConstant, err := l2L1BlockContract.OperatorFeeConstant(&bind.CallOpts{BlockNumber: nil})
+	if err != nil {
+		return TestParams{}, fmt.Errorf("failed to get operator fee constant: %w", err)
+	}
+	operatorFeeScalar, err := l2L1BlockContract.OperatorFeeScalar(&bind.CallOpts{BlockNumber: nil})
+	if err != nil {
+		return TestParams{}, fmt.Errorf("failed to get operator fee scalar: %w", err)
+	}
+	l1BaseFeeScalar, err := l2L1BlockContract.BaseFeeScalar(&bind.CallOpts{BlockNumber: nil})
+	if err != nil {
+		return TestParams{}, fmt.Errorf("failed to get l1 base fee scalar: %w", err)
+	}
+	l1BlobBaseFeeScalar, err := l2L1BlockContract.BlobBaseFeeScalar(&bind.CallOpts{BlockNumber: nil})
+	if err != nil {
+		return TestParams{}, fmt.Errorf("failed to get l1 blob base fee scalar: %w", err)
+	}
+	return TestParams{
+		OperatorFeeConstant: operatorFeeConstant,
+		OperatorFeeScalar:   operatorFeeScalar,
+		L1BaseFeeScalar:     l1BaseFeeScalar,
+		L1BlobBaseFeeScalar: l1BlobBaseFeeScalar,
+	}, nil
+}
+
+func EnsureFeeParams(systemConfig *bindings.SystemConfig, systemConfigAddress common.Address, l2L1BlockContract *bindings.L1Block, wallet system.WalletV2, tc TestParams) (err error, reset func() error) {
+	preFeeParams, err := GetFeeParamsL1(systemConfig, systemConfigAddress, l2L1BlockContract, wallet)
+	if err != nil {
+		return fmt.Errorf("failed to get L1 fee parameters: %w", err), nil
+	}
+	preFeeParams.ID = tc.ID
+
+	if preFeeParams == tc {
+		// No need to update
+		return nil, nil
+	}
+
+	return UpdateFeeParams(systemConfig, systemConfigAddress, l2L1BlockContract, wallet, tc), func() error {
+		return UpdateFeeParams(systemConfig, systemConfigAddress, l2L1BlockContract, wallet, preFeeParams)
+	}
+}
+
+func UpdateFeeParams(systemConfig *bindings.SystemConfig, systemConfigAddress common.Address, l2L1BlockContract *bindings.L1Block, wallet system.WalletV2, tc TestParams) (err error) {
+
+	_, err = UpdateOperatorFeeParams(systemConfig, systemConfigAddress, l2L1BlockContract, wallet, tc.OperatorFeeConstant, tc.OperatorFeeScalar)
+	if err != nil {
+		return fmt.Errorf("failed to update operator fee parameters: %w", err)
+	}
+
+	_, err = UpdateL1FeeParams(systemConfig, systemConfigAddress, l2L1BlockContract, wallet, tc.L1BaseFeeScalar, tc.L1BlobBaseFeeScalar)
+	if err != nil {
+		return fmt.Errorf("failed to update L1 fee parameters: %w", err)
+	}
+
+	// Wait for L2 nodes to sync with L1 origin where fee parameters were set
+	deadline := time.Now().Add(l1ConfigSyncMaxWaitTime)
+
+	for time.Now().Before(deadline) {
+
+		l2FeeParams, err := GetFeeParamsL2(l2L1BlockContract, wallet)
+		if err != nil {
+			return fmt.Errorf("failed to get L2 fee parameters: %w", err)
+		}
+		l2FeeParams.ID = tc.ID
+
+		// Check if all values match expected values
+		if l2FeeParams == tc {
+			break
+		}
+
+		// Use context-aware sleep
+		select {
+		case <-time.After(l1ConfigSyncPollInterval):
+			// Continue with next iteration
+		case <-wallet.Ctx().Done():
+			return fmt.Errorf("context canceled while waiting for L2 nodes to sync: %w", wallet.Ctx().Err())
+		}
+
+		// Check if context is canceled
+		if wallet.Ctx().Err() != nil {
+			return fmt.Errorf("context canceled while waiting for L2 nodes to sync: %w", wallet.Ctx().Err())
+		}
+	}
+	return nil
+}
+
+// UpdateOperatorFeeParams updates the operator fee parameters in the SystemConfig contract.
+// It constructs and sends a transaction using txplan and returns the signed transaction, the receipt, or an error.
+func UpdateOperatorFeeParams(systemConfig *bindings.SystemConfig, systemConfigAddress common.Address, l2L1BlockContract *bindings.L1Block, wallet system.WalletV2, operatorFeeConstant uint64, operatorFeeScalar uint32) (receipt *gethTypes.Receipt, err error) {
 	// Construct call input
-	logger.Debug("Constructing function call to setOperatorFeeScalars")
-	funcSetOperatorFeeScalars := w3.MustNewFunc(`setOperatorFeeScalars(uint32 _operatorFeeScalar, uint64 _operatorFeeConstant)`, "")
+	funcSetOperatorFeeScalars := w3.MustNewFunc(`setOperatorFeeScalars(uint32, uint64)`, "")
 	args, err := funcSetOperatorFeeScalars.EncodeArgs(
 		operatorFeeScalar,
 		operatorFeeConstant,
 	)
-	require.NoError(t, err)
-
-	// Calculate gas parameters
-	gasLimit, gasTipCap, gasFeeCap, err := CalculateGasParams(ctx, client, wallet.Address(), systemConfigAddress, big.NewInt(0), args)
 	if err != nil {
-		logger.Warn("Error calculating gas parameters", "error", err)
+		return nil, fmt.Errorf("failed to encode arguments for setOperatorFeeScalars: %w", err)
 	}
 
-	tx := gethTypes.NewTx(&gethTypes.DynamicFeeTx{
-		To:        &systemConfigAddress,
-		Gas:       gasLimit,
-		GasFeeCap: gasFeeCap,
-		GasTipCap: gasTipCap,
-		Nonce:     nonce,
-		Value:     big.NewInt(0),
-		Data:      args,
-	})
-	signer := gethTypes.NewLondonSigner(l1ChainID)
-	signedTx, err := gethTypes.SignTx(tx, signer, wallet.PrivateKey())
-	require.NoError(t, err)
-	logger.Debug("Transaction signed", "hash", signedTx.Hash().Hex())
+	// Create a transaction using txplan
+	opts := isthmus.DefaultTxOpts(wallet)
+	ptx := txplan.NewPlannedTx(
+		opts,
+		txplan.WithTo(&systemConfigAddress),
+		txplan.WithData(args),
+	)
 
-	logger.Info("Sending transaction to the network")
-	err = client.SendTransaction(context.Background(), signedTx)
-	require.NoError(t, err)
+	_, err = ptx.Success.Eval(wallet.Ctx())
+	if err != nil {
+		return nil, fmt.Errorf("tx failed: %w", err)
+	}
 
-	// Wait for transaction receipt with timeout
-	logger.Info("Waiting for transaction confirmation")
-	ctx, cancel := context.WithTimeout(ctx, 1*time.Minute)
-	defer cancel()
-	receipt, err := waitForTransaction(ctx, client, signedTx.Hash())
-	require.NoError(t, err, "Failed to wait for transaction receipt")
-	require.NotNil(t, receipt)
-	require.Equal(t, gethTypes.ReceiptStatusSuccessful, receipt.Status)
-	logger.Info("Transaction confirmed",
-		"block", receipt.BlockNumber,
-		"gasUsed", receipt.GasUsed)
+	// Execute the transaction and wait for inclusion
+	receipt = ptx.Included.Value()
 
-	// Verify the operator fee scalars were set correctly
-	RequireOperatorFeeParamValues(t, systemConfig, receipt.BlockNumber, operatorFeeConstant, operatorFeeScalar)
+	actualOperatorFeeConstant, err := systemConfig.OperatorFeeConstant(&bind.CallOpts{BlockNumber: receipt.BlockNumber})
+	if err != nil {
+		return nil, fmt.Errorf("failed to get operator fee constant: %w", err)
+	}
+	if operatorFeeConstant != actualOperatorFeeConstant {
+		return nil, fmt.Errorf("operator fee constant mismatch: got %d, expected %d", actualOperatorFeeConstant, operatorFeeConstant)
+	}
 
-	return tx, receipt
+	actualOperatorFeeScalar, err := systemConfig.OperatorFeeScalar(&bind.CallOpts{BlockNumber: receipt.BlockNumber})
+	if err != nil {
+		return nil, fmt.Errorf("failed to get operator fee scalar: %w", err)
+	}
+	if operatorFeeScalar != actualOperatorFeeScalar {
+		return nil, fmt.Errorf("operator fee scalar mismatch: got %d, expected %d", actualOperatorFeeScalar, operatorFeeScalar)
+	}
+
+	return receipt, nil
 }
 
-func RequireOperatorFeeParamValues(t systest.T, systemConfig *bindings.SystemConfig, blockNumber *big.Int, expectedOperatorFeeConstant uint64, expectedOperatorFeeScalar uint32) {
-	operatorFeeConstant, err := systemConfig.OperatorFeeConstant(&bind.CallOpts{BlockNumber: blockNumber})
-	require.NoError(t, err)
-	require.Equal(t, operatorFeeConstant, expectedOperatorFeeConstant, "operator fee constant should match expectations")
-
-	operatorFeeScalar, err := systemConfig.OperatorFeeScalar(&bind.CallOpts{BlockNumber: blockNumber})
-	require.NoError(t, err)
-	require.Equal(t, operatorFeeScalar, expectedOperatorFeeScalar, "operator fee scalar should match expectations")
-}
-
-func RequireL1FeeParamValues(t systest.T, systemConfig *bindings.SystemConfig, blockNumber *big.Int, expectedL1BaseFeeScalar uint32, expectedL1BlobBaseFeeScalar uint32) {
-	l1BaseFeeScalar, err := systemConfig.BasefeeScalar(&bind.CallOpts{BlockNumber: blockNumber})
-	require.NoError(t, err)
-	require.Equal(t, l1BaseFeeScalar, expectedL1BaseFeeScalar, "l1 base fee scalar should match expectations")
-
-	blobBaseFeeScalar, err := systemConfig.BlobbasefeeScalar(&bind.CallOpts{BlockNumber: blockNumber})
-	require.NoError(t, err)
-	require.Equal(t, blobBaseFeeScalar, expectedL1BlobBaseFeeScalar, "l1 blob base fee scalar should match expectations")
-}
-
-func UpdateL1FeeParams(t systest.T, l1ChainID *big.Int, client *ethclient.Client, systemConfig *bindings.SystemConfig, systemConfigAddress common.Address, wallet system.Wallet, l1BaseFeeScalar uint32, l1BlobBaseFeeScalar uint32, logger log.Logger) (*gethTypes.Transaction, *gethTypes.Receipt) {
-	ctx := t.Context()
-	logger.Info("Updating L1 fee params",
-		"base fee scalar", l1BaseFeeScalar,
-		"blob base fee scalar", l1BlobBaseFeeScalar)
-
-	nonce, err := client.PendingNonceAt(ctx, wallet.Address())
-	require.NoError(t, err)
-	logger.Debug("Using nonce",
-		"nonce", nonce,
-		"wallet", wallet.Address().Hex())
-
+func UpdateL1FeeParams(systemConfig *bindings.SystemConfig, systemConfigAddress common.Address, l2L1BlockContract *bindings.L1Block, wallet system.WalletV2, l1BaseFeeScalar uint32, l1BlobBaseFeeScalar uint32) (receipt *gethTypes.Receipt, err error) {
 	// Construct call input
-	logger.Debug("Constructing function call to setGasConfigEcotone")
 	funcSetGasConfigEcotone := w3.MustNewFunc(`setGasConfigEcotone(uint32 _basefeeScalar, uint32 _blobbasefeeScalar)`, "")
 	args, err := funcSetGasConfigEcotone.EncodeArgs(
 		l1BaseFeeScalar,
 		l1BlobBaseFeeScalar,
 	)
-	require.NoError(t, err)
-
-	// Calculate gas parameters
-	gasLimit, gasTipCap, gasFeeCap, err := CalculateGasParams(ctx, client, wallet.Address(), systemConfigAddress, big.NewInt(0), args)
 	if err != nil {
-		logger.Warn("Error calculating gas parameters", "error", err)
+		return nil, fmt.Errorf("failed to encode arguments for setGasConfigEcotone: %w", err)
 	}
 
-	tx := gethTypes.NewTx(&gethTypes.DynamicFeeTx{
-		To:        &systemConfigAddress,
-		Gas:       gasLimit,
-		GasFeeCap: gasFeeCap,
-		GasTipCap: gasTipCap,
-		Nonce:     nonce,
-		Value:     big.NewInt(0),
-		Data:      args,
-	})
-	signer := gethTypes.NewLondonSigner(l1ChainID)
-	signedTx, err := gethTypes.SignTx(tx, signer, wallet.PrivateKey())
-	require.NoError(t, err)
-	logger.Debug("Transaction signed", "hash", signedTx.Hash().Hex())
+	// Create a transaction using txplan
+	opts := isthmus.DefaultTxOpts(wallet)
+	ptx := txplan.NewPlannedTx(
+		opts,
+		txplan.WithTo(&systemConfigAddress),
+		txplan.WithData(args),
+	)
 
-	logger.Info("Sending transaction to the network")
-	err = client.SendTransaction(context.Background(), signedTx)
-	require.NoError(t, err)
+	_, err = ptx.Success.Eval(wallet.Ctx())
+	if err != nil {
+		return nil, fmt.Errorf("tx failed: %w", err)
+	}
 
-	// Wait for transaction receipt with timeout
-	logger.Info("Waiting for transaction confirmation")
-	ctx, cancel := context.WithTimeout(ctx, 1*time.Minute)
-	defer cancel()
-	receipt, err := waitForTransaction(ctx, client, signedTx.Hash())
-	require.NoError(t, err, "Failed to wait for transaction receipt")
-	require.NotNil(t, receipt)
-	require.Equal(t, gethTypes.ReceiptStatusSuccessful, receipt.Status)
-	logger.Info("Transaction confirmed",
-		"block", receipt.BlockNumber,
-		"gasUsed", receipt.GasUsed)
+	// Execute the transaction and wait for inclusion
+	receipt = ptx.Included.Value()
 
-	// Verify the operator fee scalars were set correctly
-	RequireL1FeeParamValues(t, systemConfig, receipt.BlockNumber, l1BaseFeeScalar, l1BlobBaseFeeScalar)
+	// Verify the L1 fee parameters were set correctly
+	l1BaseFeeScalarActual, err := systemConfig.BasefeeScalar(&bind.CallOpts{BlockNumber: receipt.BlockNumber})
+	if err != nil {
+		return nil, fmt.Errorf("failed to get l1 base fee scalar: %w", err)
+	}
+	if l1BaseFeeScalarActual != l1BaseFeeScalar {
+		return nil, fmt.Errorf("l1 base fee scalar mismatch: got %d, expected %d", l1BaseFeeScalarActual, l1BaseFeeScalar)
+	}
 
-	return tx, receipt
+	blobBaseFeeScalar, err := systemConfig.BlobbasefeeScalar(&bind.CallOpts{BlockNumber: receipt.BlockNumber})
+	if err != nil {
+		return nil, fmt.Errorf("failed to get l1 blob base fee scalar: %w", err)
+	}
+	if blobBaseFeeScalar != l1BlobBaseFeeScalar {
+		return nil, fmt.Errorf("l1 blob base fee scalar mismatch: got %d, expected %d", blobBaseFeeScalar, l1BlobBaseFeeScalar)
+	}
+
+	return receipt, nil
 }

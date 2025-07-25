@@ -58,9 +58,9 @@ func TestBootstrapClient_UnknownChainPanics(t *testing.T) {
 	require.Panics(t, func() { client.BootInfo() })
 }
 
-func newMockPreinteropBootstrapOracle(info *BootInfo, custom bool) *mockPreinteropBoostrapOracle {
-	return &mockPreinteropBoostrapOracle{
-		mockBoostrapOracle: mockBoostrapOracle{
+func newMockPreinteropBootstrapOracle(info *BootInfo, custom bool) *mockPreinteropBootstrapOracle {
+	return &mockPreinteropBootstrapOracle{
+		mockBootstrapOracle: mockBootstrapOracle{
 			l1Head:             info.L1Head,
 			l2OutputRoot:       info.L2OutputRoot,
 			l2Claim:            info.L2Claim,
@@ -71,13 +71,13 @@ func newMockPreinteropBootstrapOracle(info *BootInfo, custom bool) *mockPreinter
 	}
 }
 
-type mockPreinteropBoostrapOracle struct {
-	mockBoostrapOracle
+type mockPreinteropBootstrapOracle struct {
+	mockBootstrapOracle
 	b      *BootInfo
 	custom bool
 }
 
-func (o *mockPreinteropBoostrapOracle) Get(key preimage.Key) []byte {
+func (o *mockPreinteropBootstrapOracle) Get(key preimage.Key) []byte {
 	switch key.PreimageKey() {
 	case L2ChainIDLocalIndex.PreimageKey():
 		return binary.BigEndian.AppendUint64(nil, eth.EvilChainIDToUInt64(o.b.L2ChainID))
@@ -94,6 +94,6 @@ func (o *mockPreinteropBoostrapOracle) Get(key preimage.Key) []byte {
 		b, _ := json.Marshal(o.b.RollupConfig)
 		return b
 	default:
-		return o.mockBoostrapOracle.Get(key)
+		return o.mockBootstrapOracle.Get(key)
 	}
 }

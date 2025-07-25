@@ -223,13 +223,12 @@ type Uint256Quantity = hexutil.U256
 
 type Data = hexutil.Bytes
 
-type (
-	PayloadID   = engine.PayloadID
-	PayloadInfo struct {
-		ID        PayloadID
-		Timestamp uint64
-	}
-)
+type PayloadID = engine.PayloadID
+
+type PayloadInfo struct {
+	ID        PayloadID `json:"id"`
+	Timestamp uint64    `json:"timestamp"`
+}
 
 type ExecutionPayloadEnvelope struct {
 	ParentBeaconBlockRoot *common.Hash      `json:"parentBeaconBlockRoot,omitempty"`

@@ -50,9 +50,16 @@
   },
   {
     "bytes": "20",
-    "label": "superchainConfig",
+    "label": "spacer_50_0_20",
     "offset": 0,
     "slot": "50",
-    "type": "contract ISuperchainConfig"
+    "type": "address"
+  },
+  {
+    "bytes": "20",
+    "label": "systemConfig",
+    "offset": 0,
+    "slot": "51",
+    "type": "contract ISystemConfig"
   }
 ]

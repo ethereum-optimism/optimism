@@ -76,6 +76,7 @@ var mainnetCfg = rollup.Config{
 	FjordTime:               u64Ptr(1720627201),
 	GraniteTime:             u64Ptr(1726070401),
 	HoloceneTime:            u64Ptr(1736445601),
+	IsthmusTime:             u64Ptr(1746806401),
 	ProtocolVersionsAddress: common.HexToAddress("0x8062AbC286f5e7D9428a0Ccb9AbD71e50d93b935"),
 	ChainOpConfig:           defaultOpConfig,
 }

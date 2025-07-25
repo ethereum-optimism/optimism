@@ -17,6 +17,32 @@ func TestUnmarshalSuperRoot_TooShortForVersion(t *testing.T) {
 	require.ErrorIs(t, err, ErrInvalidSuperRoot)
 }
 
+func TestSuperRootVersionV1MinLen(t *testing.T) {
+	minSuperRoot := SuperV1{
+		Timestamp: 7000,
+		Chains:    []ChainIDAndOutput{{ChainID: ChainIDFromUInt64(11), Output: Bytes32{0x01}}},
+	}
+	require.Equal(t, len(minSuperRoot.Marshal()), SuperRootVersionV1MinLen)
+}
+
+func TestUnmarshalSuperRoot_MissingOutput(t *testing.T) {
+	chainA := ChainIDAndOutput{ChainID: ChainIDFromUInt64(11), Output: Bytes32{0x01}}
+	chainB := ChainIDAndOutput{ChainID: ChainIDFromUInt64(12), Output: Bytes32{0x02}}
+	superRoot := SuperV1{
+		Timestamp: 7000,
+		Chains:    []ChainIDAndOutput{chainA, chainB},
+	}
+	marshaled := superRoot.Marshal()
+	// Trim the last 32 bytes which is the output root
+	// This reproduces an actual bug where %32 was used instead of %64 when checking chain outputs were complete
+	// Copy to an array that's actually shorter to avoid production code just creating a new view that re-includes the
+	// "truncated" data.
+	truncated := make([]byte, len(marshaled)-32)
+	copy(truncated, marshaled)
+	_, err := UnmarshalSuperRoot(truncated)
+	require.ErrorIs(t, err, ErrInvalidSuperRoot)
+}
+
 func TestSuperRootV1Codec(t *testing.T) {
 	t.Run("Valid", func(t *testing.T) {
 		chainA := ChainIDAndOutput{ChainID: ChainIDFromUInt64(11), Output: Bytes32{0x01}}

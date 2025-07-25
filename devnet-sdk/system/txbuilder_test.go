@@ -187,6 +187,11 @@ func (m *mockNode) SupportsEIP(ctx context.Context, eip uint64) bool {
 	return args.Bool(0)
 }
 
+func (m *mockNode) Name() string {
+	args := m.Called()
+	return args.String(0)
+}
+
 func TestNewTxBuilder(t *testing.T) {
 	ctx := context.Background()
 

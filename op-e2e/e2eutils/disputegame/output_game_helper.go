@@ -4,7 +4,6 @@ import (
 	"context"
 	"crypto/ecdsa"
 	"fmt"
-	"math/big"
 	"testing"
 	"time"
 
@@ -21,7 +20,6 @@ import (
 
 type OutputGameHelper struct {
 	SplitGameHelper
-	ClaimedBlockNumber func(pos types.Position) (uint64, error)
 }
 
 func NewOutputGameHelper(t *testing.T, require *require.Assertions, client *ethclient.Client, opts *bind.TransactOpts, privKey *ecdsa.PrivateKey,
@@ -48,8 +46,8 @@ func NewOutputGameHelper(t *testing.T, require *require.Assertions, client *ethc
 				}
 				return fmt.Sprintf("Block num: %v", blockNum)
 			},
+			ClaimedL2SequenceNumber: correctOutputProvider.ClaimedBlockNumber,
 		},
-		ClaimedBlockNumber: correctOutputProvider.ClaimedBlockNumber,
 	}
 }
 
@@ -57,55 +55,6 @@ func (g *OutputGameHelper) StartingBlockNum(ctx context.Context) uint64 {
 	blockNum, _, err := g.Game.GetGameRange(ctx)
 	g.Require.NoError(err, "failed to load starting block number")
 	return blockNum
-}
-
-func (g *OutputGameHelper) DisputeLastBlock(ctx context.Context) *ClaimHelper {
-	return g.DisputeBlock(ctx, g.L2BlockNum(ctx))
-}
-
-// DisputeBlock posts claims from both the honest and dishonest actor to progress the output root part of the game
-// through to the split depth and the claims are setup such that the last block in the game range is the block
-// to execute cannon on. ie the first block the honest and dishonest actors disagree about is the l2 block of the game.
-func (g *OutputGameHelper) DisputeBlock(ctx context.Context, disputeBlockNum uint64) *ClaimHelper {
-	dishonestValue := g.GetClaimValue(ctx, 0)
-	correctRootClaim := g.correctClaimValue(ctx, types.NewPositionFromGIndex(big.NewInt(1)))
-	rootIsValid := dishonestValue == correctRootClaim
-	if rootIsValid {
-		// Ensure that the dishonest actor is actually posting invalid roots.
-		// Otherwise, the honest challenger will defend our counter and ruin everything.
-		dishonestValue = common.Hash{0xff, 0xff, 0xff}
-	}
-	pos := types.NewPositionFromGIndex(big.NewInt(1))
-	getClaimValue := func(parentClaim *ClaimHelper, claimPos types.Position) common.Hash {
-		claimBlockNum, err := g.ClaimedBlockNumber(claimPos)
-		g.Require.NoError(err, "failed to calculate claim block number")
-		if claimBlockNum < disputeBlockNum {
-			// Use the correct output root for all claims prior to the dispute block number
-			// This pushes the game to dispute the last block in the range
-			return g.correctClaimValue(ctx, claimPos)
-		}
-		if rootIsValid == parentClaim.AgreesWithOutputRoot() {
-			// We are responding to a parent claim that agrees with a valid root, so we're being dishonest
-			return dishonestValue
-		} else {
-			// Otherwise we must be the honest actor so use the correct root
-			return g.correctClaimValue(ctx, claimPos)
-		}
-	}
-
-	claim := g.RootClaim(ctx)
-	for !claim.IsOutputRootLeaf(ctx) {
-		parentClaimBlockNum, err := g.ClaimedBlockNumber(pos)
-		g.Require.NoError(err, "failed to calculate parent claim block number")
-		if parentClaimBlockNum >= disputeBlockNum {
-			pos = pos.Attack()
-			claim = claim.Attack(ctx, getClaimValue(claim, pos))
-		} else {
-			pos = pos.Defend()
-			claim = claim.Defend(ctx, getClaimValue(claim, pos))
-		}
-	}
-	return claim
 }
 
 func (g *OutputGameHelper) WaitForL2BlockNumberChallenged(ctx context.Context) {

@@ -133,6 +133,12 @@ func checkSingularBatch(cfg *rollup.Config, log log.Logger, l1Blocks []eth.L1Blo
 		return BatchDrop
 	}
 
+	// Future forks that contain upgrade transactions must be added here.
+	if (cfg.IsInteropActivationBlock(batch.Timestamp)) && len(batch.Transactions) > 0 {
+		log.Warn("dropping batch with user transactions in fork activation block")
+		return BatchDrop
+	}
+
 	spec := rollup.NewChainSpec(cfg)
 	// Check if we ran out of sequencer time drift
 	if max := batchOrigin.Time + spec.MaxSequencerDrift(batchOrigin.Time); batch.Timestamp > max {

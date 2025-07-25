@@ -103,9 +103,9 @@ contract Events {
         bytes data
     );
 
-    event Paused(string identifier);
+    event Paused(address identifier);
 
-    event Unpaused();
+    event Unpaused(address identifier);
 
     event BalanceChanged(address account, uint256 balance);
 

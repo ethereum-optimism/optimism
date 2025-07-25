@@ -20,6 +20,8 @@ const (
 	GraniteOverrideFlagName            = "override.granite"
 	HoloceneOverrideFlagName           = "override.holocene"
 	PectraBlobScheduleOverrideFlagName = "override.pectrablobschedule"
+	IsthmusOverrideFlagName            = "override.isthmus"
+	InteropOverrideFlagName            = "override.interop"
 )
 
 func CLIFlags(envPrefix string, category string) []cli.Flag {
@@ -70,6 +72,20 @@ func CLIFlags(envPrefix string, category string) []cli.Flag {
 			Name:     PectraBlobScheduleOverrideFlagName,
 			Usage:    "Manually specify the PectraBlobSchedule fork timestamp, overriding the bundled setting",
 			EnvVars:  opservice.PrefixEnvVar(envPrefix, "OVERRIDE_PECTRABLOBSCHEDULE"),
+			Hidden:   false,
+			Category: category,
+		},
+		&cli.Uint64Flag{
+			Name:     IsthmusOverrideFlagName,
+			Usage:    "Manually specify the Isthmus fork timestamp, overriding the bundled setting",
+			EnvVars:  opservice.PrefixEnvVar(envPrefix, "OVERRIDE_ISTHMUS"),
+			Hidden:   false,
+			Category: category,
+		},
+		&cli.Uint64Flag{
+			Name:     InteropOverrideFlagName,
+			Usage:    "Manually specify the Interop fork timestamp, overriding the bundled setting",
+			EnvVars:  opservice.PrefixEnvVar(envPrefix, "OVERRIDE_INTEROP"),
 			Hidden:   false,
 			Category: category,
 		},

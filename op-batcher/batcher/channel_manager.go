@@ -239,7 +239,7 @@ func (s *channelManager) handleChannelInvalidated(c *channel) {
 func (s *channelManager) nextTxData(channel *channel) (txData, error) {
 	if channel == nil || !channel.HasTxData() {
 		s.log.Trace("no next tx data")
-		return txData{}, io.EOF // TODO: not enough data error instead
+		return txData{}, io.EOF
 	}
 	tx := channel.NextTxData()
 
@@ -285,7 +285,7 @@ func (s *channelManager) TxData(l1Head eth.BlockID, isPectra bool) (txData, erro
 		return emptyTxData, err
 	}
 	// If the channel has already started being submitted,
-	// return now and ensure no requeueing happens
+	// return now and ensure no requeuing happens
 	if !channel.NoneSubmitted() {
 		return s.nextTxData(channel)
 	}

@@ -324,6 +324,10 @@ func (m *mockNode) ContractsRegistry() interfaces.ContractsRegistry {
 	return nil
 }
 
+func (m *mockNode) Name() string {
+	return "mock"
+}
+
 type mockWallet struct {
 	balance types.Balance
 	address types.Address

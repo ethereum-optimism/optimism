@@ -7,11 +7,13 @@ Pull requests: [monorepo](https://github.com/ethereum-optimism/optimism/pulls?q=
 `op-service` is a collection of Go utilities to build OP-Stack services with.
 
 ```text
+├── accounting      - accounting utilities
 ├── apis            - interfaces for client / server RPC and misc. APIs
 ├── bigs            - big-int utils
 ├── cliapp          - Flag and lifecycle handling for a Urfave v2 CLI app.
 ├── client          - RPC and HTTP client utils
 ├── clock           - Clock interface, system clock, tickers, mock/test time utils
+├── closer          - Convenience methods / patterns for closing resources
 ├── crypto          - Cryptography utils, complements geth crypto package
 ├── ctxinterrupt    - Blocking/Interrupt handling
 ├── dial            - Dialing util functions for RPC clients
@@ -19,12 +21,15 @@ Pull requests: [monorepo](https://github.com/ethereum-optimism/optimism/pulls?q=
 ├── enum            - Utils to create enums
 ├── errutil         - Utils to work with customized errors
 ├── eth             - Common Ethereum data types and OP-Stack extension types
+├── event           - Broadcast event system
 ├── flags           - Utils and flag types for CLI usage
 ├── httputil        - Utils to create enhanced HTTP Server
 ├── ioutil          - File utils, including atomic files and compression
 ├── jsonutil        - JSON encoding/decoding utils
 ├── locks           - Lock utils, like read-write wrapped types
 ├── log             - Logging CLI and middleware utils
+├── logfilter       - Logging filters
+├── logmods         - Log handler wrapping/unwrapping utils
 ├── metrics         - Metrics types, metering abstractions, server utils
 ├── oppprof         - P-Prof CLI types and server setup
 ├── plan            - Utils to create a lazy evaluated value following dependencies
@@ -33,16 +38,19 @@ Pull requests: [monorepo](https://github.com/ethereum-optimism/optimism/pulls?q=
 ├── retry           - Function retry utils
 ├── rpc             - RPC server utils
 ├── safego          - Utils to make Go memory more safe
+├── safemath        - Utils to do math safely
 ├── serialize       - Binary serialization abstractions
 ├── signer          - CLI flags and bindings to work with a remote signer
 ├── solabi          - Utils to encode/decode Solidity ABI formatted data
 ├── sources         - RPC client bindings
 ├── tasks           - Err-group with panic handling
+├── testreq         - Extension and improvement of the common `testify/require` package.
 ├── testlog         - Test logger and log-capture utils for testing
 ├── testutils       - Simplified Ethereum types, mock RPC bindings, utils for testing.
 ├── tls             - CLI flags and utils to work with TLS connections
 ├── txmgr           - Transaction manager: automated nonce, fee and confirmation handling.
 ├── txplan          - PlannedTx to declaratively build/execute/wait transactions
+├── txinclude       - txinclude.Includer is a txplan-friendly txmgr
 ├── txintent        - IntentTx builds upon PlannedTx to prepare tx and digest the result.
 └── *.go            - Miscellaneous utils (soon to be deprecated / moved)
 ```

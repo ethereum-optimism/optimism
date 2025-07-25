@@ -214,7 +214,7 @@ The same CLI options as `op-challenger` itself are supported to configure the tr
 option allows specifying which prestates to use. The format is `traceType/name/prestateHash` where traceType is the
 trace type to use with the prestate (e.g cannon or asterisc-kona), name is an arbitrary name for the prestate to use
 when reporting metrics and prestateHash is the hex encoded absolute prestate commitment to use. If name is omitted the
-trace type name is used.If the prestateHash is omitted, the absolute prestate hash used for new games on-chain.
+trace type name is used. If the prestateHash is omitted, the absolute prestate hash used for new games on-chain is used.
 
 For example to run both the production cannon prestate and a custom
 prestate, use `--run cannon,cannon/next-prestate/0x03c1f0d45248190f80430a4c31e24f8108f05f80ff8b16ecb82d20df6b1b43f3`.

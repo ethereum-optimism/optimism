@@ -1,13 +1,23 @@
 package fromda
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/ethereum/go-ethereum/common"
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/reads"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 )
+
+var errInvalidateMismatch = fmt.Errorf("cannot invalidate mismatching block")
+
+func (db *DB) IsEmpty() bool {
+	db.rwLock.RLock()
+	defer db.rwLock.RUnlock()
+	return db.store.Size() == 0
+}
 
 func (db *DB) AddDerived(source eth.BlockRef, derived eth.BlockRef, revision types.Revision) error {
 	db.rwLock.Lock()
@@ -17,8 +27,17 @@ func (db *DB) AddDerived(source eth.BlockRef, derived eth.BlockRef, revision typ
 
 // ReplaceInvalidatedBlock replaces the current Invalidated block with the given replacement.
 // The to-be invalidated hash must be provided for consistency checks.
-func (db *DB) ReplaceInvalidatedBlock(replacementDerived eth.BlockRef, invalidated common.Hash) (
-	out types.DerivedBlockRefPair, err error) {
+func (db *DB) ReplaceInvalidatedBlock(inv reads.Invalidator, replacementDerived eth.BlockRef, invalidated common.Hash) (
+	out types.DerivedBlockRefPair, err error,
+) {
+	release, err := inv.TryInvalidate(reads.InvalidationRules{
+		reads.DerivedInvalidation{Timestamp: replacementDerived.Time},
+		// source block stays the same, so nothing to invalidate there.
+	})
+	if err != nil {
+		return types.DerivedBlockRefPair{}, err
+	}
+	defer release()
 	db.rwLock.Lock()
 	defer db.rwLock.Unlock()
 
@@ -66,7 +85,15 @@ func (db *DB) ReplaceInvalidatedBlock(replacementDerived eth.BlockRef, invalidat
 // RewindAndInvalidate rolls back the database to just before the invalidated block,
 // and then marks the block as invalidated, so that no new data can be added to the DB
 // until a Rewind or ReplaceInvalidatedBlock.
-func (db *DB) RewindAndInvalidate(invalidated types.DerivedBlockRefPair) error {
+func (db *DB) RewindAndInvalidate(inv reads.Invalidator, invalidated types.DerivedBlockRefPair) error {
+	release, err := inv.TryInvalidate(reads.InvalidationRules{
+		reads.SourceInvalidation{Number: invalidated.Source.Number},
+		reads.DerivedInvalidation{Timestamp: invalidated.Derived.Time},
+	})
+	if err != nil {
+		return err
+	}
+	defer release()
 	db.rwLock.Lock()
 	defer db.rwLock.Unlock()
 
@@ -118,29 +145,55 @@ func (db *DB) RewindAndInvalidate(invalidated types.DerivedBlockRefPair) error {
 
 // Rewind rolls back the database to the target, including the target if the including flag is set.
 // it locks the DB and calls rewindLocked.
-func (db *DB) Rewind(target types.DerivedBlockSealPair, including bool) error {
+func (db *DB) Rewind(inv reads.Invalidator, target types.DerivedBlockSealPair, including bool) error {
 	db.rwLock.Lock()
 	defer db.rwLock.Unlock()
-	return db.rewindLocked(target, including)
+	return db.rewindLocked(inv, target, including)
 }
 
-// RewindToScope rewinds the DB to the last entry with
-// a source value matching the given scope (inclusive, scope is retained in DB).
+// Clear clears the DB such that there is no data left.
+// An invalidator is required as argument, to force users to invalidate any current open reads.
+func (db *DB) Clear(inv reads.Invalidator) error {
+	// aggressively invalidate everything, since we are clearing the DB.
+	release, invalidateErr := inv.TryInvalidate(reads.InvalidationRules{
+		reads.SourceInvalidation{Number: 0},
+		reads.DerivedInvalidation{Timestamp: 0},
+	})
+	if invalidateErr != nil {
+		return invalidateErr
+	}
+	defer release()
+	if truncateErr := db.store.Truncate(-1); truncateErr != nil {
+		return fmt.Errorf("failed to empty DB: %w", truncateErr)
+	}
+	db.m.RecordDBDerivedEntryCount(0)
+	return nil
+}
+
+// RewindToSource rewinds the DB to the last entry with
+// a source value matching the given scope (excluded from the rewind, included after in DB).
+// If the source is before the start of the DB, the DB will be emptied.
 // Note that this drop L1 blocks that resulted in a previously invalidated local-safe block.
 // This returns ErrFuture if the block is newer than the last known block.
 // This returns ErrConflict if a different block at the given height is known.
-// TODO: rename this "RewindToSource" to match the idea of Source
-func (db *DB) RewindToScope(scope eth.BlockID) error {
+func (db *DB) RewindToSource(inv reads.Invalidator, source eth.BlockID) error {
 	db.rwLock.Lock()
 	defer db.rwLock.Unlock()
-	_, link, err := db.sourceNumToLastDerived(scope.Number)
+	_, link, err := db.sourceNumToLastDerived(source.Number)
 	if err != nil {
-		return fmt.Errorf("failed to find last derived %d: %w", scope.Number, err)
+		// If the rewind-point is before the first block in the DB, then drop all content of the DB.
+		if errors.Is(err, types.ErrSkipped) || errors.Is(err, types.ErrPreviousToFirst) {
+			if err := db.Clear(inv); err != nil {
+				return fmt.Errorf("failed to clear DA DB, upon rewinding to source block %s before first block: %w", source, err)
+			}
+			return nil
+		}
+		return fmt.Errorf("failed to find last derived %d: %w", source.Number, err)
 	}
-	if link.source.ID() != scope {
-		return fmt.Errorf("found derived-from %s but expected %s: %w", link.source, scope, types.ErrConflict)
+	if link.source.ID() != source {
+		return fmt.Errorf("found derived-from %s but expected %s: %w", link.source, source, types.ErrConflict)
 	}
-	return db.rewindLocked(types.DerivedBlockSealPair{
+	return db.rewindLocked(inv, types.DerivedBlockSealPair{
 		Source:  link.source,
 		Derived: link.derived,
 	}, false)
@@ -148,7 +201,7 @@ func (db *DB) RewindToScope(scope eth.BlockID) error {
 
 // RewindToFirstDerived rewinds to the first time
 // when v was derived (inclusive, v is retained in DB).
-func (db *DB) RewindToFirstDerived(v eth.BlockID, revision types.Revision) error {
+func (db *DB) RewindToFirstDerived(inv reads.Invalidator, v eth.BlockID, revision types.Revision) error {
 	db.rwLock.Lock()
 	defer db.rwLock.Unlock()
 	_, link, err := db.derivedNumToFirstSource(v.Number, revision)
@@ -158,7 +211,7 @@ func (db *DB) RewindToFirstDerived(v eth.BlockID, revision types.Revision) error
 	if link.derived.ID() != v {
 		return fmt.Errorf("found derived %s but expected %s: %w", link.derived, v, types.ErrConflict)
 	}
-	return db.rewindLocked(types.DerivedBlockSealPair{
+	return db.rewindLocked(inv, types.DerivedBlockSealPair{
 		Source:  link.source,
 		Derived: link.derived,
 	}, false)
@@ -169,7 +222,15 @@ func (db *DB) RewindToFirstDerived(v eth.BlockID, revision types.Revision) error
 // If including is true, the block seal pair itself is removed as well.
 // Note: This function must be called with the rwLock held.
 // Callers are responsible for locking and unlocking the Database.
-func (db *DB) rewindLocked(t types.DerivedBlockSealPair, including bool) error {
+func (db *DB) rewindLocked(inv reads.Invalidator, t types.DerivedBlockSealPair, including bool) error {
+	release, err := inv.TryInvalidate(reads.InvalidationRules{
+		reads.SourceInvalidation{Number: t.Source.Number}, // TODO including bool
+		reads.DerivedInvalidation{Timestamp: t.Derived.Timestamp},
+	})
+	if err != nil {
+		return err
+	}
+	defer release()
 	i, link, err := db.lookup(t.Source.Number, t.Derived.Number)
 	if err != nil {
 		return err
@@ -319,7 +380,7 @@ func (db *DB) addLink(source eth.BlockRef, derived eth.BlockRef, invalidated com
 			if _, v, err := db.derivedNumToLastSource(derived.Number, last.revision); err != nil {
 				return fmt.Errorf("failed to check if older invalidated derived block was known: %w", err)
 			} else if v.derived.Hash != invalidated {
-				return fmt.Errorf("cannot invalidate mismatching block: expected %s but invalidating %s", link.derived, invalidated)
+				return fmt.Errorf("expected %s but invalidating %s: %w", link.derived, invalidated, errInvalidateMismatch)
 			}
 		} else {
 			return fmt.Errorf("derived block %s is older than current derived block %s: %w",

@@ -106,7 +106,7 @@ type L2PredeploySemvers struct {
 	EAS                           string
 	CrossL2Inbox                  string
 	L2toL2CrossDomainMessenger    string
-	SuperchainWETH                string
+	SuperchainETHBridge           string
 	ETHLiquidity                  string
 	SuperchainTokenBridge         string
 	OptimismMintableERC20         string

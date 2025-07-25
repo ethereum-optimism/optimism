@@ -40,10 +40,12 @@ func checkDBInvariants(t *testing.T, dbPath string, m *stubMetrics) {
 		invariantSearchCheckpointAtEverySearchCheckpointFrequency,
 		invariantCanonicalHashOrCheckpointAfterEverySearchCheckpoint,
 		invariantSearchCheckpointBeforeEveryCanonicalHash,
-		invariantExecLinkAfterInitEventWithFlagSet,
-		invariantExecLinkOnlyAfterInitiatingEventWithFlagSet,
-		invariantExecCheckAfterExecLink,
-		invariantExecCheckOnlyAfterExecLink,
+		invariantExecChainIDAfterInitEventWithFlagSet,
+		invariantExecChainIDOnlyAfterInitiatingEventWithFlagSet,
+		invariantExecPositionAfterExecChainID,
+		invariantExecPositionOnlyAfterExecChainID,
+		invariantExecChecksumAfterExecPosition,
+		invariantExecChecksumOnlyAfterExecPosition,
 	}
 	for i, entry := range entries {
 		for _, invariant := range entryInvariants {
@@ -115,7 +117,7 @@ func invariantSearchCheckpointBeforeEveryCanonicalHash(entryIdx int, entry Entry
 	return nil
 }
 
-func invariantExecLinkAfterInitEventWithFlagSet(entryIdx int, entry Entry, entries []Entry, m *stubMetrics) error {
+func invariantExecChainIDAfterInitEventWithFlagSet(entryIdx int, entry Entry, entries []Entry, m *stubMetrics) error {
 	if entry.Type() != TypeInitiatingEvent {
 		return nil
 	}
@@ -123,79 +125,118 @@ func invariantExecLinkAfterInitEventWithFlagSet(entryIdx int, entry Entry, entri
 	if !hasExecMessage {
 		return nil
 	}
-	linkIdx := entryIdx + 1
-	if linkIdx%searchCheckpointFrequency == 0 {
-		linkIdx += 2 // Skip over the search checkpoint and canonical hash events
+	nextIdx := entryIdx + 1
+	if nextIdx%searchCheckpointFrequency == 0 {
+		nextIdx += 2 // Skip over the search checkpoint and canonical hash events
 	}
-	if len(entries) <= linkIdx {
-		return fmt.Errorf("expected executing link after initiating event with exec msg flag set at entry %v but there were no more events", entryIdx)
+	if len(entries) <= nextIdx {
+		return fmt.Errorf("expected execChainID after initiating event with exec msg flag set at entry %v but there were no more events", entryIdx)
 	}
-	if entries[linkIdx].Type() != TypeExecutingLink {
-		return fmt.Errorf("expected executing link at idx %v after initiating event with exec msg flag set at entry %v but got type %v", linkIdx, entryIdx, entries[linkIdx][0])
+	if entries[nextIdx].Type() != TypeExecChainID {
+		return fmt.Errorf("expected execChainID at idx %v after initiating event with exec msg flag set at entry %v but got type %v", nextIdx, entryIdx, entries[nextIdx][0])
 	}
 	return nil
 }
 
-func invariantExecLinkOnlyAfterInitiatingEventWithFlagSet(entryIdx int, entry Entry, entries []Entry, m *stubMetrics) error {
-	if entry.Type() != TypeExecutingLink {
+func invariantExecChainIDOnlyAfterInitiatingEventWithFlagSet(entryIdx int, entry Entry, entries []Entry, m *stubMetrics) error {
+	if entry.Type() != TypeExecChainID {
 		return nil
 	}
 	if entryIdx == 0 {
-		return errors.New("found executing link as first entry")
+		return errors.New("found execChainID as first entry")
 	}
 	initIdx := entryIdx - 1
 	if initIdx%searchCheckpointFrequency == 1 {
 		initIdx -= 2 // Skip the canonical hash and search checkpoint entries
 	}
 	if initIdx < 0 {
-		return fmt.Errorf("found executing link without a preceding initiating event at entry %v", entryIdx)
+		return fmt.Errorf("found execChainID without a preceding initiating event at entry %v", entryIdx)
 	}
 	initEntry := entries[initIdx]
 	if initEntry.Type() != TypeInitiatingEvent {
-		return fmt.Errorf("expected initiating event at entry %v prior to executing link at %v but got %x", initIdx, entryIdx, initEntry[0])
+		return fmt.Errorf("expected initiating event at entry %v prior to execChainID at %v but got %x", initIdx, entryIdx, initEntry[0])
 	}
 	flags := initEntry[1]
 	if flags&eventFlagHasExecutingMessage == 0 {
-		return fmt.Errorf("initiating event at %v prior to executing link at %v does not have flag set to indicate needing a executing event: %x", initIdx, entryIdx, initEntry)
+		return fmt.Errorf("initiating event at %v prior to execChainID at %v does not have flag set to indicate needing a executing event: %x", initIdx, entryIdx, initEntry)
 	}
 	return nil
 }
 
-func invariantExecCheckAfterExecLink(entryIdx int, entry Entry, entries []Entry, m *stubMetrics) error {
-	if entry.Type() != TypeExecutingLink {
+func invariantExecPositionAfterExecChainID(entryIdx int, entry Entry, entries []Entry, m *stubMetrics) error {
+	if entry.Type() != TypeExecChainID {
 		return nil
 	}
-	checkIdx := entryIdx + 1
-	if checkIdx%searchCheckpointFrequency == 0 {
-		checkIdx += 2 // Skip the search checkpoint and canonical hash entries
+	prevIdx := entryIdx + 1
+	if prevIdx%searchCheckpointFrequency == 0 {
+		prevIdx += 2 // Skip the search checkpoint and canonical hash entries
 	}
-	if checkIdx >= len(entries) {
-		return fmt.Errorf("expected executing link at %v to be followed by executing check at %v but ran out of entries", entryIdx, checkIdx)
+	if prevIdx >= len(entries) {
+		return fmt.Errorf("expected execChainID at %v to be followed by execPosition at %v but ran out of entries", entryIdx, prevIdx)
 	}
-	checkEntry := entries[checkIdx]
-	if checkEntry.Type() != TypeExecutingCheck {
-		return fmt.Errorf("expected executing link at %v to be followed by executing check at %v but got type %v", entryIdx, checkIdx, checkEntry[0])
+	prevEntry := entries[prevIdx]
+	if prevEntry.Type() != TypeExecPosition {
+		return fmt.Errorf("expected execChainID at %v to be followed by execPosition at %v but got type %v", entryIdx, prevIdx, prevEntry[0])
 	}
 	return nil
 }
 
-func invariantExecCheckOnlyAfterExecLink(entryIdx int, entry Entry, entries []Entry, m *stubMetrics) error {
-	if entry.Type() != TypeExecutingCheck {
+func invariantExecPositionOnlyAfterExecChainID(entryIdx int, entry Entry, entries []Entry, m *stubMetrics) error {
+	if entry.Type() != TypeExecPosition {
 		return nil
 	}
 	if entryIdx == 0 {
-		return errors.New("found executing check as first entry")
+		return errors.New("found execPosition as first entry")
 	}
-	linkIdx := entryIdx - 1
-	if linkIdx%searchCheckpointFrequency == 1 {
-		linkIdx -= 2 // Skip the canonical hash and search checkpoint entries
+	prevIdx := entryIdx - 1
+	if prevIdx%searchCheckpointFrequency == 1 {
+		prevIdx -= 2 // Skip the canonical hash and search checkpoint entries
 	}
-	if linkIdx < 0 {
-		return fmt.Errorf("found executing link without a preceding initiating event at entry %v", entryIdx)
+	if prevIdx < 0 {
+		return fmt.Errorf("found execPosition without a preceding execChainID at entry %v", entryIdx)
 	}
-	linkEntry := entries[linkIdx]
-	if linkEntry.Type() != TypeExecutingLink {
-		return fmt.Errorf("expected executing link at entry %v prior to executing check at %v but got %x", linkIdx, entryIdx, linkEntry[0])
+	prevEntry := entries[prevIdx]
+	if prevEntry.Type() != TypeExecChainID {
+		return fmt.Errorf("expected execChainID at entry %v prior to execPosition at %v but got %x", prevIdx, entryIdx, prevEntry[0])
+	}
+	return nil
+}
+
+func invariantExecChecksumAfterExecPosition(entryIdx int, entry Entry, entries []Entry, m *stubMetrics) error {
+	if entry.Type() != TypeExecPosition {
+		return nil
+	}
+	nextIdx := entryIdx + 1
+	if nextIdx%searchCheckpointFrequency == 0 {
+		nextIdx += 2 // Skip the search checkpoint and canonical hash entries
+	}
+	if nextIdx >= len(entries) {
+		return fmt.Errorf("expected execPosition at %v to be followed by execChecksum at %v but ran out of entries", entryIdx, nextIdx)
+	}
+	nextEntry := entries[nextIdx]
+	if nextEntry.Type() != TypeExecChecksum {
+		return fmt.Errorf("expected execPosition at %v to be followed by execChecksum at %v but got type %v", entryIdx, nextIdx, nextEntry[0])
+	}
+	return nil
+}
+
+func invariantExecChecksumOnlyAfterExecPosition(entryIdx int, entry Entry, entries []Entry, m *stubMetrics) error {
+	if entry.Type() != TypeExecChecksum {
+		return nil
+	}
+	if entryIdx == 0 {
+		return errors.New("found execChecksum as first entry")
+	}
+	prevIdx := entryIdx - 1
+	if prevIdx%searchCheckpointFrequency == 1 {
+		prevIdx -= 2 // Skip the canonical hash and search checkpoint entries
+	}
+	if prevIdx < 0 {
+		return fmt.Errorf("found execChecksum without a preceding execPosition at entry %v", entryIdx)
+	}
+	prevEntry := entries[prevIdx]
+	if prevEntry.Type() != TypeExecPosition {
+		return fmt.Errorf("expected execPosition at entry %v prior to execChecksum at %v but got %x", prevIdx, entryIdx, prevEntry[0])
 	}
 	return nil
 }

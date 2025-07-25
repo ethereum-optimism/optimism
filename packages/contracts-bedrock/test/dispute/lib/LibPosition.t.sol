@@ -5,11 +5,13 @@ import { Test } from "forge-std/Test.sol";
 import { LibPosition } from "src/dispute/lib/LibPosition.sol";
 import "src/dispute/lib/Types.sol";
 
-/// @notice Tests for `LibPosition`
-contract LibPosition_Test is Test {
-    /// @dev Assumes a MAX depth of 126 for the Position type. Any greater depth can cause overflows.
-    /// @dev At the lowest level of the tree, this allows for 2 ** 126 leaves. In reality, the max game depth
-    ///      will likely be much lower.
+/// @title LibPosition_TestInit
+/// @notice Reusable test initialization for `LibPosition` tests.
+contract LibPosition_TestInit is Test {
+    /// @dev Assumes a MAX depth of 126 for the Position type. Any greater depth can cause
+    ///      overflows.
+    /// @dev At the lowest level of the tree, this allows for 2 ** 126 leaves. In reality, the max
+    ///      game depth will likely be much lower.
     uint8 internal constant MAX_DEPTH = 126;
     /// @dev Arbitrary split depth around half way down the tree.
     uint8 internal constant SPLIT_DEPTH = 64;
@@ -22,24 +24,37 @@ contract LibPosition_Test is Test {
             return 0;
         }
     }
+}
 
-    /// @notice Tests that the `depth` function correctly shifts out the `depth` from a packed `Position` type.
+/// @title LibPosition_Depth_Test
+/// @notice Tests the `depth` function of the `LibPosition` contract.
+contract LibPosition_Depth_Test is LibPosition_TestInit {
+    /// @notice Tests that the `depth` function correctly shifts out the `depth` from a packed
+    ///         `Position` type.
     function testFuzz_depth_correctness_succeeds(uint8 _depth, uint128 _indexAtDepth) public pure {
         _depth = uint8(bound(_depth, 0, MAX_DEPTH));
         _indexAtDepth = boundIndexAtDepth(_depth, _indexAtDepth);
         Position position = LibPosition.wrap(_depth, _indexAtDepth);
         assertEq(position.depth(), _depth);
     }
+}
 
-    /// @notice Tests that the `indexAtDepth` function correctly shifts out the `indexAtDepth` from a packed `Position`
-    /// type.
+/// @title LibPosition_IndexAtDepth_Test
+/// @notice Tests the `indexAtDepth` function of the `LibPosition` contract.
+contract LibPosition_IndexAtDepth_Test is LibPosition_TestInit {
+    /// @notice Tests that the `indexAtDepth` function correctly shifts out the `indexAtDepth` from
+    ///         a packed `Position` type.
     function testFuzz_indexAtDepth_correctness_succeeds(uint8 _depth, uint128 _indexAtDepth) public pure {
         _depth = uint8(bound(_depth, 0, MAX_DEPTH));
         _indexAtDepth = boundIndexAtDepth(_depth, _indexAtDepth);
         Position position = LibPosition.wrap(_depth, _indexAtDepth);
         assertEq(position.indexAtDepth(), _indexAtDepth);
     }
+}
 
+/// @title LibPosition_Left_Test
+/// @notice Tests the `left` function of the `LibPosition` contract.
+contract LibPosition_Left_Test is LibPosition_TestInit {
     /// @notice Tests that the `left` function correctly computes the position of the left child.
     function testFuzz_left_correctness_succeeds(uint8 _depth, uint128 _indexAtDepth) public pure {
         _depth = uint8(bound(_depth, 0, MAX_DEPTH));
@@ -51,7 +66,11 @@ contract LibPosition_Test is Test {
         assertEq(left.depth(), _depth + 1);
         assertEq(left.indexAtDepth(), _indexAtDepth * 2);
     }
+}
 
+/// @title LibPosition_Right_Test
+/// @notice Tests the `right` function of the `LibPosition` contract.
+contract LibPosition_Right_Test is LibPosition_TestInit {
     /// @notice Tests that the `right` function correctly computes the position of the right child.
     function testFuzz_right_correctness_succeeds(uint8 _depth, uint128 _indexAtDepth) public pure {
         // Depth bound: [0, 63]
@@ -64,7 +83,11 @@ contract LibPosition_Test is Test {
         assertEq(right.depth(), _depth + 1);
         assertEq(right.indexAtDepth(), _indexAtDepth * 2 + 1);
     }
+}
 
+/// @title LibPosition_Parent_Test
+/// @notice Tests the `parent` function of the `LibPosition` contract.
+contract LibPosition_Parent_Test is LibPosition_TestInit {
     /// @notice Tests that the `parent` function correctly computes the position of the parent.
     function testFuzz_parent_correctness_succeeds(uint8 _depth, uint128 _indexAtDepth) public pure {
         _depth = uint8(bound(_depth, 1, MAX_DEPTH));
@@ -76,46 +99,13 @@ contract LibPosition_Test is Test {
         assertEq(parent.depth(), _depth - 1);
         assertEq(parent.indexAtDepth(), _indexAtDepth / 2);
     }
+}
 
-    /// @notice Tests that the `traceAncestor` function correctly computes the position of the
-    ///         highest ancestor that commits to the same trace index.
-    function testFuzz_traceAncestor_correctness_succeeds(uint8 _depth, uint128 _indexAtDepth) public pure {
-        _depth = uint8(bound(_depth, 1, MAX_DEPTH));
-        _indexAtDepth = boundIndexAtDepth(_depth, _indexAtDepth);
-
-        Position position = LibPosition.wrap(_depth, _indexAtDepth);
-        Position ancestor = position.traceAncestor();
-        Position loopAncestor = position;
-        while (loopAncestor.parent().traceIndex(MAX_DEPTH) == position.traceIndex(MAX_DEPTH)) {
-            loopAncestor = loopAncestor.parent();
-        }
-
-        assertEq(Position.unwrap(ancestor), Position.unwrap(loopAncestor));
-    }
-
-    /// @notice Tests that the `traceAncestorBounded` function correctly computes the position of the
-    ///         highest ancestor (below `SPLIT_DEPTH`) that commits to the same trace index.
-    function testFuzz_traceAncestorBounded_correctness_succeeds(uint8 _depth, uint128 _indexAtDepth) public pure {
-        _depth = uint8(bound(_depth, SPLIT_DEPTH + 1, MAX_DEPTH));
-        _indexAtDepth = boundIndexAtDepth(_depth, _indexAtDepth);
-
-        Position position = LibPosition.wrap(_depth, _indexAtDepth);
-        Position ancestor = position.traceAncestorBounded(SPLIT_DEPTH);
-        Position loopAncestor = position;
-
-        // Stop at 1 below the split depth.
-        while (
-            loopAncestor.parent().traceIndex(MAX_DEPTH) == position.traceIndex(MAX_DEPTH)
-                && loopAncestor.depth() != SPLIT_DEPTH + 1
-        ) {
-            loopAncestor = loopAncestor.parent();
-        }
-
-        assertEq(Position.unwrap(ancestor), Position.unwrap(loopAncestor));
-    }
-
-    /// @notice Tests that the `rightIndex` function correctly computes the deepest, right most index relative
-    ///         to a given position.
+/// @title LibPosition_RightIndex_Test
+/// @notice Tests the `rightIndex` function of the `LibPosition` contract.
+contract LibPosition_RightIndex_Test is LibPosition_TestInit {
+    /// @notice Tests that the `rightIndex` function correctly computes the deepest, right most
+    ///         index relative to a given position.
     function testFuzz_rightIndex_correctness_succeeds(
         uint8 _maxDepth,
         uint8 _depth,
@@ -141,11 +131,60 @@ contract LibPosition_Test is Test {
 
         assertEq(Position.unwrap(rightIndex), Position.unwrap(position));
     }
+}
 
-    /// @notice Tests that the `attack` function correctly computes the position of the attack relative to
-    ///         a given position.
+/// @title LibPosition_TraceAncestor_Test
+/// @notice Tests the `traceAncestor` function of the `LibPosition` contract.
+contract LibPosition_TraceAncestor_Test is LibPosition_TestInit {
+    /// @notice Tests that the `traceAncestor` function correctly computes the position of the
+    ///         highest ancestor that commits to the same trace index.
+    function testFuzz_traceAncestor_correctness_succeeds(uint8 _depth, uint128 _indexAtDepth) public pure {
+        _depth = uint8(bound(_depth, 1, MAX_DEPTH));
+        _indexAtDepth = boundIndexAtDepth(_depth, _indexAtDepth);
+
+        Position position = LibPosition.wrap(_depth, _indexAtDepth);
+        Position ancestor = position.traceAncestor();
+        Position loopAncestor = position;
+        while (loopAncestor.parent().traceIndex(MAX_DEPTH) == position.traceIndex(MAX_DEPTH)) {
+            loopAncestor = loopAncestor.parent();
+        }
+
+        assertEq(Position.unwrap(ancestor), Position.unwrap(loopAncestor));
+    }
+}
+
+/// @title LibPosition_TraceAncestorBounded_Test
+/// @notice Tests the `traceAncestorBounded` function of the `LibPosition` contract.
+contract LibPosition_TraceAncestorBounded_Test is LibPosition_TestInit {
+    /// @notice Tests that the `traceAncestorBounded` function correctly computes the position of
+    ///         the highest ancestor (below `SPLIT_DEPTH`) that commits to the same trace index.
+    function testFuzz_traceAncestorBounded_correctness_succeeds(uint8 _depth, uint128 _indexAtDepth) public pure {
+        _depth = uint8(bound(_depth, SPLIT_DEPTH + 1, MAX_DEPTH));
+        _indexAtDepth = boundIndexAtDepth(_depth, _indexAtDepth);
+
+        Position position = LibPosition.wrap(_depth, _indexAtDepth);
+        Position ancestor = position.traceAncestorBounded(SPLIT_DEPTH);
+        Position loopAncestor = position;
+
+        // Stop at 1 below the split depth.
+        while (
+            loopAncestor.parent().traceIndex(MAX_DEPTH) == position.traceIndex(MAX_DEPTH)
+                && loopAncestor.depth() != SPLIT_DEPTH + 1
+        ) {
+            loopAncestor = loopAncestor.parent();
+        }
+
+        assertEq(Position.unwrap(ancestor), Position.unwrap(loopAncestor));
+    }
+}
+
+/// @title LibPosition_Move_Test
+/// @notice Tests the `move` function of the `LibPosition` contract.
+contract LibPosition_Move_Test is LibPosition_TestInit {
+    /// @notice Tests that the `attack` function correctly computes the position of the attack
+    ///         relative to a given position.
     /// @dev `attack` is an alias for `left`, but we test it separately for completeness.
-    function testFuzz_attack_correctness_succeeds(uint8 _depth, uint128 _indexAtDepth) public pure {
+    function testFuzz_move_attack_succeeds(uint8 _depth, uint128 _indexAtDepth) public pure {
         // Depth bound: [0, 63]
         _depth = uint8(bound(_depth, 0, MAX_DEPTH));
         _indexAtDepth = boundIndexAtDepth(_depth, _indexAtDepth);
@@ -157,11 +196,11 @@ contract LibPosition_Test is Test {
         assertEq(attack.indexAtDepth(), _indexAtDepth * 2);
     }
 
-    /// @notice Tests that the `defend` function correctly computes the position of the defense relative to
-    ///         a given position.
-    /// @dev A defense can only be given if the position does not belong to the root claim, hence the bound of [1, 127]
-    ///      on the depth.
-    function testFuzz_defend_correctness_succeeds(uint8 _depth, uint128 _indexAtDepth) public pure {
+    /// @notice Tests that the `defend` function correctly computes the position of the defense
+    ///         relative to a given position.
+    /// @dev A defense can only be given if the position does not belong to the root claim, hence
+    ///      the bound of [1, 127] on the depth.
+    function testFuzz_move_defend_succeeds(uint8 _depth, uint128 _indexAtDepth) public pure {
         // Depth bound: [1, 63]
         _depth = uint8(bound(_depth, 1, MAX_DEPTH));
         _indexAtDepth = boundIndexAtDepth(_depth, _indexAtDepth);
@@ -172,9 +211,14 @@ contract LibPosition_Test is Test {
         assertEq(defend.depth(), _depth + 1);
         assertEq(defend.indexAtDepth(), ((_indexAtDepth / 2) * 2 + 1) * 2);
     }
+}
 
-    /// @notice A static unit test for the correctness of all gindicies, (depth, index) combos,
-    ///         and the trace index in a tree of max depth = 4.
+/// @title LibPosition_Unclassified_Test
+/// @notice General tests that are not testing any function directly of the `LibPosition` contract
+///         or are testing multiple functions at once.
+contract LibPosition_Unclassified_Test is LibPosition_TestInit {
+    /// @notice A static unit test for the correctness of all gindicies, (depth, index) combos, and
+    ///         the trace index in a tree of max depth = 4.
     function test_pos_correctness_succeeds() public pure {
         uint256 maxDepth = 4;
 

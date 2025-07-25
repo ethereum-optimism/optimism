@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"strconv"
 	"sync"
 	"time"
 )
@@ -190,6 +191,30 @@ func (s *HTTPServer) Addr() net.Addr {
 		return nil
 	}
 	return s.listener.Addr()
+}
+
+// Port returns the port that the server is listening on.
+func (s *HTTPServer) Port() (int, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	addr := s.listener.Addr().String()
+
+	_, portStr, err := net.SplitHostPort(addr)
+	if err != nil {
+		return 0, fmt.Errorf("failed to extract port from server: %w", err)
+	}
+	if len(portStr) == 0 {
+		if s.config.tls != nil { // https
+			return 443, nil
+		} else { // http
+			return 80, nil
+		}
+	}
+	port, err := strconv.Atoi(portStr)
+	if err != nil {
+		return 0, fmt.Errorf("failed to convert extracted port: %w", err)
+	}
+	return port, nil
 }
 
 // HTTPEndpoint returns the http(s) endpoint the server is serving.

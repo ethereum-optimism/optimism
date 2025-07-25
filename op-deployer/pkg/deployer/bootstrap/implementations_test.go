@@ -76,11 +76,11 @@ func testImplementations(t *testing.T, forkRPCURL string, cacheDir string) {
 			ChallengePeriodSeconds:          standard.ChallengePeriodSeconds,
 			ProofMaturityDelaySeconds:       standard.ProofMaturityDelaySeconds,
 			DisputeGameFinalityDelaySeconds: standard.DisputeGameFinalityDelaySeconds,
-			MIPSVersion:                     1,
+			MIPSVersion:                     int(standard.MIPSVersion),
 			SuperchainConfigProxy:           superchain.SuperchainConfigAddr,
 			ProtocolVersionsProxy:           superchain.ProtocolVersionsAddr,
+			SuperchainProxyAdmin:            proxyAdminOwner,
 			UpgradeController:               proxyAdminOwner,
-			UseInterop:                      false,
 			CacheDir:                        cacheDir,
 		})
 		require.NoError(t, err)

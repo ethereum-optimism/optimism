@@ -4,29 +4,14 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum/go-ethereum/common"
 	ethTypes "github.com/ethereum/go-ethereum/core/types"
 
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/depset"
+	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 )
-
-type testDepSet struct {
-	mapping map[eth.ChainID]types.ChainIndex
-}
-
-func (t *testDepSet) ChainIndexFromID(id eth.ChainID) (types.ChainIndex, error) {
-	v, ok := t.mapping[id]
-	if !ok {
-		return 0, types.ErrUnknownChain
-	}
-	return v, nil
-}
-
-var _ depset.ChainIndexFromID = (*testDepSet)(nil)
 
 func TestDecodeExecutingMessageLog(t *testing.T) {
 	data := `
@@ -48,11 +33,7 @@ func TestDecodeExecutingMessageLog(t *testing.T) {
 	var logEvent ethTypes.Log
 	require.NoError(t, json.Unmarshal([]byte(data), &logEvent))
 
-	msg, err := DecodeExecutingMessageLog(&logEvent, &testDepSet{
-		mapping: map[eth.ChainID]types.ChainIndex{
-			eth.ChainIDFromUInt64(900200): types.ChainIndex(123),
-		},
-	})
+	msg, err := DecodeExecutingMessageLog(&logEvent)
 	require.NoError(t, err)
 	require.NotNil(t, msg)
 
@@ -68,10 +49,18 @@ func TestDecodeExecutingMessageLog(t *testing.T) {
 	originAddr := common.HexToAddress("0x5fbdb2315678afecb367f032d93f642f64180aa3")
 	payloadHash := common.HexToHash("0xc3f57e1f0dd62a4f77787d834029bfeaab8894022c47edbe13b044fb658c9190")
 	logHash := types.PayloadHashToLogHash(payloadHash, originAddr)
+	args := types.ChecksumArgs{
+		BlockNumber: uint64(4509),
+		LogIndex:    uint32(0),
+		Timestamp:   uint64(1730467171),
+		ChainID:     eth.ChainIDFromUInt64(900200),
+		LogHash:     logHash,
+	}
+	checksum := args.Checksum()
 
-	require.Equal(t, logHash, msg.Hash)
+	require.Equal(t, checksum, msg.Checksum)
 	require.Equal(t, uint64(4509), msg.BlockNum)
 	require.Equal(t, uint32(0), msg.LogIdx)
 	require.Equal(t, uint64(1730467171), msg.Timestamp)
-	require.Equal(t, types.ChainIndex(123), msg.Chain)
+	require.Equal(t, eth.ChainIDFromUInt64(900200), msg.ChainID)
 }

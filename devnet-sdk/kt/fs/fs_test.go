@@ -58,7 +58,14 @@ func (m *mockEnclaveContext) UploadFiles(pathToUpload string, artifactName strin
 }
 
 func (m *mockEnclaveContext) GetAllFilesArtifactNamesAndUuids(ctx context.Context) ([]*kurtosis_core_rpc_api_bindings.FilesArtifactNameAndUuid, error) {
-	return nil, nil
+	var result []*kurtosis_core_rpc_api_bindings.FilesArtifactNameAndUuid
+	for name := range m.artifacts {
+		result = append(result, &kurtosis_core_rpc_api_bindings.FilesArtifactNameAndUuid{
+			FileName: name,
+			FileUuid: "test-uuid",
+		})
+	}
+	return result, nil
 }
 
 var _ EnclaveContextIface = (*mockEnclaveContext)(nil)

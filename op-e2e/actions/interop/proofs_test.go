@@ -8,11 +8,15 @@ import (
 	"reflect"
 	"testing"
 
+	altda "github.com/ethereum-optimism/optimism/op-alt-da"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/super"
 	challengerTypes "github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
 	"github.com/ethereum-optimism/optimism/op-e2e/actions/helpers"
 	"github.com/ethereum-optimism/optimism/op-e2e/actions/interop/dsl"
 	fpHelpers "github.com/ethereum-optimism/optimism/op-e2e/actions/proofs/helpers"
+	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils"
+	"github.com/ethereum-optimism/optimism/op-node/node/safedb"
+	sync2 "github.com/ethereum-optimism/optimism/op-node/rollup/sync"
 	"github.com/ethereum-optimism/optimism/op-program/client/claim"
 	"github.com/ethereum-optimism/optimism/op-program/client/interop"
 	"github.com/ethereum-optimism/optimism/op-program/client/interop/types"
@@ -20,7 +24,9 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/depset"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/log"
 	"github.com/stretchr/testify/require"
 )
 
@@ -86,6 +92,39 @@ func TestInteropFaultProofs_TraceExtensionActivation(gt *testing.T) {
 	runFppAndChallengerTests(gt, system, tests)
 }
 
+func TestInteropFaultProofs_UnsafeProposal(gt *testing.T) {
+	t := helpers.NewDefaultTesting(gt)
+	system := dsl.NewInteropDSL(t)
+
+	system.AddL2Block(system.Actors.ChainA)
+	system.AddL2Block(system.Actors.ChainB)
+
+	proposalTimestamp := system.Actors.ChainA.Sequencer.L2Unsafe().Time
+	agreedTimestamp := proposalTimestamp - 1
+	agreedClaim := system.Outputs.SuperRoot(agreedTimestamp).Marshal()
+	disputedClaim := system.Outputs.TransitionState(agreedTimestamp, 1).Marshal()
+	disputedTraceIndex := int64(0)
+	tests := []*transitionTest{
+		{
+			name:               "ProposedUnsafeBlock-NotValid",
+			agreedClaim:        agreedClaim,
+			disputedClaim:      disputedClaim,
+			disputedTraceIndex: disputedTraceIndex,
+			proposalTimestamp:  proposalTimestamp,
+			expectValid:        false,
+		},
+		{
+			name:               "ProposedUnsafeBlock-ShouldBeInvalid",
+			agreedClaim:        agreedClaim,
+			disputedClaim:      interop.InvalidTransition,
+			disputedTraceIndex: disputedTraceIndex,
+			proposalTimestamp:  proposalTimestamp,
+			expectValid:        true,
+		},
+	}
+	runFppAndChallengerTests(gt, system, tests)
+}
+
 func TestInteropFaultProofs_ConsolidateValidCrossChainMessage(gt *testing.T) {
 	t := helpers.NewDefaultTesting(gt)
 	system := dsl.NewInteropDSL(t)
@@ -133,6 +172,104 @@ func TestInteropFaultProofs_ConsolidateValidCrossChainMessage(gt *testing.T) {
 			expectValid:        false,
 		},
 	}
+	runFppAndChallengerTests(gt, system, tests)
+}
+
+func TestInteropFaultProofs_PreForkActivation(gt *testing.T) {
+	// TODO(#16166): Fix non-genesis Interop activation proofs
+	gt.Skip()
+	t := helpers.NewDefaultTesting(gt)
+	system := dsl.NewInteropDSL(t, dsl.SetInteropForkScheduledButInactive())
+
+	actors := system.Actors
+	endTimestamp := actors.ChainA.RollupCfg.Genesis.L2Time + actors.ChainA.RollupCfg.BlockTime
+	startTimestamp := endTimestamp - 1
+	require.False(t, actors.ChainA.RollupCfg.IsInterop(endTimestamp), "Interop should not be active")
+
+	alice := system.CreateUser()
+	emitter := system.DeployEmitterContracts()
+
+	system.AddL2Block(system.Actors.ChainA, dsl.WithL2BlockTransactions(emitter.EmitMessage(alice, "hello")))
+	initMsg := emitter.LastEmittedMessage()
+	system.AddL2Block(system.Actors.ChainB,
+		dsl.WithL2BlockTransactions(system.InboxContract.Execute(alice, initMsg,
+			dsl.WithPayload([]byte("wrong")),
+			// CrossL2Inbox contract isn't deployed so the tx will revert. Need to avoid using eth_estimateGas
+			dsl.WithFixedGasLimit())))
+	system.InboxContract.LastTransaction().CheckIncluded(dsl.WithRevertExpected())
+
+	// Submit batch data for each chain in separate L1 blocks so tests can have one chain safe and one unsafe
+	system.SubmitBatchData(func(opts *dsl.SubmitBatchDataOpts) {
+		opts.SetChains(system.Actors.ChainA)
+	})
+	system.SubmitBatchData(func(opts *dsl.SubmitBatchDataOpts) {
+		opts.SetChains(system.Actors.ChainB)
+	})
+	// Check that the supervisor didn't re-org out this transaction.
+	// Interop isn't active yet so the extra derivation rules to validate executing messages must not be active.
+	system.InboxContract.LastTransaction().CheckIncluded(dsl.WithRevertExpected())
+
+	start := system.Outputs.SuperRoot(startTimestamp)
+	end := system.Outputs.SuperRoot(endTimestamp)
+
+	step1Expected := system.Outputs.TransitionState(startTimestamp, 1,
+		system.Outputs.OptimisticBlockAtTimestamp(actors.ChainA, endTimestamp),
+	).Marshal()
+
+	step2Expected := system.Outputs.TransitionState(startTimestamp, 2,
+		system.Outputs.OptimisticBlockAtTimestamp(actors.ChainA, endTimestamp),
+		system.Outputs.OptimisticBlockAtTimestamp(actors.ChainB, endTimestamp),
+	).Marshal()
+
+	firstPaddingStep := system.Outputs.TransitionState(startTimestamp, 3,
+		system.Outputs.OptimisticBlockAtTimestamp(actors.ChainA, endTimestamp),
+		system.Outputs.OptimisticBlockAtTimestamp(actors.ChainB, endTimestamp),
+	).Marshal()
+
+	lastPaddingStep := system.Outputs.TransitionState(startTimestamp, consolidateStep,
+		system.Outputs.OptimisticBlockAtTimestamp(actors.ChainA, endTimestamp),
+		system.Outputs.OptimisticBlockAtTimestamp(actors.ChainB, endTimestamp),
+	).Marshal()
+
+	tests := []*transitionTest{
+		{
+			name:               "FirstChainOptimisticBlock",
+			agreedClaim:        start.Marshal(),
+			disputedClaim:      step1Expected,
+			disputedTraceIndex: 0,
+			expectValid:        true,
+			startTimestamp:     startTimestamp,
+			proposalTimestamp:  endTimestamp,
+		},
+		{
+			name:               "SecondChainOptimisticBlock",
+			agreedClaim:        step1Expected,
+			disputedClaim:      step2Expected,
+			disputedTraceIndex: 1,
+			expectValid:        true,
+			startTimestamp:     startTimestamp,
+			proposalTimestamp:  endTimestamp,
+		},
+		{
+			name:               "FirstPaddingStep",
+			agreedClaim:        step2Expected,
+			disputedClaim:      firstPaddingStep,
+			disputedTraceIndex: 2,
+			expectValid:        true,
+			startTimestamp:     startTimestamp,
+			proposalTimestamp:  endTimestamp,
+		},
+		{
+			name:               "Consolidate",
+			agreedClaim:        lastPaddingStep,
+			disputedClaim:      end.Marshal(),
+			disputedTraceIndex: consolidateStep,
+			expectValid:        true,
+			startTimestamp:     startTimestamp,
+			proposalTimestamp:  endTimestamp,
+		},
+	}
+
 	runFppAndChallengerTests(gt, system, tests)
 }
 
@@ -1260,21 +1397,24 @@ func TestInteropFaultProofs_DepositMessage_InvalidExecution(gt *testing.T) {
 	runFppAndChallengerTests(gt, system, tests)
 }
 
-func runFppAndChallengerTests(gt *testing.T, system *dsl.InteropDSL, tests []*transitionTest) {
+// Returns true if all tests passed, otherwise returns false
+func runFppAndChallengerTests(gt *testing.T, system *dsl.InteropDSL, tests []*transitionTest) bool {
+	passed := true
 	for _, test := range tests {
 		test := test
-		gt.Run(fmt.Sprintf("%s-fpp", test.name), func(gt *testing.T) {
+		passed = gt.Run(fmt.Sprintf("%s-fpp", test.name), func(gt *testing.T) {
 			runFppTest(gt, test, system.Actors, system.DepSet())
-		})
+		}) && passed
 
-		gt.Run(fmt.Sprintf("%s-challenger", test.name), func(gt *testing.T) {
+		passed = gt.Run(fmt.Sprintf("%s-challenger", test.name), func(gt *testing.T) {
 			runChallengerTest(gt, test, system.Actors)
-		})
+		}) && passed
 	}
+	return passed
 }
 
 func runFppTest(gt *testing.T, test *transitionTest, actors *dsl.InteropActors, depSet *depset.StaticConfigDependencySet) {
-	t := helpers.NewDefaultTesting(gt)
+	t := helpers.SubTest(gt)
 	if test.skipProgram {
 		t.Skip("Not yet implemented")
 		return
@@ -1303,7 +1443,7 @@ func runFppTest(gt *testing.T, test *transitionTest, actors *dsl.InteropActors, 
 }
 
 func runChallengerTest(gt *testing.T, test *transitionTest, actors *dsl.InteropActors) {
-	t := helpers.NewDefaultTesting(gt)
+	t := helpers.SubTest(gt)
 	if test.skipChallenger {
 		t.Skip("Not yet implemented")
 		return
@@ -1358,13 +1498,60 @@ func WithInteropEnabled(t helpers.StatefulTesting, actors *dsl.InteropActors, de
 		f.DependencySet = depSet
 
 		for _, chain := range []*dsl.Chain{actors.ChainA, actors.ChainB} {
+			verifier, canonicalOnlyEngine := createVerifierWithOnlyCanonicalBlocks(t, actors.L1Miner, chain)
 			f.L2Sources = append(f.L2Sources, &fpHelpers.FaultProofProgramL2Source{
-				Node:        chain.Sequencer.L2Verifier,
-				Engine:      chain.SequencerEngine,
+				Node:        verifier,
+				Engine:      canonicalOnlyEngine,
 				ChainConfig: chain.L2Genesis.Config,
 			})
 		}
 	}
+}
+
+// createVerifierWithOnlyCanonicalBlocks creates a new L2Verifier and associated L2Engine that only has the canonical
+// blocks from chain in its database. Non-canonical blocks, their world state, receipts and other data are not available
+func createVerifierWithOnlyCanonicalBlocks(t helpers.StatefulTesting, l1Miner *helpers.L1Miner, chain *dsl.Chain) (*helpers.L2Verifier, *helpers.L2Engine) {
+	jwtPath := e2eutils.WriteDefaultJWT(t)
+	canonicalOnlyEngine := helpers.NewL2Engine(t, testlog.Logger(t, log.LvlInfo).New("role", "canonicalOnlyEngine"), chain.L2Genesis, jwtPath)
+	head := chain.Sequencer.L2Unsafe()
+	for i := uint64(1); i <= head.Number; i++ {
+		block, err := chain.SequencerEngine.EthClient().BlockByNumber(t.Ctx(), new(big.Int).SetUint64(i))
+		require.NoErrorf(t, err, "failed to get block by number %v", i)
+		envelope, err := eth.BlockAsPayloadEnv(block, chain.L2Genesis.Config)
+		require.NoErrorf(t, err, "could not convert block %v to payload envelope")
+		result, err := canonicalOnlyEngine.EngineApi.NewPayloadV4(t.Ctx(), envelope.ExecutionPayload, []common.Hash{}, envelope.ParentBeaconBlockRoot, []hexutil.Bytes{})
+		require.NoErrorf(t, err, "could not import payload for block %v", i)
+		require.Equal(t, eth.ExecutionValid, result.Status)
+	}
+	fcuResult, err := canonicalOnlyEngine.EngineApi.ForkchoiceUpdatedV3(t.Ctx(), &eth.ForkchoiceState{
+		HeadBlockHash:      head.Hash,
+		SafeBlockHash:      head.Hash,
+		FinalizedBlockHash: head.Hash,
+	}, nil)
+	require.NoErrorf(t, err, "could not update fork choice for block %v", head.Hash)
+	require.Equal(t, eth.ExecutionValid, fcuResult.PayloadStatus.Status)
+
+	// Verify chain matches exactly
+	for i := uint64(0); i <= head.Number; i++ {
+		blockNum := new(big.Int).SetUint64(i)
+		expected, err := chain.SequencerEngine.EthClient().BlockByNumber(t.Ctx(), blockNum)
+		require.NoErrorf(t, err, "failed to get original block by number %v", i)
+		actual, err := canonicalOnlyEngine.EthClient().BlockByNumber(t.Ctx(), blockNum)
+		require.NoErrorf(t, err, "failed to get canonical-only block by number %v", i)
+		require.Equalf(t, expected.Hash(), actual.Hash(), "block %v does not match", i)
+	}
+
+	verifier := helpers.NewL2Verifier(t,
+		testlog.Logger(t, log.LvlInfo).New("role", "canonicalOnlyVerifier"),
+		l1Miner.L1Client(t, chain.RollupCfg),
+		l1Miner.BlobSource(),
+		altda.Disabled,
+		canonicalOnlyEngine.EngineClient(t, chain.RollupCfg),
+		chain.RollupCfg,
+		chain.DependencySet,
+		&sync2.Config{},
+		safedb.Disabled)
+	return verifier, canonicalOnlyEngine
 }
 
 func assertTime(t helpers.Testing, chain *dsl.Chain, unsafe, crossUnsafe, localSafe, safe uint64) {

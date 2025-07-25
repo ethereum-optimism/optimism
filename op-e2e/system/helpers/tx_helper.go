@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-e2e/system/e2esys"
+	"github.com/holiman/uint256"
 
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
 
@@ -123,6 +124,47 @@ func SendL2TxWithID(t *testing.T, chainID *big.Int, l2Client *ethclient.Client, 
 
 func SendL2Tx(t *testing.T, cfg e2esys.SystemConfig, l2Client *ethclient.Client, privKey *ecdsa.PrivateKey, applyTxOpts TxOptsFn) *types.Receipt {
 	return SendL2TxWithID(t, cfg.L2ChainIDBig(), l2Client, privKey, applyTxOpts)
+}
+
+func SendL2SetCodeTx(cfg e2esys.SystemConfig, l2Client *ethclient.Client, privKey *ecdsa.PrivateKey, applyTxOpts TxOptsFn) (*types.Receipt, error) {
+	opts := defaultTxOpts()
+	applyTxOpts(opts)
+	chainID := uint256.MustFromBig(cfg.L2ChainIDBig())
+
+	setCodeAuthorization := types.SetCodeAuthorization{
+		ChainID: *chainID,
+		Address: common.HexToAddress("0xab"), // arbitrary nonzero address
+		Nonce:   opts.Nonce,
+	}
+
+	signedAuth, err := types.SignSetCode(privKey, setCodeAuthorization)
+	if err != nil {
+		return nil, err
+	}
+
+	tx := types.MustSignNewTx(privKey, types.LatestSignerForChainID(cfg.L2ChainIDBig()), &types.SetCodeTx{
+		ChainID:   chainID,
+		Nonce:     opts.Nonce, // Already have deposit
+		To:        *opts.ToAddr,
+		Value:     uint256.MustFromBig(opts.Value),
+		GasTipCap: uint256.MustFromBig(opts.GasTipCap),
+		GasFeeCap: uint256.MustFromBig(opts.GasFeeCap),
+		Gas:       opts.Gas,
+		Data:      opts.Data,
+		AuthList:  []types.SetCodeAuthorization{signedAuth},
+	})
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	err = l2Client.SendTransaction(ctx, tx)
+	if err != nil {
+		return nil, err
+	}
+
+	receipt, err := wait.ForReceiptOK(ctx, l2Client, tx.Hash())
+	if err != nil {
+		return nil, err
+	}
+	return receipt, nil
 }
 
 type TxOptsFn func(opts *TxOpts)

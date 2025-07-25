@@ -4,6 +4,7 @@ pragma solidity 0.8.15;
 // Contracts
 import { OwnableUpgradeable } from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import { ReinitializableBase } from "src/universal/ReinitializableBase.sol";
+import { ProxyAdminOwnedBase } from "src/L1/ProxyAdminOwnedBase.sol";
 
 // Libraries
 import { Storage } from "src/libraries/Storage.sol";
@@ -12,13 +13,15 @@ import { Storage } from "src/libraries/Storage.sol";
 import { ISemver } from "interfaces/universal/ISemver.sol";
 import { IResourceMetering } from "interfaces/L1/IResourceMetering.sol";
 import { IOptimismPortal2 } from "interfaces/L1/IOptimismPortal2.sol";
+import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
+import { IETHLockbox } from "interfaces/L1/IETHLockbox.sol";
 
 /// @custom:proxied true
 /// @title SystemConfig
 /// @notice The SystemConfig contract is used to manage configuration of an Optimism network.
 ///         All configuration is stored on L1 and picked up by L2 as part of the derviation of
 ///         the L2 chain.
-contract SystemConfig is OwnableUpgradeable, ReinitializableBase, ISemver {
+contract SystemConfig is ProxyAdminOwnedBase, OwnableUpgradeable, ReinitializableBase, ISemver {
     /// @notice Enum representing different types of updates.
     /// @custom:value BATCHER              Represents an update to the batcher hash.
     /// @custom:value FEE_SCALARS          Represents an update to l1 data fee scalars.
@@ -84,7 +87,7 @@ contract SystemConfig is OwnableUpgradeable, ReinitializableBase, ISemver {
     /// @notice The maximum gas limit that can be set for L2 blocks. This limit is used to enforce that the blocks
     ///         on L2 are not too large to process and prove. Over time, this value can be increased as various
     ///         optimizations and improvements are made to the system at large.
-    uint64 internal constant MAX_GAS_LIMIT = 200_000_000;
+    uint64 internal constant MAX_GAS_LIMIT = 500_000_000;
 
     /// @notice Fixed L2 gas overhead. Used as part of the L2 fee calculation.
     ///         Deprecated since the Ecotone network upgrade
@@ -129,6 +132,9 @@ contract SystemConfig is OwnableUpgradeable, ReinitializableBase, ISemver {
     /// @notice The L2 chain ID that this SystemConfig configures.
     uint256 public l2ChainId;
 
+    /// @notice The SuperchainConfig contract that manages the pause state.
+    ISuperchainConfig public superchainConfig;
+
     /// @notice Emitted when configuration is updated.
     /// @param version    SystemConfig version.
     /// @param updateType Type of update.
@@ -136,9 +142,9 @@ contract SystemConfig is OwnableUpgradeable, ReinitializableBase, ISemver {
     event ConfigUpdate(uint256 indexed version, UpdateType indexed updateType, bytes data);
 
     /// @notice Semantic version.
-    /// @custom:semver 3.0.0
+    /// @custom:semver 3.4.0
     function version() public pure virtual returns (string memory) {
-        return "3.0.0";
+        return "3.4.0";
     }
 
     /// @notice Constructs the SystemConfig contract.
@@ -162,6 +168,7 @@ contract SystemConfig is OwnableUpgradeable, ReinitializableBase, ISemver {
     ///                           canonical data.
     /// @param _addresses         Set of L1 contract addresses. These should be the proxies.
     /// @param _l2ChainId         The L2 chain ID that this SystemConfig configures.
+    /// @param _superchainConfig  The SuperchainConfig contract address.
     function initialize(
         address _owner,
         uint32 _basefeeScalar,
@@ -172,11 +179,16 @@ contract SystemConfig is OwnableUpgradeable, ReinitializableBase, ISemver {
         IResourceMetering.ResourceConfig memory _config,
         address _batchInbox,
         SystemConfig.Addresses memory _addresses,
-        uint256 _l2ChainId
+        uint256 _l2ChainId,
+        ISuperchainConfig _superchainConfig
     )
         public
         reinitializer(initVersion())
     {
+        // Initialization transactions must come from the ProxyAdmin or its owner.
+        _assertOnlyProxyAdminOrProxyAdminOwner();
+
+        // Now perform initialization logic.
         __Ownable_init();
         transferOwnership(_owner);
 
@@ -198,17 +210,28 @@ contract SystemConfig is OwnableUpgradeable, ReinitializableBase, ISemver {
         _setResourceConfig(_config);
 
         l2ChainId = _l2ChainId;
+        superchainConfig = _superchainConfig;
     }
 
-    /// @notice Upgrades the SystemConfig by setting the L2 chain ID variable.
+    /// @notice Upgrades the SystemConfig by adding a reference to the SuperchainConfig.
     /// @param _l2ChainId The L2 chain ID that this SystemConfig configures.
-    function upgrade(uint256 _l2ChainId) external reinitializer(initVersion()) {
+    /// @param _superchainConfig The SuperchainConfig contract address.
+    function upgrade(uint256 _l2ChainId, ISuperchainConfig _superchainConfig) external reinitializer(initVersion()) {
+        // Upgrade transactions must come from the ProxyAdmin or its owner.
+        _assertOnlyProxyAdminOrProxyAdminOwner();
+
+        // Now perform upgrade logic.
         // Set the L2 chain ID.
         l2ChainId = _l2ChainId;
 
-        // Clear out the old dispute game factory address, it's derived now.
+        // Set the SuperchainConfig contract.
+        superchainConfig = _superchainConfig;
+
+        // Clear out the old dispute game factory address, it's derived now. We get rid of this
+        // storage slot because it doesn't use structured storage and we can't use a spacer
+        // variable to block it off.
         bytes32 disputeGameFactorySlot = bytes32(uint256(keccak256("systemconfig.disputegamefactory")) - 1);
-        Storage.setAddress(disputeGameFactorySlot, address(0));
+        Storage.setBytes32(disputeGameFactorySlot, bytes32(0));
     }
 
     /// @notice Returns the minimum L2 gas limit that can be safely set for the system to
@@ -254,7 +277,7 @@ contract SystemConfig is OwnableUpgradeable, ReinitializableBase, ISemver {
 
     /// @notice Getter for the DisputeGameFactory address.
     function disputeGameFactory() public view returns (address addr_) {
-        IOptimismPortal2 portal = IOptimismPortal2(payable(Storage.getAddress(OPTIMISM_PORTAL_SLOT)));
+        IOptimismPortal2 portal = IOptimismPortal2(payable(optimismPortal()));
         addr_ = address(portal.disputeGameFactory());
     }
 
@@ -459,5 +482,19 @@ contract SystemConfig is OwnableUpgradeable, ReinitializableBase, ISemver {
         );
 
         _resourceConfig = _config;
+    }
+
+    /// @notice Returns the current pause state of the system by checking if the SuperchainConfig is paused for this
+    /// chain's ETHLockbox.
+    /// @return bool True if the system is paused, false otherwise.
+    function paused() public view returns (bool) {
+        IETHLockbox lockbox = IOptimismPortal2(payable(optimismPortal())).ethLockbox();
+        return superchainConfig.paused(address(lockbox)) || superchainConfig.paused(address(0));
+    }
+
+    /// @notice Returns the guardian address of the SuperchainConfig.
+    /// @return address The guardian address.
+    function guardian() public view returns (address) {
+        return superchainConfig.guardian();
     }
 }
