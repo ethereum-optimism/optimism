@@ -37,8 +37,6 @@ import { IMIPS } from "interfaces/cannon/IMIPS.sol";
 import { IPreimageOracle } from "interfaces/cannon/IPreimageOracle.sol";
 import { IProtocolVersions } from "interfaces/L1/IProtocolVersions.sol";
 import { IL1CrossDomainMessenger } from "interfaces/L1/IL1CrossDomainMessenger.sol";
-import { IETHLockbox } from "interfaces/L1/IETHLockbox.sol";
-import { IOptimismPortal2 } from "interfaces/L1/IOptimismPortal2.sol";
 import { IL1StandardBridge } from "interfaces/L1/IL1StandardBridge.sol";
 import { IL1ERC721Bridge } from "interfaces/L1/IL1ERC721Bridge.sol";
 import { IOptimismMintableERC20Factory } from "interfaces/universal/IOptimismMintableERC20Factory.sol";
@@ -296,10 +294,12 @@ contract Deploy is Deployer {
         ChainAssertions.checkL1CrossDomainMessenger(IL1CrossDomainMessenger(impls.L1CrossDomainMessenger), vm, false);
         ChainAssertions.checkL1StandardBridgeImpl(IL1StandardBridge(payable(impls.L1StandardBridge)));
         ChainAssertions.checkL1ERC721BridgeImpl(IL1ERC721Bridge(impls.L1ERC721Bridge));
-        ChainAssertions.checkOptimismPortal2({ _contracts: impls, _cfg: cfg, _isProxy: false });
-        ChainAssertions.checkETHLockboxImpl(
-            IETHLockbox(impls.ETHLockbox), IOptimismPortal2(payable(impls.OptimismPortal))
-        );
+        ChainAssertions.checkOptimismPortal2({
+            _contracts: impls,
+            _opChainProxyAdminOwner: cfg.finalSystemOwner(),
+            _isProxy: false
+        });
+        ChainAssertions.checkETHLockbox(impls, cfg.finalSystemOwner(), false);
         ChainAssertions.checkOptimismMintableERC20FactoryImpl(
             IOptimismMintableERC20Factory(impls.OptimismMintableERC20Factory)
         );
@@ -319,6 +319,7 @@ contract Deploy is Deployer {
             _superchainProxyAdmin: superchainProxyAdmin
         });
         ChainAssertions.checkSystemConfig({ _doi: DeployOPChainInput(address(0)), _contracts: impls, _isProxy: false });
+        ChainAssertions.CheckAnchorStateRegistryProxy(IAnchorStateRegistry(impls.AnchorStateRegistry), false);
     }
 
     /// @notice Deploy all of the OP Chain specific contracts

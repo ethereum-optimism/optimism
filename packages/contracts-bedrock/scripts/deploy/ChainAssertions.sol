@@ -16,6 +16,7 @@ import { Constants } from "src/libraries/Constants.sol";
 import { Types } from "scripts/libraries/Types.sol";
 import { Blueprint } from "src/libraries/Blueprint.sol";
 import { GameTypes } from "src/dispute/lib/Types.sol";
+import { Hash } from "src/dispute/lib/Types.sol";
 
 // Interfaces
 import { IOPContractsManager } from "interfaces/L1/IOPContractsManager.sol";
@@ -35,6 +36,7 @@ import { IMIPS } from "interfaces/cannon/IMIPS.sol";
 import { IProxyAdmin } from "interfaces/universal/IProxyAdmin.sol";
 import { IETHLockbox } from "interfaces/L1/IETHLockbox.sol";
 import { IProxyAdminOwnedBase } from "interfaces/L1/IProxyAdminOwnedBase.sol";
+import { IAnchorStateRegistry } from "interfaces/dispute/IAnchorStateRegistry.sol";
 
 library ChainAssertions {
     Vm internal constant vm = Vm(0x7109709ECfa91a80626fF3989D68f67F5b1DD12D);
@@ -252,7 +254,7 @@ library ChainAssertions {
     /// @notice Asserts the OptimismPortal is setup correctly
     function checkOptimismPortal2(
         Types.ContractSet memory _contracts,
-        DeployConfig _cfg,
+        address _opChainProxyAdminOwner,
         bool _isProxy
     )
         internal
@@ -269,20 +271,19 @@ library ChainAssertions {
         // Check that the contract is initialized
         DeployUtils.assertInitialized({ _contractAddress: address(portal), _isProxy: _isProxy, _slot: 0, _offset: 0 });
 
-        address guardian = _cfg.superchainConfigGuardian();
-        if (guardian.code.length == 0) {
-            console.log("Guardian has no code: %s", guardian);
-        }
-
         if (_isProxy) {
+            ISuperchainConfig superchainConfig = ISuperchainConfig(_contracts.SuperchainConfig);
+
             require(address(portal.disputeGameFactory()) == _contracts.DisputeGameFactory, "CHECK-OP2-20");
             require(address(portal.anchorStateRegistry()) == _contracts.AnchorStateRegistry, "CHECK-OP2-25");
             require(address(portal.systemConfig()) == _contracts.SystemConfig, "CHECK-OP2-30");
-            require(portal.guardian() == guardian, "CHECK-OP2-40");
+            require(address(portal.superchainConfig()) == address(superchainConfig), "PORTAL-40");
+            require(portal.guardian() == superchainConfig.guardian(), "CHECK-OP2-40");
             require(address(portal.systemConfig()) == address(_contracts.SystemConfig), "CHECK-OP2-50");
             require(portal.paused() == ISystemConfig(_contracts.SystemConfig).paused(), "CHECK-OP2-60");
             require(portal.l2Sender() == Constants.DEFAULT_L2_SENDER, "CHECK-OP2-70");
             require(address(portal.ethLockbox()) == _contracts.ETHLockbox, "CHECK-OP2-80");
+            require(portal.proxyAdminOwner() == _opChainProxyAdminOwner, "CHECK-OP2-90");
         } else {
             require(address(portal.anchorStateRegistry()) == address(0), "CHECK-OP2-80");
             require(address(portal.systemConfig()) == address(0), "CHECK-OP2-90");
@@ -296,14 +297,45 @@ library ChainAssertions {
     }
 
     /// @notice Asserts that the ETHLockbox is setup correctly
-    function checkETHLockboxImpl(IETHLockbox _ethLockbox, IOptimismPortal _portal) internal view {
+    function checkETHLockbox(
+        Types.ContractSet memory _contracts,
+        address _opChainProxyAdminOwner,
+        bool _isProxy
+    )
+        internal
+        view
+    {
+        IETHLockbox _ethLockbox = IETHLockbox(_contracts.ETHLockbox);
         console.log("Running chain assertions on the ETHLockbox implementation at %s", address(_ethLockbox));
 
         // Check that the contract is initialized
-        DeployUtils.assertInitialized({ _contractAddress: address(_ethLockbox), _isProxy: false, _slot: 0, _offset: 0 });
+        DeployUtils.assertInitialized({
+            _contractAddress: address(_ethLockbox),
+            _isProxy: _isProxy,
+            _slot: 0,
+            _offset: 0
+        });
 
-        require(address(_ethLockbox.systemConfig()) == address(0), "CHECK-ELB-50");
-        require(_ethLockbox.authorizedPortals(_portal) == false, "CHECK-ELB-60");
+        if (_isProxy) {
+            require(address(_ethLockbox.systemConfig()) == _contracts.SystemConfig, "CHECK-ELB-50");
+            require(
+                _ethLockbox.authorizedPortals(IOptimismPortal(payable(_contracts.OptimismPortal))) == true,
+                "CHECK-ELB-60"
+            );
+            require(_ethLockbox.proxyAdminOwner() == _opChainProxyAdminOwner, "CHECK-ELB-70");
+        } else {
+            require(address(_ethLockbox.systemConfig()) == address(0), "CHECK-ELB-50");
+            require(
+                _ethLockbox.authorizedPortals(IOptimismPortal(payable(_contracts.OptimismPortal))) == false,
+                "CHECK-ELB-60"
+            );
+            require(
+                checkProxyAdminCallFails(
+                    address(_ethLockbox), IProxyAdminOwnedBase.ProxyAdminOwnedBase_NotResolvedDelegateProxy.selector
+                ),
+                "CHECK-ELB-70"
+            );
+        }
     }
 
     /// @notice Asserts that the ProtocolVersions is setup correctly
@@ -388,6 +420,9 @@ library ChainAssertions {
         require(address(_opcm.protocolVersions()) == _proxies.ProtocolVersions, "CHECK-OPCM-17");
         require(address(_opcm.superchainProxyAdmin()) == address(_superchainProxyAdmin), "CHECK-OPCM-18");
         require(address(_opcm.superchainConfig()) == _proxies.SuperchainConfig, "CHECK-OPCM-19");
+        require(
+            address(_opcm.upgradeController()) == address(IProxyAdmin(_superchainProxyAdmin).owner()), "CHECK-OPCM-20"
+        );
 
         // Ensure that the OPCM impls are correctly saved
         IOPContractsManager.Implementations memory impls = _opcm.implementations();
@@ -438,6 +473,32 @@ library ChainAssertions {
             keccak256(fullPermissionedDisputeGameInitcode) == keccak256(vm.getCode("PermissionedDisputeGame")),
             "CHECK-OPCM-210"
         );
+    }
+
+    function CheckAnchorStateRegistryProxy(
+        IAnchorStateRegistry _anchorStateRegistryProxy,
+        bool _isProxy
+    )
+        internal
+        view
+    {
+        // Then we check the proxy as ASR.
+        DeployUtils.assertInitialized({
+            _contractAddress: address(_anchorStateRegistryProxy),
+            _isProxy: _isProxy,
+            _slot: 0,
+            _offset: 0
+        });
+
+        (Hash actualRoot,) = _anchorStateRegistryProxy.anchors(GameTypes.PERMISSIONED_CANNON);
+        if (_isProxy) {
+            require(
+                Hash.unwrap(actualRoot) == 0xdead000000000000000000000000000000000000000000000000000000000000,
+                "ANCHORP-40"
+            );
+        } else {
+            require(Hash.unwrap(actualRoot) == bytes32(0), "ANCHORP-40");
+        }
     }
 
     /// @notice Converts variables needed from the DeployConfig to a DeployOPChainInput contract
