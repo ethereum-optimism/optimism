@@ -51,14 +51,6 @@ func SyncTesterFromConfig(logger log.Logger, m metrics.Metricer, stID sttypes.Sy
 	if err != nil {
 		return nil, fmt.Errorf("failed to dial EL client: %w", err)
 	}
-	// chainId, err := elClient.ChainID(context.Background())
-	// if err != nil {
-	// 	return nil, fmt.Errorf("failed to get chain ID: %w", err)
-	// }
-	// if eth.ChainIDFromBig(chainId) != stCfg.ChainID {
-	// 	return nil, fmt.Errorf("chain ID mismatch with rpc server: %d != %s", chainId.Uint64(), stCfg.ChainID)
-	// }
-
 	return &SyncTester{
 		log:      logger,
 		m:        m,
