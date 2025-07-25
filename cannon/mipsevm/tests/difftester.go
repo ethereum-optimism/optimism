@@ -20,8 +20,8 @@ import (
 
 type TestNamer[T any] func(testCase T) string
 
-type InitializeStateFn[T any] func(testCase T, state *multithreaded.State, vm VersionedVMTestCase, r *testutil.RandHelper)
-type SetExpectationsFn[T any] func(testCase T, expect *mtutil.ExpectedState, vm VersionedVMTestCase) ExpectedExecResult
+type InitializeStateFn[T any] func(t require.TestingT, testCase T, state *multithreaded.State, vm VersionedVMTestCase, r *testutil.RandHelper)
+type SetExpectationsFn[T any] func(t require.TestingT, testCase T, expect *mtutil.ExpectedState, vm VersionedVMTestCase) ExpectedExecResult
 type PostStepCheckFn[T any] func(t require.TestingT, testCase T, vm VersionedVMTestCase, deps *TestDependencies)
 
 type DiffTester[T any] struct {
@@ -85,12 +85,12 @@ func (d *DiffTester[T]) run(t testRunner, testCases []T, opts ...TestOption) {
 
 					// Set up state
 					r := testutil.NewRandHelper(randSeed * 2)
-					d.initState(testCase, state, vm, r)
+					d.initState(t, testCase, state, vm, r)
 					mod.stateMod(state)
 
 					// Set up expectations
 					expect := d.expectedState(t, state)
-					execExpectation := d.setExpectations(testCase, expect, vm)
+					execExpectation := d.setExpectations(t, testCase, expect, vm)
 					mod.expectMod(expect)
 
 					execExpectation.assertExpectedResult(t, goVm, vm, expect, cfg)
@@ -150,10 +150,10 @@ func (d *DiffTester[T]) generateTestModifiers(t require.TestingT, testCase T, vm
 	testDeps := cfg.testDependencies()
 	goVm := vm.VMFactory(testDeps.po, testDeps.stdOut, testDeps.stdErr, testDeps.logger, d.stateOpts...)
 	state := mtutil.GetMtState(t, goVm)
-	d.initState(testCase, state, vm, testutil.NewRandHelper(randSeed))
+	d.initState(t, testCase, state, vm, testutil.NewRandHelper(randSeed))
 	// Process expectations
 	expect := d.expectedState(t, state)
-	d.setExpectations(testCase, expect, vm)
+	d.setExpectations(t, testCase, expect, vm)
 
 	// Generate test modifiers based on expectations
 	modifiers = append(modifiers, d.memReservationTestModifier(cfg, randSeed, expect)...)

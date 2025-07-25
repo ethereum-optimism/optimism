@@ -24,13 +24,13 @@ func TestDiffTester_Run_SimpleTest(t *testing.T) {
 		testName := fmt.Sprintf("useCorrectReturnExpectation=%v", useCorrectReturnExpectation)
 		t.Run(testName, func(t *testing.T) {
 			initStateCalled := make(map[string]int)
-			initState := func(testCase simpleTestCase, state *multithreaded.State, vm VersionedVMTestCase, r *testutil.RandHelper) {
+			initState := func(t require.TestingT, testCase simpleTestCase, state *multithreaded.State, vm VersionedVMTestCase, r *testutil.RandHelper) {
 				initStateCalled[testCase.name] += 1
 				testutil.StoreInstruction(state.GetMemory(), state.GetPC(), testCase.insn)
 			}
 
 			expectationsCalled := make(map[string]int)
-			setExpectations := func(testCase simpleTestCase, expect *mtutil.ExpectedState, vm VersionedVMTestCase) ExpectedExecResult {
+			setExpectations := func(t require.TestingT, testCase simpleTestCase, expect *mtutil.ExpectedState, vm VersionedVMTestCase) ExpectedExecResult {
 				expectationsCalled[testCase.name] += 1
 				expect.ExpectStep()
 
@@ -91,7 +91,7 @@ func TestDiffTester_Run_WithMemModifications(t *testing.T) {
 		t.Run(testName, func(t *testing.T) {
 
 			initStateCalled := make(map[string]int)
-			initState := func(tt simpleTestCase, state *multithreaded.State, vm VersionedVMTestCase, r *testutil.RandHelper) {
+			initState := func(t require.TestingT, tt simpleTestCase, state *multithreaded.State, vm VersionedVMTestCase, r *testutil.RandHelper) {
 				initStateCalled[tt.name] += 1
 				testutil.StoreInstruction(state.GetMemory(), pc, tt.insn)
 				state.GetMemory().SetWord(effAddr, 0xAA_BB_CC_DD_A1_B1_C1_D1)
@@ -100,7 +100,7 @@ func TestDiffTester_Run_WithMemModifications(t *testing.T) {
 			}
 
 			expectationsCalled := make(map[string]int)
-			setExpectations := func(tt simpleTestCase, expect *mtutil.ExpectedState, vm VersionedVMTestCase) ExpectedExecResult {
+			setExpectations := func(t require.TestingT, tt simpleTestCase, expect *mtutil.ExpectedState, vm VersionedVMTestCase) ExpectedExecResult {
 				expectationsCalled[tt.name] += 1
 				expect.ExpectStep()
 				expect.ExpectMemoryWrite(effAddr, 0x55_66_77_88_A1_B1_C1_D1)
@@ -159,14 +159,14 @@ func TestDiffTester_Run_WithPanic(t *testing.T) {
 		testName := fmt.Sprintf("useCorrectReturnExpectation=%v", useCorrectReturnExpectation)
 		t.Run(testName, func(t *testing.T) {
 			initStateCalled := make(map[string]int)
-			initState := func(testCase simpleTestCase, state *multithreaded.State, vm VersionedVMTestCase, r *testutil.RandHelper) {
+			initState := func(t require.TestingT, testCase simpleTestCase, state *multithreaded.State, vm VersionedVMTestCase, r *testutil.RandHelper) {
 				initStateCalled[testCase.name] += 1
 				testutil.StoreInstruction(state.GetMemory(), state.GetPC(), testCase.insn)
 				state.GetRegistersRef()[2] = syscallNum
 			}
 
 			expectationsCalled := make(map[string]int)
-			setExpectations := func(testCase simpleTestCase, expect *mtutil.ExpectedState, vm VersionedVMTestCase) ExpectedExecResult {
+			setExpectations := func(t require.TestingT, testCase simpleTestCase, expect *mtutil.ExpectedState, vm VersionedVMTestCase) ExpectedExecResult {
 				expectationsCalled[testCase.name] += 1
 				expect.ExpectStep()
 
@@ -220,13 +220,13 @@ func TestDiffTester_Run_WithVm(t *testing.T) {
 	}
 
 	initStateCalled := make(map[string]int)
-	initState := func(testCase simpleTestCase, state *multithreaded.State, vm VersionedVMTestCase, r *testutil.RandHelper) {
+	initState := func(t require.TestingT, testCase simpleTestCase, state *multithreaded.State, vm VersionedVMTestCase, r *testutil.RandHelper) {
 		initStateCalled[testCase.name] += 1
 		testutil.StoreInstruction(state.GetMemory(), state.GetPC(), testCase.insn)
 	}
 
 	expectationsCalled := make(map[string]int)
-	setExpectations := func(testCase simpleTestCase, expect *mtutil.ExpectedState, vm VersionedVMTestCase) ExpectedExecResult {
+	setExpectations := func(t require.TestingT, testCase simpleTestCase, expect *mtutil.ExpectedState, vm VersionedVMTestCase) ExpectedExecResult {
 		expectationsCalled[testCase.name] += 1
 		expect.ExpectStep()
 

@@ -46,13 +46,13 @@ func TestEVM_SingleStep_Jump(t *testing.T) {
 		{name: "jal non-zero PC region", pc: 0x10000000, nextPC: 0x10000004, insn: 0x0C_00_00_02, expectNextPC: 0x10_00_00_08, expectLink: true}, // jal 0x2
 	}
 
-	initState := func(tt testCase, state *multithreaded.State, vm VersionedVMTestCase, r *testutil.RandHelper) {
+	initState := func(t require.TestingT, tt testCase, state *multithreaded.State, vm VersionedVMTestCase, r *testutil.RandHelper) {
 		state.GetCurrentThread().Cpu.PC = tt.pc
 		state.GetCurrentThread().Cpu.NextPC = tt.nextPC
 		testutil.StoreInstruction(state.GetMemory(), tt.pc, tt.insn)
 	}
 
-	setExpectations := func(tt testCase, expected *mtutil.ExpectedState, vm VersionedVMTestCase) ExpectedExecResult {
+	setExpectations := func(t require.TestingT, tt testCase, expected *mtutil.ExpectedState, vm VersionedVMTestCase) ExpectedExecResult {
 		expected.ExpectStep()
 		expected.ActiveThread().NextPC = tt.expectNextPC
 		if tt.expectLink {
@@ -153,12 +153,12 @@ func TestEVM_SingleStep_Lui(t *testing.T) {
 		{name: "lui signed", rtReg: 7, imm: 0x8765, expectRt: signExtend64(0x8765_0000)},
 	}
 
-	initState := func(tt testCase, state *multithreaded.State, vm VersionedVMTestCase, r *testutil.RandHelper) {
+	initState := func(t require.TestingT, tt testCase, state *multithreaded.State, vm VersionedVMTestCase, r *testutil.RandHelper) {
 		insn := 0b1111<<26 | uint32(tt.rtReg)<<16 | (tt.imm & 0xFFFF)
 		testutil.StoreInstruction(state.GetMemory(), state.GetPC(), insn)
 	}
 
-	setExpectations := func(tt testCase, expected *mtutil.ExpectedState, vm VersionedVMTestCase) ExpectedExecResult {
+	setExpectations := func(t require.TestingT, tt testCase, expected *mtutil.ExpectedState, vm VersionedVMTestCase) ExpectedExecResult {
 		expected.ExpectStep()
 		expected.ActiveThread().Registers[tt.rtReg] = tt.expectRt
 		return ExpectNormalExecution()
@@ -196,13 +196,13 @@ func TestEVM_SingleStep_CloClz(t *testing.T) {
 
 	rsReg := uint32(5)
 	rdReg := uint32(6)
-	initState := func(tt testCase, state *multithreaded.State, vm VersionedVMTestCase, r *testutil.RandHelper) {
+	initState := func(t require.TestingT, tt testCase, state *multithreaded.State, vm VersionedVMTestCase, r *testutil.RandHelper) {
 		insn := 0b01_1100<<26 | rsReg<<21 | rdReg<<11 | tt.funct
 		testutil.StoreInstruction(state.GetMemory(), state.GetPC(), insn)
 		state.GetRegistersRef()[rsReg] = tt.rs
 	}
 
-	setExpectations := func(tt testCase, expected *mtutil.ExpectedState, vm VersionedVMTestCase) ExpectedExecResult {
+	setExpectations := func(t require.TestingT, tt testCase, expected *mtutil.ExpectedState, vm VersionedVMTestCase) ExpectedExecResult {
 		expected.ExpectStep()
 		expected.ActiveThread().Registers[rdReg] = tt.expectedResult
 		return ExpectNormalExecution()
@@ -241,7 +241,7 @@ func TestEVM_SingleStep_MovzMovn(t *testing.T) {
 	rdReg := uint32(8)
 	val := Word(0xb)
 	otherVal := Word(0xa)
-	initState := func(tt testCase, state *multithreaded.State, vm VersionedVMTestCase, r *testutil.RandHelper) {
+	initState := func(t require.TestingT, tt testCase, state *multithreaded.State, vm VersionedVMTestCase, r *testutil.RandHelper) {
 		insn := rsReg<<21 | rtReg<<16 | rdReg<<11 | tt.funct
 		state.GetRegistersRef()[rtReg] = tt.testValue
 		state.GetRegistersRef()[rsReg] = val
@@ -249,7 +249,7 @@ func TestEVM_SingleStep_MovzMovn(t *testing.T) {
 		testutil.StoreInstruction(state.GetMemory(), pc, insn)
 	}
 
-	setExpectations := func(tt testCase, expected *mtutil.ExpectedState, vm VersionedVMTestCase) ExpectedExecResult {
+	setExpectations := func(t require.TestingT, tt testCase, expected *mtutil.ExpectedState, vm VersionedVMTestCase) ExpectedExecResult {
 		expected.ExpectStep()
 		if tt.shouldSucceed {
 			expected.ActiveThread().Registers[rdReg] = val
@@ -282,14 +282,14 @@ func TestEVM_SingleStep_MfhiMflo(t *testing.T) {
 	}
 
 	rdReg := uint32(8)
-	initState := func(tt testCase, state *multithreaded.State, vm VersionedVMTestCase, r *testutil.RandHelper) {
+	initState := func(t require.TestingT, tt testCase, state *multithreaded.State, vm VersionedVMTestCase, r *testutil.RandHelper) {
 		insn := rdReg<<11 | tt.funct
 		testutil.StoreInstruction(state.GetMemory(), state.GetPC(), insn)
 		state.GetCurrentThread().Cpu.HI = tt.hi
 		state.GetCurrentThread().Cpu.LO = tt.lo
 	}
 
-	setExpectations := func(tt testCase, expected *mtutil.ExpectedState, vm VersionedVMTestCase) ExpectedExecResult {
+	setExpectations := func(t require.TestingT, tt testCase, expected *mtutil.ExpectedState, vm VersionedVMTestCase) ExpectedExecResult {
 		expected.ExpectStep()
 		expected.ActiveThread().Registers[rdReg] = tt.result
 		return ExpectNormalExecution()
@@ -353,14 +353,14 @@ func TestEVM_SingleStep_MthiMtlo(t *testing.T) {
 	}
 
 	val := Word(0xdeadbeef)
-	initState := func(tt testCase, state *multithreaded.State, vm VersionedVMTestCase, r *testutil.RandHelper) {
+	initState := func(t require.TestingT, tt testCase, state *multithreaded.State, vm VersionedVMTestCase, r *testutil.RandHelper) {
 		rsReg := uint32(8)
 		insn := rsReg<<21 | tt.funct
 		testutil.StoreInstruction(state.GetMemory(), state.GetPC(), insn)
 		state.GetRegistersRef()[rsReg] = val
 	}
 
-	setExpectations := func(tt testCase, expected *mtutil.ExpectedState, vm VersionedVMTestCase) ExpectedExecResult {
+	setExpectations := func(t require.TestingT, tt testCase, expected *mtutil.ExpectedState, vm VersionedVMTestCase) ExpectedExecResult {
 		expected.ExpectStep()
 		if tt.funct == 0x11 {
 			expected.ActiveThread().HI = val
@@ -400,7 +400,7 @@ func TestEVM_SingleStep_BeqBne(t *testing.T) {
 	}
 
 	pc := Word(800)
-	initState := func(tt testCase, state *multithreaded.State, vm VersionedVMTestCase, r *testutil.RandHelper) {
+	initState := func(t require.TestingT, tt testCase, state *multithreaded.State, vm VersionedVMTestCase, r *testutil.RandHelper) {
 		rsReg := uint32(9)
 		rtReg := uint32(8)
 		insn := tt.opcode<<26 | rsReg<<21 | rtReg<<16 | uint32(tt.imm)
@@ -409,7 +409,7 @@ func TestEVM_SingleStep_BeqBne(t *testing.T) {
 		testutil.StoreInstruction(state.GetMemory(), pc, insn)
 	}
 
-	setExpectations := func(tt testCase, expected *mtutil.ExpectedState, vm VersionedVMTestCase) ExpectedExecResult {
+	setExpectations := func(t require.TestingT, tt testCase, expected *mtutil.ExpectedState, vm VersionedVMTestCase) ExpectedExecResult {
 		expected.ExpectStep()
 		expected.ActiveThread().NextPC = tt.expectedNextPC
 		return ExpectNormalExecution()
@@ -464,7 +464,7 @@ func TestEVM_SingleStep_SlSr(t *testing.T) {
 
 	pc := Word(0)
 	rdReg := uint32(0x8)
-	initState := func(tt testCase, state *multithreaded.State, vm VersionedVMTestCase, r *testutil.RandHelper) {
+	initState := func(t require.TestingT, tt testCase, state *multithreaded.State, vm VersionedVMTestCase, r *testutil.RandHelper) {
 		rtReg := uint32(0x9)
 		insn := tt.rsReg<<21 | rtReg<<16 | rdReg<<11 | uint32(tt.funct)
 		state.GetRegistersRef()[rtReg] = tt.rt
@@ -472,7 +472,7 @@ func TestEVM_SingleStep_SlSr(t *testing.T) {
 		testutil.StoreInstruction(state.GetMemory(), pc, insn)
 	}
 
-	setExpectations := func(tt testCase, expected *mtutil.ExpectedState, vm VersionedVMTestCase) ExpectedExecResult {
+	setExpectations := func(t require.TestingT, tt testCase, expected *mtutil.ExpectedState, vm VersionedVMTestCase) ExpectedExecResult {
 		expected.ExpectStep()
 		expected.ActiveThread().Registers[rdReg] = tt.expectVal
 		return ExpectNormalExecution()
@@ -508,7 +508,7 @@ func TestEVM_SingleStep_JrJalr(t *testing.T) {
 		{name: "jalr, delay slot", funct: uint16(0x9), rsReg: 8, jumpTo: 0x34, rdReg: uint32(0x9), expectLink: true, pc: 0, nextPC: 100, errorMsg: "jump in delay slot"}, // jalr t1, t0
 	}
 
-	initState := func(tt testCase, state *multithreaded.State, vm VersionedVMTestCase, r *testutil.RandHelper) {
+	initState := func(t require.TestingT, tt testCase, state *multithreaded.State, vm VersionedVMTestCase, r *testutil.RandHelper) {
 		insn := tt.rsReg<<21 | tt.rdReg<<11 | uint32(tt.funct)
 		state.GetRegistersRef()[tt.rsReg] = tt.jumpTo
 		state.GetCurrentThread().Cpu.PC = tt.pc
@@ -516,7 +516,7 @@ func TestEVM_SingleStep_JrJalr(t *testing.T) {
 		testutil.StoreInstruction(state.GetMemory(), tt.pc, insn)
 	}
 
-	setExpectations := func(tt testCase, expected *mtutil.ExpectedState, vm VersionedVMTestCase) ExpectedExecResult {
+	setExpectations := func(t require.TestingT, tt testCase, expected *mtutil.ExpectedState, vm VersionedVMTestCase) ExpectedExecResult {
 		if tt.errorMsg != "" {
 			return ExpectVmPanic(tt.errorMsg, tt.errorMsg)
 		} else {
@@ -548,12 +548,12 @@ func TestEVM_SingleStep_Sync(t *testing.T) {
 		{name: "simple"},
 	}
 
-	initState := func(tt testCase, state *multithreaded.State, vm VersionedVMTestCase, r *testutil.RandHelper) {
+	initState := func(t require.TestingT, tt testCase, state *multithreaded.State, vm VersionedVMTestCase, r *testutil.RandHelper) {
 		syncInsn := uint32(0x0000_000F)
 		testutil.StoreInstruction(state.GetMemory(), state.GetPC(), syncInsn)
 	}
 
-	setExpectations := func(tt testCase, expected *mtutil.ExpectedState, vm VersionedVMTestCase) ExpectedExecResult {
+	setExpectations := func(t require.TestingT, tt testCase, expected *mtutil.ExpectedState, vm VersionedVMTestCase) ExpectedExecResult {
 		expected.ExpectStep()
 		return ExpectNormalExecution()
 	}
@@ -590,7 +590,7 @@ func TestEVM_MMap(t *testing.T) {
 		{name: "Request specific address", heap: program.HEAP_START, address: 0x50_00_00_00, size: 0, shouldFail: false, expectedHeap: program.HEAP_START},
 	}
 
-	initState := func(c testCase, state *multithreaded.State, vm VersionedVMTestCase, r *testutil.RandHelper) {
+	initState := func(t require.TestingT, c testCase, state *multithreaded.State, vm VersionedVMTestCase, r *testutil.RandHelper) {
 		testutil.StoreInstruction(state.GetMemory(), state.GetPC(), syscallInsn)
 		state.GetRegistersRef()[2] = arch.SysMmap
 		state.GetRegistersRef()[4] = c.address
@@ -598,7 +598,7 @@ func TestEVM_MMap(t *testing.T) {
 		state.Heap = c.heap
 	}
 
-	setExpectations := func(c testCase, expected *mtutil.ExpectedState, vm VersionedVMTestCase) ExpectedExecResult {
+	setExpectations := func(t require.TestingT, c testCase, expected *mtutil.ExpectedState, vm VersionedVMTestCase) ExpectedExecResult {
 		expected.ExpectStep()
 		if c.shouldFail {
 			expected.ActiveThread().Registers[2] = exec.MipsEINVAL
@@ -683,7 +683,7 @@ func TestEVM_SysGetRandom(t *testing.T) {
 	step := uint64(0x1a2b3c4d5e6f7531) - 1
 	randomData := arch.Word(0x4141302768c9e9d0)
 
-	initState := func(testCase testCase, state *multithreaded.State, vm VersionedVMTestCase, r *testutil.RandHelper) {
+	initState := func(t require.TestingT, testCase testCase, state *multithreaded.State, vm VersionedVMTestCase, r *testutil.RandHelper) {
 		testutil.StoreInstruction(state.GetMemory(), state.GetPC(), syscallInsn)
 		state.GetMemory().SetWord(effAddr, startingMemory)
 		state.GetRegistersRef()[register.RegV0] = arch.SysGetRandom
@@ -691,7 +691,7 @@ func TestEVM_SysGetRandom(t *testing.T) {
 		state.GetRegistersRef()[register.RegA1] = testCase.bufLen
 	}
 
-	setExpectations := func(testCase testCase, expected *mtutil.ExpectedState, vm VersionedVMTestCase) ExpectedExecResult {
+	setExpectations := func(t require.TestingT, testCase testCase, expected *mtutil.ExpectedState, vm VersionedVMTestCase) ExpectedExecResult {
 		isNoop := !versions.FeaturesForVersion(vm.Version).SupportWorkingSysGetRandom
 		expectedMemory := testCase.expectedRandDataMask&randomData | ^testCase.expectedRandDataMask&startingMemory
 
@@ -871,7 +871,7 @@ func TestEVM_SysWriteHint(t *testing.T) {
 		},
 	}
 
-	initState := func(tt testCase, state *multithreaded.State, vm VersionedVMTestCase, r *testutil.RandHelper) {
+	initState := func(t require.TestingT, tt testCase, state *multithreaded.State, vm VersionedVMTestCase, r *testutil.RandHelper) {
 		testutil.StoreInstruction(state.GetMemory(), state.GetPC(), syscallInsn)
 		state.LastHint = tt.lastHint
 		state.GetRegistersRef()[2] = arch.SysWrite
@@ -883,7 +883,7 @@ func TestEVM_SysWriteHint(t *testing.T) {
 		require.NoError(t, err)
 	}
 
-	setExpectations := func(tt testCase, expected *mtutil.ExpectedState, vm VersionedVMTestCase) ExpectedExecResult {
+	setExpectations := func(t require.TestingT, tt testCase, expected *mtutil.ExpectedState, vm VersionedVMTestCase) ExpectedExecResult {
 		expected.ExpectStep()
 		expected.LastHint = tt.expectedLastHint
 		expected.ActiveThread().Registers[2] = arch.Word(tt.bytesToWrite) // Return count of bytes written
@@ -930,7 +930,7 @@ func TestEVM_Fault(t *testing.T) {
 		{name: "misaligned instruction", pc: 5, nextPC: 4, insn: 0b110111_00001_00001 << 16, evmErrSig: "InvalidPC()", goPanicValue: fmt.Errorf("invalid pc: 5")},
 	}
 
-	initState := func(tt testCase, state *multithreaded.State, vm VersionedVMTestCase, r *testutil.RandHelper) {
+	initState := func(t require.TestingT, tt testCase, state *multithreaded.State, vm VersionedVMTestCase, r *testutil.RandHelper) {
 		testutil.StoreInstruction(state.GetMemory(), 0, tt.insn)
 		state.GetCurrentThread().Cpu.PC = tt.pc
 		state.GetCurrentThread().Cpu.NextPC = tt.nextPC
@@ -938,7 +938,7 @@ func TestEVM_Fault(t *testing.T) {
 		state.GetRegistersRef()[31] = testutil.EndAddr
 	}
 
-	setExpectations := func(tt testCase, expected *mtutil.ExpectedState, vm VersionedVMTestCase) ExpectedExecResult {
+	setExpectations := func(t require.TestingT, tt testCase, expected *mtutil.ExpectedState, vm VersionedVMTestCase) ExpectedExecResult {
 		// Memory is accessed when processing illegal instructions, so we need to make sure to append a memory proof
 		// See: https://github.com/ethereum-optimism/optimism/blob/a08b5b343a0005c6308566cd8afa810dd67e0e8f/cannon/mipsevm/exec/mips_instructions.go#L102-L105
 		rsReg := (tt.insn >> 21) & 0x1F

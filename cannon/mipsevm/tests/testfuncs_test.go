@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/arch"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/exec"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/multithreaded"
@@ -41,7 +43,7 @@ func testOperators(t *testing.T, testCases []operatorTestCase, mips32Insn bool) 
 	rtReg := uint32(8)
 	rdReg := uint32(18)
 
-	initState := func(tt operatorTestCase, state *multithreaded.State, vm VersionedVMTestCase, r *testutil.RandHelper) {
+	initState := func(t require.TestingT, tt operatorTestCase, state *multithreaded.State, vm VersionedVMTestCase, r *testutil.RandHelper) {
 		var insn uint32
 		var baseReg uint32 = 17
 		if tt.isImm {
@@ -56,7 +58,7 @@ func testOperators(t *testing.T, testCases []operatorTestCase, mips32Insn bool) 
 		testutil.StoreInstruction(state.GetMemory(), pc, insn)
 	}
 
-	setExpectations := func(tt operatorTestCase, expected *mtutil.ExpectedState, vm VersionedVMTestCase) ExpectedExecResult {
+	setExpectations := func(t require.TestingT, tt operatorTestCase, expected *mtutil.ExpectedState, vm VersionedVMTestCase) ExpectedExecResult {
 		expected.ExpectStep()
 		if tt.isImm {
 			expected.ActiveThread().Registers[rtReg] = tt.expectRes
@@ -108,14 +110,14 @@ func testMulDiv(t *testing.T, templateCases []mulDivTestCase, mips32Insn bool) {
 	rtReg := uint32(0xa)
 	pc := arch.Word(0)
 
-	initState := func(tt mulDivTestCase, state *multithreaded.State, vm VersionedVMTestCase, r *testutil.RandHelper) {
+	initState := func(t require.TestingT, tt mulDivTestCase, state *multithreaded.State, vm VersionedVMTestCase, r *testutil.RandHelper) {
 		insn := tt.opcode<<26 | baseReg<<21 | rtReg<<16 | tt.rdReg<<11 | tt.funct
 		state.GetRegistersRef()[rtReg] = tt.rt
 		state.GetRegistersRef()[baseReg] = tt.rs
 		testutil.StoreInstruction(state.GetMemory(), pc, insn)
 	}
 
-	setExpectations := func(tt mulDivTestCase, expected *mtutil.ExpectedState, vm VersionedVMTestCase) ExpectedExecResult {
+	setExpectations := func(t require.TestingT, tt mulDivTestCase, expected *mtutil.ExpectedState, vm VersionedVMTestCase) ExpectedExecResult {
 		if tt.panicMsg != "" {
 			return ExpectVmPanic(tt.panicMsg, tt.revertMsg)
 		} else {
@@ -161,7 +163,7 @@ func testLoadStore(t *testing.T, cases []loadStoreTestCase) {
 	rtReg := uint32(8)
 	pc := arch.Word(0)
 
-	initState := func(tt loadStoreTestCase, state *multithreaded.State, vm VersionedVMTestCase, r *testutil.RandHelper) {
+	initState := func(t require.TestingT, tt loadStoreTestCase, state *multithreaded.State, vm VersionedVMTestCase, r *testutil.RandHelper) {
 		insn := tt.opcode<<26 | baseReg<<21 | rtReg<<16 | tt.imm
 
 		testutil.StoreInstruction(state.GetMemory(), pc, insn)
@@ -170,7 +172,7 @@ func testLoadStore(t *testing.T, cases []loadStoreTestCase) {
 		state.GetRegistersRef()[baseReg] = tt.base
 	}
 
-	setExpectations := func(tt loadStoreTestCase, expect *mtutil.ExpectedState, vm VersionedVMTestCase) ExpectedExecResult {
+	setExpectations := func(t require.TestingT, tt loadStoreTestCase, expect *mtutil.ExpectedState, vm VersionedVMTestCase) ExpectedExecResult {
 		expect.ExpectStep()
 		if tt.expectMemVal != 0 {
 			expect.ExpectMemoryWrite(tt.effAddr(), tt.expectMemVal)
@@ -202,7 +204,7 @@ func (t branchTestCase) Name() string {
 }
 
 func testBranch(t *testing.T, cases []branchTestCase) {
-	initState := func(tt branchTestCase, state *multithreaded.State, vm VersionedVMTestCase, r *testutil.RandHelper) {
+	initState := func(t require.TestingT, tt branchTestCase, state *multithreaded.State, vm VersionedVMTestCase, r *testutil.RandHelper) {
 		const rsReg = 8 // t0
 		insn := tt.opcode<<26 | rsReg<<21 | tt.regimm<<16 | uint32(tt.offset)
 
@@ -212,7 +214,7 @@ func testBranch(t *testing.T, cases []branchTestCase) {
 		state.GetRegistersRef()[rsReg] = Word(tt.rs)
 	}
 
-	setExpectations := func(tt branchTestCase, expected *mtutil.ExpectedState, vm VersionedVMTestCase) ExpectedExecResult {
+	setExpectations := func(t require.TestingT, tt branchTestCase, expected *mtutil.ExpectedState, vm VersionedVMTestCase) ExpectedExecResult {
 		expected.ExpectStep()
 		expected.ActiveThread().NextPC = tt.expectNextPC
 		if tt.expectLink {
@@ -243,12 +245,12 @@ func testNoopSyscall(t *testing.T, vm VersionedVMTestCase, syscalls map[string]u
 		cases = append(cases, testCase{name: name, sycallNum: arch.Word(syscallNum)})
 	}
 
-	initState := func(tt testCase, state *multithreaded.State, vm VersionedVMTestCase, r *testutil.RandHelper) {
+	initState := func(t require.TestingT, tt testCase, state *multithreaded.State, vm VersionedVMTestCase, r *testutil.RandHelper) {
 		testutil.StoreInstruction(state.Memory, state.GetPC(), syscallInsn)
 		state.GetRegistersRef()[2] = tt.sycallNum // Set syscall number
 	}
 
-	setExpectations := func(tt testCase, expected *mtutil.ExpectedState, vm VersionedVMTestCase) ExpectedExecResult {
+	setExpectations := func(t require.TestingT, tt testCase, expected *mtutil.ExpectedState, vm VersionedVMTestCase) ExpectedExecResult {
 		expected.ExpectStep()
 		expected.ActiveThread().Registers[2] = 0
 		expected.ActiveThread().Registers[7] = 0
@@ -278,12 +280,12 @@ func testUnsupportedSyscall(t *testing.T, vm VersionedVMTestCase, unsupportedSys
 		cases = append(cases, testCase{name: name, sycallNum: arch.Word(syscallNum)})
 	}
 
-	initState := func(tt testCase, state *multithreaded.State, vm VersionedVMTestCase, r *testutil.RandHelper) {
+	initState := func(t require.TestingT, tt testCase, state *multithreaded.State, vm VersionedVMTestCase, r *testutil.RandHelper) {
 		testutil.StoreInstruction(state.Memory, state.GetPC(), syscallInsn)
 		state.GetRegistersRef()[2] = tt.sycallNum // Set syscall number
 	}
 
-	setExpectations := func(tt testCase, expected *mtutil.ExpectedState, vm VersionedVMTestCase) ExpectedExecResult {
+	setExpectations := func(t require.TestingT, tt testCase, expected *mtutil.ExpectedState, vm VersionedVMTestCase) ExpectedExecResult {
 		goErr := fmt.Sprintf("unrecognized syscall: %v", tt.sycallNum)
 		return ExpectVmPanic(goErr, "unimplemented syscall")
 	}
