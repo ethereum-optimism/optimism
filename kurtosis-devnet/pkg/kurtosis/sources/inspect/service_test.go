@@ -1,7 +1,6 @@
 package inspect
 
 import (
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"testing"
@@ -22,9 +21,7 @@ func TestInspectService(t *testing.T) {
 }
 
 func TestFileWriting(t *testing.T) {
-	tempDir, err := ioutil.TempDir("", "test-files")
-	require.NoError(t, err)
-	defer os.RemoveAll(tempDir)
+	tempDir := t.TempDir()
 
 	cfg := &Config{
 		EnclaveID:           "test-enclave",
@@ -48,18 +45,18 @@ func TestFileWriting(t *testing.T) {
 		},
 	}
 
-	err = service.writeFiles(inspectData, conductorConfig)
+	err := service.writeFiles(inspectData, conductorConfig)
 	require.NoError(t, err)
 
 	assert.FileExists(t, cfg.ConductorConfigPath)
 	assert.FileExists(t, cfg.EnvironmentPath)
 
-	content, err := ioutil.ReadFile(cfg.ConductorConfigPath)
+	content, err := os.ReadFile(cfg.ConductorConfigPath)
 	require.NoError(t, err)
 	assert.Contains(t, string(content), "[networks]")
 	assert.Contains(t, string(content), "[sequencers]")
 
-	envContent, err := ioutil.ReadFile(cfg.EnvironmentPath)
+	envContent, err := os.ReadFile(cfg.EnvironmentPath)
 	require.NoError(t, err)
 	assert.Contains(t, string(envContent), "genesis.json")
 	assert.Contains(t, string(envContent), "op-node")
