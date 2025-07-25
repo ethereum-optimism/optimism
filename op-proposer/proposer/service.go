@@ -31,6 +31,7 @@ import (
 
 var ErrAlreadyStopped = errors.New("already stopped")
 
+// Configuration for the proposer.
 type ProposerConfig struct {
 	// How frequently to poll L2 for new finalized outputs
 	PollInterval   time.Duration
@@ -52,6 +53,11 @@ type ProposerConfig struct {
 	WaitNodeSync bool
 }
 
+// Configuration for the proposer service.
+//
+// Contains logging, metrics, and encapsulates the proposer's components.
+//
+// Implements the `cliapp.Lifecycle` interface.
 type ProposerService struct {
 	Log     log.Logger
 	Metrics metrics.Metricer
@@ -76,6 +82,7 @@ type ProposerService struct {
 }
 
 // ProposerServiceFromCLIConfig creates a new ProposerService from a CLIConfig.
+//
 // The service components are fully started, except for the driver,
 // which will not be submitting state (if it was configured to) until the Start part of the lifecycle.
 func ProposerServiceFromCLIConfig(ctx context.Context, version string, cfg *CLIConfig, log log.Logger) (*ProposerService, error) {
@@ -86,6 +93,18 @@ func ProposerServiceFromCLIConfig(ctx context.Context, version string, cfg *CLIC
 	return &ps, nil
 }
 
+// Initializes the ProposerService from a CLIConfig.
+//
+// Errors if any of the following initialiations fail:
+//
+//   - metrics
+//   - rpc client
+//   - tx manager
+//   - balance monitor
+//   - metrics server
+//   - profile
+//   - driver
+//   - rpc server
 func (ps *ProposerService) initFromCLIConfig(ctx context.Context, version string, cfg *CLIConfig, log log.Logger) error {
 	ps.Version = version
 	ps.Log = log
@@ -125,6 +144,13 @@ func (ps *ProposerService) initFromCLIConfig(ctx context.Context, version string
 	return nil
 }
 
+// Initializes the RPC clients.
+//
+// Errors if any of the following fail:
+//
+//   - L1 client connection
+//   - L2 provider connection (if L2OO)
+//   - Supervisor RPC clients (if DGF post-interop)
 func (ps *ProposerService) initRPCClients(ctx context.Context, cfg *CLIConfig) error {
 	l1Client, err := dial.DialEthClientWithTimeout(ctx, dial.DefaultDialTimeout, ps.Log, cfg.L1EthRpc)
 	if err != nil {
@@ -161,6 +187,7 @@ func (ps *ProposerService) initRPCClients(ctx context.Context, cfg *CLIConfig) e
 	return nil
 }
 
+// Initializes the metrics if enabled.
 func (ps *ProposerService) initMetrics(cfg *CLIConfig) {
 	if cfg.MetricsConfig.Enabled {
 		procName := "default"
@@ -170,13 +197,19 @@ func (ps *ProposerService) initMetrics(cfg *CLIConfig) {
 	}
 }
 
-// initBalanceMonitor depends on Metrics, L1Client and TxManager to start background-monitoring of the Proposer balance.
+// Initializes the balance monitor.
+//
+// Depends on Metrics, L1Client and TxManager to start background-monitoring of the Proposer
+// balance.
 func (ps *ProposerService) initBalanceMonitor(cfg *CLIConfig) {
 	if cfg.MetricsConfig.Enabled {
 		ps.balanceMetricer = ps.Metrics.StartBalanceMetrics(ps.Log, ps.L1Client, ps.TxManager.From())
 	}
 }
 
+// Initializes the transaction manager.
+//
+// Errors if `txmgr.NewSimpleTxManager` fails to initialize.
 func (ps *ProposerService) initTxManager(cfg *CLIConfig) error {
 	txManager, err := txmgr.NewSimpleTxManager("proposer", ps.Log, ps.Metrics, cfg.TxMgrConfig)
 	if err != nil {
@@ -186,6 +219,9 @@ func (ps *ProposerService) initTxManager(cfg *CLIConfig) error {
 	return nil
 }
 
+// Initializes the pprof service.
+//
+// Errors if `oppprof.Service.Start` fails.
 func (ps *ProposerService) initPProf(cfg *CLIConfig) error {
 	ps.pprofService = oppprof.New(
 		cfg.PprofConfig.ListenEnabled,
@@ -203,6 +239,12 @@ func (ps *ProposerService) initPProf(cfg *CLIConfig) error {
 	return nil
 }
 
+// Initializes the metrics server if enabled.
+//
+// Errors on any of the following:
+//
+// - Metrics enabled but no registry
+// - Metrics server fails to start
 func (ps *ProposerService) initMetricsServer(cfg *CLIConfig) error {
 	if !cfg.MetricsConfig.Enabled {
 		ps.Log.Info("Metrics disabled")
@@ -222,6 +264,9 @@ func (ps *ProposerService) initMetricsServer(cfg *CLIConfig) error {
 	return nil
 }
 
+// Initializes the L2 Output Oracle address.
+//
+// If the address is invalid or missing, it will not be set.
 func (ps *ProposerService) initL2ooAddress(cfg *CLIConfig) {
 	l2ooAddress, err := opservice.ParseAddress(cfg.L2OOAddress)
 	if err != nil {
@@ -231,6 +276,9 @@ func (ps *ProposerService) initL2ooAddress(cfg *CLIConfig) {
 	ps.L2OutputOracleAddr = &l2ooAddress
 }
 
+// Initializes the Dispute Game Factory address.
+//
+// If the address is invalid or missing it will not be set.
 func (ps *ProposerService) initDGF(cfg *CLIConfig) {
 	dgfAddress, err := opservice.ParseAddress(cfg.DGFAddress)
 	if err != nil {
@@ -242,6 +290,9 @@ func (ps *ProposerService) initDGF(cfg *CLIConfig) {
 	ps.DisputeGameType = cfg.DisputeGameType
 }
 
+// Initializes the L2 output submitter driver.
+//
+// Errors if `proposer.NewL2OutputSubmitter` fails.
 func (ps *ProposerService) initDriver() error {
 	driver, err := NewL2OutputSubmitter(DriverSetup{
 		Log:            ps.Log,
@@ -259,6 +310,9 @@ func (ps *ProposerService) initDriver() error {
 	return nil
 }
 
+// Initializes the RPC server.
+//
+// Errors if the RPC server fails to start.
 func (ps *ProposerService) initRPCServer(cfg *CLIConfig) error {
 	server := oprpc.NewServer(
 		cfg.RPCConfig.ListenAddr,
@@ -288,6 +342,7 @@ func (ps *ProposerService) Start(_ context.Context) error {
 	return ps.driver.StartL2OutputSubmitting()
 }
 
+// Returns whether or not the ProposerService has been stopped.
 func (ps *ProposerService) Stopped() bool {
 	return ps.stopped.Load()
 }
@@ -364,6 +419,7 @@ func (ps *ProposerService) Driver() rpc.ProposerDriver {
 	return ps.driver
 }
 
+// Returns the HTTP endpoint of the RPC server.
 func (ps *ProposerService) HTTPEndpoint() string {
 	if ps.rpcServer == nil {
 		return ""
