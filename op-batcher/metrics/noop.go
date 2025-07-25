@@ -35,6 +35,8 @@ func (*noopMetrics) RecordL2BlocksLoaded(eth.L2BlockRef)                    {}
 func (*noopMetrics) RecordChannelOpened(derive.ChannelID, int)              {}
 func (*noopMetrics) RecordL2BlocksAdded(eth.L2BlockRef, int, int, int, int) {}
 func (*noopMetrics) RecordL2BlockInPendingQueue(*types.Block)               {}
+func (*noopMetrics) RecordL2BlockEnqueued(*types.Block)                     {}
+func (*noopMetrics) RecordL2BlockDequeued(*types.Block)                     {}
 func (*noopMetrics) RecordL2BlockInChannel(*types.Block)                    {}
 
 func (*noopMetrics) RecordChannelClosed(derive.ChannelID, int, int, int, int, error) {}
@@ -64,6 +66,9 @@ func (*noopMetrics) StartBalanceMetrics(log.Logger, *ethclient.Client, common.Ad
 func (nm *noopMetrics) PendingDABytes() float64 {
 	return 0.0
 }
+func (nm *noopMetrics) UnsafeDABytes() float64 {
+	return 0.0
+}
 
 // ThrottlingMetrics is a noopMetrics that always returns a max value for PendingDABytes, to use in testing batcher
 // backlog throttling.
@@ -71,7 +76,7 @@ type ThrottlingMetrics struct {
 	noopMetrics
 }
 
-func (nm *ThrottlingMetrics) PendingDABytes() float64 {
+func (nm *ThrottlingMetrics) UnsafeDABytes() float64 {
 	return math.MaxFloat64
 }
 
