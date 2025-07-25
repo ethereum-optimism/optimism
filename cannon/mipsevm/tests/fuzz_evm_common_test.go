@@ -306,82 +306,100 @@ func FuzzStatePreimageRead(f *testing.F) {
 }
 
 func FuzzStateHintWrite(f *testing.F) {
-	versions := GetMipsVersionTestCases(f)
-	f.Fuzz(func(t *testing.T, addr Word, count Word, hint1, hint2, hint3 []byte, randSeed int64) {
-		for _, v := range versions {
-			t.Run(v.Name, func(t *testing.T) {
-				// Make sure pc does not overlap with hint data in memory
-				pc := Word(0)
-				if addr <= 8 {
-					addr += 8
-				}
+	vms := GetMipsVersionTestCases(f)
+	type testCase struct {
+		addr             Word
+		count            Word
+		hintData         []byte
+		lastHint         []byte
+		expectedHints    [][]byte
+		expectedLastHint []byte
+	}
 
-				// Set up hint data
-				r := testutil.NewRandHelper(randSeed)
-				hints := [][]byte{hint1, hint2, hint3}
-				hintData := make([]byte, 0)
-				for _, hint := range hints {
-					prefixedHint := mtutil.AddHintLengthPrefix(hint)
-					hintData = append(hintData, prefixedHint...)
-				}
-				lastHintLen := math.Round(r.Fraction() * float64(len(hintData)))
-				lastHint := hintData[:int(lastHintLen)]
-				expectedBytesToProcess := int(count) + int(lastHintLen)
-				if expectedBytesToProcess > len(hintData) {
-					// Add an extra hint to span the rest of the hint data
-					randomHint := r.RandomBytes(t, expectedBytesToProcess)
-					prefixedHint := mtutil.AddHintLengthPrefix(randomHint)
-					hintData = append(hintData, prefixedHint...)
-					hints = append(hints, randomHint)
-				}
+	initState := func(t require.TestingT, c testCase, state *multithreaded.State, vm VersionedVMTestCase, r *testutil.RandHelper) {
+		state.LastHint = c.lastHint
+		state.GetRegistersRef()[2] = arch.SysWrite
+		state.GetRegistersRef()[4] = exec.FdHintWrite
+		state.GetRegistersRef()[5] = c.addr
+		state.GetRegistersRef()[6] = c.count
+		testutil.StoreInstruction(state.GetMemory(), state.GetPC(), syscallInsn)
+		err := state.GetMemory().SetMemoryRange(c.addr, bytes.NewReader(c.hintData[int(len(c.lastHint)):]))
+		require.NoError(t, err)
+	}
 
-				// Set up state
-				oracle := &testutil.HintTrackingOracle{}
-				goVm := v.VMFactory(oracle, os.Stdout, os.Stderr, testutil.CreateLogger(),
-					mtutil.WithRandomization(randSeed), mtutil.WithLastHint(lastHint), mtutil.WithPCAndNextPC(pc))
-				state := goVm.GetState()
-				state.GetRegistersRef()[2] = arch.SysWrite
-				state.GetRegistersRef()[4] = exec.FdHintWrite
-				state.GetRegistersRef()[5] = addr
-				state.GetRegistersRef()[6] = count
-				step := state.GetStep()
-				err := state.GetMemory().SetMemoryRange(addr, bytes.NewReader(hintData[int(lastHintLen):]))
-				require.NoError(t, err)
-				testutil.StoreInstruction(state.GetMemory(), state.GetPC(), syscallInsn)
+	setExpectations := func(t require.TestingT, c testCase, expected *mtutil.ExpectedState, vm VersionedVMTestCase) ExpectedExecResult {
+		expected.ExpectStep()
+		expected.ActiveThread().Registers[2] = c.count
+		expected.ActiveThread().Registers[7] = 0 // no error
+		expected.LastHint = c.expectedLastHint
+		return ExpectNormalExecution()
+	}
 
-				// Set up expectations
-				expected := mtutil.NewExpectedState(t, state)
-				expected.ExpectStep()
-				expected.ActiveThread().Registers[2] = count
-				expected.ActiveThread().Registers[7] = 0 // no error
-				// Figure out hint expectations
-				var expectedHints [][]byte
-				expectedLastHint := make([]byte, 0)
-				byteIndex := 0
-				for _, hint := range hints {
-					hintDataLength := len(hint) + 4 // Hint data + prefix
-					hintLastByteIndex := hintDataLength + byteIndex - 1
-					if hintLastByteIndex < expectedBytesToProcess {
-						expectedHints = append(expectedHints, hint)
-					} else {
-						expectedLastHint = hintData[byteIndex:expectedBytesToProcess]
-						break
-					}
-					byteIndex += hintDataLength
-				}
-				expected.LastHint = expectedLastHint
+	postCheck := func(t require.TestingT, c testCase, vm VersionedVMTestCase, deps *TestDependencies, stepWitness *mipsevm.StepWitness) {
+		oracle, ok := deps.po.(*testutil.HintTrackingOracle)
+		require.True(t, ok)
+		require.Equal(t, c.expectedHints, oracle.Hints())
+	}
 
-				// Run state transition
-				stepWitness, err := goVm.Step(true)
-				require.NoError(t, err)
-				require.False(t, stepWitness.HasPreimage())
+	diffTester := NewDiffTester(NoopTestNamer[testCase]).
+		InitState(initState, mtutil.WithPCAndNextPC(0)).
+		SetExpectations(setExpectations).
+		PostCheck(postCheck)
 
-				// Validate
-				require.Equal(t, expectedHints, oracle.Hints())
-				expected.Validate(t, state)
-				testutil.ValidateEVM(t, stepWitness, step, goVm, v.StateHashFn, v.Contracts)
-			})
+	f.Fuzz(func(t *testing.T, addr Word, count Word, hint1, hint2, hint3 []byte, seed int64) {
+		// Make sure pc does not overlap with hint data in memory
+		if addr <= 8 {
+			addr += 8
 		}
+		// Set up hint data
+		r := testutil.NewRandHelper(seed)
+		hints := [][]byte{hint1, hint2, hint3}
+		hintData := make([]byte, 0)
+		for _, hint := range hints {
+			prefixedHint := mtutil.AddHintLengthPrefix(hint)
+			hintData = append(hintData, prefixedHint...)
+		}
+		lastHintLen := math.Round(r.Fraction() * float64(len(hintData)))
+		lastHint := hintData[:int(lastHintLen)]
+		expectedBytesToProcess := int(count) + int(lastHintLen)
+		if expectedBytesToProcess > len(hintData) {
+			// Add an extra hint to span the rest of the hint data
+			randomHint := r.RandomBytes(t, expectedBytesToProcess)
+			prefixedHint := mtutil.AddHintLengthPrefix(randomHint)
+			hintData = append(hintData, prefixedHint...)
+			hints = append(hints, randomHint)
+		}
+		// Figure out hint expectations
+		var expectedHints [][]byte
+		expectedLastHint := make([]byte, 0)
+		byteIndex := 0
+		for _, hint := range hints {
+			hintDataLength := len(hint) + 4 // Hint data + prefix
+			hintLastByteIndex := hintDataLength + byteIndex - 1
+			if hintLastByteIndex < expectedBytesToProcess {
+				expectedHints = append(expectedHints, hint)
+			} else {
+				expectedLastHint = hintData[byteIndex:expectedBytesToProcess]
+				break
+			}
+			byteIndex += hintDataLength
+		}
+
+		po := func() mipsevm.PreimageOracle {
+			return &testutil.HintTrackingOracle{}
+		}
+
+		tests := []testCase{
+			{
+				addr:             addr,
+				count:            count,
+				hintData:         hintData,
+				lastHint:         lastHint,
+				expectedHints:    expectedHints,
+				expectedLastHint: expectedLastHint,
+			},
+		}
+		diffTester.Run(t, tests, fuzzTestOptions(vms, seed, WithPreimageOracle(po))...)
 	})
 }
 
