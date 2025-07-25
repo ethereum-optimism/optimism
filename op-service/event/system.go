@@ -115,7 +115,7 @@ func (r *systemActor) traceAndLogEventEmitted(ctx context.Context, ev Event) con
 		ctx = context.WithValue(ctx, ctxKeyEventStep, estep)
 	}
 
-	r.sys.log.Debug("Event emitted", "euid", fmt.Sprintf("%s:%d", euuid, estep), "ev", ev.String(), "loc", fmt.Sprintf("%s/%s:%d", dir, file, line))
+	r.sys.log.Trace("Event emitted", "euid", fmt.Sprintf("%s:%d", euuid, estep), "ev", ev.String(), "loc", fmt.Sprintf("%s/%s:%d", dir, file, line))
 
 	return ctx
 }
