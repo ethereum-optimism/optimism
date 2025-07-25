@@ -111,7 +111,7 @@ func (m *Miner) Fork(t *testing.T, blockNumber uint64, attrs *eth.PayloadAttribu
 	head := m.backend.GetHeaderByNumber(blockNumber)
 	if attrs == nil {
 		gasLimit := eth.Uint64Quantity(head.GasLimit)
-		eip1559Params := eth.Bytes9([]byte{0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88, 0x99})
+		eip1559Params := eth.Bytes8([]byte{0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88})
 		attrs = &eth.PayloadAttributes{
 			Timestamp:             eth.Uint64Quantity(head.Time + 2),
 			PrevRandao:            eth.Bytes32{0x11},
@@ -121,6 +121,7 @@ func (m *Miner) Fork(t *testing.T, blockNumber uint64, attrs *eth.PayloadAttribu
 			NoTxPool:              true,
 			GasLimit:              &gasLimit,
 			EIP1559Params:         &eip1559Params,
+			MinBaseFeeLog2:        0,
 		}
 	}
 	m.MineAt(t, head, attrs)
@@ -130,7 +131,7 @@ func (m *Miner) MineAt(t *testing.T, head *types.Header, attrs *eth.PayloadAttri
 	hash := head.Hash()
 	genesis := m.backend.Genesis()
 	if attrs == nil {
-		eip1559Params := eth.Bytes9([]byte{0x1, 0x2, 0x3, 0x4, 0x5, 0x6, 0x7, 0x8, 0x9})
+		eip1559Params := eth.Bytes8([]byte{0x1, 0x2, 0x3, 0x4, 0x5, 0x6, 0x7, 0x8})
 		gasLimit := eth.Uint64Quantity(4712388)
 		attrs = &eth.PayloadAttributes{
 			Timestamp:             eth.Uint64Quantity(head.Time + 2),
@@ -141,6 +142,7 @@ func (m *Miner) MineAt(t *testing.T, head *types.Header, attrs *eth.PayloadAttri
 			NoTxPool:              true,
 			GasLimit:              &gasLimit,
 			EIP1559Params:         &eip1559Params,
+			MinBaseFeeLog2:        0,
 		}
 	}
 	result, err := m.engineAPI.ForkchoiceUpdatedV3(context.Background(), &eth.ForkchoiceState{

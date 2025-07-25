@@ -205,7 +205,8 @@ func TestProcessSystemConfigUpdateLogEvent(t *testing.T) {
 				return log
 			},
 			config: eth.SystemConfig{
-				EIP1559Params: eth.Bytes9(append(eip1559Params, 0)), // Add 1 zero byte for MinBaseFeeLog2
+				EIP1559Params:  eth.Bytes8(eip1559Params),
+				MinBaseFeeLog2: 0,
 			},
 			err: false,
 		},
@@ -253,7 +254,8 @@ func TestProcessSystemConfigUpdateLogEvent(t *testing.T) {
 				return log
 			},
 			config: eth.SystemConfig{
-				EIP1559Params: eth.Bytes9{0, 0, 0, 0, 0, 0, 0, 0, 22}, // minBaseFeeLog2 = 22 at byte 8
+				EIP1559Params:  eth.Bytes8{0, 0, 0, 0, 0, 0, 0, 0},
+				MinBaseFeeLog2: 22,
 			},
 			err: false,
 		},
