@@ -145,30 +145,6 @@ func (b Bytes8) TerminalString() string {
 	return fmt.Sprintf("0x%x", b[:])
 }
 
-type Bytes9 [9]byte
-
-func (b *Bytes9) UnmarshalJSON(text []byte) error {
-	return hexutil.UnmarshalFixedJSON(reflect.TypeOf(b), text, b[:])
-}
-
-func (b *Bytes9) UnmarshalText(text []byte) error {
-	return hexutil.UnmarshalFixedText("Bytes9", text, b[:])
-}
-
-func (b Bytes9) MarshalText() ([]byte, error) {
-	return hexutil.Bytes(b[:]).MarshalText()
-}
-
-func (b Bytes9) String() string {
-	return hexutil.Encode(b[:])
-}
-
-// TerminalString implements log.TerminalStringer, formatting a string for console
-// output during logging.
-func (b Bytes9) TerminalString() string {
-	return fmt.Sprintf("0x%x", b[:])
-}
-
 type Bytes96 [96]byte
 
 func (b *Bytes96) UnmarshalJSON(text []byte) error {
@@ -631,11 +607,12 @@ type SystemConfig struct {
 	Scalar Bytes32 `json:"scalar"`
 	// GasLimit identifies the L2 block gas limit
 	GasLimit uint64 `json:"gasLimit"`
-	// EIP1559Params contains the Holocene/Jovian-encoded EIP-1559 parameters. This
-	// value will be 0 if Holocene is not active, or if derivation has yet to
+	// EIP1559Params contains the Holocene-encoded EIP-1559 parameters.
+	// This value will be 0 if Holocene is not active, or if derivation has yet to
 	// process any EIP_1559_PARAMS system config update events.
-	// Bytes8 for Holocene, Bytes9 for Jovian+ (with MinBaseFeeLog2).
-	EIP1559Params Bytes9 `json:"eip1559Params"`
+	EIP1559Params Bytes8 `json:"eip1559Params"`
+	// MinBaseFeeLog2 is the minimum base fee log2.
+	MinBaseFeeLog2 uint8 `json:"minBaseFeeLog2"`
 	// OperatorFeeParams identifies the operator fee parameters.
 	OperatorFeeParams Bytes32 `json:"operatorFeeParams"`
 	// More fields can be added for future SystemConfig versions.
