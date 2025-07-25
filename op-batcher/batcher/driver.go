@@ -173,7 +173,7 @@ func (l *BatchSubmitter) StartBatchSubmitting() error {
 
 	// Channels used to signal between the loops
 	pendingBytesUpdated := make(chan int64, 1)
-	publishSignal := make(chan struct{})
+	publishSignal := make(chan struct{}, 1)
 	l.publishSignal = publishSignal
 
 	// DA throttling loop should always be started except for testing (indicated by ThrottleThreshold == 0)
