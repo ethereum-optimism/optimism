@@ -654,7 +654,12 @@ contract DeployImplementations is Script {
         });
 
         ChainAssertions.checkOptimismMintableERC20FactoryImpl(_output.optimismMintableERC20FactoryImpl);
-        ChainAssertions.checkOptimismPortal2({ _contracts: impls, _opChainProxyAdminOwner: address(0), _isProxy: false });
+        ChainAssertions.checkOptimismPortal2({
+            _contracts: impls,
+            _superchainConfig: ISuperchainConfig(address(_input.superchainConfigProxy)),
+            _opChainProxyAdminOwner: address(0),
+            _isProxy: false
+        });
         ChainAssertions.checkETHLockbox(impls, address(0), false);
         // We can use DeployOPChainInput(address(0)) here because no method will be called on _doi when isProxy is false
         ChainAssertions.checkSystemConfig(impls, DeployOPChainInput(address(0)), false);

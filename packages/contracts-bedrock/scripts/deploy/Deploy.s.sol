@@ -296,6 +296,7 @@ contract Deploy is Deployer {
         ChainAssertions.checkL1ERC721BridgeImpl(IL1ERC721Bridge(impls.L1ERC721Bridge));
         ChainAssertions.checkOptimismPortal2({
             _contracts: impls,
+            _superchainConfig: superchainConfigProxy,
             _opChainProxyAdminOwner: cfg.finalSystemOwner(),
             _isProxy: false
         });

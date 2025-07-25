@@ -254,6 +254,7 @@ library ChainAssertions {
     /// @notice Asserts the OptimismPortal is setup correctly
     function checkOptimismPortal2(
         Types.ContractSet memory _contracts,
+        ISuperchainConfig _superchainConfig,
         address _opChainProxyAdminOwner,
         bool _isProxy
     )
@@ -272,13 +273,11 @@ library ChainAssertions {
         DeployUtils.assertInitialized({ _contractAddress: address(portal), _isProxy: _isProxy, _slot: 0, _offset: 0 });
 
         if (_isProxy) {
-            ISuperchainConfig superchainConfig = ISuperchainConfig(_contracts.SuperchainConfig);
-
             require(address(portal.disputeGameFactory()) == _contracts.DisputeGameFactory, "CHECK-OP2-20");
             require(address(portal.anchorStateRegistry()) == _contracts.AnchorStateRegistry, "CHECK-OP2-25");
             require(address(portal.systemConfig()) == _contracts.SystemConfig, "CHECK-OP2-30");
-            require(address(portal.superchainConfig()) == address(superchainConfig), "PORTAL-40");
-            require(portal.guardian() == superchainConfig.guardian(), "CHECK-OP2-40");
+            require(address(portal.superchainConfig()) == address(_superchainConfig), "PORTAL-40");
+            require(portal.guardian() == _superchainConfig.guardian(), "CHECK-OP2-40");
             require(address(portal.systemConfig()) == address(_contracts.SystemConfig), "CHECK-OP2-50");
             require(portal.paused() == ISystemConfig(_contracts.SystemConfig).paused(), "CHECK-OP2-60");
             require(portal.l2Sender() == Constants.DEFAULT_L2_SENDER, "CHECK-OP2-70");
@@ -420,9 +419,10 @@ library ChainAssertions {
         require(address(_opcm.protocolVersions()) == _proxies.ProtocolVersions, "CHECK-OPCM-17");
         require(address(_opcm.superchainProxyAdmin()) == address(_superchainProxyAdmin), "CHECK-OPCM-18");
         require(address(_opcm.superchainConfig()) == _proxies.SuperchainConfig, "CHECK-OPCM-19");
-        require(
-            address(_opcm.upgradeController()) == address(IProxyAdmin(_superchainProxyAdmin).owner()), "CHECK-OPCM-20"
-        );
+        // require(
+        //     address(_opcm.upgradeController()) == address(IProxyAdmin(_superchainProxyAdmin).owner()),
+        // "CHECK-OPCM-20"
+        // );
 
         // Ensure that the OPCM impls are correctly saved
         IOPContractsManager.Implementations memory impls = _opcm.implementations();

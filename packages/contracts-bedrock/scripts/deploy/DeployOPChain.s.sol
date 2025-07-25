@@ -504,6 +504,7 @@ contract DeployOPChain is Script {
         });
         ChainAssertions.checkOptimismPortal2({
             _contracts: proxies,
+            _superchainConfig: _doi.opcm().superchainConfig(),
             _opChainProxyAdminOwner: _doi.opChainProxyAdminOwner(),
             _isProxy: true
         });
