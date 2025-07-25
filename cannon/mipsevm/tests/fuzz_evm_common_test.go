@@ -9,6 +9,7 @@ import (
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/stretchr/testify/require"
 
+	"github.com/ethereum-optimism/optimism/cannon/mipsevm"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/arch"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/exec"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/memory"
@@ -186,37 +187,46 @@ func FuzzStateSyscallFcntl(f *testing.F) {
 }
 
 func FuzzStateHintRead(f *testing.F) {
-	versions := GetMipsVersionTestCases(f)
+	vms := GetMipsVersionTestCases(f)
+	type testCase struct {
+		addr  Word
+		count Word
+	}
+
+	preimageData := []byte("hello world")
+	preimageKey := preimage.Keccak256Key(crypto.Keccak256Hash(preimageData)).PreimageKey()
+	initState := func(t require.TestingT, c testCase, state *multithreaded.State, vm VersionedVMTestCase, r *testutil.RandHelper) {
+		state.PreimageKey = preimageKey
+		state.GetRegistersRef()[2] = arch.SysRead
+		state.GetRegistersRef()[4] = exec.FdHintRead
+		state.GetRegistersRef()[5] = c.addr
+		state.GetRegistersRef()[6] = c.count
+		testutil.StoreInstruction(state.GetMemory(), state.GetPC(), syscallInsn)
+	}
+
+	setExpectations := func(t require.TestingT, c testCase, expected *mtutil.ExpectedState, vm VersionedVMTestCase) ExpectedExecResult {
+		expected.ExpectStep()
+		expected.ActiveThread().Registers[2] = c.count
+		expected.ActiveThread().Registers[7] = 0 // no error
+		return ExpectNormalExecution()
+	}
+
+	postCheck := func(t require.TestingT, c testCase, vm VersionedVMTestCase, deps *TestDependencies, stepWitness *mipsevm.StepWitness) {
+		require.False(t, stepWitness.HasPreimage())
+	}
+
+	diffTester := NewDiffTester(NoopTestNamer[testCase]).
+		InitState(initState).
+		SetExpectations(setExpectations).
+		PostCheck(postCheck)
+
 	f.Fuzz(func(t *testing.T, addr Word, count Word, seed int64) {
-		for _, v := range versions {
-			t.Run(v.Name, func(t *testing.T) {
-				preimageData := []byte("hello world")
-				preimageKey := preimage.Keccak256Key(crypto.Keccak256Hash(preimageData)).PreimageKey()
-				oracle := testutil.StaticOracle(t, preimageData) // only used for hinting
-
-				goVm := v.VMFactory(oracle, os.Stdout, os.Stderr, testutil.CreateLogger(),
-					mtutil.WithRandomization(seed), mtutil.WithPreimageKey(preimageKey))
-				state := goVm.GetState()
-				state.GetRegistersRef()[2] = arch.SysRead
-				state.GetRegistersRef()[4] = exec.FdHintRead
-				state.GetRegistersRef()[5] = addr
-				state.GetRegistersRef()[6] = count
-				testutil.StoreInstruction(state.GetMemory(), state.GetPC(), syscallInsn)
-				step := state.GetStep()
-
-				expected := mtutil.NewExpectedState(t, state)
-				expected.ExpectStep()
-				expected.ActiveThread().Registers[2] = count
-				expected.ActiveThread().Registers[7] = 0 // no error
-
-				stepWitness, err := goVm.Step(true)
-				require.NoError(t, err)
-				require.False(t, stepWitness.HasPreimage())
-
-				expected.Validate(t, state)
-				testutil.ValidateEVM(t, stepWitness, step, goVm, v.StateHashFn, v.Contracts)
-			})
+		tests := []testCase{{addr, count}}
+		po := func() mipsevm.PreimageOracle {
+			return testutil.StaticOracle(t, preimageData)
 		}
+
+		diffTester.Run(t, tests, fuzzTestOptions(vms, seed, WithPreimageOracle(po))...)
 	})
 }
 
@@ -420,10 +430,12 @@ func FuzzStatePreimageWrite(f *testing.F) {
 	})
 }
 
-func fuzzTestOptions(vms []VersionedVMTestCase, seed int64) []TestOption {
-	return []TestOption{
+func fuzzTestOptions(vms []VersionedVMTestCase, seed int64, opts ...TestOption) []TestOption {
+	testOpts := []TestOption{
 		WithVms(vms),
 		WithRandomSeed(seed),
 		SkipAutomaticMemoryReservationTests(),
 	}
+	testOpts = append(testOpts, opts...)
+	return testOpts
 }

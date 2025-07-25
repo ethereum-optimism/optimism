@@ -891,7 +891,7 @@ func TestEVM_SysWriteHint(t *testing.T) {
 		return ExpectNormalExecution()
 	}
 
-	postCheck := func(t require.TestingT, tt testCase, vm VersionedVMTestCase, deps *TestDependencies) {
+	postCheck := func(t require.TestingT, tt testCase, vm VersionedVMTestCase, deps *TestDependencies, wit *mipsevm.StepWitness) {
 		trackingOracle, ok := deps.po.(*testutil.HintTrackingOracle)
 		require.True(t, ok)
 		require.Equal(t, tt.expectedHints, trackingOracle.Hints())
