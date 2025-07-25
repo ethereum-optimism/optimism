@@ -451,6 +451,7 @@ library ChainAssertions {
             _offset: 0
         });
 
+        // The below check cannot be done in the standard validator because the assertion only applies at deploy time.
         (Hash actualRoot,) = _anchorStateRegistryProxy.anchors(GameTypes.PERMISSIONED_CANNON);
         if (_isProxy) {
             require(
