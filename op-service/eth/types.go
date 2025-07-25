@@ -607,8 +607,8 @@ type SystemConfig struct {
 	Scalar Bytes32 `json:"scalar"`
 	// GasLimit identifies the L2 block gas limit
 	GasLimit uint64 `json:"gasLimit"`
-	// EIP1559Params contains the Holocene-encoded EIP-1559 parameters.
-	// This value will be 0 if Holocene is not active, or if derivation has yet to
+	// EIP1559Params contains the Holocene-encoded EIP-1559 parameters. This
+	// value will be 0 if Holocene is not active, or if derivation has yet to
 	// process any EIP_1559_PARAMS system config update events.
 	EIP1559Params Bytes8 `json:"eip1559Params"`
 	// MinBaseFeeLog2 is the minimum base fee log2.
