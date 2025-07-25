@@ -101,32 +101,32 @@ func FuzzStateSyscallMmap(f *testing.F) {
 }
 
 func FuzzStateSyscallExitGroup(f *testing.F) {
-	versions := GetMipsVersionTestCases(f)
+	vms := GetMipsVersionTestCases(f)
+	type testCase struct {
+		exitCode uint8
+	}
+
+	initState := func(t require.TestingT, c testCase, state *multithreaded.State, vm VersionedVMTestCase, r *testutil.RandHelper) {
+		state.GetRegistersRef()[2] = arch.SysExitGroup
+		state.GetRegistersRef()[4] = Word(c.exitCode)
+		testutil.StoreInstruction(state.GetMemory(), state.GetPC(), syscallInsn)
+	}
+
+	setExpectations := func(t require.TestingT, c testCase, expected *mtutil.ExpectedState, vm VersionedVMTestCase) ExpectedExecResult {
+		expected.Step += 1
+		expected.ExpectNoContextSwitch()
+		expected.Exited = true
+		expected.ExitCode = c.exitCode
+		return ExpectNormalExecution()
+	}
+
+	diffTester := NewDiffTester(NoopTestNamer[testCase]).
+		InitState(initState).
+		SetExpectations(setExpectations)
+
 	f.Fuzz(func(t *testing.T, exitCode uint8, seed int64) {
-		for _, v := range versions {
-			t.Run(v.Name, func(t *testing.T) {
-				goVm := v.VMFactory(nil, os.Stdout, os.Stderr, testutil.CreateLogger(),
-					mtutil.WithRandomization(seed))
-				state := goVm.GetState()
-				state.GetRegistersRef()[2] = arch.SysExitGroup
-				state.GetRegistersRef()[4] = Word(exitCode)
-				testutil.StoreInstruction(state.GetMemory(), state.GetPC(), syscallInsn)
-				step := state.GetStep()
-
-				expected := mtutil.NewExpectedState(t, state)
-				expected.Step += 1
-				expected.ExpectNoContextSwitch()
-				expected.Exited = true
-				expected.ExitCode = exitCode
-
-				stepWitness, err := goVm.Step(true)
-				require.NoError(t, err)
-				require.False(t, stepWitness.HasPreimage())
-
-				expected.Validate(t, state)
-				testutil.ValidateEVM(t, stepWitness, step, goVm, v.StateHashFn, v.Contracts)
-			})
-		}
+		tests := []testCase{{exitCode}}
+		diffTester.Run(t, tests, fuzzTestOptions(vms, seed)...)
 	})
 }
 
