@@ -82,6 +82,38 @@ type CLIConfig struct {
 	WaitNodeSync bool
 }
 
+// Checks the CLI config.
+//
+// There are three distinct configurations, L2 Output Oracle, DGF (pre-interop), and
+// DGF (post-interop). Fields prefixed with "NOT" are required to be empty.
+//
+// Always requires:
+//
+//   - `L1EthRpc`
+//   - `RPCConfig`
+//   - `MetricsConfig`
+//   - `PprofConfig`
+//   - `TxMgrConfig`
+//
+// 1. L2OO only:
+//
+//   - `L2OOAddress`
+//   - `RollupRpc`
+//   - NOT `ProposalInterval`
+//
+// 2. DGF (pre-interop):
+//
+//   - `DGFAddress`
+//   - `ProposalInterval`
+//   - `RollupRpc`
+//   - `DisputeGameType` MUST be in `preInteropGameTypes`
+//
+// 3. DGF (post-interop):
+//
+//   - `DGFAddress`
+//   - `ProposalInterval`
+//   - `SupervisorRpcs`
+//   - `DisputeGameType` MUST be in `postInteropGameTypes`
 func (c *CLIConfig) Check() error {
 	if err := c.RPCConfig.Check(); err != nil {
 		return err
