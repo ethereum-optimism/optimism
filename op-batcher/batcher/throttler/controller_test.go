@@ -89,10 +89,10 @@ var (
 		return NewStepStrategy(TestThresholdBytes)
 	}
 	testLinearStrategy = func(t *testing.T) *LinearStrategy {
-		return NewLinearStrategy(TestThresholdBytes, TestThresholdMultiplier, newTestLogger(t))
+		return NewLinearStrategy(TestThresholdBytes, TestThresholdMultiplier*TestThresholdBytes, newTestLogger(t))
 	}
 	testQuadraticStrategy = func(t *testing.T) *QuadraticStrategy {
-		return NewQuadraticStrategy(TestThresholdBytes, TestThresholdMultiplier, newTestLogger(t))
+		return NewQuadraticStrategy(TestThresholdBytes, TestThresholdMultiplier*TestThresholdBytes, newTestLogger(t))
 	}
 	testPIDStrategy = func(t *testing.T) *PIDStrategy {
 		return NewPIDStrategy(TestThresholdBytes, TestPIDConfig)
