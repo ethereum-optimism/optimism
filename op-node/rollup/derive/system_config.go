@@ -192,7 +192,7 @@ func ProcessSystemConfigUpdateLogEvent(destSysCfg *eth.SystemConfig, ev *types.L
 		if !solabi.EmptyReader(reader) {
 			return NewCriticalError(errors.New("too many bytes"))
 		}
-		destSysCfg.EIP1559Params[8] = minBaseFeeLog2Data[0]
+		destSysCfg.MinBaseFeeLog2 = minBaseFeeLog2Data[0]
 		return nil
 	default:
 		return fmt.Errorf("unrecognized L1 sysCfg update type: %s", updateType)

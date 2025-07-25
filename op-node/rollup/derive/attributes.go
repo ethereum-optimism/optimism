@@ -194,8 +194,8 @@ func (ba *FetchingAttributesBuilder) PreparePayloadAttributes(ctx context.Contex
 		Withdrawals:           withdrawals,
 		ParentBeaconBlockRoot: parentBeaconRoot,
 	}
-	if ba.rollupCfg.IsJovian(nextL2Time) || ba.rollupCfg.IsHolocene(nextL2Time) {
-		r.EIP1559Params = new(eth.Bytes9)
+	if ba.rollupCfg.IsHolocene(nextL2Time) {
+		r.EIP1559Params = new(eth.Bytes8)
 		*r.EIP1559Params = sysConfig.EIP1559Params
 	}
 

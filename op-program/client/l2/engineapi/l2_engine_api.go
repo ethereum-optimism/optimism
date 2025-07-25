@@ -287,15 +287,7 @@ func (ea *L2EngineAPI) verifyPayloadAttributes(attr *eth.PayloadAttributes) erro
 		return fmt.Errorf("invalid parent beacon block root: %w", err)
 	}
 	// Verify EIP-1559 params for Holocene.
-	if c.IsJovian(t) {
-		if attr.EIP1559Params == nil {
-			//nolint:err113 // Do not use non-dynamic errors here to keep this function very similar to op-geth
-			return errors.New("got nil eip-1559 params while Jovian is active")
-		}
-		if err := eip1559.ValidateJovian1559Params(attr.EIP1559Params[:]); err != nil {
-			return fmt.Errorf("invalid Jovian params: %w", err)
-		}
-	} else if c.IsHolocene(t) {
+	if c.IsHolocene(t) {
 		if attr.EIP1559Params == nil {
 			//nolint:err113 // Do not use non-dynamic errors here to keep this function very similar to op-geth
 			return errors.New("got nil eip-1559 params while Holocene is active")
