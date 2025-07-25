@@ -10,7 +10,7 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 #![allow(unused_crate_dependencies)]
 
-/// Re-exported ethereum types
+/// Re-exported optimism types
 #[doc(inline)]
 pub use reth_optimism_primitives::*;
 
