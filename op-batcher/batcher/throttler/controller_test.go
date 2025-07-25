@@ -177,7 +177,13 @@ func TestControllerFactory(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			controller, err := factory.CreateController(
-				tt.controllerType, TestThresholdBytes, TestThrottleTxSize, TestThrottleBlockSize, TestAlwaysBlockSize, TestThresholdMultiplier, tt.pidConfig)
+				tt.controllerType, config.ThrottleParams{
+					Threshold:           TestThresholdBytes,
+					TxSize:              TestThrottleTxSize,
+					BlockSize:           TestThrottleBlockSize,
+					AlwaysBlockSize:     TestAlwaysBlockSize,
+					ThresholdMultiplier: TestThresholdMultiplier,
+				}, tt.pidConfig)
 
 			if tt.expectError {
 				if err == nil {
@@ -310,7 +316,13 @@ func TestControllerTypeConsistency(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(string(tc.controllerType), func(t *testing.T) {
 			controller, err := factory.CreateController(
-				tc.controllerType, TestThresholdBytes, TestThrottleTxSize, TestThrottleBlockSize, TestAlwaysBlockSize, TestThresholdMultiplier, tc.pidConfig)
+				tc.controllerType, config.ThrottleParams{
+					Threshold:           TestThresholdBytes,
+					TxSize:              TestThrottleTxSize,
+					BlockSize:           TestThrottleBlockSize,
+					AlwaysBlockSize:     TestAlwaysBlockSize,
+					ThresholdMultiplier: TestThresholdMultiplier,
+				}, tc.pidConfig)
 			if err != nil {
 				t.Fatalf("unexpected error: %v", err)
 			}

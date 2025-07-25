@@ -16,12 +16,9 @@ type QuadraticStrategy struct {
 	currentIntensity float64
 }
 
-func NewQuadraticStrategy(threshold uint64, multiplier float64, log log.Logger) *QuadraticStrategy {
-	maxThreshold := uint64(float64(threshold) * multiplier)
-	// Ensure maxThreshold is always greater than threshold to prevent division by zero
+func NewQuadraticStrategy(threshold uint64, maxThreshold uint64, log log.Logger) *QuadraticStrategy {
 	if maxThreshold <= threshold {
-		maxThreshold = threshold + 1
-		log.Warn("maxThreshold is less than or equal to threshold, setting maxThreshold to threshold + 1", "threshold", threshold, "multiplier", multiplier, "maxThreshold", maxThreshold)
+		panic("maxThreshold must be greater than threshold")
 	}
 	return &QuadraticStrategy{
 		threshold:        threshold,

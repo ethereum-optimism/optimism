@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-batcher/config"
+	"github.com/stretchr/testify/require"
 )
 
 // Test constants specific to quadratic strategy
@@ -171,35 +172,20 @@ func TestQuadraticStrategy_Reset(t *testing.T) {
 }
 
 func TestQuadraticStrategy_EdgeCases(t *testing.T) {
-	t.Run("multiplier less than 1", func(t *testing.T) {
-		// Test when multiplier results in maxThreshold <= threshold
-		strategy := NewQuadraticStrategy(TestQuadraticThreshold, 0.5, newTestLogger(t))
-
-		// Should handle this gracefully without division by zero
-		intensity := strategy.Update(TestQuadraticThreshold * 2)
-
-		if intensity < TestIntensityMin || intensity > TestIntensityMax {
-			t.Errorf("expected valid intensity [%f,%f], got %f", TestIntensityMin, TestIntensityMax, intensity)
-		}
-	})
-
-	t.Run("zero threshold", func(t *testing.T) {
-		strategy := NewQuadraticStrategy(0, TestQuadraticMultiplier, newTestLogger(t))
-
-		intensity := strategy.Update(1)
-
-		if intensity != TestIntensityMax {
-			t.Errorf("expected maximum intensity with zero threshold, got %f", intensity)
-		}
+	t.Run("max threshold less than threshold", func(t *testing.T) {
+		require.Panics(t, func() {
+			// Test when multiplier results in maxThreshold <= threshold
+			NewQuadraticStrategy(TestQuadraticThreshold, 0, newTestLogger(t))
+		})
 	})
 
 	t.Run("very large multiplier", func(t *testing.T) {
-		strategy := NewQuadraticStrategy(TestQuadraticThreshold, 100.0, newTestLogger(t))
+		strategy := NewQuadraticStrategy(TestLinearThreshold, TestLinearThreshold*2000, newTestLogger(t))
 
 		// Even with very large multiplier, should work correctly
-		intensity := strategy.Update(TestQuadraticThreshold * 2)
+		intensity := strategy.Update(TestLinearThreshold * 2)
 
-		// Should be very low intensity due to large range and quadratic scaling
+		// Should be very low intensity due to large range and linear scaling
 		if intensity > 0.05 {
 			t.Errorf("expected very low intensity with large multiplier, got %f", intensity)
 		}

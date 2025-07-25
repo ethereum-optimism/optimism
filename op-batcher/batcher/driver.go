@@ -660,7 +660,7 @@ func (l *BatchSubmitter) throttlingLoop(wg *sync.WaitGroup, pendingBytesUpdated 
 	l.Log.Info("Starting DA throttling loop",
 		"controller_type", l.throttleController.GetType(),
 		"threshold", l.Config.ThrottleParams.Threshold,
-		"max_threshold", float64(l.Config.ThrottleParams.Threshold)*l.Config.ThrottleParams.ThresholdMultiplier,
+		"max_threshold", l.Config.ThrottleParams.MaxThreshold(),
 	)
 	updateChans := make([]chan struct{}, len(l.Config.ThrottleParams.Endpoints))
 
@@ -1111,11 +1111,7 @@ func (l *BatchSubmitter) SetThrottleController(newType config.ThrottleController
 
 	newController, err := factory.CreateController(
 		newType,
-		l.Config.ThrottleParams.Threshold,
-		l.Config.ThrottleParams.TxSize,
-		l.Config.ThrottleParams.BlockSize,
-		l.Config.ThrottleParams.AlwaysBlockSize,
-		l.Config.ThrottleParams.ThresholdMultiplier,
+		l.Config.ThrottleParams,
 		pidControllerConfig,
 	)
 	if err != nil {
@@ -1160,7 +1156,7 @@ func (l *BatchSubmitter) GetThrottleControllerInfo() (config.ThrottleControllerI
 	info := config.ThrottleControllerInfo{
 		Type:         string(controllerType),
 		Threshold:    l.Config.ThrottleParams.Threshold,
-		MaxThreshold: float64(l.Config.ThrottleParams.Threshold) * l.Config.ThrottleParams.ThresholdMultiplier,
+		MaxThreshold: l.Config.ThrottleParams.MaxThreshold(),
 		CurrentLoad:  currentLoad,
 		Intensity:    params.Intensity,
 		MaxTxSize:    params.MaxTxSize,

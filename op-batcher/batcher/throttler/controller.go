@@ -161,17 +161,16 @@ func NewThrottleControllerFactory(log log.Logger) *ThrottleControllerFactory {
 
 func (f *ThrottleControllerFactory) CreateController(
 	controllerType config.ThrottleControllerType,
-	threshold, throttleTxSize, throttleBlockSize, alwaysBlockSize uint64,
-	thresholdMultiplier float64,
+	throttleParams config.ThrottleParams,
 	pidConfig *config.PIDConfig,
 ) (*ThrottleController, error) {
 	var strategy ThrottleStrategy
 
 	throttleConfig := ThrottleConfig{
-		Threshold:         threshold,
-		ThrottleTxSize:    throttleTxSize,
-		ThrottleBlockSize: throttleBlockSize,
-		AlwaysBlockSize:   alwaysBlockSize,
+		Threshold:         throttleParams.Threshold,
+		ThrottleTxSize:    throttleParams.TxSize,
+		ThrottleBlockSize: throttleParams.BlockSize,
+		AlwaysBlockSize:   throttleParams.AlwaysBlockSize,
 	}
 
 	// Default to step controller if no type is specified
@@ -181,11 +180,11 @@ func (f *ThrottleControllerFactory) CreateController(
 
 	switch controllerType {
 	case config.StepControllerType:
-		strategy = NewStepStrategy(threshold)
+		strategy = NewStepStrategy(throttleParams.Threshold)
 	case config.LinearControllerType:
-		strategy = NewLinearStrategy(threshold, thresholdMultiplier, f.log)
+		strategy = NewLinearStrategy(throttleParams.Threshold, throttleParams.MaxThreshold(), f.log)
 	case config.QuadraticControllerType:
-		strategy = NewQuadraticStrategy(threshold, thresholdMultiplier, f.log)
+		strategy = NewQuadraticStrategy(throttleParams.Threshold, throttleParams.MaxThreshold(), f.log)
 	case config.PIDControllerType:
 		log.Warn("EXPERIMENTAL FEATURE")
 		log.Warn("PID controller is an EXPERIMENTAL feature that should only be used by experts. PID controller requires deep understanding of control theory and careful tuning. Improper configuration can lead to system instability or poor performance. Use with extreme caution in production environments.")
@@ -213,7 +212,7 @@ func (f *ThrottleControllerFactory) CreateController(
 			return nil, fmt.Errorf("PID SampleTime must be positive, got %v", pidConfig.SampleTime)
 		}
 
-		strategy = NewPIDStrategy(threshold, *pidConfig)
+		strategy = NewPIDStrategy(throttleParams.Threshold, *pidConfig)
 	default:
 		return nil, fmt.Errorf("unsupported throttle controller type: %s", controllerType)
 	}

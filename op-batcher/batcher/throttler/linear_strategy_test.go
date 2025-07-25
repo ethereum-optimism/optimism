@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-batcher/config"
+	"github.com/stretchr/testify/require"
 )
 
 // Test constants specific to linear strategy
@@ -171,30 +172,17 @@ func TestLinearStrategy_Reset(t *testing.T) {
 }
 
 func TestLinearStrategy_EdgeCases(t *testing.T) {
-	t.Run("multiplier less than 1", func(t *testing.T) {
-		// Test when multiplier results in maxThreshold <= threshold
-		strategy := NewLinearStrategy(TestLinearThreshold, 0.5, newTestLogger(t))
+	t.Run("max threshold less than threshold", func(t *testing.T) {
 
-		// Should handle this gracefully without division by zero
-		intensity := strategy.Update(TestLinearThreshold * 2)
+		require.Panics(t, func() {
+			// Test when multiplier results in maxThreshold <= threshold
+			NewLinearStrategy(TestLinearThreshold, 0, newTestLogger(t))
+		})
 
-		if intensity < TestIntensityMin || intensity > TestIntensityMax {
-			t.Errorf("expected valid intensity [%f,%f], got %f", TestIntensityMin, TestIntensityMax, intensity)
-		}
-	})
-
-	t.Run("zero threshold", func(t *testing.T) {
-		strategy := NewLinearStrategy(0, TestLinearMultiplier, newTestLogger(t))
-
-		intensity := strategy.Update(1)
-
-		if intensity != TestIntensityMax {
-			t.Errorf("expected maximum intensity with zero threshold, got %f", intensity)
-		}
 	})
 
 	t.Run("very large multiplier", func(t *testing.T) {
-		strategy := NewLinearStrategy(TestLinearThreshold, 100.0, newTestLogger(t))
+		strategy := NewLinearStrategy(TestLinearThreshold, TestLinearThreshold*2000, newTestLogger(t))
 
 		// Even with very large multiplier, should work correctly
 		intensity := strategy.Update(TestLinearThreshold * 2)
