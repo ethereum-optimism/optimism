@@ -10,19 +10,19 @@ import (
 )
 
 type ConductorSequencer struct {
-	RaftAddr        string `json:"raft_addr" toml:"raft_addr" yaml:"raft_addr"`
-	ConductorRPCURL string `json:"conductor_rpc_url" toml:"conductor_rpc_url" yaml:"conductor_rpc_url"`
-	NodeRPCURL      string `json:"node_rpc_url" toml:"node_rpc_url" yaml:"node_rpc_url"`
-	Voting          bool   `json:"voting" toml:"voting" yaml:"voting"`
+	RaftAddr        string `json:"raft_addr" toml:"raft_addr"`
+	ConductorRPCURL string `json:"conductor_rpc_url" toml:"conductor_rpc_url"`
+	NodeRPCURL      string `json:"node_rpc_url" toml:"node_rpc_url"`
+	Voting          bool   `json:"voting" toml:"voting"`
 }
 
 type ConductorNetwork struct {
-	Sequencers []string `json:"sequencers" toml:"sequencers" yaml:"sequencers"`
+	Sequencers []string `json:"sequencers" toml:"sequencers"`
 }
 
 type ConductorConfig struct {
-	Networks   map[string]*ConductorNetwork   `json:"networks" toml:"networks" yaml:"networks"`
-	Sequencers map[string]*ConductorSequencer `json:"sequencers" toml:"sequencers" yaml:"sequencers"`
+	Networks   map[string]*ConductorNetwork   `json:"networks" toml:"networks"`
+	Sequencers map[string]*ConductorSequencer `json:"sequencers" toml:"sequencers"`
 }
 
 func ExtractConductorConfig(ctx context.Context, enclaveID string) (*ConductorConfig, error) {
