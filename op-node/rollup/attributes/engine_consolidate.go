@@ -127,7 +127,7 @@ func checkEIP1559ParamsMatch(opCfg *params.OptimismConfig, attrParams *eth.Bytes
 
 		ad, ae := eip1559.DecodeHolocene1559Params(params)
 		var translated bool
-		// Translate 0,0,0 to the pre-Holocene protocol constants, like the EL does too.
+		// Translate 0,0 to the pre-Holocene protocol constants, like the EL does too.
 		if ad == 0 {
 			// If attrParams are non-nil, Holocene, and so Canyon, must be active.
 			ad = *opCfg.EIP1559DenominatorCanyon
