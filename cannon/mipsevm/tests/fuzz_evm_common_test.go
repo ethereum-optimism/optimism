@@ -3,7 +3,6 @@ package tests
 import (
 	"bytes"
 	"math"
-	"os"
 	"testing"
 
 	"github.com/ethereum/go-ethereum/crypto"
@@ -404,60 +403,66 @@ func FuzzStateHintWrite(f *testing.F) {
 }
 
 func FuzzStatePreimageWrite(f *testing.F) {
-	versions := GetMipsVersionTestCases(f)
-	f.Fuzz(func(t *testing.T, addr arch.Word, count arch.Word, seed int64) {
-		for _, v := range versions {
-			t.Run(v.Name, func(t *testing.T) {
-				// Make sure pc does not overlap with preimage data in memory
-				pc := Word(0)
-				if addr <= 8 {
-					addr += 8
-				}
-				effAddr := addr & arch.AddressMask
-				preexistingMemoryVal := [8]byte{0x12, 0x34, 0x56, 0x78, 0x87, 0x65, 0x43, 0x21}
-				preimageData := []byte("hello world")
-				preimageKey := preimage.Keccak256Key(crypto.Keccak256Hash(preimageData)).PreimageKey()
-				oracle := testutil.StaticOracle(t, preimageData)
+	vms := GetMipsVersionTestCases(f)
+	type testCase struct {
+		addr  arch.Word
+		count arch.Word
+	}
 
-				goVm := v.VMFactory(oracle, os.Stdout, os.Stderr, testutil.CreateLogger(),
-					mtutil.WithRandomization(seed), mtutil.WithPreimageKey(preimageKey), mtutil.WithPreimageOffset(128), mtutil.WithPCAndNextPC(pc))
-				state := goVm.GetState()
-				state.GetRegistersRef()[2] = arch.SysWrite
-				state.GetRegistersRef()[4] = exec.FdPreimageWrite
-				state.GetRegistersRef()[5] = addr
-				state.GetRegistersRef()[6] = count
-				testutil.StoreInstruction(state.GetMemory(), state.GetPC(), syscallInsn)
-				state.GetMemory().SetWord(effAddr, arch.ByteOrderWord.Word(preexistingMemoryVal[:]))
-				step := state.GetStep()
+	preexistingMemoryVal := [8]byte{0x12, 0x34, 0x56, 0x78, 0x87, 0x65, 0x43, 0x21}
+	preimageData := []byte("hello world")
+	preimageKey := preimage.Keccak256Key(crypto.Keccak256Hash(preimageData)).PreimageKey()
+	initState := func(t require.TestingT, c testCase, state *multithreaded.State, vm VersionedVMTestCase, r *testutil.RandHelper) {
+		state.GetRegistersRef()[2] = arch.SysWrite
+		state.GetRegistersRef()[4] = exec.FdPreimageWrite
+		state.GetRegistersRef()[5] = c.addr
+		state.GetRegistersRef()[6] = c.count
+		testutil.StoreInstruction(state.GetMemory(), state.GetPC(), syscallInsn)
+		state.GetMemory().SetWord(testutil.EffAddr(c.addr), arch.ByteOrderWord.Word(preexistingMemoryVal[:]))
+	}
 
-				expectBytesWritten := count
-				alignment := addr & arch.ExtMask
-				sz := arch.WordSizeBytes - alignment
-				if sz < expectBytesWritten {
-					expectBytesWritten = sz
-				}
-
-				expected := mtutil.NewExpectedState(t, state)
-				expected.ExpectStep()
-				expected.PreimageOffset = 0
-				expected.ActiveThread().Registers[2] = expectBytesWritten
-				expected.ActiveThread().Registers[7] = 0 // No error
-				expected.PreimageKey = preimageKey
-				if expectBytesWritten > 0 {
-					// Copy original preimage key, but shift it left by expectBytesWritten
-					copy(expected.PreimageKey[:], preimageKey[expectBytesWritten:])
-					// Copy memory data to rightmost expectedBytesWritten
-					copy(expected.PreimageKey[32-expectBytesWritten:], preexistingMemoryVal[alignment:])
-				}
-
-				stepWitness, err := goVm.Step(true)
-				require.NoError(t, err)
-				require.False(t, stepWitness.HasPreimage())
-
-				expected.Validate(t, state)
-				testutil.ValidateEVM(t, stepWitness, step, goVm, v.StateHashFn, v.Contracts)
-			})
+	setExpectations := func(t require.TestingT, c testCase, expected *mtutil.ExpectedState, vm VersionedVMTestCase) ExpectedExecResult {
+		expectBytesWritten := c.count
+		alignment := c.addr & arch.ExtMask
+		sz := arch.WordSizeBytes - alignment
+		if sz < expectBytesWritten {
+			expectBytesWritten = sz
 		}
+
+		expected.ExpectStep()
+		expected.PreimageOffset = 0
+		expected.ActiveThread().Registers[2] = expectBytesWritten
+		expected.ActiveThread().Registers[7] = 0 // No error
+		expected.PreimageKey = preimageKey
+		if expectBytesWritten > 0 {
+			// Copy original preimage key, but shift it left by expectBytesWritten
+			copy(expected.PreimageKey[:], preimageKey[expectBytesWritten:])
+			// Copy memory data to rightmost expectedBytesWritten
+			copy(expected.PreimageKey[32-expectBytesWritten:], preexistingMemoryVal[alignment:])
+		}
+		return ExpectNormalExecution()
+	}
+
+	postCheck := func(t require.TestingT, c testCase, vm VersionedVMTestCase, deps *TestDependencies, stepWitness *mipsevm.StepWitness) {
+		require.False(t, stepWitness.HasPreimage())
+	}
+
+	diffTester := NewDiffTester(NoopTestNamer[testCase]).
+		InitState(initState, mtutil.WithPCAndNextPC(0), mtutil.WithPreimageKey(preimageKey), mtutil.WithPreimageOffset(128)).
+		SetExpectations(setExpectations).
+		PostCheck(postCheck)
+
+	f.Fuzz(func(t *testing.T, addr arch.Word, count arch.Word, seed int64) {
+		if addr <= 8 {
+			addr += 8
+		}
+
+		po := func() mipsevm.PreimageOracle {
+			return testutil.StaticOracle(t, preimageData)
+		}
+
+		tests := []testCase{{addr, count}}
+		diffTester.Run(t, tests, fuzzTestOptions(vms, seed, WithPreimageOracle(po))...)
 	})
 }
 
