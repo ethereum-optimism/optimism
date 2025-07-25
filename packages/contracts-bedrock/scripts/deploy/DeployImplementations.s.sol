@@ -663,6 +663,6 @@ contract DeployImplementations is Script {
         ChainAssertions.checkETHLockbox(impls, address(0), false);
         // We can use DeployOPChainInput(address(0)) here because no method will be called on _doi when isProxy is false
         ChainAssertions.checkSystemConfig(impls, DeployOPChainInput(address(0)), false);
-        ChainAssertions.CheckAnchorStateRegistryProxy(IAnchorStateRegistry(impls.AnchorStateRegistry), false);
+        ChainAssertions.checkAnchorStateRegistryProxy(IAnchorStateRegistry(impls.AnchorStateRegistry), false);
     }
 }

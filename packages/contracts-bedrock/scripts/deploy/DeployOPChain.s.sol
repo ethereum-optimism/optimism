@@ -476,7 +476,7 @@ contract DeployOPChain is Script {
             SuperchainConfig: address(0)
         });
 
-        ChainAssertions.CheckAnchorStateRegistryProxy(_doo.anchorStateRegistryProxy(), true);
+        ChainAssertions.checkAnchorStateRegistryProxy(_doo.anchorStateRegistryProxy(), true);
         ChainAssertions.checkDisputeGameFactory(
             _doo.disputeGameFactoryProxy(),
             address(_doi.opChainProxyAdminOwner()),

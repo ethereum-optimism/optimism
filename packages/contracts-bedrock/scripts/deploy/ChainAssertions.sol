@@ -323,16 +323,16 @@ library ChainAssertions {
             );
             require(_ethLockbox.proxyAdminOwner() == _opChainProxyAdminOwner, "CHECK-ELB-70");
         } else {
-            require(address(_ethLockbox.systemConfig()) == address(0), "CHECK-ELB-50");
+            require(address(_ethLockbox.systemConfig()) == address(0), "CHECK-ELB-80");
             require(
                 _ethLockbox.authorizedPortals(IOptimismPortal(payable(_contracts.OptimismPortal))) == false,
-                "CHECK-ELB-60"
+                "CHECK-ELB-90"
             );
             require(
                 checkProxyAdminCallFails(
                     address(_ethLockbox), IProxyAdminOwnedBase.ProxyAdminOwnedBase_NotResolvedDelegateProxy.selector
                 ),
-                "CHECK-ELB-70"
+                "CHECK-ELB-100"
             );
         }
     }
@@ -475,7 +475,7 @@ library ChainAssertions {
         );
     }
 
-    function CheckAnchorStateRegistryProxy(
+    function checkAnchorStateRegistryProxy(
         IAnchorStateRegistry _anchorStateRegistryProxy,
         bool _isProxy
     )
