@@ -131,56 +131,57 @@ func FuzzStateSyscallExitGroup(f *testing.F) {
 }
 
 func FuzzStateSyscallFcntl(f *testing.F) {
-	versions := GetMipsVersionTestCases(f)
-	f.Fuzz(func(t *testing.T, fd Word, cmd Word, seed int64) {
-		for _, v := range versions {
-			t.Run(v.Name, func(t *testing.T) {
-				goVm := v.VMFactory(nil, os.Stdout, os.Stderr, testutil.CreateLogger(),
-					mtutil.WithRandomization(seed))
-				state := goVm.GetState()
-				state.GetRegistersRef()[2] = arch.SysFcntl
-				state.GetRegistersRef()[4] = fd
-				state.GetRegistersRef()[5] = cmd
-				testutil.StoreInstruction(state.GetMemory(), state.GetPC(), syscallInsn)
-				step := state.GetStep()
+	vms := GetMipsVersionTestCases(f)
+	type testCase struct {
+		fd  Word
+		cmd Word
+	}
 
-				expected := mtutil.NewExpectedState(t, state)
-				expected.ExpectStep()
-				if cmd == 1 {
-					switch fd {
-					case exec.FdStdin, exec.FdStdout, exec.FdStderr,
-						exec.FdPreimageRead, exec.FdHintRead, exec.FdPreimageWrite, exec.FdHintWrite:
-						expected.ActiveThread().Registers[2] = 0
-						expected.ActiveThread().Registers[7] = 0
-					default:
-						expected.ActiveThread().Registers[2] = exec.MipsEBADF
-						expected.ActiveThread().Registers[7] = exec.SysErrorSignal
-					}
-				} else if cmd == 3 {
-					switch fd {
-					case exec.FdStdin, exec.FdPreimageRead, exec.FdHintRead:
-						expected.ActiveThread().Registers[2] = 0
-						expected.ActiveThread().Registers[7] = 0
-					case exec.FdStdout, exec.FdStderr, exec.FdPreimageWrite, exec.FdHintWrite:
-						expected.ActiveThread().Registers[2] = 1
-						expected.ActiveThread().Registers[7] = 0
-					default:
-						expected.ActiveThread().Registers[2] = exec.MipsEBADF
-						expected.ActiveThread().Registers[7] = exec.SysErrorSignal
-					}
-				} else {
-					expected.ActiveThread().Registers[2] = exec.MipsEINVAL
-					expected.ActiveThread().Registers[7] = exec.SysErrorSignal
-				}
+	initState := func(t require.TestingT, c testCase, state *multithreaded.State, vm VersionedVMTestCase, r *testutil.RandHelper) {
+		state.GetRegistersRef()[2] = arch.SysFcntl
+		state.GetRegistersRef()[4] = c.fd
+		state.GetRegistersRef()[5] = c.cmd
+		testutil.StoreInstruction(state.GetMemory(), state.GetPC(), syscallInsn)
+	}
 
-				stepWitness, err := goVm.Step(true)
-				require.NoError(t, err)
-				require.False(t, stepWitness.HasPreimage())
-
-				expected.Validate(t, state)
-				testutil.ValidateEVM(t, stepWitness, step, goVm, v.StateHashFn, v.Contracts)
-			})
+	setExpectations := func(t require.TestingT, c testCase, expected *mtutil.ExpectedState, vm VersionedVMTestCase) ExpectedExecResult {
+		expected.ExpectStep()
+		if c.cmd == 1 {
+			switch c.fd {
+			case exec.FdStdin, exec.FdStdout, exec.FdStderr,
+				exec.FdPreimageRead, exec.FdHintRead, exec.FdPreimageWrite, exec.FdHintWrite:
+				expected.ActiveThread().Registers[2] = 0
+				expected.ActiveThread().Registers[7] = 0
+			default:
+				expected.ActiveThread().Registers[2] = exec.MipsEBADF
+				expected.ActiveThread().Registers[7] = exec.SysErrorSignal
+			}
+		} else if c.cmd == 3 {
+			switch c.fd {
+			case exec.FdStdin, exec.FdPreimageRead, exec.FdHintRead:
+				expected.ActiveThread().Registers[2] = 0
+				expected.ActiveThread().Registers[7] = 0
+			case exec.FdStdout, exec.FdStderr, exec.FdPreimageWrite, exec.FdHintWrite:
+				expected.ActiveThread().Registers[2] = 1
+				expected.ActiveThread().Registers[7] = 0
+			default:
+				expected.ActiveThread().Registers[2] = exec.MipsEBADF
+				expected.ActiveThread().Registers[7] = exec.SysErrorSignal
+			}
+		} else {
+			expected.ActiveThread().Registers[2] = exec.MipsEINVAL
+			expected.ActiveThread().Registers[7] = exec.SysErrorSignal
 		}
+		return ExpectNormalExecution()
+	}
+
+	diffTester := NewDiffTester(NoopTestNamer[testCase]).
+		InitState(initState).
+		SetExpectations(setExpectations)
+
+	f.Fuzz(func(t *testing.T, fd Word, cmd Word, seed int64) {
+		tests := []testCase{{fd, cmd}}
+		diffTester.Run(t, tests, fuzzTestOptions(vms, seed)...)
 	})
 }
 
