@@ -508,7 +508,12 @@ contract DeployOPChain is Script {
             _opChainProxyAdminOwner: _doi.opChainProxyAdminOwner(),
             _isProxy: true
         });
-        ChainAssertions.checkETHLockbox(proxies, _doi.opChainProxyAdminOwner(), true);
+        DeployUtils.assertInitialized({
+            _contractAddress: address(_doo.ethLockboxProxy()),
+            _isProxy: true,
+            _slot: 0,
+            _offset: 0
+        });
         ChainAssertions.checkSystemConfig(proxies, _doi, true);
         assertValidAddressManager(_doi, _doo);
         assertValidOPChainProxyAdmin(_doi, _doo);

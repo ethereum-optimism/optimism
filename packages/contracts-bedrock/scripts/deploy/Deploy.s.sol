@@ -37,6 +37,8 @@ import { IMIPS } from "interfaces/cannon/IMIPS.sol";
 import { IPreimageOracle } from "interfaces/cannon/IPreimageOracle.sol";
 import { IProtocolVersions } from "interfaces/L1/IProtocolVersions.sol";
 import { IL1CrossDomainMessenger } from "interfaces/L1/IL1CrossDomainMessenger.sol";
+import { IETHLockbox } from "interfaces/L1/IETHLockbox.sol";
+import { IOptimismPortal2 } from "interfaces/L1/IOptimismPortal2.sol";
 import { IL1StandardBridge } from "interfaces/L1/IL1StandardBridge.sol";
 import { IL1ERC721Bridge } from "interfaces/L1/IL1ERC721Bridge.sol";
 import { IOptimismMintableERC20Factory } from "interfaces/universal/IOptimismMintableERC20Factory.sol";
@@ -300,7 +302,9 @@ contract Deploy is Deployer {
             _opChainProxyAdminOwner: cfg.finalSystemOwner(),
             _isProxy: false
         });
-        ChainAssertions.checkETHLockbox(impls, cfg.finalSystemOwner(), false);
+        ChainAssertions.checkETHLockboxImpl(
+            IETHLockbox(impls.ETHLockbox), IOptimismPortal2(payable(impls.OptimismPortal))
+        );
         ChainAssertions.checkOptimismMintableERC20FactoryImpl(
             IOptimismMintableERC20Factory(impls.OptimismMintableERC20Factory)
         );

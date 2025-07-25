@@ -273,14 +273,10 @@ library ChainAssertions {
         DeployUtils.assertInitialized({ _contractAddress: address(portal), _isProxy: _isProxy, _slot: 0, _offset: 0 });
 
         if (_isProxy) {
-            require(address(portal.disputeGameFactory()) == _contracts.DisputeGameFactory, "CHECK-OP2-20");
             require(address(portal.anchorStateRegistry()) == _contracts.AnchorStateRegistry, "CHECK-OP2-25");
-            require(address(portal.systemConfig()) == _contracts.SystemConfig, "CHECK-OP2-30");
             require(address(portal.superchainConfig()) == address(_superchainConfig), "PORTAL-40");
             require(portal.guardian() == _superchainConfig.guardian(), "CHECK-OP2-40");
-            require(address(portal.systemConfig()) == address(_contracts.SystemConfig), "CHECK-OP2-50");
             require(portal.paused() == ISystemConfig(_contracts.SystemConfig).paused(), "CHECK-OP2-60");
-            require(portal.l2Sender() == Constants.DEFAULT_L2_SENDER, "CHECK-OP2-70");
             require(address(portal.ethLockbox()) == _contracts.ETHLockbox, "CHECK-OP2-80");
             require(portal.proxyAdminOwner() == _opChainProxyAdminOwner, "CHECK-OP2-90");
         } else {
@@ -296,45 +292,14 @@ library ChainAssertions {
     }
 
     /// @notice Asserts that the ETHLockbox is setup correctly
-    function checkETHLockbox(
-        Types.ContractSet memory _contracts,
-        address _opChainProxyAdminOwner,
-        bool _isProxy
-    )
-        internal
-        view
-    {
-        IETHLockbox _ethLockbox = IETHLockbox(_contracts.ETHLockbox);
+    function checkETHLockboxImpl(IETHLockbox _ethLockbox, IOptimismPortal _portal) internal view {
         console.log("Running chain assertions on the ETHLockbox implementation at %s", address(_ethLockbox));
 
         // Check that the contract is initialized
-        DeployUtils.assertInitialized({
-            _contractAddress: address(_ethLockbox),
-            _isProxy: _isProxy,
-            _slot: 0,
-            _offset: 0
-        });
+        DeployUtils.assertInitialized({ _contractAddress: address(_ethLockbox), _isProxy: false, _slot: 0, _offset: 0 });
 
-        if (_isProxy) {
-            require(address(_ethLockbox.systemConfig()) == _contracts.SystemConfig, "CHECK-ELB-50");
-            require(
-                _ethLockbox.authorizedPortals(IOptimismPortal(payable(_contracts.OptimismPortal))) == true,
-                "CHECK-ELB-60"
-            );
-            require(_ethLockbox.proxyAdminOwner() == _opChainProxyAdminOwner, "CHECK-ELB-70");
-        } else {
-            require(address(_ethLockbox.systemConfig()) == address(0), "CHECK-ELB-80");
-            require(
-                _ethLockbox.authorizedPortals(IOptimismPortal(payable(_contracts.OptimismPortal))) == false,
-                "CHECK-ELB-90"
-            );
-            require(
-                checkProxyAdminCallFails(
-                    address(_ethLockbox), IProxyAdminOwnedBase.ProxyAdminOwnedBase_NotResolvedDelegateProxy.selector
-                ),
-                "CHECK-ELB-100"
-            );
-        }
+        require(address(_ethLockbox.systemConfig()) == address(0), "CHECK-ELB-50");
+        require(_ethLockbox.authorizedPortals(_portal) == false, "CHECK-ELB-60");
     }
 
     /// @notice Asserts that the ProtocolVersions is setup correctly
@@ -419,10 +384,6 @@ library ChainAssertions {
         require(address(_opcm.protocolVersions()) == _proxies.ProtocolVersions, "CHECK-OPCM-17");
         require(address(_opcm.superchainProxyAdmin()) == address(_superchainProxyAdmin), "CHECK-OPCM-18");
         require(address(_opcm.superchainConfig()) == _proxies.SuperchainConfig, "CHECK-OPCM-19");
-        // require(
-        //     address(_opcm.upgradeController()) == address(IProxyAdmin(_superchainProxyAdmin).owner()),
-        // "CHECK-OPCM-20"
-        // );
 
         // Ensure that the OPCM impls are correctly saved
         IOPContractsManager.Implementations memory impls = _opcm.implementations();

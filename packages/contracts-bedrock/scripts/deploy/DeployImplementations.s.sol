@@ -660,7 +660,7 @@ contract DeployImplementations is Script {
             _opChainProxyAdminOwner: address(0),
             _isProxy: false
         });
-        ChainAssertions.checkETHLockbox(impls, address(0), false);
+        ChainAssertions.checkETHLockboxImpl(_output.ethLockboxImpl, _output.optimismPortalImpl);
         // We can use DeployOPChainInput(address(0)) here because no method will be called on _doi when isProxy is false
         ChainAssertions.checkSystemConfig(impls, DeployOPChainInput(address(0)), false);
         ChainAssertions.checkAnchorStateRegistryProxy(IAnchorStateRegistry(impls.AnchorStateRegistry), false);
