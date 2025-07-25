@@ -3,7 +3,6 @@ package tests
 
 import (
 	"fmt"
-	"os"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -924,74 +923,82 @@ func TestEVM_EmptyThreadStacks(t *testing.T) {
 }
 
 func TestEVM_NormalTraversal_Full(t *testing.T) {
-	cases := []struct {
+	type testVariation struct {
+		name          string
+		traverseRight bool
+	}
+	testVariations := []testVariation{
+		{"Traverse right", true},
+		{"Traverse left", false},
+	}
+
+	type baseTest struct {
 		name        string
 		threadCount int
-	}{
+	}
+	baseTests := []baseTest{
 		{"1 thread", 1},
 		{"2 threads", 2},
 		{"3 threads", 3},
 	}
 
-	vmVersions := GetMipsVersionTestCases(t)
-	for _, ver := range vmVersions {
-		for i, c := range cases {
-			for _, traverseRight := range []bool{true, false} {
-				testName := fmt.Sprintf("%v (vm = %v, traverseRight = %v)", c.name, ver.Name, traverseRight)
-				t.Run(testName, func(t *testing.T) {
-					// Setup
-					goVm := ver.VMFactory(nil, os.Stdout, os.Stderr, testutil.CreateLogger(), mtutil.WithRandomization(int64(i*789)))
-					state := mtutil.GetMtState(t, goVm)
-					mtutil.SetupThreads(int64(i*2947), state, traverseRight, c.threadCount, 0)
-					step := state.Step
+	type testCase = testutil.TestCaseVariation[baseTest, testVariation]
+	testNamer := func(tc testCase) string {
+		return fmt.Sprintf("%v-%v", tc.Base.name, tc.Variation.name)
+	}
 
-					// Set up each thread with a sequence of instructions
-					syscallNumReg := 2
-					oriInsn := uint32((0b001101 << 26) | (syscallNumReg & 0x1F << 16) | (0xFFFF & arch.SysSchedYield))
-					threads, _ := mtutil.GetThreadStacks(state)
-					for i := 0; i < c.threadCount; i++ {
-						thread := threads[i]
-						pc := thread.Cpu.PC
-						// Each thread will be accessed twice
-						for j := 0; j < 2; j++ {
-							// First run the ori instruction to set up the syscall register with SysSchedYield
-							// Then run the syscall (yield)
-							testutil.StoreInstruction(state.Memory, pc, oriInsn)
-							testutil.StoreInstruction(state.Memory, pc+4, syscallInsn)
-							pc += 8
-						}
-					}
+	syscallNumReg := 2
+	// The ori (or immediate) instruction sets register 2 to SysSchedYield
+	oriInsn := uint32((0b001101 << 26) | (syscallNumReg & 0x1F << 16) | (0xFFFF & arch.SysSchedYield))
 
-					// Loop through all the threads to get back to the starting state
-					// We want to loop 2x for each thread, where each loop takes 2 instructions
-					iterations := c.threadCount * 4
-					for i := 0; i < iterations; i++ {
-						expected := mtutil.NewExpectedState(t, state)
+	initState := func(t require.TestingT, tt testCase, state *multithreaded.State, vm VersionedVMTestCase, r *testutil.RandHelper) {
+		c := tt.Base
+		traverseRight := tt.Variation.traverseRight
+		mtutil.SetupThreads(r.Int64(1000), state, traverseRight, c.threadCount, 0)
+		state.Step = 0
 
-						expected.ExpectStep()
-						if i%2 == 0 {
-							// Even instructions will be ori that sets our yield syscall num
-							expected.ActiveThread().Registers[2] = arch.SysSchedYield
-						} else {
-							// Odd instructions will cause a yield
-							expected.ActiveThread().Registers[2] = 0
-							expected.ActiveThread().Registers[7] = 0
-							expected.ExpectPreemption()
-						}
-
-						// State transition
-						var err error
-						var stepWitness *mipsevm.StepWitness
-						stepWitness, err = goVm.Step(true)
-						require.NoError(t, err)
-
-						// Validate post-state
-						expected.Validate(t, state)
-						testutil.ValidateEVM(t, stepWitness, step, goVm, multithreaded.GetStateHashFn(), ver.Contracts)
-					}
-				})
+		// Set up each thread with a sequence of instructions
+		threads, _ := mtutil.GetThreadStacks(state)
+		for i := 0; i < c.threadCount; i++ {
+			thread := threads[i]
+			pc := thread.Cpu.PC
+			// Each thread will be accessed twice
+			for j := 0; j < 2; j++ {
+				// First run the ori instruction to set the syscall register
+				// Then run the syscall (yield)
+				testutil.StoreInstruction(state.Memory, pc, oriInsn)
+				testutil.StoreInstruction(state.Memory, pc+4, syscallInsn)
+				pc += 8
 			}
 		}
+	}
+
+	setExpectations := func(t require.TestingT, tt testCase, expected *mtutil.ExpectedState, vm VersionedVMTestCase) ExpectedExecResult {
+		if expected.Step%2 == 0 {
+			// Even instructions will be the "or immediate" insn that sets our yield syscall num
+			expected.ExpectStep()
+			expected.ActiveThread().Registers[syscallNumReg] = arch.SysSchedYield
+		} else {
+			// Odd instructions will cause a yield
+			expected.ExpectStep()
+			expected.ActiveThread().Registers[2] = 0
+			expected.ActiveThread().Registers[7] = 0
+			expected.ExpectPreemption()
+		}
+		return ExpectNormalExecution()
+	}
+
+	diffTester := NewDiffTester(testNamer).
+		InitState(initState).
+		SetExpectations(setExpectations)
+
+	for _, bt := range baseTests {
+		// Loop through all the threads to get back to the starting state
+		// We want to loop 2x for each thread, where each loop takes 2 instructions
+		steps := bt.threadCount * 4
+
+		cases := testutil.TestVariations([]baseTest{bt}, testVariations)
+		diffTester.Run(t, cases, WithSteps(steps))
 	}
 }
 

@@ -70,6 +70,69 @@ func TestDiffTester_Run_SimpleTest(t *testing.T) {
 	}
 }
 
+func TestDiffTester_Run_WithSteps(t *testing.T) {
+	outterCases := []struct {
+		name          string
+		steps         int
+		expectedSteps int
+	}{
+		{name: "0 steps", steps: 0, expectedSteps: 1},
+		{name: "negative steps", steps: -1, expectedSteps: 1},
+		{name: "1 step", steps: 1, expectedSteps: 1},
+		{name: "2 step", steps: 2, expectedSteps: 2},
+		{name: "3 step", steps: 3, expectedSteps: 3},
+	}
+
+	// Run simple noop instruction (0x0)
+	cases := []simpleTestCase{
+		{name: "a", insn: 0x0},
+	}
+
+	for _, oc := range outterCases {
+		t.Run(oc.name, func(t *testing.T) {
+			initStateCalled := make(map[string]int)
+			initState := func(t require.TestingT, testCase simpleTestCase, state *multithreaded.State, vm VersionedVMTestCase, r *testutil.RandHelper) {
+				initStateCalled[testCase.name] += 1
+				testutil.StoreInstruction(state.GetMemory(), state.GetPC(), testCase.insn)
+			}
+
+			expectationsCalled := make(map[string]int)
+			setExpectations := func(t require.TestingT, testCase simpleTestCase, expect *mtutil.ExpectedState, vm VersionedVMTestCase) ExpectedExecResult {
+				expectationsCalled[testCase.name] += 1
+				expect.ExpectStep()
+				return ExpectNormalExecution()
+			}
+
+			versions := GetMipsVersionTestCases(t)
+			expectedTestCases := generateExpectedTestCases(cases, versions)
+
+			// Run tests
+			tRunner := newMockTestRunner(t)
+			NewDiffTester(testNamer).
+				InitState(initState).
+				SetExpectations(setExpectations).
+				run(tRunner, cases, WithSteps(oc.steps))
+
+			// Validate that we invoked initState and setExpectations as expected
+			for _, c := range cases {
+				// Difftester runs extra calls in order to analyze the tests
+				initCalls := 2 * len(versions)
+				expectCalls := oc.expectedSteps*len(versions) + len(versions)
+				require.Equal(t, initCalls, initStateCalled[c.name])
+				require.Equal(t, expectCalls, expectationsCalled[c.name])
+			}
+
+			// Validate that tests ran and passed as expected
+			require.Equal(t, len(tRunner.childTestMocks), len(expectedTestCases))
+			for _, testCase := range expectedTestCases {
+				failed, err := tRunner.testFailedOrPanicked(testCase)
+				require.NoError(t, err)
+				require.Equal(t, false, failed)
+			}
+		})
+	}
+}
+
 func TestDiffTester_Run_WithMemModifications(t *testing.T) {
 	// Test store word (sw), which modifies memory
 	baseReg := uint32(9)

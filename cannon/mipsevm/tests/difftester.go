@@ -88,12 +88,14 @@ func (d *DiffTester[T]) run(t testRunner, testCases []T, opts ...TestOption) {
 					d.initState(t, testCase, state, vm, r)
 					mod.stateMod(state)
 
-					// Set up expectations
-					expect := d.expectedState(t, state)
-					execExpectation := d.setExpectations(t, testCase, expect, vm)
-					mod.expectMod(expect)
+					for i := 0; i < cfg.steps; i++ {
+						// Set up expectations
+						expect := d.expectedState(t, state)
+						execExpectation := d.setExpectations(t, testCase, expect, vm)
+						mod.expectMod(expect)
 
-					execExpectation.assertExpectedResult(t, goVm, vm, expect, cfg)
+						execExpectation.assertExpectedResult(t, goVm, vm, expect, cfg)
+					}
 
 					// Run post-step checks
 					if d.postStepCheck != nil {
@@ -245,7 +247,9 @@ type TestDependencies struct {
 }
 
 type TestConfig struct {
-	vms    []VersionedVMTestCase
+	vms   []VersionedVMTestCase
+	steps int
+	// Dependencies
 	po     func() mipsevm.PreimageOracle
 	stdOut func() io.Writer
 	stdErr func() io.Writer
@@ -292,6 +296,15 @@ func WithTracingHooks(hooks *tracing.Hooks) TestOption {
 	}
 }
 
+func WithSteps(steps int) TestOption {
+	return func(tc *TestConfig) {
+		if steps < 1 {
+			steps = 1
+		}
+		tc.steps = steps
+	}
+}
+
 func newTestConfig(t require.TestingT, opts ...TestOption) *TestConfig {
 	testConfig := &TestConfig{
 		vms:    GetMipsVersionTestCases(t),
@@ -299,6 +312,7 @@ func newTestConfig(t require.TestingT, opts ...TestOption) *TestConfig {
 		stdOut: func() io.Writer { return os.Stdout },
 		stdErr: func() io.Writer { return os.Stderr },
 		logger: testutil.CreateLogger(),
+		steps:  1,
 	}
 
 	for _, opt := range opts {
