@@ -17,16 +17,16 @@ var (
 		Usage:   "Fix missing Traefik labels on containers",
 	}
 	ConductorConfig = &cli.StringFlag{
-		Name:    "conductor-config",
+		Name:    "conductor-config-path",
 		Value:   "",
 		EnvVars: opservice.PrefixEnvVar(EnvVarPrefix, "CONDUCTOR_CONFIG"),
-		Usage:   "Path to write conductor configuration TOML file",
+		Usage:   "Path where conductor configuration TOML file will be written (overwrites existing file)",
 	}
 	Environment = &cli.StringFlag{
-		Name:    "environment",
+		Name:    "environment-path",
 		Value:   "",
 		EnvVars: opservice.PrefixEnvVar(EnvVarPrefix, "ENVIRONMENT"),
-		Usage:   "Path to write environment JSON file",
+		Usage:   "Path where environment JSON file will be written (overwrites existing file)",
 	}
 )
 

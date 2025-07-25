@@ -22,8 +22,8 @@ func NewConfig(ctx *cli.Context) (*Config, error) {
 	cfg := &Config{
 		EnclaveID:           ctx.Args().Get(0),
 		FixTraefik:          ctx.Bool("fix-traefik"),
-		ConductorConfigPath: ctx.String("conductor-config"),
-		EnvironmentPath:     ctx.String("environment"),
+		ConductorConfigPath: ctx.String("conductor-config-path"),
+		EnvironmentPath:     ctx.String("environment-path"),
 	}
 
 	if cfg.EnclaveID == "" {

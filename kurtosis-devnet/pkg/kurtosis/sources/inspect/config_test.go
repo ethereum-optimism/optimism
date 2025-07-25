@@ -31,8 +31,8 @@ func TestNewConfig(t *testing.T) {
 			args: []string{
 				"inspect",
 				"--fix-traefik",
-				"--conductor-config", "/tmp/conductor.toml",
-				"--environment", "/tmp/env.json",
+				"--conductor-config-path", "/tmp/conductor.toml",
+				"--environment-path", "/tmp/env.json",
 				"my-enclave",
 			},
 			expected: &Config{
@@ -63,8 +63,8 @@ func TestNewConfig(t *testing.T) {
 				Name: "inspect",
 				Flags: []cli.Flag{
 					&cli.BoolFlag{Name: "fix-traefik"},
-					&cli.StringFlag{Name: "conductor-config"},
-					&cli.StringFlag{Name: "environment"},
+					&cli.StringFlag{Name: "conductor-config-path"},
+					&cli.StringFlag{Name: "environment-path"},
 				},
 				Action: func(ctx *cli.Context) error {
 					cfg, err := NewConfig(ctx)

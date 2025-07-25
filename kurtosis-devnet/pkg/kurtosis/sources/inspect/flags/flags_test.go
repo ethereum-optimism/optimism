@@ -38,8 +38,8 @@ func TestFlags(t *testing.T) {
 			args: []string{
 				"inspect",
 				"--fix-traefik",
-				"--conductor-config", "/tmp/conductor.toml",
-				"--environment", "/tmp/env.json",
+				"--conductor-config-path", "/tmp/conductor.toml",
+				"--environment-path", "/tmp/env.json",
 				"test-enclave",
 			},
 			expected: struct {
@@ -85,8 +85,8 @@ func TestFlags(t *testing.T) {
 				Flags: Flags,
 				Action: func(ctx *cli.Context) error {
 					assert.Equal(t, tt.expected.fixTraefik, ctx.Bool("fix-traefik"))
-					assert.Equal(t, tt.expected.conductorConfig, ctx.String("conductor-config"))
-					assert.Equal(t, tt.expected.environment, ctx.String("environment"))
+					assert.Equal(t, tt.expected.conductorConfig, ctx.String("conductor-config-path"))
+					assert.Equal(t, tt.expected.environment, ctx.String("environment-path"))
 					return nil
 				},
 			}
@@ -106,8 +106,8 @@ func TestFlagDefinitions(t *testing.T) {
 	}
 
 	assert.True(t, flagNames["fix-traefik"])
-	assert.True(t, flagNames["conductor-config"])
-	assert.True(t, flagNames["environment"])
+	assert.True(t, flagNames["conductor-config-path"])
+	assert.True(t, flagNames["environment-path"])
 	assert.True(t, flagNames["log.level"])
 }
 
