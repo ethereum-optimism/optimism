@@ -18,7 +18,7 @@ require (
 	github.com/decred/dcrd/dcrec/secp256k1/v4 v4.3.0
 	github.com/docker/docker v27.5.1+incompatible
 	github.com/ethereum-optimism/go-ethereum-hdwallet v0.1.3
-	github.com/ethereum-optimism/superchain-registry/validation v0.0.0-20250620202749-6b65f330434d
+	github.com/ethereum-optimism/superchain-registry/validation v0.0.0-20250725185431-12c490e5f1bf
 	github.com/ethereum/go-ethereum v1.15.11
 	github.com/fatih/color v1.18.0
 	github.com/fsnotify/fsnotify v1.9.0
