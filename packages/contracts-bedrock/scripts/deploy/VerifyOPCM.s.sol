@@ -40,7 +40,7 @@ contract VerifyOPCM is Script {
     /// @notice Thrown when an artifact file is empty.
     error VerifyOPCM_EmptyArtifactFile(string _artifactPath);
 
-    /// @notice Thrown when contractsContainer addresses are not the same across all four contracts.
+    /// @notice Thrown when contractsContainer addresses are not the same across all OPCM components.
     error VerifyOPCM_ContractsContainerMismatch();
 
     /// @notice Thrown when the creation bytecode is not found in an artifact file.
@@ -199,10 +199,7 @@ contract VerifyOPCM is Script {
         address contractsContainerAddr = address(0);
         for (uint256 i = 0; i < propRefs.length; i++) {
             string memory field = propRefs[i].field;
-            if (
-                LibString.eq(field, "opcmDeployer") || LibString.eq(field, "opcmGameTypeAdder")
-                    || LibString.eq(field, "opcmUpgrader") || LibString.eq(field, "opcmInteropMigrator")
-            ) {
+            if (_isOpcmComponent(field)) {
                 contractsContainerAddr = _getContractsContainerAddress(propRefs[i].addr);
                 break;
             }
@@ -264,13 +261,7 @@ contract VerifyOPCM is Script {
         for (uint256 i = 0; i < _propRefs.length; i++) {
             // Only check components that have contractsContainer() function
             string memory field = _propRefs[i].field;
-            if (
-                bytes(field).length > 0
-                    && (
-                        LibString.eq(field, "opcmGameTypeAdder") || LibString.eq(field, "opcmUpgrader")
-                            || LibString.eq(field, "opcmDeployer") || LibString.eq(field, "opcmInteropMigrator")
-                    )
-            ) {
+            if (_isOpcmComponent(field)) {
                 componentAddresses[componentCount] = _propRefs[i].addr;
                 componentNames[componentCount] = field;
                 componentCount++;
@@ -283,14 +274,10 @@ contract VerifyOPCM is Script {
             revert VerifyOPCM_ContractsContainerMismatch();
         }
 
-        // Get contractsContainer addresses from all components
+        // Get contractsContainer addresses from all components and check for failures
         address[] memory containerAddresses = new address[](componentCount);
         for (uint256 i = 0; i < componentCount; i++) {
             containerAddresses[i] = _getContractsContainerAddress(componentAddresses[i]);
-        }
-
-        // Check if any of the calls failed (returned address(0))
-        for (uint256 i = 0; i < componentCount; i++) {
             if (containerAddresses[i] == address(0)) {
                 console.log(
                     string.concat("ERROR: Failed to retrieve contractsContainer address from ", componentNames[i])
@@ -767,5 +754,29 @@ contract VerifyOPCM is Script {
 
         // Return computed path, relative to the contracts-bedrock directory.
         return string.concat("forge-artifacts/", sourceName, ".sol/", _contractName, ".json");
+    }
+
+    /// @notice Checks if a field name represents an OPCM component contract that has contractsContainer().
+    /// @param _field The field name to check.
+    /// @return True if the field represents an OPCM component with contractsContainer(), false otherwise.
+    function _isOpcmComponent(string memory _field) internal pure returns (bool) {
+        // Check if it starts with "opcm"
+        if (!LibString.startsWith(_field, "opcm")) {
+            return false;
+        }
+
+        // Components that start with "opcm" but don't extend OPContractsManagerBase (and thus don't have
+        // contractsContainer())
+        string[] memory exclusions = new string[](1);
+        exclusions[0] = "opcmStandardValidator";
+
+        // Check if the field is in the exclusion list
+        for (uint256 i = 0; i < exclusions.length; i++) {
+            if (LibString.eq(_field, exclusions[i])) {
+                return false;
+            }
+        }
+
+        return true;
     }
 }
