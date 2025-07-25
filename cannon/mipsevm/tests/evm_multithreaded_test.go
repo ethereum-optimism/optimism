@@ -945,19 +945,39 @@ func TestEVM_NormalTraversal_Full(t *testing.T) {
 					mtutil.SetupThreads(int64(i*2947), state, traverseRight, c.threadCount, 0)
 					step := state.Step
 
-					// Loop through all the threads to get back to the starting state
-					iterations := c.threadCount * 2
-					for i := 0; i < iterations; i++ {
-						// Set up thread to yield
-						testutil.StoreInstruction(state.Memory, state.GetPC(), syscallInsn)
-						state.GetRegistersRef()[2] = Word(arch.SysSchedYield)
+					// Set up each thread with a sequence of instructions
+					syscallNumReg := 2
+					oriInsn := uint32((0b001101 << 26) | (syscallNumReg & 0x1F << 16) | (0xFFFF & arch.SysSchedYield))
+					threads, _ := mtutil.GetThreadStacks(state)
+					for i := 0; i < c.threadCount; i++ {
+						thread := threads[i]
+						pc := thread.Cpu.PC
+						// Each thread will be accessed twice
+						for j := 0; j < 2; j++ {
+							// First run the ori instruction to set up the syscall register with SysSchedYield
+							// Then run the syscall (yield)
+							testutil.StoreInstruction(state.Memory, pc, oriInsn)
+							testutil.StoreInstruction(state.Memory, pc+4, syscallInsn)
+							pc += 8
+						}
+					}
 
-						// Set up post-state expectations
+					// Loop through all the threads to get back to the starting state
+					// We want to loop 2x for each thread, where each loop takes 2 instructions
+					iterations := c.threadCount * 4
+					for i := 0; i < iterations; i++ {
 						expected := mtutil.NewExpectedState(t, state)
-						expected.ActiveThread().Registers[2] = 0
-						expected.ActiveThread().Registers[7] = 0
+
 						expected.ExpectStep()
-						expected.ExpectPreemption()
+						if i%2 == 0 {
+							// Even instructions will be ori that sets our yield syscall num
+							expected.ActiveThread().Registers[2] = arch.SysSchedYield
+						} else {
+							// Odd instructions will cause a yield
+							expected.ActiveThread().Registers[2] = 0
+							expected.ActiveThread().Registers[7] = 0
+							expected.ExpectPreemption()
+						}
 
 						// State transition
 						var err error

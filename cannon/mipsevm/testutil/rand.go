@@ -72,7 +72,8 @@ func (h *RandHelper) RandHint() []byte {
 
 func (h *RandHelper) RandRegisters() *[32]arch.Word {
 	registers := new([32]arch.Word)
-	for i := 0; i < 32; i++ {
+	// Start from 1 as register 0 is the "zero" register (always 0)
+	for i := 1; i < 32; i++ {
 		registers[i] = h.Word()
 	}
 	return registers
