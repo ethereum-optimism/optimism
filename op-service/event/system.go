@@ -3,6 +3,7 @@ package event
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"path/filepath"
 	"runtime"
 	"slices"
@@ -92,7 +93,7 @@ type systemActor struct {
 	emitPriority Priority
 }
 
-func (r *systemActor) traceAndLogEventEmitted(ctx context.Context, ev Event) context.Context {
+func (r *systemActor) traceAndLogEventEmitted(ctx context.Context, level slog.Level, ev Event) context.Context {
 	_, path, line, _ := runtime.Caller(2)
 	if strings.Contains(path, "limiter.go") {
 		_, path, line, _ = runtime.Caller(3)
@@ -115,7 +116,7 @@ func (r *systemActor) traceAndLogEventEmitted(ctx context.Context, ev Event) con
 		ctx = context.WithValue(ctx, ctxKeyEventStep, estep)
 	}
 
-	r.sys.log.Trace("Event emitted", "euid", fmt.Sprintf("%s:%d", euuid, estep), "ev", ev.String(), "loc", fmt.Sprintf("%s/%s:%d", dir, file, line))
+	r.sys.log.Log(level, "Event emitted", "euid", fmt.Sprintf("%s:%d", euuid, estep), "ev", ev.String(), "loc", fmt.Sprintf("%s/%s:%d", dir, file, line))
 
 	return ctx
 }
@@ -132,7 +133,10 @@ func (r *systemActor) Emit(ctx context.Context, ev Event) {
 		}
 	}
 
-	ctx = r.traceAndLogEventEmitted(ctx, ev)
+	level := log.LevelTrace
+	if r.sys.log.Enabled(ctx, level) {
+		ctx = r.traceAndLogEventEmitted(ctx, level, ev)
+	}
 
 	if r.ctx.Err() != nil {
 		return
