@@ -1,0 +1,4 @@
+APP_ID: "your-mainnet-app-id"
+SECRET_KEY: "${env:MAINNET_SECRET_KEY}"
+BASE_URL: "https://ramp.alchemypay.org"
+STAGE: "mainnet"

@@ -1,0 +1,29 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+
+# Node
+node_modules/
+npm-debug.log*
+
+# Serverless
+.serverless/
+.requirements/
+
+# Environment
+env-*.yml
+!env-*.example.yml
+.env
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+#logs
+logs/
