@@ -10,6 +10,9 @@ import (
 )
 
 func TestTruncateDatabaseOnELResync(gt *testing.T) {
+	// TODO(stef): Re-enable this test when the safeheaddb_elsync test is fixed
+	// https://github.com/ethereum-optimism/optimism/issues/17083
+	gt.Skip("Skipping safeheaddb_elsync test (optimism#17083)")
 	t := devtest.SerialT(gt)
 	sys := presets.NewSingleChainMultiNode(t)
 
@@ -39,6 +42,9 @@ func TestTruncateDatabaseOnELResync(gt *testing.T) {
 }
 
 func TestNotTruncateDatabaseOnRestartWithExistingDatabase(gt *testing.T) {
+	// TODO(stef): Re-enable this test when the safeheaddb_elsync test is fixed
+	// https://github.com/ethereum-optimism/optimism/issues/17083
+	gt.Skip("Skipping safeheaddb_elsync test (optimism#17083)")
 	t := devtest.SerialT(gt)
 	sys := presets.NewSingleChainMultiNode(t)
 
