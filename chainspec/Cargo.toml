@@ -48,8 +48,6 @@ op-alloy-consensus.workspace = true
 
 [dev-dependencies]
 reth-chainspec = { workspace = true, features = ["test-utils"] }
-alloy-genesis.workspace = true
-op-alloy-rpc-types.workspace = true
 
 [features]
 default = ["std"]

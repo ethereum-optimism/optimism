@@ -43,12 +43,10 @@ reth-provider = { workspace = true, features = ["test-utils"] }
 reth-db-common.workspace = true
 reth-revm.workspace = true
 reth-trie.workspace = true
-reth-optimism-chainspec.workspace = true
 reth-optimism-node.workspace = true
 reth-db-api = { workspace = true, features = ["op"] }
 
 alloy-chains.workspace = true
-alloy-primitives.workspace = true
 
 op-alloy-consensus.workspace = true
 

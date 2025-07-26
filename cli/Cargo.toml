@@ -68,8 +68,6 @@ op-alloy-consensus.workspace = true
 [dev-dependencies]
 tempfile.workspace = true
 reth-stages = { workspace = true, features = ["test-utils"] }
-reth-db-common.workspace = true
-reth-cli-commands.workspace = true
 
 [build-dependencies]
 reth-optimism-chainspec = { workspace = true, features = ["std", "superchain-configs"] }

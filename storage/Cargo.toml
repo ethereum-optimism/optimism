@@ -26,7 +26,6 @@ alloy-consensus.workspace = true
 
 [dev-dependencies]
 reth-codecs = { workspace = true, features = ["test-utils"] }
-reth-db-api.workspace = true
 reth-prune-types.workspace = true
 reth-stages-types.workspace = true
 
