@@ -19,6 +19,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum-optimism/optimism/op-service/testutils"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
+	"github.com/ethereum-optimism/optimism/op-service/txmgr/mocks"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
@@ -66,7 +67,7 @@ func (m *mockL1Client) NonceAt(ctx context.Context, account common.Address, bloc
 	return 0, nil
 }
 
-func setup(t *testing.T) (*BatchSubmitter, *mockL2EndpointProvider) {
+func setup(t *testing.T, txmanager txmgr.TxManager) (*BatchSubmitter, *mockL2EndpointProvider) {
 	ep := newEndpointProvider()
 
 	cfg := defaultTestRollupConfig
@@ -76,6 +77,7 @@ func setup(t *testing.T) (*BatchSubmitter, *mockL2EndpointProvider) {
 		Log:          testlog.Logger(t, log.LevelDebug),
 		Metr:         metrics.NoopMetrics,
 		RollupConfig: cfg,
+		Txmgr:        txmanager,
 		Config: BatcherConfig{
 			ThrottleParams: config.ThrottleParams{
 				ControllerType: config.StepControllerType,
@@ -87,7 +89,7 @@ func setup(t *testing.T) (*BatchSubmitter, *mockL2EndpointProvider) {
 }
 
 func TestBatchSubmitter_SafeL1Origin(t *testing.T) {
-	bs, ep := setup(t)
+	bs, ep := setup(t, nil)
 
 	tests := []struct {
 		name                   string
@@ -140,7 +142,7 @@ func TestBatchSubmitter_SafeL1Origin(t *testing.T) {
 }
 
 func TestBatchSubmitter_SafeL1Origin_FailsToResolveRollupClient(t *testing.T) {
-	bs, ep := setup(t)
+	bs, ep := setup(t, nil)
 
 	ep.rollupClientErr = errors.New("failed to resolve rollup client")
 
@@ -162,7 +164,7 @@ func (q *MockTxQueue) Load(id string) txmgr.TxCandidate {
 }
 
 func TestBatchSubmitter_sendTx_FloorDataGas(t *testing.T) {
-	bs, _ := setup(t)
+	bs, _ := setup(t, nil)
 
 	q := new(MockTxQueue)
 
@@ -257,7 +259,7 @@ func TestBatchSubmitter_ThrottlingEndpoints(t *testing.T) {
 			t.Log("Throttling endpoints:", urls)
 
 			// Create test BatchSubmitter using the setup function
-			bs, _ := setup(t)
+			bs, _ := setup(t, nil)
 			bs.shutdownCtx = ctx
 			bs.Config = BatcherConfig{
 				NetworkTimeout: time.Second,
@@ -356,7 +358,9 @@ func TestBatchSubmitter_ThrottlingEndpoints(t *testing.T) {
 }
 
 func TestBatchSubmitter_FlushBatchSubmitting(t *testing.T) {
-	bs, ep := setup(t)
+	txmanager := mocks.NewTxManager(t)
+	txmanager.On("IsClosed").Return(false)
+	bs, ep := setup(t, txmanager)
 
 	// Test that flush fails when batcher is not running
 	err := bs.FlushBatchSubmitting(context.Background())

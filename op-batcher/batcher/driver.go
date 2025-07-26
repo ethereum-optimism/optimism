@@ -263,46 +263,13 @@ func (l *BatchSubmitter) StopBatchSubmitting(ctx context.Context) error {
 // FlushBatchSubmitting forces the batcher to submit any pending data immediately.
 // This works by signaling the publishing loop to process any available data.
 func (l *BatchSubmitter) FlushBatchSubmitting(ctx context.Context) error {
-	l.Log.Info("Flushing Batch Submitter")
-
 	l.mutex.Lock()
 	defer l.mutex.Unlock()
-
 	if !l.running {
 		return ErrBatcherNotRunning
 	}
-
-	// Get current L1 head for channel processing
-	l1tip, _, err := l.l1Tip(ctx)
-	if err != nil {
-		l.Log.Error("Failed to query L1 tip", "err", err)
-		return err
-	}
-
-	// Process any pending blocks and output frames in a thread-safe way
-	l.channelMgrMutex.Lock()
-	_, err = l.channelMgr.getReadyChannel(l1tip.ID())
-	l.channelMgrMutex.Unlock()
-
-	// getReadyChannel returns io.EOF when there's no data to process, which is fine for flush
-	if err == io.EOF {
-		l.Log.Info("No transaction data available to flush")
-		return nil
-	} else if err != nil {
-		l.Log.Error("Unable to process blocks and generate frames", "err", err)
-		return err
-	}
-
-	// Signal the publishing loop to immediately process any available data
-	// This ensures the publishing loop picks up the newly processed frames
-	if l.publishSignal != nil {
-		trySignal(l.publishSignal)
-		l.Log.Info("Signaled publishing loop to process flushed data")
-	} else {
-		l.Log.Warn("Publishing signal channel is nil, flush will not trigger immediate processing")
-	}
-
-	l.Log.Info("Batch Submitter flush completed")
+	trySignal(l.publishSignal)
+	l.Log.Info("Signaled publishing loop to process flushed data")
 	return nil
 }
 
