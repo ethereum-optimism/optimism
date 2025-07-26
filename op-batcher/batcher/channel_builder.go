@@ -401,7 +401,7 @@ func (c *ChannelBuilder) TotalFrames() int {
 }
 
 // HasPendingFrame returns whether there's any pending frame. If true, it can be
-// dequeued using NextFrame().
+// dequeued using nextFrame().
 //
 // Call OutputFrames before to create new frames from the channel out
 // compression pipeline.
@@ -415,10 +415,10 @@ func (c *ChannelBuilder) PendingFrames() int {
 	return c.frames.Len() - c.frameCursor
 }
 
-// NextFrame returns the next pending frame and increments the frameCursor
+// nextFrame returns the next pending frame and increments the frameCursor
 // HasFrame must be called prior to check if there a next pending frame exists.
 // Panics if called when there's no next frame.
-func (c *ChannelBuilder) NextFrame() frameData {
+func (c *ChannelBuilder) nextFrame() frameData {
 	if len(c.frames) <= c.frameCursor {
 		panic("no next frame")
 	}

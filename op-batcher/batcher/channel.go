@@ -134,7 +134,7 @@ func (c *channel) NextTxData() txData {
 	nf := c.cfg.MaxFramesPerTx()
 	txdata := txData{frames: make([]frameData, 0, nf), asBlob: c.cfg.UseBlobs}
 	for i := 0; i < nf && c.channelBuilder.HasPendingFrame(); i++ {
-		frame := c.channelBuilder.NextFrame()
+		frame := c.channelBuilder.nextFrame()
 		txdata.frames = append(txdata.frames, frame)
 	}
 

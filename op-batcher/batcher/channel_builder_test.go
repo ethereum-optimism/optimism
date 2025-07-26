@@ -384,7 +384,7 @@ func TestChannelBuilderBatchType(t *testing.T) {
 	}
 }
 
-// TestChannelBuilder_NextFrame tests calling NextFrame on a ChannelBuilder with only one frame
+// TestChannelBuilder_NextFrame tests calling nextFrame on a ChannelBuilder with only one frame
 func TestChannelBuilder_NextFrame(t *testing.T) {
 	channelConfig := defaultTestChannelConfig()
 
@@ -415,13 +415,13 @@ func TestChannelBuilder_NextFrame(t *testing.T) {
 	require.Equal(t, 1, cb.PendingFrames())
 
 	// We should be able to increment to the next frame
-	constructedFrame := cb.NextFrame()
+	constructedFrame := cb.nextFrame()
 	require.Equal(t, expectedTx[0], constructedFrame.id)
 	require.Equal(t, expectedBytes, constructedFrame.data)
 	require.Equal(t, 0, cb.PendingFrames())
 
 	// The next call should panic since the length of frames is 0
-	require.PanicsWithValue(t, "no next frame", func() { cb.NextFrame() })
+	require.PanicsWithValue(t, "no next frame", func() { cb.nextFrame() })
 }
 
 // TestChannelBuilder_OutputWrongFramePanic tests that a panic is thrown when we try to rewind the cursor with an invalid frame id
@@ -695,7 +695,7 @@ func TestChannelBuilder_FullShadowCompressor(t *testing.T) {
 	require.NoError(cb.OutputFrames())
 
 	require.True(cb.HasPendingFrame())
-	f := cb.NextFrame()
+	f := cb.nextFrame()
 	require.Less(len(f.data), int(cfg.MaxFrameSize)) // would fail without fix, full frame
 
 	require.False(cb.HasPendingFrame(), "no leftover frame expected") // would fail without fix
@@ -928,7 +928,7 @@ func ChannelBuilder_PendingFrames_TotalFrames(t *testing.T, batchType uint) {
 	// empty queue
 	for pf := nf - 1; pf >= 0; pf-- {
 		require.True(cb.HasPendingFrame())
-		_ = cb.NextFrame()
+		_ = cb.nextFrame()
 		require.Equal(cb.PendingFrames(), pf)
 		require.Equal(cb.TotalFrames(), nf)
 	}
@@ -1002,7 +1002,7 @@ func ChannelBuilder_OutputBytes(t *testing.T, batchType uint) {
 
 	var flen int
 	for cb.HasPendingFrame() {
-		f := cb.NextFrame()
+		f := cb.nextFrame()
 		flen += len(f.data)
 	}
 
