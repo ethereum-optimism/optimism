@@ -554,7 +554,7 @@ func TestEVM_SingleStep_DCloDClz64(t *testing.T) {
 		return features.SupportDclzDclo
 	}), "dclz/dclo feature not tested")
 
-	initState := func(tt testCase, state *multithreaded.State, vm VersionedVMTestCase) {
+	initState := func(tt testCase, state *multithreaded.State, vm VersionedVMTestCase, r *testutil.RandHelper) {
 		testutil.StoreInstruction(state.GetMemory(), state.GetPC(), insnFn(tt))
 		state.GetRegistersRef()[rsReg] = tt.rs
 	}
@@ -567,7 +567,7 @@ func TestEVM_SingleStep_DCloDClz64(t *testing.T) {
 			return ExpectNormalExecution()
 		} else {
 			expectedMsg := fmt.Sprintf("invalid instruction: %x", insnFn(tt))
-			return ExpectPanic(expectedMsg, "invalid instruction")
+			return ExpectVmPanic(expectedMsg, "invalid instruction")
 		}
 	}
 

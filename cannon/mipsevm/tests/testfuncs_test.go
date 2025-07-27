@@ -116,7 +116,7 @@ func testMulDiv(t *testing.T, templateCases []mulDivTestCase, mips32Insn bool) {
 	rtReg := uint32(0xa)
 	pc := arch.Word(0)
 
-	initState := func(tt mulDivTestCase, state *multithreaded.State, vm VersionedVMTestCase) {
+	initState := func(tt mulDivTestCase, state *multithreaded.State, vm VersionedVMTestCase, r *testutil.RandHelper) {
 		insn := tt.opcode<<26 | baseReg<<21 | rtReg<<16 | tt.rdReg<<11 | tt.funct
 		state.GetRegistersRef()[rtReg] = tt.rt
 		state.GetRegistersRef()[baseReg] = tt.rs
@@ -125,7 +125,7 @@ func testMulDiv(t *testing.T, templateCases []mulDivTestCase, mips32Insn bool) {
 
 	setExpectations := func(tt mulDivTestCase, expected *mtutil.ExpectedState, vm VersionedVMTestCase) ExpectedExecResult {
 		if tt.panicMsg != "" {
-			return ExpectPanic(tt.panicMsg, tt.revertMsg)
+			return ExpectVmPanic(tt.panicMsg, tt.revertMsg)
 		} else {
 			expected.ExpectStep()
 			if tt.expectRes != 0 {
@@ -169,7 +169,7 @@ func testLoadStore(t *testing.T, cases []loadStoreTestCase) {
 	rtReg := uint32(8)
 	pc := arch.Word(0)
 
-	initState := func(tt loadStoreTestCase, state *multithreaded.State, vm VersionedVMTestCase) {
+	initState := func(tt loadStoreTestCase, state *multithreaded.State, vm VersionedVMTestCase, r *testutil.RandHelper) {
 		insn := tt.opcode<<26 | baseReg<<21 | rtReg<<16 | tt.imm
 
 		testutil.StoreInstruction(state.GetMemory(), pc, insn)
@@ -238,111 +238,70 @@ func testBranch(t *testing.T, cases []branchTestCase) {
 	}
 }
 
-type MemoryReservationTestCase struct {
-	name                   string
-	llReservationStatus    multithreaded.LLReservationStatus
-	matchThreadId          bool
-	effAddrOffset          Word
-	shouldClearReservation bool
-}
-
-func (m MemoryReservationTestCase) SetupState(state *multithreaded.State, effAddr Word) {
-	llAddress := effAddr + m.effAddrOffset
-	llOwnerThread := state.GetCurrentThread().ThreadId
-	if !m.matchThreadId {
-		llOwnerThread += 1
+func testNoopSyscall(t *testing.T, vm VersionedVMTestCase, syscalls map[string]uint32) {
+	type testCase struct {
+		name      string
+		sycallNum arch.Word
 	}
 
-	state.LLReservationStatus = m.llReservationStatus
-	state.LLAddress = llAddress
-	state.LLOwnerThread = llOwnerThread
-}
-
-func (m MemoryReservationTestCase) SetExpectations(expected *mtutil.ExpectedState) {
-	if m.shouldClearReservation {
-		expected.ExpectMemoryReservationCleared()
+	testNamer := func(tc testCase) string {
+		return tc.name
 	}
-}
 
-var memoryReservationTestCases = []MemoryReservationTestCase{
-	{name: "matching reservation", llReservationStatus: multithreaded.LLStatusActive32bit, matchThreadId: true, shouldClearReservation: true},
-	{name: "matching reservation, 64-bit", llReservationStatus: multithreaded.LLStatusActive64bit, matchThreadId: true, shouldClearReservation: true},
-	{name: "matching reservation, unaligned", llReservationStatus: multithreaded.LLStatusActive32bit, effAddrOffset: 1, matchThreadId: true, shouldClearReservation: true},
-	{name: "matching reservation, 64-bit, unaligned", llReservationStatus: multithreaded.LLStatusActive64bit, effAddrOffset: 5, matchThreadId: true, shouldClearReservation: true},
-	{name: "matching reservation, diff thread", llReservationStatus: multithreaded.LLStatusActive32bit, matchThreadId: false, shouldClearReservation: true},
-	{name: "matching reservation, diff thread, 64-bit", llReservationStatus: multithreaded.LLStatusActive64bit, matchThreadId: false, shouldClearReservation: true},
-	{name: "mismatched reservation", llReservationStatus: multithreaded.LLStatusActive32bit, matchThreadId: true, effAddrOffset: 8, shouldClearReservation: false},
-	{name: "mismatched reservation, 64-bit", llReservationStatus: multithreaded.LLStatusActive64bit, matchThreadId: true, effAddrOffset: 8, shouldClearReservation: false},
-	{name: "mismatched reservation, diff thread", llReservationStatus: multithreaded.LLStatusActive32bit, matchThreadId: false, effAddrOffset: 8, shouldClearReservation: false},
-	{name: "mismatched reservation, diff thread, 64-bit", llReservationStatus: multithreaded.LLStatusActive64bit, matchThreadId: false, effAddrOffset: 8, shouldClearReservation: false},
-	{name: "no reservation, matching addr", llReservationStatus: multithreaded.LLStatusNone, matchThreadId: true, shouldClearReservation: true},
-	{name: "no reservation, mismatched addr", llReservationStatus: multithreaded.LLStatusNone, matchThreadId: true, effAddrOffset: 8, shouldClearReservation: false},
-}
-
-type MemoryReservationTest[T any] func(t *testing.T, vmVersion VersionedVMTestCase, llVariation MemoryReservationTestCase, testCase T, index int)
-type MemoryTestNamer[T any] func(testCase T, vmVersion string, memoryTestCase string) string
-
-func MemoryReservationTester[T any](t *testing.T, cases []T, testFn MemoryReservationTest[T], testNamer MemoryTestNamer[T]) {
-	vmVersions := GetMipsVersionTestCases(t)
-	for _, vmVersion := range vmVersions {
-		for i, c := range cases {
-			for _, reservationTestCase := range memoryReservationTestCases {
-				tName := testNamer(c, vmVersion.Name, reservationTestCase.name)
-				t.Run(tName, func(t *testing.T) {
-					t.Parallel()
-					testFn(t, vmVersion, reservationTestCase, c, i)
-				})
-			}
-		}
+	var cases []testCase
+	for name, syscallNum := range syscalls {
+		cases = append(cases, testCase{name: name, sycallNum: arch.Word(syscallNum)})
 	}
+
+	initState := func(tt testCase, state *multithreaded.State, vm VersionedVMTestCase, r *testutil.RandHelper) {
+		testutil.StoreInstruction(state.Memory, state.GetPC(), syscallInsn)
+		state.GetRegistersRef()[2] = tt.sycallNum // Set syscall number
+	}
+
+	setExpectations := func(tt testCase, expected *mtutil.ExpectedState, vm VersionedVMTestCase) ExpectedExecResult {
+		expected.ExpectStep()
+		expected.ActiveThread().Registers[2] = 0
+		expected.ActiveThread().Registers[7] = 0
+
+		return ExpectNormalExecution()
+	}
+
+	NewDiffTester(testNamer).
+		InitState(initState).
+		SetExpectations(setExpectations).
+		Run(t, cases, WithVm(vm))
 }
 
-func testNoopSyscall(t *testing.T, version VersionedVMTestCase, syscalls map[string]uint32) {
-	for noopName, noopVal := range syscalls {
-		t.Run(fmt.Sprintf("%v-%v", version.Name, noopName), func(t *testing.T) {
-			t.Parallel()
-			goVm, state, contracts := setupWithTestCase(t, version, int(noopVal), nil)
-
-			testutil.StoreInstruction(state.Memory, state.GetPC(), syscallInsn)
-			state.GetRegistersRef()[2] = Word(noopVal) // Set syscall number
-			step := state.Step
-
-			// Set up post-state expectations
-			expected := mtutil.NewExpectedState(t, state)
-			expected.ExpectStep()
-			expected.ActiveThread().Registers[2] = 0
-			expected.ActiveThread().Registers[7] = 0
-
-			// State transition
-			stepWitness, err := goVm.Step(true)
-			require.NoError(t, err)
-
-			// Validate post-state
-			expected.Validate(t, state)
-			testutil.ValidateEVM(t, stepWitness, step, goVm, multithreaded.GetStateHashFn(), contracts)
-		})
+func testUnsupportedSyscall(t *testing.T, vm VersionedVMTestCase, unsupportedSyscalls []uint32) {
+	type testCase struct {
+		name      string
+		sycallNum arch.Word
 	}
-}
 
-func testUnsupportedSyscall(t *testing.T, version VersionedVMTestCase, unsupportedSyscalls []uint32) {
-	for i, syscallNum := range unsupportedSyscalls {
-		testName := fmt.Sprintf("%v Unsupported syscallNum %v", version.Name, syscallNum)
-		i := i
-		syscallNum := syscallNum
-		t.Run(testName, func(t *testing.T) {
-			t.Parallel()
-			goVm, state, contracts := setupWithTestCase(t, version, i*3434, nil)
-			// Setup basic getThreadId syscall instruction
-			testutil.StoreInstruction(state.Memory, state.GetPC(), syscallInsn)
-			state.GetRegistersRef()[2] = Word(syscallNum)
-			proofData := multiThreadedProofGenerator(t, state)
-			// Set up post-state expectations
-			require.Panics(t, func() { _, _ = goVm.Step(true) })
-
-			errorMessage := "unimplemented syscall"
-			testutil.AssertEVMReverts(t, state, contracts, nil, proofData, testutil.CreateErrorStringMatcher(errorMessage))
-		})
+	testNamer := func(tc testCase) string {
+		return tc.name
 	}
+
+	var cases []testCase
+	for _, syscallNum := range unsupportedSyscalls {
+		name := fmt.Sprintf("Syscall %d", syscallNum)
+		cases = append(cases, testCase{name: name, sycallNum: arch.Word(syscallNum)})
+	}
+
+	initState := func(tt testCase, state *multithreaded.State, vm VersionedVMTestCase, r *testutil.RandHelper) {
+		testutil.StoreInstruction(state.Memory, state.GetPC(), syscallInsn)
+		state.GetRegistersRef()[2] = tt.sycallNum // Set syscall number
+	}
+
+	setExpectations := func(tt testCase, expected *mtutil.ExpectedState, vm VersionedVMTestCase) ExpectedExecResult {
+		goErr := fmt.Sprintf("unrecognized syscall: %v", tt.sycallNum)
+		return ExpectVmPanic(goErr, "unimplemented syscall")
+	}
+
+	NewDiffTester(testNamer).
+		InitState(initState).
+		SetExpectations(setExpectations).
+		Run(t, cases, WithVm(vm))
 }
 
 // signExtend64 is used to sign-extend 32-bit words for 64-bit compatibility

@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/ecdsa"
 	"crypto/rand"
+	"math"
 	"math/big"
 	"testing"
 	"time"
@@ -17,6 +18,7 @@ import (
 	"github.com/ethereum/go-ethereum/node"
 
 	"github.com/ethereum-optimism/optimism/op-batcher/batcher"
+	"github.com/ethereum-optimism/optimism/op-batcher/config"
 	op_e2e "github.com/ethereum-optimism/optimism/op-e2e"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/geth"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
@@ -38,7 +40,7 @@ func TestDATxThrottling(t *testing.T) {
 		return waitForReceipt(t, hash, l2Seq)
 	}
 
-	require.NotEmpty(t, batcher.Config.ThrottlingEndpoints, "throttling endpoints should not be empty")
+	require.NotEmpty(t, batcher.Config.ThrottleParams.Endpoints, "throttling endpoints should not be empty")
 
 	// send a big transaction before throttling could have started, this transaction should land
 	receipt := sendTx(cfg.Secrets.Alice, 0, bigTxSize)
@@ -71,9 +73,17 @@ func TestDATxThrottling(t *testing.T) {
 	require.Nil(t, bigReceipt, "large tx did not get throttled")
 
 	// disable throttling to let big tx through
-	batcher.Config.ThrottleTxSize = 0
-	<-done
-	require.NotNil(t, bigReceipt, "large tx did not get throttled")
+	batcher.Config.ThrottleParams.TxSize = math.MaxUint64
+	err = batcher.SetThrottleController(config.StepControllerType, nil) // We need to set the controller again to propagate the change
+	require.NoError(t, err)
+
+	select {
+	case <-done:
+		t.Log("large tx was included after disabling throttling")
+		require.NotNil(t, bigReceipt, "large tx did not get throttled")
+	case <-time.After(45 * time.Second):
+		t.Fatal("large tx should have been included after 45 seconds")
+	}
 }
 
 func TestDABlockThrottling(t *testing.T) {
@@ -155,7 +165,7 @@ func setupTest(t *testing.T, maxTxSize, maxBlockSize uint64) (e2esys.SystemConfi
 	l2Verif := sys.NodeClient("verifier")
 
 	batcher := sys.BatchSubmitter.ThrottlingTestDriver()
-	require.NotEmpty(t, batcher.Config.ThrottlingEndpoints, "throttling endpoints should not be empty")
+	require.NotEmpty(t, batcher.Config.ThrottleParams.Endpoints, "throttling endpoints should not be empty")
 
 	return cfg, rollupClient, l2Seq, l2Verif, batcher
 }

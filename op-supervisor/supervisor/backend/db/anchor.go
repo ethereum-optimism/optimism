@@ -92,7 +92,7 @@ func (db *ChainsDB) maybeInitFromUnsafe(id eth.ChainID, anchor eth.BlockRef) err
 		return fmt.Errorf("failed to check if logDB is initialized: %w", err)
 	} else {
 		logger.Debug("Events database already initialized")
-		// TODO(#15774): make sure the Rewinder can handle reorgs of the activation block
+		// TODO: make sure the Rewinder can handle reorgs of the activation block
 		if seal.Hash != anchor.Hash {
 			return fmt.Errorf("events database (%s) does not match anchor point (%s): %w",
 				seal,

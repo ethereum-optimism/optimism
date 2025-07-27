@@ -24,7 +24,7 @@ func TestDiffTester_Run_SimpleTest(t *testing.T) {
 		testName := fmt.Sprintf("useCorrectReturnExpectation=%v", useCorrectReturnExpectation)
 		t.Run(testName, func(t *testing.T) {
 			initStateCalled := make(map[string]int)
-			initState := func(testCase simpleTestCase, state *multithreaded.State, vm VersionedVMTestCase) {
+			initState := func(testCase simpleTestCase, state *multithreaded.State, vm VersionedVMTestCase, r *testutil.RandHelper) {
 				initStateCalled[testCase.name] += 1
 				testutil.StoreInstruction(state.GetMemory(), state.GetPC(), testCase.insn)
 			}
@@ -37,7 +37,7 @@ func TestDiffTester_Run_SimpleTest(t *testing.T) {
 				if useCorrectReturnExpectation {
 					return ExpectNormalExecution()
 				} else {
-					return ExpectPanic("oops", "oops")
+					return ExpectVmPanic("oops", "oops")
 				}
 			}
 
@@ -91,7 +91,7 @@ func TestDiffTester_Run_WithMemModifications(t *testing.T) {
 		t.Run(testName, func(t *testing.T) {
 
 			initStateCalled := make(map[string]int)
-			initState := func(tt simpleTestCase, state *multithreaded.State, vm VersionedVMTestCase) {
+			initState := func(tt simpleTestCase, state *multithreaded.State, vm VersionedVMTestCase, r *testutil.RandHelper) {
 				initStateCalled[tt.name] += 1
 				testutil.StoreInstruction(state.GetMemory(), pc, tt.insn)
 				state.GetMemory().SetWord(effAddr, 0xAA_BB_CC_DD_A1_B1_C1_D1)
@@ -110,7 +110,10 @@ func TestDiffTester_Run_WithMemModifications(t *testing.T) {
 			versions := GetMipsVersionTestCases(t)
 			var mods []string
 			if !skipAutomaticMemTests {
-				mods = append(mods, " [mod:overlappingMemReservation]")
+				for _, memTestCase := range memReservationTestCases {
+					modName := fmt.Sprintf(" [mod:%v]", memTestCase.name)
+					mods = append(mods, modName)
+				}
 			}
 			expectedTestCases := generateExpectedTestCases(testCases, versions, mods...)
 
@@ -156,7 +159,7 @@ func TestDiffTester_Run_WithPanic(t *testing.T) {
 		testName := fmt.Sprintf("useCorrectReturnExpectation=%v", useCorrectReturnExpectation)
 		t.Run(testName, func(t *testing.T) {
 			initStateCalled := make(map[string]int)
-			initState := func(testCase simpleTestCase, state *multithreaded.State, vm VersionedVMTestCase) {
+			initState := func(testCase simpleTestCase, state *multithreaded.State, vm VersionedVMTestCase, r *testutil.RandHelper) {
 				initStateCalled[testCase.name] += 1
 				testutil.StoreInstruction(state.GetMemory(), state.GetPC(), testCase.insn)
 				state.GetRegistersRef()[2] = syscallNum
@@ -168,7 +171,7 @@ func TestDiffTester_Run_WithPanic(t *testing.T) {
 				expect.ExpectStep()
 
 				if useCorrectReturnExpectation {
-					return ExpectPanic("unrecognized syscall: 0", "unimplemented syscall")
+					return ExpectVmPanic("unrecognized syscall: 0", "unimplemented syscall")
 				} else {
 					return ExpectNormalExecution()
 				}
@@ -207,6 +210,49 @@ func TestDiffTester_Run_WithPanic(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestDiffTester_Run_WithVm(t *testing.T) {
+	// Run simple noop instruction (0x0)
+	testCases := []simpleTestCase{
+		{name: "a"},
+		{name: "b"},
+	}
+
+	initStateCalled := make(map[string]int)
+	initState := func(testCase simpleTestCase, state *multithreaded.State, vm VersionedVMTestCase, r *testutil.RandHelper) {
+		initStateCalled[testCase.name] += 1
+		testutil.StoreInstruction(state.GetMemory(), state.GetPC(), testCase.insn)
+	}
+
+	expectationsCalled := make(map[string]int)
+	setExpectations := func(testCase simpleTestCase, expect *mtutil.ExpectedState, vm VersionedVMTestCase) ExpectedExecResult {
+		expectationsCalled[testCase.name] += 1
+		expect.ExpectStep()
+
+		return ExpectNormalExecution()
+	}
+
+	vm := GetMipsVersionTestCases(t)[0]
+	versions := []VersionedVMTestCase{vm}
+	expectedTestCases := generateExpectedTestCases(testCases, versions)
+
+	// Run tests
+	tRunner := newMockTestRunner(t)
+	NewDiffTester(testNamer).
+		InitState(initState).
+		SetExpectations(setExpectations).
+		run(tRunner, testCases, WithVm(vm))
+
+	// Validate that we invoked initState and setExpectations as expected
+	for _, c := range testCases {
+		require.Equal(t, 1, initStateCalled[c.name])
+		// Difftester runs extra calls on the expectations fn in order to analyze the tests
+		require.Equal(t, 2, expectationsCalled[c.name])
+	}
+
+	// Validate that we ran the expected tests
+	require.Equal(t, len(tRunner.childTestMocks), len(expectedTestCases))
 }
 
 // Test case struct for simple test scenarios

@@ -137,6 +137,31 @@ transaction. But in the case of a DA backlog (as defined by OP_BATCHER_THROTTLE_
 block builder to instead impose a (tighter) block level limit of OP_BATCHER_THROTTLE_BLOCK_SIZE, and a single
 transaction limit of OP_BATCHER_THROTTLE_TRANSACTION_SIZE.
 
+### Enhanced DA Throttling Mechanisms
+
+The batcher includes sophisticated throttling mechanisms to manage data availability backlogs and prevent excessive costs during high-load periods. These mechanisms support multiple control strategies, from simple binary throttling to advanced PID control systems.
+
+**Key Features:**
+- **Multiple Controller Types**: Step (binary), Linear, Quadratic, and PID controllers
+- **Runtime Management**: Switch between controllers via RPC without restarts
+- **Dynamic Response**: Automatically adjust throttling intensity based on DA load
+- **Multi-endpoint Support**: Throttle sequencers, builders, and other endpoints in parallel
+- **Comprehensive Monitoring**: Built-in metrics and diagnostic tools
+
+**Quick Start:**
+```bash
+# Configure basic throttling
+--throttle-threshold=1000000
+--throttle-controller-type=quadratic
+
+# Runtime controller switching
+curl -X POST -H "Content-Type: application/json" \
+  --data '{"jsonrpc":"2.0","method":"admin_getThrottleController","params":[],"id":1}' \
+  http://localhost:8545
+```
+
+**📖 For complete documentation, configuration guides, and troubleshooting, see [Enhanced DA Throttling Mechanisms](./throttling.md)**
+
 ### Max Channel Duration
 
 The batcher tries to ensure that batches are posted at a minimum frequency specified by `MAX_CHANNEL_DURATION`. To achieve this, it caches the l1 origin of the last submitted channel, and will force close a channel if the timestamp of the l1 head moves beyond the timestamp of that l1 origin plus `MAX_CHANNEL_DURATION`. When clearing its state, e.g. following the detection of a reorg, the batcher will not clear the cached l1 origin: this way, the regular posting of batches will not be disturbed by events like reorgs.

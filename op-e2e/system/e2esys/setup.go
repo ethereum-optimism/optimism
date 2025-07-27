@@ -42,6 +42,7 @@ import (
 
 	altda "github.com/ethereum-optimism/optimism/op-alt-da"
 	bss "github.com/ethereum-optimism/optimism/op-batcher/batcher"
+	batcherCfg "github.com/ethereum-optimism/optimism/op-batcher/config"
 	batcherFlags "github.com/ethereum-optimism/optimism/op-batcher/flags"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
 	shared "github.com/ethereum-optimism/optimism/op-devstack/shared/challenger"
@@ -575,6 +576,7 @@ func WithBatcherThrottling(interval time.Duration, threshold, txSize, blockSize 
 	return StartOption{
 		BatcherMod: func(cfg *bss.CLIConfig) {
 			cfg.ThrottleThreshold = threshold
+			cfg.ThrottleControllerType = batcherCfg.StepControllerType
 			cfg.ThrottleTxSize = txSize
 			cfg.ThrottleBlockSize = blockSize
 		},

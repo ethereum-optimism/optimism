@@ -62,11 +62,18 @@ devnet TEMPLATE_FILE DATA_FILE="" NAME="" PACKAGE=KURTOSIS_PACKAGE: _prerequisit
         fi
     fi
     export ENCL_NAME="$DEVNET_NAME"-devnet
-    go run cmd/main.go -kurtosis-package {{PACKAGE}} \
-        -environment "tests/$ENCL_NAME.json" \
-        -template "{{TEMPLATE_FILE}}" \
-        -data "{{DATA_FILE}}" \
-        -enclave "$ENCL_NAME" \
+    if [ -n "{{DATA_FILE}}" ]; then
+        go run cmd/main.go -kurtosis-package {{PACKAGE}} \
+            -environment "tests/$ENCL_NAME.json" \
+            -template "{{TEMPLATE_FILE}}" \
+            -data "{{DATA_FILE}}" \
+            -enclave "$ENCL_NAME"
+    else
+        go run cmd/main.go -kurtosis-package {{PACKAGE}} \
+            -environment "tests/$ENCL_NAME.json" \
+            -template "{{TEMPLATE_FILE}}" \
+            -enclave "$ENCL_NAME"
+    fi \
     && cat "tests/$ENCL_NAME.json"
 
 devnet-test DEVNET *TEST: _prerequisites
