@@ -11,6 +11,9 @@ for the following:
 All contract upgrades that touch live chains **must** be performed via the OPCM. This guide will walk you through
 the OPCM's architecture, and how to hook your contracts into it.
 
+> **Note**: After developing your OPCM-based feature, you'll need to ensure it can be properly verified by signers.
+> See the [OPCM Verification guide](./opcm-verification.md) for details on modifying the VerifyOPCM script for your custom contracts.
+
 [versioning]: ../policies/versioning.md
 
 ## Architecture

@@ -7,6 +7,7 @@
 - [Style Guide](./contributing/style-guide.md)
 - [Interfaces](./contributing/interfaces.md)
 - [OPCM](./contributing/opcm.md)
+- [OPCM Verification](./contributing/opcm-verification.md)
 
 # Policies
 
