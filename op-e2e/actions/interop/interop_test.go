@@ -80,7 +80,7 @@ func TestFullInterop(gt *testing.T) {
 			chain.Sequencer.ActL2PipelineFull(t) // node to complete syncing to L1 head.
 		}
 
-		// TODO(#13972): two sources of L1 head
+		// Theoretically shouldn't require this ActL1HeadSignal in managed mode, but currently it is required.
 		chain.Sequencer.ActL1HeadSignal(t)
 		status = chain.Sequencer.SyncStatus()
 		require.Equal(t, head, status.UnsafeL2.ID())

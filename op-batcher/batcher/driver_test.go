@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ethereum-optimism/optimism/op-batcher/config"
 	"github.com/ethereum-optimism/optimism/op-batcher/metrics"
 	"github.com/ethereum-optimism/optimism/op-service/dial"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
@@ -54,9 +55,14 @@ func setup(t *testing.T) (*BatchSubmitter, *mockL2EndpointProvider) {
 	cfg.Genesis.L1.Number = genesisL1Origin
 
 	return NewBatchSubmitter(DriverSetup{
-		Log:              testlog.Logger(t, log.LevelDebug),
-		Metr:             metrics.NoopMetrics,
-		RollupConfig:     cfg,
+		Log:          testlog.Logger(t, log.LevelDebug),
+		Metr:         metrics.NoopMetrics,
+		RollupConfig: cfg,
+		Config: BatcherConfig{
+			ThrottleParams: config.ThrottleParams{
+				ControllerType: config.StepControllerType,
+			},
+		},
 		ChannelConfig:    defaultTestChannelConfig(),
 		EndpointProvider: ep,
 	}), ep
@@ -236,11 +242,13 @@ func TestBatchSubmitter_ThrottlingEndpoints(t *testing.T) {
 			bs, _ := setup(t)
 			bs.shutdownCtx = ctx
 			bs.Config = BatcherConfig{
-				NetworkTimeout:      time.Second,
-				ThrottleThreshold:   10000,
-				ThrottleTxSize:      5000,
-				ThrottleBlockSize:   20000,
-				ThrottlingEndpoints: urls,
+				NetworkTimeout: time.Second,
+				ThrottleParams: config.ThrottleParams{
+					Threshold: 10000,
+					TxSize:    5000,
+					BlockSize: 20000,
+					Endpoints: urls,
+				},
 			}
 
 			// Test the throttling loop

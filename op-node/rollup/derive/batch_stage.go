@@ -47,9 +47,6 @@ func (bs *BatchStage) NextBatch(ctx context.Context, parent eth.L2BlockRef) (*Si
 	// If origin behind (or at parent), we drain previous stage(s), and then return.
 	// Note that a channel from the parent's L1 origin block can only contain past batches, so we
 	// can just skip them.
-	// TODO(12444): we may be able to change the definition of originBehind to include equality,
-	// also for the pre-Holocene BatchQueue. This may also allow us to remove the edge case in
-	// updateOrigins.
 	if bs.originBehind(parent) || parent.L1Origin.Number == bs.origin.Number {
 		if _, err := bs.prev.NextBatch(ctx); err != nil {
 			// includes io.EOF and NotEnoughData
@@ -159,14 +156,6 @@ func (bs *BatchStage) nextSingularBatchCandidate(ctx context.Context, parent eth
 		}
 
 		// If next batch is SpanBatch, convert it to SingularBatches.
-		// TODO(12444): maybe create iterator here instead, save to nextSpan
-		//   Need to make sure this doesn't error where the iterator wouldn't,
-		//   otherwise this wouldn't be correctly implementing partial span batch invalidation.
-		//   From what I can tell, it is fine because the only error case is if the l1Blocks are
-		//   missing a block, which would be a logic error. Although, if the node restarts mid-way
-		//   through a span batch and the sync start only goes back one channel timeout from the
-		//   mid-way safe block, it may actually miss l1 blocks! Need to check.
-		//   We could fix this by fast-dropping past batches from the span batch.
 		singularBatches, err := spanBatch.GetSingularBatches(bs.l1Blocks, parent)
 		if err != nil {
 			return nil, NewCriticalError(err)

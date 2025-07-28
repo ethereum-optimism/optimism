@@ -38,9 +38,9 @@ var (
 		Usage:   "HTTP provider URL for the rollup node. Multiple URLs can be specified for redundancy.",
 		EnvVars: prefixEnvVars("ROLLUP_RPC"),
 	}
-	SupervisorRpcFlag = &cli.StringFlag{
+	SupervisorRpcFlag = &cli.StringSliceFlag{
 		Name:    "supervisor-rpc",
-		Usage:   "HTTP provider URL for the supervisor node",
+		Usage:   "HTTP provider URL for supervisor nodes. Multiple URLs can be specified for redundancy.",
 		EnvVars: prefixEnvVars("SUPERVISOR_RPC"),
 	}
 	GameFactoryAddressFlag = &cli.StringFlag{
@@ -119,7 +119,7 @@ func CheckRequired(ctx *cli.Context) error {
 			return fmt.Errorf("flag %s is required", f.Names()[0])
 		}
 	}
-	if len(ctx.StringSlice(RollupRpcFlag.Name)) == 0 && !ctx.IsSet(SupervisorRpcFlag.Name) {
+	if len(ctx.StringSlice(RollupRpcFlag.Name)) == 0 && len(ctx.StringSlice(SupervisorRpcFlag.Name)) == 0 {
 		return fmt.Errorf("flag %s or %s is required", RollupRpcFlag.Name, SupervisorRpcFlag.Name)
 	}
 	return nil
@@ -168,8 +168,8 @@ func NewConfigFromCLI(ctx *cli.Context) (*config.Config, error) {
 	return &config.Config{
 		L1EthRpc:           ctx.String(L1EthRpcFlag.Name),
 		GameFactoryAddress: gameFactoryAddress,
-		RollupRpc:          ctx.StringSlice(RollupRpcFlag.Name),
-		SupervisorRpc:      ctx.String(SupervisorRpcFlag.Name),
+		RollupRpcs:         ctx.StringSlice(RollupRpcFlag.Name),
+		SupervisorRpcs:     ctx.StringSlice(SupervisorRpcFlag.Name),
 
 		HonestActors:    actors,
 		MonitorInterval: ctx.Duration(MonitorIntervalFlag.Name),

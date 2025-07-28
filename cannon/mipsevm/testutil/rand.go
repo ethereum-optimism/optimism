@@ -38,6 +38,10 @@ func (h *RandHelper) Intn(n int) int {
 	return h.r.Intn(n)
 }
 
+func (h *RandHelper) Int64(n int) int64 {
+	return int64(h.r.Intn(n))
+}
+
 func (h *RandHelper) RandHash() common.Hash {
 	var bytes [32]byte
 	_, err := h.r.Read(bytes[:])

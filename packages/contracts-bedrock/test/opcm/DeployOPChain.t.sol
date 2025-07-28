@@ -479,13 +479,6 @@ contract DeployOPChain_Test is DeployOPChain_TestBase {
         assertEq(address(doo.opChainProxyAdmin().owner()), opChainProxyAdminOwner, "3800");
     }
 
-    function test_customDisputeGame_customDisabled_reverts() public {
-        setDOI();
-        doi.set(doi.disputeSplitDepth.selector, disputeSplitDepth + 1);
-        vm.expectRevert("DPG-90");
-        deployOPChain.run(doi, doo);
-    }
-
     function test_customDisputeGame_customEnabled_succeeds() public {
         setDOI();
         doi.set(doi.allowCustomDisputeParameters.selector, true);

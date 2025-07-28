@@ -24,7 +24,7 @@ func TestDiffTester_Run_SimpleTest(t *testing.T) {
 		testName := fmt.Sprintf("useCorrectReturnExpectation=%v", useCorrectReturnExpectation)
 		t.Run(testName, func(t *testing.T) {
 			initStateCalled := make(map[string]int)
-			initState := func(testCase simpleTestCase, state *multithreaded.State, vm VersionedVMTestCase) {
+			initState := func(testCase simpleTestCase, state *multithreaded.State, vm VersionedVMTestCase, r *testutil.RandHelper) {
 				initStateCalled[testCase.name] += 1
 				testutil.StoreInstruction(state.GetMemory(), state.GetPC(), testCase.insn)
 			}
@@ -37,7 +37,7 @@ func TestDiffTester_Run_SimpleTest(t *testing.T) {
 				if useCorrectReturnExpectation {
 					return ExpectNormalExecution()
 				} else {
-					return ExpectPanic("oops", "oops")
+					return ExpectVmPanic("oops", "oops")
 				}
 			}
 
@@ -91,7 +91,7 @@ func TestDiffTester_Run_WithMemModifications(t *testing.T) {
 		t.Run(testName, func(t *testing.T) {
 
 			initStateCalled := make(map[string]int)
-			initState := func(tt simpleTestCase, state *multithreaded.State, vm VersionedVMTestCase) {
+			initState := func(tt simpleTestCase, state *multithreaded.State, vm VersionedVMTestCase, r *testutil.RandHelper) {
 				initStateCalled[tt.name] += 1
 				testutil.StoreInstruction(state.GetMemory(), pc, tt.insn)
 				state.GetMemory().SetWord(effAddr, 0xAA_BB_CC_DD_A1_B1_C1_D1)
@@ -110,7 +110,10 @@ func TestDiffTester_Run_WithMemModifications(t *testing.T) {
 			versions := GetMipsVersionTestCases(t)
 			var mods []string
 			if !skipAutomaticMemTests {
-				mods = append(mods, " [mod:overlappingMemReservation]")
+				for _, memTestCase := range memReservationTestCases {
+					modName := fmt.Sprintf(" [mod:%v]", memTestCase.name)
+					mods = append(mods, modName)
+				}
 			}
 			expectedTestCases := generateExpectedTestCases(testCases, versions, mods...)
 
@@ -156,7 +159,7 @@ func TestDiffTester_Run_WithPanic(t *testing.T) {
 		testName := fmt.Sprintf("useCorrectReturnExpectation=%v", useCorrectReturnExpectation)
 		t.Run(testName, func(t *testing.T) {
 			initStateCalled := make(map[string]int)
-			initState := func(testCase simpleTestCase, state *multithreaded.State, vm VersionedVMTestCase) {
+			initState := func(testCase simpleTestCase, state *multithreaded.State, vm VersionedVMTestCase, r *testutil.RandHelper) {
 				initStateCalled[testCase.name] += 1
 				testutil.StoreInstruction(state.GetMemory(), state.GetPC(), testCase.insn)
 				state.GetRegistersRef()[2] = syscallNum
@@ -168,7 +171,7 @@ func TestDiffTester_Run_WithPanic(t *testing.T) {
 				expect.ExpectStep()
 
 				if useCorrectReturnExpectation {
-					return ExpectPanic("unrecognized syscall: 0", "unimplemented syscall")
+					return ExpectVmPanic("unrecognized syscall: 0", "unimplemented syscall")
 				} else {
 					return ExpectNormalExecution()
 				}
@@ -217,7 +220,7 @@ func TestDiffTester_Run_WithVm(t *testing.T) {
 	}
 
 	initStateCalled := make(map[string]int)
-	initState := func(testCase simpleTestCase, state *multithreaded.State, vm VersionedVMTestCase) {
+	initState := func(testCase simpleTestCase, state *multithreaded.State, vm VersionedVMTestCase, r *testutil.RandHelper) {
 		initStateCalled[testCase.name] += 1
 		testutil.StoreInstruction(state.GetMemory(), state.GetPC(), testCase.insn)
 	}
