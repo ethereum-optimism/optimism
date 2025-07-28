@@ -11,7 +11,6 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-node/p2p"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
-	"github.com/ethereum-optimism/optimism/op-node/rollup/clsync"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/engine"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/finality"
@@ -283,7 +282,9 @@ func (s *SyncDeriver) onIncomingP2PBlock(ctx context.Context, envelope *eth.Exec
 	// If we are doing CL sync or done with engine syncing, fallback to the unsafe payload queue & CL P2P sync.
 	if s.SyncCfg.SyncMode == sync.CLSync || !s.Engine.IsEngineSyncing() {
 		s.Log.Info("Optimistically queueing unsafe L2 execution payload", "id", envelope.ExecutionPayload.ID())
-		s.Emitter.Emit(ctx, clsync.ReceivedUnsafePayloadEvent{Envelope: envelope})
+		if err := s.CLSync.AddUnsafePayload(ctx, envelope); err != nil {
+			s.Log.Warn("Failed to add unsafe payload to CLSync", "id", envelope.ExecutionPayload.ID(), "err", err)
+		}
 	} else if s.SyncCfg.SyncMode == sync.ELSync {
 		ref, err := derive.PayloadToBlockRef(s.Config, envelope.ExecutionPayload)
 		if err != nil {
@@ -419,11 +420,8 @@ func (s *Driver) ResetDerivationPipeline(ctx context.Context) error {
 }
 
 func (s *Driver) OnUnsafeL2Payload(ctx context.Context, payload *eth.ExecutionPayloadEnvelope) error {
-	s.emitter.Emit(ctx, p2p.ReceivedBlockEvent{
-		From:     "",
-		Envelope: payload,
-	})
-	return nil
+	// Directly call CLSync instead of emitting events
+	return s.CLSync.AddUnsafePayload(ctx, payload)
 }
 
 func (s *Driver) StartSequencer(ctx context.Context, blockHash common.Hash) error {

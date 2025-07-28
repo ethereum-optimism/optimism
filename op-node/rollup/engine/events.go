@@ -32,19 +32,8 @@ type Metrics interface {
 	RecordSequencerSealingTime(duration time.Duration)
 }
 
-// ForkchoiceRequestEvent signals to the engine that it should emit an artificial
-// forkchoice-update event, to signal the latest forkchoice to other derivers.
-// This helps decouple derivers from the actual engine state,
-// while also not making the derivers wait for a forkchoice update at random.
-type ForkchoiceRequestEvent struct {
-}
-
-func (ev ForkchoiceRequestEvent) String() string {
-	return "forkchoice-request"
-}
-
 type ForkchoiceUpdateEvent struct {
-	UnsafeL2Head, SafeL2Head, FinalizedL2Head eth.L2BlockRef
+	eth.L2ChainState
 }
 
 func (ev ForkchoiceUpdateEvent) String() string {
@@ -170,13 +159,7 @@ func (ev PendingSafeRequestEvent) String() string {
 	return "pending-safe-request"
 }
 
-type ProcessUnsafePayloadEvent struct {
-	Envelope *eth.ExecutionPayloadEnvelope
-}
-
-func (ev ProcessUnsafePayloadEvent) String() string {
-	return "process-unsafe-payload"
-}
+// ProcessUnsafePayloadEvent removed - CLSync now calls EngineController directly
 
 type TryBackupUnsafeReorgEvent struct {
 }
@@ -384,43 +367,8 @@ func (d *EngDeriver) OnEvent(ctx context.Context, ev event.Event) bool {
 			logValues := x.getBlockProcessingMetrics()
 			d.log.Info("Inserted new L2 unsafe block", logValues...)
 		}
-	case ProcessUnsafePayloadEvent:
-		ref, err := derive.PayloadToBlockRef(d.cfg, x.Envelope.ExecutionPayload)
-		if err != nil {
-			d.log.Error("failed to decode L2 block ref from payload", "err", err)
-			return true
-		}
-		// Avoid re-processing the same unsafe payload if it has already been processed. Because a FCU event emits the ProcessUnsafePayloadEvent
-		// it is possible to have multiple queueed up ProcessUnsafePayloadEvent for the same L2 block. This becomes an issue when processing
-		// a large number of unsafe payloads at once (like when iterating through the payload queue after the safe head has advanced).
-		if ref.BlockRef().ID() == d.ec.UnsafeL2Head().BlockRef().ID() {
-			return true
-		}
-		if err := d.ec.InsertUnsafePayload(d.ctx, x.Envelope, ref); err != nil {
-			d.log.Info("failed to insert payload", "ref", ref,
-				"txs", len(x.Envelope.ExecutionPayload.Transactions), "err", err)
-			// yes, duplicate error-handling. After all derivers are interacting with the engine
-			// through events, we can drop the engine-controller interface:
-			// unify the events handler with the engine-controller,
-			// remove a lot of code, and not do this error translation.
-			if errors.Is(err, derive.ErrReset) {
-				d.emitter.Emit(ctx, rollup.ResetEvent{Err: err})
-			} else if errors.Is(err, derive.ErrTemporary) {
-				d.emitter.Emit(ctx, rollup.EngineTemporaryErrorEvent{Err: err})
-			} else {
-				d.emitter.Emit(ctx, rollup.CriticalErrorEvent{
-					Err: fmt.Errorf("unexpected InsertUnsafePayload error type: %w", err),
-				})
-			}
-		} else {
-			d.log.Info("successfully processed payload", "ref", ref, "txs", len(x.Envelope.ExecutionPayload.Transactions))
-		}
-	case ForkchoiceRequestEvent:
-		d.emitter.Emit(ctx, ForkchoiceUpdateEvent{
-			UnsafeL2Head:    d.ec.UnsafeL2Head(),
-			SafeL2Head:      d.ec.SafeL2Head(),
-			FinalizedL2Head: d.ec.Finalized(),
-		})
+	// ProcessUnsafePayloadEvent and ForkchoiceRequestEvent handlers removed
+	// These are now handled directly by CLSync without events
 	case rollup.ForceResetEvent:
 		ForceEngineReset(d.ec, x)
 
@@ -557,8 +505,7 @@ func (d *EngDeriver) OnEvent(ctx context.Context, ev event.Event) bool {
 		d.onPayloadProcess(ctx, x)
 	case PayloadSuccessEvent:
 		d.onPayloadSuccess(ctx, x)
-	case PayloadInvalidEvent:
-		d.onPayloadInvalid(ctx, x)
+
 	default:
 		return false
 	}

@@ -2,7 +2,6 @@ package sequencing
 
 import (
 	"context"
-	"encoding/binary"
 	"errors"
 	"fmt"
 	"io"
@@ -15,6 +14,9 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
 
+	"encoding/binary"
+
+	"github.com/ethereum-optimism/optimism/op-node/metrics"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/engine"
@@ -47,6 +49,60 @@ type ChaoticEngine struct {
 	currentAttributes  *derive.AttributesWithParent
 
 	unsafe, safe, finalized eth.L2BlockRef
+}
+
+// Implement EngineController interface
+var _ EngineController = (*ChaoticEngine)(nil)
+
+func (c *ChaoticEngine) UnsafeL2Head() eth.L2BlockRef {
+	return c.unsafe
+}
+
+func (c *ChaoticEngine) ProcessPayload(ctx context.Context, envelope *eth.ExecutionPayloadEnvelope) *engine.PayloadProcessResult {
+	// Move forward time, to simulate time consumption
+	// Reduced timing to account for direct calls instead of event-driven processing
+	c.clockRandomIncrement(0, time.Millisecond*100)
+
+	p := c.rng.Float32()
+	switch {
+	case p < 0.05: // 5%
+		return &engine.PayloadProcessResult{
+			Success: false,
+			Invalid: false,
+			Err:     errors.New("mock temp engine error"),
+		}
+	case p < 0.08: // 3%
+		return &engine.PayloadProcessResult{
+			Success: false,
+			Invalid: true,
+			Err:     errors.New("mock invalid payload"),
+		}
+	default:
+		if p < 0.13 { // 5% chance it is an extra slow block
+			c.clockRandomIncrement(0, time.Second*1)
+		}
+		c.unsafe = eth.L2BlockRef{
+			Hash:           envelope.ExecutionPayload.BlockHash,
+			Number:         uint64(envelope.ExecutionPayload.BlockNumber),
+			ParentHash:     envelope.ExecutionPayload.ParentHash,
+			Time:           uint64(envelope.ExecutionPayload.Timestamp),
+			L1Origin:       decodeID(envelope.ExecutionPayload.Transactions[0]), // Mock L1 origin from first tx
+			SequenceNumber: 0,
+		}
+
+		// Emit ForkchoiceUpdateEvent to signal the block is canonical
+		c.emitter.Emit(context.Background(), engine.ForkchoiceUpdateEvent{
+			UnsafeL2Head:    c.unsafe,
+			SafeL2Head:      c.safe,
+			FinalizedL2Head: c.finalized,
+		})
+
+		return &engine.PayloadProcessResult{
+			Success: true,
+			Invalid: false,
+			Err:     nil,
+		}
+	}
 }
 
 func (c *ChaoticEngine) clockRandomIncrement(minIncr, maxIncr time.Duration) {
@@ -192,42 +248,7 @@ func (c *ChaoticEngine) OnEvent(ctx context.Context, ev event.Event) bool {
 	case engine.BuildCancelEvent:
 		c.currentPayloadInfo = eth.PayloadInfo{}
 		c.currentAttributes = nil
-	case engine.ForkchoiceRequestEvent:
-		c.emitter.Emit(ctx, engine.ForkchoiceUpdateEvent{
-			UnsafeL2Head:    c.unsafe,
-			SafeL2Head:      c.safe,
-			FinalizedL2Head: c.finalized,
-		})
-	case engine.PayloadProcessEvent:
-		// Move forward time, to simulate time consumption
-		c.clockRandomIncrement(0, time.Millisecond*500)
-
-		p := c.rng.Float32()
-		switch {
-		case p < 0.05: // 5%
-			c.emitter.Emit(ctx, rollup.EngineTemporaryErrorEvent{
-				Err: errors.New("mock temp engine error"),
-			})
-		case p < 0.08: // 3%
-			c.emitter.Emit(ctx, engine.PayloadInvalidEvent{
-				Envelope: x.Envelope,
-				Err:      errors.New("mock invalid payload"),
-			})
-		default:
-			if p < 0.13 { // 5% chance it is an extra slow block
-				c.clockRandomIncrement(0, time.Second*3)
-			}
-			c.unsafe = x.Ref
-			c.emitter.Emit(ctx, engine.PayloadSuccessEvent{
-				Concluding:   x.Concluding,
-				DerivedFrom:  x.DerivedFrom,
-				BuildStarted: x.BuildStarted,
-				Envelope:     x.Envelope,
-				Ref:          x.Ref,
-			})
-			// With event delay, the engine would update and signal the new forkchoice.
-			c.emitter.Emit(ctx, engine.ForkchoiceRequestEvent{})
-		}
+	// PayloadProcessEvent removed - sequencer now calls ProcessPayload() directly
 	default:
 		return false
 	}
@@ -253,20 +274,56 @@ func TestSequencerChaos(t *testing.T) {
 func testSequencerChaosWithSeed(t *testing.T, seed int64) {
 	// Lower the log level to inspect the mocked errors and event-traces.
 	logger := testlog.Logger(t, log.LevelCrit)
-	seq, deps := createSequencer(logger)
+
+	// Create test dependencies
+	rng := rand.New(rand.NewSource(123))
+	cfg := &rollup.Config{
+		Genesis: rollup.Genesis{
+			L1: eth.BlockID{
+				Hash:   testutils.RandomHash(rng),
+				Number: 3000000,
+			},
+			L2: eth.BlockID{
+				Hash:   testutils.RandomHash(rng),
+				Number: 0,
+			},
+			L2Time:       10000000,
+			SystemConfig: eth.SystemConfig{},
+		},
+		BlockTime:         2,
+		MaxSequencerDrift: 15 * 60,
+		RegolithTime:      new(uint64),
+		CanyonTime:        new(uint64),
+		DeltaTime:         new(uint64),
+		EcotoneTime:       new(uint64),
+		FjordTime:         new(uint64),
+		GraniteTime:       new(uint64),
+		HoloceneTime:      new(uint64),
+	}
+	deps := &sequencerTestDeps{
+		cfg:           cfg,
+		attribBuilder: &FakeAttributesBuilder{cfg: cfg, rng: rng},
+		l1OriginSelector: &FakeL1OriginSelector{
+			l1OriginFn: func(l2Head eth.L2BlockRef) (eth.L1BlockRef, error) {
+				panic("override this")
+			},
+		},
+		seqState:    &BasicSequencerStateListener{},
+		conductor:   &FakeConductor{},
+		asyncGossip: &FakeAsyncGossip{},
+	}
+
 	testClock := clock.NewSimpleClock()
 	testClock.SetTime(deps.cfg.Genesis.L2Time)
-	seq.timeNow = testClock.Now
+
 	emitter := &testutils.MockEmitter{}
-	seq.AttachEmitter(emitter)
 	ex := event.NewGlobalSynchronous(context.Background())
 	sys := event.NewSystem(logger, ex)
 	sys.AddTracer(event.NewLogTracer(logger, log.LevelInfo))
 	// We're rapidly simulating with fake clock, so don't rate-limit
 	opts := event.WithNoEmitLimiter()
-	sys.Register("sequencer", seq, opts)
 
-	rng := rand.New(rand.NewSource(seed))
+	rng = rand.New(rand.NewSource(seed))
 	genesisRef := eth.L2BlockRef{
 		Hash:           deps.cfg.Genesis.L2.Hash,
 		Number:         deps.cfg.Genesis.L2.Number,
@@ -275,6 +332,20 @@ func testSequencerChaosWithSeed(t *testing.T, seed int64) {
 		L1Origin:       deps.cfg.Genesis.L1,
 		SequenceNumber: 0,
 	}
+
+	// Create ChaoticEngine that implements EngineController
+	eng := &ChaoticEngine{
+		t:         t,
+		rng:       rng,
+		emitter:   emitter,
+		clock:     testClock,
+		deps:      deps,
+		finalized: genesisRef,
+		safe:      genesisRef,
+		unsafe:    genesisRef,
+	}
+
+	// Setup L1 origin selector
 	var l1OriginSelectErr error
 	l1BlockHash := func(num uint64) (out common.Hash) {
 		out[0] = 1
@@ -308,15 +379,28 @@ func testSequencerChaosWithSeed(t *testing.T, seed int64) {
 		}
 		return origin, nil
 	}
-	eng := &ChaoticEngine{
-		t:         t,
-		rng:       rng,
-		clock:     testClock,
-		deps:      deps,
-		finalized: genesisRef,
-		safe:      genesisRef,
-		unsafe:    genesisRef,
+
+	// Create sequencer with ChaoticEngine as the EngineController
+	seq := NewSequencer(context.Background(), logger, cfg, deps.attribBuilder,
+		deps.l1OriginSelector, deps.seqState, deps.conductor,
+		deps.asyncGossip, eng, metrics.NoopMetrics)
+
+	seq.timeNow = testClock.Now
+	seq.AttachEmitter(emitter)
+
+	// We create mock payloads, with the epoch-id as tx[0], rather than proper L1Block-info deposit tx.
+	seq.toBlockRef = func(rollupCfg *rollup.Config, payload *eth.ExecutionPayload) (eth.L2BlockRef, error) {
+		return eth.L2BlockRef{
+			Hash:           payload.BlockHash,
+			Number:         uint64(payload.BlockNumber),
+			ParentHash:     payload.ParentHash,
+			Time:           uint64(payload.Timestamp),
+			L1Origin:       decodeID(payload.Transactions[0]),
+			SequenceNumber: 0,
+		}, nil
 	}
+
+	sys.Register("sequencer", seq, opts)
 	sys.Register("engine", eng, opts)
 	testEm := sys.Register("test", nil, opts)
 
