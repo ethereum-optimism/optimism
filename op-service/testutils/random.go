@@ -355,7 +355,11 @@ func RandomBlock(rng *rand.Rand, txCount uint64) (*types.Block, []*types.Receipt
 
 func RandomBlockPrependTxsWithTime(rng *rand.Rand, txCount int, t uint64, ptxs ...*types.Transaction) (*types.Block, []*types.Receipt) {
 	header := RandomHeaderWithTime(rng, t)
-	chainID := big.NewInt(rng.Int63n(1000))
+	chainIDInt := rng.Int63n(1000)
+	if chainIDInt == 0 { // Zero chainID is invalid.
+		chainIDInt++
+	}
+	chainID := big.NewInt(chainIDInt)
 	signer := types.NewIsthmusSigner(chainID)
 	txs := make([]*types.Transaction, 0, txCount+len(ptxs))
 	txs = append(txs, ptxs...)

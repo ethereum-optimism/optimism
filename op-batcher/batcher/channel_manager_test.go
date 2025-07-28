@@ -3,6 +3,7 @@ package batcher
 import (
 	"errors"
 	"io"
+	"math"
 	"math/big"
 	"math/rand"
 	"testing"
@@ -18,6 +19,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum/go-ethereum/trie"
 	"github.com/stretchr/testify/require"
 )
 
@@ -669,4 +671,70 @@ func TestChannelManager_ChannelOutFactory(t *testing.T) {
 	require.NoError(t, m.ensureChannelWithSpace(eth.BlockID{}))
 
 	require.IsType(t, &ChannelOutWrapper{}, m.currentChannel.channelBuilder.co)
+}
+
+func newBlock(parent *eth.BlockID) *types.Block {
+	rng := rand.New(rand.NewSource(123))
+	block, receipts := derivetest.RandomL2Block(rng, 3, time.Now())
+	header := block.Header()
+	if parent == nil {
+		header.Number = new(big.Int)
+		header.ParentHash = common.Hash{}
+	} else {
+		header.Number = new(big.Int).SetUint64(parent.Number + 1)
+		header.ParentHash = parent.Hash
+	}
+	return types.NewBlock(header, block.Body(), receipts, trie.NewStackTrie(nil), types.DefaultBlockConfig)
+}
+
+func TestChannelManagerUnsafeBytes(t *testing.T) {
+	cfg := newFakeDynamicEthChannelConfig(log.New(), time.Second)
+	cfg.chooseBlobs = true
+	cfg.DynamicEthChannelConfig.blobConfig.ChannelTimeout = math.MaxUint64
+	manager := NewChannelManager(log.New(), metrics.NoopMetrics, cfg, defaultTestRollupConfig)
+
+	block := newBlock(&eth.BlockID{})
+	require.NoError(t, manager.AddL2Block(block))
+
+	getDASize := func(block *types.Block) int64 {
+		daSize, _ := metrics.EstimateBatchSize(block)
+		return int64(daSize)
+	}
+	cumulativeEstimate := getDASize(block)
+	require.Equal(t, cumulativeEstimate, manager.UnsafeDABytes())
+
+	_, err := manager.TxData(eth.BlockID{
+		Hash:   common.Hash{},
+		Number: 0,
+	}, true, false)
+	require.ErrorIs(t, err, io.EOF)
+
+	require.Equal(t, manager.UnsafeDABytes(), cumulativeEstimate)
+
+	l1BlockID := eth.BlockID{
+		Number: 1,
+	}
+	for {
+		block = newBlock(toPtr(eth.HeaderBlockID(block.Header())))
+		require.NoError(t, manager.AddL2Block(block))
+		cumulativeEstimate += getDASize(block)
+
+		frames, err := manager.TxData(l1BlockID, true, false)
+		if errors.Is(err, io.EOF) {
+			continue
+		}
+		require.NoError(t, err)
+
+		manager.TxConfirmed(frames.ID(), eth.BlockID{
+			Number: l1BlockID.Number + 1,
+		})
+		// NOTE: the actual value can be greater than our "cumulativeEstimate", which is a bit
+		// confusing since the cumulativeEstimate is supposed to overestimate.
+		require.NotEqual(t, manager.UnsafeDABytes(), cumulativeEstimate)
+		return
+	}
+}
+
+func toPtr[T any](x T) *T {
+	return &x
 }
