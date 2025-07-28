@@ -592,8 +592,16 @@ contract OPContractsManagerUpgrader is OPContractsManagerBase {
     /// @notice Thrown when the SuperchainConfig contract does not match the unified config.
     error OPContractsManagerUpgrader_SuperchainConfigMismatch();
 
+    /// @notice The OPContractsManagerUpgrader contract.
+    OPContractsManagerUpgrader public immutable thisOPCMUpgrader;
+
+    /// @notice Mapping of SuperchainConfig addresses to if it has been upgraded or not.
+    mapping(address => bool) public isSuperchainConfigUpgraded;
+
     /// @param _contractsContainer The OPContractsManagerContractsContainer to use.
-    constructor(OPContractsManagerContractsContainer _contractsContainer) OPContractsManagerBase(_contractsContainer) { }
+    constructor(OPContractsManagerContractsContainer _contractsContainer) OPContractsManagerBase(_contractsContainer) {
+        thisOPCMUpgrader = this;
+    }
 
     /// @notice Upgrades a set of chains to the latest implementation contracts
     /// @param _superchainConfig The SuperchainConfig contract to upgrade
@@ -610,10 +618,12 @@ contract OPContractsManagerUpgrader is OPContractsManagerBase {
     {
         OPContractsManager.Implementations memory impls = getImplementations();
 
-        // If the SuperchainConfig is not already upgraded, upgrade it. NOTE that this type of
-        // upgrade means that chains can ONLY be upgraded via this OPCM contract if they use the
-        // same SuperchainConfig contract. We will assert this later.
-        if (_superchainProxyAdmin.getProxyImplementation(address(_superchainConfig)) != impls.superchainConfigImpl) {
+        // If the SuperchainConfig is not already upgraded, upgrade it.
+        if (!thisOPCMUpgrader.isSuperchainConfigUpgraded(address(_superchainConfig))) {
+            // Set the SuperchainConfig as upgraded.
+            // This function is unprotected but execution will fail below if the wrong proxy admin is used.
+            thisOPCMUpgrader.setSuperchainConfigUpgraded(address(_superchainConfig));
+
             // Attempt to upgrade. If the ProxyAdmin is not the SuperchainConfig's admin, this will revert.
             upgradeToAndCall(
                 _superchainProxyAdmin,
@@ -848,9 +858,9 @@ contract OPContractsManagerUpgrader is OPContractsManagerBase {
         }
     }
 
-    /// @notice Retrieves the Superchain Config for a bridge contract
-    function getSuperchainConfig(address _hasSuperchainConfig) internal view returns (ISuperchainConfig) {
-        return IHasSuperchainConfig(_hasSuperchainConfig).superchainConfig();
+    /// @notice Sets a SuperchainConfig as upgraded.
+    function setSuperchainConfigUpgraded(address _superchainConfig) external {
+        isSuperchainConfigUpgraded[_superchainConfig] = true;
     }
 
     /// @notice Updates the implementation of a proxy without calling the initializer.
@@ -1932,8 +1942,16 @@ contract OPContractsManager is ISemver {
             thisOPCM.setRC(false);
         }
 
+        // Get the superchain config and superchain's proxy admin via the system config.
+        ISuperchainConfig _superchainConfig = superchainConfig;
+        IProxyAdmin _superchainProxyAdmin = superchainProxyAdmin;
+        if (_opChainConfigs.length > 0) {
+            _superchainConfig = _opChainConfigs[0].systemConfigProxy.superchainConfig();
+            _superchainProxyAdmin = _superchainConfig.proxyAdmin();
+        }
+
         bytes memory data = abi.encodeCall(
-            OPContractsManagerUpgrader.upgrade, (superchainConfig, superchainProxyAdmin, _opChainConfigs)
+            OPContractsManagerUpgrader.upgrade, (_superchainConfig, _superchainProxyAdmin, _opChainConfigs)
         );
         _performDelegateCall(address(opcmUpgrader), data);
     }
