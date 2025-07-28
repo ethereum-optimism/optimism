@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"math/big"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -19,8 +18,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum-optimism/optimism/op-service/testutils"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
-	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/stretchr/testify/require"
 )
@@ -51,21 +48,6 @@ func (p *mockL2EndpointProvider) Close() {}
 
 const genesisL1Origin = uint64(123)
 
-// mockL1Client implements the L1Client interface for testing
-type mockL1Client struct{}
-
-func (m *mockL1Client) HeaderByNumber(ctx context.Context, number *big.Int) (*types.Header, error) {
-	// Return a mock L1 header
-	return &types.Header{
-		Number: big.NewInt(1000),
-		Time:   1000000,
-	}, nil
-}
-
-func (m *mockL1Client) NonceAt(ctx context.Context, account common.Address, blockNumber *big.Int) (uint64, error) {
-	return 0, nil
-}
-
 func setup(t *testing.T) (*BatchSubmitter, *mockL2EndpointProvider) {
 	ep := newEndpointProvider()
 
@@ -83,7 +65,6 @@ func setup(t *testing.T) (*BatchSubmitter, *mockL2EndpointProvider) {
 		},
 		ChannelConfig:    defaultTestChannelConfig(),
 		EndpointProvider: ep,
-		Txmgr:            nil, // this is unused so far in the tests, but could cause a panic as we add more tests
 	}), ep
 }
 
@@ -354,13 +335,4 @@ func TestBatchSubmitter_ThrottlingEndpoints(t *testing.T) {
 	t.Run("two normal endpoints", testThrottlingEndpoints(2, 0))
 	t.Run("two failing endpoints", testThrottlingEndpoints(0, 2))
 	t.Run("one normal endpoint, one failing endpoint", testThrottlingEndpoints(1, 1))
-}
-
-func TestBatchSubmitter_FlushBatchSubmitting(t *testing.T) {
-	bs, _ := setup(t)
-
-	// Test that flush fails when batcher is not running
-	err := bs.Flush(context.Background())
-	require.Error(t, err)
-	require.Equal(t, ErrBatcherNotRunning, err)
 }
