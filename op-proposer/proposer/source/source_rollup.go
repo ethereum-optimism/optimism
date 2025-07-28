@@ -11,20 +11,26 @@ import (
 
 var supportedL2OutputVersion = eth.Bytes32{}
 
+// Encapsulates a rollup provider for L2OO & pre-interop DGF.
 type RollupProposalSource struct {
 	provider dial.RollupProvider
 }
 
+// Constructs a new `RollupProposalSource`.
 func NewRollupProposalSource(provider dial.RollupProvider) *RollupProposalSource {
 	return &RollupProposalSource{
 		provider: provider,
 	}
 }
 
+// Close the underlying rollup provider.
 func (r *RollupProposalSource) Close() {
 	r.provider.Close()
 }
 
+// Returns the current L1 block, safe L2 block number, and finalized L2 block number.
+//
+// Errors if the provider fails to select an active rollup client or if the rollup client fails to return a sync status.
 func (r *RollupProposalSource) SyncStatus(ctx context.Context) (SyncStatus, error) {
 	client, err := r.provider.RollupClient(ctx)
 	if err != nil {
@@ -41,6 +47,13 @@ func (r *RollupProposalSource) SyncStatus(ctx context.Context) (SyncStatus, erro
 	}, nil
 }
 
+// Returns the proposal data for the given sequence number.
+//
+// Errors if:
+//
+//   - The provider fails to select an active rollup client
+//   - The rollup client fails to return an output
+//   - The output is for an unsupported version
 func (r *RollupProposalSource) ProposalAtSequenceNum(ctx context.Context, blockNum uint64) (Proposal, error) {
 	client, err := r.provider.RollupClient(ctx)
 	if err != nil {

@@ -14,17 +14,22 @@ import (
 
 var ErrNilL1View = errors.New("every supervisor node L1 block view is nil")
 
+// Supervisor Client for post-interop DGF.
 type SupervisorClient interface {
 	SyncStatus(ctx context.Context) (eth.SupervisorSyncStatus, error)
 	SuperRootAtTimestamp(ctx context.Context, timestamp hexutil.Uint64) (eth.SuperRootResponse, error)
 	Close()
 }
 
+// Supervisor Proposal Source for post-interop DGF.
 type SupervisorProposalSource struct {
 	log     log.Logger
 	clients []SupervisorClient
 }
 
+// Constructs a new `SupervisorProposalSource`.
+//
+// Panics if no supervisor clients are provided.
 func NewSupervisorProposalSource(logger log.Logger, clients ...SupervisorClient) *SupervisorProposalSource {
 	if len(clients) == 0 {
 		panic("no supervisor clients provided")
@@ -35,12 +40,18 @@ func NewSupervisorProposalSource(logger log.Logger, clients ...SupervisorClient)
 	}
 }
 
+// Contains client sync information for message passing.
 type statusResult struct {
 	idx    int
 	status eth.SupervisorSyncStatus
 	err    error
 }
 
+// Returns the earliest L1 block, safe L2 block number, and finalized L2 block number from all supervisor clients.
+//
+// Errors if no clients return a valid minimum L1 block.
+//
+// Note: Errors accumulate if any client returns an error, but the function only fails if no clients return a valid minimum L1 block.
 func (s *SupervisorProposalSource) SyncStatus(ctx context.Context) (SyncStatus, error) {
 	var wg sync.WaitGroup
 	results := make(chan statusResult, len(s.clients))
@@ -86,6 +97,9 @@ func (s *SupervisorProposalSource) SyncStatus(ctx context.Context) (SyncStatus, 
 	}, nil
 }
 
+// Returns the proposal data for the given timestamp.
+//
+// Errors if all clients fail to return a proposal.
 func (s *SupervisorProposalSource) ProposalAtSequenceNum(ctx context.Context, timestamp uint64) (Proposal, error) {
 	var errs []error
 	for i, client := range s.clients {
@@ -107,6 +121,7 @@ func (s *SupervisorProposalSource) ProposalAtSequenceNum(ctx context.Context, ti
 	return Proposal{}, fmt.Errorf("no available proposal sources: %w", errors.Join(errs...))
 }
 
+// Close the underlying supervisor clients.
 func (s *SupervisorProposalSource) Close() {
 	for _, client := range s.clients {
 		client.Close()

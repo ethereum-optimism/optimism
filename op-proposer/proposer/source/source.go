@@ -7,6 +7,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 )
 
+// Proposal data for L2OO & DGF.
 type Proposal struct {
 	// Root is the proposal hash
 	Root common.Hash
@@ -21,6 +22,7 @@ type Proposal struct {
 	Legacy LegacyProposalData
 }
 
+// Legacy proposal data for L2OO and pre-interop DGF.
 type LegacyProposalData struct {
 	HeadL1      eth.L1BlockRef
 	SafeL2      eth.L2BlockRef
@@ -30,6 +32,7 @@ type LegacyProposalData struct {
 	BlockRef eth.L2BlockRef
 }
 
+// Common interface for all proposal sources.
 type ProposalSource interface {
 	ProposalAtSequenceNum(ctx context.Context, seqNum uint64) (Proposal, error)
 	SyncStatus(ctx context.Context) (SyncStatus, error)
@@ -38,6 +41,7 @@ type ProposalSource interface {
 	Close()
 }
 
+// Sync status for all proposal sources.
 type SyncStatus struct {
 	CurrentL1   eth.L1BlockRef
 	SafeL2      uint64
