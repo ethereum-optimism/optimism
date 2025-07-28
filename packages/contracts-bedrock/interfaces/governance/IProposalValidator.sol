@@ -172,8 +172,6 @@ interface IProposalValidator is ISemver {
         uint256 _duration,
         uint256 _votingCycleDistributionLimit,
         uint256 _proposalDistributionThreshold,
-        bytes32 _approvedProposerAttestationSchemaUid,
-        bytes32 _topDelegatesAttestationSchemaUid,
         ProposalType[] memory _proposalTypes,
         ProposalTypeData[] memory _proposalTypesData
     ) external;
@@ -190,9 +188,9 @@ interface IProposalValidator is ISemver {
 
     function initVersion() external view returns (uint8);
 
-    function approvedProposerAttestationSchemaUid() external view returns (bytes32);
+    function APPROVED_PROPOSER_ATTESTATION_SCHEMA_UID() external view returns (bytes32);
 
-    function topDelegatesAttestationSchemaUid() external view returns (bytes32);
+    function TOP_DELEGATES_ATTESTATION_SCHEMA_UID() external view returns (bytes32);
 
     function OPTIMISTIC_MODULE_PERCENT_DIVISOR() external view returns (uint256);
 
@@ -206,6 +204,8 @@ interface IProposalValidator is ISemver {
     );
 
     function __constructor__(
-        IOptimismGovernor _governor
+        IOptimismGovernor _governor,
+        bytes32 _approvedProposerAttestationSchemaUid,
+        bytes32 _topDelegatesAttestationSchemaUid
     ) external;
 }
