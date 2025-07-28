@@ -66,15 +66,10 @@ contract VerifyOPCM_TestInit is OPContractsManager_TestInit {
 contract VerifyOPCM_Run_Test is VerifyOPCM_TestInit {
     function setUp() public override {
         super.setUp();
-
-        // Set up environment variables with the actual OPCM addresses for tests that need them
-        vm.setEnv("EXPECTED_SUPERCHAIN_CONFIG", vm.toString(address(opcm.superchainConfig())));
-        vm.setEnv("EXPECTED_PROTOCOL_VERSIONS", vm.toString(address(opcm.protocolVersions())));
-        vm.setEnv("EXPECTED_SUPERCHAIN_PROXY_ADMIN", vm.toString(address(opcm.superchainProxyAdmin())));
-        vm.setEnv("EXPECTED_UPGRADE_CONTROLLER", vm.toString(opcm.upgradeController()));
+        setupEnvVars();
     }
-    /// @notice Tests that the script succeeds when no changes are introduced.
 
+    /// @notice Tests that the script succeeds when no changes are introduced.
     function test_run_succeeds() public {
         // Coverage changes bytecode and causes failures, skip.
         skipIfCoverage();
@@ -244,10 +239,7 @@ contract VerifyOPCM_Run_Test is VerifyOPCM_TestInit {
         skipIfCoverage();
 
         // Ensure environment variables are set correctly (in case other tests modified them)
-        vm.setEnv("EXPECTED_SUPERCHAIN_CONFIG", vm.toString(address(opcm.superchainConfig())));
-        vm.setEnv("EXPECTED_PROTOCOL_VERSIONS", vm.toString(address(opcm.protocolVersions())));
-        vm.setEnv("EXPECTED_SUPERCHAIN_PROXY_ADMIN", vm.toString(address(opcm.superchainProxyAdmin())));
-        vm.setEnv("EXPECTED_UPGRADE_CONTROLLER", vm.toString(opcm.upgradeController()));
+        setupEnvVars();
 
         // Test that the immutable variables are correctly verified.
         // Environment variables are set in setUp() to match the actual OPCM addresses.
@@ -293,9 +285,6 @@ contract VerifyOPCM_Run_Test is VerifyOPCM_TestInit {
         // Clear mock calls and restore original environment variables to avoid test isolation issues
         vm.clearMockedCalls();
         // Reset environment variables to correct values (as set in setUp())
-        vm.setEnv("EXPECTED_SUPERCHAIN_CONFIG", vm.toString(address(opcm.superchainConfig())));
-        vm.setEnv("EXPECTED_PROTOCOL_VERSIONS", vm.toString(address(opcm.protocolVersions())));
-        vm.setEnv("EXPECTED_SUPERCHAIN_PROXY_ADMIN", vm.toString(address(opcm.superchainProxyAdmin())));
-        vm.setEnv("EXPECTED_UPGRADE_CONTROLLER", vm.toString(opcm.upgradeController()));
+        setupEnvVars();
     }
 }

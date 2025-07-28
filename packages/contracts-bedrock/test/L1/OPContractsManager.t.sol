@@ -712,6 +712,14 @@ contract OPContractsManager_TestInit is Test {
         vm.deal(address(chainDeployOutput2.ethLockboxProxy), 100 ether);
     }
 
+    /// @notice Sets up the environment variables for the VerifyOPCM test.
+    function setupEnvVars() public {
+        vm.setEnv("EXPECTED_SUPERCHAIN_CONFIG", vm.toString(address(opcm.superchainConfig())));
+        vm.setEnv("EXPECTED_PROTOCOL_VERSIONS", vm.toString(address(opcm.protocolVersions())));
+        vm.setEnv("EXPECTED_SUPERCHAIN_PROXY_ADMIN", vm.toString(address(opcm.superchainProxyAdmin())));
+        vm.setEnv("EXPECTED_UPGRADE_CONTROLLER", vm.toString(opcm.upgradeController()));
+    }
+
     /// @notice Helper function to deploy a new set of L1 contracts via OPCM.
     /// @param _l2ChainId The L2 chain ID to deploy the contracts for.
     /// @return The deployed contracts.
