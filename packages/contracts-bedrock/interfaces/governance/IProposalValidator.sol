@@ -4,7 +4,6 @@ pragma solidity ^0.8.0;
 // Interfaces
 import {IOptimismGovernor} from './IOptimismGovernor.sol';
 import { ISemver } from "interfaces/universal/ISemver.sol";
-import { IProposalTypesConfigurator } from './IProposalTypesConfigurator.sol';
 
 /// @title IProposalValidator
 /// @notice Interface for the ProposalValidator contract.
@@ -22,6 +21,7 @@ interface IProposalValidator is ISemver {
     error ProposalValidator_ExceedsDistributionThreshold();
     error ProposalValidator_InvalidOptionsLength();
     error ProposalValidator_AttestationRevoked();
+    error ProposalValidator_AttestationExpired();
     error ProposalValidator_InvalidAttestationSchema();
     error ProposalValidator_InvalidCriteriaValue();
     error ProposalValidator_InvalidAgainstThreshold();
@@ -30,21 +30,24 @@ interface IProposalValidator is ISemver {
     error ProposalValidator_ProposalIdMismatch();
     error ProposalValidator_InvalidProposer();
     error ProposalValidator_InvalidProposal();
+    error ProposalValidator_InvalidVotingModule();
+    error ProposalValidator_InvalidTotalBudget();
+    error ProposalValidator_AttestationCreatedAfterLastVotingCycle();
 
     event ProposalSubmitted(
-        bytes32 indexed proposalHash,
+        uint256 indexed proposalId,
         address indexed proposer,
         string description,
         ProposalType proposalType
     );
 
     event ProposalApproved(
-        bytes32 indexed proposalHash,
+        uint256 indexed proposalId,
         address indexed approver
     );
 
     event ProposalMovedToVote(
-        bytes32 indexed proposalHash,
+        uint256 indexed proposalId,
         address indexed executor
     );
 
@@ -60,11 +63,11 @@ interface IProposalValidator is ISemver {
     event ProposalTypeDataSet(
         ProposalType proposalType,
         uint256 requiredApprovals,
-        uint8 proposalVotingModule
+        uint8 idInConfigurator
     );
 
     event ProposalVotingModuleData(
-        bytes32 indexed proposalHash,
+        uint256 indexed proposalId,
         bytes encodedVotingModuleData
     );
 
@@ -83,7 +86,7 @@ interface IProposalValidator is ISemver {
 
     struct ProposalTypeData {
         uint256 requiredApprovals;
-        uint8 proposalVotingModule;
+        uint8 idInConfigurator;
     }
 
     struct VotingCycleData {
@@ -106,8 +109,8 @@ interface IProposalValidator is ISemver {
         string memory _proposalDescription,
         bytes32 _attestationUid,
         ProposalType _proposalType,
-        uint256 _votingCycle
-    ) external returns (bytes32 proposalHash_);
+        uint256 _latestVotingCycle
+    ) external returns (uint256 proposalId_);
 
     function submitCouncilMemberElectionsProposal(
         uint128 _criteriaValue,
@@ -115,7 +118,7 @@ interface IProposalValidator is ISemver {
         string memory _proposalDescription,
         bytes32 _attestationUid,
         uint256 _votingCycle
-    ) external returns (bytes32 proposalHash_);
+    ) external returns (uint256 proposalId_);
 
     function submitFundingProposal(
         uint128 _criteriaValue,
@@ -125,22 +128,20 @@ interface IProposalValidator is ISemver {
         string memory _description,
         ProposalType _proposalType,
         uint256 _votingCycle
-    ) external returns (bytes32 proposalHash_);
+    ) external returns (uint256 proposalId_);
 
-    function approveProposal(bytes32 _proposalHash, bytes32 _attestationUid) external;
-
-    function canApproveProposal(bytes32 _attestationUid, address _delegate) external view returns (bool canApprove_);
+    function approveProposal(uint256 _proposalId, bytes32 _attestationUid) external;
 
     function moveToVoteProtocolOrGovernorUpgradeProposal(
         uint248 _againstThreshold,
         string memory _proposalDescription
-    ) external returns (bytes32 proposalHash_);
+    ) external returns (uint256 proposalId_);
 
     function moveToVoteCouncilMemberElectionsProposal(
         uint128 _criteriaValue,
         string[] memory _optionsDescriptions,
         string memory _proposalDescription
-    ) external returns (bytes32 proposalHash_);
+    ) external returns (uint256 proposalId_);
 
     function moveToVoteFundingProposal(
         uint128 _criteriaValue,
@@ -149,7 +150,7 @@ interface IProposalValidator is ISemver {
         uint256[] memory _optionsAmounts,
         string memory _description,
         ProposalType _proposalType
-    ) external returns (bytes32 proposalHash_);
+    ) external returns (uint256 proposalId_);
 
     function setVotingCycleData(
         uint256 _cycleNumber,
@@ -167,7 +168,6 @@ interface IProposalValidator is ISemver {
 
     function initialize(
         address _owner,
-        IProposalTypesConfigurator _proposalTypesConfigurator,
         uint256 _cycleNumber,
         uint256 _startingTimestamp,
         uint256 _duration,
@@ -195,9 +195,7 @@ interface IProposalValidator is ISemver {
 
     function OPTIMISTIC_MODULE_PERCENT_DIVISOR() external view returns (uint256);
 
-    function proposalTypesConfigurator() external view returns (IProposalTypesConfigurator);
-
-    function proposalTypesData(ProposalType) external view returns (uint256 requiredApprovals, uint8 proposalVotingModule);
+    function proposalTypesData(ProposalType) external view returns (uint256 requiredApprovals, uint8 idInConfigurator);
 
     function votingCycles(uint256) external view returns (
         uint256 startingTimestamp,
@@ -207,8 +205,8 @@ interface IProposalValidator is ISemver {
     );
 
     function __constructor__(
+        IOptimismGovernor _governor,
         bytes32 _approvedProposerAttestationSchemaUid,
-        bytes32 _topDelegatesAttestationSchemaUid,
-        IOptimismGovernor _governor
+        bytes32 _topDelegatesAttestationSchemaUid
     ) external;
 }

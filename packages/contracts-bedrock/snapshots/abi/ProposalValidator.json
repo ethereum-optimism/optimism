@@ -2,6 +2,11 @@
   {
     "inputs": [
       {
+        "internalType": "contract IOptimismGovernor",
+        "name": "_governor",
+        "type": "address"
+      },
+      {
         "internalType": "bytes32",
         "name": "_approvedProposerAttestationSchemaUid",
         "type": "bytes32"
@@ -10,11 +15,6 @@
         "internalType": "bytes32",
         "name": "_topDelegatesAttestationSchemaUid",
         "type": "bytes32"
-      },
-      {
-        "internalType": "contract IOptimismGovernor",
-        "name": "_governor",
-        "type": "address"
       }
     ],
     "stateMutability": "nonpayable",
@@ -75,9 +75,9 @@
   {
     "inputs": [
       {
-        "internalType": "bytes32",
-        "name": "_proposalHash",
-        "type": "bytes32"
+        "internalType": "uint256",
+        "name": "_proposalId",
+        "type": "uint256"
       },
       {
         "internalType": "bytes32",
@@ -88,30 +88,6 @@
     "name": "approveProposal",
     "outputs": [],
     "stateMutability": "nonpayable",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "bytes32",
-        "name": "_attestationUid",
-        "type": "bytes32"
-      },
-      {
-        "internalType": "address",
-        "name": "_delegate",
-        "type": "address"
-      }
-    ],
-    "name": "canApproveProposal",
-    "outputs": [
-      {
-        "internalType": "bool",
-        "name": "canApprove_",
-        "type": "bool"
-      }
-    ],
-    "stateMutability": "view",
     "type": "function"
   },
   {
@@ -132,11 +108,6 @@
       {
         "internalType": "address",
         "name": "_owner",
-        "type": "address"
-      },
-      {
-        "internalType": "contract IProposalTypesConfigurator",
-        "name": "_proposalTypesConfigurator",
         "type": "address"
       },
       {
@@ -178,7 +149,7 @@
           },
           {
             "internalType": "uint8",
-            "name": "proposalVotingModule",
+            "name": "idInConfigurator",
             "type": "uint8"
           }
         ],
@@ -213,9 +184,9 @@
     "name": "moveToVoteCouncilMemberElectionsProposal",
     "outputs": [
       {
-        "internalType": "bytes32",
-        "name": "proposalHash_",
-        "type": "bytes32"
+        "internalType": "uint256",
+        "name": "proposalId_",
+        "type": "uint256"
       }
     ],
     "stateMutability": "nonpayable",
@@ -257,9 +228,9 @@
     "name": "moveToVoteFundingProposal",
     "outputs": [
       {
-        "internalType": "bytes32",
-        "name": "proposalHash_",
-        "type": "bytes32"
+        "internalType": "uint256",
+        "name": "proposalId_",
+        "type": "uint256"
       }
     ],
     "stateMutability": "nonpayable",
@@ -281,9 +252,9 @@
     "name": "moveToVoteProtocolOrGovernorUpgradeProposal",
     "outputs": [
       {
-        "internalType": "bytes32",
-        "name": "proposalHash_",
-        "type": "bytes32"
+        "internalType": "uint256",
+        "name": "proposalId_",
+        "type": "uint256"
       }
     ],
     "stateMutability": "nonpayable",
@@ -316,19 +287,6 @@
     "type": "function"
   },
   {
-    "inputs": [],
-    "name": "proposalTypesConfigurator",
-    "outputs": [
-      {
-        "internalType": "contract IProposalTypesConfigurator",
-        "name": "",
-        "type": "address"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
     "inputs": [
       {
         "internalType": "enum ProposalValidator.ProposalType",
@@ -345,7 +303,7 @@
       },
       {
         "internalType": "uint8",
-        "name": "proposalVotingModule",
+        "name": "idInConfigurator",
         "type": "uint8"
       }
     ],
@@ -388,7 +346,7 @@
           },
           {
             "internalType": "uint8",
-            "name": "proposalVotingModule",
+            "name": "idInConfigurator",
             "type": "uint8"
           }
         ],
@@ -461,9 +419,9 @@
     "name": "submitCouncilMemberElectionsProposal",
     "outputs": [
       {
-        "internalType": "bytes32",
-        "name": "proposalHash_",
-        "type": "bytes32"
+        "internalType": "uint256",
+        "name": "proposalId_",
+        "type": "uint256"
       }
     ],
     "stateMutability": "nonpayable",
@@ -510,9 +468,9 @@
     "name": "submitFundingProposal",
     "outputs": [
       {
-        "internalType": "bytes32",
-        "name": "proposalHash_",
-        "type": "bytes32"
+        "internalType": "uint256",
+        "name": "proposalId_",
+        "type": "uint256"
       }
     ],
     "stateMutability": "nonpayable",
@@ -542,16 +500,16 @@
       },
       {
         "internalType": "uint256",
-        "name": "_votingCycle",
+        "name": "_latestVotingCycle",
         "type": "uint256"
       }
     ],
     "name": "submitUpgradeProposal",
     "outputs": [
       {
-        "internalType": "bytes32",
-        "name": "proposalHash_",
-        "type": "bytes32"
+        "internalType": "uint256",
+        "name": "proposalId_",
+        "type": "uint256"
       }
     ],
     "stateMutability": "nonpayable",
@@ -580,7 +538,7 @@
         "type": "string"
       }
     ],
-    "stateMutability": "pure",
+    "stateMutability": "view",
     "type": "function"
   },
   {
@@ -654,9 +612,9 @@
     "inputs": [
       {
         "indexed": true,
-        "internalType": "bytes32",
-        "name": "proposalHash",
-        "type": "bytes32"
+        "internalType": "uint256",
+        "name": "proposalId",
+        "type": "uint256"
       },
       {
         "indexed": true,
@@ -686,9 +644,9 @@
     "inputs": [
       {
         "indexed": true,
-        "internalType": "bytes32",
-        "name": "proposalHash",
-        "type": "bytes32"
+        "internalType": "uint256",
+        "name": "proposalId",
+        "type": "uint256"
       },
       {
         "indexed": true,
@@ -705,9 +663,9 @@
     "inputs": [
       {
         "indexed": true,
-        "internalType": "bytes32",
-        "name": "proposalHash",
-        "type": "bytes32"
+        "internalType": "uint256",
+        "name": "proposalId",
+        "type": "uint256"
       },
       {
         "indexed": true,
@@ -749,7 +707,7 @@
       {
         "indexed": false,
         "internalType": "uint8",
-        "name": "proposalVotingModule",
+        "name": "idInConfigurator",
         "type": "uint8"
       }
     ],
@@ -761,9 +719,9 @@
     "inputs": [
       {
         "indexed": true,
-        "internalType": "bytes32",
-        "name": "proposalHash",
-        "type": "bytes32"
+        "internalType": "uint256",
+        "name": "proposalId",
+        "type": "uint256"
       },
       {
         "indexed": false,
@@ -805,6 +763,16 @@
     ],
     "name": "VotingCycleDataSet",
     "type": "event"
+  },
+  {
+    "inputs": [],
+    "name": "ProposalValidator_AttestationCreatedAfterLastVotingCycle",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "ProposalValidator_AttestationExpired",
+    "type": "error"
   },
   {
     "inputs": [],
@@ -863,12 +831,22 @@
   },
   {
     "inputs": [],
+    "name": "ProposalValidator_InvalidTotalBudget",
+    "type": "error"
+  },
+  {
+    "inputs": [],
     "name": "ProposalValidator_InvalidUpgradeProposalType",
     "type": "error"
   },
   {
     "inputs": [],
     "name": "ProposalValidator_InvalidVotingCycle",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "ProposalValidator_InvalidVotingModule",
     "type": "error"
   },
   {
