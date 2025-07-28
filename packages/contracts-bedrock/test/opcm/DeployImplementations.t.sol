@@ -36,7 +36,6 @@ contract DeployImplementations_Test is Test {
     address challenger = makeAddr("challenger");
 
     function setUp() public virtual {
-        // We'll need to store some code on these two addresses so that the deployment script checks pass
         vm.etch(address(superchainConfigProxy), hex"01");
         vm.etch(address(protocolVersionsProxy), hex"01");
 
@@ -124,7 +123,11 @@ contract DeployImplementations_Test is Test {
             protocolVersionsProxy,
             superchainProxyAdmin,
             upgradeController,
-            challenger
+            challenger,
+            73, // gameMaxGameDepth
+            30, // gameSplitDepth
+            10800, // gameClockExtension
+            302400 // gameMaxClockDuration
         );
 
         DeployImplementations.Output memory output = deployImplementations.run(input);
@@ -258,7 +261,11 @@ contract DeployImplementations_Test is Test {
             protocolVersionsProxy,
             superchainProxyAdmin,
             upgradeController,
-            challenger
+            challenger,
+            73, // gameMaxGameDepth
+            30, // gameSplitDepth
+            10800, // gameClockExtension
+            302400 // gameMaxClockDuration
         );
     }
 }

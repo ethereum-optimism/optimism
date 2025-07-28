@@ -349,6 +349,7 @@ contract DeployOPChain_TestBase is Test {
                 protocolVersionsProxy: protocolVersionsProxy,
                 superchainProxyAdmin: superchainProxyAdmin,
                 upgradeController: upgradeController,
+                challenger: address(0xfacade),
                 gameMaxGameDepth: 73,
                 gameSplitDepth: 30,
                 gameClockExtension: 10800,
