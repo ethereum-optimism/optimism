@@ -50,6 +50,8 @@ func (*noopMetrics) RecordThrottleControllerType(controllerType config.ThrottleC
 func (*noopMetrics) RecordPendingBytesVsThreshold(pendingBytes, threshold uint64, controllerType config.ThrottleControllerType) {
 }
 
+func (*noopMetrics) RecordUnsafeDABytes(int64) {}
+
 // PID Controller specific metrics
 func (*noopMetrics) RecordThrottleControllerState(error, integral, derivative float64) {}
 func (*noopMetrics) RecordThrottleResponseTime(duration time.Duration)                 {}

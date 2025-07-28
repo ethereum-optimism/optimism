@@ -10,7 +10,7 @@ import (
 
 func TestThrottleMetrics(t *testing.T) {
 
-	metrics := NewMetrics("test", func() float64 { return 0 })
+	metrics := NewMetrics("test")
 
 	// Initial metrics
 	metrics.RecordThrottleControllerType(config.StepControllerType)

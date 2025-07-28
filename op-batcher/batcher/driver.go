@@ -402,6 +402,13 @@ const (
 	TxpoolCancelPending
 )
 
+func (l *BatchSubmitter) unsafeDABytes() int64 {
+	l.channelMgrMutex.Lock()
+	unsafeDABytes := l.channelMgr.UnsafeDABytes()
+	l.channelMgrMutex.Unlock()
+	return unsafeDABytes
+}
+
 // sendToThrottlingLoop sends the current pending bytes to the throttling loop.
 // It is not blocking, no signal will be sent if the channel is full.
 func (l *BatchSubmitter) sendToThrottlingLoop(pendingBytesUpdated chan int64) {
@@ -409,13 +416,9 @@ func (l *BatchSubmitter) sendToThrottlingLoop(pendingBytesUpdated chan int64) {
 		return
 	}
 
-	l.channelMgrMutex.Lock()
-	pendingBytes := l.channelMgr.PendingDABytes()
-	l.channelMgrMutex.Unlock()
-
 	// notify the throttling loop it may be time to initiate throttling without blocking
 	select {
-	case pendingBytesUpdated <- pendingBytes:
+	case pendingBytesUpdated <- l.unsafeDABytes():
 	default:
 	}
 }
@@ -673,6 +676,7 @@ func (l *BatchSubmitter) throttlingLoop(wg *sync.WaitGroup, pendingBytesUpdated 
 	}
 
 	for pb := range pendingBytesUpdated {
+		l.Metr.RecordUnsafeDABytes(pb)
 		newParams := l.throttleController.Update(uint64(pb))
 		controllerType := l.throttleController.GetType()
 
@@ -1152,16 +1156,11 @@ func (l *BatchSubmitter) SetThrottleController(newType config.ThrottleController
 func (l *BatchSubmitter) GetThrottleControllerInfo() (config.ThrottleControllerInfo, error) {
 	controllerType, params := l.throttleController.Load()
 
-	// Get current pending bytes
-	l.channelMgrMutex.Lock()
-	currentLoad := uint64(l.channelMgr.PendingDABytes())
-	l.channelMgrMutex.Unlock()
-
 	info := config.ThrottleControllerInfo{
 		Type:         string(controllerType),
 		Threshold:    l.Config.ThrottleParams.Threshold,
 		MaxThreshold: float64(l.Config.ThrottleParams.Threshold) * l.Config.ThrottleParams.ThresholdMultiplier,
-		CurrentLoad:  currentLoad,
+		CurrentLoad:  uint64(l.unsafeDABytes()),
 		Intensity:    params.Intensity,
 		MaxTxSize:    params.MaxTxSize,
 		MaxBlockSize: params.MaxBlockSize,

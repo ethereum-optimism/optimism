@@ -49,6 +49,7 @@ type Metricer interface {
 	RecordThrottleParams(maxTxSize, maxBlockSize uint64)
 	RecordThrottleControllerType(controllerType config.ThrottleControllerType)
 	RecordPendingBytesVsThreshold(pendingBytes, threshold uint64, controllerType config.ThrottleControllerType)
+	RecordUnsafeDABytes(int64)
 
 	// PID Controller specific metrics
 	RecordThrottleControllerState(error, integral, derivative float64)
@@ -91,6 +92,8 @@ type Metrics struct {
 	pendingDABytes          int64
 	pendingDABytesGaugeFunc prometheus.GaugeFunc
 
+	unsafeDABytesGauge prometheus.Gauge
+
 	blocksAddedCount prometheus.Gauge
 
 	channelInputBytes       prometheus.GaugeVec
@@ -126,7 +129,7 @@ var _ Metricer = (*Metrics)(nil)
 // implements the Registry getter, for metrics HTTP server to hook into
 var _ opmetrics.RegistryMetricer = (*Metrics)(nil)
 
-func NewMetrics(procName string, unsafeDABytesGetter func() float64) *Metrics {
+func NewMetrics(procName string) *Metrics {
 	if procName == "" {
 		procName = "default"
 	}
@@ -290,17 +293,17 @@ func NewMetrics(procName string, unsafeDABytesGetter func() float64) *Metrics {
 			Help:      "Response time of the PID controller",
 			Buckets:   prometheus.DefBuckets,
 		}),
+		unsafeDABytesGauge: factory.NewGauge(prometheus.GaugeOpts{
+			Namespace: ns,
+			Name:      "unsafe_da_bytes",
+			Help:      "The estimated number of unsafe DA bytes",
+		}),
 	}
 	m.pendingDABytesGaugeFunc = factory.NewGaugeFunc(prometheus.GaugeOpts{
 		Namespace: ns,
 		Name:      "pending_da_bytes",
 		Help:      "The estimated amount of data currently pending to be written to the DA layer (from blocks fetched from L2 but not yet in a channel).",
 	}, m.PendingDABytes)
-	m.unsafeDABytesGaugeFunc = factory.NewGaugeFunc(prometheus.GaugeOpts{
-		Namespace: ns,
-		Name:      "unsafe_da_bytes",
-		Help:      "estimate of the number of unsafe DA bytes",
-	}, unsafeDABytesGetter)
 
 	return m
 }
@@ -392,14 +395,14 @@ func (m *Metrics) RecordChannelClosed(id derive.ChannelID, numPendingBlocks int,
 }
 
 func (m *Metrics) RecordL2BlockInPendingQueue(block *types.Block) {
-	daSize, rawSize := estimateBatchSize(block)
+	daSize, rawSize := EstimateBatchSize(block)
 	m.pendingBlocksBytesTotal.Add(float64(rawSize))
 	m.pendingBlocksBytesCurrent.Add(float64(rawSize))
 	atomic.AddInt64(&m.pendingDABytes, int64(daSize))
 }
 
 func (m *Metrics) RecordL2BlockInChannel(block *types.Block) {
-	daSize, rawSize := estimateBatchSize(block)
+	daSize, rawSize := EstimateBatchSize(block)
 	m.pendingBlocksBytesCurrent.Add(-1.0 * float64(rawSize))
 	atomic.AddInt64(&m.pendingDABytes, -1*int64(daSize))
 	// Refer to RecordL2BlocksAdded to see the current + count of bytes added to a channel
@@ -475,6 +478,10 @@ func (m *Metrics) RecordPendingBytesVsThreshold(pendingBytes, threshold uint64, 
 	}
 }
 
+func (m *Metrics) RecordUnsafeDABytes(unsafeDABytes int64) {
+	m.unsafeDABytesGauge.Set(float64(unsafeDABytes))
+}
+
 // ClearAllStateMetrics clears all state metrics.
 //
 // This should cover any metric which is a Gauge and is incremented / decremented rather than "set".
@@ -486,9 +493,9 @@ func (m *Metrics) ClearAllStateMetrics() {
 	m.pendingBlocksBytesCurrent.Set(0)
 }
 
-// estimateBatchSize returns the estimated size of the block in a batch both with compression ('daSize') and without
+// EstimateBatchSize returns the estimated size of the block in a batch both with compression ('daSize') and without
 // ('rawSize').
-func estimateBatchSize(block *types.Block) (daSize, rawSize uint64) {
+func EstimateBatchSize(block *types.Block) (daSize, rawSize uint64) {
 	daSize = uint64(70) // estimated overhead of batch metadata
 	rawSize = uint64(70)
 	for _, tx := range block.Transactions() {
