@@ -279,7 +279,10 @@ func (s *channelManager) getReadyChannel(l1Head eth.BlockID, forcePublish bool) 
 		if forcePublish && ch.NoneSubmitted() {
 			s.log.Info("Force closing channel", "channel_id", ch.ID())
 			ch.Close()
-			ch.OutputFrames()
+			err := ch.OutputFrames()
+			if err != nil {
+				return nil, err
+			}
 		}
 		if ch.HasTxData() {
 			firstWithTxData = ch
