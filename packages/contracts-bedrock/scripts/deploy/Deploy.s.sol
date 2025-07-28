@@ -320,8 +320,10 @@ contract Deploy is Deployer {
         // ChainAssertions.checkETHLockbox({ _contracts: impls, _cfg: cfg, _isProxy: false });
         // ChainAssertions.checkOptimismMintableERC20Factory({ _contracts: impls, _isProxy: false });
         // ChainAssertions.checkDisputeGameFactory({ _contracts: impls, _expectedOwner: address(0), _isProxy: false });
-        // ChainAssertions.checkDelayedWETH({ _contracts: impls, _cfg: cfg, _isProxy: false, _expectedOwner: address(0) });
-        // ChainAssertions.checkPreimageOracle({ _oracle: IPreimageOracle(address(dio.preimageOracleSingleton)), _cfg: cfg });
+        // ChainAssertions.checkDelayedWETH({ _contracts: impls, _cfg: cfg, _isProxy: false, _expectedOwner: address(0)
+        // });
+        // ChainAssertions.checkPreimageOracle({ _oracle: IPreimageOracle(address(dio.preimageOracleSingleton)), _cfg:
+        // cfg });
         // ChainAssertions.checkMIPS({
         //     _mips: IMIPS(address(dio.mipsSingleton)),
         //     _oracle: IPreimageOracle(address(dio.preimageOracleSingleton))

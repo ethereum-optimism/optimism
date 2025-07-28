@@ -881,7 +881,6 @@ contract StandardValidator_PermissionedDisputeGame_Test is StandardValidator_Tes
         assertEq("PDDG-20", _validate(true, validationOverrides));
     }
 
-
     /// @notice Tests that the validate function successfully returns the right error when the
     ///         PermissionedDisputeGame absolute prestate is invalid.
     function test_validate_permissionedDisputeGameInvalidAbsolutePrestate_succeeds() public {
@@ -892,7 +891,6 @@ contract StandardValidator_PermissionedDisputeGame_Test is StandardValidator_Tes
         );
         assertEq("PDDG-40", _validate(true, validationOverrides));
     }
-
 
     /// @notice Tests that the validate function successfully returns the right error when the
     ///         PermissionedDisputeGame L2 Chain ID is invalid.
@@ -940,7 +938,6 @@ contract StandardValidator_PermissionedDisputeGame_Test is StandardValidator_Tes
         assertEq("PDDG-110", _validate(true, validationOverrides));
     }
 
-
     /// @notice Tests that the validate function successfully returns the right error when the
     ///         PermissionedDisputeGame challenger is invalid.
     function test_validate_permissionedDisputeGameInvalidChallenger_succeeds() public {
@@ -963,7 +960,6 @@ contract StandardValidator_PermissionedDisputeGame_Test is StandardValidator_Tes
         assertEq("OVERRIDES-CHALLENGER,PDDG-130", _validate(true, validationOverrides));
     }
 }
-
 
 /// @title StandardValidator_DelayedWETH_Test
 /// @notice Tests validation of `DelayedWETH` configuration
@@ -1058,7 +1054,6 @@ contract StandardValidator_DelayedWETH_Test is StandardValidator_TestInit {
     }
 }
 
-
 /// @title StandardValidator_FaultDisputeGame_Test
 /// @notice Tests validation of `FaultDisputeGame` configuration
 contract StandardValidator_FaultDisputeGame_Test is StandardValidator_TestInit {
@@ -1080,7 +1075,6 @@ contract StandardValidator_FaultDisputeGame_Test is StandardValidator_TestInit {
         assertEq("PLDG-20", _validate(true, validationOverrides));
     }
 
-
     /// @notice Tests that the validate function successfully returns the right error when the
     ///         FaultDisputeGame (permissionless) absolute prestate is invalid.
     function test_validate_faultDisputeGameInvalidAbsolutePrestate_succeeds() public {
@@ -1091,7 +1085,6 @@ contract StandardValidator_FaultDisputeGame_Test is StandardValidator_TestInit {
         );
         assertEq("PLDG-40", _validate(true, validationOverrides));
     }
-
 
     /// @notice Tests that the validate function successfully returns the right error when the
     ///         FaultDisputeGame (permissionless) L2 Chain ID is invalid.

@@ -485,9 +485,7 @@ contract DeployImplementations is Script {
         IFaultDisputeGame impl = IFaultDisputeGame(
             DeployUtils.createDeterministic({
                 _name: "FaultDisputeGame",
-                _args: DeployUtils.encodeConstructor(
-                    abi.encodeCall(IFaultDisputeGame.__constructor__, (params))
-                ),
+                _args: DeployUtils.encodeConstructor(abi.encodeCall(IFaultDisputeGame.__constructor__, (params))),
                 _salt: _salt
             })
         );
@@ -529,9 +527,7 @@ contract DeployImplementations is Script {
         ISuperFaultDisputeGame impl = ISuperFaultDisputeGame(
             DeployUtils.createDeterministic({
                 _name: "SuperFaultDisputeGame",
-                _args: DeployUtils.encodeConstructor(
-                    abi.encodeCall(ISuperFaultDisputeGame.__constructor__, (params))
-                ),
+                _args: DeployUtils.encodeConstructor(abi.encodeCall(ISuperFaultDisputeGame.__constructor__, (params))),
                 _salt: _salt
             })
         );
@@ -552,8 +548,9 @@ contract DeployImplementations is Script {
             DeployUtils.createDeterministic({
                 _name: "SuperPermissionedDisputeGame",
                 _args: DeployUtils.encodeConstructor(
-                    abi.encodeCall(ISuperPermissionedDisputeGame.__constructor__, (params, address(0), _input.challenger)) /// TODO: need to set first parameter
+                    abi.encodeCall(ISuperPermissionedDisputeGame.__constructor__, (params, address(0), _input.challenger))
                 ),
+                /// TODO: need to set first parameter
                 _salt: _salt
             })
         );

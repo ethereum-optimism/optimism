@@ -602,7 +602,8 @@ contract OPContractsManagerStandardValidator is ISemver {
         );
         /// TODO: moved to immutable arg steven - update validation
         // _errors = internalRequire(
-        //     GameType.unwrap(_game.gameType()) == GameType.unwrap(_gameType), string.concat(_errorPrefix, "-30"), _errors
+        //     GameType.unwrap(_game.gameType()) == GameType.unwrap(_gameType), string.concat(_errorPrefix, "-30"),
+        // _errors
         // );
         _errors = internalRequire(
             Claim.unwrap(_game.absolutePrestate()) == _absolutePrestate, string.concat(_errorPrefix, "-40"), _errors
@@ -618,13 +619,14 @@ contract OPContractsManagerStandardValidator is ISemver {
             Duration.unwrap(_game.maxClockDuration()) == 302400, string.concat(_errorPrefix, "-110"), _errors
         );
         /// TODO: moved to immutable arg steven - update validation
-        // _errors = internalRequire(Hash.unwrap(anchorRoot) != bytes32(0), string.concat(_errorPrefix, "-120"), _errors);
+        // _errors = internalRequire(Hash.unwrap(anchorRoot) != bytes32(0), string.concat(_errorPrefix, "-120"),
+        // _errors);
 
         _errors = assertValidDelayedWETH(_errors, _sysCfg, _game.weth(), _admin, _overrides, _errorPrefix);
         /// TODO: moved to immutable arg steven - update validation
         // _errors = assertValidAnchorStateRegistry(_errors, _sysCfg, _factory, _asr, _admin, _errorPrefix);
 
-        /// TODO: moved to immutable arg steven - update validation  
+        /// TODO: moved to immutable arg steven - update validation
         // _errors = assertValidMipsVm(_errors, IMIPS64(address(_game.vm())), _errorPrefix);
 
         /// TODO: moved to immutable arg steven - update validation

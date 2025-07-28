@@ -850,7 +850,6 @@ contract OPContractsManager_ChainIdToBatchInboxAddress_Test is Test {
     OPContractsManager_Harness opcmHarness;
     address challenger = makeAddr("challenger");
 
-
     function setUp() public {
         ISuperchainConfig superchainConfigProxy = ISuperchainConfig(makeAddr("superchainConfig"));
         IProtocolVersions protocolVersionsProxy = IProtocolVersions(makeAddr("protocolVersions"));
@@ -875,9 +874,13 @@ contract OPContractsManager_ChainIdToBatchInboxAddress_Test is Test {
             _opcmDeployer: new OPContractsManagerDeployer(container),
             _opcmUpgrader: new OPContractsManagerUpgrader(container),
             _opcmInteropMigrator: new OPContractsManagerInteropMigrator(container),
-            _opcmStandardValidator: IOPContractsManagerStandardValidator(address(new OPContractsManagerStandardValidator(
-                opcmImplementations, superchainConfigProxy, address(superchainProxyAdmin), challenger, 100
-            ))),
+            _opcmStandardValidator: IOPContractsManagerStandardValidator(
+                address(
+                    new OPContractsManagerStandardValidator(
+                        opcmImplementations, superchainConfigProxy, address(superchainProxyAdmin), challenger, 100
+                    )
+                )
+            ),
             _superchainConfig: superchainConfigProxy,
             _protocolVersions: protocolVersionsProxy,
             _superchainProxyAdmin: superchainProxyAdmin,
