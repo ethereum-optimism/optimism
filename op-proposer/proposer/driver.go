@@ -376,16 +376,7 @@ func (l *L2OutputSubmitter) waitForL1Head(ctx context.Context, blockNum uint64) 
 func (l *L2OutputSubmitter) sendTransaction(ctx context.Context, output source.Proposal) error {
 	l.Log.Info("Proposing output root", "output", output.Root, "block", output.SequenceNum)
 	var receipt *types.Receipt
-	if l.Cfg.DisputeGameFactoryAddr != nil {
-		candidate, err := l.ProposeL2OutputDGFTxCandidate(ctx, output)
-		if err != nil {
-			return err
-		}
-		receipt, err = l.Txmgr.Send(ctx, candidate)
-		if err != nil {
-			return err
-		}
-	} else {
+	if l.Cfg.L2OutputOracleAddr != nil {
 		err := l.waitForL1Head(ctx, output.Legacy.HeadL1.Number+1)
 		if err != nil {
 			return err
@@ -399,6 +390,15 @@ func (l *L2OutputSubmitter) sendTransaction(ctx context.Context, output source.P
 			To:       l.Cfg.L2OutputOracleAddr,
 			GasLimit: 0,
 		})
+		if err != nil {
+			return err
+		}
+	} else {
+		candidate, err := l.ProposeL2OutputDGFTxCandidate(ctx, output)
+		if err != nil {
+			return err
+		}
+		receipt, err = l.Txmgr.Send(ctx, candidate)
 		if err != nil {
 			return err
 		}
