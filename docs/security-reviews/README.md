@@ -44,3 +44,4 @@ Please see the report for the specific details.
 | 2025-06 | Radiant Labs                | Cannon Go 1.24 support                                                                                                                                                                                                    | [2025_06-Cannon-3DOC.pdf](./2025_06-Cannon-3DOC.pdf)                                                                                                       | 689111fca9a10e6670ba0b5c7f1a549a212c855b |                     |
 
 [kontrol]: https://github.com/ethereum-optimism/optimism/blob/876e16ad04968f0bb641eb76f98eb77e7e1a3e16/packages/contracts-bedrock/test/kontrol/README.md
+| 2025-07 | Spearbit | Upgrade 16 | [2025_07-Upgrade16-Spearbit.pdf](./2025_07-Upgrade16-Spearbit.pdf) |  |  |
