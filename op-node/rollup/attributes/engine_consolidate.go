@@ -75,7 +75,7 @@ func AttributesMatchBlock(rollupCfg *rollup.Config, attrs *eth.PayloadAttributes
 	if attrs.SuggestedFeeRecipient != block.FeeRecipient {
 		return fmt.Errorf("fee recipient data does not match, expected %s but got %s", block.FeeRecipient, attrs.SuggestedFeeRecipient)
 	}
-	if err := checkEIP1559ParamsMatch(rollupCfg.ChainOpConfig, attrs.EIP1559Params, block.ExtraData, attrs.MinBaseFeeLog2, rollupCfg.IsJovian(uint64(block.Timestamp))); err != nil {
+	if err := checkEIP1559ParamsMatch(rollupCfg.ChainOpConfig, attrs.EIP1559Params, block.ExtraData, attrs.MinBaseFeeLog2, rollupCfg.IsConfigurableMinBaseFeeEnabled(uint64(block.Timestamp))); err != nil {
 		return err
 	}
 
@@ -97,7 +97,7 @@ func checkParentBeaconBlockRootMatch(attrRoot, blockRoot *common.Hash) error {
 	return nil
 }
 
-func checkEIP1559ParamsMatch(opCfg *params.OptimismConfig, attrParams *eth.Bytes8, blockExtraData []byte, minBaseFeeLog2 uint8, isJovian bool) error {
+func checkEIP1559ParamsMatch(opCfg *params.OptimismConfig, attrParams *eth.Bytes8, blockExtraData []byte, minBaseFeeLog2 uint8, isConfigurableMinBaseFee bool) error {
 
 	// Note that we can assume that the attributes' eip1559params are non-nil iff Holocene is active
 	// according to the local rollup config.
@@ -113,7 +113,7 @@ func checkEIP1559ParamsMatch(opCfg *params.OptimismConfig, attrParams *eth.Bytes
 		}
 
 		// Validate block extraData based on fork
-		if isJovian {
+		if isConfigurableMinBaseFee {
 			if err := eip1559.ValidateMinBaseFeeExtraData(blockExtraData); err != nil {
 				return fmt.Errorf("invalid block extraData: %w", err)
 			}
@@ -140,7 +140,7 @@ func checkEIP1559ParamsMatch(opCfg *params.OptimismConfig, attrParams *eth.Bytes
 			bd, be uint64
 			bm     uint8
 		)
-		if isJovian {
+		if isConfigurableMinBaseFee {
 			bd, be, bm = eip1559.DecodeMinBaseFeeExtraData(blockExtraData)
 			if bm != minBaseFeeLog2 {
 				return fmt.Errorf("minBaseFeeLog2 does not match, attributes: %d, block: %d", minBaseFeeLog2, bm)
