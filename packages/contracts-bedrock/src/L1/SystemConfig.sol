@@ -123,9 +123,6 @@ contract SystemConfig is ProxyAdminOwnedBase, OwnableUpgradeable, Reinitializabl
     /// @notice The EIP-1559 elasticity multiplier.
     uint32 public eip1559Elasticity;
 
-    /// @notice The min base fee log2.
-    uint8 public minBaseFeeLog2;
-
     /// @notice The operator fee scalar.
     uint32 public operatorFeeScalar;
 
@@ -137,6 +134,9 @@ contract SystemConfig is ProxyAdminOwnedBase, OwnableUpgradeable, Reinitializabl
 
     /// @notice The SuperchainConfig contract that manages the pause state.
     ISuperchainConfig public superchainConfig;
+
+    /// @notice The min base fee log2.
+    uint8 public minBaseFeeLog2;
 
     /// @notice Emitted when configuration is updated.
     /// @param version    SystemConfig version.
