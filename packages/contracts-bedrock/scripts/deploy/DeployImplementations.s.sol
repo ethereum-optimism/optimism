@@ -7,7 +7,7 @@ import { Script } from "forge-std/Script.sol";
 import { Chains } from "scripts/libraries/Chains.sol";
 import { LibString } from "@solady/utils/LibString.sol";
 import { Types } from "scripts/libraries/Types.sol";
-import { GameType, Duration } from "src/dispute/lib/Types.sol";
+import { GameType, GameTypes, Duration } from "src/dispute/lib/Types.sol";
 
 // Interfaces
 import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
@@ -475,7 +475,7 @@ contract DeployImplementations is Script {
 
     function deployFaultDisputeGameImpl(Input memory _input, Output memory _output) private {
         IFaultDisputeGame.GameConstructorParams memory params = IFaultDisputeGame.GameConstructorParams({
-            gameType: GameType.wrap(0), // Will be set by OPCM
+            gameType: GameTypes.CANNON,
             maxGameDepth: _input.gameMaxGameDepth,
             splitDepth: _input.gameSplitDepth,
             clockExtension: Duration.wrap(uint64(_input.gameClockExtension)),
@@ -497,7 +497,7 @@ contract DeployImplementations is Script {
 
     function deployPermissionedDisputeGameImpl(Input memory _input, Output memory _output) private {
         IFaultDisputeGame.GameConstructorParams memory params = IFaultDisputeGame.GameConstructorParams({
-            gameType: GameType.wrap(0), // Will be set by OPCM
+            gameType: GameTypes.PERMISSIONED_CANNON,
             maxGameDepth: _input.gameMaxGameDepth,
             splitDepth: _input.gameSplitDepth,
             clockExtension: Duration.wrap(uint64(_input.gameClockExtension)),
@@ -519,7 +519,7 @@ contract DeployImplementations is Script {
 
     function deploySuperFaultDisputeGameImpl(Input memory _input, Output memory _output) private {
         ISuperFaultDisputeGame.GameConstructorParams memory params = ISuperFaultDisputeGame.GameConstructorParams({
-            gameType: GameType.wrap(0), // Will be set by OPCM
+            gameType: GameTypes.SUPER_CANNON,
             maxGameDepth: _input.gameMaxGameDepth,
             splitDepth: _input.gameSplitDepth,
             clockExtension: Duration.wrap(uint64(_input.gameClockExtension)),
@@ -541,7 +541,7 @@ contract DeployImplementations is Script {
 
     function deploySuperPermissionedDisputeGameImpl(Input memory _input, Output memory _output) private {
         ISuperFaultDisputeGame.GameConstructorParams memory params = ISuperFaultDisputeGame.GameConstructorParams({
-            gameType: GameType.wrap(0), // Will be set by OPCM
+            gameType: GameTypes.SUPER_PERMISSIONED_CANNON,
             maxGameDepth: _input.gameMaxGameDepth,
             splitDepth: _input.gameSplitDepth,
             clockExtension: Duration.wrap(uint64(_input.gameClockExtension)),
