@@ -1,6 +1,7 @@
 package artifacts
 
 import (
+	"errors"
 	"fmt"
 	"net/url"
 	"strings"
@@ -69,6 +70,10 @@ func NewFileLocator(path string) (*Locator, error) {
 
 func (a *Locator) UnmarshalText(text []byte) error {
 	str := string(text)
+
+	if strings.HasPrefix(str, "tag://") {
+		return errors.New("tag:// locators are no longer supported - use embedded artifacts instead")
+	}
 
 	if str == "embedded" {
 		*a = *EmbeddedLocator

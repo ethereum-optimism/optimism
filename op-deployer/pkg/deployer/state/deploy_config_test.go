@@ -42,8 +42,8 @@ func TestCombineDeployConfig(t *testing.T) {
 		"l2GenesisGraniteTimeOffset":  "0x2",
 		"l2GenesisHoloceneTimeOffset": "0x3",
 		"l2GenesisIsthmusTimeOffset":  "0x4",
-		"l2GenesisInteropTimeOffset":  "0x5",
-		"l2GenesisJovianTimeOffset":   "0x6",
+		"l2GenesisJovianTimeOffset":   "0x5",
+		"l2GenesisInteropTimeOffset":  "0x6",
 	}
 
 	out, err := CombineDeployConfig(&intent, &chainIntent, &state, &chainState)
@@ -52,6 +52,6 @@ func TestCombineDeployConfig(t *testing.T) {
 	require.Equal(t, *out.L2InitializationConfig.UpgradeScheduleDeployConfig.L2GenesisGraniteTimeOffset, hexutil.Uint64(2))
 	require.Equal(t, *out.L2InitializationConfig.UpgradeScheduleDeployConfig.L2GenesisHoloceneTimeOffset, hexutil.Uint64(3))
 	require.Equal(t, *out.L2InitializationConfig.UpgradeScheduleDeployConfig.L2GenesisIsthmusTimeOffset, hexutil.Uint64(4))
-	require.Equal(t, *out.L2InitializationConfig.UpgradeScheduleDeployConfig.L2GenesisInteropTimeOffset, hexutil.Uint64(5))
-	require.Equal(t, *out.L2InitializationConfig.UpgradeScheduleDeployConfig.L2GenesisJovianTimeOffset, hexutil.Uint64(6))
+	require.Equal(t, *out.L2InitializationConfig.UpgradeScheduleDeployConfig.L2GenesisJovianTimeOffset, hexutil.Uint64(5))
+	require.Equal(t, *out.L2InitializationConfig.UpgradeScheduleDeployConfig.L2GenesisInteropTimeOffset, hexutil.Uint64(6))
 }
