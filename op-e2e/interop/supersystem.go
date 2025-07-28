@@ -176,6 +176,7 @@ func (s *interopE2ESystem) prepareWorld(w WorldResourcePaths) (*interopgen.World
 
 	for _, l2Cfg := range worldCfg.L2s {
 		require.NotNil(s.t, l2Cfg.L2GenesisIsthmusTimeOffset, "expecting isthmus fork to be enabled for interop deployments")
+		require.NotNil(s.t, l2Cfg.L2GenesisIsthmusTimeOffset, "expecting jovian fork to be enabled for interop deployments")
 	}
 
 	// create a logger for the world configuration
