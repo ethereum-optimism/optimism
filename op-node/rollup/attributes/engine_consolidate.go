@@ -143,18 +143,9 @@ func checkExtraDataParamsMatch(cfg *rollup.Config, blockTimestamp uint64, attrPa
 		if ad != bd || ae != be {
 			extraErr := ""
 			if translated {
-				if isJovian {
-					extraErr = " (translated from 0,0,0)"
-				} else {
-					extraErr = " (translated from 0,0)"
-				}
+				extraErr = " (translated from 0,0)"
 			}
-
-			if isJovian {
-				return fmt.Errorf("eip1559 parameters do not match, attributes: %d, %d%s, block: %d, %d, %d", ad, ae, extraErr, bd, be, bm)
-			} else {
-				return fmt.Errorf("eip1559 parameters do not match, attributes: %d, %d%s, block: %d, %d", ad, ae, extraErr, bd, be)
-			}
+			return fmt.Errorf("eip1559 parameters do not match, attributes: %d, %d%s, block: %d, %d", ad, ae, extraErr, bd, be)
 		}
 		if bm == nil && attrMinBaseFee != nil || bm != nil && attrMinBaseFee == nil || bm != nil && attrMinBaseFee != nil && *bm != *attrMinBaseFee {
 			return fmt.Errorf("minBaseFee does not match, attributes: %d, block: %d", attrMinBaseFee, bm)
