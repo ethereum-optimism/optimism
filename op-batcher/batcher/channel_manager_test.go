@@ -430,11 +430,8 @@ func TestChannelManager_handleChannelInvalidated(t *testing.T) {
 
 	// Setup initial metrics
 	metrics.RecordL2BlockInPendingQueue(blockA)
-	metrics.RecordL2BlockEnqueued(blockA)
 	metrics.RecordL2BlockInPendingQueue(blockB)
-	metrics.RecordL2BlockEnqueued(blockB)
 	pendingBytesBefore := metrics.PendingBlocksBytesCurrent
-	unsafeBytesBefore := metrics.UnsafeDABytes()
 
 	// Trigger the blocks -> channelQueue data pipelining
 	require.NoError(t, m.ensureChannelWithSpace(eth.BlockID{}))
@@ -448,9 +445,6 @@ func TestChannelManager_handleChannelInvalidated(t *testing.T) {
 	// Check metric decreased
 	metricsDelta := metrics.PendingBlocksBytesCurrent - pendingBytesBefore
 	require.Negative(t, metricsDelta)
-
-	// Should stay the same even when blockCursor advances.
-	require.Equal(t, unsafeBytesBefore, metrics.UnsafeDABytes())
 
 	l1OriginBefore := m.l1OriginLastSubmittedChannel
 
@@ -475,8 +469,6 @@ func TestChannelManager_handleChannelInvalidated(t *testing.T) {
 
 	// Check metric came back up to previous value
 	require.Equal(t, pendingBytesBefore, metrics.PendingBlocksBytesCurrent)
-
-	require.Equal(t, unsafeBytesBefore, metrics.UnsafeDABytes())
 
 	// Ensure the l1OriginLastSubmittedChannel was
 	// not changed. This ensures the next channel

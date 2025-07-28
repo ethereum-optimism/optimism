@@ -40,8 +40,6 @@ type Metricer interface {
 	RecordChannelOpened(id derive.ChannelID, numPendingBlocks int)
 	RecordL2BlocksAdded(l2ref eth.L2BlockRef, numBlocksAdded, numPendingBlocks, inputBytes, outputComprBytes int)
 	RecordL2BlockInPendingQueue(block *types.Block)
-	RecordL2BlockEnqueued(block *types.Block)
-	RecordL2BlockDequeued(block *types.Block)
 	RecordL2BlockInChannel(block *types.Block)
 	RecordChannelClosed(id derive.ChannelID, numPendingBlocks int, numFrames int, inputBytes int, outputComprBytes int, reason error)
 	RecordChannelFullySubmitted(id derive.ChannelID)
@@ -69,7 +67,6 @@ type Metricer interface {
 	Document() []opmetrics.DocumentedMetric
 
 	PendingDABytes() float64
-	UnsafeDABytes() float64
 }
 
 type Metrics struct {
@@ -90,9 +87,6 @@ type Metrics struct {
 	pendingBlocksCount        prometheus.GaugeVec
 	pendingBlocksBytesTotal   prometheus.Counter
 	pendingBlocksBytesCurrent prometheus.Gauge
-
-	unsafeDABytes          atomic.Int64
-	unsafeDABytesGaugeFunc prometheus.GaugeFunc
 
 	pendingDABytes          int64
 	pendingDABytesGaugeFunc prometheus.GaugeFunc
@@ -319,10 +313,6 @@ func (m *Metrics) Document() []opmetrics.DocumentedMetric {
 	return m.factory.Document()
 }
 
-func (m *Metrics) UnsafeDABytes() float64 {
-	return float64(m.unsafeDABytes.Load())
-}
-
 // PendingDABytes returns the current number of bytes pending to be written to the DA layer (from blocks fetched from L2
 // but not yet in a channel).
 func (m *Metrics) PendingDABytes() float64 {
@@ -406,7 +396,6 @@ func (m *Metrics) RecordL2BlockInPendingQueue(block *types.Block) {
 	m.pendingBlocksBytesTotal.Add(float64(rawSize))
 	m.pendingBlocksBytesCurrent.Add(float64(rawSize))
 	atomic.AddInt64(&m.pendingDABytes, int64(daSize))
-	m.unsafeDABytes.Add(int64(daSize))
 }
 
 func (m *Metrics) RecordL2BlockInChannel(block *types.Block) {
@@ -414,16 +403,6 @@ func (m *Metrics) RecordL2BlockInChannel(block *types.Block) {
 	m.pendingBlocksBytesCurrent.Add(-1.0 * float64(rawSize))
 	atomic.AddInt64(&m.pendingDABytes, -1*int64(daSize))
 	// Refer to RecordL2BlocksAdded to see the current + count of bytes added to a channel
-}
-
-func (m *Metrics) RecordL2BlockEnqueued(block *types.Block) {
-	daSize, _ := estimateBatchSize(block)
-	m.unsafeDABytes.Add(int64(daSize))
-}
-
-func (m *Metrics) RecordL2BlockDequeued(block *types.Block) {
-	daSize, _ := estimateBatchSize(block)
-	m.unsafeDABytes.Add(-1 * int64(daSize))
 }
 
 func ClosedReasonToNum(reason error) int {
@@ -505,7 +484,6 @@ func (m *Metrics) ClearAllStateMetrics() {
 	m.RecordChannelQueueLength(0)
 	atomic.StoreInt64(&m.pendingDABytes, 0)
 	m.pendingBlocksBytesCurrent.Set(0)
-	m.unsafeDABytes.Store(0)
 }
 
 // estimateBatchSize returns the estimated size of the block in a batch both with compression ('daSize') and without

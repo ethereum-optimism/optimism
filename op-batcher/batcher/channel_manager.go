@@ -474,7 +474,6 @@ func (s *channelManager) AddL2Block(block *types.Block) error {
 		return ErrReorg
 	}
 
-	s.metr.RecordL2BlockEnqueued(block)
 	s.metr.RecordL2BlockInPendingQueue(block)
 	s.blocks.Enqueue(block)
 	s.tip = block.Hash()
@@ -497,18 +496,13 @@ var ErrPendingAfterClose = errors.New("pending channels remain after closing cha
 
 // PruneSafeBlocks dequeues the provided number of blocks from the internal blocks queue
 func (s *channelManager) PruneSafeBlocks(num int) {
-	blocks, ok := s.blocks.DequeueN(int(num))
+	_, ok := s.blocks.DequeueN(int(num))
 	if !ok {
 		panic("tried to prune more blocks than available")
 	}
 	s.blockCursor -= int(num)
 	if s.blockCursor < 0 {
 		s.blockCursor = 0
-	}
-
-	// Record the dequeue event so the unsafe_da_bytes metric is updated.
-	for _, block := range blocks {
-		s.metr.RecordL2BlockDequeued(block)
 	}
 }
 
@@ -528,9 +522,10 @@ func (s *channelManager) PruneChannels(num int) {
 
 }
 
-// PendingDABytes returns the current number of bytes pending to be written to the DA layer
+// PendingDABytes returns the current number of bytes pending to be written to the DA layer (from blocks fetched from L2
+// but not yet in a channel).
 func (s *channelManager) PendingDABytes() int64 {
-	f := s.metr.UnsafeDABytes()
+	f := s.metr.PendingDABytes()
 	if f >= math.MaxInt64 {
 		return math.MaxInt64
 	}
