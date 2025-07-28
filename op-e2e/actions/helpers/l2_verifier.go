@@ -62,6 +62,7 @@ type L2Verifier struct {
 
 	// L2 rollup
 	engine            *engine.EngineController
+	clSync            *clsync.CLSync
 	derivationMetrics *testutils.TestDerivationMetrics
 	derivation        *derive.DerivationPipeline
 
@@ -147,8 +148,8 @@ func NewL2Verifier(t Testing, log log.Logger, l1 derive.L1Fetcher,
 	sys.Register("engine-reset",
 		engine.NewEngineResetDeriver(ctx, log, cfg, l1, eng, syncCfg), opts)
 
-	clSync := clsync.NewCLSync(log, cfg, metrics)
-	sys.Register("cl-sync", clSync, opts)
+	clSync := clsync.NewCLSync(log, cfg, metrics, ec)
+	// CLSync no longer uses events, so we don't register it with the event system
 
 	var finalizer driver.Finalizer
 	if cfg.AltDAEnabled() {
@@ -191,6 +192,7 @@ func NewL2Verifier(t Testing, log log.Logger, l1 derive.L1Fetcher,
 		log:               log,
 		Eng:               eng,
 		engine:            ec,
+		clSync:            clSync,
 		derivationMetrics: metrics,
 		derivation:        pipeline,
 		safeHeadListener:  safeHeadListener,
@@ -442,7 +444,8 @@ func (s *L2Verifier) ActL2PipelineFull(t Testing) {
 // ActL2UnsafeGossipReceive creates an action that can receive an unsafe execution payload, like gossipsub
 func (s *L2Verifier) ActL2UnsafeGossipReceive(payload *eth.ExecutionPayloadEnvelope) Action {
 	return func(t Testing) {
-		s.synchronousEvents.Emit(t.Ctx(), clsync.ReceivedUnsafePayloadEvent{Envelope: payload})
+		err := s.clSync.AddUnsafePayload(t.Ctx(), payload)
+		require.NoError(t, err, "failed to add unsafe payload to CLSync")
 	}
 }
 

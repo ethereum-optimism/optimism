@@ -88,6 +88,9 @@ type EngineController interface {
 
 type CLSync interface {
 	LowestQueuedUnsafeBlock() eth.L2BlockRef
+	AddUnsafePayload(ctx context.Context, envelope *eth.ExecutionPayloadEnvelope) error
+	ProcessReadyPayloads(ctx context.Context) error
+	OnInvalidPayload(envelope *eth.ExecutionPayloadEnvelope)
 }
 
 type AttributesHandler interface {
@@ -193,8 +196,8 @@ func NewDriver(
 	sys.Register("engine-reset",
 		engine.NewEngineResetDeriver(driverCtx, log, cfg, l1, l2, syncCfg))
 
-	clSync := clsync.NewCLSync(log, cfg, metrics) // alt-sync still uses cl-sync state to determine what to sync to
-	sys.Register("cl-sync", clSync)
+	clSync := clsync.NewCLSync(log, cfg, metrics, ec) // now uses direct EngineController reference
+	// CLSync no longer uses events, so we don't register it with the event system
 
 	var finalizer Finalizer
 	if cfg.AltDAEnabled() {
@@ -240,7 +243,7 @@ func NewDriver(
 		findL1Origin := sequencing.NewL1OriginSelector(driverCtx, log, cfg, sequencerConfDepth)
 		sys.Register("origin-selector", findL1Origin)
 		sequencer = sequencing.NewSequencer(driverCtx, log, cfg, attrBuilder, findL1Origin,
-			sequencerStateListener, sequencerConductor, asyncGossiper, metrics)
+			sequencerStateListener, sequencerConductor, asyncGossiper, ec, metrics)
 		sys.Register("sequencer", sequencer)
 	} else {
 		sequencer = sequencing.DisabledSequencer{}

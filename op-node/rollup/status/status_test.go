@@ -25,9 +25,11 @@ func TestStatus(t *testing.T) {
 	require.Equal(t, eth.SyncStatus{}, *status)
 
 	tracker.OnEvent(context.Background(), engine.ForkchoiceUpdateEvent{
-		UnsafeL2Head:    eth.L2BlockRef{Number: 101},
-		SafeL2Head:      eth.L2BlockRef{Number: 102},
-		FinalizedL2Head: eth.L2BlockRef{Number: 99},
+		L2ChainState: eth.L2ChainState{
+			UnsafeL2Head:    eth.L2BlockRef{Number: 101},
+			SafeL2Head:      eth.L2BlockRef{Number: 102},
+			FinalizedL2Head: eth.L2BlockRef{Number: 99},
+		},
 	})
 	status = tracker.SyncStatus()
 

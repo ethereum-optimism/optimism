@@ -20,6 +20,30 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/event"
 )
 
+// PayloadInvalidError is returned when a payload is determined to be invalid
+// This allows callers to handle invalid payloads specifically (e.g., remove from queue)
+type PayloadInvalidError struct {
+	Envelope *eth.ExecutionPayloadEnvelope
+	Err      error
+}
+
+func (e *PayloadInvalidError) Error() string {
+	return fmt.Sprintf("payload invalid: %v", e.Err)
+}
+
+func (e *PayloadInvalidError) Unwrap() error {
+	return e.Err
+}
+
+// IsPayloadInvalid checks if an error is a PayloadInvalidError
+func IsPayloadInvalid(err error) (*eth.ExecutionPayloadEnvelope, bool) {
+	var invalidErr *PayloadInvalidError
+	if errors.As(err, &invalidErr) {
+		return invalidErr.Envelope, true
+	}
+	return nil, false
+}
+
 type syncStatusEnum int
 
 const (
@@ -50,6 +74,137 @@ type ECMetrics interface {
 	RecordL2Ref(name string, ref eth.L2BlockRef)
 }
 
+// EngineController manages the execution engine's forkchoice state and handles L2 block processing.
+// It serves as the primary interface between the rollup node and the execution engine, maintaining
+// consistency between the rollup's view of the chain and the engine's internal state.
+//
+// # Chain Head Hierarchy and Ordering
+//
+// The controller maintains a sophisticated hierarchy of chain head references that reflect different
+// levels of certainty and verification. These heads form a strict ordering relationship:
+//
+//	finalizedHead.Number ≤ safeHead.Number ≤ unsafeHead.Number
+//
+// Where each head represents:
+//   - finalizedHead: Blocks derived from finalized L1 data, considered immutable
+//   - safeHead: L1-derived blocks with cross-verified dependencies
+//   - unsafeHead: Optimistic chain tip, may include unconfirmed blocks
+//
+// Additional intermediate heads capture nuanced progression states:
+//   - localSafeHead: L1-derived but awaiting cross-verification (interop)
+//   - pendingSafeHead: Intermediate span-batch processing state
+//   - crossUnsafeHead: Cross-chain safety boundary (crossUnsafeHead ≤ safeHead)
+//   - backupUnsafeHead: Recovery point for invalid chain extensions
+//
+// The backupUnsafeHead serves a critical recovery function, storing a previous unsafe head that can
+// be restored when optimistic advancement proves invalid. This becomes essential during span batch
+// processing where the controller may need to roll back speculative progress.
+//
+// # Sync Mode State Machine
+//
+// The controller operates within a state machine governing network synchronization:
+//
+//	CL Sync: L1 Derivation → Block Processing → Chain Extension
+//	EL Sync: Engine P2P → Direct Sync → Transition → CL Sync
+//
+// State transitions for EL sync follow a strict progression:
+//
+//	syncStatusWillStartEL → syncStatusStartedEL → syncStatusFinishedELButNotFinalized → syncStatusFinishedEL
+//
+// EL sync provides bootstrapping when the execution engine can sync faster via P2P than through
+// L1 derivation. The state machine ensures one-way progression - once CL sync begins, regression
+// to EL sync cannot occur, maintaining predictable synchronization behavior.
+//
+// # Thread Safety and Locking Protocol
+//
+// The controller implements a read-write mutex protocol to handle concurrent access patterns:
+//
+//	Read Operations:  Multiple concurrent readers (state queries)
+//	Write Operations: Exclusive access (head updates, FCU calls)
+//	Engine RPC:       Protected access for API components
+//
+// This strategy optimizes for frequent state reads while serializing mutations. API components
+// requiring direct engine access coordinate through the same mutex, preventing RPC conflicts
+// during forkchoice operations.
+//
+// # Forkchoice Update (FCU) Batching Strategy
+//
+// Rather than immediate propagation, the controller batches forkchoice updates using flags:
+//
+//	needFCUCall: bool                    // Standard FCU required
+//	needFCUCallForBackupUnsafeReorg: bool // Backup reorg FCU required
+//
+// FCU batching logic:
+//
+//	if needFCUCall || needFCUCallForBackupUnsafeReorg {
+//	    TryUpdateEngine() // Synchronize accumulated changes
+//	}
+//
+// This batching serves multiple purposes: reduces engine communication overhead, provides atomicity
+// for related state changes, and allows intermediate invalid states during complex transitions.
+// The backup reorg variant handles special cases where the previous unsafe head must be restored
+// after detecting invalid chain extensions.
+//
+// # Payload Processing Interface Contract
+//
+// The controller exposes two distinct processing methods with different semantics:
+//
+//	ProcessPayload(envelope) → PayloadProcessResult {Success, Invalid, Err}
+//	InsertUnsafePayload(envelope, ref) → error
+//
+// ProcessPayload provides validation-only functionality:
+//   - Used by sequencers for pre-broadcast validation
+//   - No state mutations or forkchoice updates
+//   - Enables speculative validation of multiple payloads
+//   - Returns structured result for caller decision-making
+//
+// InsertUnsafePayload performs full chain extension:
+//   - Updates unsafeHead and triggers forkchoice synchronization
+//   - Handles EL/CL sync mode transitions
+//   - Used by derivation pipeline and CLSync for committed advancement
+//   - Manages complex orchestration of engine state updates
+//
+// # Error Classification and Recovery
+//
+// The controller returns specific error types that encode different failure semantics:
+//
+//	PayloadInvalidError:     Deterministic rejection → permanent discard
+//	derive.ResetError:       State inconsistency → full pipeline reset
+//	derive.TemporaryError:   Transient condition → retry with backoff
+//	ErrNoFCUNeeded:         Optimization signal → no action required
+//
+// This classification enables appropriate recovery strategies. Invalid payloads should be removed
+// from queues, reset errors trigger pipeline reconstruction, temporary errors warrant retry, and
+// the FCU sentinel allows callers to distinguish optimization from true failure.
+//
+// # System Invariants and Guarantees
+//
+// The controller maintains critical invariants ensuring system correctness:
+//
+//  1. Forkchoice Ordering:
+//     ∀ heads: finalizedHead.Number ≤ safeHead.Number ≤ unsafeHead.Number
+//
+//  2. Cross-Chain Safety (interop):
+//     crossUnsafeHead.Number ≤ safeHead.Number
+//
+//  3. Head Monotonicity:
+//     ∀ updates: newHead.Number ≥ oldHead.Number (except during resets)
+//
+//  4. FCU Convergence:
+//     eventually(controller.state = engine.forkchoice)
+//
+//  5. Sync State Progression:
+//     EL sync states advance monotonically, no regression allowed
+//
+//  6. Backup Head Validity:
+//     backupUnsafeHead = ∅ after successful consolidation (safeHead = unsafeHead)
+//
+//  7. Thread Safety:
+//     All public operations are atomic with respect to concurrent access
+//
+// These invariants provide foundational guarantees that other rollup components rely upon.
+// The forkchoice ordering prevents logical contradictions, monotonicity enables optimization
+// assumptions, and convergence ensures eventual consistency between controller and engine views.
 type EngineController struct {
 	engine     ExecEngine // Underlying execution engine RPC
 	log        log.Logger
@@ -145,6 +300,15 @@ func (e *EngineController) Finalized() eth.L2BlockRef {
 
 func (e *EngineController) BackupUnsafeL2Head() eth.L2BlockRef {
 	return e.backupUnsafeHead
+}
+
+// L2ChainState returns all three L2 heads in a single call for efficiency
+func (e *EngineController) L2ChainState() eth.L2ChainState {
+	return eth.L2ChainState{
+		UnsafeL2Head:    e.unsafeHead,
+		SafeL2Head:      e.safeHead,
+		FinalizedL2Head: e.finalizedHead,
+	}
 }
 
 func (e *EngineController) IsEngineSyncing() bool {
@@ -362,9 +526,11 @@ func (e *EngineController) TryUpdateEngine(ctx context.Context) error {
 	}
 	if fcRes.PayloadStatus.Status == eth.ExecutionValid {
 		e.emitter.Emit(ctx, ForkchoiceUpdateEvent{
-			UnsafeL2Head:    e.unsafeHead,
-			SafeL2Head:      e.safeHead,
-			FinalizedL2Head: e.finalizedHead,
+			L2ChainState: eth.L2ChainState{
+				UnsafeL2Head:    e.unsafeHead,
+				SafeL2Head:      e.safeHead,
+				FinalizedL2Head: e.finalizedHead,
+			},
 		})
 	}
 	if e.unsafeHead == e.safeHead && e.safeHead == e.pendingSafeHead {
@@ -400,10 +566,16 @@ func (e *EngineController) InsertUnsafePayload(ctx context.Context, envelope *et
 		return derive.NewTemporaryError(fmt.Errorf("failed to update insert payload: %w", err))
 	}
 	if status.Status == eth.ExecutionInvalid {
+		// Still emit the event for other components that might listen
 		e.emitter.Emit(ctx, PayloadInvalidEvent{
 			Envelope: envelope,
 			Err:      eth.NewPayloadErr(envelope.ExecutionPayload, status),
 		})
+		// Return PayloadInvalidError so CLSync can handle it directly
+		return &PayloadInvalidError{
+			Envelope: envelope,
+			Err:      eth.NewPayloadErr(envelope.ExecutionPayload, status),
+		}
 	}
 	if !e.checkNewPayloadStatus(status.Status) {
 		payload := envelope.ExecutionPayload
@@ -462,9 +634,11 @@ func (e *EngineController) InsertUnsafePayload(ctx context.Context, envelope *et
 
 	if fcRes.PayloadStatus.Status == eth.ExecutionValid {
 		e.emitter.Emit(ctx, ForkchoiceUpdateEvent{
-			UnsafeL2Head:    e.unsafeHead,
-			SafeL2Head:      e.safeHead,
-			FinalizedL2Head: e.finalizedHead,
+			L2ChainState: eth.L2ChainState{
+				UnsafeL2Head:    e.unsafeHead,
+				SafeL2Head:      e.safeHead,
+				FinalizedL2Head: e.finalizedHead,
+			},
 		})
 	}
 
@@ -479,6 +653,69 @@ func (e *EngineController) InsertUnsafePayload(ctx context.Context, envelope *et
 		"mgasps", float64(envelope.ExecutionPayload.GasUsed)*1000/float64(totalTime))
 
 	return nil
+}
+
+// PayloadProcessResult represents the result of processing a payload
+type PayloadProcessResult struct {
+	Success bool
+	Invalid bool
+	Err     error
+}
+
+// ProcessPayload processes a payload and returns the result directly
+// This replaces the PayloadProcessEvent -> PayloadSuccessEvent/PayloadInvalidEvent pattern
+func (e *EngineController) ProcessPayload(ctx context.Context, envelope *eth.ExecutionPayloadEnvelope) *PayloadProcessResult {
+	e.log.Debug("Processing payload", "payload", envelope.ExecutionPayload.ID())
+
+	rpcCtx, cancel := context.WithTimeout(ctx, payloadProcessTimeout)
+	defer cancel()
+
+	status, err := e.engine.NewPayload(rpcCtx, envelope.ExecutionPayload, envelope.ParentBeaconBlockRoot)
+	if err != nil {
+		e.log.Warn("Failed to process payload", "payload", envelope.ExecutionPayload.ID(), "err", err)
+		return &PayloadProcessResult{
+			Success: false,
+			Invalid: false,
+			Err:     fmt.Errorf("failed to insert execution payload: %w", err),
+		}
+	}
+
+	switch status.Status {
+	case eth.ExecutionInvalid, eth.ExecutionInvalidBlockHash:
+		e.log.Warn("Payload was invalid", "block", envelope.ExecutionPayload.ID(),
+			"err", status, "timestamp", uint64(envelope.ExecutionPayload.Timestamp))
+
+		payloadErr := eth.NewPayloadErr(envelope.ExecutionPayload, status)
+
+		// Still emit event for backward compatibility and other listeners
+		e.emitter.Emit(ctx, PayloadInvalidEvent{
+			Envelope: envelope,
+			Err:      payloadErr,
+		})
+
+		return &PayloadProcessResult{
+			Success: false,
+			Invalid: true,
+			Err:     payloadErr,
+		}
+
+	case eth.ExecutionValid:
+		e.log.Debug("Payload processed successfully", "payload", envelope.ExecutionPayload.ID())
+		return &PayloadProcessResult{
+			Success: true,
+			Invalid: false,
+			Err:     nil,
+		}
+
+	default:
+		payloadErr := eth.NewPayloadErr(envelope.ExecutionPayload, status)
+		e.log.Warn("Payload processing returned unexpected status", "payload", envelope.ExecutionPayload.ID(), "status", status.Status, "err", payloadErr)
+		return &PayloadProcessResult{
+			Success: false,
+			Invalid: false,
+			Err:     payloadErr,
+		}
+	}
 }
 
 // shouldTryBackupUnsafeReorg checks reorging(restoring) unsafe head to backupUnsafeHead is needed.
@@ -543,9 +780,11 @@ func (e *EngineController) TryBackupUnsafeReorg(ctx context.Context) (bool, erro
 	}
 	if fcRes.PayloadStatus.Status == eth.ExecutionValid {
 		e.emitter.Emit(ctx, ForkchoiceUpdateEvent{
-			UnsafeL2Head:    e.backupUnsafeHead,
-			SafeL2Head:      e.safeHead,
-			FinalizedL2Head: e.finalizedHead,
+			L2ChainState: eth.L2ChainState{
+				UnsafeL2Head:    e.backupUnsafeHead,
+				SafeL2Head:      e.safeHead,
+				FinalizedL2Head: e.finalizedHead,
+			},
 		})
 		// Execution engine accepted the reorg.
 		e.log.Info("successfully reorged unsafe head using backupUnsafe", "unsafe", e.backupUnsafeHead.ID())

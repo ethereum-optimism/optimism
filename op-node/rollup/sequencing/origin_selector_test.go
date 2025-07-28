@@ -102,12 +102,16 @@ func TestOriginSelectorFetchNextError(t *testing.T) {
 
 	l1.ExpectL1BlockRefByNumber(b.Number, eth.L1BlockRef{}, ethereum.NotFound)
 
-	handled := s.OnEvent(context.Background(), engine.ForkchoiceUpdateEvent{UnsafeL2Head: l2Head})
+	handled := s.OnEvent(context.Background(), engine.ForkchoiceUpdateEvent{
+		L2ChainState: eth.L2ChainState{UnsafeL2Head: l2Head},
+	})
 	require.True(t, handled)
 
 	l1.ExpectL1BlockRefByNumber(b.Number, eth.L1BlockRef{}, errors.New("test error"))
 
-	handled = s.OnEvent(context.Background(), engine.ForkchoiceUpdateEvent{UnsafeL2Head: l2Head})
+	handled = s.OnEvent(context.Background(), engine.ForkchoiceUpdateEvent{
+		L2ChainState: eth.L2ChainState{UnsafeL2Head: l2Head},
+	})
 	require.True(t, handled)
 
 	// The next origin should still be `a` because the fetch failed.
@@ -177,7 +181,9 @@ func TestOriginSelectorAdvances(t *testing.T) {
 
 		// Trigger the background fetch via a forkchoice update.
 		// This should be a no-op because the next origin is already cached.
-		handled := s.OnEvent(context.Background(), engine.ForkchoiceUpdateEvent{UnsafeL2Head: l2Head})
+		handled := s.OnEvent(context.Background(), engine.ForkchoiceUpdateEvent{
+			L2ChainState: eth.L2ChainState{UnsafeL2Head: l2Head},
+		})
 		require.True(t, handled)
 
 		requireL1OriginAt(l2Head, b)
@@ -194,7 +200,9 @@ func TestOriginSelectorAdvances(t *testing.T) {
 
 		// Trigger the background fetch via a forkchoice update.
 		// This will actually fetch the next origin because the internal cache is empty.
-		handled = s.OnEvent(context.Background(), engine.ForkchoiceUpdateEvent{UnsafeL2Head: l2Head})
+		handled = s.OnEvent(context.Background(), engine.ForkchoiceUpdateEvent{
+			L2ChainState: eth.L2ChainState{UnsafeL2Head: l2Head},
+		})
 		require.True(t, handled)
 
 		// The next origin should be `c` now.
@@ -331,7 +339,9 @@ func TestOriginSelectorFetchesNextOrigin(t *testing.T) {
 	require.Equal(t, a, next)
 
 	// Trigger the background fetch via a forkchoice update
-	handled := s.OnEvent(context.Background(), engine.ForkchoiceUpdateEvent{UnsafeL2Head: l2Head})
+	handled := s.OnEvent(context.Background(), engine.ForkchoiceUpdateEvent{
+		L2ChainState: eth.L2ChainState{UnsafeL2Head: l2Head},
+	})
 	require.True(t, handled)
 
 	// The next origin should be `b` now.

@@ -180,7 +180,9 @@ func TestAltDAFinalityData(t *testing.T) {
 			emitter.AssertExpectations(t)
 			require.Equal(t, commitmentInclusionFinalized.Number, finalizedL2.L1Origin.Number+1)
 			// Confirm finalization, so there will be no repeats of the PromoteFinalizedEvent
-			fi.OnEvent(context.Background(), engine.ForkchoiceUpdateEvent{FinalizedL2Head: finalizedL2})
+			fi.OnEvent(context.Background(), engine.ForkchoiceUpdateEvent{
+				L2ChainState: eth.L2ChainState{FinalizedL2Head: finalizedL2},
+			})
 			emitter.AssertExpectations(t)
 		}
 	}

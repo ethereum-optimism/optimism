@@ -70,7 +70,7 @@ func NewL2Sequencer(t Testing, log log.Logger, l1 derive.L1Fetcher, blobSrc deri
 	conduc := &conductor.NoOpConductor{}
 	asyncGossip := async.NoOpGossiper{}
 	seq := sequencing.NewSequencer(t.Ctx(), log, cfg, attrBuilder, l1OriginSelector,
-		seqStateListener, conduc, asyncGossip, metr)
+		seqStateListener, conduc, asyncGossip, ver.engine, metr)
 	opts := event.WithEmitLimiter(
 		// TestSyncBatchType/DerivationWithFlakyL1RPC does *a lot* of quick retries
 		// TestL2BatcherBatchType/ExtendedTimeWithoutL1Batches as well.
@@ -126,7 +126,6 @@ func (s *L2Sequencer) ActL2EndBlock(t Testing) {
 	// After having built a L2 block, make sure to get an engine update processed.
 	// This will ensure the sync-status and such reflect the latest changes.
 	s.synchronousEvents.Emit(t.Ctx(), engine.TryUpdateEngineEvent{})
-	s.synchronousEvents.Emit(t.Ctx(), engine.ForkchoiceRequestEvent{})
 	require.NoError(t, s.drainer.DrainUntil(func(ev event.Event) bool {
 		x, ok := ev.(engine.ForkchoiceUpdateEvent)
 		return ok && x.UnsafeL2Head == s.engine.UnsafeL2Head()

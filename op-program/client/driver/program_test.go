@@ -91,21 +91,27 @@ func TestProgramDeriver(t *testing.T) {
 	t.Run("forkchoice update", func(t *testing.T) {
 		t.Run("surpassed", func(t *testing.T) {
 			p, m := newProgram(t, 42)
-			p.OnEvent(context.Background(), engine.ForkchoiceUpdateEvent{SafeL2Head: eth.L2BlockRef{Number: 42 + 1}})
+			p.OnEvent(context.Background(), engine.ForkchoiceUpdateEvent{
+				L2ChainState: eth.L2ChainState{SafeL2Head: eth.L2BlockRef{Number: 42 + 1}},
+			})
 			m.AssertExpectations(t)
 			require.True(t, p.closing)
 			require.NoError(t, p.resultError)
 		})
 		t.Run("completed", func(t *testing.T) {
 			p, m := newProgram(t, 42)
-			p.OnEvent(context.Background(), engine.ForkchoiceUpdateEvent{SafeL2Head: eth.L2BlockRef{Number: 42}})
+			p.OnEvent(context.Background(), engine.ForkchoiceUpdateEvent{
+				L2ChainState: eth.L2ChainState{SafeL2Head: eth.L2BlockRef{Number: 42}},
+			})
 			m.AssertExpectations(t)
 			require.True(t, p.closing)
 			require.NoError(t, p.resultError)
 		})
 		t.Run("incomplete", func(t *testing.T) {
 			p, m := newProgram(t, 42)
-			p.OnEvent(context.Background(), engine.ForkchoiceUpdateEvent{SafeL2Head: eth.L2BlockRef{Number: 42 - 1}})
+			p.OnEvent(context.Background(), engine.ForkchoiceUpdateEvent{
+				L2ChainState: eth.L2ChainState{SafeL2Head: eth.L2BlockRef{Number: 42 - 1}},
+			})
 			m.AssertExpectations(t)
 			require.False(t, p.closing)
 			require.NoError(t, p.resultError)

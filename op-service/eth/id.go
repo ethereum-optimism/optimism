@@ -58,6 +58,14 @@ func (id L2BlockRef) BlockRef() BlockRef {
 	}
 }
 
+// L2ChainState represents the current state of L2 chain heads at different safety levels.
+// This captures the common pattern of tracking finalized, safe, and unsafe chain progression.
+type L2ChainState struct {
+	UnsafeL2Head    L2BlockRef `json:"unsafe"`
+	SafeL2Head      L2BlockRef `json:"safe"`
+	FinalizedL2Head L2BlockRef `json:"finalized"`
+}
+
 type L1BlockRef struct {
 	Hash       common.Hash `json:"hash"`
 	Number     uint64      `json:"number"`

@@ -33,6 +33,11 @@ type L1OriginSelectorIface interface {
 	SetRecoverMode(bool)
 }
 
+type EngineController interface {
+	UnsafeL2Head() eth.L2BlockRef
+	ProcessPayload(ctx context.Context, envelope *eth.ExecutionPayloadEnvelope) *engine.PayloadProcessResult
+}
+
 type Metrics interface {
 	SetSequencerState(active bool)
 	RecordSequencerInconsistentL1Origin(from eth.BlockID, to eth.BlockID)
@@ -123,6 +128,8 @@ type Sequencer struct {
 
 	// toBlockRef converts a payload to a block-ref, and is only configurable for test-purposes
 	toBlockRef func(rollupCfg *rollup.Config, payload *eth.ExecutionPayload) (eth.L2BlockRef, error)
+
+	engine EngineController
 }
 
 var _ SequencerIface = (*Sequencer)(nil)
@@ -133,6 +140,7 @@ func NewSequencer(driverCtx context.Context, log log.Logger, rollupCfg *rollup.C
 	listener SequencerStateListener,
 	conductor conductor.SequencerConductor,
 	asyncGossip AsyncGossiper,
+	engine EngineController,
 	metrics Metrics,
 ) *Sequencer {
 	return &Sequencer{
@@ -145,6 +153,7 @@ func NewSequencer(driverCtx context.Context, log log.Logger, rollupCfg *rollup.C
 		asyncGossip:      asyncGossip,
 		attrBuilder:      attributesBuilder,
 		l1OriginSelector: l1OriginSelector,
+		engine:           engine,
 		metrics:          metrics,
 		timeNow:          time.Now,
 		toBlockRef:       derive.PayloadToBlockRef,
@@ -179,8 +188,7 @@ func (d *Sequencer) OnEvent(ctx context.Context, ev event.Event) bool {
 		d.onPayloadSealInvalid(x)
 	case engine.PayloadSealExpiredErrorEvent:
 		d.onPayloadSealExpiredError(x)
-	case engine.PayloadInvalidEvent:
-		d.onPayloadInvalid(x)
+
 	case engine.PayloadSuccessEvent:
 		d.onPayloadSuccess(x)
 	case SequencerActionEvent:
@@ -285,15 +293,36 @@ func (d *Sequencer) onBuildSealed(x engine.BuildSealedEvent) {
 	// or if the payload is successfully inserted
 	d.asyncGossip.Gossip(x.Envelope)
 	// Now after having gossiped the block, try to put it in our own canonical chain
-	d.emitter.Emit(d.ctx, engine.PayloadProcessEvent{
-		Concluding:   x.Concluding,
-		DerivedFrom:  x.DerivedFrom,
-		BuildStarted: x.BuildStarted,
-		Envelope:     x.Envelope,
-		Ref:          x.Ref,
-	})
+	// Process the payload directly instead of emitting PayloadProcessEvent
+	result := d.engine.ProcessPayload(d.ctx, x.Envelope)
+	if result.Invalid {
+		d.log.Error("Sequencer payload was invalid",
+			"block", x.Envelope.ExecutionPayload.ID(), "err", result.Err)
+		d.handleInvalid()
+		return
+	}
+	if !result.Success {
+		d.emitter.Emit(d.ctx, rollup.EngineTemporaryErrorEvent{
+			Err: fmt.Errorf("failed to process sequencer payload: %w", result.Err),
+		})
+		return
+	}
+
+	// Update state before emitting success event
 	d.latest.Ref = x.Ref
 	d.latestSealed = x.Ref
+
+	// Payload was successful - emit PayloadSuccessEvent to continue normal flow
+	d.emitter.Emit(d.ctx, engine.PayloadSuccessEvent{
+		Concluding:    x.Concluding,
+		DerivedFrom:   x.DerivedFrom,
+		BuildStarted:  x.BuildStarted,
+		InsertStarted: time.Now(), // We just processed it
+		Envelope:      x.Envelope,
+		Ref:           x.Ref,
+	})
+
+	// Note: onPayloadSuccess will clear d.latest and schedule next action
 }
 
 func (d *Sequencer) onPayloadSealInvalid(x engine.PayloadSealInvalidEvent) {
@@ -316,15 +345,6 @@ func (d *Sequencer) onPayloadSealExpiredError(x engine.PayloadSealExpiredErrorEv
 	d.handleInvalid()
 }
 
-func (d *Sequencer) onPayloadInvalid(x engine.PayloadInvalidEvent) {
-	if d.latest.Ref.Hash != x.Envelope.ExecutionPayload.BlockHash {
-		return // not a payload from the sequencer
-	}
-	d.log.Error("Sequencer could not insert payload",
-		"block", x.Envelope.ExecutionPayload.ID(), "err", x.Err)
-	d.handleInvalid()
-}
-
 func (d *Sequencer) onPayloadSuccess(x engine.PayloadSuccessEvent) {
 	// d.latest as building state may already be empty,
 	// if the forkchoice update (that dropped the stale building job) was received before the payload-success.
@@ -338,6 +358,9 @@ func (d *Sequencer) onPayloadSuccess(x engine.PayloadSuccessEvent) {
 	// The payload was already published upon sealing.
 	// Now that we have processed it ourselves we don't need it anymore.
 	d.asyncGossip.Clear()
+
+	// Note: We don't call setLatestHead() here - wait for ForkchoiceUpdateEvent
+	// to confirm the block is canonical before proceeding to the next block
 }
 
 func (d *Sequencer) onSequencerAction(ev SequencerActionEvent) {
@@ -361,13 +384,34 @@ func (d *Sequencer) onSequencerAction(ev SequencerActionEvent) {
 		// Payload is known, we must have resumed sequencer-actions after a temporary error,
 		// meaning that we have seen BuildSealedEvent already.
 		// We can retry processing to make it canonical.
-		d.emitter.Emit(d.ctx, engine.PayloadProcessEvent{
-			Concluding:  false,
-			DerivedFrom: eth.L1BlockRef{},
-			Envelope:    payload,
-			Ref:         ref,
-		})
+		result := d.engine.ProcessPayload(d.ctx, payload)
+		if result.Invalid {
+			d.log.Error("Reused payload from async gossiper was invalid",
+				"block", payload.ExecutionPayload.ID(), "err", result.Err)
+			d.handleInvalid()
+			return
+		}
+		if !result.Success {
+			d.emitter.Emit(d.ctx, rollup.EngineTemporaryErrorEvent{
+				Err: fmt.Errorf("failed to process reused payload: %w", result.Err),
+			})
+			return
+		}
+
+		// Update state before emitting success event
 		d.latest.Ref = ref
+
+		// Payload was successful - emit PayloadSuccessEvent
+		d.emitter.Emit(d.ctx, engine.PayloadSuccessEvent{
+			Concluding:    false,
+			DerivedFrom:   eth.L1BlockRef{},
+			BuildStarted:  time.Time{}, // Unknown for reused payloads
+			InsertStarted: time.Now(),
+			Envelope:      payload,
+			Ref:           ref,
+		})
+
+		// Note: onPayloadSuccess will clear d.latest and schedule next action
 	} else {
 		if d.latest.Info != (eth.PayloadInfo{}) {
 			// We should not repeat the seal request.
@@ -482,9 +526,9 @@ func (d *Sequencer) startBuildingBlock() {
 	ctx := d.ctx
 	l2Head := d.latestHead
 
-	// If we do not have data to know what to build on, then request a forkchoice update
+	// If we do not have data to know what to build on, then get the latest head directly
 	if l2Head == (eth.L2BlockRef{}) {
-		d.emitter.Emit(d.ctx, engine.ForkchoiceRequestEvent{})
+		d.latestHead = d.engine.UnsafeL2Head()
 		return
 	}
 	// If we have already started trying to build on top of this block, we can avoid starting over again.
@@ -645,7 +689,7 @@ func (d *Sequencer) Init(ctx context.Context, active bool) error {
 	d.asyncGossip.Start()
 
 	// The `latestHead` should be updated, so we can handle start-sequencer requests
-	d.emitter.Emit(d.ctx, engine.ForkchoiceRequestEvent{})
+	d.latestHead = d.engine.UnsafeL2Head()
 
 	if active {
 		return d.forceStart()

@@ -306,7 +306,9 @@ func TestEngineQueue_Finalize(t *testing.T) {
 		l1F.AssertExpectations(t)
 
 		// D0 is still there in the buffer, and may be finalized again, if it were not for the latest forkchoice update.
-		fi.OnEvent(ctx, engine.ForkchoiceUpdateEvent{FinalizedL2Head: refD0})
+		fi.OnEvent(ctx, engine.ForkchoiceUpdateEvent{
+			L2ChainState: eth.L2ChainState{FinalizedL2Head: refD0},
+		})
 		emitter.AssertExpectations(t) // should trigger no events
 
 		// we expect a finality attempt, since we have not idled on something yet

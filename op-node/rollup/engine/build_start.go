@@ -30,9 +30,11 @@ func (eq *EngDeriver) onBuildStart(ctx context.Context, ev BuildStartEvent) {
 	}
 
 	fcEvent := ForkchoiceUpdateEvent{
-		UnsafeL2Head:    ev.Attributes.Parent,
-		SafeL2Head:      eq.ec.safeHead,
-		FinalizedL2Head: eq.ec.finalizedHead,
+		L2ChainState: eth.L2ChainState{
+			UnsafeL2Head:    ev.Attributes.Parent,
+			SafeL2Head:      eq.ec.safeHead,
+			FinalizedL2Head: eq.ec.finalizedHead,
+		},
 	}
 	if fcEvent.UnsafeL2Head.Number < fcEvent.FinalizedL2Head.Number {
 		err := fmt.Errorf("invalid block-building pre-state, unsafe head %s is behind finalized head %s", fcEvent.UnsafeL2Head, fcEvent.FinalizedL2Head)
