@@ -54,15 +54,7 @@ func AttributesToReplaceInvalidBlock(invalidatedBlock *eth.ExecutionPayloadEnvel
 	// unfortunately, the engine API needs the inner value, not the extra-data.
 	// So we translate it here.
 	extraData := invalidatedBlock.ExecutionPayload.ExtraData
-	var (
-		denominator, elasticity uint64
-		minBaseFeeLog2          uint8
-	)
-	if len(extraData) == 10 {
-		denominator, elasticity, minBaseFeeLog2 = eip1559.DecodeMinBaseFeeExtraData(extraData)
-	} else {
-		denominator, elasticity = eip1559.DecodeHoloceneExtraData(extraData)
-	}
+	denominator, elasticity, minBaseFeeLog2 := eip1559.DecodeMinBaseFeeExtraData(extraData)
 	eip1559Params := eth.Bytes8(eip1559.EncodeHolocene1559Params(denominator, elasticity))
 
 	attrs := &eth.PayloadAttributes{

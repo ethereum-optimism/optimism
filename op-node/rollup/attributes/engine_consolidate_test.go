@@ -600,7 +600,7 @@ func TestCheckEIP1559ParamsMatch(t *testing.T) {
 		},
 	} {
 		t.Run(test.desc, func(t *testing.T) {
-			err := checkEIP1559ParamsMatch(defaultOpConfig, test.attrParams, test.blockExtraData, false)
+			err := checkEIP1559ParamsMatch(defaultOpConfig, test.attrParams, test.blockExtraData, 0, false)
 			if test.err == "" {
 				require.NoError(t, err)
 			} else {
