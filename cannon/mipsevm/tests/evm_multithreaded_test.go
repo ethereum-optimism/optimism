@@ -652,7 +652,6 @@ func runPreemptSyscall(t *testing.T, syscallName string, syscallNum uint32) {
 
 	type baseTest struct {
 		name            string
-		traverseRight   bool
 		activeThreads   int
 		inactiveThreads int
 	}
