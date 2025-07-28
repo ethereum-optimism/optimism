@@ -392,10 +392,6 @@ interface IOPCMImplementationsWithoutLockbox {
         address anchorStateRegistryImpl;
         address delayedWETHImpl;
         address mipsImpl;
-        address faultDisputeGameImpl;
-        address permissionedDisputeGameImpl;
-        address superFaultDisputeGameImpl;
-        address superPermissionedDisputeGameImpl;
     }
 
     /// @notice Returns the implementation contracts without the ETHLockbox.
