@@ -38,16 +38,10 @@ struct SecurityCouncilConfig {
     LivenessModuleConfig livenessModuleConfig;
 }
 
-/// @notice Configuration for the Deputy Guardian Module
-struct DeputyGuardianModuleConfig {
-    address deputyGuardian;
-    ISuperchainConfig superchainConfig;
-}
 
 /// @notice Configuration for the Guardian Safe.
 struct GuardianConfig {
     SafeConfig safeConfig;
-    DeputyGuardianModuleConfig deputyGuardianModuleConfig;
 }
 
 /// @title DeployOwnership
@@ -85,11 +79,7 @@ contract DeployOwnership is Deploy {
         address[] memory exampleGuardianOwners = new address[](1);
         exampleGuardianOwners[0] = artifacts.mustGetAddress("SecurityCouncilSafe");
         guardianConfig_ = GuardianConfig({
-            safeConfig: SafeConfig({ threshold: 1, owners: exampleGuardianOwners }),
-            deputyGuardianModuleConfig: DeputyGuardianModuleConfig({
-                deputyGuardian: artifacts.mustGetAddress("FoundationOperationsSafe"),
-                superchainConfig: ISuperchainConfig(artifacts.mustGetAddress("SuperchainConfigImpl"))
-            })
+            safeConfig: SafeConfig({ threshold: 1, owners: exampleGuardianOwners })
         });
     }
 

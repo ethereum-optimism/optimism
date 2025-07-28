@@ -334,7 +334,6 @@ rules:
         - packages/contracts-bedrock/src/periphery/TransferOnion.sol
         - packages/contracts-bedrock/src/periphery/faucet/Faucet.sol
         - packages/contracts-bedrock/src/periphery/faucet/authmodules/AdminFaucetAuthModule.sol
-        - packages/contracts-bedrock/src/safe/DeputyGuardianModule.sol
         - packages/contracts-bedrock/src/safe/DeputyPauseModule.sol
         - packages/contracts-bedrock/src/safe/LivenessGuard.sol
         - packages/contracts-bedrock/src/safe/LivenessModule.sol

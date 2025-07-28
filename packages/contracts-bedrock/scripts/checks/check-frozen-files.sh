@@ -93,7 +93,6 @@ ALLOWED_FILES=(
   "src/legacy/DeployerWhitelist.sol:DeployerWhitelist"
   "src/legacy/L1BlockNumber.sol:L1BlockNumber"
   "src/legacy/LegacyMessagePasser.sol:LegacyMessagePasser"
-  "src/safe/DeputyGuardianModule.sol:DeputyGuardianModule"
   "src/safe/DeputyPauseModule.sol:DeputyPauseModule"
   "src/safe/LivenessGuard.sol:LivenessGuard"
   "src/safe/LivenessModule.sol:LivenessModule"
