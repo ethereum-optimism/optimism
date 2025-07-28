@@ -40,6 +40,14 @@ contract VerifyOPCM_Harness is VerifyOPCM {
     function verifyOpcmImmutableVariables(IOPContractsManager _opcm) public view returns (bool) {
         return _verifyOpcmImmutableVariables(_opcm);
     }
+
+    function validateAllGettersAccounted() public {
+        return _validateAllGettersAccounted();
+    }
+
+    function setExpectedGetter(string memory _getter, bool _expected) public {
+        expectedGetters[_getter] = _expected;
+    }
 }
 
 /// @title VerifyOPCM_TestInit
@@ -286,5 +294,22 @@ contract VerifyOPCM_Run_Test is VerifyOPCM_TestInit {
         vm.clearMockedCalls();
         // Reset environment variables to correct values (as set in setUp())
         setupEnvVars();
+    }
+
+    /// @notice Tests that the ABI getter validation succeeds when all getters are accounted for.
+    function test_validateAllGettersAccounted_succeeds() public {
+        // This should succeed as setUp() configures all expected getters
+        harness.validateAllGettersAccounted();
+    }
+
+    /// @notice Tests that the ABI getter validation fails when there are unaccounted getters.
+    /// We test this by removing an expected getter from the mapping.
+    function test_validateAllGettersAccounted_unaccountedGetters_reverts() public {
+        // Remove one of the expected getters to simulate an unaccounted getter
+        harness.setExpectedGetter("blueprints", false);
+
+        // This should revert with VerifyOPCM_UnaccountedGetters error
+        vm.expectRevert(); // We expect a revert but can't easily check the specific error data
+        harness.validateAllGettersAccounted();
     }
 }

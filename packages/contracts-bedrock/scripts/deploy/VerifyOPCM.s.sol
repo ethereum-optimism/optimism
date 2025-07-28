@@ -46,6 +46,9 @@ contract VerifyOPCM is Script {
     /// @notice Thrown when the runtime bytecode is not found in an artifact file.
     error VerifyOPCM_RuntimeBytecodeNotFound(string _artifactPath);
 
+    /// @notice Thrown when there are getter functions in the ABI that are not being checked.
+    error VerifyOPCM_UnaccountedGetters(string[] _unaccountedGetters);
+
     /// @notice Preamble used for blueprint contracts.
     bytes constant BLUEPRINT_PREAMBLE = hex"FE7100";
 
@@ -87,6 +90,9 @@ contract VerifyOPCM is Script {
     /// @notice Maps contract names to an overriding source file name.
     mapping(string => string) internal sourceNameOverrides;
 
+    /// @notice Maps expected getter function names to whether they should be checked.
+    mapping(string => bool) internal expectedGetters;
+
     /// @notice Setup flag.
     bool internal ready;
 
@@ -115,6 +121,22 @@ contract VerifyOPCM is Script {
         sourceNameOverrides["OPContractsManagerDeployer"] = "OPContractsManager";
         sourceNameOverrides["OPContractsManagerUpgrader"] = "OPContractsManager";
         sourceNameOverrides["OPContractsManagerInteropMigrator"] = "OPContractsManager";
+
+        // Expected getter functions that should be checked in OPCM verification.
+        // Any getter in the ABI that's not in this list will cause verification to fail.
+        expectedGetters["blueprints"] = true;
+        expectedGetters["implementations"] = true;
+        expectedGetters["protocolVersions"] = true;
+        expectedGetters["superchainConfig"] = true;
+        expectedGetters["superchainProxyAdmin"] = true;
+        expectedGetters["upgradeController"] = true;
+        expectedGetters["opcmDeployer"] = true;
+        expectedGetters["opcmGameTypeAdder"] = true;
+        expectedGetters["opcmInteropMigrator"] = true;
+        expectedGetters["opcmStandardValidator"] = true;
+        expectedGetters["opcmUpgrader"] = true;
+        expectedGetters["isRC"] = true;
+        expectedGetters["l1ContractsRelease"] = true;
 
         // Mark as ready.
         ready = true;
@@ -157,6 +179,9 @@ contract VerifyOPCM is Script {
 
         // Fetch Implementations & Blueprints from OPCM
         IOPContractsManager opcm = IOPContractsManager(_opcmAddress);
+
+        // Validate that all ABI getters are accounted for.
+        _validateAllGettersAccounted();
 
         // Collect all the references.
         OpcmContractRef[] memory refs = _collectOpcmContractRefs(opcm);
@@ -720,5 +745,45 @@ contract VerifyOPCM is Script {
 
         // Return computed path, relative to the contracts-bedrock directory.
         return string.concat("forge-artifacts/", sourceName, ".sol/", _contractName, ".json");
+    }
+
+    /// @notice Validates that all getter functions in the OPContractsManager ABI are accounted for
+    ///         in the expectedGetters mapping. This ensures we don't miss any new getters that
+    ///         might be added to the contract.
+    function _validateAllGettersAccounted() internal {
+        // Get all function names from the OPContractsManager ABI
+        string[] memory allFunctions = abi.decode(
+            vm.parseJson(
+                Process.bash(
+                    string.concat(
+                        "jq -r '[.abi[] | select(.type == \"function\" and .stateMutability == \"view\" and (.inputs | length) == 0) | .name]' ",
+                        _buildArtifactPath("OPContractsManager")
+                    )
+                )
+            ),
+            (string[])
+        );
+
+        // Check for any functions that are not in our expectedGetters mapping
+        string[] memory unaccountedGetters = new string[](allFunctions.length);
+        uint256 unaccountedCount = 0;
+
+        for (uint256 i = 0; i < allFunctions.length; i++) {
+            string memory functionName = allFunctions[i];
+            if (!expectedGetters[functionName]) {
+                unaccountedGetters[unaccountedCount] = functionName;
+                unaccountedCount++;
+            }
+        }
+
+        // If there are unaccounted getters, revert with the list
+        if (unaccountedCount > 0) {
+            // Create a trimmed array with only the unaccounted getters
+            string[] memory trimmedUnaccounted = new string[](unaccountedCount);
+            for (uint256 i = 0; i < unaccountedCount; i++) {
+                trimmedUnaccounted[i] = unaccountedGetters[i];
+            }
+            revert VerifyOPCM_UnaccountedGetters(trimmedUnaccounted);
+        }
     }
 }
