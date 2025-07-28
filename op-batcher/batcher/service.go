@@ -219,7 +219,14 @@ func (bs *BatcherService) initRPCClients(ctx context.Context, cfg *CLIConfig) er
 func (bs *BatcherService) initMetrics(cfg *CLIConfig) {
 	if cfg.MetricsConfig.Enabled {
 		procName := "default"
-		bs.Metrics = metrics.NewMetrics(procName)
+		bs.Metrics = metrics.NewMetrics(procName, func() float64 {
+			if bs.driver.channelMgr == nil {
+				return 0
+			}
+			bs.driver.channelMgrMutex.Lock()
+			defer bs.driver.channelMgrMutex.Unlock()
+			return float64(bs.driver.channelMgr.UnsafeDABytes())
+		})
 	} else {
 		bs.Metrics = metrics.NoopMetrics
 	}

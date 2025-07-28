@@ -546,3 +546,50 @@ func (m *channelManager) LastStoredBlock() eth.BlockID {
 	}
 	return eth.ToBlockID(m.blocks[m.blocks.Len()-1])
 }
+
+func (s *channelManager) UnsafeDABytes() int64 {
+
+	var bytesNotYetInChannels int64
+	for idx, block := range s.blocks {
+		if idx < s.blockCursor {
+			continue
+		}
+		daSize, _ := estimateBatchSize(block)
+		bytesNotYetInChannels += int64(daSize)
+	}
+
+	var bytesInClosedChannels int64
+	var bytesInOpenChannels int64
+	for _, channel := range s.channelQueue {
+		if channel.PendingFrames() > 0 || !channel.NoneSubmitted() {
+			bytesInClosedChannels += int64(channel.OutputBytes())
+		} else {
+			for _, block := range channel.channelBuilder.blocks {
+				daSize, _ := estimateBatchSize(block)
+				bytesInOpenChannels += int64(daSize)
+			}
+		}
+	}
+
+	return bytesNotYetInChannels + bytesInClosedChannels + bytesInOpenChannels
+}
+
+// estimateBatchSize returns the estimated size of the block in a batch both with compression ('daSize') and without
+// ('rawSize').
+func estimateBatchSize(block *types.Block) (daSize, rawSize uint64) {
+	daSize = uint64(70) // estimated overhead of batch metadata
+	rawSize = uint64(70)
+	for _, tx := range block.Transactions() {
+		// Deposit transactions are not included in batches
+		if tx.IsDepositTx() {
+			continue
+		}
+		bigSize := tx.RollupCostData().EstimatedDASize()
+		if bigSize.IsUint64() { // this should always be true, but if not just ignore
+			daSize += bigSize.Uint64()
+		}
+		// Add 2 for the overhead of encoding the tx bytes in a RLP list
+		rawSize += tx.Size() + 2
+	}
+	return
+}

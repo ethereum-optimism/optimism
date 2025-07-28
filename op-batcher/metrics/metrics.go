@@ -132,7 +132,7 @@ var _ Metricer = (*Metrics)(nil)
 // implements the Registry getter, for metrics HTTP server to hook into
 var _ opmetrics.RegistryMetricer = (*Metrics)(nil)
 
-func NewMetrics(procName string) *Metrics {
+func NewMetrics(procName string, unsafeDABytesGetter func() float64) *Metrics {
 	if procName == "" {
 		procName = "default"
 	}
@@ -306,7 +306,7 @@ func NewMetrics(procName string) *Metrics {
 		Namespace: ns,
 		Name:      "unsafe_da_bytes",
 		Help:      "estimate of the number of unsafe DA bytes",
-	}, m.UnsafeDABytes)
+	}, unsafeDABytesGetter)
 
 	return m
 }

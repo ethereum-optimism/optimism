@@ -122,7 +122,7 @@ func ChannelManager_Clear(t *testing.T, batchType uint) {
 	// clearing confirmed transactions, and resetting the pendingChannels map
 	cfg.ChannelTimeout = 10
 	cfg.InitRatioCompressor(1, derive.Zlib)
-	m := NewChannelManager(log, metrics.NewMetrics("test"), cfg, defaultTestRollupConfig)
+	m := NewChannelManager(log, metrics.NewMetrics("test", func() float64 { return 0 }), cfg, defaultTestRollupConfig)
 
 	// Channel Manager state should be empty by default
 	require.Empty(m.blocks)
