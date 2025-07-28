@@ -132,7 +132,7 @@ func TestDiffTester_Run_WithMemModifications(t *testing.T) {
 			// Validate that we invoked initState and setExpectations as expected
 			for _, c := range testCases {
 				// Difftester runs extra calls in order to analyze the tests
-				expectedCalls := len(versions)*(len(mods)+1) + +len(versions)
+				expectedCalls := len(versions) * (len(mods) + 2)
 				require.Equal(t, expectedCalls, initStateCalled[c.name])
 				require.Equal(t, expectedCalls, expectationsCalled[c.name])
 			}
