@@ -173,7 +173,7 @@ contract DeployImplementations is Script {
         // Semgrep rule will fail because the arguments are encoded inside of a separate function.
         opcm_ = IOPContractsManager(
             // nosemgrep: sol-safety-deployutils-args
-            DeployUtils.create2({
+            DeployUtils.createDeterministic({
                 _name: "OPContractsManager",
                 _args: encodeOPCMConstructor(_l1ContractsRelease, _input, _output),
                 _salt: _salt
