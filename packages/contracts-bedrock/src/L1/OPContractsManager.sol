@@ -30,7 +30,6 @@ import { IL1CrossDomainMessenger } from "interfaces/L1/IL1CrossDomainMessenger.s
 import { IL1ERC721Bridge } from "interfaces/L1/IL1ERC721Bridge.sol";
 import { IL1StandardBridge } from "interfaces/L1/IL1StandardBridge.sol";
 import { IOptimismMintableERC20Factory } from "interfaces/universal/IOptimismMintableERC20Factory.sol";
-import { IHasSuperchainConfig } from "interfaces/L1/IHasSuperchainConfig.sol";
 import { IETHLockbox } from "interfaces/L1/IETHLockbox.sol";
 import { OPContractsManagerStandardValidator } from "src/L1/OPContractsManagerStandardValidator.sol";
 
@@ -1932,6 +1931,9 @@ contract OPContractsManager is ISemver {
     /// @notice Upgrades a set of chains to the latest implementation contracts
     /// @param _opChainConfigs Array of OpChain structs, one per chain to upgrade
     /// @dev This function is intended to be called via DELEGATECALL from the Upgrade Controller Safe
+    /// @dev This function assumes that the first OpChainConfig member of the `_opChainConfigs` array is the
+    ///      chain whose proxyAdmin is also the `superchainProxyAdmin`. This only matters if the superchainConfig is
+    ///      expected to be upgraded in this call.
     function upgrade(OpChainConfig[] memory _opChainConfigs) external virtual {
         if (address(this) == address(thisOPCM)) revert OnlyDelegatecall();
 
@@ -1946,8 +1948,9 @@ contract OPContractsManager is ISemver {
         ISuperchainConfig _superchainConfig = superchainConfig;
         IProxyAdmin _superchainProxyAdmin = superchainProxyAdmin;
         if (_opChainConfigs.length > 0) {
-            _superchainConfig = _opChainConfigs[0].systemConfigProxy.superchainConfig();
-            _superchainProxyAdmin = _superchainConfig.proxyAdmin();
+            _superchainConfig =
+                IOptimismPortal(payable(_opChainConfigs[0].systemConfigProxy.optimismPortal())).superchainConfig();
+            _superchainProxyAdmin = _opChainConfigs[0].proxyAdmin;
         }
 
         bytes memory data = abi.encodeCall(
