@@ -75,7 +75,7 @@ func AttributesMatchBlock(rollupCfg *rollup.Config, attrs *eth.PayloadAttributes
 	if attrs.SuggestedFeeRecipient != block.FeeRecipient {
 		return fmt.Errorf("fee recipient data does not match, expected %s but got %s", block.FeeRecipient, attrs.SuggestedFeeRecipient)
 	}
-	if err := checkEIP1559ParamsMatch(rollupCfg.ChainOpConfig, attrs.EIP1559Params, block.ExtraData, rollupCfg.IsJovian(uint64(block.Timestamp))); err != nil {
+	if err := checkEIP1559ParamsMatch(rollupCfg.ChainOpConfig, attrs.EIP1559Params, block.ExtraData, attrs.MinBaseFeeLog2, rollupCfg.IsJovian(uint64(block.Timestamp))); err != nil {
 		return err
 	}
 
@@ -97,7 +97,7 @@ func checkParentBeaconBlockRootMatch(attrRoot, blockRoot *common.Hash) error {
 	return nil
 }
 
-func checkEIP1559ParamsMatch(opCfg *params.OptimismConfig, attrParams *eth.Bytes8, blockExtraData []byte, isJovian bool) error {
+func checkEIP1559ParamsMatch(opCfg *params.OptimismConfig, attrParams *eth.Bytes8, blockExtraData []byte, minBaseFeeLog2 uint8, isJovian bool) error {
 
 	// Note that we can assume that the attributes' eip1559params are non-nil iff Holocene is active
 	// according to the local rollup config.
@@ -137,30 +137,24 @@ func checkEIP1559ParamsMatch(opCfg *params.OptimismConfig, attrParams *eth.Bytes
 
 		// Decode block parameters and check for mismatch
 		var (
-			bd, be   uint64
-			bm       uint8
-			extraErr string
+			bd, be uint64
+			bm     uint8
 		)
 		if isJovian {
 			bd, be, bm = eip1559.DecodeMinBaseFeeExtraData(blockExtraData)
+			if bm != minBaseFeeLog2 {
+				return fmt.Errorf("minBaseFeeLog2 does not match, attributes: %d, block: %d", minBaseFeeLog2, bm)
+			}
 		} else {
 			bd, be = eip1559.DecodeHoloceneExtraData(blockExtraData)
 		}
 
 		if ad != bd || ae != be {
+			extraErr := ""
 			if translated {
-				if isJovian {
-					extraErr = " (translated from 0,0,0)"
-				} else {
-					extraErr = " (translated from 0,0)"
-				}
+				extraErr = " (translated from 0,0)"
 			}
-
-			if isJovian {
-				return fmt.Errorf("eip1559 parameters do not match, attributes: %d, %d%s, block: %d, %d, %d", ad, ae, extraErr, bd, be, bm)
-			} else {
-				return fmt.Errorf("eip1559 parameters do not match, attributes: %d, %d%s, block: %d, %d", ad, ae, extraErr, bd, be)
-			}
+			return fmt.Errorf("eip1559 parameters do not match, attributes: %d, %d%s, block: %d, %d", ad, ae, extraErr, bd, be)
 		}
 	} else if len(blockExtraData) > 0 {
 		// When deriving pre-Holocene blocks, the extraData must be empty.
