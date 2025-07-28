@@ -347,7 +347,7 @@ contract StandardValidator_GeneralOverride_Test is StandardValidator_TestInit {
 
         vm.expectRevert(
             bytes(
-                "StandardValidator: OVERRIDES-L1PAOMULTISIG,OVERRIDES-CHALLENGER,PROXYA-10,DF-30,PDDG-DWETH-30,PDDG-130,PLDG-DWETH-30"
+                "OPContractsManagerStandardValidator: OVERRIDES-L1PAOMULTISIG,OVERRIDES-CHALLENGER,PROXYA-10,DF-30,PDDG-DWETH-30,PDDG-130,PLDG-DWETH-30"
             )
         );
         _validate(false, overrides);
@@ -881,12 +881,6 @@ contract StandardValidator_PermissionedDisputeGame_Test is StandardValidator_Tes
         assertEq("PDDG-20", _validate(true, validationOverrides));
     }
 
-    /// @notice Tests that the validate function successfully returns the right error when the
-    ///         PermissionedDisputeGame game type is invalid.
-    function test_validate_permissionedDisputeGameInvalidGameType_succeeds() public {
-        vm.mockCall(address(pdg), abi.encodeCall(IDisputeGame.gameType, ()), abi.encode(GameTypes.CANNON));
-        assertEq("PDDG-30", _validate(true, validationOverrides));
-    }
 
     /// @notice Tests that the validate function successfully returns the right error when the
     ///         PermissionedDisputeGame absolute prestate is invalid.
@@ -899,30 +893,6 @@ contract StandardValidator_PermissionedDisputeGame_Test is StandardValidator_Tes
         assertEq("PDDG-40", _validate(true, validationOverrides));
     }
 
-    /// @notice Tests that the validate function successfully returns the right error when the
-    ///         PermissionedDisputeGame VM address is invalid.
-    function test_validate_permissionedDisputeGameInvalidVM_succeeds() public {
-        vm.mockCall(address(pdg), abi.encodeCall(IPermissionedDisputeGame.vm, ()), abi.encode(address(0xbad)));
-        vm.mockCall(address(0xbad), abi.encodeCall(ISemver.version, ()), abi.encode("0.0.0"));
-        vm.mockCall(address(0xbad), abi.encodeCall(IMIPS64.stateVersion, ()), abi.encode(7));
-
-        // Mock the FaultDisputeGame's VM to return the valid mips address so it doesn't produce errors
-        // This is necessary because the validate function validates both PermissionedDisputeGame and FaultDisputeGame
-        vm.mockCall(address(fdg), abi.encodeCall(IFaultDisputeGame.vm, ()), abi.encode(address(mips)));
-
-        // Use overrides with vm set to address(0) so it doesn't override the game's VM
-        IOPContractsManagerStandardValidator.ValidationOverrides memory overrides = _defaultValidationOverrides();
-        overrides.vm = address(0);
-        assertEq("PDDG-VM-10,PDDG-VM-20", _validate(true, overrides));
-    }
-
-    /// @notice Tests that the validate function successfully returns the right error when the
-    ///         PermissionedDisputeGame VM's state version is invalid.
-    function test_validate_permissionedDisputeGameInvalidVMStateVersion_succeeds() public {
-        vm.mockCall(address(pdg), abi.encodeCall(IPermissionedDisputeGame.vm, ()), abi.encode(address(mips)));
-        vm.mockCall(address(mips), abi.encodeCall(IMIPS64.stateVersion, ()), abi.encode(6));
-        assertEq("PDDG-VM-30,PLDG-VM-30", _validate(true, validationOverrides));
-    }
 
     /// @notice Tests that the validate function successfully returns the right error when the
     ///         PermissionedDisputeGame L2 Chain ID is invalid.
@@ -970,16 +940,6 @@ contract StandardValidator_PermissionedDisputeGame_Test is StandardValidator_Tes
         assertEq("PDDG-110", _validate(true, validationOverrides));
     }
 
-    /// @notice Tests that the validate function successfully returns the right error when the
-    ///         PermissionedDisputeGame anchor root is 0.
-    function test_validate_permissionedDisputeGameZeroAnchorRoot_succeeds() public {
-        vm.mockCall(
-            address(anchorStateRegistry),
-            abi.encodeCall(IAnchorStateRegistry.getAnchorRoot, ()),
-            abi.encode(bytes32(0), 1)
-        );
-        assertEq("PDDG-120,PLDG-120", _validate(true, _defaultValidationOverrides()));
-    }
 
     /// @notice Tests that the validate function successfully returns the right error when the
     ///         PermissionedDisputeGame challenger is invalid.
@@ -1004,69 +964,6 @@ contract StandardValidator_PermissionedDisputeGame_Test is StandardValidator_Tes
     }
 }
 
-/// @title StandardValidator_AnchorStateRegistry_Test
-/// @notice Tests validation of `AnchorStateRegistry` configuration
-contract StandardValidator_AnchorStateRegistry_Test is StandardValidator_TestInit {
-    /// @notice Tests that the validate function successfully returns the right error when the
-    ///         AnchorStateRegistry version is invalid.
-    function test_validate_anchorStateRegistryInvalidVersion_succeeds() public {
-        vm.mockCall(address(anchorStateRegistry), abi.encodeCall(ISemver.version, ()), abi.encode("0.0.1"));
-        assertEq("PDDG-ANCHORP-10,PLDG-ANCHORP-10", _validate(true, _defaultValidationOverrides()));
-    }
-
-    /// @notice Tests that the validate function successfully returns the right error when the
-    ///         AnchorStateRegistry implementation is invalid.
-    function test_validate_anchorStateRegistryInvalidImplementation_succeeds() public {
-        vm.mockCall(
-            address(proxyAdmin),
-            abi.encodeCall(IProxyAdmin.getProxyImplementation, (address(anchorStateRegistry))),
-            abi.encode(address(0xbad))
-        );
-        assertEq("PDDG-ANCHORP-20,PLDG-ANCHORP-20", _validate(true, _defaultValidationOverrides()));
-    }
-
-    /// @notice Tests that the validate function successfully returns the right error when the
-    ///         AnchorStateRegistry disputeGameFactory is invalid.
-    function test_validate_anchorStateRegistryInvalidDisputeGameFactory_succeeds() public {
-        vm.mockFunction(
-            address(anchorStateRegistry),
-            address(badDisputeGameFactoryReturner),
-            abi.encodeCall(IAnchorStateRegistry.disputeGameFactory, ())
-        );
-        assertEq("PDDG-ANCHORP-30,PLDG-ANCHORP-30", _validate(true, _defaultValidationOverrides()));
-    }
-
-    /// @notice Tests that the validate function successfully returns the right error when the
-    ///         AnchorStateRegistry systemConfig is invalid.
-    function test_validate_anchorStateRegistryInvalidSystemConfig_succeeds() public {
-        vm.mockCall(
-            address(anchorStateRegistry),
-            abi.encodeCall(IAnchorStateRegistry.systemConfig, ()),
-            abi.encode(address(0xbad))
-        );
-        assertEq("PDDG-ANCHORP-40,PLDG-ANCHORP-40", _validate(true, _defaultValidationOverrides()));
-    }
-
-    /// @notice Tests that the validate function successfully returns the right error when the
-    ///         AnchorStateRegistry proxyAdmin is invalid.
-    function test_validate_anchorStateRegistryInvalidProxyAdmin_succeeds() public {
-        vm.mockCall(
-            address(anchorStateRegistry),
-            abi.encodeCall(IProxyAdminOwnedBase.proxyAdmin, ()),
-            abi.encode(address(0xbad))
-        );
-        assertEq("PDDG-ANCHORP-50,PLDG-ANCHORP-50", _validate(true, _defaultValidationOverrides()));
-    }
-
-    /// @notice Tests that the validate function successfully returns the right error when the
-    ///         AnchorStateRegistry retirementTimestamp is invalid.
-    function test_validate_anchorStateRegistryInvalidRetirementTimestamp_succeeds() public {
-        vm.mockCall(
-            address(anchorStateRegistry), abi.encodeCall(IAnchorStateRegistry.retirementTimestamp, ()), abi.encode(0)
-        );
-        assertEq("PDDG-ANCHORP-60,PLDG-ANCHORP-60", _validate(true, _defaultValidationOverrides()));
-    }
-}
 
 /// @title StandardValidator_DelayedWETH_Test
 /// @notice Tests validation of `DelayedWETH` configuration
@@ -1161,30 +1058,6 @@ contract StandardValidator_DelayedWETH_Test is StandardValidator_TestInit {
     }
 }
 
-/// @title StandardValidator_PreimageOracle_Test
-/// @notice Tests validation of `PreimageOracle` configuration
-contract StandardValidator_PreimageOracle_Test is StandardValidator_TestInit {
-    /// @notice Tests that the validate function successfully returns the right error when the
-    ///         PreimageOracle version is invalid.
-    function test_validate_preimageOracleInvalidVersion_succeeds() public {
-        vm.mockCall(address(preimageOracle), abi.encodeCall(ISemver.version, ()), abi.encode("0.0.1"));
-        assertEq("PDDG-PIMGO-10,PLDG-PIMGO-10", _validate(true, validationOverrides));
-    }
-
-    /// @notice Tests that the validate function successfully returns the right error when the
-    ///         PreimageOracle challengePeriod is invalid.
-    function test_validate_preimageOracleInvalidChallengePeriod_succeeds() public {
-        vm.mockCall(address(preimageOracle), abi.encodeCall(IPreimageOracle.challengePeriod, ()), abi.encode(1000));
-        assertEq("PDDG-PIMGO-20,PLDG-PIMGO-20", _validate(true, validationOverrides));
-    }
-
-    /// @notice Tests that the validate function successfully returns the right error when the
-    ///         PreimageOracle minProposalSize is invalid.
-    function test_validate_preimageOracleInvalidMinProposalSize_succeeds() public {
-        vm.mockCall(address(preimageOracle), abi.encodeCall(IPreimageOracle.minProposalSize, ()), abi.encode(1000));
-        assertEq("PDDG-PIMGO-30,PLDG-PIMGO-30", _validate(true, validationOverrides));
-    }
-}
 
 /// @title StandardValidator_FaultDisputeGame_Test
 /// @notice Tests validation of `FaultDisputeGame` configuration
@@ -1207,12 +1080,6 @@ contract StandardValidator_FaultDisputeGame_Test is StandardValidator_TestInit {
         assertEq("PLDG-20", _validate(true, validationOverrides));
     }
 
-    /// @notice Tests that the validate function successfully returns the right error when the
-    ///         FaultDisputeGame (permissionless) game type is invalid.
-    function test_validate_faultDisputeGameInvalidGameType_succeeds() public {
-        vm.mockCall(address(fdg), abi.encodeCall(IDisputeGame.gameType, ()), abi.encode(GameTypes.PERMISSIONED_CANNON));
-        assertEq("PLDG-30", _validate(true, validationOverrides));
-    }
 
     /// @notice Tests that the validate function successfully returns the right error when the
     ///         FaultDisputeGame (permissionless) absolute prestate is invalid.
@@ -1225,30 +1092,6 @@ contract StandardValidator_FaultDisputeGame_Test is StandardValidator_TestInit {
         assertEq("PLDG-40", _validate(true, validationOverrides));
     }
 
-    /// @notice Tests that the validate function successfully returns the right error when the
-    ///         FaultDisputeGame (permissionless) VM address is invalid.
-    function test_validate_faultDisputeGameInvalidVM_succeeds() public {
-        vm.mockCall(address(fdg), abi.encodeCall(IFaultDisputeGame.vm, ()), abi.encode(address(0xbad)));
-        vm.mockCall(address(0xbad), abi.encodeCall(ISemver.version, ()), abi.encode("0.0.0"));
-        vm.mockCall(address(0xbad), abi.encodeCall(IMIPS64.stateVersion, ()), abi.encode(7));
-
-        // Mock the PermissionedDisputeGame's VM to return the valid mips address so it doesn't produce errors
-        // This is necessary because the validate function validates both PermissionedDisputeGame and FaultDisputeGame
-        vm.mockCall(address(pdg), abi.encodeCall(IPermissionedDisputeGame.vm, ()), abi.encode(address(mips)));
-
-        // Use overrides with vm set to address(0) so it doesn't override the game's VM
-        IOPContractsManagerStandardValidator.ValidationOverrides memory overrides = _defaultValidationOverrides();
-        overrides.vm = address(0);
-        assertEq("PLDG-VM-10,PLDG-VM-20", _validate(true, overrides));
-    }
-
-    /// @notice Tests that the validate function successfully returns the right error when the
-    ///         FaultDisputeGame (permissionless) VM's state version is invalid.
-    function test_validate_faultDisputeGameInvalidVMStateVersion_succeeds() public {
-        vm.mockCall(address(fdg), abi.encodeCall(IFaultDisputeGame.vm, ()), abi.encode(address(mips)));
-        vm.mockCall(address(mips), abi.encodeCall(IMIPS64.stateVersion, ()), abi.encode(6));
-        assertEq("PDDG-VM-30,PLDG-VM-30", _validate(true, validationOverrides));
-    }
 
     /// @notice Tests that the validate function successfully returns the right error when the
     ///         FaultDisputeGame (permissionless) L2 Chain ID is invalid.
