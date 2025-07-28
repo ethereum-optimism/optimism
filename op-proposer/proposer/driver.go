@@ -266,7 +266,7 @@ func (l *L2OutputSubmitter) FetchDGFOutput(ctx context.Context) (source.Proposal
 		return source.Proposal{}, false, fmt.Errorf("could not check for recent proposal: %w", err)
 	}
 
-	if proposedRecently {
+	if !proposedRecently {
 		l.Log.Debug("Duration since last game not past proposal interval", "duration", time.Since(proposalTime))
 		return source.Proposal{}, false, nil
 	}
