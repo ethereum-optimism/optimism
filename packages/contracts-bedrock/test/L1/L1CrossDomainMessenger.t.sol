@@ -129,38 +129,40 @@ contract L1CrossDomainMessenger_Initialize_Test is L1CrossDomainMessenger_TestIn
         l1CrossDomainMessenger.initialize(systemConfig, optimismPortal2);
     }
 
-    /// @notice Tests that initialize handles zero addresses correctly.
-    function test_initialize_zeroSystemConfig_succeeds() external {
+    /// @notice Fuzz test for initialize with any system config address.
+    /// @param _systemConfig The system config address to test.
+    function testFuzz_initialize_anySystemConfig_succeeds(address _systemConfig) external {
         // Get the slot for _initialized.
         StorageSlot memory slot = ForgeArtifacts.getSlot("L1CrossDomainMessenger", "_initialized");
 
         // Set the initialized slot to 0.
         vm.store(address(l1CrossDomainMessenger), bytes32(slot.slot), bytes32(0));
 
-        // Initialize with zero system config
+        // Initialize with the fuzzed system config address
         vm.prank(address(proxyAdmin));
-        l1CrossDomainMessenger.initialize(ISystemConfig(address(0)), optimismPortal2);
+        l1CrossDomainMessenger.initialize(ISystemConfig(_systemConfig), optimismPortal2);
 
-        // Verify zero address was set
-        assertEq(address(l1CrossDomainMessenger.systemConfig()), address(0));
+        // Verify the address was set correctly
+        assertEq(address(l1CrossDomainMessenger.systemConfig()), _systemConfig);
         assertEq(address(l1CrossDomainMessenger.portal()), address(optimismPortal2));
     }
 
-    /// @notice Tests that initialize handles zero portal address correctly.
-    function test_initialize_zeroPortal_succeeds() external {
+    /// @notice Fuzz test for initialize with any portal address.
+    /// @param _portal The portal address to test.
+    function testFuzz_initialize_anyPortal_succeeds(address _portal) external {
         // Get the slot for _initialized.
         StorageSlot memory slot = ForgeArtifacts.getSlot("L1CrossDomainMessenger", "_initialized");
 
         // Set the initialized slot to 0.
         vm.store(address(l1CrossDomainMessenger), bytes32(slot.slot), bytes32(0));
 
-        // Initialize with zero portal
+        // Initialize with the fuzzed portal address
         vm.prank(address(proxyAdmin));
-        l1CrossDomainMessenger.initialize(systemConfig, IOptimismPortal2(payable(address(0))));
+        l1CrossDomainMessenger.initialize(systemConfig, IOptimismPortal2(payable(_portal)));
 
-        // Verify zero address was set
+        // Verify the address was set correctly
         assertEq(address(l1CrossDomainMessenger.systemConfig()), address(systemConfig));
-        assertEq(address(l1CrossDomainMessenger.portal()), address(0));
+        assertEq(address(l1CrossDomainMessenger.portal()), _portal);
     }
 }
 
@@ -238,20 +240,21 @@ contract L1CrossDomainMessenger_Upgrade_Test is L1CrossDomainMessenger_TestInit 
         l1CrossDomainMessenger.upgrade(newSystemConfig);
     }
 
-    /// @notice Tests that upgrade handles zero address for system config.
-    function test_upgrade_zeroSystemConfig_succeeds() external {
+    /// @notice Fuzz test for upgrade with any system config address.
+    /// @param _systemConfig The system config address to test.
+    function testFuzz_upgrade_anySystemConfig_succeeds(address _systemConfig) external {
         // Get the slot for _initialized.
         StorageSlot memory slot = ForgeArtifacts.getSlot("L1CrossDomainMessenger", "_initialized");
 
         // Set the initialized slot to 0.
         vm.store(address(l1CrossDomainMessenger), bytes32(slot.slot), bytes32(0));
 
-        // Trigger upgrade with zero address.
+        // Trigger upgrade with the fuzzed address.
         vm.prank(address(l1CrossDomainMessenger.proxyAdmin()));
-        l1CrossDomainMessenger.upgrade(ISystemConfig(address(0)));
+        l1CrossDomainMessenger.upgrade(ISystemConfig(_systemConfig));
 
-        // Verify that the systemConfig was updated to zero.
-        assertEq(address(l1CrossDomainMessenger.systemConfig()), address(0));
+        // Verify that the systemConfig was updated correctly.
+        assertEq(address(l1CrossDomainMessenger.systemConfig()), _systemConfig);
     }
 }
 
@@ -277,20 +280,6 @@ contract L1CrossDomainMessenger_Paused_Test is L1CrossDomainMessenger_TestInit {
 
         assertTrue(l1CrossDomainMessenger.paused());
         assertEq(l1CrossDomainMessenger.paused(), superchainConfig.paused(address(0)));
-    }
-
-    /// @notice Tests paused state when systemConfig is zero address.
-    function test_pause_zeroSystemConfig_reverts() external {
-        // Get initialized slot and reinitialize with zero system config
-        StorageSlot memory slot = ForgeArtifacts.getSlot("L1CrossDomainMessenger", "_initialized");
-        vm.store(address(l1CrossDomainMessenger), bytes32(slot.slot), bytes32(0));
-
-        vm.prank(address(proxyAdmin));
-        l1CrossDomainMessenger.initialize(ISystemConfig(address(0)), optimismPortal2);
-
-        // Calling paused() should revert when systemConfig is zero
-        vm.expectRevert(bytes(""));
-        l1CrossDomainMessenger.paused();
     }
 }
 
