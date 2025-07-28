@@ -6,6 +6,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/chebyrash/promise"
 	"github.com/ethereum/go-ethereum/log"
 
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
@@ -160,6 +161,13 @@ func (fi *Finalizer) OnEvent(ctx context.Context, ev event.Event) bool {
 
 func (fi *Finalizer) SetFinalizedHead(x eth.L2BlockRef) {
 	fi.lastFinalizedL2 = x
+}
+
+func (fi *Finalizer) SetFinalizedHeadAsync(x eth.L2BlockRef) *promise.Promise[struct{}] {
+	return promise.New(func(resolve func(struct{}), reject func(error)) {
+		fi.SetFinalizedHead(x)
+		resolve(struct{}{})
+	})
 }
 
 var _ engine.FinalizerWrapper = (*Finalizer)(nil)

@@ -7,6 +7,7 @@ import (
 	gosync "sync"
 	"time"
 
+	"github.com/chebyrash/promise"
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
@@ -58,6 +59,7 @@ type StatusTrackerWrapper interface {
 type CLSyncWrapper interface {
 	OnForkchoiceUpdateSync(ctx context.Context, x ForkchoiceUpdateInfo)
 	OnUnsafePayloadSync(ctx context.Context, envelope *eth.ExecutionPayloadEnvelope)
+	OnUnsafePayloadAsync(ctx context.Context, envelope *eth.ExecutionPayloadEnvelope) *promise.Promise[struct{}]
 }
 
 type FinalizerWrapper interface {

@@ -2,9 +2,11 @@ package clsync
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sync"
 
+	"github.com/chebyrash/promise"
 	"github.com/ethereum/go-ethereum/log"
 
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
@@ -236,6 +238,69 @@ func (eq *CLSync) OnUnsafePayloadSync(ctx context.Context, envelope *eth.Executi
 	eq.OnForkchoiceUpdateSync(ctx, info)
 }
 
+// AddUnsafePayload schedules an execution payload to be processed, ahead of deriving it from L1.
+func (eq *CLSync) OnUnsafePayloadAsync(ctx context.Context, envelope *eth.ExecutionPayloadEnvelope) *promise.Promise[struct{}] {
+	return promise.New(func(resolve func(struct{}), reject func(error)) {
+		fmt.Println("l33t OnUnsafePayloadAsync")
+		if envelope == nil {
+			eq.log.Warn("cannot add nil unsafe payload")
+			resolve(struct{}{})
+		}
+		eq.log.Debug("CL sync received payload", "payload", envelope.ExecutionPayload.ID())
+
+		if err := eq.unsafePayloads.Push(envelope); err != nil {
+			eq.log.Warn("Could not add unsafe payload", "id", envelope.ExecutionPayload.ID(), "timestamp", uint64(envelope.ExecutionPayload.Timestamp), "err", err)
+			resolve(struct{}{})
+		}
+		p := eq.unsafePayloads.Peek()
+		eq.metrics.RecordUnsafePayloadsBuffer(uint64(eq.unsafePayloads.Len()), eq.unsafePayloads.MemSize(), p.ExecutionPayload.ID())
+		eq.log.Trace("Next unsafe payload to process", "next", p.ExecutionPayload.ID(), "timestamp", uint64(p.ExecutionPayload.Timestamp))
+
+		// request forkchoice signal, so we can process the payload maybe
+
+		// 1. EngDeriver receives and converts to ForkchoiceUpdateEvent
+		// case ForkchoiceRequestEvent:
+		// 	d.emitter.Emit(ctx, ForkchoiceUpdateEvent{
+		// 		UnsafeL2Head:    d.ec.UnsafeL2Head(),
+		// 		SafeL2Head:      d.ec.SafeL2Head(),
+		// 		FinalizedL2Head: d.ec.Finalized(),
+		// 	})
+		// 2. {clsync, finalizer, origin_selector, sequencer, status}.go receives it
+		// and do their work
+
+		// No event emit:
+		//  eq.emitter.Emit(ctx, engine.ForkchoiceRequestEvent{})
+
+		// bypass ForkchoiceRequestEvent and directly do ForkChoiceUpdate
+		// Temporal measure: Do not handle origin_selector, sequencer since it is sequencer code path
+		info := eq.EngineDeriver.GetForkChoiceUpdateInfo()
+		// // Handle finalizer.go
+		// eq.Finalizer.SetFinalizedHead(info.FinalizedL2Head)
+		// // Handle status.go
+		// eq.StatusTracker.ForkchoiceUpdate(info)
+		// // Handle clsync.go (Most heavy one)
+		// eq.OnForkchoiceUpdateSync(ctx, info)
+
+		// async functions return promise
+		finalizerPromise := eq.Finalizer.SetFinalizedHeadAsync(info.FinalizedL2Head)
+		statusPromise := eq.StatusTracker.ForkchoiceUpdateAsync(info)
+		clsyncPromise := eq.OnForkchoiceUpdateAsync(ctx, info)
+
+		// Await all promises
+		_, err1 := finalizerPromise.Await(ctx)
+		_, err2 := statusPromise.Await(ctx)
+		_, err3 := clsyncPromise.Await(ctx)
+
+		// Handle errors
+		if err1 != nil || err2 != nil || err3 != nil {
+			eq.log.Warn("forkchoice async update had errors", "finalizerErr", err1, "statusErr", err2, "clsyncErr", err3)
+			err := errors.Join(err1, err2, err3)
+			reject(err)
+		}
+		resolve(struct{}{})
+	})
+}
+
 var _ engine.CLSyncWrapper = (*CLSync)(nil)
 
 func (eq *CLSync) OnForkchoiceUpdateSync(ctx context.Context, x engine.ForkchoiceUpdateInfo) {
@@ -267,4 +332,11 @@ func (eq *CLSync) OnForkchoiceUpdateSync(ctx context.Context, x engine.Forkchoic
 
 	// eq.emitter.Emit(ctx, engine.ProcessUnsafePayloadEvent{Envelope: firstEnvelope})
 	eq.EngineDeriver.OnProcessUnsafePayloadSync(ctx, firstEnvelope)
+}
+
+func (eq *CLSync) OnForkchoiceUpdateAsync(ctx context.Context, x engine.ForkchoiceUpdateInfo) *promise.Promise[struct{}] {
+	return promise.New(func(resolve func(struct{}), reject func(error)) {
+		eq.OnForkchoiceUpdateSync(ctx, x)
+		resolve(struct{}{})
+	})
 }

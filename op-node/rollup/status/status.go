@@ -5,6 +5,7 @@ import (
 	"sync"
 	"sync/atomic"
 
+	"github.com/chebyrash/promise"
 	"github.com/ethereum/go-ethereum/log"
 
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
@@ -66,6 +67,13 @@ func (st *StatusTracker) ForkchoiceUpdate(x engine.ForkchoiceUpdateInfo) {
 		st.data.LocalSafeL2 = x.SafeL2Head
 	}
 	st.data.FinalizedL2 = x.FinalizedL2Head
+}
+
+func (st *StatusTracker) ForkchoiceUpdateAsync(x engine.ForkchoiceUpdateInfo) *promise.Promise[struct{}] {
+	return promise.New(func(resolve func(struct{}), reject func(error)) {
+		st.ForkchoiceUpdate(x)
+		resolve(struct{}{})
+	})
 }
 
 func (st *StatusTracker) CrossUnsafeUpdate(x engine.CrossUnsafeUpdateInfo) {

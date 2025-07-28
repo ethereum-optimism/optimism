@@ -309,7 +309,22 @@ func (s *SyncDeriver) OnIncomingP2PBlockSync(ctx context.Context, envelope *eth.
 	// If we are doing CL sync or done with engine syncing, fallback to the unsafe payload queue & CL P2P sync.
 	if s.SyncCfg.SyncMode == sync.CLSync || !s.Engine.IsEngineSyncing() {
 		s.Log.Info("Optimistically queueing unsafe L2 execution payload", "id", envelope.ExecutionPayload.ID())
-		s.CLSyncWrapper.OnUnsafePayloadSync(ctx, envelope)
+
+		onSafePayloadAsyncPromise := s.CLSyncWrapper.OnUnsafePayloadAsync(ctx, envelope)
+		// blocking
+		// {
+		// fmt.Println("l33t blocking")
+		// 	_, err := onSafePayloadAsyncPromise.Await(ctx)
+		// 	if err != nil {
+		// 		log.Warn("CLSync OnUnsafePayloadAsync failed", "err", err)
+		// 	}
+		// }
+		// no blocking(fire and forget, like events)
+		{
+			fmt.Println("l33t unblocking")
+			_ = onSafePayloadAsyncPromise
+		}
+		// s.CLSyncWrapper.OnUnsafePayloadSync(ctx, envelope)
 		// s.Emitter.Emit(ctx, clsync.ReceivedUnsafePayloadEvent{Envelope: envelope})
 	} else if s.SyncCfg.SyncMode == sync.ELSync {
 		// pcw109550: track this control flow
