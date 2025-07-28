@@ -64,7 +64,7 @@ func (c *clientProvider) RollupClient() (RollupClient, error) {
 	if c.rollupClient != nil {
 		return c.rollupClient, nil
 	}
-	rollupClient, err := dial.DialRollupClientWithTimeout(c.ctx, dial.DefaultDialTimeout, c.logger, c.cfg.RollupRpc)
+	rollupClient, err := dial.DialRollupClientWithTimeout(c.ctx, c.logger, c.cfg.RollupRpc)
 	if err != nil {
 		return nil, fmt.Errorf("dial rollup client %v: %w", c.cfg.RollupRpc, err)
 	}

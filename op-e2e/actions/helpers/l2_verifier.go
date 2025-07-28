@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"math/big"
+	"time"
 
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/depset"
 	"github.com/stretchr/testify/require"
@@ -240,7 +241,7 @@ func (v *L2Verifier) InteropSyncNode(t Testing) syncnode.SyncNode {
 	require.True(t, ok, "Interop sub-system must be in managed-mode if used as sync-node")
 	auth := rpc.WithHTTPAuth(gnode.NewJWTAuth(m.JWTSecret()))
 	opts := []client.RPCOption{client.WithGethRPCOptions(auth)}
-	cl, err := client.CheckAndDial(t.Ctx(), v.log, m.WSEndpoint(), auth)
+	cl, err := client.CheckAndDial(t.Ctx(), v.log, m.WSEndpoint(), 5*time.Second, auth)
 	require.NoError(t, err)
 	t.Cleanup(cl.Close)
 	bCl := client.NewBaseRPCClient(cl)

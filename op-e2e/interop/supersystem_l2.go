@@ -76,7 +76,7 @@ func (s *interopE2ESystem) L2GethClient(id string, name string) *ethclient.Clien
 		rpcEndpoint,
 		func(v string) *rpc.Client {
 			logger := testlog.Logger(s.t, log.LevelInfo).New("node", id)
-			cl, err := dial.DialRPCClientWithTimeout(context.Background(), 30*time.Second, logger, v)
+			cl, err := dial.DialRPCClientWithTimeout(context.Background(), logger, v)
 			require.NoError(s.t, err, "failed to dial eth node instance %s", id)
 			return cl
 		})
@@ -98,9 +98,9 @@ func (s *interopE2ESystem) L2RollupClient(id string, name string) *sources.Rollu
 	}
 	rollupClA, err := dial.DialRollupClientWithTimeout(
 		context.Background(),
-		time.Second*15,
 		s.logger,
-		node.opNode.UserRPC().RPC())
+		node.opNode.UserRPC().RPC(),
+	)
 	require.NoError(s.t, err, "failed to dial rollup client")
 	node.rollupClient = rollupClA
 	return node.rollupClient

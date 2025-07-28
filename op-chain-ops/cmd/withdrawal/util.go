@@ -84,7 +84,7 @@ func loadDepsetConfig(ctx *cli.Context, depSetFlag string) (depset.DependencySet
 }
 
 func createSupervisorClient(ctx *cli.Context, supervisorFlag string) (*sources.SupervisorClient, error) {
-	rpcCl, err := dial.DialRPCClientWithTimeout(ctx.Context, 1*time.Minute, log.Root(), ctx.String(supervisorFlag))
+	rpcCl, err := dial.DialRPCClientWithTimeout(ctx.Context, log.Root(), ctx.String(supervisorFlag))
 	if err != nil {
 		return nil, fmt.Errorf("failed to dial rollup client: %w", err)
 	}

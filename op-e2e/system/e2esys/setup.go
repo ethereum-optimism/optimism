@@ -1133,7 +1133,7 @@ func (sys *System) RollupClient(name string) *sources.RollupClient {
 	}
 	rpcClient := endpoint.DialRPC(endpoint.PreferAnyRPC, sys.RollupEndpoint(name), func(v string) *rpc.Client {
 		logger := testlog.Logger(sys.t, log.LevelInfo).New("rollupClient", name)
-		cl, err := dial.DialRPCClientWithTimeout(context.Background(), 30*time.Second, logger, v)
+		cl, err := dial.DialRPCClientWithTimeout(context.Background(), logger, v)
 		require.NoError(sys.t, err, "failed to dial rollup instance %s", name)
 		return cl
 	})
@@ -1152,7 +1152,7 @@ func (sys *System) NodeClient(name string) *ethclient.Client {
 	}
 	rpcCl := endpoint.DialRPC(endpoint.PreferAnyRPC, sys.NodeEndpoint(name), func(v string) *rpc.Client {
 		logger := testlog.Logger(sys.t, log.LevelInfo).New("node", name)
-		cl, err := dial.DialRPCClientWithTimeout(context.Background(), 30*time.Second, logger, v)
+		cl, err := dial.DialRPCClientWithTimeout(context.Background(), logger, v)
 		require.NoError(sys.t, err, "failed to dial eth node instance %s", name)
 		return cl
 	})

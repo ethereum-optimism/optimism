@@ -177,10 +177,10 @@ func WithL2ELP2PConnection(l2EL1ID, l2EL2ID stack.L2ELNodeID) stack.Option[*Orch
 		ctx := orch.P().Ctx()
 		logger := orch.P().Logger()
 
-		rpc1, err := dial.DialRPCClientWithTimeout(ctx, 30*time.Second, logger, l2EL1.userRPC)
+		rpc1, err := dial.DialRPCClientWithTimeout(ctx, logger, l2EL1.userRPC)
 		require.NoError(err, "failed to connect to el1 rpc")
 		defer rpc1.Close()
-		rpc2, err := dial.DialRPCClientWithTimeout(ctx, 30*time.Second, logger, l2EL2.userRPC)
+		rpc2, err := dial.DialRPCClientWithTimeout(ctx, logger, l2EL2.userRPC)
 		require.NoError(err, "failed to connect to el2 rpc")
 		defer rpc2.Close()
 

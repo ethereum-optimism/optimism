@@ -433,7 +433,7 @@ func (s *interopE2ESystem) L1GethClient() *ethclient.Client {
 		rpcEndpoint,
 		func(v string) *rpc.Client {
 			logger := testlog.Logger(s.t, log.LevelInfo)
-			cl, err := dial.DialRPCClientWithTimeout(context.Background(), 30*time.Second, logger, v)
+			cl, err := dial.DialRPCClientWithTimeout(context.Background(), logger, v)
 			require.NoError(s.t, err, "failed to dial L1 eth node instance")
 			return cl
 		})
@@ -590,7 +590,9 @@ func (s *interopE2ESystem) DependencySet() *depset.StaticConfigDependencySet {
 
 func mustDial(t *testing.T, logger log.Logger) func(v string) *rpc.Client {
 	return func(v string) *rpc.Client {
-		cl, err := dial.DialRPCClientWithTimeout(context.Background(), 30*time.Second, logger, v)
+		dialCtx, dialCancel := context.WithTimeout(context.Background(), 30*time.Second)
+		cl, err := dial.DialRPCClientWithTimeout(dialCtx, logger, v)
+		dialCancel()
 		require.NoError(t, err, "failed to dial")
 		return cl
 	}

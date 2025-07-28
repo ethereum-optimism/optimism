@@ -148,7 +148,7 @@ func (ps *ProposerService) initRPCClients(ctx context.Context, cfg *CLIConfig) e
 	if len(cfg.SupervisorRpcs) != 0 {
 		var clients []source.SupervisorClient
 		for _, url := range cfg.SupervisorRpcs {
-			supervisorRpc, err := dial.DialRPCClientWithTimeout(ctx, dial.DefaultDialTimeout, ps.Log, url)
+			supervisorRpc, err := dial.DialRPCClientWithTimeout(ctx, ps.Log, url)
 			if err != nil {
 				return fmt.Errorf("failed to dial supervisor RPC client (%v): %w", url, err)
 			}

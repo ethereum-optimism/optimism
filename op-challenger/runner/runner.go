@@ -89,7 +89,7 @@ func (r *Runner) Start(ctx context.Context) error {
 	var rollupClient *sources.RollupClient
 	if r.cfg.RollupRpc != "" {
 		r.log.Info("Dialling rollup client", "url", r.cfg.RollupRpc)
-		cl, err := dial.DialRollupClientWithTimeout(ctx, 1*time.Minute, r.log, r.cfg.RollupRpc)
+		cl, err := dial.DialRollupClientWithTimeout(ctx, r.log, r.cfg.RollupRpc)
 		if err != nil {
 			return fmt.Errorf("failed to dial rollup client: %w", err)
 		}
@@ -98,14 +98,14 @@ func (r *Runner) Start(ctx context.Context) error {
 	var supervisorClient *sources.SupervisorClient
 	if r.cfg.SupervisorRPC != "" {
 		r.log.Info("Dialling supervisor client", "url", r.cfg.SupervisorRPC)
-		rpcCl, err := dial.DialRPCClientWithTimeout(ctx, 1*time.Minute, r.log, r.cfg.SupervisorRPC)
+		rpcCl, err := dial.DialRPCClientWithTimeout(ctx, r.log, r.cfg.SupervisorRPC)
 		if err != nil {
 			return fmt.Errorf("failed to dial rollup client: %w", err)
 		}
 		supervisorClient = sources.NewSupervisorClient(client.NewBaseRPCClient(rpcCl))
 	}
 
-	l1Client, err := dial.DialRPCClientWithTimeout(ctx, 1*time.Minute, r.log, r.cfg.L1EthRpc)
+	l1Client, err := dial.DialRPCClientWithTimeout(ctx, r.log, r.cfg.L1EthRpc)
 	if err != nil {
 		return fmt.Errorf("failed to dial l1 client: %w", err)
 	}
