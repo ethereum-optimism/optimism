@@ -499,11 +499,14 @@ func TestEVM_MT_SysReadWrite_WithEventFd(t *testing.T) {
 	}
 
 	initState := func(tt testCase, state *multithreaded.State, vm VersionedVMTestCase, r *testutil.RandHelper) {
+		addr := Word(0x00_00_FF_00)
 		state.GetRegistersRef()[2] = tt.syscallNum
 		state.GetRegistersRef()[4] = exec.FdEventFd
-		state.GetRegistersRef()[5] = 0x00_00_FF_00
+		state.GetRegistersRef()[5] = addr
 		state.GetRegistersRef()[6] = 1
 		testutil.StoreInstruction(state.GetMemory(), state.GetPC(), syscallInsn)
+		// Set a memory value to ensure that memory at the target address is not modified
+		state.GetMemory().SetWord(addr, Word(0x12_EE_EE_EE_FF_FF_FF_FF))
 	}
 
 	setExpectations := func(tt testCase, expected *mtutil.ExpectedState, vm VersionedVMTestCase) ExpectedExecResult {
