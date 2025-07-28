@@ -15,7 +15,7 @@ import (
 type BatcherDriver interface {
 	StartBatchSubmitting() error
 	StopBatchSubmitting(ctx context.Context) error
-	FlushBatchSubmitting(ctx context.Context) error
+	Flush(ctx context.Context) error
 	SetThrottleController(controllerType config.ThrottleControllerType, pidConfig *config.PIDConfig) error
 	GetThrottleControllerInfo() (config.ThrottleControllerInfo, error)
 	ResetThrottleController() error
@@ -90,5 +90,5 @@ func (a *adminAPI) ResetThrottleController(_ context.Context) error {
 }
 
 func (a *adminAPI) FlushBatcher(ctx context.Context) error {
-	return a.b.FlushBatchSubmitting(ctx)
+	return a.b.Flush(ctx)
 }

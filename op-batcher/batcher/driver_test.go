@@ -360,7 +360,7 @@ func TestBatchSubmitter_FlushBatchSubmitting(t *testing.T) {
 	bs, _ := setup(t)
 
 	// Test that flush fails when batcher is not running
-	err := bs.FlushBatchSubmitting(context.Background())
+	err := bs.Flush(context.Background())
 	require.Error(t, err)
 	require.Equal(t, ErrBatcherNotRunning, err)
 }

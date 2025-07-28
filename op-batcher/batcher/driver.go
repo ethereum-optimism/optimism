@@ -260,9 +260,9 @@ func (l *BatchSubmitter) StopBatchSubmitting(ctx context.Context) error {
 	return nil
 }
 
-// FlushBatchSubmitting forces the batcher to submit any pending data immediately.
+// Flush forces the batcher to submit any pending data immediately.
 // This works by signaling the publishing loop to process any available data.
-func (l *BatchSubmitter) FlushBatchSubmitting(ctx context.Context) error {
+func (l *BatchSubmitter) Flush(ctx context.Context) error {
 	if !l.running {
 		return ErrBatcherNotRunning
 	}
