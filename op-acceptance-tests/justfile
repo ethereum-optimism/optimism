@@ -1,6 +1,6 @@
 REPO_ROOT := `realpath ..`
 KURTOSIS_DIR := REPO_ROOT + "/kurtosis-devnet"
-ACCEPTOR_VERSION := env_var_or_default("ACCEPTOR_VERSION", "v2.1.0")
+ACCEPTOR_VERSION := env_var_or_default("ACCEPTOR_VERSION", "v3.0.0")
 DOCKER_REGISTRY := env_var_or_default("DOCKER_REGISTRY", "us-docker.pkg.dev/oplabs-tools-artifacts/images")
 ACCEPTOR_IMAGE := env_var_or_default("ACCEPTOR_IMAGE", DOCKER_REGISTRY + "/op-acceptor:" + ACCEPTOR_VERSION)
 
@@ -94,6 +94,8 @@ acceptance-test devnet="" gate="holocene":
         CMD_ARGS+=("--devnet" "{{devnet}}")
         # Include kurtosis-dir for devnet deployment
         CMD_ARGS+=("--kurtosis-dir" "{{KURTOSIS_DIR}}")
+        # For now, run sysext in serial mode
+        CMD_ARGS+=("--serial")
     fi
 
     # Execute the command
