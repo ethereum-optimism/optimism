@@ -166,7 +166,7 @@ contract StandardValidator_TestInit is CommonTest {
         // Deploy the validator.
         validator = IOPContractsManagerStandardValidator(
             DeployUtils.create1({
-                _name: "StandardValidator",
+                _name: "OPContractsManagerStandardValidator",
                 _args: DeployUtils.encodeConstructor(
                     abi.encodeCall(
                         IOPContractsManagerStandardValidator.__constructor__,

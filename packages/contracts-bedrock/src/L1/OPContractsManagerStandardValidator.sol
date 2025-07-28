@@ -213,7 +213,7 @@ contract OPContractsManagerStandardValidator is ISemver {
 
     /// @notice Returns the expected DisputeGameFactory version.
     function disputeGameFactoryVersion() public pure returns (string memory) {
-        return "1.2.0";
+        return "1.2.1";
     }
 
     /// @notice Returns the expected AnchorStateRegistry version.
@@ -228,7 +228,7 @@ contract OPContractsManagerStandardValidator is ISemver {
 
     /// @notice Returns the expected PermissionedDisputeGame version.
     function permissionedDisputeGameVersion() public pure returns (string memory) {
-        return "1.7.0";
+        return "1.7.1";
     }
 
     /// @notice Returns the expected PreimageOracle version.
@@ -591,17 +591,19 @@ contract OPContractsManagerStandardValidator is ISemver {
         view
         returns (string memory)
     {
-        IAnchorStateRegistry _asr = _game.anchorStateRegistry();
-        (Hash anchorRoot,) = _asr.getAnchorRoot();
+        /// TODO: moved to immutable arg steven - update validation
+        // IAnchorStateRegistry _asr = _game.anchorStateRegistry();
+        // (Hash anchorRoot,) = _asr.getAnchorRoot();
 
         _errors = internalRequire(
             LibString.eq(getVersion(address(_game)), permissionedDisputeGameVersion()),
             string.concat(_errorPrefix, "-20"),
             _errors
         );
-        _errors = internalRequire(
-            GameType.unwrap(_game.gameType()) == GameType.unwrap(_gameType), string.concat(_errorPrefix, "-30"), _errors
-        );
+        /// TODO: moved to immutable arg steven - update validation
+        // _errors = internalRequire(
+        //     GameType.unwrap(_game.gameType()) == GameType.unwrap(_gameType), string.concat(_errorPrefix, "-30"), _errors
+        // );
         _errors = internalRequire(
             Claim.unwrap(_game.absolutePrestate()) == _absolutePrestate, string.concat(_errorPrefix, "-40"), _errors
         );
@@ -615,18 +617,22 @@ contract OPContractsManagerStandardValidator is ISemver {
         _errors = internalRequire(
             Duration.unwrap(_game.maxClockDuration()) == 302400, string.concat(_errorPrefix, "-110"), _errors
         );
-        _errors = internalRequire(Hash.unwrap(anchorRoot) != bytes32(0), string.concat(_errorPrefix, "-120"), _errors);
+        /// TODO: moved to immutable arg steven - update validation
+        // _errors = internalRequire(Hash.unwrap(anchorRoot) != bytes32(0), string.concat(_errorPrefix, "-120"), _errors);
 
         _errors = assertValidDelayedWETH(_errors, _sysCfg, _game.weth(), _admin, _overrides, _errorPrefix);
-        _errors = assertValidAnchorStateRegistry(_errors, _sysCfg, _factory, _asr, _admin, _errorPrefix);
+        /// TODO: moved to immutable arg steven - update validation
+        // _errors = assertValidAnchorStateRegistry(_errors, _sysCfg, _factory, _asr, _admin, _errorPrefix);
 
-        _errors = assertValidMipsVm(_errors, IMIPS64(address(_game.vm())), _errorPrefix);
+        /// TODO: moved to immutable arg steven - update validation  
+        // _errors = assertValidMipsVm(_errors, IMIPS64(address(_game.vm())), _errorPrefix);
 
+        /// TODO: moved to immutable arg steven - update validation
         // Only assert valid preimage oracle if the game VM is valid, since otherwise
         // the contract is likely to revert.
-        if (address(_game.vm()) == mipsImpl) {
-            _errors = assertValidPreimageOracle(_errors, _game.vm().oracle(), _errorPrefix);
-        }
+        // if (address(_game.vm()) == mipsImpl) {
+        //     _errors = assertValidPreimageOracle(_errors, _game.vm().oracle(), _errorPrefix);
+        // }
 
         return _errors;
     }
