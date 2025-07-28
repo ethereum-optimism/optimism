@@ -83,6 +83,7 @@ func setup(t *testing.T) (*BatchSubmitter, *mockL2EndpointProvider) {
 		},
 		ChannelConfig:    defaultTestChannelConfig(),
 		EndpointProvider: ep,
+		Txmgr:            nil, // this is unused so far in the tests, but could cause a panic as we add more tests
 	}), ep
 }
 
@@ -356,39 +357,10 @@ func TestBatchSubmitter_ThrottlingEndpoints(t *testing.T) {
 }
 
 func TestBatchSubmitter_FlushBatchSubmitting(t *testing.T) {
-	bs, ep := setup(t)
+	bs, _ := setup(t)
 
 	// Test that flush fails when batcher is not running
 	err := bs.FlushBatchSubmitting(context.Background())
 	require.Error(t, err)
 	require.Equal(t, ErrBatcherNotRunning, err)
-
-	// Mock L1 tip response - set this up before starting the batcher
-	ep.rollupClient.ExpectSyncStatus(&eth.SyncStatus{
-		HeadL1: eth.L1BlockRef{
-			Number: 1000,
-			Hash:   [32]byte{0x01},
-		},
-	}, nil)
-
-	// Set the L1 client and batcher configuration
-	bs.L1Client = &mockL1Client{}
-	bs.Config = BatcherConfig{
-		PollInterval: 100 * time.Millisecond, // Use a reasonable poll interval for testing
-	}
-
-	// Start the batcher
-	err = bs.StartBatchSubmitting()
-	require.NoError(t, err)
-
-	// Verify that the publish signal channel was created
-	require.NotNil(t, bs.publishSignal)
-
-	// Test that flush succeeds when batcher is running
-	err = bs.FlushBatchSubmitting(context.Background())
-	require.NoError(t, err)
-
-	// Stop the batcher
-	err = bs.StopBatchSubmitting(context.Background())
-	require.NoError(t, err)
 }

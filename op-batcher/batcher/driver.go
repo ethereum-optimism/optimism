@@ -117,7 +117,7 @@ type BatchSubmitter struct {
 
 	throttleController *throttler.ThrottleController
 
-	publishSignal chan struct{}
+	publishSignal chan bool // true if we should force a tx to be published now, false if we should check the usual conditions (timeouts)
 }
 
 // NewBatchSubmitter initializes the BatchSubmitter driver from a preconfigured DriverSetup
@@ -173,7 +173,7 @@ func (l *BatchSubmitter) StartBatchSubmitting() error {
 
 	// Channels used to signal between the loops
 	pendingBytesUpdated := make(chan int64, 1)
-	publishSignal := make(chan struct{}, 1)
+	publishSignal := make(chan bool, 1)
 	l.publishSignal = publishSignal
 
 	// DA throttling loop should always be started except for testing (indicated by ThrottleThreshold == 0)
@@ -263,52 +263,18 @@ func (l *BatchSubmitter) StopBatchSubmitting(ctx context.Context) error {
 // FlushBatchSubmitting forces the batcher to submit any pending data immediately.
 // This works by signaling the publishing loop to process any available data.
 func (l *BatchSubmitter) FlushBatchSubmitting(ctx context.Context) error {
-	l.Log.Info("Flushing Batch Submitter")
-
-	l.mutex.Lock()
-	defer l.mutex.Unlock()
-
 	if !l.running {
 		return ErrBatcherNotRunning
 	}
 
-	// Get current L1 head for channel processing
-	l1tip, _, err := l.l1Tip(ctx)
-	if err != nil {
-		l.Log.Error("Failed to query L1 tip", "err", err)
-		return err
-	}
-
-	// Process any pending blocks and output frames in a thread-safe way
-	l.channelMgrMutex.Lock()
-	_, err = l.channelMgr.getReadyChannel(l1tip.ID())
-	l.channelMgrMutex.Unlock()
-
-	// getReadyChannel returns io.EOF when there's no data to process, which is fine for flush
-	if err == io.EOF {
-		l.Log.Info("No transaction data available to flush")
-		return nil
-	} else if err != nil {
-		l.Log.Error("Unable to process blocks and generate frames", "err", err)
-		return err
-	}
-
-	// Signal the publishing loop to immediately process any available data
-	// This ensures the publishing loop picks up the newly processed frames
-	if l.publishSignal != nil {
-		trySignal(l.publishSignal)
-		l.Log.Info("Signaled publishing loop to process flushed data")
-	} else {
-		l.Log.Warn("Publishing signal channel is nil, flush will not trigger immediate processing")
-	}
-
-	l.Log.Info("Batch Submitter flush completed")
+	l.Log.Info("Flushing Batch Submitter")
+	trySignal(l.publishSignal, true)
 	return nil
 }
 
 // loadBlocksIntoState loads the blocks between start and end (inclusive).
 // If there is a reorg, it will return an error.
-func (l *BatchSubmitter) loadBlocksIntoState(ctx context.Context, start, end uint64, publishSignal chan struct{}, pendingBytesUpdated chan int64) error {
+func (l *BatchSubmitter) loadBlocksIntoState(ctx context.Context, start, end uint64, publishSignal chan bool, pendingBytesUpdated chan int64) error {
 	if end < start {
 		return fmt.Errorf("start number is > end number %d,%d", start, end)
 	}
@@ -335,7 +301,7 @@ func (l *BatchSubmitter) loadBlocksIntoState(ctx context.Context, start, end uin
 			// Every 100 blocks, signal the publishing loop to publish.
 			// This allows the batcher to start publishing sooner in the
 			// case of a large backlog of blocks to load.
-			trySignal(publishSignal)
+			trySignal(publishSignal, false)
 			l.sendToThrottlingLoop(pendingBytesUpdated)
 		}
 
@@ -471,9 +437,9 @@ func (l *BatchSubmitter) sendToThrottlingLoop(pendingBytesUpdated chan int64) {
 
 // trySignal tries to send an empty struct on the provided channel.
 // It is not blocking, no signal will be sent if the channel is full.
-func trySignal(c chan struct{}) {
+func trySignal(c chan bool, value bool) {
 	select {
-	case c <- struct{}{}:
+	case c <- value:
 	default:
 	}
 }
@@ -519,7 +485,7 @@ func (l *BatchSubmitter) syncAndPrune(syncStatus *eth.SyncStatus) *inclusiveBloc
 // -  waits for a signal that blocks have been loaded
 // -  drives the creation of channels and frames
 // -  sends transactions to the DA layer
-func (l *BatchSubmitter) publishingLoop(ctx context.Context, wg *sync.WaitGroup, receiptsCh chan txmgr.TxReceipt[txRef], publishSignal chan struct{}) {
+func (l *BatchSubmitter) publishingLoop(ctx context.Context, wg *sync.WaitGroup, receiptsCh chan txmgr.TxReceipt[txRef], publishSignal chan bool) {
 	defer close(receiptsCh)
 	defer wg.Done()
 
@@ -531,9 +497,9 @@ func (l *BatchSubmitter) publishingLoop(ctx context.Context, wg *sync.WaitGroup,
 	}
 	txQueue := txmgr.NewQueue[txRef](ctx, l.Txmgr, l.Config.MaxPendingTransactions)
 
-	for range publishSignal {
-		l.Log.Debug("publishing loop received signal")
-		l.publishStateToL1(ctx, txQueue, receiptsCh, daGroup)
+	for forcePublish := range publishSignal {
+		l.Log.Debug("publishing loop received signal", "force_publish", forcePublish)
+		l.publishStateToL1(ctx, txQueue, receiptsCh, daGroup, forcePublish)
 	}
 
 	// First wait for all DA requests to finish to prevent new transactions being queued
@@ -556,7 +522,7 @@ func (l *BatchSubmitter) publishingLoop(ctx context.Context, wg *sync.WaitGroup,
 // -  polls the sequencer,
 // -  prunes the channel manager state (i.e. safe blocks)
 // -  loads unsafe blocks from the sequencer
-func (l *BatchSubmitter) blockLoadingLoop(ctx context.Context, wg *sync.WaitGroup, pendingBytesUpdated chan int64, publishSignal chan struct{}) {
+func (l *BatchSubmitter) blockLoadingLoop(ctx context.Context, wg *sync.WaitGroup, pendingBytesUpdated chan int64, publishSignal chan bool) {
 	ticker := time.NewTicker(l.Config.PollInterval)
 	defer ticker.Stop()
 	defer close(pendingBytesUpdated)
@@ -588,7 +554,7 @@ func (l *BatchSubmitter) blockLoadingLoop(ctx context.Context, wg *sync.WaitGrou
 					l.sendToThrottlingLoop(pendingBytesUpdated) // we have increased the pending data. Signal the throttling loop to check if it should throttle.
 				}
 			}
-			trySignal(publishSignal) // always signal the write loop to ensure we periodically publish even if we aren't loading blocks
+			trySignal(publishSignal, false) // always signal the write loop to ensure we periodically publish even if we aren't loading blocks
 		case <-ctx.Done():
 			l.Log.Info("blockLoadingLoop returning")
 			return
@@ -802,7 +768,7 @@ func (l *BatchSubmitter) waitNodeSync() error {
 
 // publishStateToL1 queues up all pending TxData to be published to the L1, returning when there is no more data to
 // queue for publishing or if there was an error queuing the data.
-func (l *BatchSubmitter) publishStateToL1(ctx context.Context, queue *txmgr.Queue[txRef], receiptsCh chan txmgr.TxReceipt[txRef], daGroup *errgroup.Group) {
+func (l *BatchSubmitter) publishStateToL1(ctx context.Context, queue *txmgr.Queue[txRef], receiptsCh chan txmgr.TxReceipt[txRef], daGroup *errgroup.Group, forcePublish bool) {
 	for {
 		select {
 		case <-ctx.Done():
@@ -819,7 +785,7 @@ func (l *BatchSubmitter) publishStateToL1(ctx context.Context, queue *txmgr.Queu
 			return
 		}
 
-		err := l.publishTxToL1(ctx, queue, receiptsCh, daGroup)
+		err := l.publishTxToL1(ctx, queue, receiptsCh, daGroup, forcePublish)
 		if err != nil {
 			if err != io.EOF {
 				l.Log.Error("Error publishing tx to l1", "err", err)
@@ -873,7 +839,7 @@ func (l *BatchSubmitter) clearState(ctx context.Context) {
 }
 
 // publishTxToL1 submits a single state tx to the L1
-func (l *BatchSubmitter) publishTxToL1(ctx context.Context, queue *txmgr.Queue[txRef], receiptsCh chan txmgr.TxReceipt[txRef], daGroup *errgroup.Group) error {
+func (l *BatchSubmitter) publishTxToL1(ctx context.Context, queue *txmgr.Queue[txRef], receiptsCh chan txmgr.TxReceipt[txRef], daGroup *errgroup.Group, forcePublish bool) error {
 	// send all available transactions
 	l1tip, isPectra, err := l.l1Tip(ctx)
 	if err != nil {
@@ -886,7 +852,7 @@ func (l *BatchSubmitter) publishTxToL1(ctx context.Context, queue *txmgr.Queue[t
 	// Collect next transaction data. This pulls data out of the channel, so we need to make sure
 	// to put it back if ever da or txmgr requests fail, by calling l.recordFailedDARequest/recordFailedTx.
 	l.channelMgrMutex.Lock()
-	txdata, err := l.channelMgr.TxData(l1tip.ID(), isPectra, params.IsThrottling())
+	txdata, err := l.channelMgr.TxData(l1tip.ID(), isPectra, params.IsThrottling(), forcePublish)
 	l.channelMgrMutex.Unlock()
 
 	if err == io.EOF {
