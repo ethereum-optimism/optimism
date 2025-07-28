@@ -111,7 +111,7 @@ func checkExtraDataParamsMatch(cfg *rollup.Config, blockTimestamp uint64, attrPa
 		}
 
 		// Validate block extraData based on fork
-		if isJovian {
+		if isConfigurableMinBaseFee {
 			if err := eip1559.ValidateMinBaseFeeExtraData(blockExtraData); err != nil {
 				return fmt.Errorf("invalid block extraData: %w", err)
 			}
