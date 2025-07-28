@@ -19,7 +19,7 @@ const (
 )
 
 func TestLinearStrategy_NewLinearStrategy(t *testing.T) {
-	strategy := NewLinearStrategy(TestLinearThreshold, TestLinearMultiplier*TestLinearThreshold, newTestLogger(t))
+	strategy := NewLinearStrategy(TestLinearThreshold, TestLinearMaxThreshold, newTestLogger(t))
 
 	if strategy.threshold != TestLinearThreshold {
 		t.Errorf("expected threshold %d, got %d", TestLinearThreshold, strategy.threshold)
@@ -41,7 +41,7 @@ func TestLinearStrategy_NewLinearStrategy(t *testing.T) {
 }
 
 func TestLinearStrategy_Update(t *testing.T) {
-	strategy := NewLinearStrategy(TestLinearThreshold, TestLinearMultiplier*TestLinearThreshold, newTestLogger(t))
+	strategy := NewLinearStrategy(TestLinearThreshold, TestLinearMaxThreshold, newTestLogger(t))
 
 	tests := []struct {
 		name              string
@@ -117,7 +117,7 @@ func TestLinearStrategy_Update(t *testing.T) {
 }
 
 func TestLinearStrategy_LinearScaling(t *testing.T) {
-	strategy := NewLinearStrategy(TestLinearThreshold, TestLinearMultiplier*TestLinearThreshold, newTestLogger(t))
+	strategy := NewLinearStrategy(TestLinearThreshold, TestLinearMaxThreshold, newTestLogger(t))
 
 	// Test that intensity scales linearly between threshold and maxThreshold
 	testPoints := []struct {
@@ -145,7 +145,7 @@ func TestLinearStrategy_LinearScaling(t *testing.T) {
 }
 
 func TestLinearStrategy_GetType(t *testing.T) {
-	strategy := NewLinearStrategy(TestLinearThreshold, TestLinearMultiplier*TestLinearThreshold, newTestLogger(t))
+	strategy := NewLinearStrategy(TestLinearThreshold, TestLinearMaxThreshold, newTestLogger(t))
 
 	if strategy.GetType() != config.LinearControllerType {
 		t.Errorf("expected GetType() to return %s, got %s", config.LinearControllerType, strategy.GetType())
@@ -153,7 +153,7 @@ func TestLinearStrategy_GetType(t *testing.T) {
 }
 
 func TestLinearStrategy_Reset(t *testing.T) {
-	strategy := NewLinearStrategy(TestLinearThreshold, TestLinearMultiplier*TestLinearThreshold, newTestLogger(t))
+	strategy := NewLinearStrategy(TestLinearThreshold, TestLinearMaxThreshold, newTestLogger(t))
 
 	// Update to build some state
 	strategy.Update(TestLinearMaxThreshold)
@@ -195,7 +195,7 @@ func TestLinearStrategy_EdgeCases(t *testing.T) {
 }
 
 func TestLinearStrategy_Load(t *testing.T) {
-	strategy := NewLinearStrategy(TestLinearThreshold, TestLinearMultiplier*TestLinearThreshold, newTestLogger(t))
+	strategy := NewLinearStrategy(TestLinearThreshold, TestLinearMaxThreshold, newTestLogger(t))
 
 	// Test load consistency after update
 	updateIntensity := strategy.Update(TestLinearThreshold + TestLinearThreshold/2)
@@ -211,7 +211,7 @@ func TestLinearStrategy_Load(t *testing.T) {
 }
 
 func TestLinearStrategy_IntensityProgression(t *testing.T) {
-	strategy := NewLinearStrategy(TestLinearThreshold, TestLinearMultiplier*TestLinearThreshold, newTestLogger(t))
+	strategy := NewLinearStrategy(TestLinearThreshold, TestLinearMaxThreshold, newTestLogger(t))
 
 	// Test that intensity increases properly as load increases
 	loads := []uint64{
