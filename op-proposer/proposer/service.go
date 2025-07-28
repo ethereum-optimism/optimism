@@ -241,9 +241,9 @@ func (ps *ProposerService) initPProf(cfg *CLIConfig) error {
 
 // Initializes the metrics server if enabled.
 //
-// Errors on any of the following:
+// Errors if:
 //
-// - Metrics enabled but no registry
+// - Metrics are enabled but there is no registry
 // - Metrics server fails to start
 func (ps *ProposerService) initMetricsServer(cfg *CLIConfig) error {
 	if !cfg.MetricsConfig.Enabled {
