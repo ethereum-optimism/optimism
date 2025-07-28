@@ -309,7 +309,7 @@ contract VerifyOPCM_Run_Test is VerifyOPCM_TestInit {
         harness.setExpectedGetter("blueprints", false);
 
         // This should revert with VerifyOPCM_UnaccountedGetters error
-        vm.expectRevert(); // We expect a revert but can't easily check the specific error data
+        vm.expectRevert(VerifyOPCM.VerifyOPCM_UnaccountedGetters.selector);
         harness.validateAllGettersAccounted();
     }
 }
