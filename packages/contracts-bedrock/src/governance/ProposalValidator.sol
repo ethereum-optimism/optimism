@@ -89,8 +89,11 @@ contract ProposalValidator is OwnableUpgradeable, ReinitializableBase, ISemver {
     /// @notice Thrown when the proposal is invalid trying to move to vote.
     error ProposalValidator_InvalidProposal();
 
-    /// @notice Thrown when the voting module address is invalid (zero address).
+    /// @notice Thrown when the voting module address is invalid.
     error ProposalValidator_InvalidVotingModule();
+
+    /// @notice Thrown when the total budget is invalid (must be > 0 and <= uint128 max).
+    error ProposalValidator_InvalidTotalBudget();
 
     /// @notice Thrown when the attestation was created after the last voting cycle.
     error ProposalValidator_AttestationCreatedAfterLastVotingCycle();
@@ -1083,6 +1086,10 @@ contract ProposalValidator is OwnableUpgradeable, ReinitializableBase, ISemver {
                 calldatas: calldatas,
                 description: _optionDescriptions[i]
             });
+        }
+
+        if (totalBudget_ > type(uint128).max) {
+            revert ProposalValidator_InvalidTotalBudget();
         }
     }
 

@@ -31,6 +31,7 @@ interface IProposalValidator is ISemver {
     error ProposalValidator_InvalidProposer();
     error ProposalValidator_InvalidProposal();
     error ProposalValidator_InvalidVotingModule();
+    error ProposalValidator_InvalidTotalBudget();
     error ProposalValidator_AttestationCreatedAfterLastVotingCycle();
 
     event ProposalSubmitted(

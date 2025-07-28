@@ -831,6 +831,11 @@
   },
   {
     "inputs": [],
+    "name": "ProposalValidator_InvalidTotalBudget",
+    "type": "error"
+  },
+  {
+    "inputs": [],
     "name": "ProposalValidator_InvalidUpgradeProposalType",
     "type": "error"
   },
