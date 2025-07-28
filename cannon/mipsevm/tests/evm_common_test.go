@@ -508,12 +508,12 @@ func TestEVM_SingleStep_JrJalr(t *testing.T) {
 		{name: "jalr, delay slot", funct: uint16(0x9), rsReg: 8, jumpTo: 0x34, rdReg: uint32(0x9), expectLink: true, pc: 0, nextPC: 100, errorMsg: "jump in delay slot"}, // jalr t1, t0
 	}
 
-	pc := Word(0)
 	initState := func(tt testCase, state *multithreaded.State, vm VersionedVMTestCase, r *testutil.RandHelper) {
 		insn := tt.rsReg<<21 | tt.rdReg<<11 | uint32(tt.funct)
 		state.GetRegistersRef()[tt.rsReg] = tt.jumpTo
+		state.GetCurrentThread().Cpu.PC = tt.pc
 		state.GetCurrentThread().Cpu.NextPC = tt.nextPC
-		testutil.StoreInstruction(state.GetMemory(), pc, insn)
+		testutil.StoreInstruction(state.GetMemory(), tt.pc, insn)
 	}
 
 	setExpectations := func(tt testCase, expected *mtutil.ExpectedState, vm VersionedVMTestCase) ExpectedExecResult {
@@ -523,14 +523,14 @@ func TestEVM_SingleStep_JrJalr(t *testing.T) {
 			expected.ExpectStep()
 			expected.ActiveThread().NextPC = tt.jumpTo
 			if tt.expectLink {
-				expected.ActiveThread().Registers[tt.rdReg] = pc + 8
+				expected.ActiveThread().Registers[tt.rdReg] = tt.pc + 8
 			}
 			return ExpectNormalExecution()
 		}
 	}
 
 	NewDiffTester(testNamer).
-		InitState(initState, mtutil.WithPC(pc)).
+		InitState(initState).
 		SetExpectations(setExpectations).
 		Run(t, cases)
 }
