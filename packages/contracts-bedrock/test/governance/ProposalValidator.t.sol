@@ -1855,6 +1855,26 @@ contract ProposalValidator_SubmitFundingProposal_TestFail is ProposalValidator_I
             FUNDING_CRITERIA_VALUE, descriptions, recipients, amounts, description, proposalType, CYCLE_NUMBER
         );
     }
+
+    function test_submitFundingProposal_invalidTotalBudget_reverts(uint8 proposalTypeValue, uint256 _amount) public {
+        _amount = bound(_amount, type(uint136).max, type(uint192).max);
+        // Bound proposal type to only GovernanceFund (3) or CouncilBudget (4)
+        proposalTypeValue = uint8(bound(proposalTypeValue, 3, 4));
+        ProposalValidator.ProposalType proposalType = ProposalValidator.ProposalType(proposalTypeValue);
+
+        (string[] memory descriptions, address[] memory recipients, uint256[] memory amounts) =
+            _createMinimalFundingArrays(1);
+
+        vm.prank(owner);
+        validator.setProposalDistributionThreshold(type(uint256).max);
+
+        amounts[0] = _amount;
+        vm.expectRevert(ProposalValidator.ProposalValidator_InvalidTotalBudget.selector);
+        vm.prank(user);
+        validator.submitFundingProposal(
+            FUNDING_CRITERIA_VALUE, descriptions, recipients, amounts, description, proposalType, CYCLE_NUMBER
+        );
+    }
 }
 
 /// @title ProposalValidator_ApproveProposal_Test
@@ -2685,6 +2705,35 @@ contract ProposalValidator_MoveToVoteFundingProposal_TestFail is ProposalValidat
         vm.prank(approvedProposer);
         validator.moveToVoteFundingProposal(
             criteriaValue, new string[](256), optionsRecipients, optionsAmounts, proposalDescription, proposalType
+        );
+    }
+
+    function test_moveToVoteFundingProposal_invalidTotalBudget_reverts(
+        uint8 _proposalTypeValue,
+        uint256 _amount
+    )
+        public
+    {
+        _amount = bound(_amount, type(uint136).max, type(uint192).max);
+        // Valid funding proposal types are GovernanceFund (3) and CouncilBudget (4)
+        _proposalTypeValue = uint8(bound(_proposalTypeValue, 3, 4));
+        ProposalValidator.ProposalType proposalType = ProposalValidator.ProposalType(_proposalTypeValue);
+
+        string memory proposalDescription;
+        if (proposalType == governanceFundProposalType) {
+            proposalDescription = governanceFundProposalDescription;
+        } else {
+            proposalDescription = councilBudgetProposalDescription;
+        }
+
+        vm.prank(owner);
+        validator.setProposalDistributionThreshold(type(uint256).max);
+
+        optionsAmounts[0] = _amount;
+        vm.expectRevert(IProposalValidator.ProposalValidator_InvalidTotalBudget.selector);
+        vm.prank(approvedProposer);
+        validator.moveToVoteFundingProposal(
+            criteriaValue, optionsDescriptions, optionsRecipients, optionsAmounts, proposalDescription, proposalType
         );
     }
 
