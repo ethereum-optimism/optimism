@@ -309,7 +309,10 @@ contract VerifyOPCM_Run_Test is VerifyOPCM_TestInit {
         harness.setExpectedGetter("blueprints", false);
 
         // This should revert with VerifyOPCM_UnaccountedGetters error
-        vm.expectRevert(VerifyOPCM.VerifyOPCM_UnaccountedGetters.selector);
+        // The error includes the array of unaccounted getters as a parameter
+        string[] memory expectedUnaccounted = new string[](1);
+        expectedUnaccounted[0] = "blueprints";
+        vm.expectRevert(abi.encodeWithSelector(VerifyOPCM.VerifyOPCM_UnaccountedGetters.selector, expectedUnaccounted));
         harness.validateAllGettersAccounted();
     }
 }
