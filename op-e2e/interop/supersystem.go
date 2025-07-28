@@ -590,9 +590,7 @@ func (s *interopE2ESystem) DependencySet() *depset.StaticConfigDependencySet {
 
 func mustDial(t *testing.T, logger log.Logger) func(v string) *rpc.Client {
 	return func(v string) *rpc.Client {
-		dialCtx, dialCancel := context.WithTimeout(context.Background(), 30*time.Second)
-		cl, err := dial.DialRPCClientWithTimeout(dialCtx, logger, v)
-		dialCancel()
+		cl, err := dial.DialRPCClientWithTimeout(context.Background(), logger, v)
 		require.NoError(t, err, "failed to dial")
 		return cl
 	}

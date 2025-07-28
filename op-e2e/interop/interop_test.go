@@ -425,9 +425,7 @@ func TestProposals(t *testing.T) {
 		require.NotNil(t, proposer.DisputeGameFactoryAddr)
 		gameFactoryAddr := *proposer.DisputeGameFactoryAddr
 
-		dialCtx, dialCancel := context.WithTimeout(context.Background(), time.Minute)
-		rpcClient, err := dial.DialRPCClientWithTimeout(dialCtx, logger, s2.L1().UserRPC().RPC())
-		dialCancel()
+		rpcClient, err := dial.DialRPCClientWithTimeout(context.Background(), logger, s2.L1().UserRPC().RPC())
 		require.NoError(t, err)
 		caller := batching.NewMultiCaller(rpcClient, batching.DefaultBatchSize)
 		factory := contracts.NewDisputeGameFactoryContract(metrics.NoopContractMetrics, gameFactoryAddr, caller)
