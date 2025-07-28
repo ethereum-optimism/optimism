@@ -28,7 +28,7 @@ func DefaultSingleChainMultiNodeSystem(dest *DefaultSingleChainMultiNodeSystemID
 	opt.Add(DefaultMinimalSystem(&dest.DefaultMinimalSystemIDs))
 
 	opt.Add(WithL2ELNode(ids.L2ELB, nil))
-	opt.Add(WithL2CLNode(ids.L2CLB, false, false, ids.L1CL, ids.L1EL, ids.L2ELB))
+	opt.Add(WithL2CLNode(ids.L2CLB, false, false, ids.L1CL, ids.L1EL, []stack.L2ELNodeID{ids.L2ELB}))
 
 	// P2P connect L2CL nodes
 	opt.Add(WithL2CLP2PConnection(ids.L2CL, ids.L2CLB))

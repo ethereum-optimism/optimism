@@ -135,6 +135,7 @@ func NewConfig(ctx *cli.Context, log log.Logger) (*config.Config, error) {
 	if err := cfg.Check(); err != nil {
 		return nil, err
 	}
+
 	return cfg, nil
 }
 

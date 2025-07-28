@@ -50,6 +50,7 @@ type L2CLNode struct {
 	p                devtest.P
 	logger           log.Logger
 	el               stack.L2ELNodeID
+	els              []stack.L2ELNodeID
 	userProxy        *tcpproxy.Proxy
 	interopProxy     *tcpproxy.Proxy
 }
@@ -143,7 +144,7 @@ func WithL2CLOption(opt L2CLOption) stack.Option[*Orchestrator] {
 	})
 }
 
-func WithL2CLNode(l2CLID stack.L2CLNodeID, isSequencer bool, indexingMode bool, l1CLID stack.L1CLNodeID, l1ELID stack.L1ELNodeID, l2ELID stack.L2ELNodeID) stack.Option[*Orchestrator] {
+func WithL2CLNode(l2CLID stack.L2CLNodeID, isSequencer bool, indexingMode bool, l1CLID stack.L1CLNodeID, l1ELID stack.L1ELNodeID, l2ELIDs []stack.L2ELNodeID) stack.Option[*Orchestrator] {
 	return stack.AfterDeploy(func(orch *Orchestrator) {
 		p := orch.P().WithCtx(stack.ContextWithID(orch.P().Ctx(), l2CLID))
 
@@ -158,11 +159,17 @@ func WithL2CLNode(l2CLID stack.L2CLNodeID, isSequencer bool, indexingMode bool, 
 		l1CL, ok := orch.l1CLs.Get(l1CLID)
 		require.True(ok, "l1 CL node required")
 
-		l2EL, ok := orch.l2ELs.Get(l2ELID)
-		require.True(ok, "l2 EL node required")
+		require.True(len(l2ELIDs) > 0, "at least one l2 EL node is required")
+
+		var l2ELs []*L2ELNode
+		for _, l2ELID := range l2ELIDs {
+			l2EL, ok := orch.l2ELs.Get(l2ELID)
+			require.True(ok, "l2 EL node required")
+			l2ELs = append(l2ELs, l2EL)
+		}
 
 		var depSet depset.DependencySet
-		if cluster, ok := orch.ClusterForL2(l2ELID.ChainID()); ok {
+		if cluster, ok := orch.ClusterForL2(l2ELIDs[0].ChainID()); ok {
 			depSet = cluster.DepSet()
 		}
 
@@ -225,6 +232,14 @@ func WithL2CLNode(l2CLID stack.L2CLNodeID, isSequencer bool, indexingMode bool, 
 			}
 		}
 
+		var l2sEndpointConfig []config.L2EndpointSetup
+		for _, l2EL := range l2ELs {
+			l2sEndpointConfig = append(l2sEndpointConfig, &config.L2EndpointConfig{
+				L2EngineAddr:      l2EL.authRPC,
+				L2EngineJWTSecret: jwtSecret,
+			})
+		}
+
 		nodeCfg := &config.Config{
 			L1: &config.L1EndpointConfig{
 				L1NodeAddr:       l1EL.userRPC,
@@ -237,9 +252,10 @@ func WithL2CLNode(l2CLID stack.L2CLNodeID, isSequencer bool, indexingMode bool, 
 				CacheSize:        0, // auto-adjust to sequence window
 			},
 			L2: &config.L2EndpointConfig{
-				L2EngineAddr:      l2EL.authRPC,
+				L2EngineAddr:      l2ELs[0].authRPC,
 				L2EngineJWTSecret: jwtSecret,
 			},
+			L2s: l2sEndpointConfig,
 			Beacon: &config.L1BeaconEndpointConfig{
 				BeaconAddr: l1CL.beacon.BeaconAddr(),
 			},
@@ -288,7 +304,8 @@ func WithL2CLNode(l2CLID stack.L2CLNodeID, isSequencer bool, indexingMode bool, 
 			cfg:    nodeCfg,
 			logger: logger,
 			p:      p,
-			el:     l2ELID,
+			el:     l2ELIDs[0],
+			els:    l2ELIDs,
 		}
 		require.True(orch.l2CLs.SetIfMissing(l2CLID, l2CLNode), "must not already exist")
 		l2CLNode.Start()

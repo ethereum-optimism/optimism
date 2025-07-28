@@ -66,7 +66,8 @@ type OpNode struct {
 
 	l1Source  *sources.L1Client     // L1 Client to fetch data from
 	l2Driver  *driver.Driver        // L2 Engine to Sync
-	l2Source  *sources.EngineClient // L2 Execution Engine RPC bindings
+	l2Source  *sources.EngineClient // L2 Execution Engine RPC bindings; TODO(99999): remove this
+	l2Sources []*sources.EngineClient
 	server    *oprpc.Server         // RPC server hosting the rollup-node API
 	p2pNode   *p2p.NodeP2P          // P2P node functionality
 	p2pMu     gosync.Mutex          // protects p2pNode
@@ -416,20 +417,27 @@ func (n *OpNode) initL1BeaconAPI(ctx context.Context, cfg *config.Config) error 
 }
 
 func (n *OpNode) initL2(ctx context.Context, cfg *config.Config) error {
-	rpcClient, rpcCfg, err := cfg.L2.Setup(ctx, n.log, &cfg.Rollup, n.metrics)
-	if err != nil {
-		return fmt.Errorf("failed to setup L2 execution-engine RPC client: %w", err)
+	for _, l2 := range cfg.L2s {
+		rpcClient, rpcCfg, err := l2.Setup(ctx, n.log, &cfg.Rollup, n.metrics)
+		if err != nil {
+			return fmt.Errorf("failed to setup L2 execution-engine RPC client: %w", err)
+		}
+		// TODO(99999): decide if we want to panic the node if a L2 is not setup correctly?
+
+		rpcCfg.FetchWithdrawalRootFromState = cfg.FetchWithdrawalRootFromState
+
+		// TODO(99999): decide how to handle metrics cache for multiple L2s, and what's it used for?
+		l2Source, err := sources.NewEngineClient(rpcClient, n.log, n.metrics.L2SourceCache, rpcCfg)
+		if err != nil {
+			return fmt.Errorf("failed to create Engine client: %w", err)
+		}
+		n.l2Sources = append(n.l2Sources, l2Source)
 	}
 
-	rpcCfg.FetchWithdrawalRootFromState = cfg.FetchWithdrawalRootFromState
-
-	n.l2Source, err = sources.NewEngineClient(rpcClient, n.log, n.metrics.L2SourceCache, rpcCfg)
-	if err != nil {
-		return fmt.Errorf("failed to create Engine client: %w", err)
-	}
-
-	if err := cfg.Rollup.ValidateL2Config(ctx, n.l2Source, cfg.Sync.SyncMode == sync.ELSync); err != nil {
-		return err
+	for _, l2Source := range n.l2Sources {
+		if err := cfg.Rollup.ValidateL2Config(ctx, l2Source, cfg.Sync.SyncMode == sync.ELSync); err != nil {
+			return err
+		}
 	}
 
 	indexingMode := false
@@ -468,7 +476,9 @@ func (n *OpNode) initL2(ctx context.Context, cfg *config.Config) error {
 		return fmt.Errorf("cfg.Rollup.ChainOpConfig is nil. Please see https://github.com/ethereum-optimism/optimism/releases/tag/op-node/v1.11.0: %w", err)
 	}
 
-	n.l2Driver = driver.NewDriver(n.eventSys, n.eventDrain, &cfg.Driver, &cfg.Rollup, cfg.DependencySet, n.l2Source, n.l1Source,
+	mplexer := driver.NewMultiplexer(n.l2Sources)
+
+	n.l2Driver = driver.NewDriver(n.eventSys, n.eventDrain, &cfg.Driver, &cfg.Rollup, cfg.DependencySet, mplexer, n.l1Source,
 		n.beacon, n, n, n.log, n.metrics, cfg.ConfigPersistence, n.safeDB, &cfg.Sync, sequencerConductor, altDA, indexingMode)
 	return nil
 }

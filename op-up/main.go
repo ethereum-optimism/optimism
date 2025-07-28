@@ -72,7 +72,7 @@ func run() error {
 		sysgo.WithL1Nodes(ids.L1EL, ids.L1CL),
 
 		sysgo.WithL2ELNode(ids.L2EL, nil),
-		sysgo.WithL2CLNode(ids.L2CL, true, false, ids.L1CL, ids.L1EL, ids.L2EL),
+		sysgo.WithL2CLNode(ids.L2CL, true, false, ids.L1CL, ids.L1EL, []stack.L2ELNodeID{ids.L2EL}),
 
 		sysgo.WithBatcher(ids.L2Batcher, ids.L1EL, ids.L2CL, ids.L2EL),
 		sysgo.WithProposer(ids.L2Proposer, ids.L1EL, &ids.L2CL, nil),
