@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/ethereum-optimism/optimism/op-chain-ops/clients"
 	"math/big"
 	"strings"
 
@@ -611,7 +612,14 @@ func (h *Host) onFault(pc uint64, op byte, gas, cost uint64, scope tracing.OpCon
 	if len(scope.CallInput()) >= 4 {
 		byte4 = hexutil.Encode(scope.CallInput()[:4])
 	}
-	h.log.Warn("Fault", "addr", scope.Address(), "label", h.labels[scope.Address()], "err", err, "depth", depth, "op", op, "byte4", byte4)
+
+	var maybeSigs string
+	if byte4 != "" {
+		sigs, _ := clients.DefaultFourByteClient.LookupBy4ByteDirectory(byte4)
+		maybeSigs = strings.Join(sigs, ", ")
+	}
+
+	h.log.Warn("Fault", "addr", scope.Address(), "label", h.labels[scope.Address()], "err", err, "depth", depth, "op", op, "byte4", byte4, "possible error sigs", maybeSigs)
 }
 
 // unwindCallstack is a helper to remove call-stack entries.
