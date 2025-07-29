@@ -20,7 +20,7 @@ import (
 func TestSetDisputeGameImpl(t *testing.T) {
 	t.Skip("Test requires SEPOLIA_RPC_URL and modifies real contracts - skipping in CI")
 	// TODO: snevins - update for local test
-	
+
 	t.Parallel()
 
 	_, artifacts := testutil.LocalArtifacts(t)

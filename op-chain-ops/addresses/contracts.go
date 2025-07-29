@@ -46,6 +46,10 @@ type ImplementationsContracts struct {
 	OptimismMintableErc20FactoryImpl common.Address
 	DisputeGameFactoryImpl           common.Address
 	AnchorStateRegistryImpl          common.Address
+	FaultDisputeGameImpl             common.Address
+	PermissionedDisputeGameImpl      common.Address
+	SuperFaultDisputeGameImpl        common.Address
+	SuperPermissionedDisputeGameImpl common.Address
 }
 
 // OpChainContracts struct contains all the contracts for a specific L2 OpChain

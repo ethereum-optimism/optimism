@@ -195,11 +195,15 @@ func DeploySuperchainToL1(l1Host *script.Host, opcmScripts *opcm.Scripts, superC
 		DisputeGameFinalityDelaySeconds: superCfg.Implementations.FaultProof.DisputeGameFinalityDelaySeconds,
 		MipsVersion:                     superCfg.Implementations.FaultProof.MipsVersion,
 		L1ContractsRelease:              superCfg.Implementations.L1ContractsRelease,
-		SuperchainProxyAdmin:            superDeployment.SuperchainProxyAdmin,
 		SuperchainConfigProxy:           superDeployment.SuperchainConfigProxy,
 		ProtocolVersionsProxy:           superDeployment.ProtocolVersionsProxy,
+		SuperchainProxyAdmin:            superDeployment.SuperchainProxyAdmin,
 		UpgradeController:               superCfg.ProxyAdminOwner,
 		Challenger:                      superCfg.Challenger,
+		GameMaxGameDepth:                superCfg.Implementations.FaultProof.MaxGameDepth,
+		GameSplitDepth:                  superCfg.Implementations.FaultProof.SplitDepth,
+		GameClockExtension:              superCfg.Implementations.FaultProof.ClockExtension,
+		GameMaxClockDuration:            superCfg.Implementations.FaultProof.MaxClockDuration,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to deploy Implementations contracts: %w", err)

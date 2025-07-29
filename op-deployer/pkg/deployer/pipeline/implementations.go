@@ -38,6 +38,10 @@ func DeployImplementations(env *Env, intent *state.Intent, st *state.State) erro
 			ProofMaturityDelaySeconds:       standard.ProofMaturityDelaySeconds,
 			DisputeGameFinalityDelaySeconds: standard.DisputeGameFinalityDelaySeconds,
 			MIPSVersion:                     standard.MIPSVersion,
+			MaxGameDepth:                    standard.DisputeMaxGameDepth,
+			SplitDepth:                      standard.DisputeSplitDepth,
+			ClockExtension:                  standard.DisputeClockExtension,
+			MaxClockDuration:                standard.DisputeMaxClockDuration,
 		},
 		intent.GlobalDeployOverrides,
 	)
@@ -59,6 +63,10 @@ func DeployImplementations(env *Env, intent *state.Intent, st *state.State) erro
 			SuperchainProxyAdmin:            st.SuperchainDeployment.SuperchainProxyAdminImpl,
 			UpgradeController:               st.SuperchainRoles.SuperchainProxyAdminOwner,
 			Challenger:                      st.SuperchainRoles.Challenger,
+			GameMaxGameDepth:                new(big.Int).SetUint64(proofParams.MaxGameDepth),
+			GameSplitDepth:                  new(big.Int).SetUint64(proofParams.SplitDepth),
+			GameClockExtension:              new(big.Int).SetUint64(proofParams.ClockExtension),
+			GameMaxClockDuration:            new(big.Int).SetUint64(proofParams.MaxClockDuration),
 		},
 	)
 	if err != nil {
@@ -84,6 +92,10 @@ func DeployImplementations(env *Env, intent *state.Intent, st *state.State) erro
 		OptimismMintableErc20FactoryImpl: dio.OptimismMintableERC20FactoryImpl,
 		DisputeGameFactoryImpl:           dio.DisputeGameFactoryImpl,
 		AnchorStateRegistryImpl:          dio.AnchorStateRegistryImpl,
+		FaultDisputeGameImpl:             dio.FaultDisputeGameImpl,
+		PermissionedDisputeGameImpl:      dio.PermissionedDisputeGameImpl,
+		SuperFaultDisputeGameImpl:        dio.SuperFaultDisputeGameImpl,
+		SuperPermissionedDisputeGameImpl: dio.SuperPermissionedDisputeGameImpl,
 	}
 
 	return nil

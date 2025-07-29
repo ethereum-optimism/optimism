@@ -35,6 +35,10 @@ type SuperchainProofParams struct {
 	ProofMaturityDelaySeconds       uint64 `json:"proofMaturityDelaySeconds" toml:"proofMaturityDelaySeconds"`
 	DisputeGameFinalityDelaySeconds uint64 `json:"disputeGameFinalityDelaySeconds" toml:"disputeGameFinalityDelaySeconds"`
 	MIPSVersion                     uint64 `json:"mipsVersion" toml:"mipsVersion"`
+	MaxGameDepth                    uint64 `json:"maxGameDepth" toml:"maxGameDepth"`
+	SplitDepth                      uint64 `json:"splitDepth" toml:"splitDepth"`
+	ClockExtension                  uint64 `json:"clockExtension" toml:"clockExtension"`
+	MaxClockDuration                uint64 `json:"maxClockDuration" toml:"maxClockDuration"`
 }
 
 type L1DevGenesisBlockParams struct {

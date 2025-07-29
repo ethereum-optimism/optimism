@@ -72,6 +72,10 @@ func TestNewDeployImplementationsScript(t *testing.T) {
 			SuperchainProxyAdmin:  proxyAdminAddress,
 			UpgradeController:     common.BigToAddress(big.NewInt(13)),
 			Challenger:            common.BigToAddress(big.NewInt(14)),
+			GameMaxGameDepth:      big.NewInt(77),
+			GameSplitDepth:        big.NewInt(25),
+			GameClockExtension:    big.NewInt(5000),
+			GameMaxClockDuration:  big.NewInt(15000),
 		})
 
 		// And do some simple asserts

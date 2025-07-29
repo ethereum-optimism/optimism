@@ -21,6 +21,12 @@ type DeployImplementationsInput struct {
 	SuperchainProxyAdmin  common.Address
 	UpgradeController     common.Address
 	Challenger            common.Address
+
+	// Game implementation template parameters
+	GameMaxGameDepth     *big.Int
+	GameSplitDepth       *big.Int
+	GameClockExtension   *big.Int
+	GameMaxClockDuration *big.Int
 }
 
 type DeployImplementationsOutput struct {
@@ -45,6 +51,10 @@ type DeployImplementationsOutput struct {
 	AnchorStateRegistryImpl          common.Address `json:"anchorStateRegistryImplAddress"`
 	SuperchainConfigImpl             common.Address `json:"superchainConfigImplAddress"`
 	ProtocolVersionsImpl             common.Address `json:"protocolVersionsImplAddress"`
+	FaultDisputeGameImpl             common.Address `json:"faultDisputeGameImplAddress"`
+	PermissionedDisputeGameImpl      common.Address `json:"permissionedDisputeGameImplAddress"`
+	SuperFaultDisputeGameImpl        common.Address `json:"superFaultDisputeGameImplAddress"`
+	SuperPermissionedDisputeGameImpl common.Address `json:"superPermissionedDisputeGameImplAddress"`
 }
 
 type DeployImplementationsScript script.DeployScriptWithOutput[DeployImplementationsInput, DeployImplementationsOutput]

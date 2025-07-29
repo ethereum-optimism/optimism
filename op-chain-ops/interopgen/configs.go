@@ -32,6 +32,13 @@ type SuperFaultProofConfig struct {
 	ProofMaturityDelaySeconds       *big.Int
 	DisputeGameFinalityDelaySeconds *big.Int
 	MipsVersion                     *big.Int
+
+	// Game implementation template parameters
+	// TODO: Make sure these are set whenver this struct is created
+	MaxGameDepth     *big.Int
+	SplitDepth       *big.Int
+	ClockExtension   *big.Int
+	MaxClockDuration *big.Int
 }
 
 type OPCMImplementationsConfig struct {

@@ -45,6 +45,10 @@ type ImplementationsConfig struct {
 	SuperchainProxyAdmin            common.Address     `cli:"superchain-proxy-admin"`
 	Challenger                      common.Address     `cli:"challenger"`
 	CacheDir                        string             `cli:"cache-dir"`
+	GameMaxGameDepth                uint64             `cli:"game-max-game-depth"`
+	GameSplitDepth                  uint64             `cli:"game-split-depth"`
+	GameClockExtension              uint64             `cli:"game-clock-extension"`
+	GameMaxClockDuration            uint64             `cli:"game-max-clock-duration"`
 
 	Logger log.Logger
 
@@ -216,6 +220,10 @@ func Implementations(ctx context.Context, cfg ImplementationsConfig) (opcm.Deplo
 			SuperchainProxyAdmin:            cfg.SuperchainProxyAdmin,
 			UpgradeController:               cfg.UpgradeController,
 			Challenger:                      cfg.Challenger,
+			GameMaxGameDepth:                new(big.Int).SetUint64(cfg.GameMaxGameDepth),
+			GameSplitDepth:                  new(big.Int).SetUint64(cfg.GameSplitDepth),
+			GameClockExtension:              new(big.Int).SetUint64(cfg.GameClockExtension),
+			GameMaxClockDuration:            new(big.Int).SetUint64(cfg.GameMaxClockDuration),
 		},
 	); err != nil {
 		return dio, fmt.Errorf("error deploying implementations: %w", err)
