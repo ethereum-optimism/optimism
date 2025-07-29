@@ -88,16 +88,6 @@ func (ev PromotePendingSafeEvent) String() string {
 	return "promote-pending-safe"
 }
 
-// PromoteLocalSafeEvent signals that a block can be promoted to local-safe.
-type PromoteLocalSafeEvent struct {
-	Ref    eth.L2BlockRef
-	Source eth.L1BlockRef
-}
-
-func (ev PromoteLocalSafeEvent) String() string {
-	return "promote-local-safe"
-}
-
 type CrossSafeUpdateEvent struct {
 	CrossSafe eth.L2BlockRef
 	LocalSafe eth.L2BlockRef
@@ -407,15 +397,8 @@ func (d *EngDeriver) OnEvent(ctx context.Context, ev event.Event) bool {
 			})
 		}
 		if x.Concluding && x.Ref.Number > d.ec.LocalSafeL2Head().Number {
-			d.emitter.Emit(ctx, PromoteLocalSafeEvent{
-				Ref:    x.Ref,
-				Source: x.Source,
-			})
+			d.ec.PromoteLocalSafe(ctx, x.Ref, x.Source, d.emitter, d.log)
 		}
-	case PromoteLocalSafeEvent:
-		d.log.Debug("Updating local safe", "local_safe", x.Ref, "safe", d.ec.SafeL2Head(), "unsafe", d.ec.UnsafeL2Head())
-		d.ec.SetLocalSafeHead(x.Ref)
-		d.emitter.Emit(ctx, LocalSafeUpdateEvent(x))
 	case LocalSafeUpdateEvent:
 		// pre-interop everything that is local-safe is also immediately cross-safe.
 		if !d.cfg.IsInterop(x.Ref.Time) {

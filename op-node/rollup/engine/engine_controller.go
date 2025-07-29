@@ -375,6 +375,17 @@ func (e *EngineController) PromoteUnsafe(ctx context.Context, ref eth.L2BlockRef
 	emitter.Emit(ctx, UnsafeUpdateEvent{Ref: ref})
 }
 
+// PromoteLocalSafe promotes a block to local safe head.
+// This replaces the PromoteLocalSafeEvent -> LocalSafeUpdateEvent pattern with a direct function call.
+func (e *EngineController) PromoteLocalSafe(ctx context.Context, ref eth.L2BlockRef, source eth.L1BlockRef, emitter event.Emitter, log log.Logger) {
+	log.Debug("Updating local safe", "local_safe", ref, "safe", e.SafeL2Head(), "unsafe", e.UnsafeL2Head())
+	e.SetLocalSafeHead(ref)
+	emitter.Emit(ctx, LocalSafeUpdateEvent{
+		Ref:    ref,
+		Source: source,
+	})
+}
+
 // logSyncProgressMaybe helps log forkchoice state-changes when applicable.
 // First, the pre-state is registered.
 // A callback is returned to then log the changes to the pre-state, if any.
