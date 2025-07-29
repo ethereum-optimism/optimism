@@ -3,7 +3,6 @@ package batcher
 import (
 	"errors"
 	"io"
-	"math"
 	"math/big"
 	"math/rand"
 	"testing"
@@ -690,7 +689,6 @@ func newBlock(parent *eth.BlockID) *types.Block {
 func TestChannelManagerUnsafeBytes(t *testing.T) {
 	cfg := newFakeDynamicEthChannelConfig(log.New(), time.Second)
 	cfg.chooseBlobs = true
-	cfg.DynamicEthChannelConfig.blobConfig.ChannelTimeout = math.MaxUint64
 	manager := NewChannelManager(log.New(), metrics.NoopMetrics, cfg, defaultTestRollupConfig)
 
 	block := newBlock(&eth.BlockID{})
@@ -728,15 +726,12 @@ func TestChannelManagerUnsafeBytes(t *testing.T) {
 		require.NoError(t, manager.AddL2Block(block))
 		cumulativeEstimate += getDASize(block)
 
-		frames, err := manager.TxData(l1BlockID, true, false)
+		_, err := manager.TxData(l1BlockID, true, false)
 		if errors.Is(err, io.EOF) {
 			continue
 		}
 		require.NoError(t, err)
 
-		manager.TxConfirmed(frames.ID(), eth.BlockID{
-			Number: l1BlockID.Number + 1,
-		})
 		// The empty blocks were added to channels,
 		// so the manager should now report a lower
 		// value for UnsafeDABytes.
