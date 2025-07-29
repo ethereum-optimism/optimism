@@ -14,20 +14,20 @@ import (
 
 var ErrNilL1View = errors.New("every supervisor node L1 block view is nil")
 
-// Supervisor Client for post-interop DGF.
+// SupervisorClient is the post-interop DGF client interface.
 type SupervisorClient interface {
 	SyncStatus(ctx context.Context) (eth.SupervisorSyncStatus, error)
 	SuperRootAtTimestamp(ctx context.Context, timestamp hexutil.Uint64) (eth.SuperRootResponse, error)
 	Close()
 }
 
-// Supervisor Proposal Source for post-interop DGF.
+// SupervisorProposalSource is the post-interop DGF proposal source interface.
 type SupervisorProposalSource struct {
 	log     log.Logger
 	clients []SupervisorClient
 }
 
-// Constructs a new `SupervisorProposalSource`.
+// NewSupervisorProposalSource constructs a new `SupervisorProposalSource`.
 //
 // Panics if no supervisor clients are provided.
 func NewSupervisorProposalSource(logger log.Logger, clients ...SupervisorClient) *SupervisorProposalSource {
@@ -47,7 +47,7 @@ type statusResult struct {
 	err    error
 }
 
-// Returns the earliest L1 block, safe L2 block number, and finalized L2 block number from all supervisor clients.
+// SyncStatus returns the earliest L1 block, safe L2 block number, and finalized L2 block number from all supervisor clients.
 //
 // Errors if no clients return a valid minimum L1 block.
 //
@@ -97,7 +97,7 @@ func (s *SupervisorProposalSource) SyncStatus(ctx context.Context) (SyncStatus, 
 	}, nil
 }
 
-// Returns the proposal data for the given timestamp.
+// ProposalAtSequenceNum returns the proposal data for the given timestamp.
 //
 // Errors if all clients fail to return a proposal.
 func (s *SupervisorProposalSource) ProposalAtSequenceNum(ctx context.Context, timestamp uint64) (Proposal, error) {
@@ -121,7 +121,7 @@ func (s *SupervisorProposalSource) ProposalAtSequenceNum(ctx context.Context, ti
 	return Proposal{}, fmt.Errorf("no available proposal sources: %w", errors.Join(errs...))
 }
 
-// Close the underlying supervisor clients.
+// Close closes the underlying supervisor clients.
 func (s *SupervisorProposalSource) Close() {
 	for _, client := range s.clients {
 		client.Close()

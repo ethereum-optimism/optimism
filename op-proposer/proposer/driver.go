@@ -29,7 +29,7 @@ var (
 	ErrProposerNotRunning = errors.New("proposer is not running")
 )
 
-// Client for the L1 chain.
+// L1Client is the client for the L1 chain.
 type L1Client interface {
 	HeaderByNumber(ctx context.Context, number *big.Int) (*types.Header, error)
 	// CodeAt returns the code of the given account. This is needed to differentiate
@@ -41,26 +41,26 @@ type L1Client interface {
 	CallContract(ctx context.Context, call ethereum.CallMsg, blockNumber *big.Int) ([]byte, error)
 }
 
-// L2OO contract interface.
+// L2OOContract is the L2OO contract interface.
 type L2OOContract interface {
 	Version(*bind.CallOpts) (string, error)
 	NextBlockNumber(*bind.CallOpts) (*big.Int, error)
 }
 
-// DGF contract interface.
+// DGFContract is the DGF contract interface.
 type DGFContract interface {
 	Version(ctx context.Context) (string, error)
 	HasProposedSince(ctx context.Context, proposer common.Address, cutoff time.Time, gameType uint32) (bool, time.Time, common.Hash, error)
 	ProposalTx(ctx context.Context, gameType uint32, outputRoot common.Hash, l2BlockNum uint64) (txmgr.TxCandidate, error)
 }
 
-// Rollup Client interface.
+// RollupClient is the rollup client interface.
 type RollupClient interface {
 	SyncStatus(ctx context.Context) (*eth.SyncStatus, error)
 	OutputAtBlock(ctx context.Context, blockNum uint64) (*eth.OutputResponse, error)
 }
 
-// Contains logger, metrics, config, tx manager, L1 client, multicaller, and proposal source.
+// DriverSetup contains logger, metrics, config, tx manager, L1 client, multicaller, and proposal source.
 //
 // Embedded in `L2OutputSubmitter`.
 type DriverSetup struct {
@@ -75,7 +75,7 @@ type DriverSetup struct {
 	ProposalSource source.ProposalSource
 }
 
-// Responsible for proposing outputs.
+// L2OutputSubmitter is responsible for proposing outputs.
 type L2OutputSubmitter struct {
 	DriverSetup
 
@@ -93,7 +93,7 @@ type L2OutputSubmitter struct {
 	dgfContract DGFContract
 }
 
-// Constructs a new `L2OutputSubmitter`.
+// NewL2OutputSubmitter constructs a new `L2OutputSubmitter`.
 //
 // May be constructed for L2OO, pre-interop DGF, or post-interop DGF.
 //
@@ -122,7 +122,7 @@ func NewL2OutputSubmitter(setup DriverSetup) (_ *L2OutputSubmitter, err error) {
 	}
 }
 
-// Constructs a new `L2OutputSubmitter` for L2OO.
+// newL2OOSubmitter constructs a new `L2OutputSubmitter` for L2OO.
 //
 // Errors if:
 //
@@ -162,7 +162,7 @@ func newL2OOSubmitter(ctx context.Context, cancel context.CancelFunc, setup Driv
 	}, nil
 }
 
-// Constructs a new `L2OutputSubmitter` for DGF.
+// newDGFSubmitter constructs a new `L2OutputSubmitter` for DGF.
 //
 // Errors if the `DisputeGameFactory` contract fails to return a version.
 func newDGFSubmitter(ctx context.Context, cancel context.CancelFunc, setup DriverSetup) (*L2OutputSubmitter, error) {
@@ -185,7 +185,7 @@ func newDGFSubmitter(ctx context.Context, cancel context.CancelFunc, setup Drive
 	}, nil
 }
 
-// Starts the `L2OutputSubmitter` loop.
+// StartL2OutputSubmitting starts the `L2OutputSubmitter` loop.
 //
 // Errors if:
 //
@@ -212,7 +212,7 @@ func (l *L2OutputSubmitter) StartL2OutputSubmitting() error {
 	return nil
 }
 
-// Stops the `L2OutputSubmitter` loop if it is running.
+// StopL2OutputSubmittingIfRunning stops the `L2OutputSubmitter` loop if it is running.
 //
 // Errors if the `L2OutputSubmitter` fails to stop (and is also running).
 func (l *L2OutputSubmitter) StopL2OutputSubmittingIfRunning() error {
@@ -223,7 +223,7 @@ func (l *L2OutputSubmitter) StopL2OutputSubmittingIfRunning() error {
 	return err
 }
 
-// Stops the `L2OutputSubmitter` loop.
+// StopL2OutputSubmitting stops the `L2OutputSubmitter` loop.
 //
 // Errors if the `L2OutputSubmitter` is not running.
 func (l *L2OutputSubmitter) StopL2OutputSubmitting() error {
@@ -241,7 +241,7 @@ func (l *L2OutputSubmitter) StopL2OutputSubmitting() error {
 	return nil
 }
 
-// Gets the next output proposal for the L2OO.
+// FetchL2OOOutput gets the next output proposal for the L2OO.
 //
 // It queries the L2OO for the earliest next block number that should be proposed, then returns the output to propose,
 // and whether the proposal should be submitted at all.
@@ -299,7 +299,7 @@ func (l *L2OutputSubmitter) FetchL2OOOutput(ctx context.Context) (source.Proposa
 	return output, true, nil
 }
 
-// Queries the DGF for the latest game and infers whether it is time to make another proposal.
+// FetchDGFOutput queries the DGF for the latest game and infers whether it is time to make another proposal.
 //
 // If necessary, it gets the next output proposal for the DGF, and returns it along with a boolean for whether the
 // proposal should be submitted at all.
@@ -349,7 +349,7 @@ func (l *L2OutputSubmitter) FetchDGFOutput(ctx context.Context) (source.Proposal
 	return output, true, nil
 }
 
-// Gets the current block number from the `L2OutputSubmitter`'s `RollupClient`.
+// FetchCurrentBlockNumber gets the current block number from the `L2OutputSubmitter`'s `RollupClient`.
 //
 // If the `AllowNonFinalized` configuration option is set, it will return the safe head block number, and if not, it will return the finalized head block number.
 //
@@ -367,7 +367,7 @@ func (l *L2OutputSubmitter) FetchCurrentBlockNumber(ctx context.Context) (uint64
 	return status.FinalizedL2, nil
 }
 
-// Fetches the output at the given block number.
+// FetchOutput fetches the output at the given block number.
 //
 // Errors if:
 //
@@ -384,12 +384,12 @@ func (l *L2OutputSubmitter) FetchOutput(ctx context.Context, block uint64) (sour
 	return output, nil
 }
 
-// Creates proposal transaction data for L2OO.
+// ProposeL2OutputTxData creates proposal transaction data for L2OO.
 func (l *L2OutputSubmitter) ProposeL2OutputTxData(output source.Proposal) ([]byte, error) {
 	return proposeL2OutputTxData(l.l2ooABI, output)
 }
 
-// Creates proposal transaction data for L2OO.
+// proposeL2OutputTxData creates proposal transaction data for L2OO.
 //
 // Errors if the ABI packing fails.
 //
@@ -403,7 +403,7 @@ func proposeL2OutputTxData(abi *abi.ABI, output source.Proposal) ([]byte, error)
 		new(big.Int).SetUint64(output.CurrentL1.Number))
 }
 
-// Creates a proposal transaction candidate for DGF.
+// ProposeL2OutputDGFTxCandidate creates a proposal transaction candidate for DGF.
 //
 // Errors if the `DisputeGameFactory` contract fails to return a proposal transaction candidate.
 func (l *L2OutputSubmitter) ProposeL2OutputDGFTxCandidate(ctx context.Context, output source.Proposal) (txmgr.TxCandidate, error) {
@@ -412,7 +412,7 @@ func (l *L2OutputSubmitter) ProposeL2OutputDGFTxCandidate(ctx context.Context, o
 	return l.dgfContract.ProposalTx(cCtx, l.Cfg.DisputeGameType, output.Root, output.SequenceNum)
 }
 
-// Waits until L1 head advances beyond the given block number.
+// waitForL1Head waits until L1 head advances beyond the given block number.
 //
 // This is used to make sure proposal tx won't immediately fail when checking the l1 blockhash.
 //
@@ -448,7 +448,7 @@ func (l *L2OutputSubmitter) waitForL1Head(ctx context.Context, blockNum uint64) 
 	return nil
 }
 
-// Creates & sends transactions through the underlying transaction manager.
+// sendTransaction creates & sends transactions through the underlying transaction manager.
 //
 // Errors if:
 //
@@ -501,7 +501,7 @@ func (l *L2OutputSubmitter) sendTransaction(ctx context.Context, output source.P
 	return nil
 }
 
-// Creates & submits the next outputs.
+// loop creates & submits the next outputs.
 //
 // The loop regularly polls the L2 chain to infer whether to make the next proposal.
 func (l *L2OutputSubmitter) loop() {
@@ -547,7 +547,7 @@ func (l *L2OutputSubmitter) loop() {
 
 }
 
-// Waits for the node to sync.
+// waitNodeSync waits for the node to sync.
 //
 // Errors if:
 //
@@ -571,7 +571,7 @@ func (l *L2OutputSubmitter) waitNodeSync() error {
 	})
 }
 
-// Proposes the output.
+// proposeOutput proposes the output.
 func (l *L2OutputSubmitter) proposeOutput(ctx context.Context, output source.Proposal) {
 	cCtx, cancel := context.WithTimeout(ctx, 10*time.Minute)
 	defer cancel()

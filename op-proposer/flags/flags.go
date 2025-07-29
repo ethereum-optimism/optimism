@@ -23,7 +23,7 @@ func prefixEnvVars(name string) []string {
 var (
 	// Required Flags
 
-	// L1 Ethereum RPC URL (required).
+	// L1EthRpcFlag is the L1 Ethereum RPC URL (required).
 	L1EthRpcFlag = &cli.StringFlag{
 		Name:    "l1-eth-rpc",
 		Usage:   "HTTP provider URL for L1",
@@ -32,7 +32,7 @@ var (
 
 	// Optional flags
 
-	// Rollup RPC URL (optional).
+	// RollupRpcFlag is the Rollup RPC URL (optional).
 	//
 	// MAY be a comma-separated list of URLs.
 	RollupRpcFlag = &cli.StringFlag{
@@ -41,7 +41,7 @@ var (
 		EnvVars: prefixEnvVars("ROLLUP_RPC"),
 	}
 
-	// Supervisor RPC URLs (optional).
+	// SupervisorRpcsFlag is the Supervisor RPC URL(s) (optional).
 	//
 	// MAY be a comma-separated list of URLs.
 	SupervisorRpcsFlag = &cli.StringSliceFlag{
@@ -50,14 +50,14 @@ var (
 		EnvVars: prefixEnvVars("SUPERVISOR_RPCS"),
 	}
 
-	// L2 output orgcle contract address (optional).
+	// L2OOAddressFlag is the L2 output oracle contract address (optional).
 	L2OOAddressFlag = &cli.StringFlag{
 		Name:    "l2oo-address",
 		Usage:   "Address of the L2OutputOracle contract",
 		EnvVars: prefixEnvVars("L2OO_ADDRESS"),
 	}
 
-	// Poll interval for output root proposals (optional).
+	// PollIntervalFlag is the poll interval for output root proposals (optional).
 	PollIntervalFlag = &cli.DurationFlag{
 		Name:    "poll-interval",
 		Usage:   "Delay between periodic checks on whether it is time to load an output root and propose it.",
@@ -65,28 +65,28 @@ var (
 		EnvVars: prefixEnvVars("POLL_INTERVAL"),
 	}
 
-	// Allow proposals for non-finalized L1 blocks (optional).
+	// AllowNonFinalizedFlag is the allow proposals for non-finalized L1 blocks (optional).
 	AllowNonFinalizedFlag = &cli.BoolFlag{
 		Name:    "allow-non-finalized",
 		Usage:   "Allow the proposer to submit proposals for L2 blocks derived from non-finalized L1 blocks.",
 		EnvVars: prefixEnvVars("ALLOW_NON_FINALIZED"),
 	}
 
-	// Dispute game factory contract address (optional).
+	// DisputeGameFactoryAddressFlag is the dispute game factory contract address (optional).
 	DisputeGameFactoryAddressFlag = &cli.StringFlag{
 		Name:    "game-factory-address",
 		Usage:   "Address of the DisputeGameFactory contract",
 		EnvVars: prefixEnvVars("GAME_FACTORY_ADDRESS"),
 	}
 
-	// Interval between L2 proposals (only when DisputeGameFactoryAddress is set) (optional).
+	// ProposalIntervalFlag is the interval between L2 proposals (only when DisputeGameFactoryAddress is set) (optional).
 	ProposalIntervalFlag = &cli.DurationFlag{
 		Name:    "proposal-interval",
 		Usage:   "Interval between submitting L2 output proposals when the dispute game factory address is set",
 		EnvVars: prefixEnvVars("PROPOSAL_INTERVAL"),
 	}
 
-	// Dispute game type (only when DisputeGameFactoryAddress is set) (optional).
+	// DisputeGameTypeFlag is the dispute game type (only when DisputeGameFactoryAddress is set) (optional).
 	DisputeGameTypeFlag = &cli.UintFlag{
 		Name:    "game-type",
 		Usage:   "Dispute game type to create via the configured DisputeGameFactory",
@@ -94,7 +94,7 @@ var (
 		EnvVars: prefixEnvVars("GAME_TYPE"),
 	}
 
-	// Time between checks for active sequencer (optional).
+	// ActiveSequencerCheckDurationFlag is the time between checks for active sequencer (optional).
 	ActiveSequencerCheckDurationFlag = &cli.DurationFlag{
 		Name:    "active-sequencer-check-duration",
 		Usage:   "The duration between checks to determine the active sequencer endpoint.",
@@ -102,7 +102,7 @@ var (
 		EnvVars: prefixEnvVars("ACTIVE_SEQUENCER_CHECK_DURATION"),
 	}
 
-	// Wait for node sync before starting (optional).
+	// WaitNodeSyncFlag is the wait for node sync before starting (optional).
 	WaitNodeSyncFlag = &cli.BoolFlag{
 		Name: "wait-node-sync",
 		Usage: "Indicates if, during startup, the proposer should wait for the rollup node to sync to " +
@@ -111,7 +111,7 @@ var (
 		EnvVars: prefixEnvVars("WAIT_NODE_SYNC"),
 	}
 
-	// Legacy Flags
+	// L2OutputHDPathFlag is the legacy L2 output HD path flag.
 	L2OutputHDPathFlag = txmgr.L2OutputHDPathFlag
 )
 
@@ -133,7 +133,7 @@ var optionalFlags = []cli.Flag{
 	WaitNodeSyncFlag,
 }
 
-// Appends RPC, logger, metrics, profile, and tx manager flags to local flags.
+// init appends RPC, logger, metrics, profile, and tx manager flags to local flags.
 func init() {
 	optionalFlags = append(optionalFlags, oprpc.CLIFlags(EnvVarPrefix)...)
 	optionalFlags = append(optionalFlags, oplog.CLIFlags(EnvVarPrefix)...)
@@ -147,7 +147,7 @@ func init() {
 // Flags contains the list of configuration options available to the binary.
 var Flags []cli.Flag
 
-// Checks for required flags.
+// CheckRequired checks for required flags.
 func CheckRequired(ctx *cli.Context) error {
 	for _, f := range requiredFlags {
 		if !ctx.IsSet(f.Names()[0]) {

@@ -12,8 +12,9 @@ import (
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
 )
 
-// Main is the entrypoint into the L2OutputSubmitter.
-// This method returns a cliapp.LifecycleAction, to create an op-service CLI-lifecycle-managed L2Output-submitter
+// Main is the entrypoint into the `L2OutputSubmitter`.
+//
+// This method returns a `cliapp.LifecycleAction`, to create an `op-service` CLI-lifecycle-managed `L2OutputSubmitter`.
 func Main(version string) cliapp.LifecycleAction {
 	return func(cliCtx *cli.Context, _ context.CancelCauseFunc) (cliapp.Lifecycle, error) {
 		if err := flags.CheckRequired(cliCtx); err != nil {

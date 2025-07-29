@@ -31,7 +31,7 @@ import (
 
 var ErrAlreadyStopped = errors.New("already stopped")
 
-// Configuration for the proposer.
+// ProposerConfig is the configuration for the proposer.
 type ProposerConfig struct {
 	// How frequently to poll L2 for new finalized outputs
 	PollInterval   time.Duration
@@ -53,7 +53,7 @@ type ProposerConfig struct {
 	WaitNodeSync bool
 }
 
-// Configuration for the proposer service.
+// ProposerService is the configuration for the proposer service.
 //
 // Contains logging, metrics, and encapsulates the proposer's components.
 //
@@ -81,7 +81,7 @@ type ProposerService struct {
 	stopped atomic.Bool
 }
 
-// ProposerServiceFromCLIConfig creates a new ProposerService from a CLIConfig.
+// ProposerServiceFromCLIConfig creates a new `ProposerService` from a `CLIConfig`.
 //
 // The service components are fully started, except for the driver,
 // which will not be submitting state (if it was configured to) until the Start part of the lifecycle.
@@ -93,7 +93,7 @@ func ProposerServiceFromCLIConfig(ctx context.Context, version string, cfg *CLIC
 	return &ps, nil
 }
 
-// Initializes the ProposerService from a CLIConfig.
+// initFromCLIConfig initializes the `ProposerService` from a `CLIConfig`.
 //
 // Errors if any of the following initialiations fail:
 //
@@ -144,7 +144,7 @@ func (ps *ProposerService) initFromCLIConfig(ctx context.Context, version string
 	return nil
 }
 
-// Initializes the RPC clients.
+// initRPCClients initializes the RPC clients.
 //
 // Errors if any of the following fail:
 //
@@ -187,7 +187,7 @@ func (ps *ProposerService) initRPCClients(ctx context.Context, cfg *CLIConfig) e
 	return nil
 }
 
-// Initializes the metrics if enabled.
+// initMetrics initializes the metrics if enabled.
 func (ps *ProposerService) initMetrics(cfg *CLIConfig) {
 	if cfg.MetricsConfig.Enabled {
 		procName := "default"
@@ -197,7 +197,7 @@ func (ps *ProposerService) initMetrics(cfg *CLIConfig) {
 	}
 }
 
-// Initializes the balance monitor.
+// initBalanceMonitor initializes the balance monitor.
 //
 // Depends on Metrics, L1Client and TxManager to start background-monitoring of the Proposer
 // balance.
@@ -207,7 +207,7 @@ func (ps *ProposerService) initBalanceMonitor(cfg *CLIConfig) {
 	}
 }
 
-// Initializes the transaction manager.
+// initTxManager initializes the transaction manager.
 //
 // Errors if `txmgr.NewSimpleTxManager` fails to initialize.
 func (ps *ProposerService) initTxManager(cfg *CLIConfig) error {
@@ -219,7 +219,7 @@ func (ps *ProposerService) initTxManager(cfg *CLIConfig) error {
 	return nil
 }
 
-// Initializes the pprof service.
+// initPProf initializes the pprof service.
 //
 // Errors if `oppprof.Service.Start` fails.
 func (ps *ProposerService) initPProf(cfg *CLIConfig) error {
@@ -239,7 +239,7 @@ func (ps *ProposerService) initPProf(cfg *CLIConfig) error {
 	return nil
 }
 
-// Initializes the metrics server if enabled.
+// initMetricsServer initializes the metrics server if enabled.
 //
 // Errors if:
 //
@@ -264,7 +264,7 @@ func (ps *ProposerService) initMetricsServer(cfg *CLIConfig) error {
 	return nil
 }
 
-// Initializes the L2 Output Oracle address.
+// initL2ooAddress initializes the L2 Output Oracle address.
 //
 // If the address is invalid or missing, it will not be set.
 func (ps *ProposerService) initL2ooAddress(cfg *CLIConfig) {
@@ -276,7 +276,7 @@ func (ps *ProposerService) initL2ooAddress(cfg *CLIConfig) {
 	ps.L2OutputOracleAddr = &l2ooAddress
 }
 
-// Initializes the Dispute Game Factory address.
+// initDGF initializes the Dispute Game Factory address.
 //
 // If the address is invalid or missing it will not be set.
 func (ps *ProposerService) initDGF(cfg *CLIConfig) {
@@ -290,7 +290,7 @@ func (ps *ProposerService) initDGF(cfg *CLIConfig) {
 	ps.DisputeGameType = cfg.DisputeGameType
 }
 
-// Initializes the L2 output submitter driver.
+// initDriver initializes the L2 output submitter driver.
 //
 // Errors if `proposer.NewL2OutputSubmitter` fails.
 func (ps *ProposerService) initDriver() error {
@@ -310,7 +310,7 @@ func (ps *ProposerService) initDriver() error {
 	return nil
 }
 
-// Initializes the RPC server.
+// initRPCServer initializes the RPC server.
 //
 // Errors if the RPC server fails to start.
 func (ps *ProposerService) initRPCServer(cfg *CLIConfig) error {
@@ -335,14 +335,14 @@ func (ps *ProposerService) initRPCServer(cfg *CLIConfig) error {
 	return nil
 }
 
-// Start runs once upon start of the proposer lifecycle,
-// and starts L2Output-submission work if the proposer is configured to start submit data on startup.
+// Start runs once upon start of the proposer lifecycle and starts L2Output-submission work if the proposer is configured
+// to start submit data on startup.
 func (ps *ProposerService) Start(_ context.Context) error {
 	ps.Log.Info("Starting Proposer")
 	return ps.driver.StartL2OutputSubmitting()
 }
 
-// Returns whether or not the ProposerService has been stopped.
+// Stopped returns whether or not the `ProposerService` has been stopped.
 func (ps *ProposerService) Stopped() bool {
 	return ps.stopped.Load()
 }
@@ -419,7 +419,7 @@ func (ps *ProposerService) Driver() rpc.ProposerDriver {
 	return ps.driver
 }
 
-// Returns the HTTP endpoint of the RPC server.
+// HTTPEndpoint returns the HTTP endpoint of the RPC server.
 func (ps *ProposerService) HTTPEndpoint() string {
 	if ps.rpcServer == nil {
 		return ""

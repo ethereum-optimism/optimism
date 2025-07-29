@@ -32,6 +32,7 @@ var (
 )
 
 // CLIConfig is a well typed config that is parsed from the CLI params.
+//
 // This also contains config options for auxiliary services.
 // It is transformed into a `Config` before the L2 output submitter is started.
 type CLIConfig struct {
@@ -82,7 +83,7 @@ type CLIConfig struct {
 	WaitNodeSync bool
 }
 
-// Checks the CLI config.
+// Check checks the CLI config.
 //
 // There are three distinct configurations, L2 Output Oracle, DGF (pre-interop), and
 // DGF (post-interop). Fields prefixed with "NOT" are required to be empty.

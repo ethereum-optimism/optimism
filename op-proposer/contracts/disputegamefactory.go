@@ -24,7 +24,7 @@ const (
 	methodClaim = "claimData"
 )
 
-// Contains metadata regarding the current game.
+// gameMetadata contains metadata regarding the current game.
 // (internal)
 type gameMetadata struct {
 	GameType  uint32
@@ -34,7 +34,7 @@ type gameMetadata struct {
 	Claim     common.Hash
 }
 
-// Encapsulates the dispute game factory (DGF) contract.
+// DisputeGameFactory encapsulates the dispute game factory (DGF) contract.
 //
 // Responsible for querying the DGF contract and constructing proposal tansactions to be submitted
 // to an RPC.
@@ -45,7 +45,7 @@ type DisputeGameFactory struct {
 	networkTimeout time.Duration
 }
 
-// Constructs the DGF contract interface.
+// NewDisputeGameFactory constructs the DGF contract interface.
 func NewDisputeGameFactory(addr common.Address, caller *batching.MultiCaller, networkTimeout time.Duration) *DisputeGameFactory {
 	factoryABI := snapshots.LoadDisputeGameFactoryABI()
 	// Note: Games might have different ABIs (eg SuperFaultDisputeGame) but since only a very small part of the ABI
@@ -60,7 +60,7 @@ func NewDisputeGameFactory(addr common.Address, caller *batching.MultiCaller, ne
 	}
 }
 
-// Queries the DGF contract for its current version.
+// Version queries the DGF contract for its current version.
 //
 // Errors if a contract call to `version()` errors.
 func (f *DisputeGameFactory) Version(ctx context.Context) (string, error) {
@@ -73,7 +73,7 @@ func (f *DisputeGameFactory) Version(ctx context.Context) (string, error) {
 	return result.GetString(0), nil
 }
 
-// Attempts to find a game with the specified game type created by the specified proposer after the
+// HasProposedSince attempts to find a game with the specified game type created by the specified proposer after the
 // given cut off time. If one is found, returns true and the time the game was created at.
 // If no matching proposal is found, returns false, time.Time{}, nil.
 //
@@ -106,7 +106,7 @@ func (f *DisputeGameFactory) HasProposedSince(ctx context.Context, proposer comm
 	}
 }
 
-// Constructs a proposal transaction to be submitted to an RPC.
+// ProposalTx constructs a proposal transaction to be submitted to an RPC.
 //
 // Errors if the contract call to `initBonds(gameType)` or `create(gameType, outputRoot, l2BlockNum)` errors.
 func (f *DisputeGameFactory) ProposalTx(ctx context.Context, gameType uint32, outputRoot common.Hash, l2BlockNum uint64) (txmgr.TxCandidate, error) {
@@ -126,7 +126,7 @@ func (f *DisputeGameFactory) ProposalTx(ctx context.Context, gameType uint32, ou
 	return candidate, err
 }
 
-// Queries the DGF contract for the number of games created.
+// gameCount queries the DGF contract for the number of games created.
 //
 // Errors if the contract call to `gameCount()` errors.
 func (f *DisputeGameFactory) gameCount(ctx context.Context) (uint64, error) {
@@ -139,7 +139,7 @@ func (f *DisputeGameFactory) gameCount(ctx context.Context) (uint64, error) {
 	return result.GetBigInt(0).Uint64(), nil
 }
 
-// Queries the DGF contract for the game at the given index.
+// gameAtIndex queries the DGF contract for the game at the given index.
 //
 // Errors if the contract call to `gameAtIndex(index)` or `claimData(0)` errors.
 func (f *DisputeGameFactory) gameAtIndex(ctx context.Context, idx uint64) (gameMetadata, error) {
