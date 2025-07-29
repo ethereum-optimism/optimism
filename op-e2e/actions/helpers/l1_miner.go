@@ -145,6 +145,7 @@ func (s *L1Miner) ActL1IncludeTx(from common.Address) Action {
 			t.InvalidAction("no tx inclusion when not building l1 block")
 			return
 		}
+		require.NoError(t, s.Eth.TxPool().Sync(), "must sync tx-pool to get accurate pending txs")
 		getPendingIndex := func(from common.Address) uint64 {
 			return s.pendingIndices[from]
 		}
