@@ -493,8 +493,6 @@ func (d *EngDeriver) OnEvent(ctx context.Context, ev event.Event) bool {
 		} else {
 			d.onBuildStarted(ctx, *result)
 		}
-	case BuildSealedEvent:
-		d.onBuildSealed(ctx, x)
 	case BuildInvalidEvent:
 		d.onBuildInvalid(ctx, x)
 	case BuildCancelEvent:

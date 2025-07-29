@@ -207,17 +207,12 @@ func (d *Sequencer) OnEvent(ctx context.Context, ev event.Event) bool {
 	}()
 
 	switch x := ev.(type) {
-	case engine.BuildStartedEvent:
-		d.onBuildStarted(x)
 	case engine.InvalidPayloadAttributesEvent:
 		d.onInvalidPayloadAttributes(x)
-	case engine.BuildSealedEvent:
-		d.onBuildSealed(x)
 	case engine.PayloadSealInvalidEvent:
 		d.onPayloadSealInvalid(x)
 	case engine.PayloadSealExpiredErrorEvent:
 		d.onPayloadSealExpiredError(x)
-
 	case engine.PayloadSuccessEvent:
 		d.onPayloadSuccess(x)
 	case SequencerActionEvent:

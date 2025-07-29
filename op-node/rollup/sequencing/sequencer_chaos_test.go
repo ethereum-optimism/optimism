@@ -113,44 +113,6 @@ func (c *ChaoticEngine) clockRandomIncrement(minIncr, maxIncr time.Duration) {
 
 func (c *ChaoticEngine) OnEvent(ctx context.Context, ev event.Event) bool {
 	switch x := ev.(type) {
-	case engine.BuildStartEvent:
-		c.currentPayloadInfo = eth.PayloadInfo{}
-		// init new payload building ID
-		_, err := c.rng.Read(c.currentPayloadInfo.ID[:])
-		require.NoError(c.t, err)
-		c.currentPayloadInfo.Timestamp = uint64(x.Attributes.Attributes.Timestamp)
-
-		// Move forward time, to simulate time consumption
-		c.clockRandomIncrement(0, time.Millisecond*300)
-		if c.rng.Intn(10) == 0 { // 10% chance the block start is slow
-			c.clockRandomIncrement(0, time.Second*2)
-		}
-
-		p := c.rng.Float32()
-		switch {
-		case p < 0.05: // 5%
-			c.emitter.Emit(ctx, engine.BuildInvalidEvent{
-				Attributes: x.Attributes,
-				Err:        errors.New("mock start invalid error"),
-			})
-		case p < 0.07: // 2 %
-			c.emitter.Emit(ctx, rollup.ResetEvent{
-				Err: errors.New("mock reset on start error"),
-			})
-		case p < 0.12: // 5%
-			c.emitter.Emit(ctx, rollup.EngineTemporaryErrorEvent{
-				Err: errors.New("mock temp start error"),
-			})
-		default:
-			c.currentAttributes = x.Attributes
-			c.emitter.Emit(ctx, engine.BuildStartedEvent{
-				Info:         c.currentPayloadInfo,
-				BuildStarted: c.clock.Now(),
-				Parent:       x.Attributes.Parent,
-				Concluding:   false,
-				DerivedFrom:  eth.L1BlockRef{},
-			})
-		}
 	case rollup.EngineTemporaryErrorEvent:
 		c.clockRandomIncrement(0, time.Millisecond*100)
 		c.currentPayloadInfo = eth.PayloadInfo{}
@@ -176,75 +138,6 @@ func (c *ChaoticEngine) OnEvent(ctx context.Context, ev event.Event) bool {
 		c.currentPayloadInfo = eth.PayloadInfo{}
 		c.currentAttributes = nil
 		c.emitter.Emit(ctx, engine.InvalidPayloadAttributesEvent(x))
-	case engine.BuildSealEvent:
-		// Move forward time, to simulate time consumption on sealing
-		c.clockRandomIncrement(0, time.Millisecond*300)
-
-		if c.currentPayloadInfo == (eth.PayloadInfo{}) {
-			c.emitter.Emit(ctx, engine.PayloadSealExpiredErrorEvent{
-				Info:        x.Info,
-				Err:         errors.New("job was cancelled"),
-				Concluding:  false,
-				DerivedFrom: eth.L1BlockRef{},
-			})
-			return true
-		}
-		require.Equal(c.t, c.currentPayloadInfo, x.Info, "seal the current payload")
-		require.NotNil(c.t, c.currentAttributes, "must have started building")
-
-		if c.rng.Intn(20) == 0 { // 5% chance of terribly slow block building hiccup
-			c.clockRandomIncrement(0, time.Second*3)
-		}
-
-		p := c.rng.Float32()
-		switch {
-		case p < 0.03: // 3%
-			c.emitter.Emit(ctx, engine.PayloadSealInvalidEvent{
-				Info:        x.Info,
-				Err:         errors.New("mock invalid seal"),
-				Concluding:  x.Concluding,
-				DerivedFrom: x.DerivedFrom,
-			})
-		case p < 0.08: // 5%
-			c.emitter.Emit(ctx, engine.PayloadSealExpiredErrorEvent{
-				Info:        x.Info,
-				Err:         errors.New("mock temp engine error"),
-				Concluding:  x.Concluding,
-				DerivedFrom: x.DerivedFrom,
-			})
-		default:
-			payloadEnvelope := &eth.ExecutionPayloadEnvelope{
-				ParentBeaconBlockRoot: c.currentAttributes.Attributes.ParentBeaconBlockRoot,
-				ExecutionPayload: &eth.ExecutionPayload{
-					ParentHash:   c.currentAttributes.Parent.Hash,
-					FeeRecipient: c.currentAttributes.Attributes.SuggestedFeeRecipient,
-					BlockNumber:  eth.Uint64Quantity(c.currentAttributes.Parent.Number + 1),
-					BlockHash:    testutils.RandomHash(c.rng),
-					Timestamp:    c.currentAttributes.Attributes.Timestamp,
-					Transactions: c.currentAttributes.Attributes.Transactions,
-					// Not all attributes matter to sequencer. We can leave these nil.
-				},
-			}
-			// We encode the L1 origin as block-ID in tx[0] for testing.
-			l1Origin := decodeID(c.currentAttributes.Attributes.Transactions[0])
-			payloadRef := eth.L2BlockRef{
-				Hash:           payloadEnvelope.ExecutionPayload.BlockHash,
-				Number:         uint64(payloadEnvelope.ExecutionPayload.BlockNumber),
-				ParentHash:     payloadEnvelope.ExecutionPayload.ParentHash,
-				Time:           uint64(payloadEnvelope.ExecutionPayload.Timestamp),
-				L1Origin:       l1Origin,
-				SequenceNumber: 0, // ignored
-			}
-			c.emitter.Emit(ctx, engine.BuildSealedEvent{
-				Info:        x.Info,
-				Envelope:    payloadEnvelope,
-				Ref:         payloadRef,
-				Concluding:  x.Concluding,
-				DerivedFrom: x.DerivedFrom,
-			})
-		}
-		c.currentPayloadInfo = eth.PayloadInfo{}
-		c.currentAttributes = nil
 	case engine.BuildCancelEvent:
 		c.currentPayloadInfo = eth.PayloadInfo{}
 		c.currentAttributes = nil

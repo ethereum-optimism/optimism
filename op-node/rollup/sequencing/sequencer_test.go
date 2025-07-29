@@ -348,11 +348,12 @@ func TestSequencer_StaleBuild(t *testing.T) {
 	_, ok = seq.NextAction()
 	require.True(t, ok, "must be ready to seal the block now")
 
-	emitter.ExpectOnce(engine.BuildSealEvent{
+	emitter.ExpectOnce(engine.BuildSealedEvent{
 		Info:         payloadInfo,
 		BuildStarted: startedTime,
 		Concluding:   false,
 		DerivedFrom:  eth.L1BlockRef{},
+		// Note: Additional fields like Envelope and Ref would be filled by BuildSeal
 	})
 	seq.OnEvent(context.Background(), SequencerActionEvent{})
 	emitter.AssertExpectations(t)
@@ -553,11 +554,12 @@ func TestSequencerBuild(t *testing.T) {
 	require.Equal(t, (time.Duration(deps.cfg.BlockTime)*time.Second)-sealingDuration, buildDuration)
 
 	// Now trigger the sequencer to start sealing
-	emitter.ExpectOnce(engine.BuildSealEvent{
+	emitter.ExpectOnce(engine.BuildSealedEvent{
 		Info:         payloadInfo,
 		BuildStarted: startedTime,
 		Concluding:   false,
 		DerivedFrom:  eth.L1BlockRef{},
+		// Note: Additional fields like Envelope and Ref would be filled by BuildSeal
 	})
 	seq.OnEvent(context.Background(), SequencerActionEvent{})
 	emitter.AssertExpectations(t)
