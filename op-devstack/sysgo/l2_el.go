@@ -77,11 +77,11 @@ func (n *L2ELNode) Start() {
 	var authPort, userPort int
 	if n.authRPC != "" {
 		authPort = rpcPort(require, n.authRPC)
-		n.awaitPortAvailable(require, authPort)
+		n.awaitPortAvailable(authPort)
 	}
 	if n.userRPC != "" {
 		userPort = rpcPort(require, n.userRPC)
-		n.awaitPortAvailable(require, userPort)
+		n.awaitPortAvailable(userPort)
 	}
 
 	l2Geth, err := geth.InitL2(n.id.String(), n.l2Net.genesis, n.jwtPath,
@@ -110,12 +110,14 @@ func (n *L2ELNode) Start() {
 	n.userRPC = l2Geth.UserRPC().RPC()
 }
 
-func (n *L2ELNode) awaitPortAvailable(require *testreq.Assertions, port int) {
+func (n *L2ELNode) awaitPortAvailable(port int) {
 	ctx, cancel := context.WithTimeout(n.p.Ctx(), time.Minute)
 	defer cancel()
 
 	tick := time.NewTicker(100 * time.Millisecond)
 	defer tick.Stop()
+
+	require := n.p.Require()
 
 	for {
 		select {
