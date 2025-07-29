@@ -45,10 +45,10 @@ type ImplementationsConfig struct {
 	SuperchainProxyAdmin            common.Address     `cli:"superchain-proxy-admin"`
 	Challenger                      common.Address     `cli:"challenger"`
 	CacheDir                        string             `cli:"cache-dir"`
-	GameMaxGameDepth                uint64             `cli:"game-max-game-depth"`
-	GameSplitDepth                  uint64             `cli:"game-split-depth"`
-	GameClockExtension              uint64             `cli:"game-clock-extension"`
-	GameMaxClockDuration            uint64             `cli:"game-max-clock-duration"`
+	MaxGameDepth                    uint64             `cli:"dispute-max-game-depth"`
+	SplitDepth                      uint64             `cli:"dispute-split-depth"`
+	ClockExtension                  uint64             `cli:"dispute-clock-extension"`
+	MaxClockDuration                uint64             `cli:"dispute-max-clock-duration"`
 
 	Logger log.Logger
 
@@ -220,10 +220,10 @@ func Implementations(ctx context.Context, cfg ImplementationsConfig) (opcm.Deplo
 			SuperchainProxyAdmin:            cfg.SuperchainProxyAdmin,
 			UpgradeController:               cfg.UpgradeController,
 			Challenger:                      cfg.Challenger,
-			GameMaxGameDepth:                new(big.Int).SetUint64(cfg.GameMaxGameDepth),
-			GameSplitDepth:                  new(big.Int).SetUint64(cfg.GameSplitDepth),
-			GameClockExtension:              new(big.Int).SetUint64(cfg.GameClockExtension),
-			GameMaxClockDuration:            new(big.Int).SetUint64(cfg.GameMaxClockDuration),
+			GameMaxGameDepth:                new(big.Int).SetUint64(cfg.MaxGameDepth),
+			GameSplitDepth:                  new(big.Int).SetUint64(cfg.SplitDepth),
+			GameClockExtension:              new(big.Int).SetUint64(cfg.ClockExtension),
+			GameMaxClockDuration:            new(big.Int).SetUint64(cfg.MaxClockDuration),
 		},
 	); err != nil {
 		return dio, fmt.Errorf("error deploying implementations: %w", err)

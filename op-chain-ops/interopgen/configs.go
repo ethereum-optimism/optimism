@@ -85,10 +85,6 @@ type L2Config struct {
 	GasLimit                uint64
 	DisputeGameType         uint32
 	DisputeAbsolutePrestate common.Hash
-	DisputeMaxGameDepth     uint64
-	DisputeSplitDepth       uint64
-	DisputeClockExtension   uint64
-	DisputeMaxClockDuration uint64
 }
 
 func (c *L2Config) Check(log log.Logger) error {

@@ -30,15 +30,11 @@ func compareAddGameTypeInputs(t *testing.T, expected, actual AddGameTypeInput) {
 	require.Equal(t, expected.DelayedWETHProxy, actual.DelayedWETHProxy)
 	require.Equal(t, expected.DisputeGameType, actual.DisputeGameType)
 	require.Equal(t, expected.DisputeAbsolutePrestate, actual.DisputeAbsolutePrestate)
-	require.Equal(t, expected.DisputeClockExtension, actual.DisputeClockExtension)
-	require.Equal(t, expected.DisputeMaxClockDuration, actual.DisputeMaxClockDuration)
 	require.Equal(t, expected.VM, actual.VM)
 	require.Equal(t, expected.Permissioned, actual.Permissioned)
 	require.Equal(t, expected.SaltMixer, actual.SaltMixer)
 
 	// Special handling for *big.Int fields
-	require.True(t, compareBigInt(expected.DisputeMaxGameDepth, actual.DisputeMaxGameDepth))
-	require.True(t, compareBigInt(expected.DisputeSplitDepth, actual.DisputeSplitDepth))
 	require.True(t, compareBigInt(expected.InitialBond, actual.InitialBond))
 }
 
@@ -58,10 +54,6 @@ func TestAddGameTypeInput_MarshalUnmarshalJSON(t *testing.T) {
 				DelayedWETHProxy:        common.HexToAddress("0x5555555555555555555555555555555555555555"),
 				DisputeGameType:         1,
 				DisputeAbsolutePrestate: common.HexToHash("0x6666666666666666666666666666666666666666666666666666666666666666"),
-				DisputeMaxGameDepth:     big.NewInt(100),
-				DisputeSplitDepth:       big.NewInt(10),
-				DisputeClockExtension:   1000,
-				DisputeMaxClockDuration: 2000,
 				InitialBond:             big.NewInt(5000000000000000000), // 5 ETH
 				VM:                      common.HexToAddress("0x7777777777777777777777777777777777777777"),
 				Permissioned:            true,
@@ -78,10 +70,6 @@ func TestAddGameTypeInput_MarshalUnmarshalJSON(t *testing.T) {
 				DelayedWETHProxy:        common.HexToAddress("0x5555555555555555555555555555555555555555"),
 				DisputeGameType:         1,
 				DisputeAbsolutePrestate: common.HexToHash("0x6666666666666666666666666666666666666666666666666666666666666666"),
-				DisputeMaxGameDepth:     nil, // nil big.Int
-				DisputeSplitDepth:       nil, // nil big.Int
-				DisputeClockExtension:   1000,
-				DisputeMaxClockDuration: 2000,
 				InitialBond:             nil, // nil big.Int
 				VM:                      common.HexToAddress("0x7777777777777777777777777777777777777777"),
 				Permissioned:            false,

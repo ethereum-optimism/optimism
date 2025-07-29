@@ -35,10 +35,6 @@ type DeployOPChainInput struct {
 
 	DisputeGameType              uint32
 	DisputeAbsolutePrestate      common.Hash
-	DisputeMaxGameDepth          uint64
-	DisputeSplitDepth            uint64
-	DisputeClockExtension        uint64
-	DisputeMaxClockDuration      uint64
 	AllowCustomDisputeParameters bool
 
 	OperatorFeeScalar   uint32
@@ -66,8 +62,6 @@ type DeployOPChainOutput struct {
 	ETHLockboxProxy                    common.Address `evm:"ethLockboxProxy"`
 	DisputeGameFactoryProxy            common.Address
 	AnchorStateRegistryProxy           common.Address
-	FaultDisputeGame                   common.Address
-	PermissionedDisputeGame            common.Address
 	DelayedWETHPermissionedGameProxy   common.Address
 	DelayedWETHPermissionlessGameProxy common.Address
 }

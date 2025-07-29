@@ -418,7 +418,7 @@ func ApplyPipeline(
 	// Run through the pipeline.
 	for _, stage := range pline {
 		if err := stage.apply(); err != nil {
-			return fmt.Errorf("error in pipeline stage apply: %w", err)
+			return fmt.Errorf("error in pipeline stage %v apply: %w", stage.name, err)
 		}
 		if _, err := pEnv.Broadcaster.Broadcast(ctx); err != nil {
 			return fmt.Errorf("failed to broadcast stage %s: %w", stage.name, err)

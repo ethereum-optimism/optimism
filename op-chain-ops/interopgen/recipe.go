@@ -85,6 +85,10 @@ func (recipe *InteropDevRecipe) Build(addrs devkeys.Addresses) (*WorldConfig, er
 				ProofMaturityDelaySeconds:       big.NewInt(12),
 				DisputeGameFinalityDelaySeconds: big.NewInt(6),
 				MipsVersion:                     big.NewInt(int64(versions.GetExperimentalVersion())),
+				MaxGameDepth:                    big.NewInt(73),
+				SplitDepth:                      big.NewInt(30),
+				ClockExtension:                  big.NewInt(10800),
+				MaxClockDuration:                big.NewInt(302400),
 			},
 		},
 		SuperchainL1DeployConfig: genesis.SuperchainL1DeployConfig{
@@ -289,10 +293,6 @@ func (r *InteropDevL2Recipe) build(l1ChainID uint64, addrs devkeys.Addresses) (*
 		GasLimit:                60_000_000,
 		DisputeGameType:         1, // PERMISSIONED_CANNON Game Type
 		DisputeAbsolutePrestate: common.HexToHash("0x038512e02c4c3f7bdaec27d00edf55b7155e0905301e1a88083e4e0a6764d54c"),
-		DisputeMaxGameDepth:     73,
-		DisputeSplitDepth:       30,
-		DisputeClockExtension:   10800,  // 3 hours (input in seconds)
-		DisputeMaxClockDuration: 302400, // 3.5 days (input in seconds)
 	}
 
 	l2Users := devkeys.ChainUserKeys(new(big.Int).SetUint64(r.ChainID))

@@ -146,10 +146,6 @@ interface IOPContractsManager {
         // Configurable dispute game parameters.
         GameType disputeGameType;
         Claim disputeAbsolutePrestate;
-        uint256 disputeMaxGameDepth;
-        uint256 disputeSplitDepth;
-        Duration disputeClockExtension;
-        Duration disputeMaxClockDuration;
     }
 
     /// @notice The full set of outputs from deploying a new OP Stack chain.
@@ -218,10 +214,6 @@ interface IOPContractsManager {
         IDelayedWETH delayedWETH;
         GameType disputeGameType;
         Claim disputeAbsolutePrestate;
-        uint256 disputeMaxGameDepth;
-        uint256 disputeSplitDepth;
-        Duration disputeClockExtension;
-        Duration disputeMaxClockDuration;
         uint256 initialBond;
         IBigStepper vm;
         bool permissioned;

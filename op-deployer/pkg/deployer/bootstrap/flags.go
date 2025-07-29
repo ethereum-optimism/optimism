@@ -24,6 +24,10 @@ const (
 	PausedFlagName                          = "paused"
 	RequiredProtocolVersionFlagName         = "required-protocol-version"
 	RecommendedProtocolVersionFlagName      = "recommended-protocol-version"
+	DisputeMaxGameDepthFlagName             = "dispute-max-game-depth"
+	DisputeSplitDepthFlagName               = "dispute-split-depth"
+	DisputeClockExtensionFlagName           = "dispute-clock-extension"
+	DisputeMaxClockDurationFlagName         = "dispute-max-clock-duration"
 )
 
 var (
@@ -68,6 +72,30 @@ var (
 		Usage:   "MIPS version.",
 		EnvVars: deployer.PrefixEnvVar("MIPS_VERSION"),
 		Value:   standard.MIPSVersion,
+	}
+	DisputeMaxGameDepthFlag = &cli.Uint64Flag{
+		Name:    DisputeMaxGameDepthFlagName,
+		Usage:   "Maximum depth of the dispute game tree (value as string). Defaults to the standard value.",
+		EnvVars: deployer.PrefixEnvVar("DISPUTE_MAX_GAME_DEPTH"),
+		Value:   standard.DisputeMaxGameDepth,
+	}
+	DisputeSplitDepthFlag = &cli.Uint64Flag{
+		Name:    DisputeSplitDepthFlagName,
+		Usage:   "Depth at which the dispute game tree splits (value as string). Defaults to the standard value.",
+		EnvVars: deployer.PrefixEnvVar("DISPUTE_SPLIT_DEPTH"),
+		Value:   standard.DisputeSplitDepth,
+	}
+	DisputeClockExtensionFlag = &cli.Uint64Flag{
+		Name:    DisputeClockExtensionFlagName,
+		Usage:   "Clock extension in seconds for dispute game timing. Defaults to the standard value.",
+		EnvVars: deployer.PrefixEnvVar("DISPUTE_CLOCK_EXTENSION"),
+		Value:   standard.DisputeClockExtension,
+	}
+	DisputeMaxClockDurationFlag = &cli.Uint64Flag{
+		Name:    DisputeMaxClockDurationFlagName,
+		Usage:   "Maximum clock duration in seconds for dispute game timing. Defaults to the standard value.",
+		EnvVars: deployer.PrefixEnvVar("DISPUTE_MAX_CLOCK_DURATION"),
+		Value:   standard.DisputeMaxClockDuration,
 	}
 	ProxyOwnerFlag = &cli.StringFlag{
 		Name:    ProxyOwnerFlagName,
@@ -147,6 +175,10 @@ var ImplementationsFlags = []cli.Flag{
 	OutfileFlag,
 	deployer.ArtifactsLocatorFlag,
 	MIPSVersionFlag,
+	DisputeMaxGameDepthFlag,
+	DisputeSplitDepthFlag,
+	DisputeClockExtensionFlag,
+	DisputeMaxClockDurationFlag,
 	WithdrawalDelaySecondsFlag,
 	MinProposalSizeBytesFlag,
 	ChallengePeriodSecondsFlag,

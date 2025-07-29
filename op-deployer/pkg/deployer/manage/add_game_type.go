@@ -37,10 +37,6 @@ type AddGameTypeConfig struct {
 	DelayedWETHProxy        common.Address
 	DisputeGameType         uint32
 	DisputeAbsolutePrestate common.Hash
-	DisputeMaxGameDepth     *big.Int
-	DisputeSplitDepth       *big.Int
-	DisputeClockExtension   uint64
-	DisputeMaxClockDuration uint64
 	InitialBond             *big.Int
 	VM                      common.Address
 	Permissionless          bool
@@ -84,22 +80,6 @@ func (c *AddGameTypeConfig) Check() error {
 		return fmt.Errorf("disputeAbsolutePrestate must be specified")
 	}
 
-	if c.DisputeMaxGameDepth == nil || c.DisputeMaxGameDepth.Sign() == 0 {
-		return fmt.Errorf("disputeMaxGameDepth must be non-zero")
-	}
-
-	if c.DisputeSplitDepth == nil || c.DisputeSplitDepth.Sign() == 0 {
-		return fmt.Errorf("disputeSplitDepth must be non-zero")
-	}
-
-	if c.DisputeClockExtension == 0 {
-		return fmt.Errorf("disputeClockExtension must be non-zero")
-	}
-
-	if c.DisputeMaxClockDuration == 0 {
-		return fmt.Errorf("disputeMaxClockDuration must be non-zero")
-	}
-
 	if c.InitialBond == nil || c.InitialBond.Sign() == 0 {
 		return fmt.Errorf("initialBond must be non-zero")
 	}
@@ -129,10 +109,6 @@ func AddGameTypeCLI(cliCtx *cli.Context) error {
 		CacheDir:                cliCtx.String(deployer.CacheDirFlag.Name),
 		DisputeGameType:         uint32(cliCtx.Uint64(DisputeGameTypeFlag.Name)),
 		DisputeAbsolutePrestate: common.HexToHash(cliCtx.String(DisputeAbsolutePrestateFlag.Name)),
-		DisputeMaxGameDepth:     new(big.Int).SetUint64(cliCtx.Uint64(DisputeMaxGameDepthFlag.Name)),
-		DisputeSplitDepth:       new(big.Int).SetUint64(cliCtx.Uint64(DisputeSplitDepthFlag.Name)),
-		DisputeClockExtension:   cliCtx.Uint64(DisputeClockExtensionFlag.Name),
-		DisputeMaxClockDuration: cliCtx.Uint64(DisputeMaxClockDurationFlag.Name),
 		Permissionless:          cliCtx.Bool(PermissionlessFlag.Name),
 		SaltMixer:               cliCtx.String(SaltMixerFlag.Name),
 		DelayedWETHProxy:        common.HexToAddress(cliCtx.String(DelayedWETHProxyFlag.Name)),
@@ -283,10 +259,6 @@ func AddGameType(ctx context.Context, cfg AddGameTypeConfig) (opcm.AddGameTypeOu
 		DelayedWETHProxy:        cfg.DelayedWETHProxy,
 		DisputeGameType:         cfg.DisputeGameType,
 		DisputeAbsolutePrestate: cfg.DisputeAbsolutePrestate,
-		DisputeMaxGameDepth:     cfg.DisputeMaxGameDepth,
-		DisputeSplitDepth:       cfg.DisputeSplitDepth,
-		DisputeClockExtension:   cfg.DisputeClockExtension,
-		DisputeMaxClockDuration: cfg.DisputeMaxClockDuration,
 		InitialBond:             cfg.InitialBond,
 		VM:                      cfg.VM,
 		SaltMixer:               cfg.SaltMixer,

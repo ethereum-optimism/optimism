@@ -56,11 +56,7 @@ func TestInteropMigration(t *testing.T) {
 		StartingAnchorL2SequenceNumber: big.NewInt(1),
 		Proposer:                       common.Address{'A'},
 		Challenger:                     common.Address{'B'},
-		MaxGameDepth:                   10,
-		SplitDepth:                     10,
 		InitBond:                       big.NewInt(1000),
-		ClockExtension:                 10,
-		MaxClockDuration:               10,
 		EncodedChainConfigs: []OPChainConfig{
 			{
 				SystemConfigProxy: common.HexToAddress("0x034edD2A225f7f429A63E0f1D2084B9E0A93b538"),

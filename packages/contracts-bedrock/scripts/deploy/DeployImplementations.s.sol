@@ -703,7 +703,7 @@ contract DeployImplementations is Script {
         require(address(_input.challenger) != address(0), "DeployImplementations: challenger not set");
         require(_input.gameMaxGameDepth != 0, "DeployImplementations: gameMaxGameDepth not set");
         require(_input.gameSplitDepth != 0, "DeployImplementations: gameSplitDepth not set");
-        require(_input.gameClockExtension != 0, "DeployImplementations: gameClockExtension not set");
+        // Note: clockExtension is allowed to be 0
         require(_input.gameMaxClockDuration != 0, "DeployImplementations: gameMaxClockDuration not set");
     }
 

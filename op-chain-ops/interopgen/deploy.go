@@ -243,10 +243,6 @@ func DeployL2ToL1(l1Host *script.Host, superCfg *SuperchainConfig, superDeployme
 		GasLimit:                cfg.GasLimit,
 		DisputeGameType:         cfg.DisputeGameType,
 		DisputeAbsolutePrestate: cfg.DisputeAbsolutePrestate,
-		DisputeMaxGameDepth:     cfg.DisputeMaxGameDepth,
-		DisputeSplitDepth:       cfg.DisputeSplitDepth,
-		DisputeClockExtension:   cfg.DisputeClockExtension,
-		DisputeMaxClockDuration: cfg.DisputeMaxClockDuration,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to deploy L2 OP chain: %w", err)
@@ -285,11 +281,7 @@ func MigrateInterop(
 		StartingAnchorL2SequenceNumber: big.NewInt(int64(l1GenesisTimestamp)),
 		Proposer:                       l2Cfgs[l2ChainID].Proposer,
 		Challenger:                     l2Cfgs[l2ChainID].Challenger,
-		MaxGameDepth:                   l2Cfgs[l2ChainID].DisputeMaxGameDepth,
-		SplitDepth:                     l2Cfgs[l2ChainID].DisputeSplitDepth,
 		InitBond:                       big.NewInt(0),
-		ClockExtension:                 l2Cfgs[l2ChainID].DisputeClockExtension,
-		MaxClockDuration:               l2Cfgs[l2ChainID].DisputeMaxClockDuration,
 		EncodedChainConfigs:            chainConfigs,
 	}
 	output, err := manage.Migrate(l1Host, imi)

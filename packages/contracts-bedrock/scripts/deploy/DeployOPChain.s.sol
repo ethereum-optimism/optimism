@@ -53,10 +53,6 @@ contract DeployOPChainInput is BaseDeployIO {
     // Configurable dispute game inputs
     GameType internal _disputeGameType;
     Claim internal _disputeAbsolutePrestate;
-    uint256 internal _disputeMaxGameDepth;
-    uint256 internal _disputeSplitDepth;
-    Duration internal _disputeClockExtension;
-    Duration internal _disputeMaxClockDuration;
     bool internal _allowCustomDisputeParameters;
 
     uint32 internal _operatorFeeScalar;
@@ -86,14 +82,6 @@ contract DeployOPChainInput is BaseDeployIO {
             _gasLimit = SafeCast.toUint64(_value);
         } else if (_sel == this.disputeGameType.selector) {
             _disputeGameType = GameType.wrap(SafeCast.toUint32(_value));
-        } else if (_sel == this.disputeMaxGameDepth.selector) {
-            _disputeMaxGameDepth = SafeCast.toUint64(_value);
-        } else if (_sel == this.disputeSplitDepth.selector) {
-            _disputeSplitDepth = SafeCast.toUint64(_value);
-        } else if (_sel == this.disputeClockExtension.selector) {
-            _disputeClockExtension = Duration.wrap(SafeCast.toUint64(_value));
-        } else if (_sel == this.disputeMaxClockDuration.selector) {
-            _disputeMaxClockDuration = Duration.wrap(SafeCast.toUint64(_value));
         } else if (_sel == this.operatorFeeScalar.selector) {
             _operatorFeeScalar = SafeCast.toUint32(_value);
         } else if (_sel == this.operatorFeeConstant.selector) {
@@ -200,22 +188,6 @@ contract DeployOPChainInput is BaseDeployIO {
 
     function disputeAbsolutePrestate() public view returns (Claim) {
         return _disputeAbsolutePrestate;
-    }
-
-    function disputeMaxGameDepth() public view returns (uint256) {
-        return _disputeMaxGameDepth;
-    }
-
-    function disputeSplitDepth() public view returns (uint256) {
-        return _disputeSplitDepth;
-    }
-
-    function disputeClockExtension() public view returns (Duration) {
-        return _disputeClockExtension;
-    }
-
-    function disputeMaxClockDuration() public view returns (Duration) {
-        return _disputeMaxClockDuration;
     }
 
     function allowCustomDisputeParameters() public view returns (bool) {
@@ -336,17 +308,10 @@ contract DeployOPChainOutput is BaseDeployIO {
         return _delayedWETHPermissionedGameProxy;
     }
 
-    function delayedWETHPermissionedGameProxyAddress() public view returns (address) {
-        return address(_delayedWETHPermissionedGameProxy);
-    }
-
     function delayedWETHPermissionlessGameProxy() public view returns (IDelayedWETH) {
-        DeployUtils.assertValidContractAddress(address(_delayedWETHPermissionlessGameProxy));
+        // TODO: Eventually switch from Permissioned to Permissionless. Add this check back in.
+        // DeployUtils.assertValidContractAddress(address(_delayedWETHPermissionlessGameProxy));
         return _delayedWETHPermissionlessGameProxy;
-    }
-
-    function delayedWETHPermissionlessGameProxyAddress() public view returns (address) {
-        return address(_delayedWETHPermissionlessGameProxy);
     }
 }
 
@@ -373,11 +338,7 @@ contract DeployOPChain is Script {
             saltMixer: _doi.saltMixer(),
             gasLimit: _doi.gasLimit(),
             disputeGameType: _doi.disputeGameType(),
-            disputeAbsolutePrestate: _doi.disputeAbsolutePrestate(),
-            disputeMaxGameDepth: _doi.disputeMaxGameDepth(),
-            disputeSplitDepth: _doi.disputeSplitDepth(),
-            disputeClockExtension: _doi.disputeClockExtension(),
-            disputeMaxClockDuration: _doi.disputeMaxClockDuration()
+            disputeAbsolutePrestate: _doi.disputeAbsolutePrestate()
         });
 
         vm.broadcast(msg.sender);
@@ -412,12 +373,9 @@ contract DeployOPChain is Script {
         _doo.set(_doo.disputeGameFactoryProxy.selector, address(deployOutput.disputeGameFactoryProxy));
         _doo.set(_doo.anchorStateRegistryProxy.selector, address(deployOutput.anchorStateRegistryProxy));
 
-        // Only set delayedWETHPermissionedGameProxy if it's not zero (can be zero in test environments)
-        if (address(deployOutput.delayedWETHPermissionedGameProxy) != address(0)) {
-            _doo.set(
-                _doo.delayedWETHPermissionedGameProxy.selector, address(deployOutput.delayedWETHPermissionedGameProxy)
-            );
-        }
+        _doo.set(
+            _doo.delayedWETHPermissionedGameProxy.selector, address(deployOutput.delayedWETHPermissionedGameProxy)
+        );
         // TODO: Eventually switch from Permissioned to Permissionless.
         // _doo.set(
         //     _doo.delayedWETHPermissionlessGameProxy.selector,
@@ -448,11 +406,11 @@ contract DeployOPChain is Script {
 
         // Conditionally add delayedWETH proxies if they're set
         address[] memory addrs2 = addrs2Base;
-        if (_doo.delayedWETHPermissionedGameProxyAddress() != address(0)) {
-            addrs2 = Solarray.extend(addrs2, Solarray.addresses(_doo.delayedWETHPermissionedGameProxyAddress()));
+        if (address(_doo.delayedWETHPermissionedGameProxy()) != address(0)) {
+            addrs2 = Solarray.extend(addrs2, Solarray.addresses(address(_doo.delayedWETHPermissionedGameProxy())));
         }
-        if (_doo.delayedWETHPermissionlessGameProxyAddress() != address(0)) {
-            addrs2 = Solarray.extend(addrs2, Solarray.addresses(_doo.delayedWETHPermissionlessGameProxyAddress()));
+        if (address(_doo.delayedWETHPermissionlessGameProxy()) != address(0)) {
+            addrs2 = Solarray.extend(addrs2, Solarray.addresses(address(_doo.delayedWETHPermissionlessGameProxy())));
         }
 
         DeployUtils.assertValidContractAddresses(Solarray.extend(addrs1, addrs2));
@@ -625,7 +583,7 @@ contract DeployOPChain is Script {
 
     function assertValidDelayedWETH(DeployOPChainInput _doi, DeployOPChainOutput _doo) internal {
         // Skip validation if delayedWETHPermissionedGameProxy is not set (can happen in test environments)
-        if (_doo.delayedWETHPermissionedGameProxyAddress() == address(0)) {
+        if (address(_doo.delayedWETHPermissionedGameProxy()) == address(0)) {
             return;
         }
 
@@ -686,7 +644,7 @@ contract DeployOPChain is Script {
         );
 
         // Skip delayedWETHPermissionedGameProxy check if it's not set (can happen in test environments)
-        if (_doo.delayedWETHPermissionedGameProxyAddress() != address(0)) {
+        if (address(_doo.delayedWETHPermissionedGameProxy()) != address(0)) {
             require(
                 admin.getProxyImplementation(address(_doo.delayedWETHPermissionedGameProxy()))
                     == DeployUtils.assertERC1967ImplementationSet(address(_doo.delayedWETHPermissionedGameProxy())),

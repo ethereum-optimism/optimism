@@ -77,10 +77,6 @@ func makeDCI(intent *state.Intent, thisIntent *state.ChainIntent, chainID common
 		state.ChainProofParams{
 			DisputeGameType:         standard.DisputeGameType,
 			DisputeAbsolutePrestate: standard.DisputeAbsolutePrestate,
-			DisputeMaxGameDepth:     standard.DisputeMaxGameDepth,
-			DisputeSplitDepth:       standard.DisputeSplitDepth,
-			DisputeClockExtension:   standard.DisputeClockExtension,
-			DisputeMaxClockDuration: standard.DisputeMaxClockDuration,
 		},
 		intent.GlobalDeployOverrides,
 		thisIntent.DeployOverrides,
@@ -104,10 +100,6 @@ func makeDCI(intent *state.Intent, thisIntent *state.ChainIntent, chainID common
 		GasLimit:                     standard.GasLimit,
 		DisputeGameType:              proofParams.DisputeGameType,
 		DisputeAbsolutePrestate:      proofParams.DisputeAbsolutePrestate,
-		DisputeMaxGameDepth:          proofParams.DisputeMaxGameDepth,
-		DisputeSplitDepth:            proofParams.DisputeSplitDepth,
-		DisputeClockExtension:        proofParams.DisputeClockExtension,   // 3 hours (input in seconds)
-		DisputeMaxClockDuration:      proofParams.DisputeMaxClockDuration, // 3.5 days (input in seconds)
 		AllowCustomDisputeParameters: proofParams.DangerouslyAllowCustomDisputeParameters,
 		OperatorFeeScalar:            thisIntent.OperatorFeeScalar,
 		OperatorFeeConstant:          thisIntent.OperatorFeeConstant,
@@ -127,8 +119,6 @@ func makeChainState(chainID common.Hash, dco opcm.DeployOPChainOutput) *state.Ch
 	opChainContracts.EthLockboxProxy = dco.ETHLockboxProxy
 	opChainContracts.DisputeGameFactoryProxy = dco.DisputeGameFactoryProxy
 	opChainContracts.AnchorStateRegistryProxy = dco.AnchorStateRegistryProxy
-	opChainContracts.FaultDisputeGameImpl = dco.FaultDisputeGame
-	opChainContracts.PermissionedDisputeGameImpl = dco.PermissionedDisputeGame
 	opChainContracts.DelayedWethPermissionedGameProxy = dco.DelayedWETHPermissionedGameProxy
 	opChainContracts.DelayedWethPermissionlessGameProxy = dco.DelayedWETHPermissionlessGameProxy
 

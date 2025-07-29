@@ -17,10 +17,6 @@ type AddGameTypeInput struct {
 	DelayedWETHProxy        common.Address
 	DisputeGameType         uint32
 	DisputeAbsolutePrestate common.Hash
-	DisputeMaxGameDepth     *big.Int
-	DisputeSplitDepth       *big.Int
-	DisputeClockExtension   uint64
-	DisputeMaxClockDuration uint64
 	InitialBond             *big.Int
 	VM                      common.Address `abi:"vm"`
 	Permissioned            bool
@@ -35,10 +31,6 @@ type addGameTypeInputJSON struct {
 	DelayedWETHProxy        common.Address `json:"delayedWETHProxy"`
 	DisputeGameType         uint32         `json:"disputeGameType"`
 	DisputeAbsolutePrestate common.Hash    `json:"disputeAbsolutePrestate"`
-	DisputeMaxGameDepth     *hexutil.Big   `json:"disputeMaxGameDepth"`
-	DisputeSplitDepth       *hexutil.Big   `json:"disputeSplitDepth"`
-	DisputeClockExtension   uint64         `json:"disputeClockExtension"`
-	DisputeMaxClockDuration uint64         `json:"disputeMaxClockDuration"`
 	InitialBond             *hexutil.Big   `json:"initialBond"`
 	VM                      common.Address `json:"vm"`
 	Permissioned            bool           `json:"permissioned"`
@@ -58,17 +50,6 @@ func (a *AddGameTypeInput) UnmarshalJSON(b []byte) error {
 	a.DelayedWETHProxy = alias.DelayedWETHProxy
 	a.DisputeGameType = alias.DisputeGameType
 	a.DisputeAbsolutePrestate = alias.DisputeAbsolutePrestate
-
-	if alias.DisputeMaxGameDepth != nil {
-		a.DisputeMaxGameDepth = (*big.Int)(alias.DisputeMaxGameDepth)
-	}
-
-	if alias.DisputeSplitDepth != nil {
-		a.DisputeSplitDepth = (*big.Int)(alias.DisputeSplitDepth)
-	}
-
-	a.DisputeClockExtension = alias.DisputeClockExtension
-	a.DisputeMaxClockDuration = alias.DisputeMaxClockDuration
 
 	if alias.InitialBond != nil {
 		a.InitialBond = (*big.Int)(alias.InitialBond)
@@ -90,19 +71,9 @@ func (a AddGameTypeInput) MarshalJSON() ([]byte, error) {
 		DelayedWETHProxy:        a.DelayedWETHProxy,
 		DisputeGameType:         a.DisputeGameType,
 		DisputeAbsolutePrestate: a.DisputeAbsolutePrestate,
-		DisputeClockExtension:   a.DisputeClockExtension,
-		DisputeMaxClockDuration: a.DisputeMaxClockDuration,
 		VM:                      a.VM,
 		Permissioned:            a.Permissioned,
 		SaltMixer:               a.SaltMixer,
-	}
-
-	if a.DisputeMaxGameDepth != nil {
-		alias.DisputeMaxGameDepth = (*hexutil.Big)(a.DisputeMaxGameDepth)
-	}
-
-	if a.DisputeSplitDepth != nil {
-		alias.DisputeSplitDepth = (*hexutil.Big)(a.DisputeSplitDepth)
 	}
 
 	if a.InitialBond != nil {

@@ -1304,11 +1304,7 @@ contract OPContractsManagerInteropMigrator is OPContractsManagerBase {
     struct GameParameters {
         address proposer;
         address challenger;
-        uint256 maxGameDepth;
-        uint256 splitDepth;
         uint256 initBond;
-        Duration clockExtension;
-        Duration maxClockDuration;
     }
 
     /// @notice Input parameters for the migration.
@@ -1560,10 +1556,6 @@ contract OPContractsManager is ISemver {
         // Configurable dispute game parameters.
         GameType disputeGameType;
         Claim disputeAbsolutePrestate;
-        uint256 disputeMaxGameDepth;
-        uint256 disputeSplitDepth;
-        Duration disputeClockExtension;
-        Duration disputeMaxClockDuration;
     }
 
     /// @notice The full set of outputs from deploying a new OP Stack chain.
@@ -1580,8 +1572,6 @@ contract OPContractsManager is ISemver {
         IOptimismPortal optimismPortalProxy;
         IDisputeGameFactory disputeGameFactoryProxy;
         IAnchorStateRegistry anchorStateRegistryProxy;
-        IFaultDisputeGame faultDisputeGame;
-        IPermissionedDisputeGame permissionedDisputeGame;
         IDelayedWETH delayedWETHPermissionedGameProxy;
         IDelayedWETH delayedWETHPermissionlessGameProxy;
     }

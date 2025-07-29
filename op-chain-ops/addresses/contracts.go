@@ -80,8 +80,6 @@ type OpChainCoreContracts struct {
 type OpChainFaultProofsContracts struct {
 	DisputeGameFactoryProxy            common.Address
 	AnchorStateRegistryProxy           common.Address
-	FaultDisputeGameImpl               common.Address
-	PermissionedDisputeGameImpl        common.Address
 	DelayedWethPermissionedGameProxy   common.Address
 	DelayedWethPermissionlessGameProxy common.Address
 }
