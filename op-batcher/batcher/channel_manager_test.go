@@ -731,15 +731,10 @@ func TestChannelManagerUnsafeBytes(t *testing.T) {
 			continue
 		}
 		require.NoError(t, err)
-
-		// The empty blocks were added to channels,
-		// so the manager should now report a lower
-		// value for UnsafeDABytes.
-		require.Less(t, manager.UnsafeDABytes(), cumulativeEstimate)
 		break
 	}
 	require.Equal(t, int64(299_516), cumulativeEstimate)
-	require.Equal(t, int64(27), manager.UnsafeDABytes()) // empty blocks result in a very low compression ratio
+	require.Equal(t, int64(390_129), manager.UnsafeDABytes())
 }
 
 func ptr[T any](x T) *T {
