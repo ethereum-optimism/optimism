@@ -396,11 +396,14 @@ contract VerifyOPCM is Script {
             string memory functionName = allGetters[i];
             string memory verificationMethod = expectedGetters[functionName];
 
+            // All getters must be accounted for in expectedGetters mapping
+            if (bytes(verificationMethod).length == 0) {
+                console.log("ERROR: Getter '%s' is not accounted for in expectedGetters mapping", functionName);
+                return false;
+            }
+
             // Skip getters that don't need env var verification
-            if (
-                bytes(verificationMethod).length == 0
-                    || keccak256(bytes(verificationMethod)) == keccak256(bytes("SKIP"))
-            ) {
+            if (keccak256(bytes(verificationMethod)) == keccak256(bytes("SKIP"))) {
                 continue;
             }
 
