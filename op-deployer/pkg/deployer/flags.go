@@ -165,6 +165,7 @@ var ApplyFlags = []cli.Flag{
 	PrivateKeyFlag,
 	DeploymentTargetFlag,
 	OpProgramSvcUrlFlag,
+	CacheDirFlag,
 }
 
 var UpgradeFlags = []cli.Flag{
