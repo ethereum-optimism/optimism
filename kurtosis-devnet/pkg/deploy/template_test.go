@@ -1,11 +1,15 @@
 package deploy
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 
+	"github.com/ethereum-optimism/optimism/kurtosis-devnet/pkg/kurtosis/api/enclave"
+	"github.com/ethereum-optimism/optimism/kurtosis-devnet/pkg/tmpl"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -45,7 +49,7 @@ artifacts: {{localContractArtifacts "l1"}}`
 		},
 	}
 
-	buf, err := templater.Render()
+	buf, err := templater.Render(context.Background())
 	require.NoError(t, err)
 
 	// Verify template rendering
@@ -66,7 +70,7 @@ imageA1: {{ localDockerImage "project-a" }}
 imageB: {{ localDockerImage "project-b" }}
 imageA2: {{ localDockerImage "project-a" }}
 contracts: {{ localContractArtifacts "l1" }}
-prestateHash: {{ (localPrestate).Hashes.prestate }}`
+prestateHash: {{ (localPrestate).Hashes.prestate_mt64 }}`
 
 	templatePath := filepath.Join(tmpDir, "template.yaml")
 	err = os.WriteFile(templatePath, []byte(templateContent), 0644)
@@ -100,7 +104,7 @@ prestateHash: {{ (localPrestate).Hashes.prestate }}`
 		},
 	}
 
-	buf, err := templater.Render()
+	buf, err := templater.Render(context.Background())
 	require.NoError(t, err)
 
 	// --- Assertions ---
@@ -120,7 +124,7 @@ prestateHash: {{ (localPrestate).Hashes.prestate }}`
 	assert.NotContains(t, output, "__PLACEHOLDER_DOCKER_IMAGE_")
 
 	// 3. Verify contract artifacts URL is present (uses dry run logic of that builder)
-	assert.Contains(t, output, "contracts: http://fileserver.test/contracts-bundle-"+enclaveName+".tar.gz")
+	assert.Contains(t, output, "contracts: artifact://contracts")
 
 	// 4. Verify prestate hash placeholder is present (dry run for prestate needs specific setup)
 	//    In dry run, the prestate builder might return zero values or specific placeholders.
@@ -136,4 +140,278 @@ prestateHash: {{ (localPrestate).Hashes.prestate }}`
 	assert.Contains(t, templater.buildJobs, "project-b")
 	assert.Len(t, templater.buildJobs, 2, "Should only have jobs for unique project names")
 	templater.buildJobsMux.Unlock()
+}
+
+func TestLocalPrestateOption(t *testing.T) {
+	// Create a temporary directory for test files
+	tmpDir, err := os.MkdirTemp("", "prestate-test")
+	require.NoError(t, err)
+	defer os.RemoveAll(tmpDir)
+
+	// Create a test build directory
+	buildDir := filepath.Join(tmpDir, "build")
+	require.NoError(t, os.MkdirAll(buildDir, 0755))
+
+	// Create a Templater instance
+	templater := &Templater{
+		enclave:  "test-enclave",
+		dryRun:   true,
+		baseDir:  tmpDir,
+		buildDir: buildDir,
+		urlBuilder: func(path ...string) string {
+			return "http://localhost:8080/" + strings.Join(path, "/")
+		},
+	}
+	buildWg := &sync.WaitGroup{}
+
+	// Get the localPrestate option
+	option := templater.localPrestateOption(context.Background(), buildWg)
+
+	// Create a template context with the option
+	ctx := tmpl.NewTemplateContext(option)
+
+	// Test the localPrestate function
+	localPrestateFn, ok := ctx.Functions["localPrestate"].(func() (*PrestateInfo, error))
+	require.True(t, ok)
+
+	prestate, err := localPrestateFn()
+	require.NoError(t, err)
+
+	// Wait for the async goroutine to complete
+	buildWg.Wait()
+
+	// In dry run mode, we should get a placeholder prestate with the correct URL
+	expectedURL := "http://localhost:8080/proofs/op-program/cannon"
+	assert.Equal(t, expectedURL, prestate.URL)
+	assert.Equal(t, "dry_run_placeholder", prestate.Hashes["prestate_mt64"])
+	assert.Equal(t, "dry_run_placeholder", prestate.Hashes["prestate_interop"])
+
+	// Call it again to test caching
+	prestate2, err := localPrestateFn()
+	require.NoError(t, err)
+	assert.Equal(t, prestate, prestate2)
+}
+
+func TestLocalContractArtifactsOption(t *testing.T) {
+	// Create a temporary directory for test files
+	tmpDir, err := os.MkdirTemp("", "contract-test")
+	require.NoError(t, err)
+	defer os.RemoveAll(tmpDir)
+
+	// Create the contracts directory structure
+	contractsDir := filepath.Join(tmpDir, "packages", "contracts-bedrock")
+	require.NoError(t, os.MkdirAll(contractsDir, 0755))
+
+	// Create a mock solidity cache file
+	cacheDir := filepath.Join(contractsDir, "cache")
+	require.NoError(t, os.MkdirAll(cacheDir, 0755))
+	require.NoError(t, os.WriteFile(filepath.Join(cacheDir, "solidity-files-cache.json"), []byte("test cache"), 0644))
+
+	// Create a mock enclave manager
+	mockEnclaveManager := &enclave.KurtosisEnclaveManager{}
+
+	// Create a Templater instance
+	templater := &Templater{
+		enclave:        "test-enclave",
+		dryRun:         true,
+		baseDir:        tmpDir,
+		enclaveManager: mockEnclaveManager,
+		urlBuilder: func(path ...string) string {
+			return "http://localhost:8080/" + strings.Join(path, "/")
+		},
+	}
+	buildWg := &sync.WaitGroup{}
+	// Get the localContractArtifacts option
+	option := templater.localContractArtifactsOption(context.Background(), buildWg)
+
+	// Create a template context with the option
+	ctx := tmpl.NewTemplateContext(option)
+
+	// Test the localContractArtifacts function
+	localContractArtifactsFn, ok := ctx.Functions["localContractArtifacts"].(func(string) (string, error))
+	require.True(t, ok)
+
+	// Test with L1 layer
+	artifacts, err := localContractArtifactsFn("l1")
+	require.NoError(t, err)
+	assert.Equal(t, "artifact://contracts", artifacts)
+
+	// Test with L2 layer
+	artifacts, err = localContractArtifactsFn("l2")
+	require.NoError(t, err)
+	assert.Equal(t, "artifact://contracts", artifacts)
+}
+
+func TestRenderTemplate_PlainYamlFile(t *testing.T) {
+	tmpDir, err := os.MkdirTemp("", "template-test")
+	require.NoError(t, err)
+	defer os.RemoveAll(tmpDir)
+
+	plainYamlContent := `optimism_package:
+  faucet:
+    enabled: true
+  chains:
+    chain1:
+      participants:
+        node1:
+          el:
+            type: op-geth
+          cl:
+            type: op-node
+      network_params:
+        network: "kurtosis"
+        network_id: "2151908"
+        interop_time_offset: 100
+    chain2:
+      participants:
+        node1:
+          el:
+            type: op-geth
+          cl:
+            type: op-node
+      network_params:
+        network: "kurtosis"
+        network_id: "2151909"
+        interop_time_offset: 5000
+`
+
+	templatePath := filepath.Join(tmpDir, "plain.yaml")
+	err = os.WriteFile(templatePath, []byte(plainYamlContent), 0644)
+	require.NoError(t, err)
+
+	templater := &Templater{
+		enclave:      "test-enclave",
+		dryRun:       true,
+		baseDir:      tmpDir,
+		templateFile: templatePath,
+		buildDir:     tmpDir,
+		urlBuilder: func(path ...string) string {
+			return "http://localhost:8080/" + strings.Join(path, "/")
+		},
+	}
+
+	buf, err := templater.Render(context.Background())
+	require.NoError(t, err)
+
+	// The output should be exactly the same as the input (no template processing)
+	assert.Equal(t, plainYamlContent, buf.String())
+}
+
+func TestRenderTemplate_PlainYamlWithDataFile(t *testing.T) {
+	tmpDir, err := os.MkdirTemp("", "template-test-with-data")
+	require.NoError(t, err)
+	defer os.RemoveAll(tmpDir)
+
+	plainYamlContent := `optimism_package:
+  chains:
+    test-chain:
+      network_params:
+        network_id: "123456"
+`
+
+	templatePath := filepath.Join(tmpDir, "plain.yaml")
+	err = os.WriteFile(templatePath, []byte(plainYamlContent), 0644)
+	require.NoError(t, err)
+
+	// Create a data file (even though the template doesn't use it)
+	dataContent := `{"someData": "value"}`
+	dataPath := filepath.Join(tmpDir, "data.json")
+	err = os.WriteFile(dataPath, []byte(dataContent), 0644)
+	require.NoError(t, err)
+
+	templater := &Templater{
+		enclave:      "test-enclave",
+		dryRun:       true,
+		baseDir:      tmpDir,
+		templateFile: templatePath,
+		dataFile:     dataPath, // Data file is irrelevant for plain YAML
+		buildDir:     tmpDir,
+		urlBuilder: func(path ...string) string {
+			return "http://localhost:8080/" + strings.Join(path, "/")
+		},
+	}
+
+	buf, err := templater.Render(context.Background())
+	require.NoError(t, err)
+	assert.Equal(t, plainYamlContent, buf.String())
+}
+
+func TestRenderTemplate_TemplateWithoutDataFile(t *testing.T) {
+	tmpDir, err := os.MkdirTemp("", "template-test")
+	require.NoError(t, err)
+	defer os.RemoveAll(tmpDir)
+
+	// Create a file that DOES contain template syntax
+	templateContent := `optimism_package:
+  chains:
+    {{.chainName}}:
+      network_params:
+        network_id: "{{.networkId}}"
+`
+
+	templatePath := filepath.Join(tmpDir, "template.yaml")
+	err = os.WriteFile(templatePath, []byte(templateContent), 0644)
+	require.NoError(t, err)
+
+	templater := &Templater{
+		enclave:      "test-enclave",
+		dryRun:       true,
+		baseDir:      tmpDir,
+		templateFile: templatePath,
+		dataFile:     "",
+		buildDir:     tmpDir,
+		urlBuilder: func(path ...string) string {
+			return "http://localhost:8080/" + strings.Join(path, "/")
+		},
+	}
+
+	// This should fail because the template has syntax but no data
+	_, err = templater.Render(context.Background())
+	assert.Error(t, err, "Should fail when template has syntax but no data is provided")
+	assert.Contains(t, err.Error(), "failed to execute template")
+}
+
+func TestRenderTemplate_EmptyFile(t *testing.T) {
+	tmpDir, err := os.MkdirTemp("", "template-test")
+	require.NoError(t, err)
+	defer os.RemoveAll(tmpDir)
+
+	// Create an empty file
+	templatePath := filepath.Join(tmpDir, "empty.yaml")
+	err = os.WriteFile(templatePath, []byte(""), 0644)
+	require.NoError(t, err)
+
+	templater := &Templater{
+		enclave:      "test",
+		dryRun:       true,
+		baseDir:      tmpDir,
+		templateFile: templatePath,
+		buildDir:     tmpDir,
+		urlBuilder:   func(...string) string { return "http://localhost" },
+	}
+
+	_, err = templater.Render(context.Background())
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "template file is empty")
+}
+
+func TestRenderTemplate_FileDoesNotExist(t *testing.T) {
+	tmpDir, err := os.MkdirTemp("", "template-test")
+	require.NoError(t, err)
+	defer os.RemoveAll(tmpDir)
+
+	nonExistentPath := filepath.Join(tmpDir, "nonexistent.yaml")
+
+	templater := &Templater{
+		enclave:      "test",
+		dryRun:       true,
+		baseDir:      tmpDir,
+		templateFile: nonExistentPath,
+		buildDir:     tmpDir,
+		urlBuilder:   func(...string) string { return "http://localhost" },
+	}
+
+	_, err = templater.Render(context.Background())
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "template file does not exist")
 }

@@ -30,6 +30,7 @@ var _ state.Trie = (*ForkedAccountsTrie)(nil)
 func (f *ForkedAccountsTrie) Copy() *ForkedAccountsTrie {
 	return &ForkedAccountsTrie{
 		stateRoot: f.stateRoot,
+		src:       f.src,
 		diff:      f.diff.Copy(),
 	}
 }
@@ -48,7 +49,7 @@ func (f *ForkedAccountsTrie) ClearDiff() {
 	f.diff.Clear()
 }
 
-// ContractCode is not directly part of the vm.State interface,
+// ContractCode is not directly part of the state.Trie interface,
 // but is used by the ForkDB to retrieve the contract code.
 func (f *ForkedAccountsTrie) ContractCode(addr common.Address, codeHash common.Hash) ([]byte, error) {
 	diffAcc, ok := f.diff.Account[addr]
@@ -72,7 +73,7 @@ func (f *ForkedAccountsTrie) ContractCode(addr common.Address, codeHash common.H
 	return code, nil
 }
 
-// ContractCodeSize is not directly part of the vm.State interface,
+// ContractCodeSize is not directly part of the state.Trie interface,
 // but is used by the ForkDB to retrieve the contract code-size.
 func (f *ForkedAccountsTrie) ContractCodeSize(addr common.Address, codeHash common.Hash) (int, error) {
 	code, err := f.ContractCode(addr, codeHash)

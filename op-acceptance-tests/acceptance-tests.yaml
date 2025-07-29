@@ -1,15 +1,31 @@
 # Configuration file for acceptance tests (op-acceptor)
 #
 # All acceptance tests need to be registered here for op-acceptor to run them.
+# As a rule of thumb, we recommend that each fork gate inherits from the
+# base gate as well as any earlier fork gates.
 
 
 
 gates:
+  - id: conductor
+    description: "Sanity/smoke acceptance tests for networks with conductors."
+    tests:
+      - package: github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/base/conductor
+        timeout: 10m
+
   - id: base
     description: "Sanity/smoke acceptance tests for all networks."
     tests:
-      - name: TestChainFork
-        package: github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/base
+      - package: github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/base
+      - package: github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/base/deposit
+        timeout: 10m
+      - package: github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/base/chain
+        timeout: 10m
+      - package: github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/ecotone
+        timeout: 10m
+      # TODO(infra#401): Re-enable the test when the sysext missing toolset is implemented
+      #- package: github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/base/withdrawal
+      #  timeout: 10m
 
   - id: holocene
     inherits:
@@ -27,6 +43,21 @@ gates:
         timeout: 6h
       - package: github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/isthmus/operator_fee
         timeout: 6h
+      - package: github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/isthmus/withdrawal_root
+        timeout: 20m
+      - package: github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/isthmus/erc20_bridge
+        timeout: 10m
+      - package: github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/isthmus/pectra
+        timeout: 10m
+
+  - id: pre-interop
+    inherits:
+      - base
+    description: "Pre-interop network tests."
+    tests:
+      - name: TestInteropReadiness
+        package: github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/isthmus/preinterop
+        timeout: 20m
 
   - id: interop
     inherits:
@@ -34,3 +65,22 @@ gates:
     description: "Interop network tests."
     tests:
       - package: github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/interop
+        timeout: 10m
+      - package: github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/interop/message
+      - package: github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/interop/sync
+      - package: github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/interop/smoke
+      - package: github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/interop/contract
+
+  - id: interop-loadtest
+    description: "Interop network loadtests."
+    tests:
+      - package: github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/interop/loadtest
+        timeout: 10m
+
+  - id: flashblocks
+    inherits:
+      - base
+    description: "Flashblocks network tests."
+    tests:
+      - package: github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/flashblocks
+        timeout: 5m

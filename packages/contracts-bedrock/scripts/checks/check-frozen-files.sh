@@ -48,6 +48,7 @@ changed_contracts=$(jq -r '
 # In order to prevent a file from being modified, comment it out. Do not delete it.
 # All files in semver-lock.json should be in this list.
 ALLOWED_FILES=(
+  "src/L1/OPContractsManagerStandardValidator.sol:OPContractsManagerStandardValidator"
   "src/L1/DataAvailabilityChallenge.sol:DataAvailabilityChallenge"
   # "src/L1/ETHLockbox.sol:ETHLockbox"
   "src/L1/L1CrossDomainMessenger.sol:L1CrossDomainMessenger"
@@ -80,9 +81,7 @@ ALLOWED_FILES=(
   "src/L2/SuperchainTokenBridge.sol:SuperchainTokenBridge"
   "src/L2/SuperchainETHBridge.sol:SuperchainETHBridge"
   "src/L2/WETH.sol:WETH"
-  # "src/cannon/MIPS.sol:MIPS"
-  # "src/cannon/MIPS2.sol:MIPS2"
-  # "src/cannon/MIPS64.sol:MIPS64"
+  "src/cannon/MIPS64.sol:MIPS64"
   "src/cannon/PreimageOracle.sol:PreimageOracle"
   # "src/dispute/AnchorStateRegistry.sol:AnchorStateRegistry"
   "src/dispute/DelayedWETH.sol:DelayedWETH"

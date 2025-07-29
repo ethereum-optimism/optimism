@@ -15,6 +15,8 @@ import { AddressAliasHelper } from "src/vendor/AddressAliasHelper.sol";
 // Target contract
 import { CrossDomainOwnable } from "src/L2/CrossDomainOwnable.sol";
 
+/// @title XDomainSetter
+/// @notice A test contract that extends `CrossDomainOwnable` to test ownership functionality.
 contract XDomainSetter is CrossDomainOwnable {
     uint256 public value;
 
@@ -23,20 +25,26 @@ contract XDomainSetter is CrossDomainOwnable {
     }
 }
 
-contract CrossDomainOwnable_Test is Test {
+/// @title CrossDomainOwnable_TestInit
+/// @notice Reusable test initialization for `CrossDomainOwnable` tests.
+contract CrossDomainOwnable_TestInit is Test {
     XDomainSetter setter;
 
-    function setUp() public {
+    function setUp() public virtual {
         setter = new XDomainSetter();
     }
+}
 
-    /// @dev Tests that the `onlyOwner` modifier reverts with the correct message.
+/// @title CrossDomainOwnable_AccessControl_Test
+/// @notice Tests basic access control functionality of the `CrossDomainOwnable` contract.
+contract CrossDomainOwnable_AccessControl_Test is CrossDomainOwnable_TestInit {
+    /// @notice Tests that the `onlyOwner` modifier reverts with the correct message.
     function test_onlyOwner_notOwner_reverts() external {
         vm.expectRevert("CrossDomainOwnable: caller is not the owner");
         setter.set(1);
     }
 
-    /// @dev Tests that the `onlyOwner` modifier succeeds when called by the owner.
+    /// @notice Tests that the `onlyOwner` modifier succeeds when called by the owner.
     function test_onlyOwner_succeeds() external {
         assertEq(setter.value(), 0);
 
@@ -46,19 +54,19 @@ contract CrossDomainOwnable_Test is Test {
     }
 }
 
-contract CrossDomainOwnableThroughPortal_Test is CommonTest {
-    XDomainSetter setter;
-
-    /// @dev Sets up the test suite.
-    function setUp() public override {
-        super.setUp();
+/// @title CrossDomainOwnable_PortalIntegration_Test
+/// @notice Tests the integration of `CrossDomainOwnable` with the Optimism Portal for cross-domain
+///         ownership
+contract CrossDomainOwnable_PortalIntegration_Test is CommonTest, CrossDomainOwnable_TestInit {
+    function setUp() public override(CommonTest, CrossDomainOwnable_TestInit) {
+        CommonTest.setUp();
 
         vm.prank(alice);
         setter = new XDomainSetter();
     }
 
-    /// @dev Tests that `depositTransaction` succeeds when calling the `set` function on the
-    ///      `XDomainSetter` contract.
+    /// @notice Tests that `depositTransaction` succeeds when calling the `set` function on the
+    ///         `XDomainSetter` contract.
     function test_depositTransaction_crossDomainOwner_succeeds() external {
         vm.recordLogs();
 
@@ -71,8 +79,7 @@ contract CrossDomainOwnableThroughPortal_Test is CommonTest {
             _data: abi.encodeCall(XDomainSetter.set, (1))
         });
 
-        // Simulate the operation of the `op-node` by parsing data
-        // from logs
+        // Simulate the operation of the `op-node` by parsing data from logs
         VmSafe.Log[] memory logs = vm.getRecordedLogs();
         // Only 1 log emitted
         assertEq(logs.length, 1);
@@ -86,13 +93,11 @@ contract CrossDomainOwnableThroughPortal_Test is CommonTest {
         // from is indexed and the first argument to the event.
         bytes32 _from = log.topics[1];
         address from = Bytes32AddressLib.fromLast20Bytes(_from);
-
         assertEq(AddressAliasHelper.undoL1ToL2Alias(from), alice);
 
-        // Make a call from the "from" value received from the log.
-        // In theory the opaque data could be parsed from the log
-        // and passed to a low level call to "to", but calling set
-        // directly on the setter is good enough.
+        // Make a call from the "from" value received from the log. In theory the opaque data could
+        // be parsed from the log and passed to a low level call to "to", but calling set directly
+        // on the setter is good enough.
         vm.prank(from);
         setter.set(1);
         assertEq(setter.value(), 1);

@@ -19,6 +19,9 @@ type SupervisorAdminAPI interface {
 	Start(ctx context.Context) error
 	Stop(ctx context.Context) error
 	AddL2RPC(ctx context.Context, rpc string, jwtSecret eth.Bytes32) error
+	Rewind(ctx context.Context, chain eth.ChainID, block eth.BlockID) error
+	SetFailsafeEnabled(ctx context.Context, enabled bool) error
+	GetFailsafeEnabled(ctx context.Context) (bool, error)
 }
 
 type SupervisorQueryAPI interface {
@@ -26,6 +29,7 @@ type SupervisorQueryAPI interface {
 		minSafety types.SafetyLevel, executingDescriptor types.ExecutingDescriptor) error
 	CrossDerivedToSource(ctx context.Context, chainID eth.ChainID, derived eth.BlockID) (derivedFrom eth.BlockRef, err error)
 	LocalUnsafe(ctx context.Context, chainID eth.ChainID) (eth.BlockID, error)
+	LocalSafe(ctx context.Context, chainID eth.ChainID) (result types.DerivedIDPair, err error)
 	CrossSafe(ctx context.Context, chainID eth.ChainID) (types.DerivedIDPair, error)
 	Finalized(ctx context.Context, chainID eth.ChainID) (eth.BlockID, error)
 	FinalizedL1(ctx context.Context) (eth.BlockRef, error)

@@ -153,9 +153,11 @@ func TestBlockValidator(t *testing.T) {
 	// Params Set 2: Call the validation function
 	peerID := peer.ID("foo")
 
-	v2Validator := BuildBlocksValidator(testlog.Logger(t, log.LevelCrit), cfg, runCfg, eth.BlockV2)
-	v3Validator := BuildBlocksValidator(testlog.Logger(t, log.LevelCrit), cfg, runCfg, eth.BlockV3)
-	v4Validator := BuildBlocksValidator(testlog.Logger(t, log.LevelCrit), cfg, runCfg, eth.BlockV4)
+	// Create a mock gossip configuration for testing
+	mockGossipConf := &mockGossipSetupConfigurablesWithThreshold{threshold: 60 * time.Second}
+	v2Validator := BuildBlocksValidator(testlog.Logger(t, log.LevelCrit), cfg, runCfg, eth.BlockV2, mockGossipConf)
+	v3Validator := BuildBlocksValidator(testlog.Logger(t, log.LevelCrit), cfg, runCfg, eth.BlockV3, mockGossipConf)
+	v4Validator := BuildBlocksValidator(testlog.Logger(t, log.LevelCrit), cfg, runCfg, eth.BlockV4, mockGossipConf)
 
 	zero, one := uint64(0), uint64(1)
 	beaconHash, withdrawalsRoot := common.HexToHash("0x1234"), common.HexToHash("0x9876")
@@ -209,4 +211,87 @@ func TestBlockValidator(t *testing.T) {
 			require.Equal(t, res, test.result)
 		})
 	}
+}
+
+// TestGossipTimestampThreshold tests that the configurable timestamp threshold works correctly
+func TestGossipTimestampThreshold(t *testing.T) {
+	cfg := &rollup.Config{
+		L2ChainID: big.NewInt(100),
+	}
+	secrets, err := crypto.GenerateKey()
+	require.NoError(t, err)
+	runCfg := &testutils.MockRuntimeConfig{P2PSeqAddress: crypto.PubkeyToAddress(secrets.PublicKey)}
+	signer := &PreparedSigner{Signer: opsigner.NewLocalSigner(secrets)}
+	peerID := peer.ID("foo")
+
+	// Test with different threshold values
+	testCases := []struct {
+		name           string
+		threshold      time.Duration
+		payloadTime    time.Time
+		expectedResult pubsub.ValidationResult
+	}{
+		{
+			name:           "AcceptWithinThreshold",
+			threshold:      30 * time.Second,
+			payloadTime:    time.Now().Add(-15 * time.Second), // 15 seconds ago
+			expectedResult: pubsub.ValidationAccept,
+		},
+		{
+			name:           "RejectOutsideThreshold",
+			threshold:      30 * time.Second,
+			payloadTime:    time.Now().Add(-45 * time.Second), // 45 seconds ago
+			expectedResult: pubsub.ValidationReject,
+		},
+		{
+			name:           "AcceptWithLongerThreshold",
+			threshold:      120 * time.Second,
+			payloadTime:    time.Now().Add(-90 * time.Second), // 90 seconds ago
+			expectedResult: pubsub.ValidationAccept,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			// Create a mock config with the specific threshold
+			mockConfig := &mockGossipSetupConfigurablesWithThreshold{threshold: tc.threshold}
+
+			// Create validator with the mock config
+			validator := BuildBlocksValidator(testlog.Logger(t, log.LevelCrit), cfg, runCfg, eth.BlockV2, mockConfig)
+
+			// Create payload with the specific timestamp
+			payload := createExecutionPayload(types.Withdrawals{}, nil, nil, nil)
+			payload.Timestamp = hexutil.Uint64(tc.payloadTime.Unix())
+			// Set block number to avoid duplicate block validation issues
+			payload.BlockNumber = hexutil.Uint64(time.Now().Unix())
+			// Set a valid block hash for the payload
+			payload.BlockHash, _ = (&eth.ExecutionPayloadEnvelope{ExecutionPayload: payload}).CheckBlockHash()
+
+			// Create signed message
+			data, err := createSignedP2Payload(payload, signer, cfg.L2ChainID)
+			require.NoError(t, err)
+			message := &pubsub.Message{Message: &pubsub_pb.Message{Data: data}}
+
+			// Test validation
+			result := validator(context.Background(), peerID, message)
+			require.Equal(t, tc.expectedResult, result)
+		})
+	}
+}
+
+// mockGossipSetupConfigurablesWithThreshold implements GossipSetupConfigurables with configurable threshold
+type mockGossipSetupConfigurablesWithThreshold struct {
+	threshold time.Duration
+}
+
+func (m *mockGossipSetupConfigurablesWithThreshold) PeerScoringParams() *ScoringParams {
+	return nil
+}
+
+func (m *mockGossipSetupConfigurablesWithThreshold) ConfigureGossip(rollupCfg *rollup.Config) []pubsub.Option {
+	return nil
+}
+
+func (m *mockGossipSetupConfigurablesWithThreshold) GetGossipTimestampThreshold() time.Duration {
+	return m.threshold
 }

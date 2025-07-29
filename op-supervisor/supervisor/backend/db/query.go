@@ -105,7 +105,12 @@ func (db *ChainsDB) findRevision(chainID eth.ChainID, block eth.BlockID) (types.
 		if !ok {
 			return types.Revision(0), types.ErrUnknownChain
 		}
-		return ldb.LastRevision()
+		rev, err := ldb.LastRevision()
+		// During non-Genesis Interop activation, there may not be any safe data yet.
+		if errors.Is(err, types.ErrFuture) {
+			return types.Revision(0), nil
+		}
+		return rev, err
 	}
 	return rev, nil
 }
@@ -137,7 +142,7 @@ func (db *ChainsDB) IsFinalized(chainID eth.ChainID, block eth.BlockID) error {
 	return fmt.Errorf("cross-safe source block is not finalized: %w", types.ErrFuture)
 }
 
-func (db *ChainsDB) SafeDerivedAt(chainID eth.ChainID, source eth.BlockID) (types.BlockSeal, error) {
+func (db *ChainsDB) LocalSafeDerivedAt(chainID eth.ChainID, source eth.BlockID) (types.BlockSeal, error) {
 	lDB, ok := db.localDBs.Get(chainID)
 	if !ok {
 		return types.BlockSeal{}, types.ErrUnknownChain
@@ -242,25 +247,17 @@ func (db *ChainsDB) Finalized(chainID eth.ChainID) (types.BlockSeal, error) {
 		db.logger.Warn("Finalized L1 block is newer than the latest L1 for this chain. Assuming latest L2 is finalized",
 			"chain", chainID,
 			"finalizedL1", finalizedL1.Number,
-			"latestSource", latest.Source.Number,
-			"latestDerived", latest.Source)
+			"latestSource", latest.Source,
+			"latestDerived", latest.Derived)
 		return latest.Derived, nil
 	}
 
 	// otherwise, use the finalized L1 block to determine the final L2 block that was derived from it
-	derived, err := db.CrossSourceToLastDerived(chainID, finalizedL1.ID())
+	derived, err := xDB.SourceToLastDerived(finalizedL1.ID())
 	if err != nil {
 		return types.BlockSeal{}, fmt.Errorf("could not find what was last derived in L2 chain %s from the finalized L1 block %s: %w", chainID, finalizedL1, err)
 	}
 	return derived, nil
-}
-
-func (db *ChainsDB) CrossSourceToLastDerived(chainID eth.ChainID, source eth.BlockID) (derived types.BlockSeal, err error) {
-	crossDB, ok := db.crossDBs.Get(chainID)
-	if !ok {
-		return types.BlockSeal{}, types.ErrUnknownChain
-	}
-	return crossDB.SourceToLastDerived(source)
 }
 
 // CrossDerivedToSourceRef returns the block that the given block was derived from, if it exists in the cross derived-from storage.
@@ -429,4 +426,13 @@ func (db *ChainsDB) IteratorStartingAt(chain eth.ChainID, sealedNum uint64, logI
 		return nil, fmt.Errorf("%w: %v", types.ErrUnknownChain, chain)
 	}
 	return logDB.IteratorStartingAt(sealedNum, logIndex)
+}
+
+// AnchorPoint returns the first cross-safe block as anchor-point for interop.
+func (db *ChainsDB) AnchorPoint(chainID eth.ChainID) (types.DerivedBlockSealPair, error) {
+	xdb, ok := db.crossDBs.Get(chainID)
+	if !ok {
+		return types.DerivedBlockSealPair{}, types.ErrUnknownChain
+	}
+	return xdb.First()
 }

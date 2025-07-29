@@ -3,14 +3,11 @@ pragma solidity 0.8.15;
 
 import { Test } from "forge-std/Test.sol";
 
-import { DeploySuperchainInput, DeploySuperchain, DeploySuperchainOutput } from "scripts/deploy/DeploySuperchain.s.sol";
-import {
-    DeployImplementationsInput,
-    DeployImplementations,
-    DeployImplementationsOutput
-} from "scripts/deploy/DeployImplementations.s.sol";
+import { DeploySuperchain } from "scripts/deploy/DeploySuperchain.s.sol";
+import { DeployImplementations } from "scripts/deploy/DeployImplementations.s.sol";
 import { DeployOPChainInput, DeployOPChain, DeployOPChainOutput } from "scripts/deploy/DeployOPChain.s.sol";
 import { DeployUtils } from "scripts/libraries/DeployUtils.sol";
+import { StandardConstants } from "scripts/deploy/StandardConstants.sol";
 
 import { IProxyAdmin } from "interfaces/universal/IProxyAdmin.sol";
 
@@ -342,53 +339,50 @@ contract DeployOPChain_TestBase is Test {
     function setUp() public virtual {
         // Configure and deploy Superchain contracts
         DeploySuperchain deploySuperchain = new DeploySuperchain();
-        (DeploySuperchainInput dsi, DeploySuperchainOutput dso) = deploySuperchain.etchIOContracts();
 
-        dsi.set(dsi.superchainProxyAdminOwner.selector, superchainProxyAdminOwner);
-        dsi.set(dsi.protocolVersionsOwner.selector, protocolVersionsOwner);
-        dsi.set(dsi.guardian.selector, guardian);
-        dsi.set(dsi.paused.selector, paused);
-        dsi.set(dsi.requiredProtocolVersion.selector, requiredProtocolVersion);
-        dsi.set(dsi.recommendedProtocolVersion.selector, recommendedProtocolVersion);
-
-        deploySuperchain.run(dsi, dso);
+        DeploySuperchain.Output memory dso = deploySuperchain.run(
+            DeploySuperchain.Input({
+                superchainProxyAdminOwner: superchainProxyAdminOwner,
+                protocolVersionsOwner: protocolVersionsOwner,
+                guardian: guardian,
+                paused: paused,
+                requiredProtocolVersion: bytes32(ProtocolVersion.unwrap(requiredProtocolVersion)),
+                recommendedProtocolVersion: bytes32(ProtocolVersion.unwrap(recommendedProtocolVersion))
+            })
+        );
 
         // Populate the inputs for DeployImplementations based on the output of DeploySuperchain.
-        superchainConfigProxy = dso.superchainConfigProxy();
-        protocolVersionsProxy = dso.protocolVersionsProxy();
-        superchainProxyAdmin = dso.superchainProxyAdmin();
+        superchainConfigProxy = dso.superchainConfigProxy;
+        protocolVersionsProxy = dso.protocolVersionsProxy;
+        superchainProxyAdmin = dso.superchainProxyAdmin;
         upgradeController = superchainProxyAdmin.owner();
 
         // Configure and deploy Implementation contracts
-        DeployImplementations deployImplementations = createDeployImplementationsContract();
-        (DeployImplementationsInput dii, DeployImplementationsOutput dio) = deployImplementations.etchIOContracts();
+        DeployImplementations deployImplementations = new DeployImplementations();
 
-        dii.set(dii.withdrawalDelaySeconds.selector, withdrawalDelaySeconds);
-        dii.set(dii.minProposalSizeBytes.selector, minProposalSizeBytes);
-        dii.set(dii.challengePeriodSeconds.selector, challengePeriodSeconds);
-        dii.set(dii.proofMaturityDelaySeconds.selector, proofMaturityDelaySeconds);
-        dii.set(dii.disputeGameFinalityDelaySeconds.selector, disputeGameFinalityDelaySeconds);
-        dii.set(dii.mipsVersion.selector, 1);
-        dii.set(dii.l1ContractsRelease.selector, release);
-        dii.set(dii.superchainConfigProxy.selector, address(superchainConfigProxy));
-        dii.set(dii.protocolVersionsProxy.selector, address(protocolVersionsProxy));
-        dii.set(dii.superchainProxyAdmin.selector, address(superchainProxyAdmin));
-        dii.set(dii.upgradeController.selector, upgradeController);
+        DeployImplementations.Output memory dio = deployImplementations.run(
+            DeployImplementations.Input({
+                withdrawalDelaySeconds: withdrawalDelaySeconds,
+                minProposalSizeBytes: minProposalSizeBytes,
+                challengePeriodSeconds: challengePeriodSeconds,
+                proofMaturityDelaySeconds: proofMaturityDelaySeconds,
+                disputeGameFinalityDelaySeconds: disputeGameFinalityDelaySeconds,
+                l1ContractsRelease: release,
+                mipsVersion: StandardConstants.MIPS_VERSION,
+                superchainConfigProxy: superchainConfigProxy,
+                protocolVersionsProxy: protocolVersionsProxy,
+                superchainProxyAdmin: superchainProxyAdmin,
+                upgradeController: upgradeController,
+                challenger: challenger
+            })
+        );
 
-        deployImplementations.run(dii, dio);
+        // Set the OPContractsManager input for DeployOPChain.
+        opcm = dio.opcm;
 
         // Deploy DeployOpChain, but defer populating the input values to the test suites inheriting this contract.
         deployOPChain = new DeployOPChain();
         (doi, doo) = deployOPChain.etchIOContracts();
-
-        // Set the OPContractsManager input for DeployOPChain.
-        opcm = dio.opcm();
-    }
-
-    // See the function of the same name in the `DeployImplementations_Test` contract of
-    // `DeployImplementations.t.sol` for more details on why we use this method.
-    function createDeployImplementationsContract() internal virtual returns (DeployImplementations) {
-        return new DeployImplementations();
     }
 }
 
@@ -483,13 +477,6 @@ contract DeployOPChain_Test is DeployOPChain_TestBase {
         assertEq(address(doo.opChainProxyAdmin().addressManager().owner()), address(doo.opChainProxyAdmin()), "3600");
         assertEq(address(doo.opChainProxyAdmin().addressManager()), address(doo.addressManager()), "3700");
         assertEq(address(doo.opChainProxyAdmin().owner()), opChainProxyAdminOwner, "3800");
-    }
-
-    function test_customDisputeGame_customDisabled_reverts() public {
-        setDOI();
-        doi.set(doi.disputeSplitDepth.selector, disputeSplitDepth + 1);
-        vm.expectRevert("DPG-90");
-        deployOPChain.run(doi, doo);
     }
 
     function test_customDisputeGame_customEnabled_succeeds() public {

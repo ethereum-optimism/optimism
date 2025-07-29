@@ -1,4 +1,5 @@
-num_cores := $(shell nproc)
+# nproc is for linux, sysctl for Mac and then fallback to 4 if neither is available
+num_cores := $(shell nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 4)
 
 # Generally, JUNIT_FILE is set in CI but may be specified to an arbitrary file location to emulate CI locally
 # If JUNIT_FILE is set, JSON_LOG_FILE should also be set
@@ -39,8 +40,7 @@ test-fault-proofs: pre-test
 .PHONY: test-faultproofs
 
 cannon-prestates:
-	make -C .. cannon-prestate
-	make -C .. cannon-prestate-mt64
+	make -C .. cannon-prestates
 .PHONY: cannon-prestates
 
 

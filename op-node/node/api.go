@@ -5,16 +5,20 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/depset"
+	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/log"
 
 	"github.com/ethereum-optimism/optimism/op-node/node/safedb"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/engine"
 	"github.com/ethereum-optimism/optimism/op-node/version"
 	"github.com/ethereum-optimism/optimism/op-service/apis"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/rpc"
+	opsigner "github.com/ethereum-optimism/optimism/op-service/signer"
 )
 
 type l2EthClient interface {
@@ -100,6 +104,7 @@ func (n *adminAPI) SetRecoverMode(ctx context.Context, mode bool) error {
 
 type nodeAPI struct {
 	config *rollup.Config
+	depSet depset.DependencySet
 	client l2EthClient
 	dr     driverClient
 	safeDB SafeDBReader
@@ -108,9 +113,10 @@ type nodeAPI struct {
 
 var _ apis.RollupNodeServer = (*nodeAPI)(nil)
 
-func NewNodeAPI(config *rollup.Config, l2Client l2EthClient, dr driverClient, safeDB SafeDBReader, log log.Logger) *nodeAPI {
+func NewNodeAPI(config *rollup.Config, depSet depset.DependencySet, l2Client l2EthClient, dr driverClient, safeDB SafeDBReader, log log.Logger) *nodeAPI {
 	return &nodeAPI{
 		config: config,
+		depSet: depSet,
 		client: l2Client,
 		dr:     dr,
 		safeDB: safeDB,
@@ -161,6 +167,45 @@ func (n *nodeAPI) RollupConfig(_ context.Context) (*rollup.Config, error) {
 	return n.config, nil
 }
 
+func (n *nodeAPI) DependencySet(_ context.Context) (depset.DependencySet, error) {
+	if n.depSet != nil {
+		return n.depSet, nil
+	}
+	return nil, ethereum.NotFound
+}
+
 func (n *nodeAPI) Version(ctx context.Context) (string, error) {
 	return version.Version + "-" + version.Meta, nil
+}
+
+type opstackAPI struct {
+	engine    engine.RollupAPI
+	publisher apis.PublishAPI
+}
+
+func NewOpstackAPI(eng engine.RollupAPI, publisher apis.PublishAPI) *opstackAPI {
+	return &opstackAPI{
+		engine:    eng,
+		publisher: publisher,
+	}
+}
+
+func (a *opstackAPI) OpenBlockV1(ctx context.Context, parent eth.BlockID, attrs *eth.PayloadAttributes) (eth.PayloadInfo, error) {
+	return a.engine.OpenBlock(ctx, parent, attrs)
+}
+
+func (a *opstackAPI) CancelBlockV1(ctx context.Context, id eth.PayloadInfo) error {
+	return a.engine.CancelBlock(ctx, id)
+}
+
+func (a *opstackAPI) SealBlockV1(ctx context.Context, id eth.PayloadInfo) (*eth.ExecutionPayloadEnvelope, error) {
+	return a.engine.SealBlock(ctx, id)
+}
+
+func (a *opstackAPI) CommitBlockV1(ctx context.Context, envelope *opsigner.SignedExecutionPayloadEnvelope) error {
+	return a.engine.CommitBlock(ctx, envelope)
+}
+
+func (a *opstackAPI) PublishBlockV1(ctx context.Context, signed *opsigner.SignedExecutionPayloadEnvelope) error {
+	return a.publisher.PublishBlock(ctx, signed)
 }

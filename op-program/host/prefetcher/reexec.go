@@ -16,7 +16,7 @@ import (
 
 type ProgramExecutor interface {
 	// RunProgram derives the block at the specified blockNumber
-	RunProgram(ctx context.Context, prefetcher hostcommon.Prefetcher, blockNumber uint64, chainID eth.ChainID, db l2.KeyValueStore) error
+	RunProgram(ctx context.Context, prefetcher hostcommon.Prefetcher, blockNumber uint64, agreedOutput eth.Output, chainID eth.ChainID, db l2.KeyValueStore) error
 }
 
 // nativeReExecuteBlock is a helper function that re-executes a block natively.
@@ -44,20 +44,24 @@ func (p *Prefetcher) nativeReExecuteBlock(
 		return nil
 	}
 	if notFound {
-		p.logger.Error("Requested block is not canonical", "block_hash", blockHash, "err", err)
+		p.logger.Info("Requested block is not canonical", "block_hash", blockHash, "err", err)
 	}
 	// Else, i.e. there was an error, then we still want to rebuild the block
 
 	retrying, err := p.l2Sources.ForChainID(chainID)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to get l2 source: %w", err)
 	}
 	header, _, err := retrying.InfoAndTxsByHash(ctx, agreedBlockHash)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to get agreed block header: %w", err)
+	}
+	agreedOutput, err := retrying.OutputByRoot(ctx, agreedBlockHash)
+	if err != nil {
+		return fmt.Errorf("failed to get agreed output root: %w", err)
 	}
 	p.logger.Info("Re-executing block", "block_hash", blockHash, "block_number", header.NumberU64())
-	if err = p.executor.RunProgram(ctx, p, header.NumberU64()+1, chainID, hostcommon.NewL2KeyValueStore(p.kvStore)); err != nil {
+	if err = p.executor.RunProgram(ctx, p, header.NumberU64()+1, agreedOutput, chainID, hostcommon.NewL2KeyValueStore(p.kvStore)); err != nil {
 		return err
 	}
 

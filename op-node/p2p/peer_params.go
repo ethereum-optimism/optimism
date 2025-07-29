@@ -5,7 +5,6 @@ import (
 	"math"
 	"time"
 
-	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	pubsub "github.com/libp2p/go-libp2p-pubsub"
 	"github.com/libp2p/go-libp2p/core/peer"
 )
@@ -32,8 +31,8 @@ func ScoreDecay(duration time.Duration, slot time.Duration) float64 {
 // See [PeerScoreParams] for detailed documentation.
 //
 // [PeerScoreParams]: https://pkg.go.dev/github.com/libp2p/go-libp2p-pubsub@v0.8.1#PeerScoreParams
-func LightPeerScoreParams(cfg *rollup.Config) pubsub.PeerScoreParams {
-	slot := time.Duration(cfg.BlockTime) * time.Second
+func LightPeerScoreParams(blockTime uint64) pubsub.PeerScoreParams {
+	slot := time.Duration(blockTime) * time.Second
 	if slot == 0 {
 		slot = 2 * time.Second
 	}
@@ -42,30 +41,13 @@ func LightPeerScoreParams(cfg *rollup.Config) pubsub.PeerScoreParams {
 	epoch := 6 * slot
 	tenEpochs := 10 * epoch
 	oneHundredEpochs := 100 * epoch
-	invalidDecayPeriod := 50 * epoch
 	return pubsub.PeerScoreParams{
-		Topics: map[string]*pubsub.TopicScoreParams{
-			blocksTopicV1(cfg): {
-				TopicWeight:                     0.8,
-				TimeInMeshWeight:                MaxInMeshScore / inMeshCap(slot),
-				TimeInMeshQuantum:               slot,
-				TimeInMeshCap:                   inMeshCap(slot),
-				FirstMessageDeliveriesWeight:    1,
-				FirstMessageDeliveriesDecay:     ScoreDecay(20*epoch, slot),
-				FirstMessageDeliveriesCap:       23,
-				MeshMessageDeliveriesWeight:     MeshWeight,
-				MeshMessageDeliveriesDecay:      ScoreDecay(DecayEpoch*epoch, slot),
-				MeshMessageDeliveriesCap:        float64(uint64(epoch/slot) * uint64(DecayEpoch)),
-				MeshMessageDeliveriesThreshold:  float64(uint64(epoch/slot) * uint64(DecayEpoch) / 10),
-				MeshMessageDeliveriesWindow:     2 * time.Second,
-				MeshMessageDeliveriesActivation: 4 * epoch,
-				MeshFailurePenaltyWeight:        MeshWeight,
-				MeshFailurePenaltyDecay:         ScoreDecay(DecayEpoch*epoch, slot),
-				InvalidMessageDeliveriesWeight:  -140.4475,
-				InvalidMessageDeliveriesDecay:   ScoreDecay(invalidDecayPeriod, slot),
-			},
-		},
-		TopicScoreCap: 34,
+		// We inentionally do not use any per-topic scoring,
+		// since it is expected for the network to migrate
+		// from older topics to newer ones over time and we don't
+		// want to penalize peers for not participating in the old topics.
+		// Therefore the Topics map is nil:
+		Topics: nil,
 		AppSpecificScore: func(p peer.ID) float64 {
 			return 0
 		},
@@ -82,17 +64,12 @@ func LightPeerScoreParams(cfg *rollup.Config) pubsub.PeerScoreParams {
 	}
 }
 
-// the cap for `inMesh` time scoring.
-func inMeshCap(slot time.Duration) float64 {
-	return float64((3600 * time.Second) / slot)
-}
-
-func GetScoringParams(name string, cfg *rollup.Config) (*ScoringParams, error) {
+func GetScoringParams(name string, blockTime uint64) (*ScoringParams, error) {
 	switch name {
 	case "light":
 		return &ScoringParams{
-			PeerScoring:        LightPeerScoreParams(cfg),
-			ApplicationScoring: LightApplicationScoreParams(cfg),
+			PeerScoring:        LightPeerScoreParams(blockTime),
+			ApplicationScoring: LightApplicationScoreParams(blockTime),
 		}, nil
 	case "none":
 		return nil, nil

@@ -5,20 +5,23 @@ pragma solidity 0.8.15;
 import { CommonTest } from "test/setup/CommonTest.sol";
 import { Reverter, GasBurner } from "test/mocks/Callers.sol";
 import { stdError } from "forge-std/StdError.sol";
+import { ForgeArtifacts, StorageSlot } from "scripts/libraries/ForgeArtifacts.sol";
 
 // Libraries
 import { AddressAliasHelper } from "src/vendor/AddressAliasHelper.sol";
 import { Predeploys } from "src/libraries/Predeploys.sol";
 import { Hashing } from "src/libraries/Hashing.sol";
 import { Encoding } from "src/libraries/Encoding.sol";
-import { ForgeArtifacts } from "scripts/libraries/ForgeArtifacts.sol";
 
 // Target contract dependencies
 import { IL1CrossDomainMessenger } from "interfaces/L1/IL1CrossDomainMessenger.sol";
 import { IOptimismPortal2 } from "interfaces/L1/IOptimismPortal2.sol";
-import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
+import { ISystemConfig } from "interfaces/L1/ISystemConfig.sol";
+import { IProxyAdminOwnedBase } from "interfaces/L1/IProxyAdminOwnedBase.sol";
 
-contract Encoding_Harness {
+/// @title L1CrossDomainMessenger_Encoding_Harness
+/// @notice A harness contract for testing internal functions of the Encoding library.
+contract L1CrossDomainMessenger_Encoding_Harness {
     function encodeCrossDomainMessage(
         uint256 nonce,
         address sender,
@@ -35,7 +38,9 @@ contract Encoding_Harness {
     }
 }
 
-contract L1CrossDomainMessenger_Test is CommonTest {
+/// @title L1CrossDomainMessenger_TestInit
+/// @notice Reusable test initialization for L1CrossDomainMessenger tests.
+contract L1CrossDomainMessenger_TestInit is CommonTest {
     /// @dev The receiver address
     address recipient = address(0xabbaacdc);
 
@@ -43,45 +48,205 @@ contract L1CrossDomainMessenger_Test is CommonTest {
     uint256 senderSlotIndex;
 
     /// @dev Encoding library harness.
-    Encoding_Harness encoding;
+    L1CrossDomainMessenger_Encoding_Harness encoding;
 
-    function setUp() public override {
+    function setUp() public virtual override {
         super.setUp();
         senderSlotIndex = ForgeArtifacts.getSlot("OptimismPortal2", "l2Sender").slot;
-        encoding = new Encoding_Harness();
+        encoding = new L1CrossDomainMessenger_Encoding_Harness();
     }
+}
 
-    /// @dev Tests that the implementation is initialized correctly.
+/// @title L1CrossDomainMessenger_Constructor_Test
+/// @notice Tests for the `constructor` of the L1CrossDomainMessenger.
+contract L1CrossDomainMessenger_Constructor_Test is L1CrossDomainMessenger_TestInit {
+    /// @notice Tests that the implementation is initialized correctly.
     /// @notice Marked virtual to be overridden in
     ///         test/kontrol/deployment/DeploymentSummary.t.sol
     function test_constructor_succeeds() external virtual {
         IL1CrossDomainMessenger impl = IL1CrossDomainMessenger(addressManager.getAddress("OVM_L1CrossDomainMessenger"));
-        assertEq(address(impl.superchainConfig()), address(0));
+        assertEq(address(impl.systemConfig()), address(0));
         assertEq(address(impl.PORTAL()), address(0));
         assertEq(address(impl.portal()), address(0));
 
-        // The constructor now uses _disableInitializers, whereas OP Mainnet has the other messenger in storage
+        // The constructor now uses _disableInitializers, whereas OP Mainnet has the other
+        // messenger in storage
         returnIfForkTest("L1CrossDomainMessenger_Test: impl storage differs on forked network");
         assertEq(address(impl.OTHER_MESSENGER()), address(0));
         assertEq(address(impl.otherMessenger()), address(0));
+        vm.expectRevert(IProxyAdminOwnedBase.ProxyAdminOwnedBase_NotResolvedDelegateProxy.selector);
+        impl.proxyAdmin();
     }
+}
 
-    /// @dev Tests that the proxy is initialized correctly.
+/// @title L1CrossDomainMessenger_Initialize_Test
+/// @notice Tests for the `initialize` function of the L1CrossDomainMessenger.
+contract L1CrossDomainMessenger_Initialize_Test is L1CrossDomainMessenger_TestInit {
+    /// @notice Tests that the proxy is initialized correctly.
     function test_initialize_succeeds() external view {
-        assertEq(address(l1CrossDomainMessenger.superchainConfig()), address(superchainConfig));
+        assertEq(address(l1CrossDomainMessenger.systemConfig()), address(systemConfig));
         assertEq(address(l1CrossDomainMessenger.PORTAL()), address(optimismPortal2));
         assertEq(address(l1CrossDomainMessenger.portal()), address(optimismPortal2));
         assertEq(address(l1CrossDomainMessenger.OTHER_MESSENGER()), Predeploys.L2_CROSS_DOMAIN_MESSENGER);
         assertEq(address(l1CrossDomainMessenger.otherMessenger()), Predeploys.L2_CROSS_DOMAIN_MESSENGER);
+        assertEq(address(l1CrossDomainMessenger.proxyAdmin()), address(proxyAdmin));
     }
 
-    /// @dev Tests that the version can be decoded from the message nonce.
-    function test_messageVersion_succeeds() external view {
-        (, uint16 version) = Encoding.decodeVersionedNonce(l1CrossDomainMessenger.messageNonce());
-        assertEq(version, l1CrossDomainMessenger.MESSAGE_VERSION());
+    /// @notice Tests that the initializer value is correct. Trivial test for normal
+    ///         initialization but confirms that the initValue is not incremented incorrectly if
+    ///         an upgrade function is not present.
+    function test_initialize_correctInitializerValue_succeeds() public {
+        // Get the slot for _initialized.
+        StorageSlot memory slot = ForgeArtifacts.getSlot("L1CrossDomainMessenger", "_initialized");
+
+        // Get the initializer value.
+        // Note that for L1CrossDomainMessenger the initialized value is stored at offset 20 so
+        // this test is slightly different from other similar tests.
+        bytes32 slotVal = vm.load(address(l1CrossDomainMessenger), bytes32(slot.slot));
+        uint8 val = uint8((uint256(slotVal) >> 20 * 8) & 0xFF);
+
+        // Assert that the initializer value matches the expected value.
+        assertEq(val, l1CrossDomainMessenger.initVersion());
     }
 
-    /// @dev Tests that the sendMessage function is able to send a single message.
+    /// @notice Tests that the initialize function reverts if called by a non-proxy admin or owner.
+    /// @param _sender The address of the sender to test.
+    function testFuzz_initialize_notProxyAdminOrProxyAdminOwner_reverts(address _sender) public {
+        // Prank as the not ProxyAdmin or ProxyAdmin owner.
+        vm.assume(_sender != address(proxyAdmin) && _sender != proxyAdminOwner);
+
+        // Get the slot for _initialized.
+        StorageSlot memory slot = ForgeArtifacts.getSlot("L1CrossDomainMessenger", "_initialized");
+
+        // Set the initialized slot to 0.
+        vm.store(address(l1CrossDomainMessenger), bytes32(slot.slot), bytes32(0));
+
+        // Expect the revert with `ProxyAdminOwnedBase_NotProxyAdminOrProxyAdminOwner` selector
+        vm.expectRevert(IProxyAdminOwnedBase.ProxyAdminOwnedBase_NotProxyAdminOrProxyAdminOwner.selector);
+
+        // Call the `initialize` function with the sender
+        vm.prank(_sender);
+        l1CrossDomainMessenger.initialize(systemConfig, optimismPortal2);
+    }
+}
+
+/// @title L1CrossDomainMessenger_Upgrade_Test
+/// @notice Reusable test for the current `upgrade` function in the L1CrossDomainMessenger
+///         contract. If the `upgrade` function is changed, tests inside of this contract should be
+///         updated to reflect the new function. If the `upgrade` function is removed, remove the
+///         corresponding tests but leave this contract in place so it\'s easy to add tests back
+///         in the future.
+contract L1CrossDomainMessenger_Upgrade_Test is L1CrossDomainMessenger_TestInit {
+    /// @notice Tests that the upgrade() function succeeds.
+    function test_upgrade_succeeds() external {
+        // Get the slot for _initial.
+        StorageSlot memory slot = ForgeArtifacts.getSlot("L1CrossDomainMessenger", "_initialized");
+
+        // Set the initialized slot to 0.
+        vm.store(address(l1CrossDomainMessenger), bytes32(slot.slot), bytes32(0));
+
+        // Verify the initial systemConfig slot is non-zero.
+        StorageSlot memory systemConfigSlot = ForgeArtifacts.getSlot("L1CrossDomainMessenger", "systemConfig");
+        vm.store(address(l1CrossDomainMessenger), bytes32(systemConfigSlot.slot), bytes32(uint256(1)));
+        assertNotEq(address(l1CrossDomainMessenger.systemConfig()), address(0));
+        assertNotEq(vm.load(address(l1CrossDomainMessenger), bytes32(systemConfigSlot.slot)), bytes32(0));
+
+        ISystemConfig newSystemConfig = ISystemConfig(address(0xdeadbeef));
+
+        // Trigger upgrade().
+        vm.prank(address(l1CrossDomainMessenger.proxyAdmin()));
+        l1CrossDomainMessenger.upgrade(newSystemConfig);
+
+        // Verify that the systemConfig was updated.
+        assertEq(address(l1CrossDomainMessenger.systemConfig()), address(newSystemConfig));
+    }
+
+    /// @notice Tests that the upgrade() function reverts if called a second time.
+    function test_upgrade_upgradeTwice_reverts() external {
+        // Get the slot for _initialized.
+        StorageSlot memory slot = ForgeArtifacts.getSlot("L1CrossDomainMessenger", "_initialized");
+
+        // Set the initialized slot to 0.
+        vm.store(address(l1CrossDomainMessenger), bytes32(slot.slot), bytes32(0));
+
+        // Create a new SystemConfig contract
+        ISystemConfig newSystemConfig = ISystemConfig(address(0xdeadbeef));
+
+        // Trigger first upgrade.
+        vm.prank(address(l1CrossDomainMessenger.proxyAdmin()));
+        l1CrossDomainMessenger.upgrade(newSystemConfig);
+
+        // Try to trigger second upgrade.
+        vm.prank(address(l1CrossDomainMessenger.proxyAdmin()));
+        vm.expectRevert("Initializable: contract is already initialized");
+        l1CrossDomainMessenger.upgrade(newSystemConfig);
+    }
+
+    /// @notice Tests that the upgrade() function reverts if called by a non-proxy admin or owner.
+    /// @param _sender The address of the sender to test.
+    function testFuzz_upgrade_notProxyAdminOrProxyAdminOwner_reverts(address _sender) public {
+        // Prank as the not ProxyAdmin or ProxyAdmin owner.
+        vm.assume(_sender != address(proxyAdmin) && _sender != proxyAdminOwner);
+
+        // Get the slot for _initialized.
+        StorageSlot memory slot = ForgeArtifacts.getSlot("L1CrossDomainMessenger", "_initialized");
+
+        // Set the initialized slot to 0.
+        vm.store(address(l1CrossDomainMessenger), bytes32(slot.slot), bytes32(0));
+
+        // Create a new SystemConfig contract
+        ISystemConfig newSystemConfig = ISystemConfig(address(0xdeadbeef));
+
+        // Call the `upgrade` function with the sender
+        // Expect the revert with `ProxyAdminOwnedBase_NotProxyAdminOrProxyAdminOwner` selector
+        vm.prank(_sender);
+        vm.expectRevert(IProxyAdminOwnedBase.ProxyAdminOwnedBase_NotProxyAdminOrProxyAdminOwner.selector);
+        l1CrossDomainMessenger.upgrade(newSystemConfig);
+    }
+}
+
+/// @title L1CrossDomainMessenger_Paused_Test
+/// @notice Tests for the `paused` functionality of the L1CrossDomainMessenger.
+contract L1CrossDomainMessenger_Paused_Test is L1CrossDomainMessenger_TestInit {
+    /// @notice Tests that the superchain config is called by the messenger's paused function.
+    function test_pause_callsSuperchainConfig_succeeds() external {
+        // We use abi.encodeWithSignature because paused is overloaded.
+        // nosemgrep: sol-style-use-abi-encodecall
+        vm.expectCall(address(superchainConfig), abi.encodeWithSignature("paused(address)", address(0)));
+        l1CrossDomainMessenger.paused();
+    }
+
+    /// @notice Tests that changing the superchain config paused status changes the return value
+    ///         of the messenger.
+    function test_pause_matchesSuperchainConfig_succeeds() external {
+        assertFalse(l1CrossDomainMessenger.paused());
+        assertEq(l1CrossDomainMessenger.paused(), superchainConfig.paused(address(0)));
+
+        vm.prank(superchainConfig.guardian());
+        superchainConfig.pause(address(0));
+
+        assertTrue(l1CrossDomainMessenger.paused());
+        assertEq(l1CrossDomainMessenger.paused(), superchainConfig.paused(address(0)));
+    }
+}
+
+/// @title L1CrossDomainMessenger_SuperchainConfig_Test
+/// @notice Tests for the `superchainConfig` function of the L1CrossDomainMessenger.
+contract L1CrossDomainMessenger_SuperchainConfig_Test is L1CrossDomainMessenger_TestInit {
+    /// @notice Tests that `superchainConfig` returns the correct address.
+    function test_superchainConfig_succeeds() external view {
+        assertEq(address(l1CrossDomainMessenger.superchainConfig()), address(superchainConfig));
+    }
+}
+
+/// @notice The following tests are not testing any function of the L1CrossDomainMessenger
+///         contract directly, but are testing the functionality of the CrossDomainMessenger
+///         contract that is inherited from.
+
+/// @title L1CrossDomainMessenger_SendMessage_Test
+/// @notice Tests for the `sendMessage` functionality of the L1CrossDomainMessenger.
+contract L1CrossDomainMessenger_SendMessage_Test is L1CrossDomainMessenger_TestInit {
+    /// @notice Tests that the `sendMessage` function is able to send a single message.
     /// TODO: this same test needs to be done with the legacy message type
     ///       by setting the message version to 0
     function test_sendMessage_succeeds() external {
@@ -126,8 +291,7 @@ contract L1CrossDomainMessenger_Test is CommonTest {
         l1CrossDomainMessenger.sendMessage(recipient, hex"ff", uint32(100));
     }
 
-    /// @dev Tests that the sendMessage function is able to send
-    ///      the same message twice.
+    /// @notice Tests that the sendMessage function is able to send the same message twice.
     function test_sendMessage_twice_succeeds() external {
         uint256 nonce = l1CrossDomainMessenger.messageNonce();
         l1CrossDomainMessenger.sendMessage(recipient, hex"aa", uint32(500_000));
@@ -135,15 +299,77 @@ contract L1CrossDomainMessenger_Test is CommonTest {
         // the nonce increments for each message sent
         assertEq(nonce + 2, l1CrossDomainMessenger.messageNonce());
     }
+}
 
-    /// @dev Tests that the xDomainMessageSender reverts when not set.
+/// @title L1CrossDomainMessenger_Unclassified_Test
+/// @notice General tests that are not testing any function directly of the L1CrossDomainMessenger
+///         but are testing functionality of the CrossDomainMessenger contract that is inherited
+///         from.
+contract L1CrossDomainMessenger_Uncategorized_Test is L1CrossDomainMessenger_TestInit {
+    // Variables for reentrancy test
+    bool reentrancyAttacked;
+    uint256 constant reentrancyMessageValue = 50;
+    bytes reentrancySelector;
+    address reentrancySender;
+    bytes32 reentrancyHash;
+    address reentrancyTarget;
+
+    function setUp() public virtual override {
+        super.setUp();
+        // Setup for reentrancy test variables (balance setup moved to specific test)
+        reentrancyTarget = address(this);
+        reentrancySender = Predeploys.L2_CROSS_DOMAIN_MESSENGER;
+        reentrancySelector = abi.encodeCall(this.reinitAndReenter, ());
+        reentrancyHash = Hashing.hashCrossDomainMessage(
+            Encoding.encodeVersionedNonce({ _nonce: 0, _version: 1 }),
+            reentrancySender,
+            reentrancyTarget,
+            reentrancyMessageValue,
+            0,
+            reentrancySelector
+        );
+    }
+
+    /// @notice This method will be called by the relayed message, and will attempt to reenter the
+    ///         `relayMessage` function exactly one.
+    function reinitAndReenter() external payable {
+        // only attempt the attack once
+        if (!reentrancyAttacked) {
+            reentrancyAttacked = true;
+            // set initialized to false
+            vm.store(address(l1CrossDomainMessenger), 0, bytes32(uint256(0)));
+
+            // call the initializer function
+            l1CrossDomainMessenger.initialize(ISystemConfig(systemConfig), IOptimismPortal2(optimismPortal2));
+
+            // attempt to re-replay the withdrawal
+            vm.expectEmit(address(l1CrossDomainMessenger));
+            emit FailedRelayedMessage(reentrancyHash);
+            l1CrossDomainMessenger.relayMessage(
+                Encoding.encodeVersionedNonce({ _nonce: 0, _version: 1 }), // nonce
+                reentrancySender,
+                reentrancyTarget,
+                reentrancyMessageValue,
+                0,
+                reentrancySelector
+            );
+        }
+    }
+
+    /// @notice Tests that the version can be decoded from the message nonce.
+    function test_messageVersion_succeeds() external view {
+        (, uint16 version) = Encoding.decodeVersionedNonce(l1CrossDomainMessenger.messageNonce());
+        assertEq(version, l1CrossDomainMessenger.MESSAGE_VERSION());
+    }
+
+    /// @notice Tests that the xDomainMessageSender reverts when not set.
     function test_xDomainSender_notSet_reverts() external {
         vm.expectRevert("CrossDomainMessenger: xDomainMessageSender is not set");
         l1CrossDomainMessenger.xDomainMessageSender();
     }
 
-    /// @dev Tests that the relayMessage function reverts when
-    ///      the message version is not 0 or 1.
+    /// @notice Tests that the `relayMessage` function reverts when the message version is not 0 or
+    ///         1.
     /// @notice Marked virtual to be overridden in
     ///         test/kontrol/deployment/DeploymentSummary.t.sol
     function test_relayMessage_v2_reverts() external virtual {
@@ -168,8 +394,8 @@ contract L1CrossDomainMessenger_Test is CommonTest {
         );
     }
 
-    /// @dev Tests that the relayMessage function is able to relay a message
-    ///      successfully by calling the target contract.
+    /// @notice Tests that the `relayMessage` function is able to relay a message
+    ///         successfully by calling the target contract.
     function test_relayMessage_succeeds() external {
         address target = address(0xabcd);
         address sender = Predeploys.L2_CROSS_DOMAIN_MESSENGER;
@@ -203,7 +429,8 @@ contract L1CrossDomainMessenger_Test is CommonTest {
         assertEq(l1CrossDomainMessenger.failedMessages(hash), false);
     }
 
-    /// @dev Tests that relayMessage reverts if caller is optimismPortal2 and the value sent does not match the amount
+    /// @notice Tests that `relayMessage` reverts if the caller is optimismPortal2 and the value
+    ///         sent does not match the amount.
     function test_relayMessage_fromOtherMessengerValueMismatch_reverts() external {
         address target = alice;
         address sender = Predeploys.L2_CROSS_DOMAIN_MESSENGER;
@@ -221,7 +448,8 @@ contract L1CrossDomainMessenger_Test is CommonTest {
         );
     }
 
-    /// @dev Tests that relayMessage reverts if a failed message is attempted to be replayed via the optimismPortal2
+    /// @notice Tests that `relayMessage` reverts if a failed message is attempted to be replayed
+    ///         via the optimismPortal2.
     function test_relayMessage_fromOtherMessengerFailedMessageReplay_reverts() external {
         address target = alice;
         address sender = Predeploys.L2_CROSS_DOMAIN_MESSENGER;
@@ -245,8 +473,8 @@ contract L1CrossDomainMessenger_Test is CommonTest {
         );
     }
 
-    /// @dev Tests that relayMessage reverts if attempting to relay a message
-    ///      with l1CrossDomainMessenger as the target
+    /// @notice Tests that `relayMessage` reverts if attempting to relay a message with
+    ///         l1CrossDomainMessenger as the target.
     function test_relayMessage_toSelf_reverts() external {
         address sender = Predeploys.L2_CROSS_DOMAIN_MESSENGER;
         bytes memory message = hex"1111";
@@ -265,8 +493,8 @@ contract L1CrossDomainMessenger_Test is CommonTest {
         );
     }
 
-    /// @dev Tests that relayMessage reverts if attempting to relay a message
-    ///      with optimismPortal as the target
+    /// @notice Tests that `relayMessage` reverts if attempting to relay a message with
+    ///         optimismPortal as the target.
     function test_relayMessage_toOptimismPortal_reverts() external {
         address sender = Predeploys.L2_CROSS_DOMAIN_MESSENGER;
         bytes memory message = hex"1111";
@@ -280,8 +508,8 @@ contract L1CrossDomainMessenger_Test is CommonTest {
         );
     }
 
-    /// @dev Tests that the relayMessage function reverts if the message called by non-optimismPortal2 but not a failed
-    /// message
+    /// @notice Tests that `relayMessage` reverts if the message is called by a non-optimismPortal2
+    ///         address and is not a failed message eligible for replay.
     function test_relayMessage_relayingNewMessageByExternalUser_reverts() external {
         address target = address(alice);
         address sender = Predeploys.L2_CROSS_DOMAIN_MESSENGER;
@@ -296,7 +524,7 @@ contract L1CrossDomainMessenger_Test is CommonTest {
         );
     }
 
-    /// @notice Tests that the relayMessage function on L2 will always succeed for any potential
+    /// @notice Tests that the `relayMessage` function on L2 will always succeed for any potential
     ///         message, regardless of the size of the message, the minimum gas limit, or the
     ///         amount of gas used by the target contract.
     function testFuzz_relayMessage_baseGasSufficient_succeeds(
@@ -385,8 +613,8 @@ contract L1CrossDomainMessenger_Test is CommonTest {
         );
     }
 
-    /// @dev Tests that the relayMessage function reverts if eth is
-    ///      sent from a contract other than the standard bridge.
+    /// @notice Tests that the `relayMessage` function reverts if ETH is sent from a contract other
+    ///         than the standard bridge.
     function test_replayMessage_withValue_reverts() external {
         address target = address(0xabcd);
         address sender = Predeploys.L2_CROSS_DOMAIN_MESSENGER;
@@ -398,12 +626,12 @@ contract L1CrossDomainMessenger_Test is CommonTest {
         );
     }
 
-    /// @notice Tests that the ENCODING_OVERHEAD is always greater than or equal to the number of
+    /// @notice Tests that the `ENCODING_OVERHEAD` is always greater than or equal to the number of
     ///         bytes in an encoded message OTHER than the size of the data field.
-    ///         ENCODING_OVERHEAD needs to account for these other bytes so that the total message
-    ///         size used in the baseGas function is accurate. This test ensures that if the
-    ///         encoding ever changes, this test will fail and the developer will need to update
-    ///         the ENCODING_OVERHEAD constant.
+    ///         `ENCODING_OVERHEAD` needs to account for these other bytes so that the total
+    ///         message size used in the `baseGas` function is accurate. This test ensures that if
+    ///         the encoding ever changes, this test will fail and the developer will need to
+    ///         update the `ENCODING_OVERHEAD` constant.
     /// @param _nonce The nonce to encode into the message.
     /// @param _version The version to encode into the message.
     /// @param _sender The sender to encode into the message.
@@ -453,8 +681,8 @@ contract L1CrossDomainMessenger_Test is CommonTest {
         assertGe(l1CrossDomainMessenger.ENCODING_OVERHEAD(), encoded.length - _message.length);
     }
 
-    /// @dev Tests that the xDomainMessageSender is reset to the original value
-    ///      after a message is relayed.
+    /// @notice Tests that the xDomainMessageSender is reset to the original value
+    ///         after a message is relayed.
     function test_xDomainMessageSender_reset_succeeds() external {
         vm.expectRevert("CrossDomainMessenger: xDomainMessageSender is not set");
         l1CrossDomainMessenger.xDomainMessageSender();
@@ -471,9 +699,9 @@ contract L1CrossDomainMessenger_Test is CommonTest {
         l1CrossDomainMessenger.xDomainMessageSender();
     }
 
-    /// @dev Tests that relayMessage should successfully call the target contract after
-    ///      the first message fails and ETH is stuck, but the second message succeeds
-    ///      with a version 1 message.
+    /// @notice Tests that `relayMessage` should successfully call the target contract after the
+    ///         first message fails and ETH is stuck, but the second message succeeds with a
+    ///         version 1 message.
     function test_relayMessage_retryAfterFailure_succeeds() external {
         address target = address(0xabcd);
         address sender = Predeploys.L2_CROSS_DOMAIN_MESSENGER;
@@ -524,9 +752,9 @@ contract L1CrossDomainMessenger_Test is CommonTest {
         assertEq(l1CrossDomainMessenger.failedMessages(hash), true);
     }
 
-    /// @dev Tests that relayMessage should successfully call the target contract after
-    ///      the first message fails and ETH is stuck, but the second message succeeds
-    ///      with a legacy message.
+    /// @notice Tests that `relayMessage` should successfully call the target contract after the
+    ///         first message fails and ETH is stuck, but the second message succeeds with a
+    ///         legacy message (version 0).
     function test_relayMessage_legacy_succeeds() external {
         address target = address(0xabcd);
         address sender = Predeploys.L2_CROSS_DOMAIN_MESSENGER;
@@ -568,7 +796,7 @@ contract L1CrossDomainMessenger_Test is CommonTest {
         assertEq(l1CrossDomainMessenger.failedMessages(hash), false);
     }
 
-    /// @dev Tests that relayMessage should revert if the message is already replayed.
+    /// @notice Tests that `relayMessage` should revert if the message is already replayed.
     function test_relayMessage_legacyOldReplay_reverts() external {
         address target = address(0xabcd);
         address sender = Predeploys.L2_CROSS_DOMAIN_MESSENGER;
@@ -611,7 +839,7 @@ contract L1CrossDomainMessenger_Test is CommonTest {
         assertEq(l1CrossDomainMessenger.failedMessages(hash), false);
     }
 
-    /// @dev Tests that relayMessage can be retried after a failure with a legacy message.
+    /// @notice Tests that `relayMessage` can be retried after a failure with a legacy message.
     function test_relayMessage_legacyRetryAfterFailure_succeeds() external {
         address target = address(0xabcd);
         address sender = Predeploys.L2_CROSS_DOMAIN_MESSENGER;
@@ -687,7 +915,7 @@ contract L1CrossDomainMessenger_Test is CommonTest {
         assertEq(l1CrossDomainMessenger.failedMessages(hash), true);
     }
 
-    /// @dev Tests that relayMessage cannot be retried after success with a legacy message.
+    /// @notice Tests that `relayMessage` cannot be retried after success with a legacy message.
     function test_relayMessage_legacyRetryAfterSuccess_reverts() external {
         address target = address(0xabcd);
         address sender = Predeploys.L2_CROSS_DOMAIN_MESSENGER;
@@ -747,7 +975,7 @@ contract L1CrossDomainMessenger_Test is CommonTest {
         );
     }
 
-    /// @dev Tests that relayMessage cannot be called after a failure and a successful replay.
+    /// @notice Tests that `relayMessage` cannot be called after a failure and a successful replay.
     function test_relayMessage_legacyRetryAfterFailureThenSuccess_reverts() external {
         address target = address(0xabcd);
         address sender = Predeploys.L2_CROSS_DOMAIN_MESSENGER;
@@ -833,11 +1061,11 @@ contract L1CrossDomainMessenger_Test is CommonTest {
         );
     }
 
-    /// @dev Tests that the relayMessage function is able to relay a message
-    ///      successfully by calling the target contract.
+    /// @notice Tests that the relayMessage function is able to relay a message successfully by
+    ///         calling the target contract.
     function test_relayMessage_paused_reverts() external {
         vm.prank(superchainConfig.guardian());
-        superchainConfig.pause("identifier");
+        superchainConfig.pause(address(0));
         vm.expectRevert("CrossDomainMessenger: paused");
 
         l1CrossDomainMessenger.relayMessage(
@@ -850,97 +1078,35 @@ contract L1CrossDomainMessenger_Test is CommonTest {
         );
     }
 
-    /// @dev Tests that the superchain config is called by the messengers paused function
-    function test_pause_callsSuperchainConfig_succeeds() external {
-        vm.expectCall(address(superchainConfig), abi.encodeCall(ISuperchainConfig.paused, ()));
-        l1CrossDomainMessenger.paused();
-    }
-
-    /// @dev Tests that changing the superchain config paused status changes the return value of the messenger
-    function test_pause_matchesSuperchainConfig_succeeds() external {
-        assertFalse(l1CrossDomainMessenger.paused());
-        assertEq(l1CrossDomainMessenger.paused(), superchainConfig.paused());
-
-        vm.prank(superchainConfig.guardian());
-        superchainConfig.pause("identifier");
-
-        assertTrue(l1CrossDomainMessenger.paused());
-        assertEq(l1CrossDomainMessenger.paused(), superchainConfig.paused());
-    }
-}
-
-/// @dev A regression test against a reentrancy vulnerability in the CrossDomainMessenger contract, which
-///      was possible by intercepting and sandwhiching a signed Safe Transaction to upgrade it.
-contract L1CrossDomainMessenger_ReinitReentryTest is CommonTest {
-    bool attacked;
-
-    // Common values used across functions
-    uint256 constant messageValue = 50;
-    bytes selector = abi.encodeCall(this.reinitAndReenter, ());
-    address sender;
-    bytes32 hash;
-    address target;
-
-    function setUp() public override {
-        super.setUp();
-        target = address(this);
-        sender = Predeploys.L2_CROSS_DOMAIN_MESSENGER;
-        hash = Hashing.hashCrossDomainMessage(
-            Encoding.encodeVersionedNonce({ _nonce: 0, _version: 1 }), sender, target, messageValue, 0, selector
-        );
-        vm.deal(address(l1CrossDomainMessenger), messageValue * 2);
-    }
-
-    /// @dev This method will be called by the relayed message, and will attempt to reenter the relayMessage function
-    ///      exactly once.
-    function reinitAndReenter() external payable {
-        // only attempt the attack once
-        if (!attacked) {
-            attacked = true;
-            // set initialized to false
-            vm.store(address(l1CrossDomainMessenger), 0, bytes32(uint256(0)));
-
-            // call the initializer function
-            l1CrossDomainMessenger.initialize(ISuperchainConfig(superchainConfig), IOptimismPortal2(optimismPortal2));
-
-            // attempt to re-replay the withdrawal
-            vm.expectEmit(address(l1CrossDomainMessenger));
-            emit FailedRelayedMessage(hash);
-            l1CrossDomainMessenger.relayMessage(
-                Encoding.encodeVersionedNonce({ _nonce: 0, _version: 1 }), // nonce
-                sender,
-                target,
-                messageValue,
-                0,
-                selector
-            );
-        }
-    }
-
-    /// @dev Tests that the relayMessage function cannot be reentered by calling the `initialize()` function within the
-    ///      relayed message.
+    /// @notice A regression test against a reentrancy vulnerability in the `CrossDomainMessenger`
+    ///         contract, which was possible by intercepting and sandwiching a signed Safe
+    ///         Transaction to upgrade it. Tests that the `relayMessage` function cannot be
+    ///         reentered by calling the `initialize` function within the relayed message.
     function test_relayMessage_replayStraddlingReinit_reverts() external {
+        // Setup balance for this specific test
+        vm.deal(address(l1CrossDomainMessenger), reentrancyMessageValue * 2);
+
         uint256 balanceBeforeThis = address(this).balance;
         uint256 balanceBeforeMessenger = address(l1CrossDomainMessenger).balance;
 
-        // A requisite for the attack is that the message has already been attempted and written to the failedMessages
-        // mapping, so that it can be replayed.
-        vm.store(address(l1CrossDomainMessenger), keccak256(abi.encode(hash, 206)), bytes32(uint256(1)));
-        assertTrue(l1CrossDomainMessenger.failedMessages(hash));
+        // A requisite for the attack is that the message has already been attempted and written
+        // to the failedMessages mapping, so that it can be replayed.
+        vm.store(address(l1CrossDomainMessenger), keccak256(abi.encode(reentrancyHash, 206)), bytes32(uint256(1)));
+        assertTrue(l1CrossDomainMessenger.failedMessages(reentrancyHash));
 
         vm.expectEmit(address(l1CrossDomainMessenger));
-        emit FailedRelayedMessage(hash);
+        emit FailedRelayedMessage(reentrancyHash);
         l1CrossDomainMessenger.relayMessage(
             Encoding.encodeVersionedNonce({ _nonce: 0, _version: 1 }), // nonce
-            sender,
-            target,
-            messageValue,
+            reentrancySender,
+            reentrancyTarget,
+            reentrancyMessageValue,
             0,
-            selector
+            reentrancySelector
         );
 
         // The message hash is not in the successfulMessages mapping.
-        assertFalse(l1CrossDomainMessenger.successfulMessages(hash));
+        assertFalse(l1CrossDomainMessenger.successfulMessages(reentrancyHash));
         // The balance of this contract is unchanged.
         assertEq(address(this).balance, balanceBeforeThis);
         // The balance of the messenger contract is unchanged.

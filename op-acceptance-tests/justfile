@@ -1,6 +1,6 @@
 REPO_ROOT := `realpath ..`
 KURTOSIS_DIR := REPO_ROOT + "/kurtosis-devnet"
-ACCEPTOR_VERSION := env_var_or_default("ACCEPTOR_VERSION", "v0.1.9")
+ACCEPTOR_VERSION := env_var_or_default("ACCEPTOR_VERSION", "v1.1.1")
 DOCKER_REGISTRY := env_var_or_default("DOCKER_REGISTRY", "us-docker.pkg.dev/oplabs-tools-artifacts/images")
 ACCEPTOR_IMAGE := env_var_or_default("ACCEPTOR_IMAGE", DOCKER_REGISTRY + "/op-acceptor:" + ACCEPTOR_VERSION)
 
@@ -19,40 +19,87 @@ interop:
 
 
 # Run acceptance tests with mise-managed binary
-acceptance-test devnet="simple" gate="holocene":
+acceptance-test devnet="" gate="holocene":
     #!/usr/bin/env bash
     set -euo pipefail
 
-    echo -e "DEVNET: {{devnet}}, GATE: {{gate}}\n"
-
-    # Check if mise is installed
+     # Check if mise is installed
     if command -v mise >/dev/null; then
-        # Try to install op-acceptor using mise
-        if ! mise install op-acceptor; then
-            echo "WARNING: Failed to install op-acceptor with mise, falling back to Docker..."
-            just acceptance-test-docker {{devnet}} {{gate}}
-            exit 0
-        fi
-
-        # Run the appropriate devnet from the kurtosis-devnet directory if needed.
-        # Note: For now, due to a known bug, we ignore failures here
-        #       because if the devnet is already running then this command will fail.
-        just {{KURTOSIS_DIR}}/{{ devnet }}-devnet || true
-
-        # Print which binary is being used (for debugging)
-        BINARY_PATH=$(mise which op-acceptor)
-        echo "Using mise-managed binary: $BINARY_PATH"
-
-        # Run the op-acceptor binary
-        DEVNET_ENV_URL="kt://{{devnet}}-devnet" "$BINARY_PATH" \
-            --testdir "{{REPO_ROOT}}" \
-            --gate {{gate}} \
-            --validators ./acceptance-tests.yaml \
-            --log.level debug
+        echo "mise is installed"
     else
         echo "Mise not installed, falling back to Docker..."
         just acceptance-test-docker {{devnet}} {{gate}}
     fi
+
+    if [[ "{{devnet}}" == "" ]]; then
+        echo -e "DEVNET: in-memory, GATE: {{gate}}\n"
+    else
+        echo -e "DEVNET: {{devnet}}, GATE: {{gate}}\n"
+    fi
+
+    # For sysgo orchestrator (in-process testing) ensure:
+    # - contracts are built
+    # - cannon dependencies are built
+    # Note: build contracts only if not in CI (CI jobs already take care of this)
+    if [[ "{{devnet}}" == "" && -z "${CIRCLECI:-}" ]]; then
+        echo "Building contracts (local build)..."
+        cd {{REPO_ROOT}}
+        echo " - Updating submodules..."
+        git submodule update --init --recursive
+        echo " - Installing mise..."
+        mise install
+        cd packages/contracts-bedrock
+        echo " - Installing contracts..."
+        just install
+        echo " - Forge build..."
+        just build-no-tests
+        cd {{REPO_ROOT}}
+
+        echo "Checking cannon dependencies..."
+        if [ ! -e {{REPO_ROOT}}/cannon/bin/cannon ] || [ ! -e {{REPO_ROOT}}/op-program/bin/prestate-mt64.bin.gz ]; then
+            echo "Building cannon dependencies..."
+            cd {{REPO_ROOT}}
+            make cannon-prestates
+        fi
+    fi
+
+    # Try to install op-acceptor using mise
+    if ! mise install op-acceptor; then
+        echo "WARNING: Failed to install op-acceptor with mise, falling back to Docker..."
+        just acceptance-test-docker {{devnet}} {{gate}}
+        exit 0
+    fi
+
+    # Print which binary is being used
+    BINARY_PATH=$(mise which op-acceptor)
+    echo "Using mise-managed binary: $BINARY_PATH"
+
+    # Build the command with conditional parameters
+    CMD_ARGS=(
+        "go" "run" "cmd/main.go"
+        "--gate" "{{gate}}"
+        "--testdir" "{{REPO_ROOT}}"
+        "--validators" "./acceptance-tests.yaml"
+        "--log.level" "${LOG_LEVEL:-info}"
+        "--acceptor" "$BINARY_PATH"
+    )
+
+    # Set orchestrator and devnet based on input
+    if [[ "{{devnet}}" == "" ]]; then
+        # In-process testing
+        CMD_ARGS+=("--orchestrator" "sysgo")
+    else
+        # External devnet testing
+        CMD_ARGS+=("--orchestrator" "sysext")
+        CMD_ARGS+=("--devnet" "{{devnet}}")
+        # Include kurtosis-dir for devnet deployment
+        CMD_ARGS+=("--kurtosis-dir" "{{KURTOSIS_DIR}}")
+    fi
+
+    # Execute the command
+    cd {{REPO_ROOT}}/op-acceptance-tests
+    "${CMD_ARGS[@]}"
+
 
 # Run acceptance tests against a devnet using Docker (fallback if needed)
 acceptance-test-docker devnet="simple" gate="holocene":
@@ -62,8 +109,7 @@ acceptance-test-docker devnet="simple" gate="holocene":
     echo -e "DEVNET: {{devnet}}, GATE: {{gate}}\n"
 
     # First run the appropriate devnet from the kurtosis-devnet directory if needed.
-    # We ignore failures here because if the devnet is already running then this command will fail.
-    just {{KURTOSIS_DIR}}/{{ devnet }}-devnet || true
+    just {{KURTOSIS_DIR}}/{{ devnet }}-devnet
 
     # Print which image is being used (for debugging)
     echo "Using acceptor image: {{ACCEPTOR_IMAGE}}"
@@ -79,5 +125,7 @@ acceptance-test-docker devnet="simple" gate="holocene":
         --log.level debug
 
 
+
 clean:
     kurtosis clean --all
+    rm -rf tests/interop/loadtest/artifacts

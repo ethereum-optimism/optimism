@@ -1,12 +1,13 @@
-package opcm_test
+package opcm
 
 import (
 	"math/big"
 	"testing"
 
-	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/opcm"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/stretchr/testify/require"
+
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/standard"
 )
 
 func TestNewDeployMIPSScript(t *testing.T) {
@@ -17,13 +18,14 @@ func TestNewDeployMIPSScript(t *testing.T) {
 		// Then we load the script
 		//
 		// This would raise an error if the Go types didn't match the ABI
-		deploySuperchain, err := opcm.NewDeployMIPSScript(host1)
+		deploySuperchain, err := NewDeployMIPSScript(host1)
 		require.NoError(t, err)
 
 		// Then we deploy
-		output, err := deploySuperchain.Run(opcm.DeployMIPS2Input{
+		mipsVersion := int64(standard.MIPSVersion)
+		output, err := deploySuperchain.Run(DeployMIPS2Input{
 			PreimageOracle: common.Address{'P'},
-			MipsVersion:    big.NewInt(1),
+			MipsVersion:    big.NewInt(mipsVersion),
 		})
 
 		// And do some simple asserts
@@ -35,9 +37,9 @@ func TestNewDeployMIPSScript(t *testing.T) {
 		// We run it on a fresh host so that the deployer nonces are the same
 		// which in turn means we should get identical output
 		host2 := createTestHost(t)
-		deprecatedOutput, err := opcm.DeployMIPS(host2, opcm.DeployMIPSInput{
+		deprecatedOutput, err := DeployMIPS(host2, DeployMIPSInput{
 			PreimageOracle: common.Address{'P'},
-			MipsVersion:    1,
+			MipsVersion:    uint64(mipsVersion),
 		})
 
 		// Make sure it succeeded

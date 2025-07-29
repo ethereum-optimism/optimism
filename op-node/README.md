@@ -144,7 +144,7 @@ The op-node is changing in two ways:
 
 #### Interoperability
 
-The OP Stack is make chains natively interoperable:
+The OP Stack makes chains natively interoperable:
 messages between chains form safety dependencies, and verified asynchronously.
 Asynchronous verification entails that the op-node reorgs away a block
 if and when the block is determined to be invalid.

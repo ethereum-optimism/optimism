@@ -34,7 +34,7 @@ The philosophy behind the current architecture is:
 
 ### Routines
 
-The batcher has up to 4 concurrent routines:
+The batcher has up to 4 main concurrent routines:
 
 The `blockLoadingLoop`, which (in the happy path)
 
@@ -60,15 +60,16 @@ The `receiptsLoop` which
 
 The `throttlingLoop` which
 
-1. Waits for a signal either from the `blockLoadingLoop` or from the active sequencer endpoint provider (if more than one sequencer endpoint is provided)
-2. If it detects that the pending data in state is over a threshold, calls the sequencer over RPC and tells it to throttle the amount of L2 data it produces. See the (section below)[#data-availability-backlog]
+1. Waits for a signal from the `blockLoadingLoop`
+2. Calls (potentially multiple) sequencers over RPC and tells them to throttle or unthrottle -- that is, to limit (or not) the amount of L2 data they produce. See the (section below)[#data-availability-backlog]. Each sequencer is throttled in parallel by a separate sub-goroutine (not shown in the below diagram). Additional endpoints, such as builders in a rollup-boost setup, may also be configured to be throttled.
 
 The relationships are shown in this diagram:
 
 ```mermaid
 architecture-beta
 
-    service seq(database)[Sequencer]
+    group seqs(database)[x M]
+    service seq(database)[Sequencer] in seqs
     service dalayer(cloud)[DA Layer]
 
     group bs(server)[BatchSubmitter]
@@ -86,7 +87,7 @@ architecture-beta
     handler{group}:B --> T:receiptsLoop
 
     seq:R -->L:blockLoadingLoop
-    seq:B <--L:throttlingLoop
+    seq{group}:B <--L:throttlingLoop
 
     publishingLoop:T --> B:dalayer
     handler:T <--R:dalayer
@@ -135,6 +136,31 @@ OP_BATCHER_THROTTLE_ALWAYS_BLOCK_SIZE, and imposes no additional limit on the DA
 transaction. But in the case of a DA backlog (as defined by OP_BATCHER_THROTTLE_THRESHOLD), the batcher instructs the
 block builder to instead impose a (tighter) block level limit of OP_BATCHER_THROTTLE_BLOCK_SIZE, and a single
 transaction limit of OP_BATCHER_THROTTLE_TRANSACTION_SIZE.
+
+### Enhanced DA Throttling Mechanisms
+
+The batcher includes sophisticated throttling mechanisms to manage data availability backlogs and prevent excessive costs during high-load periods. These mechanisms support multiple control strategies, from simple binary throttling to advanced PID control systems.
+
+**Key Features:**
+- **Multiple Controller Types**: Step (binary), Linear, Quadratic, and PID controllers
+- **Runtime Management**: Switch between controllers via RPC without restarts
+- **Dynamic Response**: Automatically adjust throttling intensity based on DA load
+- **Multi-endpoint Support**: Throttle sequencers, builders, and other endpoints in parallel
+- **Comprehensive Monitoring**: Built-in metrics and diagnostic tools
+
+**Quick Start:**
+```bash
+# Configure basic throttling
+--throttle-threshold=1000000
+--throttle-controller-type=quadratic
+
+# Runtime controller switching
+curl -X POST -H "Content-Type: application/json" \
+  --data '{"jsonrpc":"2.0","method":"admin_getThrottleController","params":[],"id":1}' \
+  http://localhost:8545
+```
+
+**📖 For complete documentation, configuration guides, and troubleshooting, see [Enhanced DA Throttling Mechanisms](./throttling.md)**
 
 ### Max Channel Duration
 

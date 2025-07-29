@@ -7,7 +7,6 @@ import (
 	"os"
 	"path"
 	"path/filepath"
-	"slices"
 	"sort"
 	"testing"
 	"time"
@@ -31,10 +30,10 @@ import (
 	"github.com/ethereum-optimism/optimism/op-chain-ops/foundry"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/interopgen"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils"
+	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/contracts/bindings/emit"
+	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/contracts/bindings/inbox"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/fakebeacon"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/geth"
-	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/interop/contracts/bindings/emit"
-	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/interop/contracts/bindings/inbox"
 	"github.com/ethereum-optimism/optimism/op-e2e/system/helpers"
 	l2os "github.com/ethereum-optimism/optimism/op-proposer/proposer"
 	"github.com/ethereum-optimism/optimism/op-service/client"
@@ -90,7 +89,7 @@ type SuperSystem interface {
 	ChainID(network string) *big.Int
 	RollupConfig(network string) *rollup.Config
 	L2Genesis(network string) *core.Genesis
-	UserKey(nework, username string) ecdsa.PrivateKey
+	UserKey(network, username string) ecdsa.PrivateKey
 	L2OperatorKey(network string, role devkeys.ChainOperatorRole) ecdsa.PrivateKey
 	Address(network string, username string) common.Address
 	Contract(network string, contractName string) interface{}
@@ -108,6 +107,7 @@ type SuperSystem interface {
 type SuperSystemConfig struct {
 	mempoolFiltering  bool
 	SupportTimeTravel bool
+	BatcherUsesBlobs  bool
 }
 
 // NewSuperSystem creates a new SuperSystem from a recipe. It creates an interopE2ESystem.
@@ -215,7 +215,7 @@ func (s *interopE2ESystem) prepareL1() (*fakebeacon.FakeBeacon, *geth.GethInstan
 		l1Clock = s.timeTravelClock
 	}
 	// Start the L1 chain
-	l1Geth, err := geth.InitL1(
+	l1Geth, _, err := geth.InitL1(
 		blockTimeL1,
 		l1FinalizedDistance,
 		s.worldOutput.L1.Genesis,
@@ -294,14 +294,15 @@ func (s *interopE2ESystem) prepareSupervisor() *supervisor.SupervisorService {
 			ListenPort:  0,
 			EnableAdmin: true,
 		},
-		SyncSources: &syncnode.CLISyncNodes{}, // no sync-sources
-		L1RPC:       s.l1.UserRPC().RPC(),
-		Datadir:     path.Join(s.t.TempDir(), "supervisor"),
+		SyncSources:             &syncnode.CLISyncNodes{}, // no sync-sources
+		L1RPC:                   s.l1.UserRPC().RPC(),
+		Datadir:                 path.Join(s.t.TempDir(), "supervisor"),
+		RPCVerificationWarnings: true,
 	}
 
-	stDepSet, err := worldToDepset(s.worldOutput)
+	fullCfgSet, err := worldToFullCfgSet(s.worldOutput)
 	require.NoError(s.t, err)
-	cfg.DependencySetSource = stDepSet
+	cfg.FullConfigSetSource = fullCfgSet
 
 	// Create the supervisor with the configuration
 	super, err := supervisor.SupervisorFromConfig(context.Background(), cfg, logger)
@@ -404,7 +405,7 @@ func (s *interopE2ESystem) Address(id, username string) common.Address {
 func (s *interopE2ESystem) prepareL2s() map[string]l2Net {
 	l2s := make(map[string]l2Net)
 	for id, l2Out := range s.worldOutput.L2s {
-		l2s[id] = s.newL2(id, l2Out)
+		l2s[id] = s.newL2(id, l2Out, s.DependencySet())
 	}
 	return l2s
 }
@@ -581,7 +582,7 @@ func (s *interopE2ESystem) Contract(id string, name string) interface{} {
 }
 
 func (s *interopE2ESystem) DependencySet() *depset.StaticConfigDependencySet {
-	stDepSet, err := worldToDepset(s.worldOutput)
+	stDepSet, err := worldToDepSet(s.worldOutput)
 	require.NoError(s.t, err)
 	return stDepSet
 }
@@ -605,7 +606,7 @@ func writeDefaultJWT(t testing.TB) string {
 	return jwtPath
 }
 
-func worldToDepset(world *interopgen.WorldOutput) (*depset.StaticConfigDependencySet, error) {
+func worldToDepSet(world *interopgen.WorldOutput) (*depset.StaticConfigDependencySet, error) {
 	var ids []eth.ChainID
 	for _, l2Out := range world.L2s {
 		chainID := eth.ChainIDFromBig(l2Out.Genesis.Config.ChainID)
@@ -617,12 +618,15 @@ func worldToDepset(world *interopgen.WorldOutput) (*depset.StaticConfigDependenc
 	// Iterate over the L2 chain configs. The L2 nodes don't exist yet.
 	for _, l2Out := range world.L2s {
 		chainID := eth.ChainIDFromBig(l2Out.Genesis.Config.ChainID)
-		chainIndex := supervisortypes.ChainIndex(100 + slices.Index(ids, chainID))
-		depSet[chainID] = &depset.StaticConfigDependency{
-			ChainIndex:     chainIndex,
-			ActivationTime: 0,
-			HistoryMinTime: 0,
-		}
+		depSet[chainID] = &depset.StaticConfigDependency{}
 	}
 	return depset.NewStaticConfigDependencySet(depSet)
+}
+
+func worldToFullCfgSet(world *interopgen.WorldOutput) (depset.FullConfigSetMerged, error) {
+	depSet, err := worldToDepSet(world)
+	if err != nil {
+		return depset.FullConfigSetMerged{}, err
+	}
+	return depset.NewFullConfigSetMerged(world.RollupConfigSet(), depSet)
 }

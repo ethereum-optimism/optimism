@@ -3,7 +3,6 @@ package challenger
 import (
 	"context"
 	"crypto/ecdsa"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -11,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	shared "github.com/ethereum-optimism/optimism/op-devstack/shared/challenger"
 	"github.com/ethereum-optimism/optimism/op-service/crypto"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/depset"
 
@@ -32,14 +32,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 )
 
-type PrestateVariant string
-
-const (
-	STCannonVariant PrestateVariant = ""
-	MTCannonVariant PrestateVariant = "mt64"
-	InteropVariant  PrestateVariant = "interop"
-)
-
 type EndpointProvider interface {
 	NodeEndpoint(name string) endpoint.RPC
 	L2NodeEndpoints() []endpoint.RPC
@@ -52,7 +44,7 @@ type EndpointProvider interface {
 type System interface {
 	RollupCfgs() []*rollup.Config
 	L2Geneses() []*core.Genesis
-	PrestateVariant() PrestateVariant
+	PrestateVariant() shared.PrestateVariant
 }
 type Helper struct {
 	log     log.Logger
@@ -113,89 +105,38 @@ func WithInvalidCannonPrestate() Option {
 }
 
 func WithDepset(t *testing.T, ds *depset.StaticConfigDependencySet) Option {
+	return handleOptError(t, shared.WithDepset(ds))
+}
+
+type MinimalT interface {
+	require.TestingT
+	TempDir() string
+	Logf(format string, args ...interface{})
+}
+
+func handleOptError(t *testing.T, opt shared.Option) Option {
 	return func(c *config.Config) {
-		b, err := ds.MarshalJSON()
-		require.NoError(t, err)
-		path := filepath.Join(t.TempDir(), "challenger-depset.json")
-		require.NoError(t, os.WriteFile(path, b, 0o644))
-		c.Cannon.DepsetConfigPath = path
+		require.NoError(t, opt(c))
 	}
 }
-
-// FindMonorepoRoot finds the relative path to the monorepo root
-// Different tests might be nested in subdirectories of the op-e2e dir.
-func FindMonorepoRoot(t *testing.T) string {
-	path := "./"
-	// Only search up 5 directories
-	// Avoids infinite recursion if the root isn't found for some reason
-	for i := 0; i < 5; i++ {
-		_, err := os.Stat(path + "op-e2e")
-		if errors.Is(err, os.ErrNotExist) {
-			path = path + "../"
-			continue
-		}
-		require.NoErrorf(t, err, "Failed to stat %v even though it existed", path)
-		return path
-	}
-	t.Fatalf("Could not find monorepo root, trying up to %v", path)
-	return ""
-}
-
-func applyCannonConfig(c *config.Config, t *testing.T, rollupCfgs []*rollup.Config, l2Geneses []*core.Genesis, prestateVariant PrestateVariant) {
-	require := require.New(t)
-	root := FindMonorepoRoot(t)
-	c.Cannon.VmBin = root + "cannon/bin/cannon"
-	c.Cannon.Server = root + "op-program/bin/op-program"
-	t.Logf("Using absolute prestate variant %v", prestateVariant)
-	if prestateVariant != "" {
-		c.CannonAbsolutePreState = root + "op-program/bin/prestate-" + string(prestateVariant) + ".bin.gz"
-	} else {
-		c.CannonAbsolutePreState = root + "op-program/bin/prestate.bin.gz"
-	}
-	c.Cannon.SnapshotFreq = 10_000_000
-
-	for _, l2Genesis := range l2Geneses {
-		genesisBytes, err := json.Marshal(l2Genesis)
-		require.NoError(err, "marshall l2 genesis config")
-		genesisFile := filepath.Join(c.Datadir, fmt.Sprintf("l2-genesis-%v.json", l2Genesis.Config.ChainID))
-		require.NoError(os.WriteFile(genesisFile, genesisBytes, 0o644))
-		c.Cannon.L2GenesisPaths = append(c.Cannon.L2GenesisPaths, genesisFile)
-	}
-
-	for _, rollupCfg := range rollupCfgs {
-		rollupBytes, err := json.Marshal(rollupCfg)
-		require.NoError(err, "marshall rollup config")
-		rollupFile := filepath.Join(c.Datadir, fmt.Sprintf("rollup-%v.json", rollupCfg.L2ChainID))
-		require.NoError(os.WriteFile(rollupFile, rollupBytes, 0o644))
-		c.Cannon.RollupConfigPaths = append(c.Cannon.RollupConfigPaths, rollupFile)
-	}
-}
-
 func WithCannon(t *testing.T, system System) Option {
 	return func(c *config.Config) {
-		c.TraceTypes = append(c.TraceTypes, types.TraceTypeCannon)
-		applyCannonConfig(c, t, system.RollupCfgs(), system.L2Geneses(), system.PrestateVariant())
+		handleOptError(t, shared.WithCannonConfig(system.RollupCfgs(), system.L2Geneses(), system.PrestateVariant()))(c)
+		handleOptError(t, shared.WithCannonTraceType())(c)
 	}
 }
 
 func WithPermissioned(t *testing.T, system System) Option {
 	return func(c *config.Config) {
-		c.TraceTypes = append(c.TraceTypes, types.TraceTypePermissioned)
-		applyCannonConfig(c, t, system.RollupCfgs(), system.L2Geneses(), system.PrestateVariant())
+		handleOptError(t, shared.WithCannonConfig(system.RollupCfgs(), system.L2Geneses(), system.PrestateVariant()))(c)
+		handleOptError(t, shared.WithPermissionedTraceType())(c)
 	}
 }
 
 func WithSuperCannon(t *testing.T, system System) Option {
 	return func(c *config.Config) {
-		c.TraceTypes = append(c.TraceTypes, types.TraceTypeSuperCannon)
-		applyCannonConfig(c, t, system.RollupCfgs(), system.L2Geneses(), system.PrestateVariant())
-	}
-}
-
-func WithSuperPermissioned(t *testing.T, system System) Option {
-	return func(c *config.Config) {
-		c.TraceTypes = append(c.TraceTypes, types.TraceTypeSuperPermissioned)
-		applyCannonConfig(c, t, system.RollupCfgs(), system.L2Geneses(), system.PrestateVariant())
+		handleOptError(t, shared.WithCannonConfig(system.RollupCfgs(), system.L2Geneses(), system.PrestateVariant()))(c)
+		handleOptError(t, shared.WithSuperCannonTraceType())(c)
 	}
 }
 
@@ -261,15 +202,15 @@ func NewChallengerConfig(t *testing.T, sys EndpointProvider, l2NodeName string, 
 
 	if cfg.Cannon.VmBin != "" {
 		_, err := os.Stat(cfg.Cannon.VmBin)
-		require.NoError(t, err, "cannon should be built. Make sure you've run make cannon-prestate")
+		require.NoError(t, err, "cannon should be built. Make sure you've run make cannon-prestates")
 	}
 	if cfg.Cannon.Server != "" {
 		_, err := os.Stat(cfg.Cannon.Server)
-		require.NoError(t, err, "op-program should be built. Make sure you've run make cannon-prestate")
+		require.NoError(t, err, "op-program should be built. Make sure you've run make cannon-prestates")
 	}
 	if cfg.CannonAbsolutePreState != "" {
 		_, err := os.Stat(cfg.CannonAbsolutePreState)
-		require.NoError(t, err, "cannon pre-state should be built. Make sure you've run make cannon-prestate")
+		require.NoError(t, err, "cannon pre-state should be built. Make sure you've run make cannon-prestates")
 	}
 	if cfg.PollInterval == 0 {
 		cfg.PollInterval = time.Second

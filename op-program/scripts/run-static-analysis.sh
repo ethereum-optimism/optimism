@@ -15,13 +15,8 @@ if [[ $# -ne 2 ]]; then
     usage
 fi
 
-VM_PROFILE=$1
+VM_PROFILE_CONFIG=$1
 BASELINE_REPORT=$2
-
-if [[ "$VM_PROFILE" != "cannon-singlethreaded-32" && "$VM_PROFILE" != "cannon-multithreaded-64" ]]; then
-    echo "Error: Invalid vm-profile '$VM_PROFILE'"
-    usage
-fi
 
 ANALYZER_BIN="vm-compat"
 
@@ -50,10 +45,11 @@ fi
 echo "✅ vm-compat found at $(which vm-compat)"
 
 # Run the analyzer
-echo "Running analysis with VM profile: $VM_PROFILE using baseline report: $BASELINE_REPORT..."
+echo "Running analysis with VM profile: $VM_PROFILE_CONFIG using baseline report: $BASELINE_REPORT..."
 OUTPUT_FILE=$(mktemp)
 
-"$ANALYZER_BIN" analyze --with-trace=true --format=json --vm-profile "$VM_PROFILE" --baseline-report "$BASELINE_REPORT" --report-output-path "$OUTPUT_FILE" ./client/cmd/main.go
+# Note: to output the full report, remove the `--baseline-report` option below
+"$ANALYZER_BIN" analyze --with-trace=true --skip-warnings=false --format=json --vm-profile-config "$VM_PROFILE_CONFIG" --baseline-report "$BASELINE_REPORT" --report-output-path "$OUTPUT_FILE" ./client/cmd/main.go
 
 # Check if JSON output contains any issues
 ISSUE_COUNT=$(jq 'length' "$OUTPUT_FILE")

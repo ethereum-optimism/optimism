@@ -17,18 +17,23 @@ contract EOA_Harness {
     }
 }
 
-/// @title EOA_isEOA_Test
-contract EOA_isEOA_Test is Test {
+/// @title EOA_TestInit
+/// @notice Reusable test initialization for `EOA` tests.
+contract EOA_TestInit is Test {
     EOA_Harness harness;
 
     /// @notice Sets up the test.
     function setUp() public {
         harness = new EOA_Harness();
     }
+}
 
+/// @title EOA_isSenderEOA_Test
+/// @notice Tests the `isSenderEOA` function of the `EOA` library.
+contract EOA_isSenderEOA_Test is EOA_TestInit {
     /// @notice Tests that a standard EOA is detected as an EOA.
     /// @param _privateKey The private key of the sender.
-    function testFuzz_isEOA_isStandardEOA_succeeds(uint256 _privateKey) external {
+    function testFuzz_isSenderEOA_isStandardEOA_succeeds(uint256 _privateKey) external {
         // Make sure that the private key is in the range of a valid secp256k1 private key.
         _privateKey = boundPrivateKey(_privateKey);
 
@@ -44,7 +49,7 @@ contract EOA_isEOA_Test is Test {
     /// @notice Tests that a 7702 EOA is detected as an EOA.
     /// @param _privateKey The private key of the sender.
     /// @param _7702Target The target of the 7702 EOA.
-    function testFuzz_isEOA_is7702EOA_succeeds(uint256 _privateKey, address _7702Target) external {
+    function testFuzz_isSenderEOA_is7702EOA_succeeds(uint256 _privateKey, address _7702Target) external {
         // Make sure that the private key is in the range of a valid secp256k1 private key.
         _privateKey = boundPrivateKey(_privateKey);
 
@@ -64,7 +69,7 @@ contract EOA_isEOA_Test is Test {
     /// @notice Tests that a contract is not detected as an EOA.
     /// @param _privateKey The private key of the sender.
     /// @param _code The code of the sender.
-    function testFuzz_isEOA_isContract_succeeds(uint256 _privateKey, bytes memory _code) external {
+    function testFuzz_isSenderEOA_isContract_succeeds(uint256 _privateKey, bytes memory _code) external {
         // Make sure that the private key is in the range of a valid secp256k1 private key.
         _privateKey = boundPrivateKey(_privateKey);
 
@@ -84,7 +89,7 @@ contract EOA_isEOA_Test is Test {
 
     /// @notice Tests that a contract with 23 bytes of code is not detected as an EOA.
     /// @param _privateKey The private key of the sender.
-    function testFuzz_isEOA_isContract23BytesNot7702_succeeds(uint256 _privateKey) external {
+    function testFuzz_isSenderEOA_isContract23BytesNot7702_succeeds(uint256 _privateKey) external {
         // Make sure that the private key is in the range of a valid secp256k1 private key.
         _privateKey = boundPrivateKey(_privateKey);
 

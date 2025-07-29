@@ -1,9 +1,8 @@
-package opcm_test
+package opcm
 
 import (
 	"testing"
 
-	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/opcm"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/stretchr/testify/require"
 )
@@ -16,11 +15,11 @@ func TestNewDeployProxyScript(t *testing.T) {
 		// Then we load the script
 		//
 		// This would raise an error if the Go types didn't match the ABI
-		deployProxy, err := opcm.NewDeployProxyScript(host1)
+		deployProxy, err := NewDeployProxyScript(host1)
 		require.NoError(t, err)
 
 		// Then we deploy
-		output, err := deployProxy.Run(opcm.DeployProxy2Input{
+		output, err := deployProxy.Run(DeployProxy2Input{
 			Owner: common.Address{'O'},
 		})
 
@@ -33,7 +32,7 @@ func TestNewDeployProxyScript(t *testing.T) {
 		// We run it on a fresh host so that the deployer nonces are the same
 		// which in turn means we should get identical output
 		host2 := createTestHost(t)
-		deprecatedOutput, err := opcm.DeployProxy(host2, opcm.DeployProxyInput{
+		deprecatedOutput, err := DeployProxy(host2, DeployProxyInput{
 			Owner: common.Address{'O'},
 		})
 

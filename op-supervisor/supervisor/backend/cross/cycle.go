@@ -6,14 +6,16 @@ import (
 	"strings"
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/depset"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 )
 
+// These error must be considered as ErrConflict to trigger a reorg.
 var (
-	ErrCycle                  = errors.New("cycle detected")
-	ErrExecMsgHasInvalidIndex = errors.New("executing message has invalid log index")
-	ErrExecMsgUnknownChain    = errors.New("executing message references unknown chain")
+	ErrCycle                  = fmt.Errorf("%w: cycle detected", types.ErrConflict)
+	ErrExecMsgHasInvalidIndex = fmt.Errorf("%w: executing message has invalid log index", types.ErrConflict)
+	ErrExecMsgUnknownChain    = fmt.Errorf("%w: executing message references unknown chain", types.ErrConflict)
+
+	errInconsistentBlockSeal = errors.New("inconsistent block seal")
 )
 
 // CycleCheckDeps is an interface for checking cyclical dependencies between logs.
@@ -26,8 +28,8 @@ type CycleCheckDeps interface {
 // It could be an initiating message, executing message, both, or neither.
 // It is uniquely identified by chain index and the log index within its parent block.
 type node struct {
-	chainIndex types.ChainIndex
-	logIndex   uint32
+	chainID  eth.ChainID
+	logIndex uint32
 }
 
 // graph is a directed graph of message dependencies.
@@ -69,8 +71,8 @@ func (g *graph) addEdge(from, to node) {
 // succeeds if and only if a graph is acyclic.
 //
 // Returns nil if no cycles are found or ErrCycle if a cycle is detected.
-func HazardCycleChecks(depSet depset.ChainIDFromIndex, d CycleCheckDeps, inTimestamp uint64, hazards *HazardSet) error {
-	g, err := buildGraph(depSet, d, inTimestamp, hazards)
+func HazardCycleChecks(d CycleCheckDeps, inTimestamp uint64, hazards *HazardSet) error {
+	g, err := buildGraph(d, inTimestamp, hazards)
 	if err != nil {
 		return err
 	}
@@ -82,26 +84,22 @@ func HazardCycleChecks(depSet depset.ChainIDFromIndex, d CycleCheckDeps, inTimes
 // Returns:
 // - map of chain index to its log count
 // - map of chain index to map of log index to executing message (nil if doesn't exist or ignored)
-func gatherLogs(depSet depset.ChainIDFromIndex, d CycleCheckDeps, inTimestamp uint64, hazards *HazardSet) (
-	map[types.ChainIndex]uint32,
-	map[types.ChainIndex]map[uint32]*types.ExecutingMessage,
+func gatherLogs(d CycleCheckDeps, inTimestamp uint64, hazards *HazardSet) (
+	map[eth.ChainID]uint32,
+	map[eth.ChainID]map[uint32]*types.ExecutingMessage,
 	error,
 ) {
-	logCounts := make(map[types.ChainIndex]uint32)
-	execMsgs := make(map[types.ChainIndex]map[uint32]*types.ExecutingMessage)
+	logCounts := make(map[eth.ChainID]uint32)
+	execMsgs := make(map[eth.ChainID]map[uint32]*types.ExecutingMessage)
 
-	for hazardChainIndex, hazardBlock := range hazards.Entries() {
-		hazardChainID, err := depSet.ChainIDFromIndex(hazardChainIndex)
-		if err != nil {
-			return nil, nil, err
-		}
+	for hazardChainID, hazardBlock := range hazards.Entries() {
 		bl, logCount, msgs, err := d.OpenBlock(hazardChainID, hazardBlock.Number)
 		if err != nil {
 			return nil, nil, fmt.Errorf("failed to open block: %w", err)
 		}
 
 		if !blockSealMatchesRef(hazardBlock, bl) {
-			return nil, nil, fmt.Errorf("tried to open block %s of chain %s, but got different block %s than expected, use a reorg lock for consistency", hazardBlock, hazardChainID, bl)
+			return nil, nil, fmt.Errorf("tried to open block %s of chain %s, but got different block %s than expected, use a reorg lock for consistency: %w", hazardBlock, hazardChainID, bl, errInconsistentBlockSeal)
 		}
 
 		// Validate executing message indices
@@ -112,16 +110,16 @@ func gatherLogs(depSet depset.ChainIDFromIndex, d CycleCheckDeps, inTimestamp ui
 		}
 
 		// Store log count and in-timestamp executing messages
-		logCounts[hazardChainIndex] = logCount
+		logCounts[hazardChainID] = logCount
 
 		if len(msgs) > 0 {
-			if _, exists := execMsgs[hazardChainIndex]; !exists {
-				execMsgs[hazardChainIndex] = make(map[uint32]*types.ExecutingMessage)
+			if _, exists := execMsgs[hazardChainID]; !exists {
+				execMsgs[hazardChainID] = make(map[uint32]*types.ExecutingMessage)
 			}
 		}
 		for logIdx, msg := range msgs {
 			if msg.Timestamp == inTimestamp {
-				execMsgs[hazardChainIndex][logIdx] = msg
+				execMsgs[hazardChainID][logIdx] = msg
 			}
 		}
 	}
@@ -130,24 +128,24 @@ func gatherLogs(depSet depset.ChainIDFromIndex, d CycleCheckDeps, inTimestamp ui
 }
 
 // buildGraph constructs a dependency graph from the hazard blocks.
-func buildGraph(depSet depset.ChainIDFromIndex, d CycleCheckDeps, inTimestamp uint64, hazards *HazardSet) (*graph, error) {
+func buildGraph(d CycleCheckDeps, inTimestamp uint64, hazards *HazardSet) (*graph, error) {
 	g := &graph{
 		inDegree0:     make(map[node]struct{}),
 		inDegreeNon0:  make(map[node]uint32),
 		outgoingEdges: make(map[node][]node),
 	}
 
-	logCounts, execMsgs, err := gatherLogs(depSet, d, inTimestamp, hazards)
+	logCounts, execMsgs, err := gatherLogs(d, inTimestamp, hazards)
 	if err != nil {
 		return nil, err
 	}
 
 	// Add nodes for each log in the block, and add edges between sequential logs
-	for hazardChainIndex, logCount := range logCounts {
+	for hazardChainID, logCount := range logCounts {
 		for i := uint32(0); i < logCount; i++ {
 			k := node{
-				chainIndex: hazardChainIndex,
-				logIndex:   i,
+				chainID:  hazardChainID,
+				logIndex: i,
 			}
 
 			if i == 0 {
@@ -156,8 +154,8 @@ func buildGraph(depSet depset.ChainIDFromIndex, d CycleCheckDeps, inTimestamp ui
 			} else {
 				// Add edge: prev log <> current log
 				prevKey := node{
-					chainIndex: hazardChainIndex,
-					logIndex:   i - 1,
+					chainID:  hazardChainID,
+					logIndex: i - 1,
 				}
 				g.addEdge(prevKey, k)
 			}
@@ -166,40 +164,31 @@ func buildGraph(depSet depset.ChainIDFromIndex, d CycleCheckDeps, inTimestamp ui
 
 	// Add edges for executing messages to their initiating messages
 	hazardEntries := hazards.Entries()
-	for hazardChainIndex, msgs := range execMsgs {
+	for hazardChainID, msgs := range execMsgs {
 		for execLogIdx, m := range msgs {
 			// Error if the chain is unknown
-			if _, ok := hazardEntries[m.Chain]; !ok {
+			if _, ok := hazardEntries[m.ChainID]; !ok {
 				return nil, ErrExecMsgUnknownChain
 			}
 
-			// Check if we care about the init message
-			initChainMsgs, ok := execMsgs[m.Chain]
-			if !ok {
-				continue
-			}
-			if _, ok := initChainMsgs[m.LogIdx]; !ok {
-				continue
-			}
-
 			// Check if the init message exists
-			if logCount, ok := logCounts[m.Chain]; !ok || m.LogIdx >= logCount {
+			if logCount, ok := logCounts[m.ChainID]; !ok || m.LogIdx >= logCount {
 				return nil, fmt.Errorf("%w: initiating message log index out of bounds", types.ErrConflict)
 			}
 
 			initKey := node{
-				chainIndex: m.Chain,
-				logIndex:   m.LogIdx,
+				chainID:  m.ChainID,
+				logIndex: m.LogIdx,
 			}
 			execKey := node{
-				chainIndex: hazardChainIndex,
-				logIndex:   execLogIdx,
+				chainID:  hazardChainID,
+				logIndex: execLogIdx,
 			}
 
 			// Disallow self-referencing messages
 			// This should not be possible since the executing message contains the hash of the initiating message.
 			if initKey == execKey {
-				return nil, fmt.Errorf("%w: self referencial message", types.ErrConflict)
+				return nil, fmt.Errorf("%w: self referential message", types.ErrConflict)
 			}
 
 			// Add the edge
@@ -264,12 +253,12 @@ func GenerateMermaidDiagram(g *graph) string {
 
 	// Helper function to get a unique ID for each node
 	getNodeID := func(k node) string {
-		return fmt.Sprintf("N%d_%d", k.chainIndex, k.logIndex)
+		return fmt.Sprintf("N%d_%d", k.chainID, k.logIndex)
 	}
 
 	// Helper function to get a label for each node
 	getNodeLabel := func(k node) string {
-		return fmt.Sprintf("C%d:L%d", k.chainIndex, k.logIndex)
+		return fmt.Sprintf("C%d:L%d", k.chainID, k.logIndex)
 	}
 
 	// Function to add a node to the diagram

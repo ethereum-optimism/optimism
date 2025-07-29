@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"strings"
 	"sync/atomic"
 	"time"
 
@@ -13,6 +12,7 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 
 	altda "github.com/ethereum-optimism/optimism/op-alt-da"
+	"github.com/ethereum-optimism/optimism/op-batcher/config"
 	"github.com/ethereum-optimism/optimism/op-batcher/flags"
 	"github.com/ethereum-optimism/optimism/op-batcher/metrics"
 	"github.com/ethereum-optimism/optimism/op-batcher/rpc"
@@ -26,6 +26,7 @@ import (
 	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
 	"github.com/ethereum-optimism/optimism/op-service/oppprof"
 	oprpc "github.com/ethereum-optimism/optimism/op-service/rpc"
+	"github.com/ethereum-optimism/optimism/op-service/slices"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
 )
 
@@ -46,10 +47,7 @@ type BatcherConfig struct {
 	CheckRecentTxsDepth int
 
 	// For throttling DA. See CLIConfig in config.go for details on these parameters.
-	ThrottleThreshold, ThrottleTxSize          uint64
-	ThrottleBlockSize, ThrottleAlwaysBlockSize uint64
-
-	PreferLocalSafeL2 bool
+	ThrottleParams config.ThrottleParams
 }
 
 // BatcherService represents a full batch-submitter instance and its resources,
@@ -108,18 +106,60 @@ func (bs *BatcherService) initFromCLIConfig(ctx context.Context, version string,
 	bs.CheckRecentTxsDepth = cfg.CheckRecentTxsDepth
 	bs.WaitNodeSync = cfg.WaitNodeSync
 
-	bs.ThrottleThreshold = cfg.ThrottleThreshold
-	bs.ThrottleTxSize = cfg.ThrottleTxSize
-	bs.ThrottleBlockSize = cfg.ThrottleBlockSize
-	bs.ThrottleAlwaysBlockSize = cfg.ThrottleAlwaysBlockSize
+	bs.ThrottleParams = config.ThrottleParams{
+		Threshold:           cfg.ThrottleThreshold,
+		TxSize:              cfg.ThrottleTxSize,
+		BlockSize:           cfg.ThrottleBlockSize,
+		AlwaysBlockSize:     cfg.ThrottleAlwaysBlockSize,
+		ThresholdMultiplier: cfg.ThrottleThresholdMultiplier,
+		ControllerType:      cfg.ThrottleControllerType,
+		Endpoints:           slices.Union(cfg.L2EthRpc, cfg.AdditionalThrottlingEndpoints),
+	}
 
-	bs.PreferLocalSafeL2 = cfg.PreferLocalSafeL2
+	if bs.ThrottleParams.ControllerType == config.PIDControllerType {
+		bs.Log.Warn("EXPERIMENTAL PID CONTROLLER CONFIGURED")
+		bs.Log.Warn("PID controller is EXPERIMENTAL and should only be used by control theory experts. Improper configuration can lead to system instability or poor performance. Monitor system behavior closely when using PID control.")
 
-	optsFromRPC, err := bs.initRPCClients(ctx, cfg)
-	if err != nil {
+		// Validate PID configuration parameters
+		if cfg.ThrottlePidKp < 0 {
+			return fmt.Errorf("PID Kp gain must be non-negative, got %f", cfg.ThrottlePidKp)
+		}
+		if cfg.ThrottlePidKi < 0 {
+			return fmt.Errorf("PID Ki gain must be non-negative, got %f", cfg.ThrottlePidKi)
+		}
+		if cfg.ThrottlePidKd < 0 {
+			return fmt.Errorf("PID Kd gain must be non-negative, got %f", cfg.ThrottlePidKd)
+		}
+		if cfg.ThrottlePidIntegralMax <= 0 {
+			return fmt.Errorf("PID IntegralMax must be positive, got %f", cfg.ThrottlePidIntegralMax)
+		}
+		if cfg.ThrottlePidOutputMax <= 0 || cfg.ThrottlePidOutputMax > 1 {
+			return fmt.Errorf("PID OutputMax must be between 0 and 1, got %f", cfg.ThrottlePidOutputMax)
+		}
+		if cfg.ThrottlePidSampleTime <= 0 {
+			return fmt.Errorf("PID SampleTime must be positive, got %v", cfg.ThrottlePidSampleTime)
+		}
+
+		bs.ThrottleParams.PIDConfig = &config.PIDConfig{
+			Kp:          cfg.ThrottlePidKp,
+			Ki:          cfg.ThrottlePidKi,
+			Kd:          cfg.ThrottlePidKd,
+			IntegralMax: cfg.ThrottlePidIntegralMax,
+			OutputMax:   cfg.ThrottlePidOutputMax,
+			SampleTime:  cfg.ThrottlePidSampleTime,
+		}
+		bs.Log.Info("Initialized PID throttle controller",
+			"kp", bs.ThrottleParams.PIDConfig.Kp,
+			"ki", bs.ThrottleParams.PIDConfig.Ki,
+			"kd", bs.ThrottleParams.PIDConfig.Kd,
+			"integral_max", bs.ThrottleParams.PIDConfig.IntegralMax,
+			"output_max", bs.ThrottleParams.PIDConfig.OutputMax,
+			"sample_time", bs.ThrottleParams.PIDConfig.SampleTime)
+	}
+
+	if err := bs.initRPCClients(ctx, cfg); err != nil {
 		return err
 	}
-	opts = append(optsFromRPC, opts...)
 
 	if err := bs.initRollupConfig(ctx); err != nil {
 		return fmt.Errorf("failed to load rollup config: %w", err)
@@ -151,50 +191,29 @@ func (bs *BatcherService) initFromCLIConfig(ctx context.Context, version string,
 	return nil
 }
 
-func (bs *BatcherService) initRPCClients(ctx context.Context, cfg *CLIConfig) (opts []DriverSetupOption, _ error) {
+func (bs *BatcherService) initRPCClients(ctx context.Context, cfg *CLIConfig) error {
 	l1Client, err := dial.DialEthClientWithTimeout(ctx, dial.DefaultDialTimeout, bs.Log, cfg.L1EthRpc)
 	if err != nil {
-		return nil, fmt.Errorf("failed to dial L1 RPC: %w", err)
+		return fmt.Errorf("failed to dial L1 RPC: %w", err)
 	}
 	bs.L1Client = l1Client
 
 	var endpointProvider dial.L2EndpointProvider
-	if strings.Contains(cfg.RollupRpc, ",") && strings.Contains(cfg.L2EthRpc, ",") {
-		rollupUrls := strings.Split(cfg.RollupRpc, ",")
-		ethUrls := strings.Split(cfg.L2EthRpc, ",")
-		provider, err := dial.NewActiveL2EndpointProvider(ctx, ethUrls, rollupUrls, cfg.ActiveSequencerCheckDuration, dial.DefaultDialTimeout, bs.Log)
+	if len(cfg.RollupRpc) > 1 && len(cfg.L2EthRpc) > 1 {
+		provider, err := dial.NewActiveL2EndpointProvider(ctx, cfg.L2EthRpc, cfg.RollupRpc, cfg.ActiveSequencerCheckDuration, dial.DefaultDialTimeout, bs.Log)
 		if err != nil {
-			return nil, fmt.Errorf("failed to build active L2 endpoint provider: %w", err)
+			return fmt.Errorf("failed to build active L2 endpoint provider: %w", err)
 		}
 		endpointProvider = provider
-
-		// If we use an active endpoint provider AND throttling is enabled,
-		// we need to set up the callback to notify the driver any time we
-		// get a new active sequencer
-		if cfg.ThrottleThreshold > 0 {
-			activeSeqChanged := make(chan struct{}, 1)
-			opts = []DriverSetupOption{func(setup *DriverSetup) {
-				setup.ActiveSeqChanged = activeSeqChanged
-			}}
-			// callback to notify the driver of a new active sequencer
-			cb := func() {
-				select {
-				case activeSeqChanged <- struct{}{}:
-				default:
-				}
-			}
-			provider.SetOnActiveProviderChanged(cb)
-
-		}
 	} else {
-		endpointProvider, err = dial.NewStaticL2EndpointProvider(ctx, bs.Log, cfg.L2EthRpc, cfg.RollupRpc)
+		endpointProvider, err = dial.NewStaticL2EndpointProvider(ctx, bs.Log, cfg.L2EthRpc[0], cfg.RollupRpc[0])
 		if err != nil {
-			return nil, fmt.Errorf("failed to build static L2 endpoint provider: %w", err)
+			return fmt.Errorf("failed to build static L2 endpoint provider: %w", err)
 		}
 	}
 	bs.EndpointProvider = endpointProvider
 
-	return opts, nil
+	return nil
 }
 
 func (bs *BatcherService) initMetrics(cfg *CLIConfig) {

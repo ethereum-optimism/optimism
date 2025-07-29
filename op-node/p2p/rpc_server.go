@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-node/p2p/gating"
+	"github.com/ethereum-optimism/optimism/op-service/apis"
 
 	decredSecp "github.com/decred/dcrd/dcrec/secp256k1/v4"
 	"github.com/ethereum-optimism/optimism/op-node/p2p/store"
@@ -59,7 +60,7 @@ type APIBackend struct {
 	log  log.Logger
 }
 
-var _ API = (*APIBackend)(nil)
+var _ apis.P2PClient = (*APIBackend)(nil)
 
 func NewP2PAPIBackend(node Node, log log.Logger) *APIBackend {
 	return &APIBackend{
@@ -68,7 +69,7 @@ func NewP2PAPIBackend(node Node, log log.Logger) *APIBackend {
 	}
 }
 
-func (s *APIBackend) Self(ctx context.Context) (*PeerInfo, error) {
+func (s *APIBackend) Self(ctx context.Context) (*apis.PeerInfo, error) {
 	h := s.node.Host()
 	nw := h.Network()
 	pstore := h.Peerstore()
@@ -84,8 +85,8 @@ func (s *APIBackend) Self(ctx context.Context) (*PeerInfo, error) {
 	return info, nil
 }
 
-func dumpPeer(id peer.ID, nw network.Network, pstore peerstore.Peerstore, connMgr connmgr.ConnManager) (*PeerInfo, error) {
-	info := &PeerInfo{
+func dumpPeer(id peer.ID, nw network.Network, pstore peerstore.Peerstore, connMgr connmgr.ConnManager) (*apis.PeerInfo, error) {
+	info := &apis.PeerInfo{
 		PeerID: id,
 	}
 
@@ -150,7 +151,7 @@ func dumpPeer(id peer.ID, nw network.Network, pstore peerstore.Peerstore, connMg
 }
 
 // Peers lists information of peers. Optionally filter to only retrieve connected peers.
-func (s *APIBackend) Peers(ctx context.Context, connected bool) (*PeerDump, error) {
+func (s *APIBackend) Peers(ctx context.Context, connected bool) (*apis.PeerDump, error) {
 	h := s.node.Host()
 	nw := h.Network()
 	pstore := h.Peerstore()
@@ -161,7 +162,7 @@ func (s *APIBackend) Peers(ctx context.Context, connected bool) (*PeerDump, erro
 		peers = pstore.Peers()
 	}
 
-	dump := &PeerDump{Peers: make(map[string]*PeerInfo)}
+	dump := &apis.PeerDump{Peers: make(map[string]*apis.PeerInfo)}
 	for _, id := range peers {
 		peerInfo, err := dumpPeer(id, nw, pstore, s.node.ConnectionManager())
 		if err != nil {
@@ -188,23 +189,12 @@ func (s *APIBackend) Peers(ctx context.Context, connected bool) (*PeerDump, erro
 	return dump, nil
 }
 
-type PeerStats struct {
-	Connected     uint `json:"connected"`
-	Table         uint `json:"table"`
-	BlocksTopic   uint `json:"blocksTopic"`
-	BlocksTopicV2 uint `json:"blocksTopicV2"`
-	BlocksTopicV3 uint `json:"blocksTopicV3"`
-	BlocksTopicV4 uint `json:"blocksTopicV4"`
-	Banned        uint `json:"banned"`
-	Known         uint `json:"known"`
-}
-
-func (s *APIBackend) PeerStats(_ context.Context) (*PeerStats, error) {
+func (s *APIBackend) PeerStats(_ context.Context) (*apis.PeerStats, error) {
 	h := s.node.Host()
 	nw := h.Network()
 	pstore := h.Peerstore()
 
-	stats := &PeerStats{
+	stats := &apis.PeerStats{
 		Connected:     uint(len(nw.Peers())),
 		Table:         0,
 		BlocksTopic:   uint(len(s.node.GossipOut().BlocksTopicV1Peers())),

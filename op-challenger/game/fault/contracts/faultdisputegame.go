@@ -5,7 +5,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"math"
 	"math/big"
 	"time"
 
@@ -81,7 +80,7 @@ func NewFaultDisputeGameContract(ctx context.Context, metrics metrics.ContractMe
 		return nil, fmt.Errorf("failed to detect game type: %w", err)
 	}
 	switch gameType {
-	case types.SuperCannonGameType, types.SuperPermissionedGameType:
+	case types.SuperCannonGameType, types.SuperPermissionedGameType, types.SuperAsteriscKonaGameType:
 		return NewSuperFaultDisputeGameContract(ctx, metrics, addr, caller)
 	default:
 		return NewPreInteropFaultDisputeGameContract(ctx, metrics, addr, caller)
@@ -600,10 +599,7 @@ func (f *FaultDisputeGameContractLatest) resolveCall() *batching.ContractCall {
 
 // decodeClock decodes a uint128 into a Clock duration and timestamp.
 func decodeClock(clock *big.Int) types.Clock {
-	maxUint64 := new(big.Int).Add(new(big.Int).SetUint64(math.MaxUint64), big.NewInt(1))
-	remainder := new(big.Int)
-	quotient, _ := new(big.Int).QuoRem(clock, maxUint64, remainder)
-	return types.NewClock(time.Duration(quotient.Int64())*time.Second, time.Unix(remainder.Int64(), 0))
+	return types.DecodeClock(clock)
 }
 
 // packClock packs the Clock duration and timestamp into a uint128.

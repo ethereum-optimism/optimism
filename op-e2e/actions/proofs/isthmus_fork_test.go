@@ -108,24 +108,24 @@ func testIsthmusActivationAtGenesis(gt *testing.T, testCfg *helpers.TestCfg[any]
 	env.RunFaultProofProgramFromGenesis(t, safeBlock.Number, testCfg.CheckResult, testCfg.InputParams...)
 }
 
-// Test_ProgramAction_IsthmusWithdrawlsRoot tests the withdrawals root in the header:
+// Test_ProgramAction_IsthmusWithdrawalsRoot tests the withdrawals root in the header:
 // - post canyon but pre Isthmus
 // - post Isthmus
 // We do not include pre canyon behaviour (nil withdrawals root) since Canyon does not support Cancun L1.
 // It does this by activating the relevant forks at genesis.
 // It runs the fault proof program.
-func Test_ProgramAction_IsthmusWithdrawlsRoot(gt *testing.T) {
+func Test_ProgramAction_IsthmusWithdrawalsRoot(gt *testing.T) {
 	matrix := helpers.NewMatrix[any]()
 
 	matrix.AddDefaultTestCases(
 		nil,
 		helpers.NewForkMatrix(helpers.Holocene, helpers.Isthmus),
-		testWithdrawlsRoot,
+		testWithdrawalsRoot,
 	)
 
 	matrix.Run(gt)
 }
-func testWithdrawlsRoot(gt *testing.T, testCfg *helpers.TestCfg[any]) {
+func testWithdrawalsRoot(gt *testing.T, testCfg *helpers.TestCfg[any]) {
 	t := actionsHelpers.NewDefaultTesting(gt)
 	tp := helpers.NewTestParams(func(tp *e2eutils.TestParams) {})
 	env := helpers.NewL2FaultProofEnv(t, testCfg, tp, helpers.NewBatcherCfg())
@@ -182,7 +182,7 @@ func Test_ProgramAction_WithdrawalsRootBeforeAtAndAfterIsthmus(gt *testing.T) {
 
 	isthmusOffset := 2
 
-	testWithdrawlsRootIsthmus := func(gt *testing.T, testCfg *helpers.TestCfg[testCase]) {
+	testWithdrawalsRootIsthmus := func(gt *testing.T, testCfg *helpers.TestCfg[testCase]) {
 		t := actionsHelpers.NewDefaultTesting(gt)
 		tp := helpers.NewTestParams(func(tp *e2eutils.TestParams) {})
 		var setIsthmusTime = func(dc *genesis.DeployConfig) {
@@ -260,7 +260,7 @@ func Test_ProgramAction_WithdrawalsRootBeforeAtAndAfterIsthmus(gt *testing.T) {
 			test.name,
 			test,
 			helpers.NewForkMatrix(helpers.Holocene),
-			testWithdrawlsRootIsthmus,
+			testWithdrawalsRootIsthmus,
 		)
 	}
 	matrix.Run(gt)

@@ -15,6 +15,9 @@ type SupervisorSyncStatus struct {
 type SupervisorChainSyncStatus struct {
 	// LocalUnsafe is the latest L2 block that has been processed by the supervisor.
 	LocalUnsafe BlockRef `json:"localUnsafe"`
-	Safe        BlockID  `json:"safe"`
-	Finalized   BlockID  `json:"finalized"`
+	LocalSafe   BlockID  `json:"localSafe"`
+	CrossUnsafe BlockID  `json:"crossUnsafe"`
+	// Some fault-proof releases may already depend on `safe`, so we keep JSON field name as `safe`.
+	CrossSafe BlockID `json:"safe"`
+	Finalized BlockID `json:"finalized"`
 }

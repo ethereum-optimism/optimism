@@ -49,7 +49,16 @@ func createTraceProvider(
 		return asterisc.NewTraceProvider(logger, m, cfg.Asterisc, serverExecutor, prestateProvider, prestate, localInputs, dir, 42), nil
 	case types.TraceTypeAsteriscKona:
 		serverExecutor := vm.NewKonaExecutor()
-		stateConverter := asterisc.NewStateConverter(cfg.Asterisc)
+		stateConverter := asterisc.NewStateConverter(cfg.AsteriscKona)
+		prestate, err := prestateSource.getPrestate(ctx, logger, cfg.AsteriscKonaAbsolutePreStateBaseURL, cfg.AsteriscKonaAbsolutePreState, dir, stateConverter)
+		if err != nil {
+			return nil, err
+		}
+		prestateProvider := vm.NewPrestateProvider(prestate, stateConverter)
+		return asterisc.NewTraceProvider(logger, m, cfg.AsteriscKona, serverExecutor, prestateProvider, prestate, localInputs, dir, 42), nil
+	case types.TraceTypeSuperAsteriscKona:
+		serverExecutor := vm.NewKonaSuperExecutor()
+		stateConverter := asterisc.NewStateConverter(cfg.AsteriscKona)
 		prestate, err := prestateSource.getPrestate(ctx, logger, cfg.AsteriscKonaAbsolutePreStateBaseURL, cfg.AsteriscKonaAbsolutePreState, dir, stateConverter)
 		if err != nil {
 			return nil, err

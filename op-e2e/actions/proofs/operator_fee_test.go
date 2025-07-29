@@ -234,9 +234,6 @@ func Test_ProgramAction_OperatorFeeConsistency(gt *testing.T) {
 			env.Batcher.ActL2BatchBuffer(t)
 
 			aliceInitialBalance, l1FeeVaultInitialBalance, baseFeeVaultInitialBalance, sequencerFeeVaultInitialBalance, operatorFeeVaultInitialBalance = getCurrentBalances()
-			if testCfg.Custom != NotEnoughFundsInBatchMissingOpFee {
-				require.Equal(t, operatorFeeVaultInitialBalance.Sign(), 0)
-			}
 
 			// Craft a transaction from Alice -> Bob
 			env.Alice.L2.ActResetTxOpts(t)

@@ -9,7 +9,7 @@ import (
 )
 
 type BuildBackend interface {
-	CreateJob(ctx context.Context, id seqtypes.BuilderID, opts *seqtypes.BuildOpts) (work.BuildJob, error)
+	CreateJob(ctx context.Context, id seqtypes.BuilderID, opts seqtypes.BuildOpts) (work.BuildJob, error)
 	GetJob(id seqtypes.BuildJobID) work.BuildJob
 }
 
@@ -17,7 +17,7 @@ type BuildFrontend struct {
 	Backend BuildBackend
 }
 
-func (bf *BuildFrontend) Open(ctx context.Context, builderID seqtypes.BuilderID, opts *seqtypes.BuildOpts) (seqtypes.BuildJobID, error) {
+func (bf *BuildFrontend) New(ctx context.Context, builderID seqtypes.BuilderID, opts seqtypes.BuildOpts) (seqtypes.BuildJobID, error) {
 	job, err := bf.Backend.CreateJob(ctx, builderID, opts)
 	if err != nil {
 		return "", err
@@ -43,6 +43,18 @@ func (bf *BuildFrontend) Seal(ctx context.Context, jobID seqtypes.BuildJobID) (w
 		return nil, toJsonError(err)
 	}
 	return result, nil
+}
+
+func (bf *BuildFrontend) Open(ctx context.Context, jobID seqtypes.BuildJobID) error {
+	job := bf.Backend.GetJob(jobID)
+	if job == nil {
+		return seqtypes.ErrUnknownJob
+	}
+	err := job.Open(ctx)
+	if err != nil {
+		return toJsonError(err)
+	}
+	return nil
 }
 
 func (bf *BuildFrontend) CloseJob(id seqtypes.BuildJobID) error {

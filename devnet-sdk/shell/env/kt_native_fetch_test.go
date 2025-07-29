@@ -68,7 +68,7 @@ func TestFetchKurtosisNativeDataFailures(t *testing.T) {
 			err: fmt.Errorf("oh no"),
 		}
 
-		_, _, err = fetchKurtosisNativeDataInternal(url, osImpl, &defaultSpecImpl{}, &defaultKurtosisImpl{})
+		_, err = fetchKurtosisNativeDataInternal(url, osImpl, &defaultSpecImpl{}, &defaultKurtosisImpl{})
 		require.ErrorContains(t, err, "error reading arguments file: oh no")
 	})
 
@@ -80,7 +80,7 @@ func TestFetchKurtosisNativeDataFailures(t *testing.T) {
 			value: file,
 		}
 
-		_, _, err = fetchKurtosisNativeDataInternal(url, osImpl, &defaultSpecImpl{}, &defaultKurtosisImpl{})
+		_, err = fetchKurtosisNativeDataInternal(url, osImpl, &defaultSpecImpl{}, &defaultKurtosisImpl{})
 		require.ErrorContains(t, err, "error extracting enclave spec: failed to decode YAML: yaml: unmarshal errors:")
 	})
 
@@ -96,7 +96,7 @@ func TestFetchKurtosisNativeDataFailures(t *testing.T) {
 			err: fmt.Errorf("oh no"),
 		}
 
-		_, _, err = fetchKurtosisNativeDataInternal(url, osImpl, specImpl, &defaultKurtosisImpl{})
+		_, err = fetchKurtosisNativeDataInternal(url, osImpl, specImpl, &defaultKurtosisImpl{})
 		require.ErrorContains(t, err, "error extracting enclave spec: oh no")
 	})
 
@@ -112,7 +112,7 @@ func TestFetchKurtosisNativeDataFailures(t *testing.T) {
 			err: fmt.Errorf("oh no"),
 		}
 
-		_, _, err = fetchKurtosisNativeDataInternal(url, osImpl, &defaultSpecImpl{}, kurtosisImpl)
+		_, err = fetchKurtosisNativeDataInternal(url, osImpl, &defaultSpecImpl{}, kurtosisImpl)
 		require.ErrorContains(t, err, "error creating deployer: oh no")
 	})
 
@@ -132,7 +132,7 @@ func TestFetchKurtosisNativeDataFailures(t *testing.T) {
 			value: kurtosisDeployer,
 		}
 
-		_, _, err = fetchKurtosisNativeDataInternal(url, osImpl, &defaultSpecImpl{}, kurtosisImpl)
+		_, err = fetchKurtosisNativeDataInternal(url, osImpl, &defaultSpecImpl{}, kurtosisImpl)
 		require.ErrorContains(t, err, "error getting environment info: oh no")
 	})
 }
@@ -148,14 +148,15 @@ func TestFetchKurtosisNativeDataSuccess(t *testing.T) {
 		// We'll prepare a mock spec to be returned
 		envSpec := &spec.EnclaveSpec{}
 		env := &kurtosis.KurtosisEnvironment{
-			DevnetEnvironment: descriptors.DevnetEnvironment{
+			DevnetEnvironment: &descriptors.DevnetEnvironment{
+				Name:     "enclave",
 				L2:       make([]*descriptors.L2Chain, 0, 1),
 				Features: envSpec.Features,
 			},
 		}
 
 		// And serialize it so that we can compare values
-		jsonEnv, err := json.MarshalIndent(env, "", "  ")
+		_, err = json.MarshalIndent(env, "", "  ")
 		require.NoError(t, err)
 
 		osImpl := &mockOSImpl{
@@ -174,10 +175,9 @@ func TestFetchKurtosisNativeDataSuccess(t *testing.T) {
 			value: kurtosisDeployer,
 		}
 
-		enclave, jsonDescriptor, err := fetchKurtosisNativeDataInternal(url, osImpl, specImpl, kurtosisImpl)
+		devnetEnv, err := fetchKurtosisNativeDataInternal(url, osImpl, specImpl, kurtosisImpl)
 		require.NoError(t, err)
-		require.Equal(t, "enclave", enclave)
-		require.Equal(t, jsonDescriptor, jsonEnv)
+		require.Equal(t, "enclave", devnetEnv.Name)
 	})
 }
 

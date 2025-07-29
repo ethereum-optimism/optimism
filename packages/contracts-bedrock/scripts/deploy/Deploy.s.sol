@@ -5,29 +5,24 @@ pragma solidity ^0.8.0;
 import { VmSafe } from "forge-std/Vm.sol";
 import { console2 as console } from "forge-std/console2.sol";
 import { stdJson } from "forge-std/StdJson.sol";
-import { AlphabetVM } from "test/mocks/AlphabetVM.sol";
 import { EIP1967Helper } from "test/mocks/EIP1967Helper.sol";
 
 // Scripts
 import { Deployer } from "scripts/deploy/Deployer.sol";
+import { DeployOPChainInput } from "scripts/deploy/DeployOPChain.s.sol";
 import { Chains } from "scripts/libraries/Chains.sol";
 import { Config } from "scripts/libraries/Config.sol";
 import { StateDiff } from "scripts/libraries/StateDiff.sol";
-import { Process } from "scripts/libraries/Process.sol";
 import { ChainAssertions } from "scripts/deploy/ChainAssertions.sol";
 import { DeployUtils } from "scripts/libraries/DeployUtils.sol";
-import { DeploySuperchainInput, DeploySuperchain, DeploySuperchainOutput } from "scripts/deploy/DeploySuperchain.s.sol";
-import {
-    DeployImplementationsInput,
-    DeployImplementations,
-    DeployImplementationsOutput
-} from "scripts/deploy/DeployImplementations.s.sol";
+import { DeploySuperchain } from "scripts/deploy/DeploySuperchain.s.sol";
+import { DeployImplementations } from "scripts/deploy/DeployImplementations.s.sol";
+import { DeployAltDA } from "scripts/deploy/DeployAltDA.s.sol";
+import { StandardConstants } from "scripts/deploy/StandardConstants.sol";
 
 // Libraries
-import { Constants } from "src/libraries/Constants.sol";
 import { Types } from "scripts/libraries/Types.sol";
 import { Duration } from "src/dispute/lib/LibUDT.sol";
-import { StorageSlot, ForgeArtifacts } from "scripts/libraries/ForgeArtifacts.sol";
 import { GameType, Claim, GameTypes, Proposal, Hash } from "src/dispute/lib/Types.sol";
 
 // Interfaces
@@ -35,18 +30,18 @@ import { IOPContractsManager } from "interfaces/L1/IOPContractsManager.sol";
 import { IProxy } from "interfaces/universal/IProxy.sol";
 import { IProxyAdmin } from "interfaces/universal/IProxyAdmin.sol";
 import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
-import { ISystemConfig } from "interfaces/L1/ISystemConfig.sol";
-import { IDataAvailabilityChallenge } from "interfaces/L1/IDataAvailabilityChallenge.sol";
-import { ProtocolVersion } from "interfaces/L1/IProtocolVersions.sol";
-import { IBigStepper } from "interfaces/dispute/IBigStepper.sol";
 import { IDisputeGameFactory } from "interfaces/dispute/IDisputeGameFactory.sol";
-import { IDisputeGame } from "interfaces/dispute/IDisputeGame.sol";
-import { IFaultDisputeGame } from "interfaces/dispute/IFaultDisputeGame.sol";
 import { IDelayedWETH } from "interfaces/dispute/IDelayedWETH.sol";
 import { IAnchorStateRegistry } from "interfaces/dispute/IAnchorStateRegistry.sol";
 import { IMIPS } from "interfaces/cannon/IMIPS.sol";
-import { IPermissionedDisputeGame } from "interfaces/dispute/IPermissionedDisputeGame.sol";
 import { IPreimageOracle } from "interfaces/cannon/IPreimageOracle.sol";
+import { IProtocolVersions } from "interfaces/L1/IProtocolVersions.sol";
+import { IL1CrossDomainMessenger } from "interfaces/L1/IL1CrossDomainMessenger.sol";
+import { IETHLockbox } from "interfaces/L1/IETHLockbox.sol";
+import { IOptimismPortal2 } from "interfaces/L1/IOptimismPortal2.sol";
+import { IL1StandardBridge } from "interfaces/L1/IL1StandardBridge.sol";
+import { IL1ERC721Bridge } from "interfaces/L1/IL1ERC721Bridge.sol";
+import { IOptimismMintableERC20Factory } from "interfaces/universal/IOptimismMintableERC20Factory.sol";
 
 /// @title Deploy
 /// @notice Script used to deploy a bedrock system. The entire system is deployed within the `run` function.
@@ -157,13 +152,6 @@ contract Deploy is Deployer {
         _run({ _needsSuperchain: false });
     }
 
-    /// @notice Used for L1 alloc generation.
-    function runWithStateDump() public {
-        vm.chainId(cfg.l1ChainID());
-        _run({ _needsSuperchain: true });
-        vm.dumpState(Config.stateDumpPath(""));
-    }
-
     /// @notice Deploy all L1 contracts and write the state diff to a file.
     ///         Used to generate kontrol tests.
     function runWithStateDiff() public stateDiff {
@@ -195,11 +183,26 @@ contract Deploy is Deployer {
             bytes32 typeHash = keccak256(bytes(cfg.daCommitmentType()));
             bytes32 keccakHash = keccak256(bytes("KeccakCommitment"));
             if (typeHash == keccakHash) {
-                deployOpAltDA();
+                console.log("Deploying OP AltDA");
+
+                DeployAltDA da = new DeployAltDA();
+                DeployAltDA.Input memory dii = DeployAltDA.Input({
+                    salt: _implSalt(),
+                    proxyAdmin: IProxyAdmin(artifacts.mustGetAddress("ProxyAdmin")),
+                    challengeContractOwner: cfg.finalSystemOwner(),
+                    challengeWindow: cfg.daChallengeWindow(),
+                    resolveWindow: cfg.daResolveWindow(),
+                    bondSize: cfg.daBondSize(),
+                    resolverRefundPercentage: cfg.daResolverRefundPercentage()
+                });
+
+                DeployAltDA.Output memory dio = da.run(dii);
+
+                artifacts.save("DataAvailabilityChallengeProxy", address(dio.dataAvailabilityChallengeProxy));
+                artifacts.save("DataAvailabilityChallengeImpl", address(dio.dataAvailabilityChallengeImpl));
             }
         }
 
-        transferProxyAdminOwnership();
         console.log("set up op chain!");
     }
 
@@ -214,29 +217,32 @@ contract Deploy is Deployer {
     function deploySuperchain() public {
         console.log("Setting up Superchain");
         DeploySuperchain ds = new DeploySuperchain();
-        (DeploySuperchainInput dsi, DeploySuperchainOutput dso) = ds.etchIOContracts();
-
-        // Set the input values on the input contract.
-        // TODO: when DeployAuthSystem is done, finalSystemOwner should be replaced with the Foundation Upgrades Safe
-        dsi.set(dsi.protocolVersionsOwner.selector, cfg.finalSystemOwner());
-        dsi.set(dsi.superchainProxyAdminOwner.selector, cfg.finalSystemOwner());
-        dsi.set(dsi.guardian.selector, cfg.superchainConfigGuardian());
-        dsi.set(dsi.paused.selector, false);
-        dsi.set(dsi.requiredProtocolVersion.selector, ProtocolVersion.wrap(cfg.requiredProtocolVersion()));
-        dsi.set(dsi.recommendedProtocolVersion.selector, ProtocolVersion.wrap(cfg.recommendedProtocolVersion()));
 
         // Run the deployment script.
-        ds.run(dsi, dso);
-        artifacts.save("SuperchainProxyAdmin", address(dso.superchainProxyAdmin()));
-        artifacts.save("SuperchainConfigProxy", address(dso.superchainConfigProxy()));
-        artifacts.save("SuperchainConfigImpl", address(dso.superchainConfigImpl()));
-        artifacts.save("ProtocolVersionsProxy", address(dso.protocolVersionsProxy()));
-        artifacts.save("ProtocolVersionsImpl", address(dso.protocolVersionsImpl()));
+        DeploySuperchain.Output memory dso = ds.run(
+            DeploySuperchain.Input({
+                guardian: cfg.superchainConfigGuardian(),
+                // TODO: when DeployAuthSystem is done, finalSystemOwner should be replaced with the Foundation Upgrades
+                // Safe
+                protocolVersionsOwner: cfg.finalSystemOwner(),
+                superchainProxyAdminOwner: cfg.finalSystemOwner(),
+                paused: false,
+                recommendedProtocolVersion: bytes32(cfg.recommendedProtocolVersion()),
+                requiredProtocolVersion: bytes32(cfg.requiredProtocolVersion())
+            })
+        );
+
+        // Store the artifacts
+        artifacts.save("SuperchainProxyAdmin", address(dso.superchainProxyAdmin));
+        artifacts.save("SuperchainConfigProxy", address(dso.superchainConfigProxy));
+        artifacts.save("SuperchainConfigImpl", address(dso.superchainConfigImpl));
+        artifacts.save("ProtocolVersionsProxy", address(dso.protocolVersionsProxy));
+        artifacts.save("ProtocolVersionsImpl", address(dso.protocolVersionsImpl));
 
         // First run assertions for the ProtocolVersions and SuperchainConfig proxy contracts.
         Types.ContractSet memory contracts = _proxies();
         ChainAssertions.checkProtocolVersions({ _contracts: contracts, _cfg: cfg, _isProxy: true });
-        ChainAssertions.checkSuperchainConfig({ _contracts: contracts, _cfg: cfg, _isProxy: true, _isPaused: false });
+        ChainAssertions.checkSuperchainConfig({ _contracts: contracts, _cfg: cfg, _isProxy: true });
 
         // Then replace the ProtocolVersions proxy with the implementation address and run assertions on it.
         contracts.ProtocolVersions = artifacts.mustGetAddress("ProtocolVersionsImpl");
@@ -244,88 +250,81 @@ contract Deploy is Deployer {
 
         // Finally replace the SuperchainConfig proxy with the implementation address and run assertions on it.
         contracts.SuperchainConfig = artifacts.mustGetAddress("SuperchainConfigImpl");
-        ChainAssertions.checkSuperchainConfig({ _contracts: contracts, _cfg: cfg, _isPaused: false, _isProxy: false });
+        ChainAssertions.checkSuperchainConfig({ _contracts: contracts, _cfg: cfg, _isProxy: false });
     }
 
     /// @notice Deploy all of the implementations
     /// @param _isInterop Whether to use interop
     function deployImplementations(bool _isInterop) public {
+        // TODO _isInterop is no longer being used in DeployImplementations, this might no longer be necessary
         require(_isInterop == cfg.useInterop(), "Deploy: Interop setting mismatch.");
 
         console.log("Deploying implementations");
 
         DeployImplementations di = new DeployImplementations();
-        (DeployImplementationsInput dii, DeployImplementationsOutput dio) = di.etchIOContracts();
 
-        dii.set(dii.withdrawalDelaySeconds.selector, cfg.faultGameWithdrawalDelay());
-        dii.set(dii.minProposalSizeBytes.selector, cfg.preimageOracleMinProposalSize());
-        dii.set(dii.challengePeriodSeconds.selector, cfg.preimageOracleChallengePeriod());
-        dii.set(dii.proofMaturityDelaySeconds.selector, cfg.proofMaturityDelaySeconds());
-        dii.set(dii.disputeGameFinalityDelaySeconds.selector, cfg.disputeGameFinalityDelaySeconds());
-        dii.set(dii.mipsVersion.selector, Config.useMultithreadedCannon() ? 2 : 1);
-        string memory release = "dev";
-        dii.set(dii.l1ContractsRelease.selector, release);
-        dii.set(dii.protocolVersionsProxy.selector, artifacts.mustGetAddress("ProtocolVersionsProxy"));
+        ISuperchainConfig superchainConfigProxy = ISuperchainConfig(artifacts.mustGetAddress("SuperchainConfigProxy"));
+        IProxyAdmin superchainProxyAdmin = IProxyAdmin(EIP1967Helper.getAdmin(address(superchainConfigProxy)));
 
-        ISuperchainConfig superchainConfig = ISuperchainConfig(artifacts.mustGetAddress("SuperchainConfigProxy"));
-        dii.set(dii.superchainConfigProxy.selector, address(superchainConfig));
-
-        IProxyAdmin superchainProxyAdmin = IProxyAdmin(EIP1967Helper.getAdmin(address(superchainConfig)));
-        dii.set(dii.superchainProxyAdmin.selector, address(superchainProxyAdmin));
-
-        // I think this was a bug
-        dii.set(dii.upgradeController.selector, superchainProxyAdmin.owner());
-
-        di.run(dii, dio);
+        DeployImplementations.Output memory dio = di.run(
+            DeployImplementations.Input({
+                withdrawalDelaySeconds: cfg.faultGameWithdrawalDelay(),
+                minProposalSizeBytes: cfg.preimageOracleMinProposalSize(),
+                challengePeriodSeconds: cfg.preimageOracleChallengePeriod(),
+                proofMaturityDelaySeconds: cfg.proofMaturityDelaySeconds(),
+                disputeGameFinalityDelaySeconds: cfg.disputeGameFinalityDelaySeconds(),
+                mipsVersion: StandardConstants.MIPS_VERSION,
+                l1ContractsRelease: "dev",
+                protocolVersionsProxy: IProtocolVersions(artifacts.mustGetAddress("ProtocolVersionsProxy")),
+                superchainConfigProxy: superchainConfigProxy,
+                superchainProxyAdmin: superchainProxyAdmin,
+                upgradeController: superchainProxyAdmin.owner(),
+                challenger: cfg.l2OutputOracleChallenger()
+            })
+        );
 
         // Save the implementation addresses which are needed outside of this function or script.
         // When called in a fork test, this will overwrite the existing implementations.
-        artifacts.save("MipsSingleton", address(dio.mipsSingleton()));
-        artifacts.save("OPContractsManager", address(dio.opcm()));
-        artifacts.save("DelayedWETHImpl", address(dio.delayedWETHImpl()));
+        artifacts.save("MipsSingleton", address(dio.mipsSingleton));
+        artifacts.save("OPContractsManager", address(dio.opcm));
+        artifacts.save("DelayedWETHImpl", address(dio.delayedWETHImpl));
+        artifacts.save("PreimageOracle", address(dio.preimageOracleSingleton));
 
         // Get a contract set from the implementation addresses which were just deployed.
-        Types.ContractSet memory impls = Types.ContractSet({
-            L1CrossDomainMessenger: address(dio.l1CrossDomainMessengerImpl()),
-            L1StandardBridge: address(dio.l1StandardBridgeImpl()),
-            L2OutputOracle: address(0),
-            DisputeGameFactory: address(dio.disputeGameFactoryImpl()),
-            DelayedWETH: address(dio.delayedWETHImpl()),
-            PermissionedDelayedWETH: address(dio.delayedWETHImpl()),
-            AnchorStateRegistry: address(0),
-            OptimismMintableERC20Factory: address(dio.optimismMintableERC20FactoryImpl()),
-            OptimismPortal: address(dio.optimismPortalImpl()),
-            ETHLockbox: address(dio.ethLockboxImpl()),
-            SystemConfig: address(dio.systemConfigImpl()),
-            L1ERC721Bridge: address(dio.l1ERC721BridgeImpl()),
-            ProtocolVersions: address(dio.protocolVersionsImpl()),
-            SuperchainConfig: address(dio.superchainConfigImpl())
-        });
+        Types.ContractSet memory impls = ChainAssertions.dioToContractSet(dio);
 
-        ChainAssertions.checkL1CrossDomainMessenger({ _contracts: impls, _vm: vm, _isProxy: false });
-        ChainAssertions.checkL1StandardBridge({ _contracts: impls, _isProxy: false });
-        ChainAssertions.checkL1ERC721Bridge({ _contracts: impls, _isProxy: false });
-        ChainAssertions.checkOptimismPortal2({ _contracts: impls, _cfg: cfg, _isProxy: false });
-        ChainAssertions.checkETHLockbox({ _contracts: impls, _cfg: cfg, _isProxy: false });
-        ChainAssertions.checkOptimismMintableERC20Factory({ _contracts: impls, _isProxy: false });
-        ChainAssertions.checkDisputeGameFactory({ _contracts: impls, _expectedOwner: address(0), _isProxy: false });
-        ChainAssertions.checkDelayedWETH({ _contracts: impls, _cfg: cfg, _isProxy: false, _expectedOwner: address(0) });
-        ChainAssertions.checkPreimageOracle({
-            _oracle: IPreimageOracle(address(dio.preimageOracleSingleton())),
-            _cfg: cfg
+        ChainAssertions.checkL1CrossDomainMessenger(IL1CrossDomainMessenger(impls.L1CrossDomainMessenger), vm, false);
+        ChainAssertions.checkL1StandardBridgeImpl(IL1StandardBridge(payable(impls.L1StandardBridge)));
+        ChainAssertions.checkL1ERC721BridgeImpl(IL1ERC721Bridge(impls.L1ERC721Bridge));
+        ChainAssertions.checkOptimismPortal2({
+            _contracts: impls,
+            _superchainConfig: superchainConfigProxy,
+            _opChainProxyAdminOwner: cfg.finalSystemOwner(),
+            _isProxy: false
         });
+        ChainAssertions.checkETHLockboxImpl(
+            IETHLockbox(impls.ETHLockbox), IOptimismPortal2(payable(impls.OptimismPortal))
+        );
+        ChainAssertions.checkOptimismMintableERC20FactoryImpl(
+            IOptimismMintableERC20Factory(impls.OptimismMintableERC20Factory)
+        );
+        ChainAssertions.checkDisputeGameFactory(
+            IDisputeGameFactory(impls.DisputeGameFactory), address(0), address(0), false
+        );
+        ChainAssertions.checkDelayedWETHImpl(IDelayedWETH(payable(impls.DelayedWETH)), cfg.faultGameWithdrawalDelay());
         ChainAssertions.checkMIPS({
-            _mips: IMIPS(address(dio.mipsSingleton())),
-            _oracle: IPreimageOracle(address(dio.preimageOracleSingleton()))
+            _mips: IMIPS(address(dio.mipsSingleton)),
+            _oracle: IPreimageOracle(address(dio.preimageOracleSingleton))
         });
         ChainAssertions.checkOPContractsManager({
             _impls: impls,
             _proxies: _proxies(),
-            _opcm: IOPContractsManager(address(dio.opcm())),
-            _mips: IMIPS(address(dio.mipsSingleton())),
+            _opcm: IOPContractsManager(address(dio.opcm)),
+            _mips: IMIPS(address(dio.mipsSingleton)),
             _superchainProxyAdmin: superchainProxyAdmin
         });
-        ChainAssertions.checkSystemConfig({ _contracts: impls, _cfg: cfg, _isProxy: false });
+        ChainAssertions.checkSystemConfig({ _doi: DeployOPChainInput(address(0)), _contracts: impls, _isProxy: false });
+        ChainAssertions.checkAnchorStateRegistryProxy(IAnchorStateRegistry(impls.AnchorStateRegistry), false);
     }
 
     /// @notice Deploy all of the OP Chain specific contracts
@@ -333,11 +332,14 @@ contract Deploy is Deployer {
         console.log("Deploying OP Chain");
 
         // Ensure that the requisite contracts are deployed
-        address superchainConfigProxy = artifacts.mustGetAddress("SuperchainConfigProxy");
         IOPContractsManager opcm = IOPContractsManager(artifacts.mustGetAddress("OPContractsManager"));
 
         IOPContractsManager.DeployInput memory deployInput = getDeployInput();
         IOPContractsManager.DeployOutput memory deployOutput = opcm.deploy(deployInput);
+
+        // Store code in the Final system owner address so that it can be used for prank delegatecalls
+        // Store "fe" opcode so that accidental calls to this address revert
+        vm.etch(cfg.finalSystemOwner(), hex"fe");
 
         // Save all deploy outputs from the OPCM, in the order they are declared in the DeployOutput struct
         artifacts.save("ProxyAdmin", address(deployOutput.opChainProxyAdmin));
@@ -356,6 +358,7 @@ contract Deploy is Deployer {
         artifacts.save("PermissionedDisputeGame", address(deployOutput.permissionedDisputeGame));
         artifacts.save("OptimismPortalProxy", address(deployOutput.optimismPortalProxy));
         artifacts.save("OptimismPortal2Proxy", address(deployOutput.optimismPortalProxy));
+
         // Check if the permissionless game implementation is already set
         IDisputeGameFactory factory = IDisputeGameFactory(artifacts.mustGetAddress("DisputeGameFactoryProxy"));
         address permissionlessGameImpl = address(factory.gameImpls(GameTypes.CANNON));
@@ -367,42 +370,18 @@ contract Deploy is Deployer {
             "Deploy: The PermissionlessDelayedWETH is already set by the OPCM, it is no longer necessary to deploy it separately."
         );
         address delayedWETHImpl = artifacts.mustGetAddress("DelayedWETHImpl");
-        address delayedWETHPermissionlessGameProxy = deployERC1967ProxyWithOwner("DelayedWETHProxy", msg.sender);
-        vm.broadcast(msg.sender);
+        address delayedWETHPermissionlessGameProxy =
+            deployERC1967ProxyWithOwner("DelayedWETHProxy", address(deployOutput.opChainProxyAdmin));
+        vm.broadcast(address(deployOutput.opChainProxyAdmin));
         IProxy(payable(delayedWETHPermissionlessGameProxy)).upgradeToAndCall({
             _implementation: delayedWETHImpl,
-            _data: abi.encodeCall(IDelayedWETH.initialize, (msg.sender, ISuperchainConfig(superchainConfigProxy)))
+            _data: abi.encodeCall(IDelayedWETH.initialize, (deployOutput.systemConfigProxy))
         });
-
-        setAlphabetFaultGameImplementation();
-        setSuperFaultGameImplementation();
-        setSuperPermissionedGameImplementation();
-        setFastFaultGameImplementation();
-        setCannonFaultGameImplementation();
-
-        transferDisputeGameFactoryOwnership();
-        transferDelayedWETHOwnership();
-        transferPermissionedDelayedWETHOwnership();
-    }
-
-    /// @notice Add AltDA setup to the OP chain
-    function deployOpAltDA() public {
-        console.log("Deploying OP AltDA");
-        deployDataAvailabilityChallengeProxy();
-        deployDataAvailabilityChallenge();
-        initializeDataAvailabilityChallenge();
     }
 
     ////////////////////////////////////////////////////////////////
     //                Proxy Deployment Functions                  //
     ////////////////////////////////////////////////////////////////
-
-    /// @notice Deploys an ERC1967Proxy contract with the ProxyAdmin as the owner.
-    /// @param _name The name of the proxy contract to be deployed.
-    /// @return addr_ The address of the deployed proxy contract.
-    function deployERC1967Proxy(string memory _name) public returns (address addr_) {
-        addr_ = deployERC1967ProxyWithOwner(_name, artifacts.mustGetAddress("ProxyAdmin"));
-    }
 
     /// @notice Deploys an ERC1967Proxy contract with a specified owner.
     /// @param _name The name of the proxy contract to be deployed.
@@ -429,503 +408,12 @@ contract Deploy is Deployer {
         addr_ = address(proxy);
     }
 
-    /// @notice Deploy the DataAvailabilityChallengeProxy
-    function deployDataAvailabilityChallengeProxy() public broadcast returns (address addr_) {
-        address proxyAdmin = artifacts.mustGetAddress("ProxyAdmin");
-        IProxy proxy = IProxy(
-            DeployUtils.create2AndSave({
-                _save: artifacts,
-                _salt: _implSalt(),
-                _name: "Proxy",
-                _nick: "DataAvailabilityChallengeProxy",
-                _args: DeployUtils.encodeConstructor(abi.encodeCall(IProxy.__constructor__, (proxyAdmin)))
-            })
-        );
-        require(
-            EIP1967Helper.getAdmin(address(proxy)) == proxyAdmin, "Deploy: DataAvailabilityChallengeProxy admin not set"
-        );
-        addr_ = address(proxy);
-    }
-
-    ////////////////////////////////////////////////////////////////
-    //             Implementation Deployment Functions            //
-    ////////////////////////////////////////////////////////////////
-
-    /// @notice Deploy the DataAvailabilityChallenge
-    function deployDataAvailabilityChallenge() public broadcast returns (address addr_) {
-        IDataAvailabilityChallenge dac = IDataAvailabilityChallenge(
-            DeployUtils.create2AndSave({
-                _save: artifacts,
-                _salt: _implSalt(),
-                _name: "DataAvailabilityChallenge",
-                _nick: "DataAvailabilityChallengeImpl",
-                _args: DeployUtils.encodeConstructor(abi.encodeCall(IDataAvailabilityChallenge.__constructor__, ()))
-            })
-        );
-        addr_ = address(dac);
-    }
-
-    ////////////////////////////////////////////////////////////////
-    //                    Initialize Functions                    //
-    ////////////////////////////////////////////////////////////////
-
-    /// @notice Initialize the SystemConfig
-    function initializeSystemConfig() public broadcast {
-        console.log("Upgrading and initializing SystemConfig proxy");
-        address systemConfigProxy = artifacts.mustGetAddress("SystemConfigProxy");
-        address systemConfig = artifacts.mustGetAddress("SystemConfigImpl");
-
-        bytes32 batcherHash = bytes32(uint256(uint160(cfg.batchSenderAddress())));
-
-        IProxyAdmin proxyAdmin = IProxyAdmin(payable(artifacts.mustGetAddress("ProxyAdmin")));
-        proxyAdmin.upgradeAndCall({
-            _proxy: payable(systemConfigProxy),
-            _implementation: systemConfig,
-            _data: abi.encodeCall(
-                ISystemConfig.initialize,
-                (
-                    cfg.finalSystemOwner(),
-                    cfg.basefeeScalar(),
-                    cfg.blobbasefeeScalar(),
-                    batcherHash,
-                    uint64(cfg.l2GenesisBlockGasLimit()),
-                    cfg.p2pSequencerAddress(),
-                    Constants.DEFAULT_RESOURCE_CONFIG(),
-                    cfg.batchInboxAddress(),
-                    ISystemConfig.Addresses({
-                        l1CrossDomainMessenger: artifacts.mustGetAddress("L1CrossDomainMessengerProxy"),
-                        l1ERC721Bridge: artifacts.mustGetAddress("L1ERC721BridgeProxy"),
-                        l1StandardBridge: artifacts.mustGetAddress("L1StandardBridgeProxy"),
-                        optimismPortal: artifacts.mustGetAddress("OptimismPortalProxy"),
-                        optimismMintableERC20Factory: artifacts.mustGetAddress("OptimismMintableERC20FactoryProxy")
-                    }),
-                    cfg.l2ChainID()
-                )
-            )
-        });
-
-        ISystemConfig config = ISystemConfig(systemConfigProxy);
-        string memory version = config.version();
-        console.log("SystemConfig version: %s", version);
-
-        ChainAssertions.checkSystemConfig({ _contracts: _proxies(), _cfg: cfg, _isProxy: true });
-    }
-
-    /// @notice Initialize the DataAvailabilityChallenge
-    function initializeDataAvailabilityChallenge() public broadcast {
-        console.log("Upgrading and initializing DataAvailabilityChallenge proxy");
-        address dataAvailabilityChallengeProxy = artifacts.mustGetAddress("DataAvailabilityChallengeProxy");
-        address dataAvailabilityChallenge = artifacts.mustGetAddress("DataAvailabilityChallengeImpl");
-
-        address finalSystemOwner = cfg.finalSystemOwner();
-        uint256 daChallengeWindow = cfg.daChallengeWindow();
-        uint256 daResolveWindow = cfg.daResolveWindow();
-        uint256 daBondSize = cfg.daBondSize();
-        uint256 daResolverRefundPercentage = cfg.daResolverRefundPercentage();
-
-        IProxyAdmin proxyAdmin = IProxyAdmin(payable(artifacts.mustGetAddress("ProxyAdmin")));
-        proxyAdmin.upgradeAndCall({
-            _proxy: payable(dataAvailabilityChallengeProxy),
-            _implementation: dataAvailabilityChallenge,
-            _data: abi.encodeCall(
-                IDataAvailabilityChallenge.initialize,
-                (finalSystemOwner, daChallengeWindow, daResolveWindow, daBondSize, daResolverRefundPercentage)
-            )
-        });
-
-        IDataAvailabilityChallenge dac = IDataAvailabilityChallenge(payable(dataAvailabilityChallengeProxy));
-        string memory version = dac.version();
-        console.log("DataAvailabilityChallenge version: %s", version);
-
-        require(dac.owner() == finalSystemOwner, "Deploy: DataAvailabilityChallenge owner not set");
-        require(
-            dac.challengeWindow() == daChallengeWindow, "Deploy: DataAvailabilityChallenge challenge window not set"
-        );
-        require(dac.resolveWindow() == daResolveWindow, "Deploy: DataAvailabilityChallenge resolve window not set");
-        require(dac.bondSize() == daBondSize, "Deploy: DataAvailabilityChallenge bond size not set");
-        require(
-            dac.resolverRefundPercentage() == daResolverRefundPercentage,
-            "Deploy: DataAvailabilityChallenge resolver refund percentage not set"
-        );
-    }
-
-    ////////////////////////////////////////////////////////////////
-    //         Ownership Transfer Helper Functions                //
-    ////////////////////////////////////////////////////////////////
-
-    /// @notice Transfer ownership of the ProxyAdmin contract to the final system owner
-    function transferProxyAdminOwnership() public broadcast {
-        // Get the ProxyAdmin contract.
-        IProxyAdmin proxyAdmin = IProxyAdmin(artifacts.mustGetAddress("ProxyAdmin"));
-
-        // Transfer ownership to the final system owner if necessary.
-        address owner = proxyAdmin.owner();
-        address finalSystemOwner = cfg.finalSystemOwner();
-        if (owner != finalSystemOwner) {
-            proxyAdmin.transferOwnership(finalSystemOwner);
-            console.log("ProxyAdmin ownership transferred to final system owner at: %s", finalSystemOwner);
-        }
-
-        // Make sure the ProxyAdmin owner is set to the final system owner.
-        owner = proxyAdmin.owner();
-        require(owner == finalSystemOwner, "Deploy: ProxyAdmin ownership not transferred to final system owner");
-    }
-
-    /// @notice Transfer ownership of the DisputeGameFactory contract to the final system owner
-    function transferDisputeGameFactoryOwnership() public broadcast {
-        console.log("Transferring DisputeGameFactory ownership to Safe");
-        IDisputeGameFactory disputeGameFactory =
-            IDisputeGameFactory(artifacts.mustGetAddress("DisputeGameFactoryProxy"));
-        address owner = disputeGameFactory.owner();
-        address finalSystemOwner = cfg.finalSystemOwner();
-
-        if (owner != finalSystemOwner) {
-            disputeGameFactory.transferOwnership(finalSystemOwner);
-            console.log("DisputeGameFactory ownership transferred to final system owner at: %s", finalSystemOwner);
-        }
-        ChainAssertions.checkDisputeGameFactory({
-            _contracts: _proxies(),
-            _expectedOwner: finalSystemOwner,
-            _isProxy: true
-        });
-    }
-
-    /// @notice Transfer ownership of the DelayedWETH contract to the final system owner
-    function transferDelayedWETHOwnership() public broadcast {
-        console.log("Transferring DelayedWETH ownership to Safe");
-        IDelayedWETH weth = IDelayedWETH(artifacts.mustGetAddress("DelayedWETHProxy"));
-        address owner = weth.owner();
-
-        address finalSystemOwner = cfg.finalSystemOwner();
-        if (owner != finalSystemOwner) {
-            weth.transferOwnership(finalSystemOwner);
-            console.log("DelayedWETH ownership transferred to final system owner at: %s", finalSystemOwner);
-        }
-        ChainAssertions.checkDelayedWETH({
-            _contracts: _proxies(),
-            _cfg: cfg,
-            _isProxy: true,
-            _expectedOwner: finalSystemOwner
-        });
-    }
-
-    /// @notice Transfer ownership of the permissioned DelayedWETH contract to the final system owner
-    function transferPermissionedDelayedWETHOwnership() public broadcast {
-        console.log("Transferring permissioned DelayedWETH ownership to Safe");
-        IDelayedWETH weth = IDelayedWETH(artifacts.mustGetAddress("PermissionedDelayedWETHProxy"));
-        address owner = weth.owner();
-
-        address finalSystemOwner = cfg.finalSystemOwner();
-        if (owner != finalSystemOwner) {
-            weth.transferOwnership(finalSystemOwner);
-            console.log("DelayedWETH ownership transferred to final system owner at: %s", finalSystemOwner);
-        }
-        ChainAssertions.checkPermissionedDelayedWETH({
-            _contracts: _proxies(),
-            _cfg: cfg,
-            _isProxy: true,
-            _expectedOwner: finalSystemOwner
-        });
-    }
-
-    ///////////////////////////////////////////////////////////
-    //         Proofs setup helper functions                 //
-    ///////////////////////////////////////////////////////////
-
-    /// @notice Load the appropriate mips absolute prestate for devenets depending on config environment.
-    function loadMipsAbsolutePrestate() internal returns (Claim mipsAbsolutePrestate_) {
-        if (block.chainid == Chains.LocalDevnet || block.chainid == Chains.GethDevnet) {
-            if (Config.useMultithreadedCannon()) {
-                return _loadDevnetMtMipsAbsolutePrestate();
-            } else {
-                return _loadDevnetStMipsAbsolutePrestate();
-            }
-        } else {
-            console.log(
-                "[Cannon Dispute Game] Using absolute prestate from config: %x", cfg.faultGameAbsolutePrestate()
-            );
-            mipsAbsolutePrestate_ = Claim.wrap(bytes32(cfg.faultGameAbsolutePrestate()));
-        }
-    }
-
-    function loadInteropDevnetAbsolutePrestate() internal returns (Claim interopDevnetAbsolutePrestate_) {
-        string memory filePath = string.concat(vm.projectRoot(), "/../../op-program/bin/prestate-proof-interop.json");
-        if (bytes(Process.bash(string.concat("[[ -f ", filePath, " ]] && echo \"present\""))).length == 0) {
-            revert(
-                "Deploy: cannon prestate dump not found, generate it with `make cannon-prestate` in the monorepo root"
-            );
-        }
-        interopDevnetAbsolutePrestate_ =
-            Claim.wrap(abi.decode(bytes(Process.bash(string.concat("cat ", filePath, " | jq -r .pre"))), (bytes32)));
-        console.log(
-            "[Cannon Dispute Game] Using devnet Interop Devnet Absolute Prestate: %s",
-            vm.toString(Claim.unwrap(interopDevnetAbsolutePrestate_))
-        );
-    }
-
-    /// @notice Loads the singlethreaded mips absolute prestate from the prestate-proof for devnets otherwise
-    ///         from the config.
-    function _loadDevnetStMipsAbsolutePrestate() internal returns (Claim mipsAbsolutePrestate_) {
-        // Fetch the absolute prestate dump
-        string memory filePath = string.concat(vm.projectRoot(), "/../../op-program/bin/prestate-proof.json");
-        if (bytes(Process.bash(string.concat("[[ -f ", filePath, " ]] && echo \"present\""))).length == 0) {
-            revert(
-                "Deploy: cannon prestate dump not found, generate it with `make cannon-prestate` in the monorepo root"
-            );
-        }
-        mipsAbsolutePrestate_ =
-            Claim.wrap(abi.decode(bytes(Process.bash(string.concat("cat ", filePath, " | jq -r .pre"))), (bytes32)));
-        console.log(
-            "[Cannon Dispute Game] Using devnet MIPS Absolute prestate: %s",
-            vm.toString(Claim.unwrap(mipsAbsolutePrestate_))
-        );
-    }
-
-    /// @notice Loads the multithreaded mips absolute prestate from the prestate-proof-mt64 for devnets otherwise
-    ///         from the config.
-    function _loadDevnetMtMipsAbsolutePrestate() internal returns (Claim mipsAbsolutePrestate_) {
-        // Fetch the absolute prestate dump
-        string memory filePath = string.concat(vm.projectRoot(), "/../../op-program/bin/prestate-proof-mt64.json");
-        if (bytes(Process.bash(string.concat("[[ -f ", filePath, " ]] && echo \"present\""))).length == 0) {
-            revert(
-                "Deploy: MT-Cannon prestate dump not found, generate it with `make cannon-prestate-mt64` in the monorepo root"
-            );
-        }
-        mipsAbsolutePrestate_ =
-            Claim.wrap(abi.decode(bytes(Process.bash(string.concat("cat ", filePath, " | jq -r .pre"))), (bytes32)));
-        console.log(
-            "[MT-Cannon Dispute Game] Using devnet MIPS64 Absolute prestate: %s",
-            vm.toString(Claim.unwrap(mipsAbsolutePrestate_))
-        );
-    }
-
-    /// @notice Sets the implementation for the `CANNON` game type in the `DisputeGameFactory`
-    function setCannonFaultGameImplementation() public broadcast {
-        console.log("Setting Cannon FaultDisputeGame implementation");
-        IDisputeGameFactory factory = IDisputeGameFactory(artifacts.mustGetAddress("DisputeGameFactoryProxy"));
-        IDelayedWETH weth = IDelayedWETH(artifacts.mustGetAddress("DelayedWETHProxy"));
-
-        // Set the Cannon FaultDisputeGame implementation in the factory.
-        _setFaultGameImplementation({
-            _factory: factory,
-            _params: IFaultDisputeGame.GameConstructorParams({
-                gameType: GameTypes.CANNON,
-                absolutePrestate: loadMipsAbsolutePrestate(),
-                maxGameDepth: cfg.faultGameMaxDepth(),
-                splitDepth: cfg.faultGameSplitDepth(),
-                clockExtension: Duration.wrap(uint64(cfg.faultGameClockExtension())),
-                maxClockDuration: Duration.wrap(uint64(cfg.faultGameMaxClockDuration())),
-                vm: IBigStepper(artifacts.mustGetAddress("MipsSingleton")),
-                weth: weth,
-                anchorStateRegistry: IAnchorStateRegistry(artifacts.mustGetAddress("AnchorStateRegistryProxy")),
-                l2ChainId: cfg.l2ChainID()
-            })
-        });
-    }
-
-    /// @notice Sets the implementation for the `ALPHABET` game type in the `DisputeGameFactory`
-    function setAlphabetFaultGameImplementation() public onlyDevnet broadcast {
-        console.log("Setting Alphabet FaultDisputeGame implementation");
-        IDisputeGameFactory factory = IDisputeGameFactory(artifacts.mustGetAddress("DisputeGameFactoryProxy"));
-        IDelayedWETH weth = IDelayedWETH(artifacts.mustGetAddress("DelayedWETHProxy"));
-
-        Claim outputAbsolutePrestate = Claim.wrap(bytes32(cfg.faultGameAbsolutePrestate()));
-        _setFaultGameImplementation({
-            _factory: factory,
-            _params: IFaultDisputeGame.GameConstructorParams({
-                gameType: GameTypes.ALPHABET,
-                absolutePrestate: outputAbsolutePrestate,
-                // The max depth for the alphabet trace is always 3. Add 1 because split depth is fully inclusive.
-                maxGameDepth: cfg.faultGameSplitDepth() + 3 + 1,
-                splitDepth: cfg.faultGameSplitDepth(),
-                clockExtension: Duration.wrap(uint64(cfg.faultGameClockExtension())),
-                maxClockDuration: Duration.wrap(uint64(cfg.faultGameMaxClockDuration())),
-                vm: IBigStepper(artifacts.mustGetAddress("MipsSingleton")),
-                weth: weth,
-                anchorStateRegistry: IAnchorStateRegistry(artifacts.mustGetAddress("AnchorStateRegistryProxy")),
-                l2ChainId: cfg.l2ChainID()
-            })
-        });
-    }
-
-    /// @notice Sets the implementation for the `PERMISSIONED_SUPER_CANNON` game type in the `DisputeGameFactory`
-    function setSuperPermissionedGameImplementation() public onlyDevnet broadcast {
-        console.log("Setting SuperPermissionedDisputeGame implementation");
-        IDisputeGameFactory factory = IDisputeGameFactory(artifacts.mustGetAddress("DisputeGameFactoryProxy"));
-        IDelayedWETH weth = IDelayedWETH(artifacts.mustGetAddress("DelayedWETHProxy"));
-
-        _setFaultGameImplementation({
-            _factory: factory,
-            _params: IFaultDisputeGame.GameConstructorParams({
-                gameType: GameType.wrap(4),
-                absolutePrestate: loadInteropDevnetAbsolutePrestate(),
-                maxGameDepth: cfg.faultGameMaxDepth(),
-                splitDepth: cfg.faultGameSplitDepth(),
-                clockExtension: Duration.wrap(uint64(cfg.faultGameClockExtension())),
-                maxClockDuration: Duration.wrap(uint64(cfg.faultGameMaxClockDuration())),
-                vm: IBigStepper(artifacts.mustGetAddress("MipsSingleton")),
-                weth: weth,
-                anchorStateRegistry: IAnchorStateRegistry(artifacts.mustGetAddress("AnchorStateRegistryProxy")),
-                l2ChainId: 0 // Unused Param on SuperDisputeGame
-             })
-        });
-    }
-
-    /// @notice Sets the implementation for the `SUPER_CANNON` game type in the `DisputeGameFactory`
-    function setSuperFaultGameImplementation() public onlyDevnet broadcast {
-        console.log("Setting SuperFaultDisputeGame implementation");
-        IDisputeGameFactory factory = IDisputeGameFactory(artifacts.mustGetAddress("DisputeGameFactoryProxy"));
-        IDelayedWETH weth = IDelayedWETH(artifacts.mustGetAddress("DelayedWETHProxy"));
-
-        _setFaultGameImplementation({
-            _factory: factory,
-            _params: IFaultDisputeGame.GameConstructorParams({
-                gameType: GameType.wrap(4),
-                absolutePrestate: loadInteropDevnetAbsolutePrestate(),
-                maxGameDepth: cfg.faultGameMaxDepth(),
-                splitDepth: cfg.faultGameSplitDepth(),
-                clockExtension: Duration.wrap(uint64(cfg.faultGameClockExtension())),
-                maxClockDuration: Duration.wrap(uint64(cfg.faultGameMaxClockDuration())),
-                vm: IBigStepper(artifacts.mustGetAddress("MipsSingleton")),
-                weth: weth,
-                anchorStateRegistry: IAnchorStateRegistry(artifacts.mustGetAddress("AnchorStateRegistryProxy")),
-                l2ChainId: 0 // Unused Param on SuperDisputeGame
-             })
-        });
-    }
-
-    /// @notice Sets the implementation for the `ALPHABET` game type in the `DisputeGameFactory`
-    function setFastFaultGameImplementation() public onlyDevnet broadcast {
-        console.log("Setting Fast FaultDisputeGame implementation");
-        IDisputeGameFactory factory = IDisputeGameFactory(artifacts.mustGetAddress("DisputeGameFactoryProxy"));
-        IDelayedWETH weth = IDelayedWETH(artifacts.mustGetAddress("DelayedWETHProxy"));
-
-        Claim outputAbsolutePrestate = Claim.wrap(bytes32(cfg.faultGameAbsolutePrestate()));
-        IPreimageOracle fastOracle = IPreimageOracle(
-            DeployUtils.create2AndSave({
-                _save: artifacts,
-                _salt: _implSalt(),
-                _name: "PreimageOracle",
-                _nick: "FastPreimageOracle",
-                _args: DeployUtils.encodeConstructor(
-                    abi.encodeCall(IPreimageOracle.__constructor__, (cfg.preimageOracleMinProposalSize(), 0))
-                )
-            })
-        );
-        _setFaultGameImplementation({
-            _factory: factory,
-            _params: IFaultDisputeGame.GameConstructorParams({
-                gameType: GameTypes.FAST,
-                absolutePrestate: outputAbsolutePrestate,
-                // The max depth for the alphabet trace is always 3. Add 1 because split depth is fully inclusive.
-                maxGameDepth: cfg.faultGameSplitDepth() + 3 + 1,
-                splitDepth: cfg.faultGameSplitDepth(),
-                clockExtension: Duration.wrap(uint64(cfg.faultGameClockExtension())),
-                maxClockDuration: Duration.wrap(0), // Resolvable immediately
-                vm: IBigStepper(new AlphabetVM(outputAbsolutePrestate, fastOracle)),
-                weth: weth,
-                anchorStateRegistry: IAnchorStateRegistry(artifacts.mustGetAddress("AnchorStateRegistryProxy")),
-                l2ChainId: cfg.l2ChainID()
-            })
-        });
-    }
-
-    /// @notice Sets the implementation for the given fault game type in the `DisputeGameFactory`.
-    function _setFaultGameImplementation(
-        IDisputeGameFactory _factory,
-        IFaultDisputeGame.GameConstructorParams memory _params
-    )
-        internal
-    {
-        if (address(_factory.gameImpls(_params.gameType)) != address(0)) {
-            console.log(
-                "[WARN] DisputeGameFactoryProxy: `FaultDisputeGame` implementation already set for game type: %s",
-                vm.toString(GameType.unwrap(_params.gameType))
-            );
-            return;
-        }
-
-        uint32 rawGameType = GameType.unwrap(_params.gameType);
-        require(
-            rawGameType != GameTypes.PERMISSIONED_CANNON.raw(), "Deploy: Permissioned Game should be deployed by OPCM"
-        );
-
-        if (rawGameType == 4) {
-            _factory.setImplementation(
-                _params.gameType,
-                IDisputeGame(
-                    DeployUtils.create2AndSave({
-                        _save: artifacts,
-                        _salt: _implSalt(),
-                        _name: "SuperFaultDisputeGame",
-                        _nick: string.concat("SuperFaultDisputeGame_", vm.toString(rawGameType)),
-                        _args: DeployUtils.encodeConstructor(abi.encodeCall(IFaultDisputeGame.__constructor__, (_params)))
-                    })
-                )
-            );
-        } else if (rawGameType == 5) {
-            _factory.setImplementation(
-                _params.gameType,
-                IDisputeGame(
-                    DeployUtils.create2AndSave({
-                        _save: artifacts,
-                        _salt: _implSalt(),
-                        _name: "SuperPermissionedDisputeGame",
-                        _nick: string.concat("SuperFaultDisputeGame_", vm.toString(rawGameType)),
-                        _args: DeployUtils.encodeConstructor(
-                            abi.encodeCall(
-                                IPermissionedDisputeGame.__constructor__,
-                                (_params, cfg.l2OutputOracleProposer(), cfg.l2OutputOracleChallenger())
-                            )
-                        )
-                    })
-                )
-            );
-        } else {
-            _factory.setImplementation(
-                _params.gameType,
-                IDisputeGame(
-                    DeployUtils.create2AndSave({
-                        _save: artifacts,
-                        _salt: _implSalt(),
-                        _name: "FaultDisputeGame",
-                        _nick: string.concat("FaultDisputeGame_", vm.toString(rawGameType)),
-                        _args: DeployUtils.encodeConstructor(abi.encodeCall(IFaultDisputeGame.__constructor__, (_params)))
-                    })
-                )
-            );
-        }
-
-        string memory gameTypeString;
-        if (rawGameType == GameTypes.CANNON.raw()) {
-            gameTypeString = "Cannon";
-        } else if (rawGameType == GameTypes.ALPHABET.raw()) {
-            gameTypeString = "Alphabet";
-        } else if (rawGameType == GameTypes.OP_SUCCINCT.raw()) {
-            gameTypeString = "OP Succinct";
-        } else if (rawGameType == GameTypes.KAILUA.raw()) {
-            gameTypeString = "Kailua";
-        } else if (rawGameType == 4) {
-            gameTypeString = "Super Cannon";
-        } else if (rawGameType == 5) {
-            gameTypeString = "Permissioned Super Cannon";
-        } else {
-            gameTypeString = "Unknown";
-        }
-
-        console.log(
-            "DisputeGameFactoryProxy: set `FaultDisputeGame` implementation (Backend: %s | GameType: %s)",
-            gameTypeString,
-            vm.toString(rawGameType)
-        );
-    }
-
     /// @notice Get the DeployInput struct to use for testing
     function getDeployInput() public view returns (IOPContractsManager.DeployInput memory) {
         string memory saltMixer = "salt mixer";
         return IOPContractsManager.DeployInput({
             roles: IOPContractsManager.Roles({
-                opChainProxyAdminOwner: msg.sender,
+                opChainProxyAdminOwner: cfg.finalSystemOwner(),
                 systemConfigOwner: cfg.finalSystemOwner(),
                 batcher: cfg.batchSenderAddress(),
                 unsafeBlockSigner: cfg.p2pSequencerAddress(),
@@ -947,17 +435,5 @@ contract Deploy is Deployer {
             disputeClockExtension: Duration.wrap(uint64(cfg.faultGameClockExtension())),
             disputeMaxClockDuration: Duration.wrap(uint64(cfg.faultGameMaxClockDuration()))
         });
-    }
-
-    /// @notice Reset the initialized value on a proxy contract so that it can be initialized again
-    function resetInitializedProxy(string memory _contractName) internal {
-        console.log("resetting initialized value on %s Proxy", _contractName);
-        address proxy = artifacts.mustGetAddress(string.concat(_contractName, "Proxy"));
-        StorageSlot memory slot = ForgeArtifacts.getInitializedSlot(_contractName);
-        bytes32 slotVal = vm.load(proxy, bytes32(slot.slot));
-        uint256 value = uint256(slotVal);
-        value = value & ~(0xFF << (slot.offset * 8));
-        slotVal = bytes32(value);
-        vm.store(proxy, bytes32(slot.slot), slotVal);
     }
 }

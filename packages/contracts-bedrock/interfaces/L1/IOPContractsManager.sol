@@ -10,18 +10,20 @@ import { IDelayedWETH } from "interfaces/dispute/IDelayedWETH.sol";
 import { IAnchorStateRegistry } from "interfaces/dispute/IAnchorStateRegistry.sol";
 import { IAddressManager } from "interfaces/legacy/IAddressManager.sol";
 import { IProxyAdmin } from "interfaces/universal/IProxyAdmin.sol";
+import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
 import { IDisputeGameFactory } from "interfaces/dispute/IDisputeGameFactory.sol";
 import { IFaultDisputeGame } from "interfaces/dispute/IFaultDisputeGame.sol";
 import { IPermissionedDisputeGame } from "interfaces/dispute/IPermissionedDisputeGame.sol";
-import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
 import { IProtocolVersions } from "interfaces/L1/IProtocolVersions.sol";
 import { IOptimismPortal2 } from "interfaces/L1/IOptimismPortal2.sol";
 import { ISystemConfig } from "interfaces/L1/ISystemConfig.sol";
+import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
 import { IL1CrossDomainMessenger } from "interfaces/L1/IL1CrossDomainMessenger.sol";
 import { IL1ERC721Bridge } from "interfaces/L1/IL1ERC721Bridge.sol";
 import { IL1StandardBridge } from "interfaces/L1/IL1StandardBridge.sol";
 import { IOptimismMintableERC20Factory } from "interfaces/universal/IOptimismMintableERC20Factory.sol";
 import { IETHLockbox } from "interfaces/L1/IETHLockbox.sol";
+import { IOPContractsManagerStandardValidator } from "interfaces/L1/IOPContractsManagerStandardValidator.sol";
 
 interface IOPContractsManagerContractsContainer {
     function __constructor__(
@@ -35,6 +37,9 @@ interface IOPContractsManagerContractsContainer {
 }
 
 interface IOPContractsManagerGameTypeAdder {
+    error OPContractsManagerGameTypeAdder_UnsupportedGameType();
+    error OPContractsManagerGameTypeAdder_MixedGameTypes();
+
     event GameTypeAdded(
         uint256 indexed l2ChainId, GameType indexed gameType, address newDisputeGame, address oldDisputeGame
     );
@@ -64,7 +69,7 @@ interface IOPContractsManagerDeployer {
 
     function deploy(
         IOPContractsManager.DeployInput memory _input,
-        address _superchainConfig,
+        ISuperchainConfig _superchainConfig,
         address _deployer
     )
         external
@@ -111,6 +116,11 @@ interface IOPContractsManagerInteropMigrator {
 }
 
 interface IOPContractsManager {
+    // -------- Events --------
+
+    /// @notice Emitted when the OPCM setRC function is called.
+    event Released(bool _isRC);
+
     // -------- Structs --------
 
     /// @notice Represents the roles that can be set when deploying a standard OP Stack chain.
@@ -293,6 +303,7 @@ interface IOPContractsManager {
         IOPContractsManagerDeployer _opcmDeployer,
         IOPContractsManagerUpgrader _opcmUpgrader,
         IOPContractsManagerInteropMigrator _opcmInteropMigrator,
+        IOPContractsManagerStandardValidator _opcmStandardValidator,
         ISuperchainConfig _superchainConfig,
         IProtocolVersions _protocolVersions,
         IProxyAdmin _superchainProxyAdmin,
@@ -300,6 +311,23 @@ interface IOPContractsManager {
         address _upgradeController
     )
         external;
+
+    function validateWithOverrides(
+        IOPContractsManagerStandardValidator.ValidationInput calldata _input,
+        bool _allowFailure,
+        IOPContractsManagerStandardValidator.ValidationOverrides calldata _overrides
+    )
+        external
+        view
+        returns (string memory);
+
+    function validate(
+        IOPContractsManagerStandardValidator.ValidationInput calldata _input,
+        bool _allowFailure
+    )
+        external
+        view
+        returns (string memory);
 
     function deploy(DeployInput calldata _input) external returns (DeployOutput memory);
 
@@ -336,6 +364,8 @@ interface IOPContractsManager {
     function opcmGameTypeAdder() external view returns (IOPContractsManagerGameTypeAdder);
 
     function opcmInteropMigrator() external view returns (IOPContractsManagerInteropMigrator);
+
+    function opcmStandardValidator() external view returns (IOPContractsManagerStandardValidator);
 
     /// @notice Returns the implementation contract addresses.
     function implementations() external view returns (Implementations memory);

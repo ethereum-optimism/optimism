@@ -50,6 +50,18 @@ parameters:
   acceptance_tests_dispatch:
     type: boolean
     default: false
+  github-event-type:
+    type: string
+    default: "__not_set__"
+  github-event-action:
+    type: string
+    default: "__not_set__"
+  github-event-base64:
+    type: string
+    default: "__not_set__"
+  devnet-metrics-collect:
+    type: boolean
+    default: false
 
 orbs:
   go: circleci/go@1.8.0
@@ -57,8 +69,9 @@ orbs:
   slack: circleci/slack@5.1.1
   shellcheck: circleci/shellcheck@3.2.0
   codecov: codecov/codecov@5.0.3
-  utils: ethereum-optimism/circleci-utils@1.0.13
+  utils: ethereum-optimism/circleci-utils@1.0.19
   docker: circleci/docker@2.8.2
+  github-cli: circleci/github-cli@2.7.0
 
 commands:
   gcp-oidc-authenticate:
@@ -124,16 +137,26 @@ commands:
 
   install-contracts-dependencies:
     description: "Install the dependencies for the smart contracts"
+    parameters:
+      solc_versions:
+        description: "The versions of solc to install"
+        type: string
+        default: "0.8.15,0.8.19,0.8.25,0.8.28"
     steps:
+      - restore_cache:
+          keys:
+            # use mise.toml to anchor on the underlying forge/svm versions
+            - svm-cache-{{ checksum "mise.toml" }}-<<parameters.solc_versions>>
       - run:
-          name: Install SVM compilers
+          name: Install solc compilers
           command: |
-            # Have to wipe out the SVM directory to avoid issues with the SVM version
-            rm -rf ~/.svm/*
-            svm install 0.8.15
-            svm install 0.8.19
-            svm install 0.8.25
-            svm install 0.8.28
+            for version in $(echo "<<parameters.solc_versions>>" | tr ',' '\n'); do
+              svm which $version || svm install $version
+            done
+      - save_cache:
+          key: svm-cache-{{ checksum "mise.toml" }}-<<parameters.solc_versions>>
+          paths:
+            - ~/.svm
       - run:
           name: Install dependencies
           command: |
@@ -142,8 +165,9 @@ commands:
             git submodule update --init --recursive --force -j 8
           working_directory: packages/contracts-bedrock
 
+  # Notifies us on Slack a build fails on develop
   notify-failures-on-develop:
-    description: "Notify Slack & Discord"
+    description: "Notify Slack"
     parameters:
       channel:
         type: string
@@ -158,21 +182,46 @@ commands:
           template: basic_fail_1
           branch_pattern: develop
           mentions: "<< parameters.mentions >>"
+
+  # Notifies us on Discord when a build fails on develop
+  # For Discord to properly trigger notifications, mentions need to be in the format:
+  # User mentions: <@USER_ID>
+  # Role mentions: <@&ROLE_ID>
+  # Example: <@&1346448413172170807> is how we'd tag the Protocol DevX Pod
+  discord-notification-failures-on-develop:
+    description: "Notify Discord"
+    parameters:
+      message:
+        type: string
+        default: ""
+      mentions:
+        type: string
+        default: ""
+    steps:
       - run:
           name: "Notify Discord"
           command: |
             if [ "${CIRCLE_BRANCH}" == "develop" ]; then
-              # Format message for Discord
-              DISCORD_MESSAGE=":x: **CI Failure**: ${CIRCLE_PROJECT_REPONAME} on branch ${CIRCLE_BRANCH}"
-              if [ ! -z "<< parameters.mentions >>" ]; then
-                DISCORD_MESSAGE="${DISCORD_MESSAGE}\n<< parameters.mentions >>"
+              # Format message for Discord with better structure and formatting
+              DISCORD_MESSAGE="🚨 **CI Failure Detected** 🚨\n"
+              DISCORD_MESSAGE="${DISCORD_MESSAGE}> **Repository:** \`${CIRCLE_PROJECT_USERNAME}/${CIRCLE_PROJECT_REPONAME}\`\n"
+              DISCORD_MESSAGE="${DISCORD_MESSAGE}> **Branch:** \`${CIRCLE_BRANCH}\`\n"
+              DISCORD_MESSAGE="${DISCORD_MESSAGE}> **Job:** \`${CIRCLE_JOB}\`\n"
+              DISCORD_MESSAGE="${DISCORD_MESSAGE}> **Build Link:** ${CIRCLE_BUILD_URL}"
+
+              # Add failure reason if provided
+              if [ ! -z "<< parameters.message >>" ]; then
+                DISCORD_MESSAGE="${DISCORD_MESSAGE}\n\n**Failure message:** << parameters.message >>"
               fi
-              DISCORD_MESSAGE="${DISCORD_MESSAGE}\nJob: ${CIRCLE_JOB}\nBuild: ${CIRCLE_BUILD_URL}"
+
+              # Add mentions if provided
+              if [ ! -z "<< parameters.mentions >>" ]; then
+                DISCORD_MESSAGE="${DISCORD_MESSAGE}\n\n**Attention:** << parameters.mentions >>"
+              fi
 
               # Post to Discord webhook
               curl -X POST -H "Content-Type: application/json" \
-                -d "{\"content\": \"${DISCORD_MESSAGE}\"}" \
-                "${notify_ci}"
+                -d "{\"content\": \"${DISCORD_MESSAGE}\"}" "${notify_ci}"
             fi
           when: on_fail
 
@@ -189,6 +238,7 @@ commands:
             git reset --hard
             git clean -df
             just <<parameters.command>>
+            git status --porcelain
             [ -z "$(git status --porcelain)" ] || exit 1
           working_directory: packages/contracts-bedrock
           when: always
@@ -203,13 +253,14 @@ jobs:
       skip_slow_tests:
         type: boolean
         default: false
+      no_output_timeout:
+        description: Timeout for when CircleCI kills the job if there's no output
+        type: string
+        default: 10m
       notify:
         description: Whether to notify on failure
         type: boolean
         default: false
-      mips_word_size:
-        type: integer
-        default: 32
     steps:
       - utils/checkout-with-mise
       - check-changed:
@@ -224,50 +275,28 @@ jobs:
       - run:
           name: build Cannon example binaries
           command: make elf # only compile ELF binaries with Go, we do not have MIPS GCC for creating the debug-dumps.
-          working_directory: cannon/testdata/example
+          working_directory: cannon/testdata
       - run:
           name: Cannon Go lint
           command: |
             make lint
           working_directory: cannon
-      - when:
-          condition:
-            equal: [32, <<parameters.mips_word_size>>]
-          steps:
-            - run:
-                name: Cannon Go 32-bit tests
-                command: |
-                  export SKIP_SLOW_TESTS=<<parameters.skip_slow_tests>>
-                  TIMEOUT="10m"
-                  if [ "$SKIP_SLOW_TESTS" == "false" ]; then
-                    TIMEOUT="30m"
-                  fi
-                  gotestsum --format=testname --junitfile=../tmp/test-results/cannon-32.xml --jsonfile=../tmp/testlogs/log-32.json \
-                  -- -timeout=$TIMEOUT -parallel=$(nproc) -coverpkg=github.com/ethereum-optimism/optimism/cannon/... -coverprofile=coverage-32.out ./...
-                working_directory: cannon
-            - codecov/upload:
-                disable_search: true
-                files: ./cannon/coverage-32.out
-                flags: cannon-go-tests-32
-      - when:
-          condition:
-            equal: [64, <<parameters.mips_word_size>>]
-          steps:
-            - run:
-                name: Cannon Go 64-bit tests
-                command: |
-                  export SKIP_SLOW_TESTS=<<parameters.skip_slow_tests>>
-                  TIMEOUT="10m"
-                  if [ "$SKIP_SLOW_TESTS" == "false" ]; then
-                    TIMEOUT="30m"
-                  fi
-                  gotestsum --format=testname --junitfile=../tmp/test-results/cannon-64.xml --jsonfile=../tmp/testlogs/log-64.json \
-                  -- --tags=cannon64 -timeout=$TIMEOUT -parallel=$(nproc) -coverpkg=github.com/ethereum-optimism/optimism/cannon/... -coverprofile=coverage-64.out ./...
-                working_directory: cannon
-            - codecov/upload:
-                disable_search: true
-                files: ./cannon/coverage-64.out
-                flags: cannon-go-tests-64
+      - run:
+          name: Cannon Go 64-bit tests
+          no_output_timeout: <<parameters.no_output_timeout>>
+          command: |
+            export SKIP_SLOW_TESTS="<<parameters.skip_slow_tests>>"
+            TIMEOUT="10m"
+            if [ "$SKIP_SLOW_TESTS" = "false" ]; then
+              TIMEOUT="45m"
+            fi
+            gotestsum --format=testname --junitfile=../tmp/test-results/cannon-64.xml --jsonfile=../tmp/testlogs/log-64.json \
+            -- -timeout=$TIMEOUT -parallel=$(nproc) -coverpkg=github.com/ethereum-optimism/optimism/cannon/... -coverprofile=coverage-64.out ./...
+          working_directory: cannon
+      - codecov/upload:
+          disable_search: true
+          files: ./cannon/coverage-64.out
+          flags: cannon-go-tests-64
       - store_test_results:
           path: ./tmp/test-results
       - store_artifacts:
@@ -278,26 +307,6 @@ jobs:
           steps:
             - notify-failures-on-develop:
                 mentions: "@proofs-team"
-
-  cannon-build-test-vectors:
-    docker:
-      - image: <<pipeline.parameters.default_docker_image>>
-    resource_class: large
-    steps:
-      - utils/checkout-with-mise
-      - check-changed:
-          patterns: cannon/mipsevm/tests/open_mips_tests/test
-      - run:
-          name: Install dependencies
-          command: |
-            sudo apt-get update
-            sudo apt-get install -y binutils-mips-linux-gnu
-            pip install capstone pyelftools
-      - run:
-          name: Build MIPS test vectors
-          command: |
-            python3 maketests.py && git diff --exit-code
-          working_directory: cannon/mipsevm/tests/open_mips_tests
 
   diff-asterisc-bytecode:
     machine: true
@@ -341,7 +350,7 @@ jobs:
   contracts-bedrock-build:
     docker:
       - image: <<pipeline.parameters.default_docker_image>>
-    resource_class: large
+    resource_class: xlarge
     parameters:
       build_args:
         description: Forge build arguments
@@ -433,7 +442,7 @@ jobs:
         type: boolean
         default: false
       resource_class:
-        description: Docker resoruce class
+        description: Docker resource class
         type: string
         default: medium
     machine:
@@ -766,7 +775,7 @@ jobs:
     circleci_ip_ranges: true
     docker:
         - image: <<pipeline.parameters.default_docker_image>>
-    resource_class: xlarge
+    resource_class: 2xlarge
     parameters:
       test_flags:
         description: Additional flags to pass to the test command
@@ -854,7 +863,7 @@ jobs:
         type: string
     docker:
       - image: <<pipeline.parameters.default_docker_image>>
-    resource_class: large
+    resource_class: xlarge
     steps:
       - utils/checkout-with-mise
       - attach_workspace: { at: "." }
@@ -963,6 +972,8 @@ jobs:
           command: unused-imports-check-no-build
       - run-contracts-check:
           command: validate-spacers-no-build
+      - run-contracts-check:
+          command: opcm-upgrade-checks-no-build
 
   todo-issues:
     parameters:
@@ -1005,6 +1016,7 @@ jobs:
           if: ${{ uses_artifacts }}
       - run:
           name: Fuzz
+          no_output_timeout: 15m
           command: |
             make fuzz
           working_directory: "<<parameters.package_name>>"
@@ -1055,9 +1067,67 @@ jobs:
         description: Environment overrides
         type: string
         default: ""
-      packages:
-        description: List of packages to test
+      rule:
+        description: Rule to run the tests
         type: string
+        default: "go-tests-short-ci"
+    machine: true
+    resource_class: <<parameters.resource_class>>
+    steps:
+      - utils/checkout-with-mise
+      - attach_workspace:
+          at: "."
+      - run:
+          name: Run all Go tests via Makefile
+          no_output_timeout: <<parameters.no_output_timeout>>
+          command: |
+            <<parameters.environment_overrides>>
+            export TEST_TIMEOUT=<<parameters.test_timeout>>
+            make <<parameters.rule>>
+      - codecov/upload:
+          disable_search: true
+          files: ./coverage.out
+      - store_test_results:
+          path: ./tmp/test-results
+      - run:
+          name: Compress test logs
+          command: tar -czf testlogs.tar.gz -C ./tmp testlogs
+          when: always
+      - store_artifacts:
+          path: testlogs.tar.gz
+          when: always
+      - when:
+          condition: "<<parameters.notify>>"
+          steps:
+            - notify-failures-on-develop:
+                mentions: "<<parameters.mentions>>"
+
+  go-tests-with-fault-proof-deps:
+    parameters:
+      notify:
+        description: Whether to notify on failure
+        type: boolean
+        default: false
+      mentions:
+        description: Slack user or group to mention when notifying of failures
+        type: string
+        default: ""
+      resource_class:
+        description: Machine resource class
+        type: string
+        default: ethereum-optimism/latitude-1-go-e2e
+      no_output_timeout:
+        description: Timeout for when CircleCI kills the job if there's no output
+        type: string
+        default: 60m
+      test_timeout:
+        description: Timeout for running tests
+        type: string
+        default: 10m
+      environment_overrides:
+        description: Environment overrides
+        type: string
+        default: ""
     machine: true
     resource_class: <<parameters.resource_class>>
     steps:
@@ -1079,36 +1149,9 @@ jobs:
           name: run tests
           no_output_timeout: <<parameters.no_output_timeout>>
           command: |
-            mkdir -p ./tmp/test-results && mkdir -p ./tmp/testlogs
-            cd op-e2e && make pre-test && cd ..
-
-            packages=(
-              <<parameters.packages>>
-            )
-            formatted_packages=""
-            for package in "${packages[@]}"; do
-              formatted_packages="$formatted_packages ./$package/..."
-            done
-
-            export ENABLE_KURTOSIS=true
-            export OP_E2E_CANNON_ENABLED="false"
-            export OP_E2E_SKIP_SLOW_TEST=true
-            export OP_E2E_USE_HTTP=true
-            export ENABLE_ANVIL=true
-            export SEPOLIA_RPC_URL="https://ci-sepolia-l1-archive.optimism.io"
-            export MAINNET_RPC_URL="https://ci-mainnet-l1-archive.optimism.io"
-            export PARALLEL=$(nproc)
-            export OP_TESTLOG_FILE_LOGGER_OUTDIR=$(realpath ./tmp/testlogs)
-
             <<parameters.environment_overrides>>
-
-            gotestsum --format=testname \
-              --junitfile=./tmp/test-results/results.xml \
-              --jsonfile=./tmp/testlogs/log.json \
-              --rerun-fails=3 \
-              --rerun-fails-max-failures=50 \
-              --packages="$formatted_packages" \
-              -- -parallel=$PARALLEL -coverprofile=coverage.out -timeout=<<parameters.test_timeout>>
+            export TEST_TIMEOUT=<<parameters.test_timeout>>
+            make go-tests-fraud-proofs-ci
       - codecov/upload:
           disable_search: true
           files: ./coverage.out
@@ -1130,7 +1173,12 @@ jobs:
   op-acceptance-tests:
     parameters:
       devnet:
-        description: The name of the devnet to run the acceptance tests against. The devnet must have a recipe defined in kurtosis-devnet/Justfile with the name <devnet>-devnet.
+        description: |
+          The name of the pre-defined kurtosis devnet to run the acceptance tests against
+          (e.g. 'simple', 'isthmus', 'interop'). Empty string uses
+          in-process testing (sysgo orchestrator). Named devnets use
+          external testing (sysext orchestrator) and must have a
+          recipe defined in kurtosis-devnet/Justfile.
         type: string
         default: ""
       gate:
@@ -1141,31 +1189,56 @@ jobs:
         description: Timeout for when CircleCI kills the job if there's no output
         type: string
         default: 30m
-    machine: true
+    machine:
+      image: ubuntu-2404:current
+      docker_layer_caching: true # Since we are building docker images for components, we'll cache the layers for faster builds
     resource_class: xlarge
     steps:
       - utils/checkout-with-mise
+      - install-contracts-dependencies
+      # Attach workspace for cannon dependencies if using sysgo orchestrator (empty devnet)
+      - when:
+          condition:
+            equal: ["", << parameters.devnet >>]
+          steps:
+            - attach_workspace:
+                at: "."
       - run:
-          name: Setup Kurtosis
+          name: Setup Kurtosis (if needed)
           command: |
-            echo "Setting up Kurtosis..."
+            if [[ "<<parameters.devnet>>" != "" ]]; then
+              echo "Setting up Kurtosis for external devnet testing..."
 
-            # Print Kurtosis version
-            echo "Using Kurtosis from: $(which kurtosis || echo 'not found')"
-            kurtosis version
+              # Print Kurtosis version
+              echo "Using Kurtosis from: $(which kurtosis || echo 'not found')"
+              kurtosis version
 
-            # Start Kurtosis engine
-            echo "Starting Kurtosis engine..."
-            kurtosis engine start || true
+              # Start Kurtosis engine
+              echo "Starting Kurtosis engine..."
+              kurtosis engine start || true
 
-            # Clean old instances
-            echo "Cleaning old instances..."
-            kurtosis clean -a || true
+              # Clean old instances
+              echo "Cleaning old instances..."
+              kurtosis clean -a || true
 
-            # Check engine status
-            kurtosis engine status || true
+              # Check engine status
+              kurtosis engine status || true
 
-            echo "Kurtosis setup complete"
+              echo "Kurtosis setup complete"
+            else
+              echo "Using in-process testing (sysgo orchestrator) - no Kurtosis setup needed"
+            fi
+      # Notify us of a setup failure
+      - when:
+          condition: on_fail
+          steps:
+            - discord-notification-failures-on-develop:
+                mentions: "<@&1346448413172170807>" # Protocol DevX Pod
+                message: "Devnet <<parameters.devnet>>-devnet failed to start"
+      - run:
+          name: Stop the job if the devnet failed to start
+          command: circleci-agent step halt
+          when: on_fail
       # Restore cached Go modules
       - restore_cache:
           keys:
@@ -1178,25 +1251,27 @@ jobs:
           command: go mod download
       # Prepare the test environment
       - run:
-          name: Prepare test environment (compile tests and cache results)
+          name: Prepare test environment (compile tests and cache build results)
           working_directory: op-acceptance-tests
-          command: go test -v ./... || true # ignore failures; we're just compiling the tests
-      # Run the actual acceptance tests with optimized settings
+          command: go test -v -c -o /dev/null $(go list -f '{{if .TestGoFiles}}{{.ImportPath}}{{end}}' ./tests/...)
+      # Run the acceptance tests (if the devnet is running)
       - run:
-          name: Run acceptance tests (devnet=<<parameters.devnet>>, gate=<<parameters.gate>>)
+          name: Run acceptance tests (gate=<<parameters.gate>>)
           working_directory: op-acceptance-tests
-          no_output_timeout: 2h
+          no_output_timeout: 1h
           environment:
             GOFLAGS: "-mod=mod"
             GO111MODULE: "on"
-          command: just acceptance-test "<<parameters.devnet>>" "<<parameters.gate>>"
+            GOGC: "0"
+          command: |
+            # Run the tests
+            LOG_LEVEL=debug just acceptance-test "<<parameters.devnet>>" "<<parameters.gate>>"
       - run:
           name: Print results (summary)
           working_directory: op-acceptance-tests
           command: |
             LOG_DIR=$(ls -td -- logs/* | head -1)
             cat "$LOG_DIR/summary.log" || true
-          when: always
       - run:
           name: Print results (failures)
           working_directory: op-acceptance-tests
@@ -1210,14 +1285,13 @@ jobs:
           command: |
             LOG_DIR=$(ls -td -- logs/* | head -1)
             cat "$LOG_DIR/all.log" || true
-          when: always
       - run:
           name: Generate JUnit XML test report for CircleCI
           working_directory: op-acceptance-tests
+          when: always
           command: |
             LOG_DIR=$(ls -td -- logs/* | head -1)
             gotestsum --junitfile results/results.xml --raw-command cat $LOG_DIR/raw_go_events.log || true
-          when: always
       # Save the module cache for future runs
       - save_cache:
           key: go-mod-v1-{{ checksum "go.sum" }}
@@ -1234,10 +1308,37 @@ jobs:
           steps:
             - store_artifacts:
                 path: ./op-acceptance-tests/logs
-      # Notification step
-      - notify-failures-on-develop:
-          channel: "C03N11M0BBN"  # #notify-ci-failures
-          mentions: "@stefano" # temporarily just mention Stefano until the acceptance tests are stable (was: @protocol-devx-pod)
+      # Dump kurtosis logs if external devnet was used
+      - run:
+          name: Dump kurtosis logs (if external devnet was used)
+          when: on_fail
+          command: |
+            if [[ "<<parameters.devnet>>" != "" ]]; then
+              # Dump logs & specs
+              kurtosis dump ./.kurtosis-dump
+
+              # Remove spec.json files
+              rm -rf ./.kurtosis-dump/enclaves/**/*.json
+
+              # Remove all unnecessary logs
+              rm -rf ./.kurtosis-dump/enclaves/*/kurtosis-api--*
+              rm -rf ./.kurtosis-dump/enclaves/*/kurtosis-logs-collector--*
+              rm -rf ./.kurtosis-dump/enclaves/*/task-*
+            else
+              echo "In-process testing was used - no kurtosis logs to dump"
+            fi
+      - when:
+          condition: always
+          steps:
+            - store_artifacts:
+                path: ./.kurtosis-dump/enclaves
+                destination: op-acceptance-tests/kurtosis-logs
+      - when:
+          condition: on_fail
+          steps:
+            - discord-notification-failures-on-develop:
+                mentions: "Platforms (<@225161927351992320>) & Protocol (<@590878816004603924>)" # stefano, changwan
+                message: "Acceptance tests failed for gate <<parameters.gate>> on devnet <<parameters.devnet>>"
 
   sanitize-op-program:
     docker:
@@ -1258,9 +1359,8 @@ jobs:
           command: make op-program
       - run:
           name: Sanitize op-program client
-          command: make sanitize-program GUEST_PROGRAM=../op-program/bin/op-program-client.elf
+          command: make sanitize-program GUEST_PROGRAM=../op-program/bin/op-program-client64.elf
           working_directory: cannon
-
 
   cannon-prestate-quick:
     machine: true
@@ -1285,6 +1385,8 @@ jobs:
           paths:
             - "op-program/bin/prestate*"
             - "op-program/bin/meta*"
+            - "op-program/bin/op-program"
+            - "op-program/bin/op-program-client"
             - "cannon/bin"
 
   cannon-prestate:
@@ -1317,33 +1419,39 @@ jobs:
           name: Upload cannon prestates
           command: |
             # Use the actual hash for tags (hash can be found by reading releases.json)
-            PRESTATE_HASH=$(jq -r .pre ./op-program/bin/prestate-proof.json)
             PRESTATE_MT64_HASH=$(jq -r .pre ./op-program/bin/prestate-proof-mt64.json)
+            PRESTATE_MT64NEXT_HASH=$(jq -r .pre ./op-program/bin/prestate-proof-mt64Next.json)
             PRESTATE_INTEROP_HASH=$(jq -r .pre ./op-program/bin/prestate-proof-interop.json)
+            PRESTATE_INTEROP_NEXT_HASH=$(jq -r .pre ./op-program/bin/prestate-proof-interopNext.json)
 
             BRANCH_NAME=$(echo "<< pipeline.git.branch >>" | tr '/' '-')
-            echo "Publishing ${PRESTATE_HASH}, ${PRESTATE_MT64_HASH}, ${PRESTATE_INTEROP_HASH} as ${BRANCH_NAME}"
+            echo "Publishing ${PRESTATE_MT64_HASH}, ${PRESTATE_MT64NEXT_HASH}, ${PRESTATE_INTEROP_HASH}, ${PRESTATE_INTEROP_NEXT_HASH} as ${BRANCH_NAME}"
             if [[ "" != "<< pipeline.git.branch >>" ]]
             then
               # Upload the git commit info for each prestate since this won't be recorded in releases.json
-              (echo "Commit=<< pipeline.git.revision >>" && echo "Prestate=${PRESTATE_HASH}") | gsutil cp - "gs://oplabs-network-data/proofs/op-program/cannon/${BRANCH_NAME}.bin.gz.txt"
               (echo "Commit=<< pipeline.git.revision >>" && echo "Prestate: ${PRESTATE_MT64_HASH}") | gsutil cp - "gs://oplabs-network-data/proofs/op-program/cannon/${BRANCH_NAME}-mt64.bin.gz.txt"
+              (echo "Commit=<< pipeline.git.revision >>" && echo "Prestate: ${PRESTATE_MT64NEXT_HASH}") | gsutil cp - "gs://oplabs-network-data/proofs/op-program/cannon/${BRANCH_NAME}-mt64Next.bin.gz.txt"
               (echo "Commit=<< pipeline.git.revision >>" && echo "Prestate: ${PRESTATE_INTEROP_HASH}") | gsutil cp - "gs://oplabs-network-data/proofs/op-program/cannon/${BRANCH_NAME}-interop.bin.gz.txt"
+              (echo "Commit=<< pipeline.git.revision >>" && echo "Prestate: ${PRESTATE_INTEROP_NEXT_HASH}") | gsutil cp - "gs://oplabs-network-data/proofs/op-program/cannon/${BRANCH_NAME}-interopNext.bin.gz.txt"
 
 
               # Use the branch name for branches to provide a consistent URL
-              PRESTATE_HASH="${BRANCH_NAME}"
               PRESTATE_MT64_HASH="${BRANCH_NAME}-mt64"
+              PRESTATE_MT64NEXT_HASH="${BRANCH_NAME}-mt64Next"
               PRESTATE_INTEROP_HASH="${BRANCH_NAME}-interop"
+              PRESTATE_INTEROP_NEXT_HASH="${BRANCH_NAME}-interopNext"
             fi
-            gsutil cp ./op-program/bin/prestate.bin.gz \
-              "gs://oplabs-network-data/proofs/op-program/cannon/${PRESTATE_HASH}.bin.gz"
-
             gsutil cp ./op-program/bin/prestate-mt64.bin.gz \
               "gs://oplabs-network-data/proofs/op-program/cannon/${PRESTATE_MT64_HASH}.bin.gz"
 
+            gsutil cp ./op-program/bin/prestate-mt64Next.bin.gz \
+              "gs://oplabs-network-data/proofs/op-program/cannon/${PRESTATE_MT64NEXT_HASH}.bin.gz"
+
             gsutil cp ./op-program/bin/prestate-interop.bin.gz \
               "gs://oplabs-network-data/proofs/op-program/cannon/${PRESTATE_INTEROP_HASH}.bin.gz"
+
+            gsutil cp ./op-program/bin/prestate-interopNext.bin.gz \
+              "gs://oplabs-network-data/proofs/op-program/cannon/${PRESTATE_INTEROP_NEXT_HASH}.bin.gz"
       - notify-failures-on-develop:
           mentions: "@proofs-team"
 
@@ -1434,28 +1542,11 @@ jobs:
     resource_class: xlarge
     steps:
       - utils/checkout-with-mise
-
-      - run:
-          name: Install Build Dependencies
-          command: |
-            sudo apt-get update
-            sudo apt-get install -y build-essential cmake ninja-build python3 curl git clang lld libc++-dev libc++abi-dev
-
-      - run:
-           name: Install LLVM Objdump via Mise
-           command: |
-             CC=clang CXX=clang++ mise install llvm-objdump@20.1.0
-             mise use -g llvm-objdump@20.1.0
-
-      - run:
-          name: Install vm-compat via Mise
-          command: |
-            mise use -g ubi:ChainSafe/vm-compat@1.1.0
-
+      - setup_remote_docker
       - run:
           name: Run Analyzer
           command: |
-            make analyze-op-program-client
+            make run-vm-compat
           working_directory: op-program
 
   op-program-compat:
@@ -1464,7 +1555,7 @@ jobs:
     steps:
       - utils/checkout-with-mise
       - run:
-          name: compat-sepolia
+          name: Verify Compatibility
           command: |
             make verify-compat
           working_directory: op-program
@@ -1563,7 +1654,8 @@ jobs:
       - image: <<pipeline.parameters.default_docker_image>>
     resource_class: large
     steps:
-      - setup_remote_docker
+      - setup_remote_docker:
+          docker_layer_caching: true
       - gcp-cli/install
       - gcp-oidc-authenticate:
           gcp_cred_config_file_path: /tmp/gcp_cred_config.json
@@ -1620,18 +1712,91 @@ jobs:
             days-before-issue-close: 5
             days-before-pr-close: 5
 
+  close-issue:
+    machine:
+      image: ubuntu-2204:2024.08.1
+    parameters:
+      label_name:
+        type: string
+      message:
+        type: string
+    steps:
+      - github-cli/install
+      - utils/github-event-handler-setup:
+          github_event_base64: << pipeline.parameters.github-event-base64 >>
+          env_prefix: "github_"
+      - run:
+          name: Close issue if label is added
+          command: |
+            if [ ! -z "$github_pull_request_number" ] && [ "$github_label_name" = "$LABEL_NAME" ]; then
+                echo "Closing issue $github_pull_request_number as label $LABEL_NAME is added on repository ${CIRCLE_PROJECT_USERNAME}/${CIRCLE_PROJECT_REPONAME} "
+                export GH_TOKEN=$GITHUB_TOKEN_GOVERNANCE
+                gh issue close --repo "${CIRCLE_PROJECT_USERNAME}/${CIRCLE_PROJECT_REPONAME}" "$github_pull_request_number" --comment "$MESSAGE"
+            fi
+          environment:
+            MESSAGE: << parameters.message >>
+            LABEL_NAME: << parameters.label_name >>
+
+  devnet-metrics-collect-authorship:
+    docker:
+      - image: <<pipeline.parameters.default_docker_image>>
+    steps:
+      - utils/checkout-with-mise
+      - run:
+          name: Collect devnet metrics for op-acceptance-tests
+          command: |
+            ./devnet-sdk/scripts/metrics-collect-authorship.sh op-acceptance-tests/tests > .metrics--authorship--op-acceptance-tests
+            echo "Wrote file .metrics--authorship--op-acceptance-tests"
+      - gcp-cli/install
+      - gcp-oidc-authenticate:
+          gcp_cred_config_file_path: /tmp/gcp_cred_config.json
+          oidc_token_file_path: /tmp/oidc_token.json
+      - run:
+          name: Store artifact in Bucket
+          command: |
+            CURRENT_DATE=$(date '+%Y-%m-%d')
+            FOLDER_NAME="dt=$CURRENT_DATE"
+
+            # Upload to the date-partitioned folder structure
+            gsutil cp .metrics--authorship--op-acceptance-tests gs://oplabs-tools-data-public-metrics/metrics-authorship/$FOLDER_NAME/metrics-$CIRCLE_SHA1.csv
+
+  generate-flaky-report:
+    machine: true
+    resource_class: medium
+    steps:
+      - utils/checkout-with-mise
+      - run:
+          name: Generate flaky acceptance tests report
+          command: |
+            # Create reports directory
+            mkdir -p ./op-acceptance-tests/reports
+
+            # Make the script executable
+            chmod +x ./op-acceptance-tests/scripts/generate-flaky-tests-report.sh
+
+            # Run the script
+            ./op-acceptance-tests/scripts/generate-flaky-tests-report.sh \
+              --branch "${CIRCLE_BRANCH:-develop}" \
+              --org "${CIRCLE_PROJECT_USERNAME}" \
+              --repo "${CIRCLE_PROJECT_REPONAME}" \
+              --token "${CIRCLE_API_TOKEN}" \
+              --output-dir "./op-acceptance-tests/reports"
+
+      # Store the flaky test reports
+      - store_artifacts:
+          path: ./op-acceptance-tests/reports
+          destination: flaky-test-reports
+
 
 workflows:
   main:
     when:
-      and:
-        - or:
-            # Trigger on new commits
-            - equal: [webhook, << pipeline.trigger_source >>]
-              # Trigger on manual triggers if explicitly requested
-            - equal: [true, << pipeline.parameters.main_dispatch >>]
-        - not:
-            equal: [scheduled_pipeline, << pipeline.trigger_source >>]
+      or:
+        - equal: ["webhook",<< pipeline.trigger_source >>]
+        - and:
+          - equal: [true, <<pipeline.parameters.main_dispatch>>]
+          - equal: ["api",<< pipeline.trigger_source >>]
+          - equal: [<< pipeline.parameters.github-event-type >>, "__not_set__"] #this is to prevent triggering this workflow as the default value is always set for main_dispatch
     jobs:
       - contracts-bedrock-build:
           name: contracts-bedrock-build
@@ -1639,27 +1804,23 @@ workflows:
           build_args: --deny-warnings --skip test
           context:
             - circleci-repo-readonly-authenticated-github-token
-            - discord
       - check-kontrol-build:
           requires:
             - contracts-bedrock-build
           context:
             - circleci-repo-readonly-authenticated-github-token
-            - discord
       - contracts-bedrock-tests:
           # Test everything except PreimageOracle.t.sol since it's slow.
           name: contracts-bedrock-tests
           test_list: find test -name "*.t.sol" -not -name "PreimageOracle.t.sol"
           context:
             - circleci-repo-readonly-authenticated-github-token
-            - discord
       - contracts-bedrock-tests:
           # PreimageOracle test is slow, run it separately to unblock CI.
           name: contracts-bedrock-tests-preimage-oracle
           test_list: find test -name "PreimageOracle.t.sol"
           context:
             - circleci-repo-readonly-authenticated-github-token
-            - discord
       - contracts-bedrock-tests:
           # Heavily fuzz any fuzz tests within added or modified test files.
           name: contracts-bedrock-tests-heavy-fuzz-modified
@@ -1668,7 +1829,6 @@ workflows:
           test_profile: ciheavy
           context:
             - circleci-repo-readonly-authenticated-github-token
-            - discord
       - contracts-bedrock-coverage:
           # Generate coverage reports.
           name: contracts-bedrock-coverage
@@ -1679,7 +1839,6 @@ workflows:
             - contracts-bedrock-build
           context:
             - circleci-repo-readonly-authenticated-github-token
-            - discord
       - contracts-bedrock-tests-upgrade:
           name: contracts-bedrock-tests-upgrade
           fork_op_chain: op
@@ -1687,7 +1846,6 @@ workflows:
           fork_base_rpc: https://ci-mainnet-l1-archive.optimism.io
           context:
             - circleci-repo-readonly-authenticated-github-token
-            - discord
       - contracts-bedrock-tests-upgrade:
           name: contracts-bedrock-tests-upgrade base-mainnet
           fork_op_chain: base
@@ -1695,7 +1853,6 @@ workflows:
           fork_base_rpc: https://ci-mainnet-l1-archive.optimism.io
           context:
             - circleci-repo-readonly-authenticated-github-token
-            - discord
       - contracts-bedrock-tests-upgrade:
           name: contracts-bedrock-tests-upgrade ink-mainnet
           fork_op_chain: ink
@@ -1703,7 +1860,6 @@ workflows:
           fork_base_rpc: https://ci-mainnet-l1-archive.optimism.io
           context:
             - circleci-repo-readonly-authenticated-github-token
-            - discord
       - contracts-bedrock-tests-upgrade:
           name: contracts-bedrock-tests-upgrade unichain-mainnet
           fork_op_chain: unichain
@@ -1711,39 +1867,35 @@ workflows:
           fork_base_rpc: https://ci-mainnet-l1-archive.optimism.io
           context:
             - circleci-repo-readonly-authenticated-github-token
-            - discord
       - contracts-bedrock-checks:
           requires:
             - contracts-bedrock-build
           context:
             - circleci-repo-readonly-authenticated-github-token
-            - discord
       - contracts-bedrock-frozen-code:
           requires:
             - contracts-bedrock-build
           context:
             - circleci-repo-readonly-authenticated-github-token
-            - discord
       - diff-fetcher-forge-artifacts:
           context:
             - circleci-repo-readonly-authenticated-github-token
-            - discord
       - diff-asterisc-bytecode:
           context:
             - circleci-repo-readonly-authenticated-github-token
-            - discord
       - semgrep-scan:
           name: semgrep-scan-local
           scan_command: semgrep scan --timeout=100 --config .semgrep/rules/ --error .
-          context: discord
+          context:
+            - circleci-repo-readonly-authenticated-github-token
       - semgrep-scan:
           name: semgrep-test
           scan_command: semgrep scan --test --config .semgrep/rules/ .semgrep/tests/
-          context: discord
+          context:
+            - circleci-repo-readonly-authenticated-github-token
       - go-lint:
           context:
             - circleci-repo-readonly-authenticated-github-token
-            - discord
       - fuzz-golang:
           name: fuzz-golang-<<matrix.package_name>>
           on_changes: <<matrix.package_name>>
@@ -1756,7 +1908,6 @@ workflows:
                 - op-chain-ops
           context:
             - circleci-repo-readonly-authenticated-github-token
-            - discord
       - fuzz-golang:
           name: cannon-fuzz
           package_name: cannon
@@ -1765,7 +1916,6 @@ workflows:
           requires: ["contracts-bedrock-build"]
           context:
             - circleci-repo-readonly-authenticated-github-token
-            - discord
       - fuzz-golang:
           name: op-e2e-fuzz
           package_name: op-e2e
@@ -1774,75 +1924,56 @@ workflows:
           requires: ["contracts-bedrock-build"]
           context:
             - circleci-repo-readonly-authenticated-github-token
-            - discord
       - go-tests:
-          environment_overrides: |
-            export PARALLEL=24
-          packages: |
-            op-alt-da
-            op-batcher
-            op-chain-ops
-            op-node
-            op-proposer
-            op-challenger
-            op-dispute-mon
-            op-conductor
-            op-program
-            op-service
-            op-supervisor
-            op-deployer
-            op-fetcher
-            op-validator
-            op-e2e/system
-            op-e2e/e2eutils
-            op-e2e/opgeth
-            op-e2e/interop
-            op-e2e/actions
-            op-e2e/faultproofs
-            packages/contracts-bedrock/scripts/checks
-            packages/contracts-bedrock/scripts/verify
-            op-dripper
-            devnet-sdk
-            op-acceptance-tests
-            kurtosis-devnet
+          name: go-tests-short
+          no_output_timeout: 19m
+          test_timeout: 20m
           requires:
             - contracts-bedrock-build
             - cannon-prestate-quick
           context:
             - circleci-repo-readonly-authenticated-github-token
-            - discord
+          filters:
+            branches:
+              ignore: develop  # Run on all branches EXCEPT develop (PR branches only)
+      - go-tests:
+          name: go-tests-full
+          rule: "go-tests-ci"  # Run full test suite instead of short
+          no_output_timeout: 89m  # Longer timeout for full tests
+          test_timeout: 90m
+          notify: true
+          filters:
+            branches:
+              only: develop  # Only runs on develop branch (post-merge)
+          requires:
+            - contracts-bedrock-build
+            - cannon-prestate-quick
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+            - slack
       - analyze-op-program-client:
           context:
             - circleci-repo-readonly-authenticated-github-token
-            - discord
-      # TODO(#15353) - Need to regenerate data used in op-program-compat and then reenable this test
-      #   See: https://github.com/ethereum-optimism/chain-test-data?tab=readme-ov-file#generating-new-data
-#      - op-program-compat:
-#          context:
-#            - circleci-repo-readonly-authenticated-github-token
-#            - discord
+      - op-program-compat:
+          context:
+            - circleci-repo-readonly-authenticated-github-token
       - bedrock-go-tests:
           requires:
             - go-lint
-            - cannon-build-test-vectors
-            - cannon-go-lint-and-test-32-bit
-            - cannon-go-lint-and-test-64-bit
+            - cannon-go-lint-and-test
             - check-generated-mocks-op-node
             - check-generated-mocks-op-service
-            # TODO(#15353) - Need to regenerate data used in op-program-compat
-            #   See: https://github.com/ethereum-optimism/chain-test-data?tab=readme-ov-file#generating-new-data
-            # - op-program-compat # Temporarily disable this requirement
+            - op-program-compat
             # Not needed for the devnet but we want to make sure they build successfully
             - cannon-docker-build
             - op-dispute-mon-docker-build
             - op-program-docker-build
             - op-supervisor-docker-build
-            - proofs-tools-docker-build
-            - go-tests
+            - op-test-sequencer-docker-build
+            - go-tests-short
             - sanitize-op-program
           context:
             - circleci-repo-readonly-authenticated-github-tokens
-            - discord
       - docker-build:
           name: <<matrix.docker_name>>-docker-build
           docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
@@ -1852,64 +1983,53 @@ workflows:
               docker_name:
                 - op-node
                 - op-batcher
+                - op-faucet
                 - op-program
                 - op-proposer
                 - op-challenger
-                - proofs-tools
                 - op-dispute-mon
                 - op-conductor
                 - da-server
                 - op-supervisor
+                - op-test-sequencer
                 - cannon
                 - op-dripper
+                - op-interop-mon
           context:
             - circleci-repo-readonly-authenticated-github-token
-            - discord
       - cannon-prestate-quick:
           context:
             - circleci-repo-readonly-authenticated-github-token
-            - discord
       - sanitize-op-program:
           requires:
             - cannon-prestate-quick
           context:
             - circleci-repo-readonly-authenticated-github-token
-            - discord
       - check-generated-mocks-op-node:
           context:
             - circleci-repo-readonly-authenticated-github-token
-            - discord
       - check-generated-mocks-op-service:
           context:
             - circleci-repo-readonly-authenticated-github-token
-            - discord
       - cannon-go-lint-and-test:
-          name: cannon-go-lint-and-test-<<matrix.mips_word_size>>-bit
           requires:
             - contracts-bedrock-build
           skip_slow_tests: true
           notify: true
-          matrix:
-            parameters:
-              mips_word_size: [32, 64]
           context:
             - circleci-repo-readonly-authenticated-github-token
-            - discord
-      - cannon-build-test-vectors:
-          context:
-            - circleci-repo-readonly-authenticated-github-token
-            - discord
       - todo-issues:
           name: todo-issues-check
           check_closed: false
           context:
             - circleci-repo-readonly-authenticated-github-token
-            - discord
       - shellcheck/check:
           name: shell-check
           # We don't need the `exclude` key as the orb detects the `.shellcheckrc`
           dir: .
           ignore-dirs: ./packages/contracts-bedrock/lib
+          context:
+            - circleci-repo-readonly-authenticated-github-token
 
   go-release-deployer:
     jobs:
@@ -1922,7 +2042,6 @@ workflows:
           module: op-deployer
           context:
             - oplabs-gcr-release
-            - discord
 
   release:
     when:
@@ -1934,7 +2053,7 @@ workflows:
           type: approval
           filters:
             tags:
-              only: /^(da-server|proofs-tools|cannon|ufm-[a-z0-9\-]*|op-[a-z0-9\-]*)\/v.*/
+              only: /^(da-server|cannon|ufm-[a-z0-9\-]*|op-[a-z0-9\-]*)\/v.*/
             branches:
               ignore: /.*/
       # Standard (medium) cross-platform docker images go here
@@ -1944,6 +2063,7 @@ workflows:
               docker_name:
                 - op-node
                 - op-batcher
+                - op-faucet
                 - op-proposer
                 - op-challenger
                 - op-dispute-mon
@@ -1951,9 +2071,11 @@ workflows:
                 - da-server
                 - op-ufm
                 - op-supervisor
+                - op-test-sequencer
                 - op-deployer
                 - cannon
                 - op-dripper
+                - op-interop-mon
           name: <<matrix.docker_name>>-docker-release
           docker_tags: <<pipeline.git.revision>>
           platforms: "linux/amd64,linux/arm64"
@@ -1966,7 +2088,6 @@ workflows:
               ignore: /.*/
           context:
             - oplabs-gcr-release
-            - discord
           requires:
             - hold
       # Checks for cross-platform images go here
@@ -1976,6 +2097,7 @@ workflows:
               op_component:
                 - op-node
                 - op-batcher
+                - op-faucet
                 - op-proposer
                 - op-challenger
                 - op-dispute-mon
@@ -1983,13 +2105,16 @@ workflows:
                 - da-server
                 - op-ufm
                 - op-supervisor
+                - op-test-sequencer
                 - op-deployer
                 - cannon
                 - op-dripper
+                - op-interop-mon
           name: <<matrix.op_component>>-cross-platform
           requires:
             - op-node-docker-release
             - op-batcher-docker-release
+            - op-faucet-docker-release
             - op-proposer-docker-release
             - op-challenger-docker-release
             - op-dispute-mon-docker-release
@@ -1997,37 +2122,23 @@ workflows:
             - da-server-docker-release
             - op-ufm-docker-release
             - op-supervisor-docker-release
+            - op-test-sequencer-docker-release
             - cannon-docker-release
             - op-dripper-docker-release
-      # Standard (xlarge) AMD-only docker images go here
-      - docker-build:
-          matrix:
-            parameters:
-              docker_name:
-                - proofs-tools
-          name: <<matrix.docker_name>>-docker-release
-          resource_class: xlarge
-          docker_tags: <<pipeline.git.revision>>
-          publish: true
-          release: true
-          filters:
-            tags:
-              only: /^<<matrix.docker_name>>\/v.*/
-            branches:
-              ignore: /.*/
+            - op-interop-mon-docker-release
           context:
-            - oplabs-gcr-release
-            - discord
-          requires:
-            - hold
+            - circleci-repo-readonly-authenticated-github-token
       - cannon-prestate:
           filters:
             tags:
               only: /^op-program\/v.*/
             branches:
               ignore: /.*/
+          context:
+            - circleci-repo-readonly-authenticated-github-token
       - publish-cannon-prestates:
           context:
+            - circleci-repo-readonly-authenticated-github-token
             - slack
             - oplabs-network-optimism-io-bucket
           requires:
@@ -2048,60 +2159,53 @@ workflows:
           context:
             - slack
             - circleci-repo-readonly-authenticated-github-token
-            - discord
 
   develop-publish-contract-artifacts:
     when:
       or:
-        - equal: ["develop", <<pipeline.git.branch>>]
-        - equal:
-            [true, <<pipeline.parameters.publish_contract_artifacts_dispatch>>]
+        - and:
+          - equal: ["develop", <<pipeline.git.branch>>]
+          - equal: ["webhook",<< pipeline.trigger_source >>]
+        - and:
+          - equal: [true, <<pipeline.parameters.publish_contract_artifacts_dispatch>>]
+          - equal: ["api",<< pipeline.trigger_source >>]
     jobs:
       - publish-contract-artifacts:
           context:
             - circleci-repo-readonly-authenticated-github-token
-            - discord
 
   develop-fault-proofs:
     when:
-      and:
-        - or:
-            - equal: ["develop", <<pipeline.git.branch>>]
-            - equal: [true, <<pipeline.parameters.fault_proofs_dispatch>>]
-        - not:
-            equal: [scheduled_pipeline, << pipeline.trigger_source >>]
+      or:
+        - and:
+          - equal: ["develop", <<pipeline.git.branch>>]
+          - equal: ["webhook",<< pipeline.trigger_source >>]
+        - and:
+          - equal: [true, <<pipeline.parameters.fault_proofs_dispatch>>]
+          - equal: ["api",<< pipeline.trigger_source >>]
     jobs:
       - cannon-prestate:
           context:
             - circleci-repo-readonly-authenticated-github-token
-            - discord
       - cannon-stf-verify:
           context:
             - slack
             - circleci-repo-readonly-authenticated-github-token
-            - discord
       - contracts-bedrock-build:
           build_args: --deny-warnings --skip test
           context:
             - slack
             - circleci-repo-readonly-authenticated-github-token
-            - discord
-      - go-tests:
+      - go-tests-with-fault-proof-deps:
           name: op-e2e-cannon-tests
           notify: true
           mentions: "@proofs-team"
-          no_output_timeout: 60m
-          test_timeout: 59m
+          no_output_timeout: 90m
+          test_timeout: 120m
           resource_class: ethereum-optimism/latitude-fps-1
-          environment_overrides: |
-            export OP_E2E_CANNON_ENABLED="true"
-            export PARALLEL=24
-          packages: |
-            op-e2e/faultproofs
           context:
             - slack
             - circleci-repo-readonly-authenticated-github-token
-            - discord
           requires:
             - contracts-bedrock-build
             - cannon-prestate
@@ -2109,30 +2213,26 @@ workflows:
           context:
             - slack
             - oplabs-network-optimism-io-bucket
-            - discord
+            - circleci-repo-readonly-authenticated-github-token
           requires:
             - cannon-prestate
             - op-e2e-cannon-tests
-          filters:
-            branches:
-              only:
-                - develop
 
   develop-kontrol-tests:
     when:
-      and:
-        - or:
-            - equal: ["develop", <<pipeline.git.branch>>]
-            - equal: [true, <<pipeline.parameters.kontrol_dispatch>>]
-        - not:
-            equal: [scheduled_pipeline, << pipeline.trigger_source >>]
+      or:
+        - and:
+          - equal: ["develop", <<pipeline.git.branch>>]
+          - equal: ["webhook",<< pipeline.trigger_source >>]
+        - and:
+          - equal: [true, <<pipeline.parameters.kontrol_dispatch>>]
+          - equal: ["api",<< pipeline.trigger_source >>]
     jobs:
       - kontrol-tests:
           context:
             - slack
             - runtimeverification
             - circleci-repo-readonly-authenticated-github-token
-            - discord
 
   scheduled-cannon-full-tests:
     when:
@@ -2144,20 +2244,15 @@ workflows:
           build_args: --deny-warnings --skip test
           context:
             - circleci-repo-readonly-authenticated-github-token
-            - discord
       - cannon-go-lint-and-test:
-          name: cannon-go-lint-and-test-<<matrix.mips_word_size>>-bit
           requires:
             - contracts-bedrock-build
           skip_slow_tests: false
+          no_output_timeout: 30m
           notify: true
           context:
             - slack
             - circleci-repo-readonly-authenticated-github-token
-            - discord
-          matrix:
-            parameters:
-              mips_word_size: [32, 64]
 
   scheduled-docker-publish:
     when:
@@ -2172,14 +2267,17 @@ workflows:
               docker_name:
                 - op-node
                 - op-batcher
+                - op-faucet
                 - op-program
                 - op-proposer
                 - op-challenger
                 - op-dispute-mon
                 - op-conductor
                 - op-supervisor
+                - op-test-sequencer
                 - cannon
                 - op-dripper
+                - op-interop-mon
           name: <<matrix.docker_name>>-docker-publish
           docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
           platforms: "linux/amd64,linux/arm64"
@@ -2188,24 +2286,28 @@ workflows:
             - oplabs-gcr
             - slack
             - circleci-repo-readonly-authenticated-github-token
-            - discord
       - check-cross-platform:
           matrix:
             parameters:
               op_component:
                 - op-node
                 - op-batcher
+                - op-faucet
                 - op-program
                 - op-proposer
                 - op-challenger
                 - op-dispute-mon
                 - op-conductor
                 - op-supervisor
+                - op-test-sequencer
                 - cannon
                 - op-dripper
+                - op-interop-mon
           name: <<matrix.op_component>>-cross-platform
           requires:
             - <<matrix.op_component>>-docker-publish
+          context:
+            - circleci-repo-readonly-authenticated-github-token
 
   scheduled-preimage-reproducibility:
     when:
@@ -2218,7 +2320,6 @@ workflows:
           context:
             - slack
             - circleci-repo-readonly-authenticated-github-token
-            - discord
 
   scheduled-stale-check:
     when:
@@ -2230,40 +2331,167 @@ workflows:
       - stale-check:
           context:
             - circleci-repo-optimism
-            - discord
 
+  # Acceptance tests (post-merge to develop)
   acceptance-tests:
     when:
-      and:
-        - or:
-            - equal: ["develop", <<pipeline.git.branch>>]
-            - equal: [true, <<pipeline.parameters.acceptance_tests_dispatch>>]
-        - not:
-            equal: [scheduled_pipeline, << pipeline.trigger_source >>]
+      or:
+        - and:
+          - equal: ["develop", <<pipeline.git.branch>>]
+          - equal: ["webhook",<< pipeline.trigger_source >>]
+        - and:
+          - equal: [true, <<pipeline.parameters.acceptance_tests_dispatch>>]
+          - equal: ["api",<< pipeline.trigger_source >>]
     jobs:
+      - contracts-bedrock-build:  # needed for sysgo tests
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+      - cannon-prestate-quick:  # needed for sysgo tests
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+      # IN-PROCESS (base)
+      - op-acceptance-tests:
+          # Acceptance Testing params
+          name: memory-base
+          gate: base
+          # CircleCI params
+          no_output_timeout: 10m
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+            - discord
+          requires:
+            - contracts-bedrock-build
+            - cannon-prestate-quick
       # KURTOSIS (Simple)
       - op-acceptance-tests:
           # Acceptance Testing params
           name: kurtosis-simple
           devnet: simple
           gate: base
-
           # CircleCI params
-          no_output_timeout: 60m
+          no_output_timeout: 30m
           context:
             - circleci-repo-readonly-authenticated-github-token
             - discord
-            - slack
       # KURTOSIS (Isthmus)
       - op-acceptance-tests:
           # Acceptance Testing params
           name: kurtosis-isthmus
           devnet: isthmus
           gate: isthmus
-
           # CircleCI params
-          no_output_timeout: 60m
+          no_output_timeout: 30m
           context:
             - circleci-repo-readonly-authenticated-github-token
             - discord
-            - slack
+      # KURTOSIS (Interop)
+      - op-acceptance-tests:
+          # Acceptance Testing params
+          name: kurtosis-interop
+          devnet: interop
+          gate: interop
+          # CircleCI params
+          no_output_timeout: 30m
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+            - discord
+      # Generate flaky test report
+      - generate-flaky-report:
+          name: generate-flaky-tests-report
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+            - circleci-api-token
+
+  # Acceptance tests (pre-merge to develop)
+  acceptance-tests-pr:
+    when:
+      not:
+        equal: [<< pipeline.git.branch >>, "develop"]
+    jobs:
+      - contracts-bedrock-build:  # needed for sysgo tests
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+      - cannon-prestate-quick:  # needed for sysgo tests
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+      # IN-PROCESS (base)
+      - op-acceptance-tests:
+          # Acceptance Testing params
+          name: memory-base
+          gate: base
+          # CircleCI params
+          no_output_timeout: 10m
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+            - discord
+          requires:
+            - contracts-bedrock-build
+            - cannon-prestate-quick
+      # KURTOSIS (Simple)
+      - op-acceptance-tests:
+          # Acceptance Testing params
+          name: kurtosis-simple
+          devnet: simple
+          gate: base
+          # CircleCI params
+          no_output_timeout: 30m
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+            - discord
+      # KURTOSIS (Isthmus)
+      - op-acceptance-tests:
+          # Acceptance Testing params
+          name: kurtosis-isthmus
+          devnet: isthmus
+          gate: isthmus
+          # CircleCI params
+          no_output_timeout: 30m
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+            - discord
+      # KURTOSIS (Interop)
+      - op-acceptance-tests:
+          # Acceptance Testing params
+          name: kurtosis-interop
+          devnet: interop
+          gate: interop
+          # CircleCI params
+          no_output_timeout: 30m
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+            - discord
+      # Generate flaky test report
+      - generate-flaky-report:
+          name: generate-flaky-tests-report
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+            - circleci-api-token
+
+  close-issue-workflow:
+    when:
+      and:
+        - equal: [<< pipeline.trigger_source >>, "api"]
+        - equal: [<< pipeline.parameters.github-event-type >>, "pull_request"]
+        - equal: [<< pipeline.parameters.github-event-action >>, "labeled"]
+    jobs:
+      - close-issue:
+         label_name: "auto-close-trivial-contribution"
+         message: "Thank you for your interest in contributing!
+                At this time, we are not accepting contributions that primarily fix spelling, stylistic, or grammatical errors in documentation, code, or elsewhere.
+                Please check our [contribution guidelines](https://github.com/ethereum-optimism/optimism/blob/develop/CONTRIBUTING.md#contributions-related-to-spelling-and-grammar) for more information.
+                This issue will be closed now."
+         context:
+          - circleci-repo-optimism
+
+  devnet-metrics-collect:
+    when:
+      or:
+        - equal: [<< pipeline.trigger_source >>, "webhook"]
+        - and:
+          - equal: [true, << pipeline.parameters.devnet-metrics-collect >>]
+          - equal: [<< pipeline.trigger_source >>, "api"]
+    jobs:
+      - devnet-metrics-collect-authorship:
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+            - oplabs-tools-data-public-metrics-bucket

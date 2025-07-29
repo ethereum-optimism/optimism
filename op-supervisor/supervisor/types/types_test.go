@@ -15,6 +15,7 @@ import (
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	ethTypes "github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/params"
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
@@ -47,22 +48,160 @@ func FuzzRoundtripIdentifierJSONMarshal(f *testing.F) {
 	})
 }
 
-func TestChainIndex(t *testing.T) {
-	var x ChainIndex
-	require.NoError(t, json.Unmarshal([]byte(`"1"`), &x))
-	require.Equal(t, ChainIndex(1), x)
-	data, err := json.Marshal(x)
-	require.NoError(t, err)
-	require.Equal(t, `"1"`, string(data))
+func FuzzMessage_DecodeEvent(f *testing.F) {
+	f.Fuzz(func(t *testing.T, validEvTopic bool, numTopics uint8, data []byte) {
+		if len(data) < 32 {
+			return
+		}
+		if len(data) > 100_000 {
+			return
+		}
+		if validEvTopic { // valid even signature topic implies a topic to be there
+			numTopics += 1
+		}
+		if numTopics > 4 { // There can be no more than 4 topics per log event
+			return
+		}
+		if int(numTopics)*32 > len(data) {
+			return
+		}
+		var topics []common.Hash
+		if validEvTopic {
+			topics = append(topics, ExecutingMessageEventTopic)
+		}
+		for i := 0; i < int(numTopics); i++ {
+			var topic common.Hash
+			copy(topic[:], data[:])
+			data = data[32:]
+		}
+		require.NotPanics(t, func() {
+			var m Message
+			_ = m.DecodeEvent(topics, data)
+		})
+	})
+}
 
-	require.NoError(t, json.Unmarshal([]byte(`"4294967295"`), &x))
-	require.Equal(t, ChainIndex(0xff_ff_ff_ff), x)
-	data, err = json.Marshal(x)
-	require.NoError(t, err)
-	require.Equal(t, `"4294967295"`, string(data))
+func TestInteropMessageFormatEdgeCases(t *testing.T) {
+	tests := []struct {
+		name          string
+		log           *ethTypes.Log
+		expectedError string
+	}{
+		{
+			name: "Empty Topics",
+			log: &ethTypes.Log{
+				Address: params.InteropCrossL2InboxAddress,
+				Topics:  []common.Hash{},
+				Data:    make([]byte, 32*5),
+			},
+			expectedError: "unexpected number of event topics: 0",
+		},
+		{
+			name: "Wrong Event Topic",
+			log: &ethTypes.Log{
+				Address: params.InteropCrossL2InboxAddress,
+				Topics: []common.Hash{
+					common.BytesToHash([]byte("wrong topic")),
+					common.BytesToHash([]byte("payloadHash")),
+				},
+				Data: make([]byte, 32*5),
+			},
+			expectedError: "unexpected event topic",
+		},
+		{
+			name: "Missing PayloadHash Topic",
+			log: &ethTypes.Log{
+				Address: params.InteropCrossL2InboxAddress,
+				Topics: []common.Hash{
+					common.BytesToHash(ExecutingMessageEventTopic[:]),
+				},
+				Data: make([]byte, 32*5),
+			},
+			expectedError: "unexpected number of event topics: 1",
+		},
+		{
+			name: "Too Many Topics",
+			log: &ethTypes.Log{
+				Address: params.InteropCrossL2InboxAddress,
+				Topics: []common.Hash{
+					common.BytesToHash(ExecutingMessageEventTopic[:]),
+					common.BytesToHash([]byte("payloadHash")),
+					common.BytesToHash([]byte("extra")),
+				},
+				Data: make([]byte, 32*5),
+			},
+			expectedError: "unexpected number of event topics: 3",
+		},
+		{
+			name: "Data Too Short",
+			log: &ethTypes.Log{
+				Address: params.InteropCrossL2InboxAddress,
+				Topics: []common.Hash{
+					common.BytesToHash(ExecutingMessageEventTopic[:]),
+					common.BytesToHash([]byte("payloadHash")),
+				},
+				Data: make([]byte, 32*4), // One word too short
+			},
+			expectedError: "unexpected identifier data length: 128",
+		},
+		{
+			name: "Data Too Long",
+			log: &ethTypes.Log{
+				Address: params.InteropCrossL2InboxAddress,
+				Topics: []common.Hash{
+					common.BytesToHash(ExecutingMessageEventTopic[:]),
+					common.BytesToHash([]byte("payloadHash")),
+				},
+				Data: make([]byte, 32*6), // One word too long
+			},
+			expectedError: "unexpected identifier data length: 192",
+		},
+		{
+			name: "Invalid Address Padding",
+			log: &ethTypes.Log{
+				Address: params.InteropCrossL2InboxAddress,
+				Topics: []common.Hash{
+					common.BytesToHash(ExecutingMessageEventTopic[:]),
+					common.BytesToHash([]byte("payloadHash")),
+				},
+				Data: func() []byte {
+					data := make([]byte, 32*5)
+					data[0] = 1 // Add non-zero byte in address padding
+					return data
+				}(),
+			},
+			expectedError: "invalid address padding",
+		},
+		{
+			name: "Invalid Block Number Padding",
+			log: &ethTypes.Log{
+				Address: params.InteropCrossL2InboxAddress,
+				Topics: []common.Hash{
+					common.BytesToHash(ExecutingMessageEventTopic[:]),
+					common.BytesToHash([]byte("payloadHash")),
+				},
+				Data: func() []byte {
+					data := make([]byte, 32*5)
+					data[32+23] = 1 // Add non-zero byte in block number padding
+					return data
+				}(),
+			},
+			expectedError: "invalid block number padding",
+		},
+	}
 
-	require.ErrorContains(t, json.Unmarshal([]byte(`"-1"`), &x), "invalid")
-	require.ErrorContains(t, json.Unmarshal([]byte(`"4294967296"`), &x), "out of range")
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var msg Message
+			err := msg.DecodeEvent(tt.log.Topics, tt.log.Data)
+			if tt.expectedError != "" {
+				require.Error(t, err)
+				require.ErrorContains(t, err, tt.expectedError)
+			} else {
+				require.NoError(t, err)
+			}
+		})
+	}
 }
 
 func TestHashing(t *testing.T) {
@@ -205,98 +344,6 @@ func TestSafetyLevel(t *testing.T) {
 	var x SafetyLevel
 	require.ErrorContains(t, json.Unmarshal([]byte(`""`), &x), "unrecognized", "empty")
 	require.ErrorContains(t, json.Unmarshal([]byte(`"foobar"`), &x), "unrecognized", "other")
-}
-
-type execDescrTestCase struct {
-	name             string
-	ed               ExecutingDescriptor
-	expiryWindow     uint64
-	initMsgTimestamp uint64
-	errStr           string // empty if no error
-}
-
-func TestExecutingDescriptorAccessCheck(t *testing.T) {
-	testCases := []execDescrTestCase{
-		{
-			name: "success",
-			ed: ExecutingDescriptor{
-				Timestamp: 3,
-				Timeout:   0,
-			},
-			expiryWindow:     10,
-			initMsgTimestamp: 2,
-		},
-		{
-			name: "future exec",
-			ed: ExecutingDescriptor{
-				Timestamp: 3,
-				Timeout:   0,
-			},
-			expiryWindow:     10,
-			initMsgTimestamp: 4,
-			errStr:           "broke timestamp invariant",
-		},
-		{
-			name: "access-list checks are extra strict, don't allow intra-timestamp",
-			ed: ExecutingDescriptor{
-				Timestamp: 3,
-				Timeout:   0,
-			},
-			expiryWindow:     10,
-			initMsgTimestamp: 3,
-			errStr:           "not allow intra-timestamp",
-		},
-		{
-			name: "attempt init-msg timestamp overflow",
-			ed: ExecutingDescriptor{
-				Timestamp: (^uint64(0)) - 2,
-				Timeout:   0,
-			},
-			expiryWindow:     10,
-			initMsgTimestamp: (^uint64(0)) - 3,
-			errStr:           "overflow",
-		},
-		{
-			name: "expired",
-			ed: ExecutingDescriptor{
-				Timestamp: 100,
-				Timeout:   0,
-			},
-			expiryWindow:     10,
-			initMsgTimestamp: 89,
-			errStr:           "expired",
-		},
-		{
-			name: "timeout overflow",
-			ed: ExecutingDescriptor{
-				Timestamp: 100,
-				Timeout:   (^uint64(0)) - 3,
-			},
-			expiryWindow:     10,
-			initMsgTimestamp: 99,
-			errStr:           "overflow",
-		},
-		{
-			name: "timeout, valid at exec timestamp, but not shortly after",
-			ed: ExecutingDescriptor{
-				Timestamp: 100,
-				Timeout:   10, //timeout asks for 100+10=110
-			},
-			expiryWindow:     10, // valid till 95+10 = 105
-			initMsgTimestamp: 95,
-			errStr:           "timeout",
-		},
-	}
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			err := tc.ed.AccessCheck(tc.expiryWindow, tc.initMsgTimestamp)
-			if tc.errStr == "" {
-				require.NoError(t, err)
-			} else {
-				require.ErrorContains(t, err, tc.errStr)
-			}
-		})
-	}
 }
 
 func TestPayloadHashToLogHash(t *testing.T) {

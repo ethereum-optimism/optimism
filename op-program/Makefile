@@ -1,5 +1,6 @@
-GITCOMMIT ?= $(shell git rev-parse HEAD)
-GITDATE ?= $(shell git show -s --format='%ct')
+GITCOMMIT ?= $(shell git rev-parse HEAD 2>/dev/null || echo "unknown")
+GITDATE ?= $(shell git show -s --format='%ct' 2>/dev/null || echo "0")
+
 VERSION ?= v0.0.0
 
 LDFLAGSSTRING +=-X main.GitCommit=$(GITCOMMIT)
@@ -27,12 +28,7 @@ op-program-client:
 	env GO111MODULE=on GOOS=$(TARGETOS) GOARCH=$(TARGETARCH) go build -v -ldflags "$(PC_LDFLAGSSTRING)" -o ./bin/op-program-client ./client/cmd/main.go
 	env GO111MODULE=on GOOS=$(TARGETOS) GOARCH=$(TARGETARCH) go build -v -ldflags "$(PC_LDFLAGSSTRING)" -o ./bin/op-program-client-interop ./client/interopcmd/main.go
 
-op-program-client-mips: op-program-client-mips32 op-program-client-mips64 op-program-client-mips64-interop
-
-op-program-client-mips32:
-	env GO111MODULE=on GOOS=linux GOARCH=mips GOMIPS=softfloat go build -v -ldflags "$(PC_LDFLAGSSTRING)" -o ./bin/op-program-client.elf ./client/cmd/main.go
-	# verify output with: readelf -h bin/op-program-client.elf
-	# result is mips32, big endian, R3000
+op-program-client-mips: op-program-client-mips64 op-program-client-mips64-interop
 
 op-program-client-mips64:
 	env GO111MODULE=on GOOS=linux GOARCH=mips64 GOMIPS64=softfloat go build -v -ldflags "$(PC_LDFLAGSSTRING)" -o ./bin/op-program-client64.elf ./client/cmd/main.go
@@ -51,13 +47,19 @@ check-custom-chains: op-program-host
 	./bin/op-program configs check-custom-chains
 
 reproducible-prestate: check-custom-chains
-	@docker build --output ./bin/ --progress plain -f Dockerfile.repro ../
-	@echo "Cannon Absolute prestate hash: "
-	@cat ./bin/prestate-proof.json | jq -r .pre
-	@echo "Cannon64 Absolute prestate hash: "
+	@docker build --build-arg GO_VERSION=1.24.2-alpine3.21 --build-arg EXPORT_TARGET=next  --output ./bin/ --progress plain -f Dockerfile.repro ../
+	@docker build --build-arg GO_VERSION=1.23.8-alpine3.21 --build-arg EXPORT_TARGET=current --output ./bin/ --progress plain -f Dockerfile.repro ../
+	@echo "-------------------- Production Prestates --------------------"
+	@echo "\nCannon64 Absolute prestate hash: "
 	@cat ./bin/prestate-proof-mt64.json | jq -r .pre
-	@echo "CannonInterop Absolute prestate hash: "
+	@echo "\n-------------------- Experimental Prestates --------------------"
+	@echo "\nCannon64Next Absolute prestate hash: "
+	@cat ./bin/prestate-proof-mt64Next.json | jq -r .pre
+	@echo "\nCannonInterop Absolute prestate hash: "
 	@cat ./bin/prestate-proof-interop.json | jq -r .pre
+	@echo "\nCannonInteropNext Absolute prestate hash: "
+	@cat ./bin/prestate-proof-interopNext.json | jq -r .pre
+	@echo
 .PHONY: reproducible-prestate
 
 verify-reproducibility:
@@ -92,13 +94,28 @@ capture-sepolia-fjord: op-program-host op-program-client
 	env GO111MODULE=on go run ./verify/sepolia/cmd/sepolia.go --l1 $$SEPOLIA_L1URL --l1.beacon $$SEPOLIA_BEACON_URL --l2 $$SEPOLIA_L2URL --datadir "$(COMPAT_DIR)/sepolia-fjord" --l1.head "0x93ba31bf89e54237af6e6564e69d328b2b5202adf643de4cb097431f74f4a6c1" --l2.start "15378256" --l2.end "15378356"
 	tar jcf "$(COMPAT_DIR)/sepolia-fjord.tar.bz" -C "$(COMPAT_DIR)" sepolia-fjord
 
-capture-chain-test-data: capture-mainnet-genesis capture-sepolia-delta capture-sepolia-ecotone capture-sepolia-fjord
+capture-sepolia-granite: op-program-host op-program-client
+	rm -rf "$(COMPAT_DIR)/sepolia-granite" "$(COMPAT_DIR)/sepolia-granite.tar.bz"
+	env GO111MODULE=on go run ./verify/sepolia/cmd/sepolia.go --l1 $$SEPOLIA_L1URL --l1.beacon $$SEPOLIA_BEACON_URL --l2 $$SEPOLIA_L2URL --datadir "$(COMPAT_DIR)/sepolia-granite" --l1.head "0x4a4e2b07b1cb468f20b37de54308ec70d2a96453e5186b0bf0929bd5b63ca492" --l2.start "15837930" --l2.end "15838030"
+	tar jcf "$(COMPAT_DIR)/sepolia-granite.tar.bz" -C "$(COMPAT_DIR)" sepolia-granite
 
-verify-sepolia-delta: op-program-host op-program-client
-	./scripts/run-compat.sh "sepolia-delta"
+capture-sepolia-holocene: op-program-host op-program-client
+	rm -rf "$(COMPAT_DIR)/sepolia-holocene" "$(COMPAT_DIR)/sepolia-holocene.tar.bz"
+	env GO111MODULE=on go run ./verify/sepolia/cmd/sepolia.go --l1 $$SEPOLIA_L1URL --l1.beacon $$SEPOLIA_BEACON_URL --l2 $$SEPOLIA_L2URL --datadir "$(COMPAT_DIR)/sepolia-holocene" --l1.head "0x0fd505af2e97a0cf59232a8615340689ee4dc14d022103f6342ba4fd6b89f066" --l2.start "20415330" --l2.end "20415430"
+	tar jcf "$(COMPAT_DIR)/sepolia-holocene.tar.bz" -C "$(COMPAT_DIR)" sepolia-holocene
+
+capture-sepolia-isthmus: op-program-host op-program-client
+	rm -rf "$(COMPAT_DIR)/sepolia-isthmus" "$(COMPAT_DIR)/sepolia-isthmus.tar.bz"
+	env GO111MODULE=on go run ./verify/sepolia/cmd/sepolia.go --l1 $$SEPOLIA_L1URL --l1.beacon $$SEPOLIA_BEACON_URL --l2 $$SEPOLIA_L2URL --datadir "$(COMPAT_DIR)/sepolia-isthmus" --l1.head "0x6ae443d11c3896a458f80905601920f16e6ae6cb34f070db7307195f6e23e58c" --l2.start "26551530" --l2.end "26551630"
+	tar jcf "$(COMPAT_DIR)/sepolia-isthmus.tar.bz" -C "$(COMPAT_DIR)" sepolia-isthmus
+
+capture-chain-test-data: capture-mainnet-genesis capture-sepolia-delta capture-sepolia-ecotone capture-sepolia-fjord capture-sepolia-granite capture-sepolia-holocene capture-sepolia-isthmus
 
 verify-mainnet-genesis: op-program-host op-program-client
 	./scripts/run-compat.sh "mainnet-genesis"
+
+verify-sepolia-delta: op-program-host op-program-client
+	./scripts/run-compat.sh "sepolia-delta"
 
 verify-sepolia-ecotone: op-program-host op-program-client
 	./scripts/run-compat.sh "sepolia-ecotone"
@@ -106,34 +123,51 @@ verify-sepolia-ecotone: op-program-host op-program-client
 verify-sepolia-fjord: op-program-host op-program-client
 	./scripts/run-compat.sh "sepolia-fjord"
 
-verify-compat: verify-sepolia-delta verify-sepolia-ecotone verify-mainnet-genesis
+verify-sepolia-granite: op-program-host op-program-client
+	./scripts/run-compat.sh "sepolia-granite"
 
-analyze-op-program-client: analyze-op-program-client-cannon-singlethreaded-32 analyze-op-program-client-cannon-multithreaded-64
+verify-sepolia-holocene: op-program-host op-program-client
+	./scripts/run-compat.sh "sepolia-holocene"
 
-analyze-op-program-client-cannon-singlethreaded-32:
-	./scripts/run-static-analysis.sh cannon-singlethreaded-32 ./compatibility-test/baseline-cannon-singlethreaded-32.json
+verify-sepolia-isthmus: op-program-host op-program-client
+	./scripts/run-compat.sh "sepolia-isthmus"
 
-analyze-op-program-client-cannon-multithreaded-64:
-	./scripts/run-static-analysis.sh cannon-multithreaded-64 ./compatibility-test/baseline-cannon-multithreaded-64.json
+verify-compat: verify-mainnet-genesis verify-sepolia-delta verify-sepolia-ecotone verify-sepolia-fjord verify-sepolia-granite verify-sepolia-holocene verify-sepolia-isthmus
+
+analyze-op-program-client-current:
+	./scripts/run-static-analysis.sh ./vm-profiles/cannon-multithreaded-64.yaml ./compatibility-test/baseline-cannon-multithreaded-64.json
+
+analyze-op-program-client-next:
+	./scripts/run-static-analysis.sh ./vm-profiles/cannon-multithreaded-64-next.yaml ./compatibility-test/baseline-cannon-multithreaded-64-next.json
+
+run-vm-compat:
+	@docker build --build-arg GO_VERSION=1.23.8-alpine3.21 --build-arg VM_TARGET=current --progress plain -f Dockerfile.vmcompat ../
+	@docker build --build-arg GO_VERSION=1.24.2-alpine3.21 --build-arg VM_TARGET=next --progress plain -f Dockerfile.vmcompat ../
 
 .PHONY: \
 	op-program \
 	op-program-host \
 	op-program-client \
 	op-program-client-mips \
-	op-program-client-mips32 \
 	op-program-client-mips64 \
 	op-program-client-riscv \
 	clean \
 	test \
-	capture-goerli-verify \
 	capture-mainnet-genesis \
 	capture-sepolia-delta \
 	capture-sepolia-ecotone \
+	capture-sepolia-fjord \
+	capture-sepolia-granite \
+	capture-sepolia-holocene \
+	capture-sepolia-isthmus \
 	capture-chain-test-data \
-	run-goerli-verify \
-	run-sepolia-verify \
-	run-compat \
+	verify-mainnet-genesis \
+	verify-sepolia-delta \
+	verify-sepolia-ecotone \
+	verify-sepolia-fjord \
+	verify-sepolia-granite \
+	verify-sepolia-holocene \
+	verify-sepolia-isthmus \
+	verify-compat \
 	analyze-op-program-client \
-	analyze-op-program-client-cannon-singlethreaded-32 \
 	analyze-op-program-client-cannon-multithreaded-64

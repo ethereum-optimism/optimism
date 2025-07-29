@@ -3,30 +3,18 @@ package script
 import (
 	"math"
 
-	"github.com/ethereum-optimism/optimism/op-chain-ops/interopgen"
+	"github.com/ethereum-optimism/optimism/op-chain-ops/addresses"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/script"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/opcm"
 	"github.com/ethereum/go-ethereum/common"
 )
 
 type Addresses struct {
-	interopgen.L2OpchainDeployment
+	addresses.OpChainContracts
 	// Shared singletons
-	SuperchainConfig common.Address `json:"SuperchainConfig"`
-	Mips             common.Address `json:"MIPS"`
-	PreimageOracle   common.Address `json:"PreimageOracle"`
-	// Legacy contracts
-	L2OutputOracleProxy common.Address `json:"L2OutputOracleProxy"`
-}
-
-type Roles struct {
-	SystemConfigOwner      common.Address `json:"SystemConfigOwner"`
-	OpChainProxyAdminOwner common.Address `json:"OpChainProxyAdminOwner"`
-	Guardian               common.Address `json:"Guardian"`
-	Challenger             common.Address `json:"Challenger"`
-	Proposer               common.Address `json:"Proposer"`
-	UnsafeBlockSigner      common.Address `json:"UnsafeBlockSigner"`
-	BatchSubmitter         common.Address `json:"BatchSubmitter"`
+	SuperchainConfigProxy common.Address
+	MipsImpl              common.Address
+	PreimageOracleImpl    common.Address
 }
 
 type FaultProofStatus struct {
@@ -42,7 +30,7 @@ type FetchChainInfoInput struct {
 
 type FetchChainInfoOutput struct {
 	Addresses
-	Roles
+	addresses.OpChainRoles
 	FaultProofStatus
 }
 
@@ -51,16 +39,16 @@ func (output *FetchChainInfoOutput) CheckOutput(input common.Address) error {
 }
 
 type ChainConfig struct {
-	Addresses        Addresses         `json:"addresses"`
-	Roles            Roles             `json:"roles"`
-	FaultProofStatus *FaultProofStatus `json:"faultProofs,omitempty" toml:"fault_proofs,omitempty"`
+	Addresses        Addresses              `json:"addresses"`
+	Roles            addresses.OpChainRoles `json:"roles"`
+	FaultProofStatus *FaultProofStatus      `json:"faultProofs,omitempty" toml:"fault_proofs,omitempty"`
 }
 
 // CreateChainConfig creates a nicely structured output from the flat FetchChainInfoOutput
 func CreateChainConfig(output FetchChainInfoOutput) ChainConfig {
 	chain := ChainConfig{
 		Addresses: output.Addresses,
-		Roles:     output.Roles,
+		Roles:     output.OpChainRoles,
 	}
 
 	if output.FaultProofStatus.RespectedGameType == math.MaxUint32 {

@@ -17,6 +17,7 @@ import (
 	"github.com/ethereum/go-ethereum/rpc"
 
 	altda "github.com/ethereum-optimism/optimism/op-alt-da"
+	"github.com/ethereum-optimism/optimism/op-chain-ops/addresses"
 	opparams "github.com/ethereum-optimism/optimism/op-node/params"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
@@ -376,9 +377,6 @@ type UpgradeScheduleDeployConfig struct {
 	L1CancunTimeOffset *hexutil.Uint64 `json:"l1CancunTimeOffset,omitempty"`
 	// When Prague activates. Relative to L1 genesis.
 	L1PragueTimeOffset *hexutil.Uint64 `json:"l1PragueTimeOffset,omitempty"`
-
-	// UseInterop is a flag that indicates if the system is using interop
-	UseInterop bool `json:"useInterop,omitempty"`
 }
 
 var _ ConfigChecker = (*UpgradeScheduleDeployConfig)(nil)
@@ -395,6 +393,7 @@ func offsetToUpgradeTime(offset *hexutil.Uint64, genesisTime uint64) *uint64 {
 }
 
 func (d *UpgradeScheduleDeployConfig) ForkTimeOffset(fork rollup.ForkName) *uint64 {
+
 	switch fork {
 	case rollup.Regolith:
 		return (*uint64)(d.L2GenesisRegolithTimeOffset)
@@ -412,10 +411,10 @@ func (d *UpgradeScheduleDeployConfig) ForkTimeOffset(fork rollup.ForkName) *uint
 		return (*uint64)(d.L2GenesisHoloceneTimeOffset)
 	case rollup.Isthmus:
 		return (*uint64)(d.L2GenesisIsthmusTimeOffset)
-	case rollup.Jovian:
-		return (*uint64)(d.L2GenesisJovianTimeOffset)
 	case rollup.Interop:
 		return (*uint64)(d.L2GenesisInteropTimeOffset)
+	case rollup.Jovian:
+		return (*uint64)(d.L2GenesisJovianTimeOffset)
 	default:
 		panic(fmt.Sprintf("unknown fork: %s", fork))
 	}
@@ -439,10 +438,10 @@ func (d *UpgradeScheduleDeployConfig) SetForkTimeOffset(fork rollup.ForkName, of
 		d.L2GenesisHoloceneTimeOffset = (*hexutil.Uint64)(offset)
 	case rollup.Isthmus:
 		d.L2GenesisIsthmusTimeOffset = (*hexutil.Uint64)(offset)
-	case rollup.Jovian:
-		d.L2GenesisJovianTimeOffset = (*hexutil.Uint64)(offset)
 	case rollup.Interop:
 		d.L2GenesisInteropTimeOffset = (*hexutil.Uint64)(offset)
+	case rollup.Jovian:
+		d.L2GenesisJovianTimeOffset = (*hexutil.Uint64)(offset)
 	default:
 		panic(fmt.Sprintf("unknown fork: %s", fork))
 	}
@@ -550,12 +549,35 @@ func (d *UpgradeScheduleDeployConfig) forks() []Fork {
 		{L2GenesisTimeOffset: d.L2GenesisGraniteTimeOffset, Name: string(L2AllocsGranite)},
 		{L2GenesisTimeOffset: d.L2GenesisHoloceneTimeOffset, Name: string(L2AllocsHolocene)},
 		{L2GenesisTimeOffset: d.L2GenesisIsthmusTimeOffset, Name: string(L2AllocsIsthmus)},
+		{L2GenesisTimeOffset: d.L2GenesisInteropTimeOffset, Name: string(L2AllocsInterop)},
 		{L2GenesisTimeOffset: d.L2GenesisJovianTimeOffset, Name: string(L2AllocsJovian)},
 	}
 }
 
+// SolidityForkNumber converts a genesis time to a fork number suitable for use with
+// the Fork enum in ForkUtils.sol.
+func (d *UpgradeScheduleDeployConfig) SolidityForkNumber(genesisTime uint64) int64 {
+	forks := d.forks()
+	for i := len(forks) - 1; i >= 0; i-- {
+		if forkTime := offsetToUpgradeTime(forks[i].L2GenesisTimeOffset, genesisTime); forkTime != nil && *forkTime == 0 {
+			// Subtract 1 since Solidity has a "none" fork type
+			return int64(i - 1)
+		}
+		// the oldest L2AllocsMode is delta
+		if forks[i].Name == string(L2AllocsDelta) {
+			return 1
+		}
+	}
+	panic("should never reach here")
+}
+
+// Check ensures that:
+//  1. parent fork is before or at the same time as child fork
+//  2. forks cannot activate at the same post-Genesis block
 func (d *UpgradeScheduleDeployConfig) Check(log log.Logger) error {
-	// checkFork checks that fork A is before or at the same time as fork B
+	// checkFork checks that:
+	//  1. fork A is before or at the same time as fork B
+	//  2. fork A and B cannot activate at the same post-Genesis block
 	checkFork := func(a, b *hexutil.Uint64, aName, bName string) error {
 		if a == nil && b == nil {
 			return nil
@@ -568,6 +590,9 @@ func (d *UpgradeScheduleDeployConfig) Check(log log.Logger) error {
 		}
 		if *a > *b {
 			return fmt.Errorf("fork %s set to %d, but prior fork %s has higher offset %d", bName, *b, aName, *a)
+		}
+		if *a == *b && *a != 0 {
+			return fmt.Errorf("both fork %s and %s are set to %d: Forks in general cannot activate at the same post-Genesis block", aName, bName, *b)
 		}
 		return nil
 	}
@@ -1000,6 +1025,15 @@ func (d *DeployConfig) SetDeployments(deployments *L1Deployments) {
 	d.DAChallengeProxy = deployments.DataAvailabilityChallengeProxy
 }
 
+func (d *DeployConfig) SetContracts(contracts *addresses.L1Contracts) {
+	d.L1StandardBridgeProxy = contracts.L1StandardBridgeProxy
+	d.L1CrossDomainMessengerProxy = contracts.L1CrossDomainMessengerProxy
+	d.L1ERC721BridgeProxy = contracts.L1Erc721BridgeProxy
+	d.SystemConfigProxy = contracts.SystemConfigProxy
+	d.OptimismPortalProxy = contracts.OptimismPortalProxy
+	d.DAChallengeProxy = contracts.AltDAChallengeProxy
+}
+
 // RollupConfig converts a DeployConfig to a rollup.Config. If Ecotone is active at genesis, the
 // Overhead value is considered a noop.
 func (d *DeployConfig) RollupConfig(l1StartBlock *eth.BlockRef, l2GenesisBlockHash common.Hash, l2GenesisBlockNumber uint64) (*rollup.Config, error) {
@@ -1132,6 +1166,34 @@ type L1Deployments struct {
 	ProtocolVersionsProxy             common.Address `json:"ProtocolVersionsProxy"`
 	DataAvailabilityChallenge         common.Address `json:"DataAvailabilityChallenge"`
 	DataAvailabilityChallengeProxy    common.Address `json:"DataAvailabilityChallengeProxy"`
+}
+
+func CreateL1DeploymentsFromContracts(contracts *addresses.L1Contracts) *L1Deployments {
+	return &L1Deployments{
+		AddressManager:                    contracts.AddressManagerImpl,
+		DisputeGameFactory:                contracts.DisputeGameFactoryImpl,
+		DisputeGameFactoryProxy:           contracts.DisputeGameFactoryProxy,
+		L1CrossDomainMessenger:            contracts.L1CrossDomainMessengerImpl,
+		L1CrossDomainMessengerProxy:       contracts.L1CrossDomainMessengerProxy,
+		L1ERC721Bridge:                    contracts.L1Erc721BridgeImpl,
+		L1ERC721BridgeProxy:               contracts.L1Erc721BridgeProxy,
+		L1StandardBridge:                  contracts.L1StandardBridgeImpl,
+		L1StandardBridgeProxy:             contracts.L1StandardBridgeProxy,
+		L2OutputOracleProxy:               contracts.L2OutputOracleProxy,
+		OptimismMintableERC20Factory:      contracts.OptimismMintableErc20FactoryImpl,
+		OptimismMintableERC20FactoryProxy: contracts.OptimismMintableErc20FactoryProxy,
+		OptimismPortal:                    contracts.OptimismPortalImpl,
+		OptimismPortalProxy:               contracts.OptimismPortalProxy,
+		ETHLockbox:                        contracts.EthLockboxImpl,
+		ETHLockboxProxy:                   contracts.EthLockboxProxy,
+		ProxyAdmin:                        contracts.OpChainProxyAdminImpl,
+		SystemConfig:                      contracts.SystemConfigImpl,
+		SystemConfigProxy:                 contracts.SystemConfigProxy,
+		ProtocolVersions:                  contracts.ProtocolVersionsImpl,
+		ProtocolVersionsProxy:             contracts.ProtocolVersionsProxy,
+		DataAvailabilityChallenge:         contracts.AltDAChallengeImpl,
+		DataAvailabilityChallengeProxy:    contracts.AltDAChallengeProxy,
+	}
 }
 
 // GetName will return the name of the contract given an address.

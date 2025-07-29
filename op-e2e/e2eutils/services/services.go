@@ -3,7 +3,7 @@ package services
 import (
 	"context"
 
-	rollupNode "github.com/ethereum-optimism/optimism/op-node/node"
+	rollupNode "github.com/ethereum-optimism/optimism/op-node/node/runcfg"
 	"github.com/ethereum-optimism/optimism/op-node/p2p"
 	"github.com/ethereum-optimism/optimism/op-service/endpoint"
 )

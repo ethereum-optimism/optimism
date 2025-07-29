@@ -23,7 +23,6 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/p2p/enode"
-	"github.com/ethereum/go-ethereum/rpc"
 
 	"github.com/ethereum-optimism/optimism/op-node/metrics"
 	"github.com/ethereum-optimism/optimism/op-node/p2p/store"
@@ -135,11 +134,7 @@ func TestP2PFull(t *testing.T) {
 			})
 		}})
 
-	backend := NewP2PAPIBackend(nodeA, logA)
-	srv := rpc.NewServer()
-	require.NoError(t, srv.RegisterName("opp2p", backend))
-	client := rpc.DialInProc(srv)
-	p2pClientA := NewClient(client)
+	p2pClientA := NewP2PAPIBackend(nodeA, logA)
 
 	// Set up B to connect statically
 	confB.StaticPeers, err = peer.AddrInfoToP2pAddrs(&peer.AddrInfo{ID: hostA.ID(), Addrs: hostA.Addrs()})

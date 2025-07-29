@@ -52,6 +52,27 @@ func (cl *SupervisorClient) AddL2RPC(ctx context.Context, rpc string, auth eth.B
 	return nil
 }
 
+func (cl *SupervisorClient) Rewind(ctx context.Context, chain eth.ChainID, block eth.BlockID) error {
+	return cl.client.CallContext(ctx, nil, "admin_rewind", chain, block)
+}
+
+func (cl *SupervisorClient) SetFailsafeEnabled(ctx context.Context, enabled bool) error {
+	err := cl.client.CallContext(ctx, nil, "admin_setFailsafeEnabled", enabled)
+	if err != nil {
+		return fmt.Errorf("failed to set failsafe mode for Supervisor: %w", err)
+	}
+	return nil
+}
+
+func (cl *SupervisorClient) GetFailsafeEnabled(ctx context.Context) (bool, error) {
+	var enabled bool
+	err := cl.client.CallContext(ctx, &enabled, "admin_getFailsafeEnabled")
+	if err != nil {
+		return false, fmt.Errorf("failed to get failsafe mode for Supervisor: %w", err)
+	}
+	return enabled, nil
+}
+
 func (cl *SupervisorClient) CheckAccessList(ctx context.Context, inboxEntries []common.Hash,
 	minSafety types.SafetyLevel, executingDescriptor types.ExecutingDescriptor) error {
 	return cl.client.CallContext(ctx, nil, "supervisor_checkAccessList", inboxEntries, minSafety, executingDescriptor)
@@ -67,6 +88,11 @@ func (cl *SupervisorClient) LocalUnsafe(ctx context.Context, chainID eth.ChainID
 	return result, err
 }
 
+func (cl *SupervisorClient) LocalSafe(ctx context.Context, chainID eth.ChainID) (result types.DerivedIDPair, err error) {
+	err = cl.client.CallContext(ctx, &result, "supervisor_localSafe", chainID)
+	return result, err
+}
+
 func (cl *SupervisorClient) CrossSafe(ctx context.Context, chainID eth.ChainID) (result types.DerivedIDPair, err error) {
 	err = cl.client.CallContext(ctx, &result, "supervisor_crossSafe", chainID)
 	return result, err
@@ -79,11 +105,6 @@ func (cl *SupervisorClient) Finalized(ctx context.Context, chainID eth.ChainID) 
 
 func (cl *SupervisorClient) FinalizedL1(ctx context.Context) (result eth.BlockRef, err error) {
 	err = cl.client.CallContext(ctx, &result, "supervisor_finalizedL1")
-	return result, err
-}
-
-func (cl *SupervisorClient) CrossDerivedFrom(ctx context.Context, chainID eth.ChainID, derived eth.BlockID) (result eth.BlockRef, err error) {
-	err = cl.client.CallContext(ctx, &result, "supervisor_crossDerivedFrom", chainID, derived)
 	return result, err
 }
 
@@ -124,6 +145,6 @@ func (cl *SupervisorClient) Close() {
 }
 
 func isNotFound(err error) bool {
-	// The RPC server wil convert the returned error to a string so we can't match on an error type here
+	// The RPC server will convert the returned error to a string so we can't match on an error type here
 	return err != nil && strings.Contains(err.Error(), ethereum.NotFound.Error())
 }

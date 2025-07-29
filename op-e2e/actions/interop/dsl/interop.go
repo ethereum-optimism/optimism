@@ -19,7 +19,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-e2e/actions/helpers"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
-	"github.com/ethereum-optimism/optimism/op-node/rollup/event"
+	"github.com/ethereum-optimism/optimism/op-service/event"
 	"github.com/ethereum-optimism/optimism/op-service/sources"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum-optimism/optimism/op-supervisor/config"
@@ -27,8 +27,8 @@ import (
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/depset"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/syncnode"
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 	"github.com/ethereum/go-ethereum/common"
+	gethTypes "github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 )
 
@@ -41,9 +41,10 @@ const (
 type Chain struct {
 	ChainID eth.ChainID
 
-	RollupCfg   *rollup.Config
-	L2Genesis   *core.Genesis
-	BatcherAddr common.Address
+	RollupCfg     *rollup.Config
+	DependencySet depset.DependencySet
+	L2Genesis     *core.Genesis
+	BatcherAddr   common.Address
 
 	Sequencer       *helpers.L2Sequencer
 	SequencerEngine *helpers.L2Engine
@@ -55,7 +56,7 @@ type InteropSetup struct {
 	Log        log.Logger
 	Deployment *interopgen.WorldDeployment
 	Out        *interopgen.WorldOutput
-	DepSet     *depset.StaticConfigDependencySet
+	CfgSet     depset.FullConfigSetMerged
 	Keys       devkeys.Keys
 	T          helpers.Testing
 }
@@ -91,12 +92,19 @@ func (actors *InteropActors) PrepareChainState(t helpers.Testing) {
 	actors.ChainA.Sequencer.ActL2PipelineFull(t)
 	actors.ChainB.Sequencer.ActL2PipelineFull(t)
 	t.Log("Processed!")
+}
 
+func (actors *InteropActors) VerifyGenesisState(t helpers.Testing) {
 	// Verify initial state
 	statusA := actors.ChainA.Sequencer.SyncStatus()
 	statusB := actors.ChainB.Sequencer.SyncStatus()
 	require.Equal(t, uint64(0), statusA.UnsafeL2.Number)
 	require.Equal(t, uint64(0), statusB.UnsafeL2.Number)
+}
+
+func (actors *InteropActors) PrepareAndVerifyInitialState(t helpers.Testing) {
+	actors.PrepareChainState(t)
+	actors.VerifyGenesisState(t)
 }
 
 // messageExpiryTime is the time in seconds that a message will be valid for on the L2 chain.
@@ -120,6 +128,27 @@ func SetBlockTimeForChainB(blockTime uint64) setupOption {
 func SetMessageExpiryTime(expiryTime uint64) setupOption {
 	return func(recipe *interopgen.InteropDevRecipe) {
 		recipe.ExpiryTime = expiryTime
+	}
+}
+
+func SetInteropOffsetForAllL2s(offset uint64) setupOption {
+	return func(recipe *interopgen.InteropDevRecipe) {
+		for i, l2 := range recipe.L2s {
+			l2.InteropOffset = offset
+			recipe.L2s[i] = l2
+		}
+	}
+}
+
+func SetInteropForkScheduledButInactive() setupOption {
+	return func(recipe *interopgen.InteropDevRecipe) {
+		// Update in place to avoid making a copy and losing the change.
+		// Set to a year in the future. Far enough tests won't hit it
+		// but not so far it will overflow when added to current time.
+		val := uint64(365 * 24 * 60 * 60)
+		for key := range recipe.L2s {
+			recipe.L2s[key].InteropOffset = val
+		}
 	}
 }
 
@@ -152,12 +181,16 @@ func SetupInterop(t helpers.Testing, opts ...setupOption) *InteropSetup {
 	// deploy the world, using the logger, foundry artifacts, source map, and world configuration
 	worldDeployment, worldOutput, err := interopgen.Deploy(logger, foundryArtifacts, sourceMap, worldCfg)
 	require.NoError(t, err)
+	depSet := RecipeToDepSet(t, &recipe)
+	rollupConfigSet := worldOutput.RollupConfigSet()
+	cfgSet, err := depset.NewFullConfigSetMerged(rollupConfigSet, depSet)
+	require.NoError(t, err)
 
 	return &InteropSetup{
 		Log:        logger,
 		Deployment: worldDeployment,
 		Out:        worldOutput,
-		DepSet:     RecipeToDepSet(t, &recipe),
+		CfgSet:     cfgSet,
 		Keys:       hdWallet,
 		T:          t,
 	}
@@ -165,14 +198,14 @@ func SetupInterop(t helpers.Testing, opts ...setupOption) *InteropSetup {
 
 func (is *InteropSetup) CreateActors() *InteropActors {
 	l1Miner := helpers.NewL1Miner(is.T, is.Log.New("role", "l1Miner"), is.Out.L1.Genesis)
-	supervisorAPI := NewSupervisor(is.T, is.Log, is.DepSet)
+	supervisorAPI := NewSupervisor(is.T, is.Log, is.CfgSet)
 	supervisorAPI.backend.AttachL1Source(l1Miner.L1ClientSimple(is.T))
 	require.NoError(is.T, supervisorAPI.backend.Start(is.T.Ctx()))
 	is.T.Cleanup(func() {
 		require.NoError(is.T, supervisorAPI.backend.Stop(context.Background()))
 	})
-	chainA := createL2Services(is.T, is.Log, l1Miner, is.Keys, is.Out.L2s["900200"])
-	chainB := createL2Services(is.T, is.Log, l1Miner, is.Keys, is.Out.L2s["900201"])
+	chainA := createL2Services(is.T, is.Log, l1Miner, is.Keys, is.Out.L2s["900200"], is.CfgSet)
+	chainB := createL2Services(is.T, is.Log, l1Miner, is.Keys, is.Out.L2s["900201"], is.CfgSet)
 	// Hook up L2 RPCs to supervisor, to fetch event data from
 	srcA := chainA.Sequencer.InteropSyncNode(is.T)
 	srcB := chainB.Sequencer.InteropSyncNode(is.T)
@@ -210,18 +243,14 @@ func (sa *SupervisorActor) SignalFinalizedL1(t helpers.Testing) {
 }
 
 func (sa *SupervisorActor) Rewind(chain eth.ChainID, block eth.BlockID) error {
-	return sa.backend.Rewind(chain, block)
+	return sa.backend.Rewind(context.Background(), chain, block)
 }
 
 // RecipeToDepSet converts a recipe into a dependency-set for the supervisor.
 func RecipeToDepSet(t helpers.Testing, recipe *interopgen.InteropDevRecipe) *depset.StaticConfigDependencySet {
 	depSetCfg := make(map[eth.ChainID]*depset.StaticConfigDependency)
 	for _, out := range recipe.L2s {
-		depSetCfg[eth.ChainIDFromUInt64(out.ChainID)] = &depset.StaticConfigDependency{
-			ChainIndex:     types.ChainIndex(out.ChainID),
-			ActivationTime: 0,
-			HistoryMinTime: 0,
-		}
+		depSetCfg[eth.ChainIDFromUInt64(out.ChainID)] = &depset.StaticConfigDependency{}
 	}
 	depSet, err := depset.NewStaticConfigDependencySetWithMessageExpiryOverride(depSetCfg, recipe.ExpiryTime)
 	require.NoError(t, err)
@@ -229,12 +258,12 @@ func RecipeToDepSet(t helpers.Testing, recipe *interopgen.InteropDevRecipe) *dep
 }
 
 // NewSupervisor creates a new SupervisorActor, to action-test the supervisor with.
-func NewSupervisor(t helpers.Testing, logger log.Logger, depSet depset.DependencySetSource) *SupervisorActor {
+func NewSupervisor(t helpers.Testing, logger log.Logger, fullCfgSet depset.FullConfigSetSource) *SupervisorActor {
 	logger = logger.New("role", "supervisor")
 	supervisorDataDir := t.TempDir()
 	logger.Info("supervisor data dir", "dir", supervisorDataDir)
 	svCfg := &config.Config{
-		DependencySetSource:   depSet,
+		FullConfigSetSource:   fullCfgSet,
 		SynchronousProcessors: true,
 		Datadir:               supervisorDataDir,
 		SyncSources:           &syncnode.CLISyncNodes{}, // sources are added dynamically afterwards
@@ -262,6 +291,7 @@ func createL2Services(
 	l1Miner *helpers.L1Miner,
 	keys devkeys.Keys,
 	output *interopgen.L2Output,
+	depSet depset.DependencySet,
 ) *Chain {
 	logger = logger.New("chain", output.Genesis.Config.ChainID)
 
@@ -277,7 +307,7 @@ func createL2Services(
 	require.NoError(t, err)
 
 	seq := helpers.NewL2Sequencer(t, logger.New("role", "sequencer"), l1F,
-		l1Miner.BlobStore(), altda.Disabled, seqCl, output.RollupCfg,
+		l1Miner.BlobStore(), altda.Disabled, seqCl, output.RollupCfg, depSet,
 		0)
 
 	batcherKey, err := keys.Secret(devkeys.ChainOperatorKey{
@@ -300,10 +330,93 @@ func createL2Services(
 	return &Chain{
 		ChainID:         eth.ChainIDFromBig(output.Genesis.Config.ChainID),
 		RollupCfg:       output.RollupCfg,
+		DependencySet:   depSet,
 		L2Genesis:       output.Genesis,
 		BatcherAddr:     crypto.PubkeyToAddress(batcherKey.PublicKey),
 		Sequencer:       seq,
 		SequencerEngine: eng,
 		Batcher:         batcher,
 	}
+}
+
+type batchAndMineOption func(*batchAndMineConfig)
+
+type batchAndMineConfig struct {
+	shouldMarkSafe  bool
+	shouldMarkFinal bool
+}
+
+// WithMarkFinal marks the L1 block with L2 batches as safe and finalized.
+// Necessary for doing this is creating a second L1 block so that the final head can be be promoted.
+func WithMarkFinal() batchAndMineOption {
+	return func(cfg *batchAndMineConfig) {
+		cfg.shouldMarkFinal = true
+	}
+}
+
+func WithMarkSafe() batchAndMineOption {
+	return func(cfg *batchAndMineConfig) {
+		cfg.shouldMarkSafe = true
+	}
+}
+
+// Creates a new L2 block, submits it to L1, and mines the L1 block.
+func (actors *InteropActors) ActBatchAndMine(t helpers.Testing, opts ...batchAndMineOption) {
+	cfg := &batchAndMineConfig{}
+	for _, opt := range opts {
+		opt(cfg)
+	}
+	var batches []*gethTypes.Transaction
+	for _, c := range []*Chain{actors.ChainA, actors.ChainB} {
+		c.Batcher.ActSubmitAll(t)
+		batches = append(batches, c.Batcher.LastSubmitted)
+	}
+	actors.L1Miner.ActL1StartBlock(12)(t)
+	for _, b := range batches {
+		actors.L1Miner.ActL1IncludeTxByHash(b.Hash())(t)
+	}
+	actors.L1Miner.ActL1EndBlock(t)
+
+	if cfg.shouldMarkSafe || cfg.shouldMarkFinal {
+		actors.L1Miner.ActL1SafeNext(t)
+	}
+	if cfg.shouldMarkFinal {
+		actors.L1Miner.ActEmptyBlock(t)
+		actors.L1Miner.ActL1FinalizeNext(t)
+	}
+}
+
+type actSyncSupernodeOption func(*actSyncSupernodeConfig)
+
+type actSyncSupernodeConfig struct {
+	ChainOpts
+	shouldSendL1FinalizedSignal bool
+	shouldSendL1LatestSignal    bool
+}
+
+func WithChains(chains ...*Chain) actSyncSupernodeOption {
+	return func(cfg *actSyncSupernodeConfig) {
+		cfg.Chains = chains
+	}
+}
+
+func WithFinalizedSignal() actSyncSupernodeOption {
+	return func(cfg *actSyncSupernodeConfig) {
+		cfg.shouldSendL1FinalizedSignal = true
+	}
+}
+
+func WithLatestSignal() actSyncSupernodeOption {
+	return func(cfg *actSyncSupernodeConfig) {
+		cfg.shouldSendL1LatestSignal = true
+	}
+}
+
+func (actors *InteropActors) SyncStatuses(t helpers.Testing, chain *Chain) (*eth.SyncStatus, *eth.SupervisorChainSyncStatus) {
+	seqSyncStatus := chain.Sequencer.SyncStatus()
+	supSyncStatus, err := actors.Supervisor.SyncStatus(t.Ctx())
+	require.NoError(t, err)
+	supChainStatus, ok := supSyncStatus.Chains[chain.ChainID]
+	require.True(t, ok, "supervisor should have chain status for chain id: %s", chain.ChainID)
+	return seqSyncStatus, supChainStatus
 }

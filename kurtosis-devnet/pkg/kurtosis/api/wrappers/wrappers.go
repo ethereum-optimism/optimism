@@ -3,12 +3,15 @@ package wrappers
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 
 	"github.com/ethereum-optimism/optimism/kurtosis-devnet/pkg/kurtosis/api/interfaces"
 	"github.com/kurtosis-tech/kurtosis/api/golang/core/kurtosis_core_rpc_api_bindings"
 	"github.com/kurtosis-tech/kurtosis/api/golang/core/lib/enclaves"
+	"github.com/kurtosis-tech/kurtosis/api/golang/core/lib/services"
 	"github.com/kurtosis-tech/kurtosis/api/golang/core/lib/starlark_run_config"
+	"github.com/kurtosis-tech/kurtosis/api/golang/engine/kurtosis_engine_rpc_api_bindings"
 	"github.com/kurtosis-tech/kurtosis/api/golang/engine/lib/kurtosis_context"
 )
 
@@ -19,6 +22,31 @@ type KurtosisContextWrapper struct {
 
 type EnclaveContextWrapper struct {
 	*enclaves.EnclaveContext
+}
+
+type ServiceContextWrapper struct {
+	*services.ServiceContext
+}
+
+type EnclaveInfoWrapper struct {
+	*kurtosis_engine_rpc_api_bindings.EnclaveInfo
+}
+
+// mostly a no-op, to force the values to be typed as interfaces
+func convertPortSpecMap(ports map[string]*services.PortSpec) map[string]interfaces.PortSpec {
+	wrappedPorts := make(map[string]interfaces.PortSpec)
+	for name, port := range ports {
+		wrappedPorts[name] = port
+	}
+	return wrappedPorts
+}
+
+func (w *ServiceContextWrapper) GetPublicPorts() map[string]interfaces.PortSpec {
+	return convertPortSpecMap(w.ServiceContext.GetPublicPorts())
+}
+
+func (w *ServiceContextWrapper) GetPrivatePorts() map[string]interfaces.PortSpec {
+	return convertPortSpecMap(w.ServiceContext.GetPrivatePorts())
 }
 
 type starlarkRunResponseLineWrapper struct {
@@ -53,6 +81,10 @@ type starlarkInstructionResultWrapper struct {
 	*kurtosis_core_rpc_api_bindings.StarlarkInstructionResult
 }
 
+type EnclaveNameAndUuidWrapper struct {
+	*kurtosis_engine_rpc_api_bindings.EnclaveNameAndUuid
+}
+
 func (w KurtosisContextWrapper) CreateEnclave(ctx context.Context, name string) (interfaces.EnclaveContext, error) {
 	enclaveCtx, err := w.KurtosisContext.CreateEnclave(ctx, name)
 	if err != nil {
@@ -67,6 +99,49 @@ func (w KurtosisContextWrapper) GetEnclave(ctx context.Context, name string) (in
 		return nil, err
 	}
 	return &EnclaveContextWrapper{enclaveCtx}, nil
+}
+
+func (w *EnclaveContextWrapper) GetService(serviceIdentifier string) (interfaces.ServiceContext, error) {
+	svcCtx, err := w.EnclaveContext.GetServiceContext(serviceIdentifier)
+	if err != nil {
+		return nil, err
+	}
+	return &ServiceContextWrapper{svcCtx}, nil
+}
+
+func (w KurtosisContextWrapper) GetEnclaveStatus(ctx context.Context, enclave string) (interfaces.EnclaveStatus, error) {
+	enclaveInfo, err := w.KurtosisContext.GetEnclave(ctx, enclave)
+	if err != nil {
+		return "", err
+	}
+	status := enclaveInfo.GetContainersStatus()
+	switch status {
+	case kurtosis_engine_rpc_api_bindings.EnclaveContainersStatus_EnclaveContainersStatus_EMPTY:
+		return interfaces.EnclaveStatusEmpty, nil
+	case kurtosis_engine_rpc_api_bindings.EnclaveContainersStatus_EnclaveContainersStatus_RUNNING:
+		return interfaces.EnclaveStatusRunning, nil
+	case kurtosis_engine_rpc_api_bindings.EnclaveContainersStatus_EnclaveContainersStatus_STOPPED:
+		return interfaces.EnclaveStatusStopped, nil
+	default:
+		return "", fmt.Errorf("unknown enclave status: %v", status)
+	}
+}
+
+func (w KurtosisContextWrapper) DestroyEnclave(ctx context.Context, name string) error {
+	return w.KurtosisContext.DestroyEnclave(ctx, name)
+}
+
+func (w KurtosisContextWrapper) Clean(ctx context.Context, destroyAll bool) ([]interfaces.EnclaveNameAndUuid, error) {
+	deleted, err := w.KurtosisContext.Clean(ctx, destroyAll)
+	if err != nil {
+		return nil, err
+	}
+
+	result := make([]interfaces.EnclaveNameAndUuid, len(deleted))
+	for i, nameAndUuid := range deleted {
+		result[i] = &EnclaveNameAndUuidWrapper{nameAndUuid}
+	}
+	return result, nil
 }
 
 func (w *EnclaveContextWrapper) RunStarlarkPackage(ctx context.Context, pkg string, serializedParams *starlark_run_config.StarlarkRunConfig) (<-chan interfaces.StarlarkResponse, string, error) {
@@ -91,6 +166,12 @@ func (w *EnclaveContextWrapper) RunStarlarkPackage(ctx context.Context, pkg stri
 	}()
 
 	return wrappedStream, "", nil
+}
+
+func (w *EnclaveContextWrapper) RunStarlarkScript(ctx context.Context, script string, serializedParams *starlark_run_config.StarlarkRunConfig) error {
+	// TODO: we should probably collect some data from the result and extend the error.
+	_, err := w.EnclaveContext.RunStarlarkScriptBlocking(ctx, script, serializedParams)
+	return err
 }
 
 func (w *starlarkRunResponseLineWrapper) GetError() interfaces.StarlarkError {

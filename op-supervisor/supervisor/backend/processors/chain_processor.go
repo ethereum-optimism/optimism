@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"slices"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/ethereum/go-ethereum"
@@ -13,14 +14,14 @@ import (
 	gethtypes "github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
 
-	"github.com/ethereum-optimism/optimism/op-node/rollup/event"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/event"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/superevents"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 )
 
 type Source interface {
-	BlockRefByNumber(ctx context.Context, number uint64) (eth.BlockRef, error)
+	L2BlockRefByNumber(ctx context.Context, number uint64) (eth.L2BlockRef, error)
 	FetchReceipts(ctx context.Context, blockHash common.Hash) (gethtypes.Receipts, error)
 }
 
@@ -53,6 +54,9 @@ type ChainProcessor struct {
 
 	chain eth.ChainID
 
+	running atomic.Bool
+	target  uint64
+
 	systemContext context.Context
 
 	processor LogProcessor
@@ -63,8 +67,10 @@ type ChainProcessor struct {
 	maxFetcherThreads int
 }
 
-var _ event.AttachEmitter = (*ChainProcessor)(nil)
-var _ event.Deriver = (*ChainProcessor)(nil)
+var (
+	_ event.AttachEmitter = (*ChainProcessor)(nil)
+	_ event.Deriver       = (*ChainProcessor)(nil)
+)
 
 func NewChainProcessor(systemContext context.Context, log log.Logger, chain eth.ChainID, processor LogProcessor, rewinder DatabaseRewinder) *ChainProcessor {
 	out := &ChainProcessor{
@@ -91,63 +97,109 @@ func (s *ChainProcessor) AddSource(cl Source) {
 	}
 }
 
+// nextNum returns the next block number to process.
+// It returns 0 if the rewinder is empty, so there's no start to process from.
 func (s *ChainProcessor) nextNum() uint64 {
 	headNum, ok := s.rewinder.LatestBlockNum(s.chain)
 	if !ok {
-		return 0 // genesis. We could change this to start at a later block.
+		return 0
 	}
 	return headNum + 1
 }
 
-func (s *ChainProcessor) OnEvent(ev event.Event) bool {
+func (s *ChainProcessor) OnEvent(ctx context.Context, ev event.Event) bool {
 	switch x := ev.(type) {
 	case superevents.ChainProcessEvent:
 		if x.ChainID != s.chain {
 			return false
 		}
-		s.onRequest(x.Target)
+		// always update the target
+		s.UpdateTarget(x.Target)
+
+		// and if not already running, begin indexing
+		if s.running.CompareAndSwap(false, true) {
+			s.index()
+		}
+
+	case superevents.ChainIndexingContinueEvent:
+		if x.ChainID != s.chain {
+			return false
+		}
+		// always continue indexing when a continue event is received
+		// continue events only come from the index function
+		s.index()
 	default:
 		return false
 	}
 	return true
 }
 
-func (s *ChainProcessor) onRequest(target uint64) {
+func (s *ChainProcessor) UpdateTarget(newTarget uint64) {
+	if newTarget < s.target {
+		s.log.Debug("Target is already higher than update", "newTarget", newTarget, "oldTarget", s.target)
+		return
+	}
+	s.target = newTarget
+}
+
+// index is the main processing loop. It triggers a r
+func (s *ChainProcessor) index() {
+	// evaluate if indexing is needed
+	target := s.target
+	next := s.nextNum()
+	if next == 0 {
+		s.log.Warn("Dropping processing request, DB empty, need activation block first", "target", target)
+		s.running.Store(false)
+		return
+	} else if target < next {
+		s.log.Debug("Indexing for target block already done", "target", target, "next", s.nextNum())
+		s.running.Store(false)
+		return
+	}
+	// index the blocks up to the target
 	processed, err := s.rangeUpdate(target)
 	if err != nil {
 		if errors.Is(err, ethereum.NotFound) {
-			s.log.Debug("Event-indexer cannot find next block yet", "target", target, "err", err)
+			s.log.Debug("indexer cannot find next block yet", "target", target, "err", err)
 		} else if errors.Is(err, types.ErrNoRPCSource) {
 			s.log.Warn("No RPC source configured, cannot process new blocks")
 		} else {
-			s.log.Error("Failed to process new block", "err", err)
+			s.log.Error("Failed to index blocks", "err", err)
 		}
-		// if the client failed to get *any* blocks, it probably isn't the source of this sync request
-		// so we should try the next client. Clients will be tried in round-robin order until one succeeds.
-		if processed == 0 {
-			if s.clientsTried < len(s.clients) {
-				s.log.Debug("Active client found no blocks, trying again with next client", "activeClient", s.activeClient)
-				s.nextActiveClient()
-				s.emitter.Emit(superevents.ChainProcessEvent{
-					ChainID: s.chain,
-					Target:  target,
-				})
-			} else {
-				s.log.Debug("All clients failed to process blocks", "target", target)
-				s.clientsTried = 0 // reset the counter
-			}
-		}
-	} else if x := s.nextNum(); x <= target {
-		s.clientsTried = 0 // reset the counter
-		s.log.Debug("Continuing with next block", "target", target, "next", x)
-		s.emitter.Emit(superevents.ChainProcessEvent{
-			ChainID: s.chain,
-			Target:  target,
-		}) // instantly continue processing, no need to idle
-	} else {
-		s.clientsTried = 0 // reset the counter
-		s.log.Debug("Idling block-processing, reached latest block", "head", target)
 	}
+	// if the client failed to get *any* blocks, it probably isn't the source of this sync request
+	// so we should try the next client. Clients will be tried in round-robin order until one succeeds.
+	// or until they've all been tried, at which point the indexer will idle.
+	if processed == 0 {
+		if s.clientsTried < len(s.clients) {
+			s.log.Debug("Active client found no blocks, trying again with next client", "activeClient", s.activeClient)
+			s.nextActiveClient()
+			s.emitter.Emit(s.systemContext, superevents.ChainIndexingContinueEvent{
+				ChainID: s.chain,
+			})
+			return
+		} else {
+			s.log.Debug("All clients failed to process blocks", "target", target)
+			s.clientsTried = 0 // reset the counter
+			s.running.Store(false)
+			return
+		}
+	}
+	// rangeUpdate processed some blocks, re-evaluate the target and next block to continue indexing
+	target = s.target
+	next = s.nextNum()
+	// reset the counter because we successfully processed some blocks with the current client
+	s.clientsTried = 0
+	// if the next block is within the target, we need to continue indexing
+	if next <= s.target {
+		s.log.Debug("More indexing needed, continuing", "target", target, "next", next)
+		s.emitter.Emit(s.systemContext, superevents.ChainIndexingContinueEvent{
+			ChainID: s.chain,
+		})
+		return
+	}
+	s.log.Debug("Idling indexing, reached latest block", "head", target)
+	s.running.Store(false)
 }
 
 // nextActiveClient advances the client index and sets the active client.
@@ -210,12 +262,13 @@ func (s *ChainProcessor) rangeUpdate(target uint64) (int, error) {
 
 		// fetch the block ref
 		ctx, cancel := context.WithTimeout(s.systemContext, time.Second*10)
-		next, err := s.activeClient.BlockRefByNumber(ctx, num)
+		nextL2BlockRef, err := s.activeClient.L2BlockRefByNumber(ctx, num)
 		cancel()
 		if err != nil {
 			result.err = err
 			return
 		}
+		next := nextL2BlockRef.BlockRef()
 		if err := s.rewinder.AcceptedBlock(s.chain, next.ID()); err != nil {
 			s.log.Warn("Cannot accept next block into events DB", "next", next.ID(), "err", err)
 			result.err = err
@@ -285,7 +338,9 @@ func (s *ChainProcessor) process(ctx context.Context, next eth.BlockRef, receipt
 		if err := s.rewinder.Rewind(s.chain, next.ParentID()); err != nil {
 			// If any logs were written, our next attempt to write will fail and we'll retry this rewind.
 			// If no logs were written successfully then the rewind wouldn't have done anything anyway.
-			s.log.Error("Failed to rewind after error processing block", "block", next, "err", err)
+			s.log.Error("Failed to rewind after error processing block", "block", next, "parent", next.ParentID(), "err", err)
+		} else {
+			s.log.Debug("Successfully rewound database to the previous block", "block", next, "parent", next.ParentID())
 		}
 		return err
 	}

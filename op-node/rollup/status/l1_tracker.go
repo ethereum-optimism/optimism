@@ -4,8 +4,8 @@ import (
 	"context"
 
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
-	"github.com/ethereum-optimism/optimism/op-node/rollup/event"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/event"
 )
 
 // L1Tracker implements the L1Fetcher interface while proactively maintaining a reorg-aware cache
@@ -23,7 +23,7 @@ func NewL1Tracker(inner derive.L1Fetcher) *L1Tracker {
 	}
 }
 
-func (st *L1Tracker) OnEvent(ev event.Event) bool {
+func (st *L1Tracker) OnEvent(ctx context.Context, ev event.Event) bool {
 	switch x := ev.(type) {
 	case L1UnsafeEvent:
 		st.cache.Insert(x.L1Unsafe)

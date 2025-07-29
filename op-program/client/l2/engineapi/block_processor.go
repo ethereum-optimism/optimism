@@ -165,9 +165,13 @@ func (b *BlockProcessor) Assemble() (*types.Block, types.Receipts, error) {
 		_requests := [][]byte{}
 		// EIP-6110 - no-op because we just ignore all deposit requests, so no need to parse logs
 		// EIP-7002
-		core.ProcessWithdrawalQueue(&_requests, b.evm)
+		if err := core.ProcessWithdrawalQueue(&_requests, b.evm); err != nil {
+			return nil, nil, err
+		}
 		// EIP-7251
-		core.ProcessConsolidationQueue(&_requests, b.evm)
+		if err := core.ProcessConsolidationQueue(&_requests, b.evm); err != nil {
+			return nil, nil, err
+		}
 	}
 
 	block, err := b.dataProvider.Engine().FinalizeAndAssemble(b.dataProvider, b.header, b.state, &body, b.receipts)

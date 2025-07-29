@@ -6,6 +6,8 @@ import (
 
 	"github.com/ethereum-optimism/optimism/kurtosis-devnet/pkg/kurtosis/api/interfaces"
 	"github.com/fatih/color"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/trace"
 )
 
 // Color printers
@@ -63,17 +65,34 @@ func AllHandlers(handlers ...MessageHandler) MessageHandler {
 }
 
 // defaultHandler is the default message handler that provides standard Kurtosis output
-var defaultHandler = FirstMatchHandler(
-	MessageHandlerFunc(handleProgress),
-	MessageHandlerFunc(handleInstruction),
-	MessageHandlerFunc(handleWarning),
-	MessageHandlerFunc(handleInfo),
-	MessageHandlerFunc(handleResult),
-	MessageHandlerFunc(handleError),
-)
+type defaultHandler struct {
+	tracer trace.Tracer
+	span   trace.Span
+}
+
+func newDefaultHandler() *defaultHandler {
+	return &defaultHandler{
+		tracer: otel.Tracer("kurtosis-run"),
+	}
+}
+
+var _ MessageHandler = (*defaultHandler)(nil)
+
+func (h *defaultHandler) Handle(ctx context.Context, resp interfaces.StarlarkResponse) (bool, error) {
+	hdlr := FirstMatchHandler(
+		MessageHandlerFunc(h.handleProgress),
+		MessageHandlerFunc(h.handleInstruction),
+		MessageHandlerFunc(h.handleWarning),
+		MessageHandlerFunc(h.handleInfo),
+		MessageHandlerFunc(h.handleResult),
+		MessageHandlerFunc(h.handleError),
+	)
+
+	return hdlr.Handle(ctx, resp)
+}
 
 // handleProgress handles progress info messages
-func handleProgress(ctx context.Context, resp interfaces.StarlarkResponse) (bool, error) {
+func (h *defaultHandler) handleProgress(ctx context.Context, resp interfaces.StarlarkResponse) (bool, error) {
 	if progressInfo := resp.GetProgressInfo(); progressInfo != nil {
 		// ignore progress messages, same as kurtosis run does
 		return true, nil
@@ -82,9 +101,12 @@ func handleProgress(ctx context.Context, resp interfaces.StarlarkResponse) (bool
 }
 
 // handleInstruction handles instruction messages
-func handleInstruction(ctx context.Context, resp interfaces.StarlarkResponse) (bool, error) {
+func (h *defaultHandler) handleInstruction(ctx context.Context, resp interfaces.StarlarkResponse) (bool, error) {
 	if instruction := resp.GetInstruction(); instruction != nil {
 		desc := instruction.GetDescription()
+		_, span := h.tracer.Start(ctx, desc)
+		h.span = span
+
 		fmt.Println(printCyan(desc))
 		return true, nil
 	}
@@ -92,7 +114,7 @@ func handleInstruction(ctx context.Context, resp interfaces.StarlarkResponse) (b
 }
 
 // handleWarning handles warning messages
-func handleWarning(ctx context.Context, resp interfaces.StarlarkResponse) (bool, error) {
+func (h *defaultHandler) handleWarning(ctx context.Context, resp interfaces.StarlarkResponse) (bool, error) {
 	if warning := resp.GetWarning(); warning != nil {
 		fmt.Println(printYellow(warning.GetMessage()))
 		return true, nil
@@ -101,7 +123,7 @@ func handleWarning(ctx context.Context, resp interfaces.StarlarkResponse) (bool,
 }
 
 // handleInfo handles info messages
-func handleInfo(ctx context.Context, resp interfaces.StarlarkResponse) (bool, error) {
+func (h *defaultHandler) handleInfo(ctx context.Context, resp interfaces.StarlarkResponse) (bool, error) {
 	if info := resp.GetInfo(); info != nil {
 		fmt.Println(printBlue(info.GetMessage()))
 		return true, nil
@@ -110,10 +132,13 @@ func handleInfo(ctx context.Context, resp interfaces.StarlarkResponse) (bool, er
 }
 
 // handleResult handles instruction result messages
-func handleResult(ctx context.Context, resp interfaces.StarlarkResponse) (bool, error) {
+func (h *defaultHandler) handleResult(ctx context.Context, resp interfaces.StarlarkResponse) (bool, error) {
 	if result := resp.GetInstructionResult(); result != nil {
 		if result.GetSerializedInstructionResult() != "" {
 			fmt.Printf("%s\n\n", result.GetSerializedInstructionResult())
+		}
+		if h.span != nil {
+			h.span.End()
 		}
 		return true, nil
 	}
@@ -121,7 +146,7 @@ func handleResult(ctx context.Context, resp interfaces.StarlarkResponse) (bool, 
 }
 
 // handleError handles error messages
-func handleError(ctx context.Context, resp interfaces.StarlarkResponse) (bool, error) {
+func (h *defaultHandler) handleError(ctx context.Context, resp interfaces.StarlarkResponse) (bool, error) {
 	if err := resp.GetError(); err != nil {
 		if interpretErr := err.GetInterpretationError(); interpretErr != nil {
 			return true, fmt.Errorf(printRed("interpretation error: %v"), interpretErr)

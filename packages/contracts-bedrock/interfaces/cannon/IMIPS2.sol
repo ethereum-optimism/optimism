@@ -50,5 +50,5 @@ interface IMIPS2 is ISemver {
         external
         returns (bytes32 postState_);
 
-    function __constructor__(IPreimageOracle _oracle) external;
+    function __constructor__(IPreimageOracle _oracle, uint256 /*_stateVersion*/) external;
 }

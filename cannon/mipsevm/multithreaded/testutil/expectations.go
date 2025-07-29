@@ -8,15 +8,16 @@ import (
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/stretchr/testify/require"
 
+	"github.com/ethereum-optimism/optimism/cannon/mipsevm"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/arch"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/memory"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/multithreaded"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/testutil"
 )
 
-// ExpectedMTState is a test utility that basically stores a copy of a state that can be explicitly mutated
-// to define an expected post-state.  The post-state is then validated with ExpectedMTState.Validate(t, postState)
-type ExpectedMTState struct {
+// ExpectedState is a test utility that basically stores a copy of a state that can be explicitly mutated
+// to define an expected post-state.  The post-state is then validated with ExpectedState.Validate(t, postState)
+type ExpectedState struct {
 	PreimageKey         common.Hash
 	PreimageOffset      arch.Word
 	Heap                arch.Word
@@ -40,6 +41,8 @@ type ExpectedMTState struct {
 	prestateActiveThreadOrig    ExpectedThreadState // Cached for internal use
 	ActiveThreadId              arch.Word
 	threadExpectations          map[arch.Word]*ExpectedThreadState
+	// Remember some actions so we can analyze expectations
+	memoryWrites []arch.Word
 }
 
 type ExpectedThreadState struct {
@@ -54,7 +57,9 @@ type ExpectedThreadState struct {
 	Dropped   bool
 }
 
-func NewExpectedMTState(fromState *multithreaded.State) *ExpectedMTState {
+func NewExpectedState(t require.TestingT, state mipsevm.FPVMState) *ExpectedState {
+	fromState := ToMTState(t, state)
+
 	currentThread := fromState.GetCurrentThread()
 
 	expectedThreads := make(map[arch.Word]*ExpectedThreadState)
@@ -62,7 +67,7 @@ func NewExpectedMTState(fromState *multithreaded.State) *ExpectedMTState {
 		expectedThreads[t.ThreadId] = newExpectedThreadState(t)
 	}
 
-	return &ExpectedMTState{
+	return &ExpectedState{
 		// General Fields
 		PreimageKey:         fromState.GetPreimageKey(),
 		PreimageOffset:      fromState.GetPreimageOffset(),
@@ -105,7 +110,11 @@ func newExpectedThreadState(fromThread *multithreaded.ThreadState) *ExpectedThre
 	}
 }
 
-func (e *ExpectedMTState) ExpectStep() {
+func (e *ExpectedState) ExpectedMemoryWrites() []arch.Word {
+	return e.memoryWrites
+}
+
+func (e *ExpectedState) ExpectStep() {
 	// Set some standard expectations for a normal step
 	e.Step += 1
 	e.PrestateActiveThread().PC += 4
@@ -113,7 +122,16 @@ func (e *ExpectedMTState) ExpectStep() {
 	e.StepsSinceLastContextSwitch += 1
 }
 
-func (e *ExpectedMTState) ExpectMemoryWriteUint32(t require.TestingT, addr arch.Word, val uint32) {
+func (e *ExpectedState) ExpectMemoryReservationCleared() {
+	e.LLReservationStatus = multithreaded.LLStatusNone
+	e.LLAddress = 0
+	e.LLOwnerThread = 0
+}
+
+func (e *ExpectedState) ExpectMemoryWriteUint32(t require.TestingT, addr arch.Word, val uint32) {
+	// Track write expectations
+	e.memoryWrites = append(e.memoryWrites, addr)
+
 	// Align address to 4-byte boundaries
 	addr = addr & ^arch.Word(3)
 
@@ -125,12 +143,15 @@ func (e *ExpectedMTState) ExpectMemoryWriteUint32(t require.TestingT, addr arch.
 	e.MemoryRoot = e.expectedMemory.MerkleRoot()
 }
 
-func (e *ExpectedMTState) ExpectMemoryWordWrite(addr arch.Word, val arch.Word) {
+func (e *ExpectedState) ExpectMemoryWrite(addr arch.Word, val arch.Word) {
+	// Track write expectations
+	e.memoryWrites = append(e.memoryWrites, addr)
+
 	e.expectedMemory.SetWord(addr, val)
 	e.MemoryRoot = e.expectedMemory.MerkleRoot()
 }
 
-func (e *ExpectedMTState) ExpectPreemption(preState *multithreaded.State) {
+func (e *ExpectedState) ExpectPreemption(preState *multithreaded.State) {
 	e.ActiveThreadId = FindNextThread(preState).ThreadId
 	e.StepsSinceLastContextSwitch = 0
 	if preState.TraverseRight {
@@ -144,7 +165,7 @@ func (e *ExpectedMTState) ExpectPreemption(preState *multithreaded.State) {
 	}
 }
 
-func (e *ExpectedMTState) ExpectNewThread() *ExpectedThreadState {
+func (e *ExpectedState) ExpectNewThread() *ExpectedThreadState {
 	newThreadId := e.NextThreadId
 	e.NextThreadId += 1
 	e.ThreadCount += 1
@@ -159,19 +180,21 @@ func (e *ExpectedMTState) ExpectNewThread() *ExpectedThreadState {
 	return newThread
 }
 
-func (e *ExpectedMTState) ActiveThread() *ExpectedThreadState {
+func (e *ExpectedState) ActiveThread() *ExpectedThreadState {
 	return e.threadExpectations[e.ActiveThreadId]
 }
 
-func (e *ExpectedMTState) PrestateActiveThread() *ExpectedThreadState {
+func (e *ExpectedState) PrestateActiveThread() *ExpectedThreadState {
 	return e.threadExpectations[e.prestateActiveThreadId]
 }
 
-func (e *ExpectedMTState) Thread(threadId arch.Word) *ExpectedThreadState {
+func (e *ExpectedState) Thread(threadId arch.Word) *ExpectedThreadState {
 	return e.threadExpectations[threadId]
 }
 
-func (e *ExpectedMTState) Validate(t require.TestingT, actualState *multithreaded.State) {
+func (e *ExpectedState) Validate(t require.TestingT, state mipsevm.FPVMState) {
+	actualState := ToMTState(t, state)
+
 	require.Equalf(t, e.PreimageKey, actualState.GetPreimageKey(), "Expect preimageKey = %v", e.PreimageKey)
 	require.Equalf(t, e.PreimageOffset, actualState.GetPreimageOffset(), "Expect preimageOffset = %v", e.PreimageOffset)
 	require.Equalf(t, e.Heap, actualState.GetHeap(), "Expect heap = 0x%x", e.Heap)
@@ -210,7 +233,7 @@ func (e *ExpectedMTState) Validate(t require.TestingT, actualState *multithreade
 	require.Equal(t, expectedThreadCount, actualState.ThreadCount(), "Thread expectations do not match thread count")
 }
 
-func (e *ExpectedMTState) validateThread(t require.TestingT, et *ExpectedThreadState, actual *multithreaded.ThreadState, isActive bool) {
+func (e *ExpectedState) validateThread(t require.TestingT, et *ExpectedThreadState, actual *multithreaded.ThreadState, isActive bool) {
 	threadInfo := fmt.Sprintf("tid = %v, active = %v", actual.ThreadId, isActive)
 	require.Equalf(t, et.ThreadId, actual.ThreadId, "Expect ThreadId = 0x%x (%v)", et.ThreadId, threadInfo)
 	require.Equalf(t, et.PC, actual.Cpu.PC, "Expect PC = 0x%x (%v)", et.PC, threadInfo)

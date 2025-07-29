@@ -2,7 +2,9 @@ package flags
 
 import (
 	"fmt"
+	"strings"
 
+	"github.com/ethereum-optimism/optimism/op-node/chaincfg"
 	"github.com/urfave/cli/v2"
 
 	opservice "github.com/ethereum-optimism/optimism/op-service"
@@ -16,6 +18,11 @@ import (
 )
 
 const EnvVarPrefix = "OP_SUPERVISOR"
+
+var (
+	ErrRequiredFlagMissing = fmt.Errorf("required flag is missing")
+	ErrConflictingFlags    = fmt.Errorf("conflicting flags")
+)
 
 func prefixEnvVars(name string) []string {
 	return opservice.PrefixEnvVar(EnvVarPrefix, name)
@@ -50,10 +57,30 @@ var (
 		Usage:   "op-supervisor endpoint to sync databases from",
 		EnvVars: prefixEnvVars("DATADIR_SYNC_ENDPOINT"),
 	}
+	NetworkFlag = &cli.StringSliceFlag{
+		Name:    "networks",
+		Aliases: []string{"network"},
+		Usage:   fmt.Sprintf("Predefined network selection. Available networks: %s", strings.Join(chaincfg.AvailableNetworks(), ", ")),
+		EnvVars: append(prefixEnvVars("NETWORKS"), prefixEnvVars("NETWORK")...),
+	}
 	DependencySetFlag = &cli.PathFlag{
 		Name:      "dependency-set",
 		Usage:     "Dependency-set configuration, point at JSON file.",
 		EnvVars:   prefixEnvVars("DEPENDENCY_SET"),
+		TakesFile: true,
+	}
+	RollupConfigPathsFlag = &cli.StringFlag{
+		Name: "rollup-config-paths",
+		Usage: "Path pattern to op-node rollup.json configs to load as a rollup config set. " +
+			"The pattern should use the Go filepath glob sytax, e.g. '/configs/rollup-*.json' " +
+			"When using this flag, the L1 timestamps are loaded from the provided L1 RPC",
+		EnvVars: prefixEnvVars("ROLLUP_CONFIG_PATHS"),
+	}
+	RollupConfigSetFlag = &cli.PathFlag{
+		Name: "rollup-config-set",
+		Usage: "Rollup config set configuration, point at JSON file. " +
+			"This is an alternative to rollup-config-paths to provide the supervisor rollup config set directly.",
+		EnvVars:   prefixEnvVars("ROLLUP_CONFIG_SET"),
 		TakesFile: true,
 	}
 	MockRunFlag = &cli.BoolFlag{
@@ -62,6 +89,26 @@ var (
 		EnvVars: prefixEnvVars("MOCK_RUN"),
 		Hidden:  true, // this is for testing only
 	}
+	RPCVerificationWarningsFlag = &cli.BoolFlag{
+		Name:    "rpc-verification-warnings",
+		Usage:   "Enable asynchronous RPC verification of DB checkAccess call in the CheckAccessList endpoint, indicating warnings as a metric",
+		EnvVars: prefixEnvVars("RPC_VERIFICATION_WARNINGS"),
+		Value:   false,
+	}
+	FailsafeEnabledFlag = &cli.BoolFlag{
+		Name: "failsafe-enabled",
+		Usage: "Start the supervisor with failsafe enabled. In failsafe mode, the supervisor will reject all CheckAccessList requests. " +
+			"All other Indexing and Cross Validation actions will continue to operate normally.",
+		EnvVars: prefixEnvVars("FAILSAFE_ENABLED"),
+		Value:   false,
+	}
+	FailsafeOnInvalidationFlag = &cli.BoolFlag{
+		Name: "failsafe-on-invalidation",
+		Usage: "Enable automatic failsafe activation when a block is invalidated. When enabled, the supervisor will automatically " +
+			"enter failsafe mode when a Safe Block is determined to be Invalid on any chain, causing all future CheckAccessList requests to be rejected.",
+		EnvVars: prefixEnvVars("FAILSAFE_ON_INVALIDATION"),
+		Value:   true,
+	}
 )
 
 var requiredFlags = []cli.Flag{
@@ -69,12 +116,18 @@ var requiredFlags = []cli.Flag{
 	L2ConsensusNodesFlag,
 	L2ConsensusJWTSecret,
 	DataDirFlag,
-	DependencySetFlag,
 }
 
 var optionalFlags = []cli.Flag{
+	NetworkFlag,
 	MockRunFlag,
 	DataDirSyncEndpointFlag,
+	RPCVerificationWarningsFlag,
+	DependencySetFlag,
+	RollupConfigPathsFlag,
+	RollupConfigSetFlag,
+	FailsafeEnabledFlag,
+	FailsafeOnInvalidationFlag,
 }
 
 func init() {
@@ -90,29 +143,99 @@ func init() {
 // Flags contains the list of configuration options available to the binary.
 var Flags []cli.Flag
 
-func CheckRequired(ctx *cli.Context) error {
+func checkRequired(ctx *cli.Context) error {
 	for _, f := range requiredFlags {
 		if !ctx.IsSet(f.Names()[0]) {
-			return fmt.Errorf("flag %s is required", f.Names()[0])
+			return fmt.Errorf("%w: %s", ErrRequiredFlagMissing, f.Names()[0])
+		}
+	}
+	if ctx.IsSet(NetworkFlag.Name) {
+		if err := checkNotSet(ctx, DependencySetFlag, RollupConfigPathsFlag, RollupConfigSetFlag); err != nil {
+			return fmt.Errorf("%w must not be set with %s", err, NetworkFlag.Name)
+		}
+	} else if !ctx.IsSet(DependencySetFlag.Name) || (!ctx.IsSet(RollupConfigSetFlag.Name) && !ctx.IsSet(RollupConfigPathsFlag.Name)) {
+		return fmt.Errorf("%w: either %s or %s and one of %s must be set", ErrRequiredFlagMissing,
+			NetworkFlag.Name, DependencySetFlag.Name, flagNames(RollupConfigSetFlag, RollupConfigPathsFlag))
+	} else if err := checkGroupUnique(ctx, RollupConfigPathsFlag, RollupConfigSetFlag); err != nil {
+		return err
+	}
+	return nil
+}
+
+func checkGroupUnique(ctx *cli.Context, group ...cli.Flag) error {
+	var set int
+	for _, f := range group {
+		if ctx.IsSet(f.Names()[0]) {
+			set++
+		}
+	}
+	if set > 1 {
+		return fmt.Errorf("%w: only one of %s can be set", ErrConflictingFlags, flagNames(group...))
+	}
+	return nil
+}
+
+func checkNotSet(ctx *cli.Context, flags ...cli.Flag) error {
+	for _, flag := range flags {
+		if ctx.IsSet(flag.Names()[0]) {
+			return fmt.Errorf("%w: %s", ErrConflictingFlags, flagNames(flags...))
 		}
 	}
 	return nil
 }
 
-func ConfigFromCLI(ctx *cli.Context, version string) *config.Config {
-	return &config.Config{
-		Version:             version,
-		LogConfig:           oplog.ReadCLIConfig(ctx),
-		MetricsConfig:       opmetrics.ReadCLIConfig(ctx),
-		PprofConfig:         oppprof.ReadCLIConfig(ctx),
-		RPC:                 oprpc.ReadCLIConfig(ctx),
-		DependencySetSource: &depset.JsonDependencySetLoader{Path: ctx.Path(DependencySetFlag.Name)},
-		MockRun:             ctx.Bool(MockRunFlag.Name),
-		L1RPC:               ctx.String(L1RPCFlag.Name),
-		SyncSources:         syncSourceSetups(ctx),
-		Datadir:             ctx.Path(DataDirFlag.Name),
-		DatadirSyncEndpoint: ctx.Path(DataDirSyncEndpointFlag.Name),
+func flagNames(flags ...cli.Flag) string {
+	names := make([]string, 0, len(flags))
+	for _, f := range flags {
+		names = append(names, f.Names()[0])
 	}
+	return strings.Join(names, ", ")
+}
+
+func ConfigFromCLI(ctx *cli.Context, version string) (*config.Config, error) {
+	if err := checkRequired(ctx); err != nil {
+		return nil, err
+	}
+	c := &config.Config{
+		Version:                 version,
+		LogConfig:               oplog.ReadCLIConfig(ctx),
+		MetricsConfig:           opmetrics.ReadCLIConfig(ctx),
+		PprofConfig:             oppprof.ReadCLIConfig(ctx),
+		RPC:                     oprpc.ReadCLIConfig(ctx),
+		MockRun:                 ctx.Bool(MockRunFlag.Name),
+		RPCVerificationWarnings: ctx.Bool(RPCVerificationWarningsFlag.Name),
+		FailsafeEnabled:         ctx.Bool(FailsafeEnabledFlag.Name),
+		FailsafeOnInvalidation:  ctx.Bool(FailsafeOnInvalidationFlag.Name),
+		L1RPC:                   ctx.String(L1RPCFlag.Name),
+		SyncSources:             syncSourceSetups(ctx),
+		Datadir:                 ctx.Path(DataDirFlag.Name),
+		DatadirSyncEndpoint:     ctx.Path(DataDirSyncEndpointFlag.Name),
+	}
+	if ctx.IsSet(RollupConfigSetFlag.Name) {
+		c.FullConfigSetSource = &depset.FullConfigSetSourceMerged{
+			RollupConfigSetSource: &depset.JSONRollupConfigSetLoader{Path: ctx.Path(RollupConfigSetFlag.Name)},
+			DependencySetSource:   &depset.JSONDependencySetLoader{Path: ctx.Path(DependencySetFlag.Name)},
+		}
+	} else if ctx.IsSet(RollupConfigPathsFlag.Name) {
+		c.FullConfigSetSource = &depset.FullConfigSetSourceMerged{
+			RollupConfigSetSource: &depset.JSONRollupConfigsLoader{
+				PathPattern: ctx.String(RollupConfigPathsFlag.Name),
+				L1RPCURL:    ctx.String(L1RPCFlag.Name),
+			},
+			DependencySetSource: &depset.JSONDependencySetLoader{Path: ctx.Path(DependencySetFlag.Name)},
+		}
+	} else if ctx.IsSet(NetworkFlag.Name) {
+		networks := ctx.StringSlice(NetworkFlag.Name)
+		source, err := depset.NewRegistryFullConfigSetSource(ctx.String(L1RPCFlag.Name), networks)
+		if err != nil {
+			return nil, err
+		}
+		c.FullConfigSetSource = source
+	} else {
+		return nil, fmt.Errorf("%w: either %s or %s and one of %s must be set", ErrRequiredFlagMissing,
+			NetworkFlag.Name, DependencySetFlag.Name, flagNames(RollupConfigSetFlag, RollupConfigPathsFlag))
+	}
+	return c, nil
 }
 
 // syncSourceSetups creates a sync source collection, from CLI arguments.

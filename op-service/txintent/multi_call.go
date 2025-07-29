@@ -20,7 +20,7 @@ func (m *MultiTrigger) To() (*common.Address, error) {
 	return &m.Emitter, nil
 }
 
-func (v *MultiTrigger) Data() ([]byte, error) {
+func (v *MultiTrigger) EncodeInput() ([]byte, error) {
 	type Call3Value struct {
 		Target       common.Address
 		AllowFailure bool
@@ -32,7 +32,7 @@ func (v *MultiTrigger) Data() ([]byte, error) {
 		if err != nil {
 			return nil, fmt.Errorf("failed to aggregate to: %w", err)
 		}
-		calldata, err := call.Data()
+		calldata, err := call.EncodeInput()
 		if err != nil {
 			return nil, fmt.Errorf("failed to aggregate calldata: %w", err)
 		}

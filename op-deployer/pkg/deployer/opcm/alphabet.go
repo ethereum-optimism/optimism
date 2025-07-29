@@ -14,14 +14,9 @@ type DeployAlphabetVMOutput struct {
 	AlphabetVM common.Address
 }
 
-func DeployAlphabetVM(
-	host *script.Host,
-	input DeployAlphabetVMInput,
-) (DeployAlphabetVMOutput, error) {
-	return RunScriptSingle[DeployAlphabetVMInput, DeployAlphabetVMOutput](
-		host,
-		input,
-		"DeployAlphabetVM.s.sol",
-		"DeployAlphabetVM",
-	)
+type DeployAlphabetVMScript script.DeployScriptWithOutput[DeployAlphabetVMInput, DeployAlphabetVMOutput]
+
+// NewDeployAlphabetVMScript loads and validates the DeployAlphabetVM2 script contract
+func NewDeployAlphabetVMScript(host *script.Host) (DeployAlphabetVMScript, error) {
+	return script.NewDeployScriptWithOutputFromFile[DeployAlphabetVMInput, DeployAlphabetVMOutput](host, "DeployAlphabetVM.s.sol", "DeployAlphabetVM")
 }

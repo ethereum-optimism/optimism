@@ -9,10 +9,11 @@ import { Vm, VmSafe } from "forge-std/Vm.sol";
 import { Deploy } from "scripts/deploy/Deploy.s.sol";
 import { ForkLive } from "test/setup/ForkLive.s.sol";
 import { Fork, LATEST_FORK } from "scripts/libraries/Config.sol";
-import { L2Genesis, L1Dependencies } from "scripts/L2Genesis.s.sol";
-import { OutputMode, Fork, ForkUtils } from "scripts/libraries/Config.sol";
+import { L2Genesis } from "scripts/L2Genesis.s.sol";
+import { Fork, ForkUtils } from "scripts/libraries/Config.sol";
 import { Artifacts } from "scripts/Artifacts.s.sol";
 import { DeployUtils } from "scripts/libraries/DeployUtils.sol";
+import { Config } from "scripts/libraries/Config.sol";
 
 // Libraries
 import { Predeploys } from "src/libraries/Predeploys.sol";
@@ -35,6 +36,7 @@ import { IOptimismMintableERC721Factory } from "interfaces/L2/IOptimismMintableE
 import { IDisputeGameFactory } from "interfaces/dispute/IDisputeGameFactory.sol";
 import { IDelayedWETH } from "interfaces/dispute/IDelayedWETH.sol";
 import { IAnchorStateRegistry } from "interfaces/dispute/IAnchorStateRegistry.sol";
+import { IBigStepper } from "interfaces/dispute/IBigStepper.sol";
 import { IL2CrossDomainMessenger } from "interfaces/L2/IL2CrossDomainMessenger.sol";
 import { IL2StandardBridgeInterop } from "interfaces/L2/IL2StandardBridgeInterop.sol";
 import { IL2ToL1MessagePasser } from "interfaces/L2/IL2ToL1MessagePasser.sol";
@@ -50,6 +52,7 @@ import { IGasPriceOracle } from "interfaces/L2/IGasPriceOracle.sol";
 import { IL1Block } from "interfaces/L2/IL1Block.sol";
 import { ISuperchainETHBridge } from "interfaces/L2/ISuperchainETHBridge.sol";
 import { IETHLiquidity } from "interfaces/L2/IETHLiquidity.sol";
+import { IProxyAdmin } from "interfaces/universal/IProxyAdmin.sol";
 import { IWETH98 } from "interfaces/universal/IWETH98.sol";
 import { IGovernanceToken } from "interfaces/governance/IGovernanceToken.sol";
 import { ILegacyMessagePasser } from "interfaces/legacy/ILegacyMessagePasser.sol";
@@ -98,6 +101,8 @@ contract Setup {
     IDelayedWETH delayedWETHPermissionedGameProxy;
 
     // L1 contracts - core
+    address proxyAdminOwner;
+    IProxyAdmin proxyAdmin;
     IOptimismPortal optimismPortal2;
     IETHLockbox ethLockbox;
     ISystemConfig systemConfig;
@@ -110,6 +115,7 @@ contract Setup {
     ISuperchainConfig superchainConfig;
     IDataAvailabilityChallenge dataAvailabilityChallenge;
     IOPContractsManager opcm;
+    IBigStepper mips;
 
     // L2 contracts
     ICrossL2Inbox crossL2Inbox = ICrossL2Inbox(payable(Predeploys.CROSS_L2_INBOX));
@@ -139,12 +145,12 @@ contract Setup {
 
     /// @notice Indicates whether a test is running against a forked production network.
     function isForkTest() public view returns (bool) {
-        return vm.envOr("FORK_TEST", false);
+        return Config.forkTest();
     }
 
     /// @notice Indicates whether a test is running against a forked network that is OP.
     function isOpFork() public view returns (bool) {
-        string memory opChain = vm.envOr("FORK_OP_CHAIN", string("op"));
+        string memory opChain = Config.forkOpChain();
         return keccak256(bytes(opChain)) == keccak256(bytes("op"));
     }
 
@@ -159,7 +165,7 @@ contract Setup {
         console.log("Setup: L1 setup start!");
 
         if (isForkTest()) {
-            vm.createSelectFork(vm.envString("FORK_RPC_URL"), vm.envUint("FORK_BLOCK_NUMBER"));
+            vm.createSelectFork(Config.forkRpcUrl(), Config.forkBlockNumber());
             console.log("Setup: fork selected!");
             require(
                 block.chainid == Chains.Sepolia || block.chainid == Chains.Mainnet,
@@ -184,7 +190,6 @@ contract Setup {
         console.log("Setup: L2 setup start!");
         vm.etch(address(l2Genesis), vm.getDeployedCode("L2Genesis.s.sol:L2Genesis"));
         vm.allowCheatcodes(address(l2Genesis));
-        l2Genesis.setUp();
         console.log("Setup: L2 setup done!");
     }
 
@@ -271,11 +276,15 @@ contract Setup {
         disputeGameFactory = IDisputeGameFactory(artifacts.mustGetAddress("DisputeGameFactoryProxy"));
         delayedWeth = IDelayedWETH(artifacts.mustGetAddress("DelayedWETHProxy"));
         opcm = IOPContractsManager(artifacts.mustGetAddress("OPContractsManager"));
+        proxyAdmin = IProxyAdmin(artifacts.mustGetAddress("ProxyAdmin"));
+        proxyAdminOwner = proxyAdmin.owner();
+        mips = IBigStepper(artifacts.mustGetAddress("MipsSingleton"));
 
         if (deploy.cfg().useAltDA()) {
             dataAvailabilityChallenge =
                 IDataAvailabilityChallenge(artifacts.mustGetAddress("DataAvailabilityChallengeProxy"));
         }
+
         console.log("Setup: registered L1 deployments");
     }
 
@@ -288,13 +297,28 @@ contract Setup {
         }
 
         console.log("Setup: creating L2 genesis with fork %s", l2Fork.toString());
-        l2Genesis.runWithOptions(
-            OutputMode.NONE,
-            l2Fork,
-            L1Dependencies({
+        l2Genesis.run(
+            L2Genesis.Input({
+                l1ChainID: deploy.cfg().l1ChainID(),
+                l2ChainID: deploy.cfg().l2ChainID(),
                 l1CrossDomainMessengerProxy: payable(address(l1CrossDomainMessenger)),
                 l1StandardBridgeProxy: payable(address(l1StandardBridge)),
-                l1ERC721BridgeProxy: payable(address(l1ERC721Bridge))
+                l1ERC721BridgeProxy: payable(address(l1ERC721Bridge)),
+                opChainProxyAdminOwner: deploy.cfg().proxyAdminOwner(),
+                sequencerFeeVaultRecipient: deploy.cfg().sequencerFeeVaultRecipient(),
+                sequencerFeeVaultMinimumWithdrawalAmount: deploy.cfg().sequencerFeeVaultMinimumWithdrawalAmount(),
+                sequencerFeeVaultWithdrawalNetwork: deploy.cfg().sequencerFeeVaultWithdrawalNetwork(),
+                baseFeeVaultRecipient: deploy.cfg().baseFeeVaultRecipient(),
+                baseFeeVaultMinimumWithdrawalAmount: deploy.cfg().baseFeeVaultMinimumWithdrawalAmount(),
+                baseFeeVaultWithdrawalNetwork: deploy.cfg().baseFeeVaultWithdrawalNetwork(),
+                l1FeeVaultRecipient: deploy.cfg().l1FeeVaultRecipient(),
+                l1FeeVaultMinimumWithdrawalAmount: deploy.cfg().l1FeeVaultMinimumWithdrawalAmount(),
+                l1FeeVaultWithdrawalNetwork: deploy.cfg().l1FeeVaultWithdrawalNetwork(),
+                governanceTokenOwner: deploy.cfg().governanceTokenOwner(),
+                fork: uint256(l2Fork),
+                deployCrossL2Inbox: deploy.cfg().useInterop(),
+                enableGovernance: deploy.cfg().enableGovernance(),
+                fundDevAccounts: deploy.cfg().fundDevAccounts()
             })
         );
 

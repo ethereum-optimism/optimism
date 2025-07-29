@@ -228,16 +228,28 @@ func (b *BaseRPCClient) Close() {
 	b.c.Close()
 }
 
+type ErrorDataProvider interface {
+	ErrorData() interface{}
+}
+
 func (b *BaseRPCClient) CallContext(ctx context.Context, result any, method string, args ...any) error {
 	cCtx, cancel := context.WithTimeout(ctx, b.callTimeout)
 	defer cancel()
-	return b.c.CallContext(cCtx, result, method, args...)
+	err := b.c.CallContext(cCtx, result, method, args...)
+	if ed, ok := err.(ErrorDataProvider); ok && ed.ErrorData() != nil {
+		err = fmt.Errorf("%w: %v", err, ed.ErrorData())
+	}
+	return err
 }
 
 func (b *BaseRPCClient) BatchCallContext(ctx context.Context, batch []rpc.BatchElem) error {
 	cCtx, cancel := context.WithTimeout(ctx, b.batchCallTimeout)
 	defer cancel()
-	return b.c.BatchCallContext(cCtx, batch)
+	err := b.c.BatchCallContext(cCtx, batch)
+	if ed, ok := err.(ErrorDataProvider); ok && ed.ErrorData() != nil {
+		err = fmt.Errorf("%w: %v", err, ed.ErrorData())
+	}
+	return err
 }
 
 func (b *BaseRPCClient) Subscribe(ctx context.Context, namespace string, channel any, args ...any) (ethereum.Subscription, error) {

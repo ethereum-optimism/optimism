@@ -51,8 +51,8 @@ func (c contractVersion) String() string {
 	return fmt.Sprintf("%s_%s", c.version, c.gameType)
 }
 
-func (c contractVersion) IsSuperCannon() bool {
-	return c.gameType == faultTypes.SuperCannonGameType || c.gameType == faultTypes.SuperPermissionedGameType
+func (c contractVersion) IsSuperGame() bool {
+	return c.gameType == faultTypes.SuperCannonGameType || c.gameType == faultTypes.SuperPermissionedGameType || c.gameType == faultTypes.SuperAsteriscKonaGameType
 }
 
 const (
@@ -543,7 +543,7 @@ func TestGetBlockRange(t *testing.T) {
 			stubRpc, contract := setupFaultDisputeGameTest(t, version)
 			expectedStart := uint64(65)
 			expectedEnd := uint64(102)
-			if version.IsSuperCannon() {
+			if version.IsSuperGame() {
 				stubRpc.SetResponse(fdgAddr, methodStartingSequenceNumber, rpcblock.Latest, nil, []interface{}{new(big.Int).SetUint64(expectedStart)})
 				stubRpc.SetResponse(fdgAddr, methodL2SequenceNumber, rpcblock.Latest, nil, []interface{}{new(big.Int).SetUint64(expectedEnd)})
 			} else {
@@ -586,14 +586,14 @@ func TestGetGameMetadata(t *testing.T) {
 			expectedL2BlockNumberChallenger := common.Address{0xee}
 			block := rpcblock.ByNumber(889)
 			stubRpc.SetResponse(fdgAddr, methodL1Head, block, nil, []interface{}{expectedL1Head})
-			if version.IsSuperCannon() {
+			if version.IsSuperGame() {
 				stubRpc.SetResponse(fdgAddr, methodL2SequenceNumber, block, nil, []interface{}{new(big.Int).SetUint64(expectedL2BlockNumber)})
 			} else {
 				stubRpc.SetResponse(fdgAddr, methodL2BlockNumber, block, nil, []interface{}{new(big.Int).SetUint64(expectedL2BlockNumber)})
 			}
 			stubRpc.SetResponse(fdgAddr, methodRootClaim, block, nil, []interface{}{expectedRootClaim})
 			stubRpc.SetResponse(fdgAddr, methodStatus, block, nil, []interface{}{expectedStatus})
-			supportsL2BlockNumChallenge := (version.version != vers080 && version.version != vers0180) && !version.IsSuperCannon()
+			supportsL2BlockNumChallenge := (version.version != vers080 && version.version != vers0180) && !version.IsSuperGame()
 			if supportsL2BlockNumChallenge {
 				stubRpc.SetResponse(fdgAddr, methodMaxClockDuration, block, nil, []interface{}{expectedMaxClockDuration})
 				stubRpc.SetResponse(fdgAddr, methodL2BlockNumberChallenged, block, nil, []interface{}{expectedL2BlockNumberChallenged})
@@ -789,7 +789,7 @@ func TestFaultDisputeGameContractLatest_IsL2BlockNumberChallenged(t *testing.T) 
 	for _, version := range versions {
 		version := version
 		var expectations = []bool{true, false}
-		if version.IsSuperCannon() {
+		if version.IsSuperGame() {
 			expectations = []bool{false}
 		}
 		for _, expected := range expectations {
@@ -797,7 +797,7 @@ func TestFaultDisputeGameContractLatest_IsL2BlockNumberChallenged(t *testing.T) 
 			t.Run(fmt.Sprintf("%v-%v", version.String(), expected), func(t *testing.T) {
 				block := rpcblock.ByHash(common.Hash{0x43})
 				stubRpc, game := setupFaultDisputeGameTest(t, version)
-				supportsL2BlockNumChallenge := (version.version != vers080 && version.version != vers0180) && !version.IsSuperCannon()
+				supportsL2BlockNumChallenge := (version.version != vers080 && version.version != vers0180) && !version.IsSuperGame()
 				if supportsL2BlockNumChallenge {
 					stubRpc.SetResponse(fdgAddr, methodL2BlockNumberChallenged, block, nil, []interface{}{expected})
 				} else if expected {
@@ -827,7 +827,7 @@ func TestFaultDisputeGameContractLatest_ChallengeL2BlockNumberTx(t *testing.T) {
 				},
 				Header: testutils.RandomHeader(rng),
 			}
-			supportsL2BlockNumChallenge := (version.version != vers080 && version.version != vers0180) && !version.IsSuperCannon()
+			supportsL2BlockNumChallenge := (version.version != vers080 && version.version != vers0180) && !version.IsSuperGame()
 			if supportsL2BlockNumChallenge {
 				headerRlp, err := rlp.EncodeToBytes(challenge.Header)
 				require.NoError(t, err)

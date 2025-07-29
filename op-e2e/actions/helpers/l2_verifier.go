@@ -7,6 +7,7 @@ import (
 	"io"
 	"math/big"
 
+	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/depset"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/time/rate"
 
@@ -23,14 +24,14 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/driver"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/engine"
-	"github.com/ethereum-optimism/optimism/op-node/rollup/event"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/finality"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/interop"
-	"github.com/ethereum-optimism/optimism/op-node/rollup/interop/managed"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/interop/indexing"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/status"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/sync"
 	"github.com/ethereum-optimism/optimism/op-service/client"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/event"
 	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
 	"github.com/ethereum-optimism/optimism/op-service/safego"
 	"github.com/ethereum-optimism/optimism/op-service/sources"
@@ -89,7 +90,7 @@ type L2Verifier struct {
 
 type L2API interface {
 	engine.Engine
-	managed.L2Source
+	indexing.L2Source
 	L2BlockRefByNumber(ctx context.Context, num uint64) (eth.L2BlockRef, error)
 	InfoByHash(ctx context.Context, hash common.Hash) (eth.BlockInfo, error)
 	// GetProof returns a proof of the account, it may return a nil result without error if the address was not found.
@@ -108,7 +109,7 @@ type safeDB interface {
 
 func NewL2Verifier(t Testing, log log.Logger, l1 derive.L1Fetcher,
 	blobsSrc derive.L1BlobsFetcher, altDASrc driver.AltDAIface,
-	eng L2API, cfg *rollup.Config, syncCfg *sync.Config, safeHeadListener safeDB,
+	eng L2API, cfg *rollup.Config, depSet depset.DependencySet, syncCfg *sync.Config, safeHeadListener safeDB,
 ) *L2Verifier {
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
@@ -116,22 +117,22 @@ func NewL2Verifier(t Testing, log log.Logger, l1 derive.L1Fetcher,
 	executor := event.NewGlobalSynchronous(ctx)
 	sys := event.NewSystem(log, executor)
 	t.Cleanup(sys.Stop)
-	opts := event.DefaultRegisterOpts()
-	opts.Emitter = event.EmitterOpts{
-		Limiting: true,
+	opts := event.WithEmitLimiter(
 		// TestSyncBatchType/DerivationWithFlakyL1RPC does *a lot* of quick retries
 		// TestL2BatcherBatchType/ExtendedTimeWithoutL1Batches as well.
-		Rate:  rate.Limit(100_000),
-		Burst: 100_000,
-		OnLimited: func() {
+		rate.Limit(100_000),
+		100_000,
+		func() {
 			log.Warn("Hitting events rate-limit. An events code-path may be hot-looping.")
 			t.Fatal("Tests must not hot-loop events")
 		},
-	}
+	)
 
 	var interopSys interop.SubSystem
 	if cfg.InteropTime != nil {
-		interopSys = managed.NewManagedMode(log, cfg, "127.0.0.1", 0, interopJWTSecret, l1, eng, &opmetrics.NoopRPCMetrics{})
+		mm := indexing.NewIndexingMode(log, cfg, "127.0.0.1", 0, interopJWTSecret, l1, eng, &opmetrics.NoopRPCMetrics{})
+		mm.TestDisableEventDeduplication()
+		interopSys = mm
 		sys.Register("interop", interopSys, opts)
 		require.NoError(t, interopSys.Start(context.Background()))
 		t.Cleanup(func() {
@@ -160,8 +161,8 @@ func NewL2Verifier(t Testing, log log.Logger, l1 derive.L1Fetcher,
 	sys.Register("attributes-handler",
 		attributes.NewAttributesHandler(log, cfg, ctx, eng), opts)
 
-	managedMode := interopSys != nil
-	pipeline := derive.NewDerivationPipeline(log, cfg, l1, blobsSrc, altDASrc, eng, metrics, managedMode)
+	indexingMode := interopSys != nil
+	pipeline := derive.NewDerivationPipeline(log, cfg, depSet, l1, blobsSrc, altDASrc, eng, metrics, indexingMode)
 	sys.Register("pipeline", derive.NewPipelineDeriver(ctx, pipeline), opts)
 
 	testActionEmitter := sys.Register("test-action", nil, opts)
@@ -170,18 +171,17 @@ func NewL2Verifier(t Testing, log log.Logger, l1 derive.L1Fetcher,
 	sys.Register("status", syncStatusTracker, opts)
 
 	sys.Register("sync", &driver.SyncDeriver{
-		Derivation:     pipeline,
-		SafeHeadNotifs: safeHeadListener,
-		CLSync:         clSync,
-		Engine:         ec,
-		SyncCfg:        syncCfg,
-		Config:         cfg,
-		L1:             l1,
-		L2:             eng,
-		Log:            log,
-		Ctx:            ctx,
-		Drain:          executor.Drain,
-		ManagedMode:    managedMode,
+		Derivation:          pipeline,
+		SafeHeadNotifs:      safeHeadListener,
+		CLSync:              clSync,
+		Engine:              ec,
+		SyncCfg:             syncCfg,
+		Config:              cfg,
+		L1:                  l1,
+		L2:                  eng,
+		Log:                 log,
+		Ctx:                 ctx,
+		ManagedBySupervisor: indexingMode,
 	}, opts)
 
 	sys.Register("engine", engine.NewEngDeriver(log, ctx, cfg, metrics, ec), opts)
@@ -214,7 +214,7 @@ func NewL2Verifier(t Testing, log log.Logger, l1 derive.L1Fetcher,
 	apis := []rpc.API{
 		{
 			Namespace:     "optimism",
-			Service:       node.NewNodeAPI(cfg, eng, backend, safeHeadListener, log),
+			Service:       node.NewNodeAPI(cfg, depSet, eng, backend, safeHeadListener, log),
 			Public:        true,
 			Authenticated: false,
 		},
@@ -225,6 +225,10 @@ func NewL2Verifier(t Testing, log log.Logger, l1 derive.L1Fetcher,
 			Public:        true, // TODO: this field is deprecated. Do we even need this anymore?
 			Authenticated: false,
 		},
+		{
+			Namespace: "opstack",
+			Service:   node.NewOpstackAPI(ec, &testutils.FakePublishAPI{Log: log}),
+		},
 	}
 	require.NoError(t, gnode.RegisterApis(apis, nil, rollupNode.rpc), "failed to set up APIs")
 	return rollupNode
@@ -232,13 +236,16 @@ func NewL2Verifier(t Testing, log log.Logger, l1 derive.L1Fetcher,
 
 func (v *L2Verifier) InteropSyncNode(t Testing) syncnode.SyncNode {
 	require.NotNil(t, v.interopSys, "interop sub-system must be running")
-	m, ok := v.interopSys.(*managed.ManagedMode)
+	m, ok := v.interopSys.(*indexing.IndexingMode)
 	require.True(t, ok, "Interop sub-system must be in managed-mode if used as sync-node")
-	cl, err := client.CheckAndDial(t.Ctx(), v.log, m.WSEndpoint(), rpc.WithHTTPAuth(gnode.NewJWTAuth(m.JWTSecret())))
+	auth := rpc.WithHTTPAuth(gnode.NewJWTAuth(m.JWTSecret()))
+	opts := []client.RPCOption{client.WithGethRPCOptions(auth)}
+	cl, err := client.CheckAndDial(t.Ctx(), v.log, m.WSEndpoint(), auth)
 	require.NoError(t, err)
 	t.Cleanup(cl.Close)
 	bCl := client.NewBaseRPCClient(cl)
-	return syncnode.NewRPCSyncNode("action-tests-l2-verifier", bCl)
+	dialSetup := &syncnode.RPCDialSetup{JWTSecret: m.JWTSecret(), Endpoint: m.WSEndpoint()}
+	return syncnode.NewRPCSyncNode("action-tests-l2-verifier", bCl, opts, v.log, dialSetup)
 }
 
 type l2VerifierBackend struct {
@@ -347,7 +354,7 @@ func (s *L2Verifier) ActRPCFail(t Testing) {
 func (s *L2Verifier) ActL1HeadSignal(t Testing) {
 	head, err := s.l1.L1BlockRefByLabel(t.Ctx(), eth.Unsafe)
 	require.NoError(t, err)
-	s.synchronousEvents.Emit(status.L1UnsafeEvent{L1Unsafe: head})
+	s.synchronousEvents.Emit(t.Ctx(), status.L1UnsafeEvent{L1Unsafe: head})
 	require.NoError(t, s.drainer.DrainUntil(func(ev event.Event) bool {
 		x, ok := ev.(status.L1UnsafeEvent)
 		return ok && x.L1Unsafe == head
@@ -358,7 +365,7 @@ func (s *L2Verifier) ActL1HeadSignal(t Testing) {
 func (s *L2Verifier) ActL1SafeSignal(t Testing) {
 	safe, err := s.l1.L1BlockRefByLabel(t.Ctx(), eth.Safe)
 	require.NoError(t, err)
-	s.synchronousEvents.Emit(status.L1SafeEvent{L1Safe: safe})
+	s.synchronousEvents.Emit(t.Ctx(), status.L1SafeEvent{L1Safe: safe})
 	require.NoError(t, s.drainer.DrainUntil(func(ev event.Event) bool {
 		x, ok := ev.(status.L1SafeEvent)
 		return ok && x.L1Safe == safe
@@ -369,7 +376,7 @@ func (s *L2Verifier) ActL1SafeSignal(t Testing) {
 func (s *L2Verifier) ActL1FinalizedSignal(t Testing) {
 	finalized, err := s.l1.L1BlockRefByLabel(t.Ctx(), eth.Finalized)
 	require.NoError(t, err)
-	s.synchronousEvents.Emit(finality.FinalizeL1Event{FinalizedL1: finalized})
+	s.synchronousEvents.Emit(t.Ctx(), finality.FinalizeL1Event{FinalizedL1: finalized})
 	require.NoError(t, s.drainer.DrainUntil(func(ev event.Event) bool {
 		x, ok := ev.(finality.FinalizeL1Event)
 		return ok && x.FinalizedL1 == finalized
@@ -377,7 +384,7 @@ func (s *L2Verifier) ActL1FinalizedSignal(t Testing) {
 	require.Equal(t, finalized, s.syncStatus.SyncStatus().FinalizedL1)
 }
 
-func (s *L2Verifier) OnEvent(ev event.Event) bool {
+func (s *L2Verifier) OnEvent(ctx context.Context, ev event.Event) bool {
 	switch x := ev.(type) {
 	case rollup.L1TemporaryErrorEvent:
 		s.log.Warn("L1 temporary error", "err", x.Err)
@@ -395,7 +402,7 @@ func (s *L2Verifier) OnEvent(ev event.Event) bool {
 	case derive.PipelineStepEvent:
 		s.L2PipelineIdle = false
 	case driver.StepReqEvent:
-		s.synchronousEvents.Emit(driver.StepEvent{})
+		s.synchronousEvents.Emit(ctx, driver.StepEvent{})
 	default:
 		return false
 	}
@@ -421,21 +428,21 @@ func (s *L2Verifier) ActL2EventsUntil(t Testing, fn func(ev event.Event) bool, m
 			return
 		}
 		if err == io.EOF {
-			s.synchronousEvents.Emit(driver.StepEvent{})
+			s.synchronousEvents.Emit(t.Ctx(), driver.StepEvent{})
 		}
 	}
 	t.Fatalf("event condition did not hit, ran maximum number of steps: %d", max)
 }
 
 func (s *L2Verifier) ActL2PipelineFull(t Testing) {
-	s.synchronousEvents.Emit(driver.StepEvent{})
+	s.synchronousEvents.Emit(t.Ctx(), driver.StepEvent{})
 	require.NoError(t, s.drainer.Drain(), "complete all event processing triggered by deriver step")
 }
 
 // ActL2UnsafeGossipReceive creates an action that can receive an unsafe execution payload, like gossipsub
 func (s *L2Verifier) ActL2UnsafeGossipReceive(payload *eth.ExecutionPayloadEnvelope) Action {
 	return func(t Testing) {
-		s.synchronousEvents.Emit(clsync.ReceivedUnsafePayloadEvent{Envelope: payload})
+		s.synchronousEvents.Emit(t.Ctx(), clsync.ReceivedUnsafePayloadEvent{Envelope: payload})
 	}
 }
 

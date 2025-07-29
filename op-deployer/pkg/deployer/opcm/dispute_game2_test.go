@@ -1,4 +1,4 @@
-package opcm_test
+package opcm
 
 import (
 	"math/big"
@@ -6,7 +6,6 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/script"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/script/addresses"
-	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/opcm"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/standard"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/stretchr/testify/require"
@@ -23,11 +22,11 @@ func TestNewDeployDisputeGameScript(t *testing.T) {
 		// Then we load the script
 		//
 		// This would raise an error if the Go types didn't match the ABI
-		deploySuperchain, err := opcm.NewDeployDisputeGameScript(host1)
+		deploySuperchain, err := NewDeployDisputeGameScript(host1)
 		require.NoError(t, err)
 
 		// Then we deploy
-		output, err := deploySuperchain.Run(opcm.DeployDisputeGame2Input{
+		output, err := deploySuperchain.Run(DeployDisputeGame2Input{
 			Release:                  "dev",
 			StandardVersionsToml:     "dev.toml",
 			VmAddress:                vm1Address,
@@ -59,7 +58,7 @@ func TestNewDeployDisputeGameScript(t *testing.T) {
 		vm2Address := deployDisputeGameScriptVM(t, host2)
 		require.NoError(t, err)
 
-		deprecatedOutput, err := opcm.DeployDisputeGame(host2, opcm.DeployDisputeGameInput{
+		deprecatedOutput, err := DeployDisputeGame(host2, DeployDisputeGameInput{
 			Release:                  "dev",
 			VmAddress:                vm2Address,
 			GameKind:                 "PermissionedDisputeGame",

@@ -10,7 +10,6 @@ import (
 	"github.com/ethereum-optimism/optimism/devnet-sdk/testing/systest"
 	"github.com/ethereum-optimism/optimism/devnet-sdk/testing/testlib/validators"
 	sdktypes "github.com/ethereum-optimism/optimism/devnet-sdk/types"
-	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
@@ -28,41 +27,26 @@ func smokeTestScenario(chainIdx uint64, walletGetter validators.WalletGetter) sy
 		logger = logger.With("chain", chain.ID())
 		logger.Info("starting test")
 
-		funds := sdktypes.NewBalance(big.NewInt(0.5 * constants.ETH))
+		funds := sdktypes.NewBalance(big.NewInt(1 * constants.ETH))
 		user := walletGetter(ctx)
 
-		scw0Addr := constants.SuperchainWETH
-		scw0, err := chain.Nodes()[0].ContractsRegistry().SuperchainWETH(scw0Addr)
+		wethAddr := constants.WETH
+		weth, err := chain.Nodes()[0].ContractsRegistry().WETH(wethAddr)
 		require.NoError(t, err)
-		logger.Info("using SuperchainWETH", "contract", scw0Addr)
-
-		initialBalance, err := scw0.BalanceOf(user.Address()).Call(ctx)
+		initialBalance, err := weth.BalanceOf(user.Address()).Call(ctx)
 		require.NoError(t, err)
 		logger = logger.With("user", user.Address())
 		logger.Info("initial balance retrieved", "balance", initialBalance)
 
 		logger.Info("sending ETH to contract", "amount", funds)
-		require.NoError(t, user.SendETH(scw0Addr, funds).Send(ctx).Wait())
+		require.NoError(t, user.SendETH(wethAddr, funds).Send(ctx).Wait())
 
-		balance, err := scw0.BalanceOf(user.Address()).Call(ctx)
+		balance, err := weth.BalanceOf(user.Address()).Call(ctx)
 		require.NoError(t, err)
 		logger.Info("final balance retrieved", "balance", balance)
 
 		require.Equal(t, initialBalance.Add(funds), balance)
 	}
-}
-
-func TestSystemWrapETH(t *testing.T) {
-	chainIdx := uint64(0) // We'll use the first L2 chain for this test
-
-	walletGetter, fundsValidator := validators.AcquireL2WalletWithFunds(chainIdx, sdktypes.NewBalance(big.NewInt(1.0*constants.ETH)))
-	_, interopValidator := validators.AcquireL2WithFork(chainIdx, rollup.Interop)
-
-	systest.SystemTest(t,
-		smokeTestScenario(chainIdx, walletGetter),
-		fundsValidator,
-		interopValidator,
-	)
 }
 
 func TestInteropSystemNoop(t *testing.T) {
@@ -71,24 +55,12 @@ func TestInteropSystemNoop(t *testing.T) {
 	})
 }
 
-func TestInteropSystemSupervisor(t *testing.T) {
-	systest.InteropSystemTest(t, func(t systest.T, sys system.InteropSystem) {
-		ctx := t.Context()
-		supervisor, err := sys.Supervisor(ctx)
-		require.NoError(t, err)
-		block, err := supervisor.FinalizedL1(ctx)
-		require.NoError(t, err)
-		require.NotNil(t, block)
-		testlog.Logger(t, log.LevelInfo).Info("finalized l1 block", "block", block)
-	})
-}
-
 func TestSmokeTestFailure(t *testing.T) {
 	// Create mock failing system
 	mockAddr := common.HexToAddress("0x1234567890123456789012345678901234567890")
 	mockWallet := &mockFailingWallet{
 		addr: mockAddr,
-		bal:  sdktypes.NewBalance(big.NewInt(1000000)),
+		bal:  sdktypes.NewBalance(big.NewInt(0.1 * constants.ETH)),
 	}
 	mockL1Chain := newMockFailingL1Chain(
 		sdktypes.ChainID(big.NewInt(1234)),

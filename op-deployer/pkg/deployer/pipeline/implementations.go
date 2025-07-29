@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"math/big"
 
+	"github.com/ethereum-optimism/optimism/op-chain-ops/addresses"
 	"github.com/ethereum-optimism/optimism/op-service/jsonutil"
 
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/opcm"
@@ -44,8 +45,7 @@ func DeployImplementations(env *Env, intent *state.Intent, st *state.State) erro
 		return fmt.Errorf("error merging proof params from overrides: %w", err)
 	}
 
-	dio, err := opcm.DeployImplementations(
-		env.L1ScriptHost,
+	dio, err := env.Scripts.DeployImplementations.Run(
 		opcm.DeployImplementationsInput{
 			WithdrawalDelaySeconds:          new(big.Int).SetUint64(proofParams.WithdrawalDelaySeconds),
 			MinProposalSizeBytes:            new(big.Int).SetUint64(proofParams.MinProposalSizeBytes),
@@ -54,35 +54,36 @@ func DeployImplementations(env *Env, intent *state.Intent, st *state.State) erro
 			DisputeGameFinalityDelaySeconds: new(big.Int).SetUint64(proofParams.DisputeGameFinalityDelaySeconds),
 			MipsVersion:                     new(big.Int).SetUint64(proofParams.MIPSVersion),
 			L1ContractsRelease:              contractsRelease,
-			SuperchainConfigProxy:           st.SuperchainDeployment.SuperchainConfigProxyAddress,
-			ProtocolVersionsProxy:           st.SuperchainDeployment.ProtocolVersionsProxyAddress,
-			SuperchainProxyAdmin:            st.SuperchainDeployment.ProxyAdminAddress,
-			UpgradeController:               intent.SuperchainRoles.ProxyAdminOwner,
-			UseInterop:                      intent.UseInterop,
+			SuperchainConfigProxy:           st.SuperchainDeployment.SuperchainConfigProxy,
+			ProtocolVersionsProxy:           st.SuperchainDeployment.ProtocolVersionsProxy,
+			SuperchainProxyAdmin:            st.SuperchainDeployment.SuperchainProxyAdminImpl,
+			UpgradeController:               st.SuperchainRoles.SuperchainProxyAdminOwner,
+			Challenger:                      st.SuperchainRoles.Challenger,
 		},
 	)
 	if err != nil {
 		return fmt.Errorf("error deploying implementations: %w", err)
 	}
 
-	st.ImplementationsDeployment = &state.ImplementationsDeployment{
-		OpcmAddress:                             dio.Opcm,
-		OpcmGameTypeAdderAddress:                dio.OpcmGameTypeAdder,
-		OpcmDeployerAddress:                     dio.OpcmDeployer,
-		OpcmUpgraderAddress:                     dio.OpcmUpgrader,
-		OpcmInteropMigratorAddress:              dio.OpcmInteropMigrator,
-		DelayedWETHImplAddress:                  dio.DelayedWETHImpl,
-		OptimismPortalImplAddress:               dio.OptimismPortalImpl,
-		ETHLockboxImplAddress:                   dio.ETHLockboxImpl,
-		PreimageOracleSingletonAddress:          dio.PreimageOracleSingleton,
-		MipsSingletonAddress:                    dio.MipsSingleton,
-		SystemConfigImplAddress:                 dio.SystemConfigImpl,
-		L1CrossDomainMessengerImplAddress:       dio.L1CrossDomainMessengerImpl,
-		L1ERC721BridgeImplAddress:               dio.L1ERC721BridgeImpl,
-		L1StandardBridgeImplAddress:             dio.L1StandardBridgeImpl,
-		OptimismMintableERC20FactoryImplAddress: dio.OptimismMintableERC20FactoryImpl,
-		DisputeGameFactoryImplAddress:           dio.DisputeGameFactoryImpl,
-		AnchorStateRegistryImplAddress:          dio.AnchorStateRegistryImpl,
+	st.ImplementationsDeployment = &addresses.ImplementationsContracts{
+		OpcmImpl:                         dio.Opcm,
+		OpcmGameTypeAdderImpl:            dio.OpcmGameTypeAdder,
+		OpcmDeployerImpl:                 dio.OpcmDeployer,
+		OpcmUpgraderImpl:                 dio.OpcmUpgrader,
+		OpcmInteropMigratorImpl:          dio.OpcmInteropMigrator,
+		OpcmStandardValidatorImpl:        dio.OpcmStandardValidator,
+		DelayedWethImpl:                  dio.DelayedWETHImpl,
+		OptimismPortalImpl:               dio.OptimismPortalImpl,
+		EthLockboxImpl:                   dio.ETHLockboxImpl,
+		PreimageOracleImpl:               dio.PreimageOracleSingleton,
+		MipsImpl:                         dio.MipsSingleton,
+		SystemConfigImpl:                 dio.SystemConfigImpl,
+		L1CrossDomainMessengerImpl:       dio.L1CrossDomainMessengerImpl,
+		L1Erc721BridgeImpl:               dio.L1ERC721BridgeImpl,
+		L1StandardBridgeImpl:             dio.L1StandardBridgeImpl,
+		OptimismMintableErc20FactoryImpl: dio.OptimismMintableERC20FactoryImpl,
+		DisputeGameFactoryImpl:           dio.DisputeGameFactoryImpl,
+		AnchorStateRegistryImpl:          dio.AnchorStateRegistryImpl,
 	}
 
 	return nil

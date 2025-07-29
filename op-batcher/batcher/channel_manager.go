@@ -35,7 +35,7 @@ type channelManager struct {
 
 	outFactory ChannelOutFactory
 
-	// All blocks since the last request for new tx data.
+	// All blocks which are not yet safe
 	blocks queue.Queue[*types.Block]
 	// blockCursor is an index into blocks queue. It points at the next block
 	// to build a channel with. blockCursor = len(blocks) is reserved for when
@@ -62,7 +62,7 @@ func NewChannelManager(log log.Logger, metr metrics.Metricer, cfgProvider Channe
 		log:         log,
 		metr:        metr,
 		cfgProvider: cfgProvider,
-		defaultCfg:  cfgProvider.ChannelConfig(false),
+		defaultCfg:  cfgProvider.ChannelConfig(false, false),
 		rollupCfg:   rollupCfg,
 		outFactory:  NewChannelOut,
 		txChannels:  make(map[string]*channel),
@@ -203,7 +203,7 @@ func (s *channelManager) handleChannelInvalidated(c *channel) {
 func (s *channelManager) nextTxData(channel *channel) (txData, error) {
 	if channel == nil || !channel.HasTxData() {
 		s.log.Trace("no next tx data")
-		return txData{}, io.EOF // TODO: not enough data error instead
+		return txData{}, io.EOF
 	}
 	tx := channel.NextTxData()
 
@@ -225,19 +225,19 @@ func (s *channelManager) nextTxData(channel *channel) (txData, error) {
 // It will decide whether to switch DA type automatically.
 // When switching DA type, the channelManager state will be rebuilt
 // with a new ChannelConfig.
-func (s *channelManager) TxData(l1Head eth.BlockID, isPectra bool) (txData, error) {
+func (s *channelManager) TxData(l1Head eth.BlockID, isPectra, isThrottling bool) (txData, error) {
 	channel, err := s.getReadyChannel(l1Head)
 	if err != nil {
 		return emptyTxData, err
 	}
 	// If the channel has already started being submitted,
-	// return now and ensure no requeueing happens
+	// return now and ensure no requeuing happens
 	if !channel.NoneSubmitted() {
 		return s.nextTxData(channel)
 	}
 
 	// Call provider method to reassess optimal DA type
-	newCfg := s.cfgProvider.ChannelConfig(isPectra)
+	newCfg := s.cfgProvider.ChannelConfig(isPectra, isThrottling)
 
 	// No change:
 	if newCfg.UseBlobs == s.defaultCfg.UseBlobs {
@@ -356,6 +356,7 @@ func (s *channelManager) ensureChannelWithSpace(l1Head eth.BlockID) error {
 
 	s.channelQueue = append(s.channelQueue, pc)
 	s.metr.RecordChannelQueueLength(len(s.channelQueue))
+	s.log.Debug("Channel queue length", "length", len(s.channelQueue))
 
 	return nil
 }
@@ -459,6 +460,9 @@ func (s *channelManager) outputFrames() error {
 		"full_reason", s.currentChannel.FullErr(),
 		"compr_ratio", comprRatio,
 	)
+
+	s.currentChannel.channelBuilder.co.DiscardCompressor() // Free up memory by discarding the compressor
+
 	return nil
 }
 

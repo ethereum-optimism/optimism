@@ -67,11 +67,14 @@ func (s *Service) initFromCLIConfig(ctx context.Context, cfg *config.Config) err
 	if err := s.initMetricsServer(cfg); err != nil {
 		return fmt.Errorf("failed to start Metrics server: %w", err)
 	}
+	if err := s.createRPCHandler(cfg); err != nil {
+		return fmt.Errorf("failed to create RPC handler: %w", err)
+	}
 	if err := s.initBackend(ctx, cfg); err != nil {
 		return fmt.Errorf("failed to start backend: %w", err)
 	}
 	if err := s.initRPCHandler(cfg); err != nil {
-		return fmt.Errorf("failed to start RPC handler: %w", err)
+		return fmt.Errorf("failed to init RPC handler: %w", err)
 	}
 	if err := s.initHTTPServer(cfg); err != nil {
 		return fmt.Errorf("failed to start HTTP server: %w", err)
@@ -125,7 +128,7 @@ func (s *Service) initMetricsServer(cfg *config.Config) error {
 	return nil
 }
 
-func (s *Service) initRPCHandler(cfg *config.Config) error {
+func (s *Service) createRPCHandler(cfg *config.Config) error {
 	secret, err := oprpc.ObtainJWTSecret(s.log, cfg.JWTSecretPath, true)
 	if err != nil {
 		return err
@@ -136,6 +139,10 @@ func (s *Service) initRPCHandler(cfg *config.Config) error {
 		oprpc.WithJWTSecret(secret[:]),
 		oprpc.WithWebsocketEnabled(),
 	)
+	return nil
+}
+
+func (s *Service) initRPCHandler(cfg *config.Config) error {
 	if cfg.RPC.EnableAdmin {
 		s.log.Info("Admin RPC enabled")
 		if err := s.rpcHandler.AddAPI(rpc.API{

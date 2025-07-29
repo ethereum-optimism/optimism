@@ -32,6 +32,7 @@ type ConfigSource interface {
 	ChainConfig(chainID eth.ChainID) (*params.ChainConfig, error)
 	DependencySet(chainID eth.ChainID) (depset.DependencySet, error)
 }
+
 type OracleConfigSource struct {
 	oracle oracleClient
 

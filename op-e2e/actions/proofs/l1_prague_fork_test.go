@@ -122,7 +122,12 @@ func Test_ProgramAction_PragueForkAfterGenesis(gt *testing.T) {
 		miner.ActEmptyBlock(t) // block 1
 		miner.ActEmptyBlock(t) // Prague activates here (block 2)
 
+		// Check that Prague is active on L1
+		requirePragueStatusOnL1(true, miner.L1Chain().CurrentBlock())
+
 		// Here's a block with a type 4 deposit transaction, sent to the OptimismPortal
+		// We want to ensure this transaction succeeds and doesn't cause any problems
+		// on L2 nodes when they read the TransactionDeposited event.
 		miner.ActL1StartBlock(12)(t) // block 3
 		tx, err := actionsHelpers.PrepareSignedSetCodeTx(
 			*uint256.MustFromBig(env.Sd.L1Cfg.Config.ChainID),
@@ -132,13 +137,9 @@ func Test_ProgramAction_PragueForkAfterGenesis(gt *testing.T) {
 			env.Sd.DeploymentsL1.OptimismPortalProxy,
 			[]byte{})
 		require.NoError(t, err, "failed to prepare set code tx")
-		err = miner.EthClient().SendTransaction(t.Ctx(), tx)
-		require.NoError(t, err, "failed to send set code tx")
-		miner.ActL1IncludeTx(env.Alice.Address())(t)
+		receipt := miner.IncludeTx(t, tx)
+		require.Equal(t, types.ReceiptStatusSuccessful, receipt.Status, "set code tx should succeed")
 		miner.ActL1EndBlock(t)
-
-		// Check that Prague is active on L1
-		requirePragueStatusOnL1(true, miner.L1Chain().CurrentBlock())
 
 		// Cache safe head before verifier sync
 		safeL2Initial := verifier.SyncStatus().SafeL2
@@ -182,5 +183,5 @@ func Test_ProgramAction_PragueForkAfterGenesis(gt *testing.T) {
 	defer matrix.Run(gt)
 	matrix.
 		AddDefaultTestCasesWithName(dynamiceFeeCase.name, dynamiceFeeCase, helpers.NewForkMatrix(helpers.Holocene, helpers.LatestFork), runL1PragueTest).
-		AddDefaultTestCasesWithName(setCodeCase.name, setCodeCase, helpers.NewForkMatrix(helpers.Holocene, helpers.LatestFork), runL1PragueTest)
+		AddDefaultTestCasesWithName(setCodeCase.name, setCodeCase, helpers.NewForkMatrix(helpers.LatestFork), runL1PragueTest)
 }

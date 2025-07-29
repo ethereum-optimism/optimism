@@ -110,6 +110,9 @@ func (n *NodeP2P) init(
 		return fmt.Errorf("failed to start p2p host: %w", err)
 	}
 
+	// Don't ingest blocks that we publish ourselves
+	gossipIn = NewFilterSelf(n.host.ID(), gossipIn)
+
 	// Enable extra features, if any. During testing we don't setup the most advanced host all the time.
 	if extra, ok := n.host.(ExtraHostFeatures); ok {
 		n.gater = extra.ConnectionGater()
@@ -123,7 +126,7 @@ func (n *NodeP2P) init(
 	scoreParams := setup.PeerScoringParams()
 
 	if scoreParams != nil {
-		n.appScorer = newPeerApplicationScorer(resourcesCtx, log, clock.SystemClock, &scoreParams.ApplicationScoring, eps, n.host.Network().Peers)
+		n.appScorer = NewPeerApplicationScorer(resourcesCtx, log, clock.SystemClock, &scoreParams.ApplicationScoring, eps, n.host.Network().Peers)
 	} else {
 		n.appScorer = &NoopApplicationScorer{}
 	}
@@ -153,7 +156,7 @@ func (n *NodeP2P) init(
 			n.host.SetStreamHandler(PayloadByNumberProtocolID(rollupCfg.L2ChainID), payloadByNumber)
 		}
 	}
-	n.scorer = NewScorer(rollupCfg, eps, metrics, n.appScorer, log)
+	n.scorer = NewScorer(eps, metrics, n.appScorer, log)
 	// notify of any new connections/streams/etc.
 	n.host.Network().Notify(NewNetworkNotifier(log, metrics))
 	// note: the IDDelta functionality was removed from libP2P, and no longer needs to be explicitly disabled.
@@ -161,7 +164,7 @@ func (n *NodeP2P) init(
 	if err != nil {
 		return fmt.Errorf("failed to start gossipsub router: %w", err)
 	}
-	n.gsOut, err = JoinGossip(n.host.ID(), n.gs, log, rollupCfg, runCfg, gossipIn)
+	n.gsOut, err = JoinGossip(n.host.ID(), n.gs, log, rollupCfg, runCfg, gossipIn, setup)
 	if err != nil {
 		return fmt.Errorf("failed to join blocks gossip topic: %w", err)
 	}
@@ -186,7 +189,7 @@ func (n *NodeP2P) init(
 		n.peerMonitor = monitor.NewPeerMonitor(resourcesCtx, log, clock.SystemClock, n, setup.BanThreshold(), setup.BanDuration())
 		n.peerMonitor.Start()
 	}
-	n.appScorer.start()
+	n.appScorer.Start()
 	return nil
 }
 
@@ -296,7 +299,7 @@ func (n *NodeP2P) Close() error {
 		}
 	}
 	if n.appScorer != nil {
-		n.appScorer.stop()
+		n.appScorer.Stop()
 	}
 	return result.ErrorOrNil()
 }

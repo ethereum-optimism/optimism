@@ -11,8 +11,8 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/engine"
-	"github.com/ethereum-optimism/optimism/op-node/rollup/event"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/event"
 )
 
 // defaultFinalityLookback defines the amount of L1<>L2 relations to track for finalization purposes, one per L1 block.
@@ -131,13 +131,14 @@ func (ev FinalizeL1Event) String() string {
 	return "finalized-l1"
 }
 
-type TryFinalizeEvent struct{}
+type TryFinalizeEvent struct {
+}
 
 func (ev TryFinalizeEvent) String() string {
 	return "try-finalize"
 }
 
-func (fi *Finalizer) OnEvent(ev event.Event) bool {
+func (fi *Finalizer) OnEvent(ctx context.Context, ev event.Event) bool {
 	switch x := ev.(type) {
 	case FinalizeL1Event:
 		fi.onL1Finalized(x.FinalizedL1)
@@ -177,7 +178,7 @@ func (fi *Finalizer) onL1Finalized(l1Origin eth.L1BlockRef) {
 	}
 
 	// when the L1 change we can suggest to try to finalize, as the pre-condition for L2 finality has now changed
-	fi.emitter.Emit(TryFinalizeEvent{})
+	fi.emitter.Emit(fi.ctx, TryFinalizeEvent{})
 }
 
 // onDerivationIdle is called when the pipeline is exhausted of new data (i.e. no more L2 blocks to derive from).
@@ -200,7 +201,7 @@ func (fi *Finalizer) onDerivationIdle(derivedFrom eth.L1BlockRef) {
 	}
 	fi.log.Debug("processing L1 finality information", "l1_finalized", fi.finalizedL1, "derived_from", derivedFrom, "previous", fi.triedFinalizeAt)
 	fi.triedFinalizeAt = derivedFrom.Number
-	fi.emitter.Emit(TryFinalizeEvent{})
+	fi.emitter.Emit(fi.ctx, TryFinalizeEvent{})
 }
 
 func (fi *Finalizer) tryFinalize() {
@@ -226,11 +227,15 @@ func (fi *Finalizer) tryFinalize() {
 		// the signal itself has to be canonical to proceed.
 		signalRef, err := fi.l1Fetcher.L1BlockRefByNumber(ctx, fi.finalizedL1.Number)
 		if err != nil {
-			fi.emitter.Emit(rollup.L1TemporaryErrorEvent{Err: fmt.Errorf("failed to check if on finalizing L1 chain, could not fetch block %d: %w", fi.finalizedL1.Number, err)})
+			fi.emitter.Emit(fi.ctx, rollup.L1TemporaryErrorEvent{
+				Err: fmt.Errorf("failed to check if on finalizing L1 chain, could not fetch block %d: %w", fi.finalizedL1.Number, err),
+			})
 			return
 		}
 		if signalRef.Hash != fi.finalizedL1.Hash {
-			fi.emitter.Emit(rollup.ResetEvent{Err: fmt.Errorf("need to reset, we assumed %s is finalized, but canonical chain is %s", fi.finalizedL1, signalRef)})
+			fi.emitter.Emit(fi.ctx, rollup.ResetEvent{
+				Err: fmt.Errorf("need to reset, we assumed %s is finalized, but canonical chain is %s", fi.finalizedL1, signalRef),
+			})
 			return
 		}
 
@@ -238,15 +243,19 @@ func (fi *Finalizer) tryFinalize() {
 		// We assume that the block-by-number query is consistent with the previously received finalized chain signal
 		derivedRef, err := fi.l1Fetcher.L1BlockRefByNumber(ctx, finalizedDerivedFrom.Number)
 		if err != nil {
-			fi.emitter.Emit(rollup.L1TemporaryErrorEvent{Err: fmt.Errorf("failed to check if on finalizing L1 chain, could not fetch block %d: %w", finalizedDerivedFrom.Number, err)})
+			fi.emitter.Emit(fi.ctx, rollup.L1TemporaryErrorEvent{
+				Err: fmt.Errorf("failed to check if on finalizing L1 chain, could not fetch block %d: %w", finalizedDerivedFrom.Number, err),
+			})
 			return
 		}
 		if derivedRef.Hash != finalizedDerivedFrom.Hash {
-			fi.emitter.Emit(rollup.ResetEvent{Err: fmt.Errorf("need to reset, we are on %s, not on the finalizing L1 chain %s (towards %s)",
-				finalizedDerivedFrom, derivedRef, fi.finalizedL1)})
+			fi.emitter.Emit(fi.ctx, rollup.ResetEvent{
+				Err: fmt.Errorf("need to reset, we are on %s, not on the finalizing L1 chain %s (towards %s)",
+					finalizedDerivedFrom, derivedRef, fi.finalizedL1),
+			})
 			return
 		}
-		fi.emitter.Emit(engine.PromoteFinalizedEvent{Ref: finalizedL2})
+		fi.emitter.Emit(fi.ctx, engine.PromoteFinalizedEvent{Ref: finalizedL2})
 	}
 }
 

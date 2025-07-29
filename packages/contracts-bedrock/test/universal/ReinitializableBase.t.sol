@@ -7,7 +7,16 @@ import { Test } from "forge-std/Test.sol";
 // Contracts
 import { ReinitializableBase } from "src/universal/ReinitializableBase.sol";
 
-contract ReinitializableBase_Test is Test {
+/// @title ReinitializableBase_Harness
+/// @notice Harness contract to allow direct instantiation and testing of `ReinitializableBase`
+///         logic.
+contract ReinitializableBase_Harness is ReinitializableBase {
+    constructor(uint8 _initVersion) ReinitializableBase(_initVersion) { }
+}
+
+/// @title ReinitializableBase_InitVersion_Test
+/// @notice Tests the `initVersion` function of the `ReinitializableBase` contract.
+contract ReinitializableBase_InitVersion_Test is Test {
     /// @notice Tests that the contract is created correctly and initVersion returns the right
     ///         value when the provided init version is non-zero.
     /// @param _initVersion The init version to use when creating the contract.
@@ -21,16 +30,10 @@ contract ReinitializableBase_Test is Test {
         // Check the init version.
         assertEq(harness.initVersion(), _initVersion);
     }
-}
 
-contract ReinitializableBase_TestFail is Test {
     /// @notice Tests that the contract creation reverts when the init version is zero.
     function test_initVersion_zeroVersion_reverts() public {
         vm.expectRevert(ReinitializableBase.ReinitializableBase_ZeroInitVersion.selector);
         new ReinitializableBase_Harness(0);
     }
-}
-
-contract ReinitializableBase_Harness is ReinitializableBase {
-    constructor(uint8 _initVersion) ReinitializableBase(_initVersion) { }
 }

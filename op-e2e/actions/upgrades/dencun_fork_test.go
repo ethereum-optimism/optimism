@@ -123,7 +123,7 @@ func TestDencunL2ForkAfterGenesis(gt *testing.T) {
 	t := helpers.NewDefaultTesting(gt)
 	dp := e2eutils.MakeDeployParams(t, helpers.DefaultRollupTestParams())
 	require.Zero(t, *dp.DeployConfig.L1CancunTimeOffset)
-	// This test wil fork on the second block
+	// This test will fork on the second block
 	offset := hexutil.Uint64(dp.DeployConfig.L2BlockTime * 2)
 	dp.DeployConfig.L2GenesisEcotoneTimeOffset = &offset
 	dp.DeployConfig.L2GenesisFjordTimeOffset = nil

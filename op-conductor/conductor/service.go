@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"math/rand"
+	"net/http"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -20,7 +21,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-conductor/health"
 	"github.com/ethereum-optimism/optimism/op-conductor/metrics"
 	conductorrpc "github.com/ethereum-optimism/optimism/op-conductor/rpc"
-	opp2p "github.com/ethereum-optimism/optimism/op-node/p2p"
+	"github.com/ethereum-optimism/optimism/op-conductor/rpc/ws"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/driver"
 	"github.com/ethereum-optimism/optimism/op-service/cliapp"
 	opclient "github.com/ethereum-optimism/optimism/op-service/client"
@@ -116,6 +117,9 @@ func (c *OpConductor) init(ctx context.Context) error {
 	if err := c.initRPCServer(ctx); err != nil {
 		return errors.Wrap(err, "failed to initialize rpc server")
 	}
+	if err := c.initFlashblocksHandler(ctx); err != nil {
+		return errors.Wrap(err, "failed to initialize flashblocks handler")
+	}
 	return nil
 }
 
@@ -209,11 +213,23 @@ func (c *OpConductor) initHealthMonitor(ctx context.Context) error {
 	}
 	node := sources.NewRollupClient(nc)
 
-	pc, err := rpc.DialContext(ctx, c.cfg.NodeRPC)
-	if err != nil {
-		return errors.Wrap(err, "failed to create p2p rpc client")
+	var rb client.RollupBoostClient
+	if c.cfg.RollupBoostEnabled {
+		rb = client.NewRollupBoostClient(c.cfg.ExecutionRPC, &http.Client{
+			Timeout: c.cfg.RollupBoostHealthcheckTimeout,
+		})
 	}
-	p2p := opp2p.NewClient(pc)
+
+	p2p := sources.NewP2PClient(nc)
+
+	var supervisor health.SupervisorHealthAPI
+	if c.cfg.SupervisorRPC != "" {
+		sc, err := opclient.NewRPC(ctx, c.log, c.cfg.SupervisorRPC)
+		if err != nil {
+			return errors.Wrap(err, "failed to create supervisor rpc client")
+		}
+		supervisor = sources.NewSupervisorClient(sc)
+	}
 
 	c.hmon = health.NewSequencerHealthMonitor(
 		c.log,
@@ -226,6 +242,8 @@ func (c *OpConductor) initHealthMonitor(ctx context.Context) error {
 		&c.cfg.RollupCfg,
 		node,
 		p2p,
+		supervisor,
+		rb,
 	)
 	c.healthUpdateCh = c.hmon.Subscribe()
 
@@ -284,6 +302,30 @@ func (oc *OpConductor) initRPCServer(ctx context.Context) error {
 	return nil
 }
 
+// initFlashblocksHandler initializes the flashblocks handler
+func (c *OpConductor) initFlashblocksHandler(ctx context.Context) error {
+	if c.cfg.RollupBoostWsURL == "" || c.cfg.WebsocketServerPort <= 0 {
+		c.log.Info("flashblocks handler disabled, no rollup boost URL or websocket server port configured")
+		return nil
+	}
+
+	// Initialize the flashblocks handler
+	handler, err := ws.NewHandler(ws.Config{
+		RollupBoostWsURL:    c.cfg.RollupBoostWsURL,
+		WebsocketServerPort: c.cfg.WebsocketServerPort,
+	}, c.log, func(ctx context.Context) bool {
+		return c.Leader(ctx)
+	}, c.metrics)
+
+	if err != nil {
+		return errors.Wrap(err, "failed to create flashblocks handler")
+	}
+
+	c.flashblocksHandler = handler
+
+	return nil
+}
+
 // OpConductor represents a full conductor instance and its resources, it does:
 //  1. performs health checks on sequencer
 //  2. participate in consensus protocol for leader election
@@ -329,6 +371,8 @@ type OpConductor struct {
 	metricsServer *httputil.HTTPServer
 
 	retryBackoff func() time.Duration
+
+	flashblocksHandler ws.FlashblockHandler
 }
 
 type state struct {
@@ -365,6 +409,14 @@ func (oc *OpConductor) Start(ctx context.Context) error {
 	oc.log.Info("starting JSON-RPC server")
 	if err := oc.rpcServer.Start(); err != nil {
 		return errors.Wrap(err, "failed to start JSON-RPC server")
+	}
+
+	// Start the flashblocks handler if it was initialized
+	if oc.flashblocksHandler != nil {
+		oc.log.Info("starting flashblocks handler")
+		if err := oc.flashblocksHandler.Start(ctx); err != nil {
+			return errors.Wrap(err, "failed to start flashblocks handler")
+		}
 	}
 
 	if oc.cfg.MetricsConfig.Enabled {
@@ -407,6 +459,12 @@ func (oc *OpConductor) Stop(ctx context.Context) error {
 	// close control loop
 	oc.shutdownCancel()
 	oc.wg.Wait()
+
+	// Close flashblocks handler
+	if oc.flashblocksHandler != nil {
+		oc.log.Info("stopping flashblocks handler")
+		oc.flashblocksHandler.Stop()
+	}
 
 	if oc.rpcServer != nil {
 		if err := oc.rpcServer.Stop(); err != nil {

@@ -45,7 +45,7 @@ rules:
       - pattern: vm.expectRevert()
     paths:
       exclude:
-        - packages/contracts-bedrock/test/dispute/WETH98.t.sol
+        - packages/contracts-bedrock/test/universal/WETH98.t.sol
 
   - id: sol-safety-natspec-semver-match
     languages: [generic]
@@ -165,10 +165,6 @@ rules:
       exclude:
         - packages/contracts-bedrock/src/libraries/Bytes.sol
         - packages/contracts-bedrock/src/legacy/LegacyMintableERC20.sol
-        - packages/contracts-bedrock/src/cannon/MIPS.sol
-        - packages/contracts-bedrock/src/cannon/MIPS2.sol
-        - packages/contracts-bedrock/src/cannon/libraries/MIPSMemory.sol
-        - packages/contracts-bedrock/src/cannon/libraries/MIPSInstructions.sol
 
   - id: sol-style-malformed-revert
     languages: [solidity]
@@ -182,9 +178,6 @@ rules:
       - pattern-not-regex: string\.concat\(\"(\w+:\s[^"]*)\"\,.+\)
       - pattern-not-regex: \"([a-zA-Z0-9\s]+-[a-zA-Z0-9\s]+)\"
       - pattern-not-regex: \"([a-zA-Z0-9\s]+-[a-zA-Z0-9\s]+-[a-zA-Z0-9\s]+)\"
-    paths:
-      exclude:
-        - packages/contracts-bedrock/src/cannon/libraries/MIPSInstructions.sol
 
   - id: sol-style-use-abi-encodecall
     languages: [solidity]
@@ -199,7 +192,6 @@ rules:
       - pattern-not: vm.expectRevert(abi.encodeWithSelector(...));
     paths:
       exclude:
-        - packages/contracts-bedrock/src/L1/OPContractsManager.sol
         - packages/contracts-bedrock/src/legacy/L1ChugSplashProxy.sol
 
   - id: sol-style-enforce-require-msg
@@ -330,8 +322,6 @@ rules:
         - packages/contracts-bedrock/src/L2/FeeVault.sol
         - packages/contracts-bedrock/src/L2/OptimismMintableERC721.sol
         - packages/contracts-bedrock/src/L2/OptimismMintableERC721Factory.sol
-        - packages/contracts-bedrock/src/cannon/MIPS.sol
-        - packages/contracts-bedrock/src/cannon/MIPS2.sol
         - packages/contracts-bedrock/src/cannon/MIPS64.sol
         - packages/contracts-bedrock/src/cannon/PreimageOracle.sol
         - packages/contracts-bedrock/src/dispute/AnchorStateRegistry.sol
@@ -342,7 +332,6 @@ rules:
         - packages/contracts-bedrock/src/dispute/SuperPermissionedDisputeGame.sol
         - packages/contracts-bedrock/src/governance/MintManager.sol
         - packages/contracts-bedrock/src/governance/ProposalValidator.sol
-        - packages/contracts-bedrock/src/governance/ProposalValidator.sol
         - packages/contracts-bedrock/src/periphery/TransferOnion.sol
         - packages/contracts-bedrock/src/periphery/faucet/Faucet.sol
         - packages/contracts-bedrock/src/periphery/faucet/authmodules/AdminFaucetAuthModule.sol
@@ -352,3 +341,25 @@ rules:
         - packages/contracts-bedrock/src/safe/LivenessModule.sol
         - packages/contracts-bedrock/src/universal/OptimismMintableERC20.sol
         - packages/contracts-bedrock/src/universal/ReinitializableBase.sol
+
+  - id: sol-style-use-process-run
+    languages: [solidity]
+    severity: ERROR
+    message: Use Process.run instead of vm.ffi or vm.tryFfi
+    pattern-either:
+      - pattern: |
+          vm.ffi(...);
+      - pattern: |
+          vm.tryFfi(...);
+    paths:
+      exclude:
+        - packages/contracts-bedrock/scripts/libraries/Process.sol
+
+  - id: sol-style-vm-env-only-in-config-sol
+    languages: [solidity]
+    severity: ERROR
+    message: vm.env* should only be used in Config.sol
+    pattern-regex: vm.env
+    paths:
+      exclude:
+        - packages/contracts-bedrock/scripts/libraries/Config.sol

@@ -1,0 +1,31 @@
+ARG GO_VERSION=1.23.8-alpine3.21
+ARG VM_TARGET=current
+FROM golang:${GO_VERSION} AS builder
+
+# Redeclare ARG to make it available in this build stage
+ARG VM_TARGET
+
+# Install dependencies
+RUN apk add --no-cache make git bash jq llvm
+
+# Build vm-compat binary
+RUN mkdir -p /tmp/vm-compat && \
+    cd /tmp/vm-compat && \
+    git clone https://github.com/ethereum-optimism/vm-compat.git . && \
+    git fetch --tags && \
+    git checkout -q v1.1.0 && \
+    make && \
+    cp bin/analyzer /usr/local/bin/vm-compat && \
+    cd / && \
+    rm -rf /tmp/vm-compat
+
+# Copy local files, download go dependencies
+WORKDIR /app
+COPY ./go.mod ./go.sum ./
+RUN --mount=type=cache,target=/go/pkg/mod --mount=type=cache,target=/root/.cache/go-build go mod download
+COPY . /app
+
+# Run the op-program analysis
+WORKDIR /app/op-program
+RUN --mount=type=cache,target=/go/pkg/mod --mount=type=cache,target=/root/.cache/go-build \
+  make "analyze-op-program-client-${VM_TARGET}"

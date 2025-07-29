@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/stretchr/testify/require"
 
@@ -65,11 +66,19 @@ func (m *mockBuildJob) Seal(ctx context.Context) (work.Block, error) {
 	return m.bl, m.err
 }
 
+func (m *mockBuildJob) Open(ctx context.Context) error {
+	return nil
+}
+
 func (m *mockBuildJob) String() string {
 	return "mock build job"
 }
 
 func (m *mockBuildJob) Close() {}
+
+func (m *mockBuildJob) IncludeTx(ctx context.Context, tx hexutil.Bytes) error {
+	return errors.New("not supported")
+}
 
 var _ work.BuildJob = (*mockBuildJob)(nil)
 
@@ -79,7 +88,7 @@ type mockBuilder struct {
 	job    func() (work.BuildJob, error)
 }
 
-func (m *mockBuilder) NewJob(ctx context.Context, opts *seqtypes.BuildOpts) (work.BuildJob, error) {
+func (m *mockBuilder) NewJob(ctx context.Context, opts seqtypes.BuildOpts) (work.BuildJob, error) {
 	return m.job()
 }
 
@@ -119,6 +128,10 @@ func (m *mockSigner) Close() error {
 
 func (m *mockSigner) Sign(ctx context.Context, block work.Block) (work.SignedBlock, error) {
 	return &mockSignedBlock{bl: block}, m.err
+}
+
+func (m *mockSigner) ChainID() eth.ChainID {
+	return eth.ChainIDFromUInt64(123)
 }
 
 var _ work.Signer = (*mockSigner)(nil)
@@ -215,8 +228,8 @@ func TestSequencer(t *testing.T) {
 		seq.reset()
 		resetBuildJob()
 		require.Nil(t, seq.BuildJob(), "no job yet")
-		require.NoError(t, seq.Open(ctx))
-		require.ErrorIs(t, seq.Open(ctx), seqtypes.ErrConflictingJob)
+		require.NoError(t, seq.New(ctx, seqtypes.BuildOpts{}))
+		require.ErrorIs(t, seq.New(ctx, seqtypes.BuildOpts{}), seqtypes.ErrConflictingJob)
 		require.NotNil(t, seq.BuildJob(), "job is opened")
 		require.NoError(t, seq.Seal(ctx))
 		require.ErrorIs(t, seq.Seal(ctx), seqtypes.ErrAlreadySealed)
@@ -237,6 +250,7 @@ func TestSequencer(t *testing.T) {
 	t.Run("continue from open block", func(t *testing.T) {
 		seq.reset()
 		resetBuildJob()
+		require.NoError(t, seq.New(ctx, seqtypes.BuildOpts{}))
 		require.NoError(t, seq.Open(ctx))
 		require.NoError(t, seq.Next(ctx))
 	})
@@ -244,6 +258,7 @@ func TestSequencer(t *testing.T) {
 	t.Run("continue from sealed block", func(t *testing.T) {
 		seq.reset()
 		resetBuildJob()
+		require.NoError(t, seq.New(ctx, seqtypes.BuildOpts{}))
 		require.NoError(t, seq.Open(ctx))
 		require.NoError(t, seq.Seal(ctx))
 		require.NoError(t, seq.Next(ctx))
@@ -252,6 +267,7 @@ func TestSequencer(t *testing.T) {
 	t.Run("continue from signed block", func(t *testing.T) {
 		seq.reset()
 		resetBuildJob()
+		require.NoError(t, seq.New(ctx, seqtypes.BuildOpts{}))
 		require.NoError(t, seq.Open(ctx))
 		require.NoError(t, seq.Seal(ctx))
 		require.NoError(t, seq.Sign(ctx))
@@ -261,6 +277,7 @@ func TestSequencer(t *testing.T) {
 	t.Run("continue from committed block", func(t *testing.T) {
 		seq.reset()
 		resetBuildJob()
+		require.NoError(t, seq.New(ctx, seqtypes.BuildOpts{}))
 		require.NoError(t, seq.Open(ctx))
 		require.NoError(t, seq.Seal(ctx))
 		require.NoError(t, seq.Sign(ctx))
@@ -271,6 +288,7 @@ func TestSequencer(t *testing.T) {
 	t.Run("continue from published block", func(t *testing.T) {
 		seq.reset()
 		resetBuildJob()
+		require.NoError(t, seq.New(ctx, seqtypes.BuildOpts{}))
 		require.NoError(t, seq.Open(ctx))
 		require.NoError(t, seq.Seal(ctx))
 		require.NoError(t, seq.Sign(ctx))
@@ -294,6 +312,7 @@ func TestSequencer(t *testing.T) {
 		seq.reset()
 		resetBuildJob()
 		bl := &mockBlock{}
+		require.NoError(t, seq.New(ctx, seqtypes.BuildOpts{}))
 		require.NoError(t, seq.Open(ctx))
 		require.ErrorIs(t, seq.Prebuilt(ctx, bl), seqtypes.ErrConflictingJob)
 	})
@@ -302,6 +321,7 @@ func TestSequencer(t *testing.T) {
 		seq.reset()
 		resetBuildJob()
 		bl := &mockBlock{}
+		require.NoError(t, seq.New(ctx, seqtypes.BuildOpts{}))
 		require.NoError(t, seq.Open(ctx))
 		require.NoError(t, seq.Seal(ctx))
 		require.ErrorIs(t, seq.Prebuilt(ctx, bl), seqtypes.ErrConflictingJob)
@@ -315,13 +335,13 @@ func TestSequencer(t *testing.T) {
 		require.ErrorIs(t, seq.Prebuilt(ctx, bl), seqtypes.ErrAlreadySealed)
 	})
 
-	t.Run("fail to open", func(t *testing.T) {
+	t.Run("fail to new", func(t *testing.T) {
 		seq.reset()
-		testErr := errors.New("test open err")
+		testErr := errors.New("test new err")
 		builder.job = func() (work.BuildJob, error) {
 			return nil, testErr
 		}
-		require.ErrorIs(t, seq.Open(ctx), testErr)
+		require.ErrorIs(t, seq.New(ctx, seqtypes.BuildOpts{}), testErr)
 		require.ErrorIs(t, seq.Next(ctx), testErr)
 	})
 
@@ -336,6 +356,7 @@ func TestSequencer(t *testing.T) {
 		builder.job = func() (work.BuildJob, error) {
 			return job, nil
 		}
+		require.NoError(t, seq.New(ctx, seqtypes.BuildOpts{}))
 		require.NoError(t, seq.Open(ctx))
 		require.ErrorIs(t, seq.Seal(ctx), testErr)
 		require.ErrorIs(t, seq.Next(ctx), testErr)
@@ -346,6 +367,7 @@ func TestSequencer(t *testing.T) {
 		resetBuildJob()
 		testErr := errors.New("test sign err")
 		signer.err = testErr
+		require.NoError(t, seq.New(ctx, seqtypes.BuildOpts{}))
 		require.NoError(t, seq.Open(ctx))
 		require.NoError(t, seq.Seal(ctx))
 		require.ErrorIs(t, seq.Sign(ctx), testErr)
@@ -358,6 +380,7 @@ func TestSequencer(t *testing.T) {
 		resetBuildJob()
 		testErr := errors.New("test commit err")
 		committer.err = testErr
+		require.NoError(t, seq.New(ctx, seqtypes.BuildOpts{}))
 		require.NoError(t, seq.Open(ctx))
 		require.NoError(t, seq.Seal(ctx))
 		require.NoError(t, seq.Sign(ctx))
@@ -371,6 +394,7 @@ func TestSequencer(t *testing.T) {
 		resetBuildJob()
 		testErr := errors.New("test publish err")
 		publisher.err = testErr
+		require.NoError(t, seq.New(ctx, seqtypes.BuildOpts{}))
 		require.NoError(t, seq.Open(ctx))
 		require.NoError(t, seq.Seal(ctx))
 		require.NoError(t, seq.Sign(ctx))

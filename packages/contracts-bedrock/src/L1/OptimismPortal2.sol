@@ -21,11 +21,11 @@ import { GameStatus, GameType } from "src/dispute/lib/Types.sol";
 import { ISemver } from "interfaces/universal/ISemver.sol";
 import { ISystemConfig } from "interfaces/L1/ISystemConfig.sol";
 import { IResourceMetering } from "interfaces/L1/IResourceMetering.sol";
-import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
 import { IDisputeGameFactory } from "interfaces/dispute/IDisputeGameFactory.sol";
 import { IDisputeGame } from "interfaces/dispute/IDisputeGame.sol";
 import { IAnchorStateRegistry } from "interfaces/dispute/IAnchorStateRegistry.sol";
 import { IETHLockbox } from "interfaces/L1/IETHLockbox.sol";
+import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
 
 /// @custom:proxied true
 /// @title OptimismPortal2
@@ -50,12 +50,9 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
     /// @notice The L2 gas limit set when eth is deposited using the receive() function.
     uint64 internal constant RECEIVE_DEFAULT_GAS_LIMIT = 100_000;
 
-    /// @notice The L2 gas limit for system deposit transactions that are initiated from L1.
-    uint32 internal constant SYSTEM_DEPOSIT_GAS_LIMIT = 200_000;
-
     /// @notice Address of the L2 account which initiated a withdrawal in this transaction.
-    ///         If the of this variable is the default L2 sender address, then we are NOT inside of
-    ///         a call to finalizeWithdrawalTransaction.
+    ///         If the value of this variable is the default L2 sender address, then we are NOT
+    ///         inside of a call to finalizeWithdrawalTransaction.
     address public l2Sender;
 
     /// @notice A list of withdrawal hashes which have been successfully finalized.
@@ -71,8 +68,10 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
     /// @notice Spacer for backwards compatibility.
     bool private spacer_53_0_1;
 
-    /// @notice Address of the SuperchainConfig contract.
-    ISuperchainConfig public superchainConfig;
+    /// @custom:legacy
+    /// @custom:spacer superchainConfig
+    /// @notice Spacer for backwards compatibility.
+    address private spacer_53_1_20;
 
     /// @custom:legacy
     /// @custom:spacer l2Oracle
@@ -232,16 +231,10 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
     /// @notice Thrown when trying to migrate to the same AnchorStateRegistry.
     error OptimismPortal_MigratingToSameRegistry();
 
-    /// @notice Reverts when paused.
-    modifier whenNotPaused() {
-        if (paused()) revert OptimismPortal_CallPaused();
-        _;
-    }
-
     /// @notice Semantic version.
-    /// @custom:semver 4.1.0
+    /// @custom:semver 4.6.0
     function version() public pure virtual returns (string memory) {
-        return "4.1.0";
+        return "4.6.0";
     }
 
     /// @param _proofMaturityDelaySeconds The proof maturity delay in seconds.
@@ -252,20 +245,21 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
 
     /// @notice Initializer.
     /// @param _systemConfig Address of the SystemConfig.
-    /// @param _superchainConfig Address of the SuperchainConfig.
     /// @param _anchorStateRegistry Address of the AnchorStateRegistry.
     /// @param _ethLockbox Contract of the ETHLockbox.
     function initialize(
         ISystemConfig _systemConfig,
-        ISuperchainConfig _superchainConfig,
         IAnchorStateRegistry _anchorStateRegistry,
         IETHLockbox _ethLockbox
     )
         external
         reinitializer(initVersion())
     {
+        // Initialization transactions must come from the ProxyAdmin or its owner.
+        _assertOnlyProxyAdminOrProxyAdminOwner();
+
+        // Now perform initialization logic.
         systemConfig = _systemConfig;
-        superchainConfig = _superchainConfig;
         anchorStateRegistry = _anchorStateRegistry;
         ethLockbox = _ethLockbox;
 
@@ -278,7 +272,7 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
         __ResourceMetering_init();
     }
 
-    /// @notice Upgrades the OptimismPortal contract to have a reference to the AnchorStateRegistry.
+    /// @notice Upgrades the OptimismPortal contract to have a reference to the AnchorStateRegistry and SystemConfig
     /// @param _anchorStateRegistry AnchorStateRegistry contract.
     /// @param _ethLockbox ETHLockbox contract.
     function upgrade(
@@ -288,16 +282,17 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
         external
         reinitializer(initVersion())
     {
+        // Upgrade transactions must come from the ProxyAdmin or its owner.
+        _assertOnlyProxyAdminOrProxyAdminOwner();
+
+        // Now perform upgrade logic.
         anchorStateRegistry = _anchorStateRegistry;
         ethLockbox = _ethLockbox;
-
-        // Migrate the whole ETH balance to the ETHLockbox.
-        _migrateLiquidity();
     }
 
     /// @notice Getter for the current paused status.
     function paused() public view returns (bool) {
-        return superchainConfig.paused();
+        return systemConfig.paused();
     }
 
     /// @notice Getter for the proof maturity delay.
@@ -310,10 +305,16 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
         return anchorStateRegistry.disputeGameFactory();
     }
 
+    /// @notice Returns the SuperchainConfig contract.
+    /// @return ISuperchainConfig The SuperchainConfig contract.
+    function superchainConfig() external view returns (ISuperchainConfig) {
+        return systemConfig.superchainConfig();
+    }
+
     /// @custom:legacy
     /// @notice Getter function for the address of the guardian.
-    function guardian() public view returns (address) {
-        return superchainConfig.guardian();
+    function guardian() external view returns (address) {
+        return systemConfig.guardian();
     }
 
     /// @custom:legacy
@@ -329,9 +330,20 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
     }
 
     /// @custom:legacy
-    /// @notice Getter for the timestamp at which the respected game type was updated.
+    /// @notice Getter for the retirement timestamp. Note that this value NO LONGER reflects the
+    ///         timestamp at which the respected game type was updated. Game retirement and
+    ///         respected game type value have been decoupled, this function now only returns the
+    ///         retirement timestamp.
     function respectedGameTypeUpdatedAt() external view returns (uint64) {
         return anchorStateRegistry.retirementTimestamp();
+    }
+
+    /// @custom:legacy
+    /// @notice Getter for the dispute game blacklist.
+    /// @param _disputeGame The dispute game to check.
+    /// @return Whether the dispute game is blacklisted.
+    function disputeGameBlacklist(IDisputeGame _disputeGame) public view returns (bool) {
+        return anchorStateRegistry.disputeGameBlacklist(_disputeGame);
     }
 
     /// @notice Computes the minimum gas limit for a deposit.
@@ -358,6 +370,17 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
         // Intentionally empty.
     }
 
+    /// @notice Migrates the total ETH balance to the ETHLockbox.
+    function migrateLiquidity() public {
+        // Liquidity migration can only be triggered by the ProxyAdmin owner.
+        _assertOnlyProxyAdminOwner();
+
+        // Migrate the liquidity.
+        uint256 ethBalance = address(this).balance;
+        ethLockbox.lockETH{ value: ethBalance }();
+        emit ETHMigrated(address(ethLockbox), ethBalance);
+    }
+
     /// @notice Allows the owner of the ProxyAdmin to migrate the OptimismPortal to use a new
     ///         lockbox, point at a new AnchorStateRegistry, and start to use the Super Roots proof
     ///         method. Primarily used for OptimismPortal instances to join the interop set, but
@@ -369,9 +392,14 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
     ///         this issue, guarantee that this function is called atomically alongside the
     ///         ETHLockbox.migrateLiquidity() function within the same transaction.
     /// @param _newLockbox The address of the new ETHLockbox contract.
+    /// @param _newAnchorStateRegistry The address of the new AnchorStateRegistry contract.
     function migrateToSuperRoots(IETHLockbox _newLockbox, IAnchorStateRegistry _newAnchorStateRegistry) external {
-        // Make sure the caller is the owner of the ProxyAdmin.
-        if (msg.sender != proxyAdminOwner()) revert OptimismPortal_Unauthorized();
+        // Migration can only be triggered when the system is not paused because the migration can
+        // potentially unpause the system as a result of the modified ETHLockbox address.
+        _assertNotPaused();
+
+        // Migration can only be triggered by the ProxyAdmin owner.
+        _assertOnlyProxyAdminOwner();
 
         // Chains can use this method to swap the proof method from Output Roots to Super Roots
         // without joining the interop set. In this case, the old and new lockboxes will be the
@@ -417,8 +445,10 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
         bytes[] calldata _withdrawalProof
     )
         external
-        whenNotPaused
     {
+        // Cannot prove withdrawal transactions while the system is paused.
+        _assertNotPaused();
+
         // Make sure that the OptimismPortal is using Super Roots.
         if (!superRootsActive) {
             revert OptimismPortal_WrongProofMethod();
@@ -443,8 +473,10 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
         bytes[] calldata _withdrawalProof
     )
         external
-        whenNotPaused
     {
+        // Cannot prove withdrawal transactions while the system is paused.
+        _assertNotPaused();
+
         // Make sure that the OptimismPortal is using Output Roots.
         if (superRootsActive) {
             revert OptimismPortal_WrongProofMethod();
@@ -582,7 +614,7 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
 
     /// @notice Finalizes a withdrawal transaction.
     /// @param _tx Withdrawal transaction to finalize.
-    function finalizeWithdrawalTransaction(Types.WithdrawalTransaction memory _tx) external whenNotPaused {
+    function finalizeWithdrawalTransaction(Types.WithdrawalTransaction memory _tx) external {
         finalizeWithdrawalTransactionExternalProof(_tx, msg.sender);
     }
 
@@ -594,8 +626,10 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
         address _proofSubmitter
     )
         public
-        whenNotPaused
     {
+        // Cannot finalize withdrawal transactions while the system is paused.
+        _assertNotPaused();
+
         // Make sure that the l2Sender has not yet been set. The l2Sender is set to a value other
         // than the default value when a withdrawal transaction is being finalized. This check is
         // a defacto reentrancy guard.
@@ -638,6 +672,12 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
         // All withdrawals are immediately finalized. Replayability can
         // be achieved through contracts built on top of this contract
         emit WithdrawalFinalized(withdrawalHash, success);
+
+        // Send ETH back to the Lockbox in the case of a failed transaction or it'll get stuck here
+        // and would need to be moved back via the migrateLiquidity function.
+        if (!success && _tx.value > 0) {
+            ethLockbox.lockETH{ value: _tx.value }();
+        }
 
         // Reverting here is useful for determining the exact gas cost to successfully execute the
         // sub call to the target contract if the minimum gas limit specified by the user would not
@@ -684,12 +724,6 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
         if (!anchorStateRegistry.isGameClaimValid(disputeGameProxy)) {
             revert OptimismPortal_InvalidRootClaim();
         }
-    }
-
-    /// @notice Migrates the total ETH balance to the ETHLockbox.
-    function migrateLiquidity() public {
-        if (msg.sender != proxyAdminOwner()) revert OptimismPortal_Unauthorized();
-        _migrateLiquidity();
     }
 
     /// @notice Accepts deposits of ETH and data, and emits a TransactionDeposited event for use in
@@ -760,18 +794,17 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
         return proofSubmitters[_withdrawalHash].length;
     }
 
-    /// @notice Checks if a target address is unsafe.
-    function _isUnsafeTarget(address _target) internal view virtual returns (bool) {
-        // Prevent users from targetting an unsafe target address on a withdrawal transaction.
-        return _target == address(this) || _target == address(ethLockbox);
+    /// @notice Asserts that the contract is not paused.
+    function _assertNotPaused() internal view {
+        if (paused()) {
+            revert OptimismPortal_CallPaused();
+        }
     }
 
-    /// @notice Migrates the total ETH balance to the ETHLockbox.
-    function _migrateLiquidity() internal {
-        uint256 ethBalance = address(this).balance;
-        ethLockbox.lockETH{ value: ethBalance }();
-
-        emit ETHMigrated(address(ethLockbox), ethBalance);
+    /// @notice Checks if a target address is unsafe.
+    function _isUnsafeTarget(address _target) internal view virtual returns (bool) {
+        // Prevent users from targeting an unsafe target address on a withdrawal transaction.
+        return _target == address(this) || _target == address(ethLockbox);
     }
 
     /// @notice Getter for the resource config. Used internally by the ResourceMetering contract.

@@ -4,13 +4,13 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"math"
 	"math/big"
 	"os/exec"
 	"path/filepath"
 	"testing"
 
-	op_e2e "github.com/ethereum-optimism/optimism/op-e2e"
 	"github.com/ethereum-optimism/optimism/op-e2e/actions/proofs"
 	e2e_config "github.com/ethereum-optimism/optimism/op-e2e/config"
 	"github.com/ethereum-optimism/optimism/op-e2e/system/e2esys"
@@ -33,190 +33,179 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 )
 
-func TestPrecompiles_Standard(t *testing.T) {
-	testPrecompiles(t, e2e_config.AllocTypeStandard)
-}
-
-func TestPrecompiles_Multithreaded(t *testing.T) {
-	testPrecompiles(t, e2e_config.AllocTypeMTCannon)
-}
-
-func testPrecompiles(t *testing.T, allocType e2e_config.AllocType) {
-	op_e2e.InitParallel(t, op_e2e.UsesCannon)
-	for _, test := range proofs.PrecompileTestFixtures {
-		test := test
-		t.Run(test.Name, func(t *testing.T) {
-			op_e2e.InitParallel(t, op_e2e.UsesCannon)
-			ctx := context.Background()
-			genesisTime := hexutil.Uint64(0)
-			cfg := e2esys.IsthmusSystemConfig(t, &genesisTime, e2esys.WithAllocType(allocType))
-			// We don't need a verifier - just the sequencer is enough
-			delete(cfg.Nodes, "verifier")
-
-			sys, err := cfg.Start(t)
-			require.Nil(t, err, "Error starting up system")
-
-			log := testlog.Logger(t, log.LevelInfo)
-			log.Info("genesis", "l2", sys.RollupConfig.Genesis.L2, "l1", sys.RollupConfig.Genesis.L1, "l2_time", sys.RollupConfig.Genesis.L2Time)
-
-			l1Client := sys.NodeClient("l1")
-			l2Seq := sys.NodeClient("sequencer")
-			rollupClient := sys.RollupClient("sequencer")
-			aliceKey := cfg.Secrets.Alice
-
-			t.Log("Capture current L2 head as agreed starting point")
-			latestBlock, err := l2Seq.BlockByNumber(ctx, nil)
-			require.NoError(t, err)
-			agreedL2Output, err := rollupClient.OutputAtBlock(ctx, latestBlock.NumberU64())
-			require.NoError(t, err, "could not retrieve l2 agreed block")
-			l2Head := agreedL2Output.BlockRef.Hash
-			l2OutputRoot := agreedL2Output.OutputRoot
-
-			receipt := helpers.SendL2Tx(t, cfg, l2Seq, aliceKey, func(opts *helpers.TxOpts) {
-				opts.Gas = 1_000_000
-				opts.ToAddr = &test.Address
-				opts.Nonce = 0
-				opts.Data = test.Input
-			})
-
-			t.Log("Determine L2 claim")
-			l2ClaimBlockNumber := receipt.BlockNumber
-			l2Output, err := rollupClient.OutputAtBlock(ctx, l2ClaimBlockNumber.Uint64())
-			require.NoError(t, err, "could not get expected output")
-			l2Claim := l2Output.OutputRoot
-
-			t.Log("Determine L1 head that includes all batches required for L2 claim block")
-			require.NoError(t, wait.ForSafeBlock(ctx, rollupClient, l2ClaimBlockNumber.Uint64()))
-			l1HeadBlock, err := l1Client.BlockByNumber(ctx, nil)
-			require.NoError(t, err, "get l1 head block")
-			l1Head := l1HeadBlock.Hash()
-
-			inputs := utils.LocalGameInputs{
-				L1Head:           l1Head,
-				L2Head:           l2Head,
-				L2Claim:          common.Hash(l2Claim),
-				L2OutputRoot:     common.Hash(l2OutputRoot),
-				L2SequenceNumber: l2ClaimBlockNumber,
-			}
-			runCannon(t, ctx, sys, inputs)
-		})
-
-		t.Run("DisputePrecompile-"+test.Name, func(t *testing.T) {
-			op_e2e.InitParallel(t, op_e2e.UsesCannon)
-			if !test.Accelerated {
-				t.Skipf("%v is not accelerated so no preimgae to upload", test.Name)
-			}
-			ctx := context.Background()
-			sys, _ := StartFaultDisputeSystem(t, WithLatestFork(), WithAllocType(allocType))
-
-			l2Seq := sys.NodeClient("sequencer")
-			aliceKey := sys.Cfg.Secrets.Alice
-			receipt := helpers.SendL2Tx(t, sys.Cfg, l2Seq, aliceKey, func(opts *helpers.TxOpts) {
-				opts.Gas = 1_000_000
-				opts.ToAddr = &test.Address
-				opts.Nonce = 0
-				opts.Data = test.Input
-			})
-
-			disputeGameFactory := disputegame.NewFactoryHelper(t, ctx, sys)
-			game := disputeGameFactory.StartOutputCannonGame(ctx, "sequencer", receipt.BlockNumber.Uint64(), common.Hash{0x01, 0xaa})
-			require.NotNil(t, game)
-			outputRootClaim := game.DisputeLastBlock(ctx)
-			game.LogGameData(ctx)
-
-			honestChallenger := game.StartChallenger(ctx, "HonestActor", challenger.WithPrivKey(sys.Cfg.Secrets.Alice))
-
-			// Wait for the honest challenger to dispute the outputRootClaim. This creates a root of an execution game that we challenge by coercing
-			// a step at a preimage trace index.
-			outputRootClaim = outputRootClaim.WaitForCounterClaim(ctx)
-
-			// Now the honest challenger is positioned as the defender of the execution game
-			// We then move to challenge it to induce a preimage load
-			preimageLoadCheck := game.CreateStepPreimageLoadCheck(ctx)
-			providerFunc := game.NewMemoizedCannonTraceProvider(ctx, "sequencer", outputRootClaim, challenger.WithPrivKey(sys.Cfg.Secrets.Alice))
-			game.ChallengeToPreimageLoad(ctx, providerFunc, utils.FirstPreimageLoadOfType("precompile"), preimageLoadCheck, false)
-			// The above method already verified the image was uploaded and step called successfully
-			// So we don't waste time resolving the game - that's tested elsewhere.
-			require.NoError(t, honestChallenger.Close())
-		})
+func TestPrecompile(t *testing.T) {
+	tests := proofs.PrecompileTestFixtures
+	testName := func(vm string, test proofs.PrecompileTestFixture) string {
+		return fmt.Sprintf("%v-%v", test.Name, vm)
 	}
+	RunTestsAcrossVmTypes(t, tests, func(t *testing.T, allocType e2e_config.AllocType, test proofs.PrecompileTestFixture) {
+		ctx := context.Background()
+		genesisTime := hexutil.Uint64(0)
+		cfg := e2esys.IsthmusSystemConfig(t, &genesisTime, e2esys.WithAllocType(allocType))
+		// We don't need a verifier - just the sequencer is enough
+		delete(cfg.Nodes, "verifier")
+
+		sys, err := cfg.Start(t)
+		require.Nil(t, err, "Error starting up system")
+
+		log := testlog.Logger(t, log.LevelInfo)
+		log.Info("genesis", "l2", sys.RollupConfig.Genesis.L2, "l1", sys.RollupConfig.Genesis.L1, "l2_time", sys.RollupConfig.Genesis.L2Time)
+
+		l1Client := sys.NodeClient("l1")
+		l2Seq := sys.NodeClient("sequencer")
+		rollupClient := sys.RollupClient("sequencer")
+		aliceKey := cfg.Secrets.Alice
+
+		t.Log("Capture current L2 head as agreed starting point")
+		latestBlock, err := l2Seq.BlockByNumber(ctx, nil)
+		require.NoError(t, err)
+		agreedL2Output, err := rollupClient.OutputAtBlock(ctx, latestBlock.NumberU64())
+		require.NoError(t, err, "could not retrieve l2 agreed block")
+		l2Head := agreedL2Output.BlockRef.Hash
+		l2OutputRoot := agreedL2Output.OutputRoot
+
+		receipt := helpers.SendL2Tx(t, cfg, l2Seq, aliceKey, func(opts *helpers.TxOpts) {
+			opts.Gas = 1_000_000
+			opts.ToAddr = &test.Address
+			opts.Nonce = 0
+			opts.Data = test.Input
+		})
+
+		t.Log("Determine L2 claim")
+		l2ClaimBlockNumber := receipt.BlockNumber
+		l2Output, err := rollupClient.OutputAtBlock(ctx, l2ClaimBlockNumber.Uint64())
+		require.NoError(t, err, "could not get expected output")
+		l2Claim := l2Output.OutputRoot
+
+		t.Log("Determine L1 head that includes all batches required for L2 claim block")
+		require.NoError(t, wait.ForSafeBlock(ctx, rollupClient, l2ClaimBlockNumber.Uint64()))
+		l1HeadBlock, err := l1Client.BlockByNumber(ctx, nil)
+		require.NoError(t, err, "get l1 head block")
+		l1Head := l1HeadBlock.Hash()
+
+		inputs := utils.LocalGameInputs{
+			L1Head:           l1Head,
+			L2Head:           l2Head,
+			L2Claim:          common.Hash(l2Claim),
+			L2OutputRoot:     common.Hash(l2OutputRoot),
+			L2SequenceNumber: l2ClaimBlockNumber,
+		}
+		runCannon(t, ctx, sys, inputs)
+	}, WithTestName(testName))
 }
 
-func TestGranitePrecompiles_Standard(t *testing.T) {
-	testGranitePrecompiles(t, e2e_config.AllocTypeStandard)
+func TestDisputePrecompile(t *testing.T) {
+	tests := proofs.PrecompileTestFixtures
+	testName := func(vm string, test proofs.PrecompileTestFixture) string {
+		return fmt.Sprintf("%v-%v", test.Name, vm)
+	}
+	RunTestsAcrossVmTypes(t, tests, func(t *testing.T, allocType e2e_config.AllocType, test proofs.PrecompileTestFixture) {
+		if !test.Accelerated {
+			t.Skipf("%v is not accelerated so no preimgae to upload", test.Name)
+		}
+		ctx := context.Background()
+		sys, _ := StartFaultDisputeSystem(t, WithLatestFork(), WithAllocType(allocType))
+
+		l2Seq := sys.NodeClient("sequencer")
+		aliceKey := sys.Cfg.Secrets.Alice
+		receipt := helpers.SendL2Tx(t, sys.Cfg, l2Seq, aliceKey, func(opts *helpers.TxOpts) {
+			opts.Gas = 1_000_000
+			opts.ToAddr = &test.Address
+			opts.Nonce = 0
+			opts.Data = test.Input
+		})
+
+		disputeGameFactory := disputegame.NewFactoryHelper(t, ctx, sys)
+		game := disputeGameFactory.StartOutputCannonGame(ctx, "sequencer", receipt.BlockNumber.Uint64(), common.Hash{0x01, 0xaa})
+		require.NotNil(t, game)
+		outputRootClaim := game.DisputeLastBlock(ctx)
+		game.LogGameData(ctx)
+
+		honestChallenger := game.StartChallenger(ctx, "HonestActor", challenger.WithPrivKey(sys.Cfg.Secrets.Alice))
+
+		// Wait for the honest challenger to dispute the outputRootClaim. This creates a root of an execution game that we challenge by coercing
+		// a step at a preimage trace index.
+		outputRootClaim = outputRootClaim.WaitForCounterClaim(ctx)
+
+		// Now the honest challenger is positioned as the defender of the execution game
+		// We then move to challenge it to induce a preimage load
+		preimageLoadCheck := game.CreateStepPreimageLoadCheck(ctx)
+		providerFunc := game.NewMemoizedCannonTraceProvider(ctx, "sequencer", outputRootClaim, challenger.WithPrivKey(sys.Cfg.Secrets.Alice))
+		game.ChallengeToPreimageLoad(ctx, providerFunc, utils.FirstPreimageLoadOfType("precompile"), preimageLoadCheck, false)
+		// The above method already verified the image was uploaded and step called successfully
+		// So we don't waste time resolving the game - that's tested elsewhere.
+		require.NoError(t, honestChallenger.Close())
+	}, WithTestName(testName))
 }
 
-func TestGranitePrecompiles_Multithreaded(t *testing.T) {
-	testGranitePrecompiles(t, e2e_config.AllocTypeMTCannon)
-}
+func TestGranitePrecompiles(t *testing.T) {
+	RunTestAcrossVmTypes(t, func(t *testing.T, allocType e2e_config.AllocType) {
+		ctx := context.Background()
+		genesisTime := hexutil.Uint64(0)
+		cfg := e2esys.GraniteSystemConfig(t, &genesisTime, e2esys.WithAllocType(allocType))
+		// We don't need a verifier - just the sequencer is enough
+		delete(cfg.Nodes, "verifier")
 
-func testGranitePrecompiles(t *testing.T, allocType e2e_config.AllocType) {
-	op_e2e.InitParallel(t, op_e2e.UsesCannon)
-	ctx := context.Background()
-	genesisTime := hexutil.Uint64(0)
-	cfg := e2esys.GraniteSystemConfig(t, &genesisTime, e2esys.WithAllocType(allocType))
-	// We don't need a verifier - just the sequencer is enough
-	delete(cfg.Nodes, "verifier")
+		sys, err := cfg.Start(t)
+		require.Nil(t, err, "Error starting up system")
 
-	sys, err := cfg.Start(t)
-	require.Nil(t, err, "Error starting up system")
+		log := testlog.Logger(t, log.LevelInfo)
+		log.Info("genesis", "l2", sys.RollupConfig.Genesis.L2, "l1", sys.RollupConfig.Genesis.L1, "l2_time", sys.RollupConfig.Genesis.L2Time)
 
-	log := testlog.Logger(t, log.LevelInfo)
-	log.Info("genesis", "l2", sys.RollupConfig.Genesis.L2, "l1", sys.RollupConfig.Genesis.L1, "l2_time", sys.RollupConfig.Genesis.L2Time)
+		l1Client := sys.NodeClient("l1")
+		l2Seq := sys.NodeClient("sequencer")
+		rollupClient := sys.RollupClient("sequencer")
+		aliceKey := cfg.Secrets.Alice
 
-	l1Client := sys.NodeClient("l1")
-	l2Seq := sys.NodeClient("sequencer")
-	rollupClient := sys.RollupClient("sequencer")
-	aliceKey := cfg.Secrets.Alice
+		t.Log("Capture current L2 head as agreed starting point")
+		latestBlock, err := l2Seq.BlockByNumber(ctx, nil)
+		require.NoError(t, err)
+		agreedL2Output, err := rollupClient.OutputAtBlock(ctx, latestBlock.NumberU64())
+		require.NoError(t, err, "could not retrieve l2 agreed block")
+		l2Head := agreedL2Output.BlockRef.Hash
+		l2OutputRoot := agreedL2Output.OutputRoot
 
-	t.Log("Capture current L2 head as agreed starting point")
-	latestBlock, err := l2Seq.BlockByNumber(ctx, nil)
-	require.NoError(t, err)
-	agreedL2Output, err := rollupClient.OutputAtBlock(ctx, latestBlock.NumberU64())
-	require.NoError(t, err, "could not retrieve l2 agreed block")
-	l2Head := agreedL2Output.BlockRef.Hash
-	l2OutputRoot := agreedL2Output.OutputRoot
+		precompile := common.BytesToAddress([]byte{0x08})
+		input := make([]byte, 113_000)
+		tx := types.MustSignNewTx(aliceKey, types.LatestSignerForChainID(cfg.L2ChainIDBig()), &types.DynamicFeeTx{
+			ChainID:   cfg.L2ChainIDBig(),
+			Nonce:     0,
+			GasTipCap: big.NewInt(1 * params.GWei),
+			GasFeeCap: big.NewInt(10 * params.GWei),
+			Gas:       25_000_000,
+			To:        &precompile,
+			Value:     big.NewInt(0),
+			Data:      input,
+		})
+		err = l2Seq.SendTransaction(ctx, tx)
+		require.NoError(t, err, "Should send bn256Pairing transaction")
+		// Expect a successful receipt to retrieve the EVM call trace so we can inspect the revert reason
+		receipt, err := wait.ForReceiptMaybe(ctx, l2Seq, tx.Hash(), types.ReceiptStatusSuccessful, false)
+		require.NotNil(t, err)
+		require.Contains(t, err.Error(), "bad elliptic curve pairing input size")
 
-	precompile := common.BytesToAddress([]byte{0x08})
-	input := make([]byte, 113_000)
-	tx := types.MustSignNewTx(aliceKey, types.LatestSignerForChainID(cfg.L2ChainIDBig()), &types.DynamicFeeTx{
-		ChainID:   cfg.L2ChainIDBig(),
-		Nonce:     0,
-		GasTipCap: big.NewInt(1 * params.GWei),
-		GasFeeCap: big.NewInt(10 * params.GWei),
-		Gas:       25_000_000,
-		To:        &precompile,
-		Value:     big.NewInt(0),
-		Data:      input,
+		t.Logf("Transaction hash %v", tx.Hash())
+		t.Log("Determine L2 claim")
+		l2ClaimBlockNumber := receipt.BlockNumber
+		l2Output, err := rollupClient.OutputAtBlock(ctx, l2ClaimBlockNumber.Uint64())
+		require.NoError(t, err, "could not get expected output")
+		l2Claim := l2Output.OutputRoot
+
+		t.Log("Determine L1 head that includes all batches required for L2 claim block")
+		require.NoError(t, wait.ForSafeBlock(ctx, rollupClient, l2ClaimBlockNumber.Uint64()))
+		l1HeadBlock, err := l1Client.BlockByNumber(ctx, nil)
+		require.NoError(t, err, "get l1 head block")
+		l1Head := l1HeadBlock.Hash()
+
+		inputs := utils.LocalGameInputs{
+			L1Head:           l1Head,
+			L2Head:           l2Head,
+			L2Claim:          common.Hash(l2Claim),
+			L2OutputRoot:     common.Hash(l2OutputRoot),
+			L2SequenceNumber: l2ClaimBlockNumber,
+		}
+		runCannon(t, ctx, sys, inputs)
 	})
-	err = l2Seq.SendTransaction(ctx, tx)
-	require.NoError(t, err, "Should send bn256Pairing transaction")
-	// Expect a successful receipt to retrieve the EVM call trace so we can inspect the revert reason
-	receipt, err := wait.ForReceiptMaybe(ctx, l2Seq, tx.Hash(), types.ReceiptStatusSuccessful, false)
-	require.NotNil(t, err)
-	require.Contains(t, err.Error(), "bad elliptic curve pairing input size")
-
-	t.Logf("Transaction hash %v", tx.Hash())
-	t.Log("Determine L2 claim")
-	l2ClaimBlockNumber := receipt.BlockNumber
-	l2Output, err := rollupClient.OutputAtBlock(ctx, l2ClaimBlockNumber.Uint64())
-	require.NoError(t, err, "could not get expected output")
-	l2Claim := l2Output.OutputRoot
-
-	t.Log("Determine L1 head that includes all batches required for L2 claim block")
-	require.NoError(t, wait.ForSafeBlock(ctx, rollupClient, l2ClaimBlockNumber.Uint64()))
-	l1HeadBlock, err := l1Client.BlockByNumber(ctx, nil)
-	require.NoError(t, err, "get l1 head block")
-	l1Head := l1HeadBlock.Hash()
-
-	inputs := utils.LocalGameInputs{
-		L1Head:           l1Head,
-		L2Head:           l2Head,
-		L2Claim:          common.Hash(l2Claim),
-		L2OutputRoot:     common.Hash(l2OutputRoot),
-		L2SequenceNumber: l2ClaimBlockNumber,
-	}
-	runCannon(t, ctx, sys, inputs)
 }
 
 func runCannon(t *testing.T, ctx context.Context, sys *e2esys.System, inputs utils.LocalGameInputs, extraVmArgs ...string) {
