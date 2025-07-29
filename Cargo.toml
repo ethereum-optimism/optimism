@@ -25,20 +25,20 @@ url = "2.2.0"
 sha2 = { version = "0.10", default-features = false }
 
 # Reth deps
-reth-optimism-payload-builder = { git = "https://github.com/paradigmxyz/reth", tag = "v1.5.0" }
+reth-optimism-payload-builder = { git = "https://github.com/paradigmxyz/reth", tag = "v1.6.0" }
 
 # Alloy libraries
-alloy-rpc-types-engine = "1.0.13"
-alloy-rpc-types-eth = "1.0.13"
+alloy-rpc-types-engine = "1.0.23"
+alloy-rpc-types-eth = "1.0.23"
 alloy-primitives = { version = "1.2.0", features = ["rand"] }
-alloy-serde = "1.0.13"
-alloy-eips = "1.0.13"
-alloy-json-rpc = "1.0.13"
-alloy-consensus = "1.0.13"
-alloy-rpc-types = "1.0.13"
-alloy-genesis = "1.0.13"
-alloy-rpc-client = "1.0.13"
-alloy-provider = "1.0.13"
+alloy-serde = "1.0.23"
+alloy-eips = "1.0.23"
+alloy-json-rpc = "1.0.23"
+alloy-consensus = "1.0.23"
+alloy-rpc-types = "1.0.23"
+alloy-genesis = "1.0.23"
+alloy-rpc-client = "1.0.23"
+alloy-provider = "1.0.23"
 op-alloy-network = "0.18.7"
 op-alloy-rpc-types-engine = "0.18.7"
 op-alloy-consensus = "0.18.7"
