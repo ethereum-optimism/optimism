@@ -9,7 +9,7 @@ type interruptWaiterContextKeyType struct{}
 
 var waiterContextKey = interruptWaiterContextKeyType{}
 
-// WithInterruptWaiter overrides the interrupt waiter value, e.g. to insert a function that mocks
+// WithWaiterFunc overrides the interrupt waiter value, e.g. to insert a function that mocks
 // interrupt signals for testing CLI shutdown without actual process signals.
 func WithWaiterFunc(ctx context.Context, fn WaiterFunc) context.Context {
 	return withInterruptWaiter(ctx, fn)
