@@ -17,13 +17,16 @@ import (
 	"github.com/google/uuid"
 )
 
-type eventUuidKeyType struct{}
-type eventStepKeyType struct{}
+type eventTraceKeyType struct{}
 
 var (
-	ctxKeyEventUuid = eventUuidKeyType{}
-	ctxKeyEventStep = eventStepKeyType{}
+	ctxKeyEventTrace = eventTraceKeyType{}
 )
+
+type eventTrace struct {
+	UUID string
+	Step int
+}
 
 type Registry interface {
 	// Register registers a named event-emitter, optionally processing events itself:
@@ -101,22 +104,26 @@ func (r *systemActor) traceAndLogEventEmitted(ctx context.Context, level slog.Le
 
 	file := filepath.Base(path)
 	dir := filepath.Base(filepath.Dir(path))
+	loc := fmt.Sprintf("%s/%s:%d", dir, file, line)
 
 	var euuid string
 	var estep int
-	if ctx.Value(ctxKeyEventUuid) == nil {
+	if ctx.Value(ctxKeyEventTrace) == nil {
 		euuid = uuid.New().String()[:6]
 		estep = 0
-		ctx = context.WithValue(ctx, ctxKeyEventUuid, euuid)
-		ctx = context.WithValue(ctx, ctxKeyEventStep, estep)
+		ctx = context.WithValue(ctx, ctxKeyEventTrace, eventTrace{euuid, estep})
 	} else {
-		euuid = ctx.Value(ctxKeyEventUuid).(string)
-		estep = ctx.Value(ctxKeyEventStep).(int)
-		estep++
-		ctx = context.WithValue(ctx, ctxKeyEventStep, estep)
+		etrace, ok := ctx.Value(ctxKeyEventTrace).(eventTrace)
+		if !ok {
+			r.sys.log.Error("Event trace is not a eventTrace type", "ev", ev, "loc", loc)
+			return ctx
+		}
+		euuid = etrace.UUID
+		estep = etrace.Step + 1
+		ctx = context.WithValue(ctx, ctxKeyEventTrace, eventTrace{euuid, estep})
 	}
 
-	r.sys.log.Log(level, "Event emitted", "euid", fmt.Sprintf("%s:%d", euuid, estep), "ev", ev.String(), "loc", fmt.Sprintf("%s/%s:%d", dir, file, line))
+	r.sys.log.Log(level, "Event emitted", "euid", fmt.Sprintf("%s:%d", euuid, estep), "ev", ev, "loc", loc)
 
 	return ctx
 }
