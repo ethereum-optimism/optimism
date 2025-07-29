@@ -37,7 +37,7 @@ contract VerifyOPCM_Harness is VerifyOPCM {
         return _buildArtifactPath(_contractName);
     }
 
-    function verifyOpcmImmutableVariables(IOPContractsManager _opcm) public view returns (bool) {
+    function verifyOpcmImmutableVariables(IOPContractsManager _opcm) public returns (bool) {
         return _verifyOpcmImmutableVariables(_opcm);
     }
 
@@ -48,7 +48,7 @@ contract VerifyOPCM_Harness is VerifyOPCM {
     function setExpectedGetter(string memory _getter, string memory _verificationMethod) public {
         expectedGetters[_getter] = _verificationMethod;
     }
-    
+
     function removeExpectedGetter(string memory _getter) public {
         expectedGetters[_getter] = "";
     }

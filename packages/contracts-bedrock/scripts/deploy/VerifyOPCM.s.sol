@@ -129,27 +129,27 @@ contract VerifyOPCM is Script {
         // Expected getter functions and their verification methods.
         // CRITICAL: Any getter in the ABI that's not in this list will cause verification to fail.
         // NEVER add a getter without understanding HOW it's being verified!
-        
+
         // Getters verified via bytecode comparison (blueprints/implementations contain addresses)
-        expectedGetters["blueprints"] = "SKIP";  // Verified via bytecode comparison of blueprint contracts
-        expectedGetters["implementations"] = "SKIP";  // Verified via bytecode comparison of implementation contracts
-        
+        expectedGetters["blueprints"] = "SKIP"; // Verified via bytecode comparison of blueprint contracts
+        expectedGetters["implementations"] = "SKIP"; // Verified via bytecode comparison of implementation contracts
+
         // Getters verified via environment variables in _verifyOpcmImmutableVariables()
         expectedGetters["protocolVersions"] = "EXPECTED_PROTOCOL_VERSIONS";
         expectedGetters["superchainConfig"] = "EXPECTED_SUPERCHAIN_CONFIG";
         expectedGetters["superchainProxyAdmin"] = "EXPECTED_SUPERCHAIN_PROXY_ADMIN";
         expectedGetters["upgradeController"] = "EXPECTED_UPGRADE_CONTROLLER";
-        
+
         // Getters for OPCM sub-contracts (addresses verified via bytecode comparison)
-        expectedGetters["opcmDeployer"] = "SKIP";  // Address verified via bytecode comparison
-        expectedGetters["opcmGameTypeAdder"] = "SKIP";  // Address verified via bytecode comparison
-        expectedGetters["opcmInteropMigrator"] = "SKIP";  // Address verified via bytecode comparison
-        expectedGetters["opcmStandardValidator"] = "SKIP";  // Address verified via bytecode comparison
-        expectedGetters["opcmUpgrader"] = "SKIP";  // Address verified via bytecode comparison
-        
+        expectedGetters["opcmDeployer"] = "SKIP"; // Address verified via bytecode comparison
+        expectedGetters["opcmGameTypeAdder"] = "SKIP"; // Address verified via bytecode comparison
+        expectedGetters["opcmInteropMigrator"] = "SKIP"; // Address verified via bytecode comparison
+        expectedGetters["opcmStandardValidator"] = "SKIP"; // Address verified via bytecode comparison
+        expectedGetters["opcmUpgrader"] = "SKIP"; // Address verified via bytecode comparison
+
         // Simple getters that return static values (no external verification needed)
-        expectedGetters["isRC"] = "SKIP";  // Simple boolean getter, no verification needed
-        expectedGetters["l1ContractsRelease"] = "SKIP";  // Simple string getter, no verification needed
+        expectedGetters["isRC"] = "SKIP"; // Simple boolean getter, no verification needed
+        expectedGetters["l1ContractsRelease"] = "SKIP"; // Simple string getter, no verification needed
 
         // Mark as ready.
         ready = true;
@@ -384,28 +384,28 @@ contract VerifyOPCM is Script {
     /// @notice Verifies that the immutable variables in the OPCM contract match expected values.
     /// @param _opcm The OPCM contract to verify immutable variables for.
     /// @return True if all immutable variables are verified, false otherwise.
-    function _verifyOpcmImmutableVariables(IOPContractsManager _opcm) internal view returns (bool) {
+    function _verifyOpcmImmutableVariables(IOPContractsManager _opcm) internal returns (bool) {
         console.log("  Verifying OPCM immutable variables...");
 
         bool success = true;
 
-        // Define the function names and corresponding environment variable names
-        string[] memory functionNames = new string[](4);
-        functionNames[0] = "superchainConfig";
-        functionNames[1] = "protocolVersions";
-        functionNames[2] = "superchainProxyAdmin";
-        functionNames[3] = "upgradeController";
+        // Get all OPCM getters and iterate over them
+        string[] memory allGetters = _getOpcmGetters();
 
-        string[] memory envVarNames = new string[](4);
-        envVarNames[0] = "EXPECTED_SUPERCHAIN_CONFIG";
-        envVarNames[1] = "EXPECTED_PROTOCOL_VERSIONS";
-        envVarNames[2] = "EXPECTED_SUPERCHAIN_PROXY_ADMIN";
-        envVarNames[3] = "EXPECTED_UPGRADE_CONTROLLER";
+        for (uint256 i = 0; i < allGetters.length; i++) {
+            string memory functionName = allGetters[i];
+            string memory verificationMethod = expectedGetters[functionName];
 
-        // Loop through each property to verify
-        for (uint256 i = 0; i < functionNames.length; i++) {
-            string memory functionName = functionNames[i];
-            string memory envVarName = envVarNames[i];
+            // Skip getters that don't need env var verification
+            if (
+                bytes(verificationMethod).length == 0
+                    || keccak256(bytes(verificationMethod)) == keccak256(bytes("SKIP"))
+            ) {
+                continue;
+            }
+
+            // This getter should be verified via environment variable
+            string memory envVarName = verificationMethod;
 
             // Get expected address from environment variable
             // nosemgrep: sol-style-vm-env-only-in-config-sol
@@ -760,12 +760,10 @@ contract VerifyOPCM is Script {
         return string.concat("forge-artifacts/", sourceName, ".sol/", _contractName, ".json");
     }
 
-    /// @notice Validates that all getter functions in the OPContractsManager ABI are accounted for
-    ///         in the expectedGetters mapping. This ensures we don't miss any new getters that
-    ///         might be added to the contract.
-    function _validateAllGettersAccounted() internal {
-        // Get all function names from the OPContractsManager ABI
-        string[] memory allFunctions = abi.decode(
+    /// @notice Gets all OPCM getter function names from the ABI.
+    /// @return Array of getter function names found in the OPContractsManager ABI.
+    function _getOpcmGetters() internal returns (string[] memory) {
+        return abi.decode(
             vm.parseJson(
                 Process.bash(
                     string.concat(
@@ -776,6 +774,14 @@ contract VerifyOPCM is Script {
             ),
             (string[])
         );
+    }
+
+    /// @notice Validates that all getter functions in the OPContractsManager ABI are accounted for
+    ///         in the expectedGetters mapping. This ensures we don't miss any new getters that
+    ///         might be added to the contract.
+    function _validateAllGettersAccounted() internal {
+        // Get all function names from the OPContractsManager ABI
+        string[] memory allFunctions = _getOpcmGetters();
 
         // Check for any functions that are not in our expectedGetters mapping
         string[] memory unaccountedGetters = new string[](allFunctions.length);
