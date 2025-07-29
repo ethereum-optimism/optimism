@@ -9,7 +9,7 @@ test args='./...': build-contracts
 
 copy-contract-artifacts:
     rm -f ./pkg/deployer/artifacts/forge-artifacts/artifacts.tgz
-    tar -cvzf ./pkg/deployer/artifacts/forge-artifacts/artifacts.tgz -C ../packages/contracts-bedrock/forge-artifacts --exclude="*.t.sol" .
+    COPYFILE_DISABLE=1 tar -cvzf ./pkg/deployer/artifacts/forge-artifacts/artifacts.tgz -C ../packages/contracts-bedrock --exclude="forge-artifacts/*.t.sol" forge-artifacts
 
 # ======================================
 # Deployment and Verification Utilities

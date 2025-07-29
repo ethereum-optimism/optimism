@@ -35,5 +35,5 @@ func ExtractEmbedded(dir string) (foundry.StatDirFs, error) {
 		return nil, fmt.Errorf("failed to untar embedded artifacts: %w", err)
 	}
 
-	return os.DirFS(dir).(foundry.StatDirFs), nil
+	return os.DirFS(filepath.Join(dir, "forge-artifacts")).(foundry.StatDirFs), nil
 }
