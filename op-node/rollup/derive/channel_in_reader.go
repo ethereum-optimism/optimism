@@ -86,8 +86,6 @@ func (cr *ChannelInReader) NextBatch(ctx context.Context) (Batch, error) {
 		}
 	}
 
-	// TODO: can batch be non nil while err == io.EOF
-	// This depends on the behavior of rlp.Stream
 	batchData, err := cr.nextBatchFn()
 	if err == io.EOF {
 		cr.NextChannel()
