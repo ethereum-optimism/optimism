@@ -28,6 +28,10 @@ type eventTrace struct {
 	Step int
 }
 
+func (e eventTrace) String() string {
+	return fmt.Sprintf("%s:%d", e.UUID, e.Step)
+}
+
 type Registry interface {
 	// Register registers a named event-emitter, optionally processing events itself:
 	// deriver may be nil, not all registrants have to process events.
@@ -106,24 +110,25 @@ func (r *systemActor) traceAndLogEventEmitted(ctx context.Context, level slog.Le
 	dir := filepath.Base(filepath.Dir(path))
 	location := fmt.Sprintf("%s/%s:%d", dir, file, line)
 
-	var euuid string
-	var estep int
+	var etrace eventTrace
 	if ctx.Value(ctxKeyEventTrace) == nil {
-		euuid = uuid.New().String()[:6]
-		estep = 0
-		ctx = context.WithValue(ctx, ctxKeyEventTrace, eventTrace{euuid, estep})
+		etrace = eventTrace{
+			UUID: uuid.New().String()[:6],
+			Step: 0,
+		}
+		ctx = context.WithValue(ctx, ctxKeyEventTrace, etrace)
 	} else {
-		etrace, ok := ctx.Value(ctxKeyEventTrace).(eventTrace)
+		var ok bool
+		etrace, ok = ctx.Value(ctxKeyEventTrace).(eventTrace)
 		if !ok {
 			r.sys.log.Error("Event trace is not a eventTrace type", "ev", ev, "loc", location)
 			return ctx
 		}
-		euuid = etrace.UUID
-		estep = etrace.Step + 1
-		ctx = context.WithValue(ctx, ctxKeyEventTrace, eventTrace{euuid, estep})
+		etrace.Step++
+		ctx = context.WithValue(ctx, ctxKeyEventTrace, etrace)
 	}
 
-	r.sys.log.Log(level, "Event emitted", "euid", fmt.Sprintf("%s:%d", euuid, estep), "ev", ev, "loc", location)
+	r.sys.log.Log(level, "Event emitted", "euid", etrace, "ev", ev, "loc", location)
 
 	return ctx
 }
