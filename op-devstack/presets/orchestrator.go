@@ -101,12 +101,6 @@ func DoMain(m *testing.M, opts ...stack.CommonOption) {
 
 		p.Require().NotEmpty(opts, "Expecting orchestrator options")
 
-		// For the global geth logs,
-		// capture them in the global test logger.
-		// No other tool / test should change the global logger.
-		// TODO(#15139): set log-level filter, reduce noise
-		//log.SetDefault(t.Log.New("logger", "global"))
-
 		initOrchestrator(ctx, p, stack.Combine(opts...))
 
 		errCode = m.Run()

@@ -220,9 +220,7 @@ func (p *presetL2Network) L2Challengers() []stack.L2Challenger {
 }
 
 func (p *presetL2Network) Conductors() []stack.Conductor {
-	output := stack.SortConductors(p.conductors.Values())
-	p.require().NotEmpty(output, "l2 chain %s must have at least one conductor", p.ID())
-	return output
+	return stack.SortConductors(p.conductors.Values())
 }
 
 func (p *presetL2Network) FlashblocksBuilders() []stack.FlashblocksBuilderNode {

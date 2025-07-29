@@ -41,6 +41,7 @@ func StartInteropFaultDisputeSystem(t *testing.T, opts ...faultDisputeConfigOpts
 	}
 	superCfg := interop.SuperSystemConfig{
 		SupportTimeTravel: true,
+		BatcherUsesBlobs:  fdc.batcherUsesBlobs,
 	}
 
 	hdWallet, err := devkeys.NewMnemonicDevKeys(devkeys.TestMnemonic)

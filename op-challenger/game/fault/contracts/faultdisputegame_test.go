@@ -767,6 +767,9 @@ func TestFaultDisputeGame_IsResolved(t *testing.T) {
 						ClaimData: faultTypes.ClaimData{
 							Bond: bond,
 						},
+						Clock: faultTypes.Clock{
+							Timestamp: time.Unix(0, 0),
+						},
 					})
 				}
 			} else {

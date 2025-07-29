@@ -2,6 +2,7 @@ package driver
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	gosync "sync"
 	"time"
@@ -366,12 +367,37 @@ func (s *SyncDeriver) onResetEvent(ctx context.Context, x rollup.ResetEvent) {
 	s.Emitter.Emit(ctx, engine.ResetEngineRequestEvent{})
 }
 
+func (s *SyncDeriver) tryBackupUnsafeReorg() {
+	// If we don't need to call FCU to restore unsafeHead using backupUnsafe, keep going b/c
+	// this was a no-op(except correcting invalid state when backupUnsafe is empty but TryBackupUnsafeReorg called).
+	fcuCalled, err := s.Engine.TryBackupUnsafeReorg(s.Ctx)
+	// Dealing with legacy here: it used to skip over the error-handling if fcuCalled was false.
+	// But that combination is not actually a code-path in TryBackupUnsafeReorg.
+	// We should drop fcuCalled, and make the function emit events directly,
+	// once there are no more synchronous callers.
+	if !fcuCalled && err != nil {
+		s.Log.Crit("unexpected TryBackupUnsafeReorg error after no FCU call", "err", err)
+	}
+	if err != nil {
+		// If we needed to perform a network call, then we should yield even if we did not encounter an error.
+		if errors.Is(err, derive.ErrReset) {
+			s.Emitter.Emit(s.Ctx, rollup.ResetEvent{Err: err})
+		} else if errors.Is(err, derive.ErrTemporary) {
+			s.Emitter.Emit(s.Ctx, rollup.EngineTemporaryErrorEvent{Err: err})
+		} else {
+			s.Emitter.Emit(s.Ctx, rollup.CriticalErrorEvent{
+				Err: fmt.Errorf("unexpected TryBackupUnsafeReorg error type: %w", err),
+			})
+		}
+	}
+}
+
 // SyncStep performs the sequence of encapsulated syncing steps.
 // Warning: this sequence will be broken apart as outlined in op-node derivers design doc.
 func (s *SyncDeriver) SyncStep() {
 	s.Log.Debug("Sync process step")
 
-	s.Emitter.Emit(s.Ctx, engine.TryBackupUnsafeReorgEvent{})
+	s.tryBackupUnsafeReorg()
 
 	s.Emitter.Emit(s.Ctx, engine.TryUpdateEngineEvent{})
 

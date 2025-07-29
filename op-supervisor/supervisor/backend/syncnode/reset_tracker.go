@@ -117,7 +117,6 @@ func (t *resetTracker) bisect(ctx context.Context) error {
 	// Check if the block at i is consistent with the local-safe DB,
 	if err = t.backend.IsLocalSafe(internalCtx, nodeI); errors.Is(err, types.ErrFuture) || errors.Is(err, types.ErrConflict) {
 		// TODO: do we need to add more sentinel errors here?
-		// TODO(#16026): could gracefully exit on block-replacement (no need to reset what is already being built replacement for)
 		t.log.Debug("midpoint of range is inconsistent. pulling back end of range", "i", i)
 		t.z = nodeI
 	} else if err != nil {
