@@ -253,7 +253,7 @@ contract VerifyOPCM is Script {
     /// @notice Verifies that all OPCM component contracts have the same contractsContainer address.
     /// @param _propRefs Array of property references containing component addresses.
     function _verifyContractsContainerConsistency(OpcmContractRef[] memory _propRefs) internal view {
-        // Filter components, validate addresses, and verify consistency in one pass
+        // Process components that have contractsContainer(), validate addresses, and verify consistency
         OpcmContractRef[] memory components = new OpcmContractRef[](_propRefs.length);
         address[] memory containerAddresses = new address[](_propRefs.length);
         uint256 componentCount = 0;
