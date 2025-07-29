@@ -290,7 +290,7 @@ func NewIntent(configType IntentType, l1ChainId uint64, l2ChainIds []common.Hash
 	return
 }
 
-// Sets all Intent fields to their zero value with the expectation that the
+// NewIntentCustom Sets all Intent fields to their zero value with the expectation that the
 // user will populate the values before running 'apply'
 func NewIntentCustom(l1ChainId uint64, l2ChainIds []common.Hash) (Intent, error) {
 	intent := Intent{
