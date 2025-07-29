@@ -222,6 +222,6 @@ func (c *channel) MaxInclusionBlock() uint64 {
 	return c.maxInclusionBlock
 }
 
-func (c *channel) EstimatedDABytes() uint64 {
+func (c *channel) EstimatedDABytes() (uint64, error) {
 	return c.channelBuilder.co.EstimatedDABytes()
 }

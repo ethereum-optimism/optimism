@@ -551,14 +551,18 @@ func (s *channelManager) UnsafeDABytes() int64 {
 	var bytesInClosedChannels int64
 	var bytesInOpenChannels int64
 	for _, channel := range s.channelQueue {
-		if channel.isFullySubmitted() || channel.HasTxData() {
+		if channel.TotalFrames() > 0 {
 			// This is the exact number of DA bytes in the channel,
 			bytesInClosedChannels += int64(channel.OutputBytes())
 		} else {
 			// This is an estimate of the DA bytes in the channel,
 			// but it is more accurate than the estimate of the
 			// bytes not yet in channels.
-			bytesInOpenChannels += int64(channel.EstimatedDABytes())
+			bytesInOpenChannel, err := channel.EstimatedDABytes()
+			if err != nil {
+				panic(err)
+			}
+			bytesInOpenChannels += int64(bytesInOpenChannel)
 		}
 	}
 
