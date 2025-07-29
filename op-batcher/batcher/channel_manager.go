@@ -273,16 +273,21 @@ func (s *channelManager) TxData(l1Head eth.BlockID, isPectra, isThrottling, forc
 // to the current channel and generates frames for it.
 // Always returns nil and the io.EOF sentinel error when
 // there is no channel with txData
+// If forcePublish is true, it will force close channels and
+// generate frames for them.
 func (s *channelManager) getReadyChannel(l1Head eth.BlockID, forcePublish bool) (*channel, error) {
 	var firstWithTxData *channel
 	for _, ch := range s.channelQueue {
-		if forcePublish && !ch.HasTxData() {
+		if forcePublish {
 			s.log.Info("Force closing channel", "channel_id", ch.ID())
-			// Force close the channel and output frames
+			// Force close the channel
 			// (this has the same effect as if the channel was full)
 			ch.Close()
-			if err := ch.OutputFrames(); err != nil {
-				return nil, err
+			if ch.TotalFrames() == 0 {
+				// Generate frames now if we haven't already
+				if err := ch.OutputFrames(); err != nil {
+					return nil, err
+				}
 			}
 		}
 		if ch.HasTxData() {
