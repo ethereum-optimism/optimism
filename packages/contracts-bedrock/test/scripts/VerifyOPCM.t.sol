@@ -45,8 +45,12 @@ contract VerifyOPCM_Harness is VerifyOPCM {
         return _validateAllGettersAccounted();
     }
 
-    function setExpectedGetter(string memory _getter, bool _expected) public {
-        expectedGetters[_getter] = _expected;
+    function setExpectedGetter(string memory _getter, string memory _verificationMethod) public {
+        expectedGetters[_getter] = _verificationMethod;
+    }
+    
+    function removeExpectedGetter(string memory _getter) public {
+        expectedGetters[_getter] = "";
     }
 }
 
@@ -306,7 +310,7 @@ contract VerifyOPCM_Run_Test is VerifyOPCM_TestInit {
     /// We test this by removing an expected getter from the mapping.
     function test_validateAllGettersAccounted_unaccountedGetters_reverts() public {
         // Remove one of the expected getters to simulate an unaccounted getter
-        harness.setExpectedGetter("blueprints", false);
+        harness.removeExpectedGetter("blueprints");
 
         // This should revert with VerifyOPCM_UnaccountedGetters error
         // The error includes the array of unaccounted getters as a parameter

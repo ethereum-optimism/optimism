@@ -90,8 +90,12 @@ contract VerifyOPCM is Script {
     /// @notice Maps contract names to an overriding source file name.
     mapping(string => string) internal sourceNameOverrides;
 
-    /// @notice Maps expected getter function names to whether they should be checked.
-    mapping(string => bool) internal expectedGetters;
+    /// @notice Maps expected getter function names to their verification method.
+    /// Value can be either:
+    /// - An environment variable name (e.g., "EXPECTED_SUPERCHAIN_CONFIG") for getters verified via env vars
+    /// - "SKIP" for getters verified elsewhere in the verification process
+    /// WARNING: Do NOT add new getters without understanding their verification method!
+    mapping(string => string) internal expectedGetters;
 
     /// @notice Setup flag.
     bool internal ready;
@@ -122,21 +126,30 @@ contract VerifyOPCM is Script {
         sourceNameOverrides["OPContractsManagerUpgrader"] = "OPContractsManager";
         sourceNameOverrides["OPContractsManagerInteropMigrator"] = "OPContractsManager";
 
-        // Expected getter functions that should be checked in OPCM verification.
-        // Any getter in the ABI that's not in this list will cause verification to fail.
-        expectedGetters["blueprints"] = true;
-        expectedGetters["implementations"] = true;
-        expectedGetters["protocolVersions"] = true;
-        expectedGetters["superchainConfig"] = true;
-        expectedGetters["superchainProxyAdmin"] = true;
-        expectedGetters["upgradeController"] = true;
-        expectedGetters["opcmDeployer"] = true;
-        expectedGetters["opcmGameTypeAdder"] = true;
-        expectedGetters["opcmInteropMigrator"] = true;
-        expectedGetters["opcmStandardValidator"] = true;
-        expectedGetters["opcmUpgrader"] = true;
-        expectedGetters["isRC"] = true;
-        expectedGetters["l1ContractsRelease"] = true;
+        // Expected getter functions and their verification methods.
+        // CRITICAL: Any getter in the ABI that's not in this list will cause verification to fail.
+        // NEVER add a getter without understanding HOW it's being verified!
+        
+        // Getters verified via bytecode comparison (blueprints/implementations contain addresses)
+        expectedGetters["blueprints"] = "SKIP";  // Verified via bytecode comparison of blueprint contracts
+        expectedGetters["implementations"] = "SKIP";  // Verified via bytecode comparison of implementation contracts
+        
+        // Getters verified via environment variables in _verifyOpcmImmutableVariables()
+        expectedGetters["protocolVersions"] = "EXPECTED_PROTOCOL_VERSIONS";
+        expectedGetters["superchainConfig"] = "EXPECTED_SUPERCHAIN_CONFIG";
+        expectedGetters["superchainProxyAdmin"] = "EXPECTED_SUPERCHAIN_PROXY_ADMIN";
+        expectedGetters["upgradeController"] = "EXPECTED_UPGRADE_CONTROLLER";
+        
+        // Getters for OPCM sub-contracts (addresses verified via bytecode comparison)
+        expectedGetters["opcmDeployer"] = "SKIP";  // Address verified via bytecode comparison
+        expectedGetters["opcmGameTypeAdder"] = "SKIP";  // Address verified via bytecode comparison
+        expectedGetters["opcmInteropMigrator"] = "SKIP";  // Address verified via bytecode comparison
+        expectedGetters["opcmStandardValidator"] = "SKIP";  // Address verified via bytecode comparison
+        expectedGetters["opcmUpgrader"] = "SKIP";  // Address verified via bytecode comparison
+        
+        // Simple getters that return static values (no external verification needed)
+        expectedGetters["isRC"] = "SKIP";  // Simple boolean getter, no verification needed
+        expectedGetters["l1ContractsRelease"] = "SKIP";  // Simple string getter, no verification needed
 
         // Mark as ready.
         ready = true;
@@ -770,7 +783,8 @@ contract VerifyOPCM is Script {
 
         for (uint256 i = 0; i < allFunctions.length; i++) {
             string memory functionName = allFunctions[i];
-            if (!expectedGetters[functionName]) {
+            // Check if the getter is not in our mapping (empty string means not set)
+            if (bytes(expectedGetters[functionName]).length == 0) {
                 unaccountedGetters[unaccountedCount] = functionName;
                 unaccountedCount++;
             }
