@@ -2,6 +2,8 @@ package sysgo
 
 import (
 	"context"
+	"errors"
+	"net"
 	"net/url"
 	"slices"
 	"strconv"
@@ -66,7 +68,22 @@ func (n *L2ELNode) Start() {
 		return
 	}
 
+	// The RPC ports are preserved between node restarts. This leads to a race condition where
+	// the OS may assign the same port to a different process. To avoid this, we wait until
+	// the port is available before starting the node. The race condition can still occur in
+	// some cases, but it is much less likely.
+
 	require := n.p.Require()
+	var authPort, userPort int
+	if n.authRPC != "" {
+		authPort = rpcPort(require, n.authRPC)
+		n.awaitPortAvailable(require, authPort)
+	}
+	if n.userRPC != "" {
+		userPort = rpcPort(require, n.userRPC)
+		n.awaitPortAvailable(require, userPort)
+	}
+
 	l2Geth, err := geth.InitL2(n.id.String(), n.l2Net.genesis, n.jwtPath,
 		func(ethCfg *ethconfig.Config, nodeCfg *gn.Config) error {
 			ethCfg.InteropMessageRPC = n.supervisorRPC
@@ -78,11 +95,11 @@ func (n *L2ELNode) Start() {
 			}
 			if n.authRPC != "" {
 				// Preserve the existing auth rpc port
-				nodeCfg.AuthPort = rpcPort(require, n.authRPC)
+				nodeCfg.AuthPort = authPort
 			}
 			if n.userRPC != "" {
 				// Preserve the existing websocket rpc port
-				nodeCfg.WSPort = rpcPort(require, n.userRPC)
+				nodeCfg.WSPort = userPort
 			}
 			return nil
 		})
@@ -91,6 +108,36 @@ func (n *L2ELNode) Start() {
 	n.l2Geth = l2Geth
 	n.authRPC = l2Geth.AuthRPC().RPC()
 	n.userRPC = l2Geth.UserRPC().RPC()
+}
+
+func (n *L2ELNode) awaitPortAvailable(require *testreq.Assertions, port int) {
+	ctx, cancel := context.WithTimeout(n.p.Ctx(), time.Minute)
+	defer cancel()
+
+	tick := time.NewTicker(100 * time.Millisecond)
+	defer tick.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			require.NoError(ctx.Err(), "port never became available")
+			return
+		case <-tick.C:
+			l, err := net.Listen("tcp", net.JoinHostPort("127.0.0.1", strconv.Itoa(port)))
+			if err == nil {
+				require.NoError(l.Close(), "error closing listener")
+				return
+			}
+
+			var opErr *net.OpError
+			if errors.As(err, &opErr) && opErr.Op == "listen" && opErr.Err.Error() == "bind: address already in use" {
+				n.logger.Warn("port already in use, awaiting availability", "port", port)
+				continue
+			}
+
+			require.NoError(err, "error listening on port")
+		}
+	}
 }
 
 func rpcPort(require *testreq.Assertions, rpc string) int {
