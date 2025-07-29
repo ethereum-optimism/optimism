@@ -86,7 +86,7 @@ func ChannelManagerReturnsErrReorg(t *testing.T, batchType uint) {
 	require.NoError(t, m.AddL2Block(c))
 	require.ErrorIs(t, m.AddL2Block(x), ErrReorg)
 
-	require.Equal(t, queue.Queue[*types.Block]{a, b, c}, m.blocks)
+	require.Equal(t, queue.Queue[BlockWithDABytes]{{Block: a}, {Block: b}, {Block: c}}, m.blocks)
 }
 
 // ChannelManagerReturnsErrReorgWhenDrained ensures that the channel manager
@@ -360,7 +360,7 @@ func TestChannelManager_TxData(t *testing.T) {
 			// Seed channel manager with a block
 			rng := rand.New(rand.NewSource(99))
 			blockA := derivetest.RandomL2BlockWithChainId(rng, 200, defaultTestRollupConfig.L2ChainID)
-			m.blocks = []*types.Block{blockA}
+			m.blocks = queue.Queue[BlockWithDABytes]{BlockWithDABytes{Block: blockA}}
 
 			// Call TxData a first time to trigger blocks->channels pipeline
 			_, err := m.TxData(eth.BlockID{}, false, false)
@@ -381,7 +381,7 @@ func TestChannelManager_TxData(t *testing.T) {
 			// we get some data to submit
 			var data txData
 			for {
-				m.blocks = append(m.blocks, blockA)
+				m.blocks.Enqueue(BlockWithDABytes{Block: blockA})
 				data, err = m.TxData(eth.BlockID{}, false, false)
 				if err == nil && data.Len() > 0 {
 					break
@@ -416,7 +416,7 @@ func TestChannelManager_handleChannelInvalidated(t *testing.T) {
 
 	// This is the snapshot of channel manager state we want to reinstate
 	// when we requeue
-	stateSnapshot := queue.Queue[*types.Block]{blockA, blockB}
+	stateSnapshot := queue.Queue[BlockWithDABytes]{BlockWithDABytes{Block: blockA}, BlockWithDABytes{Block: blockB}}
 	m.blocks = stateSnapshot
 	require.Empty(t, m.channelQueue)
 	require.Equal(t, metrics.ChannelQueueLength, 0)
@@ -487,79 +487,79 @@ func TestChannelManager_handleChannelInvalidated(t *testing.T) {
 func TestChannelManager_PruneBlocks(t *testing.T) {
 	cfg := channelManagerTestConfig(100, derive.SingularBatchType)
 	cfg.InitNoneCompressor()
-	a := types.NewBlock(&types.Header{
+	a := BlockWithDABytes{Block: types.NewBlock(&types.Header{
 		Number: big.NewInt(0),
-	}, nil, nil, nil, types.DefaultBlockConfig)
-	b := types.NewBlock(&types.Header{
+	}, nil, nil, nil, types.DefaultBlockConfig)}
+	b := BlockWithDABytes{Block: types.NewBlock(&types.Header{
 		Number:     big.NewInt(1),
 		ParentHash: a.Hash(),
-	}, nil, nil, nil, types.DefaultBlockConfig)
-	c := types.NewBlock(&types.Header{
+	}, nil, nil, nil, types.DefaultBlockConfig)}
+	c := BlockWithDABytes{Block: types.NewBlock(&types.Header{
 		Number:     big.NewInt(2),
 		ParentHash: b.Hash(),
-	}, nil, nil, nil, types.DefaultBlockConfig)
+	}, nil, nil, nil, types.DefaultBlockConfig)}
 
 	type testCase struct {
 		name                string
-		initialQ            queue.Queue[*types.Block]
+		initialQ            queue.Queue[BlockWithDABytes]
 		initialBlockCursor  int
 		numChannelsToPrune  int
-		expectedQ           queue.Queue[*types.Block]
+		expectedQ           queue.Queue[BlockWithDABytes]
 		expectedBlockCursor int
 	}
 
 	for _, tc := range []testCase{
 		{
 			name:                "[A,B,C]*+1->[B,C]*", // * denotes the cursor
-			initialQ:            queue.Queue[*types.Block]{a, b, c},
+			initialQ:            queue.Queue[BlockWithDABytes]{a, b, c},
 			initialBlockCursor:  3,
 			numChannelsToPrune:  1,
-			expectedQ:           queue.Queue[*types.Block]{b, c},
+			expectedQ:           queue.Queue[BlockWithDABytes]{b, c},
 			expectedBlockCursor: 2,
 		},
 		{
 			name:                "[A,B,C*]+1->[B,C*]",
-			initialQ:            queue.Queue[*types.Block]{a, b, c},
+			initialQ:            queue.Queue[BlockWithDABytes]{a, b, c},
 			initialBlockCursor:  2,
 			numChannelsToPrune:  1,
-			expectedQ:           queue.Queue[*types.Block]{b, c},
+			expectedQ:           queue.Queue[BlockWithDABytes]{b, c},
 			expectedBlockCursor: 1,
 		},
 		{
 			name:                "[A,B,C]*+2->[C]*",
-			initialQ:            queue.Queue[*types.Block]{a, b, c},
+			initialQ:            queue.Queue[BlockWithDABytes]{a, b, c},
 			initialBlockCursor:  3,
 			numChannelsToPrune:  2,
-			expectedQ:           queue.Queue[*types.Block]{c},
+			expectedQ:           queue.Queue[BlockWithDABytes]{c},
 			expectedBlockCursor: 1,
 		},
 		{
 			name:                "[A,B,C*]+2->[C*]",
-			initialQ:            queue.Queue[*types.Block]{a, b, c},
+			initialQ:            queue.Queue[BlockWithDABytes]{a, b, c},
 			initialBlockCursor:  2,
 			numChannelsToPrune:  2,
-			expectedQ:           queue.Queue[*types.Block]{c},
+			expectedQ:           queue.Queue[BlockWithDABytes]{c},
 			expectedBlockCursor: 0,
 		},
 		{
 			name:                "[A*,B,C]+1->[B*,C]",
-			initialQ:            queue.Queue[*types.Block]{a, b, c},
+			initialQ:            queue.Queue[BlockWithDABytes]{a, b, c},
 			initialBlockCursor:  0,
 			numChannelsToPrune:  1,
-			expectedQ:           queue.Queue[*types.Block]{b, c},
+			expectedQ:           queue.Queue[BlockWithDABytes]{b, c},
 			expectedBlockCursor: 0,
 		},
 		{
 			name:                "[A,B,C]+3->[]",
-			initialQ:            queue.Queue[*types.Block]{a, b, c},
+			initialQ:            queue.Queue[BlockWithDABytes]{a, b, c},
 			initialBlockCursor:  3,
 			numChannelsToPrune:  3,
-			expectedQ:           queue.Queue[*types.Block]{},
+			expectedQ:           queue.Queue[BlockWithDABytes]{},
 			expectedBlockCursor: 0,
 		},
 		{
 			name:                "[A,B,C]*+4->panic",
-			initialQ:            queue.Queue[*types.Block]{a, b, c},
+			initialQ:            queue.Queue[BlockWithDABytes]{a, b, c},
 			initialBlockCursor:  3,
 			numChannelsToPrune:  4,
 			expectedQ:           nil, // declare that the prune method should panic
@@ -709,11 +709,20 @@ func TestChannelManagerUnsafeBytes(t *testing.T) {
 	}, true, false)
 	require.ErrorIs(t, err, io.EOF)
 
-	require.Equal(t, manager.UnsafeDABytes(), cumulativeEstimate)
+	// The empty block was added to a channel,
+	// so the manager should now report a lower
+	// value for UnsafeDABytes.
+	require.Less(t, manager.UnsafeDABytes(), cumulativeEstimate)
+	require.Equal(t, int64(1126), cumulativeEstimate)
+	require.Equal(t, int64(7), manager.UnsafeDABytes())
 
 	l1BlockID := eth.BlockID{
 		Number: 1,
 	}
+
+	// Add blocks until we get a frame to submit,
+	// meaning we now have the exact DA bytes
+	// for the blocks in the channel.
 	for {
 		block = newBlock(ptr(eth.HeaderBlockID(block.Header())))
 		require.NoError(t, manager.AddL2Block(block))
@@ -728,11 +737,14 @@ func TestChannelManagerUnsafeBytes(t *testing.T) {
 		manager.TxConfirmed(frames.ID(), eth.BlockID{
 			Number: l1BlockID.Number + 1,
 		})
-		// NOTE: the actual value can be greater than our "cumulativeEstimate", which is a bit
-		// confusing since the cumulativeEstimate is supposed to overestimate.
-		require.NotEqual(t, manager.UnsafeDABytes(), cumulativeEstimate)
-		return
+		// The empty blocks were added to channels,
+		// so the manager should now report a lower
+		// value for UnsafeDABytes.
+		require.Less(t, manager.UnsafeDABytes(), cumulativeEstimate)
+		break
 	}
+	require.Equal(t, int64(299_516), cumulativeEstimate)
+	require.Equal(t, int64(27), manager.UnsafeDABytes()) // empty blocks result in a very low compression ratio
 }
 
 func ptr[T any](x T) *T {

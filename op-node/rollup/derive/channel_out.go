@@ -61,6 +61,7 @@ type ChannelOut interface {
 	FullErr() error
 	Close() error
 	OutputFrame(*bytes.Buffer, uint64) (uint16, error)
+	EstimatedDABytes() uint64
 	DiscardCompressor()
 }
 
@@ -220,6 +221,10 @@ func (co *SingularChannelOut) OutputFrame(w *bytes.Buffer, maxSize uint64) (uint
 	} else {
 		return fn, nil
 	}
+}
+
+func (co *SingularChannelOut) EstimatedDABytes() uint64 {
+	return uint64(co.compress.Len())
 }
 
 // BlockToSingularBatch transforms a block into a batch object that can easily be RLP encoded.

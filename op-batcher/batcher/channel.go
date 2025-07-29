@@ -221,3 +221,7 @@ func (c *channel) Close() {
 func (c *channel) MaxInclusionBlock() uint64 {
 	return c.maxInclusionBlock
 }
+
+func (c *channel) EstimatedDABytes() uint64 {
+	return c.channelBuilder.co.EstimatedDABytes()
+}

@@ -36,7 +36,7 @@ type channelManager struct {
 	outFactory ChannelOutFactory
 
 	// All blocks which are not yet safe
-	blocks queue.Queue[*types.Block]
+	blocks queue.Queue[BlockWithDABytes]
 	// blockCursor is an index into blocks queue. It points at the next block
 	// to build a channel with. blockCursor = len(blocks) is reserved for when
 	// there are no blocks ready to build with.
@@ -143,7 +143,7 @@ func (s *channelManager) rewindToBlock(block eth.BlockID) {
 		if !ok {
 			panic("rewindToBlock: block not found at index " + fmt.Sprint(i))
 		}
-		s.metr.RecordL2BlockInPendingQueue(block)
+		s.metr.RecordL2BlockInPendingQueue(block.Block)
 	}
 }
 
@@ -403,7 +403,7 @@ func (s *channelManager) processBlocks() error {
 			break
 		}
 
-		l1info, err := s.currentChannel.AddBlock(block)
+		l1info, err := s.currentChannel.AddBlock(block.Block)
 		if errors.As(err, &_chFullErr) {
 			// current block didn't get added because channel is already full
 			break
@@ -413,8 +413,8 @@ func (s *channelManager) processBlocks() error {
 		s.log.Debug("Added block to channel", "id", s.currentChannel.ID(), "block", eth.ToBlockID(block))
 
 		blocksAdded += 1
-		latestL2ref = l2BlockRefFromBlockAndL1Info(block, l1info)
-		s.metr.RecordL2BlockInChannel(block)
+		latestL2ref = l2BlockRefFromBlockAndL1Info(block.Block, l1info)
+		s.metr.RecordL2BlockInChannel(block.Block)
 		// current block got added but channel is now full
 		if s.currentChannel.IsFull() {
 			break
@@ -475,7 +475,7 @@ func (s *channelManager) AddL2Block(block *types.Block) error {
 	}
 
 	s.metr.RecordL2BlockInPendingQueue(block)
-	s.blocks.Enqueue(block)
+	s.blocks.Enqueue(BlockWithDABytes{Block: block})
 	s.tip = block.Hash()
 
 	return nil
@@ -543,23 +543,22 @@ func (m *channelManager) LastStoredBlock() eth.BlockID {
 }
 
 func (s *channelManager) UnsafeDABytes() int64 {
-	var bytesNotYetInChannels int64
+	var bytesNotYetInChannels int64 // least accurate estimate
 	for _, block := range s.blocks[s.blockCursor:] {
-		daSize, _ := metrics.EstimateBatchSize(block)
-		bytesNotYetInChannels += int64(daSize)
+		bytesNotYetInChannels += int64(block.EstimatedDABytes())
 	}
 
 	var bytesInClosedChannels int64
 	var bytesInOpenChannels int64
 	for _, channel := range s.channelQueue {
-		if channel.NoneSubmitted() {
-			// For simplicity, assume none of the blocks have been compressed into the channel yet.
-			for _, block := range channel.channelBuilder.blocks {
-				daSize, _ := metrics.EstimateBatchSize(block)
-				bytesInOpenChannels += int64(daSize)
-			}
-		} else {
+		if channel.isFullySubmitted() || channel.HasTxData() {
+			// This is the exact number of DA bytes in the channel,
 			bytesInClosedChannels += int64(channel.OutputBytes())
+		} else {
+			// This is an estimate of the DA bytes in the channel,
+			// but it is more accurate than the estimate of the
+			// bytes not yet in channels.
+			bytesInOpenChannels += int64(channel.EstimatedDABytes())
 		}
 	}
 
