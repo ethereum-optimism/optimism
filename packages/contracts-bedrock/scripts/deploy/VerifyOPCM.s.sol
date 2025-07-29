@@ -260,35 +260,30 @@ contract VerifyOPCM is Script {
         address expectedContainer = address(0);
 
         for (uint256 i = 0; i < _propRefs.length; i++) {
-            // Only check components that have contractsContainer() function
-            if (_hasContractsContainer(_propRefs[i].field)) {
-                components[componentCount] = _propRefs[i];
+            OpcmContractRef memory propRef = _propRefs[i];
 
-                // Get the contractsContainer address
-                address containerAddr = _getContractsContainerAddress(_propRefs[i].addr);
-                if (containerAddr == address(0)) {
-                    console.log(
-                        string.concat("ERROR: Failed to retrieve contractsContainer address from ", _propRefs[i].field)
-                    );
-                    revert VerifyOPCM_ContractsContainerMismatch();
-                }
-
-                containerAddresses[componentCount] = containerAddr;
-
-                // Set the expected address from the first component, verify consistency for subsequent ones
-                if (componentCount == 0) {
-                    expectedContainer = containerAddr;
-                } else if (containerAddr != expectedContainer) {
-                    // Mismatch detected - log all components found so far
-                    console.log("ERROR: contractsContainer addresses are not consistent across all components");
-                    for (uint256 j = 0; j <= componentCount; j++) {
-                        console.log(string.concat("  ", components[j].field, ": ", vm.toString(containerAddresses[j])));
-                    }
-                    revert VerifyOPCM_ContractsContainerMismatch();
-                }
-
-                componentCount++;
+            if (!_hasContractsContainer(propRef.field)) {
+                continue;
             }
+
+            components[componentCount] = propRef;
+            address containerAddr = _getContractsContainerAddress(propRef.addr);
+
+            if (containerAddr == address(0)) {
+                console.log(string.concat("ERROR: Failed to retrieve contractsContainer address from ", propRef.field));
+                revert VerifyOPCM_ContractsContainerMismatch();
+            }
+
+            containerAddresses[componentCount] = containerAddr;
+
+            if (componentCount == 0) {
+                expectedContainer = containerAddr;
+            } else if (containerAddr != expectedContainer) {
+                _logContainerAddressMismatch(components, containerAddresses, componentCount);
+                revert VerifyOPCM_ContractsContainerMismatch();
+            }
+
+            componentCount++;
         }
 
         // Ensure we found at least one component
@@ -303,6 +298,24 @@ contract VerifyOPCM is Script {
             )
         );
         console.log(string.concat("  contractsContainer: ", vm.toString(expectedContainer)));
+    }
+
+    /// @notice Logs container address mismatch details for debugging.
+    /// @param _components Array of components found so far.
+    /// @param _containerAddresses Array of container addresses for each component.
+    /// @param _componentCount Number of components processed.
+    function _logContainerAddressMismatch(
+        OpcmContractRef[] memory _components,
+        address[] memory _containerAddresses,
+        uint256 _componentCount
+    )
+        internal
+        pure
+    {
+        console.log("ERROR: contractsContainer addresses are not consistent across all components");
+        for (uint256 j = 0; j <= _componentCount; j++) {
+            console.log(string.concat("  ", _components[j].field, ": ", vm.toString(_containerAddresses[j])));
+        }
     }
 
     /// @notice Gets the contractsContainer address from a contract.
