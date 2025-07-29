@@ -122,6 +122,15 @@ contract ETHLockbox_Paused_Test is ETHLockbox_TestInit {
     }
 }
 
+/// @title ETHLockbox_SuperchainConfig_Test
+/// @notice Test contract for the `superchainConfig` function.
+contract ETHLockbox_SuperchainConfig_Test is ETHLockbox_TestInit {
+    /// @notice Tests that the `superchainConfig` function returns the correct address.
+    function test_superchainConfig_succeeds() public view {
+        assertEq(address(ethLockbox.superchainConfig()), address(superchainConfig));
+    }
+}
+
 /// @title ETHLockbox_AuthorizePortal_Test
 /// @notice Test contract for the authorizePortal function.
 contract ETHLockbox_AuthorizePortal_Test is ETHLockbox_TestInit {
