@@ -207,8 +207,8 @@ func NewDriver(
 	}
 	sys.Register("finalizer", finalizer)
 
-	sys.Register("attributes-handler",
-		attributes.NewAttributesHandler(log, cfg, driverCtx, l2))
+	attributesHandler := attributes.NewAttributesHandler(log, cfg, driverCtx, l2)
+	sys.Register("attributes-handler", attributesHandler)
 
 	derivationPipeline := derive.NewDerivationPipeline(log, cfg, depSet, verifConfDepth, l1Blobs, altDA, l2, metrics, indexingMode)
 
@@ -230,7 +230,11 @@ func NewDriver(
 	}
 	sys.Register("sync", syncDeriver)
 
-	sys.Register("engine", engine.NewEngDeriver(log, driverCtx, cfg, metrics, ec))
+	engDeriver := engine.NewEngDeriver(log, driverCtx, cfg, metrics, ec)
+	sys.Register("engine", engDeriver)
+
+	// Wire up the AttributesHandler to use the EngDeriver for block building
+	attributesHandler.SetBuildStarter(engDeriver)
 
 	schedDeriv := NewStepSchedulingDeriver(log)
 	sys.Register("step-scheduler", schedDeriv)
@@ -245,6 +249,10 @@ func NewDriver(
 		sequencer = sequencing.NewSequencer(driverCtx, log, cfg, attrBuilder, findL1Origin,
 			sequencerStateListener, sequencerConductor, asyncGossiper, ec, metrics)
 		sys.Register("sequencer", sequencer)
+
+		// Wire up the Sequencer to use the EngDeriver for block building and sealing
+		sequencer.SetBuildStarter(engDeriver)
+		sequencer.SetBuildSealer(engDeriver)
 	} else {
 		sequencer = sequencing.DisabledSequencer{}
 	}

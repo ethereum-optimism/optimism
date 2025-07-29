@@ -23,6 +23,16 @@ import (
 // sealingDuration defines the expected time it takes to seal the block
 const sealingDuration = time.Millisecond * 50
 
+// BuildSealer interface for sealing blocks
+type BuildSealer interface {
+	BuildSeal(ctx context.Context, info eth.PayloadInfo, buildStarted time.Time, concluding bool, derivedFrom eth.L1BlockRef) (*engine.BuildSealedEvent, error)
+}
+
+// BuildStarter interface for initiating block building
+type BuildStarter interface {
+	BuildStart(ctx context.Context, attributes *derive.AttributesWithParent) (*engine.BuildStartedEvent, error)
+}
+
 var (
 	ErrSequencerAlreadyStarted = errors.New("sequencer already running")
 	ErrSequencerAlreadyStopped = errors.New("sequencer not running")
@@ -108,6 +118,9 @@ type Sequencer struct {
 
 	emitter event.Emitter
 
+	engine           EngineController
+	buildSealer      BuildSealer
+	buildStarter     BuildStarter
 	attrBuilder      derive.AttributesBuilder
 	l1OriginSelector L1OriginSelectorIface
 
@@ -128,8 +141,24 @@ type Sequencer struct {
 
 	// toBlockRef converts a payload to a block-ref, and is only configurable for test-purposes
 	toBlockRef func(rollupCfg *rollup.Config, payload *eth.ExecutionPayload) (eth.L2BlockRef, error)
+}
 
-	engine EngineController
+func (d *Sequencer) SetBuildSealer(buildSealer BuildSealer) {
+	d.buildSealer = buildSealer
+}
+
+func (d *Sequencer) SetBuildStarter(buildStarter BuildStarter) {
+	d.buildStarter = buildStarter
+}
+
+func (d *Sequencer) handleBuildSealed(ctx context.Context, result engine.BuildSealedEvent) {
+	// Forward the result to the event system for other components to handle
+	d.emitter.Emit(ctx, result)
+}
+
+func (d *Sequencer) handleBuildStarted(ctx context.Context, result engine.BuildStartedEvent) {
+	// Forward the result to the event system for other components to handle
+	d.emitter.Emit(ctx, result)
 }
 
 var _ SequencerIface = (*Sequencer)(nil)
@@ -418,12 +447,11 @@ func (d *Sequencer) onSequencerAction(ev SequencerActionEvent) {
 			d.nextActionOK = false
 			// No known payload for block building job,
 			// we have to retrieve it first.
-			d.emitter.Emit(d.ctx, engine.BuildSealEvent{
-				Info:         d.latest.Info,
-				BuildStarted: d.latest.Started,
-				Concluding:   false,
-				DerivedFrom:  eth.L1BlockRef{},
-			})
+			if result, err := d.buildSealer.BuildSeal(d.ctx, d.latest.Info, d.latest.Started, false, eth.L1BlockRef{}); err != nil {
+				d.log.Error("Failed to seal block", "err", err)
+			} else {
+				d.handleBuildSealed(d.ctx, *result)
+			}
 		} else if d.latest == (BuildingState{}) {
 			// If we have not started building anything, start building.
 			d.startBuildingBlock()
@@ -640,9 +668,11 @@ func (d *Sequencer) startBuildingBlock() {
 	// If we get a forkchoice update that conflicts, we will have to abort building.
 	d.latest = BuildingState{Onto: l2Head}
 
-	d.emitter.Emit(d.ctx, engine.BuildStartEvent{
-		Attributes: withParent,
-	})
+	if result, err := d.buildStarter.BuildStart(d.ctx, withParent); err != nil {
+		d.log.Error("Failed to start build", "err", err)
+	} else {
+		d.handleBuildStarted(d.ctx, *result)
+	}
 }
 
 func (d *Sequencer) NextAction() (t time.Time, ok bool) {

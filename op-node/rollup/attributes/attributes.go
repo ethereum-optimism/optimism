@@ -21,6 +21,11 @@ type L2 interface {
 	PayloadByNumber(context.Context, uint64) (*eth.ExecutionPayloadEnvelope, error)
 }
 
+// BuildStarter interface for initiating block building
+type BuildStarter interface {
+	BuildStart(ctx context.Context, attributes *derive.AttributesWithParent) (*engine.BuildStartedEvent, error)
+}
+
 type AttributesHandler struct {
 	log log.Logger
 	cfg *rollup.Config
@@ -33,6 +38,9 @@ type AttributesHandler struct {
 	mu sync.Mutex
 
 	emitter event.Emitter
+
+	// buildStarter handles block building initiation
+	buildStarter BuildStarter
 
 	attributes     *derive.AttributesWithParent
 	sentAttributes bool
@@ -50,6 +58,16 @@ func NewAttributesHandler(log log.Logger, cfg *rollup.Config, ctx context.Contex
 
 func (eq *AttributesHandler) AttachEmitter(em event.Emitter) {
 	eq.emitter = em
+}
+
+func (eq *AttributesHandler) SetBuildStarter(buildStarter BuildStarter) {
+	eq.buildStarter = buildStarter
+}
+
+func (eq *AttributesHandler) handleBuildStarted(ctx context.Context, result *engine.BuildStartedEvent) {
+	// Forward the result to the sequencer or other components that need it
+	// For now, we'll just log it - in a real implementation, this would notify the appropriate handlers
+	eq.log.Debug("Build started", "info", result.Info, "parent", result.Parent)
 }
 
 func (eq *AttributesHandler) OnEvent(ctx context.Context, ev event.Event) bool {
@@ -160,7 +178,12 @@ func (eq *AttributesHandler) onPendingSafeUpdate(ctx context.Context, x engine.P
 		} else {
 			// append to tip otherwise
 			eq.sentAttributes = true
-			eq.emitter.Emit(ctx, engine.BuildStartEvent{Attributes: eq.attributes})
+			if result, err := eq.buildStarter.BuildStart(ctx, eq.attributes); err != nil {
+				eq.log.Error("Failed to start build", "err", err)
+				eq.sentAttributes = false
+			} else {
+				eq.handleBuildStarted(ctx, result)
+			}
 		}
 	}
 }
@@ -192,7 +215,12 @@ func (eq *AttributesHandler) consolidateNextSafeAttributes(attributes *derive.At
 
 		eq.sentAttributes = true
 		// geth cannot wind back a chain without reorging to a new, previously non-canonical, block
-		eq.emitter.Emit(eq.ctx, engine.BuildStartEvent{Attributes: attributes})
+		if result, err := eq.buildStarter.BuildStart(eq.ctx, attributes); err != nil {
+			eq.log.Error("Failed to start build", "err", err)
+			eq.sentAttributes = false
+		} else {
+			eq.handleBuildStarted(eq.ctx, result)
+		}
 		return
 	} else {
 		ref, err := derive.PayloadToBlockRef(eq.cfg, envelope.ExecutionPayload)

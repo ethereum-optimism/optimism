@@ -41,31 +41,37 @@ func (ev PayloadSealExpiredErrorEvent) String() string {
 	return "payload-seal-expired-error"
 }
 
-type BuildSealEvent struct {
-	Info         eth.PayloadInfo
-	BuildStarted time.Time
-	// if payload should be promoted to safe (must also be pending safe, see DerivedFrom)
+// BuildSealedEvent is emitted by the engine when a payload finished building,
+// but is not locally inserted as canonical block yet
+type BuildSealedEvent struct {
+	// if payload should be promoted to (local) safe (must also be pending safe, see DerivedFrom)
 	Concluding bool
 	// payload is promoted to pending-safe if non-zero
-	DerivedFrom eth.L1BlockRef
+	DerivedFrom  eth.L1BlockRef
+	BuildStarted time.Time
+
+	Info     eth.PayloadInfo
+	Envelope *eth.ExecutionPayloadEnvelope
+	Ref      eth.L2BlockRef
 }
 
-func (ev BuildSealEvent) String() string {
-	return "build-seal"
+func (ev BuildSealedEvent) String() string {
+	return "build-sealed"
 }
 
-func (eq *EngDeriver) onBuildSeal(ctx context.Context, ev BuildSealEvent) {
+// BuildSeal seals a block and returns the result or error
+func (eq *EngDeriver) BuildSeal(ctx context.Context, info eth.PayloadInfo, buildStarted time.Time, concluding bool, derivedFrom eth.L1BlockRef) (*BuildSealedEvent, error) {
 	rpcCtx, cancel := context.WithTimeout(eq.ctx, buildSealTimeout)
 	defer cancel()
 
 	sealingStart := time.Now()
-	envelope, err := eq.ec.engine.GetPayload(rpcCtx, ev.Info)
+	envelope, err := eq.ec.engine.GetPayload(rpcCtx, info)
 	if err != nil {
 		var rpcErr rpc.Error
 		if errors.As(err, &rpcErr) && eth.ErrorCode(rpcErr.ErrorCode()) == eth.UnknownPayload {
 			eq.log.Warn("Cannot seal block, payload ID is unknown",
-				"payloadID", ev.Info.ID, "payload_time", ev.Info.Timestamp,
-				"started_time", ev.BuildStarted)
+				"payloadID", info.ID, "payload_time", info.Timestamp,
+				"started_time", buildStarted)
 		}
 		// Although the engine will very likely not be able to continue from here with the same building job,
 		// we still call it "temporary", since the exact same payload-attributes have not been invalidated in-consensus.
@@ -73,55 +79,71 @@ func (eq *EngDeriver) onBuildSeal(ctx context.Context, ev BuildSealEvent) {
 		// same attributes with a new block-building job from here to recover from this error.
 		// We name it "expired", as this generally identifies a timeout, unknown job, or otherwise invalidated work.
 		eq.emitter.Emit(ctx, PayloadSealExpiredErrorEvent{
-			Info:        ev.Info,
-			Err:         fmt.Errorf("failed to seal execution payload (ID: %s): %w", ev.Info.ID, err),
-			Concluding:  ev.Concluding,
-			DerivedFrom: ev.DerivedFrom,
+			Info:        info,
+			Err:         fmt.Errorf("failed to seal execution payload (ID: %s): %w", info.ID, err),
+			Concluding:  concluding,
+			DerivedFrom: derivedFrom,
 		})
-		return
+		return nil, err
 	}
 
 	if err := sanityCheckPayload(envelope.ExecutionPayload); err != nil {
 		eq.emitter.Emit(ctx, PayloadSealInvalidEvent{
-			Info: ev.Info,
+			Info: info,
 			Err: fmt.Errorf("failed sanity-check of execution payload contents (ID: %s, blockhash: %s): %w",
-				ev.Info.ID, envelope.ExecutionPayload.BlockHash, err),
-			Concluding:  ev.Concluding,
-			DerivedFrom: ev.DerivedFrom,
+				info.ID, envelope.ExecutionPayload.BlockHash, err),
+			Concluding:  concluding,
+			DerivedFrom: derivedFrom,
 		})
-		return
+		return nil, err
 	}
 
 	ref, err := derive.PayloadToBlockRef(eq.cfg, envelope.ExecutionPayload)
 	if err != nil {
 		eq.emitter.Emit(ctx, PayloadSealInvalidEvent{
-			Info:        ev.Info,
+			Info:        info,
 			Err:         fmt.Errorf("failed to decode L2 block ref from payload: %w", err),
-			Concluding:  ev.Concluding,
-			DerivedFrom: ev.DerivedFrom,
+			Concluding:  concluding,
+			DerivedFrom: derivedFrom,
 		})
-		return
+		return nil, err
 	}
 
 	now := time.Now()
 	sealTime := now.Sub(sealingStart)
-	buildTime := now.Sub(ev.BuildStarted)
-	eq.metrics.RecordSequencerSealingTime(sealTime)
-	eq.metrics.RecordSequencerBuildingDiffTime(buildTime - time.Duration(eq.cfg.BlockTime)*time.Second)
+	buildTime := sealingStart.Sub(buildStarted) // TODO: when we add interrupts (see upstream cannon v2 PR), this will be inaccurate
+	// Ensure the metrics don't compare timestamps that may be 0
+	if !buildStarted.IsZero() {
+		eq.metrics.RecordSequencerBuildingDiffTime(buildTime)
+	}
+	if sealTime > 0 {
+		eq.metrics.RecordSequencerSealingTime(sealTime)
+	}
 
-	txnCount := len(envelope.ExecutionPayload.Transactions)
-	depositCount, _ := lastDeposit(envelope.ExecutionPayload.Transactions)
-	eq.metrics.CountSequencedTxsInBlock(txnCount, depositCount)
+	eq.log.Info("built new block", "id", envelope.ExecutionPayload.ID(), "txs", len(envelope.ExecutionPayload.Transactions),
+		"time", uint64(envelope.ExecutionPayload.Timestamp), "build_time", buildTime, "seal_time", sealTime)
 
-	eq.log.Debug("Built new L2 block", "l2_unsafe", ref, "l1_origin", ref.L1Origin,
-		"txs", txnCount, "deposits", depositCount, "time", ref.Time, "seal_time", sealTime, "build_time", buildTime)
-
-	eq.emitter.Emit(ctx, BuildSealedEvent{
-		Concluding:   ev.Concluding,
-		DerivedFrom:  ev.DerivedFrom,
-		BuildStarted: ev.BuildStarted,
-		Info:         ev.Info,
+	result := &BuildSealedEvent{
+		Concluding:   concluding,
+		DerivedFrom:  derivedFrom,
+		BuildStarted: buildStarted,
+		Info:         info,
 		Envelope:     envelope,
 		Ref:          ref,
-	})
+	}
+
+	return result, nil
+}
+
+func (eq *EngDeriver) onBuildSealed(ctx context.Context, ev BuildSealedEvent) {
+	// If a (pending) safe block, immediately process the block
+	if ev.DerivedFrom != (eth.L1BlockRef{}) {
+		eq.emitter.Emit(ctx, PayloadProcessEvent{
+			Concluding:   ev.Concluding,
+			DerivedFrom:  ev.DerivedFrom,
+			Envelope:     ev.Envelope,
+			Ref:          ev.Ref,
+			BuildStarted: ev.BuildStarted,
+		})
+	}
 }

@@ -488,13 +488,11 @@ func (d *EngDeriver) OnEvent(ctx context.Context, ev event.Event) bool {
 			})
 		}
 	case InteropInvalidateBlockEvent:
-		d.emitter.Emit(ctx, BuildStartEvent{Attributes: x.Attributes})
-	case BuildStartEvent:
-		d.onBuildStart(ctx, x)
-	case BuildStartedEvent:
-		d.onBuildStarted(ctx, x)
-	case BuildSealEvent:
-		d.onBuildSeal(ctx, x)
+		if result, err := d.BuildStart(ctx, x.Attributes); err != nil {
+			d.log.Error("Failed to start build for interop invalidation", "err", err)
+		} else {
+			d.onBuildStarted(ctx, *result)
+		}
 	case BuildSealedEvent:
 		d.onBuildSealed(ctx, x)
 	case BuildInvalidEvent:
