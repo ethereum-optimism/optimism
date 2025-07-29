@@ -276,7 +276,7 @@ contract VerifyOPCM_Run_Test is VerifyOPCM_TestInit {
         uint256 componentsWithContainerTested = 0;
         for (uint256 i = 0; i < propRefs.length; i++) {
             string memory field = propRefs[i].field;
-            if (_isOpcmComponentWithContainer(field)) {
+            if (_hasContractsContainer(field)) {
                 // Mock this specific component to return a different address
                 vm.mockCall(
                     propRefs[i].addr,
@@ -305,7 +305,7 @@ contract VerifyOPCM_Run_Test is VerifyOPCM_TestInit {
         for (uint256 i = 0; i < _propRefs.length; i++) {
             string memory field = _propRefs[i].field;
             // Check if this is an OPCM component that has contractsContainer()
-            if (_isOpcmComponentWithContainer(field)) {
+            if (_hasContractsContainer(field)) {
                 vm.mockCall(
                     _propRefs[i].addr,
                     abi.encodeCall(IOPContractsManagerUpgrader.contractsContainer, ()),
@@ -326,7 +326,7 @@ contract VerifyOPCM_Run_Test is VerifyOPCM_TestInit {
     /// @notice Helper function to check if a field represents an OPCM component that has contractsContainer().
     /// @param _field The field name to check.
     /// @return True if the field represents an OPCM component with contractsContainer(), false otherwise.
-    function _isOpcmComponentWithContainer(string memory _field) internal pure returns (bool) {
+    function _hasContractsContainer(string memory _field) internal pure returns (bool) {
         // Check if it starts with "opcm"
         if (!LibString.startsWith(_field, "opcm")) {
             return false;

@@ -199,7 +199,7 @@ contract VerifyOPCM is Script {
         address contractsContainerAddr = address(0);
         for (uint256 i = 0; i < propRefs.length; i++) {
             string memory field = propRefs[i].field;
-            if (_isOpcmComponent(field)) {
+            if (_hasContractsContainer(field)) {
                 contractsContainerAddr = _getContractsContainerAddress(propRefs[i].addr);
                 break;
             }
@@ -261,7 +261,7 @@ contract VerifyOPCM is Script {
         for (uint256 i = 0; i < _propRefs.length; i++) {
             // Only check components that have contractsContainer() function
             string memory field = _propRefs[i].field;
-            if (_isOpcmComponent(field)) {
+            if (_hasContractsContainer(field)) {
                 componentAddresses[componentCount] = _propRefs[i].addr;
                 componentNames[componentCount] = field;
                 componentCount++;
@@ -759,7 +759,7 @@ contract VerifyOPCM is Script {
     /// @notice Checks if a field name represents an OPCM component contract that has contractsContainer().
     /// @param _field The field name to check.
     /// @return True if the field represents an OPCM component with contractsContainer(), false otherwise.
-    function _isOpcmComponent(string memory _field) internal pure returns (bool) {
+    function _hasContractsContainer(string memory _field) internal pure returns (bool) {
         // Check if it starts with "opcm"
         if (!LibString.startsWith(_field, "opcm")) {
             return false;
