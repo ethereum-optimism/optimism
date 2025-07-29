@@ -699,7 +699,7 @@ func TestChannelManager_TxData_ForcePublish(t *testing.T) {
 
 	// Despite no additional blocks being added, we should have tx data:
 	require.NoError(t, err)
-	require.True(t, txData.Len() > 0)
+	require.NotZero(t, txData.Len(), "txData should not be empty")
 
 	// The channel should be full and ready to send
 	require.Len(t, m.channelQueue, 1)
