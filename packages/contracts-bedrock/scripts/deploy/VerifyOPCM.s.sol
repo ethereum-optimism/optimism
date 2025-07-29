@@ -254,16 +254,13 @@ contract VerifyOPCM is Script {
     /// @param _propRefs Array of property references containing component addresses.
     function _verifyContractsContainerConsistency(OpcmContractRef[] memory _propRefs) internal view {
         // Filter components that have contractsContainer() function
-        address[] memory componentAddresses = new address[](_propRefs.length);
-        string[] memory componentNames = new string[](_propRefs.length);
+        OpcmContractRef[] memory components = new OpcmContractRef[](_propRefs.length);
         uint256 componentCount = 0;
 
         for (uint256 i = 0; i < _propRefs.length; i++) {
             // Only check components that have contractsContainer() function
-            string memory field = _propRefs[i].field;
-            if (_hasContractsContainer(field)) {
-                componentAddresses[componentCount] = _propRefs[i].addr;
-                componentNames[componentCount] = field;
+            if (_hasContractsContainer(_propRefs[i].field)) {
+                components[componentCount] = _propRefs[i];
                 componentCount++;
             }
         }
@@ -277,10 +274,10 @@ contract VerifyOPCM is Script {
         // Get contractsContainer addresses from all components and check for failures
         address[] memory containerAddresses = new address[](componentCount);
         for (uint256 i = 0; i < componentCount; i++) {
-            containerAddresses[i] = _getContractsContainerAddress(componentAddresses[i]);
+            containerAddresses[i] = _getContractsContainerAddress(components[i].addr);
             if (containerAddresses[i] == address(0)) {
                 console.log(
-                    string.concat("ERROR: Failed to retrieve contractsContainer address from ", componentNames[i])
+                    string.concat("ERROR: Failed to retrieve contractsContainer address from ", components[i].field)
                 );
                 revert VerifyOPCM_ContractsContainerMismatch();
             }
@@ -292,7 +289,7 @@ contract VerifyOPCM is Script {
             if (containerAddresses[i] != firstContainer) {
                 console.log("ERROR: contractsContainer addresses are not consistent across all components");
                 for (uint256 j = 0; j < componentCount; j++) {
-                    console.log(string.concat("  ", componentNames[j], ": ", vm.toString(containerAddresses[j])));
+                    console.log(string.concat("  ", components[j].field, ": ", vm.toString(containerAddresses[j])));
                 }
                 revert VerifyOPCM_ContractsContainerMismatch();
             }
