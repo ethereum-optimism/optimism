@@ -253,14 +253,40 @@ contract VerifyOPCM is Script {
     /// @notice Verifies that all OPCM component contracts have the same contractsContainer address.
     /// @param _propRefs Array of property references containing component addresses.
     function _verifyContractsContainerConsistency(OpcmContractRef[] memory _propRefs) internal view {
-        // Filter components that have contractsContainer() function
+        // Filter components, validate addresses, and verify consistency in one pass
         OpcmContractRef[] memory components = new OpcmContractRef[](_propRefs.length);
+        address[] memory containerAddresses = new address[](_propRefs.length);
         uint256 componentCount = 0;
+        address expectedContainer = address(0);
 
         for (uint256 i = 0; i < _propRefs.length; i++) {
             // Only check components that have contractsContainer() function
             if (_hasContractsContainer(_propRefs[i].field)) {
                 components[componentCount] = _propRefs[i];
+
+                // Get the contractsContainer address
+                address containerAddr = _getContractsContainerAddress(_propRefs[i].addr);
+                if (containerAddr == address(0)) {
+                    console.log(
+                        string.concat("ERROR: Failed to retrieve contractsContainer address from ", _propRefs[i].field)
+                    );
+                    revert VerifyOPCM_ContractsContainerMismatch();
+                }
+
+                containerAddresses[componentCount] = containerAddr;
+
+                // Set the expected address from the first component, verify consistency for subsequent ones
+                if (componentCount == 0) {
+                    expectedContainer = containerAddr;
+                } else if (containerAddr != expectedContainer) {
+                    // Mismatch detected - log all components found so far
+                    console.log("ERROR: contractsContainer addresses are not consistent across all components");
+                    for (uint256 j = 0; j <= componentCount; j++) {
+                        console.log(string.concat("  ", components[j].field, ": ", vm.toString(containerAddresses[j])));
+                    }
+                    revert VerifyOPCM_ContractsContainerMismatch();
+                }
+
                 componentCount++;
             }
         }
@@ -271,36 +297,12 @@ contract VerifyOPCM is Script {
             revert VerifyOPCM_ContractsContainerMismatch();
         }
 
-        // Get contractsContainer addresses from all components and check for failures
-        address[] memory containerAddresses = new address[](componentCount);
-        for (uint256 i = 0; i < componentCount; i++) {
-            containerAddresses[i] = _getContractsContainerAddress(components[i].addr);
-            if (containerAddresses[i] == address(0)) {
-                console.log(
-                    string.concat("ERROR: Failed to retrieve contractsContainer address from ", components[i].field)
-                );
-                revert VerifyOPCM_ContractsContainerMismatch();
-            }
-        }
-
-        // Verify that all addresses are the same
-        address firstContainer = containerAddresses[0];
-        for (uint256 i = 1; i < componentCount; i++) {
-            if (containerAddresses[i] != firstContainer) {
-                console.log("ERROR: contractsContainer addresses are not consistent across all components");
-                for (uint256 j = 0; j < componentCount; j++) {
-                    console.log(string.concat("  ", components[j].field, ": ", vm.toString(containerAddresses[j])));
-                }
-                revert VerifyOPCM_ContractsContainerMismatch();
-            }
-        }
-
         console.log(
             string.concat(
                 "OK: All ", vm.toString(componentCount), " components have the same contractsContainer address"
             )
         );
-        console.log(string.concat("  contractsContainer: ", vm.toString(firstContainer)));
+        console.log(string.concat("  contractsContainer: ", vm.toString(expectedContainer)));
     }
 
     /// @notice Gets the contractsContainer address from a contract.
