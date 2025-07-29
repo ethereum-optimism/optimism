@@ -673,7 +673,7 @@ func TestChannelManager_ChannelOutFactory(t *testing.T) {
 }
 
 func newBlock(parent *eth.BlockID) *types.Block {
-	rng := rand.New(rand.NewSource(123))
+	rng := rand.New(rand.NewSource(int64(parent.Number)))
 	block, receipts := derivetest.RandomL2Block(rng, 3, time.Now())
 	header := block.Header()
 	if parent == nil {
@@ -711,7 +711,7 @@ func TestChannelManagerUnsafeBytes(t *testing.T) {
 	// so the manager should now report a lower
 	// value for UnsafeDABytes.
 	require.Less(t, manager.UnsafeDABytes(), cumulativeEstimate)
-	require.Equal(t, int64(1126), cumulativeEstimate)
+	require.Equal(t, int64(733), cumulativeEstimate)
 	require.Equal(t, int64(7), manager.UnsafeDABytes())
 
 	l1BlockID := eth.BlockID{
@@ -721,11 +721,12 @@ func TestChannelManagerUnsafeBytes(t *testing.T) {
 	// Add blocks until we get a frame to submit,
 	// meaning we now have the exact DA bytes
 	// for the blocks in the channel.
+	numBlocks := 0
 	for {
 		block = newBlock(ptr(eth.HeaderBlockID(block.Header())))
 		require.NoError(t, manager.AddL2Block(block))
 		cumulativeEstimate += getDASize(block)
-
+		numBlocks++
 		_, err := manager.TxData(l1BlockID, true, false)
 		if errors.Is(err, io.EOF) {
 			continue
@@ -733,7 +734,8 @@ func TestChannelManagerUnsafeBytes(t *testing.T) {
 		require.NoError(t, err)
 		break
 	}
-	require.Equal(t, int64(299_516), cumulativeEstimate)
+	require.Equal(t, 188, numBlocks)
+	require.Equal(t, int64(311_170), cumulativeEstimate)
 	require.Equal(t, int64(390_129), manager.UnsafeDABytes())
 }
 
