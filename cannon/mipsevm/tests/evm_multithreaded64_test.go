@@ -94,7 +94,7 @@ func TestEVM_MT64_LL(t *testing.T) {
 	}
 
 	NewDiffTester(testNamer).
-		InitState(initState).
+		InitState(initState, mtutil.WithPCAndNextPC(0x40)).
 		SetExpectations(setExpectations).
 		Run(t, cases)
 }
@@ -278,7 +278,7 @@ func TestEVM_MT64_LLD(t *testing.T) {
 	}
 
 	NewDiffTester(testNamer).
-		InitState(initState).
+		InitState(initState, mtutil.WithPCAndNextPC(0x40)).
 		SetExpectations(setExpectations).
 		Run(t, cases)
 }
