@@ -40,7 +40,7 @@ const (
 	partialProof = "partial_proof"
 )
 
-// Generate an abi-encoded `trieTestCase` of a specified variant
+// FuzzTrie Generate an abi-encoded `trieTestCase` of a specified variant
 func FuzzTrie() {
 	variant := os.Args[2]
 	if len(variant) < 1 {
