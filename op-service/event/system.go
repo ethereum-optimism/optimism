@@ -97,14 +97,14 @@ type systemActor struct {
 }
 
 func (r *systemActor) traceAndLogEventEmitted(ctx context.Context, level slog.Level, ev Event) context.Context {
-	_, path, line, _ := runtime.Caller(2)
+	_, path, line, _ := runtime.Caller(2) // find the location of the caller of Emit()
 	if strings.Contains(path, "limiter.go") {
-		_, path, line, _ = runtime.Caller(3)
+		_, path, line, _ = runtime.Caller(3) // go one level up the stack to get the correct location, if the caller is rate-limited
 	}
 
 	file := filepath.Base(path)
 	dir := filepath.Base(filepath.Dir(path))
-	loc := fmt.Sprintf("%s/%s:%d", dir, file, line)
+	location := fmt.Sprintf("%s/%s:%d", dir, file, line)
 
 	var euuid string
 	var estep int
@@ -115,7 +115,7 @@ func (r *systemActor) traceAndLogEventEmitted(ctx context.Context, level slog.Le
 	} else {
 		etrace, ok := ctx.Value(ctxKeyEventTrace).(eventTrace)
 		if !ok {
-			r.sys.log.Error("Event trace is not a eventTrace type", "ev", ev, "loc", loc)
+			r.sys.log.Error("Event trace is not a eventTrace type", "ev", ev, "loc", location)
 			return ctx
 		}
 		euuid = etrace.UUID
@@ -123,7 +123,7 @@ func (r *systemActor) traceAndLogEventEmitted(ctx context.Context, level slog.Le
 		ctx = context.WithValue(ctx, ctxKeyEventTrace, eventTrace{euuid, estep})
 	}
 
-	r.sys.log.Log(level, "Event emitted", "euid", fmt.Sprintf("%s:%d", euuid, estep), "ev", ev, "loc", loc)
+	r.sys.log.Log(level, "Event emitted", "euid", fmt.Sprintf("%s:%d", euuid, estep), "ev", ev, "loc", location)
 
 	return ctx
 }
