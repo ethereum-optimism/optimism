@@ -276,11 +276,12 @@ func (s *channelManager) TxData(l1Head eth.BlockID, isPectra, isThrottling, forc
 func (s *channelManager) getReadyChannel(l1Head eth.BlockID, forcePublish bool) (*channel, error) {
 	var firstWithTxData *channel
 	for _, ch := range s.channelQueue {
-		if forcePublish && ch.NoneSubmitted() {
+		if forcePublish && !ch.HasTxData() {
 			s.log.Info("Force closing channel", "channel_id", ch.ID())
+			// Force close the channel and output frames
+			// (this has the same effect as if the channel was full)
 			ch.Close()
-			err := ch.OutputFrames()
-			if err != nil {
+			if err := ch.OutputFrames(); err != nil {
 				return nil, err
 			}
 		}
