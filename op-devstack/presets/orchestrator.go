@@ -50,7 +50,7 @@ func DoMain(m *testing.M, opts ...stack.CommonOption) {
 			}
 		}()
 		defer func() {
-			if x := recover(); x != nil {
+			if x := recover(); x != nil && !failed.Load() {
 				debug.PrintStack()
 				_, _ = fmt.Fprintf(os.Stderr, "Panic during test Main: %v\n", x)
 
@@ -84,9 +84,11 @@ func DoMain(m *testing.M, opts ...stack.CommonOption) {
 		logger.SetContext(ctx)
 
 		onFail := func(now bool) {
-			logger.Error("Main failed")
-			debug.PrintStack()
-			failed.Store(true)
+			if !failed.Load() {
+				logger.Error("Main failed")
+				debug.PrintStack()
+				failed.Store(true)
+			}
 			if now {
 				panic("critical Main fail")
 			}
