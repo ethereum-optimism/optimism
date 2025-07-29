@@ -715,7 +715,7 @@ func TestChannelManagerUnsafeBytes(t *testing.T) {
 		Number: 1,
 	}
 	for {
-		block = newBlock(toPtr(eth.HeaderBlockID(block.Header())))
+		block = newBlock(ptr(eth.HeaderBlockID(block.Header())))
 		require.NoError(t, manager.AddL2Block(block))
 		cumulativeEstimate += getDASize(block)
 
@@ -735,6 +735,6 @@ func TestChannelManagerUnsafeBytes(t *testing.T) {
 	}
 }
 
-func toPtr[T any](x T) *T {
+func ptr[T any](x T) *T {
 	return &x
 }

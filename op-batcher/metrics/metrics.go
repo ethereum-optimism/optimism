@@ -48,7 +48,7 @@ type Metricer interface {
 	RecordThrottleIntensity(intensity float64, controllerType config.ThrottleControllerType)
 	RecordThrottleParams(maxTxSize, maxBlockSize uint64)
 	RecordThrottleControllerType(controllerType config.ThrottleControllerType)
-	RecordPendingBytesVsThreshold(pendingBytes, threshold uint64, controllerType config.ThrottleControllerType)
+	RecordUnsafeBytesVsThreshold(unsafeBytes, threshold uint64, controllerType config.ThrottleControllerType)
 	RecordUnsafeDABytes(int64)
 
 	// PID Controller specific metrics
@@ -114,7 +114,7 @@ type Metrics struct {
 	throttleMaxTxSize      prometheus.Gauge
 	throttleMaxBlockSize   prometheus.Gauge
 	throttleControllerType prometheus.GaugeVec
-	pendingBytesRatio      prometheus.GaugeVec
+	unsafeBytesRatio       prometheus.GaugeVec
 	throttleHistory        prometheus.Summary
 
 	// PID Controller specific metrics
@@ -257,10 +257,10 @@ func NewMetrics(procName string) *Metrics {
 			Name:      "throttle_controller_type",
 			Help:      "Type of throttle controller in use",
 		}, []string{"type"}),
-		pendingBytesRatio: *factory.NewGaugeVec(prometheus.GaugeOpts{
+		unsafeBytesRatio: *factory.NewGaugeVec(prometheus.GaugeOpts{
 			Namespace: ns,
-			Name:      "pending_bytes_ratio",
-			Help:      "Ratio of pending bytes to threshold",
+			Name:      "unsafe_bytes_ratio",
+			Help:      "Ratio of unsafe bytes to threshold",
 		}, []string{"type"}),
 		throttleHistory: factory.NewSummary(prometheus.SummaryOpts{
 			Namespace: ns,
@@ -467,13 +467,13 @@ func (m *Metrics) RecordThrottleControllerType(controllerType config.ThrottleCon
 	}
 }
 
-func (m *Metrics) RecordPendingBytesVsThreshold(pendingBytes, threshold uint64, controllerType config.ThrottleControllerType) {
-	ratio := float64(pendingBytes) / float64(threshold)
+func (m *Metrics) RecordUnsafeBytesVsThreshold(unsafeBytes, threshold uint64, controllerType config.ThrottleControllerType) {
+	ratio := float64(unsafeBytes) / float64(threshold)
 	for _, t := range config.ThrottleControllerTypes {
 		if t == controllerType {
-			m.pendingBytesRatio.WithLabelValues(string(t)).Set(ratio)
+			m.unsafeBytesRatio.WithLabelValues(string(t)).Set(ratio)
 		} else {
-			m.pendingBytesRatio.WithLabelValues(string(t)).Set(0)
+			m.unsafeBytesRatio.WithLabelValues(string(t)).Set(0)
 		}
 	}
 }

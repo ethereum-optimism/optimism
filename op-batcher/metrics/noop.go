@@ -47,7 +47,7 @@ func (*noopMetrics) RecordThrottleIntensity(intensity float64, controllerType co
 }
 func (*noopMetrics) RecordThrottleParams(maxTxSize, maxBlockSize uint64)                       {}
 func (*noopMetrics) RecordThrottleControllerType(controllerType config.ThrottleControllerType) {}
-func (*noopMetrics) RecordPendingBytesVsThreshold(pendingBytes, threshold uint64, controllerType config.ThrottleControllerType) {
+func (*noopMetrics) RecordUnsafeBytesVsThreshold(pendingBytes, threshold uint64, controllerType config.ThrottleControllerType) {
 }
 
 func (*noopMetrics) RecordUnsafeDABytes(int64) {}
