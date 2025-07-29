@@ -246,13 +246,15 @@ func NewDriver(
 		sequencerConfDepth := confdepth.NewConfDepth(driverCfg.SequencerConfDepth, statusTracker.L1Head, l1)
 		findL1Origin := sequencing.NewL1OriginSelector(driverCtx, log, cfg, sequencerConfDepth)
 		sys.Register("origin-selector", findL1Origin)
-		sequencer = sequencing.NewSequencer(driverCtx, log, cfg, attrBuilder, findL1Origin,
+		concreteSequencer := sequencing.NewSequencer(driverCtx, log, cfg, attrBuilder, findL1Origin,
 			sequencerStateListener, sequencerConductor, asyncGossiper, ec, metrics)
-		sys.Register("sequencer", sequencer)
+		sys.Register("sequencer", concreteSequencer)
 
 		// Wire up the Sequencer to use the EngDeriver for block building and sealing
-		sequencer.SetBuildStarter(engDeriver)
-		sequencer.SetBuildSealer(engDeriver)
+		concreteSequencer.SetBuildStarter(engDeriver)
+		concreteSequencer.SetBuildSealer(engDeriver)
+
+		sequencer = concreteSequencer
 	} else {
 		sequencer = sequencing.DisabledSequencer{}
 	}

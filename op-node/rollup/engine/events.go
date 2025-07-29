@@ -40,21 +40,7 @@ func (ev ForkchoiceUpdateEvent) String() string {
 	return "forkchoice-update"
 }
 
-// PromoteUnsafeEvent signals that the given block may now become a canonical unsafe block.
-// This is pre-forkchoice update; the change may not be reflected yet in the EL.
-// Note that the legacy pre-event-refactor code-path (processing P2P blocks) does fire this,
-// but manually, duplicate with the newer events processing code-path.
-// See EngineController.InsertUnsafePayload.
-type PromoteUnsafeEvent struct {
-	Ref eth.L2BlockRef
-}
-
-func (ev PromoteUnsafeEvent) String() string {
-	return "promote-unsafe"
-}
-
-// UnsafeUpdateEvent signals that the given block is now considered safe.
-// This is pre-forkchoice update; the change may not be reflected yet in the EL.
+// UnsafeUpdateEvent signals that the given block is now considered unsafe.
 type UnsafeUpdateEvent struct {
 	Ref eth.L2BlockRef
 }
@@ -391,13 +377,6 @@ func (d *EngDeriver) OnEvent(ctx context.Context, ev event.Event) bool {
 			"cross_safe", v.CrossSafe,
 			"finalized", v.Finalized,
 		)
-	case PromoteUnsafeEvent:
-		// Backup unsafeHead when new block is not built on original unsafe head.
-		if d.ec.unsafeHead.Number >= x.Ref.Number {
-			d.ec.SetBackupUnsafeL2Head(d.ec.unsafeHead, false)
-		}
-		d.ec.SetUnsafeHead(x.Ref)
-		d.emitter.Emit(ctx, UnsafeUpdateEvent(x))
 	case UnsafeUpdateEvent:
 		// pre-interop everything that is local-unsafe is also immediately cross-unsafe.
 		if !d.cfg.IsInterop(x.Ref.Time) {

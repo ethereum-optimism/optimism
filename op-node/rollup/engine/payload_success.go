@@ -47,7 +47,7 @@ func (eq *EngDeriver) onPayloadSuccess(ctx context.Context, ev PayloadSuccessEve
 		return
 	}
 
-	eq.emitter.Emit(ctx, PromoteUnsafeEvent{Ref: ev.Ref})
+	eq.ec.PromoteUnsafe(ctx, ev.Ref, eq.emitter)
 
 	// If derived from L1, then it can be considered (pending) safe
 	if ev.DerivedFrom != (eth.L1BlockRef{}) {

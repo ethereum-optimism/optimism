@@ -364,6 +364,17 @@ func (e *EngineController) SetBackupUnsafeL2Head(r eth.L2BlockRef, triggerReorg 
 	e.needFCUCallForBackupUnsafeReorg = triggerReorg
 }
 
+// PromoteUnsafe promotes a block to unsafe head, backing up the current unsafe head if needed.
+// This replaces the PromoteUnsafeEvent -> UnsafeUpdateEvent pattern with a direct function call.
+func (e *EngineController) PromoteUnsafe(ctx context.Context, ref eth.L2BlockRef, emitter event.Emitter) {
+	// Backup unsafeHead when new block is not built on original unsafe head.
+	if e.unsafeHead.Number >= ref.Number {
+		e.SetBackupUnsafeL2Head(e.unsafeHead, false)
+	}
+	e.SetUnsafeHead(ref)
+	emitter.Emit(ctx, UnsafeUpdateEvent{Ref: ref})
+}
+
 // logSyncProgressMaybe helps log forkchoice state-changes when applicable.
 // First, the pre-state is registered.
 // A callback is returned to then log the changes to the pre-state, if any.
