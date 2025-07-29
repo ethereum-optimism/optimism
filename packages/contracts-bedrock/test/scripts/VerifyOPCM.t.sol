@@ -259,6 +259,20 @@ contract VerifyOPCM_Run_Test is VerifyOPCM_TestInit {
         assertTrue(result, "OPCM immutable variables should be valid");
     }
 
+    /// @notice Mocks a call to the OPCM contract and verifies validation fails.
+    /// @param _selector The function selector for the OPCM contract method to mock.
+    function _assertOnOpcmGetter(bytes4 _selector) internal {
+        bytes memory callData = abi.encodePacked(_selector);
+        vm.mockCall(address(opcm), callData, abi.encode(address(0x8888)));
+
+        // Verify that immutable variables fail validation
+        bool result = harness.verifyOpcmImmutableVariables(opcm);
+        assertFalse(result, "OPCM with invalid immutable variables should fail verification");
+
+        // Clear mock calls and restore original environment variables to avoid test isolation issues
+        vm.clearMockedCalls();
+    }
+
     /// @notice Tests that the script fails when OPCM immutable variables are invalid.
     /// We test this by setting expected addresses and mocking OPCM methods to return different addresses.
     function test_verifyOpcmImmutableVariables_mismatch_fails() public {
@@ -276,26 +290,12 @@ contract VerifyOPCM_Run_Test is VerifyOPCM_TestInit {
         vm.setEnv("EXPECTED_SUPERCHAIN_PROXY_ADMIN", vm.toString(expectedSuperchainProxyAdmin));
         vm.setEnv("EXPECTED_UPGRADE_CONTROLLER", vm.toString(expectedUpgradeController));
 
-        // Mock all OPCM methods to return different addresses (causing mismatch)
-        vm.mockCall(
-            address(opcm), abi.encodeCall(IOPContractsManager.superchainConfig, ()), abi.encode(address(0x5555))
-        );
-        vm.mockCall(
-            address(opcm), abi.encodeCall(IOPContractsManager.protocolVersions, ()), abi.encode(address(0x6666))
-        );
-        vm.mockCall(
-            address(opcm), abi.encodeCall(IOPContractsManager.superchainProxyAdmin, ()), abi.encode(address(0x7777))
-        );
-        vm.mockCall(
-            address(opcm), abi.encodeCall(IOPContractsManager.upgradeController, ()), abi.encode(address(0x8888))
-        );
+        // Test that mocking each individual getter causes verification to fail
+        _assertOnOpcmGetter(IOPContractsManager.superchainConfig.selector);
+        _assertOnOpcmGetter(IOPContractsManager.protocolVersions.selector);
+        _assertOnOpcmGetter(IOPContractsManager.superchainProxyAdmin.selector);
+        _assertOnOpcmGetter(IOPContractsManager.upgradeController.selector);
 
-        // Verify that immutable variables fail validation
-        bool result = harness.verifyOpcmImmutableVariables(opcm);
-        assertFalse(result, "OPCM with invalid immutable variables should fail verification");
-
-        // Clear mock calls and restore original environment variables to avoid test isolation issues
-        vm.clearMockedCalls();
         // Reset environment variables to correct values (as set in setUp())
         setupEnvVars();
     }
