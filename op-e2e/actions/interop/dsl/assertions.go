@@ -242,7 +242,7 @@ type updateExpectedConfig struct {
 	finalizedAssertion   SyncStatusAssertion
 }
 
-// WitUnsafeAdvancesTo returns an assertionOption that checks the next UnsafeL2.Number equals the expected value.
+// WithUnsafeAdvancesTo returns an assertionOption that checks the next UnsafeL2.Number equals the expected value.
 func WithUnsafeAdvancesTo(expectedUnsafeNumber uint64) func(cfg *updateExpectedConfig) {
 	return func(cfg *updateExpectedConfig) {
 		cfg.unsafeBlockAssertion = func(t assert.TestingT, prevSyncStatus, nextSyncStatus *eth.SyncStatus) bool {
@@ -296,7 +296,7 @@ func WithCrossUnsafeEquals(expectedCrossUnsafeNumber uint64) func(cfg *updateExp
 	}
 }
 
-// WithLocalSafeAdvancesToUnsafe returns an assertionOption asserting that LocalSafe advances to the Unsafe block ID.
+// WithLocalSafeAdvancesTo returns an assertionOption asserting that LocalSafe advances to the Unsafe block ID.
 func WithLocalSafeAdvancesTo(expectedLocalSafeNumber uint64) func(cfg *updateExpectedConfig) {
 	return func(cfg *updateExpectedConfig) {
 		cfg.localSafeAssertion = func(t assert.TestingT, prevSyncStatus, nextSyncStatus *eth.SyncStatus) bool {
@@ -324,7 +324,7 @@ func WithLocalSafeEquals(expectedLocalSafeNumber uint64) func(cfg *updateExpecte
 	}
 }
 
-// WithSafeAdvancesToUnsafe returns an assertionOption asserting that Safe advances to the Unsafe block ID.
+// WithSafeAdvancesTo returns an assertionOption asserting that Safe advances to the Unsafe block ID.
 func WithSafeAdvancesTo(expectedSafeNumber uint64) func(cfg *updateExpectedConfig) {
 	return func(cfg *updateExpectedConfig) {
 		cfg.safeAssertion = func(t assert.TestingT, prevSyncStatus, nextSyncStatus *eth.SyncStatus) bool {
@@ -351,7 +351,7 @@ func WithSafeEquals(expectedSafeNumber uint64) func(cfg *updateExpectedConfig) {
 	}
 }
 
-// WithFinalizedAdvancesToUnsafe returns an assertionOption asserting that Finalized advances to the Unsafe block ID.
+// WithFinalizedAdvancesTo returns an assertionOption asserting that Finalized advances to the Unsafe block ID.
 func WithFinalizedAdvancesTo(expectedFinalizedNumber uint64) func(cfg *updateExpectedConfig) {
 	return func(cfg *updateExpectedConfig) {
 		cfg.finalizedAssertion = func(t assert.TestingT, prevSyncStatus, nextSyncStatus *eth.SyncStatus) bool {
