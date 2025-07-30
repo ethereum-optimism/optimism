@@ -1,0 +1,36 @@
+service: alchemy-pay-url-generator
+
+provider:
+  name: aws
+  runtime: python3.9
+  stage: ${opt:stage, 'dev'}
+  region: ${opt:region, 'us-east-1'}
+  environment: ${file(env-${self:provider.stage}.yml)}
+
+functions:
+  generateUrl:
+    handler: src/handler.generate_signed_url
+    events:
+      - http:
+          path: generate_alchemypay_url
+          method: post
+          cors: true
+    timeout: 30
+
+plugins:
+  - serverless-python-requirements
+  - serverless-offline
+
+package:
+  patterns:
+    - '!./**'
+    - 'src/**'
+    - 'requirements.txt'
+
+custom:
+  pythonRequirements:
+    layer:
+      name: python-deps
+      description: Python dependencies for Alchemy Pay URL Generator
+  serverless-offline:
+    httpPort: 3000
