@@ -19,6 +19,7 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/trie"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -692,56 +693,59 @@ func newBlock(parent *eth.BlockID) *types.Block {
 }
 
 func TestChannelManagerUnsafeBytes(t *testing.T) {
-	cfg := newFakeDynamicEthChannelConfig(log.New(), time.Second)
-	cfg.chooseBlobs = true
-	manager := NewChannelManager(log.New(), metrics.NoopMetrics, cfg, defaultTestRollupConfig)
 
-	block := newBlock(&eth.BlockID{})
-	require.NoError(t, manager.AddL2Block(block))
-
-	getDASize := func(block *types.Block) int64 {
-		daSize, _ := metrics.EstimateBatchSize(block)
-		return int64(daSize)
-	}
-	cumulativeEstimate := getDASize(block)
-	require.Equal(t, cumulativeEstimate, manager.UnsafeDABytes())
-
-	_, err := manager.TxData(eth.BlockID{
-		Hash:   common.Hash{},
-		Number: 0,
-	}, true, false)
-	require.ErrorIs(t, err, io.EOF)
-
-	// The block was "moved" into a channel,
-	// so the manager should now report a lower
-	// value for UnsafeDABytes.
-	require.Less(t, manager.UnsafeDABytes(), cumulativeEstimate)
-	require.Equal(t, int64(733), cumulativeEstimate)
-	require.Equal(t, int64(7), manager.UnsafeDABytes())
-
-	l1BlockID := eth.BlockID{
-		Number: 1,
+	type testCase struct {
+		name                          string
+		blocks                        []*types.Block
+		afterAddingToUnsafeBlockQueue int64
+		afterAddingToChannel          int64
+		afterSealingChannel           int64
 	}
 
-	// Add blocks until we get a frame to submit,
-	// meaning we now have the exact DA bytes
-	// for the blocks in the channel.
-	numBlocks := 0
-	for {
-		block = newBlock(ptr(eth.HeaderBlockID(block.Header())))
-		require.NoError(t, manager.AddL2Block(block))
-		cumulativeEstimate += getDASize(block)
-		numBlocks++
-		_, err := manager.TxData(l1BlockID, true, false)
-		if errors.Is(err, io.EOF) {
-			continue
-		}
-		require.NoError(t, err)
-		break
+	for _, tc := range []testCase{
+		{
+			"Single block",
+			[]*types.Block{newBlock(&eth.BlockID{})},
+			733, 7, 1054,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			cfg := newFakeDynamicEthChannelConfig(log.New(), time.Second)
+			cfg.chooseBlobs = true
+			manager := NewChannelManager(log.New(), metrics.NoopMetrics, cfg, defaultTestRollupConfig)
+
+			for _, block := range tc.blocks {
+				require.NoError(t, manager.AddL2Block(block))
+			}
+
+			assert.Equal(t, tc.afterAddingToUnsafeBlockQueue, manager.UnsafeDABytes())
+			assert.Equal(t, tc.afterAddingToUnsafeBlockQueue, manager.unsafeBytesInPendingBlocks())
+			assert.Equal(t, int64(0), manager.unsafeBytesInOpenChannels())
+			assert.Equal(t, int64(0), manager.unsafeBytesInClosedChannels())
+
+			for err := error(nil); err != io.EOF; {
+				require.NoError(t, err)
+				_, err = manager.TxData(eth.BlockID{
+					Hash:   common.Hash{},
+					Number: 0,
+				}, true, false)
+			}
+
+			assert.Equal(t, tc.afterAddingToChannel, manager.UnsafeDABytes())
+			assert.Equal(t, int64(0), manager.unsafeBytesInPendingBlocks())
+			assert.Equal(t, tc.afterAddingToChannel, manager.unsafeBytesInOpenChannels())
+			assert.Equal(t, int64(0), manager.unsafeBytesInClosedChannels())
+
+			manager.currentChannel.Close()
+			err := manager.currentChannel.OutputFrames()
+			require.NoError(t, err)
+
+			assert.Equal(t, tc.afterSealingChannel, manager.UnsafeDABytes())
+			assert.Equal(t, int64(0), manager.unsafeBytesInPendingBlocks())
+			assert.Equal(t, int64(0), manager.unsafeBytesInOpenChannels())
+			assert.Equal(t, tc.afterSealingChannel, manager.unsafeBytesInClosedChannels())
+		})
 	}
-	require.Equal(t, 188, numBlocks)
-	require.Equal(t, int64(311_170), cumulativeEstimate)
-	require.Equal(t, int64(390_129), manager.UnsafeDABytes())
 }
 
 func ptr[T any](x T) *T {
