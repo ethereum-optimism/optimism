@@ -50,6 +50,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-e2e/config/secrets"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/batcher"
+	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/blobstore"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/fakebeacon"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/geth"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/opnode"
@@ -730,7 +731,7 @@ func (cfg SystemConfig) Start(t *testing.T, startOpts ...StartOption) (*System, 
 
 	// Create a fake Beacon node to hold on to blobs created by the L1 miner, and to serve them to L2
 	bcn := fakebeacon.NewBeacon(testlog.Logger(t, log.LevelInfo).New("role", "l1_cl"),
-		e2eutils.NewBlobStore(), l1Genesis.Timestamp, cfg.DeployConfig.L1BlockTime)
+		blobstore.New(), l1Genesis.Timestamp, cfg.DeployConfig.L1BlockTime)
 	t.Cleanup(func() {
 		_ = bcn.Close()
 	})

@@ -18,7 +18,7 @@ import (
 	"github.com/ethereum/go-ethereum/trie"
 	"github.com/ethereum/go-ethereum/triedb"
 
-	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils"
+	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/blobstore"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
 
@@ -26,7 +26,7 @@ import (
 type L1Miner struct {
 	L1Replica
 
-	blobStore *e2eutils.BlobsStore
+	blobStore *blobstore.Store
 
 	// L1 block building preferences
 	prefCoinbase common.Address
@@ -49,7 +49,7 @@ func NewL1Miner(t Testing, log log.Logger, genesis *core.Genesis) *L1Miner {
 	rep := NewL1Replica(t, log, genesis)
 	return &L1Miner{
 		L1Replica: *rep,
-		blobStore: e2eutils.NewBlobStore(),
+		blobStore: blobstore.New(),
 	}
 }
 
@@ -57,7 +57,7 @@ func (s *L1Miner) BlobSource() prefetcher.L1BlobSource {
 	return s.blobStore
 }
 
-func (s *L1Miner) BlobStore() *e2eutils.BlobsStore {
+func (s *L1Miner) BlobStore() *blobstore.Store {
 	return s.blobStore
 }
 

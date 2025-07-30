@@ -29,7 +29,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-chain-ops/devkeys"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/foundry"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/interopgen"
-	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils"
+	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/blobstore"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/contracts/bindings/emit"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/contracts/bindings/inbox"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/fakebeacon"
@@ -201,7 +201,7 @@ func (s *interopE2ESystem) prepareL1() (*fakebeacon.FakeBeacon, *geth.GethInstan
 	blockTimeL1 := uint64(6)
 	blobPath := s.t.TempDir()
 	bcn := fakebeacon.NewBeacon(s.logger.New("role", "l1_cl"),
-		e2eutils.NewBlobStore(), genesisTimestampL1, blockTimeL1)
+		blobstore.New(), genesisTimestampL1, blockTimeL1)
 	s.t.Cleanup(func() {
 		_ = bcn.Close()
 	})
