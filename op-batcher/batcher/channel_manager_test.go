@@ -673,7 +673,12 @@ func TestChannelManager_ChannelOutFactory(t *testing.T) {
 }
 
 func newBlock(parent *eth.BlockID) *types.Block {
-	rng := rand.New(rand.NewSource(int64(parent.Number)))
+	var rng *rand.Rand
+	if parent == nil {
+		rng = rand.New(rand.NewSource(123))
+	} else {
+		rng = rand.New(rand.NewSource(int64(parent.Number)))
+	}
 	block, receipts := derivetest.RandomL2Block(rng, 3, time.Now())
 	header := block.Header()
 	if parent == nil {
