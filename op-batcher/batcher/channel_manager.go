@@ -277,13 +277,11 @@ func (s *channelManager) TxData(l1Head eth.BlockID, isPectra, isThrottling, forc
 // generate frames for them.
 func (s *channelManager) getReadyChannel(l1Head eth.BlockID, forcePublish bool) (*channel, error) {
 
-	if forcePublish {
-		s.log.Info("Force-publishing channel", "channel_id", s.currentChannel.ID())
+	if forcePublish && s.currentChannel.TotalFrames() == 0 {
+		s.log.Info("Force-closing channel and creating frames", "channel_id", s.currentChannel.ID())
 		s.currentChannel.Close()
-		if s.currentChannel.TotalFrames() == 0 {
-			if err := s.currentChannel.OutputFrames(); err != nil {
-				return nil, err
-			}
+		if err := s.currentChannel.OutputFrames(); err != nil {
+			return nil, err
 		}
 	}
 
