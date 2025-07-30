@@ -110,3 +110,9 @@ curl -X POST http://localhost:3000/dev/generate \
     "redirectUrl": "https://your-redirect.com"
   }'
 ```
+
+
+```
+curl -X POST http://localhost:3000/mainnet/generate_alchemypay_url -H "Content-Type: application/json" -d '{}'
+```
+

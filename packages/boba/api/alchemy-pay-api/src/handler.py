@@ -41,7 +41,7 @@ def generate_signed_url(event, context):
 
         # Default parameters
         default_params = {
-            'crypto': 'USDT',
+            'crypto': 'BOBA',
             'fiat': 'USD',
             'network': 'ETH',
             'merchantOrderNo': str(int(time.time() * 1000)) + str(hash(time.time()))[:8],

@@ -1,4 +1,4 @@
 APP_ID: "your-app-id"
 SECRET_KEY: "your-secret-key"
-BASE_URL: "https://ramptest.alchemypay.org"
+BASE_URL: "https://ramptest.alchemypay.org/"
 STAGE: "dev"
