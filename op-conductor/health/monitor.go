@@ -61,7 +61,7 @@ func NewSequencerHealthMonitor(log log.Logger, metrics metrics.Metricer, interva
 		hm.elP2p = &ElP2pHealthMonitor{
 			log:          log,
 			minPeerCount: minElP2pPeers,
-			elP2p:        elP2pClient,
+			elP2pClient:  elP2pClient,
 		}
 	}
 
@@ -71,7 +71,7 @@ func NewSequencerHealthMonitor(log log.Logger, metrics metrics.Metricer, interva
 type ElP2pHealthMonitor struct {
 	log          log.Logger
 	minPeerCount uint64
-	elP2p        client.ElP2PClient
+	elP2pClient  client.ElP2PClient
 }
 
 // SequencerHealthMonitor monitors sequencer health.
@@ -182,7 +182,7 @@ func (hm *SequencerHealthMonitor) healthCheck(ctx context.Context) error {
 }
 
 func (hm *ElP2pHealthMonitor) checkElP2p(ctx context.Context) error {
-	peerCount, err := hm.elP2p.PeerCount(ctx)
+	peerCount, err := hm.elP2pClient.PeerCount(ctx)
 	if err != nil {
 		return err
 	}

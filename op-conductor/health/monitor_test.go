@@ -62,7 +62,6 @@ func (s *HealthMonitorTestSuite) SetupMonitor(
 	mockSupervisorHealthAPI SupervisorHealthAPI,
 	elP2pClient client.ElP2PClient,
 ) *SequencerHealthMonitor {
-	s.SetupSuite()
 	tp := &timeProvider{now: now}
 	if mockP2P == nil {
 		mockP2P = &p2pMocks.API{}
@@ -90,7 +89,7 @@ func (s *HealthMonitorTestSuite) SetupMonitor(
 		monitor.elP2p = &ElP2pHealthMonitor{
 			log:          s.log,
 			minPeerCount: s.minElP2pPeerCount,
-			elP2p:        elP2pClient,
+			elP2pClient:  elP2pClient,
 		}
 	}
 	err := monitor.Start(context.Background())
@@ -106,7 +105,6 @@ func (s *HealthMonitorTestSuite) SetupMonitorWithRollupBoost(
 	mockRollupBoost *clientmocks.RollupBoostClient,
 	elP2pClient client.ElP2PClient,
 ) *SequencerHealthMonitor {
-	s.SetupSuite()
 	tp := &timeProvider{now: now}
 	if mockP2P == nil {
 		mockP2P = &p2pMocks.API{}
@@ -128,13 +126,15 @@ func (s *HealthMonitorTestSuite) SetupMonitorWithRollupBoost(
 		timeProviderFn: tp.Now,
 		node:           mockRollupClient,
 		p2p:            mockP2P,
-		rb:             mockRollupBoost,
+	}
+	if mockRollupBoost != nil {
+		monitor.rb = mockRollupBoost
 	}
 	if elP2pClient != nil {
 		monitor.elP2p = &ElP2pHealthMonitor{
 			log:          s.log,
 			minPeerCount: s.minElP2pPeerCount,
-			elP2p:        elP2pClient,
+			elP2pClient:  elP2pClient,
 		}
 	}
 	err := monitor.Start(context.Background())
@@ -205,7 +205,7 @@ func (s *HealthMonitorTestSuite) TestUnhealthyUnsafeHeadNotProgressing() {
 	}
 
 	elP2pClient := &clientmocks.ElP2PClient{}
-	elP2pClient.EXPECT().PeerCount(mock.Anything).Return(healthyElP2pPeerCount, nil).Times(1)
+	elP2pClient.EXPECT().PeerCount(mock.Anything).Return(healthyElP2pPeerCount, nil)
 
 	monitor := s.SetupMonitor(now, uint64(unsafeBlocksInterval), 60, rc, nil, nil, elP2pClient)
 	healthUpdateCh := monitor.Subscribe()
@@ -264,7 +264,7 @@ func (s *HealthMonitorTestSuite) TestHealthyWithUnsafeLag() {
 	now := uint64(time.Now().Unix())
 
 	elP2pClient := &clientmocks.ElP2PClient{}
-	elP2pClient.EXPECT().PeerCount(mock.Anything).Return(healthyElP2pPeerCount, nil).Times(1)
+	elP2pClient.EXPECT().PeerCount(mock.Anything).Return(healthyElP2pPeerCount, nil)
 
 	rc := &testutils.MockRollupClient{}
 	// although unsafe has lag of 20 seconds, it's within the configured unsafe interval
@@ -536,6 +536,11 @@ func (s *HealthMonitorTestSuite) TestElP2pHealthy() {
 		rc.ExpectSyncStatus(ss1, nil)
 	}
 
+	// Setup healthy rollup boost
+	rb := &clientmocks.RollupBoostClient{}
+	// // Wait for longer than healthcheck interval before returning healthy status, to verify nothing breaks if rb is slow to respond
+	rb.EXPECT().Healthcheck(mock.Anything).After(time.Duration(numSecondsToWait)*time.Second).Return(client.HealthStatusHealthy, nil)
+
 	// Setup healthy peer count
 	pc := &p2pMocks.API{}
 	ps1 := &p2p.PeerStats{
@@ -545,10 +550,10 @@ func (s *HealthMonitorTestSuite) TestElP2pHealthy() {
 
 	// Setup healthy el p2p
 	elP2pClient := &clientmocks.ElP2PClient{}
-	elP2pClient.EXPECT().PeerCount(mock.Anything).Return(healthyElP2pPeerCount, nil).Times(1)
+	elP2pClient.EXPECT().PeerCount(mock.Anything).Return(healthyElP2pPeerCount, nil)
 
 	// Start monitor with all dependencies
-	monitor := s.SetupMonitorWithRollupBoost(now, 60, 60, rc, pc, nil, elP2pClient)
+	monitor := s.SetupMonitorWithRollupBoost(now, 60, 60, rc, pc, rb, elP2pClient)
 
 	// Should report healthy status
 	healthUpdateCh := monitor.Subscribe()
@@ -577,9 +582,6 @@ func (s *HealthMonitorTestSuite) TestElP2pHealthyNilClient() {
 		Connected: healthyPeerCount,
 	}
 	pc.EXPECT().PeerStats(mock.Anything).Return(ps1, nil)
-
-	elP2pClient := &clientmocks.ElP2PClient{}
-	elP2pClient.EXPECT().PeerCount(mock.Anything).Return(healthyElP2pPeerCount, nil).Times(0)
 
 	// Start monitor with all dependencies
 	monitor := s.SetupMonitorWithRollupBoost(now, 60, 60, rc, pc, nil, nil)
