@@ -159,15 +159,20 @@ var (
 		Value:   8546,
 	}
 	ElP2pChecksEnabled = &cli.BoolFlag{
-		Name:    "el-p2p-checks-enabled",
+		Name:    "el-p2p-check-enabled",
 		Usage:   "Whether to enable EL P2P checks",
-		EnvVars: opservice.PrefixEnvVar(EnvVarPrefix, "EL_P2P_CHECKS_ENABLED"),
+		EnvVars: opservice.PrefixEnvVar(EnvVarPrefix, "EL_P2P_CHECK_ENABLED"),
 		Value:   false,
 	}
 	MinElP2pPeers = &cli.Uint64Flag{
-		Name:    "el-p2p-checks-min-peers",
+		Name:    "el-p2p-min-peers",
 		Usage:   "Minimum number of EL P2P peers required to be considered healthy",
-		EnvVars: opservice.PrefixEnvVar(EnvVarPrefix, "EL_P2P_CHECKS_MIN_PEERS"),
+		EnvVars: opservice.PrefixEnvVar(EnvVarPrefix, "EL_P2P_MIN_PEERS"),
+	}
+	ElP2pRPCUrl = &cli.StringFlag{
+		Name:    "el-p2p-rpc-url",
+		Usage:   "URL for the execution layer RPC client",
+		EnvVars: opservice.PrefixEnvVar(EnvVarPrefix, "EL_P2P_RPC_URL"),
 	}
 )
 
@@ -200,6 +205,7 @@ var optionalFlags = []cli.Flag{
 	RollupBoostHealthcheckTimeout,
 	ElP2pChecksEnabled,
 	MinElP2pPeers,
+	ElP2pRPCUrl,
 }
 
 func init() {

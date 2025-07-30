@@ -174,6 +174,7 @@ func NewConfig(ctx *cli.Context, log log.Logger) (*Config, error) {
 			MinPeerCount:       ctx.Uint64(flags.HealthCheckMinPeerCount.Name),
 			ElP2pChecksEnabled: ctx.Bool(flags.ElP2pChecksEnabled.Name),
 			MinElP2pPeers:      ctx.Uint64(flags.MinElP2pPeers.Name),
+			ElP2pRPCUrl:        ctx.String(flags.ElP2pRPCUrl.Name),
 		},
 		RollupCfg:           *rollupCfg,
 		RPCEnableProxy:      ctx.Bool(flags.RPCEnableProxy.Name),
