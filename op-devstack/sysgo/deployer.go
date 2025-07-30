@@ -167,6 +167,13 @@ var (
 	millionEth = new(uint256.Int).Mul(uint256.NewInt(1e6), oneEth)
 )
 
+func WithEmbeddedContractSources() DeployerOption {
+	return func(_ devtest.P, _ devkeys.Keys, builder intentbuilder.Builder) {
+		builder.WithL1ContractsLocator(artifacts.EmbeddedLocator)
+		builder.WithL2ContractsLocator(artifacts.EmbeddedLocator)
+	}
+}
+
 func WithLocalContractSources() DeployerOption {
 	return func(p devtest.P, keys devkeys.Keys, builder intentbuilder.Builder) {
 		paths, err := contractPaths()
