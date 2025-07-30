@@ -1,12 +1,10 @@
 package metrics
 
 import (
-	"math/big"
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-batcher/config"
 	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
-	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/stretchr/testify/require"
 )
 
@@ -52,16 +50,4 @@ func TestThrottleMetrics(t *testing.T) {
 		"type": string(config.QuadraticControllerType),
 	})
 	require.Equal(t, 37.4, record.Gauge.GetValue())
-}
-
-func TestEstimateBatchSize(t *testing.T) {
-	block := &types.Block{
-		Transactions: []*types.Transaction{
-			{
-				RollupCostData: &types.RollupCostData{
-					EstimatedDASize: big.NewInt(100),
-				},
-			},
-		},
-	}
 }
