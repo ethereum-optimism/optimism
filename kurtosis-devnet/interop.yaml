@@ -1,3 +1,4 @@
+{{- $context := or . (dict) }}
 {{- $local_images := dict
   "op_node" (localDockerImage "op-node")
   "op_batcher" (localDockerImage "op-batcher")
@@ -32,7 +33,7 @@ optimism_package:
   chains:
     - participants:
       - el_type: op-geth
-        el_image: ""
+        el_image: {{ dig "overrides" "images" "op-geth" "" $context }}
         el_log_level: ""
         el_extra_env_vars: {}
         el_extra_labels: {}
@@ -86,7 +87,7 @@ optimism_package:
       additional_services: []
     - participants:
       - el_type: op-geth
-        el_image: ""
+        el_image: {{ dig "overrides" "images" "op-geth" "" $context }}
         el_log_level: ""
         el_extra_env_vars: {}
         el_extra_labels: {}

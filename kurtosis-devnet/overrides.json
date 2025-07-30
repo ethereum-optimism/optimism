@@ -1,0 +1,7 @@
+{
+  "overrides": {
+    "images": {
+      "op-geth": "us-docker.pkg.dev/oplabs-tools-artifacts/images/op-geth:v1.101511.1-dev.1"
+    }
+  }
+}
