@@ -33,9 +33,8 @@ func DialEthClientWithTimeout(ctx context.Context, timeout time.Duration, log lo
 	return ethclient.NewClient(c), nil
 }
 
-// DialRollupClientWithTimeout attempts to dial the RPC provider using the provided URL.
-// The timeout and retry logic is handled internally by the client.
-func DialRollupClientWithTimeout(ctx context.Context, log log.Logger, url string, callerOpts ...client.RPCOption) (*sources.RollupClient, error) {
+// dialClientWithTimeout dials an RPC client with a timeout.
+func dialClientWithTimeout(ctx context.Context, log log.Logger, url string, callerOpts ...client.RPCOption) (client.RPC, error) {
 	opts := []client.RPCOption{
 		client.WithFixedDialBackoff(defaultRetryTime),
 		client.WithDialAttempts(defaultRetryCount),
@@ -43,12 +42,27 @@ func DialRollupClientWithTimeout(ctx context.Context, log log.Logger, url string
 	}
 	opts = append(opts, callerOpts...)
 
-	rpcCl, err := client.NewRPC(ctx, log, url, opts...)
+	return client.NewRPC(ctx, log, url, opts...)
+}
+
+// DialRollupClientWithTimeout attempts to dial the RPC provider using the provided URL.
+// The timeout and retry logic is handled internally by the client.
+func DialRollupClientWithTimeout(ctx context.Context, log log.Logger, url string, callerOpts ...client.RPCOption) (*sources.RollupClient, error) {
+	rpcCl, err := dialClientWithTimeout(ctx, log, url, callerOpts...)
 	if err != nil {
 		return nil, err
 	}
 
 	return sources.NewRollupClient(rpcCl), nil
+}
+
+func DialSupervisorClientWithTimeout(ctx context.Context, log log.Logger, url string, callerOpts ...client.RPCOption) (*sources.SupervisorClient, error) {
+	rpcCl, err := dialClientWithTimeout(ctx, log, url, callerOpts...)
+	if err != nil {
+		return nil, err
+	}
+
+	return sources.NewSupervisorClient(rpcCl), nil
 }
 
 // DialRPCClientWithTimeout attempts to dial the RPC provider using the provided URL.
