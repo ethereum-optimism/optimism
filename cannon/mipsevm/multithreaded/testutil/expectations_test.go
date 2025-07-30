@@ -135,9 +135,9 @@ func findInactiveThread(e *ExpectedState) *ExpectedThreadState {
 
 func TestValidate_shouldPassUnchangedExpectations(t *testing.T) {
 	states := []*multithreaded.State{
-		RandomState(0),
-		RandomState(1),
-		RandomState(2),
+		RandomState(10),
+		RandomState(11),
+		RandomState(12),
 	}
 
 	for i, state := range states {
