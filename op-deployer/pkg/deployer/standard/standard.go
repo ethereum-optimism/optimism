@@ -3,7 +3,9 @@ package standard
 import (
 	"embed"
 	"fmt"
+	"maps"
 	"net/url"
+	"slices"
 
 	"github.com/ethereum/go-ethereum/common/hexutil"
 
@@ -92,11 +94,7 @@ var taggedReleases = map[string]TaggedRelease{
 }
 
 func AllTags() []string {
-	allTags := make([]string, 0, len(taggedReleases))
-	for tag := range taggedReleases {
-		allTags = append(allTags, tag)
-	}
-	return allTags
+	return slices.Collect(maps.Keys(taggedReleases))
 }
 
 var _ embed.FS
