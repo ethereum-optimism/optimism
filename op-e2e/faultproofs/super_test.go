@@ -238,9 +238,6 @@ func TestSuperCannonStepWithPreimage_nonExistingPreimage(t *testing.T) {
 	}
 
 	RunTestsAcrossVmTypes(t, preimageConditions, func(t *testing.T, allocType config.AllocType, preimageType string) {
-		if preimageType == "blob" || preimageType == "sha256" {
-			t.Skip("TODO(#15311): Add blob preimage test case. sha256 is also used for blobs")
-		}
 		testSuperPreimageStep(t, utils.FirstPreimageLoadOfType(preimageType), false, allocType)
 	}, WithNextVMOnly[string](), WithTestName(testName))
 }
@@ -254,22 +251,28 @@ func TestSuperCannonStepWithPreimage_existingPreimage(t *testing.T) {
 
 func testSuperPreimageStep(t *testing.T, preimageType utils.PreimageOpt, preloadPreimage bool, allocType config.AllocType) {
 	ctx := context.Background()
-	sys, disputeGameFactory, _ := StartInteropFaultDisputeSystem(t, WithAllocType(allocType))
+	sys, disputeGameFactory, _ := StartInteropFaultDisputeSystem(t, WithBlobBatches(), WithAllocType(allocType))
 
 	status, err := sys.SupervisorClient().SyncStatus(ctx)
 	require.NoError(t, err)
-	l2Timestamp := status.SafeTimestamp
+	l2Timestamp := status.SafeTimestamp + 40
 
 	game := disputeGameFactory.StartSuperCannonGameWithCorrectRootAtTimestamp(ctx, l2Timestamp)
-	topGameLeaf := game.DisputeLastBlock(ctx)
-	game.LogGameData(ctx)
+	prestate, _, err := game.Game.GetGameRange(ctx)
+	require.NoError(t, err)
+
+	adjustment := prestate % 2 // at 2-second block time boundary
+	indexAtDepth := super.StepsPerTimestamp * (20 + adjustment)
 
 	game.StartChallenger(ctx, "Challenger", challenger.WithPrivKey(aliceKey(t)), challenger.WithDepset(t, sys.DependencySet()))
+	openingMove := game.RootClaim(ctx).Attack(ctx, common.Hash{0x01})
+	topGameLeaf := game.BisectUntilSplitDepth(ctx, openingMove, indexAtDepth)
 
 	// This attack creates a bottom game such that we will be making the last move at the bottom. (see game depth parameters for the super DG)
 	// This presents an opportunity for the challenger to step on our dishonest claim at the bottom.
 	// This assumes the execution game depth is even. But if it is odd, then this test should be set up more like the FDG counter part.
 	topGameLeaf = topGameLeaf.Attack(ctx, common.Hash{0x01})
+	game.LogGameData(ctx)
 
 	// Now the honest challenger is positioned as the defender of the execution game. We then move to challenge it to induce a preimage load
 	preimageLoadCheck := game.CreateStepPreimageLoadCheck(ctx)

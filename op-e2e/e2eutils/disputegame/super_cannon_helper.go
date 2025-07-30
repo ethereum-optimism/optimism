@@ -194,3 +194,20 @@ func (g *SuperCannonGameHelper) createSuperTraceProvider(ctx context.Context) *s
 	require.NoError(g.T, err, "failed to create rollup configs")
 	return super.NewSuperTraceProvider(logger, rollupCfgs, prestateProvider, rootProvider, l1Head, splitDepth, prestateTimestamp, poststateTimestamp)
 }
+
+// BisectUntilSplitDepth bisects the top game towards the specified trace index at split depth.
+// It returns the claim at the split depth.
+func (g *SuperCannonGameHelper) BisectUntilSplitDepth(ctx context.Context, claim *ClaimHelper, targetTraceIndexAtSplitDepth uint64) *ClaimHelper {
+	provider := g.createSuperTraceProvider(ctx)
+	for claim.IsOutputRoot(ctx) && !claim.IsOutputRootLeaf(ctx) {
+		g.LogGameData(ctx)
+		claim = claim.WaitForCounterClaim(ctx)
+		if !claim.IsOutputRoot(ctx) || claim.IsOutputRootLeaf(ctx) {
+			break
+		}
+		g.LogGameData(ctx)
+		claim = topGameTraceBisection(g.t, ctx, claim, g.splitGame.SplitDepth(ctx), targetTraceIndexAtSplitDepth, provider)
+	}
+	g.LogGameData(ctx)
+	return claim
+}
