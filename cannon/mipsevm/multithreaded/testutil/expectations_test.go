@@ -13,9 +13,9 @@ type ExpectationMutator func(e *ExpectedState, st *multithreaded.State)
 
 func TestValidate_shouldCatchMutations(t *testing.T) {
 	states := []*multithreaded.State{
-		RandomState(0),
-		RandomState(1),
-		RandomState(2),
+		randomStateWithMultipleThreads(0),
+		randomStateWithMultipleThreads(1),
+		randomStateWithMultipleThreads(2),
 	}
 	var emptyHash [32]byte
 	someThread := RandomThread(123)
@@ -165,6 +165,15 @@ func TestExpectNewThread_DoesNotInheritChangedExpectations(t *testing.T) {
 
 	// New thread should not carry over changes to the original thread
 	require.Equal(t, origHI, newThread.HI)
+}
+
+func randomStateWithMultipleThreads(seed int64) *multithreaded.State {
+	state := RandomState(int(seed))
+	if state.ThreadCount() == 1 {
+		// Make sure we have at least 2 threads
+		SetupThreads(seed+100, state, state.TraverseRight, 1, 1)
+	}
+	return state
 }
 
 type MockTestingT struct {
