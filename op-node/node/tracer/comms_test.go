@@ -8,7 +8,6 @@ import (
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/stretchr/testify/require"
 
-	"github.com/ethereum-optimism/optimism/op-node/p2p"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/status"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/testutils"
@@ -33,6 +32,7 @@ func (t *testTracer) OnPublishL2Payload(ctx context.Context, payload *eth.Execut
 var _ Tracer = (*testTracer)(nil)
 
 // TestTracer tests that the tracer traces each thing as expected
+// We are removing the event system incrementally, first removing ReceivedBlockEvent
 func TestTracer(t *testing.T) {
 	tr := &testTracer{}
 	d := NewTracerDeriver(tr)
@@ -47,10 +47,6 @@ func TestTracer(t *testing.T) {
 	block := &eth.ExecutionPayloadEnvelope{
 		ExecutionPayload: &eth.ExecutionPayload{
 			BlockHash: id.Hash, BlockNumber: eth.Uint64Quantity(id.Number)}}
-
-	d.OnEvent(context.Background(), p2p.ReceivedBlockEvent{From: "foo", Envelope: block})
-	require.Equal(t, "P2P in: from: foo id: "+id.String()+"\n", tr.got)
-	tr.got = ""
 
 	d.OnEvent(context.Background(), TracePublishBlockEvent{Envelope: block})
 	require.Equal(t, "P2P out: "+id.String()+"\n", tr.got)

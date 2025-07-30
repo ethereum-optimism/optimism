@@ -10,7 +10,6 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
 
-	"github.com/ethereum-optimism/optimism/op-node/p2p"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/clsync"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
@@ -247,8 +246,6 @@ func (s *SyncDeriver) OnEvent(ctx context.Context, ev event.Event) bool {
 		// On "safe" L1 blocks: no step, justified L1 information does not do anything for L2 derivation or status.
 		// On "finalized" L1 blocks: we may be able to mark more L2 data as finalized now.
 		s.Emitter.Emit(ctx, StepReqEvent{})
-	case p2p.ReceivedBlockEvent:
-		s.onIncomingP2PBlock(ctx, x.Envelope)
 	case StepEvent:
 		s.SyncStep()
 	case rollup.ResetEvent:
@@ -281,7 +278,7 @@ func (s *SyncDeriver) OnEvent(ctx context.Context, ev event.Event) bool {
 	return true
 }
 
-func (s *SyncDeriver) onIncomingP2PBlock(ctx context.Context, envelope *eth.ExecutionPayloadEnvelope) {
+func (s *SyncDeriver) OnUnsafeL2Payload(ctx context.Context, envelope *eth.ExecutionPayloadEnvelope) {
 	// If we are doing CL sync or done with engine syncing, fallback to the unsafe payload queue & CL P2P sync.
 	if s.SyncCfg.SyncMode == sync.CLSync || !s.Engine.IsEngineSyncing() {
 		s.Log.Info("Optimistically queueing unsafe L2 execution payload", "id", envelope.ExecutionPayload.ID())
@@ -443,14 +440,6 @@ func (s *Driver) ResetDerivationPipeline(ctx context.Context) error {
 			return nil
 		}
 	}
-}
-
-func (s *Driver) OnUnsafeL2Payload(ctx context.Context, payload *eth.ExecutionPayloadEnvelope) error {
-	s.emitter.Emit(ctx, p2p.ReceivedBlockEvent{
-		From:     "",
-		Envelope: payload,
-	})
-	return nil
 }
 
 func (s *Driver) StartSequencer(ctx context.Context, blockHash common.Hash) error {
