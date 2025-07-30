@@ -33,7 +33,7 @@ Boba has developed a swap-based mechanism to deliver a smooth user experience fo
 
 The users who choose to take advantage of this bridging between L1 and L2 will pay a small convenience fee that is shared among the liquidity providers of the pools backing the swaps. Acting as liquidity providers is just the first of several staking opportunities Boba will roll out to the community. The higher level goal is to encourage broad participation in the operations and governance of Boba. As a tokenized, EVM-compatible L2, Boba is in a position to use the Boba token responsibly for the long-term sustainability of the network.
 
-One of the easiest way to bridge funds from and to Boba is the [Light Bridge](https://gateway.boba.network).
+One of the easiest way to bridge funds from and to Boba is the [Light Bridge](https://hub.boba.network/bridge).
 
 ### How are developers incentivized to build on Boba?
 
@@ -43,13 +43,13 @@ The high gas fees of Ethereum itself is a pretty strong incentive for developers
 
 Many wallets now allow applications to trigger a popup to switch between networks. If your wallet supports this feature, you will be automatically prompted to switch networks when an application wants to use the Boba Ethereum network. You can use these bridges to add the Boba network to your wallet:
 
-\* [Universal gateway](https://gateway.boba.network).
+\* [Universal Boba Hub](https://hub.boba.network).
 
 If your wallet does not support this feature, you will have to connect manually. The exact process for connecting your wallet to a Boba Ethereum network depends on the specific wallet software you are using. To get started on Boba/Ethereum, you can use the available [community RPC endpoint](./addresses/network-eth).
 
 ### How do I move assets into or out of Boba Network?
 
-To move assets into or out of an Optimistic Ethereum network you can use the [**Boba Gateway**](https://gateway.boba.network).
+To move assets into or out of an Optimistic Ethereum network you can use the [**Boba Hub**](https://hub.boba.network).
 
 You can choose any of these two methods: [the **classical bridge**, or the **light bridge**](basics/bridging/light-bridge).
 
