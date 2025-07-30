@@ -32,6 +32,15 @@ log_message() {
 echo "Deploying Alchemy Pay URL Generator service..."
 log_message "$STAGE" "Starting deployment for stage: $STAGE"
 
+create_domain() {
+  log_message "$STAGE" "Creating custom domain (if not already exists)..."
+  if serverless create_domain --stage "$STAGE" 2>&1 | tee -a "$log_file"; then
+    log_message "$STAGE" "Custom domain created or already exists."
+  else
+    log_message "$STAGE" "Custom domain creation failed. It may already exist."
+  fi
+}
+
 case $STAGE in
   "mainnet")
     if [ -z "$MAINNET_SECRET_KEY" ]; then
@@ -77,6 +86,10 @@ case $STAGE in
     # Copy dev environment and deploy
     log_message "dev" "Copying development environment configuration..."
     cp env-dev.yml env.yml
+
+    # Create custom domain
+
+    create_domain
 
     log_message "dev" "Starting serverless deployment..."
     if serverless deploy --stage dev 2>&1 | tee -a "$DEV_LOG"; then

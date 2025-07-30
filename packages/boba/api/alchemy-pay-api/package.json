@@ -12,5 +12,8 @@
     "serverless": "^4.17.2",
     "serverless-offline": "^14.4.0",
     "serverless-python-requirements": "^6.1.2"
+  },
+  "dependencies": {
+    "serverless-domain-manager": "^8.0.0"
   }
 }

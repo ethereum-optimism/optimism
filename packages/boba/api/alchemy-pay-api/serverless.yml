@@ -20,6 +20,7 @@ functions:
 plugins:
   - serverless-python-requirements
   - serverless-offline
+  - serverless-domain-manager
 
 package:
   patterns:
@@ -32,5 +33,15 @@ custom:
     layer:
       name: python-deps
       description: Python dependencies for Alchemy Pay URL Generator
+
   serverless-offline:
     httpPort: 3000
+
+  customDomain:
+    domainName: alchemypay-api.sepolia.boba.network       # 👈 Your subdomain here
+    basePath: ''                      # '' means root path
+    stage: ${self:provider.stage}
+    createRoute53Record: true
+    certificateName: '*.sepolia.boba.network'  # 👈 Must match ACM cert
+    endpointType: REGIONAL
+
