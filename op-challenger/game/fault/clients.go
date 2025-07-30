@@ -7,9 +7,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-challenger/config"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/super"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/utils"
-	"github.com/ethereum-optimism/optimism/op-service/client"
 	"github.com/ethereum-optimism/optimism/op-service/dial"
-	"github.com/ethereum-optimism/optimism/op-service/sources"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/log"
 )
@@ -75,11 +73,10 @@ func (c *clientProvider) RollupClient() (RollupClient, error) {
 }
 
 func (c *clientProvider) SuperchainClients() (super.RootProvider, *super.SyncValidator, error) {
-	cl, err := client.NewRPC(context.Background(), c.logger, c.cfg.SupervisorRPC)
+	supervisorClient, err := dial.DialSupervisorClientWithTimeout(c.ctx, c.logger, c.cfg.SupervisorRPC)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to dial supervisor: %w", err)
 	}
-	supervisorClient := sources.NewSupervisorClient(cl)
 	c.rootProvider = supervisorClient
 	c.toClose = append(c.toClose, supervisorClient.Close)
 	return supervisorClient, super.NewSyncValidator(supervisorClient), nil

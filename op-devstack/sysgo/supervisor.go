@@ -10,12 +10,12 @@ import (
 	"github.com/ethereum-optimism/optimism/op-devstack/shim"
 	"github.com/ethereum-optimism/optimism/op-devstack/stack"
 	"github.com/ethereum-optimism/optimism/op-service/client"
+	"github.com/ethereum-optimism/optimism/op-service/dial"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum-optimism/optimism/op-service/metrics"
 	"github.com/ethereum-optimism/optimism/op-service/oppprof"
 	"github.com/ethereum-optimism/optimism/op-service/retry"
 	oprpc "github.com/ethereum-optimism/optimism/op-service/rpc"
-	"github.com/ethereum-optimism/optimism/op-service/sources"
 	supervisorConfig "github.com/ethereum-optimism/optimism/op-supervisor/config"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/syncnode"
@@ -162,9 +162,8 @@ func WithManagedBySupervisor(l2CLID stack.L2CLNodeID, supervisorID stack.Supervi
 		require.True(ok, "looking for supervisor")
 
 		ctx := orch.P().Ctx()
-		rpcClient, err := client.NewRPC(ctx, orch.P().Logger(), s.userRPC, client.WithLazyDial())
+		supClient, err := dial.DialSupervisorClientWithTimeout(ctx, orch.P().Logger(), s.userRPC, client.WithLazyDial())
 		orch.P().Require().NoError(err)
-		supClient := sources.NewSupervisorClient(rpcClient)
 
 		err = retry.Do0(ctx, 10, retry.Exponential(), func() error {
 			return supClient.AddL2RPC(ctx, interopEndpoint, secret)

@@ -36,7 +36,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/geth"
 	"github.com/ethereum-optimism/optimism/op-e2e/system/helpers"
 	l2os "github.com/ethereum-optimism/optimism/op-proposer/proposer"
-	"github.com/ethereum-optimism/optimism/op-service/client"
 	"github.com/ethereum-optimism/optimism/op-service/clock"
 	"github.com/ethereum-optimism/optimism/op-service/dial"
 	"github.com/ethereum-optimism/optimism/op-service/endpoint"
@@ -326,9 +325,8 @@ func (s *interopE2ESystem) SupervisorClient() *sources.SupervisorClient {
 	if s.superClient != nil {
 		return s.superClient
 	}
-	cl, err := client.NewRPC(context.Background(), s.logger, s.supervisor.RPC())
+	superClient, err := dial.DialSupervisorClientWithTimeout(context.Background(), s.logger, s.supervisor.RPC())
 	require.NoError(s.t, err, "failed to dial supervisor RPC")
-	superClient := sources.NewSupervisorClient(cl)
 	s.superClient = superClient
 	return superClient
 }

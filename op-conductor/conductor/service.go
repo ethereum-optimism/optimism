@@ -224,11 +224,10 @@ func (c *OpConductor) initHealthMonitor(ctx context.Context) error {
 
 	var supervisor health.SupervisorHealthAPI
 	if c.cfg.SupervisorRPC != "" {
-		sc, err := opclient.NewRPC(ctx, c.log, c.cfg.SupervisorRPC)
+		supervisor, err = dial.DialSupervisorClientWithTimeout(ctx, c.log, c.cfg.SupervisorRPC)
 		if err != nil {
-			return errors.Wrap(err, "failed to create supervisor rpc client")
+			return errors.Wrap(err, "failed to dial supervisor")
 		}
-		supervisor = sources.NewSupervisorClient(sc)
 	}
 
 	c.hmon = health.NewSequencerHealthMonitor(
