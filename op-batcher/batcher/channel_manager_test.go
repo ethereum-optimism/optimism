@@ -692,6 +692,10 @@ func newBlock(parent *eth.BlockID, numTransactions int) *types.Block {
 	return types.NewBlock(header, block.Body(), receipts, trie.NewStackTrie(nil), types.DefaultBlockConfig)
 }
 
+// TestChannelManagerUnsafeBytes tests the unsafe bytes in the channel manager
+// by adding blocks to the unsafe block queue, adding them to a channel,
+// and then sealing the channel. It asserts on the final state of the channel
+// manager and tracks the unsafe DA estimate as blocks move through the pipeline.
 func TestChannelManagerUnsafeBytes(t *testing.T) {
 
 	type testCase struct {
