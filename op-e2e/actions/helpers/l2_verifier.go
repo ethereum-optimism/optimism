@@ -287,8 +287,7 @@ func (s *l2VerifierBackend) OverrideLeader(ctx context.Context) error {
 	return nil
 }
 
-func (s *l2VerifierBackend) OnUnsafeL2Payload(ctx context.Context, envelope *eth.ExecutionPayloadEnvelope) error {
-	return nil
+func (s *l2VerifierBackend) OnUnsafeL2Payload(ctx context.Context, envelope *eth.ExecutionPayloadEnvelope) {
 }
 
 func (s *l2VerifierBackend) ConductorEnabled(ctx context.Context) (bool, error) {
