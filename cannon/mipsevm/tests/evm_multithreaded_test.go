@@ -701,7 +701,7 @@ func TestEVM_SysOpen(t *testing.T) {
 		return ExpectNormalExecution()
 	}
 
-	NewSingletonDiffTester().
+	NewSimpleDiffTester().
 		InitState(initState).
 		SetExpectations(setExpectations).
 		Run(t)
@@ -720,7 +720,7 @@ func TestEVM_SysGetPID(t *testing.T) {
 		return ExpectNormalExecution()
 	}
 
-	NewSingletonDiffTester().
+	NewSimpleDiffTester().
 		InitState(initState).
 		SetExpectations(setExpectations).
 		Run(t)
@@ -851,7 +851,7 @@ func TestEVM_SysClockGettimeNonMonotonic(t *testing.T) {
 		return ExpectNormalExecution()
 	}
 
-	NewSingletonDiffTester().
+	NewSimpleDiffTester().
 		InitState(initState).
 		SetExpectations(setExpectations).
 		Run(t)

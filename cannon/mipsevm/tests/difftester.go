@@ -20,29 +20,29 @@ import (
 
 type TestNamer[T any] func(testCase T) string
 
-type SingletonInitializeStateFn func(t require.TestingT, state *multithreaded.State, vm VersionedVMTestCase, r *testutil.RandHelper)
-type SingletonSetExpectationsFn func(t require.TestingT, expect *mtutil.ExpectedState, vm VersionedVMTestCase) ExpectedExecResult
-type SingletonPostStepCheckFn func(t require.TestingT, vm VersionedVMTestCase, deps *TestDependencies)
+type SimpleInitializeStateFn func(t require.TestingT, state *multithreaded.State, vm VersionedVMTestCase, r *testutil.RandHelper)
+type SimpleSetExpectationsFn func(t require.TestingT, expect *mtutil.ExpectedState, vm VersionedVMTestCase) ExpectedExecResult
+type SimplePostStepCheckFn func(t require.TestingT, vm VersionedVMTestCase, deps *TestDependencies)
 
-type singletonTestCase struct {
+type soloTestCase struct {
 	name string
 }
 
-type SingletonDiffTester struct {
-	diffTester DiffTester[singletonTestCase]
+type SimpleDiffTester struct {
+	diffTester DiffTester[soloTestCase]
 }
 
-// NewSingletonDiffTester returns a DiffTester designed to run only a single default test case
-func NewSingletonDiffTester() *SingletonDiffTester {
-	return &SingletonDiffTester{
-		diffTester: *NewDiffTester(func(t singletonTestCase) string {
+// NewSimpleDiffTester returns a DiffTester designed to run only a single default test case
+func NewSimpleDiffTester() *SimpleDiffTester {
+	return &SimpleDiffTester{
+		diffTester: *NewDiffTester(func(t soloTestCase) string {
 			return t.name
 		}),
 	}
 }
 
-func (d *SingletonDiffTester) InitState(initStateFn SingletonInitializeStateFn, opts ...mtutil.StateOption) *SingletonDiffTester {
-	wrappedFn := func(t require.TestingT, testCase singletonTestCase, state *multithreaded.State, vm VersionedVMTestCase, r *testutil.RandHelper) {
+func (d *SimpleDiffTester) InitState(initStateFn SimpleInitializeStateFn, opts ...mtutil.StateOption) *SimpleDiffTester {
+	wrappedFn := func(t require.TestingT, testCase soloTestCase, state *multithreaded.State, vm VersionedVMTestCase, r *testutil.RandHelper) {
 		initStateFn(t, state, vm, r)
 	}
 	d.diffTester.InitState(wrappedFn, opts...)
@@ -50,8 +50,8 @@ func (d *SingletonDiffTester) InitState(initStateFn SingletonInitializeStateFn, 
 	return d
 }
 
-func (d *SingletonDiffTester) SetExpectations(setExpectationsFn SingletonSetExpectationsFn) *SingletonDiffTester {
-	wrappedFn := func(t require.TestingT, testCase singletonTestCase, expect *mtutil.ExpectedState, vm VersionedVMTestCase) ExpectedExecResult {
+func (d *SimpleDiffTester) SetExpectations(setExpectationsFn SimpleSetExpectationsFn) *SimpleDiffTester {
+	wrappedFn := func(t require.TestingT, testCase soloTestCase, expect *mtutil.ExpectedState, vm VersionedVMTestCase) ExpectedExecResult {
 		return setExpectationsFn(t, expect, vm)
 	}
 	d.diffTester.SetExpectations(wrappedFn)
@@ -59,8 +59,8 @@ func (d *SingletonDiffTester) SetExpectations(setExpectationsFn SingletonSetExpe
 	return d
 }
 
-func (d *SingletonDiffTester) PostCheck(postStepCheckFn SingletonPostStepCheckFn) *SingletonDiffTester {
-	wrappedFn := func(t require.TestingT, testCase singletonTestCase, vm VersionedVMTestCase, deps *TestDependencies) {
+func (d *SimpleDiffTester) PostCheck(postStepCheckFn SimplePostStepCheckFn) *SimpleDiffTester {
+	wrappedFn := func(t require.TestingT, testCase soloTestCase, vm VersionedVMTestCase, deps *TestDependencies) {
 		postStepCheckFn(t, vm, deps)
 	}
 	d.diffTester.PostCheck(wrappedFn)
@@ -68,12 +68,11 @@ func (d *SingletonDiffTester) PostCheck(postStepCheckFn SingletonPostStepCheckFn
 	return d
 }
 
-func (d *SingletonDiffTester) Run(t *testing.T, opts ...TestOption) {
-	// Encapsulate core logic in run() for easier unit testing with the testRunner interface
-	singletonTestCases := []singletonTestCase{
-		{name: "singleton"},
+func (d *SimpleDiffTester) Run(t *testing.T, opts ...TestOption) {
+	singleTestCase := []soloTestCase{
+		{name: "solo test case"},
 	}
-	d.diffTester.run(wrapT(t), singletonTestCases, opts...)
+	d.diffTester.run(wrapT(t), singleTestCase, opts...)
 }
 
 type InitializeStateFn[T any] func(t require.TestingT, testCase T, state *multithreaded.State, vm VersionedVMTestCase, r *testutil.RandHelper)
