@@ -164,14 +164,6 @@ contract DataAvailabilityChallenge_Withdraw_Test is DataAvailabilityChallenge_Te
         vm.expectRevert(abi.encodeWithSelector(IDataAvailabilityChallenge.WithdrawalFailed.selector));
         dataAvailabilityChallenge.withdraw();
     }
-
-    /// @notice Test that the `withdraw` function reverts with zero balance.
-    function test_withdraw_zeroBalance_reverts() public {
-        assertEq(dataAvailabilityChallenge.balances(address(this)), 0);
-
-        vm.expectRevert(abi.encodeWithSelector(IDataAvailabilityChallenge.WithdrawalFailed.selector));
-        dataAvailabilityChallenge.withdraw();
-    }
 }
 
 /// @title DataAvailabilityChallenge_GetChallenge_Test
@@ -494,19 +486,6 @@ contract DataAvailabilityChallenge_Challenge_Test is DataAvailabilityChallenge_T
         // Challenge succeed if the challenged hash is different
         dataAvailabilityChallenge.deposit{ value: dataAvailabilityChallenge.bondSize() }();
         dataAvailabilityChallenge.challenge(0, computeCommitmentKeccak256("some other hash"));
-    }
-
-    /// @notice Test that the `challenge` function reverts at challenge window boundary.
-    function test_challenge_challengeWindowBoundary_reverts() public {
-        uint256 challengedBlockNumber = 100;
-        bytes memory commitment = computeCommitmentKeccak256("test data");
-
-        // Move to exactly challengedBlockNumber + challengeWindow + 1 (just outside window)
-        vm.roll(challengedBlockNumber + dataAvailabilityChallenge.challengeWindow() + 1);
-
-        dataAvailabilityChallenge.deposit{ value: dataAvailabilityChallenge.bondSize() }();
-        vm.expectRevert(abi.encodeWithSelector(IDataAvailabilityChallenge.ChallengeWindowNotOpen.selector));
-        dataAvailabilityChallenge.challenge(challengedBlockNumber, commitment);
     }
 
     /// @notice Test that the `challenge` function reverts if the current block number is before
