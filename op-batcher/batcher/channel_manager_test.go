@@ -712,7 +712,7 @@ func TestChannelManagerUnsafeBytes(t *testing.T) {
 	}, true, false)
 	require.ErrorIs(t, err, io.EOF)
 
-	// The empty block was added to a channel,
+	// The block was "moved" into a channel,
 	// so the manager should now report a lower
 	// value for UnsafeDABytes.
 	require.Less(t, manager.UnsafeDABytes(), cumulativeEstimate)
