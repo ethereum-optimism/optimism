@@ -731,6 +731,11 @@ func TestChannelManagerUnsafeBytes(t *testing.T) {
 			4089, 3256, 5286,
 		},
 		{
+			"Single block with 0 transactions",
+			[]*types.Block{emptyA},
+			70, 7, 126,
+		},
+		{
 			"Three blocks with 0 transactions",
 			[]*types.Block{emptyA, emptyB, emptyC},
 			210, 190, 309,
