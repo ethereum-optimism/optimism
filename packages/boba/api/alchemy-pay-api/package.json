@@ -1,0 +1,16 @@
+{
+  "name": "alchemy-pay-url-generator",
+  "version": "1.0.0",
+  "description": "Serverless service to generate signed URLs for Alchemy Pay",
+  "scripts": {
+    "dev": "serverless offline",
+    "deploy:dev": "./deploy.sh dev",
+    "deploy:mainnet": "./deploy.sh mainnet",
+    "test": "python -m pytest"
+  },
+  "devDependencies": {
+    "serverless": "^4.17.2",
+    "serverless-offline": "^14.4.0",
+    "serverless-python-requirements": "^6.1.2"
+  }
+}
