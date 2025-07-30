@@ -543,18 +543,21 @@ func (m *channelManager) LastStoredBlock() eth.BlockID {
 }
 
 func (s *channelManager) UnsafeDABytes() int64 {
-	var bytesNotYetInChannels int64 // least accurate estimate
+	return s.unsafeBytesInPendingBlocks() + s.unsafeBytesInOpenChannels() + s.unsafeBytesInClosedChannels()
+}
+
+func (s *channelManager) unsafeBytesInPendingBlocks() int64 {
+	var bytesNotYetInChannels int64
 	for _, block := range s.blocks[s.blockCursor:] {
 		bytesNotYetInChannels += int64(block.EstimatedDABytes())
 	}
+	return bytesNotYetInChannels
+}
 
-	var bytesInClosedChannels int64
+func (s *channelManager) unsafeBytesInOpenChannels() int64 {
 	var bytesInOpenChannels int64
 	for _, channel := range s.channelQueue {
-		if channel.TotalFrames() > 0 {
-			// This is the exact number of DA bytes in the channel,
-			bytesInClosedChannels += int64(channel.OutputBytes())
-		} else {
+		if channel.TotalFrames() == 0 {
 			// This is an estimate of the DA bytes in the channel,
 			// but it is more accurate than the estimate of the
 			// bytes not yet in channels.
@@ -565,6 +568,15 @@ func (s *channelManager) UnsafeDABytes() int64 {
 			bytesInOpenChannels += int64(bytesInOpenChannel)
 		}
 	}
+	return bytesInOpenChannels
+}
 
-	return bytesNotYetInChannels + bytesInClosedChannels + bytesInOpenChannels
+func (s *channelManager) unsafeBytesInClosedChannels() int64 {
+	var bytesInClosedChannels int64
+	for _, channel := range s.channelQueue {
+		if channel.TotalFrames() > 0 {
+			bytesInClosedChannels += int64(channel.OutputBytes())
+		}
+	}
+	return bytesInClosedChannels
 }
