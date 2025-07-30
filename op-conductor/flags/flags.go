@@ -158,6 +158,17 @@ var (
 		EnvVars: opservice.PrefixEnvVar(EnvVarPrefix, "WEBSOCKET_SERVER_PORT"),
 		Value:   8546,
 	}
+	ElP2pChecksEnabled = &cli.BoolFlag{
+		Name:    "el-p2p-checks-enabled",
+		Usage:   "Whether to enable EL P2P checks",
+		EnvVars: opservice.PrefixEnvVar(EnvVarPrefix, "EL_P2P_CHECKS_ENABLED"),
+		Value:   false,
+	}
+	MinElP2pPeers = &cli.Uint64Flag{
+		Name:    "el-p2p-checks-min-peers",
+		Usage:   "Minimum number of EL P2P peers required to be considered healthy",
+		EnvVars: opservice.PrefixEnvVar(EnvVarPrefix, "EL_P2P_CHECKS_MIN_PEERS"),
+	}
 )
 
 var requiredFlags = []cli.Flag{
@@ -187,6 +198,8 @@ var optionalFlags = []cli.Flag{
 	SupervisorRPC,
 	RollupBoostEnabled,
 	RollupBoostHealthcheckTimeout,
+	ElP2pChecksEnabled,
+	MinElP2pPeers,
 }
 
 func init() {
