@@ -673,14 +673,14 @@ func TestChannelManager_ChannelOutFactory(t *testing.T) {
 	require.IsType(t, &ChannelOutWrapper{}, m.currentChannel.channelBuilder.co)
 }
 
-func newBlock(parent *eth.BlockID) *types.Block {
+func newBlock(parent *eth.BlockID, numTransactions int) *types.Block {
 	var rng *rand.Rand
 	if parent == nil {
 		rng = rand.New(rand.NewSource(123))
 	} else {
 		rng = rand.New(rand.NewSource(int64(parent.Number)))
 	}
-	block, receipts := derivetest.RandomL2Block(rng, 3, time.Now())
+	block, receipts := derivetest.RandomL2Block(rng, numTransactions, time.Now())
 	header := block.Header()
 	if parent == nil {
 		header.Number = new(big.Int)
@@ -702,11 +702,34 @@ func TestChannelManagerUnsafeBytes(t *testing.T) {
 		afterSealingChannel           int64
 	}
 
+	a := newBlock(&eth.BlockID{}, 3)
+	b := newBlock(toPtr(eth.HeaderBlockID(a.Header())), 3)
+	c := newBlock(toPtr(eth.HeaderBlockID(b.Header())), 3)
+
+	emptyA := newBlock(&eth.BlockID{}, 0)
+	emptyB := newBlock(toPtr(eth.HeaderBlockID(emptyA.Header())), 0)
+	emptyC := newBlock(toPtr(eth.HeaderBlockID(emptyB.Header())), 0)
+
 	for _, tc := range []testCase{
 		{
-			"Single block",
-			[]*types.Block{newBlock(&eth.BlockID{})},
+			"Single block with 3 transactions",
+			[]*types.Block{a},
 			733, 7, 1054,
+		},
+		{
+			"Two blocks with 3 transactions",
+			[]*types.Block{a, b},
+			2509, 1027, 3283,
+		},
+		{
+			"Three blocks with 3 transactions",
+			[]*types.Block{a, b, c},
+			4089, 3256, 5286,
+		},
+		{
+			"Three blocks with 0 transactions",
+			[]*types.Block{emptyA, emptyB, emptyC},
+			210, 190, 309,
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
