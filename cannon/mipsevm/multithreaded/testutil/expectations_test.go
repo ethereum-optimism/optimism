@@ -9,7 +9,7 @@ import (
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/multithreaded"
 )
 
-type ExpectationMutator func(e *ExpectedState, st *multithreaded.State)
+type ExpectationMutator func(t *testing.T, e *ExpectedState, st *multithreaded.State)
 
 func TestValidate_shouldCatchMutations(t *testing.T) {
 	states := []*multithreaded.State{
@@ -24,90 +24,96 @@ func TestValidate_shouldCatchMutations(t *testing.T) {
 		name string
 		mut  ExpectationMutator
 	}{
-		{name: "PreimageKey", mut: func(e *ExpectedState, st *multithreaded.State) { e.PreimageKey = emptyHash }},
-		{name: "PreimageOffset", mut: func(e *ExpectedState, st *multithreaded.State) { e.PreimageOffset += 1 }},
-		{name: "Heap", mut: func(e *ExpectedState, st *multithreaded.State) { e.Heap += 1 }},
-		{name: "LLReservationStatus", mut: func(e *ExpectedState, st *multithreaded.State) { e.LLReservationStatus = e.LLReservationStatus + 1 }},
-		{name: "LLAddress", mut: func(e *ExpectedState, st *multithreaded.State) { e.LLAddress += 1 }},
-		{name: "LLOwnerThread", mut: func(e *ExpectedState, st *multithreaded.State) { e.LLOwnerThread += 1 }},
-		{name: "ExitCode", mut: func(e *ExpectedState, st *multithreaded.State) { e.ExitCode += 1 }},
-		{name: "Exited", mut: func(e *ExpectedState, st *multithreaded.State) { e.Exited = !e.Exited }},
-		{name: "Step", mut: func(e *ExpectedState, st *multithreaded.State) { e.Step += 1 }},
-		{name: "LastHint", mut: func(e *ExpectedState, st *multithreaded.State) { e.LastHint = []byte{7, 8, 9, 10} }},
-		{name: "MemoryRoot", mut: func(e *ExpectedState, st *multithreaded.State) { e.MemoryRoot = emptyHash }},
-		{name: "StepsSinceLastContextSwitch", mut: func(e *ExpectedState, st *multithreaded.State) { e.threadExpectations.StepsSinceLastContextSwitch += 1 }},
-		{name: "TraverseRight", mut: func(e *ExpectedState, st *multithreaded.State) {
+		{name: "PreimageKey", mut: func(t *testing.T, e *ExpectedState, st *multithreaded.State) { e.PreimageKey = emptyHash }},
+		{name: "PreimageOffset", mut: func(t *testing.T, e *ExpectedState, st *multithreaded.State) { e.PreimageOffset += 1 }},
+		{name: "Heap", mut: func(t *testing.T, e *ExpectedState, st *multithreaded.State) { e.Heap += 1 }},
+		{name: "LLReservationStatus", mut: func(t *testing.T, e *ExpectedState, st *multithreaded.State) {
+			e.LLReservationStatus = e.LLReservationStatus + 1
+		}},
+		{name: "LLAddress", mut: func(t *testing.T, e *ExpectedState, st *multithreaded.State) { e.LLAddress += 1 }},
+		{name: "LLOwnerThread", mut: func(t *testing.T, e *ExpectedState, st *multithreaded.State) { e.LLOwnerThread += 1 }},
+		{name: "ExitCode", mut: func(t *testing.T, e *ExpectedState, st *multithreaded.State) { e.ExitCode += 1 }},
+		{name: "Exited", mut: func(t *testing.T, e *ExpectedState, st *multithreaded.State) { e.Exited = !e.Exited }},
+		{name: "Step", mut: func(t *testing.T, e *ExpectedState, st *multithreaded.State) { e.Step += 1 }},
+		{name: "LastHint", mut: func(t *testing.T, e *ExpectedState, st *multithreaded.State) { e.LastHint = []byte{7, 8, 9, 10} }},
+		{name: "MemoryRoot", mut: func(t *testing.T, e *ExpectedState, st *multithreaded.State) { e.MemoryRoot = emptyHash }},
+		{name: "StepsSinceLastContextSwitch", mut: func(t *testing.T, e *ExpectedState, st *multithreaded.State) {
+			e.threadExpectations.StepsSinceLastContextSwitch += 1
+		}},
+		{name: "TraverseRight", mut: func(t *testing.T, e *ExpectedState, st *multithreaded.State) {
 			e.threadExpectations.traverseRight = !e.threadExpectations.traverseRight
 		}},
-		{name: "NextThreadId", mut: func(e *ExpectedState, st *multithreaded.State) { e.threadExpectations.NextThreadId += 1 }},
-		{name: "ActiveThreadId", mut: func(e *ExpectedState, st *multithreaded.State) { e.threadExpectations.ActiveThreadId += 1 }},
-		{name: "Empty thread expectations", mut: func(e *ExpectedState, st *multithreaded.State) {
+		{name: "NextThreadId", mut: func(t *testing.T, e *ExpectedState, st *multithreaded.State) { e.threadExpectations.NextThreadId += 1 }},
+		{name: "ActiveThreadId", mut: func(t *testing.T, e *ExpectedState, st *multithreaded.State) {
+			e.threadExpectations.ActiveThreadId += 1
+		}},
+		{name: "Empty thread expectations", mut: func(t *testing.T, e *ExpectedState, st *multithreaded.State) {
 			e.threadExpectations.left = []*ExpectedThreadState{}
 			e.threadExpectations.right = []*ExpectedThreadState{}
 		}},
-		{name: "Missing single thread expectation", mut: func(e *ExpectedState, st *multithreaded.State) {
+		{name: "Missing single thread expectation", mut: func(t *testing.T, e *ExpectedState, st *multithreaded.State) {
 			if len(e.threadExpectations.left) > 0 {
 				e.threadExpectations.left = e.threadExpectations.left[:len(e.threadExpectations.left)-1]
 			} else {
 				e.threadExpectations.right = e.threadExpectations.right[:len(e.threadExpectations.right)-1]
 			}
 		}},
-		{name: "Extra thread expectation", mut: func(e *ExpectedState, st *multithreaded.State) {
+		{name: "Extra thread expectation", mut: func(t *testing.T, e *ExpectedState, st *multithreaded.State) {
 			e.threadExpectations.left = append(e.threadExpectations.left, newExpectedThreadState(someThread))
 		}},
-		{name: "Active threadId", mut: func(e *ExpectedState, st *multithreaded.State) {
+		{name: "Active threadId", mut: func(t *testing.T, e *ExpectedState, st *multithreaded.State) {
 			e.threadExpectations.prestateActiveThread.ThreadId += 1
 		}},
-		{name: "Active thread exitCode", mut: func(e *ExpectedState, st *multithreaded.State) {
+		{name: "Active thread exitCode", mut: func(t *testing.T, e *ExpectedState, st *multithreaded.State) {
 			e.threadExpectations.prestateActiveThread.ExitCode += 1
 		}},
-		{name: "Active thread exited", mut: func(e *ExpectedState, st *multithreaded.State) {
+		{name: "Active thread exited", mut: func(t *testing.T, e *ExpectedState, st *multithreaded.State) {
 			e.threadExpectations.prestateActiveThread.Exited = !st.GetCurrentThread().Exited
 		}},
-		{name: "Active thread PC", mut: func(e *ExpectedState, st *multithreaded.State) {
+		{name: "Active thread PC", mut: func(t *testing.T, e *ExpectedState, st *multithreaded.State) {
 			e.threadExpectations.prestateActiveThread.PC += 1
 		}},
-		{name: "Active thread NextPC", mut: func(e *ExpectedState, st *multithreaded.State) {
+		{name: "Active thread NextPC", mut: func(t *testing.T, e *ExpectedState, st *multithreaded.State) {
 			e.threadExpectations.prestateActiveThread.NextPC += 1
 		}},
-		{name: "Active thread HI", mut: func(e *ExpectedState, st *multithreaded.State) {
+		{name: "Active thread HI", mut: func(t *testing.T, e *ExpectedState, st *multithreaded.State) {
 			e.threadExpectations.prestateActiveThread.HI += 1
 		}},
-		{name: "Active thread LO", mut: func(e *ExpectedState, st *multithreaded.State) {
+		{name: "Active thread LO", mut: func(t *testing.T, e *ExpectedState, st *multithreaded.State) {
 			e.threadExpectations.prestateActiveThread.LO += 1
 		}},
-		{name: "Active thread Registers", mut: func(e *ExpectedState, st *multithreaded.State) {
+		{name: "Active thread Registers", mut: func(t *testing.T, e *ExpectedState, st *multithreaded.State) {
 			e.threadExpectations.prestateActiveThread.Registers[0] += 1
 		}},
-		{name: "Active thread dropped", mut: func(e *ExpectedState, st *multithreaded.State) {
+		{name: "Active thread dropped", mut: func(t *testing.T, e *ExpectedState, st *multithreaded.State) {
 			e.threadExpectations.prestateActiveThread.Dropped = true
 		}},
-		{name: "Inactive threadId", mut: func(e *ExpectedState, st *multithreaded.State) {
-			findInactiveThread(e).ThreadId += 1
+		{name: "Inactive threadId", mut: func(t *testing.T, e *ExpectedState, st *multithreaded.State) {
+			findInactiveThread(t, e).ThreadId += 1
 		}},
-		{name: "Inactive thread exitCode", mut: func(e *ExpectedState, st *multithreaded.State) {
-			findInactiveThread(e).ExitCode += 1
+		{name: "Inactive thread exitCode", mut: func(t *testing.T, e *ExpectedState, st *multithreaded.State) {
+			findInactiveThread(t, e).ExitCode += 1
 		}},
-		{name: "Inactive thread exited", mut: func(e *ExpectedState, st *multithreaded.State) {
-			findInactiveThread(e).Exited = !FindNextThread(st).Exited
+		{name: "Inactive thread exited", mut: func(t *testing.T, e *ExpectedState, st *multithreaded.State) {
+			findInactiveThread(t, e).Exited = !FindNextThread(st).Exited
 		}},
-		{name: "Inactive thread PC", mut: func(e *ExpectedState, st *multithreaded.State) {
-			findInactiveThread(e).PC += 1
+		{name: "Inactive thread PC", mut: func(t *testing.T, e *ExpectedState, st *multithreaded.State) {
+			findInactiveThread(t, e).PC += 1
 		}},
-		{name: "Inactive thread NextPC", mut: func(e *ExpectedState, st *multithreaded.State) {
-			findInactiveThread(e).NextPC += 1
+		{name: "Inactive thread NextPC", mut: func(t *testing.T, e *ExpectedState, st *multithreaded.State) {
+			findInactiveThread(t, e).NextPC += 1
 		}},
-		{name: "Inactive thread HI", mut: func(e *ExpectedState, st *multithreaded.State) {
-			findInactiveThread(e).HI += 1
+		{name: "Inactive thread HI", mut: func(t *testing.T, e *ExpectedState, st *multithreaded.State) {
+			findInactiveThread(t, e).HI += 1
 		}},
-		{name: "Inactive thread LO", mut: func(e *ExpectedState, st *multithreaded.State) {
-			findInactiveThread(e).LO += 1
+		{name: "Inactive thread LO", mut: func(t *testing.T, e *ExpectedState, st *multithreaded.State) {
+			findInactiveThread(t, e).LO += 1
 		}},
-		{name: "Inactive thread Registers", mut: func(e *ExpectedState, st *multithreaded.State) {
-			findInactiveThread(e).Registers[0] += 1
+		{name: "Inactive thread Registers", mut: func(t *testing.T, e *ExpectedState, st *multithreaded.State) {
+			findInactiveThread(t, e).Registers[0] += 1
 		}},
-		{name: "Inactive thread dropped", mut: func(e *ExpectedState, st *multithreaded.State) {
-			findInactiveThread(e).Dropped = true
+		{name: "Inactive thread dropped", mut: func(t *testing.T, e *ExpectedState, st *multithreaded.State) {
+			findInactiveThread(t, e).Dropped = true
 		}},
 	}
 	for _, c := range cases {
@@ -115,7 +121,7 @@ func TestValidate_shouldCatchMutations(t *testing.T) {
 			testName := fmt.Sprintf("%v (state #%v)", c.name, i)
 			t.Run(testName, func(t *testing.T) {
 				expected := NewExpectedState(t, state)
-				c.mut(expected, state)
+				c.mut(t, expected, state)
 
 				// We should detect the change and fail
 				mockT := &MockTestingT{}
@@ -125,12 +131,6 @@ func TestValidate_shouldCatchMutations(t *testing.T) {
 		}
 
 	}
-}
-
-func findInactiveThread(e *ExpectedState) *ExpectedThreadState {
-	threads := e.threadExpectations.allThreads()
-	idx := int(len(threads) / 2)
-	return threads[idx]
 }
 
 func TestValidate_shouldPassUnchangedExpectations(t *testing.T) {
@@ -165,6 +165,19 @@ func TestExpectNewThread_DoesNotInheritChangedExpectations(t *testing.T) {
 
 	// New thread should not carry over changes to the original thread
 	require.Equal(t, origHI, newThread.HI)
+}
+
+func findInactiveThread(t *testing.T, e *ExpectedState) *ExpectedThreadState {
+	threads := e.threadExpectations.allThreads()
+	activeThread := e.threadExpectations.prestateActiveThread
+	for _, thread := range threads {
+		if thread.ThreadId != activeThread.ThreadId {
+			return thread
+		}
+	}
+	t.Error("No inactive thread found")
+	t.FailNow()
+	return nil
 }
 
 func randomStateWithMultipleThreads(seed int64) *multithreaded.State {
