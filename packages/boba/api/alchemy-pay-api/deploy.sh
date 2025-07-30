@@ -1,4 +1,5 @@
 #!/bin/bash
+export $(grep -v '^#' .env.mainnet | xargs)
 
 set -e
 
@@ -49,7 +50,7 @@ case $STAGE in
     cp env-mainnet.yml env.yml
 
     log_message "mainnet" "Starting serverless deployment..."
-    if serverless -c serverless-mainnet.yml deploy 2>&1 | tee -a "$MAINNET_LOG"; then
+    if serverless deploy --stage mainnet --region us-east-2 2>&1 | tee -a "$MAINNET_LOG"; then
       log_message "mainnet" "Deployment successful"
     else
       error_msg="Deployment failed"
