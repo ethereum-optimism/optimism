@@ -49,6 +49,9 @@ type Compressor interface {
 	// calls to Write will fail if an error is returned from this method, but calls to Write
 	// can still return ErrCompressorFull even if this does not.
 	FullErr() error
+	// EstimatedLen returns an estimate of the current length of the compressed data; calling Flush will
+	// increase the accuracy at the expense of a poorer compression ratio.
+	EstimatedLen() int
 }
 
 type ChannelOut interface {
@@ -227,7 +230,9 @@ func (co *SingularChannelOut) EstimatedDABytes() (uint64, error) {
 	if co.compress == nil {
 		return 0, fmt.Errorf("compressor is nil (possibly discarded)")
 	}
-	return uint64(co.compress.Len()), nil
+	len := co.compress.EstimatedLen()
+	numFrames := 1 // 	// TODO do not hardcode numFrames = 1
+	return uint64(numFrames*FrameV0OverHeadSize + len), nil
 }
 
 // BlockToSingularBatch transforms a block into a batch object that can easily be RLP encoded.

@@ -36,6 +36,10 @@ func NewNonCompressor(config Config) (derive.Compressor, error) {
 	return c, nil
 }
 
+func (t *NonCompressor) EstimatedLen() int {
+	return t.buf.Len()
+}
+
 func (t *NonCompressor) Write(p []byte) (int, error) {
 	if err := t.compress.Flush(); err != nil {
 		return 0, err

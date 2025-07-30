@@ -380,5 +380,6 @@ func (co *SpanChannelOut) EstimatedDABytes() (uint64, error) {
 	if co.compressor == nil {
 		return 0, fmt.Errorf("compressor is nil (possibly discarded)")
 	}
-	return uint64(co.compressor.Len()), nil
+	// TODO do not hardcode numFrames = 1
+	return uint64(co.compressor.Len() + FrameV0OverHeadSize), nil
 }

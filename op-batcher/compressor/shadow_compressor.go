@@ -101,6 +101,10 @@ func (t *ShadowCompressor) Reset() {
 	t.bound = safeCompressionOverhead
 }
 
+func (t *ShadowCompressor) EstimatedLen() int {
+	return t.shadowCompressor.Len()
+}
+
 func (t *ShadowCompressor) Len() int {
 	return t.compressor.Len()
 }
