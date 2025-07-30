@@ -92,7 +92,6 @@ func TestTxBudgetIncluded(t *testing.T) {
 	})
 
 	l1Cost, _ := types.NewL1CostFuncFjord(big.NewInt(1), big.NewInt(1), big.NewInt(1), big.NewInt(1))(tx.RollupCostData())
-	l1Cost.Add(l1Cost, big.NewInt(1)) // operator fee
 	oracle := mockOPCostOracle{
 		cost: l1Cost,
 	}
@@ -104,7 +103,7 @@ func TestTxBudgetIncluded(t *testing.T) {
 
 	receipt := &types.Receipt{
 		EffectiveGasPrice: eth.WeiU64(1).ToBig(),
-		GasUsed:           budgetedCost.ToBig().Uint64(),
+		GasUsed:           budgetedCost.ToBig().Uint64() - l1Cost.Uint64(),
 		Type:              types.DynamicFeeTxType,
 
 		L1GasPrice:          big.NewInt(1),
