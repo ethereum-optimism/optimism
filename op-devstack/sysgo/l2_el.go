@@ -2,9 +2,9 @@ package sysgo
 
 import (
 	"context"
+	"net"
 	"net/url"
 	"slices"
-	"strconv"
 	"sync"
 	"time"
 
@@ -17,6 +17,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/client"
 	"github.com/ethereum-optimism/optimism/op-service/dial"
 	"github.com/ethereum-optimism/optimism/op-service/testreq"
+	"github.com/ethereum-optimism/optimism/op-service/testutils/tcpproxy"
 	"github.com/ethereum/go-ethereum/eth/ethconfig"
 	"github.com/ethereum/go-ethereum/log"
 	gn "github.com/ethereum/go-ethereum/node"
@@ -36,6 +37,9 @@ type L2ELNode struct {
 
 	authRPC string
 	userRPC string
+
+	authProxy *tcpproxy.Proxy
+	userProxy *tcpproxy.Proxy
 }
 
 func (n *L2ELNode) hydrate(system stack.ExtensibleSystem) {
@@ -66,6 +70,23 @@ func (n *L2ELNode) Start() {
 		return
 	}
 
+	if n.authProxy == nil {
+		n.authProxy = tcpproxy.New(n.logger)
+		n.p.Require().NoError(n.authProxy.Start())
+		n.p.Cleanup(func() {
+			n.authProxy.Close()
+		})
+		n.authRPC = "ws://" + n.authProxy.Addr()
+	}
+	if n.userProxy == nil {
+		n.userProxy = tcpproxy.New(n.logger)
+		n.p.Require().NoError(n.userProxy.Start())
+		n.p.Cleanup(func() {
+			n.userProxy.Close()
+		})
+		n.userRPC = "ws://" + n.userProxy.Addr()
+	}
+
 	require := n.p.Require()
 	l2Geth, err := geth.InitL2(n.id.String(), n.l2Net.genesis, n.jwtPath,
 		func(ethCfg *ethconfig.Config, nodeCfg *gn.Config) error {
@@ -76,29 +97,13 @@ func (n *L2ELNode) Start() {
 				ListenAddr:  "127.0.0.1:0",
 				MaxPeers:    10,
 			}
-			if n.authRPC != "" {
-				// Preserve the existing auth rpc port
-				nodeCfg.AuthPort = rpcPort(require, n.authRPC)
-			}
-			if n.userRPC != "" {
-				// Preserve the existing websocket rpc port
-				nodeCfg.WSPort = rpcPort(require, n.userRPC)
-			}
 			return nil
 		})
 	require.NoError(err)
 	require.NoError(l2Geth.Node.Start())
 	n.l2Geth = l2Geth
-	n.authRPC = l2Geth.AuthRPC().RPC()
-	n.userRPC = l2Geth.UserRPC().RPC()
-}
-
-func rpcPort(require *testreq.Assertions, rpc string) int {
-	u, err := url.Parse(rpc)
-	require.NoError(err, "Failed to parse existing rpc url")
-	port, err := strconv.Atoi(u.Port())
-	require.NoError(err, "Invalid rpc port")
-	return port
+	n.authProxy.SetUpstream(proxyAddr(require, l2Geth.AuthRPC().RPC()))
+	n.userProxy.SetUpstream(proxyAddr(require, l2Geth.UserRPC().RPC()))
 }
 
 func (n *L2ELNode) Stop() {
@@ -112,6 +117,12 @@ func (n *L2ELNode) Stop() {
 	closeErr := n.l2Geth.Close()
 	n.logger.Info("Closed op-geth", "id", n.id, "err", closeErr)
 	n.l2Geth = nil
+}
+
+func proxyAddr(require *testreq.Assertions, urlStr string) string {
+	u, err := url.Parse(urlStr)
+	require.NoError(err)
+	return net.JoinHostPort(u.Hostname(), u.Port())
 }
 
 func WithL2ELNode(id stack.L2ELNodeID, supervisorID *stack.SupervisorID) stack.Option[*Orchestrator] {
