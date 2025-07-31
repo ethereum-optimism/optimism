@@ -45,7 +45,8 @@ func NewTracerDeriver(tracer Tracer) *TracerDeriver {
 }
 
 func (t *TracerDeriver) OnEvent(ctx context.Context, ev event.Event) bool {
-	// Listening p2p.ReceivedBlockEvent is removed and tracer.OnUnsafeL2Payload is synchronously called at p2p.NewBlockReceiver
+	// TODO(#16917) Remove Event System Refactor Comments
+	//  ReceivedBlockEvent is removed and tracer.OnUnsafeL2Payload is synchronously called at NewBlockReceiver
 	switch x := ev.(type) {
 	case status.L1UnsafeEvent:
 		t.tracer.OnNewL1Head(t.ctx, x.L1Unsafe)

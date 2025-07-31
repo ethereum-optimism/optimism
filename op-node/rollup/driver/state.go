@@ -237,7 +237,7 @@ func (s *SyncDeriver) AttachEmitter(em event.Emitter) {
 func (s *SyncDeriver) OnEvent(ctx context.Context, ev event.Event) bool {
 	// TODO(#16917) Remove Event System Refactor Comments
 	//  ELSyncStartedEvent is removed and OnELSyncStarted is synchronously called at EngineController
-
+	//  ReceivedBlockEvent is removed and OnUnsafeL2Payload is synchronously called at NewBlockReceiver
 	switch x := ev.(type) {
 	case status.L1UnsafeEvent:
 		// a new L1 head may mean we have the data to not get an EOF again.

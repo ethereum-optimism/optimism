@@ -32,7 +32,6 @@ func (t *testTracer) OnPublishL2Payload(ctx context.Context, payload *eth.Execut
 var _ Tracer = (*testTracer)(nil)
 
 // TestTracer tests that the tracer traces each thing as expected
-// We are removing the event system incrementally, first removing ReceivedBlockEvent
 func TestTracer(t *testing.T) {
 	tr := &testTracer{}
 	d := NewTracerDeriver(tr)
