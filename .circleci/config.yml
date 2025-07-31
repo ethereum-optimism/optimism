@@ -2053,6 +2053,22 @@ workflows:
           requires:
             - contracts-bedrock-build
 
+  go-release-op:
+    jobs:
+      - contracts-bedrock-build:
+          filters:
+            tags:
+              only: /^op-deployer.*/
+            branches:
+              ignore: /.*/
+          build_args: --skip test
+      - go-release:
+          module: op
+          context:
+            - oplabs-gcr-release
+          requires:
+            - contracts-bedrock-build
+
   release:
     when:
       not:
@@ -2083,6 +2099,7 @@ workflows:
                 - op-supervisor
                 - op-test-sequencer
                 - op-deployer
+                - op
                 - cannon
                 - op-dripper
                 - op-interop-mon

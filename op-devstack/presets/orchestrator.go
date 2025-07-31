@@ -7,7 +7,6 @@ import (
 	"runtime/debug"
 	"slices"
 	"sync/atomic"
-	"testing"
 
 	"github.com/ethereum/go-ethereum/log"
 	"go.opentelemetry.io/otel"
@@ -37,10 +36,14 @@ const (
 	backendKindSysExt backendKind = "sysext"
 )
 
+type TestingM interface {
+	Run() int
+}
+
 // DoMain runs M with the pre- and post-processing of tests,
 // to setup the default global orchestrator and global logger.
 // This will os.Exit(code) and not return.
-func DoMain(m *testing.M, opts ...stack.CommonOption) {
+func DoMain(m TestingM, opts ...stack.CommonOption) {
 	// nest the function, so we can defer-recover and defer-cleanup, before os.Exit
 	code := func() (errCode int) {
 		failed := new(atomic.Bool)

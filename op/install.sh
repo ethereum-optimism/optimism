@@ -1,0 +1,169 @@
+#!/bin/sh
+
+# Credit where it's due: much of this script is copied from or inspired by [rustup] and [foundryup].
+#
+# [rustup]: https://sh.rustup.rs
+# [foundrup]: https://foundry.paradigm.xyz
+
+# All configs are here.
+# If you modify the configs in any way, please also update the help text below.
+OP_VERSION="${OP_VERSION:-0.1.0}" # The default version is hardcoded for now.
+OP_REPO="${OP_REPO:-ethereum-optimism/optimism}"
+OP_DIR="${OP_DIR:-"${HOME}/.op"}"
+
+if [ "$#" != 0 ]; then
+  echo "The op installation script.
+
+When no parameters are passed, the op command is installed from GitHub.
+Anything else causes this help text to be printed.
+
+The installation is configured via environment variables:
+
+OP_REPO:
+  The GitHub repo from which to download op.
+  (default: ${OP_REPO})
+
+OP_VERSION:
+  The semver-formatted version of the op command to install.
+  (default: ${OP_VERSION})
+
+OP_DIR:
+  The main directory for the op command. The install directory is \"\${OP_DIR}/bin\".
+  (default: ${OP_DIR})
+
+The script only understands the GitHub releases API.
+On error, the script exits with status code 1."
+  exit
+fi
+
+say() {
+  printf "opinstaller: %s\n" "$1"
+}
+
+err() {
+  say "error: ${1}" >&2
+  exit 1
+}
+
+ensure() {
+  if ! "$@"; then err "command failed: ${*}"; fi
+}
+
+# Get the os type.
+
+_ostype="$(uname -s)"
+
+case "$_ostype" in
+    Linux)
+        _ostype=linux
+        ;;
+    Darwin)
+        _ostype=darwin
+        ;;
+    *)
+        err "os type is not Linux or Darwin: $_ostype"
+        ;;
+esac
+
+# Get the cpu type.
+
+_cputype="$(uname -m)"
+
+# Working around Mac idiosyncrasies.
+if [ "$_ostype" = Darwin ]; then
+    # Darwin `uname -m` can lie due to Rosetta shenanigans. If you manage to
+    # invoke a native shell binary and then a native uname binary, you can
+    # get the real answer, but that's hard to ensure, so instead we use
+    # `sysctl` (which doesn't lie) to check for the actual architecture.
+    if [ "$_cputype" = i386 ]; then
+        # Handling i386 compatibility mode in older macOS versions (<10.15)
+        # running on x86_64-based Macs.
+        # Starting from 10.15, macOS explicitly bans all i386 binaries from running.
+        # See: <https://support.apple.com/en-us/HT208436>
+
+        # Avoid `sysctl: unknown oid` stderr output and/or non-zero exit code.
+        if sysctl hw.optional.x86_64 2> /dev/null || true | grep -q ': 1'; then
+            _cputype=amd64
+        fi
+    elif [ "$_cputype" = x86_64 ]; then
+        # Handling x86-64 compatibility mode (a.k.a. Rosetta 2)
+        # in newer macOS versions (>=11) running on arm64-based Macs.
+        # Rosetta 2 is built exclusively for x86-64 and cannot run i386 binaries.
+
+        # Avoid `sysctl: unknown oid` stderr output and/or non-zero exit code.
+        if sysctl hw.optional.arm64 2> /dev/null || true | grep -q ': 1'; then
+            _cputype=arm64
+        fi
+    fi
+fi
+
+case "$_cputype" in
+    aarch64 | arm64)
+        _cputype=arm64
+        ;;
+    x86_64 | x86-64 | x64 | amd64)
+        _cputype=amd64
+        ;;
+    *)
+        err "unsupported cpu type: $_cputype"
+esac
+
+# Download the binary.
+_binary_name="op"
+
+_target="${_ostype}-${_cputype}"
+say "downloading for target ${_target}..."
+_file_without_ext="${_binary_name}-${OP_VERSION}-${_target}"
+_url="https://github.com/${OP_REPO}/releases/download/${_binary_name}/v${OP_VERSION}/${_file_without_ext}.tar.gz"
+_archive=$(mktemp) || err "create temporary file"
+ensure curl --location --proto '=https' --tlsv1.2 --silent --show-error --fail "$_url" --output "$_archive"
+say 'downloaded'
+
+# Extract to the destination.
+
+say "installing..."
+_install_dir="${OP_DIR}/bin"
+mkdir -p "$_install_dir"
+ensure tar --verbose --extract --file "$_archive" --directory "$_install_dir"
+ensure chmod +x "${_install_dir}/${_binary_name}"
+say 'installed'
+
+# Update the PATH if necessary.
+
+case ":${PATH}:" in
+
+  *":${_install_dir}:"*)
+    ;;
+
+  *)
+
+    say 'updating PATH...'
+    say "finding shell profile for shell ${SHELL}..."
+    case "$SHELL" in
+      */zsh)
+          _profile="${ZDOTDIR-"$HOME"}/.zshenv"
+          ;;
+      */bash)
+          _profile="${HOME}/.bashrc"
+          ;;
+      */fish)
+          _profile="${HOME}/.config/fish/config.fish"
+          ;;
+      */ash)
+          _profile="${HOME}/.profile"
+          ;;
+      *)
+          err "could not detect shell, manually add ${_install_dir} to your PATH."
+    esac
+    say "shell profile found at ${_profile}"
+
+    echo >> "$_profile"
+    if [ "$SHELL" = fish ]; then
+        echo "fish_add_path -a ${_install_dir}" >> "$_profile"
+    else
+        echo "export PATH=\"\${PATH}:${_install_dir}\"" >> "$_profile"
+    fi
+    say 'updated PATH'
+    say "run 'source ${_profile}' or start a new terminal session to use op."
+
+esac
