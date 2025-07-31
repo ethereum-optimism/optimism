@@ -2,7 +2,6 @@ package batcher
 
 import (
 	"errors"
-	"fmt"
 	"io"
 	"math/big"
 	"math/rand"
@@ -456,6 +455,7 @@ func TestChannelManager_handleChannelInvalidated(t *testing.T) {
 	channelToInvalidate := m.currentChannel
 	m.currentChannel.Close()
 	require.NoError(t, m.ensureChannelWithSpace(eth.BlockID{}))
+	newerChannel := m.currentChannel
 	require.Len(t, m.channelQueue, 3)
 	require.Equal(t, metrics.ChannelQueueLength, 3)
 	require.NoError(t, m.processBlocks())
@@ -467,7 +467,7 @@ func TestChannelManager_handleChannelInvalidated(t *testing.T) {
 	require.Equal(t, m.blocks, stateSnapshot)
 	require.Contains(t, m.channelQueue, oldChannel)
 	require.NotContains(t, m.channelQueue, channelToInvalidate)
-	require.NotContains(t, m.channelQueue, newChannel)
+	require.NotContains(t, m.channelQueue, newerChannel)
 	require.Len(t, m.channelQueue, 1)
 	require.Equal(t, metrics.ChannelQueueLength, 1)
 
@@ -711,23 +711,6 @@ func TestChannelManagerUnsafeBytes(t *testing.T) {
 		afterSealingChannel           int64
 	}
 
-	testCaseName := func(tc testCase) string {
-		numBlocks := len(tc.blocks)
-		batchTypeString := ""
-		switch tc.batchType {
-		case derive.SingularBatchType:
-			batchTypeString = "singularBatch"
-		case derive.SpanBatchType:
-			batchTypeString = "spanBatch"
-		default:
-			panic("unknown batch type")
-		}
-
-		numTxs := len(tc.blocks[0].Body().Transactions) - 1
-
-		return fmt.Sprintf("%d blocks with %d txs-%s-%s", numBlocks, numTxs, batchTypeString, tc.compressor)
-	}
-
 	a := newBlock(nil, 3)
 	b := newBlock(a, 3)
 	c := newBlock(b, 3)
@@ -738,123 +721,192 @@ func TestChannelManagerUnsafeBytes(t *testing.T) {
 
 	// TODO add a scenario with hundreds of blocks
 
-	for _, tc := range []testCase{
-		{
-			[]*types.Block{a},
-			derive.SingularBatchType,
-			"shadow",
-			2138, 2660, 2660, // in block queue, in open channel, in closed channel
-		},
-		{
-			[]*types.Block{a, b},
-			derive.SingularBatchType,
-			"shadow",
-			3813, 4764, 4754,
-		},
-		{
-			[]*types.Block{a, b, c},
-			derive.SingularBatchType,
-			"shadow",
-			5794, 7223, 7199,
-		},
-		{
-			[]*types.Block{a},
-			derive.SpanBatchType,
-			"",
-			2138, 24, 2606, // in block queue, in open channel, in closed channel
-		},
-		{
-			[]*types.Block{a, b},
-			derive.SpanBatchType,
-			"",
-			3813, 24, 4590,
-		},
-		{
-			[]*types.Block{a, b, c},
-			derive.SpanBatchType,
-			"",
-			5794, 24, 6929,
-		},
-		{
-			[]*types.Block{emptyA},
-			derive.SingularBatchType,
-			"shadow",
-			70, 107, 108,
-		},
-		{
-			[]*types.Block{emptyA, emptyB, emptyC},
-			derive.SingularBatchType,
-			"shadow",
-			210, 272, 267,
-		},
-		{
-			[]*types.Block{emptyA},
-			derive.SpanBatchType,
-			"shadow",
-			70, 107, 108,
-		},
-		{
-			[]*types.Block{emptyA, emptyB, emptyC},
-			derive.SpanBatchType,
-			"shadow",
-			210, 272, 267,
-		},
-	} {
-		t.Run(testCaseName(tc), func(t *testing.T) {
-			cfg := ChannelConfig{
-				MaxFrameSize:    120000 - 1,
-				TargetNumFrames: 5,
-				BatchType:       tc.batchType,
-				CompressorConfig: compressor.Config{
-					TargetOutputSize: 120000,
-					CompressionAlgo:  derive.Brotli10,
-				},
+	testChannelManagerUnsafeBytes := func(t *testing.T, tc testCase) {
+		cfg := ChannelConfig{
+			MaxFrameSize:    120000 - 1,
+			TargetNumFrames: 5,
+			BatchType:       tc.batchType,
+			CompressorConfig: compressor.Config{
+				TargetOutputSize: 120000,
+				CompressionAlgo:  derive.Brotli10,
+			},
+		}
+
+		if tc.batchType == derive.SingularBatchType {
+			// Span batches use their own compression tricks
+			switch tc.compressor {
+			case "shadow":
+				cfg.InitShadowCompressor(derive.Brotli10)
+			case "ratio":
+				cfg.InitRatioCompressor(1, derive.Brotli10)
+			default:
+				t.Fatalf("unknown compressor: %s", tc.compressor)
 			}
-			if tc.batchType == derive.SingularBatchType {
-				// Span batches use their own compression tricks
-				switch tc.compressor {
-				case "shadow":
-					cfg.InitShadowCompressor(derive.Brotli10)
-				case "ratio":
-					cfg.InitRatioCompressor(1, derive.Brotli10)
-				default:
-					t.Fatalf("unknown compressor: %s", tc.compressor)
-				}
-			}
+		}
 
-			manager := NewChannelManager(log.New(), metrics.NoopMetrics, cfg, defaultTestRollupConfig)
+		manager := NewChannelManager(log.New(), metrics.NoopMetrics, cfg, defaultTestRollupConfig)
 
-			for _, block := range tc.blocks {
-				require.NoError(t, manager.AddL2Block(block))
-			}
+		for _, block := range tc.blocks {
+			require.NoError(t, manager.AddL2Block(block))
+		}
 
-			assert.Equal(t, tc.afterAddingToUnsafeBlockQueue, manager.UnsafeDABytes())
-			assert.Equal(t, tc.afterAddingToUnsafeBlockQueue, manager.unsafeBytesInPendingBlocks())
-			require.Equal(t, int64(0), manager.unsafeBytesInOpenChannels())
-			require.Equal(t, int64(0), manager.unsafeBytesInClosedChannels())
+		assert.Equal(t, tc.afterAddingToUnsafeBlockQueue, manager.UnsafeDABytes())
+		assert.Equal(t, tc.afterAddingToUnsafeBlockQueue, manager.unsafeBytesInPendingBlocks())
+		assert.Zero(t, manager.unsafeBytesInOpenChannels())
+		assert.Zero(t, manager.unsafeBytesInClosedChannels())
 
-			for err := error(nil); err != io.EOF; {
-				require.NoError(t, err)
-				_, err = manager.TxData(eth.BlockID{
-					Hash:   common.Hash{},
-					Number: 0,
-				}, true, false)
-			}
-
-			assert.Equal(t, tc.afterAddingToChannel, manager.UnsafeDABytes())
-			require.Equal(t, int64(0), manager.unsafeBytesInPendingBlocks())
-			assert.Equal(t, tc.afterAddingToChannel, manager.unsafeBytesInOpenChannels())
-			require.Equal(t, int64(0), manager.unsafeBytesInClosedChannels())
-
-			manager.currentChannel.Close()
-			err := manager.currentChannel.OutputFrames()
+		for err := error(nil); err != io.EOF; {
 			require.NoError(t, err)
+			_, err = manager.TxData(eth.BlockID{
+				Hash:   common.Hash{},
+				Number: 0,
+			}, true, false)
+		}
 
-			assert.Equal(t, tc.afterSealingChannel, manager.UnsafeDABytes())
-			require.Equal(t, int64(0), manager.unsafeBytesInPendingBlocks())
-			require.Equal(t, int64(0), manager.unsafeBytesInOpenChannels())
-			assert.Equal(t, tc.afterSealingChannel, manager.unsafeBytesInClosedChannels())
+		assert.Equal(t, tc.afterAddingToChannel, manager.UnsafeDABytes())
+		assert.Zero(t, manager.unsafeBytesInPendingBlocks())
+		assert.Equal(t, tc.afterAddingToChannel, manager.unsafeBytesInOpenChannels())
+		assert.Zero(t, manager.unsafeBytesInClosedChannels())
 
-		})
+		manager.currentChannel.Close()
+		err := manager.currentChannel.OutputFrames()
+		require.NoError(t, err)
+
+		assert.Equal(t, tc.afterSealingChannel, manager.UnsafeDABytes())
+		assert.Zero(t, manager.unsafeBytesInPendingBlocks())
+		assert.Zero(t, manager.unsafeBytesInOpenChannels())
+		assert.Equal(t, tc.afterSealingChannel, manager.unsafeBytesInClosedChannels())
 	}
+
+	t.Run("case1", func(t *testing.T) {
+		testChannelManagerUnsafeBytes(t, testCase{
+			blocks:                        []*types.Block{a},
+			batchType:                     derive.SingularBatchType,
+			compressor:                    "shadow",
+			afterAddingToUnsafeBlockQueue: 2138,
+			afterAddingToChannel:          2138,
+			afterSealingChannel:           2660,
+		})
+	})
+
+	t.Run("case2", func(t *testing.T) {
+		testChannelManagerUnsafeBytes(t, testCase{
+			blocks:                        []*types.Block{a, b},
+			batchType:                     derive.SingularBatchType,
+			compressor:                    "shadow",
+			afterAddingToUnsafeBlockQueue: 3813,
+			afterAddingToChannel:          3813,
+			afterSealingChannel:           4754,
+		})
+	})
+
+	t.Run("case3", func(t *testing.T) {
+		testChannelManagerUnsafeBytes(t, testCase{
+			blocks:                        []*types.Block{a, b, c},
+			batchType:                     derive.SingularBatchType,
+			compressor:                    "shadow",
+			afterAddingToUnsafeBlockQueue: 5794,
+			afterAddingToChannel:          5794,
+			afterSealingChannel:           7199,
+		})
+	})
+
+	t.Run("case4", func(t *testing.T) {
+		testChannelManagerUnsafeBytes(t, testCase{
+			blocks:                        []*types.Block{a},
+			batchType:                     derive.SingularBatchType,
+			compressor:                    "shadow",
+			afterAddingToUnsafeBlockQueue: 2138,
+			afterAddingToChannel:          2138,
+			afterSealingChannel:           2660,
+		})
+	})
+
+	t.Run("case5", func(t *testing.T) {
+		testChannelManagerUnsafeBytes(t, testCase{
+			blocks:                        []*types.Block{a, b, c},
+			batchType:                     derive.SingularBatchType,
+			compressor:                    "shadow",
+			afterAddingToUnsafeBlockQueue: 5794,
+			afterAddingToChannel:          5794,
+			afterSealingChannel:           7199,
+		})
+	})
+
+	t.Run("case6", func(t *testing.T) {
+		testChannelManagerUnsafeBytes(t, testCase{
+			blocks:                        []*types.Block{a},
+			batchType:                     derive.SpanBatchType,
+			compressor:                    "",
+			afterAddingToUnsafeBlockQueue: 2138,
+			afterAddingToChannel:          2138,
+			afterSealingChannel:           2606, // in block queue, in open channel, in closed channel
+		})
+	})
+
+	t.Run("case7", func(t *testing.T) {
+		testChannelManagerUnsafeBytes(t, testCase{
+			blocks:                        []*types.Block{a, b},
+			batchType:                     derive.SpanBatchType,
+			compressor:                    "",
+			afterAddingToUnsafeBlockQueue: 3813,
+			afterAddingToChannel:          3813,
+			afterSealingChannel:           4590,
+		})
+	})
+
+	t.Run("case8", func(t *testing.T) {
+		testChannelManagerUnsafeBytes(t, testCase{
+			blocks:                        []*types.Block{a, b, c},
+			batchType:                     derive.SpanBatchType,
+			compressor:                    "",
+			afterAddingToUnsafeBlockQueue: 5794,
+			afterAddingToChannel:          5794,
+			afterSealingChannel:           6929,
+		})
+	})
+
+	t.Run("case9", func(t *testing.T) {
+		testChannelManagerUnsafeBytes(t, testCase{
+			blocks:                        []*types.Block{emptyA},
+			batchType:                     derive.SingularBatchType,
+			compressor:                    "shadow",
+			afterAddingToUnsafeBlockQueue: 70,
+			afterAddingToChannel:          70,
+			afterSealingChannel:           108,
+		})
+	})
+
+	t.Run("case10", func(t *testing.T) {
+		testChannelManagerUnsafeBytes(t, testCase{
+			blocks:                        []*types.Block{emptyA, emptyB, emptyC},
+			batchType:                     derive.SingularBatchType,
+			compressor:                    "shadow",
+			afterAddingToUnsafeBlockQueue: 210,
+			afterAddingToChannel:          210,
+			afterSealingChannel:           267,
+		})
+	})
+
+	t.Run("case11", func(t *testing.T) {
+		testChannelManagerUnsafeBytes(t, testCase{
+			blocks:                        []*types.Block{emptyA},
+			batchType:                     derive.SpanBatchType,
+			compressor:                    "",
+			afterAddingToUnsafeBlockQueue: 70,
+			afterAddingToChannel:          70,
+			afterSealingChannel:           79,
+		})
+	})
+
+	t.Run("case12", func(t *testing.T) {
+		testChannelManagerUnsafeBytes(t, testCase{
+			blocks:                        []*types.Block{emptyA, emptyB, emptyC},
+			batchType:                     derive.SpanBatchType,
+			compressor:                    "",
+			afterAddingToUnsafeBlockQueue: 210,
+			afterAddingToChannel:          210,
+			afterSealingChannel:           81,
+		})
+	})
 }
