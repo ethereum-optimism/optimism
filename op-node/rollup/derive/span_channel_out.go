@@ -375,12 +375,3 @@ func (co *SpanChannelOut) OutputFrame(w *bytes.Buffer, maxSize uint64) (uint16, 
 		return fn, nil
 	}
 }
-
-func (co *SpanChannelOut) EstimatedDABytes(frameSize int) (uint64, error) {
-	if co.compressor == nil {
-		return 0, fmt.Errorf("compressor is nil (possibly discarded)")
-	}
-	len := co.compressor.Len()
-	numFrames := 1 + len/frameSize
-	return uint64(len + numFrames*FrameV0OverHeadSize), nil
-}
