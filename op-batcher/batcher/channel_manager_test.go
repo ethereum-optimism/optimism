@@ -2,12 +2,14 @@ package batcher
 
 import (
 	"errors"
+	"fmt"
 	"io"
 	"math/big"
 	"math/rand"
 	"testing"
 	"time"
 
+	"github.com/ethereum-optimism/optimism/op-batcher/compressor"
 	"github.com/ethereum-optimism/optimism/op-batcher/metrics"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
@@ -701,11 +703,29 @@ func newBlock(parent *types.Block, numTransactions int) *types.Block {
 func TestChannelManagerUnsafeBytes(t *testing.T) {
 
 	type testCase struct {
-		name                          string
 		blocks                        []*types.Block
+		batchType                     uint
+		compressor                    string
 		afterAddingToUnsafeBlockQueue int64
 		afterAddingToChannel          int64
 		afterSealingChannel           int64
+	}
+
+	testCaseName := func(tc testCase) string {
+		numBlocks := len(tc.blocks)
+		batchTypeString := ""
+		switch tc.batchType {
+		case derive.SingularBatchType:
+			batchTypeString = "singularBatch"
+		case derive.SpanBatchType:
+			batchTypeString = "spanBatch"
+		default:
+			panic("unknown batch type")
+		}
+
+		numTxs := len(tc.blocks[0].Body().Transactions) - 1
+
+		return fmt.Sprintf("%d blocks with %d txs-%s-%s", numBlocks, numTxs, batchTypeString, tc.compressor)
 	}
 
 	a := newBlock(nil, 3)
@@ -720,38 +740,87 @@ func TestChannelManagerUnsafeBytes(t *testing.T) {
 
 	for _, tc := range []testCase{
 		{
-			"Single block with 3 transactions",
 			[]*types.Block{a},
-			2138, 24, 2660, // in block queue, in open channel, in closed channel
+			derive.SingularBatchType,
+			"shadow",
+			2138, 2660, 2660, // in block queue, in open channel, in closed channel
 		},
 		{
-			"Two blocks with 3 transactions",
 			[]*types.Block{a, b},
-			3813, 24, 4754,
+			derive.SingularBatchType,
+			"shadow",
+			3813, 4764, 4754,
 		},
 		{
-			"Three blocks with 3 transactions",
 			[]*types.Block{a, b, c},
-			5794, 24, 7199,
+			derive.SingularBatchType,
+			"shadow",
+			5794, 7223, 7199,
 		},
 		{
-			"Single block with 0 transactions",
+			[]*types.Block{a},
+			derive.SpanBatchType,
+			"",
+			2138, 24, 2606, // in block queue, in open channel, in closed channel
+		},
+		{
+			[]*types.Block{a, b},
+			derive.SpanBatchType,
+			"",
+			3813, 24, 4590,
+		},
+		{
+			[]*types.Block{a, b, c},
+			derive.SpanBatchType,
+			"",
+			5794, 24, 6929,
+		},
+		{
 			[]*types.Block{emptyA},
-			70, 24, 108,
+			derive.SingularBatchType,
+			"shadow",
+			70, 107, 108,
 		},
 		{
-			"Three blocks with 0 transactions",
 			[]*types.Block{emptyA, emptyB, emptyC},
-			210, 24, 267,
+			derive.SingularBatchType,
+			"shadow",
+			210, 272, 267,
+		},
+		{
+			[]*types.Block{emptyA},
+			derive.SpanBatchType,
+			"shadow",
+			70, 107, 108,
+		},
+		{
+			[]*types.Block{emptyA, emptyB, emptyC},
+			derive.SpanBatchType,
+			"shadow",
+			210, 272, 267,
 		},
 	} {
-		t.Run(tc.name, func(t *testing.T) {
+		t.Run(testCaseName(tc), func(t *testing.T) {
 			cfg := ChannelConfig{
 				MaxFrameSize:    120000 - 1,
 				TargetNumFrames: 5,
-				BatchType:       derive.SingularBatchType,
+				BatchType:       tc.batchType,
+				CompressorConfig: compressor.Config{
+					TargetOutputSize: 120000,
+					CompressionAlgo:  derive.Brotli10,
+				},
 			}
-			cfg.InitShadowCompressor(derive.Brotli10)
+			if tc.batchType == derive.SingularBatchType {
+				// Span batches use their own compression tricks
+				switch tc.compressor {
+				case "shadow":
+					cfg.InitShadowCompressor(derive.Brotli10)
+				case "ratio":
+					cfg.InitRatioCompressor(1, derive.Brotli10)
+				default:
+					t.Fatalf("unknown compressor: %s", tc.compressor)
+				}
+			}
 
 			manager := NewChannelManager(log.New(), metrics.NoopMetrics, cfg, defaultTestRollupConfig)
 
