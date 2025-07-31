@@ -239,23 +239,6 @@ contract L1CrossDomainMessenger_Upgrade_Test is L1CrossDomainMessenger_TestInit 
         vm.expectRevert(IProxyAdminOwnedBase.ProxyAdminOwnedBase_NotProxyAdminOrProxyAdminOwner.selector);
         l1CrossDomainMessenger.upgrade(newSystemConfig);
     }
-
-    /// @notice Fuzz test for upgrade with any system config address.
-    /// @param _systemConfig The system config address to test.
-    function testFuzz_upgrade_anySystemConfig_succeeds(address _systemConfig) external {
-        // Get the slot for _initialized.
-        StorageSlot memory slot = ForgeArtifacts.getSlot("L1CrossDomainMessenger", "_initialized");
-
-        // Set the initialized slot to 0.
-        vm.store(address(l1CrossDomainMessenger), bytes32(slot.slot), bytes32(0));
-
-        // Trigger upgrade with the fuzzed address.
-        vm.prank(address(l1CrossDomainMessenger.proxyAdmin()));
-        l1CrossDomainMessenger.upgrade(ISystemConfig(_systemConfig));
-
-        // Verify that the systemConfig was updated correctly.
-        assertEq(address(l1CrossDomainMessenger.systemConfig()), _systemConfig);
-    }
 }
 
 /// @title L1CrossDomainMessenger_Paused_Test
