@@ -3,15 +3,9 @@ pragma solidity ^0.8.0;
 
 import { ISystemConfig } from "interfaces/L1/ISystemConfig.sol";
 import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
-import { IProxyAdmin } from "interfaces/universal/IProxyAdmin.sol";
+import { IProxyAdminOwnedBase } from "interfaces/L1/IProxyAdminOwnedBase.sol";
 
-interface IDelayedWETH {
-    error ProxyAdminOwnedBase_NotSharedProxyAdminOwner();
-    error ProxyAdminOwnedBase_NotProxyAdminOwner();
-    error ProxyAdminOwnedBase_NotProxyAdmin();
-    error ProxyAdminOwnedBase_NotProxyAdminOrProxyAdminOwner();
-    error ProxyAdminOwnedBase_ProxyAdminNotFound();
-    error ProxyAdminOwnedBase_NotResolvedDelegateProxy();
+interface IDelayedWETH is IProxyAdminOwnedBase {
     error ReinitializableBase_ZeroInitVersion();
 
     struct WithdrawalRequest {
@@ -35,8 +29,6 @@ interface IDelayedWETH {
     function withdraw(address _guy, uint256 _wad) external;
     function withdrawals(address, address) external view returns (uint256 amount, uint256 timestamp);
     function version() external view returns (string memory);
-    function proxyAdmin() external view returns (IProxyAdmin);
-    function proxyAdminOwner() external view returns (address);
     function withdraw(uint256 _wad) external;
 
     event Approval(address indexed src, address indexed guy, uint256 wad);
