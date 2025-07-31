@@ -107,6 +107,7 @@ func computePayloadId(headBlockHash common.Hash, attrs *eth.PayloadAttributes) e
 	if attrs.EIP1559Params != nil {
 		hasher.Write(attrs.EIP1559Params[:])
 	}
+	hasher.Write([]byte{attrs.MinBaseFeeLog2})
 	var out engine.PayloadID
 	copy(out[:], hasher.Sum(nil)[:8])
 	return out
@@ -360,7 +361,11 @@ func (ea *L2EngineAPI) NewPayloadV3(ctx context.Context, params *eth.ExecutionPa
 	}
 
 	// Payload must have eip-1559 params in ExtraData after Holocene
-	if ea.config().IsHolocene(uint64(params.Timestamp)) {
+	if ea.config().IsJovian(uint64(params.Timestamp)) {
+		if err := eip1559.ValidateMinBaseFeeExtraData(params.ExtraData); err != nil {
+			return &eth.PayloadStatusV1{Status: eth.ExecutionInvalid}, engine.UnsupportedFork.With(errors.New("invalid jovian extraData post-jovian"))
+		}
+	} else if ea.config().IsHolocene(uint64(params.Timestamp)) {
 		if err := eip1559.ValidateHoloceneExtraData(params.ExtraData); err != nil {
 			return &eth.PayloadStatusV1{Status: eth.ExecutionInvalid}, engine.UnsupportedFork.With(errors.New("invalid holocene extraData post-holocene"))
 		}
@@ -406,6 +411,12 @@ func (ea *L2EngineAPI) NewPayloadV4(ctx context.Context, params *eth.ExecutionPa
 
 	if params.WithdrawalsRoot == nil {
 		return &eth.PayloadStatusV1{Status: eth.ExecutionInvalid}, engine.InvalidParams.With(errors.New("nil withdrawalsRoot post-isthmus"))
+	}
+
+	if ea.config().IsJovian(uint64(params.Timestamp)) {
+		if err := eip1559.ValidateMinBaseFeeExtraData(params.ExtraData); err != nil {
+			return &eth.PayloadStatusV1{Status: eth.ExecutionInvalid}, engine.UnsupportedFork.With(errors.New("invalid jovian extraData post-jovian"))
+		}
 	}
 
 	requests := convertRequests(executionRequests)

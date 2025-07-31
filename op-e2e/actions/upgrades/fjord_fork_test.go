@@ -47,6 +47,8 @@ func TestFjordNetworkUpgradeTransactions(gt *testing.T) {
 	dp.DeployConfig.L2GenesisFjordTimeOffset = &fjordOffset
 	dp.DeployConfig.L2GenesisGraniteTimeOffset = nil
 	dp.DeployConfig.L2GenesisHoloceneTimeOffset = nil
+	dp.DeployConfig.L2GenesisIsthmusTimeOffset = nil
+	dp.DeployConfig.L2GenesisJovianTimeOffset = nil
 	require.NoError(t, dp.DeployConfig.Check(log), "must have valid config")
 
 	sd := e2eutils.Setup(t, dp, helpers.DefaultAlloc)
