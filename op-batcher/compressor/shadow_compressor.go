@@ -60,7 +60,6 @@ func (t *ShadowCompressor) Write(p []byte) (int, error) {
 	if err != nil {
 		return 0, err
 	}
-
 	newBound := t.bound + uint64(len(p))
 	if newBound > t.config.TargetOutputSize {
 		// Do not flush the buffer unless there's some chance we will be over the size limit.
