@@ -14,7 +14,8 @@ functions:
       - http:
           path: generate_alchemypay_url
           method: post
-          cors: true
+          cors:  # <-- CORS! configuration
+            origins: ${self:provider.environment.CORS_ORIGINS.split(',')}
     timeout: 30
 
 plugins:
@@ -38,10 +39,10 @@ custom:
     httpPort: 3000
 
   customDomain:
-    domainName: alchemypay-api.sepolia.boba.network       # 👈 Your subdomain here
+    domainName: ${self:provider.environment.DOMAIN_NAME}       # 👈 Your subdomain here
     basePath: ''                      # '' means root path
     stage: ${self:provider.stage}
     createRoute53Record: true
-    certificateName: '*.sepolia.boba.network'  # 👈 Must match ACM cert
+    certificateName: ${self:provider.environment.CERTIFICATE_NAME}  # 👈 Must match ACM cert
     endpointType: REGIONAL
 
