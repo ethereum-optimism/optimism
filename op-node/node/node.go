@@ -148,7 +148,9 @@ func (n *OpNode) init(ctx context.Context, cfg *config.Config) error {
 	if err := n.initL2(ctx, cfg); err != nil {
 		return fmt.Errorf("failed to init L2: %w", err)
 	}
-	n.initL1Handlers(cfg)
+	if err := n.initL1Handlers(cfg); err != nil {
+		return fmt.Errorf("failed to init L1 Handlers: %w", err)
+	}
 	if err := n.initRuntimeConfig(ctx, cfg); err != nil { // depends on L2, to signal initial runtime values to
 		return fmt.Errorf("failed to init the runtime config: %w", err)
 	}
@@ -211,20 +213,19 @@ func (n *OpNode) initL1Source(ctx context.Context, cfg *config.Config) error {
 	return nil
 }
 
-func (n *OpNode) initL1Handlers(cfg *config.Config) {
+func (n *OpNode) initL1Handlers(cfg *config.Config) error {
+	if n.l2Driver == nil {
+		return errors.New("l2 driver must be initialized")
+	}
 	emitter := n.eventSys.Register("l1-signals", nil)
 	onL1Head := func(ctx context.Context, sig eth.L1BlockRef) {
-		// At initTracer
-		// comms.go      TracerDeriver records L1Unsafe
+		// TODO(#16917) Remove Event System Refactor Comments
+		//  L1UnsafeEvent fan out is updated to procedural method calls
 		if n.cfg.Tracer != nil {
 			n.cfg.Tracer.OnNewL1Head(ctx, sig)
 		}
-		// At initL2
-		// l1_tracker.go L1Tracker inserts L1unsafe to cache
 		n.l2Driver.L1Tracker.OnL1Unsafe(sig)
-		// status.go     StatusTracker updates L1Head
 		n.l2Driver.StatusTracker.OnL1Unsafe(sig)
-		// state.go      SyncDeriver listens to event and emit stepReqEvent
 		n.l2Driver.SyncDeriver.OnL1Unsafe(ctx)
 	}
 	onL1Safe := func(ctx context.Context, sig eth.L1BlockRef) {
@@ -255,6 +256,8 @@ func (n *OpNode) initL1Handlers(cfg *config.Config) {
 		cfg.L1EpochPollInterval, time.Second*10)
 	n.l1FinalizedSub = eth.PollBlockChanges(n.log, n.l1Source, onL1Finalized, eth.Finalized,
 		cfg.L1EpochPollInterval, time.Second*10)
+
+	return nil
 }
 
 func (n *OpNode) initRuntimeConfig(ctx context.Context, cfg *config.Config) error {
