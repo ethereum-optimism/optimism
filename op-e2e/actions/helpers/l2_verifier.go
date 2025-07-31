@@ -171,7 +171,7 @@ func NewL2Verifier(t Testing, log log.Logger, l1 derive.L1Fetcher,
 	syncStatusTracker := status.NewStatusTracker(log, metrics)
 	sys.Register("status", syncStatusTracker, opts)
 
-	sys.Register("sync", &driver.SyncDeriver{
+	syncDeriver := &driver.SyncDeriver{
 		Derivation:          pipeline,
 		SafeHeadNotifs:      safeHeadListener,
 		CLSync:              clSync,
@@ -183,7 +183,11 @@ func NewL2Verifier(t Testing, log log.Logger, l1 derive.L1Fetcher,
 		Log:                 log,
 		Ctx:                 ctx,
 		ManagedBySupervisor: indexingMode,
-	}, opts)
+	}
+	// TODO(#16917) Remove Event System Refactor Comments
+	//  Couple SyncDeriver and EngineController for event refactoring
+	ec.SyncDeriver = syncDeriver
+	sys.Register("sync", syncDeriver, opts)
 
 	sys.Register("engine", engine.NewEngDeriver(log, ctx, cfg, metrics, ec), opts)
 
