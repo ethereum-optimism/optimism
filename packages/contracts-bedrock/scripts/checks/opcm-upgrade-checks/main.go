@@ -10,7 +10,7 @@ import (
 	"github.com/ethereum-optimism/optimism/packages/contracts-bedrock/scripts/checks/common"
 )
 
-var OPCM_ARTIFACT_PATH = "forge-artifacts/OPContractsManager.sol/OPContractsManagerUpgrader.json"
+const OPCM_ARTIFACT_PATH = "forge-artifacts/OPContractsManager.sol/OPContractsManagerUpgrader.json"
 
 type InternalUpgradeFunctionType struct {
 	name     string
@@ -26,7 +26,7 @@ const (
 )
 
 func main() {
-	// Assert that the OPCM_BASE's upgradeToAndCall function has a call from IProxyAdmin.upgradeAndCall.
+	// Assert that the OPCM_BASE's upgradeToAndCall function has a call to IProxyAdmin.upgradeAndCall.
 	res, err := assertOPCMBaseInternalUpgradeFunctionCallUpgrade("contract IProxyAdmin", "OPContractsManagerBase")
 	if !res {
 		fmt.Printf("error: %v\n", err)
