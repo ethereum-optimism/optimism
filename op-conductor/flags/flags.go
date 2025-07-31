@@ -158,21 +158,21 @@ var (
 		EnvVars: opservice.PrefixEnvVar(EnvVarPrefix, "WEBSOCKET_SERVER_PORT"),
 		Value:   8546,
 	}
-	ElP2pChecksEnabled = &cli.BoolFlag{
-		Name:    "el-p2p-check-enabled",
+	ExecutionP2pEnabled = &cli.BoolFlag{
+		Name:    "healthcheck.execution-p2p-enabled",
 		Usage:   "Whether to enable EL P2P checks",
-		EnvVars: opservice.PrefixEnvVar(EnvVarPrefix, "EL_P2P_CHECK_ENABLED"),
+		EnvVars: opservice.PrefixEnvVar(EnvVarPrefix, "HEALTHCHECK_EXECUTION_P2P_ENABLED"),
 		Value:   false,
 	}
-	MinElP2pPeers = &cli.Uint64Flag{
-		Name:    "el-p2p-min-peers",
+	ExecutionMinP2pPeers = &cli.Uint64Flag{
+		Name:    "healthcheck.execution-p2p-min-peers",
 		Usage:   "Minimum number of EL P2P peers required to be considered healthy",
-		EnvVars: opservice.PrefixEnvVar(EnvVarPrefix, "EL_P2P_MIN_PEERS"),
+		EnvVars: opservice.PrefixEnvVar(EnvVarPrefix, "HEALTHCHECK_EXECUTION_P2P_MIN_PEERS"),
 	}
-	ElP2pRPCUrl = &cli.StringFlag{
-		Name:    "el-p2p-rpc-url",
-		Usage:   "URL for the execution layer RPC client",
-		EnvVars: opservice.PrefixEnvVar(EnvVarPrefix, "EL_P2P_RPC_URL"),
+	ExecutionP2pRPCUrl = &cli.StringFlag{
+		Name:    "healthcheck.execution-p2p-rpc-url",
+		Usage:   "URL override for the execution layer RPC client for the sake of p2p healthcheck. If not set, the execution RPC URL will be used.",
+		EnvVars: opservice.PrefixEnvVar(EnvVarPrefix, "HEALTHCHECK_EXECUTION_P2P_RPC_URL"),
 	}
 )
 
@@ -203,9 +203,9 @@ var optionalFlags = []cli.Flag{
 	SupervisorRPC,
 	RollupBoostEnabled,
 	RollupBoostHealthcheckTimeout,
-	ElP2pChecksEnabled,
-	MinElP2pPeers,
-	ElP2pRPCUrl,
+	ExecutionP2pEnabled,
+	ExecutionMinP2pPeers,
+	ExecutionP2pRPCUrl,
 }
 
 func init() {

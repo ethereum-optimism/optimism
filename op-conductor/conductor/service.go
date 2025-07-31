@@ -221,10 +221,10 @@ func (c *OpConductor) initHealthMonitor(ctx context.Context) error {
 	}
 
 	var elP2p client.ElP2PClient
-	if c.cfg.HealthCheck.ElP2pChecksEnabled {
-		execClient, err := dial.DialEthClientWithTimeout(ctx, 1*time.Minute, c.log, c.cfg.HealthCheck.ElP2pRPCUrl)
+	if c.cfg.HealthCheck.ExecutionP2pEnabled {
+		execClient, err := dial.DialEthClientWithTimeout(ctx, 1*time.Minute, c.log, c.cfg.HealthCheck.ExecutionP2pRPCUrl)
 		if err != nil {
-			return errors.Wrap(err, "failed to create execution rpc client out of the el p2p rpc url: "+c.cfg.HealthCheck.ElP2pRPCUrl)
+			return errors.Wrap(err, "failed to create execution rpc client out of the el p2p rpc url: "+c.cfg.HealthCheck.ExecutionP2pRPCUrl)
 		}
 		elP2p = client.NewElP2PClientAdmin(execClient)
 	} else {
@@ -255,7 +255,7 @@ func (c *OpConductor) initHealthMonitor(ctx context.Context) error {
 		supervisor,
 		rb,
 		elP2p,
-		c.cfg.HealthCheck.MinElP2pPeers,
+		c.cfg.HealthCheck.ExecutionMinP2pPeers,
 	)
 	c.healthUpdateCh = c.hmon.Subscribe()
 

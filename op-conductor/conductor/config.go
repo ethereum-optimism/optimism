@@ -146,6 +146,11 @@ func NewConfig(ctx *cli.Context, log log.Logger) (*Config, error) {
 		return nil, errors.Wrap(err, "failed to load rollup config")
 	}
 
+	executionP2pRpcUrl := ctx.String(flags.ExecutionP2pRPCUrl.Name)
+	if executionP2pRpcUrl == "" {
+		executionP2pRpcUrl = ctx.String(flags.ExecutionRPC.Name)
+	}
+
 	return &Config{
 		ConsensusAddr: ctx.String(flags.ConsensusAddr.Name),
 		ConsensusPort: ctx.Int(flags.ConsensusPort.Name),
@@ -167,14 +172,14 @@ func NewConfig(ctx *cli.Context, log log.Logger) (*Config, error) {
 		RollupBoostHealthcheckTimeout: ctx.Duration(flags.RollupBoostHealthcheckTimeout.Name),
 		Paused:                        ctx.Bool(flags.Paused.Name),
 		HealthCheck: HealthCheckConfig{
-			Interval:           ctx.Uint64(flags.HealthCheckInterval.Name),
-			UnsafeInterval:     ctx.Uint64(flags.HealthCheckUnsafeInterval.Name),
-			SafeEnabled:        ctx.Bool(flags.HealthCheckSafeEnabled.Name),
-			SafeInterval:       ctx.Uint64(flags.HealthCheckSafeInterval.Name),
-			MinPeerCount:       ctx.Uint64(flags.HealthCheckMinPeerCount.Name),
-			ElP2pChecksEnabled: ctx.Bool(flags.ElP2pChecksEnabled.Name),
-			MinElP2pPeers:      ctx.Uint64(flags.MinElP2pPeers.Name),
-			ElP2pRPCUrl:        ctx.String(flags.ElP2pRPCUrl.Name),
+			Interval:             ctx.Uint64(flags.HealthCheckInterval.Name),
+			UnsafeInterval:       ctx.Uint64(flags.HealthCheckUnsafeInterval.Name),
+			SafeEnabled:          ctx.Bool(flags.HealthCheckSafeEnabled.Name),
+			SafeInterval:         ctx.Uint64(flags.HealthCheckSafeInterval.Name),
+			MinPeerCount:         ctx.Uint64(flags.HealthCheckMinPeerCount.Name),
+			ExecutionP2pEnabled:  ctx.Bool(flags.ExecutionP2pEnabled.Name),
+			ExecutionMinP2pPeers: ctx.Uint64(flags.ExecutionMinP2pPeers.Name),
+			ExecutionP2pRPCUrl:   executionP2pRpcUrl,
 		},
 		RollupCfg:           *rollupCfg,
 		RPCEnableProxy:      ctx.Bool(flags.RPCEnableProxy.Name),
@@ -204,14 +209,14 @@ type HealthCheckConfig struct {
 	// MinPeerCount is the minimum number of peers required for the sequencer to be healthy.
 	MinPeerCount uint64
 
-	// ElP2pChecksEnabled is whether to enable EL P2P checks.
-	ElP2pChecksEnabled bool
+	// ExecutionP2pEnabled is whether to enable EL P2P checks.
+	ExecutionP2pEnabled bool
 
-	// ElP2pRPC is the HTTP provider URL for EL P2P.
-	ElP2pRPCUrl string
+	// ExecutionP2pRPC is the HTTP provider URL for EL P2P.
+	ExecutionP2pRPCUrl string
 
-	// MinElP2pPeers is the minimum number of EL P2P peers required for the sequencer to be healthy.
-	MinElP2pPeers uint64
+	// ExecutionMinP2pPeers is the minimum number of EL P2P peers required for the sequencer to be healthy.
+	ExecutionMinP2pPeers uint64
 }
 
 func (c *HealthCheckConfig) Check() error {
@@ -224,11 +229,11 @@ func (c *HealthCheckConfig) Check() error {
 	if c.MinPeerCount == 0 {
 		return fmt.Errorf("missing minimum peer count")
 	}
-	if c.ElP2pChecksEnabled {
-		if c.MinElP2pPeers == 0 {
+	if c.ExecutionP2pEnabled {
+		if c.ExecutionMinP2pPeers == 0 {
 			return fmt.Errorf("missing minimum el p2p peers")
 		}
-		if c.ElP2pRPCUrl == "" {
+		if c.ExecutionP2pRPCUrl == "" {
 			return fmt.Errorf("missing el p2p rpc")
 		}
 	}
