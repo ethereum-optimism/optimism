@@ -167,7 +167,7 @@ var (
 	HealthcheckExecutionP2pMinPeerCount = &cli.Uint64Flag{
 		Name:    "healthcheck.execution-p2p-min-peer-count",
 		Usage:   "Minimum number of EL P2P peers required to be considered healthy",
-		EnvVars: opservice.PrefixEnvVar(EnvVarPrefix, "HEALTHCHECK_EXECUTION_P2P_MIN_PEERS"),
+		EnvVars: opservice.PrefixEnvVar(EnvVarPrefix, "HEALTHCHECK_EXECUTION_P2P_MIN_PEER_COUNT"),
 	}
 	HealthcheckExecutionP2pRPCUrl = &cli.StringFlag{
 		Name:    "healthcheck.execution-p2p-rpc-url",
