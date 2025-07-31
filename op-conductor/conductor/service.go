@@ -255,7 +255,7 @@ func (c *OpConductor) initHealthMonitor(ctx context.Context) error {
 		supervisor,
 		rb,
 		elP2p,
-		c.cfg.HealthCheck.ExecutionMinP2pPeers,
+		c.cfg.HealthCheck.ExecutionP2pMinPeerCount,
 	)
 	c.healthUpdateCh = c.hmon.Subscribe()
 
