@@ -100,6 +100,8 @@ type EngineController struct {
 	needFCUCallForBackupUnsafeReorg bool
 
 	// For clearing safe head db when EL sync started
+	// EngineController is first initialized and used to initialize SyncDeriver.
+	// Embed SyncDeriver into EngineController after initializing SyncDeriver
 	SyncDeriver SyncDeriver
 }
 
