@@ -65,6 +65,7 @@ type L2Verifier struct {
 	engine            *engine.EngineController
 	derivationMetrics *testutils.TestDerivationMetrics
 	derivation        *derive.DerivationPipeline
+	syncDeriver       *driver.SyncDeriver
 
 	safeHeadListener rollup.SafeHeadListener
 	syncCfg          *sync.Config
@@ -172,13 +173,14 @@ func NewL2Verifier(t Testing, log log.Logger, l1 derive.L1Fetcher,
 	sys.Register("status", syncStatusTracker, opts)
 
 	syncDeriver := &driver.SyncDeriver{
-		Derivation:          pipeline,
-		SafeHeadNotifs:      safeHeadListener,
-		CLSync:              clSync,
-		Engine:              ec,
-		SyncCfg:             syncCfg,
-		Config:              cfg,
-		L1:                  l1,
+		Derivation:     pipeline,
+		SafeHeadNotifs: safeHeadListener,
+		CLSync:         clSync,
+		Engine:         ec,
+		SyncCfg:        syncCfg,
+		Config:         cfg,
+		L1:             l1,
+		// No need to initialize L1Tracker because no L1 block cache is used for testing
 		L2:                  eng,
 		Log:                 log,
 		Ctx:                 ctx,
@@ -198,6 +200,7 @@ func NewL2Verifier(t Testing, log log.Logger, l1 derive.L1Fetcher,
 		engine:            ec,
 		derivationMetrics: metrics,
 		derivation:        pipeline,
+		syncDeriver:       syncDeriver,
 		safeHeadListener:  safeHeadListener,
 		syncCfg:           syncCfg,
 		drainer:           executor,
@@ -358,11 +361,8 @@ func (s *L2Verifier) ActRPCFail(t Testing) {
 func (s *L2Verifier) ActL1HeadSignal(t Testing) {
 	head, err := s.l1.L1BlockRefByLabel(t.Ctx(), eth.Unsafe)
 	require.NoError(t, err)
-	s.synchronousEvents.Emit(t.Ctx(), status.L1UnsafeEvent{L1Unsafe: head})
-	require.NoError(t, s.drainer.DrainUntil(func(ev event.Event) bool {
-		x, ok := ev.(status.L1UnsafeEvent)
-		return ok && x.L1Unsafe == head
-	}, false))
+	s.syncStatus.OnL1Unsafe(head)
+	s.syncDeriver.OnL1Unsafe(t.Ctx())
 	require.Equal(t, head, s.syncStatus.SyncStatus().HeadL1)
 }
 

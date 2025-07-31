@@ -119,6 +119,7 @@ type SyncStatusTracker interface {
 	event.Deriver
 	SyncStatus() *eth.SyncStatus
 	L1Head() eth.L1BlockRef
+	OnL1Unsafe(x eth.L1BlockRef)
 }
 
 type Network interface {
@@ -182,7 +183,6 @@ func NewDriver(
 	sys.Register("status", statusTracker)
 
 	l1Tracker := status.NewL1Tracker(l1)
-	sys.Register("l1-blocks", l1Tracker)
 
 	l1 = metered.NewMeteredL1Fetcher(l1Tracker, metrics)
 	verifConfDepth := confdepth.NewConfDepth(driverCfg.VerifierConfDepth, statusTracker.L1Head, l1)
@@ -220,6 +220,7 @@ func NewDriver(
 		SyncCfg:             syncCfg,
 		Config:              cfg,
 		L1:                  l1,
+		L1Tracker:           l1Tracker,
 		L2:                  l2,
 		Log:                 log,
 		Ctx:                 driverCtx,
@@ -251,7 +252,7 @@ func NewDriver(
 
 	driverEmitter := sys.Register("driver", nil)
 	driver := &Driver{
-		statusTracker: statusTracker,
+		StatusTracker: statusTracker,
 		SyncDeriver:   syncDeriver,
 		sched:         schedDeriv,
 		emitter:       driverEmitter,

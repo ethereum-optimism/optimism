@@ -209,7 +209,16 @@ func (n *OpNode) initL1(ctx context.Context, cfg *config.Config) error {
 
 	emitter := n.eventSys.Register("l1-signals", nil)
 	onL1Head := func(ctx context.Context, sig eth.L1BlockRef) {
-		emitter.Emit(ctx, status.L1UnsafeEvent{L1Unsafe: sig})
+		// At initTracer
+		// comms.go      TracerDeriver records L1Unsafe
+		n.cfg.Tracer.OnNewL1Head(ctx, sig)
+		// At initL2
+		// l1_tracker.go L1Tracker inserts L1unsafe to cache
+		n.l2Driver.L1Tracker.OnL1Unsafe(sig)
+		// status.go     StatusTracker updates L1Head
+		n.l2Driver.StatusTracker.OnL1Unsafe(sig)
+		// state.go      SyncDeriver listens to event and emit stepReqEvent
+		n.l2Driver.SyncDeriver.OnL1Unsafe(ctx)
 	}
 	onL1Safe := func(ctx context.Context, sig eth.L1BlockRef) {
 		emitter.Emit(ctx, status.L1SafeEvent{L1Safe: sig})

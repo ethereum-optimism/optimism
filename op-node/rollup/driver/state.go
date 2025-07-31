@@ -26,7 +26,7 @@ import (
 type SyncStatus = eth.SyncStatus
 
 type Driver struct {
-	statusTracker SyncStatusTracker
+	StatusTracker SyncStatusTracker
 
 	*SyncDeriver
 
@@ -217,7 +217,9 @@ type SyncDeriver struct {
 	Config *rollup.Config
 
 	L1 L1Chain
-	L2 L2Chain
+	// Track L1 view when new unsafe L1 block is observed
+	L1Tracker *status.L1Tracker
+	L2        L2Chain
 
 	Emitter event.Emitter
 
@@ -234,14 +236,16 @@ func (s *SyncDeriver) AttachEmitter(em event.Emitter) {
 	s.Emitter = em
 }
 
+func (s *SyncDeriver) OnL1Unsafe(ctx context.Context) {
+	// a new L1 head may mean we have the data to not get an EOF again.
+	s.Emitter.Emit(ctx, StepReqEvent{})
+}
+
 func (s *SyncDeriver) OnEvent(ctx context.Context, ev event.Event) bool {
 	// TODO(#16917) Remove Event System Refactor Comments
 	//  ELSyncStartedEvent is removed and OnELSyncStarted is synchronously called at EngineController
 	//  ReceivedBlockEvent is removed and OnUnsafeL2Payload is synchronously called at NewBlockReceiver
 	switch x := ev.(type) {
-	case status.L1UnsafeEvent:
-		// a new L1 head may mean we have the data to not get an EOF again.
-		s.Emitter.Emit(ctx, StepReqEvent{})
 	case finality.FinalizeL1Event:
 		// On "safe" L1 blocks: no step, justified L1 information does not do anything for L2 derivation or status.
 		// On "finalized" L1 blocks: we may be able to mark more L2 data as finalized now.
@@ -469,14 +473,14 @@ func (s *Driver) SetRecoverMode(ctx context.Context, mode bool) error {
 
 // SyncStatus blocks the driver event loop and captures the syncing status.
 func (s *Driver) SyncStatus(ctx context.Context) (*eth.SyncStatus, error) {
-	return s.statusTracker.SyncStatus(), nil
+	return s.StatusTracker.SyncStatus(), nil
 }
 
 // BlockRefWithStatus blocks the driver event loop and captures the syncing status,
 // along with an L2 block reference by number consistent with that same status.
 // If the event loop is too busy and the context expires, a context error is returned.
 func (s *Driver) BlockRefWithStatus(ctx context.Context, num uint64) (eth.L2BlockRef, *eth.SyncStatus, error) {
-	resp := s.statusTracker.SyncStatus()
+	resp := s.StatusTracker.SyncStatus()
 	if resp.FinalizedL2.Number >= num { // If finalized, we are certain it does not reorg, and don't have to lock.
 		ref, err := s.L2.L2BlockRefByNumber(ctx, num)
 		return ref, resp, err
@@ -484,7 +488,7 @@ func (s *Driver) BlockRefWithStatus(ctx context.Context, num uint64) (eth.L2Bloc
 	wait := make(chan struct{})
 	select {
 	case s.stateReq <- wait:
-		resp := s.statusTracker.SyncStatus()
+		resp := s.StatusTracker.SyncStatus()
 		ref, err := s.L2.L2BlockRefByNumber(ctx, num)
 		<-wait
 		return ref, resp, err

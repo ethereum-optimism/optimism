@@ -15,14 +15,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/event"
 )
 
-type L1UnsafeEvent struct {
-	L1Unsafe eth.L1BlockRef
-}
-
-func (ev L1UnsafeEvent) String() string {
-	return "l1-unsafe"
-}
-
 type L1SafeEvent struct {
 	L1Safe eth.L1BlockRef
 }
@@ -62,6 +54,7 @@ func (st *StatusTracker) OnEvent(ctx context.Context, ev event.Event) bool {
 	st.mu.Lock()
 	defer st.mu.Unlock()
 
+	// L1UnsafeEvent removed
 	switch x := ev.(type) {
 	case engine.ForkchoiceUpdateEvent:
 		st.log.Debug("Forkchoice update", "unsafe", x.UnsafeL2Head, "safe", x.SafeL2Head, "finalized", x.FinalizedL2Head)
@@ -87,27 +80,6 @@ func (st *StatusTracker) OnEvent(ctx context.Context, ev event.Event) bool {
 		st.data.LocalSafeL2 = x.LocalSafe
 	case derive.DeriverL1StatusEvent:
 		st.data.CurrentL1 = x.Origin
-	case L1UnsafeEvent:
-		st.metrics.RecordL1Ref("l1_head", x.L1Unsafe)
-		// We don't need to do anything if the head hasn't changed.
-		if st.data.HeadL1 == (eth.L1BlockRef{}) {
-			st.log.Info("Received first L1 head signal", "l1_head", x.L1Unsafe)
-		} else if st.data.HeadL1.Hash == x.L1Unsafe.Hash {
-			st.log.Trace("Received L1 head signal that is the same as the current head", "l1_head", x.L1Unsafe)
-		} else if st.data.HeadL1.Hash == x.L1Unsafe.ParentHash {
-			// We got a new L1 block whose parent hash is the same as the current L1 head. Means we're
-			// dealing with a linear extension (new block is the immediate child of the old one).
-			st.log.Debug("L1 head moved forward", "l1_head", x.L1Unsafe)
-		} else {
-			if st.data.HeadL1.Number >= x.L1Unsafe.Number {
-				st.metrics.RecordL1ReorgDepth(st.data.HeadL1.Number - x.L1Unsafe.Number)
-			}
-			// New L1 block is not the same as the current head or a single step linear extension.
-			// This could either be a long L1 extension, or a reorg, or we simply missed a head update.
-			st.log.Warn("L1 head signal indicates a possible L1 re-org",
-				"old_l1_head", st.data.HeadL1, "new_l1_head_parent", x.L1Unsafe.ParentHash, "new_l1_head", x.L1Unsafe)
-		}
-		st.data.HeadL1 = x.L1Unsafe
 	case L1SafeEvent:
 		st.log.Info("New L1 safe block", "l1_safe", x.L1Safe)
 		st.metrics.RecordL1Ref("l1_safe", x.L1Safe)
@@ -141,6 +113,29 @@ func (st *StatusTracker) OnEvent(ctx context.Context, ev event.Event) bool {
 		st.published.Store(&published)
 	}
 	return true
+}
+
+func (st *StatusTracker) OnL1Unsafe(x eth.L1BlockRef) {
+	st.metrics.RecordL1Ref("l1_head", x)
+	// We don't need to do anything if the head hasn't changed.
+	if st.data.HeadL1 == (eth.L1BlockRef{}) {
+		st.log.Info("Received first L1 head signal", "l1_head", x)
+	} else if st.data.HeadL1.Hash == x.Hash {
+		st.log.Trace("Received L1 head signal that is the same as the current head", "l1_head", x)
+	} else if st.data.HeadL1.Hash == x.ParentHash {
+		// We got a new L1 block whose parent hash is the same as the current L1 head. Means we're
+		// dealing with a linear extension (new block is the immediate child of the old one).
+		st.log.Debug("L1 head moved forward", "l1_head", x)
+	} else {
+		if st.data.HeadL1.Number >= x.Number {
+			st.metrics.RecordL1ReorgDepth(st.data.HeadL1.Number - x.Number)
+		}
+		// New L1 block is not the same as the current head or a single step linear extension.
+		// This could either be a long L1 extension, or a reorg, or we simply missed a head update.
+		st.log.Warn("L1 head signal indicates a possible L1 re-org",
+			"old_l1_head", st.data.HeadL1, "new_l1_head_parent", x.ParentHash, "new_l1_head", x)
+	}
+	st.data.HeadL1 = x
 }
 
 // SyncStatus is thread safe, and reads the latest view of L1 and L2 block labels

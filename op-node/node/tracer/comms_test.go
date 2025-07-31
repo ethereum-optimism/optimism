@@ -37,11 +37,6 @@ func TestTracer(t *testing.T) {
 	d := NewTracerDeriver(tr)
 	rng := rand.New(rand.NewSource(123))
 
-	l1Head := testutils.RandomBlockRef(rng)
-	d.OnEvent(context.Background(), status.L1UnsafeEvent{L1Unsafe: l1Head})
-	require.Equal(t, "L1Head: "+l1Head.ID().String()+"\n", tr.got)
-	tr.got = ""
-
 	id := testutils.RandomBlockID(rng)
 	block := &eth.ExecutionPayloadEnvelope{
 		ExecutionPayload: &eth.ExecutionPayload{
