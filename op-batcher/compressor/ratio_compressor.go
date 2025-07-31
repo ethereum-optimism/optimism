@@ -51,10 +51,6 @@ func (t *RatioCompressor) Reset() {
 	t.inputBytes = 0
 }
 
-func (t *RatioCompressor) EstimatedLen() int {
-	return int(float64(t.inputBytes) * t.config.ApproxComprRatio)
-}
-
 func (t *RatioCompressor) Len() int {
 	return t.compressor.Len()
 }
