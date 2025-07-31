@@ -13,8 +13,7 @@ import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
 import { IProtocolVersions } from "interfaces/L1/IProtocolVersions.sol";
 import { IDelayedWETH } from "interfaces/dispute/IDelayedWETH.sol";
 import { IPreimageOracle } from "interfaces/cannon/IPreimageOracle.sol";
-import { IMIPS } from "interfaces/cannon/IMIPS.sol";
-import { IMIPS2 } from "interfaces/cannon/IMIPS2.sol";
+import { IMIPS64 } from "interfaces/cannon/IMIPS64.sol";
 import { IDisputeGameFactory } from "interfaces/dispute/IDisputeGameFactory.sol";
 import { IAnchorStateRegistry } from "interfaces/dispute/IAnchorStateRegistry.sol";
 import {
@@ -71,7 +70,7 @@ contract DeployImplementations is Script {
         IOptimismPortal optimismPortalImpl;
         IETHLockbox ethLockboxImpl;
         IPreimageOracle preimageOracleSingleton;
-        IMIPS mipsSingleton;
+        IMIPS64 mipsSingleton;
         ISystemConfig systemConfigImpl;
         IL1CrossDomainMessenger l1CrossDomainMessengerImpl;
         IL1ERC721Bridge l1ERC721BridgeImpl;
@@ -419,10 +418,10 @@ contract DeployImplementations is Script {
             }
         }
 
-        IMIPS singleton = IMIPS(
+        IMIPS64 singleton = IMIPS64(
             DeployUtils.createDeterministic({
                 _name: "MIPS64",
-                _args: DeployUtils.encodeConstructor(abi.encodeCall(IMIPS2.__constructor__, (preimageOracle, mipsVersion))),
+                _args: DeployUtils.encodeConstructor(abi.encodeCall(IMIPS64.__constructor__, (preimageOracle, mipsVersion))),
                 _salt: DeployUtils.DEFAULT_SALT
             })
         );
@@ -649,7 +648,7 @@ contract DeployImplementations is Script {
             _impls: impls,
             _proxies: proxies,
             _opcm: IOPContractsManager(address(_output.opcm)),
-            _mips: IMIPS(address(_output.mipsSingleton)),
+            _mips: IMIPS64(address(_output.mipsSingleton)),
             _superchainProxyAdmin: _input.superchainProxyAdmin
         });
 
