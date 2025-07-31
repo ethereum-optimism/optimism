@@ -1,8 +1,6 @@
 package compressor
 
 import (
-	"fmt"
-
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 )
 
@@ -80,7 +78,6 @@ func (t *ShadowCompressor) Write(p []byte) (int, error) {
 		}
 	}
 	t.bound = newBound
-	fmt.Println("shadow compressor write", len(p), "shadow", t.shadowCompressor.Len(), "compressed", t.shadowCompressor.GetCompressed().Len())
 	return t.compressor.Write(p)
 }
 
