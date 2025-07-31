@@ -129,6 +129,8 @@ func TestDencunL2ForkAfterGenesis(gt *testing.T) {
 	dp.DeployConfig.L2GenesisFjordTimeOffset = nil
 	dp.DeployConfig.L2GenesisGraniteTimeOffset = nil
 	dp.DeployConfig.L2GenesisHoloceneTimeOffset = nil
+	dp.DeployConfig.L2GenesisIsthmusTimeOffset = nil
+	dp.DeployConfig.L2GenesisJovianTimeOffset = nil
 	// New forks have to be added here, after changing the default deploy config!
 
 	sd := e2eutils.Setup(t, dp, helpers.DefaultAlloc)

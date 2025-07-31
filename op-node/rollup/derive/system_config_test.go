@@ -206,7 +206,6 @@ func TestProcessSystemConfigUpdateLogEvent(t *testing.T) {
 			},
 			config: eth.SystemConfig{
 				EIP1559Params:  eth.Bytes8(eip1559Params),
-				MinBaseFeeLog2: 0,
 			},
 			err: false,
 		},

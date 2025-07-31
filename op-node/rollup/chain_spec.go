@@ -123,6 +123,11 @@ func (s *ChainSpec) IsIsthmus(t uint64) bool {
 	return s.config.IsIsthmus(t)
 }
 
+// IsJovian returns true if t >= jovian_time
+func (s *ChainSpec) IsJovian(t uint64) bool {
+	return s.config.IsJovian(t)
+}
+
 // MaxChannelBankSize returns the maximum number of bytes the can allocated inside the channel bank
 // before pruning occurs at the given timestamp.
 func (s *ChainSpec) MaxChannelBankSize(t uint64) uint64 {

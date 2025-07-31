@@ -716,6 +716,8 @@ func createSequencer(log log.Logger) (*Sequencer, *sequencerTestDeps) {
 		FjordTime:         new(uint64),
 		GraniteTime:       new(uint64),
 		HoloceneTime:      new(uint64),
+		IsthmusTime:       new(uint64),
+		JovianTime:        new(uint64),
 	}
 	deps := &sequencerTestDeps{
 		cfg:           cfg,
