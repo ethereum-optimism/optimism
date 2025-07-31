@@ -40,7 +40,7 @@ This guide provides step-by-step instructions for deploying the Alchemy Pay API 
      BASE_URL: "https://ramptest.alchemypay.org/"
      STAGE: "dev"
      DOMAIN_NAME: "alchemypay-api.sepolia-dev.boba.network"
-     CERTIFICATE_NAME: "*.sepolia-dev.boba.network"
+     CERTIFICATE_NAME: "sepolia-dev.boba.network"
      ```
    - `env-mainnet.yml`:
      ```yaml
@@ -49,25 +49,111 @@ This guide provides step-by-step instructions for deploying the Alchemy Pay API 
      BASE_URL: "https://ramp.alchemypay.org/"
      STAGE: "mainnet"
      DOMAIN_NAME: "alchemypay-api.boba.network"
-     CERTIFICATE_NAME: "*.boba.network"
+     CERTIFICATE_NAME: "boba.network"
      ```
 
 ## SSL Certificate Setup
 
-1. Create SSL certificate in AWS Certificate Manager (ACM):
+1. Check existing certificates in ACM:
    ```bash
-   # Navigate to AWS Certificate Manager in the AWS Console
-   # Request a certificate
-   # Add your domain (e.g., *.boba.network for wildcard)
-   # Choose DNS validation
-   # Add tags if needed
-   # Request the certificate
+   # List all certificates and their status
+   aws acm list-certificates --region us-east-1 --query 'CertificateSummaryList[?Status==`ISSUED`].[CertificateArn,DomainName]' --output table
+
+   # Find certificate for your domain
+   aws acm list-certificates --region us-east-1 --query 'CertificateSummaryList[?contains(DomainName, `boba.network`)].[CertificateArn,DomainName,Status]' --output table
+   ```
+2. If certificate doesn't exist or is expired:
+   ```bash
+   # Request new certificate
+   aws acm request-certificate \
+     --domain-name "alchemypay-api.sepolia.boba.network" \
+     --validation-method DNS \
+     --region us-east-1
+
+   # Get validation CNAME records
+   aws acm describe-certificate \
+     --certificate-arn <CERTIFICATE_ARN> \
+     --region us-east-1 \
+     --query 'Certificate.DomainValidationOptions[].ResourceRecord'
    ```
 
-2. Validate the certificate:
-   - Follow the DNS validation steps provided by ACM
-   - Add the CNAME records to your Route53 hosted zone
-   - Wait for validation to complete (can take up to 30 minutes)
+3. Add validation records to Route53:
+   ```bash
+   # Get hosted zone ID
+   aws route53 list-hosted-zones --query 'HostedZones[?Name==`boba.network.`].Id' --output text
+
+   # Add validation CNAME record
+   aws route53 change-resource-record-sets \
+     --hosted-zone-id <ZONE_ID> \
+     --change-batch '{
+       "Changes": [{
+         "Action": "UPSERT",
+         "ResourceRecordSet": {
+           "Name": "_x1.your-domain.com",
+           "Type": "CNAME",
+           "TTL": 300,
+           "ResourceRecords": [{"Value": "validation-value-from-acm.acm-validations.aws."}]
+         }
+       }]
+     }'
+   ```
+
+4. Wait for validation (up to 30 minutes):
+   ```bash
+   # Check validation status
+   aws acm describe-certificate \
+     --certificate-arn <CERTIFICATE_ARN> \
+     --region us-east-1 \
+     --query 'Certificate.Status'
+   ```
+
+## Quick Domain Setup Cheat Sheet
+
+1. Create domain with existing certificate:
+   ```bash
+   # 1. Find ISSUED certificate
+   CERT_INFO=$(aws acm list-certificates --region us-east-1 \
+     --query 'CertificateSummaryList[?Status==`ISSUED`].[CertificateArn,DomainName]' --output text | grep boba.network)
+
+   # 2. Update environment file with domain name from certificate
+   DOMAIN_NAME=$(echo $CERT_INFO | cut -d' ' -f2)
+   CERT_NAME=$DOMAIN_NAME
+
+   # 3. Create domain
+   serverless create_domain --stage dev --region us-east-1
+   ```
+
+2. Create new domain and certificate:
+   ```bash
+   # 1. Request certificate
+   CERT_ARN=$(aws acm request-certificate \
+     --domain-name "alchemypay-api.sepolia.boba.network" \
+     --validation-method DNS \
+     --region us-east-1 \
+     --query 'CertificateArn' --output text)
+
+   # 2. Get validation records
+   aws acm describe-certificate \
+     --certificate-arn $CERT_ARN \
+     --region us-east-1 \
+     --query 'Certificate.DomainValidationOptions[].ResourceRecord'
+
+   # 3. Add validation to Route53 (see step 4 above)
+
+   # 4. Wait for validation
+   while true; do
+     STATUS=$(aws acm describe-certificate \
+       --certificate-arn $CERT_ARN \
+       --region us-east-1 \
+       --query 'Certificate.Status' --output text)
+     echo "Certificate status: $STATUS"
+     if [ "$STATUS" = "ISSUED" ]; then break; fi
+     sleep 30
+   done
+
+   # 5. Create domain
+   serverless create_domain --stage dev --region us-east-1
+   ```
 
 ## Route53 Setup
 
@@ -75,23 +161,21 @@ This guide provides step-by-step instructions for deploying the Alchemy Pay API 
    ```bash
    # In AWS Console:
    # Go to Route53 → Hosted zones → Create hosted zone
-   # Enter your domain name (e.g., boba.network)
+   # Enter your domain name (e.g., sepoli.boba.network)
    # Choose "Public hosted zone"
    # Create
    ```
 
-2. Note the nameservers and update your domain registrar if needed.
-
 ## Deployment
 
-1. Deploy to development:
+1. Deploy to development: -> testnet
    ```bash
    serverless deploy --stage dev --region us-east-1
    ```
 
-2. Deploy to mainnet:
+2. Deploy to mainnet: -> tooling
    ```bash
-   serverless deploy --stage mainnet --region us-east-1
+   serverless deploy --stage mainnet --region us-east-2
    ```
 
 The deployment process will:
@@ -127,7 +211,7 @@ serverless create_domain --stage mainnet
 
 2. Test the endpoint:
    ```bash
-   curl -X POST https://your-custom-domain/generate_alchemypay_url
+   curl -X POST https://alchemypay-api.sepolia.boba.network/generate_alchemypay_url
    ```
 
 ## Troubleshooting

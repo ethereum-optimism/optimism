@@ -89,10 +89,10 @@ case $STAGE in
 
     # Create custom domain
 
-    create_domain
+    # create_domain
 
     log_message "dev" "Starting serverless deployment..."
-    if serverless deploy --stage dev 2>&1 | tee -a "$DEV_LOG"; then
+    if serverless deploy --stage dev --debug 2>&1 | tee -a "$DEV_LOG"; then
       log_message "dev" "Deployment successful"
     else
       error_msg="Deployment failed"

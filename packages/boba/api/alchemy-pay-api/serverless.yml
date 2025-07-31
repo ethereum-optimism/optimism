@@ -45,7 +45,7 @@ custom:
       - http://localhost:3000
     mainnet:
       - https://hub.boba.network
-      - https://app.boba.network
+      - https://gateway.boba.network
 
   customDomain:
     domainName: ${self:provider.environment.DOMAIN_NAME}       # 👈 Your subdomain here
