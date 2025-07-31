@@ -1,15 +1,65 @@
 use crate::metrics::Metrics;
 use axum::http::Uri;
 use backoff::{backoff::Backoff, ExponentialBackoff};
-use futures::StreamExt;
+use futures::{SinkExt, StreamExt};
 use std::sync::Arc;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 use tokio::select;
+use tokio::sync::oneshot;
 use tokio_tungstenite::tungstenite::Error::ConnectionClosed;
 use tokio_tungstenite::tungstenite::Message;
 use tokio_tungstenite::{connect_async, tungstenite::Error};
+use tokio_util::bytes;
 use tokio_util::sync::CancellationToken;
 use tracing::{error, info, trace, warn};
+
+#[derive(Debug, Clone)]
+pub struct SubscriberOptions {
+    pub max_backoff_interval: Duration,
+    pub backoff_initial_interval: Duration,
+    pub ping_interval: Duration,
+    pub pong_timeout: Duration,
+    pub initial_grace_period: Duration,
+}
+
+impl SubscriberOptions {
+    pub fn with_max_backoff_interval(mut self, max_backoff_interval: Duration) -> Self {
+        self.max_backoff_interval = max_backoff_interval;
+        self
+    }
+
+    pub fn with_ping_interval(mut self, ping_interval: Duration) -> Self {
+        self.ping_interval = ping_interval;
+        self
+    }
+
+    pub fn with_pong_timeout(mut self, pong_timeout: Duration) -> Self {
+        self.pong_timeout = pong_timeout;
+        self
+    }
+
+    pub fn with_backoff_initial_interval(mut self, backoff_initial_interval: Duration) -> Self {
+        self.backoff_initial_interval = backoff_initial_interval;
+        self
+    }
+
+    pub fn with_initial_grace_period(mut self, initial_grace_period: Duration) -> Self {
+        self.initial_grace_period = initial_grace_period;
+        self
+    }
+}
+
+impl Default for SubscriberOptions {
+    fn default() -> Self {
+        Self {
+            max_backoff_interval: Duration::from_millis(20000),
+            backoff_initial_interval: Duration::from_millis(500),
+            ping_interval: Duration::from_millis(2000),
+            pong_timeout: Duration::from_millis(4000),
+            initial_grace_period: Duration::from_secs(5),
+        }
+    }
+}
 
 pub struct WebsocketSubscriber<F>
 where
@@ -19,17 +69,18 @@ where
     handler: F,
     backoff: ExponentialBackoff,
     metrics: Arc<Metrics>,
+    options: SubscriberOptions,
 }
 
 impl<F> WebsocketSubscriber<F>
 where
     F: Fn(String) + Send + Sync + 'static,
 {
-    pub fn new(uri: Uri, handler: F, max_interval: u64, metrics: Arc<Metrics>) -> Self {
+    pub fn new(uri: Uri, handler: F, metrics: Arc<Metrics>, options: SubscriberOptions) -> Self {
         let backoff = ExponentialBackoff {
-            initial_interval: Duration::from_secs(1),
-            max_interval: Duration::from_secs(max_interval),
-            max_elapsed_time: None, // Will retry indefinitely
+            initial_interval: options.backoff_initial_interval,
+            max_interval: options.max_backoff_interval,
+            max_elapsed_time: None,
             ..Default::default()
         };
 
@@ -38,6 +89,7 @@ where
             handler,
             backoff,
             metrics,
+            options,
         }
     }
 
@@ -70,7 +122,6 @@ where
                                 error = e.to_string()
                             );
                             self.metrics.upstream_errors.increment(1);
-                            // Decrement the active connections count when connection fails
                             self.metrics.upstream_connections.decrement(1);
 
                             if let Some(duration) = self.backoff.next_backoff() {
@@ -103,18 +154,14 @@ where
             uri = self.uri.to_string()
         );
 
-        // Increment connection attempts counter for metrics
         self.metrics.upstream_connection_attempts.increment(1);
 
-        // Modified connection with success/failure metrics tracking
         let (ws_stream, _) = match connect_async(&self.uri).await {
             Ok(connection) => {
-                // Track successful connections
                 self.metrics.upstream_connection_successes.increment(1);
                 connection
             }
             Err(e) => {
-                // Track failed connections
                 self.metrics.upstream_connection_failures.increment(1);
                 return Err(e);
             }
@@ -125,21 +172,68 @@ where
             uri = self.uri.to_string()
         );
 
-        // Increment active connections counter
         self.metrics.upstream_connections.increment(1);
         // Reset backoff timer on successful connection
         self.backoff.reset();
 
-        let (_, mut read) = ws_stream.split();
+        let (mut write, mut read) = ws_stream.split();
 
-        while let Some(message) = read.next().await {
-            self.handle_message(message).await?;
-        }
+        let (ping_error_tx, mut ping_error_rx) = oneshot::channel();
+        let options = self.options.clone();
+        let mut pong_deadline = Instant::now() + options.initial_grace_period;
 
-        Ok(())
+        let ping_task = tokio::spawn(async move {
+            let mut interval = tokio::time::interval(options.ping_interval);
+            loop {
+                interval.tick().await;
+                if let Err(e) = write.send(Message::Ping(bytes::Bytes::new())).await {
+                    error!(
+                        message = "failed to send ping to upstream",
+                        error = e.to_string()
+                    );
+                    let _ = ping_error_tx.send(e);
+                    break;
+                }
+            }
+        });
+
+        let mut deadline_check = tokio::time::interval(self.options.pong_timeout / 4);
+
+        let result = loop {
+            select! {
+                _ = deadline_check.tick() => {
+                    if Instant::now() >= pong_deadline {
+                        error!(
+                            message = "pong timeout from upstream",
+                            uri = self.uri.to_string()
+                        );
+                        break Err(ConnectionClosed);
+                    }
+                }
+                Ok(ping_err) = &mut ping_error_rx => {
+                    break Err(ping_err);
+                }
+                message = read.next() => {
+                    let Some(msg) = message else {
+                        break Ok(());
+                    };
+                    if let Err(e) = self.handle_message(msg, &mut pong_deadline, options.pong_timeout).await {
+                        break Err(e);
+                    }
+                }
+            }
+        };
+
+        ping_task.abort();
+        result
     }
 
-    async fn handle_message(&self, message: Result<Message, Error>) -> Result<(), Error> {
+    async fn handle_message(
+        &self,
+        message: Result<Message, Error>,
+        pong_deadline: &mut Instant,
+        pong_timeout: Duration,
+    ) -> Result<(), Error> {
         let msg = match message {
             Ok(msg) => msg,
             Err(e) => {
@@ -169,6 +263,13 @@ where
                     uri = self.uri.to_string(),
                     size = data.len()
                 );
+            }
+            Message::Pong(_) => {
+                trace!(
+                    message = "received pong from upstream",
+                    uri = self.uri.to_string()
+                );
+                *pong_deadline = Instant::now() + pong_timeout;
             }
             Message::Close(_) => {
                 info!(
@@ -302,47 +403,119 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_ping_pong_reconnection() {
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        let uri: Uri = format!("ws://{}", addr).parse().unwrap();
+
+        let shutdown = CancellationToken::new();
+        let shutdown_server = shutdown.clone();
+
+        let connection_count = Arc::new(std::sync::atomic::AtomicU32::new(0));
+        let connection_count_server = connection_count.clone();
+
+        tokio::spawn(async move {
+            loop {
+                select! {
+                    _ = shutdown_server.cancelled() => break,
+                    accept_result = listener.accept() => {
+                        if let Ok((stream, _)) = accept_result {
+                            connection_count_server.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+                            let shutdown_inner = shutdown_server.clone();
+                            tokio::spawn(async move {
+                                let _ws_stream = match accept_async(stream).await {
+                                    Ok(ws) => ws,
+                                    Err(_) => return,
+                                };
+
+
+                                // Become completely unresponsive - don't read any messages
+                                select! {
+                                    _ = shutdown_inner.cancelled() => return
+                                }
+                            });
+                        }
+                    }
+                }
+            }
+        });
+
+        let listener_fn = move |_data: String| {
+            // Handler for received messages - not needed for this test
+        };
+
+        let options = SubscriberOptions::default()
+            .with_backoff_initial_interval(Duration::from_millis(100))
+            .with_ping_interval(Duration::from_millis(100))
+            .with_pong_timeout(Duration::from_millis(200))
+            .with_initial_grace_period(Duration::from_millis(50));
+
+        let mut subscriber =
+            WebsocketSubscriber::new(uri, listener_fn, Arc::new(Metrics::default()), options);
+
+        let subscriber_task = {
+            let token_clone = shutdown.clone();
+            tokio::spawn(async move {
+                subscriber.run(token_clone).await;
+            })
+        };
+
+        // This needs to take into account the poll interval, pong deadline and the backoff interval.
+        sleep(Duration::from_secs(1)).await;
+
+        let connections = connection_count.load(std::sync::atomic::Ordering::SeqCst);
+        assert!(
+            connections >= 2,
+            "Expected at least 2 connection attempts due to ping timeout, got {}",
+            connections
+        );
+
+        shutdown.cancel();
+        let _ = timeout(Duration::from_secs(1), subscriber_task).await;
+    }
+
+    #[tokio::test]
     async fn test_multiple_subscribers_single_listener() {
-        // Create two mock servers
         let server1 = MockServer::new().await;
         let server2 = MockServer::new().await;
 
-        // Create a receiver for the messages
         let received_messages = Arc::new(Mutex::new(Vec::new()));
         let received_clone = received_messages.clone();
 
-        // Create a listener function that will be shared by both subscribers
         let listener = move |data: String| {
             if let Ok(mut messages) = received_clone.lock() {
                 messages.push(data);
             }
         };
 
-        // Create metrics
         let metrics = Arc::new(Metrics::default());
 
-        // Create cancellation token
         let token = CancellationToken::new();
         let token_clone1 = token.clone();
         let token_clone2 = token.clone();
 
-        // Create and run the first subscriber
         let uri1 = server1.uri();
         let listener_clone1 = listener.clone();
         let metrics_clone1 = metrics.clone();
 
-        let mut subscriber1 =
-            WebsocketSubscriber::new(uri1.clone(), listener_clone1, 5, metrics_clone1);
+        let mut subscriber1 = WebsocketSubscriber::new(
+            uri1.clone(),
+            listener_clone1,
+            metrics_clone1,
+            SubscriberOptions::default(),
+        );
 
-        // Create and run the second subscriber
         let uri2 = server2.uri();
         let listener_clone2 = listener.clone();
         let metrics_clone2 = metrics.clone();
 
-        let mut subscriber2 =
-            WebsocketSubscriber::new(uri2.clone(), listener_clone2, 5, metrics_clone2);
+        let mut subscriber2 = WebsocketSubscriber::new(
+            uri2.clone(),
+            listener_clone2,
+            metrics_clone2,
+            SubscriberOptions::default(),
+        );
 
-        // Spawn tasks for subscribers
         let task1 = tokio::spawn(async move {
             subscriber1.run(token_clone1).await;
         });
@@ -351,17 +524,13 @@ mod tests {
             subscriber2.run(token_clone2).await;
         });
 
-        // Wait for connections to establish
         sleep(Duration::from_millis(500)).await;
 
-        // Send different messages from each server
         let _ = server1.send_message("Message from server 1").await;
         let _ = server2.send_message("Message from server 2").await;
 
-        // Wait for messages to be processed
         sleep(Duration::from_millis(500)).await;
 
-        // Send more messages to ensure continuous operation
         let _ = server1.send_message("Another message from server 1").await;
         let _ = server2.send_message("Another message from server 2").await;
 
@@ -370,16 +539,12 @@ mod tests {
 
         // Cancel the token to shut down subscribers
         token.cancel();
-
-        // Wait for tasks to complete
         let _ = timeout(Duration::from_secs(1), task1).await;
         let _ = timeout(Duration::from_secs(1), task2).await;
 
-        // Shutdown the mock servers
         server1.shutdown().await;
         server2.shutdown().await;
 
-        // Verify that messages were received
         let messages = match received_messages.lock() {
             Ok(guard) => guard,
             Err(poisoned) => poisoned.into_inner(),
@@ -387,7 +552,6 @@ mod tests {
 
         assert_eq!(messages.len(), 4);
 
-        // Check that we received messages from both servers
         assert!(messages.contains(&"Message from server 1".to_string()));
         assert!(messages.contains(&"Message from server 2".to_string()));
         assert!(messages.contains(&"Another message from server 1".to_string()));

@@ -19,7 +19,7 @@ use std::io::Write;
 use std::net::SocketAddr;
 use std::sync::Arc;
 use std::time::Duration;
-use subscriber::WebsocketSubscriber;
+use subscriber::{SubscriberOptions, WebsocketSubscriber};
 use tokio::signal::unix::{signal, SignalKind};
 use tokio::sync::broadcast;
 use tokio::time::interval;
@@ -113,8 +113,16 @@ struct Args {
     metrics_host_label: bool,
 
     /// Maximum backoff allowed for upstream connections
-    #[arg(long, env, default_value = "20")]
-    subscriber_max_interval: u64,
+    #[arg(long, env, default_value = "20000")]
+    subscriber_max_interval_ms: u64,
+
+    /// Interval in milliseconds between ping messages sent to upstream servers to detect unresponsive connections
+    #[arg(long, env, default_value = "2000")]
+    subscriber_ping_interval_ms: u64,
+
+    /// Timeout in milliseconds to wait for pong responses from upstream servers before considering the connection dead
+    #[arg(long, env, default_value = "4000")]
+    subscriber_pong_timeout_ms: u64,
 
     #[arg(
         long,
@@ -269,12 +277,15 @@ async fn main() {
         let token_clone = token.clone();
         let metrics_clone = metrics.clone();
 
-        let mut subscriber = WebsocketSubscriber::new(
-            uri_clone.clone(),
-            listener_clone,
-            args.subscriber_max_interval,
-            metrics_clone,
-        );
+        let options = SubscriberOptions::default()
+            .with_max_backoff_interval(Duration::from_millis(args.subscriber_max_interval_ms))
+            .with_ping_interval(Duration::from_millis(args.subscriber_ping_interval_ms))
+            .with_pong_timeout(Duration::from_millis(args.subscriber_pong_timeout_ms))
+            .with_backoff_initial_interval(Duration::from_millis(500))
+            .with_initial_grace_period(Duration::from_secs(5));
+
+        let mut subscriber =
+            WebsocketSubscriber::new(uri_clone.clone(), listener_clone, metrics_clone, options);
 
         let task = tokio::spawn(async move {
             info!(
