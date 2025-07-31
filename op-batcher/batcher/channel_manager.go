@@ -555,17 +555,19 @@ func (s *channelManager) unsafeBytesInPendingBlocks() int64 {
 }
 
 func (s *channelManager) unsafeBytesInOpenChannels() int64 {
+	// In theory, an open channel can provide accurate estimate of
+	// the DA bytes in the channel so far. However, in practice,
+	// the compressors we use can only provide such an estimate in a
+	// way which leads to a worse compression ratio. So increased
+	// observability actually hurts the bottom line.
+	// Therefore, for now just use a block-by-block estimate which should match
+	// the estimate for the blocks before they were added.
 	var bytesInOpenChannels int64
 	for _, channel := range s.channelQueue {
 		if channel.TotalFrames() == 0 {
-			// This is an estimate of the DA bytes in the channel,
-			// but it is more accurate than the estimate of the
-			// bytes not yet in channels.
-			bytesInOpenChannel, err := channel.EstimatedDABytes()
-			if err != nil {
-				panic(err)
+			for _, block := range channel.channelBuilder.blocks {
+				bytesInOpenChannels += int64(block.EstimatedDABytes())
 			}
-			bytesInOpenChannels += int64(bytesInOpenChannel)
 		}
 	}
 	return bytesInOpenChannels
