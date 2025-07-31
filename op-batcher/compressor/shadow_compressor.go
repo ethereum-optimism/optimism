@@ -1,6 +1,8 @@
 package compressor
 
 import (
+	"fmt"
+
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 )
 
@@ -60,14 +62,13 @@ func (t *ShadowCompressor) Write(p []byte) (int, error) {
 	if err != nil {
 		return 0, err
 	}
+
+	if err = t.shadowCompressor.Flush(); err != nil {
+		return 0, err
+	}
 	newBound := t.bound + uint64(len(p))
 	if newBound > t.config.TargetOutputSize {
-		// Do not flush the buffer unless there's some chance we will be over the size limit.
-		// This reduces CPU but more importantly it makes the shadow compression ratio more
-		// closely reflect the ultimate compression ratio.
-		if err = t.shadowCompressor.Flush(); err != nil {
-			return 0, err
-		}
+
 		newBound = uint64(t.shadowCompressor.Len()) + CloseOverheadZlib
 		if newBound > t.config.TargetOutputSize {
 			t.fullErr = derive.ErrCompressorFull
@@ -79,6 +80,7 @@ func (t *ShadowCompressor) Write(p []byte) (int, error) {
 		}
 	}
 	t.bound = newBound
+	fmt.Println("shadow compressor write", len(p), "shadow", t.shadowCompressor.Len(), "compressed", t.shadowCompressor.GetCompressed().Len())
 	return t.compressor.Write(p)
 }
 
@@ -102,7 +104,7 @@ func (t *ShadowCompressor) Reset() {
 }
 
 func (t *ShadowCompressor) EstimatedLen() int {
-	return t.shadowCompressor.Len()
+	return t.shadowCompressor.GetCompressed().Len()
 }
 
 func (t *ShadowCompressor) Len() int {
