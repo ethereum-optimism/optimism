@@ -361,6 +361,7 @@ contract Initializer_Test is CommonTest {
         //       contracts and instead simply deploys them anonymously. Means that functions like "getInitializedSlot"
         //       don't work properly. Remove these exclusions once the deployment script is fixed.
         excludes[j++] = "src/dispute/FaultDisputeGame.sol";
+        excludes[j++] = "src/dispute/v2/FaultDisputeGameV2.sol";
         excludes[j++] = "src/dispute/SuperFaultDisputeGame.sol";
         excludes[j++] = "src/dispute/PermissionedDisputeGame.sol";
         excludes[j++] = "src/dispute/SuperPermissionedDisputeGame.sol";
