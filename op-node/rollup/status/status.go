@@ -104,6 +104,11 @@ func (st *StatusTracker) OnEvent(ctx context.Context, ev event.Event) bool {
 		return false
 	}
 
+	st.UpdateSyncStatus()
+	return true
+}
+
+func (st *StatusTracker) UpdateSyncStatus() {
 	// If anything changes, then copy the state to the published SyncStatus
 	// @dev: If this becomes a performance bottleneck during sync (because mem copies onto heap, and 1KB comparisons),
 	// we can rate-limit updates of the published data.
@@ -112,7 +117,6 @@ func (st *StatusTracker) OnEvent(ctx context.Context, ev event.Event) bool {
 		published = st.data
 		st.published.Store(&published)
 	}
-	return true
 }
 
 func (st *StatusTracker) OnL1Unsafe(x eth.L1BlockRef) {
@@ -136,6 +140,7 @@ func (st *StatusTracker) OnL1Unsafe(x eth.L1BlockRef) {
 			"old_l1_head", st.data.HeadL1, "new_l1_head_parent", x.ParentHash, "new_l1_head", x)
 	}
 	st.data.HeadL1 = x
+	st.UpdateSyncStatus()
 }
 
 // SyncStatus is thread safe, and reads the latest view of L1 and L2 block labels
