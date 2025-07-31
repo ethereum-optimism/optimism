@@ -50,6 +50,7 @@ func TestNewPayloadV4(t *testing.T) {
 		genesisBlock := backend.GetHeaderByNumber(0)
 		genesisHash := genesisBlock.Hash()
 		eip1559Params := eth.Bytes8([]byte{0x1, 0x2, 0x3, 0x4, 0x5, 0x6, 0x7, 0x8})
+		minBaseFeeLog2 := uint8(20)
 		gasLimit := eth.Uint64Quantity(4712388)
 		result, err := engineAPI.ForkchoiceUpdatedV3(context.Background(), &eth.ForkchoiceState{
 			HeadBlockHash:      genesisHash,
@@ -64,6 +65,7 @@ func TestNewPayloadV4(t *testing.T) {
 			NoTxPool:              false,
 			GasLimit:              &gasLimit,
 			EIP1559Params:         &eip1559Params,
+			MinBaseFeeLog2:        minBaseFeeLog2,
 		})
 		require.NoError(t, err)
 		require.EqualValues(t, engine.VALID, result.PayloadStatus.Status)
@@ -102,6 +104,7 @@ func TestCreatedBlocksAreCached(t *testing.T) {
 	genesis := backend.GetHeaderByNumber(0)
 	genesisHash := genesis.Hash()
 	eip1559Params := eth.Bytes8([]byte{0x1, 0x2, 0x3, 0x4, 0x5, 0x6, 0x7, 0x8})
+	minBaseFeeLog2 := uint8(9)
 	result, err := engineAPI.ForkchoiceUpdatedV3(context.Background(), &eth.ForkchoiceState{
 		HeadBlockHash:      genesisHash,
 		SafeBlockHash:      genesisHash,
@@ -115,6 +118,7 @@ func TestCreatedBlocksAreCached(t *testing.T) {
 		NoTxPool:              false,
 		GasLimit:              (*eth.Uint64Quantity)(&genesis.GasLimit),
 		EIP1559Params:         &eip1559Params,
+		MinBaseFeeLog2:        minBaseFeeLog2,
 	})
 	require.NoError(t, err)
 	require.EqualValues(t, engine.VALID, result.PayloadStatus.Status)
@@ -171,7 +175,9 @@ func createGenesis() *core.Genesis {
 	config.GraniteTime = &zero
 	config.HoloceneTime = &zero
 	config.IsthmusTime = &zero
+	config.InteropTime = &zero
 	config.JovianTime = &zero
+	config.MinBaseFeeTime = &zero
 
 	l2Genesis := &core.Genesis{
 		Config:     &config,
@@ -179,7 +185,7 @@ func createGenesis() *core.Genesis {
 		ParentHash: common.Hash{},
 		BaseFee:    big.NewInt(7),
 		Alloc:      map[common.Address]types.Account{},
-		ExtraData:  []byte{0x0, 0x1, 0x2, 0x3, 0x4, 0x5, 0x6, 0x7, 0x8, 0x9}, // for Holocene eip-1559 params with a MinBaseFeeLog2 param
+		ExtraData:  []byte{0x1, 0x1, 0x2, 0x3, 0x4, 0x5, 0x6, 0x7, 0x8, 0x9}, // for Holocene eip-1559 params with a MinBaseFeeLog2 param
 	}
 
 	return l2Genesis

@@ -41,6 +41,8 @@ func IsForkActivated(c *params.ChainConfig, forkName rollup.ForkName, timestamp 
 		return c.IsOptimismIsthmus(timestamp), nil
 	case rollup.Interop:
 		return c.IsInterop(timestamp), nil
+	case rollup.Jovian:
+		return c.IsJovian(timestamp), nil
 	default:
 		return false, fmt.Errorf("unknown fork name: %s", forkName)
 	}

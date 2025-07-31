@@ -22,6 +22,7 @@ const (
 	PectraBlobScheduleOverrideFlagName = "override.pectrablobschedule"
 	IsthmusOverrideFlagName            = "override.isthmus"
 	InteropOverrideFlagName            = "override.interop"
+	JovianOverrideFlagName              = "override.jovian"
 )
 
 func CLIFlags(envPrefix string, category string) []cli.Flag {

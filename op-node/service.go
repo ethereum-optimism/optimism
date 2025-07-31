@@ -284,6 +284,10 @@ func applyOverrides(ctx *cli.Context, rollupConfig *rollup.Config) {
 		interop := ctx.Uint64(opflags.InteropOverrideFlagName)
 		rollupConfig.InteropTime = &interop
 	}
+	if ctx.IsSet(opflags.JovianOverrideFlagName) {
+		jovian := ctx.Uint64(opflags.JovianOverrideFlagName)
+		rollupConfig.JovianTime = &jovian
+	}
 }
 
 func NewDependencySetFromCLI(ctx *cli.Context) (depset.DependencySet, error) {
