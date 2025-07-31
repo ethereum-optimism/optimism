@@ -15,7 +15,7 @@ functions:
           path: generate_alchemypay_url
           method: post
           cors:  # <-- CORS! configuration
-            origins: ${self:provider.environment.CORS_ORIGINS.split(',')}
+            origins: ${self:custom.corsOrigins.${self:provider.stage}}
     timeout: 30
 
 plugins:
@@ -37,6 +37,15 @@ custom:
 
   serverless-offline:
     httpPort: 3000
+
+  corsOrigins:
+    dev:
+      - https://staging.hub.boba.network
+      - https://stagingv2.gateway.boba.network
+      - http://localhost:3000
+    mainnet:
+      - https://hub.boba.network
+      - https://app.boba.network
 
   customDomain:
     domainName: ${self:provider.environment.DOMAIN_NAME}       # 👈 Your subdomain here

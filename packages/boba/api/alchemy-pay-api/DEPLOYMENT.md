@@ -39,7 +39,6 @@ This guide provides step-by-step instructions for deploying the Alchemy Pay API 
      SECRET_KEY: "your-secret-key"
      BASE_URL: "https://ramptest.alchemypay.org/"
      STAGE: "dev"
-     CORS_ORIGINS: "https://staging.hub.boba.network,https://hub-dev.boba.network,http://localhost:3000"
      DOMAIN_NAME: "alchemypay-api.sepolia-dev.boba.network"
      CERTIFICATE_NAME: "*.sepolia-dev.boba.network"
      ```
@@ -49,7 +48,6 @@ This guide provides step-by-step instructions for deploying the Alchemy Pay API 
      SECRET_KEY: "${env:MAINNET_SECRET_KEY}"
      BASE_URL: "https://ramp.alchemypay.org/"
      STAGE: "mainnet"
-     CORS_ORIGINS: "https://hub.boba.network,https://app.boba.network"
      DOMAIN_NAME: "alchemypay-api.boba.network"
      CERTIFICATE_NAME: "*.boba.network"
      ```
