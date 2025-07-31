@@ -245,6 +245,7 @@ func (s *SyncDeriver) OnEvent(ctx context.Context, ev event.Event) bool {
 	// TODO(#16917) Remove Event System Refactor Comments
 	//  ELSyncStartedEvent is removed and OnELSyncStarted is synchronously called at EngineController
 	//  ReceivedBlockEvent is removed and OnUnsafeL2Payload is synchronously called at NewBlockReceiver
+	//  L1UnsafeEvent is removed and OnL1Unsafe is synchronously called at L1Handler
 	switch x := ev.(type) {
 	case finality.FinalizeL1Event:
 		// On "safe" L1 blocks: no step, justified L1 information does not do anything for L2 derivation or status.

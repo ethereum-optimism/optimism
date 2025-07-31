@@ -47,6 +47,7 @@ func NewTracerDeriver(tracer Tracer) *TracerDeriver {
 func (t *TracerDeriver) OnEvent(ctx context.Context, ev event.Event) bool {
 	// TODO(#16917) Remove Event System Refactor Comments
 	//  ReceivedBlockEvent is removed and tracer.OnUnsafeL2Payload is synchronously called at NewBlockReceiver
+	//  L1UnsafeEvent is removed and OnNewL1Head is synchronously called at L1Handler
 	switch x := ev.(type) {
 	case status.L1UnsafeEvent:
 		t.tracer.OnNewL1Head(t.ctx, x.L1Unsafe)

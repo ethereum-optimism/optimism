@@ -51,10 +51,11 @@ func NewStatusTracker(log log.Logger, metrics Metrics) *StatusTracker {
 }
 
 func (st *StatusTracker) OnEvent(ctx context.Context, ev event.Event) bool {
+	// TODO(#16917) Remove Event System Refactor Comments
+	//  L1UnsafeEvent is removed and OnL1Unsafe is synchronously called at L1Handler
 	st.mu.Lock()
 	defer st.mu.Unlock()
 
-	// L1UnsafeEvent removed
 	switch x := ev.(type) {
 	case engine.ForkchoiceUpdateEvent:
 		st.log.Debug("Forkchoice update", "unsafe", x.UnsafeL2Head, "safe", x.SafeL2Head, "finalized", x.FinalizedL2Head)
