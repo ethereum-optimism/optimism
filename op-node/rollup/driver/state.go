@@ -236,6 +236,9 @@ func (s *SyncDeriver) AttachEmitter(em event.Emitter) {
 }
 
 func (s *SyncDeriver) OnEvent(ctx context.Context, ev event.Event) bool {
+	// TODO(#16917) Remove Event System Refactor Comments
+	//  ELSyncStartedEvent is removed and OnELSyncStarted is synchronously called at EngineController
+
 	switch x := ev.(type) {
 	case status.L1UnsafeEvent:
 		// a new L1 head may mean we have the data to not get an EOF again.
@@ -270,8 +273,6 @@ func (s *SyncDeriver) OnEvent(ctx context.Context, ev event.Event) bool {
 		s.Emitter.Emit(ctx, StepReqEvent{ResetBackoff: true})
 	case engine.SafeDerivedEvent:
 		s.onSafeDerivedBlock(ctx, x)
-	case engine.ELSyncStartedEvent:
-		s.onELSyncStarted()
 	case derive.ProvideL1Traversal:
 		s.Emitter.Emit(ctx, StepReqEvent{})
 	default:
@@ -314,7 +315,7 @@ func (s *SyncDeriver) onSafeDerivedBlock(ctx context.Context, x engine.SafeDeriv
 	}
 }
 
-func (s *SyncDeriver) onELSyncStarted() {
+func (s *SyncDeriver) OnELSyncStarted() {
 	// The EL sync may progress the safe head in the EL without deriving those blocks from L1
 	// which means the safe head db will miss entries so we need to remove all entries to avoid returning bad data
 	s.Log.Warn("Clearing safe head db because EL sync started")

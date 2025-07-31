@@ -225,6 +225,8 @@ func NewDriver(
 		Ctx:                 driverCtx,
 		ManagedBySupervisor: indexingMode,
 	}
+	ec.SyncDeriver = syncDeriver
+
 	sys.Register("sync", syncDeriver)
 
 	sys.Register("engine", engine.NewEngDeriver(log, driverCtx, cfg, metrics, ec))

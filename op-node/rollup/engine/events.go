@@ -299,12 +299,6 @@ func (ev InteropReplacedBlockEvent) String() string {
 	return "interop-replaced-block"
 }
 
-type ELSyncStartedEvent struct{}
-
-func (ev ELSyncStartedEvent) String() string {
-	return "el-sync-started"
-}
-
 type EngDeriver struct {
 	metrics Metrics
 
