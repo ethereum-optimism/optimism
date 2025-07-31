@@ -258,15 +258,12 @@ func testSuperPreimageStep(t *testing.T, preimageType utils.PreimageOpt, preload
 	l2Timestamp := status.SafeTimestamp + 40
 
 	game := disputeGameFactory.StartSuperCannonGameWithCorrectRootAtTimestamp(ctx, l2Timestamp)
-	prestate, _, err := game.Game.GetGameRange(ctx)
-	require.NoError(t, err)
-
-	adjustment := prestate % 2 // at 2-second block time boundary
-	indexAtDepth := super.StepsPerTimestamp * (20 + adjustment)
+	correctTrace := game.CreateHonestActor(ctx, disputegame.WithPrivKey(malloryKey(t)), func(c *disputegame.HonestActorConfig) {
+		c.ChallengerOpts = append(c.ChallengerOpts, challenger.WithDepset(t, sys.DependencySet()))
+	})
+	topGameLeaf := game.InitFirstDerivationGame(ctx, correctTrace)
 
 	game.StartChallenger(ctx, "Challenger", challenger.WithPrivKey(aliceKey(t)), challenger.WithDepset(t, sys.DependencySet()))
-	openingMove := game.RootClaim(ctx).Attack(ctx, common.Hash{0x01})
-	topGameLeaf := game.BisectUntilSplitDepth(ctx, openingMove, indexAtDepth)
 
 	// This attack creates a bottom game such that we will be making the last move at the bottom. (see game depth parameters for the super DG)
 	// This presents an opportunity for the challenger to step on our dishonest claim at the bottom.
