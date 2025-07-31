@@ -673,23 +673,25 @@ func TestChannelManager_ChannelOutFactory(t *testing.T) {
 	require.IsType(t, &ChannelOutWrapper{}, m.currentChannel.channelBuilder.co)
 }
 
-func newBlock(parent *eth.BlockID, numTransactions int) *types.Block {
+func newBlock(parent *types.Block, numTransactions int) *types.Block {
 	var rng *rand.Rand
 	if parent == nil {
 		rng = rand.New(rand.NewSource(123))
 	} else {
-		rng = rand.New(rand.NewSource(int64(parent.Number)))
+		rng = rand.New(rand.NewSource(int64(parent.Header().Number.Uint64())))
 	}
-	block, receipts := derivetest.RandomL2Block(rng, numTransactions, time.Now())
+	block := derivetest.RandomL2BlockWithChainId(rng, numTransactions, defaultTestRollupConfig.L2ChainID)
 	header := block.Header()
 	if parent == nil {
 		header.Number = new(big.Int)
 		header.ParentHash = common.Hash{}
+		header.Time = 1675
 	} else {
-		header.Number = new(big.Int).SetUint64(parent.Number + 1)
-		header.ParentHash = parent.Hash
+		header.Number = big.NewInt(0).Add(parent.Header().Number, big.NewInt(1))
+		header.ParentHash = parent.Header().Hash()
+		header.Time = parent.Header().Time + 2
 	}
-	return types.NewBlock(header, block.Body(), receipts, trie.NewStackTrie(nil), types.DefaultBlockConfig)
+	return types.NewBlock(header, block.Body(), nil, trie.NewStackTrie(nil), types.DefaultBlockConfig)
 }
 
 // TestChannelManagerUnsafeBytes tests the unsafe bytes in the channel manager
@@ -706,46 +708,49 @@ func TestChannelManagerUnsafeBytes(t *testing.T) {
 		afterSealingChannel           int64
 	}
 
-	// TODO need specific chain id for txs
-	// a := newBlock(&eth.BlockID{}, 3)
-	// b := newBlock(toPtr(eth.HeaderBlockID(a.Header())), 3)
-	// c := newBlock(toPtr(eth.HeaderBlockID(b.Header())), 3)
+	a := newBlock(nil, 3)
+	b := newBlock(a, 3)
+	c := newBlock(b, 3)
 
-	emptyA := newBlock(&eth.BlockID{}, 0)
-	emptyB := newBlock(toPtr(eth.HeaderBlockID(emptyA.Header())), 0)
-	emptyC := newBlock(toPtr(eth.HeaderBlockID(emptyB.Header())), 0)
+	emptyA := newBlock(nil, 0)
+	emptyB := newBlock(emptyA, 0)
+	emptyC := newBlock(emptyB, 0)
 
 	// TODO add a scenario with hundreds of blocks
 
 	for _, tc := range []testCase{
-		// {
-		// 	"Single block with 3 transactions",
-		// 	[]*types.Block{a},
-		// 	733, 30, 1054, // in block queue, in open channel, in closed channel
-		// },
-		// {
-		// 	"Two blocks with 3 transactions",
-		// 	[]*types.Block{a, b},
-		// 	2509, 1027, 3283,
-		// },
-		// {
-		// 	"Three blocks with 3 transactions",
-		// 	[]*types.Block{a, b, c},
-		// 	4089, 3256, 5286,
-		// },
+		{
+			"Single block with 3 transactions",
+			[]*types.Block{a},
+			2138, 24, 2660, // in block queue, in open channel, in closed channel
+		},
+		{
+			"Two blocks with 3 transactions",
+			[]*types.Block{a, b},
+			3813, 24, 4754,
+		},
+		{
+			"Three blocks with 3 transactions",
+			[]*types.Block{a, b, c},
+			5794, 24, 7199,
+		},
 		{
 			"Single block with 0 transactions",
 			[]*types.Block{emptyA},
-			70, 24, 82,
+			70, 24, 108,
 		},
 		{
 			"Three blocks with 0 transactions",
 			[]*types.Block{emptyA, emptyB, emptyC},
-			210, 24, 84,
+			210, 24, 267,
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			cfg := channelManagerTestConfig(100, derive.SpanBatchType)
+			cfg := ChannelConfig{
+				MaxFrameSize:    120000 - 1,
+				TargetNumFrames: 5,
+				BatchType:       derive.SingularBatchType,
+			}
 			cfg.InitShadowCompressor(derive.Brotli10)
 
 			manager := NewChannelManager(log.New(), metrics.NoopMetrics, cfg, defaultTestRollupConfig)
@@ -756,8 +761,8 @@ func TestChannelManagerUnsafeBytes(t *testing.T) {
 
 			assert.Equal(t, tc.afterAddingToUnsafeBlockQueue, manager.UnsafeDABytes())
 			assert.Equal(t, tc.afterAddingToUnsafeBlockQueue, manager.unsafeBytesInPendingBlocks())
-			assert.Equal(t, int64(0), manager.unsafeBytesInOpenChannels())
-			assert.Equal(t, int64(0), manager.unsafeBytesInClosedChannels())
+			require.Equal(t, int64(0), manager.unsafeBytesInOpenChannels())
+			require.Equal(t, int64(0), manager.unsafeBytesInClosedChannels())
 
 			for err := error(nil); err != io.EOF; {
 				require.NoError(t, err)
@@ -768,25 +773,19 @@ func TestChannelManagerUnsafeBytes(t *testing.T) {
 			}
 
 			assert.Equal(t, tc.afterAddingToChannel, manager.UnsafeDABytes())
-			assert.Equal(t, int64(0), manager.unsafeBytesInPendingBlocks())
+			require.Equal(t, int64(0), manager.unsafeBytesInPendingBlocks())
 			assert.Equal(t, tc.afterAddingToChannel, manager.unsafeBytesInOpenChannels())
-			assert.Equal(t, int64(0), manager.unsafeBytesInClosedChannels())
+			require.Equal(t, int64(0), manager.unsafeBytesInClosedChannels())
 
 			manager.currentChannel.Close()
 			err := manager.currentChannel.OutputFrames()
 			require.NoError(t, err)
 
 			assert.Equal(t, tc.afterSealingChannel, manager.UnsafeDABytes())
-			assert.Equal(t, int64(0), manager.unsafeBytesInPendingBlocks())
-			assert.Equal(t, int64(0), manager.unsafeBytesInOpenChannels())
+			require.Equal(t, int64(0), manager.unsafeBytesInPendingBlocks())
+			require.Equal(t, int64(0), manager.unsafeBytesInOpenChannels())
 			assert.Equal(t, tc.afterSealingChannel, manager.unsafeBytesInClosedChannels())
-
-			assert.Equal(t, 1, manager.currentChannel.channelBuilder.numFrames)
 
 		})
 	}
-}
-
-func ptr[T any](x T) *T {
-	return &x
 }

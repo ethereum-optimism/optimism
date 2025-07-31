@@ -64,7 +64,7 @@ type ChannelOut interface {
 	FullErr() error
 	Close() error
 	OutputFrame(*bytes.Buffer, uint64) (uint16, error)
-	EstimatedDABytes() (uint64, error)
+	EstimatedDABytes(int) (uint64, error)
 	DiscardCompressor()
 }
 
@@ -226,12 +226,12 @@ func (co *SingularChannelOut) OutputFrame(w *bytes.Buffer, maxSize uint64) (uint
 	}
 }
 
-func (co *SingularChannelOut) EstimatedDABytes() (uint64, error) {
+func (co *SingularChannelOut) EstimatedDABytes(frameSize int) (uint64, error) {
 	if co.compress == nil {
 		return 0, fmt.Errorf("compressor is nil (possibly discarded)")
 	}
 	len := co.compress.EstimatedLen()
-	numFrames := 1 // 	// TODO do not hardcode numFrames = 1
+	numFrames := 1 + len/frameSize
 	return uint64(numFrames*FrameV0OverHeadSize + len), nil
 }
 

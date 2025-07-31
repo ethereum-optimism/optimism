@@ -223,5 +223,5 @@ func (c *channel) MaxInclusionBlock() uint64 {
 }
 
 func (c *channel) EstimatedDABytes() (uint64, error) {
-	return c.channelBuilder.co.EstimatedDABytes()
+	return c.channelBuilder.co.EstimatedDABytes(int(c.cfg.MaxFrameSize))
 }
