@@ -36,6 +36,7 @@ func (*noopMetrics) RecordChannelOpened(derive.ChannelID, int)              {}
 func (*noopMetrics) RecordL2BlocksAdded(eth.L2BlockRef, int, int, int, int) {}
 func (*noopMetrics) RecordL2BlockInPendingQueue(*types.Block)               {}
 func (*noopMetrics) RecordL2BlockInChannel(*types.Block)                    {}
+func (*noopMetrics) RecordPendingBlockPruned(*types.Block)                  {}
 
 func (*noopMetrics) RecordChannelClosed(derive.ChannelID, int, int, int, int, error) {}
 

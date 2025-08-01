@@ -34,3 +34,9 @@ func (m *TestMetrics) ClearAllStateMetrics() {
 	m.ChannelQueueLength = 0
 	m.pendingDABytes = 0
 }
+
+func (m *TestMetrics) RecordPendingBlockPruned(block *types.Block) {
+	daSize, rawSize := estimateBatchSize(block)
+	m.PendingBlocksBytesCurrent -= float64(rawSize)
+	m.pendingDABytes -= float64(daSize)
+}

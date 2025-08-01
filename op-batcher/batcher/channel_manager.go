@@ -507,12 +507,16 @@ var ErrPendingAfterClose = errors.New("pending channels remain after closing cha
 
 // PruneSafeBlocks dequeues the provided number of blocks from the internal blocks queue
 func (s *channelManager) PruneSafeBlocks(num int) {
-	_, ok := s.blocks.DequeueN(int(num))
+	discardedBlocks, ok := s.blocks.DequeueN(int(num))
 	if !ok {
 		panic("tried to prune more blocks than available")
 	}
 	s.blockCursor -= int(num)
 	if s.blockCursor < 0 {
+		numDiscardedPendingBlocks := -1 * s.blockCursor
+		for i := 0; i < numDiscardedPendingBlocks; i++ {
+			s.metr.RecordPendingBlockPruned(discardedBlocks[i])
+		}
 		s.blockCursor = 0
 	}
 }
