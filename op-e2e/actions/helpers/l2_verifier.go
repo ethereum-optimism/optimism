@@ -189,6 +189,7 @@ func NewL2Verifier(t Testing, log log.Logger, l1 derive.L1Fetcher,
 	}
 	// TODO(#16917) Remove Event System Refactor Comments
 	//  Couple SyncDeriver and EngineController for event refactoring
+	//  Couple EngDeriver and NewAttributesHandler for event refactoring
 	ec.SyncDeriver = syncDeriver
 	sys.Register("sync", syncDeriver, opts)
 	engDeriver := engine.NewEngDeriver(log, ctx, cfg, metrics, ec)
