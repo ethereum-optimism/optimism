@@ -307,15 +307,62 @@ func FuzzStatePreimageRead(f *testing.F) {
 func FuzzStateHintWrite(f *testing.F) {
 	vms := GetMipsVersionTestCases(f)
 	type testCase struct {
-		addr             Word
-		count            Word
+		// Fuzz inputs
+		addr  Word
+		count Word
+		hint1 []byte
+		hint2 []byte
+		hint3 []byte
+		// Cached calculations
 		hintData         []byte
 		lastHint         []byte
 		expectedHints    [][]byte
 		expectedLastHint []byte
 	}
 
-	initState := func(t require.TestingT, c testCase, state *multithreaded.State, vm VersionedVMTestCase, r *testutil.RandHelper) {
+	cacheHintCalculations := func(t require.TestingT, c *testCase) {
+		if c.hintData != nil {
+			// Already cached
+			return
+		}
+
+		// Set up hint data
+		r := testutil.NewRandHelper(seed)
+		hints := [][]byte{c.hint1, c.hint2, c.hint3}
+		c.hintData = make([]byte, 0)
+		for _, hint := range hints {
+			prefixedHint := mtutil.AddHintLengthPrefix(hint)
+			c.hintData = append(c.hintData, prefixedHint...)
+		}
+		lastHintLen := math.Round(r.Fraction() * float64(len(c.hintData)))
+		c.lastHint = c.hintData[:int(lastHintLen)]
+		expectedBytesToProcess := int(c.count) + int(lastHintLen)
+		if expectedBytesToProcess > len(c.hintData) {
+			// Add an extra hint to span the rest of the hint data
+			randomHint := r.RandomBytes(t, expectedBytesToProcess)
+			prefixedHint := mtutil.AddHintLengthPrefix(randomHint)
+			c.hintData = append(c.hintData, prefixedHint...)
+			hints = append(hints, randomHint)
+		}
+
+		// Figure out hint expectations
+		c.expectedLastHint = make([]byte, 0)
+		byteIndex := 0
+		for _, hint := range hints {
+			hintDataLength := len(hint) + 4 // Hint data + prefix
+			hintLastByteIndex := hintDataLength + byteIndex - 1
+			if hintLastByteIndex < expectedBytesToProcess {
+				c.expectedHints = append(c.expectedHints, hint)
+			} else {
+				c.expectedLastHint = c.hintData[byteIndex:expectedBytesToProcess]
+				break
+			}
+			byteIndex += hintDataLength
+		}
+	}
+
+	initState := func(t require.TestingT, c *testCase, state *multithreaded.State, vm VersionedVMTestCase, r *testutil.RandHelper) {
+		cacheHintCalculations(t, c)
 		state.LastHint = c.lastHint
 		state.GetRegistersRef()[2] = arch.SysWrite
 		state.GetRegistersRef()[4] = exec.FdHintWrite
@@ -326,7 +373,8 @@ func FuzzStateHintWrite(f *testing.F) {
 		require.NoError(t, err)
 	}
 
-	setExpectations := func(t require.TestingT, c testCase, expected *mtutil.ExpectedState, vm VersionedVMTestCase) ExpectedExecResult {
+	setExpectations := func(t require.TestingT, c *testCase, expected *mtutil.ExpectedState, vm VersionedVMTestCase) ExpectedExecResult {
+		cacheHintCalculations(t, c)
 		expected.ExpectStep()
 		expected.ActiveThread().Registers[2] = c.count
 		expected.ActiveThread().Registers[7] = 0 // no error
@@ -334,13 +382,13 @@ func FuzzStateHintWrite(f *testing.F) {
 		return ExpectNormalExecution()
 	}
 
-	postCheck := func(t require.TestingT, c testCase, vm VersionedVMTestCase, deps *TestDependencies, stepWitness *mipsevm.StepWitness) {
+	postCheck := func(t require.TestingT, c *testCase, vm VersionedVMTestCase, deps *TestDependencies, stepWitness *mipsevm.StepWitness) {
 		oracle, ok := deps.po.(*testutil.HintTrackingOracle)
 		require.True(t, ok)
 		require.Equal(t, c.expectedHints, oracle.Hints())
 	}
 
-	diffTester := NewDiffTester(NoopTestNamer[testCase]).
+	diffTester := NewDiffTester(NoopTestNamer[*testCase]).
 		InitState(initState, mtutil.WithPCAndNextPC(0)).
 		SetExpectations(setExpectations).
 		PostCheck(postCheck)
@@ -350,52 +398,18 @@ func FuzzStateHintWrite(f *testing.F) {
 		if addr <= 8 {
 			addr += 8
 		}
-		// Set up hint data
-		r := testutil.NewRandHelper(seed)
-		hints := [][]byte{hint1, hint2, hint3}
-		hintData := make([]byte, 0)
-		for _, hint := range hints {
-			prefixedHint := mtutil.AddHintLengthPrefix(hint)
-			hintData = append(hintData, prefixedHint...)
-		}
-		lastHintLen := math.Round(r.Fraction() * float64(len(hintData)))
-		lastHint := hintData[:int(lastHintLen)]
-		expectedBytesToProcess := int(count) + int(lastHintLen)
-		if expectedBytesToProcess > len(hintData) {
-			// Add an extra hint to span the rest of the hint data
-			randomHint := r.RandomBytes(t, expectedBytesToProcess)
-			prefixedHint := mtutil.AddHintLengthPrefix(randomHint)
-			hintData = append(hintData, prefixedHint...)
-			hints = append(hints, randomHint)
-		}
-		// Figure out hint expectations
-		var expectedHints [][]byte
-		expectedLastHint := make([]byte, 0)
-		byteIndex := 0
-		for _, hint := range hints {
-			hintDataLength := len(hint) + 4 // Hint data + prefix
-			hintLastByteIndex := hintDataLength + byteIndex - 1
-			if hintLastByteIndex < expectedBytesToProcess {
-				expectedHints = append(expectedHints, hint)
-			} else {
-				expectedLastHint = hintData[byteIndex:expectedBytesToProcess]
-				break
-			}
-			byteIndex += hintDataLength
-		}
 
 		po := func() mipsevm.PreimageOracle {
 			return &testutil.HintTrackingOracle{}
 		}
 
-		tests := []testCase{
+		tests := []*testCase{
 			{
-				addr:             addr,
-				count:            count,
-				hintData:         hintData,
-				lastHint:         lastHint,
-				expectedHints:    expectedHints,
-				expectedLastHint: expectedLastHint,
+				addr:  addr,
+				count: count,
+				hint1: hint1,
+				hint2: hint2,
+				hint3: hint3,
 			},
 		}
 		diffTester.Run(t, tests, fuzzTestOptions(vms, seed, WithPreimageOracle(po))...)
