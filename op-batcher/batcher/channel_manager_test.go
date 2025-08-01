@@ -87,7 +87,7 @@ func ChannelManagerReturnsErrReorg(t *testing.T, batchType uint) {
 	require.NoError(t, m.AddL2Block(c))
 	require.ErrorIs(t, m.AddL2Block(x), ErrReorg)
 
-	require.Equal(t, queue.Queue[BlockWithDABytes]{{Block: a}, {Block: b}, {Block: c}}, m.blocks)
+	require.Equal(t, queue.Queue[BlockWithDABytes]{ToBlockWithDABytes(a), ToBlockWithDABytes(b), ToBlockWithDABytes(c)}, m.blocks)
 }
 
 // ChannelManagerReturnsErrReorgWhenDrained ensures that the channel manager
@@ -178,7 +178,8 @@ func ChannelManager_Clear(t *testing.T, batchType uint) {
 	}
 
 	// Artificially pump up some metrics which need to be cleared
-	m.metr.RecordL2BlockInPendingQueue(a)
+	A := ToBlockWithDABytes(a)
+	m.metr.RecordL2BlockInPendingQueue(A.RawSize(), A.EstimatedDABytes())
 	require.NotZero(m.metr.PendingDABytes())
 
 	// Clear the channel manager
@@ -412,12 +413,12 @@ func TestChannelManager_handleChannelInvalidated(t *testing.T) {
 
 	// Seed channel manager with blocks
 	rng := rand.New(rand.NewSource(99))
-	blockA := derivetest.RandomL2BlockWithChainId(rng, 10, defaultTestRollupConfig.L2ChainID)
-	blockB := derivetest.RandomL2BlockWithChainId(rng, 10, defaultTestRollupConfig.L2ChainID)
+	blockA := ToBlockWithDABytes(derivetest.RandomL2BlockWithChainId(rng, 10, defaultTestRollupConfig.L2ChainID))
+	blockB := ToBlockWithDABytes(derivetest.RandomL2BlockWithChainId(rng, 10, defaultTestRollupConfig.L2ChainID))
 
 	// This is the snapshot of channel manager state we want to reinstate
 	// when we requeue
-	stateSnapshot := queue.Queue[BlockWithDABytes]{BlockWithDABytes{Block: blockA}, BlockWithDABytes{Block: blockB}}
+	stateSnapshot := queue.Queue[BlockWithDABytes]{blockA, blockB}
 	m.blocks = stateSnapshot
 	require.Empty(t, m.channelQueue)
 	require.Equal(t, metrics.ChannelQueueLength, 0)
@@ -432,8 +433,8 @@ func TestChannelManager_handleChannelInvalidated(t *testing.T) {
 	require.Equal(t, metrics.ChannelQueueLength, 1)
 
 	// Setup initial metrics
-	metrics.RecordL2BlockInPendingQueue(blockA)
-	metrics.RecordL2BlockInPendingQueue(blockB)
+	metrics.RecordL2BlockInPendingQueue(blockA.RawSize(), blockA.EstimatedDABytes())
+	metrics.RecordL2BlockInPendingQueue(blockB.RawSize(), blockB.EstimatedDABytes())
 	pendingBytesBefore := metrics.PendingBlocksBytesCurrent
 
 	// Trigger the blocks -> channelQueue data pipelining
@@ -707,7 +708,7 @@ func TestChannelManager_TxData_ForcePublish(t *testing.T) {
 	// Seed channel manager with a block
 	rng := rand.New(rand.NewSource(99))
 	blockA := derivetest.RandomL2BlockWithChainId(rng, 200, defaultTestRollupConfig.L2ChainID)
-	m.blocks = []*types.Block{blockA}
+	m.blocks = queue.Queue[BlockWithDABytes]{BlockWithDABytes{Block: blockA}}
 
 	// Call TxData a first time to trigger blocks->channels pipeline
 	txData, err := m.TxData(eth.BlockID{}, false, false, false)

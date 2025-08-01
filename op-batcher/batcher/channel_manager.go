@@ -143,7 +143,7 @@ func (s *channelManager) rewindToBlock(block eth.BlockID) {
 		if !ok {
 			panic("rewindToBlock: block not found at index " + fmt.Sprint(i))
 		}
-		s.metr.RecordL2BlockInPendingQueue(block.Block)
+		s.metr.RecordL2BlockInPendingQueue(block.RawSize(), block.EstimatedDABytes())
 	}
 }
 
@@ -425,7 +425,7 @@ func (s *channelManager) processBlocks() error {
 
 		blocksAdded += 1
 		latestL2ref = l2BlockRefFromBlockAndL1Info(block.Block, l1info)
-		s.metr.RecordL2BlockInChannel(block.Block)
+		s.metr.RecordL2BlockInChannel(block.RawSize(), block.EstimatedDABytes())
 		// current block got added but channel is now full
 		if s.currentChannel.IsFull() {
 			break
@@ -485,8 +485,9 @@ func (s *channelManager) AddL2Block(block *types.Block) error {
 		return ErrReorg
 	}
 
-	s.metr.RecordL2BlockInPendingQueue(block)
-	s.blocks.Enqueue(BlockWithDABytes{Block: block})
+	b := ToBlockWithDABytes(block)
+	s.metr.RecordL2BlockInPendingQueue(b.RawSize(), b.EstimatedDABytes())
+	s.blocks.Enqueue(b)
 	s.tip = block.Hash()
 
 	return nil
@@ -518,7 +519,9 @@ func (s *channelManager) PruneSafeBlocks(num int) {
 		// which was confirmed _after_ the current batcher pulled it from the sequencer.
 		numDiscardedPendingBlocks := -1 * s.blockCursor
 		for i := 0; i < numDiscardedPendingBlocks; i++ {
-			s.metr.RecordPendingBlockPruned(discardedBlocks[i].Block)
+			s.metr.RecordPendingBlockPruned(
+				discardedBlocks[i].RawSize(),
+				discardedBlocks[i].EstimatedDABytes())
 		}
 		s.blockCursor = 0
 	}
