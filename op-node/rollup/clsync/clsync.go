@@ -101,80 +101,46 @@ func (eq *CLSync) onInvalidPayload(x engine.PayloadInvalidEvent) {
 	}
 }
 
-// onForkchoiceUpdate peeks at the next applicable unsafe payload, if any,
+// onForkchoiceUpdate refreshes unsafe payload queue and peeks at the next applicable unsafe payload, if any,
 // to apply on top of the received forkchoice pre-state.
 // The payload is held on to until the forkchoice changes (success case) or the payload is reported to be invalid.
-func (eq *CLSync) onForkchoiceUpdate(ctx context.Context, x engine.ForkchoiceUpdateEvent) {
+func (eq *CLSync) onForkchoiceUpdate(ctx context.Context, event engine.ForkchoiceUpdateEvent) {
 	eq.log.Debug("CL sync received forkchoice update",
-		"unsafe", x.UnsafeL2Head, "safe", x.SafeL2Head, "finalized", x.FinalizedL2Head)
+		"unsafe", event.UnsafeL2Head, "safe", event.SafeL2Head, "finalized", event.FinalizedL2Head)
 
-	for {
-		pop, abort := eq.fromQueue(x)
-		if abort {
-			return
-		}
-		if pop {
-			eq.unsafePayloads.Pop()
-		} else {
-			break
-		}
-	}
-
-	firstEnvelope := eq.unsafePayloads.Peek()
-
-	// We don't pop from the queue. If there is a temporary error then we can retry.
-	// Upon next forkchoice update or invalid-payload event we can remove it from the queue.
-	eq.emitter.Emit(ctx, engine.ProcessUnsafePayloadEvent{Envelope: firstEnvelope})
-}
-
-// fromQueue determines what to do with the tip of the payloads-queue, given the forkchoice pre-state.
-// If abort, there is nothing to process (either due to empty queue, or unsuitable tip).
-// If pop, the tip should be dropped, and processing can repeat from there.
-// If not abort or pop, the tip is ready to process.
-func (eq *CLSync) fromQueue(x engine.ForkchoiceUpdateEvent) (pop bool, abort bool) {
-	if eq.unsafePayloads.Len() == 0 {
-		return false, true
-	}
-	firstEnvelope := eq.unsafePayloads.Peek()
-	first := firstEnvelope.ExecutionPayload
-
-	if first.BlockHash == x.UnsafeL2Head.Hash {
-		eq.log.Debug("successfully processed payload, removing it from the payloads queue now")
-		return true, false
-	}
-
-	if uint64(first.BlockNumber) <= x.SafeL2Head.Number {
-		eq.log.Info("skipping unsafe payload, since it is older than safe head", "safe", x.SafeL2Head.ID(), "unsafe", x.UnsafeL2Head.ID(), "unsafe_payload", first.ID())
-		return true, false
-	}
-	if uint64(first.BlockNumber) <= x.UnsafeL2Head.Number {
-		eq.log.Info("skipping unsafe payload, since it is older than unsafe head", "unsafe", x.UnsafeL2Head.ID(), "unsafe_payload", first.ID())
-		return true, false
-	}
-
-	// Ensure that the unsafe payload builds upon the current unsafe head
-	if first.ParentHash != x.UnsafeL2Head.Hash {
-		if uint64(first.BlockNumber) == x.UnsafeL2Head.Number+1 {
-			eq.log.Info("skipping unsafe payload, since it does not build onto the existing unsafe chain", "safe", x.SafeL2Head.ID(), "unsafe", x.UnsafeL2Head.ID(), "unsafe_payload", first.ID())
-			return true, false
-		}
-		return false, true // rollup-node should try something different if it cannot process the first unsafe payload
-	}
-
-	return false, false
-}
-
-// AddUnsafePayload schedules an execution payload to be processed, ahead of deriving it from L1.
-func (eq *CLSync) onUnsafePayload(ctx context.Context, x ReceivedUnsafePayloadEvent) {
-	eq.log.Debug("CL sync received payload", "payload", x.Envelope.ExecutionPayload.ID())
-	envelope := x.Envelope
-	if envelope == nil {
-		eq.log.Warn("cannot add nil unsafe payload")
+	eq.unsafePayloads.DropInapplicableUnsafePayloads(event)
+	nextEnvelope := eq.unsafePayloads.Peek()
+	if nextEnvelope == nil {
+		eq.log.Debug("No unsafe payload to process")
 		return
 	}
 
-	if err := eq.unsafePayloads.Push(envelope); err != nil {
-		eq.log.Warn("Could not add unsafe payload", "id", envelope.ExecutionPayload.ID(), "timestamp", uint64(envelope.ExecutionPayload.Timestamp), "err", err)
+	// Only process the next payload if it is applicable on top of the current unsafe head.
+	// This avoids prematurely attempting to insert non-adjacent payloads (e.g. height gaps),
+	// which could otherwise trigger EL sync behavior.
+	refParentHash := nextEnvelope.ExecutionPayload.ParentHash
+	refBlockNumber := uint64(nextEnvelope.ExecutionPayload.BlockNumber)
+	if refParentHash != event.UnsafeL2Head.Hash || refBlockNumber != event.UnsafeL2Head.Number+1 {
+		eq.log.Debug("Next unsafe payload is not applicable yet",
+			"nextHash", nextEnvelope.ExecutionPayload.BlockHash, "nextNumber", refBlockNumber, "unsafe", event.UnsafeL2Head)
+		return
+	}
+
+	// We don't pop from the queue. If there is a temporary error then we can retry.
+	// Upon next forkchoice update or invalid-payload event we can remove it from the queue.
+	eq.emitter.Emit(ctx, engine.ProcessUnsafePayloadEvent{Envelope: nextEnvelope})
+}
+
+// AddUnsafePayload schedules an execution payload to be processed, ahead of deriving it from L1.
+func (eq *CLSync) onUnsafePayload(ctx context.Context, event ReceivedUnsafePayloadEvent) {
+	eq.log.Debug("CL sync received payload", "payload", event.Envelope.ExecutionPayload.ID())
+	if event.Envelope == nil {
+		eq.log.Error("cannot add nil unsafe payload")
+		return
+	}
+
+	if err := eq.unsafePayloads.Push(event.Envelope); err != nil {
+		eq.log.Warn("Could not add unsafe payload", "id", event.Envelope.ExecutionPayload.ID(), "timestamp", uint64(event.Envelope.ExecutionPayload.Timestamp), "err", err)
 		return
 	}
 	p := eq.unsafePayloads.Peek()
