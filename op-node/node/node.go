@@ -144,6 +144,9 @@ func (n *OpNode) init(ctx context.Context, cfg *config.Config) error {
 	if err := n.initL2(ctx, cfg); err != nil {
 		return fmt.Errorf("failed to init L2: %w", err)
 	}
+	if err := n.initTracer(ctx, cfg); err != nil {
+		return fmt.Errorf("failed to init the trace: %w", err)
+	}
 	if err := n.initL1Handlers(cfg); err != nil {
 		return fmt.Errorf("failed to init L1 Handlers: %w", err)
 	}
