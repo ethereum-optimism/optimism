@@ -159,14 +159,18 @@ where
 
             // if we've extracted a block ID, check if it's pre-Bedrock
             if let Some(block_id) = maybe_block_id {
-                let is_pre_bedrock = if let Ok(Some(num)) =
-                    historical.provider.block_number_for_id(block_id)
-                {
-                    num < historical.bedrock_block
-                } else {
-                    // If we can't convert the hash to a number, assume it's post-Bedrock
-                    debug!(target: "rpc::historical", ?block_id, "hash unknown; not forwarding");
-                    false
+                let is_pre_bedrock = match historical.provider.block_number_for_id(block_id) {
+                    Ok(Some(num)) => num < historical.bedrock_block,
+                    Ok(None) if block_id.is_hash() => {
+                        // if we couldn't find the block number for the hash then we assume it is
+                        // pre-Bedrock
+                        true
+                    }
+                    _ => {
+                        // If we can't convert blockid to a number, assume it's post-Bedrock
+                        debug!(target: "rpc::historical", ?block_id, "hash unknown; not forwarding");
+                        false
+                    }
                 };
 
                 // if the block is pre-Bedrock, forward the request to the historical client
