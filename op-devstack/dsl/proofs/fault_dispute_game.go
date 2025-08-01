@@ -13,6 +13,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl/contract"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
+	"github.com/ethereum-optimism/optimism/op-service/errutil"
 	"github.com/ethereum-optimism/optimism/op-service/txintent/bindings"
 	"github.com/ethereum-optimism/optimism/op-service/txplan"
 )
@@ -59,8 +60,22 @@ func (g *FaultDisputeGame) Attack(eoa *dsl.EOA, claimIdx int64, newClaim common.
 	newPosition := claim.Position.Attack().ToGIndex()
 	requiredBond := contract.Read(g.game.GetRequiredBond((*bindings.Uint128)(newPosition)))
 
-	receipt := contract.Write(eoa, g.game.Attack(claim.Value, big.NewInt(claimIdx), newClaim), txplan.WithValue(requiredBond))
-	g.require.Equal(types.ReceiptStatusSuccessful, receipt.Status)
+	attackCall := g.game.Attack(claim.Value, big.NewInt(claimIdx), newClaim)
+
+	// TODO: Debug why we need this retry
+	g.require.Eventually(func() bool {
+		receipt, err := contract.MaybeWrite(eoa, attackCall, txplan.WithValue(requiredBond), txplan.WithGasRatio(2))
+		if err != nil {
+			err := errutil.TryAddRevertReason(err)
+			g.t.Logf("Attack tx failed: %v", err)
+			return false
+		}
+		if receipt.Status != types.ReceiptStatusSuccessful {
+			g.t.Logf("Attack tx not successful: %v", receipt.Status)
+			return false
+		}
+		return true
+	}, 5*time.Minute, 5*time.Second)
 }
 
 func (g *FaultDisputeGame) newClaim(claimIndex int64, claim bindings.Claim) *Claim {

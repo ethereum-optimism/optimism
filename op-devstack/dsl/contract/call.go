@@ -31,13 +31,18 @@ func Read[O any](call bindings.TypedCall[O], opts ...txplan.Option) O {
 	return o
 }
 
-// Write makes a user to write a tx by using the planned contract bindings
+// Write sends a tx to a contract, requiring the tx to succeed
 func Write[O any](user *dsl.EOA, call bindings.TypedCall[O], opts ...txplan.Option) *types.Receipt {
-	checkTestable(call)
-	finalOpts := txplan.Combine(user.Plan(), txplan.Combine(opts...))
-	o, err := contractio.Write(call, call.Test().Ctx(), finalOpts)
+	o, err := MaybeWrite(user, call, opts...)
 	call.Test().Require().NoError(err)
 	return o
+}
+
+// MaybeWrite sends a tx to a contract, which may fail
+func MaybeWrite[O any](user *dsl.EOA, call bindings.TypedCall[O], opts ...txplan.Option) (*types.Receipt, error) {
+	checkTestable(call)
+	finalOpts := txplan.Combine(user.Plan(), txplan.Combine(opts...))
+	return contractio.Write(call, call.Test().Ctx(), finalOpts)
 }
 
 var _ TestCallView[any] = (*bindings.TypedCall[any])(nil)
