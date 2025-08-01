@@ -7,7 +7,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	"io"
-	"math/rand"
+	"math/rand/v2"
 	"net"
 	"time"
 
@@ -432,11 +432,11 @@ func (n *NodeP2P) DiscoveryProcess(ctx context.Context, log log.Logger, cfg *rol
 
 // shuffle the slice of peer IDs in-place with a RNG seeded by secure randomness.
 func shufflePeers(ids peer.IDSlice) error {
-	var x [8]byte // shuffling is not critical, just need to avoid basic predictability by outside peers
+	var x [16]byte // shuffling is not critical, just need to avoid basic predictability by outside peers
 	if _, err := io.ReadFull(secureRand.Reader, x[:]); err != nil {
 		return err
 	}
-	rng := rand.New(rand.NewSource(int64(binary.LittleEndian.Uint64(x[:]))))
+	rng := rand.New(rand.NewPCG(binary.LittleEndian.Uint64(x[:8]), binary.LittleEndian.Uint64(x[8:])))
 	rng.Shuffle(len(ids), ids.Swap)
 	return nil
 }
