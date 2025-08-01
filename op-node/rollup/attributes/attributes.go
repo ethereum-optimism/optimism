@@ -41,6 +41,7 @@ type AttributesHandler struct {
 }
 
 type EngDeriver interface {
+	TryUpdateUnsafe(ctx context.Context, ref eth.L2BlockRef)
 	TryUpdatePendingSafe(ctx context.Context, ref eth.L2BlockRef, concluding bool, source eth.L1BlockRef)
 	TryUpdateLocalSafe(ctx context.Context, ref eth.L2BlockRef, concluding bool, source eth.L1BlockRef)
 }

@@ -47,8 +47,9 @@ func (eq *EngDeriver) onPayloadSuccess(ctx context.Context, ev PayloadSuccessEve
 		return
 	}
 
-	eq.emitter.Emit(ctx, PromoteUnsafeEvent{Ref: ev.Ref})
-
+	// TryUpdateUnsafe, TryUpdatePendingSafe, TryUpdateLocalSafe must be sequentially invoked
+	// to satisfy attributeHandler invariant: Unsafe.Number >= PendingSafe.Number
+	eq.TryUpdateUnsafe(ctx, ev.Ref)
 	// If derived from L1, then it can be considered (pending) safe
 	if ev.DerivedFrom != (eth.L1BlockRef{}) {
 		eq.TryUpdatePendingSafe(ctx, ev.Ref, ev.Concluding, ev.DerivedFrom)

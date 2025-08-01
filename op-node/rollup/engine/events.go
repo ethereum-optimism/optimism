@@ -51,19 +51,6 @@ func (ev ForkchoiceUpdateEvent) String() string {
 	return "forkchoice-update"
 }
 
-// PromoteUnsafeEvent signals that the given block may now become a canonical unsafe block.
-// This is pre-forkchoice update; the change may not be reflected yet in the EL.
-// Note that the legacy pre-event-refactor code-path (processing P2P blocks) does fire this,
-// but manually, duplicate with the newer events processing code-path.
-// See EngineController.InsertUnsafePayload.
-type PromoteUnsafeEvent struct {
-	Ref eth.L2BlockRef
-}
-
-func (ev PromoteUnsafeEvent) String() string {
-	return "promote-unsafe"
-}
-
 // UnsafeUpdateEvent signals that the given block is now considered safe.
 // This is pre-forkchoice update; the change may not be reflected yet in the EL.
 type UnsafeUpdateEvent struct {
@@ -310,7 +297,7 @@ func (d *EngDeriver) OnEvent(ctx context.Context, ev event.Event) bool {
 	d.ec.mu.Lock()
 	defer d.ec.mu.Unlock()
 	// TODO(#16917) Remove Event System Refactor Comments
-	//  PromotePendingSafeEvent, PromoteLocalSafeEvent fan out is updated to procedural method calls
+	//  PromoteUnsafeEvent, PromotePendingSafeEvent, PromoteLocalSafeEvent fan out is updated to procedural method calls
 	switch x := ev.(type) {
 	case TryUpdateEngineEvent:
 		// If we don't need to call FCU, keep going b/c this was a no-op. If we needed to
@@ -388,13 +375,6 @@ func (d *EngDeriver) OnEvent(ctx context.Context, ev event.Event) bool {
 			"cross_safe", v.CrossSafe,
 			"finalized", v.Finalized,
 		)
-	case PromoteUnsafeEvent:
-		// Backup unsafeHead when new block is not built on original unsafe head.
-		if d.ec.unsafeHead.Number >= x.Ref.Number {
-			d.ec.SetBackupUnsafeL2Head(d.ec.unsafeHead, false)
-		}
-		d.ec.SetUnsafeHead(x.Ref)
-		d.emitter.Emit(ctx, UnsafeUpdateEvent(x))
 	case UnsafeUpdateEvent:
 		// pre-interop everything that is local-unsafe is also immediately cross-unsafe.
 		if !d.cfg.IsInterop(x.Ref.Time) {
@@ -516,6 +496,17 @@ func ForceEngineReset(ec ResetEngineControl, x rollup.ForceResetEvent) {
 	ec.SetFinalizedHead(x.Finalized)
 
 	ec.SetBackupUnsafeL2Head(eth.L2BlockRef{}, false)
+}
+
+// Signals that the given block may now become a canonical unsafe block.
+// This is pre-forkchoice update; the change may not be reflected yet in the EL.
+func (d *EngDeriver) TryUpdateUnsafe(ctx context.Context, ref eth.L2BlockRef) {
+	// Backup unsafeHead when new block is not built on original unsafe head.
+	if d.ec.unsafeHead.Number >= ref.Number {
+		d.ec.SetBackupUnsafeL2Head(d.ec.unsafeHead, false)
+	}
+	d.ec.SetUnsafeHead(ref)
+	d.emitter.Emit(ctx, UnsafeUpdateEvent{Ref: ref})
 }
 
 func (d *EngDeriver) TryUpdatePendingSafe(ctx context.Context, ref eth.L2BlockRef, concluding bool, source eth.L1BlockRef) {
