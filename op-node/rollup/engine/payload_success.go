@@ -51,11 +51,8 @@ func (eq *EngDeriver) onPayloadSuccess(ctx context.Context, ev PayloadSuccessEve
 
 	// If derived from L1, then it can be considered (pending) safe
 	if ev.DerivedFrom != (eth.L1BlockRef{}) {
-		eq.emitter.Emit(ctx, PromotePendingSafeEvent{
-			Ref:        ev.Ref,
-			Concluding: ev.Concluding,
-			Source:     ev.DerivedFrom,
-		})
+		eq.TryUpdatePendingSafe(ctx, ev.Ref, ev.Concluding, ev.DerivedFrom)
+		eq.TryUpdateLocalSafe(ctx, ev.Ref, ev.Concluding, ev.DerivedFrom)
 	}
 
 	eq.emitter.Emit(ctx, TryUpdateEngineEvent{

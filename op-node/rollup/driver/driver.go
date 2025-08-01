@@ -207,8 +207,8 @@ func NewDriver(
 	}
 	sys.Register("finalizer", finalizer)
 
-	sys.Register("attributes-handler",
-		attributes.NewAttributesHandler(log, cfg, driverCtx, l2))
+	attrHandler := attributes.NewAttributesHandler(log, cfg, driverCtx, l2)
+	sys.Register("attributes-handler", attrHandler)
 
 	derivationPipeline := derive.NewDerivationPipeline(log, cfg, depSet, verifConfDepth, l1Blobs, altDA, l2, metrics, indexingMode)
 
@@ -231,10 +231,12 @@ func NewDriver(
 	}
 	// TODO(#16917) Remove Event System Refactor Comments
 	//  Couple SyncDeriver and EngineController for event refactoring
+	//  Couple EngDeriver and NewAttributesHandler for event refactoring
 	ec.SyncDeriver = syncDeriver
 	sys.Register("sync", syncDeriver)
-
-	sys.Register("engine", engine.NewEngDeriver(log, driverCtx, cfg, metrics, ec))
+	engDeriver := engine.NewEngDeriver(log, driverCtx, cfg, metrics, ec)
+	sys.Register("engine", engDeriver)
+	attrHandler.EngDeriver = engDeriver
 
 	schedDeriv := NewStepSchedulingDeriver(log)
 	sys.Register("step-scheduler", schedDeriv)

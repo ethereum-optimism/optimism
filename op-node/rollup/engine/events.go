@@ -102,27 +102,6 @@ func (ev PendingSafeUpdateEvent) String() string {
 	return "pending-safe-update"
 }
 
-// PromotePendingSafeEvent signals that a block can be marked as pending-safe, and/or safe.
-type PromotePendingSafeEvent struct {
-	Ref        eth.L2BlockRef
-	Concluding bool // Concludes the pending phase, so can be promoted to (local) safe
-	Source     eth.L1BlockRef
-}
-
-func (ev PromotePendingSafeEvent) String() string {
-	return "promote-pending-safe"
-}
-
-// PromoteLocalSafeEvent signals that a block can be promoted to local-safe.
-type PromoteLocalSafeEvent struct {
-	Ref    eth.L2BlockRef
-	Source eth.L1BlockRef
-}
-
-func (ev PromoteLocalSafeEvent) String() string {
-	return "promote-local-safe"
-}
-
 type CrossSafeUpdateEvent struct {
 	CrossSafe eth.L2BlockRef
 	LocalSafe eth.L2BlockRef
@@ -330,6 +309,8 @@ func (d *EngDeriver) AttachEmitter(em event.Emitter) {
 func (d *EngDeriver) OnEvent(ctx context.Context, ev event.Event) bool {
 	d.ec.mu.Lock()
 	defer d.ec.mu.Unlock()
+	// TODO(#16917) Remove Event System Refactor Comments
+	//  PromotePendingSafeEvent, PromoteLocalSafeEvent fan out is updated to procedural method calls
 	switch x := ev.(type) {
 	case TryUpdateEngineEvent:
 		// If we don't need to call FCU, keep going b/c this was a no-op. If we needed to
@@ -432,27 +413,6 @@ func (d *EngDeriver) OnEvent(ctx context.Context, ev event.Event) bool {
 			PendingSafe: d.ec.PendingSafeL2Head(),
 			Unsafe:      d.ec.UnsafeL2Head(),
 		})
-	case PromotePendingSafeEvent:
-		// Only promote if not already stale.
-		// Resets/overwrites happen through engine-resets, not through promotion.
-		if x.Ref.Number > d.ec.PendingSafeL2Head().Number {
-			d.log.Debug("Updating pending safe", "pending_safe", x.Ref, "local_safe", d.ec.LocalSafeL2Head(), "unsafe", d.ec.UnsafeL2Head(), "concluding", x.Concluding)
-			d.ec.SetPendingSafeL2Head(x.Ref)
-			d.emitter.Emit(ctx, PendingSafeUpdateEvent{
-				PendingSafe: d.ec.PendingSafeL2Head(),
-				Unsafe:      d.ec.UnsafeL2Head(),
-			})
-		}
-		if x.Concluding && x.Ref.Number > d.ec.LocalSafeL2Head().Number {
-			d.emitter.Emit(ctx, PromoteLocalSafeEvent{
-				Ref:    x.Ref,
-				Source: x.Source,
-			})
-		}
-	case PromoteLocalSafeEvent:
-		d.log.Debug("Updating local safe", "local_safe", x.Ref, "safe", d.ec.SafeL2Head(), "unsafe", d.ec.UnsafeL2Head())
-		d.ec.SetLocalSafeHead(x.Ref)
-		d.emitter.Emit(ctx, LocalSafeUpdateEvent(x))
 	case LocalSafeUpdateEvent:
 		// pre-interop everything that is local-safe is also immediately cross-safe.
 		if !d.cfg.IsInterop(x.Ref.Time) {
@@ -556,4 +516,26 @@ func ForceEngineReset(ec ResetEngineControl, x rollup.ForceResetEvent) {
 	ec.SetFinalizedHead(x.Finalized)
 
 	ec.SetBackupUnsafeL2Head(eth.L2BlockRef{}, false)
+}
+
+func (d *EngDeriver) TryUpdatePendingSafe(ctx context.Context, ref eth.L2BlockRef, concluding bool, source eth.L1BlockRef) {
+	// Only promote if not already stale.
+	// Resets/overwrites happen through engine-resets, not through promotion.
+	if ref.Number > d.ec.PendingSafeL2Head().Number {
+		d.log.Debug("Updating pending safe", "pending_safe", ref, "local_safe", d.ec.LocalSafeL2Head(), "unsafe", d.ec.UnsafeL2Head(), "concluding", concluding)
+		d.ec.SetPendingSafeL2Head(ref)
+		d.emitter.Emit(ctx, PendingSafeUpdateEvent{
+			PendingSafe: d.ec.PendingSafeL2Head(),
+			Unsafe:      d.ec.UnsafeL2Head(),
+		})
+	}
+}
+
+func (d *EngDeriver) TryUpdateLocalSafe(ctx context.Context, ref eth.L2BlockRef, concluding bool, source eth.L1BlockRef) {
+	if concluding && ref.Number > d.ec.LocalSafeL2Head().Number {
+		// Promote to local safe
+		d.log.Debug("Updating local safe", "local_safe", ref, "safe", d.ec.SafeL2Head(), "unsafe", d.ec.UnsafeL2Head())
+		d.ec.SetLocalSafeHead(ref)
+		d.emitter.Emit(ctx, LocalSafeUpdateEvent{Ref: ref, Source: source})
+	}
 }

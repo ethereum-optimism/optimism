@@ -36,7 +36,16 @@ type AttributesHandler struct {
 
 	attributes     *derive.AttributesWithParent
 	sentAttributes bool
+
+	EngDeriver EngDeriver
 }
+
+type EngDeriver interface {
+	TryUpdatePendingSafe(ctx context.Context, ref eth.L2BlockRef, concluding bool, source eth.L1BlockRef)
+	TryUpdateLocalSafe(ctx context.Context, ref eth.L2BlockRef, concluding bool, source eth.L1BlockRef)
+}
+
+var _ EngDeriver = (*engine.EngDeriver)(nil)
 
 func NewAttributesHandler(log log.Logger, cfg *rollup.Config, ctx context.Context, l2 L2) *AttributesHandler {
 	return &AttributesHandler{
@@ -200,11 +209,8 @@ func (eq *AttributesHandler) consolidateNextSafeAttributes(attributes *derive.At
 			eq.log.Error("Failed to compute block-ref from execution payload")
 			return
 		}
-		eq.emitter.Emit(eq.ctx, engine.PromotePendingSafeEvent{
-			Ref:        ref,
-			Concluding: attributes.Concluding,
-			Source:     attributes.DerivedFrom,
-		})
+		eq.EngDeriver.TryUpdatePendingSafe(eq.ctx, ref, attributes.Concluding, attributes.DerivedFrom)
+		eq.EngDeriver.TryUpdateLocalSafe(eq.ctx, ref, attributes.Concluding, attributes.DerivedFrom)
 	}
 
 	// unsafe head stays the same, we did not reorg the chain.
