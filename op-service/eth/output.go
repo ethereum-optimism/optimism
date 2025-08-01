@@ -48,8 +48,7 @@ func (o *OutputV0) Version() Bytes32 {
 
 func (o *OutputV0) Marshal() []byte {
 	var buf [128]byte
-	version := o.Version()
-	copy(buf[:32], version[:])
+	// data[:32] is the version, and version is always OutputVersionV0
 	copy(buf[32:], o.StateRoot[:])
 	copy(buf[64:], o.MessagePasserStorageRoot[:])
 	copy(buf[96:], o.BlockHash[:])
