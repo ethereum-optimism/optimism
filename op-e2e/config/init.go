@@ -1,7 +1,6 @@
 package config
 
 import (
-	"compress/gzip"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -452,23 +451,6 @@ func ensureDir(dirPath string) error {
 		return fmt.Errorf("path is not a directory")
 	}
 	return nil
-}
-
-func decompressGzipJSON(p string, thing any) {
-	f, err := os.Open(p)
-	if err != nil {
-		panic(fmt.Errorf("failed to open file: %w", err))
-	}
-	defer f.Close()
-
-	gzr, err := gzip.NewReader(f)
-	if err != nil {
-		panic(fmt.Errorf("failed to create gzip reader: %w", err))
-	}
-	defer gzr.Close()
-	if err := json.NewDecoder(gzr).Decode(thing); err != nil {
-		panic(fmt.Errorf("failed to read gzip data: %w", err))
-	}
 }
 
 func cannonVMType(allocType AllocType) state.VMType {
