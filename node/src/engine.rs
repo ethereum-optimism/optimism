@@ -6,14 +6,14 @@ use op_alloy_rpc_types_engine::{
     OpPayloadAttributes,
 };
 use reth_consensus::ConsensusError;
-use reth_engine_primitives::EngineValidator;
 use reth_node_api::{
     payload::{
         validate_parent_beacon_block_root_presence, EngineApiMessageVersion,
         EngineObjectValidationError, MessageValidationKind, NewPayloadError, PayloadOrAttributes,
         PayloadTypes, VersionSpecificValidationError,
     },
-    validate_version_specific_fields, BuiltPayload, EngineTypes, NodePrimitives, PayloadValidator,
+    validate_version_specific_fields, BuiltPayload, EngineApiValidator, EngineTypes,
+    NodePrimitives, PayloadValidator,
 };
 use reth_optimism_consensus::isthmus;
 use reth_optimism_forks::OpHardforks;
@@ -161,7 +161,7 @@ where
     }
 }
 
-impl<Types, P, Tx, ChainSpec> EngineValidator<Types> for OpEngineValidator<P, Tx, ChainSpec>
+impl<Types, P, Tx, ChainSpec> EngineApiValidator<Types> for OpEngineValidator<P, Tx, ChainSpec>
 where
     Types: PayloadTypes<
         PayloadAttributes = OpPayloadAttributes,
@@ -290,7 +290,6 @@ mod test {
     use alloy_primitives::{b64, Address, B256, B64};
     use alloy_rpc_types_engine::PayloadAttributes;
     use reth_chainspec::ChainSpec;
-    use reth_engine_primitives::EngineValidator;
     use reth_optimism_chainspec::{OpChainSpec, BASE_SEPOLIA};
     use reth_provider::noop::NoopProvider;
     use reth_trie_common::KeccakKeyHasher;
@@ -334,7 +333,7 @@ mod test {
             OpEngineValidator::new::<KeccakKeyHasher>(get_chainspec(), NoopProvider::default());
         let attributes = get_attributes(None, 1732633199);
 
-        let result = <engine::OpEngineValidator<_, _, _> as EngineValidator<
+        let result = <engine::OpEngineValidator<_, _, _> as EngineApiValidator<
             OpEngineTypes,
         >>::ensure_well_formed_attributes(
             &validator, EngineApiMessageVersion::V3, &attributes,
@@ -348,7 +347,7 @@ mod test {
             OpEngineValidator::new::<KeccakKeyHasher>(get_chainspec(), NoopProvider::default());
         let attributes = get_attributes(None, 1732633200);
 
-        let result = <engine::OpEngineValidator<_, _, _> as EngineValidator<
+        let result = <engine::OpEngineValidator<_, _, _> as EngineApiValidator<
             OpEngineTypes,
         >>::ensure_well_formed_attributes(
             &validator, EngineApiMessageVersion::V3, &attributes,
@@ -362,7 +361,7 @@ mod test {
             OpEngineValidator::new::<KeccakKeyHasher>(get_chainspec(), NoopProvider::default());
         let attributes = get_attributes(Some(b64!("0000000000000008")), 1732633200);
 
-        let result = <engine::OpEngineValidator<_, _, _> as EngineValidator<
+        let result = <engine::OpEngineValidator<_, _, _> as EngineApiValidator<
             OpEngineTypes,
         >>::ensure_well_formed_attributes(
             &validator, EngineApiMessageVersion::V3, &attributes,
@@ -376,7 +375,7 @@ mod test {
             OpEngineValidator::new::<KeccakKeyHasher>(get_chainspec(), NoopProvider::default());
         let attributes = get_attributes(Some(b64!("0000000800000008")), 1732633200);
 
-        let result = <engine::OpEngineValidator<_, _, _> as EngineValidator<
+        let result = <engine::OpEngineValidator<_, _, _> as EngineApiValidator<
             OpEngineTypes,
         >>::ensure_well_formed_attributes(
             &validator, EngineApiMessageVersion::V3, &attributes,
@@ -390,7 +389,7 @@ mod test {
             OpEngineValidator::new::<KeccakKeyHasher>(get_chainspec(), NoopProvider::default());
         let attributes = get_attributes(Some(b64!("0000000000000000")), 1732633200);
 
-        let result = <engine::OpEngineValidator<_, _, _> as EngineValidator<
+        let result = <engine::OpEngineValidator<_, _, _> as EngineApiValidator<
             OpEngineTypes,
         >>::ensure_well_formed_attributes(
             &validator, EngineApiMessageVersion::V3, &attributes,

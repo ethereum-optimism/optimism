@@ -14,7 +14,7 @@ use op_alloy_rpc_types_engine::{
     SuperchainSignal,
 };
 use reth_chainspec::EthereumHardforks;
-use reth_node_api::{EngineTypes, EngineValidator};
+use reth_node_api::{EngineApiValidator, EngineTypes};
 use reth_rpc_api::IntoEngineApiRpcModule;
 use reth_rpc_engine_api::EngineApi;
 use reth_storage_api::{BlockReader, HeaderProvider, StateProviderFactory};
@@ -269,7 +269,7 @@ where
     Provider: HeaderProvider + BlockReader + StateProviderFactory + 'static,
     EngineT: EngineTypes<ExecutionData = OpExecutionData>,
     Pool: TransactionPool + 'static,
-    Validator: EngineValidator<EngineT>,
+    Validator: EngineApiValidator<EngineT>,
     ChainSpec: EthereumHardforks + Send + Sync + 'static,
 {
     async fn new_payload_v2(&self, payload: ExecutionPayloadInputV2) -> RpcResult<PayloadStatus> {
