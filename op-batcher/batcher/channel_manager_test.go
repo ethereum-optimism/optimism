@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ethereum-optimism/optimism/op-batcher/compressor"
 	"github.com/ethereum-optimism/optimism/op-batcher/metrics"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
@@ -18,6 +19,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum/go-ethereum/trie"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -85,7 +87,7 @@ func ChannelManagerReturnsErrReorg(t *testing.T, batchType uint) {
 	require.NoError(t, m.AddL2Block(c))
 	require.ErrorIs(t, m.AddL2Block(x), ErrReorg)
 
-	require.Equal(t, queue.Queue[*types.Block]{a, b, c}, m.blocks)
+	require.Equal(t, queue.Queue[BlockWithDABytes]{{Block: a}, {Block: b}, {Block: c}}, m.blocks)
 }
 
 // ChannelManagerReturnsErrReorgWhenDrained ensures that the channel manager
@@ -359,7 +361,7 @@ func TestChannelManager_TxData(t *testing.T) {
 			// Seed channel manager with a block
 			rng := rand.New(rand.NewSource(99))
 			blockA := derivetest.RandomL2BlockWithChainId(rng, 200, defaultTestRollupConfig.L2ChainID)
-			m.blocks = []*types.Block{blockA}
+			m.blocks = queue.Queue[BlockWithDABytes]{BlockWithDABytes{Block: blockA}}
 
 			// Call TxData a first time to trigger blocks->channels pipeline
 			_, err := m.TxData(eth.BlockID{}, false, false, false)
@@ -380,7 +382,7 @@ func TestChannelManager_TxData(t *testing.T) {
 			// we get some data to submit
 			var data txData
 			for {
-				m.blocks = append(m.blocks, blockA)
+				m.blocks.Enqueue(BlockWithDABytes{Block: blockA})
 				data, err = m.TxData(eth.BlockID{}, false, false, false)
 				if err == nil && data.Len() > 0 {
 					break
@@ -415,7 +417,7 @@ func TestChannelManager_handleChannelInvalidated(t *testing.T) {
 
 	// This is the snapshot of channel manager state we want to reinstate
 	// when we requeue
-	stateSnapshot := queue.Queue[*types.Block]{blockA, blockB}
+	stateSnapshot := queue.Queue[BlockWithDABytes]{BlockWithDABytes{Block: blockA}, BlockWithDABytes{Block: blockB}}
 	m.blocks = stateSnapshot
 	require.Empty(t, m.channelQueue)
 	require.Equal(t, metrics.ChannelQueueLength, 0)
@@ -453,6 +455,7 @@ func TestChannelManager_handleChannelInvalidated(t *testing.T) {
 	channelToInvalidate := m.currentChannel
 	m.currentChannel.Close()
 	require.NoError(t, m.ensureChannelWithSpace(eth.BlockID{}))
+	newerChannel := m.currentChannel
 	require.Len(t, m.channelQueue, 3)
 	require.Equal(t, metrics.ChannelQueueLength, 3)
 	require.NoError(t, m.processBlocks())
@@ -464,7 +467,7 @@ func TestChannelManager_handleChannelInvalidated(t *testing.T) {
 	require.Equal(t, m.blocks, stateSnapshot)
 	require.Contains(t, m.channelQueue, oldChannel)
 	require.NotContains(t, m.channelQueue, channelToInvalidate)
-	require.NotContains(t, m.channelQueue, newChannel)
+	require.NotContains(t, m.channelQueue, newerChannel)
 	require.Len(t, m.channelQueue, 1)
 	require.Equal(t, metrics.ChannelQueueLength, 1)
 
@@ -486,24 +489,24 @@ func TestChannelManager_handleChannelInvalidated(t *testing.T) {
 func TestChannelManager_PruneBlocks(t *testing.T) {
 	cfg := channelManagerTestConfig(100, derive.SingularBatchType)
 	cfg.InitNoneCompressor()
-	a := types.NewBlock(&types.Header{
+	a := BlockWithDABytes{Block: types.NewBlock(&types.Header{
 		Number: big.NewInt(0),
-	}, nil, nil, nil, types.DefaultBlockConfig)
-	b := types.NewBlock(&types.Header{
+	}, nil, nil, nil, types.DefaultBlockConfig)}
+	b := BlockWithDABytes{Block: types.NewBlock(&types.Header{
 		Number:     big.NewInt(1),
 		ParentHash: a.Hash(),
-	}, nil, nil, nil, types.DefaultBlockConfig)
-	c := types.NewBlock(&types.Header{
+	}, nil, nil, nil, types.DefaultBlockConfig)}
+	c := BlockWithDABytes{Block: types.NewBlock(&types.Header{
 		Number:     big.NewInt(2),
 		ParentHash: b.Hash(),
-	}, nil, nil, nil, types.DefaultBlockConfig)
+	}, nil, nil, nil, types.DefaultBlockConfig)}
 
 	type testCase struct {
 		name                          string
-		initialQ                      queue.Queue[*types.Block]
+		initialQ                      queue.Queue[BlockWithDABytes]
 		initialBlockCursor            int
 		numBlocksToPrune              int
-		expectedQ                     queue.Queue[*types.Block]
+		expectedQ                     queue.Queue[BlockWithDABytes]
 		expectedBlockCursor           int
 		expectedPendingBytesDecreases bool
 	}
@@ -511,56 +514,56 @@ func TestChannelManager_PruneBlocks(t *testing.T) {
 	for _, tc := range []testCase{
 		{
 			name:                "[A,B,C]*+1->[B,C]*", // * denotes the cursor
-			initialQ:            queue.Queue[*types.Block]{a, b, c},
+			initialQ:            queue.Queue[BlockWithDABytes]{a, b, c},
 			initialBlockCursor:  3,
 			numBlocksToPrune:    1,
-			expectedQ:           queue.Queue[*types.Block]{b, c},
+			expectedQ:           queue.Queue[BlockWithDABytes]{b, c},
 			expectedBlockCursor: 2,
 		},
 		{
 			name:                "[A,B,C*]+1->[B,C*]",
-			initialQ:            queue.Queue[*types.Block]{a, b, c},
+			initialQ:            queue.Queue[BlockWithDABytes]{a, b, c},
 			initialBlockCursor:  2,
 			numBlocksToPrune:    1,
-			expectedQ:           queue.Queue[*types.Block]{b, c},
+			expectedQ:           queue.Queue[BlockWithDABytes]{b, c},
 			expectedBlockCursor: 1,
 		},
 		{
 			name:                "[A,B,C]*+2->[C]*",
-			initialQ:            queue.Queue[*types.Block]{a, b, c},
+			initialQ:            queue.Queue[BlockWithDABytes]{a, b, c},
 			initialBlockCursor:  3,
 			numBlocksToPrune:    2,
-			expectedQ:           queue.Queue[*types.Block]{c},
+			expectedQ:           queue.Queue[BlockWithDABytes]{c},
 			expectedBlockCursor: 1,
 		},
 		{
 			name:                "[A,B,C*]+2->[C*]",
-			initialQ:            queue.Queue[*types.Block]{a, b, c},
+			initialQ:            queue.Queue[BlockWithDABytes]{a, b, c},
 			initialBlockCursor:  2,
 			numBlocksToPrune:    2,
-			expectedQ:           queue.Queue[*types.Block]{c},
+			expectedQ:           queue.Queue[BlockWithDABytes]{c},
 			expectedBlockCursor: 0,
 		},
 		{
 			name:                          "[A*,B,C]+1->[B*,C]",
-			initialQ:                      queue.Queue[*types.Block]{a, b, c},
+			initialQ:                      queue.Queue[BlockWithDABytes]{a, b, c},
 			initialBlockCursor:            0,
 			numBlocksToPrune:              1,
-			expectedQ:                     queue.Queue[*types.Block]{b, c},
+			expectedQ:                     queue.Queue[BlockWithDABytes]{b, c},
 			expectedBlockCursor:           0,
 			expectedPendingBytesDecreases: true, // we removed a pending block
 		},
 		{
 			name:                "[A,B,C]+3->[]",
-			initialQ:            queue.Queue[*types.Block]{a, b, c},
+			initialQ:            queue.Queue[BlockWithDABytes]{a, b, c},
 			initialBlockCursor:  3,
 			numBlocksToPrune:    3,
-			expectedQ:           queue.Queue[*types.Block]{},
+			expectedQ:           queue.Queue[BlockWithDABytes]{},
 			expectedBlockCursor: 0,
 		},
 		{
 			name:                "[A,B,C]*+4->panic",
-			initialQ:            queue.Queue[*types.Block]{a, b, c},
+			initialQ:            queue.Queue[BlockWithDABytes]{a, b, c},
 			initialBlockCursor:  3,
 			numBlocksToPrune:    4,
 			expectedQ:           nil, // declare that the prune method should panic
@@ -568,10 +571,10 @@ func TestChannelManager_PruneBlocks(t *testing.T) {
 		},
 		{
 			name:                          "[A,B,C]+3->[]",
-			initialQ:                      queue.Queue[*types.Block]{a, b, c},
+			initialQ:                      queue.Queue[BlockWithDABytes]{a, b, c},
 			initialBlockCursor:            2, // we will prune _past_ the block cursor
 			numBlocksToPrune:              3,
-			expectedQ:                     queue.Queue[*types.Block]{},
+			expectedQ:                     queue.Queue[BlockWithDABytes]{},
 			expectedBlockCursor:           0,
 			expectedPendingBytesDecreases: true, // we removed a pending block
 		},
@@ -726,5 +729,240 @@ func TestChannelManager_TxData_ForcePublish(t *testing.T) {
 	// The channel should be full and ready to send
 	require.Len(t, m.channelQueue, 1)
 	require.True(t, m.channelQueue[0].IsFull())
+}
 
+func newBlock(parent *types.Block, numTransactions int) *types.Block {
+	var rng *rand.Rand
+	if parent == nil {
+		rng = rand.New(rand.NewSource(123))
+	} else {
+		rng = rand.New(rand.NewSource(int64(parent.Header().Number.Uint64())))
+	}
+	block := derivetest.RandomL2BlockWithChainId(rng, numTransactions, defaultTestRollupConfig.L2ChainID)
+	header := block.Header()
+	if parent == nil {
+		header.Number = new(big.Int)
+		header.ParentHash = common.Hash{}
+		header.Time = 1675
+	} else {
+		header.Number = big.NewInt(0).Add(parent.Header().Number, big.NewInt(1))
+		header.ParentHash = parent.Header().Hash()
+		header.Time = parent.Header().Time + 2
+	}
+	return types.NewBlock(header, block.Body(), nil, trie.NewStackTrie(nil), types.DefaultBlockConfig)
+}
+
+// TestChannelManagerUnsafeBytes tests the unsafe bytes in the channel manager
+// by adding blocks to the unsafe block queue, adding them to a channel,
+// and then sealing the channel. It asserts on the final state of the channel
+// manager and tracks the unsafe DA estimate as blocks move through the pipeline.
+func TestChannelManagerUnsafeBytes(t *testing.T) {
+
+	type testCase struct {
+		blocks                        []*types.Block
+		batchType                     uint
+		compressor                    string
+		afterAddingToUnsafeBlockQueue int64
+		afterAddingToChannel          int64
+		afterSealingChannel           int64
+	}
+
+	a := newBlock(nil, 3)
+	b := newBlock(a, 3)
+	c := newBlock(b, 3)
+
+	emptyA := newBlock(nil, 0)
+	emptyB := newBlock(emptyA, 0)
+	emptyC := newBlock(emptyB, 0)
+
+	// TODO add a scenario with hundreds of blocks
+
+	testChannelManagerUnsafeBytes := func(t *testing.T, tc testCase) {
+		cfg := ChannelConfig{
+			MaxFrameSize:    120000 - 1,
+			TargetNumFrames: 5,
+			BatchType:       tc.batchType,
+			CompressorConfig: compressor.Config{
+				TargetOutputSize: 120000,
+				CompressionAlgo:  derive.Brotli10,
+			},
+		}
+
+		if tc.batchType == derive.SingularBatchType {
+			// Span batches use their own compression tricks
+			switch tc.compressor {
+			case "shadow":
+				cfg.InitShadowCompressor(derive.Brotli10)
+			case "ratio":
+				cfg.InitRatioCompressor(1, derive.Brotli10)
+			default:
+				t.Fatalf("unknown compressor: %s", tc.compressor)
+			}
+		}
+
+		manager := NewChannelManager(log.New(), metrics.NoopMetrics, cfg, defaultTestRollupConfig)
+
+		for _, block := range tc.blocks {
+			require.NoError(t, manager.AddL2Block(block))
+		}
+
+		assert.Equal(t, tc.afterAddingToUnsafeBlockQueue, manager.UnsafeDABytes())
+		assert.Equal(t, tc.afterAddingToUnsafeBlockQueue, manager.unsafeBytesInPendingBlocks())
+		assert.Zero(t, manager.unsafeBytesInOpenChannels())
+		assert.Zero(t, manager.unsafeBytesInClosedChannels())
+
+		for err := error(nil); err != io.EOF; {
+			require.NoError(t, err)
+			_, err = manager.TxData(eth.BlockID{
+				Hash:   common.Hash{},
+				Number: 0,
+			}, true, false, false)
+		}
+
+		assert.Equal(t, tc.afterAddingToChannel, manager.UnsafeDABytes())
+		assert.Zero(t, manager.unsafeBytesInPendingBlocks())
+		assert.Equal(t, tc.afterAddingToChannel, manager.unsafeBytesInOpenChannels())
+		assert.Zero(t, manager.unsafeBytesInClosedChannels())
+
+		manager.currentChannel.Close()
+		err := manager.currentChannel.OutputFrames()
+		require.NoError(t, err)
+
+		assert.Equal(t, tc.afterSealingChannel, manager.UnsafeDABytes())
+		assert.Zero(t, manager.unsafeBytesInPendingBlocks())
+		assert.Zero(t, manager.unsafeBytesInOpenChannels())
+		assert.Equal(t, tc.afterSealingChannel, manager.unsafeBytesInClosedChannels())
+	}
+
+	t.Run("case1", func(t *testing.T) {
+		testChannelManagerUnsafeBytes(t, testCase{
+			blocks:                        []*types.Block{a},
+			batchType:                     derive.SingularBatchType,
+			compressor:                    "shadow",
+			afterAddingToUnsafeBlockQueue: 2138,
+			afterAddingToChannel:          2138,
+			afterSealingChannel:           2660,
+		})
+	})
+
+	t.Run("case2", func(t *testing.T) {
+		testChannelManagerUnsafeBytes(t, testCase{
+			blocks:                        []*types.Block{a, b},
+			batchType:                     derive.SingularBatchType,
+			compressor:                    "shadow",
+			afterAddingToUnsafeBlockQueue: 3813,
+			afterAddingToChannel:          3813,
+			afterSealingChannel:           4754,
+		})
+	})
+
+	t.Run("case3", func(t *testing.T) {
+		testChannelManagerUnsafeBytes(t, testCase{
+			blocks:                        []*types.Block{a, b, c},
+			batchType:                     derive.SingularBatchType,
+			compressor:                    "shadow",
+			afterAddingToUnsafeBlockQueue: 5794,
+			afterAddingToChannel:          5794,
+			afterSealingChannel:           7199,
+		})
+	})
+
+	t.Run("case4", func(t *testing.T) {
+		testChannelManagerUnsafeBytes(t, testCase{
+			blocks:                        []*types.Block{a},
+			batchType:                     derive.SingularBatchType,
+			compressor:                    "shadow",
+			afterAddingToUnsafeBlockQueue: 2138,
+			afterAddingToChannel:          2138,
+			afterSealingChannel:           2660,
+		})
+	})
+
+	t.Run("case5", func(t *testing.T) {
+		testChannelManagerUnsafeBytes(t, testCase{
+			blocks:                        []*types.Block{a, b, c},
+			batchType:                     derive.SingularBatchType,
+			compressor:                    "shadow",
+			afterAddingToUnsafeBlockQueue: 5794,
+			afterAddingToChannel:          5794,
+			afterSealingChannel:           7199,
+		})
+	})
+
+	t.Run("case6", func(t *testing.T) {
+		testChannelManagerUnsafeBytes(t, testCase{
+			blocks:                        []*types.Block{a},
+			batchType:                     derive.SpanBatchType,
+			compressor:                    "",
+			afterAddingToUnsafeBlockQueue: 2138,
+			afterAddingToChannel:          2138,
+			afterSealingChannel:           2606, // in block queue, in open channel, in closed channel
+		})
+	})
+
+	t.Run("case7", func(t *testing.T) {
+		testChannelManagerUnsafeBytes(t, testCase{
+			blocks:                        []*types.Block{a, b},
+			batchType:                     derive.SpanBatchType,
+			compressor:                    "",
+			afterAddingToUnsafeBlockQueue: 3813,
+			afterAddingToChannel:          3813,
+			afterSealingChannel:           4590,
+		})
+	})
+
+	t.Run("case8", func(t *testing.T) {
+		testChannelManagerUnsafeBytes(t, testCase{
+			blocks:                        []*types.Block{a, b, c},
+			batchType:                     derive.SpanBatchType,
+			compressor:                    "",
+			afterAddingToUnsafeBlockQueue: 5794,
+			afterAddingToChannel:          5794,
+			afterSealingChannel:           6929,
+		})
+	})
+
+	t.Run("case9", func(t *testing.T) {
+		testChannelManagerUnsafeBytes(t, testCase{
+			blocks:                        []*types.Block{emptyA},
+			batchType:                     derive.SingularBatchType,
+			compressor:                    "shadow",
+			afterAddingToUnsafeBlockQueue: 70,
+			afterAddingToChannel:          70,
+			afterSealingChannel:           108,
+		})
+	})
+
+	t.Run("case10", func(t *testing.T) {
+		testChannelManagerUnsafeBytes(t, testCase{
+			blocks:                        []*types.Block{emptyA, emptyB, emptyC},
+			batchType:                     derive.SingularBatchType,
+			compressor:                    "shadow",
+			afterAddingToUnsafeBlockQueue: 210,
+			afterAddingToChannel:          210,
+			afterSealingChannel:           267,
+		})
+	})
+
+	t.Run("case11", func(t *testing.T) {
+		testChannelManagerUnsafeBytes(t, testCase{
+			blocks:                        []*types.Block{emptyA},
+			batchType:                     derive.SpanBatchType,
+			compressor:                    "",
+			afterAddingToUnsafeBlockQueue: 70,
+			afterAddingToChannel:          70,
+			afterSealingChannel:           79,
+		})
+	})
+
+	t.Run("case12", func(t *testing.T) {
+		testChannelManagerUnsafeBytes(t, testCase{
+			blocks:                        []*types.Block{emptyA, emptyB, emptyC},
+			batchType:                     derive.SpanBatchType,
+			compressor:                    "",
+			afterAddingToUnsafeBlockQueue: 210,
+			afterAddingToChannel:          210,
+			afterSealingChannel:           81,
+		})
+	})
 }

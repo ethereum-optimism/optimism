@@ -172,22 +172,22 @@ func (l *BatchSubmitter) StartBatchSubmitting() error {
 	l.txpoolState = TxpoolGood // no need to lock mutex as no other routines yet exist
 
 	// Channels used to signal between the loops
-	pendingBytesUpdated := make(chan int64, 1)
+	unsafeBytesUpdated := make(chan int64, 1)
 	publishSignal := make(chan bool, 1)
 	l.publishSignal = publishSignal
 
 	// DA throttling loop should always be started except for testing (indicated by ThrottleThreshold == 0)
 	if l.Config.ThrottleParams.Threshold > 0 {
 		l.wg.Add(1)
-		go l.throttlingLoop(l.wg, pendingBytesUpdated) // ranges over pendingBytesUpdated channel
+		go l.throttlingLoop(l.wg, unsafeBytesUpdated) // ranges over unsafeBytesUpdated channel
 	} else {
 		l.Log.Warn("Throttling loop is DISABLED due to 0 throttle-threshold. This should not be disabled in prod.")
 	}
 
 	l.wg.Add(3)
-	go l.receiptsLoop(l.wg, receiptsCh)                                            // ranges over receiptsCh channel
-	go l.publishingLoop(l.killCtx, l.wg, receiptsCh, publishSignal)                // ranges over publishSignal, spawns routines which send on receiptsCh. Closes receiptsCh when done.
-	go l.blockLoadingLoop(l.shutdownCtx, l.wg, pendingBytesUpdated, publishSignal) // sends on pendingBytesUpdated (if throttling enabled), and publishSignal. Closes them both when done
+	go l.receiptsLoop(l.wg, receiptsCh)                                           // ranges over receiptsCh channel
+	go l.publishingLoop(l.killCtx, l.wg, receiptsCh, publishSignal)               // ranges over publishSignal, spawns routines which send on receiptsCh. Closes receiptsCh when done.
+	go l.blockLoadingLoop(l.shutdownCtx, l.wg, unsafeBytesUpdated, publishSignal) // sends on unsafeBytesUpdated (if throttling enabled), and publishSignal. Closes them both when done
 
 	l.Log.Info("Batch Submitter started")
 	return nil
@@ -274,7 +274,7 @@ func (l *BatchSubmitter) Flush(ctx context.Context) error {
 
 // loadBlocksIntoState loads the blocks between start and end (inclusive).
 // If there is a reorg, it will return an error.
-func (l *BatchSubmitter) loadBlocksIntoState(ctx context.Context, start, end uint64, publishSignal chan bool, pendingBytesUpdated chan int64) error {
+func (l *BatchSubmitter) loadBlocksIntoState(ctx context.Context, start, end uint64, publishSignal chan bool, unsafeBytesUpdated chan int64) error {
 	if end < start {
 		return fmt.Errorf("start number is > end number %d,%d", start, end)
 	}
@@ -301,8 +301,8 @@ func (l *BatchSubmitter) loadBlocksIntoState(ctx context.Context, start, end uin
 			// Every 100 blocks, signal the publishing loop to publish.
 			// This allows the batcher to start publishing sooner in the
 			// case of a large backlog of blocks to load.
+			l.sendToThrottlingLoop(unsafeBytesUpdated)
 			trySignal(publishSignal, false)
-			l.sendToThrottlingLoop(pendingBytesUpdated)
 		}
 
 	}
@@ -417,20 +417,23 @@ const (
 	TxpoolCancelPending
 )
 
-// sendToThrottlingLoop sends the current pending bytes to the throttling loop.
+func (l *BatchSubmitter) unsafeDABytes() int64 {
+	l.channelMgrMutex.Lock()
+	unsafeDABytes := l.channelMgr.UnsafeDABytes()
+	l.channelMgrMutex.Unlock()
+	return unsafeDABytes
+}
+
+// sendToThrottlingLoop sends the current unsafe bytes to the throttling loop.
 // It is not blocking, no signal will be sent if the channel is full.
-func (l *BatchSubmitter) sendToThrottlingLoop(pendingBytesUpdated chan int64) {
+func (l *BatchSubmitter) sendToThrottlingLoop(unsafeBytesUpdated chan int64) {
 	if l.Config.ThrottleParams.Threshold == 0 {
 		return
 	}
 
-	l.channelMgrMutex.Lock()
-	pendingBytes := l.channelMgr.PendingDABytes()
-	l.channelMgrMutex.Unlock()
-
 	// notify the throttling loop it may be time to initiate throttling without blocking
 	select {
-	case pendingBytesUpdated <- pendingBytes:
+	case unsafeBytesUpdated <- l.unsafeDABytes():
 	default:
 	}
 }
@@ -522,10 +525,10 @@ func (l *BatchSubmitter) publishingLoop(ctx context.Context, wg *sync.WaitGroup,
 // -  polls the sequencer,
 // -  prunes the channel manager state (i.e. safe blocks)
 // -  loads unsafe blocks from the sequencer
-func (l *BatchSubmitter) blockLoadingLoop(ctx context.Context, wg *sync.WaitGroup, pendingBytesUpdated chan int64, publishSignal chan bool) {
+func (l *BatchSubmitter) blockLoadingLoop(ctx context.Context, wg *sync.WaitGroup, unsafeBytesUpdated chan int64, publishSignal chan bool) {
 	ticker := time.NewTicker(l.Config.PollInterval)
 	defer ticker.Stop()
-	defer close(pendingBytesUpdated)
+	defer close(unsafeBytesUpdated)
 	defer close(publishSignal)
 	defer wg.Done()
 	for {
@@ -541,7 +544,7 @@ func (l *BatchSubmitter) blockLoadingLoop(ctx context.Context, wg *sync.WaitGrou
 
 			if blocksToLoad != nil {
 				// Get fresh unsafe blocks
-				err := l.loadBlocksIntoState(ctx, blocksToLoad.start, blocksToLoad.end, publishSignal, pendingBytesUpdated)
+				err := l.loadBlocksIntoState(ctx, blocksToLoad.start, blocksToLoad.end, publishSignal, unsafeBytesUpdated)
 				switch {
 				case errors.Is(err, ErrReorg):
 					l.Log.Warn("error loading blocks, clearing state and waiting for node sync", "err", err)
@@ -551,7 +554,7 @@ func (l *BatchSubmitter) blockLoadingLoop(ctx context.Context, wg *sync.WaitGrou
 					l.Log.Warn("error loading blocks, retrying on next tick", "err", err)
 					continue
 				default:
-					l.sendToThrottlingLoop(pendingBytesUpdated) // we have increased the pending data. Signal the throttling loop to check if it should throttle.
+					l.sendToThrottlingLoop(unsafeBytesUpdated) // we have increased the unsafe data. Signal the throttling loop to check if it should throttle.
 				}
 			}
 			trySignal(publishSignal, false) // always signal the write loop to ensure we periodically publish even if we aren't loading blocks
@@ -669,8 +672,8 @@ func (l *BatchSubmitter) singleEndpointThrottler(wg *sync.WaitGroup, throttleSig
 }
 
 // throttlingLoop acts as a distributor that spawns individual throttling loops for each endpoint
-// and fans out the pending bytes updates to each endpoint
-func (l *BatchSubmitter) throttlingLoop(wg *sync.WaitGroup, pendingBytesUpdated chan int64) {
+// and fans out the unsafe bytes updates to each endpoint
+func (l *BatchSubmitter) throttlingLoop(wg *sync.WaitGroup, unsafeBytesUpdated chan int64) {
 	defer wg.Done()
 	l.Log.Info("Starting DA throttling loop",
 		"controller_type", l.throttleController.GetType(),
@@ -687,20 +690,21 @@ func (l *BatchSubmitter) throttlingLoop(wg *sync.WaitGroup, pendingBytesUpdated 
 		go l.singleEndpointThrottler(&innerWg, updateChans[i], endpoint)
 	}
 
-	for pb := range pendingBytesUpdated {
-		newParams := l.throttleController.Update(uint64(pb))
+	for unsafeBytes := range unsafeBytesUpdated {
+		l.Metr.RecordUnsafeDABytes(unsafeBytes)
+		newParams := l.throttleController.Update(uint64(unsafeBytes))
 		controllerType := l.throttleController.GetType()
 
 		l.Metr.RecordThrottleIntensity(newParams.Intensity, controllerType)
 		l.Metr.RecordThrottleParams(newParams.MaxTxSize, newParams.MaxBlockSize)
 		if l.Config.ThrottleParams.Threshold > 0 {
-			l.Metr.RecordPendingBytesVsThreshold(uint64(pb), l.Config.ThrottleParams.Threshold, controllerType)
+			l.Metr.RecordUnsafeBytesVsThreshold(uint64(unsafeBytes), l.Config.ThrottleParams.Threshold, controllerType)
 		}
 
 		// Update throttling state
 		if newParams.IsThrottling() {
-			l.Log.Warn("Throttling loop: pending bytes above threshold, scaling endpoint throttling based on intensity",
-				"pending_bytes", pb,
+			l.Log.Warn("Throttling loop: unsafe bytes above threshold, scaling endpoint throttling based on intensity",
+				"unsafe_bytes", unsafeBytes,
 				"threshold", l.Config.ThrottleParams.Threshold,
 				"intensity", newParams.Intensity,
 				"max_tx_size", newParams.MaxTxSize,
@@ -1163,16 +1167,11 @@ func (l *BatchSubmitter) SetThrottleController(newType config.ThrottleController
 func (l *BatchSubmitter) GetThrottleControllerInfo() (config.ThrottleControllerInfo, error) {
 	controllerType, params := l.throttleController.Load()
 
-	// Get current pending bytes
-	l.channelMgrMutex.Lock()
-	currentLoad := uint64(l.channelMgr.PendingDABytes())
-	l.channelMgrMutex.Unlock()
-
 	info := config.ThrottleControllerInfo{
 		Type:         string(controllerType),
 		Threshold:    l.Config.ThrottleParams.Threshold,
 		MaxThreshold: l.Config.ThrottleParams.MaxThreshold(),
-		CurrentLoad:  currentLoad,
+		CurrentLoad:  uint64(l.unsafeDABytes()),
 		Intensity:    params.Intensity,
 		MaxTxSize:    params.MaxTxSize,
 		MaxBlockSize: params.MaxBlockSize,

@@ -14,12 +14,12 @@ type TestMetrics struct {
 var _ Metricer = new(TestMetrics)
 
 func (m *TestMetrics) RecordL2BlockInPendingQueue(block *types.Block) {
-	daSize, rawSize := estimateBatchSize(block)
+	daSize, rawSize := EstimateBatchSize(block)
 	m.PendingBlocksBytesCurrent += float64(rawSize)
 	m.pendingDABytes += float64(daSize)
 }
 func (m *TestMetrics) RecordL2BlockInChannel(block *types.Block) {
-	daSize, rawSize := estimateBatchSize(block)
+	daSize, rawSize := EstimateBatchSize(block)
 	m.PendingBlocksBytesCurrent -= float64(rawSize)
 	m.pendingDABytes -= float64(daSize)
 }
@@ -36,7 +36,7 @@ func (m *TestMetrics) ClearAllStateMetrics() {
 }
 
 func (m *TestMetrics) RecordPendingBlockPruned(block *types.Block) {
-	daSize, rawSize := estimateBatchSize(block)
+	daSize, rawSize := EstimateBatchSize(block)
 	m.PendingBlocksBytesCurrent -= float64(rawSize)
 	m.pendingDABytes -= float64(daSize)
 }
