@@ -20,6 +20,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+var networks = []string{"mainnet", "sepolia"}
+
 func TestImplementations(t *testing.T) {
 	testCacheDir := testutils.IsolatedTestDirWithAutoCleanup(t)
 

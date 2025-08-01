@@ -101,7 +101,7 @@ func TestEndToEndBootstrapApply(t *testing.T) {
 		require.NoError(t, err)
 
 		var release string
-		if !loc.IsTag() {
+		if !loc.IsEmbedded() {
 			release = "dev"
 		}
 
@@ -785,10 +785,6 @@ func validateOPChainDeployment(t *testing.T, cg codeGetter, st *state.State, int
 		{"DisputeGameFactoryImpl", st.ImplementationsDeployment.DisputeGameFactoryImpl},
 		{"MipsImpl", st.ImplementationsDeployment.MipsImpl},
 		{"PreimageOracleImpl", st.ImplementationsDeployment.PreimageOracleImpl},
-	}
-
-	if !intent.L1ContractsLocator.IsTag() {
-		implAddrs = append(implAddrs, addrTuple{"EthLockboxImpl", st.ImplementationsDeployment.EthLockboxImpl})
 	}
 
 	for _, addr := range implAddrs {

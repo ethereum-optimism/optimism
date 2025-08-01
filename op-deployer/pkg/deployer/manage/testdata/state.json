@@ -12,8 +12,8 @@
     },
     "fundDevAccounts": false,
     "useInterop": false,
-    "l1ContractsLocator": "tag://op-contracts/v3.0.0-rc.2",
-    "l2ContractsLocator": "tag://op-contracts/v3.0.0-rc.2",
+    "l1ContractsLocator": "embedded",
+    "l2ContractsLocator": "embedded",
     "chains": [
       {
         "id": "0x00000000000000000000000000000000000000000000000000000000000004d2",

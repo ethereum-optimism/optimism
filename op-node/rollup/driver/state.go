@@ -10,7 +10,6 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
 
-	"github.com/ethereum-optimism/optimism/op-node/p2p"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/clsync"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
@@ -236,6 +235,9 @@ func (s *SyncDeriver) AttachEmitter(em event.Emitter) {
 }
 
 func (s *SyncDeriver) OnEvent(ctx context.Context, ev event.Event) bool {
+	// TODO(#16917) Remove Event System Refactor Comments
+	//  ELSyncStartedEvent is removed and OnELSyncStarted is synchronously called at EngineController
+	//  ReceivedBlockEvent is removed and OnUnsafeL2Payload is synchronously called at NewBlockReceiver
 	switch x := ev.(type) {
 	case status.L1UnsafeEvent:
 		// a new L1 head may mean we have the data to not get an EOF again.
@@ -244,8 +246,6 @@ func (s *SyncDeriver) OnEvent(ctx context.Context, ev event.Event) bool {
 		// On "safe" L1 blocks: no step, justified L1 information does not do anything for L2 derivation or status.
 		// On "finalized" L1 blocks: we may be able to mark more L2 data as finalized now.
 		s.Emitter.Emit(ctx, StepReqEvent{})
-	case p2p.ReceivedBlockEvent:
-		s.onIncomingP2PBlock(ctx, x.Envelope)
 	case StepEvent:
 		s.SyncStep()
 	case rollup.ResetEvent:
@@ -270,8 +270,6 @@ func (s *SyncDeriver) OnEvent(ctx context.Context, ev event.Event) bool {
 		s.Emitter.Emit(ctx, StepReqEvent{ResetBackoff: true})
 	case engine.SafeDerivedEvent:
 		s.onSafeDerivedBlock(ctx, x)
-	case engine.ELSyncStartedEvent:
-		s.onELSyncStarted()
 	case derive.ProvideL1Traversal:
 		s.Emitter.Emit(ctx, StepReqEvent{})
 	default:
@@ -280,7 +278,7 @@ func (s *SyncDeriver) OnEvent(ctx context.Context, ev event.Event) bool {
 	return true
 }
 
-func (s *SyncDeriver) onIncomingP2PBlock(ctx context.Context, envelope *eth.ExecutionPayloadEnvelope) {
+func (s *SyncDeriver) OnUnsafeL2Payload(ctx context.Context, envelope *eth.ExecutionPayloadEnvelope) {
 	// If we are doing CL sync or done with engine syncing, fallback to the unsafe payload queue & CL P2P sync.
 	if s.SyncCfg.SyncMode == sync.CLSync || !s.Engine.IsEngineSyncing() {
 		s.Log.Info("Optimistically queueing unsafe L2 execution payload", "id", envelope.ExecutionPayload.ID())
@@ -314,7 +312,7 @@ func (s *SyncDeriver) onSafeDerivedBlock(ctx context.Context, x engine.SafeDeriv
 	}
 }
 
-func (s *SyncDeriver) onELSyncStarted() {
+func (s *SyncDeriver) OnELSyncStarted() {
 	// The EL sync may progress the safe head in the EL without deriving those blocks from L1
 	// which means the safe head db will miss entries so we need to remove all entries to avoid returning bad data
 	s.Log.Warn("Clearing safe head db because EL sync started")
@@ -442,14 +440,6 @@ func (s *Driver) ResetDerivationPipeline(ctx context.Context) error {
 			return nil
 		}
 	}
-}
-
-func (s *Driver) OnUnsafeL2Payload(ctx context.Context, payload *eth.ExecutionPayloadEnvelope) error {
-	s.emitter.Emit(ctx, p2p.ReceivedBlockEvent{
-		From:     "",
-		Envelope: payload,
-	})
-	return nil
 }
 
 func (s *Driver) StartSequencer(ctx context.Context, blockHash common.Hash) error {

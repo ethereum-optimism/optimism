@@ -144,6 +144,10 @@ func DeployConfig(allocType AllocType) *genesis.DeployConfig {
 }
 
 func init() {
+	// Used by the rust team, to skip legacy op-e2e init. Not used by devstack acceptance tests.
+	if os.Getenv("DISABLE_OP_E2E_LEGACY") == "true" {
+		return
+	}
 	cwd, err := os.Getwd()
 	if err != nil {
 		panic(err)

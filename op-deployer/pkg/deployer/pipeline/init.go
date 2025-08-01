@@ -6,7 +6,6 @@ import (
 	"fmt"
 
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/opcm"
-	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/standard"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/state"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/addresses"
@@ -28,16 +27,6 @@ func InitLiveStrategy(ctx context.Context, env *Env, intent *state.Intent, st *s
 	}
 
 	hasPredeployedOPCM := intent.OPCMAddress != nil
-	isL1Tag := intent.L1ContractsLocator.IsTag()
-	isL2Tag := intent.L2ContractsLocator.IsTag()
-
-	if isL1Tag && !standard.IsSupportedL1Version(intent.L1ContractsLocator.Tag) {
-		return fmt.Errorf("unsupported L1 version: %s", intent.L1ContractsLocator.Tag)
-	}
-
-	if isL2Tag && !standard.IsSupportedL2Version(intent.L2ContractsLocator.Tag) {
-		return fmt.Errorf("unsupported L2 version: %s", intent.L2ContractsLocator.Tag)
-	}
 
 	if hasPredeployedOPCM {
 		if intent.SuperchainConfigProxy != nil {
