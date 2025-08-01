@@ -161,8 +161,8 @@ func NewL2Verifier(t Testing, log log.Logger, l1 derive.L1Fetcher,
 	}
 	sys.Register("finalizer", finalizer, opts)
 
-	sys.Register("attributes-handler",
-		attributes.NewAttributesHandler(log, cfg, ctx, eng), opts)
+	attrHandler := attributes.NewAttributesHandler(log, cfg, ctx, eng)
+	sys.Register("attributes-handler", attrHandler, opts)
 
 	indexingMode := interopSys != nil
 	pipeline := derive.NewDerivationPipeline(log, cfg, depSet, l1, blobsSrc, altDASrc, eng, metrics, indexingMode)
@@ -191,8 +191,9 @@ func NewL2Verifier(t Testing, log log.Logger, l1 derive.L1Fetcher,
 	//  Couple SyncDeriver and EngineController for event refactoring
 	ec.SyncDeriver = syncDeriver
 	sys.Register("sync", syncDeriver, opts)
-
-	sys.Register("engine", engine.NewEngDeriver(log, ctx, cfg, metrics, ec), opts)
+	engDeriver := engine.NewEngDeriver(log, ctx, cfg, metrics, ec)
+	sys.Register("engine", engDeriver, opts)
+	attrHandler.EngDeriver = engDeriver
 
 	rollupNode := &L2Verifier{
 		eventSys:          sys,
