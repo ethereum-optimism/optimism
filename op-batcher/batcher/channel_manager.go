@@ -403,7 +403,7 @@ func (s *channelManager) processBlocks() error {
 			break
 		}
 
-		l1info, err := s.currentChannel.AddBlock(block.Block)
+		l1info, err := s.currentChannel.AddBlock(block)
 		if errors.As(err, &_chFullErr) {
 			// current block didn't get added because channel is already full
 			break

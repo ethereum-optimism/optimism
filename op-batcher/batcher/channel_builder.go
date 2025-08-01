@@ -11,7 +11,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/queue"
-	"github.com/ethereum/go-ethereum/core/types"
 )
 
 var (
@@ -171,12 +170,12 @@ func (c *ChannelBuilder) OldestL2() eth.BlockID {
 // first transaction for subsequent use by the caller.
 //
 // Call OutputFrames() afterwards to create frames.
-func (c *ChannelBuilder) AddBlock(block *types.Block) (*derive.L1BlockInfo, error) {
+func (c *ChannelBuilder) AddBlock(block BlockWithDABytes) (*derive.L1BlockInfo, error) {
 	if c.IsFull() {
 		return nil, c.FullErr()
 	}
 
-	l1info, err := c.co.AddBlock(c.rollupCfg, block)
+	l1info, err := c.co.AddBlock(c.rollupCfg, block.Block)
 	if errors.Is(err, derive.ErrTooManyRLPBytes) || errors.Is(err, derive.ErrCompressorFull) {
 		c.setFullErr(err)
 		return l1info, c.FullErr()
@@ -184,7 +183,7 @@ func (c *ChannelBuilder) AddBlock(block *types.Block) (*derive.L1BlockInfo, erro
 		return l1info, fmt.Errorf("adding block to channel out: %w", err)
 	}
 
-	c.blocks.Enqueue(BlockWithDABytes{Block: block})
+	c.blocks.Enqueue(block)
 	c.updateSwTimeout(l1info.Number)
 
 	if l1info.Number > c.latestL1Origin.Number {
