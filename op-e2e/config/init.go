@@ -51,7 +51,6 @@ type AllocType string
 
 const (
 	AllocTypeAltDA        AllocType = "alt-da"
-	AllocTypeL2OO         AllocType = "l2oo"
 	AllocTypeMTCannon     AllocType = "mt-cannon"
 	AllocTypeMTCannonNext AllocType = "mt-cannon-next"
 
@@ -74,7 +73,7 @@ func (a AllocType) UsesProofs() bool {
 	}
 }
 
-var allocTypes = []AllocType{AllocTypeAltDA, AllocTypeL2OO, AllocTypeMTCannon, AllocTypeMTCannonNext}
+var allocTypes = []AllocType{AllocTypeAltDA, AllocTypeMTCannon, AllocTypeMTCannonNext}
 
 var (
 	// All of the following variables are set in the init function
@@ -189,49 +188,8 @@ func init() {
 	oplog.SetGlobalLogHandler(errHandler)
 
 	for _, allocType := range allocTypes {
-		if allocType == AllocTypeL2OO {
-			continue
-		}
-
 		initAllocType(root, allocType)
 	}
-
-	configPath := path.Join(root, "op-e2e", "config")
-	forks := []genesis.L2AllocsMode{
-		genesis.L2AllocsIsthmus,
-		genesis.L2AllocsHolocene,
-		genesis.L2AllocsGranite,
-		genesis.L2AllocsFjord,
-		genesis.L2AllocsEcotone,
-		genesis.L2AllocsDelta,
-	}
-
-	var l2OOAllocsL1 foundry.ForgeAllocs
-	decompressGzipJSON(path.Join(configPath, "allocs-l1.json.gz"), &l2OOAllocsL1)
-	l1AllocsByType[AllocTypeL2OO] = &l2OOAllocsL1
-
-	var l2OOAddresses genesis.L1Deployments
-	decompressGzipJSON(path.Join(configPath, "addresses.json.gz"), &l2OOAddresses)
-	l1DeploymentsByType[AllocTypeL2OO] = &l2OOAddresses
-
-	l2OODC := DeployConfig(DefaultAllocType)
-	l2OODC.SetDeployments(&l2OOAddresses)
-	deployConfigsByType[AllocTypeL2OO] = l2OODC
-
-	l2AllocsByType[AllocTypeL2OO] = genesis.L2AllocsModeMap{}
-	var wg sync.WaitGroup
-	for _, fork := range forks {
-		wg.Add(1)
-		go func(fork genesis.L2AllocsMode) {
-			defer wg.Done()
-			var l2OOAllocsL2 foundry.ForgeAllocs
-			decompressGzipJSON(path.Join(configPath, fmt.Sprintf("allocs-l2-%s.json.gz", fork)), &l2OOAllocsL2)
-			mtx.Lock()
-			l2AllocsByType[AllocTypeL2OO][fork] = &l2OOAllocsL2
-			mtx.Unlock()
-		}(fork)
-	}
-	wg.Wait()
 
 	// Use regular level going forward.
 	oplog.SetGlobalLogHandler(handler)
