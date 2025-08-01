@@ -513,6 +513,9 @@ func (s *channelManager) PruneSafeBlocks(num int) {
 	}
 	s.blockCursor -= int(num)
 	if s.blockCursor < 0 {
+		// This is a rare edge case where a block is loaded and pruned before it gets into a channel.
+		// This may happen if a previous batcher instance build a channel with that block
+		// which was confirmed _after_ the current batcher pulled it from the sequencer.
 		numDiscardedPendingBlocks := -1 * s.blockCursor
 		for i := 0; i < numDiscardedPendingBlocks; i++ {
 			s.metr.RecordPendingBlockPruned(discardedBlocks[i])

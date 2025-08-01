@@ -394,9 +394,12 @@ func (m *Metrics) RecordL2BlockInPendingQueue(block *types.Block) {
 	atomic.AddInt64(&m.pendingDABytes, int64(daSize))
 }
 
+// This method is called when a pending block is pruned.
+// It is a rare edge case where a block is loaded and pruned before it gets into a channel.
+// This may happen if a previous batcher instance build a channel with that block
+// which was confirmed _after_ the current batcher pulled it from the sequencer.
 func (m *Metrics) RecordPendingBlockPruned(block *types.Block) {
 	daSize, rawSize := estimateBatchSize(block)
-	m.pendingBlocksBytesTotal.Add(-1.0 * float64(rawSize))
 	m.pendingBlocksBytesCurrent.Add(-1.0 * float64(rawSize))
 	atomic.AddInt64(&m.pendingDABytes, -1*int64(daSize))
 }
