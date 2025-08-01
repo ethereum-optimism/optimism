@@ -18,6 +18,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -498,12 +499,13 @@ func TestChannelManager_PruneBlocks(t *testing.T) {
 	}, nil, nil, nil, types.DefaultBlockConfig)
 
 	type testCase struct {
-		name                string
-		initialQ            queue.Queue[*types.Block]
-		initialBlockCursor  int
-		numChannelsToPrune  int
-		expectedQ           queue.Queue[*types.Block]
-		expectedBlockCursor int
+		name                          string
+		initialQ                      queue.Queue[*types.Block]
+		initialBlockCursor            int
+		numBlocksToPrune              int
+		expectedQ                     queue.Queue[*types.Block]
+		expectedBlockCursor           int
+		expectedPendingBytesDecreases bool
 	}
 
 	for _, tc := range []testCase{
@@ -511,7 +513,7 @@ func TestChannelManager_PruneBlocks(t *testing.T) {
 			name:                "[A,B,C]*+1->[B,C]*", // * denotes the cursor
 			initialQ:            queue.Queue[*types.Block]{a, b, c},
 			initialBlockCursor:  3,
-			numChannelsToPrune:  1,
+			numBlocksToPrune:    1,
 			expectedQ:           queue.Queue[*types.Block]{b, c},
 			expectedBlockCursor: 2,
 		},
@@ -519,7 +521,7 @@ func TestChannelManager_PruneBlocks(t *testing.T) {
 			name:                "[A,B,C*]+1->[B,C*]",
 			initialQ:            queue.Queue[*types.Block]{a, b, c},
 			initialBlockCursor:  2,
-			numChannelsToPrune:  1,
+			numBlocksToPrune:    1,
 			expectedQ:           queue.Queue[*types.Block]{b, c},
 			expectedBlockCursor: 1,
 		},
@@ -527,7 +529,7 @@ func TestChannelManager_PruneBlocks(t *testing.T) {
 			name:                "[A,B,C]*+2->[C]*",
 			initialQ:            queue.Queue[*types.Block]{a, b, c},
 			initialBlockCursor:  3,
-			numChannelsToPrune:  2,
+			numBlocksToPrune:    2,
 			expectedQ:           queue.Queue[*types.Block]{c},
 			expectedBlockCursor: 1,
 		},
@@ -535,23 +537,24 @@ func TestChannelManager_PruneBlocks(t *testing.T) {
 			name:                "[A,B,C*]+2->[C*]",
 			initialQ:            queue.Queue[*types.Block]{a, b, c},
 			initialBlockCursor:  2,
-			numChannelsToPrune:  2,
+			numBlocksToPrune:    2,
 			expectedQ:           queue.Queue[*types.Block]{c},
 			expectedBlockCursor: 0,
 		},
 		{
-			name:                "[A*,B,C]+1->[B*,C]",
-			initialQ:            queue.Queue[*types.Block]{a, b, c},
-			initialBlockCursor:  0,
-			numChannelsToPrune:  1,
-			expectedQ:           queue.Queue[*types.Block]{b, c},
-			expectedBlockCursor: 0,
+			name:                          "[A*,B,C]+1->[B*,C]",
+			initialQ:                      queue.Queue[*types.Block]{a, b, c},
+			initialBlockCursor:            0,
+			numBlocksToPrune:              1,
+			expectedQ:                     queue.Queue[*types.Block]{b, c},
+			expectedBlockCursor:           0,
+			expectedPendingBytesDecreases: true, // we removed a pending block
 		},
 		{
 			name:                "[A,B,C]+3->[]",
 			initialQ:            queue.Queue[*types.Block]{a, b, c},
 			initialBlockCursor:  3,
-			numChannelsToPrune:  3,
+			numBlocksToPrune:    3,
 			expectedQ:           queue.Queue[*types.Block]{},
 			expectedBlockCursor: 0,
 		},
@@ -559,21 +562,40 @@ func TestChannelManager_PruneBlocks(t *testing.T) {
 			name:                "[A,B,C]*+4->panic",
 			initialQ:            queue.Queue[*types.Block]{a, b, c},
 			initialBlockCursor:  3,
-			numChannelsToPrune:  4,
+			numBlocksToPrune:    4,
 			expectedQ:           nil, // declare that the prune method should panic
 			expectedBlockCursor: 0,
+		},
+		{
+			name:                          "[A,B,C]+3->[]",
+			initialQ:                      queue.Queue[*types.Block]{a, b, c},
+			initialBlockCursor:            2, // we will prune _past_ the block cursor
+			numBlocksToPrune:              3,
+			expectedQ:                     queue.Queue[*types.Block]{},
+			expectedBlockCursor:           0,
+			expectedPendingBytesDecreases: true, // we removed a pending block
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			l := testlog.Logger(t, log.LevelCrit)
-			m := NewChannelManager(l, metrics.NoopMetrics, cfg, defaultTestRollupConfig)
-			m.blocks = tc.initialQ
+			metrics := new(metrics.TestMetrics)
+			m := NewChannelManager(l, metrics, cfg, defaultTestRollupConfig)
+			m.blocks = tc.initialQ // not adding blocks via the API so metrics may be inaccurate
 			m.blockCursor = tc.initialBlockCursor
+			initialPendingDABytes := metrics.PendingDABytes()
+			initialPendingBlocks := m.pendingBlocks()
 			if tc.expectedQ != nil {
-				m.PruneSafeBlocks(tc.numChannelsToPrune)
+				m.PruneSafeBlocks(tc.numBlocksToPrune)
 				require.Equal(t, tc.expectedQ, m.blocks)
 			} else {
-				require.Panics(t, func() { m.PruneSafeBlocks(tc.numChannelsToPrune) })
+				require.Panics(t, func() { m.PruneSafeBlocks(tc.numBlocksToPrune) })
+			}
+			if tc.expectedPendingBytesDecreases {
+				assert.Less(t, metrics.PendingDABytes(), initialPendingDABytes)
+				assert.Less(t, m.pendingBlocks(), initialPendingBlocks)
+			} else { // we should not have removed any blocks
+				require.Equal(t, metrics.PendingDABytes(), initialPendingDABytes)
+				require.Equal(t, initialPendingBlocks, m.pendingBlocks())
 			}
 		})
 	}
