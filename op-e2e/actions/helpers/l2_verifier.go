@@ -369,11 +369,7 @@ func (s *L2Verifier) ActL1HeadSignal(t Testing) {
 func (s *L2Verifier) ActL1SafeSignal(t Testing) {
 	safe, err := s.l1.L1BlockRefByLabel(t.Ctx(), eth.Safe)
 	require.NoError(t, err)
-	s.synchronousEvents.Emit(t.Ctx(), status.L1SafeEvent{L1Safe: safe})
-	require.NoError(t, s.drainer.DrainUntil(func(ev event.Event) bool {
-		x, ok := ev.(status.L1SafeEvent)
-		return ok && x.L1Safe == safe
-	}, false))
+	s.syncStatus.OnL1Safe(safe)
 	require.Equal(t, safe, s.syncStatus.SyncStatus().SafeL1)
 }
 

@@ -15,14 +15,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/event"
 )
 
-type L1SafeEvent struct {
-	L1Safe eth.L1BlockRef
-}
-
-func (ev L1SafeEvent) String() string {
-	return "l1-safe"
-}
-
 type Metrics interface {
 	RecordL1ReorgDepth(d uint64)
 	RecordL1Ref(name string, ref eth.L1BlockRef)
@@ -52,7 +44,7 @@ func NewStatusTracker(log log.Logger, metrics Metrics) *StatusTracker {
 
 func (st *StatusTracker) OnEvent(ctx context.Context, ev event.Event) bool {
 	// TODO(#16917) Remove Event System Refactor Comments
-	//  L1UnsafeEvent is removed and OnL1Unsafe is synchronously called at L1Handler
+	//  L1UnsafeEvent, L1SafeEvent is removed and OnL1Unsafe is synchronously called at L1Handler
 	st.mu.Lock()
 	defer st.mu.Unlock()
 
@@ -81,10 +73,6 @@ func (st *StatusTracker) OnEvent(ctx context.Context, ev event.Event) bool {
 		st.data.LocalSafeL2 = x.LocalSafe
 	case derive.DeriverL1StatusEvent:
 		st.data.CurrentL1 = x.Origin
-	case L1SafeEvent:
-		st.log.Info("New L1 safe block", "l1_safe", x.L1Safe)
-		st.metrics.RecordL1Ref("l1_safe", x.L1Safe)
-		st.data.SafeL1 = x.L1Safe
 	case finality.FinalizeL1Event:
 		st.log.Info("New L1 finalized block", "l1_finalized", x.FinalizedL1)
 		st.metrics.RecordL1Ref("l1_finalized", x.FinalizedL1)
@@ -141,6 +129,13 @@ func (st *StatusTracker) OnL1Unsafe(x eth.L1BlockRef) {
 			"old_l1_head", st.data.HeadL1, "new_l1_head_parent", x.ParentHash, "new_l1_head", x)
 	}
 	st.data.HeadL1 = x
+	st.UpdateSyncStatus()
+}
+
+func (st *StatusTracker) OnL1Safe(x eth.L1BlockRef) {
+	st.log.Info("New L1 safe block", "l1_safe", x)
+	st.metrics.RecordL1Ref("l1_safe", x)
+	st.data.SafeL1 = x
 	st.UpdateSyncStatus()
 }
 

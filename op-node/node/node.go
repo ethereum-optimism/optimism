@@ -30,7 +30,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup/interop"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/interop/indexing"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/sequencing"
-	"github.com/ethereum-optimism/optimism/op-node/rollup/status"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/sync"
 	"github.com/ethereum-optimism/optimism/op-service/client"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
@@ -229,7 +228,7 @@ func (n *OpNode) initL1Handlers(cfg *config.Config) error {
 		n.l2Driver.SyncDeriver.OnL1Unsafe(ctx)
 	}
 	onL1Safe := func(ctx context.Context, sig eth.L1BlockRef) {
-		emitter.Emit(ctx, status.L1SafeEvent{L1Safe: sig})
+		n.l2Driver.StatusTracker.OnL1Safe(sig)
 	}
 	onL1Finalized := func(ctx context.Context, sig eth.L1BlockRef) {
 		emitter.Emit(ctx, finality.FinalizeL1Event{FinalizedL1: sig})

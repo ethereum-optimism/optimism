@@ -120,6 +120,7 @@ type SyncStatusTracker interface {
 	SyncStatus() *eth.SyncStatus
 	L1Head() eth.L1BlockRef
 	OnL1Unsafe(x eth.L1BlockRef)
+	OnL1Safe(x eth.L1BlockRef)
 }
 
 type Network interface {
