@@ -18,6 +18,7 @@ import (
 	gnode "github.com/ethereum/go-ethereum/node"
 	"github.com/ethereum/go-ethereum/rpc"
 
+	opnodemetrics "github.com/ethereum-optimism/optimism/op-node/metrics"
 	"github.com/ethereum-optimism/optimism/op-node/node"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/attributes"
@@ -144,8 +145,7 @@ func NewL2Verifier(t Testing, log log.Logger, l1 derive.L1Fetcher,
 	}
 
 	metrics := &testutils.TestDerivationMetrics{}
-	ec := engine.NewEngineController(eng, log, metrics, cfg, syncCfg,
-		sys.Register("engine-controller", nil, opts))
+	ec := engine.NewEngineController(ctx, eng, log, opnodemetrics.NoopMetrics, cfg, syncCfg, sys.Register("engine-controller", nil, opts))
 
 	sys.Register("engine-reset",
 		engine.NewEngineResetDeriver(ctx, log, cfg, l1, eng, syncCfg), opts)
@@ -161,7 +161,7 @@ func NewL2Verifier(t Testing, log log.Logger, l1 derive.L1Fetcher,
 	}
 	sys.Register("finalizer", finalizer, opts)
 
-	attrHandler := attributes.NewAttributesHandler(log, cfg, ctx, eng)
+	attrHandler := attributes.NewAttributesHandler(log, cfg, ctx, eng, ec)
 	sys.Register("attributes-handler", attrHandler, opts)
 
 	indexingMode := interopSys != nil
@@ -192,9 +192,7 @@ func NewL2Verifier(t Testing, log log.Logger, l1 derive.L1Fetcher,
 	//  Couple EngDeriver and NewAttributesHandler for event refactoring
 	ec.SyncDeriver = syncDeriver
 	sys.Register("sync", syncDeriver, opts)
-	engDeriver := engine.NewEngDeriver(log, ctx, cfg, metrics, ec)
-	sys.Register("engine", engDeriver, opts)
-	attrHandler.EngDeriver = engDeriver
+	sys.Register("engine", ec, opts)
 
 	rollupNode := &L2Verifier{
 		eventSys:          sys,

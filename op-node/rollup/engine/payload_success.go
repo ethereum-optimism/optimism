@@ -2,12 +2,9 @@ package engine
 
 import (
 	"context"
-	"errors"
-	"fmt"
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
-	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
 
@@ -27,7 +24,7 @@ func (ev PayloadSuccessEvent) String() string {
 	return "payload-success"
 }
 
-func (eq *EngDeriver) onPayloadSuccess(ctx context.Context, ev PayloadSuccessEvent) {
+func (eq *EngineController) onPayloadSuccess(ctx context.Context, ev PayloadSuccessEvent) {
 	if ev.DerivedFrom == ReplaceBlockSource {
 		eq.log.Warn("Successfully built replacement block, resetting chain to continue now", "replacement", ev.Ref)
 		// Change the engine state to make the replacement block the cross-safe head of the chain,
@@ -37,7 +34,7 @@ func (eq *EngDeriver) onPayloadSuccess(ctx context.Context, ev PayloadSuccessEve
 			CrossUnsafe: ev.Ref,
 			LocalSafe:   ev.Ref,
 			CrossSafe:   ev.Ref,
-			Finalized:   eq.ec.Finalized(),
+			Finalized:   eq.Finalized(),
 		})
 		eq.emitter.Emit(ctx, InteropReplacedBlockEvent{
 			Envelope: ev.Envelope,
@@ -58,28 +55,8 @@ func (eq *EngDeriver) onPayloadSuccess(ctx context.Context, ev PayloadSuccessEve
 		eq.TryUpdateLocalSafe(ctx, ev.Ref, ev.Concluding, ev.DerivedFrom)
 	}
 	// Now if possible synchronously call FCU
-	eq.TryUpdateEngine(ctx, TryUpdateEngineEvent{
-		BuildStarted:  ev.BuildStarted,
-		InsertStarted: ev.InsertStarted,
-		Envelope:      ev.Envelope,
-	})
-}
-
-func (d *EngDeriver) TryUpdateEngine(ctx context.Context, x TryUpdateEngineEvent) {
-	// If we don't need to call FCU, keep going b/c this was a no-op. If we needed to
-	// perform a network call, then we should yield even if we did not encounter an error.
-	if err := d.ec.TryUpdateEngine(d.ctx); err != nil && !errors.Is(err, ErrNoFCUNeeded) {
-		if errors.Is(err, derive.ErrReset) {
-			d.emitter.Emit(ctx, rollup.ResetEvent{Err: err})
-		} else if errors.Is(err, derive.ErrTemporary) {
-			d.emitter.Emit(ctx, rollup.EngineTemporaryErrorEvent{Err: err})
-		} else {
-			d.emitter.Emit(ctx, rollup.CriticalErrorEvent{
-				Err: fmt.Errorf("unexpected TryUpdateEngine error type: %w", err),
-			})
-		}
-	} else if x.triggeredByPayloadSuccess() {
-		logValues := x.getBlockProcessingMetrics()
-		d.log.Info("Inserted new L2 unsafe block", logValues...)
+	err := eq.TryUpdateEngine(ctx)
+	if err != nil {
+		eq.log.Error("Failed to update engine", "error", err)
 	}
 }

@@ -209,7 +209,7 @@ type SyncDeriver struct {
 
 	// The engine controller is used by the sequencer & Derivation components.
 	// We will also use it for EL sync in a future PR.
-	Engine EngineController
+	Engine *engine.EngineController
 
 	// Sync Mod Config
 	SyncCfg *sync.Config

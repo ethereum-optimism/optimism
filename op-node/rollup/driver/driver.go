@@ -7,6 +7,7 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 
 	altda "github.com/ethereum-optimism/optimism/op-alt-da"
+	opnodemetrics "github.com/ethereum-optimism/optimism/op-node/metrics"
 	"github.com/ethereum-optimism/optimism/op-node/metrics/metered"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/async"
@@ -51,7 +52,7 @@ type Metrics interface {
 
 	RecordL1ReorgDepth(d uint64)
 
-	engine.Metrics
+	opnodemetrics.Metricer
 	metered.L1FetcherMetrics
 	event.Metrics
 	sequencing.Metrics
@@ -190,8 +191,7 @@ func NewDriver(
 	l1 = metered.NewMeteredL1Fetcher(l1Tracker, metrics)
 	verifConfDepth := confdepth.NewConfDepth(driverCfg.VerifierConfDepth, statusTracker.L1Head, l1)
 
-	ec := engine.NewEngineController(l2, log, metrics, cfg, syncCfg,
-		sys.Register("engine-controller", nil))
+	ec := engine.NewEngineController(driverCtx, l2, log, metrics, cfg, syncCfg, sys.Register("engine-controller", nil))
 
 	sys.Register("engine-reset",
 		engine.NewEngineResetDeriver(driverCtx, log, cfg, l1, l2, syncCfg))
@@ -207,7 +207,7 @@ func NewDriver(
 	}
 	sys.Register("finalizer", finalizer)
 
-	attrHandler := attributes.NewAttributesHandler(log, cfg, driverCtx, l2)
+	attrHandler := attributes.NewAttributesHandler(log, cfg, driverCtx, l2, ec)
 	sys.Register("attributes-handler", attrHandler)
 
 	derivationPipeline := derive.NewDerivationPipeline(log, cfg, depSet, verifConfDepth, l1Blobs, altDA, l2, metrics, indexingMode)
@@ -234,9 +234,7 @@ func NewDriver(
 	//  Couple EngDeriver and NewAttributesHandler for event refactoring
 	ec.SyncDeriver = syncDeriver
 	sys.Register("sync", syncDeriver)
-	engDeriver := engine.NewEngDeriver(log, driverCtx, cfg, metrics, ec)
-	sys.Register("engine", engDeriver)
-	attrHandler.EngDeriver = engDeriver
+	sys.Register("engine", ec)
 
 	schedDeriv := NewStepSchedulingDeriver(log)
 	sys.Register("step-scheduler", schedDeriv)

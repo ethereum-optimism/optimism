@@ -54,12 +54,12 @@ func (ev BuildSealEvent) String() string {
 	return "build-seal"
 }
 
-func (eq *EngDeriver) onBuildSeal(ctx context.Context, ev BuildSealEvent) {
+func (eq *EngineController) onBuildSeal(ctx context.Context, ev BuildSealEvent) {
 	rpcCtx, cancel := context.WithTimeout(eq.ctx, buildSealTimeout)
 	defer cancel()
 
 	sealingStart := time.Now()
-	envelope, err := eq.ec.engine.GetPayload(rpcCtx, ev.Info)
+	envelope, err := eq.engine.GetPayload(rpcCtx, ev.Info)
 	if err != nil {
 		var rpcErr rpc.Error
 		if errors.As(err, &rpcErr) && eth.ErrorCode(rpcErr.ErrorCode()) == eth.UnknownPayload {
@@ -92,7 +92,7 @@ func (eq *EngDeriver) onBuildSeal(ctx context.Context, ev BuildSealEvent) {
 		return
 	}
 
-	ref, err := derive.PayloadToBlockRef(eq.cfg, envelope.ExecutionPayload)
+	ref, err := derive.PayloadToBlockRef(eq.rollupCfg, envelope.ExecutionPayload)
 	if err != nil {
 		eq.emitter.Emit(ctx, PayloadSealInvalidEvent{
 			Info:        ev.Info,
@@ -107,7 +107,7 @@ func (eq *EngDeriver) onBuildSeal(ctx context.Context, ev BuildSealEvent) {
 	sealTime := now.Sub(sealingStart)
 	buildTime := now.Sub(ev.BuildStarted)
 	eq.metrics.RecordSequencerSealingTime(sealTime)
-	eq.metrics.RecordSequencerBuildingDiffTime(buildTime - time.Duration(eq.cfg.BlockTime)*time.Second)
+	eq.metrics.RecordSequencerBuildingDiffTime(buildTime - time.Duration(eq.rollupCfg.BlockTime)*time.Second)
 
 	txnCount := len(envelope.ExecutionPayload.Transactions)
 	depositCount, _ := lastDeposit(envelope.ExecutionPayload.Transactions)

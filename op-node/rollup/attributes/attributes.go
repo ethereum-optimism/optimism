@@ -17,6 +17,15 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/event"
 )
 
+// EngineController provides direct calls into the EngineController that
+// external components can use instead of emitting events.
+type EngineController interface {
+	// TryUpdatePendingSafe updates the pending safe head if the new reference is newer
+	TryUpdatePendingSafe(ctx context.Context, ref eth.L2BlockRef, concluding bool, source eth.L1BlockRef)
+	// TryUpdateLocalSafe updates the local safe head if the new reference is newer and concluding
+	TryUpdateLocalSafe(ctx context.Context, ref eth.L2BlockRef, concluding bool, source eth.L1BlockRef)
+}
+
 type L2 interface {
 	PayloadByNumber(context.Context, uint64) (*eth.ExecutionPayloadEnvelope, error)
 }
@@ -37,16 +46,20 @@ type AttributesHandler struct {
 	attributes     *derive.AttributesWithParent
 	sentAttributes bool
 
-	EngDeriver engine.EngDeriverInterface
+	engineController EngineController
 }
 
-func NewAttributesHandler(log log.Logger, cfg *rollup.Config, ctx context.Context, l2 L2) *AttributesHandler {
+func NewAttributesHandler(log log.Logger, cfg *rollup.Config, ctx context.Context, l2 L2, engController EngineController) *AttributesHandler {
+	if engController == nil {
+		panic("engController cannot be nil")
+	}
 	return &AttributesHandler{
-		log:        log,
-		cfg:        cfg,
-		ctx:        ctx,
-		l2:         l2,
-		attributes: nil,
+		log:              log,
+		cfg:              cfg,
+		ctx:              ctx,
+		l2:               l2,
+		engineController: engController,
+		attributes:       nil,
 	}
 }
 
@@ -202,8 +215,8 @@ func (eq *AttributesHandler) consolidateNextSafeAttributes(attributes *derive.At
 			eq.log.Error("Failed to compute block-ref from execution payload")
 			return
 		}
-		eq.EngDeriver.TryUpdatePendingSafe(eq.ctx, ref, attributes.Concluding, attributes.DerivedFrom)
-		eq.EngDeriver.TryUpdateLocalSafe(eq.ctx, ref, attributes.Concluding, attributes.DerivedFrom)
+		eq.engineController.TryUpdatePendingSafe(eq.ctx, ref, attributes.Concluding, attributes.DerivedFrom)
+		eq.engineController.TryUpdateLocalSafe(eq.ctx, ref, attributes.Concluding, attributes.DerivedFrom)
 	}
 
 	// unsafe head stays the same, we did not reorg the chain.
