@@ -2211,7 +2211,7 @@ workflows:
           notify: true
           mentions: "@proofs-team"
           no_output_timeout: 90m
-          test_timeout: 120m
+          test_timeout: 240m
           resource_class: ethereum-optimism/latitude-fps-1
           context:
             - slack
