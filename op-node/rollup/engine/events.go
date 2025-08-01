@@ -300,22 +300,7 @@ func (d *EngDeriver) OnEvent(ctx context.Context, ev event.Event) bool {
 	//  PromoteUnsafeEvent, PromotePendingSafeEvent, PromoteLocalSafeEvent fan out is updated to procedural method calls
 	switch x := ev.(type) {
 	case TryUpdateEngineEvent:
-		// If we don't need to call FCU, keep going b/c this was a no-op. If we needed to
-		// perform a network call, then we should yield even if we did not encounter an error.
-		if err := d.ec.TryUpdateEngine(d.ctx); err != nil && !errors.Is(err, ErrNoFCUNeeded) {
-			if errors.Is(err, derive.ErrReset) {
-				d.emitter.Emit(ctx, rollup.ResetEvent{Err: err})
-			} else if errors.Is(err, derive.ErrTemporary) {
-				d.emitter.Emit(ctx, rollup.EngineTemporaryErrorEvent{Err: err})
-			} else {
-				d.emitter.Emit(ctx, rollup.CriticalErrorEvent{
-					Err: fmt.Errorf("unexpected TryUpdateEngine error type: %w", err),
-				})
-			}
-		} else if x.triggeredByPayloadSuccess() {
-			logValues := x.getBlockProcessingMetrics()
-			d.log.Info("Inserted new L2 unsafe block", logValues...)
-		}
+		d.TryUpdateEngine(ctx, x)
 	case ProcessUnsafePayloadEvent:
 		ref, err := derive.PayloadToBlockRef(d.cfg, x.Envelope.ExecutionPayload)
 		if err != nil {
