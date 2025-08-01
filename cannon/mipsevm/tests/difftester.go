@@ -139,34 +139,59 @@ func (d *DiffTester[T]) run(t testRunner, testCases []T, opts ...TestOption) {
 				t.Run(testName, func(t testcaseT) {
 					t.Parallel()
 
-					testDeps := cfg.testDependencies()
-					stateOpts := []mtutil.StateOption{mtutil.WithRandomization(randSeed)}
-					stateOpts = append(stateOpts, d.stateOpts...)
-					goVm := vm.VMFactory(testDeps.po, testDeps.stdOut, testDeps.stdErr, testDeps.logger, stateOpts...)
-					state := mtutil.GetMtState(t, goVm)
+					setup := mod.cachedSetup
+					if setup == nil {
+						setup = d.newTestSetup(t, testCase, vm, cfg, randSeed, mod)
+					}
 
-					// Set up state
-					r := testutil.NewRandHelper(randSeed * 2)
-					d.initState(t, testCase, state, vm, r)
-					mod.stateMod(state)
-
+					expect := setup.expect
+					execExpectation := setup.expectedResult
 					var witness *mipsevm.StepWitness
 					for i := 0; i < cfg.steps; i++ {
-						// Set up expectations
-						expect := d.expectedState(t, state)
-						execExpectation := d.setExpectations(t, testCase, expect, vm)
-						mod.expectMod(expect)
+						if i > 0 {
+							// After the initial step, we need to set up our expectations again
+							expect = d.expectedState(t, setup.state)
+							execExpectation = d.setExpectations(t, testCase, expect, vm)
+						}
 
-						witness = execExpectation.assertExpectedResult(t, goVm, vm, expect, cfg)
+						witness = execExpectation.assertExpectedResult(t, setup.goVm, vm, expect, cfg)
 					}
 
 					// Run post-step checks
 					if d.postStepCheck != nil {
-						d.postStepCheck(t, testCase, vm, testDeps, witness)
+						d.postStepCheck(t, testCase, vm, setup.deps, witness)
 					}
 				})
 			}
 		}
+	}
+}
+
+func (d *DiffTester[T]) newTestSetup(t require.TestingT, testCase T, vm VersionedVMTestCase, cfg *TestConfig, randSeed int64, mod *testModifier) *testSetup {
+	testDeps := cfg.testDependencies()
+
+	stateOpts := []mtutil.StateOption{mtutil.WithRandomization(randSeed)}
+	stateOpts = append(stateOpts, d.stateOpts...)
+	goVm := vm.VMFactory(testDeps.po, testDeps.stdOut, testDeps.stdErr, testDeps.logger, stateOpts...)
+
+	state := mtutil.GetMtState(t, goVm)
+	d.initState(t, testCase, state, vm, testutil.NewRandHelper(randSeed*2))
+	if mod != nil {
+		mod.stateMod(state)
+	}
+
+	expect := d.expectedState(t, state)
+	if mod != nil {
+		mod.expectMod(expect)
+	}
+	expectedResult := d.setExpectations(t, testCase, expect, vm)
+
+	return &testSetup{
+		deps:           testDeps,
+		goVm:           goVm,
+		state:          state,
+		expect:         expect,
+		expectedResult: expectedResult,
 	}
 }
 
@@ -193,35 +218,32 @@ func (d *DiffTester[T]) isConfigValid(t testRunner) bool {
 }
 
 type testModifier struct {
-	name      string
-	stateMod  func(state *multithreaded.State)
-	expectMod func(expect *mtutil.ExpectedState)
+	name        string
+	stateMod    func(state *multithreaded.State)
+	expectMod   func(expect *mtutil.ExpectedState)
+	cachedSetup *testSetup
 }
 
-func newTestModifier(name string) *testModifier {
+func newTestModifier(name string, cachedSetup *testSetup) *testModifier {
 	return &testModifier{
-		name:      name,
-		stateMod:  func(state *multithreaded.State) {},
-		expectMod: func(expect *mtutil.ExpectedState) {},
+		name:        name,
+		stateMod:    func(state *multithreaded.State) {},
+		expectMod:   func(expect *mtutil.ExpectedState) {},
+		cachedSetup: cachedSetup,
 	}
 }
 
 func (d *DiffTester[T]) generateTestModifiers(t require.TestingT, testCase T, vm VersionedVMTestCase, cfg *TestConfig, randSeed int64) []*testModifier {
+	// Set up state
+	setup := d.newTestSetup(t, testCase, vm, cfg, randSeed, nil)
+
+	// Build modifiers array, start with the original case (noop modification)
 	modifiers := []*testModifier{
-		newTestModifier(""), // Always return a noop
+		newTestModifier("", setup), // Always return a noop
 	}
 
-	// Set up state
-	testDeps := cfg.testDependencies()
-	goVm := vm.VMFactory(testDeps.po, testDeps.stdOut, testDeps.stdErr, testDeps.logger, d.stateOpts...)
-	state := mtutil.GetMtState(t, goVm)
-	d.initState(t, testCase, state, vm, testutil.NewRandHelper(randSeed))
-	// Process expectations
-	expect := d.expectedState(t, state)
-	d.setExpectations(t, testCase, expect, vm)
-
 	// Generate test modifiers based on expectations
-	modifiers = append(modifiers, d.memReservationTestModifier(cfg, randSeed, expect)...)
+	modifiers = append(modifiers, d.memReservationTestModifier(cfg, randSeed, setup.expect)...)
 
 	return modifiers
 }
@@ -300,6 +322,14 @@ func randomSeed(t require.TestingT, s string, extraData ...int) int64 {
 	}
 
 	return int64(h.Sum64())
+}
+
+type testSetup struct {
+	deps           *TestDependencies
+	goVm           mipsevm.FPVM
+	state          *multithreaded.State
+	expect         *mtutil.ExpectedState
+	expectedResult ExpectedExecResult
 }
 
 type TestDependencies struct {
