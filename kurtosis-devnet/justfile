@@ -55,10 +55,10 @@ devnet TEMPLATE_FILE DATA_FILE="" NAME="" PACKAGE=KURTOSIS_PACKAGE: _prerequisit
     export DEVNET_NAME={{NAME}}
     if [ -z "{{NAME}}" ]; then
         export DEVNET_NAME=`basename {{TEMPLATE_FILE}} .yaml`
-        if [ -n "{{DATA_FILE}}" ]; then
-            export DATA_FILE_NAME=`basename {{DATA_FILE}} .json`
-            export DEVNET_NAME="$DEVNET_NAME-$DATA_FILE_NAME"
-        fi
+        #if [ -n "{{DATA_FILE}}" ]; then
+            #export DATA_FILE_NAME=`basename {{DATA_FILE}} .json`
+            #export DEVNET_NAME="$DEVNET_NAME-$DATA_FILE_NAME"
+        #fi
     fi
     export ENCL_NAME="$DEVNET_NAME"-devnet
     go run cmd/main.go -kurtosis-package {{PACKAGE}} \
