@@ -61,7 +61,11 @@ test-dev *ARGS: build-go-ffi
   FOUNDRY_PROFILE=lite forge test {{ARGS}}
 
 # Default block number for the forked upgrade path.
-
+# Value here should be AFTER the latest upgrade that has been executed on all
+# of the chains that are fork-tested as part of CI. If an upgrade has been
+# partially executed, then the value should be BEFORE the partially block where
+# the upgrade was partially executed (i.e., we still apply that upgrade
+# manually in the test suite).
 export sepoliaBlockNumber := "8519339"
 export mainnetBlockNumber := "22675294"
 

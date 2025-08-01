@@ -695,7 +695,7 @@ contract OPContractsManagerUpgrader is OPContractsManagerBase {
                             _l2ChainId: l2ChainId,
                             _proxyAdmin: _opChainConfigs[i].proxyAdmin,
                             _saltMixer: reusableSaltMixer(_opChainConfigs[i]),
-                            _contractName: "PermissionedDelayedWETH-U18"
+                            _contractName: "PermissionedDelayedWETH-U17"
                         })
                     )
                 );
@@ -734,7 +734,7 @@ contract OPContractsManagerUpgrader is OPContractsManagerBase {
                                 _l2ChainId: l2ChainId,
                                 _proxyAdmin: _opChainConfigs[i].proxyAdmin,
                                 _saltMixer: reusableSaltMixer(_opChainConfigs[i]),
-                                _contractName: "PermissionlessDelayedWETH-U18"
+                                _contractName: "PermissionlessDelayedWETH-U17"
                             })
                         )
                     );

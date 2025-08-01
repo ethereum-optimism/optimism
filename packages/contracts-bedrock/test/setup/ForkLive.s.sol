@@ -194,7 +194,9 @@ contract ForkLive is Deployer {
         IOPContractsManager opcm = IOPContractsManager(artifacts.mustGetAddress("OPContractsManager"));
 
         // Previous OPCM should be the latest release.
-        // NOTE that this code may have to be updated if multiple releases are in flight.
+        // NOTE that this code may have to be updated if multiple releases are pending. If there
+        // are multiple OPCM's which have been deployed but not yet used for an upgrade, then
+        // opcm.upgrade() will need to be called sequentially on each of them here.
         address PREVIOUS_OPCM = 0x4FefD0C327D08143be8037c45f8a29FA0d711E50; // v4.0.0
 
         // Grab the ProxyAdmin and upgrader accounts from the SystemConfig.
