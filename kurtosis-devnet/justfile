@@ -83,7 +83,7 @@ devnet-test DEVNET *TEST: _prerequisites
 simple-devnet: (devnet "simple.yaml")
 
 # Interop devnet
-interop-devnet: (devnet "interop.yaml")
+interop-devnet: (devnet "interop.yaml" "overrides.json")
 interop-devnet-test: (devnet-test "interop-devnet" "interop-smoke-test.sh")
 
 # User devnet
