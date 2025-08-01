@@ -167,7 +167,7 @@ var (
 	}
 	ThrottleThresholdFlag = &cli.IntFlag{
 		Name:    "throttle-threshold",
-		Usage:   "The threshold on pending-blocks-bytes-current beyond which the batcher will instruct the block builder to start throttling transactions with larger DA demands. Zero disables throttling.",
+		Usage:   "The threshold on unsafe_da_bytes beyond which the batcher will start to throttle the block builder. Zero disables throttling.",
 		Value:   1_000_000,
 		EnvVars: prefixEnvVars("THROTTLE_THRESHOLD"),
 	}
