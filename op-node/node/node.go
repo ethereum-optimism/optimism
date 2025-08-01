@@ -135,9 +135,6 @@ func New(ctx context.Context, cfg *config.Config, log log.Logger, appVersion str
 func (n *OpNode) init(ctx context.Context, cfg *config.Config) error {
 	n.log.Info("Initializing rollup node", "version", n.appVersion)
 	n.initEventSystem()
-	if err := n.initL1(ctx, cfg); err != nil {
-		return fmt.Errorf("failed to init L1: %w", err)
-	}
 	if err := n.initL1BeaconAPI(ctx, cfg); err != nil {
 		return err
 	}
