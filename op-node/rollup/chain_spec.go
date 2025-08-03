@@ -58,8 +58,8 @@ var AllForks = []ForkName{
 	Granite,
 	Holocene,
 	Isthmus,
-	Interop,
 	Jovian,
+	Interop,
 	// ADD NEW FORKS HERE!
 }
 
@@ -166,6 +166,10 @@ func (s *ChainSpec) MaxSequencerDrift(t uint64) uint64 {
 }
 
 func (s *ChainSpec) CheckForkActivation(log log.Logger, block eth.L2BlockRef) {
+	if s.currentFork == Interop {
+		return
+	}
+
 	if s.currentFork == "" {
 		// Initialize currentFork if it is not set yet
 		s.currentFork = Bedrock
@@ -193,11 +197,11 @@ func (s *ChainSpec) CheckForkActivation(log log.Logger, block eth.L2BlockRef) {
 		if s.config.IsIsthmus(block.Time) {
 			s.currentFork = Isthmus
 		}
-		if s.config.IsInterop(block.Time) {
-			s.currentFork = Interop
-		}
 		if s.config.IsJovian(block.Time) {
 			s.currentFork = Jovian
+		}
+		if s.config.IsInterop(block.Time) {
+			s.currentFork = Interop
 		}
 		log.Info("Current hardfork version detected", "forkName", s.currentFork)
 		return
@@ -222,10 +226,10 @@ func (s *ChainSpec) CheckForkActivation(log log.Logger, block eth.L2BlockRef) {
 		foundActivationBlock = s.config.IsHoloceneActivationBlock(block.Time)
 	case Isthmus:
 		foundActivationBlock = s.config.IsIsthmusActivationBlock(block.Time)
-	case Interop:
-		foundActivationBlock = s.config.IsInteropActivationBlock(block.Time)
 	case Jovian:
 		foundActivationBlock = s.config.IsJovianActivationBlock(block.Time)
+	case Interop:
+		foundActivationBlock = s.config.IsInteropActivationBlock(block.Time)
 	}
 
 	if foundActivationBlock {

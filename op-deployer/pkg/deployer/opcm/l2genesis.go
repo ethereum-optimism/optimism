@@ -25,7 +25,7 @@ type L2GenesisInput struct {
 	L1FeeVaultWithdrawalNetwork              *big.Int
 	GovernanceTokenOwner                     common.Address
 	Fork                                     *big.Int
-	DeployCrossL2Inbox                       bool
+	UseInterop                               bool
 	EnableGovernance                         bool
 	FundDevAccounts                          bool
 }
