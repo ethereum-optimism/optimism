@@ -292,7 +292,7 @@ class RegisteredTEE():
 **Field descriptions:**
 
 - `parsedReportBody`: Parsed form of the quote for use in generating workloadId
-- `rawQuote`: The raw quote from the TEE device, which is stored to allow for future quote quote invalidation
+- `rawQuote`: The raw quote from the TEE device, which is stored to allow for future quote invalidation
 - `extendedRegistrationData`: The application-specific attested data, reserved for future upgrades
 - `isValid`: True upon first registration, and false after a quote invalidation
 
@@ -379,14 +379,11 @@ At its most abstract level within this specification, the Flashtestation Registr
 The registry operates on these key abstractions:
 
 1. **TEE-controlled address**: The address extracted from the quote's report data field ([TDReport.ReportData](#tdreport)), whose private key was generated inside the TEE and is used to interact with onchain contracts.
-
 2. **Parsed Quote**: A struct containing the verified and attested data. It contains the quote in its raw form as well as extracted values which are often used and required such as the workloadId.
-
-2.1 **Attestation Quote**: The raw attestation data provided during registration that contains the cryptographic proof of the TEE's state. This quote is stored in the parse quote struct for later verification and revocation.
-
-2.2 **Workload Identity (`workloadId`)**: A 32-byte hash derived from TDX measurement registers (as defined in [Workload Identity Derivation](#workload-identity-derivation)) that uniquely identifies a specific piece of code and its configuration running in a TDX environment.
-
-2.2 **Workload Identity (`workloadId`)**: A 32-byte hash derived from TDX measurement registers (as defined in [Workload Identity Derivation](#workload-identity-derivation)) that uniquely identifies a specific piece of code and its configuration running in a TDX environment.
+   
+    2.1 **Attestation Quote**: The raw attestation data provided during registration that contains the cryptographic proof of the TEE's state. This quote is stored in the parse quote struct for later verification and revocation.
+ 
+    2.2 **Workload Identity (`workloadId`)**: A 32-byte hash derived from TDX measurement registers (as defined in [Workload Identity Derivation](#workload-identity-derivation)) that uniquely identifies a specific piece of code and its configuration running in a TDX environment.
 
 ### Key Relationship Model
 
