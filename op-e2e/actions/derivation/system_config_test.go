@@ -239,7 +239,6 @@ func GPOParamsChange(gt *testing.T, deltaTimeOffset *hexutil.Uint64) {
 	dp.DeployConfig.L2GenesisGraniteTimeOffset = nil
 	dp.DeployConfig.L2GenesisHoloceneTimeOffset = nil
 	dp.DeployConfig.L2GenesisIsthmusTimeOffset = nil
-	dp.DeployConfig.L2GenesisInteropTimeOffset = nil
 	dp.DeployConfig.L2GenesisJovianTimeOffset = nil
 
 	sd := e2eutils.Setup(t, dp, actionsHelpers.DefaultAlloc)
