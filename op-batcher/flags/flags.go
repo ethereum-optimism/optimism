@@ -171,6 +171,12 @@ var (
 		Value:   1_000_000,
 		EnvVars: prefixEnvVars("THROTTLE_THRESHOLD"),
 	}
+	ThrottleMaxThresholdFlag = &cli.Uint64Flag{
+		Name:    "throttle-max-threshold",
+		Usage:   "Threshold at which throttling has the maximum intensity (linear and quadratic controllers only)",
+		Value:   DefaultMaxThreshold,
+		EnvVars: prefixEnvVars("THROTTLE_MAX_THRESHOLD"),
+	}
 	ThrottleTxSizeFlag = &cli.IntFlag{
 		Name:    "throttle-tx-size",
 		Usage:   "The DA size of transactions to start throttling when we are over the throttle threshold",
@@ -275,12 +281,7 @@ var (
 		Value:   DefaultPIDSampleTime,
 		EnvVars: prefixEnvVars("THROTTLE_PID_SAMPLE_TIME"),
 	}
-	ThrottleMaxThresholdFlag = &cli.Uint64Flag{
-		Name:    "throttle-max-threshold",
-		Usage:   "Threshold at which throttling has the maximum intensity (linear and quadratic controllers only)",
-		Value:   DefaultMaxThreshold,
-		EnvVars: prefixEnvVars("THROTTLE_MAX_THRESHOLD"),
-	}
+
 	// Legacy Flags
 	SequencerHDPathFlag = txmgr.SequencerHDPathFlag
 )

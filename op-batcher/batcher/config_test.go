@@ -121,6 +121,24 @@ func TestBatcherConfig(t *testing.T) {
 			},
 			errString: "invalid ApproxComprRatio 4.2 for ratio compressor",
 		},
+		{
+			name: "throttle_max_threshold=throttle_threshold",
+			override: func(c *batcher.CLIConfig) {
+				c.ThrottleThreshold = 5
+				c.ThrottleMaxThreshold = 5
+
+			},
+			errString: "throttle-max-threshold must be greater than throttle-threshold",
+		},
+		{
+			name: "throttle_max_threshold=throttle_threshold",
+			override: func(c *batcher.CLIConfig) {
+				c.ThrottleThreshold = 5
+				c.ThrottleMaxThreshold = 4
+
+			},
+			errString: "throttle-max-threshold must be greater than throttle-threshold",
+		},
 	}
 
 	for _, test := range tests {

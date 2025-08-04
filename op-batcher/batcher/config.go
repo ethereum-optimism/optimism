@@ -188,6 +188,10 @@ func (c *CLIConfig) Check() error {
 		return fmt.Errorf("invalid throttle controller type: %s (must be one of: %v)", c.ThrottleControllerType, config.ThrottleControllerTypes)
 	}
 
+	if c.ThrottleThreshold != 0 && c.ThrottleMaxThreshold <= c.ThrottleThreshold {
+		return fmt.Errorf("throttle-max-threshold must be greater than throttle-threshold")
+	}
+
 	if err := c.MetricsConfig.Check(); err != nil {
 		return err
 	}
