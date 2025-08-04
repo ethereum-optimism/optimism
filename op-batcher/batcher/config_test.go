@@ -40,7 +40,8 @@ func validBatcherConfig() batcher.CLIConfig {
 		// The compressor config is not checked in config.Check()
 		RPC:                    rpc.DefaultCLIConfig(),
 		CompressionAlgo:        derive.Zlib,
-		ThrottleThreshold:      0, // no DA throttling
+		ThrottleThreshold:      flags.DefaultThrottleThreshold,
+		ThrottleMaxThreshold:   flags.DefaultThrottleMaxThreshold,
 		ThrottleTxSize:         0,
 		ThrottleControllerType: "step", // default controller type
 	}

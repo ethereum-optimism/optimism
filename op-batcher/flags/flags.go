@@ -21,14 +21,17 @@ import (
 )
 
 const (
-	EnvVarPrefix          = "OP_BATCHER"
-	DefaultMaxThreshold   = 10
-	DefaultPIDSampleTime  = 2 * time.Second
-	DefaultPIDKp          = 0.33
-	DefaultPIDKi          = 0.01
-	DefaultPIDKd          = 0.05
-	DefaultPIDIntegralMax = 1000.0
-	DefaultPIDOutputMax   = 1.0
+	EnvVarPrefix = "OP_BATCHER"
+
+	// Throttling
+	DefaultThrottleThreshold    = 1_600_000 // allows for 2x (6 blobs, 1 tx) channels at ~131KB per blob
+	DefaultThrottleMaxThreshold = DefaultThrottleThreshold * 5
+	DefaultPIDSampleTime        = 2 * time.Second
+	DefaultPIDKp                = 0.33
+	DefaultPIDKi                = 0.01
+	DefaultPIDKd                = 0.05
+	DefaultPIDIntegralMax       = 1000.0
+	DefaultPIDOutputMax         = 1.0
 )
 
 func prefixEnvVars(name string) []string {
@@ -174,7 +177,7 @@ var (
 	ThrottleMaxThresholdFlag = &cli.Uint64Flag{
 		Name:    "throttle-max-threshold",
 		Usage:   "Threshold at which throttling has the maximum intensity (linear and quadratic controllers only)",
-		Value:   DefaultMaxThreshold,
+		Value:   DefaultThrottleMaxThreshold,
 		EnvVars: prefixEnvVars("THROTTLE_MAX_THRESHOLD"),
 	}
 	ThrottleTxSizeFlag = &cli.IntFlag{
@@ -202,8 +205,8 @@ var (
 	}
 	ThrottleControllerTypeFlag = &cli.StringFlag{
 		Name:    "throttle-controller-type",
-		Usage:   "Type of throttle controller to use: 'step' (default), 'linear', 'quadratic' or 'pid' (EXPERIMENTAL - use with caution)",
-		Value:   "step",
+		Usage:   "Type of throttle controller to use: 'step', 'linear', 'quadratic' (default) or 'pid' (EXPERIMENTAL - use with caution)",
+		Value:   "quadratic",
 		EnvVars: prefixEnvVars("THROTTLE_CONTROLLER_TYPE"),
 		Action: func(ctx *cli.Context, value string) error {
 			validTypes := []string{"step", "linear", "quadratic", "pid"}
