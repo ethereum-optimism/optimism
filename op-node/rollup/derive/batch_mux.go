@@ -34,15 +34,20 @@ func NewBatchMux(lgr log.Logger, cfg *rollup.Config, prev NextBatchProvider, l2 
 func (b *BatchMux) Reset(ctx context.Context, base eth.L1BlockRef, sysCfg eth.SystemConfig) error {
 	// TODO(12490): change to a switch over b.cfg.ActiveFork(base.Time)
 	switch {
-	default:
-		if _, ok := b.SingularBatchProvider.(*BatchQueue); !ok {
-			b.log.Info("BatchMux: activating pre-Holocene stage during reset", "origin", base)
-			b.SingularBatchProvider = NewBatchQueue(b.log, b.cfg, b.prev, b.l2)
+	case b.cfg.IsJovian(base.Time):
+		if _, ok := b.SingularBatchProvider.(*BatchStage); !ok {
+			b.log.Info("BatchMux: activating Jovian stage during reset", "origin", base)
+			b.SingularBatchProvider = NewBatchStage(b.log, b.cfg, b.prev, b.l2)
 		}
 	case b.cfg.IsHolocene(base.Time):
 		if _, ok := b.SingularBatchProvider.(*BatchStage); !ok {
 			b.log.Info("BatchMux: activating Holocene stage during reset", "origin", base)
 			b.SingularBatchProvider = NewBatchStage(b.log, b.cfg, b.prev, b.l2)
+		}
+	default:
+		if _, ok := b.SingularBatchProvider.(*BatchQueue); !ok {
+			b.log.Info("BatchMux: activating pre-Holocene stage during reset", "origin", base)
+			b.SingularBatchProvider = NewBatchQueue(b.log, b.cfg, b.prev, b.l2)
 		}
 	}
 	return b.SingularBatchProvider.Reset(ctx, base, sysCfg)
@@ -52,6 +57,8 @@ func (b *BatchMux) Transform(f rollup.ForkName) {
 	switch f {
 	case rollup.Holocene:
 		b.TransformHolocene()
+	case rollup.Jovian:
+		b.TransformJovian()
 	}
 }
 
@@ -70,6 +77,25 @@ func (b *BatchMux) TransformHolocene() {
 		// Even if the pipeline is Reset to the activation block, the previous origin will be the
 		// same, so transformStages isn't called.
 		panic(fmt.Sprintf("Holocene BatchStage already active, old origin: %v", bp.Origin()))
+	default:
+		panic(fmt.Sprintf("unknown batch stage type: %T", bp))
+	}
+}
+
+func (b *BatchMux) TransformJovian() {
+	switch bp := b.SingularBatchProvider.(type) {
+	case *BatchQueue:
+		b.log.Info("BatchMux: transforming to Jovian stage")
+		bs := NewBatchStage(b.log, b.cfg, b.prev, b.l2)
+		// Even though any ongoing span batch or queued batches are dropped at Jovian activation, the
+		// post-Jovian batch stage still needs access to the collected l1Blocks pre-Jovian because
+		// the first Jovian channel will contain pre-Jovian batches.
+		bs.l1Blocks = slices.Clone(bp.l1Blocks)
+		bs.origin = bp.origin
+		b.SingularBatchProvider = bs
+	case *BatchStage:
+		// Jovian BatchStage already active - this can happen during reorgs or multiple pipeline steps
+		b.log.Debug("BatchMux: Jovian BatchStage already active", "origin", bp.Origin())
 	default:
 		panic(fmt.Sprintf("unknown batch stage type: %T", bp))
 	}
