@@ -753,6 +753,15 @@ func newBlock(parent *types.Block, numTransactions int) *types.Block {
 	return types.NewBlock(header, block.Body(), nil, trie.NewStackTrie(nil), types.DefaultBlockConfig)
 }
 
+func newChain(numBlocks int) []*types.Block {
+	blocks := make([]*types.Block, numBlocks)
+	blocks[0] = newBlock(nil, 10)
+	for i := 1; i < numBlocks; i++ {
+		blocks[i] = newBlock(blocks[i-1], 10)
+	}
+	return blocks
+}
+
 // TestChannelManagerUnsafeBytes tests the unsafe bytes in the channel manager
 // by adding blocks to the unsafe block queue, adding them to a channel,
 // and then sealing the channel. It asserts on the final state of the channel
@@ -776,7 +785,8 @@ func TestChannelManagerUnsafeBytes(t *testing.T) {
 	emptyB := newBlock(emptyA, 0)
 	emptyC := newBlock(emptyB, 0)
 
-	// TODO add a scenario with hundreds of blocks
+	twentyBlocks := newChain(20)
+	tenBlocks := newChain(10)
 
 	testChannelManagerUnsafeBytes := func(t *testing.T, tc testCase) {
 		cfg := ChannelConfig{
@@ -964,6 +974,28 @@ func TestChannelManagerUnsafeBytes(t *testing.T) {
 			afterAddingToUnsafeBlockQueue: 210,
 			afterAddingToChannel:          210,
 			afterSealingChannel:           81,
+		})
+	})
+
+	t.Run("case13", func(t *testing.T) {
+		testChannelManagerUnsafeBytes(t, testCase{
+			blocks:                        twentyBlocks,
+			batchType:                     derive.SingularBatchType,
+			compressor:                    "shadow",
+			afterAddingToUnsafeBlockQueue: 103070,
+			afterAddingToChannel:          103070,
+			afterSealingChannel:           128120,
+		})
+	})
+
+	t.Run("case14", func(t *testing.T) {
+		testChannelManagerUnsafeBytes(t, testCase{
+			blocks:                        tenBlocks,
+			batchType:                     derive.SpanBatchType,
+			compressor:                    "",
+			afterAddingToUnsafeBlockQueue: 50971,
+			afterAddingToChannel:          50971,
+			afterSealingChannel:           61869,
 		})
 	})
 }
