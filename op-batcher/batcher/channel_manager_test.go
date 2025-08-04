@@ -897,7 +897,7 @@ func TestChannelManagerUnsafeBytes(t *testing.T) {
 			compressor:                    "",
 			afterAddingToUnsafeBlockQueue: 2138,
 			afterAddingToChannel:          2138,
-			afterSealingChannel:           2606, // in block queue, in open channel, in closed channel
+			afterSealingChannel:           2606,
 		})
 	})
 
