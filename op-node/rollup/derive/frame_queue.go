@@ -42,6 +42,10 @@ func (fq *FrameQueue) Transform(f rollup.ForkName) {
 		fq.log.Info("FrameQueue: resetting with Holocene activation")
 		// With Holocene activation, the frame queue is simply reset
 		fq.reset()
+	case rollup.Jovian:
+		fq.log.Info("FrameQueue: resetting with Jovian activation")
+		// With Jovian activation, the frame queue is simply reset
+		fq.reset()
 	}
 }
 
