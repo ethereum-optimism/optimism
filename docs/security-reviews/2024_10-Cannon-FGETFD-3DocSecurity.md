@@ -17,8 +17,8 @@
 - [Severity Classification](#severity-classification)
 - [Summary](#summary)
 - [Findings](#findings)
-  - [Low Risk Findings (1)](#low-risk-findings-1)
-    - [1. Op-challenger Docker image does not include Cannon embeds](#-op-challenger-docker-image-does-not-include-cannon-embeds)
+  - [Low Risk Findings (0)](#low-risk-findings-0)
+    - [1. Op-challenger Docker image does not include Cannon embeds](#false-positive-op-challenger-docker-image-does-not-include-cannon-embeds)
 
 # Disclaimer
 _The following audit report is based on the information and code provided by the client, and any findings or recommendations are made solely on the basis of this information. While the Auditor has exercised due care and skill in conducting the audit, it cannot be guaranteed that all issues have been identified and that there are no undiscovered errors or vulnerabilities in the code._
@@ -64,7 +64,7 @@ The change consists of a core update for supporting the `F_GETFD` syscall in the
 
 
 # Findings
-## Low Risk findings (0)
+## Low Risk Findings (0)
 
 ### [False positive] Op-challenger Docker image does not include Cannon embeds
 #### Description
