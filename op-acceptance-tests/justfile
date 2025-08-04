@@ -17,6 +17,9 @@ isthmus:
 interop:
     @just acceptance-test interop interop
 
+jovian:
+    @just acceptance-test jovian jovian
+
 
 # Run acceptance tests with mise-managed binary
 acceptance-test devnet="" gate="holocene":
