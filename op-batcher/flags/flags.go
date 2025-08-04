@@ -21,14 +21,14 @@ import (
 )
 
 const (
-	EnvVarPrefix                  = "OP_BATCHER"
-	DefaultPIDSampleTime          = 2 * time.Second
-	DefaultPIDKp                  = 0.33
-	DefaultPIDKi                  = 0.01
-	DefaultPIDKd                  = 0.05
-	DefaultPIDIntegralMax         = 1000.0
-	DefaultPIDOutputMax           = 1.0
-	DefaultPIDThresholdMultiplier = 2.0
+	EnvVarPrefix          = "OP_BATCHER"
+	DefaultMaxThreshold   = 10
+	DefaultPIDSampleTime  = 2 * time.Second
+	DefaultPIDKp          = 0.33
+	DefaultPIDKi          = 0.01
+	DefaultPIDKd          = 0.05
+	DefaultPIDIntegralMax = 1000.0
+	DefaultPIDOutputMax   = 1.0
 )
 
 func prefixEnvVars(name string) []string {
@@ -275,17 +275,11 @@ var (
 		Value:   DefaultPIDSampleTime,
 		EnvVars: prefixEnvVars("THROTTLE_PID_SAMPLE_TIME"),
 	}
-	ThrottleThresholdMultiplierFlag = &cli.Float64Flag{
-		Name:    "throttle-threshold-multiplier",
-		Usage:   "Multiplier for the max threshold used by linear and quadratic controllers (multiplied by base threshold)",
-		Value:   DefaultPIDThresholdMultiplier,
-		EnvVars: prefixEnvVars("THROTTLE_THRESHOLD_MULTIPLIER"),
-		Action: func(ctx *cli.Context, value float64) error {
-			if value < 1 {
-				return fmt.Errorf("throttle-threshold-multiplier must be >= 1, got %f", value)
-			}
-			return nil
-		},
+	ThrottleMaxThresholdFlag = &cli.Uint64Flag{
+		Name:    "throttle-max-threshold",
+		Usage:   "Threshold at which throttling has the maximum intensity (linear and quadratic controllers only)",
+		Value:   DefaultMaxThreshold,
+		EnvVars: prefixEnvVars("THROTTLE_MAX_THRESHOLD"),
 	}
 	// Legacy Flags
 	SequencerHDPathFlag = txmgr.SequencerHDPathFlag
@@ -327,7 +321,7 @@ var optionalFlags = []cli.Flag{
 	ThrottlePidIntegralMaxFlag,
 	ThrottlePidOutputMaxFlag,
 	ThrottlePidSampleTimeFlag,
-	ThrottleThresholdMultiplierFlag,
+	ThrottleMaxThresholdFlag,
 }
 
 func init() {

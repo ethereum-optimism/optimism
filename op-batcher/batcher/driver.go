@@ -677,7 +677,7 @@ func (l *BatchSubmitter) throttlingLoop(wg *sync.WaitGroup, unsafeBytesUpdated c
 	l.Log.Info("Starting DA throttling loop",
 		"controller_type", l.throttleController.GetType(),
 		"threshold", l.Config.ThrottleParams.Threshold,
-		"max_threshold", l.Config.ThrottleParams.MaxThreshold(),
+		"max_threshold", l.Config.ThrottleParams.MaxThreshold,
 	)
 	updateChans := make([]chan struct{}, len(l.Config.ThrottleParams.Endpoints))
 
@@ -1169,7 +1169,7 @@ func (l *BatchSubmitter) GetThrottleControllerInfo() (config.ThrottleControllerI
 	info := config.ThrottleControllerInfo{
 		Type:         string(controllerType),
 		Threshold:    l.Config.ThrottleParams.Threshold,
-		MaxThreshold: l.Config.ThrottleParams.MaxThreshold(),
+		MaxThreshold: l.Config.ThrottleParams.MaxThreshold,
 		CurrentLoad:  uint64(l.unsafeDABytes()),
 		Intensity:    params.Intensity,
 		MaxTxSize:    params.MaxTxSize,
