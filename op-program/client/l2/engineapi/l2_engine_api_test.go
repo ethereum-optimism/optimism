@@ -5,6 +5,7 @@ import (
 	"math/big"
 	"testing"
 
+	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum/go-ethereum/beacon/engine"
@@ -17,7 +18,6 @@ import (
 	"github.com/ethereum/go-ethereum/eth/ethconfig"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/node"
-	"github.com/ethereum/go-ethereum/params"
 	"github.com/stretchr/testify/require"
 )
 
@@ -35,9 +35,7 @@ func TestNewPayloadV4(t *testing.T) {
 	logger, _ := testlog.CaptureLogger(t, log.LvlInfo)
 
 	for _, c := range cases {
-		genesis := createGenesis()
-		isthmusTime := c.isthmusTime
-		genesis.Config.IsthmusTime = &isthmusTime
+		genesis := createGenesisWithIsthmusTime(c.isthmusTime)
 		ethCfg := &ethconfig.Config{
 			NetworkId:   genesis.Config.ChainID.Uint64(),
 			Genesis:     genesis,
@@ -105,6 +103,7 @@ func TestCreatedBlocksAreCached(t *testing.T) {
 	genesisHash := genesis.Hash()
 	eip1559Params := eth.Bytes8([]byte{0x1, 0x2, 0x3, 0x4, 0x5, 0x6, 0x7, 0x8})
 	minBaseFeeLog2 := uint8(9)
+	gasLimit := eth.Uint64Quantity(genesis.GasLimit)
 	result, err := engineAPI.ForkchoiceUpdatedV3(context.Background(), &eth.ForkchoiceState{
 		HeadBlockHash:      genesisHash,
 		SafeBlockHash:      genesisHash,
@@ -116,7 +115,7 @@ func TestCreatedBlocksAreCached(t *testing.T) {
 		Withdrawals:           &types.Withdrawals{},
 		ParentBeaconBlockRoot: &common.Hash{0x22},
 		NoTxPool:              false,
-		GasLimit:              (*eth.Uint64Quantity)(&genesis.GasLimit),
+		GasLimit:              &gasLimit,
 		EIP1559Params:         &eip1559Params,
 		MinBaseFeeLog2:        minBaseFeeLog2,
 	})
@@ -164,28 +163,53 @@ func newStubBackend(t *testing.T) *stubCachingBackend {
 }
 
 func createGenesis() *core.Genesis {
-	config := *params.MergedTestChainConfig
-	config.PragueTime = nil
-	var zero uint64
-	// activate recent OP-stack forks
-	config.RegolithTime = &zero
-	config.CanyonTime = &zero
-	config.EcotoneTime = &zero
-	config.FjordTime = &zero
-	config.GraniteTime = &zero
-	config.HoloceneTime = &zero
-	config.IsthmusTime = &zero
-	config.InteropTime = &zero
-	config.JovianTime = &zero
-	config.MinBaseFeeTime = &zero
+	return createGenesisWithIsthmusTime(0)
+}
 
-	l2Genesis := &core.Genesis{
-		Config:     &config,
-		Difficulty: common.Big0,
-		ParentHash: common.Hash{},
-		BaseFee:    big.NewInt(7),
-		Alloc:      map[common.Address]types.Account{},
-		ExtraData:  []byte{0x1, 0x1, 0x2, 0x3, 0x4, 0x5, 0x6, 0x7, 0x8, 0x9}, // for Holocene eip-1559 params with a MinBaseFeeLog2 param
+func createGenesisWithIsthmusTime(isthmusTime uint64) *core.Genesis {
+	deployConfig := &genesis.DeployConfig{
+		L2InitializationConfig: genesis.L2InitializationConfig{
+			DevDeployConfig: genesis.DevDeployConfig{
+				FundDevAccounts: true,
+			},
+			L2GenesisBlockDeployConfig: genesis.L2GenesisBlockDeployConfig{
+				L2GenesisBlockGasLimit: 30_000_000,
+				L2GenesisBlockDifficulty: (*hexutil.Big)(big.NewInt(100)),
+			},
+			L2CoreDeployConfig: genesis.L2CoreDeployConfig{
+				L1ChainID:   900,
+				L2ChainID:   901,
+				L2BlockTime: 2,
+			},
+			UpgradeScheduleDeployConfig: genesis.UpgradeScheduleDeployConfig{
+				L1CancunTimeOffset: new(hexutil.Uint64),
+			},
+		},
+	}
+	
+	// Enable forks up to the specified isthmus time
+	ts := hexutil.Uint64(0)
+	deployConfig.L2GenesisRegolithTimeOffset = &ts
+	deployConfig.L2GenesisCanyonTimeOffset = &ts
+	deployConfig.L2GenesisDeltaTimeOffset = &ts
+	deployConfig.L2GenesisEcotoneTimeOffset = &ts
+	deployConfig.L2GenesisFjordTimeOffset = &ts
+	deployConfig.L2GenesisGraniteTimeOffset = &ts
+	deployConfig.L2GenesisHoloceneTimeOffset = &ts
+	
+	// Set isthmus time and subsequent forks
+	isthmusTimeOffset := hexutil.Uint64(isthmusTime)
+	deployConfig.L2GenesisIsthmusTimeOffset = &isthmusTimeOffset
+	deployConfig.L2GenesisInteropTimeOffset = &isthmusTimeOffset
+	deployConfig.L2GenesisJovianTimeOffset = &isthmusTimeOffset
+
+	l1Genesis, err := genesis.NewL1Genesis(deployConfig)
+	if err != nil {
+		panic(err)
+	}
+	l2Genesis, err := genesis.NewL2Genesis(deployConfig, eth.BlockRefFromHeader(l1Genesis.ToBlock().Header()))
+	if err != nil {
+		panic(err)
 	}
 
 	return l2Genesis
