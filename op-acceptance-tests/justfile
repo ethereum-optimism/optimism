@@ -17,6 +17,9 @@ isthmus:
 interop:
     @just acceptance-test "" interop
 
+jovian:
+    @just acceptance-test jovian jovian
+
 
 # Run acceptance tests with mise-managed binary
 # Usage: just acceptance-test [devnet] [gate]
