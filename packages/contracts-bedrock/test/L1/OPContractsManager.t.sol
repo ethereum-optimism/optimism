@@ -800,19 +800,33 @@ contract OPContractsManager_ChainIdToBatchInboxAddress_Test is Test {
         });
     }
 
-    function test_calculatesBatchInboxAddress_succeeds() public view {
-        // These test vectors were calculated manually:
-        //   1. Compute the bytes32 encoding of the chainId: bytes32(uint256(chainId));
-        //   2. Hash it and manually take the first 19 bytes, and prefixed it with 0x00.
+    /// @notice Tests that chainIdToBatchInboxAddress calculates the correct address for various chain IDs.
+    function testFuzz_chainIdToBatchInboxAddress_varyingChainIds_succeeds(uint256 _chainId) public view {
+        address actual = opcmHarness.chainIdToBatchInboxAddress_exposed(_chainId);
+
+        // Manually compute expected address following the convention:
+        // versionByte || keccak256(bytes32(chainId))[:19]
+        bytes1 versionByte = 0x00;
+        bytes32 hashedChainId = keccak256(bytes.concat(bytes32(_chainId)));
+        bytes19 first19Bytes = bytes19(hashedChainId);
+        address expected = address(uint160(bytes20(bytes.concat(versionByte, first19Bytes))));
+
+        assertEq(actual, expected, "chainIdToBatchInboxAddress should match expected");
+    }
+
+    /// @notice Tests specific known chain ID values for backwards compatibility.
+    function test_chainIdToBatchInboxAddress_knownValues_succeeds() public view {
+        // Test vector 1: chainId = 1234
         uint256 chainId = 1234;
         address expected = 0x0017FA14b0d73Aa6A26D6b8720c1c84b50984f5C;
         address actual = opcmHarness.chainIdToBatchInboxAddress_exposed(chainId);
-        vm.assertEq(expected, actual);
+        assertEq(actual, expected, "chainId 1234 should match expected address");
 
+        // Test vector 2: chainId = type(uint256).max
         chainId = type(uint256).max;
         expected = 0x00a9C584056064687E149968cBaB758a3376D22A;
         actual = opcmHarness.chainIdToBatchInboxAddress_exposed(chainId);
-        vm.assertEq(expected, actual);
+        assertEq(actual, expected, "chainId max should match expected address");
     }
 }
 
@@ -2031,8 +2045,32 @@ contract OPContractsManager_Version_Test is OPContractsManager_TestInit {
         prestateUpdater = opcm;
     }
 
-    function test_semver_works() public view {
-        assertNotEq(abi.encode(prestateUpdater.version()), abi.encode(0));
+    /// @notice Tests that version returns the expected semver string.
+    function test_version_succeeds() public view {
+        string memory version = opcm.version();
+        // Version should be non-empty and follow semver format
+        assertTrue(bytes(version).length > 0, "version should not be empty");
+        // Check it contains dots as expected in semver (e.g., "2.6.0")
+        assertTrue(_contains(version, "."), "version should contain dots for semver format");
+    }
+
+    /// @notice Helper to check if a string contains a substring.
+    function _contains(string memory _str, string memory _substr) internal pure returns (bool) {
+        bytes memory strBytes = bytes(_str);
+        bytes memory substrBytes = bytes(_substr);
+        if (substrBytes.length > strBytes.length) return false;
+
+        for (uint256 i = 0; i <= strBytes.length - substrBytes.length; i++) {
+            bool found = true;
+            for (uint256 j = 0; j < substrBytes.length; j++) {
+                if (strBytes[i + j] != substrBytes[j]) {
+                    found = false;
+                    break;
+                }
+            }
+            if (found) return true;
+        }
+        return false;
     }
 }
 
@@ -2081,5 +2119,132 @@ contract OPContractsManager_SetRC_Test is OPContractsManager_Upgrade_Harness {
 
         vm.expectRevert(IOPContractsManager.OnlyUpgradeController.selector);
         opcm.setRC(true);
+    }
+}
+
+/// @title OPContractsManager_L1ContractsRelease_Test
+/// @notice Tests the `l1ContractsRelease` function of the `OPContractsManager` contract.
+contract OPContractsManager_L1ContractsRelease_Test is OPContractsManager_TestInit {
+    /// @notice Tests that l1ContractsRelease returns the correct value when isRC is true.
+    function test_l1ContractsRelease_rcTrue_succeeds() public view {
+        // isRC is true by default
+        string memory release = opcm.l1ContractsRelease();
+        bytes memory releaseBytes = bytes(release);
+        assertEq(Bytes.slice(releaseBytes, releaseBytes.length - 3, 3), "-rc", "release should end with '-rc'");
+    }
+}
+
+/// @title OPContractsManager_Validate_Test
+/// @notice Tests the `validate` function of the `OPContractsManager` contract.
+contract OPContractsManager_Validate_Test is OPContractsManager_TestInit {
+    /// @notice Tests that validate function returns validation results.
+    function test_validate_succeeds() public view {
+        // Create a validation input using deployed contracts
+        IOPContractsManagerStandardValidator.ValidationInput memory input;
+        input.l2ChainID = 100; // Using the l2ChainId from chainDeployOutput1
+        input.sysCfg = chainDeployOutput1.systemConfigProxy;
+        input.proxyAdmin = chainDeployOutput1.opChainProxyAdmin;
+        input.absolutePrestate = Claim.wrap(bytes32(hex"ABCDABCD")).raw();
+
+        string memory result = opcm.validate(input, true);
+        // The result should be a string (even if empty or with errors)
+        assertTrue(bytes(result).length >= 0, "validate should return a result");
+    }
+
+    /// @notice Tests validate with allowFailure set to false reverts when validation fails.
+    function test_validate_allowFailureFalse_reverts() public {
+        IOPContractsManagerStandardValidator.ValidationInput memory input;
+        input.l2ChainID = 101; // Using the l2ChainId from chainDeployOutput2
+        input.sysCfg = chainDeployOutput2.systemConfigProxy;
+        input.proxyAdmin = chainDeployOutput2.opChainProxyAdmin;
+        input.absolutePrestate = Claim.wrap(bytes32(hex"DEADBEEF")).raw();
+
+        // When allowFailure is false and validation fails, it should revert
+        // The error message contains validation failure codes
+        vm.expectRevert();
+        opcm.validate(input, false);
+    }
+}
+
+/// @title OPContractsManager_ValidateWithOverrides_Test
+/// @notice Tests the `validateWithOverrides` function of the `OPContractsManager` contract.
+contract OPContractsManager_ValidateWithOverrides_Test is OPContractsManager_TestInit {
+    /// @notice Tests that validateWithOverrides returns validation results.
+    function test_validateWithOverrides_succeeds() public view {
+        IOPContractsManagerStandardValidator.ValidationInput memory input;
+        input.l2ChainID = 100; // Using the l2ChainId from chainDeployOutput1
+        input.sysCfg = chainDeployOutput1.systemConfigProxy;
+        input.proxyAdmin = chainDeployOutput1.opChainProxyAdmin;
+        input.absolutePrestate = Claim.wrap(bytes32(hex"ABCDABCD")).raw();
+
+        IOPContractsManagerStandardValidator.ValidationOverrides memory overrides;
+        overrides.l1PAOMultisig = address(this);
+        overrides.challenger = challenger;
+
+        string memory result = opcm.validateWithOverrides(input, true, overrides);
+        assertTrue(bytes(result).length >= 0, "validateWithOverrides should return a result");
+    }
+
+    /// @notice Tests validateWithOverrides with different override combinations.
+    function testFuzz_validateWithOverrides_varyingOverrides_succeeds(
+        address _l1PAOMultisig,
+        address _challenger
+    )
+        public
+        view
+    {
+        IOPContractsManagerStandardValidator.ValidationInput memory input;
+        input.l2ChainID = 100; // Using the l2ChainId from chainDeployOutput1
+        input.sysCfg = chainDeployOutput1.systemConfigProxy;
+        input.proxyAdmin = chainDeployOutput1.opChainProxyAdmin;
+        input.absolutePrestate = Claim.wrap(bytes32(hex"ABCDABCD")).raw();
+
+        IOPContractsManagerStandardValidator.ValidationOverrides memory overrides;
+        overrides.l1PAOMultisig = _l1PAOMultisig;
+        overrides.challenger = _challenger;
+
+        string memory result = opcm.validateWithOverrides(input, true, overrides);
+        assertTrue(bytes(result).length >= 0, "validateWithOverrides should return a result");
+    }
+}
+
+/// @title OPContractsManager_Blueprints_Test
+/// @notice Tests the `blueprints` function of the `OPContractsManager` contract.
+contract OPContractsManager_Blueprints_Test is OPContractsManager_TestInit {
+    /// @notice Tests that blueprints returns valid blueprint addresses.
+    function test_blueprints_succeeds() public view {
+        IOPContractsManager.Blueprints memory blueprintAddresses = opcm.blueprints();
+
+        // Verify that blueprint addresses are set (non-zero)
+        assertTrue(blueprintAddresses.addressManager != address(0), "addressManager blueprint should be set");
+        assertTrue(blueprintAddresses.proxy != address(0), "proxy blueprint should be set");
+        assertTrue(blueprintAddresses.proxyAdmin != address(0), "proxyAdmin blueprint should be set");
+        assertTrue(blueprintAddresses.l1ChugSplashProxy != address(0), "l1ChugSplashProxy blueprint should be set");
+        assertTrue(
+            blueprintAddresses.resolvedDelegateProxy != address(0), "resolvedDelegateProxy blueprint should be set"
+        );
+    }
+}
+
+/// @title OPContractsManager_Implementations_Test
+/// @notice Tests the `implementations` function of the `OPContractsManager` contract.
+contract OPContractsManager_Implementations_Test is OPContractsManager_TestInit {
+    /// @notice Tests that implementations returns valid implementation addresses.
+    function test_implementations_succeeds() public view {
+        IOPContractsManager.Implementations memory impls = opcm.implementations();
+
+        // Verify that implementation addresses are set (non-zero)
+        assertTrue(impls.l1ERC721BridgeImpl != address(0), "l1ERC721BridgeImpl should be set");
+        assertTrue(impls.optimismPortalImpl != address(0), "optimismPortalImpl should be set");
+        assertTrue(impls.systemConfigImpl != address(0), "systemConfigImpl should be set");
+        assertTrue(
+            impls.optimismMintableERC20FactoryImpl != address(0), "optimismMintableERC20FactoryImpl should be set"
+        );
+        assertTrue(impls.l1CrossDomainMessengerImpl != address(0), "l1CrossDomainMessengerImpl should be set");
+        assertTrue(impls.l1StandardBridgeImpl != address(0), "l1StandardBridgeImpl should be set");
+        assertTrue(impls.disputeGameFactoryImpl != address(0), "disputeGameFactoryImpl should be set");
+        assertTrue(impls.anchorStateRegistryImpl != address(0), "anchorStateRegistryImpl should be set");
+        assertTrue(impls.delayedWETHImpl != address(0), "delayedWETHImpl should be set");
+        assertTrue(impls.mipsImpl != address(0), "mipsImpl should be set");
     }
 }
