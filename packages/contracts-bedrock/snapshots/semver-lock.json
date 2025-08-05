@@ -172,7 +172,7 @@
     "sourceCodeHash": "0x8fdd69d4bcd33a3d8b49a73ff5b6855f9ad5f7e2b7393e67cd755973b127b1e8"
   },
   "src/dispute/v2/FaultDisputeGameV2.sol:FaultDisputeGameV2": {
-    "initCodeHash": "0xc0dff9e1704dcc889a0037590a6b1d59052ccf09448dcb701a3ad3c328f9fb77",
+    "initCodeHash": "0x9748700f873b6fe0599f9674a4c2dfbc9e35bbc918ebd2f7c54f709b1480df36",
     "sourceCodeHash": "0x156e64ff62be90f3e2a5958d42a301a411ffc4fe69e257f2ac8f183d47774f94"
   },
   "src/legacy/DeployerWhitelist.sol:DeployerWhitelist": {
