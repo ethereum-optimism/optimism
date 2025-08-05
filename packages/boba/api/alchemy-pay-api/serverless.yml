@@ -4,7 +4,7 @@ provider:
   name: aws
   runtime: python3.9
   stage: ${opt:stage, 'dev'}
-  region: ${opt:region, 'us-east-1'}
+  region: ${opt:region, 'us-east-2'}
   environment: ${file(env-${self:provider.stage}.yml)}
 
 functions:

@@ -110,14 +110,3 @@ curl -X POST http://localhost:3000/dev/generate \
     "redirectUrl": "https://your-redirect.com"
   }'
 ```
-
-
-```
-curl -X POST http://localhost:3000/mainnet/generate_alchemypay_url -H "Content-Type: application/json" -d '{}'
-```
-
-## Get the listing of existing scm certificates for getting domain name.
-
-```ssh
-aws acm list-certificates --region us-east-1
-```
