@@ -72,6 +72,15 @@ contract ProtocolVersions_Initialize_Test is ProtocolVersions_TestInit {
     }
 }
 
+/// @title ProtocolVersions_Required_Test
+/// @notice Test contract for ProtocolVersions `required` function.
+contract ProtocolVersions_Required_Test is ProtocolVersions_TestInit {
+    /// @notice Tests that required getter returns the correct value.
+    function test_required_succeeds() external view {
+        assertEq(ProtocolVersion.unwrap(protocolVersions.required()), ProtocolVersion.unwrap(required));
+    }
+}
+
 /// @title ProtocolVersions_SetRequired_Test
 /// @notice Test contract for ProtocolVersions `setRequired` function.
 contract ProtocolVersions_SetRequired_Test is ProtocolVersions_TestInit {
@@ -86,9 +95,20 @@ contract ProtocolVersions_SetRequired_Test is ProtocolVersions_TestInit {
     }
 
     /// @notice Tests that `setRequired` reverts if the caller is not the owner.
-    function test_setRequired_notOwner_reverts() external {
+    function testFuzz_setRequired_notOwner_reverts(address _caller) external {
+        vm.assume(_caller != protocolVersions.owner());
+        vm.prank(_caller);
         vm.expectRevert("Ownable: caller is not the owner");
         protocolVersions.setRequired(ProtocolVersion.wrap(0));
+    }
+}
+
+/// @title ProtocolVersions_Recommended_Test
+/// @notice Test contract for ProtocolVersions `recommended` function.
+contract ProtocolVersions_Recommended_Test is ProtocolVersions_TestInit {
+    /// @notice Tests that recommended getter returns the correct value.
+    function test_recommended_succeeds() external view {
+        assertEq(ProtocolVersion.unwrap(protocolVersions.recommended()), ProtocolVersion.unwrap(recommended));
     }
 }
 
@@ -106,7 +126,9 @@ contract ProtocolVersions_SetRecommended_Test is ProtocolVersions_TestInit {
     }
 
     /// @notice Tests that `setRecommended` reverts if the caller is not the owner.
-    function test_setRecommended_notOwner_reverts() external {
+    function testFuzz_setRecommended_notOwner_reverts(address _caller) external {
+        vm.assume(_caller != protocolVersions.owner());
+        vm.prank(_caller);
         vm.expectRevert("Ownable: caller is not the owner");
         protocolVersions.setRecommended(ProtocolVersion.wrap(0));
     }
