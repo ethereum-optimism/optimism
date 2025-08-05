@@ -2161,7 +2161,11 @@ contract OPContractsManager_Validate_Test is OPContractsManager_TestInit {
 
         // When allowFailure is false and validation fails, it should revert
         // The error message contains validation failure codes
-        vm.expectRevert();
+        vm.expectRevert(
+            bytes(
+                "OPContractsManagerStandardValidator: PROXYA-10,SYSCON-40,L1xDM-20,L1SB-20,MERC20F-20,L721B-20,PORTAL-20,DF-20,DF-30,PDDG-40,PDDG-DWETH-20,PDDG-DWETH-30,PDDG-DWETH-40,PDDG-ANCHORP-20,PDDG-VM-10,PDDG-130,PLDG-10,LOCKBOX-20"
+            )
+        );
         opcm.validate(input, false);
     }
 }
