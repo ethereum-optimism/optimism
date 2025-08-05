@@ -1,5 +1,5 @@
 APP_ID: "your-app-id"
-SECRET_KEY: "your-secret-key"
+SECRET_KEY: "${env:SECRET_KEY}"
 BASE_URL:
 STAGE: "dev"
 DOMAIN_NAME:
