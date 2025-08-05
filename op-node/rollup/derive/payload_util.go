@@ -90,7 +90,7 @@ func PayloadToSystemConfig(rollupCfg *rollup.Config, payload *eth.ExecutionPaylo
 		Scalar:      info.L1FeeScalar,
 		GasLimit:    uint64(payload.GasLimit),
 	}
-	if rollupCfg.IsConfigurableMinBaseFeeEnabled(uint64(payload.Timestamp)) {
+	if rollupCfg.IsConfigurableMinBaseFee(uint64(payload.Timestamp)) {
 		if err := eip1559.ValidateMinBaseFeeExtraData(payload.ExtraData); err != nil {
 			return eth.SystemConfig{}, err
 		}

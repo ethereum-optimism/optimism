@@ -173,7 +173,7 @@ func createGenesisWithIsthmusTime(isthmusTime uint64) *core.Genesis {
 				FundDevAccounts: true,
 			},
 			L2GenesisBlockDeployConfig: genesis.L2GenesisBlockDeployConfig{
-				L2GenesisBlockGasLimit: 30_000_000,
+				L2GenesisBlockGasLimit:   30_000_000,
 				L2GenesisBlockDifficulty: (*hexutil.Big)(big.NewInt(100)),
 			},
 			L2CoreDeployConfig: genesis.L2CoreDeployConfig{
@@ -186,7 +186,7 @@ func createGenesisWithIsthmusTime(isthmusTime uint64) *core.Genesis {
 			},
 		},
 	}
-	
+
 	// Enable forks up to the specified isthmus time
 	ts := hexutil.Uint64(0)
 	deployConfig.L2GenesisRegolithTimeOffset = &ts
@@ -196,7 +196,7 @@ func createGenesisWithIsthmusTime(isthmusTime uint64) *core.Genesis {
 	deployConfig.L2GenesisFjordTimeOffset = &ts
 	deployConfig.L2GenesisGraniteTimeOffset = &ts
 	deployConfig.L2GenesisHoloceneTimeOffset = &ts
-	
+
 	// Set isthmus time and subsequent forks
 	isthmusTimeOffset := hexutil.Uint64(isthmusTime)
 	deployConfig.L2GenesisIsthmusTimeOffset = &isthmusTimeOffset
