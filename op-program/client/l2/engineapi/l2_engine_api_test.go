@@ -199,15 +199,15 @@ func createGenesisWithForkTimeOffset(forkTimeOffset uint64) *core.Genesis {
 	deployConfig.L2GenesisGraniteTimeOffset = &ts
 	deployConfig.L2GenesisHoloceneTimeOffset = &ts
 
+<<<<<<< HEAD
 	// Set fork time for latest forks
 	offset := hexutil.Uint64(forkTimeOffset)
 	deployConfig.L2GenesisIsthmusTimeOffset = &offset
-	deployConfig.L2GenesisInteropTimeOffset = &offset
 	deployConfig.L2GenesisJovianTimeOffset = &offset
-
-	l1Genesis, err := genesis.NewL1Genesis(deployConfig)
-	if err != nil {
-		panic(err)
+=======
+	// Set isthmus time and subsequent forks
+	isthmusTimeOffset := hexutil.Uint64(isthmusTime)
+	deployConfig.L2GenesisIsthmusTimeOffset = &isthmusTimeOffset
 	}
 	l2Genesis, err := genesis.NewL2Genesis(deployConfig, eth.BlockRefFromHeader(l1Genesis.ToBlock().Header()))
 	if err != nil {
