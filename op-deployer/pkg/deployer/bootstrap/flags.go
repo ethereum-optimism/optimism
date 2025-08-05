@@ -85,7 +85,6 @@ var (
 		Name:    L1ContractsReleaseFlagName,
 		Usage:   "L1 contracts release",
 		EnvVars: deployer.PrefixEnvVar("L1_CONTRACTS_RELEASE"),
-		Value:   "dev",
 	}
 	ProtocolVersionsOwnerFlag = &cli.StringFlag{
 		Name:    ProtocolVersionsOwnerFlagName,
