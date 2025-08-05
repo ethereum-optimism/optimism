@@ -25,7 +25,7 @@ func TestConfigurableMinBaseFee(t *testing.T) {
 
 	// Run jovian test - require Jovian fork to be active
 	_, forkValidator := validators.AcquireL2WithFork(chainIdx, rollup.Jovian)
-	
+
 	systest.SystemTest(t,
 		configurableMinBaseFeeTestScenario(walletGetter, chainIdx),
 		walletValidator,
@@ -62,7 +62,7 @@ func configurableMinBaseFeeTestScenario(
 		// Extract minBaseFeeLog2 from block extra data
 		require.Len(t, header.Extra, 10, "Jovian blocks should have 10 bytes of extra data")
 		minBaseFeeLog2 := uint8(header.Extra[9])
-		
+
 		// Convert log2 value to actual minimum base fee (2^minBaseFeeLog2)
 		minBaseFee := new(big.Int).Exp(big.NewInt(2), big.NewInt(int64(minBaseFeeLog2)), nil)
 		require.Greater(t, minBaseFee.Uint64(), uint64(0), "Minimum base fee should be greater than 0")
@@ -70,15 +70,15 @@ func configurableMinBaseFeeTestScenario(
 		// Verify the minimum base fee is properly enforced
 		// The base fee should never go below the minimum
 		currentBaseFee := header.BaseFee
-		require.True(t, currentBaseFee.Cmp(minBaseFee) >= 0, 
-			"Current base fee (%s) should be >= minimum base fee (%s)", 
+		require.True(t, currentBaseFee.Cmp(minBaseFee) >= 0,
+			"Current base fee (%s) should be >= minimum base fee (%s)",
 			currentBaseFee.String(), minBaseFee.String())
 
 		// Wait for a few more blocks and verify base fee constraint is maintained
 		for i := 0; i < 5; i++ {
 			// Wait for next block
 			nextBlockNum := new(big.Int).Add(header.Number, big.NewInt(1))
-			
+
 			// Poll for the next block (simple polling)
 			var nextHeader *gethTypes.Header
 			for attempts := 0; attempts < 20; attempts++ { // Wait up to 20 seconds
@@ -106,7 +106,7 @@ func configurableMinBaseFeeTestScenario(
 		// Test that the minBaseFee value is encoded in the block extra data
 		// Jovian blocks should have 10 bytes of extra data (9 from Holocene + 1 for minBaseFee)
 		require.Len(t, header.Extra, 10, "Jovian blocks should have 10 bytes of extra data")
-		
+
 		// The last byte should encode the minBaseFee parameter
 		minBaseFeeExtraData := header.Extra[9]
 		require.NotEqual(t, byte(0), minBaseFeeExtraData, "MinBaseFee extra data should be non-zero")

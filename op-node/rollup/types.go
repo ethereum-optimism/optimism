@@ -480,8 +480,8 @@ func (c *Config) IsInterop(timestamp uint64) bool {
 	return c.IsForkActive(Interop, timestamp)
 }
 
-// IsConfigurableMinBaseFeeEnabled returns true if the configurable minBaseFee feature is enabled.
-func (c *Config) IsConfigurableMinBaseFeeEnabled(timestamp uint64) bool {
+// IsConfigurableMinBaseFee returns true if the configurable minBaseFee feature is enabled.
+func (c *Config) IsConfigurableMinBaseFee(timestamp uint64) bool {
 	return c.IsJovian(timestamp)
 }
 

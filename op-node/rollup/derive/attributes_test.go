@@ -453,10 +453,10 @@ func TestPreparePayloadAttributes(t *testing.T) {
 		eip1559Params := eth.Bytes8([]byte{0x1, 0x2, 0x3, 0x4, 0x5, 0x6, 0x7, 0x8})
 		minBaseFeeLog2 := uint8(20)
 		testSysCfg := eth.SystemConfig{
-			BatcherAddr:   common.Address{42},
-			Overhead:      [32]byte{},
-			Scalar:        [32]byte{},
-			EIP1559Params: eip1559Params,
+			BatcherAddr:    common.Address{42},
+			Overhead:       [32]byte{},
+			Scalar:         [32]byte{},
+			EIP1559Params:  eip1559Params,
 			MinBaseFeeLog2: minBaseFeeLog2,
 		}
 		l1CfgFetcher.ExpectSystemConfigByL2Hash(l2Parent.Hash, testSysCfg, nil)

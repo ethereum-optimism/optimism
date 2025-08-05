@@ -34,7 +34,8 @@ contract SystemConfig is ProxyAdminOwnedBase, OwnableUpgradeable, Reinitializabl
         GAS_LIMIT,
         UNSAFE_BLOCK_SIGNER,
         EIP_1559_PARAMS,
-        OPERATOR_FEE_PARAMS
+        OPERATOR_FEE_PARAMS,
+        MIN_BASE_FEE_LOG2
     }
 
     /// @notice Struct representing the addresses of L1 system contracts. These should be the
@@ -431,6 +432,9 @@ contract SystemConfig is ProxyAdminOwnedBase, OwnableUpgradeable, Reinitializabl
     /// @notice Internal function for updating the min base fee log2.
     function _setMinBaseFeeLog2(uint8 _minBaseFeeLog2) internal {
         minBaseFeeLog2 = _minBaseFeeLog2;
+
+        bytes memory data = abi.encode(_minBaseFeeLog2);
+        emit ConfigUpdate(VERSION, UpdateType.MIN_BASE_FEE_LOG2, data);
     }
 
     /// @notice Updates the operator fee parameters. Can only be called by the owner.
