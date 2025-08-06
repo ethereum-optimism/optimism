@@ -102,17 +102,17 @@ func runSysgo() error {
 	// Print available account.
 	hd, err := devkeys.NewMnemonicDevKeys(devkeys.TestMnemonic)
 	if err != nil {
-		return fmt.Errorf("new mnemonic dev keys: %v", err)
+		return fmt.Errorf("new mnemonic dev keys: %w", err)
 	}
 	const funderIndex = 10_000 // see sysgo/deployer.go.
 	funderUserKey := devkeys.UserKey(funderIndex)
 	funderAddress, err := hd.Address(funderUserKey)
 	if err != nil {
-		return fmt.Errorf("address: %v", err)
+		return fmt.Errorf("address: %w", err)
 	}
 	funderPrivKey, err := hd.Secret(funderUserKey)
 	if err != nil {
-		return fmt.Errorf("secret: %v", err)
+		return fmt.Errorf("secret: %w", err)
 	}
 
 	fmt.Printf("Test Account Address: %s\n", funderAddress)
@@ -129,7 +129,7 @@ func runSysgo() error {
 	orch.Hydrate(sys)
 	l2Networks := sys.L2Networks()
 	if len(l2Networks) != 1 {
-		return fmt.Errorf("need one l2 network, got: %v", len(l2Networks))
+		return fmt.Errorf("need one l2 network, got: %d", len(l2Networks))
 	}
 	l2Net := l2Networks[0]
 	elNode := l2Net.L2ELNode(match.FirstL2EL)
@@ -218,7 +218,7 @@ func proxyEL(client client.RPC) error {
 		// If 'params' is missing or null, `callParams` remains empty, which is correct for methods without parameters.
 
 		// Extract the request ID. This is crucial for matching responses to requests.
-		id, _ := req["id"] // ID can be string, number, or null. We don't need to check `ok` for this.
+		id := req["id"] // ID can be string, number, or null. We don't need to check `ok` for this.
 
 		// Prepare a variable to hold the RPC response result.
 		// `json.RawMessage` is used to capture the raw JSON value from the backend
@@ -251,7 +251,9 @@ func proxyEL(client client.RPC) error {
 			// For JSON-RPC, errors are typically returned with an HTTP 200 OK status,
 			// with the error details within the JSON payload.
 			w.WriteHeader(http.StatusOK)
-			w.Write(jsonResponse)
+			if _, err := w.Write(jsonResponse); err != nil {
+				return
+			}
 			return
 		}
 
@@ -271,12 +273,14 @@ func proxyEL(client client.RPC) error {
 		// Set the Content-Type header and write the successful JSON RPC response.
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
-		w.Write(jsonResponse)
+		if _, err := w.Write(jsonResponse); err != nil {
+			return
+		}
 	})
 
 	// Start the HTTP server.
 	if err := http.ListenAndServe("localhost:8545", nil); err != nil {
-		return fmt.Errorf("listen and server: %v", err)
+		return fmt.Errorf("listen and server: %w", err)
 	}
 	return nil
 }
