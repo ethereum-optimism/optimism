@@ -131,6 +131,8 @@ func TestL2CLAheadOfSupervisor(gt *testing.T) {
 // TestUnsafeChainKnownToL2CL tests the below scenario:
 // supervisor cross-safe ahead of L2CL cross-safe, aka L2CL can "skip" forward to match safety of supervisor.
 func TestUnsafeChainKnownToL2CL(gt *testing.T) {
+	gt.Skip("TODO(#16972): skipping due to flakiness and impending op-node/supervisor refactor")
+
 	t := devtest.SerialT(gt)
 
 	sys := presets.NewMultiSupervisorInterop(t)

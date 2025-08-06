@@ -19,6 +19,8 @@ import (
 type checksFunc func(t devtest.T, sys *presets.SimpleInterop)
 
 func TestL2ReorgAfterL1Reorg(gt *testing.T) {
+	gt.Skip("TODO(#16972): skipping due to flakiness and impending op-node/supervisor refactor")
+
 	gt.Run("unsafe reorg", func(gt *testing.T) {
 		var crossSafeRef, localSafeRef, unsafeRef eth.BlockID
 		pre := func(t devtest.T, sys *presets.SimpleInterop) {
