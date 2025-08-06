@@ -12,7 +12,7 @@ optimism_package:
             log_level: "debug"
             extra_env_vars: {}
             extra_labels: {}
-            extra_params: ["--log.vmodule=miner=4,--verbosity=4"]
+            extra_params: ["--log.vmodule=miner=4"]
             tolerations: []
             volume_size: 0
             min_cpu: 0
@@ -44,11 +44,11 @@ optimism_package:
         granite_time_offset: 0
         holocene_time_offset: 0
         isthmus_time_offset: 0
-        # jovian_time_offset: 0
+        jovian_time_offset: 0
         fund_dev_accounts: true
       batcher_params:
         image: {{ localDockerImage "op-batcher" }}
-        extra_params: ["--throttle-controller-type=quadratic", "--throttle-threshold=0"]
+        extra_params: ["--throttle-controller-type=quadratic"]
       proposer_params:
         image: {{ localDockerImage "op-proposer" }}
         extra_params: []
