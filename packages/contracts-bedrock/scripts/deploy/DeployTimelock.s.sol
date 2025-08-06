@@ -38,7 +38,7 @@ contract DeployTimelock is Script {
         // All required checks are in the timelock, so this is a no-op.
     }
 
-    function assertValidOutput(Input memory, Output memory _output) internal view {
+    function assertValidOutput(Input memory _input, Output memory _output) internal view {
         DeployUtils.assertValidContractAddress(address(_output.timelockImpl));
         DeployUtils.assertValidContractAddress(address(_output.timelockProxy));
     }

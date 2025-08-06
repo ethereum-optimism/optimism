@@ -459,8 +459,8 @@ contract Timelock_Approve_Test is Timelock_TestInit {
 /// @title Timelock_Cancel_Test
 /// @notice Test contract for Timelock cancel functions.
 contract Timelock_Cancel_Test is Timelock_TestInit {
-    function assertIsCancelled(bytes32 txHash) internal view {
-        (bool executed, bool cancelled,,) = timelock.getCall(txHash);
+    function assertIsCancelled(bytes32 _txHash) internal view {
+        (bool executed, bool cancelled,,) = timelock.getCall(_txHash);
         assertTrue(cancelled);
         assertFalse(executed);
     }

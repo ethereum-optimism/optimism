@@ -124,50 +124,50 @@ contract Timelock is ISemver, Initializable, ReinitializableBase {
     }
 
     /// @notice Initializes the Timelock contract.
-    /// @param controllers_ The addresses of the controllers that can approve and cancel calls.
-    /// @param longDelay_ The standard longer delay, in seconds, before a call can be executed.
-    /// @param shortDelay_ The shorter delay, in seconds, before a call can be executed if all controllers have
+    /// @param _controllers The addresses of the controllers that can approve and cancel calls.
+    /// @param _longDelay The standard longer delay, in seconds, before a call can be executed.
+    /// @param _shortDelay The shorter delay, in seconds, before a call can be executed if all controllers have
     /// approved.
     function initialize(
-        address[] memory controllers_,
-        uint256 longDelay_,
-        uint256 shortDelay_
+        address[] memory _controllers,
+        uint256 _longDelay,
+        uint256 _shortDelay
     )
         external
         reinitializer(initVersion())
     {
-        if (controllers_.length == 0) revert Timelock_EmptyControllers();
+        if (_controllers.length == 0) revert Timelock_EmptyControllers();
 
         // We disallow the single-controller case because every approval would immediately trigger
         // the "all controllers approved" short delay case, which is not the intended use case.
-        if (controllers_.length == 1) revert Timelock_SingleController();
+        if (_controllers.length == 1) revert Timelock_SingleController();
 
-        if (longDelay_ <= shortDelay_) revert Timelock_ReversedDelays();
-        if (longDelay_ == 0) revert Timelock_LongDelayZero();
-        if (shortDelay_ == 0) revert Timelock_ShortDelayZero();
+        if (_longDelay <= _shortDelay) revert Timelock_ReversedDelays();
+        if (_longDelay == 0) revert Timelock_LongDelayZero();
+        if (_shortDelay == 0) revert Timelock_ShortDelayZero();
 
-        if (longDelay_ > 180 days) revert Timelock_LongDelayTooLarge();
-        if (shortDelay_ > 30 days) revert Timelock_ShortDelayTooLarge();
+        if (_longDelay > 180 days) revert Timelock_LongDelayTooLarge();
+        if (_shortDelay > 30 days) revert Timelock_ShortDelayTooLarge();
 
-        for (uint256 i = 0; i < controllers_.length; i++) {
-            if (controllers_[i] == address(0)) revert Timelock_InvalidController();
-            controllers.add(controllers_[i]);
+        for (uint256 i = 0; i < _controllers.length; i++) {
+            if (_controllers[i] == address(0)) revert Timelock_InvalidController();
+            controllers.add(_controllers[i]);
             if (i > 0) {
-                if (controllers_[i] <= controllers_[i - 1]) {
+                if (_controllers[i] <= _controllers[i - 1]) {
                     revert Timelock_ControllersNotSortedOrUnique();
                 }
             }
         }
-        longDelay = longDelay_;
-        shortDelay = shortDelay_;
+        longDelay = _longDelay;
+        shortDelay = _shortDelay;
     }
 
     /// @notice Computes the unique hash for a given call. The hash is used as the unique identifier
     ///         for tracking call status and approvals.
-    /// @param call_ The call struct to compute the hash for.
-    /// @return txHash The computed hash of the call.
-    function hash(Call memory call_) public pure returns (bytes32 txHash) {
-        txHash = keccak256(abi.encode(call_));
+    /// @param _call The call struct to compute the hash for.
+    /// @return txHash_ The computed hash of the call.
+    function hash(Call memory _call) public pure returns (bytes32 txHash_) {
+        txHash_ = keccak256(abi.encode(_call));
     }
 
     /// @notice Approves a call for execution and sets its execution time (ETA). Only controllers
@@ -175,12 +175,12 @@ contract Timelock is ISemver, Initializable, ReinitializableBase {
     ///         based on the number of approvals:
     ///         - First approval: sets ETA to current time + longDelay
     ///         - All controllers approved: changes ETA to current time + shortDelay
-    /// @param call_ The call to approve.
+    /// @param _call The call to approve.
     /// @return eta_ The earliest time at which the call can be executed.
-    function approve(Call calldata call_) external returns (uint256 eta_) {
+    function approve(Call calldata _call) external returns (uint256 eta_) {
         if (!controllers.contains(msg.sender)) revert Timelock_NotAuthorized();
 
-        bytes32 txHash = hash(call_);
+        bytes32 txHash = hash(_call);
         CallStatus storage callStatus = calls[txHash];
 
         // Safety checks.
@@ -207,42 +207,42 @@ contract Timelock is ISemver, Initializable, ReinitializableBase {
             callStatus.eta = block.timestamp + longDelay;
         }
 
-        emit Approved(txHash, call_, callStatus.eta);
+        emit Approved(txHash, _call, callStatus.eta);
         return callStatus.eta;
     }
 
     /// @notice Cancels a call, making it permanently un-executable. Any controller can cancel a
     ///         call directly, or Gnosis Safe owners can cancel on behalf of their Safe controller.
     ///         Once cancelled, a call cannot be executed.
-    /// @param txHash The hash of the call to cancel.
-    /// @param controller The controller address that is cancelling the call.
-    function cancel(bytes32 txHash, address controller) public {
-        if (!controllers.contains(controller)) revert Timelock_InvalidController();
-        if (controller != msg.sender && !isCallerGnosisSafeOwner(controller, msg.sender)) {
+    /// @param _txHash The hash of the call to cancel.
+    /// @param _controller The controller address that is cancelling the call.
+    function cancel(bytes32 _txHash, address _controller) public {
+        if (!controllers.contains(_controller)) revert Timelock_InvalidController();
+        if (_controller != msg.sender && !isCallerGnosisSafeOwner(_controller, msg.sender)) {
             revert Timelock_NotAuthorized();
         }
 
-        CallStatus storage callStatus = calls[txHash];
+        CallStatus storage callStatus = calls[_txHash];
         if (callStatus.executed) revert Timelock_AlreadyExecuted();
         if (callStatus.cancelled) revert Timelock_AlreadyCancelled();
 
         callStatus.cancelled = true;
-        emit Cancelled(txHash);
+        emit Cancelled(_txHash);
     }
 
     /// @notice Cancels a call by its call struct hash. This is a convenience function that computes
     ///         the hash from the call struct and delegates to the main cancel function.
-    /// @param call_ The call struct to cancel.
-    /// @param controller The controller address that is cancelling the call.
-    function cancel(Call memory call_, address controller) external {
-        cancel(hash(call_), controller);
+    /// @param _call The call struct to cancel.
+    /// @param _controller The controller address that is cancelling the call.
+    function cancel(Call memory _call, address _controller) external {
+        cancel(hash(_call), _controller);
     }
 
     /// @notice Executes a call that has been approved and reached its execution time.
-    /// @param call_ The call to execute.
+    /// @param _call The call to execute.
     /// @return result_ The return data or revert data from the executed call.
-    function execute(Call calldata call_) external returns (bytes memory result_) {
-        bytes32 txHash = hash(call_);
+    function execute(Call calldata _call) external returns (bytes memory result_) {
+        bytes32 txHash = hash(_call);
         CallStatus storage callStatus = calls[txHash];
 
         if (block.timestamp < callStatus.eta) revert Timelock_EtaNotReached();
@@ -250,9 +250,9 @@ contract Timelock is ISemver, Initializable, ReinitializableBase {
         if (callStatus.executed) revert Timelock_AlreadyExecuted();
 
         callStatus.executed = true;
-        emit Executed(txHash, call_);
+        emit Executed(txHash, _call);
 
-        (bool success, bytes memory result) = call_.target.call{ value: call_.value }(call_.data);
+        (bool success, bytes memory result) = _call.target.call{ value: _call.value }(_call.data);
         if (!success) revert Timelock_CallFailed(result);
         return result;
     }
@@ -264,10 +264,10 @@ contract Timelock is ISemver, Initializable, ReinitializableBase {
     }
 
     /// @notice Returns the controller address at the specified index.
-    /// @param index The index of the controller to retrieve (0-based).
+    /// @param _index The index of the controller to retrieve (0-based).
     /// @return controller_ The controller address at the given index.
-    function getController(uint256 index) external view returns (address controller_) {
-        return controllers.at(index);
+    function getController(uint256 _index) external view returns (address controller_) {
+        return controllers.at(_index);
     }
 
     /// @notice Returns all controller addresses in an array.
@@ -277,17 +277,17 @@ contract Timelock is ISemver, Initializable, ReinitializableBase {
     }
 
     /// @notice Returns the complete status information for a call.
-    /// @param txHash The hash of the call to query.
+    /// @param _txHash The hash of the call to query.
     /// @return executed_ True if the call has been executed.
     /// @return cancelled_ True if the call has been cancelled.
     /// @return eta_ The earliest execution time for the call (0 if not approved).
     /// @return approvals_ Array of addresses that have approved the call.
-    function getCall(bytes32 txHash)
+    function getCall(bytes32 _txHash)
         external
         view
         returns (bool executed_, bool cancelled_, uint256 eta_, address[] memory approvals_)
     {
-        CallStatus storage callStatus = calls[txHash];
+        CallStatus storage callStatus = calls[_txHash];
         executed_ = callStatus.executed;
         cancelled_ = callStatus.cancelled;
         eta_ = callStatus.eta;
@@ -310,12 +310,12 @@ contract Timelock is ISemver, Initializable, ReinitializableBase {
     /// @notice Checks if a specific address is an owner of a Gnosis Safe controller. First verifies
     ///         the controller is a Gnosis Safe, then checks if the specified address is listed as
     ///         an owner of that Safe.
-    /// @param controller The Gnosis Safe controller address to check.
-    /// @param who The address to check for ownership.
+    /// @param _controller The Gnosis Safe controller address to check.
+    /// @param _who The address to check for ownership.
     /// @return isOwner_ True if the address is an owner of the Gnosis Safe controller.
-    function isCallerGnosisSafeOwner(address controller, address who) internal view returns (bool isOwner_) {
-        if (!isGnosisSafe(controller)) return false;
-        GnosisSafe safe = GnosisSafe(payable(controller));
-        return safe.isOwner(who);
+    function isCallerGnosisSafeOwner(address _controller, address _who) internal view returns (bool isOwner_) {
+        if (!isGnosisSafe(_controller)) return false;
+        GnosisSafe safe = GnosisSafe(payable(_controller));
+        return safe.isOwner(_who);
     }
 }
