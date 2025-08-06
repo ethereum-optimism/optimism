@@ -94,7 +94,7 @@ contract Timelock_TestInit is CommonTest {
         controllers.push(controller2);
         controllers.push(controller3);
 
-        timelock = new Timelock();
+        timelock = deployTimelock();
         timelock.initialize(controllers, longDelay, shortDelay);
         mockTarget = new MockTarget();
 
@@ -103,6 +103,16 @@ contract Timelock_TestInit is CommonTest {
         safeOwners[0] = gnosisSafeOwner;
         safeOwners[1] = controller1;
         gnosisSafe = new Mock_GnosisSafe(safeOwners, 1);
+    }
+
+    function deployTimelock() internal returns (Timelock timelock_) {
+        timelock_ = new Timelock();
+        // This is a hack to get around the fact that the tests do not bother to proxy the
+        // timelock, but the contract is nevertheless written to be proxied. A raw deployment
+        // of the timelock will result in the contract being initialized in the constructor, which
+        // is not the case when the contract is proxied. We can get around this by resetting
+        // the initialization status of the contract to 0.
+        vm.store(address(timelock_), bytes32(uint256(0)), bytes32(uint256(0)));
     }
 
     function _createCall(
@@ -138,42 +148,42 @@ contract Timelock_Initialize_Test is Timelock_TestInit {
     function test_initialize_emptyControllers_reverts() external {
         controllers = new address[](0);
 
-        timelock = new Timelock();
+        timelock = deployTimelock();
         vm.expectRevert(Timelock.Timelock_EmptyControllers.selector);
         timelock.initialize(controllers, longDelay, shortDelay);
     }
 
     /// @notice Tests initializer reverts when long delay <= short delay.
     function test_initialize_longDelayNotGreaterThanShort_reverts() external {
-        timelock = new Timelock();
+        timelock = deployTimelock();
         vm.expectRevert(Timelock.Timelock_ReversedDelays.selector);
         timelock.initialize(controllers, 1 days, 1 days);
     }
 
     /// @notice Tests initializer reverts when long delay is zero.
     function test_initialize_zeroLongDelay_reverts() external {
-        timelock = new Timelock();
+        timelock = deployTimelock();
         vm.expectRevert(Timelock.Timelock_ReversedDelays.selector);
         timelock.initialize(controllers, 0, 0);
     }
 
     /// @notice Tests initializer reverts when short delay is zero.
     function test_initialize_zeroShortDelay_reverts() external {
-        timelock = new Timelock();
+        timelock = deployTimelock();
         vm.expectRevert(Timelock.Timelock_ShortDelayZero.selector);
         timelock.initialize(controllers, 2 days, 0);
     }
 
     /// @notice Tests initializer reverts when long delay > 180 days.
     function test_initialize_longDelayTooLarge_reverts() external {
-        timelock = new Timelock();
+        timelock = deployTimelock();
         vm.expectRevert(Timelock.Timelock_LongDelayTooLarge.selector);
         timelock.initialize(controllers, 181 days, 1 days);
     }
 
     /// @notice Tests initializer reverts when short delay > 30 days.
     function test_initialize_shortDelayTooLarge_reverts() external {
-        timelock = new Timelock();
+        timelock = deployTimelock();
         vm.expectRevert(Timelock.Timelock_ShortDelayTooLarge.selector);
         timelock.initialize(controllers, 32 days, 31 days);
     }
@@ -185,7 +195,7 @@ contract Timelock_Initialize_Test is Timelock_TestInit {
         controllers[1] = address(0); // Zero address controller.
         controllers[2] = controller3;
 
-        timelock = new Timelock();
+        timelock = deployTimelock();
         vm.expectRevert(Timelock.Timelock_InvalidController.selector);
         timelock.initialize(controllers, longDelay, shortDelay);
     }
@@ -197,7 +207,7 @@ contract Timelock_Initialize_Test is Timelock_TestInit {
         controllers[1] = controller1; // Not in ascending order.
         controllers[2] = controller3;
 
-        timelock = new Timelock();
+        timelock = deployTimelock();
         vm.expectRevert(Timelock.Timelock_ControllersNotSortedOrUnique.selector);
         timelock.initialize(controllers, longDelay, shortDelay);
     }
@@ -209,7 +219,7 @@ contract Timelock_Initialize_Test is Timelock_TestInit {
         controllers[1] = controller1; // Duplicate controller.
         controllers[2] = controller3;
 
-        timelock = new Timelock();
+        timelock = deployTimelock();
         vm.expectRevert(Timelock.Timelock_ControllersNotSortedOrUnique.selector);
         timelock.initialize(controllers, longDelay, shortDelay);
     }
@@ -219,7 +229,7 @@ contract Timelock_Initialize_Test is Timelock_TestInit {
         controllers = new address[](1);
         controllers[0] = controller1;
 
-        timelock = new Timelock();
+        timelock = deployTimelock();
         vm.expectRevert(Timelock.Timelock_SingleController.selector);
         timelock.initialize(controllers, longDelay, shortDelay);
     }
@@ -229,7 +239,7 @@ contract Timelock_Initialize_Test is Timelock_TestInit {
         _shortDelay = uint256(bound(_shortDelay, 1, 30 days));
         _longDelay = uint256(bound(_longDelay, _shortDelay + 1, 180 days));
 
-        timelock = new Timelock();
+        timelock = deployTimelock();
         timelock.initialize(controllers, _longDelay, _shortDelay);
 
         assertEq(timelock.longDelay(), _longDelay);
@@ -498,9 +508,10 @@ contract Timelock_Cancel_Test is Timelock_TestInit {
     /// @notice Tests Gnosis Safe owner can cancel.
     function test_cancel_gnosisSafeOwner_succeeds() external {
         // Deploy timelock with gnosis safe as controller.
-        controllers = new address[](1);
-        controllers[0] = address(gnosisSafe);
-        timelock = new Timelock();
+        controllers = new address[](2);
+        controllers[0] = address(gnosisSafeOwner);
+        controllers[1] = address(gnosisSafe);
+        timelock = deployTimelock();
         timelock.initialize(controllers, longDelay, shortDelay);
 
         Timelock.Call memory call = _createDefaultCall();
@@ -578,9 +589,10 @@ contract Timelock_Cancel_Test is Timelock_TestInit {
     /// @notice Tests non-Gnosis Safe owner cannot cancel for Gnosis Safe.
     function test_cancel_nonGnosisSafeOwner_reverts() external {
         // Deploy timelock with gnosis safe as controller.
-        controllers = new address[](1);
-        controllers[0] = address(gnosisSafe);
-        timelock = new Timelock();
+        controllers = new address[](2);
+        controllers[0] = address(gnosisSafeOwner);
+        controllers[1] = address(gnosisSafe);
+        timelock = deployTimelock();
         timelock.initialize(controllers, longDelay, shortDelay);
 
         Timelock.Call memory call = _createDefaultCall();
