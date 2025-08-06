@@ -44,9 +44,6 @@ contract UnorderedExecutionModule is ISemver, ReentrancyGuard {
     /// @notice Error thrown when a transaction has already been executed
     error TransactionAlreadyExecuted();
 
-    /// @notice Error thrown when signature validation fails
-    error InvalidSignature();
-
     /// @notice Error thrown when module execution fails
     error ModuleExecutionFailed();
 

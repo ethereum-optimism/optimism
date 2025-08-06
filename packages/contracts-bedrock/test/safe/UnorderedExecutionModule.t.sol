@@ -53,38 +53,62 @@ contract UnorderedExecutionModule_TestInit is Test, SafeTestTools {
         // Enable the module on the Safe
         safeInstance.enableModule(address(module));
     }
-}
 
-contract UnorderedExecutionModule_ExecTransactionOnSafe_Test is UnorderedExecutionModule_TestInit {
-    /// @notice Test successful transaction execution
-    function test_execTransactionOnSafe_succeeds() public {
-        UnorderedExecutionModule.ExecTransactionFromModuleParams memory params = UnorderedExecutionModule.ExecTransactionFromModuleParams({
+    /// @notice Create transaction parameters for setValue call
+    function _createSetValueParams(uint256 _value) internal view returns (UnorderedExecutionModule.ExecTransactionFromModuleParams memory) {
+        return UnorderedExecutionModule.ExecTransactionFromModuleParams({
             to: address(target),
             value: 0,
-            data: abi.encodeWithSignature("setValue(uint256)", 42),
+            data: abi.encodeWithSignature("setValue(uint256)", _value),
             operation: Enum.Operation.Call
         });
+    }
 
-        uint256 nonce = uint256(keccak256(bytes("test nonce 1")));
-        bytes32 safeTxHash = safeInstance.safe.getTransactionHash({
-            to: params.to,
-            value: params.value,
-            data: params.data,
-            operation: params.operation,
+    /// @notice Create transaction parameters for reverting call
+    function _createRevertingParams() internal view returns (UnorderedExecutionModule.ExecTransactionFromModuleParams memory) {
+        return UnorderedExecutionModule.ExecTransactionFromModuleParams({
+            to: address(target),
+            value: 0,
+            data: abi.encodeWithSignature("revertingFunction()"),
+            operation: Enum.Operation.Call
+        });
+    }
+
+    /// @notice Generate transaction hash for given params and nonce
+    function _getTransactionHash(UnorderedExecutionModule.ExecTransactionFromModuleParams memory _params, uint256 _nonce) internal view returns (bytes32) {
+        return safeInstance.safe.getTransactionHash({
+            to: _params.to,
+            value: _params.value,
+            data: _params.data,
+            operation: _params.operation,
             safeTxGas: 0,
             baseGas: 0,
             gasPrice: 0,
             gasToken: address(0),
             refundReceiver: address(0),
-            _nonce: nonce
+            _nonce: _nonce
         });
+    }
 
+    /// @notice Generate signatures for transaction hash
+    function _generateSignatures(bytes32 _txHash) internal view returns (bytes memory) {
         bytes memory signatures;
         for (uint256 i; i < safeInstance.ownerPKs.length; ++i) {
             uint256 pk = safeInstance.ownerPKs[i];
-            (uint8 v, bytes32 r, bytes32 s) = vm.sign(pk, safeTxHash);
+            (uint8 v, bytes32 r, bytes32 s) = vm.sign(pk, _txHash);
             signatures = bytes.concat(signatures, abi.encodePacked(r, s, v));
         }
+        return signatures;
+    }
+}
+
+contract UnorderedExecutionModule_ExecTransactionOnSafe_Test is UnorderedExecutionModule_TestInit {
+    /// @notice Test successful transaction execution
+    function test_execTransactionOnSafe_succeeds() public {
+        UnorderedExecutionModule.ExecTransactionFromModuleParams memory params = _createSetValueParams(42);
+        uint256 nonce = uint256(keccak256(bytes("test nonce 1")));
+        bytes32 safeTxHash = _getTransactionHash(params, nonce);
+        bytes memory signatures = _generateSignatures(safeTxHash);
 
         vm.expectEmit(true, true, true, true);
         emit UnorderedExecutionModule.TransactionExecuted(
@@ -101,33 +125,10 @@ contract UnorderedExecutionModule_ExecTransactionOnSafe_Test is UnorderedExecuti
 
     /// @notice Test transaction replay prevention
     function test_execTransactionOnSafe_alreadyExecuted_reverts() public {
-        UnorderedExecutionModule.ExecTransactionFromModuleParams memory params = UnorderedExecutionModule.ExecTransactionFromModuleParams({
-            to: address(target),
-            value: 0,
-            data: abi.encodeWithSignature("setValue(uint256)", 42),
-            operation: Enum.Operation.Call
-        });
-
+        UnorderedExecutionModule.ExecTransactionFromModuleParams memory params = _createSetValueParams(42);
         uint256 nonce = uint256(keccak256(bytes("test nonce 2")));
-        bytes32 safeTxHash = safeInstance.safe.getTransactionHash({
-            to: params.to,
-            value: params.value,
-            data: params.data,
-            operation: params.operation,
-            safeTxGas: 0,
-            baseGas: 0,
-            gasPrice: 0,
-            gasToken: address(0),
-            refundReceiver: address(0),
-            _nonce: nonce
-        });
-
-        bytes memory signatures;
-        for (uint256 i; i < safeInstance.ownerPKs.length; ++i) {
-            uint256 pk = safeInstance.ownerPKs[i];
-            (uint8 v, bytes32 r, bytes32 s) = vm.sign(pk, safeTxHash);
-            signatures = bytes.concat(signatures, abi.encodePacked(r, s, v));
-        }
+        bytes32 safeTxHash = _getTransactionHash(params, nonce);
+        bytes memory signatures = _generateSignatures(safeTxHash);
 
         // Execute first time - should succeed
         bool success = module.execTransactionOnSafe(safeInstance.safe, nonce, params, signatures);
@@ -140,33 +141,10 @@ contract UnorderedExecutionModule_ExecTransactionOnSafe_Test is UnorderedExecuti
 
     /// @notice Test module execution failure
     function test_execTransactionOnSafe_moduleExecutionFailed_reverts() public {
-        UnorderedExecutionModule.ExecTransactionFromModuleParams memory params = UnorderedExecutionModule.ExecTransactionFromModuleParams({
-            to: address(target),
-            value: 0,
-            data: abi.encodeWithSignature("revertingFunction()"),
-            operation: Enum.Operation.Call
-        });
-
+        UnorderedExecutionModule.ExecTransactionFromModuleParams memory params = _createRevertingParams();
         uint256 nonce = uint256(keccak256(bytes("test nonce 3")));
-        bytes32 safeTxHash = safeInstance.safe.getTransactionHash({
-            to: params.to,
-            value: params.value,
-            data: params.data,
-            operation: params.operation,
-            safeTxGas: 0,
-            baseGas: 0,
-            gasPrice: 0,
-            gasToken: address(0),
-            refundReceiver: address(0),
-            _nonce: nonce
-        });
-
-        bytes memory signatures;
-        for (uint256 i; i < safeInstance.ownerPKs.length; ++i) {
-            uint256 pk = safeInstance.ownerPKs[i];
-            (uint8 v, bytes32 r, bytes32 s) = vm.sign(pk, safeTxHash);
-            signatures = bytes.concat(signatures, abi.encodePacked(r, s, v));
-        }
+        bytes32 safeTxHash = _getTransactionHash(params, nonce);
+        bytes memory signatures = _generateSignatures(safeTxHash);
 
         vm.expectRevert(UnorderedExecutionModule.ModuleExecutionFailed.selector);
         module.execTransactionOnSafe(safeInstance.safe, nonce, params, signatures);
@@ -176,33 +154,10 @@ contract UnorderedExecutionModule_ExecTransactionOnSafe_Test is UnorderedExecuti
     function testFuzz_execTransactionOnSafe_succeeds(uint256 _nonce, uint256 _value) public {
         _nonce = bound(_nonce, 1, type(uint256).max);
         _value = bound(_value, 0, type(uint256).max / 2);
-        
-        UnorderedExecutionModule.ExecTransactionFromModuleParams memory params = UnorderedExecutionModule.ExecTransactionFromModuleParams({
-            to: address(target),
-            value: 0,
-            data: abi.encodeWithSignature("setValue(uint256)", _value),
-            operation: Enum.Operation.Call
-        });
 
-        bytes32 safeTxHash = safeInstance.safe.getTransactionHash({
-            to: params.to,
-            value: params.value,
-            data: params.data,
-            operation: params.operation,
-            safeTxGas: 0,
-            baseGas: 0,
-            gasPrice: 0,
-            gasToken: address(0),
-            refundReceiver: address(0),
-            _nonce: _nonce
-        });
-
-        bytes memory signatures;
-        for (uint256 i; i < safeInstance.ownerPKs.length; ++i) {
-            uint256 pk = safeInstance.ownerPKs[i];
-            (uint8 v, bytes32 r, bytes32 s) = vm.sign(pk, safeTxHash);
-            signatures = bytes.concat(signatures, abi.encodePacked(r, s, v));
-        }
+        UnorderedExecutionModule.ExecTransactionFromModuleParams memory params = _createSetValueParams(_value);
+        bytes32 safeTxHash = _getTransactionHash(params, _nonce);
+        bytes memory signatures = _generateSignatures(safeTxHash);
 
         bool success = module.execTransactionOnSafe(safeInstance.safe, _nonce, params, signatures);
 
@@ -225,23 +180,7 @@ contract UnorderedExecutionModule_IsEnabledOnSafe_Test is UnorderedExecutionModu
         singlePK[0] = 0x123456789abcdef123456789abcdef123456789abcdef123456789abcdef12;
         SafeInstance memory newSafeInstance = _setupSafe(singlePK, 1);
         Safe newSafe = Safe(payable(newSafeInstance.safe));
-        
-        assertFalse(module.isEnabledOnSafe(newSafe));
-    }
 
-    /// @notice Fuzz test with different safe addresses
-    function testFuzz_isEnabledOnSafe_randomSafe_succeeds(address _randomSafe) public view {
-        vm.assume(_randomSafe != address(safeInstance.safe));
-        vm.assume(_randomSafe != address(0));
-        
-        // Most random addresses should return false since module not enabled
-        // We can't guarantee the behavior without more setup, so just ensure no revert
-        try module.isEnabledOnSafe(Safe(payable(_randomSafe))) returns (bool result) {
-            // Test completed successfully, result can be true or false
-            assertTrue(true);
-        } catch {
-            // Some addresses may cause reverts (non-contracts, etc.) - this is expected
-            assertTrue(true);
-        }
+        assertFalse(module.isEnabledOnSafe(newSafe));
     }
 }
