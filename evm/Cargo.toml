@@ -17,6 +17,7 @@ reth-evm = { workspace = true, features = ["op"] }
 reth-primitives-traits.workspace = true
 reth-execution-errors.workspace = true
 reth-execution-types.workspace = true
+reth-storage-errors.workspace = true
 
 reth-rpc-eth-api = { workspace = true, optional = true }
 
@@ -26,6 +27,7 @@ alloy-evm.workspace = true
 alloy-primitives.workspace = true
 alloy-op-evm.workspace = true
 op-alloy-consensus.workspace = true
+op-alloy-rpc-types-engine.workspace = true
 alloy-consensus.workspace = true
 
 # Optimism
@@ -70,6 +72,8 @@ std = [
     "alloy-op-evm/std",
     "op-revm/std",
     "reth-evm/std",
+    "op-alloy-rpc-types-engine/std",
+    "reth-storage-errors/std",
 ]
 portable = ["reth-revm/portable"]
 rpc = ["reth-rpc-eth-api"]

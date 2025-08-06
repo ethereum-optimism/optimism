@@ -83,7 +83,6 @@ reth-network-api.workspace = true
 
 alloy-network.workspace = true
 futures.workspace = true
-alloy-eips.workspace = true
 op-alloy-network.workspace = true
 tempfile.workspace = true
 
