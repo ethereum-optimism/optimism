@@ -292,7 +292,7 @@ func TestDeployScriptWithoutOutputImpl(t *testing.T) {
 		script := &mockForgeScript{
 			abi: abi.ABI{
 				Methods: map[string]abi.Method{
-					"run": abi.NewMethod("Run", "run", abi.Function, "", false, false, []abi.Argument{
+					"run": abi.NewMethod("run", "run", abi.Function, "", false, false, []abi.Argument{
 						{
 							Name: "_input",
 							Type: die(abi.NewType("uint256", "", []abi.ArgumentMarshaling{})),
@@ -334,7 +334,7 @@ func TestDeployScriptWithOutputImpl(t *testing.T) {
 		script := &mockForgeScript{
 			abi: abi.ABI{
 				Methods: map[string]abi.Method{
-					"run": abi.NewMethod("Run", "run", abi.Function, "", false, false, []abi.Argument{
+					"run": abi.NewMethod("run", "run", abi.Function, "", false, false, []abi.Argument{
 						{
 							Name: "_input",
 							Type: die(abi.NewType("uint256", "", []abi.ArgumentMarshaling{})),

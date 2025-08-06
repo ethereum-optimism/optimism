@@ -132,18 +132,34 @@ func NewDeployScriptWithOutput[I any, O any](script ForgeScript, methodName stri
 func newDeployScriptWithoutOutput[I any](script ForgeScript, methodName string) (*deployScriptWithoutOutputImpl[I], error) {
 	// Just to keep things DRY a bit
 	scriptName := script.Name()
-
-	// Make sure the method exists on the ABI
-	method, ok := script.ABI().Methods[methodName]
-	if !ok {
-		return nil, fmt.Errorf("script %s does not have a method called %s", scriptName, methodName)
-	}
-
-	// Now make sure the ABI has exactly one argument of the correct type
 	inputType := reflect.TypeOf(*new(I))
-	err := matchArguments(method.Inputs, inputType)
+
+	var (
+		method abi.Method
+		name   = methodName
+		err    error
+	)
+	for i := 0; ; i++ {
+		// Make sure the method exists on the ABI
+		var ok bool
+		method, ok = script.ABI().Methods[name]
+		if !ok {
+			if err == nil {
+				err = fmt.Errorf("script %s does not have a method called %s", scriptName, methodName)
+			}
+			break
+		}
+
+		// Now make sure the ABI has exactly one argument of the correct type
+		mErr := matchArguments(method.Inputs, inputType)
+		if mErr == nil {
+			break
+		}
+		err = fmt.Errorf("script %s does not have a method %s that accepts an argument of type %v: %w", scriptName, name, inputType, mErr)
+		name = fmt.Sprintf("%v%d", methodName, i)
+	}
 	if err != nil {
-		return nil, fmt.Errorf("script %s does not have a method %s that accepts an argument of type %v: %w", scriptName, methodName, inputType, err)
+		return nil, err
 	}
 
 	// Then after all that we're good to create the script
@@ -297,7 +313,7 @@ func (d *deployScriptWithoutOutputImpl[I]) Name() string {
 func (d *deployScriptWithoutOutputImpl[I]) run(input I) (result []byte, err error) {
 	// Just to keep things DRY a tiny bit
 	scriptName := d.Name()
-	methodName := d.method.RawName
+	methodName := d.method.Name
 
 	packed, err := d.ABI().Pack(methodName, input)
 	if err != nil {
@@ -331,7 +347,7 @@ type deployScriptWithOutputImpl[I any, O any] struct {
 func (d *deployScriptWithOutputImpl[I, O]) Run(input I) (output O, err error) {
 	// Just to keep things DRY a tiny bit
 	scriptName := d.Name()
-	methodName := d.method.RawName
+	methodName := d.method.Name
 
 	// We use the run to get the raw output of the contract call
 	result, err := d.deployScriptWithoutOutputImpl.run(input)
