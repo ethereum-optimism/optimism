@@ -57,6 +57,9 @@ contract Timelock is ISemver, Initializable, ReinitializableBase {
     /// @notice Thrown when controllers array is empty.
     error Timelock_EmptyControllers();
 
+    /// @notice Thrown when controllers array has only one controller.
+    error Timelock_SingleController();
+
     /// @notice Thrown when long delay is not greater than short delay.
     error Timelock_ReversedDelays();
 
@@ -123,7 +126,8 @@ contract Timelock is ISemver, Initializable, ReinitializableBase {
     /// @notice Initializes the Timelock contract.
     /// @param controllers_ The addresses of the controllers that can approve and cancel calls.
     /// @param longDelay_ The standard longer delay, in seconds, before a call can be executed.
-    /// @param shortDelay_ The shorter delay, in seconds, before a call can be executed if all controllers have approved.
+    /// @param shortDelay_ The shorter delay, in seconds, before a call can be executed if all controllers have
+    /// approved.
     function initialize(
         address[] memory controllers_,
         uint256 longDelay_,
@@ -134,6 +138,10 @@ contract Timelock is ISemver, Initializable, ReinitializableBase {
     {
         if (controllers_.length == 0) revert Timelock_EmptyControllers();
 
+        // We disallow the single-controller case because every approval would immediately trigger
+        // the "all controllers approved" short delay case, which is not the intended use case.
+        if (controllers_.length == 1) revert Timelock_SingleController();
+
         if (longDelay_ <= shortDelay_) revert Timelock_ReversedDelays();
         if (longDelay_ == 0) revert Timelock_LongDelayZero();
         if (shortDelay_ == 0) revert Timelock_ShortDelayZero();
@@ -142,6 +150,7 @@ contract Timelock is ISemver, Initializable, ReinitializableBase {
         if (shortDelay_ > 30 days) revert Timelock_ShortDelayTooLarge();
 
         for (uint256 i = 0; i < controllers_.length; i++) {
+            if (controllers_[i] == address(0)) revert Timelock_InvalidController();
             controllers.add(controllers_[i]);
             if (i > 0) {
                 if (controllers_[i] <= controllers_[i - 1]) {
@@ -174,22 +183,28 @@ contract Timelock is ISemver, Initializable, ReinitializableBase {
         bytes32 txHash = hash(call_);
         CallStatus storage callStatus = calls[txHash];
 
-        // Safety checks..
+        // Safety checks.
         if (callStatus.approvals.contains(msg.sender)) revert Timelock_AlreadyApproved();
         if (callStatus.executed) revert Timelock_AlreadyExecuted();
         if (callStatus.cancelled) revert Timelock_AlreadyCancelled();
 
-        // If it's the first approval, set the eta to the long delay.
-        if (callStatus.approvals.length() == 0) {
-            callStatus.eta = block.timestamp + longDelay;
-        }
-
-        // Add the approval.
+        // Add the approval first.
         callStatus.approvals.add(msg.sender);
 
-        // If there are as many approvals as controllers, set the eta to the short delay.
+        // Set ETA based on approval status. If all controllers have approved, use short delay,
+        // otherwise use long delay. If a long delay already exists, it remains unchanged. This is
+        // important to ensure that the long delay is not unnecessarily extended when a new
+        // approval is added.
         if (callStatus.approvals.length() == controllers.length()) {
-            callStatus.eta = block.timestamp + shortDelay;
+            // All controllers have approved, so we use the short delay. If the current ETA is
+            // closer than the short delay, we use the current ETA to avoid extending the ETA.
+            // The invariant here that ETA must never increase.
+            if (block.timestamp + shortDelay < callStatus.eta) {
+                callStatus.eta = block.timestamp + shortDelay;
+            }
+        } else if (callStatus.eta == 0) {
+            // First approval, so we set the long delay.
+            callStatus.eta = block.timestamp + longDelay;
         }
 
         emit Approved(txHash, call_, callStatus.eta);
@@ -203,7 +218,9 @@ contract Timelock is ISemver, Initializable, ReinitializableBase {
     /// @param controller The controller address that is cancelling the call.
     function cancel(bytes32 txHash, address controller) public {
         if (!controllers.contains(controller)) revert Timelock_InvalidController();
-        if (controller != msg.sender && !isCallerGnosisSafeOwner(controller, msg.sender)) revert Timelock_NotAuthorized();
+        if (controller != msg.sender && !isCallerGnosisSafeOwner(controller, msg.sender)) {
+            revert Timelock_NotAuthorized();
+        }
 
         CallStatus storage callStatus = calls[txHash];
         if (callStatus.executed) revert Timelock_AlreadyExecuted();
@@ -279,7 +296,9 @@ contract Timelock is ISemver, Initializable, ReinitializableBase {
 
     /// @notice Checks if the given address appears to be a Gnosis Safe contract. Performs a
     ///         heuristic check by calling getThreshold() and verifying the call succeeds and
-    ///         returns 32 bytes of data.
+    ///         returns 32 bytes of data. This is not a perfect check, but because the controllers
+    ///         are trusted entities (i.e. we are not worried about a malicious controller), this
+    ///         is a sufficient heuristic.
     /// @param _who The address to check.
     /// @return isGnosis_ True if the address appears to be a Gnosis Safe.
     function isGnosisSafe(address _who) internal view returns (bool isGnosis_) {

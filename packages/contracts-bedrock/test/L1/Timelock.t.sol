@@ -178,6 +178,52 @@ contract Timelock_Initialize_Test is Timelock_TestInit {
         timelock.initialize(controllers, 32 days, 31 days);
     }
 
+    /// @notice Tests initializer reverts when controllers array contains zero address.
+    function test_initialize_zeroAddressController_reverts() external {
+        controllers = new address[](3);
+        controllers[0] = controller1;
+        controllers[1] = address(0); // Zero address controller.
+        controllers[2] = controller3;
+
+        timelock = new Timelock();
+        vm.expectRevert(Timelock.Timelock_InvalidController.selector);
+        timelock.initialize(controllers, longDelay, shortDelay);
+    }
+
+    /// @notice Tests initializer reverts when controllers are not in ascending order.
+    function test_initialize_controllersNotSorted_reverts() external {
+        controllers = new address[](3);
+        controllers[0] = controller2; // Should be controller1 first.
+        controllers[1] = controller1; // Not in ascending order.
+        controllers[2] = controller3;
+
+        timelock = new Timelock();
+        vm.expectRevert(Timelock.Timelock_ControllersNotSortedOrUnique.selector);
+        timelock.initialize(controllers, longDelay, shortDelay);
+    }
+
+    /// @notice Tests initializer reverts when controllers array has duplicate addresses.
+    function test_initialize_duplicateControllers_reverts() external {
+        controllers = new address[](3);
+        controllers[0] = controller1;
+        controllers[1] = controller1; // Duplicate controller.
+        controllers[2] = controller3;
+
+        timelock = new Timelock();
+        vm.expectRevert(Timelock.Timelock_ControllersNotSortedOrUnique.selector);
+        timelock.initialize(controllers, longDelay, shortDelay);
+    }
+
+    /// @notice Tests initializer reverts with single controller.
+    function test_initialize_singleController_reverts() external {
+        controllers = new address[](1);
+        controllers[0] = controller1;
+
+        timelock = new Timelock();
+        vm.expectRevert(Timelock.Timelock_SingleController.selector);
+        timelock.initialize(controllers, longDelay, shortDelay);
+    }
+
     /// @notice Tests fuzz initializer with valid delay ranges.
     function testFuzz_initialize_validDelayRanges_succeeds(uint256 _longDelay, uint256 _shortDelay) external {
         _shortDelay = uint256(bound(_shortDelay, 1, 30 days));
@@ -348,10 +394,65 @@ contract Timelock_Approve_Test is Timelock_TestInit {
             Timelock.Call memory call = _createDefaultCall();
             vm.prank(controllers[i]);
             uint256 eta = timelock.approve(call);
-            uint256 expectedEta =
-                i == controllers.length - 1 ? uint256(block.timestamp) + shortDelay : uint256(block.timestamp) + longDelay;
+            uint256 expectedEta = i == controllers.length - 1
+                ? uint256(block.timestamp) + shortDelay
+                : uint256(block.timestamp) + longDelay;
             assertEq(eta, expectedEta);
         }
+    }
+
+    /// @notice Tests that intermediate approvals preserve the original long delay ETA.
+    function test_approve_intermediateApprovalsPreserveEta_succeeds() external {
+        Timelock.Call memory call = _createDefaultCall();
+        uint256 timestamp = block.timestamp;
+
+        // First approval - should set long delay ETA.
+        vm.prank(controller1);
+        uint256 eta1 = timelock.approve(call);
+        uint256 expectedLongEta = timestamp + longDelay;
+        assertEq(eta1, expectedLongEta);
+
+        // Second approval (intermediate) - should preserve the same ETA.
+        vm.prank(controller2);
+        uint256 eta2 = timelock.approve(call);
+        assertEq(eta2, expectedLongEta); // Same ETA as first approval.
+
+        // Third approval (all controllers) - should change to short delay.
+        uint256 timestamp2 = block.timestamp;
+        vm.prank(controller3);
+        uint256 eta3 = timelock.approve(call);
+        uint256 expectedShortEta = timestamp2 + shortDelay;
+        assertEq(eta3, expectedShortEta);
+    }
+
+    /// @notice Tests that ETA never increases (invariant validation) when final approval comes after long delay would
+    /// have expired.
+    function test_approve_etaNeverIncreases_succeeds() external {
+        Timelock.Call memory call = _createDefaultCall();
+
+        // First approval - set long delay ETA.
+        vm.prank(controller1);
+        uint256 eta1 = timelock.approve(call);
+
+        // Second approval - ETA should remain the same.
+        vm.prank(controller2);
+        uint256 eta2 = timelock.approve(call);
+        assertEq(eta2, eta1); // ETA unchanged.
+
+        // Warp time to after the long delay would expire, but before executing.
+        vm.warp(block.timestamp + longDelay + 1 days);
+
+        // Final approval - should not increase the ETA because the current ETA is closer than block.timestamp +
+        // shortDelay.
+        uint256 timestampBeforeFinalApproval = block.timestamp;
+        vm.prank(controller3);
+        uint256 eta3 = timelock.approve(call);
+
+        // The ETA should remain the original ETA (not increase to block.timestamp + shortDelay).
+        assertEq(eta3, eta1); // ETA should not have increased.
+
+        // Verify that block.timestamp + shortDelay would have been larger.
+        assertGt(timestampBeforeFinalApproval + shortDelay, eta1);
     }
 }
 
