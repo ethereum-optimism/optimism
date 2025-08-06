@@ -15,9 +15,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-devstack/sysgo"
 )
 
-//go:embed prestate-mt64.bin.gz
-var prestate []byte
-
 func main() {
 	if err := run(); err != nil {
 		fmt.Fprintf(os.Stderr, "error: %v", err)
