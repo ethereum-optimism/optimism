@@ -17,8 +17,8 @@ import (
 // Request errors are handled and re-tried, and the batch size is configurable.
 // Executing IterativeBatchCall is as simple as calling Fetch repeatedly until it returns io.EOF.
 type IterativeBatchCall[K any, V any] struct {
-	completed uint32       // tracks how far to completing all requests we are
-	resetLock sync.RWMutex // ensures we do not concurrently read (incl. fetch) / reset
+	completed atomic.Uint32 // tracks how far to completing all requests we are
+	resetLock sync.RWMutex  // ensures we do not concurrently read (incl. fetch) / reset
 
 	requestsKeys []K
 	batchSize    int
@@ -72,7 +72,7 @@ func (ibc *IterativeBatchCall[K, V]) Reset() {
 		scheduled <- r
 	}
 
-	atomic.StoreUint32(&ibc.completed, 0)
+	ibc.completed.Store(0)
 	ibc.requestsValues = requestsValues
 	ibc.scheduled = scheduled
 	if len(ibc.requestsKeys) == 0 {
@@ -154,8 +154,8 @@ func (ibc *IterativeBatchCall[K, V]) Fetch(ctx context.Context) error {
 			ibc.scheduled <- elem
 			continue
 		} else {
-			atomic.AddUint32(&ibc.completed, 1)
-			if atomic.LoadUint32(&ibc.completed) >= uint32(len(ibc.requestsKeys)) {
+			ibc.completed.Add(1)
+			if ibc.completed.Load() >= uint32(len(ibc.requestsKeys)) {
 				close(ibc.scheduled)
 				return io.EOF
 			}
@@ -168,14 +168,14 @@ func (ibc *IterativeBatchCall[K, V]) Fetch(ctx context.Context) error {
 func (ibc *IterativeBatchCall[K, V]) Complete() bool {
 	ibc.resetLock.RLock()
 	defer ibc.resetLock.RUnlock()
-	return atomic.LoadUint32(&ibc.completed) >= uint32(len(ibc.requestsKeys))
+	return ibc.completed.Load() >= uint32(len(ibc.requestsKeys))
 }
 
 // Result returns the fetched values, checked and transformed to the final output type, if available.
 // If the check fails, the IterativeBatchCall will Reset itself, to be ready for a re-attempt in fetching new data.
 func (ibc *IterativeBatchCall[K, V]) Result() ([]V, error) {
 	ibc.resetLock.RLock()
-	if atomic.LoadUint32(&ibc.completed) < uint32(len(ibc.requestsKeys)) {
+	if ibc.completed.Load() < uint32(len(ibc.requestsKeys)) {
 		ibc.resetLock.RUnlock()
 		return nil, errors.New("results not available yet, Fetch more first")
 	}
