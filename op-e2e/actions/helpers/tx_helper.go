@@ -27,15 +27,19 @@ func firstValidTx(
 	var txs []*types.Transaction
 	var q []*types.Transaction
 	// Wait for the tx to be in the pending tx queue
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 31*time.Second)
 	defer cancel()
 
-	err := retry.Do0(ctx, 30, retry.Fixed(time.Second), func() error {
+	err := retry.Do0(ctx, 10, retry.Exponential(), func() error {
 		i = pendingIndices(from)
 		txs, q = contentFrom(from)
 		// Remove any transactions that have already been included in the head block
 		// The tx pool only prunes included transactions async so they may still be in the list
-		nonce, err := nonceAt(ctx, from, nil)
+
+		subCtx, subCancel := context.WithTimeout(ctx, time.Second)
+		defer subCancel()
+
+		nonce, err := nonceAt(subCtx, from, nil)
 		if err != nil {
 			return err
 		}
