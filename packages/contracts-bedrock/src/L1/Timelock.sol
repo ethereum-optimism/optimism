@@ -158,6 +158,7 @@ contract Timelock is ISemver, Initializable, ReinitializableBase {
                 }
             }
         }
+
         longDelay = _longDelay;
         shortDelay = _shortDelay;
     }
