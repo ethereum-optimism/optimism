@@ -124,7 +124,7 @@ say 'downloaded'
 say "installing..."
 _install_dir="${OP_DIR}/bin"
 mkdir -p "$_install_dir"
-ensure tar --verbose --extract --file "$_archive" --directory "$_install_dir"
+ensure tar --verbose --extract --file "$_archive" --directory "$_install_dir" --strip-components 1
 ensure chmod +x "${_install_dir}/${_binary_name}"
 say 'installed'
 
