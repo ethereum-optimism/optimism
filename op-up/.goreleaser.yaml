@@ -3,7 +3,7 @@
 
 version: 2
 
-project_name: op
+project_name: op-up
 
 before:
   hooks:
