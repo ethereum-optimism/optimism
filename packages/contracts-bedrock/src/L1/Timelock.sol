@@ -132,8 +132,8 @@ contract Timelock {
 
     /// @dev Is the caller an owner of a Gnosis Safe?
     function isCallerGnosisSafeOwner(address controller, address who) internal view returns (bool) {
-        if (!isGnosisSafe(who)) return false;
+        if (!isGnosisSafe(controller)) return false;
         GnosisSafe safe = GnosisSafe(payable(controller));
-        return safe.isOwner(controller);
+        return safe.isOwner(who);
     }
 }
