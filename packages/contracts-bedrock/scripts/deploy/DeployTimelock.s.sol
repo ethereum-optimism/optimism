@@ -1,6 +1,6 @@
-// SPDX-License-Identifier: MIT
+// SPDX-License-Identifier: MIT.
 pragma solidity 0.8.15;
-import {console} from "forge-std/console.sol";
+
 import { Script } from "forge-std/Script.sol";
 import { DeployUtils } from "scripts/libraries/DeployUtils.sol";
 
@@ -10,7 +10,8 @@ import { Timelock } from "src/L1/Timelock.sol";
 
 // Sample invocation:
 //   forge script scripts/deploy/DeployTimelock.s.sol \
-//     --sig "run((address[],uint64,uint64))" "([0x0000000000000000000000000000000000000001,0x0000000000000000000000000000000000000002], 20, 10)"
+//     --sig "run((address[],uint64,uint64))" \
+//     "([0x0000000000000000000000000000000000000001,0x0000000000000000000000000000000000000002], 20, 10)"
 contract DeployTimelock is Script {
     struct Input {
         address[] controllers;
@@ -34,8 +35,7 @@ contract DeployTimelock is Script {
     }
 
     function assertValidInput(Input memory _input) internal pure {
-        // All required checks are in the timelock, but we keep the assertUniqueAddresses
-        // check here as an added convenience measure.
+        // All required checks are in the timelock, so this is a no-op.
     }
 
     function assertValidOutput(Input memory, Output memory _output) internal view {
@@ -57,11 +57,9 @@ contract DeployTimelock is Script {
         address timelockProxy = DeployUtils.create2({ _name: "Proxy", _args: args, _salt: salt });
 
         // Set and initialize the timelock implementation.
-        console.log("aa");
         IProxy(payable(timelockProxy)).upgradeToAndCall(
             timelockImpl, abi.encodeCall(Timelock.initialize, (_input.controllers, _input.longDelay, _input.shortDelay))
         );
-        console.log("bb");
 
         // Transfer ownership of the timelock proxy to itself.
         IProxy(payable(timelockProxy)).changeAdmin(timelockProxy);
@@ -70,7 +68,6 @@ contract DeployTimelock is Script {
 
         _output.timelockImpl = Timelock(timelockImpl);
         _output.timelockProxy = Timelock(timelockProxy);
-
     }
 
     function getSalt(Input memory _input) internal pure returns (bytes32) {

@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
-// Testing
+// Testing.
 import { CommonTest } from "test/setup/CommonTest.sol";
 import { GnosisSafe } from "safe-contracts/GnosisSafe.sol";
 
-// Target Contract
+// Target Contract.
 import { Timelock } from "src/L1/Timelock.sol";
 
 /// @notice Mock contract for testing Timelock execution calls.
@@ -80,20 +80,15 @@ contract Timelock_TestInit is CommonTest {
     address gnosisSafeOwner = makeAddr("gnosisSafeOwner");
     address nonGnosisSafeOwner = makeAddr("nonGnosisSafeOwner");
 
-    uint64 longDelay = 7 days;
-    uint64 shortDelay = 1 days;
+    uint256 longDelay = 7 days;
+    uint256 shortDelay = 1 days;
 
-    event Approved(bytes32 indexed txHash, Timelock.Call call, uint64 eta);
-    event Executed(bytes32 indexed txHash, Timelock.Call call);
+    event Approved(bytes32 indexed txHash, Timelock.Call call, uint256 eta);
     event Cancelled(bytes32 indexed txHash);
+    event Executed(bytes32 indexed txHash, Timelock.Call call);
 
     function setUp() public virtual override {
         super.setUp();
-
-        // address[] memory controllers = new address[](3);
-        // controllers[0] = controller1;
-        // controllers[1] = controller2;
-        // controllers[2] = controller3;
 
         controllers.push(controller1);
         controllers.push(controller2);
@@ -103,7 +98,7 @@ contract Timelock_TestInit is CommonTest {
         timelock.initialize(controllers, longDelay, shortDelay);
         mockTarget = new MockTarget();
 
-        // Create Gnosis Safe harness
+        // Create Gnosis Safe harness.
         address[] memory safeOwners = new address[](2);
         safeOwners[0] = gnosisSafeOwner;
         safeOwners[1] = controller1;
@@ -144,57 +139,49 @@ contract Timelock_Initialize_Test is Timelock_TestInit {
         controllers = new address[](0);
 
         timelock = new Timelock();
-        vm.expectRevert(
-            abi.encodeWithSelector(Timelock.InvalidConstructor.selector, "Controllers length must be greater than 0.")
-        );
+        vm.expectRevert(Timelock.Timelock_EmptyControllers.selector);
         timelock.initialize(controllers, longDelay, shortDelay);
     }
 
     /// @notice Tests initializer reverts when long delay <= short delay.
     function test_initialize_longDelayNotGreaterThanShort_reverts() external {
         timelock = new Timelock();
-        vm.expectRevert(
-            abi.encodeWithSelector(Timelock.InvalidConstructor.selector, "Long delay must be greater than short delay.")
-        );
+        vm.expectRevert(Timelock.Timelock_ReversedDelays.selector);
         timelock.initialize(controllers, 1 days, 1 days);
     }
 
     /// @notice Tests initializer reverts when long delay is zero.
     function test_initialize_zeroLongDelay_reverts() external {
         timelock = new Timelock();
-        vm.expectRevert(
-            abi.encodeWithSelector(Timelock.InvalidConstructor.selector, "Long delay must be greater than short delay.")
-        );
+        vm.expectRevert(Timelock.Timelock_ReversedDelays.selector);
         timelock.initialize(controllers, 0, 0);
     }
 
     /// @notice Tests initializer reverts when short delay is zero.
     function test_initialize_zeroShortDelay_reverts() external {
         timelock = new Timelock();
-        vm.expectRevert(
-            abi.encodeWithSelector(Timelock.InvalidConstructor.selector, "Short delay must be greater than 0.")
-        );
+        vm.expectRevert(Timelock.Timelock_ShortDelayZero.selector);
         timelock.initialize(controllers, 2 days, 0);
     }
 
     /// @notice Tests initializer reverts when long delay > 180 days.
     function test_initialize_longDelayTooLarge_reverts() external {
         timelock = new Timelock();
-        vm.expectRevert(abi.encodeWithSelector(Timelock.InvalidConstructor.selector, "Long delay must be <= 6 months."));
+        vm.expectRevert(Timelock.Timelock_LongDelayTooLarge.selector);
         timelock.initialize(controllers, 181 days, 1 days);
     }
 
     /// @notice Tests initializer reverts when short delay > 30 days.
     function test_initialize_shortDelayTooLarge_reverts() external {
         timelock = new Timelock();
-        vm.expectRevert(abi.encodeWithSelector(Timelock.InvalidConstructor.selector, "Short delay must be <= 1 year."));
+        vm.expectRevert(Timelock.Timelock_ShortDelayTooLarge.selector);
         timelock.initialize(controllers, 32 days, 31 days);
     }
 
     /// @notice Tests fuzz initializer with valid delay ranges.
-    function testFuzz_initialize_validDelayRanges_succeeds(uint64 _longDelay, uint64 _shortDelay) external {
-        _shortDelay = uint64(bound(_shortDelay, 1, 30 days));
-        _longDelay = uint64(bound(_longDelay, _shortDelay + 1, 180 days));
+    function testFuzz_initialize_validDelayRanges_succeeds(uint256 _longDelay, uint256 _shortDelay) external {
+        _shortDelay = uint256(bound(_shortDelay, 1, 30 days));
+        _longDelay = uint256(bound(_longDelay, _shortDelay + 1, 180 days));
 
         timelock = new Timelock();
         timelock.initialize(controllers, _longDelay, _shortDelay);
@@ -256,13 +243,13 @@ contract Timelock_Approve_Test is Timelock_TestInit {
     function test_approve_firstApproval_setsLongDelay() external {
         Timelock.Call memory call = _createDefaultCall();
         uint256 timestamp = block.timestamp;
-        uint64 expectedEta = uint64(timestamp) + longDelay;
+        uint256 expectedEta = uint256(timestamp) + longDelay;
 
         vm.expectEmit();
         emit Approved(timelock.hash(call), call, expectedEta);
 
         vm.prank(controller1);
-        uint64 eta = timelock.approve(call);
+        uint256 eta = timelock.approve(call);
 
         assertEq(eta, expectedEta);
     }
@@ -271,20 +258,20 @@ contract Timelock_Approve_Test is Timelock_TestInit {
     function test_approve_allControllers_setsShortDelay() external {
         Timelock.Call memory call = _createDefaultCall();
 
-        uint64 longEta = uint64(block.timestamp) + longDelay;
-        uint64 shortEta = uint64(block.timestamp) + shortDelay;
+        uint256 longEta = uint256(block.timestamp) + longDelay;
+        uint256 shortEta = uint256(block.timestamp) + shortDelay;
 
-        // First approval, long ETA
+        // First approval., long ETA.
         vm.prank(controller1);
-        uint64 eta = timelock.approve(call);
+        uint256 eta = timelock.approve(call);
         assertEq(eta, longEta);
 
-        // Second approval, long ETA
+        // Second approval, long ETA.
         vm.prank(controller2);
         eta = timelock.approve(call);
         assertEq(eta, longEta);
 
-        // Third approval (all controllers), short ETA
+        // Third approval (all controllers), short ETA.
         vm.expectEmit();
         emit Approved(timelock.hash(call), call, shortEta);
 
@@ -297,7 +284,7 @@ contract Timelock_Approve_Test is Timelock_TestInit {
     function test_approve_nonController_reverts() external {
         Timelock.Call memory call = _createDefaultCall();
 
-        vm.expectRevert(bytes("Not authorized."));
+        vm.expectRevert(Timelock.Timelock_NotAuthorized.selector);
         vm.prank(nonController);
         timelock.approve(call);
     }
@@ -309,16 +296,16 @@ contract Timelock_Approve_Test is Timelock_TestInit {
         vm.prank(controller1);
         timelock.approve(call);
 
-        vm.expectRevert(bytes("Already approved."));
+        vm.expectRevert(Timelock.Timelock_AlreadyApproved.selector);
         vm.prank(controller1);
         timelock.approve(call);
     }
 
-    /// @notice Tests cannot approve executed proposal.
+    /// @notice Tests cannot approve executed call.
     function test_approve_alreadyExecuted_reverts() external {
         Timelock.Call memory call = _createDefaultCall();
 
-        // Approve with all controllers
+        // Approve with all controllers.
         vm.prank(controller1);
         timelock.approve(call);
         vm.prank(controller2);
@@ -326,31 +313,31 @@ contract Timelock_Approve_Test is Timelock_TestInit {
         vm.prank(controller3);
         timelock.approve(call);
 
-        // Wait for short delay and execute
+        // Wait for short delay, then execute.
         vm.warp(block.timestamp + shortDelay);
         timelock.execute(call);
 
-        // Try to approve executed proposal - should fail with "Already approved"
-        // because the contract checks approvals before checking executed status
-        vm.expectRevert(bytes("Already approved."));
+        // Try to approve executed call - should fail with "Already approved"
+        // because the contract checks approvals before checking executed status.
+        vm.expectRevert(Timelock.Timelock_AlreadyApproved.selector);
         vm.prank(controller1);
         timelock.approve(call);
     }
 
-    /// @notice Tests cannot approve cancelled proposal.
+    /// @notice Tests cannot approve cancelled call.
     function test_approve_alreadyCancelled_reverts() external {
         Timelock.Call memory call = _createDefaultCall();
 
-        // First approval
+        // First approval.
         vm.prank(controller1);
         timelock.approve(call);
 
-        // Cancel proposal
+        // Cancel call.
         vm.prank(controller2);
         timelock.cancel(call, controller2);
 
-        // Try to approve cancelled proposal - use different controller
-        vm.expectRevert(bytes("Already executed."));
+        // Try to approve cancelled call - use different controller.
+        vm.expectRevert(Timelock.Timelock_AlreadyCancelled.selector);
         vm.prank(controller3);
         timelock.approve(call);
     }
@@ -360,9 +347,9 @@ contract Timelock_Approve_Test is Timelock_TestInit {
         for (uint256 i = 0; i < controllers.length; i++) {
             Timelock.Call memory call = _createDefaultCall();
             vm.prank(controllers[i]);
-            uint64 eta = timelock.approve(call);
-            uint64 expectedEta =
-                i == controllers.length - 1 ? uint64(block.timestamp) + shortDelay : uint64(block.timestamp) + longDelay;
+            uint256 eta = timelock.approve(call);
+            uint256 expectedEta =
+                i == controllers.length - 1 ? uint256(block.timestamp) + shortDelay : uint256(block.timestamp) + longDelay;
             assertEq(eta, expectedEta);
         }
     }
@@ -371,8 +358,8 @@ contract Timelock_Approve_Test is Timelock_TestInit {
 /// @title Timelock_Cancel_Test
 /// @notice Test contract for Timelock cancel functions.
 contract Timelock_Cancel_Test is Timelock_TestInit {
-    function assertIsCancelled(bytes32 txHash) internal {
-        (bool executed, bool cancelled,,) = timelock.getProposal(txHash);
+    function assertIsCancelled(bytes32 txHash) internal view {
+        (bool executed, bool cancelled,,) = timelock.getCall(txHash);
         assertTrue(cancelled);
         assertFalse(executed);
     }
@@ -409,7 +396,7 @@ contract Timelock_Cancel_Test is Timelock_TestInit {
 
     /// @notice Tests Gnosis Safe owner can cancel.
     function test_cancel_gnosisSafeOwner_succeeds() external {
-        // Deploy timelock with gnosis safe as controller
+        // Deploy timelock with gnosis safe as controller.
         controllers = new address[](1);
         controllers[0] = address(gnosisSafe);
         timelock = new Timelock();
@@ -418,7 +405,7 @@ contract Timelock_Cancel_Test is Timelock_TestInit {
         Timelock.Call memory call = _createDefaultCall();
         bytes32 txHash = timelock.hash(call);
 
-        // Approve from gnosis safe
+        // Approve from gnosis safe.
         vm.prank(address(gnosisSafe));
         timelock.approve(call);
 
@@ -434,7 +421,7 @@ contract Timelock_Cancel_Test is Timelock_TestInit {
         Timelock.Call memory call = _createDefaultCall();
         bytes32 txHash = timelock.hash(call);
 
-        vm.expectRevert(bytes("Invalid controller."));
+        vm.expectRevert(Timelock.Timelock_InvalidController.selector);
         vm.prank(controller1);
         timelock.cancel(txHash, nonController);
     }
@@ -444,17 +431,17 @@ contract Timelock_Cancel_Test is Timelock_TestInit {
         Timelock.Call memory call = _createDefaultCall();
         bytes32 txHash = timelock.hash(call);
 
-        vm.expectRevert(bytes("Not authorized."));
+        vm.expectRevert(Timelock.Timelock_NotAuthorized.selector);
         vm.prank(nonController);
         timelock.cancel(txHash, controller1);
     }
 
-    /// @notice Tests cannot cancel already executed proposal.
+    /// @notice Tests cannot cancel already executed call.
     function test_cancel_alreadyExecuted_reverts() external {
         Timelock.Call memory call = _createDefaultCall();
         bytes32 txHash = timelock.hash(call);
 
-        // Approve with all controllers and execute
+        // Approve with all controllers and execute.
         vm.prank(controller1);
         timelock.approve(call);
         vm.prank(controller2);
@@ -465,31 +452,31 @@ contract Timelock_Cancel_Test is Timelock_TestInit {
         vm.warp(block.timestamp + shortDelay);
         timelock.execute(call);
 
-        vm.expectRevert(bytes("Already executed."));
+        vm.expectRevert(Timelock.Timelock_AlreadyExecuted.selector);
         vm.prank(controller1);
         timelock.cancel(txHash, controller1);
     }
 
-    /// @notice Tests cannot cancel already cancelled proposal.
+    /// @notice Tests cannot cancel already cancelled call.
     function test_cancel_alreadyCancelled_reverts() external {
         Timelock.Call memory call = _createDefaultCall();
         bytes32 txHash = timelock.hash(call);
 
-        // Approve and cancel
+        // Approve and cancel.
         vm.prank(controller1);
         timelock.approve(call);
 
         vm.prank(controller2);
         timelock.cancel(txHash, controller2);
 
-        vm.expectRevert(bytes("Already cancelled."));
+        vm.expectRevert(Timelock.Timelock_AlreadyCancelled.selector);
         vm.prank(controller3);
         timelock.cancel(txHash, controller3);
     }
 
     /// @notice Tests non-Gnosis Safe owner cannot cancel for Gnosis Safe.
     function test_cancel_nonGnosisSafeOwner_reverts() external {
-        // Deploy timelock with gnosis safe as controller
+        // Deploy timelock with gnosis safe as controller.
         controllers = new address[](1);
         controllers[0] = address(gnosisSafe);
         timelock = new Timelock();
@@ -498,7 +485,7 @@ contract Timelock_Cancel_Test is Timelock_TestInit {
         Timelock.Call memory call = _createDefaultCall();
         bytes32 txHash = timelock.hash(call);
 
-        vm.expectRevert(bytes("Not authorized."));
+        vm.expectRevert(Timelock.Timelock_NotAuthorized.selector);
         vm.prank(nonGnosisSafeOwner);
         timelock.cancel(txHash, address(gnosisSafe));
     }
@@ -512,7 +499,7 @@ contract Timelock_Execute_Test is Timelock_TestInit {
         Timelock.Call memory call = _createDefaultCall();
         bytes32 txHash = timelock.hash(call);
 
-        // Approve with all controllers
+        // Approve with all controllers.
         vm.prank(controller1);
         timelock.approve(call);
         vm.prank(controller2);
@@ -520,7 +507,7 @@ contract Timelock_Execute_Test is Timelock_TestInit {
         vm.prank(controller3);
         timelock.approve(call);
 
-        // Wait for short delay
+        // Wait for short delay.
         vm.warp(block.timestamp + shortDelay);
 
         vm.expectEmit();
@@ -536,11 +523,11 @@ contract Timelock_Execute_Test is Timelock_TestInit {
     function test_execute_afterLongDelay_succeeds() external {
         Timelock.Call memory call = _createDefaultCall();
 
-        // Single approval (uses long delay)
+        // Single approval (uses long delay).
         vm.prank(controller1);
         timelock.approve(call);
 
-        // Wait for long delay
+        // Wait for long delay.
         vm.warp(block.timestamp + longDelay);
 
         timelock.execute(call);
@@ -557,7 +544,7 @@ contract Timelock_Execute_Test is Timelock_TestInit {
             bytes32("salt"), address(mockTarget), value, abi.encodeWithSelector(MockTarget.setValue.selector, 42)
         );
 
-        // Approve with all controllers
+        // Approve with all controllers.
         vm.prank(controller1);
         timelock.approve(call);
         vm.prank(controller2);
@@ -578,20 +565,20 @@ contract Timelock_Execute_Test is Timelock_TestInit {
     function test_execute_beforeEta_reverts() external {
         Timelock.Call memory call = _createDefaultCall();
 
-        // Single approval (long delay)
+        // Single approval (long delay).
         vm.prank(controller1);
         timelock.approve(call);
 
-        // Try to execute before eta
-        vm.expectRevert(bytes("ETA not reached."));
+        // Try to execute before eta.
+        vm.expectRevert(Timelock.Timelock_EtaNotReached.selector);
         timelock.execute(call);
     }
 
-    /// @notice Tests execution reverts for cancelled proposal.
+    /// @notice Tests execution reverts for cancelled call.
     function test_execute_cancelled_reverts() external {
         Timelock.Call memory call = _createDefaultCall();
 
-        // Approve and cancel
+        // Approve and cancel.
         vm.prank(controller1);
         timelock.approve(call);
 
@@ -600,15 +587,15 @@ contract Timelock_Execute_Test is Timelock_TestInit {
 
         vm.warp(block.timestamp + longDelay);
 
-        vm.expectRevert(bytes("Proposal cancelled."));
+        vm.expectRevert(Timelock.Timelock_CallCancelled.selector);
         timelock.execute(call);
     }
 
-    /// @notice Tests execution reverts for already executed proposal.
+    /// @notice Tests execution reverts for already executed call.
     function test_execute_alreadyExecuted_reverts() external {
         Timelock.Call memory call = _createDefaultCall();
 
-        // Approve with all controllers and execute
+        // Approve with all controllers and execute.
         vm.prank(controller1);
         timelock.approve(call);
         vm.prank(controller2);
@@ -619,7 +606,7 @@ contract Timelock_Execute_Test is Timelock_TestInit {
         vm.warp(block.timestamp + shortDelay);
         timelock.execute(call);
 
-        vm.expectRevert(bytes("Proposal already executed."));
+        vm.expectRevert(Timelock.Timelock_AlreadyExecuted.selector);
         timelock.execute(call);
     }
 
@@ -629,7 +616,7 @@ contract Timelock_Execute_Test is Timelock_TestInit {
 
         Timelock.Call memory call = _createDefaultCall();
 
-        // Approve with all controllers
+        // Approve with all controllers.
         vm.prank(controller1);
         timelock.approve(call);
         vm.prank(controller2);
@@ -639,9 +626,9 @@ contract Timelock_Execute_Test is Timelock_TestInit {
 
         vm.warp(block.timestamp + shortDelay);
 
-        // The revert data will be ABI-encoded string
+        // The revert data will be ABI-encoded string.
         bytes memory expectedRevertData = abi.encodeWithSignature("Error(string)", "Mock revert");
-        vm.expectRevert(abi.encodeWithSelector(Timelock.CallFailed.selector, expectedRevertData));
+        vm.expectRevert(abi.encodeWithSelector(Timelock.Timelock_CallFailed.selector, expectedRevertData));
         timelock.execute(call);
     }
 
@@ -653,7 +640,7 @@ contract Timelock_Execute_Test is Timelock_TestInit {
 
         Timelock.Call memory call = _createDefaultCall();
 
-        // Approve with all controllers
+        // Approve with all controllers.
         vm.prank(controller1);
         timelock.approve(call);
         vm.prank(controller2);
@@ -663,7 +650,7 @@ contract Timelock_Execute_Test is Timelock_TestInit {
 
         vm.warp(block.timestamp + shortDelay);
 
-        vm.expectRevert(abi.encodeWithSelector(Timelock.CallFailed.selector, customRevertData));
+        vm.expectRevert(abi.encodeWithSelector(Timelock.Timelock_CallFailed.selector, customRevertData));
         timelock.execute(call);
     }
 }
@@ -671,71 +658,71 @@ contract Timelock_Execute_Test is Timelock_TestInit {
 /// @title Timelock_Uncategorized_Test
 /// @notice Test contract for integration scenarios spanning multiple functions.
 contract Timelock_Uncategorized_Test is Timelock_TestInit {
-    /// @notice Tests complete proposal lifecycle with single approval.
-    function test_proposalLifecycle_singleApproval_succeeds() external {
+    /// @notice Tests complete call lifecycle with single approval.
+    function test_callLifecycle_singleApproval_succeeds() external {
         Timelock.Call memory call = _createDefaultCall();
 
-        // Approve proposal (sets long delay)
+        // Approve call. (sets long delay).
         vm.prank(controller1);
-        uint64 eta = timelock.approve(call);
+        uint256 eta = timelock.approve(call);
 
-        assertEq(eta, uint64(block.timestamp) + longDelay);
+        assertEq(eta, uint256(block.timestamp) + longDelay);
 
-        // Wait for eta and execute
+        // Wait for eta and execute.
         vm.warp(eta);
         timelock.execute(call);
 
         assertEq(mockTarget.value(), 42);
     }
 
-    /// @notice Tests complete proposal lifecycle with all approvals.
-    function test_proposalLifecycle_allApprovals_succeeds() external {
+    /// @notice Tests complete call lifecycle with all approvals.
+    function test_callLifecycle_allApprovals_succeeds() external {
         Timelock.Call memory call = _createDefaultCall();
 
-        // First approval (long delay)
+        // First approval (long delay).
         vm.prank(controller1);
-        uint64 eta1 = timelock.approve(call);
-        assertEq(eta1, uint64(block.timestamp) + longDelay);
+        uint256 eta1 = timelock.approve(call);
+        assertEq(eta1, uint256(block.timestamp) + longDelay);
 
-        // Second approval (still long delay)
+        // Second approval (still long delay).
         vm.prank(controller2);
-        uint64 eta2 = timelock.approve(call);
-        assertEq(eta2, eta1); // ETA doesn't change
+        uint256 eta2 = timelock.approve(call);
+        assertEq(eta2, eta1); // ETA doesn't change.
 
-        // Third approval (changes to short delay)
+        // Third approval (changes to short delay).
         uint256 timestamp = block.timestamp;
         vm.prank(controller3);
-        uint64 eta3 = timelock.approve(call);
-        assertEq(eta3, uint64(timestamp) + shortDelay);
+        uint256 eta3 = timelock.approve(call);
+        assertEq(eta3, uint256(timestamp) + shortDelay);
 
-        // Execute after short delay
+        // Execute after short delay.
         vm.warp(eta3);
         timelock.execute(call);
 
         assertEq(mockTarget.value(), 42);
     }
 
-    /// @notice Tests proposal cancellation prevents execution.
+    /// @notice Tests call cancellation prevents execution.
     function test_approveAndCancel_preventsExecution_succeeds() external {
         Timelock.Call memory call = _createDefaultCall();
 
-        // Approve proposal
+        // Approve call.
         vm.prank(controller1);
         timelock.approve(call);
 
-        // Cancel proposal
+        // Cancel call.
         vm.prank(controller2);
         timelock.cancel(call, controller2);
 
-        // Try to execute after delay
+        // Try to execute after delay.
         vm.warp(block.timestamp + longDelay);
 
-        vm.expectRevert(bytes("Proposal cancelled."));
+        vm.expectRevert(Timelock.Timelock_CallCancelled.selector);
         timelock.execute(call);
     }
 
-    /// @notice Tests multiple different proposals can coexist.
-    function test_multipleProposals_coexist_succeeds() external {
+    /// @notice Tests multiple different calls can coexist.
+    function test_multipleCalls_coexist_succeeds() external {
         Timelock.Call memory call1 = _createCall(
             bytes32("salt1"), address(mockTarget), 0, abi.encodeWithSelector(MockTarget.setValue.selector, 100)
         );
@@ -744,14 +731,14 @@ contract Timelock_Uncategorized_Test is Timelock_TestInit {
             bytes32("salt2"), address(mockTarget), 0, abi.encodeWithSelector(MockTarget.setValue.selector, 200)
         );
 
-        // Approve both proposals
+        // Approve both calls.
         vm.prank(controller1);
         timelock.approve(call1);
 
         vm.prank(controller2);
         timelock.approve(call2);
 
-        // Execute both after delay
+        // Execute both after delay.
         vm.warp(block.timestamp + longDelay);
 
         timelock.execute(call1);
@@ -765,25 +752,25 @@ contract Timelock_Uncategorized_Test is Timelock_TestInit {
     function test_partialApprovalAndCancel_stateConsistency_succeeds() external {
         Timelock.Call memory call = _createDefaultCall();
 
-        // Partial approvals
+        // Partial approvals.
         vm.prank(controller1);
         timelock.approve(call);
 
         vm.prank(controller2);
         timelock.approve(call);
 
-        // Cancel before reaching full approval
+        // Cancel before reaching full approval.
         vm.prank(controller3);
         timelock.cancel(call, controller3);
 
-        // Verify new proposal with different salt can be created
+        // Verify new call with different salt can be created.
         Timelock.Call memory newCall = _createCall(
             bytes32("different_salt"), address(mockTarget), 0, abi.encodeWithSelector(MockTarget.setValue.selector, 42)
         );
 
         vm.prank(controller1);
-        uint64 eta = timelock.approve(newCall);
+        uint256 eta = timelock.approve(newCall);
 
-        assertEq(eta, uint64(block.timestamp) + longDelay);
+        assertEq(eta, uint256(block.timestamp) + longDelay);
     }
 }
