@@ -153,6 +153,7 @@ func newDeployScriptWithoutOutput[I any](script ForgeScript, methodName string) 
 		// Now make sure the ABI has exactly one argument of the correct type
 		mErr := matchArguments(method.Inputs, inputType)
 		if mErr == nil {
+			err = nil
 			break
 		}
 		err = fmt.Errorf("script %s does not have a method %s that accepts an argument of type %v: %w", scriptName, name, inputType, mErr)
