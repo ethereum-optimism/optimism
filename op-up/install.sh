@@ -114,7 +114,7 @@ _binary_name="op"
 _target="${_ostype}-${_cputype}"
 say "downloading for target ${_target}..."
 _file_without_ext="${_binary_name}-${OP_VERSION}-${_target}"
-_url="https://github.com/${OP_REPO}/releases/download/${_binary_name}/v${OP_VERSION}/${_file_without_ext}.tar.gz"
+_url="https://github.com/${OP_REPO}/releases/download/${_binary_name}-up/v${OP_VERSION}/${_file_without_ext}.tar.gz"
 _archive=$(mktemp) || err "create temporary file"
 ensure curl --location --proto '=https' --tlsv1.2 --silent --show-error --fail "$_url" --output "$_archive"
 say 'downloaded'
