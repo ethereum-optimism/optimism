@@ -60,14 +60,6 @@ func run() error {
 		sysgo.WithProposer(ids.L2Proposer, ids.L1EL, &ids.L2CL, nil),
 
 		sysgo.WithFaucets([]stack.L1ELNodeID{ids.L1EL}, []stack.L2ELNodeID{ids.L2EL}),
-
-		// TODO(joshklop): cannon and op-program are passed to the op-challenger as binaries to be
-		// executed as subprocesses (op-challenger executes cannon which executes op-program). We
-		// can either modify op-challenger and cannon to run in-memory or embed them into the op
-		// binary.
-		//sysgo.WithL2Challenger(ids.L2Challenger, ids.L1EL, ids.L1CL, nil, nil, &ids.L2CL, []stack.L2ELNodeID{
-		//	ids.L2EL,
-		//}),
 	)))
 
 	return nil
