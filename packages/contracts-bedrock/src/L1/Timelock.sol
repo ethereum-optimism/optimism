@@ -60,6 +60,11 @@ contract Timelock is Initializable, ReinitializableBase {
 
         for (uint256 i = 0; i < controllers_.length; i++) {
             controllers.add(controllers_[i]);
+            if (i > 0) {
+                if (controllers_[i] <= controllers_[i - 1]) {
+                    revert InvalidConstructor("Controllers must be sorted and unique");
+                }
+            }
         }
         longDelay = longDelay_;
         shortDelay = shortDelay_;
