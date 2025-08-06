@@ -72,7 +72,7 @@ contract Timelock {
         require(!proposal.cancelled, "Already executed.");
 
         // If it's the first approval, set the eta to the long delay
-        if (controllers.length() == 0) {
+        if (proposal.approvals.length() == 0) {
             proposal.eta = uint64(block.timestamp) + longDelay;
         }
 
