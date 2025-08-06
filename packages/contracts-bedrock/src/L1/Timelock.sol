@@ -7,10 +7,10 @@ import { GnosisSafe } from "safe-contracts/GnosisSafe.sol";
 /// @title ProtocolVersions
 /// @notice The ProtocolVersions contract is used to manage superchain protocol version information.
 contract Timelock {
-
     event Approved(bytes32 indexed txHash, Call call, uint32 eta);
     event Cancelled(bytes32 indexed txHash, Call call);
     event Executed(bytes32 indexed txHash, Call call);
+
     error CallFailed(bytes revertData);
 
     struct Call {
@@ -21,7 +21,7 @@ contract Timelock {
     }
 
     struct Proposal {
-        mapping (address => bool) approved;
+        mapping(address => bool) approved;
         bool executed;
         bool cancelled;
         uint32 eta;
@@ -30,9 +30,8 @@ contract Timelock {
     uint32 public longTermDelay;
     uint32 public shortTermDelay;
 
-    mapping (address => bool) public controllers;
-    mapping (bytes32 => Proposal) public proposals;
-
+    mapping(address => bool) public controllers;
+    mapping(bytes32 => Proposal) public proposals;
 
     constructor(address[] memory controllers_, uint32 longTermDelay_, uint32 shortTermDelay_) {
         for (uint256 i = 0; i < controllers_.length; i++) {
@@ -57,16 +56,12 @@ contract Timelock {
     }
 
     /// @dev Compute the hash for a proposal
-    function hash(Call calldata call_)
-        public pure returns (bytes32 txHash)
-    {
+    function hash(Call calldata call_) public pure returns (bytes32 txHash) {
         txHash = keccak256(abi.encode(call_));
     }
 
     /// @dev Approve a proposal and set its eta
-    function approve(Call calldata call_)
-        external returns (uint32 eta)
-    {
+    function approve(Call calldata call_) external returns (uint32 eta) {
         require(controllers[msg.sender], "Not authorized.");
 
         bytes32 txHash = hash(call_);
@@ -93,14 +88,10 @@ contract Timelock {
     }
 
     /// @dev Any controller can veto a proposal and make it never executable
-    function cancel(bytes32 txHash, address controller)
-        public
-    {
+    function cancel(bytes32 txHash, address controller) public {
         require(controllers[controller], "Invalid controller.");
 
-        require(
-            controller == msg.sender ||
-            isCallerGnosisSafeOwner(controller), "Not authorized.");
+        require(controller == msg.sender || isCallerGnosisSafeOwner(controller), "Not authorized.");
 
         Proposal storage proposal = proposals[txHash];
         proposal.cancelled = true;
@@ -108,16 +99,12 @@ contract Timelock {
     }
 
     /// @dev Individual Gnosis Safe owners can veto a proposal and make it never executable
-    function cancel(Call memory call_, address controller)
-        external
-    {
+    function cancel(Call memory call_, address controller) external {
         cancel(hash(call_), controller);
     }
 
     /// @dev Execute a proposal, if past the eta, not cancelled and not executed
-    function execute(Call calldata call_)
-        external returns (bytes memory)
-    {
+    function execute(Call calldata call_) external returns (bytes memory) {
         bytes32 txHash = hash(call_);
         Proposal storage proposal = proposals[txHash];
 
