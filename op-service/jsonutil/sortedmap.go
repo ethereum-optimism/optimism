@@ -1,6 +1,7 @@
 package jsonutil
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"sort"
@@ -21,22 +22,22 @@ func (m LazySortedJsonMap[K, V]) MarshalJSON() ([]byte, error) {
 		values[s] = v
 	}
 	sort.Strings(keys)
-	var out []byte
-	out = append(out, '{')
+	var out bytes.Buffer
+	out.WriteByte('{')
 	for i, k := range keys {
-		out = append(out, k...) // quotes are already included
-		out = append(out, ':')
+		out.WriteString(k) // quotes are already included
+		out.WriteByte(':')
 		v, err := json.Marshal(values[k])
 		if err != nil {
 			return nil, fmt.Errorf("failed to encode value of %s: %w", k, err)
 		}
-		out = append(out, v...)
+		out.Write(v)
 		if i != len(keys)-1 {
-			out = append(out, ',')
+			out.WriteByte(',')
 		}
 	}
-	out = append(out, '}')
-	return out, nil
+	out.WriteByte('}')
+	return out.Bytes(), nil
 }
 
 func (m *LazySortedJsonMap[K, V]) UnmarshalJSON(data []byte) error {
