@@ -46,7 +46,7 @@ optimism_package:
         fund_dev_accounts: true
       batcher_params:
         image: {{ localDockerImage "op-batcher" }}
-        extra_params: []
+        extra_params: ["--throttle-controller-type=quadratic", "--throttle-threshold=100000"]
       proposer_params:
         image: {{ localDockerImage "op-proposer" }}
         extra_params: []
