@@ -59,6 +59,7 @@ contract UnorderedExecutionModule is ISemver, ReentrancyGuard {
     /// @return success Whether the transaction was successful
     function execTransactionOnSafe(
         Safe safe,
+        uint256 nonce,
         ExecTransactionFromModuleParams memory params,
         bytes memory signatures
     )
@@ -67,42 +68,19 @@ contract UnorderedExecutionModule is ISemver, ReentrancyGuard {
         nonReentrant
         returns (bool success)
     {
-        // Generate a deterministic hash based on safe address, chain ID, and transaction params
-        // Including block.chainid and block.timestamp for additional collision resistance
-        bytes32 perSafeTxHash = keccak256(
-            abi.encode(safe, block.chainid, params.to, params.value, params.data, params.operation, block.timestamp)
-        );
+        // Use the Safe's getTransactionHash function to generate a deterministic hash,
+        // this hash includes the Safe's domain separator.
+        // This hash is used both for replay protection and for signature verification.
+        (bytes32 safesInternalTxHash, bytes memory txHashData) = getSafesInternalTxHashAndTxHashData(safe, nonce, params);
 
-        if (executedTransactions[perSafeTxHash]) {
+        if (executedTransactions[safesInternalTxHash]) {
             revert TransactionAlreadyExecuted();
         }
-        executedTransactions[perSafeTxHash] = true;
-
-        // Encode transaction data using the hash as nonce
-        // We use a very high nonce value to avoid collision with regular Safe transactions
-        uint256 pseudoNonce = uint256(perSafeTxHash) | (1 << 255); // Set MSB to ensure high value
-
-        bytes memory txHashData = safe.encodeTransactionData(
-            params.to,
-            params.value,
-            params.data,
-            params.operation,
-            0, // safeTxGas
-            0, // baseGas
-            0, // gasPrice
-            address(0), // gasToken
-            address(0), // refundReceiver
-            pseudoNonce
-        );
-
-        bytes32 txHash = keccak256(txHashData);
+        executedTransactions[safesInternalTxHash] = true;
 
         // Verify signatures using Safe's signature checking
-        try safe.checkSignatures(txHash, txHashData, signatures) {
-            // Signature validation succeeded
-        } catch {
-            revert InvalidSignature();
-        }
+        // Failure will bubble up
+        safe.checkSignatures(safesInternalTxHash, txHashData, signatures);
 
         // Execute transaction through Safe's module system
         success = safe.execTransactionFromModule(params.to, params.value, params.data, params.operation);
@@ -111,13 +89,7 @@ contract UnorderedExecutionModule is ISemver, ReentrancyGuard {
             revert ModuleExecutionFailed();
         }
 
-        emit TransactionExecuted(address(safe), txHash, params.to, params.value, params.data, params.operation);
-    }
-
-    /// @notice Returns whether nonceless execution is enabled (always true for this module)
-    /// @return enabled Always returns true
-    function isNoncelessEnabled() external pure returns (bool enabled) {
-        return true;
+        emit TransactionExecuted(address(safe), safesInternalTxHash, params.to, params.value, params.data, params.operation);
     }
 
     /// @notice Utility function to check if this module is enabled on a given Safe
@@ -127,38 +99,36 @@ contract UnorderedExecutionModule is ISemver, ReentrancyGuard {
         return ModuleManager(address(safe)).isModuleEnabled(address(this));
     }
 
-    /// @notice Generates the transaction hash that would be used for a given transaction
-    /// @param safe The Safe contract
-    /// @param params The transaction parameters
-    /// @return txHash The transaction hash
-    /// @return perSafeTxHash The deterministic hash used for replay protection
-    function getTransactionHashes(
+    function getSafesInternalTxHashAndTxHashData(
         Safe safe,
+        uint256 nonce,
         ExecTransactionFromModuleParams memory params
-    )
-        external
-        view
-        returns (bytes32 txHash, bytes32 perSafeTxHash)
-    {
-        perSafeTxHash = keccak256(
-            abi.encode(safe, block.chainid, params.to, params.value, params.data, params.operation, block.timestamp)
+    ) internal view returns (bytes32, bytes memory) {
+        return (
+            safe.getTransactionHash({
+                to: params.to,
+                value: params.value,
+                data: params.data,
+                operation: params.operation,
+                safeTxGas: 0,
+                baseGas: 0,
+                gasPrice: 0,
+                gasToken: address(0),
+                refundReceiver: address(0),
+                _nonce: nonce
+            }),
+            safe.encodeTransactionData({
+                to: params.to,
+                value: params.value,
+                data: params.data,
+                operation: params.operation,
+                safeTxGas: 0,
+                baseGas: 0,
+                gasPrice: 0,
+                gasToken: address(0),
+                refundReceiver: address(0),
+                _nonce: nonce
+            })
         );
-
-        uint256 pseudoNonce = uint256(perSafeTxHash) | (1 << 255);
-
-        bytes memory txHashData = safe.encodeTransactionData(
-            params.to,
-            params.value,
-            params.data,
-            params.operation,
-            0, // safeTxGas
-            0, // baseGas
-            0, // gasPrice
-            address(0), // gasToken
-            address(0), // refundReceiver
-            pseudoNonce
-        );
-
-        txHash = keccak256(txHashData);
     }
 }
