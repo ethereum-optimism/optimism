@@ -26,6 +26,7 @@ pub(crate) struct HardforkConfig {
     pub granite_time: Option<u64>,
     pub holocene_time: Option<u64>,
     pub isthmus_time: Option<u64>,
+    pub jovian_time: Option<u64>,
 }
 
 #[derive(Clone, Debug, Deserialize)]
@@ -57,6 +58,8 @@ pub(crate) struct ChainConfigExtraFields {
     pub holocene_time: Option<u64>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub isthmus_time: Option<u64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub jovian_time: Option<u64>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub optimism: Option<ChainConfigExtraFieldsOptimism>,
 }
@@ -137,6 +140,7 @@ pub(crate) fn to_genesis_chain_config(chain_config: &ChainMetadata) -> ChainConf
         granite_time: chain_config.hardforks.granite_time,
         holocene_time: chain_config.hardforks.holocene_time,
         isthmus_time: chain_config.hardforks.isthmus_time,
+        jovian_time: chain_config.hardforks.jovian_time,
         optimism: chain_config.optimism.as_ref().map(|o| o.into()),
     };
     res.extra_fields =
@@ -199,6 +203,7 @@ mod tests {
             granite_time: Some(1726070401),
             holocene_time: Some(1736445601),
             isthmus_time: Some(1746806401),
+            jovian_time: None,
             optimism: Option::from(ChainConfigExtraFieldsOptimism {
                 eip1559_elasticity: 6,
                 eip1559_denominator: 50,
@@ -215,6 +220,7 @@ mod tests {
         assert_eq!(value.get("graniteTime").unwrap(), 1726070401);
         assert_eq!(value.get("holoceneTime").unwrap(), 1736445601);
         assert_eq!(value.get("isthmusTime").unwrap(), 1746806401);
+        assert_eq!(value.get("jovianTime"), None);
         let optimism = value.get("optimism").unwrap();
         assert_eq!(optimism.get("eip1559Elasticity").unwrap(), 6);
         assert_eq!(optimism.get("eip1559Denominator").unwrap(), 50);
@@ -259,6 +265,7 @@ mod tests {
         assert_eq!(chain_config.extra_fields.get("graniteTime").unwrap(), 1726070401);
         assert_eq!(chain_config.extra_fields.get("holoceneTime").unwrap(), 1736445601);
         assert_eq!(chain_config.extra_fields.get("isthmusTime").unwrap(), 1746806401);
+        assert_eq!(chain_config.extra_fields.get("jovianTime"), None);
         let optimism = chain_config.extra_fields.get("optimism").unwrap();
         assert_eq!(optimism.get("eip1559Elasticity").unwrap(), 6);
         assert_eq!(optimism.get("eip1559Denominator").unwrap(), 50);
@@ -307,6 +314,8 @@ mod tests {
         assert_eq!(chain_config.extra_fields.get("graniteTime").unwrap(), 1726070401);
         assert_eq!(chain_config.extra_fields.get("holoceneTime").unwrap(), 1736445601);
         assert_eq!(chain_config.extra_fields.get("isthmusTime").unwrap(), 1746806401);
+        assert_eq!(chain_config.extra_fields.get("jovianTime"), None);
+
         let optimism = chain_config.extra_fields.get("optimism").unwrap();
         assert_eq!(optimism.get("eip1559Elasticity").unwrap(), 6);
         assert_eq!(optimism.get("eip1559Denominator").unwrap(), 50);

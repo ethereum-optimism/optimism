@@ -193,9 +193,16 @@ impl OpChainSpecBuilder {
         self
     }
 
+    /// Enable Jovian at genesis
+    pub fn jovian_activated(mut self) -> Self {
+        self = self.isthmus_activated();
+        self.inner = self.inner.with_fork(OpHardfork::Jovian, ForkCondition::Timestamp(0));
+        self
+    }
+
     /// Enable Interop at genesis
     pub fn interop_activated(mut self) -> Self {
-        self = self.isthmus_activated();
+        self = self.jovian_activated();
         self.inner = self.inner.with_fork(OpHardfork::Interop, ForkCondition::Timestamp(0));
         self
     }
@@ -387,6 +394,7 @@ impl From<Genesis> for OpChainSpec {
             (OpHardfork::Granite.boxed(), genesis_info.granite_time),
             (OpHardfork::Holocene.boxed(), genesis_info.holocene_time),
             (OpHardfork::Isthmus.boxed(), genesis_info.isthmus_time),
+            (OpHardfork::Jovian.boxed(), genesis_info.jovian_time),
             (OpHardfork::Interop.boxed(), genesis_info.interop_time),
         ];
 
@@ -561,8 +569,13 @@ mod tests {
                 // Isthmus
                 (
                     Head { number: 0, timestamp: 1746806401, ..Default::default() },
-                    ForkId { hash: ForkHash([0x86, 0x72, 0x8b, 0x4e]), next: 0 },
+                    ForkId { hash: ForkHash([0x86, 0x72, 0x8b, 0x4e]), next: 0 }, /* TODO: update timestamp when Jovian is planned */
                 ),
+                // // Jovian
+                // (
+                //     Head { number: 0, timestamp: u64::MAX, ..Default::default() }, /* TODO:
+                // update timestamp when Jovian is planned */     ForkId { hash:
+                // ForkHash([0xef, 0x0e, 0x58, 0x33]), next: 0 }, ),
             ],
         );
     }
@@ -612,11 +625,16 @@ mod tests {
                     Head { number: 0, timestamp: 1732633200, ..Default::default() },
                     ForkId { hash: ForkHash([0x4a, 0x1c, 0x79, 0x2e]), next: 1744905600 },
                 ),
-                // isthmus
+                // Isthmus
                 (
                     Head { number: 0, timestamp: 1744905600, ..Default::default() },
-                    ForkId { hash: ForkHash([0x6c, 0x62, 0x5e, 0xe1]), next: 0 },
+                    ForkId { hash: ForkHash([0x6c, 0x62, 0x5e, 0xe1]), next: 0 }, /* TODO: update timestamp when Jovian is planned */
                 ),
+                // // Jovian
+                // (
+                //     Head { number: 0, timestamp: u64::MAX, ..Default::default() }, /* TODO:
+                // update timestamp when Jovian is planned */     ForkId { hash:
+                // ForkHash([0x04, 0x2a, 0x5c, 0x14]), next: 0 }, ),
             ],
         );
     }
@@ -679,8 +697,13 @@ mod tests {
                 // Isthmus
                 (
                     Head { number: 105235063, timestamp: 1746806401, ..Default::default() },
-                    ForkId { hash: ForkHash([0x37, 0xbe, 0x75, 0x8f]), next: 0 },
+                    ForkId { hash: ForkHash([0x37, 0xbe, 0x75, 0x8f]), next: 0 }, /* TODO: update timestamp when Jovian is planned */
                 ),
+                // Jovian
+                // (
+                //     Head { number: 105235063, timestamp: u64::MAX, ..Default::default() }, /*
+                // TODO: update timestamp when Jovian is planned */     ForkId {
+                // hash: ForkHash([0x26, 0xce, 0xa1, 0x75]), next: 0 }, ),
             ],
         );
     }
@@ -730,11 +753,16 @@ mod tests {
                     Head { number: 0, timestamp: 1732633200, ..Default::default() },
                     ForkId { hash: ForkHash([0x8b, 0x5e, 0x76, 0x29]), next: 1744905600 },
                 ),
-                // isthmus
+                // Isthmus
                 (
                     Head { number: 0, timestamp: 1744905600, ..Default::default() },
-                    ForkId { hash: ForkHash([0x06, 0x0a, 0x4d, 0x1d]), next: 0 },
+                    ForkId { hash: ForkHash([0x06, 0x0a, 0x4d, 0x1d]), next: 0 }, /* TODO: update timestamp when Jovian is planned */
                 ),
+                // // Jovian
+                // (
+                //     Head { number: 0, timestamp: u64::MAX, ..Default::default() }, /* TODO:
+                // update timestamp when Jovian is planned */     ForkId { hash:
+                // ForkHash([0xcd, 0xfd, 0x39, 0x99]), next: 0 }, ),
             ],
         );
     }
@@ -1062,6 +1090,7 @@ mod tests {
                     (String::from("graniteTime"), 0.into()),
                     (String::from("holoceneTime"), 0.into()),
                     (String::from("isthmusTime"), 0.into()),
+                    (String::from("jovianTime"), 0.into()),
                 ]
                 .into_iter()
                 .collect(),
@@ -1099,6 +1128,7 @@ mod tests {
             OpHardfork::Holocene.boxed(),
             EthereumHardfork::Prague.boxed(),
             OpHardfork::Isthmus.boxed(),
+            OpHardfork::Jovian.boxed(),
             // OpHardfork::Interop.boxed(),
         ];
 
