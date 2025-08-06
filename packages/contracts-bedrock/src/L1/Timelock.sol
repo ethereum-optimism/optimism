@@ -3,11 +3,13 @@ pragma solidity 0.8.15;
 
 import { GnosisSafe } from "safe-contracts/GnosisSafe.sol";
 import { EnumerableSet } from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
+import { Initializable } from "@openzeppelin/contracts/proxy/utils/Initializable.sol";
+import { ReinitializableBase } from "src/universal/ReinitializableBase.sol";
 
 /// @custom:proxied true
 /// @title Timelock
 /// @notice The Timelock contract is used as the owner for OP Stack contracts.
-contract Timelock {
+contract Timelock is Initializable, ReinitializableBase {
     using EnumerableSet for EnumerableSet.AddressSet;
 
     struct Call {
@@ -37,7 +39,16 @@ contract Timelock {
     event Executed(bytes32 indexed txHash, Call call);
     event Cancelled(bytes32 indexed txHash);
 
-    constructor(address[] memory controllers_, uint64 longDelay_, uint64 shortDelay_) {
+    constructor() ReinitializableBase(1) { }
+
+    function initialize(
+        address[] memory controllers_,
+        uint64 longDelay_,
+        uint64 shortDelay_
+    )
+        external
+        reinitializer(initVersion())
+    {
         if (controllers_.length == 0) revert InvalidConstructor("Controllers length must be greater than 0.");
 
         if (longDelay_ <= shortDelay_) revert InvalidConstructor("Long delay must be greater than short delay.");
