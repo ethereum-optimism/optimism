@@ -2,11 +2,14 @@
 pragma solidity 0.8.15;
 
 import { GnosisSafe } from "safe-contracts/GnosisSafe.sol";
+import { EnumerableSet } from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 
 /// @custom:proxied true
 /// @title Timelock
 /// @notice The Timelock contract is used as the owner for OP Stack contracts.
 contract Timelock {
+    using EnumerableSet for EnumerableSet.AddressSet;
+
     struct Call {
         bytes32 salt;
         address target;
@@ -18,14 +21,14 @@ contract Timelock {
         bool executed;
         bool cancelled;
         uint64 eta;
-        mapping(address => bool) approved;
+        EnumerableSet.AddressSet approvals;
     }
 
     uint64 public longDelay;
     uint64 public shortDelay;
 
-    mapping(address => bool) public controllers;
-    mapping(bytes32 => Proposal) public proposals;
+    EnumerableSet.AddressSet internal controllers; // TODO: Expose this data somehow
+    mapping(bytes32 => Proposal) internal proposals; // TODO: Expose this data somehow
 
     error InvalidConstructor(string reason);
     error CallFailed(bytes revertData);
@@ -45,7 +48,7 @@ contract Timelock {
         if (shortDelay_ > 30 days) revert InvalidConstructor("Short delay must be <= 1 year.");
 
         for (uint256 i = 0; i < controllers_.length; i++) {
-            controllers[controllers_[i]] = true;
+            controllers.add(controllers_[i]);
         }
         longDelay = longDelay_;
         shortDelay = shortDelay_;
@@ -58,20 +61,28 @@ contract Timelock {
 
     /// @dev Approve a proposal and set its eta
     function approve(Call calldata call_) external returns (uint64) {
-        require(controllers[msg.sender], "Not authorized.");
+        require(controllers.contains(msg.sender), "Not authorized.");
 
         bytes32 txHash = hash(call_);
         Proposal storage proposal = proposals[txHash];
 
         // Safety checks.
-        require(!proposal.approved[msg.sender], "Already approved.");
+        require(!proposal.approvals.contains(msg.sender), "Already approved.");
         require(!proposal.executed, "Already executed.");
         require(!proposal.cancelled, "Already executed.");
 
-        // TODO we need to fix this so it uses an enumerableSet and only uses the
-        // shortDelay if all controllers have approved.
-        proposal.eta = uint64(block.timestamp) + (proposal.approved[msg.sender] ? shortDelay : longDelay);
-        proposal.approved[msg.sender] = true;
+        // If it's the first approval, set the eta to the long delay
+        if (controllers.length() == 0) {
+            proposal.eta = uint64(block.timestamp) + longDelay;
+        }
+
+        // Add the approval
+        proposal.approvals.add(msg.sender);
+
+        // If there are as many approvals as controllers, set the eta to the short delay
+        if (proposal.approvals.length() == controllers.length()) {
+            proposal.eta = uint64(block.timestamp) + shortDelay;
+        }
 
         emit Approved(txHash, call_, proposal.eta);
         return proposal.eta;
@@ -79,7 +90,7 @@ contract Timelock {
 
     /// @dev Any controller can veto a proposal and make it never executable
     function cancel(bytes32 txHash, address controller) public {
-        require(controllers[controller], "Invalid controller.");
+        require(controllers.contains(controller), "Invalid controller.");
         require(controller == msg.sender || isCallerGnosisSafeOwner(controller, msg.sender), "Not authorized.");
 
         Proposal storage proposal = proposals[txHash];
