@@ -12,7 +12,7 @@ before:
 builds:
   - id: main
     main: .
-    binary: "{{ .ProjectName }}"
+    binary: "op"
     env:
       - CGO_ENABLED=0
     goos:
