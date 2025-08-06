@@ -36,7 +36,7 @@ func printClaim(claim types.Claim, game types.Game) string {
 }
 
 func checkRules(game types.Game, action types.Action, correctTrace types.TraceProvider) error {
-	var errs []error
+	errs := make([]error, 0, len(rules))
 	for _, rule := range rules {
 		errs = append(errs, rule(game, action, correctTrace))
 	}

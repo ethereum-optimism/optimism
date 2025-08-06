@@ -148,7 +148,7 @@ func (f *DisputeGameFactoryContract) GetAllGames(ctx context.Context, blockHash 
 		return nil, fmt.Errorf("failed to fetch games: %w", err)
 	}
 
-	var games []types.GameMetadata
+	games := make([]types.GameMetadata, 0, len(results))
 	for i, result := range results {
 		games = append(games, f.decodeGame(uint64(i), result))
 	}

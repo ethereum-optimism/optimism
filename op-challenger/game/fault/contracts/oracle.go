@@ -240,7 +240,7 @@ func (c *PreimageOracleContractLatest) GetActivePreimages(ctx context.Context, b
 		return nil, fmt.Errorf("failed to load claims: %w", err)
 	}
 
-	var idents []keccakTypes.LargePreimageIdent
+	idents := make([]keccakTypes.LargePreimageIdent, 0, len(results))
 	for _, result := range results {
 		idents = append(idents, c.decodePreimageIdent(result))
 	}
@@ -249,7 +249,7 @@ func (c *PreimageOracleContractLatest) GetActivePreimages(ctx context.Context, b
 }
 
 func (c *PreimageOracleContractLatest) GetProposalMetadata(ctx context.Context, block rpcblock.Block, idents ...keccakTypes.LargePreimageIdent) ([]keccakTypes.LargePreimageMetaData, error) {
-	var calls []batching.Call
+	calls := make([]batching.Call, 0, len(idents))
 	for _, ident := range idents {
 		calls = append(calls, c.contract.Call(methodProposalMetadata, ident.Claimant, ident.UUID))
 	}
@@ -257,7 +257,7 @@ func (c *PreimageOracleContractLatest) GetProposalMetadata(ctx context.Context, 
 	if err != nil {
 		return nil, fmt.Errorf("failed to load proposal metadata: %w", err)
 	}
-	var proposals []keccakTypes.LargePreimageMetaData
+	proposals := make([]keccakTypes.LargePreimageMetaData, 0, len(results))
 	for i, result := range results {
 		meta := metadata(result.GetBytes32(0))
 		proposals = append(proposals, keccakTypes.LargePreimageMetaData{

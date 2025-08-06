@@ -469,7 +469,7 @@ func (f *FaultDisputeGameContractLatest) GetAllClaims(ctx context.Context, block
 		return nil, fmt.Errorf("failed to load claims: %w", err)
 	}
 
-	var claims []types.Claim
+	claims := make([]types.Claim, 0, len(results))
 	for idx, result := range results {
 		claims = append(claims, f.decodeClaim(result, idx))
 	}
