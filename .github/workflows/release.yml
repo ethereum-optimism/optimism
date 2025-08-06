@@ -1,7 +1,6 @@
 name: Release
 
 on:
-  workflow_dispatch:
   push:
     tags:
       - 'v*'
@@ -106,7 +105,7 @@ jobs:
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+          password: ${{ secrets.FLASHBOTS_GHCR_TOKEN }} # PAT required for Organization policy
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -120,7 +119,7 @@ jobs:
             type=sha
             type=pep440,pattern={{version}}
             type=pep440,pattern={{major}}.{{minor}}
-            type=raw,value=latest,enable=${{ !contains(env.RELEASE_VERSION, '-') }}
+            type=raw,value=latest,enable=${{ !contains(env.RELEASE_VERSION, '-rc') }}
 
       - name: Create manifest list and push
         working-directory: /tmp/digests
