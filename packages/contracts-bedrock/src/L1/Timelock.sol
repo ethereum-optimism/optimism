@@ -29,8 +29,8 @@ contract Timelock is Initializable, ReinitializableBase {
     uint64 public longDelay;
     uint64 public shortDelay;
 
-    EnumerableSet.AddressSet internal controllers; // TODO: Expose this data somehow
-    mapping(bytes32 => Proposal) internal proposals; // TODO: Expose this data somehow
+    EnumerableSet.AddressSet internal controllers;
+    mapping(bytes32 => Proposal) internal proposals;
 
     error InvalidConstructor(string reason);
     error CallFailed(bytes revertData);
@@ -137,6 +137,34 @@ contract Timelock is Initializable, ReinitializableBase {
         (bool success, bytes memory result) = call_.target.call{ value: call_.value }(call_.data);
         if (!success) revert CallFailed(result);
         return result;
+    }
+
+    /// @notice Returns the number of controllers.
+    function getControllersLength() external view returns (uint256) {
+        return controllers.length();
+    }
+
+    /// @notice Returns the controller address at a given index.
+    function getController(uint256 index) external view returns (address) {
+        return controllers.at(index);
+    }
+
+    /// @notice Returns all controller addresses.
+    function getControllers() external view returns (address[] memory) {
+        return controllers.values();
+    }
+
+    /// @notice Returns the proposal for a given txHash.
+    function getProposal(bytes32 txHash)
+        external
+        view
+        returns (bool executed, bool cancelled, uint64 eta, address[] memory approvals)
+    {
+        Proposal storage proposal = proposals[txHash];
+        executed = proposal.executed;
+        cancelled = proposal.cancelled;
+        eta = proposal.eta;
+        approvals = proposal.approvals.values();
     }
 
     /// @dev Returns true if the address is probably a Gnosis Safe
