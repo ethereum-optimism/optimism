@@ -4,6 +4,18 @@ pragma solidity 0.8.15;
 // Testing utilities
 import { CommonTest } from "test/setup/CommonTest.sol";
 
+// Contracts
+import { WETH } from "src/L2/WETH.sol";
+
+/// @title WETH_Version_Test
+/// @notice Tests the `version` constant of the `WETH` contract.
+contract WETH_Version_Test is CommonTest {
+    /// @notice Tests that the `version` constant returns the correct value.
+    function test_version_succeeds() external view {
+        assertEq("1.1.1", WETH(payable(address(weth))).version());
+    }
+}
+
 /// @title WETH_Name_Test
 /// @notice Tests the `name` function of the `WETH` contract.
 contract WETH_Name_Test is CommonTest {
