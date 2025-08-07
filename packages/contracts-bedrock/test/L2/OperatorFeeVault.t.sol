@@ -21,3 +21,12 @@ contract OperatorFeeVault_Constructor_Test is CommonTest {
         assertEq(uint8(operatorFeeVault.withdrawalNetwork()), uint8(Types.WithdrawalNetwork.L2));
     }
 }
+
+/// @title OperatorFeeVault_Version_Test
+/// @notice Tests the `version` getter of the `OperatorFeeVault` contract.
+contract OperatorFeeVault_Version_Test is CommonTest {
+    /// @notice Tests that the version getter returns the correct semver string.
+    function test_version_succeeds() external view {
+        assertEq(operatorFeeVault.version(), "1.0.0");
+    }
+}
