@@ -8,6 +8,9 @@ import { CommonTest } from "test/setup/CommonTest.sol";
 import { Predeploys } from "src/libraries/Predeploys.sol";
 import { IBeacon } from "@openzeppelin/contracts/proxy/beacon/IBeacon.sol";
 
+// Contracts
+import { OptimismSuperchainERC20Beacon } from "src/L2/OptimismSuperchainERC20Beacon.sol";
+
 /// @title OptimismSuperchainERC20Beacon_TestInit
 /// @notice Reusable test initialization for `OptimismSuperchainERC20Beacon` tests.
 contract OptimismSuperchainERC20Beacon_TestInit is CommonTest {
@@ -21,12 +24,24 @@ contract OptimismSuperchainERC20Beacon_TestInit is CommonTest {
     }
 }
 
+/// @title OptimismSuperchainERC20Beacon_Version_Test
+/// @notice Contract for testing the `version` function of the
+///         `OptimismSuperchainERC20Beacon` contract.
+contract OptimismSuperchainERC20Beacon_Version_Test is OptimismSuperchainERC20Beacon_TestInit {
+    /// @notice Test that the version function returns the correct version string.
+    function test_version_isCorrect_succeeds() public view {
+        OptimismSuperchainERC20Beacon beacon =
+            OptimismSuperchainERC20Beacon(Predeploys.OPTIMISM_SUPERCHAIN_ERC20_BEACON);
+        assertEq(beacon.version(), "1.0.1");
+    }
+}
+
 /// @title OptimismSuperchainERC20Beacon_Implementation_Test
 /// @notice Contract for testing the `implementation` function of the
 ///         `OptimismSuperchainERC20Beacon` contract.
 contract OptimismSuperchainERC20Beacon_Implementation_Test is OptimismSuperchainERC20Beacon_TestInit {
-    /// @notice Test that calling the implementation function returns the correct implementation address.
-    function test_implementation_isCorrect_works() public view {
+    /// @notice Test that the implementation function returns the correct address.
+    function test_implementation_isCorrect_succeeds() public view {
         IBeacon beacon = IBeacon(Predeploys.OPTIMISM_SUPERCHAIN_ERC20_BEACON);
         assertEq(beacon.implementation(), Predeploys.OPTIMISM_SUPERCHAIN_ERC20);
     }
