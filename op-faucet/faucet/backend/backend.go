@@ -66,7 +66,7 @@ func FromConfig(log log.Logger, m metrics.Metricer, cfg *config.Config, router A
 	var faucetErr error
 	b.faucets.Range(func(id ftypes.FaucetID, f *Faucet) bool {
 		if err := router.AddRPC("/faucet/" + id.String()); err != nil {
-			faucetErr = errors.Join(fmt.Errorf("failed to setup faucet route for %q: %w", id, err))
+			faucetErr = fmt.Errorf("failed to setup faucet route for %q: %w", id, err)
 			return true
 		}
 		if err := router.AddAPIToRPC("/faucet/"+id.String(), rpc.API{
