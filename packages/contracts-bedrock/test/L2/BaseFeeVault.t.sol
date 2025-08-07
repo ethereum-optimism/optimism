@@ -7,6 +7,15 @@ import { CommonTest } from "test/setup/CommonTest.sol";
 // Libraries
 import { Types } from "src/libraries/Types.sol";
 
+/// @title BaseFeeVault_Version_Test
+/// @notice Tests the `version` constant of the `BaseFeeVault` contract.
+contract BaseFeeVault_Version_Test is CommonTest {
+    /// @notice Tests that the version constant returns the correct value.
+    function test_version_succeeds() external view {
+        assertEq(baseFeeVault.version(), "1.5.1");
+    }
+}
+
 /// @title BaseFeeVault_Constructor_Test
 /// @notice Tests the `constructor` of the `BaseFeeVault` contract.
 contract BaseFeeVault_Constructor_Test is CommonTest {
