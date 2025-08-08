@@ -851,6 +851,11 @@
   },
   {
     "inputs": [],
+    "name": "ProposalValidator_PreviousVotingCycleNotStarted",
+    "type": "error"
+  },
+  {
+    "inputs": [],
     "name": "ProposalValidator_ProposalAlreadyApproved",
     "type": "error"
   },

@@ -98,6 +98,9 @@ contract ProposalValidator is OwnableUpgradeable, ReinitializableBase, ISemver {
     /// @notice Thrown when the attestation was created after the last voting cycle.
     error ProposalValidator_AttestationCreatedAfterLastVotingCycle();
 
+    /// @notice Thrown when trying to approve and the previous voting cycle has not started.
+    error ProposalValidator_PreviousVotingCycleNotStarted();
+
     /*//////////////////////////////////////////////////////////////
                                  EVENTS
     //////////////////////////////////////////////////////////////*/
@@ -640,6 +643,12 @@ contract ProposalValidator is OwnableUpgradeable, ReinitializableBase, ISemver {
             previousVotingCycle = proposal.votingCycle;
         }
 
+        // revert if the previous voting cycle has not started, we should only  allow delegates
+        // to approve relative close to the proposals voting cycle
+        if (votingCycles[previousVotingCycle].startingTimestamp > block.timestamp) {
+            revert ProposalValidator_PreviousVotingCycleNotStarted();
+        }
+
         // validate the attestation
         _validateTopDelegateAttestation(_attestationUid, previousVotingCycle);
 
@@ -1020,8 +1029,7 @@ contract ProposalValidator is OwnableUpgradeable, ReinitializableBase, ISemver {
 
         // since the attestations are updated daily we should only allow attestations
         // created before the last voting cycle of the proposal
-        // check if attestation was created after the previous voting cycle
-        if (attestation.time > previousVotingCycleData.startingTimestamp + previousVotingCycleData.duration) {
+        if (attestation.time > previousVotingCycleData.startingTimestamp) {
             revert ProposalValidator_AttestationCreatedAfterLastVotingCycle();
         }
 
