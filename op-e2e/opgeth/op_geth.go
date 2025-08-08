@@ -239,7 +239,7 @@ func (d *OpGeth) CreatePayloadAttributes(txs ...*types.Transaction) (*eth.Payloa
 		Withdrawals:           withdrawals,
 		ParentBeaconBlockRoot: parentBeaconBlockRoot,
 	}
-	if d.L2ChainConfig.IsJovian(uint64(timestamp)) {
+	if d.L2ChainConfig.IsConfigurableMinBaseFee(uint64(timestamp)) {
 		attrs.MinBaseFeeLog2 = d.SystemConfig.MinBaseFeeLog2
 	}
 	if d.L2ChainConfig.IsHolocene(uint64(timestamp)) {
