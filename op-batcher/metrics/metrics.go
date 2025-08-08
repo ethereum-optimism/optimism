@@ -1,7 +1,9 @@
 package metrics
 
 import (
+	"errors"
 	"io"
+	"strings"
 	"sync/atomic"
 	"time"
 
@@ -412,8 +414,49 @@ func (m *Metrics) RecordL2BlockInChannel(block *types.Block) {
 }
 
 func ClosedReasonToNum(reason error) int {
-	// CLI-3640
-	return 0
+	// Numerical encoding of channel close reasons for Prometheus gauge.
+	// 0 is reserved for unknown/other to preserve backward compatibility.
+	const (
+		closedReasonUnknown          = 0
+		closedReasonCompressorFull   = 1
+		closedReasonTooManyRLPBytes  = 2
+		closedReasonMaxFrameIndex    = 3
+		closedReasonMaxDuration      = 4
+		closedReasonChannelTimeout   = 5
+		closedReasonSeqWindowTimeout = 6
+		closedReasonTerminated       = 7
+	)
+
+	if reason == nil {
+		return closedReasonUnknown
+	}
+
+	// Prefer robust sentinel checks where available.
+	if errors.Is(reason, derive.ErrCompressorFull) {
+		return closedReasonCompressorFull
+	}
+	if errors.Is(reason, derive.ErrTooManyRLPBytes) {
+		return closedReasonTooManyRLPBytes
+	}
+
+	// The remaining reasons are defined in the batcher package and are not exported here to avoid
+	// import cycles. We conservatively match on well-defined error messages as a best-effort mapping.
+	// ChannelFullError prefixes with "channel full: ", so we do substring matching on lower-cased text.
+	msg := strings.ToLower(reason.Error())
+	switch {
+	case strings.Contains(msg, "max frame index"):
+		return closedReasonMaxFrameIndex
+	case strings.Contains(msg, "max channel duration reached"):
+		return closedReasonMaxDuration
+	case strings.Contains(msg, "close to channel timeout"):
+		return closedReasonChannelTimeout
+	case strings.Contains(msg, "close to sequencer window timeout"):
+		return closedReasonSeqWindowTimeout
+	case strings.Contains(msg, "channel terminated"):
+		return closedReasonTerminated
+	default:
+		return closedReasonUnknown
+	}
 }
 
 func (m *Metrics) RecordChannelFullySubmitted(id derive.ChannelID) {
