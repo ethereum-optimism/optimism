@@ -2,10 +2,16 @@ package sysext
 
 import (
 	"encoding/json"
+	"fmt"
 
 	"github.com/ethereum-optimism/optimism/op-devstack/shim"
 	"github.com/ethereum-optimism/optimism/op-devstack/stack"
+	client "github.com/ethereum-optimism/optimism/op-service/client"
+	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/depset"
+	"github.com/ethereum/go-ethereum/common"
+	gn "github.com/ethereum/go-ethereum/node"
+	"github.com/ethereum/go-ethereum/rpc"
 )
 
 func (o *Orchestrator) hydrateSuperchain(sys stack.ExtensibleSystem) {
@@ -68,10 +74,53 @@ func (o *Orchestrator) hydrateSupervisorsMaybe(sys stack.ExtensibleSystem) {
 }
 
 func (o *Orchestrator) hydrateTestSequencersMaybe(sys stack.ExtensibleSystem) {
-	sys.AddTestSequencer(shim.NewTestSequencer(shim.TestSequencerConfig{
-		CommonConfig:   shim.NewCommonConfig(sys.T()),
-		ID:             stack.TestSequencerID("dummy"),
-		Client:         nil,
-		ControlClients: nil,
-	}))
+	sequencers := make(map[stack.TestSequencerID]bool)
+
+	// Collect all L2 chain IDs and the shared JWT secret
+	var (
+		chainIDs []eth.ChainID
+		jwt      string
+	)
+
+	for _, l2 := range o.env.Env.L2 {
+		chainID, _ := eth.ChainIDFromString(l2.Chain.ID)
+		chainIDs = append(chainIDs, chainID)
+		jwt = l2.JWT
+	}
+
+	opts := []client.RPCOption{
+		client.WithGethRPCOptions(rpc.WithHTTPAuth(gn.NewJWTAuth(common.HexToHash(jwt)))),
+	}
+
+	for _, l2 := range o.env.Env.L2 {
+		if sequencerService, ok := l2.Services["test-sequencer"]; ok {
+			for _, instance := range sequencerService {
+				id := stack.TestSequencerID(instance.Name)
+				if sequencers[id] {
+					// Each test_sequencer appears in multiple L2s
+					// So we need to deduplicate
+					continue
+				}
+				sequencers[id] = true
+
+				cc := make(map[eth.ChainID]client.RPC, len(chainIDs))
+				for _, chainID := range chainIDs {
+					cc[chainID] = o.rpcClient(
+						sys.T(),
+						instance,
+						RPCProtocol,
+						fmt.Sprintf("/sequencers/sequencer-%s", chainID.String()),
+						opts...,
+					)
+				}
+
+				sys.AddTestSequencer(shim.NewTestSequencer(shim.TestSequencerConfig{
+					CommonConfig:   shim.NewCommonConfig(sys.T()),
+					ID:             id,
+					Client:         o.rpcClient(sys.T(), instance, RPCProtocol, "/", opts...),
+					ControlClients: cc,
+				}))
+			}
+		}
+	}
 }
