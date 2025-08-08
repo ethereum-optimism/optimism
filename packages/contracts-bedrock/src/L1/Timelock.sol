@@ -175,7 +175,7 @@ contract Timelock is ISemver, Initializable, ReinitializableBase {
     ///         can approve calls. Each controller can only approve a call once. The ETA is set
     ///         based on the number of approvals:
     ///         - First approval: sets ETA to current time + longDelay
-    ///         - All controllers approved: changes ETA to current time + shortDelay
+    ///         - All controllers approved: changes ETA to min(current ETA, current time + shortDelay)
     /// @param _call The call to approve.
     /// @return eta_ The earliest time at which the call can be executed.
     function approve(Call calldata _call) external returns (uint256 eta_) {
@@ -192,20 +192,18 @@ contract Timelock is ISemver, Initializable, ReinitializableBase {
         // Add the approval first.
         callStatus.approvals.add(msg.sender);
 
-        // Set ETA based on approval status. If all controllers have approved, use short delay,
-        // otherwise use long delay. If a long delay already exists, it remains unchanged. This is
-        // important to ensure that the long delay is not unnecessarily extended when a new
-        // approval is added.
-        if (callStatus.approvals.length() == controllers.length()) {
+        // Set ETA based on approval status. On the first approval, use the long delay. On the last
+        // approval, use the short delay but only if it brings the ETA closer.
+        if (callStatus.approvals.length() == 1) {
+            // First approval, so we set the long delay.
+            callStatus.eta = block.timestamp + longDelay;
+        } else if (callStatus.approvals.length() == controllers.length()) {
             // All controllers have approved, so we use the short delay. If the current ETA is
             // closer than the short delay, we use the current ETA to avoid extending the ETA.
             // The invariant here that ETA must never increase.
             if (block.timestamp + shortDelay < callStatus.eta) {
                 callStatus.eta = block.timestamp + shortDelay;
             }
-        } else if (callStatus.eta == 0) {
-            // First approval, so we set the long delay.
-            callStatus.eta = block.timestamp + longDelay;
         }
 
         emit Approved(txHash, _call, callStatus.eta);
