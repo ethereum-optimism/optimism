@@ -45,6 +45,7 @@ type Agent struct {
 	maxDepth         types.Depth
 	maxClockDuration time.Duration
 	log              log.Logger
+	responseDelay    time.Duration
 }
 
 func NewAgent(
@@ -59,6 +60,7 @@ func NewAgent(
 	log log.Logger,
 	selective bool,
 	claimants []common.Address,
+	responseDelay time.Duration,
 ) *Agent {
 	return &Agent{
 		metrics:          m,
@@ -72,6 +74,7 @@ func NewAgent(
 		maxDepth:         maxDepth,
 		maxClockDuration: maxClockDuration,
 		log:              log,
+		responseDelay:    responseDelay,
 	}
 }
 
@@ -141,6 +144,18 @@ func (a *Agent) performAction(ctx context.Context, wg *sync.WaitGroup, action ty
 	case types.ActionTypeChallengeL2BlockNumber:
 		a.metrics.RecordGameL2Challenge()
 	}
+
+	// Apply configurable delay before responding (to slow down game progression)
+	if a.responseDelay > 0 {
+		actionLog.Info("Delaying response", "delay", a.responseDelay)
+		select {
+		case <-ctx.Done():
+			actionLog.Error("Action cancelled during delay", "err", ctx.Err())
+			return
+		case <-time.After(a.responseDelay):
+		}
+	}
+
 	actionLog.Info("Performing action")
 	err := a.responder.PerformAction(ctx, action)
 	if err != nil {

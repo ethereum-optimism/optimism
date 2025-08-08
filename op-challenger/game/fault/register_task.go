@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/url"
 	"path/filepath"
+	"time"
 
 	"github.com/ethereum-optimism/optimism/op-challenger/config"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/claims"
@@ -287,7 +288,8 @@ func (e *RegisterTask) Register(
 	caller *batching.MultiCaller,
 	l1HeaderSource L1HeaderSource,
 	selective bool,
-	claimants []common.Address) error {
+	claimants []common.Address,
+	responseDelay time.Duration) error {
 
 	playerCreator := func(game types.GameMetadata, dir string) (scheduler.GamePlayer, error) {
 		contract, err := contracts.NewFaultDisputeGameContract(ctx, m, game.Proxy, caller)
@@ -337,7 +339,7 @@ func (e *RegisterTask) Register(
 			validators = append(validators, NewPrestateValidator(e.gameType.String(), contract.GetAbsolutePrestateHash, vmPrestateProvider))
 			validators = append(validators, NewPrestateValidator("output root", contract.GetStartingRootHash, prestateProvider))
 		}
-		return NewGamePlayer(ctx, systemClock, l1Clock, logger, m, dir, game.Proxy, txSender, contract, e.syncValidator, validators, creator, l1HeaderSource, selective, claimants)
+		return NewGamePlayer(ctx, systemClock, l1Clock, logger, m, dir, game.Proxy, txSender, contract, e.syncValidator, validators, creator, l1HeaderSource, selective, claimants, responseDelay)
 	}
 	err := registerOracle(ctx, logger, m, oracles, gameFactory, caller, e.gameType)
 	if err != nil {

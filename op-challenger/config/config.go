@@ -52,8 +52,9 @@ const (
 	// The default value is 28 days. The worst case duration for a game is 16 days
 	// (due to clock extension), plus 7 days WETH withdrawal delay leaving a 5 day
 	// buffer to monitor games to ensure bonds are claimed.
-	DefaultGameWindow   = 28 * 24 * time.Hour
-	DefaultMaxPendingTx = 10
+	DefaultGameWindow    = 28 * 24 * time.Hour
+	DefaultMaxPendingTx  = 10
+	DefaultResponseDelay = 0 // No delay by default
 )
 
 // Config is a well typed config that is parsed from the CLI params.
@@ -98,6 +99,8 @@ type Config struct {
 	TxMgrConfig   txmgr.CLIConfig
 	MetricsConfig opmetrics.CLIConfig
 	PprofConfig   oppprof.CLIConfig
+
+	ResponseDelay time.Duration // Delay before responding to game actions to slow down game progression
 }
 
 func NewInteropConfig(

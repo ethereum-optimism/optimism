@@ -203,7 +203,7 @@ func setupTestAgent(t *testing.T) (*Agent, *stubClaimLoader, *stubResponder) {
 	responder := &stubResponder{}
 	systemClock := clock.NewDeterministicClock(time.UnixMilli(120200))
 	l1Clock := clock.NewDeterministicClock(l1Time)
-	agent := NewAgent(metrics.NoopMetrics, systemClock, l1Clock, claimLoader, depth, gameDuration, trace.NewSimpleTraceAccessor(provider), responder, logger, false, []common.Address{})
+	agent := NewAgent(metrics.NoopMetrics, systemClock, l1Clock, claimLoader, depth, gameDuration, trace.NewSimpleTraceAccessor(provider), responder, logger, false, []common.Address{}, 0)
 	return agent, claimLoader, responder
 }
 
