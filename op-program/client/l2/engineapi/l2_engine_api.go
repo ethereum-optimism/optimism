@@ -361,7 +361,7 @@ func (ea *L2EngineAPI) NewPayloadV3(ctx context.Context, params *eth.ExecutionPa
 	}
 
 	// Payload must have eip-1559 params in ExtraData after Holocene
-	if ea.config().IsJovian(uint64(params.Timestamp)) {
+	if ea.config().IsConfigurableMinBaseFee(uint64(params.Timestamp)) {
 		if err := eip1559.ValidateMinBaseFeeExtraData(params.ExtraData); err != nil {
 			return &eth.PayloadStatusV1{Status: eth.ExecutionInvalid}, engine.UnsupportedFork.With(errors.New("invalid jovian extraData post-jovian"))
 		}
@@ -413,7 +413,7 @@ func (ea *L2EngineAPI) NewPayloadV4(ctx context.Context, params *eth.ExecutionPa
 		return &eth.PayloadStatusV1{Status: eth.ExecutionInvalid}, engine.InvalidParams.With(errors.New("nil withdrawalsRoot post-isthmus"))
 	}
 
-	if ea.config().IsJovian(uint64(params.Timestamp)) {
+	if ea.config().IsConfigurableMinBaseFee(uint64(params.Timestamp)) {
 		if err := eip1559.ValidateMinBaseFeeExtraData(params.ExtraData); err != nil {
 			return &eth.PayloadStatusV1{Status: eth.ExecutionInvalid}, engine.UnsupportedFork.With(errors.New("invalid jovian extraData post-jovian"))
 		}
