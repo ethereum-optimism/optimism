@@ -921,27 +921,56 @@ func (l *BatchSubmitter) publishToAltDAAndL1(txdata txData, queue *txmgr.Queue[t
 	// when posting txdata to an external DA Provider, we use a goroutine to avoid blocking the main loop
 	// since it may take a while for the request to return.
 	goroutineSpawned := daGroup.TryGo(func() error {
-		// TODO: probably shouldn't be using the global shutdownCtx here, see https://go.dev/blog/context-and-structs
-		// but sendTransaction receives l.killCtx as an argument, which currently is only canceled after waiting for the main loop
-		// to exit, which would wait on this DA call to finish, which would take a long time.
-		// So we prefer to mimic the behavior of txmgr and cancel all pending DA/txmgr requests when the batcher is stopped.
-		comm, err := l.AltDA.SetInput(l.shutdownCtx, txdata.CallData())
-		if err != nil {
-			// Don't log context cancelled events because they are expected,
-			// and can happen after tests complete which causes a panic.
+		// Use request-scoped context tied to killCtx to ensure timely cancellation on stop,
+		// and apply bounded exponential backoff for transient failures.
+		const (
+			maxAttempts        = 5
+			initialBackoff     = 500 * time.Millisecond
+			maxBackoffDuration = 10 * time.Second
+		)
+
+		var (
+			comm altda.CommitmentData
+			err  error
+		)
+
+		backoff := initialBackoff
+		for attempt := 1; attempt <= maxAttempts; attempt++ {
+			// Per-attempt timeout anchored to killCtx so stop() interrupts in-flight requests
+			reqCtx, cancel := context.WithTimeout(l.killCtx, l.Config.NetworkTimeout)
+			start := time.Now()
+			comm, err = l.AltDA.SetInput(reqCtx, txdata.CallData())
+			elapsed := time.Since(start)
+			cancel()
+
+			if err == nil {
+				l.Log.Info("Set altda input", "attempt", attempt, "elapsed", elapsed, "commitment", comm, "tx", txdata.ID())
+				candidate := l.calldataTxCandidate(comm.TxData())
+				l.sendTx(txdata, false, candidate, queue, receiptsCh)
+				return nil
+			}
+
+			// Expected cancel during shutdown: do not log as error, requeue and return
 			if errors.Is(err, context.Canceled) {
 				l.recordFailedDARequest(txdata.ID(), nil)
-			} else {
-				l.Log.Error("Failed to post input to Alt DA", "error", err)
-				// requeue frame if we fail to post to the DA Provider so it can be retried
-				// note: this assumes that the da server caches requests, otherwise it might lead to resubmissions of the blobs
-				l.recordFailedDARequest(txdata.ID(), err)
+				return nil
 			}
-			return nil
+
+			// Transient failure: log and backoff (bounded)
+			l.Log.Warn("AltDA SetInput failed", "attempt", attempt, "elapsed", elapsed, "backoff", backoff, "err", err)
+
+			if attempt == maxAttempts {
+				// Give up and requeue frame for later retry by main loop
+				l.recordFailedDARequest(txdata.ID(), err)
+				return nil
+			}
+
+			time.Sleep(backoff)
+			backoff *= 2
+			if backoff > maxBackoffDuration {
+				backoff = maxBackoffDuration
+			}
 		}
-		l.Log.Info("Set altda input", "commitment", comm, "tx", txdata.ID())
-		candidate := l.calldataTxCandidate(comm.TxData())
-		l.sendTx(txdata, false, candidate, queue, receiptsCh)
 		return nil
 	})
 	if !goroutineSpawned {
