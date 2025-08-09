@@ -1,7 +1,6 @@
 package throttler
 
 import (
-	"math"
 	"sync"
 	"time"
 
@@ -118,7 +117,7 @@ func (p *PIDStrategy) Update(currentPendingBytes uint64) float64 {
 		pidOutput := proportional + integralTerm + derivativeTerm
 
 		// Clamp output to valid range [0, OutputMax]
-		intensity = math.Max(0, math.Min(p.config.OutputMax, pidOutput))
+		intensity = max(0, min(p.config.OutputMax, pidOutput))
 
 		p.lastError = normalizedError
 
