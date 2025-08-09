@@ -233,7 +233,7 @@ func (f *Templater) Render(ctx context.Context) (*bytes.Buffer, error) {
 	}
 
 	// Find all docker build jobs and execute them concurrently
-	var dockerJobs []*dockerBuildJob
+	dockerJobs := make([]*dockerBuildJob, 0, len(f.buildJobs))
 	f.buildJobsMux.Lock()
 	for _, job := range f.buildJobs {
 		dockerJobs = append(dockerJobs, job)
