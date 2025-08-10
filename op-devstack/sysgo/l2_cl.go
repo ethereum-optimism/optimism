@@ -129,6 +129,12 @@ func (n *L2CLNode) Stop() {
 	n.opNode = nil
 }
 
+func (n *L2CLNode) InteropRPC() (string, eth.Bytes32) {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	return n.interopEndpoint, n.interopJwtSecret
+}
+
 type L2CLOption func(p devtest.P, id stack.L2CLNodeID, cfg *config.Config)
 
 func WithL2CLOption(opt L2CLOption) stack.Option[*Orchestrator] {

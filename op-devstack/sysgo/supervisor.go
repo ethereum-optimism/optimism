@@ -161,7 +161,7 @@ func WithManagedBySupervisor(l2CLID stack.L2CLNodeID, supervisorID stack.Supervi
 
 		l2CL, ok := orch.l2CLs.Get(l2CLID)
 		require.True(ok, "looking for L2 CL node to connect to supervisor")
-		interopEndpoint, secret := l2CL.opNode.InteropRPC()
+		interopEndpoint, secret := l2CL.InteropRPC()
 
 		s, ok := orch.supervisors.Get(supervisorID)
 		require.True(ok, "looking for supervisor")
