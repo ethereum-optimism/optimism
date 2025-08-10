@@ -4,12 +4,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/ethereum-optimism/optimism/op-service/retry"
 	"io"
 	"net"
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"github.com/ethereum-optimism/optimism/op-service/retry"
 
 	"github.com/ethereum/go-ethereum/log"
 )
