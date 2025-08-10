@@ -175,10 +175,12 @@ func (c *EtherscanClient) pollVerificationStatus(reqId string) error {
 		if err != nil {
 			return fmt.Errorf("failed to send checkverifystatus request: %w", err)
 		}
-		defer resp.Body.Close()
 
 		var result EtherscanGenericResp
-		if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		decodeErr := json.NewDecoder(resp.Body).Decode(&result)
+		resp.Body.Close()
+		if decodeErr != nil {
+			return fmt.Errorf("failed to decode checkverifystatus response: %w", decodeErr)
 			return fmt.Errorf("failed to decode checkverifystatus response: %w", err)
 		}
 
