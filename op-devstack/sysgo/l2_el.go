@@ -71,7 +71,7 @@ func (n *L2ELNode) Start() {
 	}
 
 	if n.authProxy == nil {
-		n.authProxy = tcpproxy.New(n.logger)
+		n.authProxy = tcpproxy.New(n.logger.New("proxy", "l2el-auth"))
 		n.p.Require().NoError(n.authProxy.Start())
 		n.p.Cleanup(func() {
 			n.authProxy.Close()
@@ -79,7 +79,7 @@ func (n *L2ELNode) Start() {
 		n.authRPC = "ws://" + n.authProxy.Addr()
 	}
 	if n.userProxy == nil {
-		n.userProxy = tcpproxy.New(n.logger)
+		n.userProxy = tcpproxy.New(n.logger.New("proxy", "l2el-user"))
 		n.p.Require().NoError(n.userProxy.Start())
 		n.p.Cleanup(func() {
 			n.userProxy.Close()

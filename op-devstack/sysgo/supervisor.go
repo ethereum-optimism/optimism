@@ -62,7 +62,7 @@ func (s *Supervisor) Start() {
 	}
 
 	if s.proxy == nil {
-		s.proxy = tcpproxy.New(s.logger)
+		s.proxy = tcpproxy.New(s.logger.New("proxy", "supervisor"))
 		s.p.Require().NoError(s.proxy.Start())
 		s.p.Cleanup(func() {
 			s.proxy.Close()
@@ -78,7 +78,7 @@ func (s *Supervisor) Start() {
 	err = super.Start(context.Background())
 	s.p.Require().NoError(err, "supervisor failed to start")
 	s.logger.Info("Started supervisor")
-	s.proxy.SetUpstream(ProxyAddr(s.p.Require(), s.userRPC))
+	s.proxy.SetUpstream(ProxyAddr(s.p.Require(), super.RPC()))
 }
 
 func (s *Supervisor) Stop() {

@@ -83,7 +83,7 @@ func (n *L2CLNode) Start() {
 	}
 
 	if n.userProxy == nil {
-		n.userProxy = tcpproxy.New(n.logger)
+		n.userProxy = tcpproxy.New(n.logger.New("proxy", "l2cl-user"))
 		n.p.Require().NoError(n.userProxy.Start())
 		n.p.Cleanup(func() {
 			n.userProxy.Close()
@@ -92,12 +92,12 @@ func (n *L2CLNode) Start() {
 	}
 
 	if n.interopProxy == nil {
-		n.interopProxy = tcpproxy.New(n.logger)
+		n.interopProxy = tcpproxy.New(n.logger.New("proxy", "l2cl-interop"))
 		n.p.Require().NoError(n.interopProxy.Start())
 		n.p.Cleanup(func() {
 			n.interopProxy.Close()
 		})
-		n.interopEndpoint = "http://" + n.interopProxy.Addr()
+		n.interopEndpoint = "ws://" + n.interopProxy.Addr()
 	}
 
 	n.logger.Info("Starting op-node")
@@ -110,7 +110,6 @@ func (n *L2CLNode) Start() {
 	n.userProxy.SetUpstream(ProxyAddr(n.p.Require(), opNode.UserRPC().RPC()))
 	interopEndpoint, interopJwtSecret := opNode.InteropRPC()
 	n.interopProxy.SetUpstream(ProxyAddr(n.p.Require(), interopEndpoint))
-	n.interopEndpoint = interopEndpoint
 	n.interopJwtSecret = interopJwtSecret
 }
 

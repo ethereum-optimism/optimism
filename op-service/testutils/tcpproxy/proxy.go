@@ -1,11 +1,15 @@
 package tcpproxy
 
 import (
+	"context"
+	"errors"
 	"fmt"
+	"github.com/ethereum-optimism/optimism/op-service/retry"
 	"io"
 	"net"
 	"sync"
 	"sync/atomic"
+	"time"
 
 	"github.com/ethereum/go-ethereum/log"
 )
@@ -34,6 +38,7 @@ func (p *Proxy) Addr() string {
 func (p *Proxy) SetUpstream(addr string) {
 	p.mu.Lock()
 	p.upstreamAddr = addr
+	p.lgr.Info("set upstream", "addr", addr)
 	p.mu.Unlock()
 }
 
@@ -50,10 +55,10 @@ func (p *Proxy) Start() error {
 
 		for {
 			downConn, err := p.lis.Accept()
+			if p.stopped.Load() {
+				return
+			}
 			if err != nil {
-				if p.stopped.Load() {
-					return
-				}
 				p.lgr.Error("failed to accept downstream", "err", err)
 				continue
 			}
@@ -80,7 +85,11 @@ func (p *Proxy) handleConn(downConn net.Conn) {
 		return
 	}
 
-	upConn, err := net.Dial("tcp", addr)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	upConn, err := retry.Do(ctx, 3, retry.Exponential(), func() (net.Conn, error) {
+		return net.Dial("tcp", addr)
+	})
+	cancel()
 	if err != nil {
 		p.mu.Unlock()
 		p.lgr.Error("failed to dial upstream", "err", err)
@@ -93,10 +102,20 @@ func (p *Proxy) handleConn(downConn net.Conn) {
 
 	var wg sync.WaitGroup
 	wg.Add(2)
+
+	closeBoth := func() {
+		downConn.Close()
+		upConn.Close()
+		wg.Done()
+	}
+
 	pump := func(dst io.Writer, src io.Reader, direction string) {
-		defer wg.Done()
+		defer closeBoth()
 		if _, err := io.Copy(dst, src); err != nil {
-			p.lgr.Error("failed to proxy", "direction", direction, "err", err)
+			// ignore net.ErrClosed since it creates a huge amount of log spam
+			if !errors.Is(err, net.ErrClosed) {
+				p.lgr.Error("failed to proxy", "direction", direction, "err", err)
+			}
 		}
 	}
 	go pump(downConn, upConn, "downstream")
