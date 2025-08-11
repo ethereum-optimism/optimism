@@ -2046,6 +2046,8 @@ workflows:
             branches:
               ignore: /.*/
           build_args: --skip test
+          context:
+            - circleci-repo-readonly-authenticated-github-token
       - go-release:
           module: op-deployer
           context:
@@ -2063,6 +2065,8 @@ workflows:
             branches:
               ignore: /.*/
           build_args: --skip test
+          context:
+            - circleci-repo-readonly-authenticated-github-token
       - go-release:
           module: op-up
           context:
