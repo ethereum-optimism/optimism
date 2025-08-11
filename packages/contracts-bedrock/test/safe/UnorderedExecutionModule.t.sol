@@ -55,7 +55,11 @@ contract UnorderedExecutionModule_TestInit is Test, SafeTestTools {
     }
 
     /// @notice Create transaction parameters for setValue call
-    function _createSetValueParams(uint256 _value) internal view returns (UnorderedExecutionModule.ExecTransactionFromModuleParams memory) {
+    function _createSetValueParams(uint256 _value)
+        internal
+        view
+        returns (UnorderedExecutionModule.ExecTransactionFromModuleParams memory)
+    {
         return UnorderedExecutionModule.ExecTransactionFromModuleParams({
             to: address(target),
             value: 0,
@@ -65,7 +69,11 @@ contract UnorderedExecutionModule_TestInit is Test, SafeTestTools {
     }
 
     /// @notice Create transaction parameters for reverting call
-    function _createRevertingParams() internal view returns (UnorderedExecutionModule.ExecTransactionFromModuleParams memory) {
+    function _createRevertingParams()
+        internal
+        view
+        returns (UnorderedExecutionModule.ExecTransactionFromModuleParams memory)
+    {
         return UnorderedExecutionModule.ExecTransactionFromModuleParams({
             to: address(target),
             value: 0,
@@ -75,7 +83,14 @@ contract UnorderedExecutionModule_TestInit is Test, SafeTestTools {
     }
 
     /// @notice Generate transaction hash for given params and nonce
-    function _getTransactionHash(UnorderedExecutionModule.ExecTransactionFromModuleParams memory _params, uint256 _nonce) internal view returns (bytes32) {
+    function _getTransactionHash(
+        UnorderedExecutionModule.ExecTransactionFromModuleParams memory _params,
+        uint256 _nonce
+    )
+        internal
+        view
+        returns (bytes32)
+    {
         return safeInstance.safe.getTransactionHash({
             to: _params.to,
             value: _params.value,

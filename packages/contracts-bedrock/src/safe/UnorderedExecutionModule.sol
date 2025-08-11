@@ -68,7 +68,8 @@ contract UnorderedExecutionModule is ISemver, ReentrancyGuard {
         // Use the Safe's getTransactionHash function to generate a deterministic hash,
         // this hash includes the Safe's domain separator.
         // This hash is used both for replay protection and for signature verification.
-        (bytes32 safesInternalTxHash, bytes memory txHashData) = getSafesInternalTxHashAndTxHashData(safe, nonce, params);
+        (bytes32 safesInternalTxHash, bytes memory txHashData) =
+            getSafesInternalTxHashAndTxHashData(safe, nonce, params);
 
         if (executedTransactions[safesInternalTxHash]) {
             revert TransactionAlreadyExecuted();
@@ -86,7 +87,9 @@ contract UnorderedExecutionModule is ISemver, ReentrancyGuard {
             revert ModuleExecutionFailed();
         }
 
-        emit TransactionExecuted(address(safe), safesInternalTxHash, params.to, params.value, params.data, params.operation);
+        emit TransactionExecuted(
+            address(safe), safesInternalTxHash, params.to, params.value, params.data, params.operation
+        );
     }
 
     /// @notice Utility function to check if this module is enabled on a given Safe
@@ -100,7 +103,11 @@ contract UnorderedExecutionModule is ISemver, ReentrancyGuard {
         Safe safe,
         uint256 nonce,
         ExecTransactionFromModuleParams memory params
-    ) internal view returns (bytes32, bytes memory) {
+    )
+        internal
+        view
+        returns (bytes32, bytes memory)
+    {
         return (
             safe.getTransactionHash({
                 to: params.to,
