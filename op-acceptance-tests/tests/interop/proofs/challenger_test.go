@@ -51,14 +51,14 @@ func TestChallengerRespondsToMultipleInvalidClaims(gt *testing.T) {
 	extraData := make([]byte, 32)
 	binary.BigEndian.PutUint64(extraData[24:], 8249249824792999)
 
-	game := dgf.StartSuperCannonGame(attacker, proofs.WithRootClaim(common.Hash{0xaa}))
+	game := dgf.StartSuperCannonGame(attacker)
 	claims := game.PerformMoves(attacker,
 		proofs.Move(0, common.Hash{0x01}, true),
-		proofs.Move(1, common.Hash{0x02}, false), // Defends invalid claim so won't be countered.
 		proofs.Move(1, common.Hash{0x03}, true),
+		proofs.Move(1, common.Hash{0x02}, false), // Defends invalid claim so won't be countered.
 	)
 
 	claims[0].WaitForCounterClaim(claims...)
-	claims[2].WaitForCounterClaim(claims...)
-	claims[1].VerifyNoCounterClaim()
+	claims[1].WaitForCounterClaim(claims...)
+	claims[2].VerifyNoCounterClaim()
 }
