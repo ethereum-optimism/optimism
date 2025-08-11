@@ -6,18 +6,18 @@ package operatorfee
 import (
 	"context"
 	"fmt"
-	"math/big"
 
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
+	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum/go-ethereum/common"
 	gethTypes "github.com/ethereum/go-ethereum/core/types"
 )
 
-func EnsureSufficientBalance(wallet *dsl.EOA, to common.Address, value *big.Int) (err error) {
+func EnsureSufficientBalance(wallet *dsl.EOA, to common.Address, value eth.ETH) (err error) {
 	return fmt.Errorf("not implemented for op-devstack - utility function not used by tests")
 }
 
-func SendValueTx(wallet *dsl.EOA, to common.Address, value *big.Int) (tx *gethTypes.Transaction, receipt *gethTypes.Receipt, err error) {
+func SendValueTx(wallet *dsl.EOA, to common.Address, value eth.ETH) (tx *gethTypes.Transaction, receipt *gethTypes.Receipt, err error) {
 	return nil, nil, fmt.Errorf("not implemented for op-devstack - utility function not used by tests")
 }
 

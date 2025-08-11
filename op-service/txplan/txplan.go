@@ -84,9 +84,9 @@ func WithTo(to *common.Address) Option {
 	}
 }
 
-func WithValue(val *big.Int) Option {
+func WithValue(val eth.ETH) Option {
 	return func(tx *PlannedTx) {
-		tx.Value.Set(val)
+		tx.Value.Set(val.ToBig())
 	}
 }
 

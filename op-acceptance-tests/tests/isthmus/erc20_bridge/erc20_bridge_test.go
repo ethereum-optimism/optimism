@@ -38,7 +38,7 @@ func TestERC20Bridge(gt *testing.T) {
 	mintAmount := eth.OneHundredthEther
 	t.Logger().Info("Minting WETH tokens on L1", "amount", mintAmount)
 	depositCall := wethContract.Deposit()
-	contract.Write(l1User, depositCall, txplan.WithValue(mintAmount.ToBig()))
+	contract.Write(l1User, depositCall, txplan.WithValue(mintAmount))
 
 	l1User.VerifyTokenBalance(l1TokenAddress, mintAmount)
 	t.Logger().Info("User has WETH tokens on L1", "balance", mintAmount)

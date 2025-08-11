@@ -2,9 +2,13 @@ package proofs
 
 import (
 	"context"
+	"fmt"
 	"math/big"
 	"time"
 
+	challengerTypes "github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
+	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
+	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/stretchr/testify/require"
@@ -21,18 +25,20 @@ type FaultDisputeGame struct {
 	t       devtest.T
 	require *require.Assertions
 	game    *bindings.FaultDisputeGame
+	Address common.Address
 }
 
-func NewFaultDisputeGame(t devtest.T, require *require.Assertions, game *bindings.FaultDisputeGame) *FaultDisputeGame {
+func NewFaultDisputeGame(t devtest.T, require *require.Assertions, addr common.Address, game *bindings.FaultDisputeGame) *FaultDisputeGame {
 	return &FaultDisputeGame{
 		t:       t,
 		require: require,
 		game:    game,
+		Address: addr,
 	}
 }
 
-func (g *FaultDisputeGame) MaxDepth() uint64 {
-	return contract.Read(g.game.MaxGameDepth()).Uint64()
+func (g *FaultDisputeGame) MaxDepth() challengerTypes.Depth {
+	return challengerTypes.Depth(contract.Read(g.game.MaxGameDepth()).Uint64())
 }
 
 func (g *FaultDisputeGame) SplitDepth() uint64 {
@@ -56,13 +62,21 @@ func (g *FaultDisputeGame) Attack(eoa *dsl.EOA, claimIdx int64, newClaim common.
 	claim := g.claimAtIndex(claimIdx)
 	g.t.Logf("Attacking claim %v (depth: %d) with counter-claim %v", claimIdx, claim.Position.Depth(), newClaim)
 
-	newPosition := claim.Position.Attack().ToGIndex()
-	requiredBond := contract.Read(g.game.GetRequiredBond((*bindings.Uint128)(newPosition)))
+	requiredBond := g.requiredBond(claim.Position.Attack())
 
 	attackCall := g.game.Attack(claim.Value, big.NewInt(claimIdx), newClaim)
 
 	receipt := contract.Write(eoa, attackCall, txplan.WithValue(requiredBond), txplan.WithGasRatio(2))
 	g.t.Require().Equal(receipt.Status, types.ReceiptStatusSuccessful)
+}
+
+func (g *FaultDisputeGame) requiredBond(pos challengerTypes.Position) eth.ETH {
+	return eth.WeiBig(contract.Read(g.game.GetRequiredBond((*bindings.Uint128)(pos.ToGIndex()))))
+}
+
+func (g *FaultDisputeGame) status() gameTypes.GameStatus {
+	status := contract.Read(g.game.Status())
+	return gameTypes.GameStatus(status)
 }
 
 func (g *FaultDisputeGame) newClaim(claimIndex int64, claim bindings.Claim) *Claim {
@@ -106,9 +120,28 @@ func (g *FaultDisputeGame) waitForClaim(timeout time.Duration, errorMsg string, 
 		return false, nil
 	})
 	g.require.NoError(err, errorMsg)
-	// TODO(#15948) - Log GameData()
-	//if err != nil { // Avoid waiting time capturing game data when there's no error
-	//	g.require.NoErrorf(err, "%v\n%v", errorMsg, g.GameData(ctx))
-	//}
+	if err != nil { // Avoid waiting time capturing game data when there's no error
+		g.require.NoErrorf(err, "%v\n%v", errorMsg, g.GameData())
+	}
 	return matchClaimIdx, matchedClaim
+}
+
+func (g *FaultDisputeGame) GameData() string {
+	maxDepth := g.MaxDepth()
+	splitDepth := g.SplitDepth()
+	claims := g.allClaims()
+	info := fmt.Sprintf("Claim count: %v\n", len(claims))
+	for i, claim := range claims {
+		pos := claim.Position
+		info = info + fmt.Sprintf("%v - Position: %v, Depth: %v, IndexAtDepth: %v Trace Index: %v, ClaimHash: %v, Countered By: %v, ParentIndex: %v Claimant: %v Bond: %v\n",
+			i, claim.Position.ToGIndex(), pos.Depth(), pos.IndexAtDepth(), pos.TraceIndex(maxDepth), claim.Value.Hex(), claim.CounteredBy, claim.ParentContractIndex, claim.Claimant, claim.Bond)
+	}
+	seqNum := g.L2SequenceNumber()
+	status := g.status()
+	return fmt.Sprintf("Game %v - %v - L2 Block: %v - Split Depth: %v - Max Depth: %v:\n%v\n",
+		g.Address, status, seqNum, splitDepth, maxDepth, info)
+}
+
+func (g *FaultDisputeGame) LogGameData() {
+	g.t.Log(g.GameData())
 }

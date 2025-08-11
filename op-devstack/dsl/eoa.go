@@ -87,7 +87,7 @@ func (u *EOA) PlanTransfer(to common.Address, amount eth.ETH) txplan.Option {
 	return txplan.Combine(
 		u.Plan(),
 		txplan.WithTo(&to),
-		txplan.WithValue(amount.ToBig()),
+		txplan.WithValue(amount),
 		txplan.WithGasLimit(params.TxGas),
 	)
 }
