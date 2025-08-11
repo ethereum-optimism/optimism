@@ -1,0 +1,21 @@
+#
+# This file exists so that we can fully lock the mise dependencies
+#
+# mise, specifically the cargo backend, does not support checksums
+# and since we use svm-rs that can only be installed from crates.io,
+# we need to work around this using a cargo lockfile.
+#
+# Instead of specifying the version of svm-rs in mise.toml,
+# we run `cargo update --locked` in the postinstall hook
+#
+
+[package]
+name = "optimism"
+version = "0.0.0"
+edition = "2021"
+
+[lib]
+path="dummy.rs"
+
+[dependencies]
+svm-rs = "0.5.8"

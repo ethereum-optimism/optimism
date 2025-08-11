@@ -5,10 +5,6 @@ backend = "ubi:foundry-rs/foundry[exe=anvil]"
 [tools.anvil.checksums]
 anvil-anvil-macos-aarch64 = "sha256:08146834afe5aa96f52af3d7c13b96fe44fff6cd26b5c6b7e47f4cd25ebe4d7f"
 
-[tools."cargo:svm-rs"]
-version = "0.5.8"
-backend = "cargo:svm-rs"
-
 [tools.cast]
 version = "1.1.0"
 backend = "ubi:foundry-rs/foundry[exe=cast]"

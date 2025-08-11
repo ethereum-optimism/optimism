@@ -11,9 +11,6 @@ shellcheck = "0.10.0"
 direnv = "2.35.0"
 just = "1.37.0"
 
-# Cargo dependencies
-"cargo:svm-rs" = "0.5.8"
-
 # Go dependencies
 "go:github.com/ethereum/go-ethereum/cmd/abigen" = "1.15.10"
 "go:gotest.tools/gotestsum" = "1.12.1"
@@ -63,3 +60,6 @@ experimental = true
 lockfile=true
 pipx.uvx = true
 disable_tools = ["asterisc", "kontrol", "binary_signer"]
+
+[hooks]
+postinstall = "cargo update --locked"
