@@ -1058,6 +1058,11 @@
     "type": "error"
   },
   {
+    "inputs": [],
+    "name": "SuperchainConfigInconsistent",
+    "type": "error"
+  },
+  {
     "inputs": [
       {
         "internalType": "contract ISystemConfig",

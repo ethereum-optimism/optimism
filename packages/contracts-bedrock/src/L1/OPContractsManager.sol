@@ -591,16 +591,11 @@ contract OPContractsManagerUpgrader is OPContractsManagerBase {
     /// @notice Thrown when the SuperchainConfig contract does not match the unified config.
     error OPContractsManagerUpgrader_SuperchainConfigMismatch();
 
-    /// @notice The OPContractsManagerUpgrader contract.
-    OPContractsManagerUpgrader public immutable thisOPCMUpgrader;
-
-    /// @notice Mapping of SuperchainConfig addresses to if it has been upgraded or not.
-    mapping(address => bool) public isSuperchainConfigUpgraded;
+    /// @notice The expected version of the SuperchainConfig contract.
+    bytes32 immutable SUPERCHAIN_CONFIG_EXPECTED_VERSION = keccak256(abi.encodePacked("2.3.0"));
 
     /// @param _contractsContainer The OPContractsManagerContractsContainer to use.
-    constructor(OPContractsManagerContractsContainer _contractsContainer) OPContractsManagerBase(_contractsContainer) {
-        thisOPCMUpgrader = this;
-    }
+    constructor(OPContractsManagerContractsContainer _contractsContainer) OPContractsManagerBase(_contractsContainer) { }
 
     /// @notice Upgrades a set of chains to the latest implementation contracts
     /// @param _superchainConfig The SuperchainConfig contract to upgrade
@@ -618,11 +613,7 @@ contract OPContractsManagerUpgrader is OPContractsManagerBase {
         OPContractsManager.Implementations memory impls = getImplementations();
 
         // If the SuperchainConfig is not already upgraded, upgrade it.
-        if (!thisOPCMUpgrader.isSuperchainConfigUpgraded(address(_superchainConfig))) {
-            // Set the SuperchainConfig as upgraded.
-            // This function is unprotected but execution will fail below if the wrong proxy admin is used.
-            thisOPCMUpgrader.setSuperchainConfigUpgraded(address(_superchainConfig));
-
+        if (keccak256(abi.encodePacked(_superchainConfig.version())) != SUPERCHAIN_CONFIG_EXPECTED_VERSION) {
             // Attempt to upgrade. If the ProxyAdmin is not the SuperchainConfig's admin, this will revert.
             upgradeToAndCall(
                 _superchainProxyAdmin,
@@ -855,11 +846,6 @@ contract OPContractsManagerUpgrader is OPContractsManagerBase {
             // the caller will be the value of the ADDRESS opcode.
             emit Upgraded(l2ChainId, _opChainConfigs[i].systemConfigProxy, address(this));
         }
-    }
-
-    /// @notice Sets a SuperchainConfig as upgraded.
-    function setSuperchainConfigUpgraded(address _superchainConfig) external {
-        isSuperchainConfigUpgraded[_superchainConfig] = true;
     }
 
     /// @notice Updates the implementation of a proxy without calling the initializer.
@@ -1774,9 +1760,9 @@ contract OPContractsManager is ISemver {
 
     // -------- Constants and Variables --------
 
-    /// @custom:semver 2.6.0
+    /// @custom:semver 2.7.0
     function version() public pure virtual returns (string memory) {
-        return "2.6.0";
+        return "2.7.0";
     }
 
     OPContractsManagerGameTypeAdder public immutable opcmGameTypeAdder;
@@ -1860,6 +1846,9 @@ contract OPContractsManager is ISemver {
 
     /// @notice Thrown when the prestate of a permissioned disputed game is 0.
     error PrestateRequired();
+
+    /// @notice Thrown when the SuperchainConfig of the all chains passed into upgrade(...) are not the same.
+    error SuperchainConfigInconsistent();
 
     // -------- Methods --------
 
@@ -1948,9 +1937,21 @@ contract OPContractsManager is ISemver {
         ISuperchainConfig _superchainConfig = superchainConfig;
         IProxyAdmin _superchainProxyAdmin = superchainProxyAdmin;
         if (_opChainConfigs.length > 0) {
+            // Ideally use _opChainConfigs[0].systemConfigProxy.superchainConfig()
             _superchainConfig =
                 IOptimismPortal(payable(_opChainConfigs[0].systemConfigProxy.optimismPortal())).superchainConfig();
+            // Ideally use superchainConfig.proxyAdmin()
             _superchainProxyAdmin = _opChainConfigs[0].proxyAdmin;
+        }
+
+        // Ensure all chains are using the same superchain config.
+        for (uint256 i; i < _opChainConfigs.length; i++) {
+            if (
+                IOptimismPortal(payable(_opChainConfigs[i].systemConfigProxy.optimismPortal())).superchainConfig()
+                    != _superchainConfig
+            ) {
+                revert SuperchainConfigInconsistent();
+            }
         }
 
         bytes memory data = abi.encodeCall(

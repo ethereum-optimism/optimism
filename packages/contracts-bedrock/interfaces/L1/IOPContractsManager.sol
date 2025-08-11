@@ -296,6 +296,8 @@ interface IOPContractsManager {
 
     error PrestateRequired();
 
+    error SuperchainConfigInconsistent();
+
     // -------- Methods --------
 
     function __constructor__(
