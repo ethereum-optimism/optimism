@@ -150,7 +150,7 @@ func NewL2Verifier(t Testing, log log.Logger, l1 derive.L1Fetcher,
 	sys.Register("engine-reset",
 		engine.NewEngineResetDeriver(ctx, log, cfg, l1, eng, syncCfg), opts)
 
-	clSync := clsync.NewCLSync(log, cfg, metrics)
+	clSync := clsync.NewCLSync(log, cfg, metrics, ec)
 	sys.Register("cl-sync", clSync, opts)
 
 	var finalizer driver.Finalizer

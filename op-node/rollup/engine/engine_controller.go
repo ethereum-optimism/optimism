@@ -156,6 +156,21 @@ func (e *EngineController) BackupUnsafeL2Head() eth.L2BlockRef {
 	return e.backupUnsafeHead
 }
 
+// RequestForkchoiceUpdate implements attributes.EngineController.
+// It reads the current heads under a read lock and emits a ForkchoiceUpdateEvent.
+func (e *EngineController) RequestForkchoiceUpdate(ctx context.Context) {
+	e.mu.RLock()
+	unsafe := e.UnsafeL2Head()
+	safe := e.SafeL2Head()
+	finalized := e.Finalized()
+	e.mu.RUnlock()
+	e.emitter.Emit(ctx, ForkchoiceUpdateEvent{
+		UnsafeL2Head:    unsafe,
+		SafeL2Head:      safe,
+		FinalizedL2Head: finalized,
+	})
+}
+
 func (e *EngineController) IsEngineSyncing() bool {
 	return e.syncStatus == syncStatusWillStartEL || e.syncStatus == syncStatusStartedEL || e.syncStatus == syncStatusFinishedELButNotFinalized
 }
@@ -624,12 +639,6 @@ func (d *EngineController) OnEvent(ctx context.Context, ev event.Event) bool {
 		} else {
 			d.log.Info("successfully processed payload", "ref", ref, "txs", len(x.Envelope.ExecutionPayload.Transactions))
 		}
-	case ForkchoiceRequestEvent:
-		d.emitter.Emit(ctx, ForkchoiceUpdateEvent{
-			UnsafeL2Head:    d.UnsafeL2Head(),
-			SafeL2Head:      d.SafeL2Head(),
-			FinalizedL2Head: d.Finalized(),
-		})
 	case rollup.ForceResetEvent:
 		ForceEngineReset(d, x)
 

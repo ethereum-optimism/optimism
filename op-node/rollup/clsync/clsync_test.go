@@ -22,9 +22,18 @@ type noopMetrics struct{}
 
 func (n *noopMetrics) RecordUnsafePayloadsBuffer(length uint64, memSize uint64, next eth.BlockID) {}
 
+type fakeEngController struct{ calls int }
+
+func (f *fakeEngController) RequestForkchoiceUpdate(ctx context.Context) { f.calls++ }
+func (f *fakeEngController) TryUpdatePendingSafe(ctx context.Context, ref eth.L2BlockRef, concluding bool, source eth.L1BlockRef) {
+}
+func (f *fakeEngController) TryUpdateLocalSafe(ctx context.Context, ref eth.L2BlockRef, concluding bool, source eth.L1BlockRef) {
+}
+
 func TestCLSync_InvalidPayloadDropsHead(t *testing.T) {
 	logger := testlog.Logger(t, 0)
-	cl := NewCLSync(logger, nil, &noopMetrics{})
+	fe := &fakeEngController{}
+	cl := NewCLSync(logger, nil, &noopMetrics{}, fe)
 	emitter := &testutils.MockEmitter{}
 	cl.AttachEmitter(emitter)
 
@@ -32,10 +41,9 @@ func TestCLSync_InvalidPayloadDropsHead(t *testing.T) {
 		BlockHash: common.Hash{0x01},
 	}}
 
-	// Adding an unsafe payload asks for a forkchoice update
-	emitter.ExpectOnce(engine.ForkchoiceRequestEvent{})
+	// Adding an unsafe payload requests a forkchoice update via engine controller
 	cl.OnEvent(context.Background(), ReceivedUnsafePayloadEvent{Envelope: payload})
-	emitter.AssertExpectations(t)
+	require.Equal(t, 1, fe.calls)
 	require.NotNil(t, cl.unsafePayloads.Peek())
 
 	// Mark it invalid; it should be dropped if it matches the queue head
@@ -127,12 +135,12 @@ func TestCLSync_OnUnsafePayload_EnqueueEmitAndRecord(t *testing.T) {
 	logger := testlog.Logger(t, 0)
 	metrics := &recordingMetrics{}
 	emitter := &testutils.MockEmitter{}
-	cl := NewCLSync(logger, cfg, metrics)
+	fe := &fakeEngController{}
+	cl := NewCLSync(logger, cfg, metrics, fe)
 	cl.AttachEmitter(emitter)
 
-	emitter.ExpectOnce(engine.ForkchoiceRequestEvent{})
 	cl.OnEvent(context.Background(), ReceivedUnsafePayloadEvent{Envelope: payloadA1})
-	emitter.AssertExpectations(t)
+	require.Equal(t, 1, fe.calls)
 
 	// queued and metrics recorded
 	got := cl.unsafePayloads.Peek()
@@ -149,13 +157,13 @@ func TestCLSync_OnForkchoiceUpdate_ProcessRetryAndPop(t *testing.T) {
 	logger := testlog.Logger(t, 0)
 	metrics := &recordingMetrics{}
 	emitter := &testutils.MockEmitter{}
-	cl := NewCLSync(logger, cfg, metrics)
+	fe := &fakeEngController{}
+	cl := NewCLSync(logger, cfg, metrics, fe)
 	cl.AttachEmitter(emitter)
 
 	// queue payload A1
-	emitter.ExpectOnce(engine.ForkchoiceRequestEvent{})
 	cl.OnEvent(context.Background(), ReceivedUnsafePayloadEvent{Envelope: payloadA1})
-	emitter.AssertExpectations(t)
+	require.Equal(t, 1, fe.calls)
 
 	// applicable forkchoice -> process once
 	emitter.ExpectOnce(engine.ProcessUnsafePayloadEvent{Envelope: payloadA1})
@@ -177,7 +185,7 @@ func TestCLSync_OnForkchoiceUpdate_ProcessRetryAndPop(t *testing.T) {
 func TestCLSync_LowestQueuedUnsafeBlock(t *testing.T) {
 	cfg, _, _, payloadA1 := buildSimpleCfgAndPayload(t)
 	logger := testlog.Logger(t, 0)
-	cl := NewCLSync(logger, cfg, &noopMetrics{})
+	cl := NewCLSync(logger, cfg, &noopMetrics{}, &fakeEngController{})
 	// empty -> zero
 	require.Equal(t, eth.L2BlockRef{}, cl.LowestQueuedUnsafeBlock())
 
@@ -191,7 +199,7 @@ func TestCLSync_LowestQueuedUnsafeBlock(t *testing.T) {
 func TestCLSync_LowestQueuedUnsafeBlock_OnDeriveErrorReturnsZero(t *testing.T) {
 	// missing L1-info in txs will cause derive error
 	logger := testlog.Logger(t, 0)
-	cl := NewCLSync(logger, &rollup.Config{}, &noopMetrics{})
+	cl := NewCLSync(logger, &rollup.Config{}, &noopMetrics{}, &fakeEngController{})
 	bad := &eth.ExecutionPayloadEnvelope{ExecutionPayload: &eth.ExecutionPayload{BlockNumber: 1, BlockHash: common.Hash{0xaa}}}
 	_ = cl.unsafePayloads.Push(bad)
 	require.Equal(t, eth.L2BlockRef{}, cl.LowestQueuedUnsafeBlock())
@@ -199,7 +207,8 @@ func TestCLSync_LowestQueuedUnsafeBlock_OnDeriveErrorReturnsZero(t *testing.T) {
 
 func TestCLSync_InvalidPayloadForNonHead_NoDrop(t *testing.T) {
 	logger := testlog.Logger(t, 0)
-	cl := NewCLSync(logger, nil, &noopMetrics{})
+	fe := &fakeEngController{}
+	cl := NewCLSync(logger, nil, &noopMetrics{}, fe)
 	emitter := &testutils.MockEmitter{}
 	cl.AttachEmitter(emitter)
 
@@ -214,12 +223,9 @@ func TestCLSync_InvalidPayloadForNonHead_NoDrop(t *testing.T) {
 		BlockHash:   common.Hash{0x02},
 	}}
 
-	emitter.ExpectOnce(engine.ForkchoiceRequestEvent{})
 	cl.OnEvent(context.Background(), ReceivedUnsafePayloadEvent{Envelope: head})
-	emitter.AssertExpectations(t)
-	emitter.ExpectOnce(engine.ForkchoiceRequestEvent{})
 	cl.OnEvent(context.Background(), ReceivedUnsafePayloadEvent{Envelope: other})
-	emitter.AssertExpectations(t)
+	require.Equal(t, 2, fe.calls)
 
 	// Invalidate non-head should not drop head
 	cl.OnEvent(context.Background(), engine.PayloadInvalidEvent{Envelope: other})

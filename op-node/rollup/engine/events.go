@@ -22,17 +22,6 @@ var ReplaceBlockSource = eth.L1BlockRef{
 
 // no local metrics interface; engine depends directly on op-node/metrics.Metricer
 
-// ForkchoiceRequestEvent signals to the engine that it should emit an artificial
-// forkchoice-update event, to signal the latest forkchoice to other derivers.
-// This helps decouple derivers from the actual engine state,
-// while also not making the derivers wait for a forkchoice update at random.
-type ForkchoiceRequestEvent struct {
-}
-
-func (ev ForkchoiceRequestEvent) String() string {
-	return "forkchoice-request"
-}
-
 type ForkchoiceUpdateEvent struct {
 	UnsafeL2Head, SafeL2Head, FinalizedL2Head eth.L2BlockRef
 }
