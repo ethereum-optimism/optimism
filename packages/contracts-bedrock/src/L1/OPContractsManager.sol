@@ -592,7 +592,7 @@ contract OPContractsManagerUpgrader is OPContractsManagerBase {
     error OPContractsManagerUpgrader_SuperchainConfigMismatch();
 
     /// @notice The expected version of the SuperchainConfig contract.
-    bytes32 immutable SUPERCHAIN_CONFIG_EXPECTED_VERSION = keccak256(abi.encodePacked("2.3.0"));
+    bytes32 constant SUPERCHAIN_CONFIG_EXPECTED_VERSION = keccak256(abi.encodePacked("2.3.0"));
 
     /// @param _contractsContainer The OPContractsManagerContractsContainer to use.
     constructor(OPContractsManagerContractsContainer _contractsContainer) OPContractsManagerBase(_contractsContainer) { }
@@ -1945,13 +1945,11 @@ contract OPContractsManager is ISemver {
         }
 
         // Ensure all chains are using the same superchain config.
-        for (uint256 i; i < _opChainConfigs.length; i++) {
+        for (uint256 i = 1; i < _opChainConfigs.length; i++) {
             if (
                 IOptimismPortal(payable(_opChainConfigs[i].systemConfigProxy.optimismPortal())).superchainConfig()
                     != _superchainConfig
-            ) {
-                revert SuperchainConfigInconsistent();
-            }
+            ) revert SuperchainConfigInconsistent();
         }
 
         bytes memory data = abi.encodeCall(
