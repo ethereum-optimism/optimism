@@ -35,7 +35,7 @@ func TestNewPayloadV4(t *testing.T) {
 	logger, _ := testlog.CaptureLogger(t, log.LvlInfo)
 
 	for _, c := range cases {
-		genesis := createGenesisWithIsthmusTime(c.isthmusTime)
+		genesis := createGenesisWithForkTime(c.isthmusTime)
 		ethCfg := &ethconfig.Config{
 			NetworkId:   genesis.Config.ChainID.Uint64(),
 			Genesis:     genesis,
@@ -163,10 +163,10 @@ func newStubBackend(t *testing.T) *stubCachingBackend {
 }
 
 func createGenesis() *core.Genesis {
-	return createGenesisWithIsthmusTime(0)
+	return createGenesisWithForkTime(0)
 }
 
-func createGenesisWithIsthmusTime(isthmusTime uint64) *core.Genesis {
+func createGenesisWithForkTime(forkTime uint64) *core.Genesis {
 	deployConfig := &genesis.DeployConfig{
 		L2InitializationConfig: genesis.L2InitializationConfig{
 			DevDeployConfig: genesis.DevDeployConfig{
@@ -187,7 +187,7 @@ func createGenesisWithIsthmusTime(isthmusTime uint64) *core.Genesis {
 		},
 	}
 
-	// Enable forks up to the specified isthmus time
+	// Enable all forks up to the specified time
 	ts := hexutil.Uint64(0)
 	deployConfig.L2GenesisRegolithTimeOffset = &ts
 	deployConfig.L2GenesisCanyonTimeOffset = &ts
@@ -197,11 +197,11 @@ func createGenesisWithIsthmusTime(isthmusTime uint64) *core.Genesis {
 	deployConfig.L2GenesisGraniteTimeOffset = &ts
 	deployConfig.L2GenesisHoloceneTimeOffset = &ts
 
-	// Set isthmus time and subsequent forks
-	isthmusTimeOffset := hexutil.Uint64(isthmusTime)
-	deployConfig.L2GenesisIsthmusTimeOffset = &isthmusTimeOffset
-	deployConfig.L2GenesisInteropTimeOffset = &isthmusTimeOffset
-	deployConfig.L2GenesisJovianTimeOffset = &isthmusTimeOffset
+	// Set fork time for latest forks
+	forkTimeOffset := hexutil.Uint64(forkTime)
+	deployConfig.L2GenesisIsthmusTimeOffset = &forkTimeOffset
+	deployConfig.L2GenesisInteropTimeOffset = &forkTimeOffset
+	deployConfig.L2GenesisJovianTimeOffset = &forkTimeOffset
 
 	l1Genesis, err := genesis.NewL1Genesis(deployConfig)
 	if err != nil {

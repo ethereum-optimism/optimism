@@ -53,46 +53,7 @@ func Test_ProgramAction_JovianActivation(gt *testing.T) {
 		b := env.Engine.L2Chain().GetBlockByHash(env.Sequencer.L2Unsafe().Hash)
 		require.Len(t, b.Extra(), 10, "extra data should be 10 bytes after Jovian activation (adds minBaseFee)")
 
-		// Build up a local list of frames
-		orderedFrames := make([][]byte, 0, 1)
-		// Submit the first two blocks, this will be enough to trigger Jovian _derivation_
-		// which is activated by the L1 inclusion block timestamp
-		// block 1 will be 12 seconds after genesis, and 2 seconds before Jovian activation
-		// block 2 will be 24 seconds after genesis, and 10 seconds after Jovian activation
-		blocksToSubmit := []uint{1, 2}
-		// Buffer the blocks in the batcher and populate orderedFrames list
-		env.Batcher.ActCreateChannel(t, false)
-		for i, blockNum := range blocksToSubmit {
-			env.Batcher.ActAddBlockByNumber(t, int64(blockNum), actionsHelpers.BlockLogger(t))
-			if i == len(blocksToSubmit)-1 {
-				env.Batcher.ActL2ChannelClose(t)
-			}
-			frame := env.Batcher.ReadNextOutputFrame(t)
-			require.NotEmpty(t, frame, "frame %d", i)
-			orderedFrames = append(orderedFrames, frame)
-		}
-
-		includeBatchTx := func() {
-			// Include the last transaction submitted by the batcher.
-			env.Miner.ActL1StartBlock(12)(t)
-			env.Miner.ActL1IncludeTxByHash(env.Batcher.LastSubmitted.Hash())(t)
-			env.Miner.ActL1EndBlock(t)
-		}
-
-		// Submit first frame
-		env.Batcher.ActL2BatchSubmitRaw(t, orderedFrames[0])
-		includeBatchTx() // L1 block should have a timestamp of 12s after genesis
-
-		// Jovian should activate 14s after genesis, so that the previous l1 block
-		// was before JovianTime and the next l1 block is after it
-
-		// Submit final frame
-		env.Batcher.ActL2BatchSubmitRaw(t, orderedFrames[1])
-		includeBatchTx() // block should have a timestamp of 24s after genesis
-
-		// Instruct the sequencer to derive the L2 chain from the data on L1 that the batcher just posted.
-		env.Sequencer.ActL1HeadSignal(t)
-		env.Sequencer.ActL2PipelineFull(t)
+		env.BatchMineAndSync(t)
 
 		l2SafeHead := env.Sequencer.L2Safe()
 		t.Logf("Safe head block number: %d, timestamp: %d", l2SafeHead.Number, l2SafeHead.Time)
