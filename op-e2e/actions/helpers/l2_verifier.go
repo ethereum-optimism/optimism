@@ -66,6 +66,7 @@ type L2Verifier struct {
 	derivationMetrics *testutils.TestDerivationMetrics
 	derivation        *derive.DerivationPipeline
 	syncDeriver       *driver.SyncDeriver
+	finalizer         driver.Finalizer
 
 	safeHeadListener rollup.SafeHeadListener
 	syncCfg          *sync.Config
@@ -201,6 +202,7 @@ func NewL2Verifier(t Testing, log log.Logger, l1 derive.L1Fetcher,
 		derivationMetrics: metrics,
 		derivation:        pipeline,
 		syncDeriver:       syncDeriver,
+		finalizer:         finalizer,
 		safeHeadListener:  safeHeadListener,
 		syncCfg:           syncCfg,
 		drainer:           executor,
@@ -377,6 +379,7 @@ func (s *L2Verifier) ActL1FinalizedSignal(t Testing) {
 	finalized, err := s.l1.L1BlockRefByLabel(t.Ctx(), eth.Finalized)
 	require.NoError(t, err)
 	s.syncStatus.OnL1Finalized(finalized)
+	s.finalizer.OnL1Finalized(finalized)
 	s.syncDeriver.OnL1Finalized(t.Ctx())
 	require.Equal(t, finalized, s.syncStatus.SyncStatus().FinalizedL1)
 }
