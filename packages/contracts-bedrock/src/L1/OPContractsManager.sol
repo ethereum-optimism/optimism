@@ -591,8 +591,8 @@ contract OPContractsManagerUpgrader is OPContractsManagerBase {
     /// @notice Thrown when the SuperchainConfig contract does not match the unified config.
     error OPContractsManagerUpgrader_SuperchainConfigMismatch();
 
-    /// @notice The expected version of the SuperchainConfig contract.
-    bytes32 constant SUPERCHAIN_CONFIG_EXPECTED_VERSION = keccak256(abi.encodePacked("2.3.0"));
+    /// @notice The expected previous version of the SuperchainConfig contract.
+    bytes32 constant SUPERCHAIN_CONFIG_EXPECTED_PREVIOUS_VERSION = keccak256(abi.encodePacked("1.2.0"));
 
     /// @param _contractsContainer The OPContractsManagerContractsContainer to use.
     constructor(OPContractsManagerContractsContainer _contractsContainer) OPContractsManagerBase(_contractsContainer) { }
@@ -613,7 +613,7 @@ contract OPContractsManagerUpgrader is OPContractsManagerBase {
         OPContractsManager.Implementations memory impls = getImplementations();
 
         // If the SuperchainConfig is not already upgraded, upgrade it.
-        if (keccak256(abi.encodePacked(_superchainConfig.version())) != SUPERCHAIN_CONFIG_EXPECTED_VERSION) {
+        if (keccak256(abi.encodePacked(_superchainConfig.version())) == SUPERCHAIN_CONFIG_EXPECTED_PREVIOUS_VERSION) {
             // Attempt to upgrade. If the ProxyAdmin is not the SuperchainConfig's admin, this will revert.
             upgradeToAndCall(
                 _superchainProxyAdmin,
