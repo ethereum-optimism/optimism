@@ -208,6 +208,7 @@ func TestEngineQueue_Finalize(t *testing.T) {
 
 		// Let's finalize D from which we fully derived C1, but not D0
 		// This will trigger an attempt of L2 finalization.
+		emitter.ExpectOnce(TryFinalizeEvent{})
 		fi.OnL1Finalized(refD)
 
 		// C1 was included in finalized D, and should now be finalized
@@ -240,6 +241,7 @@ func TestEngineQueue_Finalize(t *testing.T) {
 		emitter.AssertExpectations(t)
 
 		// let's finalize D from which we fully derived C1, but not D0
+		emitter.ExpectOnce(TryFinalizeEvent{})
 		fi.OnL1Finalized(refD)
 		// C1 was included in finalized D, but finality could not be verified yet, due to temporary test error
 		emitter.ExpectOnceType("L1TemporaryErrorEvent")
@@ -276,6 +278,7 @@ func TestEngineQueue_Finalize(t *testing.T) {
 		emitter.AssertExpectations(t)
 
 		// L1 finality signal will trigger L2 finality attempt
+		emitter.ExpectOnce(TryFinalizeEvent{})
 		fi.OnL1Finalized(refD)
 
 		// C1 was included in D, and should be finalized now
@@ -287,6 +290,7 @@ func TestEngineQueue_Finalize(t *testing.T) {
 		l1F.AssertExpectations(t)
 
 		// Another L1 finality event, trigger L2 finality attempt again
+		emitter.ExpectOnce(TryFinalizeEvent{})
 		fi.OnL1Finalized(refE)
 
 		// D0 was included in E, and should be finalized now
@@ -323,6 +327,7 @@ func TestEngineQueue_Finalize(t *testing.T) {
 		emitter.AssertExpectations(t)
 
 		// Now L1 block H is actually finalized, and we can proceed with another attempt
+		emitter.ExpectOnce(TryFinalizeEvent{})
 		fi.OnL1Finalized(refH)
 
 		// F1 should be finalized now, since it was included in H
@@ -358,6 +363,7 @@ func TestEngineQueue_Finalize(t *testing.T) {
 		emitter.AssertExpectations(t)
 
 		// let's finalize D, from which we fully derived B1, but not C0 (referenced L1 origin in L2 block != inclusion of L2 block in L1 chain)
+		emitter.ExpectOnce(TryFinalizeEvent{})
 		fi.OnL1Finalized(refD)
 
 		// B1 was included in finalized D, and should now be finalized
@@ -418,6 +424,7 @@ func TestEngineQueue_Finalize(t *testing.T) {
 		// The finality signal was for a new chain, while derivation is on an old stale chain.
 		// It should be detected that C0Alt and C1Alt cannot actually be finalized,
 		// even though they are older than the latest finality signal.
+		emitter.ExpectOnce(TryFinalizeEvent{})
 		fi.OnL1Finalized(refF)
 
 		// cannot verify refC0Alt and refC1Alt, and refB1 is older and not checked
@@ -483,6 +490,7 @@ func TestEngineQueue_Finalize(t *testing.T) {
 		fi.OnEvent(ctx, derive.DeriverIdleEvent{Origin: refD})
 		emitter.AssertExpectations(t)
 
+		emitter.ExpectOnce(TryFinalizeEvent{})
 		fi.OnL1Finalized(refD)
 
 		// C1 was Interop, C0 was not yet interop and can be finalized
