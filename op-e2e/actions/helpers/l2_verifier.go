@@ -376,11 +376,8 @@ func (s *L2Verifier) ActL1SafeSignal(t Testing) {
 func (s *L2Verifier) ActL1FinalizedSignal(t Testing) {
 	finalized, err := s.l1.L1BlockRefByLabel(t.Ctx(), eth.Finalized)
 	require.NoError(t, err)
-	s.synchronousEvents.Emit(t.Ctx(), finality.FinalizeL1Event{FinalizedL1: finalized})
-	require.NoError(t, s.drainer.DrainUntil(func(ev event.Event) bool {
-		x, ok := ev.(finality.FinalizeL1Event)
-		return ok && x.FinalizedL1 == finalized
-	}, false))
+	s.syncStatus.OnL1Finalized(finalized)
+	s.syncDeriver.OnL1Finalized(t.Ctx())
 	require.Equal(t, finalized, s.syncStatus.SyncStatus().FinalizedL1)
 }
 

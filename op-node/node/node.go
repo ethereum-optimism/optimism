@@ -26,7 +26,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/conductor"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/driver"
-	"github.com/ethereum-optimism/optimism/op-node/rollup/finality"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/interop"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/interop/indexing"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/sequencing"
@@ -216,7 +215,6 @@ func (n *OpNode) initL1Handlers(cfg *config.Config) error {
 	if n.l2Driver == nil {
 		return errors.New("l2 driver must be initialized")
 	}
-	emitter := n.eventSys.Register("l1-signals", nil)
 	onL1Head := func(ctx context.Context, sig eth.L1BlockRef) {
 		// TODO(#16917) Remove Event System Refactor Comments
 		//  L1UnsafeEvent fan out is updated to procedural method calls
@@ -231,7 +229,11 @@ func (n *OpNode) initL1Handlers(cfg *config.Config) error {
 		n.l2Driver.StatusTracker.OnL1Safe(sig)
 	}
 	onL1Finalized := func(ctx context.Context, sig eth.L1BlockRef) {
-		emitter.Emit(ctx, finality.FinalizeL1Event{FinalizedL1: sig})
+		// TODO(#16917) Remove Event System Refactor Comments
+		//  FinalizeL1Event fan out is updated to procedural method calls
+		n.l2Driver.StatusTracker.OnL1Finalized(sig)
+		n.l2Driver.Finalizer.OnL1Finalized(sig)
+		n.l2Driver.SyncDeriver.OnL1Finalized(ctx)
 	}
 
 	// Keep subscribed to the L1 heads, which keeps the L1 maintainer pointing to the best headers to sync

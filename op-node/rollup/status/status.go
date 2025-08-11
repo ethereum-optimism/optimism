@@ -10,7 +10,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/engine"
-	"github.com/ethereum-optimism/optimism/op-node/rollup/finality"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/event"
 )
@@ -45,6 +44,7 @@ func NewStatusTracker(log log.Logger, metrics Metrics) *StatusTracker {
 func (st *StatusTracker) OnEvent(ctx context.Context, ev event.Event) bool {
 	// TODO(#16917) Remove Event System Refactor Comments
 	//  L1UnsafeEvent, L1SafeEvent is removed and OnL1Unsafe is synchronously called at L1Handler
+	//  FinalizeL1Event is removed and OnL1Finalized is synchronously called at L1Handler
 	st.mu.Lock()
 	defer st.mu.Unlock()
 
@@ -73,11 +73,6 @@ func (st *StatusTracker) OnEvent(ctx context.Context, ev event.Event) bool {
 		st.data.LocalSafeL2 = x.LocalSafe
 	case derive.DeriverL1StatusEvent:
 		st.data.CurrentL1 = x.Origin
-	case finality.FinalizeL1Event:
-		st.log.Info("New L1 finalized block", "l1_finalized", x.FinalizedL1)
-		st.metrics.RecordL1Ref("l1_finalized", x.FinalizedL1)
-		st.data.FinalizedL1 = x.FinalizedL1
-		st.data.CurrentL1Finalized = x.FinalizedL1
 	case rollup.ResetEvent:
 		st.data.UnsafeL2 = eth.L2BlockRef{}
 		st.data.SafeL2 = eth.L2BlockRef{}
@@ -136,6 +131,14 @@ func (st *StatusTracker) OnL1Safe(x eth.L1BlockRef) {
 	st.log.Info("New L1 safe block", "l1_safe", x)
 	st.metrics.RecordL1Ref("l1_safe", x)
 	st.data.SafeL1 = x
+	st.UpdateSyncStatus()
+}
+
+func (st *StatusTracker) OnL1Finalized(x eth.L1BlockRef) {
+	st.log.Info("New L1 finalized block", "l1_finalized", x)
+	st.metrics.RecordL1Ref("l1_finalized", x)
+	st.data.FinalizedL1 = x
+	st.data.CurrentL1Finalized = x
 	st.UpdateSyncStatus()
 }
 

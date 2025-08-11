@@ -14,7 +14,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup/clsync"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/engine"
-	"github.com/ethereum-optimism/optimism/op-node/rollup/finality"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/sequencing"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/status"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/sync"
@@ -27,6 +26,7 @@ type SyncStatus = eth.SyncStatus
 
 type Driver struct {
 	StatusTracker SyncStatusTracker
+	Finalizer     Finalizer
 
 	*SyncDeriver
 
@@ -241,16 +241,19 @@ func (s *SyncDeriver) OnL1Unsafe(ctx context.Context) {
 	s.Emitter.Emit(ctx, StepReqEvent{})
 }
 
+func (s *SyncDeriver) OnL1Finalized(ctx context.Context) {
+	// On "safe" L1 blocks: no step, justified L1 information does not do anything for L2 derivation or status.
+	// On "finalized" L1 blocks: we may be able to mark more L2 data as finalized now.
+	s.Emitter.Emit(ctx, StepReqEvent{})
+}
+
 func (s *SyncDeriver) OnEvent(ctx context.Context, ev event.Event) bool {
 	// TODO(#16917) Remove Event System Refactor Comments
 	//  ELSyncStartedEvent is removed and OnELSyncStarted is synchronously called at EngineController
 	//  ReceivedBlockEvent is removed and OnUnsafeL2Payload is synchronously called at NewBlockReceiver
 	//  L1UnsafeEvent is removed and OnL1Unsafe is synchronously called at L1Handler
+	//  FinalizeL1Event is removed and OnL1Finalized is synchronously called at L1Handler
 	switch x := ev.(type) {
-	case finality.FinalizeL1Event:
-		// On "safe" L1 blocks: no step, justified L1 information does not do anything for L2 derivation or status.
-		// On "finalized" L1 blocks: we may be able to mark more L2 data as finalized now.
-		s.Emitter.Emit(ctx, StepReqEvent{})
 	case StepEvent:
 		s.SyncStep()
 	case rollup.ResetEvent:

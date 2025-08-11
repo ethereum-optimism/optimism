@@ -103,6 +103,7 @@ type AttributesHandler interface {
 
 type Finalizer interface {
 	FinalizedL1() eth.L1BlockRef
+	OnL1Finalized(x eth.L1BlockRef)
 	event.Deriver
 }
 
@@ -121,6 +122,7 @@ type SyncStatusTracker interface {
 	L1Head() eth.L1BlockRef
 	OnL1Unsafe(x eth.L1BlockRef)
 	OnL1Safe(x eth.L1BlockRef)
+	OnL1Finalized(x eth.L1BlockRef)
 }
 
 type Network interface {
@@ -254,6 +256,7 @@ func NewDriver(
 	driverEmitter := sys.Register("driver", nil)
 	driver := &Driver{
 		StatusTracker: statusTracker,
+		Finalizer:     finalizer,
 		SyncDeriver:   syncDeriver,
 		sched:         schedDeriv,
 		emitter:       driverEmitter,
