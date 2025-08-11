@@ -50,32 +50,32 @@ func (g *FaultDisputeGame) SplitDepth() uint64 {
 }
 
 func (g *FaultDisputeGame) RootClaim() *Claim {
-	return g.ClaimAtIndex(int64(0))
+	return g.ClaimAtIndex(0)
 }
 
 func (g *FaultDisputeGame) L2SequenceNumber() *big.Int {
 	return contract.Read(g.game.L2SequenceNumber())
 }
 
-func (g *FaultDisputeGame) ClaimAtIndex(claimIndex int64) *Claim {
+func (g *FaultDisputeGame) ClaimAtIndex(claimIndex uint64) *Claim {
 	claim := g.claimAtIndex(claimIndex)
 	return g.newClaim(claimIndex, claim)
 }
 
-func (g *FaultDisputeGame) Attack(eoa *dsl.EOA, claimIdx int64, newClaim common.Hash) {
+func (g *FaultDisputeGame) Attack(eoa *dsl.EOA, claimIdx uint64, newClaim common.Hash) {
 	claim := g.claimAtIndex(claimIdx)
 	g.t.Logf("Attacking claim %v (depth: %d) with counter-claim %v", claimIdx, claim.Position.Depth(), newClaim)
 
 	requiredBond := g.requiredBond(claim.Position.Attack())
 
-	attackCall := g.game.Attack(claim.Value, big.NewInt(claimIdx), newClaim)
+	attackCall := g.game.Attack(claim.Value, new(big.Int).SetUint64(claimIdx), newClaim)
 
 	receipt := contract.Write(eoa, attackCall, txplan.WithValue(requiredBond), txplan.WithGasRatio(2))
 	g.t.Require().Equal(receipt.Status, types.ReceiptStatusSuccessful)
 }
 
-func (g *FaultDisputeGame) PerformMoves(eoa *dsl.EOA, moves ...GameHelperMove) {
-	g.helperProvider(eoa).PerformMoves(eoa, g, moves)
+func (g *FaultDisputeGame) PerformMoves(eoa *dsl.EOA, moves ...GameHelperMove) []*Claim {
+	return g.helperProvider(eoa).PerformMoves(eoa, g, moves)
 }
 
 func (g *FaultDisputeGame) requiredBond(pos challengerTypes.Position) eth.ETH {
@@ -87,12 +87,12 @@ func (g *FaultDisputeGame) status() gameTypes.GameStatus {
 	return gameTypes.GameStatus(status)
 }
 
-func (g *FaultDisputeGame) newClaim(claimIndex int64, claim bindings.Claim) *Claim {
+func (g *FaultDisputeGame) newClaim(claimIndex uint64, claim bindings.Claim) *Claim {
 	return newClaim(g.t, g.require, claimIndex, claim, g)
 }
 
-func (g *FaultDisputeGame) claimAtIndex(claimIndex int64) bindings.Claim {
-	return contract.Read(g.game.ClaimData(big.NewInt(claimIndex))).Decode()
+func (g *FaultDisputeGame) claimAtIndex(claimIndex uint64) bindings.Claim {
+	return contract.Read(g.game.ClaimData(new(big.Int).SetUint64(claimIndex))).Decode()
 }
 
 func (g *FaultDisputeGame) allClaims() []bindings.Claim {
@@ -109,18 +109,22 @@ func (g *FaultDisputeGame) allClaims() []bindings.Claim {
 	return claims
 }
 
-func (g *FaultDisputeGame) waitForClaim(timeout time.Duration, errorMsg string, predicate func(claimIdx int64, claim bindings.Claim) bool) (int64, bindings.Claim) {
+func (g *FaultDisputeGame) claimCount() uint64 {
+	return contract.Read(g.game.ClaimDataLen()).Uint64()
+}
+
+func (g *FaultDisputeGame) waitForClaim(timeout time.Duration, errorMsg string, predicate func(claimIdx uint64, claim bindings.Claim) bool) (uint64, bindings.Claim) {
 	timedCtx, cancel := context.WithTimeout(g.t.Ctx(), timeout)
 	defer cancel()
 	var matchedClaim bindings.Claim
-	var matchClaimIdx int64
+	var matchClaimIdx uint64
 	err := wait.For(timedCtx, time.Second, func() (bool, error) {
 		claims := g.allClaims()
 		// Search backwards because the new claims are at the end and more likely the ones we want.
 		for i := len(claims) - 1; i >= 0; i-- {
 			claim := claims[i]
-			if predicate(int64(i), claim) {
-				matchClaimIdx = int64(i)
+			if predicate(uint64(i), claim) {
+				matchClaimIdx = uint64(i)
 				matchedClaim = claim
 				return true, nil
 			}

@@ -48,8 +48,10 @@ func NewDisputeGameFactory(t devtest.T, l1Network *dsl.L1Network, ethClient apis
 }
 
 type GameCfg struct {
-	allowFuture bool
-	allowUnsafe bool
+	allowFuture  bool
+	allowUnsafe  bool
+	rootClaimSet bool
+	rootClaim    common.Hash
 }
 type GameOpt interface {
 	Apply(cfg *GameCfg)
@@ -69,6 +71,13 @@ func WithUnsafeProposal() GameOpt {
 func WithFutureProposal() GameOpt {
 	return gameOptFn(func(c *GameCfg) {
 		c.allowFuture = true
+	})
+}
+
+func WithRootClaim(claim common.Hash) GameOpt {
+	return gameOptFn(func(c *GameCfg) {
+		c.rootClaim = claim
+		c.rootClaimSet = true
 	})
 }
 
@@ -121,15 +130,21 @@ func (f *DisputeGameFactory) WaitForGame() *FaultDisputeGame {
 	return f.GameAtIndex(initialCount)
 }
 
-func (f *DisputeGameFactory) StartSuperCannonGame(eoa *dsl.EOA, rootClaim common.Hash, opts ...GameOpt) *SuperFaultDisputeGame {
+func (f *DisputeGameFactory) StartSuperCannonGame(eoa *dsl.EOA, opts ...GameOpt) *SuperFaultDisputeGame {
 	proposalTimestamp := f.supervisor.FetchSyncStatus().SafeTimestamp
 
-	return f.startSuperCannonGameOfType(eoa, proposalTimestamp, rootClaim, challengerTypes.SuperCannonGameType, opts...)
+	return f.startSuperCannonGameOfType(eoa, proposalTimestamp, challengerTypes.SuperCannonGameType, opts...)
 }
 
-func (f *DisputeGameFactory) startSuperCannonGameOfType(eoa *dsl.EOA, timestamp uint64, rootClaim common.Hash, gameType challengerTypes.GameType, opts ...GameOpt) *SuperFaultDisputeGame {
+func (f *DisputeGameFactory) startSuperCannonGameOfType(eoa *dsl.EOA, timestamp uint64, gameType challengerTypes.GameType, opts ...GameOpt) *SuperFaultDisputeGame {
 	cfg := NewGameCfg(opts...)
 	extraData := f.createSuperGameExtraData(timestamp, cfg)
+	rootClaim := cfg.rootClaim
+	if !cfg.rootClaimSet {
+		// Default to the correct root claim
+		response := f.supervisor.FetchSuperRootAtTimestamp(timestamp)
+		rootClaim = common.Hash(response.SuperRoot)
+	}
 	game, addr := f.createNewGame(eoa, gameType, rootClaim, extraData)
 
 	return NewSuperFaultDisputeGame(f.t, f.require, addr, f.getGameHelper, game)

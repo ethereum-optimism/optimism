@@ -148,7 +148,7 @@ func (gs *GameHelper) CreateGameWithClaims(
 	return receipt.ContractAddress
 }
 
-func (gs *GameHelper) PerformMoves(eoa *dsl.EOA, game *FaultDisputeGame, moves []GameHelperMove) {
+func (gs *GameHelper) PerformMoves(eoa *dsl.EOA, game *FaultDisputeGame, moves []GameHelperMove) []*Claim {
 	data, err := gs.abi.Pack("performMoves", game.Address, moves)
 	gs.require.NoError(err)
 
@@ -160,9 +160,27 @@ func (gs *GameHelper) PerformMoves(eoa *dsl.EOA, game *FaultDisputeGame, moves [
 			txplan.WithData(data),
 		),
 	)
+	preClaimCount := game.claimCount()
 	receipt, err := tx.Included.Eval(gs.t.Ctx())
 	gs.require.NoError(err)
 	gs.require.Equal(types.ReceiptStatusSuccessful, receipt.Status)
+	postClaimCount := game.claimCount()
+
+	// While all claims are performed within one transaction, it's possible another transaction also added claims
+	// between the calls to get claim count above (e.g. by a challenger running in parallel).
+	// So iterate to find the claims we added rather than just assuming the claim indices.
+	// Assumes that claims added by this helper contract are only added by this thread,
+	// which is safe because we deployed this particular instance of GameHelper.
+	claims := make([]*Claim, 0, len(moves))
+	for claimIdx := preClaimCount; claimIdx < postClaimCount; claimIdx++ {
+		claim := game.ClaimAtIndex(claimIdx)
+		if claim.claim.Claimant != gs.contractAddr {
+			continue
+		}
+		claims = append(claims, claim)
+	}
+	gs.require.Equal(len(claims), len(moves), "Did not find claims for all moves")
+	return claims
 }
 
 func (gs *GameHelper) totalMoveBonds(game *FaultDisputeGame, moves []GameHelperMove) eth.ETH {

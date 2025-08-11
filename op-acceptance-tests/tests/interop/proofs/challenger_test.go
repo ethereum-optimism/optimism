@@ -15,7 +15,6 @@ import (
 )
 
 func TestChallengerPlaysGame(gt *testing.T) {
-	// Setup
 	t := devtest.ParallelT(gt)
 	sys := presets.NewSimpleInterop(t)
 	dsl.CheckAll(t,
@@ -27,7 +26,7 @@ func TestChallengerPlaysGame(gt *testing.T) {
 	attacker := sys.FunderL1.NewFundedEOA(eth.Ether(15))
 	dgf := sys.DisputeGameFactory()
 
-	game := dgf.StartSuperCannonGame(attacker, badClaim)
+	game := dgf.StartSuperCannonGame(attacker, proofs.WithRootClaim(badClaim))
 
 	claim := game.RootClaim()                   // This is the bad claim from attacker
 	counterClaim := claim.WaitForCounterClaim() // This is the counter-claim from the challenger
@@ -46,18 +45,20 @@ func TestChallengerRespondsToInvalidClaims(gt *testing.T) {
 		sys.L2CLB.AdvancedFn(types.CrossSafe, 1, 30),
 	)
 
-	badClaim := common.HexToHash("0xdeadbeef00000000000000000000000000000000000000000000000000000000")
-	attacker := sys.FunderL1.NewFundedEOA(eth.Ether(100))
+	attacker := sys.FunderL1.NewFundedEOA(eth.TenEther)
 	dgf := sys.DisputeGameFactory()
 
 	extraData := make([]byte, 32)
 	binary.BigEndian.PutUint64(extraData[24:], 8249249824792999)
 
-	game := dgf.StartSuperCannonGame(attacker, badClaim)
-	game.PerformMoves(attacker,
-		proofs.Move(0, badClaim, true),
-		proofs.Move(1, badClaim, false),
+	game := dgf.StartSuperCannonGame(attacker, proofs.WithRootClaim(common.Hash{0xaa}))
+	claims := game.PerformMoves(attacker,
+		proofs.Move(0, common.Hash{0x01}, true),
+		proofs.Move(1, common.Hash{0x02}, false), // Defends invalid claim so won't be countered.
+		proofs.Move(1, common.Hash{0x03}, true),
 	)
 
-	game.LogGameData()
+	claims[0].WaitForCounterClaim(claims...)
+	claims[2].WaitForCounterClaim(claims...)
+	claims[1].VerifyNoCounterClaim()
 }
