@@ -235,24 +235,10 @@ func Setup(t require.TestingT, deployParams *DeployParams, alloc *AllocParams) *
 	require.Equal(t, deployParams.Secrets.Addresses().SequencerP2P, deployParams.DeployConfig.P2PSequencerAddress)
 	require.Equal(t, deployParams.Secrets.Addresses().Proposer, deployParams.DeployConfig.L2OutputOracleProposer)
 
-	// Create a dependency set when interop or jovian fork is scheduled
-	var dependencySet depset.DependencySet
-	isInteropScheduled := rollupCfg.InteropTime != nil
-	isJovianScheduled := rollupCfg.JovianTime != nil
-	if isInteropScheduled || isJovianScheduled {
-		depSetConfig := map[eth.ChainID]*depset.StaticConfigDependency{
-			eth.ChainIDFromBig(rollupCfg.L2ChainID): {},
-		}
-		var err error
-		dependencySet, err = depset.NewStaticConfigDependencySet(depSetConfig)
-		require.NoError(t, err)
-	}
-
 	return &SetupData{
 		L1Cfg:         l1Genesis,
 		L2Cfg:         l2Genesis,
 		RollupCfg:     rollupCfg,
-		DependencySet: dependencySet,
 		ChainSpec:     rollup.NewChainSpec(rollupCfg),
 		DeploymentsL1: l1Deployments,
 	}
