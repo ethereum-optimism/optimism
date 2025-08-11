@@ -5,7 +5,7 @@ import {IDisputeGameFactory} from "../../interfaces/dispute/IDisputeGameFactory.
 import {IFaultDisputeGame} from "../../interfaces/dispute/IFaultDisputeGame.sol";
 
 // Libraries
-import "src/dispute/lib/Types.sol";
+import { Claim, Position, GameType } from "src/dispute/lib/Types.sol";
 
 contract GameHelper {
     struct Move {
