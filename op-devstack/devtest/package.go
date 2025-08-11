@@ -184,6 +184,8 @@ func (t *implP) Require() *testreq.Assertions {
 // even continuing to clean up when panics happen.
 // It does not recover the go-routine from panicking however, that is up to the caller.
 func (t *implP) Close() {
+	// Cancel the package-wide context before running cleanups
+	t.cancel()
 	// run remaining cleanups, even if a cleanup panics,
 	// but don't recover the panic
 	defer func() {
