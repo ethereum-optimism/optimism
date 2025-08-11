@@ -7,6 +7,9 @@ import { IFaultDisputeGame } from "../../interfaces/dispute/IFaultDisputeGame.so
 // Libraries
 import { Claim, Position, GameType } from "src/dispute/lib/Types.sol";
 
+/// @title GameHelper
+/// @notice GameHelper is a util contract for testing to perform multiple moves in a dispute game in a single
+/// transaction. Note that it is unsafe to use in production as the bonds paid cannot be recovered.
 contract GameHelper {
     struct Move {
         uint256 parentIdx;
@@ -14,6 +17,9 @@ contract GameHelper {
         bool attack;
     }
 
+    /// @notice Performs the specified set of moves in the supplied dispute game.
+    /// @param _game the game to perform moves in.
+    /// @param _moves the moves to perform.
     function performMoves(IFaultDisputeGame _game, Move[] calldata _moves) public payable {
         uint256 movesLen = _moves.length;
         for (uint256 i = 0; i < movesLen; i++) {
@@ -24,6 +30,13 @@ contract GameHelper {
         }
     }
 
+    /// @notice Creates a new game and performs the specified moves in it.
+    /// @param _dgf the DisputeGameFactory to create a game in.
+    /// @param _gameType the type of game to create.
+    /// @param _rootClaim the root claim of the new game.
+    /// @param _extraData the extra data for the new game.
+    /// @param _moves the array of moves to perform in the new game.
+    /// @return gameAddr_ the address of the newly created game.
     function createGameWithClaims(
         IDisputeGameFactory _dgf,
         GameType _gameType,
@@ -33,12 +46,11 @@ contract GameHelper {
     )
         external
         payable
-        returns (address)
+        returns (address gameAddr_)
     {
         uint256 initBond = _dgf.initBonds(_gameType);
-        IFaultDisputeGame game =
-            IFaultDisputeGame(address(_dgf.create{ value: initBond }(_gameType, _rootClaim, _extraData)));
+        gameAddr_ = address(_dgf.create{ value: initBond }(_gameType, _rootClaim, _extraData));
+        IFaultDisputeGame game = IFaultDisputeGame(gameAddr_);
         performMoves(game, _moves);
-        return address(game);
     }
 }
