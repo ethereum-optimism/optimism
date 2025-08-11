@@ -37,7 +37,7 @@ func TestChallengerPlaysGame(gt *testing.T) {
 	}
 }
 
-func TestChallengerRespondsToInvalidClaims(gt *testing.T) {
+func TestChallengerRespondsToMultipleInvalidClaims(gt *testing.T) {
 	t := devtest.ParallelT(gt)
 	sys := presets.NewSimpleInterop(t)
 	dsl.CheckAll(t,
