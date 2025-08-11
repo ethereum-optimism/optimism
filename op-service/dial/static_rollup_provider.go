@@ -25,7 +25,7 @@ type StaticL2RollupProvider struct {
 }
 
 func NewStaticL2RollupProvider(ctx context.Context, log log.Logger, rollupClientUrl string) (*StaticL2RollupProvider, error) {
-	rollupClient, err := DialRollupClientWithTimeout(ctx, DefaultDialTimeout, log, rollupClientUrl)
+	rollupClient, err := DialRollupClientWithTimeout(ctx, log, rollupClientUrl)
 	if err != nil {
 		return nil, err
 	}

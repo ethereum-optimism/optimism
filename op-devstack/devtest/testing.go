@@ -79,7 +79,7 @@ type T interface {
 
 	// This distinguishes the interface from other testing interfaces,
 	// such as the one used at package-level for shared system construction.
-	_TestOnly()
+	TestOnly()
 }
 
 // This testing subset is sufficient for the require.Assertions to work.
@@ -283,7 +283,7 @@ func (t *testingT) Deadline() (deadline time.Time, ok bool) {
 	return t.t.Deadline()
 }
 
-func (t *testingT) _TestOnly() {
+func (t *testingT) TestOnly() {
 	panic("do not use - this method only forces the interface to be unique")
 }
 

@@ -13,8 +13,7 @@ import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
 import { IProtocolVersions } from "interfaces/L1/IProtocolVersions.sol";
 import { IDelayedWETH } from "interfaces/dispute/IDelayedWETH.sol";
 import { IPreimageOracle } from "interfaces/cannon/IPreimageOracle.sol";
-import { IMIPS } from "interfaces/cannon/IMIPS.sol";
-import { IMIPS2 } from "interfaces/cannon/IMIPS2.sol";
+import { IMIPS64 } from "interfaces/cannon/IMIPS64.sol";
 import { IDisputeGameFactory } from "interfaces/dispute/IDisputeGameFactory.sol";
 import { IAnchorStateRegistry } from "interfaces/dispute/IAnchorStateRegistry.sol";
 import {
@@ -71,7 +70,7 @@ contract DeployImplementations is Script {
         IOptimismPortal optimismPortalImpl;
         IETHLockbox ethLockboxImpl;
         IPreimageOracle preimageOracleSingleton;
-        IMIPS mipsSingleton;
+        IMIPS64 mipsSingleton;
         ISystemConfig systemConfigImpl;
         IL1CrossDomainMessenger l1CrossDomainMessengerImpl;
         IL1ERC721Bridge l1ERC721BridgeImpl;
@@ -419,10 +418,10 @@ contract DeployImplementations is Script {
             }
         }
 
-        IMIPS singleton = IMIPS(
+        IMIPS64 singleton = IMIPS64(
             DeployUtils.createDeterministic({
                 _name: "MIPS64",
-                _args: DeployUtils.encodeConstructor(abi.encodeCall(IMIPS2.__constructor__, (preimageOracle, mipsVersion))),
+                _args: DeployUtils.encodeConstructor(abi.encodeCall(IMIPS64.__constructor__, (preimageOracle, mipsVersion))),
                 _salt: DeployUtils.DEFAULT_SALT
             })
         );
@@ -641,34 +640,28 @@ contract DeployImplementations is Script {
         ChainAssertions.checkL1ERC721BridgeImpl(_output.l1ERC721BridgeImpl);
         ChainAssertions.checkL1StandardBridgeImpl(_output.l1StandardBridgeImpl);
         ChainAssertions.checkMIPS(_output.mipsSingleton, _output.preimageOracleSingleton);
-        assertValidOpcm(_input, _output);
+
+        Types.ContractSet memory proxies;
+        proxies.SuperchainConfig = address(_input.superchainConfigProxy);
+        proxies.ProtocolVersions = address(_input.protocolVersionsProxy);
+        ChainAssertions.checkOPContractsManager({
+            _impls: impls,
+            _proxies: proxies,
+            _opcm: IOPContractsManager(address(_output.opcm)),
+            _mips: IMIPS64(address(_output.mipsSingleton)),
+            _superchainProxyAdmin: _input.superchainProxyAdmin
+        });
+
         ChainAssertions.checkOptimismMintableERC20FactoryImpl(_output.optimismMintableERC20FactoryImpl);
-        assertValidOptimismPortalImpl(_input, _output);
+        ChainAssertions.checkOptimismPortal2({
+            _contracts: impls,
+            _superchainConfig: ISuperchainConfig(address(_input.superchainConfigProxy)),
+            _opChainProxyAdminOwner: address(0),
+            _isProxy: false
+        });
         ChainAssertions.checkETHLockboxImpl(_output.ethLockboxImpl, _output.optimismPortalImpl);
         // We can use DeployOPChainInput(address(0)) here because no method will be called on _doi when isProxy is false
         ChainAssertions.checkSystemConfig(impls, DeployOPChainInput(address(0)), false);
-    }
-
-    function assertValidOpcm(Input memory _input, Output memory _output) private view {
-        IOPContractsManager impl = IOPContractsManager(address(_output.opcm));
-        require(address(impl.superchainConfig()) == address(_input.superchainConfigProxy), "OPCMI-10");
-        require(address(impl.protocolVersions()) == address(_input.protocolVersionsProxy), "OPCMI-20");
-        require(impl.upgradeController() == _input.upgradeController, "OPCMI-30");
-    }
-
-    function assertValidOptimismPortalImpl(Input memory, Output memory _output) private view {
-        IOptimismPortal portal = _output.optimismPortalImpl;
-
-        DeployUtils.assertInitialized({ _contractAddress: address(portal), _isProxy: false, _slot: 0, _offset: 0 });
-
-        require(address(portal.anchorStateRegistry()) == address(0), "PORTAL-10");
-        require(address(portal.systemConfig()) == address(0), "PORTAL-20");
-        require(portal.l2Sender() == address(0), "PORTAL-30");
-
-        // This slot is the custom gas token _balance and this check ensures
-        // that it stays unset for forwards compatibility with custom gas token.
-        require(vm.load(address(portal), bytes32(uint256(61))) == bytes32(0), "PORTAL-40");
-
-        require(address(portal.ethLockbox()) == address(0), "PORTAL-50");
+        ChainAssertions.checkAnchorStateRegistryProxy(IAnchorStateRegistry(impls.AnchorStateRegistry), false);
     }
 }

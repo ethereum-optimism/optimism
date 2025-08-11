@@ -177,7 +177,7 @@ func (s *Service) initOutputRollupClient(ctx context.Context, cfg *config.Config
 		return nil
 	}
 	for _, rpc := range cfg.RollupRpcs {
-		client, err := dial.DialRollupClientWithTimeout(ctx, dial.DefaultDialTimeout, s.logger, rpc)
+		client, err := dial.DialRollupClientWithTimeout(ctx, s.logger, rpc, rpcclient.WithLazyDial())
 		if err != nil {
 			return fmt.Errorf("failed to dial rollup client %s: %w", rpc, err)
 		}
@@ -191,18 +191,17 @@ func (s *Service) initSupervisorClients(ctx context.Context, cfg *config.Config)
 		return nil
 	}
 	for _, rpc := range cfg.SupervisorRpcs {
-		rpcClient, err := dial.DialRPCClientWithTimeout(ctx, dial.DefaultDialTimeout, s.logger, rpc)
+		client, err := dial.DialSupervisorClientWithTimeout(ctx, s.logger, rpc, rpcclient.WithLazyDial())
 		if err != nil {
 			return fmt.Errorf("failed to dial supervisor client %s: %w", rpc, err)
 		}
-		client := sources.NewSupervisorClient(rpcclient.NewBaseRPCClient(rpcClient))
 		s.supervisorClients = append(s.supervisorClients, client)
 	}
 	return nil
 }
 
 func (s *Service) initL1Client(ctx context.Context, cfg *config.Config) error {
-	l1RPC, err := dial.DialRPCClientWithTimeout(ctx, dial.DefaultDialTimeout, s.logger, cfg.L1EthRpc)
+	l1RPC, err := dial.DialRPCClientWithTimeout(ctx, s.logger, cfg.L1EthRpc)
 	if err != nil {
 		return fmt.Errorf("failed to dial L1: %w", err)
 	}

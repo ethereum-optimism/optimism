@@ -42,8 +42,8 @@ const (
 	Granite  ForkName = "granite"
 	Holocene ForkName = "holocene"
 	Isthmus  ForkName = "isthmus"
-	Interop  ForkName = "interop"
 	Jovian   ForkName = "jovian"
+	Interop  ForkName = "interop"
 	// ADD NEW FORKS TO AllForks BELOW!
 	None ForkName = ""
 )
@@ -58,8 +58,8 @@ var AllForks = []ForkName{
 	Granite,
 	Holocene,
 	Isthmus,
-	Interop,
 	Jovian,
+	Interop,
 	// ADD NEW FORKS HERE!
 }
 
@@ -193,11 +193,11 @@ func (s *ChainSpec) CheckForkActivation(log log.Logger, block eth.L2BlockRef) {
 		if s.config.IsIsthmus(block.Time) {
 			s.currentFork = Isthmus
 		}
-		if s.config.IsInterop(block.Time) {
-			s.currentFork = Interop
-		}
 		if s.config.IsJovian(block.Time) {
 			s.currentFork = Jovian
+		}
+		if s.config.IsInterop(block.Time) {
+			s.currentFork = Interop
 		}
 		log.Info("Current hardfork version detected", "forkName", s.currentFork)
 		return
@@ -222,10 +222,10 @@ func (s *ChainSpec) CheckForkActivation(log log.Logger, block eth.L2BlockRef) {
 		foundActivationBlock = s.config.IsHoloceneActivationBlock(block.Time)
 	case Isthmus:
 		foundActivationBlock = s.config.IsIsthmusActivationBlock(block.Time)
-	case Interop:
-		foundActivationBlock = s.config.IsInteropActivationBlock(block.Time)
 	case Jovian:
 		foundActivationBlock = s.config.IsJovianActivationBlock(block.Time)
+	case Interop:
+		foundActivationBlock = s.config.IsInteropActivationBlock(block.Time)
 	}
 
 	if foundActivationBlock {

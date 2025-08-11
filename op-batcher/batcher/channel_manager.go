@@ -62,7 +62,7 @@ func NewChannelManager(log log.Logger, metr metrics.Metricer, cfgProvider Channe
 		log:         log,
 		metr:        metr,
 		cfgProvider: cfgProvider,
-		defaultCfg:  cfgProvider.ChannelConfig(false),
+		defaultCfg:  cfgProvider.ChannelConfig(false, false),
 		rollupCfg:   rollupCfg,
 		outFactory:  NewChannelOut,
 		txChannels:  make(map[string]*channel),
@@ -225,8 +225,8 @@ func (s *channelManager) nextTxData(channel *channel) (txData, error) {
 // It will decide whether to switch DA type automatically.
 // When switching DA type, the channelManager state will be rebuilt
 // with a new ChannelConfig.
-func (s *channelManager) TxData(l1Head eth.BlockID, isPectra bool) (txData, error) {
-	channel, err := s.getReadyChannel(l1Head)
+func (s *channelManager) TxData(l1Head eth.BlockID, isPectra, isThrottling, forcePublish bool) (txData, error) {
+	channel, err := s.getReadyChannel(l1Head, forcePublish)
 	if err != nil {
 		return emptyTxData, err
 	}
@@ -237,7 +237,7 @@ func (s *channelManager) TxData(l1Head eth.BlockID, isPectra bool) (txData, erro
 	}
 
 	// Call provider method to reassess optimal DA type
-	newCfg := s.cfgProvider.ChannelConfig(isPectra)
+	newCfg := s.cfgProvider.ChannelConfig(isPectra, isThrottling)
 
 	// No change:
 	if newCfg.UseBlobs == s.defaultCfg.UseBlobs {
@@ -260,7 +260,7 @@ func (s *channelManager) TxData(l1Head eth.BlockID, isPectra bool) (txData, erro
 	s.defaultCfg = newCfg
 
 	// Try again to get data to send on chain.
-	channel, err = s.getReadyChannel(l1Head)
+	channel, err = s.getReadyChannel(l1Head, forcePublish)
 	if err != nil {
 		return emptyTxData, err
 	}
@@ -273,7 +273,18 @@ func (s *channelManager) TxData(l1Head eth.BlockID, isPectra bool) (txData, erro
 // to the current channel and generates frames for it.
 // Always returns nil and the io.EOF sentinel error when
 // there is no channel with txData
-func (s *channelManager) getReadyChannel(l1Head eth.BlockID) (*channel, error) {
+// If forcePublish is true, it will force close channels and
+// generate frames for them.
+func (s *channelManager) getReadyChannel(l1Head eth.BlockID, forcePublish bool) (*channel, error) {
+
+	if forcePublish && s.currentChannel.TotalFrames() == 0 {
+		s.log.Info("Force-closing channel and creating frames", "channel_id", s.currentChannel.ID())
+		s.currentChannel.Close()
+		if err := s.currentChannel.OutputFrames(); err != nil {
+			return nil, err
+		}
+	}
+
 	var firstWithTxData *channel
 	for _, ch := range s.channelQueue {
 		if ch.HasTxData() {
@@ -496,12 +507,19 @@ var ErrPendingAfterClose = errors.New("pending channels remain after closing cha
 
 // PruneSafeBlocks dequeues the provided number of blocks from the internal blocks queue
 func (s *channelManager) PruneSafeBlocks(num int) {
-	_, ok := s.blocks.DequeueN(int(num))
+	discardedBlocks, ok := s.blocks.DequeueN(int(num))
 	if !ok {
 		panic("tried to prune more blocks than available")
 	}
 	s.blockCursor -= int(num)
 	if s.blockCursor < 0 {
+		// This is a rare edge case where a block is loaded and pruned before it gets into a channel.
+		// This may happen if a previous batcher instance build a channel with that block
+		// which was confirmed _after_ the current batcher pulled it from the sequencer.
+		numDiscardedPendingBlocks := -1 * s.blockCursor
+		for i := 0; i < numDiscardedPendingBlocks; i++ {
+			s.metr.RecordPendingBlockPruned(discardedBlocks[i])
+		}
 		s.blockCursor = 0
 	}
 }

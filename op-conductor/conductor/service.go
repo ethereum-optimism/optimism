@@ -220,15 +220,25 @@ func (c *OpConductor) initHealthMonitor(ctx context.Context) error {
 		})
 	}
 
+	var elP2p client.ElP2PClient
+	if c.cfg.HealthCheck.ExecutionP2pEnabled {
+		execClient, err := dial.DialEthClientWithTimeout(ctx, 1*time.Minute, c.log, c.cfg.HealthCheck.ExecutionP2pRPCUrl)
+		if err != nil {
+			return errors.Wrap(err, "failed to create execution rpc client out of the el p2p rpc url: "+c.cfg.HealthCheck.ExecutionP2pRPCUrl)
+		}
+		elP2p = client.NewElP2PClientAdmin(execClient)
+	} else {
+		elP2p = nil
+	}
+
 	p2p := sources.NewP2PClient(nc)
 
 	var supervisor health.SupervisorHealthAPI
 	if c.cfg.SupervisorRPC != "" {
-		sc, err := opclient.NewRPC(ctx, c.log, c.cfg.SupervisorRPC)
+		supervisor, err = dial.DialSupervisorClientWithTimeout(ctx, c.log, c.cfg.SupervisorRPC)
 		if err != nil {
-			return errors.Wrap(err, "failed to create supervisor rpc client")
+			return errors.Wrap(err, "failed to dial supervisor")
 		}
-		supervisor = sources.NewSupervisorClient(sc)
 	}
 
 	c.hmon = health.NewSequencerHealthMonitor(
@@ -244,6 +254,8 @@ func (c *OpConductor) initHealthMonitor(ctx context.Context) error {
 		p2p,
 		supervisor,
 		rb,
+		elP2p,
+		c.cfg.HealthCheck.ExecutionP2pMinPeerCount,
 	)
 	c.healthUpdateCh = c.hmon.Subscribe()
 
@@ -281,7 +293,7 @@ func (oc *OpConductor) initRPCServer(ctx context.Context) error {
 			Service:   execMinerProxy,
 		})
 
-		nodeClient, err := dial.DialRollupClientWithTimeout(ctx, 1*time.Minute, oc.log, oc.cfg.NodeRPC)
+		nodeClient, err := dial.DialRollupClientWithTimeout(ctx, oc.log, oc.cfg.NodeRPC)
 		if err != nil {
 			return errors.Wrap(err, "failed to create node rpc client")
 		}

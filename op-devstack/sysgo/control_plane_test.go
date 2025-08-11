@@ -3,7 +3,6 @@ package sysgo
 import (
 	"context"
 	"errors"
-	"syscall"
 	"testing"
 	"time"
 
@@ -81,7 +80,7 @@ func testSupervisorRestart(ids DefaultInteropSystemIDs, system stack.System, con
 			return supervisor.QueryAPI().SyncStatus(ctx)
 		})
 		cancel()
-		require.True(t, errors.Is(err, syscall.ECONNREFUSED))
+		require.Error(t, err)
 	}
 
 	// restart supervisor
@@ -126,7 +125,7 @@ func testL2CLRestart(ids DefaultInteropSystemIDs, system stack.System, control s
 			return seqA.RollupAPI().SyncStatus(ctx)
 		})
 		cancel()
-		require.True(t, errors.Is(err, syscall.ECONNREFUSED))
+		require.Error(t, err)
 	}
 
 	// restart L2CL

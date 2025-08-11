@@ -36,8 +36,8 @@ Applies to Solidity files.
 - Contracts should be built assuming upgradeability by default
 - Extend OpenZeppelin's `Initializable` or base contract
 - Use the `ReinitializableBase` contract
-- Include an `initialize` function with the `reinitializer(initValue())` modifier
-- If including an `upgrade` function, use the `reinitializer(initValue())` modifier
+- Include an `initialize` function with the `reinitializer(initVersion())` modifier
+- If including an `upgrade` function, use the `reinitializer(initVersion())` modifier
 - In the constructor:
   - Call `_disableInitializers()`
   - Set any immutables (though generally avoid immutables)

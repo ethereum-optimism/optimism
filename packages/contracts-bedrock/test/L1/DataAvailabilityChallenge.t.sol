@@ -76,28 +76,42 @@ contract DataAvailabilityChallenge_SetResolverRefundPercentage_Test is DataAvail
         vm.prank(owner);
         dataAvailabilityChallenge.setResolverRefundPercentage(101);
     }
+
+    /// @notice Test that the `setResolverRefundPercentage` function reverts if sender is not owner.
+    function testFuzz_setResolverRefundPercentage_onlyOwner_reverts(address _notOwner, uint256 _percentage) public {
+        vm.assume(_notOwner != dataAvailabilityChallenge.owner());
+        _percentage = bound(_percentage, 0, 100);
+
+        vm.prank(_notOwner);
+        vm.expectRevert("Ownable: caller is not the owner");
+        dataAvailabilityChallenge.setResolverRefundPercentage(_percentage);
+    }
 }
 
 /// @title DataAvailabilityChallenge_Receive_Test
 /// @notice Test contract for DataAvailabilityChallenge `receive` function.
 contract DataAvailabilityChallenge_Receive_Test is DataAvailabilityChallenge_TestInit {
-    /// @notice Test that the `receive` function succeeds.
-    function test_receive_succeeds() public {
-        assertEq(dataAvailabilityChallenge.balances(address(this)), 0);
-        (bool success,) = payable(address(dataAvailabilityChallenge)).call{ value: 1000 }("");
+    /// @notice Test that the `receive` function succeeds with various amounts.
+    function testFuzz_receive_succeeds(uint256 _amount) public {
+        vm.deal(address(this), _amount);
+
+        uint256 initialBalance = dataAvailabilityChallenge.balances(address(this));
+        (bool success,) = payable(address(dataAvailabilityChallenge)).call{ value: _amount }("");
         assertTrue(success);
-        assertEq(dataAvailabilityChallenge.balances(address(this)), 1000);
+        assertEq(dataAvailabilityChallenge.balances(address(this)), initialBalance + _amount);
     }
 }
 
 /// @title DataAvailabilityChallenge_Deposit_Test
 /// @notice Test contract for DataAvailabilityChallenge `deposit` function.
 contract DataAvailabilityChallenge_Deposit_Test is DataAvailabilityChallenge_TestInit {
-    /// @notice Test that the `deposit` function succeeds.
-    function test_deposit_succeeds() public {
-        assertEq(dataAvailabilityChallenge.balances(address(this)), 0);
-        dataAvailabilityChallenge.deposit{ value: 1000 }();
-        assertEq(dataAvailabilityChallenge.balances(address(this)), 1000);
+    /// @notice Test that the `deposit` function succeeds with various amounts.
+    function testFuzz_deposit_succeeds(uint256 _amount) public {
+        vm.deal(address(this), _amount);
+
+        uint256 initialBalance = dataAvailabilityChallenge.balances(address(this));
+        dataAvailabilityChallenge.deposit{ value: _amount }();
+        assertEq(dataAvailabilityChallenge.balances(address(this)), initialBalance + _amount);
     }
 }
 
@@ -152,25 +166,178 @@ contract DataAvailabilityChallenge_Withdraw_Test is DataAvailabilityChallenge_Te
     }
 }
 
+/// @title DataAvailabilityChallenge_GetChallenge_Test
+/// @notice Test contract for DataAvailabilityChallenge `getChallenge` function.
+contract DataAvailabilityChallenge_GetChallenge_Test is DataAvailabilityChallenge_TestInit {
+    /// @notice Test that the `getChallenge` function returns uninitialized challenge.
+    function test_getChallenge_uninitializedChallenge_succeeds() public view {
+        bytes memory commitment = computeCommitmentKeccak256("test data");
+        uint256 blockNumber = 100;
+
+        Challenge memory challenge = dataAvailabilityChallenge.getChallenge(blockNumber, commitment);
+
+        assertEq(challenge.challenger, address(0));
+        assertEq(challenge.lockedBond, 0);
+        assertEq(challenge.startBlock, 0);
+        assertEq(challenge.resolvedBlock, 0);
+    }
+
+    /// @notice Test that the `getChallenge` function returns active challenge data.
+    function testFuzz_getChallenge_activeChallenge_succeeds(
+        address _challenger,
+        uint256 _challengedBlockNumber,
+        bytes memory _preImage
+    )
+        public
+    {
+        vm.assume(_challenger != address(0));
+        _challengedBlockNumber =
+            bound(_challengedBlockNumber, 0, type(uint256).max - dataAvailabilityChallenge.challengeWindow() - 1);
+
+        bytes memory commitment = computeCommitmentKeccak256(_preImage);
+        uint256 bondSize = dataAvailabilityChallenge.bondSize();
+
+        vm.roll(_challengedBlockNumber + 1);
+        vm.deal(_challenger, bondSize);
+        vm.prank(_challenger);
+        dataAvailabilityChallenge.challenge{ value: bondSize }(_challengedBlockNumber, commitment);
+
+        Challenge memory challenge = dataAvailabilityChallenge.getChallenge(_challengedBlockNumber, commitment);
+
+        assertEq(challenge.challenger, _challenger);
+        assertEq(challenge.lockedBond, bondSize);
+        assertEq(challenge.startBlock, block.number);
+        assertEq(challenge.resolvedBlock, 0);
+    }
+}
+
+/// @title DataAvailabilityChallenge_GetChallengeStatus_Test
+/// @notice Test contract for DataAvailabilityChallenge `getChallengeStatus` function.
+contract DataAvailabilityChallenge_GetChallengeStatus_Test is DataAvailabilityChallenge_TestInit {
+    /// @notice Test that the `getChallengeStatus` function returns correct status for each state.
+    function test_getChallengeStatus_allStates_succeeds() public {
+        bytes memory preImage = "test data";
+        bytes memory commitment = computeCommitmentKeccak256(preImage);
+        uint256 challengedBlockNumber = 100;
+        uint256 bondSize = dataAvailabilityChallenge.bondSize();
+
+        // Test uninitialized status
+        assertEq(
+            uint8(dataAvailabilityChallenge.getChallengeStatus(challengedBlockNumber, commitment)),
+            uint8(ChallengeStatus.Uninitialized)
+        );
+
+        // Create active challenge
+        vm.roll(challengedBlockNumber + 1);
+        vm.deal(address(this), bondSize);
+        dataAvailabilityChallenge.challenge{ value: bondSize }(challengedBlockNumber, commitment);
+
+        // Test active status
+        assertEq(
+            uint8(dataAvailabilityChallenge.getChallengeStatus(challengedBlockNumber, commitment)),
+            uint8(ChallengeStatus.Active)
+        );
+
+        // Resolve the challenge
+        dataAvailabilityChallenge.resolve(challengedBlockNumber, commitment, preImage);
+
+        // Test resolved status
+        assertEq(
+            uint8(dataAvailabilityChallenge.getChallengeStatus(challengedBlockNumber, commitment)),
+            uint8(ChallengeStatus.Resolved)
+        );
+    }
+
+    /// @notice Test that the `getChallengeStatus` function returns expired status.
+    function test_getChallengeStatus_expiredChallenge_succeeds() public {
+        bytes memory commitment = computeCommitmentKeccak256("test data");
+        uint256 challengedBlockNumber = 100;
+        uint256 bondSize = dataAvailabilityChallenge.bondSize();
+
+        // Create challenge
+        vm.roll(challengedBlockNumber + 1);
+        vm.deal(address(this), bondSize);
+        dataAvailabilityChallenge.challenge{ value: bondSize }(challengedBlockNumber, commitment);
+
+        // Move past resolve window
+        vm.roll(block.number + dataAvailabilityChallenge.resolveWindow() + 1);
+
+        // Test expired status
+        assertEq(
+            uint8(dataAvailabilityChallenge.getChallengeStatus(challengedBlockNumber, commitment)),
+            uint8(ChallengeStatus.Expired)
+        );
+    }
+
+    /// @notice Test status transitions with fuzz testing.
+    function testFuzz_getChallengeStatus_transitions_succeeds(
+        uint256 _challengedBlockNumber,
+        bytes memory _preImage
+    )
+        public
+    {
+        _challengedBlockNumber = bound(
+            _challengedBlockNumber,
+            0,
+            type(uint256).max - dataAvailabilityChallenge.challengeWindow() - dataAvailabilityChallenge.resolveWindow()
+                - 10
+        );
+
+        bytes memory commitment = computeCommitmentKeccak256(_preImage);
+        uint256 bondSize = dataAvailabilityChallenge.bondSize();
+
+        // Initially uninitialized
+        assertEq(
+            uint8(dataAvailabilityChallenge.getChallengeStatus(_challengedBlockNumber, commitment)),
+            uint8(ChallengeStatus.Uninitialized)
+        );
+
+        // Create challenge and verify active
+        vm.roll(_challengedBlockNumber + 1);
+        vm.deal(address(this), bondSize);
+        dataAvailabilityChallenge.challenge{ value: bondSize }(_challengedBlockNumber, commitment);
+
+        assertEq(
+            uint8(dataAvailabilityChallenge.getChallengeStatus(_challengedBlockNumber, commitment)),
+            uint8(ChallengeStatus.Active)
+        );
+    }
+}
+
 /// @title DataAvailabilityChallenge_ValidateCommitment_Test
 /// @notice Test contract for DataAvailabilityChallenge `validateCommitment` function.
 contract DataAvailabilityChallenge_ValidateCommitment_Test is DataAvailabilityChallenge_TestInit {
-    /// @notice Test that the `validateCommitment` function handles valid and invalid commitments correctly.
-    function test_validateCommitment_succeeds() public {
-        // Should not revert given a valid commitment
+    /// @notice Test that the `validateCommitment` function handles valid commitment.
+    function test_validateCommitment_validCommitment_succeeds() public view {
         bytes memory validCommitment = abi.encodePacked(CommitmentType.Keccak256, keccak256("test"));
         dataAvailabilityChallenge.validateCommitment(validCommitment);
+    }
 
-        // Should revert if the commitment type is unknown
-        vm.expectRevert(abi.encodeWithSelector(IDataAvailabilityChallenge.UnknownCommitmentType.selector, uint8(1)));
-        bytes memory unknownType = abi.encodePacked(uint8(1), keccak256("test"));
-        dataAvailabilityChallenge.validateCommitment(unknownType);
+    /// @notice Test that the `validateCommitment` function reverts for unknown commitment types.
+    function testFuzz_validateCommitment_unknownType_reverts(uint8 _unknownType, bytes32 _hash) public {
+        vm.assume(_unknownType != uint8(CommitmentType.Keccak256));
 
-        // Should revert if the commitment length does not match
+        bytes memory unknownTypeCommitment = abi.encodePacked(_unknownType, _hash);
+
+        vm.expectRevert(abi.encodeWithSelector(IDataAvailabilityChallenge.UnknownCommitmentType.selector, _unknownType));
+        dataAvailabilityChallenge.validateCommitment(unknownTypeCommitment);
+    }
+
+    /// @notice Test that the `validateCommitment` function reverts for invalid lengths.
+    function testFuzz_validateCommitment_invalidLength_reverts(uint8 _extraBytes) public {
+        _extraBytes = uint8(bound(_extraBytes, 1, 100));
+
+        bytes memory invalidLength =
+            abi.encodePacked(CommitmentType.Keccak256, keccak256("test"), new bytes(_extraBytes));
+
         vm.expectRevert(
-            abi.encodeWithSelector(IDataAvailabilityChallenge.InvalidCommitmentLength.selector, uint8(0), 33, 34)
+            abi.encodeWithSelector(
+                IDataAvailabilityChallenge.InvalidCommitmentLength.selector,
+                uint8(CommitmentType.Keccak256),
+                33,
+                33 + _extraBytes
+            )
         );
-        bytes memory invalidLength = abi.encodePacked(CommitmentType.Keccak256, keccak256("test"), "x");
         dataAvailabilityChallenge.validateCommitment(invalidLength);
     }
 }

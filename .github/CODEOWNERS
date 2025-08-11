@@ -28,10 +28,6 @@
 /op-e2e/faultproofs    @ethereum-optimism/proofs @ethereum-optimism/go-reviewers
 
 # Ops
-/.circleci                         @ethereum-optimism/monorepo-ops-reviewers
-/.github                           @ethereum-optimism/monorepo-ops-reviewers
-/ops                               @ethereum-optimism/monorepo-ops-reviewers
-/docker-bake.hcl                   @ethereum-optimism/monorepo-ops-reviewers
 /.cursor/rules/solidity-styles.mdc @ethereum-optimism/contract-reviewers
 
 # Contracts

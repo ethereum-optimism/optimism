@@ -30,7 +30,7 @@ import { IL1ERC721Bridge } from "interfaces/L1/IL1ERC721Bridge.sol";
 import { IL1StandardBridge } from "interfaces/L1/IL1StandardBridge.sol";
 import { IOptimismMintableERC20Factory } from "interfaces/universal/IOptimismMintableERC20Factory.sol";
 import { IL1CrossDomainMessenger } from "interfaces/L1/IL1CrossDomainMessenger.sol";
-import { IMIPS2 } from "interfaces/cannon/IMIPS2.sol";
+import { IMIPS64 } from "interfaces/cannon/IMIPS64.sol";
 import { IOptimismPortal2 } from "interfaces/L1/IOptimismPortal2.sol";
 import { IProxy } from "interfaces/universal/IProxy.sol";
 import { IProxyAdmin } from "interfaces/universal/IProxyAdmin.sol";
@@ -601,7 +601,7 @@ contract OPContractsManager_TestInit is Test {
             mipsImpl: DeployUtils.create1({
                 _name: "MIPS64",
                 _args: DeployUtils.encodeConstructor(
-                    abi.encodeCall(IMIPS2.__constructor__, (oracle, StandardConstants.MIPS_VERSION))
+                    abi.encodeCall(IMIPS64.__constructor__, (oracle, StandardConstants.MIPS_VERSION))
                 )
             })
         });
@@ -710,6 +710,14 @@ contract OPContractsManager_TestInit is Test {
         // Fund the lockboxes for testing.
         vm.deal(address(chainDeployOutput1.ethLockboxProxy), 100 ether);
         vm.deal(address(chainDeployOutput2.ethLockboxProxy), 100 ether);
+    }
+
+    /// @notice Sets up the environment variables for the VerifyOPCM test.
+    function setupEnvVars() public {
+        vm.setEnv("EXPECTED_SUPERCHAIN_CONFIG", vm.toString(address(opcm.superchainConfig())));
+        vm.setEnv("EXPECTED_PROTOCOL_VERSIONS", vm.toString(address(opcm.protocolVersions())));
+        vm.setEnv("EXPECTED_SUPERCHAIN_PROXY_ADMIN", vm.toString(address(opcm.superchainProxyAdmin())));
+        vm.setEnv("EXPECTED_UPGRADE_CONTROLLER", vm.toString(opcm.upgradeController()));
     }
 
     /// @notice Helper function to deploy a new set of L1 contracts via OPCM.
@@ -1361,6 +1369,12 @@ contract OPContractsManager_Upgrade_Test is OPContractsManager_Upgrade_Harness {
 
     function test_verifyOpcmCorrectness_succeeds() public {
         skipIfCoverage(); // Coverage changes bytecode and breaks the verification script.
+
+        // Set up environment variables with the actual OPCM addresses for tests that need themqq
+        vm.setEnv("EXPECTED_SUPERCHAIN_CONFIG", vm.toString(address(opcm.superchainConfig())));
+        vm.setEnv("EXPECTED_PROTOCOL_VERSIONS", vm.toString(address(opcm.protocolVersions())));
+        vm.setEnv("EXPECTED_SUPERCHAIN_PROXY_ADMIN", vm.toString(address(opcm.superchainProxyAdmin())));
+        vm.setEnv("EXPECTED_UPGRADE_CONTROLLER", vm.toString(opcm.upgradeController()));
 
         // Run the upgrade test and checks
         runUpgradeTestAndChecks(upgrader);

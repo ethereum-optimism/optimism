@@ -16,6 +16,7 @@ import { Constants } from "src/libraries/Constants.sol";
 import { Types } from "scripts/libraries/Types.sol";
 import { Blueprint } from "src/libraries/Blueprint.sol";
 import { GameTypes } from "src/dispute/lib/Types.sol";
+import { Hash } from "src/dispute/lib/Types.sol";
 
 // Interfaces
 import { IOPContractsManager } from "interfaces/L1/IOPContractsManager.sol";
@@ -31,10 +32,11 @@ import { IDisputeGameFactory } from "interfaces/dispute/IDisputeGameFactory.sol"
 import { IDelayedWETH } from "interfaces/dispute/IDelayedWETH.sol";
 import { IOptimismMintableERC20Factory } from "interfaces/universal/IOptimismMintableERC20Factory.sol";
 import { IPreimageOracle } from "interfaces/cannon/IPreimageOracle.sol";
-import { IMIPS } from "interfaces/cannon/IMIPS.sol";
+import { IMIPS64 } from "interfaces/cannon/IMIPS64.sol";
 import { IProxyAdmin } from "interfaces/universal/IProxyAdmin.sol";
 import { IETHLockbox } from "interfaces/L1/IETHLockbox.sol";
 import { IProxyAdminOwnedBase } from "interfaces/L1/IProxyAdminOwnedBase.sol";
+import { IAnchorStateRegistry } from "interfaces/dispute/IAnchorStateRegistry.sol";
 
 library ChainAssertions {
     Vm internal constant vm = Vm(0x7109709ECfa91a80626fF3989D68f67F5b1DD12D);
@@ -198,7 +200,7 @@ library ChainAssertions {
     }
 
     /// @notice Asserts that the MIPs contract is setup correctly
-    function checkMIPS(IMIPS _mips, IPreimageOracle _oracle) internal view {
+    function checkMIPS(IMIPS64 _mips, IPreimageOracle _oracle) internal view {
         console.log("Running chain assertions on the MIPS at %s", address(_mips));
         require(address(_mips) != address(0), "CHECK-MIPS-10");
 
@@ -252,7 +254,8 @@ library ChainAssertions {
     /// @notice Asserts the OptimismPortal is setup correctly
     function checkOptimismPortal2(
         Types.ContractSet memory _contracts,
-        DeployConfig _cfg,
+        ISuperchainConfig _superchainConfig,
+        address _opChainProxyAdminOwner,
         bool _isProxy
     )
         internal
@@ -269,20 +272,13 @@ library ChainAssertions {
         // Check that the contract is initialized
         DeployUtils.assertInitialized({ _contractAddress: address(portal), _isProxy: _isProxy, _slot: 0, _offset: 0 });
 
-        address guardian = _cfg.superchainConfigGuardian();
-        if (guardian.code.length == 0) {
-            console.log("Guardian has no code: %s", guardian);
-        }
-
         if (_isProxy) {
-            require(address(portal.disputeGameFactory()) == _contracts.DisputeGameFactory, "CHECK-OP2-20");
             require(address(portal.anchorStateRegistry()) == _contracts.AnchorStateRegistry, "CHECK-OP2-25");
-            require(address(portal.systemConfig()) == _contracts.SystemConfig, "CHECK-OP2-30");
-            require(portal.guardian() == guardian, "CHECK-OP2-40");
-            require(address(portal.systemConfig()) == address(_contracts.SystemConfig), "CHECK-OP2-50");
+            require(address(portal.superchainConfig()) == address(_superchainConfig), "PORTAL-40");
+            require(portal.guardian() == _superchainConfig.guardian(), "CHECK-OP2-40");
             require(portal.paused() == ISystemConfig(_contracts.SystemConfig).paused(), "CHECK-OP2-60");
-            require(portal.l2Sender() == Constants.DEFAULT_L2_SENDER, "CHECK-OP2-70");
             require(address(portal.ethLockbox()) == _contracts.ETHLockbox, "CHECK-OP2-80");
+            require(portal.proxyAdminOwner() == _opChainProxyAdminOwner, "CHECK-OP2-90");
         } else {
             require(address(portal.anchorStateRegistry()) == address(0), "CHECK-OP2-80");
             require(address(portal.systemConfig()) == address(0), "CHECK-OP2-90");
@@ -374,7 +370,7 @@ library ChainAssertions {
         Types.ContractSet memory _impls,
         Types.ContractSet memory _proxies,
         IOPContractsManager _opcm,
-        IMIPS _mips,
+        IMIPS64 _mips,
         IProxyAdmin _superchainProxyAdmin
     )
         internal
@@ -438,6 +434,33 @@ library ChainAssertions {
             keccak256(fullPermissionedDisputeGameInitcode) == keccak256(vm.getCode("PermissionedDisputeGame")),
             "CHECK-OPCM-210"
         );
+    }
+
+    function checkAnchorStateRegistryProxy(
+        IAnchorStateRegistry _anchorStateRegistryProxy,
+        bool _isProxy
+    )
+        internal
+        view
+    {
+        // Then we check the proxy as ASR.
+        DeployUtils.assertInitialized({
+            _contractAddress: address(_anchorStateRegistryProxy),
+            _isProxy: _isProxy,
+            _slot: 0,
+            _offset: 0
+        });
+
+        // The below check cannot be done in the standard validator because the assertion only applies at deploy time.
+        (Hash actualRoot,) = _anchorStateRegistryProxy.anchors(GameTypes.PERMISSIONED_CANNON);
+        if (_isProxy) {
+            require(
+                Hash.unwrap(actualRoot) == 0xdead000000000000000000000000000000000000000000000000000000000000,
+                "ANCHORP-40"
+            );
+        } else {
+            require(Hash.unwrap(actualRoot) == bytes32(0), "ANCHORP-40");
+        }
     }
 
     /// @notice Converts variables needed from the DeployConfig to a DeployOPChainInput contract

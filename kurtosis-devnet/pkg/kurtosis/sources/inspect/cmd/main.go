@@ -5,61 +5,61 @@ package main
 
 import (
 	"context"
-	"flag"
 	"fmt"
 	"os"
 
+	"github.com/urfave/cli/v2"
+
 	"github.com/ethereum-optimism/optimism/kurtosis-devnet/pkg/kurtosis/sources/inspect"
-	"github.com/ethereum-optimism/optimism/kurtosis-devnet/pkg/util"
+	"github.com/ethereum-optimism/optimism/kurtosis-devnet/pkg/kurtosis/sources/inspect/flags"
+	opservice "github.com/ethereum-optimism/optimism/op-service"
+	"github.com/ethereum-optimism/optimism/op-service/cliapp"
+	oplog "github.com/ethereum-optimism/optimism/op-service/log"
+)
+
+var (
+	Version   = "v0.1.0"
+	GitCommit = ""
+	GitDate   = ""
 )
 
 func main() {
+	app := cli.NewApp()
+	app.Version = opservice.FormatVersion(Version, GitCommit, GitDate, "")
+	app.Name = "kurtosis-inspect"
+	app.Usage = "Inspect Kurtosis enclaves and extract configurations"
+	app.Description = "Tool to inspect running Kurtosis enclaves and extract conductor configurations and environment data"
+	app.Flags = cliapp.ProtectFlags(flags.Flags)
+	app.Action = cliapp.LifecycleCmd(run)
+	app.ArgsUsage = "<enclave-id>"
+
+	if err := app.Run(os.Args); err != nil {
+		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+		os.Exit(1)
+	}
+}
+
+func run(cliCtx *cli.Context, closeApp context.CancelCauseFunc) (cliapp.Lifecycle, error) {
+	// Parse configuration
+	cfg, err := inspect.NewConfig(cliCtx)
+	if err != nil {
+		return nil, err
+	}
+
+	// Setup logging
+	log := oplog.NewLogger(oplog.AppOut(cliCtx), oplog.ReadCLIConfig(cliCtx))
+	oplog.SetGlobalLogHandler(log.Handler())
+
+	// Create service
+	service := inspect.NewInspectService(cfg, log)
+
+	// Create background context for operations
 	ctx := context.Background()
 
-	var fixTraefik bool
-	flag.BoolVar(&fixTraefik, "fix-traefik", false, "Fix missing Traefik labels on containers")
-
-	flag.Parse()
-	if flag.NArg() != 1 {
-		fmt.Fprintf(os.Stderr, "Usage: %s [--fix-traefik] <enclave-id>\n", os.Args[0])
-		os.Exit(1)
+	// Run the service
+	if err := service.Run(ctx); err != nil {
+		return nil, err
 	}
 
-	enclaveID := flag.Arg(0)
-
-	// If fix-traefik flag is provided, run the fix
-	if fixTraefik {
-		fmt.Println("🔧 Fixing Traefik network configuration...")
-		if err := util.SetReverseProxyConfig(ctx); err != nil {
-			fmt.Fprintf(os.Stderr, "Error fixing Traefik network: %v\n", err)
-			os.Exit(1)
-		}
-		fmt.Println("✅ Traefik network configuration fixed!")
-		return
-	}
-
-	inspector := inspect.NewInspector(enclaveID)
-
-	data, err := inspector.ExtractData(ctx)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error inspecting enclave: %v\n", err)
-		os.Exit(1)
-	}
-
-	fmt.Println("File Artifacts:")
-	for _, artifact := range data.FileArtifacts {
-		fmt.Printf("  %s\n", artifact)
-	}
-
-	fmt.Println("\nServices:")
-	for name, svc := range data.UserServices {
-		fmt.Printf("  %s:\n", name)
-		for portName, portInfo := range svc.Ports {
-			host := portInfo.Host
-			if host == "" {
-				host = "localhost"
-			}
-			fmt.Printf("    %s: %s:%d\n", portName, host, portInfo.Port)
-		}
-	}
+	return nil, nil
 }

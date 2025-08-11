@@ -16,13 +16,11 @@ type LinearStrategy struct {
 	currentIntensity float64
 }
 
-func NewLinearStrategy(threshold uint64, multiplier float64, log log.Logger) *LinearStrategy {
-	maxThreshold := uint64(float64(threshold) * multiplier)
-	// Ensure maxThreshold is always greater than threshold to prevent division by zero
+func NewLinearStrategy(threshold uint64, maxThreshold uint64, log log.Logger) *LinearStrategy {
 	if maxThreshold <= threshold {
-		maxThreshold = threshold + 1
-		log.Warn("maxThreshold is less than or equal to threshold, setting maxThreshold to threshold + 1", "threshold", threshold, "multiplier", multiplier, "maxThreshold", maxThreshold)
+		panic("maxThreshold must be greater than threshold")
 	}
+
 	return &LinearStrategy{
 		threshold:        threshold,
 		maxThreshold:     maxThreshold,

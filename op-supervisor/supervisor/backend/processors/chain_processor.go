@@ -107,20 +107,15 @@ func (s *ChainProcessor) nextNum() uint64 {
 	return headNum + 1
 }
 
+func (s *ChainProcessor) ProcessChain(target uint64) {
+	s.UpdateTarget(target)
+	if s.running.CompareAndSwap(false, true) {
+		s.index()
+	}
+}
+
 func (s *ChainProcessor) OnEvent(ctx context.Context, ev event.Event) bool {
 	switch x := ev.(type) {
-	case superevents.ChainProcessEvent:
-		if x.ChainID != s.chain {
-			return false
-		}
-		// always update the target
-		s.UpdateTarget(x.Target)
-
-		// and if not already running, begin indexing
-		if s.running.CompareAndSwap(false, true) {
-			s.index()
-		}
-
 	case superevents.ChainIndexingContinueEvent:
 		if x.ChainID != s.chain {
 			return false

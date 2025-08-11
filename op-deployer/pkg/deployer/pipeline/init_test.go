@@ -69,7 +69,7 @@ func TestInitLiveStrategy_OPCMReuseLogicSepolia(t *testing.T) {
 		require.Nil(t, st.ImplementationsDeployment)
 	})
 
-	t.Run("tagged L1 locator with standard intent types and standard roles", func(t *testing.T) {
+	t.Run("embedded L1 locator with standard intent types and standard roles", func(t *testing.T) {
 		runTest := func(configType state.IntentType) {
 			_, afacts := testutil.LocalArtifacts(t)
 			host, err := env.DefaultForkedScriptHost(
@@ -85,14 +85,14 @@ func TestInitLiveStrategy_OPCMReuseLogicSepolia(t *testing.T) {
 			stdSuperchainRoles, err := state.GetStandardSuperchainRoles(l1ChainID)
 			require.NoError(t, err)
 
-			opcmAddr, err := standard.OPCMImplAddressFor(l1ChainID, artifacts.DefaultL1ContractsLocator.Tag)
+			opcmAddr, err := standard.OPCMImplAddressFor(l1ChainID, standard.CurrentTag)
 			require.NoError(t, err)
 
 			intent := &state.Intent{
 				ConfigType:         configType,
 				L1ChainID:          l1ChainID,
-				L1ContractsLocator: artifacts.DefaultL1ContractsLocator,
-				L2ContractsLocator: artifacts.DefaultL2ContractsLocator,
+				L1ContractsLocator: artifacts.EmbeddedLocator,
+				L2ContractsLocator: artifacts.EmbeddedLocator,
 				OPCMAddress:        &opcmAddr,
 			}
 			st := &state.State{

@@ -23,7 +23,7 @@ var (
 )
 
 func CombineDeployConfig(intent *Intent, chainIntent *ChainIntent, state *State, chainState *ChainState) (genesis.DeployConfig, error) {
-	upgradeSchedule := standard.DefaultHardforkScheduleForTag(intent.L1ContractsLocator.Tag)
+	upgradeSchedule := standard.DefaultHardforkScheduleForTag(standard.CurrentTag)
 
 	cfg := genesis.DeployConfig{
 		L1DependenciesConfig: genesis.L1DependenciesConfig{
@@ -57,7 +57,7 @@ func CombineDeployConfig(intent *Intent, chainIntent *ChainIntent, state *State,
 				EnableGovernance:      false,
 				GovernanceTokenSymbol: "OP",
 				GovernanceTokenName:   "Optimism",
-				GovernanceTokenOwner:  common.HexToAddress("0xDeaDDEaDDeAdDeAdDEAdDEaddeAddEAdDEAdDEad"),
+				GovernanceTokenOwner:  standard.GovernanceTokenOwner,
 			},
 			GasPriceOracleDeployConfig: genesis.GasPriceOracleDeployConfig{
 				GasPriceOracleBaseFeeScalar:       1368,

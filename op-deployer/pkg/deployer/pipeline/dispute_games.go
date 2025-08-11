@@ -127,9 +127,10 @@ func deployDisputeGame(
 
 	lgr.Info("setting dispute game impl on factory", "respected", game.MakeRespected)
 	sdgiInput := opcm.SetDisputeGameImplInput{
-		Factory:  thisState.OpChainContracts.DisputeGameFactoryProxy,
-		Impl:     out.DisputeGameImpl,
-		GameType: game.DisputeGameType,
+		Factory:             thisState.OpChainContracts.DisputeGameFactoryProxy,
+		Impl:                out.DisputeGameImpl,
+		GameType:            game.DisputeGameType,
+		AnchorStateRegistry: common.Address{},
 	}
 	if game.MakeRespected {
 		sdgiInput.AnchorStateRegistry = thisState.OpChainContracts.AnchorStateRegistryProxy

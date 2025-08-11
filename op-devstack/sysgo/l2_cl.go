@@ -8,6 +8,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/ethereum-optimism/optimism/op-service/testutils/tcpproxy"
+
 	altda "github.com/ethereum-optimism/optimism/op-alt-da"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/devkeys"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
@@ -48,6 +50,8 @@ type L2CLNode struct {
 	p                devtest.P
 	logger           log.Logger
 	el               stack.L2ELNodeID
+	userProxy        *tcpproxy.Proxy
+	interopProxy     *tcpproxy.Proxy
 }
 
 var _ stack.Lifecycle = (*L2CLNode)(nil)
@@ -70,20 +74,6 @@ func (n *L2CLNode) hydrate(system stack.ExtensibleSystem) {
 	sysL2CL.(stack.LinkableL2CLNode).LinkEL(l2Net.L2ELNode(n.el))
 }
 
-func (n *L2CLNode) rememberPort() {
-	userRPCPort, err := n.opNode.UserRPCPort()
-	n.p.Require().NoError(err)
-	n.cfg.RPC.ListenPort = userRPCPort
-
-	cfg, ok := n.cfg.InteropConfig.(*interop.Config)
-	n.p.Require().True(ok)
-
-	if interopRPCPort, err := n.opNode.InteropRPCPort(); err == nil {
-		cfg.RPCPort = interopRPCPort
-	}
-	n.cfg.InteropConfig = cfg
-}
-
 func (n *L2CLNode) Start() {
 	n.mu.Lock()
 	defer n.mu.Unlock()
@@ -91,6 +81,25 @@ func (n *L2CLNode) Start() {
 		n.logger.Warn("Op-node already started")
 		return
 	}
+
+	if n.userProxy == nil {
+		n.userProxy = tcpproxy.New(n.logger.New("proxy", "l2cl-user"))
+		n.p.Require().NoError(n.userProxy.Start())
+		n.p.Cleanup(func() {
+			n.userProxy.Close()
+		})
+		n.userRPC = "http://" + n.userProxy.Addr()
+	}
+
+	if n.interopProxy == nil {
+		n.interopProxy = tcpproxy.New(n.logger.New("proxy", "l2cl-interop"))
+		n.p.Require().NoError(n.interopProxy.Start())
+		n.p.Cleanup(func() {
+			n.interopProxy.Close()
+		})
+		n.interopEndpoint = "ws://" + n.interopProxy.Addr()
+	}
+
 	n.logger.Info("Starting op-node")
 	opNode, err := opnode.NewOpnode(n.logger, n.cfg, func(err error) {
 		n.p.Require().NoError(err, "op-node critical error")
@@ -98,15 +107,10 @@ func (n *L2CLNode) Start() {
 	n.p.Require().NoError(err, "op-node failed to start")
 	n.logger.Info("Started op-node")
 	n.opNode = opNode
-
-	// store endpoints to reuse when restart
-	n.userRPC = opNode.UserRPC().RPC()
+	n.userProxy.SetUpstream(ProxyAddr(n.p.Require(), opNode.UserRPC().RPC()))
 	interopEndpoint, interopJwtSecret := opNode.InteropRPC()
-	n.interopEndpoint = interopEndpoint
+	n.interopProxy.SetUpstream(ProxyAddr(n.p.Require(), interopEndpoint))
 	n.interopJwtSecret = interopJwtSecret
-	// for p2p endpoints / node keys, they are already persistent, stored at p2p configs
-
-	n.rememberPort()
 }
 
 func (n *L2CLNode) Stop() {
@@ -123,6 +127,12 @@ func (n *L2CLNode) Stop() {
 	n.logger.Info("Closed op-node", "err", closeErr)
 
 	n.opNode = nil
+}
+
+func (n *L2CLNode) InteropRPC() (string, eth.Bytes32) {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	return n.interopEndpoint, n.interopJwtSecret
 }
 
 type L2CLOption func(p devtest.P, id stack.L2CLNodeID, cfg *config.Config)

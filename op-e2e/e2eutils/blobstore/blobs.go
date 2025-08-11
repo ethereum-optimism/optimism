@@ -1,4 +1,4 @@
-package e2eutils
+package blobstore
 
 import (
 	"context"
@@ -11,17 +11,17 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
 
-// BlobsStore is a simple in-memory store of blobs, for testing purposes
-type BlobsStore struct {
+// Store is a simple in-memory store of blobs, for testing purposes
+type Store struct {
 	// block timestamp -> blob versioned hash -> blob
 	blobs map[uint64]map[eth.IndexedBlobHash]*eth.Blob
 }
 
-func NewBlobStore() *BlobsStore {
-	return &BlobsStore{blobs: make(map[uint64]map[eth.IndexedBlobHash]*eth.Blob)}
+func New() *Store {
+	return &Store{blobs: make(map[uint64]map[eth.IndexedBlobHash]*eth.Blob)}
 }
 
-func (store *BlobsStore) StoreBlob(blockTime uint64, indexedHash eth.IndexedBlobHash, blob *eth.Blob) {
+func (store *Store) StoreBlob(blockTime uint64, indexedHash eth.IndexedBlobHash, blob *eth.Blob) {
 	m, ok := store.blobs[blockTime]
 	if !ok {
 		m = make(map[eth.IndexedBlobHash]*eth.Blob)
@@ -30,7 +30,7 @@ func (store *BlobsStore) StoreBlob(blockTime uint64, indexedHash eth.IndexedBlob
 	m[indexedHash] = blob
 }
 
-func (store *BlobsStore) GetBlobs(ctx context.Context, ref eth.L1BlockRef, hashes []eth.IndexedBlobHash) ([]*eth.Blob, error) {
+func (store *Store) GetBlobs(ctx context.Context, ref eth.L1BlockRef, hashes []eth.IndexedBlobHash) ([]*eth.Blob, error) {
 	out := make([]*eth.Blob, 0, len(hashes))
 	m, ok := store.blobs[ref.Time]
 	if !ok {
@@ -46,7 +46,7 @@ func (store *BlobsStore) GetBlobs(ctx context.Context, ref eth.L1BlockRef, hashe
 	return out, nil
 }
 
-func (store *BlobsStore) GetBlobSidecars(ctx context.Context, ref eth.L1BlockRef, hashes []eth.IndexedBlobHash) ([]*eth.BlobSidecar, error) {
+func (store *Store) GetBlobSidecars(ctx context.Context, ref eth.L1BlockRef, hashes []eth.IndexedBlobHash) ([]*eth.BlobSidecar, error) {
 	out := make([]*eth.BlobSidecar, 0, len(hashes))
 	m, ok := store.blobs[ref.Time]
 	if !ok {
@@ -79,7 +79,7 @@ func (store *BlobsStore) GetBlobSidecars(ctx context.Context, ref eth.L1BlockRef
 	return out, nil
 }
 
-func (store *BlobsStore) GetAllSidecars(ctx context.Context, l1Timestamp uint64) ([]*eth.BlobSidecar, error) {
+func (store *Store) GetAllSidecars(ctx context.Context, l1Timestamp uint64) ([]*eth.BlobSidecar, error) {
 	m, ok := store.blobs[l1Timestamp]
 	if !ok {
 		return nil, fmt.Errorf("no blobs known with given time: %w", ethereum.NotFound)
@@ -108,4 +108,4 @@ func (store *BlobsStore) GetAllSidecars(ctx context.Context, l1Timestamp uint64)
 	return out, nil
 }
 
-var _ derive.L1BlobsFetcher = (*BlobsStore)(nil)
+var _ derive.L1BlobsFetcher = (*Store)(nil)

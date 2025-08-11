@@ -225,6 +225,9 @@ func NewDriver(
 		Ctx:                 driverCtx,
 		ManagedBySupervisor: indexingMode,
 	}
+	// TODO(#16917) Remove Event System Refactor Comments
+	//  Couple SyncDeriver and EngineController for event refactoring
+	ec.SyncDeriver = syncDeriver
 	sys.Register("sync", syncDeriver)
 
 	sys.Register("engine", engine.NewEngDeriver(log, driverCtx, cfg, metrics, ec))

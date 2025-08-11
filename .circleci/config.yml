@@ -376,12 +376,18 @@ jobs:
           environment:
             FOUNDRY_PROFILE: <<parameters.profile>>
           working_directory: packages/contracts-bedrock
+      - run:
+          name: "Copy artifacts into deployer"
+          command: |
+            just copy-contract-artifacts
+          working_directory: op-deployer
       - persist_to_workspace:
           root: "."
           paths:
             - "packages/contracts-bedrock/cache"
             - "packages/contracts-bedrock/artifacts"
             - "packages/contracts-bedrock/forge-artifacts"
+            - "op-deployer/pkg/deployer/artifacts/forge-artifacts"
       - notify-failures-on-develop
 
   check-kontrol-build:
@@ -2033,15 +2039,35 @@ workflows:
 
   go-release-deployer:
     jobs:
-      - go-release:
+      - contracts-bedrock-build:
           filters:
             tags:
               only: /^op-deployer.*/
             branches:
               ignore: /.*/
+          build_args: --skip test
+      - go-release:
           module: op-deployer
           context:
             - oplabs-gcr-release
+          requires:
+            - contracts-bedrock-build
+
+  go-release-op-up:
+    jobs:
+      - contracts-bedrock-build:
+          filters:
+            tags:
+              only: /^op-up.*/
+            branches:
+              ignore: /.*/
+          build_args: --skip test
+      - go-release:
+          module: op-up
+          context:
+            - oplabs-gcr-release
+          requires:
+            - contracts-bedrock-build
 
   release:
     when:
@@ -2073,6 +2099,7 @@ workflows:
                 - op-supervisor
                 - op-test-sequencer
                 - op-deployer
+                - op-up
                 - cannon
                 - op-dripper
                 - op-interop-mon
@@ -2201,7 +2228,7 @@ workflows:
           notify: true
           mentions: "@proofs-team"
           no_output_timeout: 90m
-          test_timeout: 120m
+          test_timeout: 240m
           resource_class: ethereum-optimism/latitude-fps-1
           context:
             - slack

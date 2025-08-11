@@ -36,11 +36,11 @@ enum Fork {
     GRANITE,
     HOLOCENE,
     ISTHMUS,
-    INTEROP,
-    JOVIAN
+    JOVIAN,
+    INTEROP
 }
 
-Fork constant LATEST_FORK = Fork.JOVIAN;
+Fork constant LATEST_FORK = Fork.INTEROP;
 
 library ForkUtils {
     function toString(Fork _fork) internal pure returns (string memory) {

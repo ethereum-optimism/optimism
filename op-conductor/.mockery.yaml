@@ -13,3 +13,4 @@ packages:
   github.com/ethereum-optimism/optimism/op-conductor/client:
     interfaces:
       SequencerControl:
+      ElP2PClient:

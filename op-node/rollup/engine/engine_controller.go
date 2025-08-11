@@ -50,6 +50,10 @@ type ECMetrics interface {
 	RecordL2Ref(name string, ref eth.L2BlockRef)
 }
 
+type SyncDeriver interface {
+	OnELSyncStarted()
+}
+
 type EngineController struct {
 	engine     ExecEngine // Underlying execution engine RPC
 	log        log.Logger
@@ -94,6 +98,11 @@ type EngineController struct {
 	// because engine may forgot backupUnsafeHead or backupUnsafeHead is not part
 	// of the chain.
 	needFCUCallForBackupUnsafeReorg bool
+
+	// For clearing safe head db when EL sync started
+	// EngineController is first initialized and used to initialize SyncDeriver.
+	// Embed SyncDeriver into EngineController after initializing SyncDeriver
+	SyncDeriver SyncDeriver
 }
 
 func NewEngineController(engine ExecEngine, log log.Logger, metrics ECMetrics,
@@ -384,7 +393,7 @@ func (e *EngineController) InsertUnsafePayload(ctx context.Context, envelope *et
 			e.syncStatus = syncStatusStartedEL
 			e.log.Info("Starting EL sync")
 			e.elStart = e.clock.Now()
-			e.emitter.Emit(ctx, ELSyncStartedEvent{})
+			e.SyncDeriver.OnELSyncStarted()
 		} else if err == nil {
 			e.syncStatus = syncStatusFinishedEL
 			e.log.Info("Skipping EL sync and going straight to CL sync because there is a finalized block", "id", b.ID())

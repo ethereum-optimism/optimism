@@ -111,19 +111,3 @@ func TestDownloadArtifacts_MockArtifacts(t *testing.T) {
 		require.ErrorContains(t, err, "integrity check failed")
 	})
 }
-
-func TestDownloadArtifacts_TaggedVersions(t *testing.T) {
-	tags := []string{
-		"op-contracts/v1.6.0",
-		"op-contracts/v1.7.0-beta.1+l2-contracts",
-	}
-	testCacheDir := testutils.IsolatedTestDirWithAutoCleanup(t)
-	for _, tag := range tags {
-		t.Run(tag, func(t *testing.T) {
-			t.Parallel()
-			loc := MustNewLocatorFromTag(tag)
-			_, err := Download(context.Background(), loc, nil, testCacheDir)
-			require.NoError(t, err)
-		})
-	}
-}

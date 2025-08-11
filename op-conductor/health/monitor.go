@@ -39,8 +39,8 @@ type HealthMonitor interface {
 // interval is the interval between health checks measured in seconds.
 // safeInterval is the interval between safe head progress measured in seconds.
 // minPeerCount is the minimum number of peers required for the sequencer to be healthy.
-func NewSequencerHealthMonitor(log log.Logger, metrics metrics.Metricer, interval, unsafeInterval, safeInterval, minPeerCount uint64, safeEnabled bool, rollupCfg *rollup.Config, node dial.RollupClientInterface, p2p apis.P2PClient, supervisor SupervisorHealthAPI, rb client.RollupBoostClient) HealthMonitor {
-	return &SequencerHealthMonitor{
+func NewSequencerHealthMonitor(log log.Logger, metrics metrics.Metricer, interval, unsafeInterval, safeInterval, minPeerCount uint64, safeEnabled bool, rollupCfg *rollup.Config, node dial.RollupClientInterface, p2p apis.P2PClient, supervisor SupervisorHealthAPI, rb client.RollupBoostClient, elP2pClient client.ElP2PClient, minElP2pPeers uint64) HealthMonitor {
+	hm := &SequencerHealthMonitor{
 		log:            log,
 		metrics:        metrics,
 		interval:       interval,
@@ -56,6 +56,22 @@ func NewSequencerHealthMonitor(log log.Logger, metrics metrics.Metricer, interva
 		supervisor:     supervisor,
 		rb:             rb,
 	}
+
+	if elP2pClient != nil {
+		hm.elP2p = &ElP2pHealthMonitor{
+			log:          log,
+			minPeerCount: minElP2pPeers,
+			elP2pClient:  elP2pClient,
+		}
+	}
+
+	return hm
+}
+
+type ElP2pHealthMonitor struct {
+	log          log.Logger
+	minPeerCount uint64
+	elP2pClient  client.ElP2PClient
 }
 
 // SequencerHealthMonitor monitors sequencer health.
@@ -81,6 +97,7 @@ type SequencerHealthMonitor struct {
 	p2p        apis.P2PClient
 	supervisor SupervisorHealthAPI
 	rb         client.RollupBoostClient
+	elP2p      *ElP2pHealthMonitor
 }
 
 var _ HealthMonitor = (*SequencerHealthMonitor)(nil)
@@ -148,6 +165,13 @@ func (hm *SequencerHealthMonitor) healthCheck(ctx context.Context) error {
 		return err
 	}
 
+	if hm.elP2p != nil {
+		err = hm.elP2p.checkElP2p(ctx)
+		if err != nil {
+			return err
+		}
+	}
+
 	err = hm.checkRollupBoost(ctx)
 	if err != nil {
 		return err
@@ -157,6 +181,19 @@ func (hm *SequencerHealthMonitor) healthCheck(ctx context.Context) error {
 	return nil
 }
 
+func (hm *ElP2pHealthMonitor) checkElP2p(ctx context.Context) error {
+	peerCount, err := hm.elP2pClient.PeerCount(ctx)
+	if err != nil {
+		return err
+	}
+
+	if peerCount < int(hm.minPeerCount) {
+		hm.log.Error("el p2p peer count is below minimum", "peerCount", peerCount, "minPeerCount", hm.minPeerCount)
+		return ErrSequencerNotHealthy
+	}
+
+	return nil
+}
 func (hm *SequencerHealthMonitor) checkNode(ctx context.Context) error {
 	err := hm.checkNodeSyncStatus(ctx)
 	if err != nil {

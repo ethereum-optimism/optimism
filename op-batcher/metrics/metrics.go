@@ -49,6 +49,7 @@ type Metricer interface {
 	RecordThrottleParams(maxTxSize, maxBlockSize uint64)
 	RecordThrottleControllerType(controllerType config.ThrottleControllerType)
 	RecordPendingBytesVsThreshold(pendingBytes, threshold uint64, controllerType config.ThrottleControllerType)
+	RecordPendingBlockPruned(block *types.Block)
 
 	// PID Controller specific metrics
 	RecordThrottleControllerState(error, integral, derivative float64)
@@ -391,6 +392,16 @@ func (m *Metrics) RecordL2BlockInPendingQueue(block *types.Block) {
 	m.pendingBlocksBytesTotal.Add(float64(rawSize))
 	m.pendingBlocksBytesCurrent.Add(float64(rawSize))
 	atomic.AddInt64(&m.pendingDABytes, int64(daSize))
+}
+
+// This method is called when a pending block is pruned.
+// It is a rare edge case where a block is loaded and pruned before it gets into a channel.
+// This may happen if a previous batcher instance build a channel with that block
+// which was confirmed _after_ the current batcher pulled it from the sequencer.
+func (m *Metrics) RecordPendingBlockPruned(block *types.Block) {
+	daSize, rawSize := estimateBatchSize(block)
+	m.pendingBlocksBytesCurrent.Add(-1.0 * float64(rawSize))
+	atomic.AddInt64(&m.pendingDABytes, -1*int64(daSize))
 }
 
 func (m *Metrics) RecordL2BlockInChannel(block *types.Block) {

@@ -33,7 +33,7 @@ import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
 import { IDisputeGameFactory } from "interfaces/dispute/IDisputeGameFactory.sol";
 import { IDelayedWETH } from "interfaces/dispute/IDelayedWETH.sol";
 import { IAnchorStateRegistry } from "interfaces/dispute/IAnchorStateRegistry.sol";
-import { IMIPS } from "interfaces/cannon/IMIPS.sol";
+import { IMIPS64 } from "interfaces/cannon/IMIPS64.sol";
 import { IPreimageOracle } from "interfaces/cannon/IPreimageOracle.sol";
 import { IProtocolVersions } from "interfaces/L1/IProtocolVersions.sol";
 import { IL1CrossDomainMessenger } from "interfaces/L1/IL1CrossDomainMessenger.sol";
@@ -296,7 +296,12 @@ contract Deploy is Deployer {
         ChainAssertions.checkL1CrossDomainMessenger(IL1CrossDomainMessenger(impls.L1CrossDomainMessenger), vm, false);
         ChainAssertions.checkL1StandardBridgeImpl(IL1StandardBridge(payable(impls.L1StandardBridge)));
         ChainAssertions.checkL1ERC721BridgeImpl(IL1ERC721Bridge(impls.L1ERC721Bridge));
-        ChainAssertions.checkOptimismPortal2({ _contracts: impls, _cfg: cfg, _isProxy: false });
+        ChainAssertions.checkOptimismPortal2({
+            _contracts: impls,
+            _superchainConfig: superchainConfigProxy,
+            _opChainProxyAdminOwner: cfg.finalSystemOwner(),
+            _isProxy: false
+        });
         ChainAssertions.checkETHLockboxImpl(
             IETHLockbox(impls.ETHLockbox), IOptimismPortal2(payable(impls.OptimismPortal))
         );
@@ -308,17 +313,18 @@ contract Deploy is Deployer {
         );
         ChainAssertions.checkDelayedWETHImpl(IDelayedWETH(payable(impls.DelayedWETH)), cfg.faultGameWithdrawalDelay());
         ChainAssertions.checkMIPS({
-            _mips: IMIPS(address(dio.mipsSingleton)),
+            _mips: IMIPS64(address(dio.mipsSingleton)),
             _oracle: IPreimageOracle(address(dio.preimageOracleSingleton))
         });
         ChainAssertions.checkOPContractsManager({
             _impls: impls,
             _proxies: _proxies(),
             _opcm: IOPContractsManager(address(dio.opcm)),
-            _mips: IMIPS(address(dio.mipsSingleton)),
+            _mips: IMIPS64(address(dio.mipsSingleton)),
             _superchainProxyAdmin: superchainProxyAdmin
         });
         ChainAssertions.checkSystemConfig({ _doi: DeployOPChainInput(address(0)), _contracts: impls, _isProxy: false });
+        ChainAssertions.checkAnchorStateRegistryProxy(IAnchorStateRegistry(impls.AnchorStateRegistry), false);
     }
 
     /// @notice Deploy all of the OP Chain specific contracts

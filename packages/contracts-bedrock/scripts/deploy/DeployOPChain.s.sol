@@ -10,14 +10,10 @@ import { Solarray } from "scripts/libraries/Solarray.sol";
 import { BaseDeployIO } from "scripts/deploy/BaseDeployIO.sol";
 
 import { ChainAssertions } from "scripts/deploy/ChainAssertions.sol";
-import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
-import { IBigStepper } from "interfaces/dispute/IBigStepper.sol";
-import { Constants } from "src/libraries/Constants.sol";
 import { Constants as ScriptConstants } from "scripts/libraries/Constants.sol";
 import { Types } from "scripts/libraries/Types.sol";
 
 import { IProxyAdmin } from "interfaces/universal/IProxyAdmin.sol";
-import { IProxy } from "interfaces/universal/IProxy.sol";
 import { IOPContractsManager } from "interfaces/L1/IOPContractsManager.sol";
 import { IAddressManager } from "interfaces/legacy/IAddressManager.sol";
 import { IDelayedWETH } from "interfaces/dispute/IDelayedWETH.sol";
@@ -25,7 +21,7 @@ import { IDisputeGameFactory } from "interfaces/dispute/IDisputeGameFactory.sol"
 import { IAnchorStateRegistry } from "interfaces/dispute/IAnchorStateRegistry.sol";
 import { IFaultDisputeGame } from "interfaces/dispute/IFaultDisputeGame.sol";
 import { IPermissionedDisputeGame } from "interfaces/dispute/IPermissionedDisputeGame.sol";
-import { Claim, Duration, GameType, GameTypes, Hash } from "src/dispute/lib/Types.sol";
+import { Claim, Duration, GameType } from "src/dispute/lib/Types.sol";
 
 import { IOptimismPortal2 as IOptimismPortal } from "interfaces/L1/IOptimismPortal2.sol";
 import { ISystemConfig } from "interfaces/L1/ISystemConfig.sol";
@@ -480,7 +476,7 @@ contract DeployOPChain is Script {
             SuperchainConfig: address(0)
         });
 
-        assertValidAnchorStateRegistryProxy(_doi, _doo);
+        ChainAssertions.checkAnchorStateRegistryProxy(_doo.anchorStateRegistryProxy(), true);
         ChainAssertions.checkDisputeGameFactory(
             _doo.disputeGameFactoryProxy(),
             address(_doi.opChainProxyAdminOwner()),
@@ -506,97 +502,21 @@ contract DeployOPChain is Script {
             _slot: 0,
             _offset: 0
         });
-        assertValidOptimismPortal(_doi, _doo);
-        assertValidETHLockbox(_doi, _doo);
-        assertValidPermissionedDisputeGame(_doi, _doo);
-        ChainAssertions.checkSystemConfig(proxies, _doi, true);
-        assertValidAddressManager(_doi, _doo);
-        assertValidOPChainProxyAdmin(_doi, _doo);
-    }
-
-    function assertValidPermissionedDisputeGame(DeployOPChainInput _doi, DeployOPChainOutput _doo) internal {
-        IPermissionedDisputeGame game = _doo.permissionedDisputeGame();
-
-        require(GameType.unwrap(game.gameType()) == GameType.unwrap(GameTypes.PERMISSIONED_CANNON), "DPG-10");
-
-        if (_doi.allowCustomDisputeParameters()) {
-            return;
-        }
-
-        // This hex string is the absolutePrestate of the latest op-program release, see where the
-        // `EXPECTED_PRESTATE_HASH` is defined in `config.yml`.
-        require(
-            Claim.unwrap(game.absolutePrestate())
-                == bytes32(hex"038512e02c4c3f7bdaec27d00edf55b7155e0905301e1a88083e4e0a6764d54c"),
-            "DPG-20"
-        );
-
-        IOPContractsManager opcm = _doi.opcm();
-        address mipsImpl = opcm.implementations().mipsImpl;
-        require(game.vm() == IBigStepper(mipsImpl), "DPG-30");
-
-        require(address(game.weth()) == address(_doo.delayedWETHPermissionedGameProxy()), "DPG-40");
-        require(address(game.anchorStateRegistry()) == address(_doo.anchorStateRegistryProxy()), "DPG-50");
-        require(game.l2ChainId() == _doi.l2ChainId(), "DPG-60");
-        require(game.l2BlockNumber() == 0, "DPG-70");
-        require(Duration.unwrap(game.clockExtension()) == 10800, "DPG-80");
-        require(Duration.unwrap(game.maxClockDuration()) == 302400, "DPG-110");
-        require(game.splitDepth() == 30, "DPG-90");
-        require(game.maxGameDepth() == 73, "DPG-100");
-    }
-
-    function assertValidAnchorStateRegistryProxy(DeployOPChainInput, DeployOPChainOutput _doo) internal {
-        // First we check the proxy as itself.
-        IProxy proxy = IProxy(payable(address(_doo.anchorStateRegistryProxy())));
-        vm.prank(address(0));
-        address admin = proxy.admin();
-        require(admin == address(_doo.opChainProxyAdmin()), "ANCHORP-10");
-
-        // Then we check the proxy as ASR.
+        ChainAssertions.checkOptimismPortal2({
+            _contracts: proxies,
+            _superchainConfig: _doi.opcm().superchainConfig(),
+            _opChainProxyAdminOwner: _doi.opChainProxyAdminOwner(),
+            _isProxy: true
+        });
         DeployUtils.assertInitialized({
-            _contractAddress: address(_doo.anchorStateRegistryProxy()),
+            _contractAddress: address(_doo.ethLockboxProxy()),
             _isProxy: true,
             _slot: 0,
             _offset: 0
         });
-
-        require(
-            address(_doo.anchorStateRegistryProxy().disputeGameFactory()) == address(_doo.disputeGameFactoryProxy()),
-            "ANCHORP-30"
-        );
-
-        (Hash actualRoot,) = _doo.anchorStateRegistryProxy().anchors(GameTypes.PERMISSIONED_CANNON);
-        bytes32 expectedRoot = 0xdead000000000000000000000000000000000000000000000000000000000000;
-        require(Hash.unwrap(actualRoot) == expectedRoot, "ANCHORP-40");
-    }
-
-    function assertValidOptimismPortal(DeployOPChainInput _doi, DeployOPChainOutput _doo) internal {
-        IOptimismPortal portal = _doo.optimismPortalProxy();
-        ISuperchainConfig superchainConfig = ISuperchainConfig(address(_doi.opcm().superchainConfig()));
-
-        require(address(portal.anchorStateRegistry()) == address(_doo.anchorStateRegistryProxy()), "PORTAL-10");
-        require(address(portal.disputeGameFactory()) == address(_doo.disputeGameFactoryProxy()), "PORTAL-20");
-        require(address(portal.systemConfig()) == address(_doo.systemConfigProxy()), "PORTAL-30");
-        require(address(portal.superchainConfig()) == address(superchainConfig), "PORTAL-40");
-        require(portal.guardian() == superchainConfig.guardian(), "PORTAL-50");
-        require(portal.paused() == portal.systemConfig().paused(), "PORTAL-60");
-        require(portal.l2Sender() == Constants.DEFAULT_L2_SENDER, "PORTAL-70");
-
-        // This slot is the custom gas token _balance and this check ensures
-        // that it stays unset for forwards compatibility with custom gas token.
-        require(vm.load(address(portal), bytes32(uint256(61))) == bytes32(0), "PORTAL-80");
-
-        // Check once the portal is updated to use the new lockbox.
-        require(address(portal.ethLockbox()) == address(_doo.ethLockboxProxy()), "PORTAL-90");
-        require(portal.proxyAdminOwner() == _doi.opChainProxyAdminOwner(), "PORTAL-100");
-    }
-
-    function assertValidETHLockbox(DeployOPChainInput _doi, DeployOPChainOutput _doo) internal {
-        IETHLockbox lockbox = _doo.ethLockboxProxy();
-
-        require(address(lockbox.systemConfig()) == address(_doo.systemConfigProxy()), "ETHLOCKBOX-10");
-        require(lockbox.authorizedPortals(_doo.optimismPortalProxy()), "ETHLOCKBOX-20");
-        require(lockbox.proxyAdminOwner() == _doi.opChainProxyAdminOwner(), "ETHLOCKBOX-30");
+        ChainAssertions.checkSystemConfig(proxies, _doi, true);
+        assertValidAddressManager(_doi, _doo);
+        assertValidOPChainProxyAdmin(_doi, _doo);
     }
 
     function assertValidAddressManager(DeployOPChainInput, DeployOPChainOutput _doo) internal view {

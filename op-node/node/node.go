@@ -136,9 +136,6 @@ func New(ctx context.Context, cfg *config.Config, log log.Logger, appVersion str
 func (n *OpNode) init(ctx context.Context, cfg *config.Config) error {
 	n.log.Info("Initializing rollup node", "version", n.appVersion)
 	n.initEventSystem()
-	if err := n.initTracer(ctx, cfg); err != nil {
-		return fmt.Errorf("failed to init the trace: %w", err)
-	}
 	if err := n.initL1(ctx, cfg); err != nil {
 		return fmt.Errorf("failed to init L1: %w", err)
 	}
@@ -147,6 +144,9 @@ func (n *OpNode) init(ctx context.Context, cfg *config.Config) error {
 	}
 	if err := n.initL2(ctx, cfg); err != nil {
 		return fmt.Errorf("failed to init L2: %w", err)
+	}
+	if err := n.initTracer(ctx, cfg); err != nil {
+		return fmt.Errorf("failed to init the trace: %w", err)
 	}
 	if err := n.initRuntimeConfig(ctx, cfg); err != nil { // depends on L2, to signal initial runtime values to
 		return fmt.Errorf("failed to init the runtime config: %w", err)
@@ -533,8 +533,11 @@ func (n *OpNode) initP2P(cfg *config.Config) (err error) {
 		panic("p2p node already initialized")
 	}
 	if n.p2pEnabled() {
-		em := n.eventSys.Register("p2p-block-receiver", nil)
-		rec := p2p.NewBlockReceiver(n.log, em, n.metrics)
+		if n.l2Driver.SyncDeriver == nil {
+			panic("SyncDeriver must be initialized")
+		}
+		// embed syncDeriver and tracer(optional) to the blockReceiver to handle unsafe payloads via p2p
+		rec := p2p.NewBlockReceiver(n.log, n.metrics, n.l2Driver.SyncDeriver, n.cfg.Tracer)
 		n.p2pNode, err = p2p.NewNodeP2P(n.resourcesCtx, &cfg.Rollup, n.log, cfg.P2P, rec, n.l2Source, n.runCfg, n.metrics, false)
 		if err != nil {
 			return
