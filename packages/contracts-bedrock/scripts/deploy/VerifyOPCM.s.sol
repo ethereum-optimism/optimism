@@ -517,12 +517,9 @@ contract VerifyOPCM is Script {
                 continue;
             }
 
-            // This getter should be verified via environment variable
-            string memory envVarName = verificationMethod;
-
             // Get expected address from environment variable
             // nosemgrep: sol-style-vm-env-only-in-config-sol
-            address expectedAddress = vm.envAddress(envVarName);
+            address expectedAddress = vm.envAddress(verificationMethod);
 
             // Call the function to retrieve the actual address
             // nosemgrep: sol-style-use-abi-encodecall
