@@ -2,6 +2,9 @@
 version = "1.1.0"
 backend = "ubi:foundry-rs/foundry[exe=anvil]"
 
+[tools.anvil.checksums]
+anvil-anvil-macos-aarch64 = "sha256:08146834afe5aa96f52af3d7c13b96fe44fff6cd26b5c6b7e47f4cd25ebe4d7f"
+
 [tools."cargo:svm-rs"]
 version = "0.5.8"
 backend = "cargo:svm-rs"
@@ -10,21 +13,36 @@ backend = "cargo:svm-rs"
 version = "1.1.0"
 backend = "ubi:foundry-rs/foundry[exe=cast]"
 
+[tools.cast.checksums]
+cast-cast-macos-aarch64 = "sha256:5a016cfe8b2ffa66a4b63a0e3996b46962aff81620c09e791903a97f0b26584b"
+
 [tools.codecov-uploader]
 version = "0.8.0"
 backend = "ubi:codecov/uploader"
+
+[tools.codecov-uploader.checksums]
+uploader-macos-aarch64 = "sha256:75086ee436f6f74c4e8f65448eaa399e38bc93bb27a53d057b24b275b9f78c89"
 
 [tools.direnv]
 version = "2.35.0"
 backend = "aqua:direnv/direnv"
 
+[tools.direnv.checksums]
+"direnv.darwin-arm64" = "sha256:edf7087c1a123f5a77424865a17139fbf776a3a25a2184da7c2fca227ad7a704"
+
 [tools.forge]
 version = "1.1.0"
 backend = "ubi:foundry-rs/foundry[exe=forge]"
 
+[tools.forge.checksums]
+forge-forge-macos-aarch64 = "sha256:cc0f22b8fb43b2472812ea9c975d36c0896dd439d7bdb01b6915f272a63f82b7"
+
 [tools.go]
 version = "1.23.8"
 backend = "core:go"
+
+[tools.go.checksums]
+"go1.23.8.darwin-arm64.tar.gz" = "sha256:d4f53dcaecd67d9d2926eab7c3d674030111c2491e68025848f6839e04a4d3d1"
 
 [tools."go:github.com/ethereum/go-ethereum/cmd/abigen"]
 version = "1.15.10"
@@ -46,17 +64,29 @@ backend = "go:gotest.tools/gotestsum"
 version = "2.3.2-pro"
 backend = "ubi:goreleaser/goreleaser-pro[exe=goreleaser]"
 
+[tools.goreleaser-pro.checksums]
+goreleaser-goreleaser-macos-aarch64 = "sha256:591d01635d299caba375c958cbcd26b48fa2a06d75cad0aa8a0b45beabecfd34"
+
 [tools.jq]
 version = "1.7.1"
 backend = "aqua:jqlang/jq"
+
+[tools.jq.checksums]
+jq-macos-arm64 = "sha256:0bbe619e663e0de2c550be2fe0d240d076799d6f8a652b70fa04aea8a8362e8a"
 
 [tools.just]
 version = "1.37.0"
 backend = "ubi:casey/just"
 
+[tools.just.checksums]
+just-macos-aarch64 = "sha256:0f8d5fec2cb8d7db3c009df921c823d5e5acdee1a2437d4d68e544a224edf0f8"
+
 [tools.kurtosis]
 version = "1.8.1"
 backend = "ubi:kurtosis-tech/kurtosis-cli-release-artifacts[exe=kurtosis]"
+
+[tools.kurtosis.checksums]
+kurtosis-kurtosis-macos-aarch64 = "sha256:ad07dae1c9bfafb31c9e2ea06d3fd0f7fafe8cc4430bf19f1787af8c7dc12b3b"
 
 [tools.op-acceptor]
 version = "op-acceptor/v3.0.0"
@@ -89,10 +119,19 @@ backend = "core:rust"
 version = "0.10.0"
 backend = "aqua:koalaman/shellcheck"
 
+[tools.shellcheck.checksums]
+"shellcheck-v0.10.0.darwin.aarch64.tar.xz" = "sha256:bbd2f14826328eee7679da7221f2bc3afb011f6a928b848c80c321f6046ddf81"
+
 [tools.uv]
 version = "0.5.5"
 backend = "aqua:astral-sh/uv"
 
+[tools.uv.checksums]
+"uv-aarch64-apple-darwin.tar.gz" = "sha256:9368ad5eb6dfb414e88b1ab70ef03a15963569a2bba5b2ad79f8cd0cdde01646"
+
 [tools.yq]
 version = "4.44.5"
 backend = "ubi:mikefarah/yq"
+
+[tools.yq.checksums]
+yq-macos-aarch64 = "sha256:f7263c906b4ccb600089a4308abff209010cb51e17acac70a2f47454fdadb025"
