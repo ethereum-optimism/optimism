@@ -436,21 +436,6 @@ func (s *L2Verifier) ActL2EventsUntil(t Testing, fn func(ev event.Event) bool, m
 	t.Fatalf("event condition did not hit, ran maximum number of steps: %d", max)
 }
 
-func (s *L2Verifier) ActL2EventsDrainAll(t Testing) {
-	t.Helper()
-	if s.l2Building {
-		t.InvalidAction("cannot derive new data while building L2 block")
-		return
-	}
-	err := s.drainer.Drain()
-	if err == nil {
-		return
-	}
-	if err == io.EOF {
-		s.synchronousEvents.Emit(t.Ctx(), driver.StepEvent{})
-	}
-}
-
 func (s *L2Verifier) ActL2PipelineFull(t Testing) {
 	s.synchronousEvents.Emit(t.Ctx(), driver.StepEvent{})
 	require.NoError(t, s.drainer.Drain(), "complete all event processing triggered by deriver step")
