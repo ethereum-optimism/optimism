@@ -509,7 +509,8 @@ contract VerifyOPCM is Script {
             // All getters must be accounted for in expectedGetters mapping
             if (bytes(verificationMethod).length == 0) {
                 console.log("ERROR: Getter '%s' is not accounted for in expectedGetters mapping", functionName);
-                return false;
+                success = false;
+                continue;
             }
 
             // Skip getters that don't need env var verification
