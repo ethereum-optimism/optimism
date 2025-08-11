@@ -60,5 +60,6 @@ op-acceptor = "ubi:ethereum-optimism/infra[exe=op-acceptor,tag_prefix=op-accepto
 
 [settings]
 experimental = true
+lockfile=true
 pipx.uvx = true
 disable_tools = ["asterisc", "kontrol", "binary_signer"]

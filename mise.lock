@@ -1,0 +1,98 @@
+[tools.anvil]
+version = "1.1.0"
+backend = "ubi:foundry-rs/foundry[exe=anvil]"
+
+[tools."cargo:svm-rs"]
+version = "0.5.8"
+backend = "cargo:svm-rs"
+
+[tools.cast]
+version = "1.1.0"
+backend = "ubi:foundry-rs/foundry[exe=cast]"
+
+[tools.codecov-uploader]
+version = "0.8.0"
+backend = "ubi:codecov/uploader"
+
+[tools.direnv]
+version = "2.35.0"
+backend = "aqua:direnv/direnv"
+
+[tools.forge]
+version = "1.1.0"
+backend = "ubi:foundry-rs/foundry[exe=forge]"
+
+[tools.go]
+version = "1.23.8"
+backend = "core:go"
+
+[tools."go:github.com/ethereum/go-ethereum/cmd/abigen"]
+version = "1.15.10"
+backend = "go:github.com/ethereum/go-ethereum/cmd/abigen"
+
+[tools."go:github.com/golangci/golangci-lint/cmd/golangci-lint"]
+version = "1.64.8"
+backend = "go:github.com/golangci/golangci-lint/cmd/golangci-lint"
+
+[tools."go:github.com/vektra/mockery/v2"]
+version = "2.46.0"
+backend = "go:github.com/vektra/mockery/v2"
+
+[tools."go:gotest.tools/gotestsum"]
+version = "1.12.1"
+backend = "go:gotest.tools/gotestsum"
+
+[tools.goreleaser-pro]
+version = "2.3.2-pro"
+backend = "ubi:goreleaser/goreleaser-pro[exe=goreleaser]"
+
+[tools.jq]
+version = "1.7.1"
+backend = "aqua:jqlang/jq"
+
+[tools.just]
+version = "1.37.0"
+backend = "ubi:casey/just"
+
+[tools.kurtosis]
+version = "1.8.1"
+backend = "ubi:kurtosis-tech/kurtosis-cli-release-artifacts[exe=kurtosis]"
+
+[tools.op-acceptor]
+version = "op-acceptor/v3.0.0"
+backend = "ubi:ethereum-optimism/infra[exe=op-acceptor,tag_prefix=op-acceptor/]"
+
+[tools.op-acceptor.checksums]
+op-acceptor-op-acceptor-macos-aarch64 = "sha256:f24bf90aefa1871c61cd35f7ec61f0a72250cd8881d61d0f130b8a4e39c86194"
+
+[tools."pipx:md_toc"]
+version = "9.0.0"
+backend = "pipx:md_toc"
+
+[tools."pipx:semgrep"]
+version = "1.90.0"
+backend = "pipx:semgrep"
+
+[tools."pipx:slither-analyzer"]
+version = "0.10.2"
+backend = "pipx:slither-analyzer"
+
+[tools.python]
+version = "3.12.0"
+backend = "core:python"
+
+[tools.rust]
+version = "1.83.0"
+backend = "core:rust"
+
+[tools.shellcheck]
+version = "0.10.0"
+backend = "aqua:koalaman/shellcheck"
+
+[tools.uv]
+version = "0.5.5"
+backend = "aqua:astral-sh/uv"
+
+[tools.yq]
+version = "4.44.5"
+backend = "ubi:mikefarah/yq"
