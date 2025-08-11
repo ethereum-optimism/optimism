@@ -12,8 +12,8 @@ type SuperFaultDisputeGame struct {
 	*FaultDisputeGame
 }
 
-func NewSuperFaultDisputeGame(t devtest.T, require *require.Assertions, addr common.Address, game *bindings.FaultDisputeGame) *SuperFaultDisputeGame {
-	fdg := NewFaultDisputeGame(t, require, addr, game)
+func NewSuperFaultDisputeGame(t devtest.T, require *require.Assertions, addr common.Address, helperProvider gameHelperProvider, game *bindings.FaultDisputeGame) *SuperFaultDisputeGame {
+	fdg := NewFaultDisputeGame(t, require, addr, helperProvider, game)
 	return &SuperFaultDisputeGame{
 		FaultDisputeGame: fdg,
 	}

@@ -50,7 +50,6 @@ func TestChallengerRespondsToInvalidClaims(gt *testing.T) {
 	attacker := sys.FunderL1.NewFundedEOA(eth.Ether(100))
 	dgf := sys.DisputeGameFactory()
 
-	gs := dgf.GameState(attacker)
 	extraData := make([]byte, 32)
 	binary.BigEndian.PutUint64(extraData[24:], 8249249824792999)
 
@@ -61,9 +60,4 @@ func TestChallengerRespondsToInvalidClaims(gt *testing.T) {
 	)
 
 	game.LogGameData()
-
-	//gs.CreateGameWithClaims(attacker, dgf, cTypes.SuperCannonGameType, badClaim, extraData, []proofs.GameStateMove{
-	//	proofs.Move(0, badClaim, true),
-	//	proofs.Move(1, badClaim, false),
-	//})
 }

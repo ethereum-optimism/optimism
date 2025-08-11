@@ -29,7 +29,7 @@ type DisputeGameFactory struct {
 	dgf        *bindings.DisputeGameFactory
 	addr       common.Address
 	supervisor *dsl.Supervisor
-	gameState  *GameState
+	gameHelper *GameHelper
 }
 
 func NewDisputeGameFactory(t devtest.T, l1Network *dsl.L1Network, ethClient apis.EthClient, dgfAddr common.Address, supervisor *dsl.Supervisor) *DisputeGameFactory {
@@ -84,13 +84,12 @@ func (f *DisputeGameFactory) Address() common.Address {
 	return f.addr
 }
 
-// GameState deploys (once) and returns a cached GameState instance tied to this factory
-func (f *DisputeGameFactory) GameState(eoa *dsl.EOA) *GameState {
-	if f.gameState != nil {
-		return f.gameState
+func (f *DisputeGameFactory) getGameHelper(eoa *dsl.EOA) *GameHelper {
+	if f.gameHelper != nil {
+		return f.gameHelper
 	}
-	gs := DeployGameState(f.t, eoa)
-	f.gameState = gs
+	gs := DeployGameHelper(f.t, eoa)
+	f.gameHelper = gs
 	return gs
 }
 
@@ -101,13 +100,13 @@ func (f *DisputeGameFactory) GameCount() int64 {
 func (f *DisputeGameFactory) GameAtIndex(idx int64) *FaultDisputeGame {
 	gameInfo := contract.Read(f.dgf.GameAtIndex(big.NewInt(idx)))
 	game := bindings.NewFaultDisputeGame(bindings.WithClient(f.ethClient), bindings.WithTo(gameInfo.Proxy), bindings.WithTest(f.t))
-	return NewFaultDisputeGame(f.t, f.require, gameInfo.Proxy, game)
+	return NewFaultDisputeGame(f.t, f.require, gameInfo.Proxy, f.getGameHelper, game)
 }
 
 func (f *DisputeGameFactory) gameImpl(gameType challengerTypes.GameType) *FaultDisputeGame {
 	implAddr := contract.Read(f.dgf.GameImpls(uint32(gameType)))
 	game := bindings.NewFaultDisputeGame(bindings.WithClient(f.ethClient), bindings.WithTo(implAddr), bindings.WithTest(f.t))
-	return NewFaultDisputeGame(f.t, f.require, implAddr, game)
+	return NewFaultDisputeGame(f.t, f.require, implAddr, f.getGameHelper, game)
 }
 
 func (f *DisputeGameFactory) WaitForGame() *FaultDisputeGame {
@@ -133,7 +132,7 @@ func (f *DisputeGameFactory) startSuperCannonGameOfType(eoa *dsl.EOA, timestamp 
 	extraData := f.createSuperGameExtraData(timestamp, cfg)
 	game, addr := f.createNewGame(eoa, gameType, rootClaim, extraData)
 
-	return NewSuperFaultDisputeGame(f.t, f.require, addr, game)
+	return NewSuperFaultDisputeGame(f.t, f.require, addr, f.getGameHelper, game)
 }
 
 func (f *DisputeGameFactory) createSuperGameExtraData(timestamp uint64, cfg *GameCfg) []byte {

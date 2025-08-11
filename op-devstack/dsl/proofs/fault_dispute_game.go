@@ -21,19 +21,23 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/txplan"
 )
 
+type gameHelperProvider func(deployer *dsl.EOA) *GameHelper
+
 type FaultDisputeGame struct {
-	t       devtest.T
-	require *require.Assertions
-	game    *bindings.FaultDisputeGame
-	Address common.Address
+	t              devtest.T
+	require        *require.Assertions
+	game           *bindings.FaultDisputeGame
+	Address        common.Address
+	helperProvider gameHelperProvider
 }
 
-func NewFaultDisputeGame(t devtest.T, require *require.Assertions, addr common.Address, game *bindings.FaultDisputeGame) *FaultDisputeGame {
+func NewFaultDisputeGame(t devtest.T, require *require.Assertions, addr common.Address, helperProvider gameHelperProvider, game *bindings.FaultDisputeGame) *FaultDisputeGame {
 	return &FaultDisputeGame{
-		t:       t,
-		require: require,
-		game:    game,
-		Address: addr,
+		t:              t,
+		require:        require,
+		game:           game,
+		Address:        addr,
+		helperProvider: helperProvider,
 	}
 }
 
@@ -68,6 +72,10 @@ func (g *FaultDisputeGame) Attack(eoa *dsl.EOA, claimIdx int64, newClaim common.
 
 	receipt := contract.Write(eoa, attackCall, txplan.WithValue(requiredBond), txplan.WithGasRatio(2))
 	g.t.Require().Equal(receipt.Status, types.ReceiptStatusSuccessful)
+}
+
+func (g *FaultDisputeGame) PerformMoves(eoa *dsl.EOA, moves ...GameHelperMove) {
+	g.helperProvider(eoa).PerformMoves(eoa, g, moves)
 }
 
 func (g *FaultDisputeGame) requiredBond(pos challengerTypes.Position) eth.ETH {

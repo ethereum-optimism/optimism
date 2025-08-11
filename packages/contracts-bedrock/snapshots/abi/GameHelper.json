@@ -39,7 +39,7 @@
             "type": "bool"
           }
         ],
-        "internalType": "struct GameState.Move[]",
+        "internalType": "struct GameHelper.Move[]",
         "name": "_moves",
         "type": "tuple[]"
       }
@@ -80,7 +80,7 @@
             "type": "bool"
           }
         ],
-        "internalType": "struct GameState.Move[]",
+        "internalType": "struct GameHelper.Move[]",
         "name": "_moves",
         "type": "tuple[]"
       }

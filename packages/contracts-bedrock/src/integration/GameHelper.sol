@@ -7,7 +7,7 @@ import {IFaultDisputeGame} from "../../interfaces/dispute/IFaultDisputeGame.sol"
 // Libraries
 import "src/dispute/lib/Types.sol";
 
-contract GameState {
+contract GameHelper {
     struct Move {
         uint256 parentIdx;
         Claim claim;

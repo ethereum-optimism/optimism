@@ -20,28 +20,28 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/txplan"
 )
 
-type GameStateMove struct {
+type GameHelperMove struct {
 	ParentIdx *big.Int
 	Claim     common.Hash
 	Attack    bool
 }
 
-type GameStateArtifactData struct {
+type contractArtifactData struct {
 	Bytecode []byte
 	ABI      abi.ABI
 }
 
-type GameState struct {
+type GameHelper struct {
 	t            devtest.T
 	require      *require.Assertions
 	contractAddr common.Address
 	abi          abi.ABI
 }
 
-func DeployGameState(t devtest.T, deployer *dsl.EOA) *GameState {
+func DeployGameHelper(t devtest.T, deployer *dsl.EOA) *GameHelper {
 	req := require.New(t)
 
-	artifactData := getGameStateArtifactData(t)
+	artifactData := getGameHelperArtifactData(t)
 
 	constructorABI := artifactData.ABI
 
@@ -57,15 +57,15 @@ func DeployGameState(t devtest.T, deployer *dsl.EOA) *GameState {
 
 	deployTx := txplan.NewPlannedTx(deployTxOpts)
 	receipt, err := deployTx.Included.Eval(t.Ctx())
-	req.NoError(err, "Failed to deploy GameState contract")
+	req.NoError(err, "Failed to deploy GameHelper contract")
 
-	req.Equal(types.ReceiptStatusSuccessful, receipt.Status, "GameState deployment failed")
-	req.NotEqual(common.Address{}, receipt.ContractAddress, "GameState contract address not set in receipt")
+	req.Equal(types.ReceiptStatusSuccessful, receipt.Status, "GameHelper deployment failed")
+	req.NotEqual(common.Address{}, receipt.ContractAddress, "GameHelper contract address not set in receipt")
 
 	contractAddr := receipt.ContractAddress
-	t.Logf("GameState contract deployed at: %s", contractAddr.Hex())
+	t.Logf("GameHelper contract deployed at: %s", contractAddr.Hex())
 
-	return &GameState{
+	return &GameHelper{
 		t:            t,
 		require:      require.New(t),
 		contractAddr: contractAddr,
@@ -82,31 +82,31 @@ type ArtifactJSON struct {
 	ABI      json.RawMessage  `json:"abi"`
 }
 
-func getGameStateArtifactData(t devtest.T) *GameStateArtifactData {
+func getGameHelperArtifactData(t devtest.T) *contractArtifactData {
 	req := require.New(t)
-	artifactPath := getGameStateArtifactPath(t)
+	artifactPath := getGameHelperArtifactPath(t)
 
 	fileData, err := os.ReadFile(artifactPath)
-	req.NoError(err, "Failed to read GameState artifact file")
+	req.NoError(err, "Failed to read GameHelper artifact file")
 
 	var artifactJSON ArtifactJSON
 	err = json.Unmarshal(fileData, &artifactJSON)
-	req.NoError(err, "Failed to parse GameState artifact JSON")
+	req.NoError(err, "Failed to parse GameHelper artifact JSON")
 
-	req.NotEmpty(artifactJSON.Bytecode.Object, "Bytecode object not found in GameState artifact")
+	req.NotEmpty(artifactJSON.Bytecode.Object, "Bytecode object not found in GameHelper artifact")
 
 	bytecode := common.FromHex(artifactJSON.Bytecode.Object)
 
 	parsedABI, err := abi.JSON(bytes.NewReader(artifactJSON.ABI))
 	req.NoError(err, "Failed to parse ABI")
 
-	return &GameStateArtifactData{
+	return &contractArtifactData{
 		Bytecode: bytecode,
 		ABI:      parsedABI,
 	}
 }
 
-func getGameStateArtifactPath(t devtest.T) string {
+func getGameHelperArtifactPath(t devtest.T) string {
 	req := require.New(t)
 	wd, err := os.Getwd()
 	req.NoError(err, "Failed to get current working directory")
@@ -115,16 +115,16 @@ func getGameStateArtifactPath(t devtest.T) string {
 	req.NoError(err, "Failed to find monorepo root")
 
 	contractsBedrock := filepath.Join(monorepoRoot, "packages", "contracts-bedrock")
-	return filepath.Join(contractsBedrock, "forge-artifacts", "GameState.sol", "GameState.json")
+	return filepath.Join(contractsBedrock, "forge-artifacts", "GameHelper.sol", "GameHelper.json")
 }
 
-func (gs *GameState) CreateGameWithClaims(
+func (gs *GameHelper) CreateGameWithClaims(
 	eoa *dsl.EOA,
 	factory *DisputeGameFactory,
 	gameType challengerTypes.GameType,
 	rootClaim common.Hash,
 	extraData []byte,
-	moves []GameStateMove,
+	moves []GameHelperMove,
 ) common.Address {
 	data, err := gs.abi.Pack("createGameWithClaims", factory.Address(), gameType, rootClaim, extraData, moves)
 	gs.require.NoError(err)
@@ -148,7 +148,7 @@ func (gs *GameState) CreateGameWithClaims(
 	return receipt.ContractAddress
 }
 
-func (gs *GameState) PerformMoves(eoa *dsl.EOA, game *FaultDisputeGame, moves []GameStateMove) {
+func (gs *GameHelper) PerformMoves(eoa *dsl.EOA, game *FaultDisputeGame, moves []GameHelperMove) {
 	data, err := gs.abi.Pack("performMoves", game.Address, moves)
 	gs.require.NoError(err)
 
@@ -165,7 +165,7 @@ func (gs *GameState) PerformMoves(eoa *dsl.EOA, game *FaultDisputeGame, moves []
 	gs.require.Equal(types.ReceiptStatusSuccessful, receipt.Status)
 }
 
-func (gs *GameState) totalMoveBonds(game *FaultDisputeGame, moves []GameStateMove) eth.ETH {
+func (gs *GameHelper) totalMoveBonds(game *FaultDisputeGame, moves []GameHelperMove) eth.ETH {
 	claimPositions := map[uint64]challengerTypes.Position{
 		0: challengerTypes.RootPosition,
 	}
@@ -184,8 +184,8 @@ func (gs *GameState) totalMoveBonds(game *FaultDisputeGame, moves []GameStateMov
 	return totalBond
 }
 
-func Move(parentIdx int64, claim common.Hash, attack bool) GameStateMove {
-	return GameStateMove{
+func Move(parentIdx int64, claim common.Hash, attack bool) GameHelperMove {
+	return GameHelperMove{
 		ParentIdx: big.NewInt(parentIdx),
 		Claim:     claim,
 		Attack:    attack,
