@@ -48,7 +48,7 @@
     "outputs": [
       {
         "internalType": "address",
-        "name": "",
+        "name": "gameAddr_",
         "type": "address"
       }
     ],
