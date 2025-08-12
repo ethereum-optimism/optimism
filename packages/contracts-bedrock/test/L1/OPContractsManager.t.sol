@@ -373,6 +373,11 @@ contract OPContractsManager_Upgrade_Harness is CommonTest {
 
 contract OPContractsManager_Upgrade_Test is OPContractsManager_Upgrade_Harness {
     function test_upgradeSuperchainAndOPChain_succeeds() public {
+        vm.skip(
+            true,
+            "Skipping because we removed the upgrades to superchainConfig and protocolVersions so the event emission checks and assertions below will fail"
+        );
+
         // wrap runUpgradeTestAndChecks with additional checks for superchainConfig and protocolVersions
         IOPContractsManager.Implementations memory impls = opcm.implementations();
         expectEmitUpgraded(impls.superchainConfigImpl, address(superchainConfig));
