@@ -2,6 +2,7 @@ package jovian
 
 import (
 	"context"
+	"crypto/ecdsa"
 	"math/big"
 	"testing"
 	"time"
@@ -10,7 +11,9 @@ import (
 	"github.com/ethereum-optimism/optimism/devnet-sdk/testing/systest"
 	"github.com/ethereum-optimism/optimism/devnet-sdk/testing/testlib/validators"
 	"github.com/ethereum-optimism/optimism/devnet-sdk/types"
+	"github.com/ethereum-optimism/optimism/op-e2e/bindings"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
+	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	gethTypes "github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/params"
@@ -19,53 +22,35 @@ import (
 
 // TestConfigurableMinBaseFee verifies that the configurable minimum base fee feature works correctly
 func TestConfigurableMinBaseFee(t *testing.T) {
-	t.Run("JovianOff", func(t *testing.T) {
-		testConfigurableMinBaseFeeJovianOff(t)
+	t.Run("MinBaseFeeOff", func(t *testing.T) {
+		// when minBaseFee is 0, base fees can drop normally
+		runMinBaseFeeTest(t, configurableMinBaseFeeOffTestScenario)
 	})
 
-	t.Run("JovianOn", func(t *testing.T) {
-		testConfigurableMinBaseFeeJovianOn(t)
+	t.Run("MinBaseFeeOn", func(t *testing.T) {
+		// when it's enabled with a non-zero value
+		runMinBaseFeeTest(t, configurableMinBaseFeeOnTestScenario)
 	})
-}
-
-// testConfigurableMinBaseFeeJovianOff tests that when Jovian is off, base fees can drop normally
-func testConfigurableMinBaseFeeJovianOff(t *testing.T) {
-	runMinBaseFeeTest(t, false, configurableMinBaseFeeJovianOffTestScenario)
-}
-
-// testConfigurableMinBaseFeeJovianOn tests the minBaseFee feature when Jovian is enabled
-func testConfigurableMinBaseFeeJovianOn(t *testing.T) {
-	runMinBaseFeeTest(t, true, configurableMinBaseFeeTestScenario)
 }
 
 // runMinBaseFeeTest runs a min base fee test with common setup
-func runMinBaseFeeTest(t *testing.T, jovianEnabled bool, scenario func(validators.WalletGetter, uint64) systest.SystemTestFunc) {
+func runMinBaseFeeTest(t *testing.T, scenario func(validators.WalletGetter, uint64) systest.SystemTestFunc) {
 	// Define which L2 chain we'll test
 	chainIdx := uint64(0)
 
 	// Get validators and getters for accessing the system and wallets
 	walletGetter, walletValidator := validators.AcquireL2WalletWithFunds(chainIdx, types.NewBalance(big.NewInt(params.Ether)))
 
-	// Configure fork validator based on Jovian requirement
-	if jovianEnabled {
-		_, forkValidator := validators.AcquireL2WithFork(chainIdx, rollup.Jovian)
-		systest.SystemTest(t,
-			scenario(walletGetter, chainIdx),
-			walletValidator,
-			forkValidator,
-		)
-	} else {
-		_, forkValidator := validators.AcquireL2WithoutFork(chainIdx, rollup.Jovian)
-		systest.SystemTest(t,
-			scenario(walletGetter, chainIdx),
-			walletValidator,
-			forkValidator,
-		)
-	}
+	_, forkValidator := validators.AcquireL2WithFork(chainIdx, rollup.Jovian)
+	systest.SystemTest(t,
+		scenario(walletGetter, chainIdx),
+		walletValidator,
+		forkValidator,
+	)
 }
 
-// configurableMinBaseFeeJovianOffTestScenario creates a test scenario for when Jovian is off
-func configurableMinBaseFeeJovianOffTestScenario(
+// configurableMinBaseFeeOffTestScenario creates a test scenario for when minBaseFee is 0 (disabled)
+func configurableMinBaseFeeOffTestScenario(
 	walletGetter validators.WalletGetter,
 	chainIdx uint64,
 ) systest.SystemTestFunc {
@@ -77,35 +62,43 @@ func configurableMinBaseFeeJovianOffTestScenario(
 		initialHeader, err := l2Client.HeaderByNumber(ctx, big.NewInt(1))
 		require.NoError(t, err)
 
-		// Verify that we're NOT on Jovian fork
-		if chainConfig.JovianTime != nil {
-			require.False(t, chainConfig.IsJovian(initialHeader.Time), "Chain must NOT be running on Jovian fork for this test")
-		}
+		// Verify that we're on Jovian fork
+		require.True(t, chainConfig.IsJovian(initialHeader.Time), "Chain must be running on Jovian fork for this test")
 
-		// Verify no Jovian extra data encoding (should not be 10 bytes)
-		require.NotEqual(t, 10, len(initialHeader.Extra), "Should not have Jovian extra data encoding when Jovian is off")
+		// Verify Jovian extra data encoding (should be 10 bytes)
+		require.Len(t, initialHeader.Extra, 10, "Jovian blocks should have 10 bytes of extra data")
+
+		// Ensure minBaseFeeLog2 is 0 (disabled)
+		initialMinBaseFeeLog2 := uint8(initialHeader.Extra[9])
+		if initialMinBaseFeeLog2 != 0 {
+			// Set it to 0 to test the "off" state
+			setMinBaseFeeLog2(t, ctx, sys, chainIdx, 0)
+			time.Sleep(3 * time.Second)
+		}
 
 		// Collect headers from multiple blocks
 		headers := collectBlockHeaders(t, ctx, l2Client, initialHeader, 5)
 
-		// With low gas usage and no minimum enforced, base fees should decrease
+		// With minBaseFee disabled (0), base fees should be able to decrease
 		foundDecrease := checkForBaseFeeDecrease(t, headers)
-		require.True(t, foundDecrease, "Expected base fee to decrease when Jovian is off and no minimum is enforced")
+		require.True(t, foundDecrease, "Expected base fee to decrease when minBaseFee is disabled")
 
-		// Verify no Jovian extra data encoding in any block
+		// Verify minBaseFeeLog2 remains 0 in all blocks
 		for _, h := range headers {
-			require.NotEqual(t, 10, len(h.Extra), "Should not have Jovian extra data encoding when Jovian is off")
+			require.Len(t, h.Extra, 10, "Jovian blocks should have 10 bytes of extra data")
+			minBaseFeeLog2 := uint8(h.Extra[9])
+			require.Equal(t, uint8(0), minBaseFeeLog2, "MinBaseFeeLog2 should be 0 when disabled")
 		}
 
-		t.Logf("Successfully verified that base fees can decrease when Jovian is off:")
+		t.Logf("Successfully verified that base fees can decrease when minBaseFee is disabled:")
 		t.Logf("  - Initial base fee: %s", headers[0].BaseFee.String())
 		t.Logf("  - Final base fee: %s", headers[len(headers)-1].BaseFee.String())
 		t.Logf("  - Found decreasing base fee trend")
 	}
 }
 
-// configurableMinBaseFeeTestScenario creates a test scenario for verifying configurable minimum base fee
-func configurableMinBaseFeeTestScenario(
+// configurableMinBaseFeeOnTestScenario creates a test scenario for verifying configurable minimum base fee when enabled
+func configurableMinBaseFeeOnTestScenario(
 	walletGetter validators.WalletGetter,
 	chainIdx uint64,
 ) systest.SystemTestFunc {
@@ -126,30 +119,22 @@ func configurableMinBaseFeeTestScenario(
 		initialMinBaseFeeLog2 := uint8(initialHeader.Extra[9])
 		require.Equal(t, uint8(0), initialMinBaseFeeLog2, "MinBaseFee should initially be zero")
 
-		// Wait for more blocks to see if minBaseFeeLog2 gets configured to a non-zero value
-		// In a real deployment, this would happen via SystemConfig updates
-		headers := collectBlockHeaders(t, ctx, l2Client, initialHeader, 10)
+		// Set minBaseFeeLog2 via SystemConfig contract
+		minBaseFeeLog2 := uint8(20) // 2^20 = 1048576 wei minimum base fee
+		setMinBaseFeeLog2(t, ctx, sys, chainIdx, minBaseFeeLog2)
 
-		// Find the first block where minBaseFeeLog2 is set to non-zero
-		var nonZeroHeader *gethTypes.Header
-		var minBaseFeeLog2 uint8
-		for _, h := range headers {
-			if chainConfig.IsConfigurableMinBaseFee(h.Time) {
-				log2Value := uint8(h.Extra[9])
-				if log2Value > 0 {
-					nonZeroHeader = h
-					minBaseFeeLog2 = log2Value
-					t.Logf("Found non-zero minBaseFeeLog2: %d at block %d", log2Value, h.Number.Uint64())
-					break
-				}
-			}
-		}
+		// Wait a bit for the L2 to process the L1 change
+		time.Sleep(3 * time.Second)
+
+		// Get a header after the configuration
+		configuredHeader, err := l2Client.HeaderByNumber(ctx, nil)
+		require.NoError(t, err)
 
 		// Convert log2 value to actual minimum base fee (2^minBaseFeeLog2)
 		minBaseFee := new(big.Int).Exp(big.NewInt(2), big.NewInt(int64(minBaseFeeLog2)), nil)
 
 		// Verify the minimum base fee constraint is enforced from this point forward
-		remainingHeaders := collectBlockHeaders(t, ctx, l2Client, nonZeroHeader, 5)
+		remainingHeaders := collectBlockHeaders(t, ctx, l2Client, configuredHeader, 5)
 		for _, h := range remainingHeaders {
 			require.True(t, h.BaseFee.Cmp(minBaseFee) >= 0,
 				"Block %d base fee (%s) should be >= minimum base fee (%s)",
@@ -181,10 +166,19 @@ func getL2ClientAndConfig(t systest.T, sys system.System, chainIdx uint64) (*eth
 
 // collectBlockHeaders collects headers from multiple consecutive blocks
 func collectBlockHeaders(t systest.T, ctx context.Context, l2Client *ethclient.Client, initialHeader *gethTypes.Header, numBlocks int) []*gethTypes.Header {
+	if initialHeader == nil {
+		require.Fail(t, "initialHeader cannot be nil")
+		return nil
+	}
+
 	var headers []*gethTypes.Header
 	headers = append(headers, initialHeader)
 
 	for i := 0; i < numBlocks; i++ {
+		if len(headers) == 0 {
+			require.Fail(t, "headers slice is empty, cannot continue")
+			return nil
+		}
 		nextBlockNum := new(big.Int).Add(headers[len(headers)-1].Number, big.NewInt(1))
 
 		// Poll for the next block (simple polling)
@@ -220,4 +214,57 @@ func checkForBaseFeeDecrease(t systest.T, headers []*gethTypes.Header) bool {
 		}
 	}
 	return false
+}
+
+// setMinBaseFeeLog2 configures the minimum base fee via SystemConfig contract
+func setMinBaseFeeLog2(t systest.T, ctx context.Context, sys system.System, chainIdx uint64, minBaseFeeLog2 uint8) {
+	// Get L1 client
+	l1Client, err := sys.L1().Nodes()[0].GethClient()
+	require.NoError(t, err)
+
+	// Get L2 chain for L1 addresses
+	l2Chain := sys.L2s()[chainIdx]
+	l1Addresses := l2Chain.L1Addresses()
+
+	// Get SystemConfig proxy address
+	systemConfigAddr, exists := l1Addresses["SystemConfigProxy"]
+	require.True(t, exists, "SystemConfigProxy address must exist")
+
+	// Get L1 wallet for transactions
+	l1Wallets := l2Chain.L1Wallets()
+
+	// Try different wallet names
+	var wallet system.Wallet
+	for name, w := range l1Wallets {
+		wallet = w
+		t.Logf("Found L1 wallet: %s", name)
+		break
+	}
+	require.NotNil(t, wallet, "Must have at least one L1 wallet")
+
+	// Get chain ID
+	chainID, err := l1Client.ChainID(ctx)
+	require.NoError(t, err)
+
+	// Create transactor using the wallet's private key
+	privKey := wallet.PrivateKey()
+	// types.Key is actually *ecdsa.PrivateKey
+	ecdsaKey := (*ecdsa.PrivateKey)(privKey)
+	opts, err := bind.NewKeyedTransactorWithChainID(ecdsaKey, chainID)
+	require.NoError(t, err)
+
+	// Bind to SystemConfig contract
+	sysconfig, err := bindings.NewSystemConfig(systemConfigAddr, l1Client)
+	require.NoError(t, err)
+
+	// Set the minBaseFeeLog2 value
+	tx, err := sysconfig.SetMinBaseFeeLog2(opts, minBaseFeeLog2)
+	require.NoError(t, err, "SetMinBaseFeeLog2 transaction")
+
+	// Wait for transaction to be mined
+	receipt, err := bind.WaitMined(ctx, l1Client, tx)
+	require.NoError(t, err, "waiting for SetMinBaseFeeLog2 transaction")
+	require.Equal(t, uint64(1), receipt.Status, "SetMinBaseFeeLog2 transaction should succeed")
+
+	t.Logf("Successfully set minBaseFeeLog2 to %d in tx %s", minBaseFeeLog2, tx.Hash().Hex())
 }
