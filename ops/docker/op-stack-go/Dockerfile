@@ -42,6 +42,10 @@ RUN mise trust && mise install -v -y just && cp $(mise which just) /usr/local/bi
 COPY ./go.mod /app/go.mod
 COPY ./go.sum /app/go.sum
 
+# op-geth is a bit of a special case - it's added as a submodule so that we can build its image from this repo
+COPY ./op-geth/go.mod /app/op-geth/go.mod
+COPY ./op-geth/go.sum /app/op-geth/go.sum
+
 WORKDIR /app
 
 RUN echo "go mod cache: $(go env GOMODCACHE)"
