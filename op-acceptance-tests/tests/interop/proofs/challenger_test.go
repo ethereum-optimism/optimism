@@ -1,7 +1,6 @@
 package proofs
 
 import (
-	"encoding/binary"
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
@@ -47,9 +46,6 @@ func TestChallengerRespondsToMultipleInvalidClaims(gt *testing.T) {
 
 	attacker := sys.FunderL1.NewFundedEOA(eth.TenEther)
 	dgf := sys.DisputeGameFactory()
-
-	extraData := make([]byte, 32)
-	binary.BigEndian.PutUint64(extraData[24:], 8249249824792999)
 
 	game := dgf.StartSuperCannonGame(attacker)
 	claims := game.PerformMoves(attacker,
