@@ -2050,6 +2050,11 @@ workflows:
           context:
             - circleci-repo-readonly-authenticated-github-token
       - go-release:
+          filters:
+            tags:
+              only: /^op-deployer.*/
+            branches:
+              ignore: /.*/
           module: op-deployer
           context:
             - oplabs-gcr-release
@@ -2070,6 +2075,11 @@ workflows:
           context:
             - circleci-repo-readonly-authenticated-github-token
       - go-release:
+          filters:
+            tags:
+              only: /^op-up.*/
+            branches:
+              ignore: /.*/
           module: op-up
           context:
             - oplabs-gcr-release
