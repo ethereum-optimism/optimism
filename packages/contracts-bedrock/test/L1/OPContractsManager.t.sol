@@ -260,9 +260,14 @@ contract OPContractsManager_Upgrade_Harness is CommonTest {
 
         delayedWETHPermissionedGameProxy =
             IDelayedWETH(payable(artifacts.mustGetAddress("PermissionedDelayedWETHProxy")));
-        delayedWeth = IDelayedWETH(payable(artifacts.mustGetAddress("PermissionlessDelayedWETHProxy")));
+
+        if (keccak256(abi.encode(vm.envOr("FORK_OP_CHAIN", string("op")))) != keccak256(abi.encode("worldchain"))) {
+            delayedWeth = IDelayedWETH(payable(artifacts.mustGetAddress("PermissionedDelayedWETHProxy")));
+        }
         permissionedDisputeGame = IPermissionedDisputeGame(address(artifacts.mustGetAddress("PermissionedDisputeGame")));
-        faultDisputeGame = IFaultDisputeGame(address(artifacts.mustGetAddress("FaultDisputeGame")));
+        if (keccak256(abi.encode(vm.envOr("FORK_OP_CHAIN", string("op")))) != keccak256(abi.encode("worldchain"))) {
+            faultDisputeGame = IFaultDisputeGame(address(artifacts.getAddress("FaultDisputeGame")));
+        }
     }
 
     function expectEmitUpgraded(address impl, address proxy) public {
@@ -852,6 +857,64 @@ contract OPContractsManager_AddGameType_Test is Test {
         assertEq(address(ago.faultDisputeGame.weth()), address(ago.delayedWETH), "weth address mismatch");
         assertEq(
             chainDeployOutput.disputeGameFactoryProxy.initBonds(agi.disputeGameType), agi.initialBond, "bond mismatch"
+        );
+    }
+}
+
+/// @title OPContractsManager_NoSuperchainOrProtocolVersionsUpgrade_Test
+/// @notice Tests that upgrading worldchain fails when using OPCM V2.0.0,
+///         and then passes when using the modified OPCM.
+contract OPContractsManager_NoSuperchainOrProtocolVersionsUpgrade_Test is OPContractsManager_Upgrade_Harness {
+    /// @notice Tests that upgrading worldchain fails when using OPCM V2.0.0.
+    function test_upgrade_withCustomOPCMAddress_fails() public {
+        // Set the fork block number to 21983965
+        vm.createSelectFork("https://eth.llamarpc.com", 21983965);
+
+        // Set the upgrader to be a DelegateCaller so we can test the upgrade
+        vm.etch(upgrader, vm.getDeployedCode("test/mocks/Callers.sol:DelegateCaller"));
+
+        address opcmV200 = 0x026b2F158255Beac46c1E7c6b8BbF29A4b6A7B76;
+
+        vm.expectRevert(bytes("Ownable: caller is not the owner"));
+        DelegateCaller(upgrader).dcForward(
+            address(opcmV200), abi.encodeCall(IOPContractsManager.upgrade, (opChainConfigs))
+        );
+    }
+
+    /// @notice Tests that upgrading worldchain passes when using the modified OPCM with no superchain config or
+    ///         protocol versions upgrade
+    function test_upgrade_withModifiedOPCMAddress_succeeds() public {
+        // Set the fork block number to 21983965
+        vm.createSelectFork("https://eth.llamarpc.com", 21983965);
+
+        // Set the upgrader to be a DelegateCaller so we can test the upgrade
+        vm.etch(upgrader, vm.getDeployedCode("test/mocks/Callers.sol:DelegateCaller"));
+
+        IOPContractsManager opcmV200 = IOPContractsManager(0x026b2F158255Beac46c1E7c6b8BbF29A4b6A7B76);
+
+        IOPContractsManager customOPCMAddress = opcm = IOPContractsManager(
+            DeployUtils.createDeterministic({
+                _name: "OPContractsManager",
+                _args: DeployUtils.encodeConstructor(
+                    abi.encodeCall(
+                        IOPContractsManager.__constructor__,
+                        (
+                            opcmV200.superchainConfig(),
+                            opcmV200.protocolVersions(),
+                            opcmV200.superchainProxyAdmin(),
+                            "dev",
+                            opcmV200.blueprints(),
+                            opcmV200.implementations(),
+                            opcmV200.upgradeController()
+                        )
+                    )
+                ),
+                _salt: DeployUtils.DEFAULT_SALT
+            })
+        );
+
+        DelegateCaller(upgrader).dcForward(
+            address(customOPCMAddress), abi.encodeCall(IOPContractsManager.upgrade, (opChainConfigs))
         );
     }
 }

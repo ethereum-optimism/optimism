@@ -143,7 +143,11 @@ contract ForkLive is Deployer {
         IFaultDisputeGame faultDisputeGame =
             IFaultDisputeGame(opToml.readAddressOr(".addresses.FaultDisputeGame", address(0)));
         artifacts.save("FaultDisputeGame", address(faultDisputeGame));
-        artifacts.save("PermissionlessDelayedWETHProxy", address(faultDisputeGame.weth()));
+        if (keccak256(abi.encode(vm.envOr("FORK_OP_CHAIN", string("op")))) != keccak256(abi.encode("worldchain"))) {
+            artifacts.save("PermissionlessDelayedWETHProxy", address(faultDisputeGame.weth()));
+        } else {
+            artifacts.save("PermissionlessDelayedWETHProxy", address(0));
+        }
 
         // The PermissionedDisputeGame and PermissionedDelayedWETHProxy are not listed in the registry for OP, so we
         // look it up onchain
