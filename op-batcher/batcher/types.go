@@ -41,10 +41,9 @@ func (b *BlockWithDABytes) EstimatedDABytes() uint64 {
 			if tx.IsDepositTx() {
 				continue
 			}
-			bigSize := tx.RollupCostData().EstimatedDASize()
-			if bigSize.IsUint64() { // this should always be true, but if not just ignore
-				daSize += bigSize.Uint64()
-			}
+			// It is safe to assume that the estimated DA size is always a uint64,
+			// so calling Uint64() is safe
+			daSize += tx.RollupCostData().EstimatedDASize().Uint64()
 		}
 		b.estimatedDABytes = daSize
 	}
