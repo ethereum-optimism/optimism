@@ -225,19 +225,23 @@ func (e *EngineController) logSyncProgressMaybe() func() {
 		}
 		var reason string
 		if prevFinalized != e.finalizedHead {
-			reason = "finalized block"
-		} else if prevSafe != e.safeHead {
+			reason += "|finalized block"
+		}
+		if prevSafe != e.safeHead {
 			if prevSafe == prevUnsafe {
-				reason = "derived safe block from L1"
+				reason += "|derived safe block from L1"
 			} else {
-				reason = "consolidated block with L1"
+				reason += "|consolidated block with L1"
 			}
-		} else if prevUnsafe != e.unsafeHead {
-			reason = "new chain head block"
-		} else if prevPendingSafe != e.pendingSafeHead {
-			reason = "pending new safe block"
-		} else if prevBackupUnsafe != e.backupUnsafeHead {
-			reason = "new backup unsafe block"
+		}
+		if prevUnsafe != e.unsafeHead {
+			reason += "|new chain head block"
+		}
+		if prevPendingSafe != e.pendingSafeHead {
+			reason += "|pending new safe block"
+		}
+		if prevBackupUnsafe != e.backupUnsafeHead {
+			reason += "|new backup unsafe block"
 		}
 		if reason != "" {
 			e.log.Info("Sync progress",
