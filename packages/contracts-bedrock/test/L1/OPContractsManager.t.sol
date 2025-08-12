@@ -260,14 +260,9 @@ contract OPContractsManager_Upgrade_Harness is CommonTest {
 
         delayedWETHPermissionedGameProxy =
             IDelayedWETH(payable(artifacts.mustGetAddress("PermissionedDelayedWETHProxy")));
-
-        if (keccak256(abi.encode(vm.envOr("FORK_OP_CHAIN", string("op")))) != keccak256(abi.encode("worldchain"))) {
-            delayedWeth = IDelayedWETH(payable(artifacts.mustGetAddress("PermissionedDelayedWETHProxy")));
-        }
+        delayedWeth = IDelayedWETH(payable(artifacts.mustGetAddress("PermissionedDelayedWETHProxy")));
         permissionedDisputeGame = IPermissionedDisputeGame(address(artifacts.mustGetAddress("PermissionedDisputeGame")));
-        if (keccak256(abi.encode(vm.envOr("FORK_OP_CHAIN", string("op")))) != keccak256(abi.encode("worldchain"))) {
-            faultDisputeGame = IFaultDisputeGame(address(artifacts.getAddress("FaultDisputeGame")));
-        }
+        faultDisputeGame = IFaultDisputeGame(address(artifacts.getAddress("FaultDisputeGame")));
     }
 
     function expectEmitUpgraded(address impl, address proxy) public {
@@ -865,34 +860,40 @@ contract OPContractsManager_AddGameType_Test is Test {
 /// @notice Tests that upgrading worldchain fails when using OPCM V2.0.0,
 ///         and then passes when using the modified OPCM.
 contract OPContractsManager_NoSuperchainOrProtocolVersionsUpgrade_Test is OPContractsManager_Upgrade_Harness {
-    /// @notice Tests that upgrading worldchain fails when using OPCM V2.0.0.
-    function test_upgrade_withCustomOPCMAddress_fails() public {
+    IOPContractsManager opcmV200;
+    address worldchainProxyAdmin;
+
+    function setUp() public override {
+        super.setUp();
+
         // Set the fork block number to 21983965
         vm.createSelectFork("https://eth.llamarpc.com", 21983965);
 
-        // Set the upgrader to be a DelegateCaller so we can test the upgrade
-        vm.etch(upgrader, vm.getDeployedCode("test/mocks/Callers.sol:DelegateCaller"));
+        worldchainProxyAdmin = 0xA4fB12D15Eb85dc9284a7df0AdBC8B696EdbbF1d;
 
-        address opcmV200 = 0x026b2F158255Beac46c1E7c6b8BbF29A4b6A7B76;
+        vm.etch(worldchainProxyAdmin, vm.getDeployedCode("test/mocks/Callers.sol:DelegateCaller"));
 
+        opcmV200 = IOPContractsManager(0x026b2F158255Beac46c1E7c6b8BbF29A4b6A7B76);
+
+        opChainConfigs[0] = IOPContractsManager.OpChainConfig({
+            systemConfigProxy: ISystemConfig(0x6ab0777fD0e609CE58F939a7F70Fe41F5Aa6300A),
+            proxyAdmin: IProxyAdmin(0xd7405BE7f3e63b094Af6C7C23D5eE33Fd82F872D),
+            absolutePrestate: absolutePrestate
+        });
+    }
+
+    /// @notice Tests that upgrading worldchain fails when using OPCM V2.0.0.
+    function test_upgrade_withV200OPCM_fails() public {
         vm.expectRevert(bytes("Ownable: caller is not the owner"));
-        DelegateCaller(upgrader).dcForward(
+        DelegateCaller(worldchainProxyAdmin).dcForward(
             address(opcmV200), abi.encodeCall(IOPContractsManager.upgrade, (opChainConfigs))
         );
     }
 
     /// @notice Tests that upgrading worldchain passes when using the modified OPCM with no superchain config or
     ///         protocol versions upgrade
-    function test_upgrade_withModifiedOPCMAddress_succeeds() public {
-        // Set the fork block number to 21983965
-        vm.createSelectFork("https://eth.llamarpc.com", 21983965);
-
-        // Set the upgrader to be a DelegateCaller so we can test the upgrade
-        vm.etch(upgrader, vm.getDeployedCode("test/mocks/Callers.sol:DelegateCaller"));
-
-        IOPContractsManager opcmV200 = IOPContractsManager(0x026b2F158255Beac46c1E7c6b8BbF29A4b6A7B76);
-
-        IOPContractsManager customOPCMAddress = opcm = IOPContractsManager(
+    function test_upgrade_withModifiedOPCM_succeeds() public {
+        IOPContractsManager modifiedOPCM = opcm = IOPContractsManager(
             DeployUtils.createDeterministic({
                 _name: "OPContractsManager",
                 _args: DeployUtils.encodeConstructor(
@@ -913,8 +914,8 @@ contract OPContractsManager_NoSuperchainOrProtocolVersionsUpgrade_Test is OPCont
             })
         );
 
-        DelegateCaller(upgrader).dcForward(
-            address(customOPCMAddress), abi.encodeCall(IOPContractsManager.upgrade, (opChainConfigs))
+        DelegateCaller(worldchainProxyAdmin).dcForward(
+            address(modifiedOPCM), abi.encodeCall(IOPContractsManager.upgrade, (opChainConfigs))
         );
     }
 }
