@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	gosync "sync"
 	"time"
 
@@ -245,7 +246,7 @@ func (e *EngineController) logSyncProgressMaybe() func() {
 		}
 		if reason != "" {
 			e.log.Info("Sync progress",
-				"reason", reason,
+				"reason", strings.TrimPrefix(reason, "|"),
 				"l2_finalized", e.finalizedHead,
 				"l2_safe", e.safeHead,
 				"l2_pending_safe", e.pendingSafeHead,
