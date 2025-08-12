@@ -69,7 +69,7 @@ orbs:
   slack: circleci/slack@5.1.1
   shellcheck: circleci/shellcheck@3.2.0
   codecov: codecov/codecov@5.0.3
-  utils: ethereum-optimism/circleci-utils@1.0.19
+  utils: ethereum-optimism/circleci-utils@dev:first
   docker: circleci/docker@2.8.2
   github-cli: circleci/github-cli@2.7.0
 
@@ -157,13 +157,6 @@ commands:
           key: svm-cache-{{ checksum "mise.toml" }}-<<parameters.solc_versions>>
           paths:
             - ~/.svm
-      - run:
-          name: Install dependencies
-          command: |
-            # Manually craft the submodule update command in order to take advantage
-            # of the -j parameter, which speeds it up a lot.
-            git submodule update --init --recursive --force -j 8
-          working_directory: packages/contracts-bedrock
 
   # Notifies us on Slack a build fails on develop
   notify-failures-on-develop:
@@ -361,7 +354,8 @@ jobs:
         type: string
         default: ci
     steps:
-      - utils/checkout-with-mise
+      - utils/checkout-with-mise:
+          submodules: true
       - install-contracts-dependencies
       - run:
           name: Print forge version
@@ -456,7 +450,8 @@ jobs:
       resource_class: "<<parameters.resource_class>>"
       docker_layer_caching: true # we rely on this for faster builds, and actively warm it up for builds with common stages
     steps:
-      - utils/checkout-with-mise
+      - utils/checkout-with-mise:
+          submodules: true
       - attach_workspace:
           at: /tmp/docker_images
       - run:
@@ -1014,7 +1009,8 @@ jobs:
       - image: <<pipeline.parameters.default_docker_image>>
     resource_class: xlarge
     steps:
-      - utils/checkout-with-mise
+      - utils/checkout-with-mise:
+          submodules: true
       - check-changed:
           patterns: "<<parameters.package_name>>"
       - attach_workspace:
@@ -1040,7 +1036,8 @@ jobs:
     machine: true
     resource_class: ethereum-optimism/latitude-1
     steps:
-      - utils/checkout-with-mise
+      - utils/checkout-with-mise:
+          submodules: true
       - run:
           name: run Go linter
           command: |
@@ -1080,7 +1077,8 @@ jobs:
     machine: true
     resource_class: <<parameters.resource_class>>
     steps:
-      - utils/checkout-with-mise
+      - utils/checkout-with-mise:
+          submodules: true
       - attach_workspace:
           at: "."
       - run:
@@ -1351,7 +1349,8 @@ jobs:
       - image: <<pipeline.parameters.default_docker_image>>
     resource_class: large
     steps:
-      - utils/checkout-with-mise
+      - utils/checkout-with-mise:
+          submodules: true
       - run:
           name: Install tools
           command: |
@@ -1372,7 +1371,8 @@ jobs:
     machine: true
     resource_class: ethereum-optimism/latitude-1
     steps:
-      - utils/checkout-with-mise
+      - utils/checkout-with-mise:
+          submodules: true
       - restore_cache:
           name: Restore cannon prestate cache
           key: cannon-prestate-{{ checksum "./cannon/bin/cannon" }}-{{ checksum "op-program/bin/op-program-client.elf" }}
