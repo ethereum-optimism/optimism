@@ -112,26 +112,6 @@
       },
       {
         "internalType": "uint256",
-        "name": "_cycleNumber",
-        "type": "uint256"
-      },
-      {
-        "internalType": "uint256",
-        "name": "_startingTimestamp",
-        "type": "uint256"
-      },
-      {
-        "internalType": "uint256",
-        "name": "_duration",
-        "type": "uint256"
-      },
-      {
-        "internalType": "uint256",
-        "name": "_votingCycleDistributionLimit",
-        "type": "uint256"
-      },
-      {
-        "internalType": "uint256",
         "name": "_proposalDistributionThreshold",
         "type": "uint256"
       },

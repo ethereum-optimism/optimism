@@ -240,7 +240,7 @@ contract ProposalValidator is OwnableUpgradeable, ReinitializableBase, ISemver {
     ///         is part of the top100 delegates.
     bytes32 public immutable TOP_DELEGATES_ATTESTATION_SCHEMA_UID;
 
-    /// @notice The max amount of tokens that can be distributed in a proposal.
+    /// @notice The max amount of tokens that can be distributed in a single proposal.
     uint256 public proposalDistributionThreshold;
 
     /// @notice Mapping of voting cycle numbers to their corresponding data.
@@ -275,19 +275,11 @@ contract ProposalValidator is OwnableUpgradeable, ReinitializableBase, ISemver {
 
     /// @notice Initializes the ProposalValidator contract.
     /// @param _owner The address that will own the contract.
-    /// @param _cycleNumber The number of the current voting cycle.
-    /// @param _startingTimestamp The starting timestamp of the voting cycle.
-    /// @param _duration The duration of the voting cycle.
-    /// @param _votingCycleDistributionLimit The max amount of tokens that can be distributed during the voting cycle.
     /// @param _proposalDistributionThreshold The max amount of tokens that can be distributed in a proposal.
     /// @param _proposalTypes Array of proposal types to set data for.
     /// @param _proposalTypesData Array of proposal type data corresponding to the proposal types.
     function initialize(
         address _owner,
-        uint256 _cycleNumber,
-        uint256 _startingTimestamp,
-        uint256 _duration,
-        uint256 _votingCycleDistributionLimit,
         uint256 _proposalDistributionThreshold,
         ProposalType[] memory _proposalTypes,
         ProposalTypeData[] memory _proposalTypesData
@@ -299,7 +291,6 @@ contract ProposalValidator is OwnableUpgradeable, ReinitializableBase, ISemver {
             revert ProposalValidator_ProposalTypesDataLengthMismatch();
         }
 
-        _setVotingCycleData(_cycleNumber, _startingTimestamp, _duration, _votingCycleDistributionLimit);
         _setProposalDistributionThreshold(_proposalDistributionThreshold);
 
         for (uint256 i = 0; i < _proposalTypes.length; i++) {
@@ -400,17 +391,9 @@ contract ProposalValidator is OwnableUpgradeable, ReinitializableBase, ISemver {
         // MaintenanceUpgrade proposals move directly to voting (atomic operation)
         if (_proposalType == ProposalType.MaintenanceUpgrade) {
             proposal.movedToVote = true;
-
-            uint256 proposalId = GOVERNOR.proposeWithModule(
-                votingModule, proposalVotingModuleData, _proposalDescription, idInConfigurator
+            _proposeToGovernor(
+                votingModule, proposalVotingModuleData, _proposalDescription, idInConfigurator, proposalId_
             );
-
-            // Make sure the proposalId matches
-            if (proposalId != proposalId_) {
-                revert ProposalValidator_ProposalIdMismatch();
-            }
-
-            emit ProposalMovedToVote(proposalId_, _msgSender());
         }
     }
 
@@ -441,14 +424,8 @@ contract ProposalValidator is OwnableUpgradeable, ReinitializableBase, ISemver {
         // Validate EAS attestation - must be called by owner-approved address
         _validateApprovedProposerAttestation(_attestationUid, ProposalType.CouncilMemberElections);
 
-        // Validate options length bounds
-        uint256 optionsLength = _optionDescriptions.length;
-        if (optionsLength == 0 || optionsLength > type(uint8).max) {
-            revert ProposalValidator_InvalidOptionsLength();
-        }
-
         // Validate criteria value doesn't exceed options length for TopChoices
-        if (_criteriaValue > optionsLength) {
+        if (_criteriaValue > _optionDescriptions.length) {
             revert ProposalValidator_InvalidCriteriaValue();
         }
 
@@ -458,7 +435,7 @@ contract ProposalValidator is OwnableUpgradeable, ReinitializableBase, ISemver {
 
         // Configure approval voting settings with TopChoices criteria
         IApprovalVotingModule.ProposalSettings memory approvalSettings = IApprovalVotingModule.ProposalSettings({
-            maxApprovals: uint8(optionsLength),
+            maxApprovals: uint8(_optionDescriptions.length),
             criteria: uint8(IApprovalVotingModule.PassingCriteria.TopChoices),
             budgetToken: address(0), // No budget token for elections
             criteriaValue: _criteriaValue,
@@ -547,11 +524,6 @@ contract ProposalValidator is OwnableUpgradeable, ReinitializableBase, ISemver {
         uint256 optionsLength = _optionsDescriptions.length;
         if (optionsLength != _optionsRecipients.length || optionsLength != _optionsAmounts.length) {
             revert ProposalValidator_ProposalTypesDataLengthMismatch();
-        }
-
-        // Validate options length bounds
-        if (optionsLength == 0 || optionsLength > type(uint8).max) {
-            revert ProposalValidator_InvalidOptionsLength();
         }
 
         // Build proposal options with funding execution data
@@ -713,15 +685,7 @@ contract ProposalValidator is OwnableUpgradeable, ReinitializableBase, ISemver {
         proposal.movedToVote = true;
 
         // Propose with module on the Governor
-        uint256 proposalId =
-            GOVERNOR.proposeWithModule(votingModule, proposalVotingModuleData, _proposalDescription, idInConfigurator);
-
-        // Make sure the proposalId matches
-        if (proposalId != proposalId_) {
-            revert ProposalValidator_ProposalIdMismatch();
-        }
-
-        emit ProposalMovedToVote(proposalId_, _msgSender());
+        _proposeToGovernor(votingModule, proposalVotingModuleData, _proposalDescription, idInConfigurator, proposalId_);
     }
 
     /// @notice Moves a council member elections proposal to vote by proposing it on the Governor.
@@ -737,18 +701,13 @@ contract ProposalValidator is OwnableUpgradeable, ReinitializableBase, ISemver {
         external
         returns (uint256 proposalId_)
     {
-        uint256 optionsLength = _optionsDescriptions.length;
-        // Validate options length bounds
-        if (optionsLength == 0 || optionsLength > type(uint8).max) {
-            revert ProposalValidator_InvalidOptionsLength();
-        }
         // Configure approval module options
         (IApprovalVotingModule.ProposalOption[] memory options,) =
             _buildApprovalModuleOptions(_optionsDescriptions, new address[](0), new uint256[](0));
 
         // Configure approval module settings
         IApprovalVotingModule.ProposalSettings memory approvalSettings = IApprovalVotingModule.ProposalSettings({
-            maxApprovals: uint8(optionsLength),
+            maxApprovals: uint8(_optionsDescriptions.length),
             criteria: uint8(IApprovalVotingModule.PassingCriteria.TopChoices),
             budgetToken: address(0),
             criteriaValue: _criteriaValue,
@@ -804,15 +763,7 @@ contract ProposalValidator is OwnableUpgradeable, ReinitializableBase, ISemver {
         proposal.movedToVote = true;
 
         // Propose with module on the Governor
-        uint256 proposalId =
-            GOVERNOR.proposeWithModule(votingModule, proposalVotingModuleData, _proposalDescription, idInConfigurator);
-
-        // Make sure the proposalId matches
-        if (proposalId != proposalId_) {
-            revert ProposalValidator_ProposalIdMismatch();
-        }
-
-        emit ProposalMovedToVote(proposalId_, _msgSender());
+        _proposeToGovernor(votingModule, proposalVotingModuleData, _proposalDescription, idInConfigurator, proposalId_);
     }
 
     /// @notice Moves a funding proposal to vote by proposing it on the Governor.
@@ -841,12 +792,6 @@ contract ProposalValidator is OwnableUpgradeable, ReinitializableBase, ISemver {
         // Only funding proposal types can use this function
         if (_proposalType != ProposalType.GovernanceFund && _proposalType != ProposalType.CouncilBudget) {
             revert ProposalValidator_InvalidFundingProposalType();
-        }
-
-        uint256 optionsLength = _optionsDescriptions.length;
-        // Validate options length bounds
-        if (optionsLength == 0 || optionsLength > type(uint8).max) {
-            revert ProposalValidator_InvalidOptionsLength();
         }
 
         // Configure approval module options
@@ -912,15 +857,7 @@ contract ProposalValidator is OwnableUpgradeable, ReinitializableBase, ISemver {
         votingCycles[proposal.votingCycle].movedToVoteTokenCount += totalBudget;
 
         // Propose with module on the Governor
-        uint256 proposalId =
-            GOVERNOR.proposeWithModule(votingModule, proposalVotingModuleData, _description, idInConfigurator);
-
-        // Make sure the proposalId matches
-        if (proposalId != proposalId_) {
-            revert ProposalValidator_ProposalIdMismatch();
-        }
-
-        emit ProposalMovedToVote(proposalId_, _msgSender());
+        _proposeToGovernor(votingModule, proposalVotingModuleData, _description, idInConfigurator, proposalId_);
     }
 
     /// @notice Sets the data of a voting cycle.
@@ -1057,6 +994,10 @@ contract ProposalValidator is OwnableUpgradeable, ReinitializableBase, ISemver {
         returns (IApprovalVotingModule.ProposalOption[] memory options_, uint256 totalBudget_)
     {
         uint256 optionsLength = _optionDescriptions.length;
+        // Validate options length bounds
+        if (optionsLength == 0 || optionsLength > type(uint8).max) {
+            revert ProposalValidator_InvalidOptionsLength();
+        }
         options_ = new IApprovalVotingModule.ProposalOption[](optionsLength);
 
         for (uint256 i = 0; i < optionsLength; i++) {
@@ -1159,5 +1100,30 @@ contract ProposalValidator is OwnableUpgradeable, ReinitializableBase, ISemver {
     function _setProposalTypeData(ProposalType _proposalType, ProposalTypeData memory _proposalTypeData) private {
         proposalTypesData[_proposalType] = _proposalTypeData;
         emit ProposalTypeDataSet(_proposalType, _proposalTypeData.requiredApprovals, _proposalTypeData.idInConfigurator);
+    }
+
+    /// @notice Private function to propose to the governor when a proposal is ready to be moved to vote.
+    /// @param _votingModule The address of the voting module to use for this proposal.
+    /// @param _proposalData The proposal data to pass to the voting module.
+    /// @param _description The description of the proposal.
+    /// @param _idInConfigurator The ID of the proposal type in the proposal types configurator.
+    /// @param _expectedProposalId The proposalId should be the same as the one returned by the governor.
+    function _proposeToGovernor(
+        address _votingModule,
+        bytes memory _proposalData,
+        string memory _description,
+        uint8 _idInConfigurator,
+        uint256 _expectedProposalId
+    )
+        private
+    {
+        uint256 proposalId = GOVERNOR.proposeWithModule(_votingModule, _proposalData, _description, _idInConfigurator);
+
+        // Make sure the proposalId matches
+        if (proposalId != _expectedProposalId) {
+            revert ProposalValidator_ProposalIdMismatch();
+        }
+
+        emit ProposalMovedToVote(_expectedProposalId, _msgSender());
     }
 }

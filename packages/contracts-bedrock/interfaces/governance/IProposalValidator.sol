@@ -169,10 +169,6 @@ interface IProposalValidator is ISemver {
 
     function initialize(
         address _owner,
-        uint256 _cycleNumber,
-        uint256 _startingTimestamp,
-        uint256 _duration,
-        uint256 _votingCycleDistributionLimit,
         uint256 _proposalDistributionThreshold,
         ProposalType[] memory _proposalTypes,
         ProposalTypeData[] memory _proposalTypesData

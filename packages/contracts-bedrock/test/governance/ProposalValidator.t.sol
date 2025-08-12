@@ -527,23 +527,14 @@ contract ProposalValidator_Init is CommonTest {
         );
         validator = ProposalValidatorForTest(address(new Proxy(owner)));
 
-        vm.prank(owner);
+        vm.startPrank(owner);
         IProxy(payable(address(validator))).upgradeToAndCall(
             address(impl),
-            abi.encodeCall(
-                impl.initialize,
-                (
-                    owner,
-                    CYCLE_NUMBER,
-                    START_TIMESTAMP,
-                    DURATION,
-                    DISTRIBUTION_LIMIT,
-                    DISTRIBUTION_THRESHOLD,
-                    proposalTypes,
-                    proposalTypesData
-                )
-            )
+            abi.encodeCall(impl.initialize, (owner, DISTRIBUTION_THRESHOLD, proposalTypes, proposalTypesData))
         );
+        // set the data for one voting cycle
+        validator.setVotingCycleData(CYCLE_NUMBER, START_TIMESTAMP, DURATION, DISTRIBUTION_THRESHOLD);
+        vm.stopPrank();
     }
 
     /// @dev Sets up the test suite.
@@ -647,32 +638,12 @@ contract ProposalValidator_Initialize_Test is ProposalValidator_Init {
         vm.prank(owner);
         IProxy(payable(address(validator))).upgradeToAndCall(
             address(impl),
-            abi.encodeCall(
-                impl.initialize,
-                (
-                    owner,
-                    CYCLE_NUMBER,
-                    START_TIMESTAMP,
-                    DURATION,
-                    DISTRIBUTION_LIMIT,
-                    DISTRIBUTION_THRESHOLD,
-                    proposalTypes,
-                    proposalTypesData
-                )
-            )
+            abi.encodeCall(impl.initialize, (owner, DISTRIBUTION_THRESHOLD, proposalTypes, proposalTypesData))
         );
 
         // Verify initialization was successful
         assertEq(validator.proposalDistributionThreshold(), DISTRIBUTION_THRESHOLD);
         assertEq(validator.owner(), owner);
-
-        // Verify voting cycle data
-        (uint256 startingTimestamp, uint256 duration, uint256 distributionLimit, uint256 movedToVoteTokenCount) =
-            validator.votingCycles(CYCLE_NUMBER);
-        assertEq(startingTimestamp, START_TIMESTAMP);
-        assertEq(duration, DURATION);
-        assertEq(distributionLimit, DISTRIBUTION_LIMIT);
-        assertEq(movedToVoteTokenCount, 0);
 
         // Verify proposal type data
         for (uint256 i = 0; i < proposalTypes.length; i++) {
@@ -714,19 +685,7 @@ contract ProposalValidator_Initialize_Test is ProposalValidator_Init {
         vm.expectRevert("Proxy: delegatecall to new implementation contract failed");
         IProxy(payable(address(validator))).upgradeToAndCall(
             address(impl),
-            abi.encodeCall(
-                impl.initialize,
-                (
-                    owner,
-                    CYCLE_NUMBER,
-                    START_TIMESTAMP,
-                    DURATION,
-                    DISTRIBUTION_LIMIT,
-                    DISTRIBUTION_THRESHOLD,
-                    proposalTypes,
-                    proposalTypesData
-                )
-            )
+            abi.encodeCall(impl.initialize, (owner, DISTRIBUTION_THRESHOLD, proposalTypes, proposalTypesData))
         );
     }
 }
@@ -1319,11 +1278,12 @@ contract ProposalValidator_SubmitCouncilMemberElectionsProposal_TestFail is Prop
 
     function test_submitCouncilMemberElectionsProposal_zeroOptions_reverts() public {
         string[] memory emptyOptions = new string[](0);
+        uint128 zeroCriteriaValue = 0; // 0 so it doesnt exceed the options length
 
         vm.expectRevert(ProposalValidator.ProposalValidator_InvalidOptionsLength.selector);
         vm.prank(topDelegate_A);
         validator.submitCouncilMemberElectionsProposal(
-            criteriaValue, emptyOptions, proposalDescription, attestationUid, CYCLE_NUMBER
+            zeroCriteriaValue, emptyOptions, proposalDescription, attestationUid, CYCLE_NUMBER
         );
     }
 
