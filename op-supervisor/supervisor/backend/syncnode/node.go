@@ -5,6 +5,7 @@ import (
 	"errors"
 	"io"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-service/rpc"
@@ -53,7 +54,7 @@ type ManagedNode struct {
 
 	// When the node has an update for us
 	// Nil when node events are pulled synchronously.
-	nodeEvents chan *types.IndexingEvent
+	nodeEvents atomic.Pointer[chan *types.IndexingEvent]
 
 	subscriptions []gethevent.Subscription
 
@@ -149,7 +150,8 @@ func (m *ManagedNode) OnEvent(ctx context.Context, ev event.Event) bool {
 }
 
 func (m *ManagedNode) SubscribeToNodeEvents() {
-	m.nodeEvents = make(chan *types.IndexingEvent, 10)
+	nodeEventsRef := make(chan *types.IndexingEvent, 10)
+	m.nodeEvents.Store(&nodeEventsRef)
 
 	// Resubscribe, since the RPC subscription might fail intermittently.
 	// And fall back to polling, if RPC subscriptions are not supported.
@@ -168,15 +170,17 @@ func (m *ManagedNode) SubscribeToNodeEvents() {
 					}
 				}
 				// When the subscription fails, the channel may have been immediately closed
-				m.nodeEvents = make(chan *types.IndexingEvent, 10)
+				newCh := make(chan *types.IndexingEvent, 10)
+				m.nodeEvents.Store(&newCh)
+				nodeEventsRef = newCh
 			}
-			sub, err := m.Node.SubscribeEvents(ctx, m.nodeEvents)
+			sub, err := m.Node.SubscribeEvents(ctx, nodeEventsRef)
 			if err != nil {
 				if errors.Is(err, gethrpc.ErrNotificationsUnsupported) {
 					m.log.Warn("No RPC notification support detected, falling back to polling")
 					// fallback to polling if subscriptions are not supported.
 					sub, err := rpc.StreamFallback(
-						m.Node.PullEvent, time.Millisecond*100, m.nodeEvents)
+						m.Node.PullEvent, time.Millisecond*100, nodeEventsRef)
 					if err != nil {
 						m.log.Error("Failed to start RPC stream fallback", "err", err)
 						return nil, err
@@ -215,14 +219,25 @@ func (m *ManagedNode) Start() {
 			case <-m.ctx.Done():
 				m.log.Info("Exiting node syncing")
 				return
-			case ev, ok := <-m.nodeEvents: // nil, indefinitely blocking, if no node-events subscriber is set up.
-				if !ok {
-					m.log.Info("Node events channel closed")
-					// indefinitely loop until node-event channel is reinitialized.
-					time.Sleep(500 * time.Millisecond)
+			default:
+				nodeEventsRef := m.nodeEvents.Load()
+				if nodeEventsRef == nil {
+					// no node-events subscriber is setup yet.
 					continue
 				}
-				m.onNodeEvent(ev)
+				select {
+				case <-m.ctx.Done():
+					m.log.Info("Exiting node syncing")
+					return
+				case ev, ok := <-*nodeEventsRef:
+					if !ok {
+						m.log.Info("Node events channel closed")
+						// indefinitely loop until node-event channel is reinitialized.
+						time.Sleep(500 * time.Millisecond)
+						continue
+					}
+					m.onNodeEvent(ev)
+				}
 			}
 		}
 	}()
