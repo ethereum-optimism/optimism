@@ -36,7 +36,7 @@ type channelManager struct {
 	outFactory ChannelOutFactory
 
 	// All blocks which are not yet safe
-	blocks queue.Queue[*types.Block]
+	blocks queue.Queue[SizedBlock]
 	// blockCursor is an index into blocks queue. It points at the next block
 	// to build a channel with. blockCursor = len(blocks) is reserved for when
 	// there are no blocks ready to build with.
@@ -143,7 +143,7 @@ func (s *channelManager) rewindToBlock(block eth.BlockID) {
 		if !ok {
 			panic("rewindToBlock: block not found at index " + fmt.Sprint(i))
 		}
-		s.metr.RecordL2BlockInPendingQueue(block)
+		s.metr.RecordL2BlockInPendingQueue(block.RawSize(), block.EstimatedDABytes())
 	}
 }
 
@@ -424,8 +424,8 @@ func (s *channelManager) processBlocks() error {
 		s.log.Debug("Added block to channel", "id", s.currentChannel.ID(), "block", eth.ToBlockID(block))
 
 		blocksAdded += 1
-		latestL2ref = l2BlockRefFromBlockAndL1Info(block, l1info)
-		s.metr.RecordL2BlockInChannel(block)
+		latestL2ref = l2BlockRefFromBlockAndL1Info(block.Block, l1info)
+		s.metr.RecordL2BlockInChannel(block.RawSize(), block.EstimatedDABytes())
 		// current block got added but channel is now full
 		if s.currentChannel.IsFull() {
 			break
@@ -485,8 +485,9 @@ func (s *channelManager) AddL2Block(block *types.Block) error {
 		return ErrReorg
 	}
 
-	s.metr.RecordL2BlockInPendingQueue(block)
-	s.blocks.Enqueue(block)
+	b := ToSizedBlock(block)
+	s.metr.RecordL2BlockInPendingQueue(b.RawSize(), b.EstimatedDABytes())
+	s.blocks.Enqueue(b)
 	s.tip = block.Hash()
 
 	return nil
@@ -518,7 +519,9 @@ func (s *channelManager) PruneSafeBlocks(num int) {
 		// which was confirmed _after_ the current batcher pulled it from the sequencer.
 		numDiscardedPendingBlocks := -1 * s.blockCursor
 		for i := 0; i < numDiscardedPendingBlocks; i++ {
-			s.metr.RecordPendingBlockPruned(discardedBlocks[i])
+			s.metr.RecordPendingBlockPruned(
+				discardedBlocks[i].RawSize(),
+				discardedBlocks[i].EstimatedDABytes())
 		}
 		s.blockCursor = 0
 	}
@@ -558,4 +561,45 @@ func (m *channelManager) LastStoredBlock() eth.BlockID {
 		return eth.BlockID{}
 	}
 	return eth.ToBlockID(m.blocks[m.blocks.Len()-1])
+}
+
+func (s *channelManager) UnsafeDABytes() int64 {
+	return s.unsafeBytesInPendingBlocks() + s.unsafeBytesInOpenChannels() + s.unsafeBytesInClosedChannels()
+}
+
+func (s *channelManager) unsafeBytesInPendingBlocks() int64 {
+	var bytesNotYetInChannels int64
+	for _, block := range s.blocks[s.blockCursor:] {
+		bytesNotYetInChannels += int64(block.EstimatedDABytes())
+	}
+	return bytesNotYetInChannels
+}
+
+func (s *channelManager) unsafeBytesInOpenChannels() int64 {
+	// In theory, an open channel can provide accurate estimate of
+	// the DA bytes in the channel so far. However, in practice,
+	// the compressors we use can only provide such an estimate in a
+	// way which leads to a worse compression ratio. So increased
+	// observability actually hurts the bottom line.
+	// Therefore, for now just use a block-by-block estimate which should match
+	// the estimate for the blocks before they were added.
+	var bytesInOpenChannels int64
+	for _, channel := range s.channelQueue {
+		if channel.TotalFrames() == 0 {
+			for _, block := range channel.channelBuilder.blocks {
+				bytesInOpenChannels += int64(block.EstimatedDABytes())
+			}
+		}
+	}
+	return bytesInOpenChannels
+}
+
+func (s *channelManager) unsafeBytesInClosedChannels() int64 {
+	var bytesInClosedChannels int64
+	for _, channel := range s.channelQueue {
+		if channel.TotalFrames() > 0 {
+			bytesInClosedChannels += int64(channel.OutputBytes())
+		}
+	}
+	return bytesInClosedChannels
 }

@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/log"
 
@@ -34,9 +33,9 @@ func (*noopMetrics) RecordLatestL1Block(l1ref eth.L1BlockRef)               {}
 func (*noopMetrics) RecordL2BlocksLoaded(eth.L2BlockRef)                    {}
 func (*noopMetrics) RecordChannelOpened(derive.ChannelID, int)              {}
 func (*noopMetrics) RecordL2BlocksAdded(eth.L2BlockRef, int, int, int, int) {}
-func (*noopMetrics) RecordL2BlockInPendingQueue(*types.Block)               {}
-func (*noopMetrics) RecordL2BlockInChannel(*types.Block)                    {}
-func (*noopMetrics) RecordPendingBlockPruned(*types.Block)                  {}
+func (*noopMetrics) RecordL2BlockInPendingQueue(uint64, uint64)             {}
+func (*noopMetrics) RecordL2BlockInChannel(uint64, uint64)                  {}
+func (*noopMetrics) RecordPendingBlockPruned(uint64, uint64)                {}
 
 func (*noopMetrics) RecordChannelClosed(derive.ChannelID, int, int, int, int, error) {}
 
@@ -48,8 +47,10 @@ func (*noopMetrics) RecordThrottleIntensity(intensity float64, controllerType co
 }
 func (*noopMetrics) RecordThrottleParams(maxTxSize, maxBlockSize uint64)                       {}
 func (*noopMetrics) RecordThrottleControllerType(controllerType config.ThrottleControllerType) {}
-func (*noopMetrics) RecordPendingBytesVsThreshold(pendingBytes, threshold uint64, controllerType config.ThrottleControllerType) {
+func (*noopMetrics) RecordUnsafeBytesVsThreshold(pendingBytes, threshold uint64, controllerType config.ThrottleControllerType) {
 }
+
+func (*noopMetrics) RecordUnsafeDABytes(int64) {}
 
 // PID Controller specific metrics
 func (*noopMetrics) RecordThrottleControllerState(error, integral, derivative float64) {}

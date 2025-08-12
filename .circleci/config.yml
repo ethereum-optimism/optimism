@@ -2046,10 +2046,13 @@ workflows:
             branches:
               ignore: /.*/
           build_args: --skip test
+          context:
+            - circleci-repo-readonly-authenticated-github-token
       - go-release:
           module: op-deployer
           context:
             - oplabs-gcr-release
+            - circleci-repo-readonly-authenticated-github-token
           requires:
             - contracts-bedrock-build
 
@@ -2062,13 +2065,15 @@ workflows:
             branches:
               ignore: /.*/
           build_args: --skip test
+          context:
+            - circleci-repo-readonly-authenticated-github-token
       - go-release:
           module: op-up
           context:
             - oplabs-gcr-release
+            - circleci-repo-readonly-authenticated-github-token
           requires:
             - contracts-bedrock-build
-
   release:
     when:
       not:

@@ -1,133 +1,98 @@
 package tests
 
 import (
-	"os"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/ethereum-optimism/optimism/cannon/mipsevm/exec"
+	"github.com/ethereum-optimism/optimism/cannon/mipsevm/multithreaded"
 	mtutil "github.com/ethereum-optimism/optimism/cannon/mipsevm/multithreaded/testutil"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/testutil"
 )
 
-func FuzzStateConsistencyMulOp(f *testing.F) {
-	f.Add(int64(0x80_00_00_00), int64(0x80_00_00_00), int64(1))
-	f.Add(
-		testutil.ToSignedInteger(uint64(0xFF_FF_FF_FF_11_22_33_44)),
-		testutil.ToSignedInteger(uint64(0xFF_FF_FF_FF_11_22_33_44)),
-		int64(1),
-	)
-	f.Add(
-		testutil.ToSignedInteger(uint64(0xFF_FF_FF_FF_80_00_00_00)),
-		testutil.ToSignedInteger(uint64(0xFF_FF_FF_FF_80_00_00_00)),
-		int64(1),
-	)
-	f.Add(
-		testutil.ToSignedInteger(uint64(0xFF_FF_FF_FF_FF_FF_FF_FF)),
-		testutil.ToSignedInteger(uint64(0xFF_FF_FF_FF_FF_FF_FF_FF)),
-		int64(1),
-	)
-
+func FuzzMulOp(f *testing.F) {
 	const opcode uint32 = 28
 	const mulFunct uint32 = 0x2
-	versions := GetMipsVersionTestCases(f)
-	f.Fuzz(func(t *testing.T, rs int64, rt int64, seed int64) {
-		for _, v := range versions {
-			t.Run(v.Name, func(t *testing.T) {
-				mulOpConsistencyCheck(t, versions, opcode, true, mulFunct, Word(rs), Word(rt), seed)
-			})
-		}
-	})
+	multiplier := func(rs, rt Word) uint64 {
+		return uint64(int64(int32(rs)) * int64(int32(rt)))
+	}
+	mulOpCheck(f, multiplier, opcode, true, mulFunct)
 }
 
-func FuzzStateConsistencyMultOp(f *testing.F) {
+func FuzzMultOp(f *testing.F) {
+	const multFunct uint32 = 0x18
+	multiplier := func(rs, rt Word) uint64 {
+		return uint64(int64(int32(rs)) * int64(int32(rt)))
+	}
+	mulOpCheck(f, multiplier, 0, false, multFunct)
+}
+
+func FuzzMultuOp(f *testing.F) {
+	const multuFunct uint32 = 0x19
+	multiplier := func(rs, rt Word) uint64 {
+		return uint64(uint32(rs)) * uint64(uint32(rt))
+	}
+	mulOpCheck(f, multiplier, 0, false, multuFunct)
+}
+
+type multiplierFn func(rs, rt Word) uint64
+
+func mulOpCheck(f *testing.F, multiplier multiplierFn, opcode uint32, expectRdReg bool, funct uint32) {
 	f.Add(int64(0x80_00_00_00), int64(0x80_00_00_00), int64(1))
 	f.Add(
-		testutil.ToSignedInteger(uint64(0xFF_FF_FF_FF_11_22_33_44)),
-		testutil.ToSignedInteger(uint64(0xFF_FF_FF_FF_11_22_33_44)),
+		testutil.ToSignedInteger(0xFF_FF_FF_FF_11_22_33_44),
+		testutil.ToSignedInteger(0xFF_FF_FF_FF_11_22_33_44),
 		int64(1),
 	)
 	f.Add(
-		testutil.ToSignedInteger(uint64(0xFF_FF_FF_FF_80_00_00_00)),
-		testutil.ToSignedInteger(uint64(0xFF_FF_FF_FF_80_00_00_00)),
+		testutil.ToSignedInteger(0xFF_FF_FF_FF_80_00_00_00),
+		testutil.ToSignedInteger(0xFF_FF_FF_FF_80_00_00_00),
 		int64(1),
 	)
 	f.Add(
-		testutil.ToSignedInteger(uint64(0xFF_FF_FF_FF_FF_FF_FF_FF)),
-		testutil.ToSignedInteger(uint64(0xFF_FF_FF_FF_FF_FF_FF_FF)),
+		testutil.ToSignedInteger(0xFF_FF_FF_FF_FF_FF_FF_FF),
+		testutil.ToSignedInteger(0xFF_FF_FF_FF_FF_FF_FF_FF),
 		int64(1),
 	)
 
-	const multFunct uint32 = 0x18
-	versions := GetMipsVersionTestCases(f)
-	f.Fuzz(func(t *testing.T, rs int64, rt int64, seed int64) {
-		mulOpConsistencyCheck(t, versions, 0, false, multFunct, Word(rs), Word(rt), seed)
-	})
-}
-
-func FuzzStateConsistencyMultuOp(f *testing.F) {
-	f.Add(uint64(0x80_00_00_00), uint64(0x80_00_00_00), int64(1))
-	f.Add(
-		uint64(0xFF_FF_FF_FF_11_22_33_44),
-		uint64(0xFF_FF_FF_FF_11_22_33_44),
-		int64(1),
-	)
-	f.Add(
-		uint64(0xFF_FF_FF_FF_80_00_00_00),
-		uint64(0xFF_FF_FF_FF_80_00_00_00),
-		int64(1),
-	)
-	f.Add(
-		uint64(0xFF_FF_FF_FF_FF_FF_FF_FF),
-		uint64(0xFF_FF_FF_FF_FF_FF_FF_FF),
-		int64(1),
-	)
-
-	const multuFunct uint32 = 0x19
-	versions := GetMipsVersionTestCases(f)
-	f.Fuzz(func(t *testing.T, rs uint64, rt uint64, seed int64) {
-		mulOpConsistencyCheck(t, versions, 0, false, multuFunct, rs, rt, seed)
-	})
-}
-
-func mulOpConsistencyCheck(
-	t *testing.T, versions []VersionedVMTestCase,
-	opcode uint32, expectRdReg bool, funct uint32,
-	rs Word, rt Word, seed int64) {
-	for _, v := range versions {
-		t.Run(v.Name, func(t *testing.T) {
-			rsReg := uint32(17)
-			rtReg := uint32(18)
-			rdReg := uint32(0)
-			if expectRdReg {
-				rdReg = 19
-			}
-
-			insn := opcode<<26 | rsReg<<21 | rtReg<<16 | rdReg<<11 | funct
-			goVm := v.VMFactory(nil, os.Stdout, os.Stderr, testutil.CreateLogger(), mtutil.WithRandomization(seed), mtutil.WithPCAndNextPC(0))
-			state := goVm.GetState()
-			state.GetRegistersRef()[rsReg] = rs
-			state.GetRegistersRef()[rtReg] = rt
-			testutil.StoreInstruction(state.GetMemory(), 0, insn)
-			step := state.GetStep()
-
-			// mere sanity checks
-			expected := mtutil.NewExpectedState(t, state)
-			expected.ExpectStep()
-
-			stepWitness, err := goVm.Step(true)
-			require.NoError(t, err)
-
-			// use the post-state rdReg or LO and HI just so we can run sanity checks
-			if expectRdReg {
-				expected.ActiveThread().Registers[rdReg] = state.GetRegistersRef()[rdReg]
-			} else {
-				expected.ActiveThread().LO = state.GetCpu().LO
-				expected.ActiveThread().HI = state.GetCpu().HI
-			}
-			expected.Validate(t, state)
-
-			testutil.ValidateEVM(t, stepWitness, step, goVm, v.StateHashFn, v.Contracts)
-		})
+	vms := GetMipsVersionTestCases(f)
+	type testCase struct {
+		rs Word
+		rt Word
 	}
+
+	rsReg := uint32(17)
+	rtReg := uint32(18)
+	rdReg := uint32(0)
+	if expectRdReg {
+		rdReg = 19
+	}
+	initState := func(t require.TestingT, c testCase, state *multithreaded.State, vm VersionedVMTestCase, r *testutil.RandHelper) {
+		insn := opcode<<26 | rsReg<<21 | rtReg<<16 | rdReg<<11 | funct
+		testutil.StoreInstruction(state.GetMemory(), 0, insn)
+		state.GetRegistersRef()[rsReg] = c.rs
+		state.GetRegistersRef()[rtReg] = c.rt
+	}
+
+	setExpectations := func(t require.TestingT, c testCase, expected *mtutil.ExpectedState, vm VersionedVMTestCase) ExpectedExecResult {
+		expected.ExpectStep()
+		result := multiplier(c.rs, c.rt)
+		if expectRdReg {
+			expected.ActiveThread().Registers[rdReg] = exec.SignExtend(result, 32)
+		} else {
+			expected.ActiveThread().LO = exec.SignExtend(result, 32)
+			expected.ActiveThread().HI = exec.SignExtend(result>>32, 32)
+		}
+		return ExpectNormalExecution()
+	}
+
+	diffTester := NewDiffTester(NoopTestNamer[testCase]).
+		InitState(initState, mtutil.WithPCAndNextPC(0)).
+		SetExpectations(setExpectations)
+
+	f.Fuzz(func(t *testing.T, rs, rt, seed int64) {
+		tests := []testCase{{rs: Word(rs), rt: Word(rt)}}
+		diffTester.Run(t, tests, fuzzTestOptions(vms, seed)...)
+	})
 }

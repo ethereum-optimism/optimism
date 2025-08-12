@@ -148,7 +148,7 @@ contract SuperchainConfig_Upgrade_Test is SuperchainConfig_TestInit {
     /// @param _sender The address of the sender to test.
     function testFuzz_upgrade_notProxyAdminOrProxyAdminOwner_reverts(address _sender) public {
         // Prank as the not ProxyAdmin or ProxyAdmin owner.
-        vm.assume(_sender != address(proxyAdmin) && _sender != proxyAdminOwner);
+        vm.assume(_sender != address(superchainProxyAdmin) && _sender != superchainProxyAdminOwner);
 
         // Get the slot for _initialized.
         StorageSlot memory slot = ForgeArtifacts.getSlot("SuperchainConfig", "_initialized");

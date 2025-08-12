@@ -127,7 +127,6 @@ contract OPContractsManager_Upgrade_Harness is CommonTest {
     event ImplementationSet(address indexed impl, GameType indexed gameType);
 
     uint256 l2ChainId;
-    IProxyAdmin superchainProxyAdmin;
     address upgrader;
     IOPContractsManager.OpChainConfig[] opChainConfigs;
     Claim absolutePrestate;
@@ -146,7 +145,6 @@ contract OPContractsManager_Upgrade_Harness is CommonTest {
         );
 
         absolutePrestate = Claim.wrap(bytes32(keccak256("absolutePrestate")));
-        superchainProxyAdmin = IProxyAdmin(EIP1967Helper.getAdmin(address(superchainConfig)));
         upgrader = proxyAdmin.owner();
         vm.label(upgrader, "ProxyAdmin Owner");
 

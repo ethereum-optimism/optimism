@@ -100,9 +100,13 @@ type CLIConfig struct {
 	// ActiveSequencerCheckDuration is the duration between checks to determine the active sequencer endpoint.
 	ActiveSequencerCheckDuration time.Duration
 
-	// ThrottleThreshold is the number of pending bytes beyond which the batcher will start throttling future bytes. Set to 0 to
+	// ThrottleThreshold is the number of pending unsafe_da_bytes beyond which the batcher will start throttling future bytes. Set to 0 to
 	// disable sequencer throttling entirely (only recommended for testing).
 	ThrottleThreshold uint64
+
+	// ThrottleMaxThreshold is the number of pending_usafe_da_bytes at (and beyond) which the batcher will be throttling at 100% intensity.
+	ThrottleMaxThreshold uint64
+
 	// ThrottleTxSize is the DA size of a transaction to start throttling when we are over the throttling threshold.
 	ThrottleTxSize uint64
 	// ThrottleBlockSize is the total per-block DA limit to start imposing on block building when we are over the throttling threshold.
@@ -127,9 +131,6 @@ type CLIConfig struct {
 	ThrottlePidIntegralMax float64
 	ThrottlePidOutputMax   float64
 	ThrottlePidSampleTime  time.Duration
-
-	// ThrottleThresholdMultiplier is the threshold multiplier for the quadratic controller
-	ThrottleThresholdMultiplier float64
 
 	TxMgrConfig   txmgr.CLIConfig
 	LogConfig     oplog.CLIConfig
@@ -185,6 +186,10 @@ func (c *CLIConfig) Check() error {
 
 	if !config.ValidThrottleControllerType(c.ThrottleControllerType) {
 		return fmt.Errorf("invalid throttle controller type: %s (must be one of: %v)", c.ThrottleControllerType, config.ThrottleControllerTypes)
+	}
+
+	if c.ThrottleThreshold != 0 && c.ThrottleMaxThreshold <= c.ThrottleThreshold {
+		return fmt.Errorf("throttle-max-threshold must be greater than throttle-threshold")
 	}
 
 	if err := c.MetricsConfig.Check(); err != nil {
@@ -245,6 +250,6 @@ func NewConfig(ctx *cli.Context) *CLIConfig {
 		ThrottlePidIntegralMax:        ctx.Float64(flags.ThrottlePidIntegralMaxFlag.Name),
 		ThrottlePidOutputMax:          ctx.Float64(flags.ThrottlePidOutputMaxFlag.Name),
 		ThrottlePidSampleTime:         ctx.Duration(flags.ThrottlePidSampleTimeFlag.Name),
-		ThrottleThresholdMultiplier:   ctx.Float64(flags.ThrottleThresholdMultiplierFlag.Name),
+		ThrottleMaxThreshold:          ctx.Uint64(flags.ThrottleMaxThresholdFlag.Name),
 	}
 }

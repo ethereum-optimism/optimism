@@ -500,6 +500,9 @@ contract VerifyOPCM is Script {
         bool success = true;
 
         // Get all OPCM getters and iterate over them
+        // Note: We use the pattern `success = false; continue;` for failures to ensure
+        // comprehensive reporting. Once success is false, it should never be reset to true.
+        // This allows us to collect and report ALL issues in a single verification run.
         string[] memory allGetters = _getOpcmGetters();
 
         for (uint256 i = 0; i < allGetters.length; i++) {
@@ -509,7 +512,8 @@ contract VerifyOPCM is Script {
             // All getters must be accounted for in expectedGetters mapping
             if (bytes(verificationMethod).length == 0) {
                 console.log("ERROR: Getter '%s' is not accounted for in expectedGetters mapping", functionName);
-                return false;
+                success = false;
+                continue;
             }
 
             // Skip getters that don't need env var verification
@@ -517,12 +521,9 @@ contract VerifyOPCM is Script {
                 continue;
             }
 
-            // This getter should be verified via environment variable
-            string memory envVarName = verificationMethod;
-
             // Get expected address from environment variable
             // nosemgrep: sol-style-vm-env-only-in-config-sol
-            address expectedAddress = vm.envAddress(envVarName);
+            address expectedAddress = vm.envAddress(verificationMethod);
 
             // Call the function to retrieve the actual address
             // nosemgrep: sol-style-use-abi-encodecall

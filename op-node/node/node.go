@@ -26,11 +26,9 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/conductor"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/driver"
-	"github.com/ethereum-optimism/optimism/op-node/rollup/finality"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/interop"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/interop/indexing"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/sequencing"
-	"github.com/ethereum-optimism/optimism/op-node/rollup/status"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/sync"
 	"github.com/ethereum-optimism/optimism/op-service/client"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
@@ -85,8 +83,6 @@ type OpNode struct {
 
 	interopSys interop.SubSystem
 
-	apiEmitter event.Emitter // any API requests that need to emit events can emit from this
-
 	// some resources cannot be stopped directly, like the p2p gossipsub router (not our design),
 	// and depend on this ctx to be closed.
 	resourcesCtx   context.Context
@@ -100,6 +96,8 @@ type OpNode struct {
 	// cancels execution prematurely, e.g. to halt. This may be nil.
 	cancel context.CancelCauseFunc
 	halted atomic.Bool
+
+	tracer tracer.Tracer // used for testing PublishBlock and SignAndPublishL2Payload
 }
 
 // New creates a new OpNode instance.
@@ -117,6 +115,7 @@ func New(ctx context.Context, cfg *config.Config, log log.Logger, appVersion str
 		metrics:    m,
 		rollupHalt: cfg.RollupHalt,
 		cancel:     cfg.Cancel,
+		tracer:     cfg.Tracer,
 	}
 	// not a context leak, gossipsub is closed with a context.
 	n.resourcesCtx, n.resourcesClose = context.WithCancel(context.Background())
@@ -136,17 +135,17 @@ func New(ctx context.Context, cfg *config.Config, log log.Logger, appVersion str
 func (n *OpNode) init(ctx context.Context, cfg *config.Config) error {
 	n.log.Info("Initializing rollup node", "version", n.appVersion)
 	n.initEventSystem()
-	if err := n.initL1(ctx, cfg); err != nil {
-		return fmt.Errorf("failed to init L1: %w", err)
-	}
 	if err := n.initL1BeaconAPI(ctx, cfg); err != nil {
 		return err
+	}
+	if err := n.initL1Source(ctx, cfg); err != nil {
+		return fmt.Errorf("failed to init L1 Source: %w", err)
 	}
 	if err := n.initL2(ctx, cfg); err != nil {
 		return fmt.Errorf("failed to init L2: %w", err)
 	}
-	if err := n.initTracer(ctx, cfg); err != nil {
-		return fmt.Errorf("failed to init the trace: %w", err)
+	if err := n.initL1Handlers(cfg); err != nil {
+		return fmt.Errorf("failed to init L1 Handlers: %w", err)
 	}
 	if err := n.initRuntimeConfig(ctx, cfg); err != nil { // depends on L2, to signal initial runtime values to
 		return fmt.Errorf("failed to init the runtime config: %w", err)
@@ -180,17 +179,9 @@ func (n *OpNode) initEventSystem() {
 	sys.Register("node", event.DeriverFunc(n.onEvent))
 	n.eventSys = sys
 	n.eventDrain = executor
-	n.apiEmitter = sys.Register("node-api", nil)
 }
 
-func (n *OpNode) initTracer(ctx context.Context, cfg *config.Config) error {
-	if cfg.Tracer != nil {
-		n.eventSys.Register("tracer", tracer.NewTracerDeriver(cfg.Tracer))
-	}
-	return nil
-}
-
-func (n *OpNode) initL1(ctx context.Context, cfg *config.Config) error {
+func (n *OpNode) initL1Source(ctx context.Context, cfg *config.Config) error {
 	// Cache 3/2 worth of sequencing window of receipts and txs
 	defaultCacheSize := int(cfg.Rollup.SeqWindowSize) * 3 / 2
 	l1RPC, l1Cfg, err := cfg.L1.Setup(ctx, n.log, defaultCacheSize, n.metrics)
@@ -207,15 +198,32 @@ func (n *OpNode) initL1(ctx context.Context, cfg *config.Config) error {
 		return fmt.Errorf("failed to validate the L1 config: %w", err)
 	}
 
-	emitter := n.eventSys.Register("l1-signals", nil)
+	return nil
+}
+
+func (n *OpNode) initL1Handlers(cfg *config.Config) error {
+	if n.l2Driver == nil {
+		return errors.New("l2 driver must be initialized")
+	}
 	onL1Head := func(ctx context.Context, sig eth.L1BlockRef) {
-		emitter.Emit(ctx, status.L1UnsafeEvent{L1Unsafe: sig})
+		// TODO(#16917) Remove Event System Refactor Comments
+		//  L1UnsafeEvent fan out is updated to procedural method calls
+		if n.cfg.Tracer != nil {
+			n.cfg.Tracer.OnNewL1Head(ctx, sig)
+		}
+		n.l2Driver.L1Tracker.OnL1Unsafe(sig)
+		n.l2Driver.StatusTracker.OnL1Unsafe(sig)
+		n.l2Driver.SyncDeriver.OnL1Unsafe(ctx)
 	}
 	onL1Safe := func(ctx context.Context, sig eth.L1BlockRef) {
-		emitter.Emit(ctx, status.L1SafeEvent{L1Safe: sig})
+		n.l2Driver.StatusTracker.OnL1Safe(sig)
 	}
 	onL1Finalized := func(ctx context.Context, sig eth.L1BlockRef) {
-		emitter.Emit(ctx, finality.FinalizeL1Event{FinalizedL1: sig})
+		// TODO(#16917) Remove Event System Refactor Comments
+		//  FinalizeL1Event fan out is updated to procedural method calls
+		n.l2Driver.StatusTracker.OnL1Finalized(sig)
+		n.l2Driver.Finalizer.OnL1Finalized(sig)
+		n.l2Driver.SyncDeriver.OnL1Finalized(ctx)
 	}
 
 	// Keep subscribed to the L1 heads, which keeps the L1 maintainer pointing to the best headers to sync
@@ -239,6 +247,7 @@ func (n *OpNode) initL1(ctx context.Context, cfg *config.Config) error {
 		cfg.L1EpochPollInterval, time.Second*10)
 	n.l1FinalizedSub = eth.PollBlockChanges(n.log, n.l1Source, onL1Finalized, eth.Finalized,
 		cfg.L1EpochPollInterval, time.Second*10)
+
 	return nil
 }
 
@@ -591,7 +600,9 @@ func (n *OpNode) onEvent(ctx context.Context, ev event.Event) bool {
 }
 
 func (n *OpNode) PublishBlock(ctx context.Context, signedEnvelope *opsigner.SignedExecutionPayloadEnvelope) error {
-	n.apiEmitter.Emit(ctx, tracer.TracePublishBlockEvent{Envelope: signedEnvelope.Envelope})
+	if n.tracer != nil {
+		n.tracer.OnPublishL2Payload(ctx, signedEnvelope.Envelope)
+	}
 	if p2pNode := n.getP2PNodeIfEnabled(); p2pNode != nil {
 		n.log.Info("Publishing signed execution payload on p2p", "id", signedEnvelope.ID())
 		return p2pNode.GossipOut().PublishSignedL2Payload(ctx, signedEnvelope)
@@ -600,7 +611,9 @@ func (n *OpNode) PublishBlock(ctx context.Context, signedEnvelope *opsigner.Sign
 }
 
 func (n *OpNode) SignAndPublishL2Payload(ctx context.Context, envelope *eth.ExecutionPayloadEnvelope) error {
-	n.apiEmitter.Emit(ctx, tracer.TracePublishBlockEvent{Envelope: envelope})
+	if n.tracer != nil {
+		n.tracer.OnPublishL2Payload(ctx, envelope)
+	}
 	// publish to p2p, if we are running p2p at all
 	if p2pNode := n.getP2PNodeIfEnabled(); p2pNode != nil {
 		if n.p2pSigner == nil {

@@ -2,9 +2,12 @@ package engine
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
 
@@ -47,20 +50,36 @@ func (eq *EngDeriver) onPayloadSuccess(ctx context.Context, ev PayloadSuccessEve
 		return
 	}
 
-	eq.emitter.Emit(ctx, PromoteUnsafeEvent{Ref: ev.Ref})
-
+	// TryUpdateUnsafe, TryUpdatePendingSafe, TryUpdateLocalSafe, TryUpdateEngine must be sequentially invoked
+	eq.TryUpdateUnsafe(ctx, ev.Ref)
 	// If derived from L1, then it can be considered (pending) safe
 	if ev.DerivedFrom != (eth.L1BlockRef{}) {
-		eq.emitter.Emit(ctx, PromotePendingSafeEvent{
-			Ref:        ev.Ref,
-			Concluding: ev.Concluding,
-			Source:     ev.DerivedFrom,
-		})
+		eq.TryUpdatePendingSafe(ctx, ev.Ref, ev.Concluding, ev.DerivedFrom)
+		eq.TryUpdateLocalSafe(ctx, ev.Ref, ev.Concluding, ev.DerivedFrom)
 	}
-
-	eq.emitter.Emit(ctx, TryUpdateEngineEvent{
+	// Now if possible synchronously call FCU
+	eq.TryUpdateEngine(ctx, TryUpdateEngineEvent{
 		BuildStarted:  ev.BuildStarted,
 		InsertStarted: ev.InsertStarted,
 		Envelope:      ev.Envelope,
 	})
+}
+
+func (d *EngDeriver) TryUpdateEngine(ctx context.Context, x TryUpdateEngineEvent) {
+	// If we don't need to call FCU, keep going b/c this was a no-op. If we needed to
+	// perform a network call, then we should yield even if we did not encounter an error.
+	if err := d.ec.TryUpdateEngine(d.ctx); err != nil && !errors.Is(err, ErrNoFCUNeeded) {
+		if errors.Is(err, derive.ErrReset) {
+			d.emitter.Emit(ctx, rollup.ResetEvent{Err: err})
+		} else if errors.Is(err, derive.ErrTemporary) {
+			d.emitter.Emit(ctx, rollup.EngineTemporaryErrorEvent{Err: err})
+		} else {
+			d.emitter.Emit(ctx, rollup.CriticalErrorEvent{
+				Err: fmt.Errorf("unexpected TryUpdateEngine error type: %w", err),
+			})
+		}
+	} else if x.triggeredByPayloadSuccess() {
+		logValues := x.getBlockProcessingMetrics()
+		d.log.Info("Inserted new L2 unsafe block", logValues...)
+	}
 }

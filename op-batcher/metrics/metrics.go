@@ -8,7 +8,6 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/log"
 
@@ -39,8 +38,8 @@ type Metricer interface {
 	RecordL2BlocksLoaded(l2ref eth.L2BlockRef)
 	RecordChannelOpened(id derive.ChannelID, numPendingBlocks int)
 	RecordL2BlocksAdded(l2ref eth.L2BlockRef, numBlocksAdded, numPendingBlocks, inputBytes, outputComprBytes int)
-	RecordL2BlockInPendingQueue(block *types.Block)
-	RecordL2BlockInChannel(block *types.Block)
+	RecordL2BlockInPendingQueue(rawSize, daSize uint64)
+	RecordL2BlockInChannel(rawSize, daSize uint64)
 	RecordChannelClosed(id derive.ChannelID, numPendingBlocks int, numFrames int, inputBytes int, outputComprBytes int, reason error)
 	RecordChannelFullySubmitted(id derive.ChannelID)
 	RecordChannelTimedOut(id derive.ChannelID)
@@ -48,8 +47,9 @@ type Metricer interface {
 	RecordThrottleIntensity(intensity float64, controllerType config.ThrottleControllerType)
 	RecordThrottleParams(maxTxSize, maxBlockSize uint64)
 	RecordThrottleControllerType(controllerType config.ThrottleControllerType)
-	RecordPendingBytesVsThreshold(pendingBytes, threshold uint64, controllerType config.ThrottleControllerType)
-	RecordPendingBlockPruned(block *types.Block)
+	RecordUnsafeBytesVsThreshold(unsafeBytes, threshold uint64, controllerType config.ThrottleControllerType)
+	RecordUnsafeDABytes(int64)
+	RecordPendingBlockPruned(rawSize, daSize uint64)
 
 	// PID Controller specific metrics
 	RecordThrottleControllerState(error, integral, derivative float64)
@@ -92,6 +92,8 @@ type Metrics struct {
 	pendingDABytes          int64
 	pendingDABytesGaugeFunc prometheus.GaugeFunc
 
+	unsafeDABytesGauge prometheus.Gauge
+
 	blocksAddedCount prometheus.Gauge
 
 	channelInputBytes       prometheus.GaugeVec
@@ -112,7 +114,7 @@ type Metrics struct {
 	throttleMaxTxSize      prometheus.Gauge
 	throttleMaxBlockSize   prometheus.Gauge
 	throttleControllerType prometheus.GaugeVec
-	pendingBytesRatio      prometheus.GaugeVec
+	unsafeBytesRatio       prometheus.GaugeVec
 	throttleHistory        prometheus.Summary
 
 	// PID Controller specific metrics
@@ -255,10 +257,10 @@ func NewMetrics(procName string) *Metrics {
 			Name:      "throttle_controller_type",
 			Help:      "Type of throttle controller in use",
 		}, []string{"type"}),
-		pendingBytesRatio: *factory.NewGaugeVec(prometheus.GaugeOpts{
+		unsafeBytesRatio: *factory.NewGaugeVec(prometheus.GaugeOpts{
 			Namespace: ns,
-			Name:      "pending_bytes_ratio",
-			Help:      "Ratio of pending bytes to threshold",
+			Name:      "unsafe_bytes_ratio",
+			Help:      "Ratio of unsafe bytes to threshold",
 		}, []string{"type"}),
 		throttleHistory: factory.NewSummary(prometheus.SummaryOpts{
 			Namespace: ns,
@@ -290,6 +292,11 @@ func NewMetrics(procName string) *Metrics {
 			Name:      "pid_response_time",
 			Help:      "Response time of the PID controller",
 			Buckets:   prometheus.DefBuckets,
+		}),
+		unsafeDABytesGauge: factory.NewGauge(prometheus.GaugeOpts{
+			Namespace: ns,
+			Name:      "unsafe_da_bytes",
+			Help:      "The estimated number of unsafe DA bytes",
 		}),
 	}
 	m.pendingDABytesGaugeFunc = factory.NewGaugeFunc(prometheus.GaugeOpts{
@@ -387,8 +394,7 @@ func (m *Metrics) RecordChannelClosed(id derive.ChannelID, numPendingBlocks int,
 	m.channelClosedReason.Set(float64(ClosedReasonToNum(reason)))
 }
 
-func (m *Metrics) RecordL2BlockInPendingQueue(block *types.Block) {
-	daSize, rawSize := estimateBatchSize(block)
+func (m *Metrics) RecordL2BlockInPendingQueue(rawSize, daSize uint64) {
 	m.pendingBlocksBytesTotal.Add(float64(rawSize))
 	m.pendingBlocksBytesCurrent.Add(float64(rawSize))
 	atomic.AddInt64(&m.pendingDABytes, int64(daSize))
@@ -398,14 +404,12 @@ func (m *Metrics) RecordL2BlockInPendingQueue(block *types.Block) {
 // It is a rare edge case where a block is loaded and pruned before it gets into a channel.
 // This may happen if a previous batcher instance build a channel with that block
 // which was confirmed _after_ the current batcher pulled it from the sequencer.
-func (m *Metrics) RecordPendingBlockPruned(block *types.Block) {
-	daSize, rawSize := estimateBatchSize(block)
+func (m *Metrics) RecordPendingBlockPruned(rawSize, daSize uint64) {
 	m.pendingBlocksBytesCurrent.Add(-1.0 * float64(rawSize))
 	atomic.AddInt64(&m.pendingDABytes, -1*int64(daSize))
 }
 
-func (m *Metrics) RecordL2BlockInChannel(block *types.Block) {
-	daSize, rawSize := estimateBatchSize(block)
+func (m *Metrics) RecordL2BlockInChannel(rawSize, daSize uint64) {
 	m.pendingBlocksBytesCurrent.Add(-1.0 * float64(rawSize))
 	atomic.AddInt64(&m.pendingDABytes, -1*int64(daSize))
 	// Refer to RecordL2BlocksAdded to see the current + count of bytes added to a channel
@@ -470,15 +474,19 @@ func (m *Metrics) RecordThrottleControllerType(controllerType config.ThrottleCon
 	}
 }
 
-func (m *Metrics) RecordPendingBytesVsThreshold(pendingBytes, threshold uint64, controllerType config.ThrottleControllerType) {
-	ratio := float64(pendingBytes) / float64(threshold)
+func (m *Metrics) RecordUnsafeBytesVsThreshold(unsafeBytes, threshold uint64, controllerType config.ThrottleControllerType) {
+	ratio := float64(unsafeBytes) / float64(threshold)
 	for _, t := range config.ThrottleControllerTypes {
 		if t == controllerType {
-			m.pendingBytesRatio.WithLabelValues(string(t)).Set(ratio)
+			m.unsafeBytesRatio.WithLabelValues(string(t)).Set(ratio)
 		} else {
-			m.pendingBytesRatio.WithLabelValues(string(t)).Set(0)
+			m.unsafeBytesRatio.WithLabelValues(string(t)).Set(0)
 		}
 	}
+}
+
+func (m *Metrics) RecordUnsafeDABytes(unsafeDABytes int64) {
+	m.unsafeDABytesGauge.Set(float64(unsafeDABytes))
 }
 
 // ClearAllStateMetrics clears all state metrics.
@@ -490,26 +498,6 @@ func (m *Metrics) ClearAllStateMetrics() {
 	m.RecordChannelQueueLength(0)
 	atomic.StoreInt64(&m.pendingDABytes, 0)
 	m.pendingBlocksBytesCurrent.Set(0)
-}
-
-// estimateBatchSize returns the estimated size of the block in a batch both with compression ('daSize') and without
-// ('rawSize').
-func estimateBatchSize(block *types.Block) (daSize, rawSize uint64) {
-	daSize = uint64(70) // estimated overhead of batch metadata
-	rawSize = uint64(70)
-	for _, tx := range block.Transactions() {
-		// Deposit transactions are not included in batches
-		if tx.IsDepositTx() {
-			continue
-		}
-		bigSize := tx.RollupCostData().EstimatedDASize()
-		if bigSize.IsUint64() { // this should always be true, but if not just ignore
-			daSize += bigSize.Uint64()
-		}
-		// Add 2 for the overhead of encoding the tx bytes in a RLP list
-		rawSize += tx.Size() + 2
-	}
-	return
 }
 
 // RecordThrottleControllerState records the state of the PID controller

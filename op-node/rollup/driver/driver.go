@@ -103,6 +103,7 @@ type AttributesHandler interface {
 
 type Finalizer interface {
 	FinalizedL1() eth.L1BlockRef
+	OnL1Finalized(x eth.L1BlockRef)
 	event.Deriver
 }
 
@@ -119,6 +120,9 @@ type SyncStatusTracker interface {
 	event.Deriver
 	SyncStatus() *eth.SyncStatus
 	L1Head() eth.L1BlockRef
+	OnL1Unsafe(x eth.L1BlockRef)
+	OnL1Safe(x eth.L1BlockRef)
+	OnL1Finalized(x eth.L1BlockRef)
 }
 
 type Network interface {
@@ -182,7 +186,6 @@ func NewDriver(
 	sys.Register("status", statusTracker)
 
 	l1Tracker := status.NewL1Tracker(l1)
-	sys.Register("l1-blocks", l1Tracker)
 
 	l1 = metered.NewMeteredL1Fetcher(l1Tracker, metrics)
 	verifConfDepth := confdepth.NewConfDepth(driverCfg.VerifierConfDepth, statusTracker.L1Head, l1)
@@ -204,8 +207,8 @@ func NewDriver(
 	}
 	sys.Register("finalizer", finalizer)
 
-	sys.Register("attributes-handler",
-		attributes.NewAttributesHandler(log, cfg, driverCtx, l2))
+	attrHandler := attributes.NewAttributesHandler(log, cfg, driverCtx, l2)
+	sys.Register("attributes-handler", attrHandler)
 
 	derivationPipeline := derive.NewDerivationPipeline(log, cfg, depSet, verifConfDepth, l1Blobs, altDA, l2, metrics, indexingMode)
 
@@ -220,6 +223,7 @@ func NewDriver(
 		SyncCfg:             syncCfg,
 		Config:              cfg,
 		L1:                  l1,
+		L1Tracker:           l1Tracker,
 		L2:                  l2,
 		Log:                 log,
 		Ctx:                 driverCtx,
@@ -227,10 +231,12 @@ func NewDriver(
 	}
 	// TODO(#16917) Remove Event System Refactor Comments
 	//  Couple SyncDeriver and EngineController for event refactoring
+	//  Couple EngDeriver and NewAttributesHandler for event refactoring
 	ec.SyncDeriver = syncDeriver
 	sys.Register("sync", syncDeriver)
-
-	sys.Register("engine", engine.NewEngDeriver(log, driverCtx, cfg, metrics, ec))
+	engDeriver := engine.NewEngDeriver(log, driverCtx, cfg, metrics, ec)
+	sys.Register("engine", engDeriver)
+	attrHandler.EngDeriver = engDeriver
 
 	schedDeriv := NewStepSchedulingDeriver(log)
 	sys.Register("step-scheduler", schedDeriv)
@@ -251,7 +257,8 @@ func NewDriver(
 
 	driverEmitter := sys.Register("driver", nil)
 	driver := &Driver{
-		statusTracker: statusTracker,
+		StatusTracker: statusTracker,
+		Finalizer:     finalizer,
 		SyncDeriver:   syncDeriver,
 		sched:         schedDeriv,
 		emitter:       driverEmitter,

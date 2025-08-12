@@ -182,9 +182,9 @@ func (f *ThrottleControllerFactory) CreateController(
 	case config.StepControllerType:
 		strategy = NewStepStrategy(throttleParams.Threshold)
 	case config.LinearControllerType:
-		strategy = NewLinearStrategy(throttleParams.Threshold, throttleParams.MaxThreshold(), f.log)
+		strategy = NewLinearStrategy(throttleParams.Threshold, throttleParams.MaxThreshold, f.log)
 	case config.QuadraticControllerType:
-		strategy = NewQuadraticStrategy(throttleParams.Threshold, throttleParams.MaxThreshold(), f.log)
+		strategy = NewQuadraticStrategy(throttleParams.Threshold, throttleParams.MaxThreshold, f.log)
 	case config.PIDControllerType:
 		log.Warn("EXPERIMENTAL FEATURE")
 		log.Warn("PID controller is an EXPERIMENTAL feature that should only be used by experts. PID controller requires deep understanding of control theory and careful tuning. Improper configuration can lead to system instability or poor performance. Use with extreme caution in production environments.")

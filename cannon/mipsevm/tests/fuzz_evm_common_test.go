@@ -3,15 +3,16 @@ package tests
 import (
 	"bytes"
 	"math"
-	"os"
 	"testing"
 
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/stretchr/testify/require"
 
+	"github.com/ethereum-optimism/optimism/cannon/mipsevm"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/arch"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/exec"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/memory"
+	"github.com/ethereum-optimism/optimism/cannon/mipsevm/multithreaded"
 	mtutil "github.com/ethereum-optimism/optimism/cannon/mipsevm/multithreaded/testutil"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/program"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/testutil"
@@ -21,29 +22,26 @@ import (
 const syscallInsn = uint32(0x00_00_00_0c)
 
 func FuzzStateSyscallBrk(f *testing.F) {
-	versions := GetMipsVersionTestCases(f)
+	vms := GetMipsVersionTestCases(f)
+
+	initState := func(t require.TestingT, state *multithreaded.State, vm VersionedVMTestCase, r *testutil.RandHelper) {
+		state.GetRegistersRef()[2] = arch.SysBrk
+		testutil.StoreInstruction(state.GetMemory(), state.GetPC(), syscallInsn)
+	}
+
+	setExpectations := func(t require.TestingT, expected *mtutil.ExpectedState, vm VersionedVMTestCase) ExpectedExecResult {
+		expected.ExpectStep()
+		expected.ActiveThread().Registers[2] = program.PROGRAM_BREAK // Return fixed BRK value
+		expected.ActiveThread().Registers[7] = 0                     // No error
+		return ExpectNormalExecution()
+	}
+
+	diffTester := NewSimpleDiffTester().
+		InitState(initState).
+		SetExpectations(setExpectations)
+
 	f.Fuzz(func(t *testing.T, seed int64) {
-		for _, v := range versions {
-			t.Run(v.Name, func(t *testing.T) {
-				goVm := v.VMFactory(nil, os.Stdout, os.Stderr, testutil.CreateLogger(), mtutil.WithRandomization(seed))
-				state := goVm.GetState()
-				state.GetRegistersRef()[2] = arch.SysBrk
-				testutil.StoreInstruction(state.GetMemory(), state.GetPC(), syscallInsn)
-				step := state.GetStep()
-
-				expected := mtutil.NewExpectedState(t, state)
-				expected.ExpectStep()
-				expected.ActiveThread().Registers[2] = program.PROGRAM_BREAK // Return fixed BRK value
-				expected.ActiveThread().Registers[7] = 0                     // No error
-
-				stepWitness, err := goVm.Step(true)
-				require.NoError(t, err)
-				require.False(t, stepWitness.HasPreimage())
-
-				expected.Validate(t, state)
-				testutil.ValidateEVM(t, stepWitness, step, goVm, v.StateHashFn, v.Contracts)
-			})
-		}
+		diffTester.Run(t, fuzzTestOptions(vms, seed)...)
 	})
 }
 
@@ -54,367 +52,440 @@ func FuzzStateSyscallMmap(f *testing.F) {
 	// Check edge case - just within bounds
 	f.Add(Word(0), Word(0x1000), Word(program.HEAP_END-4096), int64(3))
 
-	versions := GetMipsVersionTestCases(f)
-	f.Fuzz(func(t *testing.T, addr Word, siz Word, heap Word, seed int64) {
-		for _, v := range versions {
-			t.Run(v.Name, func(t *testing.T) {
-				goVm := v.VMFactory(nil, os.Stdout, os.Stderr, testutil.CreateLogger(),
-					mtutil.WithRandomization(seed), mtutil.WithHeap(heap))
-				state := goVm.GetState()
-				step := state.GetStep()
+	vms := GetMipsVersionTestCases(f)
+	type testCase struct {
+		addr Word
+		siz  Word
+		heap Word
+	}
 
-				state.GetRegistersRef()[2] = arch.SysMmap
-				state.GetRegistersRef()[4] = addr
-				state.GetRegistersRef()[5] = siz
-				testutil.StoreInstruction(state.GetMemory(), state.GetPC(), syscallInsn)
+	initState := func(t require.TestingT, c testCase, state *multithreaded.State, vm VersionedVMTestCase, r *testutil.RandHelper) {
+		state.Heap = c.heap
+		state.GetRegistersRef()[2] = arch.SysMmap
+		state.GetRegistersRef()[4] = c.addr
+		state.GetRegistersRef()[5] = c.siz
+		testutil.StoreInstruction(state.GetMemory(), state.GetPC(), syscallInsn)
+	}
 
-				expected := mtutil.NewExpectedState(t, state)
-				expected.ExpectStep()
-				if addr == 0 {
-					sizAlign := siz
-					if sizAlign&memory.PageAddrMask != 0 { // adjust size to align with page size
-						sizAlign = siz + memory.PageSize - (siz & memory.PageAddrMask)
-					}
-					newHeap := heap + sizAlign
-					if newHeap > program.HEAP_END || newHeap < heap || sizAlign < siz {
-						expected.ActiveThread().Registers[2] = exec.MipsEINVAL
-						expected.ActiveThread().Registers[7] = exec.SysErrorSignal
-					} else {
-						expected.Heap = heap + sizAlign
-						expected.ActiveThread().Registers[2] = heap
-						expected.ActiveThread().Registers[7] = 0 // no error
-					}
-				} else {
-					expected.ActiveThread().Registers[2] = addr
-					expected.ActiveThread().Registers[7] = 0 // no error
-				}
-
-				stepWitness, err := goVm.Step(true)
-				require.NoError(t, err)
-				require.False(t, stepWitness.HasPreimage())
-
-				expected.Validate(t, state)
-				testutil.ValidateEVM(t, stepWitness, step, goVm, v.StateHashFn, v.Contracts)
-			})
+	setExpectations := func(t require.TestingT, c testCase, expected *mtutil.ExpectedState, vm VersionedVMTestCase) ExpectedExecResult {
+		expected.ExpectStep()
+		if c.addr == 0 {
+			sizAlign := c.siz
+			if sizAlign&memory.PageAddrMask != 0 { // adjust size to align with page size
+				sizAlign = c.siz + memory.PageSize - (c.siz & memory.PageAddrMask)
+			}
+			newHeap := c.heap + sizAlign
+			if newHeap > program.HEAP_END || newHeap < c.heap || sizAlign < c.siz {
+				expected.ActiveThread().Registers[2] = exec.MipsEINVAL
+				expected.ActiveThread().Registers[7] = exec.SysErrorSignal
+			} else {
+				expected.Heap = c.heap + sizAlign
+				expected.ActiveThread().Registers[2] = c.heap
+				expected.ActiveThread().Registers[7] = 0 // no error
+			}
+		} else {
+			expected.ActiveThread().Registers[2] = c.addr
+			expected.ActiveThread().Registers[7] = 0 // no error
 		}
+		return ExpectNormalExecution()
+	}
+
+	diffTester := NewDiffTester(NoopTestNamer[testCase]).
+		InitState(initState).
+		SetExpectations(setExpectations)
+
+	f.Fuzz(func(t *testing.T, addr Word, siz Word, heap Word, seed int64) {
+		tests := []testCase{{addr, siz, heap}}
+		diffTester.Run(t, tests, fuzzTestOptions(vms, seed)...)
 	})
 }
 
 func FuzzStateSyscallExitGroup(f *testing.F) {
-	versions := GetMipsVersionTestCases(f)
+	vms := GetMipsVersionTestCases(f)
+	type testCase struct {
+		exitCode uint8
+	}
+
+	initState := func(t require.TestingT, c testCase, state *multithreaded.State, vm VersionedVMTestCase, r *testutil.RandHelper) {
+		state.GetRegistersRef()[2] = arch.SysExitGroup
+		state.GetRegistersRef()[4] = Word(c.exitCode)
+		testutil.StoreInstruction(state.GetMemory(), state.GetPC(), syscallInsn)
+	}
+
+	setExpectations := func(t require.TestingT, c testCase, expected *mtutil.ExpectedState, vm VersionedVMTestCase) ExpectedExecResult {
+		expected.Step += 1
+		expected.ExpectNoContextSwitch()
+		expected.Exited = true
+		expected.ExitCode = c.exitCode
+		return ExpectNormalExecution()
+	}
+
+	diffTester := NewDiffTester(NoopTestNamer[testCase]).
+		InitState(initState).
+		SetExpectations(setExpectations)
+
 	f.Fuzz(func(t *testing.T, exitCode uint8, seed int64) {
-		for _, v := range versions {
-			t.Run(v.Name, func(t *testing.T) {
-				goVm := v.VMFactory(nil, os.Stdout, os.Stderr, testutil.CreateLogger(),
-					mtutil.WithRandomization(seed))
-				state := goVm.GetState()
-				state.GetRegistersRef()[2] = arch.SysExitGroup
-				state.GetRegistersRef()[4] = Word(exitCode)
-				testutil.StoreInstruction(state.GetMemory(), state.GetPC(), syscallInsn)
-				step := state.GetStep()
-
-				expected := mtutil.NewExpectedState(t, state)
-				expected.Step += 1
-				expected.ExpectNoContextSwitch()
-				expected.Exited = true
-				expected.ExitCode = exitCode
-
-				stepWitness, err := goVm.Step(true)
-				require.NoError(t, err)
-				require.False(t, stepWitness.HasPreimage())
-
-				expected.Validate(t, state)
-				testutil.ValidateEVM(t, stepWitness, step, goVm, v.StateHashFn, v.Contracts)
-			})
-		}
+		tests := []testCase{{exitCode}}
+		diffTester.Run(t, tests, fuzzTestOptions(vms, seed)...)
 	})
 }
 
 func FuzzStateSyscallFcntl(f *testing.F) {
-	versions := GetMipsVersionTestCases(f)
-	f.Fuzz(func(t *testing.T, fd Word, cmd Word, seed int64) {
-		for _, v := range versions {
-			t.Run(v.Name, func(t *testing.T) {
-				goVm := v.VMFactory(nil, os.Stdout, os.Stderr, testutil.CreateLogger(),
-					mtutil.WithRandomization(seed))
-				state := goVm.GetState()
-				state.GetRegistersRef()[2] = arch.SysFcntl
-				state.GetRegistersRef()[4] = fd
-				state.GetRegistersRef()[5] = cmd
-				testutil.StoreInstruction(state.GetMemory(), state.GetPC(), syscallInsn)
-				step := state.GetStep()
+	vms := GetMipsVersionTestCases(f)
+	type testCase struct {
+		fd  Word
+		cmd Word
+	}
 
-				expected := mtutil.NewExpectedState(t, state)
-				expected.ExpectStep()
-				if cmd == 1 {
-					switch fd {
-					case exec.FdStdin, exec.FdStdout, exec.FdStderr,
-						exec.FdPreimageRead, exec.FdHintRead, exec.FdPreimageWrite, exec.FdHintWrite:
-						expected.ActiveThread().Registers[2] = 0
-						expected.ActiveThread().Registers[7] = 0
-					default:
-						expected.ActiveThread().Registers[2] = exec.MipsEBADF
-						expected.ActiveThread().Registers[7] = exec.SysErrorSignal
-					}
-				} else if cmd == 3 {
-					switch fd {
-					case exec.FdStdin, exec.FdPreimageRead, exec.FdHintRead:
-						expected.ActiveThread().Registers[2] = 0
-						expected.ActiveThread().Registers[7] = 0
-					case exec.FdStdout, exec.FdStderr, exec.FdPreimageWrite, exec.FdHintWrite:
-						expected.ActiveThread().Registers[2] = 1
-						expected.ActiveThread().Registers[7] = 0
-					default:
-						expected.ActiveThread().Registers[2] = exec.MipsEBADF
-						expected.ActiveThread().Registers[7] = exec.SysErrorSignal
-					}
-				} else {
-					expected.ActiveThread().Registers[2] = exec.MipsEINVAL
-					expected.ActiveThread().Registers[7] = exec.SysErrorSignal
-				}
+	initState := func(t require.TestingT, c testCase, state *multithreaded.State, vm VersionedVMTestCase, r *testutil.RandHelper) {
+		state.GetRegistersRef()[2] = arch.SysFcntl
+		state.GetRegistersRef()[4] = c.fd
+		state.GetRegistersRef()[5] = c.cmd
+		testutil.StoreInstruction(state.GetMemory(), state.GetPC(), syscallInsn)
+	}
 
-				stepWitness, err := goVm.Step(true)
-				require.NoError(t, err)
-				require.False(t, stepWitness.HasPreimage())
-
-				expected.Validate(t, state)
-				testutil.ValidateEVM(t, stepWitness, step, goVm, v.StateHashFn, v.Contracts)
-			})
+	setExpectations := func(t require.TestingT, c testCase, expected *mtutil.ExpectedState, vm VersionedVMTestCase) ExpectedExecResult {
+		expected.ExpectStep()
+		if c.cmd == 1 {
+			switch c.fd {
+			case exec.FdStdin, exec.FdStdout, exec.FdStderr,
+				exec.FdPreimageRead, exec.FdHintRead, exec.FdPreimageWrite, exec.FdHintWrite:
+				expected.ActiveThread().Registers[2] = 0
+				expected.ActiveThread().Registers[7] = 0
+			default:
+				expected.ActiveThread().Registers[2] = exec.MipsEBADF
+				expected.ActiveThread().Registers[7] = exec.SysErrorSignal
+			}
+		} else if c.cmd == 3 {
+			switch c.fd {
+			case exec.FdStdin, exec.FdPreimageRead, exec.FdHintRead:
+				expected.ActiveThread().Registers[2] = 0
+				expected.ActiveThread().Registers[7] = 0
+			case exec.FdStdout, exec.FdStderr, exec.FdPreimageWrite, exec.FdHintWrite:
+				expected.ActiveThread().Registers[2] = 1
+				expected.ActiveThread().Registers[7] = 0
+			default:
+				expected.ActiveThread().Registers[2] = exec.MipsEBADF
+				expected.ActiveThread().Registers[7] = exec.SysErrorSignal
+			}
+		} else {
+			expected.ActiveThread().Registers[2] = exec.MipsEINVAL
+			expected.ActiveThread().Registers[7] = exec.SysErrorSignal
 		}
+		return ExpectNormalExecution()
+	}
+
+	diffTester := NewDiffTester(NoopTestNamer[testCase]).
+		InitState(initState).
+		SetExpectations(setExpectations)
+
+	f.Fuzz(func(t *testing.T, fd Word, cmd Word, seed int64) {
+		tests := []testCase{{fd, cmd}}
+		diffTester.Run(t, tests, fuzzTestOptions(vms, seed)...)
 	})
 }
 
 func FuzzStateHintRead(f *testing.F) {
-	versions := GetMipsVersionTestCases(f)
+	vms := GetMipsVersionTestCases(f)
+	type testCase struct {
+		addr  Word
+		count Word
+	}
+
+	preimageData := []byte("hello world")
+	preimageKey := preimage.Keccak256Key(crypto.Keccak256Hash(preimageData)).PreimageKey()
+	initState := func(t require.TestingT, c testCase, state *multithreaded.State, vm VersionedVMTestCase, r *testutil.RandHelper) {
+		state.PreimageKey = preimageKey
+		state.GetRegistersRef()[2] = arch.SysRead
+		state.GetRegistersRef()[4] = exec.FdHintRead
+		state.GetRegistersRef()[5] = c.addr
+		state.GetRegistersRef()[6] = c.count
+		testutil.StoreInstruction(state.GetMemory(), state.GetPC(), syscallInsn)
+	}
+
+	setExpectations := func(t require.TestingT, c testCase, expected *mtutil.ExpectedState, vm VersionedVMTestCase) ExpectedExecResult {
+		expected.ExpectStep()
+		expected.ActiveThread().Registers[2] = c.count
+		expected.ActiveThread().Registers[7] = 0 // no error
+		return ExpectNormalExecution()
+	}
+
+	postCheck := func(t require.TestingT, c testCase, vm VersionedVMTestCase, deps *TestDependencies, stepWitness *mipsevm.StepWitness) {
+		require.False(t, stepWitness.HasPreimage())
+	}
+
+	diffTester := NewDiffTester(NoopTestNamer[testCase]).
+		InitState(initState).
+		SetExpectations(setExpectations).
+		PostCheck(postCheck)
+
 	f.Fuzz(func(t *testing.T, addr Word, count Word, seed int64) {
-		for _, v := range versions {
-			t.Run(v.Name, func(t *testing.T) {
-				preimageData := []byte("hello world")
-				preimageKey := preimage.Keccak256Key(crypto.Keccak256Hash(preimageData)).PreimageKey()
-				oracle := testutil.StaticOracle(t, preimageData) // only used for hinting
-
-				goVm := v.VMFactory(oracle, os.Stdout, os.Stderr, testutil.CreateLogger(),
-					mtutil.WithRandomization(seed), mtutil.WithPreimageKey(preimageKey))
-				state := goVm.GetState()
-				state.GetRegistersRef()[2] = arch.SysRead
-				state.GetRegistersRef()[4] = exec.FdHintRead
-				state.GetRegistersRef()[5] = addr
-				state.GetRegistersRef()[6] = count
-				testutil.StoreInstruction(state.GetMemory(), state.GetPC(), syscallInsn)
-				step := state.GetStep()
-
-				expected := mtutil.NewExpectedState(t, state)
-				expected.ExpectStep()
-				expected.ActiveThread().Registers[2] = count
-				expected.ActiveThread().Registers[7] = 0 // no error
-
-				stepWitness, err := goVm.Step(true)
-				require.NoError(t, err)
-				require.False(t, stepWitness.HasPreimage())
-
-				expected.Validate(t, state)
-				testutil.ValidateEVM(t, stepWitness, step, goVm, v.StateHashFn, v.Contracts)
-			})
+		tests := []testCase{{addr, count}}
+		po := func() mipsevm.PreimageOracle {
+			return testutil.StaticOracle(t, preimageData)
 		}
+
+		diffTester.Run(t, tests, fuzzTestOptions(vms, seed, WithPreimageOracle(po))...)
 	})
 }
 
 func FuzzStatePreimageRead(f *testing.F) {
-	versions := GetMipsVersionTestCases(f)
-	f.Fuzz(func(t *testing.T, addr arch.Word, pc arch.Word, count arch.Word, preimageOffset arch.Word, seed int64) {
-		for _, v := range versions {
-			t.Run(v.Name, func(t *testing.T) {
-				effAddr := addr & arch.AddressMask
-				pc = pc & arch.AddressMask
-				preexistingMemoryVal := ^arch.Word(0)
-				preimageValue := []byte("hello world")
-				preimageData := mtutil.AddPreimageLengthPrefix(preimageValue)
-				if preimageOffset >= Word(len(preimageData)) || pc == effAddr {
-					t.SkipNow()
-				}
-				preimageKey := preimage.Keccak256Key(crypto.Keccak256Hash(preimageValue)).PreimageKey()
-				oracle := testutil.StaticOracle(t, preimageValue)
+	vms := GetMipsVersionTestCases(f)
+	type testCase struct {
+		addr           arch.Word
+		pc             arch.Word
+		count          arch.Word
+		preimageOffset arch.Word
+	}
 
-				goVm := v.VMFactory(oracle, os.Stdout, os.Stderr, testutil.CreateLogger(),
-					mtutil.WithRandomization(seed), mtutil.WithPreimageKey(preimageKey), mtutil.WithPreimageOffset(preimageOffset), mtutil.WithPCAndNextPC(pc))
-				state := goVm.GetState()
-				state.GetRegistersRef()[2] = arch.SysRead
-				state.GetRegistersRef()[4] = exec.FdPreimageRead
-				state.GetRegistersRef()[5] = addr
-				state.GetRegistersRef()[6] = count
-				testutil.StoreInstruction(state.GetMemory(), state.GetPC(), syscallInsn)
-				state.GetMemory().SetWord(effAddr, preexistingMemoryVal)
-				step := state.GetStep()
+	preexistingMemoryVal := ^arch.Word(0)
+	preimageValue := []byte("hello world")
+	preimageData := mtutil.AddPreimageLengthPrefix(preimageValue)
+	preimageKey := preimage.Keccak256Key(crypto.Keccak256Hash(preimageValue)).PreimageKey()
+	initState := func(t require.TestingT, c testCase, state *multithreaded.State, vm VersionedVMTestCase, r *testutil.RandHelper) {
+		state.PreimageKey = preimageKey
+		state.PreimageOffset = c.preimageOffset
+		state.GetCurrentThread().Cpu.PC = c.pc
+		state.GetCurrentThread().Cpu.NextPC = c.pc + 4
+		state.GetRegistersRef()[2] = arch.SysRead
+		state.GetRegistersRef()[4] = exec.FdPreimageRead
+		state.GetRegistersRef()[5] = c.addr
+		state.GetRegistersRef()[6] = c.count
+		testutil.StoreInstruction(state.GetMemory(), state.GetPC(), syscallInsn)
+		state.GetMemory().SetWord(testutil.EffAddr(c.addr), preexistingMemoryVal)
+	}
 
-				alignment := addr & arch.ExtMask
-				writeLen := arch.WordSizeBytes - alignment
-				if count < writeLen {
-					writeLen = count
-				}
-				// Cap write length to remaining bytes of the preimage
-				preimageDataLen := Word(len(preimageData))
-				if preimageOffset+writeLen > preimageDataLen {
-					writeLen = preimageDataLen - preimageOffset
-				}
-
-				expected := mtutil.NewExpectedState(t, state)
-				expected.ExpectStep()
-				expected.ActiveThread().Registers[2] = writeLen
-				expected.ActiveThread().Registers[7] = 0 // no error
-				expected.PreimageOffset += writeLen
-				if writeLen > 0 {
-					// Expect a memory write
-					var expectedMemory []byte
-					expectedMemory = arch.ByteOrderWord.AppendWord(expectedMemory, preexistingMemoryVal)
-					copy(expectedMemory[alignment:], preimageData[preimageOffset:preimageOffset+writeLen])
-					expected.ExpectMemoryWrite(effAddr, arch.ByteOrderWord.Word(expectedMemory[:]))
-				}
-
-				stepWitness, err := goVm.Step(true)
-				require.NoError(t, err)
-				require.True(t, stepWitness.HasPreimage())
-
-				expected.Validate(t, state)
-				testutil.ValidateEVM(t, stepWitness, step, goVm, v.StateHashFn, v.Contracts)
-			})
+	setExpectations := func(t require.TestingT, c testCase, expected *mtutil.ExpectedState, vm VersionedVMTestCase) ExpectedExecResult {
+		alignment := c.addr & arch.ExtMask
+		writeLen := arch.WordSizeBytes - alignment
+		if c.count < writeLen {
+			writeLen = c.count
 		}
+		// Cap write length to remaining bytes of the preimage
+		preimageDataLen := Word(len(preimageData))
+		if c.preimageOffset+writeLen > preimageDataLen {
+			writeLen = preimageDataLen - c.preimageOffset
+		}
+
+		expected.ExpectStep()
+		expected.ActiveThread().Registers[2] = writeLen
+		expected.ActiveThread().Registers[7] = 0 // no error
+		expected.PreimageOffset += writeLen
+		if writeLen > 0 {
+			// Expect a memory write
+			var expectedMemory []byte
+			expectedMemory = arch.ByteOrderWord.AppendWord(expectedMemory, preexistingMemoryVal)
+			copy(expectedMemory[alignment:], preimageData[c.preimageOffset:c.preimageOffset+writeLen])
+			expected.ExpectMemoryWrite(testutil.EffAddr(c.addr), arch.ByteOrderWord.Word(expectedMemory[:]))
+		}
+		return ExpectNormalExecution()
+	}
+
+	postCheck := func(t require.TestingT, c testCase, vm VersionedVMTestCase, deps *TestDependencies, stepWitness *mipsevm.StepWitness) {
+		require.True(t, stepWitness.HasPreimage())
+	}
+
+	diffTester := NewDiffTester(NoopTestNamer[testCase]).
+		InitState(initState).
+		SetExpectations(setExpectations).
+		PostCheck(postCheck)
+
+	f.Fuzz(func(t *testing.T, addr arch.Word, pc arch.Word, count arch.Word, preimageOffset arch.Word, seed int64) {
+		pc = testutil.EffAddr(pc)
+		if preimageOffset >= Word(len(preimageData)) || pc == testutil.EffAddr(addr) {
+			t.SkipNow()
+		}
+		po := func() mipsevm.PreimageOracle {
+			return testutil.StaticOracle(t, preimageValue)
+		}
+
+		tests := []testCase{{addr, pc, count, preimageOffset}}
+		diffTester.Run(t, tests, fuzzTestOptions(vms, seed, WithPreimageOracle(po))...)
 	})
 }
 
 func FuzzStateHintWrite(f *testing.F) {
-	versions := GetMipsVersionTestCases(f)
-	f.Fuzz(func(t *testing.T, addr Word, count Word, hint1, hint2, hint3 []byte, randSeed int64) {
-		for _, v := range versions {
-			t.Run(v.Name, func(t *testing.T) {
-				// Make sure pc does not overlap with hint data in memory
-				pc := Word(0)
-				if addr <= 8 {
-					addr += 8
-				}
+	vms := GetMipsVersionTestCases(f)
+	type testCase struct {
+		// Fuzz inputs
+		addr  Word
+		count Word
+		hint1 []byte
+		hint2 []byte
+		hint3 []byte
+		// Cached calculations
+		hintData         []byte
+		lastHint         []byte
+		expectedHints    [][]byte
+		expectedLastHint []byte
+	}
 
-				// Set up hint data
-				r := testutil.NewRandHelper(randSeed)
-				hints := [][]byte{hint1, hint2, hint3}
-				hintData := make([]byte, 0)
-				for _, hint := range hints {
-					prefixedHint := mtutil.AddHintLengthPrefix(hint)
-					hintData = append(hintData, prefixedHint...)
-				}
-				lastHintLen := math.Round(r.Fraction() * float64(len(hintData)))
-				lastHint := hintData[:int(lastHintLen)]
-				expectedBytesToProcess := int(count) + int(lastHintLen)
-				if expectedBytesToProcess > len(hintData) {
-					// Add an extra hint to span the rest of the hint data
-					randomHint := r.RandomBytes(t, expectedBytesToProcess)
-					prefixedHint := mtutil.AddHintLengthPrefix(randomHint)
-					hintData = append(hintData, prefixedHint...)
-					hints = append(hints, randomHint)
-				}
-
-				// Set up state
-				oracle := &testutil.HintTrackingOracle{}
-				goVm := v.VMFactory(oracle, os.Stdout, os.Stderr, testutil.CreateLogger(),
-					mtutil.WithRandomization(randSeed), mtutil.WithLastHint(lastHint), mtutil.WithPCAndNextPC(pc))
-				state := goVm.GetState()
-				state.GetRegistersRef()[2] = arch.SysWrite
-				state.GetRegistersRef()[4] = exec.FdHintWrite
-				state.GetRegistersRef()[5] = addr
-				state.GetRegistersRef()[6] = count
-				step := state.GetStep()
-				err := state.GetMemory().SetMemoryRange(addr, bytes.NewReader(hintData[int(lastHintLen):]))
-				require.NoError(t, err)
-				testutil.StoreInstruction(state.GetMemory(), state.GetPC(), syscallInsn)
-
-				// Set up expectations
-				expected := mtutil.NewExpectedState(t, state)
-				expected.ExpectStep()
-				expected.ActiveThread().Registers[2] = count
-				expected.ActiveThread().Registers[7] = 0 // no error
-				// Figure out hint expectations
-				var expectedHints [][]byte
-				expectedLastHint := make([]byte, 0)
-				byteIndex := 0
-				for _, hint := range hints {
-					hintDataLength := len(hint) + 4 // Hint data + prefix
-					hintLastByteIndex := hintDataLength + byteIndex - 1
-					if hintLastByteIndex < expectedBytesToProcess {
-						expectedHints = append(expectedHints, hint)
-					} else {
-						expectedLastHint = hintData[byteIndex:expectedBytesToProcess]
-						break
-					}
-					byteIndex += hintDataLength
-				}
-				expected.LastHint = expectedLastHint
-
-				// Run state transition
-				stepWitness, err := goVm.Step(true)
-				require.NoError(t, err)
-				require.False(t, stepWitness.HasPreimage())
-
-				// Validate
-				require.Equal(t, expectedHints, oracle.Hints())
-				expected.Validate(t, state)
-				testutil.ValidateEVM(t, stepWitness, step, goVm, v.StateHashFn, v.Contracts)
-			})
+	cacheHintCalculations := func(t require.TestingT, c *testCase) {
+		if c.hintData != nil {
+			// Already cached
+			return
 		}
+
+		// Set up hint data
+		r := testutil.NewRandHelper(seed)
+		hints := [][]byte{c.hint1, c.hint2, c.hint3}
+		c.hintData = make([]byte, 0)
+		for _, hint := range hints {
+			prefixedHint := mtutil.AddHintLengthPrefix(hint)
+			c.hintData = append(c.hintData, prefixedHint...)
+		}
+		lastHintLen := math.Round(r.Fraction() * float64(len(c.hintData)))
+		c.lastHint = c.hintData[:int(lastHintLen)]
+		expectedBytesToProcess := int(c.count) + int(lastHintLen)
+		if expectedBytesToProcess > len(c.hintData) {
+			// Add an extra hint to span the rest of the hint data
+			randomHint := r.RandomBytes(t, expectedBytesToProcess)
+			prefixedHint := mtutil.AddHintLengthPrefix(randomHint)
+			c.hintData = append(c.hintData, prefixedHint...)
+			hints = append(hints, randomHint)
+		}
+
+		// Figure out hint expectations
+		c.expectedLastHint = make([]byte, 0)
+		byteIndex := 0
+		for _, hint := range hints {
+			hintDataLength := len(hint) + 4 // Hint data + prefix
+			hintLastByteIndex := hintDataLength + byteIndex - 1
+			if hintLastByteIndex < expectedBytesToProcess {
+				c.expectedHints = append(c.expectedHints, hint)
+			} else {
+				c.expectedLastHint = c.hintData[byteIndex:expectedBytesToProcess]
+				break
+			}
+			byteIndex += hintDataLength
+		}
+	}
+
+	initState := func(t require.TestingT, c *testCase, state *multithreaded.State, vm VersionedVMTestCase, r *testutil.RandHelper) {
+		cacheHintCalculations(t, c)
+		state.LastHint = c.lastHint
+		state.GetRegistersRef()[2] = arch.SysWrite
+		state.GetRegistersRef()[4] = exec.FdHintWrite
+		state.GetRegistersRef()[5] = c.addr
+		state.GetRegistersRef()[6] = c.count
+		testutil.StoreInstruction(state.GetMemory(), state.GetPC(), syscallInsn)
+		err := state.GetMemory().SetMemoryRange(c.addr, bytes.NewReader(c.hintData[int(len(c.lastHint)):]))
+		require.NoError(t, err)
+	}
+
+	setExpectations := func(t require.TestingT, c *testCase, expected *mtutil.ExpectedState, vm VersionedVMTestCase) ExpectedExecResult {
+		cacheHintCalculations(t, c)
+		expected.ExpectStep()
+		expected.ActiveThread().Registers[2] = c.count
+		expected.ActiveThread().Registers[7] = 0 // no error
+		expected.LastHint = c.expectedLastHint
+		return ExpectNormalExecution()
+	}
+
+	postCheck := func(t require.TestingT, c *testCase, vm VersionedVMTestCase, deps *TestDependencies, stepWitness *mipsevm.StepWitness) {
+		oracle, ok := deps.po.(*testutil.HintTrackingOracle)
+		require.True(t, ok)
+		require.Equal(t, c.expectedHints, oracle.Hints())
+	}
+
+	diffTester := NewDiffTester(NoopTestNamer[*testCase]).
+		InitState(initState, mtutil.WithPCAndNextPC(0)).
+		SetExpectations(setExpectations).
+		PostCheck(postCheck)
+
+	f.Fuzz(func(t *testing.T, addr Word, count Word, hint1, hint2, hint3 []byte, seed int64) {
+		// Make sure pc does not overlap with hint data in memory
+		if addr <= 8 {
+			addr += 8
+		}
+
+		po := func() mipsevm.PreimageOracle {
+			return &testutil.HintTrackingOracle{}
+		}
+
+		tests := []*testCase{
+			{
+				addr:  addr,
+				count: count,
+				hint1: hint1,
+				hint2: hint2,
+				hint3: hint3,
+			},
+		}
+		diffTester.Run(t, tests, fuzzTestOptions(vms, seed, WithPreimageOracle(po))...)
 	})
 }
 
 func FuzzStatePreimageWrite(f *testing.F) {
-	versions := GetMipsVersionTestCases(f)
-	f.Fuzz(func(t *testing.T, addr arch.Word, count arch.Word, seed int64) {
-		for _, v := range versions {
-			t.Run(v.Name, func(t *testing.T) {
-				// Make sure pc does not overlap with preimage data in memory
-				pc := Word(0)
-				if addr <= 8 {
-					addr += 8
-				}
-				effAddr := addr & arch.AddressMask
-				preexistingMemoryVal := [8]byte{0x12, 0x34, 0x56, 0x78, 0x87, 0x65, 0x43, 0x21}
-				preimageData := []byte("hello world")
-				preimageKey := preimage.Keccak256Key(crypto.Keccak256Hash(preimageData)).PreimageKey()
-				oracle := testutil.StaticOracle(t, preimageData)
+	vms := GetMipsVersionTestCases(f)
+	type testCase struct {
+		addr  arch.Word
+		count arch.Word
+	}
 
-				goVm := v.VMFactory(oracle, os.Stdout, os.Stderr, testutil.CreateLogger(),
-					mtutil.WithRandomization(seed), mtutil.WithPreimageKey(preimageKey), mtutil.WithPreimageOffset(128), mtutil.WithPCAndNextPC(pc))
-				state := goVm.GetState()
-				state.GetRegistersRef()[2] = arch.SysWrite
-				state.GetRegistersRef()[4] = exec.FdPreimageWrite
-				state.GetRegistersRef()[5] = addr
-				state.GetRegistersRef()[6] = count
-				testutil.StoreInstruction(state.GetMemory(), state.GetPC(), syscallInsn)
-				state.GetMemory().SetWord(effAddr, arch.ByteOrderWord.Word(preexistingMemoryVal[:]))
-				step := state.GetStep()
+	preexistingMemoryVal := [8]byte{0x12, 0x34, 0x56, 0x78, 0x87, 0x65, 0x43, 0x21}
+	preimageData := []byte("hello world")
+	preimageKey := preimage.Keccak256Key(crypto.Keccak256Hash(preimageData)).PreimageKey()
+	initState := func(t require.TestingT, c testCase, state *multithreaded.State, vm VersionedVMTestCase, r *testutil.RandHelper) {
+		state.GetRegistersRef()[2] = arch.SysWrite
+		state.GetRegistersRef()[4] = exec.FdPreimageWrite
+		state.GetRegistersRef()[5] = c.addr
+		state.GetRegistersRef()[6] = c.count
+		testutil.StoreInstruction(state.GetMemory(), state.GetPC(), syscallInsn)
+		state.GetMemory().SetWord(testutil.EffAddr(c.addr), arch.ByteOrderWord.Word(preexistingMemoryVal[:]))
+	}
 
-				expectBytesWritten := count
-				alignment := addr & arch.ExtMask
-				sz := arch.WordSizeBytes - alignment
-				if sz < expectBytesWritten {
-					expectBytesWritten = sz
-				}
-
-				expected := mtutil.NewExpectedState(t, state)
-				expected.ExpectStep()
-				expected.PreimageOffset = 0
-				expected.ActiveThread().Registers[2] = expectBytesWritten
-				expected.ActiveThread().Registers[7] = 0 // No error
-				expected.PreimageKey = preimageKey
-				if expectBytesWritten > 0 {
-					// Copy original preimage key, but shift it left by expectBytesWritten
-					copy(expected.PreimageKey[:], preimageKey[expectBytesWritten:])
-					// Copy memory data to rightmost expectedBytesWritten
-					copy(expected.PreimageKey[32-expectBytesWritten:], preexistingMemoryVal[alignment:])
-				}
-
-				stepWitness, err := goVm.Step(true)
-				require.NoError(t, err)
-				require.False(t, stepWitness.HasPreimage())
-
-				expected.Validate(t, state)
-				testutil.ValidateEVM(t, stepWitness, step, goVm, v.StateHashFn, v.Contracts)
-			})
+	setExpectations := func(t require.TestingT, c testCase, expected *mtutil.ExpectedState, vm VersionedVMTestCase) ExpectedExecResult {
+		expectBytesWritten := c.count
+		alignment := c.addr & arch.ExtMask
+		sz := arch.WordSizeBytes - alignment
+		if sz < expectBytesWritten {
+			expectBytesWritten = sz
 		}
+
+		expected.ExpectStep()
+		expected.PreimageOffset = 0
+		expected.ActiveThread().Registers[2] = expectBytesWritten
+		expected.ActiveThread().Registers[7] = 0 // No error
+		expected.PreimageKey = preimageKey
+		if expectBytesWritten > 0 {
+			// Copy original preimage key, but shift it left by expectBytesWritten
+			copy(expected.PreimageKey[:], preimageKey[expectBytesWritten:])
+			// Copy memory data to rightmost expectedBytesWritten
+			copy(expected.PreimageKey[32-expectBytesWritten:], preexistingMemoryVal[alignment:])
+		}
+		return ExpectNormalExecution()
+	}
+
+	postCheck := func(t require.TestingT, c testCase, vm VersionedVMTestCase, deps *TestDependencies, stepWitness *mipsevm.StepWitness) {
+		require.False(t, stepWitness.HasPreimage())
+	}
+
+	diffTester := NewDiffTester(NoopTestNamer[testCase]).
+		InitState(initState, mtutil.WithPCAndNextPC(0), mtutil.WithPreimageKey(preimageKey), mtutil.WithPreimageOffset(128)).
+		SetExpectations(setExpectations).
+		PostCheck(postCheck)
+
+	f.Fuzz(func(t *testing.T, addr arch.Word, count arch.Word, seed int64) {
+		if addr <= 8 {
+			addr += 8
+		}
+
+		po := func() mipsevm.PreimageOracle {
+			return testutil.StaticOracle(t, preimageData)
+		}
+
+		tests := []testCase{{addr, count}}
+		diffTester.Run(t, tests, fuzzTestOptions(vms, seed, WithPreimageOracle(po))...)
 	})
+}
+
+func fuzzTestOptions(vms []VersionedVMTestCase, seed int64, opts ...TestOption) []TestOption {
+	testOpts := []TestOption{
+		WithVms(vms),
+		WithRandomSeed(seed),
+		SkipAutomaticMemoryReservationTests(),
+	}
+	testOpts = append(testOpts, opts...)
+	return testOpts
 }
