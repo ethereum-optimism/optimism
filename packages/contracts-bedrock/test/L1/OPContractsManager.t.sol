@@ -898,7 +898,7 @@ contract OPContractsManager_NoSuperchainOrProtocolVersionsUpgrade_Test is OPCont
     /// @notice Tests that upgrading worldchain passes when using the modified OPCM with no superchain config or
     ///         protocol versions upgrade
     function test_upgrade_withModifiedOPCM_succeeds() public {
-        IOPContractsManager modifiedOPCM = opcm = IOPContractsManager(
+        IOPContractsManager modifiedOPCM = IOPContractsManager(
             DeployUtils.createDeterministic({
                 _name: "OPContractsManager",
                 _args: DeployUtils.encodeConstructor(
