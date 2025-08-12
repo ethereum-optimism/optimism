@@ -98,6 +98,8 @@ type OpNode struct {
 	// cancels execution prematurely, e.g. to halt. This may be nil.
 	cancel context.CancelCauseFunc
 	halted atomic.Bool
+
+	tracer tracer.Tracer // used for testing PublishBlock and SignAndPublishL2Payload
 }
 
 // New creates a new OpNode instance.
@@ -115,6 +117,7 @@ func New(ctx context.Context, cfg *config.Config, log log.Logger, appVersion str
 		metrics:    m,
 		rollupHalt: cfg.RollupHalt,
 		cancel:     cfg.Cancel,
+		tracer:     cfg.Tracer,
 	}
 	// not a context leak, gossipsub is closed with a context.
 	n.resourcesCtx, n.resourcesClose = context.WithCancel(context.Background())
@@ -142,9 +145,6 @@ func (n *OpNode) init(ctx context.Context, cfg *config.Config) error {
 	}
 	if err := n.initL2(ctx, cfg); err != nil {
 		return fmt.Errorf("failed to init L2: %w", err)
-	}
-	if err := n.initTracer(ctx, cfg); err != nil {
-		return fmt.Errorf("failed to init the trace: %w", err)
 	}
 	if err := n.initL1Handlers(cfg); err != nil {
 		return fmt.Errorf("failed to init L1 Handlers: %w", err)
@@ -182,13 +182,6 @@ func (n *OpNode) initEventSystem() {
 	n.eventSys = sys
 	n.eventDrain = executor
 	n.apiEmitter = sys.Register("node-api", nil)
-}
-
-func (n *OpNode) initTracer(ctx context.Context, cfg *config.Config) error {
-	if cfg.Tracer != nil {
-		n.eventSys.Register("tracer", tracer.NewTracerDeriver(cfg.Tracer))
-	}
-	return nil
 }
 
 func (n *OpNode) initL1Source(ctx context.Context, cfg *config.Config) error {
@@ -610,7 +603,9 @@ func (n *OpNode) onEvent(ctx context.Context, ev event.Event) bool {
 }
 
 func (n *OpNode) PublishBlock(ctx context.Context, signedEnvelope *opsigner.SignedExecutionPayloadEnvelope) error {
-	n.apiEmitter.Emit(ctx, tracer.TracePublishBlockEvent{Envelope: signedEnvelope.Envelope})
+	if n.tracer != nil {
+		n.tracer.OnPublishL2Payload(ctx, signedEnvelope.Envelope)
+	}
 	if p2pNode := n.getP2PNodeIfEnabled(); p2pNode != nil {
 		n.log.Info("Publishing signed execution payload on p2p", "id", signedEnvelope.ID())
 		return p2pNode.GossipOut().PublishSignedL2Payload(ctx, signedEnvelope)
@@ -619,7 +614,9 @@ func (n *OpNode) PublishBlock(ctx context.Context, signedEnvelope *opsigner.Sign
 }
 
 func (n *OpNode) SignAndPublishL2Payload(ctx context.Context, envelope *eth.ExecutionPayloadEnvelope) error {
-	n.apiEmitter.Emit(ctx, tracer.TracePublishBlockEvent{Envelope: envelope})
+	if n.tracer != nil {
+		n.tracer.OnPublishL2Payload(ctx, envelope)
+	}
 	// publish to p2p, if we are running p2p at all
 	if p2pNode := n.getP2PNodeIfEnabled(); p2pNode != nil {
 		if n.p2pSigner == nil {
