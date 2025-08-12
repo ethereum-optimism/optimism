@@ -236,7 +236,7 @@ func NewDriver(
 
 	sys.Register("engine", engine.NewEngDeriver(log, driverCtx, cfg, metrics, ec))
 
-	schedDeriv := NewStepSchedulingDeriver(log)
+	schedDeriv := NewStepSchedulingDeriver(log, syncDeriver)
 	sys.Register("step-scheduler", schedDeriv)
 
 	var sequencer sequencing.SequencerIface

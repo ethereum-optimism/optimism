@@ -402,7 +402,7 @@ func (s *L2Verifier) OnEvent(ctx context.Context, ev event.Event) bool {
 	case derive.PipelineStepEvent:
 		s.L2PipelineIdle = false
 	case driver.StepReqEvent:
-		s.synchronousEvents.Emit(ctx, driver.StepEvent{})
+		s.syncDeriver.SyncStep()
 	default:
 		return false
 	}
@@ -428,14 +428,14 @@ func (s *L2Verifier) ActL2EventsUntil(t Testing, fn func(ev event.Event) bool, m
 			return
 		}
 		if err == io.EOF {
-			s.synchronousEvents.Emit(t.Ctx(), driver.StepEvent{})
+			s.syncDeriver.SyncStep()
 		}
 	}
 	t.Fatalf("event condition did not hit, ran maximum number of steps: %d", max)
 }
 
 func (s *L2Verifier) ActL2PipelineFull(t Testing) {
-	s.synchronousEvents.Emit(t.Ctx(), driver.StepEvent{})
+	s.syncDeriver.SyncStep()
 	require.NoError(t, s.drainer.Drain(), "complete all event processing triggered by deriver step")
 }
 

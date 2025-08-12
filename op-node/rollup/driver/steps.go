@@ -59,6 +59,7 @@ func (ev StepEvent) String() string {
 // Backoff can be reset by sending a request with StepReqEvent.ResetBackoff
 // set to true, or by sending a ResetStepBackoffEvent.
 type StepSchedulingDeriver struct {
+	syncDeriver *SyncDeriver
 
 	// keep track of consecutive failed attempts, to adjust the backoff time accordingly
 	stepAttempts int
@@ -75,13 +76,14 @@ type StepSchedulingDeriver struct {
 	emitter event.Emitter
 }
 
-func NewStepSchedulingDeriver(log log.Logger) *StepSchedulingDeriver {
+func NewStepSchedulingDeriver(log log.Logger, syncDeriver *SyncDeriver) *StepSchedulingDeriver {
 	return &StepSchedulingDeriver{
 		stepAttempts:   0,
 		bOffStrategy:   retry.Exponential(),
 		stepReqCh:      make(chan struct{}, 1),
 		delayedStepReq: nil,
 		log:            log,
+		syncDeriver:    syncDeriver,
 	}
 }
 
@@ -141,7 +143,7 @@ func (s *StepSchedulingDeriver) OnEvent(ctx context.Context, ev event.Event) boo
 		}
 		// count as attempt by default. We reset to 0 if we are making healthy progress.
 		s.stepAttempts += 1
-		s.emitter.Emit(ctx, StepEvent(x))
+		s.syncDeriver.SyncStep()
 	case ResetStepBackoffEvent:
 		s.stepAttempts = 0
 	default:

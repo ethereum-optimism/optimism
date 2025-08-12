@@ -254,8 +254,6 @@ func (s *SyncDeriver) OnEvent(ctx context.Context, ev event.Event) bool {
 	//  L1UnsafeEvent is removed and OnL1Unsafe is synchronously called at L1Handler
 	//  FinalizeL1Event is removed and OnL1Finalized is synchronously called at L1Handler
 	switch x := ev.(type) {
-	case StepEvent:
-		s.SyncStep()
 	case rollup.ResetEvent:
 		s.onResetEvent(ctx, x)
 	case rollup.L1TemporaryErrorEvent:
