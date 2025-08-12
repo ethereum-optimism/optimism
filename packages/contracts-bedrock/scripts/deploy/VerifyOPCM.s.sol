@@ -500,6 +500,9 @@ contract VerifyOPCM is Script {
         bool success = true;
 
         // Get all OPCM getters and iterate over them
+        // Note: We use the pattern `success = false; continue;` for failures to ensure
+        // comprehensive reporting. Once success is false, it should never be reset to true.
+        // This allows us to collect and report ALL issues in a single verification run.
         string[] memory allGetters = _getOpcmGetters();
 
         for (uint256 i = 0; i < allGetters.length; i++) {
