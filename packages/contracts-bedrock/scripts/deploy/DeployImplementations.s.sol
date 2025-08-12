@@ -5,7 +5,6 @@ import { Script } from "forge-std/Script.sol";
 
 // Libraries
 import { Chains } from "scripts/libraries/Chains.sol";
-import { LibString } from "@solady/utils/LibString.sol";
 import { Types } from "scripts/libraries/Types.sol";
 
 // Interfaces
