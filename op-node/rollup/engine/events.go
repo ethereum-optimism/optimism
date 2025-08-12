@@ -275,7 +275,13 @@ type EngDeriver struct {
 	emitter event.Emitter
 }
 
+type EngDeriverInterface interface {
+	TryUpdatePendingSafe(ctx context.Context, ref eth.L2BlockRef, concluding bool, source eth.L1BlockRef)
+	TryUpdateLocalSafe(ctx context.Context, ref eth.L2BlockRef, concluding bool, source eth.L1BlockRef)
+}
+
 var _ event.Deriver = (*EngDeriver)(nil)
+var _ EngDeriverInterface = (*EngDeriver)(nil)
 
 func NewEngDeriver(log log.Logger, ctx context.Context, cfg *rollup.Config,
 	metrics Metrics, ec *EngineController,

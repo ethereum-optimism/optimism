@@ -37,15 +37,8 @@ type AttributesHandler struct {
 	attributes     *derive.AttributesWithParent
 	sentAttributes bool
 
-	EngDeriver EngDeriver
+	EngDeriver engine.EngDeriverInterface
 }
-
-type EngDeriver interface {
-	TryUpdatePendingSafe(ctx context.Context, ref eth.L2BlockRef, concluding bool, source eth.L1BlockRef)
-	TryUpdateLocalSafe(ctx context.Context, ref eth.L2BlockRef, concluding bool, source eth.L1BlockRef)
-}
-
-var _ EngDeriver = (*engine.EngDeriver)(nil)
 
 func NewAttributesHandler(log log.Logger, cfg *rollup.Config, ctx context.Context, l2 L2) *AttributesHandler {
 	return &AttributesHandler{
