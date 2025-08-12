@@ -7,6 +7,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl/proofs"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
@@ -57,4 +58,30 @@ func TestChallengerRespondsToMultipleInvalidClaims(gt *testing.T) {
 	claims[0].WaitForCounterClaim(claims...)
 	claims[1].WaitForCounterClaim(claims...)
 	claims[2].VerifyNoCounterClaim()
+}
+
+func TestChallengerRespondsToMultipleInvalidClaimsEOA(gt *testing.T) {
+	t := devtest.ParallelT(gt)
+	sys := presets.NewSimpleInterop(t)
+	dsl.CheckAll(t,
+		sys.L2CLA.AdvancedFn(types.CrossSafe, 1, 30),
+		sys.L2CLB.AdvancedFn(types.CrossSafe, 1, 30),
+	)
+
+	dgf := sys.DisputeGameFactory()
+	attacker := dgf.CreateHelperEOA(sys.FunderL1.NewFundedEOA(eth.TenEther))
+
+	game := dgf.StartSuperCannonGame(attacker.EOA)
+	claims := attacker.PerformMoves(game.FaultDisputeGame,
+		proofs.Move(0, common.Hash{0x01}, true),
+		proofs.Move(1, common.Hash{0x03}, true),
+		proofs.Move(1, common.Hash{0x02}, false), // Defends invalid claim so won't be countered.
+	)
+
+	claims[0].WaitForCounterClaim(claims...)
+	claims[1].WaitForCounterClaim(claims...)
+	claims[2].VerifyNoCounterClaim()
+	for _, claim := range claims {
+		require.Equal(t, attacker.Address(), claim.Claimant())
+	}
 }

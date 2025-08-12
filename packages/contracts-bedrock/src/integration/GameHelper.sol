@@ -53,4 +53,7 @@ contract GameHelper {
         IFaultDisputeGame game = IFaultDisputeGame(gameAddr_);
         performMoves(game, _moves);
     }
+
+    // @notice Allows funds to be sent to this contract or to use it in a 7702 authorization.
+    receive() external payable { }
 }

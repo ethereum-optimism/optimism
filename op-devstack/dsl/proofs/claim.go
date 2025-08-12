@@ -43,6 +43,10 @@ func (c *Claim) Value() common.Hash {
 	return c.claim.Value
 }
 
+func (c *Claim) Claimant() common.Address {
+	return c.claim.Claimant
+}
+
 func (c *Claim) Depth() uint64 {
 	return uint64(c.claim.Depth())
 }

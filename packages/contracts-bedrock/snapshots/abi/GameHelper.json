@@ -1,5 +1,9 @@
 [
   {
+    "stateMutability": "payable",
+    "type": "receive"
+  },
+  {
     "inputs": [
       {
         "internalType": "contract IDisputeGameFactory",

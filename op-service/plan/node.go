@@ -172,6 +172,18 @@ func (p *Lazy[V]) DependOn(dep ...upstreamDep) {
 	p.invalidate()
 }
 
+// ResetDependencies unregisters all existing dependencies from the value.
+func (p *Lazy[V]) ResetDependencies() {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.upstream.Lock()
+	defer p.upstream.Unlock()
+	// register with all the upstream deps, so we get invalidated when upstream changes
+	for _, d := range p.upstream.Value {
+		d.unregister(p)
+	}
+}
+
 // Set invalidates any downstream deps, and sets the value.
 func (p *Lazy[V]) Set(v V) {
 	p.mu.Lock()

@@ -118,6 +118,19 @@ func getGameHelperArtifactPath(t devtest.T) string {
 	return filepath.Join(contractsBedrock, "forge-artifacts", "GameHelper.sol", "GameHelper.json")
 }
 
+func (gs *GameHelper) AuthEOA(eoa *dsl.EOA) *GameHelper {
+	tx := txplan.NewPlannedTx(eoa.PlanAuth(gs.contractAddr))
+	receipt, err := tx.Included.Eval(gs.t.Ctx())
+	gs.require.NoError(err)
+	gs.require.Equal(types.ReceiptStatusSuccessful, receipt.Status)
+	return &GameHelper{
+		t:            gs.t,
+		require:      require.New(gs.t),
+		contractAddr: eoa.Address(),
+		abi:          gs.abi,
+	}
+}
+
 func (gs *GameHelper) CreateGameWithClaims(
 	eoa *dsl.EOA,
 	factory *DisputeGameFactory,

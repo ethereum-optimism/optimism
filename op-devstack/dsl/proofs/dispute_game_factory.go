@@ -181,3 +181,25 @@ func (f *DisputeGameFactory) createNewGame(eoa *dsl.EOA, gameType challengerType
 func (f *DisputeGameFactory) initBond(gameType challengerTypes.GameType) eth.ETH {
 	return eth.WeiBig(contract.Read(f.dgf.InitBonds(uint32(gameType))))
 }
+
+func (f *DisputeGameFactory) CreateHelperEOA(eoa *dsl.EOA) *GameHelperEOA {
+	helper := f.getGameHelper(eoa)
+	eoaHelper := helper.AuthEOA(eoa)
+	return &GameHelperEOA{
+		helper: eoaHelper,
+		EOA:    eoa,
+	}
+}
+
+type GameHelperEOA struct {
+	helper *GameHelper
+	EOA    *dsl.EOA
+}
+
+func (a *GameHelperEOA) PerformMoves(game *FaultDisputeGame, moves ...GameHelperMove) []*Claim {
+	return a.helper.PerformMoves(a.EOA, game, moves)
+}
+
+func (a *GameHelperEOA) Address() common.Address {
+	return a.EOA.Address()
+}
