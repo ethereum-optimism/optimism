@@ -65,6 +65,8 @@ type L2Verifier struct {
 	engine            *engine.EngineController
 	derivationMetrics *testutils.TestDerivationMetrics
 	derivation        *derive.DerivationPipeline
+	syncDeriver       *driver.SyncDeriver
+	finalizer         driver.Finalizer
 
 	safeHeadListener rollup.SafeHeadListener
 	syncCfg          *sync.Config
@@ -159,8 +161,8 @@ func NewL2Verifier(t Testing, log log.Logger, l1 derive.L1Fetcher,
 	}
 	sys.Register("finalizer", finalizer, opts)
 
-	sys.Register("attributes-handler",
-		attributes.NewAttributesHandler(log, cfg, ctx, eng), opts)
+	attrHandler := attributes.NewAttributesHandler(log, cfg, ctx, eng)
+	sys.Register("attributes-handler", attrHandler, opts)
 
 	indexingMode := interopSys != nil
 	pipeline := derive.NewDerivationPipeline(log, cfg, depSet, l1, blobsSrc, altDASrc, eng, metrics, indexingMode)
@@ -172,13 +174,14 @@ func NewL2Verifier(t Testing, log log.Logger, l1 derive.L1Fetcher,
 	sys.Register("status", syncStatusTracker, opts)
 
 	syncDeriver := &driver.SyncDeriver{
-		Derivation:          pipeline,
-		SafeHeadNotifs:      safeHeadListener,
-		CLSync:              clSync,
-		Engine:              ec,
-		SyncCfg:             syncCfg,
-		Config:              cfg,
-		L1:                  l1,
+		Derivation:     pipeline,
+		SafeHeadNotifs: safeHeadListener,
+		CLSync:         clSync,
+		Engine:         ec,
+		SyncCfg:        syncCfg,
+		Config:         cfg,
+		L1:             l1,
+		// No need to initialize L1Tracker because no L1 block cache is used for testing
 		L2:                  eng,
 		Log:                 log,
 		Ctx:                 ctx,
@@ -186,10 +189,12 @@ func NewL2Verifier(t Testing, log log.Logger, l1 derive.L1Fetcher,
 	}
 	// TODO(#16917) Remove Event System Refactor Comments
 	//  Couple SyncDeriver and EngineController for event refactoring
+	//  Couple EngDeriver and NewAttributesHandler for event refactoring
 	ec.SyncDeriver = syncDeriver
 	sys.Register("sync", syncDeriver, opts)
-
-	sys.Register("engine", engine.NewEngDeriver(log, ctx, cfg, metrics, ec), opts)
+	engDeriver := engine.NewEngDeriver(log, ctx, cfg, metrics, ec)
+	sys.Register("engine", engDeriver, opts)
+	attrHandler.EngDeriver = engDeriver
 
 	rollupNode := &L2Verifier{
 		eventSys:          sys,
@@ -198,6 +203,8 @@ func NewL2Verifier(t Testing, log log.Logger, l1 derive.L1Fetcher,
 		engine:            ec,
 		derivationMetrics: metrics,
 		derivation:        pipeline,
+		syncDeriver:       syncDeriver,
+		finalizer:         finalizer,
 		safeHeadListener:  safeHeadListener,
 		syncCfg:           syncCfg,
 		drainer:           executor,
@@ -358,33 +365,24 @@ func (s *L2Verifier) ActRPCFail(t Testing) {
 func (s *L2Verifier) ActL1HeadSignal(t Testing) {
 	head, err := s.l1.L1BlockRefByLabel(t.Ctx(), eth.Unsafe)
 	require.NoError(t, err)
-	s.synchronousEvents.Emit(t.Ctx(), status.L1UnsafeEvent{L1Unsafe: head})
-	require.NoError(t, s.drainer.DrainUntil(func(ev event.Event) bool {
-		x, ok := ev.(status.L1UnsafeEvent)
-		return ok && x.L1Unsafe == head
-	}, false))
+	s.syncStatus.OnL1Unsafe(head)
+	s.syncDeriver.OnL1Unsafe(t.Ctx())
 	require.Equal(t, head, s.syncStatus.SyncStatus().HeadL1)
 }
 
 func (s *L2Verifier) ActL1SafeSignal(t Testing) {
 	safe, err := s.l1.L1BlockRefByLabel(t.Ctx(), eth.Safe)
 	require.NoError(t, err)
-	s.synchronousEvents.Emit(t.Ctx(), status.L1SafeEvent{L1Safe: safe})
-	require.NoError(t, s.drainer.DrainUntil(func(ev event.Event) bool {
-		x, ok := ev.(status.L1SafeEvent)
-		return ok && x.L1Safe == safe
-	}, false))
+	s.syncStatus.OnL1Safe(safe)
 	require.Equal(t, safe, s.syncStatus.SyncStatus().SafeL1)
 }
 
 func (s *L2Verifier) ActL1FinalizedSignal(t Testing) {
 	finalized, err := s.l1.L1BlockRefByLabel(t.Ctx(), eth.Finalized)
 	require.NoError(t, err)
-	s.synchronousEvents.Emit(t.Ctx(), finality.FinalizeL1Event{FinalizedL1: finalized})
-	require.NoError(t, s.drainer.DrainUntil(func(ev event.Event) bool {
-		x, ok := ev.(finality.FinalizeL1Event)
-		return ok && x.FinalizedL1 == finalized
-	}, false))
+	s.syncStatus.OnL1Finalized(finalized)
+	s.finalizer.OnL1Finalized(finalized)
+	s.syncDeriver.OnL1Finalized(t.Ctx())
 	require.Equal(t, finalized, s.syncStatus.SyncStatus().FinalizedL1)
 }
 

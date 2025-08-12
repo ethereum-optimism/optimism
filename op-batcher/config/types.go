@@ -88,16 +88,12 @@ func (p *PIDConfig) UnmarshalJSON(data []byte) error {
 }
 
 type ThrottleParams struct {
-	Threshold           uint64
-	TxSize              uint64
-	BlockSize           uint64
-	AlwaysBlockSize     uint64
-	ThresholdMultiplier float64
-	PIDConfig           *PIDConfig
-	ControllerType      ThrottleControllerType
-	Endpoints           []string
-}
-
-func (t *ThrottleParams) MaxThreshold() uint64 {
-	return uint64(float64(t.Threshold) * t.ThresholdMultiplier)
+	Threshold       uint64
+	MaxThreshold    uint64
+	TxSize          uint64
+	BlockSize       uint64
+	AlwaysBlockSize uint64
+	PIDConfig       *PIDConfig
+	ControllerType  ThrottleControllerType
+	Endpoints       []string
 }

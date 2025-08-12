@@ -79,6 +79,12 @@ var (
 		Value:   false,
 		EnvVars: []string{"REUSE_DEVNET"},
 	}
+	serialFlag = &cli.BoolFlag{
+		Name:    "serial",
+		Usage:   "Run the acceptance tests in serial mode",
+		Value:   false,
+		EnvVars: []string{"SERIAL"},
+	}
 )
 
 func main() {
@@ -95,6 +101,7 @@ func main() {
 			kurtosisDirFlag,
 			acceptorFlag,
 			reuseDevnetFlag,
+			serialFlag,
 		},
 		Action: runAcceptanceTest,
 	}
@@ -116,6 +123,7 @@ func runAcceptanceTest(c *cli.Context) error {
 	kurtosisDir := c.String(kurtosisDirFlag.Name)
 	acceptor := c.String(acceptorFlag.Name)
 	reuseDevnet := c.Bool(reuseDevnetFlag.Name)
+	serial := c.Bool(serialFlag.Name)
 
 	// Validate inputs based on orchestrator type
 	if orchestrator != "sysgo" && orchestrator != "sysext" {
@@ -185,7 +193,7 @@ func runAcceptanceTest(c *cli.Context) error {
 	// Run acceptance tests
 	steps = append(steps,
 		func(ctx context.Context) error {
-			return runOpAcceptor(ctx, tracer, orchestrator, devnet, gate, absTestDir, absValidators, logLevel, acceptor)
+			return runOpAcceptor(ctx, tracer, orchestrator, devnet, gate, absTestDir, absValidators, logLevel, acceptor, serial)
 		},
 	)
 
@@ -216,7 +224,7 @@ func deployDevnet(ctx context.Context, tracer trace.Tracer, devnet string, kurto
 	return nil
 }
 
-func runOpAcceptor(ctx context.Context, tracer trace.Tracer, orchestrator string, devnet string, gate string, testDir string, validators string, logLevel string, acceptor string) error {
+func runOpAcceptor(ctx context.Context, tracer trace.Tracer, orchestrator string, devnet string, gate string, testDir string, validators string, logLevel string, acceptor string, serial bool) error {
 	ctx, span := tracer.Start(ctx, "run acceptance test")
 	defer span.End()
 
@@ -229,6 +237,9 @@ func runOpAcceptor(ctx context.Context, tracer trace.Tracer, orchestrator string
 		"--validators", validators,
 		"--log.level", logLevel,
 		"--orchestrator", orchestrator,
+	}
+	if serial {
+		args = append(args, "--serial")
 	}
 
 	// Handle devnet parameter based on orchestrator type

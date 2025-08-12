@@ -2046,13 +2046,34 @@ workflows:
             branches:
               ignore: /.*/
           build_args: --skip test
+          context:
+            - circleci-repo-readonly-authenticated-github-token
       - go-release:
           module: op-deployer
           context:
             - oplabs-gcr-release
+            - circleci-repo-readonly-authenticated-github-token
           requires:
             - contracts-bedrock-build
 
+  go-release-op-up:
+    jobs:
+      - contracts-bedrock-build:
+          filters:
+            tags:
+              only: /^op-up.*/
+            branches:
+              ignore: /.*/
+          build_args: --skip test
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+      - go-release:
+          module: op-up
+          context:
+            - oplabs-gcr-release
+            - circleci-repo-readonly-authenticated-github-token
+          requires:
+            - contracts-bedrock-build
   release:
     when:
       not:
@@ -2083,6 +2104,7 @@ workflows:
                 - op-supervisor
                 - op-test-sequencer
                 - op-deployer
+                - op-up
                 - cannon
                 - op-dripper
                 - op-interop-mon
@@ -2211,7 +2233,7 @@ workflows:
           notify: true
           mentions: "@proofs-team"
           no_output_timeout: 90m
-          test_timeout: 120m
+          test_timeout: 240m
           resource_class: ethereum-optimism/latitude-fps-1
           context:
             - slack

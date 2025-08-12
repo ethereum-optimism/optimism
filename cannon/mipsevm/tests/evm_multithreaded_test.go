@@ -3,7 +3,6 @@ package tests
 
 import (
 	"fmt"
-	"os"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -15,7 +14,6 @@ import (
 	mtutil "github.com/ethereum-optimism/optimism/cannon/mipsevm/multithreaded/testutil"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/register"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/testutil"
-	"github.com/ethereum-optimism/optimism/cannon/mipsevm/versions"
 )
 
 type Word = arch.Word
@@ -60,7 +58,7 @@ func TestEVM_MT_LL(t *testing.T) {
 	}
 	cases := testutil.TestVariations(baseTests, testVariations)
 
-	initState := func(tt testCase, state *multithreaded.State, vm VersionedVMTestCase, r *testutil.RandHelper) {
+	initState := func(t require.TestingT, tt testCase, state *multithreaded.State, vm VersionedVMTestCase, r *testutil.RandHelper) {
 		c := tt.Base
 
 		baseReg := 6
@@ -81,12 +79,12 @@ func TestEVM_MT_LL(t *testing.T) {
 		}
 	}
 
-	setExpectations := func(tt testCase, expected *mtutil.ExpectedState, vm VersionedVMTestCase) ExpectedExecResult {
+	setExpectations := func(t require.TestingT, tt testCase, expected *mtutil.ExpectedState, vm VersionedVMTestCase) ExpectedExecResult {
 		c := tt.Base
 		expected.ExpectStep()
 		expected.LLReservationStatus = multithreaded.LLStatusActive32bit
 		expected.LLAddress = Word(c.expectedAddr)
-		expected.LLOwnerThread = expected.ActiveThreadId
+		expected.LLOwnerThread = expected.ActiveThreadId()
 		if c.rtReg != 0 {
 			expected.ActiveThread().Registers[c.rtReg] = Word(c.retVal)
 		}
@@ -141,7 +139,7 @@ func TestEVM_MT_SC(t *testing.T) {
 
 	// Set up some test values that will be reused
 	memValue := uint64(0x1122_3344_5566_7788)
-	initState := func(tt testCase, state *multithreaded.State, vm VersionedVMTestCase, r *testutil.RandHelper) {
+	initState := func(t require.TestingT, tt testCase, state *multithreaded.State, vm VersionedVMTestCase, r *testutil.RandHelper) {
 		c := tt.Base
 		llVar := tt.Variation
 
@@ -174,7 +172,7 @@ func TestEVM_MT_SC(t *testing.T) {
 		state.LLOwnerThread = llOwnerThread
 	}
 
-	setExpectations := func(tt testCase, expected *mtutil.ExpectedState, vm VersionedVMTestCase) ExpectedExecResult {
+	setExpectations := func(t require.TestingT, tt testCase, expected *mtutil.ExpectedState, vm VersionedVMTestCase) ExpectedExecResult {
 		c := tt.Base
 		llVar := tt.Variation
 
@@ -200,12 +198,17 @@ func TestEVM_MT_SC(t *testing.T) {
 }
 
 func TestEVM_SysClone_FlagHandling(t *testing.T) {
-
-	cases := []struct {
+	type testCase struct {
 		name  string
 		flags Word
 		valid bool
-	}{
+	}
+
+	testNamer := func(tc testCase) string {
+		return tc.name
+	}
+
+	cases := []testCase{
 		{"the supported flags bitmask", exec.ValidCloneFlags, true},
 		{"no flags", 0, false},
 		{"all flags", ^Word(0), false},
@@ -217,41 +220,33 @@ func TestEVM_SysClone_FlagHandling(t *testing.T) {
 		{"multiple unsupported flags", exec.CloneUntraced | exec.CloneParentSettid, false},
 	}
 
-	for _, c := range cases {
-		c := c
-		for _, version := range GetMipsVersionTestCases(t) {
-			version := version
-			t.Run(fmt.Sprintf("%v-%v", version.Name, c.name), func(t *testing.T) {
-				state := multithreaded.CreateEmptyState()
-				testutil.StoreInstruction(state.Memory, state.GetPC(), syscallInsn)
-				state.GetRegistersRef()[2] = arch.SysClone // Set syscall number
-				state.GetRegistersRef()[4] = c.flags       // Set first argument
-				curStep := state.Step
-
-				var err error
-				var stepWitness *mipsevm.StepWitness
-				goVm := multithreaded.NewInstrumentedState(state, nil, os.Stdout, os.Stderr, nil, nil, versions.FeaturesForVersion(version.Version))
-				if !c.valid {
-					// The VM should exit
-					stepWitness, err = goVm.Step(true)
-					require.NoError(t, err)
-					require.Equal(t, curStep+1, state.GetStep())
-					require.Equal(t, true, goVm.GetState().GetExited())
-					require.Equal(t, uint8(mipsevm.VMStatusPanic), goVm.GetState().GetExitCode())
-					require.Equal(t, 1, state.ThreadCount())
-				} else {
-					stepWitness, err = goVm.Step(true)
-					require.NoError(t, err)
-					require.Equal(t, curStep+1, state.GetStep())
-					require.Equal(t, false, goVm.GetState().GetExited())
-					require.Equal(t, uint8(0), goVm.GetState().GetExitCode())
-					require.Equal(t, 2, state.ThreadCount())
-				}
-
-				testutil.ValidateEVM(t, stepWitness, curStep, goVm, multithreaded.GetStateHashFn(), version.Contracts)
-			})
-		}
+	stackPtr := Word(204)
+	initState := func(t require.TestingT, c testCase, state *multithreaded.State, vm VersionedVMTestCase, r *testutil.RandHelper) {
+		mtutil.InitializeSingleThread(r.Intn(10000), state, true)
+		testutil.StoreInstruction(state.Memory, state.GetPC(), syscallInsn)
+		state.GetRegistersRef()[2] = arch.SysClone // Set syscall number
+		state.GetRegistersRef()[4] = c.flags       // Set first argument
+		state.GetRegistersRef()[5] = stackPtr      // a1 - the stack pointer
 	}
+
+	setExpectations := func(t require.TestingT, c testCase, expected *mtutil.ExpectedState, vm VersionedVMTestCase) ExpectedExecResult {
+		if !c.valid {
+			// The VM should exit
+			expected.Step += 1
+			expected.ExpectNoContextSwitch()
+			expected.Exited = true
+			expected.ExitCode = uint8(mipsevm.VMStatusPanic)
+		} else {
+			// Otherwise, we should clone the thread as normal
+			setCloneExpectations(expected, stackPtr)
+		}
+		return ExpectNormalExecution()
+	}
+
+	NewDiffTester(testNamer).
+		InitState(initState).
+		SetExpectations(setExpectations).
+		Run(t, cases)
 }
 
 func TestEVM_SysClone_Successful(t *testing.T) {
@@ -270,7 +265,7 @@ func TestEVM_SysClone_Successful(t *testing.T) {
 	}
 
 	stackPtr := Word(100)
-	initState := func(c testCase, state *multithreaded.State, vm VersionedVMTestCase, r *testutil.RandHelper) {
+	initState := func(t require.TestingT, c testCase, state *multithreaded.State, vm VersionedVMTestCase, r *testutil.RandHelper) {
 		mtutil.InitializeSingleThread(r.Intn(10000), state, c.traverseRight)
 		testutil.StoreInstruction(state.Memory, state.GetPC(), syscallInsn)
 		state.GetRegistersRef()[2] = arch.SysClone        // the syscall number
@@ -281,38 +276,38 @@ func TestEVM_SysClone_Successful(t *testing.T) {
 		require.Equal(t, Word(1), state.NextThreadId)
 	}
 
-	setExpectations := func(c testCase, expected *mtutil.ExpectedState, vm VersionedVMTestCase) ExpectedExecResult {
-		expected.Step += 1
-		expectedNewThread := expected.ExpectNewThread()
-		expected.ActiveThreadId = expectedNewThread.ThreadId
-		expected.StepsSinceLastContextSwitch = 0
-		if c.traverseRight {
-			expected.RightStackSize += 1
-		} else {
-			expected.LeftStackSize += 1
-		}
-
-		// Original thread expectations
-		prestateNextPC := expected.ActiveThread().NextPC
-		expected.PrestateActiveThread().PC = prestateNextPC
-		expected.PrestateActiveThread().NextPC = prestateNextPC + 4
-		expected.PrestateActiveThread().Registers[2] = 1
-		expected.PrestateActiveThread().Registers[7] = 0
-		// New thread expectations
-		expectedNewThread.PC = prestateNextPC
-		expectedNewThread.NextPC = prestateNextPC + 4
-		expectedNewThread.ThreadId = 1
-		expectedNewThread.Registers[register.RegSyscallRet1] = 0
-		expectedNewThread.Registers[register.RegSyscallErrno] = 0
-		expectedNewThread.Registers[register.RegSP] = stackPtr
-
-		return ExpectNormalExecution()
+	setExpectations := func(t require.TestingT, c testCase, expected *mtutil.ExpectedState, vm VersionedVMTestCase) ExpectedExecResult {
+		return setCloneExpectations(expected, stackPtr)
 	}
 
 	NewDiffTester(testNamer).
 		InitState(initState).
 		SetExpectations(setExpectations).
 		Run(t, cases)
+}
+
+// setCloneExpectations sets state expectations assuming we start with 1 thread
+func setCloneExpectations(expected *mtutil.ExpectedState, stackPointer Word) ExpectedExecResult {
+	expected.Step += 1
+	expectedNewThread := expected.ExpectNewThread()
+	expected.ExpectActiveThreadId(expectedNewThread.ThreadId)
+	expected.ExpectContextSwitch()
+
+	// Original thread expectations
+	prestateNextPC := expected.PrestateActiveThread().NextPC
+	expected.PrestateActiveThread().PC = prestateNextPC
+	expected.PrestateActiveThread().NextPC = prestateNextPC + 4
+	expected.PrestateActiveThread().Registers[2] = 1
+	expected.PrestateActiveThread().Registers[7] = 0
+	// New thread expectations
+	expectedNewThread.PC = prestateNextPC
+	expectedNewThread.NextPC = prestateNextPC + 4
+	expectedNewThread.ThreadId = 1
+	expectedNewThread.Registers[register.RegSyscallRet1] = 0
+	expectedNewThread.Registers[register.RegSyscallErrno] = 0
+	expectedNewThread.Registers[register.RegSP] = stackPointer
+
+	return ExpectNormalExecution()
 }
 
 func TestEVM_SysGetTID(t *testing.T) {
@@ -330,14 +325,14 @@ func TestEVM_SysGetTID(t *testing.T) {
 		{"non-zero", 11},
 	}
 
-	initState := func(c testCase, state *multithreaded.State, vm VersionedVMTestCase, r *testutil.RandHelper) {
+	initState := func(t require.TestingT, c testCase, state *multithreaded.State, vm VersionedVMTestCase, r *testutil.RandHelper) {
 		mtutil.InitializeSingleThread(r.Intn(10000), state, false)
 		state.GetCurrentThread().ThreadId = c.threadId
 		testutil.StoreInstruction(state.Memory, state.GetPC(), syscallInsn)
 		state.GetRegistersRef()[2] = arch.SysGetTID // Set syscall number
 	}
 
-	setExpectations := func(c testCase, expected *mtutil.ExpectedState, vm VersionedVMTestCase) ExpectedExecResult {
+	setExpectations := func(t require.TestingT, c testCase, expected *mtutil.ExpectedState, vm VersionedVMTestCase) ExpectedExecResult {
 		expected.ExpectStep()
 		expected.ActiveThread().Registers[2] = c.threadId
 		expected.ActiveThread().Registers[7] = 0
@@ -379,7 +374,7 @@ func TestEVM_SysExit(t *testing.T) {
 	cases := testutil.TestVariations(baseTests, testVariations)
 
 	exitCode := uint8(3)
-	initState := func(tt testCase, state *multithreaded.State, vm VersionedVMTestCase, r *testutil.RandHelper) {
+	initState := func(t require.TestingT, tt testCase, state *multithreaded.State, vm VersionedVMTestCase, r *testutil.RandHelper) {
 		c := tt.Base
 		mtutil.SetupThreads(r.Int64(10000), state, tt.Variation.traverseRight, c.threadCount, 0)
 		testutil.StoreInstruction(state.Memory, state.GetPC(), syscallInsn)
@@ -387,9 +382,9 @@ func TestEVM_SysExit(t *testing.T) {
 		state.GetRegistersRef()[4] = Word(exitCode) // The first argument (exit code)
 	}
 
-	setExpectations := func(c testCase, expected *mtutil.ExpectedState, vm VersionedVMTestCase) ExpectedExecResult {
+	setExpectations := func(t require.TestingT, c testCase, expected *mtutil.ExpectedState, vm VersionedVMTestCase) ExpectedExecResult {
 		expected.Step += 1
-		expected.StepsSinceLastContextSwitch += 1
+		expected.ExpectNoContextSwitch()
 		expected.ActiveThread().Exited = true
 		expected.ActiveThread().ExitCode = exitCode
 		if c.Base.shouldExitGlobally {
@@ -406,64 +401,47 @@ func TestEVM_SysExit(t *testing.T) {
 }
 
 func TestEVM_PopExitedThread(t *testing.T) {
-	cases := []struct {
+	type testCase struct {
 		name                         string
 		traverseRight                bool
 		activeStackThreadCount       int
 		expectTraverseRightPostState bool
-	}{
+	}
+
+	testNamer := func(tc testCase) string {
+		return tc.name
+	}
+
+	cases := []testCase{
 		{name: "traverse right", traverseRight: true, activeStackThreadCount: 2, expectTraverseRightPostState: true},
 		{name: "traverse right, switch directions", traverseRight: true, activeStackThreadCount: 1, expectTraverseRightPostState: false},
 		{name: "traverse left", traverseRight: false, activeStackThreadCount: 2, expectTraverseRightPostState: false},
 		{name: "traverse left, switch directions", traverseRight: false, activeStackThreadCount: 1, expectTraverseRightPostState: true},
 	}
 
-	vmVersions := GetMipsVersionTestCases(t)
-	for _, ver := range vmVersions {
-		for i, c := range cases {
-			testName := fmt.Sprintf("%v (%v)", c.name, ver.Name)
-			t.Run(testName, func(t *testing.T) {
-				goVm := ver.VMFactory(nil, os.Stdout, os.Stderr, testutil.CreateLogger(), mtutil.WithRandomization(int64(i*133)))
-				state := mtutil.GetMtState(t, goVm)
-				mtutil.SetupThreads(int64(i*222), state, c.traverseRight, c.activeStackThreadCount, 1)
-				step := state.Step
-
-				// Setup thread to be dropped
-				threadToPop := state.GetCurrentThread()
-				threadToPop.Exited = true
-				threadToPop.ExitCode = 1
-
-				// Set up expectations
-				expected := mtutil.NewExpectedState(t, state)
-				expected.Step += 1
-				expected.ActiveThreadId = mtutil.FindNextThreadExcluding(state, threadToPop.ThreadId).ThreadId
-				expected.StepsSinceLastContextSwitch = 0
-				expected.ThreadCount -= 1
-				expected.TraverseRight = c.expectTraverseRightPostState
-				expected.Thread(threadToPop.ThreadId).Dropped = true
-				if c.traverseRight {
-					expected.RightStackSize -= 1
-				} else {
-					expected.LeftStackSize -= 1
-				}
-
-				// State transition
-				var err error
-				var stepWitness *mipsevm.StepWitness
-				stepWitness, err = goVm.Step(true)
-				require.NoError(t, err)
-
-				// Validate post-state
-				expected.Validate(t, state)
-				testutil.ValidateEVM(t, stepWitness, step, goVm, multithreaded.GetStateHashFn(), ver.Contracts)
-			})
-		}
+	initState := func(t require.TestingT, c testCase, state *multithreaded.State, vm VersionedVMTestCase, r *testutil.RandHelper) {
+		mtutil.SetupThreads(r.Int64(1000), state, c.traverseRight, c.activeStackThreadCount, 1)
+		threadToPop := state.GetCurrentThread()
+		threadToPop.Exited = true
+		threadToPop.ExitCode = 1
 	}
+
+	setExpectations := func(t require.TestingT, c testCase, expected *mtutil.ExpectedState, vm VersionedVMTestCase) ExpectedExecResult {
+		expected.Step += 1
+		expected.ExpectPoppedThread()
+		expected.ExpectContextSwitch()
+		expected.ExpectTraverseRight(c.expectTraverseRightPostState)
+		return ExpectNormalExecution()
+	}
+
+	NewDiffTester(testNamer).
+		InitState(initState).
+		SetExpectations(setExpectations).
+		Run(t, cases)
 }
 
 func TestEVM_SysFutex_WaitPrivate(t *testing.T) {
-	// Note: parameters are written as 64-bit values. For 32-bit architectures, these values are downcast to 32-bit
-	cases := []struct {
+	type testCase struct {
 		name         string
 		addressParam uint64
 		effAddr      uint64
@@ -471,7 +449,13 @@ func TestEVM_SysFutex_WaitPrivate(t *testing.T) {
 		actualValue  uint32
 		timeout      uint64
 		shouldFail   bool
-	}{
+	}
+
+	testNamer := func(tc testCase) string {
+		return tc.name
+	}
+
+	cases := []testCase{
 		{name: "successful wait, no timeout", addressParam: 0xFF_FF_FF_FF_FF_FF_12_38, effAddr: 0xFF_FF_FF_FF_FF_FF_12_38, targetValue: 0xFF_FF_FF_01, actualValue: 0xFF_FF_FF_01},
 		{name: "successful wait, no timeout, unaligned addr #1", addressParam: 0xFF_FF_FF_FF_FF_FF_12_33, effAddr: 0xFF_FF_FF_FF_FF_FF_12_30, targetValue: 0x01, actualValue: 0x01},
 		{name: "successful wait, no timeout, unaligned addr #2", addressParam: 0xFF_FF_FF_FF_FF_FF_12_37, effAddr: 0xFF_FF_FF_FF_FF_FF_12_34, targetValue: 0x01, actualValue: 0x01},
@@ -484,63 +468,56 @@ func TestEVM_SysFutex_WaitPrivate(t *testing.T) {
 		{name: "memory mismatch w timeout", addressParam: 0xFF_FF_FF_FF_FF_FF_12_00, effAddr: 0xFF_FF_FF_FF_FF_FF_12_00, targetValue: 0xFF_FF_FF_F8, actualValue: 0xF8, timeout: 2000000, shouldFail: true},
 		{name: "memory mismatch w timeout, unaligned", addressParam: 0xFF_FF_FF_FF_FF_FF_12_0F, effAddr: 0xFF_FF_FF_FF_FF_FF_12_0C, targetValue: 0xFF_FF_FF_01, actualValue: 0xFF_FF_FF_02, timeout: 2000000, shouldFail: true},
 	}
-	vmVersions := GetMipsVersionTestCases(t)
-	for _, ver := range vmVersions {
-		for i, c := range cases {
-			testName := fmt.Sprintf("%v (%v)", c.name, ver.Name)
-			t.Run(testName, func(t *testing.T) {
-				rand := testutil.NewRandHelper(int64(i * 33))
-				goVm := ver.VMFactory(nil, os.Stdout, os.Stderr, testutil.CreateLogger(), mtutil.WithRandomization(int64(i*1234)), mtutil.WithPCAndNextPC(0x04))
-				state := mtutil.GetMtState(t, goVm)
-				step := state.GetStep()
 
-				testutil.StoreInstruction(state.Memory, state.GetPC(), syscallInsn)
-				testutil.RandomizeWordAndSetUint32(state.GetMemory(), Word(c.effAddr), c.actualValue, int64(i+22))
-				state.GetRegistersRef()[2] = arch.SysFutex // Set syscall number
-				state.GetRegistersRef()[4] = Word(c.addressParam)
-				state.GetRegistersRef()[5] = exec.FutexWaitPrivate
-				// Randomize upper bytes of futex target
-				state.GetRegistersRef()[6] = (rand.Word() & ^Word(0xFF_FF_FF_FF)) | Word(c.targetValue)
-				state.GetRegistersRef()[7] = Word(c.timeout)
-
-				// Setup expectations
-				expected := mtutil.NewExpectedState(t, state)
-				expected.Step += 1
-				expected.ActiveThread().PC = state.GetCpu().NextPC
-				expected.ActiveThread().NextPC = state.GetCpu().NextPC + 4
-				if c.shouldFail {
-					expected.StepsSinceLastContextSwitch += 1
-					expected.ActiveThread().Registers[2] = exec.MipsEAGAIN
-					expected.ActiveThread().Registers[7] = exec.SysErrorSignal
-				} else {
-					// Return empty result and preempt thread
-					expected.ActiveThread().Registers[2] = 0
-					expected.ActiveThread().Registers[7] = 0
-					expected.ExpectPreemption(state)
-				}
-
-				// State transition
-				stepWitness, err := goVm.Step(true)
-				require.NoError(t, err)
-
-				// Validate post-state
-				expected.Validate(t, state)
-				testutil.ValidateEVM(t, stepWitness, step, goVm, multithreaded.GetStateHashFn(), ver.Contracts)
-			})
-		}
+	initState := func(t require.TestingT, c testCase, state *multithreaded.State, vm VersionedVMTestCase, r *testutil.RandHelper) {
+		testutil.StoreInstruction(state.Memory, state.GetPC(), syscallInsn)
+		testutil.RandomizeWordAndSetUint32(state.GetMemory(), Word(c.effAddr), c.actualValue, r.Int64(1000))
+		state.GetRegistersRef()[2] = arch.SysFutex // Set syscall number
+		state.GetRegistersRef()[4] = Word(c.addressParam)
+		state.GetRegistersRef()[5] = exec.FutexWaitPrivate
+		// Randomize upper bytes of futex target
+		state.GetRegistersRef()[6] = (rand.Word() & ^Word(0xFF_FF_FF_FF)) | Word(c.targetValue)
+		state.GetRegistersRef()[7] = Word(c.timeout)
 	}
+
+	setExpectations := func(t require.TestingT, c testCase, expected *mtutil.ExpectedState, vm VersionedVMTestCase) ExpectedExecResult {
+		expected.Step += 1
+		expected.ActiveThread().PC = expected.ActiveThread().NextPC
+		expected.ActiveThread().NextPC = expected.ActiveThread().NextPC + 4
+		if c.shouldFail {
+			expected.ExpectNoContextSwitch()
+			expected.ActiveThread().Registers[2] = exec.MipsEAGAIN
+			expected.ActiveThread().Registers[7] = exec.SysErrorSignal
+		} else {
+			// Return empty result and preempt thread
+			expected.ActiveThread().Registers[2] = 0
+			expected.ActiveThread().Registers[7] = 0
+			expected.ExpectPreemption()
+		}
+		return ExpectNormalExecution()
+	}
+
+	NewDiffTester(testNamer).
+		InitState(initState).
+		SetExpectations(setExpectations).
+		Run(t, cases)
 }
 
 func TestEVM_SysFutex_WakePrivate(t *testing.T) {
-	// Note: parameters are written as 64-bit values. For 32-bit architectures, these values are downcast to 32-bit
-	cases := []struct {
+	type testCase struct {
 		name                string
 		addressParam        uint64
 		effAddr             uint64
 		activeThreadCount   int
 		inactiveThreadCount int
 		traverseRight       bool
-	}{
+	}
+
+	testNamer := func(tc testCase) string {
+		return tc.name
+	}
+
+	cases := []testCase{
 		{name: "Traverse right", addressParam: 0xFF_FF_FF_FF_FF_FF_67_00, effAddr: 0xFF_FF_FF_FF_FF_FF_67_00, activeThreadCount: 2, inactiveThreadCount: 1, traverseRight: true},
 		{name: "Traverse right, unaligned addr #1", addressParam: 0xFF_FF_FF_FF_FF_FF_67_83, effAddr: 0xFF_FF_FF_FF_FF_FF_67_80, activeThreadCount: 2, inactiveThreadCount: 1, traverseRight: true},
 		{name: "Traverse right, unaligned addr #2", addressParam: 0xFF_FF_FF_FF_FF_FF_67_87, effAddr: 0xFF_FF_FF_FF_FF_FF_67_84, activeThreadCount: 2, inactiveThreadCount: 1, traverseRight: true},
@@ -557,38 +534,27 @@ func TestEVM_SysFutex_WakePrivate(t *testing.T) {
 		{name: "Traverse left, single thread", addressParam: 0xFF_FF_FF_FF_FF_FF_67_88, effAddr: 0xFF_FF_FF_FF_FF_FF_67_88, activeThreadCount: 1, inactiveThreadCount: 0, traverseRight: false},
 		{name: "Traverse left, single thread, unaligned", addressParam: 0xFF_FF_FF_FF_FF_FF_67_89, effAddr: 0xFF_FF_FF_FF_FF_FF_67_88, activeThreadCount: 1, inactiveThreadCount: 0, traverseRight: false},
 	}
-	vmVersions := GetMipsVersionTestCases(t)
-	for _, ver := range vmVersions {
-		for i, c := range cases {
-			testName := fmt.Sprintf("%v (%v)", c.name, ver.Name)
-			t.Run(testName, func(t *testing.T) {
-				goVm := ver.VMFactory(nil, os.Stdout, os.Stderr, testutil.CreateLogger(), mtutil.WithRandomization(int64(i*1122)))
-				state := mtutil.GetMtState(t, goVm)
-				mtutil.SetupThreads(int64(i*2244), state, c.traverseRight, c.activeThreadCount, c.inactiveThreadCount)
-				step := state.Step
 
-				testutil.StoreInstruction(state.Memory, state.GetPC(), syscallInsn)
-				state.GetRegistersRef()[2] = arch.SysFutex // Set syscall number
-				state.GetRegistersRef()[4] = Word(c.addressParam)
-				state.GetRegistersRef()[5] = exec.FutexWakePrivate
-
-				// Set up post-state expectations
-				expected := mtutil.NewExpectedState(t, state)
-				expected.ExpectStep()
-				expected.ActiveThread().Registers[2] = 0
-				expected.ActiveThread().Registers[7] = 0
-				expected.ExpectPreemption(state)
-
-				// State transition
-				stepWitness, err := goVm.Step(true)
-				require.NoError(t, err)
-
-				// Validate post-state
-				expected.Validate(t, state)
-				testutil.ValidateEVM(t, stepWitness, step, goVm, multithreaded.GetStateHashFn(), ver.Contracts)
-			})
-		}
+	initState := func(t require.TestingT, c testCase, state *multithreaded.State, vm VersionedVMTestCase, r *testutil.RandHelper) {
+		mtutil.SetupThreads(r.Int64(1000), state, c.traverseRight, c.activeThreadCount, c.inactiveThreadCount)
+		testutil.StoreInstruction(state.Memory, state.GetPC(), syscallInsn)
+		state.GetRegistersRef()[2] = arch.SysFutex // Set syscall number
+		state.GetRegistersRef()[4] = Word(c.addressParam)
+		state.GetRegistersRef()[5] = exec.FutexWakePrivate
 	}
+
+	setExpectations := func(t require.TestingT, tt testCase, expected *mtutil.ExpectedState, vm VersionedVMTestCase) ExpectedExecResult {
+		expected.ExpectStep()
+		expected.ActiveThread().Registers[2] = 0
+		expected.ActiveThread().Registers[7] = 0
+		expected.ExpectPreemption()
+		return ExpectNormalExecution()
+	}
+
+	NewDiffTester(testNamer).
+		InitState(initState).
+		SetExpectations(setExpectations).
+		Run(t, cases)
 }
 
 func TestEVM_SysFutex_UnsupportedOp(t *testing.T) {
@@ -646,13 +612,13 @@ func TestEVM_SysFutex_UnsupportedOp(t *testing.T) {
 		{"FUTEX_CMP_REQUEUE_PI_PRIVATE", (FUTEX_CMP_REQUEUE_PI | FUTEX_PRIVATE_FLAG)},
 	}
 
-	initState := func(c testCase, state *multithreaded.State, vm VersionedVMTestCase, r *testutil.RandHelper) {
+	initState := func(t require.TestingT, c testCase, state *multithreaded.State, vm VersionedVMTestCase, r *testutil.RandHelper) {
 		testutil.StoreInstruction(state.Memory, state.GetPC(), syscallInsn)
 		state.GetRegistersRef()[2] = arch.SysFutex // Set syscall number
 		state.GetRegistersRef()[5] = c.op
 	}
 
-	setExpectations := func(c testCase, expected *mtutil.ExpectedState, vm VersionedVMTestCase) ExpectedExecResult {
+	setExpectations := func(t require.TestingT, c testCase, expected *mtutil.ExpectedState, vm VersionedVMTestCase) ExpectedExecResult {
 		expected.ExpectStep()
 		expected.ActiveThread().Registers[2] = exec.MipsEINVAL
 		expected.ActiveThread().Registers[7] = exec.SysErrorSignal
@@ -674,106 +640,90 @@ func TestEVM_SysNanosleep(t *testing.T) {
 }
 
 func runPreemptSyscall(t *testing.T, syscallName string, syscallNum uint32) {
-	cases := []struct {
+	type testVariation struct {
+		name          string
+		traverseRight bool
+	}
+	testVariations := []testVariation{
+		{"Traverse right", true},
+		{"Traverse left", false},
+	}
+
+	type baseTest struct {
 		name            string
-		traverseRight   bool
 		activeThreads   int
 		inactiveThreads int
-	}{
+	}
+	baseTests := []baseTest{
 		{name: "Last active thread", activeThreads: 1, inactiveThreads: 2},
 		{name: "Only thread", activeThreads: 1, inactiveThreads: 0},
 		{name: "Do not change directions", activeThreads: 2, inactiveThreads: 2},
 		{name: "Do not change directions", activeThreads: 3, inactiveThreads: 0},
 	}
 
-	versions := GetMipsVersionTestCases(t)
-	for _, ver := range versions {
-		for i, c := range cases {
-			for _, traverseRight := range []bool{true, false} {
-				testName := fmt.Sprintf("%v: %v (vm = %v, traverseRight = %v)", syscallName, c.name, ver.Name, traverseRight)
-				t.Run(testName, func(t *testing.T) {
-					goVm := ver.VMFactory(nil, os.Stdout, os.Stderr, testutil.CreateLogger(), mtutil.WithRandomization(int64(i*789)))
-					state := mtutil.GetMtState(t, goVm)
-					mtutil.SetupThreads(int64(i*3259), state, traverseRight, c.activeThreads, c.inactiveThreads)
-
-					testutil.StoreInstruction(state.Memory, state.GetPC(), syscallInsn)
-					state.GetRegistersRef()[2] = Word(syscallNum) // Set syscall number
-					step := state.Step
-
-					// Set up post-state expectations
-					expected := mtutil.NewExpectedState(t, state)
-					expected.ExpectStep()
-					expected.ExpectPreemption(state)
-					expected.PrestateActiveThread().Registers[2] = 0
-					expected.PrestateActiveThread().Registers[7] = 0
-
-					// State transition
-					var err error
-					var stepWitness *mipsevm.StepWitness
-					stepWitness, err = goVm.Step(true)
-					require.NoError(t, err)
-
-					// Validate post-state
-					expected.Validate(t, state)
-					testutil.ValidateEVM(t, stepWitness, step, goVm, multithreaded.GetStateHashFn(), ver.Contracts)
-				})
-			}
-		}
+	type testCase = testutil.TestCaseVariation[baseTest, testVariation]
+	testNamer := func(tc testCase) string {
+		return fmt.Sprintf("%v-%v", tc.Base.name, tc.Variation.name)
 	}
+	cases := testutil.TestVariations(baseTests, testVariations)
+
+	initState := func(t require.TestingT, tt testCase, state *multithreaded.State, vm VersionedVMTestCase, r *testutil.RandHelper) {
+		c := tt.Base
+		mtutil.SetupThreads(r.Int64(1000), state, tt.Variation.traverseRight, c.activeThreads, c.inactiveThreads)
+		testutil.StoreInstruction(state.Memory, state.GetPC(), syscallInsn)
+		state.GetRegistersRef()[2] = Word(syscallNum) // Set syscall number
+	}
+
+	setExpectations := func(t require.TestingT, tt testCase, expected *mtutil.ExpectedState, vm VersionedVMTestCase) ExpectedExecResult {
+		expected.ExpectStep()
+		expected.ExpectPreemption()
+		expected.PrestateActiveThread().Registers[2] = 0
+		expected.PrestateActiveThread().Registers[7] = 0
+		return ExpectNormalExecution()
+	}
+
+	NewDiffTester(testNamer).
+		InitState(initState).
+		SetExpectations(setExpectations).
+		Run(t, cases)
 }
 
 func TestEVM_SysOpen(t *testing.T) {
-	type testCase struct {
-		name string
-	}
-	testNamer := func(tc testCase) string {
-		return tc.name
-	}
-	cases := []testCase{{"Base Case"}}
-
-	initState := func(tt testCase, state *multithreaded.State, vm VersionedVMTestCase, r *testutil.RandHelper) {
+	initState := func(t require.TestingT, state *multithreaded.State, vm VersionedVMTestCase, r *testutil.RandHelper) {
 		testutil.StoreInstruction(state.Memory, state.GetPC(), syscallInsn)
 		state.GetRegistersRef()[2] = arch.SysOpen // Set syscall number
 	}
 
-	setExpectations := func(tt testCase, expected *mtutil.ExpectedState, vm VersionedVMTestCase) ExpectedExecResult {
+	setExpectations := func(t require.TestingT, expected *mtutil.ExpectedState, vm VersionedVMTestCase) ExpectedExecResult {
 		expected.ExpectStep()
 		expected.ActiveThread().Registers[2] = exec.MipsEBADF
 		expected.ActiveThread().Registers[7] = exec.SysErrorSignal
 		return ExpectNormalExecution()
 	}
 
-	NewDiffTester(testNamer).
+	NewSimpleDiffTester().
 		InitState(initState).
 		SetExpectations(setExpectations).
-		Run(t, cases)
+		Run(t)
 }
 
 func TestEVM_SysGetPID(t *testing.T) {
-	type testCase struct {
-		name string
-	}
-	testNamer := func(tc testCase) string {
-		return tc.name
-	}
-	cases := []testCase{{"Base Case"}}
-
-	initState := func(tt testCase, state *multithreaded.State, vm VersionedVMTestCase, r *testutil.RandHelper) {
+	initState := func(t require.TestingT, state *multithreaded.State, vm VersionedVMTestCase, r *testutil.RandHelper) {
 		testutil.StoreInstruction(state.Memory, state.GetPC(), syscallInsn)
 		state.GetRegistersRef()[2] = arch.SysGetpid // Set syscall number
 	}
 
-	setExpectations := func(tt testCase, expected *mtutil.ExpectedState, vm VersionedVMTestCase) ExpectedExecResult {
+	setExpectations := func(t require.TestingT, expected *mtutil.ExpectedState, vm VersionedVMTestCase) ExpectedExecResult {
 		expected.ExpectStep()
 		expected.ActiveThread().Registers[2] = 0
 		expected.ActiveThread().Registers[7] = 0
 		return ExpectNormalExecution()
 	}
 
-	NewDiffTester(testNamer).
+	NewSimpleDiffTester().
 		InitState(initState).
 		SetExpectations(setExpectations).
-		Run(t, cases)
+		Run(t)
 }
 
 func TestEVM_SysClockGettimeMonotonic(t *testing.T) {
@@ -822,7 +772,7 @@ func testEVM_SysClockGettime(t *testing.T, clkid Word) {
 	}
 	cases := testutil.TestVariations(baseTests, llVariations)
 
-	initState := func(tt testCase, state *multithreaded.State, vm VersionedVMTestCase, r *testutil.RandHelper) {
+	initState := func(t require.TestingT, tt testCase, state *multithreaded.State, vm VersionedVMTestCase, r *testutil.RandHelper) {
 		c := tt.Base
 		llVar := tt.Variation
 
@@ -855,7 +805,7 @@ func testEVM_SysClockGettime(t *testing.T, clkid Word) {
 		state.LLOwnerThread = llOwnerThread
 	}
 
-	setExpectations := func(tt testCase, expected *mtutil.ExpectedState, vm VersionedVMTestCase) ExpectedExecResult {
+	setExpectations := func(t require.TestingT, tt testCase, expected *mtutil.ExpectedState, vm VersionedVMTestCase) ExpectedExecResult {
 		c := tt.Base
 		llVar := tt.Variation
 
@@ -886,15 +836,7 @@ func testEVM_SysClockGettime(t *testing.T, clkid Word) {
 }
 
 func TestEVM_SysClockGettimeNonMonotonic(t *testing.T) {
-	type testCase struct {
-		name string
-	}
-	testNamer := func(tc testCase) string {
-		return tc.name
-	}
-	cases := []testCase{{"Base Case"}}
-
-	initState := func(tt testCase, state *multithreaded.State, vm VersionedVMTestCase, r *testutil.RandHelper) {
+	initState := func(t require.TestingT, state *multithreaded.State, vm VersionedVMTestCase, r *testutil.RandHelper) {
 		timespecAddr := Word(0x1000)
 		testutil.StoreInstruction(state.Memory, state.GetPC(), syscallInsn)
 		state.GetRegistersRef()[2] = arch.SysClockGetTime // Set syscall number
@@ -902,17 +844,17 @@ func TestEVM_SysClockGettimeNonMonotonic(t *testing.T) {
 		state.GetRegistersRef()[5] = timespecAddr         // a1
 	}
 
-	setExpectations := func(tt testCase, expected *mtutil.ExpectedState, vm VersionedVMTestCase) ExpectedExecResult {
+	setExpectations := func(t require.TestingT, expected *mtutil.ExpectedState, vm VersionedVMTestCase) ExpectedExecResult {
 		expected.ExpectStep()
 		expected.ActiveThread().Registers[2] = exec.MipsEINVAL
 		expected.ActiveThread().Registers[7] = exec.SysErrorSignal
 		return ExpectNormalExecution()
 	}
 
-	NewDiffTester(testNamer).
+	NewSimpleDiffTester().
 		InitState(initState).
 		SetExpectations(setExpectations).
-		Run(t, cases)
+		Run(t)
 }
 
 func TestEVM_EmptyThreadStacks(t *testing.T) {
@@ -939,12 +881,12 @@ func TestEVM_EmptyThreadStacks(t *testing.T) {
 
 	cases := testutil.TestVariations(baseTests, proofVariations)
 
-	initState := func(c testCase, state *multithreaded.State, vm VersionedVMTestCase, r *testutil.RandHelper) {
+	initState := func(t require.TestingT, c testCase, state *multithreaded.State, vm VersionedVMTestCase, r *testutil.RandHelper) {
 		b := c.Base
 		mtutil.SetupThreads(r.Int64(1000), state, b.traverseRight, 0, b.otherStackSize)
 	}
 
-	setExpectations := func(c testCase, expected *mtutil.ExpectedState, vm VersionedVMTestCase) ExpectedExecResult {
+	setExpectations := func(t require.TestingT, c testCase, expected *mtutil.ExpectedState, vm VersionedVMTestCase) ExpectedExecResult {
 		goPanic := "Active thread stack is empty"
 		evmErr := "active thread stack is empty"
 		return ExpectVmPanic(goPanic, evmErr, WithProofData(c.Variation.Proof))
@@ -957,103 +899,124 @@ func TestEVM_EmptyThreadStacks(t *testing.T) {
 }
 
 func TestEVM_NormalTraversal_Full(t *testing.T) {
-	cases := []struct {
+	type testVariation struct {
+		name          string
+		traverseRight bool
+	}
+	testVariations := []testVariation{
+		{"Traverse right", true},
+		{"Traverse left", false},
+	}
+
+	type baseTest struct {
 		name        string
 		threadCount int
-	}{
+	}
+	baseTests := []baseTest{
 		{"1 thread", 1},
 		{"2 threads", 2},
 		{"3 threads", 3},
 	}
 
-	vmVersions := GetMipsVersionTestCases(t)
-	for _, ver := range vmVersions {
-		for i, c := range cases {
-			for _, traverseRight := range []bool{true, false} {
-				testName := fmt.Sprintf("%v (vm = %v, traverseRight = %v)", c.name, ver.Name, traverseRight)
-				t.Run(testName, func(t *testing.T) {
-					// Setup
-					goVm := ver.VMFactory(nil, os.Stdout, os.Stderr, testutil.CreateLogger(), mtutil.WithRandomization(int64(i*789)))
-					state := mtutil.GetMtState(t, goVm)
-					mtutil.SetupThreads(int64(i*2947), state, traverseRight, c.threadCount, 0)
-					step := state.Step
+	type testCase = testutil.TestCaseVariation[baseTest, testVariation]
+	testNamer := func(tc testCase) string {
+		return fmt.Sprintf("%v-%v", tc.Base.name, tc.Variation.name)
+	}
 
-					// Loop through all the threads to get back to the starting state
-					iterations := c.threadCount * 2
-					for i := 0; i < iterations; i++ {
-						// Set up thread to yield
-						testutil.StoreInstruction(state.Memory, state.GetPC(), syscallInsn)
-						state.GetRegistersRef()[2] = Word(arch.SysSchedYield)
+	syscallNumReg := 2
+	// The ori (or immediate) instruction sets register 2 to SysSchedYield
+	oriInsn := uint32((0b001101 << 26) | (syscallNumReg & 0x1F << 16) | (0xFFFF & arch.SysSchedYield))
 
-						// Set up post-state expectations
-						expected := mtutil.NewExpectedState(t, state)
-						expected.ActiveThread().Registers[2] = 0
-						expected.ActiveThread().Registers[7] = 0
-						expected.ExpectStep()
-						expected.ExpectPreemption(state)
+	initState := func(t require.TestingT, tt testCase, state *multithreaded.State, vm VersionedVMTestCase, r *testutil.RandHelper) {
+		c := tt.Base
+		traverseRight := tt.Variation.traverseRight
+		mtutil.SetupThreads(r.Int64(1000), state, traverseRight, c.threadCount, 0)
+		state.Step = 0
 
-						// State transition
-						var err error
-						var stepWitness *mipsevm.StepWitness
-						stepWitness, err = goVm.Step(true)
-						require.NoError(t, err)
-
-						// Validate post-state
-						expected.Validate(t, state)
-						testutil.ValidateEVM(t, stepWitness, step, goVm, multithreaded.GetStateHashFn(), ver.Contracts)
-					}
-				})
+		// Set up each thread with a sequence of instructions
+		threads, _ := mtutil.GetThreadStacks(state)
+		for i := 0; i < c.threadCount; i++ {
+			thread := threads[i]
+			pc := thread.Cpu.PC
+			// Each thread will be accessed twice
+			for j := 0; j < 2; j++ {
+				// First run the ori instruction to set the syscall register
+				// Then run the syscall (yield)
+				testutil.StoreInstruction(state.Memory, pc, oriInsn)
+				testutil.StoreInstruction(state.Memory, pc+4, syscallInsn)
+				pc += 8
 			}
 		}
+	}
+
+	setExpectations := func(t require.TestingT, tt testCase, expected *mtutil.ExpectedState, vm VersionedVMTestCase) ExpectedExecResult {
+		if expected.Step%2 == 0 {
+			// Even instructions will be the "or immediate" insn that sets our yield syscall num
+			expected.ExpectStep()
+			expected.ActiveThread().Registers[syscallNumReg] = arch.SysSchedYield
+		} else {
+			// Odd instructions will cause a yield
+			expected.ExpectStep()
+			expected.ActiveThread().Registers[2] = 0
+			expected.ActiveThread().Registers[7] = 0
+			expected.ExpectPreemption()
+		}
+		return ExpectNormalExecution()
+	}
+
+	diffTester := NewDiffTester(testNamer).
+		InitState(initState).
+		SetExpectations(setExpectations)
+
+	for _, bt := range baseTests {
+		// Loop through all the threads to get back to the starting state
+		// We want to loop 2x for each thread, where each loop takes 2 instructions
+		steps := bt.threadCount * 4
+
+		cases := testutil.TestVariations([]baseTest{bt}, testVariations)
+		diffTester.Run(t, cases, WithSteps(steps))
 	}
 }
 
 func TestEVM_SchedQuantumThreshold(t *testing.T) {
-	cases := []struct {
+	type testCase struct {
 		name                        string
 		stepsSinceLastContextSwitch uint64
 		shouldPreempt               bool
-	}{
+	}
+
+	testNamer := func(tc testCase) string {
+		return tc.name
+	}
+
+	cases := []testCase{
 		{name: "just under threshold", stepsSinceLastContextSwitch: exec.SchedQuantum - 1},
 		{name: "at threshold", stepsSinceLastContextSwitch: exec.SchedQuantum, shouldPreempt: true},
 		{name: "beyond threshold", stepsSinceLastContextSwitch: exec.SchedQuantum + 1, shouldPreempt: true},
 	}
 
-	vmVersions := GetMipsVersionTestCases(t)
-	for _, ver := range vmVersions {
-		for i, c := range cases {
-			testName := fmt.Sprintf("%v (%v)", c.name, ver.Name)
-			t.Run(testName, func(t *testing.T) {
-				goVm := ver.VMFactory(nil, os.Stdout, os.Stderr, testutil.CreateLogger(), mtutil.WithRandomization(int64(i*789)))
-				state := mtutil.GetMtState(t, goVm)
-				// Setup basic getThreadId syscall instruction
-				testutil.StoreInstruction(state.Memory, state.GetPC(), syscallInsn)
-				state.GetRegistersRef()[2] = arch.SysGetTID // Set syscall number
-				state.StepsSinceLastContextSwitch = c.stepsSinceLastContextSwitch
-				step := state.Step
-
-				// Set up post-state expectations
-				expected := mtutil.NewExpectedState(t, state)
-				if c.shouldPreempt {
-					expected.Step += 1
-					expected.ExpectPreemption(state)
-				} else {
-					// Otherwise just expect a normal step
-					expected.ExpectStep()
-					expected.ActiveThread().Registers[2] = state.GetCurrentThread().ThreadId
-					expected.ActiveThread().Registers[7] = 0
-				}
-
-				// State transition
-				var err error
-				var stepWitness *mipsevm.StepWitness
-				stepWitness, err = goVm.Step(true)
-				require.NoError(t, err)
-
-				// Validate post-state
-				expected.Validate(t, state)
-				testutil.ValidateEVM(t, stepWitness, step, goVm, multithreaded.GetStateHashFn(), ver.Contracts)
-			})
-		}
+	initState := func(t require.TestingT, c testCase, state *multithreaded.State, vm VersionedVMTestCase, r *testutil.RandHelper) {
+		// Setup basic getThreadId syscall instruction
+		testutil.StoreInstruction(state.Memory, state.GetPC(), syscallInsn)
+		state.GetRegistersRef()[2] = arch.SysGetTID // Set syscall number
+		state.StepsSinceLastContextSwitch = c.stepsSinceLastContextSwitch
 	}
+
+	setExpectations := func(t require.TestingT, c testCase, expected *mtutil.ExpectedState, vm VersionedVMTestCase) ExpectedExecResult {
+		if c.shouldPreempt {
+			expected.Step += 1
+			expected.ExpectPreemption()
+		} else {
+			// Otherwise just expect a normal step
+			expected.ExpectStep()
+			expected.ActiveThread().Registers[2] = expected.ActiveThreadId()
+			expected.ActiveThread().Registers[7] = 0
+		}
+		return ExpectNormalExecution()
+	}
+
+	NewDiffTester(testNamer).
+		InitState(initState).
+		SetExpectations(setExpectations).
+		Run(t, cases)
 }

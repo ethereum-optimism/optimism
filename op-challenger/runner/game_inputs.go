@@ -5,7 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"math/big"
-	"math/rand"
+	"math/rand/v2"
 
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/super"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/utils"
@@ -101,7 +101,7 @@ func createGameInputsInterop(ctx context.Context, log log.Logger, client *source
 	provider := super.NewSuperTraceProvider(log, nil, prestateProvider, client, l1Head.ID(), gameDepth, agreedTimestamp, claimTimestamp+10)
 	var agreedPrestate []byte
 	var claim common.Hash
-	switch rand.Intn(3) {
+	switch rand.IntN(3) {
 	case 0: // Derive block on first chain
 		log.Info("Running first chain")
 		prestate, err := prestateProvider.AbsolutePreState(ctx)
@@ -160,7 +160,7 @@ func findL2BlockNumberToDispute(ctx context.Context, log log.Logger, client *sou
 			return 0, fmt.Errorf("failed to get prior safe head at L1 block %v: %w", l1HeadNum, err)
 		}
 		if prevSafeHead.SafeHead.Number < l2BlockNum {
-			switch rand.Intn(3) {
+			switch rand.IntN(3) {
 			case 0: // First block of span batch
 				return prevSafeHead.SafeHead.Number + 1, nil
 			case 1: // Last block of span batch
@@ -171,7 +171,7 @@ func findL2BlockNumberToDispute(ctx context.Context, log log.Logger, client *sou
 					// There is only one block in the next batch so we just have to use it
 					return l2BlockNum, nil
 				}
-				offset := rand.Intn(int(l2BlockNum - firstBlockInSpanBatch))
+				offset := rand.IntN(int(l2BlockNum - firstBlockInSpanBatch))
 				return firstBlockInSpanBatch + uint64(offset), nil
 			}
 

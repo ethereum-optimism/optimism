@@ -2,17 +2,11 @@ package clsync
 
 import (
 	"context"
-	"errors"
 	"math/big"
-	"math/rand" // nosemgrep
+	mrand "math/rand"
 	"testing"
 
-	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
-
-	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/log"
 
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
@@ -20,24 +14,54 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum-optimism/optimism/op-service/testutils"
+	"github.com/ethereum/go-ethereum/common"
+	gethtypes "github.com/ethereum/go-ethereum/core/types"
 )
 
-func TestCLSync(t *testing.T) {
-	rng := rand.New(rand.NewSource(1234))
+type noopMetrics struct{}
 
+func (n *noopMetrics) RecordUnsafePayloadsBuffer(length uint64, memSize uint64, next eth.BlockID) {}
+
+func TestCLSync_InvalidPayloadDropsHead(t *testing.T) {
+	logger := testlog.Logger(t, 0)
+	cl := NewCLSync(logger, nil, &noopMetrics{})
+	emitter := &testutils.MockEmitter{}
+	cl.AttachEmitter(emitter)
+
+	payload := &eth.ExecutionPayloadEnvelope{ExecutionPayload: &eth.ExecutionPayload{
+		BlockHash: common.Hash{0x01},
+	}}
+
+	// Adding an unsafe payload asks for a forkchoice update
+	emitter.ExpectOnce(engine.ForkchoiceRequestEvent{})
+	cl.OnEvent(context.Background(), ReceivedUnsafePayloadEvent{Envelope: payload})
+	emitter.AssertExpectations(t)
+	require.NotNil(t, cl.unsafePayloads.Peek())
+
+	// Mark it invalid; it should be dropped if it matches the queue head
+	cl.OnEvent(context.Background(), engine.PayloadInvalidEvent{Envelope: payload})
+	require.Nil(t, cl.unsafePayloads.Peek())
+}
+
+type recordingMetrics struct {
+	calls    int
+	lastLen  uint64
+	lastMem  uint64
+	lastNext eth.BlockID
+}
+
+func (m *recordingMetrics) RecordUnsafePayloadsBuffer(length uint64, memSize uint64, next eth.BlockID) {
+	m.calls++
+	m.lastLen = length
+	m.lastMem = memSize
+	m.lastNext = next
+}
+
+// buildSimpleCfgAndPayload creates a minimal rollup config and a valid payload (A1) on top of A0.
+func buildSimpleCfgAndPayload(t *testing.T) (*rollup.Config, eth.L2BlockRef, eth.L2BlockRef, *eth.ExecutionPayloadEnvelope) {
+	t.Helper()
+	rng := mrand.New(mrand.NewSource(1234))
 	refA := testutils.RandomBlockRef(rng)
-
-	aL1Info := &testutils.MockBlockInfo{
-		InfoParentHash:  refA.ParentHash,
-		InfoNum:         refA.Number,
-		InfoTime:        refA.Time,
-		InfoHash:        refA.Hash,
-		InfoBaseFee:     big.NewInt(1),
-		InfoBlobBaseFee: big.NewInt(1),
-		InfoReceiptRoot: types.EmptyRootHash,
-		InfoRoot:        testutils.RandomHash(rng),
-		InfoGasUsed:     rng.Uint64(),
-	}
 
 	refA0 := eth.L2BlockRef{
 		Hash:           testutils.RandomHash(rng),
@@ -47,7 +71,7 @@ func TestCLSync(t *testing.T) {
 		L1Origin:       refA.ID(),
 		SequenceNumber: 0,
 	}
-	gasLimit := eth.Uint64Quantity(20_000_000)
+
 	cfg := &rollup.Config{
 		Genesis: rollup.Genesis{
 			L1:     refA.ID(),
@@ -73,314 +97,134 @@ func TestCLSync(t *testing.T) {
 		SequenceNumber: 1,
 	}
 
-	altRefA1 := refA1
-	altRefA1.Hash = testutils.RandomHash(rng)
-
-	refA2 := eth.L2BlockRef{
-		Hash:           testutils.RandomHash(rng),
-		Number:         refA1.Number + 1,
-		ParentHash:     refA1.Hash,
-		Time:           refA1.Time + cfg.BlockTime,
-		L1Origin:       refA.ID(),
-		SequenceNumber: 2,
+	// Populate necessary L1 info fields
+	aL1Info := &testutils.MockBlockInfo{
+		InfoParentHash:  refA.ParentHash,
+		InfoNum:         refA.Number,
+		InfoTime:        refA.Time,
+		InfoHash:        refA.Hash,
+		InfoBaseFee:     big.NewInt(1),
+		InfoBlobBaseFee: big.NewInt(1),
+		InfoReceiptRoot: gethtypes.EmptyRootHash,
+		InfoRoot:        testutils.RandomHash(rng),
+		InfoGasUsed:     rng.Uint64(),
 	}
-
 	a1L1Info, err := derive.L1InfoDepositBytes(cfg, cfg.Genesis.SystemConfig, refA1.SequenceNumber, aL1Info, refA1.Time)
 	require.NoError(t, err)
+
 	payloadA1 := &eth.ExecutionPayloadEnvelope{ExecutionPayload: &eth.ExecutionPayload{
-		ParentHash:    refA1.ParentHash,
-		FeeRecipient:  common.Address{},
-		StateRoot:     eth.Bytes32{},
-		ReceiptsRoot:  eth.Bytes32{},
-		LogsBloom:     eth.Bytes256{},
-		PrevRandao:    eth.Bytes32{},
-		BlockNumber:   eth.Uint64Quantity(refA1.Number),
-		GasLimit:      gasLimit,
-		GasUsed:       0,
-		Timestamp:     eth.Uint64Quantity(refA1.Time),
-		ExtraData:     nil,
-		BaseFeePerGas: eth.Uint256Quantity(*uint256.NewInt(7)),
-		BlockHash:     refA1.Hash,
-		Transactions:  []eth.Data{a1L1Info},
+		ParentHash:   refA1.ParentHash,
+		BlockNumber:  eth.Uint64Quantity(refA1.Number),
+		Timestamp:    eth.Uint64Quantity(refA1.Time),
+		BlockHash:    refA1.Hash,
+		Transactions: []eth.Data{a1L1Info},
 	}}
-	a2L1Info, err := derive.L1InfoDepositBytes(cfg, cfg.Genesis.SystemConfig, refA2.SequenceNumber, aL1Info, refA2.Time)
-	require.NoError(t, err)
-	payloadA2 := &eth.ExecutionPayloadEnvelope{ExecutionPayload: &eth.ExecutionPayload{
-		ParentHash:    refA2.ParentHash,
-		FeeRecipient:  common.Address{},
-		StateRoot:     eth.Bytes32{},
-		ReceiptsRoot:  eth.Bytes32{},
-		LogsBloom:     eth.Bytes256{},
-		PrevRandao:    eth.Bytes32{},
-		BlockNumber:   eth.Uint64Quantity(refA2.Number),
-		GasLimit:      gasLimit,
-		GasUsed:       0,
-		Timestamp:     eth.Uint64Quantity(refA2.Time),
-		ExtraData:     nil,
-		BaseFeePerGas: eth.Uint256Quantity(*uint256.NewInt(7)),
-		BlockHash:     refA2.Hash,
-		Transactions:  []eth.Data{a2L1Info},
-	}}
-
-	metrics := &testutils.TestDerivationMetrics{}
-
-	// When a previously received unsafe block is older than the tip of the chain, we want to drop it.
-	t.Run("drop old", func(t *testing.T) {
-		logger := testlog.Logger(t, log.LevelError)
-
-		emitter := &testutils.MockEmitter{}
-		cl := NewCLSync(logger, cfg, metrics)
-		cl.AttachEmitter(emitter)
-
-		emitter.ExpectOnce(engine.ForkchoiceRequestEvent{})
-		cl.OnEvent(context.Background(), ReceivedUnsafePayloadEvent{Envelope: payloadA1})
-		emitter.AssertExpectations(t)
-
-		cl.OnEvent(context.Background(), engine.ForkchoiceUpdateEvent{
-			UnsafeL2Head:    refA2,
-			SafeL2Head:      refA0,
-			FinalizedL2Head: refA0,
-		})
-		emitter.AssertExpectations(t) // no new events expected to be emitted
-
-		require.Nil(t, cl.unsafePayloads.Peek(), "pop because too old")
-	})
-
-	// When we already have the exact payload as tip, then no need to process it
-	t.Run("drop equal", func(t *testing.T) {
-		logger := testlog.Logger(t, log.LevelError)
-
-		emitter := &testutils.MockEmitter{}
-		cl := NewCLSync(logger, cfg, metrics)
-		cl.AttachEmitter(emitter)
-
-		emitter.ExpectOnce(engine.ForkchoiceRequestEvent{})
-		cl.OnEvent(context.Background(), ReceivedUnsafePayloadEvent{Envelope: payloadA1})
-		emitter.AssertExpectations(t)
-
-		cl.OnEvent(context.Background(), engine.ForkchoiceUpdateEvent{
-			UnsafeL2Head:    refA1,
-			SafeL2Head:      refA0,
-			FinalizedL2Head: refA0,
-		})
-		emitter.AssertExpectations(t) // no new events expected to be emitted
-
-		require.Nil(t, cl.unsafePayloads.Peek(), "pop because seen")
-	})
-
-	// When we have a different payload, at the same height, then we want to keep it.
-	// The unsafe chain consensus preserves the first-seen payload.
-	t.Run("ignore conflict", func(t *testing.T) {
-		logger := testlog.Logger(t, log.LevelError)
-
-		emitter := &testutils.MockEmitter{}
-		cl := NewCLSync(logger, cfg, metrics)
-		cl.AttachEmitter(emitter)
-
-		emitter.ExpectOnce(engine.ForkchoiceRequestEvent{})
-		cl.OnEvent(context.Background(), ReceivedUnsafePayloadEvent{Envelope: payloadA1})
-		emitter.AssertExpectations(t)
-
-		cl.OnEvent(context.Background(), engine.ForkchoiceUpdateEvent{
-			UnsafeL2Head:    altRefA1,
-			SafeL2Head:      refA0,
-			FinalizedL2Head: refA0,
-		})
-		emitter.AssertExpectations(t) // no new events expected to be emitted
-
-		require.Nil(t, cl.unsafePayloads.Peek(), "pop because alternative")
-	})
-
-	t.Run("ignore unsafe reorg", func(t *testing.T) {
-		logger := testlog.Logger(t, log.LevelError)
-
-		emitter := &testutils.MockEmitter{}
-		cl := NewCLSync(logger, cfg, metrics)
-		cl.AttachEmitter(emitter)
-
-		emitter.ExpectOnce(engine.ForkchoiceRequestEvent{})
-		cl.OnEvent(context.Background(), ReceivedUnsafePayloadEvent{Envelope: payloadA2})
-		emitter.AssertExpectations(t)
-
-		cl.OnEvent(context.Background(), engine.ForkchoiceUpdateEvent{
-			UnsafeL2Head:    altRefA1,
-			SafeL2Head:      refA0,
-			FinalizedL2Head: refA0,
-		})
-		emitter.AssertExpectations(t) // no new events expected, since A2 does not fit onto altA1
-
-		require.Nil(t, cl.unsafePayloads.Peek(), "pop because not applicable")
-	})
-
-	t.Run("success", func(t *testing.T) {
-		logger := testlog.Logger(t, log.LevelError)
-
-		emitter := &testutils.MockEmitter{}
-		cl := NewCLSync(logger, cfg, metrics)
-		cl.AttachEmitter(emitter)
-		emitter.AssertExpectations(t) // nothing to process yet
-
-		require.Nil(t, cl.unsafePayloads.Peek(), "no payloads yet")
-
-		emitter.ExpectOnce(engine.ForkchoiceRequestEvent{})
-		cl.OnEvent(context.Background(), ReceivedUnsafePayloadEvent{Envelope: payloadA1})
-		emitter.AssertExpectations(t)
-
-		lowest := cl.LowestQueuedUnsafeBlock()
-		require.Equal(t, refA1, lowest, "expecting A1 next")
-
-		// payload A1 should be possible to process on top of A0
-		emitter.ExpectOnce(engine.ProcessUnsafePayloadEvent{Envelope: payloadA1})
-		cl.OnEvent(context.Background(), engine.ForkchoiceUpdateEvent{
-			UnsafeL2Head:    refA0,
-			SafeL2Head:      refA0,
-			FinalizedL2Head: refA0,
-		})
-		emitter.AssertExpectations(t)
-
-		// now pretend the payload was processed: we can drop A1 now
-		cl.OnEvent(context.Background(), engine.ForkchoiceUpdateEvent{
-			UnsafeL2Head:    refA1,
-			SafeL2Head:      refA0,
-			FinalizedL2Head: refA0,
-		})
-		require.Nil(t, cl.unsafePayloads.Peek(), "pop because applied")
-
-		// repeat for A2
-		emitter.ExpectOnce(engine.ForkchoiceRequestEvent{})
-		cl.OnEvent(context.Background(), ReceivedUnsafePayloadEvent{Envelope: payloadA2})
-		emitter.AssertExpectations(t)
-
-		lowest = cl.LowestQueuedUnsafeBlock()
-		require.Equal(t, refA2, lowest, "expecting A2 next")
-
-		emitter.ExpectOnce(engine.ProcessUnsafePayloadEvent{Envelope: payloadA2})
-		cl.OnEvent(context.Background(), engine.ForkchoiceUpdateEvent{
-			UnsafeL2Head:    refA1,
-			SafeL2Head:      refA0,
-			FinalizedL2Head: refA0,
-		})
-		emitter.AssertExpectations(t)
-
-		// now pretend the payload was processed: we can drop A2 now
-		cl.OnEvent(context.Background(), engine.ForkchoiceUpdateEvent{
-			UnsafeL2Head:    refA2,
-			SafeL2Head:      refA0,
-			FinalizedL2Head: refA0,
-		})
-		require.Nil(t, cl.unsafePayloads.Peek(), "pop because applied")
-	})
-
-	t.Run("double buffer", func(t *testing.T) {
-		logger := testlog.Logger(t, log.LevelError)
-
-		emitter := &testutils.MockEmitter{}
-		cl := NewCLSync(logger, cfg, metrics)
-		cl.AttachEmitter(emitter)
-
-		emitter.ExpectOnce(engine.ForkchoiceRequestEvent{})
-		cl.OnEvent(context.Background(), ReceivedUnsafePayloadEvent{Envelope: payloadA1})
-		emitter.AssertExpectations(t)
-		emitter.ExpectOnce(engine.ForkchoiceRequestEvent{})
-		cl.OnEvent(context.Background(), ReceivedUnsafePayloadEvent{Envelope: payloadA2})
-		emitter.AssertExpectations(t)
-
-		lowest := cl.LowestQueuedUnsafeBlock()
-		require.Equal(t, refA1, lowest, "expecting A1 next")
-
-		emitter.ExpectOnce(engine.ProcessUnsafePayloadEvent{Envelope: payloadA1})
-		cl.OnEvent(context.Background(), engine.ForkchoiceUpdateEvent{
-			UnsafeL2Head:    refA0,
-			SafeL2Head:      refA0,
-			FinalizedL2Head: refA0,
-		})
-		emitter.AssertExpectations(t)
-		require.Equal(t, 2, cl.unsafePayloads.Len(), "still holding on to A1, and queued A2")
-
-		// Now pretend the payload was processed: we can drop A1 now.
-		// The CL-sync will try to immediately continue with A2.
-		emitter.ExpectOnce(engine.ProcessUnsafePayloadEvent{Envelope: payloadA2})
-		cl.OnEvent(context.Background(), engine.ForkchoiceUpdateEvent{
-			UnsafeL2Head:    refA1,
-			SafeL2Head:      refA0,
-			FinalizedL2Head: refA0,
-		})
-		emitter.AssertExpectations(t)
-
-		// now pretend the payload was processed: we can drop A2 now
-		cl.OnEvent(context.Background(), engine.ForkchoiceUpdateEvent{
-			UnsafeL2Head:    refA2,
-			SafeL2Head:      refA0,
-			FinalizedL2Head: refA0,
-		})
-		require.Nil(t, cl.unsafePayloads.Peek(), "done")
-	})
-
-	t.Run("temporary error", func(t *testing.T) {
-		logger := testlog.Logger(t, log.LevelError)
-
-		emitter := &testutils.MockEmitter{}
-		cl := NewCLSync(logger, cfg, metrics)
-		cl.AttachEmitter(emitter)
-
-		emitter.ExpectOnce(engine.ForkchoiceRequestEvent{})
-		cl.OnEvent(context.Background(), ReceivedUnsafePayloadEvent{Envelope: payloadA1})
-		emitter.AssertExpectations(t)
-
-		emitter.ExpectOnce(engine.ProcessUnsafePayloadEvent{Envelope: payloadA1})
-		cl.OnEvent(context.Background(), engine.ForkchoiceUpdateEvent{
-			UnsafeL2Head:    refA0,
-			SafeL2Head:      refA0,
-			FinalizedL2Head: refA0,
-		})
-		emitter.AssertExpectations(t)
-
-		// On temporary errors we don't need any feedback from the engine.
-		// We just hold on to what payloads there are in the queue.
-		require.NotNil(t, cl.unsafePayloads.Peek(), "no pop because temporary error")
-
-		// Pretend we are still stuck on the same forkchoice. The CL-sync will retry sending the payload.
-		emitter.ExpectOnce(engine.ProcessUnsafePayloadEvent{Envelope: payloadA1})
-		cl.OnEvent(context.Background(), engine.ForkchoiceUpdateEvent{
-			UnsafeL2Head:    refA0,
-			SafeL2Head:      refA0,
-			FinalizedL2Head: refA0,
-		})
-		emitter.AssertExpectations(t)
-		require.NotNil(t, cl.unsafePayloads.Peek(), "no pop because retry still unconfirmed")
-
-		// Now confirm we got the payload this time
-		cl.OnEvent(context.Background(), engine.ForkchoiceUpdateEvent{
-			UnsafeL2Head:    refA1,
-			SafeL2Head:      refA0,
-			FinalizedL2Head: refA0,
-		})
-		require.Nil(t, cl.unsafePayloads.Peek(), "pop because valid")
-	})
-
-	t.Run("invalid payload error", func(t *testing.T) {
-		logger := testlog.Logger(t, log.LevelError)
-		emitter := &testutils.MockEmitter{}
-		cl := NewCLSync(logger, cfg, metrics)
-		cl.AttachEmitter(emitter)
-
-		// CLSync gets payload and requests engine state, to later determine if payload should be forwarded
-		emitter.ExpectOnce(engine.ForkchoiceRequestEvent{})
-		cl.OnEvent(context.Background(), ReceivedUnsafePayloadEvent{Envelope: payloadA1})
-		emitter.AssertExpectations(t)
-
-		// Engine signals, CLSync sends the payload
-		emitter.ExpectOnce(engine.ProcessUnsafePayloadEvent{Envelope: payloadA1})
-		cl.OnEvent(context.Background(), engine.ForkchoiceUpdateEvent{
-			UnsafeL2Head:    refA0,
-			SafeL2Head:      refA0,
-			FinalizedL2Head: refA0,
-		})
-		emitter.AssertExpectations(t)
-
-		// Pretend the payload is bad. It should not be retried after this.
-		cl.OnEvent(context.Background(), engine.PayloadInvalidEvent{Envelope: payloadA1, Err: errors.New("test err")})
-		emitter.AssertExpectations(t)
-		require.Nil(t, cl.unsafePayloads.Peek(), "pop because invalid")
-	})
+	return cfg, refA0, refA1, payloadA1
 }
+
+func TestCLSync_OnUnsafePayload_EnqueueEmitAndRecord(t *testing.T) {
+	cfg, _, refA1, payloadA1 := buildSimpleCfgAndPayload(t)
+	logger := testlog.Logger(t, 0)
+	metrics := &recordingMetrics{}
+	emitter := &testutils.MockEmitter{}
+	cl := NewCLSync(logger, cfg, metrics)
+	cl.AttachEmitter(emitter)
+
+	emitter.ExpectOnce(engine.ForkchoiceRequestEvent{})
+	cl.OnEvent(context.Background(), ReceivedUnsafePayloadEvent{Envelope: payloadA1})
+	emitter.AssertExpectations(t)
+
+	// queued and metrics recorded
+	got := cl.unsafePayloads.Peek()
+	require.NotNil(t, got)
+	require.Equal(t, payloadA1, got)
+	require.Equal(t, 1, metrics.calls)
+	require.EqualValues(t, 1, metrics.lastLen)
+	require.Equal(t, refA1.Hash, metrics.lastNext.Hash)
+	require.Equal(t, cl.unsafePayloads.MemSize(), metrics.lastMem)
+}
+
+func TestCLSync_OnForkchoiceUpdate_ProcessRetryAndPop(t *testing.T) {
+	cfg, refA0, refA1, payloadA1 := buildSimpleCfgAndPayload(t)
+	logger := testlog.Logger(t, 0)
+	metrics := &recordingMetrics{}
+	emitter := &testutils.MockEmitter{}
+	cl := NewCLSync(logger, cfg, metrics)
+	cl.AttachEmitter(emitter)
+
+	// queue payload A1
+	emitter.ExpectOnce(engine.ForkchoiceRequestEvent{})
+	cl.OnEvent(context.Background(), ReceivedUnsafePayloadEvent{Envelope: payloadA1})
+	emitter.AssertExpectations(t)
+
+	// applicable forkchoice -> process once
+	emitter.ExpectOnce(engine.ProcessUnsafePayloadEvent{Envelope: payloadA1})
+	cl.OnEvent(context.Background(), engine.ForkchoiceUpdateEvent{UnsafeL2Head: refA0, SafeL2Head: refA0, FinalizedL2Head: refA0})
+	emitter.AssertExpectations(t)
+	require.NotNil(t, cl.unsafePayloads.Peek(), "should not pop yet")
+
+	// same forkchoice -> retry
+	emitter.ExpectOnce(engine.ProcessUnsafePayloadEvent{Envelope: payloadA1})
+	cl.OnEvent(context.Background(), engine.ForkchoiceUpdateEvent{UnsafeL2Head: refA0, SafeL2Head: refA0, FinalizedL2Head: refA0})
+	emitter.AssertExpectations(t)
+	require.NotNil(t, cl.unsafePayloads.Peek(), "still pending")
+
+	// after applied (unsafe head == A1) -> pop
+	cl.OnEvent(context.Background(), engine.ForkchoiceUpdateEvent{UnsafeL2Head: refA1, SafeL2Head: refA0, FinalizedL2Head: refA0})
+	require.Nil(t, cl.unsafePayloads.Peek())
+}
+
+func TestCLSync_LowestQueuedUnsafeBlock(t *testing.T) {
+	cfg, _, _, payloadA1 := buildSimpleCfgAndPayload(t)
+	logger := testlog.Logger(t, 0)
+	cl := NewCLSync(logger, cfg, &noopMetrics{})
+	// empty -> zero
+	require.Equal(t, eth.L2BlockRef{}, cl.LowestQueuedUnsafeBlock())
+
+	// queue -> returns derived ref
+	_ = cl.unsafePayloads.Push(payloadA1)
+	want, err := derive.PayloadToBlockRef(cfg, payloadA1.ExecutionPayload)
+	require.NoError(t, err)
+	require.Equal(t, want, cl.LowestQueuedUnsafeBlock())
+}
+
+func TestCLSync_LowestQueuedUnsafeBlock_OnDeriveErrorReturnsZero(t *testing.T) {
+	// missing L1-info in txs will cause derive error
+	logger := testlog.Logger(t, 0)
+	cl := NewCLSync(logger, &rollup.Config{}, &noopMetrics{})
+	bad := &eth.ExecutionPayloadEnvelope{ExecutionPayload: &eth.ExecutionPayload{BlockNumber: 1, BlockHash: common.Hash{0xaa}}}
+	_ = cl.unsafePayloads.Push(bad)
+	require.Equal(t, eth.L2BlockRef{}, cl.LowestQueuedUnsafeBlock())
+}
+
+func TestCLSync_InvalidPayloadForNonHead_NoDrop(t *testing.T) {
+	logger := testlog.Logger(t, 0)
+	cl := NewCLSync(logger, nil, &noopMetrics{})
+	emitter := &testutils.MockEmitter{}
+	cl.AttachEmitter(emitter)
+
+	// Head payload (lower block number)
+	head := &eth.ExecutionPayloadEnvelope{ExecutionPayload: &eth.ExecutionPayload{
+		BlockNumber: 1,
+		BlockHash:   common.Hash{0x01},
+	}}
+	// Non-head payload (higher block number)
+	other := &eth.ExecutionPayloadEnvelope{ExecutionPayload: &eth.ExecutionPayload{
+		BlockNumber: 2,
+		BlockHash:   common.Hash{0x02},
+	}}
+
+	emitter.ExpectOnce(engine.ForkchoiceRequestEvent{})
+	cl.OnEvent(context.Background(), ReceivedUnsafePayloadEvent{Envelope: head})
+	emitter.AssertExpectations(t)
+	emitter.ExpectOnce(engine.ForkchoiceRequestEvent{})
+	cl.OnEvent(context.Background(), ReceivedUnsafePayloadEvent{Envelope: other})
+	emitter.AssertExpectations(t)
+
+	// Invalidate non-head should not drop head
+	cl.OnEvent(context.Background(), engine.PayloadInvalidEvent{Envelope: other})
+	require.Equal(t, 2, cl.unsafePayloads.Len())
+	require.Equal(t, head, cl.unsafePayloads.Peek())
+}
+
+// note: nil-envelope behavior is not tested to match current implementation

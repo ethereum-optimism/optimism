@@ -71,7 +71,7 @@ func (n *L2ELNode) Start() {
 	}
 
 	if n.authProxy == nil {
-		n.authProxy = tcpproxy.New(n.logger)
+		n.authProxy = tcpproxy.New(n.logger.New("proxy", "l2el-auth"))
 		n.p.Require().NoError(n.authProxy.Start())
 		n.p.Cleanup(func() {
 			n.authProxy.Close()
@@ -79,7 +79,7 @@ func (n *L2ELNode) Start() {
 		n.authRPC = "ws://" + n.authProxy.Addr()
 	}
 	if n.userProxy == nil {
-		n.userProxy = tcpproxy.New(n.logger)
+		n.userProxy = tcpproxy.New(n.logger.New("proxy", "l2el-user"))
 		n.p.Require().NoError(n.userProxy.Start())
 		n.p.Cleanup(func() {
 			n.userProxy.Close()
@@ -102,8 +102,8 @@ func (n *L2ELNode) Start() {
 	require.NoError(err)
 	require.NoError(l2Geth.Node.Start())
 	n.l2Geth = l2Geth
-	n.authProxy.SetUpstream(proxyAddr(require, l2Geth.AuthRPC().RPC()))
-	n.userProxy.SetUpstream(proxyAddr(require, l2Geth.UserRPC().RPC()))
+	n.authProxy.SetUpstream(ProxyAddr(require, l2Geth.AuthRPC().RPC()))
+	n.userProxy.SetUpstream(ProxyAddr(require, l2Geth.UserRPC().RPC()))
 }
 
 func (n *L2ELNode) Stop() {
@@ -119,7 +119,7 @@ func (n *L2ELNode) Stop() {
 	n.l2Geth = nil
 }
 
-func proxyAddr(require *testreq.Assertions, urlStr string) string {
+func ProxyAddr(require *testreq.Assertions, urlStr string) string {
 	u, err := url.Parse(urlStr)
 	require.NoError(err)
 	return net.JoinHostPort(u.Hostname(), u.Port())

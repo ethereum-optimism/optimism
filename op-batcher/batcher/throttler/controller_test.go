@@ -21,7 +21,7 @@ const (
 	TestAlwaysBlockSize   = 130_000 // 130KB block size limit (always enforced)
 
 	// Multiplier for gradual controllers (linear, quadratic) - defines max throttling point
-	TestThresholdMultiplier = 2.0 // 2x threshold = maximum throttling point (2MB)
+	TestMaxThreshold = 2_000_000 // 2x threshold = maximum throttling point (2MB)
 )
 
 // Test load scenarios - All relative to TestThresholdBytes for easy understanding
@@ -89,10 +89,10 @@ var (
 		return NewStepStrategy(TestThresholdBytes)
 	}
 	testLinearStrategy = func(t *testing.T) *LinearStrategy {
-		return NewLinearStrategy(TestThresholdBytes, TestThresholdMultiplier*TestThresholdBytes, newTestLogger(t))
+		return NewLinearStrategy(TestThresholdBytes, TestMaxThreshold, newTestLogger(t))
 	}
 	testQuadraticStrategy = func(t *testing.T) *QuadraticStrategy {
-		return NewQuadraticStrategy(TestThresholdBytes, TestThresholdMultiplier*TestThresholdBytes, newTestLogger(t))
+		return NewQuadraticStrategy(TestThresholdBytes, TestMaxThreshold, newTestLogger(t))
 	}
 	testPIDStrategy = func(t *testing.T) *PIDStrategy {
 		return NewPIDStrategy(TestThresholdBytes, TestPIDConfig)
@@ -178,11 +178,11 @@ func TestControllerFactory(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			controller, err := factory.CreateController(
 				tt.controllerType, config.ThrottleParams{
-					Threshold:           TestThresholdBytes,
-					TxSize:              TestThrottleTxSize,
-					BlockSize:           TestThrottleBlockSize,
-					AlwaysBlockSize:     TestAlwaysBlockSize,
-					ThresholdMultiplier: TestThresholdMultiplier,
+					Threshold:       TestThresholdBytes,
+					MaxThreshold:    TestMaxThreshold,
+					TxSize:          TestThrottleTxSize,
+					BlockSize:       TestThrottleBlockSize,
+					AlwaysBlockSize: TestAlwaysBlockSize,
 				}, tt.pidConfig)
 
 			if tt.expectError {
@@ -317,11 +317,11 @@ func TestControllerTypeConsistency(t *testing.T) {
 		t.Run(string(tc.controllerType), func(t *testing.T) {
 			controller, err := factory.CreateController(
 				tc.controllerType, config.ThrottleParams{
-					Threshold:           TestThresholdBytes,
-					TxSize:              TestThrottleTxSize,
-					BlockSize:           TestThrottleBlockSize,
-					AlwaysBlockSize:     TestAlwaysBlockSize,
-					ThresholdMultiplier: TestThresholdMultiplier,
+					Threshold:       TestThresholdBytes,
+					MaxThreshold:    TestMaxThreshold,
+					TxSize:          TestThrottleTxSize,
+					BlockSize:       TestThrottleBlockSize,
+					AlwaysBlockSize: TestAlwaysBlockSize,
 				}, tc.pidConfig)
 			if err != nil {
 				t.Fatalf("unexpected error: %v", err)

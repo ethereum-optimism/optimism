@@ -263,6 +263,7 @@ func runCrossLayerUserTest(gt *testing.T, test hardforkScheduledTest) {
 	alice.L1.ActCheckReceiptStatusOfLastTx(true)(t)
 
 	// regular Deposit, in new L1 block
+	alice.L1.ActResetTxOpts(t)
 	alice.ActDeposit(t)
 	miner.ActL1StartBlock(12)(t)
 	miner.ActL1IncludeTx(alice.Address())(t)

@@ -4,6 +4,8 @@ import (
 	"context"
 	"sync"
 
+	"github.com/ethereum-optimism/optimism/op-service/testutils/tcpproxy"
+
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum/go-ethereum/log"
 
@@ -32,6 +34,8 @@ type Supervisor struct {
 	logger log.Logger
 
 	service *supervisor.SupervisorService
+
+	proxy *tcpproxy.Proxy
 }
 
 var _ stack.Lifecycle = (*Supervisor)(nil)
@@ -49,12 +53,6 @@ func (s *Supervisor) hydrate(sys stack.ExtensibleSystem) {
 	}))
 }
 
-func (s *Supervisor) rememberPort() {
-	port, err := s.service.Port()
-	s.p.Require().NoError(err)
-	s.cfg.RPC.ListenPort = port
-}
-
 func (s *Supervisor) Start() {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -62,6 +60,16 @@ func (s *Supervisor) Start() {
 		s.logger.Warn("Supervisor already started")
 		return
 	}
+
+	if s.proxy == nil {
+		s.proxy = tcpproxy.New(s.logger.New("proxy", "supervisor"))
+		s.p.Require().NoError(s.proxy.Start())
+		s.p.Cleanup(func() {
+			s.proxy.Close()
+		})
+		s.userRPC = "http://" + s.proxy.Addr()
+	}
+
 	super, err := supervisor.SupervisorFromConfig(context.Background(), s.cfg, s.logger)
 	s.p.Require().NoError(err)
 
@@ -70,10 +78,7 @@ func (s *Supervisor) Start() {
 	err = super.Start(context.Background())
 	s.p.Require().NoError(err, "supervisor failed to start")
 	s.logger.Info("Started supervisor")
-
-	s.userRPC = super.RPC()
-
-	s.rememberPort()
+	s.proxy.SetUpstream(ProxyAddr(s.p.Require(), super.RPC()))
 }
 
 func (s *Supervisor) Stop() {
@@ -156,7 +161,7 @@ func WithManagedBySupervisor(l2CLID stack.L2CLNodeID, supervisorID stack.Supervi
 
 		l2CL, ok := orch.l2CLs.Get(l2CLID)
 		require.True(ok, "looking for L2 CL node to connect to supervisor")
-		interopEndpoint, secret := l2CL.opNode.InteropRPC()
+		interopEndpoint, secret := l2CL.InteropRPC()
 
 		s, ok := orch.supervisors.Get(supervisorID)
 		require.True(ok, "looking for supervisor")

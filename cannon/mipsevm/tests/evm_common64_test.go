@@ -154,7 +154,7 @@ func TestEVM_SingleStep_Shift64(t *testing.T) {
 
 	pc := Word(0x0)
 	rdReg := uint32(8)
-	initState := func(tt testCase, state *multithreaded.State, vm VersionedVMTestCase, r *testutil.RandHelper) {
+	initState := func(t require.TestingT, tt testCase, state *multithreaded.State, vm VersionedVMTestCase, r *testutil.RandHelper) {
 		rtReg := uint32(18)
 		insn := rtReg<<16 | rdReg<<11 | tt.sa<<6 | tt.funct
 		state.GetRegistersRef()[rdReg] = tt.rd
@@ -162,7 +162,7 @@ func TestEVM_SingleStep_Shift64(t *testing.T) {
 		testutil.StoreInstruction(state.GetMemory(), pc, insn)
 	}
 
-	setExpectations := func(tt testCase, expected *mtutil.ExpectedState, vm VersionedVMTestCase) ExpectedExecResult {
+	setExpectations := func(t require.TestingT, tt testCase, expected *mtutil.ExpectedState, vm VersionedVMTestCase) ExpectedExecResult {
 		expected.ExpectStep()
 		expected.ActiveThread().Registers[rdReg] = tt.expectRes
 
@@ -548,12 +548,12 @@ func TestEVM_SingleStep_DCloDClz64(t *testing.T) {
 		return features.SupportDclzDclo
 	}), "dclz/dclo feature not tested")
 
-	initState := func(tt testCase, state *multithreaded.State, vm VersionedVMTestCase, r *testutil.RandHelper) {
+	initState := func(t require.TestingT, tt testCase, state *multithreaded.State, vm VersionedVMTestCase, r *testutil.RandHelper) {
 		testutil.StoreInstruction(state.GetMemory(), state.GetPC(), insnFn(tt))
 		state.GetRegistersRef()[rsReg] = tt.rs
 	}
 
-	setExpectations := func(tt testCase, expected *mtutil.ExpectedState, vm VersionedVMTestCase) ExpectedExecResult {
+	setExpectations := func(t require.TestingT, tt testCase, expected *mtutil.ExpectedState, vm VersionedVMTestCase) ExpectedExecResult {
 		features := versions.FeaturesForVersion(vm.Version)
 		if features.SupportDclzDclo {
 			expected.ExpectStep()

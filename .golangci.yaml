@@ -1,0 +1,37 @@
+linters:
+  enable:
+    - goimports
+    - sqlclosecheck
+    - bodyclose
+    - asciicheck
+    - misspell
+    - errorlint
+    - bodyclose
+
+    # Only enabled in specific cases. See settings and exclusions below
+    - exhaustruct
+    - err113
+
+    # Enabled by default but be explicit so it's easy to see what we're running
+    - errcheck
+    - gosimple
+    - govet
+    - ineffassign
+    - staticcheck
+    - unused
+linters-settings:
+  # Require specifying all fields in op-deployer's OPCM input and output structs
+  exhaustruct:
+    include:
+      - '.*op-deployer/pkg/deployer/opcm\..*(Input|Output)$'
+issues:
+  exclude:
+    - 'errors.As'
+    - 'errors.Is'
+  exclude-rules:
+    # Only apply err113 to op-program/client
+    - path-except: 'op-program/client/.*'
+      linters:
+        - err113
+run:
+  timeout: 5m
