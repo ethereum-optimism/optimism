@@ -87,9 +87,6 @@ func (o *Orchestrator) hydrateTestSequencersMaybe(sys stack.ExtensibleSystem) {
 		chainIDs = append(chainIDs, chainID)
 		jwt = l2.JWT
 	}
-	// Also add l1 chainID for L1 control client
-	l1ChainID, _ := eth.ChainIDFromString(o.env.Env.L1.ID)
-	chainIDs = append(chainIDs, l1ChainID)
 
 	opts := []client.RPCOption{
 		client.WithGethRPCOptions(rpc.WithHTTPAuth(gn.NewJWTAuth(common.HexToHash(jwt)))),
