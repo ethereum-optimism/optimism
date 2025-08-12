@@ -62,20 +62,9 @@ func (g *FaultDisputeGame) Attack(eoa *dsl.EOA, claimIdx int64, newClaim common.
 
 	attackCall := g.game.Attack(claim.Value, big.NewInt(claimIdx), newClaim)
 
-	// TODO: Debug why we need this retry
-	g.require.Eventually(func() bool {
-		receipt, err := contract.MaybeWrite(eoa, attackCall, txplan.WithValue(requiredBond), txplan.WithGasRatio(2))
-		if err != nil {
-			err := errutil.TryAddRevertReason(err)
-			g.t.Logf("Attack tx failed: %v", err)
-			return false
-		}
-		if receipt.Status != types.ReceiptStatusSuccessful {
-			g.t.Logf("Attack tx not successful: %v", receipt.Status)
-			return false
-		}
-		return true
-	}, 5*time.Minute, 5*time.Second)
+	receipt, err := contract.MaybeWrite(eoa, attackCall, txplan.WithValue(requiredBond), txplan.WithGasRatio(2))
+	g.t.Require().NoErrorf(err, "error sending tx: %v", errutil.TryAddRevertReason(err))
+	g.t.Require().Equal(receipt.Status, types.ReceiptStatusSuccessful)
 }
 
 func (g *FaultDisputeGame) newClaim(claimIndex int64, claim bindings.Claim) *Claim {
