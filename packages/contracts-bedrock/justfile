@@ -82,11 +82,11 @@ prepare-upgrade-env *ARGS : build-go-ffi
   export FORK_RPC_URL=$ETH_RPC_URL
   export FORK_TEST=true
   {{ARGS}} \
-  # --match-path "test/{L1,dispute,cannon}/**"
+  --match-path "test/{L1,dispute,cannon}/**"
 
 # Runs upgrade path variant of contract tests.
 test-upgrade *ARGS:
-  just prepare-upgrade-env "just test-dev {{ARGS}}"
+  just prepare-upgrade-env "forge test {{ARGS}}"
 
 test-upgrade-rerun *ARGS: build-go-ffi
   just test-upgrade {{ARGS}} --rerun -vvvv
