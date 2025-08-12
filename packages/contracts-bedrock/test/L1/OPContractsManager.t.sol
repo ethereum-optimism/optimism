@@ -19,6 +19,7 @@ import { StandardConstants } from "scripts/deploy/StandardConstants.sol";
 // Libraries
 import { EIP1967Helper } from "test/mocks/EIP1967Helper.sol";
 import { Blueprint } from "src/libraries/Blueprint.sol";
+import { LibString } from "@solady/utils/LibString.sol";
 import { ForgeArtifacts } from "scripts/libraries/ForgeArtifacts.sol";
 import { Bytes } from "src/libraries/Bytes.sol";
 import { GameType, Duration, Hash, Claim } from "src/dispute/lib/LibUDT.sol";
@@ -2051,26 +2052,7 @@ contract OPContractsManager_Version_Test is OPContractsManager_TestInit {
         // Version should be non-empty and follow semver format
         assertTrue(bytes(version).length > 0, "version should not be empty");
         // Check it contains dots as expected in semver (e.g., "2.6.0")
-        assertTrue(_contains(version, "."), "version should contain dots for semver format");
-    }
-
-    /// @notice Helper to check if a string contains a substring.
-    function _contains(string memory _str, string memory _substr) internal pure returns (bool) {
-        bytes memory strBytes = bytes(_str);
-        bytes memory substrBytes = bytes(_substr);
-        if (substrBytes.length > strBytes.length) return false;
-
-        for (uint256 i = 0; i <= strBytes.length - substrBytes.length; i++) {
-            bool found = true;
-            for (uint256 j = 0; j < substrBytes.length; j++) {
-                if (strBytes[i + j] != substrBytes[j]) {
-                    found = false;
-                    break;
-                }
-            }
-            if (found) return true;
-        }
-        return false;
+        assertTrue(LibString.contains(version, "."), "version should contain dots for semver format");
     }
 }
 
@@ -2090,13 +2072,11 @@ contract OPContractsManager_SetRC_Test is OPContractsManager_Upgrade_Harness {
 
         opcm.setRC(_isRC);
         assertTrue(opcm.isRC() == _isRC, "isRC should be true");
-        bytes memory releaseBytes = bytes(opcm.l1ContractsRelease());
+        string memory release = opcm.l1ContractsRelease();
         if (_isRC) {
-            assertEq(Bytes.slice(releaseBytes, releaseBytes.length - 3, 3), "-rc", "release should end with '-rc'");
+            assertTrue(LibString.endsWith(release, "-rc"), "release should end with '-rc'");
         } else {
-            assertNotEq(
-                Bytes.slice(releaseBytes, releaseBytes.length - 3, 3), "-rc", "release should not end with '-rc'"
-            );
+            assertFalse(LibString.endsWith(release, "-rc"), "release should not end with '-rc'");
         }
     }
 
