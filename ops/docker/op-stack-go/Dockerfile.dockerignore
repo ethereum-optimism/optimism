@@ -7,6 +7,11 @@
 !/op-batcher
 !/op-chain-ops
 !/op-deployer
+!/op-up
+!/op-devstack
+!/kurtosis-devnet
+!/op-e2e
+!/op-acceptance-tests/tests/interop
 !/op-dripper
 !/op-challenger
 !/packages/contracts-bedrock/snapshots
@@ -30,4 +35,3 @@
 
 **/bin
 **/testdata
-**/tests

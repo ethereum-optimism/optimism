@@ -266,6 +266,14 @@ target "op-deployer" {
   tags = [for tag in split(",", IMAGE_TAGS) : "${REGISTRY}/${REPOSITORY}/op-deployer:${tag}"]
 }
 
+target "op-up" {
+  dockerfile = "ops/docker/op-stack-go/Dockerfile"
+  context = "."
+  target = "op-up-target"
+  platforms = split(",", PLATFORMS)
+  tags = [for tag in split(",", IMAGE_TAGS) : "${REGISTRY}/${REPOSITORY}/op-up:${tag}"]
+}
+
 target "op-dripper" {
   dockerfile = "ops/docker/op-stack-go/Dockerfile"
   context = "."

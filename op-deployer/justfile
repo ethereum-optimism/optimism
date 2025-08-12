@@ -1,3 +1,5 @@
+OP_DEPLOYER_ARTIFACTS := join(source_directory(), 'pkg/deployer/artifacts/forge-artifacts/artifacts.tgz')
+
 build:
     go build -o bin/op-deployer cmd/op-deployer/main.go
 
@@ -8,8 +10,8 @@ test args='./...': build-contracts
     go test -v {{args}}
 
 copy-contract-artifacts:
-    rm -f ./pkg/deployer/artifacts/forge-artifacts/artifacts.tgz
-    tar -cvzf ./pkg/deployer/artifacts/forge-artifacts/artifacts.tgz -C ../packages/contracts-bedrock/forge-artifacts --exclude="*.t.sol" .
+    rm -f {{ OP_DEPLOYER_ARTIFACTS }}
+    tar -cvzf {{ OP_DEPLOYER_ARTIFACTS }} -C ../packages/contracts-bedrock/forge-artifacts --exclude="*.t.sol" .
 
 # ======================================
 # Deployment and Verification Utilities

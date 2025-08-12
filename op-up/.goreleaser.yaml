@@ -21,9 +21,6 @@ builds:
     goarch:
       - amd64
       - arm64
-    ignore:
-      - goos: linux
-        goarch: arm64
     mod_timestamp: "{{ .CommitTimestamp }}"
 
 archives:
@@ -32,20 +29,6 @@ archives:
     name_template: "op-{{ .Version }}-{{ tolower .Os }}-{{ .Arch }}"
     wrap_in_directory: true
     files: []
-
-dockers:
-  - id: default
-    goos: linux
-    goarch: amd64
-    dockerfile: Dockerfile.default
-    image_templates:
-      - "us-docker.pkg.dev/oplabs-tools-artifacts/images/{{ .ProjectName }}:{{ .Tag }}"
-  - id: minimal
-    goos: linux
-    goarch: amd64
-    dockerfile: Dockerfile.minimal
-    image_templates:
-      - "us-docker.pkg.dev/oplabs-tools-artifacts/images/{{ .ProjectName }}:{{ .Tag }}-minimal"
 
 changelog:
   sort: asc

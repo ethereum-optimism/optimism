@@ -1,17 +1,6 @@
-BINARY := "op-up"
+import '../justfiles/go.just'
+import '../op-deployer/justfile'
 
-# Default target
-default: build
-
-# Build target
-build: artifacts
-    mkdir -p bin
-    go build -o ./bin/{{ BINARY }} .
-
-# Build dependency
-artifacts:
-    just ../op-deployer/copy-contract-artifacts
-
-# Clean target
-clean:
-    rm -f {{ BINARY }}
+op-up:
+  test -f {{ OP_DEPLOYER_ARTIFACTS }} || just copy-contract-artifacts
+  just go_build './bin/op' '.'
