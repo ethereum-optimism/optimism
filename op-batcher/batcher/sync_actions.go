@@ -54,7 +54,7 @@ func isZero[T comparable](x T) bool {
 func computeSyncActions[T channelStatuser](
 	newSyncStatus eth.SyncStatus,
 	prevCurrentL1 eth.L1BlockRef,
-	blocks queue.Queue[BlockWithDABytes],
+	blocks queue.Queue[SizedBlock],
 	channels []T,
 	l log.Logger,
 ) (syncActions, bool) {

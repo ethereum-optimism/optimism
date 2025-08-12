@@ -36,7 +36,7 @@ type channelManager struct {
 	outFactory ChannelOutFactory
 
 	// All blocks which are not yet safe
-	blocks queue.Queue[BlockWithDABytes]
+	blocks queue.Queue[SizedBlock]
 	// blockCursor is an index into blocks queue. It points at the next block
 	// to build a channel with. blockCursor = len(blocks) is reserved for when
 	// there are no blocks ready to build with.
@@ -485,7 +485,7 @@ func (s *channelManager) AddL2Block(block *types.Block) error {
 		return ErrReorg
 	}
 
-	b := ToBlockWithDABytes(block)
+	b := ToSizedBlock(block)
 	s.metr.RecordL2BlockInPendingQueue(b.RawSize(), b.EstimatedDABytes())
 	s.blocks.Enqueue(b)
 	s.tip = block.Hash()

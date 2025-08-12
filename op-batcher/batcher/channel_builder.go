@@ -65,7 +65,7 @@ type ChannelBuilder struct {
 	// current channel
 	co derive.ChannelOut
 	// list of blocks in the channel. Saved in case the channel must be rebuilt
-	blocks queue.Queue[BlockWithDABytes]
+	blocks queue.Queue[SizedBlock]
 	// latestL1Origin is the latest L1 origin of all the L2 blocks that have been added to the channel
 	latestL1Origin eth.BlockID
 	// oldestL1Origin is the oldest L1 origin of all the L2 blocks that have been added to the channel
@@ -135,7 +135,7 @@ func (c *ChannelBuilder) OutputBytes() int {
 
 // Blocks returns a backup list of all blocks that were added to the channel. It
 // can be used in case the channel needs to be rebuilt.
-func (c *ChannelBuilder) Blocks() []BlockWithDABytes {
+func (c *ChannelBuilder) Blocks() []SizedBlock {
 	return c.blocks
 }
 
@@ -170,7 +170,7 @@ func (c *ChannelBuilder) OldestL2() eth.BlockID {
 // first transaction for subsequent use by the caller.
 //
 // Call OutputFrames() afterwards to create frames.
-func (c *ChannelBuilder) AddBlock(block BlockWithDABytes) (*derive.L1BlockInfo, error) {
+func (c *ChannelBuilder) AddBlock(block SizedBlock) (*derive.L1BlockInfo, error) {
 	if c.IsFull() {
 		return nil, c.FullErr()
 	}

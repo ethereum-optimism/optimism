@@ -165,7 +165,7 @@ func (c *channel) CheckTimeout(l1BlockNum uint64) {
 	c.channelBuilder.CheckTimeout(l1BlockNum)
 }
 
-func (c *channel) AddBlock(block BlockWithDABytes) (*derive.L1BlockInfo, error) {
+func (c *channel) AddBlock(block SizedBlock) (*derive.L1BlockInfo, error) {
 	return c.channelBuilder.AddBlock(block)
 }
 

@@ -4,21 +4,21 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 )
 
-type BlockWithDABytes struct {
+type SizedBlock struct {
 	*types.Block
 	rawSize          uint64
 	estimatedDABytes uint64
 }
 
-func ToBlockWithDABytes(block *types.Block) BlockWithDABytes {
-	b := BlockWithDABytes{Block: block}
+func ToSizedBlock(block *types.Block) SizedBlock {
+	b := SizedBlock{Block: block}
 	// populate caches
 	b.RawSize()
 	b.EstimatedDABytes()
 	return b
 }
 
-func (b *BlockWithDABytes) RawSize() uint64 {
+func (b *SizedBlock) RawSize() uint64 {
 	if b.rawSize == 0 {
 		b.rawSize = uint64(70)
 		for _, tx := range b.Transactions() {
@@ -33,7 +33,7 @@ func (b *BlockWithDABytes) RawSize() uint64 {
 	return b.rawSize
 }
 
-func (b *BlockWithDABytes) EstimatedDABytes() uint64 {
+func (b *SizedBlock) EstimatedDABytes() uint64 {
 	if b.estimatedDABytes == 0 {
 		daSize := uint64(70) // estimated overhead of batch metadata
 		for _, tx := range b.Transactions() {

@@ -87,7 +87,7 @@ func ChannelManagerReturnsErrReorg(t *testing.T, batchType uint) {
 	require.NoError(t, m.AddL2Block(c))
 	require.ErrorIs(t, m.AddL2Block(x), ErrReorg)
 
-	require.Equal(t, queue.Queue[BlockWithDABytes]{ToBlockWithDABytes(a), ToBlockWithDABytes(b), ToBlockWithDABytes(c)}, m.blocks)
+	require.Equal(t, queue.Queue[SizedBlock]{ToSizedBlock(a), ToSizedBlock(b), ToSizedBlock(c)}, m.blocks)
 }
 
 // ChannelManagerReturnsErrReorgWhenDrained ensures that the channel manager
@@ -178,7 +178,7 @@ func ChannelManager_Clear(t *testing.T, batchType uint) {
 	}
 
 	// Artificially pump up some metrics which need to be cleared
-	A := ToBlockWithDABytes(a)
+	A := ToSizedBlock(a)
 	m.metr.RecordL2BlockInPendingQueue(A.RawSize(), A.EstimatedDABytes())
 	require.NotZero(m.metr.PendingDABytes())
 
@@ -362,7 +362,7 @@ func TestChannelManager_TxData(t *testing.T) {
 			// Seed channel manager with a block
 			rng := rand.New(rand.NewSource(99))
 			blockA := derivetest.RandomL2BlockWithChainId(rng, 200, defaultTestRollupConfig.L2ChainID)
-			m.blocks = queue.Queue[BlockWithDABytes]{BlockWithDABytes{Block: blockA}}
+			m.blocks = queue.Queue[SizedBlock]{SizedBlock{Block: blockA}}
 
 			// Call TxData a first time to trigger blocks->channels pipeline
 			_, err := m.TxData(eth.BlockID{}, false, false, false)
@@ -383,7 +383,7 @@ func TestChannelManager_TxData(t *testing.T) {
 			// we get some data to submit
 			var data txData
 			for {
-				m.blocks.Enqueue(BlockWithDABytes{Block: blockA})
+				m.blocks.Enqueue(SizedBlock{Block: blockA})
 				data, err = m.TxData(eth.BlockID{}, false, false, false)
 				if err == nil && data.Len() > 0 {
 					break
@@ -413,12 +413,12 @@ func TestChannelManager_handleChannelInvalidated(t *testing.T) {
 
 	// Seed channel manager with blocks
 	rng := rand.New(rand.NewSource(99))
-	blockA := ToBlockWithDABytes(derivetest.RandomL2BlockWithChainId(rng, 10, defaultTestRollupConfig.L2ChainID))
-	blockB := ToBlockWithDABytes(derivetest.RandomL2BlockWithChainId(rng, 10, defaultTestRollupConfig.L2ChainID))
+	blockA := ToSizedBlock(derivetest.RandomL2BlockWithChainId(rng, 10, defaultTestRollupConfig.L2ChainID))
+	blockB := ToSizedBlock(derivetest.RandomL2BlockWithChainId(rng, 10, defaultTestRollupConfig.L2ChainID))
 
 	// This is the snapshot of channel manager state we want to reinstate
 	// when we requeue
-	stateSnapshot := queue.Queue[BlockWithDABytes]{blockA, blockB}
+	stateSnapshot := queue.Queue[SizedBlock]{blockA, blockB}
 	m.blocks = stateSnapshot
 	require.Empty(t, m.channelQueue)
 	require.Equal(t, metrics.ChannelQueueLength, 0)
@@ -490,24 +490,24 @@ func TestChannelManager_handleChannelInvalidated(t *testing.T) {
 func TestChannelManager_PruneBlocks(t *testing.T) {
 	cfg := channelManagerTestConfig(100, derive.SingularBatchType)
 	cfg.InitNoneCompressor()
-	a := BlockWithDABytes{Block: types.NewBlock(&types.Header{
+	a := SizedBlock{Block: types.NewBlock(&types.Header{
 		Number: big.NewInt(0),
 	}, nil, nil, nil, types.DefaultBlockConfig)}
-	b := BlockWithDABytes{Block: types.NewBlock(&types.Header{
+	b := SizedBlock{Block: types.NewBlock(&types.Header{
 		Number:     big.NewInt(1),
 		ParentHash: a.Hash(),
 	}, nil, nil, nil, types.DefaultBlockConfig)}
-	c := BlockWithDABytes{Block: types.NewBlock(&types.Header{
+	c := SizedBlock{Block: types.NewBlock(&types.Header{
 		Number:     big.NewInt(2),
 		ParentHash: b.Hash(),
 	}, nil, nil, nil, types.DefaultBlockConfig)}
 
 	type testCase struct {
 		name                          string
-		initialQ                      queue.Queue[BlockWithDABytes]
+		initialQ                      queue.Queue[SizedBlock]
 		initialBlockCursor            int
 		numBlocksToPrune              int
-		expectedQ                     queue.Queue[BlockWithDABytes]
+		expectedQ                     queue.Queue[SizedBlock]
 		expectedBlockCursor           int
 		expectedPendingBytesDecreases bool
 	}
@@ -515,56 +515,56 @@ func TestChannelManager_PruneBlocks(t *testing.T) {
 	for _, tc := range []testCase{
 		{
 			name:                "[A,B,C]*+1->[B,C]*", // * denotes the cursor
-			initialQ:            queue.Queue[BlockWithDABytes]{a, b, c},
+			initialQ:            queue.Queue[SizedBlock]{a, b, c},
 			initialBlockCursor:  3,
 			numBlocksToPrune:    1,
-			expectedQ:           queue.Queue[BlockWithDABytes]{b, c},
+			expectedQ:           queue.Queue[SizedBlock]{b, c},
 			expectedBlockCursor: 2,
 		},
 		{
 			name:                "[A,B,C*]+1->[B,C*]",
-			initialQ:            queue.Queue[BlockWithDABytes]{a, b, c},
+			initialQ:            queue.Queue[SizedBlock]{a, b, c},
 			initialBlockCursor:  2,
 			numBlocksToPrune:    1,
-			expectedQ:           queue.Queue[BlockWithDABytes]{b, c},
+			expectedQ:           queue.Queue[SizedBlock]{b, c},
 			expectedBlockCursor: 1,
 		},
 		{
 			name:                "[A,B,C]*+2->[C]*",
-			initialQ:            queue.Queue[BlockWithDABytes]{a, b, c},
+			initialQ:            queue.Queue[SizedBlock]{a, b, c},
 			initialBlockCursor:  3,
 			numBlocksToPrune:    2,
-			expectedQ:           queue.Queue[BlockWithDABytes]{c},
+			expectedQ:           queue.Queue[SizedBlock]{c},
 			expectedBlockCursor: 1,
 		},
 		{
 			name:                "[A,B,C*]+2->[C*]",
-			initialQ:            queue.Queue[BlockWithDABytes]{a, b, c},
+			initialQ:            queue.Queue[SizedBlock]{a, b, c},
 			initialBlockCursor:  2,
 			numBlocksToPrune:    2,
-			expectedQ:           queue.Queue[BlockWithDABytes]{c},
+			expectedQ:           queue.Queue[SizedBlock]{c},
 			expectedBlockCursor: 0,
 		},
 		{
 			name:                          "[A*,B,C]+1->[B*,C]",
-			initialQ:                      queue.Queue[BlockWithDABytes]{a, b, c},
+			initialQ:                      queue.Queue[SizedBlock]{a, b, c},
 			initialBlockCursor:            0,
 			numBlocksToPrune:              1,
-			expectedQ:                     queue.Queue[BlockWithDABytes]{b, c},
+			expectedQ:                     queue.Queue[SizedBlock]{b, c},
 			expectedBlockCursor:           0,
 			expectedPendingBytesDecreases: true, // we removed a pending block
 		},
 		{
 			name:                "[A,B,C]+3->[]",
-			initialQ:            queue.Queue[BlockWithDABytes]{a, b, c},
+			initialQ:            queue.Queue[SizedBlock]{a, b, c},
 			initialBlockCursor:  3,
 			numBlocksToPrune:    3,
-			expectedQ:           queue.Queue[BlockWithDABytes]{},
+			expectedQ:           queue.Queue[SizedBlock]{},
 			expectedBlockCursor: 0,
 		},
 		{
 			name:                "[A,B,C]*+4->panic",
-			initialQ:            queue.Queue[BlockWithDABytes]{a, b, c},
+			initialQ:            queue.Queue[SizedBlock]{a, b, c},
 			initialBlockCursor:  3,
 			numBlocksToPrune:    4,
 			expectedQ:           nil, // declare that the prune method should panic
@@ -572,10 +572,10 @@ func TestChannelManager_PruneBlocks(t *testing.T) {
 		},
 		{
 			name:                          "[A,B,C]+3->[]",
-			initialQ:                      queue.Queue[BlockWithDABytes]{a, b, c},
+			initialQ:                      queue.Queue[SizedBlock]{a, b, c},
 			initialBlockCursor:            2, // we will prune _past_ the block cursor
 			numBlocksToPrune:              3,
-			expectedQ:                     queue.Queue[BlockWithDABytes]{},
+			expectedQ:                     queue.Queue[SizedBlock]{},
 			expectedBlockCursor:           0,
 			expectedPendingBytesDecreases: true, // we removed a pending block
 		},
@@ -708,7 +708,7 @@ func TestChannelManager_TxData_ForcePublish(t *testing.T) {
 	// Seed channel manager with a block
 	rng := rand.New(rand.NewSource(99))
 	blockA := derivetest.RandomL2BlockWithChainId(rng, 200, defaultTestRollupConfig.L2ChainID)
-	m.blocks = queue.Queue[BlockWithDABytes]{BlockWithDABytes{Block: blockA}}
+	m.blocks = queue.Queue[SizedBlock]{SizedBlock{Block: blockA}}
 
 	// Call TxData a first time to trigger blocks->channels pipeline
 	txData, err := m.TxData(eth.BlockID{}, false, false, false)
