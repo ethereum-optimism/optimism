@@ -648,7 +648,7 @@ jobs:
     machine: true
     resource_class: ethereum-optimism/latitude-1
     steps:
-      - utils/checkout-with-mise
+      - utils/checkout-with-mise:
           submodules: true
       - attach_workspace: { at: "." }
       - install-contracts-dependencies
@@ -713,7 +713,7 @@ jobs:
         type: string
         default: ci
     steps:
-      - utils/checkout-with-mise
+      - utils/checkout-with-mise:
           submodules: true
       - attach_workspace: { at: "." }
       - install-contracts-dependencies
@@ -793,7 +793,7 @@ jobs:
         type: string
         default: ci
     steps:
-      - utils/checkout-with-mise
+      - utils/checkout-with-mise:
           submodules: true
       - attach_workspace: { at: "." }
       - install-contracts-dependencies
@@ -869,7 +869,7 @@ jobs:
       - image: <<pipeline.parameters.default_docker_image>>
     resource_class: xlarge
     steps:
-      - utils/checkout-with-mise
+      - utils/checkout-with-mise:
           submodules: true
       - attach_workspace: { at: "." }
       - install-contracts-dependencies
@@ -943,7 +943,7 @@ jobs:
     machine: true
     resource_class: ethereum-optimism/latitude-1
     steps:
-      - utils/checkout-with-mise
+      - utils/checkout-with-mise:
           submodules: true
       - attach_workspace: { at: "." }
       - install-contracts-dependencies
