@@ -1,3 +1,0 @@
-FROM scratch
-ENTRYPOINT ["/op"]
-COPY op /op

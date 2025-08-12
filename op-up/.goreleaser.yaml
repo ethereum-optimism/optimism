@@ -34,18 +34,11 @@ archives:
     files: []
 
 dockers:
-  - id: default
-    goos: linux
+  - goos: linux
     goarch: amd64
-    dockerfile: Dockerfile.default
+    dockerfile: Dockerfile
     image_templates:
       - "us-docker.pkg.dev/oplabs-tools-artifacts/images/{{ .ProjectName }}:{{ .Tag }}"
-  - id: minimal
-    goos: linux
-    goarch: amd64
-    dockerfile: Dockerfile.minimal
-    image_templates:
-      - "us-docker.pkg.dev/oplabs-tools-artifacts/images/{{ .ProjectName }}:{{ .Tag }}-minimal"
 
 changelog:
   sort: asc
