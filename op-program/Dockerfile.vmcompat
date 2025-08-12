@@ -22,6 +22,7 @@ RUN mkdir -p /tmp/vm-compat && \
 # Copy local files, download go dependencies
 WORKDIR /app
 COPY ./go.mod ./go.sum ./
+COPY ./op-geth/go.mod ./op-geth/go.sum ./op-geth/
 RUN --mount=type=cache,target=/go/pkg/mod --mount=type=cache,target=/root/.cache/go-build go mod download
 COPY . /app
 
