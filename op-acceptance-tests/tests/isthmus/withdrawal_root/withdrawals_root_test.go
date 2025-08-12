@@ -25,6 +25,7 @@ func TestWithdrawalRoot(gt *testing.T) {
 	}()
 
 	bridge := sys.StandardBridge()
+	// 333_333_333 gwei (1 billion wei)
 	initialL1Balance := eth.OneThirdEther
 	initialL2Balance := eth.OneThirdEther
 
@@ -36,6 +37,15 @@ func TestWithdrawalRoot(gt *testing.T) {
 
 	withdrawal := bridge.InitiateWithdrawal(withdrawalAmount, l2User)
 	expectedL2UserBalance := initialL2Balance.Sub(withdrawalAmount).Sub(withdrawal.InitiateGasCost())
+	// divergence here
+	// actual_wrong = initialL2Balance - eth.OneHundredthEther - withdrawal.InitiateGasCost()
+	// expected 323203245609236609 = 333333333 * 1000000000 - 10000000 * 1000000000 - gasCost
+	// gasCost = 130087390763391
+	// expected - actual = 422
+	// actual = 323203245609236187 = (delta + 233408941113112216) - 10000000 * 1000000000 - 130087390763391
+	// delta = 99924391886887362
+	// 100000000 * 1000000000 - 99924391886887362 = 75608113112638
+
 	l2User.VerifyBalanceExact(expectedL2UserBalance)
 
 	sys.L2EL.VerifyWithdrawalHashChangedIn(withdrawal.InitiateBlockHash())
