@@ -13,7 +13,6 @@ import {
     RevocationRequestData
 } from "src/vendor/eas/IEAS.sol";
 import { ISchemaRegistry, ISchemaResolver } from "src/vendor/eas/ISchemaRegistry.sol";
-import { IProxy } from "interfaces/universal/IProxy.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { IApprovalVotingModule } from "interfaces/governance/IApprovalVotingModule.sol";
 import { IOptimisticModule } from "interfaces/governance/IOptimisticModule.sol";
@@ -23,7 +22,6 @@ import { stdStorage, StdStorage } from "forge-std/Test.sol";
 
 // Contracts
 import { ProposalValidator } from "src/governance/ProposalValidator.sol";
-import { Proxy } from "src/universal/Proxy.sol";
 
 // Libraries
 import { Predeploys } from "src/libraries/Predeploys.sol";
@@ -36,11 +34,12 @@ import { CommonTest } from "test/setup/CommonTest.sol";
 /// @notice A test contract that exposes the private _hashProposalWithModule function
 contract ProposalValidatorForTest is ProposalValidator {
     constructor(
+        address _owner,
         IOptimismGovernor _governor,
         bytes32 _approvedProposerAttestationSchemaUid,
         bytes32 _topDelegatesAttestationSchemaUid
     )
-        ProposalValidator(_governor, _approvedProposerAttestationSchemaUid, _topDelegatesAttestationSchemaUid)
+        ProposalValidator(_owner, _governor, _approvedProposerAttestationSchemaUid, _topDelegatesAttestationSchemaUid)
     { }
 
     function hashProposalWithModule(
@@ -134,7 +133,6 @@ contract ProposalValidator_TestInit is CommonTest {
     address optimisticVotingModule;
 
     ProposalValidatorForTest public validator;
-    ProposalValidatorForTest public impl;
     IOptimismGovernor public governor;
     IProposalTypesConfigurator public proposalTypesConfigurator;
 
@@ -455,7 +453,9 @@ contract ProposalValidator_TestInit is CommonTest {
             approvalVotingModule, votingModuleData_, keccak256(bytes(_proposalDescription))
         );
 
-        validator.setProposalData(proposalId_, _proposer, _proposalType, false, PROPOSAL_REQUIRED_APPROVALS, CYCLE_NUMBER);
+        validator.setProposalData(
+            proposalId_, _proposer, _proposalType, false, PROPOSAL_REQUIRED_APPROVALS, CYCLE_NUMBER
+        );
     }
 
     /// @notice Helper function to setup proposal types configurator mocks
@@ -528,18 +528,16 @@ contract ProposalValidator_TestInit is CommonTest {
         // Create mock addresses
         proposalTypesConfigurator = IProposalTypesConfigurator(makeAddr("proposalTypesConfigurator"));
 
-        impl = new ProposalValidatorForTest(
-            governor, APPROVED_PROPOSER_ATTESTATION_SCHEMA_UID, TOP_DELEGATES_ATTESTATION_SCHEMA_UID
+        validator = new ProposalValidatorForTest(
+            owner, governor, APPROVED_PROPOSER_ATTESTATION_SCHEMA_UID, TOP_DELEGATES_ATTESTATION_SCHEMA_UID
         );
-        validator = ProposalValidatorForTest(address(new Proxy(owner)));
 
         vm.startPrank(owner);
-        IProxy(payable(address(validator))).upgradeToAndCall(
-            address(impl),
-            abi.encodeCall(impl.initialize, (owner, PROPOSAL_DISTRIBUTION_THRESHOLD, proposalTypes, proposalTypesData))
-        );
-        // set the data for one voting cycle
-        validator.setVotingCycleData(CYCLE_NUMBER, START_TIMESTAMP, DURATION, VOTING_CYCLE_DISTRIBUTION_LIMIT);
+        validator.setProposalDistributionThreshold(PROPOSAL_DISTRIBUTION_THRESHOLD);
+        for (uint256 i = 0; i < proposalTypes.length; i++) {
+            validator.setProposalTypeData(proposalTypes[i], proposalTypesData[i]);
+        }
+        validator.setVotingCycleData(CYCLE_NUMBER, START_TIMESTAMP, DURATION, PROPOSAL_DISTRIBUTION_THRESHOLD);
         vm.stopPrank();
     }
 
@@ -608,90 +606,6 @@ contract ProposalValidator_TestInit is CommonTest {
                     value: 0
                 })
             })
-        );
-    }
-}
-
-/// @title ProposalValidator_Version_Test
-/// @notice Tests for the version function
-contract ProposalValidator_Version_Test is ProposalValidator_TestInit {
-    function test_version_succeeds() public view {
-        string memory versionString = validator.version();
-        assertEq(versionString, "1.0.0");
-    }
-}
-
-/// @title ProposalValidator_Initialize_Test
-/// @notice Tests for the initialize function
-contract ProposalValidator_Initialize_Test is ProposalValidator_TestInit {
-    /// @dev Override to create validator proxy without initialization for testing
-    function _initializeValidator() internal override {
-        // Create mock addresses
-        proposalTypesConfigurator = IProposalTypesConfigurator(makeAddr("proposalTypesConfigurator"));
-
-        impl = new ProposalValidatorForTest(
-            governor, APPROVED_PROPOSER_ATTESTATION_SCHEMA_UID, TOP_DELEGATES_ATTESTATION_SCHEMA_UID
-        );
-        validator = ProposalValidatorForTest(address(new Proxy(owner)));
-    }
-
-    function test_initialize_succeeds() public {
-        (
-            ProposalValidator.ProposalType[] memory proposalTypes,
-            ProposalValidator.ProposalTypeData[] memory proposalTypesData
-        ) = _getProposalTypesAndData();
-
-        vm.prank(owner);
-        IProxy(payable(address(validator))).upgradeToAndCall(
-            address(impl),
-            abi.encodeCall(impl.initialize, (owner, PROPOSAL_DISTRIBUTION_THRESHOLD, proposalTypes, proposalTypesData))
-        );
-
-        // Verify initialization was successful
-        assertEq(validator.proposalDistributionThreshold(), PROPOSAL_DISTRIBUTION_THRESHOLD);
-        assertEq(validator.owner(), owner);
-
-        // Verify proposal type data
-        for (uint256 i = 0; i < proposalTypes.length; i++) {
-            (uint256 requiredApprovals, uint8 idInConfigurator) = validator.proposalTypesData(proposalTypes[i]);
-            if (proposalTypes[i] == ProposalValidator.ProposalType.MaintenanceUpgrade) {
-                assertEq(requiredApprovals, 0);
-            } else {
-                assertEq(requiredApprovals, PROPOSAL_REQUIRED_APPROVALS);
-            }
-
-            // GovernanceFund, CouncilBudget, and CouncilMemberElections use APPROVAL_VOTING_MODULE_ID
-            if (
-                proposalTypes[i] == ProposalValidator.ProposalType.GovernanceFund
-                    || proposalTypes[i] == ProposalValidator.ProposalType.CouncilBudget
-                    || proposalTypes[i] == ProposalValidator.ProposalType.CouncilMemberElections
-            ) {
-                assertEq(idInConfigurator, APPROVAL_VOTING_MODULE_ID);
-            } else {
-                // ProtocolOrGovernorUpgrade and MaintenanceUpgrade use OPTIMISTIC_VOTING_MODULE_ID
-                assertEq(idInConfigurator, OPTIMISTIC_VOTING_MODULE_ID);
-            }
-        }
-    }
-
-    function test_initialize_mismatchedArrayLengths_reverts() public {
-        ProposalValidator.ProposalType[] memory proposalTypes = new ProposalValidator.ProposalType[](3);
-        proposalTypes[0] = ProposalValidator.ProposalType.ProtocolOrGovernorUpgrade;
-        proposalTypes[1] = ProposalValidator.ProposalType.MaintenanceUpgrade;
-        proposalTypes[2] = ProposalValidator.ProposalType.CouncilMemberElections;
-
-        // Create mismatched array with different length
-        ProposalValidator.ProposalTypeData[] memory proposalTypesData = new ProposalValidator.ProposalTypeData[](2);
-        proposalTypesData[0] =
-            ProposalValidator.ProposalTypeData({ requiredApprovals: PROPOSAL_REQUIRED_APPROVALS, idInConfigurator: 0 });
-        proposalTypesData[1] =
-            ProposalValidator.ProposalTypeData({ requiredApprovals: PROPOSAL_REQUIRED_APPROVALS, idInConfigurator: 1 });
-
-        vm.prank(owner);
-        vm.expectRevert("Proxy: delegatecall to new implementation contract failed");
-        IProxy(payable(address(validator))).upgradeToAndCall(
-            address(impl),
-            abi.encodeCall(impl.initialize, (owner, PROPOSAL_DISTRIBUTION_THRESHOLD, proposalTypes, proposalTypesData))
         );
     }
 }

@@ -2,26 +2,24 @@
 pragma solidity 0.8.15;
 
 // Contracts
-import { OwnableUpgradeable } from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
-import { ReinitializableBase } from "src/universal/ReinitializableBase.sol";
+import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
 
 // Libraries
 import { Predeploys } from "src/libraries/Predeploys.sol";
 
 // Interfaces
+import { ISemver } from "interfaces/universal/ISemver.sol";
 import { IOptimismGovernor } from "interfaces/governance/IOptimismGovernor.sol";
 import { IProposalTypesConfigurator } from "interfaces/governance/IProposalTypesConfigurator.sol";
 import { IEAS, Attestation } from "src/vendor/eas/IEAS.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import { ISemver } from "interfaces/universal/ISemver.sol";
 import { IApprovalVotingModule } from "interfaces/governance/IApprovalVotingModule.sol";
 import { IOptimisticModule } from "interfaces/governance/IOptimisticModule.sol";
 
-/// @custom:proxied true
 /// @title ProposalValidator
 /// @notice The ProposalValidator contract is responsible for validating proposals and moving
 ///         them to the vote phase on the Optimism Governor.
-contract ProposalValidator is OwnableUpgradeable, ReinitializableBase, ISemver {
+contract ProposalValidator is Ownable, ISemver {
     /*//////////////////////////////////////////////////////////////
                                  ERRORS
     //////////////////////////////////////////////////////////////*/
@@ -253,6 +251,7 @@ contract ProposalValidator is OwnableUpgradeable, ReinitializableBase, ISemver {
     mapping(uint256 => ProposalData) internal _proposals;
 
     /// @notice Constructs the ProposalValidator contract.
+    /// @param _owner The address that will own the contract, should be the OP Foundation.
     /// @param _governor The Optimism Governor contract address.
     /// @param _approvedProposerAttestationSchemaUid The schema UID for attestations in the Ethereum Attestation Service
     /// for checking if the caller
@@ -261,44 +260,15 @@ contract ProposalValidator is OwnableUpgradeable, ReinitializableBase, ISemver {
     /// checking if the caller
     ///         is part of the top100 delegates.
     constructor(
+        address _owner,
         IOptimismGovernor _governor,
         bytes32 _approvedProposerAttestationSchemaUid,
         bytes32 _topDelegatesAttestationSchemaUid
-    )
-        ReinitializableBase(1)
-    {
+    ) {
+        _transferOwnership(_owner);
         GOVERNOR = _governor;
         APPROVED_PROPOSER_ATTESTATION_SCHEMA_UID = _approvedProposerAttestationSchemaUid;
         TOP_DELEGATES_ATTESTATION_SCHEMA_UID = _topDelegatesAttestationSchemaUid;
-        _disableInitializers();
-    }
-
-    /// @notice Initializes the ProposalValidator contract.
-    /// @param _owner The address that will own the contract.
-    /// @param _proposalDistributionThreshold The max amount of tokens that can be distributed in a proposal.
-    /// @param _proposalTypes Array of proposal types to set data for.
-    /// @param _proposalTypesData Array of proposal type data corresponding to the proposal types.
-    function initialize(
-        address _owner,
-        uint256 _proposalDistributionThreshold,
-        ProposalType[] memory _proposalTypes,
-        ProposalTypeData[] memory _proposalTypesData
-    )
-        external
-        reinitializer(initVersion())
-    {
-        if (_proposalTypes.length != _proposalTypesData.length) {
-            revert ProposalValidator_ProposalTypesDataLengthMismatch();
-        }
-
-        _setProposalDistributionThreshold(_proposalDistributionThreshold);
-
-        for (uint256 i = 0; i < _proposalTypes.length; i++) {
-            _setProposalTypeData(_proposalTypes[i], _proposalTypesData[i]);
-        }
-
-        __Ownable_init();
-        transferOwnership(_owner);
     }
 
     /// @notice Submits a Protocol/Governor Upgrade or Maintenance Upgrade proposal.

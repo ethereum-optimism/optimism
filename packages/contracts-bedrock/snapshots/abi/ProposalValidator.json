@@ -2,6 +2,11 @@
   {
     "inputs": [
       {
+        "internalType": "address",
+        "name": "_owner",
+        "type": "address"
+      },
+      {
         "internalType": "contract IOptimismGovernor",
         "name": "_governor",
         "type": "address"
@@ -86,59 +91,6 @@
       }
     ],
     "name": "approveProposal",
-    "outputs": [],
-    "stateMutability": "nonpayable",
-    "type": "function"
-  },
-  {
-    "inputs": [],
-    "name": "initVersion",
-    "outputs": [
-      {
-        "internalType": "uint8",
-        "name": "",
-        "type": "uint8"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "address",
-        "name": "_owner",
-        "type": "address"
-      },
-      {
-        "internalType": "uint256",
-        "name": "_proposalDistributionThreshold",
-        "type": "uint256"
-      },
-      {
-        "internalType": "enum ProposalValidator.ProposalType[]",
-        "name": "_proposalTypes",
-        "type": "uint8[]"
-      },
-      {
-        "components": [
-          {
-            "internalType": "uint256",
-            "name": "requiredApprovals",
-            "type": "uint256"
-          },
-          {
-            "internalType": "uint8",
-            "name": "idInConfigurator",
-            "type": "uint8"
-          }
-        ],
-        "internalType": "struct ProposalValidator.ProposalTypeData[]",
-        "name": "_proposalTypesData",
-        "type": "tuple[]"
-      }
-    ],
-    "name": "initialize",
     "outputs": [],
     "stateMutability": "nonpayable",
     "type": "function"
@@ -559,19 +511,6 @@
     "anonymous": false,
     "inputs": [
       {
-        "indexed": false,
-        "internalType": "uint8",
-        "name": "version",
-        "type": "uint8"
-      }
-    ],
-    "name": "Initialized",
-    "type": "event"
-  },
-  {
-    "anonymous": false,
-    "inputs": [
-      {
         "indexed": true,
         "internalType": "address",
         "name": "previousOwner",
@@ -867,11 +806,6 @@
   {
     "inputs": [],
     "name": "ProposalValidator_VotingCycleAlreadySet",
-    "type": "error"
-  },
-  {
-    "inputs": [],
-    "name": "ReinitializableBase_ZeroInitVersion",
     "type": "error"
   }
 ]
