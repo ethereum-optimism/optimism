@@ -260,9 +260,9 @@ contract OPContractsManager_Upgrade_Harness is CommonTest {
 
         delayedWETHPermissionedGameProxy =
             IDelayedWETH(payable(artifacts.mustGetAddress("PermissionedDelayedWETHProxy")));
-        delayedWeth = IDelayedWETH(payable(artifacts.mustGetAddress("PermissionedDelayedWETHProxy")));
+        delayedWeth = IDelayedWETH(payable(artifacts.mustGetAddress("PermissionlessDelayedWETHProxy")));
         permissionedDisputeGame = IPermissionedDisputeGame(address(artifacts.mustGetAddress("PermissionedDisputeGame")));
-        faultDisputeGame = IFaultDisputeGame(address(artifacts.getAddress("FaultDisputeGame")));
+        faultDisputeGame = IFaultDisputeGame(address(artifacts.mustGetAddress("FaultDisputeGame")));
     }
 
     function expectEmitUpgraded(address impl, address proxy) public {
