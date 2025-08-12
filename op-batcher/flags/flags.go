@@ -22,16 +22,6 @@ import (
 
 const (
 	EnvVarPrefix = "OP_BATCHER"
-
-	// Throttling
-	DefaultThrottleThreshold    = 1_600_000 // allows for 2x (6 blobs, 1 tx) channels at ~131KB per blob
-	DefaultThrottleMaxThreshold = DefaultThrottleThreshold * 5
-	DefaultPIDSampleTime        = 2 * time.Second
-	DefaultPIDKp                = 0.33
-	DefaultPIDKi                = 0.01
-	DefaultPIDKd                = 0.05
-	DefaultPIDIntegralMax       = 1000.0
-	DefaultPIDOutputMax         = 1.0
 )
 
 func prefixEnvVars(name string) []string {

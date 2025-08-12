@@ -2,8 +2,28 @@ package flags
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/urfave/cli/v2"
+)
+
+const (
+	// Block-builder side
+	DefaultThrottleTxSizeLowerLimit    = 150
+	DefaultThrottleTxSizeUpperLimit    = 10_000
+	DefaultThrottleBlockSizeLowerLimit = 21_000
+	DefaultThrottleBlockSizeUpperLimit = 130_000_000
+
+	// Controller side
+	DefaultThrottleControllerType = "quadratic"
+	DefaultThrottleLowerThreshold = 1_600_000 // allows for 2x (6 blobs, 1 tx) channels at ~131KB per blob
+	DefaultThrottleUpperThreshold = DefaultThrottleLowerThreshold * 5
+	DefaultPIDSampleTime          = 2 * time.Second
+	DefaultPIDKp                  = 0.33
+	DefaultPIDKi                  = 0.01
+	DefaultPIDKd                  = 0.05
+	DefaultPIDIntegralMax         = 1000.0
+	DefaultPIDOutputMax           = 1.0
 )
 
 var (
@@ -18,13 +38,13 @@ var (
 	ThrottleTxSizeLowerLimitFlag = &cli.IntFlag{
 		Name:    "throttle.tx-size-lower-limit",
 		Usage:   "The limit on the DA size of transactions when we are at maximum throttle intensity",
-		Value:   5000, // less than 1% of all transactions should be affected by this limit
+		Value:   DefaultThrottleTxSizeLowerLimit,
 		EnvVars: prefixEnvVars("THROTTLE_TX_SIZE_LOWER_LIMIT"),
 	}
 	ThrottleTxSizeUpperLimitFlag = &cli.IntFlag{
 		Name:    "throttle.tx-size-upper-limit",
-		Usage:   "The limit on the DA size of transactions when we are at 0+ throttle intensity (limit of the intensity as it approaches 0 from positive values)",
-		Value:   5000, // less than 1% of all transactions should be affected by this limit
+		Usage:   "The limit on the DA size of transactions when we are at 0+ throttle intensity (limit of the intensity as it approaches 0 from positive values). Not applied when throttling is inactive.",
+		Value:   DefaultThrottleTxSizeUpperLimit,
 		EnvVars: prefixEnvVars("THROTTLE_TX_SIZE_UPPER_LIMIT"),
 	}
 
@@ -32,13 +52,13 @@ var (
 	ThrottleBlockSizeLowerLimitFlag = &cli.IntFlag{
 		Name:    "throttle.block-size-lower-limit",
 		Usage:   "The limit on the DA size of blocks when we are at maximum throttle intensity (linear and quadratic controllers only)",
-		Value:   21_000, // at least 70 transactions per block of up to 300 compressed bytes each.
+		Value:   DefaultThrottleBlockSizeLowerLimit,
 		EnvVars: prefixEnvVars("THROTTLE_BLOCK_SIZE_LOWER_LIMIT"),
 	}
 	ThrottleBlockSizeUpperLimitFlag = &cli.IntFlag{
 		Name:    "throttle.block-size-upper-limit",
-		Usage:   "The limit on the DA size of blocks when we are at 0 throttle intensity",
-		Value:   21_000, // at least 70 transactions per block of up to 300 compressed bytes each.
+		Usage:   "The limit on the DA size of blocks when we are at 0 throttle intensity (applied when throttling is inactive)",
+		Value:   DefaultThrottleBlockSizeUpperLimit,
 		EnvVars: prefixEnvVars("THROTTLE_BLOCK_SIZE_UPPER_LIMIT"),
 	}
 
@@ -46,7 +66,7 @@ var (
 	ThrottleControllerTypeFlag = &cli.StringFlag{
 		Name:    "throttle.controller-type",
 		Usage:   "Type of throttle controller to use: 'step', 'linear', 'quadratic' (default) or 'pid' (EXPERIMENTAL - use with caution)",
-		Value:   "quadratic",
+		Value:   DefaultThrottleControllerType,
 		EnvVars: prefixEnvVars("THROTTLE_CONTROLLER_TYPE"),
 		Action: func(ctx *cli.Context, value string) error {
 			validTypes := []string{"step", "linear", "quadratic", "pid"}
@@ -61,13 +81,13 @@ var (
 	ThrottleUsafeDABytesLowerThresholdFlag = &cli.IntFlag{
 		Name:    "throttle.unsafe-da-bytes-lower-threshold",
 		Usage:   "The threshold on unsafe_da_bytes beyond which the batcher will start to throttle the block builder. Zero disables throttling.",
-		Value:   1_000_000,
+		Value:   DefaultThrottleLowerThreshold,
 		EnvVars: prefixEnvVars("THROTTLE_LOWER_THRESHOLD"),
 	}
 	ThrottleUsafeDABytesUpperThresholdFlag = &cli.Uint64Flag{
 		Name:    "throttle.unsafe-da-bytes-upper-threshold",
 		Usage:   "Threshold on unsafe_da_bytes at which throttling has the maximum intensity (linear and quadratic controllers only)",
-		Value:   DefaultThrottleMaxThreshold,
+		Value:   DefaultThrottleUpperThreshold,
 		EnvVars: prefixEnvVars("THROTTLE_UPPER_THRESHOLD"),
 	}
 
