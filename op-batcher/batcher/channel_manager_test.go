@@ -8,7 +8,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ethereum-optimism/optimism/op-batcher/compressor"
 	"github.com/ethereum-optimism/optimism/op-batcher/metrics"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
@@ -793,14 +792,13 @@ func TestChannelManagerUnsafeBytes(t *testing.T) {
 			MaxFrameSize:    120000 - 1,
 			TargetNumFrames: 5,
 			BatchType:       tc.batchType,
-			CompressorConfig: compressor.Config{
-				TargetOutputSize: 120000,
-				CompressionAlgo:  derive.Brotli10,
-			},
 		}
 
-		if tc.batchType == derive.SingularBatchType {
-			// Span batches use their own compression tricks
+		switch tc.batchType {
+		case derive.SpanBatchType:
+			cfg.CompressorConfig.CompressionAlgo = derive.Brotli10
+			cfg.CompressorConfig.TargetOutputSize = MaxDataSize(cfg.TargetNumFrames, cfg.MaxFrameSize)
+		case derive.SingularBatchType:
 			switch tc.compressor {
 			case "shadow":
 				cfg.InitShadowCompressor(derive.Brotli10)
@@ -809,6 +807,8 @@ func TestChannelManagerUnsafeBytes(t *testing.T) {
 			default:
 				t.Fatalf("unknown compressor: %s", tc.compressor)
 			}
+		default:
+			panic("unknown batch type")
 		}
 
 		manager := NewChannelManager(log.New(), metrics.NoopMetrics, cfg, defaultTestRollupConfig)
