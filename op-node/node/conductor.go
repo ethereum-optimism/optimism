@@ -58,7 +58,8 @@ func (c *ConductorClient) initialize(ctx context.Context) error {
 		return fmt.Errorf("no conductor RPC endpoint available: %w", err)
 	}
 	metricsOpt := rpc.WithRecorder(c.metrics.NewRecorder("conductor"))
-	conductorRpcClient, err := dial.DialRPCClientWithTimeout(context.Background(), c.log, endpoint, metricsOpt)
+	// Use the passed ctx to allow cancellation/timeouts from the caller during dialing
+	conductorRpcClient, err := dial.DialRPCClientWithTimeout(ctx, c.log, endpoint, metricsOpt)
 	if err != nil {
 		return fmt.Errorf("failed to dial conductor RPC: %w", err)
 	}
