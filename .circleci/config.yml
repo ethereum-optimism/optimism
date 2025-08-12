@@ -649,6 +649,7 @@ jobs:
     resource_class: ethereum-optimism/latitude-1
     steps:
       - utils/checkout-with-mise
+          submodules: true
       - attach_workspace: { at: "." }
       - install-contracts-dependencies
       - check-changed:
@@ -713,6 +714,7 @@ jobs:
         default: ci
     steps:
       - utils/checkout-with-mise
+          submodules: true
       - attach_workspace: { at: "." }
       - install-contracts-dependencies
       - run:
@@ -792,6 +794,7 @@ jobs:
         default: ci
     steps:
       - utils/checkout-with-mise
+          submodules: true
       - attach_workspace: { at: "." }
       - install-contracts-dependencies
       - check-changed:
@@ -867,6 +870,7 @@ jobs:
     resource_class: xlarge
     steps:
       - utils/checkout-with-mise
+          submodules: true
       - attach_workspace: { at: "." }
       - install-contracts-dependencies
       - check-changed:
@@ -940,6 +944,7 @@ jobs:
     resource_class: ethereum-optimism/latitude-1
     steps:
       - utils/checkout-with-mise
+          submodules: true
       - attach_workspace: { at: "." }
       - install-contracts-dependencies
       - check-changed:
