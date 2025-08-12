@@ -42,11 +42,6 @@
         "type": "address"
       },
       {
-        "internalType": "string",
-        "name": "_l1ContractsRelease",
-        "type": "string"
-      },
-      {
         "internalType": "address",
         "name": "_upgradeController",
         "type": "address"
@@ -535,19 +530,6 @@
         "internalType": "bool",
         "name": "",
         "type": "bool"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [],
-    "name": "l1ContractsRelease",
-    "outputs": [
-      {
-        "internalType": "string",
-        "name": "",
-        "type": "string"
       }
     ],
     "stateMutability": "view",

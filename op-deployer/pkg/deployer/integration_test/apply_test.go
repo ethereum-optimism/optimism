@@ -100,16 +100,10 @@ func TestEndToEndBootstrapApply(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		var release string
-		if !loc.IsEmbedded() {
-			release = "dev"
-		}
-
 		impls, err := bootstrap.Implementations(ctx, bootstrap.ImplementationsConfig{
 			L1RPCUrl:                        l1RPC,
 			PrivateKey:                      pkHex,
 			ArtifactsLocator:                loc,
-			L1ContractsRelease:              release,
 			MIPSVersion:                     int(standard.MIPSVersion),
 			WithdrawalDelaySeconds:          standard.WithdrawalDelaySeconds,
 			MinProposalSizeBytes:            standard.MinProposalSizeBytes,

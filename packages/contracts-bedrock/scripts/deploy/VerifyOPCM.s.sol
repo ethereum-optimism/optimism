@@ -152,10 +152,6 @@ contract VerifyOPCM is Script {
         expectedGetters["opcmStandardValidator"] = "SKIP"; // Address verified via bytecode comparison
         expectedGetters["opcmUpgrader"] = "SKIP"; // Address verified via bytecode comparison
 
-        // Simple getters that return static values (no external verification needed)
-        expectedGetters["isRC"] = "SKIP"; // Simple boolean getter, no verification needed
-        expectedGetters["l1ContractsRelease"] = "SKIP"; // Simple string getter, no verification needed
-
         // Mark as ready.
         ready = true;
     }

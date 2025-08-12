@@ -274,7 +274,6 @@ contract Deploy is Deployer {
                 proofMaturityDelaySeconds: cfg.proofMaturityDelaySeconds(),
                 disputeGameFinalityDelaySeconds: cfg.disputeGameFinalityDelaySeconds(),
                 mipsVersion: StandardConstants.MIPS_VERSION,
-                l1ContractsRelease: "dev",
                 protocolVersionsProxy: IProtocolVersions(artifacts.mustGetAddress("ProtocolVersionsProxy")),
                 superchainConfigProxy: superchainConfigProxy,
                 superchainProxyAdmin: superchainProxyAdmin,
