@@ -1,4 +1,5 @@
 {{- $local_images := dict
+  "op_geth" (localDockerImage "op-geth")
   "op_node" (localDockerImage "op-node")
   "op_batcher" (localDockerImage "op-batcher")
   "op_challenger" (localDockerImage "op-challenger")
@@ -43,7 +44,7 @@ optimism_package:
         node0: &x-node
           el:
             type: op-geth
-            image: ""
+            image: {{ $local_images.op_geth }}
             log_level: ""
             extra_env_vars: {}
             extra_labels: {}
