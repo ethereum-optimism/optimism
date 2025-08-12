@@ -872,7 +872,7 @@ contract OPContractsManager_NoSuperchainOrProtocolVersionsUpgrade_Test is OPCont
         super.setUp();
 
         // Set the fork block number to 21983965
-        vm.createSelectFork("https://eth.llamarpc.com", 21983965);
+        vm.createSelectFork(vm.envString("FORK_RPC_URL"), 21983965);
 
         worldchainProxyAdmin = 0xA4fB12D15Eb85dc9284a7df0AdBC8B696EdbbF1d;
 
