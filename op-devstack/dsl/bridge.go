@@ -335,6 +335,10 @@ func (w *Withdrawal) InitiateGasCost() eth.ETH {
 	return gasCost(w.initReceipt)
 }
 
+func (w *Withdrawal) InitiateReceipt() *types.Receipt {
+	return w.initReceipt
+}
+
 func (w *Withdrawal) ProveGasCost() eth.ETH {
 	w.require.NotNil(w.proveReceipt, "Must have proven withdrawal before calculating gas cost")
 	return gasCost(w.proveReceipt)

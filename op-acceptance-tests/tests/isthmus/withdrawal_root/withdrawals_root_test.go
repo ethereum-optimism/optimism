@@ -1,6 +1,7 @@
 package withdrawal
 
 import (
+	"encoding/json"
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
@@ -30,13 +31,24 @@ func TestWithdrawalRoot(gt *testing.T) {
 	initialL2Balance := eth.OneThirdEther
 
 	// l1User and l2User share same private key
+	// op-faucet called
 	l1User := sys.FunderL1.NewFundedEOA(initialL1Balance)
 	l2User := l1User.AsEL(sys.L2EL) // Only receives funds via the deposit
+	// op-faucet called
 	sys.FunderL2.FundAtLeast(l2User, initialL2Balance)
+
+	sys.Log.Info("Balance", "l1User", l1User.GetBalance(), "l2User", l2User.GetBalance())
+
 	withdrawalAmount := eth.OneHundredthEther
 
 	withdrawal := bridge.InitiateWithdrawal(withdrawalAmount, l2User)
 	expectedL2UserBalance := initialL2Balance.Sub(withdrawalAmount).Sub(withdrawal.InitiateGasCost())
+
+	sys.Log.Info("Balance", "initialL2Balance", initialL2Balance, "withdrawalAmount", withdrawalAmount, "initiateGasCost", withdrawal.InitiateGasCost())
+
+	receiptRaw, _ := json.Marshal(withdrawal.InitiateReceipt())
+	sys.Log.Info("Receipt", "receipt", string(receiptRaw))
+
 	// divergence here
 	// actual_wrong = initialL2Balance - eth.OneHundredthEther - withdrawal.InitiateGasCost()
 	// expected 323203245609236609 = 333333333 * 1000000000 - 10000000 * 1000000000 - gasCost
