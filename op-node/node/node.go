@@ -83,8 +83,6 @@ type OpNode struct {
 
 	interopSys interop.SubSystem
 
-	apiEmitter event.Emitter // any API requests that need to emit events can emit from this
-
 	// some resources cannot be stopped directly, like the p2p gossipsub router (not our design),
 	// and depend on this ctx to be closed.
 	resourcesCtx   context.Context
@@ -181,7 +179,6 @@ func (n *OpNode) initEventSystem() {
 	sys.Register("node", event.DeriverFunc(n.onEvent))
 	n.eventSys = sys
 	n.eventDrain = executor
-	n.apiEmitter = sys.Register("node-api", nil)
 }
 
 func (n *OpNode) initL1Source(ctx context.Context, cfg *config.Config) error {
