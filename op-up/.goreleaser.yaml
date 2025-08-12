@@ -54,5 +54,5 @@ release:
   make_latest: false
 
 monorepo:
-  tag_prefix: "{{ .ProjectName }}/"
+  tag_prefix: op-up/
   dir: op-up
