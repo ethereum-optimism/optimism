@@ -2040,6 +2040,7 @@ workflows:
   go-release-deployer:
     jobs:
       - contracts-bedrock-build:
+          name: build-contracts-go-release-op-deployer
           filters:
             tags:
               only: /^op-deployer.*/
@@ -2054,11 +2055,12 @@ workflows:
             - oplabs-gcr-release
             - circleci-repo-readonly-authenticated-github-token
           requires:
-            - contracts-bedrock-build
+            - build-contracts-go-release-op-deployer
 
   go-release-op-up:
     jobs:
       - contracts-bedrock-build:
+          name: build-contracts-go-release-op-up
           filters:
             tags:
               only: /^op-up.*/
@@ -2073,7 +2075,8 @@ workflows:
             - oplabs-gcr-release
             - circleci-repo-readonly-authenticated-github-token
           requires:
-            - contracts-bedrock-build
+            - build-contracts-go-release-op-up
+
   release:
     when:
       not:
