@@ -452,6 +452,9 @@ jobs:
     steps:
       - utils/checkout-with-mise:
           submodules: true
+      - run:
+          name: Debug op-geth
+          command: ls -al op-geth
       - attach_workspace:
           at: /tmp/docker_images
       - run:
