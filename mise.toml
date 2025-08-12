@@ -11,8 +11,7 @@ shellcheck = "0.10.0"
 direnv = "2.35.0"
 just = "1.37.0"
 
-# Cargo dependencies
-"cargo:svm-rs" = "0.5.8"
+svm-rs = "0.5.19"
 
 # Go dependencies
 "go:github.com/ethereum/go-ethereum/cmd/abigen" = "1.15.10"
@@ -57,6 +56,7 @@ codecov-uploader = "ubi:codecov/uploader"
 goreleaser-pro = "ubi:goreleaser/goreleaser-pro[exe=goreleaser]"
 kurtosis = "ubi:kurtosis-tech/kurtosis-cli-release-artifacts[exe=kurtosis]"
 op-acceptor = "ubi:ethereum-optimism/infra[exe=op-acceptor,tag_prefix=op-acceptor/]"
+svm-rs = "ubi:alloy-rs/svm-rs[exe=svm]"
 
 [settings]
 experimental = true
