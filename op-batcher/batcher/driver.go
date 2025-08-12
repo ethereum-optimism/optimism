@@ -419,9 +419,8 @@ const (
 
 func (l *BatchSubmitter) unsafeDABytes() int64 {
 	l.channelMgrMutex.Lock()
-	unsafeDABytes := l.channelMgr.UnsafeDABytes()
-	l.channelMgrMutex.Unlock()
-	return unsafeDABytes
+	defer l.channelMgrMutex.Unlock()
+	return l.channelMgr.UnsafeDABytes()
 }
 
 // sendToThrottlingLoop sends the current unsafe bytes to the throttling loop.
