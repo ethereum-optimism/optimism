@@ -82,13 +82,13 @@ var (
 		Name:    "throttle.unsafe-da-bytes-lower-threshold",
 		Usage:   "The threshold on unsafe_da_bytes beyond which the batcher will start to throttle the block builder. Zero disables throttling.",
 		Value:   DefaultThrottleLowerThreshold,
-		EnvVars: prefixEnvVars("THROTTLE_LOWER_THRESHOLD"),
+		EnvVars: prefixEnvVars("THROTTLE_UNSAFE_DA_BYTES_LOWER_THRESHOLD"),
 	}
 	ThrottleUsafeDABytesUpperThresholdFlag = &cli.Uint64Flag{
 		Name:    "throttle.unsafe-da-bytes-upper-threshold",
 		Usage:   "Threshold on unsafe_da_bytes at which throttling has the maximum intensity (linear and quadratic controllers only)",
 		Value:   DefaultThrottleUpperThreshold,
-		EnvVars: prefixEnvVars("THROTTLE_UPPER_THRESHOLD"),
+		EnvVars: prefixEnvVars("THROTTLE_UNSAFE_DA_BYTES_UPPER_THRESHOLD"),
 	}
 
 	// Controller side (EXPERIMENTAL PID Controller only)
