@@ -1200,7 +1200,16 @@ jobs:
       docker_layer_caching: true # Since we are building docker images for components, we'll cache the layers for faster builds
     resource_class: xlarge
     steps:
+      # Restore cached mise tools before checkout (using fallback key)
+      - restore_cache:
+          keys:
+            - mise-tools-v1-fallback
       - utils/checkout-with-mise
+      # Restore cached mise tools with proper versioned key after checkout
+      - restore_cache:
+          keys:
+            - mise-tools-v1-{{ checksum "mise.toml" }}
+            - mise-tools-v1-fallback
       - install-contracts-dependencies
       # Attach workspace for cannon dependencies if using sysgo orchestrator (empty devnet)
       - when:
@@ -1303,6 +1312,18 @@ jobs:
           key: go-mod-v1-{{ checksum "go.sum" }}
           paths:
             - "/go/pkg/mod"
+      # Save the mise tools cache for future runs
+      - save_cache:
+          key: mise-tools-v1-{{ checksum "mise.toml" }}
+          paths:
+            - "~/.local/share/mise"
+            - "~/.cache/mise"
+      # Save fallback cache (always gets the latest tools regardless of mise.toml changes)
+      - save_cache:
+          key: mise-tools-v1-fallback
+          paths:
+            - "~/.local/share/mise"
+            - "~/.cache/mise"
       # Store test results and artifacts
       - when:
           condition: always
