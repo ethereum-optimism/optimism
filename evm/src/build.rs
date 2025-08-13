@@ -32,7 +32,7 @@ impl<ChainSpec: OpHardforks> OpBlockAssembler<ChainSpec> {
     /// Builds a block for `input` without any bounds on header `H`.
     pub fn assemble_block<
         F: for<'a> BlockExecutorFactory<
-            ExecutionCtx<'a> = OpBlockExecutionCtx,
+            ExecutionCtx<'a>: Into<OpBlockExecutionCtx>,
             Transaction: SignedTransaction,
             Receipt: Receipt + DepositReceipt,
         >,
@@ -51,6 +51,7 @@ impl<ChainSpec: OpHardforks> OpBlockAssembler<ChainSpec> {
             state_provider,
             ..
         } = input;
+        let ctx = ctx.into();
 
         let timestamp = evm_env.block_env.timestamp.saturating_to();
 
