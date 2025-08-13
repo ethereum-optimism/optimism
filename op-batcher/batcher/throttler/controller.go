@@ -26,7 +26,7 @@ func NewThrottleController(strategy ThrottleStrategy, config ThrottleConfig) *Th
 	// Initialize with default params
 	initialParams := &ThrottleParams{
 		MaxTxSize:    0,
-		MaxBlockSize: config.AlwaysBlockSize,
+		MaxBlockSize: config.BlockSizeUpperLimit,
 		Intensity:    0.0,
 	}
 	controller.currentParams.Store(initialParams)
@@ -51,7 +51,7 @@ func (tc *ThrottleController) Update(currentPendingBytes uint64) ThrottleParams 
 
 // intensityToParams converts intensity to throttle parameters using common interpolation logic
 func (tc *ThrottleController) intensityToParams(intensity float64, config ThrottleConfig) ThrottleParams {
-	maxBlockSize := config.AlwaysBlockSize
+	maxBlockSize := config.BlockSizeUpperLimit
 	var maxTxSize uint64 = 0
 
 	// Clamp intensity to 1.0 to prevent overflows, should never happen
@@ -68,14 +68,14 @@ func (tc *ThrottleController) intensityToParams(intensity float64, config Thrott
 
 	if intensity > 0 {
 		// Apply intensity to tx size throttling
-		maxTxSize = config.ThrottleTxSize
+		maxTxSize = config.TxSizeLowerLimit
 
 		// Apply intensity to block size throttling
-		if maxBlockSize == 0 || (config.ThrottleBlockSize != 0 && config.ThrottleBlockSize < maxBlockSize) {
-			targetBlockSize := config.ThrottleBlockSize
+		if maxBlockSize == 0 || (config.BlockSizeLowerLimit != 0 && config.BlockSizeLowerLimit < maxBlockSize) {
+			targetBlockSize := config.BlockSizeLowerLimit
 			if maxBlockSize > 0 {
 				// Linear interpolation between always and throttle block sizes
-				targetBlockSize = uint64(float64(maxBlockSize) - intensity*float64(maxBlockSize-config.ThrottleBlockSize))
+				targetBlockSize = uint64(float64(maxBlockSize) - intensity*float64(maxBlockSize-config.BlockSizeLowerLimit))
 			}
 			maxBlockSize = targetBlockSize
 		}
@@ -126,7 +126,7 @@ func (tc *ThrottleController) Reset() {
 	// Reset to default parameters
 	resetParams := ThrottleParams{
 		MaxTxSize:    0,
-		MaxBlockSize: config.AlwaysBlockSize,
+		MaxBlockSize: config.BlockSizeUpperLimit,
 		Intensity:    0.0,
 	}
 	tc.currentParams.Store(&resetParams)
@@ -167,10 +167,10 @@ func (f *ThrottleControllerFactory) CreateController(
 	var strategy ThrottleStrategy
 
 	throttleConfig := ThrottleConfig{
-		Threshold:         throttleParams.Threshold,
-		ThrottleTxSize:    throttleParams.TxSize,
-		ThrottleBlockSize: throttleParams.BlockSize,
-		AlwaysBlockSize:   throttleParams.AlwaysBlockSize,
+		LowerThreshold:      throttleParams.LowerThreshold,
+		TxSizeLowerLimit:    throttleParams.TxSize,
+		BlockSizeLowerLimit: throttleParams.BlockSize,
+		BlockSizeUpperLimit: throttleParams.AlwaysBlockSize,
 	}
 
 	// Default to step controller if no type is specified
@@ -180,11 +180,11 @@ func (f *ThrottleControllerFactory) CreateController(
 
 	switch controllerType {
 	case config.StepControllerType:
-		strategy = NewStepStrategy(throttleParams.Threshold)
+		strategy = NewStepStrategy(throttleParams.LowerThreshold)
 	case config.LinearControllerType:
-		strategy = NewLinearStrategy(throttleParams.Threshold, throttleParams.MaxThreshold, f.log)
+		strategy = NewLinearStrategy(throttleParams.LowerThreshold, throttleParams.UpperThreshold, f.log)
 	case config.QuadraticControllerType:
-		strategy = NewQuadraticStrategy(throttleParams.Threshold, throttleParams.MaxThreshold, f.log)
+		strategy = NewQuadraticStrategy(throttleParams.LowerThreshold, throttleParams.UpperThreshold, f.log)
 	case config.PIDControllerType:
 		log.Warn("EXPERIMENTAL FEATURE")
 		log.Warn("PID controller is an EXPERIMENTAL feature that should only be used by experts. PID controller requires deep understanding of control theory and careful tuning. Improper configuration can lead to system instability or poor performance. Use with extreme caution in production environments.")
@@ -212,7 +212,7 @@ func (f *ThrottleControllerFactory) CreateController(
 			return nil, fmt.Errorf("PID SampleTime must be positive, got %v", pidConfig.SampleTime)
 		}
 
-		strategy = NewPIDStrategy(throttleParams.Threshold, *pidConfig)
+		strategy = NewPIDStrategy(throttleParams.LowerThreshold, *pidConfig)
 	default:
 		return nil, fmt.Errorf("unsupported throttle controller type: %s", controllerType)
 	}

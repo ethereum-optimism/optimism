@@ -107,8 +107,8 @@ func (bs *BatcherService) initFromCLIConfig(ctx context.Context, version string,
 	bs.WaitNodeSync = cfg.WaitNodeSync
 
 	bs.ThrottleParams = config.ThrottleParams{
-		Threshold:       cfg.ThrottleConfig.LowerThreshold,
-		MaxThreshold:    cfg.ThrottleConfig.UpperThreshold,
+		LowerThreshold:  cfg.ThrottleConfig.LowerThreshold,
+		UpperThreshold:  cfg.ThrottleConfig.UpperThreshold,
 		TxSize:          cfg.ThrottleConfig.TxSizeLowerLimit,
 		BlockSize:       cfg.ThrottleConfig.BlockSizeLowerLimit,
 		AlwaysBlockSize: cfg.ThrottleConfig.BlockSizeUpperLimit,
