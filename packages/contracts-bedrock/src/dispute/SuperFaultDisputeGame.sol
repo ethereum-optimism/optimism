@@ -309,7 +309,7 @@ contract SuperFaultDisputeGame is Clone, ISemver {
         // - 32 bytes root claim
         // - 32 bytes l1 head
         // - 32 bytes extraData
-        // - 2 bytes CWIA trailer
+        // - 2 bytes CWIA length
         if (msg.data.length != 122) revert BadExtraData();
 
         // Do not allow the game to be initialized if the root claim corresponds to a l2 sequence number (timestamp) at
