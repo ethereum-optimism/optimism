@@ -8,6 +8,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-batcher/config"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum/go-ethereum/log"
+	"github.com/stretchr/testify/require"
 )
 
 // Test configuration constants - Core throttle settings shared across all tests
@@ -388,11 +389,12 @@ func (m *mockMetrics) GetResponseTime() time.Duration {
 func TestIntensityToParams(t *testing.T) {
 	testConfig := ThrottleConfig{
 		TxSizeLowerLimit:    TestTxSizeLowerLimit,
+		TxSizeUpperLimit:    TestTxSizeUpperLimit,
 		BlockSizeLowerLimit: TestBlockSizeLowerLimit,
 		BlockSizeUpperLimit: TestBlockSizeUpperLimit,
 	}
 
-	controller := NewThrottleController(testStepStrategy(t), testConfig)
+	controller := NewThrottleController(testLinearStrategy(t), testConfig)
 
 	tests := []struct {
 		name                 string
@@ -411,14 +413,14 @@ func TestIntensityToParams(t *testing.T) {
 		{
 			name:                 "minimum positive intensity",
 			intensity:            0.001,
-			expectedMaxTxSize:    TestTxSizeLowerLimit,
+			expectedMaxTxSize:    TestTxSizeUpperLimit - uint64(0.001*float64(TestTxSizeUpperLimit-TestTxSizeLowerLimit)),
 			expectedMaxBlockSize: TestBlockSizeUpperLimit - uint64(0.001*float64(TestBlockSizeUpperLimit-TestBlockSizeLowerLimit)), // Interpolated value
 			expectedIntensity:    0.001,
 		},
 		{
 			name:                 "half intensity",
 			intensity:            0.5,
-			expectedMaxTxSize:    TestTxSizeLowerLimit,
+			expectedMaxTxSize:    TestTxSizeUpperLimit - uint64(0.5*float64(TestTxSizeUpperLimit-TestTxSizeLowerLimit)),
 			expectedMaxBlockSize: TestBlockSizeUpperLimit - uint64(0.5*float64(TestBlockSizeUpperLimit-TestBlockSizeLowerLimit)), // Interpolated value
 			expectedIntensity:    0.5,
 		},
@@ -464,7 +466,6 @@ func TestIntensityToParams(t *testing.T) {
 	}
 }
 
-// TestIntensityToParamsBlockSizeInterpolation tests block size interpolation when ThrottleBlockSize is less than AlwaysBlockSize
 func TestIntensityToParamsBlockSizeInterpolation(t *testing.T) {
 	testConfig := ThrottleConfig{
 		TxSizeLowerLimit:    TestTxSizeLowerLimit,
@@ -481,7 +482,7 @@ func TestIntensityToParamsBlockSizeInterpolation(t *testing.T) {
 		tolerance            uint64
 	}{
 		{
-			name:                 "zero intensity - always block size",
+			name:                 "zero intensity - upper limit",
 			intensity:            0.0,
 			expectedMaxBlockSize: 100_000,
 			tolerance:            0,
@@ -547,24 +548,24 @@ func TestIntensityToParamsEdgeCases(t *testing.T) {
 		}
 	})
 
-	t.Run("throttle block size greater than always block size", func(t *testing.T) {
+	t.Run("block size upper limit greater than lower limit", func(t *testing.T) {
 		testConfig := ThrottleConfig{
 			TxSizeLowerLimit:    TestTxSizeLowerLimit,
-			BlockSizeLowerLimit: TestBlockSizeUpperLimit + 50_000, // Greater than always size
+			BlockSizeLowerLimit: TestBlockSizeLowerLimit,
 			BlockSizeUpperLimit: TestBlockSizeUpperLimit,
 		}
 
 		controller := NewThrottleController(testStepStrategy(t), testConfig)
 		params := controller.intensityToParams(0.5, testConfig)
 
-		// Should use always block size when throttle block size is greater
+		// Should use upper limit when throttle block size is greater
 		if params.MaxBlockSize != TestBlockSizeUpperLimit {
-			t.Errorf("expected MaxBlockSize %d when throttle > always, got %d",
+			t.Errorf("expected MaxBlockSize %d when throttle > upper limit, got %d",
 				TestBlockSizeUpperLimit, params.MaxBlockSize)
 		}
 	})
 
-	t.Run("zero always block size", func(t *testing.T) {
+	t.Run("zero upper limit", func(t *testing.T) {
 		testConfig := ThrottleConfig{
 			TxSizeLowerLimit:    TestTxSizeLowerLimit,
 			BlockSizeLowerLimit: TestBlockSizeLowerLimit,
@@ -572,12 +573,11 @@ func TestIntensityToParamsEdgeCases(t *testing.T) {
 		}
 
 		controller := NewThrottleController(testStepStrategy(t), testConfig)
-		params := controller.intensityToParams(0.5, testConfig)
 
-		if params.MaxBlockSize != TestBlockSizeLowerLimit {
-			t.Errorf("expected MaxBlockSize %d with zero always block size, got %d",
-				TestBlockSizeLowerLimit, params.MaxBlockSize)
-		}
+		require.Panics(t, func() {
+			controller.intensityToParams(0.5, testConfig)
+		})
+
 	})
 }
 

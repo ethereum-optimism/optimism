@@ -67,7 +67,8 @@ func (tc *ThrottleController) intensityToParams(intensity float64, cfg ThrottleC
 	maxBlockSize := cfg.BlockSizeUpperLimit
 	maxTxSize := uint64(0)
 
-	if cfg.BlockSizeLowerLimit >= cfg.BlockSizeUpperLimit || cfg.TxSizeLowerLimit >= cfg.TxSizeUpperLimit {
+	if cfg.BlockSizeLowerLimit >= cfg.BlockSizeUpperLimit ||
+		tc.GetType() != config.StepControllerType && cfg.TxSizeLowerLimit >= cfg.TxSizeUpperLimit {
 		panic("throttler: invalid block or tx size limits")
 	}
 
