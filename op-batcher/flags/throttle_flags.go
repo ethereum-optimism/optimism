@@ -166,6 +166,14 @@ var ThrottleFlags = []cli.Flag{
 	ThrottleTxSizeUpperLimitFlag,
 	ThrottleBlockSizeLowerLimitFlag,
 	ThrottleBlockSizeUpperLimitFlag,
+	ThrottleControllerTypeFlag,
 	ThrottleUsafeDABytesLowerThresholdFlag,
 	ThrottleUsafeDABytesUpperThresholdFlag,
+	// PID controller flags (only used when controller type is 'pid')
+	ThrottlePidKpFlag,
+	ThrottlePidKiFlag,
+	ThrottlePidKdFlag,
+	ThrottlePidIntegralMaxFlag,
+	ThrottlePidOutputMaxFlag,
+	ThrottlePidSampleTimeFlag,
 }
