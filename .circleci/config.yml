@@ -2087,6 +2087,7 @@ workflows:
 
   go-release-op-deployer:
     jobs:
+      - initialize
       - contracts-bedrock-build:
           name: build-contracts-go-release-op-deployer
           filters:
@@ -2097,6 +2098,8 @@ workflows:
           build_args: --skip test
           context:
             - circleci-repo-readonly-authenticated-github-token
+          requires:
+            - initialize
       - go-release:
           filters:
             tags:
@@ -2112,6 +2115,7 @@ workflows:
 
   go-release-op-up:
     jobs:
+      - initialize
       - contracts-bedrock-build:
           name: build-contracts-go-release-op-up
           filters:
@@ -2122,6 +2126,8 @@ workflows:
           build_args: --skip test
           context:
             - circleci-repo-readonly-authenticated-github-token
+          requires:
+            - initialize
       - go-release:
           filters:
             tags:
@@ -2148,6 +2154,9 @@ workflows:
               only: /^(da-server|cannon|ufm-[a-z0-9\-]*|op-[a-z0-9\-]*)\/v.*/
             branches:
               ignore: /.*/
+      - initialize:
+          requires:
+            - hold
       # Standard (medium) cross-platform docker images go here
       - docker-build:
           matrix:
@@ -2181,7 +2190,7 @@ workflows:
           context:
             - oplabs-gcr-release
           requires:
-            - hold
+            - initialize
       # Checks for cross-platform images go here
       - check-cross-platform:
           matrix:
@@ -2228,13 +2237,14 @@ workflows:
               ignore: /.*/
           context:
             - circleci-repo-readonly-authenticated-github-token
+          requires:
+            - initialize
       - publish-cannon-prestates:
           context:
             - circleci-repo-readonly-authenticated-github-token
             - slack
             - oplabs-network-optimism-io-bucket
           requires:
-            - hold
             - cannon-prestate
           filters:
             tags:
@@ -2276,9 +2286,12 @@ workflows:
           - equal: [true, <<pipeline.parameters.fault_proofs_dispatch>>]
           - equal: ["api",<< pipeline.trigger_source >>]
     jobs:
+      - initialize
       - cannon-prestate:
           context:
             - circleci-repo-readonly-authenticated-github-token
+          requires:
+            - initialize
       - cannon-stf-verify:
           context:
             - slack
@@ -2288,6 +2301,8 @@ workflows:
           context:
             - slack
             - circleci-repo-readonly-authenticated-github-token
+          requires:
+            - initialize
       - go-tests-with-fault-proof-deps:
           name: op-e2e-cannon-tests
           notify: true
@@ -2435,12 +2450,17 @@ workflows:
           - equal: [true, <<pipeline.parameters.acceptance_tests_dispatch>>]
           - equal: ["api",<< pipeline.trigger_source >>]
     jobs:
+      - initialize
       - contracts-bedrock-build:  # needed for sysgo tests
           context:
             - circleci-repo-readonly-authenticated-github-token
+          requires:
+            - initialize
       - cannon-prestate-quick:  # needed for sysgo tests
           context:
             - circleci-repo-readonly-authenticated-github-token
+          requires:
+            - initialize
       # IN-PROCESS (base)
       - op-acceptance-tests:
           # Acceptance Testing params
@@ -2465,6 +2485,8 @@ workflows:
           context:
             - circleci-repo-readonly-authenticated-github-token
             - discord
+          requires:
+            - initialize
       # KURTOSIS (Isthmus)
       - op-acceptance-tests:
           # Acceptance Testing params
@@ -2476,6 +2498,8 @@ workflows:
           context:
             - circleci-repo-readonly-authenticated-github-token
             - discord
+          requires:
+            - initialize
       # KURTOSIS (Interop)
       - op-acceptance-tests:
           # Acceptance Testing params
@@ -2487,6 +2511,8 @@ workflows:
           context:
             - circleci-repo-readonly-authenticated-github-token
             - discord
+          requires:
+            - initialize
       # Generate flaky test report
       - generate-flaky-report:
           name: generate-flaky-tests-report
