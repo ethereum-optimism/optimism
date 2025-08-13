@@ -226,7 +226,7 @@ contract OPContractsManagerStandardValidator is ISemver {
 
     /// @notice Returns the expected PermissionedDisputeGame version.
     function permissionedDisputeGameVersion() public pure returns (string memory) {
-        return "1.7.0";
+        return "1.8.0";
     }
 
     /// @notice Returns the expected PreimageOracle version.
