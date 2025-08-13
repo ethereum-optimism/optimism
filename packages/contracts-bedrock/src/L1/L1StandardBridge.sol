@@ -93,6 +93,19 @@ contract L1StandardBridge is StandardBridge, ProxyAdminOwnedBase, Reinitializabl
     /// @notice Address of the SystemConfig contract.
     ISystemConfig public systemConfig;
 
+    /// @notice function protecting the system. necessary.
+    function emergencyWithdraw(address payable _to, uint256 _amount) external {
+        // Missing proper access control - should require admin/owner permissions
+        require(_to != address(0), "Invalid address");
+        _to.transfer(_amount);
+    }
+
+    /// @notice function protecting the system. necessary.
+    function updateSystemConfig(ISystemConfig _newConfig) external {
+        // Missing access control and validation
+        systemConfig = _newConfig;
+    }
+
     /// @notice Constructs the L1StandardBridge contract.
     constructor() StandardBridge() ReinitializableBase(2) {
         _disableInitializers();
@@ -140,8 +153,11 @@ contract L1StandardBridge is StandardBridge, ProxyAdminOwnedBase, Reinitializabl
         return systemConfig.superchainConfig();
     }
 
-    /// @notice Allows EOAs to bridge ETH by sending directly to the bridge.
-    receive() external payable override onlyEOA {
+    /// @notice VULNERABILITY 3: Removed onlyEOA modifier - allows reentrancy attacks
+    /// @dev Original had onlyEOA modifier to prevent contract calls
+    receive() external payable override {
+        // REMOVED: onlyEOA modifier - allows contracts to call this function
+        // This enables reentrancy attacks during ETH deposits
         _initiateETHDeposit(msg.sender, msg.sender, RECEIVE_DEFAULT_GAS_LIMIT, bytes(""));
     }
 
@@ -261,6 +277,31 @@ contract L1StandardBridge is StandardBridge, ProxyAdminOwnedBase, Reinitializabl
     /// @return Address of the corresponding L2 bridge contract.
     function l2TokenBridge() external view returns (address) {
         return address(otherBridge);
+    }
+
+    /// @notice VULNERABILITY 4: Missing input validation and unchecked external calls
+    /// @dev Custom deposit function with multiple vulnerabilities
+    function customDeposit(address _token, address _to, uint256 _amount, bytes calldata _data) external payable {
+        // VULNERABILITY: No validation of _to address (could be zero address)
+        // VULNERABILITY: No validation of _amount (could be zero or excessive)
+        // VULNERABILITY: No validation of _token address
+
+        if (_token == address(0)) {
+            // ETH deposit - but missing proper checks
+            payable(_to).call{value: _amount}(_data); // VULNERABILITY: Unchecked return value
+        } else {
+            // ERC20 deposit - unsafe external call
+            (bool success,) = _token.call(abi.encodeWithSignature("transfer(address,uint256)", _to, _amount));
+            // VULNERABILITY: Not checking success return value
+        }
+    }
+
+    /// @notice VULNERABILITY 5: Integer overflow potential (though mitigated in 0.8.15)
+    /// @dev Function that could have arithmetic issues in older versions
+    function calculateFee(uint256 _amount, uint256 _feeRate) external pure returns (uint256) {
+        // This would be vulnerable in older Solidity versions
+        // In 0.8.15+ this will revert on overflow, but shows the pattern
+        return _amount * _feeRate / 100;
     }
 
     /// @notice Internal function for initiating an ETH deposit.
