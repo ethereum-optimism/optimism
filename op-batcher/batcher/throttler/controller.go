@@ -50,9 +50,7 @@ func (tc *ThrottleController) Update(currentPendingBytes uint64) ThrottleParams 
 }
 
 // intensityToParams converts intensity to throttle parameters using common interpolation logic
-func (tc *ThrottleController) intensityToParams(intensity float64, config ThrottleConfig) ThrottleParams {
-	maxBlockSize := config.BlockSizeUpperLimit
-	var maxTxSize uint64 = 0
+func (tc *ThrottleController) intensityToParams(intensity float64, cfg ThrottleConfig) ThrottleParams {
 
 	// Clamp intensity to 1.0 to prevent overflows, should never happen
 	if intensity > 1.0 {
@@ -66,18 +64,24 @@ func (tc *ThrottleController) intensityToParams(intensity float64, config Thrott
 		intensity = 0
 	}
 
-	if intensity > 0 {
-		// Apply intensity to tx size throttling
-		maxTxSize = config.TxSizeLowerLimit
+	maxBlockSize := cfg.BlockSizeUpperLimit
+	maxTxSize := uint64(0)
 
-		// Apply intensity to block size throttling
-		if maxBlockSize == 0 || (config.BlockSizeLowerLimit != 0 && config.BlockSizeLowerLimit < maxBlockSize) {
-			targetBlockSize := config.BlockSizeLowerLimit
-			if maxBlockSize > 0 {
-				// Linear interpolation between always and throttle block sizes
-				targetBlockSize = uint64(float64(maxBlockSize) - intensity*float64(maxBlockSize-config.BlockSizeLowerLimit))
-			}
-			maxBlockSize = targetBlockSize
+	if cfg.BlockSizeLowerLimit >= cfg.BlockSizeUpperLimit || cfg.TxSizeLowerLimit >= cfg.TxSizeUpperLimit {
+		panic("throttler: invalid block or tx size limits")
+	}
+
+	if intensity == 0 {
+		maxTxSize = 0 // Transactions are not throttled at 0 intensity
+		maxBlockSize = cfg.BlockSizeUpperLimit
+	} else {
+		switch tc.strategy.GetType() {
+		case config.StepControllerType:
+			maxTxSize = cfg.TxSizeLowerLimit
+			maxBlockSize = cfg.BlockSizeLowerLimit
+		default:
+			maxTxSize = uint64(float64(cfg.TxSizeUpperLimit) - intensity*float64(cfg.TxSizeUpperLimit-cfg.TxSizeLowerLimit))
+			maxBlockSize = uint64(float64(cfg.BlockSizeUpperLimit) - intensity*float64(cfg.BlockSizeUpperLimit-cfg.BlockSizeLowerLimit))
 		}
 	}
 
@@ -167,7 +171,6 @@ func (f *ThrottleControllerFactory) CreateController(
 	var strategy ThrottleStrategy
 
 	throttleConfig := ThrottleConfig{
-		LowerThreshold:      throttleParams.LowerThreshold,
 		TxSizeLowerLimit:    throttleParams.TxSizeLowerLimit,
 		TxSizeUpperLimit:    throttleParams.TxSizeUpperLimit,
 		BlockSizeLowerLimit: throttleParams.BlockSizeLowerLimit,
