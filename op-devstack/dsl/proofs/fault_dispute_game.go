@@ -13,7 +13,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl/contract"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
-	"github.com/ethereum-optimism/optimism/op-service/errutil"
 	"github.com/ethereum-optimism/optimism/op-service/txintent/bindings"
 	"github.com/ethereum-optimism/optimism/op-service/txplan"
 )
@@ -62,8 +61,7 @@ func (g *FaultDisputeGame) Attack(eoa *dsl.EOA, claimIdx int64, newClaim common.
 
 	attackCall := g.game.Attack(claim.Value, big.NewInt(claimIdx), newClaim)
 
-	receipt, err := contract.MaybeWrite(eoa, attackCall, txplan.WithValue(requiredBond), txplan.WithGasRatio(2))
-	g.t.Require().NoErrorf(err, "error sending tx: %v", errutil.TryAddRevertReason(err))
+	receipt := contract.Write(eoa, attackCall, txplan.WithValue(requiredBond), txplan.WithGasRatio(2))
 	g.t.Require().Equal(receipt.Status, types.ReceiptStatusSuccessful)
 }
 

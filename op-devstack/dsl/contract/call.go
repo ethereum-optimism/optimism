@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
+	"github.com/ethereum-optimism/optimism/op-service/errutil"
 	"github.com/ethereum-optimism/optimism/op-service/txintent/bindings"
 	"github.com/ethereum-optimism/optimism/op-service/txintent/contractio"
 	"github.com/ethereum-optimism/optimism/op-service/txplan"
@@ -31,18 +32,13 @@ func Read[O any](call bindings.TypedCall[O], opts ...txplan.Option) O {
 	return o
 }
 
-// Write sends a tx to a contract, requiring the tx to succeed
+// Write makes a user to write a tx by using the planned contract bindings
 func Write[O any](user *dsl.EOA, call bindings.TypedCall[O], opts ...txplan.Option) *types.Receipt {
-	o, err := MaybeWrite(user, call, opts...)
-	call.Test().Require().NoError(err)
-	return o
-}
-
-// MaybeWrite sends a tx to a contract, which may fail
-func MaybeWrite[O any](user *dsl.EOA, call bindings.TypedCall[O], opts ...txplan.Option) (*types.Receipt, error) {
 	checkTestable(call)
 	finalOpts := txplan.Combine(user.Plan(), txplan.Combine(opts...))
-	return contractio.Write(call, call.Test().Ctx(), finalOpts)
+	o, err := contractio.Write(call, call.Test().Ctx(), finalOpts)
+	call.Test().Require().NoError(err, "contract write failed: %v", errutil.TryAddRevertReason(err))
+	return o
 }
 
 var _ TestCallView[any] = (*bindings.TypedCall[any])(nil)
