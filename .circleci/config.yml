@@ -2087,7 +2087,12 @@ workflows:
 
   go-release-op-deployer:
     jobs:
-      - initialize
+      - initialize:
+          filters:
+            tags:
+              only: /^op-deployer.*/
+            branches:
+              ignore: /.*/
       - contracts-bedrock-build:
           name: build-contracts-go-release-op-deployer
           filters:
@@ -2115,7 +2120,12 @@ workflows:
 
   go-release-op-up:
     jobs:
-      - initialize
+      - initialize:
+          filters:
+            tags:
+              only: /^op-deployer.*/
+            branches:
+              ignore: /.*/
       - contracts-bedrock-build:
           name: build-contracts-go-release-op-up
           filters:
