@@ -158,6 +158,14 @@ func (ba *FetchingAttributesBuilder) PreparePayloadAttributes(ctx context.Contex
 		}
 	}
 
+	if ba.rollupCfg.IsCustomGasToken(nextL2Time) {
+		customGasToken, err := CustomGasTokenNetworkUpgradeTransactions()
+		if err != nil {
+			return nil, NewCriticalError(fmt.Errorf("failed to build custom gas token network upgrade txs: %w", err))
+		}
+		upgradeTxs = append(upgradeTxs, customGasToken...)
+	}
+
 	l1InfoTx, err := L1InfoDepositBytes(ba.rollupCfg, sysConfig, seqNumber, l1Info, nextL2Time)
 	if err != nil {
 		return nil, NewCriticalError(fmt.Errorf("failed to create l1InfoTx: %w", err))

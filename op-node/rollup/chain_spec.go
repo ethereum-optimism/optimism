@@ -33,17 +33,18 @@ const maxSequencerDriftFjord = 1800
 type ForkName string
 
 const (
-	Bedrock  ForkName = "bedrock"
-	Regolith ForkName = "regolith"
-	Canyon   ForkName = "canyon"
-	Delta    ForkName = "delta"
-	Ecotone  ForkName = "ecotone"
-	Fjord    ForkName = "fjord"
-	Granite  ForkName = "granite"
-	Holocene ForkName = "holocene"
-	Isthmus  ForkName = "isthmus"
-	Jovian   ForkName = "jovian"
-	Interop  ForkName = "interop"
+	Bedrock        ForkName = "bedrock"
+	Regolith       ForkName = "regolith"
+	Canyon         ForkName = "canyon"
+	Delta          ForkName = "delta"
+	Ecotone        ForkName = "ecotone"
+	Fjord          ForkName = "fjord"
+	Granite        ForkName = "granite"
+	Holocene       ForkName = "holocene"
+	Isthmus        ForkName = "isthmus"
+	Jovian         ForkName = "jovian"
+	Interop        ForkName = "interop"
+	CustomGasToken ForkName = "custom_gas_token"
 	// ADD NEW FORKS TO AllForks BELOW!
 	None ForkName = ""
 )
@@ -60,6 +61,7 @@ var AllForks = []ForkName{
 	Isthmus,
 	Jovian,
 	Interop,
+	CustomGasToken,
 	// ADD NEW FORKS HERE!
 }
 

@@ -131,6 +131,11 @@ type Config struct {
 	// Active if InteropTime != nil && L2 block timestamp >= *InteropTime, inactive otherwise.
 	InteropTime *uint64 `json:"interop_time,omitempty"`
 
+	// CustomGasTokenTime sets the activation time of the Custom Gas Token network upgrade.
+	// Active if CustomGasTokenTime != nil && L2 block timestamp >= *CustomGasTokenTime, inactive otherwise.
+	// TODO: replace with custom gas token fork name
+	CustomGasTokenTime *uint64 `json:"custom_gas_token_time,omitempty"`
+
 	// Note: below addresses are part of the block-derivation process,
 	// and required to be the same network-wide to stay in consensus.
 
@@ -162,6 +167,14 @@ type Config struct {
 	// This feature (de)activates by L1 origin timestamp, to keep a consistent L1 block info per L2
 	// epoch.
 	PectraBlobScheduleTime *uint64 `json:"pectra_blob_schedule_time,omitempty"`
+
+	// Custom Gas Token Configuration
+	// IsCustomGasToken indicates whether this chain uses a custom gas token instead of ETH
+	CustomGasToken bool `json:"is_custom_gas_token,omitempty"`
+	// GasTokenName is the name of the custom gas token
+	GasTokenName string `json:"gas_token_name,omitempty"`
+	// GasTokenSymbol is the symbol of the custom gas token
+	GasTokenSymbol string `json:"gas_token_symbol,omitempty"`
 }
 
 // ValidateL1Config checks L1 config variables for errors.
@@ -470,6 +483,12 @@ func (c *Config) IsJovian(timestamp uint64) bool {
 	return c.JovianTime != nil && timestamp >= *c.JovianTime
 }
 
+// TODO: use correct name
+// IsCustomGasToken returns true if the Custom Gas Token hardfork is active at or past the given timestamp.
+func (c *Config) IsCustomGasToken(timestamp uint64) bool {
+	return c.CustomGasToken && c.CustomGasTokenTime != nil && timestamp >= *c.CustomGasTokenTime
+}
+
 // IsInterop returns true if the Interop hardfork is active at or past the given timestamp.
 func (c *Config) IsInterop(timestamp uint64) bool {
 	return c.InteropTime != nil && timestamp >= *c.InteropTime
@@ -547,6 +566,14 @@ func (c *Config) IsInteropActivationBlock(l2BlockTime uint64) bool {
 		!c.IsInterop(l2BlockTime-c.BlockTime)
 }
 
+// IsCustomGasTokenActivationBlock returns whether the specified block is the first block subject to the
+// Custom Gas Token upgrade.
+func (c *Config) IsCustomGasTokenActivationBlock(l2BlockTime uint64) bool {
+	return c.IsCustomGasToken(l2BlockTime) &&
+		l2BlockTime >= c.BlockTime &&
+		!c.IsCustomGasToken(l2BlockTime-c.BlockTime)
+}
+
 // IsActivationBlock returns the fork which activates at the block with time newTime if the previous
 // block's time is oldTime. It return an empty ForkName if no fork activation takes place between
 // those timestamps. It can be used for both, L1 and L2 blocks.
@@ -554,6 +581,9 @@ func (c *Config) IsInteropActivationBlock(l2BlockTime uint64) bool {
 func (c *Config) IsActivationBlock(oldTime, newTime uint64) ForkName {
 	if c.IsInterop(newTime) && !c.IsInterop(oldTime) {
 		return Interop
+	}
+	if c.IsCustomGasToken(newTime) && !c.IsCustomGasToken(oldTime) {
+		return CustomGasToken
 	}
 	if c.IsIsthmus(newTime) && !c.IsIsthmus(oldTime) {
 		return Isthmus
@@ -586,6 +616,9 @@ func (c *Config) IsActivationBlockForFork(l2BlockTime uint64, forkName ForkName)
 func (c *Config) ActivateAtGenesis(hardfork ForkName) {
 	// IMPORTANT! ordered from newest to oldest
 	switch hardfork {
+	case CustomGasToken:
+		c.CustomGasTokenTime = new(uint64)
+		fallthrough
 	case Jovian:
 		c.JovianTime = new(uint64)
 		fallthrough
@@ -739,6 +772,9 @@ func (c *Config) Description(l2Chains map[string]string) string {
 	if c.AltDAConfig != nil {
 		banner += fmt.Sprintf("Node supports Alt-DA Mode with CommitmentType %v\n", c.AltDAConfig.CommitmentType)
 	}
+	if c.CustomGasToken {
+		banner += fmt.Sprintf("Node supports Custom Gas Token: %s (%s)\n", c.GasTokenName, c.GasTokenSymbol)
+	}
 	return banner
 }
 
@@ -776,6 +812,9 @@ func (c *Config) LogDescription(log log.Logger, l2Chains map[string]string) {
 	if c.AltDAConfig != nil {
 		ctx = append(ctx, "alt_da", *c.AltDAConfig)
 	}
+	if c.CustomGasToken {
+		ctx = append(ctx, "custom_gas_token", true, "gas_token_name", c.GasTokenName, "gas_token_symbol", c.GasTokenSymbol)
+	}
 	log.Info("Rollup Config", ctx...)
 }
 
@@ -794,6 +833,7 @@ func (c *Config) forEachFork(callback func(name string, logName string, time *ui
 	callback("Isthmus", "isthmus_time", c.IsthmusTime)
 	callback("Jovian", "jovian_time", c.JovianTime)
 	callback("Interop", "interop_time", c.InteropTime)
+	callback("Custom Gas Token", "custom_gas_token_time", c.CustomGasTokenTime)
 }
 
 func (c *Config) ParseRollupConfig(in io.Reader) error {

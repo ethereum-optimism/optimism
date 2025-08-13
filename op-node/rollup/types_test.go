@@ -919,3 +919,33 @@ func TestConfig_ProbablyMissingPectraBlobSchedule(t *testing.T) {
 		})
 	}
 }
+
+func TestConfig_CustomGasToken(t *testing.T) {
+	activationTime := uint64(1002) // First block after genesis
+	cfg := &Config{
+		BlockTime:          2,
+		CustomGasToken:     true,
+		CustomGasTokenTime: &activationTime,
+		GasTokenName:       "Test Token",
+		GasTokenSymbol:     "TEST",
+	}
+
+	// Test IsCustomGasTokenActivationBlock
+	// Should return true for the first block after genesis when custom gas token is enabled
+	genesisTime := uint64(1000)
+	firstBlockTime := genesisTime + cfg.BlockTime
+
+	// First block should be activation block
+	require.True(t, cfg.IsCustomGasTokenActivationBlock(firstBlockTime))
+
+	// Second block should not be activation block
+	secondBlockTime := firstBlockTime + cfg.BlockTime
+	require.False(t, cfg.IsCustomGasTokenActivationBlock(secondBlockTime))
+
+	// Test with custom gas token disabled
+	cfgDisabled := &Config{
+		BlockTime:      2,
+		CustomGasToken: false,
+	}
+	require.False(t, cfgDisabled.IsCustomGasTokenActivationBlock(firstBlockTime))
+}
