@@ -52,9 +52,10 @@ const (
 	// The default value is 28 days. The worst case duration for a game is 16 days
 	// (due to clock extension), plus 7 days WETH withdrawal delay leaving a 5 day
 	// buffer to monitor games to ensure bonds are claimed.
-	DefaultGameWindow    = 28 * 24 * time.Hour
-	DefaultMaxPendingTx  = 10
-	DefaultResponseDelay = 0 // No delay by default
+	DefaultGameWindow         = 28 * 24 * time.Hour
+	DefaultMaxPendingTx       = 10
+	DefaultResponseDelay      = 0 // No delay by default
+	DefaultResponseDelayAfter = 0 // Apply delay from first response by default
 )
 
 // Config is a well typed config that is parsed from the CLI params.
@@ -103,6 +104,8 @@ type Config struct {
 	ResponseDelay time.Duration /* Delay before responding to each game action to slow down game progression.
 	   Note: set with caution, since the challenger can end up using more resources
 	   if it has to wait to respond to an attacker generating many claims. */
+	ResponseDelayAfter uint64 /* Number of responses after which to start applying the delay.
+	   Set to 0 to apply delay from the first response, 1 to skip the first response, etc. */
 }
 
 func NewInteropConfig(

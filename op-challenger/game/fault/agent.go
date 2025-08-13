@@ -34,18 +34,20 @@ type ClaimLoader interface {
 }
 
 type Agent struct {
-	metrics          metrics.Metricer
-	systemClock      clock.Clock
-	l1Clock          types.ClockReader
-	solver           *solver.GameSolver
-	loader           ClaimLoader
-	responder        Responder
-	selective        bool
-	claimants        []common.Address
-	maxDepth         types.Depth
-	maxClockDuration time.Duration
-	log              log.Logger
-	responseDelay    time.Duration
+	metrics            metrics.Metricer
+	systemClock        clock.Clock
+	l1Clock            types.ClockReader
+	solver             *solver.GameSolver
+	loader             ClaimLoader
+	responder          Responder
+	selective          bool
+	claimants          []common.Address
+	maxDepth           types.Depth
+	maxClockDuration   time.Duration
+	log                log.Logger
+	responseDelay      time.Duration
+	responseDelayAfter uint64
+	responseCount      uint64 // Number of responses made in this game
 }
 
 func NewAgent(
@@ -61,20 +63,23 @@ func NewAgent(
 	selective bool,
 	claimants []common.Address,
 	responseDelay time.Duration,
+	responseDelayAfter uint64,
 ) *Agent {
 	return &Agent{
-		metrics:          m,
-		systemClock:      systemClock,
-		l1Clock:          l1Clock,
-		solver:           solver.NewGameSolver(maxDepth, trace),
-		loader:           loader,
-		responder:        responder,
-		selective:        selective,
-		claimants:        claimants,
-		maxDepth:         maxDepth,
-		maxClockDuration: maxClockDuration,
-		log:              log,
-		responseDelay:    responseDelay,
+		metrics:            m,
+		systemClock:        systemClock,
+		l1Clock:            l1Clock,
+		solver:             solver.NewGameSolver(maxDepth, trace),
+		loader:             loader,
+		responder:          responder,
+		selective:          selective,
+		claimants:          claimants,
+		maxDepth:           maxDepth,
+		maxClockDuration:   maxClockDuration,
+		log:                log,
+		responseDelay:      responseDelay,
+		responseDelayAfter: responseDelayAfter,
+		responseCount:      0, // Start with no responses made
 	}
 }
 
@@ -146,8 +151,9 @@ func (a *Agent) performAction(ctx context.Context, wg *sync.WaitGroup, action ty
 	}
 
 	// Apply configurable delay before responding (to slow down game progression)
-	if a.responseDelay > 0 {
-		actionLog.Info("Delaying response", "delay", a.responseDelay)
+	// Only apply delay if we've made enough responses already
+	if a.responseDelay > 0 && a.responseCount >= a.responseDelayAfter {
+		actionLog.Info("Delaying response", "delay", a.responseDelay, "response_count", a.responseCount, "delay_after", a.responseDelayAfter)
 		select {
 		case <-ctx.Done():
 			actionLog.Error("Action cancelled during delay", "err", ctx.Err())
@@ -160,6 +166,10 @@ func (a *Agent) performAction(ctx context.Context, wg *sync.WaitGroup, action ty
 	err := a.responder.PerformAction(ctx, action)
 	if err != nil {
 		actionLog.Error("Action failed", "err", err)
+	} else {
+		// Increment response count only on successful actions
+		a.responseCount++
+		actionLog.Debug("Response count incremented", "response_count", a.responseCount)
 	}
 }
 

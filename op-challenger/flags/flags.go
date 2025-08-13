@@ -249,6 +249,12 @@ var (
 		EnvVars: prefixEnvVars("RESPONSE_DELAY"),
 		Value:   config.DefaultResponseDelay,
 	}
+	ResponseDelayAfterFlag = &cli.Uint64Flag{
+		Name:    "response-delay-after",
+		Usage:   "Number of responses after which to start applying the delay (0 = from first response).",
+		EnvVars: prefixEnvVars("RESPONSE_DELAY_AFTER"),
+		Value:   config.DefaultResponseDelayAfter,
+	}
 )
 
 // requiredFlags are checked by [CheckRequired]
@@ -290,6 +296,7 @@ var optionalFlags = []cli.Flag{
 	SelectiveClaimResolutionFlag,
 	UnsafeAllowInvalidPrestate,
 	ResponseDelayFlag,
+	ResponseDelayAfterFlag,
 }
 
 func init() {
@@ -695,5 +702,6 @@ func NewConfigFromCLI(ctx *cli.Context, logger log.Logger) (*config.Config, erro
 		SelectiveClaimResolution:            ctx.Bool(SelectiveClaimResolutionFlag.Name),
 		AllowInvalidPrestate:                ctx.Bool(UnsafeAllowInvalidPrestate.Name),
 		ResponseDelay:                       ctx.Duration(ResponseDelayFlag.Name),
+		ResponseDelayAfter:                  ctx.Uint64(ResponseDelayAfterFlag.Name),
 	}, nil
 }
