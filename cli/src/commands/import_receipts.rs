@@ -12,7 +12,7 @@ use reth_downloaders::{
 };
 use reth_execution_types::ExecutionOutcome;
 use reth_node_builder::ReceiptTy;
-use reth_node_core::version::SHORT_VERSION;
+use reth_node_core::version::version_metadata;
 use reth_optimism_chainspec::OpChainSpec;
 use reth_optimism_primitives::{bedrock::is_dup_tx, OpPrimitives, OpReceipt};
 use reth_primitives_traits::NodePrimitives;
@@ -52,7 +52,7 @@ impl<C: ChainSpecParser<ChainSpec = OpChainSpec>> ImportReceiptsOpCommand<C> {
     pub async fn execute<N: CliNodeTypes<ChainSpec = C::ChainSpec, Primitives = OpPrimitives>>(
         self,
     ) -> eyre::Result<()> {
-        info!(target: "reth::cli", "reth {} starting", SHORT_VERSION);
+        info!(target: "reth::cli", "reth {} starting", version_metadata().short_version);
 
         debug!(target: "reth::cli",
             chunk_byte_len=self.chunk_len.unwrap_or(DEFAULT_BYTE_LEN_CHUNK_CHAIN_FILE),

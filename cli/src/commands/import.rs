@@ -10,7 +10,7 @@ use reth_consensus::noop::NoopConsensus;
 use reth_db_api::{tables, transaction::DbTx};
 use reth_downloaders::file_client::{ChunkedFileReader, DEFAULT_BYTE_LEN_CHUNK_CHAIN_FILE};
 use reth_node_builder::BlockTy;
-use reth_node_core::version::SHORT_VERSION;
+use reth_node_core::version::version_metadata;
 use reth_optimism_chainspec::OpChainSpec;
 use reth_optimism_evm::OpExecutorProvider;
 use reth_optimism_primitives::{bedrock::is_dup_tx, OpPrimitives};
@@ -44,7 +44,7 @@ impl<C: ChainSpecParser<ChainSpec = OpChainSpec>> ImportOpCommand<C> {
     pub async fn execute<N: CliNodeTypes<ChainSpec = C::ChainSpec, Primitives = OpPrimitives>>(
         self,
     ) -> eyre::Result<()> {
-        info!(target: "reth::cli", "reth {} starting", SHORT_VERSION);
+        info!(target: "reth::cli", "reth {} starting", version_metadata().short_version);
 
         info!(target: "reth::cli",
             "Disabled stages requiring state, since cannot execute OVM state changes"
