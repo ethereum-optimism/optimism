@@ -168,9 +168,10 @@ func (f *ThrottleControllerFactory) CreateController(
 
 	throttleConfig := ThrottleConfig{
 		LowerThreshold:      throttleParams.LowerThreshold,
-		TxSizeLowerLimit:    throttleParams.TxSize,
-		BlockSizeLowerLimit: throttleParams.BlockSize,
-		BlockSizeUpperLimit: throttleParams.AlwaysBlockSize,
+		TxSizeLowerLimit:    throttleParams.TxSizeLowerLimit,
+		TxSizeUpperLimit:    throttleParams.TxSizeUpperLimit,
+		BlockSizeLowerLimit: throttleParams.BlockSizeLowerLimit,
+		BlockSizeUpperLimit: throttleParams.BlockSizeUpperLimit,
 	}
 
 	// Default to step controller if no type is specified

@@ -107,13 +107,14 @@ func (bs *BatcherService) initFromCLIConfig(ctx context.Context, version string,
 	bs.WaitNodeSync = cfg.WaitNodeSync
 
 	bs.ThrottleParams = config.ThrottleParams{
-		LowerThreshold:  cfg.ThrottleConfig.LowerThreshold,
-		UpperThreshold:  cfg.ThrottleConfig.UpperThreshold,
-		TxSize:          cfg.ThrottleConfig.TxSizeLowerLimit,
-		BlockSize:       cfg.ThrottleConfig.BlockSizeLowerLimit,
-		AlwaysBlockSize: cfg.ThrottleConfig.BlockSizeUpperLimit,
-		ControllerType:  cfg.ThrottleConfig.ControllerType,
-		Endpoints:       slices.Union(cfg.L2EthRpc, cfg.ThrottleConfig.AdditionalEndpoints),
+		LowerThreshold:      cfg.ThrottleConfig.LowerThreshold,
+		UpperThreshold:      cfg.ThrottleConfig.UpperThreshold,
+		TxSizeLowerLimit:    cfg.ThrottleConfig.TxSizeLowerLimit,
+		TxSizeUpperLimit:    cfg.ThrottleConfig.TxSizeUpperLimit,
+		BlockSizeLowerLimit: cfg.ThrottleConfig.BlockSizeLowerLimit,
+		BlockSizeUpperLimit: cfg.ThrottleConfig.BlockSizeUpperLimit,
+		ControllerType:      cfg.ThrottleConfig.ControllerType,
+		Endpoints:           slices.Union(cfg.L2EthRpc, cfg.ThrottleConfig.AdditionalEndpoints),
 	}
 
 	if bs.ThrottleParams.ControllerType == config.PIDControllerType {

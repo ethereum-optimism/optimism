@@ -244,10 +244,12 @@ func TestBatchSubmitter_ThrottlingEndpoints(t *testing.T) {
 			bs.Config = BatcherConfig{
 				NetworkTimeout: time.Second,
 				ThrottleParams: config.ThrottleParams{
-					LowerThreshold: 10000,
-					TxSize:         5000,
-					BlockSize:      20000,
-					Endpoints:      urls,
+					LowerThreshold:      10000,
+					TxSizeLowerLimit:    5000,
+					TxSizeUpperLimit:    10000,
+					BlockSizeLowerLimit: 20000,
+					BlockSizeUpperLimit: 30000,
+					Endpoints:           urls,
 				},
 			}
 

@@ -1185,7 +1185,7 @@ func (l *BatchSubmitter) ResetThrottleController() error {
 
 	l.throttleController.Reset()
 	l.Metr.RecordThrottleIntensity(0.0, l.throttleController.GetType())
-	l.Metr.RecordThrottleParams(0, l.Config.ThrottleParams.AlwaysBlockSize)
+	l.Metr.RecordThrottleParams(0, l.Config.ThrottleParams.BlockSizeUpperLimit)
 
 	l.Log.Info("Successfully reset throttle controller state")
 	return nil
