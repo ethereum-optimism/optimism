@@ -54,9 +54,15 @@ func Read[O any](view bindings.TypedCall[O], ctx context.Context, opts ...txplan
 }
 
 // ReadArray uses batch calls to load all entries from an array.
-func ReadArray[T any](ctx context.Context, caller *batching.MultiCaller, count uint64, elemCall func(i *big.Int) bindings.TypedCall[T]) ([]T, error) {
+func ReadArray[T any](ctx context.Context, caller *batching.MultiCaller, countCall bindings.TypedCall[*big.Int], elemCall func(i *big.Int) bindings.TypedCall[T]) ([]T, error) {
 	block := rpcblock.Latest
 
+	countResult, err := Read(countCall, ctx)
+	if err != nil {
+		return nil, fmt.Errorf("error reading array size: %v", err)
+	}
+
+	count := countResult.Uint64()
 	calls := make([]batching.Call, count)
 	for i := uint64(0); i < count; i++ {
 		typedCall := elemCall(new(big.Int).SetUint64(i))

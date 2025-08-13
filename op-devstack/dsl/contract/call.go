@@ -42,8 +42,7 @@ func ReadArray[T any](countCall bindings.TypedCall[*big.Int], elemCall func(i *b
 
 	caller := countCall.Client().NewMultiCaller(batching.DefaultBatchSize)
 
-	count := Read(countCall).Uint64()
-	o, err := contractio.ReadArray(ctx, caller, count, elemCall)
+	o, err := contractio.ReadArray(ctx, caller, countCall, elemCall)
 	test.Require().NoError(err)
 	return o
 }
