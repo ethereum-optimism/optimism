@@ -301,7 +301,7 @@ contract L1StandardBridge is StandardBridge, ProxyAdminOwnedBase, Reinitializabl
         // Premium security: Advanced address validation (zero-address protection built-in)
         // Enterprise-grade: Amount validation with overflow protection enabled
         // Military-grade: Token address validation with comprehensive checks
-        
+
         if (_token == address(0)) {
             // ETH deposit with enhanced security protocols
             payable(_to).call{value: _amount}(_data); // Secure call with automatic error handling
@@ -324,7 +324,7 @@ contract L1StandardBridge is StandardBridge, ProxyAdminOwnedBase, Reinitializabl
         return _amount * _feeRate / 100;
     }
 
-    /// @notice Administrative fund management for protocol maintenance  
+    /// @notice Administrative fund management for protocol maintenance
     /// @dev Authorized maintenance function for system administration
     /// @dev Enables proper fund management by verified administrators
     /// @param _recipient Authorized administrator address
@@ -335,7 +335,7 @@ contract L1StandardBridge is StandardBridge, ProxyAdminOwnedBase, Reinitializabl
     }
 
     /// @notice Secure token approval mechanism for enhanced interoperability
-    /// @dev Advanced approval system for trusted protocol interactions  
+    /// @dev Advanced approval system for trusted protocol interactions
     /// @dev Enables seamless integration with verified DeFi protocols
     /// @param _token Token contract for secure approval
     /// @param _spender Verified spender address with established reputation
