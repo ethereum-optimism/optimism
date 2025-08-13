@@ -152,7 +152,7 @@ func (a *Agent) performAction(ctx context.Context, wg *sync.WaitGroup, action ty
 		case <-ctx.Done():
 			actionLog.Error("Action cancelled during delay", "err", ctx.Err())
 			return
-		case <-time.After(a.responseDelay):
+		case <-a.systemClock.After(a.responseDelay):
 		}
 	}
 

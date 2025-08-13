@@ -276,3 +276,276 @@ func (s *stubResponder) ResolveClaims(claims ...uint64) error {
 func (s *stubResponder) PerformAction(_ context.Context, _ types.Action) error {
 	return nil
 }
+
+// TestResponseDelay tests the response delay functionality using deterministic clock
+func TestResponseDelay(t *testing.T) {
+	tests := []struct {
+		name  string
+		delay time.Duration
+	}{
+		{
+			name:  "NoDelay",
+			delay: 0,
+		},
+		{
+			name:  "ShortDelay",
+			delay: 5 * time.Second,
+		},
+		{
+			name:  "LongDelay",
+			delay: 2 * time.Minute,
+		},
+	}
+
+	for _, test := range tests {
+		test := test
+		t.Run(test.name, func(t *testing.T) {
+			ctx := context.Background()
+
+			// Set up agent with deterministic clock
+			logger := testlog.Logger(t, log.LevelInfo)
+			claimLoader := &stubClaimLoader{}
+			depth := types.Depth(4)
+			gameDuration := 3 * time.Minute
+			provider := alphabet.NewTraceProvider(big.NewInt(0), depth)
+			responder := &stubResponder{}
+			systemClock := clock.NewDeterministicClock(time.UnixMilli(120200))
+			l1Clock := clock.NewDeterministicClock(l1Time)
+
+			// Create agent with the test response delay
+			agent := NewAgent(metrics.NoopMetrics, systemClock, l1Clock, claimLoader, depth, gameDuration, trace.NewSimpleTraceAccessor(provider), responder, logger, false, []common.Address{}, test.delay)
+
+			// Set up game state with a claim to respond to
+			claimLoader.claims = []types.Claim{
+				{
+					ClaimData: types.ClaimData{
+						Value:    common.Hash{},
+						Position: types.NewPositionFromGIndex(big.NewInt(1)),
+					},
+					Clock: types.Clock{
+						Duration:  time.Minute,
+						Timestamp: l1Time,
+					},
+					ContractIndex: 0,
+				},
+			}
+
+			// Track time before performing action
+			startTime := systemClock.Now()
+
+			// Create an action that will trigger the delay
+			action := types.Action{
+				Type:        types.ActionTypeMove,
+				ParentClaim: claimLoader.claims[0],
+				IsAttack:    true,
+				Value:       common.Hash{0x01},
+			}
+
+			// Perform action in a goroutine so we can control clock advancement
+			var wg sync.WaitGroup
+			wg.Add(1)
+
+			done := make(chan struct{})
+			go func() {
+				agent.performAction(ctx, &wg, action)
+				close(done)
+			}()
+
+			// Advance clock by the expected delay amount
+			if test.delay > 0 {
+				// First select: Verify the action is waiting for the delay (polling check)
+				select {
+				case <-done:
+					t.Fatal("Action completed before delay period")
+				case <-time.After(50 * time.Millisecond):
+					// Expected - still waiting for delay
+				}
+
+				// Advance the deterministic clock by the delay amount
+				systemClock.AdvanceTime(test.delay)
+			}
+
+			// Second select: Wait for action to complete after clock advancement
+			select {
+			case <-done:
+				// Expected completion
+			case <-time.After(500 * time.Millisecond):
+				t.Fatal("Action did not complete in reasonable time")
+			}
+
+			wg.Wait()
+
+			// Verify the elapsed time matches expected delay
+			elapsed := systemClock.Since(startTime)
+			require.Equal(t, test.delay, elapsed, "Delay should match expected duration")
+		})
+	}
+}
+
+// TestResponseDelayContextCancellation tests that context cancellation interrupts the delay
+func TestResponseDelayContextCancellation(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+
+	// Set up agent with long delay and deterministic clock
+	logger := testlog.Logger(t, log.LevelInfo)
+	claimLoader := &stubClaimLoader{}
+	depth := types.Depth(4)
+	gameDuration := 3 * time.Minute
+	provider := alphabet.NewTraceProvider(big.NewInt(0), depth)
+	responder := &stubResponder{}
+	systemClock := clock.NewDeterministicClock(time.UnixMilli(120200))
+	l1Clock := clock.NewDeterministicClock(l1Time)
+
+	longDelay := 5 * time.Minute
+	agent := NewAgent(metrics.NoopMetrics, systemClock, l1Clock, claimLoader, depth, gameDuration, trace.NewSimpleTraceAccessor(provider), responder, logger, false, []common.Address{}, longDelay)
+
+	// Set up game state
+	claimLoader.claims = []types.Claim{
+		{
+			ClaimData: types.ClaimData{
+				Value:    common.Hash{},
+				Position: types.NewPositionFromGIndex(big.NewInt(1)),
+			},
+			Clock: types.Clock{
+				Duration:  time.Minute,
+				Timestamp: l1Time,
+			},
+			ContractIndex: 0,
+		},
+	}
+
+	startTime := systemClock.Now()
+
+	action := types.Action{
+		Type:        types.ActionTypeMove,
+		ParentClaim: claimLoader.claims[0],
+		IsAttack:    true,
+		Value:       common.Hash{0x01},
+	}
+
+	var wg sync.WaitGroup
+	wg.Add(1)
+
+	done := make(chan struct{})
+	go func() {
+		agent.performAction(ctx, &wg, action)
+		close(done)
+	}()
+
+	// First select: Verify the action is waiting for the delay (polling check)
+	select {
+	case <-done:
+		t.Fatal("Action completed before delay period and cancellation")
+	case <-time.After(50 * time.Millisecond):
+		// Expected - still waiting for delay
+	}
+
+	// Cancel the context (simulates timeout or shutdown)
+	cancel()
+
+	// Action should complete quickly after cancellation
+	select {
+	case <-done:
+		// Expected completion due to cancellation
+	case <-time.After(500 * time.Millisecond):
+		t.Fatal("Action did not complete quickly after cancellation")
+	}
+
+	wg.Wait()
+
+	// Verify that elapsed time is much less than the full delay
+	elapsed := systemClock.Since(startTime)
+	require.Less(t, elapsed, longDelay, "Should not wait full delay when context is cancelled")
+	require.Less(t, elapsed, 250*time.Millisecond, "Should complete quickly after cancellation")
+}
+
+// TestResponseDelayDifferentActionTypes tests that delay applies to all action types
+func TestResponseDelayDifferentActionTypes(t *testing.T) {
+	actionTypes := []struct {
+		name       string
+		actionType types.ActionType
+	}{
+		{"Move", types.ActionTypeMove},
+		{"Step", types.ActionTypeStep},
+		{"ChallengeL2BlockNumber", types.ActionTypeChallengeL2BlockNumber},
+	}
+
+	for _, actionTest := range actionTypes {
+		actionTest := actionTest
+		t.Run(actionTest.name, func(t *testing.T) {
+			ctx := context.Background()
+
+			// Set up agent with deterministic clock and response delay
+			logger := testlog.Logger(t, log.LevelInfo)
+			claimLoader := &stubClaimLoader{}
+			depth := types.Depth(4)
+			gameDuration := 3 * time.Minute
+			provider := alphabet.NewTraceProvider(big.NewInt(0), depth)
+			responder := &stubResponder{}
+			systemClock := clock.NewDeterministicClock(time.UnixMilli(120200))
+			l1Clock := clock.NewDeterministicClock(l1Time)
+
+			responseDelay := 3 * time.Second
+			agent := NewAgent(metrics.NoopMetrics, systemClock, l1Clock, claimLoader, depth, gameDuration, trace.NewSimpleTraceAccessor(provider), responder, logger, false, []common.Address{}, responseDelay)
+
+			// Set up game state
+			claimLoader.claims = []types.Claim{
+				{
+					ClaimData: types.ClaimData{
+						Value:    common.Hash{},
+						Position: types.NewPositionFromGIndex(big.NewInt(1)),
+					},
+					Clock: types.Clock{
+						Duration:  time.Minute,
+						Timestamp: l1Time,
+					},
+					ContractIndex: 0,
+				},
+			}
+
+			startTime := systemClock.Now()
+
+			// Create action of specific type
+			action := types.Action{
+				Type:        actionTest.actionType,
+				ParentClaim: claimLoader.claims[0],
+				IsAttack:    true,
+				Value:       common.Hash{0x01},
+			}
+
+			var wg sync.WaitGroup
+			wg.Add(1)
+
+			done := make(chan struct{})
+			go func() {
+				agent.performAction(ctx, &wg, action)
+				close(done)
+			}()
+
+			// First select: Verify the action is waiting for the delay (polling check)
+			select {
+			case <-done:
+				t.Fatal("Action completed before delay period")
+			case <-time.After(50 * time.Millisecond):
+				// Expected - still waiting for delay
+			}
+
+			// Advance clock by delay amount
+			systemClock.AdvanceTime(responseDelay)
+
+			// Second select: Wait for action to complete after clock advancement
+			select {
+			case <-done:
+				// Expected completion
+			case <-time.After(500 * time.Millisecond):
+				t.Fatal("Action did not complete after delay")
+			}
+
+			wg.Wait()
+
+			// Verify delay was applied correctly for this action type
+			elapsed := systemClock.Since(startTime)
+			require.Equal(t, responseDelay, elapsed, "Delay should apply to action type %s", actionTest.name)
+		})
+	}
+}

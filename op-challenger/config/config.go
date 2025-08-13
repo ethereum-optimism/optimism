@@ -100,7 +100,9 @@ type Config struct {
 	MetricsConfig opmetrics.CLIConfig
 	PprofConfig   oppprof.CLIConfig
 
-	ResponseDelay time.Duration // Delay before responding to game actions to slow down game progression
+	ResponseDelay time.Duration /* Delay before responding to each game action to slow down game progression.
+	   Note: set with caution, since the challenger can end up using more resources
+	   if it has to wait to respond to an attacker generating many claims. */
 }
 
 func NewInteropConfig(
