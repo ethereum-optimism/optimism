@@ -545,7 +545,7 @@ func TestIntensityToParamsBlockSizeInterpolation(t *testing.T) {
 
 // TestIntensityToParamsEdgeCases tests edge cases for the intensityToParams function
 func TestIntensityToParamsEdgeCases(t *testing.T) {
-	t.Run("zero throttle block size", func(t *testing.T) {
+	t.Run("zero BlockSizeLowerLimit", func(t *testing.T) {
 		testConfig := ThrottleConfig{
 			TxSizeLowerLimit:    TestTxSizeLowerLimit,
 			BlockSizeLowerLimit: 0,
@@ -555,9 +555,9 @@ func TestIntensityToParamsEdgeCases(t *testing.T) {
 		controller := NewThrottleController(testStepStrategy(t), testConfig)
 		params := controller.intensityToParams(0.5, testConfig)
 
-		if params.MaxBlockSize != TestBlockSizeUpperLimit {
+		if params.MaxBlockSize != 0 {
 			t.Errorf("expected MaxBlockSize %d with zero throttle block size, got %d",
-				TestBlockSizeUpperLimit, params.MaxBlockSize)
+				0, params.MaxBlockSize)
 		}
 	})
 
