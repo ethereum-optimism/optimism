@@ -21,8 +21,6 @@ git.sr.ht/~sbinet/cmpimg v0.1.0 h1:E0zPRk2muWuCqSKSVZIWsgtU9pjsw3eKHi8VmQeScxo=
 git.sr.ht/~sbinet/cmpimg v0.1.0/go.mod h1:FU12psLbF4TfNXkKH2ZZQ29crIqoiqTZmeQ7dkp/pxE=
 git.sr.ht/~sbinet/gg v0.6.0 h1:RIzgkizAk+9r7uPzf/VfbJHBMKUr0F5hRFxTUGMnt38=
 git.sr.ht/~sbinet/gg v0.6.0/go.mod h1:uucygbfC9wVPQIfrmwM2et0imr8L7KQWywX0xpFMm94=
-github.com/0x00101010/op-geth v0.0.0-20250722174716-64bc7e5e729f h1:wD/OCHHPZoT6W6bGfvBOWLT+uQAc8tYmJ1CbLe2BbHQ=
-github.com/0x00101010/op-geth v0.0.0-20250722174716-64bc7e5e729f/go.mod h1:oAKrmBWTAg+uCQL8HD0kJwMIiPrk0nXIGJ9tEvboTb8=
 github.com/AndreasBriese/bbloom v0.0.0-20190825152654-46b345b51c96 h1:cTp8I5+VIoKjsnZuH8vjyaysT/ses3EvZeaV/1UkF2M=
 github.com/AndreasBriese/bbloom v0.0.0-20190825152654-46b345b51c96/go.mod h1:bOvUY6CB00SOBii9/FifXqc0awNKxLFCL/+pkDPuyl8=
 github.com/Azure/go-ansiterm v0.0.0-20250102033503-faa5f7b0171c h1:udKWzYgxTojEKWjV8V+WSxDXJ4NFATAsZjh8iIbsQIg=
@@ -228,6 +226,8 @@ github.com/elastic/gosigar v0.14.3 h1:xwkKwPia+hSfg9GqrCUKYdId102m9qTJIIr7egmK/u
 github.com/elastic/gosigar v0.14.3/go.mod h1:iXRIGg2tLnu7LBdpqzyQfGDEidKCfWcCMS0WKyPWoMs=
 github.com/ethereum-optimism/go-ethereum-hdwallet v0.1.3 h1:RWHKLhCrQThMfch+QJ1Z8veEq5ZO3DfIhZ7xgRP9WTc=
 github.com/ethereum-optimism/go-ethereum-hdwallet v0.1.3/go.mod h1:QziizLAiF0KqyLdNJYD7O5cpDlaFMNZzlxYNcWsJUxs=
+github.com/ethereum-optimism/op-geth v1.101511.2-0.20250813192028-b59e2a5d9461 h1:aDTv+RPfEqxhtsY3LEu/LCmO2eo8e8Wk93v3xmfc9kQ=
+github.com/ethereum-optimism/op-geth v1.101511.2-0.20250813192028-b59e2a5d9461/go.mod h1:oAKrmBWTAg+uCQL8HD0kJwMIiPrk0nXIGJ9tEvboTb8=
 github.com/ethereum-optimism/superchain-registry/validation v0.0.0-20250603144016-9c45ca7d4508 h1:A/3QVFt+Aa9ozpPVXxUTLui8honBjSusAaiCVRbafgs=
 github.com/ethereum-optimism/superchain-registry/validation v0.0.0-20250603144016-9c45ca7d4508/go.mod h1:NZ816PzLU1TLv1RdAvYAb6KWOj4Zm5aInT0YpDVml2Y=
 github.com/ethereum/c-kzg-4844/v2 v2.1.0 h1:gQropX9YFBhl3g4HYhwE70zq3IHFRgbbNPw0Shwzf5w=
