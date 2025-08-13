@@ -75,7 +75,7 @@ var (
 					return nil
 				}
 			}
-			return fmt.Errorf("throttle-controller-type must be one of %v, got %s", validTypes, value)
+			return fmt.Errorf("throttle.controller-type must be one of %v, got %s", validTypes, value)
 		},
 	}
 	ThrottleUsafeDABytesLowerThresholdFlag = &cli.IntFlag{
