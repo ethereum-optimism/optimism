@@ -64,8 +64,7 @@ func (tc *ThrottleController) intensityToParams(intensity float64, cfg ThrottleC
 		intensity = 0
 	}
 
-	maxBlockSize := cfg.BlockSizeUpperLimit
-	maxTxSize := uint64(0)
+	var maxBlockSize, maxTxSize uint64
 
 	if cfg.BlockSizeLowerLimit >= cfg.BlockSizeUpperLimit ||
 		tc.GetType() != config.StepControllerType && cfg.TxSizeLowerLimit >= cfg.TxSizeUpperLimit {
