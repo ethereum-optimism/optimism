@@ -5,7 +5,6 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 
-	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
@@ -265,21 +264,21 @@ type ResetEngineControl interface {
 	SetPendingSafeL2Head(eth.L2BlockRef)
 }
 
-func ForceEngineReset(ec ResetEngineControl, x rollup.ForceResetEvent) {
-	ec.SetUnsafeHead(x.LocalUnsafe)
+func ForceEngineReset(ec ResetEngineControl, localUnsafe, crossUnsafe, localSafe, crossSafe, finalized eth.L2BlockRef) {
+	ec.SetUnsafeHead(localUnsafe)
 
 	// cross-safe is fine to revert back, it does not affect engine logic, just sync-status
-	ec.SetCrossUnsafeHead(x.CrossUnsafe)
+	ec.SetCrossUnsafeHead(crossUnsafe)
 
 	// derivation continues at local-safe point
-	ec.SetLocalSafeHead(x.LocalSafe)
-	ec.SetPendingSafeL2Head(x.LocalSafe)
+	ec.SetLocalSafeHead(localSafe)
+	ec.SetPendingSafeL2Head(localSafe)
 
 	// "safe" in RPC terms is cross-safe
-	ec.SetSafeHead(x.CrossSafe)
+	ec.SetSafeHead(crossSafe)
 
 	// finalized head
-	ec.SetFinalizedHead(x.Finalized)
+	ec.SetFinalizedHead(finalized)
 
 	ec.SetBackupUnsafeL2Head(eth.L2BlockRef{}, false)
 }

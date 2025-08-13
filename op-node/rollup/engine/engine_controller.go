@@ -630,28 +630,6 @@ func (d *EngineController) OnEvent(ctx context.Context, ev event.Event) bool {
 			SafeL2Head:      d.SafeL2Head(),
 			FinalizedL2Head: d.Finalized(),
 		})
-	case rollup.ForceResetEvent:
-		ForceEngineReset(d, x)
-
-		// Time to apply the changes to the underlying engine
-		d.emitter.Emit(ctx, TryUpdateEngineEvent{})
-
-		v := EngineResetConfirmedEvent{
-			LocalUnsafe: d.UnsafeL2Head(),
-			CrossUnsafe: d.CrossUnsafeL2Head(),
-			LocalSafe:   d.LocalSafeL2Head(),
-			CrossSafe:   d.SafeL2Head(),
-			Finalized:   d.Finalized(),
-		}
-		// We do not emit the original event values, since those might not be set (optional attributes).
-		d.emitter.Emit(ctx, v)
-		d.log.Info("Reset of Engine is completed",
-			"local_unsafe", v.LocalUnsafe,
-			"cross_unsafe", v.CrossUnsafe,
-			"local_safe", v.LocalSafe,
-			"cross_safe", v.CrossSafe,
-			"finalized", v.Finalized,
-		)
 
 	case UnsafeUpdateEvent:
 		// pre-interop everything that is local-unsafe is also immediately cross-unsafe.
@@ -780,4 +758,29 @@ func (e *EngineController) TryUpdateUnsafe(ctx context.Context, ref eth.L2BlockR
 	}
 	e.SetUnsafeHead(ref)
 	e.emitter.Emit(ctx, UnsafeUpdateEvent{Ref: ref})
+}
+
+// ForceReset performs a forced reset to the specified block references
+func (e *EngineController) ForceReset(ctx context.Context, localUnsafe, crossUnsafe, localSafe, crossSafe, finalized eth.L2BlockRef) {
+	ForceEngineReset(e, localUnsafe, crossUnsafe, localSafe, crossSafe, finalized)
+
+	// Time to apply the changes to the underlying engine
+	e.emitter.Emit(ctx, TryUpdateEngineEvent{})
+
+	v := EngineResetConfirmedEvent{
+		LocalUnsafe: e.UnsafeL2Head(),
+		CrossUnsafe: e.CrossUnsafeL2Head(),
+		LocalSafe:   e.LocalSafeL2Head(),
+		CrossSafe:   e.SafeL2Head(),
+		Finalized:   e.Finalized(),
+	}
+	// We do not emit the original event values, since those might not be set (optional attributes).
+	e.emitter.Emit(ctx, v)
+	e.log.Info("Reset of Engine is completed",
+		"local_unsafe", v.LocalUnsafe,
+		"cross_unsafe", v.CrossUnsafe,
+		"local_safe", v.LocalSafe,
+		"cross_safe", v.CrossSafe,
+		"finalized", v.Finalized,
+	)
 }

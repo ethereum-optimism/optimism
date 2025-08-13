@@ -67,6 +67,17 @@ func (eq *AttributesHandler) AttachEmitter(em event.Emitter) {
 	eq.emitter = em
 }
 
+func (eq *AttributesHandler) forceResetLocked() {
+	eq.sentAttributes = false
+	eq.attributes = nil
+}
+
+func (eq *AttributesHandler) ForceReset(ctx context.Context, localUnsafe, crossUnsafe, localSafe, crossSafe, finalized eth.L2BlockRef) {
+	eq.mu.Lock()
+	defer eq.mu.Unlock()
+	eq.forceResetLocked()
+}
+
 func (eq *AttributesHandler) OnEvent(ctx context.Context, ev event.Event) bool {
 	// Events may be concurrent in the future. Prevent unsafe concurrent modifications to the attributes.
 	eq.mu.Lock()
@@ -81,9 +92,8 @@ func (eq *AttributesHandler) OnEvent(ctx context.Context, ev event.Event) bool {
 		eq.emitter.Emit(ctx, derive.ConfirmReceivedAttributesEvent{})
 		// to make sure we have a pre-state signal to process the attributes from
 		eq.emitter.Emit(ctx, engine.PendingSafeRequestEvent{})
-	case rollup.ResetEvent, rollup.ForceResetEvent:
-		eq.sentAttributes = false
-		eq.attributes = nil
+	case rollup.ResetEvent:
+		eq.forceResetLocked()
 	case rollup.EngineTemporaryErrorEvent:
 		eq.sentAttributes = false
 	case engine.InvalidPayloadAttributesEvent:

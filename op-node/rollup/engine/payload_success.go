@@ -4,7 +4,6 @@ import (
 	"context"
 	"time"
 
-	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
 
@@ -29,13 +28,7 @@ func (eq *EngineController) onPayloadSuccess(ctx context.Context, ev PayloadSucc
 		eq.log.Warn("Successfully built replacement block, resetting chain to continue now", "replacement", ev.Ref)
 		// Change the engine state to make the replacement block the cross-safe head of the chain,
 		// And continue syncing from there.
-		eq.emitter.Emit(ctx, rollup.ForceResetEvent{
-			LocalUnsafe: ev.Ref,
-			CrossUnsafe: ev.Ref,
-			LocalSafe:   ev.Ref,
-			CrossSafe:   ev.Ref,
-			Finalized:   eq.Finalized(),
-		})
+		eq.ForceReset(ctx, ev.Ref, ev.Ref, ev.Ref, ev.Ref, eq.Finalized())
 		eq.emitter.Emit(ctx, InteropReplacedBlockEvent{
 			Envelope: ev.Envelope,
 			Ref:      ev.Ref.BlockRef(),
