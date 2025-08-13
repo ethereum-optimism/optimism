@@ -1416,14 +1416,15 @@ jobs:
         image: ubuntu-2204:2024.08.1
       steps:
         - utils/github-stale:
-            stale-issue-message: "This issue has been automatically marked as stale and will be closed in 5 days if no updates"
-            stale-pr-message: "This pr has been automatically marked as stale and will be closed in 5 days if no updates"
-            close-issue-message: "This issue was closed as stale.  Please reopen if this is a mistake"
-            close-pr-message: "This PR was closed as stale.  Please reopen if this is a mistake"
+            stale-issue-message: 'This issue has been automatically marked as stale and will be closed in 5 days if no updates'
+            stale-pr-message: 'This pr has been automatically marked as stale and will be closed in 5 days if no updates'
+            close-issue-message: 'This issue was closed as stale.  Please reopen if this is a mistake'
+            close-pr-message: 'This PR was closed as stale.  Please reopen if this is a mistake'
             days-before-issue-stale: 999
             days-before-pr-stale: 14
             days-before-issue-close: 5
             days-before-pr-close: 5
+
 
 workflows:
   main:
