@@ -14,6 +14,8 @@ parameters:
   #       - equal: [ "develop", <<pipeline.git.branch>> ]
   #       - equal: [ true, <<pipeline.parameters.main_dispatch>> ]
   # Add a new `*_dispatch` parameter for any pipeline you want manual dispatch for.
+
+
   main_dispatch:
     type: boolean
     default: true # default to running main in case the manual run cancelled an automatic run
