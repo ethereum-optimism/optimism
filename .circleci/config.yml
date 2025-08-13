@@ -2500,12 +2500,17 @@ workflows:
       not:
         equal: [<< pipeline.git.branch >>, "develop"]
     jobs:
+      - initialize
       - contracts-bedrock-build:  # needed for sysgo tests
           context:
             - circleci-repo-readonly-authenticated-github-token
+          requires:
+            - initialize
       - cannon-prestate-quick:  # needed for sysgo tests
           context:
             - circleci-repo-readonly-authenticated-github-token
+          requires:
+            - initialize
       # IN-PROCESS (base)
       - op-acceptance-tests:
           # Acceptance Testing params
@@ -2530,6 +2535,8 @@ workflows:
           context:
             - circleci-repo-readonly-authenticated-github-token
             - discord
+          requires:
+            - initialize
       # KURTOSIS (Isthmus)
       - op-acceptance-tests:
           # Acceptance Testing params
@@ -2541,6 +2548,8 @@ workflows:
           context:
             - circleci-repo-readonly-authenticated-github-token
             - discord
+          requires:
+            - initialize
       # KURTOSIS (Interop)
       - op-acceptance-tests:
           # Acceptance Testing params
@@ -2552,6 +2561,8 @@ workflows:
           context:
             - circleci-repo-readonly-authenticated-github-token
             - discord
+          requires:
+            - initialize
       # Generate flaky test report
       - generate-flaky-report:
           name: generate-flaky-tests-report
