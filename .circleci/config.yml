@@ -146,48 +146,6 @@ commands:
           branch_pattern: develop
           mentions: "<< parameters.mentions >>"
 
-  # Notifies us on Discord when a build fails on develop
-  # For Discord to properly trigger notifications, mentions need to be in the format:
-  # User mentions: <@USER_ID>
-  # Role mentions: <@&ROLE_ID>
-  # Example: <@&1346448413172170807> is how we'd tag the Protocol DevX Pod
-  discord-notification-failures-on-develop:
-    description: "Notify Discord"
-    parameters:
-      message:
-        type: string
-        default: ""
-      mentions:
-        type: string
-        default: ""
-    steps:
-      - run:
-          name: "Notify Discord"
-          command: |
-            if [ "${CIRCLE_BRANCH}" == "develop" ]; then
-              # Format message for Discord with better structure and formatting
-              DISCORD_MESSAGE="🚨 **CI Failure Detected** 🚨\n"
-              DISCORD_MESSAGE="${DISCORD_MESSAGE}> **Repository:** \`${CIRCLE_PROJECT_USERNAME}/${CIRCLE_PROJECT_REPONAME}\`\n"
-              DISCORD_MESSAGE="${DISCORD_MESSAGE}> **Branch:** \`${CIRCLE_BRANCH}\`\n"
-              DISCORD_MESSAGE="${DISCORD_MESSAGE}> **Job:** \`${CIRCLE_JOB}\`\n"
-              DISCORD_MESSAGE="${DISCORD_MESSAGE}> **Build Link:** ${CIRCLE_BUILD_URL}"
-
-              # Add failure reason if provided
-              if [ ! -z "<< parameters.message >>" ]; then
-                DISCORD_MESSAGE="${DISCORD_MESSAGE}\n\n**Failure message:** << parameters.message >>"
-              fi
-
-              # Add mentions if provided
-              if [ ! -z "<< parameters.mentions >>" ]; then
-                DISCORD_MESSAGE="${DISCORD_MESSAGE}\n\n**Attention:** << parameters.mentions >>"
-              fi
-
-              # Post to Discord webhook
-              curl -X POST -H "Content-Type: application/json" \
-                -d "{\"content\": \"${DISCORD_MESSAGE}\"}" "${notify_ci}"
-            fi
-          when: on_fail
-
   get-target-branch:
     description: "Determine the PR target branch and export TARGET_BRANCH for subsequent steps"
     steps:
@@ -800,7 +758,7 @@ jobs:
   contracts-bedrock-coverage:
     circleci_ip_ranges: true
     docker:
-      - image: <<pipeline.parameters.default_docker_image>>
+        - image: <<pipeline.parameters.default_docker_image>>
     resource_class: xlarge
     parameters:
       test_flags:
@@ -1157,6 +1115,7 @@ jobs:
           command: make sanitize-program GUEST_PROGRAM=../op-program/bin/op-program-client.elf
           working_directory: cannon
 
+
   cannon-prestate-quick:
     machine: true
     resource_class: ethereum-optimism/latitude-1
@@ -1453,18 +1412,18 @@ jobs:
             goreleaser release --clean -f ./<<parameters.module>>/<<parameters.filename>>
 
   stale-check:
-    machine:
-      image: ubuntu-2204:2024.08.1
-    steps:
-      - utils/github-stale:
-          stale-issue-message: "This issue has been automatically marked as stale and will be closed in 5 days if no updates"
-          stale-pr-message: "This pr has been automatically marked as stale and will be closed in 5 days if no updates"
-          close-issue-message: "This issue was closed as stale.  Please reopen if this is a mistake"
-          close-pr-message: "This PR was closed as stale.  Please reopen if this is a mistake"
-          days-before-issue-stale: 999
-          days-before-pr-stale: 14
-          days-before-issue-close: 5
-          days-before-pr-close: 5
+      machine:
+        image: ubuntu-2204:2024.08.1
+      steps:
+        - utils/github-stale:
+            stale-issue-message: "This issue has been automatically marked as stale and will be closed in 5 days if no updates"
+            stale-pr-message: "This pr has been automatically marked as stale and will be closed in 5 days if no updates"
+            close-issue-message: "This issue was closed as stale.  Please reopen if this is a mistake"
+            close-pr-message: "This PR was closed as stale.  Please reopen if this is a mistake"
+            days-before-issue-stale: 999
+            days-before-pr-stale: 14
+            days-before-issue-close: 5
+            days-before-pr-close: 5
 
 workflows:
   main:
