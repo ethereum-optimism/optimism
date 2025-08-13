@@ -1667,6 +1667,7 @@ jobs:
           gcp_cred_config_file_path: /tmp/gcp_cred_config.json
           oidc_token_file_path: /tmp/oidc_token.json
       - utils/checkout-with-mise
+      - attach_workspace: { at: "." }
       - run:
           name: Configure Docker
           command: |
@@ -2037,7 +2038,7 @@ workflows:
           context:
             - circleci-repo-readonly-authenticated-github-token
 
-  go-release-deployer:
+  go-release-op-deployer:
     jobs:
       - contracts-bedrock-build:
           name: build-contracts-go-release-op-deployer
