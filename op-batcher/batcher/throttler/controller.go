@@ -1,6 +1,7 @@
 package throttler
 
 import (
+	"errors"
 	"fmt"
 	"sync"
 	"sync/atomic"
@@ -77,21 +78,23 @@ func (tc *ThrottleController) intensityToParams(intensity float64, cfg ThrottleC
 
 func (tc *ThrottleController) validateConfig(cfg ThrottleConfig) error {
 	if cfg.BlockSizeLowerLimit > 0 && cfg.BlockSizeLowerLimit >= cfg.BlockSizeUpperLimit {
-		return fmt.Errorf("throttler: invalid block size limits",
+		log.Error("throttler: invalid block size limits",
 			"blockSizeLowerLimit", cfg.BlockSizeLowerLimit,
 			"blockSizeUpperLimit", cfg.BlockSizeUpperLimit,
 			"controllerType", tc.GetType(),
 		)
+		return errors.New("throttler: invalid block size limits")
 	}
 
 	if cfg.TxSizeLowerLimit > 0 &&
 		tc.GetType() != config.StepControllerType &&
 		cfg.TxSizeLowerLimit >= cfg.TxSizeUpperLimit {
-		return fmt.Errorf("throttler: invalid tx size limits",
+		log.Error("throttler: invalid tx size limits",
 			"txSizeLowerLimit", cfg.TxSizeLowerLimit,
 			"txSizeUpperLimit", cfg.TxSizeUpperLimit,
 			"controllerType", tc.GetType(),
 		)
+		return errors.New("throttler: invalid tx size limits")
 	}
 	return nil
 }
