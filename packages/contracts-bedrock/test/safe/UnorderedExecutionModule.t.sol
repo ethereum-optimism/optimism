@@ -85,7 +85,7 @@ contract UnorderedExecutionModule_TestInit is Test, SafeTestTools {
     /// @notice Generate transaction hash for given params and nonce
     function _getTransactionHash(
         UnorderedExecutionModule.ExecTransactionFromModuleParams memory _params,
-        uint256 _nonce
+        bytes32 _hashOnce
     )
         internal
         view
@@ -101,7 +101,7 @@ contract UnorderedExecutionModule_TestInit is Test, SafeTestTools {
             gasPrice: 0,
             gasToken: address(0),
             refundReceiver: address(0),
-            _nonce: _nonce
+            _nonce: uint256(_hashOnce)
         });
     }
 
@@ -115,6 +115,14 @@ contract UnorderedExecutionModule_TestInit is Test, SafeTestTools {
         }
         return signatures;
     }
+
+    /// @notice Generate null prereq
+    function _getNullPrereq() internal view returns (UnorderedExecutionModule.PrereqTxData memory) {
+        return UnorderedExecutionModule.PrereqTxData({
+            prevHashOnce: bytes32(0),
+            mixHash: bytes32(0)
+        });
+    }
 }
 
 contract UnorderedExecutionModule_ExecTransactionOnSafe_Test is UnorderedExecutionModule_TestInit {
@@ -122,7 +130,7 @@ contract UnorderedExecutionModule_ExecTransactionOnSafe_Test is UnorderedExecuti
     function test_execTransactionOnSafe_succeeds() public {
         UnorderedExecutionModule.ExecTransactionFromModuleParams memory params = _createSetValueParams(42);
         uint256 nonce = uint256(keccak256(bytes("test nonce 1")));
-        bytes32 safeTxHash = _getTransactionHash(params, nonce);
+        bytes32 safeTxHash = _getTransactionHash(params, bytes32(nonce));
         bytes memory signatures = _generateSignatures(safeTxHash);
 
         vm.expectEmit(true, true, true, true);
@@ -130,7 +138,13 @@ contract UnorderedExecutionModule_ExecTransactionOnSafe_Test is UnorderedExecuti
             address(safeInstance.safe), safeTxHash, params.to, params.value, params.data, params.operation
         );
 
-        bool success = module.execTransactionOnSafe(safeInstance.safe, nonce, params, signatures);
+        bool success = module.execTransactionOnSafe(
+            safeInstance.safe,
+            bytes32(nonce),
+            _getNullPrereq(),
+            params,
+            signatures
+        );
 
         assertTrue(success);
         assertEq(target.value(), 42);
@@ -142,27 +156,38 @@ contract UnorderedExecutionModule_ExecTransactionOnSafe_Test is UnorderedExecuti
     function test_execTransactionOnSafe_alreadyExecuted_reverts() public {
         UnorderedExecutionModule.ExecTransactionFromModuleParams memory params = _createSetValueParams(42);
         uint256 nonce = uint256(keccak256(bytes("test nonce 2")));
-        bytes32 safeTxHash = _getTransactionHash(params, nonce);
+        bytes32 safeTxHash = _getTransactionHash(params, bytes32(nonce));
         bytes memory signatures = _generateSignatures(safeTxHash);
 
-        // Execute first time - should succeed
-        bool success = module.execTransactionOnSafe(safeInstance.safe, nonce, params, signatures);
+        bool success = module.execTransactionOnSafe(
+            safeInstance.safe,
+            bytes32(nonce),
+            _getNullPrereq(),
+            params,
+            signatures
+        );
         assertTrue(success);
 
         // Execute second time - should revert
         vm.expectRevert(UnorderedExecutionModule.TransactionAlreadyExecuted.selector);
-        module.execTransactionOnSafe(safeInstance.safe, nonce, params, signatures);
+        module.execTransactionOnSafe(
+            safeInstance.safe,
+            bytes32(nonce),
+            _getNullPrereq(),
+            params,
+            signatures
+        );
     }
 
     /// @notice Test module execution failure
     function test_execTransactionOnSafe_moduleExecutionFailed_reverts() public {
         UnorderedExecutionModule.ExecTransactionFromModuleParams memory params = _createRevertingParams();
         uint256 nonce = uint256(keccak256(bytes("test nonce 3")));
-        bytes32 safeTxHash = _getTransactionHash(params, nonce);
+        bytes32 safeTxHash = _getTransactionHash(params, bytes32(nonce));
         bytes memory signatures = _generateSignatures(safeTxHash);
 
         vm.expectRevert(UnorderedExecutionModule.ModuleExecutionFailed.selector);
-        module.execTransactionOnSafe(safeInstance.safe, nonce, params, signatures);
+        module.execTransactionOnSafe(safeInstance.safe, bytes32(nonce), _getNullPrereq(), params, signatures);
     }
 
     /// @notice Fuzz test with different nonces and values
@@ -171,10 +196,16 @@ contract UnorderedExecutionModule_ExecTransactionOnSafe_Test is UnorderedExecuti
         _value = bound(_value, 0, type(uint256).max / 2);
 
         UnorderedExecutionModule.ExecTransactionFromModuleParams memory params = _createSetValueParams(_value);
-        bytes32 safeTxHash = _getTransactionHash(params, _nonce);
+        bytes32 safeTxHash = _getTransactionHash(params, bytes32(_nonce));
         bytes memory signatures = _generateSignatures(safeTxHash);
 
-        bool success = module.execTransactionOnSafe(safeInstance.safe, _nonce, params, signatures);
+        bool success = module.execTransactionOnSafe(
+            safeInstance.safe,
+            bytes32(_nonce),
+            _getNullPrereq(),
+            params,
+            signatures
+        );
 
         assertTrue(success);
         assertEq(target.value(), _value);
@@ -197,5 +228,96 @@ contract UnorderedExecutionModule_IsEnabledOnSafe_Test is UnorderedExecutionModu
         Safe newSafe = Safe(payable(newSafeInstance.safe));
 
         assertFalse(module.isEnabledOnSafe(newSafe));
+    }
+}
+
+contract UnorderedExecutionModule_Prereq_Test is UnorderedExecutionModule_TestInit {
+    /// @notice Test successful execution when prereq is provided and valid
+    function test_execTransactionOnSafe_withPrereq_succeeds() public {
+        // First transaction (prerequisite)
+        UnorderedExecutionModule.ExecTransactionFromModuleParams memory params1 = _createSetValueParams(1);
+        bytes32 hashOnce1 = bytes32(uint256(keccak256(bytes("prev tx"))));
+        bytes32 safeTxHash1 = _getTransactionHash(params1, hashOnce1);
+        bytes memory signatures1 = _generateSignatures(safeTxHash1);
+
+        bool ok1 = module.execTransactionOnSafe(
+            safeInstance.safe,
+            hashOnce1,
+            _getNullPrereq(),
+            params1,
+            signatures1
+        );
+        assertTrue(ok1);
+        assertTrue(module.executedTransactions(safeTxHash1));
+
+        // Second transaction that depends on the first
+        UnorderedExecutionModule.ExecTransactionFromModuleParams memory params2 = _createSetValueParams(2);
+        UnorderedExecutionModule.PrereqTxData memory prereq = UnorderedExecutionModule.PrereqTxData({
+            prevHashOnce: safeTxHash1,
+            mixHash: keccak256(bytes("mix"))
+        });
+        bytes32 hashOnce2 = keccak256(abi.encode(prereq));
+        bytes32 safeTxHash2 = _getTransactionHash(params2, hashOnce2);
+        bytes memory signatures2 = _generateSignatures(safeTxHash2);
+
+        vm.expectEmit(true, true, true, true);
+        emit UnorderedExecutionModule.TransactionExecuted(
+            address(safeInstance.safe), safeTxHash2, params2.to, params2.value, params2.data, params2.operation
+        );
+
+        bool ok2 = module.execTransactionOnSafe(
+            safeInstance.safe,
+            hashOnce2,
+            prereq,
+            params2,
+            signatures2
+        );
+
+        assertTrue(ok2);
+        assertEq(target.value(), 2);
+        assertTrue(target.called());
+        assertTrue(module.executedTransactions(safeTxHash2));
+    }
+
+    /// @notice Test revert when provided hashOnce does not match prereq hash
+    function test_execTransactionOnSafe_prereqHashOnceMismatch_reverts() public {
+        UnorderedExecutionModule.ExecTransactionFromModuleParams memory params = _createSetValueParams(100);
+
+        // Construct a prereq with non-zero prevHashOnce
+        UnorderedExecutionModule.PrereqTxData memory prereq = UnorderedExecutionModule.PrereqTxData({
+            prevHashOnce: bytes32(uint256(123)),
+            mixHash: keccak256(bytes("abc"))
+        });
+
+        // Intentionally use a different hashOnce than keccak256(abi.encode(prereq))
+        bytes32 wrongHashOnce = bytes32(uint256(999));
+
+        // Sign for wrongHashOnce
+        bytes32 safeTxHash = _getTransactionHash(params, wrongHashOnce);
+        bytes memory signatures = _generateSignatures(safeTxHash);
+
+        vm.expectRevert(bytes("UnorderedExecutionModule: prereq hashOnce mismatch"));
+        module.execTransactionOnSafe(safeInstance.safe, wrongHashOnce, prereq, params, signatures);
+    }
+
+    /// @notice Test revert when prereq.prevHashOnce has not been executed
+    function test_execTransactionOnSafe_prereqPrevNotExecuted_reverts() public {
+        UnorderedExecutionModule.ExecTransactionFromModuleParams memory params = _createSetValueParams(200);
+
+        // Refers to a tx-hash that has not been executed
+        UnorderedExecutionModule.PrereqTxData memory prereq = UnorderedExecutionModule.PrereqTxData({
+            prevHashOnce: keccak256(bytes("never executed")),
+            mixHash: keccak256(bytes("xyz"))
+        });
+
+        // Correctly set hashOnce to the prereq hash to pass the first check
+        bytes32 hashOnce = keccak256(abi.encode(prereq));
+
+        // Sign for hashOnce
+        bytes32 safeTxHash = _getTransactionHash(params, hashOnce);
+        bytes memory signatures = _generateSignatures(safeTxHash);
+
+        vm.expectRevert(bytes("UnorderedExecutionModule: prereq prevHashOnce not executed"));
+        module.execTransactionOnSafe(safeInstance.safe, hashOnce, prereq, params, signatures);
     }
 }

@@ -33,6 +33,11 @@ contract UnorderedExecutionModule is ISemver, ReentrancyGuard {
         Enum.Operation operation;
     }
 
+    struct PrereqTxData {
+        bytes32 prevHashOnce;
+        bytes32 mixHash;
+    }
+
     /// @notice Used for replay protection
     mapping(bytes32 => bool) public executedTransactions;
 
@@ -56,7 +61,8 @@ contract UnorderedExecutionModule is ISemver, ReentrancyGuard {
     /// @return success Whether the transaction was successful
     function execTransactionOnSafe(
         Safe safe,
-        uint256 nonce,
+        bytes32 hashOnce,
+        PrereqTxData calldata prereq,
         ExecTransactionFromModuleParams memory params,
         bytes memory signatures
     )
@@ -65,11 +71,23 @@ contract UnorderedExecutionModule is ISemver, ReentrancyGuard {
         nonReentrant
         returns (bool success)
     {
+        // If the prereq is non-zero, then we must enforce that:
+        // 1. the hashOnce signed by the signers
+        // 2. the prevHashOnce has already been executed
+        if (prereq.prevHashOnce != bytes32(0)) {
+            if (hashOnce != keccak256(abi.encode(prereq))) {
+                revert("UnorderedExecutionModule: prereq hashOnce mismatch");
+            }
+            if (executedTransactions[prereq.prevHashOnce] != true) {
+                revert("UnorderedExecutionModule: prereq prevHashOnce not executed");
+            }
+        }
+
         // Use the Safe's getTransactionHash function to generate a deterministic hash,
         // this hash includes the Safe's domain separator.
         // This hash is used both for replay protection and for signature verification.
         (bytes32 safesInternalTxHash, bytes memory txHashData) =
-            getSafesInternalTxHashAndTxHashData(safe, nonce, params);
+            getSafesInternalTxHashAndTxHashData(safe, hashOnce, params);
 
         if (executedTransactions[safesInternalTxHash]) {
             revert TransactionAlreadyExecuted();
@@ -101,7 +119,7 @@ contract UnorderedExecutionModule is ISemver, ReentrancyGuard {
 
     function getSafesInternalTxHashAndTxHashData(
         Safe safe,
-        uint256 nonce,
+        bytes32 nonce,
         ExecTransactionFromModuleParams memory params
     )
         internal
@@ -119,7 +137,7 @@ contract UnorderedExecutionModule is ISemver, ReentrancyGuard {
                 gasPrice: 0,
                 gasToken: address(0),
                 refundReceiver: address(0),
-                _nonce: nonce
+                _nonce: uint256(nonce)
             }),
             safe.encodeTransactionData({
                 to: params.to,
@@ -131,7 +149,7 @@ contract UnorderedExecutionModule is ISemver, ReentrancyGuard {
                 gasPrice: 0,
                 gasToken: address(0),
                 refundReceiver: address(0),
-                _nonce: nonce
+                _nonce: uint256(nonce)
             })
         );
     }
