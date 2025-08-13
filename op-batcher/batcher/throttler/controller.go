@@ -51,6 +51,10 @@ func (tc *ThrottleController) Update(currentPendingBytes uint64) ThrottleParams 
 
 // intensityToParams converts intensity to throttle parameters using common interpolation logic
 func (tc *ThrottleController) intensityToParams(intensity float64, cfg ThrottleConfig) ThrottleParams {
+	err := tc.validateConfig(cfg)
+	if err != nil {
+		panic(err.Error())
+	}
 
 	// Clamp intensity to 1.0 to prevent overflows, should never happen
 	if intensity > 1.0 {
@@ -64,35 +68,68 @@ func (tc *ThrottleController) intensityToParams(intensity float64, cfg ThrottleC
 		intensity = 0
 	}
 
-	var maxBlockSize, maxTxSize uint64
+	return ThrottleParams{
+		MaxTxSize:    tc.intensityToTxSize(intensity, cfg),
+		MaxBlockSize: tc.intensityToBlockSize(intensity, cfg),
+		Intensity:    intensity,
+	}
+}
 
-	if cfg.BlockSizeLowerLimit >= cfg.BlockSizeUpperLimit ||
-		tc.GetType() != config.StepControllerType && cfg.TxSizeLowerLimit >= cfg.TxSizeUpperLimit {
-		panic("throttler: invalid block or tx size limits")
+func (tc *ThrottleController) validateConfig(cfg ThrottleConfig) error {
+	if cfg.BlockSizeLowerLimit > 0 && cfg.BlockSizeLowerLimit >= cfg.BlockSizeUpperLimit {
+		return fmt.Errorf("throttler: invalid block size limits",
+			"blockSizeLowerLimit", cfg.BlockSizeLowerLimit,
+			"blockSizeUpperLimit", cfg.BlockSizeUpperLimit,
+			"controllerType", tc.GetType(),
+		)
+	}
+
+	if cfg.TxSizeLowerLimit > 0 &&
+		tc.GetType() != config.StepControllerType &&
+		cfg.TxSizeLowerLimit >= cfg.TxSizeUpperLimit {
+		return fmt.Errorf("throttler: invalid tx size limits",
+			"txSizeLowerLimit", cfg.TxSizeLowerLimit,
+			"txSizeUpperLimit", cfg.TxSizeUpperLimit,
+			"controllerType", tc.GetType(),
+		)
+	}
+	return nil
+}
+
+// intensityToBlockSize converts intensity in [0,1] to block size
+func (tc *ThrottleController) intensityToBlockSize(intensity float64, cfg ThrottleConfig) uint64 {
+	if cfg.BlockSizeLowerLimit == 0 {
+		return 0
 	}
 
 	if intensity == 0 {
-		maxTxSize = 0 // Transactions are not throttled at 0 intensity
-		maxBlockSize = cfg.BlockSizeUpperLimit
+		return cfg.BlockSizeUpperLimit
 	} else {
 		switch tc.strategy.GetType() {
 		case config.StepControllerType:
-			maxTxSize = cfg.TxSizeLowerLimit
-			maxBlockSize = cfg.BlockSizeLowerLimit
+			return cfg.BlockSizeLowerLimit
 		default:
-			maxTxSize = uint64(float64(cfg.TxSizeUpperLimit) - intensity*float64(cfg.TxSizeUpperLimit-cfg.TxSizeLowerLimit))
-			maxBlockSize = uint64(float64(cfg.BlockSizeUpperLimit) - intensity*float64(cfg.BlockSizeUpperLimit-cfg.BlockSizeLowerLimit))
+			return uint64(float64(cfg.BlockSizeUpperLimit) - intensity*float64(cfg.BlockSizeUpperLimit-cfg.BlockSizeLowerLimit))
 		}
 	}
 
-	if cfg.BlockSizeLowerLimit == 0 {
-		maxBlockSize = cfg.BlockSizeUpperLimit
+}
+
+// intensityToTxSize converts intensity in [0,1] to tx size
+func (tc *ThrottleController) intensityToTxSize(intensity float64, cfg ThrottleConfig) uint64 {
+	if cfg.TxSizeLowerLimit == 0 {
+		return 0
 	}
 
-	return ThrottleParams{
-		MaxTxSize:    maxTxSize,
-		MaxBlockSize: maxBlockSize,
-		Intensity:    intensity,
+	if intensity == 0 {
+		return 0 // Transactions are not throttled at 0 intensity
+	} else {
+		switch tc.strategy.GetType() {
+		case config.StepControllerType:
+			return cfg.TxSizeLowerLimit
+		default:
+			return uint64(float64(cfg.TxSizeUpperLimit) - intensity*float64(cfg.TxSizeUpperLimit-cfg.TxSizeLowerLimit))
+		}
 	}
 }
 

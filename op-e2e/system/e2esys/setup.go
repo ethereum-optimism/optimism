@@ -577,10 +577,10 @@ func WithBatcherThrottling(interval time.Duration, threshold, txSize, blockSize 
 	return StartOption{
 		BatcherMod: func(cfg *bss.CLIConfig) {
 			cfg.ThrottleConfig.LowerThreshold = threshold
-			cfg.ThrottleConfig.UpperThreshold = threshold
 			cfg.ThrottleConfig.ControllerType = batcherCfg.StepControllerType
 			cfg.ThrottleConfig.TxSizeLowerLimit = txSize
 			cfg.ThrottleConfig.BlockSizeLowerLimit = blockSize
+			cfg.ThrottleConfig.BlockSizeUpperLimit = blockSize * 100
 		},
 	}
 }
