@@ -468,46 +468,53 @@ func TestIntensityToParams(t *testing.T) {
 
 func TestIntensityToParamsBlockSizeInterpolation(t *testing.T) {
 	testConfig := ThrottleConfig{
-		TxSizeLowerLimit:    TestTxSizeLowerLimit,
+		TxSizeLowerLimit:    50,
+		TxSizeUpperLimit:    100,
 		BlockSizeLowerLimit: 50_000,  // 50KB
 		BlockSizeUpperLimit: 100_000, // 100KB
 	}
 
-	controller := NewThrottleController(testStepStrategy(t), testConfig)
+	controller := NewThrottleController(testLinearStrategy(t), testConfig)
 
 	tests := []struct {
 		name                 string
 		intensity            float64
+		expectedMaxTxSize    uint64
 		expectedMaxBlockSize uint64
 		tolerance            uint64
 	}{
 		{
 			name:                 "zero intensity - upper limit",
 			intensity:            0.0,
+			expectedMaxTxSize:    0,
 			expectedMaxBlockSize: 100_000,
 			tolerance:            0,
 		},
 		{
 			name:                 "25% intensity - 75% of way to throttle size",
 			intensity:            0.25,
+			expectedMaxTxSize:    87,
 			expectedMaxBlockSize: 87_500, // 100_000 - 0.25 * (100_000 - 50_000)
-			tolerance:            100,
+			tolerance:            5,
 		},
 		{
 			name:                 "50% intensity - 50% of way to throttle size",
 			intensity:            0.5,
+			expectedMaxTxSize:    75,
 			expectedMaxBlockSize: 75_000, // 100_000 - 0.5 * (100_000 - 50_000)
-			tolerance:            100,
+			tolerance:            5,
 		},
 		{
 			name:                 "75% intensity - 25% of way to throttle size",
 			intensity:            0.75,
+			expectedMaxTxSize:    62,
 			expectedMaxBlockSize: 62_500, // 100_000 - 0.75 * (100_000 - 50_000)
-			tolerance:            100,
+			tolerance:            5,
 		},
 		{
 			name:                 "100% intensity - throttle block size",
 			intensity:            1.0,
+			expectedMaxTxSize:    50,
 			expectedMaxBlockSize: 50_000,
 			tolerance:            0,
 		},
@@ -521,6 +528,12 @@ func TestIntensityToParamsBlockSizeInterpolation(t *testing.T) {
 				params.MaxBlockSize < tt.expectedMaxBlockSize-tt.tolerance {
 				t.Errorf("expected MaxBlockSize %d ± %d, got %d",
 					tt.expectedMaxBlockSize, tt.tolerance, params.MaxBlockSize)
+			}
+
+			if params.MaxTxSize > tt.expectedMaxTxSize+tt.tolerance ||
+				params.MaxTxSize < tt.expectedMaxTxSize-tt.tolerance {
+				t.Errorf("expected MaxTxSize %d ± %d, got %d",
+					tt.expectedMaxTxSize, tt.tolerance, params.MaxTxSize)
 			}
 
 			if params.Intensity != tt.intensity {
