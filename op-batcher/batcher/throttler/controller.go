@@ -86,6 +86,10 @@ func (tc *ThrottleController) intensityToParams(intensity float64, cfg ThrottleC
 		}
 	}
 
+	if cfg.BlockSizeLowerLimit == 0 {
+		maxBlockSize = cfg.BlockSizeUpperLimit
+	}
+
 	return ThrottleParams{
 		MaxTxSize:    maxTxSize,
 		MaxBlockSize: maxBlockSize,

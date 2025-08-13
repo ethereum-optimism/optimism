@@ -561,21 +561,19 @@ func TestIntensityToParamsEdgeCases(t *testing.T) {
 		}
 	})
 
-	t.Run("block size upper limit greater than lower limit", func(t *testing.T) {
+	t.Run("block size upper limit less than lower limit", func(t *testing.T) {
 		testConfig := ThrottleConfig{
 			TxSizeLowerLimit:    TestTxSizeLowerLimit,
-			BlockSizeLowerLimit: TestBlockSizeLowerLimit,
-			BlockSizeUpperLimit: TestBlockSizeUpperLimit,
+			BlockSizeLowerLimit: 5,
+			BlockSizeUpperLimit: 4,
 		}
 
 		controller := NewThrottleController(testStepStrategy(t), testConfig)
-		params := controller.intensityToParams(0.5, testConfig)
 
-		// Should use upper limit when throttle block size is greater
-		if params.MaxBlockSize != TestBlockSizeUpperLimit {
-			t.Errorf("expected MaxBlockSize %d when throttle > upper limit, got %d",
-				TestBlockSizeUpperLimit, params.MaxBlockSize)
-		}
+		require.Panics(t, func() {
+			controller.intensityToParams(0.5, testConfig)
+		})
+
 	})
 
 	t.Run("zero upper limit", func(t *testing.T) {
