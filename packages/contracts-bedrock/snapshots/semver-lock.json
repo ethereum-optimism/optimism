@@ -165,7 +165,7 @@
   },
   "src/dispute/SuperFaultDisputeGame.sol:SuperFaultDisputeGame": {
     "initCodeHash": "0x9e739720087feb7c878c405f7d062813d3325266d7cc963cacafe741609f96d7",
-    "sourceCodeHash": "0x6e3395b49a866ed279dbcadd83b41c21de5a28245e558ee6113e6dd441f35390"
+    "sourceCodeHash": "0xa6745dba62de91a29cf9ce3185a89d63b5e93282c2010976a1bdd496a28103e5"
   },
   "src/dispute/SuperPermissionedDisputeGame.sol:SuperPermissionedDisputeGame": {
     "initCodeHash": "0x6c3aec2f6dded00874741cb43a5b9627260c48cd2f94a2f04e4094d6d1c20354",
