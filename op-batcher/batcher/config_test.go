@@ -134,7 +134,7 @@ func TestBatcherConfig(t *testing.T) {
 				c.ThrottleConfig.UpperThreshold = 5
 
 			},
-			errString: "throttle-max-threshold must be greater than throttle-threshold",
+			errString: "throttle.upper-threshold must be greater than throttle.lower-threshold",
 		},
 		{
 			name: "throttle_max_threshold=throttle_threshold",
@@ -143,7 +143,7 @@ func TestBatcherConfig(t *testing.T) {
 				c.ThrottleConfig.UpperThreshold = 4
 
 			},
-			errString: "throttle-max-threshold must be greater than throttle-threshold",
+			errString: "throttle.upper-threshold must be greater than throttle.lower-threshold",
 		},
 	}
 

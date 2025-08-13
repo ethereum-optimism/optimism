@@ -187,8 +187,6 @@ var optionalFlags = []cli.Flag{
 	DataAvailabilityTypeFlag,
 	ActiveSequencerCheckDurationFlag,
 	CompressionAlgoFlag,
-	AdditionalThrottlingEndpointsFlag,
-	ThrottleControllerTypeFlag,
 }
 
 func init() {
