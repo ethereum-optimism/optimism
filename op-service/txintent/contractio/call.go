@@ -59,7 +59,7 @@ func ReadArray[T any](ctx context.Context, caller *batching.MultiCaller, countCa
 
 	countResult, err := Read(countCall, ctx)
 	if err != nil {
-		return nil, fmt.Errorf("error reading array size: %v", err)
+		return nil, fmt.Errorf("error reading array size: %w", err)
 	}
 
 	count := countResult.Uint64()
