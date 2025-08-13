@@ -612,6 +612,7 @@ func (l *BatchSubmitter) singleEndpointThrottler(wg *sync.WaitGroup, throttleSig
 		_, params := l.throttleController.Load()
 
 		var success bool
+		l.Log.Debug("Setting max DA size on endpoint", "endpoint", endpoint, "max_tx_size", params.MaxTxSize, "max_block_size", params.MaxBlockSize)
 		err := client.CallContext(
 			ctx, &success, SetMaxDASizeMethod, hexutil.Uint64(params.MaxTxSize), hexutil.Uint64(params.MaxBlockSize),
 		)
@@ -704,7 +705,6 @@ func (l *BatchSubmitter) throttlingLoop(wg *sync.WaitGroup, unsafeBytesUpdated c
 		if newParams.IsThrottling() {
 			l.Log.Warn("Throttling loop: unsafe bytes above threshold, scaling endpoint throttling based on intensity",
 				"unsafe_bytes", unsafeBytes,
-				"threshold", l.Config.ThrottleParams.LowerThreshold,
 				"intensity", newParams.Intensity,
 				"max_tx_size", newParams.MaxTxSize,
 				"max_block_size", newParams.MaxBlockSize,

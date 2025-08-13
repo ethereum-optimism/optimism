@@ -21,12 +21,12 @@ const (
 func TestLinearStrategy_NewLinearStrategy(t *testing.T) {
 	strategy := NewLinearStrategy(TestLinearThreshold, TestLinearMaxThreshold, newTestLogger(t))
 
-	if strategy.threshold != TestLinearThreshold {
-		t.Errorf("expected threshold %d, got %d", TestLinearThreshold, strategy.threshold)
+	if strategy.lowerThreshold != TestLinearThreshold {
+		t.Errorf("expected threshold %d, got %d", TestLinearThreshold, strategy.lowerThreshold)
 	}
 
-	if strategy.maxThreshold != TestLinearMaxThreshold {
-		t.Errorf("expected maxThreshold %d, got %d", TestLinearMaxThreshold, strategy.maxThreshold)
+	if strategy.upperThreshold != TestLinearMaxThreshold {
+		t.Errorf("expected maxThreshold %d, got %d", TestLinearMaxThreshold, strategy.upperThreshold)
 	}
 
 	// Test initial state

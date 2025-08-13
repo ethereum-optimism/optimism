@@ -99,18 +99,25 @@ var (
 		return NewPIDStrategy(TestLowerThresholdBytes, TestPIDConfig)
 	}
 
+	testThrottleConfig = ThrottleConfig{
+		TxSizeLowerLimit:    TestTxSizeLowerLimit,
+		TxSizeUpperLimit:    TestTxSizeUpperLimit,
+		BlockSizeLowerLimit: TestBlockSizeLowerLimit,
+		BlockSizeUpperLimit: TestBlockSizeUpperLimit,
+	}
+
 	// Standard controllers - reused across tests
 	testStepController = func(t *testing.T) *ThrottleController {
-		return NewThrottleController(testStepStrategy(t), ThrottleConfig{})
+		return NewThrottleController(testStepStrategy(t), testThrottleConfig)
 	}
 	testLinearController = func(t *testing.T) *ThrottleController {
-		return NewThrottleController(testLinearStrategy(t), ThrottleConfig{})
+		return NewThrottleController(testLinearStrategy(t), testThrottleConfig)
 	}
 	testQuadraticController = func(t *testing.T) *ThrottleController {
-		return NewThrottleController(testQuadraticStrategy(t), ThrottleConfig{})
+		return NewThrottleController(testQuadraticStrategy(t), testThrottleConfig)
 	}
 	testPIDController = func(t *testing.T) *ThrottleController {
-		return NewThrottleController(testPIDStrategy(t), ThrottleConfig{})
+		return NewThrottleController(testPIDStrategy(t), testThrottleConfig)
 	}
 
 	// Test factory
@@ -271,8 +278,7 @@ func TestControllerAbstraction(t *testing.T) {
 // TestControllerStrategySwapping tests changing strategies at runtime
 func TestControllerStrategySwapping(t *testing.T) {
 	// Start with step controller
-	stepStrategy := testStepStrategy(t)
-	controller := NewThrottleController(stepStrategy, ThrottleConfig{})
+	controller := testStepController(t)
 
 	// Test initial behavior
 	params := controller.Update(TestLoadHalfAbove)
@@ -381,7 +387,6 @@ func (m *mockMetrics) GetResponseTime() time.Duration {
 // TestIntensityToParams tests the intensityToParams function that converts intensity to ThrottleParams
 func TestIntensityToParams(t *testing.T) {
 	testConfig := ThrottleConfig{
-		LowerThreshold:      TestLowerThresholdBytes,
 		TxSizeLowerLimit:    TestTxSizeLowerLimit,
 		BlockSizeLowerLimit: TestBlockSizeLowerLimit,
 		BlockSizeUpperLimit: TestBlockSizeUpperLimit,
@@ -462,7 +467,6 @@ func TestIntensityToParams(t *testing.T) {
 // TestIntensityToParamsBlockSizeInterpolation tests block size interpolation when ThrottleBlockSize is less than AlwaysBlockSize
 func TestIntensityToParamsBlockSizeInterpolation(t *testing.T) {
 	testConfig := ThrottleConfig{
-		LowerThreshold:      TestLowerThresholdBytes,
 		TxSizeLowerLimit:    TestTxSizeLowerLimit,
 		BlockSizeLowerLimit: 50_000,  // 50KB
 		BlockSizeUpperLimit: 100_000, // 100KB
@@ -529,7 +533,6 @@ func TestIntensityToParamsBlockSizeInterpolation(t *testing.T) {
 func TestIntensityToParamsEdgeCases(t *testing.T) {
 	t.Run("zero throttle block size", func(t *testing.T) {
 		testConfig := ThrottleConfig{
-			LowerThreshold:      TestLowerThresholdBytes,
 			TxSizeLowerLimit:    TestTxSizeLowerLimit,
 			BlockSizeLowerLimit: 0,
 			BlockSizeUpperLimit: TestBlockSizeUpperLimit,
@@ -546,7 +549,6 @@ func TestIntensityToParamsEdgeCases(t *testing.T) {
 
 	t.Run("throttle block size greater than always block size", func(t *testing.T) {
 		testConfig := ThrottleConfig{
-			LowerThreshold:      TestLowerThresholdBytes,
 			TxSizeLowerLimit:    TestTxSizeLowerLimit,
 			BlockSizeLowerLimit: TestBlockSizeUpperLimit + 50_000, // Greater than always size
 			BlockSizeUpperLimit: TestBlockSizeUpperLimit,
@@ -564,7 +566,6 @@ func TestIntensityToParamsEdgeCases(t *testing.T) {
 
 	t.Run("zero always block size", func(t *testing.T) {
 		testConfig := ThrottleConfig{
-			LowerThreshold:      TestLowerThresholdBytes,
 			TxSizeLowerLimit:    TestTxSizeLowerLimit,
 			BlockSizeLowerLimit: TestBlockSizeLowerLimit,
 			BlockSizeUpperLimit: 0,
@@ -583,7 +584,6 @@ func TestIntensityToParamsEdgeCases(t *testing.T) {
 // TestIntensityToParamsConsistency tests that intensityToParams produces consistent results
 func TestIntensityToParamsConsistency(t *testing.T) {
 	testConfig := ThrottleConfig{
-		LowerThreshold:      TestLowerThresholdBytes,
 		TxSizeLowerLimit:    TestTxSizeLowerLimit,
 		BlockSizeLowerLimit: TestBlockSizeLowerLimit,
 		BlockSizeUpperLimit: TestBlockSizeUpperLimit,
@@ -612,7 +612,6 @@ func TestIntensityToParamsConsistency(t *testing.T) {
 // TestIntensityToParamsThreadSafety tests that intensityToParams is thread-safe
 func TestIntensityToParamsThreadSafety(t *testing.T) {
 	testConfig := ThrottleConfig{
-		LowerThreshold:      TestLowerThresholdBytes,
 		TxSizeLowerLimit:    TestTxSizeLowerLimit,
 		BlockSizeLowerLimit: TestBlockSizeLowerLimit,
 		BlockSizeUpperLimit: TestBlockSizeUpperLimit,
