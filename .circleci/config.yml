@@ -146,6 +146,75 @@ commands:
           branch_pattern: develop
           mentions: "<< parameters.mentions >>"
 
+  # Notifies us on Discord when a build fails on develop
+  # For Discord to properly trigger notifications, mentions need to be in the format:
+  # User mentions: <@USER_ID>
+  # Role mentions: <@&ROLE_ID>
+  # Example: <@&1346448413172170807> is how we'd tag the Protocol DevX Pod
+  discord-notification-failures-on-develop:
+    description: "Notify Discord"
+    parameters:
+      message:
+        type: string
+        default: ""
+      mentions:
+        type: string
+        default: ""
+    steps:
+      - run:
+          name: "Notify Discord"
+          command: |
+            if [ "${CIRCLE_BRANCH}" == "develop" ]; then
+              # Format message for Discord with better structure and formatting
+              DISCORD_MESSAGE="🚨 **CI Failure Detected** 🚨\n"
+              DISCORD_MESSAGE="${DISCORD_MESSAGE}> **Repository:** \`${CIRCLE_PROJECT_USERNAME}/${CIRCLE_PROJECT_REPONAME}\`\n"
+              DISCORD_MESSAGE="${DISCORD_MESSAGE}> **Branch:** \`${CIRCLE_BRANCH}\`\n"
+              DISCORD_MESSAGE="${DISCORD_MESSAGE}> **Job:** \`${CIRCLE_JOB}\`\n"
+              DISCORD_MESSAGE="${DISCORD_MESSAGE}> **Build Link:** ${CIRCLE_BUILD_URL}"
+
+              # Add failure reason if provided
+              if [ ! -z "<< parameters.message >>" ]; then
+                DISCORD_MESSAGE="${DISCORD_MESSAGE}\n\n**Failure message:** << parameters.message >>"
+              fi
+
+              # Add mentions if provided
+              if [ ! -z "<< parameters.mentions >>" ]; then
+                DISCORD_MESSAGE="${DISCORD_MESSAGE}\n\n**Attention:** << parameters.mentions >>"
+              fi
+
+              # Post to Discord webhook
+              curl -X POST -H "Content-Type: application/json" \
+                -d "{\"content\": \"${DISCORD_MESSAGE}\"}" "${notify_ci}"
+            fi
+          when: on_fail
+
+  get-target-branch:
+    description: "Determine the PR target branch and export TARGET_BRANCH for subsequent steps"
+    steps:
+      - run:
+          name: Determine target branch for this pipeline
+          command: |
+            # Derive PR number if available
+            if [ -n "$CIRCLE_PULL_REQUEST" ]; then
+              PR_NUMBER="${CIRCLE_PULL_REQUEST##*/}"
+            else
+              PR_NUMBER=""
+            fi
+
+            TARGET_BRANCH=""
+            if [ -n "$PR_NUMBER" ]; then
+              # Fetch base branch of the PR via GitHub API
+              TARGET_BRANCH=$(curl -s "https://api.github.com/repos/${CIRCLE_PROJECT_USERNAME}/${CIRCLE_PROJECT_REPONAME}/pulls/${PR_NUMBER}" | jq -r .base.ref)
+            fi
+
+            # Fallbacks when not a PR or API did not return a branch
+            if [ -z "$TARGET_BRANCH" ] || [ "$TARGET_BRANCH" = "null" ]; then
+              TARGET_BRANCH="<< pipeline.git.branch >>"
+            fi
+
+            echo "Resolved TARGET_BRANCH=$TARGET_BRANCH"
+            echo "export TARGET_BRANCH=$TARGET_BRANCH" >> "$BASH_ENV"
+
   run-contracts-check:
     parameters:
       command:
@@ -614,17 +683,12 @@ jobs:
       - install-contracts-dependencies
       - check-changed:
           patterns: contracts-bedrock
+      - get-target-branch
       - run:
           name: Check if target branch is develop
           command: |
-            # Get PR number from CIRCLE_PULL_REQUEST
-            PR_NUMBER=$(echo $CIRCLE_PULL_REQUEST | rev | cut -d/ -f1 | rev)
-
-            # Use GitHub API to get target branch
-            TARGET_BRANCH=$(curl -s "https://api.github.com/repos/${CIRCLE_PROJECT_USERNAME}/${CIRCLE_PROJECT_REPONAME}/pulls/${PR_NUMBER}" | jq -r .base.ref)
-
             # If the target branch is not develop, do not run this check
-            if [ "$TARGET_BRANCH" != "develop" ]; then
+            if [ "${TARGET_BRANCH}" != "develop" ]; then
               echo "Target branch is not develop, skipping frozen files check"
               circleci-agent step halt
             fi
@@ -736,7 +800,7 @@ jobs:
   contracts-bedrock-coverage:
     circleci_ip_ranges: true
     docker:
-        - image: <<pipeline.parameters.default_docker_image>>
+      - image: <<pipeline.parameters.default_docker_image>>
     resource_class: xlarge
     parameters:
       test_flags:
@@ -879,6 +943,7 @@ jobs:
       - install-contracts-dependencies
       - check-changed:
           patterns: contracts-bedrock,op-node
+      - get-target-branch
       - run:
           name: print forge version
           command: forge --version
@@ -1091,7 +1156,6 @@ jobs:
           name: Sanitize op-program client
           command: make sanitize-program GUEST_PROGRAM=../op-program/bin/op-program-client.elf
           working_directory: cannon
-
 
   cannon-prestate-quick:
     machine: true
@@ -1389,19 +1453,18 @@ jobs:
             goreleaser release --clean -f ./<<parameters.module>>/<<parameters.filename>>
 
   stale-check:
-      machine:
-        image: ubuntu-2204:2024.08.1
-      steps:
-        - utils/github-stale:
-            stale-issue-message: 'This issue has been automatically marked as stale and will be closed in 5 days if no updates'
-            stale-pr-message: 'This pr has been automatically marked as stale and will be closed in 5 days if no updates'
-            close-issue-message: 'This issue was closed as stale.  Please reopen if this is a mistake'
-            close-pr-message: 'This PR was closed as stale.  Please reopen if this is a mistake'
-            days-before-issue-stale: 999
-            days-before-pr-stale: 14
-            days-before-issue-close: 5
-            days-before-pr-close: 5
-
+    machine:
+      image: ubuntu-2204:2024.08.1
+    steps:
+      - utils/github-stale:
+          stale-issue-message: "This issue has been automatically marked as stale and will be closed in 5 days if no updates"
+          stale-pr-message: "This pr has been automatically marked as stale and will be closed in 5 days if no updates"
+          close-issue-message: "This issue was closed as stale.  Please reopen if this is a mistake"
+          close-pr-message: "This PR was closed as stale.  Please reopen if this is a mistake"
+          days-before-issue-stale: 999
+          days-before-pr-stale: 14
+          days-before-issue-close: 5
+          days-before-pr-close: 5
 
 workflows:
   main:
