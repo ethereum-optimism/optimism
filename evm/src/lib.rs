@@ -550,7 +550,7 @@ mod tests {
     }
 
     #[test]
-    fn test_initialisation() {
+    fn test_initialization() {
         // Create a new BundleState object with initial data
         let bundle = BundleState::new(
             vec![(Address::new([2; 20]), None, Some(AccountInfo::default()), HashMap::default())],
