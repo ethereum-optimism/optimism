@@ -1062,11 +1062,18 @@ jobs:
     resource_class: large
     steps:
       - checkout-from-workspace
+      - restore_cache:
+          key: golangci-v1-{{ checksum ".golangci.yaml" }}
+          paths:
+            - "/home/circleci/.cache/golangci-lint"
       - run:
           name: run Go linter
           command: |
             make lint-go
-          working_directory: .
+      - save_cache:
+          key: golangci-v1-{{ checksum ".golangci.yaml" }}
+          paths:
+            - "/home/circleci/.cache/golangci-lint"
 
   go-tests:
     parameters:
