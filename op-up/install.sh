@@ -11,6 +11,11 @@ OP_UP_VERSION="${OP_UP_VERSION:-0.1.0}" # The default version is hardcoded for n
 OP_UP_REPO="${OP_UP_REPO:-ethereum-optimism/optimism}"
 OP_UP_DIR="${OP_UP_DIR:-"${HOME}/.op-up"}"
 
+# Define colors and emoji
+BOLD='\033[1m'
+RESET='\033[0m'
+WARNING_EMOJI='⚠️'
+
 if [ "$#" != 0 ]; then
   echo "The op-up installer.
 
@@ -165,6 +170,6 @@ case ":${PATH}:" in
         echo "export PATH=\"\${PATH}:${_install_dir}\"" >> "$_profile"
     fi
     say 'updated PATH'
-    say "run 'source ${_profile}' or start a new terminal session to use op-up."
+    echo "${BOLD}${WARNING_EMOJI} run 'source ${_profile}' or start a new terminal session to use op-up.${RESET}"
 
 esac
