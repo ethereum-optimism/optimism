@@ -57,6 +57,9 @@ alloy-rpc-types-engine.workspace = true
 alloy-rpc-types-eth.workspace = true
 alloy-consensus.workspace = true
 
+# async
+tokio.workspace = true
+
 # misc
 clap.workspace = true
 serde.workspace = true
@@ -65,7 +68,6 @@ eyre.workspace = true
 # test-utils dependencies
 reth-e2e-test-utils = { workspace = true, optional = true }
 alloy-genesis = { workspace = true, optional = true }
-tokio = { workspace = true, optional = true }
 serde_json = { workspace = true, optional = true }
 
 [dev-dependencies]
@@ -99,7 +101,6 @@ test-utils = [
     "reth-tasks",
     "reth-e2e-test-utils",
     "alloy-genesis",
-    "tokio",
     "serde_json",
     "reth-node-builder/test-utils",
     "reth-chainspec/test-utils",
