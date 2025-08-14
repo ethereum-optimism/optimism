@@ -10,7 +10,6 @@ import { stdJson } from "forge-std/StdJson.sol";
 import { Math } from "openzeppelin-contracts/contracts/utils/math/Math.sol";
 import { LibString } from "@solady/utils/LibString.sol";
 import { Process } from "scripts/libraries/Process.sol";
-import { Config } from "scripts/libraries/Config.sol";
 import { Bytes } from "src/libraries/Bytes.sol";
 
 // Interfaces
@@ -449,7 +448,7 @@ contract VerifyOPCM is Script {
                         "&module=contract&action=getcontractcreation&contractaddresses=",
                         vm.toString(_target.addr),
                         "&apikey=",
-                        Config.etherscanApiKey(),
+                        vm.envString("ETHERSCAN_API_KEY"),
                         "' | jq -r '.result[0].creationBytecode'"
                     )
                 )
