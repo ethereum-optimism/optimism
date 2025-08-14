@@ -41,8 +41,8 @@ func DeployOPChain(env *Env, intent *state.Intent, st *state.State, chainID comm
 	st.Chains = append(st.Chains, makeChainState(chainID, dco))
 
 	var release string
-	if intent.L1ContractsLocator.IsTag() {
-		release = intent.L1ContractsLocator.Tag
+	if intent.L1ContractsLocator.IsEmbedded() {
+		release = standard.CurrentTag
 	} else {
 		release = "dev"
 	}

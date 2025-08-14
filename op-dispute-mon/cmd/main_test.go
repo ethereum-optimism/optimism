@@ -18,7 +18,7 @@ import (
 
 var (
 	l1EthRpc                = "http://example.com:8545"
-	rollupRpc               = []string{"http://example.com:8555"}
+	rollupRpcs              = []string{"http://example.com:8555"}
 	gameFactoryAddressValue = "0xbb00000000000000000000000000000000000000"
 )
 
@@ -39,12 +39,12 @@ func TestLogLevel(t *testing.T) {
 
 func TestDefaultCLIOptionsMatchDefaultConfig(t *testing.T) {
 	cfg := configForArgs(t, addRequiredArgs())
-	defaultCfg := config.NewConfig(common.HexToAddress(gameFactoryAddressValue), l1EthRpc, rollupRpc)
+	defaultCfg := config.NewConfig(common.HexToAddress(gameFactoryAddressValue), l1EthRpc, rollupRpcs)
 	require.Equal(t, defaultCfg, cfg)
 }
 
 func TestDefaultConfigIsValid(t *testing.T) {
-	cfg := config.NewConfig(common.HexToAddress(gameFactoryAddressValue), l1EthRpc, rollupRpc)
+	cfg := config.NewConfig(common.HexToAddress(gameFactoryAddressValue), l1EthRpc, rollupRpcs)
 	require.NoError(t, cfg.Check())
 }
 
@@ -72,14 +72,14 @@ func TestRollupRpc(t *testing.T) {
 	t.Run("Valid", func(t *testing.T) {
 		url := "http://example.com:9999"
 		cfg := configForArgs(t, addRequiredArgsExcept("--rollup-rpc", "--rollup-rpc", url))
-		require.Equal(t, []string{url}, cfg.RollupRpc)
+		require.Equal(t, []string{url}, cfg.RollupRpcs)
 	})
 
 	t.Run("MultipleValues", func(t *testing.T) {
 		url1 := "http://example1.com:9999"
 		url2 := "http://example2.com:8888"
 		cfg := configForArgs(t, addRequiredArgsExcept("--rollup-rpc", "--rollup-rpc", url1, "--rollup-rpc", url2))
-		require.Equal(t, []string{url1, url2}, cfg.RollupRpc)
+		require.Equal(t, []string{url1, url2}, cfg.RollupRpcs)
 	})
 }
 
@@ -92,7 +92,14 @@ func TestSupervisorRpc(t *testing.T) {
 	t.Run("Valid", func(t *testing.T) {
 		url := "http://example.com:9999"
 		cfg := configForArgs(t, addRequiredArgsExcept("--rollup-rpc", "--supervisor-rpc", url))
-		require.Equal(t, url, cfg.SupervisorRpc)
+		require.Equal(t, []string{url}, cfg.SupervisorRpcs)
+	})
+
+	t.Run("MultipleValues", func(t *testing.T) {
+		url1 := "http://example1.com:9999"
+		url2 := "http://example2.com:8888"
+		cfg := configForArgs(t, addRequiredArgsExcept("--rollup-rpc", "--supervisor-rpc", url1, "--supervisor-rpc", url2))
+		require.Equal(t, []string{url1, url2}, cfg.SupervisorRpcs)
 	})
 }
 
@@ -305,7 +312,7 @@ func addRequiredArgsExcept(name string, optionalArgs ...string) []string {
 func requiredArgs() map[string]string {
 	args := map[string]string{
 		"--l1-eth-rpc":           l1EthRpc,
-		"--rollup-rpc":           strings.Join(rollupRpc, ","),
+		"--rollup-rpc":           strings.Join(rollupRpcs, ","),
 		"--game-factory-address": gameFactoryAddressValue,
 	}
 	return args

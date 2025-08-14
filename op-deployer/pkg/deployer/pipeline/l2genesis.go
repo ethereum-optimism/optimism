@@ -113,7 +113,7 @@ func GenerateL2Genesis(pEnv *Env, intent *state.Intent, bundle ArtifactsBundle, 
 }
 
 func calculateL2GenesisOverrides(intent *state.Intent, thisIntent *state.ChainIntent) (l2GenesisOverrides, *genesis.UpgradeScheduleDeployConfig, error) {
-	schedule := standard.DefaultHardforkScheduleForTag(intent.L1ContractsLocator.Tag)
+	schedule := standard.DefaultHardforkScheduleForTag(standard.CurrentTag)
 
 	overrides := defaultOverrides()
 	// Special case for FundDevAccounts since it's both an intent value and an override.

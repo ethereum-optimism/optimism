@@ -6,7 +6,7 @@ import { IProxy } from "interfaces/universal/IProxy.sol";
 import { Script } from "forge-std/Script.sol";
 import { DeployUtils } from "scripts/libraries/DeployUtils.sol";
 import { DeployOPChainOutput } from "scripts/deploy/DeployOPChain.s.sol";
-import { IMIPS } from "interfaces/cannon/IMIPS.sol";
+import { IMIPS64 } from "interfaces/cannon/IMIPS64.sol";
 import { IOPContractsManager } from "interfaces/L1/IOPContractsManager.sol";
 import { IAddressManager } from "interfaces/legacy/IAddressManager.sol";
 import { IStaticL1ChugSplashProxy } from "interfaces/legacy/IL1ChugSplashProxy.sol";
@@ -159,7 +159,7 @@ contract ReadImplementationAddresses is Script {
         IAddressManager am = _rii.addressManager();
         _rio.set(_rio.l1CrossDomainMessenger.selector, am.getAddress("OVM_L1CrossDomainMessenger"));
 
-        address preimageOracle = address(IMIPS(mipsLogic).oracle());
+        address preimageOracle = address(IMIPS64(mipsLogic).oracle());
         _rio.set(_rio.preimageOracleSingleton.selector, preimageOracle);
 
         address ethLockbox = _rii.opcm().implementations().ethLockboxImpl;

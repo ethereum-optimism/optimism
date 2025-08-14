@@ -7,6 +7,7 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 
 	altda "github.com/ethereum-optimism/optimism/op-alt-da"
+	opnodemetrics "github.com/ethereum-optimism/optimism/op-node/metrics"
 	"github.com/ethereum-optimism/optimism/op-node/metrics/metered"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/async"
@@ -51,7 +52,7 @@ type Metrics interface {
 
 	RecordL1ReorgDepth(d uint64)
 
-	engine.Metrics
+	opnodemetrics.Metricer
 	metered.L1FetcherMetrics
 	event.Metrics
 	sequencing.Metrics
@@ -103,6 +104,7 @@ type AttributesHandler interface {
 
 type Finalizer interface {
 	FinalizedL1() eth.L1BlockRef
+	OnL1Finalized(x eth.L1BlockRef)
 	event.Deriver
 }
 
@@ -119,6 +121,9 @@ type SyncStatusTracker interface {
 	event.Deriver
 	SyncStatus() *eth.SyncStatus
 	L1Head() eth.L1BlockRef
+	OnL1Unsafe(x eth.L1BlockRef)
+	OnL1Safe(x eth.L1BlockRef)
+	OnL1Finalized(x eth.L1BlockRef)
 }
 
 type Network interface {
@@ -182,18 +187,16 @@ func NewDriver(
 	sys.Register("status", statusTracker)
 
 	l1Tracker := status.NewL1Tracker(l1)
-	sys.Register("l1-blocks", l1Tracker)
 
 	l1 = metered.NewMeteredL1Fetcher(l1Tracker, metrics)
 	verifConfDepth := confdepth.NewConfDepth(driverCfg.VerifierConfDepth, statusTracker.L1Head, l1)
 
-	ec := engine.NewEngineController(l2, log, metrics, cfg, syncCfg,
-		sys.Register("engine-controller", nil))
+	ec := engine.NewEngineController(driverCtx, l2, log, metrics, cfg, syncCfg, sys.Register("engine-controller", nil))
 
 	sys.Register("engine-reset",
 		engine.NewEngineResetDeriver(driverCtx, log, cfg, l1, l2, syncCfg))
 
-	clSync := clsync.NewCLSync(log, cfg, metrics) // alt-sync still uses cl-sync state to determine what to sync to
+	clSync := clsync.NewCLSync(log, cfg, metrics, ec) // alt-sync still uses cl-sync state to determine what to sync to
 	sys.Register("cl-sync", clSync)
 
 	var finalizer Finalizer
@@ -204,8 +207,8 @@ func NewDriver(
 	}
 	sys.Register("finalizer", finalizer)
 
-	sys.Register("attributes-handler",
-		attributes.NewAttributesHandler(log, cfg, driverCtx, l2))
+	attrHandler := attributes.NewAttributesHandler(log, cfg, driverCtx, l2, ec)
+	sys.Register("attributes-handler", attrHandler)
 
 	derivationPipeline := derive.NewDerivationPipeline(log, cfg, depSet, verifConfDepth, l1Blobs, altDA, l2, metrics, indexingMode)
 
@@ -220,14 +223,18 @@ func NewDriver(
 		SyncCfg:             syncCfg,
 		Config:              cfg,
 		L1:                  l1,
+		L1Tracker:           l1Tracker,
 		L2:                  l2,
 		Log:                 log,
 		Ctx:                 driverCtx,
 		ManagedBySupervisor: indexingMode,
 	}
+	// TODO(#16917) Remove Event System Refactor Comments
+	//  Couple SyncDeriver and EngineController for event refactoring
+	//  Couple EngDeriver and NewAttributesHandler for event refactoring
+	ec.SyncDeriver = syncDeriver
 	sys.Register("sync", syncDeriver)
-
-	sys.Register("engine", engine.NewEngDeriver(log, driverCtx, cfg, metrics, ec))
+	sys.Register("engine", ec)
 
 	schedDeriv := NewStepSchedulingDeriver(log)
 	sys.Register("step-scheduler", schedDeriv)
@@ -240,7 +247,7 @@ func NewDriver(
 		findL1Origin := sequencing.NewL1OriginSelector(driverCtx, log, cfg, sequencerConfDepth)
 		sys.Register("origin-selector", findL1Origin)
 		sequencer = sequencing.NewSequencer(driverCtx, log, cfg, attrBuilder, findL1Origin,
-			sequencerStateListener, sequencerConductor, asyncGossiper, metrics)
+			sequencerStateListener, sequencerConductor, asyncGossiper, metrics, ec)
 		sys.Register("sequencer", sequencer)
 	} else {
 		sequencer = sequencing.DisabledSequencer{}
@@ -248,7 +255,8 @@ func NewDriver(
 
 	driverEmitter := sys.Register("driver", nil)
 	driver := &Driver{
-		statusTracker: statusTracker,
+		StatusTracker: statusTracker,
+		Finalizer:     finalizer,
 		SyncDeriver:   syncDeriver,
 		sched:         schedDeriv,
 		emitter:       driverEmitter,

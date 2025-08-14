@@ -9,6 +9,7 @@ import { EIP1967Helper } from "test/mocks/EIP1967Helper.sol";
 
 // Scripts
 import { Deployer } from "scripts/deploy/Deployer.sol";
+import { DeployOPChainInput } from "scripts/deploy/DeployOPChain.s.sol";
 import { Chains } from "scripts/libraries/Chains.sol";
 import { Config } from "scripts/libraries/Config.sol";
 import { StateDiff } from "scripts/libraries/StateDiff.sol";
@@ -32,10 +33,15 @@ import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
 import { IDisputeGameFactory } from "interfaces/dispute/IDisputeGameFactory.sol";
 import { IDelayedWETH } from "interfaces/dispute/IDelayedWETH.sol";
 import { IAnchorStateRegistry } from "interfaces/dispute/IAnchorStateRegistry.sol";
-import { IMIPS } from "interfaces/cannon/IMIPS.sol";
+import { IMIPS64 } from "interfaces/cannon/IMIPS64.sol";
 import { IPreimageOracle } from "interfaces/cannon/IPreimageOracle.sol";
 import { IProtocolVersions } from "interfaces/L1/IProtocolVersions.sol";
 import { IL1CrossDomainMessenger } from "interfaces/L1/IL1CrossDomainMessenger.sol";
+import { IETHLockbox } from "interfaces/L1/IETHLockbox.sol";
+import { IOptimismPortal2 } from "interfaces/L1/IOptimismPortal2.sol";
+import { IL1StandardBridge } from "interfaces/L1/IL1StandardBridge.sol";
+import { IL1ERC721Bridge } from "interfaces/L1/IL1ERC721Bridge.sol";
+import { IOptimismMintableERC20Factory } from "interfaces/universal/IOptimismMintableERC20Factory.sol";
 
 /// @title Deploy
 /// @notice Script used to deploy a bedrock system. The entire system is deployed within the `run` function.
@@ -268,7 +274,6 @@ contract Deploy is Deployer {
                 proofMaturityDelaySeconds: cfg.proofMaturityDelaySeconds(),
                 disputeGameFinalityDelaySeconds: cfg.disputeGameFinalityDelaySeconds(),
                 mipsVersion: StandardConstants.MIPS_VERSION,
-                l1ContractsRelease: "dev",
                 protocolVersionsProxy: IProtocolVersions(artifacts.mustGetAddress("ProtocolVersionsProxy")),
                 superchainConfigProxy: superchainConfigProxy,
                 superchainProxyAdmin: superchainProxyAdmin,
@@ -285,44 +290,40 @@ contract Deploy is Deployer {
         artifacts.save("PreimageOracle", address(dio.preimageOracleSingleton));
 
         // Get a contract set from the implementation addresses which were just deployed.
-        Types.ContractSet memory impls = Types.ContractSet({
-            L1CrossDomainMessenger: address(dio.l1CrossDomainMessengerImpl),
-            L1StandardBridge: address(dio.l1StandardBridgeImpl),
-            L2OutputOracle: address(0),
-            DisputeGameFactory: address(dio.disputeGameFactoryImpl),
-            DelayedWETH: address(dio.delayedWETHImpl),
-            PermissionedDelayedWETH: address(dio.delayedWETHImpl),
-            AnchorStateRegistry: address(0),
-            OptimismMintableERC20Factory: address(dio.optimismMintableERC20FactoryImpl),
-            OptimismPortal: address(dio.optimismPortalImpl),
-            ETHLockbox: address(dio.ethLockboxImpl),
-            SystemConfig: address(dio.systemConfigImpl),
-            L1ERC721Bridge: address(dio.l1ERC721BridgeImpl),
-            ProtocolVersions: address(dio.protocolVersionsImpl),
-            SuperchainConfig: address(dio.superchainConfigImpl)
-        });
+        Types.ContractSet memory impls = ChainAssertions.dioToContractSet(dio);
 
         ChainAssertions.checkL1CrossDomainMessenger(IL1CrossDomainMessenger(impls.L1CrossDomainMessenger), vm, false);
-        ChainAssertions.checkL1StandardBridge({ _contracts: impls, _isProxy: false });
-        ChainAssertions.checkL1ERC721Bridge({ _contracts: impls, _isProxy: false });
-        ChainAssertions.checkOptimismPortal2({ _contracts: impls, _cfg: cfg, _isProxy: false });
-        ChainAssertions.checkETHLockbox({ _contracts: impls, _cfg: cfg, _isProxy: false });
-        ChainAssertions.checkOptimismMintableERC20Factory({ _contracts: impls, _isProxy: false });
-        ChainAssertions.checkDisputeGameFactory({ _contracts: impls, _expectedOwner: address(0), _isProxy: false });
-        ChainAssertions.checkDelayedWETH({ _contracts: impls, _cfg: cfg, _isProxy: false, _expectedOwner: address(0) });
-        ChainAssertions.checkPreimageOracle({ _oracle: IPreimageOracle(address(dio.preimageOracleSingleton)), _cfg: cfg });
+        ChainAssertions.checkL1StandardBridgeImpl(IL1StandardBridge(payable(impls.L1StandardBridge)));
+        ChainAssertions.checkL1ERC721BridgeImpl(IL1ERC721Bridge(impls.L1ERC721Bridge));
+        ChainAssertions.checkOptimismPortal2({
+            _contracts: impls,
+            _superchainConfig: superchainConfigProxy,
+            _opChainProxyAdminOwner: cfg.finalSystemOwner(),
+            _isProxy: false
+        });
+        ChainAssertions.checkETHLockboxImpl(
+            IETHLockbox(impls.ETHLockbox), IOptimismPortal2(payable(impls.OptimismPortal))
+        );
+        ChainAssertions.checkOptimismMintableERC20FactoryImpl(
+            IOptimismMintableERC20Factory(impls.OptimismMintableERC20Factory)
+        );
+        ChainAssertions.checkDisputeGameFactory(
+            IDisputeGameFactory(impls.DisputeGameFactory), address(0), address(0), false
+        );
+        ChainAssertions.checkDelayedWETHImpl(IDelayedWETH(payable(impls.DelayedWETH)), cfg.faultGameWithdrawalDelay());
         ChainAssertions.checkMIPS({
-            _mips: IMIPS(address(dio.mipsSingleton)),
+            _mips: IMIPS64(address(dio.mipsSingleton)),
             _oracle: IPreimageOracle(address(dio.preimageOracleSingleton))
         });
         ChainAssertions.checkOPContractsManager({
             _impls: impls,
             _proxies: _proxies(),
             _opcm: IOPContractsManager(address(dio.opcm)),
-            _mips: IMIPS(address(dio.mipsSingleton)),
+            _mips: IMIPS64(address(dio.mipsSingleton)),
             _superchainProxyAdmin: superchainProxyAdmin
         });
-        ChainAssertions.checkSystemConfig({ _contracts: impls, _cfg: cfg, _isProxy: false });
+        ChainAssertions.checkSystemConfig({ _doi: DeployOPChainInput(address(0)), _contracts: impls, _isProxy: false });
+        ChainAssertions.checkAnchorStateRegistryProxy(IAnchorStateRegistry(impls.AnchorStateRegistry), false);
     }
 
     /// @notice Deploy all of the OP Chain specific contracts

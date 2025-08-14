@@ -76,7 +76,7 @@ func (s *interopE2ESystem) L2GethClient(id string, name string) *ethclient.Clien
 		rpcEndpoint,
 		func(v string) *rpc.Client {
 			logger := testlog.Logger(s.t, log.LevelInfo).New("node", id)
-			cl, err := dial.DialRPCClientWithTimeout(context.Background(), 30*time.Second, logger, v)
+			cl, err := dial.DialRPCClientWithTimeout(context.Background(), logger, v)
 			require.NoError(s.t, err, "failed to dial eth node instance %s", id)
 			return cl
 		})
@@ -98,9 +98,9 @@ func (s *interopE2ESystem) L2RollupClient(id string, name string) *sources.Rollu
 	}
 	rollupClA, err := dial.DialRollupClientWithTimeout(
 		context.Background(),
-		time.Second*15,
 		s.logger,
-		node.opNode.UserRPC().RPC())
+		node.opNode.UserRPC().RPC(),
+	)
 	require.NoError(s.t, err, "failed to dial rollup client")
 	node.rollupClient = rollupClA
 	return node.rollupClient
@@ -269,6 +269,10 @@ func (s *interopE2ESystem) newBatcherForL2(
 ) *bss.BatcherService {
 	batcherSecret := operatorKeys[devkeys.BatcherRole]
 	logger := s.logger.New("role", "batcher"+id)
+	daType := batcherFlags.CalldataType
+	if s.config.BatcherUsesBlobs {
+		daType = batcherFlags.BlobsType
+	}
 	batcherCLIConfig := &bss.CLIConfig{
 		L1EthRpc:                 s.l1.UserRPC().RPC(),
 		L2EthRpc:                 []string{l2Geth.UserRPC().RPC()},
@@ -289,7 +293,7 @@ func (s *interopE2ESystem) newBatcherForL2(
 		Stopped:               false,
 		BatchType:             derive.SpanBatchType,
 		MaxBlocksPerSpanBatch: 10,
-		DataAvailabilityType:  batcherFlags.CalldataType,
+		DataAvailabilityType:  daType,
 		CompressionAlgo:       derive.Brotli,
 	}
 	batcher, err := bss.BatcherServiceFromCLIConfig(

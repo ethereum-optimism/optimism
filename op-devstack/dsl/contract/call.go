@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
+	"github.com/ethereum-optimism/optimism/op-service/errutil"
 	"github.com/ethereum-optimism/optimism/op-service/txintent/bindings"
 	"github.com/ethereum-optimism/optimism/op-service/txintent/contractio"
 	"github.com/ethereum-optimism/optimism/op-service/txplan"
@@ -36,7 +37,7 @@ func Write[O any](user *dsl.EOA, call bindings.TypedCall[O], opts ...txplan.Opti
 	checkTestable(call)
 	finalOpts := txplan.Combine(user.Plan(), txplan.Combine(opts...))
 	o, err := contractio.Write(call, call.Test().Ctx(), finalOpts)
-	call.Test().Require().NoError(err)
+	call.Test().Require().NoError(err, "contract write failed: %v", errutil.TryAddRevertReason(err))
 	return o
 }
 

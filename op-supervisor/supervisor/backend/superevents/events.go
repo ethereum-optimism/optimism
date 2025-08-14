@@ -5,15 +5,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 )
 
-type ChainProcessEvent struct {
-	ChainID eth.ChainID
-	Target  uint64
-}
-
-func (ev ChainProcessEvent) String() string {
-	return "chain-process"
-}
-
 type UpdateCrossUnsafeRequestEvent struct {
 	ChainID eth.ChainID
 }

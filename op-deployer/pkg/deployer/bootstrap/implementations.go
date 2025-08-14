@@ -12,7 +12,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/artifacts"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/broadcaster"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/opcm"
-	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/standard"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/env"
 	"github.com/ethereum-optimism/optimism/op-service/cliutil"
 	opcrypto "github.com/ethereum-optimism/optimism/op-service/crypto"
@@ -32,7 +31,6 @@ type ImplementationsConfig struct {
 	L1RPCUrl                        string             `cli:"l1-rpc-url"`
 	PrivateKey                      string             `cli:"private-key"`
 	ArtifactsLocator                *artifacts.Locator `cli:"artifacts-locator"`
-	L1ContractsRelease              string             `cli:"l1-contracts-release"`
 	MIPSVersion                     int                `cli:"mips-version"`
 	WithdrawalDelaySeconds          uint64             `cli:"withdrawal-delay-seconds"`
 	MinProposalSizeBytes            uint64             `cli:"min-proposal-size-bytes"`
@@ -70,15 +68,6 @@ func (c *ImplementationsConfig) Check() error {
 	}
 	if c.ArtifactsLocator == nil {
 		return errors.New("artifacts locator must be specified")
-	}
-	if c.ArtifactsLocator.IsTag() {
-		if c.L1ContractsRelease != "" {
-			return errors.New("l1 contracts release cannot be specified if using an artifacts tag")
-		}
-
-		c.L1ContractsRelease = c.ArtifactsLocator.Tag
-	} else if c.L1ContractsRelease == "" {
-		return errors.New("l1 contracts release must be specified if not using an artifacts tag")
 	}
 	if !mipsVersion.IsSupported(c.MIPSVersion) {
 		return errors.New("MIPS version is not supported")
@@ -147,10 +136,6 @@ func Implementations(ctx context.Context, cfg ImplementationsConfig) (opcm.Deplo
 
 	lgr := cfg.Logger
 
-	if cfg.ArtifactsLocator.IsTag() && !standard.IsSupportedL1Version(cfg.ArtifactsLocator.Tag) {
-		return dio, fmt.Errorf("unsupported L1 version: %s", cfg.ArtifactsLocator.Tag)
-	}
-
 	artifactsFS, err := artifacts.Download(ctx, cfg.ArtifactsLocator, artifacts.BarProgressor(), cfg.CacheDir)
 	if err != nil {
 		return dio, fmt.Errorf("failed to download artifacts: %w", err)
@@ -210,7 +195,6 @@ func Implementations(ctx context.Context, cfg ImplementationsConfig) (opcm.Deplo
 			ProofMaturityDelaySeconds:       new(big.Int).SetUint64(cfg.ProofMaturityDelaySeconds),
 			DisputeGameFinalityDelaySeconds: new(big.Int).SetUint64(cfg.DisputeGameFinalityDelaySeconds),
 			MipsVersion:                     new(big.Int).SetUint64(uint64(cfg.MIPSVersion)),
-			L1ContractsRelease:              cfg.L1ContractsRelease,
 			SuperchainConfigProxy:           cfg.SuperchainConfigProxy,
 			ProtocolVersionsProxy:           cfg.ProtocolVersionsProxy,
 			SuperchainProxyAdmin:            cfg.SuperchainProxyAdmin,

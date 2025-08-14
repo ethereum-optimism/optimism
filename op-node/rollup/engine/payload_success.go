@@ -24,7 +24,7 @@ func (ev PayloadSuccessEvent) String() string {
 	return "payload-success"
 }
 
-func (eq *EngDeriver) onPayloadSuccess(ctx context.Context, ev PayloadSuccessEvent) {
+func (eq *EngineController) onPayloadSuccess(ctx context.Context, ev PayloadSuccessEvent) {
 	if ev.DerivedFrom == ReplaceBlockSource {
 		eq.log.Warn("Successfully built replacement block, resetting chain to continue now", "replacement", ev.Ref)
 		// Change the engine state to make the replacement block the cross-safe head of the chain,
@@ -34,7 +34,7 @@ func (eq *EngDeriver) onPayloadSuccess(ctx context.Context, ev PayloadSuccessEve
 			CrossUnsafe: ev.Ref,
 			LocalSafe:   ev.Ref,
 			CrossSafe:   ev.Ref,
-			Finalized:   eq.ec.Finalized(),
+			Finalized:   eq.Finalized(),
 		})
 		eq.emitter.Emit(ctx, InteropReplacedBlockEvent{
 			Envelope: ev.Envelope,
@@ -47,20 +47,16 @@ func (eq *EngDeriver) onPayloadSuccess(ctx context.Context, ev PayloadSuccessEve
 		return
 	}
 
-	eq.emitter.Emit(ctx, PromoteUnsafeEvent{Ref: ev.Ref})
-
+	// TryUpdateUnsafe, TryUpdatePendingSafe, TryUpdateLocalSafe, TryUpdateEngine must be sequentially invoked
+	eq.TryUpdateUnsafe(ctx, ev.Ref)
 	// If derived from L1, then it can be considered (pending) safe
 	if ev.DerivedFrom != (eth.L1BlockRef{}) {
-		eq.emitter.Emit(ctx, PromotePendingSafeEvent{
-			Ref:        ev.Ref,
-			Concluding: ev.Concluding,
-			Source:     ev.DerivedFrom,
-		})
+		eq.TryUpdatePendingSafe(ctx, ev.Ref, ev.Concluding, ev.DerivedFrom)
+		eq.TryUpdateLocalSafe(ctx, ev.Ref, ev.Concluding, ev.DerivedFrom)
 	}
-
-	eq.emitter.Emit(ctx, TryUpdateEngineEvent{
-		BuildStarted:  ev.BuildStarted,
-		InsertStarted: ev.InsertStarted,
-		Envelope:      ev.Envelope,
-	})
+	// Now if possible synchronously call FCU
+	err := eq.TryUpdateEngine(ctx)
+	if err != nil {
+		eq.log.Error("Failed to update engine", "error", err)
+	}
 }

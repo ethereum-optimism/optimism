@@ -1640,11 +1640,6 @@ contract OPContractsManagerInteropMigrator is OPContractsManagerBase {
 }
 
 contract OPContractsManager is ISemver {
-    // -------- Events --------
-
-    /// @notice Emitted when the OPCM setRC function is called.
-    event Released(bool _isRC);
-
     // -------- Structs --------
 
     /// @notice Represents the roles that can be set when deploying a standard OP Stack chain.
@@ -1765,9 +1760,9 @@ contract OPContractsManager is ISemver {
 
     // -------- Constants and Variables --------
 
-    /// @custom:semver 2.6.0
+    /// @custom:semver 3.0.0
     function version() public pure virtual returns (string memory) {
-        return "2.6.0";
+        return "3.0.0";
     }
 
     OPContractsManagerGameTypeAdder public immutable opcmGameTypeAdder;
@@ -1789,10 +1784,6 @@ contract OPContractsManager is ISemver {
     /// @notice Address of the SuperchainProxyAdmin contract shared by all chains.
     IProxyAdmin public immutable superchainProxyAdmin;
 
-    /// @notice L1 smart contracts release deployed by this version of OPCM. This is used in opcm to signal which
-    /// version of the L1 smart contracts is deployed. It takes the format of `op-contracts/vX.Y.Z`.
-    string internal L1_CONTRACTS_RELEASE;
-
     /// @notice The OPContractsManager contract that is currently being used. This is needed in the upgrade function
     /// which is intended to be DELEGATECALLed.
     OPContractsManager internal immutable thisOPCM;
@@ -1800,18 +1791,7 @@ contract OPContractsManager is ISemver {
     /// @notice The address of the upgrade controller.
     address public immutable upgradeController;
 
-    /// @notice Whether this is a release candidate.
-    bool public isRC = true;
-
-    /// @notice Returns the release string. Appends "-rc" if this is a release candidate.
-    function l1ContractsRelease() external view virtual returns (string memory) {
-        return isRC ? string.concat(L1_CONTRACTS_RELEASE, "-rc") : L1_CONTRACTS_RELEASE;
-    }
-
     // -------- Errors --------
-
-    /// @notice Thrown when an address other than the upgrade controller calls the setRC function.
-    error OnlyUpgradeController();
 
     /// @notice Thrown when an address is the zero address.
     error AddressNotFound(address who);
@@ -1863,7 +1843,6 @@ contract OPContractsManager is ISemver {
         ISuperchainConfig _superchainConfig,
         IProtocolVersions _protocolVersions,
         IProxyAdmin _superchainProxyAdmin,
-        string memory _l1ContractsRelease,
         address _upgradeController
     ) {
         _opcmDeployer.assertValidContractAddress(address(_superchainConfig));
@@ -1881,7 +1860,6 @@ contract OPContractsManager is ISemver {
         superchainConfig = _superchainConfig;
         protocolVersions = _protocolVersions;
         superchainProxyAdmin = _superchainProxyAdmin;
-        L1_CONTRACTS_RELEASE = _l1ContractsRelease;
         thisOPCM = this;
         upgradeController = _upgradeController;
     }
@@ -1924,13 +1902,6 @@ contract OPContractsManager is ISemver {
     /// @dev This function is intended to be called via DELEGATECALL from the Upgrade Controller Safe
     function upgrade(OpChainConfig[] memory _opChainConfigs) external virtual {
         if (address(this) == address(thisOPCM)) revert OnlyDelegatecall();
-
-        // If this is delegatecalled by the upgrade controller, set isRC to false first, else, continue execution.
-        if (address(this) == upgradeController) {
-            // Set isRC to false.
-            // This function asserts that the caller is the upgrade controller.
-            thisOPCM.setRC(false);
-        }
 
         bytes memory data = abi.encodeCall(
             OPContractsManagerUpgrader.upgrade, (superchainConfig, superchainProxyAdmin, _opChainConfigs)
@@ -1984,14 +1955,6 @@ contract OPContractsManager is ISemver {
     /// @notice Returns the implementation contract addresses.
     function implementations() public view returns (Implementations memory) {
         return opcmDeployer.implementations();
-    }
-
-    /// @notice Sets the RC flag.
-    function setRC(bool _isRC) external {
-        if (msg.sender != upgradeController) revert OnlyUpgradeController();
-        isRC = _isRC;
-
-        emit Released(_isRC);
     }
 
     /// @notice Helper function to perform a delegatecall to a target contract

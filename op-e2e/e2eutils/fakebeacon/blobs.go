@@ -13,7 +13,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils"
+	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/blobstore"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/beacon/engine"
@@ -29,7 +29,7 @@ type FakeBeacon struct {
 	log log.Logger
 
 	// in-memory blob store
-	blobStore *e2eutils.BlobsStore
+	blobStore *blobstore.Store
 	blobsLock sync.Mutex
 
 	beaconSrv         *http.Server
@@ -39,7 +39,7 @@ type FakeBeacon struct {
 	blockTime   uint64
 }
 
-func NewBeacon(log log.Logger, blobStore *e2eutils.BlobsStore, genesisTime uint64, blockTime uint64) *FakeBeacon {
+func NewBeacon(log log.Logger, blobStore *blobstore.Store, genesisTime uint64, blockTime uint64) *FakeBeacon {
 	return &FakeBeacon{
 		log:         log,
 		blobStore:   blobStore,

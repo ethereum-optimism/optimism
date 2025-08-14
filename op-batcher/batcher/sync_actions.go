@@ -5,7 +5,6 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/queue"
-	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
 )
 
@@ -55,7 +54,7 @@ func isZero[T comparable](x T) bool {
 func computeSyncActions[T channelStatuser](
 	newSyncStatus eth.SyncStatus,
 	prevCurrentL1 eth.L1BlockRef,
-	blocks queue.Queue[*types.Block],
+	blocks queue.Queue[SizedBlock],
 	channels []T,
 	l log.Logger,
 ) (syncActions, bool) {

@@ -59,8 +59,10 @@ func (g *FaultDisputeGame) Attack(eoa *dsl.EOA, claimIdx int64, newClaim common.
 	newPosition := claim.Position.Attack().ToGIndex()
 	requiredBond := contract.Read(g.game.GetRequiredBond((*bindings.Uint128)(newPosition)))
 
-	receipt := contract.Write(eoa, g.game.Attack(claim.Value, big.NewInt(claimIdx), newClaim), txplan.WithValue(requiredBond))
-	g.require.Equal(types.ReceiptStatusSuccessful, receipt.Status)
+	attackCall := g.game.Attack(claim.Value, big.NewInt(claimIdx), newClaim)
+
+	receipt := contract.Write(eoa, attackCall, txplan.WithValue(requiredBond), txplan.WithGasRatio(2))
+	g.t.Require().Equal(receipt.Status, types.ReceiptStatusSuccessful)
 }
 
 func (g *FaultDisputeGame) newClaim(claimIndex int64, claim bindings.Claim) *Claim {

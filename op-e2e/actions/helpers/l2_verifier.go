@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"math/big"
+	"time"
 
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/depset"
 	"github.com/stretchr/testify/require"
@@ -17,6 +18,7 @@ import (
 	gnode "github.com/ethereum/go-ethereum/node"
 	"github.com/ethereum/go-ethereum/rpc"
 
+	opnodemetrics "github.com/ethereum-optimism/optimism/op-node/metrics"
 	"github.com/ethereum-optimism/optimism/op-node/node"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/attributes"
@@ -64,6 +66,8 @@ type L2Verifier struct {
 	engine            *engine.EngineController
 	derivationMetrics *testutils.TestDerivationMetrics
 	derivation        *derive.DerivationPipeline
+	syncDeriver       *driver.SyncDeriver
+	finalizer         driver.Finalizer
 
 	safeHeadListener rollup.SafeHeadListener
 	syncCfg          *sync.Config
@@ -141,13 +145,12 @@ func NewL2Verifier(t Testing, log log.Logger, l1 derive.L1Fetcher,
 	}
 
 	metrics := &testutils.TestDerivationMetrics{}
-	ec := engine.NewEngineController(eng, log, metrics, cfg, syncCfg,
-		sys.Register("engine-controller", nil, opts))
+	ec := engine.NewEngineController(ctx, eng, log, opnodemetrics.NoopMetrics, cfg, syncCfg, sys.Register("engine-controller", nil, opts))
 
 	sys.Register("engine-reset",
 		engine.NewEngineResetDeriver(ctx, log, cfg, l1, eng, syncCfg), opts)
 
-	clSync := clsync.NewCLSync(log, cfg, metrics)
+	clSync := clsync.NewCLSync(log, cfg, metrics, ec)
 	sys.Register("cl-sync", clSync, opts)
 
 	var finalizer driver.Finalizer
@@ -158,8 +161,8 @@ func NewL2Verifier(t Testing, log log.Logger, l1 derive.L1Fetcher,
 	}
 	sys.Register("finalizer", finalizer, opts)
 
-	sys.Register("attributes-handler",
-		attributes.NewAttributesHandler(log, cfg, ctx, eng), opts)
+	attrHandler := attributes.NewAttributesHandler(log, cfg, ctx, eng, ec)
+	sys.Register("attributes-handler", attrHandler, opts)
 
 	indexingMode := interopSys != nil
 	pipeline := derive.NewDerivationPipeline(log, cfg, depSet, l1, blobsSrc, altDASrc, eng, metrics, indexingMode)
@@ -170,21 +173,26 @@ func NewL2Verifier(t Testing, log log.Logger, l1 derive.L1Fetcher,
 	syncStatusTracker := status.NewStatusTracker(log, metrics)
 	sys.Register("status", syncStatusTracker, opts)
 
-	sys.Register("sync", &driver.SyncDeriver{
-		Derivation:          pipeline,
-		SafeHeadNotifs:      safeHeadListener,
-		CLSync:              clSync,
-		Engine:              ec,
-		SyncCfg:             syncCfg,
-		Config:              cfg,
-		L1:                  l1,
+	syncDeriver := &driver.SyncDeriver{
+		Derivation:     pipeline,
+		SafeHeadNotifs: safeHeadListener,
+		CLSync:         clSync,
+		Engine:         ec,
+		SyncCfg:        syncCfg,
+		Config:         cfg,
+		L1:             l1,
+		// No need to initialize L1Tracker because no L1 block cache is used for testing
 		L2:                  eng,
 		Log:                 log,
 		Ctx:                 ctx,
 		ManagedBySupervisor: indexingMode,
-	}, opts)
-
-	sys.Register("engine", engine.NewEngDeriver(log, ctx, cfg, metrics, ec), opts)
+	}
+	// TODO(#16917) Remove Event System Refactor Comments
+	//  Couple SyncDeriver and EngineController for event refactoring
+	//  Couple EngDeriver and NewAttributesHandler for event refactoring
+	ec.SyncDeriver = syncDeriver
+	sys.Register("sync", syncDeriver, opts)
+	sys.Register("engine", ec, opts)
 
 	rollupNode := &L2Verifier{
 		eventSys:          sys,
@@ -193,6 +201,8 @@ func NewL2Verifier(t Testing, log log.Logger, l1 derive.L1Fetcher,
 		engine:            ec,
 		derivationMetrics: metrics,
 		derivation:        pipeline,
+		syncDeriver:       syncDeriver,
+		finalizer:         finalizer,
 		safeHeadListener:  safeHeadListener,
 		syncCfg:           syncCfg,
 		drainer:           executor,
@@ -240,7 +250,7 @@ func (v *L2Verifier) InteropSyncNode(t Testing) syncnode.SyncNode {
 	require.True(t, ok, "Interop sub-system must be in managed-mode if used as sync-node")
 	auth := rpc.WithHTTPAuth(gnode.NewJWTAuth(m.JWTSecret()))
 	opts := []client.RPCOption{client.WithGethRPCOptions(auth)}
-	cl, err := client.CheckAndDial(t.Ctx(), v.log, m.WSEndpoint(), auth)
+	cl, err := client.CheckAndDial(t.Ctx(), v.log, m.WSEndpoint(), 5*time.Second, auth)
 	require.NoError(t, err)
 	t.Cleanup(cl.Close)
 	bCl := client.NewBaseRPCClient(cl)
@@ -282,8 +292,7 @@ func (s *l2VerifierBackend) OverrideLeader(ctx context.Context) error {
 	return nil
 }
 
-func (s *l2VerifierBackend) OnUnsafeL2Payload(ctx context.Context, envelope *eth.ExecutionPayloadEnvelope) error {
-	return nil
+func (s *l2VerifierBackend) OnUnsafeL2Payload(ctx context.Context, envelope *eth.ExecutionPayloadEnvelope) {
 }
 
 func (s *l2VerifierBackend) ConductorEnabled(ctx context.Context) (bool, error) {
@@ -354,33 +363,24 @@ func (s *L2Verifier) ActRPCFail(t Testing) {
 func (s *L2Verifier) ActL1HeadSignal(t Testing) {
 	head, err := s.l1.L1BlockRefByLabel(t.Ctx(), eth.Unsafe)
 	require.NoError(t, err)
-	s.synchronousEvents.Emit(t.Ctx(), status.L1UnsafeEvent{L1Unsafe: head})
-	require.NoError(t, s.drainer.DrainUntil(func(ev event.Event) bool {
-		x, ok := ev.(status.L1UnsafeEvent)
-		return ok && x.L1Unsafe == head
-	}, false))
+	s.syncStatus.OnL1Unsafe(head)
+	s.syncDeriver.OnL1Unsafe(t.Ctx())
 	require.Equal(t, head, s.syncStatus.SyncStatus().HeadL1)
 }
 
 func (s *L2Verifier) ActL1SafeSignal(t Testing) {
 	safe, err := s.l1.L1BlockRefByLabel(t.Ctx(), eth.Safe)
 	require.NoError(t, err)
-	s.synchronousEvents.Emit(t.Ctx(), status.L1SafeEvent{L1Safe: safe})
-	require.NoError(t, s.drainer.DrainUntil(func(ev event.Event) bool {
-		x, ok := ev.(status.L1SafeEvent)
-		return ok && x.L1Safe == safe
-	}, false))
+	s.syncStatus.OnL1Safe(safe)
 	require.Equal(t, safe, s.syncStatus.SyncStatus().SafeL1)
 }
 
 func (s *L2Verifier) ActL1FinalizedSignal(t Testing) {
 	finalized, err := s.l1.L1BlockRefByLabel(t.Ctx(), eth.Finalized)
 	require.NoError(t, err)
-	s.synchronousEvents.Emit(t.Ctx(), finality.FinalizeL1Event{FinalizedL1: finalized})
-	require.NoError(t, s.drainer.DrainUntil(func(ev event.Event) bool {
-		x, ok := ev.(finality.FinalizeL1Event)
-		return ok && x.FinalizedL1 == finalized
-	}, false))
+	s.syncStatus.OnL1Finalized(finalized)
+	s.finalizer.OnL1Finalized(finalized)
+	s.syncDeriver.OnL1Finalized(t.Ctx())
 	require.Equal(t, finalized, s.syncStatus.SyncStatus().FinalizedL1)
 }
 

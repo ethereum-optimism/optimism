@@ -84,13 +84,11 @@ func (c *Intent) L1ChainIDBig() *big.Int {
 }
 
 func (c *Intent) validateCustomConfig() error {
-	if c.L1ContractsLocator == nil ||
-		(c.L1ContractsLocator.Tag == "" && c.L1ContractsLocator.URL == &url.URL{}) {
+	if c.L1ContractsLocator == nil {
 		return ErrL1ContractsLocatorUndefined
 	}
 
-	if c.L2ContractsLocator == nil ||
-		(c.L2ContractsLocator.Tag == "" && c.L2ContractsLocator.URL == &url.URL{}) {
+	if c.L2ContractsLocator == nil {
 		return ErrL2ContractsLocatorUndefined
 	}
 
@@ -127,9 +125,6 @@ func (c *Intent) validateStandardValues() error {
 	if err := c.checkL1Prod(); err != nil {
 		return err
 	}
-	if err := c.checkL2Prod(); err != nil {
-		return err
-	}
 
 	if c.SuperchainConfigProxy != nil {
 		return ErrIncompatibleValue
@@ -139,7 +134,7 @@ func (c *Intent) validateStandardValues() error {
 		return ErrIncompatibleValue
 	}
 
-	standardOPCM, err := standard.OPCMImplAddressFor(c.L1ChainID, c.L1ContractsLocator.Tag)
+	standardOPCM, err := standard.OPCMImplAddressFor(c.L1ChainID, standard.CurrentTag)
 	if err != nil {
 		return fmt.Errorf("error getting OPCM address: %w", err)
 	}
@@ -249,11 +244,11 @@ func (c *Intent) checkL1Prod() error {
 		return err
 	}
 
-	if _, ok := versions[validation.Semver(c.L1ContractsLocator.Tag)]; !ok {
-		return fmt.Errorf("tag '%s' not found in standard versions", c.L1ContractsLocator.Tag)
+	if _, ok := versions[validation.Semver(standard.CurrentTag)]; !ok {
+		return fmt.Errorf("tag '%s' not found in standard versions", standard.CurrentTag)
 	}
 
-	opcmAddr, err := standard.OPCMImplAddressFor(c.L1ChainID, c.L1ContractsLocator.Tag)
+	opcmAddr, err := standard.OPCMImplAddressFor(c.L1ChainID, standard.CurrentTag)
 	if err != nil {
 		return fmt.Errorf("error getting OPCM address: %w", err)
 	}
@@ -262,11 +257,6 @@ func (c *Intent) checkL1Prod() error {
 	}
 
 	return nil
-}
-
-func (c *Intent) checkL2Prod() error {
-	_, err := standard.ArtifactsURLForTag(c.L2ContractsLocator.Tag)
-	return err
 }
 
 func NewIntent(configType IntentType, l1ChainId uint64, l2ChainIds []common.Hash) (intent Intent, err error) {
@@ -310,7 +300,7 @@ func NewIntentCustom(l1ChainId uint64, l2ChainIds []common.Hash) (Intent, error)
 }
 
 func NewIntentStandard(l1ChainId uint64, l2ChainIds []common.Hash) (Intent, error) {
-	opcmAddr, err := standard.OPCMImplAddressFor(l1ChainId, artifacts.DefaultL1ContractsLocator.Tag)
+	opcmAddr, err := standard.OPCMImplAddressFor(l1ChainId, standard.CurrentTag)
 	if err != nil {
 		return Intent{}, fmt.Errorf("error getting OPCM impl address: %w", err)
 	}

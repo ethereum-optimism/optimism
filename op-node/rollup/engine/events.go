@@ -1,18 +1,13 @@
 package engine
 
 import (
-	"context"
-	"errors"
-	"fmt"
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/log"
 
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-	"github.com/ethereum-optimism/optimism/op-service/event"
 )
 
 // ReplaceBlockSource is a magic value for the "Source" attribute,
@@ -25,23 +20,7 @@ var ReplaceBlockSource = eth.L1BlockRef{
 	Time:       0,
 }
 
-type Metrics interface {
-	CountSequencedTxsInBlock(txns int, deposits int)
-
-	RecordSequencerBuildingDiffTime(duration time.Duration)
-	RecordSequencerSealingTime(duration time.Duration)
-}
-
-// ForkchoiceRequestEvent signals to the engine that it should emit an artificial
-// forkchoice-update event, to signal the latest forkchoice to other derivers.
-// This helps decouple derivers from the actual engine state,
-// while also not making the derivers wait for a forkchoice update at random.
-type ForkchoiceRequestEvent struct {
-}
-
-func (ev ForkchoiceRequestEvent) String() string {
-	return "forkchoice-request"
-}
+// no local metrics interface; engine depends directly on op-node/metrics.Metricer
 
 type ForkchoiceUpdateEvent struct {
 	UnsafeL2Head, SafeL2Head, FinalizedL2Head eth.L2BlockRef
@@ -49,19 +28,6 @@ type ForkchoiceUpdateEvent struct {
 
 func (ev ForkchoiceUpdateEvent) String() string {
 	return "forkchoice-update"
-}
-
-// PromoteUnsafeEvent signals that the given block may now become a canonical unsafe block.
-// This is pre-forkchoice update; the change may not be reflected yet in the EL.
-// Note that the legacy pre-event-refactor code-path (processing P2P blocks) does fire this,
-// but manually, duplicate with the newer events processing code-path.
-// See EngineController.InsertUnsafePayload.
-type PromoteUnsafeEvent struct {
-	Ref eth.L2BlockRef
-}
-
-func (ev PromoteUnsafeEvent) String() string {
-	return "promote-unsafe"
 }
 
 // UnsafeUpdateEvent signals that the given block is now considered safe.
@@ -100,27 +66,6 @@ type PendingSafeUpdateEvent struct {
 
 func (ev PendingSafeUpdateEvent) String() string {
 	return "pending-safe-update"
-}
-
-// PromotePendingSafeEvent signals that a block can be marked as pending-safe, and/or safe.
-type PromotePendingSafeEvent struct {
-	Ref        eth.L2BlockRef
-	Concluding bool // Concludes the pending phase, so can be promoted to (local) safe
-	Source     eth.L1BlockRef
-}
-
-func (ev PromotePendingSafeEvent) String() string {
-	return "promote-pending-safe"
-}
-
-// PromoteLocalSafeEvent signals that a block can be promoted to local-safe.
-type PromoteLocalSafeEvent struct {
-	Ref    eth.L2BlockRef
-	Source eth.L1BlockRef
-}
-
-func (ev PromoteLocalSafeEvent) String() string {
-	return "promote-local-safe"
 }
 
 type CrossSafeUpdateEvent struct {
@@ -176,13 +121,6 @@ type ProcessUnsafePayloadEvent struct {
 
 func (ev ProcessUnsafePayloadEvent) String() string {
 	return "process-unsafe-payload"
-}
-
-type TryBackupUnsafeReorgEvent struct {
-}
-
-func (ev TryBackupUnsafeReorgEvent) String() string {
-	return "try-backup-unsafe-reorg"
 }
 
 type TryUpdateEngineEvent struct {
@@ -304,265 +242,6 @@ type InteropReplacedBlockEvent struct {
 
 func (ev InteropReplacedBlockEvent) String() string {
 	return "interop-replaced-block"
-}
-
-type ELSyncStartedEvent struct{}
-
-func (ev ELSyncStartedEvent) String() string {
-	return "el-sync-started"
-}
-
-type EngDeriver struct {
-	metrics Metrics
-
-	log     log.Logger
-	cfg     *rollup.Config
-	ec      *EngineController
-	ctx     context.Context
-	emitter event.Emitter
-}
-
-var _ event.Deriver = (*EngDeriver)(nil)
-
-func NewEngDeriver(log log.Logger, ctx context.Context, cfg *rollup.Config,
-	metrics Metrics, ec *EngineController,
-) *EngDeriver {
-	return &EngDeriver{
-		log:     log,
-		cfg:     cfg,
-		ec:      ec,
-		ctx:     ctx,
-		metrics: metrics,
-	}
-}
-
-func (d *EngDeriver) AttachEmitter(em event.Emitter) {
-	d.emitter = em
-}
-
-func (d *EngDeriver) OnEvent(ctx context.Context, ev event.Event) bool {
-	d.ec.mu.Lock()
-	defer d.ec.mu.Unlock()
-	switch x := ev.(type) {
-	case TryBackupUnsafeReorgEvent:
-		// If we don't need to call FCU to restore unsafeHead using backupUnsafe, keep going b/c
-		// this was a no-op(except correcting invalid state when backupUnsafe is empty but TryBackupUnsafeReorg called).
-		fcuCalled, err := d.ec.TryBackupUnsafeReorg(d.ctx)
-		// Dealing with legacy here: it used to skip over the error-handling if fcuCalled was false.
-		// But that combination is not actually a code-path in TryBackupUnsafeReorg.
-		// We should drop fcuCalled, and make the function emit events directly,
-		// once there are no more synchronous callers.
-		if !fcuCalled && err != nil {
-			d.log.Crit("unexpected TryBackupUnsafeReorg error after no FCU call", "err", err)
-		}
-		if err != nil {
-			// If we needed to perform a network call, then we should yield even if we did not encounter an error.
-			if errors.Is(err, derive.ErrReset) {
-				d.emitter.Emit(ctx, rollup.ResetEvent{Err: err})
-			} else if errors.Is(err, derive.ErrTemporary) {
-				d.emitter.Emit(ctx, rollup.EngineTemporaryErrorEvent{Err: err})
-			} else {
-				d.emitter.Emit(ctx, rollup.CriticalErrorEvent{
-					Err: fmt.Errorf("unexpected TryBackupUnsafeReorg error type: %w", err),
-				})
-			}
-		}
-	case TryUpdateEngineEvent:
-		// If we don't need to call FCU, keep going b/c this was a no-op. If we needed to
-		// perform a network call, then we should yield even if we did not encounter an error.
-		if err := d.ec.TryUpdateEngine(d.ctx); err != nil && !errors.Is(err, ErrNoFCUNeeded) {
-			if errors.Is(err, derive.ErrReset) {
-				d.emitter.Emit(ctx, rollup.ResetEvent{Err: err})
-			} else if errors.Is(err, derive.ErrTemporary) {
-				d.emitter.Emit(ctx, rollup.EngineTemporaryErrorEvent{Err: err})
-			} else {
-				d.emitter.Emit(ctx, rollup.CriticalErrorEvent{
-					Err: fmt.Errorf("unexpected TryUpdateEngine error type: %w", err),
-				})
-			}
-		} else if x.triggeredByPayloadSuccess() {
-			logValues := x.getBlockProcessingMetrics()
-			d.log.Info("Inserted new L2 unsafe block", logValues...)
-		}
-	case ProcessUnsafePayloadEvent:
-		ref, err := derive.PayloadToBlockRef(d.cfg, x.Envelope.ExecutionPayload)
-		if err != nil {
-			d.log.Error("failed to decode L2 block ref from payload", "err", err)
-			return true
-		}
-		// Avoid re-processing the same unsafe payload if it has already been processed. Because a FCU event emits the ProcessUnsafePayloadEvent
-		// it is possible to have multiple queueed up ProcessUnsafePayloadEvent for the same L2 block. This becomes an issue when processing
-		// a large number of unsafe payloads at once (like when iterating through the payload queue after the safe head has advanced).
-		if ref.BlockRef().ID() == d.ec.UnsafeL2Head().BlockRef().ID() {
-			return true
-		}
-		if err := d.ec.InsertUnsafePayload(d.ctx, x.Envelope, ref); err != nil {
-			d.log.Info("failed to insert payload", "ref", ref,
-				"txs", len(x.Envelope.ExecutionPayload.Transactions), "err", err)
-			// yes, duplicate error-handling. After all derivers are interacting with the engine
-			// through events, we can drop the engine-controller interface:
-			// unify the events handler with the engine-controller,
-			// remove a lot of code, and not do this error translation.
-			if errors.Is(err, derive.ErrReset) {
-				d.emitter.Emit(ctx, rollup.ResetEvent{Err: err})
-			} else if errors.Is(err, derive.ErrTemporary) {
-				d.emitter.Emit(ctx, rollup.EngineTemporaryErrorEvent{Err: err})
-			} else {
-				d.emitter.Emit(ctx, rollup.CriticalErrorEvent{
-					Err: fmt.Errorf("unexpected InsertUnsafePayload error type: %w", err),
-				})
-			}
-		} else {
-			d.log.Info("successfully processed payload", "ref", ref, "txs", len(x.Envelope.ExecutionPayload.Transactions))
-		}
-	case ForkchoiceRequestEvent:
-		d.emitter.Emit(ctx, ForkchoiceUpdateEvent{
-			UnsafeL2Head:    d.ec.UnsafeL2Head(),
-			SafeL2Head:      d.ec.SafeL2Head(),
-			FinalizedL2Head: d.ec.Finalized(),
-		})
-	case rollup.ForceResetEvent:
-		ForceEngineReset(d.ec, x)
-
-		// Time to apply the changes to the underlying engine
-		d.emitter.Emit(ctx, TryUpdateEngineEvent{})
-
-		v := EngineResetConfirmedEvent{
-			LocalUnsafe: d.ec.UnsafeL2Head(),
-			CrossUnsafe: d.ec.CrossUnsafeL2Head(),
-			LocalSafe:   d.ec.LocalSafeL2Head(),
-			CrossSafe:   d.ec.SafeL2Head(),
-			Finalized:   d.ec.Finalized(),
-		}
-		// We do not emit the original event values, since those might not be set (optional attributes).
-		d.emitter.Emit(ctx, v)
-		d.log.Info("Reset of Engine is completed",
-			"local_unsafe", v.LocalUnsafe,
-			"cross_unsafe", v.CrossUnsafe,
-			"local_safe", v.LocalSafe,
-			"cross_safe", v.CrossSafe,
-			"finalized", v.Finalized,
-		)
-	case PromoteUnsafeEvent:
-		// Backup unsafeHead when new block is not built on original unsafe head.
-		if d.ec.unsafeHead.Number >= x.Ref.Number {
-			d.ec.SetBackupUnsafeL2Head(d.ec.unsafeHead, false)
-		}
-		d.ec.SetUnsafeHead(x.Ref)
-		d.emitter.Emit(ctx, UnsafeUpdateEvent(x))
-	case UnsafeUpdateEvent:
-		// pre-interop everything that is local-unsafe is also immediately cross-unsafe.
-		if !d.cfg.IsInterop(x.Ref.Time) {
-			d.emitter.Emit(ctx, PromoteCrossUnsafeEvent(x))
-		}
-		// Try to apply the forkchoice changes
-		d.emitter.Emit(ctx, TryUpdateEngineEvent{})
-	case PromoteCrossUnsafeEvent:
-		d.ec.SetCrossUnsafeHead(x.Ref)
-		d.emitter.Emit(ctx, CrossUnsafeUpdateEvent{
-			CrossUnsafe: x.Ref,
-			LocalUnsafe: d.ec.UnsafeL2Head(),
-		})
-	case PendingSafeRequestEvent:
-		d.emitter.Emit(ctx, PendingSafeUpdateEvent{
-			PendingSafe: d.ec.PendingSafeL2Head(),
-			Unsafe:      d.ec.UnsafeL2Head(),
-		})
-	case PromotePendingSafeEvent:
-		// Only promote if not already stale.
-		// Resets/overwrites happen through engine-resets, not through promotion.
-		if x.Ref.Number > d.ec.PendingSafeL2Head().Number {
-			d.log.Debug("Updating pending safe", "pending_safe", x.Ref, "local_safe", d.ec.LocalSafeL2Head(), "unsafe", d.ec.UnsafeL2Head(), "concluding", x.Concluding)
-			d.ec.SetPendingSafeL2Head(x.Ref)
-			d.emitter.Emit(ctx, PendingSafeUpdateEvent{
-				PendingSafe: d.ec.PendingSafeL2Head(),
-				Unsafe:      d.ec.UnsafeL2Head(),
-			})
-		}
-		if x.Concluding && x.Ref.Number > d.ec.LocalSafeL2Head().Number {
-			d.emitter.Emit(ctx, PromoteLocalSafeEvent{
-				Ref:    x.Ref,
-				Source: x.Source,
-			})
-		}
-	case PromoteLocalSafeEvent:
-		d.log.Debug("Updating local safe", "local_safe", x.Ref, "safe", d.ec.SafeL2Head(), "unsafe", d.ec.UnsafeL2Head())
-		d.ec.SetLocalSafeHead(x.Ref)
-		d.emitter.Emit(ctx, LocalSafeUpdateEvent(x))
-	case LocalSafeUpdateEvent:
-		// pre-interop everything that is local-safe is also immediately cross-safe.
-		if !d.cfg.IsInterop(x.Ref.Time) {
-			d.emitter.Emit(ctx, PromoteSafeEvent(x))
-		}
-	case PromoteSafeEvent:
-		d.log.Debug("Updating safe", "safe", x.Ref, "unsafe", d.ec.UnsafeL2Head())
-		d.ec.SetSafeHead(x.Ref)
-		// Finalizer can pick up this safe cross-block now
-		d.emitter.Emit(ctx, SafeDerivedEvent{Safe: x.Ref, Source: x.Source})
-		d.emitter.Emit(ctx, CrossSafeUpdateEvent{
-			CrossSafe: d.ec.SafeL2Head(),
-			LocalSafe: d.ec.LocalSafeL2Head(),
-		})
-		if x.Ref.Number > d.ec.crossUnsafeHead.Number {
-			d.log.Debug("Cross Unsafe Head is stale, updating to match cross safe", "cross_unsafe", d.ec.crossUnsafeHead, "cross_safe", x.Ref)
-			d.ec.SetCrossUnsafeHead(x.Ref)
-			d.emitter.Emit(ctx, CrossUnsafeUpdateEvent{
-				CrossUnsafe: x.Ref,
-				LocalUnsafe: d.ec.UnsafeL2Head(),
-			})
-		}
-		// Try to apply the forkchoice changes
-		d.emitter.Emit(ctx, TryUpdateEngineEvent{})
-	case PromoteFinalizedEvent:
-		if x.Ref.Number < d.ec.Finalized().Number {
-			d.log.Error("Cannot rewind finality,", "ref", x.Ref, "finalized", d.ec.Finalized())
-			return true
-		}
-		if x.Ref.Number > d.ec.SafeL2Head().Number {
-			d.log.Error("Block must be safe before it can be finalized", "ref", x.Ref, "safe", d.ec.SafeL2Head())
-			return true
-		}
-		d.ec.SetFinalizedHead(x.Ref)
-		d.emitter.Emit(ctx, FinalizedUpdateEvent(x))
-		// Try to apply the forkchoice changes
-		d.emitter.Emit(ctx, TryUpdateEngineEvent{})
-	case CrossUpdateRequestEvent:
-		if x.CrossUnsafe {
-			d.emitter.Emit(ctx, CrossUnsafeUpdateEvent{
-				CrossUnsafe: d.ec.CrossUnsafeL2Head(),
-				LocalUnsafe: d.ec.UnsafeL2Head(),
-			})
-		}
-		if x.CrossSafe {
-			d.emitter.Emit(ctx, CrossSafeUpdateEvent{
-				CrossSafe: d.ec.SafeL2Head(),
-				LocalSafe: d.ec.LocalSafeL2Head(),
-			})
-		}
-	case InteropInvalidateBlockEvent:
-		d.emitter.Emit(ctx, BuildStartEvent{Attributes: x.Attributes})
-	case BuildStartEvent:
-		d.onBuildStart(ctx, x)
-	case BuildStartedEvent:
-		d.onBuildStarted(ctx, x)
-	case BuildSealEvent:
-		d.onBuildSeal(ctx, x)
-	case BuildSealedEvent:
-		d.onBuildSealed(ctx, x)
-	case BuildInvalidEvent:
-		d.onBuildInvalid(ctx, x)
-	case BuildCancelEvent:
-		d.onBuildCancel(ctx, x)
-	case PayloadProcessEvent:
-		d.onPayloadProcess(ctx, x)
-	case PayloadSuccessEvent:
-		d.onPayloadSuccess(ctx, x)
-	case PayloadInvalidEvent:
-		d.onPayloadInvalid(ctx, x)
-	default:
-		return false
-	}
-	return true
 }
 
 type ResetEngineControl interface {

@@ -3,7 +3,6 @@ package presets
 import (
 	"github.com/ethereum/go-ethereum/log"
 
-	"github.com/ethereum-optimism/optimism/op-chain-ops/devkeys"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
 	"github.com/ethereum-optimism/optimism/op-devstack/shim"
@@ -75,7 +74,7 @@ func minimalFromSystem(t devtest.T, system stack.ExtensibleSystem, orch stack.Or
 		L2EL:          dsl.NewL2ELNode(sequencerEL, orch.ControlPlane()),
 		L2CL:          dsl.NewL2CLNode(sequencerCL, orch.ControlPlane()),
 		TestSequencer: dsl.NewTestSequencer(system.TestSequencer(match.Assume(t, match.FirstTestSequencer))),
-		Wallet:        dsl.NewHDWallet(t, devkeys.TestMnemonic, 30),
+		Wallet:        dsl.NewRandomHDWallet(t, 30), // Random for test isolation
 		FaucetL2:      dsl.NewFaucet(l2.Faucet(match.Assume(t, match.FirstFaucet))),
 	}
 	out.FaucetL1 = dsl.NewFaucet(out.L1Network.Escape().Faucet(match.Assume(t, match.FirstFaucet)))

@@ -176,7 +176,7 @@ func makeCommandAction(fn CheckAction) func(c *cli.Context) error {
 		if err != nil {
 			return fmt.Errorf("failed to dial L2 RPC: %w", err)
 		}
-		rollupCl, err := dial.DialRollupClientWithTimeout(c.Context, time.Second*20, logger, c.String(EndpointRollup.Name))
+		rollupCl, err := dial.DialRollupClientWithTimeout(c.Context, logger, c.String(EndpointRollup.Name))
 		if err != nil {
 			return fmt.Errorf("failed to dial rollup node RPC: %w", err)
 		}

@@ -10,6 +10,7 @@ import (
 
 	altda "github.com/ethereum-optimism/optimism/op-alt-da"
 	"github.com/ethereum-optimism/optimism/op-batcher/compressor"
+	"github.com/ethereum-optimism/optimism/op-batcher/config"
 	"github.com/ethereum-optimism/optimism/op-batcher/flags"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
@@ -99,9 +100,13 @@ type CLIConfig struct {
 	// ActiveSequencerCheckDuration is the duration between checks to determine the active sequencer endpoint.
 	ActiveSequencerCheckDuration time.Duration
 
-	// ThrottleThreshold is the number of pending bytes beyond which the batcher will start throttling future bytes. Set to 0 to
+	// ThrottleThreshold is the number of pending unsafe_da_bytes beyond which the batcher will start throttling future bytes. Set to 0 to
 	// disable sequencer throttling entirely (only recommended for testing).
 	ThrottleThreshold uint64
+
+	// ThrottleMaxThreshold is the number of pending_usafe_da_bytes at (and beyond) which the batcher will be throttling at 100% intensity.
+	ThrottleMaxThreshold uint64
+
 	// ThrottleTxSize is the DA size of a transaction to start throttling when we are over the throttling threshold.
 	ThrottleTxSize uint64
 	// ThrottleBlockSize is the total per-block DA limit to start imposing on block building when we are over the throttling threshold.
@@ -115,6 +120,17 @@ type CLIConfig struct {
 
 	// AdditionalThrottlingEndpoints is a list of additional endpoints to throttle.
 	AdditionalThrottlingEndpoints []string
+
+	// ThrottleControllerType is the type of throttle controller to use. Set to step by default
+	ThrottleControllerType config.ThrottleControllerType
+
+	// PID Controller specific parameters
+	ThrottlePidKp          float64
+	ThrottlePidKi          float64
+	ThrottlePidKd          float64
+	ThrottlePidIntegralMax float64
+	ThrottlePidOutputMax   float64
+	ThrottlePidSampleTime  time.Duration
 
 	TxMgrConfig   txmgr.CLIConfig
 	LogConfig     oplog.CLIConfig
@@ -167,6 +183,15 @@ func (c *CLIConfig) Check() error {
 	if c.DataAvailabilityType != flags.CalldataType && c.TargetNumFrames > maxBlobsPerBlock {
 		return fmt.Errorf("too many frames for blob transactions, max %d", maxBlobsPerBlock)
 	}
+
+	if !config.ValidThrottleControllerType(c.ThrottleControllerType) {
+		return fmt.Errorf("invalid throttle controller type: %s (must be one of: %v)", c.ThrottleControllerType, config.ThrottleControllerTypes)
+	}
+
+	if c.ThrottleThreshold != 0 && c.ThrottleMaxThreshold <= c.ThrottleThreshold {
+		return fmt.Errorf("throttle-max-threshold must be greater than throttle-threshold")
+	}
+
 	if err := c.MetricsConfig.Check(); err != nil {
 		return err
 	}
@@ -218,5 +243,13 @@ func NewConfig(ctx *cli.Context) *CLIConfig {
 		ThrottleBlockSize:             ctx.Uint64(flags.ThrottleBlockSizeFlag.Name),
 		ThrottleAlwaysBlockSize:       ctx.Uint64(flags.ThrottleAlwaysBlockSizeFlag.Name),
 		AdditionalThrottlingEndpoints: ctx.StringSlice(flags.AdditionalThrottlingEndpointsFlag.Name),
+		ThrottleControllerType:        config.ThrottleControllerType(ctx.String(flags.ThrottleControllerTypeFlag.Name)),
+		ThrottlePidKp:                 ctx.Float64(flags.ThrottlePidKpFlag.Name),
+		ThrottlePidKi:                 ctx.Float64(flags.ThrottlePidKiFlag.Name),
+		ThrottlePidKd:                 ctx.Float64(flags.ThrottlePidKdFlag.Name),
+		ThrottlePidIntegralMax:        ctx.Float64(flags.ThrottlePidIntegralMaxFlag.Name),
+		ThrottlePidOutputMax:          ctx.Float64(flags.ThrottlePidOutputMaxFlag.Name),
+		ThrottlePidSampleTime:         ctx.Duration(flags.ThrottlePidSampleTimeFlag.Name),
+		ThrottleMaxThreshold:          ctx.Uint64(flags.ThrottleMaxThresholdFlag.Name),
 	}
 }

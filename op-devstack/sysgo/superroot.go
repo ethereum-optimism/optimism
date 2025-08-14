@@ -14,11 +14,9 @@ import (
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/contracts/bindings/delegatecallproxy"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/transactions"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
-	"github.com/ethereum-optimism/optimism/op-service/client"
 	"github.com/ethereum-optimism/optimism/op-service/dial"
 	"github.com/ethereum-optimism/optimism/op-service/errutil"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-	"github.com/ethereum-optimism/optimism/op-service/sources"
 	"github.com/ethereum-optimism/optimism/op-service/sources/batching"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
@@ -199,9 +197,8 @@ func getSuperRoot(t devtest.CommonT, o *Orchestrator, timestamp uint64, supervis
 	supervisor, ok := o.supervisors.Get(supervisorID)
 	t.Require().True(ok, "must have supervisor")
 
-	clientRPC, err := client.NewRPC(t.Ctx(), t.Logger(), supervisor.userRPC)
+	client, err := dial.DialSupervisorClientWithTimeout(t.Ctx(), t.Logger(), supervisor.userRPC)
 	t.Require().NoError(err)
-	client := sources.NewSupervisorClient(clientRPC)
 	super, err := client.SuperRootAtTimestamp(t.Ctx(), hexutil.Uint64(timestamp))
 	t.Require().NoError(err, "super root at timestamp failed")
 	return super.SuperRoot

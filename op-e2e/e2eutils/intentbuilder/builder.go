@@ -156,7 +156,6 @@ func RoleToAddrProvider(t require.TestingT, dk devkeys.Keys, chainID eth.ChainID
 }
 
 type intentBuilder struct {
-	t                require.TestingT
 	l1StartBlockHash *common.Hash
 	intent           *state.Intent
 }
@@ -219,7 +218,9 @@ func (b *intentBuilder) WithGlobalOverride(key string, value any) Builder {
 }
 
 func (b *intentBuilder) Build() (*state.Intent, error) {
-	require.NoError(b.t, b.intent.Check(), "invalid intent")
+	if err := b.intent.Check(); err != nil {
+		return nil, fmt.Errorf("check intent: %w", err)
+	}
 	return b.intent, nil
 }
 

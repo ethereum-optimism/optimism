@@ -81,6 +81,7 @@ optimism_package:
         granite_time_offset: 0
         holocene_time_offset: 0
         isthmus_time_offset: 0
+        jovian_time_offset: 0
         interop_time_offset: 0
         fund_dev_accounts: true
       batcher_params:
@@ -105,6 +106,8 @@ optimism_package:
         fjord_time_offset: 0
         granite_time_offset: 0
         holocene_time_offset: 0
+        isthmus_time_offset: 0
+        jovian_time_offset: 0
         interop_time_offset: 0
         fund_dev_accounts: true
       batcher_params:

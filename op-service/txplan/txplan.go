@@ -16,6 +16,7 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/params"
+	"github.com/ethereum/go-ethereum/rpc"
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/plan"
@@ -314,7 +315,7 @@ func WithAgainstLatestBlock(cl AgainstLatestBlock) Option {
 // Reader uses eth_call to view(read) the blockchain, and does not write persistent changes to the chain.
 // A call will return a byte string (that may be ABI-decoded), and does not have a receipt, as it was only simulated and not a persistent transaction.
 type Reader interface {
-	Call(ctx context.Context, msg ethereum.CallMsg) ([]byte, error)
+	Call(ctx context.Context, msg ethereum.CallMsg, blockNumber rpc.BlockNumber) ([]byte, error)
 }
 
 func WithReader(cl Reader) Option {
@@ -327,6 +328,7 @@ func WithReader(cl Reader) Option {
 			&tx.Value,
 			&tx.Data,
 			&tx.AccessList,
+			&tx.AgainstBlock,
 		)
 		tx.Read.Fn(func(ctx context.Context) ([]byte, error) {
 			msg := ethereum.CallMsg{
@@ -340,7 +342,7 @@ func WithReader(cl Reader) Option {
 				Data:       tx.Data.Value(),
 				AccessList: tx.AccessList.Value(),
 			}
-			return cl.Call(ctx, msg)
+			return cl.Call(ctx, msg, rpc.BlockNumber(tx.AgainstBlock.Value().NumberU64()))
 		})
 	}
 }

@@ -4,6 +4,7 @@ pragma solidity 0.8.15;
 // Testing
 import { console2 as console } from "forge-std/console2.sol";
 import { Vm, VmSafe } from "forge-std/Vm.sol";
+import { EIP1967Helper } from "test/mocks/EIP1967Helper.sol";
 
 // Scripts
 import { Deploy } from "scripts/deploy/Deploy.s.sol";
@@ -103,6 +104,8 @@ contract Setup {
     // L1 contracts - core
     address proxyAdminOwner;
     IProxyAdmin proxyAdmin;
+    address superchainProxyAdminOwner;
+    IProxyAdmin superchainProxyAdmin;
     IOptimismPortal optimismPortal2;
     IETHLockbox ethLockbox;
     ISystemConfig systemConfig;
@@ -278,6 +281,8 @@ contract Setup {
         opcm = IOPContractsManager(artifacts.mustGetAddress("OPContractsManager"));
         proxyAdmin = IProxyAdmin(artifacts.mustGetAddress("ProxyAdmin"));
         proxyAdminOwner = proxyAdmin.owner();
+        superchainProxyAdmin = IProxyAdmin(EIP1967Helper.getAdmin(address(superchainConfig)));
+        superchainProxyAdminOwner = superchainProxyAdmin.owner();
         mips = IBigStepper(artifacts.mustGetAddress("MipsSingleton"));
 
         if (deploy.cfg().useAltDA()) {

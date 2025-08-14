@@ -7,14 +7,9 @@ build-contracts:
 test args='./...': build-contracts
     go test -v {{args}}
 
-download-artifacts checksum outfile:
-    curl -o {{outfile}} -L https://storage.googleapis.com/oplabs-contract-artifacts/artifacts-v1-{{checksum}}.tar.gz
-
-calculate-artifacts-hash checksum:
-    just download-artifacts {{checksum}} /tmp/artifact.tgz
-    sha256sum /tmp/artifact.tgz
-    rm /tmp/artifact.tgz
-
+copy-contract-artifacts:
+    rm -f ./pkg/deployer/artifacts/forge-artifacts/artifacts.tgz
+    tar -cvzf ./pkg/deployer/artifacts/forge-artifacts/artifacts.tgz -C ../packages/contracts-bedrock/forge-artifacts --exclude="*.t.sol" .
 
 # ======================================
 # Deployment and Verification Utilities
@@ -25,7 +20,7 @@ calculate-artifacts-hash checksum:
 # ======================================
 
 export ROOT_DIR := parent_directory(justfile_directory())
-export DEFAULT_LOCATOR := "file://" + ROOT_DIR + "/packages/contracts-bedrock/forge-artifacts"
+export DEFAULT_LOCATOR := "embedded"
 export NETWORK := env_var_or_default("NETWORK", "sepolia")
 export PROTOCOL_VERSIONS_PROXY := if NETWORK == "mainnet" { "0x8062AbC286f5e7D9428a0Ccb9AbD71e50d93b935" } else if NETWORK == "sepolia" { "0x79ADD5713B383DAa0a138d3C4780C7A1804a8090" } else { "" }
 export SUPERCHAIN_CONFIG_PROXY := if NETWORK == "mainnet" { "0x95703e0982140D16f8ebA6d158FccEde42f04a4C" } else if NETWORK == "sepolia" { "0xC2Be75506d5724086DEB7245bd260Cc9753911Be" } else { "" }
@@ -52,7 +47,6 @@ deploy-opcm release="dev" locator="$DEFAULT_LOCATOR": _validate_rpc
   #!/bin/bash
   echo "Using artifacts locator: {{locator}}"
   ./bin/op-deployer bootstrap implementations \
-    --artifacts-locator {{locator}} \
     --l1-rpc-url $ETH_RPC_URL \
     --private-key $PRIVATE_KEY \
     --mips-version 7 \
