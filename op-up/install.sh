@@ -11,11 +11,6 @@ OP_UP_VERSION="${OP_UP_VERSION:-0.1.0}" # The default version is hardcoded for n
 OP_UP_REPO="${OP_UP_REPO:-ethereum-optimism/optimism}"
 OP_UP_DIR="${OP_UP_DIR:-"${HOME}/.op-up"}"
 
-# Define colors and emoji
-BOLD='\033[1m'
-RESET='\033[0m'
-WARNING_EMOJI='⚠️'
-
 if [ "$#" != 0 ]; then
   echo "The op-up installer.
 
@@ -36,13 +31,36 @@ OP_UP_DIR:
   The main directory for the op-up command. The install directory is \"\${OP_UP_DIR}/bin\".
   (default: ${OP_UP_DIR})
 
+NO_COLOR:
+  Disables pretty text when set and nonempty. https://no-color.org/
+
 The script only understands the GitHub releases API.
 On error, the script exits with status code 1."
   exit
 fi
 
+# Use pretty text when the user's environment most likely supports it.
+_text_bold=''
+_text_red=''
+_text_reset=''
+# Ensure the script is running in a terminal, NO_COLOR is unset or empty, and tput is available.
+if [ -t 1 ] && [ -z "${NO_COLOR-}" ] && command -v tput >/dev/null 2>&1; then
+  ncolors=$(tput colors 2>/dev/null || printf 0)
+  # Checking for 8 colors helps avoid weird edge cases on legacy or misconfigured systems.
+  if [ "$ncolors" -ge 8 ]; then
+    _text_bold=$(tput bold)
+    _text_red=$(tput setaf 1)
+    _text_reset=$(tput sgr0)
+  fi
+fi
+
 say() {
   printf "op-up-installer: %s\n" "$1"
+}
+
+shout() {
+  printf '%s' "${_text_bold}${_text_red}"
+  say "${1}${_text_reset}"
 }
 
 err() {
@@ -170,6 +188,6 @@ case ":${PATH}:" in
         echo "export PATH=\"\${PATH}:${_install_dir}\"" >> "$_profile"
     fi
     say 'updated PATH'
-    echo "${BOLD}${WARNING_EMOJI} run 'source ${_profile}' or start a new terminal session to use op-up.${RESET}"
+    shout "run 'source ${_profile}' or start a new terminal session to use op-up"
 
 esac
