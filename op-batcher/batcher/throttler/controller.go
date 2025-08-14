@@ -72,6 +72,11 @@ func (tc *ThrottleController) intensityToParams(intensity float64, cfg ThrottleC
 }
 
 func (tc *ThrottleController) validateConfig(cfg ThrottleConfig) error {
+
+	if tc.GetType() == config.UnlimitedControllerType {
+		return nil
+	}
+
 	if cfg.BlockSizeLowerLimit > 0 && cfg.BlockSizeLowerLimit >= cfg.BlockSizeUpperLimit {
 		log.Error("throttler: invalid block size limits",
 			"blockSizeLowerLimit", cfg.BlockSizeLowerLimit,
@@ -96,7 +101,7 @@ func (tc *ThrottleController) validateConfig(cfg ThrottleConfig) error {
 
 // intensityToBlockSize converts intensity in [0,1] to block size
 func (tc *ThrottleController) intensityToBlockSize(intensity float64, cfg ThrottleConfig) uint64 {
-	if cfg.BlockSizeLowerLimit == 0 {
+	if cfg.BlockSizeLowerLimit == 0 || tc.strategy.GetType() == config.UnlimitedControllerType {
 		return 0
 	}
 
@@ -115,7 +120,7 @@ func (tc *ThrottleController) intensityToBlockSize(intensity float64, cfg Thrott
 
 // intensityToTxSize converts intensity in [0,1] to tx size
 func (tc *ThrottleController) intensityToTxSize(intensity float64, cfg ThrottleConfig) uint64 {
-	if cfg.TxSizeLowerLimit == 0 {
+	if cfg.TxSizeLowerLimit == 0 || tc.strategy.GetType() == config.UnlimitedControllerType {
 		return 0
 	}
 
@@ -222,6 +227,10 @@ func (f *ThrottleControllerFactory) CreateController(
 	}
 
 	switch controllerType {
+	case config.DisabledControllerType:
+		return nil, errors.New("throttler: disabled controller cannot be set at runtime. Either use the unlimited controller or restart the service with the disabled controller.")
+	case config.UnlimitedControllerType:
+		strategy = NewUnlimitedStrategy()
 	case config.StepControllerType:
 		strategy = NewStepStrategy(throttleParams.LowerThreshold)
 	case config.LinearControllerType:

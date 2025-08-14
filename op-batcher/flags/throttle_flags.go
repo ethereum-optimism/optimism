@@ -65,11 +65,11 @@ var (
 	// // Controller side
 	ThrottleControllerTypeFlag = &cli.StringFlag{
 		Name:    "throttle.controller-type",
-		Usage:   "Type of throttle controller to use: 'step', 'linear', 'quadratic' (default) or 'pid' (EXPERIMENTAL - use with caution)",
+		Usage:   "Type of throttle controller to use: 'step', 'linear', 'quadratic' (default) or 'pid' (EXPERIMENTAL - use with caution). Set to 'disabled' to prevent all miner_setMaxDASize calls, and to 'unlimited' to force miner_setMaxDASize(0,0) which removes all restrictions in the block builder.",
 		Value:   DefaultThrottleControllerType,
 		EnvVars: prefixEnvVars("THROTTLE_CONTROLLER_TYPE"),
 		Action: func(ctx *cli.Context, value string) error {
-			validTypes := []string{"disabled", "step", "linear", "quadratic", "pid"}
+			validTypes := []string{"disabled", "unlimited", "step", "linear", "quadratic", "pid"}
 			for _, validType := range validTypes {
 				if value == validType {
 					return nil

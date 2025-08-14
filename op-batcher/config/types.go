@@ -11,6 +11,7 @@ type ThrottleControllerType string
 
 const (
 	DisabledControllerType  ThrottleControllerType = "disabled"
+	UnlimitedControllerType ThrottleControllerType = "unlimited"
 	StepControllerType      ThrottleControllerType = "step"
 	LinearControllerType    ThrottleControllerType = "linear"
 	QuadraticControllerType ThrottleControllerType = "quadratic"
@@ -19,6 +20,7 @@ const (
 
 var ThrottleControllerTypes = []ThrottleControllerType{
 	DisabledControllerType,
+	UnlimitedControllerType,
 	StepControllerType,
 	LinearControllerType,
 	QuadraticControllerType,

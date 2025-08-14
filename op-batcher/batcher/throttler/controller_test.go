@@ -90,6 +90,9 @@ var (
 	testStepStrategy = func(t *testing.T) *StepStrategy {
 		return NewStepStrategy(TestLowerThresholdBytes)
 	}
+	testUnlimitedStrategy = func(t *testing.T) *UnlimitedStrategy {
+		return NewUnlimitedStrategy()
+	}
 	testLinearStrategy = func(t *testing.T) *LinearStrategy {
 		return NewLinearStrategy(TestLowerThresholdBytes, TestUpperThreshold, newTestLogger(t))
 	}
@@ -110,6 +113,9 @@ var (
 	// Standard controllers - reused across tests
 	testStepController = func(t *testing.T) *ThrottleController {
 		return NewThrottleController(testStepStrategy(t), testThrottleConfig)
+	}
+	testUnlimitedController = func(t *testing.T) *ThrottleController {
+		return NewThrottleController(testUnlimitedStrategy(t), testThrottleConfig)
 	}
 	testLinearController = func(t *testing.T) *ThrottleController {
 		return NewThrottleController(testLinearStrategy(t), testThrottleConfig)
@@ -176,6 +182,12 @@ func TestControllerFactory(t *testing.T) {
 			expectError:    false,
 		},
 		{
+			name:           "unlimited controller not supported by factory",
+			controllerType: config.UnlimitedControllerType,
+			pidConfig:      nil,
+			expectError:    true,
+		},
+		{
 			name:           "invalid controller type",
 			controllerType: "invalid",
 			pidConfig:      nil,
@@ -232,6 +244,7 @@ func TestControllerAbstraction(t *testing.T) {
 		strategy   ThrottleStrategy
 	}{
 		{"step", testStepController(t), testStepStrategy(t)},
+		{"unlimited", testUnlimitedController(t), testUnlimitedStrategy(t)},
 		{"linear", testLinearController(t), testLinearStrategy(t)},
 		{"quadratic", testQuadraticController(t), testQuadraticStrategy(t)},
 		{"pid", testPIDController(t), testPIDStrategy(t)},
@@ -348,6 +361,18 @@ func TestControllerTypeConsistency(t *testing.T) {
 			}
 		})
 	}
+
+	// Unlimited controller type consistency (created directly, not via factory)
+	t.Run(string(config.UnlimitedControllerType), func(t *testing.T) {
+		controller := NewThrottleController(NewUnlimitedStrategy(), testThrottleConfig)
+		if controller.GetType() != config.UnlimitedControllerType {
+			t.Errorf("GetType() returned %s, expected %s", controller.GetType(), config.UnlimitedControllerType)
+		}
+		loadType, _ := controller.Load()
+		if loadType != config.UnlimitedControllerType {
+			t.Errorf("Load() returned type %s, expected %s", loadType, config.UnlimitedControllerType)
+		}
+	})
 }
 
 // Mock metrics implementation for testing
@@ -459,6 +484,39 @@ func TestIntensityToParams(t *testing.T) {
 				t.Errorf("expected MaxBlockSize %d, got %d", tt.expectedMaxBlockSize, params.MaxBlockSize)
 			}
 
+			if params.Intensity != tt.expectedIntensity {
+				t.Errorf("expected Intensity %f, got %f", tt.expectedIntensity, params.Intensity)
+			}
+		})
+	}
+}
+
+// TestIntensityToParams_UnlimitedStrategy verifies that when using the unlimited strategy,
+// the controller ignores size limits and returns zeros regardless of intensity.
+func TestIntensityToParams_UnlimitedStrategy(t *testing.T) {
+	controller := NewThrottleController(NewUnlimitedStrategy(), testThrottleConfig)
+
+	tests := []struct {
+		name              string
+		intensity         float64
+		expectedIntensity float64
+	}{
+		{"negative intensity", -0.5, 0.0},
+		{"zero intensity", 0.0, 0.0},
+		{"half intensity", 0.5, 0.5},
+		{"max intensity", 1.0, 1.0},
+		{"above max intensity (clamped)", 1.5, 1.0},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			params := controller.intensityToParams(tt.intensity, testThrottleConfig)
+			if params.MaxTxSize != 0 {
+				t.Errorf("expected MaxTxSize 0 for unlimited strategy, got %d", params.MaxTxSize)
+			}
+			if params.MaxBlockSize != 0 {
+				t.Errorf("expected MaxBlockSize 0 for unlimited strategy, got %d", params.MaxBlockSize)
+			}
 			if params.Intensity != tt.expectedIntensity {
 				t.Errorf("expected Intensity %f, got %f", tt.expectedIntensity, params.Intensity)
 			}

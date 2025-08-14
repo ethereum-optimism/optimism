@@ -71,11 +71,14 @@ func TestDATxThrottling(t *testing.T) {
 	// second tx should still be throttled
 	require.Nil(t, bigReceipt, "large tx did not get throttled")
 
-	// disable throttling to let big tx through
-	// note that we don't want to stop the batcher from calling miner_setMaxDASize at all
-	// rather, we want it to call miner_setMaxDASize(0,0)
-	batcher.Config.ThrottleParams.TxSizeLowerLimit = 0
-	err = batcher.SetThrottleController(config.StepControllerType, nil) // We need to set the controller again to propagate the change
+	// Try setting the disabled controller, this is expected to return an error
+	// in the current implementation.
+	err = batcher.SetThrottleController(config.DisabledControllerType, nil)
+	require.Error(t, err)
+	t.Log(err)
+
+	// Set throttling to unlimited to unrestrict block builder and let big tx through
+	err = batcher.SetThrottleController(config.UnlimitedControllerType, nil)
 	require.NoError(t, err)
 
 	select {
