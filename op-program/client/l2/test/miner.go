@@ -40,6 +40,10 @@ func NewMiner(t *testing.T, logger log.Logger, isthmusTime uint64) (*Miner, *cor
 	config.HoloceneTime = &zero
 	config.IsthmusTime = &isthmusTime
 	config.PragueTime = &isthmusTime
+
+	// Disable future Ethereum forks for now
+	config.OsakaTime = nil
+
 	denomCanyon := uint64(250)
 	config.Optimism = &params.OptimismConfig{
 		EIP1559Denominator:       50,
