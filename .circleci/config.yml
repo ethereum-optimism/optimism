@@ -1059,7 +1059,7 @@ jobs:
   go-lint:
     docker:
       - image: <<pipeline.parameters.default_docker_image>>
-    resource_class: medium
+    resource_class: large
     steps:
       - checkout-from-workspace
       - run:
