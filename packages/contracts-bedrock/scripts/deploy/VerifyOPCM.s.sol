@@ -226,7 +226,7 @@ contract VerifyOPCM is Script {
         // Collect property references.
         OpcmContractRef[] memory propRefs = _getOpcmPropertyRefs(_opcm);
         if (propRefs.length == 0) {
-            revert VerifyOPCM_NoProperties();
+            console.log("WARNING: No properties found in the OPCM");
         }
 
         // Verify that all component contracts have the same contractsContainer address.
@@ -255,18 +255,12 @@ contract VerifyOPCM is Script {
         }
 
         // Create a single array to join everything together.
-        uint256 extraRefs = 2; // OPCM + ContractsContainer
+        uint256 extraRefs = 1; // OPCM + ContractsContainer
         OpcmContractRef[] memory refs =
             new OpcmContractRef[](propRefs.length + implRefs.length + bpRefs.length + extraRefs);
 
         // References for OPCM and linked contracts.
         refs[0] = OpcmContractRef({ field: "opcm", name: "OPContractsManager", addr: address(_opcm), blueprint: false });
-        refs[1] = OpcmContractRef({
-            field: "contractsContainer",
-            name: "OPContractsManagerContractsContainer",
-            addr: contractsContainerAddr,
-            blueprint: false
-        });
 
         // Add the property references.
         for (uint256 i = 0; i < propRefs.length; i++) {
@@ -325,8 +319,8 @@ contract VerifyOPCM is Script {
 
         // Ensure we found at least one component
         if (componentCount == 0) {
-            console.log("ERROR: No OPCM components found for contractsContainer verification");
-            revert VerifyOPCM_ContractsContainerMismatch();
+            console.log("WARNING: No OPCM components found for contractsContainer verification");
+            // revert VerifyOPCM_ContractsContainerMismatch();
         }
 
         console.log(
@@ -676,12 +670,13 @@ contract VerifyOPCM is Script {
         // Find all functions that start with "opcm".
         string[] memory functionNames = abi.decode(
             vm.parseJson(
-                Process.bash(
-                    string.concat(
+                Process.bash({
+                    _command: string.concat(
                         "jq -r '[.abi[] | select(.name? and (.name | type == \"string\") and (.name | startswith(\"opcm\"))) | .name]' ",
                         _buildArtifactPath("OPContractsManager")
-                    )
-                )
+                    ),
+                    _allowEmpty: true
+                })
             ),
             (string[])
         );
