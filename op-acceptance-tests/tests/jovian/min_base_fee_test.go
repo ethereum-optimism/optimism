@@ -14,6 +14,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-e2e/bindings"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
+	"github.com/ethereum/go-ethereum/consensus/misc/eip1559"
 	gethTypes "github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/params"
@@ -68,11 +69,11 @@ func configurableMinBaseFeeOffTestScenario(
 		// Verify Jovian extra data encoding (should be 10 bytes)
 		require.Len(t, initialHeader.Extra, 10, "Jovian blocks should have 10 bytes of extra data")
 
-		// Ensure minBaseFeeLog2 is 0 (disabled)
-		initialMinBaseFeeLog2 := uint8(initialHeader.Extra[9])
-		if initialMinBaseFeeLog2 != 0 {
+		// Ensure minBaseFeeFactors is 0 (disabled)
+		initialMinBaseFeeFactors := uint8(initialHeader.Extra[9])
+		if initialMinBaseFeeFactors != 0 {
 			// Set it to 0 to test the "off" state
-			setMinBaseFeeLog2(t, ctx, sys, chainIdx, 0)
+			setMinBaseFeeFactors(t, ctx, sys, chainIdx, 0)
 			time.Sleep(3 * time.Second)
 		}
 
@@ -83,11 +84,11 @@ func configurableMinBaseFeeOffTestScenario(
 		foundDecrease := checkForBaseFeeDecrease(t, headers)
 		require.True(t, foundDecrease, "Expected base fee to decrease when minBaseFee is disabled")
 
-		// Verify minBaseFeeLog2 remains 0 in all blocks
+		// Verify minBaseFeeFactors remains 0 in all blocks
 		for _, h := range headers {
 			require.Len(t, h.Extra, 10, "Jovian blocks should have 10 bytes of extra data")
-			minBaseFeeLog2 := uint8(h.Extra[9])
-			require.Equal(t, uint8(0), minBaseFeeLog2, "MinBaseFeeLog2 should be 0 when disabled")
+			minBaseFeeFactors := uint8(h.Extra[9])
+			require.Equal(t, uint8(0), minBaseFeeFactors, "MinBaseFeeFactors should be 0 when disabled")
 		}
 
 		t.Logf("Successfully verified that base fees can decrease when minBaseFee is disabled:")
@@ -114,14 +115,14 @@ func configurableMinBaseFeeOnTestScenario(
 		// Verify that we're on Jovian fork
 		require.True(t, chainConfig.IsJovian(initialHeader.Time), "Chain must be running on Jovian fork for this test")
 
-		// Verify initial state: minBaseFeeLog2 default value is zero
+		// Verify initial state: minBaseFeeFactors default value is zero
 		require.Len(t, initialHeader.Extra, 10, "Jovian blocks should have 10 bytes of extra data")
-		initialMinBaseFeeLog2 := uint8(initialHeader.Extra[9])
-		require.Equal(t, uint8(0), initialMinBaseFeeLog2, "MinBaseFee should initially be zero")
+		initialMinBaseFeeFactors := uint8(initialHeader.Extra[9])
+		require.Equal(t, uint8(0), initialMinBaseFeeFactors, "MinBaseFee should initially be zero")
 
-		// Set minBaseFeeLog2 via SystemConfig contract
-		minBaseFeeLog2 := uint8(20) // 2^20 = 1048576 wei minimum base fee
-		setMinBaseFeeLog2(t, ctx, sys, chainIdx, minBaseFeeLog2)
+		// Set minBaseFeeFactors via SystemConfig contract
+		minBaseFeeFactors := eip1559.EncodeMinBaseFeeFactors(1, 9) // 1 * 10^9 = 1 gwei minimum base fee
+		setMinBaseFeeFactors(t, ctx, sys, chainIdx, minBaseFeeFactors)
 
 		// Wait a bit for the L2 to process the L1 change
 		time.Sleep(3 * time.Second)
@@ -130,8 +131,10 @@ func configurableMinBaseFeeOnTestScenario(
 		configuredHeader, err := l2Client.HeaderByNumber(ctx, nil)
 		require.NoError(t, err)
 
-		// Convert log2 value to actual minimum base fee (2^minBaseFeeLog2)
-		minBaseFee := new(big.Int).Exp(big.NewInt(2), big.NewInt(int64(minBaseFeeLog2)), nil)
+		// Convert significand and exponent to actual minimum base fee (significand * 10^exponent)
+		significand, exponent := eip1559.DecodeMinBaseFeeFactors(minBaseFeeFactors)
+		minBaseFee := new(big.Int).Exp(big.NewInt(10), big.NewInt(int64(exponent)), nil)
+		minBaseFee.Mul(minBaseFee, big.NewInt(int64(significand)))
 
 		// Verify the minimum base fee constraint is enforced from this point forward
 		remainingHeaders := collectBlockHeaders(t, ctx, l2Client, configuredHeader, 5)
@@ -143,8 +146,8 @@ func configurableMinBaseFeeOnTestScenario(
 
 		finalHeader := remainingHeaders[len(remainingHeaders)-1]
 		t.Logf("Successfully verified configurable minimum base fee feature:")
-		t.Logf("  - Initial minBaseFeeLog2: %d", initialMinBaseFeeLog2)
-		t.Logf("  - Configured minBaseFeeLog2: %d", minBaseFeeLog2)
+		t.Logf("  - Initial minBaseFeeFactors: 0x%02x", initialMinBaseFeeFactors)
+		t.Logf("  - Configured minBaseFeeFactors: 0x%02x", minBaseFeeFactors)
 		t.Logf("  - Minimum base fee: %s", minBaseFee.String())
 		t.Logf("  - Final base fee: %s", finalHeader.BaseFee.String())
 	}
@@ -216,8 +219,8 @@ func checkForBaseFeeDecrease(t systest.T, headers []*gethTypes.Header) bool {
 	return false
 }
 
-// setMinBaseFeeLog2 configures the minimum base fee via SystemConfig contract
-func setMinBaseFeeLog2(t systest.T, ctx context.Context, sys system.System, chainIdx uint64, minBaseFeeLog2 uint8) {
+// setMinBaseFeeFactors configures the minimum base fee via SystemConfig contract
+func setMinBaseFeeFactors(t systest.T, ctx context.Context, sys system.System, chainIdx uint64, minBaseFeeFactors uint8) {
 	// Get L1 client
 	l1Client, err := sys.L1().Nodes()[0].GethClient()
 	require.NoError(t, err)
@@ -257,14 +260,15 @@ func setMinBaseFeeLog2(t systest.T, ctx context.Context, sys system.System, chai
 	sysconfig, err := bindings.NewSystemConfig(systemConfigAddr, l1Client)
 	require.NoError(t, err)
 
-	// Set the minBaseFeeLog2 value
-	tx, err := sysconfig.SetMinBaseFeeLog2(opts, minBaseFeeLog2)
-	require.NoError(t, err, "SetMinBaseFeeLog2 transaction")
+	// Set the minBaseFeeFactors value
+	significand, exponent := eip1559.DecodeMinBaseFeeFactors(minBaseFeeFactors)
+	tx, err := sysconfig.SetMinBaseFee(opts, significand, exponent)
+	require.NoError(t, err, "SetMinBaseFee transaction")
 
 	// Wait for transaction to be mined
 	receipt, err := bind.WaitMined(ctx, l1Client, tx)
-	require.NoError(t, err, "waiting for SetMinBaseFeeLog2 transaction")
-	require.Equal(t, uint64(1), receipt.Status, "SetMinBaseFeeLog2 transaction should succeed")
+	require.NoError(t, err, "waiting for SetMinBaseFee transaction")
+	require.Equal(t, uint64(1), receipt.Status, "SetMinBaseFee transaction should succeed")
 
-	t.Logf("Successfully set minBaseFeeLog2 to %d in tx %s", minBaseFeeLog2, tx.Hash().Hex())
+	t.Logf("Successfully set minBaseFee to %d * 10^%d in tx %s", significand, exponent, tx.Hash().Hex())
 }
