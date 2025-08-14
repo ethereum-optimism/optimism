@@ -899,6 +899,10 @@ contract OPContractsManager_NoSuperchainOrProtocolVersionsUpgrade_Test is Test {
     address delayedWeth;
 
     function setUp() public {
+        if (!vm.envOr("FORK_TEST", false)) {
+            vm.skip(true);
+        }
+
         opChainConfigs.push();
     }
 
