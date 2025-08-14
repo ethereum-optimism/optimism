@@ -109,7 +109,7 @@ impl<Provider> OpTxInfoMapper<Provider> {
     }
 }
 
-impl<T, Provider> TxInfoMapper<&T> for OpTxInfoMapper<Provider>
+impl<T, Provider> TxInfoMapper<T> for OpTxInfoMapper<Provider>
 where
     T: OpTransaction + SignedTransaction,
     Provider: ReceiptProvider<Receipt: DepositReceipt>,

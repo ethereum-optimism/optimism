@@ -11,7 +11,7 @@ use reth_rpc_eth_api::{AsEthApiError, EthTxEnvError, TransactionConversionError}
 use reth_rpc_eth_types::{error::api::FromEvmHalt, EthApiError};
 use reth_rpc_server_types::result::{internal_rpc_err, rpc_err};
 use revm::context_interface::result::{EVMError, InvalidTransaction};
-use std::fmt::Display;
+use std::{convert::Infallible, fmt::Display};
 
 /// Optimism specific errors, that extend [`EthApiError`].
 #[derive(Debug, thiserror::Error)]
@@ -210,5 +210,11 @@ impl From<ProviderError> for OpEthApiError {
 impl From<BlockError> for OpEthApiError {
     fn from(value: BlockError) -> Self {
         Self::Eth(EthApiError::from(value))
+    }
+}
+
+impl From<Infallible> for OpEthApiError {
+    fn from(value: Infallible) -> Self {
+        match value {}
     }
 }
