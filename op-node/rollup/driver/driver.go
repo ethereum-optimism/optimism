@@ -193,8 +193,9 @@ func NewDriver(
 
 	ec := engine.NewEngineController(driverCtx, l2, log, metrics, cfg, syncCfg, sys.Register("engine-controller", nil))
 
-	sys.Register("engine-reset",
-		engine.NewEngineResetDeriver(driverCtx, log, cfg, l1, l2, syncCfg))
+	engineReset := engine.NewEngineResetDeriver(driverCtx, log, cfg, l1, l2, syncCfg)
+	engineReset.SetEngController(ec)
+	sys.Register("engine-reset", engineReset)
 
 	clSync := clsync.NewCLSync(log, cfg, metrics, ec) // alt-sync still uses cl-sync state to determine what to sync to
 	sys.Register("cl-sync", clSync)
