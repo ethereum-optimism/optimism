@@ -182,10 +182,16 @@ func TestControllerFactory(t *testing.T) {
 			expectError:    false,
 		},
 		{
-			name:           "unlimited controller not supported by factory",
-			controllerType: config.UnlimitedControllerType,
+			name:           "disabled controller not supported by factory",
+			controllerType: config.DisabledControllerType,
 			pidConfig:      nil,
 			expectError:    true,
+		},
+		{
+			name:           "unlimited controller supported by factory",
+			controllerType: config.UnlimitedControllerType,
+			pidConfig:      nil,
+			expectError:    false,
 		},
 		{
 			name:           "invalid controller type",
