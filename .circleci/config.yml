@@ -2123,7 +2123,7 @@ workflows:
       - initialize:
           filters:
             tags:
-              only: /^op-deployer.*/
+              only: /^op-up.*/
             branches:
               ignore: /.*/
       - contracts-bedrock-build:
