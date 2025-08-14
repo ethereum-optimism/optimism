@@ -121,7 +121,7 @@ func (m *Miner) Fork(t *testing.T, blockNumber uint64, attrs *eth.PayloadAttribu
 			NoTxPool:              true,
 			GasLimit:              &gasLimit,
 			EIP1559Params:         &eip1559Params,
-			MinBaseFeeLog2:        0,
+			MinBaseFeeFactors:     0,
 		}
 		if m.backend.Config().IsJovian(head.Time) {
 			stub := uint64(1e9)
@@ -146,7 +146,7 @@ func (m *Miner) MineAt(t *testing.T, head *types.Header, attrs *eth.PayloadAttri
 			NoTxPool:              true,
 			GasLimit:              &gasLimit,
 			EIP1559Params:         &eip1559Params,
-			MinBaseFeeLog2:        0,
+			MinBaseFeeFactors:     0,
 		}
 		if m.backend.Config().IsJovian(head.Time) {
 			stub := uint64(1e9)

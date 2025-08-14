@@ -62,7 +62,7 @@ func NewBlockProcessorFromPayloadAttributes(provider BlockDataProvider, parent c
 			e = provider.Config().ElasticityMultiplier()
 		}
 		if provider.Config().IsConfigurableMinBaseFee(header.Time) {
-			header.Extra = eip1559.EncodeMinBaseFeeExtraData(d, e, attrs.MinBaseFeeLog2)
+			header.Extra = eip1559.EncodeMinBaseFeeExtraData(d, e, attrs.MinBaseFeeFactors)
 		} else {
 			header.Extra = eip1559.EncodeHoloceneExtraData(d, e)
 		}

@@ -23,7 +23,7 @@ var (
 	SystemConfigUpdateUnsafeBlockSigner = common.Hash{31: 3}
 	SystemConfigUpdateEIP1559Params     = common.Hash{31: 4}
 	SystemConfigUpdateOperatorFeeParams = common.Hash{31: 5}
-	SystemConfigUpdateMinBaseFeeLog2    = common.Hash{31: 6}
+	SystemConfigUpdateMinBaseFeeFactors = common.Hash{31: 6}
 )
 
 var (
@@ -178,22 +178,22 @@ func ProcessSystemConfigUpdateLogEvent(destSysCfg *eth.SystemConfig, ev *types.L
 	case SystemConfigUpdateUnsafeBlockSigner:
 		// Ignored in derivation. This configurable applies to runtime configuration outside of the derivation.
 		return nil
-	case SystemConfigUpdateMinBaseFeeLog2:
+	case SystemConfigUpdateMinBaseFeeFactors:
 		if pointer, err := solabi.ReadUint64(reader); err != nil || pointer != 32 {
 			return NewCriticalError(errors.New("invalid pointer field"))
 		}
 		if length, err := solabi.ReadUint64(reader); err != nil || length != 32 {
 			return NewCriticalError(errors.New("invalid length field"))
 		}
-		minBaseFeeLog2Data, err := solabi.ReadEthBytes32(reader)
+		minBaseFeeFactorsData, err := solabi.ReadEthBytes32(reader)
 		if err != nil {
-			return NewCriticalError(errors.New("could not read minBaseFeeLog2"))
+			return NewCriticalError(errors.New("could not read minBaseFeeFactors"))
 		}
 		if !solabi.EmptyReader(reader) {
 			return NewCriticalError(errors.New("too many bytes"))
 		}
-		// abi.encode(uint8) right-pads the value, so we need the last byte
-		destSysCfg.MinBaseFeeLog2 = minBaseFeeLog2Data[31]
+		// abi.encode(uint256(factors)) left-pads the value, so we need the last byte
+		destSysCfg.MinBaseFeeFactors = minBaseFeeFactorsData[31]
 		return nil
 	default:
 		return fmt.Errorf("unrecognized L1 sysCfg update type: %s", updateType)

@@ -240,7 +240,7 @@ func (d *OpGeth) CreatePayloadAttributes(txs ...*types.Transaction) (*eth.Payloa
 		ParentBeaconBlockRoot: parentBeaconBlockRoot,
 	}
 	if d.L2ChainConfig.IsConfigurableMinBaseFee(uint64(timestamp)) {
-		attrs.MinBaseFeeLog2 = d.SystemConfig.MinBaseFeeLog2
+		attrs.MinBaseFeeFactors = d.SystemConfig.MinBaseFeeFactors
 	}
 	if d.L2ChainConfig.IsHolocene(uint64(timestamp)) {
 		attrs.EIP1559Params = new(eth.Bytes8)

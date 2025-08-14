@@ -232,20 +232,22 @@ func TestProcessSystemConfigUpdateLogEvent(t *testing.T) {
 			err: false,
 		},
 		{
-			name: "SystemConfigUpdateMinBaseFeeLog2",
+			name: "SystemConfigUpdateMinBaseFeeFactors",
 			log: &types.Log{
 				Topics: []common.Hash{
 					ConfigUpdateEventABIHash,
 					ConfigUpdateEventVersion0,
-					SystemConfigUpdateMinBaseFeeLog2,
+					SystemConfigUpdateMinBaseFeeFactors,
 				},
 			},
 			hook: func(t *testing.T, log *types.Log) *types.Log {
-				// Set minBaseFeeLog2 to 22 (uint8 value) at the first byte
-				minBaseFeeLog2Bytes := make([]byte, 32)
-				minBaseFeeLog2Bytes[31] = 22 // uint8 value at the last byte
-				minBaseFeeLog2Value := new(big.Int).SetBytes(minBaseFeeLog2Bytes)
-				numberData, err := oneUint256.Pack(minBaseFeeLog2Value)
+				// Set minBaseFeeFactors to 1e9 (uint8 value) at the first byte
+				significand := uint8(1)
+				exponent := uint8(9)
+				minBaseFeeFactorsBytes := make([]byte, 32)
+				minBaseFeeFactorsBytes[31] = significand<<4 | exponent
+				minBaseFeeFactorsValue := new(big.Int).SetBytes(minBaseFeeFactorsBytes)
+				numberData, err := oneUint256.Pack(minBaseFeeFactorsValue)
 				require.NoError(t, err)
 				data, err := bytesArgs.Pack(numberData)
 				require.NoError(t, err)
@@ -253,8 +255,8 @@ func TestProcessSystemConfigUpdateLogEvent(t *testing.T) {
 				return log
 			},
 			config: eth.SystemConfig{
-				EIP1559Params:  eth.Bytes8{0, 0, 0, 0, 0, 0, 0, 0},
-				MinBaseFeeLog2: 22,
+				EIP1559Params:     eth.Bytes8{0, 0, 0, 0, 0, 0, 0, 0},
+				MinBaseFeeFactors: uint8(1)<<4 | uint8(9),
 			},
 			err: false,
 		},
