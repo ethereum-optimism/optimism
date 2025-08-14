@@ -65,9 +65,7 @@ func (d *EngineResetDeriver) OnEvent(ctx context.Context, ev event.Event) bool {
 			})
 			return true
 		}
-		if d.engController != nil {
-			d.engController.ForceReset(ctx, result.Unsafe, result.Unsafe, result.Safe, result.Safe, result.Finalized)
-		}
+		d.engController.ForceReset(ctx, result.Unsafe, result.Unsafe, result.Safe, result.Safe, result.Finalized)
 	default:
 		return false
 	}

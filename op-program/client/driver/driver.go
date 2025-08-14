@@ -47,6 +47,7 @@ func NewDriver(logger log.Logger, cfg *rollup.Config, depSet derive.DependencySe
 	syncCfg := &sync.Config{SyncMode: sync.CLSync}
 	engResetDeriv := engine.NewEngineResetDeriver(context.Background(), logger, cfg, l1Source, l2Source, syncCfg)
 	engResetDeriv.AttachEmitter(d)
+	engResetDeriv.SetEngController(ec)
 
 	prog := &ProgramDeriver{
 		logger:         logger,
