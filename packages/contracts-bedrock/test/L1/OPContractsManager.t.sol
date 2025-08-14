@@ -1046,7 +1046,8 @@ contract OPContractsManager_NoSuperchainOrProtocolVersionsUpgrade_Test is Test {
                 "AnchorStateRegistry"
             )
         );
-        bytes memory initCode = bytes.concat(Bytes.slice(opcm.blueprints().proxy.code, 3), abi.encode(proxyAdmin));
+
+        bytes memory initCode = bytes.concat(vm.getCode("Proxy"), abi.encode(proxyAdmin));
         address newAnchorStateRegistryProxy = vm.computeCreate2Address(salt, keccak256(initCode), _delegateCaller);
         vm.label(newAnchorStateRegistryProxy, "NewAnchorStateRegistryProxy");
 
