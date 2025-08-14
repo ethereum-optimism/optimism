@@ -199,7 +199,7 @@ func (ba *FetchingAttributesBuilder) PreparePayloadAttributes(ctx context.Contex
 		*r.EIP1559Params = sysConfig.EIP1559Params
 	}
 	if ba.rollupCfg.IsConfigurableMinBaseFee(nextL2Time) {
-		r.MinBaseFeeLog2 = sysConfig.MinBaseFeeLog2
+		r.MinBaseFeeFactors = sysConfig.MinBaseFeeFactors
 	}
 
 	return r, nil
