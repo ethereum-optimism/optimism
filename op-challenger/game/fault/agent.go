@@ -31,6 +31,7 @@ type Responder interface {
 type ClaimLoader interface {
 	GetAllClaims(ctx context.Context, block rpcblock.Block) ([]types.Claim, error)
 	IsL2BlockNumberChallenged(ctx context.Context, block rpcblock.Block) (bool, error)
+	GetClockExtension(ctx context.Context) (time.Duration, error)
 }
 
 type Agent struct {
@@ -151,14 +152,22 @@ func (a *Agent) performAction(ctx context.Context, wg *sync.WaitGroup, action ty
 	}
 
 	// Apply configurable delay before responding (to slow down game progression)
-	// Only apply delay if we've made enough responses already
+	// Only apply delay if we've made enough responses already AND we're not in a clock extension period
 	if a.responseDelay > 0 && a.responseCount >= a.responseDelayAfter {
-		actionLog.Info("Delaying response", "delay", a.responseDelay, "response_count", a.responseCount, "delay_after", a.responseDelayAfter)
-		select {
-		case <-ctx.Done():
-			actionLog.Error("Action cancelled during delay", "err", ctx.Err())
-			return
-		case <-a.systemClock.After(a.responseDelay):
+		// Check if we're in a clock extension period - if so, respond immediately
+		inExtension, err := a.isInClockExtensionPeriod(ctx, action)
+		if err != nil {
+			actionLog.Warn("Failed to check clock extension status, skipping delay for safety", "err", err)
+		} else if inExtension {
+			actionLog.Info("Skipping delay due to clock extension period", "response_count", a.responseCount, "delay_after", a.responseDelayAfter)
+		} else {
+			actionLog.Info("Delaying response", "delay", a.responseDelay, "response_count", a.responseCount, "delay_after", a.responseDelayAfter)
+			select {
+			case <-ctx.Done():
+				actionLog.Error("Action cancelled during delay", "err", ctx.Err())
+				return
+			case <-a.systemClock.After(a.responseDelay):
+			}
 		}
 	}
 
@@ -258,6 +267,46 @@ func (a *Agent) resolveClaims(ctx context.Context) error {
 			return err
 		}
 	}
+}
+
+// isInClockExtensionPeriod checks if the current action is being performed during a clock extension period.
+// Clock extension occurs when the chess clock duration is close to the maximum allowed duration.
+func (a *Agent) isInClockExtensionPeriod(ctx context.Context, action types.Action) (bool, error) {
+	// Get the clock extension value from the contract via loader
+	clockExtension, err := a.loader.GetClockExtension(ctx)
+	if err != nil {
+		return false, fmt.Errorf("failed to get clock extension: %w", err)
+	}
+
+	// Use local max clock duration
+	maxClockDuration := a.maxClockDuration
+
+	// Get the parent claim to check its chess clock
+	parentClaim := action.ParentClaim
+
+	// Calculate the current chess clock duration for the parent claim
+	// This should match the logic in types.ChessClock function
+	now := a.l1Clock.Now()
+	timeSinceCreation := now.Sub(parentClaim.Clock.Timestamp)
+
+	// For the chess clock calculation, we use the accumulated duration from previous moves
+	// plus the time elapsed since this claim was made
+	parentClockDuration := parentClaim.Clock.Duration + timeSinceCreation
+
+	// We're in an extension period if the chess clock is close to the maximum duration
+	// Based on the contract logic: if duration > maxClockDuration - clockExtension
+	extensionThreshold := maxClockDuration - clockExtension
+	inExtension := parentClockDuration > extensionThreshold
+
+	a.log.Debug("Clock extension check",
+		"parent_clock_duration", parentClockDuration,
+		"max_clock_duration", maxClockDuration,
+		"agent_max_clock_duration", a.maxClockDuration,
+		"clock_extension", clockExtension,
+		"extension_threshold", extensionThreshold,
+		"in_extension", inExtension)
+
+	return inExtension, nil
 }
 
 // newGameFromContracts initializes a new game state from the state in the contract

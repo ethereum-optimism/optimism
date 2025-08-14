@@ -27,6 +27,16 @@ import (
 
 var l1Time = time.UnixMilli(100)
 
+// newStubClaimLoaderWithDefaults creates a stubClaimLoader with sensible defaults
+// for basic delay tests (prevents clock extension from triggering)
+func newStubClaimLoaderWithDefaults() *stubClaimLoader {
+	return &stubClaimLoader{
+		// A large clock extension value used to prevent clock
+		// extension from triggering during basic delay tests
+		clockExtension: 1 * time.Hour,
+	}
+}
+
 func TestDoNotMakeMovesWhenGameIsResolvable(t *testing.T) {
 	ctx := context.Background()
 
@@ -198,7 +208,7 @@ func setupTestAgent(t *testing.T) (*Agent, *stubClaimLoader, *stubResponder) {
 	logger := testlog.Logger(t, log.LevelInfo)
 	claimLoader := &stubClaimLoader{}
 	depth := types.Depth(4)
-	gameDuration := 3 * time.Minute
+	gameDuration := 24 * time.Hour
 	provider := alphabet.NewTraceProvider(big.NewInt(0), depth)
 	responder := &stubResponder{}
 	systemClock := clock.NewDeterministicClock(time.UnixMilli(120200))
@@ -212,6 +222,8 @@ type stubClaimLoader struct {
 	maxLoads           int
 	claims             []types.Claim
 	blockNumChallenged bool
+	clockExtension     time.Duration
+	clockExtensionErr  error
 }
 
 func (s *stubClaimLoader) IsL2BlockNumberChallenged(_ context.Context, _ rpcblock.Block) (bool, error) {
@@ -224,6 +236,17 @@ func (s *stubClaimLoader) GetAllClaims(_ context.Context, _ rpcblock.Block) ([]t
 		return []types.Claim{}, nil
 	}
 	return s.claims, nil
+}
+
+func (s *stubClaimLoader) GetClockExtension(_ context.Context) (time.Duration, error) {
+	if s.clockExtensionErr != nil {
+		return 0, s.clockExtensionErr
+	}
+	// Return a reasonable default if not set
+	if s.clockExtension == 0 {
+		return 5 * time.Minute, nil // Default clock extension
+	}
+	return s.clockExtension, nil
 }
 
 type stubResponder struct {
@@ -308,9 +331,9 @@ func TestResponseDelay(t *testing.T) {
 
 			// Set up agent with deterministic clock
 			logger := testlog.Logger(t, log.LevelInfo)
-			claimLoader := &stubClaimLoader{}
+			claimLoader := newStubClaimLoaderWithDefaults()
 			depth := types.Depth(4)
-			gameDuration := 3 * time.Minute
+			gameDuration := 24 * time.Hour // Large value to avoid clock extension triggering
 			provider := alphabet.NewTraceProvider(big.NewInt(0), depth)
 			responder := &stubResponder{}
 			systemClock := clock.NewDeterministicClock(time.UnixMilli(120200))
@@ -392,9 +415,9 @@ func TestResponseDelayContextCancellation(t *testing.T) {
 
 	// Set up agent with long delay and deterministic clock
 	logger := testlog.Logger(t, log.LevelInfo)
-	claimLoader := &stubClaimLoader{}
+	claimLoader := newStubClaimLoaderWithDefaults()
 	depth := types.Depth(4)
-	gameDuration := 3 * time.Minute
+	gameDuration := 24 * time.Hour
 	provider := alphabet.NewTraceProvider(big.NewInt(0), depth)
 	responder := &stubResponder{}
 	systemClock := clock.NewDeterministicClock(time.UnixMilli(120200))
@@ -481,9 +504,9 @@ func TestResponseDelayDifferentActionTypes(t *testing.T) {
 
 			// Set up agent with deterministic clock and response delay
 			logger := testlog.Logger(t, log.LevelInfo)
-			claimLoader := &stubClaimLoader{}
+			claimLoader := newStubClaimLoaderWithDefaults()
 			depth := types.Depth(4)
-			gameDuration := 3 * time.Minute
+			gameDuration := 24 * time.Hour // Large value to avoid clock extension triggering
 			provider := alphabet.NewTraceProvider(big.NewInt(0), depth)
 			responder := &stubResponder{}
 			systemClock := clock.NewDeterministicClock(time.UnixMilli(120200))
@@ -601,9 +624,9 @@ func TestResponseDelayAfter(t *testing.T) {
 
 			// Set up agent with deterministic clock
 			logger := testlog.Logger(t, log.LevelInfo)
-			claimLoader := &stubClaimLoader{}
+			claimLoader := newStubClaimLoaderWithDefaults()
 			depth := types.Depth(4)
-			gameDuration := 3 * time.Minute
+			gameDuration := 24 * time.Hour // Large value to avoid clock extension triggering
 			provider := alphabet.NewTraceProvider(big.NewInt(0), depth)
 			responder := &stubResponder{}
 			systemClock := clock.NewDeterministicClock(time.UnixMilli(120200))
@@ -615,6 +638,11 @@ func TestResponseDelayAfter(t *testing.T) {
 			// Set up initial game state
 			claimBuilder := faulttest.NewClaimBuilder(t, depth, provider)
 			baseClaim := claimBuilder.CreateRootClaim()
+			// Fix timestamp to be realistic
+			baseClaim.Clock = types.Clock{
+				Duration:  0,             // Root claim starts with no accumulated time
+				Timestamp: l1Clock.Now(), // Use current time
+			}
 			claimLoader.claims = []types.Claim{baseClaim}
 
 			// Perform actions and verify delay behavior
@@ -685,9 +713,9 @@ func TestResponseDelayAfterWithFailedActions(t *testing.T) {
 
 	// Set up agent with delay after 1 response
 	logger := testlog.Logger(t, log.LevelInfo)
-	claimLoader := &stubClaimLoader{}
+	claimLoader := newStubClaimLoaderWithDefaults()
 	depth := types.Depth(4)
-	gameDuration := 3 * time.Minute
+	gameDuration := 24 * time.Hour
 	provider := alphabet.NewTraceProvider(big.NewInt(0), depth)
 	responder := &stubResponder{}
 	systemClock := clock.NewDeterministicClock(time.UnixMilli(120200))
@@ -700,6 +728,11 @@ func TestResponseDelayAfterWithFailedActions(t *testing.T) {
 	// Set up game state
 	claimBuilder := faulttest.NewClaimBuilder(t, depth, provider)
 	baseClaim := claimBuilder.CreateRootClaim()
+	// Fix timestamp to be realistic
+	baseClaim.Clock = types.Clock{
+		Duration:  0,             // Root claim starts with no accumulated time
+		Timestamp: l1Clock.Now(), // Use current time
+	}
 	claimLoader.claims = []types.Claim{baseClaim}
 
 	action := types.Action{
@@ -797,4 +830,188 @@ func TestResponseDelayAfterWithFailedActions(t *testing.T) {
 	// Should have delay applied
 	require.Equal(t, responseDelay, elapsed, "Second successful action should have delay applied")
 	require.Equal(t, uint64(2), agent.responseCount, "Response count should be 2 after second successful action")
+}
+
+// TestResponseDelayClockExtension tests that delays are skipped during clock extension periods
+func TestResponseDelayClockExtension(t *testing.T) {
+	// Common test configuration
+	const (
+		responseDelay      = 2 * time.Second
+		responseDelayAfter = 0
+		maxClockDuration   = 10 * time.Minute
+		clockExtension     = 1 * time.Minute
+		baseTimestamp      = 100000 // milliseconds since Unix epoch
+	)
+	extensionThreshold := maxClockDuration - clockExtension // 9 minutes
+
+	tests := []struct {
+		name                string
+		parentClockDuration time.Duration // Previous accumulated time
+		timeSinceCreation   time.Duration // Additional time since claim created
+	}{
+		{
+			name:                "NoExtension_WithDelay",
+			parentClockDuration: 3 * time.Minute,
+			timeSinceCreation:   1 * time.Minute, // Total: 4min < 9min threshold
+		},
+		{
+			name:                "InExtension_SkipDelay",
+			parentClockDuration: 8 * time.Minute,
+			timeSinceCreation:   2 * time.Minute, // Total: 10min > 9min threshold
+		},
+		{
+			name:                "ExactlyAtThreshold_InExtension_SkipDelay",
+			parentClockDuration: 8 * time.Minute,
+			timeSinceCreation:   1*time.Minute + 1*time.Microsecond, // Total: just over 9min
+		},
+		{
+			name:                "JustBelowThreshold_WithDelay_WaitDelay",
+			parentClockDuration: 8 * time.Minute,
+			timeSinceCreation:   59 * time.Second, // Total: 8min59s < 9min threshold
+		},
+	}
+
+	for _, test := range tests {
+		test := test
+		t.Run(test.name, func(t *testing.T) {
+			ctx := context.Background()
+
+			// Set up agent with deterministic clock
+			logger := testlog.Logger(t, log.LevelInfo)
+			claimLoader := &stubClaimLoader{
+				clockExtension: clockExtension,
+			}
+			depth := types.Depth(4)
+			provider := alphabet.NewTraceProvider(big.NewInt(0), depth)
+			responder := &stubResponder{}
+			currentTime := time.UnixMilli(baseTimestamp).Add(test.timeSinceCreation)
+			systemClock := clock.NewDeterministicClock(currentTime)
+			l1Clock := clock.NewDeterministicClock(currentTime)
+
+			// Create agent with test parameters
+			agent := NewAgent(metrics.NoopMetrics, systemClock, l1Clock, claimLoader, depth, maxClockDuration, trace.NewSimpleTraceAccessor(provider), responder, logger, false, []common.Address{}, responseDelay, responseDelayAfter)
+
+			// Set up parent claim with specific clock timing
+			claimBuilder := faulttest.NewClaimBuilder(t, depth, provider)
+			parentClaim := claimBuilder.CreateRootClaim()
+
+			// Set realistic clock values to match test expectations
+			parentClaim.Clock = types.Clock{
+				Duration:  test.parentClockDuration,
+				Timestamp: currentTime.Add(-test.timeSinceCreation), // Realistic timestamp based on current time
+			}
+
+			// Calculate whether delay should be applied based on extension threshold
+			totalClockTime := test.parentClockDuration + test.timeSinceCreation
+			expectDelay := totalClockTime <= extensionThreshold
+			claimLoader.claims = []types.Claim{parentClaim}
+
+			// Create action with the parent claim
+			action := types.Action{
+				Type:        types.ActionTypeMove,
+				ParentClaim: parentClaim,
+				IsAttack:    true,
+				Value:       common.Hash{0x01},
+			}
+
+			// Perform action and measure timing
+			var wg sync.WaitGroup
+			wg.Add(1)
+
+			startTime := systemClock.Now()
+			done := make(chan struct{})
+			go func() {
+				agent.performAction(ctx, &wg, action)
+				close(done)
+			}()
+
+			if expectDelay {
+				// Should be waiting for delay
+				select {
+				case <-done:
+					t.Fatal("Action completed before delay period")
+				case <-time.After(50 * time.Millisecond): // Real time safety timeout
+					// Expected - still waiting for delay
+				}
+
+				// Advance clock by delay amount
+				systemClock.AdvanceTime(responseDelay)
+			}
+
+			// Wait for completion
+			select {
+			case <-done:
+				// Expected completion
+			case <-time.After(100 * time.Millisecond): // Real time safety timeout
+				t.Fatal("Action did not complete in expected time")
+			}
+
+			wg.Wait()
+
+			// Verify timing matches expectations
+			elapsed := systemClock.Since(startTime)
+			if expectDelay {
+				require.Equal(t, responseDelay, elapsed, "Should have applied delay")
+			} else {
+				require.Equal(t, time.Duration(0), elapsed, "Should have skipped delay due to clock extension")
+			}
+		})
+	}
+}
+
+// TestResponseDelayClockExtensionError tests error handling when clock extension detection fails
+func TestResponseDelayClockExtensionError(t *testing.T) {
+	ctx := context.Background()
+
+	// Set up agent with claimLoader that returns an error for clock extension
+	logger := testlog.Logger(t, log.LevelInfo)
+	claimLoader := &stubClaimLoader{
+		clockExtensionErr: errors.New("failed to get clock extension"),
+	}
+	depth := types.Depth(4)
+	provider := alphabet.NewTraceProvider(big.NewInt(0), depth)
+	responder := &stubResponder{}
+	systemClock := clock.NewDeterministicClock(time.UnixMilli(120200))
+	l1Clock := clock.NewDeterministicClock(time.UnixMilli(120200))
+
+	responseDelay := 2 * time.Second
+	maxClockDuration := 10 * time.Minute // Use a reasonable default for error test
+	agent := NewAgent(metrics.NoopMetrics, systemClock, l1Clock, claimLoader, depth, maxClockDuration, trace.NewSimpleTraceAccessor(provider), responder, logger, false, []common.Address{}, responseDelay, 0)
+
+	// Set up game state
+	claimBuilder := faulttest.NewClaimBuilder(t, depth, provider)
+	baseClaim := claimBuilder.CreateRootClaim()
+	claimLoader.claims = []types.Claim{baseClaim}
+
+	action := types.Action{
+		Type:        types.ActionTypeMove,
+		ParentClaim: baseClaim,
+		IsAttack:    true,
+		Value:       common.Hash{0x01},
+	}
+
+	// Perform action - should still apply delay despite error
+	var wg sync.WaitGroup
+	wg.Add(1)
+
+	startTime := systemClock.Now()
+	done := make(chan struct{})
+	go func() {
+		agent.performAction(ctx, &wg, action)
+		close(done)
+	}()
+
+	// Should complete immediately (no delay applied for safety when extension detection fails)
+	select {
+	case <-done:
+		// Expected - immediate completion
+	case <-time.After(50 * time.Millisecond): // Real time safety timeout
+		t.Fatal("Action did not complete immediately when extension detection fails")
+	}
+
+	wg.Wait()
+	elapsed := systemClock.Since(startTime)
+
+	// Should have skipped delay for safety when extension detection fails
+	require.Equal(t, time.Duration(0), elapsed, "Should skip delay for safety when extension detection fails")
 }
