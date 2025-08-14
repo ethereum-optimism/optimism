@@ -12,7 +12,7 @@ before:
 builds:
   - id: main
     main: .
-    binary: "op"
+    binary: "{{ .ProjectName }}"
     env:
       - CGO_ENABLED=0
     goos:
@@ -29,7 +29,7 @@ builds:
 archives:
   - format: tar.gz
     # this name template makes the OS and Arch compatible with the results of `uname`.
-    name_template: "op-{{ .Version }}-{{ tolower .Os }}-{{ .Arch }}"
+    name_template: "{{ .ProjectName }}-{{ .Version }}-{{ tolower .Os }}-{{ .Arch }}"
     wrap_in_directory: true
     files: []
 
