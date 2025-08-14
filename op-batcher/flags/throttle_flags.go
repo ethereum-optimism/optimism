@@ -69,7 +69,7 @@ var (
 		Value:   DefaultThrottleControllerType,
 		EnvVars: prefixEnvVars("THROTTLE_CONTROLLER_TYPE"),
 		Action: func(ctx *cli.Context, value string) error {
-			validTypes := []string{"step", "linear", "quadratic", "pid"}
+			validTypes := []string{"disabled", "step", "linear", "quadratic", "pid"}
 			for _, validType := range validTypes {
 				if value == validType {
 					return nil
@@ -80,7 +80,7 @@ var (
 	}
 	ThrottleUsafeDABytesLowerThresholdFlag = &cli.Uint64Flag{
 		Name:    "throttle.unsafe-da-bytes-lower-threshold",
-		Usage:   "The threshold on unsafe_da_bytes beyond which the batcher will start to throttle the block builder. Zero disables throttling.",
+		Usage:   "The threshold on unsafe_da_bytes beyond which the batcher will start to throttle the block builder.",
 		Value:   DefaultThrottleLowerThreshold,
 		EnvVars: prefixEnvVars("THROTTLE_UNSAFE_DA_BYTES_LOWER_THRESHOLD"),
 	}

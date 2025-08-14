@@ -46,6 +46,10 @@ type ThrottleConfig struct {
 }
 
 func (c *ThrottleConfig) Check() error {
+	if c.ControllerType == config.DisabledControllerType {
+		return nil
+	}
+
 	if !config.ValidThrottleControllerType(c.ControllerType) {
 		return fmt.Errorf("invalid throttle controller type: %s (must be one of: %v)", c.ControllerType, config.ThrottleControllerTypes)
 	}

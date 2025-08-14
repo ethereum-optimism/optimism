@@ -10,6 +10,7 @@ import (
 type ThrottleControllerType string
 
 const (
+	DisabledControllerType  ThrottleControllerType = "disabled"
 	StepControllerType      ThrottleControllerType = "step"
 	LinearControllerType    ThrottleControllerType = "linear"
 	QuadraticControllerType ThrottleControllerType = "quadratic"
@@ -17,6 +18,7 @@ const (
 )
 
 var ThrottleControllerTypes = []ThrottleControllerType{
+	DisabledControllerType,
 	StepControllerType,
 	LinearControllerType,
 	QuadraticControllerType,

@@ -176,12 +176,12 @@ func (l *BatchSubmitter) StartBatchSubmitting() error {
 	publishSignal := make(chan bool, 1)
 	l.publishSignal = publishSignal
 
-	// DA throttling loop should always be started except for testing (indicated by ThrottleThreshold == 0)
-	if l.Config.ThrottleParams.LowerThreshold > 0 {
+	// DA throttling loop should always be started except for testing (indicated by controller type is disabled)
+	if l.Config.ThrottleParams.ControllerType != config.DisabledControllerType {
 		l.wg.Add(1)
 		go l.throttlingLoop(l.wg, unsafeBytesUpdated) // ranges over unsafeBytesUpdated channel
 	} else {
-		l.Log.Warn("Throttling loop is DISABLED due to 0 throttle-threshold. This should not be disabled in prod.")
+		l.Log.Warn("Throttling is DISABLED. This should not be disabled in prod.")
 	}
 
 	l.wg.Add(3)
