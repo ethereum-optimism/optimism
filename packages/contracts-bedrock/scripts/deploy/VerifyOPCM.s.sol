@@ -106,7 +106,7 @@ contract VerifyOPCM is Script {
     function setUp() public {
         // Overrides for situations where field names do not cleanly map to contract names.
         fieldNameOverrides["optimismPortalImpl"] = "OptimismPortal2";
-        fieldNameOverrides["mipsImpl"] = "MIPS64";
+        fieldNameOverrides["mipsImpl"] = "MIPS";
         fieldNameOverrides["ethLockboxImpl"] = "ETHLockbox";
         fieldNameOverrides["permissionlessDisputeGame1"] = "FaultDisputeGame";
         fieldNameOverrides["permissionlessDisputeGame2"] = "FaultDisputeGame";
