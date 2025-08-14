@@ -18,6 +18,8 @@ import { ISemver } from "interfaces/universal/ISemver.sol";
 ///         keccak256 hashes in place of the Safe's nonce. This ensures that any signatures submitted
 ///         to the safe will have a nonce which is so high that it is impossible for the Safe's nonce
 ///         to ever collide with a nonce used by this module.
+///         Optionally the hash of a previous transaction can be provided, this enables transaction
+///         ordering constraints when needed.
 /// @dev This module is intended to be installed on multiple Safe contracts, in order to avoid
 ///      the need to deploy distinct modules for each Safe.
 contract UnorderedExecutionModule is ISemver, ReentrancyGuard {
@@ -33,7 +35,11 @@ contract UnorderedExecutionModule is ISemver, ReentrancyGuard {
         Enum.Operation operation;
     }
 
-    struct PrereqTxData {
+    /// @notice Input parameters for hash-once calculation and prerequisite validation
+    /// @dev This struct contains two fields that together form a unique transaction identifier:
+    ///      - prevHashOnce: Optional hash of a previously executed transaction (zero if no prerequisite)
+    ///      - mixHash: Additional entropy to ensure uniqueness of the hash-once value
+    struct HashOnceInputs {
         bytes32 prevHashOnce;
         bytes32 mixHash;
     }
@@ -56,13 +62,13 @@ contract UnorderedExecutionModule is ISemver, ReentrancyGuard {
     /// checkSignatures function. Replay prevention is handled on this module using keccak256 hashes
     /// in place of the Safe's nonce.
     /// @param safe The Safe contract to execute the transaction on
+    /// @param hashOnceInputs Input parameters containing prerequisite transaction hash and mix hash
     /// @param params The transaction parameters
     /// @param signatures Signature data that should be verified
     /// @return success Whether the transaction was successful
     function execTransactionOnSafe(
         Safe safe,
-        bytes32 hashOnce,
-        PrereqTxData calldata prereq,
+        HashOnceInputs calldata hashOnceInputs,
         ExecTransactionFromModuleParams memory params,
         bytes memory signatures
     )
@@ -71,14 +77,14 @@ contract UnorderedExecutionModule is ISemver, ReentrancyGuard {
         nonReentrant
         returns (bool success)
     {
-        // If the prereq is non-zero, then we must enforce that:
-        // 1. the hashOnce signed by the signers
-        // 2. the prevHashOnce has already been executed
-        if (prereq.prevHashOnce != bytes32(0)) {
-            if (hashOnce != keccak256(abi.encode(prereq))) {
-                revert("UnorderedExecutionModule: prereq hashOnce mismatch");
-            }
-            if (executedTransactions[prereq.prevHashOnce] != true) {
+        // Calculate the hash-once value from the input parameters
+        // This serves as both the transaction nonce and replay protection key
+        bytes32 hashOnce = keccak256(abi.encode(hashOnceInputs));
+
+        // If a prerequisite transaction is specified, verify it has been executed
+        // This enables transaction ordering constraints when needed
+        if (hashOnceInputs.prevHashOnce != bytes32(0)) {
+            if (executedTransactions[hashOnceInputs.prevHashOnce] != true) {
                 revert("UnorderedExecutionModule: prereq prevHashOnce not executed");
             }
         }
