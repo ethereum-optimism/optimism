@@ -61,30 +61,30 @@ contract UnorderedExecutionModule is ISemver, ReentrancyGuard {
     /// @notice Allows for unordered execution of transactions on a Safe, by leveraging the Safe's
     /// checkSignatures function. Replay prevention is handled on this module using keccak256 hashes
     /// in place of the Safe's nonce.
-    /// @param safe The Safe contract to execute the transaction on
-    /// @param hashOnceInputs Input parameters containing prerequisite transaction hash and mix hash
-    /// @param params The transaction parameters
-    /// @param signatures Signature data that should be verified
-    /// @return success Whether the transaction was successful
+    /// @param _safe The Safe contract to execute the transaction on
+    /// @param _hashOnceInputs Input parameters containing prerequisite transaction hash and mix hash
+    /// @param _params The transaction parameters
+    /// @param _signatures Signature data that should be verified
+    /// @return success_ Whether the transaction was successful
     function execTransactionOnSafe(
-        Safe safe,
-        HashOnceInputs calldata hashOnceInputs,
-        ExecTransactionFromModuleParams memory params,
-        bytes memory signatures
+        Safe _safe,
+        HashOnceInputs calldata _hashOnceInputs,
+        ExecTransactionFromModuleParams memory _params,
+        bytes memory _signatures
     )
         public
         payable
         nonReentrant
-        returns (bool success)
+        returns (bool success_)
     {
         // Calculate the hash-once value from the input parameters
         // This serves as both the transaction nonce and replay protection key
-        bytes32 hashOnce = keccak256(abi.encode(hashOnceInputs));
+        bytes32 hashOnce = keccak256(abi.encode(_hashOnceInputs));
 
         // If a prerequisite transaction is specified, verify it has been executed
         // This enables transaction ordering constraints when needed
-        if (hashOnceInputs.prevHashOnce != bytes32(0)) {
-            if (executedTransactions[hashOnceInputs.prevHashOnce] != true) {
+        if (_hashOnceInputs.prevHashOnce != bytes32(0)) {
+            if (executedTransactions[_hashOnceInputs.prevHashOnce] != true) {
                 revert("UnorderedExecutionModule: prereq prevHashOnce not executed");
             }
         }
@@ -93,7 +93,7 @@ contract UnorderedExecutionModule is ISemver, ReentrancyGuard {
         // this hash includes the Safe's domain separator.
         // This hash is used both for replay protection and for signature verification.
         (bytes32 safesInternalTxHash, bytes memory txHashData) =
-            getSafesInternalTxHashAndTxHashData(safe, hashOnce, params);
+            getSafesInternalTxHashAndTxHashData(_safe, hashOnce, _params);
 
         if (executedTransactions[safesInternalTxHash]) {
             revert TransactionAlreadyExecuted();
@@ -102,60 +102,60 @@ contract UnorderedExecutionModule is ISemver, ReentrancyGuard {
 
         // Verify signatures using Safe's signature checking
         // Failure will bubble up
-        safe.checkSignatures(safesInternalTxHash, txHashData, signatures);
+        _safe.checkSignatures(safesInternalTxHash, txHashData, _signatures);
 
         // Execute transaction through Safe's module system
-        success = safe.execTransactionFromModule(params.to, params.value, params.data, params.operation);
+        success_ = _safe.execTransactionFromModule(_params.to, _params.value, _params.data, _params.operation);
 
-        if (!success) {
+        if (!success_) {
             revert ModuleExecutionFailed();
         }
 
         emit TransactionExecuted(
-            address(safe), safesInternalTxHash, params.to, params.value, params.data, params.operation
+            address(_safe), safesInternalTxHash, _params.to, _params.value, _params.data, _params.operation
         );
     }
 
     /// @notice Utility function to check if this module is enabled on a given Safe
-    /// @param safe The Safe to check
-    /// @return enabled Whether this module is enabled on the Safe
-    function isEnabledOnSafe(Safe safe) external view returns (bool enabled) {
-        return ModuleManager(address(safe)).isModuleEnabled(address(this));
+    /// @param _safe The Safe to check
+    /// @return enabled_ Whether this module is enabled on the Safe
+    function isEnabledOnSafe(Safe _safe) external view returns (bool enabled_) {
+        return ModuleManager(address(_safe)).isModuleEnabled(address(this));
     }
 
     function getSafesInternalTxHashAndTxHashData(
-        Safe safe,
-        bytes32 nonce,
-        ExecTransactionFromModuleParams memory params
+        Safe _safe,
+        bytes32 _nonce,
+        ExecTransactionFromModuleParams memory _params
     )
         internal
         view
         returns (bytes32, bytes memory)
     {
         return (
-            safe.getTransactionHash({
-                to: params.to,
-                value: params.value,
-                data: params.data,
-                operation: params.operation,
+            _safe.getTransactionHash({
+                to: _params.to,
+                value: _params.value,
+                data: _params.data,
+                operation: _params.operation,
                 safeTxGas: 0,
                 baseGas: 0,
                 gasPrice: 0,
                 gasToken: address(0),
                 refundReceiver: address(0),
-                _nonce: uint256(nonce)
+                _nonce: uint256(_nonce)
             }),
-            safe.encodeTransactionData({
-                to: params.to,
-                value: params.value,
-                data: params.data,
-                operation: params.operation,
+            _safe.encodeTransactionData({
+                to: _params.to,
+                value: _params.value,
+                data: _params.data,
+                operation: _params.operation,
                 safeTxGas: 0,
                 baseGas: 0,
                 gasPrice: 0,
                 gasToken: address(0),
                 refundReceiver: address(0),
-                _nonce: uint256(nonce)
+                _nonce: uint256(_nonce)
             })
         );
     }
