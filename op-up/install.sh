@@ -7,7 +7,7 @@
 
 # All configs are here.
 # If you modify the configs in any way, please also update the help text below.
-OP_UP_VERSION="${OP_UP_VERSION:-0.1.0}" # The default version is hardcoded for now.
+OP_UP_VERSION="${OP_UP_VERSION:-0.1.1}" # The default version is hardcoded for now.
 OP_UP_REPO="${OP_UP_REPO:-ethereum-optimism/optimism}"
 OP_UP_DIR="${OP_UP_DIR:-"${HOME}/.op-up"}"
 
