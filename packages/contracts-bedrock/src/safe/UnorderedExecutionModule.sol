@@ -35,9 +35,9 @@ contract UnorderedExecutionModule is ISemver, ReentrancyGuard {
         Enum.Operation operation;
     }
 
-    /// @notice Input parameters for hash-once calculation and prerequisite validation
+    /// @notice Input parameters for hash-once calculation and previous transaction validation
     /// @dev This struct contains two fields that together form a unique transaction identifier:
-    ///      - prevHashOnce: Optional hash of a previously executed transaction (zero if no prerequisite)
+    ///      - prevHashOnce: Optional hash of a previously executed transaction (zero if no dependency)
     ///      - mixHash: Additional entropy to ensure uniqueness of the hash-once value
     struct HashOnceInputs {
         bytes32 prevHashOnce;
@@ -60,9 +60,12 @@ contract UnorderedExecutionModule is ISemver, ReentrancyGuard {
 
     /// @notice Allows for unordered execution of transactions on a Safe, by leveraging the Safe's
     /// checkSignatures function. Replay prevention is handled on this module using keccak256 hashes
-    /// in place of the Safe's nonce.
+    /// in place of the Safe's nonce. Optionally supports transaction dependencies by specifying
+    /// a previous transaction that must have been executed first.
     /// @param _safe The Safe contract to execute the transaction on
-    /// @param _hashOnceInputs Input parameters containing prerequisite transaction hash and mix hash
+    /// @param _hashOnceInputs Input parameters containing previous transaction hash and mix hash.
+    ///        Set prevHashOnce to zero for independent transactions, or to a previously executed
+    ///        transaction hash to create a dependency chain.
     /// @param _params The transaction parameters
     /// @param _signatures Signature data that should be verified
     /// @return success_ Whether the transaction was successful
@@ -81,11 +84,11 @@ contract UnorderedExecutionModule is ISemver, ReentrancyGuard {
         // This serves as both the transaction nonce and replay protection key
         bytes32 hashOnce = keccak256(abi.encode(_hashOnceInputs));
 
-        // If a prerequisite transaction is specified, verify it has been executed
+        // If a previous transaction is specified, verify it has been executed
         // This enables transaction ordering constraints when needed
         if (_hashOnceInputs.prevHashOnce != bytes32(0)) {
             if (executedTransactions[_hashOnceInputs.prevHashOnce] != true) {
-                revert("UnorderedExecutionModule: prereq prevHashOnce not executed");
+                revert("UnorderedExecutionModule: prevHashOnce not executed");
             }
         }
 

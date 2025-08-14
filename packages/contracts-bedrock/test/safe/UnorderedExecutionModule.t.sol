@@ -234,9 +234,9 @@ contract UnorderedExecutionModule_IsEnabledOnSafe_Test is UnorderedExecutionModu
 }
 
 contract UnorderedExecutionModule_Prereq_Test is UnorderedExecutionModule_TestInit {
-    /// @notice Test successful execution when prereq is provided and valid
+    /// @notice Test successful execution when previous transaction dependency is provided and valid
     function test_execTransactionOnSafe_withPrereq_succeeds() public {
-        // First transaction (prerequisite)
+        // First transaction (dependency)
         UnorderedExecutionModule.ExecTransactionFromModuleParams memory params1 = _createSetValueParams(1);
         UnorderedExecutionModule.HashOnceInputs memory hashOnceInputs1 = UnorderedExecutionModule.HashOnceInputs({
             prevHashOnce: bytes32(0),
@@ -279,8 +279,8 @@ contract UnorderedExecutionModule_Prereq_Test is UnorderedExecutionModule_TestIn
         assertTrue(module.executedTransactions(safeTxHash2));
     }
 
-    /// @notice Test revert when provided hashOnce does not match prereq hash
-    function test_execTransactionOnSafe_prereqHashOnceMismatch_reverts() public {
+    /// @notice Test revert when provided hashOnce does not match previous transaction hash
+    function test_execTransactionOnSafe_prevHashOnceMismatch_reverts() public {
         // This test is no longer relevant since we removed the separate hashOnce parameter
         // The hash is now always calculated from the HashOnceInputs struct
         // Keeping test structure but it now tests signature verification failure
@@ -300,8 +300,8 @@ contract UnorderedExecutionModule_Prereq_Test is UnorderedExecutionModule_TestIn
         module.execTransactionOnSafe(safeInstance.safe, hashOnceInputs, params, wrongSignatures);
     }
 
-    /// @notice Test revert when prereq.prevHashOnce has not been executed
-    function test_execTransactionOnSafe_prereqPrevNotExecuted_reverts() public {
+    /// @notice Test revert when prevHashOnce has not been executed
+    function test_execTransactionOnSafe_prevHashOnceNotExecuted_reverts() public {
         UnorderedExecutionModule.ExecTransactionFromModuleParams memory params = _createSetValueParams(200);
 
         // Refers to a tx-hash that has not been executed
@@ -313,7 +313,7 @@ contract UnorderedExecutionModule_Prereq_Test is UnorderedExecutionModule_TestIn
         bytes32 safeTxHash = _getTransactionHash(params, hashOnceInputs);
         bytes memory signatures = _generateSignatures(safeTxHash);
 
-        vm.expectRevert(bytes("UnorderedExecutionModule: prereq prevHashOnce not executed"));
+        vm.expectRevert(bytes("UnorderedExecutionModule: prevHashOnce not executed"));
         module.execTransactionOnSafe(safeInstance.safe, hashOnceInputs, params, signatures);
     }
 }
