@@ -35,7 +35,7 @@ contract SystemConfig is ProxyAdminOwnedBase, OwnableUpgradeable, Reinitializabl
         UNSAFE_BLOCK_SIGNER,
         EIP_1559_PARAMS,
         OPERATOR_FEE_PARAMS,
-        MIN_BASE_FEE_LOG2
+        MIN_BASE_FEE_FACTORS
     }
 
     /// @notice Struct representing the addresses of L1 system contracts. These should be the
@@ -136,8 +136,11 @@ contract SystemConfig is ProxyAdminOwnedBase, OwnableUpgradeable, Reinitializabl
     /// @notice The SuperchainConfig contract that manages the pause state.
     ISuperchainConfig public superchainConfig;
 
-    /// @notice The min base fee log2.
-    uint8 public minBaseFeeLog2;
+    /// @notice The minimum base fee significand.
+    uint8 public minBaseFeeSignificand;
+
+    /// @notice The minimum base fee exponent.
+    uint8 public minBaseFeeExponent;
 
     /// @notice Emitted when configuration is updated.
     /// @param version    SystemConfig version.
@@ -423,18 +426,21 @@ contract SystemConfig is ProxyAdminOwnedBase, OwnableUpgradeable, Reinitializabl
         emit ConfigUpdate(VERSION, UpdateType.EIP_1559_PARAMS, data);
     }
 
-    /// @notice Updates the min base fee log2. Can only be called by the owner.
-    /// @param _minBaseFeeLog2 New min base fee log2.
-    function setMinBaseFeeLog2(uint8 _minBaseFeeLog2) external onlyOwner {
-        _setMinBaseFeeLog2(_minBaseFeeLog2);
+    /// @notice Updates the minimum base fee significand and exponent. Can only be called by the owner.
+    /// @param _significand New significand.
+    /// @param _exponent New exponent.
+    function setMinBaseFee(uint8 _significand, uint8 _exponent) external onlyOwner {
+        _setMinBaseFee(_significand, _exponent);
     }
 
-    /// @notice Internal function for updating the min base fee log2.
-    function _setMinBaseFeeLog2(uint8 _minBaseFeeLog2) internal {
-        minBaseFeeLog2 = _minBaseFeeLog2;
+    /// @notice Internal function for updating the minimum base fee significand and exponent.
+    function _setMinBaseFee(uint8 _significand, uint8 _exponent) internal {
+        minBaseFeeSignificand = _significand;
+        minBaseFeeExponent = _exponent;
 
-        bytes memory data = abi.encode(_minBaseFeeLog2);
-        emit ConfigUpdate(VERSION, UpdateType.MIN_BASE_FEE_LOG2, data);
+        uint8 packed = (_significand & 0x0f) << 4 | (_exponent & 0x0f);
+        bytes memory data = abi.encode(uint256(packed));
+        emit ConfigUpdate(VERSION, UpdateType.MIN_BASE_FEE_FACTORS, data);
     }
 
     /// @notice Updates the operator fee parameters. Can only be called by the owner.
