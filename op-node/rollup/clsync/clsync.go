@@ -7,6 +7,7 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/attributes"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/engine"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
@@ -29,16 +30,22 @@ type CLSync struct {
 
 	emitter event.Emitter
 
+	eng attributes.EngineController
+
 	mu sync.Mutex
 
 	unsafePayloads *PayloadsQueue // queue of unsafe payloads, ordered by ascending block number, may have gaps and duplicates
 }
 
-func NewCLSync(log log.Logger, cfg *rollup.Config, metrics Metrics) *CLSync {
+func NewCLSync(log log.Logger, cfg *rollup.Config, metrics Metrics, eng attributes.EngineController) *CLSync {
+	if eng == nil {
+		panic("EngControllerInterface must not be nil")
+	}
 	return &CLSync{
 		log:            log,
 		cfg:            cfg,
 		metrics:        metrics,
+		eng:            eng,
 		unsafePayloads: NewPayloadsQueue(log, maxUnsafePayloadsMemory, payloadMemSize),
 	}
 }
@@ -147,6 +154,6 @@ func (eq *CLSync) onUnsafePayload(ctx context.Context, event ReceivedUnsafePaylo
 	eq.metrics.RecordUnsafePayloadsBuffer(uint64(eq.unsafePayloads.Len()), eq.unsafePayloads.MemSize(), p.ExecutionPayload.ID())
 	eq.log.Trace("Next unsafe payload to process", "next", p.ExecutionPayload.ID(), "timestamp", uint64(p.ExecutionPayload.Timestamp))
 
-	// request forkchoice signal, so we can process the payload maybe
-	eq.emitter.Emit(ctx, engine.ForkchoiceRequestEvent{})
+	// request forkchoice update directly so we can process the payload
+	eq.eng.RequestForkchoiceUpdate(ctx)
 }

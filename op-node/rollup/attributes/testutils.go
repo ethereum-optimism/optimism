@@ -20,3 +20,7 @@ func (m *MockEngineController) TryUpdatePendingSafe(ctx context.Context, ref eth
 func (m *MockEngineController) TryUpdateLocalSafe(ctx context.Context, ref eth.L2BlockRef, concluding bool, source eth.L1BlockRef) {
 	m.Mock.MethodCalled("TryUpdateLocalSafe", ctx, ref, concluding, source)
 }
+
+func (m *MockEngineController) RequestForkchoiceUpdate(ctx context.Context) {
+	m.Mock.MethodCalled("RequestForkchoiceUpdate", ctx)
+}

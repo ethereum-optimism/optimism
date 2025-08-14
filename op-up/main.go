@@ -35,12 +35,25 @@ import (
 
 func main() {
 	if err := run(); err != nil {
-		fmt.Fprintf(os.Stderr, "error: %v", err)
+		fmt.Fprintf(os.Stderr, "error: %v\n", err)
 		os.Exit(1)
 	}
 }
 
 func run() error {
+	// presets.DoMain calls op-service/flags.ReadTestConfig, which, as of this comment, parses the
+	// global flag set and printing the usage statement on `-help`. Since op-up does not respect
+	// any configuration right now, the usage statement will only confuse users and should not be
+	// printed.
+	//
+	// Lots of acceptance tests depend on the presets.DoMain behavior and are downstream of the
+	// current use (misuse?) of the global flag set. Rather than modifying that shared code, we
+	// settle for hacking around the problem by printing an error when any command line arguments
+	// are present. op-up should evolve beyond this pretty soon.
+	if numArgs := len(os.Args) - 1; numArgs > 0 {
+		return fmt.Errorf("expected no command line args, got %d", numArgs)
+	}
+
 	opDir, ok := os.LookupEnv("OP_DIR")
 	if !ok {
 		homeDir, err := os.UserHomeDir()

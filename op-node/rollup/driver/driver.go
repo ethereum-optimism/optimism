@@ -196,7 +196,7 @@ func NewDriver(
 	sys.Register("engine-reset",
 		engine.NewEngineResetDeriver(driverCtx, log, cfg, l1, l2, syncCfg))
 
-	clSync := clsync.NewCLSync(log, cfg, metrics) // alt-sync still uses cl-sync state to determine what to sync to
+	clSync := clsync.NewCLSync(log, cfg, metrics, ec) // alt-sync still uses cl-sync state to determine what to sync to
 	sys.Register("cl-sync", clSync)
 
 	var finalizer Finalizer
@@ -247,7 +247,7 @@ func NewDriver(
 		findL1Origin := sequencing.NewL1OriginSelector(driverCtx, log, cfg, sequencerConfDepth)
 		sys.Register("origin-selector", findL1Origin)
 		sequencer = sequencing.NewSequencer(driverCtx, log, cfg, attrBuilder, findL1Origin,
-			sequencerStateListener, sequencerConductor, asyncGossiper, metrics)
+			sequencerStateListener, sequencerConductor, asyncGossiper, metrics, ec)
 		sys.Register("sequencer", sequencer)
 	} else {
 		sequencer = sequencing.DisabledSequencer{}
