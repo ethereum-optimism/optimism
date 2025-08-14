@@ -803,6 +803,7 @@ jobs:
           environment:
             FOUNDRY_PROFILE: <<parameters.test_profile>>
             ETH_RPC_URL: https://ci-mainnet-l1-archive.optimism.io
+            SEPOLIA_RPC_URL: https://ci-sepolia-l1-archive.optimism.io
           working_directory: packages/contracts-bedrock
           no_output_timeout: <<parameters.test_timeout>>
       - run:
@@ -811,6 +812,7 @@ jobs:
           environment:
             FOUNDRY_PROFILE: <<parameters.test_profile>>
             ETH_RPC_URL: https://ci-mainnet-l1-archive.optimism.io
+            SEPOLIA_RPC_URL: https://ci-sepolia-l1-archive.optimism.io
           working_directory: packages/contracts-bedrock
           when: on_fail
       - codecov/upload:
@@ -859,6 +861,7 @@ jobs:
             FOUNDRY_FUZZ_RUNS: 1
             FOUNDRY_PROFILE: ci
             ETH_RPC_URL: https://ci-mainnet-l1-archive.optimism.io
+            SEPOLIA_RPC_URL: https://ci-sepolia-l1-archive.optimism.io
           working_directory: packages/contracts-bedrock
           no_output_timeout: 15m
       - run:
@@ -869,6 +872,7 @@ jobs:
             FOUNDRY_FUZZ_RUNS: 1
             FOUNDRY_PROFILE: ci
             ETH_RPC_URL: https://ci-mainnet-l1-archive.optimism.io
+            SEPOLIA_RPC_URL: https://ci-sepolia-l1-archive.optimism.io
           working_directory: packages/contracts-bedrock
           when: on_fail
       - save_cache:
