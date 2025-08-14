@@ -55,7 +55,7 @@ contract VerifyOPCM is Script {
     bytes constant BLUEPRINT_PREAMBLE = hex"FE7100";
 
     /// @notice Maximum init code size for blueprints.
-    uint256 constant MAX_INIT_CODE_SIZE = 23500;
+    uint256 constant MAX_INIT_CODE_SIZE = 24576 - 3;
 
     /// @notice Represents a contract name and its corresponding address.
     /// @param field Name of the field the address was extracted from.
