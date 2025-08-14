@@ -7,29 +7,29 @@
 
 # All configs are here.
 # If you modify the configs in any way, please also update the help text below.
-OP_VERSION="${OP_VERSION:-0.1.0}" # The default version is hardcoded for now.
-OP_REPO="${OP_REPO:-ethereum-optimism/optimism}"
-OP_DIR="${OP_DIR:-"${HOME}/.op"}"
+OP_UP_VERSION="${OP_UP_VERSION:-0.1.0}" # The default version is hardcoded for now.
+OP_UP_REPO="${OP_UP_REPO:-ethereum-optimism/optimism}"
+OP_UP_DIR="${OP_UP_DIR:-"${HOME}/.op-up"}"
 
 if [ "$#" != 0 ]; then
-  echo "The op installation script.
+  echo "The op-up installer.
 
-When no parameters are passed, the op command is installed from GitHub.
+When no parameters are passed, the op-up command is installed from GitHub.
 Anything else causes this help text to be printed.
 
 The installation is configured via environment variables:
 
-OP_REPO:
-  The GitHub repo from which to download op.
-  (default: ${OP_REPO})
+OP_UP_REPO:
+  The GitHub repo from which to download op-up.
+  (default: ${OP_UP_REPO})
 
-OP_VERSION:
-  The semver-formatted version of the op command to install.
-  (default: ${OP_VERSION})
+OP_UP_VERSION:
+  The semver-formatted version of the op-up command to install.
+  (default: ${OP_UP_VERSION})
 
-OP_DIR:
-  The main directory for the op command. The install directory is \"\${OP_DIR}/bin\".
-  (default: ${OP_DIR})
+OP_UP_DIR:
+  The main directory for the op-up command. The install directory is \"\${OP_UP_DIR}/bin\".
+  (default: ${OP_UP_DIR})
 
 The script only understands the GitHub releases API.
 On error, the script exits with status code 1."
@@ -37,7 +37,7 @@ On error, the script exits with status code 1."
 fi
 
 say() {
-  printf "opinstaller: %s\n" "$1"
+  printf "op-up-installer: %s\n" "$1"
 }
 
 err() {
@@ -109,12 +109,13 @@ case "$_cputype" in
 esac
 
 # Download the binary.
-_binary_name="op"
+
+_binary_name="op-up"
 
 _target="${_ostype}-${_cputype}"
 say "downloading for target ${_target}..."
-_file_without_ext="${_binary_name}-${OP_VERSION}-${_target}"
-_url="https://github.com/${OP_REPO}/releases/download/${_binary_name}-up/v${OP_VERSION}/${_file_without_ext}.tar.gz"
+_file_without_ext="${_binary_name}-${OP_UP_VERSION}-${_target}"
+_url="https://github.com/${OP_UP_REPO}/releases/download/${_binary_name}/v${OP_UP_VERSION}/${_file_without_ext}.tar.gz"
 _archive=$(mktemp) || err "create temporary file"
 ensure curl --location --proto '=https' --tlsv1.2 --silent --show-error --fail "$_url" --output "$_archive"
 say 'downloaded'
@@ -122,7 +123,7 @@ say 'downloaded'
 # Extract to the destination.
 
 say "installing..."
-_install_dir="${OP_DIR}/bin"
+_install_dir="${OP_UP_DIR}/bin"
 mkdir -p "$_install_dir"
 ensure tar --verbose --extract --file "$_archive" --directory "$_install_dir" --strip-components 1
 ensure chmod +x "${_install_dir}/${_binary_name}"
@@ -164,6 +165,6 @@ case ":${PATH}:" in
         echo "export PATH=\"\${PATH}:${_install_dir}\"" >> "$_profile"
     fi
     say 'updated PATH'
-    say "run 'source ${_profile}' or start a new terminal session to use op."
+    say "run 'source ${_profile}' or start a new terminal session to use op-up."
 
 esac

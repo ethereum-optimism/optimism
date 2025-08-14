@@ -54,18 +54,18 @@ func run() error {
 		return fmt.Errorf("expected no command line args, got %d", numArgs)
 	}
 
-	opDir, ok := os.LookupEnv("OP_DIR")
+	opUpDir, ok := os.LookupEnv("OP_UP_DIR")
 	if !ok {
 		homeDir, err := os.UserHomeDir()
 		if err != nil {
 			return fmt.Errorf("get user home dir: %w", err)
 		}
-		opDir = filepath.Join(homeDir, ".op")
+		opUpDir = filepath.Join(homeDir, ".op-up")
 	}
-	if err := os.MkdirAll(opDir, 0o755); err != nil {
-		return fmt.Errorf("create the op dir: %w", err)
+	if err := os.MkdirAll(opUpDir, 0o755); err != nil {
+		return fmt.Errorf("create the op-up dir: %w", err)
 	}
-	deployerCacheDir := filepath.Join(opDir, "deployer", "cache")
+	deployerCacheDir := filepath.Join(opUpDir, "deployer", "cache")
 	if err := os.MkdirAll(deployerCacheDir, 0o755); err != nil {
 		return fmt.Errorf("create the deployer cache dir: %w", err)
 	}
