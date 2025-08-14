@@ -2126,6 +2126,8 @@ workflows:
               only: /^op-up.*/
             branches:
               ignore: /.*/
+          context:
+            - circleci-repo-readonly-authenticated-github-token
       - contracts-bedrock-build:
           name: build-contracts-go-release-op-up
           filters:
@@ -2167,6 +2169,8 @@ workflows:
       - initialize:
           requires:
             - hold
+          context:
+            - circleci-repo-readonly-authenticated-github-token
       # Standard (medium) cross-platform docker images go here
       - docker-build:
           matrix:
@@ -2296,7 +2300,9 @@ workflows:
           - equal: [true, <<pipeline.parameters.fault_proofs_dispatch>>]
           - equal: ["api",<< pipeline.trigger_source >>]
     jobs:
-      - initialize
+      - initialize:
+          context:
+            - circleci-repo-readonly-authenticated-github-token
       - cannon-prestate:
           context:
             - circleci-repo-readonly-authenticated-github-token
@@ -2357,10 +2363,15 @@ workflows:
         - equal: [build_four_hours, <<pipeline.schedule.name>>]
         - equal: [true, << pipeline.parameters.cannon_full_test_dispatch >>]
     jobs:
+      - initialize:
+          context:
+            - circleci-repo-readonly-authenticated-github-token
       - contracts-bedrock-build:
           build_args: --deny-warnings --skip test
           context:
             - circleci-repo-readonly-authenticated-github-token
+          requires:
+            - initialize
       - cannon-go-lint-and-test:
           requires:
             - contracts-bedrock-build
@@ -2378,6 +2389,9 @@ workflows:
         # Trigger on manual triggers if explicitly requested
         - equal: [true, << pipeline.parameters.docker_publish_dispatch >>]
     jobs:
+      - initialize:
+          context:
+            - circleci-repo-readonly-authenticated-github-token
       - docker-build:
           matrix:
             parameters:
@@ -2403,6 +2417,8 @@ workflows:
             - oplabs-gcr
             - slack
             - circleci-repo-readonly-authenticated-github-token
+          requires:
+            - initialize
       - check-cross-platform:
           matrix:
             parameters:
@@ -2460,7 +2476,9 @@ workflows:
           - equal: [true, <<pipeline.parameters.acceptance_tests_dispatch>>]
           - equal: ["api",<< pipeline.trigger_source >>]
     jobs:
-      - initialize
+      - initialize:
+          context:
+            - circleci-repo-readonly-authenticated-github-token
       - contracts-bedrock-build:  # needed for sysgo tests
           context:
             - circleci-repo-readonly-authenticated-github-token
@@ -2536,7 +2554,9 @@ workflows:
       not:
         equal: [<< pipeline.git.branch >>, "develop"]
     jobs:
-      - initialize
+      - initialize:
+          context:
+            - circleci-repo-readonly-authenticated-github-token
       - contracts-bedrock-build:  # needed for sysgo tests
           context:
             - circleci-repo-readonly-authenticated-github-token
