@@ -176,6 +176,10 @@ func (n *OpNode) initEventSystem() {
 	executor := event.NewGlobalSynchronous(n.resourcesCtx).WithMetrics(n.metrics)
 	sys := event.NewSystem(n.log, executor)
 	sys.AddTracer(event.NewMetricsTracer(n.metrics))
+	// Register a call-graph tracer when trace logging is enabled to visualize event flow
+	if n.log.Enabled(context.Background(), log.LevelTrace) {
+		sys.AddTracer(event.NewCallGraphTracer(n.log))
+	}
 	sys.Register("node", event.DeriverFunc(n.onEvent))
 	n.eventSys = sys
 	n.eventDrain = executor
