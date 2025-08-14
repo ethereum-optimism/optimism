@@ -74,6 +74,16 @@ orbs:
   github-cli: circleci/github-cli@2.7.0
 
 commands:
+  build-dockerized-mise:
+    description: "Build dockerized mise"
+    steps:
+      - run:
+          name: Build dockerized mise
+          command: |
+            svm install
+            svm which mise
+            mise build --dockerize
+
   gcp-oidc-authenticate:
     description: "Authenticate with GCP using a CircleCI OIDC token."
     parameters:
