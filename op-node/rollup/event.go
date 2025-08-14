@@ -39,6 +39,5 @@ func (ev ResetEvent) String() string {
 	return "reset-event"
 }
 
-
 // CriticalErrorEvent is an alias for event.CriticalErrorEvent
 type CriticalErrorEvent = event.CriticalErrorEvent
