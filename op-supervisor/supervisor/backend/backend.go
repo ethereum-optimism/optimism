@@ -137,6 +137,9 @@ func NewSupervisorBackend(ctx context.Context, logger log.Logger,
 
 	eventSys := event.NewSystem(logger, eventExec)
 	eventSys.AddTracer(event.NewMetricsTracer(m))
+	if logger.Enabled(context.Background(), log.LevelTrace) {
+		eventSys.AddTracer(event.NewCallGraphTracer(logger))
+	}
 
 	sysCtx, sysCancel := context.WithCancel(ctx)
 
