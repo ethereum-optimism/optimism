@@ -30,7 +30,7 @@ func TestChallengerPlaysGame(gt *testing.T) {
 	claim := game.RootClaim()                   // This is the bad claim from attacker
 	counterClaim := claim.WaitForCounterClaim() // This is the counter-claim from the challenger
 	for counterClaim.Depth() <= game.SplitDepth() {
-		claim = counterClaim.Attack(attacker, badClaim)
+		claim = counterClaim.Attack(counterClaim.Player(), badClaim)
 		// Wait for the challenger to counter the attacker's claim, then attack again
 		counterClaim = claim.WaitForCounterClaim()
 	}
