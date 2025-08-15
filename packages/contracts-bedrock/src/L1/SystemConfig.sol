@@ -439,7 +439,7 @@ contract SystemConfig is ProxyAdminOwnedBase, OwnableUpgradeable, Reinitializabl
         minBaseFeeExponent = _exponent;
 
         uint8 packed = (_significand & 0x0f) << 4 | (_exponent & 0x0f);
-        bytes memory data = abi.encode(uint256(packed));
+        bytes memory data = abi.encode(packed);
         emit ConfigUpdate(VERSION, UpdateType.MIN_BASE_FEE_FACTORS, data);
     }
 
