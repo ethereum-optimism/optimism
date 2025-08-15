@@ -37,7 +37,7 @@ var (
 	// Builder-side Tx-size limits
 	ThrottleTxSizeLowerLimitFlag = &cli.IntFlag{
 		Name:    "throttle.tx-size-lower-limit",
-		Usage:   "The limit on the DA size of transactions when we are at maximum throttle intensity",
+		Usage:   "The limit on the DA size of transactions when we are at maximum throttle intensity. 0 means no limits will ever be applied, so consider 1 the smallest effective limit.",
 		Value:   DefaultThrottleTxSizeLowerLimit,
 		EnvVars: prefixEnvVars("THROTTLE_TX_SIZE_LOWER_LIMIT"),
 	}
@@ -51,7 +51,7 @@ var (
 	// Builder-side block-size limits
 	ThrottleBlockSizeLowerLimitFlag = &cli.IntFlag{
 		Name:    "throttle.block-size-lower-limit",
-		Usage:   "The limit on the DA size of blocks when we are at maximum throttle intensity (linear and quadratic controllers only)",
+		Usage:   "The limit on the DA size of blocks when we are at maximum throttle intensity (linear and quadratic controllers only). 0 means no limits will ever be applied, so consider 1 the smallest effective limit.",
 		Value:   DefaultThrottleBlockSizeLowerLimit,
 		EnvVars: prefixEnvVars("THROTTLE_BLOCK_SIZE_LOWER_LIMIT"),
 	}
