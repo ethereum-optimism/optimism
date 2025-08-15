@@ -46,7 +46,7 @@ type ThrottleConfig struct {
 }
 
 func (c *ThrottleConfig) Check() error {
-	if c.ControllerType == config.DisabledControllerType {
+	if c.ControllerType == config.DisabledControllerType || c.ControllerType == config.UnlimitedControllerType {
 		return nil
 	}
 
