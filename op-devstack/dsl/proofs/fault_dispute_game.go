@@ -10,8 +10,8 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/stretchr/testify/require"
 
-	fTypes "github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
-	gTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
+	ftypes "github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
+	gtypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl/contract"
@@ -44,9 +44,9 @@ func (g *FaultDisputeGame) Addr() *common.Address {
 	return addr
 }
 
-func (g *FaultDisputeGame) MaxDepth() fTypes.Depth {
+func (g *FaultDisputeGame) MaxDepth() ftypes.Depth {
 	maxGameDepth := contract.Read(g.game.MaxGameDepth()).Uint64()
-	return fTypes.Depth(maxGameDepth)
+	return ftypes.Depth(maxGameDepth)
 }
 
 func (g *FaultDisputeGame) SplitDepth() uint64 {
@@ -61,9 +61,9 @@ func (g *FaultDisputeGame) L2SequenceNumber() *big.Int {
 	return contract.Read(g.game.L2SequenceNumber())
 }
 
-func (g *FaultDisputeGame) Status() gTypes.GameStatus {
+func (g *FaultDisputeGame) Status() gtypes.GameStatus {
 	status := contract.Read(g.game.Status())
-	return gTypes.GameStatus(status)
+	return gtypes.GameStatus(status)
 }
 
 func (g *FaultDisputeGame) ClaimAtIndex(claimIndex int64) *Claim {
