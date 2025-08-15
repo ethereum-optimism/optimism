@@ -208,7 +208,7 @@ contract DisputeGameFactory_TestInit is CommonTest {
     }
 
     /// @notice Sets up a fault game v2 implementation
-    function setupFaultDisputeGame2(Claim _absolutePrestate)
+    function setupFaultDisputeGameV2(Claim _absolutePrestate)
         internal
         returns (address gameImpl_, AlphabetVM vm_, IPreimageOracle preimageOracle_)
     {
