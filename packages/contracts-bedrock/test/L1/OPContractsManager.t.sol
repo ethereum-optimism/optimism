@@ -865,43 +865,16 @@ contract OPContractsManager_AddGameType_Test is Test {
 /// @title OPContractsManager_NoSuperchainOrProtocolVersionsUpgrade_Test
 /// @notice Tests that upgrading worldchain fails when using OPCM V2.0.0,
 ///         and then passes when using the modified OPCM.
-contract OPContractsManager_NoSuperchainOrProtocolVersionsUpgrade_Test is Test {
-    // The Upgraded event emitted by the Proxy contract.
-    event Upgraded(address indexed implementation);
-
-    // The Upgraded event emitted by the OPContractsManager contract.
-    event Upgraded(uint256 indexed l2ChainId, ISystemConfig indexed systemConfig, address indexed upgrader);
-
-    // The AddressSet event emitted by the AddressManager contract.
-    event AddressSet(string indexed name, address newAddress, address oldAddress);
-
-    // The AdminChanged event emitted by the Proxy contract at init time or when the admin is changed.
-    event AdminChanged(address previousAdmin, address newAdmin);
-
-    // The ImplementationSet event emitted by the DisputeGameFactory contract.
-    event ImplementationSet(address indexed impl, GameType indexed gameType);
-
-    uint256 l2ChainId;
+contract OPContractsManager_NoSuperchainOrProtocolVersionsUpgrade_Test is OPContractsManager_Upgrade_Harness {
     IOPContractsManager opcmV200;
     address worldchainProxyAdminOwner;
-    IOPContractsManager.OpChainConfig[] opChainConfigs;
-    Claim absolutePrestate = Claim.wrap(bytes32(keccak256("absolutePrestate")));
 
-    IAddressManager addressManager;
-    address l1ERC721Bridge;
-    address l1StandardBridge;
-    address optimismMintableERC20Factory;
-    address optimismPortal;
-    address systemConfig;
-    address proxyAdmin;
-    address delayedWETHPermissionedGameProxy;
-    IDisputeGameFactory disputeGameFactory;
-    address delayedWeth;
-
-    function setUp() public {
+    function setUp() public override {
         if (!vm.envOr("FORK_TEST", false)) {
             vm.skip(true);
         }
+
+        absolutePrestate = Claim.wrap(bytes32(keccak256("absolutePrestate")));
 
         opChainConfigs.push();
     }
@@ -921,13 +894,13 @@ contract OPContractsManager_NoSuperchainOrProtocolVersionsUpgrade_Test is Test {
         opcmV200 = IOPContractsManager(0x026b2F158255Beac46c1E7c6b8BbF29A4b6A7B76);
 
         addressManager = IAddressManager(0x5891090d5085679714cb0e62f74950a3c19146a8);
-        l1ERC721Bridge = 0x1Df436AfDb2fBB40F1fE8bEd4Fc89A0D0990a8E9;
-        l1StandardBridge = 0x470458C91978D2d929704489Ad730DC3E3001113;
-        optimismMintableERC20Factory = 0x82Cb528466cF22412d89bdBE9bCF04856790dD0e;
-        optimismPortal = 0xd5ec14a83B7d95BE1E2Ac12523e2dEE12Cbeea6C;
-        systemConfig = 0x6ab0777fD0e609CE58F939a7F70Fe41F5Aa6300A;
-        proxyAdmin = 0xd7405BE7f3e63b094Af6C7C23D5eE33Fd82F872D;
-        delayedWETHPermissionedGameProxy = 0x4E6dE8B4c2D5aD6c603648f78311a21558D37A53;
+        l1ERC721Bridge = IL1ERC721Bridge(0x1Df436AfDb2fBB40F1fE8bEd4Fc89A0D0990a8E9);
+        l1StandardBridge = IL1StandardBridge(payable(0x470458C91978D2d929704489Ad730DC3E3001113));
+        l1OptimismMintableERC20Factory = IOptimismMintableERC20Factory(0x82Cb528466cF22412d89bdBE9bCF04856790dD0e);
+        optimismPortal2 = IOptimismPortal2(payable(0xd5ec14a83B7d95BE1E2Ac12523e2dEE12Cbeea6C));
+        systemConfig = ISystemConfig(0x6ab0777fD0e609CE58F939a7F70Fe41F5Aa6300A);
+        proxyAdmin = IProxyAdmin(0xd7405BE7f3e63b094Af6C7C23D5eE33Fd82F872D);
+        delayedWETHPermissionedGameProxy = IDelayedWETH(payable(0x4E6dE8B4c2D5aD6c603648f78311a21558D37A53));
         disputeGameFactory = IDisputeGameFactory(0x069c4c579671f8c120b1327a73217D01Ea2EC5ea);
 
         opChainConfigs[0] = IOPContractsManager.OpChainConfig({
@@ -951,13 +924,13 @@ contract OPContractsManager_NoSuperchainOrProtocolVersionsUpgrade_Test is Test {
         opcmV200 = IOPContractsManager(0x1B25F566336F47BC5E0036D66E142237DcF4640b);
 
         addressManager = IAddressManager(0xc50Ba0767A1c0Ef69Cf1D9cd44De52b08589F691);
-        l1ERC721Bridge = 0x3580505c56f8560E3777E92Fb27f70fD20c5B493;
-        l1StandardBridge = 0xd7DF54b3989855eb66497301a4aAEc33Dbb3F8DE;
-        optimismMintableERC20Factory = 0x2D272eF54Ee8EF5c2Ff3523559186580b158cd57;
-        optimismPortal = 0xFf6EBa109271fe6d4237EeeD4bAb1dD9A77dD1A4;
-        systemConfig = 0x166F9406e79A656f12F05247fb8F5DfA6155bCBF;
-        proxyAdmin = 0x3a987FE1cb587B0A1808cf9bB7Cbe0E341838319;
-        delayedWETHPermissionedGameProxy = 0xAEB3CfD5aAba01cfd12E6017a9a307a218cdD7E2;
+        l1ERC721Bridge = IL1ERC721Bridge(0x3580505c56f8560E3777E92Fb27f70fD20c5B493);
+        l1StandardBridge = IL1StandardBridge(payable(0xd7DF54b3989855eb66497301a4aAEc33Dbb3F8DE));
+        l1OptimismMintableERC20Factory = IOptimismMintableERC20Factory(0x2D272eF54Ee8EF5c2Ff3523559186580b158cd57);
+        optimismPortal2 = IOptimismPortal2(payable(0xFf6EBa109271fe6d4237EeeD4bAb1dD9A77dD1A4));
+        systemConfig = ISystemConfig(0x166F9406e79A656f12F05247fb8F5DfA6155bCBF);
+        proxyAdmin = IProxyAdmin(0x3a987FE1cb587B0A1808cf9bB7Cbe0E341838319);
+        delayedWETHPermissionedGameProxy = IDelayedWETH(payable(0xAEB3CfD5aAba01cfd12E6017a9a307a218cdD7E2));
         disputeGameFactory = IDisputeGameFactory(0x8Ec1111f67Dad6b6A93B3F42DfBC92D81c98449A);
 
         opChainConfigs[0] = IOPContractsManager.OpChainConfig({
@@ -986,7 +959,7 @@ contract OPContractsManager_NoSuperchainOrProtocolVersionsUpgrade_Test is Test {
     ///         protocol versions upgrade
     function test_upgrade_withModifiedOPCM_succeeds() public {
         setToMainnet();
-        IOPContractsManager modifiedOPCM = IOPContractsManager(
+        opcm = IOPContractsManager(
             DeployUtils.createDeterministic({
                 _name: "OPContractsManager",
                 _args: DeployUtils.encodeConstructor(
@@ -1008,10 +981,10 @@ contract OPContractsManager_NoSuperchainOrProtocolVersionsUpgrade_Test is Test {
                 _salt: DeployUtils.DEFAULT_SALT
             })
         );
-        runUpgradeTestAndChecks(worldchainProxyAdminOwner, modifiedOPCM);
+        runUpgradeTestAndChecks(worldchainProxyAdminOwner);
 
         setToSepolia();
-        modifiedOPCM = IOPContractsManager(
+        opcm = IOPContractsManager(
             DeployUtils.createDeterministic({
                 _name: "OPContractsManager",
                 _args: DeployUtils.encodeConstructor(
@@ -1031,112 +1004,6 @@ contract OPContractsManager_NoSuperchainOrProtocolVersionsUpgrade_Test is Test {
                 _salt: DeployUtils.DEFAULT_SALT
             })
         );
-        runUpgradeTestAndChecks(worldchainProxyAdminOwner, modifiedOPCM);
-    }
-
-    function runUpgradeTestAndChecks(address _delegateCaller, IOPContractsManager opcm) public {
-        IOPContractsManager.Implementations memory impls = opcm.implementations();
-
-        // Cache the old L1xDM address so we can look for it in the AddressManager's event
-        address oldL1CrossDomainMessenger = addressManager.getAddress("OVM_L1CrossDomainMessenger");
-
-        // Predict the address of the new AnchorStateRegistry proxy
-        bytes32 salt = keccak256(
-            abi.encode(
-                l2ChainId,
-                string.concat(
-                    string(bytes.concat(bytes32(uint256(uint160(address(opChainConfigs[0].systemConfigProxy))))))
-                ),
-                "AnchorStateRegistry"
-            )
-        );
-
-        bytes memory initCode = bytes.concat(vm.getCode("Proxy"), abi.encode(proxyAdmin));
-        address newAnchorStateRegistryProxy = vm.computeCreate2Address(salt, keccak256(initCode), _delegateCaller);
-        vm.label(newAnchorStateRegistryProxy, "NewAnchorStateRegistryProxy");
-
-        expectEmitUpgraded(impls.systemConfigImpl, address(systemConfig));
-        vm.expectEmit(address(addressManager));
-        emit AddressSet("OVM_L1CrossDomainMessenger", impls.l1CrossDomainMessengerImpl, oldL1CrossDomainMessenger);
-        // This is where we would emit an event for the L1StandardBridge however
-        // the Chugsplash proxy does not emit such an event.
-        expectEmitUpgraded(impls.l1ERC721BridgeImpl, address(l1ERC721Bridge));
-        expectEmitUpgraded(impls.disputeGameFactoryImpl, address(disputeGameFactory));
-        expectEmitUpgraded(impls.optimismPortalImpl, address(optimismPortal));
-        expectEmitUpgraded(impls.optimismMintableERC20FactoryImpl, address(optimismMintableERC20Factory));
-        vm.expectEmit(address(newAnchorStateRegistryProxy));
-        emit AdminChanged(address(0), address(proxyAdmin));
-        expectEmitUpgraded(impls.anchorStateRegistryImpl, address(newAnchorStateRegistryProxy));
-        expectEmitUpgraded(impls.delayedWETHImpl, address(delayedWETHPermissionedGameProxy));
-
-        // We don't yet know the address of the new permissionedGame which will be deployed by the
-        // OPContractsManager.upgrade() call, so ignore the first topic.
-        vm.expectEmit(false, true, true, true, address(disputeGameFactory));
-        emit ImplementationSet(address(0), GameTypes.PERMISSIONED_CANNON);
-        if (address(delayedWeth) != address(0)) {
-            expectEmitUpgraded(impls.delayedWETHImpl, address(delayedWeth));
-
-            // Ignore the first topic for the same reason as the previous comment.
-            vm.expectEmit(false, true, true, true, address(disputeGameFactory));
-            emit ImplementationSet(address(0), GameTypes.CANNON);
-        }
-        vm.expectEmit(address(_delegateCaller));
-        emit Upgraded(l2ChainId, opChainConfigs[0].systemConfigProxy, address(_delegateCaller));
-
-        // Temporarily replace the upgrader with a DelegateCaller so we can test the upgrade,
-        // then reset its code to the original code.
-        bytes memory delegateCallerCode = address(_delegateCaller).code;
-        vm.etch(_delegateCaller, vm.getDeployedCode("test/mocks/Callers.sol:DelegateCaller"));
-
-        DelegateCaller(_delegateCaller).dcForward(
-            address(opcm), abi.encodeCall(IOPContractsManager.upgrade, (opChainConfigs))
-        );
-
-        VmSafe.Gas memory gas = vm.lastCallGas();
-
-        // Less than 90% of the gas target of 20M to account for the gas used by using Safe.
-        assertLt(gas.gasTotalUsed, 0.9 * 20_000_000, "Upgrade exceeds gas target of 15M");
-
-        vm.etch(_delegateCaller, delegateCallerCode);
-
-        // Check the implementations of the core addresses
-        assertEq(impls.systemConfigImpl, EIP1967Helper.getImplementation(address(systemConfig)));
-        assertEq(impls.l1ERC721BridgeImpl, EIP1967Helper.getImplementation(address(l1ERC721Bridge)));
-        assertEq(impls.disputeGameFactoryImpl, EIP1967Helper.getImplementation(address(disputeGameFactory)));
-        assertEq(impls.optimismPortalImpl, EIP1967Helper.getImplementation(address(optimismPortal)));
-        assertEq(
-            impls.optimismMintableERC20FactoryImpl,
-            EIP1967Helper.getImplementation(address(optimismMintableERC20Factory))
-        );
-        assertEq(impls.l1StandardBridgeImpl, EIP1967Helper.getImplementation(address(l1StandardBridge)));
-        assertEq(impls.l1CrossDomainMessengerImpl, addressManager.getAddress("OVM_L1CrossDomainMessenger"));
-
-        // Check the implementations of the FP contracts
-        assertEq(impls.anchorStateRegistryImpl, EIP1967Helper.getImplementation(address(newAnchorStateRegistryProxy)));
-        assertEq(impls.delayedWETHImpl, EIP1967Helper.getImplementation(address(delayedWETHPermissionedGameProxy)));
-
-        // Check that the PermissionedDisputeGame is upgraded to the expected version, references
-        // the correct anchor state and has the mipsImpl.
-        IPermissionedDisputeGame pdg =
-            IPermissionedDisputeGame(address(disputeGameFactory.gameImpls(GameTypes.PERMISSIONED_CANNON)));
-        assertEq(ISemver(address(pdg)).version(), "1.4.1");
-        assertEq(address(pdg.anchorStateRegistry()), address(newAnchorStateRegistryProxy));
-        assertEq(address(pdg.vm()), impls.mipsImpl);
-
-        if (address(delayedWeth) != address(0)) {
-            // Check that the PermissionlessDisputeGame is upgraded to the expected version, references
-            // the correct anchor state and has the mipsImpl.
-            assertEq(impls.delayedWETHImpl, EIP1967Helper.getImplementation(address(delayedWeth)));
-            // Check that the PermissionlessDisputeGame is upgraded to the expected version
-            IFaultDisputeGame fdg = IFaultDisputeGame(address(disputeGameFactory.gameImpls(GameTypes.CANNON)));
-            assertEq(ISemver(address(fdg)).version(), "1.4.1");
-            assertEq(address(fdg.anchorStateRegistry()), address(newAnchorStateRegistryProxy));
-            assertEq(address(fdg.vm()), impls.mipsImpl);
-        }
-    }
-
-    function expectEmitUpgraded(address impl, address proxy) public {
-        vm.expectEmit(proxy);
-        emit Upgraded(impl);
+        runUpgradeTestAndChecks(worldchainProxyAdminOwner);
     }
 }
