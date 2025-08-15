@@ -159,10 +159,13 @@ func WithOpNode(l2CLID stack.L2CLNodeID, l1CLID stack.L1CLNodeID, l1ELID stack.L
 		orch.l2CLOptions.Apply(p, l2CLID, cfg)       // apply global options
 		L2CLOptionBundle(opts).Apply(p, l2CLID, cfg) // apply specific options
 
-		// Can't enable ELSync on the sequencer or it will never start sequencing because
-		// ELSync needs to receive gossip from the sequencer to drive the sync
-		if !cfg.IsSequencer {
-			cfg.SyncMode = nodeSync.ELSync
+		syncMode := cfg.VerifierSyncMode
+		if cfg.IsSequencer {
+			syncMode = cfg.SequencerSyncMode
+			// Sanity check, to navigate legacy sync-mode test assumptions.
+			// Can't enable ELSync on the sequencer or it will never start sequencing because
+			// ELSync needs to receive gossip from the sequencer to drive the sync
+			p.Require().NotEqual(nodeSync.ELSync, syncMode, "sequencer cannot use EL sync")
 		}
 
 		var depSet depset.DependencySet
@@ -267,7 +270,7 @@ func WithOpNode(l2CLID stack.L2CLNodeID, l1CLID stack.L1CLNodeID, l1ELID stack.L
 			RuntimeConfigReloadInterval: 0,
 			Tracer:                      nil,
 			Sync: nodeSync.Config{
-				SyncMode:                       cfg.SyncMode,
+				SyncMode:                       syncMode,
 				SkipSyncStartCheck:             false,
 				SupportsPostFinalizationELSync: false,
 			},
@@ -284,8 +287,8 @@ func WithOpNode(l2CLID stack.L2CLNodeID, l1CLID stack.L1CLNodeID, l1ELID stack.L
 			IgnoreMissingPectraBlobSchedule: false,
 			ExperimentalOPStackAPI:          true,
 		}
-		if cfg.SafeDB {
-			nodeCfg.SafeDBPath = p.TempDir()
+		if cfg.SafeDBPath != "" {
+			nodeCfg.SafeDBPath = cfg.SafeDBPath
 		}
 
 		l2CLNode := &OpNode{

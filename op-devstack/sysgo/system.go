@@ -121,7 +121,7 @@ func DefaultMinimalSystemWithSyncTester(dest *DefaultMinimalSystemWithSyncTester
 
 	opt.Add(WithL1Nodes(ids.L1EL, ids.L1CL))
 
-	opt.Add(WithL2ELNode(ids.L2EL, nil))
+	opt.Add(WithL2ELNode(ids.L2EL))
 	opt.Add(WithL2CLNode(ids.L2CL, ids.L1CL, ids.L1EL, ids.L2EL, L2CLSequencer()))
 
 	opt.Add(WithBatcher(ids.L2Batcher, ids.L1EL, ids.L2CL, ids.L2EL))

@@ -17,10 +17,14 @@ type L2CLNode interface {
 }
 
 type L2CLConfig struct {
-	// SyncMode to run with (in case of op-node: sequencers may ignore this)
-	SyncMode nodeSync.Mode
+	// SyncMode to run, if this is a sequencer
+	SequencerSyncMode nodeSync.Mode
+	// SyncMode to run, if this is a verifier
+	VerifierSyncMode nodeSync.Mode
 
-	SafeDB       bool
+	// SafeDBPath is the path to the safe DB to use. Disabled if empty.
+	SafeDBPath string
+
 	IsSequencer  bool
 	IndexingMode bool
 }
@@ -39,10 +43,11 @@ func L2CLIndexing() L2CLOption {
 
 func DefaultL2CLConfig() *L2CLConfig {
 	return &L2CLConfig{
-		SyncMode:     nodeSync.CLSync,
-		SafeDB:       false,
-		IsSequencer:  false,
-		IndexingMode: false,
+		SequencerSyncMode: nodeSync.CLSync,
+		VerifierSyncMode:  nodeSync.CLSync,
+		SafeDBPath:        "",
+		IsSequencer:       false,
+		IndexingMode:      false,
 	}
 }
 

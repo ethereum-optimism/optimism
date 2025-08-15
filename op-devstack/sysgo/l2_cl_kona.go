@@ -165,7 +165,7 @@ func WithKonaNode(l2CLID stack.L2CLNodeID, l1CLID stack.L1CLNodeID, l1ELID stack
 		tempRollupCfgPath := filepath.Join(tempKonaDir, "rollup.json")
 		rollupCfgData, err := json.Marshal(l2Net.rollupCfg)
 		p.Require().NoError(err, "must write rollup config")
-		p.Require().NoError(err, os.WriteFile(tempRollupCfgPath, rollupCfgData, 0o755))
+		p.Require().NoError(err, os.WriteFile(tempRollupCfgPath, rollupCfgData, 0o644))
 
 		envVars := []string{
 			"KONA_NODE_L1_ETH_RPC=" + l1EL.userRPC,
@@ -194,7 +194,7 @@ func WithKonaNode(l2CLID stack.L2CLNodeID, l1CLID stack.L1CLNodeID, l1ELID stack
 			p2pKeyHex := "0x" + hex.EncodeToString(crypto.FromECDSA(p2pKey))
 			// TODO: Kona should support loading keys from a file
 			//tempSeqKeyPath := filepath.Join(tempKonaDir, "p2p-sequencer.txt")
-			//p.Require().NoError(err, os.WriteFile(tempSeqKeyPath, []byte(p2pKeyHex), 0o755))
+			//p.Require().NoError(err, os.WriteFile(tempSeqKeyPath, []byte(p2pKeyHex), 0o644))
 			envVars = append(envVars,
 				"KONA_NODE_P2P_SEQUENCER_KEY="+p2pKeyHex,
 				"KONA_NODE_SEQUENCER_L1_CONFS=0",

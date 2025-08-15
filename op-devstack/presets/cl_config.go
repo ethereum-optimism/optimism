@@ -11,7 +11,7 @@ func WithExecutionLayerSyncOnVerifiers() stack.CommonOption {
 	return stack.MakeCommon(
 		sysgo.WithGlobalL2CLOption(sysgo.L2CLOptionFn(
 			func(_ devtest.P, id stack.L2CLNodeID, cfg *sysgo.L2CLConfig) {
-				cfg.SyncMode = sync.ELSync
+				cfg.VerifierSyncMode = sync.ELSync
 			})))
 }
 
@@ -19,14 +19,15 @@ func WithConsensusLayerSync() stack.CommonOption {
 	return stack.MakeCommon(
 		sysgo.WithGlobalL2CLOption(sysgo.L2CLOptionFn(
 			func(_ devtest.P, id stack.L2CLNodeID, cfg *sysgo.L2CLConfig) {
-				cfg.SyncMode = sync.CLSync
+				cfg.SequencerSyncMode = sync.CLSync
+				cfg.VerifierSyncMode = sync.CLSync
 			})))
 }
 
 func WithSafeDBEnabled() stack.CommonOption {
 	return stack.MakeCommon(
 		sysgo.WithGlobalL2CLOption(sysgo.L2CLOptionFn(
-			func(_ devtest.P, id stack.L2CLNodeID, cfg *sysgo.L2CLConfig) {
-				cfg.SafeDB = true
+			func(p devtest.P, id stack.L2CLNodeID, cfg *sysgo.L2CLConfig) {
+				cfg.SafeDBPath = p.TempDir()
 			})))
 }

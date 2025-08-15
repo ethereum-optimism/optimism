@@ -173,7 +173,7 @@ func WithOpReth(id stack.L2ELNodeID, opts ...L2ELOption) stack.Option[*Orchestra
 		data, err := json.Marshal(l2Net.genesis)
 		p.Require().NoError(err, "must json-encode genesis")
 		chainConfigPath := filepath.Join(tempDir, "genesis.json")
-		p.Require().NoError(os.WriteFile(chainConfigPath, data, 0o755), "must write genesis file")
+		p.Require().NoError(os.WriteFile(chainConfigPath, data, 0o644), "must write genesis file")
 
 		dataDirPath := filepath.Join(tempDir, "data")
 		p.Require().NoError(os.MkdirAll(dataDirPath, 0o755), "must create datadir")
