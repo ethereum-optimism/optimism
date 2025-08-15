@@ -14,7 +14,6 @@ import { ISemver } from "interfaces/universal/ISemver.sol";
 import { IResourceMetering } from "interfaces/L1/IResourceMetering.sol";
 import { IOptimismPortal2 } from "interfaces/L1/IOptimismPortal2.sol";
 import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
-import { IETHLockbox } from "interfaces/L1/IETHLockbox.sol";
 
 /// @custom:proxied true
 /// @title SystemConfig
@@ -142,15 +141,15 @@ contract SystemConfig is ProxyAdminOwnedBase, OwnableUpgradeable, Reinitializabl
     event ConfigUpdate(uint256 indexed version, UpdateType indexed updateType, bytes data);
 
     /// @notice Semantic version.
-    /// @custom:semver 3.4.0
+    /// @custom:semver 3.5.0
     function version() public pure virtual returns (string memory) {
-        return "3.4.0";
+        return "3.5.0";
     }
 
     /// @notice Constructs the SystemConfig contract.
     /// @dev    START_BLOCK_SLOT is set to type(uint256).max here so that it will be a dead value
     ///         in the singleton.
-    constructor() ReinitializableBase(2) {
+    constructor() ReinitializableBase(3) {
         Storage.setUint(START_BLOCK_SLOT, type(uint256).max);
         _disableInitializers();
     }
@@ -484,12 +483,12 @@ contract SystemConfig is ProxyAdminOwnedBase, OwnableUpgradeable, Reinitializabl
         _resourceConfig = _config;
     }
 
-    /// @notice Returns the current pause state of the system by checking if the SuperchainConfig is paused for this
-    /// chain's ETHLockbox.
+    /// @notice Returns the current pause state of the system by checking if the SuperchainConfig
+    ///         is paused, looking at both the global pause and the pause with the OptimismPortal
+    ///         contract address as an identifier.
     /// @return bool True if the system is paused, false otherwise.
     function paused() public view returns (bool) {
-        IETHLockbox lockbox = IOptimismPortal2(payable(optimismPortal())).ethLockbox();
-        return superchainConfig.paused(address(lockbox)) || superchainConfig.paused(address(0));
+        return superchainConfig.paused(optimismPortal()) || superchainConfig.paused(address(0));
     }
 
     /// @notice Returns the guardian address of the SuperchainConfig.

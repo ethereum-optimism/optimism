@@ -2,6 +2,7 @@
 pragma solidity 0.8.15;
 
 // Testing
+import { console2 as console } from "forge-std/console2.sol";
 import { CommonTest } from "test/setup/CommonTest.sol";
 
 // Libraries
@@ -20,7 +21,6 @@ import { IAnchorStateRegistry } from "interfaces/dispute/IAnchorStateRegistry.so
 import { IProxyAdmin } from "interfaces/universal/IProxyAdmin.sol";
 import { ISemver } from "interfaces/universal/ISemver.sol";
 import { ISystemConfig } from "interfaces/L1/ISystemConfig.sol";
-import { IETHLockbox } from "interfaces/L1/IETHLockbox.sol";
 import { IResourceMetering } from "interfaces/L1/IResourceMetering.sol";
 import { ICrossDomainMessenger } from "interfaces/universal/ICrossDomainMessenger.sol";
 import { IL1CrossDomainMessenger } from "interfaces/L1/IL1CrossDomainMessenger.sol";
@@ -747,53 +747,6 @@ contract OPContractsManagerStandardValidator_OptimismPortal_Test is OPContractsM
     }
 }
 
-/// @title OPContractsManagerStandardValidator_ETHLockbox_Test
-/// @notice Tests validation of `ETHLockbox` configuration
-contract OPContractsManagerStandardValidator_ETHLockbox_Test is OPContractsManagerStandardValidator_TestInit {
-    /// @notice Tests that the validate function successfully returns the right error when the
-    ///         ETHLockbox version is invalid.
-    function test_validate_ethLockboxInvalidVersion_succeeds() public {
-        vm.mockCall(address(ethLockbox), abi.encodeCall(ISemver.version, ()), abi.encode("0.0.0"));
-        assertEq("LOCKBOX-10", _validate(true));
-    }
-
-    /// @notice Tests that the validate function successfully returns the right error when the
-    ///         ETHLockbox implementation is invalid.
-    function test_validate_ethLockboxInvalidImplementation_succeeds() public {
-        vm.mockCall(
-            address(proxyAdmin),
-            abi.encodeCall(IProxyAdmin.getProxyImplementation, (address(ethLockbox))),
-            abi.encode(address(0xbad))
-        );
-        assertEq("LOCKBOX-20", _validate(true));
-    }
-
-    /// @notice Tests that the validate function successfully returns the right error when the
-    ///         ETHLockbox proxyAdmin is invalid.
-    function test_validate_ethLockboxInvalidProxyAdmin_succeeds() public {
-        vm.mockCall(
-            address(ethLockbox), abi.encodeCall(IProxyAdminOwnedBase.proxyAdmin, ()), abi.encode(address(0xbad))
-        );
-        assertEq("LOCKBOX-30", _validate(true));
-    }
-
-    /// @notice Tests that the validate function successfully returns the right error when the
-    ///         ETHLockbox systemConfig is invalid.
-    function test_validate_ethLockboxInvalidSystemConfig_succeeds() public {
-        vm.mockCall(address(ethLockbox), abi.encodeCall(IETHLockbox.systemConfig, ()), abi.encode(address(0xbad)));
-        assertEq("LOCKBOX-40", _validate(true));
-    }
-
-    /// @notice Tests that the validate function successfully returns the right error when the
-    ///         ETHLockbox does not have the OptimismPortal as an authorized portal.
-    function test_validate_ethLockboxPortalUnauthorized_succeeds() public {
-        vm.mockCall(
-            address(ethLockbox), abi.encodeCall(IETHLockbox.authorizedPortals, (optimismPortal2)), abi.encode(false)
-        );
-        assertEq("LOCKBOX-50", _validate(true));
-    }
-}
-
 /// @title OPContractsManagerStandardValidator_DisputeGameFactory_Test
 /// @notice Tests validation of `DisputeGameFactory` configuration
 contract OPContractsManagerStandardValidator_DisputeGameFactory_Test is OPContractsManagerStandardValidator_TestInit {
@@ -1083,6 +1036,7 @@ contract OPContractsManagerStandardValidator_DelayedWETH_Test is OPContractsMana
     ///         DelayedWETH delay is invalid.
     function test_validate_delayedWETHInvalidDelay_succeeds() public {
         vm.mockCall(address(delayedWeth), abi.encodeCall(IDelayedWETH.delay, ()), abi.encode(1000));
+        console.log(opcm.opcmStandardValidator().anchorStateRegistryImpl());
 
         if (isForkTest()) {
             assertEq("PDDG-DWETH-40", _validate(true));
@@ -1351,6 +1305,5 @@ contract OPContractsManagerStandardValidator_Versions_Test is OPContractsManager
         assertTrue(
             bytes(opcm.opcmStandardValidator().preimageOracleVersion()).length > 0, "preimageOracleVersion empty"
         );
-        assertTrue(bytes(opcm.opcmStandardValidator().ethLockboxVersion()).length > 0, "ethLockboxVersion empty");
     }
 }

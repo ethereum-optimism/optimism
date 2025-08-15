@@ -18,7 +18,6 @@ import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
 import { IOptimismMintableERC20Factory } from "interfaces/universal/IOptimismMintableERC20Factory.sol";
 import { IL1StandardBridge } from "interfaces/L1/IL1StandardBridge.sol";
 import { IL1ERC721Bridge } from "interfaces/L1/IL1ERC721Bridge.sol";
-import { IETHLockbox } from "interfaces/L1/IETHLockbox.sol";
 import { IPermissionedDisputeGame } from "interfaces/dispute/IPermissionedDisputeGame.sol";
 import { IProxyAdmin } from "interfaces/universal/IProxyAdmin.sol";
 import { IDelayedWETH } from "interfaces/dispute/IDelayedWETH.sol";
@@ -36,8 +35,8 @@ import { IProxyAdminOwnedBase } from "interfaces/L1/IProxyAdminOwnedBase.sol";
 /// before and after an upgrade.
 contract OPContractsManagerStandardValidator is ISemver {
     /// @notice The semantic version of the OPContractsManagerStandardValidator contract.
-    /// @custom:semver 1.5.0
-    string public constant version = "1.5.0";
+    /// @custom:semver 1.6.0
+    string public constant version = "1.6.0";
 
     /// @notice The SuperchainConfig contract.
     ISuperchainConfig public superchainConfig;
@@ -176,27 +175,27 @@ contract OPContractsManagerStandardValidator is ISemver {
 
     /// @notice Returns the expected SystemConfig version.
     function systemConfigVersion() public pure returns (string memory) {
-        return "3.4.0";
+        return "3.5.0";
     }
 
     /// @notice Returns the expected OptimismPortal version.
     function optimismPortalVersion() public pure returns (string memory) {
-        return "4.6.0";
+        return "4.7.0";
     }
 
     /// @notice Returns the expected L1CrossDomainMessenger version.
     function l1CrossDomainMessengerVersion() public pure returns (string memory) {
-        return "2.9.0";
+        return "2.10.0";
     }
 
     /// @notice Returns the expected L1ERC721Bridge version.
     function l1ERC721BridgeVersion() public pure returns (string memory) {
-        return "2.7.0";
+        return "2.8.0";
     }
 
     /// @notice Returns the expected L1StandardBridge version.
     function l1StandardBridgeVersion() public pure returns (string memory) {
-        return "2.6.0";
+        return "2.7.0";
     }
 
     /// @notice Returns the expected MIPS version.
@@ -232,11 +231,6 @@ contract OPContractsManagerStandardValidator is ISemver {
     /// @notice Returns the expected PreimageOracle version.
     function preimageOracleVersion() public pure returns (string memory) {
         return "1.1.4";
-    }
-
-    /// @notice Returns the expected ETHLockbox version.
-    function ethLockboxVersion() public pure returns (string memory) {
-        return "1.2.0";
     }
 
     /// @notice Internal function to get version from any contract implementing ISemver.
@@ -440,29 +434,6 @@ contract OPContractsManagerStandardValidator is ISemver {
         _errors = internalRequire(address(_portal.systemConfig()) == address(_sysCfg), "PORTAL-40", _errors);
         _errors = internalRequire(_portal.l2Sender() == Constants.DEFAULT_L2_SENDER, "PORTAL-80", _errors);
         _errors = internalRequire(getProxyAdmin(address(_portal)) == _admin, "PORTAL-90", _errors);
-        return _errors;
-    }
-
-    /// @notice Asserts that the ETHLockbox contract is valid.
-    function assertValidETHLockbox(
-        string memory _errors,
-        ISystemConfig _sysCfg,
-        IProxyAdmin _admin
-    )
-        internal
-        view
-        returns (string memory)
-    {
-        IOptimismPortal2 _portal = IOptimismPortal2(payable(_sysCfg.optimismPortal()));
-        IETHLockbox _lockbox = IETHLockbox(_portal.ethLockbox());
-
-        _errors =
-            internalRequire(LibString.eq(getVersion(address(_lockbox)), ethLockboxVersion()), "LOCKBOX-10", _errors);
-        _errors =
-            internalRequire(getProxyImplementation(_admin, address(_lockbox)) == ethLockboxImpl, "LOCKBOX-20", _errors);
-        _errors = internalRequire(getProxyAdmin(address(_lockbox)) == _admin, "LOCKBOX-30", _errors);
-        _errors = internalRequire(_lockbox.systemConfig() == _sysCfg, "LOCKBOX-40", _errors);
-        _errors = internalRequire(_lockbox.authorizedPortals(_portal), "LOCKBOX-50", _errors);
         return _errors;
     }
 
@@ -791,7 +762,6 @@ contract OPContractsManagerStandardValidator is ISemver {
         _errors = assertValidPermissionlessDisputeGame(
             _errors, _input.sysCfg, _input.absolutePrestate, _input.l2ChainID, _input.proxyAdmin, _overrides
         );
-        _errors = assertValidETHLockbox(_errors, _input.sysCfg, _input.proxyAdmin);
 
         string memory overridesString = getOverridesString(_overrides);
         string memory finalErrors = _errors;

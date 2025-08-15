@@ -248,7 +248,7 @@ contract SystemConfig_Upgrade_Test is SystemConfig_TestInit {
 
         // Verify that the initialized slot was updated.
         bytes32 initializedSlotAfter = vm.load(address(systemConfig), bytes32(slot.slot));
-        assertEq(initializedSlotAfter, bytes32(uint256(2)));
+        assertEq(initializedSlotAfter, bytes32(uint256(3)));
 
         // Verify that the l2ChainId was updated.
         assertEq(systemConfig.l2ChainId(), 1234);
@@ -280,9 +280,9 @@ contract SystemConfig_Upgrade_Test is SystemConfig_TestInit {
         // Get the slot for _initialized.
         StorageSlot memory slot = ForgeArtifacts.getSlot("SystemConfig", "_initialized");
 
-        // Slot value should be set to 2 (already initialized).
+        // Slot value should be set to 3 (already initialized).
         bytes32 initializedSlotBefore = vm.load(address(systemConfig), bytes32(slot.slot));
-        assertEq(initializedSlotBefore, bytes32(uint256(2)));
+        assertEq(initializedSlotBefore, bytes32(uint256(3)));
 
         // l2ChainId should be non-zero.
         assertNotEq(systemConfig.l2ChainId(), 0);
@@ -698,14 +698,14 @@ contract SystemConfig_Paused_Test is SystemConfig_TestInit {
         assertEq(systemConfig.paused(), superchainConfig.paused(address(0)));
     }
 
-    /// @notice Tests that `paused()` returns true when the ETHLockbox identifier is set.
-    function test_paused_ethLockboxIdentifier_succeeds() external {
+    /// @notice Tests that `paused()` returns true when the OptimismPortal identifier is set.
+    function test_paused_optimismPortalIdentifier_succeeds() external {
         // Initially not paused
         assertFalse(systemConfig.paused());
 
-        // Pause the system with ETHLockbox identifier
+        // Pause the system with OptimismPortal identifier
         vm.prank(superchainConfig.guardian());
-        superchainConfig.pause(address(ethLockbox));
+        superchainConfig.pause(address(optimismPortal2));
 
         // Verify paused state
         assertTrue(systemConfig.paused());

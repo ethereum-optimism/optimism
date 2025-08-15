@@ -77,8 +77,8 @@ contract L1StandardBridge is StandardBridge, ProxyAdminOwnedBase, Reinitializabl
     );
 
     /// @notice Semantic version.
-    /// @custom:semver 2.6.0
-    string public constant version = "2.6.0";
+    /// @custom:semver 2.7.0
+    string public constant version = "2.7.0";
 
     /// @custom:legacy
     /// @custom:spacer superchainConfig
@@ -94,7 +94,7 @@ contract L1StandardBridge is StandardBridge, ProxyAdminOwnedBase, Reinitializabl
     ISystemConfig public systemConfig;
 
     /// @notice Constructs the L1StandardBridge contract.
-    constructor() StandardBridge() ReinitializableBase(2) {
+    constructor() StandardBridge() ReinitializableBase(3) {
         _disableInitializers();
     }
 

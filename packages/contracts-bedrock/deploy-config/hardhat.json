@@ -54,7 +54,7 @@
   "preimageOracleMinProposalSize": 126000,
   "preimageOracleChallengePeriod": 86400,
   "proofMaturityDelaySeconds": 12,
-  "disputeGameFinalityDelaySeconds": 6,
+  "disputeGameFinalityDelaySeconds": 302400,
   "respectedGameType": 0,
   "useFaultProofs": false,
   "fundDevAccounts": true,

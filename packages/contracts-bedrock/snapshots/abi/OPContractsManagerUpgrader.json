@@ -337,6 +337,11 @@
     "type": "error"
   },
   {
+    "inputs": [],
+    "name": "SemverComp_InvalidSemverParts",
+    "type": "error"
+  },
+  {
     "inputs": [
       {
         "internalType": "bytes",

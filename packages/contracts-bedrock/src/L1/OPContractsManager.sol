@@ -2,11 +2,12 @@
 pragma solidity 0.8.15;
 
 // Libraries
+import { Strings } from "@openzeppelin/contracts/utils/Strings.sol";
+import { Claim, Duration, GameType, Hash, GameTypes, Proposal } from "src/dispute/lib/Types.sol";
 import { Blueprint } from "src/libraries/Blueprint.sol";
 import { Constants } from "src/libraries/Constants.sol";
 import { Bytes } from "src/libraries/Bytes.sol";
-import { Claim, Duration, GameType, Hash, GameTypes, Proposal } from "src/dispute/lib/Types.sol";
-import { Strings } from "@openzeppelin/contracts/utils/Strings.sol";
+import { SemverComp } from "src/libraries/SemverComp.sol";
 
 // Interfaces
 import { ISemver } from "interfaces/universal/ISemver.sol";
@@ -610,10 +611,9 @@ contract OPContractsManagerUpgrader is OPContractsManagerBase {
     {
         OPContractsManager.Implementations memory impls = getImplementations();
 
-        // If the SuperchainConfig is not already upgraded, upgrade it. NOTE that this type of
-        // upgrade means that chains can ONLY be upgraded via this OPCM contract if they use the
-        // same SuperchainConfig contract. We will assert this later.
-        if (_superchainProxyAdmin.getProxyImplementation(address(_superchainConfig)) != impls.superchainConfigImpl) {
+        // If the version of the SuperchainConfig being provided is strictly less than the version
+        // of the SuperchainConfig implementation, then we need to upgrade it.
+        if (SemverComp.lt(_superchainConfig.version(), ISemver(impls.superchainConfigImpl).version())) {
             // Attempt to upgrade. If the ProxyAdmin is not the SuperchainConfig's admin, this will revert.
             upgradeToAndCall(
                 _superchainProxyAdmin,
@@ -659,21 +659,29 @@ contract OPContractsManagerUpgrader is OPContractsManagerBase {
                 abi.encodeCall(ISystemConfig.upgrade, (l2ChainId, _superchainConfig))
             );
 
-            // Separate context to avoid stack too deep.
-            IAnchorStateRegistry newAnchorStateRegistryProxy;
-            {
+            // Try to grab the AnchorStateRegistry from the OptimismPortal contract. This will work
+            // for any chains that are already on U16. Any chains that are not on U16 will need to
+            // deploy a new AnchorStateRegistry contract. Note that this is safe from issues with
+            // EIP-150 because (1) the upgrade controller is trusted and controls the amount of gas
+            // that gets provided and (2) the absolute worst case scenario is that a new ASR gets
+            // deployed which invalidates withdrawals but has no other real downsides.
+            IAnchorStateRegistry anchorStateRegistry;
+            // eip150-safe
+            try optimismPortal.anchorStateRegistry() returns (IAnchorStateRegistry anchorStateRegistry_) {
+                anchorStateRegistry = anchorStateRegistry_;
+            } catch {
                 // Grab the current respectedGameType from the OptimismPortal contract before the
                 // upgrade.
                 GameType respectedGameType = optimismPortal.respectedGameType();
 
                 // Deploy a new AnchorStateRegistry contract.
                 // We use the SOT suffix to avoid CREATE2 conflicts with the existing ASR.
-                newAnchorStateRegistryProxy = IAnchorStateRegistry(
+                anchorStateRegistry = IAnchorStateRegistry(
                     deployProxy({
                         _l2ChainId: l2ChainId,
                         _proxyAdmin: _opChainConfigs[i].proxyAdmin,
                         _saltMixer: reusableSaltMixer(_opChainConfigs[i]),
-                        _contractName: "AnchorStateRegistry-U16"
+                        _contractName: "AnchorStateRegistry-U16P"
                     })
                 );
 
@@ -689,7 +697,7 @@ contract OPContractsManagerUpgrader is OPContractsManagerBase {
                     // Since this is a net-new contract, we need to initialize it.
                     upgradeToAndCall(
                         _opChainConfigs[i].proxyAdmin,
-                        address(newAnchorStateRegistryProxy),
+                        address(anchorStateRegistry),
                         impls.anchorStateRegistryImpl,
                         abi.encodeCall(
                             IAnchorStateRegistry.initialize,
@@ -709,32 +717,8 @@ contract OPContractsManagerUpgrader is OPContractsManagerBase {
 
             // Separate context to avoid stack too deep.
             {
-                // Deploy the ETHLockbox proxy.
-                IETHLockbox ethLockbox = IETHLockbox(
-                    deployProxy({
-                        _l2ChainId: l2ChainId,
-                        _proxyAdmin: _opChainConfigs[i].proxyAdmin,
-                        _saltMixer: reusableSaltMixer(_opChainConfigs[i]),
-                        _contractName: "ETHLockbox-U16"
-                    })
-                );
-
-                // Upgrade the OptimismPortal contract first so that the SystemConfig will have
-                // the SuperchainConfig reference required in the ETHLockbox.
-                optimismPortal.upgrade(newAnchorStateRegistryProxy, ethLockbox);
-
-                // Initialize the ETHLockbox setting the OptimismPortal as an authorized portal.
-                IOptimismPortal[] memory portals = new IOptimismPortal[](1);
-                portals[0] = optimismPortal;
-                upgradeToAndCall(
-                    _opChainConfigs[i].proxyAdmin,
-                    address(ethLockbox),
-                    impls.ethLockboxImpl,
-                    abi.encodeCall(IETHLockbox.initialize, (_opChainConfigs[i].systemConfigProxy, portals))
-                );
-
-                // Migrate liquidity from the OptimismPortal to the ETHLockbox.
-                optimismPortal.migrateLiquidity();
+                // Upgrade the OptimismPortal contract first.
+                optimismPortal.upgrade(anchorStateRegistry);
             }
 
             // Separate context to avoid stack too deep.
@@ -778,7 +762,7 @@ contract OPContractsManagerUpgrader is OPContractsManagerBase {
                             _l2ChainId: l2ChainId,
                             _proxyAdmin: _opChainConfigs[i].proxyAdmin,
                             _saltMixer: reusableSaltMixer(_opChainConfigs[i]),
-                            _contractName: "PermissionedDelayedWETH-U16"
+                            _contractName: "PermissionedDelayedWETH-U16P"
                         })
                     )
                 );
@@ -796,7 +780,7 @@ contract OPContractsManagerUpgrader is OPContractsManagerBase {
                     _l2ChainId: l2ChainId,
                     _disputeGame: IDisputeGame(address(permissionedDisputeGame)),
                     _newDelayedWeth: permissionedDelayedWeth,
-                    _newAnchorStateRegistryProxy: newAnchorStateRegistryProxy,
+                    _newAnchorStateRegistryProxy: anchorStateRegistry,
                     _gameType: GameTypes.PERMISSIONED_CANNON,
                     _opChainConfig: _opChainConfigs[i]
                 });
@@ -817,7 +801,7 @@ contract OPContractsManagerUpgrader is OPContractsManagerBase {
                                 _l2ChainId: l2ChainId,
                                 _proxyAdmin: _opChainConfigs[i].proxyAdmin,
                                 _saltMixer: reusableSaltMixer(_opChainConfigs[i]),
-                                _contractName: "PermissionlessDelayedWETH-U16"
+                                _contractName: "PermissionlessDelayedWETH-U16P"
                             })
                         )
                     );
@@ -835,7 +819,7 @@ contract OPContractsManagerUpgrader is OPContractsManagerBase {
                         _l2ChainId: l2ChainId,
                         _disputeGame: IDisputeGame(address(permissionlessDisputeGame)),
                         _newDelayedWeth: permissionlessDelayedWeth,
-                        _newAnchorStateRegistryProxy: newAnchorStateRegistryProxy,
+                        _newAnchorStateRegistryProxy: anchorStateRegistry,
                         _gameType: GameTypes.CANNON,
                         _opChainConfig: _opChainConfigs[i]
                     });
@@ -1090,8 +1074,9 @@ contract OPContractsManagerDeployer is OPContractsManagerBase {
         );
 
         // Initialize the ETHLockbox.
-        IOptimismPortal[] memory portals = new IOptimismPortal[](1);
-        portals[0] = output.optimismPortalProxy;
+        // TEMP: For U16P, we initialize the ETHLockbox without any portals. This essentially makes
+        // the ETHLockbox a noop/empty contract, but doing it this way reduces the diff for U16P.
+        IOptimismPortal[] memory portals = new IOptimismPortal[](0);
         data = encodeETHLockboxInitializer(output, portals);
         upgradeToAndCall(output.opChainProxyAdmin, address(output.ethLockboxProxy), implementation.ethLockboxImpl, data);
 
@@ -1235,10 +1220,7 @@ contract OPContractsManagerDeployer is OPContractsManagerBase {
         virtual
         returns (bytes memory)
     {
-        return abi.encodeCall(
-            IOptimismPortal.initialize,
-            (_output.systemConfigProxy, _output.anchorStateRegistryProxy, _output.ethLockboxProxy)
-        );
+        return abi.encodeCall(IOptimismPortal.initialize, (_output.systemConfigProxy, _output.anchorStateRegistryProxy));
     }
 
     /// @notice Helper method for encoding the ETHLockbox initializer data.
@@ -1402,240 +1384,7 @@ contract OPContractsManagerInteropMigrator is OPContractsManagerBase {
     ///      you know what you're doing and that you are prepared to fully execute this migration.
     /// @param _input The input parameters for the migration.
     function migrate(MigrateInput calldata _input) public virtual {
-        // Check that all of the configs have the same proxy admin owner and prestate.
-        for (uint256 i = 0; i < _input.opChainConfigs.length; i++) {
-            // Different chains might actually have different ProxyAdmin contracts, but it's fine
-            // as long as the owner of all of those contracts is the same.
-            if (_input.opChainConfigs[i].proxyAdmin.owner() != _input.opChainConfigs[0].proxyAdmin.owner()) {
-                revert OPContractsManagerInteropMigrator_ProxyAdminOwnerMismatch();
-            }
-            if (_input.opChainConfigs[i].absolutePrestate.raw() != _input.opChainConfigs[0].absolutePrestate.raw()) {
-                revert OPContractsManagerInteropMigrator_AbsolutePrestateMismatch();
-            }
-        }
-
-        // Grab an array of portals from the configs.
-        IOptimismPortal[] memory portals = new IOptimismPortal[](_input.opChainConfigs.length);
-        for (uint256 i = 0; i < _input.opChainConfigs.length; i++) {
-            portals[i] = IOptimismPortal(payable(_input.opChainConfigs[i].systemConfigProxy.optimismPortal()));
-        }
-
-        // Check that the portals have the same SuperchainConfig.
-        for (uint256 i = 0; i < portals.length; i++) {
-            if (portals[i].superchainConfig() != portals[0].superchainConfig()) {
-                revert OPContractsManagerInteropMigrator_SuperchainConfigMismatch();
-            }
-        }
-
-        // NOTE that here and in the rest of this function, we are using the first provided chain's
-        // ProxyAdmin contract as the ProxyAdmin for all of the newly shared contracts. This is
-        // safe because we already checked that all of the provided chains have the same ProxyAdmin
-        // owner and therefore have the same access models.
-        address proxyAdminOwner = _input.opChainConfigs[0].proxyAdmin.owner();
-
-        // Deploy the new ETHLockbox.
-        // NOTE that here and in the rest of this function we use block.timestamp as a fake chain
-        // id for any new contracts that are deployed. The L2 chain id is not used for anything
-        // except the salt mixer, so making it the same as the block timestamp means that new
-        // contracts will be generated every time this function is called. This is totally fine for
-        // our purposes here, there's no strong need to have deterministic addresses ahead of time.
-        IETHLockbox newEthLockbox = IETHLockbox(
-            deployProxy({
-                _l2ChainId: block.timestamp,
-                _proxyAdmin: _input.opChainConfigs[0].proxyAdmin,
-                _saltMixer: reusableSaltMixer(_input.opChainConfigs[0]),
-                _contractName: "ETHLockbox-Interop"
-            })
-        );
-
-        // Initialize the new ETHLockbox.
-        // Note that this authorizes the portals to use the ETHLockbox.
-        upgradeToAndCall(
-            _input.opChainConfigs[0].proxyAdmin,
-            address(newEthLockbox),
-            getImplementations().ethLockboxImpl,
-            abi.encodeCall(IETHLockbox.initialize, (portals[0].systemConfig(), portals))
-        );
-
-        // Deploy the new DisputeGameFactory.
-        IDisputeGameFactory newDisputeGameFactory = IDisputeGameFactory(
-            deployProxy({
-                _l2ChainId: block.timestamp,
-                _proxyAdmin: _input.opChainConfigs[0].proxyAdmin,
-                _saltMixer: reusableSaltMixer(_input.opChainConfigs[0]),
-                _contractName: "DisputeGameFactory-Interop"
-            })
-        );
-
-        // Initialize the new DisputeGameFactory.
-        upgradeToAndCall(
-            _input.opChainConfigs[0].proxyAdmin,
-            address(newDisputeGameFactory),
-            getImplementations().disputeGameFactoryImpl,
-            abi.encodeCall(IDisputeGameFactory.initialize, (proxyAdminOwner))
-        );
-
-        // Deploy the new AnchorStateRegistry.
-        IAnchorStateRegistry newAnchorStateRegistry = IAnchorStateRegistry(
-            deployProxy({
-                _l2ChainId: block.timestamp,
-                _proxyAdmin: _input.opChainConfigs[0].proxyAdmin,
-                _saltMixer: reusableSaltMixer(_input.opChainConfigs[0]),
-                _contractName: "AnchorStateRegistry-Interop"
-            })
-        );
-
-        // Select the correct game type based on the input.
-        GameType newGameType;
-        if (_input.usePermissionlessGame) {
-            newGameType = GameTypes.SUPER_CANNON;
-        } else {
-            newGameType = GameTypes.SUPER_PERMISSIONED_CANNON;
-        }
-
-        // We can use portals[0].systemConfig() as they are members of the same superchain cluster (shared lockbox)
-        // Initialize the new AnchorStateRegistry.
-        upgradeToAndCall(
-            _input.opChainConfigs[0].proxyAdmin,
-            address(newAnchorStateRegistry),
-            getImplementations().anchorStateRegistryImpl,
-            abi.encodeCall(
-                IAnchorStateRegistry.initialize,
-                (portals[0].systemConfig(), newDisputeGameFactory, _input.startingAnchorRoot, newGameType)
-            )
-        );
-
-        // Migrate each portal to the new ETHLockbox and AnchorStateRegistry.
-        for (uint256 i = 0; i < portals.length; i++) {
-            // Authorize the existing ETHLockboxes to use the new ETHLockbox.
-            IETHLockbox existingLockbox = IETHLockbox(payable(address(portals[i].ethLockbox())));
-            newEthLockbox.authorizeLockbox(existingLockbox);
-
-            // Migrate the existing ETHLockbox to the new ETHLockbox.
-            existingLockbox.migrateLiquidity(newEthLockbox);
-
-            // Before migrating the portal, clear out any implementations that might exist in the
-            // old DisputeGameFactory proxy. We clear out all 4 potential game types to be safe.
-            IDisputeGameFactory oldDisputeGameFactory =
-                IDisputeGameFactory(payable(address(portals[i].disputeGameFactory())));
-            oldDisputeGameFactory.setImplementation(GameTypes.CANNON, IDisputeGame(address(0)));
-            oldDisputeGameFactory.setImplementation(GameTypes.SUPER_CANNON, IDisputeGame(address(0)));
-            oldDisputeGameFactory.setImplementation(GameTypes.PERMISSIONED_CANNON, IDisputeGame(address(0)));
-            oldDisputeGameFactory.setImplementation(GameTypes.SUPER_PERMISSIONED_CANNON, IDisputeGame(address(0)));
-
-            // Migrate the portal to the new ETHLockbox and AnchorStateRegistry.
-            portals[i].migrateToSuperRoots(newEthLockbox, newAnchorStateRegistry);
-        }
-
-        // Separate context to avoid stack too deep.
-        {
-            // Deploy a new DelayedWETH proxy for the permissioned game.
-            IDelayedWETH newPermissionedDelayedWETHProxy = IDelayedWETH(
-                payable(
-                    deployProxy({
-                        _l2ChainId: block.timestamp,
-                        _proxyAdmin: _input.opChainConfigs[0].proxyAdmin,
-                        _saltMixer: reusableSaltMixer(_input.opChainConfigs[0]),
-                        _contractName: "DelayedWETH-Interop-Permissioned"
-                    })
-                )
-            );
-
-            // Initialize the new DelayedWETH proxy.
-            upgradeToAndCall(
-                _input.opChainConfigs[0].proxyAdmin,
-                address(newPermissionedDelayedWETHProxy),
-                getImplementations().delayedWETHImpl,
-                abi.encodeCall(IDelayedWETH.initialize, (portals[0].systemConfig()))
-            );
-
-            // Deploy the new SuperPermissionedDisputeGame.
-            // NOTE that we use a chain id of 0 here (instead of the block timestamp) because the
-            // use of the chain id is different and actually passed into the constructor of the
-            // dispute game contracts. Since these are Super dispute games and involve multiple
-            // chains, the contracts enforce that the chain id is zero.
-            ISuperPermissionedDisputeGame newSuperPDG = ISuperPermissionedDisputeGame(
-                Blueprint.deployFrom(
-                    blueprints().superPermissionedDisputeGame1,
-                    blueprints().superPermissionedDisputeGame2,
-                    computeSalt(
-                        block.timestamp, reusableSaltMixer(_input.opChainConfigs[0]), "SuperPermissionedDisputeGame"
-                    ),
-                    encodePermissionedSuperFDGConstructor(
-                        ISuperFaultDisputeGame.GameConstructorParams({
-                            gameType: GameTypes.SUPER_PERMISSIONED_CANNON,
-                            absolutePrestate: _input.opChainConfigs[0].absolutePrestate,
-                            maxGameDepth: _input.gameParameters.maxGameDepth,
-                            splitDepth: _input.gameParameters.splitDepth,
-                            clockExtension: _input.gameParameters.clockExtension,
-                            maxClockDuration: _input.gameParameters.maxClockDuration,
-                            vm: IBigStepper(getImplementations().mipsImpl),
-                            weth: newPermissionedDelayedWETHProxy,
-                            anchorStateRegistry: newAnchorStateRegistry,
-                            l2ChainId: 0
-                        }),
-                        _input.gameParameters.proposer,
-                        _input.gameParameters.challenger
-                    )
-                )
-            );
-
-            // Register the new SuperPermissionedDisputeGame.
-            newDisputeGameFactory.setImplementation(
-                GameTypes.SUPER_PERMISSIONED_CANNON, IDisputeGame(address(newSuperPDG))
-            );
-            newDisputeGameFactory.setInitBond(GameTypes.SUPER_PERMISSIONED_CANNON, _input.gameParameters.initBond);
-        }
-
-        // If the permissionless game is being used, set that up too.
-        if (_input.usePermissionlessGame) {
-            // Deploy a new DelayedWETH proxy for the permissionless game.
-            IDelayedWETH newPermissionlessDelayedWETHProxy = IDelayedWETH(
-                payable(
-                    deployProxy({
-                        _l2ChainId: block.timestamp,
-                        _proxyAdmin: _input.opChainConfigs[0].proxyAdmin,
-                        _saltMixer: reusableSaltMixer(_input.opChainConfigs[0]),
-                        _contractName: "DelayedWETH-Interop-Permissionless"
-                    })
-                )
-            );
-
-            // Initialize the new DelayedWETH proxy.
-            upgradeToAndCall(
-                _input.opChainConfigs[0].proxyAdmin,
-                address(newPermissionlessDelayedWETHProxy),
-                getImplementations().delayedWETHImpl,
-                abi.encodeCall(IDelayedWETH.initialize, (portals[0].systemConfig()))
-            );
-
-            // Deploy the new SuperFaultDisputeGame.
-            ISuperFaultDisputeGame newSuperFDG = ISuperFaultDisputeGame(
-                Blueprint.deployFrom(
-                    blueprints().superPermissionlessDisputeGame1,
-                    blueprints().superPermissionlessDisputeGame2,
-                    computeSalt(block.timestamp, reusableSaltMixer(_input.opChainConfigs[0]), "SuperFaultDisputeGame"),
-                    encodePermissionlessSuperFDGConstructor(
-                        ISuperFaultDisputeGame.GameConstructorParams({
-                            gameType: GameTypes.SUPER_CANNON,
-                            absolutePrestate: _input.opChainConfigs[0].absolutePrestate,
-                            maxGameDepth: _input.gameParameters.maxGameDepth,
-                            splitDepth: _input.gameParameters.splitDepth,
-                            clockExtension: _input.gameParameters.clockExtension,
-                            maxClockDuration: _input.gameParameters.maxClockDuration,
-                            vm: IBigStepper(getImplementations().mipsImpl),
-                            weth: newPermissionlessDelayedWETHProxy,
-                            anchorStateRegistry: newAnchorStateRegistry,
-                            l2ChainId: 0
-                        })
-                    )
-                )
-            );
-
-            // Register the new SuperFaultDisputeGame.
-            newDisputeGameFactory.setImplementation(GameTypes.SUPER_CANNON, IDisputeGame(address(newSuperFDG)));
-            newDisputeGameFactory.setInitBond(GameTypes.SUPER_CANNON, _input.gameParameters.initBond);
-        }
+        // TEMP: Removed for U16P
     }
 }
 
@@ -1760,9 +1509,9 @@ contract OPContractsManager is ISemver {
 
     // -------- Constants and Variables --------
 
-    /// @custom:semver 3.0.0
+    /// @custom:semver 3.1.0
     function version() public pure virtual returns (string memory) {
-        return "3.0.0";
+        return "3.1.0";
     }
 
     OPContractsManagerGameTypeAdder public immutable opcmGameTypeAdder;

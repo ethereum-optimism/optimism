@@ -32,10 +32,8 @@ contract ETHLockbox_TestInit is CommonTest {
     function setUp() public virtual override {
         super.setUp();
 
-        // If not on the last upgrade network, we skip the test since the `ETHLockbox` won't be yet
-        // deployed
-        // TODO(#14691): Remove this check once Upgrade 15 is deployed on Mainnet.
-        if (isForkTest() && !deploy.cfg().useUpgradedFork()) vm.skip(true);
+        // ETHLockbox is no longer deployed by default, skip entirely for now.
+        vm.skip(true);
     }
 }
 

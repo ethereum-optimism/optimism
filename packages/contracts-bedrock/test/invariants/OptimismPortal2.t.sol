@@ -142,7 +142,7 @@ contract OptimismPortal2_Invariant_Harness is DisputeGameFactory_TestInit {
         game.resolve();
 
         // Fund the portal so that we can withdraw ETH.
-        vm.deal(address(ethLockbox), 0xFFFFFFFF);
+        vm.deal(address(optimismPortal2), 0xFFFFFFFF);
     }
 }
 
@@ -203,7 +203,10 @@ contract OptimismPortal2_CannotFinalizeTwice is OptimismPortal2_Invariant_Harnes
         optimismPortal2.proveWithdrawalTransaction(_defaultTx, _proposedGameIndex, _outputRootProof, _withdrawalProof);
 
         // Warp past the proof maturity period.
-        vm.warp(block.timestamp + optimismPortal2.proofMaturityDelaySeconds() + 1);
+        vm.warp(
+            block.timestamp + optimismPortal2.proofMaturityDelaySeconds()
+                + optimismPortal2.disputeGameFinalityDelaySeconds() + 1
+        );
 
         // Finalize the withdrawal transaction.
         optimismPortal2.finalizeWithdrawalTransaction(_defaultTx);
@@ -232,10 +235,14 @@ contract OptimismPortal_CanAlwaysFinalizeAfterWindow is OptimismPortal2_Invarian
         optimismPortal2.proveWithdrawalTransaction(_defaultTx, _proposedGameIndex, _outputRootProof, _withdrawalProof);
 
         // Warp past the proof maturity period.
-        vm.warp(block.timestamp + optimismPortal2.proofMaturityDelaySeconds() + 1);
+        vm.warp(
+            block.timestamp + optimismPortal2.proofMaturityDelaySeconds()
+                + optimismPortal2.disputeGameFinalityDelaySeconds() + 1
+        );
 
         // Set the target contract to the portal proxy
         targetContract(address(optimismPortal2));
+
         // Exclude the proxy admin from the senders so that the proxy cannot be upgraded
         excludeSender(EIP1967Helper.getAdmin(address(optimismPortal2)));
     }

@@ -55,7 +55,6 @@ interface IOPContractsManagerStandardValidator {
     function optimismPortalImpl() external view returns (address);
     function optimismPortalVersion() external pure returns (string memory);
     function ethLockboxImpl() external view returns (address);
-    function ethLockboxVersion() external pure returns (string memory);
     function permissionedDisputeGameVersion() external pure returns (string memory);
     function preimageOracleVersion() external pure returns (string memory);
     function superchainConfig() external view returns (ISuperchainConfig);
