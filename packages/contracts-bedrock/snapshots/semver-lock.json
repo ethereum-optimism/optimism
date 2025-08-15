@@ -16,12 +16,12 @@
     "sourceCodeHash": "0x7f614d0c5251365580c02dd898900a583ece2aa28579adea74a3808b575949b4"
   },
   "src/L1/OPContractsManager.sol": {
-    "initCodeHash": "0xf9c14bb5131933d9fe3806fa810cce084814512a985d71115cdcae160e16bb20",
-    "sourceCodeHash": "0x38a0748233f72e60ab8908802ac01616c90497c66e9393d70269719197efcf70"
+    "initCodeHash": "0x2a931774a809cc78d13eeb25c82585f42ba71c53db15fa57ce31099ebcdd4a1a",
+    "sourceCodeHash": "0x4dc2c75ac2319d85647da8059356f3ddaa87df4f0399b0983ba45c5cceabd92f"
   },
   "src/L1/OPContractsManagerInterop.sol": {
-    "initCodeHash": "0xe25394cfe616f15fabc107df72077ec44718f32ca172df5a98596319745a38c2",
-    "sourceCodeHash": "0x4af07e0eed772fe0a0a683a0dad807474c64b241370f1be92aa84623e80d2ec5"
+    "initCodeHash": "0x9bfde0a2cce21d72e9b34b18aeb1540af0bf2bac04fda0a31a66d67557162132",
+    "sourceCodeHash": "0xd04bb5babc02fd93618397678506e9bcce5f1881b008785da0767bda74d8447c"
   },
   "src/L1/OPPrestateUpdater.sol": {
     "initCodeHash": "0x687553a705b47a57aa77de1af612913ed73f96b1929a84585b0022a0113203f1",
