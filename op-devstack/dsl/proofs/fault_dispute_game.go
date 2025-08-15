@@ -138,7 +138,7 @@ func (g *FaultDisputeGame) GameData() string {
 	info := fmt.Sprintf("Claim count: %v\n", len(claims))
 	for i, claim := range claims {
 		pos := claim.Position
-		info = info + fmt.Sprintf("%v - Position: %v, Depth: %v, IndexAtDepth: %v Trace Index: %v, ClaimHash: %v, Countered By: %v, ParentIndex: %v Claimant: %v Bond: %v %v\n",
+		info = info + fmt.Sprintf("%v - Position: %v, Depth: %v, IndexAtDepth: %v Trace Index: %v, ClaimHash: %v, Countered By: %v, ParentIndex: %v Claimant: %v Bond: %v\n",
 			i, claim.Position.ToGIndex(), pos.Depth(), pos.IndexAtDepth(), pos.TraceIndex(maxDepth), claim.Value.Hex(), claim.CounteredBy, claim.ParentContractIndex, claim.Claimant, claim.Bond)
 	}
 	l2SequenceNumber := g.L2SequenceNumber()
