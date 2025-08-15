@@ -41,13 +41,13 @@ func (eq *EngineController) onPayloadSuccess(ctx context.Context, ev PayloadSucc
 			Ref:      ev.Ref.BlockRef(),
 		})
 		// Apply it to the execution engine
-		eq.emitter.Emit(ctx, TryUpdateEngineEvent{})
+		eq.TryUpdateEngine(ctx)
 		// Not a regular reset, since we don't wind back to any L2 block.
 		// We start specifically from the replacement block.
 		return
 	}
 
-	// TryUpdateUnsafe, TryUpdatePendingSafe, TryUpdateLocalSafe, TryUpdateEngine must be sequentially invoked
+	// TryUpdateUnsafe, TryUpdatePendingSafe, TryUpdateLocalSafe, tryUpdateEngine must be sequentially invoked
 	eq.TryUpdateUnsafe(ctx, ev.Ref)
 	// If derived from L1, then it can be considered (pending) safe
 	if ev.DerivedFrom != (eth.L1BlockRef{}) {
@@ -55,7 +55,7 @@ func (eq *EngineController) onPayloadSuccess(ctx context.Context, ev PayloadSucc
 		eq.TryUpdateLocalSafe(ctx, ev.Ref, ev.Concluding, ev.DerivedFrom)
 	}
 	// Now if possible synchronously call FCU
-	err := eq.TryUpdateEngine(ctx)
+	err := eq.tryUpdateEngine(ctx)
 	if err != nil {
 		eq.log.Error("Failed to update engine", "error", err)
 	}

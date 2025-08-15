@@ -1,8 +1,6 @@
 package engine
 
 import (
-	"time"
-
 	"github.com/ethereum/go-ethereum/common"
 
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
@@ -121,67 +119,6 @@ type ProcessUnsafePayloadEvent struct {
 
 func (ev ProcessUnsafePayloadEvent) String() string {
 	return "process-unsafe-payload"
-}
-
-type TryUpdateEngineEvent struct {
-	// These fields will be zero-value (BuildStarted,InsertStarted=time.Time{}, Envelope=nil) if
-	// this event is emitted outside of engineDeriver.onPayloadSuccess
-	BuildStarted  time.Time
-	InsertStarted time.Time
-	Envelope      *eth.ExecutionPayloadEnvelope
-}
-
-func (ev TryUpdateEngineEvent) String() string {
-	return "try-update-engine"
-}
-
-// Checks for the existence of the Envelope field, which is only
-// added by the PayloadSuccessEvent
-func (ev TryUpdateEngineEvent) triggeredByPayloadSuccess() bool {
-	return ev.Envelope != nil
-}
-
-// Returns key/value pairs that can be logged and are useful for plotting
-// block build/insert time as a way to measure performance.
-func (ev TryUpdateEngineEvent) getBlockProcessingMetrics() []interface{} {
-	fcuFinish := time.Now()
-	payload := ev.Envelope.ExecutionPayload
-
-	logValues := []interface{}{
-		"hash", payload.BlockHash,
-		"number", uint64(payload.BlockNumber),
-		"state_root", payload.StateRoot,
-		"timestamp", uint64(payload.Timestamp),
-		"parent", payload.ParentHash,
-		"prev_randao", payload.PrevRandao,
-		"fee_recipient", payload.FeeRecipient,
-		"txs", len(payload.Transactions),
-	}
-
-	var totalTime time.Duration
-	var mgasps float64
-	if !ev.BuildStarted.IsZero() {
-		totalTime = fcuFinish.Sub(ev.BuildStarted)
-		logValues = append(logValues,
-			"build_time", common.PrettyDuration(ev.InsertStarted.Sub(ev.BuildStarted)),
-			"insert_time", common.PrettyDuration(fcuFinish.Sub(ev.InsertStarted)),
-		)
-	} else if !ev.InsertStarted.IsZero() {
-		totalTime = fcuFinish.Sub(ev.InsertStarted)
-	}
-
-	// Avoid divide-by-zero for mgasps
-	if totalTime > 0 {
-		mgasps = float64(payload.GasUsed) * 1000 / float64(totalTime)
-	}
-
-	logValues = append(logValues,
-		"total_time", common.PrettyDuration(totalTime),
-		"mgas", float64(payload.GasUsed)/1000000,
-		"mgasps", mgasps,
-	)
-
-	return logValues
 }
 
 type EngineResetConfirmedEvent struct {

@@ -407,7 +407,7 @@ func (s *SyncDeriver) SyncStep() {
 
 	s.tryBackupUnsafeReorg()
 
-	s.Emitter.Emit(s.Ctx, engine.TryUpdateEngineEvent{})
+	s.Engine.TryUpdateEngine(s.Ctx)
 
 	if s.Engine.IsEngineSyncing() {
 		// The pipeline cannot move forwards if doing EL sync.

@@ -125,7 +125,7 @@ func (s *L2Sequencer) ActL2EndBlock(t Testing) {
 
 	// After having built a L2 block, make sure to get an engine update processed,
 	// and request a forkchoice update directly.
-	s.synchronousEvents.Emit(t.Ctx(), engine.TryUpdateEngineEvent{})
+	s.engine.TryUpdateEngine(t.Ctx())
 	s.engine.RequestForkchoiceUpdate(t.Ctx())
 	require.NoError(t, s.drainer.DrainUntil(func(ev event.Event) bool {
 		x, ok := ev.(engine.ForkchoiceUpdateEvent)

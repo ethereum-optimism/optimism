@@ -83,7 +83,6 @@ type EngineController interface {
 	engine.LocalEngineControl
 	IsEngineSyncing() bool
 	InsertUnsafePayload(ctx context.Context, payload *eth.ExecutionPayloadEnvelope, ref eth.L2BlockRef) error
-	TryUpdateEngine(ctx context.Context) error
 	TryBackupUnsafeReorg(ctx context.Context) (bool, error)
 }
 
