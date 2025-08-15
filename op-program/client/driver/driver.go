@@ -51,6 +51,7 @@ func NewDriver(logger log.Logger, cfg *rollup.Config, depSet derive.DependencySe
 	prog := &ProgramDeriver{
 		logger:         logger,
 		Emitter:        d,
+		resetter:       pipeline,
 		closing:        false,
 		result:         eth.L2BlockRef{},
 		targetBlockNum: targetBlockNum,

@@ -64,13 +64,6 @@ func (d ConfirmReceivedAttributesEvent) String() string {
 	return "confirm-received-attributes"
 }
 
-type ConfirmPipelineResetEvent struct {
-}
-
-func (d ConfirmPipelineResetEvent) String() string {
-	return "confirm-pipeline-reset"
-}
-
 // DerivedAttributesEvent is emitted when new attributes are available to apply to the engine.
 type DerivedAttributesEvent struct {
 	Attributes *AttributesWithParent
@@ -169,8 +162,6 @@ func (d *PipelineDeriver) OnEvent(ctx context.Context, ev event.Event) bool {
 				d.emitter.Emit(ctx, DeriverMoreEvent{}) // continue with the next step if we can
 			}
 		}
-	case ConfirmPipelineResetEvent:
-		d.pipeline.ConfirmEngineReset()
 	case ConfirmReceivedAttributesEvent:
 		d.needAttributesConfirmation = false
 	case DepositsOnlyPayloadAttributesRequestEvent:

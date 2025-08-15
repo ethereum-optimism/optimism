@@ -360,7 +360,7 @@ func (s *SyncDeriver) onEngineConfirmedReset(ctx context.Context, x engine.Engin
 		}
 	}
 	s.Log.Info("Confirming pipeline reset")
-	s.Emitter.Emit(ctx, derive.ConfirmPipelineResetEvent{})
+	s.Derivation.ConfirmEngineReset()
 }
 
 func (s *SyncDeriver) onResetEvent(ctx context.Context, x rollup.ResetEvent) {

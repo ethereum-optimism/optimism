@@ -23,13 +23,24 @@ var (
 	errTestCrit  = errors.New("crit test err")
 )
 
+type engineResetter struct {
+	callCount int
+}
+
+func (r *engineResetter) ConfirmEngineReset() {
+	r.callCount++
+}
+
 func TestProgramDeriver(t *testing.T) {
+	resetter := &engineResetter{}
+
 	newProgram := func(t *testing.T, target uint64) (*ProgramDeriver, *testutils.MockEmitter) {
 		m := &testutils.MockEmitter{}
 		logger := testlog.Logger(t, log.LevelInfo)
 		prog := &ProgramDeriver{
 			logger:         logger,
 			Emitter:        m,
+			resetter:       resetter,
 			targetBlockNum: target,
 		}
 		return prog, m
@@ -38,9 +49,9 @@ func TestProgramDeriver(t *testing.T) {
 	// step 1: engine completes reset
 	t.Run("engine reset confirmed", func(t *testing.T) {
 		p, m := newProgram(t, 1000)
-		m.ExpectOnce(derive.ConfirmPipelineResetEvent{})
 		m.ExpectOnce(engine.PendingSafeRequestEvent{})
 		p.OnEvent(context.Background(), engine.EngineResetConfirmedEvent{})
+		require.Equal(t, 1, resetter.callCount)
 		m.AssertExpectations(t)
 		require.False(t, p.closing)
 		require.NoError(t, p.resultError)

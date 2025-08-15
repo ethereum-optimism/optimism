@@ -3,7 +3,6 @@ package driver
 import (
 	"context"
 	"fmt"
-
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum/go-ethereum/log"
 
@@ -13,6 +12,10 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/event"
 )
 
+type EngineResetter interface {
+	ConfirmEngineReset()
+}
+
 // ProgramDeriver expresses how engine and derivation events are
 // translated and monitored to execute the pure L1 to L2 state transition.
 //
@@ -21,6 +24,8 @@ type ProgramDeriver struct {
 	logger log.Logger
 
 	Emitter event.Emitter
+
+	resetter EngineResetter
 
 	closing        bool
 	result         eth.L2BlockRef
@@ -39,7 +44,7 @@ func (d *ProgramDeriver) Result() (eth.L2BlockRef, error) {
 func (d *ProgramDeriver) OnEvent(ctx context.Context, ev event.Event) bool {
 	switch x := ev.(type) {
 	case engine.EngineResetConfirmedEvent:
-		d.Emitter.Emit(ctx, derive.ConfirmPipelineResetEvent{})
+		d.resetter.ConfirmEngineReset()
 		// After initial reset we can request the pending-safe block,
 		// where attributes will be generated on top of.
 		d.Emitter.Emit(ctx, engine.PendingSafeRequestEvent{})
