@@ -11,8 +11,8 @@ const (
 	// Block-builder side
 	DefaultThrottleTxSizeLowerLimit    = 150
 	DefaultThrottleTxSizeUpperLimit    = 10_000
-	DefaultThrottleBlockSizeLowerLimit = 21_000
-	DefaultThrottleBlockSizeUpperLimit = 130_000_000
+	DefaultThrottleBlockSizeLowerLimit = 4_000
+	DefaultThrottleBlockSizeUpperLimit = 130_000
 
 	// Controller side
 	DefaultThrottleControllerType = "quadratic"
