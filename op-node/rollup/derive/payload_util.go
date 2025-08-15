@@ -96,7 +96,7 @@ func PayloadToSystemConfig(rollupCfg *rollup.Config, payload *eth.ExecutionPaylo
 		}
 		d, e, s, exp := eip1559.DecodeMinBaseFeeExtraData(payload.ExtraData)
 		copy(r.EIP1559Params[:], eip1559.EncodeHolocene1559Params(d, e))
-		r.MinBaseFeeFactors = s<<4 | exp
+		r.MinBaseFeeFactors = eip1559.EncodeMinBaseFeeFactors(s, exp)
 	} else if rollupCfg.IsHolocene(uint64(payload.Timestamp)) {
 		if err := eip1559.ValidateHoloceneExtraData(payload.ExtraData); err != nil {
 			return eth.SystemConfig{}, err
