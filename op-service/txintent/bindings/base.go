@@ -421,8 +421,9 @@ func CustomValueToABIValue(arg any) any {
 }
 
 // ABIValueToCustomValue converts abi value to custom value
-func ABIValueToCustomValue[ReturnType any](retTyp reflect.Type, val any) ReturnType {
+func ABIValueToCustomValue[ReturnType any](val any) ReturnType {
 	var zero ReturnType
+	retTyp := reflect.TypeFor[ReturnType]()
 	switch retTyp {
 	case reflect.TypeOf(eth.ETH{}):
 		bigVal := abi.ConvertType(val, new(big.Int)).(*big.Int)
@@ -503,7 +504,7 @@ func (c *TypedCall[ReturnType]) DecodeOutput(data []byte) (ReturnType, error) {
 		}
 		return val, nil
 	}
-	val := ABIValueToCustomValue[ReturnType](retTyp, decoded[0])
+	val := ABIValueToCustomValue[ReturnType](decoded[0])
 	return val, nil
 }
 
