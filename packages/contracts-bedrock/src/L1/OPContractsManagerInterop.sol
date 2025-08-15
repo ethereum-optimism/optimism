@@ -13,9 +13,9 @@ import { ISystemConfigInterop } from "interfaces/L1/ISystemConfigInterop.sol";
 import { IProxyAdmin } from "interfaces/universal/IProxyAdmin.sol";
 
 contract OPContractsManagerInterop is OPContractsManager {
-    /// @custom:semver +interop.10-no-superchain-upgrade
+    /// @custom:semver +interop.11
     function version() public pure override returns (string memory) {
-        return string.concat(super.version(), "+interop.10-no-superchain-upgrade");
+        return string.concat(super.version(), "+interop.11");
     }
 
     constructor(
