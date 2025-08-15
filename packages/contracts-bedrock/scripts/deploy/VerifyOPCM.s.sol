@@ -255,7 +255,7 @@ contract VerifyOPCM is Script {
         }
 
         // Create a single array to join everything together.
-        uint256 extraRefs = 1; // OPCM + ContractsContainer
+        uint256 extraRefs = 1; // OPCM
         OpcmContractRef[] memory refs =
             new OpcmContractRef[](propRefs.length + implRefs.length + bpRefs.length + extraRefs);
 
