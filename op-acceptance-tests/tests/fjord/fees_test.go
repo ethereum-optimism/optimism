@@ -2,6 +2,7 @@ package fjord
 
 import (
 	"context"
+	"github.com/ethereum/go-ethereum/rpc"
 	"math/big"
 	"testing"
 
@@ -67,7 +68,7 @@ type contractBackendAdapter struct {
 }
 
 func (c *contractBackendAdapter) CallContract(ctx context.Context, call ethereum.CallMsg, blockNumber *big.Int) ([]byte, error) {
-	return c.client.Call(ctx, call)
+	return c.client.Call(ctx, call, rpc.BlockNumber(blockNumber.Int64()))
 }
 
 func (c *contractBackendAdapter) CodeAt(ctx context.Context, account common.Address, blockNumber *big.Int) ([]byte, error) {
@@ -93,7 +94,7 @@ func (c *contractBackendAdapter) HeaderByNumber(ctx context.Context, number *big
 }
 
 func (c *contractBackendAdapter) PendingCallContract(ctx context.Context, call ethereum.CallMsg) ([]byte, error) {
-	return c.client.Call(ctx, call)
+	return c.client.Call(ctx, call, rpc.PendingBlockNumber)
 }
 
 func (c *contractBackendAdapter) PendingCodeAt(ctx context.Context, account common.Address) ([]byte, error) {
