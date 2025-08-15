@@ -173,9 +173,6 @@ func NewL2Verifier(t Testing, log log.Logger, l1 derive.L1Fetcher,
 	syncStatusTracker := status.NewStatusTracker(log, metrics)
 	sys.Register("status", syncStatusTracker, opts)
 
-	stepDeriver := NewTestingStepSchedulingDeriver()
-	stepDeriver.AttachEmitter(testActionEmitter)
-
 	syncDeriver := &driver.SyncDeriver{
 		Derivation:     pipeline,
 		SafeHeadNotifs: safeHeadListener,
@@ -189,7 +186,8 @@ func NewL2Verifier(t Testing, log log.Logger, l1 derive.L1Fetcher,
 		Log:                 log,
 		Ctx:                 ctx,
 		ManagedBySupervisor: indexingMode,
-		StepDeriver:         stepDeriver,
+		// TODO(#16917) Remove Event System Refactor Comments
+		// StepDeriver field removed - step scheduling is now unified in SyncDeriver
 	}
 	// TODO(#16917) Remove Event System Refactor Comments
 	//  Couple SyncDeriver and EngineController for event refactoring
@@ -430,14 +428,17 @@ func (s *L2Verifier) ActL2EventsUntil(t Testing, fn func(ev event.Event) bool, m
 			return
 		}
 		if err == io.EOF {
-			s.synchronousEvents.Emit(t.Ctx(), driver.StepEvent{})
+			s.syncDeriver.RequestStep(t.Ctx(), false)
 		}
 	}
 	t.Fatalf("event condition did not hit, ran maximum number of steps: %d", max)
 }
 
 func (s *L2Verifier) ActL2PipelineFull(t Testing) {
-	s.synchronousEvents.Emit(t.Ctx(), driver.StepEvent{})
+	// TODO(#16917) Remove Event System Refactor Comments
+	// StepEvent removed - step scheduling is now handled directly
+	// Request a step directly on the sync deriver
+	s.syncDeriver.RequestStep(t.Ctx(), false)
 	require.NoError(t, s.drainer.Drain(), "complete all event processing triggered by deriver step")
 }
 
@@ -462,34 +463,4 @@ func (s *L2Verifier) SyncSupervisor(t Testing) {
 	require.NotNil(t, s.InteropControl, "must be managed by op-supervisor")
 	_, err := s.InteropControl.PullEvents(t.Ctx())
 	require.NoError(t, err)
-}
-
-type TestingStepSchedulingDeriver struct {
-	emitter event.Emitter
-}
-
-func NewTestingStepSchedulingDeriver() *TestingStepSchedulingDeriver {
-	return &TestingStepSchedulingDeriver{}
-}
-
-func (t *TestingStepSchedulingDeriver) NextStep() <-chan struct{} {
-	return nil
-}
-
-func (t *TestingStepSchedulingDeriver) NextDelayedStep() <-chan time.Time {
-	return nil
-}
-
-func (t *TestingStepSchedulingDeriver) RequestStep(ctx context.Context, resetBackoff bool) {
-	t.emitter.Emit(ctx, driver.StepEvent{})
-}
-
-func (t *TestingStepSchedulingDeriver) AttemptStep(ctx context.Context) {
-}
-
-func (t *TestingStepSchedulingDeriver) ResetStepBackoff(ctx context.Context) {
-}
-
-func (t *TestingStepSchedulingDeriver) AttachEmitter(em event.Emitter) {
-	t.emitter = em
 }

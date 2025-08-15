@@ -23,6 +23,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup/sync"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/event"
+	"github.com/ethereum-optimism/optimism/op-service/retry"
 )
 
 // aliases to not disrupt op-conductor code
@@ -159,6 +160,10 @@ type Drain interface {
 	Await() <-chan struct{}
 }
 
+type SyncStepper interface {
+	SyncStep()
+}
+
 // NewDriver composes an events handler that tracks L1 state, triggers L2 Derivation, and optionally sequences new L2 blocks.
 func NewDriver(
 	sys event.Registry,
@@ -214,9 +219,6 @@ func NewDriver(
 	sys.Register("pipeline",
 		derive.NewPipelineDeriver(driverCtx, derivationPipeline))
 
-	schedDeriv := NewStepSchedulingDeriver(log)
-	sys.Register("step-scheduler", schedDeriv)
-
 	syncDeriver := &SyncDeriver{
 		Derivation:          derivationPipeline,
 		SafeHeadNotifs:      safeHeadListener,
@@ -230,7 +232,11 @@ func NewDriver(
 		Log:                 log,
 		Ctx:                 driverCtx,
 		ManagedBySupervisor: indexingMode,
-		StepDeriver:         schedDeriv,
+		// Initialize the unified step scheduling functionality
+		stepAttempts:   0,
+		bOffStrategy:   retry.Exponential(),
+		stepReqCh:      make(chan struct{}, 1),
+		delayedStepReq: nil,
 	}
 	// TODO(#16917) Remove Event System Refactor Comments
 	//  Couple SyncDeriver and EngineController for event refactoring
@@ -258,7 +264,6 @@ func NewDriver(
 		StatusTracker: statusTracker,
 		Finalizer:     finalizer,
 		SyncDeriver:   syncDeriver,
-		sched:         schedDeriv,
 		emitter:       driverEmitter,
 		drain:         drain,
 		stateReq:      make(chan chan struct{}),

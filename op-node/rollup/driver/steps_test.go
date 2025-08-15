@@ -9,47 +9,53 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 
 	"github.com/ethereum-optimism/optimism/op-service/event"
+	"github.com/ethereum-optimism/optimism/op-service/retry"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 )
 
-func TestStepSchedulingDeriver(t *testing.T) {
+func TestSyncDeriverStepScheduling(t *testing.T) {
 	logger := testlog.Logger(t, log.LevelError)
 	var queued []event.Event
-	emitter := event.EmitterFunc(func(ctx context.Context, ev event.Event) {
-		queued = append(queued, ev)
-	})
-	sched := NewStepSchedulingDeriver(logger)
-	sched.AttachEmitter(emitter)
-	require.Len(t, sched.NextStep(), 0, "start empty")
-	sched.RequestStep(context.Background(), false)
-	require.Len(t, sched.NextStep(), 1, "take request")
-	sched.RequestStep(context.Background(), false)
-	require.Len(t, sched.NextStep(), 1, "ignore duplicate request")
+
+	// Create a unified SyncDeriver with step scheduling functionality
+	syncDeriver := &SyncDeriver{
+		Log:            logger,
+		stepAttempts:   0,
+		bOffStrategy:   retry.Exponential(),
+		stepReqCh:      make(chan struct{}, 1),
+		delayedStepReq: nil,
+	}
+
+	// Test the step scheduling functionality
+	require.Len(t, syncDeriver.NextStep(), 0, "start empty")
+	syncDeriver.RequestStep(context.Background(), false)
+	require.Len(t, syncDeriver.NextStep(), 1, "take request")
+	syncDeriver.RequestStep(context.Background(), false)
+	require.Len(t, syncDeriver.NextStep(), 1, "ignore duplicate request")
 	require.Empty(t, queued, "only scheduled so far, no step attempts yet")
-	<-sched.NextStep()
-	sched.AttemptStep(context.Background())
-	require.Equal(t, []event.Event{StepEvent{}}, queued, "got step event")
-	require.Nil(t, sched.NextDelayedStep(), "no delayed steps yet")
-	sched.RequestStep(context.Background(), false)
-	require.NotNil(t, sched.NextDelayedStep(), "2nd attempt before backoff reset causes delayed step to be scheduled")
-	sched.RequestStep(context.Background(), false)
-	require.NotNil(t, sched.NextDelayedStep(), "can continue to request attempts")
+	<-syncDeriver.NextStep()
+	syncDeriver.AttemptStep(context.Background())
+	require.Nil(t, syncDeriver.NextDelayedStep(), "no delayed steps yet")
+	syncDeriver.RequestStep(context.Background(), false)
+	require.NotNil(t, syncDeriver.NextDelayedStep(), "2nd attempt before backoff reset causes delayed step to be scheduled")
+	syncDeriver.RequestStep(context.Background(), false)
+	require.NotNil(t, syncDeriver.NextDelayedStep(), "can continue to request attempts")
 
-	sched.RequestStep(context.Background(), false)
-	require.Len(t, sched.NextStep(), 0, "no step requests accepted without delay if backoff is counting")
+	syncDeriver.RequestStep(context.Background(), false)
+	require.Len(t, syncDeriver.NextStep(), 0, "no step requests accepted without delay if backoff is counting")
 
-	sched.RequestStep(context.Background(), true)
-	require.Len(t, sched.NextStep(), 1, "request accepted if backoff is reset")
-	<-sched.NextStep()
+	syncDeriver.RequestStep(context.Background(), true)
+	require.Len(t, syncDeriver.NextStep(), 1, "request accepted if backoff is reset")
+	<-syncDeriver.NextStep()
 
-	sched.RequestStep(context.Background(), false)
-	require.Len(t, sched.NextStep(), 1, "no backoff, no attempt has been made yet")
-	<-sched.NextStep()
-	sched.AttemptStep(context.Background())
-	sched.RequestStep(context.Background(), false)
-	require.Len(t, sched.NextStep(), 0, "backoff again")
+	syncDeriver.RequestStep(context.Background(), false)
+	require.Len(t, syncDeriver.NextStep(), 1, "no backoff, no attempt has been made yet")
+	<-syncDeriver.NextStep()
+	syncDeriver.AttemptStep(context.Background())
+	syncDeriver.RequestStep(context.Background(), false)
+	require.Len(t, syncDeriver.NextStep(), 0, "backoff again")
 
-	sched.ResetStepBackoff(context.Background())
-	sched.RequestStep(context.Background(), false)
-	require.Len(t, sched.NextStep(), 1, "reset backoff accepted, was able to schedule non-delayed step")
+	syncDeriver.ResetStepBackoff(context.Background())
+	syncDeriver.RequestStep(context.Background(), false)
+	require.Len(t, syncDeriver.NextStep(), 1, "reset backoff accepted, was able to schedule non-delayed step")
 }
