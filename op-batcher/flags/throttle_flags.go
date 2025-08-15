@@ -35,13 +35,13 @@ var (
 	}
 
 	// Builder-side Tx-size limits
-	ThrottleTxSizeLowerLimitFlag = &cli.IntFlag{
+	ThrottleTxSizeLowerLimitFlag = &cli.Uint64Flag{
 		Name:    "throttle.tx-size-lower-limit",
 		Usage:   "The limit on the DA size of transactions when we are at maximum throttle intensity. 0 means no limits will ever be applied, so consider 1 the smallest effective limit.",
 		Value:   DefaultThrottleTxSizeLowerLimit,
 		EnvVars: prefixEnvVars("THROTTLE_TX_SIZE_LOWER_LIMIT"),
 	}
-	ThrottleTxSizeUpperLimitFlag = &cli.IntFlag{
+	ThrottleTxSizeUpperLimitFlag = &cli.Uint64Flag{
 		Name:    "throttle.tx-size-upper-limit",
 		Usage:   "The limit on the DA size of transactions when we are at 0+ throttle intensity (limit of the intensity as it approaches 0 from positive values). Not applied when throttling is inactive.",
 		Value:   DefaultThrottleTxSizeUpperLimit,
@@ -49,13 +49,13 @@ var (
 	}
 
 	// Builder-side block-size limits
-	ThrottleBlockSizeLowerLimitFlag = &cli.IntFlag{
+	ThrottleBlockSizeLowerLimitFlag = &cli.Uint64Flag{
 		Name:    "throttle.block-size-lower-limit",
 		Usage:   "The limit on the DA size of blocks when we are at maximum throttle intensity (linear and quadratic controllers only). 0 means no limits will ever be applied, so consider 1 the smallest effective limit.",
 		Value:   DefaultThrottleBlockSizeLowerLimit,
 		EnvVars: prefixEnvVars("THROTTLE_BLOCK_SIZE_LOWER_LIMIT"),
 	}
-	ThrottleBlockSizeUpperLimitFlag = &cli.IntFlag{
+	ThrottleBlockSizeUpperLimitFlag = &cli.Uint64Flag{
 		Name:    "throttle.block-size-upper-limit",
 		Usage:   "The limit on the DA size of blocks when we are at 0 throttle intensity (applied when throttling is inactive)",
 		Value:   DefaultThrottleBlockSizeUpperLimit,
@@ -78,7 +78,7 @@ var (
 			return fmt.Errorf("throttle.controller-type must be one of %v, got %s", validTypes, value)
 		},
 	}
-	ThrottleUsafeDABytesLowerThresholdFlag = &cli.IntFlag{
+	ThrottleUsafeDABytesLowerThresholdFlag = &cli.Uint64Flag{
 		Name:    "throttle.unsafe-da-bytes-lower-threshold",
 		Usage:   "The threshold on unsafe_da_bytes beyond which the batcher will start to throttle the block builder. Zero disables throttling.",
 		Value:   DefaultThrottleLowerThreshold,
