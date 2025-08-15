@@ -3,6 +3,7 @@ package fjord
 import (
 	"context"
 	"crypto/rand"
+	"github.com/ethereum/go-ethereum/rpc"
 	"math/big"
 	"testing"
 
@@ -50,14 +51,14 @@ func checkRIP7212(t devtest.T, ctx context.Context, sys *presets.Minimal) {
 	response, err := l2Client.Call(ctx, ethereum.CallMsg{
 		To:   &rip7212Precompile,
 		Data: invalid7212Data,
-	})
+	}, rpc.LatestBlockNumber)
 	require.NoError(err)
 	require.Empty(response)
 
 	response, err = l2Client.Call(ctx, ethereum.CallMsg{
 		To:   &rip7212Precompile,
 		Data: valid7212Data,
-	})
+	}, rpc.LatestBlockNumber)
 	require.NoError(err)
 	expected := common.LeftPadBytes([]byte{1}, 32)
 	require.Equal(expected, response)
