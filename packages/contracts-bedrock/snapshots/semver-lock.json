@@ -152,8 +152,8 @@
     "sourceCodeHash": "0xdebf2ab3af4d5549c40e9dd9db6b2458af286f323b6891f3b0c4e89f3c8928db"
   },
   "src/dispute/DisputeGameFactory.sol:DisputeGameFactory": {
-    "initCodeHash": "0xa3e6a7466e16e6b7a8ce7a257ec543c1bf675e24f53565080d826404654b9262",
-    "sourceCodeHash": "0x1871aaeba0658f17270190cc95ffff172d92dca795d698401ec34a7462bf5242"
+    "initCodeHash": "0xc8a6b7ddff5b3977244d97fa1cf21af90fd79a729733fe614cca95eb1f5ee1e3",
+    "sourceCodeHash": "0xf57a2880f568494217351fbd0ef3a89ba6bf5673d3f241cc5a8f3f9b05b33661"
   },
   "src/dispute/FaultDisputeGame.sol:FaultDisputeGame": {
     "initCodeHash": "0xe7d3c982532946d196d7efadb9e2576c76b8f9e0d1f885ac36977d6f3fb72a65",

@@ -211,7 +211,7 @@ contract OPContractsManagerStandardValidator is ISemver {
 
     /// @notice Returns the expected DisputeGameFactory version.
     function disputeGameFactoryVersion() public pure returns (string memory) {
-        return "1.2.0";
+        return "1.3.0";
     }
 
     /// @notice Returns the expected AnchorStateRegistry version.
