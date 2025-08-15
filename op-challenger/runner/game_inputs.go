@@ -37,9 +37,6 @@ func createGameInputsSingle(ctx context.Context, log log.Logger, client *sources
 	}
 	log.Info("Got sync status", "status", status, "type", typeName)
 
-	if status.FinalizedL2.Number == 0 {
-		return utils.LocalGameInputs{}, errors.New("safe head is 0")
-	}
 	l1Head := status.FinalizedL1
 	if status.FinalizedL1.Number > status.CurrentL1.Number {
 		// Restrict the L1 head to a block that has actually been processed by op-node.
@@ -56,7 +53,7 @@ func createGameInputsSingle(ctx context.Context, log log.Logger, client *sources
 	if l1Head.Number == 0 {
 		return utils.LocalGameInputs{}, errors.New("l1 head is 0")
 	}
-	blockNumber, err := findL2BlockNumberToDispute(ctx, log, client, l1Head.Number, status.FinalizedL2.Number)
+	blockNumber, err := findL2BlockNumberToDispute(ctx, log, client, l1Head.Number)
 	if err != nil {
 		return utils.LocalGameInputs{}, fmt.Errorf("failed to find l2 block number to dispute: %w", err)
 	}
@@ -144,45 +141,45 @@ func createGameInputsInterop(ctx context.Context, log log.Logger, client *source
 	return localInputs, nil
 }
 
-func findL2BlockNumberToDispute(ctx context.Context, log log.Logger, client *sources.RollupClient, l1HeadNum uint64, l2BlockNum uint64) (uint64, error) {
-	// Try to find a L1 block prior to the batch that make l2BlockNum safe
+// findL2BlockNumberToDispute finds a safe l2 block number at different positions in a span batch
+func findL2BlockNumberToDispute(ctx context.Context, log log.Logger, client *sources.RollupClient, l1HeadNum uint64) (uint64, error) {
+	safeHead, err := client.SafeHeadAtL1Block(ctx, l1HeadNum)
+	if err != nil {
+		return 0, fmt.Errorf("failed to find safe head from l1 head %v: %w", l1HeadNum, err)
+	}
+	maxL2BlockNum := safeHead.SafeHead.Number
+
+	// Find a prior span batch boundary
 	// Limits how far back we search to 10 * 32 blocks
 	const skipSize = uint64(32)
 	for i := 0; i < 10; i++ {
 		if l1HeadNum < skipSize {
 			// Too close to genesis, give up and just use the original block
 			log.Info("Failed to find prior batch.")
-			return l2BlockNum, nil
+			return maxL2BlockNum, nil
 		}
 		l1HeadNum -= skipSize
 		prevSafeHead, err := client.SafeHeadAtL1Block(ctx, l1HeadNum)
 		if err != nil {
 			return 0, fmt.Errorf("failed to get prior safe head at L1 block %v: %w", l1HeadNum, err)
 		}
-		if prevSafeHead.SafeHead.Number < l2BlockNum {
+		if prevSafeHead.SafeHead.Number < maxL2BlockNum {
 			switch rand.IntN(3) {
-			case 0: // First block of span batch
+			case 0: // First block of span batch after prevSafeHead
 				return prevSafeHead.SafeHead.Number + 1, nil
-			case 1: // Last block of span batch
+			case 1: // Last block of span batch ending at prevSafeHead
 				return prevSafeHead.SafeHead.Number, nil
 			case 2: // Random block, probably but not guaranteed to be in the middle of a span batch
 				firstBlockInSpanBatch := prevSafeHead.SafeHead.Number + 1
-				if l2BlockNum <= firstBlockInSpanBatch {
+				if maxL2BlockNum <= firstBlockInSpanBatch {
 					// There is only one block in the next batch so we just have to use it
-					return l2BlockNum, nil
+					return maxL2BlockNum, nil
 				}
-				offset := rand.IntN(int(l2BlockNum - firstBlockInSpanBatch))
+				offset := rand.IntN(int(maxL2BlockNum - firstBlockInSpanBatch))
 				return firstBlockInSpanBatch + uint64(offset), nil
 			}
-
-		}
-		if prevSafeHead.SafeHead.Number < l2BlockNum {
-			// We walked back far enough to be before the batch that included l2BlockNum
-			// So use the first block after the prior safe head as the disputed block.
-			// It must be the first block in a batch.
-			return prevSafeHead.SafeHead.Number + 1, nil
 		}
 	}
-	log.Warn("Failed to find prior batch", "l2BlockNum", l2BlockNum, "earliestCheckL1Block", l1HeadNum)
-	return l2BlockNum, nil
+	log.Warn("Failed to find prior batch", "l2BlockNum", maxL2BlockNum, "earliestCheckL1Block", l1HeadNum)
+	return maxL2BlockNum, nil
 }
