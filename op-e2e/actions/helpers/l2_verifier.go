@@ -173,6 +173,9 @@ func NewL2Verifier(t Testing, log log.Logger, l1 derive.L1Fetcher,
 	syncStatusTracker := status.NewStatusTracker(log, metrics)
 	sys.Register("status", syncStatusTracker, opts)
 
+	stepDeriver := NewTestingStepSchedulingDeriver()
+	stepDeriver.AttachEmitter(testActionEmitter)
+
 	syncDeriver := &driver.SyncDeriver{
 		Derivation:     pipeline,
 		SafeHeadNotifs: safeHeadListener,
@@ -186,6 +189,7 @@ func NewL2Verifier(t Testing, log log.Logger, l1 derive.L1Fetcher,
 		Log:                 log,
 		Ctx:                 ctx,
 		ManagedBySupervisor: indexingMode,
+		StepDeriver:         stepDeriver,
 	}
 	// TODO(#16917) Remove Event System Refactor Comments
 	//  Couple SyncDeriver and EngineController for event refactoring
@@ -401,8 +405,6 @@ func (s *L2Verifier) OnEvent(ctx context.Context, ev event.Event) bool {
 		s.L2PipelineIdle = true
 	case derive.PipelineStepEvent:
 		s.L2PipelineIdle = false
-	case driver.StepReqEvent:
-		s.synchronousEvents.Emit(ctx, driver.StepEvent{})
 	default:
 		return false
 	}
@@ -460,4 +462,34 @@ func (s *L2Verifier) SyncSupervisor(t Testing) {
 	require.NotNil(t, s.InteropControl, "must be managed by op-supervisor")
 	_, err := s.InteropControl.PullEvents(t.Ctx())
 	require.NoError(t, err)
+}
+
+type TestingStepSchedulingDeriver struct {
+	emitter event.Emitter
+}
+
+func NewTestingStepSchedulingDeriver() *TestingStepSchedulingDeriver {
+	return &TestingStepSchedulingDeriver{}
+}
+
+func (t *TestingStepSchedulingDeriver) NextStep() <-chan struct{} {
+	return nil
+}
+
+func (t *TestingStepSchedulingDeriver) NextDelayedStep() <-chan time.Time {
+	return nil
+}
+
+func (t *TestingStepSchedulingDeriver) RequestStep(ctx context.Context, resetBackoff bool) {
+	t.emitter.Emit(ctx, driver.StepEvent{})
+}
+
+func (t *TestingStepSchedulingDeriver) AttemptStep(ctx context.Context) {
+}
+
+func (t *TestingStepSchedulingDeriver) ResetStepBackoff(ctx context.Context) {
+}
+
+func (t *TestingStepSchedulingDeriver) AttachEmitter(em event.Emitter) {
+	t.emitter = em
 }

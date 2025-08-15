@@ -215,6 +215,9 @@ func NewDriver(
 	sys.Register("pipeline",
 		derive.NewPipelineDeriver(driverCtx, derivationPipeline))
 
+	schedDeriv := NewStepSchedulingDeriver(log)
+	sys.Register("step-scheduler", schedDeriv)
+
 	syncDeriver := &SyncDeriver{
 		Derivation:          derivationPipeline,
 		SafeHeadNotifs:      safeHeadListener,
@@ -228,6 +231,7 @@ func NewDriver(
 		Log:                 log,
 		Ctx:                 driverCtx,
 		ManagedBySupervisor: indexingMode,
+		StepDeriver:         schedDeriv,
 	}
 	// TODO(#16917) Remove Event System Refactor Comments
 	//  Couple SyncDeriver and EngineController for event refactoring
@@ -235,9 +239,6 @@ func NewDriver(
 	ec.SyncDeriver = syncDeriver
 	sys.Register("sync", syncDeriver)
 	sys.Register("engine", ec)
-
-	schedDeriv := NewStepSchedulingDeriver(log)
-	sys.Register("step-scheduler", schedDeriv)
 
 	var sequencer sequencing.SequencerIface
 	if driverCfg.SequencerEnabled {

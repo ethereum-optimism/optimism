@@ -101,7 +101,7 @@ func (s *Driver) eventLoop() {
 
 	// reqStep requests a derivation step nicely, with a delay if this is a reattempt, or not at all if we already scheduled a reattempt.
 	reqStep := func() {
-		s.emitter.Emit(s.driverCtx, StepReqEvent{})
+		s.sched.RequestStep(s.driverCtx, false)
 	}
 
 	// We call reqStep right away to finish syncing to the tip of the chain if we're behind.
@@ -171,9 +171,9 @@ func (s *Driver) eventLoop() {
 				s.log.Warn("failed to check for unsafe L2 blocks to sync", "err", err)
 			}
 		case <-s.sched.NextDelayedStep():
-			s.emitter.Emit(s.driverCtx, StepAttemptEvent{})
+			s.sched.AttemptStep(s.driverCtx)
 		case <-s.sched.NextStep():
-			s.emitter.Emit(s.driverCtx, StepAttemptEvent{})
+			s.sched.AttemptStep(s.driverCtx)
 		case respCh := <-s.stateReq:
 			respCh <- struct{}{}
 		case respCh := <-s.forceReset:
@@ -230,6 +230,8 @@ type SyncDeriver struct {
 	// When in interop, and managed by an op-supervisor,
 	// the node performs a reset based on the instructions of the op-supervisor.
 	ManagedBySupervisor bool
+
+	StepDeriver StepDeriver
 }
 
 func (s *SyncDeriver) AttachEmitter(em event.Emitter) {
@@ -238,13 +240,13 @@ func (s *SyncDeriver) AttachEmitter(em event.Emitter) {
 
 func (s *SyncDeriver) OnL1Unsafe(ctx context.Context) {
 	// a new L1 head may mean we have the data to not get an EOF again.
-	s.Emitter.Emit(ctx, StepReqEvent{})
+	s.StepDeriver.RequestStep(ctx, false)
 }
 
 func (s *SyncDeriver) OnL1Finalized(ctx context.Context) {
 	// On "safe" L1 blocks: no step, justified L1 information does not do anything for L2 derivation or status.
 	// On "finalized" L1 blocks: we may be able to mark more L2 data as finalized now.
-	s.Emitter.Emit(ctx, StepReqEvent{})
+	s.StepDeriver.RequestStep(ctx, false)
 }
 
 func (s *SyncDeriver) OnEvent(ctx context.Context, ev event.Event) bool {
@@ -260,26 +262,26 @@ func (s *SyncDeriver) OnEvent(ctx context.Context, ev event.Event) bool {
 		s.onResetEvent(ctx, x)
 	case rollup.L1TemporaryErrorEvent:
 		s.Log.Warn("L1 temporary error", "err", x.Err)
-		s.Emitter.Emit(ctx, StepReqEvent{})
+		s.StepDeriver.RequestStep(ctx, false)
 	case rollup.EngineTemporaryErrorEvent:
 		s.Log.Warn("Engine temporary error", "err", x.Err)
 		// Make sure that for any temporarily failed attributes we retry processing.
 		// This will be triggered by a step. After appropriate backoff.
-		s.Emitter.Emit(ctx, StepReqEvent{})
+		s.StepDeriver.RequestStep(ctx, false)
 	case engine.EngineResetConfirmedEvent:
 		s.onEngineConfirmedReset(ctx, x)
 	case derive.DeriverIdleEvent:
 		// Once derivation is idle the system is healthy
 		// and we can wait for new inputs. No backoff necessary.
-		s.Emitter.Emit(ctx, ResetStepBackoffEvent{})
+		s.StepDeriver.ResetStepBackoff(ctx)
 	case derive.DeriverMoreEvent:
 		// If there is more data to process,
 		// continue derivation quickly
-		s.Emitter.Emit(ctx, StepReqEvent{ResetBackoff: true})
+		s.StepDeriver.RequestStep(ctx, true)
 	case engine.SafeDerivedEvent:
 		s.onSafeDerivedBlock(ctx, x)
 	case derive.ProvideL1Traversal:
-		s.Emitter.Emit(ctx, StepReqEvent{})
+		s.StepDeriver.RequestStep(ctx, false)
 	default:
 		return false
 	}
@@ -369,8 +371,8 @@ func (s *SyncDeriver) onResetEvent(ctx context.Context, x rollup.ResetEvent) {
 	}
 	// If the system corrupts, e.g. due to a reorg, simply reset it
 	s.Log.Warn("Deriver system is resetting", "err", x.Err)
-	s.Emitter.Emit(ctx, StepReqEvent{})
 	s.Emitter.Emit(ctx, engine.ResetEngineRequestEvent{})
+	s.StepDeriver.RequestStep(ctx, false)
 }
 
 func (s *SyncDeriver) tryBackupUnsafeReorg() {
@@ -411,7 +413,7 @@ func (s *SyncDeriver) SyncStep() {
 		// The pipeline cannot move forwards if doing EL sync.
 		s.Log.Debug("Rollup driver is backing off because execution engine is syncing.",
 			"unsafe_head", s.Engine.UnsafeL2Head())
-		s.Emitter.Emit(s.Ctx, ResetStepBackoffEvent{})
+		s.StepDeriver.ResetStepBackoff(s.Ctx)
 		return
 	}
 
