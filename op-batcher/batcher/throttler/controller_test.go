@@ -543,6 +543,71 @@ func TestIntensityToParamsBlockSizeInterpolation(t *testing.T) {
 	}
 }
 
+// TestControllerFactoryEdgeCases tests edge cases for the factory's CreateController method
+func TestControllerFactoryEdgeCases(t *testing.T) {
+	factory := testFactory(t)
+
+	t.Run("block size upper limit less than lower limit", func(t *testing.T) {
+		controller, err := factory.CreateController(
+			config.StepControllerType, config.ThrottleParams{
+				LowerThreshold:      TestLowerThresholdBytes,
+				UpperThreshold:      TestUpperThreshold,
+				TxSizeLowerLimit:    TestTxSizeLowerLimit,
+				TxSizeUpperLimit:    TestTxSizeUpperLimit,
+				BlockSizeLowerLimit: 5,
+				BlockSizeUpperLimit: 4, // Upper limit less than lower limit
+			}, nil)
+
+		require.Error(t, err, "expected error when block size upper limit is less than lower limit")
+		require.Nil(t, controller, "expected nil controller when configuration is invalid")
+	})
+
+	t.Run("zero upper limit", func(t *testing.T) {
+		controller, err := factory.CreateController(
+			config.StepControllerType, config.ThrottleParams{
+				LowerThreshold:      TestLowerThresholdBytes,
+				UpperThreshold:      TestUpperThreshold,
+				TxSizeLowerLimit:    TestTxSizeLowerLimit,
+				TxSizeUpperLimit:    TestTxSizeUpperLimit,
+				BlockSizeLowerLimit: TestBlockSizeLowerLimit,
+				BlockSizeUpperLimit: 0, // Zero upper limit
+			}, nil)
+
+		require.Error(t, err, "expected error when block size upper limit is zero")
+		require.Nil(t, controller, "expected nil controller when configuration is invalid")
+	})
+
+	t.Run("block size lower limit greater than upper limit", func(t *testing.T) {
+		controller, err := factory.CreateController(
+			config.StepControllerType, config.ThrottleParams{
+				LowerThreshold:      TestLowerThresholdBytes,
+				UpperThreshold:      TestUpperThreshold,
+				TxSizeLowerLimit:    TestTxSizeLowerLimit,
+				TxSizeUpperLimit:    TestTxSizeUpperLimit,
+				BlockSizeLowerLimit: TestBlockSizeUpperLimit + 50_000, // Greater than upper limit
+				BlockSizeUpperLimit: TestBlockSizeUpperLimit,
+			}, nil)
+
+		require.Error(t, err, "expected error when block size lower limit is greater than upper limit")
+		require.Nil(t, controller, "expected nil controller when configuration is invalid")
+	})
+
+	t.Run("valid configuration should not error", func(t *testing.T) {
+		controller, err := factory.CreateController(
+			config.StepControllerType, config.ThrottleParams{
+				LowerThreshold:      TestLowerThresholdBytes,
+				UpperThreshold:      TestUpperThreshold,
+				TxSizeLowerLimit:    TestTxSizeLowerLimit,
+				TxSizeUpperLimit:    TestTxSizeUpperLimit,
+				BlockSizeLowerLimit: TestBlockSizeLowerLimit,
+				BlockSizeUpperLimit: TestBlockSizeUpperLimit,
+			}, nil)
+
+		require.NoError(t, err, "expected valid configuration to create controller without error")
+		require.NotNil(t, controller, "expected valid controller to be created")
+	})
+}
+
 // TestIntensityToParamsEdgeCases tests edge cases for the intensityToParams function
 func TestIntensityToParamsEdgeCases(t *testing.T) {
 	t.Run("zero BlockSizeLowerLimit", func(t *testing.T) {
@@ -561,35 +626,6 @@ func TestIntensityToParamsEdgeCases(t *testing.T) {
 		}
 	})
 
-	t.Run("block size upper limit less than lower limit", func(t *testing.T) {
-		testConfig := ThrottleConfig{
-			TxSizeLowerLimit:    TestTxSizeLowerLimit,
-			BlockSizeLowerLimit: 5,
-			BlockSizeUpperLimit: 4,
-		}
-
-		controller := NewThrottleController(testStepStrategy(t), testConfig)
-
-		require.Panics(t, func() {
-			controller.intensityToParams(0.5, testConfig)
-		})
-
-	})
-
-	t.Run("zero upper limit", func(t *testing.T) {
-		testConfig := ThrottleConfig{
-			TxSizeLowerLimit:    TestTxSizeLowerLimit,
-			BlockSizeLowerLimit: TestBlockSizeLowerLimit,
-			BlockSizeUpperLimit: 0,
-		}
-
-		controller := NewThrottleController(testStepStrategy(t), testConfig)
-
-		require.Panics(t, func() {
-			controller.intensityToParams(0.5, testConfig)
-		})
-
-	})
 }
 
 // TestIntensityToParamsConsistency tests that intensityToParams produces consistent results

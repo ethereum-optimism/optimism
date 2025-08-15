@@ -52,11 +52,6 @@ func (tc *ThrottleController) Update(currentPendingBytes uint64) ThrottleParams 
 
 // intensityToParams converts intensity to throttle parameters using common interpolation logic
 func (tc *ThrottleController) intensityToParams(intensity float64, cfg ThrottleConfig) ThrottleParams {
-	err := tc.validateConfig(cfg)
-	if err != nil {
-		panic(err.Error())
-	}
-
 	// Clamp intensity to 1.0 to prevent overflows, should never happen
 	if intensity > 1.0 {
 		log.Warn("throttler: intensity above maximum (will be clamped)", "intensity", intensity)
@@ -265,5 +260,11 @@ func (f *ThrottleControllerFactory) CreateController(
 		return nil, fmt.Errorf("unsupported throttle controller type: %s", controllerType)
 	}
 
-	return NewThrottleController(strategy, throttleConfig), nil
+	newController := NewThrottleController(strategy, throttleConfig)
+	err := newController.validateConfig(throttleConfig)
+	if err != nil {
+		return nil, err
+	}
+
+	return newController, nil
 }

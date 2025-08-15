@@ -53,15 +53,6 @@ func (c *ThrottleConfig) Check() error {
 	if c.LowerThreshold != 0 && c.UpperThreshold <= c.LowerThreshold {
 		return fmt.Errorf("throttle.upper-threshold must be greater than throttle.lower-threshold")
 	}
-
-	if c.BlockSizeLowerLimit > 0 && c.BlockSizeLowerLimit >= c.BlockSizeUpperLimit {
-		return fmt.Errorf("throttle.block-size-lower-limit must be less than throttle.block-size-upper-limit")
-	}
-
-	if c.TxSizeLowerLimit > 0 && c.TxSizeLowerLimit >= c.TxSizeUpperLimit {
-		return fmt.Errorf("throttle.tx-size-lower-limit must be less than throttle.tx-size-upper-limit")
-	}
-
 	return nil
 }
 
