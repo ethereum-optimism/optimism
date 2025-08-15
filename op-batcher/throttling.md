@@ -28,7 +28,7 @@ diagram:
 > NOTE
 > Be aware that using `0` for either
 > `throttle.block-size-lower-limit` and `throttle.tx-size-lower-limit`
-> will be interpreted by block builders as "no limit"
+> results in no throttling limits being applied (for blocks and transactions respectively).
 
 ### Step Controller (Default)
 
