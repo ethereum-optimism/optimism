@@ -802,12 +802,9 @@ func (e *EngineController) SetOriginSelectorResetter(resetter OriginSelectorForc
 // ForceReset performs a forced reset to the specified block references
 func (e *EngineController) ForceReset(ctx context.Context, localUnsafe, crossUnsafe, localSafe, crossSafe, finalized eth.L2BlockRef) {
 	// Reset other components before resetting the engine
-	if e.attributesResetter != nil {
-		e.attributesResetter.ForceReset(ctx, localUnsafe, crossUnsafe, localSafe, crossSafe, finalized)
-	}
-	if e.pipelineResetter != nil {
-		e.pipelineResetter.ResetPipeline()
-	}
+	e.attributesResetter.ForceReset(ctx, localUnsafe, crossUnsafe, localSafe, crossSafe, finalized)
+	e.pipelineResetter.ResetPipeline()
+	// originSelectorResetter is only present when sequencing is enabled
 	if e.originSelectorResetter != nil {
 		e.originSelectorResetter.ResetOrigins()
 	}
