@@ -50,9 +50,7 @@ func (r *BlockBuffer) Peek() eth.BlockInfo {
 func (r *BlockBuffer) Reset() {
 	r.idx = 0
 	r.total = 0
-	for i := range r.buffer {
-		r.buffer[i] = nil
-	}
+	clear(r.buffer)
 }
 
 func (r *BlockBuffer) Pop() (eth.BlockInfo, error) {
