@@ -2,6 +2,7 @@ package proofs
 
 import (
 	"context"
+	"fmt"
 	"math/big"
 	"time"
 
@@ -9,6 +10,8 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/stretchr/testify/require"
 
+	fTypes "github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
+	gTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl/contract"
@@ -31,8 +34,19 @@ func NewFaultDisputeGame(t devtest.T, require *require.Assertions, game *binding
 	}
 }
 
-func (g *FaultDisputeGame) MaxDepth() uint64 {
-	return contract.Read(g.game.MaxGameDepth()).Uint64()
+func (g *FaultDisputeGame) Addr() *common.Address {
+	// Pull To address info from a TypedCall
+	call := g.game.Status()
+	test := call.Test()
+	addr, err := call.To()
+	test.Require().NoError(err, "Failed to retrieve address from game")
+
+	return addr
+}
+
+func (g *FaultDisputeGame) MaxDepth() fTypes.Depth {
+	maxGameDepth := contract.Read(g.game.MaxGameDepth()).Uint64()
+	return fTypes.Depth(maxGameDepth)
 }
 
 func (g *FaultDisputeGame) SplitDepth() uint64 {
@@ -45,6 +59,11 @@ func (g *FaultDisputeGame) RootClaim() *Claim {
 
 func (g *FaultDisputeGame) L2SequenceNumber() *big.Int {
 	return contract.Read(g.game.L2SequenceNumber())
+}
+
+func (g *FaultDisputeGame) Status() gTypes.GameStatus {
+	status := contract.Read(g.game.Status())
+	return gTypes.GameStatus(status)
 }
 
 func (g *FaultDisputeGame) ClaimAtIndex(claimIndex int64) *Claim {
@@ -105,10 +124,25 @@ func (g *FaultDisputeGame) waitForClaim(timeout time.Duration, errorMsg string, 
 		}
 		return false, nil
 	})
-	g.require.NoError(err, errorMsg)
-	// TODO(#15948) - Log GameData()
-	//if err != nil { // Avoid waiting time capturing game data when there's no error
-	//	g.require.NoErrorf(err, "%v\n%v", errorMsg, g.GameData(ctx))
-	//}
+	if err != nil { // Avoid waiting time capturing game data when there's no error
+		g.require.NoErrorf(err, "%v\n%v", errorMsg, g.GameData())
+	}
+
 	return matchClaimIdx, matchedClaim
+}
+
+func (g *FaultDisputeGame) GameData() string {
+	maxDepth := g.MaxDepth()
+	splitDepth := g.SplitDepth()
+	claims := g.allClaims()
+	info := fmt.Sprintf("Claim count: %v\n", len(claims))
+	for i, claim := range claims {
+		pos := claim.Position
+		info = info + fmt.Sprintf("%v - Position: %v, Depth: %v, IndexAtDepth: %v Trace Index: %v, ClaimHash: %v, Countered By: %v, ParentIndex: %v Claimant: %v Bond: %v %v\n",
+			i, claim.Position.ToGIndex(), pos.Depth(), pos.IndexAtDepth(), pos.TraceIndex(maxDepth), claim.Value.Hex(), claim.CounteredBy, claim.ParentContractIndex, claim.Claimant, claim.Bond)
+	}
+	l2SequenceNumber := g.L2SequenceNumber()
+	status := g.Status()
+	return fmt.Sprintf("Game %v - %v - L2 Sequence Number: %v - Split Depth: %v - Max Depth: %v:\n%v\n",
+		g.Addr(), status, l2SequenceNumber, splitDepth, maxDepth, info)
 }
