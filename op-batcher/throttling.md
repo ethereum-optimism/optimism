@@ -38,7 +38,7 @@ diagram:
 - **Use case**: Simple, predictable throttling behavior
 - **Best for**: Environments requiring clear, binary throttling states
 
-> WARNING
+> [!WARNING]
 > If selecting the step controller, you should **not** rely on default throttling parameters as this could cause too much throttling to be applied too quickly.
 
 ### Linear Controller
