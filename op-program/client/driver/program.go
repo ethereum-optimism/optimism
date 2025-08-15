@@ -16,6 +16,10 @@ type EngineResetter interface {
 	ConfirmEngineReset()
 }
 
+type PipelineDeriver interface {
+	ConfirmReceivedAttributes()
+}
+
 // ProgramDeriver expresses how engine and derivation events are
 // translated and monitored to execute the pure L1 to L2 state transition.
 //
@@ -26,6 +30,8 @@ type ProgramDeriver struct {
 	Emitter event.Emitter
 
 	resetter EngineResetter
+
+	pd PipelineDeriver
 
 	closing        bool
 	result         eth.L2BlockRef
@@ -57,7 +63,7 @@ func (d *ProgramDeriver) OnEvent(ctx context.Context, ev event.Event) bool {
 		// We will process the current attributes synchronously,
 		// triggering a single PendingSafeUpdateEvent or InvalidPayloadAttributesEvent,
 		// to continue derivation from.
-		d.Emitter.Emit(ctx, derive.ConfirmReceivedAttributesEvent{})
+		d.pd.ConfirmReceivedAttributes()
 		// No need to queue the attributes, since there is no unsafe chain to consolidate against,
 		// and no temporary-error retry to perform on block processing.
 		d.Emitter.Emit(ctx, engine.BuildStartEvent{Attributes: x.Attributes})

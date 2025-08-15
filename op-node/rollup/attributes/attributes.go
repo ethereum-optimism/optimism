@@ -28,6 +28,10 @@ type EngineController interface {
 	RequestForkchoiceUpdate(ctx context.Context)
 }
 
+type PipelineDeriver interface {
+	ConfirmReceivedAttributes()
+}
+
 type L2 interface {
 	PayloadByNumber(context.Context, uint64) (*eth.ExecutionPayloadEnvelope, error)
 }
@@ -49,9 +53,11 @@ type AttributesHandler struct {
 	sentAttributes bool
 
 	engineController EngineController
+
+	pd PipelineDeriver
 }
 
-func NewAttributesHandler(log log.Logger, cfg *rollup.Config, ctx context.Context, l2 L2, engController EngineController) *AttributesHandler {
+func NewAttributesHandler(log log.Logger, cfg *rollup.Config, ctx context.Context, l2 L2, engController EngineController, pd PipelineDeriver) *AttributesHandler {
 	if engController == nil {
 		panic("engController cannot be nil")
 	}
@@ -61,6 +67,7 @@ func NewAttributesHandler(log log.Logger, cfg *rollup.Config, ctx context.Contex
 		ctx:              ctx,
 		l2:               l2,
 		engineController: engController,
+		pd:               pd,
 		attributes:       nil,
 	}
 }
@@ -80,7 +87,7 @@ func (eq *AttributesHandler) OnEvent(ctx context.Context, ev event.Event) bool {
 	case derive.DerivedAttributesEvent:
 		eq.attributes = x.Attributes
 		eq.sentAttributes = false
-		eq.emitter.Emit(ctx, derive.ConfirmReceivedAttributesEvent{})
+		eq.pd.ConfirmReceivedAttributes()
 		// to make sure we have a pre-state signal to process the attributes from
 		eq.emitter.Emit(ctx, engine.PendingSafeRequestEvent{})
 	case rollup.ResetEvent, rollup.ForceResetEvent:

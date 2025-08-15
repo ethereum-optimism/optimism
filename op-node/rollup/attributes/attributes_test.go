@@ -21,6 +21,14 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/testutils"
 )
 
+type mockPd struct {
+	callCount int
+}
+
+func (m *mockPd) ConfirmReceivedAttributes() {
+	m.callCount++
+}
+
 func TestAttributesHandler(t *testing.T) {
 	rng := rand.New(rand.NewSource(1234))
 	refA := testutils.RandomBlockRef(rng)
@@ -171,14 +179,15 @@ func TestAttributesHandler(t *testing.T) {
 		l2 := &testutils.MockL2Client{}
 		emitter := &testutils.MockEmitter{}
 		engDeriver := &MockEngineController{}
-		ah := NewAttributesHandler(logger, cfg, context.Background(), l2, engDeriver)
+		pd := new(mockPd)
+		ah := NewAttributesHandler(logger, cfg, context.Background(), l2, engDeriver, pd)
 		ah.AttachEmitter(emitter)
 
-		emitter.ExpectOnce(derive.ConfirmReceivedAttributesEvent{})
 		emitter.ExpectOnce(engine.PendingSafeRequestEvent{})
 		ah.OnEvent(context.Background(), derive.DerivedAttributesEvent{
 			Attributes: attrA1,
 		})
+		require.Equal(t, 1, pd.callCount)
 		emitter.AssertExpectations(t)
 		require.NotNil(t, ah.attributes, "queue the invalid attributes")
 
@@ -194,14 +203,15 @@ func TestAttributesHandler(t *testing.T) {
 		l2 := &testutils.MockL2Client{}
 		emitter := &testutils.MockEmitter{}
 		engDeriver := &MockEngineController{}
-		ah := NewAttributesHandler(logger, cfg, context.Background(), l2, engDeriver)
+		pd := new(mockPd)
+		ah := NewAttributesHandler(logger, cfg, context.Background(), l2, engDeriver, pd)
 		ah.AttachEmitter(emitter)
 
-		emitter.ExpectOnce(derive.ConfirmReceivedAttributesEvent{})
 		emitter.ExpectOnce(engine.PendingSafeRequestEvent{})
 		ah.OnEvent(context.Background(), derive.DerivedAttributesEvent{
 			Attributes: attrA1,
 		})
+		require.Equal(t, 1, pd.callCount)
 		emitter.AssertExpectations(t)
 		require.NotNil(t, ah.attributes)
 		// New attributes will have to get generated after processing the last ones
@@ -220,14 +230,15 @@ func TestAttributesHandler(t *testing.T) {
 		l2 := &testutils.MockL2Client{}
 		emitter := &testutils.MockEmitter{}
 		engDeriver := &MockEngineController{}
-		ah := NewAttributesHandler(logger, cfg, context.Background(), l2, engDeriver)
+		pd := new(mockPd)
+		ah := NewAttributesHandler(logger, cfg, context.Background(), l2, engDeriver, pd)
 		ah.AttachEmitter(emitter)
 
-		emitter.ExpectOnce(derive.ConfirmReceivedAttributesEvent{})
 		emitter.ExpectOnce(engine.PendingSafeRequestEvent{})
 		ah.OnEvent(context.Background(), derive.DerivedAttributesEvent{
 			Attributes: attrA1,
 		})
+		require.Equal(t, 1, pd.callCount)
 		emitter.AssertExpectations(t)
 		require.NotNil(t, ah.attributes)
 
@@ -247,13 +258,14 @@ func TestAttributesHandler(t *testing.T) {
 			l2 := &testutils.MockL2Client{}
 			emitter := &testutils.MockEmitter{}
 			engDeriver := &MockEngineController{}
-			ah := NewAttributesHandler(logger, cfg, context.Background(), l2, engDeriver)
+			pd := new(mockPd)
+			ah := NewAttributesHandler(logger, cfg, context.Background(), l2, engDeriver, pd)
 			ah.AttachEmitter(emitter)
 
 			// attrA1Alt does not match block A1, so will cause force-reorg.
-			emitter.ExpectOnce(derive.ConfirmReceivedAttributesEvent{})
 			emitter.ExpectOnce(engine.PendingSafeRequestEvent{})
 			ah.OnEvent(context.Background(), derive.DerivedAttributesEvent{Attributes: attrA1Alt})
+			require.Equal(t, 1, pd.callCount)
 			emitter.AssertExpectations(t)
 			require.NotNil(t, ah.attributes, "queued up derived attributes")
 
@@ -285,7 +297,8 @@ func TestAttributesHandler(t *testing.T) {
 				l2 := &testutils.MockL2Client{}
 				emitter := &testutils.MockEmitter{}
 				engDeriver := &MockEngineController{}
-				ah := NewAttributesHandler(logger, cfg, context.Background(), l2, engDeriver)
+				pd := new(mockPd)
+				ah := NewAttributesHandler(logger, cfg, context.Background(), l2, engDeriver, pd)
 				ah.AttachEmitter(emitter)
 
 				attr := &derive.AttributesWithParent{
@@ -294,9 +307,9 @@ func TestAttributesHandler(t *testing.T) {
 					Concluding:  concluding,
 					DerivedFrom: refB,
 				}
-				emitter.ExpectOnce(derive.ConfirmReceivedAttributesEvent{})
 				emitter.ExpectOnce(engine.PendingSafeRequestEvent{})
 				ah.OnEvent(context.Background(), derive.DerivedAttributesEvent{Attributes: attr})
+				require.Equal(t, 1, pd.callCount)
 				emitter.AssertExpectations(t)
 				require.NotNil(t, ah.attributes, "queued up derived attributes")
 
@@ -340,12 +353,13 @@ func TestAttributesHandler(t *testing.T) {
 		l2 := &testutils.MockL2Client{}
 		emitter := &testutils.MockEmitter{}
 		engDeriver := &MockEngineController{}
-		ah := NewAttributesHandler(logger, cfg, context.Background(), l2, engDeriver)
+		pd := new(mockPd)
+		ah := NewAttributesHandler(logger, cfg, context.Background(), l2, engDeriver, pd)
 		ah.AttachEmitter(emitter)
 
-		emitter.ExpectOnce(derive.ConfirmReceivedAttributesEvent{})
 		emitter.ExpectOnce(engine.PendingSafeRequestEvent{})
 		ah.OnEvent(context.Background(), derive.DerivedAttributesEvent{Attributes: attrA1Alt})
+		require.Equal(t, 1, pd.callCount)
 		emitter.AssertExpectations(t)
 		require.NotNil(t, ah.attributes, "queued up derived attributes")
 
@@ -378,7 +392,8 @@ func TestAttributesHandler(t *testing.T) {
 		l2 := &testutils.MockL2Client{}
 		emitter := &testutils.MockEmitter{}
 		engDeriver := &MockEngineController{}
-		ah := NewAttributesHandler(logger, cfg, context.Background(), l2, engDeriver)
+		pd := new(mockPd)
+		ah := NewAttributesHandler(logger, cfg, context.Background(), l2, engDeriver, pd)
 		ah.AttachEmitter(emitter)
 
 		emitter.ExpectOnceType("ResetEvent")
@@ -386,6 +401,7 @@ func TestAttributesHandler(t *testing.T) {
 			PendingSafe: refA1,
 			Unsafe:      refA0,
 		})
+		require.Equal(t, 0, pd.callCount)
 		emitter.AssertExpectations(t)
 		l2.AssertExpectations(t)
 	})
@@ -395,7 +411,8 @@ func TestAttributesHandler(t *testing.T) {
 		l2 := &testutils.MockL2Client{}
 		emitter := &testutils.MockEmitter{}
 		engDeriver := &MockEngineController{}
-		ah := NewAttributesHandler(logger, cfg, context.Background(), l2, engDeriver)
+		pd := new(mockPd)
+		ah := NewAttributesHandler(logger, cfg, context.Background(), l2, engDeriver, pd)
 		ah.AttachEmitter(emitter)
 
 		// If there are no attributes, we expect the pipeline to be requested to generate attributes.
@@ -404,6 +421,7 @@ func TestAttributesHandler(t *testing.T) {
 			PendingSafe: refA1,
 			Unsafe:      refA1,
 		})
+		require.Equal(t, 0, pd.callCount)
 		// no calls to L2 or emitter when there is nothing to process
 		l2.AssertExpectations(t)
 		emitter.AssertExpectations(t)

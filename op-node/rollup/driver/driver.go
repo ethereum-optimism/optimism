@@ -206,13 +206,13 @@ func NewDriver(
 	}
 	sys.Register("finalizer", finalizer)
 
-	attrHandler := attributes.NewAttributesHandler(log, cfg, driverCtx, l2, ec)
-	sys.Register("attributes-handler", attrHandler)
-
 	derivationPipeline := derive.NewDerivationPipeline(log, cfg, depSet, verifConfDepth, l1Blobs, altDA, l2, metrics, indexingMode)
 
-	sys.Register("pipeline",
-		derive.NewPipelineDeriver(driverCtx, derivationPipeline))
+	pipelineDeriver := derive.NewPipelineDeriver(driverCtx, derivationPipeline)
+	sys.Register("pipeline", pipelineDeriver)
+
+	attrHandler := attributes.NewAttributesHandler(log, cfg, driverCtx, l2, ec, pipelineDeriver)
+	sys.Register("attributes-handler", attrHandler)
 
 	schedDeriv := NewStepSchedulingDeriver(log)
 	sys.Register("step-scheduler", schedDeriv)

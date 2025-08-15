@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/attributes"
 	"io"
 	"math/big"
 	"time"
@@ -21,7 +22,6 @@ import (
 	opnodemetrics "github.com/ethereum-optimism/optimism/op-node/metrics"
 	"github.com/ethereum-optimism/optimism/op-node/node"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
-	"github.com/ethereum-optimism/optimism/op-node/rollup/attributes"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/clsync"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/driver"
@@ -161,12 +161,13 @@ func NewL2Verifier(t Testing, log log.Logger, l1 derive.L1Fetcher,
 	}
 	sys.Register("finalizer", finalizer, opts)
 
-	attrHandler := attributes.NewAttributesHandler(log, cfg, ctx, eng, ec)
-	sys.Register("attributes-handler", attrHandler, opts)
-
 	indexingMode := interopSys != nil
 	pipeline := derive.NewDerivationPipeline(log, cfg, depSet, l1, blobsSrc, altDASrc, eng, metrics, indexingMode)
-	sys.Register("pipeline", derive.NewPipelineDeriver(ctx, pipeline), opts)
+	pipelineDeriver := derive.NewPipelineDeriver(ctx, pipeline)
+	sys.Register("pipeline", pipelineDeriver, opts)
+
+	attrHandler := attributes.NewAttributesHandler(log, cfg, ctx, eng, ec)
+	sys.Register("attributes-handler", attrHandler, opts)
 
 	testActionEmitter := sys.Register("test-action", nil, opts)
 

@@ -31,16 +31,29 @@ func (r *engineResetter) ConfirmEngineReset() {
 	r.callCount++
 }
 
+type pipelineDeriver struct {
+	callCount int
+}
+
+func (p *pipelineDeriver) ConfirmReceivedAttributes() {
+	p.callCount++
+}
+
 func TestProgramDeriver(t *testing.T) {
 	resetter := &engineResetter{}
+	pd := &pipelineDeriver{}
 
 	newProgram := func(t *testing.T, target uint64) (*ProgramDeriver, *testutils.MockEmitter) {
+		resetter.callCount = 0
+		pd.callCount = 0
+
 		m := &testutils.MockEmitter{}
 		logger := testlog.Logger(t, log.LevelInfo)
 		prog := &ProgramDeriver{
 			logger:         logger,
 			Emitter:        m,
 			resetter:       resetter,
+			pd:             pd,
 			targetBlockNum: target,
 		}
 		return prog, m
@@ -81,9 +94,9 @@ func TestProgramDeriver(t *testing.T) {
 	t.Run("derived attributes", func(t *testing.T) {
 		p, m := newProgram(t, 1000)
 		attrib := &derive.AttributesWithParent{Parent: eth.L2BlockRef{Number: 123}}
-		m.ExpectOnce(derive.ConfirmReceivedAttributesEvent{})
 		m.ExpectOnce(engine.BuildStartEvent{Attributes: attrib})
 		p.OnEvent(context.Background(), derive.DerivedAttributesEvent{Attributes: attrib})
+		require.Equal(t, 1, pd.callCount)
 		m.AssertExpectations(t)
 		require.False(t, p.closing)
 		require.NoError(t, p.resultError)

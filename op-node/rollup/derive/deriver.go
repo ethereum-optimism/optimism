@@ -55,15 +55,6 @@ func (d DeriverMoreEvent) String() string {
 	return "deriver-more"
 }
 
-// ConfirmReceivedAttributesEvent signals that the derivation pipeline may generate new attributes.
-// After emitting DerivedAttributesEvent, no new attributes will be generated until a confirmation of reception.
-type ConfirmReceivedAttributesEvent struct {
-}
-
-func (d ConfirmReceivedAttributesEvent) String() string {
-	return "confirm-received-attributes"
-}
-
 // DerivedAttributesEvent is emitted when new attributes are available to apply to the engine.
 type DerivedAttributesEvent struct {
 	Attributes *AttributesWithParent
@@ -108,6 +99,10 @@ func NewPipelineDeriver(ctx context.Context, pipeline *DerivationPipeline) *Pipe
 		pipeline: pipeline,
 		ctx:      ctx,
 	}
+}
+
+func (d *PipelineDeriver) ConfirmReceivedAttributes() {
+	d.needAttributesConfirmation = false
 }
 
 func (d *PipelineDeriver) AttachEmitter(em event.Emitter) {
@@ -162,8 +157,6 @@ func (d *PipelineDeriver) OnEvent(ctx context.Context, ev event.Event) bool {
 				d.emitter.Emit(ctx, DeriverMoreEvent{}) // continue with the next step if we can
 			}
 		}
-	case ConfirmReceivedAttributesEvent:
-		d.needAttributesConfirmation = false
 	case DepositsOnlyPayloadAttributesRequestEvent:
 		d.pipeline.log.Warn("Deriving deposits-only attributes", "origin", d.pipeline.Origin())
 		attrib, err := d.pipeline.DepositsOnlyAttributes(x.Parent, x.DerivedFrom)
