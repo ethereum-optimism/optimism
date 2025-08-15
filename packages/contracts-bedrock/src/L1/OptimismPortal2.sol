@@ -119,9 +119,8 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
     /// @notice Address of the AnchorStateRegistry contract.
     IAnchorStateRegistry public anchorStateRegistry;
 
-    /// @custom:legacy
-    /// @custom:spacer ethLockbox
-    address private spacer_63_0_20;
+    /// @notice Address of the ETHLockbox contract.
+    IETHLockbox public ethLockbox;
 
     /// @custom:legacy
     /// @custom:spacer superRootsActive
@@ -152,6 +151,11 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
     /// @param withdrawalHash Hash of the withdrawal transaction.
     /// @param success        Whether the withdrawal transaction was successful.
     event WithdrawalFinalized(bytes32 indexed withdrawalHash, bool success);
+
+    /// @notice Emitted when the ETHLockbox is enabled.
+    /// @param ethLockbox Address of the ETHLockbox contract.
+    /// @param ethBalance Amount of ETH migrated to the ETHLockbox.
+    event ETHMigrated(address indexed ethLockbox, uint256 ethBalance);
 
     /// @notice Thrown when a withdrawal has already been finalized.
     error OptimismPortal_AlreadyFinalized();
@@ -216,6 +220,12 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
     /// @notice Thrown when trying to migrate to the same AnchorStateRegistry.
     error OptimismPortal_MigratingToSameRegistry();
 
+    /// @notice Thrown when the ETHLockbox feature is not enabled in the SystemConfig contract.
+    error OptimismPortal_LockboxFeatureNotEnabled();
+
+    /// @notice Thrown when the ETHLockbox is already enabled.
+    error OptimismPortal_LockboxAlreadyEnabled();
+
     /// @notice Semantic version.
     /// @custom:semver 4.7.0
     function version() public pure virtual returns (string memory) {
@@ -262,11 +272,32 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
 
         // Now perform upgrade logic.
         anchorStateRegistry = _anchorStateRegistry;
+    }
 
-        // If ETHLockbox existed, trigger unlockETH to pull the full balance into this contract.
-        if (spacer_63_0_20 != address(0)) {
-            IETHLockbox(spacer_63_0_20).unlockETH(spacer_63_0_20.balance);
+    /// @notice Enables the ETHLockbox. Can ONLY be called by the ProxyAdmin owner, and ONLY if the
+    ///         ETHLockbox feature is enabled in the SystemConfig contract.
+    /// @param _ethLockbox Address of the ETHLockbox contract.
+    function enableLockbox(IETHLockbox _ethLockbox) external {
+        // Only the ProxyAdmin owner can enable the ETHLockbox.
+        _assertOnlyProxyAdminOwner();
+
+        // The ETHLockbox feature MUST be enabled in the SystemConfig contract. This is an extra
+        // layer of safety, you must confirm that you want the contract to be enabled in two
+        // independent locations in the codebase.
+        if (!systemConfig.features("ETH_LOCKBOX")) {
+            revert OptimismPortal_LockboxFeatureNotEnabled();
         }
+
+        // Cannot trigger this more than once.
+        if (address(ethLockbox) != address(0)) {
+            revert OptimismPortal_LockboxAlreadyEnabled();
+        }
+
+        // Migrate into the ETHLockbox.
+        ethLockbox = _ethLockbox;
+        uint256 ethBalance = address(this).balance;
+        ethLockbox.lockETH{ value: ethBalance }();
+        emit ETHMigrated(address(ethLockbox), ethBalance);
     }
 
     /// @notice Getter for the current paused status.
@@ -482,6 +513,13 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
         // Mark the withdrawal as finalized so it can't be replayed.
         finalizedWithdrawals[withdrawalHash] = true;
 
+        // If using ETHLockbox, grab the ETH required to finalize the withdrawal.
+        if (_usingLockbox()) {
+            if (_tx.value > 0) {
+                ethLockbox.lockETH{ value: _tx.value }();
+            }
+        }
+
         // Set the l2Sender so contracts know who triggered this withdrawal on L2.
         l2Sender = _tx.sender;
 
@@ -500,6 +538,13 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
         // All withdrawals are immediately finalized. Replayability can
         // be achieved through contracts built on top of this contract
         emit WithdrawalFinalized(withdrawalHash, success);
+
+        // If using ETHLockbox, and the withdrawal failed, send ETH back to the ETHLockbox.
+        if (_usingLockbox()) {
+            if (!success && _tx.value > 0) {
+                ethLockbox.lockETH{ value: _tx.value }();
+            }
+        }
 
         // Reverting here is useful for determining the exact gas cost to successfully execute the
         // sub call to the target contract if the minimum gas limit specified by the user would not
@@ -568,6 +613,13 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
         payable
         metered(_gasLimit)
     {
+        // If using ETHLockbox, deposit attached ETH into the lockbox.
+        if (_usingLockbox()) {
+            if (msg.value > 0) {
+                ethLockbox.lockETH{ value: msg.value }();
+            }
+        }
+
         // Just to be safe, make sure that people specify address(0) as the target when doing
         // contract creations.
         if (_isCreation && _to != address(0)) {
@@ -611,6 +663,12 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
         return proofSubmitters[_withdrawalHash].length;
     }
 
+    /// @notice Checks if the contract is using the ETHLockbox.
+    /// @return True if the contract is using the ETHLockbox, false otherwise.
+    function _usingLockbox() internal view returns (bool) {
+        return address(ethLockbox) != address(0) && systemConfig.features("ETH_LOCKBOX");
+    }
+
     /// @notice Asserts that the contract is not paused.
     function _assertNotPaused() internal view {
         if (paused()) {
@@ -621,7 +679,7 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
     /// @notice Checks if a target address is unsafe.
     function _isUnsafeTarget(address _target) internal view virtual returns (bool) {
         // Prevent users from targeting an unsafe target address on a withdrawal transaction.
-        return _target == address(this);
+        return _target == address(this) || (_usingLockbox() && _target == address(ethLockbox));
     }
 
     /// @notice Getter for the resource config. Used internally by the ResourceMetering contract.
