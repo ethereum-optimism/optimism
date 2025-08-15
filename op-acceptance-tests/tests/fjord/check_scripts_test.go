@@ -173,7 +173,7 @@ func checkFastLZTransactions(t devtest.T, ctx context.Context, sys *presets.Mini
 		txSigned, err := signedTx.MarshalBinary()
 		require.NoError(err)
 
-		gpoL1GasUsed, err := gasPriceOracle.GetL1GasUsed(opts, txUnsigned)
+		_, err = gasPriceOracle.GetL1GasUsed(opts, txUnsigned)
 		require.NoError(err)
 
 		gpoFee, err := gasPriceOracle.GetL1Fee(opts, txUnsigned)
@@ -198,14 +198,10 @@ func checkFastLZTransactions(t devtest.T, ctx context.Context, sys *presets.Mini
 		require.NoError(err)
 		require.Equal(upperBoundCost.Uint64(), upperBound.Uint64())
 
-		baseFeeScalar, err := gasPriceOracle.BaseFeeScalar(opts)
+		_, err = gasPriceOracle.BaseFeeScalar(opts)
 		require.NoError(err)
-		blobBaseFeeScalar, err := gasPriceOracle.BlobBaseFeeScalar(opts)
+		_, err = gasPriceOracle.BlobBaseFeeScalar(opts)
 		require.NoError(err)
-
-		_ = gpoL1GasUsed
-		_ = baseFeeScalar
-		_ = blobBaseFeeScalar
 	}
 }
 
