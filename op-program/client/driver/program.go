@@ -3,6 +3,7 @@ package driver
 import (
 	"context"
 	"fmt"
+
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum/go-ethereum/log"
 

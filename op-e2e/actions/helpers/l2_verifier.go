@@ -4,10 +4,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/ethereum-optimism/optimism/op-node/rollup/attributes"
 	"io"
 	"math/big"
 	"time"
+
+	"github.com/ethereum-optimism/optimism/op-node/rollup/attributes"
 
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/depset"
 	"github.com/stretchr/testify/require"
