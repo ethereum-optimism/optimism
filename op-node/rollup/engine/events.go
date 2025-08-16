@@ -151,16 +151,6 @@ func (ev FinalizedUpdateEvent) String() string {
 	return "finalized-update"
 }
 
-// CrossUpdateRequestEvent triggers update events to be emitted, repeating the current state.
-type CrossUpdateRequestEvent struct {
-	CrossUnsafe bool
-	CrossSafe   bool
-}
-
-func (ev CrossUpdateRequestEvent) String() string {
-	return "cross-update-request"
-}
-
 // InteropInvalidateBlockEvent is emitted when a block needs to be invalidated, and a replacement is needed.
 type InteropInvalidateBlockEvent struct {
 	Invalidated eth.BlockRef

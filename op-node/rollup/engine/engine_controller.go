@@ -224,6 +224,21 @@ func (e *EngineController) SetBackupUnsafeL2Head(r eth.L2BlockRef, triggerReorg 
 	e.needFCUCallForBackupUnsafeReorg = triggerReorg
 }
 
+func (e *EngineController) OnCrossUpdate(ctx context.Context, crossUnsafe bool, crossSafe bool) {
+	if crossUnsafe {
+		e.emitter.Emit(ctx, CrossUnsafeUpdateEvent{
+			CrossUnsafe: e.CrossUnsafeL2Head(),
+			LocalUnsafe: e.UnsafeL2Head(),
+		})
+	}
+	if crossSafe {
+		e.emitter.Emit(ctx, CrossSafeUpdateEvent{
+			CrossSafe: e.SafeL2Head(),
+			LocalSafe: e.LocalSafeL2Head(),
+		})
+	}
+}
+
 // logSyncProgressMaybe helps log forkchoice state-changes when applicable.
 // First, the pre-state is registered.
 // A callback is returned to then log the changes to the pre-state, if any.
@@ -718,19 +733,6 @@ func (d *EngineController) OnEvent(ctx context.Context, ev event.Event) bool {
 		d.emitter.Emit(ctx, FinalizedUpdateEvent(x))
 		// Try to apply the forkchoice changes
 		d.TryUpdateEngine(ctx)
-	case CrossUpdateRequestEvent:
-		if x.CrossUnsafe {
-			d.emitter.Emit(ctx, CrossUnsafeUpdateEvent{
-				CrossUnsafe: d.CrossUnsafeL2Head(),
-				LocalUnsafe: d.UnsafeL2Head(),
-			})
-		}
-		if x.CrossSafe {
-			d.emitter.Emit(ctx, CrossSafeUpdateEvent{
-				CrossSafe: d.SafeL2Head(),
-				LocalSafe: d.LocalSafeL2Head(),
-			})
-		}
 	case InteropInvalidateBlockEvent:
 		d.emitter.Emit(ctx, BuildStartEvent{Attributes: x.Attributes})
 	case BuildStartEvent:
