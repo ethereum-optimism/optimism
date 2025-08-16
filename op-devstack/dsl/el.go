@@ -60,8 +60,13 @@ func (el *elNode) WaitForOnline() {
 	el.require.Eventually(func() bool {
 		el.log.Info("Waiting for online")
 		_, err := el.inner.EthClient().InfoByLabel(el.ctx, eth.Unsafe)
-		return err == nil
-	}, 10*time.Second, 500*time.Millisecond, "Expected to be online")
+		if err != nil {
+			el.log.Warn("EL node not ready yet", "err", err)
+			return false
+		}
+		el.log.Info("EL node is online")
+		return true
+	}, 30*time.Second, 1*time.Second, "Expected to be online")
 }
 
 func (el *elNode) IsCanonical(ref eth.BlockID) bool {
