@@ -23,8 +23,9 @@ func TestL1ToL2Deposit(gt *testing.T) {
 	t := devtest.SerialT(gt)
 	sys := presets.NewMinimal(t)
 
-	// Wait for L1 node to be responsive
+	// Wait for L1 and L2 nodes to be responsive
 	sys.L1Network.WaitForOnline()
+	sys.L2EL.WaitForOnline()
 
 	// Fund Alice on L1
 	fundingAmount := eth.ThreeHundredthsEther
