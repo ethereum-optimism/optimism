@@ -14,6 +14,10 @@ func TestFaucetFund(gt *testing.T) {
 	tracer := t.Tracer()
 	ctx := t.Ctx()
 
+	// Wait for L1 and L2 networks to be online before proceeding
+	sys.L1Network.WaitForOnline()
+	sys.L2EL.WaitForOnline()
+
 	ctx, span := tracer.Start(ctx, "acquire wallets")
 	alice := sys.Wallet.NewEOA(sys.L1EL)
 	l1Balance := alice.GetBalance()
