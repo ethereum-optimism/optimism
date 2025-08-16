@@ -15,10 +15,22 @@ The throttling system prevents these issues by instructing sequencers to limit b
 
 ## Throttling Controller Types
 
-The batcher supports four throttling strategies, each with different response characteristics:
+The batcher supports four throttling strategies, each with different response characteristics. The strategies can be understood in this
+diagram:
+![Throttling Strategies](./images/throttling.png)
+
+* Each strategy responds to the `unsafe_da_bytes` metric and corresponding thresholds `throttle.unsafe-da-bytes-lower/upper-threshold`, and results a throttling "intensity" between 0 and 1.
+
+* This intensity is then mapped to a maximum tx size and maximum block size to control the `miner_setMaxDASize(maxTxSize, maxBlockSize)` API calls made to block builders, depending on the configuration variables shown in the diagram above.
+
+* When the throttling intensity is zero (the `unsafe_da_bytes` is less than `unsafe-da-bytes-lower-threshold`), blocks will continue to be limited at `throttle.block-size-upper-limit`, whereas transactions are not throttled at all (by using `maxTxSize=0`).
+
+> NOTE
+> Be aware that using `0` for either
+> `throttle.block-size-lower-limit` and `throttle.tx-size-lower-limit`
+> results in no throttling limits being applied (for blocks and transactions respectively).
 
 ### Step Controller (Default)
-![Step Controller Response](./images/step_throttling.png)
 
 **Behavior**: Binary on/off throttling
 - **Below threshold**: No throttling applied
@@ -26,8 +38,10 @@ The batcher supports four throttling strategies, each with different response ch
 - **Use case**: Simple, predictable throttling behavior
 - **Best for**: Environments requiring clear, binary throttling states
 
+> [!WARNING]
+> If selecting the step controller, you should **not** rely on default throttling parameters as this could cause too much throttling to be applied too quickly.
+
 ### Linear Controller
-![Linear Controller Response](./images/linear_throttling.png)
 
 **Behavior**: Linear scaling throttling intensity
 - **Response curve**: Gradual increase from threshold to maximum threshold
@@ -36,7 +50,6 @@ The batcher supports four throttling strategies, each with different response ch
 - **Best for**: Steady load patterns with predictable growth
 
 ### Quadratic Controller
-![Quadratic Controller Response](./images/quadratic_throttling.png)
 
 **Behavior**: Quadratic scaling throttling intensity
 - **Low overload**: Gentle throttling response
@@ -60,43 +73,6 @@ PID Controller is a control mechanism that automatically adjusts the batcher's t
 > ⚠️ **EXPERIMENTAL FEATURE WARNING**
 >
 > The PID controller is experimental and should only be used by users with deep understanding of control theory. Improper configuration can lead to system instability, oscillations, or poor performance. Use at your own risk and only with extensive testing.
-
-## Configuration
-
-### CLI Configuration
-
-Configure throttling at startup using command-line flags:
-
-```bash
-# Basic throttling parameters
---throttle-threshold=1000000          # Bytes threshold for throttling activation
---throttle-tx-size=128000            # Max transaction size when throttling
---throttle-block-size=2000000        # Max block size when throttling
---throttle-always-block-size=500000  # Always-applied block size limit
-
-# Controller type and multiplier
---throttle-controller-type=quadratic  # Controller type: step, linear, quadratic, pid
---throttle-threshold-multiplier=2.5   # Multiplier for quadratic controller
-
-# PID-specific parameters (required when using PID controller)
---throttle-pid-kp=0.3               # Proportional gain
---throttle-pid-ki=0.15              # Integral gain
---throttle-pid-kd=0.08              # Derivative gain
---throttle-pid-integral-max=50.0    # Maximum integral accumulation
---throttle-pid-output-max=1.0       # Maximum controller output
---throttle-pid-sample-time=5ms      # Controller update frequency
-
-# Additional endpoints to throttle (e.g., builders in rollup-boost)
---additional-throttling-endpoints=http://builder1:8545,http://builder2:8545
-```
-
-### Environment Variables
-
-```bash
-export OP_BATCHER_THROTTLE_THRESHOLD=1000000
-export OP_BATCHER_THROTTLE_CONTROLLER_TYPE=quadratic
-export OP_BATCHER_THROTTLE_THRESHOLD_MULTIPLIER=2.5
-```
 
 ## Runtime Management via RPC
 

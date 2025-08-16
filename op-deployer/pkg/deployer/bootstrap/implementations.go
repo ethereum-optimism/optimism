@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	mipsVersion "github.com/ethereum-optimism/optimism/cannon/mipsevm/versions"
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/artifacts"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/broadcaster"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/opcm"
@@ -115,6 +116,13 @@ func ImplementationsCLI(cliCtx *cli.Context) error {
 		return fmt.Errorf("failed to populate config: %w", err)
 	}
 	cfg.Logger = l
+
+	artifactsURLStr := cliCtx.String(deployer.ArtifactsLocatorFlagName)
+	artifactsLocator := new(artifacts.Locator)
+	if err := artifactsLocator.UnmarshalText([]byte(artifactsURLStr)); err != nil {
+		return fmt.Errorf("failed to parse artifacts URL: %w", err)
+	}
+	cfg.ArtifactsLocator = artifactsLocator
 
 	ctx := ctxinterrupt.WithCancelOnInterrupt(cliCtx.Context)
 	outfile := cliCtx.String(OutfileFlagName)

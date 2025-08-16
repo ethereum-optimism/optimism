@@ -59,7 +59,7 @@ func WithSyncTesters(l2ELs []stack.L2ELNodeID) stack.Option[*Orchestrator] {
 			require.True(ok, "need L2 EL for sync tester", elID)
 
 			syncTesters[id] = &stconf.SyncTesterEntry{
-				ELRPC: endpoint.MustRPC{Value: endpoint.URL(el.userRPC)},
+				ELRPC: endpoint.MustRPC{Value: endpoint.URL(el.UserRPC())},
 				// EngineRPC: endpoint.MustRPC{Value: endpoint.URL(el.authRPC)},
 				// JwtPath:   el.jwtPath,
 				ChainID: elID.ChainID(),

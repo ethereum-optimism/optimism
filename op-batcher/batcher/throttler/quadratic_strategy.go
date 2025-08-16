@@ -9,20 +9,20 @@ import (
 
 // QuadraticStrategy implements quadratic throttling for more aggressive scaling
 type QuadraticStrategy struct {
-	threshold    uint64
-	maxThreshold uint64
+	lowerThreshold uint64
+	upperThreshold uint64
 
 	mu               sync.RWMutex
 	currentIntensity float64
 }
 
-func NewQuadraticStrategy(threshold uint64, maxThreshold uint64, log log.Logger) *QuadraticStrategy {
-	if maxThreshold <= threshold {
+func NewQuadraticStrategy(lowerThreshold uint64, upperThreshold uint64, log log.Logger) *QuadraticStrategy {
+	if upperThreshold <= lowerThreshold {
 		panic("maxThreshold must be greater than threshold")
 	}
 	return &QuadraticStrategy{
-		threshold:        threshold,
-		maxThreshold:     maxThreshold,
+		lowerThreshold:   lowerThreshold,
+		upperThreshold:   upperThreshold,
 		currentIntensity: 0.0,
 	}
 }
@@ -30,13 +30,13 @@ func NewQuadraticStrategy(threshold uint64, maxThreshold uint64, log log.Logger)
 func (q *QuadraticStrategy) Update(currentPendingBytes uint64) float64 {
 	var intensity float64 = 0.0
 
-	if currentPendingBytes > q.threshold {
+	if currentPendingBytes > q.lowerThreshold {
 		// Quadratic scaling from threshold to maxThreshold
-		if currentPendingBytes >= q.maxThreshold {
+		if currentPendingBytes >= q.upperThreshold {
 			intensity = 1.0
 		} else {
 			// Quadratic interpolation (x^2 curve for more aggressive throttling)
-			linear := float64(currentPendingBytes-q.threshold) / float64(q.maxThreshold-q.threshold)
+			linear := float64(currentPendingBytes-q.lowerThreshold) / float64(q.upperThreshold-q.lowerThreshold)
 			intensity = linear * linear
 		}
 	}

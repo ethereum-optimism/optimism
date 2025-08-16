@@ -118,14 +118,16 @@ func testL2CLRestart(ids DefaultInteropSystemIDs, system stack.System, control s
 	// stop L2CL
 	control.L2CLNodeState(ids.L2ACL, stack.Stop)
 
-	// L2CL API will not work since L2CL stopped
+	// L2CL API will still kind of work, it is not functioning,
+	// but since L2CL is behind a proxy, the proxy is still online, and may create a different error.
+	// The dial will be accepted, and the connection then closed, once the connection behind the proxy fails.
 	{
 		ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
 		_, err := retry.Do[*eth.SyncStatus](ctx, 10, retry.Fixed(time.Millisecond*500), func() (*eth.SyncStatus, error) {
 			return seqA.RollupAPI().SyncStatus(ctx)
 		})
 		cancel()
-		require.Error(t, err)
+		require.Error(t, err, "should not be able to get sync-status when node behind proxy is offline")
 	}
 
 	// restart L2CL

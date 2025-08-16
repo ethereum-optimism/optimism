@@ -361,9 +361,9 @@ func (e *EngineController) initializeUnknowns(ctx context.Context) error {
 	return nil
 }
 
-// TryUpdateEngine attempts to update the engine with the current forkchoice state of the rollup node,
+// tryUpdateEngine attempts to update the engine with the current forkchoice state of the rollup node,
 // this is a no-op if the nodes already agree on the forkchoice state.
-func (e *EngineController) TryUpdateEngine(ctx context.Context) error {
+func (e *EngineController) tryUpdateEngine(ctx context.Context) error {
 	if !e.needFCUCall {
 		return ErrNoFCUNeeded
 	}
@@ -598,31 +598,31 @@ func (e *EngineController) TryBackupUnsafeReorg(ctx context.Context) (bool, erro
 		eth.ForkchoiceUpdateErr(fcRes.PayloadStatus)))
 }
 
+func (d *EngineController) TryUpdateEngine(ctx context.Context) {
+	// If we don't need to call FCU, keep going b/c this was a no-op. If we needed to
+	// perform a network call, then we should yield even if we did not encounter an error.
+	if err := d.tryUpdateEngine(d.ctx); err != nil && !errors.Is(err, ErrNoFCUNeeded) {
+		if errors.Is(err, derive.ErrReset) {
+			d.emitter.Emit(ctx, rollup.ResetEvent{Err: err})
+		} else if errors.Is(err, derive.ErrTemporary) {
+			d.emitter.Emit(ctx, rollup.EngineTemporaryErrorEvent{Err: err})
+		} else {
+			d.emitter.Emit(ctx, rollup.CriticalErrorEvent{
+				Err: fmt.Errorf("unexpected tryUpdateEngine error type: %w", err),
+			})
+		}
+	}
+}
+
 // TODO(#16917) Remove Event System Refactor Comments
 // OnEvent implements event.Deriver (moved from EngDeriver)
+// TryUpdateEngineEvent is replaced with TryUpdateEngine
 func (d *EngineController) OnEvent(ctx context.Context, ev event.Event) bool {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 	// TODO(#16917) Remove Event System Refactor Comments
 	//  PromoteUnsafeEvent, PromotePendingSafeEvent, PromoteLocalSafeEvent fan out is updated to procedural
 	switch x := ev.(type) {
-	case TryUpdateEngineEvent:
-		// If we don't need to call FCU, keep going b/c this was a no-op. If we needed to
-		// perform a network call, then we should yield even if we did not encounter an error.
-		if err := d.TryUpdateEngine(d.ctx); err != nil && !errors.Is(err, ErrNoFCUNeeded) {
-			if errors.Is(err, derive.ErrReset) {
-				d.emitter.Emit(ctx, rollup.ResetEvent{Err: err})
-			} else if errors.Is(err, derive.ErrTemporary) {
-				d.emitter.Emit(ctx, rollup.EngineTemporaryErrorEvent{Err: err})
-			} else {
-				d.emitter.Emit(ctx, rollup.CriticalErrorEvent{
-					Err: fmt.Errorf("unexpected TryUpdateEngine error type: %w", err),
-				})
-			}
-		} else if x.triggeredByPayloadSuccess() {
-			logValues := x.getBlockProcessingMetrics()
-			d.log.Info("Inserted new L2 unsafe block", logValues...)
-		}
 	case ProcessUnsafePayloadEvent:
 		ref, err := derive.PayloadToBlockRef(d.rollupCfg, x.Envelope.ExecutionPayload)
 		if err != nil {
@@ -654,14 +654,13 @@ func (d *EngineController) OnEvent(ctx context.Context, ev event.Event) bool {
 		} else {
 			d.log.Info("successfully processed payload", "ref", ref, "txs", len(x.Envelope.ExecutionPayload.Transactions))
 		}
-
 	case UnsafeUpdateEvent:
 		// pre-interop everything that is local-unsafe is also immediately cross-unsafe.
 		if !d.rollupCfg.IsInterop(x.Ref.Time) {
 			d.emitter.Emit(ctx, PromoteCrossUnsafeEvent(x))
 		}
 		// Try to apply the forkchoice changes
-		d.emitter.Emit(ctx, TryUpdateEngineEvent{})
+		d.TryUpdateEngine(ctx)
 	case PromoteCrossUnsafeEvent:
 		d.SetCrossUnsafeHead(x.Ref)
 		d.emitter.Emit(ctx, CrossUnsafeUpdateEvent{
@@ -697,7 +696,7 @@ func (d *EngineController) OnEvent(ctx context.Context, ev event.Event) bool {
 			})
 		}
 		// Try to apply the forkchoice changes
-		d.emitter.Emit(ctx, TryUpdateEngineEvent{})
+		d.TryUpdateEngine(ctx)
 	case PromoteFinalizedEvent:
 		if x.Ref.Number < d.Finalized().Number {
 			d.log.Error("Cannot rewind finality,", "ref", x.Ref, "finalized", d.Finalized())
@@ -710,7 +709,7 @@ func (d *EngineController) OnEvent(ctx context.Context, ev event.Event) bool {
 		d.SetFinalizedHead(x.Ref)
 		d.emitter.Emit(ctx, FinalizedUpdateEvent(x))
 		// Try to apply the forkchoice changes
-		d.emitter.Emit(ctx, TryUpdateEngineEvent{})
+		d.TryUpdateEngine(ctx)
 	case CrossUpdateRequestEvent:
 		if x.CrossUnsafe {
 			d.emitter.Emit(ctx, CrossUnsafeUpdateEvent{
@@ -802,8 +801,12 @@ func (e *EngineController) SetOriginSelectorResetter(resetter OriginSelectorForc
 // ForceReset performs a forced reset to the specified block references
 func (e *EngineController) ForceReset(ctx context.Context, localUnsafe, crossUnsafe, localSafe, crossSafe, finalized eth.L2BlockRef) {
 	// Reset other components before resetting the engine
-	e.attributesResetter.ForceReset(ctx, localUnsafe, crossUnsafe, localSafe, crossSafe, finalized)
-	e.pipelineResetter.ResetPipeline()
+	if e.attributesResetter != nil {
+		e.attributesResetter.ForceReset(ctx, localUnsafe, crossUnsafe, localSafe, crossSafe, finalized)
+	}
+	if e.pipelineResetter != nil {
+		e.pipelineResetter.ResetPipeline()
+	}
 	// originSelectorResetter is only present when sequencing is enabled
 	if e.originSelectorResetter != nil {
 		e.originSelectorResetter.ResetOrigins()
@@ -811,10 +814,12 @@ func (e *EngineController) ForceReset(ctx context.Context, localUnsafe, crossUns
 
 	ForceEngineReset(e, localUnsafe, crossUnsafe, localSafe, crossSafe, finalized)
 
-	e.emitter.Emit(ctx, derive.ConfirmPipelineResetEvent{})
+	if e.pipelineResetter != nil {
+		e.emitter.Emit(ctx, derive.ConfirmPipelineResetEvent{})
+	}
 
 	// Time to apply the changes to the underlying engine
-	e.emitter.Emit(ctx, TryUpdateEngineEvent{})
+	e.TryUpdateEngine(ctx)
 
 	v := EngineResetConfirmedEvent{
 		LocalUnsafe: e.UnsafeL2Head(),

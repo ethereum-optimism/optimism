@@ -576,10 +576,11 @@ func WithBatcherCompressionAlgo(ca derive.CompressionAlgo) StartOption {
 func WithBatcherThrottling(interval time.Duration, threshold, txSize, blockSize uint64) StartOption {
 	return StartOption{
 		BatcherMod: func(cfg *bss.CLIConfig) {
-			cfg.ThrottleThreshold = threshold
-			cfg.ThrottleControllerType = batcherCfg.StepControllerType
-			cfg.ThrottleTxSize = txSize
-			cfg.ThrottleBlockSize = blockSize
+			cfg.ThrottleConfig.LowerThreshold = threshold
+			cfg.ThrottleConfig.ControllerType = batcherCfg.StepControllerType
+			cfg.ThrottleConfig.TxSizeLowerLimit = txSize
+			cfg.ThrottleConfig.BlockSizeLowerLimit = blockSize
+			cfg.ThrottleConfig.BlockSizeUpperLimit = blockSize * 100
 		},
 	}
 }

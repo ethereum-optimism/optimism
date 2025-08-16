@@ -71,7 +71,7 @@ func run() error {
 	}
 
 	ids := sysgo.NewDefaultMinimalSystemIDs(sysgo.DefaultL1ID, sysgo.DefaultL2AID)
-	presets.DoMain(testingM{}, stack.MakeCommon(stack.Combine(
+	presets.DoMain(testingM{}, stack.MakeCommon[*sysgo.Orchestrator](stack.Combine(
 		sysgo.WithMnemonicKeys(devkeys.TestMnemonic),
 
 		sysgo.WithDeployer(),
@@ -84,8 +84,8 @@ func run() error {
 
 		sysgo.WithL1Nodes(ids.L1EL, ids.L1CL),
 
-		sysgo.WithL2ELNode(ids.L2EL, nil),
-		sysgo.WithL2CLNode(ids.L2CL, true, false, ids.L1CL, ids.L1EL, ids.L2EL),
+		sysgo.WithL2ELNode(ids.L2EL),
+		sysgo.WithL2CLNode(ids.L2CL, ids.L1CL, ids.L1EL, ids.L2EL, sysgo.L2CLSequencer()),
 
 		sysgo.WithBatcher(ids.L2Batcher, ids.L1EL, ids.L2CL, ids.L2EL),
 		sysgo.WithProposer(ids.L2Proposer, ids.L1EL, &ids.L2CL, nil),
