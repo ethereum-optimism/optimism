@@ -109,15 +109,10 @@ contract DisputeGameFactory_TestInit is CommonTest {
     {
         return IFaultDisputeGameV2.GameConstructorParams({
             gameType: _gameType,
-            absolutePrestate: _absolutePrestate,
             maxGameDepth: 2 ** 3,
             splitDepth: 2 ** 2,
             clockExtension: Duration.wrap(3 hours),
-            maxClockDuration: Duration.wrap(3.5 days),
-            vm: _vm,
-            weth: delayedWeth,
-            anchorStateRegistry: anchorStateRegistry,
-            l2ChainId: 0
+            maxClockDuration: Duration.wrap(3.5 days)
         });
     }
 
@@ -223,7 +218,19 @@ contract DisputeGameFactory_TestInit is CommonTest {
             )
         });
 
-        _setGame(gameImpl_, GameTypes.CANNON);
+        // Encode the implementation args for CWIA (tightly packed)
+        bytes memory implArgs = abi.encodePacked(
+            _absolutePrestate, // 32 bytes
+            vm_, // 20 bytes
+            anchorStateRegistry, // 20 bytes
+            delayedWeth, // 20 bytes
+            uint256(0) // 32 bytes (l2ChainId)
+        );
+
+        vm.startPrank(disputeGameFactory.owner());
+        disputeGameFactory.setImplementation(GameTypes.CANNON_2, IDisputeGame(gameImpl_), implArgs);
+        disputeGameFactory.setInitBond(GameTypes.CANNON_2, 0.08 ether);
+        vm.stopPrank();
     }
 
     function setupPermissionedDisputeGame(
@@ -250,6 +257,12 @@ contract DisputeGameFactory_TestInit is CommonTest {
         });
 
         _setGame(gameImpl_, GameTypes.PERMISSIONED_CANNON);
+    }
+
+    function changeClaimStatus(Claim _claim, VMStatus _status) public pure returns (Claim out_) {
+        assembly {
+            out_ := or(and(not(shl(248, 0xFF)), _claim), shl(248, _status))
+        }
     }
 }
 
@@ -416,12 +429,6 @@ contract DisputeGameFactory_Create_Test is DisputeGameFactory_TestInit {
             abi.encodeWithSelector(GameAlreadyExists.selector, disputeGameFactory.getGameUUID(gt, rootClaim, extraData))
         );
         disputeGameFactory.create{ value: bondAmount }(gt, rootClaim, extraData);
-    }
-
-    function changeClaimStatus(Claim _claim, VMStatus _status) public pure returns (Claim out_) {
-        assembly {
-            out_ := or(and(not(shl(248, 0xFF)), _claim), shl(248, _status))
-        }
     }
 }
 
@@ -642,6 +649,60 @@ contract DisputeGameFactory_FindLatestGames_Test is DisputeGameFactory_TestInit 
         IDisputeGameFactory.GameSearchResult[] memory games =
             disputeGameFactory.findLatestGames(GameType.wrap(0), start, _n);
         assertEq(games.length, _n);
+    }
+}
+
+/// @title DisputeGameFactory_FaultDisputeGameV2_Test
+/// @notice Tests for FaultDisputeGameV2 creation in the `DisputeGameFactory` contract.
+contract DisputeGameFactory_FaultDisputeGameV2_Test is DisputeGameFactory_TestInit {
+    function test_setupFaultDisputeGameV2_works() public {
+        Claim absolutePrestate = Claim.wrap(bytes32(hex"dead"));
+
+        // Just test the setup function works
+        (address gameImpl, AlphabetVM vm_, IPreimageOracle preimageOracle_) = setupFaultDisputeGameV2(absolutePrestate);
+
+        // Verify the implementation was deployed and set
+        assertNotEq(gameImpl, address(0));
+        assertNotEq(address(vm_), address(0));
+        assertNotEq(address(preimageOracle_), address(0));
+
+        // Verify the game type was set in the factory
+        assertEq(address(disputeGameFactory.gameImpls(GameTypes.CANNON_2)), gameImpl);
+        assertEq(disputeGameFactory.initBonds(GameTypes.CANNON_2), 0.08 ether);
+    }
+
+    function test_createFaultDisputeGameV2_withCWIA_succeeds() public {
+        Claim absolutePrestate = Claim.wrap(bytes32(hex"dead"));
+        (address gameImpl, AlphabetVM vm_,) = setupFaultDisputeGameV2(absolutePrestate);
+
+        Claim rootClaim = changeClaimStatus(Claim.wrap(bytes32(hex"beef")), VMStatuses.INVALID);
+        // extraData should contain the l2BlockNumber as first 32 bytes
+        bytes memory extraData = abi.encode(uint256(424242));
+
+        uint256 bondAmount = disputeGameFactory.initBonds(GameTypes.CANNON_2);
+        vm.deal(address(this), bondAmount);
+
+        // Create the game
+        IDisputeGame proxy = disputeGameFactory.create{ value: bondAmount }(GameTypes.CANNON_2, rootClaim, extraData);
+
+        // Verify the game was created and stored
+        (IDisputeGame game, Timestamp timestamp) = disputeGameFactory.games(GameTypes.CANNON_2, rootClaim, extraData);
+
+        assertEq(address(game), address(proxy));
+        assertEq(Timestamp.unwrap(timestamp), block.timestamp);
+
+        // Verify the game has the correct parameters via CWIA
+        IFaultDisputeGameV2 gameV2 = IFaultDisputeGameV2(address(proxy));
+
+        // Test CWIA getters
+        assertEq(Claim.unwrap(gameV2.absolutePrestate()), Claim.unwrap(absolutePrestate));
+        assertEq(Claim.unwrap(gameV2.rootClaim()), Claim.unwrap(rootClaim));
+        assertEq(gameV2.extraData(), extraData);
+        assertEq(GameType.unwrap(gameV2.gameType()), GameType.unwrap(GameTypes.CANNON_2));
+        assertEq(gameV2.l2ChainId(), 0);
+        assertEq(address(gameV2.vm()), address(vm_));
+        assertEq(address(gameV2.weth()), address(delayedWeth));
+        assertEq(address(gameV2.anchorStateRegistry()), address(anchorStateRegistry));
     }
 }
 
