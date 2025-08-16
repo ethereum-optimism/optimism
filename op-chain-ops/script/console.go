@@ -57,8 +57,7 @@ func formatBigIntFixedPrecision(x *big.Int, precision uint) string {
 	prec := new(big.Int).Exp(big.NewInt(10), big.NewInt(int64(precision)), nil)
 	integer, remainder := new(big.Int).QuoRem(x, prec, new(big.Int))
 	if remainder.Sign() != 0 {
-		decimal := fmt.Sprintf("%0"+fmt.Sprintf("%d", precision)+"d",
-			new(big.Int).Abs(remainder))
+		decimal := fmt.Sprintf("%0*d", int(precision), new(big.Int).Abs(remainder))
 		decimal = strings.TrimRight(decimal, "0")
 		return fmt.Sprintf("%d.%s", integer, decimal)
 	} else {
