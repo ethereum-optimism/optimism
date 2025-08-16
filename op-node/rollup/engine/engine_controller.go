@@ -811,6 +811,8 @@ func (e *EngineController) ForceReset(ctx context.Context, localUnsafe, crossUns
 
 	ForceEngineReset(e, localUnsafe, crossUnsafe, localSafe, crossSafe, finalized)
 
+	e.emitter.Emit(ctx, derive.ConfirmPipelineResetEvent{})
+
 	// Time to apply the changes to the underlying engine
 	e.emitter.Emit(ctx, TryUpdateEngineEvent{})
 
