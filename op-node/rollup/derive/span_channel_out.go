@@ -45,6 +45,9 @@ type SpanChannelOut struct {
 	// to seal full span batches (that have reached the max block count) in the rlp slices.
 	sealedRLPBytes int
 
+	// cached estimate of DA size for the current span channel. Updated on optimization branch and after compress.
+	daSizeEstimate int
+
 	chainSpec *rollup.ChainSpec
 
 	// for testing purposes, this can be overridden to modify the raw span batch
@@ -129,6 +132,7 @@ func (co *SpanChannelOut) Reset() error {
 	co.lastCompressedRLPSize = 0
 	co.compressor.Reset()
 	co.resetSpanBatch()
+	co.daSizeEstimate = 0
 	// setting the new randomID is the only part of the reset that can fail
 	return co.setRandomID()
 }
@@ -223,6 +227,7 @@ func (co *SpanChannelOut) addSingularBatch(batch *SingularBatch, seqNum uint64) 
 	// this optimizes out cases where the compressor will obviously come in under the target size
 	rlpGrowth := active.Len() - co.lastCompressedRLPSize
 	if uint64(co.compressor.Len()+rlpGrowth) < co.target {
+		co.daSizeEstimate += rlpGrowth // best-effort estimate without forcing compression
 		return nil
 	}
 
@@ -290,6 +295,8 @@ func (co *SpanChannelOut) compress() error {
 		return err
 	}
 	co.checkFull()
+	// note: full case already handled because compress is then called again on backup rlp buffer without last block
+	co.daSizeEstimate = co.compressor.Len()
 	return nil
 }
 
@@ -374,4 +381,8 @@ func (co *SpanChannelOut) OutputFrame(w *bytes.Buffer, maxSize uint64) (uint16, 
 	} else {
 		return fn, nil
 	}
+}
+
+func (co *SpanChannelOut) DAEstimate() int {
+	return co.daSizeEstimate
 }
