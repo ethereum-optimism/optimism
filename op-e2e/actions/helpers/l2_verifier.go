@@ -173,6 +173,9 @@ func NewL2Verifier(t Testing, log log.Logger, l1 derive.L1Fetcher,
 	syncStatusTracker := status.NewStatusTracker(log, metrics)
 	sys.Register("status", syncStatusTracker, opts)
 
+	ec.SetCrossUnsafeUpdateHandler(syncStatusTracker)
+	ec.SetCrossSafeUpdateHandler(syncStatusTracker)
+
 	stepDeriver := NewTestingStepSchedulingDeriver()
 	stepDeriver.AttachEmitter(testActionEmitter)
 

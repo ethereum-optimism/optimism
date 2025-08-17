@@ -47,16 +47,6 @@ func (ev PromoteCrossUnsafeEvent) String() string {
 	return "promote-cross-unsafe"
 }
 
-// CrossUnsafeUpdateEvent signals that the given block is now considered cross-unsafe.
-type CrossUnsafeUpdateEvent struct {
-	CrossUnsafe eth.L2BlockRef
-	LocalUnsafe eth.L2BlockRef
-}
-
-func (ev CrossUnsafeUpdateEvent) String() string {
-	return "cross-unsafe-update"
-}
-
 type PendingSafeUpdateEvent struct {
 	PendingSafe eth.L2BlockRef
 	Unsafe      eth.L2BlockRef // tip, added to the signal, to determine if there are existing blocks to consolidate
@@ -64,15 +54,6 @@ type PendingSafeUpdateEvent struct {
 
 func (ev PendingSafeUpdateEvent) String() string {
 	return "pending-safe-update"
-}
-
-type CrossSafeUpdateEvent struct {
-	CrossSafe eth.L2BlockRef
-	LocalSafe eth.L2BlockRef
-}
-
-func (ev CrossSafeUpdateEvent) String() string {
-	return "cross-safe-update"
 }
 
 // LocalSafeUpdateEvent signals that a block is now considered to be local-safe.

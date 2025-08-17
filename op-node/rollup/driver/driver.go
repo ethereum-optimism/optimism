@@ -191,6 +191,8 @@ func NewDriver(
 	verifConfDepth := confdepth.NewConfDepth(driverCfg.VerifierConfDepth, statusTracker.L1Head, l1)
 
 	ec := engine.NewEngineController(driverCtx, l2, log, metrics, cfg, syncCfg, sys.Register("engine-controller", nil))
+	ec.SetCrossUnsafeUpdateHandler(statusTracker)
+	ec.SetCrossSafeUpdateHandler(statusTracker)
 
 	sys.Register("engine-reset",
 		engine.NewEngineResetDeriver(driverCtx, log, cfg, l1, l2, syncCfg))

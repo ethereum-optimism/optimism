@@ -50,6 +50,14 @@ type SyncDeriver interface {
 	OnELSyncStarted()
 }
 
+type CrossUnsafeUpdateHandler interface {
+	OnCrossUnsafeUpdate(ctx context.Context, crossUnsafe eth.L2BlockRef, localUnsafe eth.L2BlockRef)
+}
+
+type CrossSafeUpdateHandler interface {
+	OnCrossSafeUpdate(ctx context.Context, crossSafe eth.L2BlockRef, localSafe eth.L2BlockRef)
+}
+
 type EngineController struct {
 	engine     ExecEngine // Underlying execution engine RPC
 	log        log.Logger
@@ -102,6 +110,10 @@ type EngineController struct {
 	// EngineController is first initialized and used to initialize SyncDeriver.
 	// Embed SyncDeriver into EngineController after initializing SyncDeriver
 	SyncDeriver SyncDeriver
+
+	// Handlers for cross-unsafe updates
+	crossUnsafeUpdateHandler CrossUnsafeUpdateHandler
+	crossSafeUpdateHandler   CrossSafeUpdateHandler
 }
 
 func NewEngineController(ctx context.Context, engine ExecEngine, log log.Logger, m opmetrics.Metricer,
@@ -224,18 +236,21 @@ func (e *EngineController) SetBackupUnsafeL2Head(r eth.L2BlockRef, triggerReorg 
 	e.needFCUCallForBackupUnsafeReorg = triggerReorg
 }
 
+func (e *EngineController) SetCrossUnsafeUpdateHandler(handler CrossUnsafeUpdateHandler) {
+	e.crossUnsafeUpdateHandler = handler
+}
+
+func (e *EngineController) SetCrossSafeUpdateHandler(handler CrossSafeUpdateHandler) {
+	e.crossSafeUpdateHandler = handler
+}
+
 func (e *EngineController) OnCrossUpdate(ctx context.Context, crossUnsafe bool, crossSafe bool) {
-	if crossUnsafe {
-		e.emitter.Emit(ctx, CrossUnsafeUpdateEvent{
-			CrossUnsafe: e.CrossUnsafeL2Head(),
-			LocalUnsafe: e.UnsafeL2Head(),
-		})
+	// Nil checks required because op-program omits these handlers
+	if crossUnsafe && e.crossUnsafeUpdateHandler != nil {
+		e.crossUnsafeUpdateHandler.OnCrossUnsafeUpdate(ctx, e.CrossUnsafeL2Head(), e.UnsafeL2Head())
 	}
-	if crossSafe {
-		e.emitter.Emit(ctx, CrossSafeUpdateEvent{
-			CrossSafe: e.SafeL2Head(),
-			LocalSafe: e.LocalSafeL2Head(),
-		})
+	if crossSafe && e.crossSafeUpdateHandler != nil {
+		e.crossSafeUpdateHandler.OnCrossSafeUpdate(ctx, e.SafeL2Head(), e.LocalSafeL2Head())
 	}
 }
 
@@ -464,7 +479,10 @@ func (e *EngineController) InsertUnsafePayload(ctx context.Context, envelope *et
 		e.emitter.Emit(ctx, UnsafeUpdateEvent{Ref: ref})
 		e.SetLocalSafeHead(ref)
 		e.SetSafeHead(ref)
-		e.emitter.Emit(ctx, CrossSafeUpdateEvent{LocalSafe: ref, CrossSafe: ref})
+		// Nil check required because op-program omits handler
+		if e.crossSafeUpdateHandler != nil {
+			e.crossSafeUpdateHandler.OnCrossSafeUpdate(ctx, ref, ref)
+		}
 		e.SetFinalizedHead(ref)
 	}
 	logFn := e.logSyncProgressMaybe()
@@ -686,10 +704,10 @@ func (d *EngineController) OnEvent(ctx context.Context, ev event.Event) bool {
 		d.TryUpdateEngine(ctx)
 	case PromoteCrossUnsafeEvent:
 		d.SetCrossUnsafeHead(x.Ref)
-		d.emitter.Emit(ctx, CrossUnsafeUpdateEvent{
-			CrossUnsafe: x.Ref,
-			LocalUnsafe: d.UnsafeL2Head(),
-		})
+		// Nil check required because op-program omits handler
+		if d.crossUnsafeUpdateHandler != nil {
+			d.crossUnsafeUpdateHandler.OnCrossUnsafeUpdate(ctx, x.Ref, d.UnsafeL2Head())
+		}
 	case PendingSafeRequestEvent:
 		d.emitter.Emit(ctx, PendingSafeUpdateEvent{
 			PendingSafe: d.PendingSafeL2Head(),
@@ -706,17 +724,17 @@ func (d *EngineController) OnEvent(ctx context.Context, ev event.Event) bool {
 		d.SetSafeHead(x.Ref)
 		// Finalizer can pick up this safe cross-block now
 		d.emitter.Emit(ctx, SafeDerivedEvent{Safe: x.Ref, Source: x.Source})
-		d.emitter.Emit(ctx, CrossSafeUpdateEvent{
-			CrossSafe: d.SafeL2Head(),
-			LocalSafe: d.LocalSafeL2Head(),
-		})
+		// Nil check required because op-program omits handler
+		if d.crossSafeUpdateHandler != nil {
+			d.crossSafeUpdateHandler.OnCrossSafeUpdate(ctx, d.SafeL2Head(), d.LocalSafeL2Head())
+		}
 		if x.Ref.Number > d.crossUnsafeHead.Number {
 			d.log.Debug("Cross Unsafe Head is stale, updating to match cross safe", "cross_unsafe", d.crossUnsafeHead, "cross_safe", x.Ref)
 			d.SetCrossUnsafeHead(x.Ref)
-			d.emitter.Emit(ctx, CrossUnsafeUpdateEvent{
-				CrossUnsafe: x.Ref,
-				LocalUnsafe: d.UnsafeL2Head(),
-			})
+			// Nil check required because op-program omits handler
+			if d.crossUnsafeUpdateHandler != nil {
+				d.crossUnsafeUpdateHandler.OnCrossUnsafeUpdate(ctx, x.Ref, d.UnsafeL2Head())
+			}
 		}
 		// Try to apply the forkchoice changes
 		d.TryUpdateEngine(ctx)
