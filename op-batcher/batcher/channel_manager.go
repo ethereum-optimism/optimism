@@ -586,6 +586,10 @@ func (s *channelManager) unsafeBytesInOpenChannels() int64 {
 	var bytesInOpenChannels int64
 	for _, channel := range s.channelQueue {
 		if channel.TotalFrames() == 0 {
+			if est := channel.channelBuilder.DAEstimate(); est > 0 {
+				bytesInOpenChannels += int64(est)
+				continue
+			}
 			for _, block := range channel.channelBuilder.blocks {
 				bytesInOpenChannels += int64(block.EstimatedDABytes())
 			}
