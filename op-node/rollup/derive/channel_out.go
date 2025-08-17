@@ -222,6 +222,10 @@ func (co *SingularChannelOut) OutputFrame(w *bytes.Buffer, maxSize uint64) (uint
 	}
 }
 
+func (co *SingularChannelOut) DAEstimate() int {
+	return co.compress.Len()
+}
+
 // BlockToSingularBatch transforms a block into a batch object that can easily be RLP encoded.
 func BlockToSingularBatch(rollupCfg *rollup.Config, block *types.Block) (*SingularBatch, *L1BlockInfo, error) {
 	if len(block.Transactions()) == 0 {
