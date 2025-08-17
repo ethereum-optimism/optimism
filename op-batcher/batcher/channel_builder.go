@@ -133,6 +133,14 @@ func (c *ChannelBuilder) OutputBytes() int {
 	return c.outputBytes
 }
 
+func (c *ChannelBuilder) DAEstimate() int {
+	type daEstimator interface{ DAEstimate() int }
+	if estCo, ok := c.co.(daEstimator); ok {
+		return estCo.DAEstimate()
+	}
+	return 0
+}
+
 // Blocks returns a backup list of all blocks that were added to the channel. It
 // can be used in case the channel needs to be rebuilt.
 func (c *ChannelBuilder) Blocks() []SizedBlock {
