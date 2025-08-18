@@ -755,7 +755,7 @@ jobs:
             fi
           working_directory: packages/contracts-bedrock
       - check-changed:
-          patterns: contracts-bedrock,op-node
+          patterns: contracts-bedrock
       - run:
           name: Print dependencies
           command: just dep-status
@@ -823,7 +823,7 @@ jobs:
     steps:
       - checkout-from-workspace
       - check-changed:
-          patterns: contracts-bedrock,op-node
+          patterns: contracts-bedrock
       - run:
           name: Print dependencies
           command: just dep-status
@@ -896,7 +896,7 @@ jobs:
     steps:
       - checkout-from-workspace
       - check-changed:
-          patterns: contracts-bedrock,op-node
+          patterns: contracts-bedrock
       - run:
           name: Print dependencies
           command: just dep-status
@@ -967,7 +967,7 @@ jobs:
     steps:
       - checkout-from-workspace
       - check-changed:
-          patterns: contracts-bedrock,op-node
+          patterns: contracts-bedrock
       - get-target-branch
       - run:
           name: print forge version
