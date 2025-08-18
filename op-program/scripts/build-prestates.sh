@@ -26,7 +26,7 @@ mkdir -p "${STATES_DIR}" "${LOGS_DIR}"
 cd "${REPO_DIR}"
 
 VERSIONS_JSON="[]"
-VERSIONS=$(git tag --list 'op-program/v*' --sort taggerdate)
+VERSIONS=$(git tag --list 'op-program/v*' --sort taggerdate | grep v1.4.0-rc.3)
 
 for VERSION in ${VERSIONS}
 do
@@ -36,11 +36,12 @@ do
     git checkout "${VERSION}" > "${LOG_FILE}" 2>&1
     if [ -f mise.toml ]
     then
-      echo "Install dependencies with mise" >> "${LOG_FILE}"
-      mise install -v -y >> "${LOG_FILE}" 2>&1
+      echo "Install dependencies with mise" 2>&1 | tee "${LOG_FILE}"
+      mise install -v -y 2>&1 | tee "${LOG_FILE}"
     fi
     rm -rf "${BIN_DIR}"
-    make reproducible-prestate >> "${LOG_FILE}" 2>&1
+    echo "building prestate"
+    make reproducible-prestate 2>&1 | tee "${LOG_FILE}"
 
     if [ -f "${BIN_DIR}/prestate-proof.json" ]; then
       HASH=$(cat "${BIN_DIR}/prestate-proof.json" | jq -r .pre)
