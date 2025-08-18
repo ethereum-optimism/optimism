@@ -58,13 +58,11 @@ func (ef *EcotoneFees) ValidateTransaction(from *EOA, to *EOA, amount *big.Int) 
 	vaultsAfter := ef.getVaultBalances(client)
 	vaultIncreases := ef.calculateVaultIncreases(vaultsBefore, vaultsAfter)
 
-	l1Fee := big.NewInt(0)
-	if receipt.L1Fee != nil {
-		l1Fee = receipt.L1Fee
-	}
-
 	block, err := client.InfoByHash(ef.ctx, receipt.BlockHash)
 	ef.require.NoError(err)
+
+	// In Ecotone, L1 fee includes both base fee and blob base fee components
+	l1Fee := vaultIncreases.L1FeeVault // Use actual vault increase as the source of truth
 
 	baseFee := new(big.Int).Mul(block.BaseFee(), big.NewInt(int64(receipt.GasUsed)))
 	l2Fee := new(big.Int).Mul(receipt.EffectiveGasPrice, big.NewInt(int64(receipt.GasUsed)))
@@ -74,8 +72,11 @@ func (ef *EcotoneFees) ValidateTransaction(from *EOA, to *EOA, amount *big.Int) 
 	walletBalanceDiff := new(big.Int).Sub(startBalance.ToBig(), endBalance.ToBig())
 	walletBalanceDiff.Sub(walletBalanceDiff, amount)
 
-	ef.validateFeeDistribution(l1Fee, baseFee, priorityFee, vaultIncreases)
+	// Validate total balance first to ensure all fees are accounted for
 	ef.validateTotalBalance(walletBalanceDiff, totalFee, vaultIncreases)
+
+	// Then validate individual fee components
+	ef.validateFeeDistribution(l1Fee, baseFee, priorityFee, vaultIncreases)
 	ef.validateEcotoneFeatures(receipt, l1Fee)
 
 	return EcotoneFeesValidationResult{

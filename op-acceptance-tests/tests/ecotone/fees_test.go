@@ -28,7 +28,7 @@ func TestFees(gt *testing.T) {
 
 	ecotoneFees.LogResults(result)
 
-	t.Log("Comprehensive Ecotone fees test completed successfully:",
+	t.Log("Ecotone fees test completed successfully",
 		"gasUsed", result.TransactionReceipt.GasUsed,
 		"l1Fee", result.L1Fee.String(),
 		"l2Fee", result.L2Fee.String(),
