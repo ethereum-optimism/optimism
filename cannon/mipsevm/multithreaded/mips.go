@@ -335,6 +335,7 @@ func (m *InstrumentedState) doMipsStep() error {
 		insn, opcode, fun = decoded.insn, decoded.opcode, decoded.fun
 	} else {
 		// PC is outside eager region
+		m.statsTracker.trackInstructionCacheMiss(pc)
 		insn, opcode, fun = exec.GetInstructionDetails(pc, m.state.Memory)
 	}
 
