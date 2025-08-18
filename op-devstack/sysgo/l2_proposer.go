@@ -96,7 +96,9 @@ func WithProposerPostDeploy(orch *Orchestrator, proposerID stack.L2ProposerID, l
 		PollInterval:      500 * time.Millisecond,
 		AllowNonFinalized: true,
 		TxMgrConfig:       setuputils.NewTxMgrConfig(endpoint.URL(l1EL.userRPC), proposerSecret),
-		RPCConfig:         oprpc.CLIConfig{},
+		RPCConfig: oprpc.CLIConfig{
+			ListenAddr: "127.0.0.1",
+		},
 		LogConfig: oplog.CLIConfig{
 			Level:  log.LvlInfo,
 			Format: oplog.FormatText,
