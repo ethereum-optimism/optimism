@@ -183,6 +183,9 @@ func runSysgo() error {
 // proxyEL is a hacky way to intercept EL json rpc requests for logging to get around log filtering
 // bugs.
 func proxyEL(client client.RPC) error {
+	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{
+		Level: slog.LevelInfo,
+	}))
 	// Set up the HTTP handler for all incoming requests.
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		// Ensure the request method is POST, as JSON RPC typically uses POST.
@@ -242,7 +245,7 @@ func proxyEL(client client.RPC) error {
 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second) // 30-second timeout
 		defer cancel()                                                           // Ensure the context is cancelled to release resources
 
-		fmt.Println(method)
+		logger.Info("processing RPC method", "method", method)
 
 		// Use the rpc.Client to make the actual call to the backend Ethereum node.
 		// The `callParams...` syntax unpacks the slice into variadic arguments.
@@ -258,7 +261,7 @@ func proxyEL(client client.RPC) error {
 					"message": message,
 				},
 			}
-			fmt.Printf("RPC error: %s\n", message)
+			logger.Error("RPC call failed", "method", method, "error", err)
 			jsonResponse, _ := json.Marshal(rpcErr) // Marshaling error is unlikely here, so we ignore it.
 			w.Header().Set("Content-Type", "application/json")
 			// For JSON-RPC, errors are typically returned with an HTTP 200 OK status,
@@ -292,6 +295,7 @@ func proxyEL(client client.RPC) error {
 	})
 
 	// Start the HTTP server.
+	logger.Info("starting JSON-RPC proxy server", "address", "localhost:8545")
 	if err := http.ListenAndServe("localhost:8545", nil); err != nil {
 		return fmt.Errorf("listen and server: %w", err)
 	}
