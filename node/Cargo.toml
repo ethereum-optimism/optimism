@@ -24,7 +24,6 @@ reth-provider.workspace = true
 reth-transaction-pool.workspace = true
 reth-network.workspace = true
 reth-evm.workspace = true
-reth-trie-db.workspace = true
 reth-rpc-server-types.workspace = true
 reth-tasks = { workspace = true, optional = true }
 reth-trie-common.workspace = true
@@ -112,7 +111,6 @@ test-utils = [
     "reth-db/test-utils",
     "reth-provider/test-utils",
     "reth-transaction-pool/test-utils",
-    "reth-trie-db/test-utils",
     "reth-optimism-node/test-utils",
     "reth-optimism-primitives/arbitrary",
     "reth-primitives-traits/test-utils",

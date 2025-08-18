@@ -16,8 +16,8 @@ use reth_network::{
     PeersInfo,
 };
 use reth_node_api::{
-    AddOnsContext, BuildNextEnv, EngineTypes, FullNodeComponents, HeaderTy, KeyHasherTy,
-    NodeAddOns, NodePrimitives, PayloadAttributesBuilder, PayloadTypes, PrimitivesTy, TxTy,
+    AddOnsContext, BuildNextEnv, EngineTypes, FullNodeComponents, HeaderTy, NodeAddOns,
+    NodePrimitives, PayloadAttributesBuilder, PayloadTypes, PrimitivesTy, TxTy,
 };
 use reth_node_builder::{
     components::{
@@ -63,7 +63,7 @@ use reth_transaction_pool::{
     blobstore::DiskFileBlobStore, EthPoolTransaction, PoolPooledTx, PoolTransaction,
     TransactionPool, TransactionValidationTaskExecutor,
 };
-use reth_trie_db::MerklePatriciaTrie;
+use reth_trie_common::KeccakKeyHasher;
 use serde::de::DeserializeOwned;
 use std::{marker::PhantomData, sync::Arc};
 
@@ -262,7 +262,6 @@ where
 impl NodeTypes for OpNode {
     type Primitives = OpPrimitives;
     type ChainSpec = OpChainSpec;
-    type StateCommitment = MerklePatriciaTrie;
     type Storage = OpStorage;
     type Payload = OpEngineTypes;
 }
@@ -1195,7 +1194,7 @@ where
     >;
 
     async fn build(self, ctx: &AddOnsContext<'_, Node>) -> eyre::Result<Self::Validator> {
-        Ok(OpEngineValidator::new::<KeyHasherTy<Node::Types>>(
+        Ok(OpEngineValidator::new::<KeccakKeyHasher>(
             ctx.config.chain.clone(),
             ctx.node.provider().clone(),
         ))
