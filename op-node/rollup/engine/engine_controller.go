@@ -244,15 +244,6 @@ func (e *EngineController) SetCrossSafeUpdateHandler(handler CrossSafeUpdateHand
 	e.crossSafeUpdateHandler = handler
 }
 
-func (e *EngineController) OnCrossUpdate(ctx context.Context, crossUnsafe bool, crossSafe bool) {
-	// Nil checks required because op-program omits these handlers
-	if crossUnsafe && e.crossUnsafeUpdateHandler != nil {
-		e.crossUnsafeUpdateHandler.OnCrossUnsafeUpdate(ctx, e.CrossUnsafeL2Head(), e.UnsafeL2Head())
-	}
-	if crossSafe && e.crossSafeUpdateHandler != nil {
-		e.crossSafeUpdateHandler.OnCrossSafeUpdate(ctx, e.SafeL2Head(), e.LocalSafeL2Head())
-	}
-}
 
 // logSyncProgressMaybe helps log forkchoice state-changes when applicable.
 // First, the pre-state is registered.
