@@ -425,7 +425,7 @@ func (s *SyncDeriver) SyncStep() {
 	// Instead, we request the engine to repeat where its pending-safe head is at.
 	// Upon the pending-safe signal the attributes deriver can then ask the pipeline
 	// to generate new attributes, if no attributes are known already.
-	s.Emitter.Emit(s.Ctx, engine.PendingSafeRequestEvent{})
+	s.Engine.RequestPendingSafeUpdate(s.Ctx)
 
 }
 

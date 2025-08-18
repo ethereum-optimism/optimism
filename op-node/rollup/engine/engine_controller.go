@@ -692,12 +692,6 @@ func (d *EngineController) OnEvent(ctx context.Context, ev event.Event) bool {
 	case PromoteCrossUnsafeEvent:
 		d.SetCrossUnsafeHead(x.Ref)
 		d.onUnsafeUpdate(ctx, x.Ref, d.UnsafeL2Head())
-	case PendingSafeRequestEvent:
-		d.emitter.Emit(ctx, PendingSafeUpdateEvent{
-			PendingSafe: d.PendingSafeL2Head(),
-			Unsafe:      d.UnsafeL2Head(),
-		})
-
 	case LocalSafeUpdateEvent:
 		// pre-interop everything that is local-unsafe is also immediately cross-unsafe.
 		if !d.rollupCfg.IsInterop(x.Ref.Time) {
@@ -753,6 +747,13 @@ func (d *EngineController) OnEvent(ctx context.Context, ev event.Event) bool {
 		return false
 	}
 	return true
+}
+
+func (d *EngineController) RequestPendingSafeUpdate(ctx context.Context) {
+	d.emitter.Emit(ctx, PendingSafeUpdateEvent{
+		PendingSafe: d.PendingSafeL2Head(),
+		Unsafe:      d.UnsafeL2Head(),
+	})
 }
 
 // TryUpdatePendingSafe updates the pending safe head if the new reference is newer
