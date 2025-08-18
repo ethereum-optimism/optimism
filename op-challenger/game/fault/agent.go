@@ -52,7 +52,8 @@ type Agent struct {
 	log                log.Logger
 	responseDelay      time.Duration
 	responseDelayAfter uint64
-	responseCount      uint64 // Number of responses made in this game
+	responseCount      uint64     // Number of responses made in this game
+	responseCountMu    sync.Mutex // Protects responseCount from concurrent access
 }
 
 func NewAgent(
@@ -148,17 +149,22 @@ func (a *Agent) performAction(ctx context.Context, wg *sync.WaitGroup, game type
 
 	// Apply configurable delay before responding (to slow down game progression)
 	// Only apply delay if we've made enough responses already AND we're not in a clock extension period
-	if a.responseDelay > 0 && a.responseCount >= a.responseDelayAfter {
+	a.responseCountMu.Lock()
+	shouldCheckDelay := a.responseDelay > 0 && a.responseCount >= a.responseDelayAfter
+	currentResponseCount := a.responseCount // Capture for logging
+	a.responseCountMu.Unlock()
+
+	if shouldCheckDelay {
 		// Check if we're in a clock extension period - if so, respond immediately
 		inExtension, remainingTimeCheck, err := a.shouldSkipDelay(ctx, game, action)
 		if err != nil {
 			actionLog.Warn("Failed to check delay conditions, skipping delay for safety", "err", err)
 		} else if inExtension {
-			actionLog.Info("Skipping delay due to clock extension period", "response_count", a.responseCount, "delay_after", a.responseDelayAfter)
+			actionLog.Info("Skipping delay due to clock extension period", "response_count", currentResponseCount, "delay_after", a.responseDelayAfter)
 		} else if remainingTimeCheck {
-			actionLog.Info("Skipping delay due to insufficient remaining game time", "response_count", a.responseCount, "delay_after", a.responseDelayAfter)
+			actionLog.Info("Skipping delay due to insufficient remaining game time", "response_count", currentResponseCount, "delay_after", a.responseDelayAfter)
 		} else {
-			actionLog.Info("Delaying response", "delay", a.responseDelay, "response_count", a.responseCount, "delay_after", a.responseDelayAfter)
+			actionLog.Info("Delaying response", "delay", a.responseDelay, "response_count", currentResponseCount, "delay_after", a.responseDelayAfter)
 			select {
 			case <-ctx.Done():
 				actionLog.Error("Action cancelled during delay", "err", ctx.Err())
@@ -183,8 +189,11 @@ func (a *Agent) performAction(ctx context.Context, wg *sync.WaitGroup, game type
 		actionLog.Error("Action failed", "err", err)
 	} else {
 		// Increment response count only on successful actions
+		a.responseCountMu.Lock()
 		a.responseCount++
-		actionLog.Debug("Response count incremented", "response_count", a.responseCount)
+		newCount := a.responseCount
+		a.responseCountMu.Unlock()
+		actionLog.Debug("Response count incremented", "response_count", newCount)
 	}
 }
 
