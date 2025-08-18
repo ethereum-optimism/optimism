@@ -8,6 +8,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/solver"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
 	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
@@ -32,6 +33,9 @@ type ClaimLoader interface {
 	GetAllClaims(ctx context.Context, block rpcblock.Block) ([]types.Claim, error)
 	IsL2BlockNumberChallenged(ctx context.Context, block rpcblock.Block) (bool, error)
 	GetClockExtension(ctx context.Context) (time.Duration, error)
+	GetSplitDepth(ctx context.Context) (types.Depth, error)
+	GetMaxGameDepth(ctx context.Context) (types.Depth, error)
+	GetOracle(ctx context.Context) (contracts.PreimageOracleContract, error)
 }
 
 type Agent struct {
@@ -115,13 +119,13 @@ func (a *Agent) Act(ctx context.Context) error {
 	var wg sync.WaitGroup
 	wg.Add(len(actions))
 	for _, action := range actions {
-		go a.performAction(ctx, &wg, action)
+		go a.performAction(ctx, &wg, game, action)
 	}
 	wg.Wait()
 	return nil
 }
 
-func (a *Agent) performAction(ctx context.Context, wg *sync.WaitGroup, action types.Action) {
+func (a *Agent) performAction(ctx context.Context, wg *sync.WaitGroup, game types.Game, action types.Action) {
 	defer wg.Done()
 	actionLog := a.log.New("action", action.Type)
 	if action.Type == types.ActionTypeStep {
@@ -142,24 +146,17 @@ func (a *Agent) performAction(ctx context.Context, wg *sync.WaitGroup, action ty
 		actionLog = actionLog.New("is_attack", action.IsAttack, "parent", action.ParentClaim.ContractIndex, "value", action.Value)
 	}
 
-	switch action.Type {
-	case types.ActionTypeMove:
-		a.metrics.RecordGameMove()
-	case types.ActionTypeStep:
-		a.metrics.RecordGameStep()
-	case types.ActionTypeChallengeL2BlockNumber:
-		a.metrics.RecordGameL2Challenge()
-	}
-
 	// Apply configurable delay before responding (to slow down game progression)
 	// Only apply delay if we've made enough responses already AND we're not in a clock extension period
 	if a.responseDelay > 0 && a.responseCount >= a.responseDelayAfter {
 		// Check if we're in a clock extension period - if so, respond immediately
-		inExtension, err := a.isInClockExtensionPeriod(ctx, action)
+		inExtension, remainingTimeCheck, err := a.shouldSkipDelay(ctx, game, action)
 		if err != nil {
-			actionLog.Warn("Failed to check clock extension status, skipping delay for safety", "err", err)
+			actionLog.Warn("Failed to check delay conditions, skipping delay for safety", "err", err)
 		} else if inExtension {
 			actionLog.Info("Skipping delay due to clock extension period", "response_count", a.responseCount, "delay_after", a.responseDelayAfter)
+		} else if remainingTimeCheck {
+			actionLog.Info("Skipping delay due to insufficient remaining game time", "response_count", a.responseCount, "delay_after", a.responseDelayAfter)
 		} else {
 			actionLog.Info("Delaying response", "delay", a.responseDelay, "response_count", a.responseCount, "delay_after", a.responseDelayAfter)
 			select {
@@ -169,6 +166,15 @@ func (a *Agent) performAction(ctx context.Context, wg *sync.WaitGroup, action ty
 			case <-a.systemClock.After(a.responseDelay):
 			}
 		}
+	}
+
+	switch action.Type {
+	case types.ActionTypeMove:
+		a.metrics.RecordGameMove()
+	case types.ActionTypeStep:
+		a.metrics.RecordGameStep()
+	case types.ActionTypeChallengeL2BlockNumber:
+		a.metrics.RecordGameL2Challenge()
 	}
 
 	actionLog.Info("Performing action")
@@ -269,44 +275,110 @@ func (a *Agent) resolveClaims(ctx context.Context) error {
 	}
 }
 
-// isInClockExtensionPeriod checks if the current action is being performed during a clock extension period.
-// Clock extension occurs when the chess clock duration is close to the maximum allowed duration.
-func (a *Agent) isInClockExtensionPeriod(ctx context.Context, action types.Action) (bool, error) {
-	// Get the clock extension value from the contract via loader
-	clockExtension, err := a.loader.GetClockExtension(ctx)
-	if err != nil {
-		return false, fmt.Errorf("failed to get clock extension: %w", err)
+// shouldSkipDelay determines if the delay should be skipped for the given action.
+// Returns (inClockExtension, insufficientRemainingTime, error).
+// Delay should be skipped if either inClockExtension OR insufficientRemainingTime is true.
+func (a *Agent) shouldSkipDelay(ctx context.Context, game types.Game, action types.Action) (bool, bool, error) {
+	// Use proper chess clock calculation from types package
+	// We need OUR accumulated chess clock time to check if we're in extension period
+	now := a.l1Clock.Now()
+
+	// Find the grandparent claim to get our team's accumulated chess clock time
+	// The grandparent represents our team's previous move, so its chess clock is our inherited time
+	var grandparentClaim *types.Claim
+	for _, claim := range game.Claims() {
+		if claim.ContractIndex == action.ParentClaim.ParentContractIndex {
+			grandparentClaim = &claim
+			break
+		}
 	}
 
-	// Use local max clock duration
+	var ourAccumulatedTime time.Duration
+	if grandparentClaim != nil {
+		// Our accumulated chess clock time = chess clock time when we challenged grandparent
+		ourAccumulatedTime = game.ChessClock(now, *grandparentClaim)
+	} else {
+		// No grandparent (root claim), use time since parent claim was created
+		ourAccumulatedTime = now.Sub(action.ParentClaim.Clock.Timestamp)
+	}
+
+	// Calculate depth-aware actual extension based on the next position's depth
+	actualExtension, err := a.calculateActualExtension(ctx, action)
+	if err != nil {
+		return false, false, fmt.Errorf("failed to calculate actual extension: %w", err)
+	}
+
+	// Check if we're already in a clock extension period
 	maxClockDuration := a.maxClockDuration
+	extensionThreshold := maxClockDuration - actualExtension
+	inExtension := ourAccumulatedTime > extensionThreshold
 
-	// Get the parent claim to check its chess clock
-	parentClaim := action.ParentClaim
+	// Check if our delay would cause us to enter the extension period at all (conservative approach)
+	// We don't want to risk making moves inside the extension period, so if our delay would
+	// cause us to exceed the extension threshold, we skip the delay entirely
+	remainingTimeUntilExtension := extensionThreshold - ourAccumulatedTime
+	delayWouldEnterExtension := a.responseDelay > remainingTimeUntilExtension
 
-	// Calculate the current chess clock duration for the parent claim
-	// This should match the logic in types.ChessClock function
-	now := a.l1Clock.Now()
-	timeSinceCreation := now.Sub(parentClaim.Clock.Timestamp)
-
-	// For the chess clock calculation, we use the accumulated duration from previous moves
-	// plus the time elapsed since this claim was made
-	parentClockDuration := parentClaim.Clock.Duration + timeSinceCreation
-
-	// We're in an extension period if the chess clock is close to the maximum duration
-	// Based on the contract logic: if duration > maxClockDuration - clockExtension
-	extensionThreshold := maxClockDuration - clockExtension
-	inExtension := parentClockDuration > extensionThreshold
-
-	a.log.Debug("Clock extension check",
-		"parent_clock_duration", parentClockDuration,
+	a.log.Debug("Delay skip check",
+		"our_accumulated_time", ourAccumulatedTime,
 		"max_clock_duration", maxClockDuration,
-		"agent_max_clock_duration", a.maxClockDuration,
-		"clock_extension", clockExtension,
+		"actual_extension", actualExtension,
 		"extension_threshold", extensionThreshold,
-		"in_extension", inExtension)
+		"remaining_time_until_extension", remainingTimeUntilExtension,
+		"response_delay", a.responseDelay,
+		"in_extension", inExtension,
+		"delay_would_enter_extension", delayWouldEnterExtension)
 
-	return inExtension, nil
+	return inExtension, delayWouldEnterExtension, nil
+}
+
+// calculateActualExtension calculates the depth-aware clock extension based on contract logic
+func (a *Agent) calculateActualExtension(ctx context.Context, action types.Action) (time.Duration, error) {
+	// Get base clock extension from contract
+	baseExtension, err := a.loader.GetClockExtension(ctx)
+	if err != nil {
+		return 0, fmt.Errorf("failed to get clock extension: %w", err)
+	}
+	// Get the position that will be created by this action
+	var nextPosition types.Position
+	if action.IsAttack {
+		nextPosition = action.ParentClaim.Position.Attack()
+	} else {
+		nextPosition = action.ParentClaim.Position.Defend()
+	}
+	nextPositionDepth := nextPosition.Depth()
+
+	// Get split depth and max game depth from contract
+	splitDepth, err := a.loader.GetSplitDepth(ctx)
+	if err != nil {
+		return 0, fmt.Errorf("failed to get split depth: %w", err)
+	}
+
+	maxGameDepth, err := a.loader.GetMaxGameDepth(ctx)
+	if err != nil {
+		return 0, fmt.Errorf("failed to get max game depth: %w", err)
+	}
+
+	// Calculate actual extension based on contract logic
+	switch nextPositionDepth {
+	case maxGameDepth - 1:
+		// About to execute a step - add challenge period
+		oracle, err := a.loader.GetOracle(ctx)
+		if err != nil {
+			return 0, fmt.Errorf("failed to get oracle: %w", err)
+		}
+		challengePeriod, err := oracle.ChallengePeriod(ctx)
+		if err != nil {
+			return 0, fmt.Errorf("failed to get challenge period: %w", err)
+		}
+		return baseExtension + time.Duration(challengePeriod)*time.Second, nil
+	case splitDepth - 1:
+		// About to begin execution trace bisection - double extension
+		return baseExtension * 2, nil
+	default:
+		// Standard extension
+		return baseExtension, nil
+	}
 }
 
 // newGameFromContracts initializes a new game state from the state in the contract

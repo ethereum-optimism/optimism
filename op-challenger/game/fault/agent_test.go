@@ -9,9 +9,13 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace"
+	"github.com/ethereum-optimism/optimism/op-challenger/game/keccak/merkle"
+	keccakTypes "github.com/ethereum-optimism/optimism/op-challenger/game/keccak/types"
 	"github.com/ethereum-optimism/optimism/op-service/clock"
 	"github.com/ethereum-optimism/optimism/op-service/sources/batching/rpcblock"
+	"github.com/ethereum-optimism/optimism/op-service/txmgr"
 	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -224,6 +228,8 @@ type stubClaimLoader struct {
 	blockNumChallenged bool
 	clockExtension     time.Duration
 	clockExtensionErr  error
+	splitDepth         types.Depth
+	maxGameDepth       types.Depth
 }
 
 func (s *stubClaimLoader) IsL2BlockNumberChallenged(_ context.Context, _ rpcblock.Block) (bool, error) {
@@ -249,6 +255,90 @@ func (s *stubClaimLoader) GetClockExtension(_ context.Context) (time.Duration, e
 	return s.clockExtension, nil
 }
 
+func (s *stubClaimLoader) GetSplitDepth(_ context.Context) (types.Depth, error) {
+	if s.splitDepth != 0 {
+		return s.splitDepth, nil
+	}
+	return types.Depth(30), nil // Reasonable default for tests
+}
+
+func (s *stubClaimLoader) GetMaxGameDepth(_ context.Context) (types.Depth, error) {
+	if s.maxGameDepth != 0 {
+		return s.maxGameDepth, nil
+	}
+	return types.Depth(73), nil // Reasonable default for tests
+}
+
+func (s *stubClaimLoader) GetOracle(_ context.Context) (contracts.PreimageOracleContract, error) {
+	return &stubPreimageOracleContract{}, nil
+}
+
+// stubPreimageOracleContract implements the PreimageOracleContract interface for testing
+type stubPreimageOracleContract struct{}
+
+func (s *stubPreimageOracleContract) ChallengePeriod(_ context.Context) (uint64, error) {
+	return 86400, nil // 1 day in seconds - reasonable default for tests
+}
+
+// Add minimal implementations for other required methods (if any)
+func (s *stubPreimageOracleContract) Addr() common.Address { return common.Address{} }
+func (s *stubPreimageOracleContract) AddGlobalDataTx(*types.PreimageOracleData) (txmgr.TxCandidate, error) {
+	return txmgr.TxCandidate{}, nil
+}
+func (s *stubPreimageOracleContract) InitLargePreimage(*big.Int, uint32, uint32) (txmgr.TxCandidate, error) {
+	return txmgr.TxCandidate{}, nil
+}
+func (s *stubPreimageOracleContract) AddLeaves(*big.Int, *big.Int, []byte, []common.Hash, bool) (txmgr.TxCandidate, error) {
+	return txmgr.TxCandidate{}, nil
+}
+func (s *stubPreimageOracleContract) MinLargePreimageSize(context.Context) (uint64, error) {
+	return 0, nil
+}
+func (s *stubPreimageOracleContract) CallSqueeze(context.Context, common.Address, *big.Int, keccakTypes.StateSnapshot, keccakTypes.Leaf, merkle.Proof, keccakTypes.Leaf, merkle.Proof) error {
+	return nil
+}
+func (s *stubPreimageOracleContract) Squeeze(common.Address, *big.Int, keccakTypes.StateSnapshot, keccakTypes.Leaf, merkle.Proof, keccakTypes.Leaf, merkle.Proof) (txmgr.TxCandidate, error) {
+	return txmgr.TxCandidate{}, nil
+}
+func (s *stubPreimageOracleContract) GetActivePreimages(context.Context, common.Hash) ([]keccakTypes.LargePreimageMetaData, error) {
+	return nil, nil
+}
+func (s *stubPreimageOracleContract) GetProposalMetadata(context.Context, rpcblock.Block, ...keccakTypes.LargePreimageIdent) ([]keccakTypes.LargePreimageMetaData, error) {
+	return nil, nil
+}
+func (s *stubPreimageOracleContract) GetProposalTreeRoot(context.Context, rpcblock.Block, keccakTypes.LargePreimageIdent) (common.Hash, error) {
+	return common.Hash{}, nil
+}
+func (s *stubPreimageOracleContract) GetInputDataBlocks(context.Context, rpcblock.Block, keccakTypes.LargePreimageIdent) ([]uint64, error) {
+	return nil, nil
+}
+func (s *stubPreimageOracleContract) DecodeInputData([]byte) (*big.Int, keccakTypes.InputData, error) {
+	return nil, keccakTypes.InputData{}, nil
+}
+func (s *stubPreimageOracleContract) GlobalDataExists(context.Context, *types.PreimageOracleData) (bool, error) {
+	return false, nil
+}
+func (s *stubPreimageOracleContract) GetGlobalData(context.Context, *types.PreimageOracleData) ([32]byte, error) {
+	return [32]byte{}, nil
+}
+func (s *stubPreimageOracleContract) ChallengeTx(keccakTypes.LargePreimageIdent, keccakTypes.Challenge) (txmgr.TxCandidate, error) {
+	return txmgr.TxCandidate{}, nil
+}
+func (s *stubPreimageOracleContract) GetMinBondLPP(context.Context) (*big.Int, error) {
+	return big.NewInt(0), nil
+}
+
+// createStubGame creates a mock game for testing performAction calls
+func createStubGame(claims []types.Claim) types.Game {
+	if len(claims) == 0 {
+		// Create a default root claim for tests
+		claims = []types.Claim{
+			faulttest.NewClaimBuilder(nil, types.Depth(4), alphabet.NewTraceProvider(big.NewInt(0), types.Depth(4))).CreateRootClaim(),
+		}
+	}
+	return types.NewGameState(claims, types.Depth(4))
+}
+
 type stubResponder struct {
 	l                 sync.Mutex
 	callResolveCount  int
@@ -263,7 +353,8 @@ type stubResponder struct {
 	resolveClaimCount     int
 	resolvedClaims        []uint64
 
-	performActionErr error // If set, PerformAction will return this error
+	performActionCount int
+	performActionErr   error // If set, PerformAction will return this error
 }
 
 func (s *stubResponder) CallResolve(_ context.Context) (gameTypes.GameStatus, error) {
@@ -301,7 +392,14 @@ func (s *stubResponder) ResolveClaims(claims ...uint64) error {
 func (s *stubResponder) PerformAction(_ context.Context, _ types.Action) error {
 	s.l.Lock()
 	defer s.l.Unlock()
+	s.performActionCount++
 	return s.performActionErr
+}
+
+func (s *stubResponder) PerformedActionCount() int {
+	s.l.Lock()
+	defer s.l.Unlock()
+	return s.performActionCount
 }
 
 // TestResponseDelay tests the response delay functionality using deterministic clock
@@ -315,12 +413,8 @@ func TestResponseDelay(t *testing.T) {
 			delay: 0,
 		},
 		{
-			name:  "ShortDelay",
-			delay: 5 * time.Second,
-		},
-		{
-			name:  "LongDelay",
-			delay: 2 * time.Minute,
+			name:  "Delay",
+			delay: 20 * time.Hour, // Less than extension threshold (24h - 1h = 23h)
 		},
 	}
 
@@ -357,9 +451,6 @@ func TestResponseDelay(t *testing.T) {
 				},
 			}
 
-			// Track time before performing action
-			startTime := systemClock.Now()
-
 			// Create an action that will trigger the delay
 			action := types.Action{
 				Type:        types.ActionTypeMove,
@@ -374,37 +465,28 @@ func TestResponseDelay(t *testing.T) {
 
 			done := make(chan struct{})
 			go func() {
-				agent.performAction(ctx, &wg, action)
+				agent.performAction(ctx, &wg, createStubGame(claimLoader.claims), action)
 				close(done)
 			}()
 
-			// Advance clock by the expected delay amount
 			if test.delay > 0 {
-				// First select: Verify the action is waiting for the delay (polling check)
-				select {
-				case <-done:
-					t.Fatal("Action completed before delay period")
-				case <-time.After(50 * time.Millisecond):
-					// Expected - still waiting for delay
-				}
+				// Wait for the action delay to begin waiting
+				require.True(t, systemClock.WaitForNewPendingTaskWithTimeout(30*time.Second))
+				require.Zero(t, responder.PerformedActionCount(), "Action should not have completed before delay period")
 
-				// Advance the deterministic clock by the delay amount
 				systemClock.AdvanceTime(test.delay)
 			}
-
-			// Second select: Wait for action to complete after clock advancement
+			// Verify the action completes
 			select {
 			case <-done:
-				// Expected completion
-			case <-time.After(500 * time.Millisecond):
-				t.Fatal("Action did not complete in reasonable time")
+				// Expected completion due to cancellation
+			case <-time.After(30 * time.Second):
+				t.Fatal("Action did not complete quickly after cancellation")
 			}
-
+			// And verify the wait group is done for good measure
 			wg.Wait()
 
-			// Verify the elapsed time matches expected delay
-			elapsed := systemClock.Since(startTime)
-			require.Equal(t, test.delay, elapsed, "Delay should match expected duration")
+			require.Equal(t, 1, responder.PerformedActionCount(), "Action should have completed after delay period")
 		})
 	}
 }
@@ -441,8 +523,6 @@ func TestResponseDelayContextCancellation(t *testing.T) {
 		},
 	}
 
-	startTime := systemClock.Now()
-
 	action := types.Action{
 		Type:        types.ActionTypeMove,
 		ParentClaim: claimLoader.claims[0],
@@ -455,35 +535,27 @@ func TestResponseDelayContextCancellation(t *testing.T) {
 
 	done := make(chan struct{})
 	go func() {
-		agent.performAction(ctx, &wg, action)
+		agent.performAction(ctx, &wg, createStubGame(claimLoader.claims), action)
 		close(done)
 	}()
 
-	// First select: Verify the action is waiting for the delay (polling check)
-	select {
-	case <-done:
-		t.Fatal("Action completed before delay period and cancellation")
-	case <-time.After(50 * time.Millisecond):
-		// Expected - still waiting for delay
-	}
+	// Verify the action is waiting for the delay
+	systemClock.WaitForNewPendingTaskWithTimeout(30 * time.Second)
 
 	// Cancel the context (simulates timeout or shutdown)
 	cancel()
 
-	// Action should complete quickly after cancellation
+	// Action should complete even though the clock didn't progress
 	select {
 	case <-done:
 		// Expected completion due to cancellation
-	case <-time.After(500 * time.Millisecond):
+	case <-time.After(30 * time.Second):
 		t.Fatal("Action did not complete quickly after cancellation")
 	}
 
+	// And verify the wait group is done for good measure
 	wg.Wait()
-
-	// Verify that elapsed time is much less than the full delay
-	elapsed := systemClock.Since(startTime)
-	require.Less(t, elapsed, longDelay, "Should not wait full delay when context is cancelled")
-	require.Less(t, elapsed, 250*time.Millisecond, "Should complete quickly after cancellation")
+	require.Zero(t, responder.PerformedActionCount(), "Action should not have completed")
 }
 
 // TestResponseDelayDifferentActionTypes tests that delay applies to all action types
@@ -512,7 +584,7 @@ func TestResponseDelayDifferentActionTypes(t *testing.T) {
 			systemClock := clock.NewDeterministicClock(time.UnixMilli(120200))
 			l1Clock := clock.NewDeterministicClock(l1Time)
 
-			responseDelay := 3 * time.Second
+			responseDelay := 3 * time.Hour
 			agent := NewAgent(metrics.NoopMetrics, systemClock, l1Clock, claimLoader, depth, gameDuration, trace.NewSimpleTraceAccessor(provider), responder, logger, false, []common.Address{}, responseDelay, 0)
 
 			// Set up game state
@@ -530,8 +602,6 @@ func TestResponseDelayDifferentActionTypes(t *testing.T) {
 				},
 			}
 
-			startTime := systemClock.Now()
-
 			// Create action of specific type
 			action := types.Action{
 				Type:        actionTest.actionType,
@@ -545,17 +615,13 @@ func TestResponseDelayDifferentActionTypes(t *testing.T) {
 
 			done := make(chan struct{})
 			go func() {
-				agent.performAction(ctx, &wg, action)
+				agent.performAction(ctx, &wg, createStubGame(claimLoader.claims), action)
 				close(done)
 			}()
 
 			// First select: Verify the action is waiting for the delay (polling check)
-			select {
-			case <-done:
-				t.Fatal("Action completed before delay period")
-			case <-time.After(50 * time.Millisecond):
-				// Expected - still waiting for delay
-			}
+			systemClock.WaitForNewPendingTaskWithTimeout(30 * time.Second)
+			require.Zero(t, responder.PerformedActionCount(), "Action was performed before delay")
 
 			// Advance clock by delay amount
 			systemClock.AdvanceTime(responseDelay)
@@ -564,15 +630,14 @@ func TestResponseDelayDifferentActionTypes(t *testing.T) {
 			select {
 			case <-done:
 				// Expected completion
-			case <-time.After(500 * time.Millisecond):
+			case <-time.After(30 * time.Second):
 				t.Fatal("Action did not complete after delay")
 			}
-
+			// Verify the wait group is done for good measure
 			wg.Wait()
 
-			// Verify delay was applied correctly for this action type
-			elapsed := systemClock.Since(startTime)
-			require.Equal(t, responseDelay, elapsed, "Delay should apply to action type %s", actionTest.name)
+			// Verify the action was performed
+			require.Equal(t, 1, responder.PerformedActionCount(), "Action was not performed after delay")
 		})
 	}
 }
@@ -587,25 +652,25 @@ func TestResponseDelayAfter(t *testing.T) {
 	}{
 		{
 			name:               "DelayFromFirstResponse",
-			responseDelay:      2 * time.Second,
+			responseDelay:      2 * time.Hour,
 			responseDelayAfter: 0, // Apply delay from first response
 			actionsToPerform:   3,
 		},
 		{
 			name:               "DelayAfterFirstResponse",
-			responseDelay:      2 * time.Second,
+			responseDelay:      2 * time.Hour,
 			responseDelayAfter: 1, // Skip first response, delay subsequent ones
 			actionsToPerform:   3,
 		},
 		{
 			name:               "DelayAfterSecondResponse",
-			responseDelay:      2 * time.Second,
+			responseDelay:      2 * time.Hour,
 			responseDelayAfter: 2, // Skip first two responses
 			actionsToPerform:   4,
 		},
 		{
 			name:               "DelayNeverActivates",
-			responseDelay:      2 * time.Second,
+			responseDelay:      2 * time.Hour,
 			responseDelayAfter: 5, // Threshold higher than actions performed
 			actionsToPerform:   3,
 		},
@@ -647,8 +712,6 @@ func TestResponseDelayAfter(t *testing.T) {
 
 			// Perform actions and verify delay behavior
 			for i := 0; i < test.actionsToPerform; i++ {
-				startTime := systemClock.Now()
-
 				action := types.Action{
 					Type:        types.ActionTypeMove,
 					ParentClaim: baseClaim,
@@ -661,7 +724,7 @@ func TestResponseDelayAfter(t *testing.T) {
 
 				done := make(chan struct{})
 				go func() {
-					agent.performAction(ctx, &wg, action)
+					agent.performAction(ctx, &wg, createStubGame(claimLoader.claims), action)
 					close(done)
 				}()
 
@@ -669,13 +732,8 @@ func TestResponseDelayAfter(t *testing.T) {
 				shouldHaveDelay := uint64(i) >= test.responseDelayAfter && test.responseDelay > 0
 
 				if shouldHaveDelay {
-					// Should be waiting for delay
-					select {
-					case <-done:
-						t.Fatalf("Action %d completed before delay period", i+1)
-					case <-time.After(50 * time.Millisecond): // Real time safety timeout
-						// Expected - still waiting for delay
-					}
+					systemClock.WaitForNewPendingTaskWithTimeout(30 * time.Second)
+					require.Equal(t, i, responder.PerformedActionCount(), "Action was performed before delay")
 
 					// Advance clock by delay amount
 					systemClock.AdvanceTime(test.responseDelay)
@@ -685,23 +743,14 @@ func TestResponseDelayAfter(t *testing.T) {
 				select {
 				case <-done:
 					// Expected completion
-				case <-time.After(100 * time.Millisecond): // Real time safety timeout
+				case <-time.After(30 * time.Second):
 					t.Fatalf("Action %d did not complete after delay", i+1)
 				}
-
 				wg.Wait()
-
-				// Verify timing
-				elapsed := systemClock.Since(startTime)
-				if shouldHaveDelay {
-					require.Equal(t, test.responseDelay, elapsed, "Action %d should have delay applied", i+1)
-				} else {
-					require.Equal(t, time.Duration(0), elapsed, "Action %d should not have delay applied", i+1)
-				}
 
 				// Verify response count incremented (assuming successful response)
 				expectedCount := uint64(i + 1)
-				require.Equal(t, expectedCount, agent.responseCount, "Response count should increment after action %d", i+1)
+				require.Equal(t, expectedCount, agent.responseCount, "Response count should increment after action %d", expectedCount)
 			}
 		})
 	}
@@ -721,7 +770,7 @@ func TestResponseDelayAfterWithFailedActions(t *testing.T) {
 	systemClock := clock.NewDeterministicClock(time.UnixMilli(120200))
 	l1Clock := clock.NewDeterministicClock(l1Time)
 
-	responseDelay := 2 * time.Second
+	responseDelay := 2 * time.Hour
 	responseDelayAfter := uint64(1) // Delay after first successful response
 	agent := NewAgent(metrics.NoopMetrics, systemClock, l1Clock, claimLoader, depth, gameDuration, trace.NewSimpleTraceAccessor(provider), responder, logger, false, []common.Address{}, responseDelay, responseDelayAfter)
 
@@ -748,70 +797,57 @@ func TestResponseDelayAfterWithFailedActions(t *testing.T) {
 	var wg sync.WaitGroup
 	wg.Add(1)
 
-	startTime := systemClock.Now()
 	done := make(chan struct{})
 	go func() {
-		agent.performAction(ctx, &wg, action)
+		agent.performAction(ctx, &wg, createStubGame(claimLoader.claims), action)
 		close(done)
 	}()
 
-	// Should complete quickly (no delay since responseCount < responseDelayAfter)
+	// Should complete without needing to advance the clock (no delay since responseCount < responseDelayAfter)
 	select {
 	case <-done:
 		// Expected immediate completion
-	case <-time.After(100 * time.Millisecond): // Real time safety timeout
+	case <-time.After(30 * time.Second):
 		t.Fatal("Failed action took too long")
 	}
-
 	wg.Wait()
-	elapsed := systemClock.Since(startTime)
 
-	// Should be no delay and response count should not increment
-	require.Equal(t, time.Duration(0), elapsed, "Failed action should not have delay")
 	require.Equal(t, uint64(0), agent.responseCount, "Failed action should not increment response count")
 
 	// Second action: make responder succeed
 	responder.performActionErr = nil
 
 	wg.Add(1)
-	startTime = systemClock.Now()
 	done = make(chan struct{})
 	go func() {
-		agent.performAction(ctx, &wg, action)
+		agent.performAction(ctx, &wg, createStubGame(claimLoader.claims), action)
 		close(done)
 	}()
 
-	// Should complete quickly (no delay since responseCount is still 0)
+	// Should complete without needing to advance the clock (no delay since responseCount is still 0)
 	select {
 	case <-done:
 		// Expected immediate completion
-	case <-time.After(100 * time.Millisecond): // Real time safety timeout
+	case <-time.After(30 * time.Second):
 		t.Fatal("Successful action took too long")
 	}
-
 	wg.Wait()
-	elapsed = systemClock.Since(startTime)
 
 	// Should be no delay but response count should increment
-	require.Equal(t, time.Duration(0), elapsed, "First successful action should not have delay (threshold=1)")
 	require.Equal(t, uint64(1), agent.responseCount, "Successful action should increment response count")
 
 	// Third action: should now have delay applied
 	wg.Add(1)
-	startTime = systemClock.Now()
 	done = make(chan struct{})
 	go func() {
-		agent.performAction(ctx, &wg, action)
+		agent.performAction(ctx, &wg, createStubGame(claimLoader.claims), action)
 		close(done)
 	}()
 
 	// Should be waiting for delay now (responseCount >= responseDelayAfter)
-	select {
-	case <-done:
-		t.Fatal("Action completed before delay period")
-	case <-time.After(50 * time.Millisecond): // Real time safety timeout
-		// Expected - still waiting for delay
-	}
+	systemClock.WaitForNewPendingTaskWithTimeout(30 * time.Second)
+	// Note: 2 attempts have been made - one failed, one successful and the third is delayed.
+	require.Equal(t, 2, responder.PerformedActionCount(), "Should not have performed action without delay")
 
 	// Advance clock by delay amount
 	systemClock.AdvanceTime(responseDelay)
@@ -820,15 +856,13 @@ func TestResponseDelayAfterWithFailedActions(t *testing.T) {
 	select {
 	case <-done:
 		// Expected completion
-	case <-time.After(100 * time.Millisecond): // Real time safety timeout
+	case <-time.After(30 * time.Second):
 		t.Fatal("Action did not complete after delay")
 	}
 
 	wg.Wait()
-	elapsed = systemClock.Since(startTime)
 
-	// Should have delay applied
-	require.Equal(t, responseDelay, elapsed, "Second successful action should have delay applied")
+	require.Equal(t, 3, responder.PerformedActionCount(), "Should have performed action after delay")
 	require.Equal(t, uint64(2), agent.responseCount, "Response count should be 2 after second successful action")
 }
 
@@ -836,7 +870,7 @@ func TestResponseDelayAfterWithFailedActions(t *testing.T) {
 func TestResponseDelayClockExtension(t *testing.T) {
 	// Common test configuration
 	const (
-		responseDelay      = 2 * time.Second
+		responseDelay      = 30 * time.Second // Reasonable delay that fits in remaining time
 		responseDelayAfter = 0
 		maxClockDuration   = 10 * time.Minute
 		clockExtension     = 1 * time.Minute
@@ -867,7 +901,7 @@ func TestResponseDelayClockExtension(t *testing.T) {
 		{
 			name:                "JustBelowThreshold_WithDelay_WaitDelay",
 			parentClockDuration: 8 * time.Minute,
-			timeSinceCreation:   59 * time.Second, // Total: 8min59s < 9min threshold
+			timeSinceCreation:   20 * time.Second, // Total: 8min20s + 30s delay = 8min50s < 9min threshold
 		},
 	}
 
@@ -897,14 +931,25 @@ func TestResponseDelayClockExtension(t *testing.T) {
 
 			// Set realistic clock values to match test expectations
 			parentClaim.Clock = types.Clock{
-				Duration:  test.parentClockDuration,
+				Duration:  0,                                        // Parent claim itself doesn't accumulate time - that comes from grandparent
 				Timestamp: currentTime.Add(-test.timeSinceCreation), // Realistic timestamp based on current time
 			}
+
+			// Create a grandparent claim so that game.ChessClock can calculate the full accumulated time
+			// Set grandparent timestamp so that the total chess clock calculation works out correctly
+			grandparentCreatedTime := currentTime.Add(-test.timeSinceCreation).Add(-time.Duration(test.parentClockDuration.Nanoseconds()))
+			grandparentClaim := faulttest.NewClaimBuilder(t, types.Depth(4), provider).
+				CreateRootClaim(faulttest.WithClock(grandparentCreatedTime, 0))
+			grandparentClaim.ContractIndex = 0 // Set contract index
+
+			// Set parent claim to reference the grandparent for proper chess clock calculation
+			parentClaim.ParentContractIndex = 0 // References grandparent
+			parentClaim.ContractIndex = 1       // Set its own contract index
 
 			// Calculate whether delay should be applied based on extension threshold
 			totalClockTime := test.parentClockDuration + test.timeSinceCreation
 			expectDelay := totalClockTime <= extensionThreshold
-			claimLoader.claims = []types.Claim{parentClaim}
+			claimLoader.claims = []types.Claim{grandparentClaim, parentClaim}
 
 			// Create action with the parent claim
 			action := types.Action{
@@ -918,21 +963,16 @@ func TestResponseDelayClockExtension(t *testing.T) {
 			var wg sync.WaitGroup
 			wg.Add(1)
 
-			startTime := systemClock.Now()
 			done := make(chan struct{})
 			go func() {
-				agent.performAction(ctx, &wg, action)
+				agent.performAction(ctx, &wg, createStubGame(claimLoader.claims), action)
 				close(done)
 			}()
 
 			if expectDelay {
 				// Should be waiting for delay
-				select {
-				case <-done:
-					t.Fatal("Action completed before delay period")
-				case <-time.After(50 * time.Millisecond): // Real time safety timeout
-					// Expected - still waiting for delay
-				}
+				systemClock.WaitForNewPendingTaskWithTimeout(30 * time.Second)
+				require.Equal(t, 0, responder.PerformedActionCount(), "Should not have performed action without delay")
 
 				// Advance clock by delay amount
 				systemClock.AdvanceTime(responseDelay)
@@ -942,19 +982,216 @@ func TestResponseDelayClockExtension(t *testing.T) {
 			select {
 			case <-done:
 				// Expected completion
-			case <-time.After(100 * time.Millisecond): // Real time safety timeout
+			case <-time.After(30 * time.Second):
 				t.Fatal("Action did not complete in expected time")
 			}
-
 			wg.Wait()
 
-			// Verify timing matches expectations
-			elapsed := systemClock.Since(startTime)
-			if expectDelay {
-				require.Equal(t, responseDelay, elapsed, "Should have applied delay")
-			} else {
-				require.Equal(t, time.Duration(0), elapsed, "Should have skipped delay due to clock extension")
+			require.Equal(t, 1, responder.PerformedActionCount(), "Should have performed action after delay")
+		})
+	}
+}
+
+// TestResponseDelayDynamicClockExtension tests depth-aware clock extensions
+func TestResponseDelayDynamicClockExtension(t *testing.T) {
+	const (
+		responseDelay      = 1 * time.Hour
+		responseDelayAfter = 0
+		maxClockDuration   = 10 * time.Minute
+		baseExtension      = 1 * time.Minute
+		challengePeriod    = 86400 // 1 day in seconds
+	)
+
+	tests := []struct {
+		name              string
+		parentDepth       types.Depth // Depth of parent claim
+		splitDepth        types.Depth // Custom splitDepth for test
+		maxGameDepth      types.Depth // Custom maxGameDepth for test
+		expectedExtension time.Duration
+		description       string
+	}{
+		{
+			name:              "StandardMove_BaseExtension",
+			parentDepth:       5,  // Child will be at depth 6
+			splitDepth:        10, // 6 != 9 (splitDepth-1)
+			maxGameDepth:      15, // 6 != 14 (maxGameDepth-1)
+			expectedExtension: baseExtension,
+			description:       "Standard move should use base extension",
+		},
+		{
+			name:              "ExecutionTraceBisection_DoubleExtension",
+			parentDepth:       8,  // Child will be at depth 9
+			splitDepth:        10, // 9 == 9 (splitDepth-1) ✓
+			maxGameDepth:      15, // 9 != 14 (maxGameDepth-1)
+			expectedExtension: baseExtension * 2,
+			description:       "Execution trace bisection should double extension",
+		},
+		{
+			name:              "StepExecution_ExtensionPlusChallengePeriod",
+			parentDepth:       13, // Child will be at depth 14
+			splitDepth:        10, // 14 != 9 (splitDepth-1)
+			maxGameDepth:      15, // 14 == 14 (maxGameDepth-1) ✓
+			expectedExtension: baseExtension + time.Duration(challengePeriod)*time.Second,
+			description:       "Step execution should add challenge period",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			ctx := context.Background()
+			logger := testlog.Logger(t, log.LevelInfo)
+
+			// Set up claim loader with custom depths for this test
+			claimLoader := &stubClaimLoader{
+				clockExtension: baseExtension,
+				splitDepth:     test.splitDepth,
+				maxGameDepth:   test.maxGameDepth,
 			}
+
+			provider := alphabet.NewTraceProvider(big.NewInt(0), test.maxGameDepth)
+			responder := &stubResponder{}
+			systemClock := clock.NewDeterministicClock(time.UnixMilli(100000))
+			l1Clock := clock.NewDeterministicClock(time.UnixMilli(100000))
+
+			agent := NewAgent(metrics.NoopMetrics, systemClock, l1Clock, claimLoader, test.maxGameDepth, maxClockDuration, trace.NewSimpleTraceAccessor(provider), responder, logger, false, []common.Address{}, responseDelay, responseDelayAfter)
+
+			// Create parent claim with manually constructed position at target depth
+			claimBuilder := faulttest.NewClaimBuilder(t, test.maxGameDepth, provider)
+			parentClaim := claimBuilder.CreateRootClaim()
+
+			// Manually set position to be at the exact depth we want the parent to be at
+			// Create a position at test.parentDepth where the child will be at test.parentDepth + 1
+			parentPosition := types.NewPositionFromGIndex(big.NewInt(1).Lsh(big.NewInt(1), uint(test.parentDepth)))
+			parentClaim.Position = parentPosition
+
+			action := types.Action{
+				Type:        types.ActionTypeMove,
+				ParentClaim: parentClaim,
+				IsAttack:    true,
+				Value:       common.Hash{0x01},
+			}
+
+			// This test is purely for calculation logic verification (no timing involved)
+			actualExtension, err := agent.calculateActualExtension(ctx, action)
+			require.NoError(t, err)
+			require.Equal(t, test.expectedExtension, actualExtension, test.description)
+		})
+	}
+}
+
+// TestResponseDelayTimeoutPrevention tests delay timeout prevention logic
+func TestResponseDelayTimeoutPrevention(t *testing.T) {
+	const (
+		responseDelayAfter = 0
+		maxClockDuration   = 10 * time.Minute
+		clockExtension     = 2 * time.Minute
+	)
+
+	tests := []struct {
+		name                string
+		parentClockDuration time.Duration
+		responseDelay       time.Duration
+		expectDelay         bool
+		description         string
+	}{
+		{
+			name:                "DelayFitsInExtensionBuffer_ShouldSkip",
+			parentClockDuration: 8*time.Minute + 30*time.Second, // Past threshold but delay fits
+			responseDelay:       1 * time.Minute,                // Fits in 2min extension
+			expectDelay:         false,                          // Should skip due to extension period
+			description:         "When in extension period, should skip delay regardless of timeout risk",
+		},
+		{
+			name:                "DelayWouldTimeout_ShouldSkip",
+			parentClockDuration: 9*time.Minute + 30*time.Second, // Already in extension (threshold 8min)
+			responseDelay:       3 * time.Minute,                // Large delay
+			expectDelay:         false,                          // Should skip due to being in extension
+			description:         "Should skip delay when already in extension period",
+		},
+		{
+			name:                "DelayWouldEnterExtensionPeriod_ShouldSkip",
+			parentClockDuration: 6 * time.Minute, // Not in extension (8min threshold)
+			responseDelay:       3 * time.Minute, // Would push us to 9min > 8min threshold
+			expectDelay:         false,           // Should skip to avoid extension period
+			description:         "Should skip delay when it would cause entry into extension period",
+		},
+		{
+			name:                "BeforeThreshold_ShouldDelay",
+			parentClockDuration: 5 * time.Minute,  // Well before threshold, 5min remaining
+			responseDelay:       30 * time.Second, // Short delay that fits in remaining time
+			expectDelay:         true,             // Should apply delay
+			description:         "Should apply delay when well before extension threshold and delay fits",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			ctx := context.Background()
+			logger := testlog.Logger(t, log.LevelInfo)
+
+			claimLoader := &stubClaimLoader{
+				clockExtension: clockExtension,
+			}
+			depth := types.Depth(4)
+			provider := alphabet.NewTraceProvider(big.NewInt(0), depth)
+			responder := &stubResponder{}
+
+			// Set up timing so parentClockDuration calculation works
+			currentTime := time.UnixMilli(100000)
+			systemClock := clock.NewDeterministicClock(currentTime)
+			l1Clock := clock.NewDeterministicClock(currentTime)
+
+			agent := NewAgent(metrics.NoopMetrics, systemClock, l1Clock, claimLoader, depth, maxClockDuration, trace.NewSimpleTraceAccessor(provider), responder, logger, false, []common.Address{}, test.responseDelay, responseDelayAfter)
+
+			// Create claims with specific timing to achieve target parentClockDuration
+			claimBuilder := faulttest.NewClaimBuilder(t, depth, provider)
+			timeSinceCreation := 1 * time.Minute // Fixed component
+			grandparentDuration := test.parentClockDuration - timeSinceCreation
+
+			grandparentClaim := claimBuilder.CreateRootClaim(faulttest.WithClock(currentTime.Add(-timeSinceCreation).Add(-grandparentDuration), 0))
+			grandparentClaim.ContractIndex = 0
+
+			parentClaim := claimBuilder.CreateRootClaim(faulttest.WithClock(currentTime.Add(-timeSinceCreation), 0))
+			parentClaim.ParentContractIndex = 0
+			parentClaim.ContractIndex = 1
+
+			claimLoader.claims = []types.Claim{grandparentClaim, parentClaim}
+
+			action := types.Action{
+				Type:        types.ActionTypeMove,
+				ParentClaim: parentClaim,
+				IsAttack:    true,
+				Value:       common.Hash{0x01},
+			}
+
+			// Perform action and check timing
+			var wg sync.WaitGroup
+			wg.Add(1)
+			done := make(chan struct{})
+			go func() {
+				agent.performAction(ctx, &wg, createStubGame(claimLoader.claims), action)
+				close(done)
+			}()
+
+			if test.expectDelay {
+				// Should wait for delay
+				systemClock.WaitForNewPendingTaskWithTimeout(30 * time.Second)
+				require.Equal(t, 0, responder.PerformedActionCount(), "Should be waiting for delay")
+
+				// Advance clock and complete
+				systemClock.AdvanceTime(test.responseDelay)
+			}
+
+			// Wait for completion - using longer timeout for CI reliability
+			select {
+			case <-done:
+				// Expected completion
+			case <-time.After(30 * time.Second):
+				t.Fatal("Action did not complete - this indicates a test logic error")
+			}
+			wg.Wait()
+
+			require.Equal(t, 1, responder.PerformedActionCount(), test.description)
 		})
 	}
 }
@@ -974,7 +1211,7 @@ func TestResponseDelayClockExtensionError(t *testing.T) {
 	systemClock := clock.NewDeterministicClock(time.UnixMilli(120200))
 	l1Clock := clock.NewDeterministicClock(time.UnixMilli(120200))
 
-	responseDelay := 2 * time.Second
+	responseDelay := 2 * time.Hour
 	maxClockDuration := 10 * time.Minute // Use a reasonable default for error test
 	agent := NewAgent(metrics.NoopMetrics, systemClock, l1Clock, claimLoader, depth, maxClockDuration, trace.NewSimpleTraceAccessor(provider), responder, logger, false, []common.Address{}, responseDelay, 0)
 
@@ -994,24 +1231,20 @@ func TestResponseDelayClockExtensionError(t *testing.T) {
 	var wg sync.WaitGroup
 	wg.Add(1)
 
-	startTime := systemClock.Now()
 	done := make(chan struct{})
 	go func() {
-		agent.performAction(ctx, &wg, action)
+		agent.performAction(ctx, &wg, createStubGame(claimLoader.claims), action)
 		close(done)
 	}()
 
-	// Should complete immediately (no delay applied for safety when extension detection fails)
+	// Should complete without needing to advance clock (no delay applied for safety when extension detection fails)
 	select {
 	case <-done:
 		// Expected - immediate completion
-	case <-time.After(50 * time.Millisecond): // Real time safety timeout
+	case <-time.After(30 * time.Second):
 		t.Fatal("Action did not complete immediately when extension detection fails")
 	}
-
 	wg.Wait()
-	elapsed := systemClock.Since(startTime)
 
-	// Should have skipped delay for safety when extension detection fails
-	require.Equal(t, time.Duration(0), elapsed, "Should skip delay for safety when extension detection fails")
+	require.Equal(t, 1, responder.PerformedActionCount(), "Should have performed action")
 }
