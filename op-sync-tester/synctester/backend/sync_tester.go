@@ -16,7 +16,6 @@ import (
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/rpc"
-	"github.com/holiman/uint256"
 
 	"github.com/ethereum-optimism/optimism/op-sync-tester/synctester/backend/config"
 	sttypes "github.com/ethereum-optimism/optimism/op-sync-tester/synctester/backend/types"
@@ -189,9 +188,8 @@ func (s *SyncTester) GetBlockByNumber(ctx context.Context, number rpc.BlockNumbe
 }
 
 func (s *SyncTester) ChainId(ctx context.Context) (hexutil.Big, error) {
-	_, err := s.fetchSession(ctx)
-	if err != nil {
-		return hexutil.Big(*eth.ChainID(uint256.Int{}).ToBig()), err
+	if _, err := s.fetchSession(ctx); err != nil {
+		return hexutil.Big{}, err
 	}
 	return hexutil.Big(*s.chainID.ToBig()), nil
 }
