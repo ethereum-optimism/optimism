@@ -16,6 +16,7 @@ import (
 type Oracle interface {
 	VerifierPreimageOracle
 	ChallengeTx(ident keccakTypes.LargePreimageIdent, challenge keccakTypes.Challenge) (txmgr.TxCandidate, error)
+	Addr() common.Address
 }
 
 type ChallengeMetrics interface {
