@@ -92,8 +92,9 @@ acceptance-test devnet="" gate="holocene":
         # Gateless mode: auto-discover all tests within a directory
         echo "Running gateless mode - auto-discovering all tests in ./op-acceptance-tests/..."
 
+        # For now, run op-acceptor directly
         # (Temporarily) allow skips
-        op-acceptor \
+        $BINARY_PATH \
             --testdir {{REPO_ROOT}}/op-acceptance-tests/... \
             --orchestrator sysgo \
             --allow-skips \
@@ -101,14 +102,6 @@ acceptance-test devnet="" gate="holocene":
             --log.level "${LOG_LEVEL:-info}"
 
         exit 0
-    else
-        # External devnet testing
-        CMD_ARGS+=("--orchestrator" "sysext")
-        CMD_ARGS+=("--devnet" "{{devnet}}")
-        # Include kurtosis-dir for devnet deployment
-        CMD_ARGS+=("--kurtosis-dir" "{{KURTOSIS_DIR}}")
-        # For now, run sysext in serial mode
-        CMD_ARGS+=("--serial")
     fi
 
     # Build the command with conditional parameters
@@ -131,6 +124,7 @@ acceptance-test devnet="" gate="holocene":
         CMD_ARGS+=("--devnet" "{{devnet}}")
         # Include kurtosis-dir for devnet deployment
         CMD_ARGS+=("--kurtosis-dir" "{{KURTOSIS_DIR}}")
+        CMD_ARGS+=("--serial") # For now, run sysext in serial mode
     fi
 
     # Execute the command
