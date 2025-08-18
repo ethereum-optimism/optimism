@@ -58,16 +58,18 @@ func (ef *EcotoneFees) ValidateTransaction(from *EOA, to *EOA, amount *big.Int) 
 	vaultsAfter := ef.getVaultBalances(client)
 	vaultIncreases := ef.calculateVaultIncreases(vaultsBefore, vaultsAfter)
 
-	block, err := client.InfoByHash(ef.ctx, receipt.BlockHash)
-	ef.require.NoError(err)
-
 	// In Ecotone, L1 fee includes both base fee and blob base fee components
 	l1Fee := vaultIncreases.L1FeeVault // Use actual vault increase as the source of truth
 
-	baseFee := new(big.Int).Mul(block.BaseFee(), big.NewInt(int64(receipt.GasUsed)))
-	l2Fee := new(big.Int).Mul(receipt.EffectiveGasPrice, big.NewInt(int64(receipt.GasUsed)))
-	priorityFee := new(big.Int).Sub(l2Fee, baseFee)
-	totalFee := new(big.Int).Add(l1Fee, l2Fee)
+	// Calculate L2 fees
+	baseFee := vaultIncreases.BaseFeeVault       // Use actual vault increase as the source of truth
+	priorityFee := vaultIncreases.SequencerVault // Use actual vault increase as the source of truth
+	l2Fee := new(big.Int).Add(baseFee, priorityFee)
+
+	// Total fee is the sum of all vault increases
+	totalFee := new(big.Int).Add(vaultIncreases.BaseFeeVault, vaultIncreases.L1FeeVault)
+	totalFee.Add(totalFee, vaultIncreases.SequencerVault)
+	totalFee.Add(totalFee, vaultIncreases.OperatorVault)
 
 	walletBalanceDiff := new(big.Int).Sub(startBalance.ToBig(), endBalance.ToBig())
 	walletBalanceDiff.Sub(walletBalanceDiff, amount)
