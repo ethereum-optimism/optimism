@@ -276,12 +276,22 @@ contract VerifyOPCM_Run_Test is VerifyOPCM_TestInit {
         // Coverage changes bytecode and causes failures, skip.
         skipIfCoverage();
 
-        // Ensure environment variables are set correctly (in case other tests modified them)
-        setupEnvVars();
+        // Clear any mock calls that might affect this test and reset VM state
+        vm.clearMockedCalls();
 
-        // Test that the immutable variables are correctly verified.
-        // Environment variables are set in setUp() to match the actual OPCM addresses.
-        bool result = harness.verifyOpcmImmutableVariables(opcm);
+        // Create a fresh harness instance to avoid any state pollution
+        VerifyOPCM_Harness freshHarness = new VerifyOPCM_Harness();
+        freshHarness.setUp();
+
+        // Always set fresh environment variables to ensure test isolation
+        // Get the actual values from the OPCM contract directly
+        vm.setEnv("EXPECTED_SUPERCHAIN_CONFIG", vm.toString(address(opcm.superchainConfig())));
+        vm.setEnv("EXPECTED_PROTOCOL_VERSIONS", vm.toString(address(opcm.protocolVersions())));
+        vm.setEnv("EXPECTED_SUPERCHAIN_PROXY_ADMIN", vm.toString(address(opcm.superchainProxyAdmin())));
+        vm.setEnv("EXPECTED_UPGRADE_CONTROLLER", vm.toString(opcm.upgradeController()));
+
+        // Test that the immutable variables are correctly verified with fresh harness
+        bool result = freshHarness.verifyOpcmImmutableVariables(opcm);
         assertTrue(result, "OPCM immutable variables should be valid");
     }
 
@@ -295,7 +305,7 @@ contract VerifyOPCM_Run_Test is VerifyOPCM_TestInit {
         bool result = harness.verifyOpcmImmutableVariables(opcm);
         assertFalse(result, "OPCM with invalid immutable variables should fail verification");
 
-        // Clear mock calls and restore original environment variables to avoid test isolation issues
+        // Clear mock calls to avoid test isolation issues
         vm.clearMockedCalls();
     }
 
@@ -322,7 +332,8 @@ contract VerifyOPCM_Run_Test is VerifyOPCM_TestInit {
         _assertOnOpcmGetter(IOPContractsManager.superchainProxyAdmin.selector);
         _assertOnOpcmGetter(IOPContractsManager.upgradeController.selector);
 
-        // Reset environment variables to correct values (as set in setUp())
+        // Reset environment variables to correct values and clear any remaining mocks
+        vm.clearMockedCalls();
         setupEnvVars();
     }
 
