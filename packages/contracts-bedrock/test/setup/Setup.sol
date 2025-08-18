@@ -257,11 +257,7 @@ contract Setup {
 
         optimismPortal2 = IOptimismPortal(artifacts.mustGetAddress("OptimismPortalProxy"));
 
-        // Only skip ETHLockbox assignment if we're in a fork test with non-upgraded fork
-        // TODO(#14691): Remove this check once Upgrade 15 is deployed on Mainnet.
-        if (!isForkTest() || deploy.cfg().useUpgradedFork()) {
-            ethLockbox = IETHLockbox(artifacts.mustGetAddress("ETHLockboxProxy"));
-        }
+        ethLockbox = IETHLockbox(artifacts.mustGetAddress("ETHLockboxProxy"));
 
         systemConfig = ISystemConfig(artifacts.mustGetAddress("SystemConfigProxy"));
         l1StandardBridge = IL1StandardBridge(artifacts.mustGetAddress("L1StandardBridgeProxy"));
