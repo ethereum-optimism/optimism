@@ -174,8 +174,7 @@ func NewL2Verifier(t Testing, log log.Logger, l1 derive.L1Fetcher,
 	sys.Register("status", syncStatusTracker, opts)
 
 	// TODO(#17115): Refactor dependency cycles
-	ec.SetCrossUnsafeUpdateHandler(syncStatusTracker)
-	ec.SetCrossSafeUpdateHandler(syncStatusTracker)
+	ec.SetCrossUpdateHandler(syncStatusTracker)
 
 	stepDeriver := NewTestingStepSchedulingDeriver()
 	stepDeriver.AttachEmitter(testActionEmitter)

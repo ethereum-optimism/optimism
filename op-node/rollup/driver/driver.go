@@ -192,8 +192,7 @@ func NewDriver(
 
 	ec := engine.NewEngineController(driverCtx, l2, log, metrics, cfg, syncCfg, sys.Register("engine-controller", nil))
 	// TODO(#17115): Refactor dependency cycles
-	ec.SetCrossUnsafeUpdateHandler(statusTracker)
-	ec.SetCrossSafeUpdateHandler(statusTracker)
+	ec.SetCrossUpdateHandler(statusTracker)
 
 	sys.Register("engine-reset",
 		engine.NewEngineResetDeriver(driverCtx, log, cfg, l1, l2, syncCfg))
