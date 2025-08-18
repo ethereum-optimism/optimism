@@ -145,10 +145,7 @@ func NewL2Verifier(t Testing, log log.Logger, l1 derive.L1Fetcher,
 	}
 
 	metrics := &testutils.TestDerivationMetrics{}
-	ec := engine.NewEngineController(ctx, eng, log, opnodemetrics.NoopMetrics, cfg, syncCfg, sys.Register("engine-controller", nil, opts))
-
-	sys.Register("engine-reset",
-		engine.NewEngineResetDeriver(ctx, log, cfg, l1, eng, syncCfg), opts)
+	ec := engine.NewEngineController(ctx, l1, eng, log, opnodemetrics.NoopMetrics, cfg, syncCfg, sys.Register("engine-controller", nil, opts))
 
 	clSync := clsync.NewCLSync(log, cfg, metrics, ec)
 	sys.Register("cl-sync", clSync, opts)

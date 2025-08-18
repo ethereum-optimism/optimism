@@ -95,6 +95,16 @@ func (ev ProcessUnsafePayloadEvent) String() string {
 	return "process-unsafe-payload"
 }
 
+// ResetEngineRequestEvent requests the EngineResetDeriver to walk
+// the L2 chain backwards until it finds a plausible unsafe head,
+// and find an L2 safe block that is guaranteed to still be from the L1 chain.
+// This event is not used in interop.
+type ResetEngineRequestEvent struct{}
+
+func (ev ResetEngineRequestEvent) String() string {
+	return "reset-engine-request"
+}
+
 type EngineResetConfirmedEvent struct {
 	LocalUnsafe eth.L2BlockRef
 	CrossUnsafe eth.L2BlockRef

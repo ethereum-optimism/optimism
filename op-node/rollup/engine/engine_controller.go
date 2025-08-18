@@ -58,6 +58,7 @@ type CrossUpdateHandler interface {
 }
 
 type EngineController struct {
+	l1Chain    sync.L1Chain
 	engine     ExecEngine // Underlying execution engine RPC
 	log        log.Logger
 	metrics    opmetrics.Metricer
@@ -114,7 +115,7 @@ type EngineController struct {
 	crossUpdateHandler CrossUpdateHandler
 }
 
-func NewEngineController(ctx context.Context, engine ExecEngine, log log.Logger, m opmetrics.Metricer,
+func NewEngineController(ctx context.Context, l1Chain sync.L1Chain, engine ExecEngine, log log.Logger, m opmetrics.Metricer,
 	rollupCfg *rollup.Config, syncCfg *sync.Config, emitter event.Emitter,
 ) *EngineController {
 	syncStatus := syncStatusCL
@@ -123,6 +124,7 @@ func NewEngineController(ctx context.Context, engine ExecEngine, log log.Logger,
 	}
 
 	return &EngineController{
+		l1Chain:    l1Chain,
 		engine:     engine,
 		log:        log,
 		metrics:    m,
@@ -636,6 +638,21 @@ func (d *EngineController) OnEvent(ctx context.Context, ev event.Event) bool {
 	// TODO(#16917) Remove Event System Refactor Comments
 	//  PromoteUnsafeEvent, PromotePendingSafeEvent, PromoteLocalSafeEvent fan out is updated to procedural
 	switch x := ev.(type) {
+	case ResetEngineRequestEvent:
+		result, err := sync.FindL2Heads(d.ctx, d.rollupCfg, d.l1Chain, d.engine, d.log, d.syncCfg)
+		if err != nil {
+			d.emitter.Emit(ctx, rollup.ResetEvent{
+				Err: fmt.Errorf("failed to find the L2 Heads to start from: %w", err),
+			})
+			return true
+		}
+		d.emitter.Emit(ctx, rollup.ForceResetEvent{
+			LocalUnsafe: result.Unsafe,
+			CrossUnsafe: result.Unsafe,
+			LocalSafe:   result.Safe,
+			CrossSafe:   result.Safe,
+			Finalized:   result.Finalized,
+		})
 	case ProcessUnsafePayloadEvent:
 		ref, err := derive.PayloadToBlockRef(d.rollupCfg, x.Envelope.ExecutionPayload)
 		if err != nil {
