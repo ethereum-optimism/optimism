@@ -191,6 +191,7 @@ func NewDriver(
 	verifConfDepth := confdepth.NewConfDepth(driverCfg.VerifierConfDepth, statusTracker.L1Head, l1)
 
 	ec := engine.NewEngineController(driverCtx, l2, log, metrics, cfg, syncCfg, sys.Register("engine-controller", nil))
+	// TODO(#17115): Refactor dependency cycles
 	ec.SetCrossUnsafeUpdateHandler(statusTracker)
 	ec.SetCrossSafeUpdateHandler(statusTracker)
 
