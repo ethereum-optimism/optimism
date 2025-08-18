@@ -99,6 +99,8 @@ acceptance-test devnet="" gate="holocene":
             --allow-skips \
             --timeout 90m \
             --log.level "${LOG_LEVEL:-info}"
+
+        exit 0
     else
         # External devnet testing
         CMD_ARGS+=("--orchestrator" "sysext")
