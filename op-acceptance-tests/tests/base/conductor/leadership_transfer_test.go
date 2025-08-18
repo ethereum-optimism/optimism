@@ -25,6 +25,26 @@ type conductorWithInfo struct {
 	info consensus.ServerInfo
 }
 
+// FetchSequencerHealthy returns the sequencer healthy status
+func (c conductorWithInfo) FetchSequencerHealthy() bool {
+	return c.Conductor.FetchSequencerHealthy()
+}
+
+// FetchPaused returns the paused status
+func (c conductorWithInfo) FetchPaused() bool {
+	return c.Conductor.FetchPaused()
+}
+
+// IsLeader returns whether this conductor is the leader
+func (c conductorWithInfo) IsLeader() bool {
+	return c.Conductor.IsLeader()
+}
+
+// TransferLeadershipTo transfers leadership to the target leader
+func (c conductorWithInfo) TransferLeadershipTo(targetLeaderInfo consensus.ServerInfo) {
+	c.Conductor.TransferLeadershipTo(targetLeaderInfo)
+}
+
 // TestConductorLeadershipTransfer checks if the leadership transfer works correctly on the conductors
 func TestConductorLeadershipTransfer(gt *testing.T) {
 	t := devtest.SerialT(gt)
