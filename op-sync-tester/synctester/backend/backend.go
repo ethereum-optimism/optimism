@@ -35,6 +35,14 @@ func SessionFromContext(ctx context.Context) (*Session, bool) {
 
 type Session struct {
 	SessionID string
+
+	// Canonical view of the chain
+	CurrentState FCUState
+
+	InitialState FCUState
+}
+
+type FCUState struct {
 	Latest    uint64
 	Safe      uint64
 	Finalized uint64

@@ -2,9 +2,9 @@ package backend
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
-	"math/big"
 	"sync"
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
@@ -103,61 +103,97 @@ func (s *SyncTester) GetBlockReceipts(ctx context.Context, blockNrOrHash rpc.Blo
 	if err != nil {
 		return nil, err
 	}
-
-	receipts, err := s.elClient.BlockReceipts(ctx, blockNrOrHash)
-	if err != nil {
-		return nil, err
+	number, isNumber := blockNrOrHash.Number()
+	var receipts []*types.Receipt
+	if !isNumber {
+		// hash
+		receipts, err = s.elClient.BlockReceipts(ctx, blockNrOrHash)
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		var target uint64
+		if target, err = s.checkBlockNumber(number, session); err != nil {
+			return nil, err
+		}
+		receipts, err = s.elClient.BlockReceipts(ctx, rpc.BlockNumberOrHashWithNumber(rpc.BlockNumber(target)))
+		if err != nil {
+			return nil, err
+		}
 	}
-
 	if len(receipts) == 0 {
+		// Should never happen since every block except genesis has at least one deposit tx
 		return nil, ErrNoReceipts
 	}
-
-	if receipts[0].BlockNumber.Uint64() > session.Latest {
+	if receipts[0].BlockNumber.Uint64() > session.CurrentState.Latest {
 		return nil, ethereum.NotFound
 	}
-
 	return receipts, nil
 }
 
-func (s *SyncTester) GetBlockByHash(ctx context.Context, hash common.Hash) (*types.Block, error) {
+func (s *SyncTester) GetBlockByHash(ctx context.Context, hash common.Hash, fullTx bool) (json.RawMessage, error) {
 	session, err := s.fetchSession(ctx)
 	if err != nil {
 		return nil, err
 	}
-
-	block, err := s.elClient.BlockByHash(ctx, hash)
-	if err != nil {
+	var raw json.RawMessage
+	if err := s.elClient.Client().CallContext(ctx, &raw, "eth_getBlockByHash", hash, fullTx); err != nil {
 		return nil, err
 	}
-
-	if block.NumberU64() > session.Latest {
+	var head *types.Header
+	if err := json.Unmarshal(raw, &head); err != nil {
+		return nil, err
+	}
+	if head.Number.Uint64() > session.CurrentState.Latest {
 		return nil, ethereum.NotFound
 	}
-
-	return block, nil
+	return raw, nil
 }
 
-func (s *SyncTester) GetBlockByNumber(ctx context.Context, number *big.Int) (*types.Block, error) {
+func (s *SyncTester) checkBlockNumber(number rpc.BlockNumber, session *Session) (uint64, error) {
+	var target uint64
+	switch number {
+	case rpc.LatestBlockNumber:
+		target = session.CurrentState.Latest
+	case rpc.SafeBlockNumber:
+		target = session.CurrentState.Safe
+	case rpc.FinalizedBlockNumber:
+		target = session.CurrentState.Finalized
+	case rpc.PendingBlockNumber, rpc.EarliestBlockNumber:
+		// pending, earliest block label not supported
+		return 0, ethereum.NotFound
+	default:
+		target = uint64(number.Int64())
+		// Short circuit for numeric request beyond sync tester canonical head
+		if target > session.CurrentState.Latest {
+			return 0, ethereum.NotFound
+		}
+	}
+	return target, nil
+}
+
+func (s *SyncTester) GetBlockByNumber(ctx context.Context, number rpc.BlockNumber, fullTx bool) (json.RawMessage, error) {
 	session, err := s.fetchSession(ctx)
 	if err != nil {
 		return nil, err
 	}
-
-	if number.Uint64() > session.Latest {
-		return nil, ethereum.NotFound
+	var target uint64
+	if target, err = s.checkBlockNumber(number, session); err != nil {
+		return nil, err
 	}
-
-	return s.elClient.BlockByNumber(ctx, number)
+	var raw json.RawMessage
+	if err := s.elClient.Client().CallContext(ctx, &raw, "eth_getBlockByNumber", rpc.BlockNumber(target), fullTx); err != nil {
+		return nil, err
+	}
+	return raw, nil
 }
 
-func (s *SyncTester) ChainId(ctx context.Context) (eth.ChainID, error) {
+func (s *SyncTester) ChainId(ctx context.Context) (hexutil.Big, error) {
 	_, err := s.fetchSession(ctx)
 	if err != nil {
-		return eth.ChainID(uint256.Int{}), err
+		return hexutil.Big(*eth.ChainID(uint256.Int{}).ToBig()), err
 	}
-
-	return s.chainID, nil
+	return hexutil.Big(*s.chainID.ToBig()), nil
 }
 
 func (s *SyncTester) GetPayloadV1(ctx context.Context, payloadID eth.PayloadID) (*eth.ExecutionPayload, error) {
