@@ -89,7 +89,7 @@ func handlePointerType(fieldValue reflect.Value, fieldType reflect.Type, ctx *cl
 // handleSpecialTypes handles non-primitive types that need special handling
 func handleSpecialTypes(fieldValue reflect.Value, fieldType reflect.Type, ctx *cli.Context, flag string) error {
 	// Handle common.Address
-	if fieldType == reflect.TypeOf(common.Address{}) {
+	if fieldType == reflect.TypeFor[common.Address]() {
 		if !ctx.IsSet(flag) {
 			return nil
 		}

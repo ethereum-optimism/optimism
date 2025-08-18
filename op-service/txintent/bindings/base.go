@@ -149,7 +149,7 @@ func findBaseCallFactory(v reflect.Value) reflect.Value {
 			continue
 		}
 		t := field.Type()
-		if t == reflect.TypeOf(BaseCallFactory{}) {
+		if t == reflect.TypeFor[BaseCallFactory]() {
 			return field
 		}
 		if t.Kind() == reflect.Struct {
@@ -251,10 +251,10 @@ var _ txintent.CallView[any] = (*TypedCall[any])(nil)
 // CustomTypeToGoType converts custom type to go type
 func CustomTypeToGoType(retTyp reflect.Type) reflect.Type {
 	switch retTyp {
-	case reflect.TypeOf(eth.ETH{}), reflect.TypeOf(eth.ChainID{}):
-		return reflect.TypeOf(big.NewInt(0))
-	case reflect.TypeOf(suptypes.Identifier{}):
-		return reflect.TypeOf(ABIIdentifier{})
+	case reflect.TypeFor[eth.ETH](), reflect.TypeFor[eth.ChainID]():
+		return reflect.TypeFor[*big.Int]()
+	case reflect.TypeFor[suptypes.Identifier]():
+		return reflect.TypeFor[ABIIdentifier]()
 	default:
 		return retTyp
 	}
@@ -297,7 +297,7 @@ func unwrapCustomInt(val reflect.Value) (any, bool) {
 func replaceCustomIntValue(val reflect.Value) (any, error) {
 	typ := val.Type()
 	// Skip native *big.Int
-	if typ == reflect.TypeOf((*big.Int)(nil)) {
+	if typ == reflect.TypeFor[*big.Int]() {
 		return val.Interface(), nil
 	}
 	// custom ints to *big.Int
@@ -424,30 +424,30 @@ func CustomValueToABIValue(arg any) any {
 func ABIValueToCustomValue[ReturnType any](retTyp reflect.Type, val any) ReturnType {
 	var zero ReturnType
 	switch retTyp {
-	case reflect.TypeOf(eth.ETH{}):
+	case reflect.TypeFor[eth.ETH]():
 		bigVal := abi.ConvertType(val, new(big.Int)).(*big.Int)
 		var concrete eth.ETH
 		if (*uint256.Int)(&concrete).SetFromBig(bigVal) {
 			return zero
 		}
 		return any(concrete).(ReturnType)
-	case reflect.TypeOf(eth.ChainID{}):
+	case reflect.TypeFor[eth.ChainID]():
 		bigVal := abi.ConvertType(val, new(big.Int)).(*big.Int)
 		var concrete eth.ChainID
 		if (*uint256.Int)(&concrete).SetFromBig(bigVal) {
 			return zero
 		}
 		return any(concrete).(ReturnType)
-	case reflect.TypeOf(Uint128{}):
+	case reflect.TypeFor[Uint128]():
 		bigVal := abi.ConvertType(val, new(big.Int)).(*big.Int)
 		return any(Uint128(*bigVal)).(ReturnType)
-	case reflect.TypeOf(&Uint128{}):
+	case reflect.TypeFor[*Uint128]():
 		bigVal := abi.ConvertType(val, new(big.Int)).(*big.Int)
 		return any((*Uint128)(bigVal)).(ReturnType)
-	case reflect.TypeOf(Int128{}):
+	case reflect.TypeFor[Int128]():
 		bigVal := abi.ConvertType(val, new(big.Int)).(*big.Int)
 		return any(Int128(*bigVal)).(ReturnType)
-	case reflect.TypeOf(&Int128{}):
+	case reflect.TypeFor[*Int128]():
 		bigVal := abi.ConvertType(val, new(big.Int)).(*big.Int)
 		return any((*Int128)(bigVal)).(ReturnType)
 	default:

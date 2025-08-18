@@ -31,11 +31,11 @@ func (u Int128) ToBig() *big.Int {
 var abiUint128Type = reflect.TypeFor[Uint128]()
 var abiInt128Type = reflect.TypeFor[Int128]()
 
-var bigIntType = reflect.TypeOf(big.Int{})
+var bigIntType = reflect.TypeFor[big.Int]()
 
 var customIntTypes = map[reflect.Type]bool{
-	reflect.TypeOf(Uint128{}): true,
-	reflect.TypeOf(Int128{}):  true,
+	reflect.TypeFor[Uint128](): true,
+	reflect.TypeFor[Int128]():  true,
 }
 
 func goStructTypeToABIType(t reflect.Type) (abi.Type, []abi.ArgumentMarshaling, error) {
