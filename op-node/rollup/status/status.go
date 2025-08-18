@@ -14,6 +14,10 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/event"
 )
 
+// Compile-time interface compliance checks
+var _ engine.CrossUnsafeUpdateHandler = (*StatusTracker)(nil)
+var _ engine.CrossSafeUpdateHandler = (*StatusTracker)(nil)
+
 type Metrics interface {
 	RecordL1ReorgDepth(d uint64)
 	RecordL1Ref(name string, ref eth.L1BlockRef)
