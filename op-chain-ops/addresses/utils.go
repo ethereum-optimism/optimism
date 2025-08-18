@@ -32,7 +32,7 @@ func CheckNoZeroAddresses(s interface{}) error {
 	}
 
 	typ := val.Type()
-	addressType := reflect.TypeOf(common.Address{})
+	addressType := reflect.TypeFor[common.Address]()
 
 	// Iterate through all the fields
 	for i := 0; i < val.NumField(); i++ {

@@ -140,7 +140,7 @@ func newDeployScriptWithoutOutput[I any](script ForgeScript, methodName string) 
 	}
 
 	// Now make sure the ABI has exactly one argument of the correct type
-	inputType := reflect.TypeOf(*new(I))
+	inputType := reflect.TypeFor[I]()
 	err := matchArguments(method.Inputs, inputType)
 	if err != nil {
 		return nil, fmt.Errorf("script %s does not have a method %s that accepts an argument of type %v: %w", scriptName, methodName, inputType, err)
@@ -165,7 +165,7 @@ func newDeployScriptWithOutput[I any, O any](script ForgeScript, methodName stri
 	}
 
 	// Now make sure the return value matches the ABI
-	outputType := reflect.TypeOf(*new(O))
+	outputType := reflect.TypeFor[O]()
 	err = matchArguments(deployScriptWithoutOutputImpl.method.Outputs, outputType)
 	if err != nil {
 		return nil, fmt.Errorf("script %s does not have a method %s that returns an argument of type %v: %w", script.Name(), methodName, outputType, err)
