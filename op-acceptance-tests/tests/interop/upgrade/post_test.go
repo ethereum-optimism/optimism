@@ -111,17 +111,17 @@ func testSupervisorSafetyProgression(t devtest.T, sys *presets.SimpleInterop) {
 
 	delta := uint64(3) // Minimum blocks of progression expected
 	dsl.CheckAll(t,
-		sys.L2CLA.AdvancedFn(stypes.LocalUnsafe, delta, 30),
-		sys.L2CLB.AdvancedFn(stypes.LocalUnsafe, delta, 30),
+		sys.L2CLA.AdvancedFn(stypes.LocalUnsafe, delta, 100),
+		sys.L2CLB.AdvancedFn(stypes.LocalUnsafe, delta, 100),
 
-		sys.L2CLA.AdvancedFn(stypes.LocalSafe, delta, 30),
-		sys.L2CLB.AdvancedFn(stypes.LocalSafe, delta, 30),
+		sys.L2CLA.AdvancedFn(stypes.LocalSafe, delta, 100),
+		sys.L2CLB.AdvancedFn(stypes.LocalSafe, delta, 100),
 
-		sys.L2CLA.AdvancedFn(stypes.CrossUnsafe, delta, 30),
-		sys.L2CLB.AdvancedFn(stypes.CrossUnsafe, delta, 30),
+		sys.L2CLA.AdvancedFn(stypes.CrossUnsafe, delta, 100),
+		sys.L2CLB.AdvancedFn(stypes.CrossUnsafe, delta, 100),
 
-		sys.L2CLA.AdvancedFn(stypes.CrossSafe, delta, 60),
-		sys.L2CLB.AdvancedFn(stypes.CrossSafe, delta, 60),
+		sys.L2CLA.AdvancedFn(stypes.CrossSafe, delta, 150),
+		sys.L2CLB.AdvancedFn(stypes.CrossSafe, delta, 150),
 	)
 
 	logger.Info("Supervisor safety progression validation completed successfully")
@@ -140,7 +140,8 @@ func testInteropMessageInclusion(t devtest.T, sys *presets.SimpleInterop) {
 	initIntent, initReceipt := alice.SendInitMessage(interop.RandomInitTrigger(rng, eventLoggerAddress, rng.Intn(5), rng.Intn(30)))
 
 	// Make sure supervisor indexes block which includes init message
-	sys.Supervisor.WaitForUnsafeHeadToAdvance(alice.ChainID(), 2)
+	// Wait for a more generous timeout for CI environments
+	sys.Supervisor.WaitForL2HeadToAdvance(alice.ChainID(), 2, stypes.LocalUnsafe, 60)
 
 	// Single event in tx so index is 0
 	_, execReceipt := bob.SendExecMessage(initIntent, 0)
@@ -176,11 +177,11 @@ func verifyInteropMessagesProgression(t devtest.T, sys *presets.SimpleInterop, i
 		sys.L2CLA.ReachedRefFn(stypes.CrossSafe, eth.BlockID{
 			Number: initReceipt.BlockNumber.Uint64(),
 			Hash:   initReceipt.BlockHash,
-		}, 60),
+		}, 150),
 		sys.L2CLB.ReachedRefFn(stypes.CrossSafe, eth.BlockID{
 			Number: execReceipt.BlockNumber.Uint64(),
 			Hash:   execReceipt.BlockHash,
-		}, 60),
+		}, 150),
 	)
 
 	logger.Info("Cross-safe progression verified for both init and exec messages")

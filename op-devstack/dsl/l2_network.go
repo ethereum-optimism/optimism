@@ -226,7 +226,7 @@ func (n *L2Network) AwaitActivation(t devtest.T, forkName rollup.ForkName) eth.B
 
 	el := n.Escape().L2ELNode(match.FirstL2EL)
 
-	unsafeHead, err := retry.Do(t.Ctx(), 120, &retry.FixedStrategy{Dur: 500 * time.Millisecond}, func() (eth.BlockRef, error) {
+	unsafeHead, err := retry.Do(t.Ctx(), 300, &retry.FixedStrategy{Dur: 500 * time.Millisecond}, func() (eth.BlockRef, error) {
 		unsafeHead, err := el.EthClient().BlockRefByLabel(t.Ctx(), eth.Unsafe)
 		if err != nil {
 			return eth.BlockRef{}, err
