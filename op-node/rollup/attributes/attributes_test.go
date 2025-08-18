@@ -175,14 +175,12 @@ func TestAttributesHandler(t *testing.T) {
 		ah.AttachEmitter(emitter)
 
 		emitter.ExpectOnce(derive.ConfirmReceivedAttributesEvent{})
-		emitter.ExpectOnce(engine.PendingSafeRequestEvent{})
 		ah.OnEvent(context.Background(), derive.DerivedAttributesEvent{
 			Attributes: attrA1,
 		})
 		emitter.AssertExpectations(t)
 		require.NotNil(t, ah.attributes, "queue the invalid attributes")
 
-		emitter.ExpectOnce(engine.PendingSafeRequestEvent{})
 		ah.OnEvent(context.Background(), engine.InvalidPayloadAttributesEvent{
 			Attributes: attrA1,
 		})
@@ -198,7 +196,6 @@ func TestAttributesHandler(t *testing.T) {
 		ah.AttachEmitter(emitter)
 
 		emitter.ExpectOnce(derive.ConfirmReceivedAttributesEvent{})
-		emitter.ExpectOnce(engine.PendingSafeRequestEvent{})
 		ah.OnEvent(context.Background(), derive.DerivedAttributesEvent{
 			Attributes: attrA1,
 		})
@@ -224,7 +221,6 @@ func TestAttributesHandler(t *testing.T) {
 		ah.AttachEmitter(emitter)
 
 		emitter.ExpectOnce(derive.ConfirmReceivedAttributesEvent{})
-		emitter.ExpectOnce(engine.PendingSafeRequestEvent{})
 		ah.OnEvent(context.Background(), derive.DerivedAttributesEvent{
 			Attributes: attrA1,
 		})
@@ -252,7 +248,6 @@ func TestAttributesHandler(t *testing.T) {
 
 			// attrA1Alt does not match block A1, so will cause force-reorg.
 			emitter.ExpectOnce(derive.ConfirmReceivedAttributesEvent{})
-			emitter.ExpectOnce(engine.PendingSafeRequestEvent{})
 			ah.OnEvent(context.Background(), derive.DerivedAttributesEvent{Attributes: attrA1Alt})
 			emitter.AssertExpectations(t)
 			require.NotNil(t, ah.attributes, "queued up derived attributes")
@@ -295,7 +290,6 @@ func TestAttributesHandler(t *testing.T) {
 					DerivedFrom: refB,
 				}
 				emitter.ExpectOnce(derive.ConfirmReceivedAttributesEvent{})
-				emitter.ExpectOnce(engine.PendingSafeRequestEvent{})
 				ah.OnEvent(context.Background(), derive.DerivedAttributesEvent{Attributes: attr})
 				emitter.AssertExpectations(t)
 				require.NotNil(t, ah.attributes, "queued up derived attributes")
@@ -344,7 +338,6 @@ func TestAttributesHandler(t *testing.T) {
 		ah.AttachEmitter(emitter)
 
 		emitter.ExpectOnce(derive.ConfirmReceivedAttributesEvent{})
-		emitter.ExpectOnce(engine.PendingSafeRequestEvent{})
 		ah.OnEvent(context.Background(), derive.DerivedAttributesEvent{Attributes: attrA1Alt})
 		emitter.AssertExpectations(t)
 		require.NotNil(t, ah.attributes, "queued up derived attributes")

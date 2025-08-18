@@ -26,6 +26,7 @@ type EngineController interface {
 	TryUpdateLocalSafe(ctx context.Context, ref eth.L2BlockRef, concluding bool, source eth.L1BlockRef)
 	// RequestForkchoiceUpdate requests a forkchoice update
 	RequestForkchoiceUpdate(ctx context.Context)
+	RequestPendingSafeUpdate(ctx context.Context)
 }
 
 type L2 interface {
@@ -82,7 +83,7 @@ func (eq *AttributesHandler) OnEvent(ctx context.Context, ev event.Event) bool {
 		eq.sentAttributes = false
 		eq.emitter.Emit(ctx, derive.ConfirmReceivedAttributesEvent{})
 		// to make sure we have a pre-state signal to process the attributes from
-		eq.emitter.Emit(ctx, engine.PendingSafeRequestEvent{})
+		eq.engineController.RequestPendingSafeUpdate(ctx)
 	case rollup.ResetEvent, rollup.ForceResetEvent:
 		eq.sentAttributes = false
 		eq.attributes = nil
@@ -98,7 +99,7 @@ func (eq *AttributesHandler) OnEvent(ctx context.Context, ev event.Event) bool {
 		eq.attributes = nil
 		// Time to re-evaluate without attributes.
 		// (the pending-safe state will then be forwarded to our source of attributes).
-		eq.emitter.Emit(ctx, engine.PendingSafeRequestEvent{})
+		eq.engineController.RequestPendingSafeUpdate(ctx)
 	case engine.PayloadSealExpiredErrorEvent:
 		if x.DerivedFrom == (eth.L1BlockRef{}) {
 			return true // from sequencing
@@ -115,7 +116,7 @@ func (eq *AttributesHandler) OnEvent(ctx context.Context, ev event.Event) bool {
 			"build_id", x.Info.ID, "timestamp", x.Info.Timestamp, "err", x.Err)
 		eq.sentAttributes = false
 		eq.attributes = nil
-		eq.emitter.Emit(ctx, engine.PendingSafeRequestEvent{})
+		eq.engineController.RequestPendingSafeUpdate(ctx)
 	default:
 		return false
 	}

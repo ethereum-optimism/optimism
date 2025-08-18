@@ -23,14 +23,21 @@ var (
 	errTestCrit  = errors.New("crit test err")
 )
 
+type fakeEngineController struct{}
+
+var _ EngineController = fakeEngineController{}
+
+func (fakeEngineController) RequestPendingSafeUpdate(ctx context.Context) {}
+
 func TestProgramDeriver(t *testing.T) {
 	newProgram := func(t *testing.T, target uint64) (*ProgramDeriver, *testutils.MockEmitter) {
 		m := &testutils.MockEmitter{}
 		logger := testlog.Logger(t, log.LevelInfo)
 		prog := &ProgramDeriver{
-			logger:         logger,
-			Emitter:        m,
-			targetBlockNum: target,
+			logger:           logger,
+			engineController: fakeEngineController{},
+			Emitter:          m,
+			targetBlockNum:   target,
 		}
 		return prog, m
 	}
@@ -39,7 +46,6 @@ func TestProgramDeriver(t *testing.T) {
 	t.Run("engine reset confirmed", func(t *testing.T) {
 		p, m := newProgram(t, 1000)
 		m.ExpectOnce(derive.ConfirmPipelineResetEvent{})
-		m.ExpectOnce(engine.PendingSafeRequestEvent{})
 		p.OnEvent(context.Background(), engine.EngineResetConfirmedEvent{})
 		m.AssertExpectations(t)
 		require.False(t, p.closing)
@@ -60,7 +66,6 @@ func TestProgramDeriver(t *testing.T) {
 	// step 3: if no attributes are generated, loop back to derive more.
 	t.Run("deriver more", func(t *testing.T) {
 		p, m := newProgram(t, 1000)
-		m.ExpectOnce(engine.PendingSafeRequestEvent{})
 		p.OnEvent(context.Background(), derive.DeriverMoreEvent{})
 		m.AssertExpectations(t)
 		require.False(t, p.closing)
@@ -80,7 +85,6 @@ func TestProgramDeriver(t *testing.T) {
 	// step 5: if attributes were invalid, continue with derivation for new attributes.
 	t.Run("invalid payload", func(t *testing.T) {
 		p, m := newProgram(t, 1000)
-		m.ExpectOnce(engine.PendingSafeRequestEvent{})
 		p.OnEvent(context.Background(), engine.InvalidPayloadAttributesEvent{Attributes: &derive.AttributesWithParent{}})
 		m.AssertExpectations(t)
 		require.False(t, p.closing)
@@ -138,7 +142,6 @@ func TestProgramDeriver(t *testing.T) {
 	// on engine temporary error: continue derivation (because legacy, not all connection related)
 	t.Run("engine temp error event", func(t *testing.T) {
 		p, m := newProgram(t, 1000)
-		m.ExpectOnce(engine.PendingSafeRequestEvent{})
 		p.OnEvent(context.Background(), rollup.EngineTemporaryErrorEvent{Err: errTestTemp})
 		m.AssertExpectations(t)
 		require.False(t, p.closing)
