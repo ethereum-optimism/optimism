@@ -28,7 +28,8 @@ cd "${REPO_DIR}"
 VERSIONS_JSON="[]"
 #VERSIONS=$(git tag --list 'op-program/v*' --sort taggerdate | grep v1.4.0-rc.3)
 #VERSIONS=$(git tag --list 'op-program/v*' --sort taggerdate | grep v1.6.0-rc.2)
-VERSIONS=$(git tag --list 'op-program/v*' --sort taggerdate | grep -E '(v1.4|v1.5|v1.6)')
+#VERSIONS=$(git tag --list 'op-program/v*' --sort taggerdate | grep -E '(v1.4|v1.5|v1.6)')
+VERSIONS=$(git tag --list 'op-program/v*' --sort taggerdate)
 
 for VERSION in ${VERSIONS}
 do
