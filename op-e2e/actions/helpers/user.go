@@ -429,24 +429,7 @@ func (s *CrossLayerUser) CheckDepositTx(t Testing, l1TxHash common.Hash, index i
 	}
 }
 
-func (s *CrossLayerUser) ActStartWithdrawal(t Testing) {
-	targetAddr := common.Address{}
-	if s.L1.txToAddr != nil {
-		targetAddr = *s.L2.txToAddr
-	}
-	tx, err := s.L2.env.Bindings.L2ToL1MessagePasser.InitiateWithdrawal(&s.L2.txOpts, targetAddr, new(big.Int).SetUint64(s.L1.txOpts.GasLimit), s.L1.txCallData)
-	require.NoError(t, err, "create initiate withdraw tx")
-	err = s.L2.env.EthCl.SendTransaction(t.Ctx(), tx)
-	require.NoError(t, err, "must send tx")
-	s.lastL2WithdrawalTxHash = tx.Hash()
-}
 
-// ActCheckStartWithdrawal checks that a previous witdrawal tx was either successful or failed.
-func (s *CrossLayerUser) ActCheckStartWithdrawal(success bool) Action {
-	return func(t Testing) {
-		s.L2.CheckReceipt(t, success, s.lastL2WithdrawalTxHash)
-	}
-}
 
 func (s *CrossLayerUser) Address() common.Address {
 	return s.L1.address
@@ -529,11 +512,7 @@ func (s *CrossLayerUser) getDisputeGame(t Testing, params withdrawals.ProvenWith
 	return proxy, game.DisputeGameProxy, nil
 }
 
-// ActCompleteWithdrawal creates a L1 proveWithdrawal tx for latest withdrawal.
-// The tx hash is remembered as the last L1 tx, to check as L1 actor.
-func (s *CrossLayerUser) ActProveWithdrawal(t Testing) {
-	s.L1.lastTxHash = s.ProveWithdrawal(t, s.lastL2WithdrawalTxHash)
-}
+
 
 // ProveWithdrawal creates a L1 proveWithdrawal tx for the given L2 withdrawal tx, returning the tx hash.
 func (s *CrossLayerUser) ProveWithdrawal(t Testing, l2TxHash common.Hash) common.Hash {
@@ -566,12 +545,7 @@ func (s *CrossLayerUser) ProveWithdrawal(t Testing, l2TxHash common.Hash) common
 	return tx.Hash()
 }
 
-// ActCompleteWithdrawal creates a L1 withdrawal finalization tx for latest withdrawal.
-// The tx hash is remembered as the last L1 tx, to check as L1 actor.
-// The withdrawal functions like CompleteWithdrawal
-func (s *CrossLayerUser) ActCompleteWithdrawal(t Testing) {
-	s.L1.lastTxHash = s.CompleteWithdrawal(t, s.lastL2WithdrawalTxHash)
-}
+
 
 // CompleteWithdrawal creates a L1 withdrawal finalization tx for the given L2 withdrawal tx, returning the tx hash.
 // It's an invalid action to attempt to complete a withdrawal that has not passed the L1 finalization period yet
