@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"math/big"
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
@@ -24,18 +25,24 @@ var _ ReadOnlyELBackend = (*MockELReader)(nil)
 type MockELReader struct {
 	ChainID hexutil.Big
 
-	BlocksByHashData map[common.Hash]*json.RawMessage
-	BlocksByNumber   map[rpc.BlockNumber]*json.RawMessage
-	Latest           *json.RawMessage
-	Safe             *json.RawMessage
-	Finalized        *json.RawMessage
+	BlocksByHash   map[common.Hash]*json.RawMessage
+	BlocksByNumber map[rpc.BlockNumber]*json.RawMessage
+
+	ReceiptsByHash   map[common.Hash][]*types.Receipt
+	ReceiptsByNumber map[rpc.BlockNumber][]*types.Receipt
+
+	Latest    *json.RawMessage
+	Safe      *json.RawMessage
+	Finalized *json.RawMessage
 }
 
 func NewMockELReader(chainID eth.ChainID) *MockELReader {
 	return &MockELReader{
 		ChainID:          hexutil.Big(*chainID.ToBig()),
-		BlocksByHashData: make(map[common.Hash]*json.RawMessage),
+		BlocksByHash:     make(map[common.Hash]*json.RawMessage),
 		BlocksByNumber:   make(map[rpc.BlockNumber]*json.RawMessage),
+		ReceiptsByHash:   make(map[common.Hash][]*types.Receipt),
+		ReceiptsByNumber: make(map[rpc.BlockNumber][]*types.Receipt),
 	}
 }
 
@@ -52,7 +59,7 @@ func (m *MockELReader) GetBlockByNumberJSON(ctx context.Context, number rpc.Bloc
 }
 
 func (m *MockELReader) GetBlockByHashJSON(ctx context.Context, hash common.Hash, fullTx bool) (json.RawMessage, error) {
-	raw, ok := m.BlocksByHashData[hash]
+	raw, ok := m.BlocksByHash[hash]
 	if !ok {
 		return nil, ethereum.NotFound
 	}
@@ -68,7 +75,20 @@ func (m *MockELReader) GetBlockByHash(ctx context.Context, hash common.Hash) (*t
 }
 
 func (m *MockELReader) GetBlockReceipts(ctx context.Context, bnh rpc.BlockNumberOrHash) ([]*types.Receipt, error) {
-	return nil, nil
+	hash, isHash := bnh.Hash()
+	if isHash {
+		receipts, ok := m.ReceiptsByHash[hash]
+		if !ok {
+			return nil, ethereum.NotFound
+		}
+		return receipts, nil
+	}
+	number, _ := bnh.Number()
+	receipts, ok := m.ReceiptsByNumber[number]
+	if !ok {
+		return nil, ethereum.NotFound
+	}
+	return receipts, nil
 }
 
 func initTestSyncTester(t *testing.T, chainID eth.ChainID, elReader ReadOnlyELBackend) *SyncTester {
@@ -168,7 +188,7 @@ func TestSyncTester_GetBlockByHash(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			el := NewMockELReader(eth.ChainIDFromUInt64(1))
 			block := makeBlockRaw(tc.rawNumber)
-			el.BlocksByHashData[hash] = block
+			el.BlocksByHash[hash] = block
 			st := initTestSyncTester(t, eth.ChainIDFromUInt64(1), el)
 			ctx := context.Background()
 			if tc.session != nil {
@@ -311,6 +331,147 @@ func TestSyncTester_GetBlockByNumber(t *testing.T) {
 			var header HeaderNumberOnly
 			require.NoError(t, json.Unmarshal(raw, &header))
 			require.EqualValues(t, tc.wantNum, header.Number.ToInt().Uint64())
+		})
+	}
+}
+
+func TestSyncTester_GetBlockReceipts(t *testing.T) {
+	makeReceipts := func(n uint64) []*types.Receipt {
+		r := new(types.Receipt)
+		r.BlockNumber = new(big.Int).SetUint64(n)
+		return []*types.Receipt{r}
+	}
+	type testCase struct {
+		name            string
+		session         *Session
+		arg             rpc.BlockNumberOrHash
+		seedFn          func(el *MockELReader, s *Session)
+		wantFirstBN     uint64
+		wantErrContains string
+	}
+	hashGood := common.HexToHash("0xabc1")
+	hashTooNew := common.HexToHash("0xabc2")
+	tests := []testCase{
+		{
+			name:            "no session",
+			session:         nil,
+			arg:             rpc.BlockNumberOrHashWithNumber(rpc.LatestBlockNumber),
+			wantErrContains: "no session",
+		},
+		{
+			name: "happy: via hash, blockNumber less than latest",
+			session: &Session{
+				SessionID: uuid.New().String(),
+				CurrentState: FCUState{
+					Latest:    100,
+					Safe:      95,
+					Finalized: 90,
+				},
+			},
+			arg: rpc.BlockNumberOrHashWithHash(hashGood, false),
+			seedFn: func(el *MockELReader, s *Session) {
+				el.ReceiptsByHash[hashGood] = makeReceipts(s.CurrentState.Latest - 1)
+			},
+			wantFirstBN: 99,
+		},
+		{
+			name: "bad: via hash, blockNumber >= latest returns not found",
+			session: &Session{
+				SessionID: uuid.New().String(),
+				CurrentState: FCUState{
+					Latest:    100,
+					Safe:      95,
+					Finalized: 90,
+				},
+			},
+			arg: rpc.BlockNumberOrHashWithHash(hashTooNew, false),
+			seedFn: func(el *MockELReader, s *Session) {
+				// strictly greater than Latest so the post-check triggers NotFound
+				el.ReceiptsByHash[hashTooNew] = makeReceipts(s.CurrentState.Latest + 1)
+			},
+			wantErrContains: "not found",
+		},
+		{
+			name: "happy: label latest returns CurrentState.Latest",
+			session: &Session{
+				SessionID:    uuid.New().String(),
+				CurrentState: FCUState{Latest: 100, Safe: 95, Finalized: 90},
+			},
+			arg: rpc.BlockNumberOrHashWithNumber(rpc.LatestBlockNumber),
+			seedFn: func(el *MockELReader, s *Session) {
+				el.ReceiptsByNumber[rpc.BlockNumber(s.CurrentState.Latest)] = makeReceipts(s.CurrentState.Latest)
+			},
+			wantFirstBN: 100,
+		},
+		{
+			name: "happy: label safe returns CurrentState.Safe",
+			session: &Session{
+				SessionID:    uuid.New().String(),
+				CurrentState: FCUState{Latest: 100, Safe: 97, Finalized: 90},
+			},
+			arg: rpc.BlockNumberOrHashWithNumber(rpc.SafeBlockNumber),
+			seedFn: func(el *MockELReader, s *Session) {
+				el.ReceiptsByNumber[rpc.BlockNumber(s.CurrentState.Safe)] = makeReceipts(s.CurrentState.Safe)
+			},
+			wantFirstBN: 97,
+		},
+		{
+			name: "happy: label finalized returns CurrentState.Finalized",
+			session: &Session{
+				SessionID:    uuid.New().String(),
+				CurrentState: FCUState{Latest: 100, Safe: 97, Finalized: 92},
+			},
+			arg: rpc.BlockNumberOrHashWithNumber(rpc.FinalizedBlockNumber),
+			seedFn: func(el *MockELReader, s *Session) {
+				el.ReceiptsByNumber[rpc.BlockNumber(s.CurrentState.Finalized)] = makeReceipts(s.CurrentState.Finalized)
+			},
+			wantFirstBN: 92,
+		},
+		{
+			name: "happy: numeric less than latest",
+			session: &Session{
+				SessionID:    uuid.New().String(),
+				CurrentState: FCUState{Latest: 100, Safe: 97, Finalized: 92},
+			},
+			arg: rpc.BlockNumberOrHashWithNumber(rpc.BlockNumber(99)),
+			seedFn: func(el *MockELReader, _ *Session) {
+				el.ReceiptsByNumber[rpc.BlockNumber(99)] = makeReceipts(99)
+			},
+			wantFirstBN: 99,
+		},
+		{
+			name: "bad: numeric not less than latest returns not found",
+			session: &Session{
+				SessionID:    uuid.New().String(),
+				CurrentState: FCUState{Latest: 100, Safe: 97, Finalized: 92},
+			},
+			arg:             rpc.BlockNumberOrHashWithNumber(rpc.BlockNumber(101)),
+			wantErrContains: "not found",
+			// No seeding needed: checkBlockNumber should fail before EL call
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			el := NewMockELReader(eth.ChainIDFromUInt64(1))
+			if tc.seedFn != nil && tc.session != nil {
+				tc.seedFn(el, tc.session)
+			}
+			st := initTestSyncTester(t, eth.ChainIDFromUInt64(1), el)
+			ctx := context.Background()
+			if tc.session != nil {
+				ctx = WithSession(ctx, tc.session)
+			}
+			recs, err := st.GetBlockReceipts(ctx, tc.arg)
+			if tc.wantErrContains != "" {
+				require.Error(t, err)
+				require.Contains(t, err.Error(), tc.wantErrContains)
+				return
+			}
+			require.NoError(t, err)
+			require.NotNil(t, recs)
+			require.GreaterOrEqual(t, len(recs), 1)
+			require.EqualValues(t, tc.wantFirstBN, recs[0].BlockNumber.Uint64())
 		})
 	}
 }
