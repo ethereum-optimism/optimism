@@ -3,11 +3,13 @@ package backend
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	sttypes "github.com/ethereum-optimism/optimism/op-sync-tester/synctester/backend/types"
+	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -21,10 +23,15 @@ var _ ReadOnlyELBackend = (*MockELReader)(nil)
 
 type MockELReader struct {
 	ChainID hexutil.Big
+
+	BlockByHashData map[common.Hash]*json.RawMessage
 }
 
 func NewMockELReader(chainID eth.ChainID) *MockELReader {
-	return &MockELReader{ChainID: hexutil.Big(*chainID.ToBig())}
+	return &MockELReader{
+		ChainID:         hexutil.Big(*chainID.ToBig()),
+		BlockByHashData: make(map[common.Hash]*json.RawMessage),
+	}
 }
 
 func (m *MockELReader) ChainId(ctx context.Context) (hexutil.Big, error) {
@@ -36,7 +43,11 @@ func (m *MockELReader) GetBlockByNumberJSON(ctx context.Context, number rpc.Bloc
 }
 
 func (m *MockELReader) GetBlockByHashJSON(ctx context.Context, hash common.Hash, fullTx bool) (json.RawMessage, error) {
-	return nil, nil
+	raw, ok := m.BlockByHashData[hash]
+	if !ok {
+		return nil, ethereum.NotFound
+	}
+	return *raw, nil
 }
 
 func (m *MockELReader) GetBlockByNumber(ctx context.Context, number rpc.BlockNumber) (*types.Block, error) {
@@ -102,6 +113,68 @@ func TestSyncTester_ChainId(t *testing.T) {
 			}
 			require.NoError(t, err)
 			require.Equal(t, hexutil.Big(*tc.cfgID.ToBig()), got)
+		})
+	}
+}
+
+func TestSyncTester_GetBlockByHash(t *testing.T) {
+	makeBlockRaw := func(num uint64) json.RawMessage {
+		return json.RawMessage(fmt.Sprintf(`{"number":"0x%x"}`, num))
+	}
+
+	hash := common.HexToHash("0xdeadbeef")
+
+	tests := []struct {
+		name            string
+		sessionLatest   uint64
+		rawNumber       uint64 // block.number returned by EL
+		session         *Session
+		wantErrContains string
+	}{
+		{
+			name:            "no session",
+			sessionLatest:   0,
+			rawNumber:       0,
+			session:         nil,
+			wantErrContains: "no session",
+		},
+		{
+			name:            "block number larger than session latest",
+			sessionLatest:   100,
+			rawNumber:       101, // larger than Latest
+			session:         &Session{SessionID: uuid.New().String(), CurrentState: FCUState{Latest: 100}},
+			wantErrContains: "not found",
+		},
+		{
+			name:          "happy path",
+			sessionLatest: 100,
+			rawNumber:     99,
+			session:       &Session{SessionID: uuid.New().String(), CurrentState: FCUState{Latest: 100}},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			el := NewMockELReader(eth.ChainIDFromUInt64(1))
+			block := makeBlockRaw(tc.rawNumber)
+			el.BlockByHashData[hash] = &block
+			st := initTestSyncTester(t, eth.ChainIDFromUInt64(1), el)
+			ctx := context.Background()
+			if tc.session != nil {
+				ctx = WithSession(ctx, tc.session)
+			}
+			raw, err := st.GetBlockByHash(ctx, hash, false)
+			if tc.wantErrContains != "" {
+				require.Error(t, err)
+				require.Contains(t, err.Error(), tc.wantErrContains)
+				return
+			}
+			require.NoError(t, err)
+			require.NotNil(t, raw)
+
+			var header HeaderNumberOnly
+			require.NoError(t, json.Unmarshal(raw, &header))
+			require.EqualValues(t, tc.rawNumber, header.Number.ToInt().Uint64())
 		})
 	}
 }

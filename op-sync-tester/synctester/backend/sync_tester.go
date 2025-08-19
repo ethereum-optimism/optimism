@@ -41,6 +41,13 @@ type SyncTester struct {
 	sessions map[string]*Session
 }
 
+// HeaderNumberOnly is a lightweight header type that only contains the
+// block number field. It is useful in contexts where the full Ethereum
+// block header is not needed, and only the block number is required.
+type HeaderNumberOnly struct {
+	Number *hexutil.Big `json:"number"  gencodec:"required"`
+}
+
 var _ frontend.SyncBackend = (*SyncTester)(nil)
 var _ frontend.EngineBackend = (*SyncTester)(nil)
 var _ frontend.EthBackend = (*SyncTester)(nil)
@@ -150,11 +157,11 @@ func (s *SyncTester) GetBlockByHash(ctx context.Context, hash common.Hash, fullT
 	if raw, err = s.elReader.GetBlockByHashJSON(ctx, hash, fullTx); err != nil {
 		return nil, err
 	}
-	var head *types.Header
-	if err := json.Unmarshal(raw, &head); err != nil {
+	var header HeaderNumberOnly
+	if err := json.Unmarshal(raw, &header); err != nil {
 		return nil, err
 	}
-	if head.Number.Uint64() > session.CurrentState.Latest {
+	if header.Number.ToInt().Uint64() > session.CurrentState.Latest {
 		return nil, ethereum.NotFound
 	}
 	return raw, nil
