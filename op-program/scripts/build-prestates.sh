@@ -49,6 +49,7 @@ do
       fi
       echo "installing go@${GO_VERSION} and jq@${JQ_VERSION}"
       #export MISE_NO_CONFIG=1
+      export MISE_NONINTERACTIVE=1 MISE_YES=1 MISE_TRUSTED_CONFIG=1
       env MISE_NO_CONFIG=1 mise install "go@${GO_VERSION}" "jq@${JQ_VERSION}" -v -y 2>&1 | tee "${LOG_FILE}"
       echo "done installing deps"
       if [ ! -x "$(command -v jq)" ]; then
@@ -65,7 +66,7 @@ do
       mise reshim
       echo "reshim done"
       mise which jq
-      echo "which jq done"
+      echo "mise which jq done"
       echo "jq version is $(jq --version)"
     fi
     rm -rf "${BIN_DIR}"
