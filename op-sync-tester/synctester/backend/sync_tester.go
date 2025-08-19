@@ -52,14 +52,22 @@ func SyncTesterFromConfig(logger log.Logger, m metrics.Metricer, stID sttypes.Sy
 		return nil, fmt.Errorf("failed to dial EL client: %w", err)
 	}
 	elReader := NewELReader(elClient)
+	return NewSyncTester(logger, m, stID, stCfg.ChainID, elReader), nil
+}
+
+func NewSyncTester(logger log.Logger, m metrics.Metricer, stID sttypes.SyncTesterID, chainID eth.ChainID, elReader ReadOnlyELBackend) *SyncTester {
 	return &SyncTester{
 		log:      logger,
 		m:        m,
 		id:       stID,
-		chainID:  stCfg.ChainID,
+		chainID:  chainID,
 		elReader: elReader,
 		sessions: make(map[string]*Session),
-	}, nil
+	}
+}
+
+func (s *SyncTester) storeSession(session *Session) {
+	s.sessions[session.SessionID] = session
 }
 
 func (s *SyncTester) fetchSession(ctx context.Context) (*Session, error) {
@@ -71,11 +79,12 @@ func (s *SyncTester) fetchSession(ctx context.Context) (*Session, error) {
 	defer s.mu.Unlock()
 	if existing, ok := s.sessions[session.SessionID]; ok {
 		s.log.Info("Using existing session", "session", existing)
+		return existing, nil
 	} else {
-		s.sessions[session.SessionID] = session
+		s.storeSession(session)
 		s.log.Info("Initialized new session", "session", session)
+		return session, nil
 	}
-	return session, nil
 }
 
 func (s *SyncTester) GetSession(ctx context.Context) error {
