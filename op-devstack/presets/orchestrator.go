@@ -7,7 +7,6 @@ import (
 	"runtime/debug"
 	"slices"
 	"sync/atomic"
-	"testing"
 
 	"github.com/ethereum/go-ethereum/log"
 	"go.opentelemetry.io/otel"
@@ -37,10 +36,14 @@ const (
 	backendKindSysExt backendKind = "sysext"
 )
 
+type TestingM interface {
+	Run() int
+}
+
 // DoMain runs M with the pre- and post-processing of tests,
 // to setup the default global orchestrator and global logger.
 // This will os.Exit(code) and not return.
-func DoMain(m *testing.M, opts ...stack.CommonOption) {
+func DoMain(m TestingM, opts ...stack.CommonOption) {
 	// nest the function, so we can defer-recover and defer-cleanup, before os.Exit
 	code := func() (errCode int) {
 		failed := new(atomic.Bool)
@@ -50,7 +53,7 @@ func DoMain(m *testing.M, opts ...stack.CommonOption) {
 			}
 		}()
 		defer func() {
-			if x := recover(); x != nil {
+			if x := recover(); x != nil && !failed.Load() {
 				debug.PrintStack()
 				_, _ = fmt.Fprintf(os.Stderr, "Panic during test Main: %v\n", x)
 
@@ -84,9 +87,11 @@ func DoMain(m *testing.M, opts ...stack.CommonOption) {
 		logger.SetContext(ctx)
 
 		onFail := func(now bool) {
-			logger.Error("Main failed")
-			debug.PrintStack()
-			failed.Store(true)
+			if !failed.Load() {
+				logger.Error("Main failed")
+				debug.PrintStack()
+				failed.Store(true)
+			}
 			if now {
 				panic("critical Main fail")
 			}
@@ -100,12 +105,6 @@ func DoMain(m *testing.M, opts ...stack.CommonOption) {
 		defer p.Close()
 
 		p.Require().NotEmpty(opts, "Expecting orchestrator options")
-
-		// For the global geth logs,
-		// capture them in the global test logger.
-		// No other tool / test should change the global logger.
-		// TODO(#15139): set log-level filter, reduce noise
-		//log.SetDefault(t.Log.New("logger", "global"))
 
 		initOrchestrator(ctx, p, stack.Combine(opts...))
 

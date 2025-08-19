@@ -22,12 +22,16 @@ func TestChallengerPlaysGame(gt *testing.T) {
 	)
 
 	badClaim := common.HexToHash("0xdeadbeef00000000000000000000000000000000000000000000000000000000")
-	attacker := sys.FunderL1.NewFundedEOA(eth.OneTenthEther)
+	attacker := sys.FunderL1.NewFundedEOA(eth.Ether(15))
 	dgf := sys.DisputeGameFactory()
 
 	game := dgf.StartSuperCannonGame(attacker, badClaim)
 
-	// Wait for the challenger to counter the bad root claim
-	claim := game.RootClaim()
-	claim.WaitForCounterClaim()
+	claim := game.RootClaim()                   // This is the bad claim from attacker
+	counterClaim := claim.WaitForCounterClaim() // This is the counter-claim from the challenger
+	for counterClaim.Depth() <= game.SplitDepth() {
+		claim = counterClaim.Attack(attacker, badClaim)
+		// Wait for the challenger to counter the attacker's claim, then attack again
+		counterClaim = claim.WaitForCounterClaim()
+	}
 }

@@ -1,7 +1,10 @@
 package memory
 
 import (
+	"fmt"
 	"math/bits"
+
+	"github.com/ethereum-optimism/optimism/cannon/mipsevm/arch"
 )
 
 // BinaryTreeIndex is a representation of the state of the memory in a binary merkle tree.
@@ -12,13 +15,40 @@ type BinaryTreeIndex struct {
 	pageTable map[Word]*CachedPage
 }
 
-func NewBinaryTreeMemory() *Memory {
-	pages := make(map[Word]*CachedPage)
+func NewBinaryTreeMemory(codeSize, heapSize arch.Word) *Memory {
+	pages := make(map[arch.Word]*CachedPage)
 	index := NewBinaryTreeIndex(pages)
+
+	// Default values (2 GiB) if not provided
+	if codeSize == 0 {
+		codeSize = 1 << 31 // 2 GiB
+	}
+	if heapSize == 0 {
+		heapSize = 1 << 31 // 2 GiB
+	}
+
+	// Defensive bounds: code region must not overlap heap start
+	if codeSize > arch.ProgramHeapStart {
+		panic(fmt.Sprintf("codeSize (0x%x) overlaps heap start (0x%x)", codeSize, arch.ProgramHeapStart))
+	}
+
+	indexedRegions := make([]MappedMemoryRegion, 2)
+	indexedRegions[0] = MappedMemoryRegion{
+		startAddr: 0,
+		endAddr:   codeSize,
+		Data:      make([]byte, codeSize),
+	}
+	indexedRegions[1] = MappedMemoryRegion{
+		startAddr: arch.ProgramHeapStart,
+		endAddr:   arch.ProgramHeapStart + heapSize,
+		Data:      make([]byte, heapSize),
+	}
+
 	return &Memory{
-		merkleIndex:  index,
-		pageTable:    pages,
-		lastPageKeys: [2]Word{^Word(0), ^Word(0)}, // default to invalid keys, to not match any pages
+		merkleIndex:   index,
+		pageTable:     pages,
+		lastPageKeys:  [2]arch.Word{^arch.Word(0), ^arch.Word(0)},
+		MappedRegions: indexedRegions,
 	}
 }
 

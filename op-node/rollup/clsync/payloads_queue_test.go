@@ -8,6 +8,7 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/stretchr/testify/require"
 
+	"github.com/ethereum-optimism/optimism/op-node/rollup/engine"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 )
@@ -145,4 +146,159 @@ func TestPayloadsQueue(t *testing.T) {
 	require.Equal(t, pq.Len(), 3)
 	require.Equal(t, pq.Peek(), b, "expecting b, c, d")
 	require.NotContainsf(t, pq.pq[:], a, "a should be dropped after 3 items already exist under max size constraint")
+}
+
+func TestPayloadsQueue_ReaddAfterPopAllowed(t *testing.T) {
+	pq := NewPayloadsQueue(testlog.Logger(t, log.LvlInfo), payloadMemFixedCost*10, payloadMemSize)
+	b := envelope(&eth.ExecutionPayload{BlockNumber: 4, BlockHash: common.Hash{4}})
+	require.NoError(t, pq.Push(b))
+	require.Equal(t, b, pq.Pop())
+	// re-add same hash after pop should be allowed
+	require.NoError(t, pq.Push(b))
+}
+
+func TestDropInapplicable_PopsMultipleInapplicable(t *testing.T) {
+	logger := testlog.Logger(t, log.LvlInfo)
+	pq := NewPayloadsQueue(logger, payloadMemFixedCost*10, payloadMemSize)
+
+	// queue: processed (=unsafe head), old<=safe, old<=unsafe, then applicable next
+	processed := envelope(&eth.ExecutionPayload{BlockNumber: 10, BlockHash: common.Hash{0x10}})
+	oldSafe := envelope(&eth.ExecutionPayload{BlockNumber: 8, BlockHash: common.Hash{0x08}})
+	oldUnsafe := envelope(&eth.ExecutionPayload{BlockNumber: 9, BlockHash: common.Hash{0x09}})
+	next := envelope(&eth.ExecutionPayload{BlockNumber: 11, ParentHash: common.Hash{0x10}, BlockHash: common.Hash{0x11}})
+
+	require.NoError(t, pq.Push(processed))
+	require.NoError(t, pq.Push(oldUnsafe))
+	require.NoError(t, pq.Push(oldSafe))
+	require.NoError(t, pq.Push(next))
+
+	ev := engine.ForkchoiceUpdateEvent{
+		UnsafeL2Head:    eth.L2BlockRef{Hash: common.Hash{0x10}, Number: 10},
+		SafeL2Head:      eth.L2BlockRef{Hash: common.Hash{0xaa}, Number: 9},
+		FinalizedL2Head: eth.L2BlockRef{},
+	}
+
+	pq.DropInapplicableUnsafePayloads(ev)
+	require.Equal(t, 1, pq.Len())
+	require.Equal(t, next, pq.Peek())
+}
+
+func mkRef(number uint64, hash common.Hash) eth.L2BlockRef {
+	return eth.L2BlockRef{
+		Hash:   hash,
+		Number: number,
+	}
+}
+
+func TestDropInapplicable_RemovesAlreadyProcessed(t *testing.T) {
+	logger := testlog.Logger(t, log.LvlInfo)
+	pq := NewPayloadsQueue(logger, payloadMemFixedCost*10, payloadMemSize)
+
+	headHash := common.Hash{0xaa}
+	headNum := uint64(10)
+	processed := envelope(&eth.ExecutionPayload{BlockNumber: eth.Uint64Quantity(headNum), BlockHash: headHash})
+	require.NoError(t, pq.Push(processed))
+
+	ev := engine.ForkchoiceUpdateEvent{
+		UnsafeL2Head:    mkRef(headNum, headHash),
+		SafeL2Head:      mkRef(0, common.Hash{}),
+		FinalizedL2Head: mkRef(0, common.Hash{}),
+	}
+
+	pq.DropInapplicableUnsafePayloads(ev)
+	require.Equal(t, 0, pq.Len())
+}
+
+func TestDropInapplicable_DropOlderThanSafe(t *testing.T) {
+	logger := testlog.Logger(t, log.LvlInfo)
+	pq := NewPayloadsQueue(logger, payloadMemFixedCost*10, payloadMemSize)
+
+	payload := envelope(&eth.ExecutionPayload{BlockNumber: eth.Uint64Quantity(8), BlockHash: common.Hash{0x01}})
+	require.NoError(t, pq.Push(payload))
+
+	ev := engine.ForkchoiceUpdateEvent{
+		UnsafeL2Head:    mkRef(10, common.Hash{0xaa}),
+		SafeL2Head:      mkRef(8, common.Hash{0xbb}),
+		FinalizedL2Head: mkRef(0, common.Hash{}),
+	}
+
+	pq.DropInapplicableUnsafePayloads(ev)
+	require.Equal(t, 0, pq.Len())
+}
+
+func TestDropInapplicable_DropOlderThanUnsafe(t *testing.T) {
+	logger := testlog.Logger(t, log.LvlInfo)
+	pq := NewPayloadsQueue(logger, payloadMemFixedCost*10, payloadMemSize)
+
+	// Block is newer than safe head but not newer than unsafe head
+	payload := envelope(&eth.ExecutionPayload{BlockNumber: eth.Uint64Quantity(10), BlockHash: common.Hash{0x02}})
+	require.NoError(t, pq.Push(payload))
+
+	ev := engine.ForkchoiceUpdateEvent{
+		UnsafeL2Head:    mkRef(10, common.Hash{0xaa}),
+		SafeL2Head:      mkRef(9, common.Hash{0xbb}),
+		FinalizedL2Head: mkRef(0, common.Hash{}),
+	}
+
+	pq.DropInapplicableUnsafePayloads(ev)
+	require.Equal(t, 0, pq.Len())
+}
+
+func TestDropInapplicable_DropNextHeightMismatch(t *testing.T) {
+	logger := testlog.Logger(t, log.LvlInfo)
+	pq := NewPayloadsQueue(logger, payloadMemFixedCost*10, payloadMemSize)
+
+	headHash := common.Hash{0xaa}
+	// Next height but wrong parent
+	payload := envelope(&eth.ExecutionPayload{BlockNumber: eth.Uint64Quantity(11), BlockHash: common.Hash{0x03}, ParentHash: common.Hash{0xff}})
+	require.NoError(t, pq.Push(payload))
+
+	ev := engine.ForkchoiceUpdateEvent{
+		UnsafeL2Head:    mkRef(10, headHash),
+		SafeL2Head:      mkRef(9, common.Hash{0xbb}),
+		FinalizedL2Head: mkRef(0, common.Hash{}),
+	}
+
+	pq.DropInapplicableUnsafePayloads(ev)
+	require.Equal(t, 0, pq.Len())
+}
+
+func TestDropInapplicable_NonAdjacentMismatchReturns(t *testing.T) {
+	logger := testlog.Logger(t, log.LvlInfo)
+	pq := NewPayloadsQueue(logger, payloadMemFixedCost*10, payloadMemSize)
+
+	headHash := common.Hash{0xaa}
+	// Non-adjacent height and wrong parent => should return without popping
+	payload := envelope(&eth.ExecutionPayload{BlockNumber: eth.Uint64Quantity(12), BlockHash: common.Hash{0x04}, ParentHash: common.Hash{0xff}})
+	require.NoError(t, pq.Push(payload))
+
+	ev := engine.ForkchoiceUpdateEvent{
+		UnsafeL2Head:    mkRef(10, headHash),
+		SafeL2Head:      mkRef(9, common.Hash{0xbb}),
+		FinalizedL2Head: mkRef(0, common.Hash{}),
+	}
+
+	pq.DropInapplicableUnsafePayloads(ev)
+	require.Equal(t, 1, pq.Len())
+	require.Equal(t, payload, pq.Peek())
+}
+
+func TestDropInapplicable_ApplicablePayloadKept(t *testing.T) {
+	logger := testlog.Logger(t, log.LvlInfo)
+	pq := NewPayloadsQueue(logger, payloadMemFixedCost*10, payloadMemSize)
+
+	headHash := common.Hash{0xaa}
+	// Correct parent and next height => should keep and break
+	payload := envelope(&eth.ExecutionPayload{BlockNumber: eth.Uint64Quantity(11), BlockHash: common.Hash{0x05}, ParentHash: headHash})
+	require.NoError(t, pq.Push(payload))
+
+	ev := engine.ForkchoiceUpdateEvent{
+		UnsafeL2Head:    mkRef(10, headHash),
+		SafeL2Head:      mkRef(9, common.Hash{0xbb}),
+		FinalizedL2Head: mkRef(0, common.Hash{}),
+	}
+
+	pq.DropInapplicableUnsafePayloads(ev)
+	require.Equal(t, 1, pq.Len())
+	require.Equal(t, payload, pq.Peek())
 }

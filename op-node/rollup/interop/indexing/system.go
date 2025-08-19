@@ -46,12 +46,18 @@ type L1Source interface {
 	L1BlockRefByNumber(ctx context.Context, num uint64) (eth.L1BlockRef, error)
 }
 
+type ForceResetNotifier interface {
+	ForceReset(ctx context.Context, localUnsafe, crossUnsafe, localSafe, crossSafe, finalized eth.L2BlockRef)
+}
+
 // IndexingMode makes the op-node managed by an op-supervisor,
 // by serving sync work and updating the canonical chain based on instructions.
 type IndexingMode struct {
 	log log.Logger
 
 	emitter event.Emitter
+
+	forceResetNotifier ForceResetNotifier
 
 	l1 L1Source
 	l2 L2Source
@@ -109,6 +115,10 @@ func NewIndexingMode(log log.Logger, cfg *rollup.Config, addr string, port int, 
 		Authenticated: true,
 	})
 	return out
+}
+
+func (m *IndexingMode) SetForceResetNotifier(notifier ForceResetNotifier) {
+	m.forceResetNotifier = notifier
 }
 
 // TestDisableEventDeduplication is a test-only function that disables event deduplication.
@@ -450,13 +460,7 @@ func (m *IndexingMode) Reset(ctx context.Context, lUnsafe, xUnsafe, lSafe, xSafe
 		return err
 	}
 
-	m.emitter.Emit(ctx, rollup.ForceResetEvent{
-		LocalUnsafe: lUnsafeRef,
-		CrossUnsafe: xUnsafeRef,
-		LocalSafe:   lSafeRef,
-		CrossSafe:   xSafeRef,
-		Finalized:   finalizedRef,
-	})
+	m.forceResetNotifier.ForceReset(ctx, lUnsafeRef, xUnsafeRef, lSafeRef, xSafeRef, finalizedRef)
 	return nil
 }
 

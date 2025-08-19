@@ -34,13 +34,13 @@ func (t ThrottleControllerType) String() string {
 
 // ThrottleControllerInfo represents throttle controller information
 type ThrottleControllerInfo struct {
-	Type         string  `json:"type"`
-	Threshold    uint64  `json:"threshold"`
-	MaxThreshold uint64  `json:"max_threshold"`
-	CurrentLoad  uint64  `json:"current_load"`
-	Intensity    float64 `json:"intensity"`
-	MaxTxSize    uint64  `json:"max_tx_size"`
-	MaxBlockSize uint64  `json:"max_block_size"`
+	Type           string  `json:"type"`
+	LowerThreshold uint64  `json:"lower_threshold"`
+	UpperThreshold uint64  `json:"upper_threshold"`
+	CurrentLoad    uint64  `json:"current_load"`
+	Intensity      float64 `json:"intensity"`
+	MaxTxSize      uint64  `json:"max_tx_size"`
+	MaxBlockSize   uint64  `json:"max_block_size"`
 }
 
 // PIDConfig represents PID controller configuration for RPC
@@ -88,16 +88,13 @@ func (p *PIDConfig) UnmarshalJSON(data []byte) error {
 }
 
 type ThrottleParams struct {
-	Threshold           uint64
-	TxSize              uint64
-	BlockSize           uint64
-	AlwaysBlockSize     uint64
-	ThresholdMultiplier float64
+	LowerThreshold      uint64
+	UpperThreshold      uint64
+	TxSizeLowerLimit    uint64
+	TxSizeUpperLimit    uint64
+	BlockSizeLowerLimit uint64
+	BlockSizeUpperLimit uint64
 	PIDConfig           *PIDConfig
 	ControllerType      ThrottleControllerType
 	Endpoints           []string
-}
-
-func (t *ThrottleParams) MaxThreshold() uint64 {
-	return uint64(float64(t.Threshold) * t.ThresholdMultiplier)
 }

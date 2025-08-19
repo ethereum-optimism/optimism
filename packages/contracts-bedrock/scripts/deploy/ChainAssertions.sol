@@ -32,7 +32,7 @@ import { IDisputeGameFactory } from "interfaces/dispute/IDisputeGameFactory.sol"
 import { IDelayedWETH } from "interfaces/dispute/IDelayedWETH.sol";
 import { IOptimismMintableERC20Factory } from "interfaces/universal/IOptimismMintableERC20Factory.sol";
 import { IPreimageOracle } from "interfaces/cannon/IPreimageOracle.sol";
-import { IMIPS } from "interfaces/cannon/IMIPS.sol";
+import { IMIPS64 } from "interfaces/cannon/IMIPS64.sol";
 import { IProxyAdmin } from "interfaces/universal/IProxyAdmin.sol";
 import { IETHLockbox } from "interfaces/L1/IETHLockbox.sol";
 import { IProxyAdminOwnedBase } from "interfaces/L1/IProxyAdminOwnedBase.sol";
@@ -200,7 +200,7 @@ library ChainAssertions {
     }
 
     /// @notice Asserts that the MIPs contract is setup correctly
-    function checkMIPS(IMIPS _mips, IPreimageOracle _oracle) internal view {
+    function checkMIPS(IMIPS64 _mips, IPreimageOracle _oracle) internal view {
         console.log("Running chain assertions on the MIPS at %s", address(_mips));
         require(address(_mips) != address(0), "CHECK-MIPS-10");
 
@@ -370,7 +370,7 @@ library ChainAssertions {
         Types.ContractSet memory _impls,
         Types.ContractSet memory _proxies,
         IOPContractsManager _opcm,
-        IMIPS _mips,
+        IMIPS64 _mips,
         IProxyAdmin _superchainProxyAdmin
     )
         internal
@@ -380,7 +380,6 @@ library ChainAssertions {
         require(address(_opcm) != address(0), "CHECK-OPCM-10");
 
         require(bytes(_opcm.version()).length > 0, "CHECK-OPCM-15");
-        require(bytes(_opcm.l1ContractsRelease()).length > 0, "CHECK-OPCM-16");
         require(address(_opcm.protocolVersions()) == _proxies.ProtocolVersions, "CHECK-OPCM-17");
         require(address(_opcm.superchainProxyAdmin()) == address(_superchainProxyAdmin), "CHECK-OPCM-18");
         require(address(_opcm.superchainConfig()) == _proxies.SuperchainConfig, "CHECK-OPCM-19");

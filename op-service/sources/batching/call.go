@@ -73,3 +73,7 @@ func (c *CallResult) GetBytes32Slice(i int) [][32]byte {
 func (c *CallResult) GetString(i int) string {
 	return *abi.ConvertType(c.out[i], new(string)).(*string)
 }
+
+func (c *CallResult) Get(i int) interface{} {
+	return c.out[i]
+}

@@ -10,41 +10,20 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/retry"
 )
 
-type ResetStepBackoffEvent struct {
-}
-
-func (ev ResetStepBackoffEvent) String() string {
-	return "reset-step-backoff"
-}
-
-type StepDelayedReqEvent struct {
-	Delay time.Duration
-}
-
-func (ev StepDelayedReqEvent) String() string {
-	return "step-delayed-req"
-}
-
-type StepReqEvent struct {
-	ResetBackoff bool
-}
-
-func (ev StepReqEvent) String() string {
-	return "step-req"
-}
-
-type StepAttemptEvent struct {
-}
-
-func (ev StepAttemptEvent) String() string {
-	return "step-attempt"
-}
-
 type StepEvent struct {
 }
 
 func (ev StepEvent) String() string {
 	return "step"
+}
+
+type StepDeriver interface {
+	event.AttachEmitter
+	NextStep() <-chan struct{}
+	NextDelayedStep() <-chan time.Time
+	RequestStep(ctx context.Context, resetBackoff bool)
+	AttemptStep(ctx context.Context)
+	ResetStepBackoff(ctx context.Context)
 }
 
 // StepSchedulingDeriver is a deriver that emits StepEvent events.
@@ -102,7 +81,7 @@ func (s *StepSchedulingDeriver) NextDelayedStep() <-chan time.Time {
 	return s.delayedStepReq
 }
 
-func (s *StepSchedulingDeriver) OnEvent(ctx context.Context, ev event.Event) bool {
+func (s *StepSchedulingDeriver) RequestStep(ctx context.Context, resetBackoff bool) {
 	step := func() {
 		s.delayedStepReq = nil
 		select {
@@ -112,40 +91,38 @@ func (s *StepSchedulingDeriver) OnEvent(ctx context.Context, ev event.Event) boo
 		}
 	}
 
-	switch x := ev.(type) {
-	case StepDelayedReqEvent:
-		if s.delayedStepReq == nil {
-			s.delayedStepReq = time.After(x.Delay)
-		}
-	case StepReqEvent:
-		if x.ResetBackoff {
-			s.stepAttempts = 0
-		}
-		if s.stepAttempts > 0 {
-			// if this is not the first attempt, we re-schedule with a backoff, *without blocking other events*
-			if s.delayedStepReq == nil {
-				delay := s.bOffStrategy.Duration(s.stepAttempts)
-				s.log.Debug("scheduling re-attempt with delay", "attempts", s.stepAttempts, "delay", delay)
-				s.delayedStepReq = time.After(delay)
-			} else {
-				s.log.Debug("ignoring step request, already scheduled re-attempt after previous failure", "attempts", s.stepAttempts)
-			}
-		} else {
-			step()
-		}
-	case StepAttemptEvent:
-		// clear the delayed-step channel
-		s.delayedStepReq = nil
-		if s.stepAttempts > 0 {
-			s.log.Debug("Running step retry", "attempts", s.stepAttempts)
-		}
-		// count as attempt by default. We reset to 0 if we are making healthy progress.
-		s.stepAttempts += 1
-		s.emitter.Emit(ctx, StepEvent(x))
-	case ResetStepBackoffEvent:
+	if resetBackoff {
 		s.stepAttempts = 0
-	default:
-		return false
 	}
-	return true
+	if s.stepAttempts > 0 {
+		// if this is not the first attempt, we re-schedule with a backoff, *without blocking other events*
+		if s.delayedStepReq == nil {
+			delay := s.bOffStrategy.Duration(s.stepAttempts)
+			s.log.Debug("scheduling re-attempt with delay", "attempts", s.stepAttempts, "delay", delay)
+			s.delayedStepReq = time.After(delay)
+		} else {
+			s.log.Debug("ignoring step request, already scheduled re-attempt after previous failure", "attempts", s.stepAttempts)
+		}
+	} else {
+		step()
+	}
+}
+
+func (s *StepSchedulingDeriver) AttemptStep(ctx context.Context) {
+	// clear the delayed-step channel
+	s.delayedStepReq = nil
+	if s.stepAttempts > 0 {
+		s.log.Debug("Running step retry", "attempts", s.stepAttempts)
+	}
+	// count as attempt by default. We reset to 0 if we are making healthy progress.
+	s.stepAttempts += 1
+	s.emitter.Emit(ctx, StepEvent{})
+}
+
+func (s *StepSchedulingDeriver) ResetStepBackoff(ctx context.Context) {
+	s.stepAttempts = 0
+}
+
+func (s *StepSchedulingDeriver) OnEvent(ctx context.Context, ev event.Event) bool {
+	return false
 }

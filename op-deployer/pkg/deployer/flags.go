@@ -6,6 +6,8 @@ import (
 	"os"
 	"path"
 
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/artifacts"
+
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/state"
 
 	op_service "github.com/ethereum-optimism/optimism/op-service"
@@ -76,6 +78,7 @@ var (
 		Name:    ArtifactsLocatorFlagName,
 		Usage:   "Locator for artifacts.",
 		EnvVars: PrefixEnvVar("ARTIFACTS_LOCATOR"),
+		Value:   artifacts.EmbeddedLocatorString,
 	}
 	CacheDirFlag = &cli.StringFlag{
 		Name: CacheDirFlagName,

@@ -43,7 +43,7 @@ var Commands = cli.Commands{
 	},
 	&cli.Command{
 		Name:  "v4.0.0",
-		Usage: "upgrades a chain to version v.0.0",
+		Usage: "upgrades a chain to version v4.0.0",
 		Flags: append([]cli.Flag{
 			deployer.L1RPCURLFlag,
 			ConfigFlag,

@@ -38,11 +38,17 @@ func validBatcherConfig() batcher.CLIConfig {
 		MetricsConfig:          metrics.DefaultCLIConfig(),
 		PprofConfig:            oppprof.DefaultCLIConfig(),
 		// The compressor config is not checked in config.Check()
-		RPC:                    rpc.DefaultCLIConfig(),
-		CompressionAlgo:        derive.Zlib,
-		ThrottleThreshold:      0, // no DA throttling
-		ThrottleTxSize:         0,
-		ThrottleControllerType: "step", // default controller type
+		RPC:             rpc.DefaultCLIConfig(),
+		CompressionAlgo: derive.Zlib,
+		ThrottleConfig: batcher.ThrottleConfig{
+			ControllerType:      flags.DefaultThrottleControllerType,
+			LowerThreshold:      flags.DefaultThrottleLowerThreshold,
+			UpperThreshold:      flags.DefaultThrottleUpperThreshold,
+			TxSizeLowerLimit:    flags.DefaultThrottleTxSizeLowerLimit,
+			TxSizeUpperLimit:    flags.DefaultThrottleTxSizeUpperLimit,
+			BlockSizeLowerLimit: flags.DefaultThrottleBlockSizeLowerLimit,
+			BlockSizeUpperLimit: flags.DefaultThrottleBlockSizeUpperLimit,
+		},
 	}
 }
 
@@ -120,6 +126,24 @@ func TestBatcherConfig(t *testing.T) {
 				c.Compressor = compressor.RatioKind
 			},
 			errString: "invalid ApproxComprRatio 4.2 for ratio compressor",
+		},
+		{
+			name: "throttle_max_threshold=throttle_threshold",
+			override: func(c *batcher.CLIConfig) {
+				c.ThrottleConfig.LowerThreshold = 5
+				c.ThrottleConfig.UpperThreshold = 5
+
+			},
+			errString: "throttle.upper-threshold must be greater than throttle.lower-threshold",
+		},
+		{
+			name: "throttle_max_threshold=throttle_threshold",
+			override: func(c *batcher.CLIConfig) {
+				c.ThrottleConfig.LowerThreshold = 5
+				c.ThrottleConfig.UpperThreshold = 4
+
+			},
+			errString: "throttle.upper-threshold must be greater than throttle.lower-threshold",
 		},
 	}
 

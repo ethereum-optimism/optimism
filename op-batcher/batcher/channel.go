@@ -7,7 +7,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
 )
 
@@ -166,7 +165,7 @@ func (c *channel) CheckTimeout(l1BlockNum uint64) {
 	c.channelBuilder.CheckTimeout(l1BlockNum)
 }
 
-func (c *channel) AddBlock(block *types.Block) (*derive.L1BlockInfo, error) {
+func (c *channel) AddBlock(block SizedBlock) (*derive.L1BlockInfo, error) {
 	return c.channelBuilder.AddBlock(block)
 }
 

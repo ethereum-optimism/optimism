@@ -14,13 +14,11 @@ type DeployImplementationsInput struct {
 	ProofMaturityDelaySeconds       *big.Int
 	DisputeGameFinalityDelaySeconds *big.Int
 	MipsVersion                     *big.Int
-	// Release version to set OPCM implementations for, of the format `op-contracts/vX.Y.Z`.
-	L1ContractsRelease    string
-	SuperchainConfigProxy common.Address
-	ProtocolVersionsProxy common.Address
-	SuperchainProxyAdmin  common.Address
-	UpgradeController     common.Address
-	Challenger            common.Address
+	SuperchainConfigProxy           common.Address
+	ProtocolVersionsProxy           common.Address
+	SuperchainProxyAdmin            common.Address
+	UpgradeController               common.Address
+	Challenger                      common.Address
 }
 
 type DeployImplementationsOutput struct {

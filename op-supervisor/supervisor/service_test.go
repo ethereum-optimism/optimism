@@ -12,7 +12,8 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
 
-	"github.com/ethereum-optimism/optimism/op-service/dial"
+	opclient "github.com/ethereum-optimism/optimism/op-service/client"
+
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
 	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
 	"github.com/ethereum-optimism/optimism/op-service/oppprof"
@@ -66,7 +67,7 @@ func TestSupervisorService(t *testing.T) {
 	{
 		endpoint := "http://" + supervisor.rpcServer.Endpoint()
 		t.Logf("dialing %s", endpoint)
-		cl, err := dial.DialRPCClientWithTimeout(context.Background(), time.Second*5, logger, endpoint)
+		cl, err := opclient.NewRPC(context.Background(), logger, endpoint, opclient.WithConnectTimeout(5*time.Second))
 		require.NoError(t, err)
 		ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
 		err = cl.CallContext(ctx, nil, "supervisor_checkAccessList",

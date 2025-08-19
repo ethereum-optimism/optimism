@@ -367,7 +367,6 @@ contract DeployOPChain_TestBase is Test {
                 challengePeriodSeconds: challengePeriodSeconds,
                 proofMaturityDelaySeconds: proofMaturityDelaySeconds,
                 disputeGameFinalityDelaySeconds: disputeGameFinalityDelaySeconds,
-                l1ContractsRelease: release,
                 mipsVersion: StandardConstants.MIPS_VERSION,
                 superchainConfigProxy: superchainConfigProxy,
                 protocolVersionsProxy: protocolVersionsProxy,

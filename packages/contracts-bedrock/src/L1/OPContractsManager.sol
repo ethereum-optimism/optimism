@@ -591,37 +591,39 @@ contract OPContractsManagerUpgrader is OPContractsManagerBase {
     /// @notice Thrown when the SuperchainConfig contract does not match the unified config.
     error OPContractsManagerUpgrader_SuperchainConfigMismatch();
 
+    /// @notice Thrown when the current version of the SuperchainConfig contract does not match the expected previous
+    ///         version.
+    error SuperchainConfigExpectedVersionMismatch();
+
     /// @notice The expected previous version of the SuperchainConfig contract.
     bytes32 constant SUPERCHAIN_CONFIG_EXPECTED_PREVIOUS_VERSION = keccak256(abi.encodePacked("1.2.0"));
+
+    /// @notice The expected target version of the SuperchainConfig contract.
+    bytes32 constant SUPERCHAIN_CONFIG_EXPECTED_TARGET_VERSION = keccak256(abi.encodePacked("2.3.0"));
 
     /// @param _contractsContainer The OPContractsManagerContractsContainer to use.
     constructor(OPContractsManagerContractsContainer _contractsContainer) OPContractsManagerBase(_contractsContainer) { }
 
     /// @notice Upgrades a set of chains to the latest implementation contracts
     /// @param _superchainConfig The SuperchainConfig contract to upgrade
-    /// @param _superchainProxyAdmin The ProxyAdmin contract for the SuperchainConfig
     /// @param _opChainConfigs Array of OpChain structs, one per chain to upgrade
     /// @dev This function is intended to be called via DELEGATECALL from the Upgrade Controller Safe
+    /// @dev This function assumes that all the chains have the same superchain config.
+    /// @dev This function assumes that the shared superchainConfig is already upgraded.
     function upgrade(
         ISuperchainConfig _superchainConfig,
-        IProxyAdmin _superchainProxyAdmin,
         OPContractsManager.OpChainConfig[] memory _opChainConfigs
     )
         external
         virtual
     {
-        OPContractsManager.Implementations memory impls = getImplementations();
-
         // If the SuperchainConfig is not already upgraded, upgrade it.
-        if (keccak256(abi.encodePacked(_superchainConfig.version())) == SUPERCHAIN_CONFIG_EXPECTED_PREVIOUS_VERSION) {
-            // Attempt to upgrade. If the ProxyAdmin is not the SuperchainConfig's admin, this will revert.
-            upgradeToAndCall(
-                _superchainProxyAdmin,
-                address(_superchainConfig),
-                impls.superchainConfigImpl,
-                abi.encodeCall(ISuperchainConfig.upgrade, ())
-            );
+        if (keccak256(abi.encodePacked(_superchainConfig.version())) != SUPERCHAIN_CONFIG_EXPECTED_TARGET_VERSION) {
+            revert SuperchainConfigExpectedVersionMismatch();
         }
+
+        // Grab the implementations.
+        OPContractsManager.Implementations memory impls = getImplementations();
 
         // Loop through each chain and upgrade.
         for (uint256 i = 0; i < _opChainConfigs.length; i++) {
@@ -846,6 +848,29 @@ contract OPContractsManagerUpgrader is OPContractsManagerBase {
             // the caller will be the value of the ADDRESS opcode.
             emit Upgraded(l2ChainId, _opChainConfigs[i].systemConfigProxy, address(this));
         }
+    }
+
+    /// @notice Upgrades the SuperchainConfig contract.
+    /// @param _superchainConfig The SuperchainConfig contract to upgrade.
+    /// @param _superchainProxyAdmin The ProxyAdmin contract to use for the upgrade.
+    /// @dev This function is intended to be called via DELEGATECALL from the Upgrade Controller Safe
+    /// @dev This function assumes that the superchainConfig version is at an expected previous version.
+    function upgradeSuperchainConfig(ISuperchainConfig _superchainConfig, IProxyAdmin _superchainProxyAdmin) external {
+        // If the SuperchainConfig is not already upgraded, upgrade it.
+        if (keccak256(abi.encodePacked(_superchainConfig.version())) != SUPERCHAIN_CONFIG_EXPECTED_PREVIOUS_VERSION) {
+            revert SuperchainConfigExpectedVersionMismatch();
+        }
+
+        // Grab the implementations.
+        OPContractsManager.Implementations memory impls = getImplementations();
+
+        // Attempt to upgrade. If the ProxyAdmin is not the SuperchainConfig's admin, this will revert.
+        upgradeToAndCall(
+            _superchainProxyAdmin,
+            address(_superchainConfig),
+            impls.superchainConfigImpl,
+            abi.encodeCall(ISuperchainConfig.upgrade, ())
+        );
     }
 
     /// @notice Updates the implementation of a proxy without calling the initializer.
@@ -1635,11 +1660,6 @@ contract OPContractsManagerInteropMigrator is OPContractsManagerBase {
 }
 
 contract OPContractsManager is ISemver {
-    // -------- Events --------
-
-    /// @notice Emitted when the OPCM setRC function is called.
-    event Released(bool _isRC);
-
     // -------- Structs --------
 
     /// @notice Represents the roles that can be set when deploying a standard OP Stack chain.
@@ -1760,9 +1780,9 @@ contract OPContractsManager is ISemver {
 
     // -------- Constants and Variables --------
 
-    /// @custom:semver 2.7.0
+    /// @custom:semver 3.1.0
     function version() public pure virtual returns (string memory) {
-        return "2.7.0";
+        return "3.1.0";
     }
 
     OPContractsManagerGameTypeAdder public immutable opcmGameTypeAdder;
@@ -1784,10 +1804,6 @@ contract OPContractsManager is ISemver {
     /// @notice Address of the SuperchainProxyAdmin contract shared by all chains.
     IProxyAdmin public immutable superchainProxyAdmin;
 
-    /// @notice L1 smart contracts release deployed by this version of OPCM. This is used in opcm to signal which
-    /// version of the L1 smart contracts is deployed. It takes the format of `op-contracts/vX.Y.Z`.
-    string internal L1_CONTRACTS_RELEASE;
-
     /// @notice The OPContractsManager contract that is currently being used. This is needed in the upgrade function
     /// which is intended to be DELEGATECALLed.
     OPContractsManager internal immutable thisOPCM;
@@ -1795,18 +1811,7 @@ contract OPContractsManager is ISemver {
     /// @notice The address of the upgrade controller.
     address public immutable upgradeController;
 
-    /// @notice Whether this is a release candidate.
-    bool public isRC = true;
-
-    /// @notice Returns the release string. Appends "-rc" if this is a release candidate.
-    function l1ContractsRelease() external view virtual returns (string memory) {
-        return isRC ? string.concat(L1_CONTRACTS_RELEASE, "-rc") : L1_CONTRACTS_RELEASE;
-    }
-
     // -------- Errors --------
-
-    /// @notice Thrown when an address other than the upgrade controller calls the setRC function.
-    error OnlyUpgradeController();
 
     /// @notice Thrown when an address is the zero address.
     error AddressNotFound(address who);
@@ -1850,6 +1855,9 @@ contract OPContractsManager is ISemver {
     /// @notice Thrown when the SuperchainConfig of the all chains passed into upgrade(...) are not the same.
     error SuperchainConfigInconsistent();
 
+    /// @notice Thrown when no OpChainConfigs are passed into upgrade(...).
+    error EmptyOpChainConfigs();
+
     // -------- Methods --------
 
     constructor(
@@ -1861,7 +1869,6 @@ contract OPContractsManager is ISemver {
         ISuperchainConfig _superchainConfig,
         IProtocolVersions _protocolVersions,
         IProxyAdmin _superchainProxyAdmin,
-        string memory _l1ContractsRelease,
         address _upgradeController
     ) {
         _opcmDeployer.assertValidContractAddress(address(_superchainConfig));
@@ -1879,7 +1886,6 @@ contract OPContractsManager is ISemver {
         superchainConfig = _superchainConfig;
         protocolVersions = _protocolVersions;
         superchainProxyAdmin = _superchainProxyAdmin;
-        L1_CONTRACTS_RELEASE = _l1ContractsRelease;
         thisOPCM = this;
         upgradeController = _upgradeController;
     }
@@ -1920,29 +1926,17 @@ contract OPContractsManager is ISemver {
     /// @notice Upgrades a set of chains to the latest implementation contracts
     /// @param _opChainConfigs Array of OpChain structs, one per chain to upgrade
     /// @dev This function is intended to be called via DELEGATECALL from the Upgrade Controller Safe
-    /// @dev This function assumes that the first OpChainConfig member of the `_opChainConfigs` array is the
-    ///      chain whose proxyAdmin is also the `superchainProxyAdmin`. This only matters if the superchainConfig is
-    ///      expected to be upgraded in this call.
+    /// @dev This function assumes that all the chains have the same superchain config.
+    /// @dev This function assumes that the shared superchainConfig is already upgraded.
     function upgrade(OpChainConfig[] memory _opChainConfigs) external virtual {
         if (address(this) == address(thisOPCM)) revert OnlyDelegatecall();
 
-        // If this is delegatecalled by the upgrade controller, set isRC to false first, else, continue execution.
-        if (address(this) == upgradeController) {
-            // Set isRC to false.
-            // This function asserts that the caller is the upgrade controller.
-            thisOPCM.setRC(false);
-        }
+        if (_opChainConfigs.length == 0) revert EmptyOpChainConfigs();
 
         // Get the superchain config and superchain's proxy admin via the system config.
-        ISuperchainConfig _superchainConfig = superchainConfig;
-        IProxyAdmin _superchainProxyAdmin = superchainProxyAdmin;
-        if (_opChainConfigs.length > 0) {
-            // Ideally use _opChainConfigs[0].systemConfigProxy.superchainConfig()
-            _superchainConfig =
-                IOptimismPortal(payable(_opChainConfigs[0].systemConfigProxy.optimismPortal())).superchainConfig();
-            // Ideally use superchainConfig.proxyAdmin()
-            _superchainProxyAdmin = _opChainConfigs[0].proxyAdmin;
-        }
+        // Ideally use _opChainConfigs[0].systemConfigProxy.superchainConfig()
+        ISuperchainConfig _superchainConfig =
+            IOptimismPortal(payable(_opChainConfigs[0].systemConfigProxy.optimismPortal())).superchainConfig();
 
         // Ensure all chains are using the same superchain config.
         for (uint256 i = 1; i < _opChainConfigs.length; i++) {
@@ -1952,8 +1946,20 @@ contract OPContractsManager is ISemver {
             ) revert SuperchainConfigInconsistent();
         }
 
+        bytes memory data = abi.encodeCall(OPContractsManagerUpgrader.upgrade, (_superchainConfig, _opChainConfigs));
+        _performDelegateCall(address(opcmUpgrader), data);
+    }
+
+    /// @notice Upgrades the SuperchainConfig contract.
+    /// @param _superchainConfig The SuperchainConfig contract to upgrade.
+    /// @param _superchainProxyAdmin The ProxyAdmin contract to use for the upgrade.
+    /// @dev This function is intended to be called via DELEGATECALL from the Upgrade Controller Safe
+    /// @dev This function assumes that the superchainConfig version is at an expected previous version.
+    function upgradeSuperchainConfig(ISuperchainConfig _superchainConfig, IProxyAdmin _superchainProxyAdmin) external {
+        if (address(this) == address(thisOPCM)) revert OnlyDelegatecall();
+
         bytes memory data = abi.encodeCall(
-            OPContractsManagerUpgrader.upgrade, (_superchainConfig, _superchainProxyAdmin, _opChainConfigs)
+            OPContractsManagerUpgrader.upgradeSuperchainConfig, (_superchainConfig, _superchainProxyAdmin)
         );
         _performDelegateCall(address(opcmUpgrader), data);
     }
@@ -2004,14 +2010,6 @@ contract OPContractsManager is ISemver {
     /// @notice Returns the implementation contract addresses.
     function implementations() public view returns (Implementations memory) {
         return opcmDeployer.implementations();
-    }
-
-    /// @notice Sets the RC flag.
-    function setRC(bool _isRC) external {
-        if (msg.sender != upgradeController) revert OnlyUpgradeController();
-        isRC = _isRC;
-
-        emit Released(_isRC);
     }
 
     /// @notice Helper function to perform a delegatecall to a target contract

@@ -83,7 +83,13 @@ interface IOPContractsManagerUpgrader {
 
     function __constructor__(IOPContractsManagerContractsContainer _contractsContainer) external;
 
-    function upgrade(IOPContractsManager.OpChainConfig[] memory _opChainConfigs) external;
+    function upgrade(
+        ISuperchainConfig _superchainConfig,
+        IOPContractsManager.OpChainConfig[] memory _opChainConfigs
+    )
+        external;
+
+    function upgradeSuperchainConfig(ISuperchainConfig _superchainConfig, IProxyAdmin _superchainProxyAdmin) external;
 
     function contractsContainer() external view returns (IOPContractsManagerContractsContainer);
 }
@@ -116,11 +122,6 @@ interface IOPContractsManagerInteropMigrator {
 }
 
 interface IOPContractsManager {
-    // -------- Events --------
-
-    /// @notice Emitted when the OPCM setRC function is called.
-    event Released(bool _isRC);
-
     // -------- Structs --------
 
     /// @notice Represents the roles that can be set when deploying a standard OP Stack chain.
@@ -252,13 +253,7 @@ interface IOPContractsManager {
     /// @notice Address of the ProxyAdmin contract shared by all chains.
     function superchainProxyAdmin() external view returns (IProxyAdmin);
 
-    /// @notice L1 smart contracts release deployed by this version of OPCM. This is used in opcm to signal which
-    /// version of the L1 smart contracts is deployed. It takes the format of `op-contracts/vX.Y.Z`.
-    function l1ContractsRelease() external view returns (string memory);
-
     // -------- Errors --------
-
-    error OnlyUpgradeController();
 
     /// @notice Thrown when an address is the zero address.
     error AddressNotFound(address who);
@@ -298,6 +293,8 @@ interface IOPContractsManager {
 
     error SuperchainConfigInconsistent();
 
+    error EmptyOpChainConfigs();
+
     // -------- Methods --------
 
     function __constructor__(
@@ -309,7 +306,6 @@ interface IOPContractsManager {
         ISuperchainConfig _superchainConfig,
         IProtocolVersions _protocolVersions,
         IProxyAdmin _superchainProxyAdmin,
-        string memory _l1ContractsRelease,
         address _upgradeController
     )
         external;
@@ -336,6 +332,11 @@ interface IOPContractsManager {
     /// @notice Upgrades the implementation of all proxies in the specified chains
     /// @param _opChainConfigs The chains to upgrade
     function upgrade(OpChainConfig[] memory _opChainConfigs) external;
+
+    /// @notice Upgrades the SuperchainConfig contract.
+    /// @param _superchainConfig The SuperchainConfig contract to upgrade.
+    /// @param _superchainProxyAdmin The ProxyAdmin contract to use for the upgrade.
+    function upgradeSuperchainConfig(ISuperchainConfig _superchainConfig, IProxyAdmin _superchainProxyAdmin) external;
 
     /// @notice addGameType deploys a new dispute game and links it to the DisputeGameFactory. The inputted _gameConfigs
     /// must be added in ascending GameType order.
@@ -373,10 +374,6 @@ interface IOPContractsManager {
     function implementations() external view returns (Implementations memory);
 
     function upgradeController() external view returns (address);
-
-    function isRC() external view returns (bool);
-
-    function setRC(bool _isRC) external;
 }
 
 /// @notice Minimal interface only used for calling `implementations()` method but without retrieving the ETHLockbox

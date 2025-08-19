@@ -62,19 +62,14 @@ devnet TEMPLATE_FILE DATA_FILE="" NAME="" PACKAGE=KURTOSIS_PACKAGE: _prerequisit
         fi
     fi
     export ENCL_NAME="$DEVNET_NAME"-devnet
-    if [ -n "{{DATA_FILE}}" ]; then
-        go run cmd/main.go -kurtosis-package {{PACKAGE}} \
-            -environment "tests/$ENCL_NAME.json" \
-            -template "{{TEMPLATE_FILE}}" \
-            -data "{{DATA_FILE}}" \
-            -enclave "$ENCL_NAME"
-    else
-        go run cmd/main.go -kurtosis-package {{PACKAGE}} \
-            -environment "tests/$ENCL_NAME.json" \
-            -template "{{TEMPLATE_FILE}}" \
-            -enclave "$ENCL_NAME"
-    fi \
-    && cat "tests/$ENCL_NAME.json"
+    export CONDUCTOR_CONFIG="tests/op-conductor-ops-$ENCL_NAME.toml"
+    go run cmd/main.go -kurtosis-package {{PACKAGE}} \
+        -environment "tests/$ENCL_NAME.json" \
+        -conductor-config "$CONDUCTOR_CONFIG" \
+        -template "{{TEMPLATE_FILE}}" \
+        -data "{{DATA_FILE}}" \
+        -enclave "$ENCL_NAME" \
+    && cat "tests/$ENCL_NAME.json" && if [ -f "$CONDUCTOR_CONFIG" ]; then cat "$CONDUCTOR_CONFIG"; fi
 
 devnet-test DEVNET *TEST: _prerequisites
     #!/usr/bin/env bash

@@ -236,7 +236,7 @@ contract ForkLive is Deployer {
         // trigger the upgrade of the SuperchainConfig contract.
         vm.etch(superchainPAO, vm.getDeployedCode("test/mocks/Callers.sol:DelegateCaller"));
         DelegateCaller(superchainPAO).dcForward(
-            address(opcm), abi.encodeCall(IOPContractsManager.upgrade, (new IOPContractsManager.OpChainConfig[](0)))
+            address(opcm), abi.encodeCall(IOPContractsManager.upgradeSuperchainConfig, (superchainConfig, proxyAdmin))
         );
 
         // Then do the final upgrade.

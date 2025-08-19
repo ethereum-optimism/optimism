@@ -8,8 +8,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/devnet-sdk/descriptors"
 	"github.com/ethereum-optimism/optimism/devnet-sdk/shell/env"
-	"github.com/ethereum-optimism/optimism/op-service/client"
-	"github.com/ethereum-optimism/optimism/op-service/sources"
+	"github.com/ethereum-optimism/optimism/op-service/dial"
 )
 
 type system struct {
@@ -102,11 +101,10 @@ func (i *interopSystem) Supervisor(ctx context.Context) (Supervisor, error) {
 		return i.supervisor, nil
 	}
 
-	cl, err := client.NewRPC(ctx, nil, i.supervisorRPC)
+	supervisor, err := dial.DialSupervisorClientWithTimeout(ctx, nil, i.supervisorRPC)
 	if err != nil {
 		return nil, fmt.Errorf("failed to dial supervisor RPC: %w", err)
 	}
-	supervisor := sources.NewSupervisorClient(cl)
 	i.supervisor = supervisor
 	return supervisor, nil
 }

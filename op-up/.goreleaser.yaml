@@ -1,0 +1,58 @@
+# yaml-language-server: $schema=https://goreleaser.com/static/schema-pro.json
+# vim: set ts=2 sw=2 tw=0 fo=cnqoj
+
+version: 2
+
+project_name: op-up
+
+before:
+  hooks:
+    - go mod tidy
+
+builds:
+  - id: main
+    main: .
+    binary: "{{ .ProjectName }}"
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - darwin
+    goarch:
+      - amd64
+      - arm64
+    ignore:
+      - goos: linux
+        goarch: arm64
+    mod_timestamp: "{{ .CommitTimestamp }}"
+
+archives:
+  - format: tar.gz
+    # this name template makes the OS and Arch compatible with the results of `uname`.
+    name_template: "{{ .ProjectName }}-{{ .Version }}-{{ tolower .Os }}-{{ .Arch }}"
+    wrap_in_directory: true
+    files: []
+
+dockers:
+  - goos: linux
+    goarch: amd64
+    dockerfile: Dockerfile
+    image_templates:
+      - "us-docker.pkg.dev/oplabs-tools-artifacts/images/{{ .ProjectName }}:{{ .Tag }}"
+
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - "^docs:"
+      - "^test:"
+
+release:
+  github:
+    owner: ethereum-optimism
+    name: optimism
+  make_latest: false
+
+monorepo:
+  tag_prefix: op-up/
+  dir: op-up

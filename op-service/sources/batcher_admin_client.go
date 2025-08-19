@@ -26,3 +26,7 @@ func (cl *BatcherAdminClient) StartBatcher(ctx context.Context) error {
 func (cl *BatcherAdminClient) StopBatcher(ctx context.Context) error {
 	return cl.client.CallContext(ctx, nil, "admin_stopBatcher")
 }
+
+func (cl *BatcherAdminClient) FlushBatcher(ctx context.Context) error {
+	return cl.client.CallContext(ctx, nil, "admin_flushBatcher")
+}

@@ -5,7 +5,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-devstack/shim"
 	"github.com/ethereum-optimism/optimism/op-devstack/stack"
-	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils"
+	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/blobstore"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/fakebeacon"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/geth"
 	"github.com/ethereum-optimism/optimism/op-service/client"
@@ -73,7 +73,7 @@ func WithL1Nodes(l1ELID stack.L1ELNodeID, l1CLID stack.L1CLNodeID) stack.Option[
 		blobPath := clP.TempDir()
 
 		clLogger := clP.Logger()
-		bcn := fakebeacon.NewBeacon(clLogger, e2eutils.NewBlobStore(), l1Net.genesis.Timestamp, blockTimeL1)
+		bcn := fakebeacon.NewBeacon(clLogger, blobstore.New(), l1Net.genesis.Timestamp, blockTimeL1)
 		clP.Cleanup(func() {
 			_ = bcn.Close()
 		})

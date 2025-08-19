@@ -7,6 +7,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/ethereum-optimism/optimism/cannon/mipsevm"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/arch"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/multithreaded"
 	mtutil "github.com/ethereum-optimism/optimism/cannon/mipsevm/multithreaded/testutil"
@@ -24,13 +25,13 @@ func TestDiffTester_Run_SimpleTest(t *testing.T) {
 		testName := fmt.Sprintf("useCorrectReturnExpectation=%v", useCorrectReturnExpectation)
 		t.Run(testName, func(t *testing.T) {
 			initStateCalled := make(map[string]int)
-			initState := func(testCase simpleTestCase, state *multithreaded.State, vm VersionedVMTestCase, r *testutil.RandHelper) {
+			initState := func(t require.TestingT, testCase simpleTestCase, state *multithreaded.State, vm VersionedVMTestCase, r *testutil.RandHelper, goVm mipsevm.FPVM) {
 				initStateCalled[testCase.name] += 1
 				testutil.StoreInstruction(state.GetMemory(), state.GetPC(), testCase.insn)
 			}
 
 			expectationsCalled := make(map[string]int)
-			setExpectations := func(testCase simpleTestCase, expect *mtutil.ExpectedState, vm VersionedVMTestCase) ExpectedExecResult {
+			setExpectations := func(t require.TestingT, testCase simpleTestCase, expect *mtutil.ExpectedState, vm VersionedVMTestCase) ExpectedExecResult {
 				expectationsCalled[testCase.name] += 1
 				expect.ExpectStep()
 
@@ -53,10 +54,9 @@ func TestDiffTester_Run_SimpleTest(t *testing.T) {
 
 			// Validate that we invoked initState and setExpectations as expected
 			for _, c := range testCases {
-				testsPerCase := len(versions)
-				require.Equal(t, testsPerCase, initStateCalled[c.name])
-				// Difftester runs extra calls on the expectations fn in order to analyze the tests
-				require.Equal(t, testsPerCase+len(versions), expectationsCalled[c.name])
+				expectedCalls := len(versions)
+				require.Equal(t, expectedCalls, initStateCalled[c.name])
+				require.Equal(t, expectedCalls, expectationsCalled[c.name])
 			}
 
 			// Validate that tests ran and passed as expected
@@ -65,6 +65,68 @@ func TestDiffTester_Run_SimpleTest(t *testing.T) {
 				failed, err := tRunner.testFailedOrPanicked(testCase)
 				require.NoError(t, err)
 				require.Equal(t, failed, !useCorrectReturnExpectation, "Expected test '%v' status failed = %v", testCase, !useCorrectReturnExpectation)
+			}
+		})
+	}
+}
+
+func TestDiffTester_Run_WithSteps(t *testing.T) {
+	outterCases := []struct {
+		name          string
+		steps         int
+		expectedSteps int
+	}{
+		{name: "0 steps", steps: 0, expectedSteps: 1},
+		{name: "negative steps", steps: -1, expectedSteps: 1},
+		{name: "1 step", steps: 1, expectedSteps: 1},
+		{name: "2 step", steps: 2, expectedSteps: 2},
+		{name: "3 step", steps: 3, expectedSteps: 3},
+	}
+
+	// Run simple noop instruction (0x0)
+	cases := []simpleTestCase{
+		{name: "a", insn: 0x0},
+	}
+
+	for _, oc := range outterCases {
+		t.Run(oc.name, func(t *testing.T) {
+			initStateCalled := make(map[string]int)
+			initState := func(t require.TestingT, testCase simpleTestCase, state *multithreaded.State, vm VersionedVMTestCase, r *testutil.RandHelper, goVm mipsevm.FPVM) {
+				initStateCalled[testCase.name] += 1
+				testutil.StoreInstruction(state.GetMemory(), state.GetPC(), testCase.insn)
+			}
+
+			expectationsCalled := make(map[string]int)
+			setExpectations := func(t require.TestingT, testCase simpleTestCase, expect *mtutil.ExpectedState, vm VersionedVMTestCase) ExpectedExecResult {
+				expectationsCalled[testCase.name] += 1
+				expect.ExpectStep()
+				return ExpectNormalExecution()
+			}
+
+			versions := GetMipsVersionTestCases(t)
+			expectedTestCases := generateExpectedTestCases(cases, versions)
+
+			// Run tests
+			tRunner := newMockTestRunner(t)
+			NewDiffTester(testNamer).
+				InitState(initState).
+				SetExpectations(setExpectations).
+				run(tRunner, cases, WithSteps(oc.steps))
+
+			// Validate that we invoked initState and setExpectations as expected
+			for _, c := range cases {
+				initCalls := len(versions)
+				expectCalls := oc.expectedSteps * len(versions)
+				require.Equal(t, initCalls, initStateCalled[c.name])
+				require.Equal(t, expectCalls, expectationsCalled[c.name])
+			}
+
+			// Validate that tests ran and passed as expected
+			require.Equal(t, len(tRunner.childTestMocks), len(expectedTestCases))
+			for _, testCase := range expectedTestCases {
+				failed, err := tRunner.testFailedOrPanicked(testCase)
+				require.NoError(t, err)
+				require.Equal(t, false, failed)
 			}
 		})
 	}
@@ -91,16 +153,16 @@ func TestDiffTester_Run_WithMemModifications(t *testing.T) {
 		t.Run(testName, func(t *testing.T) {
 
 			initStateCalled := make(map[string]int)
-			initState := func(tt simpleTestCase, state *multithreaded.State, vm VersionedVMTestCase, r *testutil.RandHelper) {
+			initState := func(t require.TestingT, tt simpleTestCase, state *multithreaded.State, vm VersionedVMTestCase, r *testutil.RandHelper, goVm mipsevm.FPVM) {
 				initStateCalled[tt.name] += 1
-				testutil.StoreInstruction(state.GetMemory(), pc, tt.insn)
+				storeInsnWithCache(state, goVm, pc, tt.insn)
 				state.GetMemory().SetWord(effAddr, 0xAA_BB_CC_DD_A1_B1_C1_D1)
 				state.GetRegistersRef()[rtReg] = 0x11_22_33_44_55_66_77_88
 				state.GetRegistersRef()[baseReg] = base
 			}
 
 			expectationsCalled := make(map[string]int)
-			setExpectations := func(tt simpleTestCase, expect *mtutil.ExpectedState, vm VersionedVMTestCase) ExpectedExecResult {
+			setExpectations := func(t require.TestingT, tt simpleTestCase, expect *mtutil.ExpectedState, vm VersionedVMTestCase) ExpectedExecResult {
 				expectationsCalled[tt.name] += 1
 				expect.ExpectStep()
 				expect.ExpectMemoryWrite(effAddr, 0x55_66_77_88_A1_B1_C1_D1)
@@ -131,10 +193,9 @@ func TestDiffTester_Run_WithMemModifications(t *testing.T) {
 
 			// Validate that we invoked initState and setExpectations as expected
 			for _, c := range testCases {
-				testsPerCase := len(versions) * (len(mods) + 1)
-				require.Equal(t, testsPerCase, initStateCalled[c.name])
-				// Difftester runs extra calls on the expectations fn in order to analyze the tests
-				require.Equal(t, testsPerCase+len(versions), expectationsCalled[c.name])
+				expectedCalls := len(versions) * (len(mods) + 1)
+				require.Equal(t, expectedCalls, initStateCalled[c.name])
+				require.Equal(t, expectedCalls, expectationsCalled[c.name])
 			}
 
 			// Validate that tests ran and passed
@@ -159,14 +220,14 @@ func TestDiffTester_Run_WithPanic(t *testing.T) {
 		testName := fmt.Sprintf("useCorrectReturnExpectation=%v", useCorrectReturnExpectation)
 		t.Run(testName, func(t *testing.T) {
 			initStateCalled := make(map[string]int)
-			initState := func(testCase simpleTestCase, state *multithreaded.State, vm VersionedVMTestCase, r *testutil.RandHelper) {
+			initState := func(t require.TestingT, testCase simpleTestCase, state *multithreaded.State, vm VersionedVMTestCase, r *testutil.RandHelper, goVm mipsevm.FPVM) {
 				initStateCalled[testCase.name] += 1
 				testutil.StoreInstruction(state.GetMemory(), state.GetPC(), testCase.insn)
 				state.GetRegistersRef()[2] = syscallNum
 			}
 
 			expectationsCalled := make(map[string]int)
-			setExpectations := func(testCase simpleTestCase, expect *mtutil.ExpectedState, vm VersionedVMTestCase) ExpectedExecResult {
+			setExpectations := func(t require.TestingT, testCase simpleTestCase, expect *mtutil.ExpectedState, vm VersionedVMTestCase) ExpectedExecResult {
 				expectationsCalled[testCase.name] += 1
 				expect.ExpectStep()
 
@@ -189,10 +250,9 @@ func TestDiffTester_Run_WithPanic(t *testing.T) {
 
 			// Validate that we invoked initState and setExpectations as expected
 			for _, c := range testCases {
-				testsPerCase := len(versions)
-				require.Equal(t, testsPerCase, initStateCalled[c.name])
-				// Difftester runs extra calls on the expectations fn in order to analyze the tests
-				require.Equal(t, testsPerCase+len(versions), expectationsCalled[c.name])
+				expectedCalls := len(versions)
+				require.Equal(t, expectedCalls, initStateCalled[c.name])
+				require.Equal(t, expectedCalls, expectationsCalled[c.name])
 			}
 
 			// Validate that tests ran and passed as expected
@@ -220,13 +280,13 @@ func TestDiffTester_Run_WithVm(t *testing.T) {
 	}
 
 	initStateCalled := make(map[string]int)
-	initState := func(testCase simpleTestCase, state *multithreaded.State, vm VersionedVMTestCase, r *testutil.RandHelper) {
+	initState := func(t require.TestingT, testCase simpleTestCase, state *multithreaded.State, vm VersionedVMTestCase, r *testutil.RandHelper, goVm mipsevm.FPVM) {
 		initStateCalled[testCase.name] += 1
 		testutil.StoreInstruction(state.GetMemory(), state.GetPC(), testCase.insn)
 	}
 
 	expectationsCalled := make(map[string]int)
-	setExpectations := func(testCase simpleTestCase, expect *mtutil.ExpectedState, vm VersionedVMTestCase) ExpectedExecResult {
+	setExpectations := func(t require.TestingT, testCase simpleTestCase, expect *mtutil.ExpectedState, vm VersionedVMTestCase) ExpectedExecResult {
 		expectationsCalled[testCase.name] += 1
 		expect.ExpectStep()
 
@@ -247,8 +307,7 @@ func TestDiffTester_Run_WithVm(t *testing.T) {
 	// Validate that we invoked initState and setExpectations as expected
 	for _, c := range testCases {
 		require.Equal(t, 1, initStateCalled[c.name])
-		// Difftester runs extra calls on the expectations fn in order to analyze the tests
-		require.Equal(t, 2, expectationsCalled[c.name])
+		require.Equal(t, 1, expectationsCalled[c.name])
 	}
 
 	// Validate that we ran the expected tests

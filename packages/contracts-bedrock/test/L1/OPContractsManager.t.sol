@@ -19,8 +19,6 @@ import { StandardConstants } from "scripts/deploy/StandardConstants.sol";
 // Libraries
 import { EIP1967Helper } from "test/mocks/EIP1967Helper.sol";
 import { Blueprint } from "src/libraries/Blueprint.sol";
-import { ForgeArtifacts } from "scripts/libraries/ForgeArtifacts.sol";
-import { Bytes } from "src/libraries/Bytes.sol";
 import { GameType, Duration, Hash, Claim } from "src/dispute/lib/LibUDT.sol";
 import { Proposal, GameTypes } from "src/dispute/lib/Types.sol";
 
@@ -30,7 +28,7 @@ import { IL1ERC721Bridge } from "interfaces/L1/IL1ERC721Bridge.sol";
 import { IL1StandardBridge } from "interfaces/L1/IL1StandardBridge.sol";
 import { IOptimismMintableERC20Factory } from "interfaces/universal/IOptimismMintableERC20Factory.sol";
 import { IL1CrossDomainMessenger } from "interfaces/L1/IL1CrossDomainMessenger.sol";
-import { IMIPS2 } from "interfaces/cannon/IMIPS2.sol";
+import { IMIPS64 } from "interfaces/cannon/IMIPS64.sol";
 import { IOptimismPortal2 } from "interfaces/L1/IOptimismPortal2.sol";
 import { IProxy } from "interfaces/universal/IProxy.sol";
 import { IProxyAdmin } from "interfaces/universal/IProxyAdmin.sol";
@@ -85,7 +83,6 @@ contract OPContractsManager_Harness is OPContractsManager {
         ISuperchainConfig _superchainConfig,
         IProtocolVersions _protocolVersions,
         IProxyAdmin _superchainProxyAdmin,
-        string memory _l1ContractsRelease,
         address _upgradeController
     )
         OPContractsManager(
@@ -97,7 +94,6 @@ contract OPContractsManager_Harness is OPContractsManager {
             _superchainConfig,
             _protocolVersions,
             _superchainProxyAdmin,
-            _l1ContractsRelease,
             _upgradeController
         )
     { }
@@ -126,8 +122,9 @@ contract OPContractsManager_Upgrade_Harness is CommonTest {
     // The ImplementationSet event emitted by the DisputeGameFactory contract.
     event ImplementationSet(address indexed impl, GameType indexed gameType);
 
+    error SuperchainConfigExpectedVersionMismatch();
+
     uint256 l2ChainId;
-    IProxyAdmin superchainProxyAdmin;
     address upgrader;
     IOPContractsManager.OpChainConfig[] opChainConfigs;
     Claim absolutePrestate;
@@ -146,7 +143,6 @@ contract OPContractsManager_Upgrade_Harness is CommonTest {
         );
 
         absolutePrestate = Claim.wrap(bytes32(keccak256("absolutePrestate")));
-        superchainProxyAdmin = IProxyAdmin(EIP1967Helper.getAdmin(address(superchainConfig)));
         upgrader = proxyAdmin.owner();
         vm.label(upgrader, "ProxyAdmin Owner");
 
@@ -387,10 +383,13 @@ contract OPContractsManager_Upgrade_Harness is CommonTest {
         // SuperchainConfig contract is upgraded. Separate context to avoid stack too deep.
         {
             ISuperchainConfig superchainConfig = ISuperchainConfig(artifacts.mustGetAddress("SuperchainConfigProxy"));
+            expectEmitUpgraded(impls.superchainConfigImpl, address(superchainConfig));
+
             address superchainPAO = IProxyAdmin(EIP1967Helper.getAdmin(address(superchainConfig))).owner();
             vm.etch(superchainPAO, vm.getDeployedCode("test/mocks/Callers.sol:DelegateCaller"));
             DelegateCaller(superchainPAO).dcForward(
-                address(opcm), abi.encodeCall(IOPContractsManager.upgrade, (new IOPContractsManager.OpChainConfig[](0)))
+                address(opcm),
+                abi.encodeCall(IOPContractsManager.upgradeSuperchainConfig, (superchainConfig, superchainProxyAdmin))
             );
         }
 
@@ -468,13 +467,13 @@ contract OPContractsManager_Upgrade_Harness is CommonTest {
         // Check that the PermissionedDisputeGame is upgraded to the expected version, references
         // the correct anchor state and has the mipsImpl. Although Upgrade 15 doesn't actually
         // change any of this, we might as well check it again.
-        assertEq(ISemver(address(pdg)).version(), "1.7.0");
+        assertEq(ISemver(address(pdg)).version(), "1.8.0");
         assertEq(address(pdg.vm()), impls.mipsImpl);
         assertEq(pdg.l2ChainId(), oldPDG.l2ChainId());
 
         // If the old FaultDisputeGame exists, we expect it to be upgraded. Check same as above.
         if (address(oldFDG) != address(0)) {
-            assertEq(ISemver(address(fdg)).version(), "1.7.0");
+            assertEq(ISemver(address(fdg)).version(), "1.8.0");
             assertEq(address(fdg.vm()), impls.mipsImpl);
             assertEq(fdg.l2ChainId(), oldFDG.l2ChainId());
         }
@@ -601,7 +600,7 @@ contract OPContractsManager_TestInit is Test {
             mipsImpl: DeployUtils.create1({
                 _name: "MIPS64",
                 _args: DeployUtils.encodeConstructor(
-                    abi.encodeCall(IMIPS2.__constructor__, (oracle, StandardConstants.MIPS_VERSION))
+                    abi.encodeCall(IMIPS64.__constructor__, (oracle, StandardConstants.MIPS_VERSION))
                 )
             })
         });
@@ -689,7 +688,6 @@ contract OPContractsManager_TestInit is Test {
                             superchainConfigProxy,
                             protocolVersionsProxy,
                             superchainProxyAdmin,
-                            "dev",
                             address(this)
                         )
                     )
@@ -710,6 +708,14 @@ contract OPContractsManager_TestInit is Test {
         // Fund the lockboxes for testing.
         vm.deal(address(chainDeployOutput1.ethLockboxProxy), 100 ether);
         vm.deal(address(chainDeployOutput2.ethLockboxProxy), 100 ether);
+    }
+
+    /// @notice Sets up the environment variables for the VerifyOPCM test.
+    function setupEnvVars() public {
+        vm.setEnv("EXPECTED_SUPERCHAIN_CONFIG", vm.toString(address(opcm.superchainConfig())));
+        vm.setEnv("EXPECTED_PROTOCOL_VERSIONS", vm.toString(address(opcm.protocolVersions())));
+        vm.setEnv("EXPECTED_SUPERCHAIN_PROXY_ADMIN", vm.toString(address(opcm.superchainProxyAdmin())));
+        vm.setEnv("EXPECTED_UPGRADE_CONTROLLER", vm.toString(opcm.upgradeController()));
     }
 
     /// @notice Helper function to deploy a new set of L1 contracts via OPCM.
@@ -787,7 +793,6 @@ contract OPContractsManager_ChainIdToBatchInboxAddress_Test is Test {
             _superchainConfig: superchainConfigProxy,
             _protocolVersions: protocolVersionsProxy,
             _superchainProxyAdmin: superchainProxyAdmin,
-            _l1ContractsRelease: "dev",
             _upgradeController: upgradeController
         });
     }
@@ -1362,58 +1367,20 @@ contract OPContractsManager_Upgrade_Test is OPContractsManager_Upgrade_Harness {
     function test_verifyOpcmCorrectness_succeeds() public {
         skipIfCoverage(); // Coverage changes bytecode and breaks the verification script.
 
+        // Set up environment variables with the actual OPCM addresses for tests that need themqq
+        vm.setEnv("EXPECTED_SUPERCHAIN_CONFIG", vm.toString(address(opcm.superchainConfig())));
+        vm.setEnv("EXPECTED_PROTOCOL_VERSIONS", vm.toString(address(opcm.protocolVersions())));
+        vm.setEnv("EXPECTED_SUPERCHAIN_PROXY_ADMIN", vm.toString(address(opcm.superchainProxyAdmin())));
+        vm.setEnv("EXPECTED_UPGRADE_CONTROLLER", vm.toString(opcm.upgradeController()));
+
         // Run the upgrade test and checks
         runUpgradeTestAndChecks(upgrader);
 
-        // Run the verification script without etherscan verificatin. Hard to run with etherscan
+        // Run the verification script without etherscan verification. Hard to run with etherscan
         // verification in these tests, can do it but means we add even more dependencies to the
         // test environment.
         VerifyOPCM verify = new VerifyOPCM();
         verify.run(address(opcm), true);
-    }
-
-    function test_isRcFalseAfterCalledByUpgrader_works() public {
-        assertTrue(opcm.isRC());
-        bytes memory releaseBytes = bytes(opcm.l1ContractsRelease());
-        assertEq(Bytes.slice(releaseBytes, releaseBytes.length - 3, 3), "-rc", "release should end with '-rc'");
-
-        runUpgradeTestAndChecks(upgrader);
-
-        assertFalse(opcm.isRC(), "isRC should be false");
-        releaseBytes = bytes(opcm.l1ContractsRelease());
-        assertNotEq(Bytes.slice(releaseBytes, releaseBytes.length - 3, 3), "-rc", "release should not end with '-rc'");
-    }
-
-    function testFuzz_upgrade_nonUpgradeControllerDelegatecallerShouldNotSetIsRCToFalse_works(
-        address _nonUpgradeController
-    )
-        public
-    {
-        if (
-            _nonUpgradeController == upgrader || _nonUpgradeController == address(0)
-                || _nonUpgradeController < address(0x4200000000000000000000000000000000000000)
-                || _nonUpgradeController > address(0x4200000000000000000000000000000000000800)
-                || _nonUpgradeController == address(vm)
-                || _nonUpgradeController == 0x000000000000000000636F6e736F6c652e6c6f67
-                || _nonUpgradeController == 0x4e59b44847b379578588920cA78FbF26c0B4956C
-        ) {
-            _nonUpgradeController = makeAddr("nonUpgradeController");
-        }
-
-        // Set the proxy admin owner to be the non-upgrade controller
-        vm.store(
-            address(proxyAdmin),
-            bytes32(ForgeArtifacts.getSlot("ProxyAdmin", "_owner").slot),
-            bytes32(uint256(uint160(_nonUpgradeController)))
-        );
-        vm.store(
-            address(disputeGameFactory),
-            bytes32(ForgeArtifacts.getSlot("DisputeGameFactory", "_owner").slot),
-            bytes32(uint256(uint160(_nonUpgradeController)))
-        );
-
-        // Run the upgrade test and checks
-        runUpgradeTestAndChecks(_nonUpgradeController);
     }
 
     function test_upgrade_duplicateL2ChainId_succeeds() public {
@@ -1511,6 +1478,12 @@ contract OPContractsManager_Upgrade_Test is OPContractsManager_Upgrade_Harness {
 
     function test_upgrade_notProxyAdminOwner_reverts() public {
         runUpgrade13UpgradeAndChecks(upgrader);
+        runUpgrade14UpgradeAndChecks(upgrader);
+
+        ISuperchainConfig superchainConfig = ISuperchainConfig(artifacts.mustGetAddress("SuperchainConfigProxy"));
+        // Mock the call to superchainConfig version so that it passes the assertion that the superchainConfig is
+        // already upgraded.
+        vm.mockCall(address(superchainConfig), abi.encodeCall(ISuperchainConfig.version, ()), abi.encode("2.3.0"));
 
         address delegateCaller = makeAddr("delegateCaller");
         vm.etch(delegateCaller, vm.getDeployedCode("test/mocks/Callers.sol:DelegateCaller"));
@@ -1528,6 +1501,12 @@ contract OPContractsManager_Upgrade_Test is OPContractsManager_Upgrade_Harness {
     ///         has an absolute prestate of zero.
     function test_upgrade_absolutePrestateNotSet_reverts() public {
         runUpgrade13UpgradeAndChecks(upgrader);
+        runUpgrade14UpgradeAndChecks(upgrader);
+
+        ISuperchainConfig superchainConfig = ISuperchainConfig(artifacts.mustGetAddress("SuperchainConfigProxy"));
+        // Mock the call to superchainConfig version so that it passes the assertion that the superchainConfig is
+        // already upgraded.
+        vm.mockCall(address(superchainConfig), abi.encodeCall(ISuperchainConfig.version, ()), abi.encode("2.3.0"));
 
         // Set the config to try to update the absolutePrestate to zero.
         opChainConfigs[0].absolutePrestate = Claim.wrap(bytes32(0));
@@ -1546,6 +1525,104 @@ contract OPContractsManager_Upgrade_Test is OPContractsManager_Upgrade_Harness {
         // Expect the upgrade to revert with PrestateNotSet.
         vm.expectRevert(IOPContractsManager.PrestateNotSet.selector);
         DelegateCaller(upgrader).dcForward(address(opcm), abi.encodeCall(IOPContractsManager.upgrade, (opChainConfigs)));
+    }
+
+    /// @notice Tests that the upgrade function reverts when the `_opChainConfigs` array is empty.
+    function test_upgrade_emptyOpChainConfigs_reverts() public {
+        runUpgrade13UpgradeAndChecks(upgrader);
+        runUpgrade14UpgradeAndChecks(upgrader);
+
+        IOPContractsManager.OpChainConfig[] memory emptyOpChainConfigs = new IOPContractsManager.OpChainConfig[](0);
+
+        vm.expectRevert(IOPContractsManager.EmptyOpChainConfigs.selector);
+        DelegateCaller(upgrader).dcForward(
+            address(opcm), abi.encodeCall(IOPContractsManager.upgrade, (emptyOpChainConfigs))
+        );
+    }
+
+    /// @notice Tests that the upgrade function reverts when the superchainConfig is not at the expected target version.
+    function test_upgrade_superchainConfigExpectedTargetVersionMismatch_reverts() public {
+        runUpgrade13UpgradeAndChecks(upgrader);
+        runUpgrade14UpgradeAndChecks(upgrader);
+
+        // Try upgrading an OPChain without upgrading its superchainConfig.
+        vm.expectRevert(SuperchainConfigExpectedVersionMismatch.selector);
+        DelegateCaller(upgrader).dcForward(address(opcm), abi.encodeCall(IOPContractsManager.upgrade, (opChainConfigs)));
+    }
+}
+
+contract OPContractsManager_UpgradeSuperchainConfig_Test is OPContractsManager_Upgrade_Harness {
+    function setUp() public override {
+        super.setUp();
+    }
+
+    /// @notice Tests that the upgradeSuperchainConfig function succeeds when the superchainConfig is at the expected
+    ///         version and the delegate caller is the superchainProxyAdmin owner.
+    function test_upgradeSuperchainConfig_succeeds() public {
+        runUpgrade13UpgradeAndChecks(upgrader);
+        runUpgrade14UpgradeAndChecks(upgrader);
+
+        IOPContractsManager.Implementations memory impls = opcm.implementations();
+
+        ISuperchainConfig superchainConfig = ISuperchainConfig(artifacts.mustGetAddress("SuperchainConfigProxy"));
+        expectEmitUpgraded(impls.superchainConfigImpl, address(superchainConfig));
+
+        address superchainPAO = IProxyAdmin(EIP1967Helper.getAdmin(address(superchainConfig))).owner();
+        vm.etch(superchainPAO, vm.getDeployedCode("test/mocks/Callers.sol:DelegateCaller"));
+        DelegateCaller(superchainPAO).dcForward(
+            address(opcm),
+            abi.encodeCall(IOPContractsManager.upgradeSuperchainConfig, (superchainConfig, superchainProxyAdmin))
+        );
+    }
+
+    /// @notice Tests that the upgradeSuperchainConfig function reverts when it is not called via delegatecall.
+    function test_upgradeSuperchainConfig_notDelegateCalled_reverts() public {
+        runUpgrade13UpgradeAndChecks(upgrader);
+        runUpgrade14UpgradeAndChecks(upgrader);
+
+        ISuperchainConfig superchainConfig = ISuperchainConfig(artifacts.mustGetAddress("SuperchainConfigProxy"));
+
+        vm.expectRevert(IOPContractsManager.OnlyDelegatecall.selector);
+        opcm.upgradeSuperchainConfig(superchainConfig, superchainProxyAdmin);
+    }
+
+    /// @notice Tests that the upgradeSuperchainConfig function reverts when the delegate caller is not the
+    ///         superchainProxyAdmin owner.
+    function test_upgradeSuperchainConfig_notProxyAdminOwner_reverts() public {
+        runUpgrade13UpgradeAndChecks(upgrader);
+        runUpgrade14UpgradeAndChecks(upgrader);
+
+        ISuperchainConfig superchainConfig = ISuperchainConfig(artifacts.mustGetAddress("SuperchainConfigProxy"));
+
+        address delegateCaller = makeAddr("delegateCaller");
+        vm.etch(delegateCaller, vm.getDeployedCode("test/mocks/Callers.sol:DelegateCaller"));
+
+        assertNotEq(superchainProxyAdmin.owner(), delegateCaller);
+        assertNotEq(proxyAdmin.owner(), delegateCaller);
+
+        vm.expectRevert("Ownable: caller is not the owner");
+        DelegateCaller(delegateCaller).dcForward(
+            address(opcm),
+            abi.encodeCall(IOPContractsManager.upgradeSuperchainConfig, (superchainConfig, superchainProxyAdmin))
+        );
+    }
+
+    /// @notice Tests that the upgradeSuperchainConfig function reverts when the superchainConfig is not at the expected
+    ///         previous version.
+    function test_upgradeSuperchainConfig_superchainConfigExpectedPreviousVersionMismatch_reverts() public {
+        runUpgrade13UpgradeAndChecks(upgrader);
+        runUpgrade14UpgradeAndChecks(upgrader);
+
+        ISuperchainConfig superchainConfig = ISuperchainConfig(artifacts.mustGetAddress("SuperchainConfigProxy"));
+
+        // Set the version of the superchain config to a version that is not the expected previous version.
+        vm.mockCall(address(superchainConfig), abi.encodeCall(ISuperchainConfig.version, ()), abi.encode("1.1.0"));
+
+        vm.expectRevert(SuperchainConfigExpectedVersionMismatch.selector);
+        DelegateCaller(upgrader).dcForward(
+            address(opcm),
+            abi.encodeCall(IOPContractsManager.upgradeSuperchainConfig, (superchainConfig, superchainProxyAdmin))
+        );
     }
 }
 
@@ -2019,53 +2096,5 @@ contract OPContractsManager_Version_Test is OPContractsManager_TestInit {
 
     function test_semver_works() public view {
         assertNotEq(abi.encode(prestateUpdater.version()), abi.encode(0));
-    }
-}
-
-/// @title OPContractsManager_SetRC_Test
-/// @notice Tests the `setRC` function of the `OPContractsManager` contract.
-contract OPContractsManager_SetRC_Test is OPContractsManager_Upgrade_Harness {
-    event Released(bool _isRC);
-
-    /// @notice Tests the setRC function can be set by the upgrade controller.
-    function test_setRC_succeeds(bool _isRC) public {
-        skipIfNotOpFork("test_setRC_succeeds");
-
-        vm.prank(upgrader);
-
-        vm.expectEmit(true, true, true, true);
-        emit Released(_isRC);
-
-        opcm.setRC(_isRC);
-        assertTrue(opcm.isRC() == _isRC, "isRC should be true");
-        bytes memory releaseBytes = bytes(opcm.l1ContractsRelease());
-        if (_isRC) {
-            assertEq(Bytes.slice(releaseBytes, releaseBytes.length - 3, 3), "-rc", "release should end with '-rc'");
-        } else {
-            assertNotEq(
-                Bytes.slice(releaseBytes, releaseBytes.length - 3, 3), "-rc", "release should not end with '-rc'"
-            );
-        }
-    }
-
-    /// @notice Tests the setRC function can not be set by non-upgrade controller.
-    function test_setRC_nonUpgradeController_reverts(address _nonUpgradeController) public {
-        // Disallow the upgrade controller to have code, or be a 'special' address.
-        if (
-            _nonUpgradeController == upgrader || _nonUpgradeController == address(0)
-                || _nonUpgradeController < address(0x4200000000000000000000000000000000000000)
-                || _nonUpgradeController > address(0x4200000000000000000000000000000000000800)
-                || _nonUpgradeController == address(vm)
-                || _nonUpgradeController == 0x000000000000000000636F6e736F6c652e6c6f67
-                || _nonUpgradeController == 0x4e59b44847b379578588920cA78FbF26c0B4956C
-                || _nonUpgradeController.code.length > 0
-        ) {
-            _nonUpgradeController = makeAddr("nonUpgradeController");
-        }
-
-        vm.prank(_nonUpgradeController);
-
-        vm.expectRevert(IOPContractsManager.OnlyUpgradeController.selector);
-        opcm.setRC(true);
     }
 }
