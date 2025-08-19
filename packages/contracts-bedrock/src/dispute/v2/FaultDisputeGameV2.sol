@@ -296,7 +296,7 @@ contract FaultDisputeGameV2 is Clone, ISemver {
         // configured starting block number.
         if (l2BlockNumber() <= rootBlockNumber) revert UnexpectedRootClaim(rootClaim());
 
-        // Validate VM-related parameters that require access to the VM.
+        // Validate parameters that require access to the VM.
         // The PreimageOracle challenge period must fit into uint64 so we can safely use it here.
         if (vm().oracle().challengePeriod() > type(uint64).max) revert InvalidChallengePeriod();
 
