@@ -1981,8 +1981,8 @@ workflows:
             - contracts-bedrock-build
       - go-tests:
           name: go-tests-short
-          no_output_timeout: 29m
-          test_timeout: 30m
+          no_output_timeout: 19m
+          test_timeout: 20m
           requires:
             - contracts-bedrock-build
             - cannon-prestate-quick
