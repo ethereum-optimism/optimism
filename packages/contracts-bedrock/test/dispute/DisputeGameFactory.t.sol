@@ -218,12 +218,12 @@ contract DisputeGameFactory_TestInit is CommonTest {
             _args: DeployUtils.encodeConstructor(
                 abi.encodeCall(
                     IFaultDisputeGameV2.__constructor__,
-                    (_getGameConstructorParamsV2(_absolutePrestate, vm_, GameTypes.CANNON_2))
+                    (_getGameConstructorParamsV2(_absolutePrestate, vm_, GameTypes.CANNON))
                 )
             )
         });
 
-        _setGame(gameImpl_, GameTypes.CANNON_2);
+        _setGame(gameImpl_, GameTypes.CANNON);
     }
 
     function setupPermissionedDisputeGame(
