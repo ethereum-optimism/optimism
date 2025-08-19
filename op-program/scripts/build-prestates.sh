@@ -34,6 +34,11 @@ do
     LOG_FILE="${LOGS_DIR}/build-${SHORT_VERSION}.txt"
     echo "Building Version: ${VERSION} Logs: ${LOG_FILE}"
     git checkout "${VERSION}" > "${LOG_FILE}" 2>&1
+    if [ -f mise.toml ]
+    then
+      echo "Install dependencies with mise" > "${LOG_FILE}" 2>&1
+      mise install go -v -y > "${LOG_FILE}" 2>&1
+    fi
     rm -rf "${BIN_DIR}"
     make reproducible-prestate >> "${LOG_FILE}" 2>&1
 
