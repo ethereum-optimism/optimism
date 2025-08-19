@@ -36,8 +36,8 @@ do
     git checkout "${VERSION}" > "${LOG_FILE}" 2>&1
     if [ -f mise.toml ]
     then
-      echo "Install dependencies with mise" > "${LOG_FILE}" 2>&1
-      mise install go -v -y > "${LOG_FILE}" 2>&1
+      echo "Install dependencies with mise" >> "${LOG_FILE}"
+      mise install go -v -y >> "${LOG_FILE}" 2>&1
     fi
     rm -rf "${BIN_DIR}"
     make reproducible-prestate >> "${LOG_FILE}" 2>&1
