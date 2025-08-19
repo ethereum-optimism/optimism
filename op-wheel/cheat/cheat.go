@@ -354,7 +354,17 @@ func SetNonce(addr common.Address, nonce uint64) HeadFn {
 // blockBodyKey returns the database key to use for storing the body of a block.
 // This function was copied from Geth's core/rawdb/accessors_chain.go.
 func blockBodyKey(number uint64, hash common.Hash) []byte {
-	return append(append([]byte("b"), encodeBlockNumber(number)...), hash.Bytes()...)
+	numBytes := encodeBlockNumber(number)
+	hashBytes := hash.Bytes()
+
+	totalLen := 1 + len(numBytes) + len(hashBytes)
+	buf := make([]byte, totalLen)
+
+	buf[0] = 'b'
+	copy(buf[1:], numBytes)
+	copy(buf[1+len(numBytes):], hashBytes)
+
+	return buf
 }
 
 // encodeBlockNumber encodes a block number as big endian uint64. This function was
