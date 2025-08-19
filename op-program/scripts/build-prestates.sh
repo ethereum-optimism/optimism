@@ -40,7 +40,7 @@ do
       echo "Install dependencies with mise" 2>&1 | tee "${LOG_FILE}"
       #rustup default stable
       #mise install go -v -y 2>&1 | tee "${LOG_FILE}"
-      cp mise.go.toml mise.toml
+      cp "${SCRIPTS_DIR}/mise.go.toml" mise.toml
       cat mise.toml
       mise install go@1.23.8 -v -y 2>&1 | tee "${LOG_FILE}"
     fi
