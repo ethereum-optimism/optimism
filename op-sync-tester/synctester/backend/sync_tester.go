@@ -191,6 +191,13 @@ func (s *SyncTester) ChainId(ctx context.Context) (hexutil.Big, error) {
 	if _, err := s.fetchSession(ctx); err != nil {
 		return hexutil.Big{}, err
 	}
+	chainID, err := s.elClient.ChainID(ctx)
+	if err != nil {
+		return hexutil.Big{}, err
+	}
+	if chainID.Cmp(s.chainID.ToBig()) != 0 {
+		return hexutil.Big{}, fmt.Errorf("chainID mismatch: config: %s, backend: %s", s.chainID.ToBig(), chainID)
+	}
 	return hexutil.Big(*s.chainID.ToBig()), nil
 }
 
