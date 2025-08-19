@@ -33,9 +33,10 @@ type SyncTester struct {
 	log log.Logger
 	m   metrics.Metricer
 
-	id       sttypes.SyncTesterID
-	chainID  eth.ChainID
-	elClient *ethclient.Client
+	id      sttypes.SyncTesterID
+	chainID eth.ChainID
+
+	elReader ReadOnlyELBackend
 
 	sessions map[string]*Session
 }
@@ -50,12 +51,13 @@ func SyncTesterFromConfig(logger log.Logger, m metrics.Metricer, stID sttypes.Sy
 	if err != nil {
 		return nil, fmt.Errorf("failed to dial EL client: %w", err)
 	}
+	elReader := NewGethELReader(elClient)
 	return &SyncTester{
 		log:      logger,
 		m:        m,
 		id:       stID,
 		chainID:  stCfg.ChainID,
-		elClient: elClient,
+		elReader: elReader,
 		sessions: make(map[string]*Session),
 	}, nil
 }
@@ -106,7 +108,7 @@ func (s *SyncTester) GetBlockReceipts(ctx context.Context, blockNrOrHash rpc.Blo
 	var receipts []*types.Receipt
 	if !isNumber {
 		// hash
-		receipts, err = s.elClient.BlockReceipts(ctx, blockNrOrHash)
+		receipts, err = s.elReader.GetBlockReceipts(ctx, blockNrOrHash)
 		if err != nil {
 			return nil, err
 		}
@@ -115,7 +117,7 @@ func (s *SyncTester) GetBlockReceipts(ctx context.Context, blockNrOrHash rpc.Blo
 		if target, err = s.checkBlockNumber(number, session); err != nil {
 			return nil, err
 		}
-		receipts, err = s.elClient.BlockReceipts(ctx, rpc.BlockNumberOrHashWithNumber(rpc.BlockNumber(target)))
+		receipts, err = s.elReader.GetBlockReceipts(ctx, rpc.BlockNumberOrHashWithNumber(rpc.BlockNumber(target)))
 		if err != nil {
 			return nil, err
 		}
@@ -136,7 +138,7 @@ func (s *SyncTester) GetBlockByHash(ctx context.Context, hash common.Hash, fullT
 		return nil, err
 	}
 	var raw json.RawMessage
-	if err := s.elClient.Client().CallContext(ctx, &raw, "eth_getBlockByHash", hash, fullTx); err != nil {
+	if raw, err = s.elReader.GetBlockByHashJSON(ctx, hash, fullTx); err != nil {
 		return nil, err
 	}
 	var head *types.Header
@@ -185,7 +187,7 @@ func (s *SyncTester) GetBlockByNumber(ctx context.Context, number rpc.BlockNumbe
 		return nil, err
 	}
 	var raw json.RawMessage
-	if err := s.elClient.Client().CallContext(ctx, &raw, "eth_getBlockByNumber", rpc.BlockNumber(target), fullTx); err != nil {
+	if raw, err = s.elReader.GetBlockByNumberJSON(ctx, rpc.BlockNumber(target), fullTx); err != nil {
 		return nil, err
 	}
 	return raw, nil
@@ -195,12 +197,12 @@ func (s *SyncTester) ChainId(ctx context.Context) (hexutil.Big, error) {
 	if _, err := s.fetchSession(ctx); err != nil {
 		return hexutil.Big{}, err
 	}
-	chainID, err := s.elClient.ChainID(ctx)
+	chainID, err := s.elReader.ChainId(ctx)
 	if err != nil {
 		return hexutil.Big{}, err
 	}
-	if chainID.Cmp(s.chainID.ToBig()) != 0 {
-		return hexutil.Big{}, fmt.Errorf("chainID mismatch: config: %s, backend: %s", s.chainID.ToBig(), chainID)
+	if chainID.ToInt().Cmp(s.chainID.ToBig()) != 0 {
+		return hexutil.Big{}, fmt.Errorf("chainID mismatch: config: %s, backend: %s", s.chainID, chainID)
 	}
 	return hexutil.Big(*s.chainID.ToBig()), nil
 }
