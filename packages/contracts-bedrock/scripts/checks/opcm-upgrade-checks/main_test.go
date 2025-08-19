@@ -10,10 +10,11 @@ import (
 
 func TestGetOpcmUpgradeFunctionAst(t *testing.T) {
 	tests := []struct {
-		name          string
-		opcmArtifact  *solc.ForgeArtifact
-		expectedAst   *solc.AstNode
-		expectedError string
+		name                string
+		opcmArtifact        *solc.ForgeArtifact
+		upgradeFunctionName string
+		expectedAst         *solc.AstNode
+		expectedError       string
 	}{
 		{
 			name: "With one external upgrade function",
@@ -39,6 +40,7 @@ func TestGetOpcmUpgradeFunctionAst(t *testing.T) {
 					},
 				},
 			},
+			upgradeFunctionName: "upgrade",
 			expectedAst: &solc.AstNode{
 				NodeType:   "FunctionDefinition",
 				Name:       "upgrade",
@@ -70,8 +72,9 @@ func TestGetOpcmUpgradeFunctionAst(t *testing.T) {
 					},
 				},
 			},
-			expectedAst:   nil,
-			expectedError: "no external upgrade function found in OPContractsManagerUpgrader",
+			upgradeFunctionName: "upgrade",
+			expectedAst:         nil,
+			expectedError:       "no external upgrade function found in OPContractsManagerUpgrader",
 		},
 		{
 			name: "With an upgrade function and irrelevant function selector",
@@ -98,6 +101,7 @@ func TestGetOpcmUpgradeFunctionAst(t *testing.T) {
 					},
 				},
 			},
+			upgradeFunctionName: "upgrade",
 			expectedAst: &solc.AstNode{
 				NodeType:         "FunctionDefinition",
 				Name:             "upgrade",
@@ -135,8 +139,9 @@ func TestGetOpcmUpgradeFunctionAst(t *testing.T) {
 					},
 				},
 			},
-			expectedAst:   nil,
-			expectedError: "multiple external upgrade functions found in OPContractsManagerUpgrader, expected 1",
+			upgradeFunctionName: "upgrade",
+			expectedAst:         nil,
+			expectedError:       "multiple external upgrade functions found in OPContractsManagerUpgrader, expected 1",
 		},
 		{
 			name: "With no upgrade function",
@@ -162,8 +167,9 @@ func TestGetOpcmUpgradeFunctionAst(t *testing.T) {
 					},
 				},
 			},
-			expectedAst:   nil,
-			expectedError: "no external upgrade function found in OPContractsManagerUpgrader",
+			upgradeFunctionName: "upgrade",
+			expectedAst:         nil,
+			expectedError:       "no external upgrade function found in OPContractsManagerUpgrader",
 		},
 		{
 			name: "With no contract definition",
@@ -172,14 +178,15 @@ func TestGetOpcmUpgradeFunctionAst(t *testing.T) {
 					Nodes: []solc.AstNode{},
 				},
 			},
-			expectedAst:   nil,
-			expectedError: "no external upgrade function found in OPContractsManagerUpgrader",
+			upgradeFunctionName: "upgrade",
+			expectedAst:         nil,
+			expectedError:       "no external upgrade function found in OPContractsManagerUpgrader",
 		},
 	}
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			ast, err := getOpcmUpgradeFunctionAst(test.opcmArtifact)
+			ast, err := getOpcmUpgradeFunctionAst(test.opcmArtifact, test.upgradeFunctionName)
 
 			if test.expectedError == "" {
 				assert.NoError(t, err)
