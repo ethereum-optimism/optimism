@@ -67,7 +67,9 @@ func WithSyncTesters(l2ELs []stack.L2ELNodeID) stack.Option[*Orchestrator] {
 		}
 
 		cfg := &config.Config{
-			RPC: oprpc.CLIConfig{},
+			RPC: oprpc.CLIConfig{
+				ListenAddr: "127.0.0.1",
+			},
 			SyncTesters: &stconf.Config{
 				SyncTesters: syncTesters,
 			},

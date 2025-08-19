@@ -323,8 +323,20 @@ func (m *InstrumentedState) doMipsStep() error {
 	}
 	m.state.StepsSinceLastContextSwitch += 1
 
-	//instruction fetch
-	insn, opcode, fun := exec.GetInstructionDetails(m.state.GetPC(), m.state.Memory)
+	pc := m.state.GetPC()
+	if pc&0x3 != 0 {
+		panic(fmt.Sprintf("unaligned instruction fetch: PC = 0x%x", pc))
+	}
+	cacheIdx := pc / 4
+
+	var insn, opcode, fun uint32
+	if int(cacheIdx) < len(m.cached_decode) {
+		decoded := m.cached_decode[cacheIdx]
+		insn, opcode, fun = decoded.insn, decoded.opcode, decoded.fun
+	} else {
+		// PC is outside eager region
+		insn, opcode, fun = exec.GetInstructionDetails(pc, m.state.Memory)
+	}
 
 	// Handle syscall separately
 	// syscall (can read and write)

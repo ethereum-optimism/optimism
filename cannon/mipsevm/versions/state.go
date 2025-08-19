@@ -27,6 +27,14 @@ func LoadStateFromFile(path string) (*VersionedState, error) {
 	return serialize.LoadSerializedBinary[VersionedState](path)
 }
 
+func LoadStateFromFileWithLargeICache(path string) (*VersionedStateWithLargeICache, error) {
+	if !serialize.IsBinaryFile(path) {
+		// JSON states are always singlethreaded v1 which is no longer supported
+		return nil, fmt.Errorf("%w: %s", ErrUnsupportedVersion, VersionSingleThreaded)
+	}
+	return serialize.LoadSerializedBinary[VersionedStateWithLargeICache](path)
+}
+
 func NewFromState(vers StateVersion, state mipsevm.FPVMState) (*VersionedState, error) {
 	switch state := state.(type) {
 	case *multithreaded.State:
@@ -105,4 +113,30 @@ func (s *VersionedState) Deserialize(in io.Reader) error {
 // JSON states are always assumed to be single threaded (state version 0) which is not supported anymore.
 func (s *VersionedState) MarshalJSON() ([]byte, error) {
 	return nil, fmt.Errorf("%w for type %T", ErrJsonNotSupported, s.FPVMState)
+}
+
+// VersionedStateWithLargeICache is a VersionedState that allocates a large memory region for the i-cache.
+type VersionedStateWithLargeICache struct {
+	VersionedState
+}
+
+func (s *VersionedStateWithLargeICache) Deserialize(in io.Reader) error {
+	bin := serialize.NewBinaryReader(in)
+	if err := bin.ReadUInt(&s.Version); err != nil {
+		return err
+	}
+
+	if IsSupportedMultiThreaded64(s.Version) {
+		if arch.IsMips32 {
+			return ErrUnsupportedMipsArch
+		}
+		state := &multithreaded.State{UseLargeICache: true}
+		if err := state.Deserialize(in); err != nil {
+			return err
+		}
+		s.FPVMState = state
+		return nil
+	} else {
+		return fmt.Errorf("%w: %d", ErrUnknownVersion, s.Version)
+	}
 }

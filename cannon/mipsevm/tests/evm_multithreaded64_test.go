@@ -61,13 +61,13 @@ func TestEVM_MT64_LL(t *testing.T) {
 	}
 	cases := testutil.TestVariations(baseTests, llVariations)
 
-	initState := func(t require.TestingT, testCase testCase, state *multithreaded.State, vm VersionedVMTestCase, r *testutil.RandHelper) {
+	initState := func(t require.TestingT, testCase testCase, state *multithreaded.State, vm VersionedVMTestCase, r *testutil.RandHelper, goVm mipsevm.FPVM) {
 		c := testCase.Base
 		retReg := c.retReg
 		baseReg := 6
 		insn := uint32((0b11_0000 << 26) | (baseReg & 0x1F << 21) | (retReg & 0x1F << 16) | (0xFFFF & c.offset))
 
-		testutil.StoreInstruction(state.GetMemory(), state.GetPC(), insn)
+		storeInsnWithCache(state, goVm, state.GetPC(), insn)
 		state.GetMemory().SetWord(testutil.EffAddr(c.addr), c.memVal)
 		state.GetRegistersRef()[baseReg] = c.base
 		if testCase.Variation.withExistingReservation {
@@ -146,7 +146,7 @@ func TestEVM_MT64_SC(t *testing.T) {
 	}
 	cases := testutil.TestVariations(baseTests, llVariations)
 
-	initState := func(t require.TestingT, tt testCase, state *multithreaded.State, vm VersionedVMTestCase, r *testutil.RandHelper) {
+	initState := func(t require.TestingT, tt testCase, state *multithreaded.State, vm VersionedVMTestCase, r *testutil.RandHelper, goVm mipsevm.FPVM) {
 		c := tt.Base
 		llVar := tt.Variation
 
@@ -172,7 +172,7 @@ func TestEVM_MT64_SC(t *testing.T) {
 
 		// Setup state
 		state.GetCurrentThread().ThreadId = c.threadId
-		testutil.StoreInstruction(state.GetMemory(), state.GetPC(), insn)
+		storeInsnWithCache(state, goVm, state.GetPC(), insn)
 		state.GetRegistersRef()[baseReg] = c.base
 		state.GetRegistersRef()[rtReg] = c.value
 		state.LLReservationStatus = llVar.llReservationStatus
@@ -246,12 +246,12 @@ func TestEVM_MT64_LLD(t *testing.T) {
 	}
 	cases := testutil.TestVariations(baseTests, llVariations)
 
-	initState := func(t require.TestingT, tt testCase, state *multithreaded.State, vm VersionedVMTestCase, r *testutil.RandHelper) {
+	initState := func(t require.TestingT, tt testCase, state *multithreaded.State, vm VersionedVMTestCase, r *testutil.RandHelper, goVm mipsevm.FPVM) {
 		c := tt.Base
 		baseReg := 6
 		insn := uint32((0b11_0100 << 26) | (baseReg & 0x1F << 21) | (c.retReg & 0x1F << 16) | (0xFFFF & c.offset))
 
-		testutil.StoreInstruction(state.GetMemory(), state.GetPC(), insn)
+		storeInsnWithCache(state, goVm, state.GetPC(), insn)
 		state.GetMemory().SetWord(testutil.EffAddr(c.addr), c.memVal)
 		state.GetRegistersRef()[baseReg] = c.base
 		if tt.Variation.withExistingReservation {
@@ -331,7 +331,7 @@ func TestEVM_MT64_SCD(t *testing.T) {
 	cases := testutil.TestVariations(baseTests, llVariations)
 
 	value := Word(0x11223344_55667788)
-	initState := func(t require.TestingT, tt testCase, state *multithreaded.State, vm VersionedVMTestCase, r *testutil.RandHelper) {
+	initState := func(t require.TestingT, tt testCase, state *multithreaded.State, vm VersionedVMTestCase, r *testutil.RandHelper, goVm mipsevm.FPVM) {
 		c := tt.Base
 		llVar := tt.Variation
 
@@ -356,7 +356,7 @@ func TestEVM_MT64_SCD(t *testing.T) {
 		insn := uint32((0b11_1100 << 26) | (baseReg & 0x1F << 21) | (c.rtReg & 0x1F << 16) | (0xFFFF & c.offset))
 
 		state.GetCurrentThread().ThreadId = c.threadId
-		testutil.StoreInstruction(state.GetMemory(), state.GetPC(), insn)
+		storeInsnWithCache(state, goVm, state.GetPC(), insn)
 		state.GetRegistersRef()[baseReg] = c.base
 		state.GetRegistersRef()[c.rtReg] = value
 		state.LLReservationStatus = llVar.llReservationStatus
@@ -449,14 +449,14 @@ func TestEVM_MT_SysRead_Preimage64(t *testing.T) {
 	preimageValue := make([]byte, 0, 8)
 	preimageValue = binary.BigEndian.AppendUint32(preimageValue, 0x12_34_56_78)
 	preimageValue = binary.BigEndian.AppendUint32(preimageValue, 0x98_76_54_32)
-	initState := func(t require.TestingT, testCase testCase, state *multithreaded.State, vm VersionedVMTestCase, r *testutil.RandHelper) {
+	initState := func(t require.TestingT, testCase testCase, state *multithreaded.State, vm VersionedVMTestCase, r *testutil.RandHelper, goVm mipsevm.FPVM) {
 		state.PreimageKey = testutil.Keccak256Preimage(preimageValue)
 		state.PreimageOffset = testCase.preimageOffset
 		state.GetRegistersRef()[2] = arch.SysRead
 		state.GetRegistersRef()[4] = exec.FdPreimageRead
 		state.GetRegistersRef()[5] = testCase.addr
 		state.GetRegistersRef()[6] = testCase.count
-		testutil.StoreInstruction(state.GetMemory(), state.GetPC(), syscallInsn)
+		storeInsnWithCache(state, goVm, state.GetPC(), syscallInsn)
 		state.GetMemory().SetWord(testutil.EffAddr(testCase.addr), testCase.prestateMem)
 	}
 
@@ -499,13 +499,13 @@ func TestEVM_MT_SysReadWrite_WithEventFd(t *testing.T) {
 		{name: "SysWrite", syscallNum: arch.SysWrite},
 	}
 
-	initState := func(t require.TestingT, tt testCase, state *multithreaded.State, vm VersionedVMTestCase, r *testutil.RandHelper) {
+	initState := func(t require.TestingT, tt testCase, state *multithreaded.State, vm VersionedVMTestCase, r *testutil.RandHelper, goVm mipsevm.FPVM) {
 		addr := Word(0x00_00_FF_00)
 		state.GetRegistersRef()[2] = tt.syscallNum
 		state.GetRegistersRef()[4] = exec.FdEventFd
 		state.GetRegistersRef()[5] = addr
 		state.GetRegistersRef()[6] = 1
-		testutil.StoreInstruction(state.GetMemory(), state.GetPC(), syscallInsn)
+		storeInsnWithCache(state, goVm, state.GetPC(), syscallInsn)
 		// Set a memory value to ensure that memory at the target address is not modified
 		state.GetMemory().SetWord(addr, Word(0x12_EE_EE_EE_FF_FF_FF_FF))
 	}
@@ -565,12 +565,12 @@ func TestEVM_MT_StoreOpsClearMemReservation64(t *testing.T) {
 	//rt := Word(0x12_34_56_78_12_34_56_78)
 	baseReg := uint32(5)
 	rtReg := uint32(6)
-	initState := func(t require.TestingT, testCase testCase, state *multithreaded.State, vm VersionedVMTestCase, r *testutil.RandHelper) {
+	initState := func(t require.TestingT, testCase testCase, state *multithreaded.State, vm VersionedVMTestCase, r *testutil.RandHelper, goVm mipsevm.FPVM) {
 		insn := uint32((testCase.opcode << 26) | (baseReg & 0x1F << 21) | (rtReg & 0x1F << 16) | (0xFFFF & testCase.offset))
 
 		state.GetRegistersRef()[rtReg] = rt
 		state.GetRegistersRef()[baseReg] = testCase.base
-		testutil.StoreInstruction(state.GetMemory(), pc, insn)
+		storeInsnWithCache(state, goVm, pc, insn)
 		state.GetMemory().SetWord(testCase.effAddr, testCase.preMem)
 	}
 
@@ -690,8 +690,8 @@ func TestEVM_UndefinedSyscall(t *testing.T) {
 		{"SysLlseek", arch.SysLlseek},
 	}
 
-	initState := func(t require.TestingT, tt testCase, state *multithreaded.State, vm VersionedVMTestCase, r *testutil.RandHelper) {
-		testutil.StoreInstruction(state.Memory, state.GetPC(), syscallInsn)
+	initState := func(t require.TestingT, tt testCase, state *multithreaded.State, vm VersionedVMTestCase, r *testutil.RandHelper, goVm mipsevm.FPVM) {
+		storeInsnWithCache(state, goVm, state.GetPC(), syscallInsn)
 		state.GetRegistersRef()[2] = Word(tt.syscallNum)
 	}
 

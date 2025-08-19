@@ -427,11 +427,6 @@ func (s *SyncDeriver) SyncStep() {
 	// to generate new attributes, if no attributes are known already.
 	s.Emitter.Emit(s.Ctx, engine.PendingSafeRequestEvent{})
 
-	// If interop is configured, we have to run the engine events,
-	// to ensure cross-L2 safety is continuously verified against the interop-backend.
-	if s.Config.InteropTime != nil && !s.ManagedBySupervisor {
-		s.Emitter.Emit(s.Ctx, engine.CrossUpdateRequestEvent{})
-	}
 }
 
 // ResetDerivationPipeline forces a reset of the derivation pipeline.

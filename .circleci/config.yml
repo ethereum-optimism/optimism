@@ -743,6 +743,10 @@ jobs:
         description: Profile to use for testing
         type: string
         default: ci
+      check_changed_patterns:
+        description: List of changed files to run tests on
+        type: string
+        default: contracts-bedrock
     steps:
       - checkout-from-workspace
       - run:
@@ -755,7 +759,7 @@ jobs:
             fi
           working_directory: packages/contracts-bedrock
       - check-changed:
-          patterns: contracts-bedrock,op-node
+          patterns: <<parameters.check_changed_patterns>>
       - run:
           name: Print dependencies
           command: just dep-status
@@ -823,7 +827,7 @@ jobs:
     steps:
       - checkout-from-workspace
       - check-changed:
-          patterns: contracts-bedrock,op-node
+          patterns: contracts-bedrock
       - run:
           name: Print dependencies
           command: just dep-status
@@ -896,7 +900,7 @@ jobs:
     steps:
       - checkout-from-workspace
       - check-changed:
-          patterns: contracts-bedrock,op-node
+          patterns: contracts-bedrock
       - run:
           name: Print dependencies
           command: just dep-status
@@ -967,7 +971,7 @@ jobs:
     steps:
       - checkout-from-workspace
       - check-changed:
-          patterns: contracts-bedrock,op-node
+          patterns: contracts-bedrock
       - get-target-branch
       - run:
           name: print forge version
@@ -1843,6 +1847,7 @@ workflows:
             - circleci-repo-readonly-authenticated-github-token
           requires:
             - initialize
+          check_changed_patterns: contracts-bedrock,op-node
       - contracts-bedrock-tests:
           # PreimageOracle test is slow, run it separately to unblock CI.
           name: contracts-bedrock-tests-preimage-oracle
@@ -2339,7 +2344,7 @@ workflows:
           notify: true
           mentions: "@proofs-team"
           no_output_timeout: 90m
-          test_timeout: 240m
+          test_timeout: 480m
           resource_class: ethereum-optimism/latitude-fps-1
           context:
             - slack

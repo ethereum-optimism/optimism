@@ -24,7 +24,7 @@ func NoopTestNamer[T any](c T) string {
 	return ""
 }
 
-type SimpleInitializeStateFn func(t require.TestingT, state *multithreaded.State, vm VersionedVMTestCase, r *testutil.RandHelper)
+type SimpleInitializeStateFn func(t require.TestingT, state *multithreaded.State, vm VersionedVMTestCase, r *testutil.RandHelper, goVm mipsevm.FPVM)
 type SimpleSetExpectationsFn func(t require.TestingT, expect *mtutil.ExpectedState, vm VersionedVMTestCase) ExpectedExecResult
 type SimplePostStepCheckFn func(t require.TestingT, vm VersionedVMTestCase, deps *TestDependencies, witness *mipsevm.StepWitness)
 
@@ -46,11 +46,10 @@ func NewSimpleDiffTester() *SimpleDiffTester {
 }
 
 func (d *SimpleDiffTester) InitState(initStateFn SimpleInitializeStateFn, opts ...mtutil.StateOption) *SimpleDiffTester {
-	wrappedFn := func(t require.TestingT, testCase soloTestCase, state *multithreaded.State, vm VersionedVMTestCase, r *testutil.RandHelper) {
-		initStateFn(t, state, vm, r)
+	wrappedFn := func(t require.TestingT, _ soloTestCase, state *multithreaded.State, vm VersionedVMTestCase, r *testutil.RandHelper, goVm mipsevm.FPVM) {
+		initStateFn(t, state, vm, r, goVm)
 	}
 	d.diffTester.InitState(wrappedFn, opts...)
-
 	return d
 }
 
@@ -79,7 +78,7 @@ func (d *SimpleDiffTester) Run(t *testing.T, opts ...TestOption) {
 	d.diffTester.run(wrapT(t), singleTestCase, opts...)
 }
 
-type InitializeStateFn[T any] func(t require.TestingT, testCase T, state *multithreaded.State, vm VersionedVMTestCase, r *testutil.RandHelper)
+type InitializeStateFn[T any] func(t require.TestingT, testCase T, state *multithreaded.State, vm VersionedVMTestCase, r *testutil.RandHelper, goVm mipsevm.FPVM)
 type SetExpectationsFn[T any] func(t require.TestingT, testCase T, expect *mtutil.ExpectedState, vm VersionedVMTestCase) ExpectedExecResult
 type PostStepCheckFn[T any] func(t require.TestingT, testCase T, vm VersionedVMTestCase, deps *TestDependencies, witness *mipsevm.StepWitness)
 
@@ -175,7 +174,7 @@ func (d *DiffTester[T]) newTestSetup(t require.TestingT, testCase T, vm Versione
 	goVm := vm.VMFactory(testDeps.po, testDeps.stdOut, testDeps.stdErr, testDeps.logger, stateOpts...)
 
 	state := mtutil.GetMtState(t, goVm)
-	d.initState(t, testCase, state, vm, testutil.NewRandHelper(randSeed*2))
+	d.initState(t, testCase, state, vm, testutil.NewRandHelper(randSeed*2), goVm)
 	if mod != nil {
 		mod.stateMod(state)
 	}

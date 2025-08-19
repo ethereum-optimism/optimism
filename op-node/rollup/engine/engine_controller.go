@@ -62,6 +62,13 @@ type OriginSelectorForceResetter interface {
 	ResetOrigins()
 }
 
+// CrossUpdateHandler handles both cross-unsafe and cross-safe L2 head changes.
+// Nil check required because op-program omits this handler.
+type CrossUpdateHandler interface {
+	OnCrossUnsafeUpdate(ctx context.Context, crossUnsafe eth.L2BlockRef, localUnsafe eth.L2BlockRef)
+	OnCrossSafeUpdate(ctx context.Context, crossSafe eth.L2BlockRef, localSafe eth.L2BlockRef)
+}
+
 type EngineController struct {
 	engine     ExecEngine // Underlying execution engine RPC
 	log        log.Logger
@@ -119,6 +126,9 @@ type EngineController struct {
 	attributesResetter     AttributesForceResetter
 	pipelineResetter       PipelineForceResetter
 	originSelectorResetter OriginSelectorForceResetter
+
+	// Handler for cross-unsafe and cross-safe updates
+	crossUpdateHandler CrossUpdateHandler
 }
 
 func NewEngineController(ctx context.Context, engine ExecEngine, log log.Logger, m opmetrics.Metricer,
@@ -237,6 +247,24 @@ func (e *EngineController) SetBackupUnsafeL2Head(r eth.L2BlockRef, triggerReorg 
 	e.metrics.RecordL2Ref("l2_backup_unsafe", r)
 	e.backupUnsafeHead = r
 	e.needFCUCallForBackupUnsafeReorg = triggerReorg
+}
+
+func (e *EngineController) SetCrossUpdateHandler(handler CrossUpdateHandler) {
+	e.crossUpdateHandler = handler
+}
+
+func (e *EngineController) onUnsafeUpdate(ctx context.Context, crossUnsafe, localUnsafe eth.L2BlockRef) {
+	// Nil check required because op-program omits this handler.
+	if e.crossUpdateHandler != nil {
+		e.crossUpdateHandler.OnCrossUnsafeUpdate(ctx, crossUnsafe, localUnsafe)
+	}
+}
+
+func (e *EngineController) onSafeUpdate(ctx context.Context, crossSafe, localSafe eth.L2BlockRef) {
+	// Nil check required because op-program omits this handler.
+	if e.crossUpdateHandler != nil {
+		e.crossUpdateHandler.OnCrossSafeUpdate(ctx, crossSafe, localSafe)
+	}
 }
 
 // logSyncProgressMaybe helps log forkchoice state-changes when applicable.
@@ -464,7 +492,7 @@ func (e *EngineController) InsertUnsafePayload(ctx context.Context, envelope *et
 		e.emitter.Emit(ctx, UnsafeUpdateEvent{Ref: ref})
 		e.SetLocalSafeHead(ref)
 		e.SetSafeHead(ref)
-		e.emitter.Emit(ctx, CrossSafeUpdateEvent{LocalSafe: ref, CrossSafe: ref})
+		e.onSafeUpdate(ctx, ref, ref)
 		e.SetFinalizedHead(ref)
 	}
 	logFn := e.logSyncProgressMaybe()
@@ -663,10 +691,7 @@ func (d *EngineController) OnEvent(ctx context.Context, ev event.Event) bool {
 		d.TryUpdateEngine(ctx)
 	case PromoteCrossUnsafeEvent:
 		d.SetCrossUnsafeHead(x.Ref)
-		d.emitter.Emit(ctx, CrossUnsafeUpdateEvent{
-			CrossUnsafe: x.Ref,
-			LocalUnsafe: d.UnsafeL2Head(),
-		})
+		d.onUnsafeUpdate(ctx, x.Ref, d.UnsafeL2Head())
 	case PendingSafeRequestEvent:
 		d.emitter.Emit(ctx, PendingSafeUpdateEvent{
 			PendingSafe: d.PendingSafeL2Head(),
@@ -683,17 +708,11 @@ func (d *EngineController) OnEvent(ctx context.Context, ev event.Event) bool {
 		d.SetSafeHead(x.Ref)
 		// Finalizer can pick up this safe cross-block now
 		d.emitter.Emit(ctx, SafeDerivedEvent{Safe: x.Ref, Source: x.Source})
-		d.emitter.Emit(ctx, CrossSafeUpdateEvent{
-			CrossSafe: d.SafeL2Head(),
-			LocalSafe: d.LocalSafeL2Head(),
-		})
+		d.onSafeUpdate(ctx, d.SafeL2Head(), d.LocalSafeL2Head())
 		if x.Ref.Number > d.crossUnsafeHead.Number {
 			d.log.Debug("Cross Unsafe Head is stale, updating to match cross safe", "cross_unsafe", d.crossUnsafeHead, "cross_safe", x.Ref)
 			d.SetCrossUnsafeHead(x.Ref)
-			d.emitter.Emit(ctx, CrossUnsafeUpdateEvent{
-				CrossUnsafe: x.Ref,
-				LocalUnsafe: d.UnsafeL2Head(),
-			})
+			d.onUnsafeUpdate(ctx, x.Ref, d.UnsafeL2Head())
 		}
 		// Try to apply the forkchoice changes
 		d.TryUpdateEngine(ctx)
@@ -710,19 +729,6 @@ func (d *EngineController) OnEvent(ctx context.Context, ev event.Event) bool {
 		d.emitter.Emit(ctx, FinalizedUpdateEvent(x))
 		// Try to apply the forkchoice changes
 		d.TryUpdateEngine(ctx)
-	case CrossUpdateRequestEvent:
-		if x.CrossUnsafe {
-			d.emitter.Emit(ctx, CrossUnsafeUpdateEvent{
-				CrossUnsafe: d.CrossUnsafeL2Head(),
-				LocalUnsafe: d.UnsafeL2Head(),
-			})
-		}
-		if x.CrossSafe {
-			d.emitter.Emit(ctx, CrossSafeUpdateEvent{
-				CrossSafe: d.SafeL2Head(),
-				LocalSafe: d.LocalSafeL2Head(),
-			})
-		}
 	case InteropInvalidateBlockEvent:
 		d.emitter.Emit(ctx, BuildStartEvent{Attributes: x.Attributes})
 	case BuildStartEvent:
