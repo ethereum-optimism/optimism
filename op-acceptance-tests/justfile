@@ -99,6 +99,7 @@ acceptance-test devnet="" gate="holocene":
             --orchestrator sysgo \
             --allow-skips \
             --timeout 90m \
+            --default-timeout 10m \
             --log.level "${LOG_LEVEL:-info}"
 
         exit 0
