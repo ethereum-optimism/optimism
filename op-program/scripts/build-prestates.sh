@@ -40,9 +40,10 @@ do
       echo "Install dependencies with mise" 2>&1 | tee "${LOG_FILE}"
       #rustup default stable
       #mise install go -v -y 2>&1 | tee "${LOG_FILE}"
-      cp "${SCRIPTS_DIR}/../../mise.go.toml" mise.toml
-      cat mise.toml
-      mise install go@1.23.8 -v -y 2>&1 | tee "${LOG_FILE}"
+      GO_VERSION=$(cat mise.toml | grep -E '^go\s+=\s+"[0-9]+.*"$')
+      # install only the go compiler specified in the mise.toml and avoid installing any other go tools
+      echo "installing go@${GO_VERSION}"
+      env MISE_NO_CONFIG=1 mise install "go@${GO_VERSION}" -v -y 2>&1 | tee "${LOG_FILE}"
     fi
     rm -rf "${BIN_DIR}"
     echo "building prestate"
