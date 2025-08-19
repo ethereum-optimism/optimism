@@ -44,7 +44,7 @@ do
       GO_VERSION=$(cat mise.toml | grep -E '^go\s+=\s+"[0-9]+.*"$' | sed 's/go = "\(.*\)"/\1/')
       JQ_VERSION=$(cat mise.toml | grep -E '^jq\s+=\s+"[0-9]+.*"$' | sed 's/jq = "\(.*\)"/\1/')
       echo "installing go@${GO_VERSION} and jq@${JQ_VERSION}"
-      env MISE_NO_CONFIG=1 mise install "go@${GO_VERSION}" "jq@{JQ_VERSION}" -v -y 2>&1 | tee "${LOG_FILE}"
+      env MISE_NO_CONFIG=1 mise install "go@${GO_VERSION}" "jq@${JQ_VERSION}" -v -y 2>&1 | tee "${LOG_FILE}"
     fi
     rm -rf "${BIN_DIR}"
     echo "building prestate"
