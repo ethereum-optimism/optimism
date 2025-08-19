@@ -13,13 +13,14 @@ func TestPreserveDatabaseOnCLResync(gt *testing.T) {
 	t := devtest.SerialT(gt)
 	sys := presets.NewSingleChainMultiNode(t)
 
-	startSafeBlock := sys.L2CLB.SafeL2BlockRef().Number
 	dsl.CheckAll(t,
 		sys.L2CL.AdvancedFn(types.LocalSafe, 1, 30),
 		sys.L2CLB.AdvancedFn(types.LocalSafe, 1, 30))
 
 	sys.L2CLB.Matched(sys.L2CL, types.LocalSafe, 30)
-	sys.L2CLB.VerifySafeHeadDatabaseMatches(sys.L2CL)
+
+	preRestartSafeBlock := sys.L2CLB.SafeL2BlockRef().Number
+	sys.L2CLB.VerifySafeHeadDatabaseMatches(sys.L2CL, dsl.WithMinRequiredL2Block(preRestartSafeBlock))
 
 	// Stop the verifier node. Since the sysgo EL uses in-memory storage this also wipes its database.
 	// With the EL reset to genesis, when the CL restarts it will use EL sync to resync the chain rather than
@@ -37,5 +38,5 @@ func TestPreserveDatabaseOnCLResync(gt *testing.T) {
 	sys.L2CLB.Advanced(types.LocalSafe, 1, 30) // At least one safe head db update after resync
 
 	// Safe head db should not have been reset
-	sys.L2CLB.VerifySafeHeadDatabaseMatches(sys.L2CL, dsl.WithMinRequiredL2Block(startSafeBlock))
+	sys.L2CLB.VerifySafeHeadDatabaseMatches(sys.L2CL, dsl.WithMinRequiredL2Block(preRestartSafeBlock))
 }
