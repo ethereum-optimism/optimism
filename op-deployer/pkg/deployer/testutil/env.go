@@ -8,6 +8,8 @@ import (
 	"runtime"
 	"testing"
 
+	"github.com/ethereum-optimism/optimism/op-service/ioutil"
+
 	"github.com/ethereum-optimism/optimism/op-chain-ops/foundry"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/artifacts"
 	op_service "github.com/ethereum-optimism/optimism/op-service"
@@ -29,7 +31,7 @@ func LocalArtifacts(t *testing.T) (*artifacts.Locator, foundry.StatDirFs) {
 
 	testCacheDir := testutils.IsolatedTestDirWithAutoCleanup(t)
 
-	artifactsFS, err := artifacts.Download(context.Background(), loc, artifacts.NoopProgressor(), testCacheDir)
+	artifactsFS, err := artifacts.Download(context.Background(), loc, ioutil.NoopProgressor(), testCacheDir)
 	require.NoError(t, err)
 
 	return loc, artifactsFS

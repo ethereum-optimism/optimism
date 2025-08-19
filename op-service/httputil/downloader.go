@@ -1,0 +1,46 @@
+package httputil
+
+import (
+	"context"
+	"fmt"
+	"io"
+	"net/http"
+
+	"github.com/ethereum-optimism/optimism/op-service/ioutil"
+)
+
+type Downloader struct {
+	Client     *http.Client
+	Progressor ioutil.Progressor
+}
+
+func (d *Downloader) Download(ctx context.Context, url string, out io.Writer) error {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return fmt.Errorf("failed to create request: %w", err)
+	}
+
+	client := d.Client
+	if client == nil {
+		client = http.DefaultClient
+	}
+	resp, err := client.Do(req)
+	if err != nil {
+		return err
+	}
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return fmt.Errorf("download failed with status code %d: %s", resp.StatusCode, resp.Status)
+	}
+
+	defer resp.Body.Close()
+
+	pr := &ioutil.ProgressReader{
+		R:          resp.Body,
+		Progressor: d.Progressor,
+		Total:      resp.ContentLength,
+	}
+	if _, err := io.Copy(out, pr); err != nil {
+		return fmt.Errorf("failed to write download: %w", err)
+	}
+	return nil
+}
