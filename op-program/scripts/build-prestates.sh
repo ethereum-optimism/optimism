@@ -28,8 +28,8 @@ cd "${REPO_DIR}"
 VERSIONS_JSON="[]"
 #VERSIONS=$(git tag --list 'op-program/v*' --sort taggerdate | grep v1.4.0-rc.3)
 #VERSIONS=$(git tag --list 'op-program/v*' --sort taggerdate | grep v1.6.0-rc.2)
-#VERSIONS=$(git tag --list 'op-program/v*' --sort taggerdate | grep -E '(v1.4|v1.5|v1.6)')
-VERSIONS=$(git tag --list 'op-program/v*' --sort taggerdate)
+VERSIONS=$(git tag --list 'op-program/v*' --sort taggerdate | grep -E '(v1.4|v1.5|v1.6)')
+#VERSIONS=$(git tag --list 'op-program/v*' --sort taggerdate)
 
 for VERSION in ${VERSIONS}
 do
@@ -48,12 +48,10 @@ do
       DNE_DEBUGME=
       if [ -n "${DNE_DEBUGME}" ]; then
         # install only the tools used by the reproducible-build; go and jq.
-        GO_VERSION=$(cat mise.toml | grep -E '^go\s+=\s+"[0-9]+.*"$' | sed 's/go = "\(.*\)"/\1/')
-        JQ_VERSION=$(cat mise.toml | grep -E '^jq\s+=\s+"[0-9]+.*"$' | sed 's/jq = "\(.*\)"/\1/')
-        if [ -z "${GO_VERSION}" ] || [ -z "${JQ_VERSION}" ]; then
-          echo "Error: go or jq version not found in mise.toml for the ${VERSION} release"
-          exit 1
-        fi
+        #GO_VERSION=$(cat mise.toml | grep -E '^go\s+=\s+"[0-9]+.*"$' | sed 's/go = "\(.*\)"/\1/')
+        #JQ_VERSION=$(cat mise.toml | grep -E '^jq\s+=\s+"[0-9]+.*"$' | sed 's/jq = "\(.*\)"/\1/')
+        GO_VERSION=$(mise config get tools.go)
+        JQ_VERSION=$(mise config get tools.jq)
         echo "installing go@${GO_VERSION} and jq@${JQ_VERSION}"
         #export MISE_NO_CONFIG=1
         export MISE_NONINTERACTIVE=1 MISE_YES=1 MISE_TRUSTED_CONFIG=1
