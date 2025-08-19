@@ -5,7 +5,6 @@
 |            |                                                                                      |
 | ---------- | ------------------------------------------------------------------------------------ |
 | ChainID    | 9728                                                                                 |
-| AA bundler | [https://bundler.testnet.bnb.boba.network](https://bundler.testnet.bnb.boba.network) |
 
 ## Bundler API
 

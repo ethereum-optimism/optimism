@@ -14,7 +14,6 @@ These are the minimal required versions for the `op-node`, `op-erigon` and `op-g
 | Boba Sepolia | [v1.6.16](https://github.com/bobanetwork/boba/releases/tag/v1.6.17) | [v1.2.12-beta.1](https://github.com/bobanetwork/op-erigon/releases/tag/v1.2.12-beta.1) | [v1.101500.0](https://github.com/bobanetwork/op-geth/releases/tag/v1.101503.0) |
 | Op Mainnet   | [v1.6.16](https://github.com/bobanetwork/boba/releases/tag/v1.6.17) | [v1.2.12-beta.1](https://github.com/bobanetwork/op-erigon/releases/tag/v1.2.12-beta.1) | [v1.101500.0](https://github.com/bobanetwork/op-geth/releases/tag/v1.101503.0) |
 | Op Sepolia   | [v1.6.16](https://github.com/bobanetwork/boba/releases/tag/v1.6.17) | [v1.2.12-beta.1](https://github.com/bobanetwork/op-erigon/releases/tag/v1.2.12-beta.1) | [v1.101500.0](https://github.com/bobanetwork/op-geth/releases/tag/v1.101503.0) |
-| Boba Bnb Testnet | [v1.6.16](https://github.com/bobanetwork/boba/releases/tag/v1.6.17) | [v1.2.12-beta.1](https://github.com/bobanetwork/op-erigon/releases/tag/v1.2.12-beta.1) | [v1.101500.0](https://github.com/bobanetwork/op-geth/releases/tag/v1.101503.0) |
 
 ## [op-node v1.6.17](https://github.com/bobanetwork/boba/releases/tag/v1.6.17)
 
