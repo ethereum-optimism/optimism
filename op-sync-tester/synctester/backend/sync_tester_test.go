@@ -69,8 +69,7 @@ func TestSyncTester_ChainId(t *testing.T) {
 			name:            "no session",
 			cfgID:           eth.ChainIDFromUInt64(1),
 			elID:            eth.ChainIDFromUInt64(1),
-			session:         nil,
-			wantErrContains: "session",
+			wantErrContains: "no session",
 		},
 		{
 			name:    "happy path",
