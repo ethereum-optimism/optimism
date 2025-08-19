@@ -82,7 +82,7 @@ func acceptID(s string) chainAcceptor {
 }
 
 func acceptIDs(ids ...string) chainAcceptor {
-	acceptors := make([]chainAcceptor, 0)
+	acceptors := make([]chainAcceptor, 0, len(ids))
 	for _, id := range ids {
 		acceptors = append(acceptors, acceptID(id))
 	}
