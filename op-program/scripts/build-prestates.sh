@@ -38,36 +38,41 @@ do
     if [ -f mise.toml ]
     then
       echo "Install dependencies with mise" 2>&1 | tee "${LOG_FILE}"
-      #rustup default stable
-      #mise install go -v -y 2>&1 | tee "${LOG_FILE}"
-      # install only the tools used by the reproducible-build; go and jq.
-      GO_VERSION=$(cat mise.toml | grep -E '^go\s+=\s+"[0-9]+.*"$' | sed 's/go = "\(.*\)"/\1/')
-      JQ_VERSION=$(cat mise.toml | grep -E '^jq\s+=\s+"[0-9]+.*"$' | sed 's/jq = "\(.*\)"/\1/')
-      if [ -z "${GO_VERSION}" ] || [ -z "${JQ_VERSION}" ]; then
-        echo "Error: go or jq version not found in mise.toml for the ${VERSION} release"
-        exit 1
+
+      cp "${SCRIPTS_DIR}/../../mise.go.toml" mise.toml
+      cat mise.toml
+      mise install -v -y 2>&1 | tee "${LOG_FILE}"
+
+      if [ -n "${DNE_DEBUGME}" ]; then
+        # install only the tools used by the reproducible-build; go and jq.
+        GO_VERSION=$(cat mise.toml | grep -E '^go\s+=\s+"[0-9]+.*"$' | sed 's/go = "\(.*\)"/\1/')
+        JQ_VERSION=$(cat mise.toml | grep -E '^jq\s+=\s+"[0-9]+.*"$' | sed 's/jq = "\(.*\)"/\1/')
+        if [ -z "${GO_VERSION}" ] || [ -z "${JQ_VERSION}" ]; then
+          echo "Error: go or jq version not found in mise.toml for the ${VERSION} release"
+          exit 1
+        fi
+        echo "installing go@${GO_VERSION} and jq@${JQ_VERSION}"
+        #export MISE_NO_CONFIG=1
+        export MISE_NONINTERACTIVE=1 MISE_YES=1 MISE_TRUSTED_CONFIG=1
+        env MISE_NO_CONFIG=1 mise install "go@${GO_VERSION}" "jq@${JQ_VERSION}" -v -y 2>&1 | tee "${LOG_FILE}"
+        echo "done installing deps"
+        if [ ! -x "$(command -v jq)" ]; then
+          echo "debugme: jq is not installed!"
+          exit 1
+        fi
+        echo "found jq"
+        which jq
+        echo "found which jq"
+        mise use -g "go@${GO_VERSION}"
+        echo "using go"
+        mise use -g "jq@${JQ_VERSION}"
+        echo "using jq"
+        mise reshim
+        echo "reshim done"
+        mise which jq
+        echo "mise which jq done"
+        echo "jq version is $(jq --version)"
       fi
-      echo "installing go@${GO_VERSION} and jq@${JQ_VERSION}"
-      #export MISE_NO_CONFIG=1
-      export MISE_NONINTERACTIVE=1 MISE_YES=1 MISE_TRUSTED_CONFIG=1
-      env MISE_NO_CONFIG=1 mise install "go@${GO_VERSION}" "jq@${JQ_VERSION}" -v -y 2>&1 | tee "${LOG_FILE}"
-      echo "done installing deps"
-      if [ ! -x "$(command -v jq)" ]; then
-        echo "debugme: jq is not installed!"
-        exit 1
-      fi
-      echo "found jq"
-      which jq
-      echo "found which jq"
-      mise use -g "go@${GO_VERSION}"
-      echo "using go"
-      mise use -g "jq@${JQ_VERSION}"
-      echo "using jq"
-      mise reshim
-      echo "reshim done"
-      mise which jq
-      echo "mise which jq done"
-      echo "jq version is $(jq --version)"
     fi
     rm -rf "${BIN_DIR}"
     echo "building prestate"
