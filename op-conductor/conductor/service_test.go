@@ -1183,3 +1183,35 @@ connected:
 	// Verify that the conductor is stopped
 	s.True(conductor.Stopped())
 }
+
+// TestRollupBoostHealthFailure tests that OpConductor correctly handles rollup boost health failures
+func (s *OpConductorTestSuite) TestRollupBoostPartialFailure() {
+	s.enableSynchronization()
+
+	// set initial state as a leader that is healthy and sequencing
+	s.conductor.leader.Store(true)
+	s.conductor.healthy.Store(false)
+	s.conductor.seqActive.Store(true)
+	s.conductor.prevState = &state{
+		leader:  true,
+		healthy: false,
+		active:  false,
+	}
+
+	// Setup expectations - leader with unhealthy rollup boost should stop sequencing and transfer leadership
+	s.ctrl.EXPECT().StopSequencer(mock.Anything).Return(common.Hash{}, nil).Times(1)
+	s.cons.EXPECT().TransferLeader().Return(nil).Times(1)
+
+	// Simulate a rollup boost health failure
+	s.updateHealthStatusAndExecuteAction(health.ErrRollupBoostPartiallyHealthy)
+
+	// Verify the OpConductor transitions to follower state and stops sequencing
+	s.False(s.conductor.leader.Load(), "Should transition to follower")
+	s.False(s.conductor.healthy.Load(), "Should be marked as unhealthy")
+	s.False(s.conductor.seqActive.Load(), "Sequencer should be stopped")
+	s.Equal(health.ErrRollupBoostPartiallyHealthy, s.conductor.hcerr, "Error should be stored")
+
+	// Verify method calls
+	s.ctrl.AssertNumberOfCalls(s.T(), "StopSequencer", 1)
+	s.cons.AssertNumberOfCalls(s.T(), "TransferLeader", 1)
+}
