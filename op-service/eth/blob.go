@@ -278,9 +278,7 @@ func reassembleBytes(opos int, encodedByte []byte, output []byte) int {
 }
 
 func (b *Blob) Clear() {
-	for i := 0; i < BlobSize; i++ {
-		b[i] = 0
-	}
+	clear(b[:])
 }
 
 // CalcBlobFeeDefault calculates the blob fee for the given header using eip4844.CalcBlobFee,
