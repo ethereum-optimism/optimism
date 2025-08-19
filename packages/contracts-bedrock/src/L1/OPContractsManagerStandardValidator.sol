@@ -709,7 +709,7 @@ contract OPContractsManagerStandardValidator is ISemver {
         _errors = internalRequire(
             LibString.eq(getVersion(address(_mips)), mipsVersion()), string.concat(_errorPrefix, "-20"), _errors
         );
-        _errors = internalRequire(_mips.stateVersion() == 7, string.concat(_errorPrefix, "-30"), _errors);
+        _errors = internalRequire(_mips.stateVersion() == 8, string.concat(_errorPrefix, "-30"), _errors);
         return _errors;
     }
 
