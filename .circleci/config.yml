@@ -1228,31 +1228,31 @@ jobs:
     resource_class: xlarge
     steps:
       - checkout-from-workspace
-      - run:
-          name: Setup Kurtosis (if needed)
-          command: |
-            if [[ "<<parameters.devnet>>" != "" ]]; then
-              echo "Setting up Kurtosis for external devnet testing..."
+      - unless:
+          condition:
+            equal: ["",<<parameters.devnet>>]
+          steps:
+            - run:
+                name: Setup Kurtosis
+                command: |
+                  echo "Setting up Kurtosis for external devnet testing..."
 
-              # Print Kurtosis version
-              echo "Using Kurtosis from: $(which kurtosis || echo 'not found')"
-              kurtosis version
+                  # Print Kurtosis version
+                  echo "Using Kurtosis from: $(which kurtosis || echo 'not found')"
+                  kurtosis version
 
-              # Start Kurtosis engine
-              echo "Starting Kurtosis engine..."
-              kurtosis engine start || true
+                  # Start Kurtosis engine
+                  echo "Starting Kurtosis engine..."
+                  kurtosis engine start || true
 
-              # Clean old instances
-              echo "Cleaning old instances..."
-              kurtosis clean -a || true
+                  # Clean old instances
+                  echo "Cleaning old instances..."
+                  kurtosis clean -a || true
 
-              # Check engine status
-              kurtosis engine status || true
+                  # Check engine status
+                  kurtosis engine status || true
 
-              echo "Kurtosis setup complete"
-            else
-              echo "Using in-process testing (sysgo orchestrator) - no Kurtosis setup needed"
-            fi
+                  echo "Kurtosis setup complete"
       # Notify us of a setup failure
       - when:
           condition: on_fail
