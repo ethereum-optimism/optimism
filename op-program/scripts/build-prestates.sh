@@ -41,8 +41,15 @@ do
     then
       echo "Install dependencies with mise" 2>&1 | tee "${LOG_FILE}"
 
-      cp "${SCRIPTS_DIR}/../../mise.go.toml" mise.toml
+      GO_VERSION=$(mise config get tools.go)
+      cat >mise.toml <<EOF
+[tools]
+go = "${GO_VERSION}"
+EOF
       cat mise.toml
+
+      #cp "${SCRIPTS_DIR}/../../mise.go.toml" mise.toml
+      #cat mise.toml
       mise install -v -y 2>&1 | tee "${LOG_FILE}"
 
       DNE_DEBUGME=
