@@ -162,6 +162,10 @@ func (s *SyncTester) checkBlockNumber(number rpc.BlockNumber, session *Session) 
 		// pending, earliest block label not supported
 		return 0, ethereum.NotFound
 	default:
+		if number.Int64() < 0 {
+			// safety guard for overflow
+			return 0, ethereum.NotFound
+		}
 		target = uint64(number.Int64())
 		// Short circuit for numeric request beyond sync tester canonical head
 		if target > session.CurrentState.Latest {
