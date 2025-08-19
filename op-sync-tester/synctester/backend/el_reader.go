@@ -41,7 +41,7 @@ type ELReader struct {
 	c *ethclient.Client
 }
 
-func NewGethELReader(c *ethclient.Client) *ELReader {
+func NewELReader(c *ethclient.Client) *ELReader {
 	return &ELReader{c: c}
 }
 

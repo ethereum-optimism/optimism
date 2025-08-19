@@ -51,7 +51,7 @@ func SyncTesterFromConfig(logger log.Logger, m metrics.Metricer, stID sttypes.Sy
 	if err != nil {
 		return nil, fmt.Errorf("failed to dial EL client: %w", err)
 	}
-	elReader := NewGethELReader(elClient)
+	elReader := NewELReader(elClient)
 	return &SyncTester{
 		log:      logger,
 		m:        m,
