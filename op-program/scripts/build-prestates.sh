@@ -58,6 +58,9 @@ do
       echo "found jq"
       which jq
       echo "found which jq"
+      mise use -g "go@${GO_VERSION}"
+      mise use -g "jq@${JQ_VERSION}"
+      mise reshim
       mise which jq
       echo "jq version is $(jq --version)"
     fi
