@@ -24,13 +24,18 @@ var _ ReadOnlyELBackend = (*MockELReader)(nil)
 type MockELReader struct {
 	ChainID hexutil.Big
 
-	BlockByHashData map[common.Hash]*json.RawMessage
+	BlocksByHashData map[common.Hash]*json.RawMessage
+	BlocksByNumber   map[rpc.BlockNumber]*json.RawMessage
+	Latest           *json.RawMessage
+	Safe             *json.RawMessage
+	Finalized        *json.RawMessage
 }
 
 func NewMockELReader(chainID eth.ChainID) *MockELReader {
 	return &MockELReader{
-		ChainID:         hexutil.Big(*chainID.ToBig()),
-		BlockByHashData: make(map[common.Hash]*json.RawMessage),
+		ChainID:          hexutil.Big(*chainID.ToBig()),
+		BlocksByHashData: make(map[common.Hash]*json.RawMessage),
+		BlocksByNumber:   make(map[rpc.BlockNumber]*json.RawMessage),
 	}
 }
 
@@ -39,11 +44,15 @@ func (m *MockELReader) ChainId(ctx context.Context) (hexutil.Big, error) {
 }
 
 func (m *MockELReader) GetBlockByNumberJSON(ctx context.Context, number rpc.BlockNumber, fullTx bool) (json.RawMessage, error) {
-	return nil, nil
+	raw, ok := m.BlocksByNumber[number]
+	if !ok {
+		return nil, ethereum.NotFound
+	}
+	return *raw, nil
 }
 
 func (m *MockELReader) GetBlockByHashJSON(ctx context.Context, hash common.Hash, fullTx bool) (json.RawMessage, error) {
-	raw, ok := m.BlockByHashData[hash]
+	raw, ok := m.BlocksByHashData[hash]
 	if !ok {
 		return nil, ethereum.NotFound
 	}
@@ -117,10 +126,12 @@ func TestSyncTester_ChainId(t *testing.T) {
 	}
 }
 
+func makeBlockRaw(num uint64) *json.RawMessage {
+	raw := json.RawMessage(fmt.Sprintf(`{"number":"0x%x"}`, num))
+	return &raw
+}
+
 func TestSyncTester_GetBlockByHash(t *testing.T) {
-	makeBlockRaw := func(num uint64) json.RawMessage {
-		return json.RawMessage(fmt.Sprintf(`{"number":"0x%x"}`, num))
-	}
 
 	hash := common.HexToHash("0xdeadbeef")
 
@@ -157,7 +168,7 @@ func TestSyncTester_GetBlockByHash(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			el := NewMockELReader(eth.ChainIDFromUInt64(1))
 			block := makeBlockRaw(tc.rawNumber)
-			el.BlockByHashData[hash] = &block
+			el.BlocksByHashData[hash] = block
 			st := initTestSyncTester(t, eth.ChainIDFromUInt64(1), el)
 			ctx := context.Background()
 			if tc.session != nil {
@@ -175,6 +186,131 @@ func TestSyncTester_GetBlockByHash(t *testing.T) {
 			var header HeaderNumberOnly
 			require.NoError(t, json.Unmarshal(raw, &header))
 			require.EqualValues(t, tc.rawNumber, header.Number.ToInt().Uint64())
+		})
+	}
+}
+
+func TestSyncTester_GetBlockByNumber(t *testing.T) {
+	type testCase struct {
+		name            string
+		session         *Session
+		inNumber        rpc.BlockNumber
+		wantNum         uint64
+		wantErrContains string
+	}
+
+	tests := []testCase{
+		{
+			name:            "no session",
+			session:         nil,
+			wantErrContains: "no session",
+		},
+		{
+			name: "happy path: numeric less than latest",
+			session: &Session{
+				SessionID: uuid.New().String(),
+				CurrentState: FCUState{
+					Latest:    100,
+					Safe:      95,
+					Finalized: 90,
+				},
+			},
+			inNumber: rpc.BlockNumber(99),
+			wantNum:  99,
+		},
+		{
+			name: "happy path: label latest returns CurrentState.Latest",
+			session: &Session{
+				SessionID: uuid.New().String(),
+				CurrentState: FCUState{
+					Latest:    100,
+					Safe:      95,
+					Finalized: 90,
+				},
+			},
+			inNumber: rpc.LatestBlockNumber,
+			wantNum:  100,
+		},
+		{
+			name: "happy path: label safe returns CurrentState.Safe",
+			session: &Session{
+				SessionID: uuid.New().String(),
+				CurrentState: FCUState{
+					Latest:    100,
+					Safe:      97,
+					Finalized: 90,
+				},
+			},
+			inNumber: rpc.SafeBlockNumber,
+			wantNum:  97,
+		},
+		{
+			name: "happy path: label finalized returns CurrentState.Finalized",
+			session: &Session{
+				SessionID: uuid.New().String(),
+				CurrentState: FCUState{
+					Latest:    100,
+					Safe:      97,
+					Finalized: 92,
+				},
+			},
+			inNumber: rpc.FinalizedBlockNumber,
+			wantNum:  92,
+		},
+		{
+			name: "pending returns not found",
+			session: &Session{
+				SessionID:    uuid.New().String(),
+				CurrentState: FCUState{Latest: 100, Safe: 97, Finalized: 92},
+			},
+			inNumber:        rpc.PendingBlockNumber,
+			wantErrContains: "not found",
+		},
+		{
+			name: "earliest label returns not found",
+			session: &Session{
+				SessionID:    uuid.New().String(),
+				CurrentState: FCUState{Latest: 100, Safe: 97, Finalized: 92},
+			},
+			inNumber:        rpc.EarliestBlockNumber,
+			wantErrContains: "not found",
+		},
+		{
+			name: "numeric greater than latest returns not found",
+			session: &Session{
+				SessionID:    uuid.New().String(),
+				CurrentState: FCUState{Latest: 100, Safe: 97, Finalized: 92},
+			},
+			inNumber:        rpc.BlockNumber(101),
+			wantErrContains: "not found",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			el := NewMockELReader(eth.ChainIDFromUInt64(1))
+			if tc.session != nil {
+				el.BlocksByNumber[rpc.BlockNumber(tc.session.CurrentState.Latest)] = makeBlockRaw(tc.session.CurrentState.Latest)
+				el.BlocksByNumber[rpc.BlockNumber(tc.session.CurrentState.Safe)] = makeBlockRaw(tc.session.CurrentState.Safe)
+				el.BlocksByNumber[rpc.BlockNumber(tc.session.CurrentState.Finalized)] = makeBlockRaw(tc.session.CurrentState.Finalized)
+			}
+			el.BlocksByNumber[tc.inNumber] = makeBlockRaw(uint64(tc.inNumber.Int64()))
+			st := initTestSyncTester(t, eth.ChainIDFromUInt64(1), el)
+			ctx := context.Background()
+			if tc.session != nil {
+				ctx = WithSession(ctx, tc.session)
+			}
+			raw, err := st.GetBlockByNumber(ctx, tc.inNumber, false)
+			if tc.wantErrContains != "" {
+				require.Error(t, err)
+				require.Contains(t, err.Error(), tc.wantErrContains)
+				return
+			}
+			require.NoError(t, err)
+			require.NotNil(t, raw)
+			var header HeaderNumberOnly
+			require.NoError(t, json.Unmarshal(raw, &header))
+			require.EqualValues(t, tc.wantNum, header.Number.ToInt().Uint64())
 		})
 	}
 }
