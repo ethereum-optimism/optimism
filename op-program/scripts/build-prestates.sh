@@ -43,6 +43,7 @@ do
       cat mise.toml
       mise install -v -y 2>&1 | tee "${LOG_FILE}"
 
+      DNE_DEBUGME=
       if [ -n "${DNE_DEBUGME}" ]; then
         # install only the tools used by the reproducible-build; go and jq.
         GO_VERSION=$(cat mise.toml | grep -E '^go\s+=\s+"[0-9]+.*"$' | sed 's/go = "\(.*\)"/\1/')
