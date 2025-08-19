@@ -686,8 +686,25 @@ contract DisputeGameFactory_FindLatestGames_Test is DisputeGameFactory_TestInit 
     }
 }
 
-/// @title DisputeGameFactory_FaultDisputeGameV2_Test
-/// @notice Tests for FaultDisputeGameV2 creation in the `DisputeGameFactory` contract.
+/// @title DisputeGameFactory_Unclassified_Test
+/// @notice General tests that are not testing any function directly of the `DisputeGameFactory`
+///         contract or are testing multiple functions at once.
 contract DisputeGameFactory_Unclassified_Test is DisputeGameFactory_TestInit {
+    /// @notice Tests that the `owner` function returns the correct address after deployment.
+    function test_owner_succeeds() public view {
+        assertEq(disputeGameFactory.owner(), address(this));
+    }
 
+    /// @notice Tests that the `transferOwnership` function succeeds when called by the owner.
+    function test_transferOwnership_succeeds() public {
+        disputeGameFactory.transferOwnership(address(1));
+        assertEq(disputeGameFactory.owner(), address(1));
+    }
+
+    /// @notice Tests that the `transferOwnership` function reverts when called by a non-owner.
+    function test_transferOwnership_notOwner_reverts() public {
+        vm.prank(address(0));
+        vm.expectRevert("Ownable: caller is not the owner");
+        disputeGameFactory.transferOwnership(address(1));
+    }
 }
