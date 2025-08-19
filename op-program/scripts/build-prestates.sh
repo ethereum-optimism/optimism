@@ -48,8 +48,8 @@ do
         exit 1
       fi
       echo "installing go@${GO_VERSION} and jq@${JQ_VERSION}"
-      export MISE_NO_CONFIG=1
-      mise install "go@${GO_VERSION}" "jq@${JQ_VERSION}" -v -y 2>&1 | tee "${LOG_FILE}"
+      #export MISE_NO_CONFIG=1
+      env MISE_NO_CONFIG=1 mise install "go@${GO_VERSION}" "jq@${JQ_VERSION}" -v -y 2>&1 | tee "${LOG_FILE}"
       echo "done installing deps"
       if [ ! -x "$(command -v jq)" ]; then
         echo "debugme: jq is not installed!"
