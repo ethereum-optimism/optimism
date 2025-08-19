@@ -87,6 +87,7 @@ func (u *EOA) PlanAuth(code common.Address) txplan.Option {
 		txplan.WithType(types.SetCodeTxType),
 		txplan.WithTo(&toAddr),
 		txplan.WithAuthorizationTo(code),
+		// Set a fixed gas limit because eth_estimateGas doesn't consider authorizations yet.
 		txplan.WithGasLimit(75_000),
 	)
 }

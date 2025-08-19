@@ -105,6 +105,52 @@ func TestNode(t *testing.T) {
 		require.Equal(t, `*plan.Lazy[uint64](*plan.Lazy[uint64], *plan.Lazy[uint32])`, s)
 	})
 
+	t.Run("reset dependencies - no downstream invalidation", func(t *testing.T) {
+		x := new(plan.Lazy[int])
+		y := new(plan.Lazy[int])
+		z := new(plan.Lazy[int])
+		x.DependOn(y, z)
+		y.Set(10)
+		z.Set(20)
+		x.Fn(func(ctx context.Context) (int, error) {
+			return y.Value() + z.Value(), nil
+		})
+		val, err := x.Eval(context.Background())
+		require.NoError(t, err)
+		require.Equal(t, 10+20, val)
+
+		x.ResetDependencies()
+		x.Set(100)
+		y.Set(30) // Changing y or z no longer invalidates x
+		z.Set(20)
+		val, err = x.Eval(context.Background())
+		require.NoError(t, err)
+		require.Equal(t, 100, val)
+	})
+
+	t.Run("reset dependencies - no upstream evaluation", func(t *testing.T) {
+		x := new(plan.Lazy[int])
+		y := new(plan.Lazy[int])
+		z := new(plan.Lazy[int])
+		x.DependOn(y, z)
+		x.Fn(func(ctx context.Context) (int, error) {
+			return 100, nil
+		})
+		dependencyCalls := 0
+		countEvaluations := func(ctx context.Context) (int, error) {
+			dependencyCalls++
+			return 0, nil
+		}
+		y.Fn(countEvaluations)
+		z.Fn(countEvaluations)
+
+		x.ResetDependencies()
+		val, err := x.Eval(context.Background())
+		require.NoError(t, err)
+		require.Equal(t, 100, val)
+		require.Zero(t, dependencyCalls, "Previous dependencies should not be evaluated")
+	})
+
 	t.Run("close", func(t *testing.T) {
 		x := new(plan.Lazy[uint64])
 		y := new(plan.Lazy[int32])

@@ -178,10 +178,10 @@ func (p *Lazy[V]) ResetDependencies() {
 	defer p.mu.Unlock()
 	p.upstream.Lock()
 	defer p.upstream.Unlock()
-	// register with all the upstream deps, so we get invalidated when upstream changes
 	for _, d := range p.upstream.Value {
 		d.unregister(p)
 	}
+	p.upstream.Value = nil
 }
 
 // Set invalidates any downstream deps, and sets the value.
