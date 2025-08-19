@@ -28,14 +28,14 @@ cd "${REPO_DIR}"
 VERSIONS_JSON="[]"
 #VERSIONS=$(git tag --list 'op-program/v*' --sort taggerdate | grep v1.4.0-rc.3)
 #VERSIONS=$(git tag --list 'op-program/v*' --sort taggerdate | grep v1.6.0-rc.2)
-VERSIONS=$(git tag --list 'op-program/v*' --sort taggerdate)
+VERSIONS=$(git tag --list 'op-program/v*' --sort taggerdate | grep -E '(v1.4|v1.5|v1.6)')
 
 for VERSION in ${VERSIONS}
 do
     SHORT_VERSION=$(echo "${VERSION}" | cut -c 13-)
     LOG_FILE="${LOGS_DIR}/build-${SHORT_VERSION}.txt"
     echo "Building Version: ${VERSION} Logs: ${LOG_FILE}"
-    git checkout "${VERSION}" > "${LOG_FILE}" 2>&1
+    git checkout --force "${VERSION}" > "${LOG_FILE}" 2>&1
     if [ -f mise.toml ]
     then
       echo "Install dependencies with mise" 2>&1 | tee "${LOG_FILE}"
