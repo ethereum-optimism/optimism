@@ -215,7 +215,8 @@ contract ForkLive is Deployer {
         // upgraded by the Superchain ProxyAdmin owner. For simplicity, we always just call U13
         // once without any chain configs to trigger this upgrade.
         ISuperchainConfig superchainConfig = ISuperchainConfig(artifacts.mustGetAddress("SuperchainConfigProxy"));
-        address superchainPAO = IProxyAdmin(EIP1967Helper.getAdmin(address(superchainConfig))).owner();
+        IProxyAdmin superchainProxyAdmin = IProxyAdmin(EIP1967Helper.getAdmin(address(superchainConfig)));
+        address superchainPAO = superchainProxyAdmin.owner();
         vm.etch(superchainPAO, vm.getDeployedCode("test/mocks/Callers.sol:DelegateCaller"));
         DelegateCaller(superchainPAO).dcForward(
             address(0x026b2F158255Beac46c1E7c6b8BbF29A4b6A7B76),
@@ -236,7 +237,8 @@ contract ForkLive is Deployer {
         // trigger the upgrade of the SuperchainConfig contract.
         vm.etch(superchainPAO, vm.getDeployedCode("test/mocks/Callers.sol:DelegateCaller"));
         DelegateCaller(superchainPAO).dcForward(
-            address(opcm), abi.encodeCall(IOPContractsManager.upgradeSuperchainConfig, (superchainConfig, proxyAdmin))
+            address(opcm),
+            abi.encodeCall(IOPContractsManager.upgradeSuperchainConfig, (superchainConfig, superchainProxyAdmin))
         );
 
         // Then do the final upgrade.
