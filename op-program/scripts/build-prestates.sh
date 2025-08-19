@@ -38,8 +38,8 @@ do
     if [ -f mise.toml ]
     then
       echo "Install dependencies with mise" 2>&1 | tee "${LOG_FILE}"
-      echo "skip install"
-      #mise install -v -y 2>&1 | tee "${LOG_FILE}"
+      rustup default stable
+      mise install -v -y 2>&1 | tee "${LOG_FILE}"
     fi
     rm -rf "${BIN_DIR}"
     echo "building prestate"
