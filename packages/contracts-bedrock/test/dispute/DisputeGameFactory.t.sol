@@ -430,6 +430,40 @@ contract DisputeGameFactory_Create_Test is DisputeGameFactory_TestInit {
         );
         disputeGameFactory.create{ value: bondAmount }(gt, rootClaim, extraData);
     }
+
+    function test_create_implArgs() public {
+        Claim absolutePrestate = Claim.wrap(bytes32(hex"dead"));
+        (address gameImpl, AlphabetVM vm_,) = setupFaultDisputeGameV2(absolutePrestate);
+
+        Claim rootClaim = changeClaimStatus(Claim.wrap(bytes32(hex"beef")), VMStatuses.INVALID);
+        // extraData should contain the l2BlockNumber as first 32 bytes
+        bytes memory extraData = abi.encode(uint256(424242));
+
+        uint256 bondAmount = disputeGameFactory.initBonds(GameTypes.CANNON_2);
+        vm.deal(address(this), bondAmount);
+
+        // Create the game
+        IDisputeGame proxy = disputeGameFactory.create{ value: bondAmount }(GameTypes.CANNON_2, rootClaim, extraData);
+
+        // Verify the game was created and stored
+        (IDisputeGame game, Timestamp timestamp) = disputeGameFactory.games(GameTypes.CANNON_2, rootClaim, extraData);
+
+        assertEq(address(game), address(proxy));
+        assertEq(Timestamp.unwrap(timestamp), block.timestamp);
+
+        // Verify the game has the correct parameters via CWIA
+        IFaultDisputeGameV2 gameV2 = IFaultDisputeGameV2(address(proxy));
+
+        // Test CWIA getters
+        assertEq(Claim.unwrap(gameV2.absolutePrestate()), Claim.unwrap(absolutePrestate));
+        assertEq(Claim.unwrap(gameV2.rootClaim()), Claim.unwrap(rootClaim));
+        assertEq(gameV2.extraData(), extraData);
+        assertEq(GameType.unwrap(gameV2.gameType()), GameType.unwrap(GameTypes.CANNON_2));
+        assertEq(gameV2.l2ChainId(), 0);
+        assertEq(address(gameV2.vm()), address(vm_));
+        assertEq(address(gameV2.weth()), address(delayedWeth));
+        assertEq(address(gameV2.anchorStateRegistry()), address(anchorStateRegistry));
+    }
 }
 
 /// @title DisputeGameFactory_SetImplementation_Test
@@ -655,37 +689,5 @@ contract DisputeGameFactory_FindLatestGames_Test is DisputeGameFactory_TestInit 
 /// @title DisputeGameFactory_FaultDisputeGameV2_Test
 /// @notice Tests for FaultDisputeGameV2 creation in the `DisputeGameFactory` contract.
 contract DisputeGameFactory_Unclassified_Test is DisputeGameFactory_TestInit {
-    function test_create() public {
-        Claim absolutePrestate = Claim.wrap(bytes32(hex"dead"));
-        (address gameImpl, AlphabetVM vm_,) = setupFaultDisputeGameV2(absolutePrestate);
 
-        Claim rootClaim = changeClaimStatus(Claim.wrap(bytes32(hex"beef")), VMStatuses.INVALID);
-        // extraData should contain the l2BlockNumber as first 32 bytes
-        bytes memory extraData = abi.encode(uint256(424242));
-
-        uint256 bondAmount = disputeGameFactory.initBonds(GameTypes.CANNON_2);
-        vm.deal(address(this), bondAmount);
-
-        // Create the game
-        IDisputeGame proxy = disputeGameFactory.create{ value: bondAmount }(GameTypes.CANNON_2, rootClaim, extraData);
-
-        // Verify the game was created and stored
-        (IDisputeGame game, Timestamp timestamp) = disputeGameFactory.games(GameTypes.CANNON_2, rootClaim, extraData);
-
-        assertEq(address(game), address(proxy));
-        assertEq(Timestamp.unwrap(timestamp), block.timestamp);
-
-        // Verify the game has the correct parameters via CWIA
-        IFaultDisputeGameV2 gameV2 = IFaultDisputeGameV2(address(proxy));
-
-        // Test CWIA getters
-        assertEq(Claim.unwrap(gameV2.absolutePrestate()), Claim.unwrap(absolutePrestate));
-        assertEq(Claim.unwrap(gameV2.rootClaim()), Claim.unwrap(rootClaim));
-        assertEq(gameV2.extraData(), extraData);
-        assertEq(GameType.unwrap(gameV2.gameType()), GameType.unwrap(GameTypes.CANNON_2));
-        assertEq(gameV2.l2ChainId(), 0);
-        assertEq(address(gameV2.vm()), address(vm_));
-        assertEq(address(gameV2.weth()), address(delayedWeth));
-        assertEq(address(gameV2.anchorStateRegistry()), address(anchorStateRegistry));
-    }
 }
