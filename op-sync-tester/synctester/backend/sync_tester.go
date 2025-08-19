@@ -202,7 +202,7 @@ func (s *SyncTester) ChainId(ctx context.Context) (hexutil.Big, error) {
 		return hexutil.Big{}, err
 	}
 	if chainID.ToInt().Cmp(s.chainID.ToBig()) != 0 {
-		return hexutil.Big{}, fmt.Errorf("chainID mismatch: config: %s, backend: %s", s.chainID, chainID)
+		return hexutil.Big{}, fmt.Errorf("chainID mismatch: config: %s, backend: %s", s.chainID, chainID.ToInt())
 	}
 	return hexutil.Big(*s.chainID.ToBig()), nil
 }
