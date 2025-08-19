@@ -83,7 +83,11 @@ func (m *MockELReader) GetBlockReceipts(ctx context.Context, bnh rpc.BlockNumber
 		}
 		return receipts, nil
 	}
-	number, _ := bnh.Number()
+	number, isNumber := bnh.Number()
+	if isNumber {
+		// bnh is not a number and not a hash so return not found
+		return nil, ethereum.NotFound
+	}
 	receipts, ok := m.ReceiptsByNumber[number]
 	if !ok {
 		return nil, ethereum.NotFound
@@ -152,9 +156,7 @@ func makeBlockRaw(num uint64) *json.RawMessage {
 }
 
 func TestSyncTester_GetBlockByHash(t *testing.T) {
-
 	hash := common.HexToHash("0xdeadbeef")
-
 	tests := []struct {
 		name            string
 		sessionLatest   uint64
@@ -170,9 +172,9 @@ func TestSyncTester_GetBlockByHash(t *testing.T) {
 			wantErrContains: "no session",
 		},
 		{
-			name:            "block number larger than session latest",
+			name:            "block number greater than latest",
 			sessionLatest:   100,
-			rawNumber:       101, // larger than Latest
+			rawNumber:       101, // greater than Latest
 			session:         &Session{SessionID: uuid.New().String(), CurrentState: FCUState{Latest: 100}},
 			wantErrContains: "not found",
 		},
@@ -239,7 +241,7 @@ func TestSyncTester_GetBlockByNumber(t *testing.T) {
 			wantNum:  99,
 		},
 		{
-			name: "happy path: label latest returns CurrentState.Latest",
+			name: "happy path: label latest returns latest",
 			session: &Session{
 				SessionID: uuid.New().String(),
 				CurrentState: FCUState{
@@ -252,7 +254,7 @@ func TestSyncTester_GetBlockByNumber(t *testing.T) {
 			wantNum:  100,
 		},
 		{
-			name: "happy path: label safe returns CurrentState.Safe",
+			name: "happy path: label safe returns safe",
 			session: &Session{
 				SessionID: uuid.New().String(),
 				CurrentState: FCUState{
@@ -265,7 +267,7 @@ func TestSyncTester_GetBlockByNumber(t *testing.T) {
 			wantNum:  97,
 		},
 		{
-			name: "happy path: label finalized returns CurrentState.Finalized",
+			name: "happy path: label finalized returns finalized",
 			session: &Session{
 				SessionID: uuid.New().String(),
 				CurrentState: FCUState{
@@ -392,7 +394,7 @@ func TestSyncTester_GetBlockReceipts(t *testing.T) {
 			wantErrContains: "not found",
 		},
 		{
-			name: "happy: label latest returns CurrentState.Latest",
+			name: "happy: label latest returns latest",
 			session: &Session{
 				SessionID:    uuid.New().String(),
 				CurrentState: FCUState{Latest: 100, Safe: 95, Finalized: 90},
@@ -404,7 +406,7 @@ func TestSyncTester_GetBlockReceipts(t *testing.T) {
 			wantFirstBN: 100,
 		},
 		{
-			name: "happy: label safe returns CurrentState.Safe",
+			name: "happy: label safe returns safe",
 			session: &Session{
 				SessionID:    uuid.New().String(),
 				CurrentState: FCUState{Latest: 100, Safe: 97, Finalized: 90},
@@ -416,7 +418,7 @@ func TestSyncTester_GetBlockReceipts(t *testing.T) {
 			wantFirstBN: 97,
 		},
 		{
-			name: "happy: label finalized returns CurrentState.Finalized",
+			name: "happy: label finalized returns finalized",
 			session: &Session{
 				SessionID:    uuid.New().String(),
 				CurrentState: FCUState{Latest: 100, Safe: 97, Finalized: 92},
@@ -440,7 +442,7 @@ func TestSyncTester_GetBlockReceipts(t *testing.T) {
 			wantFirstBN: 99,
 		},
 		{
-			name: "bad: numeric not less than latest returns not found",
+			name: "bad: numeric greater than latest returns not found",
 			session: &Session{
 				SessionID:    uuid.New().String(),
 				CurrentState: FCUState{Latest: 100, Safe: 97, Finalized: 92},
