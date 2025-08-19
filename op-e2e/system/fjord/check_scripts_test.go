@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	op_e2e "github.com/ethereum-optimism/optimism/op-e2e"
+	opservice "github.com/ethereum-optimism/optimism/op-service"
 
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
 	"github.com/ethereum-optimism/optimism/op-e2e/system/e2esys"
@@ -39,7 +40,7 @@ func TestCheckFjordScript(t *testing.T) {
 			log := testlog.Logger(t, log.LevelInfo)
 			cfg := e2esys.EcotoneSystemConfig(t, &genesisActivation)
 			if tt.fjord {
-				cfg.DeployConfig.L2GenesisFjordTimeOffset = ptr(hexutil.Uint64(cfg.DeployConfig.L2BlockTime))
+				cfg.DeployConfig.L2GenesisFjordTimeOffset = opservice.Ptr(hexutil.Uint64(cfg.DeployConfig.L2BlockTime))
 			} else {
 				cfg.DeployConfig.L2GenesisFjordTimeOffset = nil
 			}
@@ -75,5 +76,3 @@ func TestCheckFjordScript(t *testing.T) {
 		})
 	}
 }
-
-func ptr[T any](t T) *T { return &t }

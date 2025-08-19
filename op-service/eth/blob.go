@@ -7,6 +7,7 @@ import (
 	"math/big"
 	"reflect"
 
+	opservice "github.com/ethereum-optimism/optimism/op-service"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/consensus/misc/eip4844"
@@ -297,12 +298,12 @@ func CalcBlobFeeDefault(header *types.Header) *big.Int {
 	// and that the caller assumes the default prod Ethereum Blob schedule config.
 	dummyChainCfg := &params.ChainConfig{
 		LondonBlock:        common.Big0,
-		CancunTime:         ptr(uint64(0)),
+		CancunTime:         opservice.Ptr(uint64(0)),
 		BlobScheduleConfig: params.DefaultBlobSchedule,
 	}
 	// We assume that the requests hash is set iff Prague is active.
 	if header.RequestsHash != nil {
-		dummyChainCfg.PragueTime = ptr(uint64(0))
+		dummyChainCfg.PragueTime = opservice.Ptr(uint64(0))
 	}
 	return eip4844.CalcBlobFee(dummyChainCfg, header)
 }
@@ -314,5 +315,3 @@ func CalcBlobFeeCancun(excessBlobGas uint64) *big.Int {
 	}
 	return CalcBlobFeeDefault(cancunHeader)
 }
-
-func ptr[T any](t T) *T { return &t }

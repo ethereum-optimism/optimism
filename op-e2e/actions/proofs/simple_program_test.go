@@ -7,6 +7,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
 	actionsHelpers "github.com/ethereum-optimism/optimism/op-e2e/actions/helpers"
 	"github.com/ethereum-optimism/optimism/op-e2e/actions/proofs/helpers"
+	opservice "github.com/ethereum-optimism/optimism/op-service"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/stretchr/testify/require"
 )
@@ -14,10 +15,10 @@ import (
 func runSimpleProgramTest(gt *testing.T, testCfg *helpers.TestCfg[any]) {
 	t := actionsHelpers.NewDefaultTesting(gt)
 	testSetup := func(dc *genesis.DeployConfig) {
-		dc.L1PragueTimeOffset = ptr(hexutil.Uint64(0))
+		dc.L1PragueTimeOffset = opservice.Ptr(hexutil.Uint64(0))
 		// Set non-trivial excess blob gas so that the L1 miner's blob logic is
 		// properly tested.
-		dc.L1GenesisBlockExcessBlobGas = ptr(hexutil.Uint64(1e8))
+		dc.L1GenesisBlockExcessBlobGas = opservice.Ptr(hexutil.Uint64(1e8))
 	}
 	bcfg := helpers.NewBatcherCfg(func(c *actionsHelpers.BatcherCfg) {
 		c.DataAvailabilityType = flags.BlobsType

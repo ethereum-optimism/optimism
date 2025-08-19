@@ -8,6 +8,7 @@ import (
 	actionsHelpers "github.com/ethereum-optimism/optimism/op-e2e/actions/helpers"
 	"github.com/ethereum-optimism/optimism/op-e2e/actions/proofs/helpers"
 	legacybindings "github.com/ethereum-optimism/optimism/op-e2e/bindings"
+	opservice "github.com/ethereum-optimism/optimism/op-service"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/predeploys"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
@@ -40,7 +41,7 @@ func Test_ProgramAction_PragueForkAfterGenesis(gt *testing.T) {
 				},
 			),
 			func(dp *genesis.DeployConfig) {
-				dp.L1PragueTimeOffset = ptr(hexutil.Uint64(24)) // Activate at second l1 block
+				dp.L1PragueTimeOffset = opservice.Ptr(hexutil.Uint64(24)) // Activate at second l1 block
 			},
 		)
 

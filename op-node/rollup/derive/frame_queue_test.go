@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"testing"
 
+	opservice "github.com/ethereum-optimism/optimism/op-service"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
@@ -120,7 +121,7 @@ func testFrameQueue_NextFrame(t *testing.T, holocene bool) {
 	inFrames := testFramesToFrames("b:1:", "b:2:!", "a:0:", "c:1:!", "a:1:", "a:2:!", "c:0:", "c:1:", "d:0:", "c:2:!", "e:0:")
 	var expFrames []Frame
 	if holocene {
-		cfg.HoloceneTime = ptr(uint64(0))
+		cfg.HoloceneTime = opservice.Ptr(uint64(0))
 		// expect pruned frames with Holocene
 		expFrames = testFramesToFrames("b:1:", "b:2:!", "a:0:", "a:1:", "a:2:!", "e:0:")
 	} else {
@@ -149,8 +150,6 @@ func testFrameQueue_NextFrame(t *testing.T, holocene bool) {
 	}
 	require.Equal(t, expFrames, gotFrames)
 }
-
-func ptr[T any](t T) *T { return &t }
 
 func testFramesToFrames(tfs ...testFrame) []Frame {
 	fs := make([]Frame, 0, len(tfs))

@@ -9,6 +9,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-e2e/actions/proofs/helpers"
 	"github.com/ethereum-optimism/optimism/op-e2e/bindings"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
+	opservice "github.com/ethereum-optimism/optimism/op-service"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/predeploys"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
@@ -67,8 +68,8 @@ func Test_ProgramAction_OperatorFeeConsistency(gt *testing.T) {
 
 		if testCfg.Custom == IsthmusTransitionBlock {
 			deployConfigOverrides = func(dp *genesis.DeployConfig) {
-				dp.L1PragueTimeOffset = ptr(hexutil.Uint64(0))
-				dp.L2GenesisIsthmusTimeOffset = ptr(hexutil.Uint64(13))
+				dp.L1PragueTimeOffset = opservice.Ptr(hexutil.Uint64(0))
+				dp.L2GenesisIsthmusTimeOffset = opservice.Ptr(hexutil.Uint64(13))
 			}
 		}
 
@@ -390,8 +391,4 @@ func fjordL1Cost(l1BlockInfo *derive.L1BlockInfo, rollupCostData types.RollupCos
 
 	fee, _ := costFunc(rollupCostData)
 	return fee
-}
-
-func ptr[T any](v T) *T {
-	return &v
 }

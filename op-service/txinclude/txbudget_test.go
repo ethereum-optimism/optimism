@@ -4,6 +4,7 @@ import (
 	"math/big"
 	"testing"
 
+	opservice "github.com/ethereum-optimism/optimism/op-service"
 	"github.com/ethereum-optimism/optimism/op-service/accounting"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum/go-ethereum/common"
@@ -108,11 +109,11 @@ func TestTxBudgetIncluded(t *testing.T) {
 		Type:              types.DynamicFeeTxType,
 
 		L1GasPrice:          big.NewInt(1),
-		L1BaseFeeScalar:     ptr(uint64(1)),
+		L1BaseFeeScalar:     opservice.Ptr(uint64(1)),
 		L1BlobBaseFee:       big.NewInt(1),
-		L1BlobBaseFeeScalar: ptr(uint64(1)),
-		OperatorFeeScalar:   ptr(uint64(1)),
-		OperatorFeeConstant: ptr(uint64(0)),
+		L1BlobBaseFeeScalar: opservice.Ptr(uint64(1)),
+		OperatorFeeScalar:   opservice.Ptr(uint64(1)),
+		OperatorFeeConstant: opservice.Ptr(uint64(0)),
 	}
 
 	startingBalance := eth.WeiU64(100)

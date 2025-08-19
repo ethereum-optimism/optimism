@@ -4,6 +4,7 @@ import (
 	"math/rand" // nosemgrep
 	"testing"
 
+	opservice "github.com/ethereum-optimism/optimism/op-service"
 	"github.com/ethereum/go-ethereum/consensus/misc/eip1559"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
@@ -23,11 +24,7 @@ import (
 var defaultOpConfig = &params.OptimismConfig{
 	EIP1559Elasticity:        6,
 	EIP1559Denominator:       50,
-	EIP1559DenominatorCanyon: ptr(uint64(250)),
-}
-
-func ptr[T any](t T) *T {
-	return &t
+	EIP1559DenominatorCanyon: opservice.Ptr(uint64(250)),
 }
 
 type matchArgs struct {

@@ -7,6 +7,7 @@ import (
 	actionsHelpers "github.com/ethereum-optimism/optimism/op-e2e/actions/helpers"
 	"github.com/ethereum-optimism/optimism/op-e2e/actions/proofs/helpers"
 	legacybindings "github.com/ethereum-optimism/optimism/op-e2e/bindings"
+	opservice "github.com/ethereum-optimism/optimism/op-service"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/predeploys"
 	"github.com/stretchr/testify/require"
@@ -26,12 +27,12 @@ func Test_ProgramAction_PectraBlobSchedule(gt *testing.T) {
 
 	matrix.AddDefaultTestCases(
 		// aligned with an L1 timestamp
-		pectraBlobScheduleTestCfg{ptr(uint64(24)), true},
+		pectraBlobScheduleTestCfg{opservice.Ptr(uint64(24)), true},
 		helpers.NewForkMatrix(helpers.Holocene, helpers.Isthmus),
 		testPectraBlobSchedule,
 	).AddDefaultTestCases(
 		// in the middle between two L1 timestamps
-		pectraBlobScheduleTestCfg{ptr(uint64(18)), true},
+		pectraBlobScheduleTestCfg{opservice.Ptr(uint64(18)), true},
 		helpers.NewForkMatrix(helpers.Holocene),
 		testPectraBlobSchedule,
 	).AddDefaultTestCases(
@@ -45,10 +46,10 @@ func testPectraBlobSchedule(gt *testing.T, testCfg *helpers.TestCfg[any]) {
 	tcfg := testCfg.Custom.(pectraBlobScheduleTestCfg) // two flavors of this test
 	t := actionsHelpers.NewDefaultTesting(gt)
 	testSetup := func(dc *genesis.DeployConfig) {
-		dc.L1PragueTimeOffset = ptr(hexutil.Uint64(0))
+		dc.L1PragueTimeOffset = opservice.Ptr(hexutil.Uint64(0))
 		dc.L2GenesisPectraBlobScheduleTimeOffset = (*hexutil.Uint64)(tcfg.offset)
 		// set genesis excess blob gas so there are >0 blob base fees for some blocks
-		dc.L1GenesisBlockExcessBlobGas = ptr(hexutil.Uint64(1e8))
+		dc.L1GenesisBlockExcessBlobGas = opservice.Ptr(hexutil.Uint64(1e8))
 	}
 
 	env := helpers.NewL2FaultProofEnv(t, testCfg, helpers.NewTestParams(), helpers.NewBatcherCfg(), testSetup)
@@ -129,8 +130,4 @@ func testPectraBlobSchedule(gt *testing.T, testCfg *helpers.TestCfg[any]) {
 	require.Equal(t, eth.HeaderBlockID(l2SafeHead), eth.HeaderBlockID(l2UnsafeHead), "derivation leads to the same block")
 
 	env.RunFaultProofProgramFromGenesis(t, l2SafeHead.Number.Uint64(), testCfg.CheckResult, testCfg.InputParams...)
-}
-
-func ptr[T any](v T) *T {
-	return &v
 }

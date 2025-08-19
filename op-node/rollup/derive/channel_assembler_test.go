@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"testing"
 
+	opservice "github.com/ethereum-optimism/optimism/op-service"
 	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum-optimism/optimism/op-node/metrics"
@@ -89,7 +90,7 @@ func TestChannelStage_NextData(t *testing.T) {
 			expErr:      []error{nil},
 			expData:     []string{"0123456789"},
 			expChID:     []string{""},
-			rlpOverride: ptr[uint64](frameOverhead + 10),
+			rlpOverride: opservice.Ptr[uint64](frameOverhead + 10),
 		},
 		{
 			desc: "oversized",
@@ -99,7 +100,7 @@ func TestChannelStage_NextData(t *testing.T) {
 			expErr:      []error{io.EOF},
 			expData:     []string{""},
 			expChID:     []string{""},
-			rlpOverride: ptr[uint64](frameOverhead + 10),
+			rlpOverride: opservice.Ptr[uint64](frameOverhead + 10),
 		},
 	} {
 		t.Run(tc.desc, func(t *testing.T) {
@@ -140,7 +141,7 @@ func TestChannelStage_NextData_Timeout(t *testing.T) {
 	require := require.New(t)
 	fq := &fakeChannelBankInput{}
 	lgr := testlog.Logger(t, slog.LevelWarn)
-	spec := rollup.NewChainSpec(&rollup.Config{GraniteTime: ptr(uint64(0))}) // const channel timeout
+	spec := rollup.NewChainSpec(&rollup.Config{GraniteTime: opservice.Ptr(uint64(0))}) // const channel timeout
 	cs := NewChannelAssembler(lgr, spec, fq, metrics.NoopMetrics)
 
 	fq.AddFrames("a:0:foo")

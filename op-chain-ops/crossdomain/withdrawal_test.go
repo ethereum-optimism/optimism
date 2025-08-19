@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/crossdomain"
+	opservice "github.com/ethereum-optimism/optimism/op-service"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/stretchr/testify/require"
@@ -61,8 +62,8 @@ func TestWithdrawalHashing(t *testing.T) {
 		{
 			Withdrawal: crossdomain.NewWithdrawal(
 				big.NewInt(0),
-				ptr(common.HexToAddress("0xaa179e0640054db6ba4fe9b291dd3b248f4b4960")),
-				ptr(common.HexToAddress("0x9b2b72e299e04f00fc5b386972d8951bb870d65e")),
+				opservice.Ptr(common.HexToAddress("0xaa179e0640054db6ba4fe9b291dd3b248f4b4960")),
+				opservice.Ptr(common.HexToAddress("0x9b2b72e299e04f00fc5b386972d8951bb870d65e")),
 				big.NewInt(1),
 				decimalStringToBig("124808255574871339965699013847079823271"),
 				hexutil.MustDecode("0x2e1d8f26c6611c04d9f8ea352444b9d366f76c19897c851f5ce9a4d650cf2355f92da68491af279f78110a31c6cb26db09b20b3b1307ff99be0bc410d8bf6994b0e87ced86b747773597dfd1da84268508e34a46a087088ed9276738ffe39e7a1264"),
@@ -75,8 +76,8 @@ func TestWithdrawalHashing(t *testing.T) {
 		{
 			Withdrawal: crossdomain.NewWithdrawal(
 				big.NewInt(0),
-				ptr(common.HexToAddress("0x00000000000000000000000000000000000011bc")),
-				ptr(common.HexToAddress("0x00000000000000000000000000000000000033eb")),
+				opservice.Ptr(common.HexToAddress("0x00000000000000000000000000000000000011bc")),
+				opservice.Ptr(common.HexToAddress("0x00000000000000000000000000000000000033eb")),
 				big.NewInt(26),
 				decimalStringToBig("22338"),
 				hexutil.MustDecode("0x0000000000000000000000000000000000000000000000000000000000000004"),
@@ -89,8 +90,8 @@ func TestWithdrawalHashing(t *testing.T) {
 		{
 			Withdrawal: crossdomain.NewWithdrawal(
 				big.NewInt(0),
-				ptr(common.HexToAddress("0x4b0ca57cb88a41771d2cc24ac9fd50afeaa3eedd")),
-				ptr(common.HexToAddress("0x8a5e8410b2c3e1036c49ff8acae1e659e2508200")),
+				opservice.Ptr(common.HexToAddress("0x4b0ca57cb88a41771d2cc24ac9fd50afeaa3eedd")),
+				opservice.Ptr(common.HexToAddress("0x8a5e8410b2c3e1036c49ff8acae1e659e2508200")),
 				big.NewInt(3),
 				decimalStringToBig("115792089237316195423570985008687907853269984665640564039457584007913129639935"),
 				hexutil.MustDecode("0xce6b96a23be7a1ac1de74f3202dfc4cedaef69502204c0d92f7b352a837a"),
@@ -121,8 +122,4 @@ func decimalStringToBig(n string) *big.Int {
 		panic("")
 	}
 	return ret
-}
-
-func ptr(i common.Address) *common.Address {
-	return &i
 }

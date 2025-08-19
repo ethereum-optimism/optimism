@@ -5,6 +5,7 @@ import (
 	"math/rand"
 	"testing"
 
+	opservice "github.com/ethereum-optimism/optimism/op-service"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/params"
@@ -302,7 +303,7 @@ func TestExtraneousData(t *testing.T) {
 // CalcBlobFeeDefault relies on with certain assumptions.
 func TestCalcBlobFeeDefault(t *testing.T) {
 	header := &types.Header{
-		ExcessBlobGas: ptr(uint64(20 * params.DefaultCancunBlobConfig.UpdateFraction)),
+		ExcessBlobGas: opservice.Ptr(uint64(20 * params.DefaultCancunBlobConfig.UpdateFraction)),
 	}
 	cancunBlobFee := CalcBlobFeeDefault(header)
 	require.Equal(t, big.NewInt(485165195), cancunBlobFee)

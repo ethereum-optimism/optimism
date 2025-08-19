@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	op_e2e "github.com/ethereum-optimism/optimism/op-e2e"
+	opservice "github.com/ethereum-optimism/optimism/op-service"
 
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
 	"github.com/ethereum-optimism/optimism/op-e2e/system/e2esys"
@@ -31,9 +32,9 @@ func TestSetCodeInTxPool(t *testing.T) {
 		tt := tt
 		t.Run(fmt.Sprintf("isthmus=%t", tt.isthmus), func(t *testing.T) {
 			t.Parallel()
-			cfg := e2esys.HoloceneSystemConfig(t, ptr[hexutil.Uint64](0))
+			cfg := e2esys.HoloceneSystemConfig(t, opservice.Ptr[hexutil.Uint64](0))
 			if tt.isthmus {
-				cfg.DeployConfig.L2GenesisIsthmusTimeOffset = ptr(hexutil.Uint64(cfg.DeployConfig.L2BlockTime))
+				cfg.DeployConfig.L2GenesisIsthmusTimeOffset = opservice.Ptr(hexutil.Uint64(cfg.DeployConfig.L2BlockTime))
 			} else {
 				cfg.DeployConfig.L2GenesisIsthmusTimeOffset = nil
 			}
@@ -64,5 +65,3 @@ func TestSetCodeInTxPool(t *testing.T) {
 		})
 	}
 }
-
-func ptr[T any](t T) *T { return &t }

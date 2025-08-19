@@ -7,6 +7,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	opservice "github.com/ethereum-optimism/optimism/op-service"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/predeploys"
 	"github.com/ethereum-optimism/optimism/op-service/signer"
@@ -102,16 +103,12 @@ func newCall(method string) rpc.BatchElem {
 		Method: "eth_call",
 		Args: []any{
 			&signer.TransactionArgs{
-				To:   ptr(common.HexToAddress(predeploys.L1Block)),
-				Data: ptr(hexutil.Bytes(w3.MustNewFunc(method, "").Selector[:])),
+				To:   opservice.Ptr(common.HexToAddress(predeploys.L1Block)),
+				Data: opservice.Ptr(hexutil.Bytes(w3.MustNewFunc(method, "").Selector[:])),
 			},
 			eth.Unsafe,
 			nil, // State overrides (optional).
 		},
-		Result: ptr(make(hexutil.Bytes, 0)),
+		Result: opservice.Ptr(make(hexutil.Bytes, 0)),
 	}
-}
-
-func ptr[T any](x T) *T {
-	return &x
 }

@@ -170,3 +170,5 @@ func U64UtilPtr(in uint64) *hexutil.Uint64 {
 	util := hexutil.Uint64(in)
 	return &util
 }
+
+func Ptr[T any](t T) *T { return &t }
