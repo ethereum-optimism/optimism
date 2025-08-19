@@ -49,10 +49,13 @@ do
       fi
       echo "installing go@${GO_VERSION} and jq@${JQ_VERSION}"
       env MISE_NO_CONFIG=1 mise install "go@${GO_VERSION}" "jq@${JQ_VERSION}" -v -y 2>&1 | tee "${LOG_FILE}"
+      echo "done installing deps"
       if [ ! -x "$(command -v jq)" ]; then
         echo "debugme: jq is not installed!"
         exit 1
       fi
+      echo "found jq"
+      which jq
       echo "jq version is $(jq --version)"
     fi
     rm -rf "${BIN_DIR}"
