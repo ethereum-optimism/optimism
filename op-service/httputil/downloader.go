@@ -12,6 +12,7 @@ import (
 type Downloader struct {
 	Client     *http.Client
 	Progressor ioutil.Progressor
+	MaxSize    int64
 }
 
 func (d *Downloader) Download(ctx context.Context, url string, out io.Writer) error {
@@ -34,8 +35,13 @@ func (d *Downloader) Download(ctx context.Context, url string, out io.Writer) er
 
 	defer resp.Body.Close()
 
+	r := io.Reader(resp.Body)
+	if d.MaxSize > 0 {
+		r = io.LimitReader(resp.Body, d.MaxSize)
+	}
+
 	pr := &ioutil.ProgressReader{
-		R:          resp.Body,
+		R:          r,
 		Progressor: d.Progressor,
 		Total:      resp.ContentLength,
 	}

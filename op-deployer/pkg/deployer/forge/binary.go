@@ -18,6 +18,10 @@ import (
 // Version is the Foundry version that op-deployer will download if it's not found on PATH.
 const Version = "v1.3.1"
 
+// maxDownloadSize is the maximum size of the Foundry tarball that will be downloaded. It's typically ~60MB so
+// this should be more than enough.
+const maxDownloadSize = 100 * 1024 * 1024
+
 func bindirName() string {
 	sysOS := runtime.GOOS
 	if runtime.GOOS == "windows" {
@@ -144,6 +148,7 @@ func (b *AutodetectBin) downloadBinary(ctx context.Context, dest string) error {
 	}()
 	downloader := &httputil.Downloader{
 		Progressor: b.progressor,
+		MaxSize:    maxDownloadSize,
 	}
 	buf := new(bytes.Buffer)
 	if err := downloader.Download(ctx, b.url, buf); err != nil {
