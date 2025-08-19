@@ -59,9 +59,13 @@ do
       which jq
       echo "found which jq"
       mise use -g "go@${GO_VERSION}"
+      echo "using go"
       mise use -g "jq@${JQ_VERSION}"
+      echo "using jq"
       mise reshim
+      echo "reshim done"
       mise which jq
+      echo "which jq done"
       echo "jq version is $(jq --version)"
     fi
     rm -rf "${BIN_DIR}"
