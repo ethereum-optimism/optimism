@@ -56,6 +56,8 @@ do
       fi
       echo "found jq"
       which jq
+      echo "found which jq"
+      mise which jq
       echo "jq version is $(jq --version)"
     fi
     rm -rf "${BIN_DIR}"
