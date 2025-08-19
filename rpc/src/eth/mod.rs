@@ -375,7 +375,7 @@ where
             Some(
                 SequencerClient::new_with_headers(&url, sequencer_headers)
                     .await
-                    .wrap_err_with(|| "Failed to init sequencer client with: {url}")?,
+                    .wrap_err_with(|| format!("Failed to init sequencer client with: {url}"))?,
             )
         } else {
             None
