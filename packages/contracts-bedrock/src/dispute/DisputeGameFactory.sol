@@ -298,15 +298,6 @@ contract DisputeGameFactory is ProxyAdminOwnedBase, ReinitializableBase, Ownable
         emit ImplementationArgsSet(_gameType, _args);
     }
 
-    /// @notice Sets the implementation args for a specific `GameType`.
-    /// @dev May only be called by the `owner`. Maintains backwards compatibility.
-    /// @param _gameType The type of the DisputeGame.
-    /// @param _args The constructor args to be passed for the implementation.
-    function setImplementationArgs(GameType _gameType, bytes calldata _args) external onlyOwner {
-        gameArgs[_gameType] = _args;
-        emit ImplementationArgsSet(_gameType, _args);
-    }
-
     /// @notice Sets the bond (in wei) for initializing a game type.
     /// @dev May only be called by the `owner`.
     /// @param _gameType The type of the DisputeGame.
