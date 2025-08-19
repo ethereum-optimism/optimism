@@ -84,7 +84,7 @@ func (m *MockELReader) GetBlockReceipts(ctx context.Context, bnh rpc.BlockNumber
 		return receipts, nil
 	}
 	number, isNumber := bnh.Number()
-	if isNumber {
+	if !isNumber {
 		// bnh is not a number and not a hash so return not found
 		return nil, ethereum.NotFound
 	}
