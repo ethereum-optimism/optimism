@@ -93,3 +93,9 @@ func WithL2CLNode(l2CLID stack.L2CLNodeID, l1CLID stack.L1CLNodeID, l1ELID stack
 		return WithOpNode(l2CLID, l1CLID, l1ELID, l2ELID, opts...)
 	}
 }
+
+// WithL2CLNodeWithSyncTester is a convenience function that accepts a SyncTester
+// This allows configuring a CL node with a SyncTester instead of an L2EL node
+func WithL2CLNodeWithSyncTester(l2CLID stack.L2CLNodeID, l1CLID stack.L1CLNodeID, l1ELID stack.L1ELNodeID, opts ...L2CLOption) stack.Option[*Orchestrator] {
+	return WithOpNode(l2CLID, l1CLID, l1ELID, nil, opts...)
+}
