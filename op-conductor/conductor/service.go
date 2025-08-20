@@ -735,7 +735,7 @@ func (oc *OpConductor) action() {
 		// There are 2 scenarios we need to handle:
 		// 1. current node is follower, active sequencer became unhealthy and started the leadership transfer process.
 		//    however if leadership transfer took longer than the time for health monitor to treat the node as unhealthy,
-		//    then basically the entire network is stalled and we need to start sequencing ,in this case.
+		//    then basically the entire network is stalled and we need to start sequencing in this case.
 		if !oc.prevState.leader && !oc.prevState.active && !errors.Is(oc.hcerr, health.ErrSequencerConnectionDown) {
 			err = oc.startSequencer()
 			if err != nil {
@@ -751,9 +751,7 @@ func (oc *OpConductor) action() {
 	case status.leader && !status.healthy && status.active:
 		// There are two scenarios we need to handle here:
 		// 1. we're transitioned from case status.leader && !status.healthy && !status.active, see description above
-		//    then we should continue to sequence blocks and try to bring ourselves back to healthy state.
-		//    note: we need to also make sure that the health error is not due to ErrSequencerConnectionDown
-		//    		because in this case, we should stop sequencing and transfer leadership to other nodes.
+		//    then we should continue to sequence blocks and try to bring ourselves back to healthy state (if possible)
 		if oc.shouldWaitForHealthRecovery() {
 			err = errors.New("waiting for sequencing to become healthy by itself")
 			break
