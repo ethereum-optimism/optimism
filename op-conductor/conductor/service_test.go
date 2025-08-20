@@ -1184,11 +1184,17 @@ connected:
 	s.True(conductor.Stopped())
 }
 
-// TestRollupBoostHealthFailure tests that OpConductor correctly handles rollup boost health failures
+// TestRollupBoostPartialFailure tests that OpConductor correctly handles rollup boost partial health failures.
+// This test verifies that when a leader is unhealthy and actively sequencing due to ErrRollupBoostPartiallyHealthy,
+// it should stop sequencing and transfer leadership instead of waiting for health recovery.
+// Scenario: [leader, unhealthy, active] with prevState [leader, unhealthy, inactive] and ErrRollupBoostPartiallyHealthy
+// Expected: Stop sequencing and transfer leadership (not wait for recovery)
 func (s *OpConductorTestSuite) TestRollupBoostPartialFailure() {
 	s.enableSynchronization()
 
-	// set initial state as a leader that is healthy and sequencing
+	// Set initial state: leader is unhealthy and actively sequencing
+	// Previous state was [leader, unhealthy, inactive] - this simulates the scenario where
+	// the leader started sequencing during a network stall but rollup boost is partially healthy
 	s.conductor.leader.Store(true)
 	s.conductor.healthy.Store(false)
 	s.conductor.seqActive.Store(true)
@@ -1197,21 +1203,23 @@ func (s *OpConductorTestSuite) TestRollupBoostPartialFailure() {
 		healthy: false,
 		active:  false,
 	}
+	s.conductor.cfg.RollupBoostEnabled = true
 
-	// Setup expectations - leader with unhealthy rollup boost should stop sequencing and transfer leadership
+	// Setup expectations - with ErrRollupBoostPartiallyHealthy, conductor should NOT wait for recovery
+	// Instead, it should stop sequencing and transfer leadership to another node
 	s.ctrl.EXPECT().StopSequencer(mock.Anything).Return(common.Hash{}, nil).Times(1)
 	s.cons.EXPECT().TransferLeader().Return(nil).Times(1)
 
-	// Simulate a rollup boost health failure
+	// Trigger the health update with rollup boost partial failure
 	s.updateHealthStatusAndExecuteAction(health.ErrRollupBoostPartiallyHealthy)
 
-	// Verify the OpConductor transitions to follower state and stops sequencing
-	s.False(s.conductor.leader.Load(), "Should transition to follower")
-	s.False(s.conductor.healthy.Load(), "Should be marked as unhealthy")
-	s.False(s.conductor.seqActive.Load(), "Sequencer should be stopped")
-	s.Equal(health.ErrRollupBoostPartiallyHealthy, s.conductor.hcerr, "Error should be stored")
+	// Verify the conductor stops sequencing and transfers leadership instead of waiting for recovery
+	s.False(s.conductor.leader.Load(), "Should transfer leadership to another node")
+	s.False(s.conductor.healthy.Load(), "Should remain marked as unhealthy")
+	s.False(s.conductor.seqActive.Load(), "Should stop sequencing")
+	s.Equal(health.ErrRollupBoostPartiallyHealthy, s.conductor.hcerr, "Should store the rollup boost error")
 
-	// Verify method calls
+	// Verify the expected actions were taken
 	s.ctrl.AssertNumberOfCalls(s.T(), "StopSequencer", 1)
 	s.cons.AssertNumberOfCalls(s.T(), "TransferLeader", 1)
 }
