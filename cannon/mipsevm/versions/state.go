@@ -70,7 +70,6 @@ func FeaturesForVersion(version StateVersion) mipsevm.FeatureToggles {
 	features := mipsevm.FeatureToggles{}
 	// Set any required feature toggles based on the state version here.
 	if version >= VersionMultiThreaded64_v4 {
-		features.SupportMinimalSysEventFd2 = true
 		features.SupportDclzDclo = true
 		features.SupportNoopMprotect = true
 	}

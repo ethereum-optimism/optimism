@@ -198,10 +198,6 @@ func (m *InstrumentedState) handleSyscall() error {
 	case arch.SysGetRLimit:
 	case arch.SysLseek:
 	case arch.SysEventFd2:
-		if !m.features.SupportMinimalSysEventFd2 {
-			m.handleUnrecognizedSyscall(syscallNum)
-		}
-
 		// a0 = initial value, a1 = flags
 		// Validate flags
 		if a1&exec.EFD_NONBLOCK == 0 {
