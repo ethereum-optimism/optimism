@@ -494,7 +494,7 @@ library MIPS64Instructions {
                         return i;
                     }
                     // dclz, dclo
-                    else if (st.featuresForVersion(stateVersion).supportDclzDclo && (fun == 0x24 || fun == 0x25)) {
+                    else if (fun == 0x24 || fun == 0x25)) {
                         if (fun == 0x24) {
                             rs = ~rs;
                         }

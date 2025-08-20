@@ -350,7 +350,7 @@ func ExecuteMipsInstruction(insn uint32, opcode uint32, fun uint32, rs, rt, mem 
 					rs <<= 1
 				}
 				return Word(i)
-			case features.SupportDclzDclo && (fun == 0x24 || fun == 0x25): // dclz, dclo
+			case fun == 0x24 || fun == 0x25: // dclz, dclo
 				assertMips64Fun(insn)
 				if fun == 0x24 {
 					rs = ^rs
