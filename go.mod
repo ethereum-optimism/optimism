@@ -301,7 +301,7 @@ require (
 	lukechampine.com/blake3 v1.3.0 // indirect
 )
 
-replace github.com/ethereum/go-ethereum => github.com/ethereum-optimism/op-geth v1.101511.2-0.20250815172508-fc84e95a3f48
+replace github.com/ethereum/go-ethereum => github.com/ethereum-optimism/op-geth v1.101511.2-0.20250820165441-6b2652c2587e
 
 // replace github.com/ethereum/go-ethereum => ../op-geth
 // replace github.com/ethereum-optimism/superchain-registry/superchain => ../superchain-registry/superchain
