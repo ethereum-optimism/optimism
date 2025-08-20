@@ -1549,6 +1549,32 @@ contract OPContractsManager_Upgrade_Test is OPContractsManager_Upgrade_Harness {
         vm.expectRevert(SuperchainConfigExpectedVersionMismatch.selector);
         DelegateCaller(upgrader).dcForward(address(opcm), abi.encodeCall(IOPContractsManager.upgrade, (opChainConfigs)));
     }
+
+    /// @notice Tests that if 2 opChains with different superchainConfigs are passed into upgrade, it reverts.
+    function test_upgrade_superchainConfigInconsistent_reverts() public {
+        runUpgrade13UpgradeAndChecks(upgrader);
+        runUpgrade14UpgradeAndChecks(upgrader);
+
+        // Create a second OP Chain where its superchain config is not the same as the first OP chain.
+        opChainConfigs.push(opChainConfigs[0]);
+        ISystemConfig secondSystemConfig = ISystemConfig(address(123456789));
+        IOptimismPortal2 secondOptimismPortal = IOptimismPortal2(payable(address(987654321)));
+        opChainConfigs[1].systemConfigProxy = secondSystemConfig;
+        vm.mockCall(
+            address(secondSystemConfig),
+            abi.encodeCall(ISystemConfig.optimismPortal, ()),
+            abi.encode(secondOptimismPortal)
+        );
+        vm.mockCall(
+            address(secondOptimismPortal),
+            abi.encodeCall(IOptimismPortal2.superchainConfig, ()),
+            abi.encode(ISuperchainConfig(address(999999999)))
+        );
+
+        // Try upgrading an OPChain without upgrading its superchainConfig.
+        vm.expectRevert(IOPContractsManager.SuperchainConfigInconsistent.selector);
+        DelegateCaller(upgrader).dcForward(address(opcm), abi.encodeCall(IOPContractsManager.upgrade, (opChainConfigs)));
+    }
 }
 
 contract OPContractsManager_UpgradeSuperchainConfig_Test is OPContractsManager_Upgrade_Harness {
