@@ -429,8 +429,6 @@ func (s *CrossLayerUser) CheckDepositTx(t Testing, l1TxHash common.Hash, index i
 	}
 }
 
-
-
 func (s *CrossLayerUser) Address() common.Address {
 	return s.L1.address
 }
@@ -512,8 +510,6 @@ func (s *CrossLayerUser) getDisputeGame(t Testing, params withdrawals.ProvenWith
 	return proxy, game.DisputeGameProxy, nil
 }
 
-
-
 // ProveWithdrawal creates a L1 proveWithdrawal tx for the given L2 withdrawal tx, returning the tx hash.
 func (s *CrossLayerUser) ProveWithdrawal(t Testing, l2TxHash common.Hash) common.Hash {
 	params, err := s.getLastWithdrawalParams(t)
@@ -544,8 +540,6 @@ func (s *CrossLayerUser) ProveWithdrawal(t Testing, l2TxHash common.Hash) common
 	require.NoError(t, err, "must send prove tx")
 	return tx.Hash()
 }
-
-
 
 // CompleteWithdrawal creates a L1 withdrawal finalization tx for the given L2 withdrawal tx, returning the tx hash.
 // It's an invalid action to attempt to complete a withdrawal that has not passed the L1 finalization period yet
