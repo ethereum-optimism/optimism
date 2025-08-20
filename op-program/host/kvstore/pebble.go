@@ -52,9 +52,10 @@ func (d *pebbleKV) Get(k common.Hash) ([]byte, error) {
 		}
 		return nil, err
 	}
+	defer closer.Close()
+
 	ret := make([]byte, len(dat))
 	copy(ret, dat)
-	closer.Close()
 	return ret, nil
 }
 
