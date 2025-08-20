@@ -16,5 +16,8 @@ no-section-label = true
 enable = true
 level = 1
 
+[preprocessor.mermaid]
+command = "mdbook-mermaid"
+
 [build]
 build-dir = "book"

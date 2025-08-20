@@ -27,6 +27,7 @@ cargo test --all-features
 ```
 
 ### Deployment
+
 Builds of the websocket proxy [are provided](https://github.com/base/flashblocks-websocket-proxy/pkgs/container/flashblocks-websocket-proxy).
 The only configuration required is the rollup-boost URL to proxy. You can set this via an env var `UPSTREAM_WS` or a flag `--upstream-ws`.
 

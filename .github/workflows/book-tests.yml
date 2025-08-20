@@ -18,16 +18,19 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install mdbook
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: stable
+          override: true
+          components: rustfmt
+
+      - name: Install Dependencies
         run: |
-          mkdir mdbook
-          curl -sSL https://github.com/rust-lang/mdBook/releases/download/v0.4.14/mdbook-v0.4.14-x86_64-unknown-linux-gnu.tar.gz | tar -xz --directory=./mdbook
-          echo $(pwd)/mdbook >> $GITHUB_PATH
-      - name: Install mdbook-template
-        run: |
-          mkdir mdbook-template
-          curl -sSL https://github.com/sgoudham/mdbook-template/releases/latest/download/mdbook-template-x86_64-unknown-linux-gnu.tar.gz | tar -xz --directory=./mdbook-template
-          echo $(pwd)/mdbook-template >> $GITHUB_PATH
+          cargo install mdbook
+          cargo install mdbook-mermaid
+          cargo install mdbook-template
+
       - name: Run tests
         working-directory: ./book
         run: mdbook test
@@ -40,13 +43,17 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install mdbook-linkcheck
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: stable
+          override: true
+          components: rustfmt
+
+      - name: Install Dependencies
         run: |
-          mkdir mdbook-linkcheck
-          curl -sSL -o mdbook-linkcheck.zip https://github.com/Michael-F-Bryan/mdbook-linkcheck/releases/latest/download/mdbook-linkcheck.x86_64-unknown-linux-gnu.zip
-          unzip mdbook-linkcheck.zip -d ./mdbook-linkcheck
-          chmod +x $(pwd)/mdbook-linkcheck/mdbook-linkcheck
-          echo $(pwd)/mdbook-linkcheck >> $GITHUB_PATH
+          cargo install mdbook-linkcheck
+
       - name: Run linkcheck
         working-directory: ./book
         run: mdbook-linkcheck --standalone
