@@ -344,6 +344,9 @@ func (envelope *ExecutionPayloadEnvelope) CheckBlockHash() (actual common.Hash, 
 	return blockHash, blockHash == payload.BlockHash
 }
 
+// BlockAsPayload converts a [*types.Block] to an [ExecutionPayload]. It can only be used to convert
+// OP-Stack blocks, as it follows Canyon and Isthmus rules to set the Withdrawals and
+// WithdrawalsRoot fields.
 func BlockAsPayload(bl *types.Block, config *params.ChainConfig) (*ExecutionPayload, error) {
 	baseFee, overflow := uint256.FromBig(bl.BaseFee())
 	if overflow {
@@ -381,11 +384,11 @@ func BlockAsPayload(bl *types.Block, config *params.ChainConfig) (*ExecutionPayl
 		// WithdrawalsRoot is only set starting at Isthmus
 	}
 
-	if config.ShanghaiTime != nil && uint64(payload.Timestamp) >= *config.ShanghaiTime {
+	if config.IsCanyon(uint64(payload.Timestamp)) {
 		payload.Withdrawals = &types.Withdrawals{}
 	}
 
-	if config.IsthmusTime != nil && uint64(payload.Timestamp) >= *config.IsthmusTime {
+	if config.IsIsthmus(uint64(payload.Timestamp)) {
 		payload.WithdrawalsRoot = bl.Header().WithdrawalsHash
 	}
 
