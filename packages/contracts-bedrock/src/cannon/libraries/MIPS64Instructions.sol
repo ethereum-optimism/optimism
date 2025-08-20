@@ -248,7 +248,6 @@ library MIPS64Instructions {
         uint64 rs = _args.rs;
         uint64 rt = _args.rt;
         uint64 mem = _args.mem;
-        uint256 stateVersion = _args.stateVersion;
         unchecked {
             if (opcode == 0 || (opcode >= 8 && opcode < 0xF) || opcode == 0x18 || opcode == 0x19) {
                 assembly {
