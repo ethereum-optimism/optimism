@@ -6,17 +6,13 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/ethereum-optimism/optimism/devnet-sdk/system"
-	"github.com/ethereum-optimism/optimism/devnet-sdk/testing/systest"
-	"github.com/ethereum-optimism/optimism/op-e2e/bindings"
+	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
+	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
+	"github.com/ethereum-optimism/optimism/op-devstack/presets"
 	"github.com/ethereum-optimism/optimism/op-service/sources/batching"
 	"github.com/ethereum-optimism/optimism/op-service/sources/batching/rpcblock"
-	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/ethclient"
-	"github.com/ethereum/go-ethereum/log"
-	"github.com/stretchr/testify/require"
 )
 
 var portalABIString = `
@@ -50,7 +46,33 @@ var portalABIString = `
 ]
 `
 
+var disputeGameFactoryABIString = `
+[
+	{
+		"inputs": [{"name": "gameType", "type": "uint32"}],
+		"name": "gameImpls",
+		"outputs": [{"name": "", "type": "address"}],
+		"stateMutability": "view",
+		"type": "function"
+	}
+]
+`
+
+var faultDisputeGameABIString = `
+[
+	{
+		"inputs": [],
+		"name": "absolutePrestate",
+		"outputs": [{"name": "", "type": "bytes32"}],
+		"stateMutability": "view",
+		"type": "function"
+	}
+]
+`
+
 var portalABI *abi.ABI
+var disputeGameFactoryABI *abi.ABI
+var faultDisputeGameABI *abi.ABI
 
 func init() {
 	if parsed, err := abi.JSON(bytes.NewReader([]byte(portalABIString))); err != nil {
@@ -58,113 +80,119 @@ func init() {
 	} else {
 		portalABI = &parsed
 	}
-}
 
-func TestInteropReadiness(t *testing.T) {
-	systest.SystemTest(t, interopReadinessTestScenario())
-}
+	if parsed, err := abi.JSON(bytes.NewReader([]byte(disputeGameFactoryABIString))); err != nil {
+		panic(fmt.Sprintf("failed to parse dispute game factory abi: %s", err))
+	} else {
+		disputeGameFactoryABI = &parsed
+	}
 
-func interopReadinessTestScenario() systest.SystemTestFunc {
-	return func(t systest.T, sys system.System) {
-		logger := testlog.Logger(t, log.LevelInfo)
-		logger.Info("Started test")
-
-		l1Client, err := sys.L1().Nodes()[0].GethClient()
-		require.NoError(t, err)
-		l1Caller := batching.NewMultiCaller(l1Client.Client(), batching.DefaultBatchSize)
-
-		checkAbsolutePrestate(t, sys, l1Client)
-		checkL1PAO(t, sys, l1Caller)
-		checkSuperchainConfig(t, sys, l1Caller)
-		checkPermissionless(t, sys, l1Caller)
+	if parsed, err := abi.JSON(bytes.NewReader([]byte(faultDisputeGameABIString))); err != nil {
+		panic(fmt.Sprintf("failed to parse fault dispute game abi: %s", err))
+	} else {
+		faultDisputeGameABI = &parsed
 	}
 }
 
-func checkAbsolutePrestate(t systest.T, sys system.System, l1Client *ethclient.Client) {
+func TestInteropReadiness(gt *testing.T) {
+	t := devtest.ParallelT(gt)
+	sys := presets.NewSimpleInterop(t)
+
+	t.Logger().Info("Started test")
+
+	l1EL := sys.L1EL
+	l1Client := l1EL.EthClient()
+	l1Caller := l1Client.NewMultiCaller(batching.DefaultBatchSize)
+
+	checkAbsolutePrestate(t, sys, l1Caller)
+	checkL1PAO(t, sys, l1Caller)
+	checkSuperchainConfig(t, sys, l1Caller)
+	checkPermissionless(t, sys, l1Caller)
+}
+
+func checkAbsolutePrestate(t devtest.T, sys *presets.SimpleInterop, l1Caller *batching.MultiCaller) {
 	var prestate *[32]byte
-	for _, chain := range sys.L2s() {
-		p := getPrestate(t, l1Client, chain)
+	chains := []*dsl.L2Network{sys.L2ChainA, sys.L2ChainB}
+	for _, chain := range chains {
+		p := getPrestate(t, l1Caller, chain)
 		if prestate == nil {
 			prestate = &p
 		} else {
-			require.Equal(t, *prestate, p)
+			t.Require().Equal(*prestate, p)
 		}
 	}
-	require.NotNil(t, prestate)
+	t.Require().NotNil(prestate)
 }
 
-func checkL1PAO(t systest.T, sys system.System, l1Caller *batching.MultiCaller) {
+func checkL1PAO(t devtest.T, sys *presets.SimpleInterop, l1Caller *batching.MultiCaller) {
 	var l1PAO common.Address
-	for _, chain := range sys.L2s() {
+	chains := []*dsl.L2Network{sys.L2ChainA, sys.L2ChainB}
+	for _, chain := range chains {
 		owner := getL1PAO(t, l1Caller, chain)
 		if l1PAO == (common.Address{}) {
 			l1PAO = owner
 		} else {
-			require.Equal(t, l1PAO, owner)
+			t.Require().Equal(l1PAO, owner)
 		}
 	}
-	require.NotNil(t, l1PAO)
+	t.Require().NotEqual(common.Address{}, l1PAO)
 }
 
-func checkSuperchainConfig(t systest.T, sys system.System, l1Caller *batching.MultiCaller) {
+func checkSuperchainConfig(t devtest.T, sys *presets.SimpleInterop, l1Caller *batching.MultiCaller) {
 	var superchainConfig common.Address
-	for _, chain := range sys.L2s() {
+	chains := []*dsl.L2Network{sys.L2ChainA, sys.L2ChainB}
+	for _, chain := range chains {
 		address := getSuperchainConfigFromPortal(t, l1Caller, chain)
 		if superchainConfig == (common.Address{}) {
 			superchainConfig = address
 		} else {
-			require.Equal(t, superchainConfig, address)
+			t.Require().Equal(superchainConfig, address)
 		}
 	}
-	require.NotNil(t, superchainConfig)
+	t.Require().NotEqual(common.Address{}, superchainConfig)
 }
 
-func checkPermissionless(t systest.T, sys system.System, l1Caller *batching.MultiCaller) {
-	for _, chain := range sys.L2s() {
+func checkPermissionless(t devtest.T, sys *presets.SimpleInterop, l1Caller *batching.MultiCaller) {
+	chains := []*dsl.L2Network{sys.L2ChainA, sys.L2ChainB}
+	for _, chain := range chains {
 		gameType := getRespectedGameType(t, l1Caller, chain)
-		require.Equal(t, uint32(0), gameType, "chain is not permissionless")
+		t.Require().Equal(uint32(0), gameType, "chain is not permissionless")
 	}
 }
 
-func getL1PAO(t systest.T, l1Caller *batching.MultiCaller, l2Chain system.L2Chain) common.Address {
-	portalAddress, ok := l2Chain.L1Addresses()["OptimismPortalProxy"]
-	require.True(t, ok, "OptimismPortalProxy not found")
+func getL1PAO(t devtest.T, l1Caller *batching.MultiCaller, l2Chain *dsl.L2Network) common.Address {
+	portalAddress := l2Chain.DepositContractAddr()
 	contract := batching.NewBoundContract(portalABI, portalAddress)
 	results, err := l1Caller.SingleCall(context.Background(), rpcblock.Latest, contract.Call("proxyAdminOwner"))
-	require.NoError(t, err)
+	t.Require().NoError(err)
 	return results.GetAddress(0)
 }
 
-func getSuperchainConfigFromPortal(t systest.T, l1Caller *batching.MultiCaller, l2Chain system.L2Chain) common.Address {
-	portalAddress, ok := l2Chain.L1Addresses()["OptimismPortalProxy"]
-	require.True(t, ok, "OptimismPortalProxy not found")
+func getSuperchainConfigFromPortal(t devtest.T, l1Caller *batching.MultiCaller, l2Chain *dsl.L2Network) common.Address {
+	portalAddress := l2Chain.DepositContractAddr()
 	contract := batching.NewBoundContract(portalABI, portalAddress)
 	results, err := l1Caller.SingleCall(context.Background(), rpcblock.Latest, contract.Call("superchainConfig"))
-	require.NoError(t, err)
+	t.Require().NoError(err)
 	return results.GetAddress(0)
 }
 
-func getPrestate(t systest.T, l1Client *ethclient.Client, l2Chain system.L2Chain) [32]byte {
-	dgf, ok := l2Chain.L1Addresses()["DisputeGameFactoryProxy"]
-	require.True(t, ok, "DisputeGameFactoryProxy not found")
-	dgfContract, err := bindings.NewDisputeGameFactory(dgf, l1Client)
-	require.NoError(t, err)
+func getPrestate(t devtest.T, l1Caller *batching.MultiCaller, l2Chain *dsl.L2Network) [32]byte {
+	dgf := l2Chain.DisputeGameFactoryProxyAddr()
+	dgfContract := batching.NewBoundContract(disputeGameFactoryABI, dgf)
+	results, err := l1Caller.SingleCall(context.Background(), rpcblock.Latest, dgfContract.Call("gameImpls", uint32(0)))
+	t.Require().NoError(err)
+	gameImpl := results.GetAddress(0)
 
-	gameImpl, err := dgfContract.GameImpls(nil, 0)
-	require.NoError(t, err)
-	fdgContract, err := bindings.NewFaultDisputeGame(gameImpl, l1Client)
-	require.NoError(t, err)
-
-	prestate, err := fdgContract.AbsolutePrestate(nil)
-	require.NoError(t, err)
-	return prestate
+	fdgContract := batching.NewBoundContract(faultDisputeGameABI, gameImpl)
+	prestateResults, err := l1Caller.SingleCall(context.Background(), rpcblock.Latest, fdgContract.Call("absolutePrestate"))
+	t.Require().NoError(err)
+	return prestateResults.GetHash(0)
 }
 
-func getRespectedGameType(t systest.T, l1Caller *batching.MultiCaller, l2Chain system.L2Chain) uint32 {
-	portalAddress, ok := l2Chain.L1Addresses()["OptimismPortalProxy"]
-	require.True(t, ok, "OptimismPortalProxy not found")
+func getRespectedGameType(t devtest.T, l1Caller *batching.MultiCaller, l2Chain *dsl.L2Network) uint32 {
+	portalAddress := l2Chain.DepositContractAddr()
 	contract := batching.NewBoundContract(portalABI, portalAddress)
 	results, err := l1Caller.SingleCall(context.Background(), rpcblock.Latest, contract.Call("respectedGameType"))
-	require.NoError(t, err)
+	t.Require().NoError(err)
 	return results.GetUint32(0)
 }
