@@ -114,6 +114,7 @@ node = [
     "dep:reth-engine-local",
     "rpc",
     "trie-db",
+    "pool",
 ]
 rpc = [
     "tasks",
