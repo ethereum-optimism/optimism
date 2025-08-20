@@ -162,7 +162,7 @@ func checkWithdrawals(rollupCfg *rollup.Config, attrs *eth.PayloadAttributes, bl
 			return fmt.Errorf("%w: attributes", ErrCanyonMustHaveWithdrawals)
 		}
 		if !isIsthmus {
-			// canyon: the withdrawals root should be set to the empty value
+			// canyon: the withdrawals root should be set to the empty withdrawals hash
 			if block.WithdrawalsRoot != nil && *block.WithdrawalsRoot != types.EmptyWithdrawalsHash {
 				return fmt.Errorf("%w: got %v", ErrCanyonWithdrawalsRoot, *block.WithdrawalsRoot)
 			}

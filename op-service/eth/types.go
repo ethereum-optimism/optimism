@@ -381,11 +381,11 @@ func BlockAsPayload(bl *types.Block, config *params.ChainConfig) (*ExecutionPayl
 		// WithdrawalsRoot is only set starting at Isthmus
 	}
 
-	if config.ShanghaiTime != nil && uint64(payload.Timestamp) >= *config.ShanghaiTime {
+	if config.IsCanyon(uint64(payload.Timestamp)) {
 		payload.Withdrawals = &types.Withdrawals{}
 	}
 
-	if config.IsthmusTime != nil && uint64(payload.Timestamp) >= *config.IsthmusTime {
+	if config.IsIsthmus(uint64(payload.Timestamp)) {
 		payload.WithdrawalsRoot = bl.Header().WithdrawalsHash
 	}
 
