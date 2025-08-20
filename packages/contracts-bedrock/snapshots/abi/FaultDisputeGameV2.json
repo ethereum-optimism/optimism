@@ -1018,6 +1018,11 @@
   },
   {
     "inputs": [],
+    "name": "BadExtraData",
+    "type": "error"
+  },
+  {
+    "inputs": [],
     "name": "BlockNumberMatches",
     "type": "error"
   },
