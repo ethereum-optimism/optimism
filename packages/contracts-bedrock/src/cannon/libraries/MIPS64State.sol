@@ -13,7 +13,6 @@ library MIPS64State {
     }
 
     struct Features {
-        bool supportNoopMprotect;
         bool supportWorkingSysGetRandom;
     }
 
@@ -24,9 +23,6 @@ library MIPS64State {
     }
 
     function featuresForVersion(uint256 _version) internal pure returns (Features memory features_) {
-        if (_version >= 7) {
-            features_.supportNoopMprotect = true;
-        }
         if (_version >= 8) {
             features_.supportWorkingSysGetRandom = true;
         }

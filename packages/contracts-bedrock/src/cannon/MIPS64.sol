@@ -568,9 +568,7 @@ contract MIPS64 is ISemver {
             } else if (syscall_no == sys.SYS_MUNMAP) {
                 // ignored
             } else if (syscall_no == sys.SYS_MPROTECT) {
-                if (!st.featuresForVersion(STATE_VERSION).supportNoopMprotect) {
-                    revert("MIPS64: unimplemented syscall");
-                }
+                // ignored
             } else if (syscall_no == sys.SYS_GETAFFINITY) {
                 // ignored
             } else if (syscall_no == sys.SYS_MADVISE) {
