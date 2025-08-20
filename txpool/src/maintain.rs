@@ -14,11 +14,12 @@ use crate::{
 };
 use alloy_consensus::{conditional::BlockConditionalAttributes, BlockHeader};
 use futures_util::{future::BoxFuture, FutureExt, Stream, StreamExt};
-use metrics::Gauge;
+use metrics::{Gauge, Histogram};
 use reth_chain_state::CanonStateNotification;
 use reth_metrics::{metrics::Counter, Metrics};
 use reth_primitives_traits::NodePrimitives;
 use reth_transaction_pool::{error::PoolTransactionError, PoolTransaction, TransactionPool};
+use std::time::Instant;
 use tracing::warn;
 
 /// Transaction pool maintenance metrics
@@ -50,7 +51,8 @@ struct MaintainPoolInteropMetrics {
     /// Counter for interop transactions that became stale and need revalidation
     stale_interop_transactions: Counter,
     // TODO: we also should add metric for (hash, counter) to check number of validation per tx
-    // TODO: we should add some timing metric in here to check supervisor congestion
+    /// Histogram for measuring supervisor revalidation duration (congestion metric)
+    supervisor_revalidation_duration_seconds: Histogram,
 }
 
 impl MaintainPoolInteropMetrics {
@@ -66,6 +68,12 @@ impl MaintainPoolInteropMetrics {
     #[inline]
     fn inc_stale_tx_interop(&self, count: usize) {
         self.stale_interop_transactions.increment(count as u64);
+    }
+
+    /// Record supervisor revalidation duration
+    #[inline]
+    fn record_supervisor_duration(&self, duration: std::time::Duration) {
+        self.supervisor_revalidation_duration_seconds.record(duration.as_secs_f64());
     }
 }
 /// Returns a spawnable future for maintaining the state of the conditional txs in the transaction
@@ -179,6 +187,7 @@ pub async fn maintain_transaction_pool_interop<N, Pool, St>(
             if !to_revalidate.is_empty() {
                 metrics.inc_stale_tx_interop(to_revalidate.len());
 
+                let revalidation_start = Instant::now();
                 let revalidation_stream = supervisor_client.revalidate_interop_txs_stream(
                     to_revalidate,
                     timestamp,
@@ -211,6 +220,8 @@ pub async fn maintain_transaction_pool_interop<N, Pool, St>(
                         }
                     }
                 }
+
+                metrics.record_supervisor_duration(revalidation_start.elapsed());
             }
 
             if !to_remove.is_empty() {
