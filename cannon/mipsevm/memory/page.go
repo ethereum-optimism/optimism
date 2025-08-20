@@ -18,9 +18,9 @@ var zlibWriterPool = sync.Pool{
 	},
 }
 
-type Page [PageSize]byte
+type Page []byte
 
-func (p *Page) MarshalJSON() ([]byte, error) { // nosemgrep
+func (p Page) MarshalJSON() ([]byte, error) { // nosemgrep
 	var out bytes.Buffer
 	w := zlibWriterPool.Get().(*zlib.Writer)
 	defer zlibWriterPool.Put(w)
@@ -34,7 +34,7 @@ func (p *Page) MarshalJSON() ([]byte, error) { // nosemgrep
 	return json.Marshal(out.Bytes())
 }
 
-func (p *Page) UnmarshalJSON(dat []byte) error {
+func (p Page) UnmarshalJSON(dat []byte) error {
 	// Strip off the `"` characters at the start & end.
 	dat = dat[1 : len(dat)-1]
 	// Decode b64 then decompress
@@ -52,7 +52,7 @@ func (p *Page) UnmarshalJSON(dat []byte) error {
 	}
 }
 
-func (p *Page) UnmarshalText(dat []byte) error {
+func (p Page) UnmarshalText(dat []byte) error {
 	if len(dat) != PageSize*2 {
 		return fmt.Errorf("expected %d hex chars, but got %d", PageSize*2, len(dat))
 	}
@@ -65,7 +65,7 @@ func (p *Page) UnmarshalText(dat []byte) error {
 var _ [0]struct{} = [PageSize - 4096]struct{}{}
 
 type CachedPage struct {
-	Data *Page
+	Data Page
 	// intermediate nodes only
 	Cache [PageSize / 32][32]byte
 	// bit set to 1 if the intermediate node is valid

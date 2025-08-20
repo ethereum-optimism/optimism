@@ -2,9 +2,11 @@ package contract
 
 import (
 	"fmt"
+	"math/big"
 
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
 	"github.com/ethereum-optimism/optimism/op-service/errutil"
+	"github.com/ethereum-optimism/optimism/op-service/sources/batching"
 	"github.com/ethereum-optimism/optimism/op-service/txintent/bindings"
 	"github.com/ethereum-optimism/optimism/op-service/txintent/contractio"
 	"github.com/ethereum-optimism/optimism/op-service/txplan"
@@ -29,6 +31,19 @@ func Read[O any](call bindings.TypedCall[O], opts ...txplan.Option) O {
 	checkTestable(call)
 	o, err := contractio.Read(call, call.Test().Ctx(), opts...)
 	call.Test().Require().NoError(err)
+	return o
+}
+
+// ReadArray retrieves all data from an array in batches
+func ReadArray[T any](countCall bindings.TypedCall[*big.Int], elemCall func(i *big.Int) bindings.TypedCall[T]) []T {
+	checkTestable(countCall)
+	test := countCall.Test()
+	ctx := countCall.Test().Ctx()
+
+	caller := countCall.Client().NewMultiCaller(batching.DefaultBatchSize)
+
+	o, err := contractio.ReadArray(ctx, caller, countCall, elemCall)
+	test.Require().NoError(err)
 	return o
 }
 

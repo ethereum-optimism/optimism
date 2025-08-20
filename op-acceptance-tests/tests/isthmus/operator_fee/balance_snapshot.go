@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"math/big"
 
-	"github.com/ethereum-optimism/optimism/devnet-sdk/testing/systest"
+	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -72,7 +72,7 @@ func (bs *BalanceSnapshot) Sub(start *BalanceSnapshot) *BalanceSnapshot {
 }
 
 // AssertSnapshotsEqual compares two balance snapshots and reports differences
-func AssertSnapshotsEqual(t systest.T, expected, actual *BalanceSnapshot) {
+func AssertSnapshotsEqual(t devtest.T, expected, actual *BalanceSnapshot) {
 	require.NotNil(t, expected, "Expected snapshot should not be nil")
 	require.NotNil(t, actual, "Actual snapshot should not be nil")
 
@@ -95,4 +95,18 @@ func AssertSnapshotsEqual(t systest.T, expected, actual *BalanceSnapshot) {
 	// Check wallet balance
 	assert.True(t, expected.FromBalance.Cmp(actual.FromBalance) == 0,
 		"WalletBalance mismatch: expected %v, got %v (diff: %v)", expected.FromBalance, actual.FromBalance, new(big.Int).Sub(actual.FromBalance, expected.FromBalance))
+}
+
+// SnapshotsEqual compares two balance snapshots and returns true if they are equal
+// This is a non-asserting version for unit tests
+func SnapshotsEqual(expected, actual *BalanceSnapshot) bool {
+	if expected == nil || actual == nil {
+		return expected == actual
+	}
+
+	return expected.BaseFeeVaultBalance.Cmp(actual.BaseFeeVaultBalance) == 0 &&
+		expected.L1FeeVaultBalance.Cmp(actual.L1FeeVaultBalance) == 0 &&
+		expected.SequencerFeeVault.Cmp(actual.SequencerFeeVault) == 0 &&
+		expected.OperatorFeeVault.Cmp(actual.OperatorFeeVault) == 0 &&
+		expected.FromBalance.Cmp(actual.FromBalance) == 0
 }

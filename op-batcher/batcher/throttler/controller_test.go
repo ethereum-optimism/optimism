@@ -8,34 +8,36 @@ import (
 	"github.com/ethereum-optimism/optimism/op-batcher/config"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum/go-ethereum/log"
+	"github.com/stretchr/testify/require"
 )
 
 // Test configuration constants - Core throttle settings shared across all tests
 const (
 	// Primary throttle threshold: 1MB - this is the main decision point for when throttling begins
-	TestThresholdBytes = 1_000_000 // 1MB threshold
+	TestLowerThresholdBytes = 1_000_000 // 1MB threshold
 
 	// Transaction and block size limits when throttling is active
-	TestThrottleTxSize    = 5_000   // 5KB transaction size limit during throttling
-	TestThrottleBlockSize = 21_000  // 21KB block size limit during throttling
-	TestAlwaysBlockSize   = 130_000 // 130KB block size limit (always enforced)
+	TestTxSizeLowerLimit    = 5_000   // 5KB transaction size limit during throttling
+	TestTxSizeUpperLimit    = 10_000  // 10KB transaction size limit during throttling
+	TestBlockSizeLowerLimit = 21_000  // 21KB block size limit during throttling
+	TestBlockSizeUpperLimit = 130_000 // 130KB block size limit (always enforced)
 
 	// Multiplier for gradual controllers (linear, quadratic) - defines max throttling point
-	TestMaxThreshold = 2_000_000 // 2x threshold = maximum throttling point (2MB)
+	TestUpperThreshold = 2_000_000 // 2x threshold = maximum throttling point (2MB)
 )
 
 // Test load scenarios - All relative to TestThresholdBytes for easy understanding
 const (
-	TestLoadBelowThreshold    = TestThresholdBytes / 2                      // 500KB - 50% of threshold
-	TestLoadAtThreshold       = TestThresholdBytes                          // 1MB - exactly at threshold
-	TestLoadQuarterAbove      = TestThresholdBytes + TestThresholdBytes/4   // 1.25MB - 25% above threshold
-	TestLoadHalfAbove         = TestThresholdBytes + TestThresholdBytes/2   // 1.5MB - 50% above threshold
-	TestLoadThreeQuarterAbove = TestThresholdBytes + 3*TestThresholdBytes/4 // 1.75MB - 75% above threshold
-	TestLoadDoubleThreshold   = TestThresholdBytes * 2                      // 2MB - 100% above threshold (max for 2x multiplier)
-	TestLoadFarAbove          = TestThresholdBytes * 3                      // 3MB - far above threshold
-	TestLoadBelowThresholdAlt = 800_000                                     // 800KB - alternative below threshold value
-	TestLoadModerateAbove     = 1_200_000                                   // 1.2MB - moderate load above threshold
-	TestLoadHighAbove         = 1_400_000                                   // 1.4MB - high load above threshold
+	TestLoadBelowThreshold    = TestLowerThresholdBytes / 2                           // 500KB - 50% of threshold
+	TestLoadAtThreshold       = TestLowerThresholdBytes                               // 1MB - exactly at threshold
+	TestLoadQuarterAbove      = TestLowerThresholdBytes + TestLowerThresholdBytes/4   // 1.25MB - 25% above threshold
+	TestLoadHalfAbove         = TestLowerThresholdBytes + TestLowerThresholdBytes/2   // 1.5MB - 50% above threshold
+	TestLoadThreeQuarterAbove = TestLowerThresholdBytes + 3*TestLowerThresholdBytes/4 // 1.75MB - 75% above threshold
+	TestLoadDoubleThreshold   = TestLowerThresholdBytes * 2                           // 2MB - 100% above threshold (max for 2x multiplier)
+	TestLoadFarAbove          = TestLowerThresholdBytes * 3                           // 3MB - far above threshold
+	TestLoadBelowThresholdAlt = 800_000                                               // 800KB - alternative below threshold value
+	TestLoadModerateAbove     = 1_200_000                                             // 1.2MB - moderate load above threshold
+	TestLoadHighAbove         = 1_400_000                                             // 1.4MB - high load above threshold
 )
 
 // Test precision and validation constants
@@ -86,30 +88,37 @@ const (
 var (
 	// Standard controller configurations - reused across tests
 	testStepStrategy = func(t *testing.T) *StepStrategy {
-		return NewStepStrategy(TestThresholdBytes)
+		return NewStepStrategy(TestLowerThresholdBytes)
 	}
 	testLinearStrategy = func(t *testing.T) *LinearStrategy {
-		return NewLinearStrategy(TestThresholdBytes, TestMaxThreshold, newTestLogger(t))
+		return NewLinearStrategy(TestLowerThresholdBytes, TestUpperThreshold, newTestLogger(t))
 	}
 	testQuadraticStrategy = func(t *testing.T) *QuadraticStrategy {
-		return NewQuadraticStrategy(TestThresholdBytes, TestMaxThreshold, newTestLogger(t))
+		return NewQuadraticStrategy(TestLowerThresholdBytes, TestUpperThreshold, newTestLogger(t))
 	}
 	testPIDStrategy = func(t *testing.T) *PIDStrategy {
-		return NewPIDStrategy(TestThresholdBytes, TestPIDConfig)
+		return NewPIDStrategy(TestLowerThresholdBytes, TestPIDConfig)
+	}
+
+	testThrottleConfig = ThrottleConfig{
+		TxSizeLowerLimit:    TestTxSizeLowerLimit,
+		TxSizeUpperLimit:    TestTxSizeUpperLimit,
+		BlockSizeLowerLimit: TestBlockSizeLowerLimit,
+		BlockSizeUpperLimit: TestBlockSizeUpperLimit,
 	}
 
 	// Standard controllers - reused across tests
 	testStepController = func(t *testing.T) *ThrottleController {
-		return NewThrottleController(testStepStrategy(t), ThrottleConfig{})
+		return NewThrottleController(testStepStrategy(t), testThrottleConfig)
 	}
 	testLinearController = func(t *testing.T) *ThrottleController {
-		return NewThrottleController(testLinearStrategy(t), ThrottleConfig{})
+		return NewThrottleController(testLinearStrategy(t), testThrottleConfig)
 	}
 	testQuadraticController = func(t *testing.T) *ThrottleController {
-		return NewThrottleController(testQuadraticStrategy(t), ThrottleConfig{})
+		return NewThrottleController(testQuadraticStrategy(t), testThrottleConfig)
 	}
 	testPIDController = func(t *testing.T) *ThrottleController {
-		return NewThrottleController(testPIDStrategy(t), ThrottleConfig{})
+		return NewThrottleController(testPIDStrategy(t), testThrottleConfig)
 	}
 
 	// Test factory
@@ -178,11 +187,12 @@ func TestControllerFactory(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			controller, err := factory.CreateController(
 				tt.controllerType, config.ThrottleParams{
-					Threshold:       TestThresholdBytes,
-					MaxThreshold:    TestMaxThreshold,
-					TxSize:          TestThrottleTxSize,
-					BlockSize:       TestThrottleBlockSize,
-					AlwaysBlockSize: TestAlwaysBlockSize,
+					LowerThreshold:      TestLowerThresholdBytes,
+					UpperThreshold:      TestUpperThreshold,
+					TxSizeLowerLimit:    TestTxSizeLowerLimit,
+					TxSizeUpperLimit:    TestTxSizeUpperLimit,
+					BlockSizeLowerLimit: TestBlockSizeLowerLimit,
+					BlockSizeUpperLimit: TestBlockSizeUpperLimit,
 				}, tt.pidConfig)
 
 			if tt.expectError {
@@ -269,8 +279,7 @@ func TestControllerAbstraction(t *testing.T) {
 // TestControllerStrategySwapping tests changing strategies at runtime
 func TestControllerStrategySwapping(t *testing.T) {
 	// Start with step controller
-	stepStrategy := testStepStrategy(t)
-	controller := NewThrottleController(stepStrategy, ThrottleConfig{})
+	controller := testStepController(t)
 
 	// Test initial behavior
 	params := controller.Update(TestLoadHalfAbove)
@@ -279,7 +288,7 @@ func TestControllerStrategySwapping(t *testing.T) {
 	}
 
 	// Switch to quadratic controller
-	resetParams := ThrottleParams{MaxTxSize: 0, MaxBlockSize: TestAlwaysBlockSize, Intensity: 0.0}
+	resetParams := ThrottleParams{MaxTxSize: 0, MaxBlockSize: TestBlockSizeUpperLimit, Intensity: 0.0}
 	controller.SetStrategy(testQuadraticStrategy(t), resetParams)
 
 	// Test new behavior
@@ -317,11 +326,12 @@ func TestControllerTypeConsistency(t *testing.T) {
 		t.Run(string(tc.controllerType), func(t *testing.T) {
 			controller, err := factory.CreateController(
 				tc.controllerType, config.ThrottleParams{
-					Threshold:       TestThresholdBytes,
-					MaxThreshold:    TestMaxThreshold,
-					TxSize:          TestThrottleTxSize,
-					BlockSize:       TestThrottleBlockSize,
-					AlwaysBlockSize: TestAlwaysBlockSize,
+					LowerThreshold:      TestLowerThresholdBytes,
+					UpperThreshold:      TestUpperThreshold,
+					TxSizeLowerLimit:    TestTxSizeLowerLimit,
+					TxSizeUpperLimit:    TestTxSizeUpperLimit,
+					BlockSizeLowerLimit: TestBlockSizeLowerLimit,
+					BlockSizeUpperLimit: TestBlockSizeUpperLimit,
 				}, tc.pidConfig)
 			if err != nil {
 				t.Fatalf("unexpected error: %v", err)
@@ -378,13 +388,13 @@ func (m *mockMetrics) GetResponseTime() time.Duration {
 // TestIntensityToParams tests the intensityToParams function that converts intensity to ThrottleParams
 func TestIntensityToParams(t *testing.T) {
 	testConfig := ThrottleConfig{
-		Threshold:         TestThresholdBytes,
-		ThrottleTxSize:    TestThrottleTxSize,
-		ThrottleBlockSize: TestThrottleBlockSize,
-		AlwaysBlockSize:   TestAlwaysBlockSize,
+		TxSizeLowerLimit:    TestTxSizeLowerLimit,
+		TxSizeUpperLimit:    TestTxSizeUpperLimit,
+		BlockSizeLowerLimit: TestBlockSizeLowerLimit,
+		BlockSizeUpperLimit: TestBlockSizeUpperLimit,
 	}
 
-	controller := NewThrottleController(testStepStrategy(t), testConfig)
+	controller := NewThrottleController(testLinearStrategy(t), testConfig)
 
 	tests := []struct {
 		name                 string
@@ -397,42 +407,42 @@ func TestIntensityToParams(t *testing.T) {
 			name:                 "zero intensity",
 			intensity:            0.0,
 			expectedMaxTxSize:    0,
-			expectedMaxBlockSize: TestAlwaysBlockSize,
+			expectedMaxBlockSize: TestBlockSizeUpperLimit,
 			expectedIntensity:    0.0,
 		},
 		{
 			name:                 "minimum positive intensity",
 			intensity:            0.001,
-			expectedMaxTxSize:    TestThrottleTxSize,
-			expectedMaxBlockSize: TestAlwaysBlockSize - uint64(0.001*float64(TestAlwaysBlockSize-TestThrottleBlockSize)), // Interpolated value
+			expectedMaxTxSize:    TestTxSizeUpperLimit - uint64(0.001*float64(TestTxSizeUpperLimit-TestTxSizeLowerLimit)),
+			expectedMaxBlockSize: TestBlockSizeUpperLimit - uint64(0.001*float64(TestBlockSizeUpperLimit-TestBlockSizeLowerLimit)), // Interpolated value
 			expectedIntensity:    0.001,
 		},
 		{
 			name:                 "half intensity",
 			intensity:            0.5,
-			expectedMaxTxSize:    TestThrottleTxSize,
-			expectedMaxBlockSize: TestAlwaysBlockSize - uint64(0.5*float64(TestAlwaysBlockSize-TestThrottleBlockSize)), // Interpolated value
+			expectedMaxTxSize:    TestTxSizeUpperLimit - uint64(0.5*float64(TestTxSizeUpperLimit-TestTxSizeLowerLimit)),
+			expectedMaxBlockSize: TestBlockSizeUpperLimit - uint64(0.5*float64(TestBlockSizeUpperLimit-TestBlockSizeLowerLimit)), // Interpolated value
 			expectedIntensity:    0.5,
 		},
 		{
 			name:                 "maximum intensity",
 			intensity:            1.0,
-			expectedMaxTxSize:    TestThrottleTxSize,
-			expectedMaxBlockSize: TestThrottleBlockSize,
+			expectedMaxTxSize:    TestTxSizeLowerLimit,
+			expectedMaxBlockSize: TestBlockSizeLowerLimit,
 			expectedIntensity:    1.0,
 		},
 		{
 			name:                 "intensity above maximum (should be clamped)",
 			intensity:            1.5,
-			expectedMaxTxSize:    TestThrottleTxSize,
-			expectedMaxBlockSize: TestThrottleBlockSize,
+			expectedMaxTxSize:    TestTxSizeLowerLimit,
+			expectedMaxBlockSize: TestBlockSizeLowerLimit,
 			expectedIntensity:    1.0,
 		},
 		{
 			name:                 "negative intensity",
 			intensity:            -0.5,
 			expectedMaxTxSize:    0,
-			expectedMaxBlockSize: TestAlwaysBlockSize,
+			expectedMaxBlockSize: TestBlockSizeUpperLimit,
 			expectedIntensity:    0.0,
 		},
 	}
@@ -456,52 +466,51 @@ func TestIntensityToParams(t *testing.T) {
 	}
 }
 
-// TestIntensityToParamsBlockSizeInterpolation tests block size interpolation when ThrottleBlockSize is less than AlwaysBlockSize
 func TestIntensityToParamsBlockSizeInterpolation(t *testing.T) {
 	testConfig := ThrottleConfig{
-		Threshold:         TestThresholdBytes,
-		ThrottleTxSize:    TestThrottleTxSize,
-		ThrottleBlockSize: 50_000,  // 50KB throttle block size
-		AlwaysBlockSize:   100_000, // 100KB always block size
+		TxSizeLowerLimit:    50,
+		TxSizeUpperLimit:    100,
+		BlockSizeLowerLimit: 50_000,  // 50KB
+		BlockSizeUpperLimit: 100_000, // 100KB
 	}
 
-	controller := NewThrottleController(testStepStrategy(t), testConfig)
+	controller := NewThrottleController(testLinearStrategy(t), testConfig)
 
 	tests := []struct {
 		name                 string
 		intensity            float64
+		expectedMaxTxSize    uint64
 		expectedMaxBlockSize uint64
-		tolerance            uint64
 	}{
 		{
-			name:                 "zero intensity - always block size",
+			name:                 "zero intensity - upper limit",
 			intensity:            0.0,
+			expectedMaxTxSize:    0,
 			expectedMaxBlockSize: 100_000,
-			tolerance:            0,
 		},
 		{
 			name:                 "25% intensity - 75% of way to throttle size",
 			intensity:            0.25,
+			expectedMaxTxSize:    87,
 			expectedMaxBlockSize: 87_500, // 100_000 - 0.25 * (100_000 - 50_000)
-			tolerance:            100,
 		},
 		{
 			name:                 "50% intensity - 50% of way to throttle size",
 			intensity:            0.5,
+			expectedMaxTxSize:    75,
 			expectedMaxBlockSize: 75_000, // 100_000 - 0.5 * (100_000 - 50_000)
-			tolerance:            100,
 		},
 		{
 			name:                 "75% intensity - 25% of way to throttle size",
 			intensity:            0.75,
+			expectedMaxTxSize:    62,
 			expectedMaxBlockSize: 62_500, // 100_000 - 0.75 * (100_000 - 50_000)
-			tolerance:            100,
 		},
 		{
 			name:                 "100% intensity - throttle block size",
 			intensity:            1.0,
+			expectedMaxTxSize:    50,
 			expectedMaxBlockSize: 50_000,
-			tolerance:            0,
 		},
 	}
 
@@ -509,10 +518,14 @@ func TestIntensityToParamsBlockSizeInterpolation(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			params := controller.intensityToParams(tt.intensity, testConfig)
 
-			if params.MaxBlockSize > tt.expectedMaxBlockSize+tt.tolerance ||
-				params.MaxBlockSize < tt.expectedMaxBlockSize-tt.tolerance {
-				t.Errorf("expected MaxBlockSize %d ± %d, got %d",
-					tt.expectedMaxBlockSize, tt.tolerance, params.MaxBlockSize)
+			if params.MaxBlockSize != tt.expectedMaxBlockSize {
+				t.Errorf("expected MaxBlockSize %d, got %d",
+					tt.expectedMaxBlockSize, params.MaxBlockSize)
+			}
+
+			if params.MaxTxSize != tt.expectedMaxTxSize {
+				t.Errorf("expected MaxTxSize %d, got %d",
+					tt.expectedMaxTxSize, params.MaxTxSize)
 			}
 
 			if params.Intensity != tt.intensity {
@@ -522,68 +535,97 @@ func TestIntensityToParamsBlockSizeInterpolation(t *testing.T) {
 	}
 }
 
+// TestControllerFactoryEdgeCases tests edge cases for the factory's CreateController method
+func TestControllerFactoryEdgeCases(t *testing.T) {
+	factory := testFactory(t)
+
+	t.Run("block size upper limit less than lower limit", func(t *testing.T) {
+		controller, err := factory.CreateController(
+			config.StepControllerType, config.ThrottleParams{
+				LowerThreshold:      TestLowerThresholdBytes,
+				UpperThreshold:      TestUpperThreshold,
+				TxSizeLowerLimit:    TestTxSizeLowerLimit,
+				TxSizeUpperLimit:    TestTxSizeUpperLimit,
+				BlockSizeLowerLimit: 5,
+				BlockSizeUpperLimit: 4, // Upper limit less than lower limit
+			}, nil)
+
+		require.Error(t, err, "expected error when block size upper limit is less than lower limit")
+		require.Nil(t, controller, "expected nil controller when configuration is invalid")
+	})
+
+	t.Run("zero upper limit", func(t *testing.T) {
+		controller, err := factory.CreateController(
+			config.StepControllerType, config.ThrottleParams{
+				LowerThreshold:      TestLowerThresholdBytes,
+				UpperThreshold:      TestUpperThreshold,
+				TxSizeLowerLimit:    TestTxSizeLowerLimit,
+				TxSizeUpperLimit:    TestTxSizeUpperLimit,
+				BlockSizeLowerLimit: TestBlockSizeLowerLimit,
+				BlockSizeUpperLimit: 0, // Zero upper limit
+			}, nil)
+
+		require.Error(t, err, "expected error when block size upper limit is zero")
+		require.Nil(t, controller, "expected nil controller when configuration is invalid")
+	})
+
+	t.Run("block size lower limit greater than upper limit", func(t *testing.T) {
+		controller, err := factory.CreateController(
+			config.StepControllerType, config.ThrottleParams{
+				LowerThreshold:      TestLowerThresholdBytes,
+				UpperThreshold:      TestUpperThreshold,
+				TxSizeLowerLimit:    TestTxSizeLowerLimit,
+				TxSizeUpperLimit:    TestTxSizeUpperLimit,
+				BlockSizeLowerLimit: TestBlockSizeUpperLimit + 50_000, // Greater than upper limit
+				BlockSizeUpperLimit: TestBlockSizeUpperLimit,
+			}, nil)
+
+		require.Error(t, err, "expected error when block size lower limit is greater than upper limit")
+		require.Nil(t, controller, "expected nil controller when configuration is invalid")
+	})
+
+	t.Run("valid configuration should not error", func(t *testing.T) {
+		controller, err := factory.CreateController(
+			config.StepControllerType, config.ThrottleParams{
+				LowerThreshold:      TestLowerThresholdBytes,
+				UpperThreshold:      TestUpperThreshold,
+				TxSizeLowerLimit:    TestTxSizeLowerLimit,
+				TxSizeUpperLimit:    TestTxSizeUpperLimit,
+				BlockSizeLowerLimit: TestBlockSizeLowerLimit,
+				BlockSizeUpperLimit: TestBlockSizeUpperLimit,
+			}, nil)
+
+		require.NoError(t, err, "expected valid configuration to create controller without error")
+		require.NotNil(t, controller, "expected valid controller to be created")
+	})
+}
+
 // TestIntensityToParamsEdgeCases tests edge cases for the intensityToParams function
 func TestIntensityToParamsEdgeCases(t *testing.T) {
-	t.Run("zero throttle block size", func(t *testing.T) {
+	t.Run("zero BlockSizeLowerLimit", func(t *testing.T) {
 		testConfig := ThrottleConfig{
-			Threshold:         TestThresholdBytes,
-			ThrottleTxSize:    TestThrottleTxSize,
-			ThrottleBlockSize: 0,
-			AlwaysBlockSize:   TestAlwaysBlockSize,
+			TxSizeLowerLimit:    TestTxSizeLowerLimit,
+			BlockSizeLowerLimit: 0,
+			BlockSizeUpperLimit: TestBlockSizeUpperLimit,
 		}
 
 		controller := NewThrottleController(testStepStrategy(t), testConfig)
 		params := controller.intensityToParams(0.5, testConfig)
 
-		if params.MaxBlockSize != TestAlwaysBlockSize {
+		if params.MaxBlockSize != 0 {
 			t.Errorf("expected MaxBlockSize %d with zero throttle block size, got %d",
-				TestAlwaysBlockSize, params.MaxBlockSize)
+				0, params.MaxBlockSize)
 		}
 	})
 
-	t.Run("throttle block size greater than always block size", func(t *testing.T) {
-		testConfig := ThrottleConfig{
-			Threshold:         TestThresholdBytes,
-			ThrottleTxSize:    TestThrottleTxSize,
-			ThrottleBlockSize: TestAlwaysBlockSize + 50_000, // Greater than always size
-			AlwaysBlockSize:   TestAlwaysBlockSize,
-		}
-
-		controller := NewThrottleController(testStepStrategy(t), testConfig)
-		params := controller.intensityToParams(0.5, testConfig)
-
-		// Should use always block size when throttle block size is greater
-		if params.MaxBlockSize != TestAlwaysBlockSize {
-			t.Errorf("expected MaxBlockSize %d when throttle > always, got %d",
-				TestAlwaysBlockSize, params.MaxBlockSize)
-		}
-	})
-
-	t.Run("zero always block size", func(t *testing.T) {
-		testConfig := ThrottleConfig{
-			Threshold:         TestThresholdBytes,
-			ThrottleTxSize:    TestThrottleTxSize,
-			ThrottleBlockSize: TestThrottleBlockSize,
-			AlwaysBlockSize:   0,
-		}
-
-		controller := NewThrottleController(testStepStrategy(t), testConfig)
-		params := controller.intensityToParams(0.5, testConfig)
-
-		if params.MaxBlockSize != TestThrottleBlockSize {
-			t.Errorf("expected MaxBlockSize %d with zero always block size, got %d",
-				TestThrottleBlockSize, params.MaxBlockSize)
-		}
-	})
 }
 
 // TestIntensityToParamsConsistency tests that intensityToParams produces consistent results
 func TestIntensityToParamsConsistency(t *testing.T) {
 	testConfig := ThrottleConfig{
-		Threshold:         TestThresholdBytes,
-		ThrottleTxSize:    TestThrottleTxSize,
-		ThrottleBlockSize: TestThrottleBlockSize,
-		AlwaysBlockSize:   TestAlwaysBlockSize,
+		TxSizeLowerLimit:    TestTxSizeLowerLimit,
+		BlockSizeLowerLimit: TestBlockSizeLowerLimit,
+		BlockSizeUpperLimit: TestBlockSizeUpperLimit,
 	}
 
 	controller := NewThrottleController(testStepStrategy(t), testConfig)
@@ -609,10 +651,9 @@ func TestIntensityToParamsConsistency(t *testing.T) {
 // TestIntensityToParamsThreadSafety tests that intensityToParams is thread-safe
 func TestIntensityToParamsThreadSafety(t *testing.T) {
 	testConfig := ThrottleConfig{
-		Threshold:         TestThresholdBytes,
-		ThrottleTxSize:    TestThrottleTxSize,
-		ThrottleBlockSize: TestThrottleBlockSize,
-		AlwaysBlockSize:   TestAlwaysBlockSize,
+		TxSizeLowerLimit:    TestTxSizeLowerLimit,
+		BlockSizeLowerLimit: TestBlockSizeLowerLimit,
+		BlockSizeUpperLimit: TestBlockSizeUpperLimit,
 	}
 
 	controller := NewThrottleController(testStepStrategy(t), testConfig)
@@ -639,9 +680,9 @@ func TestIntensityToParamsThreadSafety(t *testing.T) {
 						goroutineId, j, intensity, params.Intensity)
 				}
 
-				if intensity > 0 && params.MaxTxSize != TestThrottleTxSize {
+				if intensity > 0 && params.MaxTxSize != TestTxSizeLowerLimit {
 					t.Errorf("goroutine %d call %d: expected MaxTxSize %d, got %d",
-						goroutineId, j, TestThrottleTxSize, params.MaxTxSize)
+						goroutineId, j, TestTxSizeLowerLimit, params.MaxTxSize)
 				}
 			}
 		}(i)

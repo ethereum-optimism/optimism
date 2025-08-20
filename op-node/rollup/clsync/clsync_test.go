@@ -29,6 +29,8 @@ func (f *fakeEngController) TryUpdatePendingSafe(ctx context.Context, ref eth.L2
 }
 func (f *fakeEngController) TryUpdateLocalSafe(ctx context.Context, ref eth.L2BlockRef, concluding bool, source eth.L1BlockRef) {
 }
+func (f *fakeEngController) RequestPendingSafeUpdate(ctx context.Context) {
+}
 
 func TestCLSync_InvalidPayloadDropsHead(t *testing.T) {
 	logger := testlog.Logger(t, 0)

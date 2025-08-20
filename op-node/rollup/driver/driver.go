@@ -83,7 +83,6 @@ type EngineController interface {
 	engine.LocalEngineControl
 	IsEngineSyncing() bool
 	InsertUnsafePayload(ctx context.Context, payload *eth.ExecutionPayloadEnvelope, ref eth.L2BlockRef) error
-	TryUpdateEngine(ctx context.Context) error
 	TryBackupUnsafeReorg(ctx context.Context) (bool, error)
 }
 
@@ -192,18 +191,21 @@ func NewDriver(
 	verifConfDepth := confdepth.NewConfDepth(driverCfg.VerifierConfDepth, statusTracker.L1Head, l1)
 
 	ec := engine.NewEngineController(driverCtx, l2, log, metrics, cfg, syncCfg, sys.Register("engine-controller", nil))
+	// TODO(#17115): Refactor dependency cycles
+	ec.SetCrossUpdateHandler(statusTracker)
 
-	sys.Register("engine-reset",
-		engine.NewEngineResetDeriver(driverCtx, log, cfg, l1, l2, syncCfg))
+	engineReset := engine.NewEngineResetDeriver(driverCtx, log, cfg, l1, l2, syncCfg)
+	engineReset.SetEngController(ec)
+	sys.Register("engine-reset", engineReset)
 
 	clSync := clsync.NewCLSync(log, cfg, metrics, ec) // alt-sync still uses cl-sync state to determine what to sync to
 	sys.Register("cl-sync", clSync)
 
 	var finalizer Finalizer
 	if cfg.AltDAEnabled() {
-		finalizer = finality.NewAltDAFinalizer(driverCtx, log, cfg, l1, altDA)
+		finalizer = finality.NewAltDAFinalizer(driverCtx, log, cfg, l1, altDA, ec)
 	} else {
-		finalizer = finality.NewFinalizer(driverCtx, log, cfg, l1)
+		finalizer = finality.NewFinalizer(driverCtx, log, cfg, l1, ec)
 	}
 	sys.Register("finalizer", finalizer)
 
@@ -212,8 +214,15 @@ func NewDriver(
 
 	derivationPipeline := derive.NewDerivationPipeline(log, cfg, depSet, verifConfDepth, l1Blobs, altDA, l2, metrics, indexingMode)
 
-	sys.Register("pipeline",
-		derive.NewPipelineDeriver(driverCtx, derivationPipeline))
+	pipelineDeriver := derive.NewPipelineDeriver(driverCtx, derivationPipeline)
+	sys.Register("pipeline", pipelineDeriver)
+
+	// Connect components that need force reset notifications to the engine controller
+	ec.SetAttributesResetter(attrHandler)
+	ec.SetPipelineResetter(pipelineDeriver)
+
+	schedDeriv := NewStepSchedulingDeriver(log)
+	sys.Register("step-scheduler", schedDeriv)
 
 	syncDeriver := &SyncDeriver{
 		Derivation:          derivationPipeline,
@@ -228,6 +237,7 @@ func NewDriver(
 		Log:                 log,
 		Ctx:                 driverCtx,
 		ManagedBySupervisor: indexingMode,
+		StepDeriver:         schedDeriv,
 	}
 	// TODO(#16917) Remove Event System Refactor Comments
 	//  Couple SyncDeriver and EngineController for event refactoring
@@ -236,9 +246,6 @@ func NewDriver(
 	sys.Register("sync", syncDeriver)
 	sys.Register("engine", ec)
 
-	schedDeriv := NewStepSchedulingDeriver(log)
-	sys.Register("step-scheduler", schedDeriv)
-
 	var sequencer sequencing.SequencerIface
 	if driverCfg.SequencerEnabled {
 		asyncGossiper := async.NewAsyncGossiper(driverCtx, network, log, metrics)
@@ -246,6 +253,10 @@ func NewDriver(
 		sequencerConfDepth := confdepth.NewConfDepth(driverCfg.SequencerConfDepth, statusTracker.L1Head, l1)
 		findL1Origin := sequencing.NewL1OriginSelector(driverCtx, log, cfg, sequencerConfDepth)
 		sys.Register("origin-selector", findL1Origin)
+
+		// Connect origin selector to the engine controller for force reset notifications
+		ec.SetOriginSelectorResetter(findL1Origin)
+
 		sequencer = sequencing.NewSequencer(driverCtx, log, cfg, attrBuilder, findL1Origin,
 			sequencerStateListener, sequencerConductor, asyncGossiper, metrics, ec)
 		sys.Register("sequencer", sequencer)

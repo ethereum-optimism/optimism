@@ -462,13 +462,13 @@ contract OPContractsManager_Upgrade_Harness is CommonTest {
         // Check that the PermissionedDisputeGame is upgraded to the expected version, references
         // the correct anchor state and has the mipsImpl. Although Upgrade 15 doesn't actually
         // change any of this, we might as well check it again.
-        assertEq(ISemver(address(pdg)).version(), "1.7.0");
+        assertEq(ISemver(address(pdg)).version(), "1.8.0");
         assertEq(address(pdg.vm()), impls.mipsImpl);
         assertEq(pdg.l2ChainId(), oldPDG.l2ChainId());
 
         // If the old FaultDisputeGame exists, we expect it to be upgraded. Check same as above.
         if (address(oldFDG) != address(0)) {
-            assertEq(ISemver(address(fdg)).version(), "1.7.0");
+            assertEq(ISemver(address(fdg)).version(), "1.8.0");
             assertEq(address(fdg.vm()), impls.mipsImpl);
             assertEq(fdg.l2ChainId(), oldFDG.l2ChainId());
         }

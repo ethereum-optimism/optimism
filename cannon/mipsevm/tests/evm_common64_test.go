@@ -7,6 +7,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/ethereum-optimism/optimism/cannon/mipsevm"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/multithreaded"
 	mtutil "github.com/ethereum-optimism/optimism/cannon/mipsevm/multithreaded/testutil"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/testutil"
@@ -154,12 +155,12 @@ func TestEVM_SingleStep_Shift64(t *testing.T) {
 
 	pc := Word(0x0)
 	rdReg := uint32(8)
-	initState := func(t require.TestingT, tt testCase, state *multithreaded.State, vm VersionedVMTestCase, r *testutil.RandHelper) {
+	initState := func(t require.TestingT, tt testCase, state *multithreaded.State, vm VersionedVMTestCase, r *testutil.RandHelper, goVm mipsevm.FPVM) {
 		rtReg := uint32(18)
 		insn := rtReg<<16 | rdReg<<11 | tt.sa<<6 | tt.funct
 		state.GetRegistersRef()[rdReg] = tt.rd
 		state.GetRegistersRef()[rtReg] = tt.rt
-		testutil.StoreInstruction(state.GetMemory(), pc, insn)
+		storeInsnWithCache(state, goVm, pc, insn)
 	}
 
 	setExpectations := func(t require.TestingT, tt testCase, expected *mtutil.ExpectedState, vm VersionedVMTestCase) ExpectedExecResult {
@@ -548,8 +549,8 @@ func TestEVM_SingleStep_DCloDClz64(t *testing.T) {
 		return features.SupportDclzDclo
 	}), "dclz/dclo feature not tested")
 
-	initState := func(t require.TestingT, tt testCase, state *multithreaded.State, vm VersionedVMTestCase, r *testutil.RandHelper) {
-		testutil.StoreInstruction(state.GetMemory(), state.GetPC(), insnFn(tt))
+	initState := func(t require.TestingT, tt testCase, state *multithreaded.State, vm VersionedVMTestCase, r *testutil.RandHelper, goVm mipsevm.FPVM) {
+		storeInsnWithCache(state, goVm, state.GetPC(), insnFn(tt))
 		state.GetRegistersRef()[rsReg] = tt.rs
 	}
 

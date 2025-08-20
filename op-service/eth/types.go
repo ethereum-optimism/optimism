@@ -344,6 +344,9 @@ func (envelope *ExecutionPayloadEnvelope) CheckBlockHash() (actual common.Hash, 
 	return blockHash, blockHash == payload.BlockHash
 }
 
+// BlockAsPayload converts a [*types.Block] to an [ExecutionPayload]. It can only be used to convert
+// OP-Stack blocks, as it follows Canyon and Isthmus rules to set the Withdrawals and
+// WithdrawalsRoot fields.
 func BlockAsPayload(bl *types.Block, config *params.ChainConfig) (*ExecutionPayload, error) {
 	baseFee, overflow := uint256.FromBig(bl.BaseFee())
 	if overflow {

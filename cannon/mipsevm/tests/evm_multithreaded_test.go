@@ -58,7 +58,7 @@ func TestEVM_MT_LL(t *testing.T) {
 	}
 	cases := testutil.TestVariations(baseTests, testVariations)
 
-	initState := func(t require.TestingT, tt testCase, state *multithreaded.State, vm VersionedVMTestCase, r *testutil.RandHelper) {
+	initState := func(t require.TestingT, tt testCase, state *multithreaded.State, vm VersionedVMTestCase, r *testutil.RandHelper, goVm mipsevm.FPVM) {
 		c := tt.Base
 
 		baseReg := 6
@@ -66,7 +66,7 @@ func TestEVM_MT_LL(t *testing.T) {
 
 		// Set up state
 		testutil.SetMemoryUint64(t, state.GetMemory(), Word(c.expectedAddr), c.memValue)
-		testutil.StoreInstruction(state.GetMemory(), state.GetPC(), insn)
+		storeInsnWithCache(state, goVm, state.GetPC(), insn)
 		state.GetRegistersRef()[baseReg] = Word(c.base)
 		if tt.Variation.withExistingReservation {
 			state.LLReservationStatus = multithreaded.LLStatusActive32bit
@@ -139,7 +139,7 @@ func TestEVM_MT_SC(t *testing.T) {
 
 	// Set up some test values that will be reused
 	memValue := uint64(0x1122_3344_5566_7788)
-	initState := func(t require.TestingT, tt testCase, state *multithreaded.State, vm VersionedVMTestCase, r *testutil.RandHelper) {
+	initState := func(t require.TestingT, tt testCase, state *multithreaded.State, vm VersionedVMTestCase, r *testutil.RandHelper, goVm mipsevm.FPVM) {
 		c := tt.Base
 		llVar := tt.Variation
 
@@ -164,7 +164,7 @@ func TestEVM_MT_SC(t *testing.T) {
 		insn := uint32((0b11_1000 << 26) | (baseReg & 0x1F << 21) | (c.rtReg & 0x1F << 16) | (0xFFFF & c.offset))
 		testutil.SetMemoryUint64(t, state.GetMemory(), Word(c.expectedAddr), memValue)
 		state.GetCurrentThread().ThreadId = c.threadId
-		testutil.StoreInstruction(state.GetMemory(), state.GetPC(), insn)
+		storeInsnWithCache(state, goVm, state.GetPC(), insn)
 		state.GetRegistersRef()[baseReg] = c.base
 		state.GetRegistersRef()[c.rtReg] = Word(c.storeValue)
 		state.LLReservationStatus = llVar.llReservationStatus
@@ -221,9 +221,9 @@ func TestEVM_SysClone_FlagHandling(t *testing.T) {
 	}
 
 	stackPtr := Word(204)
-	initState := func(t require.TestingT, c testCase, state *multithreaded.State, vm VersionedVMTestCase, r *testutil.RandHelper) {
+	initState := func(t require.TestingT, c testCase, state *multithreaded.State, vm VersionedVMTestCase, r *testutil.RandHelper, goVm mipsevm.FPVM) {
 		mtutil.InitializeSingleThread(r.Intn(10000), state, true)
-		testutil.StoreInstruction(state.Memory, state.GetPC(), syscallInsn)
+		storeInsnWithCache(state, goVm, state.GetPC(), syscallInsn)
 		state.GetRegistersRef()[2] = arch.SysClone // Set syscall number
 		state.GetRegistersRef()[4] = c.flags       // Set first argument
 		state.GetRegistersRef()[5] = stackPtr      // a1 - the stack pointer
@@ -265,9 +265,9 @@ func TestEVM_SysClone_Successful(t *testing.T) {
 	}
 
 	stackPtr := Word(100)
-	initState := func(t require.TestingT, c testCase, state *multithreaded.State, vm VersionedVMTestCase, r *testutil.RandHelper) {
+	initState := func(t require.TestingT, c testCase, state *multithreaded.State, vm VersionedVMTestCase, r *testutil.RandHelper, goVm mipsevm.FPVM) {
 		mtutil.InitializeSingleThread(r.Intn(10000), state, c.traverseRight)
-		testutil.StoreInstruction(state.Memory, state.GetPC(), syscallInsn)
+		storeInsnWithCache(state, goVm, state.GetPC(), syscallInsn)
 		state.GetRegistersRef()[2] = arch.SysClone        // the syscall number
 		state.GetRegistersRef()[4] = exec.ValidCloneFlags // a0 - first argument, clone flags
 		state.GetRegistersRef()[5] = stackPtr             // a1 - the stack pointer
@@ -325,10 +325,10 @@ func TestEVM_SysGetTID(t *testing.T) {
 		{"non-zero", 11},
 	}
 
-	initState := func(t require.TestingT, c testCase, state *multithreaded.State, vm VersionedVMTestCase, r *testutil.RandHelper) {
+	initState := func(t require.TestingT, c testCase, state *multithreaded.State, vm VersionedVMTestCase, r *testutil.RandHelper, goVm mipsevm.FPVM) {
 		mtutil.InitializeSingleThread(r.Intn(10000), state, false)
 		state.GetCurrentThread().ThreadId = c.threadId
-		testutil.StoreInstruction(state.Memory, state.GetPC(), syscallInsn)
+		storeInsnWithCache(state, goVm, state.GetPC(), syscallInsn)
 		state.GetRegistersRef()[2] = arch.SysGetTID // Set syscall number
 	}
 
@@ -374,10 +374,10 @@ func TestEVM_SysExit(t *testing.T) {
 	cases := testutil.TestVariations(baseTests, testVariations)
 
 	exitCode := uint8(3)
-	initState := func(t require.TestingT, tt testCase, state *multithreaded.State, vm VersionedVMTestCase, r *testutil.RandHelper) {
+	initState := func(t require.TestingT, tt testCase, state *multithreaded.State, vm VersionedVMTestCase, r *testutil.RandHelper, goVm mipsevm.FPVM) {
 		c := tt.Base
 		mtutil.SetupThreads(r.Int64(10000), state, tt.Variation.traverseRight, c.threadCount, 0)
-		testutil.StoreInstruction(state.Memory, state.GetPC(), syscallInsn)
+		storeInsnWithCache(state, goVm, state.GetPC(), syscallInsn)
 		state.GetRegistersRef()[2] = arch.SysExit   // Set syscall number
 		state.GetRegistersRef()[4] = Word(exitCode) // The first argument (exit code)
 	}
@@ -419,7 +419,7 @@ func TestEVM_PopExitedThread(t *testing.T) {
 		{name: "traverse left, switch directions", traverseRight: false, activeStackThreadCount: 1, expectTraverseRightPostState: true},
 	}
 
-	initState := func(t require.TestingT, c testCase, state *multithreaded.State, vm VersionedVMTestCase, r *testutil.RandHelper) {
+	initState := func(t require.TestingT, c testCase, state *multithreaded.State, vm VersionedVMTestCase, r *testutil.RandHelper, goVm mipsevm.FPVM) {
 		mtutil.SetupThreads(r.Int64(1000), state, c.traverseRight, c.activeStackThreadCount, 1)
 		threadToPop := state.GetCurrentThread()
 		threadToPop.Exited = true
@@ -469,8 +469,8 @@ func TestEVM_SysFutex_WaitPrivate(t *testing.T) {
 		{name: "memory mismatch w timeout, unaligned", addressParam: 0xFF_FF_FF_FF_FF_FF_12_0F, effAddr: 0xFF_FF_FF_FF_FF_FF_12_0C, targetValue: 0xFF_FF_FF_01, actualValue: 0xFF_FF_FF_02, timeout: 2000000, shouldFail: true},
 	}
 
-	initState := func(t require.TestingT, c testCase, state *multithreaded.State, vm VersionedVMTestCase, r *testutil.RandHelper) {
-		testutil.StoreInstruction(state.Memory, state.GetPC(), syscallInsn)
+	initState := func(t require.TestingT, c testCase, state *multithreaded.State, vm VersionedVMTestCase, r *testutil.RandHelper, goVm mipsevm.FPVM) {
+		storeInsnWithCache(state, goVm, state.GetPC(), syscallInsn)
 		testutil.RandomizeWordAndSetUint32(state.GetMemory(), Word(c.effAddr), c.actualValue, r.Int64(1000))
 		state.GetRegistersRef()[2] = arch.SysFutex // Set syscall number
 		state.GetRegistersRef()[4] = Word(c.addressParam)
@@ -535,9 +535,9 @@ func TestEVM_SysFutex_WakePrivate(t *testing.T) {
 		{name: "Traverse left, single thread, unaligned", addressParam: 0xFF_FF_FF_FF_FF_FF_67_89, effAddr: 0xFF_FF_FF_FF_FF_FF_67_88, activeThreadCount: 1, inactiveThreadCount: 0, traverseRight: false},
 	}
 
-	initState := func(t require.TestingT, c testCase, state *multithreaded.State, vm VersionedVMTestCase, r *testutil.RandHelper) {
+	initState := func(t require.TestingT, c testCase, state *multithreaded.State, vm VersionedVMTestCase, r *testutil.RandHelper, goVm mipsevm.FPVM) {
 		mtutil.SetupThreads(r.Int64(1000), state, c.traverseRight, c.activeThreadCount, c.inactiveThreadCount)
-		testutil.StoreInstruction(state.Memory, state.GetPC(), syscallInsn)
+		storeInsnWithCache(state, goVm, state.GetPC(), syscallInsn)
 		state.GetRegistersRef()[2] = arch.SysFutex // Set syscall number
 		state.GetRegistersRef()[4] = Word(c.addressParam)
 		state.GetRegistersRef()[5] = exec.FutexWakePrivate
@@ -612,8 +612,8 @@ func TestEVM_SysFutex_UnsupportedOp(t *testing.T) {
 		{"FUTEX_CMP_REQUEUE_PI_PRIVATE", (FUTEX_CMP_REQUEUE_PI | FUTEX_PRIVATE_FLAG)},
 	}
 
-	initState := func(t require.TestingT, c testCase, state *multithreaded.State, vm VersionedVMTestCase, r *testutil.RandHelper) {
-		testutil.StoreInstruction(state.Memory, state.GetPC(), syscallInsn)
+	initState := func(t require.TestingT, c testCase, state *multithreaded.State, vm VersionedVMTestCase, r *testutil.RandHelper, goVm mipsevm.FPVM) {
+		storeInsnWithCache(state, goVm, state.GetPC(), syscallInsn)
 		state.GetRegistersRef()[2] = arch.SysFutex // Set syscall number
 		state.GetRegistersRef()[5] = c.op
 	}
@@ -667,10 +667,10 @@ func runPreemptSyscall(t *testing.T, syscallName string, syscallNum uint32) {
 	}
 	cases := testutil.TestVariations(baseTests, testVariations)
 
-	initState := func(t require.TestingT, tt testCase, state *multithreaded.State, vm VersionedVMTestCase, r *testutil.RandHelper) {
+	initState := func(t require.TestingT, tt testCase, state *multithreaded.State, vm VersionedVMTestCase, r *testutil.RandHelper, goVm mipsevm.FPVM) {
 		c := tt.Base
 		mtutil.SetupThreads(r.Int64(1000), state, tt.Variation.traverseRight, c.activeThreads, c.inactiveThreads)
-		testutil.StoreInstruction(state.Memory, state.GetPC(), syscallInsn)
+		storeInsnWithCache(state, goVm, state.GetPC(), syscallInsn)
 		state.GetRegistersRef()[2] = Word(syscallNum) // Set syscall number
 	}
 
@@ -689,8 +689,8 @@ func runPreemptSyscall(t *testing.T, syscallName string, syscallNum uint32) {
 }
 
 func TestEVM_SysOpen(t *testing.T) {
-	initState := func(t require.TestingT, state *multithreaded.State, vm VersionedVMTestCase, r *testutil.RandHelper) {
-		testutil.StoreInstruction(state.Memory, state.GetPC(), syscallInsn)
+	initState := func(t require.TestingT, state *multithreaded.State, vm VersionedVMTestCase, r *testutil.RandHelper, goVm mipsevm.FPVM) {
+		storeInsnWithCache(state, goVm, state.GetPC(), syscallInsn)
 		state.GetRegistersRef()[2] = arch.SysOpen // Set syscall number
 	}
 
@@ -708,8 +708,8 @@ func TestEVM_SysOpen(t *testing.T) {
 }
 
 func TestEVM_SysGetPID(t *testing.T) {
-	initState := func(t require.TestingT, state *multithreaded.State, vm VersionedVMTestCase, r *testutil.RandHelper) {
-		testutil.StoreInstruction(state.Memory, state.GetPC(), syscallInsn)
+	initState := func(t require.TestingT, state *multithreaded.State, vm VersionedVMTestCase, r *testutil.RandHelper, goVm mipsevm.FPVM) {
+		storeInsnWithCache(state, goVm, state.GetPC(), syscallInsn)
 		state.GetRegistersRef()[2] = arch.SysGetpid // Set syscall number
 	}
 
@@ -772,7 +772,7 @@ func testEVM_SysClockGettime(t *testing.T, clkid Word) {
 	}
 	cases := testutil.TestVariations(baseTests, llVariations)
 
-	initState := func(t require.TestingT, tt testCase, state *multithreaded.State, vm VersionedVMTestCase, r *testutil.RandHelper) {
+	initState := func(t require.TestingT, tt testCase, state *multithreaded.State, vm VersionedVMTestCase, r *testutil.RandHelper, goVm mipsevm.FPVM) {
 		c := tt.Base
 		llVar := tt.Variation
 
@@ -796,7 +796,7 @@ func testEVM_SysClockGettime(t *testing.T, clkid Word) {
 			llOwnerThread = state.GetCurrentThread().ThreadId + 1
 		}
 
-		testutil.StoreInstruction(state.Memory, state.GetPC(), syscallInsn)
+		storeInsnWithCache(state, goVm, state.GetPC(), syscallInsn)
 		state.GetRegistersRef()[2] = arch.SysClockGetTime // Set syscall number
 		state.GetRegistersRef()[4] = clkid                // a0
 		state.GetRegistersRef()[5] = c.timespecAddr       // a1
@@ -836,9 +836,9 @@ func testEVM_SysClockGettime(t *testing.T, clkid Word) {
 }
 
 func TestEVM_SysClockGettimeNonMonotonic(t *testing.T) {
-	initState := func(t require.TestingT, state *multithreaded.State, vm VersionedVMTestCase, r *testutil.RandHelper) {
+	initState := func(t require.TestingT, state *multithreaded.State, vm VersionedVMTestCase, r *testutil.RandHelper, goVm mipsevm.FPVM) {
 		timespecAddr := Word(0x1000)
-		testutil.StoreInstruction(state.Memory, state.GetPC(), syscallInsn)
+		storeInsnWithCache(state, goVm, state.GetPC(), syscallInsn)
 		state.GetRegistersRef()[2] = arch.SysClockGetTime // Set syscall number
 		state.GetRegistersRef()[4] = 0xDEAD               // a0 - invalid clockid
 		state.GetRegistersRef()[5] = timespecAddr         // a1
@@ -881,7 +881,7 @@ func TestEVM_EmptyThreadStacks(t *testing.T) {
 
 	cases := testutil.TestVariations(baseTests, proofVariations)
 
-	initState := func(t require.TestingT, c testCase, state *multithreaded.State, vm VersionedVMTestCase, r *testutil.RandHelper) {
+	initState := func(t require.TestingT, c testCase, state *multithreaded.State, vm VersionedVMTestCase, r *testutil.RandHelper, goVm mipsevm.FPVM) {
 		b := c.Base
 		mtutil.SetupThreads(r.Int64(1000), state, b.traverseRight, 0, b.otherStackSize)
 	}
@@ -927,7 +927,7 @@ func TestEVM_NormalTraversal_Full(t *testing.T) {
 	// The ori (or immediate) instruction sets register 2 to SysSchedYield
 	oriInsn := uint32((0b001101 << 26) | (syscallNumReg & 0x1F << 16) | (0xFFFF & arch.SysSchedYield))
 
-	initState := func(t require.TestingT, tt testCase, state *multithreaded.State, vm VersionedVMTestCase, r *testutil.RandHelper) {
+	initState := func(t require.TestingT, tt testCase, state *multithreaded.State, vm VersionedVMTestCase, r *testutil.RandHelper, goVm mipsevm.FPVM) {
 		c := tt.Base
 		traverseRight := tt.Variation.traverseRight
 		mtutil.SetupThreads(r.Int64(1000), state, traverseRight, c.threadCount, 0)
@@ -995,7 +995,7 @@ func TestEVM_SchedQuantumThreshold(t *testing.T) {
 		{name: "beyond threshold", stepsSinceLastContextSwitch: exec.SchedQuantum + 1, shouldPreempt: true},
 	}
 
-	initState := func(t require.TestingT, c testCase, state *multithreaded.State, vm VersionedVMTestCase, r *testutil.RandHelper) {
+	initState := func(t require.TestingT, c testCase, state *multithreaded.State, vm VersionedVMTestCase, r *testutil.RandHelper, goVm mipsevm.FPVM) {
 		// Setup basic getThreadId syscall instruction
 		testutil.StoreInstruction(state.Memory, state.GetPC(), syscallInsn)
 		state.GetRegistersRef()[2] = arch.SysGetTID // Set syscall number

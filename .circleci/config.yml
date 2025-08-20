@@ -743,6 +743,10 @@ jobs:
         description: Profile to use for testing
         type: string
         default: ci
+      check_changed_patterns:
+        description: List of changed files to run tests on
+        type: string
+        default: contracts-bedrock
     steps:
       - checkout-from-workspace
       - run:
@@ -755,7 +759,7 @@ jobs:
             fi
           working_directory: packages/contracts-bedrock
       - check-changed:
-          patterns: contracts-bedrock,op-node
+          patterns: <<parameters.check_changed_patterns>>
       - run:
           name: Print dependencies
           command: just dep-status
@@ -823,7 +827,7 @@ jobs:
     steps:
       - checkout-from-workspace
       - check-changed:
-          patterns: contracts-bedrock,op-node
+          patterns: contracts-bedrock
       - run:
           name: Print dependencies
           command: just dep-status
@@ -896,7 +900,7 @@ jobs:
     steps:
       - checkout-from-workspace
       - check-changed:
-          patterns: contracts-bedrock,op-node
+          patterns: contracts-bedrock
       - run:
           name: Print dependencies
           command: just dep-status
@@ -967,7 +971,7 @@ jobs:
     steps:
       - checkout-from-workspace
       - check-changed:
-          patterns: contracts-bedrock,op-node
+          patterns: contracts-bedrock
       - get-target-branch
       - run:
           name: print forge version
@@ -1057,15 +1061,21 @@ jobs:
           when: always
 
   go-lint:
-    machine: true
-    resource_class: ethereum-optimism/latitude-1
+    docker:
+      - image: <<pipeline.parameters.default_docker_image>>
+    resource_class: large
     steps:
       - checkout-from-workspace
+      - restore_cache:
+          key: golangci-v1-{{ checksum ".golangci.yaml" }}
       - run:
           name: run Go linter
           command: |
             make lint-go
-          working_directory: .
+      - save_cache:
+          key: golangci-v1-{{ checksum ".golangci.yaml" }}
+          paths:
+            - "/home/circleci/.cache/golangci-lint"
 
   go-tests:
     parameters:
@@ -1837,6 +1847,7 @@ workflows:
             - circleci-repo-readonly-authenticated-github-token
           requires:
             - initialize
+          check_changed_patterns: contracts-bedrock,op-node
       - contracts-bedrock-tests:
           # PreimageOracle test is slow, run it separately to unblock CI.
           name: contracts-bedrock-tests-preimage-oracle
@@ -2175,6 +2186,11 @@ workflows:
             - hold
           context:
             - circleci-repo-readonly-authenticated-github-token
+          filters:
+            tags:
+              only: /^(da-server|cannon|ufm-[a-z0-9\-]*|op-[a-z0-9\-]*)\/v.*/
+            branches:
+              ignore: /.*/
       # Standard (medium) cross-platform docker images go here
       - docker-build:
           matrix:
@@ -2328,7 +2344,7 @@ workflows:
           notify: true
           mentions: "@proofs-team"
           no_output_timeout: 90m
-          test_timeout: 240m
+          test_timeout: 480m
           resource_class: ethereum-optimism/latitude-fps-1
           context:
             - slack

@@ -751,10 +751,8 @@ func (oc *OpConductor) action() {
 	case status.leader && !status.healthy && status.active:
 		// There are two scenarios we need to handle here:
 		// 1. we're transitioned from case status.leader && !status.healthy && !status.active, see description above
-		//    then we should continue to sequence blocks and try to bring ourselves back to healthy state.
-		//    note: we need to also make sure that the health error is not due to ErrSequencerConnectionDown
-		//    		because in this case, we should stop sequencing and transfer leadership to other nodes.
-		if oc.prevState.leader && !oc.prevState.healthy && !oc.prevState.active && !errors.Is(oc.hcerr, health.ErrSequencerConnectionDown) {
+		//    then we should continue to sequence blocks and try to bring ourselves back to healthy state (if possible)
+		if oc.shouldWaitForHealthRecovery() {
 			err = errors.New("waiting for sequencing to become healthy by itself")
 			break
 		}
@@ -935,4 +933,25 @@ func (oc *OpConductor) updateSequencerActiveStatus() error {
 	oc.log.Info("sequencer active status updated", "active", active)
 	oc.seqActive.Store(active)
 	return nil
+}
+
+// shouldWaitForHealthRecovery determines if the conductor should wait for the sequencer
+// to recover health naturally instead of transferring leadership.
+func (oc *OpConductor) shouldWaitForHealthRecovery() bool {
+	// Only wait for recovery if we transitioned from [leader, unhealthy, inactive] state
+	if !oc.prevState.leader || oc.prevState.healthy || oc.prevState.active {
+		return false
+	}
+
+	// Don't wait if the error is a connection issue - transfer leadership instead
+	if errors.Is(oc.hcerr, health.ErrSequencerConnectionDown) {
+		return false
+	}
+
+	// Don't wait if rollup boost is enabled and partially healthy - transfer leadership instead
+	if oc.cfg.RollupBoostEnabled && errors.Is(oc.hcerr, health.ErrRollupBoostPartiallyHealthy) {
+		return false
+	}
+
+	return true
 }

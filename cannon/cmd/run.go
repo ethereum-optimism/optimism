@@ -395,7 +395,7 @@ func Run(ctx *cli.Context) error {
 		}
 	}
 
-	state, err := versions.LoadStateFromFile(ctx.Path(RunInputFlag.Name))
+	state, err := versions.LoadStateFromFileWithLargeICache(ctx.Path(RunInputFlag.Name))
 	if err != nil {
 		return fmt.Errorf("failed to load state: %w", err)
 	}

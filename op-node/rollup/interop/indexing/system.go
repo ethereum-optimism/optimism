@@ -45,6 +45,11 @@ type L1Source interface {
 	L1BlockRefByHash(ctx context.Context, hash common.Hash) (eth.L1BlockRef, error)
 	L1BlockRefByNumber(ctx context.Context, num uint64) (eth.L1BlockRef, error)
 }
+type EngineController interface {
+	ForceReset(ctx context.Context, localUnsafe, crossUnsafe, localSafe, crossSafe, finalized eth.L2BlockRef)
+	PromoteSafe(ctx context.Context, ref eth.L2BlockRef, source eth.L1BlockRef)
+	PromoteFinalized(ctx context.Context, ref eth.L2BlockRef)
+}
 
 // IndexingMode makes the op-node managed by an op-supervisor,
 // by serving sync work and updating the canonical chain based on instructions.
@@ -73,6 +78,8 @@ type IndexingMode struct {
 
 	srv       *rpc.Server
 	jwtSecret eth.Bytes32
+
+	engineController EngineController
 }
 
 func NewIndexingMode(log log.Logger, cfg *rollup.Config, addr string, port int, jwtSecret eth.Bytes32, l1 L1Source, l2 L2Source, m opmetrics.RPCMetricer) *IndexingMode {
@@ -109,6 +116,10 @@ func NewIndexingMode(log log.Logger, cfg *rollup.Config, addr string, port int, 
 		Authenticated: true,
 	})
 	return out
+}
+
+func (m *IndexingMode) SetEngineController(engineController EngineController) {
+	m.engineController = engineController
 }
 
 // TestDisableEventDeduplication is a test-only function that disables event deduplication.
@@ -288,12 +299,7 @@ func (m *IndexingMode) UpdateCrossSafe(ctx context.Context, derived eth.BlockID,
 	if err != nil {
 		return fmt.Errorf("failed to get L1BlockRef: %w", err)
 	}
-	m.emitter.Emit(m.ctx, engine.PromoteSafeEvent{
-		Ref:    l2Ref,
-		Source: l1Ref,
-	})
-	// We return early: there is no point waiting for the cross-safe engine-update synchronously.
-	// All error-feedback comes to the supervisor by aborting derivation tasks with an error.
+	m.engineController.PromoteSafe(ctx, l2Ref, l1Ref)
 	return nil
 }
 
@@ -302,9 +308,7 @@ func (m *IndexingMode) UpdateFinalized(ctx context.Context, id eth.BlockID) erro
 	if err != nil {
 		return fmt.Errorf("failed to get L2BlockRef: %w", err)
 	}
-	m.emitter.Emit(m.ctx, engine.PromoteFinalizedEvent{Ref: l2Ref})
-	// We return early: there is no point waiting for the finalized engine-update synchronously.
-	// All error-feedback comes to the supervisor by aborting derivation tasks with an error.
+	m.engineController.PromoteFinalized(ctx, l2Ref)
 	return nil
 }
 
@@ -450,13 +454,7 @@ func (m *IndexingMode) Reset(ctx context.Context, lUnsafe, xUnsafe, lSafe, xSafe
 		return err
 	}
 
-	m.emitter.Emit(ctx, rollup.ForceResetEvent{
-		LocalUnsafe: lUnsafeRef,
-		CrossUnsafe: xUnsafeRef,
-		LocalSafe:   lSafeRef,
-		CrossSafe:   xSafeRef,
-		Finalized:   finalizedRef,
-	})
+	m.engineController.ForceReset(ctx, lUnsafeRef, xUnsafeRef, lSafeRef, xSafeRef, finalizedRef)
 	return nil
 }
 
