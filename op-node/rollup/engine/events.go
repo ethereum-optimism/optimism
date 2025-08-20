@@ -96,15 +96,6 @@ func (ev EngineResetConfirmedEvent) String() string {
 	return "engine-reset-confirmed"
 }
 
-// PromoteFinalizedEvent signals that a block can be marked as finalized.
-type PromoteFinalizedEvent struct {
-	Ref eth.L2BlockRef
-}
-
-func (ev PromoteFinalizedEvent) String() string {
-	return "promote-finalized"
-}
-
 // FinalizedUpdateEvent signals that a block has been marked as finalized.
 type FinalizedUpdateEvent struct {
 	Ref eth.L2BlockRef

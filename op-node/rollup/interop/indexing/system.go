@@ -48,6 +48,7 @@ type L1Source interface {
 type EngineController interface {
 	ForceReset(ctx context.Context, localUnsafe, crossUnsafe, localSafe, crossSafe, finalized eth.L2BlockRef)
 	PromoteSafe(ctx context.Context, ref eth.L2BlockRef, source eth.L1BlockRef)
+	PromoteFinalized(ctx context.Context, ref eth.L2BlockRef)
 }
 
 // IndexingMode makes the op-node managed by an op-supervisor,
@@ -307,9 +308,7 @@ func (m *IndexingMode) UpdateFinalized(ctx context.Context, id eth.BlockID) erro
 	if err != nil {
 		return fmt.Errorf("failed to get L2BlockRef: %w", err)
 	}
-	m.emitter.Emit(m.ctx, engine.PromoteFinalizedEvent{Ref: l2Ref})
-	// We return early: there is no point waiting for the finalized engine-update synchronously.
-	// All error-feedback comes to the supervisor by aborting derivation tasks with an error.
+	m.engineController.PromoteFinalized(ctx, l2Ref)
 	return nil
 }
 

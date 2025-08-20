@@ -698,19 +698,6 @@ func (d *EngineController) OnEvent(ctx context.Context, ev event.Event) bool {
 		if !d.rollupCfg.IsInterop(x.Ref.Time) {
 			d.PromoteSafe(ctx, x.Ref, x.Source)
 		}
-	case PromoteFinalizedEvent:
-		if x.Ref.Number < d.Finalized().Number {
-			d.log.Error("Cannot rewind finality,", "ref", x.Ref, "finalized", d.Finalized())
-			return true
-		}
-		if x.Ref.Number > d.SafeL2Head().Number {
-			d.log.Error("Block must be safe before it can be finalized", "ref", x.Ref, "safe", d.SafeL2Head())
-			return true
-		}
-		d.SetFinalizedHead(x.Ref)
-		d.emitter.Emit(ctx, FinalizedUpdateEvent(x))
-		// Try to apply the forkchoice changes
-		d.TryUpdateEngine(ctx)
 	case InteropInvalidateBlockEvent:
 		d.emitter.Emit(ctx, BuildStartEvent{Attributes: x.Attributes})
 	case BuildStartEvent:
@@ -789,6 +776,21 @@ func (e *EngineController) PromoteSafe(ctx context.Context, ref eth.L2BlockRef, 
 		e.SetCrossUnsafeHead(ref)
 		e.onUnsafeUpdate(ctx, ref, e.UnsafeL2Head())
 	}
+	// Try to apply the forkchoice changes
+	e.TryUpdateEngine(ctx)
+}
+
+func (e *EngineController) PromoteFinalized(ctx context.Context, ref eth.L2BlockRef) {
+	if ref.Number < e.Finalized().Number {
+		e.log.Error("Cannot rewind finality,", "ref", ref, "finalized", e.Finalized())
+		return
+	}
+	if ref.Number > e.SafeL2Head().Number {
+		e.log.Error("Block must be safe before it can be finalized", "ref", ref, "safe", e.SafeL2Head())
+		return
+	}
+	e.SetFinalizedHead(ref)
+	e.emitter.Emit(ctx, FinalizedUpdateEvent{Ref: ref})
 	// Try to apply the forkchoice changes
 	e.TryUpdateEngine(ctx)
 }
