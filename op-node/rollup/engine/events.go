@@ -65,18 +65,8 @@ func (ev LocalSafeUpdateEvent) String() string {
 	return "local-safe-update"
 }
 
-// PromoteSafeEvent signals that a block can be promoted to cross-safe.
-type PromoteSafeEvent struct {
-	Ref    eth.L2BlockRef
-	Source eth.L1BlockRef
-}
-
-func (ev PromoteSafeEvent) String() string {
-	return "promote-safe"
-}
-
 // SafeDerivedEvent signals that a block was determined to be safe, and derived from the given L1 block.
-// This is signaled upon successful processing of PromoteSafeEvent.
+// This is signaled upon procedural call of PromoteSafe method
 type SafeDerivedEvent struct {
 	Safe   eth.L2BlockRef
 	Source eth.L1BlockRef

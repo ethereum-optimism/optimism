@@ -148,7 +148,7 @@ func NewL2Verifier(t Testing, log log.Logger, l1 derive.L1Fetcher,
 	ec := engine.NewEngineController(ctx, eng, log, opnodemetrics.NoopMetrics, cfg, syncCfg, sys.Register("engine-controller", nil, opts))
 
 	if mm, ok := interopSys.(*indexing.IndexingMode); ok {
-		mm.SetForceResetNotifier(ec)
+		mm.SetEngineController(ec)
 	}
 
 	engineResetDeriver := engine.NewEngineResetDeriver(ctx, log, cfg, l1, eng, syncCfg)

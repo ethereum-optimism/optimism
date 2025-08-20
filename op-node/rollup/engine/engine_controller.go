@@ -650,6 +650,7 @@ func (d *EngineController) OnEvent(ctx context.Context, ev event.Event) bool {
 	defer d.mu.Unlock()
 	// TODO(#16917) Remove Event System Refactor Comments
 	//  PromoteUnsafeEvent, PromotePendingSafeEvent, PromoteLocalSafeEvent fan out is updated to procedural
+	//  PromoteSafeEvent fan out is updated to procedural PromoteSafe method call
 	switch x := ev.(type) {
 	case ProcessUnsafePayloadEvent:
 		ref, err := derive.PayloadToBlockRef(d.rollupCfg, x.Envelope.ExecutionPayload)
@@ -699,23 +700,10 @@ func (d *EngineController) OnEvent(ctx context.Context, ev event.Event) bool {
 		})
 
 	case LocalSafeUpdateEvent:
-		// pre-interop everything that is local-unsafe is also immediately cross-unsafe.
+		// pre-interop everything that is local-safe is also immediately cross-safe.
 		if !d.rollupCfg.IsInterop(x.Ref.Time) {
-			d.emitter.Emit(ctx, PromoteSafeEvent(x))
+			d.PromoteSafe(ctx, x.Ref, x.Source)
 		}
-	case PromoteSafeEvent:
-		d.log.Debug("Updating safe", "safe", x.Ref, "unsafe", d.UnsafeL2Head())
-		d.SetSafeHead(x.Ref)
-		// Finalizer can pick up this safe cross-block now
-		d.emitter.Emit(ctx, SafeDerivedEvent{Safe: x.Ref, Source: x.Source})
-		d.onSafeUpdate(ctx, d.SafeL2Head(), d.LocalSafeL2Head())
-		if x.Ref.Number > d.crossUnsafeHead.Number {
-			d.log.Debug("Cross Unsafe Head is stale, updating to match cross safe", "cross_unsafe", d.crossUnsafeHead, "cross_safe", x.Ref)
-			d.SetCrossUnsafeHead(x.Ref)
-			d.onUnsafeUpdate(ctx, x.Ref, d.UnsafeL2Head())
-		}
-		// Try to apply the forkchoice changes
-		d.TryUpdateEngine(ctx)
 	case PromoteFinalizedEvent:
 		if x.Ref.Number < d.Finalized().Number {
 			d.log.Error("Cannot rewind finality,", "ref", x.Ref, "finalized", d.Finalized())
@@ -787,6 +775,21 @@ func (e *EngineController) TryUpdateUnsafe(ctx context.Context, ref eth.L2BlockR
 	}
 	e.SetUnsafeHead(ref)
 	e.emitter.Emit(ctx, UnsafeUpdateEvent{Ref: ref})
+}
+
+func (e *EngineController) PromoteSafe(ctx context.Context, ref eth.L2BlockRef, source eth.L1BlockRef) {
+	e.log.Debug("Updating safe", "safe", ref, "unsafe", e.UnsafeL2Head())
+	e.SetSafeHead(ref)
+	// Finalizer can pick up this safe cross-block now
+	e.emitter.Emit(ctx, SafeDerivedEvent{Safe: ref, Source: source})
+	e.onSafeUpdate(ctx, e.SafeL2Head(), e.LocalSafeL2Head())
+	if ref.Number > e.crossUnsafeHead.Number {
+		e.log.Debug("Cross Unsafe Head is stale, updating to match cross safe", "cross_unsafe", e.crossUnsafeHead, "cross_safe", ref)
+		e.SetCrossUnsafeHead(ref)
+		e.onUnsafeUpdate(ctx, ref, e.UnsafeL2Head())
+	}
+	// Try to apply the forkchoice changes
+	e.TryUpdateEngine(ctx)
 }
 
 // SetAttributesResetter sets the attributes component that needs force reset notifications
