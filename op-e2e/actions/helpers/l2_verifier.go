@@ -153,7 +153,6 @@ func NewL2Verifier(t Testing, log log.Logger, l1 derive.L1Fetcher,
 
 	engineResetDeriver := engine.NewEngineResetDeriver(ctx, log, cfg, l1, eng, syncCfg)
 	sys.Register("engine-reset", engineResetDeriver, opts)
-	// TODO(#17061): Refactor dependency cycles
 	engineResetDeriver.SetEngController(ec)
 
 	clSync := clsync.NewCLSync(log, cfg, metrics, ec)
