@@ -5,7 +5,9 @@ import (
 	"bytes"
 	"compress/gzip"
 	"context"
+	"crypto/sha256"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path"
@@ -22,18 +24,24 @@ const Version = "v1.3.1"
 // this should be more than enough.
 const maxDownloadSize = 100 * 1024 * 1024
 
-func bindirName() string {
+// checksums map the OS/architecture to the expected checksum of the binary.
+var checksums = map[string]string{
+	"darwin_amd64": "0b74d7efa2fe020c58dafbec5377617c1830f4ce8de26c0bbe8b57334984aab6",
+	"darwin_arm64": "e3c880d28eae2a150f3f01a674b3cd6a130d6d3f16685740cd1e16538b58a4a5",
+	"linux_amd64":  "baad3e1b06d6f310d210c93e95258a03d923fe610f8d0742138f2245f94abd7c",
+	"linux_arm64":  "ac5f88c0f6c1e5ed09c035a9f4405f74b996ea8a701d7150dc0184c18dd09f11",
+}
+
+func getOS() string {
 	sysOS := runtime.GOOS
 	if runtime.GOOS == "windows" {
 		sysOS = "win32"
 	}
-	sysArch := runtime.GOARCH
-
-	return fmt.Sprintf("foundry_%s_%s_%s", Version, sysOS, sysArch)
+	return sysOS
 }
 
-func binaryURL() string {
-	return fmt.Sprintf("https://github.com/foundry-rs/foundry/releases/download/%s/%s.tar.gz", Version, bindirName())
+func binaryURL(sysOS, sysArch string) string {
+	return fmt.Sprintf("https://github.com/foundry-rs/foundry/releases/download/%s/foundry_%s_%s_%s.tar.gz", Version, Version, sysOS, sysArch)
 }
 
 type Binary interface {
@@ -60,9 +68,10 @@ func (b *Bin) Path() string {
 type AutodetectBin struct {
 	progressor ioutil.Progressor
 
-	cacheDirProvider func() (string, error)
-	url              string
-	path             string
+	cachePather func() (string, error)
+	checksummer func(r io.Reader) error
+	url         string
+	path        string
 }
 
 type AutodetectBinaryOpt func(s *AutodetectBin)
@@ -79,22 +88,53 @@ func WithURL(url string) AutodetectBinaryOpt {
 	}
 }
 
-func WithCacheDirProvider(provider func() (string, error)) AutodetectBinaryOpt {
+func WithCachePather(pather func() (string, error)) AutodetectBinaryOpt {
 	return func(s *AutodetectBin) {
-		s.cacheDirProvider = provider
+		s.cachePather = pather
 	}
+}
+
+func WithChecksummer(checksummer func(r io.Reader) error) AutodetectBinaryOpt {
+	return func(s *AutodetectBin) {
+		s.checksummer = checksummer
+	}
+}
+
+func homedirCachePather() (string, error) {
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		return "", fmt.Errorf("could not find home directory: %w", err)
+	}
+	return path.Join(homeDir, ".op-deployer", "cache"), nil
+}
+
+func staticChecksummer(expChecksum string) func(r io.Reader) error {
+	return func(r io.Reader) error {
+		h := sha256.New()
+		if _, err := io.Copy(h, r); err != nil {
+			return fmt.Errorf("could not calculate checksum: %w", err)
+		}
+		gotChecksum := fmt.Sprintf("%x", h.Sum(nil))
+		if gotChecksum != expChecksum {
+			return fmt.Errorf("checksum mismatch: expected %s, got %s", expChecksum, gotChecksum)
+		}
+		return nil
+	}
+}
+
+func githubChecksummer(r io.Reader) error {
+	expChecksum := checksums[getOS()+"_"+runtime.GOARCH]
+	if expChecksum == "" {
+		return fmt.Errorf("could not find checksum for %s_%s", getOS(), runtime.GOARCH)
+	}
+	return staticChecksummer(expChecksum)(r)
 }
 
 func AutodetectBinary(opts ...AutodetectBinaryOpt) (*AutodetectBin, error) {
 	bin := &AutodetectBin{
-		url: binaryURL(),
-		cacheDirProvider: func() (string, error) {
-			homeDir, err := os.UserHomeDir()
-			if err != nil {
-				return "", fmt.Errorf("could not find home directory: %w", err)
-			}
-			return path.Join(homeDir, ".op-deployer", "cache"), nil
-		},
+		url:         binaryURL(getOS(), runtime.GOARCH),
+		cachePather: homedirCachePather,
+		checksummer: githubChecksummer,
 	}
 	for _, opt := range opts {
 		opt(bin)
@@ -113,7 +153,7 @@ func (b *AutodetectBin) Ensure(ctx context.Context) error {
 		return nil
 	}
 
-	binDir, err := b.cacheDirProvider()
+	binDir, err := b.cachePather()
 	if err != nil {
 		return fmt.Errorf("could not provide cache dir: %w", err)
 	}
@@ -154,7 +194,11 @@ func (b *AutodetectBin) downloadBinary(ctx context.Context, dest string) error {
 	if err := downloader.Download(ctx, b.url, buf); err != nil {
 		return fmt.Errorf("failed to download binary: %w", err)
 	}
-	gzr, err := gzip.NewReader(buf)
+	data := buf.Bytes()
+	if err := b.checksummer(bytes.NewReader(data)); err != nil {
+		return fmt.Errorf("checksum mismatch: %w", err)
+	}
+	gzr, err := gzip.NewReader(bytes.NewReader(data))
 	if err != nil {
 		return fmt.Errorf("failed to create gzip reader: %w", err)
 	}

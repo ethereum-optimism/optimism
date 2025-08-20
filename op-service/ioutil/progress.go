@@ -3,6 +3,7 @@ package ioutil
 import (
 	"io"
 	"sync"
+	"time"
 
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/schollz/progressbar/v3"
@@ -25,10 +26,47 @@ func NoopProgressor() Progressor {
 	return func(curr, total int64) {}
 }
 
-func LogProgressor(msg string, lgr log.Logger) Progressor {
-	return func(curr, total int64) {
-		lgr.Info(msg, "current", curr, "total", total)
+type LogProgressor struct {
+	L        log.Logger
+	Msg      string
+	Interval time.Duration
+
+	lastLog time.Time
+	mu      sync.Mutex
+}
+
+func NewLogProgressor(l log.Logger, msg string) *LogProgressor {
+	return &LogProgressor{
+		L:   l,
+		Msg: msg,
 	}
+}
+
+func (l *LogProgressor) Progressor(curr, total int64) {
+	if !l.calcInterval() {
+		return
+	}
+
+	msg := l.Msg
+	if msg == "" {
+		msg = "progress"
+	}
+	l.L.Info(msg, "current", curr, "total", total)
+}
+
+func (l *LogProgressor) calcInterval() bool {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+
+	interval := l.Interval
+	if interval == 0 {
+		interval = time.Second
+	}
+	if time.Since(l.lastLog) < interval {
+		return false
+	}
+	l.lastLog = time.Now()
+	return true
 }
 
 type ProgressReader struct {
