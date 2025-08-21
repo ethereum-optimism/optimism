@@ -15,7 +15,7 @@
     - [**`TDReport`**](#tdreport)
     - [**`DCAPEndorsements`**](#dcapendorsements)
     - [**`RegisteredTEE`**](#registeredtee)
-    - [Extended Registration Data](#extended-registration-data)
+    - [**`Extended Registration Data`**](#extended-registration-data)
   - [System Architecture](#system-architecture)
   - [TEE Attestation Mechanism](#tee-attestation-mechanism)
     - [Intel TDX DCAP Attestation](#intel-tdx-dcap-attestation)
@@ -41,17 +41,16 @@
     - [Logged Information](#logged-information)
     - [Implementation Approach](#implementation-approach)
     - [Relationship with Registry](#relationship-with-registry)
-- [Block Builder TEE Proofs](#block-builder-tee-proofs)
-  - [Core Mechanism](#core-mechanism)
-  - [Block Building Process](#block-building-process)
-  - [Verification Contract](#verification-contract)
-  - [Security Properties](#security-properties)
-  - [Integration with Rollup Systems](#integration-with-rollup-systems)
 - [Security Assumptions](#security-assumptions)
 - [Rationale](#rationale)
   - [Replacement Model](#replacement-model)
   - [Gas Optimization](#gas-optimization)
   - [Separation of Concerns](#separation-of-concerns)
+  - [Block Builder TEE Proofs](#block-builder-tee-proofs)
+    - [Core Mechanism](#core-mechanism)
+    - [Block Building Process](#block-building-process)
+    - [Verification Contract](#verification-contract)
+    - [Security Properties](#security-properties)
 
 
 # Abstract
@@ -296,7 +295,7 @@ class RegisteredTEE():
 - `extendedRegistrationData`: The application-specific attested data, reserved for future upgrades
 - `isValid`: True upon first registration, and false after a quote invalidation
 
-### Extended Registration Data
+### **`Extended Registration Data`**
 
 The protocol supports binding additional application-specific data to TEE attestations through the `extendedRegistrationData` field. This enables applications to attest to configuration, public keys, or other data alongside the TEE identity.
 
@@ -380,10 +379,10 @@ The registry operates on these key abstractions:
 
 1. **TEE-controlled address**: The address extracted from the quote's report data field ([TDReport.ReportData](#tdreport)), whose private key was generated inside the TEE and is used to interact with onchain contracts.
 2. **Parsed Quote**: A struct containing the verified and attested data. It contains the quote in its raw form as well as extracted values which are often used and required such as the workloadId.
-   
+
     2.1 **Attestation Quote**: The raw attestation data provided during registration that contains the cryptographic proof of the TEE's state. This quote is stored in the parse quote struct for later verification and revocation.
- 
-    2.2 **Workload Identity (`workloadId`)**: A 32-byte hash derived from TDX measurement registers (as defined in [Workload Identity Derivation](#workload-identity-derivation)) that uniquely identifies a specific piece of code and its configuration running in a TDX environment.
+
+    2.2 **Workload Identity (`workloadId`)**: An application-specific 32-byte hash derived from TDX measurement registers that uniquely identifies a specific piece of code and its configuration running in a TDX environment.
 
 ### Key Relationship Model
 
@@ -464,17 +463,17 @@ This approach provides a clean, straightforward way to manage attestation validi
 
 ## Policy Layer: Flexible Authorization
 
-The Policy layer sits above the Flashtestation Registry and provides a more flexible authorization mechanism.
+The Policy layer sits above the Flashtestation Registry and provides a more flexible authorization mechanism. It's realized by Policy contracts, possibly using the same registry.
 
 ### Policy Abstraction
 
-A Policy is simply a named authorization mapping of addresses, implemented through a mapping of TEE registration data for the address and governable WorkloadIds.
+A Policy is simply a contract authorizing addresses through allowlisting WorkloadIds derived from TEE registration data.
 
 ```
 Policy: [teeAddress -> **`RegisteredTEE`**] -> [**`RegisteredTEE`** -> **`WorkloadId`**] -> [**`WorkloadId`** -> bool]
 ```
 
-This abstraction allows contracts to reference a policy (e.g., "L2-BlockBuilding-Production") rather than specific workloads, enabling governance to update which workloads are acceptable without modifying contract code.
+This allows downstream contracts and products to reference a policy contract by address rather than managing specific workloads.
 
 ### Workload Metadata
 
