@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"slices"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts"
@@ -52,8 +53,7 @@ type Agent struct {
 	log                log.Logger
 	responseDelay      time.Duration
 	responseDelayAfter uint64
-	responseCount      uint64     // Number of responses made in this game
-	responseCountMu    sync.Mutex // Protects responseCount from concurrent access
+	responseCount      uint64 // Number of responses made in this game (accessed atomically)
 }
 
 func NewAgent(
@@ -149,10 +149,8 @@ func (a *Agent) performAction(ctx context.Context, wg *sync.WaitGroup, game type
 
 	// Apply configurable delay before responding (to slow down game progression)
 	// Only apply delay if we've made enough responses already AND we're not in a clock extension period
-	a.responseCountMu.Lock()
-	shouldCheckDelay := a.responseDelay > 0 && a.responseCount >= a.responseDelayAfter
-	currentResponseCount := a.responseCount // Capture for logging
-	a.responseCountMu.Unlock()
+	currentResponseCount := atomic.LoadUint64(&a.responseCount)
+	shouldCheckDelay := a.responseDelay > 0 && currentResponseCount >= a.responseDelayAfter
 
 	if shouldCheckDelay {
 		// Check if we're in a clock extension period - if so, respond immediately
@@ -189,10 +187,7 @@ func (a *Agent) performAction(ctx context.Context, wg *sync.WaitGroup, game type
 		actionLog.Error("Action failed", "err", err)
 	} else {
 		// Increment response count only on successful actions
-		a.responseCountMu.Lock()
-		a.responseCount++
-		newCount := a.responseCount
-		a.responseCountMu.Unlock()
+		newCount := atomic.AddUint64(&a.responseCount, 1)
 		actionLog.Debug("Response count incremented", "response_count", newCount)
 	}
 }
