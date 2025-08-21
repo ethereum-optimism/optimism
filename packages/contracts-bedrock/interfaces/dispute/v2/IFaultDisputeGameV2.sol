@@ -41,6 +41,7 @@ interface IFaultDisputeGameV2 is IDisputeGame {
 
     error AlreadyInitialized();
     error AnchorRootNotFound();
+    error BadExtraData();
     error BlockNumberMatches();
     error BondTransferFailed();
     error CannotDefendRootClaim();
