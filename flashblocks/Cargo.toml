@@ -21,6 +21,18 @@ alloy-primitives = { workspace = true, features = ["serde"] }
 alloy-rpc-types-engine = { workspace = true, features = ["serde"] }
 
 # io
+tokio.workspace = true
+tokio-tungstenite.workspace = true
 serde.workspace = true
+serde_json.workspace = true
+url.workspace = true
+futures-util.workspace = true
+brotli.workspace = true
+
+# debug
+tracing.workspace = true
+
+# errors
+eyre.workspace = true
 
 [dev-dependencies]
