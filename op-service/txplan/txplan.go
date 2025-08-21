@@ -526,7 +526,7 @@ func (tx *PlannedTx) Defaults() {
 		if rec.Status == types.ReceiptStatusSuccessful {
 			return struct{}{}, nil
 		} else {
-			return struct{}{}, errors.New("tx failed")
+			return struct{}{}, fmt.Errorf("tx failed with status %v (%v of %v gas used)", rec.Status, rec.GasUsed, tx.Gas.Value())
 		}
 	})
 }

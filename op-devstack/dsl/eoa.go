@@ -18,7 +18,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/txplan"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/params"
 )
 
 // EOA is an Externally-Owned-Account:
@@ -99,7 +98,7 @@ func (u *EOA) PlanTransfer(to common.Address, amount eth.ETH) txplan.Option {
 		u.Plan(),
 		txplan.WithTo(&to),
 		txplan.WithValue(amount),
-		txplan.WithGasLimit(params.TxGas),
+		// Don't set gas explicitly since the transfer might be to a contract
 	)
 }
 
