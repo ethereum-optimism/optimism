@@ -21,13 +21,14 @@ import (
 	"github.com/ethereum-optimism/optimism/op-sync-tester/config"
 	"github.com/ethereum-optimism/optimism/op-sync-tester/metrics"
 	"github.com/ethereum-optimism/optimism/op-sync-tester/synctester/backend"
+	bc "github.com/ethereum-optimism/optimism/op-sync-tester/synctester/backend/config"
 
 	sttypes "github.com/ethereum-optimism/optimism/op-sync-tester/synctester/backend/types"
 )
 
 type serviceBackend interface {
 	Stop(ctx context.Context) error
-	SyncTesters() map[sttypes.SyncTesterID]eth.ChainID
+	SyncTesters() map[sttypes.SyncTesterID]bc.SyncTesterConfig
 }
 
 var _ serviceBackend = (*backend.Backend)(nil)
@@ -213,11 +214,15 @@ func (s *Service) RPC() string {
 	return s.httpServer.HTTPEndpoint()
 }
 
-func (s *Service) SyncTesterEndpoint(chainID eth.ChainID) string {
+func (s *Service) SyncTesterEndpoint(chainID eth.ChainID, target *bc.TargetBlocks) string {
 	uuid := uuid.New()
-	return fmt.Sprintf("%s/chain/%s/synctest/%s", s.RPC(), chainID, uuid)
+	endpoint := fmt.Sprintf("%s/chain/%s/synctest/%s", s.RPC(), chainID, uuid)
+	if target != nil {
+		endpoint += fmt.Sprintf("?head=%d&safe=%d&finalized=%d", target.Head, target.Safe, target.Finalized)
+	}
+	return endpoint
 }
 
-func (s *Service) SyncTesters() map[sttypes.SyncTesterID]eth.ChainID {
+func (s *Service) SyncTesters() map[sttypes.SyncTesterID]bc.SyncTesterConfig {
 	return s.backend.SyncTesters()
 }
