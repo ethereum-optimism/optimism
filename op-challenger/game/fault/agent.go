@@ -311,10 +311,10 @@ func (a *Agent) shouldSkipDelay(ctx context.Context, game types.Game, action typ
 		ourAccumulatedTime = now.Sub(action.ParentClaim.Clock.Timestamp)
 	}
 
-	// Calculate depth-aware actual extension based on the next position's depth
-	actualExtension, err := a.calculateActualExtension(ctx, action)
+	// Get base clock extension (conservative approach)
+	actualExtension, err := a.loader.GetClockExtension(ctx)
 	if err != nil {
-		return false, false, fmt.Errorf("failed to calculate actual extension: %w", err)
+		return false, false, fmt.Errorf("failed to get clock extension: %w", err)
 	}
 
 	// Check if we're already in a clock extension period
@@ -339,55 +339,6 @@ func (a *Agent) shouldSkipDelay(ctx context.Context, game types.Game, action typ
 		"delay_would_enter_extension", delayWouldEnterExtension)
 
 	return inExtension, delayWouldEnterExtension, nil
-}
-
-// calculateActualExtension calculates the depth-aware clock extension based on contract logic
-func (a *Agent) calculateActualExtension(ctx context.Context, action types.Action) (time.Duration, error) {
-	// Get base clock extension from contract
-	baseExtension, err := a.loader.GetClockExtension(ctx)
-	if err != nil {
-		return 0, fmt.Errorf("failed to get clock extension: %w", err)
-	}
-	// Get the position that will be created by this action
-	var nextPosition types.Position
-	if action.IsAttack {
-		nextPosition = action.ParentClaim.Position.Attack()
-	} else {
-		nextPosition = action.ParentClaim.Position.Defend()
-	}
-	nextPositionDepth := nextPosition.Depth()
-
-	// Get split depth and max game depth from contract
-	splitDepth, err := a.loader.GetSplitDepth(ctx)
-	if err != nil {
-		return 0, fmt.Errorf("failed to get split depth: %w", err)
-	}
-
-	maxGameDepth, err := a.loader.GetMaxGameDepth(ctx)
-	if err != nil {
-		return 0, fmt.Errorf("failed to get max game depth: %w", err)
-	}
-
-	// Calculate actual extension based on contract logic
-	switch nextPositionDepth {
-	case maxGameDepth - 1:
-		// About to execute a step - add challenge period
-		oracle, err := a.loader.GetOracle(ctx)
-		if err != nil {
-			return 0, fmt.Errorf("failed to get oracle: %w", err)
-		}
-		challengePeriod, err := oracle.ChallengePeriod(ctx)
-		if err != nil {
-			return 0, fmt.Errorf("failed to get challenge period: %w", err)
-		}
-		return baseExtension + time.Duration(challengePeriod)*time.Second, nil
-	case splitDepth - 1:
-		// About to begin execution trace bisection - double extension
-		return baseExtension * 2, nil
-	default:
-		// Standard extension
-		return baseExtension, nil
-	}
 }
 
 // newGameFromContracts initializes a new game state from the state in the contract
