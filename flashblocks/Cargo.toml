@@ -11,5 +11,16 @@ repository.workspace = true
 workspace = true
 
 [dependencies]
+# reth
+reth-optimism-primitives = { workspace = true, features = ["serde"] }
+
+# alloy
+alloy-eips = { workspace = true, features = ["serde"] }
+alloy-serde.workspace = true
+alloy-primitives = { workspace = true, features = ["serde"] }
+alloy-rpc-types-engine = { workspace = true, features = ["serde"] }
+
+# io
+serde.workspace = true
 
 [dev-dependencies]
