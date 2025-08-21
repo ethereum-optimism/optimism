@@ -9,6 +9,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
+	"github.com/ethereum-optimism/optimism/op-sync-tester/synctester/backend/config"
 	sttypes "github.com/ethereum-optimism/optimism/op-sync-tester/synctester/backend/types"
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
@@ -95,8 +96,8 @@ func (m *MockELReader) GetBlockReceipts(ctx context.Context, bnh rpc.BlockNumber
 	return receipts, nil
 }
 
-func initTestSyncTester(t *testing.T, chainID eth.ChainID, elReader ReadOnlyELBackend) *SyncTester {
-	syncTester := NewSyncTester(testlog.Logger(t, log.LevelInfo), nil, sttypes.SyncTesterID("test"), chainID, elReader)
+func initTestSyncTester(t *testing.T, cfg config.SyncTesterConfig, elReader ReadOnlyELBackend) *SyncTester {
+	syncTester := NewSyncTester(testlog.Logger(t, log.LevelInfo), nil, sttypes.SyncTesterID("test"), cfg, elReader)
 	return syncTester
 }
 
@@ -104,26 +105,26 @@ func TestSyncTester_ChainId(t *testing.T) {
 	dummySession := &Session{SessionID: uuid.New().String()}
 	tests := []struct {
 		name            string
-		cfgID           eth.ChainID
+		cfgID           config.SyncTesterConfig
 		elID            eth.ChainID
 		session         *Session
 		wantErrContains string
 	}{
 		{
 			name:            "no session",
-			cfgID:           eth.ChainIDFromUInt64(1),
+			cfgID:           config.SyncTesterConfig{ChainID: eth.ChainIDFromUInt64(1)},
 			elID:            eth.ChainIDFromUInt64(1),
 			wantErrContains: "no session",
 		},
 		{
 			name:    "happy path",
-			cfgID:   eth.ChainIDFromUInt64(11155111),
+			cfgID:   config.SyncTesterConfig{ChainID: eth.ChainIDFromUInt64(11155111)},
 			elID:    eth.ChainIDFromUInt64(11155111),
 			session: dummySession,
 		},
 		{
 			name:            "mismatch",
-			cfgID:           eth.ChainIDFromUInt64(1),
+			cfgID:           config.SyncTesterConfig{ChainID: eth.ChainIDFromUInt64(1)},
 			elID:            eth.ChainIDFromUInt64(11155111),
 			session:         dummySession,
 			wantErrContains: "chainID mismatch",
@@ -145,7 +146,7 @@ func TestSyncTester_ChainId(t *testing.T) {
 				return
 			}
 			require.NoError(t, err)
-			require.Equal(t, hexutil.Big(*tc.cfgID.ToBig()), got)
+			require.Equal(t, hexutil.Big(*tc.cfgID.ChainID.ToBig()), got)
 		})
 	}
 }
@@ -191,7 +192,7 @@ func TestSyncTester_GetBlockByHash(t *testing.T) {
 			el := NewMockELReader(eth.ChainIDFromUInt64(1))
 			block := makeBlockRaw(tc.rawNumber)
 			el.BlocksByHash[hash] = block
-			st := initTestSyncTester(t, eth.ChainIDFromUInt64(1), el)
+			st := initTestSyncTester(t, config.SyncTesterConfig{ChainID: eth.ChainIDFromUInt64(1)}, el)
 			ctx := context.Background()
 			if tc.session != nil {
 				ctx = WithSession(ctx, tc.session)
@@ -317,7 +318,7 @@ func TestSyncTester_GetBlockByNumber(t *testing.T) {
 				el.BlocksByNumber[rpc.BlockNumber(tc.session.CurrentState.Finalized)] = makeBlockRaw(tc.session.CurrentState.Finalized)
 			}
 			el.BlocksByNumber[tc.inNumber] = makeBlockRaw(uint64(tc.inNumber.Int64()))
-			st := initTestSyncTester(t, eth.ChainIDFromUInt64(1), el)
+			st := initTestSyncTester(t, config.SyncTesterConfig{ChainID: eth.ChainIDFromUInt64(1)}, el)
 			ctx := context.Background()
 			if tc.session != nil {
 				ctx = WithSession(ctx, tc.session)
@@ -459,7 +460,7 @@ func TestSyncTester_GetBlockReceipts(t *testing.T) {
 			if tc.seedFn != nil && tc.session != nil {
 				tc.seedFn(el, tc.session)
 			}
-			st := initTestSyncTester(t, eth.ChainIDFromUInt64(1), el)
+			st := initTestSyncTester(t, config.SyncTesterConfig{ChainID: eth.ChainIDFromUInt64(1)}, el)
 			ctx := context.Background()
 			if tc.session != nil {
 				ctx = WithSession(ctx, tc.session)

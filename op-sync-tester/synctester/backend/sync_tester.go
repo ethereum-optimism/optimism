@@ -33,8 +33,8 @@ type SyncTester struct {
 	log log.Logger
 	m   metrics.Metricer
 
-	id      sttypes.SyncTesterID
-	chainID eth.ChainID
+	id  sttypes.SyncTesterID
+	cfg config.SyncTesterConfig
 
 	elReader ReadOnlyELBackend
 
@@ -53,21 +53,21 @@ var _ frontend.EngineBackend = (*SyncTester)(nil)
 var _ frontend.EthBackend = (*SyncTester)(nil)
 
 func SyncTesterFromConfig(logger log.Logger, m metrics.Metricer, stID sttypes.SyncTesterID, stCfg *config.SyncTesterEntry) (*SyncTester, error) {
-	logger = logger.New("syncTester", stID, "chain", stCfg.ChainID)
+	logger = logger.New("syncTester", stID, "chain", stCfg.Cfg.ChainID)
 	elClient, err := ethclient.Dial(stCfg.ELRPC.Value.RPC())
 	if err != nil {
 		return nil, fmt.Errorf("failed to dial EL client: %w", err)
 	}
 	elReader := NewELReader(elClient)
-	return NewSyncTester(logger, m, stID, stCfg.ChainID, elReader), nil
+	return NewSyncTester(logger, m, stID, stCfg.Cfg, elReader), nil
 }
 
-func NewSyncTester(logger log.Logger, m metrics.Metricer, stID sttypes.SyncTesterID, chainID eth.ChainID, elReader ReadOnlyELBackend) *SyncTester {
+func NewSyncTester(logger log.Logger, m metrics.Metricer, stID sttypes.SyncTesterID, cfg config.SyncTesterConfig, elReader ReadOnlyELBackend) *SyncTester {
 	return &SyncTester{
 		log:      logger,
 		m:        m,
 		id:       stID,
-		chainID:  chainID,
+		cfg:      cfg,
 		elReader: elReader,
 		sessions: make(map[string]*Session),
 	}
@@ -217,10 +217,10 @@ func (s *SyncTester) ChainId(ctx context.Context) (hexutil.Big, error) {
 	if err != nil {
 		return hexutil.Big{}, err
 	}
-	if chainID.ToInt().Cmp(s.chainID.ToBig()) != 0 {
-		return hexutil.Big{}, fmt.Errorf("chainID mismatch: config: %s, backend: %s", s.chainID, chainID.ToInt())
+	if chainID.ToInt().Cmp(s.cfg.ChainID.ToBig()) != 0 {
+		return hexutil.Big{}, fmt.Errorf("chainID mismatch: config: %s, backend: %s", s.cfg.ChainID, chainID.ToInt())
 	}
-	return hexutil.Big(*s.chainID.ToBig()), nil
+	return hexutil.Big(*s.cfg.ChainID.ToBig()), nil
 }
 
 func (s *SyncTester) GetPayloadV1(ctx context.Context, payloadID eth.PayloadID) (*eth.ExecutionPayload, error) {

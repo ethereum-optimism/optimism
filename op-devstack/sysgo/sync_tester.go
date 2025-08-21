@@ -25,8 +25,9 @@ type SyncTester struct {
 func (n *SyncTester) hydrate(system stack.ExtensibleSystem) {
 	require := system.T().Require()
 
-	for syncTesterID, chainID := range n.service.SyncTesters() {
-		syncTesterRPC := n.service.SyncTesterEndpoint(chainID)
+	for syncTesterID, cfg := range n.service.SyncTesters() {
+		chainID := cfg.ChainID
+		syncTesterRPC := n.service.SyncTesterEndpoint(chainID, nil)
 		rpcCl, err := client.NewRPC(system.T().Ctx(), system.Logger(), syncTesterRPC, client.WithLazyDial())
 		require.NoError(err)
 		system.T().Cleanup(rpcCl.Close)
@@ -63,7 +64,14 @@ func WithSyncTesters(l2ELs []stack.L2ELNodeID) stack.Option[*Orchestrator] {
 				ELRPC: endpoint.MustRPC{Value: endpoint.URL(el.UserRPC())},
 				// EngineRPC: endpoint.MustRPC{Value: endpoint.URL(el.authRPC)},
 				// JwtPath:   el.jwtPath,
-				ChainID: elID.ChainID(),
+				Cfg: stconf.SyncTesterConfig{
+					ChainID: elID.ChainID(),
+					Target: &stconf.TargetBlocks{
+						Head:      1,
+						Safe:      1,
+						Finalized: 1,
+					},
+				},
 			}
 		}
 

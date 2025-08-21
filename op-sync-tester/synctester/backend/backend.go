@@ -9,7 +9,6 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/rpc"
 
-	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/locks"
 	"github.com/ethereum-optimism/optimism/op-sync-tester/metrics"
 	"github.com/ethereum-optimism/optimism/op-sync-tester/synctester/backend/config"
@@ -88,7 +87,7 @@ func FromConfig(log log.Logger, m metrics.Metricer, cfg *config.Config, router A
 	// Set up the sync tester routes
 	var syncTesterErr error
 	b.syncTesters.Range(func(id sttypes.SyncTesterID, st *SyncTester) bool {
-		path := "/chain/" + st.chainID.String() + "/synctest"
+		path := "/chain/" + st.cfg.ChainID.String() + "/synctest"
 		if err := router.AddRPC(path); err != nil {
 			syncTesterErr = errors.Join(fmt.Errorf("failed to set up synctest route: %w", err))
 			return true
@@ -119,10 +118,17 @@ func FromConfig(log log.Logger, m metrics.Metricer, cfg *config.Config, router A
 	return b, nil
 }
 
-func (b *Backend) SyncTesters() (out map[sttypes.SyncTesterID]eth.ChainID) {
-	out = make(map[sttypes.SyncTesterID]eth.ChainID)
+func (b *Backend) SyncTesters() (out map[sttypes.SyncTesterID]config.SyncTesterConfig) {
+	out = make(map[sttypes.SyncTesterID]config.SyncTesterConfig)
 	b.syncTesters.Range(func(key sttypes.SyncTesterID, value *SyncTester) bool {
-		out[key] = value.chainID
+		out[key] = config.SyncTesterConfig{
+			ChainID: value.cfg.ChainID,
+			Target: &config.TargetBlocks{
+				Head:      value.cfg.Target.Head,
+				Safe:      value.cfg.Target.Safe,
+				Finalized: value.cfg.Target.Finalized,
+			},
+		}
 		return true
 	})
 	return out

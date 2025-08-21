@@ -14,9 +14,19 @@ type SyncTesterEntry struct {
 
 	// ChainID is used to sanity-check we are connected to the right chain,
 	// and never accidentally try to use a different chain for sync tester work.
-	ChainID eth.ChainID `yaml:"chain_id"`
+	Cfg SyncTesterConfig `yaml:"cfg"`
 }
 
+type TargetBlocks struct {
+	Head      uint64 `yaml:"head"`
+	Safe      uint64 `yaml:"safe"`
+	Finalized uint64 `yaml:"finalized"`
+}
+
+type SyncTesterConfig struct {
+	ChainID eth.ChainID   `yaml:"chain_id"`
+	Target  *TargetBlocks `yaml:"target"`
+}
 type Config struct {
 	// SyncTesters lists all sync testers by ID
 	SyncTesters map[sttypes.SyncTesterID]*SyncTesterEntry `yaml:"synctesters,omitempty"`

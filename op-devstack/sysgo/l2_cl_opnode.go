@@ -260,7 +260,7 @@ func WithOpNode(l2CLID stack.L2CLNodeID, l1CLID stack.L1CLNodeID, l1ELID stack.L
 		var l2EngineAddr string
 		if useSyncTester {
 			require.NotNil(orch.syncTester, "sync tester service required when using SyncTester")
-			l2EngineAddr = orch.syncTester.service.SyncTesterEndpoint(syncTesterID.ChainID())
+			l2EngineAddr = orch.syncTester.service.SyncTesterEndpoint(syncTesterID.ChainID(), nil)
 		} else {
 			l2EngineAddr = l2EL.EngineRPC()
 		}
