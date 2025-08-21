@@ -34,8 +34,6 @@ library MIPS64Instructions {
         uint32 opcode;
         /// @param fun The function value parsed from insn.
         uint32 fun;
-        /// @param stateVersion The state version.
-        uint256 stateVersion;
     }
 
     struct ExecuteMipsInstructionParams {
@@ -51,8 +49,6 @@ library MIPS64Instructions {
         uint64 rt;
         /// @param mem The value fetched from memory for the current instruction.
         uint64 mem;
-        /// @param stateVersion The state version.
-        uint256 stateVersion;
     }
 
     /// @param _pc The program counter.
@@ -181,8 +177,7 @@ library MIPS64Instructions {
                 fun: _args.fun,
                 rs: rs,
                 rt: rt,
-                mem: mem,
-                stateVersion: _args.stateVersion
+                mem: mem
             });
             uint64 val = executeMipsInstruction(params) & U64_MASK;
 

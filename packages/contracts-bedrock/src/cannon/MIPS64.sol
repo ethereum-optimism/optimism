@@ -273,8 +273,7 @@ contract MIPS64 is ISemver {
                 memProofOffset: MIPS64Memory.memoryProofOffset(MEM_PROOF_OFFSET, 1),
                 insn: insn,
                 opcode: opcode,
-                fun: fun,
-                stateVersion: STATE_VERSION
+                fun: fun
             });
             bool memUpdated;
             uint64 effMemAddr;

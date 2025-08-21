@@ -350,7 +350,7 @@ func (m *InstrumentedState) doMipsStep() error {
 	}
 
 	// Exec the rest of the step logic
-	memUpdated, effMemAddr, err := exec.ExecMipsCoreStepLogic(m.state.getCpuRef(), m.state.GetRegistersRef(), m.state.Memory, insn, opcode, fun, m.memoryTracker, m.stackTracker, m.features)
+	memUpdated, effMemAddr, err := exec.ExecMipsCoreStepLogic(m.state.getCpuRef(), m.state.GetRegistersRef(), m.state.Memory, insn, opcode, fun, m.memoryTracker, m.stackTracker)
 	if err != nil {
 		return err
 	}
