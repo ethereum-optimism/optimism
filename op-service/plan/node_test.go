@@ -119,7 +119,7 @@ func TestNode(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, 10+20, val)
 
-		x.ResetDependencies()
+		x.ResetFnAndDependencies()
 		x.Set(100)
 		y.Set(30) // Changing y or z no longer invalidates x
 		z.Set(20)
@@ -144,7 +144,10 @@ func TestNode(t *testing.T) {
 		y.Fn(countEvaluations)
 		z.Fn(countEvaluations)
 
-		x.ResetDependencies()
+		x.ResetFnAndDependencies()
+		x.Fn(func(ctx context.Context) (int, error) {
+			return 100, nil
+		})
 		val, err := x.Eval(context.Background())
 		require.NoError(t, err)
 		require.Equal(t, 100, val)
@@ -164,7 +167,7 @@ func TestNode(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, 15, val)
 
-		x.ResetDependencies()
+		x.ResetFnAndDependencies()
 
 		// y should be re-evaluated even though x no longer has dependencies
 		x.Set(6)

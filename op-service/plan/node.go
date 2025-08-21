@@ -172,8 +172,8 @@ func (p *Lazy[V]) DependOn(dep ...upstreamDep) {
 	p.invalidate()
 }
 
-// ResetDependencies unregisters all existing dependencies from the value.
-func (p *Lazy[V]) ResetDependencies() {
+// ResetFnAndDependencies sets the Fn to nil and unregisters all existing dependencies from the value.
+func (p *Lazy[V]) ResetFnAndDependencies() {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	p.upstream.Lock()
@@ -182,6 +182,8 @@ func (p *Lazy[V]) ResetDependencies() {
 		d.unregister(p)
 	}
 	p.upstream.Value = nil
+	p.fn = nil
+	p.invalidate()
 }
 
 // Set invalidates any downstream deps, and sets the value.

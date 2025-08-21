@@ -163,8 +163,7 @@ func WithGasLimit(limit uint64) Option {
 	return func(tx *PlannedTx) {
 		// The gas limit is explicitly set so remove any dependencies which may have been added by a previous call
 		// to WithEstimator.
-		tx.Gas.ResetDependencies()
-		tx.Gas.Fn(nil)
+		tx.Gas.ResetFnAndDependencies()
 		tx.Gas.Set(limit)
 	}
 }
