@@ -75,7 +75,7 @@ func AttributesMatchBlock(rollupCfg *rollup.Config, attrs *eth.PayloadAttributes
 	if attrs.SuggestedFeeRecipient != block.FeeRecipient {
 		return fmt.Errorf("fee recipient data does not match, expected %s but got %s", block.FeeRecipient, attrs.SuggestedFeeRecipient)
 	}
-	if err := checkEIP1559ParamsMatch(rollupCfg.ChainOpConfig, attrs.EIP1559Params, block.ExtraData, attrs.MinBaseFeeFactors, rollupCfg.IsConfigurableMinBaseFee(uint64(block.Timestamp))); err != nil {
+	if err := checkEIP1559ParamsMatch(rollupCfg.ChainOpConfig, attrs.EIP1559Params, block.ExtraData, attrs.MinBaseFee, rollupCfg.IsConfigurableMinBaseFee(uint64(block.Timestamp))); err != nil {
 		return err
 	}
 
@@ -97,7 +97,7 @@ func checkParentBeaconBlockRootMatch(attrRoot, blockRoot *common.Hash) error {
 	return nil
 }
 
-func checkEIP1559ParamsMatch(opCfg *params.OptimismConfig, attrParams *eth.Bytes8, blockExtraData []byte, minBaseFeeFactors uint8, isConfigurableMinBaseFee bool) error {
+func checkEIP1559ParamsMatch(opCfg *params.OptimismConfig, attrParams *eth.Bytes8, blockExtraData []byte, minBaseFee uint64, isConfigurableMinBaseFee bool) error {
 
 	// Note that we can assume that the attributes' eip1559params are non-nil iff Holocene is active
 	// according to the local rollup config.
@@ -136,14 +136,11 @@ func checkEIP1559ParamsMatch(opCfg *params.OptimismConfig, attrParams *eth.Bytes
 		}
 
 		// Decode block parameters and check for mismatch
-		var (
-			bd, be   uint64
-			bs, bexp uint8
-		)
+		var bd, be, bm uint64
 		if isConfigurableMinBaseFee {
-			bd, be, bs, bexp = eip1559.DecodeMinBaseFeeExtraData(blockExtraData)
-			if eip1559.EncodeMinBaseFeeFactors(bs, bexp) != minBaseFeeFactors {
-				return fmt.Errorf("minBaseFeeFactors does not match, attributes: %d, block: %d", minBaseFeeFactors, eip1559.EncodeMinBaseFeeFactors(bs, bexp))
+			bd, be, bm = eip1559.DecodeMinBaseFeeExtraData(blockExtraData)
+			if bm != minBaseFee {
+				return fmt.Errorf("minBaseFee does not match, attributes: %d, block: %d", minBaseFee, bm)
 			}
 		} else {
 			bd, be = eip1559.DecodeHoloceneExtraData(blockExtraData)

@@ -18,9 +18,9 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// TestMinBaseFeeFactors checks that we can successfully change minBaseFeeFactors parameter via SystemConfig
+// TestMinBaseFee checks that we can successfully change minBaseFee parameter via SystemConfig
 // with the Jovian upgrade and that it's properly encoded in block extra data.
-func TestMinBaseFeeFactors(t *testing.T) {
+func TestMinBaseFee(t *testing.T) {
 	op_e2e.InitParallel(t)
 
 	ctx, ctxCancel := context.WithCancel(context.Background())
@@ -53,22 +53,16 @@ func TestMinBaseFeeFactors(t *testing.T) {
 
 	var cancel context.CancelFunc
 
-	// Confirm minBaseFeeSignificand and minBaseFeeExponent are initialized to 0
-	minBaseFeeSignificand, err := sysconfig.MinBaseFeeSignificand(&bind.CallOpts{})
-	require.NoError(t, err, "reading minBaseFeeSignificand")
-	require.Equal(t, uint8(0), minBaseFeeSignificand)
-	minBaseFeeExponent, err := sysconfig.MinBaseFeeExponent(&bind.CallOpts{})
-	require.NoError(t, err, "reading minBaseFeeExponent")
-	require.Equal(t, uint8(0), minBaseFeeExponent)
+	// Confirm minBaseFee is initialized to 0
+	minBaseFee, err := sysconfig.MinBaseFee(&bind.CallOpts{})
+	require.NoError(t, err, "reading minBaseFee")
+	require.Equal(t, uint64(0), minBaseFee)
 
-	// Set both EIP-1559 parameters and minBaseFeeFactors in a single transaction sequence
+	// Set both EIP-1559 parameters and minBaseFee in a single transaction sequence
 	// This matches how they would be used in production
 	expectedDenom := uint32(10)
 	expectedElasticity := uint32(2)
 	// Set the minimum base fee to 1 gwei.
-	expectedMinBaseFeeSignificand := uint8(1)
-	expectedMinBaseFeeExponent := uint8(9)
-	expectedMinBaseFeeFactors := eip1559.EncodeMinBaseFeeFactors(expectedMinBaseFeeSignificand, expectedMinBaseFeeExponent)
 	expectedMinBaseFee := big.NewInt(1_000_000_000)
 
 	// Set EIP-1559 parameters first
@@ -80,21 +74,18 @@ func TestMinBaseFeeFactors(t *testing.T) {
 	_, err = wait.ForReceiptOK(ctx, l1Client, tx.Hash())
 	require.NoError(t, err, "Waiting for sysconfig set EIP1559Params update tx")
 
-	// Then set MinBaseFeeFactors
+	// Then set MinBaseFee
 	opts.Context, cancel = context.WithTimeout(ctx, txTimeoutDuration)
-	tx, err = sysconfig.SetMinBaseFee(opts, expectedMinBaseFeeSignificand, expectedMinBaseFeeExponent)
+	tx, err = sysconfig.SetMinBaseFee(opts, expectedMinBaseFee.Uint64())
 	cancel()
 	require.NoError(t, err, "SetMinBaseFee update tx")
 
 	receipt, err := wait.ForReceiptOK(ctx, l1Client, tx.Hash())
 	require.NoError(t, err, "Waiting for sysconfig set minBaseFee update tx")
 
-	minBaseFeeSignificand, err = sysconfig.MinBaseFeeSignificand(&bind.CallOpts{})
-	require.NoError(t, err, "reading minBaseFeeSignificand")
-	require.Equal(t, expectedMinBaseFeeSignificand, minBaseFeeSignificand)
-	minBaseFeeExponent, err = sysconfig.MinBaseFeeExponent(&bind.CallOpts{})
-	require.NoError(t, err, "reading minBaseFeeExponent")
-	require.Equal(t, expectedMinBaseFeeExponent, minBaseFeeExponent)
+	minBaseFee, err = sysconfig.MinBaseFee(&bind.CallOpts{})
+	require.NoError(t, err, "reading minBaseFee")
+	require.Equal(t, expectedMinBaseFee.Uint64(), minBaseFee)
 
 	_, err = geth.WaitForL1OriginOnL2(sys.RollupConfig, receipt.BlockNumber.Uint64(), l2Seq, txTimeoutDuration)
 	require.NoError(t, err, "waiting for L2 block to include the sysconfig update")
@@ -104,32 +95,40 @@ func TestMinBaseFeeFactors(t *testing.T) {
 
 	// Debug: print the actual ExtraData
 	t.Logf("Actual ExtraData: %x", h.Extra)
-	t.Logf("Expected MinBaseFee: %d * 10^%d = %d", expectedMinBaseFeeSignificand, expectedMinBaseFeeExponent, expectedMinBaseFee)
+	t.Logf("Expected MinBaseFee: %d", expectedMinBaseFee)
 
 	// Decode and check what we actually got
-	if len(h.Extra) == 10 {
-		actualDenom, actualElasticity, actualMinBaseFeeSignificand, actualMinBaseFeeExponent := eip1559.DecodeMinBaseFeeExtraData(h.Extra)
-		t.Logf("Decoded - Denom: %d, Elasticity: %d, MinBaseFee: %d * 10^%d", actualDenom, actualElasticity, actualMinBaseFeeSignificand, actualMinBaseFeeExponent)
+	if len(h.Extra) == 17 {
+		actualDenom, actualElasticity, actualMinBaseFee := eip1559.DecodeMinBaseFeeExtraData(h.Extra)
+		t.Logf("Decoded - Denom: %d, Elasticity: %d, MinBaseFee: %d", actualDenom, actualElasticity, actualMinBaseFee)
+
+		require.Equal(t, expectedMinBaseFee.Uint64(), actualMinBaseFee)
 	}
 
 	// Confirm the extraData is being set as expected with Jovian encoding
-	expectedExtraData := eip1559.EncodeMinBaseFeeExtraData(uint64(expectedDenom), uint64(expectedElasticity), expectedMinBaseFeeFactors)
-	require.Equal(t, expectedExtraData, h.Extra, "Extra data should match Jovian encoding with minBaseFeeFactors")
+	expectedExtraData := eip1559.EncodeMinBaseFeeExtraData(uint64(expectedDenom), uint64(expectedElasticity), expectedMinBaseFee.Uint64())
+	require.Equal(t, expectedExtraData, h.Extra, "Extra data should match Jovian encoding with minBaseFee")
 
-	// Verify the minimum base fee is enforced
-	require.True(t, h.BaseFee.Cmp(expectedMinBaseFee) >= 0,
-		"Current base fee (%s) should be >= minimum base fee (%s)",
-		h.BaseFee.String(), expectedMinBaseFee.String())
-
-	// Wait for the next block to confirm the constraint is maintained
-	b, err := geth.WaitForBlock(big.NewInt(h.Number.Int64()+1), l2Seq)
+	// The first block with the minimum base fee encoded in ExtraData had its base fee
+	// calculated before the minimum was available. Wait for the next block where
+	// the base fee calculation can use the minimum base fee from the previous block's ExtraData.
+	nextBlock, err := geth.WaitForBlock(big.NewInt(h.Number.Int64()+1), l2Seq)
 	require.NoError(t, err, "waiting for next L2 block")
 
 	// Confirm the extraData is still being set as expected in the next block
-	require.Equal(t, expectedExtraData, b.Header().Extra, "Extra data should still match Jovian encoding with minBaseFeeFactors")
+	require.Equal(t, expectedExtraData, nextBlock.Header().Extra, "Extra data should still match Jovian encoding with minBaseFee")
+
+	// Now verify the minimum base fee constraint is enforced in this block
+	require.True(t, nextBlock.Header().BaseFee.Cmp(expectedMinBaseFee) >= 0,
+		"Next block base fee (%s) should be >= minimum base fee (%s)",
+		nextBlock.Header().BaseFee.String(), expectedMinBaseFee.String())
+
+	// Wait for one more block to confirm the constraint is consistently maintained
+	finalBlock, err := geth.WaitForBlock(big.NewInt(nextBlock.Header().Number.Int64()+1), l2Seq)
+	require.NoError(t, err, "waiting for final L2 block")
 
 	// Verify the minimum base fee constraint is still enforced
-	require.True(t, b.Header().BaseFee.Cmp(expectedMinBaseFee) >= 0,
-		"Next block base fee (%s) should be >= minimum base fee (%s)",
-		b.Header().BaseFee.String(), expectedMinBaseFee.String())
+	require.True(t, finalBlock.Header().BaseFee.Cmp(expectedMinBaseFee) >= 0,
+		"Final block base fee (%s) should be >= minimum base fee (%s)",
+		finalBlock.Header().BaseFee.String(), expectedMinBaseFee.String())
 }
