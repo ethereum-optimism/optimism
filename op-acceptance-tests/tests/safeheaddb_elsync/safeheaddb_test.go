@@ -10,8 +10,6 @@ import (
 )
 
 func TestTruncateDatabaseOnELResync(gt *testing.T) {
-	gt.Skip("TODO(#17083): skipping until we have a fix")
-
 	t := devtest.SerialT(gt)
 	sys := presets.NewSingleChainMultiNode(t)
 
@@ -41,8 +39,6 @@ func TestTruncateDatabaseOnELResync(gt *testing.T) {
 }
 
 func TestNotTruncateDatabaseOnRestartWithExistingDatabase(gt *testing.T) {
-	gt.Skip("TODO(#17083): skipping until we have a fix")
-
 	t := devtest.SerialT(gt)
 	sys := presets.NewSingleChainMultiNode(t)
 
