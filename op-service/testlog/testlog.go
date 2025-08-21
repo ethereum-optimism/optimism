@@ -106,6 +106,8 @@ var (
 )
 
 func fileHandler(t Testing, outdir string, level slog.Level) slog.Handler {
+	var rootLoggerName string
+
 	rootSetup.Do(func() {
 		f, err := os.OpenFile(path.Join(outdir, fmt.Sprintf("root-%d.log", os.Getpid())), os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0644)
 		if err != nil {
@@ -119,6 +121,7 @@ func fileHandler(t Testing, outdir string, level slog.Level) slog.Handler {
 		rootHdlr := log.NewTerminalHandlerWithLevel(writer, level, false)
 		oplog.SetGlobalLogHandler(rootHdlr)
 		t.Logf("redirecting root logger to %s", f.Name())
+		rootLoggerName = f.Name()
 	})
 
 	testName := fmt.Sprintf(
@@ -146,6 +149,8 @@ func fileHandler(t Testing, outdir string, level slog.Level) slog.Handler {
 		flMtx.Unlock()
 	})
 	t.Logf("writing test log to %s", logPath)
+	t.Logf("some tests may have written to the root logger")
+	t.Logf("logs from the root logger have been written to %s", rootLoggerName)
 	h := log.NewTerminalHandlerWithLevel(dw, level, false)
 	flHandlers[testName] = h
 	return h
