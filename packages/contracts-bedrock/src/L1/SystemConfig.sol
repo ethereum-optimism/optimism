@@ -35,7 +35,7 @@ contract SystemConfig is ProxyAdminOwnedBase, OwnableUpgradeable, Reinitializabl
         UNSAFE_BLOCK_SIGNER,
         EIP_1559_PARAMS,
         OPERATOR_FEE_PARAMS,
-        MIN_BASE_FEE_FACTORS
+        MIN_BASE_FEE
     }
 
     /// @notice Struct representing the addresses of L1 system contracts. These should be the
@@ -136,11 +136,8 @@ contract SystemConfig is ProxyAdminOwnedBase, OwnableUpgradeable, Reinitializabl
     /// @notice The SuperchainConfig contract that manages the pause state.
     ISuperchainConfig public superchainConfig;
 
-    /// @notice The minimum base fee significand.
-    uint8 public minBaseFeeSignificand;
-
-    /// @notice The minimum base fee exponent.
-    uint8 public minBaseFeeExponent;
+    /// @notice The minimum base fee.
+    uint64 public minBaseFee;
 
     /// @notice Emitted when configuration is updated.
     /// @param version    SystemConfig version.
@@ -426,21 +423,18 @@ contract SystemConfig is ProxyAdminOwnedBase, OwnableUpgradeable, Reinitializabl
         emit ConfigUpdate(VERSION, UpdateType.EIP_1559_PARAMS, data);
     }
 
-    /// @notice Updates the minimum base fee significand and exponent. Can only be called by the owner.
-    /// @param _significand New significand.
-    /// @param _exponent New exponent.
-    function setMinBaseFee(uint8 _significand, uint8 _exponent) external onlyOwner {
-        _setMinBaseFee(_significand, _exponent);
+    /// @notice Updates the minimum base fee. Can only be called by the owner.
+    /// @param _minBaseFee New minimum base fee.
+    function setMinBaseFee(uint64 _minBaseFee) external onlyOwner {
+        _setMinBaseFee(_minBaseFee);
     }
 
-    /// @notice Internal function for updating the minimum base fee significand and exponent.
-    function _setMinBaseFee(uint8 _significand, uint8 _exponent) internal {
-        minBaseFeeSignificand = _significand;
-        minBaseFeeExponent = _exponent;
+    /// @notice Internal function for updating the minimum base fee.
+    function _setMinBaseFee(uint64 _minBaseFee) internal {
+        minBaseFee = _minBaseFee;
 
-        uint8 packed = (_significand & 0x0f) << 4 | (_exponent & 0x0f);
-        bytes memory data = abi.encode(packed);
-        emit ConfigUpdate(VERSION, UpdateType.MIN_BASE_FEE_FACTORS, data);
+        bytes memory data = abi.encode(_minBaseFee);
+        emit ConfigUpdate(VERSION, UpdateType.MIN_BASE_FEE, data);
     }
 
     /// @notice Updates the operator fee parameters. Can only be called by the owner.
