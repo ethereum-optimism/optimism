@@ -41,6 +41,9 @@ func main() {
 }
 
 func run() error {
+	// Show welcome ASCII art
+	showWelcomeBanner()
+
 	// presets.DoMain calls op-service/flags.ReadTestConfig, which, as of this comment, parses the
 	// global flag set and printing the usage statement on `-help`. Since op-up does not respect
 	// any configuration right now, the usage statement will only confuse users and should not be
@@ -419,4 +422,20 @@ func (t *testingT) WithCtx(ctx context.Context) devtest.T {
 
 // _TestOnly implements devtest.T.
 func (t *testingT) TestOnly() {
+}
+
+// showWelcomeBanner displays a friendly ASCII art welcome message
+func showWelcomeBanner() {
+	fmt.Println("###################################")
+	fmt.Println("             Welcome to")
+	fmt.Println("   ___  _ __        _   _ _ __  ")
+	fmt.Println("  / _ \\| '_ \\ _____| | | | '_ \\ ")
+	fmt.Println(" | (_) | |_) |_____| |_| | |_) |")
+	fmt.Println("  \\___/| .__/       \\__,_| .__/ ")
+	fmt.Println("       |_|               |_|   ")
+	fmt.Println("")
+	fmt.Println("    Your local OP Stack chain")
+	fmt.Println("")
+	fmt.Println("###################################")
+	fmt.Println("")
 }
