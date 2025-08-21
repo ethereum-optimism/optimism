@@ -201,7 +201,7 @@ contract OPContractsManagerStandardValidator is ISemver {
 
     /// @notice Returns the expected MIPS version.
     function mipsVersion() public pure returns (string memory) {
-        return "1.8.0";
+        return "1.9.0";
     }
 
     /// @notice Returns the expected OptimismMintableERC20Factory version.
