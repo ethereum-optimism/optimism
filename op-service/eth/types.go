@@ -519,8 +519,8 @@ type PayloadAttributes struct {
 	GasLimit *Uint64Quantity `json:"gasLimit,omitempty"`
 	// EIP-1559 parameters, to be specified only post-Holocene
 	EIP1559Params *Bytes8 `json:"eip1559Params,omitempty"`
-	// MinBaseFeeFactors is the minimum base fee significand and exponent.
-	MinBaseFeeFactors uint8 `json:"minBaseFeeFactors,omitempty"`
+	// MinBaseFee is the minimum base fee.
+	MinBaseFee uint64 `json:"minBaseFee,omitempty"`
 }
 
 // IsDepositsOnly returns whether all transactions of the PayloadAttributes are of Deposit
@@ -611,8 +611,8 @@ type SystemConfig struct {
 	// value will be 0 if Holocene is not active, or if derivation has yet to
 	// process any EIP_1559_PARAMS system config update events.
 	EIP1559Params Bytes8 `json:"eip1559Params"`
-	// MinBaseFeeFactors is the minimum base fee significand and exponent.
-	MinBaseFeeFactors uint8 `json:"minBaseFeeFactors"`
+	// MinBaseFee is the minimum base fee.
+	MinBaseFee uint64 `json:"minBaseFee"`
 	// OperatorFeeParams identifies the operator fee parameters.
 	OperatorFeeParams Bytes32 `json:"operatorFeeParams"`
 	// More fields can be added for future SystemConfig versions.

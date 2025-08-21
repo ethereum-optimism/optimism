@@ -28,33 +28,28 @@ func TestConfigurableMinBaseFee(gt *testing.T) {
 
 	testCases := []struct {
 		name        string
-		significand uint8
-		exponent    uint8
+		minBaseFee  uint64
 		shouldClamp bool
 	}{
-		{"MinBaseFeeOff", 0, 0, false},
-		{"MinBaseFeeOn", 1, 9, true},
+		{"MinBaseFeeOff", 0, false},
+		{"MinBaseFeeOn", 1_000_000_000, true},
 	}
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t devtest.T) {
-			minBaseFee.SetMinBaseFeeFactors(tc.significand, tc.exponent)
-			minBaseFee.WaitForL2Sync(tc.significand, tc.exponent)
-			minBaseFee.VerifyL2Config(tc.significand, tc.exponent)
+			minBaseFee.SetMinBaseFee(tc.minBaseFee)
+			minBaseFee.WaitForL2Sync(tc.minBaseFee)
+			minBaseFee.VerifyL2Config(tc.minBaseFee)
 
 			if tc.shouldClamp {
-				// Calculate minimum base fee: significand * 10^exponent
-				minBase := new(big.Int).Exp(big.NewInt(10), big.NewInt(int64(tc.exponent)), nil)
-				minBase.Mul(minBase, big.NewInt(int64(tc.significand)))
-				minBaseFee.VerifyMinBaseFeeClamp(minBase)
+				minBaseFee.VerifyMinBaseFeeClamp(big.NewInt(int64(tc.minBaseFee)))
 			} else {
 				minBaseFee.CheckBaseFeeCanDecrease()
 			}
 
 			t.Log("Test completed successfully:",
 				"testCase", tc.name,
-				"significand", tc.significand,
-				"exponent", tc.exponent,
+				"minBaseFee", tc.minBaseFee,
 				"shouldClamp", tc.shouldClamp)
 		})
 	}

@@ -46,10 +46,10 @@ func jovianArgs() matchArgs {
 		validFeeRecipient     = predeploys.SequencerFeeVaultAddr
 		validTx               = testutils.RandomLegacyTxNotProtected(rand.New(rand.NewSource(42)))
 		validTxData, _        = validTx.MarshalBinary()
-		minBaseFeeFactors     = eip1559.EncodeMinBaseFeeFactors(1, 9)
+		minBaseFee            = uint64(1e9)
 
 		validJovianExtraData = eth.BytesMax32(eip1559.EncodeMinBaseFeeExtraData(
-			*defaultOpConfig.EIP1559DenominatorCanyon, defaultOpConfig.EIP1559Elasticity, minBaseFeeFactors))
+			*defaultOpConfig.EIP1559DenominatorCanyon, defaultOpConfig.EIP1559Elasticity, minBaseFee))
 		validJovianEIP1559Params = new(eth.Bytes8)
 	)
 	// Populate the EIP1559 params with the encoded values
@@ -79,7 +79,7 @@ func jovianArgs() matchArgs {
 			Withdrawals:           &types.Withdrawals{},
 			SuggestedFeeRecipient: validFeeRecipient,
 			EIP1559Params:         validJovianEIP1559Params,
-			MinBaseFeeFactors:     minBaseFeeFactors,
+			MinBaseFee:            minBaseFee,
 		},
 		parentHash: validParentHash,
 	}
