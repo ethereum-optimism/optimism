@@ -451,13 +451,13 @@ func TestPreparePayloadAttributes(t *testing.T) {
 		l2Parent := testutils.RandomL2BlockRef(rng)
 		l1CfgFetcher := &testutils.MockL2Client{}
 		eip1559Params := eth.Bytes8([]byte{0x1, 0x2, 0x3, 0x4, 0x5, 0x6, 0x7, 0x8})
-		minBaseFeeFactors := uint8(1<<4 | 9)
+		minBaseFee := uint64(1e9)
 		testSysCfg := eth.SystemConfig{
-			BatcherAddr:       common.Address{42},
-			Overhead:          [32]byte{},
-			Scalar:            [32]byte{},
-			EIP1559Params:     eip1559Params,
-			MinBaseFeeFactors: minBaseFeeFactors,
+			BatcherAddr:   common.Address{42},
+			Overhead:      [32]byte{},
+			Scalar:        [32]byte{},
+			EIP1559Params: eip1559Params,
+			MinBaseFee:    minBaseFee,
 		}
 		l1CfgFetcher.ExpectSystemConfigByL2Hash(l2Parent.Hash, testSysCfg, nil)
 		defer l1CfgFetcher.AssertExpectations(t)
@@ -476,7 +476,7 @@ func TestPreparePayloadAttributes(t *testing.T) {
 		attrs, err := attrBuilder.PreparePayloadAttributes(context.Background(), l2Parent, epoch)
 		require.NoError(t, err)
 		require.Equal(t, eip1559Params, *attrs.EIP1559Params)
-		require.Equal(t, minBaseFeeFactors, attrs.MinBaseFeeFactors)
+		require.Equal(t, minBaseFee, attrs.MinBaseFee)
 		require.Equal(t, l1InfoTx, []byte(attrs.Transactions[0]))
 	})
 }

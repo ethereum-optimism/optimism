@@ -56,7 +56,6 @@ func AttributesToReplaceInvalidBlock(invalidatedBlock *eth.ExecutionPayloadEnvel
 	extraData := invalidatedBlock.ExecutionPayload.ExtraData
 	denominator, elasticity, minBaseFee := eip1559.DecodeJovianExtraData(extraData)
 	eip1559Params := eth.Bytes8(eip1559.EncodeHolocene1559Params(denominator, elasticity))
-	minBaseFeeFactors := eip1559.EncodeMinBaseFeeFactors(significand, exponent)
 
 	attrs := &eth.PayloadAttributes{
 		Timestamp:             invalidatedBlock.ExecutionPayload.Timestamp,
