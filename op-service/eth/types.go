@@ -270,14 +270,13 @@ type ExecutionPayload struct {
 	WithdrawalsRoot *common.Hash `json:"withdrawalsRoot,omitempty"`
 }
 
-func (p *ExecutionPayload) Compare(o *ExecutionPayload) error {
+func (p *ExecutionPayload) CheckEqual(o *ExecutionPayload) error {
 	if p == nil || o == nil {
 		if p == o {
 			return nil
 		}
 		return fmt.Errorf("one of the payloads is nil: p=%v, o=%v", p, o)
 	}
-
 	if p.ParentHash != o.ParentHash {
 		return fmt.Errorf("ParentHash mismatch: %v != %v", p.ParentHash, o.ParentHash)
 	}
@@ -359,7 +358,6 @@ func (p *ExecutionPayload) Compare(o *ExecutionPayload) error {
 	if p.WithdrawalsRoot != nil && *p.WithdrawalsRoot != *o.WithdrawalsRoot {
 		return fmt.Errorf("WithdrawalsRoot mismatch: %v != %v", *p.WithdrawalsRoot, *o.WithdrawalsRoot)
 	}
-
 	return nil
 }
 

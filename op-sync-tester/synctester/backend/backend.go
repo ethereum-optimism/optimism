@@ -46,6 +46,12 @@ type Session struct {
 	InitialState FCUState
 }
 
+func (s *Session) UpdateFCUState(latest, safe, finalized uint64) {
+	s.CurrentState.Latest = latest
+	s.CurrentState.Safe = safe
+	s.CurrentState.Finalized = finalized
+}
+
 type FCUState struct {
 	Latest    uint64
 	Safe      uint64
