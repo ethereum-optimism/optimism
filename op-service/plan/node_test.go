@@ -151,6 +151,28 @@ func TestNode(t *testing.T) {
 		require.Zero(t, dependencyCalls, "Previous dependencies should not be evaluated")
 	})
 
+	t.Run("reset dependencies - other nodes unaffected", func(t *testing.T) {
+		x := new(plan.Lazy[int])
+		y := new(plan.Lazy[int])
+		y.DependOn(x)
+		y.Fn(func(ctx context.Context) (int, error) {
+			return x.Value() + 10, nil
+		})
+
+		x.Set(5)
+		val, err := y.Eval(context.Background())
+		require.NoError(t, err)
+		require.Equal(t, 15, val)
+
+		x.ResetDependencies()
+
+		// y should be re-evaluated even though x no longer has dependencies
+		x.Set(6)
+		val, err = y.Eval(context.Background())
+		require.NoError(t, err)
+		require.Equal(t, 16, val)
+	})
+
 	t.Run("close", func(t *testing.T) {
 		x := new(plan.Lazy[uint64])
 		y := new(plan.Lazy[int32])
