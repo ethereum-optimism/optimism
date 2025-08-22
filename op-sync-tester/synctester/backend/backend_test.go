@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-service/endpoint"
+	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/rpc"
@@ -50,11 +51,27 @@ func TestBackend(t *testing.T) {
 
 	syncTesterCfgA := &stconf.SyncTesterEntry{
 		ELRPC: endpoint.MustRPC{Value: endpoint.URL("http://" + srv.Endpoint())},
+		Cfg: stconf.SyncTesterConfig{
+			ChainID: eth.ChainIDFromUInt64(1),
+			Target: &stconf.TargetBlocks{
+				Head:      100,
+				Safe:      90,
+				Finalized: 80,
+			},
+		},
 	}
 	syncTesterA := sttypes.SyncTesterID("syncTesterA")
 
 	syncTesterCfgB := &stconf.SyncTesterEntry{
 		ELRPC: endpoint.MustRPC{Value: endpoint.URL("http://" + srv.Endpoint())},
+		Cfg: stconf.SyncTesterConfig{
+			ChainID: eth.ChainIDFromUInt64(2),
+			Target: &stconf.TargetBlocks{
+				Head:      101,
+				Safe:      91,
+				Finalized: 81,
+			},
+		},
 	}
 	syncTesterB := sttypes.SyncTesterID("syncTesterB")
 

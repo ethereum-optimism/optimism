@@ -42,7 +42,7 @@ func (n *SyncTester) hydrate(system stack.ExtensibleSystem) {
 	}
 }
 
-func WithSyncTesters(l2ELs []stack.L2ELNodeID) stack.Option[*Orchestrator] {
+func WithSyncTester(l2ELs []stack.L2ELNodeID, tb *stconf.TargetBlocks) stack.Option[*Orchestrator] {
 	return stack.AfterDeploy(func(orch *Orchestrator) {
 		syncTesterID := stack.NewSyncTesterID("dev-sync-tester", l2ELs[0].ChainID())
 		p := orch.P().WithCtx(stack.ContextWithID(orch.P().Ctx(), syncTesterID))
@@ -66,11 +66,7 @@ func WithSyncTesters(l2ELs []stack.L2ELNodeID) stack.Option[*Orchestrator] {
 				// JwtPath:   el.jwtPath,
 				Cfg: stconf.SyncTesterConfig{
 					ChainID: elID.ChainID(),
-					Target: &stconf.TargetBlocks{
-						Head:      1,
-						Safe:      1,
-						Finalized: 1,
-					},
+					Target:  tb,
 				},
 			}
 		}
