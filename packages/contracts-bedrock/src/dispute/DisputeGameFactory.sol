@@ -168,15 +168,15 @@ contract DisputeGameFactory is ProxyAdminOwnedBase, ReinitializableBase, Ownable
         // Clone the implementation contract and initialize it with the given parameters.
         //
         // CWIA Calldata Layout:
-        // ┌───────────────┬─────────────────────────────────────┐
-        // │     Bytes     │            Description              │
-        // ├───────────────┼─────────────────────────────────────┤
-        // │ [0, 20)       │ Game creator address                │
-        // │ [20, 52)      │ Root claim                          │
-        // │ [52, 84)      │ Parent block hash at creation time  │
-        // │ [84, 84 + n)  │ Extra data (opaque)                 │
-        // │ [84+n, 84+n+m)│ implementation Args (opaque)        │
-        // └───────────────┴─────────────────────────────────────┘
+        // ┌──────────────────────┬─────────────────────────────────────┐
+        // │        Bytes         │            Description              │
+        // ├──────────────────────┼─────────────────────────────────────┤
+        // │ [0, 20)              │ Game creator address                │
+        // │ [20, 52)             │ Root claim                          │
+        // │ [52, 84)             │ Parent block hash at creation time  │
+        // │ [84, 84 + n)         │ Extra data (opaque)                 │
+        // │ [84 + n, 84 + n + m) │ Implementation args (opaque)        │
+        // └──────────────────────┴─────────────────────────────────────┘
         proxy_ = IDisputeGame(
             address(impl).clone(abi.encodePacked(msg.sender, _rootClaim, parentHash, _extraData, gameArgs[_gameType]))
         );
