@@ -237,6 +237,7 @@ func (s *SyncTester) GetPayloadV2(ctx context.Context, payloadID eth.PayloadID) 
 	return nil, nil
 }
 
+// GetPayloadV3 is functionally identical to GetPayloadV4.
 func (s *SyncTester) GetPayloadV3(ctx context.Context, payloadID eth.PayloadID) (*eth.ExecutionPayloadEnvelope, error) {
 	if !payloadID.Is(engine.PayloadV3) {
 		return nil, engine.UnsupportedFork
@@ -494,6 +495,7 @@ func (s *SyncTester) NewPayloadV2(ctx context.Context, payload *eth.ExecutionPay
 	return nil, nil
 }
 
+// NewPayloadV3 must be only called with Ecotone Payload
 func (s *SyncTester) NewPayloadV3(ctx context.Context, payload *eth.ExecutionPayload, versionedHashes []common.Hash, beaconRoot *common.Hash) (*eth.PayloadStatusV1, error) {
 	session, err := s.fetchSession(ctx)
 	if err != nil {
@@ -502,6 +504,7 @@ func (s *SyncTester) NewPayloadV3(ctx context.Context, payload *eth.ExecutionPay
 	return s.newPayload(ctx, session, payload, versionedHashes, beaconRoot, nil, true, false)
 }
 
+// NewPayloadV4 must be only called with Isthmus payload
 func (s *SyncTester) NewPayloadV4(ctx context.Context, payload *eth.ExecutionPayload, versionedHashes []common.Hash, beaconRoot *common.Hash, executionRequests []hexutil.Bytes) (*eth.PayloadStatusV1, error) {
 	session, err := s.fetchSession(ctx)
 	if err != nil {
@@ -510,7 +513,7 @@ func (s *SyncTester) NewPayloadV4(ctx context.Context, payload *eth.ExecutionPay
 	return s.newPayload(ctx, session, payload, versionedHashes, beaconRoot, executionRequests, true, true)
 }
 
-// newpayload validates and processes a new execution payload according to the
+// newPayload validates and processes a new execution payload according to the
 // Engine API rules to simulate consensus-layer to execution-layer interactions
 // without advancing canonical chain state.
 //
