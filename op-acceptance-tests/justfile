@@ -84,9 +84,13 @@ acceptance-test devnet="" gate="holocene":
         exit 0
     fi
 
-    # Print which binary is being used
+    # Set the binary path
     BINARY_PATH=$(mise which op-acceptor)
     echo "Using mise-managed binary: $BINARY_PATH"
+
+    # Set log level
+    LOG_LEVEL="$(echo "${LOG_LEVEL:-info}" | grep -E '^(debug|info|warn|error)$' || echo 'info')"
+    echo "LOG_LEVEL: $LOG_LEVEL"
 
     if [[ "$GATELESS_MODE" == "true" ]]; then
         # Gateless mode: auto-discover all tests within a directory
@@ -100,7 +104,7 @@ acceptance-test devnet="" gate="holocene":
             --allow-skips \
             --timeout 90m \
             --default-timeout 10m \
-            --log.level "${LOG_LEVEL:-info}"
+            --log.level "${LOG_LEVEL}"
 
         exit 0
     fi
@@ -111,7 +115,7 @@ acceptance-test devnet="" gate="holocene":
         "--gate" "{{gate}}"
         "--testdir" "{{REPO_ROOT}}"
         "--validators" "./acceptance-tests.yaml"
-        "--log.level" "${LOG_LEVEL:-info}"
+        "--log.level" "${LOG_LEVEL}"
         "--acceptor" "$BINARY_PATH"
     )
 
