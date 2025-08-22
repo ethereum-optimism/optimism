@@ -123,10 +123,10 @@ func FromConfig(log log.Logger, m metrics.Metricer, cfg *config.Config, router A
 	return b, nil
 }
 
-func (b *Backend) SyncTesters() (out map[sttypes.SyncTesterID]config.SyncTesterConfig) {
-	out = make(map[sttypes.SyncTesterID]config.SyncTesterConfig)
+func (b *Backend) SyncTesters() (out map[sttypes.SyncTesterID]config.EntryCfg) {
+	out = make(map[sttypes.SyncTesterID]config.EntryCfg)
 	b.syncTesters.Range(func(key sttypes.SyncTesterID, value *SyncTester) bool {
-		out[key] = config.SyncTesterConfig{
+		out[key] = config.EntryCfg{
 			ChainID: value.cfg.ChainID,
 			Target: &sttypes.FCUState{
 				Latest:    value.cfg.Target.Latest,

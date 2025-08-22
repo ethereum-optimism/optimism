@@ -28,7 +28,7 @@ import (
 
 type serviceBackend interface {
 	Stop(ctx context.Context) error
-	SyncTesters() map[sttypes.SyncTesterID]bc.SyncTesterConfig
+	SyncTesters() map[sttypes.SyncTesterID]bc.EntryCfg
 }
 
 var _ serviceBackend = (*backend.Backend)(nil)
@@ -219,6 +219,6 @@ func (s *Service) NewEndpoint(chainID eth.ChainID) string {
 	return fmt.Sprintf("%s/chain/%s/synctest/%s", s.RPC(), chainID, uuid)
 }
 
-func (s *Service) SyncTesters() map[sttypes.SyncTesterID]bc.SyncTesterConfig {
+func (s *Service) SyncTesters() map[sttypes.SyncTesterID]bc.EntryCfg {
 	return s.backend.SyncTesters()
 }

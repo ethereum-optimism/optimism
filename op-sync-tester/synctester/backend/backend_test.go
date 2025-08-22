@@ -51,7 +51,7 @@ func TestBackend(t *testing.T) {
 
 	syncTesterCfgA := &stconf.SyncTesterEntry{
 		ELRPC: endpoint.MustRPC{Value: endpoint.URL("http://" + srv.Endpoint())},
-		Cfg: stconf.SyncTesterConfig{
+		Cfg: stconf.EntryCfg{
 			ChainID: eth.ChainIDFromUInt64(1),
 			Target: &sttypes.FCUState{
 				Latest:    100,
@@ -64,7 +64,7 @@ func TestBackend(t *testing.T) {
 
 	syncTesterCfgB := &stconf.SyncTesterEntry{
 		ELRPC: endpoint.MustRPC{Value: endpoint.URL("http://" + srv.Endpoint())},
-		Cfg: stconf.SyncTesterConfig{
+		Cfg: stconf.EntryCfg{
 			ChainID: eth.ChainIDFromUInt64(2),
 			Target: &sttypes.FCUState{
 				Latest:    101,

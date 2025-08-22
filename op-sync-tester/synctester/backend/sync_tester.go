@@ -40,7 +40,7 @@ type SyncTester struct {
 	m   metrics.Metricer
 
 	id  sttypes.SyncTesterID
-	cfg config.SyncTesterConfig
+	cfg config.EntryCfg
 
 	elReader ReadOnlyELBackend
 
@@ -68,7 +68,7 @@ func SyncTesterFromConfig(logger log.Logger, m metrics.Metricer, stID sttypes.Sy
 	return NewSyncTester(logger, m, stID, stCfg.Cfg, elReader), nil
 }
 
-func NewSyncTester(logger log.Logger, m metrics.Metricer, stID sttypes.SyncTesterID, cfg config.SyncTesterConfig, elReader ReadOnlyELBackend) *SyncTester {
+func NewSyncTester(logger log.Logger, m metrics.Metricer, stID sttypes.SyncTesterID, cfg config.EntryCfg, elReader ReadOnlyELBackend) *SyncTester {
 	return &SyncTester{
 		log:      logger,
 		m:        m,

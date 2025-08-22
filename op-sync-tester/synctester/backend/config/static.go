@@ -14,10 +14,10 @@ type SyncTesterEntry struct {
 
 	// ChainID is used to sanity-check we are connected to the right chain,
 	// and never accidentally try to use a different chain for sync tester work.
-	Cfg SyncTesterConfig `yaml:"cfg"`
+	Cfg EntryCfg `yaml:"cfg"`
 }
 
-type SyncTesterConfig struct {
+type EntryCfg struct {
 	ChainID eth.ChainID       `yaml:"chain_id"`
 	Target  *sttypes.FCUState `yaml:"target"`
 }

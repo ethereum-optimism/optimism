@@ -10,9 +10,9 @@ import (
 
 func TestMain(m *testing.M) {
 	presets.DoMain(m, presets.WithSimpleWithSyncTester(&sttypes.FCUState{
-		Latest:    1,
-		Safe:      1,
-		Finalized: 1,
+		Latest:    0,
+		Safe:      0,
+		Finalized: 0,
 	}),
 		presets.WithCompatibleTypes(compat.SysGo),
 	)
