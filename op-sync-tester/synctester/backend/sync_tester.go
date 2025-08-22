@@ -375,8 +375,8 @@ func (s *SyncTester) ForkchoiceUpdatedV3(ctx context.Context, state *eth.Forkcho
 		}
 		payloadID := args.Id()
 		id = &payloadID
-		// Activate Shanghai(Canyon) and Isthmus
-		config := &params.ChainConfig{ShanghaiTime: new(uint64), IsthmusTime: new(uint64)}
+		// Activate Canyon and Isthmus
+		config := &params.ChainConfig{CanyonTime: new(uint64), IsthmusTime: new(uint64)}
 		payloadEnv, err := eth.BlockAsPayloadEnv(newBlock, config)
 		if err != nil {
 			// The failure is from the EL processing so consider as a server error and make CL retry
@@ -556,8 +556,8 @@ func (s *SyncTester) NewPayloadV4(ctx context.Context, payload *eth.ExecutionPay
 		// Already have the block locally or advance single block without setting the head
 		// https://github.com/ethereum/execution-apis/blob/584905270d8ad665718058060267061ecfd79ca5/src/engine/shanghai.md#specification
 		// Spec: MUST return {status: INVALID, latestValidHash: null, validationError: errorMessage | null} if the blockHash validation has failed.
-		// Activate Shanghai(Canyon) and Isthmus
-		config := &params.ChainConfig{ShanghaiTime: new(uint64), IsthmusTime: new(uint64)}
+		// Activate Canyon and Isthmus
+		config := &params.ChainConfig{CanyonTime: new(uint64), IsthmusTime: new(uint64)}
 		correctPayload, err := eth.BlockAsPayload(block, config)
 		if err != nil {
 			// The failure is from the EL processing so consider as a server error and make CL retry
