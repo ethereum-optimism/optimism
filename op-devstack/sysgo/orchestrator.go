@@ -131,9 +131,6 @@ func (o *Orchestrator) Hydrate(sys stack.ExtensibleSystem) {
 	o.challengers.Range(rangeHydrateFn[stack.L2ChallengerID, *L2Challenger](sys))
 	o.proposers.Range(rangeHydrateFn[stack.L2ProposerID, *L2Proposer](sys))
 	o.faucet.hydrate(sys)
-	if o.syncTester != nil {
-		o.syncTester.hydrate(sys)
-	}
 	o.sysHook.PostHydrate(sys)
 }
 
