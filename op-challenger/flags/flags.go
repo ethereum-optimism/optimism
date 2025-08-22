@@ -451,6 +451,10 @@ func CheckRequired(ctx *cli.Context, traceTypes []types.TraceType) error {
 			if err := CheckCannonFlags(ctx); err != nil {
 				return err
 			}
+		case types.TraceTypeCannonKona:
+			if err := CheckCannonFlags(ctx); err != nil {
+				return err
+			}
 		case types.TraceTypeAsterisc:
 			if err := CheckAsteriscFlags(ctx); err != nil {
 				return err

@@ -28,15 +28,14 @@ func (s *KonaExecutor) OracleCommand(cfg Config, dataDir string, inputs utils.Lo
 	}
 	args := []string{
 		cfg.Server,
-		"single",
 		"--l1-node-address", cfg.L1,
 		"--l1-beacon-address", cfg.L1Beacon,
 		"--l2-node-address", cfg.L2s[0],
 		"--l1-head", inputs.L1Head.Hex(),
-		"--l2-head", inputs.L2Head.Hex(),
-		"--l2-output-root", inputs.L2OutputRoot.Hex(),
-		"--l2-claim", inputs.L2Claim.Hex(),
-		"--l2-block-number", inputs.L2SequenceNumber.Text(10),
+		"--agreed-l2-head-hash", inputs.L2Head.Hex(),
+		"--agreed-l2-output-root", inputs.L2OutputRoot.Hex(),
+		"--claimed-l2-output-root", inputs.L2Claim.Hex(),
+		"--claimed-l2-block-number", inputs.L2SequenceNumber.Text(10),
 	}
 
 	if s.nativeMode {
