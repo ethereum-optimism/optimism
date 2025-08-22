@@ -23,8 +23,15 @@ type l1AddressBook struct {
 }
 
 func newL1AddressBook(t devtest.T, addresses descriptors.AddressMap) *l1AddressBook {
-	// TODO(#15817) op-devstack: sysext: fix address book
-	return &l1AddressBook{}
+	protocolVersions, ok := addresses[ProtocolVersionsAddressName]
+	t.Require().True(ok, "ProtocolVersionsProxy address not found in devnet descriptor")
+	superchainConfig, ok := addresses[SuperchainConfigAddressName]
+	t.Require().True(ok, "SuperchainConfigProxy address not found in devnet descriptor")
+
+	return &l1AddressBook{
+		protocolVersions: common.Address(protocolVersions),
+		superchainConfig: common.Address(superchainConfig),
+	}
 }
 
 func (a *l1AddressBook) ProtocolVersionsAddr() common.Address {
@@ -44,11 +51,17 @@ type l2AddressBook struct {
 }
 
 func newL2AddressBook(t devtest.T, l1Addresses descriptors.AddressMap) *l2AddressBook {
-	// TODO(#15817) op-devstack: sysext: fix address book
+	systemConfig, ok := l1Addresses[SystemConfigAddressName]
+	t.Require().True(ok, "SystemConfigProxy address not found in devnet descriptor")
+	disputeGameFactory, ok := l1Addresses[DisputeGameFactoryName]
+	t.Require().True(ok, "DisputeGameFactoryProxy address not found in devnet descriptor")
+	l1StandardBridge, ok := l1Addresses[L1StandardBridgeProxyName]
+	t.Require().True(ok, "L1StandardBridgeProxy address not found in devnet descriptor")
+
 	return &l2AddressBook{
-		systemConfig:       l1Addresses[SystemConfigAddressName],
-		disputeGameFactory: l1Addresses[DisputeGameFactoryName],
-		l1StandardBridge:   l1Addresses[L1StandardBridgeProxyName],
+		systemConfig:       common.Address(systemConfig),
+		disputeGameFactory: common.Address(disputeGameFactory),
+		l1StandardBridge:   common.Address(l1StandardBridge),
 	}
 }
 
