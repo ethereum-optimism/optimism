@@ -162,7 +162,7 @@ func WithOpNode(l2CLID stack.L2CLNodeID, l1CLID stack.L1CLNodeID, l1ELID stack.L
 		var syncTesterID *stack.SyncTesterID
 		var depSet depset.DependencySet
 		var useSyncTester bool
-		var tb *sttypes.FCUState
+		var fcus sttypes.FCUState
 
 		switch v := l2ELOrSyncTester.(type) {
 		case stack.L2ELNodeID:
@@ -180,11 +180,11 @@ func WithOpNode(l2CLID stack.L2CLNodeID, l1CLID stack.L1CLNodeID, l1ELID stack.L
 
 			for _, st := range orch.syncTester.service.SyncTesters() {
 				if st.ChainID == syncTesterID.ChainID() {
-					tb = st.Target
+					fcus = st.Target
 					break
 				}
 			}
-			require.NotNil(tb, "target blocks not found for sync tester")
+			require.NotNil(fcus, "target blocks not found for sync tester")
 
 			// When using a SyncTester, we don't need an L2EL node
 			// The SyncTester will provide the L2 endpoint
@@ -272,7 +272,7 @@ func WithOpNode(l2CLID stack.L2CLNodeID, l1CLID stack.L1CLNodeID, l1ELID stack.L
 		if useSyncTester {
 			require.NotNil(orch.syncTester, "sync tester service required when using SyncTester")
 			l2EngineAddr = orch.syncTester.service.NewEndpoint(syncTesterID.ChainID())
-			l2EngineAddr += fmt.Sprintf("?latest=%d&safe=%d&finalized=%d", tb.Latest, tb.Safe, tb.Finalized)
+			l2EngineAddr += fmt.Sprintf("?latest=%d&safe=%d&finalized=%d", fcus.Latest, fcus.Safe, fcus.Finalized)
 		} else {
 			l2EngineAddr = l2EL.EngineRPC()
 		}

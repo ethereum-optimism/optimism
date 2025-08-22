@@ -18,8 +18,8 @@ type SyncTesterEntry struct {
 }
 
 type EntryCfg struct {
-	ChainID eth.ChainID       `yaml:"chain_id"`
-	Target  *sttypes.FCUState `yaml:"target"`
+	ChainID eth.ChainID      `yaml:"chain_id"`
+	Target  sttypes.FCUState `yaml:"target"`
 }
 type Config struct {
 	// SyncTesters lists all sync testers by ID

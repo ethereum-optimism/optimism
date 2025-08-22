@@ -100,7 +100,7 @@ func NewDefaultMinimalSystemWithSyncTesterIDs(l1ID, l2ID eth.ChainID) DefaultMin
 	}
 }
 
-func DefaultMinimalSystemWithSyncTester(dest *DefaultMinimalSystemWithSyncTesterIDs, fcus *sttypes.FCUState) stack.Option[*Orchestrator] {
+func DefaultMinimalSystemWithSyncTester(dest *DefaultMinimalSystemWithSyncTesterIDs, fcus sttypes.FCUState) stack.Option[*Orchestrator] {
 	l1ID := eth.ChainIDFromUInt64(900)
 	l2ID := eth.ChainIDFromUInt64(901)
 	ids := NewDefaultMinimalSystemWithSyncTesterIDs(l1ID, l2ID)

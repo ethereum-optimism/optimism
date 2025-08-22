@@ -23,7 +23,7 @@ func NewDefaultSimpleSystemWithSyncTesterIDs(l1ID, l2ID eth.ChainID) DefaultSimp
 	}
 }
 
-func DefaultSimpleSystemWithSyncTester(dest *DefaultSimpleSystemWithSyncTesterIDs, tb *sttypes.FCUState) stack.Option[*Orchestrator] {
+func DefaultSimpleSystemWithSyncTester(dest *DefaultSimpleSystemWithSyncTesterIDs, fcus sttypes.FCUState) stack.Option[*Orchestrator] {
 	l1ID := eth.ChainIDFromUInt64(900)
 	l2ID := eth.ChainIDFromUInt64(901)
 	ids := NewDefaultSimpleSystemWithSyncTesterIDs(l1ID, l2ID)
@@ -59,7 +59,7 @@ func DefaultSimpleSystemWithSyncTester(dest *DefaultSimpleSystemWithSyncTesterID
 		ids.L2EL,
 	}))
 
-	opt.Add(WithSyncTester([]stack.L2ELNodeID{ids.L2EL}, tb))
+	opt.Add(WithSyncTester([]stack.L2ELNodeID{ids.L2EL}, fcus))
 	opt.Add(WithL2CLNodeWithSyncTester(ids.L2CL2, ids.L1CL, ids.L1EL))
 
 	opt.Add(stack.Finally(func(orch *Orchestrator) {

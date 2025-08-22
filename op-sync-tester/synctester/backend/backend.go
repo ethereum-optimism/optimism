@@ -128,7 +128,7 @@ func (b *Backend) SyncTesters() (out map[sttypes.SyncTesterID]config.EntryCfg) {
 	b.syncTesters.Range(func(key sttypes.SyncTesterID, value *SyncTester) bool {
 		out[key] = config.EntryCfg{
 			ChainID: value.cfg.ChainID,
-			Target: &sttypes.FCUState{
+			Target: sttypes.FCUState{
 				Latest:    value.cfg.Target.Latest,
 				Safe:      value.cfg.Target.Safe,
 				Finalized: value.cfg.Target.Finalized,

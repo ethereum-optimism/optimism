@@ -9,7 +9,7 @@ import (
 )
 
 func TestMain(m *testing.M) {
-	presets.DoMain(m, presets.WithMinimalWithSyncTester(&sttypes.FCUState{
+	presets.DoMain(m, presets.WithMinimalWithSyncTester(sttypes.FCUState{
 		Latest:    0,
 		Safe:      0,
 		Finalized: 0,

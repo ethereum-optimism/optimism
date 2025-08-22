@@ -20,7 +20,7 @@ type SyncTester struct {
 	service *synctester.Service
 }
 
-func WithSyncTester(l2ELs []stack.L2ELNodeID, fcus *sttypes.FCUState) stack.Option[*Orchestrator] {
+func WithSyncTester(l2ELs []stack.L2ELNodeID, fcus sttypes.FCUState) stack.Option[*Orchestrator] {
 	return stack.AfterDeploy(func(orch *Orchestrator) {
 		syncTesterID := stack.NewSyncTesterID("dev-sync-tester", l2ELs[0].ChainID())
 		p := orch.P().WithCtx(stack.ContextWithID(orch.P().Ctx(), syncTesterID))

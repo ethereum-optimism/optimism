@@ -16,8 +16,8 @@ type MinimalWithSyncTester struct {
 	SyncTester *dsl.SyncTester
 }
 
-func WithMinimalWithSyncTester(tb *sttypes.FCUState) stack.CommonOption {
-	return stack.MakeCommon(sysgo.DefaultMinimalSystemWithSyncTester(&sysgo.DefaultMinimalSystemWithSyncTesterIDs{}, tb))
+func WithMinimalWithSyncTester(fcus sttypes.FCUState) stack.CommonOption {
+	return stack.MakeCommon(sysgo.DefaultMinimalSystemWithSyncTester(&sysgo.DefaultMinimalSystemWithSyncTesterIDs{}, fcus))
 }
 
 func NewMinimalWithSyncTester(t devtest.T) *MinimalWithSyncTester {
