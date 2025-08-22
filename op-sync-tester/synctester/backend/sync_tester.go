@@ -3,6 +3,7 @@ package backend
 import (
 	"bytes"
 	"context"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -14,6 +15,7 @@ import (
 	"github.com/ethereum/go-ethereum/beacon/engine"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/ethereum/go-ethereum/consensus/misc/eip1559"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/log"
@@ -236,7 +238,14 @@ func (s *SyncTester) GetPayloadV2(ctx context.Context, payloadID eth.PayloadID) 
 }
 
 func (s *SyncTester) GetPayloadV3(ctx context.Context, payloadID eth.PayloadID) (*eth.ExecutionPayloadEnvelope, error) {
-	return nil, nil
+	if !payloadID.Is(engine.PayloadV3) {
+		return nil, engine.UnsupportedFork
+	}
+	session, err := s.fetchSession(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return s.getPayload(session, payloadID)
 }
 
 // GetPayloadV4 retrieves an execution payload previously initialized by
@@ -251,6 +260,10 @@ func (s *SyncTester) GetPayloadV4(ctx context.Context, payloadID eth.PayloadID) 
 	if err != nil {
 		return nil, err
 	}
+	return s.getPayload(session, payloadID)
+}
+
+func (s *SyncTester) getPayload(session *Session, payloadID eth.PayloadID) (*eth.ExecutionPayloadEnvelope, error) {
 	payloadEnv, ok := session.Payloads[payloadID]
 	if !ok {
 		return nil, engine.UnknownPayload
@@ -352,8 +365,10 @@ func (s *SyncTester) ForkchoiceUpdatedV3(ctx context.Context, state *eth.Forkcho
 			// Consider as sync error if read only EL interaction fails because we cannot validate
 			return &eth.ForkchoiceUpdatedResult{PayloadStatus: eth.PayloadStatusV1{Status: eth.ExecutionSyncing}, PayloadID: nil}, nil
 		}
+		// Implictly determine whether holocene is enabled by inspecting extraData from read only EL data
+		isHolocene := eip1559.ValidateHoloceneExtraData(newBlock.Header().Extra) == nil
 		// Sanity check attr comparing with newBlock
-		if err := s.validateAttributesForBlock(attr, newBlock, true); err != nil {
+		if err := s.validateAttributesForBlock(attr, newBlock, isHolocene); err != nil {
 			// https://github.com/ethereum/execution-apis/blob/584905270d8ad665718058060267061ecfd79ca5/src/engine/paris.md#specification-1
 			// Client software MUST respond to this method call in the following way: {error: {code: -38003, message: "Invalid payload attributes"}} if the payload is deemed VALID and forkchoiceState has been applied successfully, but no build process has been started due to invalid payloadAttributes.
 			return &eth.ForkchoiceUpdatedResult{PayloadStatus: eth.PayloadStatusV1{Status: eth.ExecutionInvalid}, PayloadID: nil}, engine.InvalidPayloadAttributes.With(err)
@@ -361,17 +376,19 @@ func (s *SyncTester) ForkchoiceUpdatedV3(ctx context.Context, state *eth.Forkcho
 		// Initialize payload args for sane payload ID
 		// All attr fields already sanity checked
 		args := miner.BuildPayloadArgs{
-			Parent:        state.HeadBlockHash,
-			Timestamp:     uint64(attr.Timestamp),
-			FeeRecipient:  attr.SuggestedFeeRecipient,
-			Random:        common.Hash(attr.PrevRandao),
-			Withdrawals:   *attr.Withdrawals,
-			BeaconRoot:    attr.ParentBeaconBlockRoot,
-			NoTxPool:      attr.NoTxPool,
-			Transactions:  newBlock.Transactions(),
-			GasLimit:      &newBlock.Header().GasLimit,
-			Version:       engine.PayloadV3,
-			EIP1559Params: (*attr.EIP1559Params)[:],
+			Parent:       state.HeadBlockHash,
+			Timestamp:    uint64(attr.Timestamp),
+			FeeRecipient: attr.SuggestedFeeRecipient,
+			Random:       common.Hash(attr.PrevRandao),
+			Withdrawals:  *attr.Withdrawals,
+			BeaconRoot:   attr.ParentBeaconBlockRoot,
+			NoTxPool:     attr.NoTxPool,
+			Transactions: newBlock.Transactions(),
+			GasLimit:     &newBlock.Header().GasLimit,
+			Version:      engine.PayloadV3,
+		}
+		if isHolocene {
+			args.EIP1559Params = (*attr.EIP1559Params)[:]
 		}
 		payloadID := args.Id()
 		id = &payloadID
@@ -400,10 +417,8 @@ func (s *SyncTester) ForkchoiceUpdatedV3(ctx context.Context, state *eth.Forkcho
 //   - Transaction count and raw transaction bytes must match exactly.
 //   - NoTxPool must be always true, since sync tester only runs in verifier mode.
 //   - Gas limit must match.
-//   - If Holocene is active:
-//   - Extra data must be exactly 9 bytes.
-//   - The version byte must equal 0.
-//   - The remaining 8 bytes must match the EIP-1559 parameters.
+//   - If Holocene is active: Extra data must be exactly 9 bytes, the version byte must equal to 0,
+//     the remaining 8 bytes must match the EIP-1559 parameters.
 //
 // Returns an error if any mismatch or invalid condition is found, otherwise nil.
 func (s *SyncTester) validateAttributesForBlock(attr *eth.PayloadAttributes, block *types.Block, isHolocene bool) error {
@@ -448,21 +463,24 @@ func (s *SyncTester) validateAttributesForBlock(attr *eth.PayloadAttributes, blo
 		return fmt.Errorf("gaslimit mismatch: attr=%d, header=%d", *attr.GasLimit, h.GasLimit)
 	}
 	if isHolocene {
-		if len(block.Extra()) != 9 {
-			// https://github.com/ethereum-optimism/specs/blob/972dec7c7c967800513c354b2f8e5b79340de1c3/specs/protocol/holocene/exec-engine.md#eip-1559-parameters-in-block-header
-			// there is no additional data beyond these 9 bytes
-			return fmt.Errorf("extradata length: %d, desired: 9", len(block.Extra()))
+		if err := eip1559.ValidateHolocene1559Params((*attr.EIP1559Params)[:]); err != nil {
+			return fmt.Errorf("invalid eip1559Params: %w", err)
 		}
-		version := block.Extra()[0]
-		if version != 0 {
-			// https://github.com/ethereum-optimism/specs/blob/972dec7c7c967800513c354b2f8e5b79340de1c3/specs/protocol/holocene/exec-engine.md#eip-1559-parameters-in-block-header
-			// version must be 0
-			return fmt.Errorf("eip1559Params version: %d, desired: 0", version)
+		denominator, elasticity := eip1559.DecodeHolocene1559Params((*attr.EIP1559Params)[:])
+		if denominator == 0 && elasticity == 0 {
+			// https://github.com/ethereum-optimism/specs/blob/972dec7c7c967800513c354b2f8e5b79340de1c3/specs/protocol/holocene/exec-engine.md#payload-attributes-processing
+			// Spec: The denominator and elasticity values within this extraData must correspond to those in eip1559Parameters, unless both are 0. When both are 0, the prior EIP-1559 constants must be used to populate extraData instead.
+			// Cannot validate since EL will fall back to prior eip1559 constants
+			return nil
 		}
 		if !bytes.Equal(block.Extra()[1:], (*attr.EIP1559Params)[:]) {
-			// https://github.com/ethereum-optimism/specs/blob/972dec7c7c967800513c354b2f8e5b79340de1c3/specs/protocol/holocene/exec-engine.md#eip-1559-parameters-in-payloadattributesv3
-			// At and after Holocene activation, eip1559Parameters in PayloadAttributeV3 must be exactly 8 bytes with the following format:
-			return fmt.Errorf("invalid eip1559Params params: %s", *attr.EIP1559Params)
+			return fmt.Errorf("eip1559Params mismatch: %s != 0x%s", *attr.EIP1559Params, hex.EncodeToString(block.Extra()[1:]))
+		}
+	} else {
+		// https://github.com/ethereum-optimism/specs/blob/972dec7c7c967800513c354b2f8e5b79340de1c3/specs/protocol/holocene/exec-engine.md#payload-attributes-processing
+		// Spec: Prior to Holocene activation, eip1559Parameters in PayloadAttributesV3 must be null and is otherwise considered invalid.
+		if attr.EIP1559Params != nil {
+			return fmt.Errorf("holocene disabled but EIP1559Params not nil. eip1559Params: %s", attr.EIP1559Params)
 		}
 	}
 	return nil
@@ -477,23 +495,28 @@ func (s *SyncTester) NewPayloadV2(ctx context.Context, payload *eth.ExecutionPay
 }
 
 func (s *SyncTester) NewPayloadV3(ctx context.Context, payload *eth.ExecutionPayload, versionedHashes []common.Hash, beaconRoot *common.Hash) (*eth.PayloadStatusV1, error) {
-	return nil, nil
+	session, err := s.fetchSession(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return s.newPayload(ctx, session, payload, versionedHashes, beaconRoot, nil, true, false)
 }
 
-// NewPayloadV4 validates and processes a new execution payload according to the
+func (s *SyncTester) NewPayloadV4(ctx context.Context, payload *eth.ExecutionPayload, versionedHashes []common.Hash, beaconRoot *common.Hash, executionRequests []hexutil.Bytes) (*eth.PayloadStatusV1, error) {
+	session, err := s.fetchSession(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return s.newPayload(ctx, session, payload, versionedHashes, beaconRoot, executionRequests, true, true)
+}
+
+// newpayload validates and processes a new execution payload according to the
 // Engine API rules to simulate consensus-layer to execution-layer interactions
 // without advancing canonical chain state.
 //
 // The method enforces mandatory post-fork fields, including withdrawals, excessBlobGas,
 // blobGasUsed, versionedHashes, beaconRoot, executionRequests, and withdrawalsRoot,
 // returning an InvalidParams error if any are missing or improperly shaped.
-//
-// Additional validation includes:
-//   - Ensuring versionedHashes and executionRequests arrays are empty as required
-//     post isthmus.
-//   - Comparing the provided payload against the locally reconstructed payload
-//     from the execution client to detect mismatches.
-//   - Verifying the block hash via the execution payload envelope.
 //
 // Return values:
 //   - {status: VALID, latestValidHash: payload.blockHash} if validation succeeds.
@@ -502,11 +525,9 @@ func (s *SyncTester) NewPayloadV3(ctx context.Context, payload *eth.ExecutionPay
 //   - {status: SYNCING} when the block cannot be executed because its parent is missing.
 //   - Errors surfaced as engine.InvalidParams or engine.GenericServerError to
 //     trigger appropriate consensus-layer retries.
-func (s *SyncTester) NewPayloadV4(ctx context.Context, payload *eth.ExecutionPayload, versionedHashes []common.Hash, beaconRoot *common.Hash, executionRequests []hexutil.Bytes) (*eth.PayloadStatusV1, error) {
-	session, err := s.fetchSession(ctx)
-	if err != nil {
-		return nil, err
-	}
+func (s *SyncTester) newPayload(ctx context.Context, session *Session, payload *eth.ExecutionPayload, versionedHashes []common.Hash, beaconRoot *common.Hash, executionRequests []hexutil.Bytes,
+	isEcotone, isIsthmus bool,
+) (*eth.PayloadStatusV1, error) {
 	// Validate request shape, fork required fields
 	// https://github.com/ethereum/execution-apis/blob/584905270d8ad665718058060267061ecfd79ca5/src/engine/shanghai.md#engine_newpayloadv2
 	// Spec: Client software MUST return -32602: Invalid params error if the wrong version of the structure is used in the method call.
@@ -525,21 +546,27 @@ func (s *SyncTester) NewPayloadV4(ctx context.Context, payload *eth.ExecutionPay
 	if beaconRoot == nil {
 		return &eth.PayloadStatusV1{Status: eth.ExecutionInvalid}, engine.InvalidParams.With(errors.New("nil beaconRoot post-cancun"))
 	}
-	if executionRequests == nil {
-		return &eth.PayloadStatusV1{Status: eth.ExecutionInvalid}, engine.InvalidParams.With(errors.New("nil executionRequests post-prague"))
+	if isIsthmus {
+		if executionRequests == nil {
+			return &eth.PayloadStatusV1{Status: eth.ExecutionInvalid}, engine.InvalidParams.With(errors.New("nil executionRequests post-prague"))
+		}
 	}
 	// OP Stack specific request shape validation
-	if payload.WithdrawalsRoot == nil {
-		// https://github.com/ethereum-optimism/specs/blob/a773587fca6756f8468164613daa79fcee7bbbe4/specs/protocol/exec-engine.md#engine_newpayloadv3
-		return &eth.PayloadStatusV1{Status: eth.ExecutionInvalid}, engine.InvalidParams.With(errors.New("nil withdrawalsRoot post-isthmus"))
+	if isEcotone {
+		if payload.WithdrawalsRoot == nil {
+			// https://github.com/ethereum-optimism/specs/blob/a773587fca6756f8468164613daa79fcee7bbbe4/specs/protocol/exec-engine.md#engine_newpayloadv3
+			return &eth.PayloadStatusV1{Status: eth.ExecutionInvalid}, engine.InvalidParams.With(errors.New("nil withdrawalsRoot post-isthmus"))
+		}
+		if len(versionedHashes) != 0 {
+			// https://github.com/ethereum-optimism/specs/blob/a773587fca6756f8468164613daa79fcee7bbbe4/specs/protocol/exec-engine.md#engine_newpayloadv3
+			return &eth.PayloadStatusV1{Status: eth.ExecutionInvalid}, engine.InvalidParams.With(fmt.Errorf("versionedHashes length non-zero: %d", len(versionedHashes)))
+		}
 	}
-	if len(versionedHashes) != 0 {
-		// https://github.com/ethereum-optimism/specs/blob/a773587fca6756f8468164613daa79fcee7bbbe4/specs/protocol/exec-engine.md#engine_newpayloadv3
-		return &eth.PayloadStatusV1{Status: eth.ExecutionInvalid}, engine.InvalidParams.With(fmt.Errorf("versionedHashes length non-zero: %d", len(versionedHashes)))
-	}
-	if len(executionRequests) != 0 {
-		// https://github.com/ethereum-optimism/specs/blob/a773587fca6756f8468164613daa79fcee7bbbe4/specs/protocol/exec-engine.md#engine_newpayloadv4
-		return &eth.PayloadStatusV1{Status: eth.ExecutionInvalid}, engine.InvalidParams.With(fmt.Errorf("executionRequests must be empty array but got %d", len(executionRequests)))
+	if isIsthmus {
+		if len(executionRequests) != 0 {
+			// https://github.com/ethereum-optimism/specs/blob/a773587fca6756f8468164613daa79fcee7bbbe4/specs/protocol/exec-engine.md#engine_newpayloadv4
+			return &eth.PayloadStatusV1{Status: eth.ExecutionInvalid}, engine.InvalidParams.With(fmt.Errorf("executionRequests must be empty array but got %d", len(executionRequests)))
+		}
 	}
 	// Look up canonical block for relay comparison
 	block, err := s.elReader.GetBlockByHash(ctx, payload.BlockHash)
@@ -556,19 +583,28 @@ func (s *SyncTester) NewPayloadV4(ctx context.Context, payload *eth.ExecutionPay
 		// Already have the block locally or advance single block without setting the head
 		// https://github.com/ethereum/execution-apis/blob/584905270d8ad665718058060267061ecfd79ca5/src/engine/shanghai.md#specification
 		// Spec: MUST return {status: INVALID, latestValidHash: null, validationError: errorMessage | null} if the blockHash validation has failed.
-		// Activate Canyon and Isthmus
-		config := &params.ChainConfig{CanyonTime: new(uint64), IsthmusTime: new(uint64)}
+		config := &params.ChainConfig{CanyonTime: new(uint64)}
+		if isIsthmus {
+			config.IsthmusTime = new(uint64)
+		}
 		correctPayload, err := eth.BlockAsPayload(block, config)
 		if err != nil {
 			// The failure is from the EL processing so consider as a server error and make CL retry
 			return &eth.PayloadStatusV1{Status: eth.ExecutionInvalid}, engine.GenericServerError.With(wrapSyncTesterError("failed convert block to payload: %w", err))
+		}
+		// Sanity check parent beacon block root and block hash by recomputation
+		if !isIsthmus {
+			// Depopulate withdrawal root field for block hash recomputation
+			if payload.WithdrawalsRoot != nil {
+				s.log.Warn("Isthmus disabled but withdrawal roots included in payload not nil", "root", payload.WithdrawalsRoot)
+			}
+			payload.WithdrawalsRoot = nil
 		}
 		// Check given payload matches the payload derived using the read only EL block
 		if err := correctPayload.CheckEqual(payload); err != nil {
 			// Consider as block hash validation error when payload mismatch
 			return s.newPayloadInvalid(fmt.Errorf("payload check mismatch: %w", err), nil), nil
 		}
-		// Sanity check parent beacon block root and block hash by recomputation
 		execEnvelope := eth.ExecutionPayloadEnvelope{ParentBeaconBlockRoot: beaconRoot, ExecutionPayload: payload}
 		actual, ok := execEnvelope.CheckBlockHash()
 		if blockHash != payload.BlockHash || !ok {
