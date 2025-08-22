@@ -35,6 +35,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/sources"
 	"github.com/ethereum-optimism/optimism/op-service/testutils/tcpproxy"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/depset"
+	stconf "github.com/ethereum-optimism/optimism/op-sync-tester/synctester/backend/config"
 )
 
 type OpNode struct {
@@ -161,6 +162,7 @@ func WithOpNode(l2CLID stack.L2CLNodeID, l1CLID stack.L1CLNodeID, l1ELID stack.L
 		var syncTesterID *stack.SyncTesterID
 		var depSet depset.DependencySet
 		var useSyncTester bool
+		var tb *stconf.TargetBlocks
 
 		switch v := l2ELOrSyncTester.(type) {
 		case stack.L2ELNodeID:
@@ -175,6 +177,15 @@ func WithOpNode(l2CLID stack.L2CLNodeID, l1CLID stack.L1CLNodeID, l1ELID stack.L
 			syncTesterID = &syncTester.id
 
 			useSyncTester = true
+
+			for _, st := range orch.syncTester.service.SyncTesters() {
+				if st.ChainID == syncTesterID.ChainID() {
+					tb = st.Target
+					break
+				}
+			}
+			require.NotNil(tb, "target blocks not found for sync tester")
+
 			// When using a SyncTester, we don't need an L2EL node
 			// The SyncTester will provide the L2 endpoint
 			if cluster, ok := orch.ClusterForL2(syncTesterID.ChainID()); ok {
@@ -260,7 +271,7 @@ func WithOpNode(l2CLID stack.L2CLNodeID, l1CLID stack.L1CLNodeID, l1ELID stack.L
 		var l2EngineAddr string
 		if useSyncTester {
 			require.NotNil(orch.syncTester, "sync tester service required when using SyncTester")
-			l2EngineAddr = orch.syncTester.service.SyncTesterEndpoint(syncTesterID.ChainID(), nil)
+			l2EngineAddr = orch.syncTester.service.SyncTesterEndpoint(syncTesterID.ChainID(), tb)
 		} else {
 			l2EngineAddr = l2EL.EngineRPC()
 		}

@@ -7,6 +7,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-devstack/stack"
 	"github.com/ethereum-optimism/optimism/op-devstack/stack/match"
 	"github.com/ethereum-optimism/optimism/op-devstack/sysgo"
+	stconf "github.com/ethereum-optimism/optimism/op-sync-tester/synctester/backend/config"
 )
 
 type SimpleWithSyncTester struct {
@@ -16,8 +17,8 @@ type SimpleWithSyncTester struct {
 	L2CL2      *dsl.L2CLNode
 }
 
-func WithSimpleWithSyncTester() stack.CommonOption {
-	return stack.MakeCommon(sysgo.DefaultSimpleSystemWithSyncTester(&sysgo.DefaultSimpleSystemWithSyncTesterIDs{}))
+func WithSimpleWithSyncTester(tb *stconf.TargetBlocks) stack.CommonOption {
+	return stack.MakeCommon(sysgo.DefaultSimpleSystemWithSyncTester(&sysgo.DefaultSimpleSystemWithSyncTesterIDs{}, tb))
 }
 
 func NewSimpleWithSyncTester(t devtest.T) *SimpleWithSyncTester {
