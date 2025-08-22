@@ -53,8 +53,8 @@ func TestBackend(t *testing.T) {
 		ELRPC: endpoint.MustRPC{Value: endpoint.URL("http://" + srv.Endpoint())},
 		Cfg: stconf.SyncTesterConfig{
 			ChainID: eth.ChainIDFromUInt64(1),
-			Target: &stconf.TargetBlocks{
-				Head:      100,
+			Target: &sttypes.FCUState{
+				Latest:    100,
 				Safe:      90,
 				Finalized: 80,
 			},
@@ -66,8 +66,8 @@ func TestBackend(t *testing.T) {
 		ELRPC: endpoint.MustRPC{Value: endpoint.URL("http://" + srv.Endpoint())},
 		Cfg: stconf.SyncTesterConfig{
 			ChainID: eth.ChainIDFromUInt64(2),
-			Target: &stconf.TargetBlocks{
-				Head:      101,
+			Target: &sttypes.FCUState{
+				Latest:    101,
 				Safe:      91,
 				Finalized: 81,
 			},

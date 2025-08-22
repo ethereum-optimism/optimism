@@ -176,14 +176,14 @@ func TestSyncTester_GetBlockByHash(t *testing.T) {
 			name:            "block number greater than latest",
 			sessionLatest:   100,
 			rawNumber:       101, // greater than Latest
-			session:         &Session{SessionID: uuid.New().String(), CurrentState: FCUState{Latest: 100}},
+			session:         &Session{SessionID: uuid.New().String(), CurrentState: sttypes.FCUState{Latest: 100}},
 			wantErrContains: "not found",
 		},
 		{
 			name:          "happy path",
 			sessionLatest: 100,
 			rawNumber:     99,
-			session:       &Session{SessionID: uuid.New().String(), CurrentState: FCUState{Latest: 100}},
+			session:       &Session{SessionID: uuid.New().String(), CurrentState: sttypes.FCUState{Latest: 100}},
 		},
 	}
 
@@ -232,7 +232,7 @@ func TestSyncTester_GetBlockByNumber(t *testing.T) {
 			name: "happy path: numeric less than latest",
 			session: &Session{
 				SessionID: uuid.New().String(),
-				CurrentState: FCUState{
+				CurrentState: sttypes.FCUState{
 					Latest:    100,
 					Safe:      95,
 					Finalized: 90,
@@ -245,7 +245,7 @@ func TestSyncTester_GetBlockByNumber(t *testing.T) {
 			name: "happy path: label latest returns latest",
 			session: &Session{
 				SessionID: uuid.New().String(),
-				CurrentState: FCUState{
+				CurrentState: sttypes.FCUState{
 					Latest:    100,
 					Safe:      95,
 					Finalized: 90,
@@ -258,7 +258,7 @@ func TestSyncTester_GetBlockByNumber(t *testing.T) {
 			name: "happy path: label safe returns safe",
 			session: &Session{
 				SessionID: uuid.New().String(),
-				CurrentState: FCUState{
+				CurrentState: sttypes.FCUState{
 					Latest:    100,
 					Safe:      97,
 					Finalized: 90,
@@ -271,7 +271,7 @@ func TestSyncTester_GetBlockByNumber(t *testing.T) {
 			name: "happy path: label finalized returns finalized",
 			session: &Session{
 				SessionID: uuid.New().String(),
-				CurrentState: FCUState{
+				CurrentState: sttypes.FCUState{
 					Latest:    100,
 					Safe:      97,
 					Finalized: 92,
@@ -284,7 +284,7 @@ func TestSyncTester_GetBlockByNumber(t *testing.T) {
 			name: "pending returns not found",
 			session: &Session{
 				SessionID:    uuid.New().String(),
-				CurrentState: FCUState{Latest: 100, Safe: 97, Finalized: 92},
+				CurrentState: sttypes.FCUState{Latest: 100, Safe: 97, Finalized: 92},
 			},
 			inNumber:        rpc.PendingBlockNumber,
 			wantErrContains: "not found",
@@ -293,7 +293,7 @@ func TestSyncTester_GetBlockByNumber(t *testing.T) {
 			name: "earliest label returns not found",
 			session: &Session{
 				SessionID:    uuid.New().String(),
-				CurrentState: FCUState{Latest: 100, Safe: 97, Finalized: 92},
+				CurrentState: sttypes.FCUState{Latest: 100, Safe: 97, Finalized: 92},
 			},
 			inNumber:        rpc.EarliestBlockNumber,
 			wantErrContains: "not found",
@@ -302,7 +302,7 @@ func TestSyncTester_GetBlockByNumber(t *testing.T) {
 			name: "numeric greater than latest returns not found",
 			session: &Session{
 				SessionID:    uuid.New().String(),
-				CurrentState: FCUState{Latest: 100, Safe: 97, Finalized: 92},
+				CurrentState: sttypes.FCUState{Latest: 100, Safe: 97, Finalized: 92},
 			},
 			inNumber:        rpc.BlockNumber(101),
 			wantErrContains: "not found",
@@ -365,7 +365,7 @@ func TestSyncTester_GetBlockReceipts(t *testing.T) {
 			name: "happy: via hash, blockNumber less than latest",
 			session: &Session{
 				SessionID: uuid.New().String(),
-				CurrentState: FCUState{
+				CurrentState: sttypes.FCUState{
 					Latest:    100,
 					Safe:      95,
 					Finalized: 90,
@@ -381,7 +381,7 @@ func TestSyncTester_GetBlockReceipts(t *testing.T) {
 			name: "bad: via hash, blockNumber >= latest returns not found",
 			session: &Session{
 				SessionID: uuid.New().String(),
-				CurrentState: FCUState{
+				CurrentState: sttypes.FCUState{
 					Latest:    100,
 					Safe:      95,
 					Finalized: 90,
@@ -398,7 +398,7 @@ func TestSyncTester_GetBlockReceipts(t *testing.T) {
 			name: "happy: label latest returns latest",
 			session: &Session{
 				SessionID:    uuid.New().String(),
-				CurrentState: FCUState{Latest: 100, Safe: 95, Finalized: 90},
+				CurrentState: sttypes.FCUState{Latest: 100, Safe: 95, Finalized: 90},
 			},
 			arg: rpc.BlockNumberOrHashWithNumber(rpc.LatestBlockNumber),
 			seedFn: func(el *MockELReader, s *Session) {
@@ -410,7 +410,7 @@ func TestSyncTester_GetBlockReceipts(t *testing.T) {
 			name: "happy: label safe returns safe",
 			session: &Session{
 				SessionID:    uuid.New().String(),
-				CurrentState: FCUState{Latest: 100, Safe: 97, Finalized: 90},
+				CurrentState: sttypes.FCUState{Latest: 100, Safe: 97, Finalized: 90},
 			},
 			arg: rpc.BlockNumberOrHashWithNumber(rpc.SafeBlockNumber),
 			seedFn: func(el *MockELReader, s *Session) {
@@ -422,7 +422,7 @@ func TestSyncTester_GetBlockReceipts(t *testing.T) {
 			name: "happy: label finalized returns finalized",
 			session: &Session{
 				SessionID:    uuid.New().String(),
-				CurrentState: FCUState{Latest: 100, Safe: 97, Finalized: 92},
+				CurrentState: sttypes.FCUState{Latest: 100, Safe: 97, Finalized: 92},
 			},
 			arg: rpc.BlockNumberOrHashWithNumber(rpc.FinalizedBlockNumber),
 			seedFn: func(el *MockELReader, s *Session) {
@@ -434,7 +434,7 @@ func TestSyncTester_GetBlockReceipts(t *testing.T) {
 			name: "happy: numeric less than latest",
 			session: &Session{
 				SessionID:    uuid.New().String(),
-				CurrentState: FCUState{Latest: 100, Safe: 97, Finalized: 92},
+				CurrentState: sttypes.FCUState{Latest: 100, Safe: 97, Finalized: 92},
 			},
 			arg: rpc.BlockNumberOrHashWithNumber(rpc.BlockNumber(99)),
 			seedFn: func(el *MockELReader, _ *Session) {
@@ -446,7 +446,7 @@ func TestSyncTester_GetBlockReceipts(t *testing.T) {
 			name: "bad: numeric greater than latest returns not found",
 			session: &Session{
 				SessionID:    uuid.New().String(),
-				CurrentState: FCUState{Latest: 100, Safe: 97, Finalized: 92},
+				CurrentState: sttypes.FCUState{Latest: 100, Safe: 97, Finalized: 92},
 			},
 			arg:             rpc.BlockNumberOrHashWithNumber(rpc.BlockNumber(101)),
 			wantErrContains: "not found",

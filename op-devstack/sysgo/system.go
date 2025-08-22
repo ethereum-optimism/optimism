@@ -4,7 +4,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-chain-ops/devkeys"
 	"github.com/ethereum-optimism/optimism/op-devstack/stack"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-	stconf "github.com/ethereum-optimism/optimism/op-sync-tester/synctester/backend/config"
+	sttypes "github.com/ethereum-optimism/optimism/op-sync-tester/synctester/backend/types"
 )
 
 var (
@@ -100,7 +100,7 @@ func NewDefaultMinimalSystemWithSyncTesterIDs(l1ID, l2ID eth.ChainID) DefaultMin
 	}
 }
 
-func DefaultMinimalSystemWithSyncTester(dest *DefaultMinimalSystemWithSyncTesterIDs, tb *stconf.TargetBlocks) stack.Option[*Orchestrator] {
+func DefaultMinimalSystemWithSyncTester(dest *DefaultMinimalSystemWithSyncTesterIDs, tb *sttypes.FCUState) stack.Option[*Orchestrator] {
 	l1ID := eth.ChainIDFromUInt64(900)
 	l2ID := eth.ChainIDFromUInt64(901)
 	ids := NewDefaultMinimalSystemWithSyncTesterIDs(l1ID, l2ID)

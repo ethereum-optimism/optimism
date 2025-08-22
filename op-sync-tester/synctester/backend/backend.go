@@ -9,6 +9,7 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/rpc"
 
+	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/locks"
 	"github.com/ethereum-optimism/optimism/op-sync-tester/metrics"
 	"github.com/ethereum-optimism/optimism/op-sync-tester/synctester/backend/config"
@@ -38,23 +39,17 @@ type Session struct {
 	// Non canonical view of the chain
 	Validated uint64
 	// Canonical view of the chain
-	CurrentState FCUState
+	CurrentState sttypes.FCUState
 	// payloads
 	Payloads map[eth.PayloadID]*eth.ExecutionPayloadEnvelope
 
-	InitialState FCUState
+	InitialState sttypes.FCUState
 }
 
 func (s *Session) UpdateFCUState(latest, safe, finalized uint64) {
 	s.CurrentState.Latest = latest
 	s.CurrentState.Safe = safe
 	s.CurrentState.Finalized = finalized
-}
-
-type FCUState struct {
-	Latest    uint64
-	Safe      uint64
-	Finalized uint64
 }
 
 type APIRouter interface {
@@ -133,8 +128,8 @@ func (b *Backend) SyncTesters() (out map[sttypes.SyncTesterID]config.SyncTesterC
 	b.syncTesters.Range(func(key sttypes.SyncTesterID, value *SyncTester) bool {
 		out[key] = config.SyncTesterConfig{
 			ChainID: value.cfg.ChainID,
-			Target: &config.TargetBlocks{
-				Head:      value.cfg.Target.Head,
+			Target: &sttypes.FCUState{
+				Latest:    value.cfg.Target.Latest,
 				Safe:      value.cfg.Target.Safe,
 				Finalized: value.cfg.Target.Finalized,
 			},

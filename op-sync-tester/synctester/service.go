@@ -214,11 +214,11 @@ func (s *Service) RPC() string {
 	return s.httpServer.HTTPEndpoint()
 }
 
-func (s *Service) SyncTesterEndpoint(chainID eth.ChainID, target *bc.TargetBlocks) string {
+func (s *Service) SyncTesterEndpoint(chainID eth.ChainID, target *sttypes.FCUState) string {
 	uuid := uuid.New()
 	endpoint := fmt.Sprintf("%s/chain/%s/synctest/%s", s.RPC(), chainID, uuid)
 	if target != nil {
-		endpoint += fmt.Sprintf("?head=%d&safe=%d&finalized=%d", target.Head, target.Safe, target.Finalized)
+		endpoint += fmt.Sprintf("?latest=%d&safe=%d&finalized=%d", target.Latest, target.Safe, target.Finalized)
 	}
 	return endpoint
 }

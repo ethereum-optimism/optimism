@@ -4,7 +4,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-chain-ops/devkeys"
 	"github.com/ethereum-optimism/optimism/op-devstack/stack"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-	stconf "github.com/ethereum-optimism/optimism/op-sync-tester/synctester/backend/config"
+	sttypes "github.com/ethereum-optimism/optimism/op-sync-tester/synctester/backend/types"
 )
 
 type DefaultSimpleSystemWithSyncTesterIDs struct {
@@ -23,7 +23,7 @@ func NewDefaultSimpleSystemWithSyncTesterIDs(l1ID, l2ID eth.ChainID) DefaultSimp
 	}
 }
 
-func DefaultSimpleSystemWithSyncTester(dest *DefaultSimpleSystemWithSyncTesterIDs, tb *stconf.TargetBlocks) stack.Option[*Orchestrator] {
+func DefaultSimpleSystemWithSyncTester(dest *DefaultSimpleSystemWithSyncTesterIDs, tb *sttypes.FCUState) stack.Option[*Orchestrator] {
 	l1ID := eth.ChainIDFromUInt64(900)
 	l2ID := eth.ChainIDFromUInt64(901)
 	ids := NewDefaultSimpleSystemWithSyncTesterIDs(l1ID, l2ID)

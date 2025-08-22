@@ -9,6 +9,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-sync-tester/synctester/backend"
+	sttypes "github.com/ethereum-optimism/optimism/op-sync-tester/synctester/backend/types"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/google/uuid"
 )
@@ -65,13 +66,13 @@ func parseSession(r *http.Request, log log.Logger) (*http.Request, error) {
 		session := &backend.Session{
 			SessionID: sessionID,
 			Validated: latest,
-			CurrentState: backend.FCUState{
+			CurrentState: sttypes.FCUState{
 				Latest:    latest,
 				Safe:      safe,
 				Finalized: finalized,
 			},
 			Payloads: make(map[eth.PayloadID]*eth.ExecutionPayloadEnvelope),
-			InitialState: backend.FCUState{
+			InitialState: sttypes.FCUState{
 				Latest:    latest,
 				Safe:      safe,
 				Finalized: finalized,

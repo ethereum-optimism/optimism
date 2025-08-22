@@ -5,12 +5,12 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-devstack/compat"
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
-	stconf "github.com/ethereum-optimism/optimism/op-sync-tester/synctester/backend/config"
+	sttypes "github.com/ethereum-optimism/optimism/op-sync-tester/synctester/backend/types"
 )
 
 func TestMain(m *testing.M) {
-	presets.DoMain(m, presets.WithMinimalWithSyncTester(&stconf.TargetBlocks{
-		Head:      1,
+	presets.DoMain(m, presets.WithMinimalWithSyncTester(&sttypes.FCUState{
+		Latest:    1,
 		Safe:      1,
 		Finalized: 1,
 	}),

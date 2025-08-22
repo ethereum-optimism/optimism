@@ -35,7 +35,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/sources"
 	"github.com/ethereum-optimism/optimism/op-service/testutils/tcpproxy"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/depset"
-	stconf "github.com/ethereum-optimism/optimism/op-sync-tester/synctester/backend/config"
+	sttypes "github.com/ethereum-optimism/optimism/op-sync-tester/synctester/backend/types"
 )
 
 type OpNode struct {
@@ -162,7 +162,7 @@ func WithOpNode(l2CLID stack.L2CLNodeID, l1CLID stack.L1CLNodeID, l1ELID stack.L
 		var syncTesterID *stack.SyncTesterID
 		var depSet depset.DependencySet
 		var useSyncTester bool
-		var tb *stconf.TargetBlocks
+		var tb *sttypes.FCUState
 
 		switch v := l2ELOrSyncTester.(type) {
 		case stack.L2ELNodeID:

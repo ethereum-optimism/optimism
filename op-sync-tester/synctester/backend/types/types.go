@@ -35,3 +35,10 @@ func (id *SyncTesterID) UnmarshalText(data []byte) error {
 	*id = SyncTesterID(data)
 	return nil
 }
+
+// FCUState represents the Fork Choice Update state with Latest, Safe, and Finalized block numbers
+type FCUState struct {
+	Latest    uint64
+	Safe      uint64
+	Finalized uint64
+}

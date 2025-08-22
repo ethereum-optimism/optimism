@@ -7,7 +7,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-devstack/stack"
 	"github.com/ethereum-optimism/optimism/op-devstack/stack/match"
 	"github.com/ethereum-optimism/optimism/op-devstack/sysgo"
-	stconf "github.com/ethereum-optimism/optimism/op-sync-tester/synctester/backend/config"
+	sttypes "github.com/ethereum-optimism/optimism/op-sync-tester/synctester/backend/types"
 )
 
 type MinimalWithSyncTester struct {
@@ -16,7 +16,7 @@ type MinimalWithSyncTester struct {
 	SyncTester *dsl.SyncTester
 }
 
-func WithMinimalWithSyncTester(tb *stconf.TargetBlocks) stack.CommonOption {
+func WithMinimalWithSyncTester(tb *sttypes.FCUState) stack.CommonOption {
 	return stack.MakeCommon(sysgo.DefaultMinimalSystemWithSyncTester(&sysgo.DefaultMinimalSystemWithSyncTesterIDs{}, tb))
 }
 

@@ -17,15 +17,9 @@ type SyncTesterEntry struct {
 	Cfg SyncTesterConfig `yaml:"cfg"`
 }
 
-type TargetBlocks struct {
-	Head      uint64 `yaml:"head"`
-	Safe      uint64 `yaml:"safe"`
-	Finalized uint64 `yaml:"finalized"`
-}
-
 type SyncTesterConfig struct {
-	ChainID eth.ChainID   `yaml:"chain_id"`
-	Target  *TargetBlocks `yaml:"target"`
+	ChainID eth.ChainID       `yaml:"chain_id"`
+	Target  *sttypes.FCUState `yaml:"target"`
 }
 type Config struct {
 	// SyncTesters lists all sync testers by ID
