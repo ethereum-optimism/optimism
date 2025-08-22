@@ -228,8 +228,8 @@ contract DisputeGameFactory_TestInit is CommonTest {
         );
 
         vm.startPrank(disputeGameFactory.owner());
-        disputeGameFactory.setImplementation(GameTypes.CANNON_2, IDisputeGame(gameImpl_), implArgs);
-        disputeGameFactory.setInitBond(GameTypes.CANNON_2, 0.08 ether);
+        disputeGameFactory.setImplementation(GameTypes.CANNON, IDisputeGame(gameImpl_), implArgs);
+        disputeGameFactory.setInitBond(GameTypes.CANNON, 0.08 ether);
         vm.stopPrank();
     }
 
@@ -439,14 +439,14 @@ contract DisputeGameFactory_Create_Test is DisputeGameFactory_TestInit {
         // extraData should contain the l2BlockNumber as first 32 bytes
         bytes memory extraData = abi.encode(uint256(424242));
 
-        uint256 bondAmount = disputeGameFactory.initBonds(GameTypes.CANNON_2);
+        uint256 bondAmount = disputeGameFactory.initBonds(GameTypes.CANNON);
         vm.deal(address(this), bondAmount);
 
         // Create the game
-        IDisputeGame proxy = disputeGameFactory.create{ value: bondAmount }(GameTypes.CANNON_2, rootClaim, extraData);
+        IDisputeGame proxy = disputeGameFactory.create{ value: bondAmount }(GameTypes.CANNON, rootClaim, extraData);
 
         // Verify the game was created and stored
-        (IDisputeGame game, Timestamp timestamp) = disputeGameFactory.games(GameTypes.CANNON_2, rootClaim, extraData);
+        (IDisputeGame game, Timestamp timestamp) = disputeGameFactory.games(GameTypes.CANNON, rootClaim, extraData);
 
         assertEq(address(game), address(proxy));
         assertEq(Timestamp.unwrap(timestamp), block.timestamp);
@@ -458,7 +458,7 @@ contract DisputeGameFactory_Create_Test is DisputeGameFactory_TestInit {
         assertEq(Claim.unwrap(gameV2.absolutePrestate()), Claim.unwrap(absolutePrestate));
         assertEq(Claim.unwrap(gameV2.rootClaim()), Claim.unwrap(rootClaim));
         assertEq(gameV2.extraData(), extraData);
-        assertEq(GameType.unwrap(gameV2.gameType()), GameType.unwrap(GameTypes.CANNON_2));
+        assertEq(GameType.unwrap(gameV2.gameType()), GameType.unwrap(GameTypes.CANNON));
         assertEq(gameV2.l2ChainId(), 0);
         assertEq(address(gameV2.vm()), address(vm_));
         assertEq(address(gameV2.weth()), address(delayedWeth));
