@@ -34,8 +34,7 @@ func TestSyncTesterE2E(gt *testing.T) {
 
 	dsl.CheckAll(t,
 		sys.L2CL.AdvancedFn(types.LocalUnsafe, 5, 30),
-		// Uncomment this when we can sync L2CL2 via the SyncTester - need Engine API for that
-		// sys.L2CL2.AdvancedFn(types.LocalUnsafe, 5, 30),
+		sys.L2CL2.AdvancedFn(types.LocalUnsafe, 5, 30),
 	)
 
 	// Test that we can get chain ID from SyncTester
