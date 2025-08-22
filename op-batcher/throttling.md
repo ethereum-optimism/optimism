@@ -30,7 +30,7 @@ diagram:
 > `throttle.block-size-lower-limit` and `throttle.tx-size-lower-limit`
 > results in no throttling limits being applied (for blocks and transactions respectively).
 
-### Step Controller (Default)
+### Step Controller
 
 **Behavior**: Binary on/off throttling
 - **Below threshold**: No throttling applied
@@ -49,7 +49,7 @@ diagram:
 - **Use case**: Moderate, proportional response to load increases
 - **Best for**: Steady load patterns with predictable growth
 
-### Quadratic Controller
+### Quadratic Controller (Default)
 
 **Behavior**: Quadratic scaling throttling intensity
 - **Low overload**: Gentle throttling response
