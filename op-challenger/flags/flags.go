@@ -447,11 +447,7 @@ func CheckRequired(ctx *cli.Context, traceTypes []types.TraceType) error {
 	}
 	for _, traceType := range traceTypes {
 		switch traceType {
-		case types.TraceTypeCannon, types.TraceTypePermissioned:
-			if err := CheckCannonFlags(ctx); err != nil {
-				return err
-			}
-		case types.TraceTypeCannonKona:
+		case types.TraceTypeCannon, types.TraceTypePermissioned, types.TraceTypeCannonKona:
 			if err := CheckCannonFlags(ctx); err != nil {
 				return err
 			}
