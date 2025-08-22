@@ -1,4 +1,4 @@
-REPO_ROOT := `realpath ..`
+REPO_ROOT := `realpath ..`  # path to the root of the optimism monorepo
 KURTOSIS_DIR := REPO_ROOT + "/kurtosis-devnet"
 ACCEPTOR_VERSION := env_var_or_default("ACCEPTOR_VERSION", "v3.0.1")
 DOCKER_REGISTRY := env_var_or_default("DOCKER_REGISTRY", "us-docker.pkg.dev/oplabs-tools-artifacts/images")
@@ -6,44 +6,43 @@ ACCEPTOR_IMAGE := env_var_or_default("ACCEPTOR_IMAGE", DOCKER_REGISTRY + "/op-ac
 
 # Default recipe - runs acceptance tests
 default:
-    @just acceptance-test simple base
-
-
+    @just acceptance-test "" base
 
 holocene:
-    @just acceptance-test simple holocene
+    @just acceptance-test "" holocene
 
 isthmus:
-    @just acceptance-test isthmus isthmus
+    @just acceptance-test "" isthmus
 
 interop:
-    @just acceptance-test interop interop
+    @just acceptance-test "" interop
 
 
 # Run acceptance tests with mise-managed binary
 # Usage: just acceptance-test [devnet] [gate]
 # Examples:
-#   just acceptance-test simple base     # External devnet with specific gate
 #   just acceptance-test "" base         # In-process (sysgo) with specific gate
 #   just acceptance-test "" ""           # In-process gateless mode (all tests)
+#   just acceptance-test "simple" base     # External devnet with specific gate
+#   just acceptance-test "simple" ""       # External devnet gateless mode (all tests)
 acceptance-test devnet="" gate="holocene":
     #!/usr/bin/env bash
     set -euo pipefail
 
-    # Determine if we're running in gateless mode (empty gate = gateless)
-    GATELESS_MODE=false
-    if [[ "{{gate}}" == "" ]]; then
-        GATELESS_MODE=true
-        echo -e "DEVNET: in-memory (sysgo), MODE: gateless (all tests)\n"
-    elif [[ "{{devnet}}" == "" ]]; then
-        echo -e "DEVNET: in-memory (sysgo), GATE: {{gate}}\n"
+    # Determine mode and orchestrator
+    GATELESS_MODE=$([[ "{{gate}}" == "" ]] && echo "true" || echo "false")
+    ORCHESTRATOR=$([[ "{{devnet}}" == "" ]] && echo "sysgo" || echo "sysext")
+
+    # Display mode information
+    if [[ "$GATELESS_MODE" == "true" ]]; then
+        echo -e "DEVNET: $([[ "$ORCHESTRATOR" == "sysgo" ]] && echo "in-memory" || echo "{{devnet}}") ($ORCHESTRATOR), MODE: gateless (all tests)\n"
     else
-        echo -e "DEVNET: {{devnet}} (sysext), GATE: {{gate}}\n"
+        echo -e "DEVNET: $([[ "$ORCHESTRATOR" == "sysgo" ]] && echo "in-memory" || echo "{{devnet}}") ($ORCHESTRATOR), GATE: {{gate}}\n"
     fi
 
-    # For sysgo orchestrator (in-process testing) ensure dependencies are built
-    # Note: build contracts only if not in CI (CI jobs already take care of this)
-    if [[ "{{devnet}}" == "" && -z "${CIRCLECI:-}" ]]; then
+    # Build dependencies for sysgo (in-process) mode if not in CI
+    # In CI jobs already take care of this, so we skip it.
+    if [[ "$ORCHESTRATOR" == "sysgo" && -z "${CIRCLECI:-}" ]]; then
         echo "Building contracts (local build)..."
         cd {{REPO_ROOT}}
         echo " - Updating submodules..."
@@ -67,69 +66,59 @@ acceptance-test devnet="" gate="holocene":
 
     cd {{REPO_ROOT}}/op-acceptance-tests
 
-    # Gate mode: use existing gate-based approach
-    # Check if mise is installed
-    if command -v mise >/dev/null; then
-        echo "mise is installed"
-    else
+    # Check mise installation and fallback to Docker if needed
+    if ! command -v mise >/dev/null; then
         echo "Mise not installed, falling back to Docker..."
         just acceptance-test-docker {{devnet}} {{gate}}
         exit 0
     fi
 
-    # Try to install op-acceptor using mise
+    # Install op-acceptor using mise
     if ! mise install op-acceptor; then
         echo "WARNING: Failed to install op-acceptor with mise, falling back to Docker..."
         just acceptance-test-docker {{devnet}} {{gate}}
         exit 0
     fi
 
-    # Set the binary path
+    # Set binary path and log level
     BINARY_PATH=$(mise which op-acceptor)
     echo "Using mise-managed binary: $BINARY_PATH"
-
-    # Set log level
     LOG_LEVEL="$(echo "${LOG_LEVEL:-info}" | grep -E '^(debug|info|warn|error)$' || echo 'info')"
     echo "LOG_LEVEL: $LOG_LEVEL"
 
-    if [[ "$GATELESS_MODE" == "true" ]]; then
-        # Gateless mode: auto-discover all tests within a directory
-        echo "Running gateless mode - auto-discovering all tests in ./op-acceptance-tests/..."
-
-        # For now, run op-acceptor directly
-        # (Temporarily) allow skips
-        $BINARY_PATH \
-            --testdir {{REPO_ROOT}}/op-acceptance-tests/... \
-            --orchestrator sysgo \
-            --allow-skips \
-            --timeout 90m \
-            --default-timeout 10m \
-            --log.level "${LOG_LEVEL}"
-
-        exit 0
+    # Deploy devnet for sysext if it's a simple name
+    if [[ "$ORCHESTRATOR" == "sysext" && ! "{{devnet}}" =~ ^(kt://|ktnative://|/) ]]; then
+        echo "Deploying devnet {{devnet}}..."
+        just {{KURTOSIS_DIR}}/{{devnet}}-devnet || true
     fi
 
-    # Build the command with conditional parameters
-    CMD_ARGS=(
-        "go" "run" "cmd/main.go"
-        "--gate" "{{gate}}"
-        "--testdir" "{{REPO_ROOT}}"
-        "--validators" "./acceptance-tests.yaml"
-        "--log.level" "${LOG_LEVEL}"
-        "--acceptor" "$BINARY_PATH"
-    )
-
-    # Set orchestrator and devnet based on input
-    if [[ "{{devnet}}" == "" ]]; then
-        # In-process testing
-        CMD_ARGS+=("--orchestrator" "sysgo")
+    # Build command arguments based on mode
+    if [[ "$GATELESS_MODE" == "true" ]]; then
+        # Gateless mode
+        CMD_ARGS=(
+            "$BINARY_PATH"
+            "--testdir" "{{REPO_ROOT}}/op-acceptance-tests/..."
+            "--allow-skips"
+            "--timeout" "90m"
+            "--default-timeout" "10m"
+        )
     else
-        # External devnet testing
-        CMD_ARGS+=("--orchestrator" "sysext")
-        CMD_ARGS+=("--devnet" "{{devnet}}")
-        # Include kurtosis-dir for devnet deployment
-        CMD_ARGS+=("--kurtosis-dir" "{{KURTOSIS_DIR}}")
-        CMD_ARGS+=("--serial") # For now, run sysext in serial mode
+        # Gate mode
+        CMD_ARGS=(
+            "go" "run" "cmd/main.go"
+            "--gate" "{{gate}}"
+            "--testdir" "{{REPO_ROOT}}"
+            "--validators" "./acceptance-tests.yaml"
+            "--acceptor" "$BINARY_PATH"
+        )
+    fi
+
+    # Add common arguments
+    CMD_ARGS+=("--log.level" "${LOG_LEVEL}" "--orchestrator" "$ORCHESTRATOR")
+
+    # Add sysext-specific arguments
+    if [[ "$ORCHESTRATOR" == "sysext" ]]; then
+        CMD_ARGS+=("--devnet" "{{devnet}}" "--kurtosis-dir" "{{KURTOSIS_DIR}}" "--serial")
     fi
 
     # Execute the command
