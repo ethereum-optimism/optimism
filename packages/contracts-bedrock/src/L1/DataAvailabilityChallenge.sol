@@ -102,7 +102,7 @@ contract DataAvailabilityChallenge is OwnableUpgradeable, ISemver {
     /// @dev The value is estimated by measuring the cost of resolving with `bytes(0)`
     uint256 public constant fixedResolutionCost = 72925;
 
-    /// @notice The variable cost of resolving a callenge per byte scaled by the variableResolutionCostPrecision.
+    /// @notice The variable cost of resolving a challenge per byte scaled by the variableResolutionCostPrecision.
     /// @dev upper limit; The value is estimated by measuring the cost of resolving with variable size data where each
     /// byte is non-zero.
     uint256 public constant variableResolutionCost = 16640;
