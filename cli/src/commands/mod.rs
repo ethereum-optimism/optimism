@@ -47,7 +47,7 @@ pub enum Commands<Spec: ChainSpecParser = OpChainSpecParser, Ext: clap::Args + f
     Stage(Box<stage::Command<Spec>>),
     /// P2P Debugging utilities
     #[command(name = "p2p")]
-    P2P(p2p::Command<Spec>),
+    P2P(Box<p2p::Command<Spec>>),
     /// Write config to stdout
     #[command(name = "config")]
     Config(config_cmd::Command),
