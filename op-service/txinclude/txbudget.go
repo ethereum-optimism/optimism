@@ -38,7 +38,7 @@ func NewTxBudget(inner BasicBudget, opts ...TxBudgetOption) *TxBudget {
 
 var _ Budget = (*TxBudget)(nil)
 
-// BeforeResubmit calculates the cost of tx. If the new cost is greather than oldCost, it debits
+// BeforeResubmit calculates the cost of tx. If the new cost is greater than oldCost, it debits
 // the difference. If the new cost is less than oldCost, it credits the difference.
 func (b *TxBudget) BeforeResubmit(oldCost eth.ETH, tx *types.Transaction) (eth.ETH, error) {
 	// Gas cost.
