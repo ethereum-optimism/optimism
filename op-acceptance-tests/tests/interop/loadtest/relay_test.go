@@ -52,7 +52,7 @@ func (r *RelaySpammer) Spam(t devtest.T) error {
 }
 
 // TestRelaySteady runs the Relay spammer on a Steady schedule. A single execution of the Relay
-// spammer sends one initating message on the source chain and one corresponding executing message
+// spammer sends one initiating message on the source chain and one corresponding executing message
 // on the destination chain.
 func TestRelaySteady(gt *testing.T) {
 	t, l2A, l2B := setupLoadTest(gt)
