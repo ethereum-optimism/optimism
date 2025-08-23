@@ -7,10 +7,11 @@ _LDFLAGSSTRING := "'" + trim(
     "-X main.Version=" + VERSION + " " + \
     "") + "'"
 
-BINARY := "./bin/da-server"
+BINARY := justfile_directory() + "/bin/da-server"
+PACKAGE := justfile_directory() + "/cmd/daserver"
 
 # Build the da-server binary
-da-server: (go_build BINARY "./cmd/daserver" "-ldflags" _LDFLAGSSTRING)
+da-server: (go_build BINARY PACKAGE "-ldflags" _LDFLAGSSTRING)
 
 # Remove build artifacts
 clean:

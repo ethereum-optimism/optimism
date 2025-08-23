@@ -7,10 +7,11 @@ _LDFLAGSSTRING := "'" + trim(
     "-X main.Version=" + VERSION + " " + \
     "") + "'"
 
-BINARY := "./bin/op-batcher"
+BINARY := justfile_directory() + "/bin/op-batcher"
+PACKAGE := justfile_directory() + "/cmd"
 
 # Build op-batcher binary
-op-batcher: (go_build BINARY "./cmd" "-ldflags" _LDFLAGSSTRING)
+op-batcher: (go_build BINARY PACKAGE "-ldflags" _LDFLAGSSTRING)
 
 # Clean build artifacts
 clean:

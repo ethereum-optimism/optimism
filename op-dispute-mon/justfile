@@ -8,10 +8,11 @@ _LDFLAGSSTRING := "'" + trim(
     "-X github.com/ethereum-optimism/optimism/op-dispute-mon/version.Meta=" + VERSION_META + " " + \
     "") + "'"
 
-BINARY := "./bin/op-dispute-mon"
+BINARY := justfile_directory() + "/bin/op-dispute-mon"
+PACKAGE := justfile_directory() + "/cmd"
 
 # Build op-dispute-mon binary
-op-dispute-mon: (go_build BINARY "./cmd" "-ldflags" _LDFLAGSSTRING)
+op-dispute-mon: (go_build BINARY PACKAGE "-ldflags" _LDFLAGSSTRING)
 
 # Clean build artifacts
 clean:

@@ -8,10 +8,11 @@ _LDFLAGSSTRING := "'" + trim(
     "-X github.com/ethereum-optimism/optimism/op-node/version.Meta=" + VERSION_META + " " + \
     "") + "'"
 
-BINARY := "./bin/op-node"
+BINARY := justfile_directory() + "/bin/op-node"
+PACKAGE := justfile_directory() + "/cmd"
 
 # Build op-node binary
-op-node: (go_build BINARY "./cmd" "-ldflags" _LDFLAGSSTRING)
+op-node: (go_build BINARY PACKAGE "-ldflags" _LDFLAGSSTRING)
 
 # Clean build artifacts
 clean:

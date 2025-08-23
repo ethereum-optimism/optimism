@@ -8,10 +8,11 @@ _LDFLAGSSTRING := "'" + trim(
     "-X main.Meta=" + VERSION_META + " " + \
     "") + "'"
 
-BINARY := "./bin/op-test-sequencer"
+BINARY := justfile_directory() + "/bin/op-test-sequencer"
+PACKAGE := justfile_directory() + "/cmd"
 
 # Build op-test-sequencer binary
-op-test-sequencer: (go_build BINARY "./cmd" "-ldflags" _LDFLAGSSTRING)
+op-test-sequencer: (go_build BINARY PACKAGE "-ldflags" _LDFLAGSSTRING)
 
 # Clean build artifacts
 clean:

@@ -9,10 +9,11 @@ _LDFLAGSSTRING := "'" + trim(
     "-X github.com/ethereum-optimism/optimism/op-challenger/version.Meta=" + _VERSION_META_STR + " " + \
     "") + "'"
 
-BINARY := "./bin/op-challenger"
+BINARY := justfile_directory() + "/bin/op-challenger"
+PACKAGE := justfile_directory() + "/cmd"
 
 # Build op-challenger binary
-op-challenger: (go_build BINARY "./cmd" "-ldflags" _LDFLAGSSTRING)
+op-challenger: (go_build BINARY PACKAGE "-ldflags" _LDFLAGSSTRING)
 
 # Run fuzzing tests
 fuzz: (go_fuzz "FuzzKeccak" "10s" "./game/keccak/matrix")

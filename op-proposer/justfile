@@ -7,10 +7,11 @@ _LDFLAGSSTRING := "'" + trim(
     "-X main.Version=" + VERSION + " " + \
     "") + "'"
 
-BINARY := "./bin/op-proposer"
+BINARY := justfile_directory() + "/bin/op-proposer"
+PACKAGE := justfile_directory() + "/cmd"
 
 # Build op-proposer binary
-op-proposer: (go_build BINARY "./cmd" "-ldflags" _LDFLAGSSTRING)
+op-proposer: (go_build BINARY PACKAGE "-ldflags" _LDFLAGSSTRING)
 
 # Clean build artifacts
 clean:

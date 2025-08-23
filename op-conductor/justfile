@@ -7,10 +7,11 @@ _LDFLAGSSTRING := "'" + trim(
     "-X main.Version=" + VERSION + " " + \
     "") + "'"
 
-BINARY := "./bin/op-conductor"
+BINARY := justfile_directory() + "/bin/op-conductor"
+PACKAGE := justfile_directory() + "/cmd"
 
 # Build op-conductor binary
-op-conductor: (go_build BINARY "./cmd" "-ldflags" _LDFLAGSSTRING)
+op-conductor: (go_build BINARY PACKAGE "-ldflags" _LDFLAGSSTRING)
 
 # Clean build artifacts
 clean:

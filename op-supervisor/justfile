@@ -8,10 +8,11 @@ _LDFLAGSSTRING := "'" + trim(
     "-X main.Meta=" + VERSION_META + " " + \
     "") + "'"
 
-BINARY := "./bin/op-supervisor"
+BINARY := justfile_directory() + "/bin/op-supervisor"
+PACKAGE := justfile_directory() + "/cmd"
 
 # Build op-supervisor binary
-op-supervisor: (go_build BINARY "./cmd" "-ldflags" _LDFLAGSSTRING)
+op-supervisor: (go_build BINARY PACKAGE "-ldflags" _LDFLAGSSTRING)
 
 # Clean build artifacts
 clean:

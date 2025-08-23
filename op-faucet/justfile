@@ -8,10 +8,11 @@ _LDFLAGSSTRING := "'" + trim(
     "-X main.Meta=" + VERSION_META + " " + \
     "") + "'"
 
-BINARY := "./bin/op-faucet"
+BINARY := justfile_directory() + "/bin/op-faucet"
+PACKAGE := justfile_directory() + "/cmd"
 
 # Build op-faucet binary
-op-faucet: (go_build BINARY "./cmd" "-ldflags" _LDFLAGSSTRING)
+op-faucet: (go_build BINARY PACKAGE "-ldflags" _LDFLAGSSTRING)
 
 # Clean build artifacts
 clean:
