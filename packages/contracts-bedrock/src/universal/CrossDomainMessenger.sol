@@ -424,7 +424,7 @@ abstract contract CrossDomainMessenger is
     function _isOtherMessenger() internal view virtual returns (bool);
 
     /// @notice Checks whether a given call target is a system address that could cause the
-    ///         messenger to peform an unsafe action. This is NOT a mechanism for blocking user
+    ///         messenger to perform an unsafe action. This is NOT a mechanism for blocking user
     ///         addresses. This is ONLY used to prevent the execution of messages to specific
     ///         system addresses that could cause security issues, e.g., having the
     ///         CrossDomainMessenger send messages to itself.
