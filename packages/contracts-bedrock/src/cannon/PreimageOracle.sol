@@ -98,7 +98,7 @@ contract PreimageOracle is ISemver {
     mapping(address => mapping(uint256 => LPPMetaData)) public proposalMetadata;
     /// @notice Mapping of claimants to proposal UUIDs to bond amounts.
     mapping(address => mapping(uint256 => uint256)) public proposalBonds;
-    /// @notice Mapping of claimants to proposal UUIDs to the preimage part picked up during the absorbtion process.
+    /// @notice Mapping of claimants to proposal UUIDs to the preimage part picked up during the absorption process.
     mapping(address => mapping(uint256 => bytes32)) public proposalParts;
     /// @notice Mapping of claimants to proposal UUIDs to blocks which leaves were added to the merkle tree.
     mapping(address => mapping(uint256 => uint64[])) public proposalBlocks;
