@@ -476,7 +476,7 @@ func (c *TypedCall[ReturnType]) DecodeOutput(data []byte) (ReturnType, error) {
 	// try to unpack assuming every field is static
 	decoded, err := outputs.Unpack(data)
 	if err != nil {
-		// at lest one dynamic field is included so unpack by mimicing abi.UnpackIntoInterface method
+		// at lest one dynamic field is included so unpack by mimicking abi.UnpackIntoInterface method
 		args := abi.Arguments{}
 		for idx, component := range components {
 			t, err := abi.NewType(component.Type, "", component.Components)
