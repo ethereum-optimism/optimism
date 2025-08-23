@@ -298,7 +298,7 @@ func (f *ServiceFinder) FindL2Services(s *spec.ChainSpec) ([]descriptors.Node, d
 // TODO: remove this once we remove the devnet-sdk/system test framework.
 // At that point the order of the nodes will not be important anymore.
 func reorderNodes(nodes []descriptors.Node) []descriptors.Node {
-	// This is a hack to preserve some compatibililty with prior expectations,
+	// This is a hack to preserve some compatibility with prior expectations,
 	// that were embedded in the devnet-sdk/system test framework.
 	//
 	// We need to rearrange the order of the nodes so that:
