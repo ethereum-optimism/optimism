@@ -3,7 +3,7 @@ pragma solidity ^0.8.0;
 
 // Testing
 import { VmSafe } from "forge-std/Vm.sol";
-import { console2 as console } from "forge-std/console2.sol";
+import { console } from "forge-std/console.sol";
 import { stdJson } from "forge-std/StdJson.sol";
 import { EIP1967Helper } from "test/mocks/EIP1967Helper.sol";
 
