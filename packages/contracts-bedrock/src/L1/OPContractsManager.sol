@@ -1,12 +1,16 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
+// Contracts
+import { OPContractsManagerStandardValidator } from "src/L1/OPContractsManagerStandardValidator.sol";
+
 // Libraries
 import { Blueprint } from "src/libraries/Blueprint.sol";
 import { Constants } from "src/libraries/Constants.sol";
 import { Bytes } from "src/libraries/Bytes.sol";
 import { Claim, Duration, GameType, Hash, GameTypes, Proposal } from "src/dispute/lib/Types.sol";
 import { Strings } from "@openzeppelin/contracts/utils/Strings.sol";
+import { SemverComp } from "src/libraries/SemverComp.sol";
 
 // Interfaces
 import { ISemver } from "interfaces/universal/ISemver.sol";
@@ -31,7 +35,6 @@ import { IL1ERC721Bridge } from "interfaces/L1/IL1ERC721Bridge.sol";
 import { IL1StandardBridge } from "interfaces/L1/IL1StandardBridge.sol";
 import { IOptimismMintableERC20Factory } from "interfaces/universal/IOptimismMintableERC20Factory.sol";
 import { IETHLockbox } from "interfaces/L1/IETHLockbox.sol";
-import { OPContractsManagerStandardValidator } from "src/L1/OPContractsManagerStandardValidator.sol";
 
 contract OPContractsManagerContractsContainer {
     /// @notice Addresses of the Blueprint contracts.
@@ -596,10 +599,10 @@ contract OPContractsManagerUpgrader is OPContractsManagerBase {
     error SuperchainConfigExpectedVersionMismatch();
 
     /// @notice The expected previous version of the SuperchainConfig contract.
-    bytes32 constant SUPERCHAIN_CONFIG_EXPECTED_PREVIOUS_VERSION = keccak256(abi.encodePacked("1.2.0"));
+    string constant SUPERCHAIN_CONFIG_EXPECTED_PREVIOUS_VERSION = "1.2.0";
 
     /// @notice The expected target version of the SuperchainConfig contract.
-    bytes32 constant SUPERCHAIN_CONFIG_EXPECTED_TARGET_VERSION = keccak256(abi.encodePacked("2.3.0"));
+    string constant SUPERCHAIN_CONFIG_EXPECTED_TARGET_VERSION = "2.3.0";
 
     /// @param _contractsContainer The OPContractsManagerContractsContainer to use.
     constructor(OPContractsManagerContractsContainer _contractsContainer) OPContractsManagerBase(_contractsContainer) { }
@@ -617,8 +620,8 @@ contract OPContractsManagerUpgrader is OPContractsManagerBase {
         external
         virtual
     {
-        // If the SuperchainConfig is not already upgraded, upgrade it.
-        if (keccak256(abi.encodePacked(_superchainConfig.version())) != SUPERCHAIN_CONFIG_EXPECTED_TARGET_VERSION) {
+        // If the SuperchainConfig is not already upgraded, revert.
+        if (SemverComp.lt(_superchainConfig.version(), SUPERCHAIN_CONFIG_EXPECTED_TARGET_VERSION)) {
             revert SuperchainConfigExpectedVersionMismatch();
         }
 
@@ -857,7 +860,7 @@ contract OPContractsManagerUpgrader is OPContractsManagerBase {
     /// @dev This function assumes that the superchainConfig version is at an expected previous version.
     function upgradeSuperchainConfig(ISuperchainConfig _superchainConfig, IProxyAdmin _superchainProxyAdmin) external {
         // If the SuperchainConfig is not already upgraded, upgrade it.
-        if (keccak256(abi.encodePacked(_superchainConfig.version())) != SUPERCHAIN_CONFIG_EXPECTED_PREVIOUS_VERSION) {
+        if (!SemverComp.eq(_superchainConfig.version(), SUPERCHAIN_CONFIG_EXPECTED_PREVIOUS_VERSION)) {
             revert SuperchainConfigExpectedVersionMismatch();
         }
 

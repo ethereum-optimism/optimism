@@ -351,6 +351,11 @@
   },
   {
     "inputs": [],
+    "name": "SemverComp_InvalidSemverParts",
+    "type": "error"
+  },
+  {
+    "inputs": [],
     "name": "SuperchainConfigExpectedVersionMismatch",
     "type": "error"
   },
