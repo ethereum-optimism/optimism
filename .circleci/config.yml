@@ -201,7 +201,7 @@ commands:
       - run:
           name: "Notify Discord"
           command: |
-            if [ "${CIRCLE_BRANCH}" == "develop" ]; then
+            if [ "${CIRCLE_BRANCH}" == "develop" ] || [ "${CIRCLE_BRANCH}" == "proposal/op-contracts/v4.1.0" ]; then
               # Format message for Discord with better structure and formatting
               DISCORD_MESSAGE="🚨 **CI Failure Detected** 🚨\n"
               DISCORD_MESSAGE="${DISCORD_MESSAGE}> **Repository:** \`${CIRCLE_PROJECT_USERNAME}/${CIRCLE_PROJECT_REPONAME}\`\n"
@@ -615,7 +615,9 @@ jobs:
                   - "<<parameters.release>>"
               - and:
                   - "<<parameters.publish>>"
-                  - equal: [develop, << pipeline.git.branch >>]
+                  - or:
+                      - equal: [develop, << pipeline.git.branch >>]
+                      - equal: ["proposal/op-contracts/v4.1.0", << pipeline.git.branch >>]
           steps:
             - gcp-oidc-authenticate:
                 service_account_email: GCP_SERVICE_ATTESTOR_ACCOUNT_EMAIL
@@ -692,11 +694,11 @@ jobs:
           patterns: contracts-bedrock
       - get-target-branch
       - run:
-          name: Check if target branch is develop
+          name: Check if target branch is develop or proposal branch
           command: |
-            # If the target branch is not develop, do not run this check
-            if [ "${TARGET_BRANCH}" != "develop" ]; then
-              echo "Target branch is not develop, skipping frozen files check"
+            # If the target branch is not develop or proposal branch, do not run this check
+            if [ "${TARGET_BRANCH}" != "develop" ] && [ "${TARGET_BRANCH}" != "proposal/op-contracts/v4.1.0" ]; then
+              echo "Target branch is not develop or proposal branch, skipping frozen files check"
               circleci-agent step halt
             fi
       - run:
@@ -1529,7 +1531,9 @@ jobs:
       - checkout # no need to use mise here since the docker image contains the only dependency
       - unless:
           condition:
-            equal: ["develop", << pipeline.git.branch >>]
+            or:
+              - equal: ["develop", << pipeline.git.branch >>]
+              - equal: ["proposal/op-contracts/v4.1.0", << pipeline.git.branch >>]
           steps:
             - run:
                 # Scan changed files in PRs, block on new issues only (existing issues ignored)
@@ -1990,7 +1994,7 @@ workflows:
             - circleci-repo-readonly-authenticated-github-token
           filters:
             branches:
-              ignore: develop  # Run on all branches EXCEPT develop (PR branches only)
+              ignore: [develop, "proposal/op-contracts/v4.1.0"]  # Run on all branches EXCEPT develop/proposal (PR branches only)
       - go-tests:
           name: go-tests-full
           rule: "go-tests-ci"  # Run full test suite instead of short
@@ -1999,7 +2003,7 @@ workflows:
           notify: true
           filters:
             branches:
-              only: develop  # Only runs on develop branch (post-merge)
+              only: [develop, "proposal/op-contracts/v4.1.0"]  # Only runs on develop/proposal branches (post-merge)
           requires:
             - contracts-bedrock-build
             - cannon-prestate-quick
@@ -2288,7 +2292,11 @@ workflows:
 
   scheduled-todo-issues:
     when:
-      equal: [build_four_hours, <<pipeline.schedule.name>>]
+      or:
+        - equal: [build_four_hours, <<pipeline.schedule.name>>]
+        - and:
+          - equal: ["proposal/op-contracts/v4.1.0", <<pipeline.git.branch>>]
+          - equal: ["webhook",<< pipeline.trigger_source >>]
     jobs:
       - todo-issues:
           name: todo-issue-checks
@@ -2300,7 +2308,9 @@ workflows:
     when:
       or:
         - and:
-          - equal: ["develop", <<pipeline.git.branch>>]
+          - or:
+              - equal: ["develop", <<pipeline.git.branch>>]
+              - equal: ["proposal/op-contracts/v4.1.0", <<pipeline.git.branch>>]
           - equal: ["webhook",<< pipeline.trigger_source >>]
         - and:
           - equal: [true, <<pipeline.parameters.publish_contract_artifacts_dispatch>>]
@@ -2314,7 +2324,9 @@ workflows:
     when:
       or:
         - and:
-          - equal: ["develop", <<pipeline.git.branch>>]
+          - or:
+              - equal: ["develop", <<pipeline.git.branch>>]
+              - equal: ["proposal/op-contracts/v4.1.0", <<pipeline.git.branch>>]
           - equal: ["webhook",<< pipeline.trigger_source >>]
         - and:
           - equal: [true, <<pipeline.parameters.fault_proofs_dispatch>>]
@@ -2365,7 +2377,9 @@ workflows:
     when:
       or:
         - and:
-          - equal: ["develop", <<pipeline.git.branch>>]
+          - or:
+              - equal: ["develop", <<pipeline.git.branch>>]
+              - equal: ["proposal/op-contracts/v4.1.0", <<pipeline.git.branch>>]
           - equal: ["webhook",<< pipeline.trigger_source >>]
         - and:
           - equal: [true, <<pipeline.parameters.kontrol_dispatch>>]
@@ -2382,6 +2396,9 @@ workflows:
       or:
         - equal: [build_four_hours, <<pipeline.schedule.name>>]
         - equal: [true, << pipeline.parameters.cannon_full_test_dispatch >>]
+        - and:
+          - equal: ["proposal/op-contracts/v4.1.0", <<pipeline.git.branch>>]
+          - equal: ["webhook",<< pipeline.trigger_source >>]
     jobs:
       - initialize:
           context:
@@ -2408,6 +2425,9 @@ workflows:
         - equal: [build_daily, <<pipeline.schedule.name>>]
         # Trigger on manual triggers if explicitly requested
         - equal: [true, << pipeline.parameters.docker_publish_dispatch >>]
+        - and:
+          - equal: ["proposal/op-contracts/v4.1.0", <<pipeline.git.branch>>]
+          - equal: ["webhook",<< pipeline.trigger_source >>]
     jobs:
       - initialize:
           context:
@@ -2468,6 +2488,9 @@ workflows:
         - equal: [build_daily, <<pipeline.schedule.name>>]
         # Trigger on manual triggers if explicitly requested
         - equal: [true, << pipeline.parameters.reproducibility_dispatch >>]
+        - and:
+          - equal: ["proposal/op-contracts/v4.1.0", <<pipeline.git.branch>>]
+          - equal: ["webhook",<< pipeline.trigger_source >>]
     jobs:
       - preimage-reproducibility:
           context:
@@ -2480,6 +2503,9 @@ workflows:
         - equal: [build_daily, <<pipeline.schedule.name>>]
           # Trigger on manual triggers if explicitly requested
         - equal: [true, << pipeline.parameters.stale_check_dispatch >>]
+        - and:
+          - equal: ["proposal/op-contracts/v4.1.0", <<pipeline.git.branch>>]
+          - equal: ["webhook",<< pipeline.trigger_source >>]
     jobs:
       - stale-check:
           context:
@@ -2490,7 +2516,9 @@ workflows:
     when:
       or:
         - and:
-          - equal: ["develop", <<pipeline.git.branch>>]
+          - or:
+              - equal: ["develop", <<pipeline.git.branch>>]
+              - equal: ["proposal/op-contracts/v4.1.0", <<pipeline.git.branch>>]
           - equal: ["webhook",<< pipeline.trigger_source >>]
         - and:
           - equal: [true, <<pipeline.parameters.acceptance_tests_dispatch>>]
