@@ -166,7 +166,7 @@ func WithOpReth(id stack.L2ELNodeID, opts ...L2ELOption) stack.Option[*Orchestra
 			require.NotNil(cfg.SupervisorID, "supervisor is required for interop")
 			sup, ok := orch.supervisors.Get(*cfg.SupervisorID)
 			require.True(ok, "supervisor is required for interop")
-			supervisorRPC = sup.userRPC
+			supervisorRPC = sup.UserRPC()
 		}
 
 		tempDir := p.TempDir()

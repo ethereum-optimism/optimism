@@ -197,7 +197,7 @@ func getSuperRoot(t devtest.CommonT, o *Orchestrator, timestamp uint64, supervis
 	supervisor, ok := o.supervisors.Get(supervisorID)
 	t.Require().True(ok, "must have supervisor")
 
-	client, err := dial.DialSupervisorClientWithTimeout(t.Ctx(), t.Logger(), supervisor.userRPC)
+	client, err := dial.DialSupervisorClientWithTimeout(t.Ctx(), t.Logger(), supervisor.UserRPC())
 	t.Require().NoError(err)
 	super, err := client.SuperRootAtTimestamp(t.Ctx(), hexutil.Uint64(timestamp))
 	t.Require().NoError(err, "super root at timestamp failed")
