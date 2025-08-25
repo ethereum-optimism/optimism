@@ -4,7 +4,9 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/ethereum-optimism/optimism/op-devstack/shim"
 	"github.com/ethereum-optimism/optimism/op-devstack/stack"
+	"github.com/ethereum-optimism/optimism/op-service/client"
 	"github.com/ethereum-optimism/optimism/op-service/endpoint"
 	oprpc "github.com/ethereum-optimism/optimism/op-service/rpc"
 	"github.com/ethereum-optimism/optimism/op-sync-tester/config"
@@ -18,6 +20,26 @@ import (
 type SyncTester struct {
 	id      stack.SyncTesterID
 	service *synctester.Service
+}
+
+func (n *SyncTester) hydrate(system stack.ExtensibleSystem) {
+	require := system.T().Require()
+
+	for syncTesterID, cfg := range n.service.SyncTesters() {
+		chainID := cfg.ChainID
+		syncTesterRPC := n.service.NewEndpoint(chainID)
+		rpcCl, err := client.NewRPC(system.T().Ctx(), system.Logger(), syncTesterRPC, client.WithLazyDial())
+		require.NoError(err)
+		system.T().Cleanup(rpcCl.Close)
+		id := stack.NewSyncTesterID(syncTesterID.String(), chainID)
+		front := shim.NewSyncTester(shim.SyncTesterConfig{
+			CommonConfig: shim.NewCommonConfig(system.T()),
+			ID:           id,
+			Client:       rpcCl,
+		})
+		net := system.Network(chainID).(stack.ExtensibleNetwork)
+		net.AddSyncTester(front)
+	}
 }
 
 func WithSyncTester(l2ELs []stack.L2ELNodeID, fcus sttypes.FCUState) stack.Option[*Orchestrator] {
