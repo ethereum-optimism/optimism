@@ -221,7 +221,7 @@ func altDASetup(t *testing.T, log log.Logger) (*BatchSubmitter, *mockL2EndpointP
 		// SeqWindowSize:      15,
 		// SubSafetyMargin:    4,
 		ChannelTimeout:  10,
-		MaxFrameSize:    150, // so that each channel has exactly 1 frame
+		MaxFrameSize:    300,
 		TargetNumFrames: 1,
 		BatchType:       derive.SingularBatchType,
 		CompressorConfig: compressor.Config{
