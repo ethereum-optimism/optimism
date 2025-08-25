@@ -76,7 +76,7 @@ contract SuperchainConfig_Initialize_Test is SuperchainConfig_TestInit {
     ///         owner.
     /// @param _sender The address of the sender to test.
     function testFuzz_initialize_notProxyAdminOrProxyAdminOwner_reverts(address _sender) public {
-        // Prank as the not SuperProxyAdmin or SuperProxyAdmin owner.
+        // Prank as not the superchain ProxyAdmin or ProxyAdmin owner.
         vm.assume(_sender != address(superchainProxyAdmin) && _sender != superchainProxyAdminOwner);
 
         // Get the slot for _initialized.
