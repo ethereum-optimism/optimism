@@ -28,7 +28,6 @@ import { IPreimageOracle } from "interfaces/dispute/IBigStepper.sol";
 import { IAnchorStateRegistry } from "interfaces/dispute/IAnchorStateRegistry.sol";
 import { IFaultDisputeGame } from "interfaces/dispute/IFaultDisputeGame.sol";
 import { IFaultDisputeGameV2 } from "interfaces/dispute/v2/IFaultDisputeGameV2.sol";
-import { IDelayedWETH } from "interfaces/dispute/IDelayedWETH.sol";
 
 contract ClaimCreditReenter {
     Vm internal immutable vm;

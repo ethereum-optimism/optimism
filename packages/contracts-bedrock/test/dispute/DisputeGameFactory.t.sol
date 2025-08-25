@@ -432,7 +432,7 @@ contract DisputeGameFactory_Create_Test is DisputeGameFactory_TestInit {
         disputeGameFactory.create{ value: bondAmount }(gt, rootClaim, extraData);
     }
 
-    function test_create_implArgs() public {
+    function test_create_implArgs_succeeds() public {
         Claim absolutePrestate = Claim.wrap(bytes32(hex"dead"));
         (address gameImpl, AlphabetVM vm_,) = setupFaultDisputeGameV2(absolutePrestate);
 
