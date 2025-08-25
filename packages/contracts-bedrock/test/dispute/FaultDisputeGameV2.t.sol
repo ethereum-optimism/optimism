@@ -257,7 +257,6 @@ contract FaultDisputeGameV2_Constructor_Test is FaultDisputeGameV2_TestInit {
         });
     }
 
-
     /// @notice Tests that the constructor of the `FaultDisputeGame` reverts when the `_splitDepth`
     ///         parameter is greater than or equal to the `MAX_GAME_DEPTH`
     function testFuzz_constructor_invalidSplitDepth_reverts(uint256 _splitDepth) public {
@@ -443,7 +442,7 @@ contract FaultDisputeGameV2_Initialize_Test is FaultDisputeGameV2_TestInit {
     /// @notice Tests that the game cannot be initialized with incorrect CWIA calldata length
     ///         (must be exactly 246 bytes)
     function test_initialize_wrongCalldataLength_reverts(uint256 _extraDataLen) public {
-                // The `DisputeGameFactory` will pack the root claim and the extra data into a single
+        // The `DisputeGameFactory` will pack the root claim and the extra data into a single
         // array, which is enforced to be at least 64 bytes long.
         // We bound the upper end to 23.5KB to ensure that the minimal proxy never surpasses the
         // contract size limit in this test, as CWIA proxies store the immutable args in their
@@ -509,7 +508,9 @@ contract FaultDisputeGameV2_Initialize_Test is FaultDisputeGameV2_TestInit {
         // Creation should fail.
         vm.expectRevert(AnchorRootNotFound.selector);
         gameProxy = IFaultDisputeGameV2(
-            payable(address(disputeGameFactory.create{ value: initBond }(GAME_TYPE, _dummyClaim(), new bytes(uint256(32)))))
+            payable(
+                address(disputeGameFactory.create{ value: initBond }(GAME_TYPE, _dummyClaim(), new bytes(uint256(32))))
+            )
         );
     }
 
@@ -530,9 +531,7 @@ contract FaultDisputeGameV2_Initialize_Test is FaultDisputeGameV2_TestInit {
 
         // Mock the VM's oracle to return invalid challenge period
         vm.mockCall(
-            address(vm_.oracle()),
-            abi.encodeCall(IPreimageOracle.challengePeriod, ()),
-            abi.encode(_challengePeriod)
+            address(vm_.oracle()), abi.encodeCall(IPreimageOracle.challengePeriod, ()), abi.encode(_challengePeriod)
         );
 
         // Expect the initialize call to revert with InvalidChallengePeriod
@@ -540,7 +539,13 @@ contract FaultDisputeGameV2_Initialize_Test is FaultDisputeGameV2_TestInit {
 
         // Create game via factory - initialize() is called automatically and should revert
         gameProxy = IFaultDisputeGameV2(
-            payable(address(disputeGameFactory.create{ value: initBond }(GAME_TYPE, _dummyClaim(), abi.encode(validL2BlockNumber))))
+            payable(
+                address(
+                    disputeGameFactory.create{ value: initBond }(
+                        GAME_TYPE, _dummyClaim(), abi.encode(validL2BlockNumber)
+                    )
+                )
+            )
         );
     }
 }
