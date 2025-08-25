@@ -129,9 +129,13 @@ contract DisputeGameFactory_TestInit is CommonTest {
         params_ = abi.decode(args, (ISuperFaultDisputeGame.GameConstructorParams));
     }
 
-    function _setGame(address _gameImpl, GameType _gameType) internal {
+    function _setGame(address _gameImpl, GameType _gameType, bytes memory _implArgs) internal {
         vm.startPrank(disputeGameFactory.owner());
-        disputeGameFactory.setImplementation(_gameType, IDisputeGame(_gameImpl));
+        if (_implArgs.length > 0) {
+            disputeGameFactory.setImplementation(_gameType, IDisputeGame(_gameImpl), _implArgs);
+        } else {
+            disputeGameFactory.setImplementation(_gameType, IDisputeGame(_gameImpl));
+        }
         disputeGameFactory.setInitBond(_gameType, 0.08 ether);
         vm.stopPrank();
     }
@@ -153,7 +157,7 @@ contract DisputeGameFactory_TestInit is CommonTest {
             )
         });
 
-        _setGame(gameImpl_, GameTypes.SUPER_CANNON);
+        _setGame(gameImpl_, GameTypes.SUPER_CANNON, "");
     }
 
     /// @notice Sets up a super permissioned game implementation
@@ -181,7 +185,7 @@ contract DisputeGameFactory_TestInit is CommonTest {
             )
         });
 
-        _setGame(gameImpl_, GameTypes.SUPER_PERMISSIONED_CANNON);
+        _setGame(gameImpl_, GameTypes.SUPER_PERMISSIONED_CANNON, "");
     }
 
     /// @notice Sets up a fault game implementation
@@ -199,7 +203,7 @@ contract DisputeGameFactory_TestInit is CommonTest {
             )
         });
 
-        _setGame(gameImpl_, GameTypes.CANNON);
+        _setGame(gameImpl_, GameTypes.CANNON, "");
     }
 
     /// @notice Sets up a fault game v2 implementation
@@ -227,10 +231,7 @@ contract DisputeGameFactory_TestInit is CommonTest {
             uint256(0) // 32 bytes (l2ChainId)
         );
 
-        vm.startPrank(disputeGameFactory.owner());
-        disputeGameFactory.setImplementation(GameTypes.CANNON, IDisputeGame(gameImpl_), implArgs);
-        disputeGameFactory.setInitBond(GameTypes.CANNON, 0.08 ether);
-        vm.stopPrank();
+        _setGame(gameImpl_, GameTypes.CANNON, implArgs);
     }
 
     function setupPermissionedDisputeGame(
@@ -256,7 +257,7 @@ contract DisputeGameFactory_TestInit is CommonTest {
             )
         });
 
-        _setGame(gameImpl_, GameTypes.PERMISSIONED_CANNON);
+        _setGame(gameImpl_, GameTypes.PERMISSIONED_CANNON, "");
     }
 
     function changeClaimStatus(Claim _claim, VMStatus _status) public pure returns (Claim out_) {
