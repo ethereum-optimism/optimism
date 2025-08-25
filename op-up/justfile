@@ -1,17 +1,20 @@
-BINARY := "op-up"
+import '../justfiles/go.just'
 
-# Default target
-default: build
+_LDFLAGSSTRING := "'" + trim(
+    "-X main.Version=" + VERSION + " " + \
+    "-X main.VersionMeta=" + VERSION_META + " " + \
+    "-X main.GitCommit=" + GITCOMMIT + " " + \
+    "-X main.GitDate=" + GITDATE + " " + \
+    "") + "'"
 
-# Build target
-build: artifacts
-    mkdir -p bin
-    go build -o ./bin/{{ BINARY }} .
+BINARY := "./bin/op-up"
 
-# Build dependency
+default: op-up
+
+op-up: (go_build BINARY "." "-ldflags" _LDFLAGSSTRING)
+
 artifacts:
     just ../op-deployer/copy-contract-artifacts
 
-# Clean target
 clean:
     rm -f {{ BINARY }}

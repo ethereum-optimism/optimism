@@ -23,6 +23,8 @@ import (
 	"github.com/ethereum-optimism/optimism/op-devstack/stack"
 	"github.com/ethereum-optimism/optimism/op-devstack/stack/match"
 	"github.com/ethereum-optimism/optimism/op-devstack/sysgo"
+	opservice "github.com/ethereum-optimism/optimism/op-service"
+	"github.com/ethereum-optimism/optimism/op-service/cliapp"
 	"github.com/ethereum-optimism/optimism/op-service/client"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
@@ -31,6 +33,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/log"
+	"github.com/urfave/cli/v2"
 	"go.opentelemetry.io/otel/trace"
 )
 
@@ -40,40 +43,65 @@ const asciiArt = ` ____  ____        _     ____
 | \_/||  __/\____\| \_/||  __/
 \____/\_/         \____/\_/`
 
+var (
+	Version     = "v0.0.0"
+	VersionMeta = "dev"
+	GitCommit   string
+	GitDate     string
+
+	envPrefix = "OP_UP"
+	dirFlag   = &cli.PathFlag{
+		Name:    "dir",
+		Usage:   "the path to the op-up directory, which is used for caching among other things.",
+		EnvVars: opservice.PrefixEnvVar(envPrefix, "DIR"),
+		Value: func() string {
+			parentDir, err := os.UserHomeDir()
+			if err != nil {
+				parentDir, err = os.Getwd()
+				if err != nil {
+					return "error: could not find home or working directories"
+				}
+			}
+			return filepath.Join(parentDir, ".op-up")
+		}(),
+	}
+)
+
 func main() {
-	if err := run(); err != nil {
+	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGTERM, os.Interrupt)
+	defer cancel()
+	if err := run(ctx, os.Args, os.Stdout, os.Stderr); err != nil {
 		fmt.Fprintf(os.Stderr, "error: %v\n", err)
 		os.Exit(1)
 	}
-	fmt.Println("\nPlease consider filling out this survey to influence future development: https://www.surveymonkey.com/r/JTGHFK3")
 }
 
-func run() error {
-	// presets.DoMain calls op-service/flags.ReadTestConfig, which, as of this comment, parses the
-	// global flag set and printing the usage statement on `-help`. Since op-up does not respect
-	// any configuration right now, the usage statement will only confuse users and should not be
-	// printed.
-	//
-	// Lots of acceptance tests depend on the presets.DoMain behavior and are downstream of the
-	// current use (misuse?) of the global flag set. Rather than modifying that shared code, we
-	// settle for hacking around the problem by printing an error when any command line arguments
-	// are present. op-up should evolve beyond this pretty soon.
-	//
-	// TODO(#17076): we no longer have a dependency on presets, so we can add standard CLI flags
-	// without worrying about the global flag set.
-	if numArgs := len(os.Args) - 1; numArgs > 0 {
-		return fmt.Errorf("expected no command line args, got %d", numArgs)
-	}
-	fmt.Println(asciiArt)
-
-	opUpDir, ok := os.LookupEnv("OP_UP_DIR")
-	if !ok {
-		homeDir, err := os.UserHomeDir()
-		if err != nil {
-			return fmt.Errorf("get user home dir: %w", err)
+func run(ctx context.Context, args []string, stdout, stderr io.Writer) error {
+	app := cli.NewApp()
+	app.Writer = stdout
+	app.ErrWriter = stderr
+	app.Version = opservice.FormatVersion(Version, GitCommit, GitDate, VersionMeta)
+	app.Name = "op-up"
+	app.Usage = "deploys an in-memory OP Stack devnet."
+	app.Flags = cliapp.ProtectFlags([]cli.Flag{dirFlag})
+	// The default OnUsageError behavior will print the error twice: once in the cli package and
+	// once in our main function.
+	// The function below prints help and returns the error for further handling/error messages.
+	app.OnUsageError = func(cliCtx *cli.Context, err error, isSubcommand bool) error {
+		if !cliCtx.App.HideHelp {
+			_ = cli.ShowAppHelp(cliCtx)
 		}
-		opUpDir = filepath.Join(homeDir, ".op-up")
+		return err
 	}
+	app.Action = func(cliCtx *cli.Context) error {
+		return runOpUp(cliCtx.Context, cliCtx.App.ErrWriter, cliCtx.String(dirFlag.Name))
+	}
+	return app.RunContext(ctx, args)
+}
+
+func runOpUp(ctx context.Context, stderr io.Writer, opUpDir string) error {
+	fmt.Fprintf(stderr, "%s\n", asciiArt)
+
 	if err := os.MkdirAll(opUpDir, 0o755); err != nil {
 		return fmt.Errorf("create the op-up dir: %w", err)
 	}
@@ -82,10 +110,9 @@ func run() error {
 		return fmt.Errorf("create the deployer cache dir: %w", err)
 	}
 
-	ctx := context.Background()
 	devtest.RootContext = ctx
 
-	p := newP(ctx)
+	p := newP(ctx, stderr)
 	defer p.Close()
 
 	ids := sysgo.NewDefaultMinimalSystemIDs(sysgo.DefaultL1ID, sysgo.DefaultL2AID)
@@ -113,11 +140,15 @@ func run() error {
 
 	orch := sysgo.NewOrchestrator(p, opts)
 	stack.ApplyOptionLifecycle[*sysgo.Orchestrator](opts, orch)
-	return runSysgo(orch)
+	if err := runSysgo(ctx, stderr, orch); err != nil {
+		return err
+	}
+	fmt.Fprintf(stderr, "\nPlease consider filling out this survey to influence future development: https://www.surveymonkey.com/r/JTGHFK3\n")
+	return nil
 }
 
-func newP(ctx context.Context) devtest.P {
-	logHandler := oplog.NewLogHandler(os.Stdout, oplog.DefaultCLIConfig())
+func newP(ctx context.Context, stderr io.Writer) devtest.P {
+	logHandler := oplog.NewLogHandler(stderr, oplog.DefaultCLIConfig())
 	logHandler = logfilter.WrapFilterHandler(logHandler)
 	logHandler.(logfilter.FilterHandler).Set(logfilter.DefaultMute())
 	logHandler = logfilter.WrapContextHandler(logHandler)
@@ -137,10 +168,7 @@ func newP(ctx context.Context) devtest.P {
 	return p
 }
 
-func runSysgo(orch *sysgo.Orchestrator) error {
-	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGTERM, os.Interrupt)
-	defer cancel()
-
+func runSysgo(ctx context.Context, stderr io.Writer, orch *sysgo.Orchestrator) error {
 	// Print available account.
 	hd, err := devkeys.NewMnemonicDevKeys(devkeys.TestMnemonic)
 	if err != nil {
@@ -157,9 +185,9 @@ func runSysgo(orch *sysgo.Orchestrator) error {
 		return fmt.Errorf("secret: %w", err)
 	}
 
-	fmt.Printf("Test Account Address: %s\n", funderAddress)
-	fmt.Printf("Test Account Private Key: %s\n", "0x"+common.Bytes2Hex(crypto.FromECDSA(funderPrivKey)))
-	fmt.Printf("EL Node URL: %s\n", "http://localhost:8545")
+	fmt.Fprintf(stderr, "Test Account Address: %s\n", funderAddress)
+	fmt.Fprintf(stderr, "Test Account Private Key: %s\n", "0x"+common.Bytes2Hex(crypto.FromECDSA(funderPrivKey)))
+	fmt.Fprintf(stderr, "EL Node URL: %s\n", "http://localhost:8545")
 
 	t := &testingT{
 		ctx:      ctx,
@@ -189,7 +217,7 @@ func runSysgo(orch *sysgo.Orchestrator) error {
 					continue
 				}
 				if unsafe.Number != lastBlock {
-					fmt.Printf("New L2 block: number %d, hash %s\n", unsafe.Number, unsafe.Hash)
+					fmt.Fprintf(stderr, "New L2 block: number %d, hash %s\n", unsafe.Number, unsafe.Hash)
 					lastBlock = unsafe.Number
 				}
 			}
@@ -198,8 +226,8 @@ func runSysgo(orch *sysgo.Orchestrator) error {
 
 	// Proxy L2 EL requests.
 	go func() {
-		if err := proxyEL(elNode.L2EthClient().RPC()); err != nil {
-			fmt.Fprintf(os.Stderr, "error: %v", err)
+		if err := proxyEL(stderr, elNode.L2EthClient().RPC()); err != nil {
+			fmt.Fprintf(stderr, "error: %v", err)
 		}
 	}()
 
@@ -210,7 +238,7 @@ func runSysgo(orch *sysgo.Orchestrator) error {
 
 // proxyEL is a hacky way to intercept EL json rpc requests for logging to get around log filtering
 // bugs.
-func proxyEL(client client.RPC) error {
+func proxyEL(stderr io.Writer, client client.RPC) error {
 	// Set up the HTTP handler for all incoming requests.
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		// Ensure the request method is POST, as JSON RPC typically uses POST.
@@ -270,7 +298,7 @@ func proxyEL(client client.RPC) error {
 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second) // 30-second timeout
 		defer cancel()                                                           // Ensure the context is cancelled to release resources
 
-		fmt.Println(method)
+		fmt.Fprintf(stderr, "%s\n", method)
 
 		// Use the rpc.Client to make the actual call to the backend Ethereum node.
 		// The `callParams...` syntax unpacks the slice into variadic arguments.
@@ -286,7 +314,7 @@ func proxyEL(client client.RPC) error {
 					"message": message,
 				},
 			}
-			fmt.Printf("RPC error: %s\n", message)
+			fmt.Fprintf(stderr, "RPC error: %s\n", message)
 			jsonResponse, _ := json.Marshal(rpcErr) // Marshaling error is unlikely here, so we ignore it.
 			w.Header().Set("Content-Type", "application/json")
 			// For JSON-RPC, errors are typically returned with an HTTP 200 OK status,
