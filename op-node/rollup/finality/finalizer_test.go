@@ -193,7 +193,8 @@ func TestEngineQueue_Finalize(t *testing.T) {
 		l1F.ExpectL1BlockRefByNumber(refD.Number, refD, nil)
 
 		emitter := &testutils.MockEmitter{}
-		fi := NewFinalizer(context.Background(), logger, &rollup.Config{}, l1F)
+		ec := new(fakeEngineController)
+		fi := NewFinalizer(context.Background(), logger, &rollup.Config{}, l1F, ec)
 		fi.AttachEmitter(emitter)
 
 		// now say C1 was included in D and became the new safe head
@@ -212,9 +213,9 @@ func TestEngineQueue_Finalize(t *testing.T) {
 		fi.OnL1Finalized(refD)
 
 		// C1 was included in finalized D, and should now be finalized
-		emitter.ExpectOnce(engine.PromoteFinalizedEvent{Ref: refC1})
 		fi.OnEvent(ctx, TryFinalizeEvent{})
 		emitter.AssertExpectations(t)
+		require.Equal(t, refC1, ec.finalizedL2)
 	})
 
 	// Finality signal is received, but couldn't immediately be checked
@@ -227,7 +228,8 @@ func TestEngineQueue_Finalize(t *testing.T) {
 		l1F.ExpectL1BlockRefByNumber(refD.Number, refD, nil) // to check what was derived from (same in this case)
 
 		emitter := &testutils.MockEmitter{}
-		fi := NewFinalizer(context.Background(), logger, &rollup.Config{}, l1F)
+		ec := new(fakeEngineController)
+		fi := NewFinalizer(context.Background(), logger, &rollup.Config{}, l1F, ec)
 		fi.AttachEmitter(emitter)
 
 		// now say C1 was included in D and became the new safe head
@@ -254,9 +256,8 @@ func TestEngineQueue_Finalize(t *testing.T) {
 		emitter.AssertExpectations(t)
 
 		// C1 was included in finalized D, and should now be finalized, as check can succeed when revisited
-		emitter.ExpectOnce(engine.PromoteFinalizedEvent{Ref: refC1})
 		fi.OnEvent(ctx, TryFinalizeEvent{})
-		emitter.AssertExpectations(t)
+		require.Equal(t, refC1, ec.finalizedL2)
 	})
 
 	// Test that finality progression can repeat a few times.
@@ -266,7 +267,8 @@ func TestEngineQueue_Finalize(t *testing.T) {
 		defer l1F.AssertExpectations(t)
 
 		emitter := &testutils.MockEmitter{}
-		fi := NewFinalizer(context.Background(), logger, &rollup.Config{}, l1F)
+		ec := new(fakeEngineController)
+		fi := NewFinalizer(context.Background(), logger, &rollup.Config{}, l1F, ec)
 		fi.AttachEmitter(emitter)
 
 		fi.OnEvent(ctx, engine.SafeDerivedEvent{Safe: refC1, Source: refD})
@@ -282,10 +284,10 @@ func TestEngineQueue_Finalize(t *testing.T) {
 		fi.OnL1Finalized(refD)
 
 		// C1 was included in D, and should be finalized now
-		emitter.ExpectOnce(engine.PromoteFinalizedEvent{Ref: refC1})
 		l1F.ExpectL1BlockRefByNumber(refD.Number, refD, nil)
 		l1F.ExpectL1BlockRefByNumber(refD.Number, refD, nil)
 		fi.OnEvent(ctx, TryFinalizeEvent{})
+		require.Equal(t, refC1, ec.finalizedL2)
 		emitter.AssertExpectations(t)
 		l1F.AssertExpectations(t)
 
@@ -294,10 +296,10 @@ func TestEngineQueue_Finalize(t *testing.T) {
 		fi.OnL1Finalized(refE)
 
 		// D0 was included in E, and should be finalized now
-		emitter.ExpectOnce(engine.PromoteFinalizedEvent{Ref: refD0})
 		l1F.ExpectL1BlockRefByNumber(refE.Number, refE, nil)
 		l1F.ExpectL1BlockRefByNumber(refE.Number, refE, nil)
 		fi.OnEvent(ctx, TryFinalizeEvent{})
+		require.Equal(t, refD0, ec.finalizedL2)
 		emitter.AssertExpectations(t)
 		l1F.AssertExpectations(t)
 
@@ -331,10 +333,10 @@ func TestEngineQueue_Finalize(t *testing.T) {
 		fi.OnL1Finalized(refH)
 
 		// F1 should be finalized now, since it was included in H
-		emitter.ExpectOnce(engine.PromoteFinalizedEvent{Ref: refF1})
 		l1F.ExpectL1BlockRefByNumber(refH.Number, refH, nil)
 		l1F.ExpectL1BlockRefByNumber(refH.Number, refH, nil)
 		fi.OnEvent(ctx, TryFinalizeEvent{})
+		require.Equal(t, refF1, ec.finalizedL2)
 		emitter.AssertExpectations(t)
 		l1F.AssertExpectations(t)
 	})
@@ -349,7 +351,8 @@ func TestEngineQueue_Finalize(t *testing.T) {
 		l1F.ExpectL1BlockRefByNumber(refC.Number, refC, nil) // check what we derived the L2 block from
 
 		emitter := &testutils.MockEmitter{}
-		fi := NewFinalizer(context.Background(), logger, &rollup.Config{}, l1F)
+		ec := new(fakeEngineController)
+		fi := NewFinalizer(context.Background(), logger, &rollup.Config{}, l1F, ec)
 		fi.AttachEmitter(emitter)
 
 		// now say B1 was included in C and became the new safe head
@@ -367,8 +370,8 @@ func TestEngineQueue_Finalize(t *testing.T) {
 		fi.OnL1Finalized(refD)
 
 		// B1 was included in finalized D, and should now be finalized
-		emitter.ExpectOnce(engine.PromoteFinalizedEvent{Ref: refB1})
 		fi.OnEvent(ctx, TryFinalizeEvent{})
+		require.Equal(t, refB1, ec.finalizedL2)
 		emitter.AssertExpectations(t)
 	})
 
@@ -385,7 +388,8 @@ func TestEngineQueue_Finalize(t *testing.T) {
 		l1F.ExpectL1BlockRefByNumber(refE.Number, refE, nil) // post-reorg
 
 		emitter := &testutils.MockEmitter{}
-		fi := NewFinalizer(context.Background(), logger, &rollup.Config{}, l1F)
+		ec := new(fakeEngineController)
+		fi := NewFinalizer(context.Background(), logger, &rollup.Config{}, l1F, ec)
 		fi.AttachEmitter(emitter)
 
 		// now say B1 was included in C and became the new safe head
@@ -464,8 +468,8 @@ func TestEngineQueue_Finalize(t *testing.T) {
 		emitter.ExpectOnce(TryFinalizeEvent{})
 		fi.OnEvent(ctx, derive.DeriverIdleEvent{Origin: refE})
 		emitter.AssertExpectations(t)
-		emitter.ExpectOnce(engine.PromoteFinalizedEvent{Ref: refC0})
 		fi.OnEvent(ctx, TryFinalizeEvent{})
+		require.Equal(t, refC0, ec.finalizedL2)
 		emitter.AssertExpectations(t)
 	})
 
@@ -479,9 +483,10 @@ func TestEngineQueue_Finalize(t *testing.T) {
 		l1F.ExpectL1BlockRefByNumber(refD.Number, refD, nil)
 
 		emitter := &testutils.MockEmitter{}
+		ec := new(fakeEngineController)
 		fi := NewFinalizer(context.Background(), logger, &rollup.Config{
 			InteropTime: &refC1.Time,
-		}, l1F)
+		}, l1F, ec)
 		fi.AttachEmitter(emitter)
 
 		// now say C0 and C1 were included in D and became the new safe head
@@ -494,8 +499,8 @@ func TestEngineQueue_Finalize(t *testing.T) {
 		fi.OnL1Finalized(refD)
 
 		// C1 was Interop, C0 was not yet interop and can be finalized
-		emitter.ExpectOnce(engine.PromoteFinalizedEvent{Ref: refC0})
 		fi.OnEvent(ctx, TryFinalizeEvent{})
+		require.Equal(t, refC0, ec.finalizedL2)
 		emitter.AssertExpectations(t)
 	})
 }

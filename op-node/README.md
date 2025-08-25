@@ -51,8 +51,8 @@ just op-node
   --l1=ws://localhost:8546 \
   --l1.beacon=http://localhost:4000 \
   --l2=ws://localhost:9001 \
-  --p2p.listen.tcp=9222
-  --p2p.listen.udp=9222
+  --p2p.listen.tcp=9222 \
+  --p2p.listen.udp=9222 \
   --rpc.port=7000 \
   --syncmode=execution-layer
 

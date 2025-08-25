@@ -8,6 +8,8 @@ import (
 	"os"
 	"strings"
 
+	"github.com/ethereum-optimism/optimism/op-service/ioutil"
+
 	"github.com/ethereum-optimism/optimism/op-chain-ops/script"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/artifacts"
@@ -123,7 +125,7 @@ func MigrateCLI(cliCtx *cli.Context) error {
 	}
 
 	cacheDir := cliCtx.String(deployer.CacheDirFlag.Name)
-	artifactsFS, err := artifacts.Download(ctx, artifactsLocator, artifacts.BarProgressor(), cacheDir)
+	artifactsFS, err := artifacts.Download(ctx, artifactsLocator, ioutil.BarProgressor(), cacheDir)
 	if err != nil {
 		return fmt.Errorf("failed to download artifacts: %w", err)
 	}

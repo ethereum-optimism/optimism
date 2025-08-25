@@ -6,10 +6,6 @@ import (
 	"math/rand"
 	"time"
 
-	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/params"
-
 	"github.com/ethereum-optimism/optimism/devnet-sdk/contracts/bindings"
 	"github.com/ethereum-optimism/optimism/devnet-sdk/contracts/constants"
 	"github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/interop"
@@ -20,6 +16,8 @@ import (
 	txIntentBindings "github.com/ethereum-optimism/optimism/op-service/txintent/bindings"
 	"github.com/ethereum-optimism/optimism/op-service/txintent/contractio"
 	"github.com/ethereum-optimism/optimism/op-service/txplan"
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/core/types"
 )
 
 // EOA is an Externally-Owned-Account:
@@ -81,14 +79,26 @@ func (u *EOA) Plan() txplan.Option {
 	)
 }
 
+func (u *EOA) PlanAuth(code common.Address) txplan.Option {
+	toAddr := u.Address()
+	return txplan.Combine(
+		u.Plan(),
+		txplan.WithType(types.SetCodeTxType),
+		txplan.WithTo(&toAddr),
+		txplan.WithAuthorizationTo(code),
+		// Set a fixed gas limit because eth_estimateGas doesn't consider authorizations yet.
+		txplan.WithGasLimit(75_000),
+	)
+}
+
 // PlanTransfer creates the tx-plan options to perform a transfer
 // of the given amount of ETH to the given account.
 func (u *EOA) PlanTransfer(to common.Address, amount eth.ETH) txplan.Option {
 	return txplan.Combine(
 		u.Plan(),
 		txplan.WithTo(&to),
-		txplan.WithValue(amount.ToBig()),
-		txplan.WithGasLimit(params.TxGas),
+		txplan.WithValue(amount),
+		// Don't set gas explicitly since the transfer might be to a contract
 	)
 }
 

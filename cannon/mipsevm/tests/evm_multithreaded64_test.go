@@ -627,9 +627,6 @@ var NoopSyscalls64 = map[string]uint32{
 func getNoopSyscalls64(vmVersion versions.StateVersion) map[string]uint32 {
 	noOpCalls := maps.Clone(NoopSyscalls64)
 	features := versions.FeaturesForVersion(vmVersion)
-	if !features.SupportNoopMprotect {
-		delete(noOpCalls, "SysMprotect")
-	}
 	if features.SupportWorkingSysGetRandom {
 		delete(noOpCalls, "SysGetRandom")
 	}

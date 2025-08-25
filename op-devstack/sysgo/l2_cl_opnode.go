@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/hex"
 	"flag"
+	"fmt"
 	"sync"
 	"time"
 
@@ -34,6 +35,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/sources"
 	"github.com/ethereum-optimism/optimism/op-service/testutils/tcpproxy"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/depset"
+	sttypes "github.com/ethereum-optimism/optimism/op-sync-tester/synctester/backend/types"
 )
 
 type OpNode struct {
@@ -47,7 +49,7 @@ type OpNode struct {
 	cfg              *config.Config
 	p                devtest.P
 	logger           log.Logger
-	el               stack.L2ELNodeID
+	el               *stack.L2ELNodeID // Optional: nil when using SyncTester
 	userProxy        *tcpproxy.Proxy
 	interopProxy     *tcpproxy.Proxy
 }
@@ -70,7 +72,9 @@ func (n *OpNode) hydrate(system stack.ExtensibleSystem) {
 	sysL2CL.SetLabel(match.LabelVendor, string(match.OpNode))
 	l2Net := system.L2Network(stack.L2NetworkID(n.id.ChainID()))
 	l2Net.(stack.ExtensibleL2Network).AddL2CLNode(sysL2CL)
-	sysL2CL.(stack.LinkableL2CLNode).LinkEL(l2Net.L2ELNode(n.el))
+	if n.el != nil {
+		sysL2CL.(stack.LinkableL2CLNode).LinkEL(l2Net.L2ELNode(n.el))
+	}
 }
 
 func (n *OpNode) UserRPC() string {
@@ -137,7 +141,7 @@ func (n *OpNode) Stop() {
 	n.opNode = nil
 }
 
-func WithOpNode(l2CLID stack.L2CLNodeID, l1CLID stack.L1CLNodeID, l1ELID stack.L1ELNodeID, l2ELID stack.L2ELNodeID, opts ...L2CLOption) stack.Option[*Orchestrator] {
+func WithOpNode(l2CLID stack.L2CLNodeID, l1CLID stack.L1CLNodeID, l1ELID stack.L1ELNodeID, l2ELOrSyncTester interface{}, opts ...L2CLOption) stack.Option[*Orchestrator] {
 	return stack.AfterDeploy(func(orch *Orchestrator) {
 		p := orch.P().WithCtx(stack.ContextWithID(orch.P().Ctx(), l2CLID))
 
@@ -152,8 +156,44 @@ func WithOpNode(l2CLID stack.L2CLNodeID, l1CLID stack.L1CLNodeID, l1ELID stack.L
 		l1CL, ok := orch.l1CLs.Get(l1CLID)
 		require.True(ok, "l1 CL node required")
 
-		l2EL, ok := orch.l2ELs.Get(l2ELID)
-		require.True(ok, "l2 EL node required")
+		// Handle either L2EL node or SyncTester
+		var l2EL L2ELNode
+		var l2ELID stack.L2ELNodeID
+		var syncTesterID *stack.SyncTesterID
+		var depSet depset.DependencySet
+		var useSyncTester bool
+		var fcus sttypes.FCUState
+
+		switch v := l2ELOrSyncTester.(type) {
+		case stack.L2ELNodeID:
+			l2ELID = v
+			l2EL, ok = orch.l2ELs.Get(v)
+			require.True(ok, "l2 EL node required")
+			if cluster, ok := orch.ClusterForL2(v.ChainID()); ok {
+				depSet = cluster.DepSet()
+			}
+		case nil:
+			syncTester := orch.syncTester
+			syncTesterID = &syncTester.id
+
+			useSyncTester = true
+
+			for _, st := range orch.syncTester.service.SyncTesters() {
+				if st.ChainID == syncTesterID.ChainID() {
+					fcus = st.Target
+					break
+				}
+			}
+			require.NotNil(fcus, "target blocks not found for sync tester")
+
+			// When using a SyncTester, we don't need an L2EL node
+			// The SyncTester will provide the L2 endpoint
+			if cluster, ok := orch.ClusterForL2(syncTesterID.ChainID()); ok {
+				depSet = cluster.DepSet()
+			}
+		default:
+			require.Fail("l2ELOrSyncTester must be either stack.L2ELNodeID or nil")
+		}
 
 		cfg := DefaultL2CLConfig()
 		orch.l2CLOptions.Apply(p, l2CLID, cfg)       // apply global options
@@ -166,11 +206,6 @@ func WithOpNode(l2CLID stack.L2CLNodeID, l1CLID stack.L1CLNodeID, l1ELID stack.L
 			// Can't enable ELSync on the sequencer or it will never start sequencing because
 			// ELSync needs to receive gossip from the sequencer to drive the sync
 			p.Require().NotEqual(nodeSync.ELSync, syncMode, "sequencer cannot use EL sync")
-		}
-
-		var depSet depset.DependencySet
-		if cluster, ok := orch.ClusterForL2(l2ELID.ChainID()); ok {
-			depSet = cluster.DepSet()
 		}
 
 		jwtPath, jwtSecret := orch.writeDefaultJWT()
@@ -232,6 +267,16 @@ func WithOpNode(l2CLID stack.L2CLNodeID, l1CLID stack.L1CLNodeID, l1ELID stack.L
 			}
 		}
 
+		// Determine the L2 endpoint based on whether we're using a SyncTester or L2EL
+		var l2EngineAddr string
+		if useSyncTester {
+			require.NotNil(orch.syncTester, "sync tester service required when using SyncTester")
+			l2EngineAddr = orch.syncTester.service.NewEndpoint(syncTesterID.ChainID())
+			l2EngineAddr += fmt.Sprintf("?latest=%d&safe=%d&finalized=%d", fcus.Latest, fcus.Safe, fcus.Finalized)
+		} else {
+			l2EngineAddr = l2EL.EngineRPC()
+		}
+
 		nodeCfg := &config.Config{
 			L1: &config.L1EndpointConfig{
 				L1NodeAddr:       l1EL.userRPC,
@@ -244,7 +289,7 @@ func WithOpNode(l2CLID stack.L2CLNodeID, l1CLID stack.L1CLNodeID, l1ELID stack.L
 				CacheSize:        0, // auto-adjust to sequence window
 			},
 			L2: &config.L2EndpointConfig{
-				L2EngineAddr:      l2EL.EngineRPC(),
+				L2EngineAddr:      l2EngineAddr,
 				L2EngineJWTSecret: jwtSecret,
 			},
 			Beacon: &config.L1BeaconEndpointConfig{
@@ -296,9 +341,13 @@ func WithOpNode(l2CLID stack.L2CLNodeID, l1CLID stack.L1CLNodeID, l1ELID stack.L
 			cfg:    nodeCfg,
 			logger: logger,
 			p:      p,
-			el:     l2ELID,
 		}
-		require.True(orch.l2CLs.SetIfMissing(l2CLID, l2CLNode), "must not already exist")
+
+		// Set the EL field only if we have an L2EL node
+		if !useSyncTester {
+			l2CLNode.el = &l2ELID
+		}
+		require.True(orch.l2CLs.SetIfMissing(l2CLID, l2CLNode), fmt.Sprintf("must not already exist: %s", l2CLID))
 		l2CLNode.Start()
 		p.Cleanup(l2CLNode.Stop)
 	})

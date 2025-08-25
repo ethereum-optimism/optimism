@@ -165,9 +165,6 @@ func (m *InstrumentedState) handleSyscall() error {
 		// Otherwise, ignored (noop)
 	case arch.SysMunmap:
 	case arch.SysMprotect:
-		if !m.features.SupportNoopMprotect {
-			m.handleUnrecognizedSyscall(syscallNum)
-		}
 	case arch.SysGetAffinity:
 	case arch.SysMadvise:
 	case arch.SysRtSigprocmask:
@@ -198,10 +195,6 @@ func (m *InstrumentedState) handleSyscall() error {
 	case arch.SysGetRLimit:
 	case arch.SysLseek:
 	case arch.SysEventFd2:
-		if !m.features.SupportMinimalSysEventFd2 {
-			m.handleUnrecognizedSyscall(syscallNum)
-		}
-
 		// a0 = initial value, a1 = flags
 		// Validate flags
 		if a1&exec.EFD_NONBLOCK == 0 {
@@ -357,7 +350,7 @@ func (m *InstrumentedState) doMipsStep() error {
 	}
 
 	// Exec the rest of the step logic
-	memUpdated, effMemAddr, err := exec.ExecMipsCoreStepLogic(m.state.getCpuRef(), m.state.GetRegistersRef(), m.state.Memory, insn, opcode, fun, m.memoryTracker, m.stackTracker, m.features)
+	memUpdated, effMemAddr, err := exec.ExecMipsCoreStepLogic(m.state.getCpuRef(), m.state.GetRegistersRef(), m.state.Memory, insn, opcode, fun, m.memoryTracker, m.stackTracker)
 	if err != nil {
 		return err
 	}

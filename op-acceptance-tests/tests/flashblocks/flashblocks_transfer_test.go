@@ -94,7 +94,7 @@ func TestFlashblocksTransfer(gt *testing.T) {
 				executedTransaction = alice.Transact(
 					alice.Plan(),
 					txplan.WithTo(&bobAddr),
-					txplan.WithValue(depositAmount.ToBig()),
+					txplan.WithValue(depositAmount),
 				)
 				transactionApproxConfirmationTime = time.Now()
 				newBobBalance := bobBalance.Add(depositAmount)

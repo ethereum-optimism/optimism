@@ -36,8 +36,8 @@ import { IProxyAdminOwnedBase } from "interfaces/L1/IProxyAdminOwnedBase.sol";
 /// before and after an upgrade.
 contract OPContractsManagerStandardValidator is ISemver {
     /// @notice The semantic version of the OPContractsManagerStandardValidator contract.
-    /// @custom:semver 1.6.0
-    string public constant version = "1.6.0";
+    /// @custom:semver 1.7.0
+    string public constant version = "1.7.0";
 
     /// @notice The SuperchainConfig contract.
     ISuperchainConfig public superchainConfig;
@@ -201,7 +201,7 @@ contract OPContractsManagerStandardValidator is ISemver {
 
     /// @notice Returns the expected MIPS version.
     function mipsVersion() public pure returns (string memory) {
-        return "1.8.0";
+        return "1.9.0";
     }
 
     /// @notice Returns the expected OptimismMintableERC20Factory version.

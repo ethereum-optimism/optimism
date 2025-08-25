@@ -41,7 +41,7 @@ var excludeSourceContracts = []string{
 	"CrossDomainOwnable", "CrossDomainOwnable2", "CrossDomainOwnable3", "CrossDomainMessengerLegacySpacer0", "CrossDomainMessengerLegacySpacer1",
 
 	// Helper contracts
-	"SafeSend", "EventLogger", "StorageSetter", "DisputeMonitorHelper",
+	"SafeSend", "EventLogger", "StorageSetter", "DisputeMonitorHelper", "GameHelper",
 
 	// Periphery
 	"TransferOnion", "AssetReceiver", "AdminFaucetAuthModule", "CheckSecrets", "CheckBalanceLow", "CheckTrue", "Drippie", "Transactor", "Faucet",

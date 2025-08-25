@@ -463,10 +463,10 @@ func (n *OpNode) initL2(ctx context.Context, cfg *config.Config) error {
 	n.l2Driver = driver.NewDriver(n.eventSys, n.eventDrain, &cfg.Driver, &cfg.Rollup, cfg.DependencySet, n.l2Source, n.l1Source,
 		n.beacon, n, n, n.log, n.metrics, cfg.ConfigPersistence, n.safeDB, &cfg.Sync, sequencerConductor, altDA, indexingMode)
 
-	// Wire up IndexingMode to engine controller for direct force reset notifications
+	// Wire up IndexingMode to engine controller for direct procedure call
 	if n.interopSys != nil {
 		if indexingMode, ok := n.interopSys.(*indexing.IndexingMode); ok {
-			indexingMode.SetForceResetNotifier(n.l2Driver.SyncDeriver.Engine)
+			indexingMode.SetEngineController(n.l2Driver.SyncDeriver.Engine)
 		}
 	}
 

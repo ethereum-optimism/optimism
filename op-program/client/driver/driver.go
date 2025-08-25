@@ -56,11 +56,12 @@ func NewDriver(logger log.Logger, cfg *rollup.Config, depSet derive.DependencySe
 	engResetDeriv.SetEngController(ec)
 
 	prog := &ProgramDeriver{
-		logger:         logger,
-		Emitter:        d,
-		closing:        false,
-		result:         eth.L2BlockRef{},
-		targetBlockNum: targetBlockNum,
+		logger:           logger,
+		Emitter:          d,
+		engineController: ec,
+		closing:          false,
+		result:           eth.L2BlockRef{},
+		targetBlockNum:   targetBlockNum,
 	}
 
 	d.deriver = &event.DeriverMux{

@@ -65,18 +65,8 @@ func (ev LocalSafeUpdateEvent) String() string {
 	return "local-safe-update"
 }
 
-// PromoteSafeEvent signals that a block can be promoted to cross-safe.
-type PromoteSafeEvent struct {
-	Ref    eth.L2BlockRef
-	Source eth.L1BlockRef
-}
-
-func (ev PromoteSafeEvent) String() string {
-	return "promote-safe"
-}
-
 // SafeDerivedEvent signals that a block was determined to be safe, and derived from the given L1 block.
-// This is signaled upon successful processing of PromoteSafeEvent.
+// This is signaled upon procedural call of PromoteSafe method
 type SafeDerivedEvent struct {
 	Safe   eth.L2BlockRef
 	Source eth.L1BlockRef
@@ -84,13 +74,6 @@ type SafeDerivedEvent struct {
 
 func (ev SafeDerivedEvent) String() string {
 	return "safe-derived"
-}
-
-type PendingSafeRequestEvent struct {
-}
-
-func (ev PendingSafeRequestEvent) String() string {
-	return "pending-safe-request"
 }
 
 type ProcessUnsafePayloadEvent struct {
@@ -111,15 +94,6 @@ type EngineResetConfirmedEvent struct {
 
 func (ev EngineResetConfirmedEvent) String() string {
 	return "engine-reset-confirmed"
-}
-
-// PromoteFinalizedEvent signals that a block can be marked as finalized.
-type PromoteFinalizedEvent struct {
-	Ref eth.L2BlockRef
-}
-
-func (ev PromoteFinalizedEvent) String() string {
-	return "promote-finalized"
 }
 
 // FinalizedUpdateEvent signals that a block has been marked as finalized.

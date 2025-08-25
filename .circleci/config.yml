@@ -1440,6 +1440,7 @@ jobs:
           gcp_cred_config_file_path: /tmp/gcp_cred_config.json
           oidc_token_file_path: /tmp/oidc_token.json
       - run:
+          no_output_timeout: 30m
           name: Upload cannon prestates
           command: |
             # Use the actual hash for tags (hash can be found by reading releases.json)

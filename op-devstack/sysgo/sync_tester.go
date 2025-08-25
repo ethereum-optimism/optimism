@@ -4,9 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/ethereum-optimism/optimism/op-devstack/shim"
 	"github.com/ethereum-optimism/optimism/op-devstack/stack"
-	"github.com/ethereum-optimism/optimism/op-service/client"
 	"github.com/ethereum-optimism/optimism/op-service/endpoint"
 	oprpc "github.com/ethereum-optimism/optimism/op-service/rpc"
 	"github.com/ethereum-optimism/optimism/op-sync-tester/config"
@@ -17,30 +15,12 @@ import (
 	sttypes "github.com/ethereum-optimism/optimism/op-sync-tester/synctester/backend/types"
 )
 
-type SyncTesterService struct {
+type SyncTester struct {
+	id      stack.SyncTesterID
 	service *synctester.Service
 }
 
-func (n *SyncTesterService) hydrate(system stack.ExtensibleSystem) {
-	require := system.T().Require()
-
-	for syncTesterID, chainID := range n.service.SyncTesters() {
-		syncTesterRPC := n.service.SyncTesterEndpoint(chainID)
-		rpcCl, err := client.NewRPC(system.T().Ctx(), system.Logger(), syncTesterRPC, client.WithLazyDial())
-		require.NoError(err)
-		system.T().Cleanup(rpcCl.Close)
-		id := stack.NewSyncTesterID(syncTesterID.String(), chainID)
-		front := shim.NewSyncTester(shim.SyncTesterConfig{
-			CommonConfig: shim.NewCommonConfig(system.T()),
-			ID:           id,
-			Client:       rpcCl,
-		})
-		net := system.Network(chainID).(stack.ExtensibleNetwork)
-		net.AddSyncTester(front)
-	}
-}
-
-func WithSyncTesters(l2ELs []stack.L2ELNodeID) stack.Option[*Orchestrator] {
+func WithSyncTester(l2ELs []stack.L2ELNodeID, fcus sttypes.FCUState) stack.Option[*Orchestrator] {
 	return stack.AfterDeploy(func(orch *Orchestrator) {
 		syncTesterID := stack.NewSyncTesterID("dev-sync-tester", l2ELs[0].ChainID())
 		p := orch.P().WithCtx(stack.ContextWithID(orch.P().Ctx(), syncTesterID))
@@ -62,7 +42,10 @@ func WithSyncTesters(l2ELs []stack.L2ELNodeID) stack.Option[*Orchestrator] {
 				ELRPC: endpoint.MustRPC{Value: endpoint.URL(el.UserRPC())},
 				// EngineRPC: endpoint.MustRPC{Value: endpoint.URL(el.authRPC)},
 				// JwtPath:   el.jwtPath,
-				ChainID: elID.ChainID(),
+				Cfg: stconf.EntryCfg{
+					ChainID: elID.ChainID(),
+					Target:  fcus,
+				},
 			}
 		}
 
@@ -85,6 +68,6 @@ func WithSyncTesters(l2ELs []stack.L2ELNodeID) stack.Option[*Orchestrator] {
 			_ = srv.Stop(ctx)
 			logger.Info("Closed sync tester")
 		})
-		orch.syncTester = &SyncTesterService{service: srv}
+		orch.syncTester = &SyncTester{id: syncTesterID, service: srv}
 	})
 }

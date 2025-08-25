@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/ethereum-optimism/optimism/op-service/ioutil"
+
 	"github.com/ethereum-optimism/optimism/op-chain-ops/script"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/artifacts"
@@ -55,7 +57,7 @@ func UpgradeCLI(upgrader Upgrader) func(*cli.Context) error {
 		depAddr := common.Address{'D'}
 		cacheDir := cliCtx.String(deployer.CacheDirFlag.Name)
 
-		artifactsFS, err := artifacts.Download(ctx, artifactsLocator, artifacts.BarProgressor(), cacheDir)
+		artifactsFS, err := artifacts.Download(ctx, artifactsLocator, ioutil.BarProgressor(), cacheDir)
 		if err != nil {
 			return fmt.Errorf("failed to download L1 artifacts: %w", err)
 		}

@@ -40,6 +40,7 @@ func TestParseSession_Valid(t *testing.T) {
 	require.Equal(t, uint64(100), session.InitialState.Latest)
 	require.Equal(t, uint64(90), session.InitialState.Safe)
 	require.Equal(t, uint64(80), session.InitialState.Finalized)
+	require.Equal(t, session.InitialState.Latest, session.Validated)
 	require.Equal(t, session.InitialState, session.CurrentState)
 	require.Equal(t, "/chain/1/synctest", newReq.URL.Path)
 }
@@ -59,6 +60,7 @@ func TestParseSession_DefaultsToZero(t *testing.T) {
 	require.Equal(t, uint64(0), session.InitialState.Latest)
 	require.Equal(t, uint64(0), session.InitialState.Safe)
 	require.Equal(t, uint64(0), session.InitialState.Finalized)
+	require.Equal(t, session.InitialState.Latest, session.Validated)
 	require.Equal(t, session.InitialState, session.CurrentState)
 }
 

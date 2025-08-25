@@ -1183,3 +1183,43 @@ connected:
 	// Verify that the conductor is stopped
 	s.True(conductor.Stopped())
 }
+
+// TestRollupBoostPartialFailure tests that OpConductor correctly handles rollup boost partial health failures.
+// This test verifies that when a leader is unhealthy and actively sequencing due to ErrRollupBoostPartiallyHealthy,
+// it should stop sequencing and transfer leadership instead of waiting for health recovery.
+// Scenario: [leader, unhealthy, active] with prevState [leader, unhealthy, inactive] and ErrRollupBoostPartiallyHealthy
+// Expected: Stop sequencing and transfer leadership (not wait for recovery)
+func (s *OpConductorTestSuite) TestRollupBoostPartialFailure() {
+	s.enableSynchronization()
+
+	// Set initial state: leader is unhealthy and actively sequencing
+	// Previous state was [leader, unhealthy, inactive] - this simulates the scenario where
+	// the leader started sequencing during a network stall but rollup boost is partially healthy
+	s.conductor.leader.Store(true)
+	s.conductor.healthy.Store(false)
+	s.conductor.seqActive.Store(true)
+	s.conductor.prevState = &state{
+		leader:  true,
+		healthy: false,
+		active:  false,
+	}
+	s.conductor.cfg.RollupBoostEnabled = true
+
+	// Setup expectations - with ErrRollupBoostPartiallyHealthy, conductor should NOT wait for recovery
+	// Instead, it should stop sequencing and transfer leadership to another node
+	s.ctrl.EXPECT().StopSequencer(mock.Anything).Return(common.Hash{}, nil).Times(1)
+	s.cons.EXPECT().TransferLeader().Return(nil).Times(1)
+
+	// Trigger the health update with rollup boost partial failure
+	s.updateHealthStatusAndExecuteAction(health.ErrRollupBoostPartiallyHealthy)
+
+	// Verify the conductor stops sequencing and transfers leadership instead of waiting for recovery
+	s.False(s.conductor.leader.Load(), "Should transfer leadership to another node")
+	s.False(s.conductor.healthy.Load(), "Should remain marked as unhealthy")
+	s.False(s.conductor.seqActive.Load(), "Should stop sequencing")
+	s.Equal(health.ErrRollupBoostPartiallyHealthy, s.conductor.hcerr, "Should store the rollup boost error")
+
+	// Verify the expected actions were taken
+	s.ctrl.AssertNumberOfCalls(s.T(), "StopSequencer", 1)
+	s.cons.AssertNumberOfCalls(s.T(), "TransferLeader", 1)
+}

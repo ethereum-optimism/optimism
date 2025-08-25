@@ -66,8 +66,8 @@ contract MIPS64 is ISemver {
     }
 
     /// @notice The semantic version of the MIPS64 contract.
-    /// @custom:semver 1.8.0
-    string public constant version = "1.8.0";
+    /// @custom:semver 1.9.0
+    string public constant version = "1.9.0";
 
     /// @notice The preimage oracle contract.
     IPreimageOracle internal immutable ORACLE;
@@ -273,8 +273,7 @@ contract MIPS64 is ISemver {
                 memProofOffset: MIPS64Memory.memoryProofOffset(MEM_PROOF_OFFSET, 1),
                 insn: insn,
                 opcode: opcode,
-                fun: fun,
-                stateVersion: STATE_VERSION
+                fun: fun
             });
             bool memUpdated;
             uint64 effMemAddr;
@@ -568,9 +567,7 @@ contract MIPS64 is ISemver {
             } else if (syscall_no == sys.SYS_MUNMAP) {
                 // ignored
             } else if (syscall_no == sys.SYS_MPROTECT) {
-                if (!st.featuresForVersion(STATE_VERSION).supportNoopMprotect) {
-                    revert("MIPS64: unimplemented syscall");
-                }
+                // ignored
             } else if (syscall_no == sys.SYS_GETAFFINITY) {
                 // ignored
             } else if (syscall_no == sys.SYS_MADVISE) {
@@ -630,10 +627,6 @@ contract MIPS64 is ISemver {
             } else if (syscall_no == sys.SYS_LSEEK) {
                 // ignored
             } else if (syscall_no == sys.SYS_EVENTFD2) {
-                if (!st.featuresForVersion(STATE_VERSION).supportMinimalSysEventFd2) {
-                    revert("MIPS64: unimplemented syscall");
-                }
-
                 // a0 = initial value, a1 = flags
                 // Validate flags
                 if (a1 & sys.EFD_NONBLOCK == 0) {

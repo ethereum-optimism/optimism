@@ -24,8 +24,8 @@
     "sourceCodeHash": "0xb1264c7af50b6134c98cb82d1ffc7891adf97068fa7048ee70992fb94bc15bd1"
   },
   "src/L1/OPContractsManagerStandardValidator.sol:OPContractsManagerStandardValidator": {
-    "initCodeHash": "0x4bf3bbdaf08989de57408b2ea88995e2f477b98add164dbf82e0dceb01417ef6",
-    "sourceCodeHash": "0x36861c793b247f4922ecd77b1b153a0f2a47a129117fbe59e7e1f6498ef46c42"
+    "initCodeHash": "0xb96c198bc5e92ada25e79d256033d823e7924bee3dd0d5a909d7aa8cb4e388bb",
+    "sourceCodeHash": "0x7a0b0f8042eebd9070bae5bba4aa888111ddd782df3a0bf8d136dcce11e82554"
   },
   "src/L1/OptimismPortal2.sol:OptimismPortal2": {
     "initCodeHash": "0x785b09610b2da65d248b49150fafc85b8369c921ddae95b0ea45608b1ce5cbc6",
@@ -136,8 +136,8 @@
     "sourceCodeHash": "0x734a6b2aa6406bc145d848ad6071d3af1d40852aeb8f4b2f6f51beaad476e2d3"
   },
   "src/cannon/MIPS64.sol:MIPS64": {
-    "initCodeHash": "0xbc7c3c50e8c3679576f87d79c2dae05dd1174e64bdaa4c1e0857314618e415a3",
-    "sourceCodeHash": "0xf6e87bf46edca31c2b30c83fdf7b57a7851404743e16dd4f783be3a34c481d76"
+    "initCodeHash": "0x6a649986370d18e5fddcd89df73e520063fb373f7dba2f731a2b7e79a1c132a5",
+    "sourceCodeHash": "0x657afae82e6e3627389153736e568bf99498a272ec6d9ecc22ecfd645c56c453"
   },
   "src/cannon/PreimageOracle.sol:PreimageOracle": {
     "initCodeHash": "0x6af5b0e83b455aab8d0946c160a4dc049a4e03be69f8a2a9e87b574f27b25a66",
@@ -170,6 +170,10 @@
   "src/dispute/SuperPermissionedDisputeGame.sol:SuperPermissionedDisputeGame": {
     "initCodeHash": "0x615baee73b605785025893fad655f8b7d8d546d77fbeca1f799000513ded3309",
     "sourceCodeHash": "0x8fdd69d4bcd33a3d8b49a73ff5b6855f9ad5f7e2b7393e67cd755973b127b1e8"
+  },
+  "src/dispute/v2/FaultDisputeGameV2.sol:FaultDisputeGameV2": {
+    "initCodeHash": "0xe7d3c982532946d196d7efadb9e2576c76b8f9e0d1f885ac36977d6f3fb72a65",
+    "sourceCodeHash": "0x691ed84b678a9429513e72eb995f88a359072218ce5b434d82817ae85f296a3e"
   },
   "src/legacy/DeployerWhitelist.sol:DeployerWhitelist": {
     "initCodeHash": "0x53099379ed48b87f027d55712dbdd1da7d7099925426eb0531da9c0012e02c29",

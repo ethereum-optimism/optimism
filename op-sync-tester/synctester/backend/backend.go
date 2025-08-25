@@ -36,16 +36,20 @@ func SessionFromContext(ctx context.Context) (*Session, bool) {
 type Session struct {
 	SessionID string
 
+	// Non canonical view of the chain
+	Validated uint64
 	// Canonical view of the chain
-	CurrentState FCUState
+	CurrentState sttypes.FCUState
+	// payloads
+	Payloads map[eth.PayloadID]*eth.ExecutionPayloadEnvelope
 
-	InitialState FCUState
+	InitialState sttypes.FCUState
 }
 
-type FCUState struct {
-	Latest    uint64
-	Safe      uint64
-	Finalized uint64
+func (s *Session) UpdateFCUState(latest, safe, finalized uint64) {
+	s.CurrentState.Latest = latest
+	s.CurrentState.Safe = safe
+	s.CurrentState.Finalized = finalized
 }
 
 type APIRouter interface {
@@ -88,7 +92,7 @@ func FromConfig(log log.Logger, m metrics.Metricer, cfg *config.Config, router A
 	// Set up the sync tester routes
 	var syncTesterErr error
 	b.syncTesters.Range(func(id sttypes.SyncTesterID, st *SyncTester) bool {
-		path := "/chain/" + st.chainID.String() + "/synctest"
+		path := "/chain/" + st.cfg.ChainID.String() + "/synctest"
 		if err := router.AddRPC(path); err != nil {
 			syncTesterErr = errors.Join(fmt.Errorf("failed to set up synctest route: %w", err))
 			return true
@@ -119,10 +123,17 @@ func FromConfig(log log.Logger, m metrics.Metricer, cfg *config.Config, router A
 	return b, nil
 }
 
-func (b *Backend) SyncTesters() (out map[sttypes.SyncTesterID]eth.ChainID) {
-	out = make(map[sttypes.SyncTesterID]eth.ChainID)
+func (b *Backend) SyncTesters() (out map[sttypes.SyncTesterID]config.EntryCfg) {
+	out = make(map[sttypes.SyncTesterID]config.EntryCfg)
 	b.syncTesters.Range(func(key sttypes.SyncTesterID, value *SyncTester) bool {
-		out[key] = value.chainID
+		out[key] = config.EntryCfg{
+			ChainID: value.cfg.ChainID,
+			Target: sttypes.FCUState{
+				Latest:    value.cfg.Target.Latest,
+				Safe:      value.cfg.Target.Safe,
+				Finalized: value.cfg.Target.Finalized,
+			},
+		}
 		return true
 	})
 	return out

@@ -182,7 +182,8 @@ func TestLoadSequencerStateOnStarted_Started(t *testing.T) {
 
 func TestPostUnsafePayload(t *testing.T) {
 	op_e2e.InitParallel(t)
-	ctx := context.Background()
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
 
 	cfg := e2esys.DefaultSystemConfig(t)
 	cfg.Nodes["verifier"].RPC.EnableAdmin = true
