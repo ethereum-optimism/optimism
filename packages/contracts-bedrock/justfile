@@ -91,7 +91,7 @@ prepare-upgrade-env *ARGS : build-go-ffi
   export FORK_TEST=true
   export USE_MT_CANNON=true
   {{ARGS}} \
-  --match-path "test/{L1,dispute,cannon}/**" --fork-retries 10 --fork-retry-backoff 1000
+  --match-path "test/{L1,dispute,cannon}/**" --fork-url=$ETH_RPC_URL --fork-retries 10 --fork-retry-backoff 1000
 
 # Runs upgrade path variant of contract tests.
 test-upgrade *ARGS:
