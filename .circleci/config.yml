@@ -165,7 +165,7 @@ commands:
             git submodule update --init --recursive --force -j 8
           working_directory: packages/contracts-bedrock
 
-  # Notifies us on Slack a build fails on develop
+  # Notifies us on Slack a build fails on develop or proposal branches
   notify-failures-on-develop:
     description: "Notify Slack"
     parameters:
@@ -180,10 +180,10 @@ commands:
           channel: << parameters.channel >>
           event: fail
           template: basic_fail_1
-          branch_pattern: develop
+          branch_pattern: "develop|^proposal/.*"
           mentions: "<< parameters.mentions >>"
 
-  # Notifies us on Discord when a build fails on develop
+  # Notifies us on Discord when a build fails on develop or proposal branches
   # For Discord to properly trigger notifications, mentions need to be in the format:
   # User mentions: <@USER_ID>
   # Role mentions: <@&ROLE_ID>
@@ -201,7 +201,7 @@ commands:
       - run:
           name: "Notify Discord"
           command: |
-            if [ "${CIRCLE_BRANCH}" == "develop" ]; then
+            if [ "${CIRCLE_BRANCH}" == "develop" ] || [[ "${CIRCLE_BRANCH}" =~ ^proposal/.* ]]; then
               # Format message for Discord with better structure and formatting
               DISCORD_MESSAGE="🚨 **CI Failure Detected** 🚨\n"
               DISCORD_MESSAGE="${DISCORD_MESSAGE}> **Repository:** \`${CIRCLE_PROJECT_USERNAME}/${CIRCLE_PROJECT_REPONAME}\`\n"
@@ -1529,7 +1529,11 @@ jobs:
       - checkout # no need to use mise here since the docker image contains the only dependency
       - unless:
           condition:
-            equal: ["develop", << pipeline.git.branch >>]
+            or:
+              - equal: ["develop", << pipeline.git.branch >>]
+              - matches:
+                  pattern: "^proposal/.*"
+                  value: << pipeline.git.branch >>
           steps:
             - run:
                 # Scan changed files in PRs, block on new issues only (existing issues ignored)
@@ -2314,7 +2318,11 @@ workflows:
     when:
       or:
         - and:
-          - equal: ["develop", <<pipeline.git.branch>>]
+          - or:
+            - equal: ["develop", <<pipeline.git.branch>>]
+            - matches:
+                pattern: "^proposal/.*"
+                value: <<pipeline.git.branch>>
           - equal: ["webhook",<< pipeline.trigger_source >>]
         - and:
           - equal: [true, <<pipeline.parameters.fault_proofs_dispatch>>]
@@ -2360,12 +2368,20 @@ workflows:
           requires:
             - cannon-prestate
             - op-e2e-cannon-tests
+          # We only want to publish the prestate on develop, not proposal branches
+          filters:
+            branches:
+              only: develop
 
   develop-kontrol-tests:
     when:
       or:
         - and:
-          - equal: ["develop", <<pipeline.git.branch>>]
+          - or:
+            - equal: ["develop", <<pipeline.git.branch>>]
+            - matches:
+                pattern: "^proposal/.*"
+                value: <<pipeline.git.branch>>
           - equal: ["webhook",<< pipeline.trigger_source >>]
         - and:
           - equal: [true, <<pipeline.parameters.kontrol_dispatch>>]
@@ -2485,12 +2501,16 @@ workflows:
           context:
             - circleci-repo-optimism
 
-  # Acceptance tests (post-merge to develop)
+  # Acceptance tests (post-merge to develop or proposal branches)
   acceptance-tests:
     when:
       or:
         - and:
-          - equal: ["develop", <<pipeline.git.branch>>]
+          - or:
+            - equal: ["develop", <<pipeline.git.branch>>]
+            - matches:
+                pattern: "^proposal/.*"
+                value: <<pipeline.git.branch>>
           - equal: ["webhook",<< pipeline.trigger_source >>]
         - and:
           - equal: [true, <<pipeline.parameters.acceptance_tests_dispatch>>]
@@ -2568,11 +2588,15 @@ workflows:
             - circleci-repo-readonly-authenticated-github-token
             - circleci-api-token
 
-  # Acceptance tests (pre-merge to develop)
+  # Acceptance tests (pre-merge to develop or proposal branches)
   acceptance-tests-pr:
     when:
       not:
-        equal: [<< pipeline.git.branch >>, "develop"]
+        or:
+          - equal: [<< pipeline.git.branch >>, "develop"]
+          - matches:
+              pattern: "^proposal/.*"
+              value: << pipeline.git.branch >>
     jobs:
       - initialize:
           context:
