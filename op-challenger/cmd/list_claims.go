@@ -84,7 +84,7 @@ func listClaims(ctx context.Context, game contracts.FaultDisputeGameContract, ve
 	status := metadata.Status
 	l2StartBlockNum, l2BlockNum, err := game.GetGameRange(ctx)
 	if err != nil {
-		return fmt.Errorf("failed to retrieve status: %w", err)
+		return fmt.Errorf("failed to retrieve game block range: %w", err)
 	}
 
 	claims, err := game.GetAllClaims(ctx, rpcblock.Latest)
