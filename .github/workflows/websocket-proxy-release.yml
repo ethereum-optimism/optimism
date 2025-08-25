@@ -3,13 +3,13 @@ name: Release
 on:
   push:
     tags:
-      - 'rollup-boost/v*'
+      - 'websocket-proxy/v*'
 
 permissions:
   contents: write
 
 env:
-  REGISTRY_IMAGE: flashbots/rollup-boost
+  REGISTRY_IMAGE: flashbots/flashblocks-websocket-proxy
 
 jobs:
   extract-version:
@@ -22,7 +22,7 @@ jobs:
         id: extract_version
         run: |
           if [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
-            VERSION="${GITHUB_REF#refs/tags/rollup-boost/}"
+            VERSION="${GITHUB_REF#refs/tags/websocket-proxy/}"
           else
             VERSION="$(echo ${GITHUB_SHA} | cut -c1-7)"
           fi
@@ -72,17 +72,17 @@ jobs:
           curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
       - uses: actions/checkout@v4 # must install git before checkout and set safe.directory after checkout because of container
 
-      - name: Build rollup-boost binary
+      - name: Build websocket-proxy binary
         run: |
           git config --global --add safe.directory "$(pwd)"
           . $HOME/.cargo/env
-          cargo build --release --target ${{ matrix.configs.target }} --package rollup-boost
+          cargo build --release --target ${{ matrix.configs.target }} --package flashblocks-websocket-proxy
           mkdir -p artifacts
-          mv target/${{ matrix.configs.target }}/release/rollup-boost artifacts/rollup-boost-${{ needs.extract-version.outputs.VERSION }}-${{ matrix.configs.target }}${{ matrix.features && '-' }}${{ matrix.features }}
+          mv target/${{ matrix.configs.target }}/release/flashblocks-websocket-proxy artifacts/flashblocks-websocket-proxy-${{ needs.extract-version.outputs.VERSION }}-${{ matrix.configs.target }}${{ matrix.features && '-' }}${{ matrix.features }}
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: rollup-boost-${{ needs.extract-version.outputs.VERSION }}-${{ matrix.configs.target }}${{ matrix.features && '-' }}${{ matrix.features }}
+          name: flashblocks-websocket-proxy-${{ needs.extract-version.outputs.VERSION }}-${{ matrix.configs.target }}${{ matrix.features && '-' }}${{ matrix.features }}
           path: artifacts
 
   publish-docker-image:
@@ -106,8 +106,8 @@ jobs:
         run: |
           platform=${{ matrix.configs.platform }}
           echo "PLATFORM_PAIR=${platform//\//-}" >> $GITHUB_ENV
-          echo "RELEASE_VERSION=${GITHUB_REF#refs/tags/rollup-boost/}" >> $GITHUB_ENV
-
+          echo "RELEASE_VERSION=${GITHUB_REF#refs/tags/websocket-proxy/}" >> $GITHUB_ENV
+          
       - name: Print version
         run: |
           echo $RELEASE_VERSION
@@ -142,6 +142,7 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
           context: .
+          file: ./crates/websocket-proxy/Dockerfile
           build-args: |
             VERSION=${{ env.RELEASE_VERSION }}
           platforms: ${{ matrix.configs.platform }}
@@ -197,9 +198,8 @@ jobs:
           images: ${{ env.REGISTRY_IMAGE }}
           tags: |
             type=sha
-            type=pep440,pattern={{version}}
-            type=pep440,pattern={{major}}.{{minor}}
-            type=raw,value=latest,enable=${{ !contains(env.RELEASE_VERSION, '-rc') }}
+            type=raw,value=${{ env.RELEASE_VERSION }}
+            type=raw,value=latest,enable=${{ !contains(env.RELEASE_VERSION, '-') }}
 
       - name: Create manifest list and push
         working-directory: /tmp/digests
