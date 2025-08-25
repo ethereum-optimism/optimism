@@ -65,7 +65,7 @@ impl SupervisorMetrics {
                 SuperchainDAError::FutureData => self.future_data_count.increment(1),
                 SuperchainDAError::MissedData => self.missed_data_count.increment(1),
                 SuperchainDAError::DataCorruption => self.data_corruption_count.increment(1),
-                SuperchainDAError::UninitializedChainDatabase => {}
+                _ => {}
             }
         }
     }
