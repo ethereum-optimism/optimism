@@ -113,7 +113,7 @@ func WithL2ChallengerPostDeploy(orch *Orchestrator, challengerID stack.L2Challen
 		for i, l2ELID := range l2ELIDs {
 			l2EL, ok := orch.l2ELs.Get(l2ELID)
 			require.True(ok)
-			l2ELRPCs[i] = l2EL.userRPC
+			l2ELRPCs[i] = l2EL.UserRPC()
 		}
 		cluster, ok := orch.clusters.Get(*clusterID)
 		require.True(ok)
@@ -143,7 +143,7 @@ func WithL2ChallengerPostDeploy(orch *Orchestrator, challengerID stack.L2Challen
 		l2EL, ok := orch.l2ELs.Get(l2ELID)
 		require.True(ok)
 		prestateVariant := shared.MTCannonVariant
-		cfg, err = shared.NewPreInteropChallengerConfig(dir, l1EL.userRPC, l1CL.beaconHTTPAddr, l2CL.userRPC, l2EL.userRPC,
+		cfg, err = shared.NewPreInteropChallengerConfig(dir, l1EL.userRPC, l1CL.beaconHTTPAddr, l2CL.UserRPC(), l2EL.UserRPC(),
 			shared.WithFactoryAddress(disputeGameFactoryAddr),
 			shared.WithPrivKey(challengerSecret),
 			shared.WithCannonConfig(rollupCfgs, l2Geneses, prestateVariant),

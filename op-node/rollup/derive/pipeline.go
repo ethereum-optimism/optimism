@@ -138,7 +138,8 @@ func NewDerivationPipeline(log log.Logger, rollupCfg *rollup.Config, depSet Depe
 // DerivationReady returns true if the derivation pipeline is ready to be used.
 // When it's being reset its state is inconsistent, and should not be used externally.
 func (dp *DerivationPipeline) DerivationReady() bool {
-	return dp.engineIsReset && dp.resetting > 0
+	// Ready only when the engine has been confirmed reset and all stages finished resetting
+	return dp.engineIsReset && dp.resetting >= len(dp.stages)
 }
 
 func (dp *DerivationPipeline) Reset() {

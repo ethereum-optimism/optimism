@@ -18,7 +18,8 @@ type presetNetwork struct {
 	chainCfg *params.ChainConfig
 	chainID  eth.ChainID
 
-	faucets locks.RWMap[stack.FaucetID, stack.Faucet]
+	faucets     locks.RWMap[stack.FaucetID, stack.Faucet]
+	syncTesters locks.RWMap[stack.SyncTesterID, stack.SyncTester]
 }
 
 var _ stack.Network = (*presetNetwork)(nil)
@@ -58,4 +59,24 @@ func (p *presetNetwork) AddFaucet(v stack.Faucet) {
 	id := v.ID()
 	p.require().Equal(p.chainID, id.ChainID(), "faucet %s must be on chain %s", id, p.chainID)
 	p.require().True(p.faucets.SetIfMissing(id, v), "faucet %s must not already exist", id)
+}
+
+func (p *presetNetwork) SyncTesterIDs() []stack.SyncTesterID {
+	return stack.SortSyncTesterIDs(p.syncTesters.Keys())
+}
+
+func (p *presetNetwork) SyncTesters() []stack.SyncTester {
+	return stack.SortSyncTesters(p.syncTesters.Values())
+}
+
+func (p *presetNetwork) SyncTester(m stack.SyncTesterMatcher) stack.SyncTester {
+	v, ok := findMatch(m, p.syncTesters.Get, p.SyncTesters)
+	p.require().True(ok, "must find sync tester %s", m)
+	return v
+}
+
+func (p *presetNetwork) AddSyncTester(v stack.SyncTester) {
+	id := v.ID()
+	p.require().Equal(p.chainID, id.ChainID(), "sync tester %s must be on chain %s", id, p.chainID)
+	p.require().True(p.syncTesters.SetIfMissing(id, v), "sync tester %s must not already exist", id)
 }

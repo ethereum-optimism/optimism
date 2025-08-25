@@ -7,7 +7,6 @@ import { Test, stdStorage, StdStorage } from "forge-std/Test.sol";
 // Libraries
 import { DeployUtils } from "scripts/libraries/DeployUtils.sol";
 import { Chains } from "scripts/libraries/Chains.sol";
-import { LibString } from "@solady/utils/LibString.sol";
 import { StandardConstants } from "scripts/deploy/StandardConstants.sol";
 
 // Interfaces
@@ -33,6 +32,7 @@ contract DeployImplementations_Test is Test {
     IProtocolVersions protocolVersionsProxy = IProtocolVersions(makeAddr("protocolVersionsProxy"));
     IProxyAdmin superchainProxyAdmin = IProxyAdmin(makeAddr("superchainProxyAdmin"));
     address upgradeController = makeAddr("upgradeController");
+    address challenger = makeAddr("challenger");
 
     function setUp() public virtual {
         // We'll need to store some code on these two addresses so that the deployment script checks pass
@@ -78,7 +78,6 @@ contract DeployImplementations_Test is Test {
         uint64 _challengePeriodSeconds,
         uint256 _proofMaturityDelaySeconds,
         uint256 _disputeGameFinalityDelaySeconds,
-        string memory _l1ContractsRelease,
         address _superchainConfigImpl
     )
         public
@@ -88,7 +87,6 @@ contract DeployImplementations_Test is Test {
         vm.assume(_challengePeriodSeconds != 0);
         vm.assume(_proofMaturityDelaySeconds != 0);
         vm.assume(_disputeGameFinalityDelaySeconds != 0);
-        vm.assume(!LibString.eq(_l1ContractsRelease, ""));
         vm.assume(_superchainConfigImpl != address(0));
 
         // Must configure the ProxyAdmin contract.
@@ -118,11 +116,11 @@ contract DeployImplementations_Test is Test {
             _proofMaturityDelaySeconds,
             _disputeGameFinalityDelaySeconds,
             StandardConstants.MIPS_VERSION, // mipsVersion
-            _l1ContractsRelease,
             superchainConfigProxy,
             protocolVersionsProxy,
             superchainProxyAdmin,
-            upgradeController
+            upgradeController,
+            challenger
         );
 
         DeployImplementations.Output memory output = deployImplementations.run(input);
@@ -218,11 +216,6 @@ contract DeployImplementations_Test is Test {
         deployImplementations.run(input);
 
         input = defaultInput();
-        input.l1ContractsRelease = "";
-        vm.expectRevert("DeployImplementations: l1ContractsRelease not set");
-        deployImplementations.run(input);
-
-        input = defaultInput();
         input.superchainConfigProxy = ISuperchainConfig(address(0));
         vm.expectRevert("DeployImplementations: superchainConfigProxy not set");
         deployImplementations.run(input);
@@ -251,11 +244,11 @@ contract DeployImplementations_Test is Test {
             proofMaturityDelaySeconds,
             disputeGameFinalityDelaySeconds,
             StandardConstants.MIPS_VERSION, // mipsVersion
-            "dev-release", // l1ContractsRelease
             superchainConfigProxy,
             protocolVersionsProxy,
             superchainProxyAdmin,
-            upgradeController
+            upgradeController,
+            challenger
         );
     }
 }

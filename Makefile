@@ -21,13 +21,12 @@ build-contracts:
 .PHONY: build-contracts
 
 lint-go: ## Lints Go code with specific linters
-	golangci-lint run -E goimports,sqlclosecheck,bodyclose,asciicheck,misspell,errorlint --timeout 5m -e "errors.As" -e "errors.Is" ./...
-	golangci-lint run -E err113 --timeout 5m -e "errors.As" -e "errors.Is" ./op-program/client/...
+	golangci-lint run ./...
 	go mod tidy -diff
 .PHONY: lint-go
 
 lint-go-fix: ## Lints Go code with specific linters and fixes reported issues
-	golangci-lint run -E goimports,sqlclosecheck,bodyclose,asciicheck,misspell,errorlint --timeout 5m -e "errors.As" -e "errors.Is" ./... --fix
+	golangci-lint run ./... --fix
 .PHONY: lint-go-fix
 
 golang-docker: ## Builds Docker images for Go components using buildx
@@ -154,28 +153,9 @@ reproducible-prestate:   ## Builds reproducible-prestate binary
 	make -C ./op-program reproducible-prestate
 .PHONY: reproducible-prestate
 
-# Include any files required for the devnet to build and run.
-DEVNET_CANNON_PRESTATE_FILES := op-program/bin/prestate-proof-mt64.json op-program/bin/prestate-mt64.bin.gz op-program/bin/prestate-interop.bin.gz
-
-
-$(DEVNET_CANNON_PRESTATE_FILES):
-	make cannon-prestate-mt64
-	make cannon-prestate-interop
-
-cannon-prestates: cannon-prestate-mt64 cannon-prestate-interop
+cannon-prestates: cannon op-program
+	go run ./op-program/builder/main.go build-all-prestates
 .PHONY: cannon-prestates
-
-cannon-prestate-mt64: op-program cannon ## Generates prestate using cannon and op-program in the latest 64-bit multithreaded cannon format
-	./cannon/bin/cannon load-elf --type multithreaded64-4 --path op-program/bin/op-program-client64.elf --out op-program/bin/prestate-mt64.bin.gz --meta op-program/bin/meta-mt64.json
-	./cannon/bin/cannon run --proof-at '=0' --stop-at '=1' --input op-program/bin/prestate-mt64.bin.gz --meta op-program/bin/meta-mt64.json --proof-fmt 'op-program/bin/%d-mt64.json' --output ""
-	mv op-program/bin/0-mt64.json op-program/bin/prestate-proof-mt64.json
-.PHONY: cannon-prestate-mt64
-
-cannon-prestate-interop: op-program cannon ## Generates interop prestate using cannon and op-program in the latest 64-bit multithreaded cannon format
-	./cannon/bin/cannon load-elf --type multithreaded64-5 --path op-program/bin/op-program-client-interop.elf --out op-program/bin/prestate-interop.bin.gz --meta op-program/bin/meta-interop.json
-	./cannon/bin/cannon run --proof-at '=0' --stop-at '=1' --input op-program/bin/prestate-interop.bin.gz --meta op-program/bin/meta-interop.json --proof-fmt 'op-program/bin/%d-interop.json' --output ""
-	mv op-program/bin/0-interop.json op-program/bin/prestate-proof-interop.json
-.PHONY: cannon-prestate-interop
 
 mod-tidy: ## Cleans up unused dependencies in Go modules
 	# Below GOPRIVATE line allows mod-tidy to be run immediately after
@@ -255,10 +235,10 @@ TEST_PKGS := \
 	./op-deployer/pkg/deployer/broadcaster/... \
 	./op-deployer/pkg/deployer/clean/... \
 	./op-deployer/pkg/deployer/integration_test/... \
-	./op-deployer/pkg/deployer/interop/... \
 	./op-deployer/pkg/deployer/standard/... \
 	./op-deployer/pkg/deployer/state/... \
-	./op-deployer/pkg/deployer/verify/...
+	./op-deployer/pkg/deployer/verify/... \
+	./op-sync-tester/...
 
 FRAUD_PROOF_TEST_PKGS := \
 	./op-e2e/faultproofs/...
@@ -277,7 +257,6 @@ RPC_TEST_PKGS := \
 define DEFAULT_TEST_ENV_VARS
 export ENABLE_KURTOSIS=true && \
 export OP_E2E_CANNON_ENABLED="false" && \
-export OP_E2E_SKIP_SLOW_TEST=true && \
 export OP_E2E_USE_HTTP=true && \
 export ENABLE_ANVIL=true && \
 export PARALLEL=$$(nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 4)
@@ -287,7 +266,9 @@ endef
 define CI_ENV_VARS
 export OP_TESTLOG_FILE_LOGGER_OUTDIR=$$(realpath ./tmp/testlogs) && \
 export SEPOLIA_RPC_URL="https://ci-sepolia-l1-archive.optimism.io" && \
-export MAINNET_RPC_URL="https://ci-mainnet-l1-archive.optimism.io"
+export MAINNET_RPC_URL="https://ci-mainnet-l1-archive.optimism.io" && \
+export NAT_INTEROP_LOADTEST_TARGET=10 && \
+export NAT_INTEROP_LOADTEST_TIMEOUT=30s
 endef
 
 # Test timeout (can be overridden via environment)

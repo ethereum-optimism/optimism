@@ -3,6 +3,9 @@ package faultproofs
 import (
 	"crypto/ecdsa"
 	"fmt"
+	"os"
+	"strconv"
+	"sync"
 	"testing"
 
 	op_e2e "github.com/ethereum-optimism/optimism/op-e2e"
@@ -19,8 +22,9 @@ import (
 )
 
 type faultDisputeConfig struct {
-	sysOpts      []e2esys.SystemConfigOpt
-	cfgModifiers []func(cfg *e2esys.SystemConfig)
+	sysOpts          []e2esys.SystemConfigOpt
+	cfgModifiers     []func(cfg *e2esys.SystemConfig)
+	batcherUsesBlobs bool
 }
 
 type faultDisputeConfigOpts func(cfg *faultDisputeConfig)
@@ -35,6 +39,7 @@ func WithBatcherStopped() faultDisputeConfigOpts {
 
 func WithBlobBatches() faultDisputeConfigOpts {
 	return func(fdc *faultDisputeConfig) {
+		fdc.batcherUsesBlobs = true
 		fdc.cfgModifiers = append(fdc.cfgModifiers, func(cfg *e2esys.SystemConfig) {
 			cfg.DataAvailabilityType = batcherFlags.BlobsType
 
@@ -188,8 +193,49 @@ func RunTestsAcrossVmTypes[T any](t *testing.T, testCases []T, test VMTestCase[T
 			testName := options.testNameModifier(string(allocType), testCase)
 			t.Run(testName, func(t *testing.T) {
 				op_e2e.InitParallel(t, op_e2e.UsesCannon)
-				test(t, allocType, testCase)
+				func() {
+					limiter.Acquire()
+					defer limiter.Release()
+					test(t, allocType, testCase)
+				}()
 			})
 		}
 	}
+}
+
+var executorLimitEnv = os.Getenv("OP_E2E_EXECUTOR_LIMIT")
+
+type executorLimiter struct {
+	ch chan struct{}
+}
+
+func (l *executorLimiter) Acquire() {
+	// TODO: sample memory usage over time to admit more tests and reduce total runtime.
+	initExecutorLimiter()
+	l.ch <- struct{}{}
+}
+
+func (l *executorLimiter) Release() {
+	<-l.ch
+}
+
+var limiter executorLimiter
+var limiterOnce sync.Once
+
+func initExecutorLimiter() {
+	limiterOnce.Do(func() {
+		var executorLimit uint64
+		if executorLimitEnv != "" {
+			var err error
+			executorLimit, err = strconv.ParseUint(executorLimitEnv, 10, 0)
+			if err != nil {
+				panic(fmt.Sprintf("Could not parse OP_E2E_EXECUTOR_LIMIT env var %v: %v", executorLimitEnv, err))
+			}
+		} else {
+			// faultproof tests may use 6 GiB of memory. So let's be very conservative and aggressively limit the number of test executions
+			// considering other processes running on the same machine.
+			executorLimit = 8
+		}
+		limiter = executorLimiter{ch: make(chan struct{}, executorLimit)}
+	})
 }

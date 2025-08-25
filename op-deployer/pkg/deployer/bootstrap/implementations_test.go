@@ -15,9 +15,12 @@ import (
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/standard"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/testutil"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/stretchr/testify/require"
 )
+
+var networks = []string{"mainnet", "sepolia"}
 
 func TestImplementations(t *testing.T) {
 	testCacheDir := testutils.IsolatedTestDirWithAutoCleanup(t)
@@ -70,7 +73,6 @@ func testImplementations(t *testing.T, forkRPCURL string, cacheDir string) {
 			PrivateKey:                      "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80",
 			ArtifactsLocator:                loc,
 			Logger:                          lgr,
-			L1ContractsRelease:              "dev",
 			WithdrawalDelaySeconds:          standard.WithdrawalDelaySeconds,
 			MinProposalSizeBytes:            standard.MinProposalSizeBytes,
 			ChallengePeriodSeconds:          standard.ChallengePeriodSeconds,
@@ -81,6 +83,7 @@ func testImplementations(t *testing.T, forkRPCURL string, cacheDir string) {
 			ProtocolVersionsProxy:           superchain.ProtocolVersionsAddr,
 			SuperchainProxyAdmin:            proxyAdminOwner,
 			UpgradeController:               proxyAdminOwner,
+			Challenger:                      common.Address{'C'},
 			CacheDir:                        cacheDir,
 		})
 		require.NoError(t, err)

@@ -15,7 +15,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/engine"
-	"github.com/ethereum-optimism/optimism/op-service/binary"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/sync"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/event"
 	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
@@ -46,12 +46,18 @@ type L1Source interface {
 	L1BlockRefByNumber(ctx context.Context, num uint64) (eth.L1BlockRef, error)
 }
 
+type ForceResetNotifier interface {
+	ForceReset(ctx context.Context, localUnsafe, crossUnsafe, localSafe, crossSafe, finalized eth.L2BlockRef)
+}
+
 // IndexingMode makes the op-node managed by an op-supervisor,
 // by serving sync work and updating the canonical chain based on instructions.
 type IndexingMode struct {
 	log log.Logger
 
 	emitter event.Emitter
+
+	forceResetNotifier ForceResetNotifier
 
 	l1 L1Source
 	l2 L2Source
@@ -109,6 +115,10 @@ func NewIndexingMode(log log.Logger, cfg *rollup.Config, addr string, port int, 
 		Authenticated: true,
 	})
 	return out
+}
+
+func (m *IndexingMode) SetForceResetNotifier(notifier ForceResetNotifier) {
+	m.forceResetNotifier = notifier
 }
 
 // TestDisableEventDeduplication is a test-only function that disables event deduplication.
@@ -419,7 +429,7 @@ func (m *IndexingMode) Reset(ctx context.Context, lUnsafe, xUnsafe, lSafe, xSafe
 	}
 
 	// verify all provided references
-	_, err := verify(lUnsafe, "unsafe")
+	lUnsafeRef, err := verify(lUnsafe, "unsafe")
 	if err != nil {
 		logger.Error("Cannot reset, local-unsafe target invalid")
 		return err
@@ -445,104 +455,13 @@ func (m *IndexingMode) Reset(ctx context.Context, lUnsafe, xUnsafe, lSafe, xSafe
 		return err
 	}
 
-	latestLocalUnsafe, err := m.findLatestValidLocalUnsafe(ctx, lUnsafe)
-	if err != nil {
-		logger.Error("Cannot reset, no valid local-unsafe block found", "err", err)
+	// sanity check for max-reorg depth and pre-interop check
+	if err := m.sanityCheck(ctx, logger, lUnsafeRef); err != nil {
 		return err
 	}
 
-	m.emitter.Emit(ctx, rollup.ForceResetEvent{
-		LocalUnsafe: latestLocalUnsafe,
-		CrossUnsafe: xUnsafeRef,
-		LocalSafe:   lSafeRef,
-		CrossSafe:   xSafeRef,
-		Finalized:   finalizedRef,
-	})
+	m.forceResetNotifier.ForceReset(ctx, lUnsafeRef, xUnsafeRef, lSafeRef, xSafeRef, finalizedRef)
 	return nil
-}
-
-// findLatestValidLocalUnsafe searches and returns the latest valid block of the L2 chain
-// starting from `l2UnsafeTarget` and checking until the latest unsafe block.
-func (m *IndexingMode) findLatestValidLocalUnsafe(ctx context.Context, l2UnsafeTarget eth.BlockID) (eth.L2BlockRef, error) {
-	latestUnsafe, err := m.l2.L2BlockRefByLabel(ctx, eth.Unsafe)
-	if err != nil {
-		return eth.L2BlockRef{}, err
-	}
-
-	logger := m.log.New("target", l2UnsafeTarget, "latestUnsafe", latestUnsafe)
-	target := l2UnsafeTarget.Number
-
-	logger.Info("Searching for latest valid local unsafe")
-
-	targetDiff := int(latestUnsafe.Number - target)
-	if targetDiff > 0 {
-		// Binary search to find and return the last valid block for idx in [0, targetDiff)
-		// We don't check validity of `target`, `target` is not in the search space, it is checked
-		// in the walkback loop section below if necessary.
-
-		// Search space:
-		// ------------------------------------------------------------------------------------------
-		// target.Number |  idx=0      idx=1      idx=2     ...  idx = targetDiff-1 = latestUnsafe   |
-		// false         |  t/f        t/f        t/f       ...  t/f                                 |
-		// ------------------------------------------------------------------------------------------
-		idx, valid, err := binary.SearchL(targetDiff, func(i int) (bool, eth.L2BlockRef, error) {
-			block, err := m.verifyBlock(ctx, logger, target+1+uint64(i))
-			return block != (eth.L2BlockRef{}), block, err
-		})
-		if err != nil {
-			return eth.L2BlockRef{}, err
-		}
-
-		if idx != -1 {
-			logger.Info("Found last valid block with binary search", "valid", valid)
-			return valid, nil
-		} else {
-			logger.Info("All blocks checked by binary search are invalid between target and latestUnsafe")
-		}
-	} else if targetDiff < 0 {
-		logger.Warn("Latest unsafe block is older than target, using latest unsafe for search")
-		target = latestUnsafe.Number
-	}
-
-	// In the following walkback loop, the following two cases are covered:
-	// 1. targetDiff == 0 or targetDiff < 0 (i.e. target == latestUnsafe), or
-	// 2. all blocks checked by binary search were invalid, so we have to go from `target` backwards indefinitely
-	//    until we find a valid block
-	for n := target; ; n-- {
-		if n == target-1 {
-			logger.Warn("No valid unsafe block found up to target, searching further")
-		}
-
-		valid, err := m.verifyBlock(ctx, logger, n)
-		if err != nil {
-			return eth.L2BlockRef{}, err
-		}
-
-		if valid != (eth.L2BlockRef{}) {
-			logger.Info("Fould last valid block", "valid", valid)
-			return valid, nil
-		}
-	}
-}
-
-// verifyBlock
-func (m *IndexingMode) verifyBlock(ctx context.Context, logger log.Logger, blockNum uint64) (eth.L2BlockRef, error) {
-	current, err := m.l2.L2BlockRefByNumber(ctx, blockNum)
-	if err != nil {
-		return eth.L2BlockRef{}, err
-	}
-
-	// Check if L1Origin has been reorged
-	l1Blk, err := m.l1.L1BlockRefByNumber(ctx, current.L1Origin.Number)
-	if err != nil {
-		return eth.L2BlockRef{}, err
-	}
-	if l1Blk.Hash != current.L1Origin.Hash {
-		logger.Debug("L1Origin field is invalid/outdated, so block is invalid and should be reorged", "currentNumber", current.Number, "currentL1Origin", current.L1Origin, "newL1Origin", l1Blk)
-		return eth.L2BlockRef{}, nil
-	}
-	logger.Trace("L1Origin field points to canonical L1 block, so block is valid", "blocknum", blockNum, "l1Blk", l1Blk)
-	return current, nil
 }
 
 func (m *IndexingMode) ProvideL1(ctx context.Context, nextL1 eth.BlockRef) error {
@@ -556,10 +475,6 @@ func (m *IndexingMode) ProvideL1(ctx context.Context, nextL1 eth.BlockRef) error
 func (m *IndexingMode) FetchReceipts(ctx context.Context, blockHash common.Hash) (types.Receipts, error) {
 	_, receipts, err := m.l2.FetchReceipts(ctx, blockHash)
 	return receipts, err
-}
-
-func (m *IndexingMode) BlockRefByNumber(ctx context.Context, num uint64) (eth.BlockRef, error) {
-	return m.l2.BlockRefByNumber(ctx, num)
 }
 
 func (m *IndexingMode) ChainID(ctx context.Context) (eth.ChainID, error) {
@@ -604,4 +519,34 @@ func (m *IndexingMode) L2BlockRefByTimestamp(ctx context.Context, timestamp uint
 		return eth.L2BlockRef{}, err
 	}
 	return m.l2.L2BlockRefByNumber(ctx, num)
+}
+
+func (m *IndexingMode) L2BlockRefByNumber(ctx context.Context, num uint64) (eth.L2BlockRef, error) {
+	return m.l2.L2BlockRefByNumber(ctx, num)
+}
+
+func (m *IndexingMode) sanityCheck(ctx context.Context, logger log.Logger, proposedUnsafe eth.L2BlockRef) error {
+	currentUnsafe, err := m.l2.L2BlockRefByLabel(ctx, eth.Unsafe)
+	if err != nil {
+		return fmt.Errorf("failed to get previous unsafe block: %w", err)
+	}
+
+	// check we are not reorging L2 incredibly deep
+	if proposedUnsafe.L1Origin.Number+(sync.MaxReorgSeqWindows*m.cfg.SyncLookback()) < currentUnsafe.L1Origin.Number {
+		// If the reorg depth is too large, something is fishy.
+		// This can legitimately happen if L1 goes down for a while. But in that case,
+		// restarting the L2 node with a bigger configured MaxReorgDepth is an acceptable
+		// stopgap solution.
+		logger.Error("reorg is too deep", "proposed_l1origin", proposedUnsafe.L1Origin.Number, "currentUnsafe_l1origin", currentUnsafe.L1Origin.Number, "sync_lookback", m.cfg.SyncLookback())
+		return fmt.Errorf("%w: traversed back to L2 block %s, but too deep compared to previous unsafe block %s", sync.TooDeepReorgErr, proposedUnsafe, currentUnsafe)
+	}
+
+	// check we are not reorging to a non-interop block
+	if !m.cfg.IsInterop(proposedUnsafe.Time) {
+		err := fmt.Errorf("proposed local-unsafe block %s found to be reorged to is not interop-enabled", proposedUnsafe)
+		logger.Error(err.Error(), "block", proposedUnsafe)
+		return err
+	}
+
+	return nil
 }

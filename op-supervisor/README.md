@@ -307,6 +307,45 @@ I.e. safety must be guaranteed at all times,
 but a minimal level of liveness can be maintained by holding off on cross-chain message acceptance
 while allowing regular single-chain functionality to proceed.
 
+### Failsafe feature
+The supervisor may be put into a failsafe state by:
+* calling the `admin_setFailsafeEnabled` API method
+* an automatic reaction to certain events if configured appropriately (e.g. if the `failsafe-on-invalidation` CLI flag is set)
+
+When failsafe is active, the supervisor will reject all `CheckAccessList` requests. This allows the various components along the ingress route of a transaction to choose to drop that transaction (by making transaction ingress conditional on a successful `CheckAccessList` call):
+
+```mermaid
+sequenceDiagram
+  actor User
+  participant proxyd
+  participant mempool (node)
+  participant mempool (builder)
+  participant supervisor
+  actor admin
+    User->>proxyd: tx
+    proxyd->>supervisor: checkAccessList
+    supervisor->>proxyd:
+    break invalid / failSafe
+      note over proxyd: drop tx
+    end
+    proxyd->>mempool (node): tx
+    mempool (node)->>supervisor: checkAccessList
+    supervisor->>mempool (node):
+    break invalid / failsafe
+      note over mempool (node): drop tx
+    end
+    admin->>supervisor: admin_setFailsafeEnabled(true)
+    activate supervisor
+    mempool (node)->>mempool (builder): tx
+    mempool (builder)->>supervisor: checkAccessList
+    supervisor->>mempool (builder):
+    break invalid / failsafe
+      note over mempool (builder): drop tx
+    end
+    admin->>supervisor: admin_setFailsafeEnabled(false)
+    deactivate supervisor
+```
+
 ## Testing
 
 - `op-e2e/interop`: Go interop system-tests, focused on offchain aspects of services to run end to end.

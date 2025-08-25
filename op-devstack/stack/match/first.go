@@ -20,3 +20,4 @@ var FirstSuperchain = First[stack.SuperchainID, stack.Superchain]()
 var FirstCluster = First[stack.ClusterID, stack.Cluster]()
 
 var FirstFaucet = First[stack.FaucetID, stack.Faucet]()
+var FirstSyncTester = First[stack.SyncTesterID, stack.SyncTester]()

@@ -12,6 +12,7 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 
 	altda "github.com/ethereum-optimism/optimism/op-alt-da"
+	"github.com/ethereum-optimism/optimism/op-batcher/config"
 	"github.com/ethereum-optimism/optimism/op-batcher/flags"
 	"github.com/ethereum-optimism/optimism/op-batcher/metrics"
 	"github.com/ethereum-optimism/optimism/op-batcher/rpc"
@@ -46,9 +47,7 @@ type BatcherConfig struct {
 	CheckRecentTxsDepth int
 
 	// For throttling DA. See CLIConfig in config.go for details on these parameters.
-	ThrottleThreshold, ThrottleTxSize          uint64
-	ThrottleBlockSize, ThrottleAlwaysBlockSize uint64
-	ThrottlingEndpoints                        []string
+	ThrottleParams config.ThrottleParams
 }
 
 // BatcherService represents a full batch-submitter instance and its resources,
@@ -107,13 +106,57 @@ func (bs *BatcherService) initFromCLIConfig(ctx context.Context, version string,
 	bs.CheckRecentTxsDepth = cfg.CheckRecentTxsDepth
 	bs.WaitNodeSync = cfg.WaitNodeSync
 
-	bs.ThrottleThreshold = cfg.ThrottleThreshold
-	bs.ThrottleTxSize = cfg.ThrottleTxSize
-	bs.ThrottleBlockSize = cfg.ThrottleBlockSize
-	bs.ThrottleAlwaysBlockSize = cfg.ThrottleAlwaysBlockSize
+	bs.ThrottleParams = config.ThrottleParams{
+		LowerThreshold:      cfg.ThrottleConfig.LowerThreshold,
+		UpperThreshold:      cfg.ThrottleConfig.UpperThreshold,
+		TxSizeLowerLimit:    cfg.ThrottleConfig.TxSizeLowerLimit,
+		TxSizeUpperLimit:    cfg.ThrottleConfig.TxSizeUpperLimit,
+		BlockSizeLowerLimit: cfg.ThrottleConfig.BlockSizeLowerLimit,
+		BlockSizeUpperLimit: cfg.ThrottleConfig.BlockSizeUpperLimit,
+		ControllerType:      cfg.ThrottleConfig.ControllerType,
+		Endpoints:           slices.Union(cfg.L2EthRpc, cfg.ThrottleConfig.AdditionalEndpoints),
+	}
 
-	// Combine the L2EthRpc and RollupRpc into a single list of endpoints for throttling.
-	bs.ThrottlingEndpoints = slices.Union(cfg.L2EthRpc, cfg.AdditionalThrottlingEndpoints)
+	if bs.ThrottleParams.ControllerType == config.PIDControllerType {
+		bs.Log.Warn("EXPERIMENTAL PID CONTROLLER CONFIGURED")
+		bs.Log.Warn("PID controller is EXPERIMENTAL and should only be used by control theory experts. Improper configuration can lead to system instability or poor performance. Monitor system behavior closely when using PID control.")
+
+		// Validate PID configuration parameters
+		if cfg.ThrottleConfig.PidKp < 0 {
+			return fmt.Errorf("PID Kp gain must be non-negative, got %f", cfg.ThrottleConfig.PidKp)
+		}
+		if cfg.ThrottleConfig.PidKi < 0 {
+			return fmt.Errorf("PID Ki gain must be non-negative, got %f", cfg.ThrottleConfig.PidKi)
+		}
+		if cfg.ThrottleConfig.PidKd < 0 {
+			return fmt.Errorf("PID Kd gain must be non-negative, got %f", cfg.ThrottleConfig.PidKd)
+		}
+		if cfg.ThrottleConfig.PidIntegralMax <= 0 {
+			return fmt.Errorf("PID IntegralMax must be positive, got %f", cfg.ThrottleConfig.PidIntegralMax)
+		}
+		if cfg.ThrottleConfig.PidOutputMax <= 0 || cfg.ThrottleConfig.PidOutputMax > 1 {
+			return fmt.Errorf("PID OutputMax must be between 0 and 1, got %f", cfg.ThrottleConfig.PidOutputMax)
+		}
+		if cfg.ThrottleConfig.PidSampleTime <= 0 {
+			return fmt.Errorf("PID SampleTime must be positive, got %v", cfg.ThrottleConfig.PidSampleTime)
+		}
+
+		bs.ThrottleParams.PIDConfig = &config.PIDConfig{
+			Kp:          cfg.ThrottleConfig.PidKp,
+			Ki:          cfg.ThrottleConfig.PidKi,
+			Kd:          cfg.ThrottleConfig.PidKd,
+			IntegralMax: cfg.ThrottleConfig.PidIntegralMax,
+			OutputMax:   cfg.ThrottleConfig.PidOutputMax,
+			SampleTime:  cfg.ThrottleConfig.PidSampleTime,
+		}
+		bs.Log.Info("Initialized PID throttle controller",
+			"kp", bs.ThrottleParams.PIDConfig.Kp,
+			"ki", bs.ThrottleParams.PIDConfig.Ki,
+			"kd", bs.ThrottleParams.PIDConfig.Kd,
+			"integral_max", bs.ThrottleParams.PIDConfig.IntegralMax,
+			"output_max", bs.ThrottleParams.PIDConfig.OutputMax,
+			"sample_time", bs.ThrottleParams.PIDConfig.SampleTime)
+	}
 
 	if err := bs.initRPCClients(ctx, cfg); err != nil {
 		return err

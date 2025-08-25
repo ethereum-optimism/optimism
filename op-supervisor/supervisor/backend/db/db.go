@@ -191,7 +191,7 @@ func (db *ChainsDB) OnEvent(ctx context.Context, ev event.Event) bool {
 		} else {
 			db.logger.Warn("Received unsafe activation block on initialized DB",
 				"chain", x.ChainID, "block", x.Unsafe)
-			// TODO(#15774): handle reorg
+			// TODO: handle reorg
 		}
 		return false
 	case superevents.SafeActivationBlockEvent:
@@ -205,7 +205,7 @@ func (db *ChainsDB) OnEvent(ctx context.Context, ev event.Event) bool {
 		} else {
 			db.logger.Warn("Received safe activation block on initialized DB",
 				"chain", x.ChainID, "block", x.Safe)
-			// TODO(#15774): handle reorg
+			// TODO: handle reorg
 		}
 		return false
 	case superevents.LocalDerivedEvent:

@@ -15,7 +15,7 @@ import { LibString } from "@solady/utils/LibString.sol";
 // Interfaces
 import { IL1ChugSplashProxy } from "interfaces/legacy/IL1ChugSplashProxy.sol";
 
-contract Owner {
+contract L1ChugSplashProxy_Owner_Harness {
     bool public isUpgrading;
 
     function setIsUpgrading(bool _isUpgrading) public {
@@ -23,7 +23,7 @@ contract Owner {
     }
 }
 
-contract Implementation {
+contract L1ChugSplashProxy_Implementation_Harness {
     function setCode(bytes memory) public pure returns (uint256) {
         return 1;
     }
@@ -64,7 +64,7 @@ contract L1ChugSplashProxy_TestInit is Test {
         assertEq(proxy.getOwner(), owner);
 
         vm.prank(owner);
-        proxy.setCode(type(Implementation).runtimeCode);
+        proxy.setCode(type(L1ChugSplashProxy_Implementation_Harness).runtimeCode);
 
         vm.prank(owner);
         impl = proxy.getImplementation();
@@ -85,7 +85,7 @@ contract L1ChugSplashProxy_SetCode_Test is L1ChugSplashProxy_TestInit {
 
     /// @notice Tests that when not the owner, `setCode` delegatecalls the implementation.
     function test_setCode_whenNotOwner_works() public view {
-        uint256 ret = Implementation(address(proxy)).setCode(hex"604260005260206000f3");
+        uint256 ret = L1ChugSplashProxy_Implementation_Harness(address(proxy)).setCode(hex"604260005260206000f3");
         assertEq(ret, 1);
     }
 
@@ -93,7 +93,7 @@ contract L1ChugSplashProxy_SetCode_Test is L1ChugSplashProxy_TestInit {
     ///         it does not deploy a new implementation
     function test_setCode_whenOwnerSameBytecode_works() public {
         vm.prank(owner);
-        proxy.setCode(type(Implementation).runtimeCode);
+        proxy.setCode(type(L1ChugSplashProxy_Implementation_Harness).runtimeCode);
 
         // does not deploy new implementation
         vm.prank(owner);
@@ -145,7 +145,8 @@ contract L1ChugSplashProxy_SetStorage_Test is L1ChugSplashProxy_TestInit {
 
     /// @notice Tests that when not the owner, `setStorage` delegatecalls the implementation
     function test_setStorage_whenNotOwner_works() public view {
-        uint256 ret = Implementation(address(proxy)).setStorage(bytes32(0), bytes32(uint256(42)));
+        uint256 ret =
+            L1ChugSplashProxy_Implementation_Harness(address(proxy)).setStorage(bytes32(0), bytes32(uint256(42)));
         assertEq(ret, 2);
         assertEq(vm.load(address(proxy), bytes32(0)), bytes32(uint256(0)));
     }
@@ -165,7 +166,7 @@ contract L1ChugSplashProxy_SetOwner_Test is L1ChugSplashProxy_TestInit {
 
     /// @notice Tests that when not the owner, `setOwner` delegatecalls the implementation
     function test_setOwner_whenNotOwner_works() public {
-        uint256 ret = Implementation(address(proxy)).setOwner(alice);
+        uint256 ret = L1ChugSplashProxy_Implementation_Harness(address(proxy)).setOwner(alice);
         assertEq(ret, 3);
 
         vm.prank(owner);
@@ -184,7 +185,7 @@ contract L1ChugSplashProxy_GetOwner_Test is L1ChugSplashProxy_TestInit {
 
     /// @notice Tests that when not the owner, `getOwner` delegatecalls the implementation
     function test_getOwner_whenNotOwner_works() public view {
-        uint256 ret = Implementation(address(proxy)).getOwner();
+        uint256 ret = L1ChugSplashProxy_Implementation_Harness(address(proxy)).getOwner();
         assertEq(ret, 4);
     }
 }
@@ -200,7 +201,7 @@ contract L1ChugSplashProxy_GetImplementation_Test is L1ChugSplashProxy_TestInit 
 
     /// @notice Tests that when not the owner, `getImplementation` delegatecalls the implementation
     function test_getImplementation_whenNotOwner_works() public view {
-        uint256 ret = Implementation(address(proxy)).getImplementation();
+        uint256 ret = L1ChugSplashProxy_Implementation_Harness(address(proxy)).getImplementation();
         assertEq(ret, 5);
     }
 }
@@ -220,19 +221,19 @@ contract L1ChugSplashProxy_Unclassified_Test is L1ChugSplashProxy_TestInit {
         );
 
         vm.expectRevert(bytes("L1ChugSplashProxy: implementation is not set yet"));
-        Implementation(address(proxy)).setCode(hex"604260005260206000f3");
+        L1ChugSplashProxy_Implementation_Harness(address(proxy)).setCode(hex"604260005260206000f3");
     }
 
     /// @notice Tests that when the caller is not the owner but the owner has marked `isUpgrading`
     ///         as true, the call reverts.
     function test_calls_whenUpgrading_reverts() public {
-        Owner ownerContract = new Owner();
+        L1ChugSplashProxy_Owner_Harness ownerContract = new L1ChugSplashProxy_Owner_Harness();
         vm.prank(owner);
         proxy.setOwner(address(ownerContract));
 
         ownerContract.setIsUpgrading(true);
 
         vm.expectRevert(bytes("L1ChugSplashProxy: system is currently being upgraded"));
-        Implementation(address(proxy)).setCode(hex"604260005260206000f3");
+        L1ChugSplashProxy_Implementation_Harness(address(proxy)).setCode(hex"604260005260206000f3");
     }
 }

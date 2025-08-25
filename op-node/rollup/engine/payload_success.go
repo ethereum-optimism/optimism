@@ -4,7 +4,6 @@ import (
 	"context"
 	"time"
 
-	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
 
@@ -24,43 +23,33 @@ func (ev PayloadSuccessEvent) String() string {
 	return "payload-success"
 }
 
-func (eq *EngDeriver) onPayloadSuccess(ctx context.Context, ev PayloadSuccessEvent) {
+func (eq *EngineController) onPayloadSuccess(ctx context.Context, ev PayloadSuccessEvent) {
 	if ev.DerivedFrom == ReplaceBlockSource {
 		eq.log.Warn("Successfully built replacement block, resetting chain to continue now", "replacement", ev.Ref)
 		// Change the engine state to make the replacement block the cross-safe head of the chain,
 		// And continue syncing from there.
-		eq.emitter.Emit(ctx, rollup.ForceResetEvent{
-			LocalUnsafe: ev.Ref,
-			CrossUnsafe: ev.Ref,
-			LocalSafe:   ev.Ref,
-			CrossSafe:   ev.Ref,
-			Finalized:   eq.ec.Finalized(),
-		})
+		eq.ForceReset(ctx, ev.Ref, ev.Ref, ev.Ref, ev.Ref, eq.Finalized())
 		eq.emitter.Emit(ctx, InteropReplacedBlockEvent{
 			Envelope: ev.Envelope,
 			Ref:      ev.Ref.BlockRef(),
 		})
 		// Apply it to the execution engine
-		eq.emitter.Emit(ctx, TryUpdateEngineEvent{})
+		eq.TryUpdateEngine(ctx)
 		// Not a regular reset, since we don't wind back to any L2 block.
 		// We start specifically from the replacement block.
 		return
 	}
 
-	eq.emitter.Emit(ctx, PromoteUnsafeEvent{Ref: ev.Ref})
-
+	// TryUpdateUnsafe, TryUpdatePendingSafe, TryUpdateLocalSafe, tryUpdateEngine must be sequentially invoked
+	eq.TryUpdateUnsafe(ctx, ev.Ref)
 	// If derived from L1, then it can be considered (pending) safe
 	if ev.DerivedFrom != (eth.L1BlockRef{}) {
-		eq.emitter.Emit(ctx, PromotePendingSafeEvent{
-			Ref:        ev.Ref,
-			Concluding: ev.Concluding,
-			Source:     ev.DerivedFrom,
-		})
+		eq.TryUpdatePendingSafe(ctx, ev.Ref, ev.Concluding, ev.DerivedFrom)
+		eq.TryUpdateLocalSafe(ctx, ev.Ref, ev.Concluding, ev.DerivedFrom)
 	}
-
-	eq.emitter.Emit(ctx, TryUpdateEngineEvent{
-		BuildStarted:  ev.BuildStarted,
-		InsertStarted: ev.InsertStarted,
-		Envelope:      ev.Envelope,
-	})
+	// Now if possible synchronously call FCU
+	err := eq.tryUpdateEngine(ctx)
+	if err != nil {
+		eq.log.Error("Failed to update engine", "error", err)
+	}
 }

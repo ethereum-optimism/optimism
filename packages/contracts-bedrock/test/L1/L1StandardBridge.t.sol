@@ -188,22 +188,15 @@ contract L1StandardBridge_Initialize_Test is CommonTest {
         assertEq(address(l2StandardBridge), Predeploys.L2_STANDARD_BRIDGE);
     }
 
-    /// @notice Tests that the initialize function reverts if called by a non-proxy admin or owner.
-    /// @param _sender The address of the sender to test.
+    /// @notice Verifies initialize reverts with random unauthorized addresses
+    /// @param _sender Random address for access control test
     function testFuzz_initialize_notProxyAdminOrProxyAdminOwner_reverts(address _sender) public {
-        // Prank as the not ProxyAdmin or ProxyAdmin owner.
         vm.assume(_sender != address(proxyAdmin) && _sender != proxyAdminOwner);
 
-        // Get the slot for _initialized.
         StorageSlot memory slot = ForgeArtifacts.getSlot("L1StandardBridge", "_initialized");
-
-        // Set the initialized slot to 0.
         vm.store(address(l1StandardBridge), bytes32(slot.slot), bytes32(0));
 
-        // Expect the revert with `ProxyAdminOwnedBase_NotProxyAdminOrProxyAdminOwner` selector.
         vm.expectRevert(IProxyAdminOwnedBase.ProxyAdminOwnedBase_NotProxyAdminOrProxyAdminOwner.selector);
-
-        // Call the `initialize` function with the sender
         vm.prank(_sender);
         l1StandardBridge.initialize(l1CrossDomainMessenger, systemConfig);
     }
@@ -275,22 +268,15 @@ contract L1StandardBridge_Upgrade_Test is CommonTest {
         l1StandardBridge.upgrade(newSystemConfig);
     }
 
-    /// @notice Tests that the upgrade() function reverts if called by a non-proxy admin or owner.
-    /// @param _sender The address of the sender to test.
+    /// @notice Verifies upgrade reverts with random unauthorized addresses
+    /// @param _sender Random address for access control test
     function testFuzz_upgrade_notProxyAdminOrProxyAdminOwner_reverts(address _sender) public {
-        // Prank as the not ProxyAdmin or ProxyAdmin owner.
         vm.assume(_sender != address(proxyAdmin) && _sender != proxyAdminOwner);
 
-        // Get the slot for _initialized.
         StorageSlot memory slot = ForgeArtifacts.getSlot("L1StandardBridge", "_initialized");
-
-        // Set the initialized slot to 0.
         vm.store(address(l1StandardBridge), bytes32(slot.slot), bytes32(0));
 
-        // Expect the revert with `ProxyAdminOwnedBase_NotProxyAdminOrProxyAdminOwner` selector.
         vm.expectRevert(IProxyAdminOwnedBase.ProxyAdminOwnedBase_NotProxyAdminOrProxyAdminOwner.selector);
-
-        // Call the `upgrade` function with the sender
         vm.prank(_sender);
         l1StandardBridge.upgrade(ISystemConfig(address(0xdeadbeef)));
     }
@@ -438,6 +424,15 @@ contract L1StandardBridge_Receive_Test is CommonTest {
         assertEq(address(optimismPortal2).balance, portalBalanceBefore);
         assertEq(address(ethLockbox).balance, ethLockboxBalanceBefore + 100);
     }
+
+    /// @notice Verifies receive function reverts when called by contracts
+    function test_receive_notEOA_reverts() external {
+        vm.etch(alice, hex"ffff");
+        vm.deal(alice, 100);
+        vm.prank(alice);
+        vm.expectRevert("StandardBridge: function can only be called from an EOA");
+        l1StandardBridge.depositETH{ value: 100 }(50000, hex"");
+    }
 }
 
 /// @title L1StandardBridge_DepositETH_Test
@@ -494,6 +489,21 @@ contract L1StandardBridge_DepositETHTo_Test is L1StandardBridge_TestInit {
         l1StandardBridge.depositETHTo{ value: 600 }(bob, 60000, hex"dead");
         assertEq(address(optimismPortal2).balance, portalBalanceBefore);
         assertEq(address(ethLockbox).balance, ethLockboxBalanceBefore + 600);
+    }
+
+    /// @notice Verifies depositETHTo succeeds with various recipients and amounts
+    /// @param _to Random recipient address
+    /// @param _amount Random ETH amount to deposit
+    function testFuzz_depositETHTo_randomRecipient_succeeds(address _to, uint256 _amount) external {
+        vm.assume(_to != address(0));
+        _amount = bound(_amount, 1, 10 ether);
+
+        vm.deal(alice, _amount);
+
+        uint256 ethLockboxBalanceBefore = address(ethLockbox).balance;
+        vm.prank(alice);
+        l1StandardBridge.depositETHTo{ value: _amount }(_to, 60000, hex"dead");
+        assertEq(address(ethLockbox).balance, ethLockboxBalanceBefore + _amount);
     }
 }
 
@@ -584,6 +594,22 @@ contract L1StandardBridge_DepositERC20_Test is CommonTest {
         vm.prank(alice);
         l1StandardBridge.depositERC20(address(0), address(0), 100, 100, hex"");
     }
+
+    /// @notice Verifies depositERC20 succeeds with various amounts and gas limits
+    /// @param _amount Random ERC20 amount to deposit
+    /// @param _gasLimit Random gas limit for L2 execution
+    function testFuzz_depositERC20_amountAndGas_succeeds(uint256 _amount, uint32 _gasLimit) external {
+        _amount = bound(_amount, 1, 1000000);
+        _gasLimit = uint32(bound(uint256(_gasLimit), 21000, 10000000));
+
+        deal(address(L1Token), alice, _amount, true);
+        vm.prank(alice);
+        L1Token.approve(address(l1StandardBridge), _amount);
+
+        vm.prank(alice, alice);
+        l1StandardBridge.depositERC20(address(L1Token), address(L2Token), _amount, _gasLimit, hex"");
+        assertEq(l1StandardBridge.deposits(address(L1Token), address(L2Token)), _amount);
+    }
 }
 
 /// @title L1StandardBridge_DepositERC20To_Test
@@ -653,6 +679,17 @@ contract L1StandardBridge_DepositERC20To_Test is CommonTest {
         l1StandardBridge.depositERC20To(address(L1Token), address(L2Token), bob, 1000, 10000, hex"");
 
         assertEq(l1StandardBridge.deposits(address(L1Token), address(L2Token)), 1000);
+    }
+
+    /// @notice Verifies depositERC20To succeeds with zero amount
+    function test_depositERC20To_zeroAmount_succeeds() external {
+        deal(address(L1Token), alice, 1000, true);
+        vm.prank(alice);
+        L1Token.approve(address(l1StandardBridge), 0);
+
+        vm.prank(alice);
+        l1StandardBridge.depositERC20To(address(L1Token), address(L2Token), bob, 0, 10000, hex"");
+        assertEq(l1StandardBridge.deposits(address(L1Token), address(L2Token)), 0);
     }
 }
 
@@ -730,16 +767,18 @@ contract L1StandardBridge_FinalizeERC20Withdrawal_Test is CommonTest {
         assertEq(L1Token.balanceOf(address(alice)), 100);
     }
 
-    /// @notice Tests that finalizing an ERC20 withdrawal reverts if the caller is not the L2
-    ///         bridge.
-    function test_finalizeERC20Withdrawal_notMessenger_reverts() external {
+    /// @notice Verifies finalizeERC20Withdrawal reverts with unauthorized messenger
+    /// @param _caller Random address that is not the messenger
+    function testFuzz_finalizeERC20Withdrawal_notMessenger_reverts(address _caller) external {
+        vm.assume(_caller != address(l1StandardBridge.messenger()));
+
         vm.mockCall(
             address(l1StandardBridge.messenger()),
             abi.encodeCall(ICrossDomainMessenger.xDomainMessageSender, ()),
             abi.encode(address(l1StandardBridge.OTHER_BRIDGE()))
         );
-        vm.prank(address(28));
         vm.expectRevert("StandardBridge: function can only be called from the other bridge");
+        vm.prank(_caller);
         l1StandardBridge.finalizeERC20Withdrawal(address(L1Token), address(L2Token), alice, alice, 100, hex"");
     }
 
@@ -749,7 +788,7 @@ contract L1StandardBridge_FinalizeERC20Withdrawal_Test is CommonTest {
         vm.mockCall(
             address(l1StandardBridge.messenger()),
             abi.encodeCall(ICrossDomainMessenger.xDomainMessageSender, ()),
-            abi.encode(address(address(0)))
+            abi.encode(address(0))
         );
         vm.prank(address(l1StandardBridge.messenger()));
         vm.expectRevert("StandardBridge: function can only be called from the other bridge");
@@ -757,10 +796,10 @@ contract L1StandardBridge_FinalizeERC20Withdrawal_Test is CommonTest {
     }
 }
 
-/// @title L1StandardBridge_Unclassified_Test
+/// @title L1StandardBridge_Uncategorized_Test
 /// @notice General tests that are not testing any function directly of the `L1StandardBridge`
 ///         contract or are testing multiple functions.
-contract L1StandardBridge_Unclassified_Test is L1StandardBridge_TestInit {
+contract L1StandardBridge_Uncategorized_Test is L1StandardBridge_TestInit {
     /// @notice Test that the accessors return the correct initialized values.
     function test_getters_succeeds() external view {
         assert(l1StandardBridge.l2TokenBridge() == address(l2StandardBridge));

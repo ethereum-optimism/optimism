@@ -4,11 +4,15 @@ import (
 	"testing"
 
 	faultTypes "github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
+	"github.com/ethereum-optimism/optimism/op-devstack/compat"
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
 )
 
 func TestMain(m *testing.M) {
-	presets.DoMain(m, presets.WithMinimal(),
+	presets.DoMain(m,
+		// TODO(infra#401): Re-enable the test when the sysext missing toolset is implemented
+		presets.WithCompatibleTypes(compat.SysGo),
+		presets.WithMinimal(),
 		presets.WithProposerGameType(faultTypes.FastGameType),
 		// Fast game for test
 		presets.WithFastGame(),

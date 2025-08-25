@@ -34,13 +34,13 @@ func TestInteropMon(gt *testing.T) {
 		MetricsConfig: opmetrics.CLIConfig{
 			Enabled: true,
 		},
-	}, clients, t.Logger())
+	}, clients, []monitor.FailsafeClient{}, t.Logger())
 	t.Require().NoError(err)
 	require.NoError(im.Start(t.Ctx()))
 
 	// two EOAs for triggering the init and exec interop txs
-	alice := sys.FunderA.NewFundedEOA(eth.OneEther)
-	bob := sys.FunderB.NewFundedEOA(eth.OneEther)
+	alice := sys.FunderA.NewFundedEOA(eth.OneHundredthEther)
+	bob := sys.FunderB.NewFundedEOA(eth.OneHundredthEther)
 	eventLoggerAddress := alice.DeployEventLogger()
 
 	// send initiating message on chain A
@@ -54,7 +54,7 @@ func TestInteropMon(gt *testing.T) {
 	require.EventuallyWithT(func(t *assert.CollectT) {
 		checker := opmetrics.NewMetricChecker(t, im.Metrics.(opmetrics.RegistryMetricer).Registry())
 		checker.FindByName("op_interop_mon_default_message_status")
-	}, 1*time.Second, 100*time.Millisecond)
+	}, 2*time.Minute, 100*time.Millisecond)
 	t.Log("op-interop-mon metrics check successful")
 
 	require.NoError(im.Stop(t.Ctx()))

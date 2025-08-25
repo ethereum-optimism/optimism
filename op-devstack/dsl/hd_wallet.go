@@ -5,7 +5,9 @@ import (
 	"os"
 	"sync/atomic"
 
+	hdwallet "github.com/ethereum-optimism/go-ethereum-hdwallet"
 	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/devkeys"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
@@ -23,6 +25,12 @@ type HDWallet struct {
 	keys          devkeys.Keys
 	nextUserIndex atomic.Uint64
 	hdWalletName  string
+}
+
+func NewRandomHDWallet(t devtest.T, startIndex uint64) *HDWallet {
+	mnemonic, err := hdwallet.NewMnemonic(256)
+	require.NoError(t, err, "failed to generate mnemonic")
+	return NewHDWallet(t, mnemonic, startIndex)
 }
 
 func NewHDWallet(t devtest.T, mnemonic string, startIndex uint64) *HDWallet {

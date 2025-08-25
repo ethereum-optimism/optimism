@@ -34,6 +34,7 @@ type presetSystem struct {
 
 	supervisors locks.RWMap[stack.SupervisorID, stack.Supervisor]
 	sequencers  locks.RWMap[stack.TestSequencerID, stack.TestSequencer]
+	syncTesters locks.RWMap[stack.SyncTesterID, stack.SyncTester]
 }
 
 var _ stack.ExtensibleSystem = (*presetSystem)(nil)
@@ -118,6 +119,10 @@ func (p *presetSystem) TestSequencer(m stack.TestSequencerMatcher) stack.TestSeq
 
 func (p *presetSystem) AddTestSequencer(v stack.TestSequencer) {
 	p.require().True(p.sequencers.SetIfMissing(v.ID(), v), "sequencer %s must not already exist", v.ID())
+}
+
+func (p *presetSystem) AddSyncTester(v stack.SyncTester) {
+	p.require().True(p.syncTesters.SetIfMissing(v.ID(), v), "sync tester %s must not already exist", v.ID())
 }
 
 func (p *presetSystem) SuperchainIDs() []stack.SuperchainID {

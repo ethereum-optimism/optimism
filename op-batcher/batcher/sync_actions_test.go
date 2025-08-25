@@ -35,9 +35,9 @@ func (tcs testChannelStatuser) isTimedOut() bool {
 
 func TestBatchSubmitter_computeSyncActions(t *testing.T) {
 
-	block101 := types.NewBlockWithHeader(&types.Header{Number: big.NewInt(101)})
-	block102 := types.NewBlockWithHeader(&types.Header{Number: big.NewInt(102)})
-	block103 := types.NewBlockWithHeader(&types.Header{Number: big.NewInt(103)})
+	block101 := SizedBlock{Block: types.NewBlockWithHeader(&types.Header{Number: big.NewInt(101)})}
+	block102 := SizedBlock{Block: types.NewBlockWithHeader(&types.Header{Number: big.NewInt(102)})}
+	block103 := SizedBlock{Block: types.NewBlockWithHeader(&types.Header{Number: big.NewInt(103)})}
 
 	channel103 := testChannelStatuser{
 		latestL2:       eth.ToBlockID(block103),
@@ -46,7 +46,7 @@ func TestBatchSubmitter_computeSyncActions(t *testing.T) {
 		timedOut:       false,
 	}
 
-	block104 := types.NewBlockWithHeader(&types.Header{Number: big.NewInt(104)})
+	block104 := SizedBlock{Block: types.NewBlockWithHeader(&types.Header{Number: big.NewInt(104)})}
 
 	channel104 := testChannelStatuser{
 		latestL2:       eth.ToBlockID(block104),
@@ -63,7 +63,7 @@ func TestBatchSubmitter_computeSyncActions(t *testing.T) {
 		// inputs
 		newSyncStatus eth.SyncStatus
 		prevCurrentL1 eth.L1BlockRef
-		blocks        queue.Queue[*types.Block]
+		blocks        queue.Queue[SizedBlock]
 		channels      []channelStatuser
 		// expectations
 		expected             syncActions
@@ -104,7 +104,7 @@ func TestBatchSubmitter_computeSyncActions(t *testing.T) {
 				UnsafeL2:    eth.L2BlockRef{Number: 109},
 			},
 			prevCurrentL1: eth.BlockRef{Number: 1},
-			blocks:        queue.Queue[*types.Block]{block102, block103}, // note absence of block101
+			blocks:        queue.Queue[SizedBlock]{block102, block103}, // note absence of block101
 			channels:      []channelStatuser{channel103},
 			expected: syncActions{
 				clearState:   &eth.BlockID{Number: 1},
@@ -122,7 +122,7 @@ func TestBatchSubmitter_computeSyncActions(t *testing.T) {
 				UnsafeL2:    eth.L2BlockRef{Number: 109},
 			},
 			prevCurrentL1: eth.BlockRef{Number: 1},
-			blocks:        queue.Queue[*types.Block]{block101, block102, block103},
+			blocks:        queue.Queue[SizedBlock]{block101, block102, block103},
 			channels:      []channelStatuser{channel103},
 			expected: syncActions{
 				clearState:   &eth.BlockID{Number: 1},
@@ -140,7 +140,7 @@ func TestBatchSubmitter_computeSyncActions(t *testing.T) {
 				UnsafeL2:    eth.L2BlockRef{Number: 109},
 			},
 			prevCurrentL1: eth.BlockRef{Number: 1},
-			blocks:        queue.Queue[*types.Block]{block101, block102, block103},
+			blocks:        queue.Queue[SizedBlock]{block101, block102, block103},
 			channels:      []channelStatuser{channel103},
 			expected: syncActions{
 				clearState:   &eth.BlockID{Number: 1},
@@ -158,7 +158,7 @@ func TestBatchSubmitter_computeSyncActions(t *testing.T) {
 				UnsafeL2:    eth.L2BlockRef{Number: 109},
 			},
 			prevCurrentL1: eth.BlockRef{Number: 1},
-			blocks:        queue.Queue[*types.Block]{block101, block102, block103},
+			blocks:        queue.Queue[SizedBlock]{block101, block102, block103},
 			channels:      []channelStatuser{channel103},
 			expected: syncActions{
 				clearState:   &eth.BlockID{Number: 1},
@@ -175,7 +175,7 @@ func TestBatchSubmitter_computeSyncActions(t *testing.T) {
 				UnsafeL2:    eth.L2BlockRef{Number: 101},
 			},
 			prevCurrentL1: eth.BlockRef{Number: 1},
-			blocks:        queue.Queue[*types.Block]{block102, block103},
+			blocks:        queue.Queue[SizedBlock]{block102, block103},
 			channels:      []channelStatuser{channel103},
 			expected: syncActions{
 				clearState: &eth.BlockID{Number: 1},
@@ -194,7 +194,7 @@ func TestBatchSubmitter_computeSyncActions(t *testing.T) {
 				UnsafeL2:    eth.L2BlockRef{Number: 109},
 			},
 			prevCurrentL1: eth.BlockRef{Number: 1},
-			blocks:        queue.Queue[*types.Block]{block101, block102, block103},
+			blocks:        queue.Queue[SizedBlock]{block101, block102, block103},
 			channels:      []channelStatuser{channel103},
 			expected: syncActions{
 				blocksToLoad: &inclusiveBlockRange{104, 109},
@@ -210,7 +210,7 @@ func TestBatchSubmitter_computeSyncActions(t *testing.T) {
 				UnsafeL2:    eth.L2BlockRef{Number: 109},
 			},
 			prevCurrentL1: eth.BlockRef{Number: 1},
-			blocks:        queue.Queue[*types.Block]{},
+			blocks:        queue.Queue[SizedBlock]{},
 			channels:      []channelStatuser{},
 			expected: syncActions{
 				blocksToLoad: &inclusiveBlockRange{104, 109},
@@ -226,7 +226,7 @@ func TestBatchSubmitter_computeSyncActions(t *testing.T) {
 				UnsafeL2:    eth.L2BlockRef{Number: 109},
 			},
 			prevCurrentL1: eth.BlockRef{Number: 1},
-			blocks:        queue.Queue[*types.Block]{block101, block102, block103},
+			blocks:        queue.Queue[SizedBlock]{block101, block102, block103},
 			channels:      []channelStatuser{channel103},
 			expected: syncActions{
 				blocksToPrune:   3,
@@ -243,7 +243,7 @@ func TestBatchSubmitter_computeSyncActions(t *testing.T) {
 				UnsafeL2:    eth.L2BlockRef{Number: 109},
 			},
 			prevCurrentL1: eth.BlockRef{Number: 1},
-			blocks:        queue.Queue[*types.Block]{block101, block102, block103, block104},
+			blocks:        queue.Queue[SizedBlock]{block101, block102, block103, block104},
 			channels:      []channelStatuser{channel103, channel104},
 			expected: syncActions{
 				blocksToPrune:   3,
@@ -260,7 +260,7 @@ func TestBatchSubmitter_computeSyncActions(t *testing.T) {
 				UnsafeL2:    eth.L2BlockRef{Number: 100},
 			},
 			prevCurrentL1: eth.BlockRef{Number: 1},
-			blocks:        queue.Queue[*types.Block]{},
+			blocks:        queue.Queue[SizedBlock]{},
 			channels:      []channelStatuser{},
 			expected:      syncActions{},
 			expectedLogs:  noBlocksLogs,
@@ -273,7 +273,7 @@ func TestBatchSubmitter_computeSyncActions(t *testing.T) {
 				UnsafeL2:    eth.L2BlockRef{Number: 101},
 			},
 			prevCurrentL1: eth.BlockRef{Number: 1},
-			blocks:        queue.Queue[*types.Block]{block101},
+			blocks:        queue.Queue[SizedBlock]{block101},
 			channels:      []channelStatuser{},
 			expected: syncActions{
 				blocksToPrune: 1,
@@ -290,7 +290,7 @@ func TestBatchSubmitter_computeSyncActions(t *testing.T) {
 				UnsafeL2:    eth.L2BlockRef{Number: 109},
 			},
 			prevCurrentL1: eth.BlockRef{Number: 1},
-			blocks:        queue.Queue[*types.Block]{},
+			blocks:        queue.Queue[SizedBlock]{},
 			channels:      []channelStatuser{},
 			expected: syncActions{
 				blocksToLoad: &inclusiveBlockRange{105, 109},
@@ -305,7 +305,7 @@ func TestBatchSubmitter_computeSyncActions(t *testing.T) {
 				UnsafeL2:  eth.L2BlockRef{Number: 109},
 			},
 			prevCurrentL1:        eth.BlockRef{Number: 1},
-			blocks:               queue.Queue[*types.Block]{},
+			blocks:               queue.Queue[SizedBlock]{},
 			channels:             []channelStatuser{},
 			expected:             syncActions{},
 			expectedLogs:         []string{"empty BlockRef in sync status"},

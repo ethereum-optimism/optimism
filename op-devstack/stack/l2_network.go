@@ -63,6 +63,7 @@ func (id L2NetworkID) Match(elems []L2Network) []L2Network {
 type L2Deployment interface {
 	SystemConfigProxyAddr() common.Address
 	DisputeGameFactoryProxyAddr() common.Address
+	L1StandardBridgeProxyAddr() common.Address
 	// Other addresses will be added here later
 }
 
@@ -105,6 +106,8 @@ type L2Network interface {
 	Conductors() []Conductor
 	FlashblocksBuilders() []FlashblocksBuilderNode
 	AddFlashblocksBuilder(v FlashblocksBuilderNode)
+	FlashblocksWebsocketProxies() []FlashblocksWebsocketProxy
+	AddFlashblocksWebsocketProxy(v FlashblocksWebsocketProxy)
 }
 
 // ExtensibleL2Network is an optional extension interface for L2Network,

@@ -17,6 +17,17 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/event"
 )
 
+// EngineController provides direct calls into the EngineController that
+// external components can use instead of emitting events.
+type EngineController interface {
+	// TryUpdatePendingSafe updates the pending safe head if the new reference is newer
+	TryUpdatePendingSafe(ctx context.Context, ref eth.L2BlockRef, concluding bool, source eth.L1BlockRef)
+	// TryUpdateLocalSafe updates the local safe head if the new reference is newer and concluding
+	TryUpdateLocalSafe(ctx context.Context, ref eth.L2BlockRef, concluding bool, source eth.L1BlockRef)
+	// RequestForkchoiceUpdate requests a forkchoice update
+	RequestForkchoiceUpdate(ctx context.Context)
+}
+
 type L2 interface {
 	PayloadByNumber(context.Context, uint64) (*eth.ExecutionPayloadEnvelope, error)
 }
@@ -36,20 +47,37 @@ type AttributesHandler struct {
 
 	attributes     *derive.AttributesWithParent
 	sentAttributes bool
+
+	engineController EngineController
 }
 
-func NewAttributesHandler(log log.Logger, cfg *rollup.Config, ctx context.Context, l2 L2) *AttributesHandler {
+func NewAttributesHandler(log log.Logger, cfg *rollup.Config, ctx context.Context, l2 L2, engController EngineController) *AttributesHandler {
+	if engController == nil {
+		panic("engController cannot be nil")
+	}
 	return &AttributesHandler{
-		log:        log,
-		cfg:        cfg,
-		ctx:        ctx,
-		l2:         l2,
-		attributes: nil,
+		log:              log,
+		cfg:              cfg,
+		ctx:              ctx,
+		l2:               l2,
+		engineController: engController,
+		attributes:       nil,
 	}
 }
 
 func (eq *AttributesHandler) AttachEmitter(em event.Emitter) {
 	eq.emitter = em
+}
+
+func (eq *AttributesHandler) forceResetLocked() {
+	eq.sentAttributes = false
+	eq.attributes = nil
+}
+
+func (eq *AttributesHandler) ForceReset(ctx context.Context, localUnsafe, crossUnsafe, localSafe, crossSafe, finalized eth.L2BlockRef) {
+	eq.mu.Lock()
+	defer eq.mu.Unlock()
+	eq.forceResetLocked()
 }
 
 func (eq *AttributesHandler) OnEvent(ctx context.Context, ev event.Event) bool {
@@ -66,9 +94,8 @@ func (eq *AttributesHandler) OnEvent(ctx context.Context, ev event.Event) bool {
 		eq.emitter.Emit(ctx, derive.ConfirmReceivedAttributesEvent{})
 		// to make sure we have a pre-state signal to process the attributes from
 		eq.emitter.Emit(ctx, engine.PendingSafeRequestEvent{})
-	case rollup.ResetEvent, rollup.ForceResetEvent:
-		eq.sentAttributes = false
-		eq.attributes = nil
+	case rollup.ResetEvent:
+		eq.forceResetLocked()
 	case rollup.EngineTemporaryErrorEvent:
 		eq.sentAttributes = false
 	case engine.InvalidPayloadAttributesEvent:
@@ -200,11 +227,8 @@ func (eq *AttributesHandler) consolidateNextSafeAttributes(attributes *derive.At
 			eq.log.Error("Failed to compute block-ref from execution payload")
 			return
 		}
-		eq.emitter.Emit(eq.ctx, engine.PromotePendingSafeEvent{
-			Ref:        ref,
-			Concluding: attributes.Concluding,
-			Source:     attributes.DerivedFrom,
-		})
+		eq.engineController.TryUpdatePendingSafe(eq.ctx, ref, attributes.Concluding, attributes.DerivedFrom)
+		eq.engineController.TryUpdateLocalSafe(eq.ctx, ref, attributes.Concluding, attributes.DerivedFrom)
 	}
 
 	// unsafe head stays the same, we did not reorg the chain.

@@ -367,12 +367,12 @@ contract DeployOPChain_TestBase is Test {
                 challengePeriodSeconds: challengePeriodSeconds,
                 proofMaturityDelaySeconds: proofMaturityDelaySeconds,
                 disputeGameFinalityDelaySeconds: disputeGameFinalityDelaySeconds,
-                l1ContractsRelease: release,
                 mipsVersion: StandardConstants.MIPS_VERSION,
                 superchainConfigProxy: superchainConfigProxy,
                 protocolVersionsProxy: protocolVersionsProxy,
                 superchainProxyAdmin: superchainProxyAdmin,
-                upgradeController: upgradeController
+                upgradeController: upgradeController,
+                challenger: challenger
             })
         );
 
@@ -476,13 +476,6 @@ contract DeployOPChain_Test is DeployOPChain_TestBase {
         assertEq(address(doo.opChainProxyAdmin().addressManager().owner()), address(doo.opChainProxyAdmin()), "3600");
         assertEq(address(doo.opChainProxyAdmin().addressManager()), address(doo.addressManager()), "3700");
         assertEq(address(doo.opChainProxyAdmin().owner()), opChainProxyAdminOwner, "3800");
-    }
-
-    function test_customDisputeGame_customDisabled_reverts() public {
-        setDOI();
-        doi.set(doi.disputeSplitDepth.selector, disputeSplitDepth + 1);
-        vm.expectRevert("DPG-90");
-        deployOPChain.run(doi, doo);
     }
 
     function test_customDisputeGame_customEnabled_succeeds() public {

@@ -11,7 +11,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/queue"
-	"github.com/ethereum/go-ethereum/core/types"
 )
 
 var (
@@ -66,7 +65,7 @@ type ChannelBuilder struct {
 	// current channel
 	co derive.ChannelOut
 	// list of blocks in the channel. Saved in case the channel must be rebuilt
-	blocks queue.Queue[*types.Block]
+	blocks queue.Queue[SizedBlock]
 	// latestL1Origin is the latest L1 origin of all the L2 blocks that have been added to the channel
 	latestL1Origin eth.BlockID
 	// oldestL1Origin is the oldest L1 origin of all the L2 blocks that have been added to the channel
@@ -136,7 +135,7 @@ func (c *ChannelBuilder) OutputBytes() int {
 
 // Blocks returns a backup list of all blocks that were added to the channel. It
 // can be used in case the channel needs to be rebuilt.
-func (c *ChannelBuilder) Blocks() []*types.Block {
+func (c *ChannelBuilder) Blocks() []SizedBlock {
 	return c.blocks
 }
 
@@ -171,12 +170,12 @@ func (c *ChannelBuilder) OldestL2() eth.BlockID {
 // first transaction for subsequent use by the caller.
 //
 // Call OutputFrames() afterwards to create frames.
-func (c *ChannelBuilder) AddBlock(block *types.Block) (*derive.L1BlockInfo, error) {
+func (c *ChannelBuilder) AddBlock(block SizedBlock) (*derive.L1BlockInfo, error) {
 	if c.IsFull() {
 		return nil, c.FullErr()
 	}
 
-	l1info, err := c.co.AddBlock(c.rollupCfg, block)
+	l1info, err := c.co.AddBlock(c.rollupCfg, block.Block)
 	if errors.Is(err, derive.ErrTooManyRLPBytes) || errors.Is(err, derive.ErrCompressorFull) {
 		c.setFullErr(err)
 		return l1info, c.FullErr()

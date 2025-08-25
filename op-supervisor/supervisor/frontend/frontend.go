@@ -5,6 +5,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/ethereum/go-ethereum/rpc"
 
 	"github.com/ethereum-optimism/optimism/op-service/apis"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
@@ -24,7 +25,14 @@ var _ apis.SupervisorQueryAPI = (*QueryFrontend)(nil)
 
 func (q *QueryFrontend) CheckAccessList(ctx context.Context, inboxEntries []common.Hash,
 	minSafety types.SafetyLevel, executingDescriptor types.ExecutingDescriptor) error {
-	return q.Supervisor.CheckAccessList(ctx, inboxEntries, minSafety, executingDescriptor)
+	err := q.Supervisor.CheckAccessList(ctx, inboxEntries, minSafety, executingDescriptor)
+	if err != nil {
+		return &rpc.JsonError{
+			Code:    types.GetErrorCode(err),
+			Message: err.Error(),
+		}
+	}
+	return nil
 }
 
 func (q *QueryFrontend) LocalUnsafe(ctx context.Context, chainID eth.ChainID) (eth.BlockID, error) {
@@ -88,4 +96,14 @@ func (a *AdminFrontend) AddL2RPC(ctx context.Context, rpc string, jwtSecret eth.
 func (a *AdminFrontend) Rewind(ctx context.Context, chain eth.ChainID, block eth.BlockID) error {
 	// TODO(#15665) add logging here to track when rewinds are requested
 	return a.Supervisor.Rewind(ctx, chain, block)
+}
+
+// SetFailsafeEnabled sets the failsafe mode configuration for the supervisor.
+func (a *AdminFrontend) SetFailsafeEnabled(ctx context.Context, enabled bool) error {
+	return a.Supervisor.SetFailsafeEnabled(ctx, enabled)
+}
+
+// GetFailsafeEnabled gets the current failsafe mode configuration for the supervisor.
+func (a *AdminFrontend) GetFailsafeEnabled(ctx context.Context) (bool, error) {
+	return a.Supervisor.GetFailsafeEnabled(ctx)
 }

@@ -8,7 +8,7 @@ import (
 )
 
 func TestCachedPage(t *testing.T) {
-	p := &CachedPage{Data: new(Page)}
+	p := &CachedPage{Data: make(Page, PageSize)}
 	p.Data[42] = 0xab
 
 	gindex := ((uint64(1) << PageAddrSize) | 42) >> 5

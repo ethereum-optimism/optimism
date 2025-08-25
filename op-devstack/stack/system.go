@@ -45,6 +45,7 @@ type ExtensibleSystem interface {
 	AddL2Network(v L2Network)
 	AddSupervisor(v Supervisor)
 	AddTestSequencer(v TestSequencer)
+	AddSyncTester(v SyncTester)
 }
 
 type TimeTravelClock interface {

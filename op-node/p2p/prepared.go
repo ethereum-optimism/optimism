@@ -92,3 +92,7 @@ func (p *Prepared) Disabled() bool {
 func (p *Prepared) ReqRespSyncEnabled() bool {
 	return p.EnableReqRespSync
 }
+
+func (p *Prepared) GetGossipTimestampThreshold() time.Duration {
+	return 60 * time.Second
+}

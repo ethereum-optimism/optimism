@@ -73,3 +73,18 @@ func TestLoadDependencySetFromRegistry(t *testing.T) {
 	require.NoError(t, err)
 	require.True(t, depSet.HasChain(eth.ChainIDFromUInt64(chainID)))
 }
+
+func TestCheckConfigFilenames(t *testing.T) {
+	err := checkConfigFilenames(test.TestCustomChainConfigFS, "configs")
+	require.NoError(t, err)
+}
+
+func TestCheckConfigFilenames_Missing(t *testing.T) {
+	err := checkConfigFilenames(test.TestCustomChainConfigEmptyFS, "configs_empty")
+	require.NoError(t, err)
+}
+
+func TestCheckConfigFilenames_Invalid(t *testing.T) {
+	err := checkConfigFilenames(test.TestCustomChainConfigTypoFS, "configs_typo")
+	require.ErrorContains(t, err, "invalid config file name: genesis-l2-901.json")
+}

@@ -7,6 +7,7 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 
 	altda "github.com/ethereum-optimism/optimism/op-alt-da"
+	opnodemetrics "github.com/ethereum-optimism/optimism/op-node/metrics"
 	"github.com/ethereum-optimism/optimism/op-node/metrics/metered"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/async"
@@ -51,7 +52,7 @@ type Metrics interface {
 
 	RecordL1ReorgDepth(d uint64)
 
-	engine.Metrics
+	opnodemetrics.Metricer
 	metered.L1FetcherMetrics
 	event.Metrics
 	sequencing.Metrics
@@ -82,7 +83,6 @@ type EngineController interface {
 	engine.LocalEngineControl
 	IsEngineSyncing() bool
 	InsertUnsafePayload(ctx context.Context, payload *eth.ExecutionPayloadEnvelope, ref eth.L2BlockRef) error
-	TryUpdateEngine(ctx context.Context) error
 	TryBackupUnsafeReorg(ctx context.Context) (bool, error)
 }
 
@@ -103,6 +103,7 @@ type AttributesHandler interface {
 
 type Finalizer interface {
 	FinalizedL1() eth.L1BlockRef
+	OnL1Finalized(x eth.L1BlockRef)
 	event.Deriver
 }
 
@@ -119,6 +120,9 @@ type SyncStatusTracker interface {
 	event.Deriver
 	SyncStatus() *eth.SyncStatus
 	L1Head() eth.L1BlockRef
+	OnL1Unsafe(x eth.L1BlockRef)
+	OnL1Safe(x eth.L1BlockRef)
+	OnL1Finalized(x eth.L1BlockRef)
 }
 
 type Network interface {
@@ -182,18 +186,19 @@ func NewDriver(
 	sys.Register("status", statusTracker)
 
 	l1Tracker := status.NewL1Tracker(l1)
-	sys.Register("l1-blocks", l1Tracker)
 
 	l1 = metered.NewMeteredL1Fetcher(l1Tracker, metrics)
 	verifConfDepth := confdepth.NewConfDepth(driverCfg.VerifierConfDepth, statusTracker.L1Head, l1)
 
-	ec := engine.NewEngineController(l2, log, metrics, cfg, syncCfg,
-		sys.Register("engine-controller", nil))
+	ec := engine.NewEngineController(driverCtx, l2, log, metrics, cfg, syncCfg, sys.Register("engine-controller", nil))
+	// TODO(#17115): Refactor dependency cycles
+	ec.SetCrossUpdateHandler(statusTracker)
 
-	sys.Register("engine-reset",
-		engine.NewEngineResetDeriver(driverCtx, log, cfg, l1, l2, syncCfg))
+	engineReset := engine.NewEngineResetDeriver(driverCtx, log, cfg, l1, l2, syncCfg)
+	engineReset.SetEngController(ec)
+	sys.Register("engine-reset", engineReset)
 
-	clSync := clsync.NewCLSync(log, cfg, metrics) // alt-sync still uses cl-sync state to determine what to sync to
+	clSync := clsync.NewCLSync(log, cfg, metrics, ec) // alt-sync still uses cl-sync state to determine what to sync to
 	sys.Register("cl-sync", clSync)
 
 	var finalizer Finalizer
@@ -204,13 +209,20 @@ func NewDriver(
 	}
 	sys.Register("finalizer", finalizer)
 
-	sys.Register("attributes-handler",
-		attributes.NewAttributesHandler(log, cfg, driverCtx, l2))
+	attrHandler := attributes.NewAttributesHandler(log, cfg, driverCtx, l2, ec)
+	sys.Register("attributes-handler", attrHandler)
 
 	derivationPipeline := derive.NewDerivationPipeline(log, cfg, depSet, verifConfDepth, l1Blobs, altDA, l2, metrics, indexingMode)
 
-	sys.Register("pipeline",
-		derive.NewPipelineDeriver(driverCtx, derivationPipeline))
+	pipelineDeriver := derive.NewPipelineDeriver(driverCtx, derivationPipeline)
+	sys.Register("pipeline", pipelineDeriver)
+
+	// Connect components that need force reset notifications to the engine controller
+	ec.SetAttributesResetter(attrHandler)
+	ec.SetPipelineResetter(pipelineDeriver)
+
+	schedDeriv := NewStepSchedulingDeriver(log)
+	sys.Register("step-scheduler", schedDeriv)
 
 	syncDeriver := &SyncDeriver{
 		Derivation:          derivationPipeline,
@@ -220,17 +232,19 @@ func NewDriver(
 		SyncCfg:             syncCfg,
 		Config:              cfg,
 		L1:                  l1,
+		L1Tracker:           l1Tracker,
 		L2:                  l2,
 		Log:                 log,
 		Ctx:                 driverCtx,
 		ManagedBySupervisor: indexingMode,
+		StepDeriver:         schedDeriv,
 	}
+	// TODO(#16917) Remove Event System Refactor Comments
+	//  Couple SyncDeriver and EngineController for event refactoring
+	//  Couple EngDeriver and NewAttributesHandler for event refactoring
+	ec.SyncDeriver = syncDeriver
 	sys.Register("sync", syncDeriver)
-
-	sys.Register("engine", engine.NewEngDeriver(log, driverCtx, cfg, metrics, ec))
-
-	schedDeriv := NewStepSchedulingDeriver(log)
-	sys.Register("step-scheduler", schedDeriv)
+	sys.Register("engine", ec)
 
 	var sequencer sequencing.SequencerIface
 	if driverCfg.SequencerEnabled {
@@ -239,8 +253,12 @@ func NewDriver(
 		sequencerConfDepth := confdepth.NewConfDepth(driverCfg.SequencerConfDepth, statusTracker.L1Head, l1)
 		findL1Origin := sequencing.NewL1OriginSelector(driverCtx, log, cfg, sequencerConfDepth)
 		sys.Register("origin-selector", findL1Origin)
+
+		// Connect origin selector to the engine controller for force reset notifications
+		ec.SetOriginSelectorResetter(findL1Origin)
+
 		sequencer = sequencing.NewSequencer(driverCtx, log, cfg, attrBuilder, findL1Origin,
-			sequencerStateListener, sequencerConductor, asyncGossiper, metrics)
+			sequencerStateListener, sequencerConductor, asyncGossiper, metrics, ec)
 		sys.Register("sequencer", sequencer)
 	} else {
 		sequencer = sequencing.DisabledSequencer{}
@@ -248,7 +266,8 @@ func NewDriver(
 
 	driverEmitter := sys.Register("driver", nil)
 	driver := &Driver{
-		statusTracker: statusTracker,
+		StatusTracker: statusTracker,
+		Finalizer:     finalizer,
 		SyncDeriver:   syncDeriver,
 		sched:         schedDeriv,
 		emitter:       driverEmitter,

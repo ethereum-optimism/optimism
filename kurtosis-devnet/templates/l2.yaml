@@ -14,6 +14,7 @@ network_params:
   granite_time_offset: 0
   holocene_time_offset: 0
   isthmus_time_offset: 0
+  jovian_time_offset: 0
   interop_time_offset: 0
   fund_dev_accounts: true
 batcher_params:

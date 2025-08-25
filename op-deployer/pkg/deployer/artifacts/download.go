@@ -2,7 +2,6 @@ package artifacts
 
 import (
 	"archive/tar"
-	"bufio"
 	"bytes"
 	"compress/gzip"
 	"context"
@@ -15,11 +14,11 @@ import (
 	"net/url"
 	"os"
 	"path"
-	"strings"
 	"sync"
 
+	"github.com/ethereum-optimism/optimism/op-service/ioutil"
+
 	"github.com/ethereum-optimism/optimism/op-chain-ops/foundry"
-	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/standard"
 )
 
 var ErrUnsupportedArtifactsScheme = errors.New("unsupported artifacts URL scheme")
@@ -37,25 +36,9 @@ func Download(ctx context.Context, loc *Locator, progressor DownloadProgressor, 
 		progressor = NoopProgressor()
 	}
 
-	var u *url.URL
 	var err error
-	var checker integrityChecker
-	if loc.IsTag() {
-		u, err = standard.ArtifactsURLForTag(loc.Tag)
-		if err != nil {
-			return nil, fmt.Errorf("failed to get standard artifacts URL for tag %s: %w", loc.Tag, err)
-		}
-
-		hash, err := standard.ArtifactsHashForTag(loc.Tag)
-		if err != nil {
-			return nil, fmt.Errorf("failed to get standard artifacts hash for tag %s: %w", loc.Tag, err)
-		}
-
-		checker = &hashIntegrityChecker{hash: hash}
-	} else {
-		u = loc.URL
-		checker = new(noopIntegrityChecker)
-	}
+	u := loc.URL
+	checker := new(noopIntegrityChecker)
 
 	var artifactsFS fs.FS
 	switch u.Scheme {
@@ -66,6 +49,11 @@ func Download(ctx context.Context, loc *Locator, progressor DownloadProgressor, 
 		}
 	case "file":
 		artifactsFS = os.DirFS(u.Path)
+	case "embedded":
+		artifactsFS, err = ExtractEmbedded(targetDir)
+		if err != nil {
+			return nil, fmt.Errorf("failed to extract embedded artifacts: %w", err)
+		}
 	default:
 		return nil, ErrUnsupportedArtifactsScheme
 	}
@@ -175,47 +163,9 @@ func (e *TarballExtractor) Extract(src string, dest string) error {
 	defer gzr.Close()
 
 	tr := tar.NewReader(gzr)
-	if err := untar(dest, tr); err != nil {
+	if err := ioutil.Untar(dest, tr); err != nil {
 		return fmt.Errorf("failed to untar: %w", err)
 	}
 
 	return nil
-}
-
-func untar(dir string, tr *tar.Reader) error {
-	for {
-		hdr, err := tr.Next()
-		if err == io.EOF {
-			return nil
-		}
-		if err != nil {
-			return fmt.Errorf("failed to read tar header: %w", err)
-		}
-
-		cleanedName := path.Clean(hdr.Name)
-		if strings.Contains(cleanedName, "..") {
-			return fmt.Errorf("invalid file path: %s", hdr.Name)
-		}
-		dst := path.Join(dir, cleanedName)
-		if hdr.FileInfo().IsDir() {
-			if err := os.MkdirAll(dst, 0o755); err != nil {
-				return fmt.Errorf("failed to create directory: %w", err)
-			}
-			continue
-		}
-
-		f, err := os.Create(dst)
-		buf := bufio.NewWriter(f)
-		if err != nil {
-			return fmt.Errorf("failed to create file: %w", err)
-		}
-		if _, err := io.Copy(buf, tr); err != nil {
-			_ = f.Close()
-			return fmt.Errorf("failed to write file: %w", err)
-		}
-		if err := buf.Flush(); err != nil {
-			return fmt.Errorf("failed to flush buffer: %w", err)
-		}
-		_ = f.Close()
-	}
 }

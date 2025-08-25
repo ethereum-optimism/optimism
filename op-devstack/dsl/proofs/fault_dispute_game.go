@@ -59,8 +59,10 @@ func (g *FaultDisputeGame) Attack(eoa *dsl.EOA, claimIdx int64, newClaim common.
 	newPosition := claim.Position.Attack().ToGIndex()
 	requiredBond := contract.Read(g.game.GetRequiredBond((*bindings.Uint128)(newPosition)))
 
-	receipt := contract.Write(eoa, g.game.Attack(claim.Value, big.NewInt(claimIdx), newClaim), txplan.WithValue(requiredBond))
-	g.require.Equal(types.ReceiptStatusSuccessful, receipt.Status)
+	attackCall := g.game.Attack(claim.Value, big.NewInt(claimIdx), newClaim)
+
+	receipt := contract.Write(eoa, attackCall, txplan.WithValue(requiredBond), txplan.WithGasRatio(2))
+	g.t.Require().Equal(receipt.Status, types.ReceiptStatusSuccessful)
 }
 
 func (g *FaultDisputeGame) newClaim(claimIndex int64, claim bindings.Claim) *Claim {
@@ -72,12 +74,14 @@ func (g *FaultDisputeGame) claimAtIndex(claimIndex int64) bindings.Claim {
 }
 
 func (g *FaultDisputeGame) allClaims() []bindings.Claim {
-	// TODO(#15948) - do we need to batch these? See: op-service/sources/batching.ReadArray
-	claimCount := contract.Read(g.game.ClaimDataLen())
+	allClaimData := contract.ReadArray(g.game.ClaimDataLen(), func(i *big.Int) bindings.TypedCall[bindings.ClaimData] {
+		return g.game.ClaimData(i)
+	})
+
+	// Decode claims
 	var claims []bindings.Claim
-	for i := int64(0); i < claimCount.Int64(); i++ {
-		claim := g.claimAtIndex(i)
-		claims = append(claims, claim)
+	for _, claimData := range allClaimData {
+		claims = append(claims, claimData.Decode())
 	}
 
 	return claims

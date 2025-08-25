@@ -47,7 +47,7 @@ var excludeSourceContracts = []string{
 	"TransferOnion", "AssetReceiver", "AdminFaucetAuthModule", "CheckSecrets", "CheckBalanceLow", "CheckTrue", "Drippie", "Transactor", "Faucet",
 
 	// Errors because they should be in their own contracts but are in a shared one
-	"OPContractsManagerDeployer", "OPContractsManagerUpgrader", "OPContractsManagerBase", "OPContractsManagerInteropMigrator", "OPContractsManagerContractsContainer", "OPContractsManagerGameTypeAdder",
+	"OPContractsManagerDeployer", "OPContractsManagerUpgrader", "OPContractsManagerBase", "OPContractsManagerInteropMigrator", "OPContractsManagerContractsContainer", "OPContractsManagerGameTypeAdder", "OPContractsManagerStandardValidator",
 
 	// FIXME
 	"WETH", "MIPS64",

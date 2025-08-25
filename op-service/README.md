@@ -28,6 +28,7 @@ Pull requests: [monorepo](https://github.com/ethereum-optimism/optimism/pulls?q=
 ├── jsonutil        - JSON encoding/decoding utils
 ├── locks           - Lock utils, like read-write wrapped types
 ├── log             - Logging CLI and middleware utils
+├── logpipe         - Logs streaming from io.Reader to logger
 ├── logfilter       - Logging filters
 ├── logmods         - Log handler wrapping/unwrapping utils
 ├── metrics         - Metrics types, metering abstractions, server utils

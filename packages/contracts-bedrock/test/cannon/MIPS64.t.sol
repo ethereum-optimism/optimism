@@ -6,7 +6,7 @@ import { Test } from "forge-std/Test.sol";
 import { DeployUtils } from "scripts/libraries/DeployUtils.sol";
 import { UnsupportedStateVersion } from "src/cannon/libraries/CannonErrors.sol";
 import { IPreimageOracle } from "interfaces/cannon/IPreimageOracle.sol";
-import { IMIPS2 } from "interfaces/cannon/IMIPS2.sol";
+import { IMIPS64 } from "interfaces/cannon/IMIPS64.sol";
 
 /// @title MIPS64_TestInit
 /// @notice Reusable test initialization for `MIPS64` tests.
@@ -39,11 +39,11 @@ contract MIPS64_TestInit is Test {
     }
 
     /// @notice Deploys new MIPS64 contract with the given version parameter.
-    function deployVm(uint256 version) internal returns (IMIPS2) {
-        return IMIPS2(
+    function deployVm(uint256 version) internal returns (IMIPS64) {
+        return IMIPS64(
             DeployUtils.create1({
                 _name: "MIPS64",
-                _args: DeployUtils.encodeConstructor(abi.encodeCall(IMIPS2.__constructor__, (oracle, version)))
+                _args: DeployUtils.encodeConstructor(abi.encodeCall(IMIPS64.__constructor__, (oracle, version)))
             })
         );
     }
@@ -57,7 +57,7 @@ contract MIPS64_Unclassified_Test is MIPS64_TestInit {
     function test_deploy_supportedVersions_succeeds() external {
         for (uint256 i = 0; i < validVersions.length; i++) {
             uint256 version = validVersions[i];
-            IMIPS2 mips = deployVm(version);
+            IMIPS64 mips = deployVm(version);
             assertNotEq(address(mips), address(0));
         }
     }
