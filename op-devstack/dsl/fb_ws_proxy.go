@@ -70,8 +70,14 @@ func websocketListenFor(logger log.Logger, wsURL string, headers http.Header, du
 		logger.Error("WebSocket connection failed", "url", wsURL, "error", err)
 		if resp != nil {
 			logger.Error("HTTP response details", "status", resp.Status, "headers", resp.Header)
+			resp.Body.Close()
 		}
 		return fmt.Errorf("failed to connect to Flashblocks WebSocket endpoint %s: %w", wsURL, err)
+	}
+
+	// Always close the response body to prevent resource leaks
+	if resp != nil {
+		defer resp.Body.Close()
 	}
 	defer conn.Close()
 
