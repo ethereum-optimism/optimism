@@ -47,6 +47,8 @@ func (c *FlashblocksWebsocketProxy) ListenFor(logger log.Logger, duration time.D
 	return websocketListenFor(logger, wsURL, headers, duration, output, done)
 }
 
+// TODO(#986): Revamp this function so that it's more robust,
+// easier to use in tests and handles errors more gracefully
 func websocketListenFor(logger log.Logger, wsURL string, headers http.Header, duration time.Duration, output chan<- []byte, done chan<- struct{}) error {
 	defer close(done)
 	logger.Debug("Testing WebSocket connection to", "url", wsURL, "headers", headers)
@@ -64,6 +66,7 @@ func websocketListenFor(logger log.Logger, wsURL string, headers http.Header, du
 		HandshakeTimeout: 6 * time.Second,
 	}
 
+	// Always close the response body to prevent resource leaks
 	logger.Debug("Attempting WebSocket connection", "url", wsURL)
 	conn, resp, err := dialer.Dial(wsURL, headers)
 	if err != nil {
@@ -75,7 +78,6 @@ func websocketListenFor(logger log.Logger, wsURL string, headers http.Header, du
 		return fmt.Errorf("failed to connect to Flashblocks WebSocket endpoint %s: %w", wsURL, err)
 	}
 
-	// Always close the response body to prevent resource leaks
 	if resp != nil {
 		defer resp.Body.Close()
 	}
