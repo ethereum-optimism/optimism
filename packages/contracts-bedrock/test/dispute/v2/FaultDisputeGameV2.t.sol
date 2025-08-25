@@ -462,7 +462,7 @@ contract FaultDisputeGameV2_Initialize_Test is FaultDisputeGameV2_TestInit {
 
         Claim claim = _dummyClaim();
         /// We actually never reach the BadExtraData selector because it shifts the arg layout
-        vm.expectRevert();
+        vm.expectRevert(bytes(""));
         gameProxy = IFaultDisputeGameV2(
             payable(address(disputeGameFactory.create{ value: initBond }(GAME_TYPE, claim, _extraData)))
         );
