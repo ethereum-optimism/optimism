@@ -50,28 +50,14 @@ func TestBackend(t *testing.T) {
 	logger := testlog.Logger(t, log.LevelInfo)
 
 	syncTesterCfgA := &stconf.SyncTesterEntry{
-		ELRPC: endpoint.MustRPC{Value: endpoint.URL("http://" + srv.Endpoint())},
-		Cfg: stconf.EntryCfg{
-			ChainID: eth.ChainIDFromUInt64(1),
-			Target: sttypes.FCUState{
-				Latest:    100,
-				Safe:      90,
-				Finalized: 80,
-			},
-		},
+		ELRPC:   endpoint.MustRPC{Value: endpoint.URL("http://" + srv.Endpoint())},
+		ChainID: eth.ChainIDFromUInt64(1),
 	}
 	syncTesterA := sttypes.SyncTesterID("syncTesterA")
 
 	syncTesterCfgB := &stconf.SyncTesterEntry{
-		ELRPC: endpoint.MustRPC{Value: endpoint.URL("http://" + srv.Endpoint())},
-		Cfg: stconf.EntryCfg{
-			ChainID: eth.ChainIDFromUInt64(2),
-			Target: sttypes.FCUState{
-				Latest:    101,
-				Safe:      91,
-				Finalized: 81,
-			},
-		},
+		ELRPC:   endpoint.MustRPC{Value: endpoint.URL("http://" + srv.Endpoint())},
+		ChainID: eth.ChainIDFromUInt64(2),
 	}
 	syncTesterB := sttypes.SyncTesterID("syncTesterB")
 

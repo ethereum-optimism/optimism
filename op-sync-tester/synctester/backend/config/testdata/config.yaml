@@ -1,9 +1,4 @@
 synctesters:
   local:
-    cfg:
-      chain_id: 1234
-      target:
-        latest: 10
-        safe: 20
-        finalized: 30
+    chain_id: 1234
     el_rpc: https://localhost:8545

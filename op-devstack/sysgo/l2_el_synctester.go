@@ -9,7 +9,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-devstack/stack"
 	"github.com/ethereum-optimism/optimism/op-devstack/stack/match"
 	"github.com/ethereum-optimism/optimism/op-service/client"
-	"github.com/ethereum-optimism/optimism/op-sync-tester/synctester"
 	sttypes "github.com/ethereum-optimism/optimism/op-sync-tester/synctester/backend/types"
 )
 
@@ -28,9 +27,6 @@ type SyncTesterEL struct {
 	clNodeID stack.L2CLNodeID
 	fcuState sttypes.FCUState
 	p        devtest.P
-
-	// Internal sync tester service
-	service *synctester.Service
 
 	// Reference to the orchestrator to find the EL node to connect to
 	orch *Orchestrator
