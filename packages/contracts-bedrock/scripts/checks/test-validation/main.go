@@ -351,6 +351,7 @@ var excludedPaths = []string{
 	// These naming inconsistencies may indicate the presence of specialized test
 	// infrastructure beyond standard harnesses or different setup contracts patterns.
 	"test/dispute/FaultDisputeGame.t.sol",               // Contains contracts not matching FaultDisputeGame base name
+	"test/dispute/v2/FaultDisputeGameV2.t.sol",          // Contains contracts not matching FaultDisputeGameV2 base name
 	"test/dispute/SuperFaultDisputeGame.t.sol",          // Contains contracts not matching SuperFaultDisputeGame base name
 	"test/L1/ResourceMetering.t.sol",                    // Contains contracts not matching ResourceMetering base name
 	"test/L1/OPContractsManagerStandardValidator.t.sol", // Contains contracts not matching OPContractsManagerStandardValidator base name
