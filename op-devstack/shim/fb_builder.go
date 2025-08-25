@@ -1,6 +1,8 @@
 package shim
 
 import (
+	"net/http"
+
 	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum-optimism/optimism/op-devstack/stack"
@@ -10,9 +12,10 @@ import (
 
 type FlashblocksBuilderNodeConfig struct {
 	ELNodeConfig
-	ID               stack.FlashblocksBuilderID
-	Conductor        stack.Conductor
-	FlashblocksWsUrl string
+	ID                   stack.FlashblocksBuilderID
+	Conductor            stack.Conductor
+	FlashblocksWsUrl     string
+	FlashblocksWsHeaders http.Header
 }
 
 type flashblocksBuilderNode struct {
@@ -22,7 +25,8 @@ type flashblocksBuilderNode struct {
 	id        stack.FlashblocksBuilderID
 	conductor stack.Conductor
 
-	flashblocksWsUrl string
+	flashblocksWsUrl     string
+	flashblocksWsHeaders http.Header
 }
 
 var _ stack.FlashblocksBuilderNode = (*flashblocksBuilderNode)(nil)
@@ -34,11 +38,12 @@ func NewFlashblocksBuilderNode(cfg FlashblocksBuilderNodeConfig) stack.Flashbloc
 	require.NoError(cfg.T, err)
 
 	return &flashblocksBuilderNode{
-		rpcELNode:        newRpcELNode(cfg.ELNodeConfig),
-		l2Client:         l2Client,
-		id:               cfg.ID,
-		conductor:        cfg.Conductor,
-		flashblocksWsUrl: cfg.FlashblocksWsUrl,
+		rpcELNode:            newRpcELNode(cfg.ELNodeConfig),
+		l2Client:             l2Client,
+		id:                   cfg.ID,
+		conductor:            cfg.Conductor,
+		flashblocksWsUrl:     cfg.FlashblocksWsUrl,
+		flashblocksWsHeaders: cfg.FlashblocksWsHeaders,
 	}
 }
 
@@ -56,4 +61,8 @@ func (r *flashblocksBuilderNode) L2EthClient() apis.L2EthClient {
 
 func (r *flashblocksBuilderNode) FlashblocksWsUrl() string {
 	return r.flashblocksWsUrl
+}
+
+func (r *flashblocksBuilderNode) FlashblocksWsHeaders() http.Header {
+	return r.flashblocksWsHeaders
 }

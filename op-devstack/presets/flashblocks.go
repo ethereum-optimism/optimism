@@ -26,8 +26,7 @@ func WithSimpleFlashblocks() stack.CommonOption {
 	return stack.Combine(
 		stack.MakeCommon(sysgo.DefaultMinimalSystem(&sysgo.DefaultMinimalSystemIDs{})),
 		// TODO(#16450): add sysgo support for flashblocks
-		// TODO(#16514): add kurtosis support for flashblocks
-		WithCompatibleTypes(compat.Persistent),
+		WithCompatibleTypes(compat.Persistent, compat.Kurtosis),
 	)
 }
 

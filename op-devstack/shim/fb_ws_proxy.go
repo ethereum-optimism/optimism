@@ -1,20 +1,24 @@
 package shim
 
 import (
+	"net/http"
+
 	"github.com/ethereum-optimism/optimism/op-devstack/stack"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
 
 type FlashblocksWebsocketProxyConfig struct {
 	CommonConfig
-	ID    stack.FlashblocksWebsocketProxyID
-	WsUrl string
+	ID        stack.FlashblocksWebsocketProxyID
+	WsUrl     string
+	WsHeaders http.Header
 }
 
 type flashblocksWebsocketProxy struct {
 	commonImpl
-	id    stack.FlashblocksWebsocketProxyID
-	wsUrl string
+	id        stack.FlashblocksWebsocketProxyID
+	wsUrl     string
+	wsHeaders http.Header
 }
 
 var _ stack.FlashblocksWebsocketProxy = (*flashblocksWebsocketProxy)(nil)
@@ -25,6 +29,7 @@ func NewFlashblocksWebsocketProxy(cfg FlashblocksWebsocketProxyConfig) stack.Fla
 		commonImpl: newCommon(cfg.CommonConfig),
 		id:         cfg.ID,
 		wsUrl:      cfg.WsUrl,
+		wsHeaders:  cfg.WsHeaders,
 	}
 }
 
@@ -38,4 +43,8 @@ func (r *flashblocksWebsocketProxy) ChainID() eth.ChainID {
 
 func (r *flashblocksWebsocketProxy) WsUrl() string {
 	return r.wsUrl
+}
+
+func (r *flashblocksWebsocketProxy) WsHeaders() http.Header {
+	return r.wsHeaders
 }

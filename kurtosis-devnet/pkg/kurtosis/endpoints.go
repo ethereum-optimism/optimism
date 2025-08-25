@@ -182,6 +182,15 @@ func (f *ServiceFinder) triageByLabels(svc *inspect.Service, name string, endpoi
 	if !ok {
 		return nil
 	}
+
+	// So that we can have the same behaviour as netchef
+	if (tag == "flashblocks-websocket-proxy") && endpoints != nil {
+		if _, has := endpoints["ws-flashblocks"]; !has {
+			if ws, ok := endpoints["ws"]; ok {
+				endpoints["ws-flashblocks"] = ws
+			}
+		}
+	}
 	network_ids := f.getNetworkIDs(svc)
 	idx := -1
 	if val, ok := svc.Labels[nodeIndexLabel]; ok {
