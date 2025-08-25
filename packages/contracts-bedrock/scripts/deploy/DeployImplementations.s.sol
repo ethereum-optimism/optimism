@@ -192,23 +192,15 @@ contract DeployImplementations is Script {
         // forgefmt: disable-start
         IOPContractsManager.Blueprints memory blueprints;
         vm.startBroadcast(msg.sender);
-        address checkAddress;
-        (blueprints.addressManager, checkAddress) = DeployUtils.createDeterministicBlueprint(vm.getCode("AddressManager"), _salt);
-        require(checkAddress == address(0), "OPCM-10");
-        (blueprints.proxy, checkAddress) = DeployUtils.createDeterministicBlueprint(vm.getCode("Proxy"), _salt);
-        require(checkAddress == address(0), "OPCM-20");
-        (blueprints.proxyAdmin, checkAddress) = DeployUtils.createDeterministicBlueprint(vm.getCode("ProxyAdmin"), _salt);
-        require(checkAddress == address(0), "OPCM-30");
-        (blueprints.l1ChugSplashProxy, checkAddress) = DeployUtils.createDeterministicBlueprint(vm.getCode("L1ChugSplashProxy"), _salt);
-        require(checkAddress == address(0), "OPCM-40");
-        (blueprints.resolvedDelegateProxy, checkAddress) = DeployUtils.createDeterministicBlueprint(vm.getCode("ResolvedDelegateProxy"), _salt);
-        require(checkAddress == address(0), "OPCM-50");
-        // The max initcode/runtimecode size is 48KB/24KB.
-        // But for Blueprint, the initcode is stored as runtime code, that's why it's necessary to split into 2 parts.
-        (blueprints.permissionedDisputeGame1, blueprints.permissionedDisputeGame2) = DeployUtils.createDeterministicBlueprint(vm.getCode("PermissionedDisputeGame"), _salt);
-        (blueprints.permissionlessDisputeGame1, blueprints.permissionlessDisputeGame2) = DeployUtils.createDeterministicBlueprint(vm.getCode("FaultDisputeGame"), _salt);
-        (blueprints.superPermissionedDisputeGame1, blueprints.superPermissionedDisputeGame2) = DeployUtils.createDeterministicBlueprint(vm.getCode("SuperPermissionedDisputeGame"), _salt);
-        (blueprints.superPermissionlessDisputeGame1, blueprints.superPermissionlessDisputeGame2) = DeployUtils.createDeterministicBlueprint(vm.getCode("SuperFaultDisputeGame"), _salt);
+        blueprints.addressManager = DeployUtils.createDeterministicBlueprint(vm.getCode("AddressManager"), _salt);
+        blueprints.proxy = DeployUtils.createDeterministicBlueprint(vm.getCode("Proxy"), _salt);
+        blueprints.proxyAdmin = DeployUtils.createDeterministicBlueprint(vm.getCode("ProxyAdmin"), _salt);
+        blueprints.l1ChugSplashProxy = DeployUtils.createDeterministicBlueprint(vm.getCode("L1ChugSplashProxy"), _salt);
+        blueprints.resolvedDelegateProxy = DeployUtils.createDeterministicBlueprint(vm.getCode("ResolvedDelegateProxy"), _salt);
+        blueprints.permissionedDisputeGame = DeployUtils.createDeterministicBlueprint(vm.getCode("PermissionedDisputeGame"), _salt);
+        blueprints.permissionlessDisputeGame = DeployUtils.createDeterministicBlueprint(vm.getCode("FaultDisputeGame"), _salt);
+        blueprints.superPermissionedDisputeGame = DeployUtils.createDeterministicBlueprint(vm.getCode("SuperPermissionedDisputeGame"), _salt);
+        blueprints.superPermissionlessDisputeGame = DeployUtils.createDeterministicBlueprint(vm.getCode("SuperFaultDisputeGame"), _salt);
         // forgefmt: disable-end
         vm.stopBroadcast();
 

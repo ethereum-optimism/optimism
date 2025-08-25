@@ -179,14 +179,10 @@ interface IOPContractsManager {
         address proxyAdmin;
         address l1ChugSplashProxy;
         address resolvedDelegateProxy;
-        address permissionedDisputeGame1;
-        address permissionedDisputeGame2;
-        address permissionlessDisputeGame1;
-        address permissionlessDisputeGame2;
-        address superPermissionedDisputeGame1;
-        address superPermissionedDisputeGame2;
-        address superPermissionlessDisputeGame1;
-        address superPermissionlessDisputeGame2;
+        address permissionedDisputeGame;
+        address permissionlessDisputeGame;
+        address superPermissionedDisputeGame;
+        address superPermissionlessDisputeGame;
     }
 
     /// @notice The latest implementation contracts for the OP Stack.

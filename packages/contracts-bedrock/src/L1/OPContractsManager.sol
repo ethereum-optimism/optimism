@@ -393,10 +393,9 @@ contract OPContractsManagerGameTypeAdder is OPContractsManagerBase {
                 outputs[i].delayedWETH = gameConfig.delayedWETH;
             }
 
-            // Determine the contract name and blueprints for the game type.
+            // Determine the contract name and blueprint for the game type.
             string memory gameContractName;
             address blueprint1;
-            address blueprint2;
             uint256 gameL2ChainId;
 
             // Separate context to avoid stack too deep.
@@ -404,26 +403,22 @@ contract OPContractsManagerGameTypeAdder is OPContractsManagerBase {
                 // Grab the blueprints once since we'll need it multiple times below.
                 OPContractsManager.Blueprints memory bps = getBlueprints();
 
-                // Determine the contract name and blueprints for the game type.
+                // Determine the contract name and blueprint for the game type.
                 if (gameConfig.disputeGameType.raw() == GameTypes.CANNON.raw()) {
                     gameContractName = "FaultDisputeGame";
-                    blueprint1 = bps.permissionlessDisputeGame1;
-                    blueprint2 = bps.permissionlessDisputeGame2;
+                    blueprint1 = bps.permissionlessDisputeGame;
                     gameL2ChainId = l2ChainId;
                 } else if (gameConfig.disputeGameType.raw() == GameTypes.PERMISSIONED_CANNON.raw()) {
                     gameContractName = "PermissionedDisputeGame";
-                    blueprint1 = bps.permissionedDisputeGame1;
-                    blueprint2 = bps.permissionedDisputeGame2;
+                    blueprint1 = bps.permissionedDisputeGame;
                     gameL2ChainId = l2ChainId;
                 } else if (gameConfig.disputeGameType.raw() == GameTypes.SUPER_CANNON.raw()) {
                     gameContractName = "SuperFaultDisputeGame";
-                    blueprint1 = bps.superPermissionlessDisputeGame1;
-                    blueprint2 = bps.superPermissionlessDisputeGame2;
+                    blueprint1 = bps.superPermissionlessDisputeGame;
                     gameL2ChainId = 0;
                 } else if (gameConfig.disputeGameType.raw() == GameTypes.SUPER_PERMISSIONED_CANNON.raw()) {
                     gameContractName = "SuperPermissionedDisputeGame";
-                    blueprint1 = bps.superPermissionedDisputeGame1;
-                    blueprint2 = bps.superPermissionedDisputeGame2;
+                    blueprint1 = bps.superPermissionedDisputeGame;
                     gameL2ChainId = 0;
                 } else {
                     revert OPContractsManagerGameTypeAdder_UnsupportedGameType();
@@ -476,10 +471,7 @@ contract OPContractsManagerGameTypeAdder is OPContractsManagerBase {
             // Deploy the new game type.
             outputs[i].faultDisputeGame = IFaultDisputeGame(
                 Blueprint.deployFrom(
-                    blueprint1,
-                    blueprint2,
-                    computeSalt(l2ChainId, gameConfig.saltMixer, gameContractName),
-                    constructorData
+                    blueprint1, computeSalt(l2ChainId, gameConfig.saltMixer, gameContractName), constructorData
                 )
             );
 
@@ -913,8 +905,7 @@ contract OPContractsManagerUpgrader is OPContractsManagerBase {
             address challenger = getChallenger(IPermissionedDisputeGame(address(_disputeGame)));
             newGame = IDisputeGame(
                 Blueprint.deployFrom(
-                    bps.permissionedDisputeGame1,
-                    bps.permissionedDisputeGame2,
+                    bps.permissionedDisputeGame,
                     computeSalt(_l2ChainId, reusableSaltMixer(_opChainConfig), "PermissionedDisputeGame"),
                     encodePermissionedFDGConstructor(params, proposer, challenger)
                 )
@@ -922,8 +913,7 @@ contract OPContractsManagerUpgrader is OPContractsManagerBase {
         } else {
             newGame = IDisputeGame(
                 Blueprint.deployFrom(
-                    bps.permissionlessDisputeGame1,
-                    bps.permissionlessDisputeGame2,
+                    bps.permissionlessDisputeGame,
                     computeSalt(_l2ChainId, reusableSaltMixer(_opChainConfig), "PermissionlessDisputeGame"),
                     encodePermissionlessFDGConstructor(params)
                 )
@@ -1047,8 +1037,7 @@ contract OPContractsManagerDeployer is OPContractsManagerBase {
         // While not a proxy, we deploy the PermissionedDisputeGame here as well because it's bespoke per chain.
         output.permissionedDisputeGame = IPermissionedDisputeGame(
             Blueprint.deployFrom(
-                blueprint.permissionedDisputeGame1,
-                blueprint.permissionedDisputeGame2,
+                blueprint.permissionedDisputeGame,
                 computeSalt(_input.l2ChainId, _input.saltMixer, "PermissionedDisputeGame"),
                 encodePermissionedFDGConstructor(
                     IFaultDisputeGame.GameConstructorParams({
@@ -1556,8 +1545,7 @@ contract OPContractsManagerInteropMigrator is OPContractsManagerBase {
             // chains, the contracts enforce that the chain id is zero.
             ISuperPermissionedDisputeGame newSuperPDG = ISuperPermissionedDisputeGame(
                 Blueprint.deployFrom(
-                    blueprints().superPermissionedDisputeGame1,
-                    blueprints().superPermissionedDisputeGame2,
+                    blueprints().superPermissionedDisputeGame,
                     computeSalt(
                         block.timestamp, reusableSaltMixer(_input.opChainConfigs[0]), "SuperPermissionedDisputeGame"
                     ),
@@ -1612,8 +1600,7 @@ contract OPContractsManagerInteropMigrator is OPContractsManagerBase {
             // Deploy the new SuperFaultDisputeGame.
             ISuperFaultDisputeGame newSuperFDG = ISuperFaultDisputeGame(
                 Blueprint.deployFrom(
-                    blueprints().superPermissionlessDisputeGame1,
-                    blueprints().superPermissionlessDisputeGame2,
+                    blueprints().superPermissionlessDisputeGame,
                     computeSalt(block.timestamp, reusableSaltMixer(_input.opChainConfigs[0]), "SuperFaultDisputeGame"),
                     encodePermissionlessSuperFDGConstructor(
                         ISuperFaultDisputeGame.GameConstructorParams({
@@ -1703,14 +1690,10 @@ contract OPContractsManager is ISemver {
         address proxyAdmin;
         address l1ChugSplashProxy;
         address resolvedDelegateProxy;
-        address permissionedDisputeGame1;
-        address permissionedDisputeGame2;
-        address permissionlessDisputeGame1;
-        address permissionlessDisputeGame2;
-        address superPermissionedDisputeGame1;
-        address superPermissionedDisputeGame2;
-        address superPermissionlessDisputeGame1;
-        address superPermissionlessDisputeGame2;
+        address permissionedDisputeGame;
+        address permissionlessDisputeGame;
+        address superPermissionedDisputeGame;
+        address superPermissionlessDisputeGame;
     }
 
     /// @notice The latest implementation contracts for the OP Stack.

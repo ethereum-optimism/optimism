@@ -19,15 +19,17 @@ use_literal_content = true
 # that builds will fully overwrite one another without needing to clean the
 # entire build directory.
 additional_compiler_profiles = [
-  { name = "dispute", optimizer_runs = 5000 },
+  { name = "dispute", optimizer_runs = 200 },
 ]
 compilation_restrictions = [
-  { paths = "src/dispute/FaultDisputeGame.sol", optimizer_runs = 5000 },
-  { paths = "src/dispute/v2/FaultDisputeGameV2.sol", optimizer_runs = 5000 },
-  { paths = "src/dispute/PermissionedDisputeGame.sol", optimizer_runs = 5000 },
-  { paths = "src/L1/OPContractsManager.sol", optimizer_runs = 5000 },
-  { paths = "src/L1/OPContractsManagerStandardValidator.sol", optimizer_runs = 5000 },
-  { paths = "src/L1/OptimismPortal2.sol", optimizer_runs = 5000 }
+  { paths = "src/dispute/FaultDisputeGame.sol", optimizer_runs = 200 },
+  { paths = "src/dispute/v2/FaultDisputeGameV2.sol", optimizer_runs = 200 },
+  { paths = "src/dispute/PermissionedDisputeGame.sol", optimizer_runs = 200 },
+  { paths = "src/dispute/SuperFaultDisputeGame.sol", optimizer_runs = 200 },
+  { paths = "src/dispute/SuperPermissionedDisputeGame.sol", optimizer_runs = 200 },
+  { paths = "src/L1/OPContractsManager.sol", optimizer_runs = 200 },
+  { paths = "src/L1/OPContractsManagerStandardValidator.sol", optimizer_runs = 200 },
+  { paths = "src/L1/OptimismPortal2.sol", optimizer_runs = 200 }
 ]
 
 extra_output = ['devdoc', 'userdoc', 'metadata', 'storageLayout']
@@ -140,6 +142,8 @@ compilation_restrictions = [
   { paths = "src/dispute/FaultDisputeGame.sol", optimizer_runs = 0 },
   { paths = "src/dispute/v2/FaultDisputeGameV2.sol", optimizer_runs = 0 },
   { paths = "src/dispute/PermissionedDisputeGame.sol", optimizer_runs = 0 },
+  { paths = "src/dispute/SuperFaultDisputeGame.sol", optimizer_runs = 0 },
+  { paths = "src/dispute/SuperPermissionedDisputeGame.sol", optimizer_runs = 0 },
   { paths = "src/L1/OPContractsManager.sol", optimizer_runs = 0 },
   { paths = "src/L1/OPContractsManagerStandardValidator.sol", optimizer_runs = 0 },
   { paths = "src/L1/OptimismPortal2.sol", optimizer_runs = 0 },

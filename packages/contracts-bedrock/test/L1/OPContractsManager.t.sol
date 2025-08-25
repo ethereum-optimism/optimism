@@ -522,19 +522,27 @@ contract OPContractsManager_TestInit is Test {
     function setUp() public virtual {
         bytes32 salt = hex"01";
         IOPContractsManager.Blueprints memory blueprints;
-        (blueprints.addressManager,) = Blueprint.create(vm.getCode("AddressManager"), salt);
-        (blueprints.proxy,) = Blueprint.create(vm.getCode("Proxy"), salt);
-        (blueprints.proxyAdmin,) = Blueprint.create(vm.getCode("ProxyAdmin"), salt);
-        (blueprints.l1ChugSplashProxy,) = Blueprint.create(vm.getCode("L1ChugSplashProxy"), salt);
-        (blueprints.resolvedDelegateProxy,) = Blueprint.create(vm.getCode("ResolvedDelegateProxy"), salt);
-        (blueprints.permissionedDisputeGame1, blueprints.permissionedDisputeGame2) =
-            Blueprint.create(vm.getCode("PermissionedDisputeGame"), salt);
-        (blueprints.permissionlessDisputeGame1, blueprints.permissionlessDisputeGame2) =
-            Blueprint.create(vm.getCode("FaultDisputeGame"), salt);
-        (blueprints.superPermissionedDisputeGame1, blueprints.superPermissionedDisputeGame2) =
-            Blueprint.create(vm.getCode("SuperPermissionedDisputeGame"), salt);
-        (blueprints.superPermissionlessDisputeGame1, blueprints.superPermissionlessDisputeGame2) =
-            Blueprint.create(vm.getCode("SuperFaultDisputeGame"), salt);
+        blueprints.addressManager =
+            Blueprint.deploySmallBytecode(Blueprint.blueprintDeployerBytecode(vm.getCode("AddressManager")), salt);
+        blueprints.proxy = Blueprint.deploySmallBytecode(Blueprint.blueprintDeployerBytecode(vm.getCode("Proxy")), salt);
+        blueprints.proxyAdmin =
+            Blueprint.deploySmallBytecode(Blueprint.blueprintDeployerBytecode(vm.getCode("ProxyAdmin")), salt);
+        blueprints.l1ChugSplashProxy =
+            Blueprint.deploySmallBytecode(Blueprint.blueprintDeployerBytecode(vm.getCode("L1ChugSplashProxy")), salt);
+        blueprints.resolvedDelegateProxy = Blueprint.deploySmallBytecode(
+            Blueprint.blueprintDeployerBytecode(vm.getCode("ResolvedDelegateProxy")), salt
+        );
+        blueprints.permissionedDisputeGame = Blueprint.deploySmallBytecode(
+            Blueprint.blueprintDeployerBytecode(vm.getCode("PermissionedDisputeGame")), salt
+        );
+        blueprints.permissionlessDisputeGame =
+            Blueprint.deploySmallBytecode(Blueprint.blueprintDeployerBytecode(vm.getCode("FaultDisputeGame")), salt);
+        blueprints.superPermissionedDisputeGame = Blueprint.deploySmallBytecode(
+            Blueprint.blueprintDeployerBytecode(vm.getCode("SuperPermissionedDisputeGame")), salt
+        );
+        blueprints.superPermissionlessDisputeGame = Blueprint.deploySmallBytecode(
+            Blueprint.blueprintDeployerBytecode(vm.getCode("SuperFaultDisputeGame")), salt
+        );
 
         IPreimageOracle oracle = IPreimageOracle(
             DeployUtils.create1({

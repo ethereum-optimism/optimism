@@ -422,17 +422,9 @@ library ChainAssertions {
             Blueprint.parseBlueprintPreamble(address(blueprints.resolvedDelegateProxy).code);
         require(keccak256(rdProxyPreamble.initcode) == keccak256(vm.getCode("ResolvedDelegateProxy")), "CHECK-OPCM-200");
 
-        Blueprint.Preamble memory pdg1Preamble =
-            Blueprint.parseBlueprintPreamble(address(blueprints.permissionedDisputeGame1).code);
-        Blueprint.Preamble memory pdg2Preamble =
-            Blueprint.parseBlueprintPreamble(address(blueprints.permissionedDisputeGame2).code);
-        // combine pdg1 and pdg2 initcodes
-        bytes memory fullPermissionedDisputeGameInitcode =
-            abi.encodePacked(pdg1Preamble.initcode, pdg2Preamble.initcode);
-        require(
-            keccak256(fullPermissionedDisputeGameInitcode) == keccak256(vm.getCode("PermissionedDisputeGame")),
-            "CHECK-OPCM-210"
-        );
+        Blueprint.Preamble memory pdgPreamble =
+            Blueprint.parseBlueprintPreamble(address(blueprints.permissionedDisputeGame).code);
+        require(keccak256(pdgPreamble.initcode) == keccak256(vm.getCode("PermissionedDisputeGame")), "CHECK-OPCM-210");
     }
 
     function checkAnchorStateRegistryProxy(

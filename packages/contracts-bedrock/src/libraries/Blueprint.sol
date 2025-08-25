@@ -133,74 +133,12 @@ library Blueprint {
         if (newContract_ == address(0)) revert DeploymentFailed();
     }
 
-    /// @notice Parses the code at two target addresses as individual blueprints, concatentates them and then deploys
-    /// the resulting initcode with the given `_data` appended, i.e. `_data` is the ABI-encoded constructor arguments.
-    function deployFrom(
-        address _target1,
-        address _target2,
-        bytes32 _salt,
-        bytes memory _data
-    )
-        internal
-        returns (address newContract_)
-    {
-        Preamble memory preamble1 = parseBlueprintPreamble(address(_target1).code);
-        if (preamble1.ercVersion != 0) revert UnsupportedERCVersion(preamble1.ercVersion);
-        if (preamble1.preambleData.length != 0) revert UnexpectedPreambleData(preamble1.preambleData);
-
-        Preamble memory preamble2 = parseBlueprintPreamble(address(_target2).code);
-        if (preamble2.ercVersion != 0) revert UnsupportedERCVersion(preamble2.ercVersion);
-        if (preamble2.preambleData.length != 0) revert UnexpectedPreambleData(preamble2.preambleData);
-
-        bytes memory initcode = bytes.concat(preamble1.initcode, preamble2.initcode, _data);
-        assembly ("memory-safe") {
-            newContract_ := create2(0, add(initcode, 0x20), mload(initcode), _salt)
-        }
-        if (newContract_ == address(0)) revert DeploymentFailed();
-    }
-
-    /// @notice Deploys a blueprint contract with the given `_rawBytecode` and `_salt`. If the blueprint is too large to
-    /// fit in a single deployment, it is split across two addresses. It is the responsibility of the caller to handle
-    /// large contracts by checking if the second return value is not address(0).
-    function create(
-        bytes memory _rawBytecode,
-        bytes32 _salt
-    )
-        internal
-        returns (address newContract1_, address newContract2_)
-    {
-        if (_rawBytecode.length <= maxInitCodeSize()) {
-            newContract1_ = deploySmallBytecode(blueprintDeployerBytecode(_rawBytecode), _salt);
-            return (newContract1_, address(0));
-        }
-
-        (newContract1_, newContract2_) = deployBigBytecode(_rawBytecode, _salt);
-    }
-
     /// @notice Deploys a blueprint contract that can fit in a single address.
     function deploySmallBytecode(bytes memory _bytecode, bytes32 _salt) internal returns (address newContract_) {
         assembly ("memory-safe") {
             newContract_ := create2(0, add(_bytecode, 0x20), mload(_bytecode), _salt)
         }
         require(newContract_ != address(0), "Blueprint: create2 failed");
-    }
-
-    /// @notice Deploys a two blueprint contracts, splitting the bytecode across both of them.
-    function deployBigBytecode(
-        bytes memory _bytecode,
-        bytes32 _salt
-    )
-        internal
-        returns (address newContract1_, address newContract2_)
-    {
-        uint32 maxSize = maxInitCodeSize();
-        bytes memory part1Slice = Bytes.slice(_bytecode, 0, maxSize);
-        bytes memory part1 = blueprintDeployerBytecode(part1Slice);
-        bytes memory part2Slice = Bytes.slice(_bytecode, maxSize, _bytecode.length - maxSize);
-        bytes memory part2 = blueprintDeployerBytecode(part2Slice);
-
-        newContract1_ = deploySmallBytecode(part1, _salt);
-        newContract2_ = deploySmallBytecode(part2, _salt);
     }
 
     /// @notice Convert a bytes array to a uint256.
@@ -211,12 +149,5 @@ library Blueprint {
             number = number + uint256(uint8(_b[i])) * (2 ** (8 * (_b.length - (i + 1))));
         }
         return number;
-    }
-
-    /// @notice Returns the maximum init code size for each blueprint. The preamble needs 3 bytes.
-    function maxInitCodeSize() internal pure returns (uint32) {
-        // Technically this should be 24576 - 3 (max minus preamble size) but we use 23500 here to
-        // resolve a discrepancy that can occur between development and production builds.
-        return 23500;
     }
 }

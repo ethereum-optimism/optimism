@@ -168,32 +168,13 @@ library DeployUtils {
         bytes32 _salt
     )
         internal
-        returns (address newContract1_, address newContract2_)
+        returns (address newContract_)
     {
-        uint32 maxSize = Blueprint.maxInitCodeSize();
-        if (_rawBytecode.length <= maxSize) {
-            bytes memory bpBytecode = Blueprint.blueprintDeployerBytecode(_rawBytecode);
-            newContract1_ = vm.computeCreate2Address(_salt, keccak256(bpBytecode));
-            if (newContract1_.code.length == 0) {
-                (address deployedContract) = Blueprint.deploySmallBytecode(bpBytecode, _salt);
-                require(deployedContract == newContract1_, "DeployUtils: unexpected blueprint address");
-            }
-            newContract2_ = address(0);
-        } else {
-            bytes memory part1Slice = Bytes.slice(_rawBytecode, 0, maxSize);
-            bytes memory part2Slice = Bytes.slice(_rawBytecode, maxSize, _rawBytecode.length - maxSize);
-            bytes memory bp1Bytecode = Blueprint.blueprintDeployerBytecode(part1Slice);
-            bytes memory bp2Bytecode = Blueprint.blueprintDeployerBytecode(part2Slice);
-            newContract1_ = vm.computeCreate2Address(_salt, keccak256(bp1Bytecode));
-            if (newContract1_.code.length == 0) {
-                address deployedContract = Blueprint.deploySmallBytecode(bp1Bytecode, _salt);
-                require(deployedContract == newContract1_, "DeployUtils: unexpected part 1 blueprint address");
-            }
-            newContract2_ = vm.computeCreate2Address(_salt, keccak256(bp2Bytecode));
-            if (newContract2_.code.length == 0) {
-                address deployedContract = Blueprint.deploySmallBytecode(bp2Bytecode, _salt);
-                require(deployedContract == newContract2_, "DeployUtils: unexpected part 2 blueprint address");
-            }
+        bytes memory bpBytecode = Blueprint.blueprintDeployerBytecode(_rawBytecode);
+        newContract_ = vm.computeCreate2Address(_salt, keccak256(bpBytecode));
+        if (newContract_.code.length == 0) {
+            address deployedContract = Blueprint.deploySmallBytecode(bpBytecode, _salt);
+            require(deployedContract == newContract_, "DeployUtils: unexpected blueprint address");
         }
     }
 
