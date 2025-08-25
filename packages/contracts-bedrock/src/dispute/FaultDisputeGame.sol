@@ -57,8 +57,7 @@ import {
     InvalidBondDistributionMode,
     GameNotResolved,
     ReservedGameType,
-    GamePaused,
-    BadExtraData
+    GamePaused
 } from "src/dispute/lib/Errors.sol";
 
 // Interfaces
@@ -172,9 +171,9 @@ contract FaultDisputeGame is Clone, ISemver {
     uint256 internal constant HEADER_BLOCK_NUMBER_INDEX = 8;
 
     /// @notice Semantic version.
-    /// @custom:semver 1.8.0
+    /// @custom:semver 1.7.0
     function version() public pure virtual returns (string memory) {
-        return "1.8.0";
+        return "1.7.0";
     }
 
     /// @notice The starting timestamp of the game
@@ -313,14 +312,20 @@ contract FaultDisputeGame is Clone, ISemver {
         // in the factory, but are not used by the game, which would allow for multiple dispute games for the same
         // output proposal to be created.
         //
-        // Expected length: 122 bytes
-        // - 4 bytes selector
-        // - 20 bytes creator address
-        // - 32 bytes root claim
-        // - 32 bytes l1 head
-        // - 32 bytes extraData
-        // - 2 bytes CWIA length
-        if (msg.data.length != 122) revert BadExtraData();
+        // Expected length: 0x7A
+        // - 0x04 selector
+        // - 0x14 creator address
+        // - 0x20 root claim
+        // - 0x20 l1 head
+        // - 0x20 extraData
+        // - 0x02 CWIA bytes
+        assembly {
+            if iszero(eq(calldatasize(), 0x7A)) {
+                // Store the selector for `BadExtraData()` & revert
+                mstore(0x00, 0x9824bdab)
+                revert(0x1C, 0x04)
+            }
+        }
 
         // Do not allow the game to be initialized if the root claim corresponds to a block at or before the
         // configured starting block number.
@@ -640,7 +645,7 @@ contract FaultDisputeGame is Clone, ISemver {
 
     /// @notice The l2BlockNumber of the disputed output root in the `L2OutputOracle`.
     function l2BlockNumber() public pure returns (uint256 l2BlockNumber_) {
-        l2BlockNumber_ = _getArgUint256(84);
+        l2BlockNumber_ = _getArgUint256(0x54);
     }
 
     /// @notice The l2SequenceNumber of the disputed output root in the `L2OutputOracle` (in this case - block number).
@@ -855,21 +860,21 @@ contract FaultDisputeGame is Clone, ISemver {
     /// @dev `clones-with-immutable-args` argument #1
     /// @return creator_ The creator of the dispute game.
     function gameCreator() public pure returns (address creator_) {
-        creator_ = _getArgAddress(0);
+        creator_ = _getArgAddress(0x00);
     }
 
     /// @notice Getter for the root claim.
     /// @dev `clones-with-immutable-args` argument #2
     /// @return rootClaim_ The root claim of the DisputeGame.
     function rootClaim() public pure returns (Claim rootClaim_) {
-        rootClaim_ = Claim.wrap(_getArgBytes32(20));
+        rootClaim_ = Claim.wrap(_getArgBytes32(0x14));
     }
 
     /// @notice Getter for the parent hash of the L1 block when the dispute game was created.
     /// @dev `clones-with-immutable-args` argument #3
     /// @return l1Head_ The parent hash of the L1 block when the dispute game was created.
     function l1Head() public pure returns (Hash l1Head_) {
-        l1Head_ = Hash.wrap(_getArgBytes32(52));
+        l1Head_ = Hash.wrap(_getArgBytes32(0x34));
     }
 
     /// @notice Getter for the extra data.
@@ -878,7 +883,7 @@ contract FaultDisputeGame is Clone, ISemver {
     function extraData() public pure returns (bytes memory extraData_) {
         // The extra data starts at the second word within the cwia calldata and
         // is 32 bytes long.
-        extraData_ = _getArgBytes(84, 32);
+        extraData_ = _getArgBytes(0x54, 0x20);
     }
 
     /// @notice A compliant implementation of this interface should return the components of the
