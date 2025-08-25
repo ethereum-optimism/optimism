@@ -112,6 +112,11 @@ func NewVmMetrics(namespace string, factory metrics.Factory) *VmMetrics {
 			Name:      "vm_step_count",
 			Help:      "Number of steps executed during vm run",
 		}, []string{"vm"}),
+		vmInstructionCacheMissCount: factory.NewGaugeVec(prometheus.GaugeOpts{
+			Namespace: namespace,
+			Name:      "vm_instruction_cache_miss_count",
+			Help:      "Number of instructions cache missed during vm run",
+		}, []string{"vm"}),
 		vmRmwSuccessCount: factory.NewGaugeVec(prometheus.GaugeOpts{
 			Namespace: namespace,
 			Name:      "vm_rmw_success_count",
