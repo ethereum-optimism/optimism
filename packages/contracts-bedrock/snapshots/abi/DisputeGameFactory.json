@@ -372,24 +372,6 @@
         "type": "uint32"
       },
       {
-        "internalType": "bytes",
-        "name": "_args",
-        "type": "bytes"
-      }
-    ],
-    "name": "setImplementationArgs",
-    "outputs": [],
-    "stateMutability": "nonpayable",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "GameType",
-        "name": "_gameType",
-        "type": "uint32"
-      },
-      {
         "internalType": "uint256",
         "name": "_initBond",
         "type": "uint256"

@@ -24,8 +24,8 @@
     "sourceCodeHash": "0xb1264c7af50b6134c98cb82d1ffc7891adf97068fa7048ee70992fb94bc15bd1"
   },
   "src/L1/OPContractsManagerStandardValidator.sol:OPContractsManagerStandardValidator": {
-    "initCodeHash": "0x3e8a3bed20aa10b6d285cd926903c4d8c34aad3ba5c0e9e32da3cde13b179238",
-    "sourceCodeHash": "0x6a31abe2f73c7279a00a8fcecb6741af8e6fe54a1112420e6a15859753487dbb"
+    "initCodeHash": "0xbafeb3a2d475a450fb1c51fe54d87a44a0875432b06d217f9bc9e5c25905d1f5",
+    "sourceCodeHash": "0x9cf8f0e75ed0d6a433ed23ad3e7e18c3b1489e97aa1a055172ad39d06279b052"
   },
   "src/L1/OptimismPortal2.sol:OptimismPortal2": {
     "initCodeHash": "0x785b09610b2da65d248b49150fafc85b8369c921ddae95b0ea45608b1ce5cbc6",
@@ -152,8 +152,8 @@
     "sourceCodeHash": "0xdebf2ab3af4d5549c40e9dd9db6b2458af286f323b6891f3b0c4e89f3c8928db"
   },
   "src/dispute/DisputeGameFactory.sol:DisputeGameFactory": {
-    "initCodeHash": "0xc8a6b7ddff5b3977244d97fa1cf21af90fd79a729733fe614cca95eb1f5ee1e3",
-    "sourceCodeHash": "0xf57a2880f568494217351fbd0ef3a89ba6bf5673d3f241cc5a8f3f9b05b33661"
+    "initCodeHash": "0x41ea0025ffbbb7dabc45da9b8afe4bce6b8ec1f132b424f351cf8c7d3fe15579",
+    "sourceCodeHash": "0x81ffb8f29b29774847e8b699d8719aaf6c633070841b8e2c3a651105822ce9ea"
   },
   "src/dispute/FaultDisputeGame.sol:FaultDisputeGame": {
     "initCodeHash": "0xe7d3c982532946d196d7efadb9e2576c76b8f9e0d1f885ac36977d6f3fb72a65",
@@ -172,8 +172,8 @@
     "sourceCodeHash": "0x8fdd69d4bcd33a3d8b49a73ff5b6855f9ad5f7e2b7393e67cd755973b127b1e8"
   },
   "src/dispute/v2/FaultDisputeGameV2.sol:FaultDisputeGameV2": {
-    "initCodeHash": "0x1e58280efd3031fd6c208714bde5f832687537d2984d78e1a640bafb3cba675f",
-    "sourceCodeHash": "0x01ed8a3d23f373057b663a6b0dc83a2240f30470b79eb76512b734ac5ce549ce"
+    "initCodeHash": "0x783f53074c734fbbbd99211bd06a7d98189bc266bb0ab5cf58b9e09a6e717eb5",
+    "sourceCodeHash": "0xacb3a97464c5ecc4b8777dcb79cf886f6d0138aa2271d7d3f91ae5521bd54b54"
   },
   "src/legacy/DeployerWhitelist.sol:DeployerWhitelist": {
     "initCodeHash": "0x53099379ed48b87f027d55712dbdd1da7d7099925426eb0531da9c0012e02c29",
