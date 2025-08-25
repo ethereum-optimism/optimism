@@ -122,3 +122,73 @@ contract SemverComp_parse_Test is SemverComp_TestInit {
         harness.parse("v1.2.3");
     }
 }
+
+/// @title SemverComp_Eq_Test
+/// @notice Tests the `eq` function behavior.
+contract SemverComp_Eq_Test is SemverComp_TestInit {
+    function test_eq_succeeds() external pure {
+        assertTrue(SemverComp.eq("1.2.3", "1.2.3"));
+        assertTrue(SemverComp.eq("1.2.3-rc.1", "1.2.3-rc.1")); // Prerelease ignored
+        assertTrue(SemverComp.eq("1.2.3+build.1", "1.2.3+build.2")); // Build metadata ignored
+
+        assertFalse(SemverComp.eq("1.2.3", "1.2.4"));
+        assertFalse(SemverComp.eq("1.2.3", "1.3.3"));
+        assertFalse(SemverComp.eq("1.2.3", "2.2.3"));
+    }
+}
+
+/// @title SemverComp_Lt_Test
+/// @notice Tests the `lt` function behavior.
+contract SemverComp_Lt_Test is SemverComp_TestInit {
+    function test_lt_succeeds() external pure {
+        assertTrue(SemverComp.lt("1.2.3", "1.2.4"));
+        assertTrue(SemverComp.lt("1.2.3", "1.3.0"));
+        assertTrue(SemverComp.lt("1.2.3", "2.0.0"));
+
+        assertFalse(SemverComp.lt("1.2.3", "1.2.3"));
+        assertFalse(SemverComp.lt("1.2.3", "1.2.2"));
+        assertFalse(SemverComp.lt("2.0.0", "1.9.9"));
+    }
+}
+
+/// @title SemverComp_Lte_Test
+/// @notice Tests the `lte` function behavior.
+contract SemverComp_Lte_Test is SemverComp_TestInit {
+    function test_lte_succeeds() external pure {
+        assertTrue(SemverComp.lte("1.2.3", "1.2.3"));
+        assertTrue(SemverComp.lte("1.2.3", "1.2.4"));
+        assertTrue(SemverComp.lte("1.2.3", "1.3.0"));
+        assertTrue(SemverComp.lte("1.2.3", "2.0.0"));
+
+        assertFalse(SemverComp.lte("1.2.3", "1.2.2"));
+        assertFalse(SemverComp.lte("2.0.0", "1.9.9"));
+    }
+}
+
+/// @title SemverComp_Gt_Test
+/// @notice Tests the `gt` function behavior.
+contract SemverComp_Gt_Test is SemverComp_TestInit {
+    function test_gt_succeeds() external pure {
+        assertTrue(SemverComp.gt("1.2.4", "1.2.3"));
+        assertTrue(SemverComp.gt("1.3.0", "1.2.3"));
+        assertTrue(SemverComp.gt("2.0.0", "1.2.3"));
+
+        assertFalse(SemverComp.gt("1.2.3", "1.2.3"));
+        assertFalse(SemverComp.gt("1.2.2", "1.2.3"));
+        assertFalse(SemverComp.gt("1.9.9", "2.0.0"));
+    }
+}
+
+/// @title SemverComp_Gte_Test
+/// @notice Tests the `gte` function behavior.
+contract SemverComp_Gte_Test is SemverComp_TestInit {
+    function test_gte_succeeds() external pure {
+        assertTrue(SemverComp.gte("1.2.3", "1.2.3"));
+        assertTrue(SemverComp.gte("1.2.4", "1.2.3"));
+        assertTrue(SemverComp.gte("1.3.0", "1.2.3"));
+        assertTrue(SemverComp.gte("2.0.0", "1.2.3"));
+
+        assertFalse(SemverComp.gte("1.2.2", "1.2.3"));
+        assertFalse(SemverComp.gte("1.9.9", "2.0.0"));
+    }
+}
