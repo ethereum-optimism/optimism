@@ -27,7 +27,7 @@ pub static OP_DEV: LazyLock<Arc<OpChainSpec>> = LazyLock::new(|| {
             paris_block_and_final_difficulty: Some((0, U256::from(0))),
             hardforks,
             base_fee_params: BaseFeeParamsKind::Constant(BaseFeeParams::ethereum()),
-            deposit_contract: None, // TODO: do we even have?
+            deposit_contract: None,
             ..Default::default()
         },
     }

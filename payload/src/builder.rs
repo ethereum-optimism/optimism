@@ -729,7 +729,7 @@ where
             info.cumulative_gas_used += gas_used;
             info.cumulative_da_bytes_used += tx_da_size;
 
-            // update add to total fees
+            // update and add to total fees
             let miner_fee = tx
                 .effective_tip_per_gas(base_fee)
                 .expect("fee is always valid; execution succeeded");

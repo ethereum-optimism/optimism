@@ -315,7 +315,6 @@ mod test {
         let db = TestStageDB::default();
         init_genesis(&db.factory).unwrap();
 
-        // todo: where does import command init receipts ? probably somewhere in pipeline
         let provider_factory =
             create_test_provider_factory_with_node_types::<OpNode>(OP_MAINNET.clone());
         let ImportReceiptsResult { total_decoded_receipts, total_filtered_out_dup_txns } =
