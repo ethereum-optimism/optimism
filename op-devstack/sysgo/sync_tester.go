@@ -42,7 +42,7 @@ func (n *SyncTester) hydrate(system stack.ExtensibleSystem) {
 	}
 }
 
-func WithSyncTester(l2ELs []stack.L2ELNodeID, fcus sttypes.FCUState) stack.Option[*Orchestrator] {
+func WithSyncTester(l2ELs []stack.L2ELNodeID) stack.Option[*Orchestrator] {
 	return stack.AfterDeploy(func(orch *Orchestrator) {
 		syncTesterID := stack.NewSyncTesterID("dev-sync-tester", l2ELs[0].ChainID())
 		p := orch.P().WithCtx(stack.ContextWithID(orch.P().Ctx(), syncTesterID))
@@ -66,7 +66,7 @@ func WithSyncTester(l2ELs []stack.L2ELNodeID, fcus sttypes.FCUState) stack.Optio
 				// JwtPath:   el.jwtPath,
 				Cfg: stconf.EntryCfg{
 					ChainID: elID.ChainID(),
-					Target:  fcus,
+					Target:  sttypes.FCUState{}, // Default empty FCU state
 				},
 			}
 		}

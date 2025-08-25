@@ -35,7 +35,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/sources"
 	"github.com/ethereum-optimism/optimism/op-service/testutils/tcpproxy"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/depset"
-	sttypes "github.com/ethereum-optimism/optimism/op-sync-tester/synctester/backend/types"
 )
 
 type OpNode struct {
@@ -141,7 +140,7 @@ func (n *OpNode) Stop() {
 	n.opNode = nil
 }
 
-func WithOpNode(l2CLID stack.L2CLNodeID, l1CLID stack.L1CLNodeID, l1ELID stack.L1ELNodeID, l2ELOrSyncTester interface{}, opts ...L2CLOption) stack.Option[*Orchestrator] {
+func WithOpNode(l2CLID stack.L2CLNodeID, l1CLID stack.L1CLNodeID, l1ELID stack.L1ELNodeID, l2ELID stack.L2ELNodeID, opts ...L2CLOption) stack.Option[*Orchestrator] {
 	return stack.AfterDeploy(func(orch *Orchestrator) {
 		p := orch.P().WithCtx(stack.ContextWithID(orch.P().Ctx(), l2CLID))
 
@@ -156,43 +155,14 @@ func WithOpNode(l2CLID stack.L2CLNodeID, l1CLID stack.L1CLNodeID, l1ELID stack.L
 		l1CL, ok := orch.l1CLs.Get(l1CLID)
 		require.True(ok, "l1 CL node required")
 
-		// Handle either L2EL node or SyncTester
-		var l2EL L2ELNode
-		var l2ELID stack.L2ELNodeID
-		var syncTesterID *stack.SyncTesterID
+		// Get the L2EL node (which can be a regular EL node or a SyncTesterEL)
+		l2EL, ok := orch.l2ELs.Get(l2ELID)
+		require.True(ok, "l2 EL node required")
+
+		// Get dependency set from cluster if available
 		var depSet depset.DependencySet
-		var useSyncTester bool
-		var fcus sttypes.FCUState
-
-		switch v := l2ELOrSyncTester.(type) {
-		case stack.L2ELNodeID:
-			l2ELID = v
-			l2EL, ok = orch.l2ELs.Get(v)
-			require.True(ok, "l2 EL node required")
-			if cluster, ok := orch.ClusterForL2(v.ChainID()); ok {
-				depSet = cluster.DepSet()
-			}
-		case nil:
-			syncTester := orch.syncTester
-			syncTesterID = &syncTester.id
-
-			useSyncTester = true
-
-			for _, st := range orch.syncTester.service.SyncTesters() {
-				if st.ChainID == syncTesterID.ChainID() {
-					fcus = st.Target
-					break
-				}
-			}
-			require.NotNil(fcus, "target blocks not found for sync tester")
-
-			// When using a SyncTester, we don't need an L2EL node
-			// The SyncTester will provide the L2 endpoint
-			if cluster, ok := orch.ClusterForL2(syncTesterID.ChainID()); ok {
-				depSet = cluster.DepSet()
-			}
-		default:
-			require.Fail("l2ELOrSyncTester must be either stack.L2ELNodeID or nil")
+		if cluster, ok := orch.ClusterForL2(l2ELID.ChainID()); ok {
+			depSet = cluster.DepSet()
 		}
 
 		cfg := DefaultL2CLConfig()
@@ -267,15 +237,8 @@ func WithOpNode(l2CLID stack.L2CLNodeID, l1CLID stack.L1CLNodeID, l1ELID stack.L
 			}
 		}
 
-		// Determine the L2 endpoint based on whether we're using a SyncTester or L2EL
-		var l2EngineAddr string
-		if useSyncTester {
-			require.NotNil(orch.syncTester, "sync tester service required when using SyncTester")
-			l2EngineAddr = orch.syncTester.service.NewEndpoint(syncTesterID.ChainID())
-			l2EngineAddr += fmt.Sprintf("?latest=%d&safe=%d&finalized=%d", fcus.Latest, fcus.Safe, fcus.Finalized)
-		} else {
-			l2EngineAddr = l2EL.EngineRPC()
-		}
+		// Get the L2 engine address from the EL node (which can be a regular EL node or a SyncTesterEL)
+		l2EngineAddr := l2EL.EngineRPC()
 
 		nodeCfg := &config.Config{
 			L1: &config.L1EndpointConfig{
@@ -343,10 +306,8 @@ func WithOpNode(l2CLID stack.L2CLNodeID, l1CLID stack.L1CLNodeID, l1ELID stack.L
 			p:      p,
 		}
 
-		// Set the EL field only if we have an L2EL node
-		if !useSyncTester {
-			l2CLNode.el = &l2ELID
-		}
+		// Set the EL field to link to the L2EL node
+		l2CLNode.el = &l2ELID
 		require.True(orch.l2CLs.SetIfMissing(l2CLID, l2CLNode), fmt.Sprintf("must not already exist: %s", l2CLID))
 		l2CLNode.Start()
 		p.Cleanup(l2CLNode.Stop)
