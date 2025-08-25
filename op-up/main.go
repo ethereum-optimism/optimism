@@ -33,6 +33,12 @@ import (
 	"go.opentelemetry.io/otel/trace"
 )
 
+const asciiArt = ` ____  ____        _     ____
+/  _ \/  __\      / \ /\/  __\
+| / \||  \/|_____ | | |||  \/|
+| \_/||  __/\____\| \_/||  __/
+\____/\_/         \____/\_/`
+
 func main() {
 	if err := run(); err != nil {
 		fmt.Fprintf(os.Stderr, "error: %v\n", err)
@@ -53,6 +59,7 @@ func run() error {
 	if numArgs := len(os.Args) - 1; numArgs > 0 {
 		return fmt.Errorf("expected no command line args, got %d", numArgs)
 	}
+	fmt.Println(asciiArt)
 
 	opUpDir, ok := os.LookupEnv("OP_UP_DIR")
 	if !ok {
