@@ -11,6 +11,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"runtime/debug"
 	"slices"
 	"sync"
 	"syscall"
@@ -18,13 +19,13 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/devkeys"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
-	"github.com/ethereum-optimism/optimism/op-devstack/presets"
 	"github.com/ethereum-optimism/optimism/op-devstack/shim"
 	"github.com/ethereum-optimism/optimism/op-devstack/stack"
 	"github.com/ethereum-optimism/optimism/op-devstack/stack/match"
 	"github.com/ethereum-optimism/optimism/op-devstack/sysgo"
 	"github.com/ethereum-optimism/optimism/op-service/client"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	oplog "github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum-optimism/optimism/op-service/log/logfilter"
 	"github.com/ethereum-optimism/optimism/op-service/testreq"
 	"github.com/ethereum/go-ethereum/common"
@@ -44,6 +45,7 @@ func main() {
 		fmt.Fprintf(os.Stderr, "error: %v\n", err)
 		os.Exit(1)
 	}
+	fmt.Println("\nPlease consider filling out this survey to influence future development: https://www.surveymonkey.com/r/JTGHFK3")
 }
 
 func run() error {
@@ -56,6 +58,9 @@ func run() error {
 	// current use (misuse?) of the global flag set. Rather than modifying that shared code, we
 	// settle for hacking around the problem by printing an error when any command line arguments
 	// are present. op-up should evolve beyond this pretty soon.
+	//
+	// TODO(#17076): we no longer have a dependency on presets, so we can add standard CLI flags
+	// without worrying about the global flag set.
 	if numArgs := len(os.Args) - 1; numArgs > 0 {
 		return fmt.Errorf("expected no command line args, got %d", numArgs)
 	}
@@ -77,8 +82,14 @@ func run() error {
 		return fmt.Errorf("create the deployer cache dir: %w", err)
 	}
 
+	ctx := context.Background()
+	devtest.RootContext = ctx
+
+	p := newP(ctx)
+	defer p.Close()
+
 	ids := sysgo.NewDefaultMinimalSystemIDs(sysgo.DefaultL1ID, sysgo.DefaultL2AID)
-	presets.DoMain(testingM{}, stack.MakeCommon[*sysgo.Orchestrator](stack.Combine(
+	opts := stack.Combine(
 		sysgo.WithMnemonicKeys(devkeys.TestMnemonic),
 
 		sysgo.WithDeployer(),
@@ -98,24 +109,35 @@ func run() error {
 		sysgo.WithProposer(ids.L2Proposer, ids.L1EL, &ids.L2CL, nil),
 
 		sysgo.WithFaucets([]stack.L1ELNodeID{ids.L1EL}, []stack.L2ELNodeID{ids.L2EL}),
-	)), presets.WithLogFilter(logfilter.DefaultMute()))
+	)
 
-	return nil
+	orch := sysgo.NewOrchestrator(p, opts)
+	stack.ApplyOptionLifecycle[*sysgo.Orchestrator](opts, orch)
+	return runSysgo(orch)
 }
 
-type testingM struct{}
-
-var _ presets.TestingM = testingM{}
-
-func (t testingM) Run() int {
-	if err := runSysgo(); err != nil {
-		fmt.Fprintf(os.Stderr, "error: %v", err)
-		return 1
+func newP(ctx context.Context) devtest.P {
+	logHandler := oplog.NewLogHandler(os.Stdout, oplog.DefaultCLIConfig())
+	logHandler = logfilter.WrapFilterHandler(logHandler)
+	logHandler.(logfilter.FilterHandler).Set(logfilter.DefaultMute())
+	logHandler = logfilter.WrapContextHandler(logHandler)
+	logger := log.NewLogger(logHandler)
+	oplog.SetGlobalLogHandler(logHandler)
+	logger.SetContext(ctx)
+	onFail := func(now bool) {
+		logger.Error("Main failed")
+		debug.PrintStack()
+		if now {
+			panic("critical Main fail")
+		}
 	}
-	return 0
+	p := devtest.NewP(ctx, logger, onFail, func() {
+		onFail(true)
+	})
+	return p
 }
 
-func runSysgo() error {
+func runSysgo(orch *sysgo.Orchestrator) error {
 	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGTERM, os.Interrupt)
 	defer cancel()
 
@@ -139,7 +161,6 @@ func runSysgo() error {
 	fmt.Printf("Test Account Private Key: %s\n", "0x"+common.Bytes2Hex(crypto.FromECDSA(funderPrivKey)))
 	fmt.Printf("EL Node URL: %s\n", "http://localhost:8545")
 
-	orch := presets.Orchestrator()
 	t := &testingT{
 		ctx:      ctx,
 		cleanups: make([]func(), 0),
