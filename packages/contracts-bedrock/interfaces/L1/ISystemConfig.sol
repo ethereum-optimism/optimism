@@ -26,6 +26,7 @@ interface ISystemConfig is IProxyAdminOwnedBase {
     error ReinitializableBase_ZeroInitVersion();
 
     event ConfigUpdate(uint256 indexed version, UpdateType indexed updateType, bytes data);
+    event FeatureToggled(bytes32 indexed feature, bool indexed enabled);
     event Initialized(uint8 version);
     event OwnershipTransferred(address indexed previousOwner, address indexed newOwner);
 
@@ -92,6 +93,8 @@ interface ISystemConfig is IProxyAdminOwnedBase {
     function paused() external view returns (bool);
     function superchainConfig() external view returns (ISuperchainConfig);
     function guardian() external view returns (address);
+    function toggleFeature(bytes32 _feature, bool _enabled) external;
+    function isFeatureEnabled(bytes32) external view returns (bool);
 
     function __constructor__() external;
 }
