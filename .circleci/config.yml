@@ -2570,6 +2570,19 @@ workflows:
             - discord
           requires:
             - initialize
+      # KURTOSIS (Flashblocks)
+      - op-acceptance-tests:
+          # Acceptance Testing params
+          name: kurtosis-flashblocks
+          devnet: flash
+          gate: flashblocks
+          # CircleCI params
+          no_output_timeout: 30m
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+            - discord
+          requires:
+            - initialize
       # Generate flaky test report
       - generate-flaky-report:
           name: generate-flaky-tests-report
@@ -2641,6 +2654,19 @@ workflows:
           name: kurtosis-interop
           devnet: interop
           gate: interop
+          # CircleCI params
+          no_output_timeout: 30m
+          context:
+            - circleci-repo-readonly-authenticated-github-token
+            - discord
+          requires:
+            - initialize
+      # KURTOSIS (Flashblocks)
+      - op-acceptance-tests:
+          # Acceptance Testing params
+          name: kurtosis-flashblocks
+          devnet: flash
+          gate: flashblocks
           # CircleCI params
           no_output_timeout: 30m
           context:

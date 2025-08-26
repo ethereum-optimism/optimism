@@ -23,7 +23,6 @@ optimism_package:
             image: {{ localDockerImage "op-conductor" }}
             enabled: true
             bootstrap: true
-            paused: true
             admin: true
             proxy: true
             websocket_enabled: true
@@ -45,7 +44,6 @@ optimism_package:
           conductor_params:
             image: {{ localDockerImage "op-conductor" }}
             enabled: true
-            paused: true
             admin: true
             proxy: true
             websocket_enabled: true
