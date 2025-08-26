@@ -65,6 +65,27 @@ func (b *Bin) Path() string {
 	return b.path
 }
 
+type PathBin struct {
+	path string
+}
+
+func PathBinary() Binary {
+	return new(PathBin)
+}
+
+func (b *PathBin) Ensure(ctx context.Context) error {
+	var err error
+	b.path, err = exec.LookPath("forge")
+	if err != nil {
+		return fmt.Errorf("could not find binary: %w", err)
+	}
+	return nil
+}
+
+func (b *PathBin) Path() string {
+	return b.path
+}
+
 type AutodetectBin struct {
 	progressor ioutil.Progressor
 
