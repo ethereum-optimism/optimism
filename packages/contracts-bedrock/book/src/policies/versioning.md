@@ -34,7 +34,7 @@ Individual contract versioning allows us to uniquely identify which version of a
 
 Versioning for individual contracts works as follows:
 
-- A contract on develop always has a version of X.Y.Z, regardless of whether is has been governance approved and meets our security bar. This DOES NOT indicate these contracts are always safe for production use. More on this below.
+- A contract on development always has a version of X.Y.Z, regardless of whether is has been governance approved and meets our security bar. This DOES NOT indicate these contracts are always safe for production use. More on this below.
 - For contracts with feature-specific changes, a `+feature-name` identifier must be appended to the version number. See the [Smart Contract Feature Development](https://github.com/ethereum-optimism/design-docs/blob/main/smart-contract-feature-development.md) design document to learn more.
 - When making changes to a contract, always bump to the lowest possible version based on the specific change you are making. We do not want to e.g. optimistically bump to a major version, because protocol development sequencing may change unexpectedly. Use these examples to know how to bump the version:
   - Example 1: A contract is currently on `1.2.3` on `develop` and you are working on a new feature on your `feature` branch off `develop`.
