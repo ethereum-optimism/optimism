@@ -66,12 +66,14 @@ func (n *SyncTesterEL) Start() {
 	}
 
 	// Use NewEndpoint to get the correct session-specific endpoint for this chain ID
-	syncTesterEndpoint := n.orch.syncTester.service.NewEndpoint(n.id.ChainID())
+	endpoint := n.orch.syncTester.service.NewEndpoint(n.id.ChainID())
 
-	n.userRPC = syncTesterEndpoint
-	// For sync tester, the engine RPC should include FCU state as query parameters
-	n.authRPC = fmt.Sprintf("%s?latest=%d&safe=%d&finalized=%d",
-		syncTesterEndpoint, n.fcuState.Latest, n.fcuState.Safe, n.fcuState.Finalized)
+	session := fmt.Sprintf("%s?latest=%d&safe=%d&finalized=%d",
+		endpoint, n.fcuState.Latest, n.fcuState.Safe, n.fcuState.Finalized)
+
+	// For sync tester, the engine RPC and user RPC should include FCU state as query parameters
+	n.userRPC = session
+	n.authRPC = session
 }
 
 func (n *SyncTesterEL) Stop() {
