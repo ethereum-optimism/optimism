@@ -77,7 +77,6 @@ func (ef *EcotoneFees) ValidateTransaction(from *EOA, to *EOA, amount *big.Int) 
 	// Total fee is the sum of all vault increases (excluding OperatorVault which should be zero in Ecotone)
 	totalFee := new(big.Int).Add(vaultIncreases.BaseFeeVault, vaultIncreases.L1FeeVault)
 	totalFee.Add(totalFee, vaultIncreases.SequencerVault)
-	// Note: OperatorVault is not included as operator fees were introduced in Isthmus, not Ecotone
 
 	walletBalanceDiff := new(big.Int).Sub(startBalance.ToBig(), endBalance.ToBig())
 	walletBalanceDiff.Sub(walletBalanceDiff, amount)
@@ -88,7 +87,7 @@ func (ef *EcotoneFees) ValidateTransaction(from *EOA, to *EOA, amount *big.Int) 
 	// Then validate individual fee components
 	ef.validateFeeDistribution(l1Fee, baseFee, priorityFee, vaultIncreases)
 	ef.validateEcotoneFeatures(receipt, l1Fee)
-	ef.validateReceiptFees(receipt, l1Fee, receiptBaseFee, receiptL2Fee)
+	ef.validateReceiptFees(receipt, l1Fee, baseFee, l2Fee, receiptBaseFee, receiptL2Fee)
 
 	return EcotoneFeesValidationResult{
 		TransactionReceipt: receipt,
@@ -163,13 +162,19 @@ func (ef *EcotoneFees) validateEcotoneFeatures(receipt *types.Receipt, l1Fee *bi
 	ef.require.Greater(receipt.EffectiveGasPrice.Uint64(), uint64(0), "Effective gas price should be > 0")
 }
 
-func (ef *EcotoneFees) validateReceiptFees(receipt *types.Receipt, l1Fee, receiptBaseFee, receiptL2Fee *big.Int) {
+func (ef *EcotoneFees) validateReceiptFees(receipt *types.Receipt, l1Fee, vaultBaseFee, vaultL2Fee, receiptBaseFee, receiptL2Fee *big.Int) {
 	// Check that receipt's L1Fee matches the vault increase
 	if receipt.L1Fee != nil {
 		ef.require.Equal(receipt.L1Fee, l1Fee, "Receipt L1Fee must match L1FeeVault increase")
 	}
 
-	// Validate receipt-based calculations
+	// Sanity check: Receipt-calculated fees should match vault-based fees
+	ef.require.Equal(receiptBaseFee, vaultBaseFee,
+		"Receipt-calculated base fee (block.BaseFee * gasUsed) must match BaseFeeVault increase")
+	ef.require.Equal(receiptL2Fee, vaultL2Fee,
+		"Receipt-calculated L2 fee (effectiveGasPrice * gasUsed) must match L2 vault increases (BaseFee + SequencerFee)")
+
+	// Validate receipt-based calculations are positive
 	ef.require.True(receiptBaseFee.Sign() > 0, "Receipt-based base fee must be positive")
 	ef.require.True(receiptL2Fee.Sign() > 0, "Receipt-based L2 fee must be positive")
 
