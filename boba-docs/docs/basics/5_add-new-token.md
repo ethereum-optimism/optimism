@@ -6,9 +6,9 @@ description: Adding a new ERC20 token to Boba
 
 ## Deploy L2 ERC20 Contract
 
-### Deploy [L2StandardERC20.sol](https://github.com/bobanetwork/boba\_legacy/blob/release/v0.2.2/packages/contracts/contracts/standards/L2StandardERC20.sol) via block explorer
+### Deploy [L2StandardERC20.sol](https://github.com/bobanetwork/boba/blob/5601d2e5f6c7687624dad5959c0f9305bbe65ae5/packages/contracts-bedrock/src/L2/OptimismSuperchainERC20Factory.sol#L43) via block explorer
 
-The [L2StandardTokenFactory](https://github.com/bobanetwork/boba\_legacy/blob/release/v0.2.2/packages/contracts/contracts/L2/messaging/L2StandardTokenFactory.sol) is deployed and verified in the block explorer, so you can interact with the block explorer to deploy a new ERC20 token.
+The [L2StandardTokenFactory](https://github.com/bobanetwork/boba/blob/5601d2e5f6c7687624dad5959c0f9305bbe65ae5/packages/contracts-bedrock/src/L2/OptimismSuperchainERC20Factory.sol#L43) is deployed and verified in the block explorer, so you can interact with the block explorer to deploy a new ERC20 token.
 
 #### Mainnet Address
 
@@ -24,9 +24,9 @@ The [L2StandardTokenFactory](https://github.com/bobanetwork/boba\_legacy/blob/re
 | Boba Sepolia (Ethereum Sepolia L2) | 0x4200000000000000000000000000000000000012 | https://testnet.bobascan.com/address/0x4200000000000000000000000000000000000012 |
 | Bobabnb Testnet (BNB Testnet L2)   | 0xD2ae16D8c66ac7bc1Cf3c9e5d6bfE5f76BeDb826 | https://testnet.bobascan.com/address/0xD2ae16D8c66ac7bc1Cf3c9e5d6bfE5f76BeDb826 |
 
-### Deploy [L2StandardERC20.sol](https://github.com/bobanetwork/boba\_legacy/blob/release/v0.2.2/packages/contracts/contracts/standards/L2StandardERC20.sol) via the script
+### Deploy [L2StandardERC20.sol](https://github.com/bobanetwork/boba/blob/5601d2e5f6c7687624dad5959c0f9305bbe65ae5/packages/contracts-bedrock/src/L2/OptimismSuperchainERC20Factory.sol#L43) via the script
 
-You can deploy [L2StandardERC20.sol](https://github.com/bobanetwork/boba\_legacy/blob/release/v0.2.2/packages/contracts/contracts/standards/L2StandardERC20.sol) via the following script
+You can deploy [L2StandardERC20.sol](https://github.com/bobanetwork/boba/blob/5601d2e5f6c7687624dad5959c0f9305bbe65ae5/packages/contracts-bedrock/src/L2/OptimismSuperchainERC20Factory.sol#L43) via the following script
 
 ```js
 const Factory__L2StandardERC20 = new ethers.ContractFactory(
@@ -45,7 +45,7 @@ const L2StandardERC20 = await Factory__L2StandardERC20.deploy(
 
 ## Bridge the New Token L2
 
-ERC20 deposits into L2 can be triggered via the `depositERC20` and `depositERC20To` functions on the [`L1StandardBridge`](https://github.com/bobanetwork/boba\_legacy/blob/release/v0.2.2/packages/contracts/contracts/L1/messaging/L1StandardBridge.sol). You **must** approve the Standard Token Bridge to use the amount of tokens that you want to deposit or the deposit will fail.
+ERC20 deposits into L2 can be triggered via the `depositERC20` and `depositERC20To` functions on the [`L1StandardBridge`](https://github.com/bobanetwork/boba/blob/5601d2e5f6c7687624dad5959c0f9305bbe65ae5/packages/contracts-bedrock/src/L1/L1StandardBridge.sol#L4). You **must** approve the Standard Token Bridge to use the amount of tokens that you want to deposit or the deposit will fail.
 
 ```js
 const L1StandardERC20 = new ethers.Contract(
