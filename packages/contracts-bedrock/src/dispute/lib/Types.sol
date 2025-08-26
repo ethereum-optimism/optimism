@@ -70,6 +70,9 @@ library GameTypes {
     /// @notice A dispute game type that uses OP Succinct
     GameType internal constant OP_SUCCINCT = GameType.wrap(6);
 
+    /// @notice A dispute game type that aggregates the results of multiple dispute games.
+    GameType internal constant AGGREGATE = GameType.wrap(7);
+
     /// @notice A dispute game type with short game duration for testing withdrawals.
     ///         Not intended for production use.
     GameType internal constant FAST = GameType.wrap(254);
