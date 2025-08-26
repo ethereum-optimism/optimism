@@ -51,6 +51,7 @@ contract DisputeGameFactory_TestInit is CommonTest {
 
     event DisputeGameCreated(address indexed disputeProxy, GameType indexed gameType, Claim indexed rootClaim);
     event ImplementationSet(address indexed impl, GameType indexed gameType);
+    event ImplementationArgsSet(GameType indexed gameType, bytes args);
     event InitBondUpdated(GameType indexed gameType, uint256 indexed newBond);
 
     function setUp() public virtual override {
@@ -483,6 +484,35 @@ contract DisputeGameFactory_SetImplementation_Test is DisputeGameFactory_TestIni
         vm.prank(address(0));
         vm.expectRevert("Ownable: caller is not the owner");
         disputeGameFactory.setImplementation(GameTypes.CANNON, IDisputeGame(address(1)));
+    }
+
+    /// @notice Tests that the `setImplementation` function with args properly sets the implementation
+    ///         and args for a given `GameType`.
+    function test_setImplementation_withArgs_succeeds() public {
+        bytes memory args = abi.encode(uint256(123), address(0xdead), "test");
+
+        vm.expectEmit(true, true, true, true, address(disputeGameFactory));
+        emit ImplementationSet(address(1), GameTypes.CANNON);
+        vm.expectEmit(true, true, true, true, address(disputeGameFactory));
+        emit ImplementationArgsSet(GameTypes.CANNON, args);
+
+        // Set the implementation and args for the `GameTypes.CANNON` enum value.
+        disputeGameFactory.setImplementation(GameTypes.CANNON, IDisputeGame(address(1)), args);
+
+        // Ensure that the implementation for the `GameTypes.CANNON` enum value is set.
+        assertEq(address(disputeGameFactory.gameImpls(GameTypes.CANNON)), address(1));
+        // Ensure that the args for the `GameTypes.CANNON` enum value are set.
+        assertEq(disputeGameFactory.gameArgs(GameTypes.CANNON), args);
+    }
+
+    /// @notice Tests that the `setImplementation` function with args reverts when called by a non-owner.
+    function test_setImplementation_withArgs_notOwner_reverts() public {
+        bytes memory args = abi.encode(uint256(123), address(0xdead));
+
+        // Ensure that the `setImplementation` function reverts when called by a non-owner.
+        vm.prank(address(0));
+        vm.expectRevert("Ownable: caller is not the owner");
+        disputeGameFactory.setImplementation(GameTypes.CANNON, IDisputeGame(address(1)), args);
     }
 }
 
