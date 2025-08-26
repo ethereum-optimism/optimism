@@ -1248,6 +1248,9 @@ jobs:
               # Check engine status
               kurtosis engine status || true
 
+              # Print the docker resource allocation
+              docker info
+
               echo "Kurtosis setup complete"
             else
               echo "Using in-process testing (sysgo orchestrator) - no Kurtosis setup needed"
