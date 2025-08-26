@@ -98,13 +98,9 @@ contract DisputeGameFactory_TestInit is CommonTest {
         });
     }
 
-    function _getGameConstructorParamsV2(
-        Claim _absolutePrestate,
-        AlphabetVM _vm,
-        GameType _gameType
-    )
+    function _getGameConstructorParamsV2(GameType _gameType)
         internal
-        view
+        pure
         returns (IFaultDisputeGameV2.GameConstructorParams memory params_)
     {
         return IFaultDisputeGameV2.GameConstructorParams({
@@ -215,10 +211,7 @@ contract DisputeGameFactory_TestInit is CommonTest {
         gameImpl_ = DeployUtils.create1({
             _name: "FaultDisputeGameV2",
             _args: DeployUtils.encodeConstructor(
-                abi.encodeCall(
-                    IFaultDisputeGameV2.__constructor__,
-                    (_getGameConstructorParamsV2(_absolutePrestate, vm_, GameTypes.CANNON))
-                )
+                abi.encodeCall(IFaultDisputeGameV2.__constructor__, (_getGameConstructorParamsV2(GameTypes.CANNON)))
             )
         });
 
@@ -435,7 +428,7 @@ contract DisputeGameFactory_Create_Test is DisputeGameFactory_TestInit {
     function test_create_implArgs_succeeds() public {
         // skipIfForkTest("Not supported on testnet");
         Claim absolutePrestate = Claim.wrap(bytes32(hex"dead"));
-        (address gameImpl, AlphabetVM vm_,) = setupFaultDisputeGameV2(absolutePrestate);
+        (, AlphabetVM vm_,) = setupFaultDisputeGameV2(absolutePrestate);
 
         Claim rootClaim = changeClaimStatus(Claim.wrap(bytes32(hex"beef")), VMStatuses.INVALID);
         // extraData should contain the l2BlockNumber as first 32 bytes
