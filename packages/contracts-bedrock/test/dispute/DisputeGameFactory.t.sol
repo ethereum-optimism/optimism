@@ -454,11 +454,16 @@ contract DisputeGameFactory_Create_Test is DisputeGameFactory_TestInit {
         assertEq(Claim.unwrap(gameV2.absolutePrestate()), Claim.unwrap(absolutePrestate));
         assertEq(Claim.unwrap(gameV2.rootClaim()), Claim.unwrap(rootClaim));
         assertEq(gameV2.extraData(), extraData);
-        assertEq(GameType.unwrap(gameV2.gameType()), GameType.unwrap(GameTypes.CANNON));
         assertEq(gameV2.l2ChainId(), 0);
         assertEq(address(gameV2.vm()), address(vm_));
         assertEq(address(gameV2.weth()), address(delayedWeth));
         assertEq(address(gameV2.anchorStateRegistry()), address(anchorStateRegistry));
+        // Test Constructor args
+        assertEq(GameType.unwrap(gameV2.gameType()), GameType.unwrap(GameTypes.CANNON));
+        assertEq(gameV2.maxGameDepth(), 2 ** 3);
+        assertEq(gameV2.splitDepth(), 2 ** 2);
+        assertEq(Duration.unwrap(gameV2.clockExtension()), Duration.unwrap(Duration.wrap(3 hours)));
+        assertEq(Duration.unwrap(gameV2.maxClockDuration()), Duration.unwrap(Duration.wrap(3.5 days)));
     }
 }
 
