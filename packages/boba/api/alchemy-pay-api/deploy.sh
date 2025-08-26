@@ -1,4 +1,6 @@
 #!/bin/bash
+# shellcheck disable=SC2046
+export $(grep -v '^#' .env.mainnet | xargs)
 
 set -e
 
@@ -31,6 +33,15 @@ log_message() {
 echo "Deploying Alchemy Pay URL Generator service..."
 log_message "$STAGE" "Starting deployment for stage: $STAGE"
 
+create_domain() {
+  log_message "$STAGE" "Creating custom domain (if not already exists)..."
+  if serverless create_domain --stage "$STAGE" 2>&1 | tee -a "$log_file"; then
+    log_message "$STAGE" "Custom domain created or already exists."
+  else
+    log_message "$STAGE" "Custom domain creation failed. It may already exist."
+  fi
+}
+
 case $STAGE in
   "mainnet")
     if [ -z "$MAINNET_SECRET_KEY" ]; then
@@ -49,7 +60,7 @@ case $STAGE in
     cp env-mainnet.yml env.yml
 
     log_message "mainnet" "Starting serverless deployment..."
-    if serverless -c serverless-mainnet.yml deploy 2>&1 | tee -a "$MAINNET_LOG"; then
+    if serverless deploy --stage mainnet --region us-east-2 2>&1 | tee -a "$MAINNET_LOG"; then
       log_message "mainnet" "Deployment successful"
     else
       error_msg="Deployment failed"
@@ -77,8 +88,12 @@ case $STAGE in
     log_message "dev" "Copying development environment configuration..."
     cp env-dev.yml env.yml
 
+    # Create custom domain
+
+    # create_domain
+
     log_message "dev" "Starting serverless deployment..."
-    if serverless deploy --stage dev 2>&1 | tee -a "$DEV_LOG"; then
+    if serverless deploy --stage dev --debug 2>&1 | tee -a "$DEV_LOG"; then
       log_message "dev" "Deployment successful"
     else
       error_msg="Deployment failed"

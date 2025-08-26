@@ -1,4 +1,6 @@
 APP_ID: "your-app-id"
-SECRET_KEY: "your-secret-key"
-BASE_URL: "https://ramptest.alchemypay.org"
+SECRET_KEY: "${env:SECRET_KEY}"
+BASE_URL:
 STAGE: "dev"
+DOMAIN_NAME:
+CERTIFICATE_NAME:
