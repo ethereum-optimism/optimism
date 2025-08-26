@@ -107,7 +107,7 @@ func stateTransition(logger log.Logger, bootInfo *boot.BootInfoInterop, l1Preima
 	} else if transitionState.Step == ConsolidateStep {
 		logger.Info("Running consolidate step")
 		// sanity check
-		if len(transitionState.PendingProgress) >= ConsolidateStep {
+		if len(transitionState.PendingProgress) > ConsolidateStep {
 			return common.Hash{}, fmt.Errorf("%w: pending progress length does not match the expected step", ErrInvalidPrestate)
 		}
 		expectedSuperRoot, err := RunConsolidation(
