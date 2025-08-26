@@ -263,15 +263,6 @@ contract FaultDisputeGameV2 is Clone, ISemver {
         // INVARIANT: The game must not have already been initialized.
         if (initialized) revert AlreadyInitialized();
 
-        // Grab the latest anchor root.
-        (Hash root, uint256 rootBlockNumber) = anchorStateRegistry().getAnchorRoot();
-
-        // Should only happen if this is a new game type that hasn't been set up yet.
-        if (root.raw() == bytes32(0)) revert AnchorRootNotFound();
-
-        // Set the starting proposal.
-        startingOutputRoot = Proposal({ l2SequenceNumber: rootBlockNumber, root: root });
-
         // Revert if the calldata size is not the expected length.
         //
         // This is to prevent adding extra or omitting bytes from to `extraData` that result in a different game UUID
@@ -291,6 +282,15 @@ contract FaultDisputeGameV2 is Clone, ISemver {
         // - 20 bytes: weth address
         // - 32 bytes: l2ChainId
         if (msg.data.length != 246) revert BadExtraData();
+
+        // Grab the latest anchor root.
+        (Hash root, uint256 rootBlockNumber) = anchorStateRegistry().getAnchorRoot();
+
+        // Should only happen if this is a new game type that hasn't been set up yet.
+        if (root.raw() == bytes32(0)) revert AnchorRootNotFound();
+
+        // Set the starting proposal.
+        startingOutputRoot = Proposal({ l2SequenceNumber: rootBlockNumber, root: root });
 
         // Do not allow the game to be initialized if the root claim corresponds to a block at or before the
         // configured starting block number.
