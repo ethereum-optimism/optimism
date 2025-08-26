@@ -188,8 +188,11 @@ func WithSuperRoots(l1ChainID eth.ChainID, l1ELID stack.L1ELNodeID, l2CLID stack
 }
 
 func deployDelegateCallProxy(t devtest.CommonT, transactOpts *bind.TransactOpts, client *ethclient.Client, owner common.Address) (common.Address, *delegatecallproxy.Delegatecallproxy) {
-	deployAddress, _, proxyContract, err := delegatecallproxy.DeployDelegatecallproxy(transactOpts, client, owner)
+	deployAddress, tx, proxyContract, err := delegatecallproxy.DeployDelegatecallproxy(transactOpts, client, owner)
 	t.Require().NoError(err, "DelegateCallProxy deployment failed")
+	// Make sure the transaction actually got included rather than just being sent
+	_, err = wait.ForReceiptOK(t.Ctx(), client, tx.Hash())
+	t.Require().NoError(err, "DelegateCallProxy deployment tx was not included successfully")
 	return deployAddress, proxyContract
 }
 
