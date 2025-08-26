@@ -7702,6 +7702,73 @@
   },
   {
     "callStack": {
+      "function": "syscall.stat",
+      "callStack": {
+        "function": "syscall.Stat",
+        "callStack": {
+          "function": "os.statNolog",
+          "callStack": {
+            "function": "os.Stat",
+            "callStack": {
+              "function": "github.com/ethereum/go-ethereum/common.FileExist",
+              "callStack": {
+                "function": "github.com/ethereum/go-ethereum/triedb/pathdb.(*Database).loadJournal",
+                "callStack": {
+                  "function": "github.com/ethereum/go-ethereum/triedb/pathdb.(*Database).loadLayers",
+                  "callStack": {
+                    "function": "github.com/ethereum/go-ethereum/triedb/pathdb.New",
+                    "callStack": {
+                      "function": "github.com/ethereum/go-ethereum/triedb.NewDatabase",
+                      "callStack": {
+                        "function": "github.com/ethereum-optimism/optimism/op-program/client/mpt.ReadTrie",
+                        "callStack": {
+                          "function": "github.com/ethereum-optimism/optimism/op-program/client/interop.(*ConsolidateOracle).loadTransactions",
+                          "callStack": {
+                            "function": "github.com/ethereum-optimism/optimism/op-program/client/interop.(*ConsolidateOracle).consolidatedBlockByHash",
+                            "callStack": {
+                              "function": "github.com/ethereum-optimism/optimism/op-program/client/interop.(*ConsolidateOracle).ReceiptsByBlockHash",
+                              "callStack": {
+                                "function": "github.com/ethereum-optimism/optimism/op-program/client/interop.singleRoundConsolidation",
+                                "callStack": {
+                                  "function": "github.com/ethereum-optimism/optimism/op-program/client/interop.RunConsolidation",
+                                  "callStack": {
+                                    "function": "github.com/ethereum-optimism/optimism/op-program/client/interop.stateTransition",
+                                    "callStack": {
+                                      "function": "github.com/ethereum-optimism/optimism/op-program/client/interop.runInteropProgram",
+                                      "callStack": {
+                                        "function": "github.com/ethereum-optimism/optimism/op-program/client.RunProgram",
+                                        "callStack": {
+                                          "function": "github.com/ethereum-optimism/optimism/op-program/client.Main",
+                                          "callStack": {
+                                            "function": "main.main"
+                                          }
+                                        }
+                                      }
+                                    }
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "message": "Potential NOOP Syscall Detected: 5004",
+    "severity": "WARNING",
+    "impact": "This syscall is present in the program, but its execution depends on the actual runtime behavior. \n             If the execution path does not reach this syscall, it may not affect execution.",
+    "reference": "https://github.com/ChainSafe/vm-compat?tab=readme-ov-file#how-it-works",
+    "hash": "5013ea916f3e0f37ec609b3ca053b80c8f7aea0073d0b5a8452135c9fa1d9657"
+  },
+  {
+    "callStack": {
       "function": "syscall.openat",
       "callStack": {
         "function": "os.open",
@@ -14760,6 +14827,67 @@
     "impact": "This syscall is present in the program, but its execution depends on the actual runtime behavior. \n             If the execution path does not reach this syscall, it may not affect execution.",
     "reference": "https://github.com/ChainSafe/vm-compat?tab=readme-ov-file#how-it-works",
     "hash": "fc6d08605736c4822973b5a95bd49cfcd854aeb70beeaf9486dd57cc56a0414a"
+  },
+  {
+    "callStack": {
+      "function": "syscall.stat",
+      "callStack": {
+        "function": "syscall.Stat",
+        "callStack": {
+          "function": "os.statNolog",
+          "callStack": {
+            "function": "os.Stat",
+            "callStack": {
+              "function": "github.com/ethereum/go-ethereum/common.FileExist",
+              "callStack": {
+                "function": "github.com/ethereum/go-ethereum/triedb/pathdb.(*Database).loadJournal",
+                "callStack": {
+                  "function": "github.com/ethereum/go-ethereum/triedb/pathdb.(*Database).loadLayers",
+                  "callStack": {
+                    "function": "github.com/ethereum/go-ethereum/triedb/pathdb.New",
+                    "callStack": {
+                      "function": "github.com/ethereum/go-ethereum/triedb.NewDatabase",
+                      "callStack": {
+                        "function": "github.com/ethereum-optimism/optimism/op-program/client/mpt.ReadTrie",
+                        "callStack": {
+                          "function": "github.com/ethereum-optimism/optimism/op-program/client/interop.(*ConsolidateOracle).ReceiptsByBlockHash",
+                          "callStack": {
+                            "function": "github.com/ethereum-optimism/optimism/op-program/client/interop.singleRoundConsolidation",
+                            "callStack": {
+                              "function": "github.com/ethereum-optimism/optimism/op-program/client/interop.RunConsolidation",
+                              "callStack": {
+                                "function": "github.com/ethereum-optimism/optimism/op-program/client/interop.stateTransition",
+                                "callStack": {
+                                  "function": "github.com/ethereum-optimism/optimism/op-program/client/interop.runInteropProgram",
+                                  "callStack": {
+                                    "function": "github.com/ethereum-optimism/optimism/op-program/client.RunProgram",
+                                    "callStack": {
+                                      "function": "github.com/ethereum-optimism/optimism/op-program/client.Main",
+                                      "callStack": {
+                                        "function": "main.main"
+                                      }
+                                    }
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "message": "Potential NOOP Syscall Detected: 5004",
+    "severity": "WARNING",
+    "impact": "This syscall is present in the program, but its execution depends on the actual runtime behavior. \n             If the execution path does not reach this syscall, it may not affect execution.",
+    "reference": "https://github.com/ChainSafe/vm-compat?tab=readme-ov-file#how-it-works",
+    "hash": "fc7609bd18384b36954855ebd2d909707e01ed0c67a7c45ea4aead058369210d"
   },
   {
     "callStack": {
