@@ -14,8 +14,13 @@ npm-debug.log*
 
 # Environment
 env-*.yml
+env-dev.yml
+env-mainnet.yml
 !env-*.example.yml
+
 .env
+.env*
+!/.env.example
 
 # IDE
 .vscode/

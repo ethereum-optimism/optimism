@@ -4,7 +4,7 @@ provider:
   name: aws
   runtime: python3.9
   stage: ${opt:stage, 'dev'}
-  region: ${opt:region, 'us-east-1'}
+  region: ${opt:region, 'us-east-2'}
   environment: ${file(env-${self:provider.stage}.yml)}
 
 functions:
@@ -14,12 +14,14 @@ functions:
       - http:
           path: generate_alchemypay_url
           method: post
-          cors: true
+          cors:  # <-- CORS! configuration
+            origins: ${self:custom.corsOrigins.${self:provider.stage}}
     timeout: 30
 
 plugins:
   - serverless-python-requirements
   - serverless-offline
+  - serverless-domain-manager
 
 package:
   patterns:
@@ -32,5 +34,24 @@ custom:
     layer:
       name: python-deps
       description: Python dependencies for Alchemy Pay URL Generator
+
   serverless-offline:
     httpPort: 3000
+
+  corsOrigins:
+    dev:
+      - https://staging.hub.boba.network
+      - https://stagingv2.gateway.boba.network
+      - http://localhost:3000
+    mainnet:
+      - https://hub.boba.network
+      - https://gateway.boba.network
+
+  customDomain:
+    domainName: ${self:provider.environment.DOMAIN_NAME}       # 👈 Your subdomain here
+    basePath: ''                      # '' means root path
+    stage: ${self:provider.stage}
+    createRoute53Record: true
+    certificateName: ${self:provider.environment.CERTIFICATE_NAME}  # 👈 Must match ACM cert
+    endpointType: REGIONAL
+
