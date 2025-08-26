@@ -9,6 +9,7 @@ import { ForgeArtifacts, StorageSlot } from "scripts/libraries/ForgeArtifacts.so
 import { DeployUtils } from "scripts/libraries/DeployUtils.sol";
 
 // Libraries
+import {console} from "forge-std/console.sol";
 import "src/dispute/lib/Types.sol";
 import "src/dispute/lib/Errors.sol";
 
@@ -222,7 +223,7 @@ contract DisputeGameFactory_TestInit is CommonTest {
             vm_, // 20 bytes
             anchorStateRegistry, // 20 bytes
             delayedWeth, // 20 bytes
-            uint256(0) // 32 bytes (l2ChainId)
+            uint256(111) // 32 bytes (l2ChainId)
         );
 
         _setGame(gameImpl_, GameTypes.CANNON, implArgs);
@@ -433,7 +434,7 @@ contract DisputeGameFactory_Create_Test is DisputeGameFactory_TestInit {
 
         Claim rootClaim = changeClaimStatus(Claim.wrap(bytes32(hex"beef")), VMStatuses.INVALID);
         // extraData should contain the l2BlockNumber as first 32 bytes
-        bytes memory extraData = abi.encode(uint256(type(uint32).max));
+        bytes memory extraData = bytes.concat(bytes32(uint256(type(uint32).max)));
 
         uint256 bondAmount = disputeGameFactory.initBonds(GameTypes.CANNON);
         vm.deal(address(this), bondAmount);
@@ -454,7 +455,7 @@ contract DisputeGameFactory_Create_Test is DisputeGameFactory_TestInit {
         assertEq(Claim.unwrap(gameV2.absolutePrestate()), Claim.unwrap(absolutePrestate));
         assertEq(Claim.unwrap(gameV2.rootClaim()), Claim.unwrap(rootClaim));
         assertEq(gameV2.extraData(), extraData);
-        assertEq(gameV2.l2ChainId(), 0);
+        assertEq(gameV2.l2ChainId(), 111);
         assertEq(address(gameV2.vm()), address(vm_));
         assertEq(address(gameV2.weth()), address(delayedWeth));
         assertEq(address(gameV2.anchorStateRegistry()), address(anchorStateRegistry));
