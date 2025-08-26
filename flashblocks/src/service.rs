@@ -151,7 +151,7 @@ impl<
 
 impl<
         N: NodePrimitives,
-        S: Stream<Item = FlashBlock> + Unpin,
+        S: Stream<Item = eyre::Result<FlashBlock>> + Unpin,
         EvmConfig: ConfigureEvm<Primitives = N, NextBlockEnvCtx: Unpin>,
         Provider: StateProviderFactory
             + BlockReaderIdExt<
@@ -169,7 +169,8 @@ impl<
         let this = self.get_mut();
         loop {
             match this.rx.poll_next_unpin(cx) {
-                Poll::Ready(Some(flashblock)) => this.add_flash_block(flashblock),
+                Poll::Ready(Some(Ok(flashblock))) => this.add_flash_block(flashblock),
+                Poll::Ready(Some(Err(err))) => return Poll::Ready(Some(Err(err))),
                 Poll::Ready(None) => return Poll::Ready(None),
                 Poll::Pending => return Poll::Ready(Some(this.execute())),
             }
