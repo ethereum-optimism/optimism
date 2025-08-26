@@ -26,7 +26,7 @@ func (n *SyncTester) hydrate(system stack.ExtensibleSystem) {
 	require := system.T().Require()
 
 	for syncTesterID, chainID := range n.service.SyncTesters() {
-		syncTesterRPC := n.service.NewEndpoint(chainID)
+		syncTesterRPC := n.service.RPC() + n.service.NewEndpoint(chainID)
 		rpcCl, err := client.NewRPC(system.T().Ctx(), system.Logger(), syncTesterRPC, client.WithLazyDial())
 		require.NoError(err)
 		system.T().Cleanup(rpcCl.Close)

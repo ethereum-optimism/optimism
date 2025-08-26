@@ -9,6 +9,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-devstack/stack"
 	"github.com/ethereum-optimism/optimism/op-devstack/stack/match"
 	"github.com/ethereum-optimism/optimism/op-service/client"
+	"github.com/ethereum-optimism/optimism/op-service/testutils/tcpproxy"
 	sttypes "github.com/ethereum-optimism/optimism/op-sync-tester/synctester/backend/types"
 )
 
@@ -20,8 +21,12 @@ type SyncTesterEL struct {
 	id      stack.L2ELNodeID
 	l2Net   *L2Network
 	jwtPath string
+
 	authRPC string
 	userRPC string
+
+	authProxy *tcpproxy.Proxy
+	userProxy *tcpproxy.Proxy
 
 	// Sync tester specific fields
 	clNodeID stack.L2CLNodeID
@@ -68,12 +73,34 @@ func (n *SyncTesterEL) Start() {
 	// Use NewEndpoint to get the correct session-specific endpoint for this chain ID
 	endpoint := n.orch.syncTester.service.NewEndpoint(n.id.ChainID())
 
-	session := fmt.Sprintf("%s?latest=%d&safe=%d&finalized=%d",
-		endpoint, n.fcuState.Latest, n.fcuState.Safe, n.fcuState.Finalized)
+	if n.authProxy == nil {
+		n.authProxy = tcpproxy.New(n.p.Logger().New("proxy", "l2el-synctester-auth"))
+		n.p.Require().NoError(n.authProxy.Start())
+		n.p.Cleanup(func() {
+			n.authProxy.Close()
+		})
 
-	// For sync tester, the engine RPC and user RPC should include FCU state as query parameters
-	n.userRPC = session
-	n.authRPC = session
+		rpc := "http://" + n.authProxy.Addr()
+		n.authRPC = fmt.Sprintf("%s%s?latest=%d&safe=%d&finalized=%d",
+			rpc, endpoint, n.fcuState.Latest, n.fcuState.Safe, n.fcuState.Finalized)
+	}
+	if n.userProxy == nil {
+		n.userProxy = tcpproxy.New(n.p.Logger().New("proxy", "l2el-synctester-user"))
+		n.p.Require().NoError(n.userProxy.Start())
+		n.p.Cleanup(func() {
+			n.userProxy.Close()
+		})
+
+		rpc := "http://" + n.userProxy.Addr()
+		n.userRPC = fmt.Sprintf("%s%s?latest=%d&safe=%d&finalized=%d",
+			rpc, endpoint, n.fcuState.Latest, n.fcuState.Safe, n.fcuState.Finalized)
+	}
+
+	session := fmt.Sprintf("%s%s?latest=%d&safe=%d&finalized=%d",
+		n.orch.syncTester.service.RPC(), endpoint, n.fcuState.Latest, n.fcuState.Safe, n.fcuState.Finalized)
+
+	n.authProxy.SetUpstream(ProxyAddr(n.p.Require(), session))
+	n.userProxy.SetUpstream(ProxyAddr(n.p.Require(), session))
 }
 
 func (n *SyncTesterEL) Stop() {
@@ -113,8 +140,6 @@ func WithSyncTesterL2ELNode(id stack.L2ELNodeID, clNodeID stack.L2CLNodeID, fcuS
 			id:       id,
 			l2Net:    l2Net,
 			jwtPath:  jwtPath,
-			authRPC:  "",
-			userRPC:  "",
 			clNodeID: clNodeID,
 			fcuState: fcuState,
 			p:        p,
