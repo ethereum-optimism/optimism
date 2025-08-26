@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-devstack/stack"
@@ -94,12 +95,18 @@ func (s *Supervisor) FetchSyncStatus() eth.SupervisorSyncStatus {
 	s.log.Debug("Fetching supervisor sync status")
 	ctx, cancel := context.WithTimeout(s.ctx, DefaultTimeout)
 	defer cancel()
-	syncStatus, err := retry.Do(ctx, 2, retry.Fixed(500*time.Millisecond), func() (eth.SupervisorSyncStatus, error) {
+	syncStatus, err := retry.Do(ctx, 10, retry.Fixed(500*time.Millisecond), func() (eth.SupervisorSyncStatus, error) {
 		ctx, cancel := context.WithTimeout(s.ctx, 300*time.Millisecond)
 		defer cancel()
 		syncStatus, err := s.inner.QueryAPI().SyncStatus(ctx)
 		if errors.Is(err, status.ErrStatusTrackerNotReady) {
 			s.log.Debug("Sync status not ready from supervisor")
+			return syncStatus, err
+		}
+		// Check for L1 sync mismatch error and retry
+		if err != nil && strings.Contains(err.Error(), "min synced L1 mismatch") {
+			s.log.Debug("L1 sync mismatch, retrying", "error", err)
+			return syncStatus, err
 		}
 		return syncStatus, err
 	})
