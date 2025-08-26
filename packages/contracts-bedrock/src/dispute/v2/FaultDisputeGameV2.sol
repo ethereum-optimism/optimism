@@ -151,9 +151,9 @@ contract FaultDisputeGameV2 is Clone, ISemver {
     uint256 internal constant HEADER_BLOCK_NUMBER_INDEX = 8;
 
     /// @notice Semantic version.
-    /// @custom:semver 1.9.0
+    /// @custom:semver 2.0.0
     function version() public pure virtual returns (string memory) {
-        return "1.9.0";
+        return "2.0.0";
     }
 
     /// @notice The starting timestamp of the game
