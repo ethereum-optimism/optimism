@@ -141,7 +141,7 @@
   },
   {
     "bytes": "1",
-    "label": "superRootsActive",
+    "label": "spacer_63_20_1",
     "offset": 20,
     "slot": "63",
     "type": "bool"

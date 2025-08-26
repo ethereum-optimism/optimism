@@ -18,6 +18,7 @@ import (
 )
 
 func TestInteropMigration(t *testing.T) {
+	// TEMP(u16a): Skipped for u16a.
 	t.Skip("Skipped until the sepolia opcm supports the interop migration")
 
 	lgr := testlog.Logger(t, slog.LevelDebug)

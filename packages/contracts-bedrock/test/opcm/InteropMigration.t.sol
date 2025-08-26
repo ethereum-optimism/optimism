@@ -200,6 +200,9 @@ contract InteropMigration_Test is Test {
         input.set(input.maxClockDuration.selector, 1000);
 
         migration = new InteropMigration();
+
+        // TEMP(u16a): Skipped for u16a.
+        vm.skip(true);
     }
 
     function test_migrate_succeeds() public {
