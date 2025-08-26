@@ -20,7 +20,6 @@ optimism_package:
             type: op-node
             image: {{ localDockerImage "op-node" }}
           conductor_params:
-            image: {{ localDockerImage "op-conductor" }}
             enabled: true
             bootstrap: true
             admin: true
@@ -42,7 +41,6 @@ optimism_package:
             type: op-node
             image: {{ localDockerImage "op-node" }}
           conductor_params:
-            image: {{ localDockerImage "op-conductor" }}
             enabled: true
             admin: true
             proxy: true
