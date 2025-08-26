@@ -13,7 +13,6 @@ optimism_package:
             type: op-node
             image: {{ localDockerImage "op-node" }}
           conductor_params:
-            image: {{ localDockerImage "op-conductor" }}
             enabled: true
             bootstrap: true
         node1:
@@ -23,8 +22,8 @@ optimism_package:
           cl:
             type: op-node
             image: {{ localDockerImage "op-node" }}
+            log_level: debug
           conductor_params:
-            image: {{ localDockerImage "op-conductor" }}
             enabled: true
         # Flashblocks
         fb0:
@@ -42,7 +41,6 @@ optimism_package:
             type: op-node
             image: {{ localDockerImage "op-node" }}
           conductor_params:
-            image: {{ localDockerImage "op-conductor" }}
             enabled: true
             admin: true
             proxy: true
@@ -62,7 +60,6 @@ optimism_package:
             type: op-node
             image: {{ localDockerImage "op-node" }}
           conductor_params:
-            image: {{ localDockerImage "op-conductor" }}
             enabled: true
             admin: true
             proxy: true
@@ -81,43 +78,47 @@ optimism_package:
         type: op-reth
       batcher_params:
         image: {{ localDockerImage "op-batcher" }}
+        pprof_enabled: true
         extra_params: []
+      proposer_params:
+        image: {{ localDockerImage "op-proposer" }}
+        game_type: 1
+        proposal_interval: 10m
       signer_params:
         enabled: true
       blockscout_params:
         enabled: true
   op_contract_deployer_params:
-    image: {{ localDockerImage "op-deployer" }}
-    l1_artifacts_locator: {{ localContractArtifacts "l1" }}
-    l2_artifacts_locator: {{ localContractArtifacts "l2" }}
-    overrides:
-      faultGameAbsolutePrestate: {{ localPrestate.Hashes.prestate_mt64 }}
+    image: us-docker.pkg.dev/oplabs-tools-artifacts/images/op-deployer:v0.4.0-rc.2
+    l1_artifacts_locator: https://storage.googleapis.com/oplabs-contract-artifacts/artifacts-v1-02024c5a26c16fc1a5c716fff1c46b5bf7f23890d431bb554ddbad60971211d4.tar.gz
+    l2_artifacts_locator: https://storage.googleapis.com/oplabs-contract-artifacts/artifacts-v1-02024c5a26c16fc1a5c716fff1c46b5bf7f23890d431bb554ddbad60971211d4.tar.gz
   global_log_level: "info"
   global_node_selectors: {}
   global_tolerations: []
   persistent: false
   challengers:
     challenger0: &x-challenger
-      enabled: true
-      image: {{ localDockerImage "op-challenger" }}
       participants: "*"
-      cannon_prestates_url: {{ localPrestate.URL }}
-      cannon_trace_types: ["cannon", "permissioned"]
+      image: {{ localDockerImage "op-challenger" }}
+      cannon_trace_types: ["super-cannon", "super-permissioned"]
+    challenger1:
+      <<: *x-challenger
   superchains:
     superchain0:
   supervisors:
     supervisor0: &x-supervisor
+      image: {{ localDockerImage "op-supervisor" }}
       superchain: superchain0
     supervisor1:
       <<: *x-supervisor
   test-sequencers:
     sequencer0:
+      image: {{ localDockerImage "op-test-sequencer" }}
       enabled: true
 ethereum_package:
   participants:
   - el_type: geth
-    cl_type: lighthouse
-    cl_image: "ethpandaops/lighthouse:stable-e21198c"
+    cl_type: teku
   network_params:
     preset: minimal
     genesis_delay: 5
