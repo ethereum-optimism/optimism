@@ -20,6 +20,7 @@ optimism_package:
             type: op-node
             image: {{ localDockerImage "op-node" }}
           conductor_params:
+            image: {{ localDockerImage "op-conductor" }}
             enabled: true
             bootstrap: true
             admin: true
@@ -41,6 +42,7 @@ optimism_package:
             type: op-node
             image: {{ localDockerImage "op-node" }}
           conductor_params:
+            image: {{ localDockerImage "op-conductor" }}
             enabled: true
             admin: true
             proxy: true
@@ -70,13 +72,6 @@ optimism_package:
         extra_params: []
         game_type: 1
         proposal_interval: 10m
-  challengers:
-    challenger:
-      enabled: true
-      image: {{ localDockerImage "op-challenger" }}
-      participants: "*"
-      cannon_prestates_url: {{ localPrestate.URL }}
-      cannon_trace_types: ["cannon", "permissioned"]
   op_contract_deployer_params:
     image: {{ localDockerImage "op-deployer" }}
     l1_artifacts_locator: {{ localContractArtifacts "l1" }}
@@ -87,6 +82,20 @@ optimism_package:
   global_node_selectors: {}
   global_tolerations: []
   persistent: false
+  challengers:
+    challenger:
+      enabled: true
+      image: {{ localDockerImage "op-challenger" }}
+      participants: "*"
+      cannon_prestates_url: {{ localPrestate.URL }}
+      cannon_trace_types: ["cannon", "permissioned"]
+  superchains:
+    superchain0:
+  supervisors:
+    supervisor0: &x-supervisor
+      superchain: superchain0
+    supervisor1:
+      <<: *x-supervisor
 ethereum_package:
   participants:
     - el_type: geth
