@@ -433,12 +433,13 @@ contract DisputeGameFactory_Create_Test is DisputeGameFactory_TestInit {
     }
 
     function test_create_implArgs_succeeds() public {
+        // skipIfForkTest("Not supported on testnet");
         Claim absolutePrestate = Claim.wrap(bytes32(hex"dead"));
         (address gameImpl, AlphabetVM vm_,) = setupFaultDisputeGameV2(absolutePrestate);
 
         Claim rootClaim = changeClaimStatus(Claim.wrap(bytes32(hex"beef")), VMStatuses.INVALID);
         // extraData should contain the l2BlockNumber as first 32 bytes
-        bytes memory extraData = abi.encode(uint256(424242));
+        bytes memory extraData = abi.encode(uint256(type(uint32).max));
 
         uint256 bondAmount = disputeGameFactory.initBonds(GameTypes.CANNON);
         vm.deal(address(this), bondAmount);
