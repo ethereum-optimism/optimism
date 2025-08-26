@@ -13,13 +13,11 @@ Other advantages include superior performance with multiple RPC endpoint configu
 
 ### Starter Projects
 
-* [Boba ETH Starter Project](https://github.com/subquery/ethereum-subql-starter/tree/main/Boba/boba-eth-starter)
-* [Boba BNB Starter Project](https://github.com/subquery/ethereum-subql-starter/tree/main/Boba/boba-bnb-starter)
+[Boba ETH Starter Project](https://github.com/subquery/ethereum-subql-starter/tree/main/Boba/boba-eth-starter)
 
 ### Quickstart Guides
 
-* [Boba ETH Quickstart Guide Project](https://academy.subquery.network/quickstart/quickstart\_chains/boba-eth.html)
-* [Boba BNB Quickstart Guide Project](https://academy.subquery.network/quickstart/quickstart\_chains/boba-bnb.html)
+[Boba ETH Quickstart Guide Project](https://academy.subquery.network/quickstart/quickstart\_chains/boba-eth.html)
 
 ### Running and Hosting your Boba SubQuery APIs
 

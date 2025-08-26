@@ -1,14 +1,5 @@
 # Bundler API
 
-## Bundler Endpoints
-
-|            |                                                                                      |
-| ---------- | ------------------------------------------------------------------------------------ |
-| ChainID    | 9728                                                                                 |
-| AA bundler | [https://bundler.testnet.bnb.boba.network](https://bundler.testnet.bnb.boba.network) |
-
-## Bundler API
-
 This section lists the Ethereum JSON-RPC API endpoints for a basic EIP-4337 "bundler".
 
 * `eth_sendUserOperation`
@@ -16,16 +7,16 @@ This section lists the Ethereum JSON-RPC API endpoints for a basic EIP-4337 "bun
 * `eth_chainId`
 * `eth_estimateUserOperationGas`
 
-### `eth_sendUserOperation`
+## `eth_sendUserOperation`
 
 Submit your userOperations to the bundler.
 
-#### Parameters
+### Parameters
 
 1. `UserOperation`, a full user operation struct.
 2. `EntryPoint`, address the request should be sent through.
 
-#### Return value
+### Return value
 
 Returns `userOpHash` if the UserOperation is valid.
 
@@ -44,7 +35,7 @@ Otherwise it returns an error object with `code` and `message`. (and sometimes `
 | -32507   | Transaction rejected because of wallet signature check failed (or paymaster siganture, if the paymaster uses its data as signature) |
 | -32508   | UserOperation not in valid time-range: either wallet or paymaster returned a time-range, and it is valid in the future              |
 
-#### Usage
+### Usage
 
 Example request
 
@@ -100,7 +91,7 @@ Example failure response:
 }
 ```
 
-### `eth_supportedEntryPoints`
+## `eth_supportedEntryPoints`
 
 Returns an array of the entryPoint addresses supported by the client.
 
@@ -128,7 +119,7 @@ Response:
 }
 ```
 
-### `eth_chainId`
+## `eth_chainId`
 
 Returns EIP-155 Chain ID.
 
@@ -153,15 +144,15 @@ Response:
 }
 ```
 
-### `eth_getUserOperationByHash`
+## `eth_getUserOperationByHash`
 
 Get a UserOperation based on a userOperation hash
 
-#### Parameters
+### Parameters
 
 1. `userOpHash`, a userOperation hash value
 
-#### Return Value
+### Return Value
 
 Returns a full UserOperation, with the addition of `entryPoint`, `blockNumber`, `blockHash` and `transactionHash` if the UserOperation is included in a block.
 
@@ -221,15 +212,15 @@ Example failure response:
 }
 ```
 
-### `eth_getUserOperationReceipt`
+## `eth_getUserOperationReceipt`
 
 Get a UserOperation based on a userOperation hash
 
-#### Parameters
+### Parameters
 
 1. `userOpHash`, a userOperation hash value
 
-#### Return value
+### Return value
 
 Returns a receipt that includes
 

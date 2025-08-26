@@ -15,14 +15,12 @@ The [L2StandardTokenFactory](https://github.com/bobanetwork/boba\_legacy/blob/re
 | Network                    | Contract Address                           | Block Explorer URL                                           |
 | -------------------------- | ------------------------------------------ | ------------------------------------------------------------ |
 | Boba Mainnet (Ethereum L2) | 0xD2ae16D8c66ac7bc1Cf3c9e5d6bfE5f76BeDb826 | https://bobascan.com/address/0xD2ae16D8c66ac7bc1Cf3c9e5d6bfE5f76BeDb826 |
-| Bobabnb (BNB L2)           | 0xD2ae16D8c66ac7bc1Cf3c9e5d6bfE5f76BeDb826 | https://bobascan.com/address/0xD2ae16D8c66ac7bc1Cf3c9e5d6bfE5f76BeDb826 |
 
 #### Testnet Address
 
 | Network                            | Contract Address                           | Block Explorer URL                                           |
 | ---------------------------------- | ------------------------------------------ | ------------------------------------------------------------ |
 | Boba Sepolia (Ethereum Sepolia L2) | 0x4200000000000000000000000000000000000012 | https://testnet.bobascan.com/address/0x4200000000000000000000000000000000000012 |
-| Bobabnb Testnet (BNB Testnet L2)   | 0xD2ae16D8c66ac7bc1Cf3c9e5d6bfE5f76BeDb826 | https://testnet.bobascan.com/address/0xD2ae16D8c66ac7bc1Cf3c9e5d6bfE5f76BeDb826 |
 
 ### Deploy [L2StandardERC20.sol](https://github.com/bobanetwork/boba\_legacy/blob/release/v0.2.2/packages/contracts/contracts/standards/L2StandardERC20.sol) via the script
 
