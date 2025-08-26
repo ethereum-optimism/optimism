@@ -11,7 +11,7 @@ type DefaultSimpleSystemWithSyncTesterIDs struct {
 	DefaultMinimalSystemIDs
 
 	L2CL2      stack.L2CLNodeID
-	SyncTester stack.SyncTesterID
+	SyncTester stack.L2ELNodeID
 }
 
 func NewDefaultSimpleSystemWithSyncTesterIDs(l1ID, l2ID eth.ChainID) DefaultSimpleSystemWithSyncTesterIDs {
@@ -19,7 +19,7 @@ func NewDefaultSimpleSystemWithSyncTesterIDs(l1ID, l2ID eth.ChainID) DefaultSimp
 	return DefaultSimpleSystemWithSyncTesterIDs{
 		DefaultMinimalSystemIDs: minimal,
 		L2CL2:                   stack.NewL2CLNodeID("verifier", l2ID),
-		SyncTester:              stack.NewSyncTesterID("s", l2ID),
+		SyncTester:              stack.NewL2ELNodeID("sync-tester-el", l2ID),
 	}
 }
 
@@ -62,9 +62,8 @@ func DefaultSimpleSystemWithSyncTester(dest *DefaultSimpleSystemWithSyncTesterID
 	opt.Add(WithSyncTester([]stack.L2ELNodeID{ids.L2EL}))
 
 	// Create a SyncTesterEL with the same chain ID as the CL node
-	syncTesterELID := stack.NewL2ELNodeID("sync-tester-el", ids.L2CL2.ChainID())
-	opt.Add(WithSyncTesterL2ELNode(syncTesterELID, ids.L2CL2, fcus))
-	opt.Add(WithL2CLNode(ids.L2CL2, ids.L1CL, ids.L1EL, syncTesterELID))
+	opt.Add(WithSyncTesterL2ELNode(ids.SyncTester, ids.L2CL2, fcus))
+	opt.Add(WithL2CLNode(ids.L2CL2, ids.L1CL, ids.L1EL, stack.L2ELNodeID(ids.SyncTester)))
 
 	opt.Add(stack.Finally(func(orch *Orchestrator) {
 		*dest = ids
