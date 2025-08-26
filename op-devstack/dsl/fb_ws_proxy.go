@@ -47,8 +47,6 @@ func (c *FlashblocksWebsocketProxy) ListenFor(logger log.Logger, duration time.D
 	return websocketListenFor(logger, wsURL, headers, duration, output, done)
 }
 
-// TODO(#986): Revamp this function so that it's more robust,
-// easier to use in tests and handles errors more gracefully
 func websocketListenFor(logger log.Logger, wsURL string, headers http.Header, duration time.Duration, output chan<- []byte, done chan<- struct{}) error {
 	defer close(done)
 	logger.Debug("Testing WebSocket connection to", "url", wsURL, "headers", headers)
