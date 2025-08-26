@@ -54,6 +54,11 @@ impl<
         Builder: PendingEnvBuilder<EvmConfig>,
     > FlashBlockService<N, S, EvmConfig, Provider, Builder>
 {
+    /// Constructs a new `FlashBlockService` that receives [`FlashBlock`]s from `rx` stream.
+    pub const fn new(rx: S, evm_config: EvmConfig, provider: Provider, builder: Builder) -> Self {
+        Self { rx, current: None, blocks: Vec::new(), evm_config, provider, builder }
+    }
+
     /// Adds the `block` into the collection.
     ///
     /// Depending on its index and associated block number, it may:

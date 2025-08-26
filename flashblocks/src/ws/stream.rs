@@ -28,6 +28,18 @@ pub struct FlashBlockWsStream {
     stream: Option<SplitStream<WebSocketStream<MaybeTlsStream<TcpStream>>>>,
 }
 
+impl FlashBlockWsStream {
+    /// Creates a new websocket stream over `ws_url`.
+    pub fn new(ws_url: Url) -> Self {
+        Self {
+            ws_url,
+            state: State::default(),
+            connect: Box::pin(async move { Err(Error::ConnectionClosed) }),
+            stream: None,
+        }
+    }
+}
+
 impl Stream for FlashBlockWsStream {
     type Item = eyre::Result<FlashBlock>;
 
