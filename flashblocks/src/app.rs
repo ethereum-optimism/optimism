@@ -1,16 +1,16 @@
 use crate::{FlashBlockService, FlashBlockWsStream};
 use futures_util::StreamExt;
-use reth_chain_state::ExecutedBlock;
 use reth_evm::ConfigureEvm;
 use reth_primitives_traits::{BlockTy, HeaderTy, NodePrimitives, ReceiptTy};
 use reth_rpc_eth_api::helpers::pending_block::BuildPendingEnv;
+use reth_rpc_eth_types::PendingBlock;
 use reth_storage_api::{BlockReaderIdExt, StateProviderFactory};
 use tokio::sync::watch;
 use url::Url;
 
 /// Spawns a background task that subscribes over websocket to `ws_url`.
 ///
-/// Returns a [`FlashBlockRx`] that receives the most recent [`ExecutedBlock`] built from
+/// Returns a [`FlashBlockRx`] that receives the most recent [`PendingBlock`] built from
 ///  [`FlashBlock`]s.
 ///
 /// [`FlashBlock`]: crate::FlashBlock
@@ -49,7 +49,7 @@ where
     rx
 }
 
-/// Receiver of the most recent [`ExecutedBlock`] built out of [`FlashBlock`]s.
+/// Receiver of the most recent [`PendingBlock`] built out of [`FlashBlock`]s.
 ///
 /// [`FlashBlock`]: crate::FlashBlock
-pub type FlashBlockRx<N> = watch::Receiver<Option<ExecutedBlock<N>>>;
+pub type FlashBlockRx<N> = watch::Receiver<Option<PendingBlock<N>>>;

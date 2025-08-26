@@ -13,16 +13,17 @@ use reth_primitives_traits::{
 };
 use reth_revm::{database::StateProviderDatabase, db::State};
 use reth_rpc_eth_api::helpers::pending_block::PendingEnvBuilder;
-use reth_rpc_eth_types::EthApiError;
+use reth_rpc_eth_types::{EthApiError, PendingBlock};
 use reth_storage_api::{BlockReaderIdExt, StateProviderFactory};
 use std::{
     pin::Pin,
     sync::Arc,
     task::{Context, Poll},
+    time::{Duration, Instant},
 };
 use tracing::{debug, error, info};
 
-/// The `FlashBlockService` maintains an in-memory [`ExecutedBlock`] built out of a sequence of
+/// The `FlashBlockService` maintains an in-memory [`PendingBlock`] built out of a sequence of
 /// [`FlashBlock`]s.
 #[derive(Debug)]
 pub struct FlashBlockService<
@@ -33,7 +34,7 @@ pub struct FlashBlockService<
     Builder,
 > {
     rx: S,
-    current: Option<ExecutedBlock<N>>,
+    current: Option<PendingBlock<N>>,
     blocks: Vec<FlashBlock>,
     evm_config: EvmConfig,
     provider: Provider,
@@ -79,16 +80,16 @@ impl<
         // Flash block at a different index is ignored
         else if let Some(pending_block) = self.current.as_ref() {
             // Delete built block if it corresponds to a different height
-            if pending_block.block_number() == flashblock.metadata.block_number {
+            if pending_block.block().header().number() == flashblock.metadata.block_number {
                 info!(
                     message = "None sequential Flashblocks, keeping cache",
-                    curr_block = %pending_block.block_number(),
+                    curr_block = %pending_block.block().header().number(),
                     new_block = %flashblock.metadata.block_number,
                 );
             } else {
                 error!(
                     message = "Received Flashblock for new block, zeroing Flashblocks until we receive a base Flashblock",
-                    curr_block = %pending_block.recovered_block().header().number(),
+                    curr_block = %pending_block.block().header().number(),
                     new_block = %flashblock.metadata.block_number,
                 );
 
@@ -108,7 +109,7 @@ impl<
     ///
     /// After Cancun, if the origin is the actual pending block, the block includes the EIP-4788 pre
     /// block contract call using the parent beacon block root received from the CL.
-    pub fn execute(&mut self) -> eyre::Result<ExecutedBlock<N>> {
+    pub fn execute(&mut self) -> eyre::Result<PendingBlock<N>> {
         let latest = self
             .provider
             .latest_header()?
@@ -146,11 +147,14 @@ impl<
             vec![execution_result.requests],
         );
 
-        Ok(ExecutedBlock {
-            recovered_block: block.into(),
-            execution_output: Arc::new(execution_outcome),
-            hashed_state: Arc::new(hashed_state),
-        })
+        Ok(PendingBlock::with_executed_block(
+            Instant::now() + Duration::from_secs(1),
+            ExecutedBlock {
+                recovered_block: block.into(),
+                execution_output: Arc::new(execution_outcome),
+                hashed_state: Arc::new(hashed_state),
+            },
+        ))
     }
 }
 
@@ -168,7 +172,7 @@ impl<
         Builder: PendingEnvBuilder<EvmConfig>,
     > Stream for FlashBlockService<N, S, EvmConfig, Provider, Builder>
 {
-    type Item = eyre::Result<ExecutedBlock<N>>;
+    type Item = eyre::Result<PendingBlock<N>>;
 
     fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         let this = self.get_mut();
