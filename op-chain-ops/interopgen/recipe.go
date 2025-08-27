@@ -86,6 +86,7 @@ func (recipe *InteropDevRecipe) Build(addrs devkeys.Addresses) (*WorldConfig, er
 				MipsVersion:                     big.NewInt(int64(versions.GetExperimentalVersion())),
 			},
 		},
+		UseInteropPortal: true,
 		SuperchainL1DeployConfig: genesis.SuperchainL1DeployConfig{
 			RequiredProtocolVersion:    params.OPStackSupport,
 			RecommendedProtocolVersion: params.OPStackSupport,

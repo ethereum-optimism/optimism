@@ -45,7 +45,8 @@ type SuperchainConfig struct {
 	ProtocolVersionsOwner common.Address
 	Challenger            common.Address
 
-	Paused bool
+	Paused           bool
+	UseInteropPortal bool
 
 	Implementations OPCMImplementationsConfig
 

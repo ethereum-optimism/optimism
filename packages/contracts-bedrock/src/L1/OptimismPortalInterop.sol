@@ -394,8 +394,6 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
     /// @param _newLockbox The address of the new ETHLockbox contract.
     /// @param _newAnchorStateRegistry The address of the new AnchorStateRegistry contract.
     function migrateToSuperRoots(IETHLockbox _newLockbox, IAnchorStateRegistry _newAnchorStateRegistry) external {
-        revert("DELIBERATE BROKEN REVERT");
-
         // Migration can only be triggered when the system is not paused because the migration can
         // potentially unpause the system as a result of the modified ETHLockbox address.
         _assertNotPaused();

@@ -46,6 +46,7 @@ contract DeployImplementations is Script {
         uint256 proofMaturityDelaySeconds;
         uint256 disputeGameFinalityDelaySeconds;
         uint256 mipsVersion;
+        bool useInteropPortal;
         // Outputs from DeploySuperchain.s.sol.
         ISuperchainConfig superchainConfigProxy;
         IProtocolVersions protocolVersionsProxy;
@@ -357,7 +358,7 @@ contract DeployImplementations is Script {
         uint256 proofMaturityDelaySeconds = _input.proofMaturityDelaySeconds;
         IOptimismPortal impl = IOptimismPortal(
             DeployUtils.createDeterministic({
-                _name: "OptimismPortal2",
+                _name: _input.useInteropPortal ? "OptimismPortalInterop" : "OptimismPortal2",
                 _args: DeployUtils.encodeConstructor(
                     abi.encodeCall(IOptimismPortal.__constructor__, (proofMaturityDelaySeconds))
                 ),
@@ -564,7 +565,7 @@ contract DeployImplementations is Script {
         _output.opcmStandardValidator = impl;
     }
 
-    function assertValidInput(Input memory _input) private pure {
+    function assertValidInput(Input memory _input) private view {
         require(_input.withdrawalDelaySeconds != 0, "DeployImplementations: withdrawalDelaySeconds not set");
         require(_input.minProposalSizeBytes != 0, "DeployImplementations: minProposalSizeBytes not set");
         require(_input.challengePeriodSeconds != 0, "DeployImplementations: challengePeriodSeconds not set");
@@ -587,6 +588,11 @@ contract DeployImplementations is Script {
             address(_input.superchainProxyAdmin) != address(0), "DeployImplementations: superchainProxyAdmin not set"
         );
         require(address(_input.upgradeController) != address(0), "DeployImplementations: upgradeController not set");
+
+        // Interop Portal cannot be used on Mainnet or Sepolia.
+        if (block.chainid == Chains.Mainnet || block.chainid == Chains.Sepolia) {
+            require(!_input.useInteropPortal, "DeployImplementations: useInteropPortal cannot be set on Mainnet or Sepolia");
+        }
     }
 
     function assertValidOutput(Input memory _input, Output memory _output) private view {
