@@ -1,6 +1,9 @@
 package engine
 
 import (
+	"context"
+	"time"
+
 	"github.com/ethereum/go-ethereum/common"
 
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
@@ -15,6 +18,23 @@ var ReplaceBlockSource = eth.L1BlockRef{
 	Number:     ^uint64(0),
 	ParentHash: common.Hash{},
 	Time:       0,
+}
+
+// BuildHookCtxKey is used to carry a test-only build hook through event contexts.
+// The value must be of type: func(context.Context)
+type buildHookCtxKeyType struct{}
+
+var BuildHookCtxKey buildHookCtxKeyType
+
+// HookFromContext extracts the test-only build hook from context (may be nil).
+func HookFromContext(ctx context.Context) func(context.Context) {
+	if ctx == nil {
+		return nil
+	}
+	if v, ok := ctx.Value(BuildHookCtxKey).(func(context.Context)); ok {
+		return v
+	}
+	return nil
 }
 
 // no local metrics interface; engine depends directly on op-node/metrics.Metricer
@@ -46,6 +66,7 @@ func (ev PromoteCrossUnsafeEvent) String() string {
 	return "promote-cross-unsafe"
 }
 
+// PendingSafeUpdateEvent signals that a new pending-safe candidate is selected.
 type PendingSafeUpdateEvent struct {
 	PendingSafe eth.L2BlockRef
 	Unsafe      eth.L2BlockRef // tip, added to the signal, to determine if there are existing blocks to consolidate
@@ -76,6 +97,7 @@ func (ev SafeDerivedEvent) String() string {
 	return "safe-derived"
 }
 
+// ProcessUnsafePayloadEvent signals an unsafe payload to process.
 type ProcessUnsafePayloadEvent struct {
 	Envelope *eth.ExecutionPayloadEnvelope
 }
@@ -84,6 +106,7 @@ func (ev ProcessUnsafePayloadEvent) String() string {
 	return "process-unsafe-payload"
 }
 
+// EngineResetConfirmedEvent signals that an engine reset was completed.
 type EngineResetConfirmedEvent struct {
 	LocalUnsafe eth.L2BlockRef
 	CrossUnsafe eth.L2BlockRef
@@ -125,6 +148,38 @@ func (ev InteropReplacedBlockEvent) String() string {
 	return "interop-replaced-block"
 }
 
+// Build lifecycle and payload events
+
+type BuildStartEvent struct {
+	Attributes *derive.AttributesWithParent
+}
+
+func (ev BuildStartEvent) String() string { return "build-start" }
+
+// Errors and success
+
+type PayloadSealInvalidEvent struct {
+	Info eth.PayloadInfo
+	Err  error
+
+	Concluding  bool
+	DerivedFrom eth.L1BlockRef
+}
+
+func (ev PayloadSealInvalidEvent) String() string { return "payload-seal-invalid" }
+
+type PayloadSealExpiredErrorEvent struct {
+	Info eth.PayloadInfo
+	Err  error
+
+	Concluding  bool
+	DerivedFrom eth.L1BlockRef
+}
+
+func (ev PayloadSealExpiredErrorEvent) String() string { return "payload-seal-expired-error" }
+
+// Reset control helpers
+
 type ResetEngineControl interface {
 	SetUnsafeHead(eth.L2BlockRef)
 	SetCrossUnsafeHead(ref eth.L2BlockRef)
@@ -152,4 +207,64 @@ func ForceEngineReset(ec ResetEngineControl, localUnsafe, crossUnsafe, localSafe
 	ec.SetFinalizedHead(finalized)
 
 	ec.SetBackupUnsafeL2Head(eth.L2BlockRef{}, false)
+}
+
+type PayloadInvalidEvent struct {
+	Envelope *eth.ExecutionPayloadEnvelope
+	Err      error
+}
+
+func (ev PayloadInvalidEvent) String() string {
+	return "payload-invalid"
+}
+
+func (eq *EngineController) onPayloadInvalid(_ context.Context, ev PayloadInvalidEvent) {
+	eq.log.Warn("Payload was invalid", "block", ev.Envelope.ExecutionPayload.ID(),
+		"err", ev.Err, "timestamp", uint64(ev.Envelope.ExecutionPayload.Timestamp))
+}
+
+type PayloadSuccessEvent struct {
+	// if payload should be promoted to (local) safe (must also be pending safe, see DerivedFrom)
+	Concluding bool
+	// payload is promoted to pending-safe if non-zero
+	DerivedFrom   eth.L1BlockRef
+	BuildStarted  time.Time
+	InsertStarted time.Time
+
+	Envelope *eth.ExecutionPayloadEnvelope
+	Ref      eth.L2BlockRef
+}
+
+func (ev PayloadSuccessEvent) String() string {
+	return "payload-success"
+}
+
+type BuildCancelEvent struct {
+	Info  eth.PayloadInfo
+	Force bool
+}
+
+func (ev BuildCancelEvent) String() string {
+	return "build-cancel"
+}
+
+// BuildInvalidEvent is an internal engine event, to post-process upon invalid attributes.
+// Not for temporary processing problems.
+type BuildInvalidEvent struct {
+	Attributes *derive.AttributesWithParent
+	Err        error
+}
+
+func (ev BuildInvalidEvent) String() string {
+	return "build-invalid"
+}
+
+// InvalidPayloadAttributesEvent is a signal to external derivers that the attributes were invalid.
+type InvalidPayloadAttributesEvent struct {
+	Attributes *derive.AttributesWithParent
+	Err        error
+}
+
+func (ev InvalidPayloadAttributesEvent) String() string {
+	return "invalid-payload-attributes"
 }

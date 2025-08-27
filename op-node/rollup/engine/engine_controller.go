@@ -21,54 +21,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/event"
 )
 
-type syncStatusEnum int
-
-const (
-	syncStatusCL syncStatusEnum = iota
-	// We transition between the 4 EL states linearly. We spend the majority of the time in the second & fourth.
-	// We only want to EL sync if there is no finalized block & once we finish EL sync we need to mark the last block
-	// as finalized so we can switch to consolidation
-	// TODO(protocol-quest#91): We can restart EL sync & still consolidate if there finalized blocks on the execution client if the
-	// execution client is running in archive mode. In some cases we may want to switch back from CL to EL sync, but that is complicated.
-	syncStatusWillStartEL               // First if we are directed to EL sync, check that nothing has been finalized yet
-	syncStatusStartedEL                 // Perform our EL sync
-	syncStatusFinishedELButNotFinalized // EL sync is done, but we need to mark the final sync block as finalized
-	syncStatusFinishedEL                // EL sync is done & we should be performing consolidation
-)
-
-var ErrNoFCUNeeded = errors.New("no FCU call was needed")
-
-type ExecEngine interface {
-	GetPayload(ctx context.Context, payloadInfo eth.PayloadInfo) (*eth.ExecutionPayloadEnvelope, error)
-	ForkchoiceUpdate(ctx context.Context, state *eth.ForkchoiceState, attr *eth.PayloadAttributes) (*eth.ForkchoiceUpdatedResult, error)
-	NewPayload(ctx context.Context, payload *eth.ExecutionPayload, parentBeaconBlockRoot *common.Hash) (*eth.PayloadStatusV1, error)
-	L2BlockRefByLabel(ctx context.Context, label eth.BlockLabel) (eth.L2BlockRef, error)
-	L2BlockRefByHash(ctx context.Context, hash common.Hash) (eth.L2BlockRef, error)
-}
-
-type SyncDeriver interface {
-	OnELSyncStarted()
-}
-
-type AttributesForceResetter interface {
-	ForceReset(ctx context.Context, localUnsafe, crossUnsafe, localSafe, crossSafe, finalized eth.L2BlockRef)
-}
-
-type PipelineForceResetter interface {
-	ResetPipeline()
-}
-
-type OriginSelectorForceResetter interface {
-	ResetOrigins()
-}
-
-// CrossUpdateHandler handles both cross-unsafe and cross-safe L2 head changes.
-// Nil check required because op-program omits this handler.
-type CrossUpdateHandler interface {
-	OnCrossUnsafeUpdate(ctx context.Context, crossUnsafe eth.L2BlockRef, localUnsafe eth.L2BlockRef)
-	OnCrossSafeUpdate(ctx context.Context, crossSafe eth.L2BlockRef, localSafe eth.L2BlockRef)
-}
-
 type EngineController struct {
 	engine     ExecEngine // Underlying execution engine RPC
 	log        log.Logger
@@ -129,6 +81,9 @@ type EngineController struct {
 
 	// Handler for cross-unsafe and cross-safe updates
 	crossUpdateHandler CrossUpdateHandler
+
+	// reusable block builder instance
+	builder *BlockBuilder
 }
 
 func NewEngineController(ctx context.Context, engine ExecEngine, log log.Logger, m opmetrics.Metricer,
@@ -150,6 +105,7 @@ func NewEngineController(ctx context.Context, engine ExecEngine, log log.Logger,
 		clock:      clock.SystemClock,
 		ctx:        ctx,
 		emitter:    emitter,
+		builder:    NewBlockBuilder(rollupCfg, engine, emitter, log),
 	}
 }
 
@@ -702,18 +658,10 @@ func (d *EngineController) OnEvent(ctx context.Context, ev event.Event) bool {
 		d.emitter.Emit(ctx, BuildStartEvent{Attributes: x.Attributes})
 	case BuildStartEvent:
 		d.onBuildStart(ctx, x)
-	case BuildStartedEvent:
-		d.onBuildStarted(ctx, x)
-	case BuildSealEvent:
-		d.onBuildSeal(ctx, x)
-	case BuildSealedEvent:
-		d.onBuildSealed(ctx, x)
 	case BuildInvalidEvent:
 		d.onBuildInvalid(ctx, x)
 	case BuildCancelEvent:
 		d.onBuildCancel(ctx, x)
-	case PayloadProcessEvent:
-		d.onPayloadProcess(ctx, x)
 	case PayloadSuccessEvent:
 		d.onPayloadSuccess(ctx, x)
 	case PayloadInvalidEvent:
@@ -849,4 +797,145 @@ func (e *EngineController) ForceReset(ctx context.Context, localUnsafe, crossUns
 		"cross_safe", v.CrossSafe,
 		"finalized", v.Finalized,
 	)
+}
+
+func (eq *EngineController) onBuildStart(ctx context.Context, ev BuildStartEvent) {
+	eq.log.Info("Building block", "parent", ev.Attributes.Parent.ID(), "derived_from", ev.Attributes.DerivedFrom)
+	hook := HookFromContext(ctx)
+	s, err := eq.builder.BuildBlock(ctx, ev.Attributes, eq.PendingSafeL2Head(), eq.SafeL2Head(), eq.Finalized(), hook)
+	if err != nil {
+		// emit FCU event if present on error types
+		switch e := err.(type) {
+		case *InvalidPrestateError:
+			eq.emitter.Emit(ctx, *e.FCEvent)
+			eq.emitter.Emit(ctx, rollup.CriticalErrorEvent{Err: e})
+		case *BuildTemporaryError:
+			eq.emitter.Emit(ctx, *e.FCEvent)
+			eq.emitter.Emit(ctx, rollup.EngineTemporaryErrorEvent{Err: e})
+		case *BuildPrestateError:
+			eq.emitter.Emit(ctx, *e.FCEvent)
+			eq.emitter.Emit(ctx, rollup.ResetEvent{Err: e})
+		case *BuildInvalidAttributesError:
+			eq.emitter.Emit(ctx, *e.FCEvent)
+			eq.emitter.Emit(ctx, BuildInvalidEvent{Attributes: e.Attributes, Err: e.Err})
+		case *SealExpiredError:
+			eq.emitter.Emit(ctx, *e.FCEvent)
+			eq.emitter.Emit(ctx, PayloadSealExpiredErrorEvent{Info: e.Info, Err: e.Err, Concluding: e.Concluding, DerivedFrom: e.DerivedFrom})
+		case *SealInvalidError:
+			eq.emitter.Emit(ctx, *e.FCEvent)
+			eq.emitter.Emit(ctx, PayloadSealInvalidEvent{Info: e.Info, Err: e.Err, Concluding: e.Concluding, DerivedFrom: e.DerivedFrom})
+		case *PayloadInvalidError:
+			eq.emitter.Emit(ctx, *e.FCEvent)
+			eq.emitter.Emit(ctx, PayloadInvalidEvent{Envelope: e.Envelope, Err: e.Err})
+		case *DepositsOnlyRequest:
+			eq.emitter.Emit(ctx, *e.FCEvent)
+			eq.emitter.Emit(ctx, derive.DepositsOnlyPayloadAttributesRequestEvent{Parent: e.Parent, DerivedFrom: e.DerivedFrom})
+		case *BuildCriticalError:
+			eq.emitter.Emit(ctx, *e.FCEvent)
+			eq.emitter.Emit(ctx, rollup.CriticalErrorEvent{Err: e})
+		default:
+			eq.emitter.Emit(ctx, rollup.CriticalErrorEvent{Err: fmt.Errorf("unexpected block build error: %w", err)})
+		}
+		return
+	}
+	// success: emit FCU and success event
+	if s != nil {
+		eq.emitter.Emit(ctx, *s.FCEvent)
+		eq.emitter.Emit(ctx, PayloadSuccessEvent{
+			Concluding:    s.Concluding,
+			DerivedFrom:   s.DerivedFrom,
+			BuildStarted:  s.BuildStarted,
+			InsertStarted: s.InsertStarted,
+			Envelope:      s.Envelope,
+			Ref:           s.Ref,
+		})
+	}
+}
+
+func (eq *EngineController) onPayloadSuccess(ctx context.Context, ev PayloadSuccessEvent) {
+	if ev.DerivedFrom == ReplaceBlockSource {
+		eq.log.Warn("Successfully built replacement block, resetting chain to continue now", "replacement", ev.Ref)
+		// Change the engine state to make the replacement block the cross-safe head of the chain,
+		// And continue syncing from there.
+		eq.ForceReset(ctx, ev.Ref, ev.Ref, ev.Ref, ev.Ref, eq.Finalized())
+		eq.emitter.Emit(ctx, InteropReplacedBlockEvent{
+			Envelope: ev.Envelope,
+			Ref:      ev.Ref.BlockRef(),
+		})
+		// Apply it to the execution engine
+		eq.TryUpdateEngine(ctx)
+		// Not a regular reset, since we don't wind back to any L2 block.
+		// We start specifically from the replacement block.
+		return
+	}
+
+	// TryUpdateUnsafe, TryUpdatePendingSafe, TryUpdateLocalSafe, tryUpdateEngine must be sequentially invoked
+	eq.TryUpdateUnsafe(ctx, ev.Ref)
+	// If derived from L1, then it can be considered (pending) safe
+	if ev.DerivedFrom != (eth.L1BlockRef{}) {
+		eq.TryUpdatePendingSafe(ctx, ev.Ref, ev.Concluding, ev.DerivedFrom)
+		eq.TryUpdateLocalSafe(ctx, ev.Ref, ev.Concluding, ev.DerivedFrom)
+	}
+	// Now if possible synchronously call FCU
+	err := eq.tryUpdateEngine(ctx)
+	if err != nil {
+		eq.log.Error("Failed to update engine", "error", err)
+	}
+}
+
+func (eq *EngineController) onBuildCancel(ctx context.Context, ev BuildCancelEvent) {
+	rpcCtx, cancel := context.WithTimeout(eq.ctx, buildCancelTimeout)
+	defer cancel()
+	// the building job gets wrapped up as soon as the payload is retrieved, there's no explicit cancel in the Engine API
+	eq.log.Warn("cancelling old block building job", "info", ev.Info)
+	_, err := eq.engine.GetPayload(rpcCtx, ev.Info)
+	if err != nil {
+		var rpcErr rpc.Error
+		if errors.As(err, &rpcErr) && eth.ErrorCode(rpcErr.ErrorCode()) == eth.UnknownPayload {
+			eq.log.Warn("tried cancelling unknown block building job", "info", ev.Info, "err", err)
+			return // if unknown, then it did not need to be cancelled anymore.
+		}
+		eq.log.Error("failed to cancel block building job", "info", ev.Info, "err", err)
+		if !ev.Force {
+			eq.emitter.Emit(ctx, rollup.EngineTemporaryErrorEvent{Err: err})
+		}
+	}
+}
+
+func (eq *EngineController) onBuildInvalid(ctx context.Context, ev BuildInvalidEvent) {
+	eq.log.Warn("could not process payload attributes", "err", ev.Err)
+
+	// Deposit transaction execution errors are suppressed in the execution engine, but if the
+	// block is somehow invalid, there is nothing we can do to recover & we should exit.
+	if ev.Attributes.Attributes.IsDepositsOnly() {
+		eq.log.Error("deposit only block was invalid", "parent", ev.Attributes.Parent, "err", ev.Err)
+		eq.emitter.Emit(ctx, rollup.CriticalErrorEvent{
+			Err: fmt.Errorf("failed to process block with only deposit transactions: %w", ev.Err),
+		})
+		return
+	}
+
+	if ev.Attributes.IsDerived() && eq.rollupCfg.IsHolocene(ev.Attributes.DerivedFrom.Time) {
+		eq.log.Warn("Holocene active, requesting deposits-only attributes", "parent", ev.Attributes.Parent.ID(), "derived_from", ev.Attributes.DerivedFrom)
+		// request deposits-only version
+		eq.emitter.Emit(ctx, derive.DepositsOnlyPayloadAttributesRequestEvent{
+			Parent:      ev.Attributes.Parent.ID(),
+			DerivedFrom: ev.Attributes.DerivedFrom,
+		})
+		return
+	}
+
+	// Revert the pending safe head to the safe head.
+	eq.SetPendingSafeL2Head(eq.SafeL2Head())
+	// suppress the error b/c we want to retry with the next batch from the batch queue
+	// If there is no valid batch the node will eventually force a deposit only block. If
+	// the deposit only block fails, this will return the critical error above.
+
+	// Try to restore to previous known unsafe chain.
+	eq.SetBackupUnsafeL2Head(eq.BackupUnsafeL2Head(), true)
+
+	// drop the payload without inserting it into the engine
+
+	// Signal that we deemed the attributes as unfit
+	eq.emitter.Emit(ctx, InvalidPayloadAttributesEvent(ev))
 }
