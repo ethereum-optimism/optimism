@@ -1,85 +1,75 @@
 package sysgo
 
 import (
-	"github.com/ethereum/go-ethereum/eth/ethconfig"
-	gn "github.com/ethereum/go-ethereum/node"
+	"os"
 
-	"github.com/ethereum-optimism/optimism/op-devstack/shim"
+	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/stack"
-	"github.com/ethereum-optimism/optimism/op-devstack/stack/match"
-	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/geth"
-	"github.com/ethereum-optimism/optimism/op-service/client"
 )
 
-type L2ELNode struct {
-	id      stack.L2ELNodeID
-	authRPC string
-	userRPC string
+type L2ELNode interface {
+	hydrate(system stack.ExtensibleSystem)
+	stack.Lifecycle
+	UserRPC() string
+	EngineRPC() string
+	JWTPath() string
 }
 
-func (n *L2ELNode) hydrate(system stack.ExtensibleSystem) {
-	require := system.T().Require()
-	rpcCl, err := client.NewRPC(system.T().Ctx(), system.Logger(), n.userRPC, client.WithLazyDial())
-	require.NoError(err)
-	system.T().Cleanup(rpcCl.Close)
-
-	l2Net := system.L2Network(stack.L2NetworkID(n.id.ChainID()))
-	sysL2EL := shim.NewL2ELNode(shim.L2ELNodeConfig{
-		RollupCfg: l2Net.RollupConfig(),
-		ELNodeConfig: shim.ELNodeConfig{
-			CommonConfig: shim.NewCommonConfig(system.T()),
-			Client:       rpcCl,
-			ChainID:      n.id.ChainID(),
-		},
-		ID: n.id,
-	})
-	sysL2EL.SetLabel(match.LabelVendor, string(match.OpGeth))
-	l2Net.(stack.ExtensibleL2Network).AddL2ELNode(sysL2EL)
+type L2ELConfig struct {
+	SupervisorID *stack.SupervisorID
 }
 
-func WithL2ELNode(id stack.L2ELNodeID, supervisorID *stack.SupervisorID) stack.Option[*Orchestrator] {
-	return stack.AfterDeploy(func(orch *Orchestrator) {
-		p := orch.P().WithCtx(stack.ContextWithID(orch.P().Ctx(), id))
-
-		require := p.Require()
-
-		l2Net, ok := orch.l2Nets.Get(id.ChainID())
-		require.True(ok, "L2 network required")
-
-		jwtPath, _ := orch.writeDefaultJWT()
-
-		useInterop := l2Net.genesis.Config.InteropTime != nil
-
-		supervisorRPC := ""
-		if useInterop {
-			require.NotNil(supervisorID, "supervisor is required for interop")
-			sup, ok := orch.supervisors.Get(*supervisorID)
-			require.True(ok, "supervisor is required for interop")
-			supervisorRPC = sup.userRPC
-		}
-
-		logger := p.Logger()
-
-		l2Geth, err := geth.InitL2(id.String(), l2Net.genesis, jwtPath,
-			func(ethCfg *ethconfig.Config, nodeCfg *gn.Config) error {
-				ethCfg.InteropMessageRPC = supervisorRPC
-				ethCfg.InteropMempoolFiltering = true // TODO option
-				return nil
-			})
-		require.NoError(err)
-		require.NoError(l2Geth.Node.Start())
-
-		p.Cleanup(func() {
-			logger.Info("Closing op-geth", "id", id)
-			closeErr := l2Geth.Close()
-			logger.Info("Closed op-geth", "id", id, "err", closeErr)
-		})
-
-		l2EL := &L2ELNode{
-			id:      id,
-			authRPC: l2Geth.AuthRPC().RPC(),
-			userRPC: l2Geth.UserRPC().RPC(),
-		}
-		require.True(orch.l2ELs.SetIfMissing(id, l2EL), "must be unique L2 EL node")
+func L2ELWithSupervisor(supervisorID stack.SupervisorID) L2ELOption {
+	return L2ELOptionFn(func(p devtest.P, id stack.L2ELNodeID, cfg *L2ELConfig) {
+		cfg.SupervisorID = &supervisorID
 	})
+}
+
+func DefaultL2ELConfig() *L2ELConfig {
+	return &L2ELConfig{
+		SupervisorID: nil,
+	}
+}
+
+type L2ELOption interface {
+	Apply(p devtest.P, id stack.L2ELNodeID, cfg *L2ELConfig)
+}
+
+// WithGlobalL2ELOption applies the L2ELOption to all L2ELNode instances in this orchestrator
+func WithGlobalL2ELOption(opt L2ELOption) stack.Option[*Orchestrator] {
+	return stack.BeforeDeploy(func(o *Orchestrator) {
+		o.l2ELOptions = append(o.l2ELOptions, opt)
+	})
+}
+
+type L2ELOptionFn func(p devtest.P, id stack.L2ELNodeID, cfg *L2ELConfig)
+
+var _ L2ELOption = L2ELOptionFn(nil)
+
+func (fn L2ELOptionFn) Apply(p devtest.P, id stack.L2ELNodeID, cfg *L2ELConfig) {
+	fn(p, id, cfg)
+}
+
+// L2ELOptionBundle a list of multiple L2ELOption, to all be applied in order.
+type L2ELOptionBundle []L2ELOption
+
+var _ L2ELOption = L2ELOptionBundle(nil)
+
+func (l L2ELOptionBundle) Apply(p devtest.P, id stack.L2ELNodeID, cfg *L2ELConfig) {
+	for _, opt := range l {
+		p.Require().NotNil(opt, "cannot Apply nil L2ELOption")
+		opt.Apply(p, id, cfg)
+	}
+}
+
+// WithL2ELNode adds the default type of L2 CL node.
+// The default can be configured with DEVSTACK_L2EL_KIND.
+// Tests that depend on specific types can use options like WithKonaNode and WithOpNode directly.
+func WithL2ELNode(id stack.L2ELNodeID, opts ...L2ELOption) stack.Option[*Orchestrator] {
+	switch os.Getenv("DEVSTACK_L2EL_KIND") {
+	case "op-reth":
+		return WithOpReth(id, opts...)
+	default:
+		return WithOpGeth(id, opts...)
+	}
 }

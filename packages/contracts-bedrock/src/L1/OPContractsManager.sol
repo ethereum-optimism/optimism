@@ -32,6 +32,7 @@ import { IL1StandardBridge } from "interfaces/L1/IL1StandardBridge.sol";
 import { IOptimismMintableERC20Factory } from "interfaces/universal/IOptimismMintableERC20Factory.sol";
 import { IHasSuperchainConfig } from "interfaces/L1/IHasSuperchainConfig.sol";
 import { IETHLockbox } from "interfaces/L1/IETHLockbox.sol";
+import { OPContractsManagerStandardValidator } from "src/L1/OPContractsManagerStandardValidator.sol";
 
 contract OPContractsManagerContractsContainer {
     /// @notice Addresses of the Blueprint contracts.
@@ -946,6 +947,11 @@ contract OPContractsManagerDeployer is OPContractsManagerBase {
 
     constructor(OPContractsManagerContractsContainer _contractsContainer) OPContractsManagerBase(_contractsContainer) { }
 
+    /// @notice Deploys a new OP Stack chain.
+    /// @param _input The deploy input parameters for the deployment.
+    /// @param _superchainConfig The superchain config for the chain.
+    /// @param _deployer The address to emit as the deployer address.
+    /// @return The deploy output values of the deployment.
     function deploy(
         OPContractsManager.DeployInput calldata _input,
         ISuperchainConfig _superchainConfig,
@@ -1634,11 +1640,6 @@ contract OPContractsManagerInteropMigrator is OPContractsManagerBase {
 }
 
 contract OPContractsManager is ISemver {
-    // -------- Events --------
-
-    /// @notice Emitted when the OPCM setRC function is called.
-    event Released(bool _isRC);
-
     // -------- Structs --------
 
     /// @notice Represents the roles that can be set when deploying a standard OP Stack chain.
@@ -1759,9 +1760,9 @@ contract OPContractsManager is ISemver {
 
     // -------- Constants and Variables --------
 
-    /// @custom:semver 2.4.1
+    /// @custom:semver 3.0.0
     function version() public pure virtual returns (string memory) {
-        return "2.4.1";
+        return "3.0.0";
     }
 
     OPContractsManagerGameTypeAdder public immutable opcmGameTypeAdder;
@@ -1772,6 +1773,8 @@ contract OPContractsManager is ISemver {
 
     OPContractsManagerInteropMigrator public immutable opcmInteropMigrator;
 
+    OPContractsManagerStandardValidator public immutable opcmStandardValidator;
+
     /// @notice Address of the SuperchainConfig contract shared by all chains.
     ISuperchainConfig public immutable superchainConfig;
 
@@ -1781,10 +1784,6 @@ contract OPContractsManager is ISemver {
     /// @notice Address of the SuperchainProxyAdmin contract shared by all chains.
     IProxyAdmin public immutable superchainProxyAdmin;
 
-    /// @notice L1 smart contracts release deployed by this version of OPCM. This is used in opcm to signal which
-    /// version of the L1 smart contracts is deployed. It takes the format of `op-contracts/vX.Y.Z`.
-    string internal L1_CONTRACTS_RELEASE;
-
     /// @notice The OPContractsManager contract that is currently being used. This is needed in the upgrade function
     /// which is intended to be DELEGATECALLed.
     OPContractsManager internal immutable thisOPCM;
@@ -1792,18 +1791,7 @@ contract OPContractsManager is ISemver {
     /// @notice The address of the upgrade controller.
     address public immutable upgradeController;
 
-    /// @notice Whether this is a release candidate.
-    bool public isRC = true;
-
-    /// @notice Returns the release string. Appends "-rc" if this is a release candidate.
-    function l1ContractsRelease() external view virtual returns (string memory) {
-        return isRC ? string.concat(L1_CONTRACTS_RELEASE, "-rc") : L1_CONTRACTS_RELEASE;
-    }
-
     // -------- Errors --------
-
-    /// @notice Thrown when an address other than the upgrade controller calls the setRC function.
-    error OnlyUpgradeController();
 
     /// @notice Thrown when an address is the zero address.
     error AddressNotFound(address who);
@@ -1851,10 +1839,10 @@ contract OPContractsManager is ISemver {
         OPContractsManagerDeployer _opcmDeployer,
         OPContractsManagerUpgrader _opcmUpgrader,
         OPContractsManagerInteropMigrator _opcmInteropMigrator,
+        OPContractsManagerStandardValidator _opcmStandardValidator,
         ISuperchainConfig _superchainConfig,
         IProtocolVersions _protocolVersions,
         IProxyAdmin _superchainProxyAdmin,
-        string memory _l1ContractsRelease,
         address _upgradeController
     ) {
         _opcmDeployer.assertValidContractAddress(address(_superchainConfig));
@@ -1863,18 +1851,48 @@ contract OPContractsManager is ISemver {
         _opcmDeployer.assertValidContractAddress(address(_opcmDeployer));
         _opcmDeployer.assertValidContractAddress(address(_opcmUpgrader));
         _opcmDeployer.assertValidContractAddress(address(_opcmInteropMigrator));
+        _opcmDeployer.assertValidContractAddress(address(_opcmStandardValidator));
         opcmGameTypeAdder = _opcmGameTypeAdder;
         opcmDeployer = _opcmDeployer;
         opcmUpgrader = _opcmUpgrader;
         opcmInteropMigrator = _opcmInteropMigrator;
+        opcmStandardValidator = _opcmStandardValidator;
         superchainConfig = _superchainConfig;
         protocolVersions = _protocolVersions;
         superchainProxyAdmin = _superchainProxyAdmin;
-        L1_CONTRACTS_RELEASE = _l1ContractsRelease;
         thisOPCM = this;
         upgradeController = _upgradeController;
     }
 
+    /// @notice Validates the configuration of the L1 contracts.
+    function validate(
+        OPContractsManagerStandardValidator.ValidationInput memory _input,
+        bool _allowFailure
+    )
+        public
+        view
+        returns (string memory)
+    {
+        return opcmStandardValidator.validate(_input, _allowFailure);
+    }
+
+    /// @notice Validates the configuration of the L1 contracts.
+    /// @notice Supports overrides of certain storage values denoted in the ValidationOverrides struct.
+    function validateWithOverrides(
+        OPContractsManagerStandardValidator.ValidationInput memory _input,
+        bool _allowFailure,
+        OPContractsManagerStandardValidator.ValidationOverrides memory _overrides
+    )
+        public
+        view
+        returns (string memory)
+    {
+        return opcmStandardValidator.validateWithOverrides(_input, _allowFailure, _overrides);
+    }
+
+    /// @notice Deploys a new OP Stack chain.
+    /// @param _input The deploy input parameters for the deployment.
+    /// @return The deploy output values of the deployment.
     function deploy(DeployInput calldata _input) external virtual returns (DeployOutput memory) {
         return opcmDeployer.deploy(_input, superchainConfig, msg.sender);
     }
@@ -1884,13 +1902,6 @@ contract OPContractsManager is ISemver {
     /// @dev This function is intended to be called via DELEGATECALL from the Upgrade Controller Safe
     function upgrade(OpChainConfig[] memory _opChainConfigs) external virtual {
         if (address(this) == address(thisOPCM)) revert OnlyDelegatecall();
-
-        // If this is delegatecalled by the upgrade controller, set isRC to false first, else, continue execution.
-        if (address(this) == upgradeController) {
-            // Set isRC to false.
-            // This function asserts that the caller is the upgrade controller.
-            thisOPCM.setRC(false);
-        }
 
         bytes memory data = abi.encodeCall(
             OPContractsManagerUpgrader.upgrade, (superchainConfig, superchainProxyAdmin, _opChainConfigs)
@@ -1903,8 +1914,7 @@ contract OPContractsManager is ISemver {
     function addGameType(AddGameInput[] memory _gameConfigs) public virtual returns (AddGameOutput[] memory) {
         if (address(this) == address(thisOPCM)) revert OnlyDelegatecall();
 
-        bytes memory data =
-            abi.encodeWithSelector(OPContractsManagerGameTypeAdder.addGameType.selector, _gameConfigs, superchainConfig);
+        bytes memory data = abi.encodeCall(OPContractsManagerGameTypeAdder.addGameType, (_gameConfigs));
 
         bytes memory returnData = _performDelegateCall(address(opcmGameTypeAdder), data);
         return abi.decode(returnData, (AddGameOutput[]));
@@ -1915,9 +1925,7 @@ contract OPContractsManager is ISemver {
     function updatePrestate(OpChainConfig[] memory _prestateUpdateInputs) public {
         if (address(this) == address(thisOPCM)) revert OnlyDelegatecall();
 
-        bytes memory data = abi.encodeWithSelector(
-            OPContractsManagerGameTypeAdder.updatePrestate.selector, _prestateUpdateInputs, superchainConfig
-        );
+        bytes memory data = abi.encodeCall(OPContractsManagerGameTypeAdder.updatePrestate, (_prestateUpdateInputs));
 
         _performDelegateCall(address(opcmGameTypeAdder), data);
     }
@@ -1947,14 +1955,6 @@ contract OPContractsManager is ISemver {
     /// @notice Returns the implementation contract addresses.
     function implementations() public view returns (Implementations memory) {
         return opcmDeployer.implementations();
-    }
-
-    /// @notice Sets the RC flag.
-    function setRC(bool _isRC) external {
-        if (msg.sender != upgradeController) revert OnlyUpgradeController();
-        isRC = _isRC;
-
-        emit Released(_isRC);
     }
 
     /// @notice Helper function to perform a delegatecall to a target contract

@@ -22,6 +22,11 @@
         "type": "address"
       },
       {
+        "internalType": "contract OPContractsManagerStandardValidator",
+        "name": "_opcmStandardValidator",
+        "type": "address"
+      },
+      {
         "internalType": "contract ISuperchainConfig",
         "name": "_superchainConfig",
         "type": "address"
@@ -35,11 +40,6 @@
         "internalType": "contract IProxyAdmin",
         "name": "_superchainProxyAdmin",
         "type": "address"
-      },
-      {
-        "internalType": "string",
-        "name": "_l1ContractsRelease",
-        "type": "string"
       },
       {
         "internalType": "address",
@@ -523,32 +523,6 @@
     "type": "function"
   },
   {
-    "inputs": [],
-    "name": "isRC",
-    "outputs": [
-      {
-        "internalType": "bool",
-        "name": "",
-        "type": "bool"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [],
-    "name": "l1ContractsRelease",
-    "outputs": [
-      {
-        "internalType": "string",
-        "name": "",
-        "type": "string"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
     "inputs": [
       {
         "components": [
@@ -690,6 +664,19 @@
   },
   {
     "inputs": [],
+    "name": "opcmStandardValidator",
+    "outputs": [
+      {
+        "internalType": "contract OPContractsManagerStandardValidator",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
     "name": "opcmUpgrader",
     "outputs": [
       {
@@ -712,19 +699,6 @@
       }
     ],
     "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "bool",
-        "name": "_isRC",
-        "type": "bool"
-      }
-    ],
-    "name": "setRC",
-    "outputs": [],
-    "stateMutability": "nonpayable",
     "type": "function"
   },
   {
@@ -827,6 +801,115 @@
     "type": "function"
   },
   {
+    "inputs": [
+      {
+        "components": [
+          {
+            "internalType": "contract IProxyAdmin",
+            "name": "proxyAdmin",
+            "type": "address"
+          },
+          {
+            "internalType": "contract ISystemConfig",
+            "name": "sysCfg",
+            "type": "address"
+          },
+          {
+            "internalType": "bytes32",
+            "name": "absolutePrestate",
+            "type": "bytes32"
+          },
+          {
+            "internalType": "uint256",
+            "name": "l2ChainID",
+            "type": "uint256"
+          }
+        ],
+        "internalType": "struct OPContractsManagerStandardValidator.ValidationInput",
+        "name": "_input",
+        "type": "tuple"
+      },
+      {
+        "internalType": "bool",
+        "name": "_allowFailure",
+        "type": "bool"
+      }
+    ],
+    "name": "validate",
+    "outputs": [
+      {
+        "internalType": "string",
+        "name": "",
+        "type": "string"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "components": [
+          {
+            "internalType": "contract IProxyAdmin",
+            "name": "proxyAdmin",
+            "type": "address"
+          },
+          {
+            "internalType": "contract ISystemConfig",
+            "name": "sysCfg",
+            "type": "address"
+          },
+          {
+            "internalType": "bytes32",
+            "name": "absolutePrestate",
+            "type": "bytes32"
+          },
+          {
+            "internalType": "uint256",
+            "name": "l2ChainID",
+            "type": "uint256"
+          }
+        ],
+        "internalType": "struct OPContractsManagerStandardValidator.ValidationInput",
+        "name": "_input",
+        "type": "tuple"
+      },
+      {
+        "internalType": "bool",
+        "name": "_allowFailure",
+        "type": "bool"
+      },
+      {
+        "components": [
+          {
+            "internalType": "address",
+            "name": "l1PAOMultisig",
+            "type": "address"
+          },
+          {
+            "internalType": "address",
+            "name": "challenger",
+            "type": "address"
+          }
+        ],
+        "internalType": "struct OPContractsManagerStandardValidator.ValidationOverrides",
+        "name": "_overrides",
+        "type": "tuple"
+      }
+    ],
+    "name": "validateWithOverrides",
+    "outputs": [
+      {
+        "internalType": "string",
+        "name": "",
+        "type": "string"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
     "inputs": [],
     "name": "version",
     "outputs": [
@@ -838,19 +921,6 @@
     ],
     "stateMutability": "pure",
     "type": "function"
-  },
-  {
-    "anonymous": false,
-    "inputs": [
-      {
-        "indexed": false,
-        "internalType": "bool",
-        "name": "_isRC",
-        "type": "bool"
-      }
-    ],
-    "name": "Released",
-    "type": "event"
   },
   {
     "inputs": [
@@ -913,11 +983,6 @@
   {
     "inputs": [],
     "name": "OnlyDelegatecall",
-    "type": "error"
-  },
-  {
-    "inputs": [],
-    "name": "OnlyUpgradeController",
     "type": "error"
   },
   {

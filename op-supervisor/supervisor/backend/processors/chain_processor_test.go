@@ -28,8 +28,8 @@ func TestFailover(t *testing.T) {
 	require.Equal(t, source, chainProc.activeClient)
 
 	badSource := &mockSource{}
-	badSource.blockRefFunc = func(ctx context.Context, number uint64) (eth.BlockRef, error) {
-		return eth.BlockRef{}, errors.New("bad source")
+	badSource.l2blockRefFunc = func(ctx context.Context, number uint64) (eth.L2BlockRef, error) {
+		return eth.L2BlockRef{}, errors.New("bad source")
 	}
 	// after adding the second source, the activeClient hasn't changed
 	chainProc.AddSource(badSource)
@@ -56,14 +56,14 @@ func (m *mockEmitter) Emit(ctx context.Context, ev event.Event) {
 }
 
 type mockSource struct {
-	blockRefFunc func(ctx context.Context, number uint64) (eth.BlockRef, error)
+	l2blockRefFunc func(ctx context.Context, number uint64) (eth.L2BlockRef, error)
 }
 
-func (m *mockSource) BlockRefByNumber(ctx context.Context, number uint64) (eth.BlockRef, error) {
-	if m.blockRefFunc != nil {
-		return m.blockRefFunc(ctx, number)
+func (m *mockSource) L2BlockRefByNumber(ctx context.Context, number uint64) (eth.L2BlockRef, error) {
+	if m.l2blockRefFunc != nil {
+		return m.l2blockRefFunc(ctx, number)
 	}
-	return eth.BlockRef{}, nil
+	return eth.L2BlockRef{}, nil
 }
 func (m *mockSource) FetchReceipts(ctx context.Context, blockHash common.Hash) (gethtypes.Receipts, error) {
 	return gethtypes.Receipts{}, nil

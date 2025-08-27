@@ -43,6 +43,7 @@ import (
 
 	altda "github.com/ethereum-optimism/optimism/op-alt-da"
 	bss "github.com/ethereum-optimism/optimism/op-batcher/batcher"
+	batcherCfg "github.com/ethereum-optimism/optimism/op-batcher/config"
 	batcherFlags "github.com/ethereum-optimism/optimism/op-batcher/flags"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
 	shared "github.com/ethereum-optimism/optimism/op-devstack/shared/challenger"
@@ -50,6 +51,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-e2e/config/secrets"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/batcher"
+	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/blobstore"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/fakebeacon"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/geth"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/opnode"
@@ -584,9 +586,11 @@ func WithBatcherCompressionAlgo(ca derive.CompressionAlgo) StartOption {
 func WithBatcherThrottling(interval time.Duration, threshold, txSize, blockSize uint64) StartOption {
 	return StartOption{
 		BatcherMod: func(cfg *bss.CLIConfig) {
-			cfg.ThrottleThreshold = threshold
-			cfg.ThrottleTxSize = txSize
-			cfg.ThrottleBlockSize = blockSize
+			cfg.ThrottleConfig.LowerThreshold = threshold
+			cfg.ThrottleConfig.ControllerType = batcherCfg.StepControllerType
+			cfg.ThrottleConfig.TxSizeLowerLimit = txSize
+			cfg.ThrottleConfig.BlockSizeLowerLimit = blockSize
+			cfg.ThrottleConfig.BlockSizeUpperLimit = blockSize * 100
 		},
 	}
 }
@@ -738,7 +742,7 @@ func (cfg SystemConfig) Start(t *testing.T, startOpts ...StartOption) (*System, 
 
 	// Create a fake Beacon node to hold on to blobs created by the L1 miner, and to serve them to L2
 	bcn := fakebeacon.NewBeacon(testlog.Logger(t, log.LevelInfo).New("role", "l1_cl"),
-		e2eutils.NewBlobStore(), l1Genesis.Timestamp, cfg.DeployConfig.L1BlockTime)
+		blobstore.New(), l1Genesis.Timestamp, cfg.DeployConfig.L1BlockTime)
 	t.Cleanup(func() {
 		_ = bcn.Close()
 	})
@@ -1142,7 +1146,7 @@ func (sys *System) RollupClient(name string) *sources.RollupClient {
 	}
 	rpcClient := endpoint.DialRPC(endpoint.PreferAnyRPC, sys.RollupEndpoint(name), func(v string) *rpc.Client {
 		logger := testlog.Logger(sys.t, log.LevelInfo).New("rollupClient", name)
-		cl, err := dial.DialRPCClientWithTimeout(context.Background(), 30*time.Second, logger, v)
+		cl, err := dial.DialRPCClientWithTimeout(context.Background(), logger, v)
 		require.NoError(sys.t, err, "failed to dial rollup instance %s", name)
 		return cl
 	})
@@ -1161,7 +1165,7 @@ func (sys *System) NodeClient(name string) *ethclient.Client {
 	}
 	rpcCl := endpoint.DialRPC(endpoint.PreferAnyRPC, sys.NodeEndpoint(name), func(v string) *rpc.Client {
 		logger := testlog.Logger(sys.t, log.LevelInfo).New("node", name)
-		cl, err := dial.DialRPCClientWithTimeout(context.Background(), 30*time.Second, logger, v)
+		cl, err := dial.DialRPCClientWithTimeout(context.Background(), logger, v)
 		require.NoError(sys.t, err, "failed to dial eth node instance %s", name)
 		return cl
 	})

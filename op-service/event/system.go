@@ -3,14 +3,34 @@ package event
 import (
 	"context"
 	"fmt"
+	"log/slog"
+	"path/filepath"
+	"runtime"
 	"slices"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/ethereum/go-ethereum/log"
+	"github.com/google/uuid"
 )
+
+type eventTraceKeyType struct{}
+
+var (
+	ctxKeyEventTrace = eventTraceKeyType{}
+)
+
+type eventTrace struct {
+	UUID string
+	Step int
+}
+
+func (e eventTrace) String() string {
+	return fmt.Sprintf("%s:%d", e.UUID, e.Step)
+}
 
 type Registry interface {
 	// Register registers a named event-emitter, optionally processing events itself:
@@ -80,6 +100,39 @@ type systemActor struct {
 	emitPriority Priority
 }
 
+func (r *systemActor) traceAndLogEventEmitted(ctx context.Context, level slog.Level, ev Event) context.Context {
+	_, path, line, _ := runtime.Caller(2) // find the location of the caller of Emit()
+	if strings.Contains(path, "limiter.go") {
+		_, path, line, _ = runtime.Caller(3) // go one level up the stack to get the correct location, if the caller is rate-limited
+	}
+
+	file := filepath.Base(path)
+	dir := filepath.Base(filepath.Dir(path))
+	location := fmt.Sprintf("%s/%s:%d", dir, file, line)
+
+	var etrace eventTrace
+	if ctx.Value(ctxKeyEventTrace) == nil {
+		etrace = eventTrace{
+			UUID: uuid.New().String()[:6],
+			Step: 0,
+		}
+		ctx = context.WithValue(ctx, ctxKeyEventTrace, etrace)
+	} else {
+		var ok bool
+		etrace, ok = ctx.Value(ctxKeyEventTrace).(eventTrace)
+		if !ok {
+			r.sys.log.Error("Event trace is not a eventTrace type", "ev", ev, "loc", location)
+			return ctx
+		}
+		etrace.Step++
+		ctx = context.WithValue(ctx, ctxKeyEventTrace, etrace)
+	}
+
+	r.sys.log.Log(level, "Event emitted", "euid", etrace, "ev", ev, "loc", location)
+
+	return ctx
+}
+
 // Emit is called by the end-user
 func (r *systemActor) Emit(ctx context.Context, ev Event) {
 	if ctx == nil {
@@ -91,6 +144,12 @@ func (r *systemActor) Emit(ctx context.Context, ev Event) {
 			ctx = context.Background()
 		}
 	}
+
+	level := log.LevelTrace
+	if r.sys.log.Enabled(ctx, level) {
+		ctx = r.traceAndLogEventEmitted(ctx, level, ev)
+	}
+
 	if r.ctx.Err() != nil {
 		return
 	}

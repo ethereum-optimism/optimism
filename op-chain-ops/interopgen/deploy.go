@@ -18,7 +18,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis/beacondeposit"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/script"
-	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/interop"
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/manage"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/opcm"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
@@ -37,9 +37,6 @@ func Deploy(logger log.Logger, fa *foundry.ArtifactsFS, srcFS *foundry.SourceMap
 		}
 		if !cfg.L1.ChainID.IsUint64() || cfg.L1.ChainID.Uint64() != l2Cfg.L1ChainID {
 			return nil, nil, fmt.Errorf("chain L2 %s declared different L1 chain ID %d in config than global %d", id, l2Cfg.L1ChainID, cfg.L1.ChainID)
-		}
-		if l2Cfg.L2GenesisJovianTimeOffset != nil {
-			return nil, nil, fmt.Errorf("jovian is not compatible with interop, but got fork offset %d", *l2Cfg.L2GenesisJovianTimeOffset)
 		}
 	}
 
@@ -194,11 +191,11 @@ func DeploySuperchainToL1(l1Host *script.Host, opcmScripts *opcm.Scripts, superC
 		ProofMaturityDelaySeconds:       superCfg.Implementations.FaultProof.ProofMaturityDelaySeconds,
 		DisputeGameFinalityDelaySeconds: superCfg.Implementations.FaultProof.DisputeGameFinalityDelaySeconds,
 		MipsVersion:                     superCfg.Implementations.FaultProof.MipsVersion,
-		L1ContractsRelease:              superCfg.Implementations.L1ContractsRelease,
 		SuperchainProxyAdmin:            superDeployment.SuperchainProxyAdmin,
 		SuperchainConfigProxy:           superDeployment.SuperchainConfigProxy,
 		ProtocolVersionsProxy:           superDeployment.ProtocolVersionsProxy,
 		UpgradeController:               superCfg.ProxyAdminOwner,
+		Challenger:                      superCfg.Challenger,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to deploy Implementations contracts: %w", err)
@@ -224,24 +221,27 @@ func DeployL2ToL1(l1Host *script.Host, superCfg *SuperchainConfig, superDeployme
 	l1Host.SetTxOrigin(cfg.Deployer)
 
 	output, err := opcm.DeployOPChain(l1Host, opcm.DeployOPChainInput{
-		OpChainProxyAdminOwner:  superCfg.ProxyAdminOwner,
-		SystemConfigOwner:       cfg.SystemConfigOwner,
-		Batcher:                 cfg.BatchSenderAddress,
-		UnsafeBlockSigner:       cfg.P2PSequencerAddress,
-		Proposer:                cfg.Proposer,
-		Challenger:              cfg.Challenger,
-		BasefeeScalar:           cfg.GasPriceOracleBaseFeeScalar,
-		BlobBaseFeeScalar:       cfg.GasPriceOracleBlobBaseFeeScalar,
-		L2ChainId:               new(big.Int).SetUint64(cfg.L2ChainID),
-		Opcm:                    superDeployment.Opcm,
-		SaltMixer:               cfg.SaltMixer,
-		GasLimit:                cfg.GasLimit,
-		DisputeGameType:         cfg.DisputeGameType,
-		DisputeAbsolutePrestate: cfg.DisputeAbsolutePrestate,
-		DisputeMaxGameDepth:     cfg.DisputeMaxGameDepth,
-		DisputeSplitDepth:       cfg.DisputeSplitDepth,
-		DisputeClockExtension:   cfg.DisputeClockExtension,
-		DisputeMaxClockDuration: cfg.DisputeMaxClockDuration,
+		OpChainProxyAdminOwner:       superCfg.ProxyAdminOwner,
+		SystemConfigOwner:            cfg.SystemConfigOwner,
+		Batcher:                      cfg.BatchSenderAddress,
+		UnsafeBlockSigner:            cfg.P2PSequencerAddress,
+		Proposer:                     cfg.Proposer,
+		Challenger:                   cfg.Challenger,
+		BasefeeScalar:                cfg.GasPriceOracleBaseFeeScalar,
+		BlobBaseFeeScalar:            cfg.GasPriceOracleBlobBaseFeeScalar,
+		L2ChainId:                    new(big.Int).SetUint64(cfg.L2ChainID),
+		Opcm:                         superDeployment.Opcm,
+		SaltMixer:                    cfg.SaltMixer,
+		GasLimit:                     cfg.GasLimit,
+		DisputeGameType:              cfg.DisputeGameType,
+		DisputeAbsolutePrestate:      cfg.DisputeAbsolutePrestate,
+		DisputeMaxGameDepth:          cfg.DisputeMaxGameDepth,
+		DisputeSplitDepth:            cfg.DisputeSplitDepth,
+		DisputeClockExtension:        cfg.DisputeClockExtension,
+		DisputeMaxClockDuration:      cfg.DisputeMaxClockDuration,
+		AllowCustomDisputeParameters: true,
+		OperatorFeeScalar:            cfg.GasPriceOracleOperatorFeeScalar,
+		OperatorFeeConstant:          cfg.GasPriceOracleOperatorFeeConstant,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to deploy L2 OP chain: %w", err)
@@ -258,10 +258,10 @@ func MigrateInterop(
 ) (*InteropDeployment, error) {
 	l2ChainIDs := maps.Keys(l2Deployments)
 	sort.Strings(l2ChainIDs)
-	chainConfigs := make([]interop.OPChainConfig, len(l2Deployments))
+	chainConfigs := make([]manage.OPChainConfig, len(l2Deployments))
 	for i, l2ChainID := range l2ChainIDs {
 		l2Deployment := l2Deployments[l2ChainID]
-		chainConfigs[i] = interop.OPChainConfig{
+		chainConfigs[i] = manage.OPChainConfig{
 			SystemConfigProxy: l2Deployment.SystemConfigProxy,
 			ProxyAdmin:        superDeployment.ProxyAdmin,
 			AbsolutePrestate:  l2Cfgs[l2ChainID].DisputeAbsolutePrestate,
@@ -272,7 +272,7 @@ func MigrateInterop(
 	l2ChainID := l2ChainIDs[0]
 	// We don't have a super root at genesis. But stub the starting anchor root anyways to facilitate super DG testing.
 	startingAnchorRoot := common.Hash(opcm.PermissionedGameStartingAnchorRoot)
-	imi := interop.InteropMigrationInput{
+	imi := manage.InteropMigrationInput{
 		Prank:                          superCfg.ProxyAdminOwner,
 		Opcm:                           superDeployment.Opcm,
 		UsePermissionlessGame:          true,
@@ -287,7 +287,7 @@ func MigrateInterop(
 		MaxClockDuration:               l2Cfgs[l2ChainID].DisputeMaxClockDuration,
 		EncodedChainConfigs:            chainConfigs,
 	}
-	output, err := interop.Migrate(l1Host, imi)
+	output, err := manage.Migrate(l1Host, imi)
 	if err != nil {
 		return nil, fmt.Errorf("failed to migrate interop: %w", err)
 	}

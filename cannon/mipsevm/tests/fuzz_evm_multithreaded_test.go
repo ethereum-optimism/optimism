@@ -1,11 +1,11 @@
 package tests
 
 import (
-	"os"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/ethereum-optimism/optimism/cannon/mipsevm"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/arch"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/exec"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/multithreaded"
@@ -15,56 +15,54 @@ import (
 )
 
 func FuzzStateSyscallCloneMT(f *testing.F) {
-	versions := GetMipsVersionTestCases(f)
-	require.NotZero(f, len(versions), "must have at least one multithreaded version supported")
-	f.Fuzz(func(t *testing.T, nextThreadId, stackPtr Word, seed int64, version uint) {
-		v := versions[int(version)%len(versions)]
-		goVm := v.VMFactory(nil, os.Stdout, os.Stderr, testutil.CreateLogger(), mtutil.WithRandomization(seed))
-		state := mtutil.GetMtState(t, goVm)
+	vms := GetMipsVersionTestCases(f)
+	type testCase struct {
+		nextThreadId Word
+		stackPtr     Word
+	}
+
+	initState := func(t require.TestingT, c testCase, state *multithreaded.State, vm VersionedVMTestCase, r *testutil.RandHelper, goVm mipsevm.FPVM) {
 		// Update existing threads to avoid collision with nextThreadId
-		if mtutil.FindThread(state, nextThreadId) != nil {
+		if mtutil.FindThread(state, c.nextThreadId) != nil {
 			for i, t := range mtutil.GetAllThreads(state) {
-				t.ThreadId = nextThreadId - Word(i+1)
+				t.ThreadId = c.nextThreadId - Word(i+1)
 			}
 		}
 
-		// Setup
-		state.NextThreadId = nextThreadId
+		state.NextThreadId = c.nextThreadId
 		testutil.StoreInstruction(state.GetMemory(), state.GetPC(), syscallInsn)
 		state.GetRegistersRef()[2] = arch.SysClone
 		state.GetRegistersRef()[4] = exec.ValidCloneFlags
-		state.GetRegistersRef()[5] = stackPtr
-		step := state.GetStep()
+		state.GetRegistersRef()[5] = c.stackPtr
+	}
 
-		// Set up expectations
-		expected := mtutil.NewExpectedState(t, state)
+	setExpectations := func(t require.TestingT, c testCase, expected *mtutil.ExpectedState, vm VersionedVMTestCase) ExpectedExecResult {
 		expected.Step += 1
 		// Set original thread expectations
-		expected.PrestateActiveThread().PC = state.GetCpu().NextPC
-		expected.PrestateActiveThread().NextPC = state.GetCpu().NextPC + 4
-		expected.PrestateActiveThread().Registers[2] = nextThreadId
+		prestateNextPC := expected.PrestateActiveThread().NextPC
+		expected.PrestateActiveThread().PC = prestateNextPC
+		expected.PrestateActiveThread().NextPC = prestateNextPC + 4
+		expected.PrestateActiveThread().Registers[2] = c.nextThreadId
 		expected.PrestateActiveThread().Registers[7] = 0
 		// Set expectations for new, cloned thread
-		expected.ActiveThreadId = nextThreadId
 		expectedNewThread := expected.ExpectNewThread()
-		expectedNewThread.PC = state.GetCpu().NextPC
-		expectedNewThread.NextPC = state.GetCpu().NextPC + 4
+		expectedNewThread.PC = prestateNextPC
+		expectedNewThread.NextPC = prestateNextPC + 4
 		expectedNewThread.Registers[register.RegSyscallNum] = 0
 		expectedNewThread.Registers[register.RegSyscallErrno] = 0
-		expectedNewThread.Registers[register.RegSP] = stackPtr
-		expected.NextThreadId = nextThreadId + 1
-		expected.StepsSinceLastContextSwitch = 0
-		if state.TraverseRight {
-			expected.RightStackSize += 1
-		} else {
-			expected.LeftStackSize += 1
-		}
+		expectedNewThread.Registers[register.RegSP] = c.stackPtr
+		expected.ExpectActiveThreadId(c.nextThreadId)
+		expected.ExpectNextThreadId(c.nextThreadId + 1)
+		expected.ExpectContextSwitch()
+		return ExpectNormalExecution()
+	}
 
-		stepWitness, err := goVm.Step(true)
-		require.NoError(t, err)
-		require.False(t, stepWitness.HasPreimage())
+	diffTester := NewDiffTester(NoopTestNamer[testCase]).
+		InitState(initState).
+		SetExpectations(setExpectations)
 
-		expected.Validate(t, state)
-		testutil.ValidateEVM(t, stepWitness, step, goVm, multithreaded.GetStateHashFn(), v.Contracts)
+	f.Fuzz(func(t *testing.T, nextThreadId, stackPtr Word, seed int64) {
+		tests := []testCase{{nextThreadId, stackPtr}}
+		diffTester.Run(t, tests, fuzzTestOptions(vms, seed)...)
 	})
 }

@@ -37,3 +37,7 @@ func GetInstruction(mem *memory.Memory, pc arch.Word) uint32 {
 	}
 	return uint32(exec.LoadSubWord(mem, pc, 4, false, new(exec.NoopMemoryTracker)))
 }
+
+func EffAddr(addr arch.Word) arch.Word {
+	return addr & arch.AddressMask
+}

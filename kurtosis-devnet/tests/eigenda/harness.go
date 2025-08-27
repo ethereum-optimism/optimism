@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/Layr-Labs/eigenda-proxy/clients/memconfig_client"
+	"github.com/ethereum-optimism/optimism/op-service/client"
 	"github.com/ethereum-optimism/optimism/op-service/dial"
 	"github.com/ethereum-optimism/optimism/op-service/sources"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
@@ -192,7 +193,10 @@ type EnclaveServiceClients struct {
 }
 
 func getClientsFromEndpoints(ctx context.Context, logger log.Logger, endpoints *EnclaveServicePublicEndpoints) (*EnclaveServiceClients, error) {
-	opNodeClient, err := dial.DialRollupClientWithTimeout(ctx, 10*time.Second, logger, endpoints.OpNodeEndpoint)
+	opts := []client.RPCOption{
+		client.WithCallTimeout(10 * time.Second),
+	}
+	opNodeClient, err := dial.DialRollupClientWithTimeout(ctx, logger, endpoints.OpNodeEndpoint, opts...)
 	if err != nil {
 		return nil, fmt.Errorf("dial.DialRollupClientWithTimeout: %w", err)
 	}

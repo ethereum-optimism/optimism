@@ -5,15 +5,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 )
 
-type ChainProcessEvent struct {
-	ChainID eth.ChainID
-	Target  uint64
-}
-
-func (ev ChainProcessEvent) String() string {
-	return "chain-process"
-}
-
 type UpdateCrossUnsafeRequestEvent struct {
 	ChainID eth.ChainID
 }
@@ -169,14 +160,6 @@ type ReplaceBlockEvent struct {
 
 func (ev ReplaceBlockEvent) String() string {
 	return "replace-block-event"
-}
-
-type ChainRewoundEvent struct {
-	ChainID eth.ChainID
-}
-
-func (ev ChainRewoundEvent) String() string {
-	return "chain-rewound"
 }
 
 type UpdateLocalSafeFailedEvent struct {

@@ -4,9 +4,6 @@ pragma solidity 0.8.15;
 // Testing utilities
 import { CommonTest } from "test/setup/CommonTest.sol";
 
-// Target contract
-import { WETH } from "src/L2/WETH.sol";
-
 /// @title WETH_Name_Test
 /// @notice Tests the `name` function of the `WETH` contract.
 contract WETH_Name_Test is CommonTest {

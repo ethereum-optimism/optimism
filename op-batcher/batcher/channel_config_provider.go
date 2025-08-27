@@ -12,7 +12,7 @@ import (
 
 type (
 	ChannelConfigProvider interface {
-		ChannelConfig(isPectra bool) ChannelConfig
+		ChannelConfig(isPectra, isThrottling bool) ChannelConfig
 	}
 
 	GasPricer interface {
@@ -50,7 +50,15 @@ func NewDynamicEthChannelConfig(lgr log.Logger,
 // calldata and for blobs, given current market conditions: it will return
 // the appropriate ChannelConfig depending on which is cheaper. It makes
 // assumptions about the typical makeup of channel data.
-func (dec *DynamicEthChannelConfig) ChannelConfig(isPectra bool) ChannelConfig {
+//
+// The blob config is returned when throttling is in progress, prioritizing throughput over cost
+// in times of limited bandwidth.
+func (dec *DynamicEthChannelConfig) ChannelConfig(isPectra, isThrottling bool) ChannelConfig {
+	if isThrottling {
+		dec.log.Info("Using blob channel config while throttling is in progress")
+		dec.lastConfig = &dec.blobConfig
+		return dec.blobConfig
+	}
 	ctx, cancel := context.WithTimeout(context.Background(), dec.timeout)
 	defer cancel()
 	tipCap, baseFee, blobBaseFee, err := dec.gasPricer.SuggestGasPriceCaps(ctx)

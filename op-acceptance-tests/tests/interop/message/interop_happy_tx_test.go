@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/interop"
+	"github.com/ethereum-optimism/optimism/op-devstack/compat"
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
@@ -22,8 +23,8 @@ func TestInteropHappyTx(gt *testing.T) {
 	sys := presets.NewSimpleInterop(t)
 
 	// two EOAs for triggering the init and exec interop txs
-	alice := sys.FunderA.NewFundedEOA(eth.OneTenthEther)
-	bob := sys.FunderB.NewFundedEOA(eth.OneTenthEther)
+	alice := sys.FunderA.NewFundedEOA(eth.OneHundredthEther)
+	bob := sys.FunderB.NewFundedEOA(eth.OneHundredthEther)
 
 	eventLoggerAddress := alice.DeployEventLogger()
 
@@ -45,13 +46,19 @@ func TestInteropHappyTx(gt *testing.T) {
 		sys.L2CLA.ReachedRefFn(stypes.CrossSafe, eth.BlockID{
 			Number: initReceipt.BlockNumber.Uint64(),
 			Hash:   initReceipt.BlockHash,
-		}, 30),
+			// TODO(#16598): Make this relative to the block time
+		}, 500),
 		sys.L2CLB.ReachedRefFn(stypes.CrossSafe, eth.BlockID{
 			Number: execReceipt.BlockNumber.Uint64(),
 			Hash:   execReceipt.BlockHash,
-		}, 30),
+			// TODO(#16598): Make this relative to the block time
+		}, 500),
 	)
 
-	sys.L2ChainA.PrintChain()
-	sys.L2ChainB.PrintChain()
+	orch := presets.Orchestrator()
+	// Do not print the chain on persistent devnets
+	if orch.Type() != compat.Persistent {
+		sys.L2ChainA.PrintChain()
+		sys.L2ChainB.PrintChain()
+	}
 }

@@ -8,6 +8,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/devnet-sdk/descriptors"
 	ktfs "github.com/ethereum-optimism/optimism/devnet-sdk/kt/fs"
+	"github.com/ethereum-optimism/optimism/kurtosis-devnet/pkg/util"
 )
 
 const (
@@ -37,7 +38,11 @@ func (e *extractor) ExtractData(ctx context.Context) (map[string]descriptors.Dep
 }
 
 func extractDepsetsFromArtifacts(ctx context.Context, fs *ktfs.EnclaveFS) (map[string]descriptors.DepSet, error) {
-	allArtifacts, err := fs.GetAllArtifactNames(ctx)
+	// Get all artifact names with retry logic
+	allArtifacts, err := util.WithRetry(ctx, "GetAllArtifactNames", func() ([]string, error) {
+		return fs.GetAllArtifactNames(ctx)
+	})
+
 	if err != nil {
 		return nil, fmt.Errorf("failed to get all artifact names: %w", err)
 	}
@@ -51,9 +56,13 @@ func extractDepsetsFromArtifacts(ctx context.Context, fs *ktfs.EnclaveFS) (map[s
 
 	depsets := make(map[string]descriptors.DepSet)
 	for _, artifactName := range depsetArtifacts {
-		a, err := fs.GetArtifact(ctx, artifactName)
+		// Get artifact with retry logic
+		a, err := util.WithRetry(ctx, fmt.Sprintf("GetArtifact(%s)", artifactName), func() (*ktfs.Artifact, error) {
+			return fs.GetArtifact(ctx, artifactName)
+		})
+
 		if err != nil {
-			return nil, fmt.Errorf("failed to get artifact: %w", err)
+			return nil, fmt.Errorf("failed to get artifact '%s': %w", artifactName, err)
 		}
 
 		fname := artifactName + ".json"

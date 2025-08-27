@@ -59,6 +59,22 @@ func (m *mockUpdater) Stop() error {
 	return nil
 }
 
+// mockFailsafeClient implements the FailsafeClient interface for testing
+type mockFailsafeClient struct {
+	setFailsafeEnabledCalled bool
+	setFailsafeEnabledValue  bool
+}
+
+func (m *mockFailsafeClient) SetFailsafeEnabled(ctx context.Context, enabled bool) error {
+	m.setFailsafeEnabledCalled = true
+	m.setFailsafeEnabledValue = enabled
+	return nil
+}
+
+func (m *mockFailsafeClient) GetFailsafeEnabled(ctx context.Context) (bool, error) {
+	return m.setFailsafeEnabledValue, nil
+}
+
 // mockMetrics implements the metrics.Metricer interface with configurable function implementations
 // by default, it records the calls to the metrics functions
 type mockMetrics struct {
@@ -162,15 +178,17 @@ func TestNewMetricCollector(t *testing.T) {
 		eth.ChainIDFromUInt64(1): &mockUpdater{},
 		eth.ChainIDFromUInt64(2): &mockUpdater{},
 	}
+	mockFailsafeClients := []FailsafeClient{}
 
 	// Create new MetricCollector
-	collector := NewMetricCollector(logger, mockMetrics, updaters)
+	collector := NewMetricCollector(logger, mockMetrics, updaters, mockFailsafeClients, true)
 
 	// Verify the collector was created correctly
 	require.NotNil(t, collector)
 	require.Equal(t, logger, collector.log)
 	require.Equal(t, mockMetrics, collector.m)
 	require.Equal(t, updaters, collector.updaters)
+	require.Equal(t, mockFailsafeClients, collector.failsafeClients)
 	require.NotNil(t, collector.closed)
 	require.False(t, collector.Stopped(), "New collector should not be stopped")
 }
@@ -183,9 +201,10 @@ func TestMetricCollectorStartStop(t *testing.T) {
 	updaters := map[eth.ChainID]Updater{
 		eth.ChainIDFromUInt64(1): &mockUpdater{},
 	}
+	mockFailsafeClients := []FailsafeClient{&mockFailsafeClient{}}
 
 	// Create new MetricCollector
-	collector := NewMetricCollector(logger, mockMetrics, updaters)
+	collector := NewMetricCollector(logger, mockMetrics, updaters, mockFailsafeClients, true)
 
 	// Start the collector
 	err := collector.Start()
@@ -199,6 +218,99 @@ func TestMetricCollectorStartStop(t *testing.T) {
 	err = collector.Stop()
 	require.NoError(t, err, "Stop should not return an error")
 	require.True(t, collector.Stopped(), "Collector should be stopped after Stop()")
+}
+
+// TestFailsafeTriggering tests that the failsafe API is called when invalid messages are detected
+func TestFailsafeTriggering(t *testing.T) {
+	type testCase struct {
+		name                    string
+		job                     *Job
+		expectFailsafeCalled    bool
+		expectFailsafeEnabled   bool
+		expectFailsafeClientNil bool
+	}
+
+	tests := []testCase{
+		{
+			name:                  "invalid message triggers failsafe",
+			job:                   jobForTest(1, 100, "0x123", 2, 200, jobStatusInvalid),
+			expectFailsafeCalled:  true,
+			expectFailsafeEnabled: true,
+		},
+		{
+			name:                  "terminal state change triggers failsafe",
+			job:                   jobForTest(1, 100, "0x123", 2, 200, jobStatusValid, jobStatusInvalid),
+			expectFailsafeCalled:  true,
+			expectFailsafeEnabled: true,
+		},
+		{
+			name:                  "valid message does not trigger failsafe",
+			job:                   jobForTest(1, 100, "0x123", 2, 200, jobStatusValid),
+			expectFailsafeCalled:  false,
+			expectFailsafeEnabled: false,
+		},
+		{
+			name:                    "nil failsafe client means no failsafe",
+			job:                     jobForTest(1, 100, "0x123", 2, 200, jobStatusInvalid),
+			expectFailsafeCalled:    false,
+			expectFailsafeEnabled:   false,
+			expectFailsafeClientNil: true,
+		},
+		{
+			name:                  "triggerFailsafe false prevents API call",
+			job:                   jobForTest(1, 100, "0x123", 2, 200, jobStatusInvalid),
+			expectFailsafeCalled:  false,
+			expectFailsafeEnabled: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Setup test dependencies
+			logger := log.New()
+			mockMetrics := &mockMetrics{}
+
+			// Create mock updater that returns the test job
+			updater := &mockUpdater{
+				collectForMetricsFn: func(jobs map[JobID]*Job) map[JobID]*Job {
+					jobs[tt.job.ID()] = tt.job
+					return jobs
+				},
+			}
+
+			updaters := map[eth.ChainID]Updater{
+				eth.ChainIDFromUInt64(1): updater,
+				eth.ChainIDFromUInt64(2): &mockUpdater{},
+			}
+
+			// Create collector with or without failsafe client
+			var collector *MetricCollector
+			if tt.expectFailsafeClientNil {
+				collector = NewMetricCollector(logger, mockMetrics, updaters, nil, true)
+			} else {
+				mockFailsafeClients := []FailsafeClient{&mockFailsafeClient{}}
+				// Use triggerFailsafe based on whether we expect the API to be called
+				triggerFailsafe := tt.expectFailsafeCalled
+				collector = NewMetricCollector(logger, mockMetrics, updaters, mockFailsafeClients, triggerFailsafe)
+
+				// Run metric collection
+				collector.CollectMetrics()
+
+				// Verify failsafe behavior
+				mockFailsafeClient := mockFailsafeClients[0].(*mockFailsafeClient)
+				require.Equal(t, tt.expectFailsafeCalled, mockFailsafeClient.setFailsafeEnabledCalled, "Failsafe API call should match expectation")
+				if tt.expectFailsafeCalled {
+					require.Equal(t, tt.expectFailsafeEnabled, mockFailsafeClient.setFailsafeEnabledValue, "Failsafe enabled value should match expectation")
+				}
+			}
+
+			// For nil client test, just verify no panic
+			if tt.expectFailsafeClientNil {
+				collector.CollectMetrics()
+				// Test passes if no panic occurs
+			}
+		})
+	}
 }
 
 // TestCollectMetrics tests the metric collection functionality
@@ -346,6 +458,7 @@ func TestCollectMetrics(t *testing.T) {
 			// Setup test dependencies
 			logger := log.New()
 			mockMetrics := &mockMetrics{}
+			mockFailsafeClients := []FailsafeClient{&mockFailsafeClient{}}
 
 			// Create mock updaters with predefined responses
 			updater1 := &mockUpdater{
@@ -378,7 +491,7 @@ func TestCollectMetrics(t *testing.T) {
 				eth.ChainIDFromUInt64(1): updater1,
 				eth.ChainIDFromUInt64(2): updater2,
 				eth.ChainIDFromUInt64(3): updater3,
-			})
+			}, mockFailsafeClients, true)
 
 			// Run metric collection
 			collector.CollectMetrics()

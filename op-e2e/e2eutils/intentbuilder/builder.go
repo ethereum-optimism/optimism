@@ -38,6 +38,7 @@ type SuperchainConfigurator interface {
 	WithProxyAdminOwner(address common.Address) SuperchainConfigurator
 	WithGuardian(address common.Address) SuperchainConfigurator
 	WithProtocolVersionsOwner(address common.Address) SuperchainConfigurator
+	WithChallenger(address common.Address) SuperchainConfigurator
 }
 
 type L2Configurator interface {
@@ -129,6 +130,7 @@ func WithDevkeySuperRoles(t require.TestingT, dk devkeys.Keys, l1ID eth.ChainID,
 	configurator.WithGuardian(addrFor(devkeys.SuperchainConfigGuardianKey))
 	configurator.WithProtocolVersionsOwner(addrFor(devkeys.SuperchainDeployerKey))
 	configurator.WithProxyAdminOwner(addrFor(devkeys.L1ProxyAdminOwnerRole))
+	configurator.WithChallenger(addrFor(devkeys.ChallengerRole))
 }
 
 func WithOverrideGuardianToL1PAO(t require.TestingT, dk devkeys.Keys, l1ID eth.ChainID, configurator SuperchainConfigurator) {
@@ -154,7 +156,6 @@ func RoleToAddrProvider(t require.TestingT, dk devkeys.Keys, chainID eth.ChainID
 }
 
 type intentBuilder struct {
-	t                require.TestingT
 	l1StartBlockHash *common.Hash
 	intent           *state.Intent
 }
@@ -217,7 +218,9 @@ func (b *intentBuilder) WithGlobalOverride(key string, value any) Builder {
 }
 
 func (b *intentBuilder) Build() (*state.Intent, error) {
-	require.NoError(b.t, b.intent.Check(), "invalid intent")
+	if err := b.intent.Check(); err != nil {
+		return nil, fmt.Errorf("check intent: %w", err)
+	}
 	return b.intent, nil
 }
 
@@ -250,6 +253,11 @@ func (c *superchainConfigurator) WithGuardian(address common.Address) Superchain
 
 func (c *superchainConfigurator) WithProtocolVersionsOwner(address common.Address) SuperchainConfigurator {
 	c.builder.intent.SuperchainRoles.ProtocolVersionsOwner = address
+	return c
+}
+
+func (c *superchainConfigurator) WithChallenger(address common.Address) SuperchainConfigurator {
+	c.builder.intent.SuperchainRoles.Challenger = address
 	return c
 }
 

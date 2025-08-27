@@ -19,14 +19,16 @@ import (
 // L2Network wraps a stack.L2Network interface for DSL operations
 type L2Network struct {
 	commonImpl
-	inner stack.L2Network
+	inner   stack.L2Network
+	control stack.ControlPlane
 }
 
 // NewL2Network creates a new L2Network DSL wrapper
-func NewL2Network(inner stack.L2Network) *L2Network {
+func NewL2Network(inner stack.L2Network, control stack.ControlPlane) *L2Network {
 	return &L2Network{
 		commonImpl: commonFromT(inner.T()),
 		inner:      inner,
+		control:    control,
 	}
 }
 
@@ -41,6 +43,15 @@ func (n *L2Network) ChainID() eth.ChainID {
 // Escape returns the underlying stack.L2Network
 func (n *L2Network) Escape() stack.L2Network {
 	return n.inner
+}
+
+func (n *L2Network) L2ELNodes() []*L2ELNode {
+	innerNodes := n.inner.L2ELNodes()
+	nodes := make([]*L2ELNode, len(innerNodes))
+	for i, inner := range innerNodes {
+		nodes[i] = NewL2ELNode(inner, n.control)
+	}
+	return nodes
 }
 
 func (n *L2Network) CatchUpTo(o *L2Network) {
@@ -70,18 +81,18 @@ func (n *L2Network) CatchUpTo(o *L2Network) {
 }
 
 func (n *L2Network) WaitForBlock() eth.BlockRef {
-	return NewL2ELNode(n.inner.L2ELNode(match.FirstL2EL)).WaitForBlock()
+	return NewL2ELNode(n.inner.L2ELNode(match.FirstL2EL), n.control).WaitForBlock()
 }
 
 func (n *L2Network) PublicRPC() *L2ELNode {
 	if proxyds := match.Proxyd.Match(n.Escape().L2ELNodes()); len(proxyds) > 0 {
 		n.log.Info("PublicRPC - Using proxyd", "network", n.String())
-		return NewL2ELNode(proxyds[0])
+		return NewL2ELNode(proxyds[0], n.control)
 	}
 
 	n.log.Info("PublicRPC - Using fallback instead of proxyd", "network", n.String())
 	// Fallback since sysgo doesn't have proxyd support at the moment, and may never get it.
-	return NewL2ELNode(n.inner.L2ELNode(match.FirstL2EL))
+	return NewL2ELNode(n.inner.L2ELNode(match.FirstL2EL), n.control)
 }
 
 // PrintChain is used for testing/debugging, it prints the blockchain hashes and parent hashes to logs, which is useful when developing reorg tests

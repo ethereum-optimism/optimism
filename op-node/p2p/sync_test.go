@@ -2,6 +2,7 @@ package p2p
 
 import (
 	"context"
+	"encoding/binary"
 	"fmt"
 	"math/big"
 	"strings"
@@ -14,6 +15,7 @@ import (
 	"github.com/libp2p/go-libp2p/core/peer"
 	mocknet "github.com/libp2p/go-libp2p/p2p/net/mock"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/time/rate"
 
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
@@ -465,4 +467,88 @@ func TestRequestResultErr_Error(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestMutexUnlocks(t *testing.T) {
+	cfg, payloads := setupSyncTestData(10)
+	mockL2 := mockPayloadFn(func(n uint64) (*eth.ExecutionPayloadEnvelope, error) {
+		p, ok := payloads.getPayload(n)
+		if !ok {
+			return nil, ethereum.NotFound
+		}
+		return p, nil
+	})
+	srv := NewReqRespServer(cfg, mockL2, metrics.NoopMetrics)
+
+	mnet, err := mocknet.FullMeshConnected(2)
+	require.NoError(t, err)
+	defer mnet.Close()
+	hosts := mnet.Hosts()
+	hostA, hostB := hosts[0], hosts[1]
+
+	ctx := context.Background()
+	log := testlog.Logger(t, log.LevelError)
+	payloadByNumber := MakeStreamHandler(ctx, log, srv.HandleSyncRequest)
+	hostA.SetStreamHandler(PayloadByNumberProtocolID(cfg.L2ChainID), payloadByNumber)
+
+	t.Run("SuccessCase", func(t *testing.T) {
+		stream, _ := hostB.NewStream(ctx, hostA.ID(), PayloadByNumberProtocolID(cfg.L2ChainID))
+		_ = binary.Write(stream, binary.LittleEndian, uint64(1))
+		_ = stream.CloseWrite()
+		var result [1]byte
+		_, _ = stream.Read(result[:])
+		require.Equal(t, byte(0), result[0])
+		stream.Close()
+
+		srv.peerStatsLock.Lock()
+		_ = srv.peerRateLimits.Len() // needed to satisfy linter
+		srv.peerStatsLock.Unlock()
+	})
+
+	t.Run("ErrorCase", func(t *testing.T) {
+		// First request: establish peer in rate limiter
+		stream, _ := hostB.NewStream(ctx, hostA.ID(), PayloadByNumberProtocolID(cfg.L2ChainID))
+		_ = binary.Write(stream, binary.LittleEndian, uint64(1))
+		_ = stream.CloseWrite()
+		var result [1]byte
+		_, _ = stream.Read(result[:])
+		stream.Close()
+
+		// Make rate limiter fail on next request
+		peerId := hostB.ID()
+		srv.peerStatsLock.Lock()
+		ps, _ := srv.peerRateLimits.Get(peerId)
+		ps.Requests = rate.NewLimiter(0, 0)
+		ps.Requests.Reserve()
+		srv.peerStatsLock.Unlock()
+
+		// Second request with short timeout - return error but still unlock
+		shortCtx, cancel := context.WithTimeout(ctx, 1*time.Millisecond)
+		defer cancel()
+		go func() {
+			stream2, _ := hostB.NewStream(shortCtx, hostA.ID(), PayloadByNumberProtocolID(cfg.L2ChainID))
+			_ = binary.Write(stream2, binary.LittleEndian, uint64(2))
+			_ = stream2.CloseWrite()
+			stream2.Close()
+		}()
+
+		// Wait for request to fail
+		time.Sleep(100 * time.Millisecond)
+
+		// Test if mutex is stuck - should not hang on lock(), even if error is returned
+		done := make(chan struct{})
+		go func() {
+			srv.peerStatsLock.Lock()
+			_ = srv.peerRateLimits.Len() // needed to satisfy linter
+			srv.peerStatsLock.Unlock()
+			close(done)
+		}()
+
+		select {
+		case <-done:
+			// Mutex unlocked
+		case <-time.After(1 * time.Second):
+			t.Fatal("Mutex deadlock detected - bug exists")
+		}
+	})
 }

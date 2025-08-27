@@ -205,6 +205,7 @@ func (e *L2Engine) ActL2IncludeTxIgnoreForcedEmpty(from common.Address) Action {
 			e.log.Info("Ignoring e.L2ForceEmpty=true")
 		}
 
+		require.NoError(t, e.Eth.TxPool().Sync(), "must sync tx-pool to get accurate pending txs")
 		tx := firstValidTx(t, from, e.EngineApi.PendingIndices, e.Eth.TxPool().ContentFrom, e.EthClient().NonceAt)
 		prevState := e.EngineApi.ForcedEmpty()
 		e.EngineApi.SetForceEmpty(false) // ensure the engine API can include it
@@ -229,6 +230,7 @@ func (e *L2Engine) ActL2IncludeTx(from common.Address) Action {
 			return
 		}
 
+		require.NoError(t, e.Eth.TxPool().Sync(), "must sync tx-pool to get accurate pending txs")
 		tx := firstValidTx(t, from, e.EngineApi.PendingIndices, e.Eth.TxPool().ContentFrom, e.EthClient().NonceAt)
 		_, err := e.EngineApi.IncludeTx(tx, from)
 		if errors.Is(err, engineapi.ErrNotBuildingBlock) {

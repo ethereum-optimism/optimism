@@ -35,6 +35,7 @@ func TestFindChainServices(t *testing.T) {
 	// Create service finder with the test data
 	finder := NewServiceFinder(
 		services,
+		WithL1Chain(&spec.ChainSpec{NetworkID: "0"}),
 		WithL2Chains(chains),
 		WithDepSets(depSets),
 	)
@@ -306,9 +307,11 @@ func createTestDepSets(t *testing.T) map[string]descriptors.DepSet {
 
 // TestTriageFunctions tests the actual implementation of triage functions
 func TestTriageFunctions(t *testing.T) {
+	l1Spec := &spec.ChainSpec{NetworkID: "123456"}
 	// Create a minimal finder with default values
 	finder := &ServiceFinder{
 		services: make(inspect.ServiceMap),
+		l1Chain:  l1Spec,
 	}
 
 	// Test the triageNode function for recognizing services
@@ -320,7 +323,7 @@ func TestTriageFunctions(t *testing.T) {
 		idx, accept, ok := parser("cl-1-teku-geth")
 		assert.True(t, ok, "Should recognize L1 CL node")
 		assert.Equal(t, 0, idx, "Should extract index 0 from L1 CL node")
-		assert.True(t, accept(&spec.ChainSpec{Name: l1Placeholder}), "Should accept L1")
+		assert.True(t, accept(l1Spec), "Should accept L1")
 
 		// Test with various suffixes to see what is recognized
 		_, _, ok = parser("cl-1-teku-geth-with-extra-parts")
@@ -330,23 +333,133 @@ func TestTriageFunctions(t *testing.T) {
 		_, _, ok = parser("cl")
 		assert.False(t, ok, "Should not recognize simple 'cl'")
 	})
+}
 
-	// Test the universal L2 service parser (faucet)
-	t.Run("triageUniversalL2Service", func(t *testing.T) {
-		parser := finder.triageUniversalL2Service("op-faucet")
+// TestReorderNodes tests the reorderNodes function with various scenarios
+func TestReorderNodes(t *testing.T) {
+	// Define common nodes to reduce repetition
+	regularNode1 := descriptors.Node{Name: "node1", Services: descriptors.ServiceMap{}}
+	regularNode2 := descriptors.Node{Name: "node2", Services: descriptors.ServiceMap{}}
+	regularNode3 := descriptors.Node{Name: "node3", Services: descriptors.ServiceMap{}}
 
-		// Valid format
-		idx, accept, ok := parser("op-faucet")
-		assert.True(t, ok, "Should recognize faucet")
-		assert.Equal(t, -1, idx, "Universal services have -1 index")
-		assert.True(t, accept(&spec.ChainSpec{NetworkID: "123456"}), "Should accept any chain")
-		assert.True(t, accept(&spec.ChainSpec{NetworkID: "654321"}), "Should accept any chain")
+	sequencerNode := descriptors.Node{
+		Name:   "sequencer",
+		Labels: map[string]string{"sequencer": "true"},
+	}
+	sequencerNode1 := descriptors.Node{
+		Name:   "sequencer1",
+		Labels: map[string]string{"sequencer": "true"},
+	}
+	sequencerNode2 := descriptors.Node{
+		Name:   "sequencer2",
+		Labels: map[string]string{"sequencer": "true"},
+	}
 
-		// Invalid formats
-		_, _, ok = parser("faucet")
-		assert.False(t, ok, "Should not recognize faucet without prefix")
+	opGethOpNode := descriptors.Node{
+		Name: "op-node",
+		Services: descriptors.ServiceMap{
+			"el": &descriptors.Service{Name: "op-geth-1"},
+			"cl": &descriptors.Service{Name: "op-node-1"},
+		},
+		Labels: map[string]string{
+			"elType": "op-geth",
+			"clType": "op-node",
+		},
+	}
 
-		_, _, ok = parser("op-faucet-with-suffix")
-		assert.False(t, ok, "Should not recognize op-faucet with suffix")
+	elOnlyNode := descriptors.Node{
+		Name: "el-only",
+		Services: descriptors.ServiceMap{
+			"el": &descriptors.Service{Name: "op-geth"},
+		},
+	}
+
+	clOnlyNode := descriptors.Node{
+		Name: "cl-only",
+		Services: descriptors.ServiceMap{
+			"cl": &descriptors.Service{Name: "op-node"},
+		},
+	}
+
+	t.Run("empty slice", func(t *testing.T) {
+		nodes := []descriptors.Node{}
+		result := reorderNodes(nodes)
+		assert.Equal(t, nodes, result, "Empty slice should be returned unchanged")
+	})
+
+	t.Run("single node", func(t *testing.T) {
+		nodes := []descriptors.Node{regularNode1}
+		result := reorderNodes(nodes)
+		assert.Equal(t, nodes, result, "Single node should be returned unchanged")
+	})
+
+	t.Run("sequencer node first", func(t *testing.T) {
+		nodes := []descriptors.Node{sequencerNode, regularNode2, regularNode3}
+		result := reorderNodes(nodes)
+		assert.Equal(t, nodes, result, "Sequencer already first should remain unchanged")
+	})
+
+	t.Run("sequencer node moved to front", func(t *testing.T) {
+		nodes := []descriptors.Node{regularNode1, sequencerNode, regularNode3}
+		result := reorderNodes(nodes)
+
+		expected := []descriptors.Node{sequencerNode, regularNode1, regularNode3}
+		assert.Equal(t, expected, result, "Sequencer should be moved to front")
+	})
+
+	t.Run("sequencer node at end", func(t *testing.T) {
+		nodes := []descriptors.Node{regularNode1, regularNode2, sequencerNode}
+		result := reorderNodes(nodes)
+
+		expected := []descriptors.Node{sequencerNode, regularNode1, regularNode2}
+		assert.Equal(t, expected, result, "Sequencer at end should be moved to front")
+	})
+
+	t.Run("multiple sequencer nodes - first one moved", func(t *testing.T) {
+		nodes := []descriptors.Node{regularNode1, sequencerNode1, regularNode3, sequencerNode2}
+		result := reorderNodes(nodes)
+
+		expected := []descriptors.Node{sequencerNode1, regularNode1, regularNode3, sequencerNode2}
+		assert.Equal(t, expected, result, "First sequencer should be moved to front")
+	})
+
+	t.Run("op-geth and op-node services moved to front", func(t *testing.T) {
+		nodes := []descriptors.Node{regularNode1, opGethOpNode, regularNode3}
+		result := reorderNodes(nodes)
+
+		expected := []descriptors.Node{opGethOpNode, regularNode1, regularNode3}
+		assert.Equal(t, expected, result, "Node with op-geth and op-node should be moved to front")
+	})
+
+	t.Run("op-geth and op-node services already first", func(t *testing.T) {
+		nodes := []descriptors.Node{opGethOpNode, regularNode2, regularNode3}
+		result := reorderNodes(nodes)
+		assert.Equal(t, nodes, result, "Node with op-geth and op-node already first should remain unchanged")
+	})
+
+	t.Run("only el service - no reordering", func(t *testing.T) {
+		nodes := []descriptors.Node{regularNode1, elOnlyNode, regularNode3}
+		result := reorderNodes(nodes)
+		assert.Equal(t, nodes, result, "Node with only el service should not be reordered")
+	})
+
+	t.Run("only cl service - no reordering", func(t *testing.T) {
+		nodes := []descriptors.Node{regularNode1, clOnlyNode, regularNode3}
+		result := reorderNodes(nodes)
+		assert.Equal(t, nodes, result, "Node with only cl service should not be reordered")
+	})
+
+	t.Run("no special nodes - original order preserved", func(t *testing.T) {
+		nodes := []descriptors.Node{regularNode1, regularNode2, regularNode3}
+		result := reorderNodes(nodes)
+		assert.Equal(t, nodes, result, "Nodes without special properties should maintain original order")
+	})
+
+	t.Run("sequencer takes precedence over op-geth/op-node", func(t *testing.T) {
+		nodes := []descriptors.Node{opGethOpNode, sequencerNode, regularNode3}
+		result := reorderNodes(nodes)
+
+		expected := []descriptors.Node{sequencerNode, opGethOpNode, regularNode3}
+		assert.Equal(t, expected, result, "Sequencer should take precedence over op-geth/op-node")
 	})
 }

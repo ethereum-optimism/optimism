@@ -24,12 +24,12 @@ func (ev PayloadProcessEvent) String() string {
 	return "payload-process"
 }
 
-func (eq *EngDeriver) onPayloadProcess(ctx context.Context, ev PayloadProcessEvent) {
+func (eq *EngineController) onPayloadProcess(ctx context.Context, ev PayloadProcessEvent) {
 	rpcCtx, cancel := context.WithTimeout(eq.ctx, payloadProcessTimeout)
 	defer cancel()
 
 	insertStart := time.Now()
-	status, err := eq.ec.engine.NewPayload(rpcCtx,
+	status, err := eq.engine.NewPayload(rpcCtx,
 		ev.Envelope.ExecutionPayload, ev.Envelope.ParentBeaconBlockRoot)
 	if err != nil {
 		eq.emitter.Emit(ctx, rollup.EngineTemporaryErrorEvent{
@@ -41,7 +41,7 @@ func (eq *EngDeriver) onPayloadProcess(ctx context.Context, ev PayloadProcessEve
 	case eth.ExecutionInvalid, eth.ExecutionInvalidBlockHash:
 		// Depending on execution engine, not all block-validity checks run immediately on build-start
 		// at the time of the forkchoiceUpdated engine-API call, nor during getPayload.
-		if ev.DerivedFrom != (eth.L1BlockRef{}) && eq.cfg.IsHolocene(ev.DerivedFrom.Time) {
+		if ev.DerivedFrom != (eth.L1BlockRef{}) && eq.rollupCfg.IsHolocene(ev.DerivedFrom.Time) {
 			eq.emitDepositsOnlyPayloadAttributesRequest(ctx, ev.Ref.ParentID(), ev.DerivedFrom)
 			return
 		}

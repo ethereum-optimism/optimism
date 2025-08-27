@@ -27,7 +27,7 @@ func TestInstrumentedState_Hello(t *testing.T) {
 		var stdOutBuf, stdErrBuf bytes.Buffer
 		us := vmFactory(state, nil, io.MultiWriter(&stdOutBuf, os.Stdout), io.MultiWriter(&stdErrBuf, os.Stderr), testutil.CreateLogger(), meta)
 
-		maxSteps := 450_000
+		maxSteps := 500_000
 		for i := 0; i < maxSteps; i++ {
 			if us.GetState().GetExited() {
 				break
@@ -129,7 +129,7 @@ func TestInstrumentedState_SyscallEventFdProgram(t *testing.T) {
 		err := us.InitDebug()
 		require.NoError(t, err)
 
-		for i := 0; i < 500_000; i++ {
+		for i := 0; i < 550_000; i++ {
 			if us.GetState().GetExited() {
 				break
 			}

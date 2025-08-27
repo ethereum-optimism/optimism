@@ -192,12 +192,6 @@ func (c *ChaoticEngine) OnEvent(ctx context.Context, ev event.Event) bool {
 	case engine.BuildCancelEvent:
 		c.currentPayloadInfo = eth.PayloadInfo{}
 		c.currentAttributes = nil
-	case engine.ForkchoiceRequestEvent:
-		c.emitter.Emit(ctx, engine.ForkchoiceUpdateEvent{
-			UnsafeL2Head:    c.unsafe,
-			SafeL2Head:      c.safe,
-			FinalizedL2Head: c.finalized,
-		})
 	case engine.PayloadProcessEvent:
 		// Move forward time, to simulate time consumption
 		c.clockRandomIncrement(0, time.Millisecond*500)
@@ -226,7 +220,11 @@ func (c *ChaoticEngine) OnEvent(ctx context.Context, ev event.Event) bool {
 				Ref:          x.Ref,
 			})
 			// With event delay, the engine would update and signal the new forkchoice.
-			c.emitter.Emit(ctx, engine.ForkchoiceRequestEvent{})
+			c.emitter.Emit(ctx, engine.ForkchoiceUpdateEvent{
+				UnsafeL2Head:    c.unsafe,
+				SafeL2Head:      c.safe,
+				FinalizedL2Head: c.finalized,
+			})
 		}
 	default:
 		return false
@@ -323,6 +321,14 @@ func testSequencerChaosWithSeed(t *testing.T, seed int64) {
 	// Init sequencer, as active
 	require.NoError(t, seq.Init(context.Background(), true))
 	require.NoError(t, ex.Drain(), "initial forkchoice update etc. completes")
+
+	// TODO(#16917): direct call used now; no ForkchoiceRequestEvent expected
+	// Provide initial forkchoice so the sequencer has a prestate to build on
+	testEm.Emit(context.Background(), engine.ForkchoiceUpdateEvent{
+		UnsafeL2Head:    genesisRef,
+		SafeL2Head:      genesisRef,
+		FinalizedL2Head: genesisRef,
+	})
 
 	genesisTime := time.Unix(int64(deps.cfg.Genesis.L2Time), 0)
 

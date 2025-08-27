@@ -22,14 +22,6 @@ func DeployImplementations(env *Env, intent *state.Intent, st *state.State) erro
 
 	lgr.Info("deploying implementations")
 
-	var contractsRelease string
-	var err error
-	if intent.L1ContractsLocator.IsTag() {
-		contractsRelease = intent.L1ContractsLocator.Tag
-	} else {
-		contractsRelease = "dev"
-	}
-
 	proofParams, err := jsonutil.MergeJSON(
 		state.SuperchainProofParams{
 			WithdrawalDelaySeconds:          standard.WithdrawalDelaySeconds,
@@ -53,11 +45,11 @@ func DeployImplementations(env *Env, intent *state.Intent, st *state.State) erro
 			ProofMaturityDelaySeconds:       new(big.Int).SetUint64(proofParams.ProofMaturityDelaySeconds),
 			DisputeGameFinalityDelaySeconds: new(big.Int).SetUint64(proofParams.DisputeGameFinalityDelaySeconds),
 			MipsVersion:                     new(big.Int).SetUint64(proofParams.MIPSVersion),
-			L1ContractsRelease:              contractsRelease,
 			SuperchainConfigProxy:           st.SuperchainDeployment.SuperchainConfigProxy,
 			ProtocolVersionsProxy:           st.SuperchainDeployment.ProtocolVersionsProxy,
 			SuperchainProxyAdmin:            st.SuperchainDeployment.SuperchainProxyAdminImpl,
 			UpgradeController:               st.SuperchainRoles.SuperchainProxyAdminOwner,
+			Challenger:                      st.SuperchainRoles.Challenger,
 		},
 	)
 	if err != nil {
@@ -70,6 +62,7 @@ func DeployImplementations(env *Env, intent *state.Intent, st *state.State) erro
 		OpcmDeployerImpl:                 dio.OpcmDeployer,
 		OpcmUpgraderImpl:                 dio.OpcmUpgrader,
 		OpcmInteropMigratorImpl:          dio.OpcmInteropMigrator,
+		OpcmStandardValidatorImpl:        dio.OpcmStandardValidator,
 		DelayedWethImpl:                  dio.DelayedWETHImpl,
 		OptimismPortalImpl:               dio.OptimismPortalImpl,
 		EthLockboxImpl:                   dio.ETHLockboxImpl,

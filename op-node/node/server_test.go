@@ -314,8 +314,8 @@ func (c *mockDriverClient) SequencerActive(ctx context.Context) (bool, error) {
 	return c.Mock.MethodCalled("SequencerActive").Get(0).(bool), nil
 }
 
-func (c *mockDriverClient) OnUnsafeL2Payload(ctx context.Context, payload *eth.ExecutionPayloadEnvelope) error {
-	return c.Mock.MethodCalled("OnUnsafeL2Payload").Get(0).(error)
+func (c *mockDriverClient) OnUnsafeL2Payload(ctx context.Context, payload *eth.ExecutionPayloadEnvelope) {
+	c.Mock.MethodCalled("OnUnsafeL2Payload")
 }
 
 func (c *mockDriverClient) OverrideLeader(ctx context.Context) error {

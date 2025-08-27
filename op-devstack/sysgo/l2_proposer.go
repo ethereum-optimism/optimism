@@ -96,7 +96,9 @@ func WithProposerPostDeploy(orch *Orchestrator, proposerID stack.L2ProposerID, l
 		PollInterval:      500 * time.Millisecond,
 		AllowNonFinalized: true,
 		TxMgrConfig:       setuputils.NewTxMgrConfig(endpoint.URL(l1EL.userRPC), proposerSecret),
-		RPCConfig:         oprpc.CLIConfig{},
+		RPCConfig: oprpc.CLIConfig{
+			ListenAddr: "127.0.0.1",
+		},
 		LogConfig: oplog.CLIConfig{
 			Level:  log.LvlInfo,
 			Format: oplog.FormatText,
@@ -123,7 +125,7 @@ func WithProposerPostDeploy(orch *Orchestrator, proposerID stack.L2ProposerID, l
 		require.NotNil(l2CLID, "need L2 CL to connect to pre-interop")
 		l2CL, ok := orch.l2CLs.Get(*l2CLID)
 		require.True(ok)
-		proposerCLIConfig.RollupRpc = l2CL.userRPC
+		proposerCLIConfig.RollupRpc = l2CL.UserRPC()
 	}
 
 	proposer, err := ps.ProposerServiceFromCLIConfig(ctx, "0.0.1", proposerCLIConfig, logger)

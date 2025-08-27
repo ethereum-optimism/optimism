@@ -56,6 +56,23 @@ func (cl *SupervisorClient) Rewind(ctx context.Context, chain eth.ChainID, block
 	return cl.client.CallContext(ctx, nil, "admin_rewind", chain, block)
 }
 
+func (cl *SupervisorClient) SetFailsafeEnabled(ctx context.Context, enabled bool) error {
+	err := cl.client.CallContext(ctx, nil, "admin_setFailsafeEnabled", enabled)
+	if err != nil {
+		return fmt.Errorf("failed to set failsafe mode for Supervisor: %w", err)
+	}
+	return nil
+}
+
+func (cl *SupervisorClient) GetFailsafeEnabled(ctx context.Context) (bool, error) {
+	var enabled bool
+	err := cl.client.CallContext(ctx, &enabled, "admin_getFailsafeEnabled")
+	if err != nil {
+		return false, fmt.Errorf("failed to get failsafe mode for Supervisor: %w", err)
+	}
+	return enabled, nil
+}
+
 func (cl *SupervisorClient) CheckAccessList(ctx context.Context, inboxEntries []common.Hash,
 	minSafety types.SafetyLevel, executingDescriptor types.ExecutingDescriptor) error {
 	return cl.client.CallContext(ctx, nil, "supervisor_checkAccessList", inboxEntries, minSafety, executingDescriptor)

@@ -1,0 +1,17 @@
+BINARY := "op-up"
+
+# Default target
+default: build
+
+# Build target
+build: artifacts
+    mkdir -p bin
+    go build -o ./bin/{{ BINARY }} .
+
+# Build dependency
+artifacts:
+    just ../op-deployer/copy-contract-artifacts
+
+# Clean target
+clean:
+    rm -f {{ BINARY }}

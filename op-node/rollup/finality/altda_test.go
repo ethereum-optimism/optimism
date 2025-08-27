@@ -110,7 +110,7 @@ func TestAltDAFinalityData(t *testing.T) {
 	// and post processing.
 	for i := uint64(0); i < 200; i++ {
 		if i == 10 { // finalize a L1 commitment
-			fi.OnEvent(context.Background(), FinalizeL1Event{FinalizedL1: l1parent})
+			fi.OnL1Finalized(l1parent)
 			emitter.AssertExpectations(t) // no events emitted upon L1 finality
 			require.Equal(t, l1parent, commitmentInclusionFinalized, "altda backend received L1 signal")
 		}

@@ -35,8 +35,6 @@ type SuperFaultProofConfig struct {
 }
 
 type OPCMImplementationsConfig struct {
-	L1ContractsRelease string
-
 	FaultProof SuperFaultProofConfig
 }
 
@@ -45,6 +43,7 @@ type SuperchainConfig struct {
 
 	ProxyAdminOwner       common.Address
 	ProtocolVersionsOwner common.Address
+	Challenger            common.Address
 
 	Paused bool
 

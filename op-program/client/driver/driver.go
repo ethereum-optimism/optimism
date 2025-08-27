@@ -10,6 +10,7 @@ import (
 	altda "github.com/ethereum-optimism/optimism/op-alt-da"
 	"github.com/ethereum-optimism/optimism/op-node/metrics"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/attributes"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/engine"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/sync"
@@ -43,12 +44,16 @@ func NewDriver(logger log.Logger, cfg *rollup.Config, depSet derive.DependencySe
 	pipelineDeriver := derive.NewPipelineDeriver(context.Background(), pipeline)
 	pipelineDeriver.AttachEmitter(d)
 
-	ec := engine.NewEngineController(l2Source, logger, metrics.NoopMetrics, cfg, &sync.Config{SyncMode: sync.CLSync}, d)
-	engineDeriv := engine.NewEngDeriver(logger, context.Background(), cfg, metrics.NoopMetrics, ec)
-	engineDeriv.AttachEmitter(d)
+	ec := engine.NewEngineController(context.Background(), l2Source, logger, metrics.NoopMetrics, cfg, &sync.Config{SyncMode: sync.CLSync}, d)
 	syncCfg := &sync.Config{SyncMode: sync.CLSync}
+
+	attrHandler := attributes.NewAttributesHandler(logger, cfg, context.Background(), l2Source, ec)
+	ec.SetAttributesResetter(attrHandler)
+	ec.SetPipelineResetter(pipelineDeriver)
+
 	engResetDeriv := engine.NewEngineResetDeriver(context.Background(), logger, cfg, l1Source, l2Source, syncCfg)
 	engResetDeriv.AttachEmitter(d)
+	engResetDeriv.SetEngController(ec)
 
 	prog := &ProgramDeriver{
 		logger:         logger,
@@ -60,7 +65,7 @@ func NewDriver(logger log.Logger, cfg *rollup.Config, depSet derive.DependencySe
 
 	d.deriver = &event.DeriverMux{
 		prog,
-		engineDeriv,
+		ec,
 		pipelineDeriver,
 		engResetDeriv,
 	}

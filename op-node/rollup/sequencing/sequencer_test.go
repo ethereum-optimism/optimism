@@ -161,6 +161,16 @@ func (f *FakeAsyncGossip) Start() {
 
 var _ AsyncGossiper = (*FakeAsyncGossip)(nil)
 
+type fakeEngController struct{}
+
+func (fakeEngController) RequestForkchoiceUpdate(ctx context.Context) {}
+
+func (fakeEngController) TryUpdatePendingSafe(ctx context.Context, ref eth.L2BlockRef, concluding bool, source eth.L1BlockRef) {
+}
+
+func (fakeEngController) TryUpdateLocalSafe(ctx context.Context, ref eth.L2BlockRef, concluding bool, source eth.L1BlockRef) {
+}
+
 // TestSequencer_StartStop runs through start/stop state back and forth to test state changes.
 func TestSequencer_StartStop(t *testing.T) {
 	logger := testlog.Logger(t, log.LevelError)
@@ -174,7 +184,7 @@ func TestSequencer_StartStop(t *testing.T) {
 	deps.conductor.leader = true
 
 	testCtx := context.Background()
-	emitter.ExpectOnce(engine.ForkchoiceRequestEvent{})
+	// TODO(#16917): direct call used now; no ForkchoiceRequestEvent expected
 	require.NoError(t, seq.Init(testCtx, false))
 	emitter.AssertExpectations(t)
 	require.False(t, deps.conductor.closed, "conductor is ready")
@@ -264,7 +274,7 @@ func TestSequencer_StaleBuild(t *testing.T) {
 	deps.conductor.leader = true
 
 	testCtx := context.Background()
-	emitter.ExpectOnce(engine.ForkchoiceRequestEvent{})
+	// TODO(#16917): direct call used now; no ForkchoiceRequestEvent expected
 	require.NoError(t, seq.Init(testCtx, false))
 	emitter.AssertExpectations(t)
 	require.False(t, deps.conductor.closed, "conductor is ready")
@@ -474,13 +484,13 @@ func TestSequencerBuild(t *testing.T) {
 
 	testCtx := context.Background()
 	// Init will request a forkchoice update
-	emitter.ExpectOnce(engine.ForkchoiceRequestEvent{})
+	// TODO(#16917): direct call used now; no ForkchoiceRequestEvent expected
 	require.NoError(t, seq.Init(testCtx, true))
 	emitter.AssertExpectations(t)
 	require.True(t, seq.Active(), "started in active mode")
 
 	// It will request a forkchoice update, it needs the head before being able to build on top of it
-	emitter.ExpectOnce(engine.ForkchoiceRequestEvent{})
+	// TODO(#16917): direct call used now; no ForkchoiceRequestEvent expected
 	seq.OnEvent(context.Background(), SequencerActionEvent{})
 	emitter.AssertExpectations(t)
 
@@ -631,16 +641,12 @@ func TestSequencerL1TemporaryErrorEvent(t *testing.T) {
 	seq.AttachEmitter(emitter)
 
 	testCtx := context.Background()
-	// Init will request a forkchoice update
-	emitter.ExpectOnce(engine.ForkchoiceRequestEvent{})
+	// Init
 	require.NoError(t, seq.Init(testCtx, true))
-	emitter.AssertExpectations(t)
 	require.True(t, seq.Active(), "started in active mode")
 
-	// It will request a forkchoice update, it needs the head before being able to build on top of it
-	emitter.ExpectOnce(engine.ForkchoiceRequestEvent{})
+	// It needs the head before being able to build on top of it
 	seq.OnEvent(context.Background(), SequencerActionEvent{})
-	emitter.AssertExpectations(t)
 
 	// Now send the forkchoice data, for the sequencer to learn what to build on top of.
 	head := eth.L2BlockRef{
@@ -723,7 +729,7 @@ func createSequencer(log log.Logger) (*Sequencer, *sequencerTestDeps) {
 	}
 	seq := NewSequencer(context.Background(), log, cfg, deps.attribBuilder,
 		deps.l1OriginSelector, deps.seqState, deps.conductor,
-		deps.asyncGossip, metrics.NoopMetrics)
+		deps.asyncGossip, metrics.NoopMetrics, fakeEngController{})
 	// We create mock payloads, with the epoch-id as tx[0], rather than proper L1Block-info deposit tx.
 	seq.toBlockRef = func(rollupCfg *rollup.Config, payload *eth.ExecutionPayload) (eth.L2BlockRef, error) {
 		return eth.L2BlockRef{

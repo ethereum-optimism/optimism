@@ -44,6 +44,7 @@ func (recipe *InteropDevRecipe) Build(addrs devkeys.Addresses) (*WorldConfig, er
 	}
 
 	superchainOps := devkeys.SuperchainOperatorKeys(l1Cfg.ChainID)
+	chainOps := devkeys.ChainOperatorKeys(l1Cfg.ChainID)
 
 	superchainDeployer, err := addrs.Address(superchainOps(devkeys.SuperchainDeployerKey))
 	if err != nil {
@@ -61,16 +62,21 @@ func (recipe *InteropDevRecipe) Build(addrs devkeys.Addresses) (*WorldConfig, er
 	if err != nil {
 		return nil, err
 	}
+	challenger, err := addrs.Address(chainOps(devkeys.ChallengerRole))
+	if err != nil {
+		return nil, err
+	}
 	l1Cfg.Prefund[superchainDeployer] = Ether(10_000_000)
 	l1Cfg.Prefund[superchainProxyAdmin] = Ether(10_000_000)
 	l1Cfg.Prefund[superchainConfigGuardian] = Ether(10_000_000)
+	l1Cfg.Prefund[challenger] = Ether(10_000_000)
 
 	superchainCfg := &SuperchainConfig{
 		ProxyAdminOwner:       superchainProxyAdmin,
 		ProtocolVersionsOwner: superchainProtocolVersionsOwner,
+		Challenger:            challenger,
 		Deployer:              superchainDeployer,
 		Implementations: OPCMImplementationsConfig{
-			L1ContractsRelease: "dev",
 			FaultProof: SuperFaultProofConfig{
 				WithdrawalDelaySeconds:          big.NewInt(302400),
 				MinProposalSizeBytes:            big.NewInt(10000),
@@ -257,8 +263,8 @@ func (r *InteropDevL2Recipe) build(l1ChainID uint64, addrs devkeys.Addresses) (*
 				L2GenesisGraniteTimeOffset:  new(hexutil.Uint64),
 				L2GenesisHoloceneTimeOffset: new(hexutil.Uint64),
 				L2GenesisIsthmusTimeOffset:  new(hexutil.Uint64),
+				L2GenesisJovianTimeOffset:   new(hexutil.Uint64),
 				L2GenesisInteropTimeOffset:  (*hexutil.Uint64)(&r.InteropOffset),
-				L2GenesisJovianTimeOffset:   nil,
 				L1CancunTimeOffset:          new(hexutil.Uint64),
 				L1PragueTimeOffset:          new(hexutil.Uint64),
 			},
