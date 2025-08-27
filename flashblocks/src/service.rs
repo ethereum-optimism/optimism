@@ -1,5 +1,6 @@
-use crate::FlashBlock;
+use crate::{ExecutionPayloadBaseV1, FlashBlock};
 use alloy_eips::{eip2718::WithEncoded, BlockNumberOrTag, Decodable2718};
+use eyre::OptionExt;
 use futures_util::{Stream, StreamExt};
 use reth_chain_state::ExecutedBlock;
 use reth_errors::RethError;
@@ -12,7 +13,6 @@ use reth_primitives_traits::{
     AlloyBlockHeader, BlockTy, HeaderTy, NodePrimitives, ReceiptTy, SignedTransaction,
 };
 use reth_revm::{database::StateProviderDatabase, db::State};
-use reth_rpc_eth_api::helpers::pending_block::PendingEnvBuilder;
 use reth_rpc_eth_types::{EthApiError, PendingBlock};
 use reth_storage_api::{BlockReaderIdExt, StateProviderFactory};
 use std::{
@@ -31,20 +31,18 @@ pub struct FlashBlockService<
     S,
     EvmConfig: ConfigureEvm<Primitives = N, NextBlockEnvCtx: Unpin>,
     Provider,
-    Builder,
 > {
     rx: S,
     current: Option<PendingBlock<N>>,
     blocks: Vec<FlashBlock>,
     evm_config: EvmConfig,
     provider: Provider,
-    builder: Builder,
 }
 
 impl<
         N: NodePrimitives,
         S,
-        EvmConfig: ConfigureEvm<Primitives = N, NextBlockEnvCtx: Unpin>,
+        EvmConfig: ConfigureEvm<Primitives = N, NextBlockEnvCtx: From<ExecutionPayloadBaseV1> + Unpin>,
         Provider: StateProviderFactory
             + BlockReaderIdExt<
                 Header = HeaderTy<N>,
@@ -52,12 +50,11 @@ impl<
                 Transaction = N::SignedTx,
                 Receipt = ReceiptTy<N>,
             >,
-        Builder: PendingEnvBuilder<EvmConfig>,
-    > FlashBlockService<N, S, EvmConfig, Provider, Builder>
+    > FlashBlockService<N, S, EvmConfig, Provider>
 {
     /// Constructs a new `FlashBlockService` that receives [`FlashBlock`]s from `rx` stream.
-    pub const fn new(rx: S, evm_config: EvmConfig, provider: Provider, builder: Builder) -> Self {
-        Self { rx, current: None, blocks: Vec::new(), evm_config, provider, builder }
+    pub const fn new(rx: S, evm_config: EvmConfig, provider: Provider) -> Self {
+        Self { rx, current: None, blocks: Vec::new(), evm_config, provider }
     }
 
     /// Adds the `block` into the collection.
@@ -115,7 +112,11 @@ impl<
             .latest_header()?
             .ok_or(EthApiError::HeaderNotFound(BlockNumberOrTag::Latest.into()))?;
 
-        let latest_attrs = self.builder.pending_env_attributes(&latest)?;
+        let attrs = self
+            .blocks
+            .iter()
+            .find_map(|v| v.base.clone())
+            .ok_or_eyre("Missing base flashblock")?;
 
         let state_provider = self.provider.history_by_block_hash(latest.hash())?;
         let state = StateProviderDatabase::new(&state_provider);
@@ -123,7 +124,7 @@ impl<
 
         let mut builder = self
             .evm_config
-            .builder_for_next_block(&mut db, &latest, latest_attrs)
+            .builder_for_next_block(&mut db, &latest, attrs.into())
             .map_err(RethError::other)?;
 
         builder.apply_pre_execution_changes()?;
@@ -161,7 +162,7 @@ impl<
 impl<
         N: NodePrimitives,
         S: Stream<Item = eyre::Result<FlashBlock>> + Unpin,
-        EvmConfig: ConfigureEvm<Primitives = N, NextBlockEnvCtx: Unpin>,
+        EvmConfig: ConfigureEvm<Primitives = N, NextBlockEnvCtx: From<ExecutionPayloadBaseV1> + Unpin>,
         Provider: StateProviderFactory
             + BlockReaderIdExt<
                 Header = HeaderTy<N>,
@@ -169,8 +170,7 @@ impl<
                 Transaction = N::SignedTx,
                 Receipt = ReceiptTy<N>,
             > + Unpin,
-        Builder: PendingEnvBuilder<EvmConfig>,
-    > Stream for FlashBlockService<N, S, EvmConfig, Provider, Builder>
+    > Stream for FlashBlockService<N, S, EvmConfig, Provider>
 {
     type Item = eyre::Result<PendingBlock<N>>;
 

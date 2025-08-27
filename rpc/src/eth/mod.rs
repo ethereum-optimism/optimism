@@ -20,7 +20,9 @@ use reqwest::Url;
 use reth_evm::ConfigureEvm;
 use reth_node_api::{FullNodeComponents, FullNodeTypes, HeaderTy};
 use reth_node_builder::rpc::{EthApiBuilder, EthApiCtx};
-use reth_optimism_flashblocks::{launch_wss_flashblocks_service, FlashBlockRx};
+use reth_optimism_flashblocks::{
+    launch_wss_flashblocks_service, ExecutionPayloadBaseV1, FlashBlockRx,
+};
 use reth_rpc::eth::{core::EthApiInner, DevSigner};
 use reth_rpc_eth_api::{
     helpers::{
@@ -390,7 +392,11 @@ impl<NetworkT> OpEthApiBuilder<NetworkT> {
 impl<N, NetworkT> EthApiBuilder<N> for OpEthApiBuilder<NetworkT>
 where
     N: FullNodeComponents<
-        Evm: ConfigureEvm<NextBlockEnvCtx: BuildPendingEnv<HeaderTy<N::Types>> + Unpin>,
+        Evm: ConfigureEvm<
+            NextBlockEnvCtx: BuildPendingEnv<HeaderTy<N::Types>>
+                                 + From<ExecutionPayloadBaseV1>
+                                 + Unpin,
+        >,
     >,
     NetworkT: RpcTypes,
     OpRpcConvert<N, NetworkT>: RpcConvert<Network = NetworkT>,

@@ -1,4 +1,4 @@
-use crate::{FlashBlockService, FlashBlockWsStream};
+use crate::{ExecutionPayloadBaseV1, FlashBlockService, FlashBlockWsStream};
 use futures_util::StreamExt;
 use reth_evm::ConfigureEvm;
 use reth_primitives_traits::{BlockTy, HeaderTy, NodePrimitives, ReceiptTy};
@@ -23,7 +23,10 @@ where
     N: NodePrimitives,
     EvmConfig: ConfigureEvm<
             Primitives = N,
-            NextBlockEnvCtx: BuildPendingEnv<N::BlockHeader> + Unpin + 'static,
+            NextBlockEnvCtx: BuildPendingEnv<N::BlockHeader>
+                                 + From<ExecutionPayloadBaseV1>
+                                 + Unpin
+                                 + 'static,
         > + 'static,
     Provider: StateProviderFactory
         + BlockReaderIdExt<
@@ -35,7 +38,7 @@ where
         + 'static,
 {
     let stream = FlashBlockWsStream::new(ws_url);
-    let mut service = FlashBlockService::new(stream, evm_config, provider, ());
+    let mut service = FlashBlockService::new(stream, evm_config, provider);
     let (tx, rx) = watch::channel(None);
 
     tokio::spawn(async move {
