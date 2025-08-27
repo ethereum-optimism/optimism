@@ -38,21 +38,13 @@ module.exports = {
     boba_eth_mainnet: {
       url: process.env.LIGHTBRIDGE_RPC_BOBAETHMAINNET ?? 'https://mainnet.boba.network',
     },
-    boba_bnb_mainnet: {
-      url: 'https://boba-bnb.gateway.tenderly.co',
-    },
     boba_sepolia: {
       url: 'https://sepolia.boba.network',
-    },
-    boba_bnb_testnet: {
-      url: 'https://boba-bnb-testnet.gateway.tenderly.co',
     },
   },
   etherscan: {
     apiKey: {
       boba_eth_mainnet: "boba", // not required, set placeholder
-      boba_bnb_mainnet: "boba", // not required, set placeholder
-      boba_bnb_testnet: "boba", // not required, set placeholder
       boba_sepolia: "boba", // not required, set placeholder
     },
      customChains: [
@@ -65,14 +57,6 @@ module.exports = {
          },
        },
        {
-         network: "boba_bnb_mainnet",
-         chainId: 56288,
-         urls: {
-           apiURL: "https://api.routescan.io/v2/network/mainnet/evm/56288/etherscan",
-           browserURL: "https://bobascan.com"
-         },
-       },
-       {
          network: "boba_sepolia",
          chainId: 28882,
          urls: {
@@ -80,14 +64,6 @@ module.exports = {
            browserURL: "https://testnet.bobascan.com"
          },
        },
-       {
-         network: "boba_bnb_testnet",
-         chainId: 9728,
-         urls: {
-           apiURL: "https://api.routescan.io/v2/network/testnet/evm/9728/etherscan",
-           browserURL: "https://testnet.bobascan.com"
-         },
-       }
     ],
   }
 };

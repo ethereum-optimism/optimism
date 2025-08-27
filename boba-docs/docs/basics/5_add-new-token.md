@@ -15,14 +15,12 @@ The [L2StandardTokenFactory](https://github.com/bobanetwork/boba/blob/5601d2e5f6
 | Network                    | Contract Address                           | Block Explorer URL                                           |
 | -------------------------- | ------------------------------------------ | ------------------------------------------------------------ |
 | Boba Mainnet (Ethereum L2) | 0xD2ae16D8c66ac7bc1Cf3c9e5d6bfE5f76BeDb826 | https://bobascan.com/address/0xD2ae16D8c66ac7bc1Cf3c9e5d6bfE5f76BeDb826 |
-| Bobabnb (BNB L2)           | 0xD2ae16D8c66ac7bc1Cf3c9e5d6bfE5f76BeDb826 | https://bobascan.com/address/0xD2ae16D8c66ac7bc1Cf3c9e5d6bfE5f76BeDb826 |
 
 #### Testnet Address
 
 | Network                            | Contract Address                           | Block Explorer URL                                           |
 | ---------------------------------- | ------------------------------------------ | ------------------------------------------------------------ |
 | Boba Sepolia (Ethereum Sepolia L2) | 0x4200000000000000000000000000000000000012 | https://testnet.bobascan.com/address/0x4200000000000000000000000000000000000012 |
-| Bobabnb Testnet (BNB Testnet L2)   | 0xD2ae16D8c66ac7bc1Cf3c9e5d6bfE5f76BeDb826 | https://testnet.bobascan.com/address/0xD2ae16D8c66ac7bc1Cf3c9e5d6bfE5f76BeDb826 |
 
 ### Deploy [L2StandardERC20.sol](https://github.com/bobanetwork/boba/blob/5601d2e5f6c7687624dad5959c0f9305bbe65ae5/packages/contracts-bedrock/src/L2/OptimismSuperchainERC20Factory.sol#L43) via the script
 
