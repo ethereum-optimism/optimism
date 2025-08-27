@@ -1,6 +1,7 @@
 use alloy_eips::eip4895::Withdrawal;
 use alloy_primitives::{Address, Bloom, Bytes, B256, U256};
 use alloy_rpc_types_engine::PayloadId;
+use reth_optimism_evm::OpNextBlockEnvAttributes;
 use reth_optimism_primitives::OpReceipt;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
@@ -92,4 +93,17 @@ pub struct ExecutionPayloadFlashblockDeltaV1 {
     pub withdrawals: Vec<Withdrawal>,
     /// The withdrawals root of the block.
     pub withdrawals_root: B256,
+}
+
+impl From<ExecutionPayloadBaseV1> for OpNextBlockEnvAttributes {
+    fn from(value: ExecutionPayloadBaseV1) -> Self {
+        Self {
+            timestamp: value.timestamp,
+            suggested_fee_recipient: value.fee_recipient,
+            prev_randao: value.prev_randao,
+            gas_limit: value.gas_limit,
+            parent_beacon_block_root: Some(value.parent_beacon_block_root),
+            extra_data: value.extra_data,
+        }
+    }
 }
