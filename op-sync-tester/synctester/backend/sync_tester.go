@@ -229,15 +229,31 @@ func (s *SyncTester) ChainId(ctx context.Context) (hexutil.Big, error) {
 	return hexutil.Big(*s.cfg.ChainID.ToBig()), nil
 }
 
-func (s *SyncTester) GetPayloadV1(ctx context.Context, payloadID eth.PayloadID) (*eth.ExecutionPayload, error) {
-	return nil, nil
+// GetPayloadV1 only supports V1 payloads.
+func (s *SyncTester) GetPayloadV1(ctx context.Context, payloadID eth.PayloadID) (*eth.ExecutionPayloadEnvelope, error) {
+	if !payloadID.Is(engine.PayloadV1) {
+		return nil, engine.UnsupportedFork
+	}
+	session, err := s.fetchSession(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return s.getPayload(session, payloadID)
 }
 
+// GetPayloadV2 supports V1, V2 payloads.
 func (s *SyncTester) GetPayloadV2(ctx context.Context, payloadID eth.PayloadID) (*eth.ExecutionPayloadEnvelope, error) {
-	return nil, nil
+	if !payloadID.Is(engine.PayloadV1, engine.PayloadV2) {
+		return nil, engine.UnsupportedFork
+	}
+	session, err := s.fetchSession(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return s.getPayload(session, payloadID)
 }
 
-// GetPayloadV3 is functionally identical to GetPayloadV4.
+// GetPayloadV3 must be only called when Ecotone activated.
 func (s *SyncTester) GetPayloadV3(ctx context.Context, payloadID eth.PayloadID) (*eth.ExecutionPayloadEnvelope, error) {
 	if !payloadID.Is(engine.PayloadV3) {
 		return nil, engine.UnsupportedFork
@@ -249,10 +265,7 @@ func (s *SyncTester) GetPayloadV3(ctx context.Context, payloadID eth.PayloadID) 
 	return s.getPayload(session, payloadID)
 }
 
-// GetPayloadV4 retrieves an execution payload previously initialized by
-// ForkchoiceUpdated engine APIs when valid payload attributes were provided.
-// Retrieved payloads are deleted from the session after being served to
-// emulate one-time consumption by the consensus layer.
+// GetPayloadV4 must be only called when Isthmus activated.
 func (s *SyncTester) GetPayloadV4(ctx context.Context, payloadID eth.PayloadID) (*eth.ExecutionPayloadEnvelope, error) {
 	if !payloadID.Is(engine.PayloadV3) {
 		return nil, engine.UnsupportedFork
@@ -264,6 +277,10 @@ func (s *SyncTester) GetPayloadV4(ctx context.Context, payloadID eth.PayloadID) 
 	return s.getPayload(session, payloadID)
 }
 
+// getPayload retrieves an execution payload previously initialized by
+// ForkchoiceUpdated engine APIs when valid payload attributes were provided.
+// Retrieved payloads are deleted from the session after being served to
+// emulate one-time consumption by the consensus layer.
 func (s *SyncTester) getPayload(session *Session, payloadID eth.PayloadID) (*eth.ExecutionPayloadEnvelope, error) {
 	payloadEnv, ok := session.Payloads[payloadID]
 	if !ok {
@@ -275,15 +292,34 @@ func (s *SyncTester) getPayload(session *Session, payloadID eth.PayloadID) (*eth
 	return payloadEnv, nil
 }
 
+// ForkchoiceUpdatedV2 is called for processing V1 attributes
 func (s *SyncTester) ForkchoiceUpdatedV1(ctx context.Context, state *eth.ForkchoiceState, attr *eth.PayloadAttributes) (*eth.ForkchoiceUpdatedResult, error) {
-	return nil, nil
+	session, err := s.fetchSession(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return s.forkchoiceUpdated(ctx, session, state, attr, engine.PayloadV1, false, false)
 }
 
+// ForkchoiceUpdatedV2 is called for processing V2 attributes
 func (s *SyncTester) ForkchoiceUpdatedV2(ctx context.Context, state *eth.ForkchoiceState, attr *eth.PayloadAttributes) (*eth.ForkchoiceUpdatedResult, error) {
-	return nil, nil
+	session, err := s.fetchSession(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return s.forkchoiceUpdated(ctx, session, state, attr, engine.PayloadV2, true, false)
 }
 
-// ForkchoiceUpdatedV3 processes a forkchoice state update from the consensus
+// ForkchoiceUpdatedV3 must be only called with Ecotone attributes
+func (s *SyncTester) ForkchoiceUpdatedV3(ctx context.Context, state *eth.ForkchoiceState, attr *eth.PayloadAttributes) (*eth.ForkchoiceUpdatedResult, error) {
+	session, err := s.fetchSession(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return s.forkchoiceUpdated(ctx, session, state, attr, engine.PayloadV3, true, true)
+}
+
+// forkchoiceUpdated processes a forkchoice state update from the consensus
 // layer, validates the request against the current execution layer state, and
 // optionally initializes a new payload build process if payload attributes are
 // provided. When payload attributes are not nil and validation succeeds, the
@@ -300,20 +336,34 @@ func (s *SyncTester) ForkchoiceUpdatedV2(ctx context.Context, state *eth.Forkcho
 //     attributes are malformed or finalized/safe blocks are not canonical.
 //   - {status: SYNCING} when the head block is unknown or not yet validated, or
 //     when block data cannot be retrieved from the execution layer.
-func (s *SyncTester) ForkchoiceUpdatedV3(ctx context.Context, state *eth.ForkchoiceState, attr *eth.PayloadAttributes) (*eth.ForkchoiceUpdatedResult, error) {
-	session, err := s.fetchSession(ctx)
-	if err != nil {
-		return nil, err
-	}
+func (s *SyncTester) forkchoiceUpdated(ctx context.Context, session *Session, state *eth.ForkchoiceState, attr *eth.PayloadAttributes, payloadVersion engine.PayloadVersion,
+	isCanyon, isEcotone bool,
+) (*eth.ForkchoiceUpdatedResult, error) {
 	// Validate attributes shape
 	if attr != nil {
-		// https://github.com/ethereum/execution-apis/blob/bc5a37ee69a64769bd8d0a2056672361ef5f3839/src/engine/cancun.md#engine_forkchoiceupdatedv3
-		// Spec: payloadAttributes matches the PayloadAttributesV3 structure, return -38003: Invalid payload attributes on failure.
-		if attr.Withdrawals == nil {
-			return &eth.ForkchoiceUpdatedResult{PayloadStatus: eth.PayloadStatusV1{Status: eth.ExecutionInvalid}, PayloadID: nil}, engine.InvalidPayloadAttributes.With(errors.New("missing withdrawals"))
-		}
-		if attr.ParentBeaconBlockRoot == nil {
-			return &eth.ForkchoiceUpdatedResult{PayloadStatus: eth.PayloadStatusV1{Status: eth.ExecutionInvalid}, PayloadID: nil}, engine.InvalidPayloadAttributes.With(errors.New("missing beacon root"))
+		if isEcotone {
+			// https://github.com/ethereum/execution-apis/blob/bc5a37ee69a64769bd8d0a2056672361ef5f3839/src/engine/cancun.md#engine_forkchoiceupdatedv3
+			// Spec: payloadAttributes matches the PayloadAttributesV3 structure, return -38003: Invalid payload attributes on failure.
+			// Ecotone activated Cancun
+			if attr.ParentBeaconBlockRoot == nil {
+				return &eth.ForkchoiceUpdatedResult{PayloadStatus: eth.PayloadStatusV1{Status: eth.ExecutionInvalid}, PayloadID: nil}, engine.InvalidPayloadAttributes.With(errors.New("missing beacon root"))
+			}
+			if attr.Withdrawals == nil {
+				return &eth.ForkchoiceUpdatedResult{PayloadStatus: eth.PayloadStatusV1{Status: eth.ExecutionInvalid}, PayloadID: nil}, engine.InvalidPayloadAttributes.With(errors.New("missing withdrawals"))
+			}
+		} else if isCanyon {
+			if attr.ParentBeaconBlockRoot != nil {
+				return &eth.ForkchoiceUpdatedResult{PayloadStatus: eth.PayloadStatusV1{Status: eth.ExecutionInvalid}, PayloadID: nil}, engine.InvalidPayloadAttributes.With(errors.New("unexpected beacon root"))
+			}
+			// Canyon activated Shanghai
+			if attr.Withdrawals == nil {
+				return &eth.ForkchoiceUpdatedResult{PayloadStatus: eth.PayloadStatusV1{Status: eth.ExecutionInvalid}, PayloadID: nil}, engine.InvalidPayloadAttributes.With(errors.New("missing withdrawals"))
+			}
+		} else {
+			// Bedrock
+			if attr.Withdrawals != nil || attr.ParentBeaconBlockRoot != nil {
+				return &eth.ForkchoiceUpdatedResult{PayloadStatus: eth.PayloadStatusV1{Status: eth.ExecutionInvalid}, PayloadID: nil}, engine.InvalidParams.With(errors.New("withdrawals and beacon root not supported"))
+			}
 		}
 	}
 	// Simulate head block hash check
@@ -366,7 +416,8 @@ func (s *SyncTester) ForkchoiceUpdatedV3(ctx context.Context, state *eth.Forkcho
 			// Consider as sync error if read only EL interaction fails because we cannot validate
 			return &eth.ForkchoiceUpdatedResult{PayloadStatus: eth.PayloadStatusV1{Status: eth.ExecutionSyncing}, PayloadID: nil}, nil
 		}
-		// Implictly determine whether holocene is enabled by inspecting extraData from read only EL data
+		// https://github.com/ethereum-optimism/specs/blob/972dec7c7c967800513c354b2f8e5b79340de1c3/specs/protocol/holocene/exec-engine.md#eip-1559-parameters-in-block-header
+		// Implicitly determine whether holocene is enabled by inspecting extraData from read only EL data
 		isHolocene := eip1559.ValidateHoloceneExtraData(newBlock.Header().Extra) == nil
 		// Sanity check attr comparing with newBlock
 		if err := s.validateAttributesForBlock(attr, newBlock, isHolocene); err != nil {
@@ -374,6 +425,9 @@ func (s *SyncTester) ForkchoiceUpdatedV3(ctx context.Context, state *eth.Forkcho
 			// Client software MUST respond to this method call in the following way: {error: {code: -38003, message: "Invalid payload attributes"}} if the payload is deemed VALID and forkchoiceState has been applied successfully, but no build process has been started due to invalid payloadAttributes.
 			return &eth.ForkchoiceUpdatedResult{PayloadStatus: eth.PayloadStatusV1{Status: eth.ExecutionInvalid}, PayloadID: nil}, engine.InvalidPayloadAttributes.With(err)
 		}
+		// https://github.com/ethereum-optimism/specs/blob/7b39adb0bea3b0a56d6d3a7d61feef5c33e49b73/specs/protocol/isthmus/exec-engine.md#header-validity-rules
+		// Implicitly determine whether isthmus is enabled by inspecting withdrawalsRoot from read only EL data
+		isIsthmus := newBlock.WithdrawalsRoot() != nil && len(*newBlock.WithdrawalsRoot()) == 32
 		// Initialize payload args for sane payload ID
 		// All attr fields already sanity checked
 		args := miner.BuildPayloadArgs{
@@ -381,20 +435,25 @@ func (s *SyncTester) ForkchoiceUpdatedV3(ctx context.Context, state *eth.Forkcho
 			Timestamp:    uint64(attr.Timestamp),
 			FeeRecipient: attr.SuggestedFeeRecipient,
 			Random:       common.Hash(attr.PrevRandao),
-			Withdrawals:  *attr.Withdrawals,
 			BeaconRoot:   attr.ParentBeaconBlockRoot,
 			NoTxPool:     attr.NoTxPool,
 			Transactions: newBlock.Transactions(),
 			GasLimit:     &newBlock.Header().GasLimit,
-			Version:      engine.PayloadV3,
+			Version:      payloadVersion,
+		}
+		config := &params.ChainConfig{}
+		if isCanyon {
+			args.Withdrawals = *attr.Withdrawals
+			config.CanyonTime = new(uint64)
 		}
 		if isHolocene {
 			args.EIP1559Params = (*attr.EIP1559Params)[:]
 		}
+		if isIsthmus {
+			config.IsthmusTime = new(uint64)
+		}
 		payloadID := args.Id()
 		id = &payloadID
-		// Activate Canyon and Isthmus
-		config := &params.ChainConfig{CanyonTime: new(uint64), IsthmusTime: new(uint64)}
 		payloadEnv, err := eth.BlockAsPayloadEnv(newBlock, config)
 		if err != nil {
 			// The failure is from the EL processing so consider as a server error and make CL retry
@@ -436,10 +495,10 @@ func (s *SyncTester) validateAttributesForBlock(attr *eth.PayloadAttributes, blo
 	if attr.Withdrawals != nil && len(*attr.Withdrawals) != 0 {
 		return errors.New("withdrawals must be nil or empty")
 	}
-	if attr.ParentBeaconBlockRoot == nil || h.ParentBeaconRoot == nil {
-		return fmt.Errorf("parentBeaconBlockRoot must be provided")
+	if (attr.ParentBeaconBlockRoot == nil) != (h.ParentBeaconRoot == nil) {
+		return fmt.Errorf("parentBeaconBlockRoot mismatch: attr=%v, header=%v", attr.ParentBeaconBlockRoot, h.ParentBeaconRoot)
 	}
-	if (*attr.ParentBeaconBlockRoot).Cmp(*h.ParentBeaconRoot) != 0 {
+	if h.ParentBeaconRoot != nil && (*attr.ParentBeaconBlockRoot).Cmp(*h.ParentBeaconRoot) != 0 {
 		return fmt.Errorf("parentBeaconBlockRoot mismatch: attr=%s, header=%s", *attr.ParentBeaconBlockRoot, *h.ParentBeaconRoot)
 	}
 	// OP Stack additions
@@ -487,12 +546,22 @@ func (s *SyncTester) validateAttributesForBlock(attr *eth.PayloadAttributes, blo
 	return nil
 }
 
+// NewPayloadV1 must be only called with Bedrock Payload
 func (s *SyncTester) NewPayloadV1(ctx context.Context, payload *eth.ExecutionPayload) (*eth.PayloadStatusV1, error) {
-	return nil, nil
+	session, err := s.fetchSession(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return s.newPayload(ctx, session, payload, nil, nil, nil, false, false)
 }
 
+// NewPayloadV2 must be only called with Bedrock, Canyon, Delta Payload
 func (s *SyncTester) NewPayloadV2(ctx context.Context, payload *eth.ExecutionPayload) (*eth.PayloadStatusV1, error) {
-	return nil, nil
+	session, err := s.fetchSession(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return s.newPayload(ctx, session, payload, nil, nil, nil, false, false)
 }
 
 // NewPayloadV3 must be only called with Ecotone Payload
@@ -534,20 +603,26 @@ func (s *SyncTester) newPayload(ctx context.Context, session *Session, payload *
 	// Validate request shape, fork required fields
 	// https://github.com/ethereum/execution-apis/blob/584905270d8ad665718058060267061ecfd79ca5/src/engine/shanghai.md#engine_newpayloadv2
 	// Spec: Client software MUST return -32602: Invalid params error if the wrong version of the structure is used in the method call.
-	if payload.Withdrawals == nil {
-		return &eth.PayloadStatusV1{Status: eth.ExecutionInvalid}, engine.InvalidParams.With(errors.New("nil withdrawals post-shanghai"))
-	}
-	if payload.ExcessBlobGas == nil {
-		return &eth.PayloadStatusV1{Status: eth.ExecutionInvalid}, engine.InvalidParams.With(errors.New("nil excessBlobGas post-cancun"))
-	}
-	if payload.BlobGasUsed == nil {
-		return &eth.PayloadStatusV1{Status: eth.ExecutionInvalid}, engine.InvalidParams.With(errors.New("nil blobGasUsed post-cancun"))
-	}
-	if versionedHashes == nil {
-		return &eth.PayloadStatusV1{Status: eth.ExecutionInvalid}, engine.InvalidParams.With(errors.New("nil versionedHashes post-cancun"))
-	}
-	if beaconRoot == nil {
-		return &eth.PayloadStatusV1{Status: eth.ExecutionInvalid}, engine.InvalidParams.With(errors.New("nil beaconRoot post-cancun"))
+	if isEcotone {
+		if payload.ExcessBlobGas == nil {
+			return &eth.PayloadStatusV1{Status: eth.ExecutionInvalid}, engine.InvalidParams.With(errors.New("nil excessBlobGas post-cancun"))
+		}
+		if payload.BlobGasUsed == nil {
+			return &eth.PayloadStatusV1{Status: eth.ExecutionInvalid}, engine.InvalidParams.With(errors.New("nil blobGasUsed post-cancun"))
+		}
+		if versionedHashes == nil {
+			return &eth.PayloadStatusV1{Status: eth.ExecutionInvalid}, engine.InvalidParams.With(errors.New("nil versionedHashes post-cancun"))
+		}
+		if beaconRoot == nil {
+			return &eth.PayloadStatusV1{Status: eth.ExecutionInvalid}, engine.InvalidParams.With(errors.New("nil beaconRoot post-cancun"))
+		}
+	} else {
+		if payload.ExcessBlobGas != nil {
+			return &eth.PayloadStatusV1{Status: eth.ExecutionInvalid}, engine.InvalidParams.With(errors.New("non-nil excessBlobGas pre-cancun"))
+		}
+		if payload.BlobGasUsed != nil {
+			return &eth.PayloadStatusV1{Status: eth.ExecutionInvalid}, engine.InvalidParams.With(errors.New("non-nil blobGasUsed pre-cancun"))
+		}
 	}
 	if isIsthmus {
 		if executionRequests == nil {
@@ -580,13 +655,29 @@ func (s *SyncTester) newPayload(ctx context.Context, session *Session, payload *
 		}
 		return &eth.PayloadStatusV1{Status: eth.ExecutionInvalid}, engine.GenericServerError.With(wrapSyncTesterError("failed to fetch block", err))
 	}
+	// https://github.com/ethereum-optimism/specs/blob/972dec7c7c967800513c354b2f8e5b79340de1c3/specs/protocol/derivation.md#building-individual-payload-attributes
+	// Implicitly determine whether canyon is enabled by inspecting withdrawals from read only EL data
+	isCanyon := block.Withdrawals() != nil
+	if isCanyon {
+		if payload.Withdrawals == nil {
+			return &eth.PayloadStatusV1{Status: eth.ExecutionInvalid}, engine.InvalidParams.With(errors.New("nil withdrawals post-shanghai"))
+		}
+	} else {
+		if payload.Withdrawals != nil {
+			return &eth.PayloadStatusV1{Status: eth.ExecutionInvalid}, engine.InvalidParams.With(errors.New("non-nil withdrawals pre-shanghai"))
+		}
+	}
+
 	blockHash := block.Hash()
 	// We only attempt to advance non-canonical view of the chain, following the read only EL
 	if block.NumberU64() <= session.Validated+1 {
 		// Already have the block locally or advance single block without setting the head
 		// https://github.com/ethereum/execution-apis/blob/584905270d8ad665718058060267061ecfd79ca5/src/engine/shanghai.md#specification
 		// Spec: MUST return {status: INVALID, latestValidHash: null, validationError: errorMessage | null} if the blockHash validation has failed.
-		config := &params.ChainConfig{CanyonTime: new(uint64)}
+		config := &params.ChainConfig{}
+		if isCanyon {
+			config.CanyonTime = new(uint64)
+		}
 		if isIsthmus {
 			config.IsthmusTime = new(uint64)
 		}

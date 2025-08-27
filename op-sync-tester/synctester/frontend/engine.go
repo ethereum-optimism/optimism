@@ -9,7 +9,7 @@ import (
 )
 
 type EngineBackend interface {
-	GetPayloadV1(ctx context.Context, payloadID eth.PayloadID) (*eth.ExecutionPayload, error)
+	GetPayloadV1(ctx context.Context, payloadID eth.PayloadID) (*eth.ExecutionPayloadEnvelope, error)
 	GetPayloadV2(ctx context.Context, payloadID eth.PayloadID) (*eth.ExecutionPayloadEnvelope, error)
 	GetPayloadV3(ctx context.Context, payloadID eth.PayloadID) (*eth.ExecutionPayloadEnvelope, error)
 	GetPayloadV4(ctx context.Context, payloadID eth.PayloadID) (*eth.ExecutionPayloadEnvelope, error)
@@ -32,7 +32,7 @@ func NewEngineFrontend(b EngineBackend) *EngineFrontend {
 	return &EngineFrontend{b: b}
 }
 
-func (e *EngineFrontend) GetPayloadV1(ctx context.Context, payloadID eth.PayloadID) (*eth.ExecutionPayload, error) {
+func (e *EngineFrontend) GetPayloadV1(ctx context.Context, payloadID eth.PayloadID) (*eth.ExecutionPayloadEnvelope, error) {
 	return e.b.GetPayloadV1(ctx, payloadID)
 }
 
