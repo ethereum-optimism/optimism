@@ -81,13 +81,11 @@ interface IOPContractsManagerDeployer {
 interface IOPContractsManagerUpgrader {
     event Upgraded(uint256 indexed l2ChainId, address indexed systemConfig, address indexed upgrader);
 
+    error SuperchainConfigExpectedVersionMismatch();
+
     function __constructor__(IOPContractsManagerContractsContainer _contractsContainer) external;
 
-    function upgrade(
-        ISuperchainConfig _superchainConfig,
-        IOPContractsManager.OpChainConfig[] memory _opChainConfigs
-    )
-        external;
+    function upgrade(IOPContractsManager.OpChainConfig[] memory _opChainConfigs) external;
 
     function upgradeSuperchainConfig(ISuperchainConfig _superchainConfig, IProxyAdmin _superchainProxyAdmin) external;
 
@@ -290,10 +288,6 @@ interface IOPContractsManager {
     error PrestateNotSet();
 
     error PrestateRequired();
-
-    error SuperchainConfigInconsistent();
-
-    error EmptyOpChainConfigs();
 
     // -------- Methods --------
 

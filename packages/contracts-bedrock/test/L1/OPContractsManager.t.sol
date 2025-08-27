@@ -122,8 +122,6 @@ contract OPContractsManager_Upgrade_Harness is CommonTest {
     // The ImplementationSet event emitted by the DisputeGameFactory contract.
     event ImplementationSet(address indexed impl, GameType indexed gameType);
 
-    error SuperchainConfigExpectedVersionMismatch();
-
     uint256 l2ChainId;
     address upgrader;
     IOPContractsManager.OpChainConfig[] opChainConfigs;
@@ -1533,7 +1531,7 @@ contract OPContractsManager_Upgrade_Test is OPContractsManager_Upgrade_Harness {
         runUpgrade14UpgradeAndChecks(upgrader);
 
         // Try upgrading an OPChain without upgrading its superchainConfig.
-        vm.expectRevert(SuperchainConfigExpectedVersionMismatch.selector);
+        vm.expectRevert(IOPContractsManagerUpgrader.SuperchainConfigExpectedVersionMismatch.selector);
         DelegateCaller(upgrader).dcForward(address(opcm), abi.encodeCall(IOPContractsManager.upgrade, (opChainConfigs)));
     }
 }
