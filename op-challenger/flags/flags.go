@@ -110,6 +110,11 @@ var (
 		EnvVars: prefixEnvVars("HTTP_POLL_INTERVAL"),
 		Value:   config.DefaultPollInterval,
 	}
+	MinUpdateInterval = &cli.DurationFlag{
+		Name:    "min-update-interval",
+		Usage:   "Minimum time between scheduling update cycles based on the L1 block time.",
+		EnvVars: prefixEnvVars("MIN_UPDATE_INTERVAL"),
+	}
 	AdditionalBondClaimants = &cli.StringSliceFlag{
 		Name:    "additional-bond-claimants",
 		Usage:   "List of addresses to claim bonds for, in addition to the configured transaction sender",
@@ -264,6 +269,7 @@ var optionalFlags = []cli.Flag{
 	L2ExperimentalEthRpcFlag,
 	MaxPendingTransactionsFlag,
 	HTTPPollInterval,
+	MinUpdateInterval,
 	AdditionalBondClaimants,
 	GameAllowlistFlag,
 	CannonL2CustomFlag,
@@ -621,6 +627,7 @@ func NewConfigFromCLI(ctx *cli.Context, logger log.Logger) (*config.Config, erro
 		L2Rpcs:                  l2Rpcs,
 		MaxPendingTx:            ctx.Uint64(MaxPendingTransactionsFlag.Name),
 		PollInterval:            ctx.Duration(HTTPPollInterval.Name),
+		MinUpdateInterval:       ctx.Duration(MinUpdateInterval.Name),
 		AdditionalBondClaimants: claimants,
 		RollupRpc:               ctx.String(RollupRpcFlag.Name),
 		SupervisorRPC:           ctx.String(SupervisorRpcFlag.Name),
