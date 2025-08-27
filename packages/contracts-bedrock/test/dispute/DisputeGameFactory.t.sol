@@ -455,6 +455,8 @@ contract DisputeGameFactory_Create_Test is DisputeGameFactory_TestInit {
         assertEq(Claim.unwrap(gameV2.rootClaim()), Claim.unwrap(rootClaim));
         assertEq(gameV2.extraData(), extraData);
         assertEq(gameV2.l2ChainId(), 111);
+        assertEq(address(gameV2.gameCreator()), address(this));
+        assertEq(gameV2.l2BlockNumber(), uint256(type(uint32).max));
         assertEq(address(gameV2.vm()), address(vm_));
         assertEq(address(gameV2.weth()), address(delayedWeth));
         assertEq(address(gameV2.anchorStateRegistry()), address(anchorStateRegistry));
