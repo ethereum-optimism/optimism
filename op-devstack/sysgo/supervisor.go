@@ -3,7 +3,6 @@ package sysgo
 import (
 	"os"
 
-	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/stack"
 	"github.com/ethereum-optimism/optimism/op-service/client"
 	"github.com/ethereum-optimism/optimism/op-service/dial"
@@ -16,39 +15,12 @@ type Supervisor interface {
 	UserRPC() string
 }
 
-type SupervisorConfig struct {
-}
-
-type SupervisorOption interface {
-	Apply(p devtest.P, id stack.SupervisorID, cfg *SupervisorConfig)
-}
-
-type SupervisorOptionFn func(p devtest.P, id stack.SupervisorID, cfg *SupervisorConfig)
-
-var _ SupervisorOption = SupervisorOptionFn(nil)
-
-func (fn SupervisorOptionFn) Apply(p devtest.P, id stack.SupervisorID, cfg *SupervisorConfig) {
-	fn(p, id, cfg)
-}
-
-// SupervisorOptionBundle a list of multiple SupervisorOption, to all be applied in order.
-type SupervisorOptionBundle []SupervisorOption
-
-var _ SupervisorOption = SupervisorOptionBundle(nil)
-
-func (l SupervisorOptionBundle) Apply(p devtest.P, id stack.SupervisorID, cfg *SupervisorConfig) {
-	for _, opt := range l {
-		p.Require().NotNil(opt, "cannot Apply nil L2CLOption")
-		opt.Apply(p, id, cfg)
-	}
-}
-
-func WithSupervisor(supervisorID stack.SupervisorID, clusterID stack.ClusterID, l1ELID stack.L1ELNodeID, opts ...SupervisorOption) stack.Option[*Orchestrator] {
+func WithSupervisor(supervisorID stack.SupervisorID, clusterID stack.ClusterID, l1ELID stack.L1ELNodeID) stack.Option[*Orchestrator] {
 	switch os.Getenv("DEVSTACK_SUPERVISOR_KIND") {
 	case "kona":
-		return WithKonaSupervisor(supervisorID, clusterID, l1ELID, opts...)
+		return WithKonaSupervisor(supervisorID, clusterID, l1ELID)
 	default:
-		return WithOPSupervisor(supervisorID, clusterID, l1ELID, opts...)
+		return WithOPSupervisor(supervisorID, clusterID, l1ELID)
 	}
 }
 

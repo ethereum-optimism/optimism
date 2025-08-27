@@ -99,7 +99,7 @@ func (s *OpSupervisor) Stop() {
 	s.service = nil
 }
 
-func WithOPSupervisor(supervisorID stack.SupervisorID, clusterID stack.ClusterID, l1ELID stack.L1ELNodeID, opts ...SupervisorOption) stack.Option[*Orchestrator] {
+func WithOPSupervisor(supervisorID stack.SupervisorID, clusterID stack.ClusterID, l1ELID stack.L1ELNodeID) stack.Option[*Orchestrator] {
 	return stack.AfterDeploy(func(orch *Orchestrator) {
 		p := orch.P().WithCtx(stack.ContextWithID(orch.P().Ctx(), supervisorID))
 		require := p.Require()
