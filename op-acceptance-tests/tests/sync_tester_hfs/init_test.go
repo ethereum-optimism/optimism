@@ -27,5 +27,4 @@ func TestMain(m *testing.M) {
 			// For supporting pre-Fjord batches
 			cfg.CompressionAlgo = derive.Zlib
 		})))
-
 }

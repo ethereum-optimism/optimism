@@ -292,7 +292,7 @@ func (s *SyncTester) getPayload(session *Session, payloadID eth.PayloadID) (*eth
 	return payloadEnv, nil
 }
 
-// ForkchoiceUpdatedV2 is called for processing V1 attributes
+// ForkchoiceUpdatedV1 is called for processing V1 attributes
 func (s *SyncTester) ForkchoiceUpdatedV1(ctx context.Context, state *eth.ForkchoiceState, attr *eth.PayloadAttributes) (*eth.ForkchoiceUpdatedResult, error) {
 	session, err := s.fetchSession(ctx)
 	if err != nil {
