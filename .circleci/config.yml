@@ -2289,11 +2289,6 @@ workflows:
             - oplabs-network-optimism-io-bucket
           requires:
             - cannon-prestate
-          filters:
-            tags:
-              only: /^op-program\/v.*/
-            branches:
-              ignore: /.*/
 
   scheduled-todo-issues:
     when:
