@@ -423,3 +423,81 @@ func MultiSupervisorInteropSystem(dest *MultiSupervisorInteropSystemIDs) stack.O
 
 	return opt
 }
+
+type DefaultMinimalExternalELSystemIDs struct {
+	L1   stack.L1NetworkID
+	L1EL stack.L1ELNodeID
+	L1CL stack.L1CLNodeID
+
+	L2   stack.L2NetworkID
+	L2CL stack.L2CLNodeID
+	L2EL stack.L2ELNodeID
+
+	L2Batcher    stack.L2BatcherID
+	L2Proposer   stack.L2ProposerID
+	L2Challenger stack.L2ChallengerID
+
+	TestSequencer stack.TestSequencerID
+	SyncTester    stack.SyncTesterID
+}
+
+func NewDefaultMinimalExternalELSystemIDs(l1ID, l2ID eth.ChainID) DefaultMinimalExternalELSystemIDs {
+	ids := DefaultMinimalExternalELSystemIDs{
+		L1:            stack.L1NetworkID(l1ID),
+		L1EL:          stack.NewL1ELNodeID("l1", l1ID),
+		L1CL:          stack.NewL1CLNodeID("l1", l1ID),
+		L2:            stack.L2NetworkID(l2ID),
+		L2CL:          stack.NewL2CLNodeID("sequencer", l2ID),
+		L2EL:          stack.NewL2ELNodeID("synctester", l2ID),
+		L2Batcher:     stack.NewL2BatcherID("main", l2ID),
+		L2Proposer:    stack.NewL2ProposerID("main", l2ID),
+		L2Challenger:  stack.NewL2ChallengerID("main", l2ID),
+		TestSequencer: "test-sequencer",
+		SyncTester:    stack.NewSyncTesterID("s", l2ID),
+	}
+	return ids
+}
+
+func DefaultMinimalExternalELSystemWithEndpoint(dest *DefaultMinimalExternalELSystemIDs, endpointRPC string, chainID eth.ChainID, fcus sttypes.FCUState) stack.Option[*Orchestrator] {
+	ids := NewDefaultMinimalExternalELSystemIDs(DefaultL1ID, chainID)
+
+	opt := stack.Combine[*Orchestrator]()
+	opt.Add(stack.BeforeDeploy(func(o *Orchestrator) {
+		o.P().Logger().Info("Setting up")
+	}))
+
+	opt.Add(WithMnemonicKeys(devkeys.TestMnemonic))
+
+	opt.Add(WithDeployer(),
+		WithDeployerOptions(
+			WithLocalContractSources(),
+			WithCommons(ids.L1.ChainID()),
+			WithPrefundedL2(ids.L1.ChainID(), ids.L2.ChainID()),
+		),
+	)
+
+	opt.Add(WithL1Nodes(ids.L1EL, ids.L1CL))
+
+	// Add SyncTester service with external endpoint
+	opt.Add(WithSyncTesterWithExternalEndpoint(endpointRPC, chainID))
+
+	// Add SyncTesterL2ELNode as the L2EL replacement for real-world EL endpoint
+	opt.Add(WithSyncTesterL2ELNode(ids.L2EL, ids.L2CL, fcus))
+	opt.Add(WithL2CLNode(ids.L2CL, ids.L1CL, ids.L1EL, ids.L2EL, L2CLSequencer()))
+
+	opt.Add(WithBatcher(ids.L2Batcher, ids.L1EL, ids.L2CL, ids.L2EL))
+	opt.Add(WithProposer(ids.L2Proposer, ids.L1EL, &ids.L2CL, nil))
+
+	// Only add L1 faucet, no L2 faucet as we use real-world EL
+	opt.Add(WithFaucets([]stack.L1ELNodeID{ids.L1EL}, nil))
+
+	opt.Add(WithTestSequencer(ids.TestSequencer, ids.L1CL, ids.L2CL, ids.L1EL, ids.L2EL))
+
+	opt.Add(WithL2Challenger(ids.L2Challenger, ids.L1EL, ids.L1CL, nil, nil, &ids.L2CL, []stack.L2ELNodeID{ids.L2EL}))
+
+	opt.Add(stack.Finally(func(orch *Orchestrator) {
+		*dest = ids
+	}))
+
+	return opt
+}
