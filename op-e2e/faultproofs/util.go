@@ -232,9 +232,9 @@ func initExecutorLimiter() {
 				panic(fmt.Sprintf("Could not parse OP_E2E_EXECUTOR_LIMIT env var %v: %v", executorLimitEnv, err))
 			}
 		} else {
-			// faultproof tests may use 6 GiB of memory. So let's be very conservative and aggressively limit the number of test executions
+			// faultproof tests may use 1 GiB of memory. So let's be very conservative and aggressively limit the number of test executions
 			// considering other processes running on the same machine.
-			executorLimit = 8
+			executorLimit = 16
 		}
 		limiter = executorLimiter{ch: make(chan struct{}, executorLimit)}
 	})
