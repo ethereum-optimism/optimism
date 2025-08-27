@@ -241,4 +241,23 @@ contract Blueprint_Test is Test {
         assertEq(14545064521499334880, blueprint.bytesToUint(hex"00c9da731e871ad8e0"));
         assertEq(type(uint256).max, blueprint.bytesToUint(bytes.concat(bytes32(type(uint256).max))));
     }
+
+    function test_bytesToUint_edgeCases() public {
+        assertEq(0, blueprint.bytesToUint(hex""));           // 0 bytes
+        assertEq(1, blueprint.bytesToUint(hex"01"));         // 1 byte
+        assertEq(257, blueprint.bytesToUint(hex"0101"));     // 2 bytes
+        assertEq(65793, blueprint.bytesToUint(hex"010101")); // 3 bytes
+
+        // Test maximum length (32 bytes)
+        bytes memory maxBytes = new bytes(32);
+        for (uint i = 0; i < 32; i++) {
+            maxBytes[i] = 0xFF;
+        }
+        assertEq(type(uint256).max, blueprint.bytesToUint(maxBytes));
+
+        // Test error case - should revert for > 32 bytes
+        bytes memory tooLong = new bytes(33);
+        vm.expectRevert(Blueprint.BytesArrayTooLong.selector);
+        blueprint.bytesToUint(tooLong);
+    }
 }
