@@ -512,7 +512,7 @@ contract DisputeGameFactory_SetImplementation_Test is DisputeGameFactory_TestIni
     }
 
     /// @notice Tests that the `setImplementation` function with args reverts when called by a non-owner.
-    function test_setImplementation_withArgs_notOwner_reverts() public {
+    function test_setImplementationArgs_notOwner_reverts() public {
         bytes memory args = abi.encode(uint256(123), address(0xdead));
 
         // Ensure that the `setImplementation` function reverts when called by a non-owner.
