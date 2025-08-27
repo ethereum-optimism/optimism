@@ -7,6 +7,11 @@ import (
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/arch"
 )
 
+const (
+	defaultCodeSize = 128 * 1024 * 1024 // 128 MiB
+	defaultHeapSize = 512 * 1024 * 1024 // 512 MiB
+)
+
 // BinaryTreeIndex is a representation of the state of the memory in a binary merkle tree.
 type BinaryTreeIndex struct {
 	// generalized index -> merkle root or nil if invalidated
@@ -19,12 +24,11 @@ func NewBinaryTreeMemory(codeSize, heapSize arch.Word) *Memory {
 	pages := make(map[arch.Word]*CachedPage)
 	index := NewBinaryTreeIndex(pages)
 
-	// Default values (2 GiB) if not provided
 	if codeSize == 0 {
-		codeSize = 1 << 31 // 2 GiB
+		codeSize = defaultCodeSize
 	}
 	if heapSize == 0 {
-		heapSize = 1 << 31 // 2 GiB
+		heapSize = defaultHeapSize
 	}
 
 	// Defensive bounds: code region must not overlap heap start

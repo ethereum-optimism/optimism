@@ -67,9 +67,7 @@ type PageIndex interface {
 }
 
 func NewMemoryWithLargeRegions() *Memory {
-	const codeSize = 1 << 31
-	const heapSize = 1 << 31
-	return NewBinaryTreeMemory(codeSize, heapSize)
+	return NewBinaryTreeMemory(defaultCodeSize, defaultHeapSize)
 }
 
 func NewMemory() *Memory {
