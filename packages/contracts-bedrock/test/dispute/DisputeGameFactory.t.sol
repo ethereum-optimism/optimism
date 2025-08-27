@@ -427,7 +427,6 @@ contract DisputeGameFactory_Create_Test is DisputeGameFactory_TestInit {
     }
 
     function test_create_implArgs_succeeds() public {
-        // skipIfForkTest("Not supported on testnet");
         Claim absolutePrestate = Claim.wrap(bytes32(hex"dead"));
         (, AlphabetVM vm_,) = setupFaultDisputeGameV2(absolutePrestate);
 
