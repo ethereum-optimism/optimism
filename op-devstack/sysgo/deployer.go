@@ -91,9 +91,8 @@ func WithDeployer() stack.Option[*Orchestrator] {
 				deployment: wb.outSuperchainDeployment,
 			})
 			o.clusters.Set(clusterID, &Cluster{
-				id:            clusterID,
-				cfgset:        wb.outFullCfgSet,
-				rollupConfigs: wb.outL2RollupCfg,
+				id:     clusterID,
+				cfgset: wb.outFullCfgSet,
 			})
 
 			for _, chainID := range wb.l2Chains {

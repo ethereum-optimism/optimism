@@ -138,8 +138,9 @@ func WithKonaSupervisor(supervisorID stack.SupervisorID, clusterID stack.Cluster
 		p.Require().NoError(err, os.WriteFile(depsetCfgPath, depsetData, 0o644))
 
 		rollupCfgPath := cfgDir + "/rollup-config-*.json"
-		for chainID, rollupConfig := range cluster.rollupConfigs {
-			rollupData, err := json.Marshal(rollupConfig)
+		for _, l2Net := range orch.l2Nets.Values() {
+			chainID := l2Net.id.ChainID()
+			rollupData, err := json.Marshal(l2Net.rollupCfg)
 			require.NoError(err, "failed to marshal rollup config")
 			p.Require().NoError(err, os.WriteFile(cfgDir+"/rollup-config-"+chainID.String()+".json", rollupData, 0o644))
 		}

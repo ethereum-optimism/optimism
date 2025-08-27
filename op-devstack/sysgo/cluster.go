@@ -3,15 +3,12 @@ package sysgo
 import (
 	"github.com/ethereum-optimism/optimism/op-devstack/shim"
 	"github.com/ethereum-optimism/optimism/op-devstack/stack"
-	"github.com/ethereum-optimism/optimism/op-node/rollup"
-	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/depset"
 )
 
 type Cluster struct {
-	id            stack.ClusterID
-	cfgset        depset.FullConfigSetMerged
-	rollupConfigs map[eth.ChainID]*rollup.Config
+	id     stack.ClusterID
+	cfgset depset.FullConfigSetMerged
 }
 
 func (c *Cluster) hydrate(system stack.ExtensibleSystem) {
