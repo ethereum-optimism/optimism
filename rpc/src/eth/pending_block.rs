@@ -45,6 +45,10 @@ where
         )>,
         Self::Error,
     > {
+        if let Some(block) = self.pending_flashblock() {
+            return Ok(Some(block));
+        }
+
         // See: <https://github.com/ethereum-optimism/op-geth/blob/f2e69450c6eec9c35d56af91389a1c47737206ca/miner/worker.go#L367-L375>
         let latest = self
             .provider()

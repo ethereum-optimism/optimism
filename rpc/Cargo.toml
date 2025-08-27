@@ -30,6 +30,7 @@ reth-rpc-engine-api.workspace = true
 
 # op-reth
 reth-optimism-evm.workspace = true
+reth-optimism-flashblocks.workspace = true
 reth-optimism-payload-builder.workspace = true
 reth-optimism-txpool.workspace = true
 # TODO remove node-builder import
