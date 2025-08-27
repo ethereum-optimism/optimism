@@ -267,7 +267,7 @@ func (s *SyncTester) GetPayloadV3(ctx context.Context, payloadID eth.PayloadID) 
 
 // GetPayloadV4 must be only called when Isthmus activated.
 func (s *SyncTester) GetPayloadV4(ctx context.Context, payloadID eth.PayloadID) (*eth.ExecutionPayloadEnvelope, error) {
-	if !payloadID.Is(engine.PayloadV3) {
+	if !payloadID.Is(engine.PayloadV4) {
 		return nil, engine.UnsupportedFork
 	}
 	session, err := s.fetchSession(ctx)
