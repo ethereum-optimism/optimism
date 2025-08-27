@@ -4,6 +4,7 @@
 
 use op_alloy_consensus::interop::SafetyLevel;
 use reth_optimism_txpool::supervisor::DEFAULT_SUPERVISOR_URL;
+use url::Url;
 
 /// Parameters for rollup configuration
 #[derive(Debug, Clone, PartialEq, Eq, clap::Args)]
@@ -66,6 +67,13 @@ pub struct RollupArgs {
     /// Minimum suggested priority fee (tip) in wei, default `1_000_000`
     #[arg(long, default_value_t = 1_000_000)]
     pub min_suggested_priority_fee: u64,
+
+    /// A URL pointing to a secure websocket subscription that streams out flashblocks.
+    ///
+    /// If given, the flashblocks are received to build pending block. All request with "pending"
+    /// block tag will use the pending state based on flashblocks.
+    #[arg(long)]
+    pub flashblocks_url: Option<Url>,
 }
 
 impl Default for RollupArgs {
@@ -81,6 +89,7 @@ impl Default for RollupArgs {
             sequencer_headers: Vec::new(),
             historical_rpc: None,
             min_suggested_priority_fee: 1_000_000,
+            flashblocks_url: None,
         }
     }
 }
