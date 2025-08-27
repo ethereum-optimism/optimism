@@ -1429,8 +1429,8 @@ jobs:
             - "op-program/bin/meta*"
 
   publish-cannon-prestates:
-    machine: true
-    resource_class: ethereum-optimism/latitude-1
+    machine:
+      image: ubuntu-2404:current
     steps:
       - utils/checkout-with-mise
       - attach_workspace:
