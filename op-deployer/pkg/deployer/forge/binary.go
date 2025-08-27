@@ -165,16 +165,9 @@ func AutodetectBinary(opts ...AutodetectBinaryOpt) (*AutodetectBin, error) {
 }
 
 func (b *AutodetectBin) Ensure(ctx context.Context) error {
-	// 1) Exit early if b.path already set (via previous Ensure call) to
-	//    existing forge binary and its version matches
+	// 1) Exit early if b.path already set (via previous Ensure call)
 	if b.path != "" {
-		if _, err := os.Stat(b.path); err == nil {
-			if ver, err := getForgeVersion(ctx, b.path); err == nil && ver == Version {
-				return nil
-			}
-		}
-		// path missing or version changed; re-resolve
-		b.path = ""
+		return nil
 	}
 
 	// 2) PATH: use if version matches the pinned Version
@@ -190,17 +183,12 @@ func (b *AutodetectBin) Ensure(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("could not provide cache dir: %w", err)
 	}
-	if err := os.MkdirAll(binDir, 0o700); err != nil {
-		return fmt.Errorf("could not create cache dir: %w", err)
-	}
 	binPath := path.Join(binDir, "forge")
 	if st, err := os.Stat(binPath); err == nil && !st.IsDir() {
+		// forge binary exists in cache; check version
 		if ver, err := getForgeVersion(ctx, binPath); err == nil && ver == Version {
 			b.path = binPath
 			return nil
-		}
-		if err := os.Remove(binPath); err != nil {
-			return fmt.Errorf("could not remove mismatched binary: %w", err)
 		}
 	} else if err != nil && !os.IsNotExist(err) {
 		return fmt.Errorf("could not stat %s: %w", binPath, err)
