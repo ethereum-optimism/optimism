@@ -1527,19 +1527,6 @@ contract OPContractsManager_Upgrade_Test is OPContractsManager_Upgrade_Harness {
         DelegateCaller(upgrader).dcForward(address(opcm), abi.encodeCall(IOPContractsManager.upgrade, (opChainConfigs)));
     }
 
-    /// @notice Tests that the upgrade function reverts when the `_opChainConfigs` array is empty.
-    function test_upgrade_emptyOpChainConfigs_reverts() public {
-        runUpgrade13UpgradeAndChecks(upgrader);
-        runUpgrade14UpgradeAndChecks(upgrader);
-
-        IOPContractsManager.OpChainConfig[] memory emptyOpChainConfigs = new IOPContractsManager.OpChainConfig[](0);
-
-        vm.expectRevert(IOPContractsManager.EmptyOpChainConfigs.selector);
-        DelegateCaller(upgrader).dcForward(
-            address(opcm), abi.encodeCall(IOPContractsManager.upgrade, (emptyOpChainConfigs))
-        );
-    }
-
     /// @notice Tests that the upgrade function reverts when the superchainConfig is not at the expected target version.
     function test_upgrade_superchainConfigExpectedTargetVersionMismatch_reverts() public {
         runUpgrade13UpgradeAndChecks(upgrader);
@@ -1547,32 +1534,6 @@ contract OPContractsManager_Upgrade_Test is OPContractsManager_Upgrade_Harness {
 
         // Try upgrading an OPChain without upgrading its superchainConfig.
         vm.expectRevert(SuperchainConfigExpectedVersionMismatch.selector);
-        DelegateCaller(upgrader).dcForward(address(opcm), abi.encodeCall(IOPContractsManager.upgrade, (opChainConfigs)));
-    }
-
-    /// @notice Tests that if 2 opChains with different superchainConfigs are passed into upgrade, it reverts.
-    function test_upgrade_superchainConfigInconsistent_reverts() public {
-        runUpgrade13UpgradeAndChecks(upgrader);
-        runUpgrade14UpgradeAndChecks(upgrader);
-
-        // Create a second OP Chain where its superchain config is not the same as the first OP chain.
-        opChainConfigs.push(opChainConfigs[0]);
-        ISystemConfig secondSystemConfig = ISystemConfig(address(123456789));
-        IOptimismPortal2 secondOptimismPortal = IOptimismPortal2(payable(address(987654321)));
-        opChainConfigs[1].systemConfigProxy = secondSystemConfig;
-        vm.mockCall(
-            address(secondSystemConfig),
-            abi.encodeCall(ISystemConfig.optimismPortal, ()),
-            abi.encode(secondOptimismPortal)
-        );
-        vm.mockCall(
-            address(secondOptimismPortal),
-            abi.encodeCall(IOptimismPortal2.superchainConfig, ()),
-            abi.encode(ISuperchainConfig(address(999999999)))
-        );
-
-        // Try upgrading an OPChain without upgrading its superchainConfig.
-        vm.expectRevert(IOPContractsManager.SuperchainConfigInconsistent.selector);
         DelegateCaller(upgrader).dcForward(address(opcm), abi.encodeCall(IOPContractsManager.upgrade, (opChainConfigs)));
     }
 }
@@ -1628,24 +1589,6 @@ contract OPContractsManager_UpgradeSuperchainConfig_Test is OPContractsManager_U
 
         vm.expectRevert("Ownable: caller is not the owner");
         DelegateCaller(delegateCaller).dcForward(
-            address(opcm),
-            abi.encodeCall(IOPContractsManager.upgradeSuperchainConfig, (superchainConfig, superchainProxyAdmin))
-        );
-    }
-
-    /// @notice Tests that the upgradeSuperchainConfig function reverts when the superchainConfig is not at the expected
-    ///         previous version.
-    function test_upgradeSuperchainConfig_superchainConfigExpectedPreviousVersionMismatch_reverts() public {
-        runUpgrade13UpgradeAndChecks(upgrader);
-        runUpgrade14UpgradeAndChecks(upgrader);
-
-        ISuperchainConfig superchainConfig = ISuperchainConfig(artifacts.mustGetAddress("SuperchainConfigProxy"));
-
-        // Set the version of the superchain config to a version that is not the expected previous version.
-        vm.mockCall(address(superchainConfig), abi.encodeCall(ISuperchainConfig.version, ()), abi.encode("1.1.0"));
-
-        vm.expectRevert(SuperchainConfigExpectedVersionMismatch.selector);
-        DelegateCaller(upgrader).dcForward(
             address(opcm),
             abi.encodeCall(IOPContractsManager.upgradeSuperchainConfig, (superchainConfig, superchainProxyAdmin))
         );
