@@ -2191,15 +2191,8 @@ workflows:
             branches:
               ignore: /.*/
       - initialize:
-          requires:
-            - hold
           context:
             - circleci-repo-readonly-authenticated-github-token
-          filters:
-            tags:
-              only: /^(da-server|cannon|ufm-[a-z0-9\-]*|op-[a-z0-9\-]*)\/v.*/
-            branches:
-              ignore: /.*/
       # Standard (medium) cross-platform docker images go here
       - docker-build:
           matrix:
@@ -2273,11 +2266,6 @@ workflows:
           context:
             - circleci-repo-readonly-authenticated-github-token
       - cannon-prestate:
-          filters:
-            tags:
-              only: /^op-program\/v.*/
-            branches:
-              ignore: /.*/
           context:
             - circleci-repo-readonly-authenticated-github-token
           requires:
