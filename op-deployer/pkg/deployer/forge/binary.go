@@ -11,6 +11,7 @@ import (
 	"os"
 	"os/exec"
 	"path"
+	"regexp"
 	"runtime"
 
 	"github.com/ethereum-optimism/optimism/op-service/httputil"
@@ -164,30 +165,48 @@ func AutodetectBinary(opts ...AutodetectBinaryOpt) (*AutodetectBin, error) {
 }
 
 func (b *AutodetectBin) Ensure(ctx context.Context) error {
+	// 1) Exit early if b.path already set (via previous Ensure call) to
+	//    existing forge binary and its version matches
 	if b.path != "" {
-		return nil
+		if _, err := os.Stat(b.path); err == nil {
+			if ver, err := getForgeVersion(ctx, b.path); err == nil && ver == Version {
+				return nil
+			}
+		}
+		// path missing or version changed; re-resolve
+		b.path = ""
 	}
 
-	forgePath, err := exec.LookPath("forge")
-	if err == nil {
-		b.path = forgePath
-		return nil
+	// 2) PATH: use if version matches the pinned Version
+	if forgePath, err := exec.LookPath("forge"); err == nil {
+		if ver, err := getForgeVersion(ctx, forgePath); err == nil && ver == Version {
+			b.path = forgePath
+			return nil
+		}
 	}
 
+	// 3) Cache: use if version matches; otherwise replace it
 	binDir, err := b.cachePather()
 	if err != nil {
 		return fmt.Errorf("could not provide cache dir: %w", err)
 	}
-	binPath := path.Join(binDir, "forge")
-	_, err = os.Stat(binPath)
-	if err == nil {
-		b.path = binPath
-		return nil
+	if err := os.MkdirAll(binDir, 0o700); err != nil {
+		return fmt.Errorf("could not create cache dir: %w", err)
 	}
-	if !os.IsNotExist(err) {
+	binPath := path.Join(binDir, "forge")
+	if st, err := os.Stat(binPath); err == nil && !st.IsDir() {
+		if ver, err := getForgeVersion(ctx, binPath); err == nil && ver == Version {
+			b.path = binPath
+			return nil
+		}
+		if err := os.Remove(binPath); err != nil {
+			return fmt.Errorf("could not remove mismatched binary: %w", err)
+		}
+	} else if err != nil && !os.IsNotExist(err) {
 		return fmt.Errorf("could not stat %s: %w", binPath, err)
 	}
 
+	// 4) Download expected version for this OS/arch and verify checksum
 	if err := b.downloadBinary(ctx, binDir); err != nil {
 		return fmt.Errorf("could not download binary: %w", err)
 	}
@@ -230,5 +249,23 @@ func (b *AutodetectBin) downloadBinary(ctx context.Context, dest string) error {
 	if err := os.Rename(path.Join(tmpDir, "forge"), path.Join(dest, "forge")); err != nil {
 		return fmt.Errorf("failed to move binary: %w", err)
 	}
+	if err := os.Chmod(path.Join(dest, "forge"), 0o755); err != nil {
+		return fmt.Errorf("failed to set executable bit: %w", err)
+	}
 	return nil
+}
+
+func getForgeVersion(ctx context.Context, forgePath string) (string, error) {
+	cmd := exec.CommandContext(ctx, forgePath, "--version")
+	out, err := cmd.Output()
+	if err != nil {
+		return "", fmt.Errorf("exec %s --version failed: %w", forgePath, err)
+	}
+	// Example output: "forge Version: 1.3.1-v1.3.1" -> capture "v1.3.1"
+	re := regexp.MustCompile(`(?mi)^\s*forge\s+version:\s+\d+\.\d+\.\d+-\s*(v\d+\.\d+\.\d+)\s*$`)
+	m := re.FindStringSubmatch(string(out))
+	if len(m) != 2 {
+		return "", fmt.Errorf("could not parse version tag from: %q", out)
+	}
+	return m[1], nil
 }
