@@ -286,35 +286,17 @@ func (a *Agent) shouldSkipDelay(ctx context.Context, game types.Game, action typ
 	// Use proper chess clock calculation from types package
 	// We need OUR accumulated chess clock time to check if we're in extension period
 	now := a.l1Clock.Now()
-
-	// Find the grandparent claim to get our team's accumulated chess clock time
-	// The grandparent represents our team's previous move, so its chess clock is our inherited time
-	var grandparentClaim *types.Claim
-	for _, claim := range game.Claims() {
-		if claim.ContractIndex == action.ParentClaim.ParentContractIndex {
-			grandparentClaim = &claim
-			break
-		}
-	}
-
-	var ourAccumulatedTime time.Duration
-	if grandparentClaim != nil {
-		// Our accumulated chess clock time = chess clock time when we challenged grandparent
-		ourAccumulatedTime = game.ChessClock(now, *grandparentClaim)
-	} else {
-		// No grandparent (root claim), use time since parent claim was created
-		ourAccumulatedTime = now.Sub(action.ParentClaim.Clock.Timestamp)
-	}
+	ourAccumulatedTime := game.ChessClock(now, action.ParentClaim)
 
 	// Get base clock extension (conservative approach)
-	actualExtension, err := a.loader.GetClockExtension(ctx)
+	clockExtension, err := a.loader.GetClockExtension(ctx)
 	if err != nil {
 		return false, false, fmt.Errorf("failed to get clock extension: %w", err)
 	}
 
 	// Check if we're already in a clock extension period
 	maxClockDuration := a.maxClockDuration
-	extensionThreshold := maxClockDuration - actualExtension
+	extensionThreshold := maxClockDuration - clockExtension
 	inExtension := ourAccumulatedTime > extensionThreshold
 
 	// Check if our delay would cause us to enter the extension period at all (conservative approach)
@@ -326,7 +308,7 @@ func (a *Agent) shouldSkipDelay(ctx context.Context, game types.Game, action typ
 	a.log.Debug("Delay skip check",
 		"our_accumulated_time", ourAccumulatedTime,
 		"max_clock_duration", maxClockDuration,
-		"actual_extension", actualExtension,
+		"clock_extension", clockExtension,
 		"extension_threshold", extensionThreshold,
 		"remaining_time_until_extension", remainingTimeUntilExtension,
 		"response_delay", a.responseDelay,

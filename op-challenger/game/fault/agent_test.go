@@ -926,30 +926,27 @@ func TestResponseDelayClockExtension(t *testing.T) {
 			// Create agent with test parameters
 			agent := NewAgent(metrics.NoopMetrics, systemClock, l1Clock, claimLoader, depth, maxClockDuration, trace.NewSimpleTraceAccessor(provider), responder, logger, false, []common.Address{}, responseDelay, responseDelayAfter)
 
-			// Set up parent claim with specific clock timing
+			// Set up proper parent-child relationship for chess clock calculation
 			claimBuilder := faulttest.NewClaimBuilder(t, depth, provider)
-			parentClaim := claimBuilder.CreateRootClaim()
 
-			// Set realistic clock values to match test expectations
-			parentClaim.Clock = types.Clock{
-				Duration:  0,                                        // Parent claim itself doesn't accumulate time - that comes from grandparent
-				Timestamp: currentTime.Add(-test.timeSinceCreation), // Realistic timestamp based on current time
-			}
+			// Create a grandparent claim (root claim) that has the accumulated time from previous moves
+			grandparentClaim := claimBuilder.CreateRootClaim(faulttest.WithClock(
+				currentTime.Add(-test.timeSinceCreation).Add(-time.Duration(test.parentClockDuration.Nanoseconds())),
+				test.parentClockDuration,
+			))
+			grandparentClaim.ContractIndex = 0 // Root claim
 
-			// Create a grandparent claim so that game.ChessClock can calculate the full accumulated time
-			// Set grandparent timestamp so that the total chess clock calculation works out correctly
-			grandparentCreatedTime := currentTime.Add(-test.timeSinceCreation).Add(-time.Duration(test.parentClockDuration.Nanoseconds()))
-			grandparentClaim := faulttest.NewClaimBuilder(t, types.Depth(4), provider).
-				CreateRootClaim(faulttest.WithClock(grandparentCreatedTime, 0))
-			grandparentClaim.ContractIndex = 0 // Set contract index
+			// Create parent claim as an attack on the grandparent (so it's NOT a root claim)
+			parentClaim := claimBuilder.AttackClaim(grandparentClaim, faulttest.WithClock(
+				currentTime.Add(-test.timeSinceCreation),
+				0, // This will be calculated by ChessClock
+			))
+			parentClaim.ContractIndex = 1 // Set contract index
 
-			// Set parent claim to reference the grandparent for proper chess clock calculation
-			parentClaim.ParentContractIndex = 0 // References grandparent
-			parentClaim.ContractIndex = 1       // Set its own contract index
-
-			// Calculate whether delay should be applied based on extension threshold
-			totalClockTime := test.parentClockDuration + test.timeSinceCreation
-			expectDelay := totalClockTime <= extensionThreshold
+			// Calculate total chess clock time using the same logic as the contract
+			// This should be grandparent.Duration + time since parent was created
+			totalChessClockTime := test.parentClockDuration + test.timeSinceCreation
+			expectDelay := totalChessClockTime <= extensionThreshold
 			claimLoader.claims = []types.Claim{grandparentClaim, parentClaim}
 
 			// Create action with the parent claim
@@ -1057,17 +1054,23 @@ func TestResponseDelayTimeoutPrevention(t *testing.T) {
 
 			agent := NewAgent(metrics.NoopMetrics, systemClock, l1Clock, claimLoader, depth, maxClockDuration, trace.NewSimpleTraceAccessor(provider), responder, logger, false, []common.Address{}, test.responseDelay, responseDelayAfter)
 
-			// Create claims with specific timing to achieve target parentClockDuration
+			// Create claims with proper parent-child relationship for chess clock calculation
 			claimBuilder := faulttest.NewClaimBuilder(t, depth, provider)
 			timeSinceCreation := 1 * time.Minute // Fixed component
-			grandparentDuration := test.parentClockDuration - timeSinceCreation
 
-			grandparentClaim := claimBuilder.CreateRootClaim(faulttest.WithClock(currentTime.Add(-timeSinceCreation).Add(-grandparentDuration), 0))
-			grandparentClaim.ContractIndex = 0
+			// Create grandparent claim (root claim) that has the accumulated time from previous moves
+			grandparentClaim := claimBuilder.CreateRootClaim(faulttest.WithClock(
+				currentTime.Add(-timeSinceCreation).Add(-time.Duration(test.parentClockDuration.Nanoseconds())),
+				test.parentClockDuration,
+			))
+			grandparentClaim.ContractIndex = 0 // Root claim
 
-			parentClaim := claimBuilder.CreateRootClaim(faulttest.WithClock(currentTime.Add(-timeSinceCreation), 0))
-			parentClaim.ParentContractIndex = 0
-			parentClaim.ContractIndex = 1
+			// Create parent claim as an attack on the grandparent (so it's NOT a root claim)
+			parentClaim := claimBuilder.AttackClaim(grandparentClaim, faulttest.WithClock(
+				currentTime.Add(-timeSinceCreation),
+				0, // This will be calculated by ChessClock
+			))
+			parentClaim.ContractIndex = 1 // Set contract index
 
 			claimLoader.claims = []types.Claim{grandparentClaim, parentClaim}
 
