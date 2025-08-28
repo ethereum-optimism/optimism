@@ -176,13 +176,15 @@ impl<
 
     fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         let this = self.get_mut();
-        loop {
-            match this.rx.poll_next_unpin(cx) {
-                Poll::Ready(Some(Ok(flashblock))) => this.add_flash_block(flashblock),
-                Poll::Ready(Some(Err(err))) => return Poll::Ready(Some(Err(err))),
-                Poll::Ready(None) => return Poll::Ready(None),
-                Poll::Pending => return Poll::Ready(Some(this.execute())),
+
+        match this.rx.poll_next_unpin(cx) {
+            Poll::Ready(Some(Ok(flashblock))) => {
+                this.add_flash_block(flashblock);
+                Poll::Ready(Some(this.execute()))
             }
+            Poll::Ready(Some(Err(err))) => Poll::Ready(Some(Err(err))),
+            Poll::Ready(None) => Poll::Ready(None),
+            Poll::Pending => Poll::Pending,
         }
     }
 }
