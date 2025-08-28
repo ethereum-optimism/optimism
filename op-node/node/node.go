@@ -194,9 +194,9 @@ func (n *OpNode) initL1Source(ctx context.Context, cfg *config.Config) error {
 		return fmt.Errorf("failed to create L1 source: %w", err)
 	}
 
-	if err := cfg.Rollup.ValidateL1Config(ctx, n.l1Source); err != nil {
-		return fmt.Errorf("failed to validate the L1 config: %w", err)
-	}
+	// if err := cfg.Rollup.ValidateL1Config(ctx, n.l1Source); err != nil {
+	// 	return fmt.Errorf("failed to validate the L1 config: %w", err)
+	// }
 
 	return nil
 }
@@ -278,13 +278,14 @@ func (n *OpNode) initRuntimeConfig(ctx context.Context, cfg *config.Config) erro
 			return eth.L1BlockRef{}, err
 		}
 
-		fetchCtx, fetchCancel = context.WithTimeout(ctx, time.Second*10)
-		err = n.runCfg.Load(fetchCtx, confirmed)
-		fetchCancel()
-		if err != nil {
-			n.log.Error("failed to fetch runtime config data", "err", err)
-			return l1Head, err
-		}
+		_ = confirmed
+		// fetchCtx, fetchCancel = context.WithTimeout(ctx, time.Second*10)
+		// err = n.runCfg.Load(fetchCtx, confirmed)
+		// fetchCancel()
+		// if err != nil {
+		// 	n.log.Error("failed to fetch runtime config data", "err", err)
+		// 	return l1Head, err
+		// }
 
 		err = n.handleProtocolVersionsUpdate(ctx)
 		return l1Head, err

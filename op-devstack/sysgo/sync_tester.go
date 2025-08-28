@@ -92,7 +92,6 @@ func WithSyncTester(syncTesterID stack.SyncTesterID, l2ELs []stack.L2ELNodeID) s
 
 func WithSyncTesterWithExternalEndpoint(endpointRPC string, chainID eth.ChainID) stack.Option[*Orchestrator] {
 	return stack.AfterDeploy(func(orch *Orchestrator) {
-		// Use a default chain ID for the sync tester
 		syncTesterID := stack.NewSyncTesterID("dev-sync-tester-ext-", chainID)
 		p := orch.P().WithCtx(stack.ContextWithID(orch.P().Ctx(), syncTesterID))
 

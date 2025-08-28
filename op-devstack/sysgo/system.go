@@ -1,8 +1,11 @@
 package sysgo
 
 import (
+	"fmt"
+
 	"github.com/ethereum-optimism/optimism/op-chain-ops/devkeys"
 	"github.com/ethereum-optimism/optimism/op-devstack/stack"
+	"github.com/ethereum-optimism/optimism/op-node/chaincfg"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
 
@@ -458,12 +461,22 @@ func NewDefaultMinimalExternalELSystemIDs(l1ID, l2ID eth.ChainID) DefaultMinimal
 	return ids
 }
 
-func DefaultMinimalExternalELSystemWithEndpoint(dest *DefaultMinimalExternalELSystemIDs, endpointRPC string, chainID eth.ChainID, fcus sttypes.FCUState) stack.Option[*Orchestrator] {
-	ids := NewDefaultMinimalExternalELSystemIDs(DefaultL1ID, chainID)
+// DefaultMinimalExternalELSystemWithEndpointAndSuperchainRegistry creates a minimal external EL system
+// using a network from the superchain registry instead of the deployer
+func DefaultMinimalExternalELSystemWithEndpointAndSuperchainRegistry(dest *DefaultMinimalExternalELSystemIDs, endpointRPC string, networkName string, fcus eth.FCUState) stack.Option[*Orchestrator] {
+	// Get the chain ID from the network name
+	chainCfg := chaincfg.ChainByName(networkName)
+	if chainCfg == nil {
+		panic(fmt.Sprintf("network %s not found in superchain registry", networkName))
+	}
+	chainID := eth.ChainIDFromUInt64(chainCfg.ChainID)
+
+	sepoliaL1ID := eth.ChainIDFromUInt64(11155111)
+	ids := NewDefaultMinimalExternalELSystemIDs(sepoliaL1ID, chainID)
 
 	opt := stack.Combine[*Orchestrator]()
 	opt.Add(stack.BeforeDeploy(func(o *Orchestrator) {
-		o.P().Logger().Info("Setting up")
+		o.P().Logger().Info("Setting up with superchain registry network", "network", networkName)
 	}))
 
 	opt.Add(WithMnemonicKeys(devkeys.TestMnemonic))
@@ -472,11 +485,16 @@ func DefaultMinimalExternalELSystemWithEndpoint(dest *DefaultMinimalExternalELSy
 		WithDeployerOptions(
 			WithLocalContractSources(),
 			WithCommons(ids.L1.ChainID()),
-			WithPrefundedL2(ids.L1.ChainID(), ids.L2.ChainID()),
 		),
 	)
 
 	opt.Add(WithL1Nodes(ids.L1EL, ids.L1CL))
+
+	// Use superchain registry instead of deployer
+	opt.Add(WithL2NetworkFromSuperchainRegistryWithDependencySet(
+		stack.L2NetworkID(chainID),
+		networkName,
+	))
 
 	// Add SyncTester service with external endpoint
 	opt.Add(WithSyncTesterWithExternalEndpoint(endpointRPC, chainID))
@@ -485,15 +503,15 @@ func DefaultMinimalExternalELSystemWithEndpoint(dest *DefaultMinimalExternalELSy
 	opt.Add(WithSyncTesterL2ELNode(ids.L2EL, ids.L2CL, fcus))
 	opt.Add(WithL2CLNode(ids.L2CL, ids.L1CL, ids.L1EL, ids.L2EL, L2CLSequencer()))
 
-	opt.Add(WithBatcher(ids.L2Batcher, ids.L1EL, ids.L2CL, ids.L2EL))
-	opt.Add(WithProposer(ids.L2Proposer, ids.L1EL, &ids.L2CL, nil))
+	// opt.Add(WithBatcher(ids.L2Batcher, ids.L1EL, ids.L2CL, ids.L2EL))
+	// opt.Add(WithProposer(ids.L2Proposer, ids.L1EL, &ids.L2CL, nil))
 
 	// Only add L1 faucet, no L2 faucet as we use real-world EL
-	opt.Add(WithFaucets([]stack.L1ELNodeID{ids.L1EL}, nil))
+	// opt.Add(WithFaucets([]stack.L1ELNodeID{ids.L1EL}, nil))
 
 	opt.Add(WithTestSequencer(ids.TestSequencer, ids.L1CL, ids.L2CL, ids.L1EL, ids.L2EL))
 
-	opt.Add(WithL2Challenger(ids.L2Challenger, ids.L1EL, ids.L1CL, nil, nil, &ids.L2CL, []stack.L2ELNodeID{ids.L2EL}))
+	// opt.Add(WithL2Challenger(ids.L2Challenger, ids.L1EL, ids.L1CL, nil, nil, &ids.L2CL, []stack.L2ELNodeID{ids.L2EL}))
 
 	opt.Add(stack.Finally(func(orch *Orchestrator) {
 		*dest = ids

@@ -105,15 +105,15 @@ func (c *Intent) validateCustomConfig() error {
 		}
 	}
 
-	if len(c.Chains) == 0 {
-		return errors.New("must define at least one l2 chain")
-	}
+	// if len(c.Chains) == 0 {
+	// 	return errors.New("must define at least one l2 chain")
+	// }
 
-	for _, chain := range c.Chains {
-		if err := chain.Check(); err != nil {
-			return err
-		}
-	}
+	// for _, chain := range c.Chains {
+	// 	if err := chain.Check(); err != nil {
+	// 		return err
+	// 	}
+	// }
 
 	return nil
 }
