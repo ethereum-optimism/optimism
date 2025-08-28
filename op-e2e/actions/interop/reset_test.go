@@ -31,8 +31,7 @@ func TestReset(gt *testing.T) {
 		currentBlockNum++
 		prevBlockNum := currentBlockNum - 1
 		// Build L2 block on chain A
-		actors.ChainA.Sequencer.ActL2StartBlock(t)
-		actors.ChainA.Sequencer.ActL2EndBlock(t)
+		actors.ChainA.Sequencer.ActL2BuildBlock(t, nil)
 		status = actors.ChainA.Sequencer.SyncStatus()
 		head = status.UnsafeL2.ID()
 		if expect {

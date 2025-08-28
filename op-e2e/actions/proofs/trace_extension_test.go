@@ -15,8 +15,7 @@ func runSafeHeadTraceExtensionTest(gt *testing.T, testCfg *helpers.TestCfg[any])
 	env := helpers.NewL2FaultProofEnv(t, testCfg, helpers.NewTestParams(), helpers.NewBatcherCfg())
 
 	// Build an empty block on L2
-	env.Sequencer.ActL2StartBlock(t)
-	env.Sequencer.ActL2EndBlock(t)
+	env.Sequencer.ActL2EmptyBlock(t)
 
 	env.BatchMineAndSync(t)
 

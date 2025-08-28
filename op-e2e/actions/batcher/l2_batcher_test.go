@@ -94,9 +94,9 @@ func NormalBatcher(gt *testing.T, deltaTimeOffset *hexutil.Uint64) {
 	verifier.ActL2PipelineFull(t)
 
 	// Make L2 block
-	sequencer.ActL2StartBlock(t)
-	seqEngine.ActL2IncludeTx(dp.Addresses.Alice)(t)
-	sequencer.ActL2EndBlock(t)
+	sequencer.ActL2BuildBlock(t, func() {
+		seqEngine.ActL2IncludeTx(dp.Addresses.Alice)(t)
+	})
 
 	// batch submit to L1
 	batcher.ActL2BatchBuffer(t)
@@ -463,34 +463,34 @@ func BigL2Txs(gt *testing.T, deltaTimeOffset *hexutil.Uint64) {
 			miner.ActEmptyBlock(t)
 		}
 		sequencer.ActL1HeadSignal(t)
-		sequencer.ActL2StartBlock(t)
-		baseFee := engine.L2Chain().CurrentBlock().BaseFee // this will go quite high, since so many consecutive blocks are filled at capacity.
-		// fill the block with large L2 txs from alice
-		for n := aliceNonce; ; n++ {
-			require.NoError(t, err)
-			signer := types.LatestSigner(sd.L2Cfg.Config)
-			data := make([]byte, 120_000) // very large L2 txs, as large as the tx-pool will accept
-			_, err := rng.Read(data[:])   // fill with random bytes, to make compression ineffective
-			require.NoError(t, err)
-			gas, err := core.IntrinsicGas(data, nil, nil, false, true, true, false)
-			require.NoError(t, err)
-			if gas > engine.EngineApi.RemainingBlockGas() {
-				break
+		sequencer.ActL2BuildBlock(t, func() {
+			baseFee := engine.L2Chain().CurrentBlock().BaseFee // this will go quite high, since so many consecutive blocks are filled at capacity.
+			// fill the block with large L2 txs from alice
+			for n := aliceNonce; ; n++ {
+				require.NoError(t, err)
+				signer := types.LatestSigner(sd.L2Cfg.Config)
+				data := make([]byte, 120_000) // very large L2 txs, as large as the tx-pool will accept
+				_, err := rng.Read(data[:])   // fill with random bytes, to make compression ineffective
+				require.NoError(t, err)
+				gas, err := core.IntrinsicGas(data, nil, nil, false, true, true, false)
+				require.NoError(t, err)
+				if gas > engine.EngineApi.RemainingBlockGas() {
+					break
+				}
+				tx := types.MustSignNewTx(dp.Secrets.Alice, signer, &types.DynamicFeeTx{
+					ChainID:   sd.L2Cfg.Config.ChainID,
+					Nonce:     n,
+					GasTipCap: big.NewInt(2 * params.GWei),
+					GasFeeCap: new(big.Int).Add(new(big.Int).Mul(baseFee, big.NewInt(2)), big.NewInt(2*params.GWei)),
+					Gas:       gas,
+					To:        &dp.Addresses.Bob,
+					Value:     big.NewInt(0),
+					Data:      data,
+				})
+				require.NoError(t, cl.SendTransaction(t.Ctx(), tx))
+				engine.ActL2IncludeTx(dp.Addresses.Alice)(t)
 			}
-			tx := types.MustSignNewTx(dp.Secrets.Alice, signer, &types.DynamicFeeTx{
-				ChainID:   sd.L2Cfg.Config.ChainID,
-				Nonce:     n,
-				GasTipCap: big.NewInt(2 * params.GWei),
-				GasFeeCap: new(big.Int).Add(new(big.Int).Mul(baseFee, big.NewInt(2)), big.NewInt(2*params.GWei)),
-				Gas:       gas,
-				To:        &dp.Addresses.Bob,
-				Value:     big.NewInt(0),
-				Data:      data,
-			})
-			require.NoError(t, cl.SendTransaction(t.Ctx(), tx))
-			engine.ActL2IncludeTx(dp.Addresses.Alice)(t)
-		}
-		sequencer.ActL2EndBlock(t)
+		})
 		for batcher.L2BufferedBlock.Number < sequencer.SyncStatus().UnsafeL2.Number {
 			// if we run out of space, close the channel and submit all the txs
 			if err := batcher.Buffer(t); errors.Is(err, derive.ErrTooManyRLPBytes) || errors.Is(err, derive.ErrCompressorFull) {

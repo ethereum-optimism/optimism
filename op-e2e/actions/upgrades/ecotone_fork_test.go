@@ -61,8 +61,7 @@ func TestEcotoneNetworkUpgradeTransactions(gt *testing.T) {
 	ethCl := engine.EthClient()
 
 	// build a single block to move away from the genesis with 0-values in L1Block contract
-	sequencer.ActL2StartBlock(t)
-	sequencer.ActL2EndBlock(t)
+	sequencer.ActL2EmptyBlock(t)
 
 	// start op-nodes
 	sequencer.ActL2PipelineFull(t)
@@ -178,8 +177,7 @@ func TestEcotoneNetworkUpgradeTransactions(gt *testing.T) {
 	checkBeaconBlockRoot(latestBlock.Time(), common.Hash{}, latestBlock.Time(), "4788 lookup of first cancun block is 0 hash")
 
 	// Build empty L2 block, to pass ecotone activation
-	sequencer.ActL2StartBlock(t)
-	sequencer.ActL2EndBlock(t)
+	sequencer.ActL2EmptyBlock(t)
 
 	// Test the L2 block after activation: it should have data in the contract storage now
 	latestBlock, err = ethCl.BlockByNumber(context.Background(), nil)
@@ -263,7 +261,6 @@ func TestEcotoneBeforeL1(gt *testing.T) {
 	verifyEcotoneBlock(gt, engine.L2Chain().CurrentBlock())
 
 	// Blocks post fork have Ecotone properties
-	sequencer.ActL2StartBlock(t)
-	sequencer.ActL2EndBlock(t)
+	sequencer.ActL2EmptyBlock(t)
 	verifyEcotoneBlock(gt, engine.L2Chain().CurrentBlock())
 }

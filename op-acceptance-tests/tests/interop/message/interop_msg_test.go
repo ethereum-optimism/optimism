@@ -39,9 +39,12 @@ func TestInitExecMsg(gt *testing.T) {
 
 	eventLoggerAddress := alice.DeployEventLogger()
 	// Trigger random init message at chain A
-	initIntent, _ := alice.SendInitMessage(interop.RandomInitTrigger(rng, eventLoggerAddress, rng.Intn(5), rng.Intn(30)))
-	// Make sure supervisor indexes block which includes init message
-	sys.Supervisor.WaitForUnsafeHeadToAdvance(alice.ChainID(), 2)
+	initIntent, initReceipt := alice.SendInitMessage(interop.RandomInitTrigger(rng, eventLoggerAddress, rng.Intn(5), rng.Intn(30)))
+	// Wait until supervisor CrossSafe has reached the init block to ensure message availability
+	clientA := sys.L2ELA.Escape().EthClient()
+	block, err := clientA.BlockRefByNumber(t.Ctx(), initReceipt.BlockNumber.Uint64())
+	t.Require().NoError(err)
+	sys.Supervisor.WaitForL2HeadToAdvanceTo(alice.ChainID(), suptypes.CrossUnsafe, block.ID())
 	// Single event in tx so index is 0
 	bob.SendExecMessage(initIntent, 0)
 }
@@ -79,7 +82,7 @@ func TestInitExecMsgWithDSL(gt *testing.T) {
 	block, err := clientA.BlockRefByNumber(t.Ctx(), receipt.BlockNumber.Uint64())
 	require.NoError(err)
 
-	sys.Supervisor.WaitForUnsafeHeadToAdvance(alice.ChainID(), 2)
+	sys.Supervisor.WaitForL2HeadToAdvanceTo(alice.ChainID(), suptypes.CrossUnsafe, block.ID())
 
 	// Manually build identifier, message, accesslist for executing message
 	// Single event in tx so index is 0
@@ -206,6 +209,21 @@ func TestRandomDirectedGraph(gt *testing.T) {
 					if !ok {
 						return nil
 					}
+					// Gate on CrossUnsafe reaching the source init block before executing
+					srcReceipt, err := dependsOn.PlannedTx.Included.Eval(t.Ctx())
+					require.NoError(err)
+					srcChainID := dependsOn.PlannedTx.ChainID.Value()
+					var srcClient interface {
+						BlockRefByNumber(ctx context.Context, number uint64) (eth.BlockRef, error)
+					}
+					if srcChainID == sys.L2ELA.ChainID() {
+						srcClient = sys.L2ELA.Escape().EthClient()
+					} else {
+						srcClient = sys.L2ELB.Escape().EthClient()
+					}
+					srcBlock, err := srcClient.BlockRefByNumber(t.Ctx(), srcReceipt.BlockNumber.Uint64())
+					require.NoError(err)
+					sys.Supervisor.WaitForL2HeadToAdvanceTo(srcChainID, suptypes.CrossUnsafe, srcBlock.ID())
 					tx, receipt, err := subEOA.SendPackedExecMessages(dependsOn)
 					if err != nil {
 						return fmt.Errorf("subscriber error: %w", err)
@@ -268,8 +286,11 @@ func TestInitExecMultipleMsg(gt *testing.T) {
 	logger.Info("Initiate messages included", "block", receiptA.BlockHash)
 	require.Equal(2, len(receiptA.Logs))
 
-	// Make sure supervisor syncs the chain A events
-	sys.Supervisor.WaitForUnsafeHeadToAdvance(alice.ChainID(), 2)
+	// Ensure supervisor CrossSafe has reached the init block
+	clientA := sys.L2ELA.Escape().EthClient()
+	blockA, err := clientA.BlockRefByNumber(t.Ctx(), receiptA.BlockNumber.Uint64())
+	require.NoError(err)
+	sys.Supervisor.WaitForL2HeadToAdvanceTo(alice.ChainID(), suptypes.CrossUnsafe, blockA.ID())
 
 	// Intent to validate messages on chain B
 	txB := txintent.NewIntent[*txintent.MultiTrigger, *txintent.InteropOutput](bob.Plan())
@@ -310,8 +331,11 @@ func TestExecSameMsgTwice(gt *testing.T) {
 	require.NoError(err)
 	logger.Info("Initiate message included", "block", receiptA.BlockHash)
 
-	// Make sure supervisor syncs the chain A events
-	sys.Supervisor.WaitForUnsafeHeadToAdvance(alice.ChainID(), 2)
+	// Ensure supervisor CrossSafe has reached the init block
+	clientA := sys.L2ELA.Escape().EthClient()
+	blockA, err := clientA.BlockRefByNumber(t.Ctx(), receiptA.BlockNumber.Uint64())
+	require.NoError(err)
+	sys.Supervisor.WaitForL2HeadToAdvanceTo(alice.ChainID(), suptypes.CrossUnsafe, blockA.ID())
 
 	// Intent to validate same message two times on chain B
 	txB := txintent.NewIntent[*txintent.MultiTrigger, *txintent.InteropOutput](bob.Plan())
@@ -362,8 +386,11 @@ func TestExecDifferentTopicCount(gt *testing.T) {
 		require.Equal(topicCnt, len(receiptA.Logs[topicCnt].Topics))
 	}
 
-	// Make sure supervisor syncs the chain A events
-	sys.Supervisor.WaitForUnsafeHeadToAdvance(alice.ChainID(), 2)
+	// Ensure supervisor CrossSafe has reached the init block
+	clientA := sys.L2ELA.Escape().EthClient()
+	blockA, err := clientA.BlockRefByNumber(t.Ctx(), receiptA.BlockNumber.Uint64())
+	require.NoError(err)
+	sys.Supervisor.WaitForL2HeadToAdvanceTo(alice.ChainID(), suptypes.CrossUnsafe, blockA.ID())
 
 	// Intent to validate message on chain B
 	txB := txintent.NewIntent[*txintent.MultiTrigger, *txintent.InteropOutput](bob.Plan())
@@ -412,8 +439,11 @@ func TestExecMsgOpaqueData(gt *testing.T) {
 	require.Equal(emptyInitTrigger.OpaqueData, receiptA.Logs[0].Data)
 	require.Equal(largeInitTrigger.OpaqueData, receiptA.Logs[1].Data)
 
-	// Make sure supervisor syncs the chain A events
-	sys.Supervisor.WaitForUnsafeHeadToAdvance(alice.ChainID(), 2)
+	// Ensure supervisor CrossSafe has reached the init block
+	clientA := sys.L2ELA.Escape().EthClient()
+	blockA, err := clientA.BlockRefByNumber(t.Ctx(), receiptA.BlockNumber.Uint64())
+	require.NoError(err)
+	sys.Supervisor.WaitForL2HeadToAdvanceTo(alice.ChainID(), suptypes.CrossUnsafe, blockA.ID())
 
 	// Intent to validate messages on chain B
 	txB := txintent.NewIntent[*txintent.MultiTrigger, *txintent.InteropOutput](bob.Plan())
@@ -460,8 +490,11 @@ func TestExecMsgDifferEventIndexInSingleTx(gt *testing.T) {
 	logger.Info("Initiate messages included", "block", receiptA.BlockHash)
 	require.Equal(eventCnt, len(receiptA.Logs))
 
-	// Make sure supervisor syncs the chain A events
-	sys.Supervisor.WaitForUnsafeHeadToAdvance(alice.ChainID(), 2)
+	// Ensure supervisor CrossSafe has reached the init block
+	clientA := sys.L2ELA.Escape().EthClient()
+	blockA, err := clientA.BlockRefByNumber(t.Ctx(), receiptA.BlockNumber.Uint64())
+	require.NoError(err)
+	sys.Supervisor.WaitForL2HeadToAdvanceTo(alice.ChainID(), suptypes.CrossUnsafe, blockA.ID())
 
 	// Intent to validate messages on chain B
 	txB := txintent.NewIntent[*txintent.MultiTrigger, *txintent.InteropOutput](bob.Plan())
@@ -581,8 +614,11 @@ func TestExecMessageInvalidAttributes(gt *testing.T) {
 	require.NoError(err)
 	logger.Info("Initiate messages included", "block", receiptA.BlockHash)
 
-	// Make sure supervisor syncs the chain A events
-	sys.Supervisor.WaitForUnsafeHeadToAdvance(alice.ChainID(), 2)
+	// Ensure supervisor CrossSafe has reached the init block
+	clientA := sys.L2ELA.Escape().EthClient()
+	blockA, err := clientA.BlockRefByNumber(t.Ctx(), receiptA.BlockNumber.Uint64())
+	require.NoError(err)
+	sys.Supervisor.WaitForL2HeadToAdvanceTo(alice.ChainID(), suptypes.CrossUnsafe, blockA.ID())
 
 	faultsLists := [][]invalidAttributeType{
 		// test each identifier attributes to be faulty for upper bound tests

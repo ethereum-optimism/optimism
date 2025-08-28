@@ -65,49 +65,51 @@ func runSetCodeTxTypeTest(gt *testing.T, testCfg *helpers.TestCfg[any]) {
 
 	env.Sequencer.ActL2PipelineFull(t)
 	env.Miner.ActEmptyBlock(t)
-	env.Sequencer.ActL2StartBlock(t)
 
-	aliceSecret := env.Alice.L2.Secret()
-	bobSecret := env.Bob.L2.Secret()
+	var auth1, auth2 types.SetCodeAuthorization
+	env.Sequencer.ActL2BuildBlock(t, func() {
+		aliceSecret := env.Alice.L2.Secret()
+		bobSecret := env.Bob.L2.Secret()
 
-	chainID := env.Sequencer.RollupCfg.L2ChainID
+		chainID := env.Sequencer.RollupCfg.L2ChainID
 
-	// Sign authorization tuples.
-	// The way the auths are combined, it becomes
-	// 1. tx -> addr1 which is delegated to 0xaaaa
-	// 2. addr1:0xaaaa calls into addr2:0xbbbb
-	// 3. addr2:0xbbbb  writes to storage
-	auth1, err := types.SignSetCode(aliceSecret, types.SetCodeAuthorization{
-		ChainID: *uint256.MustFromBig(chainID),
-		Address: bb,
-		Nonce:   1,
+		// Sign authorization tuples.
+		// The way the auths are combined, it becomes
+		// 1. tx -> addr1 which is delegated to 0xaaaa
+		// 2. addr1:0xaaaa calls into addr2:0xbbbb
+		// 3. addr2:0xbbbb  writes to storage
+		var err error
+		auth1, err = types.SignSetCode(aliceSecret, types.SetCodeAuthorization{
+			ChainID: *uint256.MustFromBig(chainID),
+			Address: bb,
+			Nonce:   1,
+		})
+		require.NoError(gt, err, "failed to sign auth1")
+		auth2, err = types.SignSetCode(bobSecret, types.SetCodeAuthorization{
+			Address: aa,
+			Nonce:   0,
+		})
+		require.NoError(gt, err, "failed to sign auth2")
+
+		txdata := &types.SetCodeTx{
+			ChainID:   uint256.MustFromBig(chainID),
+			Nonce:     0,
+			To:        env.Alice.Address(),
+			Gas:       500000,
+			GasFeeCap: uint256.NewInt(5000000000),
+			GasTipCap: uint256.NewInt(2),
+			AuthList:  []types.SetCodeAuthorization{auth1, auth2},
+		}
+		signer := types.NewIsthmusSigner(chainID)
+		tx := types.MustSignNewTx(aliceSecret, signer, txdata)
+
+		err = cl.SendTransaction(t.Ctx(), tx)
+		require.NoError(gt, err, "failed to send set code tx")
+
+		_, err = env.Engine.EngineApi.IncludeTx(tx, env.Alice.Address())
+		require.NoError(t, err, "failed to include set code tx")
+
 	})
-	require.NoError(gt, err, "failed to sign auth1")
-	auth2, err := types.SignSetCode(bobSecret, types.SetCodeAuthorization{
-		Address: aa,
-		Nonce:   0,
-	})
-	require.NoError(gt, err, "failed to sign auth2")
-
-	txdata := &types.SetCodeTx{
-		ChainID:   uint256.MustFromBig(chainID),
-		Nonce:     0,
-		To:        env.Alice.Address(),
-		Gas:       500000,
-		GasFeeCap: uint256.NewInt(5000000000),
-		GasTipCap: uint256.NewInt(2),
-		AuthList:  []types.SetCodeAuthorization{auth1, auth2},
-	}
-	signer := types.NewIsthmusSigner(chainID)
-	tx := types.MustSignNewTx(aliceSecret, signer, txdata)
-
-	err = cl.SendTransaction(t.Ctx(), tx)
-	require.NoError(gt, err, "failed to send set code tx")
-
-	_, err = env.Engine.EngineApi.IncludeTx(tx, env.Alice.Address())
-	require.NoError(t, err, "failed to include set code tx")
-
-	env.Sequencer.ActL2EndBlock(t)
 
 	// Verify delegation designations were deployed.
 	bobCode, err := cl.PendingCodeAt(t.Ctx(), env.Bob.Address())

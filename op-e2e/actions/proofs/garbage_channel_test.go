@@ -53,8 +53,7 @@ func runGarbageChannelTest(gt *testing.T, testCfg *helpers.TestCfg[actionsHelper
 
 	// Build NumL2Blocks empty blocks on L2
 	for i := 0; i < NumL2Blocks; i++ {
-		env.Sequencer.ActL2StartBlock(t)
-		env.Sequencer.ActL2EndBlock(t)
+		env.Sequencer.ActL2EmptyBlock(t)
 	}
 
 	// Buffer the first half of L2 blocks in the batcher, and submit it.

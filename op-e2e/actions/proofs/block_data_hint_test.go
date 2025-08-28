@@ -35,9 +35,9 @@ func Test_ProgramAction_BlockDataHint(gt *testing.T) {
 	env.Alice.L2.ActSetTxToAddr(&env.Dp.Addresses.Bob)(t)
 	env.Alice.L2.ActMakeTx(t)
 
-	env.Sequencer.ActL2StartBlock(t)
-	env.Engine.ActL2IncludeTx(env.Alice.Address())(t)
-	env.Sequencer.ActL2EndBlock(t)
+	env.Sequencer.ActL2BuildBlock(t, func() {
+		env.Engine.ActL2IncludeTx(env.Alice.Address())(t)
+	})
 	env.Alice.L2.ActCheckReceiptStatusOfLastTx(true)(t)
 
 	// Instruct the batcher to submit the block to L1, and include the transaction.

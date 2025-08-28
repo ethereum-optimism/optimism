@@ -206,25 +206,25 @@ func Test_ProgramAction_WithdrawalsRootBeforeAtAndAfterIsthmus(gt *testing.T) {
 		for i := 1; i <= totalBlocks; i++ {
 			var tx *types.Transaction
 
-			sequencer.ActL2StartBlock(t)
+			var doWithdrawalTx bool
+			sequencer.ActL2BuildBlock(t, func() {
+				doWithdrawalTx = withdrawalTx && withdrawalTxBlock == i
+				if doWithdrawalTx {
+					l2withdrawer, err := bindings.NewL2ToL1MessagePasser(predeploys.L2ToL1MessagePasserAddr, ethCl)
+					require.NoError(t, err, "binding withdrawer on L2")
 
-			doWithdrawalTx := withdrawalTx && withdrawalTxBlock == i
-			if doWithdrawalTx {
-				l2withdrawer, err := bindings.NewL2ToL1MessagePasser(predeploys.L2ToL1MessagePasserAddr, ethCl)
-				require.NoError(t, err, "binding withdrawer on L2")
+					// Initiate Withdrawal
+					// Bind L2 Withdrawer Contract and invoke the Receive function
+					l2opts, err := bind.NewKeyedTransactorWithChainID(env.Alice.L2.Secret(), new(big.Int).SetUint64(env.Dp.DeployConfig.L2ChainID))
+					require.NoError(t, err)
+					l2opts.Value = big.NewInt(500)
+					tx, err = l2withdrawer.Receive(l2opts)
+					require.NoError(t, err)
 
-				// Initiate Withdrawal
-				// Bind L2 Withdrawer Contract and invoke the Receive function
-				l2opts, err := bind.NewKeyedTransactorWithChainID(env.Alice.L2.Secret(), new(big.Int).SetUint64(env.Dp.DeployConfig.L2ChainID))
-				require.NoError(t, err)
-				l2opts.Value = big.NewInt(500)
-				tx, err = l2withdrawer.Receive(l2opts)
-				require.NoError(t, err)
-
-				// force-include the transaction, also in upgrade blocks
-				engine.ActL2IncludeTxIgnoreForcedEmpty(env.Alice.Address())(t)
-			}
-			sequencer.ActL2EndBlock(t)
+					// force-include the transaction, also in upgrade blocks
+					engine.ActL2IncludeTxIgnoreForcedEmpty(env.Alice.Address())(t)
+				}
+			})
 
 			if doWithdrawalTx {
 				// wait for withdrawal to be included in a block
@@ -334,8 +334,7 @@ func testIsthmusNetworkUpgradeTransactions(gt *testing.T, testCfg *helpers.TestC
 	ethCl := engine.EthClient()
 
 	// build a single block to move away from the genesis with 0-values in L1Block contract
-	sequencer.ActL2StartBlock(t)
-	sequencer.ActL2EndBlock(t)
+	sequencer.ActL2EmptyBlock(t)
 
 	// start op-nodes
 	sequencer.ActL2PipelineFull(t)
@@ -433,8 +432,7 @@ func testIsthmusNetworkUpgradeTransactions(gt *testing.T, testCfg *helpers.TestC
 	checkRecentBlockHash(latestBlock.NumberU64(), common.Hash{}, "isthmus activation block has no data yet (since contract wasn't there)")
 
 	// Build empty L2 block, to pass Isthmus activation
-	sequencer.ActL2StartBlock(t)
-	sequencer.ActL2EndBlock(t)
+	sequencer.ActL2EmptyBlock(t)
 
 	// Test the L2 block after activation: it should have the most recent block hash
 	latestBlock, err = ethCl.BlockByNumber(context.Background(), nil)

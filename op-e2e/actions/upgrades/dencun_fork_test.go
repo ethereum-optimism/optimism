@@ -143,18 +143,15 @@ func TestDencunL2ForkAfterGenesis(gt *testing.T) {
 	verifyPreEcotoneBlock(gt, engine.L2Chain().CurrentBlock())
 
 	// Block before fork block
-	sequencer.ActL2StartBlock(t)
-	sequencer.ActL2EndBlock(t)
+	sequencer.ActL2EmptyBlock(t)
 	verifyPreEcotoneBlock(gt, engine.L2Chain().CurrentBlock())
 
 	// Fork block is ecotone
-	sequencer.ActL2StartBlock(t)
-	sequencer.ActL2EndBlock(t)
+	sequencer.ActL2EmptyBlock(t)
 	verifyEcotoneBlock(gt, engine.L2Chain().CurrentBlock())
 
 	// Blocks post fork have Ecotone properties
-	sequencer.ActL2StartBlock(t)
-	sequencer.ActL2EndBlock(t)
+	sequencer.ActL2EmptyBlock(t)
 	verifyEcotoneBlock(gt, engine.L2Chain().CurrentBlock())
 }
 
@@ -175,8 +172,7 @@ func TestDencunL2ForkAtGenesis(gt *testing.T) {
 	verifyEcotoneBlock(gt, engine.L2Chain().CurrentBlock())
 
 	// Blocks post fork have Ecotone properties
-	sequencer.ActL2StartBlock(t)
-	sequencer.ActL2EndBlock(t)
+	sequencer.ActL2EmptyBlock(t)
 	verifyEcotoneBlock(gt, engine.L2Chain().CurrentBlock())
 }
 
@@ -235,7 +231,8 @@ func TestDencunBlobTxInclusion(gt *testing.T) {
 
 	tx := aliceSimpleBlobTx(t, dp)
 
-	sequencer.ActL2StartBlock(t)
-	_, err := engine.EngineApi.IncludeTx(tx, dp.Addresses.Alice)
-	require.ErrorContains(t, err, "invalid L2 block (tx 1): failed to apply transaction to L2 block (tx 1): transaction type not supported")
+	sequencer.ActL2BuildBlock(t, func() {
+		_, err := engine.EngineApi.IncludeTx(tx, dp.Addresses.Alice)
+		require.ErrorContains(t, err, "invalid L2 block (tx 1): failed to apply transaction to L2 block (tx 1): transaction type not supported")
+	})
 }

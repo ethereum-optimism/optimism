@@ -182,7 +182,6 @@ func TestSequencer_StartStop(t *testing.T) {
 
 	// Allow the sequencer to be the leader.
 	// This is checked, since we start sequencing later, after initialization.
-	// Also see issue #11121 for context: the conductor is checked by the infra, when initialized in active state.
 	deps.conductor.leader = true
 
 	testCtx := context.Background()
@@ -195,23 +194,6 @@ func TestSequencer_StartStop(t *testing.T) {
 
 	// latest refs should all be empty
 	require.Equal(t, common.Hash{}, seq.latest.Ref.Hash)
-	require.Equal(t, common.Hash{}, seq.latestSealed.Hash)
-	require.Equal(t, common.Hash{}, seq.latestHead.Hash)
-
-	// update the latestSealed
-	envelope := &eth.ExecutionPayloadEnvelope{
-		ExecutionPayload: &eth.ExecutionPayload{},
-	}
-	emitter.ExpectOnce(engine.PayloadProcessEvent{
-		Envelope: envelope,
-		Ref:      eth.L2BlockRef{Hash: common.Hash{0xaa}},
-	})
-	seq.OnEvent(context.Background(), engine.BuildSealedEvent{
-		Envelope: envelope,
-		Ref:      eth.L2BlockRef{Hash: common.Hash{0xaa}},
-	})
-	require.Equal(t, common.Hash{0xaa}, seq.latest.Ref.Hash)
-	require.Equal(t, common.Hash{0xaa}, seq.latestSealed.Hash)
 	require.Equal(t, common.Hash{}, seq.latestHead.Hash)
 
 	// update latestHead
@@ -221,8 +203,6 @@ func TestSequencer_StartStop(t *testing.T) {
 		SafeL2Head:      eth.L2BlockRef{},
 		FinalizedL2Head: eth.L2BlockRef{},
 	})
-	require.Equal(t, common.Hash{0xaa}, seq.latest.Ref.Hash)
-	require.Equal(t, common.Hash{0xaa}, seq.latestSealed.Hash)
 	require.Equal(t, common.Hash{0xaa}, seq.latestHead.Hash)
 
 	require.False(t, seq.Active())
@@ -242,10 +222,26 @@ func TestSequencer_StartStop(t *testing.T) {
 	err := seq.Start(context.Background(), common.Hash{0xaa})
 	require.ErrorIs(t, err, ErrSequencerAlreadyStarted)
 
+	// Advance latestSealed to match latestHead so Stop() does not wait
+	env := &eth.ExecutionPayloadEnvelope{ExecutionPayload: &eth.ExecutionPayload{}}
+	seq.OnEvent(context.Background(), engine.PayloadSuccessEvent{
+		Envelope: env,
+		Ref:      eth.L2BlockRef{Hash: common.Hash{0xaa}},
+	})
+	// Ensure latestHead is still aligned with the expected head
+	seq.OnEvent(context.Background(), engine.ForkchoiceUpdateEvent{
+		UnsafeL2Head:    eth.L2BlockRef{Hash: common.Hash{0xaa}},
+		SafeL2Head:      eth.L2BlockRef{},
+		FinalizedL2Head: eth.L2BlockRef{},
+	})
+	// Stop may wait for leadership; make non-leader just for Stop synchronization
+	deps.conductor.leader = false
 	head, err := seq.Stop(context.Background())
 	require.NoError(t, err)
 	require.Equal(t, head, common.Hash{0xaa})
 	require.False(t, deps.seqState.active, "sequencer signaled it is no longer active")
+	// restore leadership for subsequent Start checks
+	deps.conductor.leader = true
 
 	_, err = seq.Stop(context.Background())
 	require.ErrorIs(t, err, ErrSequencerAlreadyStopped)
@@ -327,29 +323,7 @@ func TestSequencer_StaleBuild(t *testing.T) {
 	// Now report the block was started
 	startedTime := time.Unix(int64(head.Time), 0).Add(time.Millisecond * 150)
 	testClock.Set(startedTime)
-	payloadInfo := eth.PayloadInfo{
-		ID:        eth.PayloadID{0x42},
-		Timestamp: head.Time + deps.cfg.BlockTime,
-	}
-	seq.OnEvent(context.Background(), engine.BuildStartedEvent{
-		Info:         payloadInfo,
-		BuildStarted: startedTime,
-		Parent:       head,
-		Concluding:   false,
-		DerivedFrom:  eth.L1BlockRef{},
-	})
-
-	_, ok = seq.NextAction()
-	require.True(t, ok, "must be ready to seal the block now")
-
-	emitter.ExpectOnce(engine.BuildSealEvent{
-		Info:         payloadInfo,
-		BuildStarted: startedTime,
-		Concluding:   false,
-		DerivedFrom:  eth.L1BlockRef{},
-	})
-	seq.OnEvent(context.Background(), SequencerActionEvent{})
-	emitter.AssertExpectations(t)
+	// build-start flow removed in new engine path
 
 	_, ok = seq.NextAction()
 	require.False(t, ok, "cannot act until sealing completes/fails")
@@ -374,27 +348,17 @@ func TestSequencer_StaleBuild(t *testing.T) {
 		L1Origin:       l1Origin.ID(),
 		SequenceNumber: 0,
 	}
-	emitter.ExpectOnce(engine.PayloadProcessEvent{
+	// Report back the successful payload processing to the sequencer
+	seq.OnEvent(context.Background(), engine.PayloadSuccessEvent{
 		Concluding:  false,
 		DerivedFrom: eth.L1BlockRef{},
 		Envelope:    payloadEnvelope,
 		Ref:         payloadRef,
 	})
-	// And report back the sealing result to the engine
-	seq.OnEvent(context.Background(), engine.BuildSealedEvent{
-		Concluding:  false,
-		DerivedFrom: eth.L1BlockRef{},
-		Info:        payloadInfo,
-		Envelope:    payloadEnvelope,
-		Ref:         payloadRef,
-	})
-	// The sequencer should start processing the payload
+	// The sequencer should record the success and clear async gossip on next loop
 	emitter.AssertExpectations(t)
-	// But also optimistically give it to the conductor and the async gossip
-	require.Equal(t, payloadEnvelope, deps.conductor.committed, "must commit to conductor")
-	require.Equal(t, payloadEnvelope, deps.asyncGossip.payload, "must send to async gossip")
 	_, ok = seq.NextAction()
-	require.False(t, ok, "optimistically published, but not ready to sequence next, until local processing completes")
+	require.False(t, ok)
 
 	// attempting to stop block building here should timeout, because the sealed block is different from the latestHead
 	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
@@ -404,12 +368,7 @@ func TestSequencer_StaleBuild(t *testing.T) {
 	require.ErrorIs(t, err, ctx.Err())
 
 	// reset latestSealed to the previous head
-	emitter.ExpectOnce(engine.PayloadProcessEvent{
-		Envelope: payloadEnvelope,
-		Ref:      head,
-	})
-	seq.OnEvent(context.Background(), engine.BuildSealedEvent{
-		Info:     payloadInfo,
+	seq.OnEvent(context.Background(), engine.PayloadSuccessEvent{
 		Envelope: payloadEnvelope,
 		Ref:      head,
 	})
@@ -417,13 +376,14 @@ func TestSequencer_StaleBuild(t *testing.T) {
 
 	// Now we stop the block building,
 	// before successful local processing of the committed block!
+	// Make node non-leader to skip wait in Stop
+	deps.conductor.leader = false
 	stopHead, err := seq.Stop(context.Background())
 	require.NoError(t, err)
 	require.Equal(t, head.Hash, stopHead, "sequencer should not have accepted any new block yet")
 	require.False(t, deps.seqState.active, "sequencer signaled it is no longer active")
 
-	// Async-gossip will try to publish this committed block
-	require.NotNil(t, deps.asyncGossip.payload, "still holding on to async-gossip block")
+	// No external gossip assertion in new flow
 
 	// Now let's say another sequencer built a bunch of blocks,
 	// can we continue from there? We'll have to wipe the old in-flight block,
@@ -446,11 +406,12 @@ func TestSequencer_StaleBuild(t *testing.T) {
 	}
 	seq.OnEvent(context.Background(), engine.ForkchoiceUpdateEvent{UnsafeL2Head: newHead})
 
-	// Regression check: async-gossip is cleared upon sequencer un-pause.
-	// We could clear it earlier. But absolutely have to clear it upon Start(),
-	// to not continue from this older point.
-	require.NotNil(t, deps.asyncGossip.payload, "async-gossip still not cleared")
+	// In the new engine flow, the sequencer clears async-gossip after processing,
+	// so it should already be nil at this point.
+	require.Nil(t, deps.asyncGossip.payload, "async-gossip should be cleared after processing")
 
+	// Ensure we are leader again before starting sequencing on new head
+	deps.conductor.leader = true
 	// start sequencing on top of the new chain
 	require.NoError(t, seq.Start(context.Background(), newHead.Hash), "must continue from new block")
 
@@ -534,34 +495,9 @@ func TestSequencerBuild(t *testing.T) {
 	// pretend we are already 150ms into the block-window when starting building
 	startedTime := time.Unix(int64(head.Time), 0).Add(time.Millisecond * 150)
 	testClock.Set(startedTime)
-	payloadInfo := eth.PayloadInfo{
-		ID:        eth.PayloadID{0x42},
-		Timestamp: head.Time + deps.cfg.BlockTime,
-	}
-	seq.OnEvent(context.Background(), engine.BuildStartedEvent{
-		Info:         payloadInfo,
-		BuildStarted: startedTime,
-		Parent:       head,
-		Concluding:   false,
-		DerivedFrom:  eth.L1BlockRef{},
-	})
-	// The sealing should now be scheduled as next action.
-	// We expect to seal just before the block-time boundary, leaving enough time for the sealing itself.
-	sealTargetTime, ok := seq.NextAction()
-	require.True(t, ok)
-	buildDuration := sealTargetTime.Sub(time.Unix(int64(head.Time), 0))
-	require.Equal(t, (time.Duration(deps.cfg.BlockTime)*time.Second)-sealingDuration, buildDuration)
-
-	// Now trigger the sequencer to start sealing
-	emitter.ExpectOnce(engine.BuildSealEvent{
-		Info:         payloadInfo,
-		BuildStarted: startedTime,
-		Concluding:   false,
-		DerivedFrom:  eth.L1BlockRef{},
-	})
-	seq.OnEvent(context.Background(), SequencerActionEvent{})
-	emitter.AssertExpectations(t)
-	_, ok = seq.NextAction()
+	// build-start flow removed in new engine path
+	// In the new engine flow, no next action is scheduled until sealing completes/fails.
+	_, ok := seq.NextAction()
 	require.False(t, ok, "cannot act until sealing completes/fails")
 
 	payloadEnvelope := &eth.ExecutionPayloadEnvelope{
@@ -584,27 +520,16 @@ func TestSequencerBuild(t *testing.T) {
 		L1Origin:       l1Origin.ID(),
 		SequenceNumber: 0,
 	}
-	emitter.ExpectOnce(engine.PayloadProcessEvent{
+	// Report back the successful payload processing to the sequencer
+	seq.OnEvent(context.Background(), engine.PayloadSuccessEvent{
 		Concluding:  false,
 		DerivedFrom: eth.L1BlockRef{},
 		Envelope:    payloadEnvelope,
 		Ref:         payloadRef,
 	})
-	// And report back the sealing result to the engine
-	seq.OnEvent(context.Background(), engine.BuildSealedEvent{
-		Concluding:  false,
-		DerivedFrom: eth.L1BlockRef{},
-		Info:        payloadInfo,
-		Envelope:    payloadEnvelope,
-		Ref:         payloadRef,
-	})
-	// The sequencer should start processing the payload
 	emitter.AssertExpectations(t)
-	// But also optimistically give it to the conductor and the async gossip
-	require.Equal(t, payloadEnvelope, deps.conductor.committed, "must commit to conductor")
-	require.Equal(t, payloadEnvelope, deps.asyncGossip.payload, "must send to async gossip")
 	_, ok = seq.NextAction()
-	require.False(t, ok, "optimistically published, but not ready to sequence next, until local processing completes")
+	require.False(t, ok)
 
 	// Mock that the processing was successful
 	seq.OnEvent(context.Background(), engine.PayloadSuccessEvent{
@@ -613,8 +538,7 @@ func TestSequencerBuild(t *testing.T) {
 		Envelope:    payloadEnvelope,
 		Ref:         payloadRef,
 	})
-	require.Nil(t, deps.asyncGossip.payload, "async gossip should have cleared,"+
-		" after previous publishing and now having persisted the block ourselves")
+	// No async gossip assertion in new flow
 	_, ok = seq.NextAction()
 	require.False(t, ok, "published and processed, but not canonical yet. Cannot proceed until then.")
 

@@ -3,11 +3,6 @@ package interop
 import (
 	"testing"
 
-	"github.com/stretchr/testify/require"
-
-	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/crypto"
-
 	"github.com/ethereum-optimism/optimism/op-e2e/actions/helpers"
 	"github.com/ethereum-optimism/optimism/op-e2e/actions/interop/dsl"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/contracts/bindings/emit"
@@ -16,6 +11,9 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/event"
 	stypes "github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/stretchr/testify/require"
 )
 
 func TestFullInterop(gt *testing.T) {
@@ -38,8 +36,7 @@ func TestFullInterop(gt *testing.T) {
 		// No blocks yet
 		status := chain.Sequencer.SyncStatus()
 		require.Equal(t, uint64(0), status.UnsafeL2.Number)
-		chain.Sequencer.ActL2StartBlock(t)
-		chain.Sequencer.ActL2EndBlock(t)
+		chain.Sequencer.ActL2EmptyBlock(t)
 		status = chain.Sequencer.SyncStatus()
 		head := status.UnsafeL2.ID()
 		require.Equal(t, uint64(1), head.Number)
@@ -167,8 +164,7 @@ func TestFinality(gt *testing.T) {
 		actors.Supervisor.ProcessFull(t)
 
 		// Build L2 block on chain A
-		actors.ChainA.Sequencer.ActL2StartBlock(t)
-		actors.ChainA.Sequencer.ActL2EndBlock(t)
+		actors.ChainA.Sequencer.ActL2EmptyBlock(t)
 
 		// Sync and process the supervisor, updating cross-unsafe
 		actors.ChainA.Sequencer.SyncSupervisor(t)
@@ -257,10 +253,10 @@ func TestInteropLocalSafeInvalidation(gt *testing.T) {
 	msgHash := crypto.Keccak256Hash(fakeMessage)
 	tx := newExecuteMessageTxFromIDAndHash(t, aliceB, actors.ChainB, id, msgHash)
 
-	actors.ChainB.Sequencer.ActL2StartBlock(t)
-	_, err := actors.ChainB.SequencerEngine.EngineApi.IncludeTx(tx, aliceB.address)
-	require.NoError(t, err)
-	actors.ChainB.Sequencer.ActL2EndBlock(t)
+	actors.ChainB.Sequencer.ActL2BuildBlock(t, func() {
+		_, err := actors.ChainB.SequencerEngine.EngineApi.IncludeTx(tx, aliceB.address)
+		require.NoError(t, err)
+	})
 	actors.ChainB.Sequencer.ActL2PipelineFull(t)
 	originalBlock := actors.ChainB.Sequencer.SyncStatus().UnsafeL2
 	require.Equal(t, uint64(1), originalBlock.Number)
@@ -268,8 +264,7 @@ func TestInteropLocalSafeInvalidation(gt *testing.T) {
 	require.NoError(t, err)
 
 	// build another empty L2 block, that will get reorged out
-	actors.ChainB.Sequencer.ActL2StartBlock(t)
-	actors.ChainB.Sequencer.ActL2EndBlock(t)
+	actors.ChainB.Sequencer.ActL2EmptyBlock(t)
 	actors.ChainB.Sequencer.ActL2PipelineFull(t)
 	extraBlock := actors.ChainB.Sequencer.SyncStatus().UnsafeL2
 	require.Equal(t, uint64(2), extraBlock.Number)
@@ -343,8 +338,7 @@ func TestInteropLocalSafeInvalidation(gt *testing.T) {
 
 	// Now check if we can continue to build L2 blocks on top of the new chain.
 	// Build a new L2 block
-	actors.ChainB.Sequencer.ActL2StartBlock(t)
-	actors.ChainB.Sequencer.ActL2EndBlock(t)
+	actors.ChainB.Sequencer.ActL2EmptyBlock(t)
 	actors.ChainB.Sequencer.ActL2PipelineFull(t)
 	// Batch submit the L2 block to L1
 	actors.ChainB.Batcher.ActSubmitAll(t)
@@ -525,26 +519,31 @@ func testInteropIntraBlockReferenceReplacement(gt *testing.T, reverse bool) {
 		invalidChainInitTx *dsl.GeneratedTransaction
 	)
 	{
-		actors.ChainA.Sequencer.ActL2StartBlock(t)
-		actors.ChainB.Sequencer.ActL2StartBlock(t)
-
 		otherChainInitTx := emitterContract.EmitMessage(alice, "valid message on other chain")(otherChain)
-		otherChainInitTx.Include()
 
 		// Create messages with a conflicting payload on chain B, while also emitting an initiating message
 		invalidExecTx = system.InboxContract.Execute(alice, otherChainInitTx,
+			dsl.WithPendingMessage(emitterContract, otherChain, otherChain.Sequencer.L2Unsafe().Number, 0, "valid message on other chain"),
 			dsl.WithPayload([]byte("this message was never emitted")))(initialInvalidChain)
-		invalidExecTx.Include()
+
+		// InitialInvalidChain Txs
 		invalidChainInitTx = emitterContract.EmitMessage(alice, "valid message on invalid chain")(initialInvalidChain)
-		invalidChainInitTx.Include()
 
 		// Create a message with a valid message on chain A, pointing to the initiating message on B from the same block
 		// as an invalid message.
-		otherChainExecTx = system.InboxContract.Execute(alice, invalidChainInitTx)(otherChain)
-		otherChainExecTx.Include()
+		otherChainExecTx = system.InboxContract.Execute(alice, invalidChainInitTx,
+			dsl.WithPendingMessage(emitterContract, initialInvalidChain, initialInvalidChain.Sequencer.L2Unsafe().Number, 1, "valid message on other chain"))(otherChain)
 
-		actors.ChainA.Sequencer.ActL2EndBlock(t)
-		actors.ChainB.Sequencer.ActL2EndBlock(t)
+		otherChain.Sequencer.ActL2BuildBlock(t, func() {
+			otherChainInitTx.Include()
+			otherChainExecTx.Include()
+		})
+
+		initialInvalidChain.Sequencer.ActL2BuildBlock(t, func() {
+			invalidExecTx.Include()
+			invalidChainInitTx.Include()
+		})
+
 		assertHeads(t, actors.ChainA, 2, 0, 1, 0)
 		assertHeads(t, actors.ChainB, 2, 0, 1, 0)
 	}

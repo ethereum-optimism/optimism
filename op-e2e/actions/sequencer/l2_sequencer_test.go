@@ -59,9 +59,9 @@ func TestL2Sequencer_SequencerDrift(gt *testing.T) {
 	}
 	makeL2BlockWithAliceTx := func() {
 		aliceTx()
-		sequencer.ActL2StartBlock(t)
-		engine.ActL2IncludeTx(dp.Addresses.Alice)(t) // include a test tx from alice
-		sequencer.ActL2EndBlock(t)
+		sequencer.ActL2BuildBlock(t, func() {
+			engine.ActL2IncludeTx(dp.Addresses.Alice)(t) // include a test tx from alice
+		})
 	}
 
 	// L1 makes a block
@@ -92,8 +92,9 @@ func TestL2Sequencer_SequencerDrift(gt *testing.T) {
 
 	// We passed the sequencer drift: we can still keep the old origin, but can't include any txs
 	sequencer.ActL2KeepL1Origin(t)
-	sequencer.ActL2StartBlock(t)
-	require.True(t, engine.EngineApi.ForcedEmpty(), "engine should not be allowed to include anything after sequencer drift is surpassed")
+	sequencer.ActL2BuildBlock(t, func() {
+		require.True(t, engine.EngineApi.ForcedEmpty(), "engine should not be allowed to include anything after sequencer drift is surpassed")
+	})
 }
 
 // TestL2Sequencer_SequencerOnlyReorg regression-tests a Goerli halt where the sequencer

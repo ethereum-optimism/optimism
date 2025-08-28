@@ -155,9 +155,9 @@ func (a *L2AltDA) ActSequencerIncludeTx(t helpers.Testing) {
 
 	a.sequencer.ActL2PipelineFull(t)
 
-	a.sequencer.ActL2StartBlock(t)
-	a.engine.ActL2IncludeTx(a.alice.Address())(t)
-	a.sequencer.ActL2EndBlock(t)
+	a.sequencer.ActL2BuildBlock(t, func() {
+		a.engine.ActL2IncludeTx(a.alice.Address())(t)
+	})
 }
 
 func (a *L2AltDA) ActNewL2Tx(t helpers.Testing) {
@@ -457,9 +457,9 @@ func TestAltDA_SequencerStalledMultiChallenges(gt *testing.T) {
 	a.alice.L2.ActSetTxToAddr(&a.dp.Addresses.Bob)(t)
 	a.alice.L2.ActMakeTx(t)
 
-	a.sequencer.ActL2StartBlock(t)
-	a.engine.ActL2IncludeTx(a.alice.Address())(t)
-	a.sequencer.ActL2EndBlock(t)
+	a.sequencer.ActL2BuildBlock(t, func() {
+		a.engine.ActL2IncludeTx(a.alice.Address())(t)
+	})
 
 	a.batcher.ActL2BatchBuffer(t)
 	a.batcher.ActL2ChannelClose(t)

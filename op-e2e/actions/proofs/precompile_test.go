@@ -52,9 +52,9 @@ func runPrecompileHintTest(gt *testing.T, testCase PrecompileTestFixture, testCf
 	env.Alice.L2.ActSetTxCalldata(testCase.Input)(t)
 	env.Alice.L2.ActMakeTx(t)
 
-	env.Sequencer.ActL2StartBlock(t)
-	env.Engine.ActL2IncludeTx(env.Alice.Address())(t)
-	env.Sequencer.ActL2EndBlock(t)
+	env.Sequencer.ActL2BuildBlock(t, func() {
+		env.Engine.ActL2IncludeTx(env.Alice.Address())(t)
+	})
 	env.Alice.L2.ActCheckReceiptStatusOfLastTx(true)(t)
 
 	// Instruct the batcher to submit the block to L1, and include the transaction.
@@ -176,9 +176,9 @@ func runPrecompileTest(gt *testing.T, testCfg *helpers.TestCfg[PrecompileTestFix
 	env.Alice.L2.ActResetTxOpts(t)
 	env.Alice.L2.ActSetTxCalldata(common.FromHex(invoker.InvokerMetaData.Bin))(t)
 	env.Alice.L2.ActMakeTx(t)
-	env.Sequencer.ActL2StartBlock(t)
-	env.Engine.ActL2IncludeTx(env.Alice.Address())(t)
-	env.Sequencer.ActL2EndBlock(t)
+	env.Sequencer.ActL2BuildBlock(t, func() {
+		env.Engine.ActL2IncludeTx(env.Alice.Address())(t)
+	})
 	env.Alice.L2.ActCheckReceiptStatusOfLastTx(true)(t)
 
 	invokerContract := env.Alice.L2.LastTxReceipt(t).ContractAddress
@@ -193,9 +193,9 @@ func runPrecompileTest(gt *testing.T, testCfg *helpers.TestCfg[PrecompileTestFix
 	env.Alice.L2.ActSetTxToAddr(&invokerContract)(t)
 	env.Alice.L2.ActSetTxCalldata(invokeCalldata)(t)
 	env.Alice.L2.ActMakeTx(t)
-	env.Sequencer.ActL2StartBlock(t)
-	env.Engine.ActL2IncludeTx(env.Alice.Address())(t)
-	env.Sequencer.ActL2EndBlock(t)
+	env.Sequencer.ActL2BuildBlock(t, func() {
+		env.Engine.ActL2IncludeTx(env.Alice.Address())(t)
+	})
 	env.Alice.L2.ActCheckReceiptStatusOfLastTx(true)(t)
 
 	receipt := env.Alice.L2.LastTxReceipt(t)

@@ -158,9 +158,9 @@ func TestHoloceneInvalidPayload(gt *testing.T) {
 	env.Alice.L2.ActSetTxToAddr(&env.DeployParams.Addresses.Bob)
 	env.Alice.L2.ActMakeTx(t)
 
-	env.Seq.ActL2StartBlock(t)
-	env.SeqEngine.ActL2IncludeTx(env.Alice.Address())(t)
-	env.Seq.ActL2EndBlock(t) // 3
+	env.Seq.ActL2BuildBlock(t, func() {
+		env.SeqEngine.ActL2IncludeTx(env.Alice.Address())(t)
+	}) // 3
 	env.Alice.L2.ActCheckReceiptStatusOfLastTx(true)(t)
 	l2Unsafe := env.Seq.L2Unsafe()
 	const invalidNum = 3

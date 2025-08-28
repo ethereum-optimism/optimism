@@ -69,10 +69,7 @@ func (st *StatusTracker) OnEvent(ctx context.Context, ev event.Event) bool {
 	case derive.DeriverL1StatusEvent:
 		st.data.CurrentL1 = x.Origin
 	case rollup.ResetEvent:
-		st.data.UnsafeL2 = eth.L2BlockRef{}
-		st.data.SafeL2 = eth.L2BlockRef{}
-		st.data.LocalSafeL2 = eth.L2BlockRef{}
-		st.data.CurrentL1 = eth.L1BlockRef{}
+		// keep current heads; wait for EngineResetConfirmedEvent
 	case engine.EngineResetConfirmedEvent:
 		st.data.UnsafeL2 = x.LocalUnsafe
 		st.data.CrossUnsafeL2 = x.CrossUnsafe
