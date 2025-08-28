@@ -5,8 +5,8 @@ footer: | # define the footer with markdown
 base:
   name: ethereum-optimism/optimism
   url: https://github.com/ethereum-optimism/optimism
-  # ref: refs/tags/op-node/v1.11.1
-  hash: 443e931f242e1595896d6598b02068dc822e1232
+  # ref: refs/tags/op-batcher/v1.15.0
+  hash: 061043e7ef21343f709768651261fa43f5714f6b
 fork:
   name: layr-labs/optimism
   url: https://github.com/layr-labs/optimism
