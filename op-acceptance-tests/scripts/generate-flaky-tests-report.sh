@@ -117,7 +117,7 @@ echo "Found $NUM_TESTS flaky tests"
 
 # Generate CSV report
 echo "Generating CSV report..."
-jq -r '.flaky_tests[] | [
+jq -r '.flaky_tests | sort_by(.times_flaked) | reverse | .[] | [
   .times_flaked,
   (.test_name | @json),
   (.classname | @json),
@@ -156,9 +156,13 @@ cat > "$OUTPUT_DIR/flaky_tests.html" << EOF
 </head>
 <body>
     <h1>Flaky Tests Report</h1>
+    <p>
+      <b>Note:</b> These tests are <i>potentially</i> flaky. They may fail for reasons other than the test itself, such as network issues, devnet issues,
+      interference from other tests, etc. Be mindful of this when interpreting the results and investigating the failures.
+    </p>
     <div class="branch-info">
-        <h2>Branch: $BRANCH</h2>
-        <p>Total flaky tests: $NUM_TESTS</p>
+        <h3>Branch: $BRANCH</h3>
+        <h3>Total flaky tests: $NUM_TESTS</h3>
     </div>
 
     <table>
@@ -170,11 +174,11 @@ cat > "$OUTPUT_DIR/flaky_tests.html" << EOF
             <th>Workflow Name</th>
             <th>Job Number</th>
             <th>Pipeline Number</th>
-            <th>Build URL</th>
+            <th>Job URL</th>
             <th>First Flaked At</th>
             <th>Last Flaked At</th>
         </tr>
-        $(jq -r '.flaky_tests[] | "<tr><td>\(.times_flaked)</td><td>\(.test_name)</td><td>\(.classname)</td><td>\(.job_name)</td><td>\(.workflow_name)</td><td>\(.job_number)</td><td>\(.pipeline_number)</td><td><a href=\"https://app.circleci.com/pipelines/github/'"$ORG_NAME"'/'"$REPO_NAME"'/\(.pipeline_number)/workflows/\(.workflow_id)/jobs/\(.job_number)\" target=\"_blank\">View Build</a></td><td>\(.workflow_created_at)</td><td>\(.workflow_created_at)</td></tr>"' "$OUTPUT_DIR/flaky_tests.json")
+        $(jq -r '.flaky_tests | sort_by(.times_flaked) | reverse | .[] | "<tr><td>\(.times_flaked)</td><td>\(.test_name)</td><td>\(.classname)</td><td>\(.job_name)</td><td>\(.workflow_name)</td><td>\(.job_number)</td><td>\(.pipeline_number)</td><td><a href=\"https://app.circleci.com/pipelines/github/'"$ORG_NAME"'/'"$REPO_NAME"'/\(.pipeline_number)/workflows/\(.workflow_id)/jobs/\(.job_number)\" target=\"_blank\">View Job</a></td><td>\(.workflow_created_at)</td><td>\(.workflow_created_at)</td></tr>"' "$OUTPUT_DIR/flaky_tests.json")
     </table>
 </body>
 </html>
