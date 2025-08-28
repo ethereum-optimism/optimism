@@ -53,7 +53,7 @@ type Agent struct {
 	log                log.Logger
 	responseDelay      time.Duration
 	responseDelayAfter uint64
-	responseCount      uint64 // Number of responses made in this game (accessed atomically)
+	responseCount      atomic.UInt64 // Number of responses made in this game
 }
 
 func NewAgent(
@@ -149,7 +149,7 @@ func (a *Agent) performAction(ctx context.Context, wg *sync.WaitGroup, game type
 
 	// Apply configurable delay before responding (to slow down game progression)
 	// Only apply delay if we've made enough responses already AND we're not in a clock extension period
-	currentResponseCount := atomic.LoadUint64(&a.responseCount)
+	currentResponseCount := a.responseCount.Load()
 	shouldCheckDelay := a.responseDelay > 0 && currentResponseCount >= a.responseDelayAfter
 
 	if shouldCheckDelay {
@@ -187,7 +187,7 @@ func (a *Agent) performAction(ctx context.Context, wg *sync.WaitGroup, game type
 		actionLog.Error("Action failed", "err", err)
 	} else {
 		// Increment response count only on successful actions
-		newCount := atomic.AddUint64(&a.responseCount, 1)
+		newCount := a.responseCount.Add(1)
 		actionLog.Debug("Response count incremented", "response_count", newCount)
 	}
 }
