@@ -436,43 +436,32 @@ type DefaultMinimalExternalELSystemIDs struct {
 	L2CL stack.L2CLNodeID
 	L2EL stack.L2ELNodeID
 
-	L2Batcher    stack.L2BatcherID
-	L2Proposer   stack.L2ProposerID
-	L2Challenger stack.L2ChallengerID
-
-	TestSequencer stack.TestSequencerID
-	SyncTester    stack.SyncTesterID
+	SyncTester stack.SyncTesterID
 }
 
 func NewDefaultMinimalExternalELSystemIDs(l1ID, l2ID eth.ChainID) DefaultMinimalExternalELSystemIDs {
 	ids := DefaultMinimalExternalELSystemIDs{
-		L1:            stack.L1NetworkID(l1ID),
-		L1EL:          stack.NewL1ELNodeID("l1", l1ID),
-		L1CL:          stack.NewL1CLNodeID("l1", l1ID),
-		L2:            stack.L2NetworkID(l2ID),
-		L2CL:          stack.NewL2CLNodeID("sequencer", l2ID),
-		L2EL:          stack.NewL2ELNodeID("synctester", l2ID),
-		L2Batcher:     stack.NewL2BatcherID("main", l2ID),
-		L2Proposer:    stack.NewL2ProposerID("main", l2ID),
-		L2Challenger:  stack.NewL2ChallengerID("main", l2ID),
-		TestSequencer: "test-sequencer",
-		SyncTester:    stack.NewSyncTesterID("s", l2ID),
+		L1:         stack.L1NetworkID(l1ID),
+		L1EL:       stack.NewL1ELNodeID("l1", l1ID),
+		L1CL:       stack.NewL1CLNodeID("l1", l1ID),
+		L2:         stack.L2NetworkID(l2ID),
+		L2CL:       stack.NewL2CLNodeID("sequencer", l2ID),
+		L2EL:       stack.NewL2ELNodeID("synctester", l2ID),
+		SyncTester: stack.NewSyncTesterID("s", l2ID),
 	}
 	return ids
 }
 
 // DefaultMinimalExternalELSystemWithEndpointAndSuperchainRegistry creates a minimal external EL system
 // using a network from the superchain registry instead of the deployer
-func DefaultMinimalExternalELSystemWithEndpointAndSuperchainRegistry(dest *DefaultMinimalExternalELSystemIDs, endpointRPC string, networkName string, fcus eth.FCUState) stack.Option[*Orchestrator] {
-	// Get the chain ID from the network name
+func DefaultMinimalExternalELSystemWithEndpointAndSuperchainRegistry(dest *DefaultMinimalExternalELSystemIDs, l1CLBeaconRPC, l1ELRPC, l2ELRPC string, l1ChainID eth.ChainID, networkName string, fcus eth.FCUState) stack.Option[*Orchestrator] {
 	chainCfg := chaincfg.ChainByName(networkName)
 	if chainCfg == nil {
 		panic(fmt.Sprintf("network %s not found in superchain registry", networkName))
 	}
-	chainID := eth.ChainIDFromUInt64(chainCfg.ChainID)
+	l2ChainID := eth.ChainIDFromUInt64(chainCfg.ChainID)
 
-	sepoliaL1ID := eth.ChainIDFromUInt64(11155111)
-	ids := NewDefaultMinimalExternalELSystemIDs(sepoliaL1ID, chainID)
+	ids := NewDefaultMinimalExternalELSystemIDs(l1ChainID, l2ChainID)
 
 	opt := stack.Combine[*Orchestrator]()
 	opt.Add(stack.BeforeDeploy(func(o *Orchestrator) {
@@ -488,30 +477,20 @@ func DefaultMinimalExternalELSystemWithEndpointAndSuperchainRegistry(dest *Defau
 		),
 	)
 
-	opt.Add(WithL1Nodes(ids.L1EL, ids.L1CL))
+	opt.Add(WithExtL1Nodes(ids.L1EL, ids.L1CL, l1ELRPC, l1CLBeaconRPC))
 
 	// Use superchain registry instead of deployer
 	opt.Add(WithL2NetworkFromSuperchainRegistryWithDependencySet(
-		stack.L2NetworkID(chainID),
+		stack.L2NetworkID(l2ChainID),
 		networkName,
 	))
 
 	// Add SyncTester service with external endpoint
-	opt.Add(WithSyncTesterWithExternalEndpoint(endpointRPC, chainID))
+	opt.Add(WithSyncTesterWithExternalEndpoint(l2ELRPC, l2ChainID))
 
 	// Add SyncTesterL2ELNode as the L2EL replacement for real-world EL endpoint
 	opt.Add(WithSyncTesterL2ELNode(ids.L2EL, ids.L2CL, fcus))
 	opt.Add(WithL2CLNode(ids.L2CL, ids.L1CL, ids.L1EL, ids.L2EL, L2CLSequencer()))
-
-	// opt.Add(WithBatcher(ids.L2Batcher, ids.L1EL, ids.L2CL, ids.L2EL))
-	// opt.Add(WithProposer(ids.L2Proposer, ids.L1EL, &ids.L2CL, nil))
-
-	// Only add L1 faucet, no L2 faucet as we use real-world EL
-	// opt.Add(WithFaucets([]stack.L1ELNodeID{ids.L1EL}, nil))
-
-	opt.Add(WithTestSequencer(ids.TestSequencer, ids.L1CL, ids.L2CL, ids.L1EL, ids.L2EL))
-
-	// opt.Add(WithL2Challenger(ids.L2Challenger, ids.L1EL, ids.L1CL, nil, nil, &ids.L2CL, []stack.L2ELNodeID{ids.L2EL}))
 
 	opt.Add(stack.Finally(func(orch *Orchestrator) {
 		*dest = ids

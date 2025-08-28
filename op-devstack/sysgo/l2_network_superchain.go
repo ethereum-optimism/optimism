@@ -3,6 +3,7 @@ package sysgo
 import (
 	"fmt"
 
+	"github.com/davecgh/go-spew/spew"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core"
 
@@ -35,6 +36,14 @@ func WithL2NetworkFromSuperchainRegistry(l2NetworkID stack.L2NetworkID, networkN
 		genesis := &core.Genesis{
 			Config: paramsChainConfig,
 		}
+
+		fmt.Println("==== anteva genesis for L2 - start")
+		spew.Dump(genesis)
+		fmt.Println("==== anteva genesis for L2 - end")
+
+		fmt.Println("==== anteva rollupcfg for L2 - start")
+		spew.Dump(rollupCfg)
+		fmt.Println("==== anteva rollupcfg for L2 - end")
 
 		// Create a deployment config (this will be minimal since we're using registry configs)
 		deployment := &L2Deployment{
