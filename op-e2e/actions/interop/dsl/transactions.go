@@ -68,6 +68,7 @@ func (m *GeneratedTransaction) IncludeDepositOK(l1User *DSLUser, depositTxOpts *
 }
 
 func (m *GeneratedTransaction) Identifier() inbox.Identifier {
+	require.NotNil(m.t, m.rcpt, "Transaction has not been included")
 	require.NotZero(m.t, len(m.rcpt.Logs), "Transaction did not include any logs to reference")
 
 	return Identifier(m.chain, m.tx, m.rcpt)

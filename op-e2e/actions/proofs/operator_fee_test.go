@@ -95,13 +95,13 @@ func Test_ProgramAction_OperatorFeeConsistency(gt *testing.T) {
 			t.Helper()
 			input := common.RightPadBytes(common.FromHex("0x60fe47b1"), 36)
 			input[35] = value
-			env.Sequencer.ActL2StartBlock(t)
-			env.Alice.L2.ActResetTxOpts(t)
-			env.Alice.L2.ActSetTxToAddr(&testStorageUpdateContractAddress)(t)
-			env.Alice.L2.ActSetTxCalldata(input)(t)
-			env.Alice.L2.ActMakeTx(t)
-			env.Engine.ActL2IncludeTx(env.Alice.Address())(t)
-			env.Sequencer.ActL2EndBlock(t)
+			env.Sequencer.ActL2BuildBlock(t, func() {
+				env.Alice.L2.ActResetTxOpts(t)
+				env.Alice.L2.ActSetTxToAddr(&testStorageUpdateContractAddress)(t)
+				env.Alice.L2.ActSetTxCalldata(input)(t)
+				env.Alice.L2.ActMakeTx(t)
+				env.Engine.ActL2IncludeTx(env.Alice.Address())(t)
+			})
 			r := env.Alice.L2.LastTxReceipt(t)
 			require.Equal(t, types.ReceiptStatusSuccessful, r.Status, "tx unsuccessful")
 		}
@@ -142,13 +142,13 @@ func Test_ProgramAction_OperatorFeeConsistency(gt *testing.T) {
 			require.Equal(t, operatorFeeVaultInitialBalance.Sign(), 0)
 
 			// Send an L2 tx
-			env.Sequencer.ActL2StartBlock(t)
-			env.Alice.L2.ActResetTxOpts(t)
-			env.Alice.L2.ActSetTxToAddr(&env.Dp.Addresses.Bob)(t)
-			env.Alice.L2.ActMakeTx(t)
-			// we usually don't include txs in the transition block, so we force-include it
-			env.Engine.ActL2IncludeTxIgnoreForcedEmpty(env.Alice.Address())(t)
-			env.Sequencer.ActL2EndBlock(t)
+			env.Sequencer.ActL2BuildBlock(t, func() {
+				env.Alice.L2.ActResetTxOpts(t)
+				env.Alice.L2.ActSetTxToAddr(&env.Dp.Addresses.Bob)(t)
+				env.Alice.L2.ActMakeTx(t)
+				// we usually don't include txs in the transition block, so we force-include it
+				env.Engine.ActL2IncludeTxIgnoreForcedEmpty(env.Alice.Address())(t)
+			})
 
 			if testCfg.Custom == IsthmusTransitionBlock {
 				require.True(t, env.Sd.RollupCfg.IsIsthmusActivationBlock(env.Sequencer.L2Unsafe().Time))
@@ -222,9 +222,9 @@ func Test_ProgramAction_OperatorFeeConsistency(gt *testing.T) {
 			env.Bob.L2.ActSetTxValue(expectedFeePreIsthmus)(t)
 			env.Bob.L2.ActMakeTx(t)
 
-			env.Sequencer.ActL2StartBlock(t)
-			env.Engine.ActL2IncludeTx(env.Bob.Address())(t)
-			env.Sequencer.ActL2EndBlock(t)
+			env.Sequencer.ActL2BuildBlock(t, func() {
+				env.Engine.ActL2IncludeTx(env.Bob.Address())(t)
+			})
 			env.Bob.L2.ActCheckReceiptStatusOfLastTx(true)(t)
 
 			// Ensure the mock signer received the funds
@@ -244,9 +244,9 @@ func Test_ProgramAction_OperatorFeeConsistency(gt *testing.T) {
 			env.Alice.L2.ActMakeTx(t)
 
 			// Include an L2 tx, from Alice -> Bob
-			env.Sequencer.ActL2StartBlock(t)
-			env.Engine.ActL2IncludeTx(env.Alice.Address())(t)
-			env.Sequencer.ActL2EndBlock(t)
+			env.Sequencer.ActL2BuildBlock(t, func() {
+				env.Engine.ActL2IncludeTx(env.Alice.Address())(t)
+			})
 			env.Alice.L2.ActCheckReceiptStatusOfLastTx(true)(t)
 
 			// Instruct the batcher to submit a faulty channel, with Alice's tx re-signed by a new private key.

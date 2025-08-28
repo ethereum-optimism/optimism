@@ -414,18 +414,17 @@ func DeepReorg(gt *testing.T, deltaTimeOffset *hexutil.Uint64) {
 		// been re-derived from chain B later on in the test.
 		if i == 35 {
 			// Include alice's transaction on L2
-			sequencer.ActL2StartBlock(t)
+			sequencer.ActL2BuildBlock(t, func() {
 
-			// Submit a dummy tx
-			alice.L2.ActResetTxOpts(t)
-			alice.L2.ActSetTxToAddr(&dp.Addresses.Bob)(t)
-			alice.L2.ActMakeTx(t)
+				// Submit a dummy tx
+				alice.L2.ActResetTxOpts(t)
+				alice.L2.ActSetTxToAddr(&dp.Addresses.Bob)(t)
+				alice.L2.ActMakeTx(t)
 
-			// Include the tx in the block we're making
-			seqEngine.ActL2IncludeTx(alice.Address())(t)
-
-			// Finalize the L2 block containing alice's transaction
-			sequencer.ActL2EndBlock(t)
+				// Include the tx in the block we're making
+				seqEngine.ActL2IncludeTx(alice.Address())(t)
+				// Finalize the L2 block containing alice's transaction
+			})
 
 			// Store the ref to the L2 block that the transaction was included in for later.
 			b0, err := l2Client.BlockByNumber(t.Ctx(), big.NewInt(int64(sequencer.L2Unsafe().Number)))
@@ -731,13 +730,13 @@ func ConflictingL2Blocks(gt *testing.T, deltaTimeOffset *hexutil.Uint64) {
 
 	// produce a conflicting L2 block with the alt sequencer:
 	// a new unsafe block that should not replace the existing safe block at the same height
-	altSequencer.ActL2StartBlock(t)
-	// include tx to force the L2 block to really be different than the previous empty block
-	alice.L2.ActResetTxOpts(t)
-	alice.L2.ActSetTxToAddr(&dp.Addresses.Bob)(t)
-	alice.L2.ActMakeTx(t)
-	altSeqEng.ActL2IncludeTx(alice.Address())(t)
-	altSequencer.ActL2EndBlock(t)
+	altSequencer.ActL2BuildBlock(t, func() {
+		// include tx to force the L2 block to really be different than the previous empty block
+		alice.L2.ActResetTxOpts(t)
+		alice.L2.ActSetTxToAddr(&dp.Addresses.Bob)(t)
+		alice.L2.ActMakeTx(t)
+		altSeqEng.ActL2IncludeTx(alice.Address())(t)
+	})
 
 	conflictBlock := seqEng.L2Chain().GetBlockByNumber(altSequencer.L2Unsafe().Number)
 	require.NotEqual(t, conflictBlock.Hash(), altSequencer.L2Unsafe().Hash, "alt sequencer has built a conflicting block")
@@ -807,16 +806,16 @@ func SyncAfterReorg(gt *testing.T, deltaTimeOffset *hexutil.Uint64) {
 	for sequencer.L2Unsafe().L1Origin.Number < sequencer.SyncStatus().HeadL1.Number {
 		// build L2 blocks until the L1 origin is the current L1 head(A0)
 		sequencer.ActL2PipelineFull(t)
-		sequencer.ActL2StartBlock(t)
-		if sequencer.L2Unsafe().Number == 11 {
-			// include a user tx at L2 block #12 to make a state transition
-			alice.L2.ActResetTxOpts(t)
-			alice.L2.ActSetTxToAddr(&dp.Addresses.Bob)(t)
-			alice.L2.ActMakeTx(t)
-			// Include the tx in the block we're making
-			seqEngine.ActL2IncludeTx(alice.Address())(t)
-		}
-		sequencer.ActL2EndBlock(t)
+		sequencer.ActL2BuildBlock(t, func() {
+			if sequencer.L2Unsafe().Number == 11 {
+				// include a user tx at L2 block #12 to make a state transition
+				alice.L2.ActResetTxOpts(t)
+				alice.L2.ActSetTxToAddr(&dp.Addresses.Bob)(t)
+				alice.L2.ActMakeTx(t)
+				// Include the tx in the block we're making
+				seqEngine.ActL2IncludeTx(alice.Address())(t)
+			}
+		})
 	}
 	// submit all new L2 blocks: #1 ~ #12
 	batcher.ActSubmitAll(t)

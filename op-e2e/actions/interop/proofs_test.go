@@ -522,11 +522,9 @@ func TestInteropFaultProofs_IntraBlock(gt *testing.T) {
 			actors := system.Actors
 			emitterContract := system.DeployEmitterContracts()
 
-			actors.ChainA.Sequencer.ActL2StartBlock(t)
-			actors.ChainB.Sequencer.ActL2StartBlock(t)
-			c.Setup(t, system, emitterContract, actors)
-			actors.ChainA.Sequencer.ActL2EndBlock(t)
-			actors.ChainB.Sequencer.ActL2EndBlock(t)
+			chainAHook, chainBHook := c.Setup(t, system, emitterContract, actors)
+			actors.ChainA.Sequencer.ActL2BuildBlock(t, chainAHook)
+			actors.ChainB.Sequencer.ActL2BuildBlock(t, chainBHook)
 
 			system.SubmitBatchData(func(opts *dsl.SubmitBatchDataOpts) {
 				opts.SkipCrossSafeUpdate = true
@@ -1286,12 +1284,11 @@ func TestInteropFaultProofs_DepositMessage(gt *testing.T) {
 	system.AdvanceL2ToLastBlockOfOrigin(actors.ChainA, 2)
 	system.AdvanceL2ToLastBlockOfOrigin(actors.ChainB, 2)
 
-	actors.ChainA.Sequencer.ActL2StartBlock(t)
-	actors.ChainB.Sequencer.ActL2StartBlock(t)
-	// The pending block on chain A will contain the user deposit
-	depositMessage.ExecutePendingOn(actors.ChainB, actors.ChainA.Sequencer.L2Unsafe().Number+1)
-	actors.ChainA.Sequencer.ActL2EndBlock(t)
-	actors.ChainB.Sequencer.ActL2EndBlock(t)
+	actors.ChainA.Sequencer.ActL2EmptyBlock(t)
+	actors.ChainB.Sequencer.ActL2BuildBlock(t, func() {
+		// The pending block on chain A will contain the user deposit
+		depositMessage.ExecutePendingOn(actors.ChainB, actors.ChainA.Sequencer.L2Unsafe().Number)
+	})
 	system.SubmitBatchData(dsl.WithSkipCrossSafeUpdate())
 
 	endTimestamp := actors.ChainB.Sequencer.L2Unsafe().Time
@@ -1346,15 +1343,14 @@ func TestInteropFaultProofs_DepositMessage_InvalidExecution(gt *testing.T) {
 	system.AdvanceL2ToLastBlockOfOrigin(actors.ChainA, 2)
 	system.AdvanceL2ToLastBlockOfOrigin(actors.ChainB, 2)
 
-	actors.ChainA.Sequencer.ActL2StartBlock(t)
-	actors.ChainB.Sequencer.ActL2StartBlock(t)
-	// The pending block on chain A will contain the user deposit
-	depositMessage.ExecutePendingOn(actors.ChainB,
-		actors.ChainA.Sequencer.L2Unsafe().Number+1,
-		dsl.WithPayload([]byte("this message was never emitted")),
-	)
-	actors.ChainA.Sequencer.ActL2EndBlock(t)
-	actors.ChainB.Sequencer.ActL2EndBlock(t)
+	actors.ChainA.Sequencer.ActL2EmptyBlock(t)
+	actors.ChainB.Sequencer.ActL2BuildBlock(t, func() {
+		// The pending block on chain A will contain the user deposit
+		depositMessage.ExecutePendingOn(actors.ChainB,
+			actors.ChainA.Sequencer.L2Unsafe().Number+1,
+			dsl.WithPayload([]byte("this message was never emitted")),
+		)
+	})
 	system.SubmitBatchData(dsl.WithSkipCrossSafeUpdate())
 
 	endTimestamp := actors.ChainB.Sequencer.L2Unsafe().Time
@@ -1587,7 +1583,7 @@ type transitionTest struct {
 
 type intraBlockTestCase interface {
 	// Setup is called to create a single-block test scenario
-	Setup(t helpers.StatefulTesting, system *dsl.InteropDSL, emitterContract *dsl.EmitterContract, actors *dsl.InteropActors)
+	Setup(t helpers.StatefulTesting, system *dsl.InteropDSL, emitterContract *dsl.EmitterContract, actors *dsl.InteropActors) (chainAHook func(), chainBHook func())
 	// RunCrossSafeChecks is called after cross-safe updates are applied to the system
 	RunCrossSafeChecks(t helpers.StatefulTesting, system *dsl.InteropDSL, actors *dsl.InteropActors)
 }
@@ -1597,14 +1593,21 @@ type cascadeInvalidBlockCase struct {
 	msgB *dsl.Message
 }
 
-func (c *cascadeInvalidBlockCase) Setup(t helpers.StatefulTesting, system *dsl.InteropDSL, emitter *dsl.EmitterContract, actors *dsl.InteropActors) {
-	c.msgA = dsl.NewMessage(system, actors.ChainA, emitter, "chainA message").
-		Emit().
-		ExecuteOn(actors.ChainB, dsl.WithPayload([]byte("this message was never emitted")))
-	// valid executing message on chain A, but is included in a cross-invalid block
-	c.msgB = dsl.NewMessage(system, actors.ChainB, emitter, "chainB message").
-		Emit().
-		ExecuteOn(actors.ChainA)
+var _ intraBlockTestCase = (*cascadeInvalidBlockCase)(nil)
+
+func (c *cascadeInvalidBlockCase) Setup(t helpers.StatefulTesting, system *dsl.InteropDSL, emitter *dsl.EmitterContract, actors *dsl.InteropActors) (chainAHook func(), chainBHook func()) {
+	return func() {
+			// Chain A build: emit A and schedule exec of B on A referencing B's pending message
+			c.msgA = dsl.NewMessage(system, actors.ChainA, emitter, "chainA message").
+				Emit()
+			c.msgB = dsl.NewMessage(system, actors.ChainB, emitter, "chainB message")
+			pendingBBlock := actors.ChainB.Sequencer.L2Unsafe().Number + 1
+			c.msgB.ExecutePendingOn(actors.ChainA, pendingBBlock)
+		}, func() {
+			// Chain B build: emit B and include the invalid exec of A on B
+			c.msgB.Emit()
+			c.msgA.ExecuteOn(actors.ChainB, dsl.WithPayload([]byte("this message was never emitted")))
+		}
 }
 
 func (c *cascadeInvalidBlockCase) RunCrossSafeChecks(t helpers.StatefulTesting, system *dsl.InteropDSL, actors *dsl.InteropActors) {
@@ -1618,12 +1621,27 @@ type swapCascadeInvalidBlockCase struct {
 	cascadeInvalidBlockCase
 }
 
-func (c *swapCascadeInvalidBlockCase) Setup(t helpers.StatefulTesting, system *dsl.InteropDSL, emitter *dsl.EmitterContract, actors *dsl.InteropActors) {
-	swap := *actors
-	chainA := swap.ChainA
-	swap.ChainA = swap.ChainB
-	swap.ChainB = chainA
-	c.cascadeInvalidBlockCase.Setup(t, system, emitter, &swap)
+var _ intraBlockTestCase = (*swapCascadeInvalidBlockCase)(nil)
+
+func (c *swapCascadeInvalidBlockCase) Setup(t helpers.StatefulTesting, system *dsl.InteropDSL, emitter *dsl.EmitterContract, actors *dsl.InteropActors) (chainAHook func(), chainBHook func()) {
+	c.msgA = dsl.NewMessage(system, actors.ChainA, emitter, "chainA message")
+	c.msgB = dsl.NewMessage(system, actors.ChainB, emitter, "chainB message")
+	return func() {
+			// Chain A build: emit A then include invalid exec of B on A referencing B's pending message
+			c.msgA.Emit()
+			c.msgB.ExecutePendingOn(actors.ChainA, actors.ChainB.Sequencer.L2Unsafe().Number+1, dsl.WithPayload([]byte("this message was never emitted")))
+		}, func() {
+			// Chain B build: emit B to materialize the pending message
+			c.msgB.Emit()
+		}
+}
+
+func (c *swapCascadeInvalidBlockCase) RunCrossSafeChecks(t helpers.StatefulTesting, system *dsl.InteropDSL, actors *dsl.InteropActors) {
+	// Chain A block with invalid exec is replaced, so msgA emission is reorged out
+	c.msgA.CheckNotEmitted()
+	// On Chain B, the emission of msgB remains, but the invalid exec on A is reorged out
+	c.msgB.CheckEmitted()
+	c.msgB.CheckNotExecuted()
 }
 
 type cyclicDependencyValidCase struct {
@@ -1631,16 +1649,21 @@ type cyclicDependencyValidCase struct {
 	msgB *dsl.Message
 }
 
-func (c *cyclicDependencyValidCase) Setup(t helpers.StatefulTesting, system *dsl.InteropDSL, emitter *dsl.EmitterContract, actors *dsl.InteropActors) {
-	msgA := dsl.NewMessage(system, actors.ChainA, emitter, "hello")
-	msgA.Emit()
-	msgB := dsl.NewMessage(system, actors.ChainB, emitter, "world")
-	msgB.Emit()
+var _ intraBlockTestCase = (*cyclicDependencyValidCase)(nil)
 
-	msgB.ExecuteOn(actors.ChainA)
-	msgA.ExecuteOn(actors.ChainB)
-	c.msgA = msgA
-	c.msgB = msgB
+func (c *cyclicDependencyValidCase) Setup(t helpers.StatefulTesting, system *dsl.InteropDSL, emitter *dsl.EmitterContract, actors *dsl.InteropActors) (chainAHook func(), chainBHook func()) {
+	c.msgA = dsl.NewMessage(system, actors.ChainA, emitter, "hello")
+	c.msgB = dsl.NewMessage(system, actors.ChainB, emitter, "world")
+	return func() {
+			// Emit A, and schedule exec of B on A referencing B's pending message
+			c.msgA.Emit()
+			pendingBBlock := actors.ChainB.Sequencer.L2Unsafe().Number + 1
+			c.msgB.ExecutePendingOn(actors.ChainA, pendingBBlock)
+		}, func() {
+			// Emit B, and execute A on B (A already emitted)
+			c.msgB.Emit()
+			c.msgA.ExecuteOn(actors.ChainB)
+		}
 }
 
 func (c *cyclicDependencyValidCase) RunCrossSafeChecks(t helpers.StatefulTesting, system *dsl.InteropDSL, actors *dsl.InteropActors) {
@@ -1657,20 +1680,26 @@ type cyclicDependencyInvalidCase struct {
 	execBTx *dsl.GeneratedTransaction
 }
 
-func (c *cyclicDependencyInvalidCase) Setup(t helpers.StatefulTesting, system *dsl.InteropDSL, emitter *dsl.EmitterContract, actors *dsl.InteropActors) {
+var _ intraBlockTestCase = (*cyclicDependencyInvalidCase)(nil)
+
+func (c *cyclicDependencyInvalidCase) Setup(t helpers.StatefulTesting, system *dsl.InteropDSL, emitter *dsl.EmitterContract, actors *dsl.InteropActors) (func(), func()) {
 	alice := system.CreateUser()
 
-	// Create an exec message for chain B without including it
-	pendingBlockNumber := actors.ChainB.Sequencer.L2Unsafe().Number + 1
-	pendingExecBOpts := dsl.WithPendingMessage(emitter, actors.ChainB, pendingBlockNumber, 0, "message from B")
-
-	// Exec(A) -> Exec(B) -> Exec(A)
-	actExecA := system.InboxContract.Execute(alice, nil, pendingExecBOpts)
+	// Plan cyclic dependency using pending identifiers on both chains (no included init tx passed)
+	pendingB := actors.ChainB.Sequencer.L2Unsafe().Number + 1
+	pendingA := actors.ChainA.Sequencer.L2Unsafe().Number + 1
+	execAOpts := dsl.WithPendingMessage(emitter, actors.ChainB, pendingB, 0, "message from B")
+	execBOpts := dsl.WithPendingMessage(emitter, actors.ChainA, pendingA, 0, "message from A")
+	actExecA := system.InboxContract.Execute(alice, nil, execAOpts)
+	actExecB := system.InboxContract.Execute(alice, nil, execBOpts)
 	c.execATx = actExecA(actors.ChainA)
-	c.execATx.IncludeOK()
-	actExecB := system.InboxContract.Execute(alice, c.execATx)
 	c.execBTx = actExecB(actors.ChainB)
-	c.execBTx.IncludeOK()
+
+	return func() {
+			c.execATx.IncludeOK()
+		}, func() {
+			c.execBTx.IncludeOK()
+		}
 }
 
 func (c *cyclicDependencyInvalidCase) RunCrossSafeChecks(t helpers.StatefulTesting, system *dsl.InteropDSL, actors *dsl.InteropActors) {
@@ -1683,33 +1712,37 @@ type longDependencyChainValidCase struct {
 	execs   []*dsl.GeneratedTransaction
 }
 
-func (c *longDependencyChainValidCase) Setup(t helpers.StatefulTesting, system *dsl.InteropDSL, emitter *dsl.EmitterContract, actors *dsl.InteropActors) {
+var _ intraBlockTestCase = (*longDependencyChainValidCase)(nil)
+
+func (c *longDependencyChainValidCase) Setup(t helpers.StatefulTesting, system *dsl.InteropDSL, emitter *dsl.EmitterContract, actors *dsl.InteropActors) (func(), func()) {
 	alice := system.CreateUser()
 	const depth = 10
 
-	// Exec(B_0) -> Exec(A_0) -> Exec(B_1) -> Exec(A_1) -> Exec(B_2) -> Exec(A_2) -> ... -> Init(A)
-	initTxA := emitter.EmitMessage(alice, "chain A")(actors.ChainA)
-	initTxA.IncludeOK()
-
-	var execs []*dsl.GeneratedTransaction
-
-	exec := system.InboxContract.Execute(alice, initTxA)(actors.ChainB)
-	exec.IncludeOK()
-	execs = append(execs, exec)
-	lastExecChain := actors.ChainB
-	for i := 1; i < depth; i++ {
-		if lastExecChain == actors.ChainA {
-			lastExecChain = actors.ChainB
-		} else {
-			lastExecChain = actors.ChainA
+	// Build locally in each hook to avoid cross-chain inclusion during a single build.
+	return func() {
+			// Chain A build: emit message and include half of the execs on A referencing the init
+			initTxA := emitter.EmitMessage(alice, "chain A")(actors.ChainA)
+			initTxA.IncludeOK()
+			c.initTxA = initTxA
+			var execs []*dsl.GeneratedTransaction
+			for i := 0; i < depth/2; i++ {
+				tx := system.InboxContract.Execute(alice, initTxA)(actors.ChainA)
+				tx.IncludeOK()
+				execs = append(execs, tx)
+			}
+			c.execs = append(c.execs, execs...)
+		}, func() {
+			// Chain B build: include the remaining execs on B referencing the init on A
+			// The init was included in the Chain A hook already.
+			initRef := c.initTxA
+			var execs []*dsl.GeneratedTransaction
+			for i := 0; i < depth/2; i++ {
+				tx := system.InboxContract.Execute(alice, initRef)(actors.ChainB)
+				tx.IncludeOK()
+				execs = append(execs, tx)
+			}
+			c.execs = append(c.execs, execs...)
 		}
-		exec := system.InboxContract.Execute(alice, execs[i-1])(lastExecChain)
-		exec.IncludeOK()
-		execs = append(execs, exec)
-	}
-
-	c.execs = execs
-	c.initTxA = initTxA
 }
 
 func (c *longDependencyChainValidCase) RunCrossSafeChecks(t helpers.StatefulTesting, system *dsl.InteropDSL, actors *dsl.InteropActors) {
@@ -1723,11 +1756,15 @@ type sameChainMessageValidCase struct {
 	msg *dsl.Message
 }
 
-func (c *sameChainMessageValidCase) Setup(t helpers.StatefulTesting, system *dsl.InteropDSL, emitter *dsl.EmitterContract, actors *dsl.InteropActors) {
+var _ intraBlockTestCase = (*sameChainMessageValidCase)(nil)
+
+func (c *sameChainMessageValidCase) Setup(t helpers.StatefulTesting, system *dsl.InteropDSL, emitter *dsl.EmitterContract, actors *dsl.InteropActors) (func(), func()) {
 	msg := dsl.NewMessage(system, actors.ChainA, emitter, "hello")
-	msg.Emit()
-	msg.ExecuteOn(actors.ChainA)
 	c.msg = msg
+	return func() {
+		msg.Emit()
+		msg.ExecuteOn(actors.ChainA)
+	}, func() {}
 }
 
 func (c *sameChainMessageValidCase) RunCrossSafeChecks(t helpers.StatefulTesting, system *dsl.InteropDSL, actors *dsl.InteropActors) {
@@ -1735,15 +1772,19 @@ func (c *sameChainMessageValidCase) RunCrossSafeChecks(t helpers.StatefulTesting
 	c.msg.CheckExecuted()
 }
 
+var _ intraBlockTestCase = (*sameChainMessageInvalidCase)(nil)
+
 type sameChainMessageInvalidCase struct {
 	msg *dsl.Message
 }
 
-func (c *sameChainMessageInvalidCase) Setup(t helpers.StatefulTesting, system *dsl.InteropDSL, emitter *dsl.EmitterContract, actors *dsl.InteropActors) {
+func (c *sameChainMessageInvalidCase) Setup(t helpers.StatefulTesting, system *dsl.InteropDSL, emitter *dsl.EmitterContract, actors *dsl.InteropActors) (func(), func()) {
 	msg := dsl.NewMessage(system, actors.ChainA, emitter, "hello")
-	msg.Emit()
-	msg.ExecuteOn(actors.ChainA, dsl.WithPayload([]byte("this message was never emitted")))
 	c.msg = msg
+	return func() {
+		msg.Emit()
+		msg.ExecuteOn(actors.ChainA, dsl.WithPayload([]byte("this message was never emitted")))
+	}, func() {}
 }
 
 func (c *sameChainMessageInvalidCase) RunCrossSafeChecks(t helpers.StatefulTesting, system *dsl.InteropDSL, actors *dsl.InteropActors) {

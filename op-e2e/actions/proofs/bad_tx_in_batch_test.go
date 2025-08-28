@@ -24,9 +24,9 @@ func runBadTxInBatchTest(gt *testing.T, testCfg *helpers.TestCfg[int64]) {
 	env.Alice.L2.ActSetTxToAddr(&env.Dp.Addresses.Bob)
 	env.Alice.L2.ActMakeTx(t)
 
-	env.Sequencer.ActL2StartBlock(t)
-	env.Engine.ActL2IncludeTx(env.Alice.Address())(t)
-	env.Sequencer.ActL2EndBlock(t)
+	env.Sequencer.ActL2BuildBlock(t, func() {
+		env.Engine.ActL2IncludeTx(env.Alice.Address())(t)
+	})
 	env.Alice.L2.ActCheckReceiptStatusOfLastTx(true)(t)
 
 	// Instruct the batcher to submit a faulty channel, with an invalid tx.
@@ -106,9 +106,9 @@ func runBadTxInBatch_ResubmitBadFirstFrame_Test(gt *testing.T, testCfg *helpers.
 		env.Alice.L2.ActSetTxToAddr(&env.Dp.Addresses.Bob)
 		env.Alice.L2.ActMakeTx(t)
 
-		env.Sequencer.ActL2StartBlock(t)
-		env.Engine.ActL2IncludeTx(env.Alice.Address())(t)
-		env.Sequencer.ActL2EndBlock(t)
+		env.Sequencer.ActL2BuildBlock(t, func() {
+			env.Engine.ActL2IncludeTx(env.Alice.Address())(t)
+		})
 		env.Alice.L2.ActCheckReceiptStatusOfLastTx(true)(t)
 	}
 

@@ -166,8 +166,7 @@ func TestUnsafeSync(gt *testing.T) {
 
 	for i := 0; i < 10; i++ {
 		// Build a L2 block
-		sequencer.ActL2StartBlock(t)
-		sequencer.ActL2EndBlock(t)
+		sequencer.ActL2EmptyBlock(t)
 		// Notify new L2 block to verifier by unsafe gossip
 		seqHead, err := seqEngCl.PayloadByLabel(t.Ctx(), eth.Unsafe)
 		require.NoError(t, err)
@@ -202,8 +201,7 @@ func TestBackupUnsafe(gt *testing.T) {
 	// Create block A1 ~ A5
 	for i := 0; i < 5; i++ {
 		// Build a L2 block
-		sequencer.ActL2StartBlock(t)
-		sequencer.ActL2EndBlock(t)
+		sequencer.ActL2EmptyBlock(t)
 
 		// Notify new L2 block to verifier by unsafe gossip
 		seqHead, err := seqEngCl.PayloadByLabel(t.Ctx(), eth.Unsafe)
@@ -363,8 +361,7 @@ func TestBackupUnsafeReorgForkChoiceInputError(gt *testing.T) {
 	// Create block A1 ~ A5
 	for i := 0; i < 5; i++ {
 		// Build a L2 block
-		sequencer.ActL2StartBlock(t)
-		sequencer.ActL2EndBlock(t)
+		sequencer.ActL2EmptyBlock(t)
 
 		// Notify new L2 block to verifier by unsafe gossip
 		seqHead, err := seqEngCl.PayloadByLabel(t.Ctx(), eth.Unsafe)
@@ -496,8 +493,7 @@ func TestBackupUnsafeReorgForkChoiceNotInputError(gt *testing.T) {
 	// Create block A1 ~ A5
 	for i := 0; i < 5; i++ {
 		// Build a L2 block
-		sequencer.ActL2StartBlock(t)
-		sequencer.ActL2EndBlock(t)
+		sequencer.ActL2EmptyBlock(t)
 
 		// Notify new L2 block to verifier by unsafe gossip
 		seqHead, err := seqEngCl.PayloadByLabel(t.Ctx(), eth.Unsafe)
@@ -634,8 +630,7 @@ func PerformELSyncAndCheckPayloads(t actionsHelpers.Testing, miner *actionsHelpe
 	// Build L1 blocks on the sequencer
 	for i := from; i < to; i++ {
 		// Build a L2 block
-		sequencer.ActL2StartBlock(t)
-		sequencer.ActL2EndBlock(t)
+		sequencer.ActL2EmptyBlock(t)
 	}
 
 	// Wait longer to peer. This tests flakes or takes a long time when the op-geth instances are not able to peer.
@@ -680,8 +675,7 @@ func VerifyBlock(t actionsHelpers.Testing, engine actionsHelpers.L2API, number u
 
 // submits batch at a specified block number
 func BatchSubmitBlock(t actionsHelpers.Testing, miner *actionsHelpers.L1Miner, sequencer *actionsHelpers.L2Sequencer, verifier *actionsHelpers.L2Verifier, batcher *actionsHelpers.L2Batcher, dp *e2eutils.DeployParams, number uint64) {
-	sequencer.ActL2StartBlock(t)
-	sequencer.ActL2EndBlock(t)
+	sequencer.ActL2EmptyBlock(t)
 	batcher.ActSubmitAll(t)
 	miner.ActL1StartBlock(number)(t)
 	miner.ActL1IncludeTx(dp.Addresses.Batcher)(t)
@@ -716,8 +710,7 @@ func PrepareELSyncedNode(t actionsHelpers.Testing, miner *actionsHelpers.L1Miner
 	require.ErrorIs(t, err, ethereum.NotFound)
 
 	// Insert a block on the verifier to end snap sync
-	sequencer.ActL2StartBlock(t)
-	sequencer.ActL2EndBlock(t)
+	sequencer.ActL2EmptyBlock(t)
 	seqHead, err := seqEngCl.PayloadByLabel(t.Ctx(), eth.Unsafe)
 	require.NoError(t, err)
 	verifier.ActL2InsertUnsafePayload(seqHead)(t)
@@ -766,8 +759,7 @@ func TestELSyncTransitionstoCL(gt *testing.T) {
 	// Build another 10 L1 blocks on the sequencer
 	for i := 0; i < 10; i++ {
 		// Build a L2 block
-		sequencer.ActL2StartBlock(t)
-		sequencer.ActL2EndBlock(t)
+		sequencer.ActL2EmptyBlock(t)
 	}
 
 	// Now pass payloads to the derivation pipeline
@@ -826,8 +818,7 @@ func TestELSyncTransitionsToCLSyncAfterNodeRestart(gt *testing.T) {
 	// Build another 10 L1 blocks on the sequencer
 	for i := 0; i < 10; i++ {
 		// Build a L2 block
-		sequencer.ActL2StartBlock(t)
-		sequencer.ActL2EndBlock(t)
+		sequencer.ActL2EmptyBlock(t)
 	}
 
 	// Insert new block to the engine and kick off a CL sync
@@ -868,8 +859,7 @@ func TestForcedELSyncCLAfterNodeRestart(gt *testing.T) {
 	// Build another 10 L1 blocks on the sequencer
 	for i := 0; i < 10; i++ {
 		// Build a L2 block
-		sequencer.ActL2StartBlock(t)
-		sequencer.ActL2EndBlock(t)
+		sequencer.ActL2EmptyBlock(t)
 	}
 
 	// Insert it on the verifier and kick off EL sync.

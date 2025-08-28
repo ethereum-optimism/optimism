@@ -81,9 +81,9 @@ func TestDropSpanBatchBeforeHardfork(gt *testing.T) {
 	verifier.ActL2PipelineFull(t)
 
 	// Make L2 block
-	sequencer.ActL2StartBlock(t)
-	seqEngine.ActL2IncludeTx(dp.Addresses.Alice)(t)
-	sequencer.ActL2EndBlock(t)
+	sequencer.ActL2BuildBlock(t, func() {
+		seqEngine.ActL2IncludeTx(dp.Addresses.Alice)(t)
+	})
 
 	// batch submit to L1. batcher should submit span batches.
 	batcher.ActL2BatchBuffer(t)
@@ -183,9 +183,9 @@ func TestHardforkMiddleOfSpanBatch(gt *testing.T) {
 	sequencer.ActL1HeadSignal(t)
 
 	// Make a L2 block with the TX
-	sequencer.ActL2StartBlock(t)
-	seqEngine.ActL2IncludeTx(dp.Addresses.Alice)(t)
-	sequencer.ActL2EndBlock(t)
+	sequencer.ActL2BuildBlock(t, func() {
+		seqEngine.ActL2IncludeTx(dp.Addresses.Alice)(t)
+	})
 
 	// HF is not activated yet
 	unsafeOriginNum := new(big.Int).SetUint64(sequencer.L2Unsafe().L1Origin.Number)
@@ -288,9 +288,9 @@ func TestAcceptSingularBatchAfterHardfork(gt *testing.T) {
 	verifier.ActL2PipelineFull(t)
 
 	// Make L2 block
-	sequencer.ActL2StartBlock(t)
-	seqEngine.ActL2IncludeTx(dp.Addresses.Alice)(t)
-	sequencer.ActL2EndBlock(t)
+	sequencer.ActL2BuildBlock(t, func() {
+		seqEngine.ActL2IncludeTx(dp.Addresses.Alice)(t)
+	})
 
 	// batch submit to L1. batcher should submit singular batches.
 	batcher.ActL2BatchBuffer(t)
@@ -371,9 +371,9 @@ func TestMixOfBatchesAfterHardfork(gt *testing.T) {
 
 		// Make L2 block
 		sequencer.ActL1HeadSignal(t)
-		sequencer.ActL2StartBlock(t)
-		seqEngine.ActL2IncludeTx(dp.Addresses.Alice)(t)
-		sequencer.ActL2EndBlock(t)
+		sequencer.ActL2BuildBlock(t, func() {
+			seqEngine.ActL2IncludeTx(dp.Addresses.Alice)(t)
+		})
 		sequencer.ActBuildToL1Head(t)
 
 		// Select batcher mode
@@ -533,34 +533,34 @@ func TestSpanBatchLowThroughputChain(gt *testing.T) {
 	// Make 600 L2 blocks (L1BlockTime / L2BlockTime * 50) including 1~3 txs
 	for i := 0; i < 50; i++ {
 		for sequencer.L2Unsafe().L1Origin.Number < sequencer.SyncStatus().HeadL1.Number {
-			sequencer.ActL2StartBlock(t)
-			// fill the block with random number of L2 txs
-			for j := 0; j < rand.Intn(3); j++ {
-				userIdx := totalTxCount % numTestUsers
-				signer := types.LatestSigner(sd.L2Cfg.Config)
-				data := make([]byte, rand.Intn(100))
-				_, err := crand.Read(data[:]) // fill with random bytes
-				require.NoError(t, err)
-				gas, err := core.IntrinsicGas(data, nil, nil, false, true, true, false)
-				require.NoError(t, err)
-				baseFee := seqEngine.L2Chain().CurrentBlock().BaseFee
-				nonce, err := cl.PendingNonceAt(t.Ctx(), addrs[userIdx])
-				require.NoError(t, err)
-				tx := types.MustSignNewTx(privKeys[userIdx], signer, &types.DynamicFeeTx{
-					ChainID:   sd.L2Cfg.Config.ChainID,
-					Nonce:     nonce,
-					GasTipCap: big.NewInt(2 * params.GWei),
-					GasFeeCap: new(big.Int).Add(new(big.Int).Mul(baseFee, big.NewInt(2)), big.NewInt(2*params.GWei)),
-					Gas:       gas,
-					To:        &dp.Addresses.Bob,
-					Value:     big.NewInt(0),
-					Data:      data,
-				})
-				require.NoError(gt, cl.SendTransaction(t.Ctx(), tx))
-				seqEngine.ActL2IncludeTx(addrs[userIdx])(t)
-				totalTxCount += 1
-			}
-			sequencer.ActL2EndBlock(t)
+			sequencer.ActL2BuildBlock(t, func() {
+				// fill the block with random number of L2 txs
+				for j := 0; j < rand.Intn(3); j++ {
+					userIdx := totalTxCount % numTestUsers
+					signer := types.LatestSigner(sd.L2Cfg.Config)
+					data := make([]byte, rand.Intn(100))
+					_, err := crand.Read(data[:]) // fill with random bytes
+					require.NoError(t, err)
+					gas, err := core.IntrinsicGas(data, nil, nil, false, true, true, false)
+					require.NoError(t, err)
+					baseFee := seqEngine.L2Chain().CurrentBlock().BaseFee
+					nonce, err := cl.PendingNonceAt(t.Ctx(), addrs[userIdx])
+					require.NoError(t, err)
+					tx := types.MustSignNewTx(privKeys[userIdx], signer, &types.DynamicFeeTx{
+						ChainID:   sd.L2Cfg.Config.ChainID,
+						Nonce:     nonce,
+						GasTipCap: big.NewInt(2 * params.GWei),
+						GasFeeCap: new(big.Int).Add(new(big.Int).Mul(baseFee, big.NewInt(2)), big.NewInt(2*params.GWei)),
+						Gas:       gas,
+						To:        &dp.Addresses.Bob,
+						Value:     big.NewInt(0),
+						Data:      data,
+					})
+					require.NoError(gt, cl.SendTransaction(t.Ctx(), tx))
+					seqEngine.ActL2IncludeTx(addrs[userIdx])(t)
+					totalTxCount += 1
+				}
+			})
 		}
 
 		if i%10 == 9 {
@@ -673,34 +673,34 @@ func TestBatchEquivalence(gt *testing.T) {
 	totalTxCount := 0
 	// Build random blocks
 	for sequencer.L2Unsafe().L1Origin.Number < sequencer.SyncStatus().HeadL1.Number {
-		sequencer.ActL2StartBlock(t)
-		// fill the block with random number of L2 txs
-		for j := 0; j < rand.Intn(3); j++ {
-			userIdx := totalTxCount % numTestUsers
-			signer := types.LatestSigner(sdDeltaActivated.L2Cfg.Config)
-			data := make([]byte, rand.Intn(100))
-			_, err := crand.Read(data[:]) // fill with random bytes
-			require.NoError(t, err)
-			gas, err := core.IntrinsicGas(data, nil, nil, false, true, true, false)
-			require.NoError(t, err)
-			baseFee := seqEngine.L2Chain().CurrentBlock().BaseFee
-			nonce, err := seqEngCl.PendingNonceAt(t.Ctx(), addrs[userIdx])
-			require.NoError(t, err)
-			tx := types.MustSignNewTx(privKeys[userIdx], signer, &types.DynamicFeeTx{
-				ChainID:   sdDeltaActivated.L2Cfg.Config.ChainID,
-				Nonce:     nonce,
-				GasTipCap: big.NewInt(2 * params.GWei),
-				GasFeeCap: new(big.Int).Add(new(big.Int).Mul(baseFee, big.NewInt(2)), big.NewInt(2*params.GWei)),
-				Gas:       gas,
-				To:        &dp.Addresses.Bob,
-				Value:     big.NewInt(0),
-				Data:      data,
-			})
-			require.NoError(gt, seqEngCl.SendTransaction(t.Ctx(), tx))
-			seqEngine.ActL2IncludeTx(addrs[userIdx])(t)
-			totalTxCount += 1
-		}
-		sequencer.ActL2EndBlock(t)
+		sequencer.ActL2BuildBlock(t, func() {
+			// fill the block with random number of L2 txs
+			for j := 0; j < rand.Intn(3); j++ {
+				userIdx := totalTxCount % numTestUsers
+				signer := types.LatestSigner(sdDeltaActivated.L2Cfg.Config)
+				data := make([]byte, rand.Intn(100))
+				_, err := crand.Read(data[:]) // fill with random bytes
+				require.NoError(t, err)
+				gas, err := core.IntrinsicGas(data, nil, nil, false, true, true, false)
+				require.NoError(t, err)
+				baseFee := seqEngine.L2Chain().CurrentBlock().BaseFee
+				nonce, err := seqEngCl.PendingNonceAt(t.Ctx(), addrs[userIdx])
+				require.NoError(t, err)
+				tx := types.MustSignNewTx(privKeys[userIdx], signer, &types.DynamicFeeTx{
+					ChainID:   sdDeltaActivated.L2Cfg.Config.ChainID,
+					Nonce:     nonce,
+					GasTipCap: big.NewInt(2 * params.GWei),
+					GasFeeCap: new(big.Int).Add(new(big.Int).Mul(baseFee, big.NewInt(2)), big.NewInt(2*params.GWei)),
+					Gas:       gas,
+					To:        &dp.Addresses.Bob,
+					Value:     big.NewInt(0),
+					Data:      data,
+				})
+				require.NoError(gt, seqEngCl.SendTransaction(t.Ctx(), tx))
+				seqEngine.ActL2IncludeTx(addrs[userIdx])(t)
+				totalTxCount += 1
+			}
+		})
 	}
 
 	// Submit SpanBatch

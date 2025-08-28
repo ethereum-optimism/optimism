@@ -16,11 +16,10 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/testutils"
 	"github.com/ethereum-optimism/optimism/op-service/txintent"
 	"github.com/ethereum-optimism/optimism/op-service/txplan"
+	suptypes "github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/stretchr/testify/require"
-
-	suptypes "github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 )
 
 // BlockBuilder helps txplan to be integrated with intra block building functionality.
@@ -31,7 +30,7 @@ type BlockBuilder struct {
 	signer             types.Signer
 	intraBlockReceipts []*types.Receipt
 	receipts           []*types.Receipt
-	keepBlockOpen      bool
+	makeBlock          bool
 }
 
 func (b *BlockBuilder) SendTransaction(ctx context.Context, tx *types.Transaction) error {
@@ -41,7 +40,16 @@ func (b *BlockBuilder) SendTransaction(ctx context.Context, tx *types.Transactio
 	if err != nil {
 		return err
 	}
-	intraBlockReceipt, err := b.chain.SequencerEngine.EngineApi.IncludeTx(tx, from)
+	var intraBlockReceipt *types.Receipt
+
+	if b.makeBlock {
+		b.chain.Sequencer.ActL2BuildBlock(b.t, func() {
+			intraBlockReceipt, err = b.chain.SequencerEngine.EngineApi.IncludeTx(tx, from)
+		})
+	} else {
+		intraBlockReceipt, err = b.chain.SequencerEngine.EngineApi.IncludeTx(tx, from)
+	}
+
 	if err == nil {
 		// be aware that this receipt is not finalized...
 		// which means its info may be incorrect, such as block hash
@@ -52,11 +60,6 @@ func (b *BlockBuilder) SendTransaction(ctx context.Context, tx *types.Transactio
 }
 
 func (b *BlockBuilder) TransactionReceipt(ctx context.Context, txHash common.Hash) (*types.Receipt, error) {
-	if !b.keepBlockOpen {
-		// close l2 block before fetching actual receipt
-		b.chain.Sequencer.ActL2EndBlock(b.t)
-		b.keepBlockOpen = false
-	}
 	// retrospectively fill in all resulting receipts after sealing block
 	for _, intraBlockReceipt := range b.intraBlockReceipts {
 		receipt, _ := b.sc.TransactionReceipt(ctx, intraBlockReceipt.TxHash)
@@ -80,21 +83,24 @@ func TestTxPlanDeployEventLogger(gt *testing.T) {
 
 	nonce := uint64(0)
 	opts1, builder1 := DefaultTxOptsWithoutBlockSeal(t, aliceA, actors.ChainA, nonce)
-	actors.ChainA.Sequencer.ActL2StartBlock(t)
 
 	deployCalldata := common.FromHex(bindings.EventloggerBin)
 	// tx submitted but not sealed in block
 	deployTxWithoutSeal := txplan.NewPlannedTx(opts1, txplan.WithData(deployCalldata))
-	_, err := deployTxWithoutSeal.Submitted.Eval(t.Ctx())
-	require.NoError(t, err)
+	actors.ChainA.Sequencer.ActL2BuildBlock(t, func() {
+		_, err := deployTxWithoutSeal.Submitted.Eval(t.Ctx())
+		require.NoError(t, err)
+	})
 	latestBlock, err := deployTxWithoutSeal.AgainstBlock.Eval(t.Ctx())
 	require.NoError(t, err)
 
-	opts2, builder2 := DefaultTxOpts(t, aliceA, actors.ChainA)
-	// manually set nonce because we cannot use the pending nonce
-	opts2 = txplan.Combine(opts2, txplan.WithStaticNonce(nonce+1))
-
+	opts2, builder2 := DefaultTxOptsWithoutBlockSeal(t, aliceA, actors.ChainA, nonce+1)
 	deployTx := txplan.NewPlannedTx(opts2, txplan.WithData(deployCalldata))
+
+	actors.ChainA.Sequencer.ActL2BuildBlock(t, func() {
+		_, err := deployTx.Submitted.Eval(t.Ctx())
+		require.NoError(t, err)
+	})
 
 	receipt, err := deployTx.Included.Eval(t.Ctx())
 	require.NoError(t, err)
@@ -118,14 +124,13 @@ func TestTxPlanDeployEventLogger(gt *testing.T) {
 	require.NoError(t, err)
 
 	// single block advanced
-	require.Equal(t, latestBlock.NumberU64()+1, includedBlock.Number)
+	require.Equal(t, latestBlock.NumberU64()+2, includedBlock.Number)
 }
 
 func DefaultTxOpts(t helpers.Testing, user *userWithKeys, chain *dsl.Chain) (txplan.Option, *BlockBuilder) {
 	sc := chain.SequencerEngine.SourceClient(t, 10)
 	signer := types.LatestSignerForChainID(chain.ChainID.ToBig())
-	builder := &BlockBuilder{t: t, chain: chain, sc: sc, signer: signer}
-	// txplan options for tx submission and ensuring block inclusion
+	builder := &BlockBuilder{t: t, chain: chain, sc: sc, signer: signer, makeBlock: true}
 	return txplan.Combine(
 		txplan.WithPrivateKey(user.secret),
 		txplan.WithChainID(sc),
@@ -141,7 +146,7 @@ func DefaultTxOpts(t helpers.Testing, user *userWithKeys, chain *dsl.Chain) (txp
 func DefaultTxOptsWithoutBlockSeal(t helpers.Testing, user *userWithKeys, chain *dsl.Chain, nonce uint64) (txplan.Option, *BlockBuilder) {
 	sc := chain.SequencerEngine.SourceClient(t, 10)
 	signer := types.LatestSignerForChainID(chain.ChainID.ToBig())
-	builder := &BlockBuilder{t: t, chain: chain, sc: sc, keepBlockOpen: true, signer: signer}
+	builder := &BlockBuilder{t: t, chain: chain, sc: sc, signer: signer}
 	return txplan.Combine(
 		txplan.WithPrivateKey(user.secret),
 		txplan.WithChainID(sc),
@@ -407,12 +412,12 @@ func TestInitAndExecMsgSameTimestamp(gt *testing.T) {
 	alice := setupUser(t, is, actors.ChainA, 0)
 	bob := setupUser(t, is, actors.ChainB, 0)
 
-	optsA, _ := DefaultTxOpts(t, alice, actors.ChainA)
-	optsB, _ := DefaultTxOpts(t, bob, actors.ChainB)
-	actors.ChainA.Sequencer.ActL2StartBlock(t)
+	deployOptsA, _ := DefaultTxOpts(t, setupUser(t, is, actors.ChainA, 1), actors.ChainA)
+	eventLoggerAddress := DeployEventLogger(t, deployOptsA)
 
-	// chain A progressed single unsafe block
-	eventLoggerAddress := DeployEventLogger(t, optsA)
+	optsA, _ := DefaultTxOptsWithoutBlockSeal(t, alice, actors.ChainA, 0)
+	optsB, _ := DefaultTxOptsWithoutBlockSeal(t, bob, actors.ChainB, 0)
+
 	// Also match chain B
 	actors.ChainB.Sequencer.ActL2EmptyBlock(t)
 
@@ -422,7 +427,10 @@ func TestInitAndExecMsgSameTimestamp(gt *testing.T) {
 	txA.Content.Set(randomInitTrigger)
 
 	// Trigger single event
-	actors.ChainA.Sequencer.ActL2StartBlock(t)
+	actors.ChainA.Sequencer.ActL2BuildBlock(t, func() {
+		_, err := txA.PlannedTx.Submitted.Eval(t.Ctx())
+		require.NoError(t, err)
+	})
 	_, err := txA.PlannedTx.Included.Eval(t.Ctx())
 	require.NoError(t, err)
 
@@ -450,7 +458,10 @@ func TestInitAndExecMsgSameTimestamp(gt *testing.T) {
 	// Single event in tx so index is 0
 	txB.Content.Fn(txintent.ExecuteIndexed(constants.CrossL2Inbox, &txA.Result, 0))
 
-	actors.ChainB.Sequencer.ActL2StartBlock(t)
+	actors.ChainB.Sequencer.ActL2BuildBlock(t, func() {
+		_, err := txB.PlannedTx.Submitted.Eval(t.Ctx())
+		require.NoError(t, err)
+	})
 	_, err = txB.PlannedTx.Included.Eval(t.Ctx())
 	require.NoError(t, err)
 
@@ -482,11 +493,11 @@ func TestBreakTimestampInvariant(gt *testing.T) {
 	alice := setupUser(t, is, actors.ChainA, 0)
 	bob := setupUser(t, is, actors.ChainB, 0)
 
-	optsA, _ := DefaultTxOpts(t, alice, actors.ChainA)
-	optsB, _ := DefaultTxOpts(t, bob, actors.ChainB)
-	actors.ChainA.Sequencer.ActL2StartBlock(t)
-	// chain A progressed single unsafe block
-	eventLoggerAddress := DeployEventLogger(t, optsA)
+	deployOptsA, _ := DefaultTxOpts(t, setupUser(t, is, actors.ChainA, 1), actors.ChainA)
+	eventLoggerAddress := DeployEventLogger(t, deployOptsA)
+
+	optsA, _ := DefaultTxOptsWithoutBlockSeal(t, alice, actors.ChainA, 0)
+	optsB, _ := DefaultTxOptsWithoutBlockSeal(t, bob, actors.ChainB, 0)
 
 	// Intent to initiate message(or emit event) on chain A
 	txA := txintent.NewIntent[*txintent.InitTrigger, *txintent.InteropOutput](optsA)
@@ -494,7 +505,10 @@ func TestBreakTimestampInvariant(gt *testing.T) {
 	txA.Content.Set(randomInitTrigger)
 
 	// Trigger single event
-	actors.ChainA.Sequencer.ActL2StartBlock(t)
+	actors.ChainA.Sequencer.ActL2BuildBlock(t, func() {
+		_, err := txA.PlannedTx.Submitted.Eval(t.Ctx())
+		require.NoError(t, err)
+	})
 	_, err := txA.PlannedTx.Included.Eval(t.Ctx())
 	require.NoError(t, err)
 	actors.ChainA.Sequencer.ActL2PipelineFull(t)
@@ -510,7 +524,10 @@ func TestBreakTimestampInvariant(gt *testing.T) {
 	// Single event in tx so index is 0
 	txB.Content.Fn(txintent.ExecuteIndexed(constants.CrossL2Inbox, &txA.Result, 0))
 
-	actors.ChainB.Sequencer.ActL2StartBlock(t)
+	actors.ChainB.Sequencer.ActL2BuildBlock(t, func() {
+		_, err := txB.PlannedTx.Submitted.Eval(t.Ctx())
+		require.NoError(t, err)
+	})
 	_, err = txB.PlannedTx.Included.Eval(t.Ctx())
 	require.NoError(t, err)
 	actors.ChainB.Sequencer.ActL2PipelineFull(t)
@@ -580,38 +597,39 @@ func TestExecMsgDifferTxIndex(gt *testing.T) {
 	// only unsafe head of each chain progresses in this code block
 	var targetNum uint64
 	{
-		alice := setupUser(t, is, actors.ChainA, 0)
+		deployOptsA, _ := DefaultTxOpts(t, setupUser(t, is, actors.ChainA, 1), actors.ChainA)
+		eventLoggerAddress := DeployEventLogger(t, deployOptsA)
+
+		alice := setupUser(t, is, actors.ChainA, 1)
 		bob := setupUser(t, is, actors.ChainB, 0)
 
-		optsA, _ := DefaultTxOpts(t, alice, actors.ChainA)
-		optsB, _ := DefaultTxOpts(t, bob, actors.ChainB)
-		actors.ChainA.Sequencer.ActL2StartBlock(t)
-		// chain A progressed single unsafe block
-		eventLoggerAddress := DeployEventLogger(t, optsA)
+		optsB, _ := DefaultTxOptsWithoutBlockSeal(t, bob, actors.ChainB, 0)
 
 		// attempt to include multiple txs in a single L2 block
-		actors.ChainA.Sequencer.ActL2StartBlock(t)
-		// start with nonce as 1 because alice deployed the EventLogger
+		var initTxs []*txintent.IntentTx[*txintent.InitTrigger, *txintent.InteropOutput]
+		var txCount int
+		actors.ChainA.Sequencer.ActL2BuildBlock(t, func() {
+			// start with nonce as 1 because alice deployed the EventLogger
 
-		nonce := uint64(1)
-		txCount := 3 + rng.Intn(15)
-		initTxs := []*txintent.IntentTx[*txintent.InitTrigger, *txintent.InteropOutput]{}
-		for range txCount {
-			opts, _ := DefaultTxOptsWithoutBlockSeal(t, alice, actors.ChainA, nonce)
+			nonce := uint64(1)
+			txCount = 3 + rng.Intn(15)
+			initTxs = []*txintent.IntentTx[*txintent.InitTrigger, *txintent.InteropOutput]{}
+			for range txCount {
+				opts, _ := DefaultTxOptsWithoutBlockSeal(t, alice, actors.ChainA, nonce)
 
-			// Intent to initiate message(or emit event) on chain A
-			tx := txintent.NewIntent[*txintent.InitTrigger, *txintent.InteropOutput](opts)
-			initTxs = append(initTxs, tx)
-			randomInitTrigger := interop.RandomInitTrigger(rng, eventLoggerAddress, 3, 10)
-			tx.Content.Set(randomInitTrigger)
+				// Intent to initiate message(or emit event) on chain A
+				tx := txintent.NewIntent[*txintent.InitTrigger, *txintent.InteropOutput](opts)
+				initTxs = append(initTxs, tx)
+				randomInitTrigger := interop.RandomInitTrigger(rng, eventLoggerAddress, 3, 10)
+				tx.Content.Set(randomInitTrigger)
 
-			// Trigger single event
-			_, err := tx.PlannedTx.Submitted.Eval(t.Ctx())
-			require.NoError(t, err)
+				// Trigger single event
+				_, err := tx.PlannedTx.Submitted.Eval(t.Ctx())
+				require.NoError(t, err)
 
-			nonce += 1
-		}
-		actors.ChainA.Sequencer.ActL2EndBlock(t)
+				nonce += 1
+			}
+		})
 
 		// fetch receipts since all txs are included in the block and sealed
 		for _, tx := range initTxs {
@@ -629,15 +647,17 @@ func TestExecMsgDifferTxIndex(gt *testing.T) {
 		// first, random or last tx of a single L2 block.
 		indexes := []int{0, 1 + rng.Intn(txCount-1), txCount - 1}
 		for blockNumDelta, index := range indexes {
-			actors.ChainB.Sequencer.ActL2StartBlock(t)
-
 			initTx := initTxs[index]
-			execTx := txintent.NewIntent[*txintent.ExecTrigger, *txintent.InteropOutput](optsB)
+			execTx := txintent.NewIntent[*txintent.ExecTrigger, *txintent.InteropOutput](optsB, txplan.WithStaticNonce(uint64(blockNumDelta)))
 
 			// Single event in every tx so index is always 0
 			execTx.Content.Fn(txintent.ExecuteIndexed(constants.CrossL2Inbox, &initTx.Result, 0))
 			execTx.Content.DependOn(&initTx.Result)
 
+			actors.ChainB.Sequencer.ActL2BuildBlock(t, func() {
+				_, err := execTx.PlannedTx.Submitted.Eval(t.Ctx())
+				require.NoError(t, err)
+			})
 			includedBlock, err := execTx.PlannedTx.IncludedBlock.Eval(t.Ctx())
 			require.NoError(t, err)
 
@@ -673,11 +693,11 @@ func TestExpiredMessage(gt *testing.T) {
 	alice := setupUser(t, is, actors.ChainA, 0)
 	bob := setupUser(t, is, actors.ChainB, 0)
 
-	optsA, _ := DefaultTxOpts(t, alice, actors.ChainA)
-	optsB, _ := DefaultTxOpts(t, bob, actors.ChainB)
-	actors.ChainA.Sequencer.ActL2StartBlock(t)
-	// chain A progressed single unsafe block
-	eventLoggerAddress := DeployEventLogger(t, optsA)
+	deployOptsA, _ := DefaultTxOpts(t, setupUser(t, is, actors.ChainA, 1), actors.ChainA)
+	eventLoggerAddress := DeployEventLogger(t, deployOptsA)
+
+	optsA, _ := DefaultTxOptsWithoutBlockSeal(t, alice, actors.ChainA, 0)
+	optsB, _ := DefaultTxOptsWithoutBlockSeal(t, bob, actors.ChainB, 0)
 
 	// Intent to initiate message(or emit event) on chain A
 	txA := txintent.NewIntent[*txintent.InitTrigger, *txintent.InteropOutput](optsA)
@@ -685,7 +705,10 @@ func TestExpiredMessage(gt *testing.T) {
 	txA.Content.Set(randomInitTrigger)
 
 	// Trigger single event
-	actors.ChainA.Sequencer.ActL2StartBlock(t)
+	actors.ChainA.Sequencer.ActL2BuildBlock(t, func() {
+		_, err := txA.PlannedTx.Submitted.Eval(t.Ctx())
+		require.NoError(t, err)
+	})
 	_, err := txA.PlannedTx.Included.Eval(t.Ctx())
 	require.NoError(t, err)
 	actors.ChainA.Sequencer.ActL2PipelineFull(t)
@@ -711,7 +734,10 @@ func TestExpiredMessage(gt *testing.T) {
 	// Single event in tx so index is 0
 	txB.Content.Fn(txintent.ExecuteIndexed(constants.CrossL2Inbox, &txA.Result, 0))
 
-	actors.ChainB.Sequencer.ActL2StartBlock(t)
+	actors.ChainB.Sequencer.ActL2BuildBlock(t, func() {
+		_, err := txB.PlannedTx.Submitted.Eval(t.Ctx())
+		require.NoError(t, err)
+	})
 	_, err = txB.PlannedTx.Included.Eval(t.Ctx())
 	require.NoError(t, err)
 	actors.ChainB.Sequencer.ActL2PipelineFull(t)
@@ -747,10 +773,9 @@ func TestCrossPatternSameTimestamp(gt *testing.T) {
 	bob := setupUser(t, is, actors.ChainB, 0)
 
 	// deploy eventLogger per chain
-	actors.ChainA.Sequencer.ActL2StartBlock(t)
 	deployOptsA, _ := DefaultTxOpts(t, setupUser(t, is, actors.ChainA, 1), actors.ChainA)
 	eventLoggerAddressA := DeployEventLogger(t, deployOptsA)
-	actors.ChainB.Sequencer.ActL2StartBlock(t)
+
 	deployOptsB, _ := DefaultTxOpts(t, setupUser(t, is, actors.ChainB, 1), actors.ChainB)
 	eventLoggerAddressB := DeployEventLogger(t, deployOptsB)
 
@@ -762,57 +787,47 @@ func TestCrossPatternSameTimestamp(gt *testing.T) {
 	targetTime := actors.ChainA.RollupCfg.Genesis.L2Time + actors.ChainA.RollupCfg.BlockTime*2
 	// start with nonce as 0 for both alice and bob
 	nonce := uint64(0)
-	optsA, builderA := DefaultTxOptsWithoutBlockSeal(t, alice, actors.ChainA, nonce)
-	optsB, builderB := DefaultTxOptsWithoutBlockSeal(t, bob, actors.ChainB, nonce)
-
-	// open blocks on both chains
-	actors.ChainA.Sequencer.ActL2StartBlock(t)
-	actors.ChainB.Sequencer.ActL2StartBlock(t)
+	optsA, _ := DefaultTxOptsWithoutBlockSeal(t, alice, actors.ChainA, nonce)
+	optsB, _ := DefaultTxOptsWithoutBlockSeal(t, bob, actors.ChainB, nonce)
 
 	// Intent to initiate message X on chain A
 	tx0 := txintent.NewIntent[*txintent.InitTrigger, *txintent.InteropOutput](optsA)
-	tx0.Content.Set(interop.RandomInitTrigger(rng, eventLoggerAddressA, 3, 10))
-
-	_, err := tx0.PlannedTx.Submitted.Eval(t.Ctx())
-	require.NoError(t, err)
-	// manually update the included info since block is not sealed yet
-	require.NotNil(t, builderA.intraBlockReceipts[0])
-	tx0.PlannedTx.Included.Set(builderA.intraBlockReceipts[0])
-	tx0.PlannedTx.IncludedBlock.Set(eth.BlockRef{Time: targetTime})
+	tx0Trigger := interop.RandomInitTrigger(rng, eventLoggerAddressA, 3, 10)
+	tx0.Content.Set(tx0Trigger)
 
 	// Intent to execute message X on chain B
 	tx1 := txintent.NewIntent[*txintent.ExecTrigger, *txintent.InteropOutput](optsB)
-	tx1.Content.Fn(txintent.ExecuteIndexed(constants.CrossL2Inbox, &tx0.Result, 0))
-	tx1.Content.DependOn(&tx0.Result)
-
-	_, err = tx1.PlannedTx.Submitted.Eval(t.Ctx())
+	tx1Trigger, err := ExecTriggerFromInitTrigger(tx0Trigger, 0, 2, targetTime, actors.ChainA.ChainID)
 	require.NoError(t, err)
+	tx1.Content.Set(tx1Trigger)
 
 	// Intent to initiate message Y on chain B
-	// override nonce
 	optsB = txplan.Combine(optsB, txplan.WithStaticNonce(nonce+1))
 	tx2 := txintent.NewIntent[*txintent.InitTrigger, *txintent.InteropOutput](optsB)
-	tx2.Content.Set(interop.RandomInitTrigger(rng, eventLoggerAddressB, 4, 9))
-	_, err = tx2.PlannedTx.Submitted.Eval(t.Ctx())
-	require.NoError(t, err)
-	// manually update the included info since block is not sealed yet
-	require.NotNil(t, builderB.intraBlockReceipts[0])
-	tx2.PlannedTx.Included.Set(builderB.intraBlockReceipts[0])
-	tx2.PlannedTx.IncludedBlock.Set(eth.BlockRef{Time: targetTime})
+	tx2Trigger := interop.RandomInitTrigger(rng, eventLoggerAddressB, 4, 9)
+	tx2.Content.Set(tx2Trigger)
 
 	// Intent to execute message Y on chain A
 	// override nonce
 	optsA = txplan.Combine(optsA, txplan.WithStaticNonce(nonce+1))
 	tx3 := txintent.NewIntent[*txintent.ExecTrigger, *txintent.InteropOutput](optsA)
-	tx3.Content.Fn(txintent.ExecuteIndexed(constants.CrossL2Inbox, &tx2.Result, 0))
-	tx3.Content.DependOn(&tx2.Result)
-
-	_, err = tx3.PlannedTx.Submitted.Eval(t.Ctx())
+	tx3Trigger, err := ExecTriggerFromInitTrigger(tx2Trigger, 1, 2, targetTime, actors.ChainB.ChainID)
 	require.NoError(t, err)
+	tx3.Content.Set(tx3Trigger)
 
-	// finally seal block
-	actors.ChainA.Sequencer.ActL2EndBlock(t)
-	actors.ChainB.Sequencer.ActL2EndBlock(t)
+	actors.ChainA.Sequencer.ActL2BuildBlock(t, func() {
+		_, err := tx0.PlannedTx.Submitted.Eval(t.Ctx())
+		require.NoError(t, err)
+		_, err = tx3.PlannedTx.Submitted.Eval(t.Ctx())
+		require.NoError(t, err)
+	})
+	actors.ChainB.Sequencer.ActL2BuildBlock(t, func() {
+		_, err := tx1.PlannedTx.Submitted.Eval(t.Ctx())
+		require.NoError(t, err)
+		_, err = tx2.PlannedTx.Submitted.Eval(t.Ctx())
+		require.NoError(t, err)
+	})
+
 	assertHeads(t, actors.ChainA, 2, 0, 0, 0)
 	assertHeads(t, actors.ChainB, 2, 0, 0, 0)
 
@@ -837,7 +852,6 @@ func TestCrossPatternSameTimestamp(gt *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, targetTime, block.Time)
 
-	// invalidate receipt which is incorrect since it was fetched intra block
 	tx0.PlannedTx.Included.Invalidate()
 	tx0.PlannedTx.IncludedBlock.Invalidate()
 	block, err = tx0.PlannedTx.IncludedBlock.Eval(t.Ctx())
@@ -904,10 +918,9 @@ func TestCrossPatternSameTx(gt *testing.T) {
 	bob := setupUser(t, is, actors.ChainB, 0)
 
 	// deploy eventLogger per chain
-	actors.ChainA.Sequencer.ActL2StartBlock(t)
 	deployOptsA, _ := DefaultTxOpts(t, setupUser(t, is, actors.ChainA, 1), actors.ChainA)
 	eventLoggerAddressA := DeployEventLogger(t, deployOptsA)
-	actors.ChainB.Sequencer.ActL2StartBlock(t)
+
 	deployOptsB, _ := DefaultTxOpts(t, setupUser(t, is, actors.ChainB, 1), actors.ChainB)
 	eventLoggerAddressB := DeployEventLogger(t, deployOptsB)
 
@@ -918,12 +931,8 @@ func TestCrossPatternSameTx(gt *testing.T) {
 	// assume all two txs land in block number 2, same time
 	targetTime := actors.ChainA.RollupCfg.Genesis.L2Time + actors.ChainA.RollupCfg.BlockTime*2
 	targetNum := uint64(2)
-	optsA, _ := DefaultTxOpts(t, alice, actors.ChainA)
-	optsB, _ := DefaultTxOpts(t, bob, actors.ChainB)
-
-	// open blocks on both chains
-	actors.ChainA.Sequencer.ActL2StartBlock(t)
-	actors.ChainB.Sequencer.ActL2StartBlock(t)
+	optsA, _ := DefaultTxOptsWithoutBlockSeal(t, alice, actors.ChainA, 0)
+	optsB, _ := DefaultTxOptsWithoutBlockSeal(t, bob, actors.ChainB, 0)
 
 	// speculatively build exec messages by knowing necessary info to build Message
 	initX := interop.RandomInitTrigger(rng, eventLoggerAddressA, 3, 10)
@@ -944,6 +953,14 @@ func TestCrossPatternSameTx(gt *testing.T) {
 	txB := txintent.NewIntent[*txintent.MultiTrigger, *txintent.InteropOutput](optsB)
 	txB.Content.Set(&txintent.MultiTrigger{Emitter: constants.MultiCall3, Calls: callsB})
 
+	actors.ChainA.Sequencer.ActL2BuildBlock(t, func() {
+		_, err := txA.PlannedTx.Submitted.Eval(t.Ctx())
+		require.NoError(t, err)
+	})
+	actors.ChainB.Sequencer.ActL2BuildBlock(t, func() {
+		_, err := txB.PlannedTx.Submitted.Eval(t.Ctx())
+		require.NoError(t, err)
+	})
 	includedA, err := txA.PlannedTx.IncludedBlock.Eval(t.Ctx())
 	require.NoError(t, err)
 	includedB, err := txB.PlannedTx.IncludedBlock.Eval(t.Ctx())
@@ -993,7 +1010,6 @@ func TestCycleInTx(gt *testing.T) {
 	actors.PrepareAndVerifyInitialState(t)
 	alice := setupUser(t, is, actors.ChainA, 0)
 
-	actors.ChainA.Sequencer.ActL2StartBlock(t)
 	deployOptsA, _ := DefaultTxOpts(t, setupUser(t, is, actors.ChainA, 1), actors.ChainA)
 	eventLoggerAddressA := DeployEventLogger(t, deployOptsA)
 
@@ -1002,10 +1018,7 @@ func TestCycleInTx(gt *testing.T) {
 	// assume tx which multicalls exec message and init message land in block number 2
 	targetTime := actors.ChainA.RollupCfg.Genesis.L2Time + actors.ChainA.RollupCfg.BlockTime*2
 	targetNum := uint64(2)
-	optsA, _ := DefaultTxOpts(t, alice, actors.ChainA)
-
-	// open blocks
-	actors.ChainA.Sequencer.ActL2StartBlock(t)
+	optsA, _ := DefaultTxOptsWithoutBlockSeal(t, alice, actors.ChainA, 0)
 
 	// speculatively build exec message by knowing necessary info to build Message
 	init := interop.RandomInitTrigger(rng, eventLoggerAddressA, 3, 10)
@@ -1021,6 +1034,11 @@ func TestCycleInTx(gt *testing.T) {
 	// Intent to execute message X and initiate message X at chain A
 	tx := txintent.NewIntent[*txintent.MultiTrigger, *txintent.InteropOutput](optsA)
 	tx.Content.Set(&txintent.MultiTrigger{Emitter: constants.MultiCall3, Calls: calls})
+
+	actors.ChainA.Sequencer.ActL2BuildBlock(t, func() {
+		_, err := tx.PlannedTx.Submitted.Eval(t.Ctx())
+		require.NoError(t, err)
+	})
 
 	included, err := tx.PlannedTx.IncludedBlock.Eval(t.Ctx())
 	require.NoError(t, err)
@@ -1076,7 +1094,6 @@ func TestCycleInBlock(gt *testing.T) {
 	actors.PrepareAndVerifyInitialState(t)
 	alice := setupUser(t, is, actors.ChainA, 0)
 
-	actors.ChainA.Sequencer.ActL2StartBlock(t)
 	deployOptsA, _ := DefaultTxOpts(t, setupUser(t, is, actors.ChainA, 1), actors.ChainA)
 	eventLoggerAddressA := DeployEventLogger(t, deployOptsA)
 
@@ -1088,8 +1105,6 @@ func TestCycleInBlock(gt *testing.T) {
 	targetNum := uint64(2)
 
 	// attempt to include multiple txs in a single L2 block
-	actors.ChainA.Sequencer.ActL2StartBlock(t)
-
 	nonce := uint64(0)
 	txCount := uint64(2 + rng.Intn(20))
 
@@ -1102,18 +1117,18 @@ func TestCycleInBlock(gt *testing.T) {
 
 	intents := []*txintent.IntentTx[txintent.Call, *txintent.InteropOutput]{}
 
-	// include exec message X tx first in block
-	submitIntent(t, exec, &nonce, alice, actors.ChainA, &intents)
-	// include dummy txs in block
-	for range txCount - 2 {
-		randomInitTrigger := interop.RandomInitTrigger(rng, eventLoggerAddressA, 3, 10)
-		submitIntent(t, randomInitTrigger, &nonce, alice, actors.ChainA, &intents)
-	}
-	// include init message X last in block
-	submitIntent(t, init, &nonce, alice, actors.ChainA, &intents)
-	require.Equal(t, txCount, nonce)
-
-	actors.ChainA.Sequencer.ActL2EndBlock(t)
+	actors.ChainA.Sequencer.ActL2BuildBlock(t, func() {
+		// include exec message X tx first in block
+		submitIntent(t, exec, &nonce, alice, actors.ChainA, &intents)
+		// include dummy txs in block
+		for range txCount - 2 {
+			randomInitTrigger := interop.RandomInitTrigger(rng, eventLoggerAddressA, 3, 10)
+			submitIntent(t, randomInitTrigger, &nonce, alice, actors.ChainA, &intents)
+		}
+		// include init message X last in block
+		submitIntent(t, init, &nonce, alice, actors.ChainA, &intents)
+		require.Equal(t, txCount, nonce)
+	})
 
 	// Make sure tx in block sealed at expected time
 	for _, intent := range intents {
@@ -1160,10 +1175,9 @@ func TestCycleAcrossChainsSameTimestamp(gt *testing.T) {
 	alice := setupUser(t, is, actors.ChainA, 0)
 	bob := setupUser(t, is, actors.ChainB, 0)
 
-	actors.ChainA.Sequencer.ActL2StartBlock(t)
 	deployOptsA, _ := DefaultTxOpts(t, setupUser(t, is, actors.ChainA, 1), actors.ChainA)
 	eventLoggerAddressA := DeployEventLogger(t, deployOptsA)
-	actors.ChainB.Sequencer.ActL2StartBlock(t)
+
 	deployOptsB, _ := DefaultTxOpts(t, setupUser(t, is, actors.ChainB, 1), actors.ChainB)
 	eventLoggerAddressB := DeployEventLogger(t, deployOptsB)
 
@@ -1172,10 +1186,6 @@ func TestCycleAcrossChainsSameTimestamp(gt *testing.T) {
 
 	targetTime := actors.ChainA.RollupCfg.Genesis.L2Time + actors.ChainA.RollupCfg.BlockTime*2
 	targetNum := uint64(2)
-
-	// open blocks on both chains
-	actors.ChainA.Sequencer.ActL2StartBlock(t)
-	actors.ChainB.Sequencer.ActL2StartBlock(t)
 
 	// speculatively build exec message by knowing necessary info to build Message
 	// log index of init messages are 1, not 0 because exec message will firstly executed, emitting a single log
@@ -1190,19 +1200,21 @@ func TestCycleAcrossChainsSameTimestamp(gt *testing.T) {
 	intents := []*txintent.IntentTx[txintent.Call, *txintent.InteropOutput]{}
 
 	nonceA, nonceB := uint64(0), uint64(0)
-	// tx0: Intent to execute message X at chain A
-	submitIntent(t, execX, &nonceA, alice, actors.ChainA, &intents)
-	// tx1: Intent to execute message Y at chain B
-	submitIntent(t, execY, &nonceB, bob, actors.ChainB, &intents)
-	// tx2: Intent to initiate message X at chain B
-	submitIntent(t, initX, &nonceB, bob, actors.ChainB, &intents)
-	// tx3: Intent to initiate message Y at chain A
-	submitIntent(t, initY, &nonceA, alice, actors.ChainA, &intents)
+
+	actors.ChainA.Sequencer.ActL2BuildBlock(t, func() {
+		// tx0: Intent to execute message X at chain A
+		submitIntent(t, execX, &nonceA, alice, actors.ChainA, &intents)
+		// tx3: Intent to initiate message Y at chain A
+		submitIntent(t, initY, &nonceA, alice, actors.ChainA, &intents)
+	})
+	actors.ChainB.Sequencer.ActL2BuildBlock(t, func() {
+		// tx1: Intent to execute message Y at chain B
+		submitIntent(t, execY, &nonceB, bob, actors.ChainB, &intents)
+		// tx2: Intent to initiate message X at chain B
+		submitIntent(t, initX, &nonceB, bob, actors.ChainB, &intents)
+	})
 	require.Equal(t, uint64(2), nonceA)
 	require.Equal(t, uint64(2), nonceB)
-
-	actors.ChainA.Sequencer.ActL2EndBlock(t)
-	actors.ChainB.Sequencer.ActL2EndBlock(t)
 
 	// Make sure tx in block sealed at expected time
 	includedBlocks := []eth.BlockRef{}
@@ -1214,19 +1226,19 @@ func TestCycleAcrossChainsSameTimestamp(gt *testing.T) {
 		includedBlocks = append(includedBlocks, included)
 	}
 	// tx0 and tx3 land in same block at chain A
-	require.Equal(t, includedBlocks[0], includedBlocks[3])
+	require.Equal(t, includedBlocks[0], includedBlocks[1])
 	// tx1 and tx2 land in same block at chain B
-	require.Equal(t, includedBlocks[1], includedBlocks[2])
+	require.Equal(t, includedBlocks[2], includedBlocks[3])
 
 	// confirm speculatively built exec message by rebuilding after tx inclusion
-	tx2 := intents[2]
+	tx2 := intents[3]
 	_, err = tx2.Result.Eval(t.Ctx())
 	require.NoError(t, err)
 	// log index is 0 because tx emitted a single log
 	execX2, err := txintent.ExecuteIndexed(constants.CrossL2Inbox, &tx2.Result, 0)(t.Ctx())
 	require.NoError(t, err)
 	require.Equal(t, execX2, execX)
-	tx3 := intents[3]
+	tx3 := intents[1]
 	_, err = tx3.Result.Eval(t.Ctx())
 	require.NoError(t, err)
 	// log index is 0 because tx emitted a single log
@@ -1255,13 +1267,12 @@ func TestCycleAcrossChainsSameTx(gt *testing.T) {
 	alice := setupUser(t, is, actors.ChainA, 0)
 	bob := setupUser(t, is, actors.ChainB, 0)
 
-	optsA, _ := DefaultTxOpts(t, alice, actors.ChainA)
-	optsB, _ := DefaultTxOpts(t, bob, actors.ChainB)
+	optsA, _ := DefaultTxOptsWithoutBlockSeal(t, alice, actors.ChainA, 0)
+	optsB, _ := DefaultTxOptsWithoutBlockSeal(t, bob, actors.ChainB, 0)
 
-	actors.ChainA.Sequencer.ActL2StartBlock(t)
 	deployOptsA, _ := DefaultTxOpts(t, setupUser(t, is, actors.ChainA, 1), actors.ChainA)
 	eventLoggerAddressA := DeployEventLogger(t, deployOptsA)
-	actors.ChainB.Sequencer.ActL2StartBlock(t)
+
 	deployOptsB, _ := DefaultTxOpts(t, setupUser(t, is, actors.ChainB, 1), actors.ChainB)
 	eventLoggerAddressB := DeployEventLogger(t, deployOptsB)
 
@@ -1270,10 +1281,6 @@ func TestCycleAcrossChainsSameTx(gt *testing.T) {
 
 	targetTime := actors.ChainA.RollupCfg.Genesis.L2Time + actors.ChainA.RollupCfg.BlockTime*2
 	targetNum := uint64(2)
-
-	// open blocks on both chains
-	actors.ChainA.Sequencer.ActL2StartBlock(t)
-	actors.ChainB.Sequencer.ActL2StartBlock(t)
 
 	// speculatively build exec message by knowing necessary info to build Message
 	initX := interop.RandomInitTrigger(rng, eventLoggerAddressB, 3, 10)
@@ -1291,6 +1298,15 @@ func TestCycleAcrossChainsSameTx(gt *testing.T) {
 	// tx1 executes message Y, then initiates message X
 	tx1 := txintent.NewIntent[*txintent.MultiTrigger, *txintent.InteropOutput](optsB)
 	tx1.Content.Set(&txintent.MultiTrigger{Emitter: constants.MultiCall3, Calls: []txintent.Call{execY, initX}})
+
+	actors.ChainA.Sequencer.ActL2BuildBlock(t, func() {
+		_, err := tx0.PlannedTx.Submitted.Eval(t.Ctx())
+		require.NoError(t, err)
+	})
+	actors.ChainB.Sequencer.ActL2BuildBlock(t, func() {
+		_, err := tx1.PlannedTx.Submitted.Eval(t.Ctx())
+		require.NoError(t, err)
+	})
 
 	included0, err := tx0.PlannedTx.IncludedBlock.Eval(t.Ctx())
 	require.NoError(t, err)
@@ -1335,10 +1351,7 @@ func TestExecMsgPointToSelf(gt *testing.T) {
 	// assume exec message pointing to self land in block number 2
 	targetTime := actors.ChainA.RollupCfg.Genesis.L2Time + actors.ChainA.RollupCfg.BlockTime*2
 	targetNum := uint64(2)
-	optsA, _ := DefaultTxOpts(t, alice, actors.ChainA)
-
-	// open blocks
-	actors.ChainA.Sequencer.ActL2StartBlock(t)
+	optsA, _ := DefaultTxOptsWithoutBlockSeal(t, alice, actors.ChainA, 0)
 
 	// manually construct identifier which makes exec message point to itself
 	identifier := suptypes.Identifier{
@@ -1357,6 +1370,11 @@ func TestExecMsgPointToSelf(gt *testing.T) {
 	// txintent for executing message pointing to itself
 	tx := txintent.NewIntent[*txintent.ExecTrigger, *txintent.InteropOutput](optsA)
 	tx.Content.Set(exec)
+
+	actors.ChainA.Sequencer.ActL2BuildBlock(t, func() {
+		_, err := tx.PlannedTx.Submitted.Eval(t.Ctx())
+		require.NoError(t, err)
+	})
 
 	included, err := tx.PlannedTx.IncludedBlock.Eval(t.Ctx())
 	require.NoError(t, err)
@@ -1393,10 +1411,9 @@ func TestInvalidRandomGraph(gt *testing.T) {
 	bob := setupUser(t, is, actors.ChainB, 0)
 
 	// deploy eventLogger for each chain
-	actors.ChainA.Sequencer.ActL2StartBlock(t)
 	deployOptsA, _ := DefaultTxOpts(t, setupUser(t, is, actors.ChainA, 1), actors.ChainA)
 	eventLoggerAddressA := DeployEventLogger(t, deployOptsA)
-	actors.ChainB.Sequencer.ActL2StartBlock(t)
+
 	deployOptsB, _ := DefaultTxOpts(t, setupUser(t, is, actors.ChainB, 1), actors.ChainB)
 	eventLoggerAddressB := DeployEventLogger(t, deployOptsB)
 
@@ -1541,12 +1558,18 @@ func TestInvalidRandomGraph(gt *testing.T) {
 	execMsgIncludedCnt := 0
 	// assume that each transaction contains a single message
 	for blockIdx := range blockCnt {
-		// open block for each chains
-		actors.ChainA.Sequencer.ActL2StartBlock(t)
-		actors.ChainB.Sequencer.ActL2StartBlock(t)
-
 		msgCntPerTimestamp := msgCntsPerTimestamp[blockIdx]
 		intents := []*txintent.IntentTx[txintent.Call, *txintent.InteropOutput]{}
+
+		type intent struct {
+			trigger txintent.Call
+			nonce   uint64
+			user    *userWithKeys
+			chain   *dsl.Chain
+		}
+		chainAIntents := []*intent{}
+		chainBIntents := []*intent{}
+
 		// safe to iterate like this because vertices are already well sorted and grouped
 		for idx := base; idx < base+msgCntPerTimestamp; idx++ {
 			vertex := vertices[keys[idx]]
@@ -1565,13 +1588,28 @@ func TestInvalidRandomGraph(gt *testing.T) {
 			nonce := &nonces[vertex.chainIdx]
 			user := users[vertex.chainIdx]
 			chain := chains[vertex.chainIdx]
-			submitIntent(t, trigger, nonce, user, chain, &intents)
+			if chain == actors.ChainA {
+				// passing nonce by value, copying it
+				chainAIntents = append(chainAIntents, &intent{trigger: trigger, nonce: *nonce, user: user, chain: chain})
+			} else {
+				// passing nonce by value, copying it
+				chainBIntents = append(chainBIntents, &intent{trigger: trigger, nonce: *nonce, user: user, chain: chain})
+			}
+			*nonce += 1
 		}
+		actors.ChainA.Sequencer.ActL2BuildBlock(t, func() {
+			for _, intent := range chainAIntents {
+				// we pass in the copied nonce so the copy doesn't break other txs
+				submitIntent(t, intent.trigger, &intent.nonce, intent.user, intent.chain, &intents)
+			}
+		})
+		actors.ChainB.Sequencer.ActL2BuildBlock(t, func() {
+			for _, intent := range chainBIntents {
+				// we pass in the copied nonce so the copy doesn't break other txs
+				submitIntent(t, intent.trigger, &intent.nonce, intent.user, intent.chain, &intents)
+			}
+		})
 		base += msgCntPerTimestamp
-
-		// seal block for each chains
-		actors.ChainA.Sequencer.ActL2EndBlock(t)
-		actors.ChainB.Sequencer.ActL2EndBlock(t)
 	}
 	// each vertex is 1-1 to txs
 	require.Equal(t, vertexCnt, int(nonces[0]+nonces[1]))

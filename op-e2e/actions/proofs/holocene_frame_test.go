@@ -62,13 +62,13 @@ func Test_ProgramAction_HoloceneFrames(gt *testing.T) {
 		blocks := []uint{1, 2, 3}
 		targetHeadNumber := 3
 		for env.Engine.L2Chain().CurrentBlock().Number.Uint64() < uint64(targetHeadNumber) {
-			env.Sequencer.ActL2StartBlock(t)
-			// Send an L2 tx
-			env.Alice.L2.ActResetTxOpts(t)
-			env.Alice.L2.ActSetTxToAddr(&env.Dp.Addresses.Bob)
-			env.Alice.L2.ActMakeTx(t)
-			env.Engine.ActL2IncludeTx(env.Alice.Address())(t)
-			env.Sequencer.ActL2EndBlock(t)
+			env.Sequencer.ActL2BuildBlock(t, func() {
+				// Send an L2 tx
+				env.Alice.L2.ActResetTxOpts(t)
+				env.Alice.L2.ActSetTxToAddr(&env.Dp.Addresses.Bob)
+				env.Alice.L2.ActMakeTx(t)
+				env.Engine.ActL2IncludeTx(env.Alice.Address())(t)
+			})
 		}
 
 		// Build up a local list of frames

@@ -146,11 +146,11 @@ func (d *InteropDSL) AddL2Block(chain *Chain, optionalArgs ...func(*AddL2BlockOp
 	}
 	for opts.UntilTimestamp == 0 || chain.Sequencer.L2Unsafe().Time <= opts.UntilTimestamp {
 		priorSyncStatus := chain.Sequencer.SyncStatus()
-		chain.Sequencer.ActL2StartBlock(d.t)
-		for _, creator := range opts.TransactionCreators {
-			creator(chain).Include()
-		}
-		chain.Sequencer.ActL2EndBlock(d.t)
+		chain.Sequencer.ActL2BuildBlock(d.t, func() {
+			for _, creator := range opts.TransactionCreators {
+				creator(chain).Include()
+			}
+		})
 		chain.Sequencer.SyncSupervisor(d.t)
 		d.Actors.Supervisor.ProcessFull(d.t)
 		chain.Sequencer.ActL2PipelineFull(d.t)

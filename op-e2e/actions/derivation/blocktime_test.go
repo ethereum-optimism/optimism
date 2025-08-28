@@ -76,9 +76,9 @@ func BatchInLastPossibleBlocks(gt *testing.T, deltaTimeOffset *hexutil.Uint64) {
 	}
 	makeL2BlockWithAliceTx := func() {
 		aliceTx()
-		sequencer.ActL2StartBlock(t)
-		sequencerEngine.ActL2IncludeTx(dp.Addresses.Alice)(t) // include a test tx from alice
-		sequencer.ActL2EndBlock(t)
+		sequencer.ActL2BuildBlock(t, func() {
+			sequencerEngine.ActL2IncludeTx(dp.Addresses.Alice)(t) // include a test tx from alice
+		})
 	}
 	verifyChainStateOnSequencer := func(l1Number, unsafeHead, unsafeHeadOrigin, safeHead, safeHeadOrigin uint64) {
 		require.Equal(t, l1Number, miner.L1Chain().CurrentHeader().Number.Uint64())
@@ -195,9 +195,9 @@ func LargeL1Gaps(gt *testing.T, deltaTimeOffset *hexutil.Uint64) {
 	}
 	makeL2BlockWithAliceTx := func() {
 		aliceTx()
-		sequencer.ActL2StartBlock(t)
-		sequencerEngine.ActL2IncludeTx(dp.Addresses.Alice)(t) // include a test tx from alice
-		sequencer.ActL2EndBlock(t)
+		sequencer.ActL2BuildBlock(t, func() {
+			sequencerEngine.ActL2IncludeTx(dp.Addresses.Alice)(t) // include a test tx from alice
+		})
 	}
 
 	verifyChainStateOnSequencer := func(l1Number, unsafeHead, unsafeHeadOrigin, safeHead, safeHeadOrigin uint64) {

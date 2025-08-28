@@ -57,12 +57,12 @@ func runSequenceWindowExpire_ChannelCloseAfterWindowExpiry_Test(gt *testing.T, t
 
 	// Mine 2 empty blocks on L2.
 	for i := 0; i < 2; i++ {
-		env.Sequencer.ActL2StartBlock(t)
-		env.Alice.L2.ActResetTxOpts(t)
-		env.Alice.L2.ActSetTxToAddr(&env.Dp.Addresses.Bob)
-		env.Alice.L2.ActMakeTx(t)
-		env.Engine.ActL2IncludeTx(env.Alice.Address())(t)
-		env.Sequencer.ActL2EndBlock(t)
+		env.Sequencer.ActL2BuildBlock(t, func() {
+			env.Alice.L2.ActResetTxOpts(t)
+			env.Alice.L2.ActSetTxToAddr(&env.Dp.Addresses.Bob)
+			env.Alice.L2.ActMakeTx(t)
+			env.Engine.ActL2IncludeTx(env.Alice.Address())(t)
+		})
 	}
 
 	// Open the channel on L1.

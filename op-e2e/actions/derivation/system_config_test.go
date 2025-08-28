@@ -262,9 +262,9 @@ func GPOParamsChange(gt *testing.T, deltaTimeOffset *hexutil.Uint64) {
 	// alice makes a L2 tx, sequencer includes it
 	alice.ActResetTxOpts(t)
 	alice.ActMakeTx(t)
-	sequencer.ActL2StartBlock(t)
-	seqEngine.ActL2IncludeTx(dp.Addresses.Alice)(t)
-	sequencer.ActL2EndBlock(t)
+	sequencer.ActL2BuildBlock(t, func() {
+		seqEngine.ActL2IncludeTx(dp.Addresses.Alice)(t)
+	})
 
 	receipt := alice.LastTxReceipt(t)
 	require.Equal(t, basefee, receipt.L1GasPrice, "L1 gas price matches basefee of L1 origin")
@@ -318,9 +318,9 @@ func GPOParamsChange(gt *testing.T, deltaTimeOffset *hexutil.Uint64) {
 	// Now alice makes another transaction, which gets included in the same block that adopts the L1 origin with GPO change
 	alice.ActResetTxOpts(t)
 	alice.ActMakeTx(t)
-	sequencer.ActL2StartBlock(t)
-	seqEngine.ActL2IncludeTx(dp.Addresses.Alice)(t)
-	sequencer.ActL2EndBlock(t)
+	sequencer.ActL2BuildBlock(t, func() {
+		seqEngine.ActL2IncludeTx(dp.Addresses.Alice)(t)
+	})
 
 	envelope, err = engCl.PayloadByLabel(t.Ctx(), eth.Unsafe)
 	require.NoError(t, err)
@@ -345,9 +345,9 @@ func GPOParamsChange(gt *testing.T, deltaTimeOffset *hexutil.Uint64) {
 	// and Alice makes a tx again
 	alice.ActResetTxOpts(t)
 	alice.ActMakeTx(t)
-	sequencer.ActL2StartBlock(t)
-	seqEngine.ActL2IncludeTx(dp.Addresses.Alice)(t)
-	sequencer.ActL2EndBlock(t)
+	sequencer.ActL2BuildBlock(t, func() {
+		seqEngine.ActL2IncludeTx(dp.Addresses.Alice)(t)
+	})
 
 	// and verify the new GPO params are persistent, even though the L1 origin and L2 chain have progressed
 	receipt = alice.LastTxReceipt(t)

@@ -53,63 +53,63 @@ func Test_ProgramAction_IsthmusExcludedPredeploys(gt *testing.T) {
 	ethCl := engine.EthClient()
 	signer := types.NewPragueSigner(new(big.Int).SetUint64(dp.DeployConfig.L2ChainID))
 
-	sequencer.ActL2StartBlock(t)
+	var tx *types.Transaction
+	sequencer.ActL2BuildBlock(t, func() {
+		ret, err := ethCl.CallContract(context.Background(), ethereum.CallMsg{
+			To:   &params.WithdrawalQueueAddress,
+			Data: []byte{},
+		}, nil)
 
-	ret, err := ethCl.CallContract(context.Background(), ethereum.CallMsg{
-		To:   &params.WithdrawalQueueAddress,
-		Data: []byte{},
-	}, nil)
+		require.NoError(t, err)
+		fee := new(uint256.Int).SetBytes(ret)
 
-	require.NoError(t, err)
-	fee := new(uint256.Int).SetBytes(ret)
+		// Send a transaction to the EIP-7251 contract
+		txdata := &types.DynamicFeeTx{
+			ChainID:   new(big.Int).SetUint64(dp.DeployConfig.L2ChainID),
+			Nonce:     0,
+			To:        &params.WithdrawalQueueAddress,
+			Gas:       500000,
+			Data:      make([]byte, 56),
+			Value:     fee.ToBig(),
+			GasFeeCap: new(big.Int).SetUint64(5000000000),
+			GasTipCap: new(big.Int).SetUint64(2),
+		}
+		tx = types.MustSignNewTx(dp.Secrets.Alice, signer, txdata)
 
-	// Send a transaction to the EIP-7251 contract
-	txdata := &types.DynamicFeeTx{
-		ChainID:   new(big.Int).SetUint64(dp.DeployConfig.L2ChainID),
-		Nonce:     0,
-		To:        &params.WithdrawalQueueAddress,
-		Gas:       500000,
-		Data:      make([]byte, 56),
-		Value:     fee.ToBig(),
-		GasFeeCap: new(big.Int).SetUint64(5000000000),
-		GasTipCap: new(big.Int).SetUint64(2),
-	}
-	tx := types.MustSignNewTx(dp.Secrets.Alice, signer, txdata)
+		err = ethCl.SendTransaction(t.Ctx(), tx)
+		require.NoError(gt, err, "failed to send withdrawal request tx")
 
-	err = ethCl.SendTransaction(t.Ctx(), tx)
-	require.NoError(gt, err, "failed to send withdrawal request tx")
+		_, err = engine.EngineApi.IncludeTx(tx, dp.Addresses.Alice)
+		require.NoError(gt, err, "failed to include tx")
 
-	_, err = engine.EngineApi.IncludeTx(tx, dp.Addresses.Alice)
-	require.NoError(gt, err, "failed to include tx")
+		ret, err = ethCl.CallContract(context.Background(), ethereum.CallMsg{
+			To:   &params.ConsolidationQueueAddress,
+			Data: []byte{},
+		}, nil)
 
-	ret, err = ethCl.CallContract(context.Background(), ethereum.CallMsg{
-		To:   &params.ConsolidationQueueAddress,
-		Data: []byte{},
-	}, nil)
+		require.NoError(t, err)
+		fee = new(uint256.Int).SetBytes(ret)
 
-	require.NoError(t, err)
-	fee = new(uint256.Int).SetBytes(ret)
+		// Send a transaction to the EIP-7251 contract
+		txdata = &types.DynamicFeeTx{
+			ChainID:   new(big.Int).SetUint64(dp.DeployConfig.L2ChainID),
+			Nonce:     1,
+			To:        &params.ConsolidationQueueAddress,
+			Gas:       500000,
+			Data:      make([]byte, 96),
+			Value:     fee.ToBig(),
+			GasFeeCap: new(big.Int).SetUint64(5000000000),
+			GasTipCap: new(big.Int).SetUint64(2),
+		}
+		tx = types.MustSignNewTx(dp.Secrets.Alice, signer, txdata)
 
-	// Send a transaction to the EIP-7251 contract
-	txdata = &types.DynamicFeeTx{
-		ChainID:   new(big.Int).SetUint64(dp.DeployConfig.L2ChainID),
-		Nonce:     1,
-		To:        &params.ConsolidationQueueAddress,
-		Gas:       500000,
-		Data:      make([]byte, 96),
-		Value:     fee.ToBig(),
-		GasFeeCap: new(big.Int).SetUint64(5000000000),
-		GasTipCap: new(big.Int).SetUint64(2),
-	}
-	tx = types.MustSignNewTx(dp.Secrets.Alice, signer, txdata)
+		err = ethCl.SendTransaction(t.Ctx(), tx)
+		require.NoError(gt, err, "failed to send consolidation queue request tx")
 
-	err = ethCl.SendTransaction(t.Ctx(), tx)
-	require.NoError(gt, err, "failed to send consolidation queue request tx")
+		_, err = engine.EngineApi.IncludeTx(tx, dp.Addresses.Alice)
+		require.NoError(gt, err, "failed to include tx")
 
-	_, err = engine.EngineApi.IncludeTx(tx, dp.Addresses.Alice)
-	require.NoError(gt, err, "failed to include tx")
-
-	sequencer.ActL2EndBlock(t)
+	})
 
 	// ensure requests hash is still empty
 	latestBlock, err := ethCl.BlockByNumber(t.Ctx(), nil)

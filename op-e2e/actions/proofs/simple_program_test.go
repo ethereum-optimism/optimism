@@ -25,8 +25,7 @@ func runSimpleProgramTest(gt *testing.T, testCfg *helpers.TestCfg[any]) {
 	env := helpers.NewL2FaultProofEnv(t, testCfg, helpers.NewTestParams(), bcfg, testSetup)
 
 	// Build an empty block on L2
-	env.Sequencer.ActL2StartBlock(t)
-	env.Sequencer.ActL2EndBlock(t)
+	env.Sequencer.ActL2EmptyBlock(t)
 
 	// Instruct the batcher to submit the block to L1, and include the transaction.
 	env.Batcher.ActSubmitAll(t)

@@ -46,8 +46,11 @@ func TestStatus(t *testing.T) {
 	tracker.OnEvent(context.Background(), rollup.ResetEvent{})
 	status = tracker.SyncStatus()
 
-	require.Zero(t, status.LocalSafeL2.Number)
-	require.Zero(t, status.SafeL2.Number)
-	require.Zero(t, status.UnsafeL2.Number)
+	// After a reset signal, heads are kept until EngineResetConfirmedEvent.
+	// Expect values to remain unchanged.
+	require.Equal(t, uint64(102), status.LocalSafeL2.Number)
+	require.Equal(t, uint64(102), status.SafeL2.Number)
+	require.Equal(t, uint64(101), status.UnsafeL2.Number)
+	// No L1 status was ever set in this test; remains zero.
 	require.Zero(t, status.CurrentL1.Number)
 }

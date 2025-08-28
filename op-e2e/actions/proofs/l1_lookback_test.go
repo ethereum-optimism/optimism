@@ -19,8 +19,7 @@ func runL1LookbackTest(gt *testing.T, testCfg *helpers.TestCfg[any]) {
 	const numL2Blocks = 8
 	for i := 0; i < numL2Blocks; i++ {
 		// Create an empty L2 block.
-		env.Sequencer.ActL2StartBlock(t)
-		env.Sequencer.ActL2EndBlock(t)
+		env.Sequencer.ActL2EmptyBlock(t)
 
 		// Buffer the L2 block in the batcher.
 		env.Batcher.ActBufferAll(t)
@@ -54,12 +53,12 @@ func runL1LookbackTest_ReopenChannel(gt *testing.T, testCfg *helpers.TestCfg[any
 	env := helpers.NewL2FaultProofEnv(t, testCfg, tp, helpers.NewBatcherCfg())
 
 	// Create an L2 block with 1 transaction.
-	env.Sequencer.ActL2StartBlock(t)
-	env.Alice.L2.ActResetTxOpts(t)
-	env.Alice.L2.ActSetTxToAddr(&env.Dp.Addresses.Bob)
-	env.Alice.L2.ActMakeTx(t)
-	env.Engine.ActL2IncludeTx(env.Alice.Address())(t)
-	env.Sequencer.ActL2EndBlock(t)
+	env.Sequencer.ActL2BuildBlock(t, func() {
+		env.Alice.L2.ActResetTxOpts(t)
+		env.Alice.L2.ActSetTxToAddr(&env.Dp.Addresses.Bob)
+		env.Alice.L2.ActMakeTx(t)
+		env.Engine.ActL2IncludeTx(env.Alice.Address())(t)
+	})
 	l2BlockBeforeDerive := env.Engine.L2Chain().CurrentBlock()
 
 	// Buffer the L2 block in the batcher.
@@ -92,8 +91,7 @@ func runL1LookbackTest_ReopenChannel(gt *testing.T, testCfg *helpers.TestCfg[any
 	const numL2Blocks = 8
 	for i := 1; i < numL2Blocks; i++ {
 		// Create an empty L2 block.
-		env.Sequencer.ActL2StartBlock(t)
-		env.Sequencer.ActL2EndBlock(t)
+		env.Sequencer.ActL2EmptyBlock(t)
 
 		// Buffer the L2 block in the batcher.
 		env.Batcher.ActBufferAll(t)

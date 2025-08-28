@@ -34,13 +34,13 @@ func Test_ProgramAction_HoloceneActivation(gt *testing.T) {
 		for env.Engine.L2Chain().CurrentBlock().Time < *env.Sequencer.RollupCfg.HoloceneTime {
 			b := env.Engine.L2Chain().GetBlockByHash(env.Sequencer.L2Unsafe().Hash)
 			require.Equal(t, "", string(b.Extra()), "extra data should be empty before Holocene activation")
-			env.Sequencer.ActL2StartBlock(t)
-			// Send an L2 tx
-			env.Alice.L2.ActResetTxOpts(t)
-			env.Alice.L2.ActSetTxToAddr(&env.Dp.Addresses.Bob)
-			env.Alice.L2.ActMakeTx(t)
-			env.Engine.ActL2IncludeTx(env.Alice.Address())(t)
-			env.Sequencer.ActL2EndBlock(t)
+			env.Sequencer.ActL2BuildBlock(t, func() {
+				// Send an L2 tx
+				env.Alice.L2.ActResetTxOpts(t)
+				env.Alice.L2.ActSetTxToAddr(&env.Dp.Addresses.Bob)
+				env.Alice.L2.ActMakeTx(t)
+				env.Engine.ActL2IncludeTx(env.Alice.Address())(t)
+			})
 			t.Log("Unsafe block with timestamp %d", b.Time)
 		}
 		b := env.Engine.L2Chain().GetBlockByHash(env.Sequencer.L2Unsafe().Hash)
