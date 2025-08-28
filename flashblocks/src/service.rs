@@ -1,8 +1,8 @@
 use crate::{ExecutionPayloadBaseV1, FlashBlock};
 use alloy_eips::{eip2718::WithEncoded, BlockNumberOrTag, Decodable2718};
 use eyre::OptionExt;
-use futures_util::{Stream, StreamExt};
-use reth_chain_state::ExecutedBlock;
+use futures_util::{FutureExt, Stream, StreamExt};
+use reth_chain_state::{CanonStateNotifications, CanonStateSubscriptions, ExecutedBlock};
 use reth_errors::RethError;
 use reth_evm::{
     execute::{BlockBuilder, BlockBuilderOutcome},
@@ -10,7 +10,8 @@ use reth_evm::{
 };
 use reth_execution_types::ExecutionOutcome;
 use reth_primitives_traits::{
-    AlloyBlockHeader, BlockTy, HeaderTy, NodePrimitives, ReceiptTy, SignedTransaction,
+    AlloyBlockHeader, BlockTy, HeaderTy, NodePrimitives, ReceiptTy, RecoveredBlock,
+    SignedTransaction,
 };
 use reth_revm::{database::StateProviderDatabase, db::State};
 use reth_rpc_eth_types::{EthApiError, PendingBlock};
@@ -21,6 +22,7 @@ use std::{
     task::{Context, Poll},
     time::{Duration, Instant},
 };
+use tokio::pin;
 use tracing::{debug, error, info};
 
 /// The `FlashBlockService` maintains an in-memory [`PendingBlock`] built out of a sequence of
@@ -37,6 +39,7 @@ pub struct FlashBlockService<
     blocks: Vec<FlashBlock>,
     evm_config: EvmConfig,
     provider: Provider,
+    canon_receiver: CanonStateNotifications<N>,
 }
 
 impl<
@@ -44,6 +47,7 @@ impl<
         S,
         EvmConfig: ConfigureEvm<Primitives = N, NextBlockEnvCtx: From<ExecutionPayloadBaseV1> + Unpin>,
         Provider: StateProviderFactory
+            + CanonStateSubscriptions<Primitives = N>
             + BlockReaderIdExt<
                 Header = HeaderTy<N>,
                 Block = BlockTy<N>,
@@ -53,8 +57,15 @@ impl<
     > FlashBlockService<N, S, EvmConfig, Provider>
 {
     /// Constructs a new `FlashBlockService` that receives [`FlashBlock`]s from `rx` stream.
-    pub const fn new(rx: S, evm_config: EvmConfig, provider: Provider) -> Self {
-        Self { rx, current: None, blocks: Vec::new(), evm_config, provider }
+    pub fn new(rx: S, evm_config: EvmConfig, provider: Provider) -> Self {
+        Self {
+            rx,
+            current: None,
+            blocks: Vec::new(),
+            evm_config,
+            canon_receiver: provider.subscribe_to_canonical_state(),
+            provider,
+        }
     }
 
     /// Adds the `block` into the collection.
@@ -157,6 +168,31 @@ impl<
             },
         ))
     }
+
+    /// Compares tip from the last notification of [`CanonStateSubscriptions`] with last computed
+    /// pending block and verifies that the tip is the parent of the pending block.
+    ///
+    /// Returns:
+    /// * `Ok(Some(true))` if tip == parent
+    /// * `Ok(Some(false))` if tip != parent
+    /// * `Ok(None)` if there weren't any new notifications or the pending block is not built
+    /// * `Err` if the cannon state receiver returned an error
+    fn verify_pending_block_integrity(
+        &mut self,
+        cx: &mut Context<'_>,
+    ) -> eyre::Result<Option<bool>> {
+        let mut tip = None;
+        let fut = self.canon_receiver.recv();
+        pin!(fut);
+
+        while let Poll::Ready(result) = fut.poll_unpin(cx) {
+            tip = result?.tip_checked().map(RecoveredBlock::hash);
+        }
+
+        Ok(tip
+            .zip(self.current.as_ref().map(PendingBlock::parent_hash))
+            .map(|(latest, parent)| latest == parent))
+    }
 }
 
 impl<
@@ -164,6 +200,7 @@ impl<
         S: Stream<Item = eyre::Result<FlashBlock>> + Unpin,
         EvmConfig: ConfigureEvm<Primitives = N, NextBlockEnvCtx: From<ExecutionPayloadBaseV1> + Unpin>,
         Provider: StateProviderFactory
+            + CanonStateSubscriptions<Primitives = N>
             + BlockReaderIdExt<
                 Header = HeaderTy<N>,
                 Block = BlockTy<N>,
@@ -172,19 +209,45 @@ impl<
             > + Unpin,
     > Stream for FlashBlockService<N, S, EvmConfig, Provider>
 {
-    type Item = eyre::Result<PendingBlock<N>>;
+    type Item = eyre::Result<Option<PendingBlock<N>>>;
 
     fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         let this = self.get_mut();
 
-        match this.rx.poll_next_unpin(cx) {
-            Poll::Ready(Some(Ok(flashblock))) => {
-                this.add_flash_block(flashblock);
-                Poll::Ready(Some(this.execute()))
+        // Consume new flashblocks while they're ready
+        while let Poll::Ready(Some(result)) = this.rx.poll_next_unpin(cx) {
+            match result {
+                Ok(flashblock) => this.add_flash_block(flashblock),
+                Err(err) => return Poll::Ready(Some(Err(err))),
             }
-            Poll::Ready(Some(Err(err))) => Poll::Ready(Some(Err(err))),
-            Poll::Ready(None) => Poll::Ready(None),
-            Poll::Pending => Poll::Pending,
+        }
+
+        // Execute block if there are flashblocks but no last pending block
+        let changed = if this.current.is_none() && !this.blocks.is_empty() {
+            match this.execute() {
+                Ok(block) => this.current = Some(block),
+                Err(err) => return Poll::Ready(Some(Err(err))),
+            }
+
+            true
+        } else {
+            false
+        };
+
+        // Verify that pending block is following up to the canonical state
+        match this.verify_pending_block_integrity(cx) {
+            // Integrity check failed: erase last block
+            Ok(Some(false)) => Poll::Ready(Some(Ok(None))),
+            // Integrity check is OK or skipped: output last block
+            Ok(Some(true) | None) => {
+                if changed {
+                    Poll::Ready(Some(Ok(this.current.clone())))
+                } else {
+                    Poll::Pending
+                }
+            }
+            // Cannot check integrity: error occurred
+            Err(err) => Poll::Ready(Some(Err(err))),
         }
     }
 }
