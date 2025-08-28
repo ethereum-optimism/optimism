@@ -28,11 +28,11 @@ import { IETHLockbox } from "interfaces/L1/IETHLockbox.sol";
 import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
 
 /// @custom:proxied true
-/// @title OptimismPortal2
+/// @title OptimismPortalInterop
 /// @notice The OptimismPortal is a low-level contract responsible for passing messages between L1
 ///         and L2. Messages sent directly to the OptimismPortal have no form of replayability.
 ///         Users are encouraged to use the L1CrossDomainMessenger for a higher-level interface.
-contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase, ProxyAdminOwnedBase, ISemver {
+contract OptimismPortalInterop is Initializable, ResourceMetering, ReinitializableBase, ProxyAdminOwnedBase, ISemver {
     /// @notice Represents a proven withdrawal.
     /// @custom:field disputeGameProxy Game that the withdrawal was proven against.
     /// @custom:field timestamp        Timestamp at which the withdrawal was proven.
@@ -372,8 +372,6 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
 
     /// @notice Migrates the total ETH balance to the ETHLockbox.
     function migrateLiquidity() public {
-        revert("DELIBERATE BROKEN REVERT");
-
         // Liquidity migration can only be triggered by the ProxyAdmin owner.
         _assertOnlyProxyAdminOwner();
 
@@ -396,8 +394,6 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
     /// @param _newLockbox The address of the new ETHLockbox contract.
     /// @param _newAnchorStateRegistry The address of the new AnchorStateRegistry contract.
     function migrateToSuperRoots(IETHLockbox _newLockbox, IAnchorStateRegistry _newAnchorStateRegistry) external {
-        revert("DELIBERATE BROKEN REVERT");
-
         // Migration can only be triggered when the system is not paused because the migration can
         // potentially unpause the system as a result of the modified ETHLockbox address.
         _assertNotPaused();
@@ -450,8 +446,6 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
     )
         external
     {
-        revert("DELIBERATE BROKEN REVERT");
-
         // Cannot prove withdrawal transactions while the system is paused.
         _assertNotPaused();
 

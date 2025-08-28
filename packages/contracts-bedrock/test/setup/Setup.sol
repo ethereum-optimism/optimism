@@ -7,6 +7,7 @@ import { Vm, VmSafe } from "forge-std/Vm.sol";
 import { EIP1967Helper } from "test/mocks/EIP1967Helper.sol";
 
 // Scripts
+import { LibString } from "@solady/utils/LibString.sol";
 import { Deploy } from "scripts/deploy/Deploy.s.sol";
 import { ForkLive } from "test/setup/ForkLive.s.sol";
 import { Fork, LATEST_FORK } from "scripts/libraries/Config.sol";
@@ -21,6 +22,7 @@ import { Predeploys } from "src/libraries/Predeploys.sol";
 import { Preinstalls } from "src/libraries/Preinstalls.sol";
 import { AddressAliasHelper } from "src/vendor/AddressAliasHelper.sol";
 import { Chains } from "scripts/libraries/Chains.sol";
+import { DevFeatures } from "src/libraries/DevFeatures.sol";
 
 // Interfaces
 import { IOPContractsManager } from "interfaces/L1/IOPContractsManager.sol";
@@ -89,6 +91,9 @@ contract Setup {
 
     L2Genesis internal constant l2Genesis =
         L2Genesis(address(uint160(uint256(keccak256(abi.encode("optimism.l2genesis"))))));
+
+    /// @notice Development feature bitmap.
+    bytes32 public devFeatureBitmap;
 
     /// @notice Allows users of Setup to override what L2 genesis is being created.
     Fork l2Fork = LATEST_FORK;
@@ -182,6 +187,11 @@ contract Setup {
 
         deploy.setUp();
         forkLive.setUp();
+
+        // Resolve the development feature bitmap.
+        resolveDevFeatures();
+        deploy.cfg().setDevFeatureBitmap(devFeatureBitmap);
+
         console.log("Setup: L1 setup done!");
 
         if (isForkTest()) {
@@ -194,6 +204,30 @@ contract Setup {
         vm.etch(address(l2Genesis), vm.getDeployedCode("L2Genesis.s.sol:L2Genesis"));
         vm.allowCheatcodes(address(l2Genesis));
         console.log("Setup: L2 setup done!");
+    }
+
+    /// @notice Resolves the development feature bitmap.
+    function resolveDevFeatures() public {
+        if (LibString.eq(vm.envOr("DEV_FEATURE__OPTIMISM_PORTAL_INTEROP", string("0")), "1")) {
+            console.log("Setup: DEV_FEATURE__OPTIMISM_PORTAL_INTEROP is enabled");
+            devFeatureBitmap |= DevFeatures.OPTIMISM_PORTAL_INTEROP;
+        }
+    }
+
+    /// @notice Skips tests when the provided development feature is enabled.
+    /// @param _feature The feature to check.
+    function skipIfDevFeatureEnabled(bytes32 _feature) public {
+        if ((devFeatureBitmap & _feature) != 0) {
+            vm.skip(true);
+        }
+    }
+
+    /// @notice Skips tests when the provided development feature is disabled.
+    /// @param _feature The feature to check.
+    function skipIfDevFeatureDisabled(bytes32 _feature) public {
+        if ((devFeatureBitmap & _feature) == 0) {
+            vm.skip(true);
+        }
     }
 
     /// @dev Skips tests when running in coverage mode.

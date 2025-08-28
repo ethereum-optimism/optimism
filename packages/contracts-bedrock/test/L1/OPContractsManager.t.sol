@@ -30,6 +30,7 @@ import { IOptimismMintableERC20Factory } from "interfaces/universal/IOptimismMin
 import { IL1CrossDomainMessenger } from "interfaces/L1/IL1CrossDomainMessenger.sol";
 import { IMIPS64 } from "interfaces/cannon/IMIPS64.sol";
 import { IOptimismPortal2 } from "interfaces/L1/IOptimismPortal2.sol";
+import { IOptimismPortalInterop } from "interfaces/L1/IOptimismPortalInterop.sol";
 import { IProxy } from "interfaces/universal/IProxy.sol";
 import { IProxyAdmin } from "interfaces/universal/IProxyAdmin.sol";
 import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
@@ -560,6 +561,10 @@ contract OPContractsManager_TestInit is Test {
                 _name: "OptimismPortal2",
                 _args: DeployUtils.encodeConstructor(abi.encodeCall(IOptimismPortal2.__constructor__, (1)))
             }),
+            optimismPortalInteropImpl: DeployUtils.create1({
+                _name: "OptimismPortalInterop",
+                _args: DeployUtils.encodeConstructor(abi.encodeCall(IOptimismPortalInterop.__constructor__, (1)))
+            }),
             ethLockboxImpl: DeployUtils.create1({
                 _name: "ETHLockbox",
                 _args: DeployUtils.encodeConstructor(abi.encodeCall(IETHLockbox.__constructor__, ()))
@@ -607,7 +612,7 @@ contract OPContractsManager_TestInit is Test {
             DeployUtils.createDeterministic({
                 _name: "OPContractsManagerContractsContainer",
                 _args: DeployUtils.encodeConstructor(
-                    abi.encodeCall(IOPContractsManagerContractsContainer.__constructor__, (blueprints, impls))
+                    abi.encodeCall(IOPContractsManagerContractsContainer.__constructor__, (blueprints, impls, bytes32(0)))
                 ),
                 _salt: DeployUtils.DEFAULT_SALT
             })
@@ -769,7 +774,7 @@ contract OPContractsManager_ChainIdToBatchInboxAddress_Test is Test {
         vm.etch(address(protocolVersionsProxy), hex"01");
 
         OPContractsManagerContractsContainer container =
-            new OPContractsManagerContractsContainer(emptyBlueprints, emptyImpls);
+            new OPContractsManagerContractsContainer(emptyBlueprints, emptyImpls, bytes32(0));
 
         OPContractsManager.Implementations memory __opcmImplementations = container.implementations();
         OPContractsManagerStandardValidator.Implementations memory opcmImplementations;
