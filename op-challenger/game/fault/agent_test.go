@@ -6,7 +6,6 @@ import (
 	"math/big"
 	"slices"
 	"sync"
-	"sync/atomic"
 	"testing"
 	"time"
 
@@ -751,7 +750,7 @@ func TestResponseDelayAfter(t *testing.T) {
 
 				// Verify response count incremented (assuming successful response)
 				expectedCount := uint64(i + 1)
-				require.Equal(t, expectedCount, atomic.LoadUint64(&agent.responseCount), "Response count should increment after action %d", expectedCount)
+				require.Equal(t, expectedCount, agent.responseCount.Load(), "Response count should increment after action %d", expectedCount)
 			}
 		})
 	}
@@ -813,7 +812,7 @@ func TestResponseDelayAfterWithFailedActions(t *testing.T) {
 	}
 	wg.Wait()
 
-	require.Equal(t, uint64(0), atomic.LoadUint64(&agent.responseCount), "Failed action should not increment response count")
+	require.Equal(t, uint64(0), agent.responseCount.Load(), "Failed action should not increment response count")
 
 	// Second action: make responder succeed
 	responder.performActionErr = nil
@@ -835,7 +834,7 @@ func TestResponseDelayAfterWithFailedActions(t *testing.T) {
 	wg.Wait()
 
 	// Should be no delay but response count should increment
-	require.Equal(t, uint64(1), atomic.LoadUint64(&agent.responseCount), "Successful action should increment response count")
+	require.Equal(t, uint64(1), agent.responseCount.Load(), "Successful action should increment response count")
 
 	// Third action: should now have delay applied
 	wg.Add(1)
@@ -864,7 +863,7 @@ func TestResponseDelayAfterWithFailedActions(t *testing.T) {
 	wg.Wait()
 
 	require.Equal(t, 3, responder.PerformedActionCount(), "Should have performed action after delay")
-	require.Equal(t, uint64(2), atomic.LoadUint64(&agent.responseCount), "Response count should be 2 after second successful action")
+	require.Equal(t, uint64(2), agent.responseCount.Load(), "Response count should be 2 after second successful action")
 }
 
 // TestResponseDelayClockExtension tests that delays are skipped during clock extension periods

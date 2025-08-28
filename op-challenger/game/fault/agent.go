@@ -53,7 +53,7 @@ type Agent struct {
 	log                log.Logger
 	responseDelay      time.Duration
 	responseDelayAfter uint64
-	responseCount      atomic.UInt64 // Number of responses made in this game
+	responseCount      atomic.Uint64 // Number of responses made in this game
 }
 
 func NewAgent(
@@ -85,7 +85,7 @@ func NewAgent(
 		log:                log,
 		responseDelay:      responseDelay,
 		responseDelayAfter: responseDelayAfter,
-		responseCount:      0, // Start with no responses made
+		// responseCount starts at zero by default
 	}
 }
 
