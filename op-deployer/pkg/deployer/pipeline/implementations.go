@@ -1,6 +1,7 @@
 package pipeline
 
 import (
+	"context"
 	"fmt"
 	"math/big"
 
@@ -37,8 +38,18 @@ func DeployImplementations(env *Env, intent *state.Intent, st *state.State) erro
 		return fmt.Errorf("error merging proof params from overrides: %w", err)
 	}
 
-	dio, err := env.Scripts.DeployImplementations.Run(
-		opcm.DeployImplementationsInput{
+	var dio opcm.DeployImplementationsOutput
+
+	// Check if we should use Forge for deployment
+	if env.UseForge && env.ForgeClient != nil {
+		// Use Forge-based deployment
+		lgr.Info("using Forge for deployment")
+
+		// Create the Forge caller
+		forgeCaller := opcm.NewDeployImplementationsForgeCaller(env.ForgeClient)
+
+		// Convert input to Forge format
+		forgeInput := opcm.DeployImplementationsForgeInput{
 			WithdrawalDelaySeconds:          new(big.Int).SetUint64(proofParams.WithdrawalDelaySeconds),
 			MinProposalSizeBytes:            new(big.Int).SetUint64(proofParams.MinProposalSizeBytes),
 			ChallengePeriodSeconds:          new(big.Int).SetUint64(proofParams.ChallengePeriodSeconds),
@@ -50,10 +61,47 @@ func DeployImplementations(env *Env, intent *state.Intent, st *state.State) erro
 			SuperchainProxyAdmin:            st.SuperchainDeployment.SuperchainProxyAdminImpl,
 			UpgradeController:               st.SuperchainRoles.SuperchainProxyAdminOwner,
 			Challenger:                      st.SuperchainRoles.Challenger,
-		},
-	)
-	if err != nil {
-		return fmt.Errorf("error deploying implementations: %w", err)
+		}
+
+		// Call Forge script
+		ctx := context.Background()
+		if env.Context != nil {
+			ctx = env.Context
+		}
+
+		forgeOutput, success, err := forgeCaller(ctx, forgeInput, env.ForgeScriptOptions...)
+		if err != nil {
+			return fmt.Errorf("error deploying implementations with forge: %w", err)
+		}
+		if !success {
+			return fmt.Errorf("forge script execution was not successful")
+		}
+
+		// Convert output back to OPCM format
+		dio = opcm.ConvertFromForgeOutput(forgeOutput)
+	} else {
+		// Use traditional OPCM script deployment
+		lgr.Info("using OPCM scripts for deployment")
+
+		var err error
+		dio, err = env.Scripts.DeployImplementations.Run(
+			opcm.DeployImplementationsInput{
+				WithdrawalDelaySeconds:          new(big.Int).SetUint64(proofParams.WithdrawalDelaySeconds),
+				MinProposalSizeBytes:            new(big.Int).SetUint64(proofParams.MinProposalSizeBytes),
+				ChallengePeriodSeconds:          new(big.Int).SetUint64(proofParams.ChallengePeriodSeconds),
+				ProofMaturityDelaySeconds:       new(big.Int).SetUint64(proofParams.ProofMaturityDelaySeconds),
+				DisputeGameFinalityDelaySeconds: new(big.Int).SetUint64(proofParams.DisputeGameFinalityDelaySeconds),
+				MipsVersion:                     new(big.Int).SetUint64(proofParams.MIPSVersion),
+				SuperchainConfigProxy:           st.SuperchainDeployment.SuperchainConfigProxy,
+				ProtocolVersionsProxy:           st.SuperchainDeployment.ProtocolVersionsProxy,
+				SuperchainProxyAdmin:            st.SuperchainDeployment.SuperchainProxyAdminImpl,
+				UpgradeController:               st.SuperchainRoles.SuperchainProxyAdminOwner,
+				Challenger:                      st.SuperchainRoles.Challenger,
+			},
+		)
+		if err != nil {
+			return fmt.Errorf("error deploying implementations: %w", err)
+		}
 	}
 
 	st.ImplementationsDeployment = &addresses.ImplementationsContracts{
