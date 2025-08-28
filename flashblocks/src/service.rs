@@ -1,6 +1,6 @@
 use crate::{ExecutionPayloadBaseV1, FlashBlock};
 use alloy_eips::{eip2718::WithEncoded, BlockNumberOrTag, Decodable2718};
-use eyre::OptionExt;
+use eyre::{eyre, OptionExt};
 use futures_util::{FutureExt, Stream, StreamExt};
 use reth_chain_state::{CanonStateNotifications, CanonStateSubscriptions, ExecutedBlock};
 use reth_errors::RethError;
@@ -128,6 +128,10 @@ impl<
             .iter()
             .find_map(|v| v.base.clone())
             .ok_or_eyre("Missing base flashblock")?;
+
+        if attrs.parent_hash != latest.hash() {
+            return Err(eyre!("The base flashblock is old"));
+        }
 
         let state_provider = self.provider.history_by_block_hash(latest.hash())?;
         let state = StateProviderDatabase::new(&state_provider);
