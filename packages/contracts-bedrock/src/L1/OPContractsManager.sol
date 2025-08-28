@@ -7,6 +7,7 @@ import { Constants } from "src/libraries/Constants.sol";
 import { Bytes } from "src/libraries/Bytes.sol";
 import { Claim, Duration, GameType, Hash, GameTypes, Proposal } from "src/dispute/lib/Types.sol";
 import { Strings } from "@openzeppelin/contracts/utils/Strings.sol";
+import { DevFeatures } from "src/libraries/DevFeatures.sol";
 
 // Interfaces
 import { ISemver } from "interfaces/universal/ISemver.sol";
@@ -25,6 +26,7 @@ import { ISuperPermissionedDisputeGame } from "interfaces/dispute/ISuperPermissi
 import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
 import { IProtocolVersions } from "interfaces/L1/IProtocolVersions.sol";
 import { IOptimismPortal2 as IOptimismPortal } from "interfaces/L1/IOptimismPortal2.sol";
+import { IOptimismPortalInterop } from "interfaces/L1/IOptimismPortalInterop.sol";
 import { ISystemConfig } from "interfaces/L1/ISystemConfig.sol";
 import { IL1CrossDomainMessenger } from "interfaces/L1/IL1CrossDomainMessenger.sol";
 import { IL1ERC721Bridge } from "interfaces/L1/IL1ERC721Bridge.sol";
@@ -43,12 +45,32 @@ contract OPContractsManagerContractsContainer {
     /// @notice Addresses of the latest implementation contracts.
     OPContractsManager.Implementations internal implementation;
 
+    /// @notice Bitmap of development features that are enabled. We keep the development feature
+    ///         bitmap here rather than in the actual OPCM because other contracts always get a
+    ///         reference to this but not to the OPCM itself.
+    bytes32 public immutable devFeatureBitmap;
+
+    /// @notice Thrown when a development feature is enabled in production.
+    error DevFeatureInProd();
+
+    /// @param _blueprints The blueprint contract addresses.
+    /// @param _implementations The implementation contract addresses.
+    /// @param _devFeatureBitmap The bitmap of development features that are enabled.
     constructor(
         OPContractsManager.Blueprints memory _blueprints,
-        OPContractsManager.Implementations memory _implementations
+        OPContractsManager.Implementations memory _implementations,
+        bytes32 _devFeatureBitmap
     ) {
         blueprint = _blueprints;
         implementation = _implementations;
+        devFeatureBitmap = _devFeatureBitmap;
+
+        // Development features MUST NOT be enabled on Mainnet.
+        if (block.chainid == 1) {
+            if (uint256(_devFeatureBitmap) != 0) {
+                revert DevFeatureInProd();
+            }
+        }
     }
 
     function blueprints() public view returns (OPContractsManager.Blueprints memory) {
@@ -57,6 +79,13 @@ contract OPContractsManagerContractsContainer {
 
     function implementations() public view returns (OPContractsManager.Implementations memory) {
         return implementation;
+    }
+
+    /// @notice Returns the status of a development feature.
+    /// @param _feature The feature to check.
+    /// @return True if the feature is enabled, false otherwise.
+    function isDevFeatureEnabled(bytes32 _feature) public view returns (bool) {
+        return (uint256(devFeatureBitmap) & uint256(_feature)) != 0;
     }
 }
 
@@ -95,6 +124,18 @@ abstract contract OPContractsManagerBase {
     /// @notice Retrieves the blueprint addresses stored in this OPCM contract
     function blueprints() public view returns (OPContractsManager.Blueprints memory) {
         return contractsContainer.blueprints();
+    }
+
+    /// @notice Retrieves the development feature bitmap stored in this OPCM contract
+    function devFeatureBitmap() public view returns (bytes32) {
+        return contractsContainer.devFeatureBitmap();
+    }
+
+    /// @notice Retrieves the status of a development feature.
+    /// @param _feature The feature to check.
+    /// @return True if the feature is enabled, false otherwise.
+    function isDevFeatureEnabled(bytes32 _feature) public view returns (bool) {
+        return contractsContainer.isDevFeatureEnabled(_feature);
     }
 
     /// @notice Maps an L2 chain ID to an L1 batch inbox address as defined by the standard
@@ -1077,10 +1118,20 @@ contract OPContractsManagerDeployer is OPContractsManagerBase {
             output.opChainProxyAdmin, address(output.l1ERC721BridgeProxy), implementation.l1ERC721BridgeImpl, data
         );
 
-        data = encodeOptimismPortalInitializer(output);
-        upgradeToAndCall(
-            output.opChainProxyAdmin, address(output.optimismPortalProxy), implementation.optimismPortalImpl, data
-        );
+        if (isDevFeatureEnabled(DevFeatures.OPTIMISM_PORTAL_INTEROP)) {
+            data = encodeOptimismPortalInteropInitializer(output);
+            upgradeToAndCall(
+                output.opChainProxyAdmin,
+                address(output.optimismPortalProxy),
+                implementation.optimismPortalInteropImpl,
+                data
+            );
+        } else {
+            data = encodeOptimismPortalInitializer(output);
+            upgradeToAndCall(
+                output.opChainProxyAdmin, address(output.optimismPortalProxy), implementation.optimismPortalImpl, data
+            );
+        }
 
         // Initialize the SystemConfig before the ETHLockbox, required because the ETHLockbox will
         // try to get the SuperchainConfig from the SystemConfig inside of its initializer.
@@ -1237,6 +1288,19 @@ contract OPContractsManagerDeployer is OPContractsManagerBase {
     {
         return abi.encodeCall(
             IOptimismPortal.initialize,
+            (_output.systemConfigProxy, _output.anchorStateRegistryProxy, _output.ethLockboxProxy)
+        );
+    }
+
+    /// @notice Helper method for encoding the OptimismPortalInterop initializer data.
+    function encodeOptimismPortalInteropInitializer(OPContractsManager.DeployOutput memory _output)
+        internal
+        view
+        virtual
+        returns (bytes memory)
+    {
+        return abi.encodeCall(
+            IOptimismPortalInterop.initialize,
             (_output.systemConfigProxy, _output.anchorStateRegistryProxy, _output.ethLockboxProxy)
         );
     }
@@ -1719,6 +1783,7 @@ contract OPContractsManager is ISemver {
         address protocolVersionsImpl;
         address l1ERC721BridgeImpl;
         address optimismPortalImpl;
+        address optimismPortalInteropImpl;
         address ethLockboxImpl;
         address systemConfigImpl;
         address optimismMintableERC20FactoryImpl;
@@ -1955,6 +2020,19 @@ contract OPContractsManager is ISemver {
     /// @notice Returns the implementation contract addresses.
     function implementations() public view returns (Implementations memory) {
         return opcmDeployer.implementations();
+    }
+
+    /// @notice Retrieves the development feature bitmap stored in this OPCM contract
+    /// @return The development feature bitmap.
+    function devFeatureBitmap() public view returns (bytes32) {
+        return opcmDeployer.devFeatureBitmap();
+    }
+
+    /// @notice Returns the status of a development feature.
+    /// @param _feature The feature to check.
+    /// @return True if the feature is enabled, false otherwise.
+    function isDevFeatureEnabled(bytes32 _feature) public view returns (bool) {
+        return opcmDeployer.isDevFeatureEnabled(_feature);
     }
 
     /// @notice Helper function to perform a delegatecall to a target contract

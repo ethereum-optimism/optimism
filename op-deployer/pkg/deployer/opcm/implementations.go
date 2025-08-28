@@ -31,6 +31,7 @@ type DeployImplementationsOutput struct {
 	OpcmStandardValidator            common.Address `json:"opcmStandardValidatorAddress"`
 	DelayedWETHImpl                  common.Address `json:"delayedWETHImplAddress"`
 	OptimismPortalImpl               common.Address `json:"optimismPortalImplAddress"`
+	OptimismPortalInteropImpl        common.Address `json:"optimismPortalInteropImplAddress"`
 	ETHLockboxImpl                   common.Address `json:"ethLockboxImplAddress" abi:"ethLockboxImpl"`
 	PreimageOracleSingleton          common.Address `json:"preimageOracleSingletonAddress"`
 	MipsSingleton                    common.Address `json:"mipsSingletonAddress"`

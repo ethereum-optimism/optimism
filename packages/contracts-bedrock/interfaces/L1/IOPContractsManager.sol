@@ -28,12 +28,15 @@ import { IOPContractsManagerStandardValidator } from "interfaces/L1/IOPContracts
 interface IOPContractsManagerContractsContainer {
     function __constructor__(
         IOPContractsManager.Blueprints memory _blueprints,
-        IOPContractsManager.Implementations memory _implementations
+        IOPContractsManager.Implementations memory _implementations,
+        bytes32 _devFeatureBitmap
     )
         external;
 
     function blueprints() external view returns (IOPContractsManager.Blueprints memory);
     function implementations() external view returns (IOPContractsManager.Implementations memory);
+    function devFeatureBitmap() external view returns (bytes32);
+    function isDevFeatureEnabled(bytes32 _feature) external view returns (bool);
 }
 
 interface IOPContractsManagerGameTypeAdder {
@@ -195,6 +198,7 @@ interface IOPContractsManager {
         address protocolVersionsImpl;
         address l1ERC721BridgeImpl;
         address optimismPortalImpl;
+        address optimismPortalInteropImpl;
         address ethLockboxImpl;
         address systemConfigImpl;
         address optimismMintableERC20FactoryImpl;
@@ -354,6 +358,15 @@ interface IOPContractsManager {
     function opcmInteropMigrator() external view returns (IOPContractsManagerInteropMigrator);
 
     function opcmStandardValidator() external view returns (IOPContractsManagerStandardValidator);
+
+    /// @notice Retrieves the development feature bitmap stored in this OPCM contract
+    /// @return The development feature bitmap.
+    function devFeatureBitmap() external view returns (bytes32);
+
+    /// @notice Returns the status of a development feature.
+    /// @param _feature The feature to check.
+    /// @return True if the feature is enabled, false otherwise.
+    function isDevFeatureEnabled(bytes32 _feature) external view returns (bool);
 
     /// @notice Returns the implementation contract addresses.
     function implementations() external view returns (Implementations memory);

@@ -116,6 +116,7 @@ contract DeployImplementations_Test is Test {
             _proofMaturityDelaySeconds,
             _disputeGameFinalityDelaySeconds,
             StandardConstants.MIPS_VERSION, // mipsVersion
+            bytes32(0), // devFeatureBitmap
             superchainConfigProxy,
             protocolVersionsProxy,
             superchainProxyAdmin,
@@ -244,6 +245,7 @@ contract DeployImplementations_Test is Test {
             proofMaturityDelaySeconds,
             disputeGameFinalityDelaySeconds,
             StandardConstants.MIPS_VERSION, // mipsVersion
+            bytes32(0), // devFeatureBitmap
             superchainConfigProxy,
             protocolVersionsProxy,
             superchainProxyAdmin,

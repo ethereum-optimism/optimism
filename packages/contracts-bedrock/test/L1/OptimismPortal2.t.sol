@@ -19,6 +19,7 @@ import { Hashing } from "src/libraries/Hashing.sol";
 import { Constants } from "src/libraries/Constants.sol";
 import { AddressAliasHelper } from "src/vendor/AddressAliasHelper.sol";
 import { EIP1967Helper } from "test/mocks/EIP1967Helper.sol";
+import { DevFeatures } from "src/libraries/DevFeatures.sol";
 import "src/dispute/lib/Types.sol";
 
 // Interfaces
@@ -45,8 +46,8 @@ contract OptimismPortal2_TestInit is DisputeGameFactory_TestInit {
     bytes[] _withdrawalProof;
     Types.OutputRootProof internal _outputRootProof;
     GameType internal respectedGameType;
-    // Use a constructor to set the storage vars above, so as to minimize the number of ffi calls.
 
+    // Use a constructor to set the storage vars above, so as to minimize the number of ffi calls.
     constructor() {
         super.setUp();
 
@@ -643,6 +644,11 @@ contract OptimismPortal2_MigrateLiquidity_Test is CommonTest {
 /// @title OptimismPortal2_MigrateToSuperRoots_Test
 /// @notice Test contract for OptimismPortal2 `migrateToSuperRoots` function.
 contract OptimismPortal2_MigrateToSuperRoots_Test is OptimismPortal2_TestInit {
+    function setUp() public override {
+        super.setUp();
+        skipIfDevFeatureDisabled(DevFeatures.OPTIMISM_PORTAL_INTEROP);
+    }
+
     /// @notice Tests that `migrateToSuperRoots` reverts if the caller is not the proxy admin
     ///         owner.
     function testFuzz_migrateToSuperRoots_notProxyAdminOwner_reverts(address _caller) external {
