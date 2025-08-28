@@ -8,6 +8,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/script"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/broadcaster"
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/forge"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/opcm"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 
@@ -23,13 +24,17 @@ import (
 )
 
 type Env struct {
-	StateWriter  StateWriter
-	L1ScriptHost *script.Host
-	L1Client     *ethclient.Client
-	Broadcaster  broadcaster.Broadcaster
-	Deployer     common.Address
-	Logger       log.Logger
-	Scripts      *opcm.Scripts
+	StateWriter        StateWriter
+	L1ScriptHost       *script.Host
+	L1Client           *ethclient.Client
+	Broadcaster        broadcaster.Broadcaster
+	Deployer           common.Address
+	Logger             log.Logger
+	Scripts            *opcm.Scripts
+	UseForge           bool            // Whether to use Forge for deployments
+	ForgeClient        *forge.Client   // Forge client instance
+	Context            context.Context // Context for Forge operations
+	ForgeScriptOptions []string        // Additional options for Forge scripts
 }
 
 type StateWriter interface {
