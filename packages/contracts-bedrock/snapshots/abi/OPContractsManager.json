@@ -969,11 +969,6 @@
   },
   {
     "inputs": [],
-    "name": "EmptyOpChainConfigs",
-    "type": "error"
-  },
-  {
-    "inputs": [],
     "name": "InvalidChainId",
     "type": "error"
   },
@@ -1016,11 +1011,6 @@
   {
     "inputs": [],
     "name": "PrestateRequired",
-    "type": "error"
-  },
-  {
-    "inputs": [],
-    "name": "SuperchainConfigInconsistent",
     "type": "error"
   },
   {

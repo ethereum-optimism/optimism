@@ -218,11 +218,6 @@
   {
     "inputs": [
       {
-        "internalType": "contract ISuperchainConfig",
-        "name": "_superchainConfig",
-        "type": "address"
-      },
-      {
         "components": [
           {
             "internalType": "contract ISystemConfig",
