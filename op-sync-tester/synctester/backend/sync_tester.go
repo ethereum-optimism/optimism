@@ -65,12 +65,12 @@ func SyncTesterFromConfig(logger log.Logger, m metrics.Metricer, stID sttypes.Sy
 
 func NewSyncTester(logger log.Logger, m metrics.Metricer, stID sttypes.SyncTesterID, chainID eth.ChainID, elReader ReadOnlyELBackend) *SyncTester {
 	return &SyncTester{
-		log:               logger,
-		m:                 m,
-		id:                stID,
-		chainID:           chainID,
-		elReader:          elReader,
-		sessions:          make(map[string]*eth.SyncTesterSession),
+		log:      logger,
+		m:        m,
+		id:       stID,
+		chainID:  chainID,
+		elReader: elReader,
+		sessions: make(map[string]*eth.SyncTesterSession),
 	}
 }
 
