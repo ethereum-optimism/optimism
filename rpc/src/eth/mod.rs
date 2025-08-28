@@ -12,6 +12,7 @@ use crate::{
     eth::{receipt::OpReceiptConverter, transaction::OpTxInfoMapper},
     OpEthApiError, SequencerClient,
 };
+use alloy_consensus::BlockHeader;
 use alloy_primitives::U256;
 use eyre::WrapErr;
 use op_alloy_network::Optimism;
@@ -34,13 +35,14 @@ use reth_rpc_eth_api::{
 };
 use reth_rpc_eth_types::{
     pending_block::PendingBlockAndReceipts, EthStateCache, FeeHistoryCache, GasPriceOracle,
+    PendingBlockEnvOrigin,
 };
 use reth_storage_api::{ProviderHeader, ProviderTx};
 use reth_tasks::{
     pool::{BlockingTaskGuard, BlockingTaskPool},
     TaskSpawner,
 };
-use std::{fmt, fmt::Formatter, marker::PhantomData, sync::Arc};
+use std::{fmt, fmt::Formatter, marker::PhantomData, sync::Arc, time::Instant};
 
 /// Adapter for [`EthApiInner`], which holds all the data required to serve core `eth_` API.
 pub type EthApiNodeBackend<N, Rpc> = EthApiInner<N, Rpc>;
@@ -100,8 +102,31 @@ impl<N: RpcNodeCore, Rpc: RpcConvert> OpEthApi<N, Rpc> {
     /// Returns a [`PendingBlockAndReceipts`] that is built out of flashblocks.
     ///
     /// If flashblocks receiver is not set, then it always returns `None`.
-    pub fn pending_flashblock(&self) -> Option<PendingBlockAndReceipts<N::Primitives>> {
-        Some(self.inner.flashblocks_rx.as_ref()?.borrow().as_ref()?.to_block_and_receipts())
+    pub fn pending_flashblock(&self) -> eyre::Result<Option<PendingBlockAndReceipts<N::Primitives>>>
+    where
+        Self: LoadPendingBlock,
+    {
+        let pending = self.pending_block_env_and_cfg()?;
+        let parent = match pending.origin {
+            PendingBlockEnvOrigin::ActualPending(..) => return Ok(None),
+            PendingBlockEnvOrigin::DerivedFromLatest(parent) => parent,
+        };
+
+        let Some(rx) = self.inner.flashblocks_rx.as_ref() else { return Ok(None) };
+        let pending_block = rx.borrow();
+        let Some(pending_block) = pending_block.as_ref() else { return Ok(None) };
+
+        let now = Instant::now();
+
+        // Is the pending block not expired and latest is its parent?
+        if pending.evm_env.block_env.number == U256::from(pending_block.block().number()) &&
+            parent.hash() == pending_block.block().parent_hash() &&
+            now <= pending_block.expires_at
+        {
+            return Ok(Some(pending_block.to_block_and_receipts()));
+        }
+
+        Ok(None)
     }
 }
 

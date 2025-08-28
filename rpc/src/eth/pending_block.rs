@@ -45,7 +45,7 @@ where
         )>,
         Self::Error,
     > {
-        if let Some(block) = self.pending_flashblock() {
+        if let Ok(Some(block)) = self.pending_flashblock() {
             return Ok(Some(block));
         }
 
