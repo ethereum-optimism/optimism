@@ -33,7 +33,7 @@ func TestParseSession_Valid(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, newReq)
 
-	session, ok := backend.SessionFromContext(newReq.Context())
+	session, ok := backend.SyncTesterSessionFromContext(newReq.Context())
 	require.True(t, ok)
 	require.NotNil(t, session)
 	require.Equal(t, id, session.SessionID)
@@ -53,7 +53,7 @@ func TestParseSession_DefaultsToZero(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, newReq)
 
-	session, ok := backend.SessionFromContext(newReq.Context())
+	session, ok := backend.SyncTesterSessionFromContext(newReq.Context())
 	require.True(t, ok)
 	require.NotNil(t, session)
 	require.Equal(t, id, session.SessionID)
@@ -71,7 +71,7 @@ func TestParseSession_NoSessionInitialized(t *testing.T) {
 	require.NoError(t, err)
 	require.Same(t, req, newReq)
 
-	_, ok := backend.SessionFromContext(newReq.Context())
+	_, ok := backend.SyncTesterSessionFromContext(newReq.Context())
 	require.False(t, ok)
 }
 

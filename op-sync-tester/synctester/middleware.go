@@ -9,7 +9,6 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-sync-tester/synctester/backend"
-	sttypes "github.com/ethereum-optimism/optimism/op-sync-tester/synctester/backend/types"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/google/uuid"
 )
@@ -42,7 +41,6 @@ func parseSession(r *http.Request, log log.Logger) (*http.Request, error) {
 		parseParam := func(name string) (uint64, error) {
 			raw := query.Get(name)
 			if raw == "" {
-				log.Warn("Parameter not provided. Defaulting to 0", "param", name)
 				return 0, nil
 			}
 			val, err := strconv.ParseUint(raw, 10, 64)
@@ -63,22 +61,22 @@ func parseSession(r *http.Request, log log.Logger) (*http.Request, error) {
 		if err != nil {
 			return r, err
 		}
-		session := &backend.Session{
+		session := &eth.SyncTesterSession{
 			SessionID: sessionID,
 			Validated: latest,
-			CurrentState: sttypes.FCUState{
+			CurrentState: eth.FCUState{
 				Latest:    latest,
 				Safe:      safe,
 				Finalized: finalized,
 			},
 			Payloads: make(map[eth.PayloadID]*eth.ExecutionPayloadEnvelope),
-			InitialState: sttypes.FCUState{
+			InitialState: eth.FCUState{
 				Latest:    latest,
 				Safe:      safe,
 				Finalized: finalized,
 			},
 		}
-		ctx := backend.WithSession(r.Context(), session)
+		ctx := backend.WithSyncTesterSession(r.Context(), session)
 		// remove uuid path for routing
 		r.URL.Path = "/" + strings.Join(segments[:3], "/")
 		r = r.WithContext(ctx)

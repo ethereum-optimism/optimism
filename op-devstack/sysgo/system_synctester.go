@@ -4,7 +4,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-chain-ops/devkeys"
 	"github.com/ethereum-optimism/optimism/op-devstack/stack"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-	sttypes "github.com/ethereum-optimism/optimism/op-sync-tester/synctester/backend/types"
 )
 
 type DefaultSimpleSystemWithSyncTesterIDs struct {
@@ -23,7 +22,7 @@ func NewDefaultSimpleSystemWithSyncTesterIDs(l1ID, l2ID eth.ChainID) DefaultSimp
 	}
 }
 
-func DefaultSimpleSystemWithSyncTester(dest *DefaultSimpleSystemWithSyncTesterIDs, fcus sttypes.FCUState) stack.Option[*Orchestrator] {
+func DefaultSimpleSystemWithSyncTester(dest *DefaultSimpleSystemWithSyncTesterIDs, fcu eth.FCUState) stack.Option[*Orchestrator] {
 	l1ID := eth.ChainIDFromUInt64(900)
 	l2ID := eth.ChainIDFromUInt64(901)
 	ids := NewDefaultSimpleSystemWithSyncTesterIDs(l1ID, l2ID)
@@ -62,7 +61,7 @@ func DefaultSimpleSystemWithSyncTester(dest *DefaultSimpleSystemWithSyncTesterID
 	opt.Add(WithSyncTester([]stack.L2ELNodeID{ids.L2EL}))
 
 	// Create a SyncTesterEL with the same chain ID as the CL node
-	opt.Add(WithSyncTesterL2ELNode(ids.SyncTester, ids.L2CL2, fcus))
+	opt.Add(WithSyncTesterL2ELNode(ids.SyncTester, ids.L2CL2, fcu))
 	opt.Add(WithL2CLNode(ids.L2CL2, ids.L1CL, ids.L1EL, stack.L2ELNodeID(ids.SyncTester)))
 
 	opt.Add(stack.Finally(func(orch *Orchestrator) {

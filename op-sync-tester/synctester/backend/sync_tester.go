@@ -28,11 +28,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-sync-tester/synctester/frontend"
 )
 
-var (
-	ErrNoSession  = errors.New("no session")
-	ErrNoReceipts = errors.New("no receipts")
-)
-
 type SyncTester struct {
 	mu sync.RWMutex
 
@@ -44,7 +39,7 @@ type SyncTester struct {
 
 	elReader ReadOnlyELBackend
 
-	sessions map[string]*Session
+	sessions map[string]*eth.SyncTesterSession
 }
 
 // HeaderNumberOnly is a lightweight header type that only contains the
@@ -70,21 +65,21 @@ func SyncTesterFromConfig(logger log.Logger, m metrics.Metricer, stID sttypes.Sy
 
 func NewSyncTester(logger log.Logger, m metrics.Metricer, stID sttypes.SyncTesterID, chainID eth.ChainID, elReader ReadOnlyELBackend) *SyncTester {
 	return &SyncTester{
-		log:      logger,
-		m:        m,
-		id:       stID,
-		chainID:  chainID,
-		elReader: elReader,
-		sessions: make(map[string]*Session),
+		log:               logger,
+		m:                 m,
+		id:                stID,
+		chainID:           chainID,
+		elReader:          elReader,
+		sessions:          make(map[string]*eth.SyncTesterSession),
 	}
 }
 
-func (s *SyncTester) storeSession(session *Session) {
+func (s *SyncTester) storeSession(session *eth.SyncTesterSession) {
 	s.sessions[session.SessionID] = session
 }
 
-func (s *SyncTester) fetchSession(ctx context.Context) (*Session, error) {
-	session, ok := SessionFromContext(ctx)
+func (s *SyncTester) fetchSession(ctx context.Context) (*eth.SyncTesterSession, error) {
+	session, ok := SyncTesterSessionFromContext(ctx)
 	if !ok || session == nil {
 		return nil, fmt.Errorf("no session found in context")
 	}
@@ -100,18 +95,18 @@ func (s *SyncTester) fetchSession(ctx context.Context) (*Session, error) {
 	}
 }
 
-func (s *SyncTester) GetSession(ctx context.Context) error {
-	_, err := s.fetchSession(ctx)
+func (s *SyncTester) GetSession(ctx context.Context) (eth.SyncTesterSession, error) {
+	session, err := s.fetchSession(ctx)
 	if err != nil {
-		return ErrNoSession
+		return eth.SyncTesterSession{}, err
 	}
-	return nil
+	return *session, nil
 }
 
 func (s *SyncTester) DeleteSession(ctx context.Context) error {
 	session, err := s.fetchSession(ctx)
 	if err != nil {
-		return ErrNoSession
+		return err
 	}
 	delete(s.sessions, session.SessionID)
 	return nil
@@ -146,7 +141,7 @@ func (s *SyncTester) GetBlockReceipts(ctx context.Context, blockNrOrHash rpc.Blo
 	}
 	if len(receipts) == 0 {
 		// Should never happen since every block except genesis has at least one deposit tx
-		return nil, ErrNoReceipts
+		return nil, errors.New("no receipts")
 	}
 	if receipts[0].BlockNumber.Uint64() > session.CurrentState.Latest {
 		return nil, ethereum.NotFound
@@ -173,7 +168,7 @@ func (s *SyncTester) GetBlockByHash(ctx context.Context, hash common.Hash, fullT
 	return raw, nil
 }
 
-func (s *SyncTester) checkBlockNumber(number rpc.BlockNumber, session *Session) (uint64, error) {
+func (s *SyncTester) checkBlockNumber(number rpc.BlockNumber, session *eth.SyncTesterSession) (uint64, error) {
 	var target uint64
 	switch number {
 	case rpc.LatestBlockNumber:
@@ -281,7 +276,7 @@ func (s *SyncTester) GetPayloadV4(ctx context.Context, payloadID eth.PayloadID) 
 // ForkchoiceUpdated engine APIs when valid payload attributes were provided.
 // Retrieved payloads are deleted from the session after being served to
 // emulate one-time consumption by the consensus layer.
-func (s *SyncTester) getPayload(session *Session, payloadID eth.PayloadID) (*eth.ExecutionPayloadEnvelope, error) {
+func (s *SyncTester) getPayload(session *eth.SyncTesterSession, payloadID eth.PayloadID) (*eth.ExecutionPayloadEnvelope, error) {
 	payloadEnv, ok := session.Payloads[payloadID]
 	if !ok {
 		return nil, engine.UnknownPayload
@@ -336,7 +331,7 @@ func (s *SyncTester) ForkchoiceUpdatedV3(ctx context.Context, state *eth.Forkcho
 //     attributes are malformed or finalized/safe blocks are not canonical.
 //   - {status: SYNCING} when the head block is unknown or not yet validated, or
 //     when block data cannot be retrieved from the execution layer.
-func (s *SyncTester) forkchoiceUpdated(ctx context.Context, session *Session, state *eth.ForkchoiceState, attr *eth.PayloadAttributes, payloadVersion engine.PayloadVersion,
+func (s *SyncTester) forkchoiceUpdated(ctx context.Context, session *eth.SyncTesterSession, state *eth.ForkchoiceState, attr *eth.PayloadAttributes, payloadVersion engine.PayloadVersion,
 	isCanyon, isEcotone bool,
 ) (*eth.ForkchoiceUpdatedResult, error) {
 	// Validate attributes shape
@@ -597,7 +592,7 @@ func (s *SyncTester) NewPayloadV4(ctx context.Context, payload *eth.ExecutionPay
 //   - {status: SYNCING} when the block cannot be executed because its parent is missing.
 //   - Errors surfaced as engine.InvalidParams or engine.GenericServerError to
 //     trigger appropriate consensus-layer retries.
-func (s *SyncTester) newPayload(ctx context.Context, session *Session, payload *eth.ExecutionPayload, versionedHashes []common.Hash, beaconRoot *common.Hash, executionRequests []hexutil.Bytes,
+func (s *SyncTester) newPayload(ctx context.Context, session *eth.SyncTesterSession, payload *eth.ExecutionPayload, versionedHashes []common.Hash, beaconRoot *common.Hash, executionRequests []hexutil.Bytes,
 	isEcotone, isIsthmus bool,
 ) (*eth.PayloadStatusV1, error) {
 	// Validate request shape, fork required fields

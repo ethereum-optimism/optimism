@@ -9,8 +9,8 @@ import (
 	"github.com/ethereum-optimism/optimism/op-devstack/stack"
 	"github.com/ethereum-optimism/optimism/op-devstack/stack/match"
 	"github.com/ethereum-optimism/optimism/op-service/client"
+	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/testutils/tcpproxy"
-	sttypes "github.com/ethereum-optimism/optimism/op-sync-tester/synctester/backend/types"
 )
 
 // SyncTesterEL is an L2ELNode implementation that runs a sync tester service.
@@ -30,7 +30,7 @@ type SyncTesterEL struct {
 
 	// Sync tester specific fields
 	clNodeID stack.L2CLNodeID
-	fcuState sttypes.FCUState
+	fcuState eth.FCUState
 	p        devtest.P
 
 	// Reference to the orchestrator to find the EL node to connect to
@@ -122,7 +122,7 @@ func (n *SyncTesterEL) JWTPath() string {
 // WithSyncTesterL2ELNode creates a SyncTesterEL that satisfies the L2ELNode interface
 // and configures a sync tester for a given CL node.
 // The sync tester acts as an EL node that can be used by CL nodes for testing sync.
-func WithSyncTesterL2ELNode(id stack.L2ELNodeID, clNodeID stack.L2CLNodeID, fcuState sttypes.FCUState, opts ...L2ELOption) stack.Option[*Orchestrator] {
+func WithSyncTesterL2ELNode(id stack.L2ELNodeID, clNodeID stack.L2CLNodeID, fcuState eth.FCUState, opts ...L2ELOption) stack.Option[*Orchestrator] {
 	return stack.AfterDeploy(func(orch *Orchestrator) {
 		p := orch.P().WithCtx(stack.ContextWithID(orch.P().Ctx(), id))
 		require := p.Require()
