@@ -9,6 +9,7 @@ before:
   hooks:
     # You may remove this if you don't use go modules.
     - go mod tidy
+    - just op-deployer/copy-contract-artifacts
 
 builds:
   - id: main

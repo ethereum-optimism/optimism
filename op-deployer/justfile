@@ -1,4 +1,6 @@
-build:
+COMPRESSED_ARTIFACTS := './pkg/deployer/artifacts/forge-artifacts/artifacts.tgz'
+
+build: copy-contract-artifacts
     go build -o bin/op-deployer cmd/op-deployer/main.go
 
 build-contracts:
@@ -8,8 +10,13 @@ test args='./...': build-contracts
     go test -v {{args}}
 
 copy-contract-artifacts:
-    rm -f ./pkg/deployer/artifacts/forge-artifacts/artifacts.tgz
-    tar -cvzf ./pkg/deployer/artifacts/forge-artifacts/artifacts.tgz -C ../packages/contracts-bedrock/forge-artifacts --exclude="*.t.sol" .
+  #!/bin/sh
+  if [ ! -f {{ COMPRESSED_ARTIFACTS }} ]; then
+    just compress-artifacts
+  fi
+
+compress-artifacts: build-contracts
+  tar -cvzf {{ COMPRESSED_ARTIFACTS }} -C '../packages/contracts-bedrock/forge-artifacts' --exclude="*.t.sol" .
 
 # ======================================
 # Deployment and Verification Utilities
