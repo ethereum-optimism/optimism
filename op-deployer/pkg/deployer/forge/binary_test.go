@@ -19,9 +19,9 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// TestAutodetectBinary_ForgeBins tests that the binary can be downloaded from the
+// TestStandardBinary_ForgeBins tests that the binary can be downloaded from the
 // official release channel, and that their checksums are correct.
-func TestAutodetectBinary_ForgeBins(t *testing.T) {
+func TestStandardBinary_ForgeBins(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping test in -short mode")
 	}
@@ -36,7 +36,7 @@ func TestAutodetectBinary_ForgeBins(t *testing.T) {
 			tgtOS, tgtArch := split[0], split[1]
 
 			cacheDir := t.TempDir()
-			bin, err := AutodetectBinary(
+			bin, err := NewStandardBinary(
 				WithURL(binaryURL(tgtOS, tgtArch)),
 				WithCachePather(func() (string, error) { return cacheDir, nil }),
 				WithProgressor(ioutil.NewLogProgressor(lgr, "downloading").Progressor),
@@ -51,7 +51,7 @@ func TestAutodetectBinary_ForgeBins(t *testing.T) {
 	}
 }
 
-func TestAutodetectBinary_Downloads(t *testing.T) {
+func TestStandardBinary_Downloads(t *testing.T) {
 	expChecksum, err := os.ReadFile("testdata/foundry.tgz.sha256")
 	require.NoError(t, err)
 
@@ -65,7 +65,7 @@ func TestAutodetectBinary_Downloads(t *testing.T) {
 	t.Run("download OK", func(t *testing.T) {
 		var progressed atomic.Bool
 
-		bin, err := AutodetectBinary(
+		bin, err := NewStandardBinary(
 			WithURL(ts.URL+"/foundry.tgz"),
 			WithCachePather(func() (string, error) { return cacheDir, nil }),
 			WithProgressor(func(curr, total int64) {
@@ -84,7 +84,7 @@ func TestAutodetectBinary_Downloads(t *testing.T) {
 	})
 
 	t.Run("invalid checksum", func(t *testing.T) {
-		bin, err := AutodetectBinary(
+		bin, err := NewStandardBinary(
 			WithURL(ts.URL+"/foundry.tgz"),
 			WithCachePather(func() (string, error) { return "not-a-path", nil }),
 			WithChecksummer(staticChecksummer("beep beep")),
@@ -97,7 +97,7 @@ func TestAutodetectBinary_Downloads(t *testing.T) {
 	})
 }
 
-func TestAutodetectBinary_OnPath(t *testing.T) {
+func TestStandardBinary_OnPath(t *testing.T) {
 	expChecksum, err := os.ReadFile("testdata/foundry.tgz.sha256")
 	require.NoError(t, err)
 
@@ -126,17 +126,17 @@ exit 1
 	}{
 		{
 			name:          "match_tag",
-			versionLine:   fmt.Sprintf("forge Version: %s-%s", strings.TrimPrefix(Version, "v"), Version),
+			versionLine:   fmt.Sprintf("forge Version: %s-%s", strings.TrimPrefix(StandardVersion, "v"), StandardVersion),
 			expectUsePath: true,
 		},
 		{
 			name:          "mismatch_tag",
-			versionLine:   fmt.Sprintf("forge Version: %s-v0.0.0", strings.TrimPrefix(Version, "v")),
+			versionLine:   fmt.Sprintf("forge Version: %s-v0.0.0", strings.TrimPrefix(StandardVersion, "v")),
 			expectUsePath: false,
 		},
 		{
 			name:          "no_tag",
-			versionLine:   fmt.Sprintf("forge Version: %s", strings.TrimPrefix(Version, "v")),
+			versionLine:   fmt.Sprintf("forge Version: %s", strings.TrimPrefix(StandardVersion, "v")),
 			expectUsePath: false,
 		},
 		{
@@ -153,7 +153,7 @@ exit 1
 			t.Setenv("PATH", forgeDir)
 
 			cacheDir := t.TempDir()
-			bin, err := AutodetectBinary(
+			bin, err := NewStandardBinary(
 				WithURL(ts.URL+"/foundry.tgz"),
 				WithCachePather(func() (string, error) { return cacheDir, nil }),
 				WithChecksummer(staticChecksummer(string(expChecksum))),

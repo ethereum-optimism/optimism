@@ -18,8 +18,8 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/ioutil"
 )
 
-// Version is the Foundry version that op-deployer will download if it's not found on PATH.
-const Version = "v1.3.1"
+// StandardVersion is the Foundry version that op-deployer will download if it's not found on PATH.
+const StandardVersion = "v1.3.1"
 
 // maxDownloadSize is the maximum size of the Foundry tarball that will be downloaded. It's typically ~60MB so
 // this should be more than enough.
@@ -42,7 +42,7 @@ func getOS() string {
 }
 
 func binaryURL(sysOS, sysArch string) string {
-	return fmt.Sprintf("https://github.com/foundry-rs/foundry/releases/download/%s/foundry_%s_%s_%s.tar.gz", Version, Version, sysOS, sysArch)
+	return fmt.Sprintf("https://github.com/foundry-rs/foundry/releases/download/%s/foundry_%s_%s_%s.tar.gz", StandardVersion, StandardVersion, sysOS, sysArch)
 }
 
 type Binary interface {
@@ -87,7 +87,10 @@ func (b *PathBin) Path() string {
 	return b.path
 }
 
-type AutodetectBin struct {
+// StandardBin forces the use of the standard forge binary version by
+// first checking for the version locally, then downloading from github
+// if needed
+type StandardBin struct {
 	progressor ioutil.Progressor
 
 	cachePather func() (string, error)
@@ -96,28 +99,28 @@ type AutodetectBin struct {
 	path        string
 }
 
-type AutodetectBinaryOpt func(s *AutodetectBin)
+type StandardBinOpt func(s *StandardBin)
 
-func WithProgressor(p ioutil.Progressor) AutodetectBinaryOpt {
-	return func(s *AutodetectBin) {
+func WithProgressor(p ioutil.Progressor) StandardBinOpt {
+	return func(s *StandardBin) {
 		s.progressor = p
 	}
 }
 
-func WithURL(url string) AutodetectBinaryOpt {
-	return func(s *AutodetectBin) {
+func WithURL(url string) StandardBinOpt {
+	return func(s *StandardBin) {
 		s.url = url
 	}
 }
 
-func WithCachePather(pather func() (string, error)) AutodetectBinaryOpt {
-	return func(s *AutodetectBin) {
+func WithCachePather(pather func() (string, error)) StandardBinOpt {
+	return func(s *StandardBin) {
 		s.cachePather = pather
 	}
 }
 
-func WithChecksummer(checksummer func(r io.Reader) error) AutodetectBinaryOpt {
-	return func(s *AutodetectBin) {
+func WithChecksummer(checksummer func(r io.Reader) error) StandardBinOpt {
+	return func(s *StandardBin) {
 		s.checksummer = checksummer
 	}
 }
@@ -152,8 +155,8 @@ func githubChecksummer(r io.Reader) error {
 	return staticChecksummer(expChecksum)(r)
 }
 
-func AutodetectBinary(opts ...AutodetectBinaryOpt) (*AutodetectBin, error) {
-	bin := &AutodetectBin{
+func NewStandardBinary(opts ...StandardBinOpt) (*StandardBin, error) {
+	bin := &StandardBin{
 		url:         binaryURL(getOS(), runtime.GOARCH),
 		cachePather: homedirCachePather,
 		checksummer: githubChecksummer,
@@ -164,7 +167,7 @@ func AutodetectBinary(opts ...AutodetectBinaryOpt) (*AutodetectBin, error) {
 	return bin, nil
 }
 
-func (b *AutodetectBin) Ensure(ctx context.Context) error {
+func (b *StandardBin) Ensure(ctx context.Context) error {
 	// 1) Exit early if b.path already set (via previous Ensure call)
 	if b.path != "" {
 		return nil
@@ -172,7 +175,7 @@ func (b *AutodetectBin) Ensure(ctx context.Context) error {
 
 	// 2) PATH: use if version matches the pinned Version
 	if forgePath, err := exec.LookPath("forge"); err == nil {
-		if ver, err := getForgeVersion(ctx, forgePath); err == nil && ver == Version {
+		if ver, err := getForgeVersion(ctx, forgePath); err == nil && ver == StandardVersion {
 			b.path = forgePath
 			return nil
 		}
@@ -186,7 +189,7 @@ func (b *AutodetectBin) Ensure(ctx context.Context) error {
 	binPath := path.Join(binDir, "forge")
 	if st, err := os.Stat(binPath); err == nil && !st.IsDir() {
 		// forge binary exists in cache; check version
-		if ver, err := getForgeVersion(ctx, binPath); err == nil && ver == Version {
+		if ver, err := getForgeVersion(ctx, binPath); err == nil && ver == StandardVersion {
 			b.path = binPath
 			return nil
 		}
@@ -202,11 +205,11 @@ func (b *AutodetectBin) Ensure(ctx context.Context) error {
 	return nil
 }
 
-func (b *AutodetectBin) Path() string {
+func (b *StandardBin) Path() string {
 	return b.path
 }
 
-func (b *AutodetectBin) downloadBinary(ctx context.Context, dest string) error {
+func (b *StandardBin) downloadBinary(ctx context.Context, dest string) error {
 	tmpDir, err := os.MkdirTemp("", "op-deployer-forge-*")
 	if err != nil {
 		return fmt.Errorf("failed to create temp file: %w", err)
