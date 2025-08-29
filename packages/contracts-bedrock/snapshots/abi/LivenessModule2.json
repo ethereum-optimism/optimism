@@ -30,7 +30,7 @@
     "inputs": [
       {
         "internalType": "uint256",
-        "name": "_livenessChallengePeriod",
+        "name": "_livenessResponsePeriod",
         "type": "uint256"
       },
       {
@@ -75,7 +75,7 @@
     "outputs": [
       {
         "internalType": "uint256",
-        "name": "livenessChallengePeriod",
+        "name": "livenessResponsePeriod",
         "type": "uint256"
       },
       {
@@ -218,7 +218,7 @@
       {
         "indexed": false,
         "internalType": "uint256",
-        "name": "livenessChallengePeriod",
+        "name": "livenessResponsePeriod",
         "type": "uint256"
       },
       {
@@ -243,11 +243,6 @@
   },
   {
     "inputs": [],
-    "name": "LivenessModule2_ChallengeNotSuccessful",
-    "type": "error"
-  },
-  {
-    "inputs": [],
     "name": "LivenessModule2_InvalidParameters",
     "type": "error"
   },
@@ -259,6 +254,16 @@
   {
     "inputs": [],
     "name": "LivenessModule2_OwnerNotFound",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "LivenessModule2_ResponsePeriodActive",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "LivenessModule2_ResponsePeriodExpired",
     "type": "error"
   },
   {

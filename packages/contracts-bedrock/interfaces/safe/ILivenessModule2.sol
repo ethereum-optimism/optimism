@@ -16,8 +16,11 @@ interface ILivenessModule2 is ISemver {
     /// @notice Error for when no challenge exists
     error LivenessModule2_ChallengeDoesNotExist();
 
-    /// @notice Error for when challenge is not successful
-    error LivenessModule2_ChallengeNotSuccessful();
+    /// @notice Error for when trying to cancel a challenge after the response period has expired
+    error LivenessModule2_ResponsePeriodExpired();
+
+    /// @notice Error for when trying to execute ownership transfer while the response period is still active
+    error LivenessModule2_ResponsePeriodActive();
 
     /// @notice Error for when caller is not authorized
     error LivenessModule2_UnauthorizedCaller();
@@ -29,7 +32,7 @@ interface ILivenessModule2 is ISemver {
     error LivenessModule2_OwnerNotFound();
 
     /// @notice Emitted when a Safe enables the module
-    event ModuleEnabled(address indexed safe, uint256 livenessChallengePeriod, address fallbackOwner);
+    event ModuleEnabled(address indexed safe, uint256 livenessResponsePeriod, address fallbackOwner);
 
     /// @notice Emitted when a Safe disables the module
     event ModuleDisabled(address indexed safe);
@@ -44,30 +47,30 @@ interface ILivenessModule2 is ISemver {
     event ChallengeExecuted(address indexed safe, address fallbackOwner);
 
     /// @notice Returns the configuration for a Safe
-    /// @return livenessChallengePeriod The challenge period
+    /// @return livenessResponsePeriod The response period
     /// @return fallbackOwner The fallback owner address
     /// @return challengeStartTime The challenge start time (0 if no challenge)
-    function safeConfigs(address) external view returns (uint256 livenessChallengePeriod, address fallbackOwner, uint256 challengeStartTime);
+    function safeConfigs(address) external view returns (uint256 livenessResponsePeriod, address fallbackOwner, uint256 challengeStartTime);
 
     /// @notice Semantic version
     /// @return version The contract version
     function version() external view returns (string memory);
 
     /// @notice Enables the module by the multisig to be challenged
-    /// @param _livenessChallengePeriod The period in seconds for a liveness challenge
+    /// @param _livenessResponsePeriod The period in seconds for a liveness response
     /// @param _fallbackOwner The address that will become owner if challenge succeeds
-    function enableModule(uint256 _livenessChallengePeriod, address _fallbackOwner) external;
+    function enableModule(uint256 _livenessResponsePeriod, address _fallbackOwner) external;
 
     /// @notice Disables the module by an enabled safe
     function disableModule() external;
 
-    /// @notice Returns the liveness_challenge_period and fallback_owner for a given safe
+    /// @notice Returns the liveness_response_period and fallback_owner for a given safe
     /// @param _safe The Safe address to query
-    /// @return livenessChallengePeriod The challenge period
+    /// @return livenessResponsePeriod The response period
     /// @return fallbackOwner The fallback owner address
     function viewConfiguration(address _safe) external view returns (uint256, address);
 
-    /// @notice Returns challenge_start_time + liveness_challenge_period if there is a challenge, or 0 if not
+    /// @notice Returns challenge_start_time + liveness_response_period if there is a challenge, or 0 if not
     /// @param _safe The Safe address to query
     /// @return The challenge end timestamp, or 0 if no challenge
     function isChallenged(address _safe) external view returns (uint256);

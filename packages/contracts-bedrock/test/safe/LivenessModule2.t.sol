@@ -270,7 +270,7 @@ contract LivenessModule2_StartChallenge_Test is LivenessModule2_TestInit {
         assertFalse(success, "Should fail to cancel non-existent challenge");
     }
 
-    function test_cancelChallenge_afterChallengePeriod_reverts() external {
+    function test_cancelChallenge_afterResponsePeriod_reverts() external {
         // Start a challenge
         vm.prank(fallbackOwner);
         livenessModule2.startChallenge(address(safeInstance.safe));
@@ -278,8 +278,8 @@ contract LivenessModule2_StartChallenge_Test is LivenessModule2_TestInit {
         // Warp past challenge period
         vm.warp(block.timestamp + CHALLENGE_PERIOD + 1);
 
-        // Try to cancel - should fail as challenge is successful
-        vm.expectRevert(ILivenessModule2.LivenessModule2_ChallengeNotSuccessful.selector);
+        // Try to cancel - should fail as response period has expired
+        vm.expectRevert(ILivenessModule2.LivenessModule2_ResponsePeriodExpired.selector);
         vm.prank(address(safeInstance.safe));
         livenessModule2.cancelChallenge();
     }
@@ -339,13 +339,13 @@ contract LivenessModule2_ChangeOwnershipToFallback_Test is LivenessModule2_TestI
         livenessModule2.changeOwnershipToFallback(address(safeInstance.safe));
     }
 
-    function test_changeOwnershipToFallback_beforeChallengePeriod_reverts() external {
+    function test_changeOwnershipToFallback_beforeResponsePeriod_reverts() external {
         // Start a challenge
         vm.prank(fallbackOwner);
         livenessModule2.startChallenge(address(safeInstance.safe));
 
-        // Try to execute before period expires
-        vm.expectRevert(ILivenessModule2.LivenessModule2_ChallengeNotSuccessful.selector);
+        // Try to execute before response period expires
+        vm.expectRevert(ILivenessModule2.LivenessModule2_ResponsePeriodActive.selector);
         livenessModule2.changeOwnershipToFallback(address(safeInstance.safe));
     }
 

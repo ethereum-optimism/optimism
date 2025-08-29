@@ -20,7 +20,7 @@ import { ILivenessModule2 } from "interfaces/safe/ILivenessModule2.sol";
 contract LivenessModule2 is ILivenessModule2 {
     /// @notice Configuration for a Safe's liveness module
     struct SafeConfig {
-        uint256 livenessChallengePeriod;
+        uint256 livenessResponsePeriod;
         address fallbackOwner;
         uint256 challengeStartTime;
     }
@@ -32,15 +32,15 @@ contract LivenessModule2 is ILivenessModule2 {
     /// @custom:semver 2.0.0
     string public constant version = "2.0.0";
 
-    /// @notice Enables the module by the multisig to be challenged and sets the liveness_challenge_period and
+    /// @notice Enables the module by the multisig to be challenged and sets the liveness_response_period and
     /// fallback_owner
     /// @dev MUST set the caller as a safe
-    /// @dev MUST take as parameters liveness_challenge_period and fallback_owner and store them as related to the safe
+    /// @dev MUST take as parameters liveness_response_period and fallback_owner and store them as related to the safe
     /// @dev MUST accept an arbitrary number of independent safe contracts to enable the module
-    /// @param _livenessChallengePeriod The period in seconds for a liveness challenge
+    /// @param _livenessResponsePeriod The period in seconds for a liveness response
     /// @param _fallbackOwner The address that will become owner if challenge succeeds
-    function enableModule(uint256 _livenessChallengePeriod, address _fallbackOwner) external {
-        if (_livenessChallengePeriod == 0 || _fallbackOwner == address(0)) {
+    function enableModule(uint256 _livenessResponsePeriod, address _fallbackOwner) external {
+        if (_livenessResponsePeriod == 0 || _fallbackOwner == address(0)) {
             revert LivenessModule2_InvalidParameters();
         }
 
@@ -48,16 +48,17 @@ contract LivenessModule2 is ILivenessModule2 {
         SafeConfig storage config = safeConfigs[msg.sender];
 
         // Store the parameters related to this safe
-        config.livenessChallengePeriod = _livenessChallengePeriod;
+        config.livenessResponsePeriod = _livenessResponsePeriod;
         config.fallbackOwner = _fallbackOwner;
         config.challengeStartTime = 0;
 
-        emit ModuleEnabled(msg.sender, _livenessChallengePeriod, _fallbackOwner);
+        emit ModuleEnabled(msg.sender, _livenessResponsePeriod, _fallbackOwner);
     }
 
     /// @notice Disables the module by an enabled safe
     /// @dev MUST only be executable by an enabled safe
-    /// @dev MUST erase the existing liveness_challenge_period and fallback_owner data related to the calling safe
+    /// @dev MUST erase the existing liveness_response_period and fallback_owner data related to the calling safe
+    /// @dev Note: Disabling the module also cancels any ongoing challenges
     function disableModule() external {
         SafeConfig storage config = safeConfigs[msg.sender];
         // Check if the calling safe has the module enabled
@@ -70,17 +71,17 @@ contract LivenessModule2 is ILivenessModule2 {
         emit ModuleDisabled(msg.sender);
     }
 
-    /// @notice Returns the liveness_challenge_period and fallback_owner for a given safe
+    /// @notice Returns the liveness_response_period and fallback_owner for a given safe
     /// @dev MUST never revert
     /// @param _safe The Safe address to query
-    /// @return livenessChallengePeriod The challenge period
+    /// @return livenessResponsePeriod The response period
     /// @return fallbackOwner The fallback owner address
     function viewConfiguration(address _safe) external view returns (uint256, address) {
         SafeConfig storage config = safeConfigs[_safe];
-        return (config.livenessChallengePeriod, config.fallbackOwner);
+        return (config.livenessResponsePeriod, config.fallbackOwner);
     }
 
-    /// @notice Returns challenge_start_time + liveness_challenge_period if there is a challenge for the given safe, or
+    /// @notice Returns challenge_start_time + liveness_response_period if there is a challenge for the given safe, or
     /// 0 if not
     /// @dev MUST never revert
     /// @param _safe The Safe address to query
@@ -90,7 +91,7 @@ contract LivenessModule2 is ILivenessModule2 {
         if (config.challengeStartTime == 0) {
             return 0;
         }
-        return config.challengeStartTime + config.livenessChallengePeriod;
+        return config.challengeStartTime + config.livenessResponsePeriod;
     }
 
     /// @notice Challenges an enabled safe
@@ -134,9 +135,9 @@ contract LivenessModule2 is ILivenessModule2 {
             revert LivenessModule2_ChallengeDoesNotExist();
         }
 
-        // Check if challenge period has expired
-        if (block.timestamp >= config.challengeStartTime + config.livenessChallengePeriod) {
-            revert LivenessModule2_ChallengeNotSuccessful();
+        // Check if response period has expired
+        if (block.timestamp >= config.challengeStartTime + config.livenessResponsePeriod) {
+            revert LivenessModule2_ResponsePeriodExpired();
         }
 
         config.challengeStartTime = 0;
@@ -162,9 +163,9 @@ contract LivenessModule2 is ILivenessModule2 {
             revert LivenessModule2_ChallengeDoesNotExist();
         }
 
-        // Check if challenge period has expired
-        if (block.timestamp < config.challengeStartTime + config.livenessChallengePeriod) {
-            revert LivenessModule2_ChallengeNotSuccessful();
+        // Check if response period has expired
+        if (block.timestamp < config.challengeStartTime + config.livenessResponsePeriod) {
+            revert LivenessModule2_ResponsePeriodActive();
         }
 
         Safe safe = Safe(payable(_safe));
@@ -172,45 +173,17 @@ contract LivenessModule2 is ILivenessModule2 {
         // Get current owners
         address[] memory currentOwners = safe.getOwners();
 
-        // Remove all current owners and add fallback owner
-        // We need to do this by swapping the first owner with the fallback owner,
-        // then removing the remaining owners
         if (currentOwners.length > 0) {
-            // First, swap the first owner with the fallback owner
-            address prevOwner = address(0x1); // Sentinel value for the first owner in the Safe's linked list
-            safe.execTransactionFromModule({
-                to: _safe,
-                value: 0,
-                operation: Enum.Operation.Call,
-                data: abi.encodeCall(OwnerManager.swapOwner, (prevOwner, currentOwners[0], config.fallbackOwner))
-            });
-
-            // Then remove all other owners if there are any
-            for (uint256 i = 1; i < currentOwners.length; i++) {
-                // After swapping, the fallback owner is now in the list
-                // We need to be careful about the linked list structure
-                address[] memory updatedOwners = safe.getOwners();
-                address ownerToRemove = currentOwners[i];
-
-                // Find if this owner is still in the list (it should be unless already removed)
-                bool found = false;
-                for (uint256 j = 0; j < updatedOwners.length; j++) {
-                    if (updatedOwners[j] == ownerToRemove) {
-                        found = true;
-                        break;
-                    }
-                }
-
-                if (found) {
-                    // Find the previous owner in the linked list
-                    address prev = _findPrevOwner(safe, ownerToRemove);
-                    safe.execTransactionFromModule({
-                        to: _safe,
-                        value: 0,
-                        operation: Enum.Operation.Call,
-                        data: abi.encodeCall(OwnerManager.removeOwner, (prev, ownerToRemove, 1))
-                    });
-                }
+            // Remove all owners except the first (in reverse order to maintain linked list integrity)
+            for (uint256 i = currentOwners.length; i > 1; i--) {
+                address ownerToRemove = currentOwners[i - 1];
+                address prev = _findPrevOwner(safe, ownerToRemove);
+                safe.execTransactionFromModule({
+                    to: _safe,
+                    value: 0,
+                    operation: Enum.Operation.Call,
+                    data: abi.encodeCall(OwnerManager.removeOwner, (prev, ownerToRemove, 1))
+                });
             }
 
             // Set threshold to 1
@@ -219,6 +192,15 @@ contract LivenessModule2 is ILivenessModule2 {
                 value: 0,
                 operation: Enum.Operation.Call,
                 data: abi.encodeCall(OwnerManager.changeThreshold, (1))
+            });
+
+            // Swap the remaining owner with the fallback owner
+            address prevOwner = address(0x1); // Sentinel value for the first owner in the Safe's linked list
+            safe.execTransactionFromModule({
+                to: _safe,
+                value: 0,
+                operation: Enum.Operation.Call,
+                data: abi.encodeCall(OwnerManager.swapOwner, (prevOwner, currentOwners[0], config.fallbackOwner))
             });
         }
 
