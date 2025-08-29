@@ -174,33 +174,28 @@ contract LivenessModule2 is ILivenessModule2 {
         address[] memory currentOwners = safe.getOwners();
 
         if (currentOwners.length > 0) {
-            // Remove all owners except the first (in reverse order to maintain linked list integrity)
-            for (uint256 i = currentOwners.length; i > 1; i--) {
-                address ownerToRemove = currentOwners[i - 1];
-                address prev = _findPrevOwner(safe, ownerToRemove);
+            // Remove all owners except the first one from the front
+            // removeOwner automatically updates the threshold, so we don't need to do it manually
+            address sentinel = address(0x1); // Sentinel value for the first owner
+            
+            for (uint256 i = currentOwners.length - 1; i > 0; i--) {
+                address ownerToRemove = currentOwners[0]; // Always remove the first owner
                 safe.execTransactionFromModule({
                     to: _safe,
                     value: 0,
                     operation: Enum.Operation.Call,
-                    data: abi.encodeCall(OwnerManager.removeOwner, (prev, ownerToRemove, 1))
+                    data: abi.encodeCall(OwnerManager.removeOwner, (sentinel, ownerToRemove, 1))
                 });
+                // Get updated owners list after removal
+                currentOwners = safe.getOwners();
             }
 
-            // Set threshold to 1
+            // Now swap the remaining single owner with the fallback owner
             safe.execTransactionFromModule({
                 to: _safe,
                 value: 0,
                 operation: Enum.Operation.Call,
-                data: abi.encodeCall(OwnerManager.changeThreshold, (1))
-            });
-
-            // Swap the remaining owner with the fallback owner
-            address prevOwner = address(0x1); // Sentinel value for the first owner in the Safe's linked list
-            safe.execTransactionFromModule({
-                to: _safe,
-                value: 0,
-                operation: Enum.Operation.Call,
-                data: abi.encodeCall(OwnerManager.swapOwner, (prevOwner, currentOwners[0], config.fallbackOwner))
+                data: abi.encodeCall(OwnerManager.swapOwner, (sentinel, currentOwners[0], config.fallbackOwner))
             });
         }
 
@@ -210,24 +205,4 @@ contract LivenessModule2 is ILivenessModule2 {
         emit ChallengeExecuted(_safe, config.fallbackOwner);
     }
 
-    /// @notice Helper function to find the previous owner in the Safe's linked list
-    /// @param _safe The Safe contract
-    /// @param _owner The owner to find the previous of
-    /// @return The previous owner address
-    function _findPrevOwner(Safe _safe, address _owner) private view returns (address) {
-        address[] memory owners = _safe.getOwners();
-
-        // Sentinel address is used as the previous for the first owner
-        address prev = address(0x1);
-
-        for (uint256 i = 0; i < owners.length; i++) {
-            if (owners[i] == _owner) {
-                return prev;
-            }
-            prev = owners[i];
-        }
-
-        // This should not happen if the owner exists
-        revert LivenessModule2_OwnerNotFound();
-    }
 }

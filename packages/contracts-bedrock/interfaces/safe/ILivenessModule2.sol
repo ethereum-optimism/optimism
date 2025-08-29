@@ -28,8 +28,6 @@ interface ILivenessModule2 is ISemver {
     /// @notice Error for invalid parameters
     error LivenessModule2_InvalidParameters();
 
-    /// @notice Error for when an owner is not found in the Safe's owner list
-    error LivenessModule2_OwnerNotFound();
 
     /// @notice Emitted when a Safe enables the module
     event ModuleEnabled(address indexed safe, uint256 livenessResponsePeriod, address fallbackOwner);
