@@ -1,22 +1,15 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
-import {
-    GameType,
-    Hash,
-    GameStatus,
-    Claim,
-    Timestamp,
-    GameTypes
-} from "src/dispute/lib/Types.sol";
+import {GameType, Hash, GameStatus, Claim, Timestamp, GameTypes} from "src/dispute/lib/Types.sol";
 
-import { Clone } from "@solady/utils/Clone.sol";
-import { Bytes } from "src/libraries/Bytes.sol";
-import { IDelayedWETH } from "interfaces/dispute/IDelayedWETH.sol";
-import { ISemver } from "interfaces/universal/ISemver.sol";
-import { IAnchorStateRegistry } from "interfaces/dispute/IAnchorStateRegistry.sol";
-import { IDisputeGame } from "interfaces/dispute/IDisputeGame.sol";
-import { IDisputeGameFactory } from "interfaces/dispute/IDisputeGameFactory.sol";
+import {Clone} from "@solady/utils/Clone.sol";
+import {Bytes} from "src/libraries/Bytes.sol";
+import {IDelayedWETH} from "interfaces/dispute/IDelayedWETH.sol";
+import {ISemver} from "interfaces/universal/ISemver.sol";
+import {IAnchorStateRegistry} from "interfaces/dispute/IAnchorStateRegistry.sol";
+import {IDisputeGame} from "interfaces/dispute/IDisputeGame.sol";
+import {IDisputeGameFactory} from "interfaces/dispute/IDisputeGameFactory.sol";
 import {
     ClaimAlreadyExists,
     AnchorRootNotFound,
@@ -29,7 +22,6 @@ import {
 } from "src/dispute/lib/Errors.sol";
 
 contract AggregateDisputeGame is Clone, ISemver {
-
     /// @notice The game type ID.
     GameType internal immutable GAME_TYPE;
 
@@ -56,16 +48,18 @@ contract AggregateDisputeGame is Clone, ISemver {
 
     GameType[] public configuredGameTypes;
 
-    mapping (GameType => uint32) public extraDataLengths;
+    mapping(GameType => uint32) public extraDataLengths;
     uint256 internal expectedExtraDataLength;
 
-    mapping (GameType => bytes) public extraDataForGames;
+    mapping(GameType => bytes) public extraDataForGames;
 
     /// @notice The starting timestamp of the game
     Timestamp public createdAt;
 
     /// @notice A boolean for whether or not the game type was respected when the game was created.
     bool public wasRespectedGameTypeWhenCreated;
+
+    IDisputeGame[] public games;
 
     struct GameConstructorParams {
         GameType gameType;
@@ -80,18 +74,19 @@ contract AggregateDisputeGame is Clone, ISemver {
 
     error InvalidGameTypes();
     error InvalidExtraData();
+    error InvalidUnderlyingGame();
 
-    constructor(
-        GameConstructorParams memory _params
-    ) {
+    constructor(GameConstructorParams memory _params) {
         GAME_TYPE = _params.gameType;
         ANCHOR_STATE_REGISTRY = _params.anchorStateRegistry;
         FAST_FINALITY_GAME_TYPE = _params.fastFinalityGameType;
         WETH = _params.weth;
         DISPUTE_GAME_FACTORY = _params.dgf;
 
-        require(_params.gameTypes.length == _params.extraDataLengths.length, "mismatch game type and extra data lengths");
-        for (uint i = 0; i < _params.gameTypes.length; i++) {
+        require(
+            _params.gameTypes.length == _params.extraDataLengths.length, "mismatch game type and extra data lengths"
+        );
+        for (uint256 i = 0; i < _params.gameTypes.length; i++) {
             GameType gt = _params.gameTypes[i];
             uint32 len = _params.extraDataLengths[i];
             extraDataLengths[gt] = len;
@@ -124,14 +119,18 @@ contract AggregateDisputeGame is Clone, ISemver {
         // - 32 bytes l1 head
         // - expectedExtraDataLen bytes
         // - 2 bytes CWIA length
-        if (msg.data.length != 4+20+32+32+expectedExtraDataLength+2) revert BadExtraData();
+        if (msg.data.length != 4 + 20 + 32 + 32 + expectedExtraDataLength + 2) {
+            revert BadExtraData();
+        }
 
         // Grab the latest anchor root.
         (Hash root, uint256 rootBlockNumber) = ANCHOR_STATE_REGISTRY.getAnchorRoot();
 
         // Do not allow the game to be initialized if the root claim corresponds to a block at or before the
         // configured starting block number.
-        if (l2BlockNumber() <= rootBlockNumber) revert UnexpectedRootClaim(rootClaim());
+        if (l2BlockNumber() <= rootBlockNumber) {
+            revert UnexpectedRootClaim(rootClaim());
+        }
 
         // Should only happen if this is a new game type that hasn't been set up yet.
         if (root.raw() == bytes32(0)) revert AnchorRootNotFound();
@@ -147,13 +146,15 @@ contract AggregateDisputeGame is Clone, ISemver {
         wasRespectedGameTypeWhenCreated =
             GameType.unwrap(ANCHOR_STATE_REGISTRY.respectedGameType()) == GameType.unwrap(GAME_TYPE);
 
-        WETH.deposit{ value: msg.value }();
+        WETH.deposit{value: msg.value}();
 
         (GameType[] memory types, bytes[] memory data) = _decodeExtraData(extraData());
-        for (uint i = 0; i < types.length; i++) {
+        for (uint256 i = 0; i < types.length; i++) {
             extraDataForGames[types[i]] = data[i];
         }
-        if (extraDataForGames[FAST_FINALITY_GAME_TYPE].length == 0) revert InvalidExtraData();
+        if (extraDataForGames[FAST_FINALITY_GAME_TYPE].length == 0) {
+            revert InvalidExtraData();
+        }
     }
 
     function resolve() public virtual returns (GameStatus status_) {
@@ -162,17 +163,18 @@ contract AggregateDisputeGame is Clone, ISemver {
 
         // Determine if there are any games besides the fast-finality game
         bool hasOtherGames;
-        for (uint i = 0; i < configuredGameTypes.length; i++) {
-            GameType gt = configuredGameTypes[i];
-            if (gt.raw() == FAST_FINALITY_GAME_TYPE.raw()) continue;
-            if (extraDataForGames[gt].length != 0) {
-                hasOtherGames = true;
-                break;
+        IDisputeGame fastGame;
+        for (uint256 i = 0; i < games.length; i++) {
+            GameType gt = games[i].gameType();
+            // TODO: Is it possible to have multiple fast-finality games?
+            if (gt.raw() == FAST_FINALITY_GAME_TYPE.raw()) {
+                fastGame = games[i];
+                continue;
             }
+            hasOtherGames = true;
         }
 
-        IDisputeGame fastGame = _findGame(FAST_FINALITY_GAME_TYPE);
-        if (!hasOtherGames) {
+        if (!hasOtherGames && fastGame != IDisputeGame(address(0))) {
             status_ = fastGame.status();
             if (status_ != GameStatus.IN_PROGRESS) {
                 status = status_;
@@ -183,12 +185,14 @@ contract AggregateDisputeGame is Clone, ISemver {
         bool anyInProgress;
         bool anyChallengerWins;
         bool allDefenderWins = true;
+        bool hasMatchingProposal;
 
-        for (uint i = 0; i < configuredGameTypes.length; i++) {
-            GameType gt = configuredGameTypes[i];
-            if (extraDataForGames[gt].length == 0) continue;
-            IDisputeGame game_ = _findGame(gt);
-            GameStatus s = game_.status();
+        for (uint256 i = 0; i < games.length; i++) {
+            IDisputeGame game = games[i];
+            if (_hasMatchingProposal(game)) {
+                hasMatchingProposal = true;
+            }
+            GameStatus s = game.status();
 
             if (s == GameStatus.IN_PROGRESS) {
                 anyInProgress = true;
@@ -228,7 +232,7 @@ contract AggregateDisputeGame is Clone, ISemver {
         uint256 fastFinalityBond = getRequiredBond();
         address bondRecipient = creator;
 
-        for (uint i = 0; i < configuredGameTypes.length; i++) {
+        for (uint256 i = 0; i < configuredGameTypes.length; i++) {
             GameType gt = configuredGameTypes[i];
             IDisputeGame game = _findGame(gt);
             GameStatus gameStatus = game.status();
@@ -243,9 +247,28 @@ contract AggregateDisputeGame is Clone, ISemver {
         WETH.unlock(bondRecipient, fastFinalityBond);
         WETH.withdraw(bondRecipient, fastFinalityBond);
 
-        try ANCHOR_STATE_REGISTRY.setAnchorState(IDisputeGame(address(this))) { } catch { }
+        try ANCHOR_STATE_REGISTRY.setAnchorState(IDisputeGame(address(this))) {} catch {}
 
         // TODO: check if game is "proper" and implement bond distribution for refunds
+    }
+
+    function addUnderlyingGame(uint256 _gameIndex) public {
+        (,, IDisputeGame game) = DISPUTE_GAME_FACTORY.gameAtIndex(_gameIndex);
+        if (Hash.unwrap(game.l1Head()) != Hash.unwrap(l1Head())) {
+            revert InvalidUnderlyingGame();
+        }
+        if (
+            Claim.unwrap(rootClaim()) != Claim.unwrap(game.rootClaim()) && l2SequenceNumber() != game.l2SequenceNumber()
+        ) {
+            revert InvalidUnderlyingGame();
+        }
+        for (uint256 i = 0; i < configuredGameTypes.length; i++) {
+            if (configuredGameTypes[i].raw() == game.gameType().raw()) {
+                games.push(game);
+                return;
+            }
+        }
+        revert InvalidGameTypes();
     }
 
     /// @notice Getter for the creator of the dispute game.
@@ -274,6 +297,11 @@ contract AggregateDisputeGame is Clone, ISemver {
         l2BlockNumber_ = _getArgUint256(84);
     }
 
+    /// @notice The l2SequenceNumber of the disputed output root in the `L2OutputOracle` (in this case - block number).
+    function l2SequenceNumber() public pure returns (uint256 l2SequenceNumber_) {
+        l2SequenceNumber_ = l2BlockNumber();
+    }
+
     /// @notice Returns the WETH contract for holding ETH.
     function weth() external view returns (IDelayedWETH weth_) {
         weth_ = WETH;
@@ -299,14 +327,23 @@ contract AggregateDisputeGame is Clone, ISemver {
     }
 
     function _findGame(GameType _gameType) internal view returns (IDisputeGame game_) {
-        bytes memory data = extraDataForGames[_gameType];
-        require(data.length != 0, "invalid game type for extra data");
-        (game_,) = DISPUTE_GAME_FACTORY.games(_gameType, rootClaim(), data);
-        return game_;
+        for (uint256 i = 0; i < games.length; i++) {
+            if (games[i].gameType().raw() == _gameType.raw()) {
+                return games[i];
+            }
+        }
+        require(false, "game not found");
     }
 
-    function _decodeExtraData(bytes memory _extraData) internal view
-        returns (GameType[] memory _decodedTypes, bytes[] memory _decodedData) {
+    function _hasMatchingProposal(IDisputeGame _game) internal pure returns (bool) {
+        return Claim.unwrap(rootClaim()) == Claim.unwrap(_game.rootClaim()) && l2SequenceNumber() == _game.l2SequenceNumber();
+    }
+
+    function _decodeExtraData(bytes memory _extraData)
+        internal
+        view
+        returns (GameType[] memory _decodedTypes, bytes[] memory _decodedData)
+    {
         uint256 off;
         uint256 count;
         while (off < _extraData.length) {
@@ -319,7 +356,9 @@ contract AggregateDisputeGame is Clone, ISemver {
             if (off + len > _extraData.length) revert InvalidExtraData();
             off += len;
 
-            unchecked { count++; }
+            unchecked {
+                count++;
+            }
         }
         if (off != _extraData.length) revert InvalidExtraData();
 
@@ -327,7 +366,7 @@ contract AggregateDisputeGame is Clone, ISemver {
         _decodedData = new bytes[](count);
 
         off = 0;
-        for (uint256 i; i < count; ) {
+        for (uint256 i; i < count;) {
             GameType gt = GameType.wrap(_u32be(_extraData, off));
             off += 4;
 
@@ -338,17 +377,17 @@ contract AggregateDisputeGame is Clone, ISemver {
             _decodedTypes[i] = gt;
             _decodedData[i] = data;
 
-            unchecked { i++; }
+            unchecked {
+                i++;
+            }
         }
     }
 
     function _u32be(bytes memory b, uint256 off) private pure returns (uint32 v) {
         // big-endian: b[off] is the most significant byte
         unchecked {
-            v = (uint32(uint8(b[off])) << 24)
-              | (uint32(uint8(b[off + 1])) << 16)
-              | (uint32(uint8(b[off + 2])) << 8)
-              |  uint32(uint8(b[off + 3]));
+            v = (uint32(uint8(b[off])) << 24) | (uint32(uint8(b[off + 1])) << 16) | (uint32(uint8(b[off + 2])) << 8)
+                | uint32(uint8(b[off + 3]));
         }
     }
 }
