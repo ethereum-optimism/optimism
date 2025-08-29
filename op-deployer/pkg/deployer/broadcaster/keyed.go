@@ -206,6 +206,7 @@ func asTxCandidate(bcast script.Broadcast, blockGasLimit uint64) txmgr.TxCandida
 		candidate = txmgr.TxCandidate{
 			TxData:   bcast.Input,
 			To:       nil,
+			Value:    value,
 			GasLimit: padGasLimit(bcast.Input, bcast.GasUsed, true, blockGasLimit),
 		}
 	case script.BroadcastCreate2:
