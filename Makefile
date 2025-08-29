@@ -268,7 +268,7 @@ go-tests-short-ci: ## Runs short Go tests with gotestsum for CI (assumes deps bu
 	@echo "Running Go tests with gotestsum..."
 	$(DEFAULT_TEST_ENV_VARS) && \
 	$(CI_ENV_VARS) && \
-	gotestsum --format=testname \
+	DISABLE_OP_E2E_LEGACY=true gotestsum --format=testname \
 		--junitfile=./tmp/test-results/results.xml \
 		--jsonfile=./tmp/testlogs/log.json \
 		--rerun-fails=3 \
