@@ -217,7 +217,7 @@ contract Setup {
     /// @notice Skips tests when the provided development feature is enabled.
     /// @param _feature The feature to check.
     function skipIfDevFeatureEnabled(bytes32 _feature) public {
-        if ((devFeatureBitmap & _feature) != 0) {
+        if (DevFeatures.isDevFeatureEnabled(devFeatureBitmap, _feature)) {
             vm.skip(true);
         }
     }
@@ -225,7 +225,7 @@ contract Setup {
     /// @notice Skips tests when the provided development feature is disabled.
     /// @param _feature The feature to check.
     function skipIfDevFeatureDisabled(bytes32 _feature) public {
-        if ((devFeatureBitmap & _feature) == 0) {
+        if (!DevFeatures.isDevFeatureEnabled(devFeatureBitmap, _feature)) {
             vm.skip(true);
         }
     }

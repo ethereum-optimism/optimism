@@ -81,11 +81,14 @@ contract OPContractsManagerContractsContainer {
         return implementation;
     }
 
-    /// @notice Returns the status of a development feature.
+    /// @notice Returns the status of a development feature. Note that this function does not check
+    ///         that the input feature represents a single feature and the bitwise AND operation
+    ///         allows for multiple features to be enabled at once. Users should generally check
+    ///         for only a single feature at a time.
     /// @param _feature The feature to check.
     /// @return True if the feature is enabled, false otherwise.
     function isDevFeatureEnabled(bytes32 _feature) public view returns (bool) {
-        return (uint256(devFeatureBitmap) & uint256(_feature)) != 0;
+        return DevFeatures.isDevFeatureEnabled(devFeatureBitmap, _feature);
     }
 }
 
@@ -131,7 +134,10 @@ abstract contract OPContractsManagerBase {
         return contractsContainer.devFeatureBitmap();
     }
 
-    /// @notice Retrieves the status of a development feature.
+    /// @notice Retrieves the status of a development feature. Note that this function does not check
+    ///         that the input feature represents a single feature and the bitwise AND operation
+    ///         allows for multiple features to be enabled at once. Users should generally check
+    ///         for only a single feature at a time.
     /// @param _feature The feature to check.
     /// @return True if the feature is enabled, false otherwise.
     function isDevFeatureEnabled(bytes32 _feature) public view returns (bool) {
@@ -2028,7 +2034,10 @@ contract OPContractsManager is ISemver {
         return opcmDeployer.devFeatureBitmap();
     }
 
-    /// @notice Returns the status of a development feature.
+    /// @notice Returns the status of a development feature. Note that this function does not check
+    ///         that the input feature represents a single feature and the bitwise AND operation
+    ///         allows for multiple features to be enabled at once. Users should generally check
+    ///         for only a single feature at a time.
     /// @param _feature The feature to check.
     /// @return True if the feature is enabled, false otherwise.
     function isDevFeatureEnabled(bytes32 _feature) public view returns (bool) {
