@@ -11,6 +11,7 @@ import { ForgeArtifacts, StorageSlot } from "scripts/libraries/ForgeArtifacts.so
 import { Constants } from "src/libraries/Constants.sol";
 import { Features } from "src/libraries/Features.sol";
 import { EIP1967Helper } from "test/mocks/EIP1967Helper.sol";
+import { DevFeatures } from "src/libraries/DevFeatures.sol";
 
 // Interfaces
 import { IResourceMetering } from "interfaces/L1/IResourceMetering.sol";
@@ -701,6 +702,8 @@ contract SystemConfig_Paused_Test is SystemConfig_TestInit {
 
     /// @notice Tests that `paused()` returns true when the ETHLockbox identifier is set.
     function test_paused_ethLockboxIdentifier_succeeds() external {
+        skipIfDevFeatureDisabled(DevFeatures.OPTIMISM_PORTAL_INTEROP);
+
         // Initially not paused
         assertFalse(systemConfig.paused());
 
