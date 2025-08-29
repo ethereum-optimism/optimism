@@ -94,6 +94,11 @@ impl<N: RpcNodeCore, Rpc: RpcConvert> OpEthApi<N, Rpc> {
         self.inner.sequencer_client()
     }
 
+    /// Returns a cloned Flashblocks receiver, if any.
+    pub fn flashblocks_rx(&self) -> Option<FlashBlockRx<N::Primitives>> {
+        self.inner.flashblocks_rx.clone()
+    }
+
     /// Build a [`OpEthApi`] using [`OpEthApiBuilder`].
     pub const fn builder() -> OpEthApiBuilder<Rpc> {
         OpEthApiBuilder::new()
