@@ -198,7 +198,6 @@ contract LivenessModule2 is ILivenessModule2 {
             data: abi.encodeCall(OwnerManager.swapOwner, (SENTINEL_OWNER, owners[0], config.fallbackOwner))
         });
 
-
         // Reset the challenge state to allow a new challenge
         config.challengeStartTime = 0;
 
