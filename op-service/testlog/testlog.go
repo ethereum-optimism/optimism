@@ -131,23 +131,31 @@ func fileHandler(t Testing, outdir string, level slog.Level) slog.Handler {
 	defer flMtx.Unlock()
 
 	if h, ok := flHandlers[testName]; ok {
+		t.Logf("reusing existing log file writer for %s", testName)
+
 		return h
 	}
 
 	logPath := path.Join(outdir, testName)
 	dw := newDeferredWriter(logPath)
 	t.Cleanup(func() {
+		t.Logf("closing log file %s: %v", logPath)
+
 		if err := dw.Close(); err != nil {
-			t.Logf("failed to close log file %s: %v", logPath, err)
+			t.Logf("failed to close log file for %s at %s: %v", testName, logPath, err)
 		}
 
 		flMtx.Lock()
+		defer flMtx.Unlock()
+
 		delete(flHandlers, testName)
-		flMtx.Unlock()
+		t.Logf("deleted log file writer for %s at %s", testName, logPath)
 	})
-	t.Logf("writing test log to %s", logPath)
+	t.Logf("writing test log for %s to %s", testName, logPath)
 	h := log.NewTerminalHandlerWithLevel(dw, level, false)
+
 	flHandlers[testName] = h
+
 	return h
 }
 
