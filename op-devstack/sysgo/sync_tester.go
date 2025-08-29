@@ -17,7 +17,9 @@ import (
 	sttypes "github.com/ethereum-optimism/optimism/op-sync-tester/synctester/backend/types"
 )
 
+// Caveat: id is binded by a single EL(chainID), but service can support multiple ELs
 type SyncTesterService struct {
+	id      stack.SyncTesterID
 	service *synctester.Service
 }
 
@@ -83,6 +85,6 @@ func WithSyncTester(syncTesterID stack.SyncTesterID, l2ELs []stack.L2ELNodeID) s
 			_ = srv.Stop(ctx)
 			logger.Info("Closed sync tester")
 		})
-		orch.syncTester = &SyncTesterService{service: srv}
+		orch.syncTester = &SyncTesterService{id: syncTesterID, service: srv}
 	})
 }
