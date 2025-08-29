@@ -759,10 +759,11 @@ contract OPContractsManagerUpgrader is OPContractsManagerBase {
                 }
             }
 
-            // Upgrade the OptimismPortal contract implementation.
-            upgradeTo(_opChainConfigs[i].proxyAdmin, address(optimismPortal), impls.optimismPortalImpl);
-
+            // Upgrade path depends on if the OptimismPortalInterop dev feature is enabled.
             if (isDevFeatureEnabled(DevFeatures.OPTIMISM_PORTAL_INTEROP)) {
+                // Upgrade the OptimismPortal contract implementation.
+                upgradeTo(_opChainConfigs[i].proxyAdmin, address(optimismPortal), impls.optimismPortalInteropImpl);
+
                 // Deploy the ETHLockbox proxy.
                 IETHLockbox ethLockbox = IETHLockbox(
                     deployProxy({
@@ -790,6 +791,9 @@ contract OPContractsManagerUpgrader is OPContractsManagerBase {
                 // Migrate liquidity from the OptimismPortal to the ETHLockbox.
                 IOptimismPortalInterop(payable(optimismPortal)).migrateLiquidity();
             } else {
+                // Upgrade the OptimismPortal contract implementation.
+                upgradeTo(_opChainConfigs[i].proxyAdmin, address(optimismPortal), impls.optimismPortalImpl);
+
                 // Upgrade the OptimismPortal contract, nothing special requried.
                 optimismPortal.upgrade(anchorStateRegistry);
             }
