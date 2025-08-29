@@ -15,7 +15,7 @@ use reth_primitives_traits::{
 };
 use reth_revm::{database::StateProviderDatabase, db::State};
 use reth_rpc_eth_types::{EthApiError, PendingBlock};
-use reth_storage_api::{BlockReaderIdExt, StateProviderFactory};
+use reth_storage_api::{noop::NoopProvider, BlockReaderIdExt, StateProviderFactory};
 use std::{
     pin::Pin,
     sync::Arc,
@@ -154,7 +154,7 @@ impl<
         }
 
         let BlockBuilderOutcome { execution_result, block, hashed_state, .. } =
-            builder.finish(&state_provider)?;
+            builder.finish(NoopProvider::default())?;
 
         let execution_outcome = ExecutionOutcome::new(
             db.take_bundle(),
