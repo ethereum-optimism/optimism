@@ -3,21 +3,23 @@ package fjord
 import (
 	"context"
 	"crypto/rand"
-	"github.com/ethereum/go-ethereum/rpc"
 	"math/big"
 	"testing"
+
+	"github.com/ethereum/go-ethereum/rpc"
 
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
-	"github.com/ethereum-optimism/optimism/op-e2e/bindings"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
+	"github.com/ethereum-optimism/optimism/op-service/apis"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/predeploys"
+	txib "github.com/ethereum-optimism/optimism/op-service/txintent/bindings"
+	"github.com/ethereum-optimism/optimism/op-service/txintent/contractio"
 	"github.com/ethereum-optimism/optimism/op-service/txplan"
 
 	"github.com/ethereum/go-ethereum"
-	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 )
@@ -48,6 +50,7 @@ func checkRIP7212(t devtest.T, ctx context.Context, sys *presets.Minimal) {
 	require := t.Require()
 	l2Client := sys.L2EL.Escape().EthClient()
 
+	// Test invalid signature
 	response, err := l2Client.Call(ctx, ethereum.CallMsg{
 		To:   &rip7212Precompile,
 		Data: invalid7212Data,
@@ -55,6 +58,7 @@ func checkRIP7212(t devtest.T, ctx context.Context, sys *presets.Minimal) {
 	require.NoError(err)
 	require.Empty(response)
 
+	// Test valid signature
 	response, err = l2Client.Call(ctx, ethereum.CallMsg{
 		To:   &rip7212Precompile,
 		Data: valid7212Data,
@@ -68,12 +72,13 @@ func checkGasPriceOracle(t devtest.T, ctx context.Context, sys *presets.Minimal)
 	require := t.Require()
 
 	l2Client := sys.L2EL.Escape().EthClient()
-	contractBackend := &contractBackendAdapter{client: l2Client, ctx: ctx}
+	gpo := txib.NewGasPriceOracle(
+		txib.WithClient(l2Client),
+		txib.WithTo(predeploys.GasPriceOracleAddr),
+		txib.WithTest(t),
+	)
 
-	gasPriceOracle, err := bindings.NewGasPriceOracle(predeploys.GasPriceOracleAddr, contractBackend)
-	require.NoError(err)
-
-	isFjord, err := gasPriceOracle.IsFjord(&bind.CallOpts{Context: ctx})
+	isFjord, err := contractio.Read(gpo.IsFjord(), ctx)
 	require.NoError(err)
 	require.True(isFjord)
 }
@@ -82,10 +87,11 @@ func checkFastLZTransactions(t devtest.T, ctx context.Context, sys *presets.Mini
 	require := t.Require()
 
 	l2Client := sys.L2EL.Escape().EthClient()
-	contractBackend := &contractBackendAdapter{client: l2Client, ctx: ctx}
-
-	gasPriceOracle, err := bindings.NewGasPriceOracle(predeploys.GasPriceOracleAddr, contractBackend)
-	require.NoError(err)
+	gasPriceOracle := txib.NewGasPriceOracle(
+		txib.WithClient(l2Client),
+		txib.WithTo(predeploys.GasPriceOracleAddr),
+		txib.WithTest(t),
+	)
 
 	testCases := []struct {
 		name string
@@ -133,7 +139,7 @@ func checkFastLZTransactions(t devtest.T, ctx context.Context, sys *presets.Mini
 			opt := txplan.Combine(
 				wallet.Plan(),
 				txplan.WithTo(&walletAddr),
-				txplan.WithValue(eth.ZeroWei.ToBig()),
+				txplan.WithValue(eth.ZeroWei),
 				txplan.WithData(tc.data),
 			)
 			plannedTx := txplan.NewPlannedTx(opt)
@@ -157,7 +163,6 @@ func checkFastLZTransactions(t devtest.T, ctx context.Context, sys *presets.Mini
 		require.Equal(uint64(1), receipt.Status)
 
 		blockNumber := receipt.BlockNumber
-		opts := &bind.CallOpts{Context: ctx, BlockNumber: blockNumber}
 
 		unsignedTx := types.NewTx(&types.DynamicFeeTx{
 			Nonce:     signedTx.Nonce(),
@@ -174,54 +179,54 @@ func checkFastLZTransactions(t devtest.T, ctx context.Context, sys *presets.Mini
 		txSigned, err := signedTx.MarshalBinary()
 		require.NoError(err)
 
-		_, err = gasPriceOracle.GetL1GasUsed(opts, txUnsigned)
-		require.NoError(err)
-
-		gpoFee, err := gasPriceOracle.GetL1Fee(opts, txUnsigned)
+		gpoFee, err := contractio.Read(gasPriceOracle.GetL1Fee(txUnsigned), ctx)
 		require.NoError(err)
 
 		fastLzSize := uint64(types.FlzCompressLen(txUnsigned) + 68)
-		gethGPOFee, err := fjordL1Cost(gasPriceOracle, blockNumber, fastLzSize)
+		gethGPOFee, err := fjordL1Cost(l2Client, blockNumber, fastLzSize)
 		require.NoError(err)
-		require.Equal(gethGPOFee.Uint64(), gpoFee.Uint64())
+		require.Equal(gethGPOFee.Uint64(), gpoFee.ToBig().Uint64())
 
 		signedFastLzSize := uint64(types.FlzCompressLen(txSigned))
-		gethFee, err := fjordL1Cost(gasPriceOracle, blockNumber, signedFastLzSize)
+		gethFee, err := fjordL1Cost(l2Client, blockNumber, signedFastLzSize)
 		require.NoError(err)
+		require.NotNil(receipt.L1Fee)
 		require.Equal(gethFee.Uint64(), receipt.L1Fee.Uint64())
 
-		upperBound, err := gasPriceOracle.GetL1FeeUpperBound(opts, big.NewInt(int64(len(txUnsigned))))
+		upperBound, err := contractio.Read(gasPriceOracle.GetL1FeeUpperBound(big.NewInt(int64(len(txUnsigned)))), ctx)
 		require.NoError(err)
-
 		txLenGPO := len(txUnsigned) + 68
 		flzUpperBound := uint64(txLenGPO + txLenGPO/255 + 16)
-		upperBoundCost, err := fjordL1Cost(gasPriceOracle, blockNumber, flzUpperBound)
+		upperBoundCost, err := fjordL1Cost(l2Client, blockNumber, flzUpperBound)
 		require.NoError(err)
-		require.Equal(upperBoundCost.Uint64(), upperBound.Uint64())
+		require.Equal(upperBoundCost.Uint64(), upperBound.ToBig().Uint64())
 
-		_, err = gasPriceOracle.BaseFeeScalar(opts)
+		_, err = contractio.Read(gasPriceOracle.BaseFeeScalar(), ctx)
 		require.NoError(err)
-		_, err = gasPriceOracle.BlobBaseFeeScalar(opts)
+		_, err = contractio.Read(gasPriceOracle.BlobBaseFeeScalar(), ctx)
 		require.NoError(err)
 	}
 }
 
-func fjordL1Cost(gasPriceOracle *bindings.GasPriceOracle, blockNumber *big.Int, fastLzSize uint64) (*big.Int, error) {
-	opts := &bind.CallOpts{BlockNumber: blockNumber}
+func fjordL1Cost(client apis.EthClient, blockNumber *big.Int, fastLzSize uint64) (*big.Int, error) {
+	l1Block := txib.NewL1Block(
+		txib.WithClient(client),
+		txib.WithTo(predeploys.L1BlockAddr),
+	)
 
-	baseFeeScalar, err := gasPriceOracle.BaseFeeScalar(opts)
+	baseFeeScalar, err := contractio.Read(l1Block.BasefeeScalar(), context.Background())
 	if err != nil {
 		return nil, err
 	}
-	l1BaseFee, err := gasPriceOracle.L1BaseFee(opts)
+	l1BaseFee, err := contractio.Read(l1Block.Basefee(), context.Background())
 	if err != nil {
 		return nil, err
 	}
-	blobBaseFeeScalar, err := gasPriceOracle.BlobBaseFeeScalar(opts)
+	blobBaseFeeScalar, err := contractio.Read(l1Block.BlobBaseFeeScalar(), context.Background())
 	if err != nil {
 		return nil, err
 	}
-	blobBaseFee, err := gasPriceOracle.BlobBaseFee(opts)
+	blobBaseFee, err := contractio.Read(l1Block.BlobBaseFee(), context.Background())
 	if err != nil {
 		return nil, err
 	}

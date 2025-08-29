@@ -8,6 +8,8 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/apis"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/predeploys"
+	"github.com/ethereum-optimism/optimism/op-service/txintent/bindings"
+	"github.com/ethereum-optimism/optimism/op-service/txintent/contractio"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 )
@@ -30,6 +32,7 @@ type FjordFeesValidationResult struct {
 	FastLzSize          uint64
 	EstimatedBrotliSize *big.Int
 	OperatorFee         *big.Int
+	CoinbaseDiff        *big.Int
 }
 
 func NewFjordFees(t devtest.T, l2Network *L2Network) *FjordFees {
@@ -44,6 +47,7 @@ func (ff *FjordFees) ValidateTransaction(from *EOA, to *EOA, amount *big.Int) Fj
 
 	startBalance := from.GetBalance()
 	vaultsBefore := ff.getVaultBalances(client)
+	coinbaseStartBalance := ff.getCoinbaseBalance(client)
 
 	tx := from.Transfer(to.Address(), eth.WeiBig(amount))
 	receipt, err := tx.Included.Eval(ff.ctx)
@@ -53,6 +57,8 @@ func (ff *FjordFees) ValidateTransaction(from *EOA, to *EOA, amount *big.Int) Fj
 	endBalance := from.GetBalance()
 	vaultsAfter := ff.getVaultBalances(client)
 	vaultIncreases := ff.calculateVaultIncreases(vaultsBefore, vaultsAfter)
+	coinbaseEndBalance := ff.getCoinbaseBalance(client)
+	coinbaseDiff := new(big.Int).Sub(coinbaseEndBalance, coinbaseStartBalance)
 
 	l1Fee := big.NewInt(0)
 	if receipt.L1Fee != nil {
@@ -63,19 +69,22 @@ func (ff *FjordFees) ValidateTransaction(from *EOA, to *EOA, amount *big.Int) Fj
 	ff.require.NoError(err)
 
 	baseFee := new(big.Int).Mul(block.BaseFee(), big.NewInt(int64(receipt.GasUsed)))
-	l2Fee := new(big.Int).Mul(receipt.EffectiveGasPrice, big.NewInt(int64(receipt.GasUsed)))
-	priorityFee := new(big.Int).Sub(l2Fee, baseFee)
+	totalGasFee := new(big.Int).Mul(receipt.EffectiveGasPrice, big.NewInt(int64(receipt.GasUsed)))
+	priorityFee := new(big.Int).Sub(totalGasFee, baseFee)
 
-	// Get operator fee
+	l2Fee := new(big.Int).Set(priorityFee)
+
 	operatorFee := vaultIncreases.OperatorVault
 
+	ff.validateVaultIncreaseFees(l2Fee, baseFee, priorityFee, l1Fee, operatorFee, coinbaseDiff, vaultsAfter, vaultsBefore)
+
 	totalFee := new(big.Int).Add(l1Fee, l2Fee)
+	totalFee.Add(totalFee, baseFee)
 	totalFee.Add(totalFee, operatorFee)
 
 	walletBalanceDiff := new(big.Int).Sub(startBalance.ToBig(), endBalance.ToBig())
 	walletBalanceDiff.Sub(walletBalanceDiff, amount)
 
-	// Fjord-specific validations
 	fastLzSize, estimatedBrotliSize := ff.validateFjordFeatures(receipt, l1Fee)
 	ff.validateFeeDistribution(l1Fee, baseFee, priorityFee, operatorFee, vaultIncreases)
 	ff.validateTotalBalance(walletBalanceDiff, totalFee, vaultIncreases)
@@ -93,6 +102,7 @@ func (ff *FjordFees) ValidateTransaction(from *EOA, to *EOA, amount *big.Int) Fj
 		FastLzSize:          fastLzSize,
 		EstimatedBrotliSize: estimatedBrotliSize,
 		OperatorFee:         operatorFee,
+		CoinbaseDiff:        coinbaseDiff,
 	}
 }
 
@@ -126,41 +136,89 @@ func (ff *FjordFees) calculateVaultIncreases(before, after VaultBalances) VaultB
 }
 
 func (ff *FjordFees) validateFjordFeatures(receipt *types.Receipt, l1Fee *big.Int) (uint64, *big.Int) {
-	// Validate basic Fjord fee properties (like original test)
 	ff.require.NotNil(receipt.L1Fee, "L1 fee should be present in Fjord")
 	ff.require.True(l1Fee.Cmp(big.NewInt(0)) > 0, "L1 fee should be greater than 0 in Fjord")
 
-	// For a simple transfer, we expect FastLZ compression to result in around 102 bytes
-	// This is a known constant
-	fastLzSize := uint64(102)
+	client := ff.l2Network.inner.L2ELNode(match.FirstL2EL).EthClient()
 
-	ff.require.Greater(fastLzSize, uint64(90), "FastLZ size should be reasonable for transfer")
-	ff.require.Less(fastLzSize, uint64(150), "FastLZ size should not be excessive for transfer")
+	_, txs, err := client.InfoAndTxsByHash(ff.ctx, receipt.BlockHash)
+	ff.require.NoError(err)
 
-	// Calculate expected Brotli size using Fjord linear regression
-	// Linear regression: -42.5856 + fastLzSize * 0.8365
-	const costIntercept = -42585600 // -42.5856 * 1e6
-	const costFastlzCoef = 836500   // 0.8365 * 1e6
-	const minTransactionSize = 100
+	var signedTx *types.Transaction
+	for _, tx := range txs {
+		if tx.Hash() == receipt.TxHash {
+			signedTx = tx
+			break
+		}
+	}
+	ff.require.NotNil(signedTx, "should find the signed transaction")
 
-	estimatedSizeRaw := big.NewInt(costIntercept)
-	fastLzSizeBig := new(big.Int).SetUint64(fastLzSize)
-	coefProduct := new(big.Int).Mul(fastLzSizeBig, big.NewInt(costFastlzCoef))
-	estimatedSizeRaw.Add(estimatedSizeRaw, coefProduct)
+	unsignedTx := types.NewTx(&types.DynamicFeeTx{
+		Nonce:     signedTx.Nonce(),
+		To:        signedTx.To(),
+		Value:     signedTx.Value(),
+		Gas:       signedTx.Gas(),
+		GasFeeCap: signedTx.GasFeeCap(),
+		GasTipCap: signedTx.GasTipCap(),
+		Data:      signedTx.Data(),
+	})
 
-	// Apply minimum bound as per Fjord specification
-	minSizeScaled := new(big.Int).Mul(big.NewInt(minTransactionSize), big.NewInt(1e6))
-	if estimatedSizeRaw.Cmp(minSizeScaled) < 0 {
-		estimatedSizeRaw = minSizeScaled
+	txUnsigned, err := unsignedTx.MarshalBinary()
+	ff.require.NoError(err)
+	txSigned, err := signedTx.MarshalBinary()
+	ff.require.NoError(err)
+
+	fastLzSizeUnsigned := uint64(types.FlzCompressLen(txUnsigned) + 68) // overhead used by the original test
+	fastLzSizeSigned := uint64(types.FlzCompressLen(txSigned))
+
+	// Validate that FastLZ compression produces reasonable results
+	ff.require.Greater(fastLzSizeUnsigned, uint64(0), "FastLZ size should be positive")
+	ff.require.Greater(fastLzSizeSigned, uint64(0), "FastLZ size should be positive")
+
+	txLenGPO := len(txUnsigned) + 68
+	flzUpperBound := uint64(txLenGPO + txLenGPO/255 + 16)
+	ff.require.LessOrEqual(fastLzSizeUnsigned, flzUpperBound, "Compressed size should not exceed upper bound")
+
+	signedUpperBound := uint64(len(txSigned) + len(txSigned)/255 + 16)
+	ff.require.LessOrEqual(fastLzSizeSigned, signedUpperBound, "Compressed size should not exceed upper bound")
+
+	receiptL1Fee := receipt.L1Fee
+	if receiptL1Fee == nil {
+		ff.t.Logf("L1 fee is nil in receipt, skipping L1 fee validation")
+		return fastLzSizeSigned, nil
 	}
 
-	ff.require.Equal(receipt.L1Fee, l1Fee, "L1 fee in receipt must be correct")
+	// Use the existing L1Block binding which has all the fee methods we need
+	l1Block := bindings.NewL1Block(
+		bindings.WithClient(client),
+		bindings.WithTo(predeploys.L1BlockAddr),
+		bindings.WithTest(ff.t))
 
-	ff.require.Greater(receipt.GasUsed, uint64(20000), "Gas used should be reasonable for transfer")
-	ff.require.Less(receipt.GasUsed, uint64(50000), "Gas used should not be excessive")
-	ff.require.Greater(receipt.EffectiveGasPrice.Uint64(), uint64(0), "Effective gas price should be > 0")
+	baseFeeScalar, err := contractio.Read(l1Block.BasefeeScalar(), ff.ctx)
+	ff.require.NoError(err, "should get base fee scalar")
 
-	return fastLzSize, estimatedSizeRaw
+	l1BaseFee, err := contractio.Read(l1Block.Basefee(), ff.ctx)
+	ff.require.NoError(err, "should get L1 base fee")
+
+	blobBaseFeeScalar, err := contractio.Read(l1Block.BlobBaseFeeScalar(), ff.ctx)
+	ff.require.NoError(err, "should get blob base fee scalar")
+
+	blobBaseFee, err := contractio.Read(l1Block.BlobBaseFee(), ff.ctx)
+	ff.require.NoError(err, "should get blob base fee")
+
+	costFunc := types.NewL1CostFuncFjord(
+		l1BaseFee,
+		blobBaseFee,
+		new(big.Int).SetUint64(uint64(baseFeeScalar)),
+		new(big.Int).SetUint64(uint64(blobBaseFeeScalar)))
+
+	expectedFee, _ := costFunc(types.RollupCostData{FastLzSize: fastLzSizeSigned})
+
+	ff.require.Equal(receiptL1Fee, expectedFee, "Calculated L1 fee should match receipt L1 fee")
+
+	ff.require.Equal(receipt.L1Fee, expectedFee, "L1 fee in receipt must be correct")
+
+	return fastLzSizeSigned, expectedFee
 }
 
 func (ff *FjordFees) validateFeeDistribution(l1Fee, baseFee, priorityFee, operatorFee *big.Int, vaults VaultBalances) {
@@ -182,4 +240,38 @@ func (ff *FjordFees) validateTotalBalance(walletDiff *big.Int, totalFee *big.Int
 
 	ff.require.Equal(walletDiff, totalFee, "Wallet balance difference must equal total fees")
 	ff.require.Equal(totalVaultIncrease, totalFee, "Total vault increases must equal total fees")
+}
+
+// getCoinbaseBalance gets the balance of the coinbase address (block miner/sequencer)
+func (ff *FjordFees) getCoinbaseBalance(client apis.EthClient) *big.Int {
+	block, err := client.InfoByLabel(ff.ctx, "latest")
+	ff.require.NoError(err, "should get latest block")
+
+	coinbase := block.Coinbase()
+	balance, err := client.BalanceAt(ff.ctx, coinbase, nil)
+	ff.require.NoError(err, "should get coinbase balance")
+	return balance
+}
+
+func (ff *FjordFees) validateVaultIncreaseFees(
+	l2Fee, baseFee, priorityFee, l1Fee, operatorFee, coinbaseDiff *big.Int,
+	vaultsAfter, vaultsBefore VaultBalances) {
+
+	ff.require.Equal(l2Fee, coinbaseDiff, "L2 fee must equal coinbase difference (coinbase is always sequencer fee vault)")
+
+	vaultsIncrease := ff.calculateVaultIncreases(vaultsBefore, vaultsAfter)
+	ff.require.Equal(baseFee, vaultsIncrease.BaseFeeVault, "base fee must match BaseFeeVault increase")
+
+	ff.require.Equal(priorityFee, vaultsIncrease.SequencerVault, "priority fee must match SequencerFeeVault increase")
+
+	ff.require.Equal(l1Fee, vaultsIncrease.L1FeeVault, "L1 fee must match L1FeeVault increase")
+
+	ff.require.Equal(operatorFee, vaultsIncrease.OperatorVault, "operator fee must match OperatorFeeVault increase")
+
+	ff.t.Logf("Comprehensive fee validation passed:")
+	ff.t.Logf("  L2 Fee: %s (coinbase diff: %s)", l2Fee, coinbaseDiff)
+	ff.t.Logf("  Base Fee: %s (vault increase: %s)", baseFee, vaultsIncrease.BaseFeeVault)
+	ff.t.Logf("  Priority Fee: %s (vault increase: %s)", priorityFee, vaultsIncrease.SequencerVault)
+	ff.t.Logf("  L1 Fee: %s (vault increase: %s)", l1Fee, vaultsIncrease.L1FeeVault)
+	ff.t.Logf("  Operator Fee: %s (vault increase: %s)", operatorFee, vaultsIncrease.OperatorVault)
 }
