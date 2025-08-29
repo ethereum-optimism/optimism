@@ -474,6 +474,11 @@ contract OPContractsManagerStandardValidator is ISemver {
         IOptimismPortal2 _portal = IOptimismPortal2(payable(_sysCfg.optimismPortal()));
         IETHLockbox _lockbox = IETHLockbox(_portal.ethLockbox());
 
+        // If this chain isn't using the ETHLockbox, skip the validation.
+        if (address(_lockbox) == address(0)) {
+            return _errors;
+        }
+
         _errors =
             internalRequire(LibString.eq(getVersion(address(_lockbox)), ethLockboxVersion()), "LOCKBOX-10", _errors);
         _errors =
