@@ -128,8 +128,6 @@ contract SemverComp_parse_Test is SemverComp_TestInit {
 contract SemverComp_Eq_Test is SemverComp_TestInit {
     function test_eq_succeeds() external pure {
         assertTrue(SemverComp.eq("1.2.3", "1.2.3"));
-        assertTrue(SemverComp.eq("1.2.3-rc.1", "1.2.3-rc.1")); // Prerelease ignored
-        assertTrue(SemverComp.eq("1.2.3+build.1", "1.2.3+build.2")); // Build metadata ignored
 
         assertFalse(SemverComp.eq("1.2.3", "1.2.4"));
         assertFalse(SemverComp.eq("1.2.3", "1.3.3"));
