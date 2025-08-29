@@ -554,6 +554,7 @@ contract DeployImplementations is Script {
         IOPContractsManagerStandardValidator.Implementations memory opcmImplementations;
         opcmImplementations.l1ERC721BridgeImpl = _implementations.l1ERC721BridgeImpl;
         opcmImplementations.optimismPortalImpl = _implementations.optimismPortalImpl;
+        opcmImplementations.optimismPortalInteropImpl = _implementations.optimismPortalInteropImpl;
         opcmImplementations.ethLockboxImpl = _implementations.ethLockboxImpl;
         opcmImplementations.systemConfigImpl = _implementations.systemConfigImpl;
         opcmImplementations.optimismMintableERC20FactoryImpl = _implementations.optimismMintableERC20FactoryImpl;
@@ -575,7 +576,8 @@ contract DeployImplementations is Script {
                             _input.superchainConfigProxy,
                             _input.upgradeController, // Proxy admin owner
                             _input.challenger,
-                            _input.withdrawalDelaySeconds
+                            _input.withdrawalDelaySeconds,
+                            _input.devFeatureBitmap
                         )
                     )
                 ),

@@ -14,7 +14,7 @@ library DevFeatures {
     /// @param _bitmap The bitmap to check.
     /// @param _feature The feature to check.
     /// @return True if the feature is enabled, false otherwise.
-    function isFeatureEnabled(bytes32 _bitmap, bytes32 _feature) internal pure returns (bool) {
+    function isDevFeatureEnabled(bytes32 _bitmap, bytes32 _feature) internal pure returns (bool) {
         return (_bitmap & _feature) != 0;
     }
 }

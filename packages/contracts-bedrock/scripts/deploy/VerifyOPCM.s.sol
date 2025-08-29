@@ -153,6 +153,9 @@ contract VerifyOPCM is Script {
         expectedGetters["opcmStandardValidator"] = "SKIP"; // Address verified via bytecode comparison
         expectedGetters["opcmUpgrader"] = "SKIP"; // Address verified via bytecode comparison
 
+        // Getters that don't need any sort of verification
+        expectedGetters["devFeatureBitmap"] = "SKIP";
+
         // Mark as ready.
         ready = true;
     }

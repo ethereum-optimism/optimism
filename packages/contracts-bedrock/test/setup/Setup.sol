@@ -5,6 +5,7 @@ pragma solidity 0.8.15;
 import { console2 as console } from "forge-std/console2.sol";
 import { Vm, VmSafe } from "forge-std/Vm.sol";
 import { EIP1967Helper } from "test/mocks/EIP1967Helper.sol";
+import { DevFlags } from "test/setup/DevFlags.sol";
 
 // Scripts
 import { LibString } from "@solady/utils/LibString.sol";
@@ -22,7 +23,6 @@ import { Predeploys } from "src/libraries/Predeploys.sol";
 import { Preinstalls } from "src/libraries/Preinstalls.sol";
 import { AddressAliasHelper } from "src/vendor/AddressAliasHelper.sol";
 import { Chains } from "scripts/libraries/Chains.sol";
-import { DevFeatures } from "src/libraries/DevFeatures.sol";
 
 // Interfaces
 import { IOPContractsManager } from "interfaces/L1/IOPContractsManager.sol";
@@ -69,7 +69,7 @@ import { ICrossL2Inbox } from "interfaces/L2/ICrossL2Inbox.sol";
 ///      sets the L2 contracts directly at the predeploy addresses instead of setting them
 ///      up behind proxies. In the future we will migrate to importing the genesis JSON
 ///      file that is created to set up the L2 contracts instead of setting them up manually.
-contract Setup {
+contract Setup is DevFlags {
     using ForkUtils for Fork;
 
     /// @notice The address of the foundry Vm contract.
@@ -91,9 +91,6 @@ contract Setup {
 
     L2Genesis internal constant l2Genesis =
         L2Genesis(address(uint160(uint256(keccak256(abi.encode("optimism.l2genesis"))))));
-
-    /// @notice Development feature bitmap.
-    bytes32 public devFeatureBitmap;
 
     /// @notice Allows users of Setup to override what L2 genesis is being created.
     Fork l2Fork = LATEST_FORK;
@@ -188,8 +185,7 @@ contract Setup {
         deploy.setUp();
         forkLive.setUp();
 
-        // Resolve the development feature bitmap.
-        resolveDevFeatures();
+        resolveFeaturesFromEnv();
         deploy.cfg().setDevFeatureBitmap(devFeatureBitmap);
 
         console.log("Setup: L1 setup done!");
@@ -204,30 +200,6 @@ contract Setup {
         vm.etch(address(l2Genesis), vm.getDeployedCode("L2Genesis.s.sol:L2Genesis"));
         vm.allowCheatcodes(address(l2Genesis));
         console.log("Setup: L2 setup done!");
-    }
-
-    /// @notice Resolves the development feature bitmap.
-    function resolveDevFeatures() public {
-        if (LibString.eq(vm.envOr("DEV_FEATURE__OPTIMISM_PORTAL_INTEROP", string("0")), "1")) {
-            console.log("Setup: DEV_FEATURE__OPTIMISM_PORTAL_INTEROP is enabled");
-            devFeatureBitmap |= DevFeatures.OPTIMISM_PORTAL_INTEROP;
-        }
-    }
-
-    /// @notice Skips tests when the provided development feature is enabled.
-    /// @param _feature The feature to check.
-    function skipIfDevFeatureEnabled(bytes32 _feature) public {
-        if (DevFeatures.isDevFeatureEnabled(devFeatureBitmap, _feature)) {
-            vm.skip(true);
-        }
-    }
-
-    /// @notice Skips tests when the provided development feature is disabled.
-    /// @param _feature The feature to check.
-    function skipIfDevFeatureDisabled(bytes32 _feature) public {
-        if (!DevFeatures.isDevFeatureEnabled(devFeatureBitmap, _feature)) {
-            vm.skip(true);
-        }
     }
 
     /// @dev Skips tests when running in coverage mode.

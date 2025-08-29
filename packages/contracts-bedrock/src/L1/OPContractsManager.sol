@@ -706,16 +706,24 @@ contract OPContractsManagerUpgrader is OPContractsManagerBase {
                 abi.encodeCall(ISystemConfig.upgrade, (l2ChainId, _superchainConfig))
             );
 
-            // Separate context to avoid stack too deep.
-            IAnchorStateRegistry newAnchorStateRegistryProxy;
-            {
+            // Try to grab the AnchorStateRegistry from the OptimismPortal contract. This will work
+            // for any chains that are already on U16. Any chains that are not on U16 will need to
+            // deploy a new AnchorStateRegistry contract. Note that this is safe from issues with
+            // EIP-150 because (1) the upgrade controller is trusted and controls the amount of gas
+            // that gets provided and (2) the absolute worst case scenario is that a new ASR gets
+            // deployed which invalidates withdrawals but has no other real downsides.
+            IAnchorStateRegistry anchorStateRegistry;
+            // eip150-safe
+            try optimismPortal.anchorStateRegistry() returns (IAnchorStateRegistry anchorStateRegistry_) {
+                anchorStateRegistry = anchorStateRegistry_;
+            } catch {
                 // Grab the current respectedGameType from the OptimismPortal contract before the
                 // upgrade.
                 GameType respectedGameType = optimismPortal.respectedGameType();
 
                 // Deploy a new AnchorStateRegistry contract.
                 // We use the SOT suffix to avoid CREATE2 conflicts with the existing ASR.
-                newAnchorStateRegistryProxy = IAnchorStateRegistry(
+                anchorStateRegistry = IAnchorStateRegistry(
                     deployProxy({
                         _l2ChainId: l2ChainId,
                         _proxyAdmin: _opChainConfigs[i].proxyAdmin,
@@ -736,7 +744,7 @@ contract OPContractsManagerUpgrader is OPContractsManagerBase {
                     // Since this is a net-new contract, we need to initialize it.
                     upgradeToAndCall(
                         _opChainConfigs[i].proxyAdmin,
-                        address(newAnchorStateRegistryProxy),
+                        address(anchorStateRegistry),
                         impls.anchorStateRegistryImpl,
                         abi.encodeCall(
                             IAnchorStateRegistry.initialize,
@@ -754,8 +762,7 @@ contract OPContractsManagerUpgrader is OPContractsManagerBase {
             // Upgrade the OptimismPortal contract implementation.
             upgradeTo(_opChainConfigs[i].proxyAdmin, address(optimismPortal), impls.optimismPortalImpl);
 
-            // Separate context to avoid stack too deep.
-            {
+            if (isDevFeatureEnabled(DevFeatures.OPTIMISM_PORTAL_INTEROP)) {
                 // Deploy the ETHLockbox proxy.
                 IETHLockbox ethLockbox = IETHLockbox(
                     deployProxy({
@@ -768,7 +775,7 @@ contract OPContractsManagerUpgrader is OPContractsManagerBase {
 
                 // Upgrade the OptimismPortal contract first so that the SystemConfig will have
                 // the SuperchainConfig reference required in the ETHLockbox.
-                optimismPortal.upgrade(newAnchorStateRegistryProxy, ethLockbox);
+                IOptimismPortalInterop(payable(optimismPortal)).upgrade(anchorStateRegistry, ethLockbox);
 
                 // Initialize the ETHLockbox setting the OptimismPortal as an authorized portal.
                 IOptimismPortal[] memory portals = new IOptimismPortal[](1);
@@ -781,7 +788,10 @@ contract OPContractsManagerUpgrader is OPContractsManagerBase {
                 );
 
                 // Migrate liquidity from the OptimismPortal to the ETHLockbox.
-                optimismPortal.migrateLiquidity();
+                IOptimismPortalInterop(payable(optimismPortal)).migrateLiquidity();
+            } else {
+                // Upgrade the OptimismPortal contract, nothing special requried.
+                optimismPortal.upgrade(anchorStateRegistry);
             }
 
             // Separate context to avoid stack too deep.
@@ -843,7 +853,7 @@ contract OPContractsManagerUpgrader is OPContractsManagerBase {
                     _l2ChainId: l2ChainId,
                     _disputeGame: IDisputeGame(address(permissionedDisputeGame)),
                     _newDelayedWeth: permissionedDelayedWeth,
-                    _newAnchorStateRegistryProxy: newAnchorStateRegistryProxy,
+                    _newAnchorStateRegistryProxy: anchorStateRegistry,
                     _gameType: GameTypes.PERMISSIONED_CANNON,
                     _opChainConfig: _opChainConfigs[i]
                 });
@@ -882,7 +892,7 @@ contract OPContractsManagerUpgrader is OPContractsManagerBase {
                         _l2ChainId: l2ChainId,
                         _disputeGame: IDisputeGame(address(permissionlessDisputeGame)),
                         _newDelayedWeth: permissionlessDelayedWeth,
-                        _newAnchorStateRegistryProxy: newAnchorStateRegistryProxy,
+                        _newAnchorStateRegistryProxy: anchorStateRegistry,
                         _gameType: GameTypes.CANNON,
                         _opChainConfig: _opChainConfigs[i]
                     });
@@ -1292,10 +1302,7 @@ contract OPContractsManagerDeployer is OPContractsManagerBase {
         virtual
         returns (bytes memory)
     {
-        return abi.encodeCall(
-            IOptimismPortal.initialize,
-            (_output.systemConfigProxy, _output.anchorStateRegistryProxy, _output.ethLockboxProxy)
-        );
+        return abi.encodeCall(IOptimismPortal.initialize, (_output.systemConfigProxy, _output.anchorStateRegistryProxy));
     }
 
     /// @notice Helper method for encoding the OptimismPortalInterop initializer data.
@@ -1485,9 +1492,9 @@ contract OPContractsManagerInteropMigrator is OPContractsManagerBase {
         }
 
         // Grab an array of portals from the configs.
-        IOptimismPortal[] memory portals = new IOptimismPortal[](_input.opChainConfigs.length);
+        IOptimismPortalInterop[] memory portals = new IOptimismPortalInterop[](_input.opChainConfigs.length);
         for (uint256 i = 0; i < _input.opChainConfigs.length; i++) {
-            portals[i] = IOptimismPortal(payable(_input.opChainConfigs[i].systemConfigProxy.optimismPortal()));
+            portals[i] = IOptimismPortalInterop(payable(_input.opChainConfigs[i].systemConfigProxy.optimismPortal()));
         }
 
         // Check that the portals have the same SuperchainConfig.
@@ -1518,14 +1525,24 @@ contract OPContractsManagerInteropMigrator is OPContractsManagerBase {
             })
         );
 
-        // Initialize the new ETHLockbox.
-        // Note that this authorizes the portals to use the ETHLockbox.
-        upgradeToAndCall(
-            _input.opChainConfigs[0].proxyAdmin,
-            address(newEthLockbox),
-            getImplementations().ethLockboxImpl,
-            abi.encodeCall(IETHLockbox.initialize, (portals[0].systemConfig(), portals))
-        );
+        // Separate context to avoid stack too deep.
+        {
+            // Lockbox requires standard portal interfaces, need to cast to IOptimismPortal. We can't
+            // cast the entire array so we need to do it manually.
+            IOptimismPortal[] memory castedPortals = new IOptimismPortal[](portals.length);
+            for (uint256 i = 0; i < portals.length; i++) {
+                castedPortals[i] = IOptimismPortal(payable(address(portals[i])));
+            }
+
+            // Initialize the new ETHLockbox.
+            // Note that this authorizes the portals to use the ETHLockbox.
+            upgradeToAndCall(
+                _input.opChainConfigs[0].proxyAdmin,
+                address(newEthLockbox),
+                getImplementations().ethLockboxImpl,
+                abi.encodeCall(IETHLockbox.initialize, (portals[0].systemConfig(), castedPortals))
+            );
+        }
 
         // Deploy the new DisputeGameFactory.
         IDisputeGameFactory newDisputeGameFactory = IDisputeGameFactory(

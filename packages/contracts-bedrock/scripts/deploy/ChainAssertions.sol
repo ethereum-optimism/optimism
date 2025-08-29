@@ -277,7 +277,10 @@ library ChainAssertions {
             require(address(portal.superchainConfig()) == address(_superchainConfig), "PORTAL-40");
             require(portal.guardian() == _superchainConfig.guardian(), "CHECK-OP2-40");
             require(portal.paused() == ISystemConfig(_contracts.SystemConfig).paused(), "CHECK-OP2-60");
-            require(address(portal.ethLockbox()) == _contracts.ETHLockbox, "CHECK-OP2-80");
+            require(
+                address(portal.ethLockbox()) == _contracts.ETHLockbox || address(portal.ethLockbox()) == address(0),
+                "CHECK-OP2-80"
+            );
             require(portal.proxyAdminOwner() == _opChainProxyAdminOwner, "CHECK-OP2-90");
         } else {
             require(address(portal.anchorStateRegistry()) == address(0), "CHECK-OP2-80");
