@@ -1,6 +1,7 @@
 package helpers
 
 import (
+	"context"
 	"encoding/binary"
 	"testing"
 
@@ -24,6 +25,10 @@ import (
 // Test if we can mock an RPC failure
 func TestL1Replica_ActL1RPCFail(gt *testing.T) {
 	t := NewDefaultTesting(gt)
+
+	ctx, cancel := context.WithCancel(t.Ctx())
+	defer cancel()
+
 	dp := e2eutils.MakeDeployParams(t, DefaultRollupTestParams())
 	sd := e2eutils.Setup(t, dp, DefaultAlloc)
 	log := testlog.Logger(t, log.LevelDebug)
@@ -36,9 +41,9 @@ func TestL1Replica_ActL1RPCFail(gt *testing.T) {
 	// check RPC failure
 	l1Cl, err := sources.NewL1Client(replica.RPCClient(), log, nil, sources.L1ClientDefaultConfig(sd.RollupCfg, false, sources.RPCKindStandard))
 	require.NoError(t, err)
-	_, err = l1Cl.InfoByLabel(t.Ctx(), eth.Unsafe)
+	_, err = l1Cl.InfoByLabel(ctx, eth.Unsafe)
 	require.ErrorContains(t, err, "mock")
-	head, err := l1Cl.InfoByLabel(t.Ctx(), eth.Unsafe)
+	head, err := l1Cl.InfoByLabel(ctx, eth.Unsafe)
 	require.NoError(t, err)
 	require.Equal(gt, sd.L1Cfg.ToBlock().Hash(), head.Hash(), "expecting replica to start at genesis")
 }
@@ -46,6 +51,7 @@ func TestL1Replica_ActL1RPCFail(gt *testing.T) {
 // Test if we can make the replica sync an artificial L1 chain, rewind it, and reorg it
 func TestL1Replica_ActL1Sync(gt *testing.T) {
 	t := NewDefaultTesting(gt)
+
 	dp := e2eutils.MakeDeployParams(t, DefaultRollupTestParams())
 	sd := e2eutils.Setup(t, dp, DefaultAlloc)
 	log := testlog.Logger(t, log.LevelDebug)
@@ -78,7 +84,7 @@ func TestL1Replica_ActL1Sync(gt *testing.T) {
 	}
 
 	// Enough setup, create the test actor and run the actual actions
-	replica1 := NewL1Replica(t, log, sd.L1Cfg)
+	replica1 := NewL1Replica(t, log.New("role", "replica1"), sd.L1Cfg)
 	t.Cleanup(func() {
 		_ = replica1.Close()
 	})
@@ -99,7 +105,7 @@ func TestL1Replica_ActL1Sync(gt *testing.T) {
 	require.Equal(t, replica1.l1Chain.CurrentBlock().Hash(), chainB[len(chainB)-1].Hash(), "sync replica1 to head of chain B")
 
 	// Adding and syncing a new replica
-	replica2 := NewL1Replica(t, log, sd.L1Cfg)
+	replica2 := NewL1Replica(t, log.New("role", "replica2"), sd.L1Cfg)
 	t.Cleanup(func() {
 		_ = replica2.Close()
 	})

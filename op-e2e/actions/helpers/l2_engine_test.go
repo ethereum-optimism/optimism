@@ -3,6 +3,7 @@ package helpers
 import (
 	"encoding/binary"
 	"errors"
+	"fmt"
 	"math/big"
 	"testing"
 
@@ -29,21 +30,55 @@ import (
 )
 
 func TestL2EngineAPI(gt *testing.T) {
+	fmt.Printf("WHAT 000")
+
 	t := NewDefaultTesting(gt)
+
+	ctx := t.Ctx()
+
+	defer func() {
+		fmt.Printf("WHAT CANCELLING\n")
+	}()
+
+	defer func() {
+		fmt.Println("WHAT DEFERRED")
+		if x := recover(); x != nil {
+			fmt.Printf("WHAT PANICKED 001 %v\n", x)
+		}
+	}()
+
+	fmt.Printf("WHAT 001\n")
+
 	jwtPath := e2eutils.WriteDefaultJWT(t)
+	fmt.Printf("WHAT 002\n")
 	dp := e2eutils.MakeDeployParams(t, DefaultRollupTestParams())
+	fmt.Printf("WHAT 003\n")
 	sd := e2eutils.Setup(t, dp, DefaultAlloc)
+	fmt.Printf("WHAT 004\n")
 	log := testlog.Logger(t, log.LevelDebug)
+	fmt.Printf("WHAT 005\n")
+
+	fmt.Printf("WHAT 005.0\n")
 	genesisBlock := sd.L2Cfg.ToBlock()
+	fmt.Printf("WHAT 005.1 %v\n", genesisBlock)
+	fmt.Printf("WHAT 006\n")
 	consensus := beacon.New(ethash.NewFaker())
+	fmt.Printf("WHAT 007 %v\n", consensus)
 	db := rawdb.NewMemoryDatabase()
+	fmt.Printf("WHAT 008\n")
 	tdb := triedb.NewDatabase(db, &triedb.Config{HashDB: hashdb.Defaults})
+	fmt.Printf("WHAT 009\n")
 	sd.L2Cfg.MustCommit(db, tdb)
+	fmt.Printf("WHAT 010\n")
 
-	engine := NewL2Engine(t, log, sd.L2Cfg, jwtPath)
+	engine := NewL2Engine(t, log.New("role", "engine"), sd.L2Cfg, jwtPath)
+	fmt.Printf("WHAT 011")
 
-	l2Cl, err := sources.NewEngineClient(engine.RPCClient(), log, nil, sources.EngineClientDefaultConfig(sd.RollupCfg))
+	l2Cl, err := sources.NewEngineClient(engine.RPCClient(), log.New("role", "rpc"), nil, sources.EngineClientDefaultConfig(sd.RollupCfg))
+	fmt.Printf("WHAT 012")
 	require.NoError(t, err)
+
+	fmt.Printf("WHAT 013")
 
 	// build an empty block
 	chainA, _ := core.GenerateChain(sd.L2Cfg.Config, genesisBlock, consensus, db, 1, func(n int, gen *core.BlockGen) {
@@ -54,25 +89,39 @@ func TestL2EngineAPI(gt *testing.T) {
 		}
 	})
 
+	fmt.Printf("WHAT 014")
+
 	payloadA, err := eth.BlockAsPayloadEnv(chainA[0], sd.L2Cfg.Config)
+	fmt.Printf("WHAT 015")
 	require.NoError(t, err)
+
+	fmt.Printf("WHAT 016")
 
 	// apply the payload
-	status, err := l2Cl.NewPayload(t.Ctx(), payloadA.ExecutionPayload, payloadA.ParentBeaconBlockRoot)
+	status, err := l2Cl.NewPayload(ctx, payloadA.ExecutionPayload, payloadA.ParentBeaconBlockRoot)
+	fmt.Printf("WHAT 017")
 	require.NoError(t, err)
+	fmt.Printf("WHAT 018")
 	require.Equal(t, eth.ExecutionValid, status.Status)
+	fmt.Printf("WHAT 019")
 	require.Equal(t, genesisBlock.Hash(), engine.l2Chain.CurrentBlock().Hash(), "processed payloads are not immediately canonical")
+	fmt.Printf("WHAT 020")
 
 	// recognize the payload as canonical
-	fcRes, err := l2Cl.ForkchoiceUpdate(t.Ctx(), &eth.ForkchoiceState{
+	fcRes, err := l2Cl.ForkchoiceUpdate(ctx, &eth.ForkchoiceState{
 		HeadBlockHash:      payloadA.ExecutionPayload.BlockHash,
 		SafeBlockHash:      genesisBlock.Hash(),
 		FinalizedBlockHash: genesisBlock.Hash(),
 	}, nil)
+	fmt.Printf("WHAT 021")
 	require.NoError(t, err)
 
+	fmt.Printf("WHAT 022")
+
 	require.Equal(t, fcRes.PayloadStatus.Status, eth.ExecutionValid)
+	fmt.Printf("WHAT 023")
 	require.Equal(t, payloadA.ExecutionPayload.BlockHash, engine.l2Chain.CurrentBlock().Hash(), "now payload A is canonical")
+	fmt.Printf("WHAT 024")
 
 	// build an alternative block
 	chainB, _ := core.GenerateChain(sd.L2Cfg.Config, genesisBlock, consensus, db, 1, func(n int, gen *core.BlockGen) {
@@ -82,25 +131,38 @@ func TestL2EngineAPI(gt *testing.T) {
 			gen.SetParentBeaconRoot(root)
 		}
 	})
+	fmt.Printf("WHAT 025")
 
 	payloadB, err := eth.BlockAsPayloadEnv(chainB[0], sd.L2Cfg.Config)
+	fmt.Printf("WHAT 026")
 	require.NoError(t, err)
+	fmt.Printf("WHAT 027")
 
 	// apply the payload
-	status, err = l2Cl.NewPayload(t.Ctx(), payloadB.ExecutionPayload, payloadB.ParentBeaconBlockRoot)
+	status, err = l2Cl.NewPayload(ctx, payloadB.ExecutionPayload, payloadB.ParentBeaconBlockRoot)
+	fmt.Printf("WHAT 028")
 	require.NoError(t, err)
+	fmt.Printf("WHAT 029")
 	require.Equal(t, status.Status, eth.ExecutionValid)
+	fmt.Printf("WHAT 030")
 	require.Equal(t, payloadA.ExecutionPayload.BlockHash, engine.l2Chain.CurrentBlock().Hash(), "processed payloads are not immediately canonical")
+	fmt.Printf("WHAT 031")
 
 	// reorg block A in favor of block B
-	fcRes, err = l2Cl.ForkchoiceUpdate(t.Ctx(), &eth.ForkchoiceState{
+	fcRes, err = l2Cl.ForkchoiceUpdate(ctx, &eth.ForkchoiceState{
 		HeadBlockHash:      payloadB.ExecutionPayload.BlockHash,
 		SafeBlockHash:      genesisBlock.Hash(),
 		FinalizedBlockHash: genesisBlock.Hash(),
 	}, nil)
+	fmt.Printf("WHAT 032")
 	require.NoError(t, err)
+	fmt.Printf("WHAT 033")
 	require.Equal(t, fcRes.PayloadStatus.Status, eth.ExecutionValid)
+	fmt.Printf("WHAT 034")
 	require.Equal(t, payloadB.ExecutionPayload.BlockHash, engine.l2Chain.CurrentBlock().Hash(), "now payload B is canonical")
+	fmt.Printf("WHAT 035")
+
+	t.Fail()
 
 }
 
