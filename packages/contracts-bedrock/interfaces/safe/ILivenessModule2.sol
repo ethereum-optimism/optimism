@@ -44,11 +44,18 @@ interface ILivenessModule2 is ISemver {
     /// @notice Emitted when ownership is transferred to the fallback owner
     event ChallengeExecuted(address indexed safe, address fallbackOwner);
 
+    /// @notice Reserved address used as the previous owner to the first owner in a Safe
+    /// @return The sentinel owner address (0x1)
+    function SENTINEL_OWNER() external view returns (address);
+
     /// @notice Returns the configuration for a Safe
     /// @return livenessResponsePeriod The response period
     /// @return fallbackOwner The fallback owner address
-    /// @return challengeStartTime The challenge start time (0 if no challenge)
-    function safeConfigs(address) external view returns (uint256 livenessResponsePeriod, address fallbackOwner, uint256 challengeStartTime);
+    function safeConfigs(address) external view returns (uint256 livenessResponsePeriod, address fallbackOwner);
+
+    /// @notice Returns the challenge start time for a Safe (0 if no challenge)
+    /// @return The challenge start timestamp
+    function challengeStartTime(address) external view returns (uint256);
 
     /// @notice Semantic version
     /// @return version The contract version
@@ -60,13 +67,8 @@ interface ILivenessModule2 is ISemver {
     function enableModule(uint256 _livenessResponsePeriod, address _fallbackOwner) external;
 
     /// @notice Disables the module by an enabled safe
-    function disableModule() external;
+    function disable() external;
 
-    /// @notice Returns the liveness_response_period and fallback_owner for a given safe
-    /// @param _safe The Safe address to query
-    /// @return livenessResponsePeriod The response period
-    /// @return fallbackOwner The fallback owner address
-    function viewConfiguration(address _safe) external view returns (uint256, address);
 
     /// @notice Returns challenge_start_time + liveness_response_period if there is a challenge, or 0 if not
     /// @param _safe The Safe address to query
@@ -75,10 +77,10 @@ interface ILivenessModule2 is ISemver {
 
     /// @notice Challenges an enabled safe
     /// @param _safe The Safe to challenge
-    function startChallenge(address _safe) external;
+    function challenge(address _safe) external;
 
-    /// @notice Cancels a challenge for an enabled safe
-    function cancelChallenge() external;
+    /// @notice Responds to a challenge for an enabled safe, canceling it
+    function respond() external;
 
     /// @notice Removes all current owners from an enabled safe and appoints fallback as sole owner
     /// @param _safe The Safe to transfer ownership of

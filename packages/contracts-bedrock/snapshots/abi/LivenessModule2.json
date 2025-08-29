@@ -1,9 +1,47 @@
 [
   {
     "inputs": [],
-    "name": "cancelChallenge",
+    "name": "SENTINEL_OWNER",
+    "outputs": [
+      {
+        "internalType": "address",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "_safe",
+        "type": "address"
+      }
+    ],
+    "name": "challenge",
     "outputs": [],
     "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "name": "challengeStartTime",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
     "type": "function"
   },
   {
@@ -21,7 +59,7 @@
   },
   {
     "inputs": [],
-    "name": "disableModule",
+    "name": "disable",
     "outputs": [],
     "stateMutability": "nonpayable",
     "type": "function"
@@ -64,6 +102,13 @@
     "type": "function"
   },
   {
+    "inputs": [],
+    "name": "respond",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
     "inputs": [
       {
         "internalType": "address",
@@ -82,27 +127,9 @@
         "internalType": "address",
         "name": "fallbackOwner",
         "type": "address"
-      },
-      {
-        "internalType": "uint256",
-        "name": "challengeStartTime",
-        "type": "uint256"
       }
     ],
     "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "address",
-        "name": "_safe",
-        "type": "address"
-      }
-    ],
-    "name": "startChallenge",
-    "outputs": [],
-    "stateMutability": "nonpayable",
     "type": "function"
   },
   {
@@ -113,30 +140,6 @@
         "internalType": "string",
         "name": "",
         "type": "string"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "address",
-        "name": "_safe",
-        "type": "address"
-      }
-    ],
-    "name": "viewConfiguration",
-    "outputs": [
-      {
-        "internalType": "uint256",
-        "name": "",
-        "type": "uint256"
-      },
-      {
-        "internalType": "address",
-        "name": "",
-        "type": "address"
       }
     ],
     "stateMutability": "view",

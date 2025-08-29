@@ -18,19 +18,20 @@ import { ILivenessModule2 } from "interfaces/safe/ILivenessModule2.sol";
 ///      1. The Safe must first enable this module using ModuleManager.enableModule()
 ///      2. The Safe must then configure the module by calling enableModule() with parameters
 contract LivenessModule2 is ILivenessModule2 {
-
     /// @notice Reserved address used as the previous owner to the first owner in a Safe
     address public constant SENTINEL_OWNER = address(0x1);
 
     /// @notice Configuration for a Safe's liveness module
-    struct SafeConfig {
+    struct ModuleConfig {
         uint256 livenessResponsePeriod;
         address fallbackOwner;
-        uint256 challengeStartTime;
     }
 
     /// @notice Mapping from Safe address to its configuration
-    mapping(address => SafeConfig) public safeConfigs;
+    mapping(address => ModuleConfig) public safeConfigs;
+
+    /// @notice Mapping from Safe address to active challenge start time (0 if no challenge)
+    mapping(address => uint256) public challengeStartTime;
 
     /// @notice Semantic version.
     /// @custom:semver 2.0.0
@@ -49,12 +50,14 @@ contract LivenessModule2 is ILivenessModule2 {
         }
 
         // Set the caller as a safe and store its configuration
-        SafeConfig storage config = safeConfigs[msg.sender];
+        ModuleConfig storage config = safeConfigs[msg.sender];
 
         // Store the parameters related to this safe
         config.livenessResponsePeriod = _livenessResponsePeriod;
         config.fallbackOwner = _fallbackOwner;
-        config.challengeStartTime = 0;
+
+        // Clear any existing challenge when enabling/re-enabling
+        delete challengeStartTime[msg.sender];
 
         emit ModuleEnabled(msg.sender, _livenessResponsePeriod, _fallbackOwner);
     }
@@ -63,8 +66,8 @@ contract LivenessModule2 is ILivenessModule2 {
     /// @dev MUST only be executable by an enabled safe
     /// @dev MUST erase the existing liveness_response_period and fallback_owner data related to the calling safe
     /// @dev Note: Disabling the module also cancels any ongoing challenges
-    function disableModule() external {
-        SafeConfig storage config = safeConfigs[msg.sender];
+    function disable() external {
+        ModuleConfig storage config = safeConfigs[msg.sender];
         // Check if the calling safe has the module enabled
         if (config.fallbackOwner == address(0)) {
             revert LivenessModule2_ModuleNotEnabled();
@@ -72,17 +75,9 @@ contract LivenessModule2 is ILivenessModule2 {
 
         // Erase the configuration data for this safe
         delete safeConfigs[msg.sender];
+        // Also clear any active challenge
+        delete challengeStartTime[msg.sender];
         emit ModuleDisabled(msg.sender);
-    }
-
-    /// @notice Returns the liveness_response_period and fallback_owner for a given safe
-    /// @dev MUST never revert
-    /// @param _safe The Safe address to query
-    /// @return livenessResponsePeriod The response period
-    /// @return fallbackOwner The fallback owner address
-    function viewConfiguration(address _safe) external view returns (uint256, address) {
-        SafeConfig storage config = safeConfigs[_safe];
-        return (config.livenessResponsePeriod, config.fallbackOwner);
     }
 
     /// @notice Returns challenge_start_time + liveness_response_period if there is a challenge for the given safe, or
@@ -91,11 +86,12 @@ contract LivenessModule2 is ILivenessModule2 {
     /// @param _safe The Safe address to query
     /// @return The challenge end timestamp, or 0 if no challenge
     function isChallenged(address _safe) external view returns (uint256) {
-        SafeConfig storage config = safeConfigs[_safe];
-        if (config.challengeStartTime == 0) {
+        uint256 startTime = challengeStartTime[_safe];
+        if (startTime == 0) {
             return 0;
         }
-        return config.challengeStartTime + config.livenessResponsePeriod;
+        ModuleConfig storage config = safeConfigs[_safe];
+        return startTime + config.livenessResponsePeriod;
     }
 
     /// @notice Challenges an enabled safe
@@ -104,8 +100,8 @@ contract LivenessModule2 is ILivenessModule2 {
     /// @dev MUST set challenge_start_time to the current block time
     /// @dev MUST emit the ChallengeStarted event
     /// @param _safe The Safe to challenge
-    function startChallenge(address _safe) external {
-        SafeConfig storage config = safeConfigs[_safe];
+    function challenge(address _safe) external {
+        ModuleConfig storage config = safeConfigs[_safe];
 
         if (config.fallbackOwner == address(0)) {
             revert LivenessModule2_ModuleNotEnabled();
@@ -115,36 +111,37 @@ contract LivenessModule2 is ILivenessModule2 {
             revert LivenessModule2_UnauthorizedCaller();
         }
 
-        if (config.challengeStartTime != 0) {
+        if (challengeStartTime[_safe] != 0) {
             revert LivenessModule2_ChallengeAlreadyExists();
         }
 
-        config.challengeStartTime = block.timestamp;
+        challengeStartTime[_safe] = block.timestamp;
         emit ChallengeStarted(_safe, block.timestamp);
     }
 
-    /// @notice Cancels a challenge for an enabled safe
+    /// @notice Responds to a challenge for an enabled safe, canceling it
     /// @dev MUST only be executable by an enabled safe
     /// @dev MUST revert if there isn't a challenge for the calling safe
-    /// @dev MUST revert if there is a challenge for the calling safe but the challenge is successful
+    /// @dev MUST revert if there is a challenge for the calling safe but the response period has expired
     /// @dev MUST emit the ChallengeCancelled event
-    function cancelChallenge() external {
-        SafeConfig storage config = safeConfigs[msg.sender];
+    function respond() external {
+        ModuleConfig storage config = safeConfigs[msg.sender];
 
         if (config.fallbackOwner == address(0)) {
             revert LivenessModule2_ModuleNotEnabled();
         }
 
-        if (config.challengeStartTime == 0) {
+        uint256 startTime = challengeStartTime[msg.sender];
+        if (startTime == 0) {
             revert LivenessModule2_ChallengeDoesNotExist();
         }
 
         // Check if response period has expired
-        if (block.timestamp >= config.challengeStartTime + config.livenessResponsePeriod) {
+        if (block.timestamp >= startTime + config.livenessResponsePeriod) {
             revert LivenessModule2_ResponsePeriodExpired();
         }
 
-        config.challengeStartTime = 0;
+        delete challengeStartTime[msg.sender];
         emit ChallengeCancelled(msg.sender);
     }
 
@@ -157,18 +154,19 @@ contract LivenessModule2 is ILivenessModule2 {
     /// @dev MUST emit the ChallengeExecuted event
     /// @param _safe The Safe to transfer ownership of
     function changeOwnershipToFallback(address _safe) external {
-        SafeConfig storage config = safeConfigs[_safe];
+        ModuleConfig storage config = safeConfigs[_safe];
 
         if (config.fallbackOwner == address(0)) {
             revert LivenessModule2_ModuleNotEnabled();
         }
 
-        if (config.challengeStartTime == 0) {
+        uint256 startTime = challengeStartTime[_safe];
+        if (startTime == 0) {
             revert LivenessModule2_ChallengeDoesNotExist();
         }
 
         // Check if response period has expired
-        if (block.timestamp < config.challengeStartTime + config.livenessResponsePeriod) {
+        if (block.timestamp < startTime + config.livenessResponsePeriod) {
             revert LivenessModule2_ResponsePeriodActive();
         }
 
@@ -199,7 +197,7 @@ contract LivenessModule2 is ILivenessModule2 {
         });
 
         // Reset the challenge state to allow a new challenge
-        config.challengeStartTime = 0;
+        delete challengeStartTime[_safe];
 
         emit ChallengeExecuted(_safe, config.fallbackOwner);
     }

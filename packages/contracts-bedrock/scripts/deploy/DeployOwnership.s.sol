@@ -318,7 +318,7 @@ contract DeployOwnership is Deploy {
 
         // Verify the module was configured correctly
         (uint256 configuredPeriod, address configuredFallback) =
-            LivenessModule2(livenessModule).viewConfiguration(address(safe));
+            LivenessModule2(livenessModule).safeConfigs(address(safe));
         require(
             configuredPeriod == exampleCouncilConfig.livenessModuleConfig.livenessInterval,
             "DeployOwnership: configured liveness interval must match expected value"

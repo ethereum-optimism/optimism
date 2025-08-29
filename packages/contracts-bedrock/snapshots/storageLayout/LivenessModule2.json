@@ -4,6 +4,13 @@
     "label": "safeConfigs",
     "offset": 0,
     "slot": "0",
-    "type": "mapping(address => struct LivenessModule2.SafeConfig)"
+    "type": "mapping(address => struct LivenessModule2.ModuleConfig)"
+  },
+  {
+    "bytes": "32",
+    "label": "challengeStartTime",
+    "offset": 0,
+    "slot": "1",
+    "type": "mapping(address => uint256)"
   }
 ]
