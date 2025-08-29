@@ -181,7 +181,7 @@ contract LivenessModule2 is ILivenessModule2 {
         while (owners.length > 1) {
             // removeOwner automatically updates the threshold, so we don't need to do it manually
             safe.execTransactionFromModule({
-                to: safe_,
+                to: _safe,
                 value: 0,
                 operation: Enum.Operation.Call,
                 data: abi.encodeCall(OwnerManager.removeOwner, (SENTINEL_OWNER, owners[0], 1))
