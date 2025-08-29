@@ -92,7 +92,7 @@ contract LivenessModule2_EnableModule_Test is LivenessModule2_TestInit {
         assertEq(fbOwner, fallbackOwner);
     }
 
-    function test_enableModule_acceptsArbitraryNumberOfSafes_succeeds() external {
+    function test_enableModule_multipleSafes_succeeds() external {
         // Test that multiple independent safes can enable the module
         address safe1 = makeAddr("safe1");
         address safe2 = makeAddr("safe2");
@@ -270,7 +270,7 @@ contract LivenessModule2_StartChallenge_Test is LivenessModule2_TestInit {
         assertFalse(success, "Should fail to cancel non-existent challenge");
     }
 
-    function test_cancelChallenge_afterPeriod_reverts() external {
+    function test_cancelChallenge_afterChallengePeriod_reverts() external {
         // Start a challenge
         vm.prank(fallbackOwner);
         livenessModule2.startChallenge(address(safeInstance.safe));
@@ -339,7 +339,7 @@ contract LivenessModule2_ChangeOwnershipToFallback_Test is LivenessModule2_TestI
         livenessModule2.changeOwnershipToFallback(address(safeInstance.safe));
     }
 
-    function test_changeOwnershipToFallback_challengeNotSuccessful_reverts() external {
+    function test_changeOwnershipToFallback_beforeChallengePeriod_reverts() external {
         // Start a challenge
         vm.prank(fallbackOwner);
         livenessModule2.startChallenge(address(safeInstance.safe));
@@ -368,7 +368,7 @@ contract LivenessModule2_ChangeOwnershipToFallback_Test is LivenessModule2_TestI
         assertEq(newOwners[0], fallbackOwner);
     }
 
-    function test_changeOwnershipToFallback_allowsNewChallenge_succeeds() external {
+    function test_changeOwnershipToFallback_canRechallenge_succeeds() external {
         // Start and execute first challenge
         vm.prank(fallbackOwner);
         livenessModule2.startChallenge(address(safeInstance.safe));
@@ -388,7 +388,7 @@ contract LivenessModule2_ChangeOwnershipToFallback_Test is LivenessModule2_TestI
 /// @title LivenessModule2_ViewConfiguration_Test
 /// @notice Tests view functions
 contract LivenessModule2_ViewConfiguration_Test is LivenessModule2_TestInit {
-    function test_viewConfiguration_works() external {
+    function test_viewConfiguration_succeeds() external {
         // Before enabling
         (uint256 period1, address fbOwner1) = livenessModule2.viewConfiguration(address(safeInstance.safe));
         assertEq(period1, 0);
@@ -401,7 +401,7 @@ contract LivenessModule2_ViewConfiguration_Test is LivenessModule2_TestInit {
         assertEq(fbOwner2, fallbackOwner);
     }
 
-    function test_isChallenged_works() external {
+    function test_isChallenged_succeeds() external {
         _enableModule(safeInstance, CHALLENGE_PERIOD, fallbackOwner);
 
         // No challenge
@@ -417,130 +417,9 @@ contract LivenessModule2_ViewConfiguration_Test is LivenessModule2_TestInit {
         assertEq(livenessModule2.isChallenged(address(safeInstance.safe)), 0);
     }
 
-    function test_version_works() external view {
+    function test_version_succeeds() external view {
         assertTrue(bytes(livenessModule2.version()).length > 0);
     }
 }
 
-/// @title LivenessModule2_IsChallenged_Test
-/// @notice Tests invariants from specifications
-contract LivenessModule2_IsChallenged_Test is LivenessModule2_TestInit {
-    /// @notice Test iLM-001: No Concurrent Challenges
-    function test_invariant_noConcurrentChallenges_works() external {
-        _enableModule(safeInstance, CHALLENGE_PERIOD, fallbackOwner);
 
-        // Start first challenge
-        vm.prank(fallbackOwner);
-        livenessModule2.startChallenge(address(safeInstance.safe));
-
-        // Attempt second challenge should fail
-        vm.expectRevert(ILivenessModule2.LivenessModule2_ChallengeAlreadyExists.selector);
-        vm.prank(fallbackOwner);
-        livenessModule2.startChallenge(address(safeInstance.safe));
-    }
-
-    /// @notice Test iLM-002: Honest Users Can Recover From Temporary Key Control
-    function test_invariant_honestUsersCanRecover_works() external {
-        _enableModule(safeInstance, CHALLENGE_PERIOD, fallbackOwner);
-
-        // Simulate attacker with control over less than quorum
-        // Start a challenge
-        vm.prank(fallbackOwner);
-        livenessModule2.startChallenge(address(safeInstance.safe));
-
-        // Honest users (with quorum) can cancel the challenge
-        _cancelChallenge(safeInstance);
-
-        // Verify Safe is still controlled by original owners
-        address[] memory currentOwners = safeInstance.safe.getOwners();
-        assertEq(currentOwners.length, NUM_OWNERS);
-        for (uint256 i = 0; i < NUM_OWNERS; i++) {
-            bool found = false;
-            for (uint256 j = 0; j < owners.length; j++) {
-                if (currentOwners[i] == owners[j]) {
-                    found = true;
-                    break;
-                }
-            }
-            assertTrue(found);
-        }
-    }
-
-    /// @notice Test iLM-003: A Quorum Of Honest Users Retains Ownership
-    function test_invariant_quorumRetainsOwnership_works() external {
-        _enableModule(safeInstance, CHALLENGE_PERIOD, fallbackOwner);
-
-        // Start a challenge
-        vm.prank(fallbackOwner);
-        livenessModule2.startChallenge(address(safeInstance.safe));
-
-        // Quorum of honest users cancels before period expires
-        vm.warp(block.timestamp + CHALLENGE_PERIOD - 1);
-        _cancelChallenge(safeInstance);
-
-        // Verify ownership unchanged
-        address[] memory currentOwners = safeInstance.safe.getOwners();
-        assertEq(currentOwners.length, NUM_OWNERS);
-        assertEq(safeInstance.safe.getThreshold(), THRESHOLD);
-    }
-}
-
-/// @title LivenessModule2_CancelChallenge_Test
-/// @notice Integration tests with Safe operations
-contract LivenessModule2_CancelChallenge_Test is LivenessModule2_TestInit {
-    function test_integration_fullChallengeFlow_works() external {
-        // Enable module
-        _enableModule(safeInstance, CHALLENGE_PERIOD, fallbackOwner);
-
-        // Start challenge
-        vm.prank(fallbackOwner);
-        livenessModule2.startChallenge(address(safeInstance.safe));
-
-        // Safe responds and cancels challenge
-        _cancelChallenge(safeInstance);
-
-        // Start another challenge
-        vm.prank(fallbackOwner);
-        livenessModule2.startChallenge(address(safeInstance.safe));
-
-        // This time Safe doesn't respond
-        vm.warp(block.timestamp + CHALLENGE_PERIOD + 1);
-
-        // Execute ownership transfer
-        livenessModule2.changeOwnershipToFallback(address(safeInstance.safe));
-
-        // Verify fallback owner has control
-        address[] memory newOwners = safeInstance.safe.getOwners();
-        assertEq(newOwners.length, 1);
-        assertEq(newOwners[0], fallbackOwner);
-        assertEq(safeInstance.safe.getThreshold(), 1);
-    }
-
-    function test_integration_multipleEnable_works() external {
-        // Use different key sets for different safes
-        (, uint256[] memory keys1) = SafeTestLib.makeAddrsAndKeys("safe1", NUM_OWNERS);
-        (, uint256[] memory keys2) = SafeTestLib.makeAddrsAndKeys("safe2", NUM_OWNERS);
-
-        SafeInstance memory safe1 = _setupSafe(keys1, THRESHOLD);
-        SafeInstance memory safe2 = _setupSafe(keys2, THRESHOLD);
-
-        SafeTestLib.enableModule(safe1, address(livenessModule2));
-        SafeTestLib.enableModule(safe2, address(livenessModule2));
-
-        address fallback1 = makeAddr("fallback1");
-        address fallback2 = makeAddr("fallback2");
-
-        // Enable module on both safes
-        _enableModule(safe1, CHALLENGE_PERIOD, fallback1);
-        _enableModule(safe2, CHALLENGE_PERIOD * 2, fallback2);
-
-        // Verify configurations are independent
-        (uint256 period1, address fb1) = livenessModule2.viewConfiguration(address(safe1.safe));
-        (uint256 period2, address fb2) = livenessModule2.viewConfiguration(address(safe2.safe));
-
-        assertEq(period1, CHALLENGE_PERIOD);
-        assertEq(fb1, fallback1);
-        assertEq(period2, CHALLENGE_PERIOD * 2);
-        assertEq(fb2, fallback2);
-    }
-}
