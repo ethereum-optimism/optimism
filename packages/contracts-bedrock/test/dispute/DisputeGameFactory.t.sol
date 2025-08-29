@@ -21,6 +21,7 @@ import { IFaultDisputeGame } from "interfaces/dispute/IFaultDisputeGame.sol";
 import { IFaultDisputeGameV2 } from "interfaces/dispute/v2/IFaultDisputeGameV2.sol";
 import { ISuperFaultDisputeGame } from "interfaces/dispute/ISuperFaultDisputeGame.sol";
 import { IPermissionedDisputeGame } from "interfaces/dispute/IPermissionedDisputeGame.sol";
+import { IPermissionedDisputeGameV2 } from "interfaces/dispute/v2/IPermissionedDisputeGameV2.sol";
 import { ISuperPermissionedDisputeGame } from "interfaces/dispute/ISuperPermissionedDisputeGame.sol";
 // Mocks
 import { AlphabetVM } from "test/mocks/AlphabetVM.sol";
@@ -258,6 +259,32 @@ contract DisputeGameFactory_TestInit is CommonTest {
         assembly {
             out_ := or(and(not(shl(248, 0xFF)), _claim), shl(248, _status))
         }
+    }
+
+    function setupPermissionedDisputeGameV2(
+        Claim _absolutePrestate,
+        address _proposer,
+        address _challenger
+    )
+    internal
+    returns (address gameImpl_, AlphabetVM vm_, IPreimageOracle preimageOracle_)
+    {
+        (vm_, preimageOracle_) = _createVM(_absolutePrestate);
+        gameImpl_ = DeployUtils.create1({
+            _name: "PermissionedDisputeGameV2",
+            _args: DeployUtils.encodeConstructor(
+                abi.encodeCall(
+                    IPermissionedDisputeGameV2.__constructor__,
+                    (
+                        _getGameConstructorParamsV2(_absolutePrestate, vm_, GameTypes.PERMISSIONED_CANNON),
+                        _proposer,
+                        _challenger
+                    )
+                )
+            )
+        });
+
+        _setGame(gameImpl_, GameTypes.PERMISSIONED_CANNON);
     }
 }
 
