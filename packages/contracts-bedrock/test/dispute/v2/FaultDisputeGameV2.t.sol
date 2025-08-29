@@ -119,6 +119,8 @@ contract BaseFaultDisputeGameV2_TestInit is DisputeGameFactory_TestInit {
         assertEq(address(gameProxy.weth()), address(delayedWeth));
         assertEq(address(gameProxy.anchorStateRegistry()), address(anchorStateRegistry));
         assertEq(address(gameProxy.vm()), address(_vm));
+        assertEq(address(gameProxy.gameCreator()), address(this));
+        assertEq(gameProxy.l2ChainId(), l2ChainId);
 
         // Label the proxy
         vm.label(address(gameProxy), "FaultDisputeGame_Clone");

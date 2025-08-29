@@ -55,6 +55,8 @@ contract DisputeGameFactory_TestInit is CommonTest {
     event ImplementationArgsSet(GameType indexed gameType, bytes args);
     event InitBondUpdated(GameType indexed gameType, uint256 indexed newBond);
 
+    uint256 l2ChainId = 111;
+
     function setUp() public virtual override {
         super.setUp();
         fakeClone = new DisputeGameFactory_FakeClone_Harness();
@@ -223,7 +225,7 @@ contract DisputeGameFactory_TestInit is CommonTest {
             vm_, // 20 bytes
             anchorStateRegistry, // 20 bytes
             delayedWeth, // 20 bytes
-            uint256(111) // 32 bytes (l2ChainId)
+            l2ChainId // 32 bytes (l2ChainId)
         );
 
         _setGame(gameImpl_, GameTypes.CANNON, implArgs);
@@ -290,7 +292,7 @@ contract DisputeGameFactory_TestInit is CommonTest {
             vm_, // 20 bytes
             anchorStateRegistry, // 20 bytes
             delayedWeth, // 20 bytes
-            uint256(111) // 32 bytes (l2ChainId)
+            l2ChainId // 32 bytes (l2ChainId)
         );
 
         _setGame(gameImpl_, GameTypes.PERMISSIONED_CANNON, implArgs);
@@ -489,7 +491,7 @@ contract DisputeGameFactory_Create_Test is DisputeGameFactory_TestInit {
         assertEq(Claim.unwrap(gameV2.absolutePrestate()), Claim.unwrap(absolutePrestate));
         assertEq(Claim.unwrap(gameV2.rootClaim()), Claim.unwrap(rootClaim));
         assertEq(gameV2.extraData(), extraData);
-        assertEq(gameV2.l2ChainId(), 111);
+        assertEq(gameV2.l2ChainId(), l2ChainId);
         assertEq(address(gameV2.gameCreator()), address(this));
         assertEq(gameV2.l2BlockNumber(), uint256(type(uint32).max));
         assertEq(address(gameV2.vm()), address(vm_));
