@@ -276,7 +276,7 @@ contract DisputeGameFactory_TestInit is CommonTest {
                 abi.encodeCall(
                     IPermissionedDisputeGameV2.__constructor__,
                     (
-                        _getGameConstructorParamsV2(_absolutePrestate, vm_, GameTypes.PERMISSIONED_CANNON),
+                        _getGameConstructorParamsV2(GameTypes.PERMISSIONED_CANNON),
                         _proposer,
                         _challenger
                     )
@@ -284,7 +284,16 @@ contract DisputeGameFactory_TestInit is CommonTest {
             )
         });
 
-        _setGame(gameImpl_, GameTypes.PERMISSIONED_CANNON);
+        // Encode the implementation args for CWIA (tightly packed)
+        bytes memory implArgs = abi.encodePacked(
+            _absolutePrestate, // 32 bytes
+            vm_, // 20 bytes
+            anchorStateRegistry, // 20 bytes
+            delayedWeth, // 20 bytes
+            uint256(111) // 32 bytes (l2ChainId)
+        );
+
+        _setGame(gameImpl_, GameTypes.PERMISSIONED_CANNON, implArgs);
     }
 }
 

@@ -60,9 +60,6 @@ contract PermissionedDisputeGameV2_TestInit is DisputeGameFactory_TestInit {
         (address _impl, AlphabetVM _vm,) = setupPermissionedDisputeGameV2(_absolutePrestate, PROPOSER, CHALLENGER);
         gameImpl = IPermissionedDisputeGameV2(_impl);
 
-        // Register the game implementation with the factory.
-        disputeGameFactory.setImplementation(GAME_TYPE, gameImpl);
-
         // Create a new game.
         uint256 bondAmount = disputeGameFactory.initBonds(GAME_TYPE);
         vm.mockCall(
