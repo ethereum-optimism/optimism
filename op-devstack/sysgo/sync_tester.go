@@ -127,6 +127,6 @@ func WithSyncTesterWithExternalEndpoint(endpointRPC string, chainID eth.ChainID)
 			_ = srv.Stop(ctx)
 			logger.Info("Closed sync tester")
 		})
-		orch.syncTester = &SyncTester{id: syncTesterID, service: srv}
+		orch.syncTester = &SyncTesterService{id: syncTesterID, service: srv}
 	})
 }

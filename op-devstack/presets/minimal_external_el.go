@@ -48,7 +48,7 @@ func NewMinimalExternalELWithExternalL1(t devtest.T, l1ELRPCURL, l1CLBeaconURL s
 	orch.Hydrate(system)
 
 	l2 := system.L2Network(match.Assume(t, match.L2ChainA))
-	sequencerCL := l2.L2CLNode(match.Assume(t, match.WithSequencerActive(t.Ctx())))
+	verifierCL := l2.L2CLNode(match.FirstL2CL)
 	syncTester := l2.SyncTester(match.Assume(t, match.FirstSyncTester))
 
 	return &MinimalExternalEL{
@@ -58,7 +58,7 @@ func NewMinimalExternalELWithExternalL1(t devtest.T, l1ELRPCURL, l1CLBeaconURL s
 		L1Network:    dsl.NewL1Network(system.L1Network(match.FirstL1Network)),
 		L1EL:         dsl.NewL1ELNode(system.L1Network(match.FirstL1Network).L1ELNode(match.FirstL1EL)),
 		L2Chain:      dsl.NewL2Network(l2, orch.ControlPlane()),
-		L2CL:         dsl.NewL2CLNode(sequencerCL, orch.ControlPlane()),
+		L2CL:         dsl.NewL2CLNode(verifierCL, orch.ControlPlane()),
 		SyncTester:   dsl.NewSyncTester(syncTester),
 		Wallet:       dsl.NewRandomHDWallet(t, 30),
 	}

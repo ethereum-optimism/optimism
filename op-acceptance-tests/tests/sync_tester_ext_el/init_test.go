@@ -16,9 +16,9 @@ func TestMain(m *testing.M) {
 	L1ChainID := eth.ChainIDFromUInt64(11155111)
 
 	presets.DoMain(m, presets.WithMinimalExternalELWithSuperchainRegistry(L1CLBeaconEndpoint, L1ELEndpoint, L2ELEndpoint, L1ChainID, L2NetworkName, eth.FCUState{
-		Latest:    31987000,
-		Safe:      31987000,
-		Finalized: 31987000,
+		Latest:    32012748,
+		Safe:      32012748,
+		Finalized: 32012748,
 	}),
 		presets.WithCompatibleTypes(compat.SysGo),
 	)
