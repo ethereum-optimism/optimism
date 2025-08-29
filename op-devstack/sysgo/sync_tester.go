@@ -26,7 +26,7 @@ func (n *SyncTester) hydrate(system stack.ExtensibleSystem) {
 	require := system.T().Require()
 
 	for syncTesterID, chainID := range n.service.SyncTesters() {
-		syncTesterRPC := n.service.RPC() + n.service.NewEndpoint(chainID)
+		syncTesterRPC := n.service.SyncTesterRPC(chainID, false)
 		rpcCl, err := client.NewRPC(system.T().Ctx(), system.Logger(), syncTesterRPC, client.WithLazyDial())
 		require.NoError(err)
 		system.T().Cleanup(rpcCl.Close)
@@ -34,6 +34,7 @@ func (n *SyncTester) hydrate(system stack.ExtensibleSystem) {
 		front := shim.NewSyncTester(shim.SyncTesterConfig{
 			CommonConfig: shim.NewCommonConfig(system.T()),
 			ID:           id,
+			Addr:         syncTesterRPC,
 			Client:       rpcCl,
 		})
 		net := system.Network(chainID).(stack.ExtensibleNetwork)
@@ -41,9 +42,8 @@ func (n *SyncTester) hydrate(system stack.ExtensibleSystem) {
 	}
 }
 
-func WithSyncTester(l2ELs []stack.L2ELNodeID) stack.Option[*Orchestrator] {
+func WithSyncTester(syncTesterID stack.SyncTesterID, l2ELs []stack.L2ELNodeID) stack.Option[*Orchestrator] {
 	return stack.AfterDeploy(func(orch *Orchestrator) {
-		syncTesterID := stack.NewSyncTesterID("dev-sync-tester", l2ELs[0].ChainID())
 		p := orch.P().WithCtx(stack.ContextWithID(orch.P().Ctx(), syncTesterID))
 
 		require := p.Require()

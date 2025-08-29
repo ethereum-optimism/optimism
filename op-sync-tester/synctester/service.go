@@ -213,9 +213,16 @@ func (s *Service) RPC() string {
 	return s.httpServer.HTTPEndpoint()
 }
 
-func (s *Service) NewEndpoint(chainID eth.ChainID) string {
-	uuid := uuid.New()
-	return fmt.Sprintf("/chain/%s/synctest/%s", chainID, uuid)
+func (s *Service) SyncTesterRPC(chainID eth.ChainID, withSessionID bool) string {
+	return s.RPC() + s.SyncTesterRPCPath(chainID, withSessionID)
+}
+
+func (s *Service) SyncTesterRPCPath(chainID eth.ChainID, withSessionID bool) string {
+	path := fmt.Sprintf("/chain/%s/synctest", chainID)
+	if withSessionID {
+		path = fmt.Sprintf("%s/%s", path, uuid.New())
+	}
+	return path
 }
 
 func (s *Service) SyncTesters() map[sttypes.SyncTesterID]eth.ChainID {
