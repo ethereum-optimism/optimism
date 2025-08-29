@@ -18,6 +18,10 @@ import { ILivenessModule2 } from "interfaces/safe/ILivenessModule2.sol";
 ///      1. The Safe must first enable this module using ModuleManager.enableModule()
 ///      2. The Safe must then configure the module by calling enableModule() with parameters
 contract LivenessModule2 is ILivenessModule2 {
+
+    /// @notice Reserved address used as the previous owner to the first owner in a Safe
+    address public constant SENTINEL_OWNER = address(0x1);
+
     /// @notice Configuration for a Safe's liveness module
     struct SafeConfig {
         uint256 livenessResponsePeriod;
@@ -171,33 +175,29 @@ contract LivenessModule2 is ILivenessModule2 {
         Safe safe = Safe(payable(_safe));
 
         // Get current owners
-        address[] memory currentOwners = safe.getOwners();
+        address[] memory owners = safe.getOwners();
 
-        if (currentOwners.length > 0) {
-            // Remove all owners except the first one from the front
+        // Remove all owners after the first one
+        while (owners.length > 1) {
             // removeOwner automatically updates the threshold, so we don't need to do it manually
-            address sentinel = address(0x1); // Sentinel value for the first owner
-
-            for (uint256 i = currentOwners.length - 1; i > 0; i--) {
-                address ownerToRemove = currentOwners[0]; // Always remove the first owner
-                safe.execTransactionFromModule({
-                    to: _safe,
-                    value: 0,
-                    operation: Enum.Operation.Call,
-                    data: abi.encodeCall(OwnerManager.removeOwner, (sentinel, ownerToRemove, 1))
-                });
-                // Get updated owners list after removal
-                currentOwners = safe.getOwners();
-            }
-
-            // Now swap the remaining single owner with the fallback owner
             safe.execTransactionFromModule({
-                to: _safe,
+                to: safe_,
                 value: 0,
                 operation: Enum.Operation.Call,
-                data: abi.encodeCall(OwnerManager.swapOwner, (sentinel, currentOwners[0], config.fallbackOwner))
+                data: abi.encodeCall(OwnerManager.removeOwner, (SENTINEL_OWNER, owners[0], 1))
             });
+            // Get updated owners list after removal
+            owners = safe.getOwners();
         }
+
+        // Now swap the remaining single owner with the fallback owner
+        safe.execTransactionFromModule({
+            to: _safe,
+            value: 0,
+            operation: Enum.Operation.Call,
+            data: abi.encodeCall(OwnerManager.swapOwner, (SENTINEL_OWNER, owners[0], config.fallbackOwner))
+        });
+
 
         // Reset the challenge state to allow a new challenge
         config.challengeStartTime = 0;
