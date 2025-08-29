@@ -16,6 +16,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/artifacts"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/inspect"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/pipeline"
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/standard"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/state"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum/go-ethereum/common"
@@ -386,6 +387,7 @@ func defaultIntent(root string, loc *artifacts.Locator, deployer common.Address,
 				Eip1559Denominator:         250,
 				Eip1559DenominatorCanyon:   250,
 				Eip1559Elasticity:          6,
+				GasLimit:                   standard.GasLimit,
 				Roles: state.ChainRoles{
 					// Use deployer as L1PAO to deploy additional dispute impls
 					L1ProxyAdminOwner: deployer,

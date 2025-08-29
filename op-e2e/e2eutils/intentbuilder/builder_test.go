@@ -13,6 +13,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/addresses"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/artifacts"
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/standard"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/state"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
@@ -157,6 +158,7 @@ func TestBuilder(t *testing.T) {
 				Eip1559DenominatorCanyon: 250,
 				Eip1559Denominator:       50,
 				Eip1559Elasticity:        10,
+				GasLimit:                 standard.GasLimit,
 				OperatorFeeScalar:        100,
 				OperatorFeeConstant:      200,
 				DeployOverrides: map[string]any{
