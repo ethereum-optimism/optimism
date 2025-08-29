@@ -1,5 +1,5 @@
 use alloc::{vec, vec::Vec};
-use alloy_consensus::Header;
+use alloy_consensus::{BlockBody, Header};
 use alloy_primitives::BlockNumber;
 use core::marker::PhantomData;
 use reth_chainspec::{ChainSpecProvider, EthChainSpec, EthereumHardforks};
@@ -96,22 +96,16 @@ where
     ) -> ProviderResult<Vec<<Self::Block as Block>::Body>> {
         let chain_spec = provider.chain_spec();
 
-        let mut bodies = Vec::with_capacity(inputs.len());
-
-        for (header, transactions) in inputs {
-            let mut withdrawals = None;
-            if chain_spec.is_shanghai_active_at_timestamp(header.timestamp()) {
-                // after shanghai the body should have an empty withdrawals list
-                withdrawals.replace(vec![].into());
-            }
-
-            bodies.push(alloy_consensus::BlockBody::<T, H> {
+        Ok(inputs
+            .into_iter()
+            .map(|(header, transactions)| BlockBody {
                 transactions,
                 ommers: vec![],
-                withdrawals,
-            });
-        }
-
-        Ok(bodies)
+                // after shanghai the body should have an empty withdrawals list
+                withdrawals: chain_spec
+                    .is_shanghai_active_at_timestamp(header.timestamp())
+                    .then(Default::default),
+            })
+            .collect())
     }
 }
