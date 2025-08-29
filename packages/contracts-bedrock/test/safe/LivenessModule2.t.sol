@@ -421,5 +421,3 @@ contract LivenessModule2_ViewConfiguration_Test is LivenessModule2_TestInit {
         assertTrue(bytes(livenessModule2.version()).length > 0);
     }
 }
-
-
