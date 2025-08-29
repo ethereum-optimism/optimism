@@ -326,6 +326,11 @@
   },
   {
     "inputs": [],
+    "name": "OPContractsManagerUpgrader_SuperchainConfigExpectedVersionMismatch",
+    "type": "error"
+  },
+  {
+    "inputs": [],
     "name": "OPContractsManagerUpgrader_SuperchainConfigMismatch",
     "type": "error"
   },
@@ -347,11 +352,6 @@
   {
     "inputs": [],
     "name": "SemverComp_InvalidSemverParts",
-    "type": "error"
-  },
-  {
-    "inputs": [],
-    "name": "SuperchainConfigExpectedVersionMismatch",
     "type": "error"
   },
   {

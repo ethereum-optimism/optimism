@@ -596,7 +596,7 @@ contract OPContractsManagerUpgrader is OPContractsManagerBase {
 
     /// @notice Thrown when the current version of the SuperchainConfig contract does not match the expected previous
     ///         version.
-    error SuperchainConfigExpectedVersionMismatch();
+    error OPContractsManagerUpgrader_SuperchainConfigExpectedVersionMismatch();
 
     /// @notice The expected target version of the SuperchainConfig contract.
     string constant SUPERCHAIN_CONFIG_EXPECTED_TARGET_VERSION = "2.3.0";
@@ -622,7 +622,7 @@ contract OPContractsManagerUpgrader is OPContractsManagerBase {
 
             // If the SuperchainConfig is not already upgraded, revert.
             if (SemverComp.lt(_superchainConfig.version(), SUPERCHAIN_CONFIG_EXPECTED_TARGET_VERSION)) {
-                revert SuperchainConfigExpectedVersionMismatch();
+                revert OPContractsManagerUpgrader_SuperchainConfigExpectedVersionMismatch();
             }
 
             // Use the SystemConfig to grab the DisputeGameFactory address.
@@ -856,7 +856,7 @@ contract OPContractsManagerUpgrader is OPContractsManagerBase {
     function upgradeSuperchainConfig(ISuperchainConfig _superchainConfig, IProxyAdmin _superchainProxyAdmin) external {
         // Only upgrade the superchainConfig if the current version is less than the target version.
         if (!SemverComp.lt(_superchainConfig.version(), SUPERCHAIN_CONFIG_EXPECTED_TARGET_VERSION)) {
-            revert SuperchainConfigExpectedVersionMismatch();
+            revert OPContractsManagerUpgrader_SuperchainConfigExpectedVersionMismatch();
         }
 
         // Grab the implementations.

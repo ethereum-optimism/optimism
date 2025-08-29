@@ -1531,7 +1531,9 @@ contract OPContractsManager_Upgrade_Test is OPContractsManager_Upgrade_Harness {
         runUpgrade14UpgradeAndChecks(upgrader);
 
         // Try upgrading an OPChain without upgrading its superchainConfig.
-        vm.expectRevert(IOPContractsManagerUpgrader.SuperchainConfigExpectedVersionMismatch.selector);
+        vm.expectRevert(
+            IOPContractsManagerUpgrader.OPContractsManagerUpgrader_SuperchainConfigExpectedVersionMismatch.selector
+        );
         DelegateCaller(upgrader).dcForward(address(opcm), abi.encodeCall(IOPContractsManager.upgrade, (opChainConfigs)));
     }
 }
@@ -1594,7 +1596,7 @@ contract OPContractsManager_UpgradeSuperchainConfig_Test is OPContractsManager_U
 
     /// @notice Tests that the upgradeSuperchainConfig function reverts when the superchainConfig version is the same or
     ///         newer than the target version.
-    function test_upgradeSuperchainConfig_SuperchainConfigExpectedVersionMismatch_reverts() public {
+    function test_upgradeSuperchainConfig_superchainConfigExpectedVersionMismatch_reverts() public {
         runUpgrade13UpgradeAndChecks(upgrader);
         runUpgrade14UpgradeAndChecks(upgrader);
 
@@ -1603,7 +1605,9 @@ contract OPContractsManager_UpgradeSuperchainConfig_Test is OPContractsManager_U
         // Set the version of the superchain config to a version that is the target version.
         vm.mockCall(address(superchainConfig), abi.encodeCall(ISuperchainConfig.version, ()), abi.encode("2.3.0"));
 
-        vm.expectRevert(IOPContractsManagerUpgrader.SuperchainConfigExpectedVersionMismatch.selector);
+        vm.expectRevert(
+            IOPContractsManagerUpgrader.OPContractsManagerUpgrader_SuperchainConfigExpectedVersionMismatch.selector
+        );
         DelegateCaller(upgrader).dcForward(
             address(opcm),
             abi.encodeCall(IOPContractsManager.upgradeSuperchainConfig, (superchainConfig, superchainProxyAdmin))
@@ -1612,7 +1616,9 @@ contract OPContractsManager_UpgradeSuperchainConfig_Test is OPContractsManager_U
         // Set the version of the superchain config to a version that is higher than the target version.
         vm.mockCall(address(superchainConfig), abi.encodeCall(ISuperchainConfig.version, ()), abi.encode("3.0.0"));
 
-        vm.expectRevert(IOPContractsManagerUpgrader.SuperchainConfigExpectedVersionMismatch.selector);
+        vm.expectRevert(
+            IOPContractsManagerUpgrader.OPContractsManagerUpgrader_SuperchainConfigExpectedVersionMismatch.selector
+        );
         DelegateCaller(upgrader).dcForward(
             address(opcm),
             abi.encodeCall(IOPContractsManager.upgradeSuperchainConfig, (superchainConfig, superchainProxyAdmin))
