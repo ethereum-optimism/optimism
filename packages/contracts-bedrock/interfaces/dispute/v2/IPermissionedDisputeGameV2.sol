@@ -8,7 +8,7 @@ import { IAnchorStateRegistry } from "interfaces/dispute/IAnchorStateRegistry.so
 import { IDelayedWETH } from "interfaces/dispute/IDelayedWETH.sol";
 import { IBigStepper } from "interfaces/dispute/IBigStepper.sol";
 import { IDisputeGame } from "interfaces/dispute/IDisputeGame.sol";
-import { IFaultDisputeGame } from "interfaces/dispute/IFaultDisputeGame.sol";
+import { IFaultDisputeGameV2 } from "interfaces/dispute/v2/IFaultDisputeGameV2.sol";
 
 interface IPermissionedDisputeGameV2 is IDisputeGame {
     struct ClaimData {
@@ -134,7 +134,7 @@ interface IPermissionedDisputeGameV2 is IDisputeGame {
     function challenger() external view returns (address challenger_);
 
     function __constructor__(
-        IFaultDisputeGame.GameConstructorParams memory _params,
+        IFaultDisputeGameV2.GameConstructorParams memory _params,
         address _proposer,
         address _challenger
     )

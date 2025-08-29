@@ -2,21 +2,21 @@
 pragma solidity 0.8.15;
 
 // Contracts
-import { FaultDisputeGame } from "src/dispute/FaultDisputeGame.sol";
+import { FaultDisputeGameV2 } from "src/dispute/v2/FaultDisputeGameV2.sol";
 
 // Libraries
 import { Claim } from "src/dispute/lib/Types.sol";
 import { BadAuth } from "src/dispute/lib/Errors.sol";
 
 /// @title PermissionedDisputeGameV2
-/// @notice PermissionedDisputeGameV2 is a contract that inherits from `FaultDisputeGame`, and contains two roles:
+/// @notice PermissionedDisputeGameV2 is a contract that inherits from `FaultDisputeGameV2`, and contains two roles:
 ///         - The `challenger` role, which is allowed to challenge a dispute.
 ///         - The `proposer` role, which is allowed to create proposals and participate in their game.
 ///         This contract exists as a way for networks to support the fault proof iteration of the OptimismPortal
 ///         contract without needing to support a fully permissionless system. Permissionless systems can introduce
 ///         costs that certain networks may not wish to support. This contract can also be used as a fallback mechanism
 ///         in case of a failure in the permissionless fault proof system in the stage one release.
-contract PermissionedDisputeGameV2 is FaultDisputeGame {
+contract PermissionedDisputeGameV2 is FaultDisputeGameV2 {
     /// @notice The proposer role is allowed to create proposals and participate in the dispute game.
     address internal immutable PROPOSER;
 
@@ -45,13 +45,13 @@ contract PermissionedDisputeGameV2 is FaultDisputeGame {
         address _proposer,
         address _challenger
     )
-        FaultDisputeGame(_params)
+        FaultDisputeGameV2(_params)
     {
         PROPOSER = _proposer;
         CHALLENGER = _challenger;
     }
 
-    /// @inheritdoc FaultDisputeGame
+    /// @inheritdoc FaultDisputeGameV2
     function step(
         uint256 _claimIndex,
         bool _isAttack,
