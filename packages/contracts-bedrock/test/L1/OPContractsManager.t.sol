@@ -1591,6 +1591,33 @@ contract OPContractsManager_UpgradeSuperchainConfig_Test is OPContractsManager_U
             abi.encodeCall(IOPContractsManager.upgradeSuperchainConfig, (superchainConfig, superchainProxyAdmin))
         );
     }
+
+    /// @notice Tests that the upgradeSuperchainConfig function reverts when the superchainConfig version is the same or
+    ///         newer than the target version.
+    function test_upgradeSuperchainConfig_SuperchainConfigExpectedVersionMismatch_reverts() public {
+        runUpgrade13UpgradeAndChecks(upgrader);
+        runUpgrade14UpgradeAndChecks(upgrader);
+
+        ISuperchainConfig superchainConfig = ISuperchainConfig(artifacts.mustGetAddress("SuperchainConfigProxy"));
+
+        // Set the version of the superchain config to a version that is the target version.
+        vm.mockCall(address(superchainConfig), abi.encodeCall(ISuperchainConfig.version, ()), abi.encode("2.3.0"));
+
+        vm.expectRevert(IOPContractsManagerUpgrader.SuperchainConfigExpectedVersionMismatch.selector);
+        DelegateCaller(upgrader).dcForward(
+            address(opcm),
+            abi.encodeCall(IOPContractsManager.upgradeSuperchainConfig, (superchainConfig, superchainProxyAdmin))
+        );
+
+        // Set the version of the superchain config to a version that is higher than the target version.
+        vm.mockCall(address(superchainConfig), abi.encodeCall(ISuperchainConfig.version, ()), abi.encode("3.0.0"));
+
+        vm.expectRevert(IOPContractsManagerUpgrader.SuperchainConfigExpectedVersionMismatch.selector);
+        DelegateCaller(upgrader).dcForward(
+            address(opcm),
+            abi.encodeCall(IOPContractsManager.upgradeSuperchainConfig, (superchainConfig, superchainProxyAdmin))
+        );
+    }
 }
 
 /// @title OPContractsManager_Migrate_Test
