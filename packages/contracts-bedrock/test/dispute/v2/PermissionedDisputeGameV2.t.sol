@@ -57,7 +57,7 @@ contract PermissionedDisputeGameV2_TestInit is DisputeGameFactory_TestInit {
         // Set the extra data for the game creation
         extraData = abi.encode(_l2BlockNumber);
 
-        (address _impl, AlphabetVM _vm,) = setupPermissionedDisputeGame(_absolutePrestate, PROPOSER, CHALLENGER);
+        (address _impl, AlphabetVM _vm,) = setupPermissionedDisputeGameV2(_absolutePrestate, PROPOSER, CHALLENGER);
         gameImpl = IPermissionedDisputeGameV2(_impl);
 
         // Register the game implementation with the factory.
