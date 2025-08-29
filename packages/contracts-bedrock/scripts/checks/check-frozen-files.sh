@@ -98,6 +98,7 @@ ALLOWED_FILES=(
   "src/safe/DeputyPauseModule.sol:DeputyPauseModule"
   "src/safe/LivenessGuard.sol:LivenessGuard"
   "src/safe/LivenessModule.sol:LivenessModule"
+  "src/safe/LivenessModule2.sol:LivenessModule2"
   "src/universal/OptimismMintableERC20.sol:OptimismMintableERC20"
   "src/universal/OptimismMintableERC20Factory.sol:OptimismMintableERC20Factory"
   "src/universal/StorageSetter.sol:StorageSetter"
