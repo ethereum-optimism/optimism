@@ -7,6 +7,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
+	"github.com/google/uuid"
 )
 
 func TestSyncTester(gt *testing.T) {
@@ -18,7 +19,7 @@ func TestSyncTester(gt *testing.T) {
 
 	syncTester := sys.SyncTester.Escape()
 
-	chainID, err := syncTester.API().ChainID(t.Ctx())
+	chainID, err := syncTester.APIWithSession(uuid.New().String()).ChainID(t.Ctx())
 	require.NoError(err)
 
 	require.Equal(chainID, sys.L2EL.ChainID())
