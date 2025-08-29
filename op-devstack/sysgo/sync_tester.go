@@ -17,12 +17,11 @@ import (
 	sttypes "github.com/ethereum-optimism/optimism/op-sync-tester/synctester/backend/types"
 )
 
-type SyncTester struct {
-	id      stack.SyncTesterID
+type SyncTesterService struct {
 	service *synctester.Service
 }
 
-func (n *SyncTester) hydrate(system stack.ExtensibleSystem) {
+func (n *SyncTesterService) hydrate(system stack.ExtensibleSystem) {
 	require := system.T().Require()
 
 	for syncTesterID, chainID := range n.service.SyncTesters() {
@@ -84,6 +83,6 @@ func WithSyncTester(syncTesterID stack.SyncTesterID, l2ELs []stack.L2ELNodeID) s
 			_ = srv.Stop(ctx)
 			logger.Info("Closed sync tester")
 		})
-		orch.syncTester = &SyncTester{id: syncTesterID, service: srv}
+		orch.syncTester = &SyncTesterService{service: srv}
 	})
 }

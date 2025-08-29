@@ -19,8 +19,8 @@ func NewDefaultSimpleSystemWithSyncTesterIDs(l1ID, l2ID eth.ChainID) DefaultSimp
 	return DefaultSimpleSystemWithSyncTesterIDs{
 		DefaultMinimalSystemIDs: minimal,
 		L2CL2:                   stack.NewL2CLNodeID("verifier", l2ID),
-		SyncTesterL2EL:          stack.NewL2ELNodeID("sync-tester-el", minimal.L2CL.ChainID()),
-		SyncTester:              stack.NewSyncTesterID("sync-tester", minimal.L2CL.ChainID()),
+		SyncTesterL2EL:          stack.NewL2ELNodeID("sync-tester-el", l2ID),
+		SyncTester:              stack.NewSyncTesterID("sync-tester", l2ID),
 	}
 }
 
