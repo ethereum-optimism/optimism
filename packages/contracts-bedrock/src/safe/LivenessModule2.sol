@@ -177,7 +177,7 @@ contract LivenessModule2 is ILivenessModule2 {
             // Remove all owners except the first one from the front
             // removeOwner automatically updates the threshold, so we don't need to do it manually
             address sentinel = address(0x1); // Sentinel value for the first owner
-            
+
             for (uint256 i = currentOwners.length - 1; i > 0; i--) {
                 address ownerToRemove = currentOwners[0]; // Always remove the first owner
                 safe.execTransactionFromModule({
@@ -204,5 +204,4 @@ contract LivenessModule2 is ILivenessModule2 {
 
         emit ChallengeExecuted(_safe, config.fallbackOwner);
     }
-
 }

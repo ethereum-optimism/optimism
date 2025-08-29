@@ -253,11 +253,6 @@
   },
   {
     "inputs": [],
-    "name": "LivenessModule2_OwnerNotFound",
-    "type": "error"
-  },
-  {
-    "inputs": [],
     "name": "LivenessModule2_ResponsePeriodActive",
     "type": "error"
   },
