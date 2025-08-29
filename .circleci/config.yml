@@ -1097,7 +1097,8 @@ jobs:
         description: Rule to run the tests
         type: string
         default: "go-tests-short-ci"
-    machine: true
+    machine:
+      image: ubuntu-2404:current
     resource_class: <<parameters.resource_class>>
     steps:
       - checkout-from-workspace
@@ -1107,6 +1108,7 @@ jobs:
           command: |
             <<parameters.environment_overrides>>
             export TEST_TIMEOUT=<<parameters.test_timeout>>
+            export TEST_LOG_LEVEL=debug
             make <<parameters.rule>>
       - codecov/upload:
           disable_search: true
