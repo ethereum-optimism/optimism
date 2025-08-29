@@ -71,13 +71,6 @@ contract VerifyOPCM_TestInit is OPContractsManager_TestInit {
         harness = new VerifyOPCM_Harness();
         harness.setUp();
     }
-
-    /// @notice Skips if running in coverage mode.
-    function skipIfCoverage() public {
-        if (vm.isContext(VmSafe.ForgeContext.Coverage)) {
-            vm.skip(true);
-        }
-    }
 }
 
 /// @title VerifyOPCM_Run_Test

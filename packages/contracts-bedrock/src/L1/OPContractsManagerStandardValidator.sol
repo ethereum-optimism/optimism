@@ -8,6 +8,7 @@ import { Duration } from "src/dispute/lib/LibUDT.sol";
 import { Predeploys } from "src/libraries/Predeploys.sol";
 import { Constants } from "src/libraries/Constants.sol";
 import { Hash } from "src/dispute/lib/Types.sol";
+import { DevFeatures } from "src/libraries/DevFeatures.sol";
 
 // Interfaces
 import { ISystemConfig } from "interfaces/L1/ISystemConfig.sol";
@@ -59,6 +60,9 @@ contract OPContractsManagerStandardValidator is ISemver {
     /// @notice The OptimismPortal implementation address.
     address public optimismPortalImpl;
 
+    /// @notice The OptimismPortalInterop implementation address.
+    address public optimismPortalInteropImpl;
+
     /// @notice The ETHLockbox implementation address.
     address public ethLockboxImpl;
 
@@ -86,10 +90,14 @@ contract OPContractsManagerStandardValidator is ISemver {
     /// @notice The MIPS implementation address.
     address public mipsImpl;
 
+    /// @notice Bitmap of development features, verification may depend on these features.
+    bytes32 public devFeatureBitmap;
+
     /// @notice Struct containing the implementation addresses of the L1 contracts.
     struct Implementations {
         address l1ERC721BridgeImpl;
         address optimismPortalImpl;
+        address optimismPortalInteropImpl;
         address ethLockboxImpl;
         address systemConfigImpl;
         address optimismMintableERC20FactoryImpl;
@@ -121,16 +129,19 @@ contract OPContractsManagerStandardValidator is ISemver {
         ISuperchainConfig _superchainConfig,
         address _l1PAOMultisig,
         address _challenger,
-        uint256 _withdrawalDelaySeconds
+        uint256 _withdrawalDelaySeconds,
+        bytes32 _devFeatureBitmap
     ) {
         superchainConfig = _superchainConfig;
         l1PAOMultisig = _l1PAOMultisig;
         challenger = _challenger;
         withdrawalDelaySeconds = _withdrawalDelaySeconds;
+        devFeatureBitmap = _devFeatureBitmap;
 
         // Set implementation addresses from struct
         l1ERC721BridgeImpl = _implementations.l1ERC721BridgeImpl;
         optimismPortalImpl = _implementations.optimismPortalImpl;
+        optimismPortalInteropImpl = _implementations.optimismPortalInteropImpl;
         ethLockboxImpl = _implementations.ethLockboxImpl;
         systemConfigImpl = _implementations.systemConfigImpl;
         optimismMintableERC20FactoryImpl = _implementations.optimismMintableERC20FactoryImpl;
@@ -431,9 +442,16 @@ contract OPContractsManagerStandardValidator is ISemver {
         IOptimismPortal2 _portal = IOptimismPortal2(payable(_sysCfg.optimismPortal()));
         _errors =
             internalRequire(LibString.eq(getVersion(address(_portal)), optimismPortalVersion()), "PORTAL-10", _errors);
-        _errors = internalRequire(
-            getProxyImplementation(_admin, address(_portal)) == optimismPortalImpl, "PORTAL-20", _errors
-        );
+
+        if (DevFeatures.isDevFeatureEnabled(devFeatureBitmap, DevFeatures.OPTIMISM_PORTAL_INTEROP)) {
+            _errors = internalRequire(
+                getProxyImplementation(_admin, address(_portal)) == optimismPortalInteropImpl, "PORTAL-20", _errors
+            );
+        } else {
+            _errors = internalRequire(
+                getProxyImplementation(_admin, address(_portal)) == optimismPortalImpl, "PORTAL-20", _errors
+            );
+        }
 
         IDisputeGameFactory _dgf = IDisputeGameFactory(_sysCfg.disputeGameFactory());
         _errors = internalRequire(address(_portal.disputeGameFactory()) == address(_dgf), "PORTAL-30", _errors);
