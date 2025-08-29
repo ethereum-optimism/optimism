@@ -302,15 +302,13 @@ func (a *Agent) shouldSkipDelay(ctx context.Context, game types.Game, action typ
 	// Check if our delay would cause us to enter the extension period at all (conservative approach)
 	// We don't want to risk making moves inside the extension period, so if our delay would
 	// cause us to exceed the extension threshold, we skip the delay entirely
-	remainingTimeUntilExtension := extensionThreshold - ourAccumulatedTime
-	delayWouldEnterExtension := a.responseDelay > remainingTimeUntilExtension
+	delayWouldEnterExtension := ourAccumulatedTime+a.responseDelay > extensionThreshold
 
 	a.log.Debug("Delay skip check",
 		"our_accumulated_time", ourAccumulatedTime,
 		"max_clock_duration", maxClockDuration,
 		"clock_extension", clockExtension,
 		"extension_threshold", extensionThreshold,
-		"remaining_time_until_extension", remainingTimeUntilExtension,
 		"response_delay", a.responseDelay,
 		"in_extension", inExtension,
 		"delay_would_enter_extension", delayWouldEnterExtension)
