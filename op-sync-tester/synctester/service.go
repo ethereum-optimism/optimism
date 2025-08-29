@@ -147,7 +147,7 @@ func (s *Service) initHTTPServer(cfg *config.Config) error {
 	endpoint := net.JoinHostPort(cfg.RPC.ListenAddr, strconv.Itoa(cfg.RPC.ListenPort))
 	// middleware to initialize session
 	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		r, err := parseSession(r, s.log)
+		r, err := parseSession(r)
 		if errors.Is(err, ErrInvalidSessionIDFormat) || errors.Is(err, ErrInvalidParams) {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return

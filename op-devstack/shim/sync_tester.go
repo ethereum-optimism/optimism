@@ -7,7 +7,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/apis"
 	"github.com/ethereum-optimism/optimism/op-service/client"
 	"github.com/ethereum-optimism/optimism/op-service/sources"
-	"github.com/google/uuid"
+	"github.com/ethereum-optimism/optimism/op-sync-tester/synctester"
 )
 
 type SyncTesterConfig struct {
@@ -49,9 +49,7 @@ func (p *presetSyncTester) API() apis.SyncTester {
 
 func (p *presetSyncTester) APIWithSession(sessionID string) apis.SyncTester {
 	require := p.T().Require()
-	u, err := uuid.Parse(sessionID)
-	require.NoError(err, "invalid session format")
-	require.True(u.Version() == 4, "session format must satisfy uuid4 format")
+	require.NoError(synctester.IsValidSessionID(sessionID))
 	rpcCl, err := client.NewRPC(p.T().Ctx(), p.Logger(), p.addr+fmt.Sprintf("/%s", sessionID), client.WithLazyDial())
 	require.NoError(err, "sync tester failed to initialize rpc per session")
 	return sources.NewSyncTesterClient(rpcCl)
