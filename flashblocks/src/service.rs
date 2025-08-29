@@ -125,8 +125,8 @@ impl<
 
         let attrs = self
             .blocks
-            .iter()
-            .find_map(|v| v.base.clone())
+            .first()
+            .and_then(|v| v.base.clone())
             .ok_or_eyre("Missing base flashblock")?;
 
         if attrs.parent_hash != latest.hash() {
