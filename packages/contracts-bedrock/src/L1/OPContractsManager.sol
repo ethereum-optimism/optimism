@@ -607,7 +607,7 @@ contract OPContractsManagerUpgrader is OPContractsManagerBase {
     /// @notice Upgrades a set of chains to the latest implementation contracts
     /// @param _opChainConfigs Array of OpChain structs, one per chain to upgrade
     /// @dev This function is intended to be called via DELEGATECALL from the Upgrade Controller Safe.
-    /// @dev This function assumes that each chain's superchainConfig is already upgraded.
+    /// @dev This function requires that each chain's superchainConfig is already upgraded.
     function upgrade(OPContractsManager.OpChainConfig[] memory _opChainConfigs) external virtual {
         // Grab the implementations.
         OPContractsManager.Implementations memory impls = getImplementations();
@@ -1918,7 +1918,7 @@ contract OPContractsManager is ISemver {
     /// @notice Upgrades a set of chains to the latest implementation contracts
     /// @param _opChainConfigs Array of OpChain structs, one per chain to upgrade
     /// @dev This function is intended to be called via DELEGATECALL from the Upgrade Controller Safe.
-    /// @dev This function assumes that each chain's superchainConfig is already upgraded.
+    /// @dev This function requires that each chain's superchainConfig is already upgraded.
     function upgrade(OpChainConfig[] memory _opChainConfigs) external virtual {
         if (address(this) == address(thisOPCM)) revert OnlyDelegatecall();
 
