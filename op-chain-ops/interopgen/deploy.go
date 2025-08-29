@@ -247,6 +247,7 @@ func DeployL2ToL1(l1Host *script.Host, superCfg *SuperchainConfig, superDeployme
 		AllowCustomDisputeParameters: true,
 		OperatorFeeScalar:            cfg.GasPriceOracleOperatorFeeScalar,
 		OperatorFeeConstant:          cfg.GasPriceOracleOperatorFeeConstant,
+		DAFootprintGasScalar:         cfg.DAFootprintGasScalar,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to deploy L2 OP chain: %w", err)

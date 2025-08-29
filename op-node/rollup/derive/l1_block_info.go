@@ -21,20 +21,24 @@ const (
 	L1InfoFuncBedrockSignature = "setL1BlockValues(uint64,uint64,uint256,bytes32,uint64,bytes32,uint256,uint256)"
 	L1InfoFuncEcotoneSignature = "setL1BlockValuesEcotone()"
 	L1InfoFuncIsthmusSignature = "setL1BlockValuesIsthmus()"
+	L1InfoFuncJovianSignature  = "setL1BlockValuesJovian()"
 	L1InfoArguments            = 8
 	L1InfoBedrockLen           = 4 + 32*L1InfoArguments
-	L1InfoEcotoneLen           = 4 + 32*5         // after Ecotone upgrade, args are packed into 5 32-byte slots
-	L1InfoIsthmusLen           = 4 + 32*5 + 4 + 8 // after Isthmus upgrade, additionally pack in operator fee scalar and constant
+	L1InfoEcotoneLen           = 4 + 32*5             // after Ecotone upgrade, args are packed into 5 32-byte slots
+	L1InfoIsthmusLen           = 4 + 32*5 + 4 + 8     // after Isthmus upgrade, additionally pack in operator fee scalar and constant
+	L1InfoJovianLen            = L1InfoIsthmusLen + 2 // after Jovian upgrade, additionally pack in DA footprint gas scalar
 )
 
 var (
 	L1InfoFuncBedrockBytes4 = crypto.Keccak256([]byte(L1InfoFuncBedrockSignature))[:4]
 	L1InfoFuncEcotoneBytes4 = crypto.Keccak256([]byte(L1InfoFuncEcotoneSignature))[:4]
 	L1InfoFuncIsthmusBytes4 = crypto.Keccak256([]byte(L1InfoFuncIsthmusSignature))[:4]
+	L1InfoFuncJovianBytes4  = crypto.Keccak256([]byte(L1InfoFuncJovianSignature))[:4]
 	L1InfoDepositerAddress  = common.HexToAddress("0xdeaddeaddeaddeaddeaddeaddeaddeaddead0001")
 	L1BlockAddress          = predeploys.L1BlockAddr
 	ErrInvalidFormat        = errors.New("invalid ecotone l1 block info format")
 	ErrInvalidIsthmusFormat = errors.New("invalid isthmus l1 block info format")
+	ErrInvalidJovianFormat  = errors.New("invalid jovian l1 block info format")
 )
 
 const (
@@ -62,6 +66,8 @@ type L1BlockInfo struct {
 
 	OperatorFeeScalar   uint32 // added by Isthmus upgrade
 	OperatorFeeConstant uint64 // added by Isthmus upgrade
+
+	DAFootprintGasScalar uint16 // added by Jovian upgrade
 }
 
 // Bedrock Binary Format
@@ -168,7 +174,7 @@ func (info *L1BlockInfo) unmarshalBinaryBedrock(data []byte) error {
 // +---------+--------------------------+
 
 func (info *L1BlockInfo) marshalBinaryEcotone() ([]byte, error) {
-	w := bytes.NewBuffer(make([]byte, 0, L1InfoEcotoneLen)) // Ecotone and Interop have the same length
+	w := bytes.NewBuffer(make([]byte, 0, L1InfoEcotoneLen)) // Ecotone have the same length
 	if err := solabi.WriteSignature(w, L1InfoFuncEcotoneBytes4); err != nil {
 		return nil, err
 	}
@@ -251,7 +257,7 @@ func (info *L1BlockInfo) unmarshalBinaryEcotone(data []byte) error {
 	return nil
 }
 
-// Interop & Isthmus Binary Format
+// Isthmus Binary Format
 // +---------+--------------------------+
 // | Bytes   | Field                    |
 // +---------+--------------------------+
@@ -323,14 +329,14 @@ func marshalBinaryWithSignature(info *L1BlockInfo, signature []byte) ([]byte, er
 	return w.Bytes(), nil
 }
 
-func unmarshalBinaryWithSignatureAndData(info *L1BlockInfo, signature []byte, data []byte) error {
+func (info *L1BlockInfo) unmarshalBinaryIsthmus(data []byte) error {
 	if len(data) != L1InfoIsthmusLen {
 		return fmt.Errorf("data is unexpected length: %d", len(data))
 	}
 	r := bytes.NewReader(data)
 
 	var err error
-	if _, err := solabi.ReadAndValidateSignature(r, signature); err != nil {
+	if _, err := solabi.ReadAndValidateSignature(r, []byte(L1InfoFuncIsthmusBytes4)); err != nil {
 		return err
 	}
 	if err := binary.Read(r, binary.BigEndian, &info.BaseFeeScalar); err != nil {
@@ -373,8 +379,125 @@ func unmarshalBinaryWithSignatureAndData(info *L1BlockInfo, signature []byte, da
 	return nil
 }
 
-func (info *L1BlockInfo) unmarshalBinaryIsthmus(data []byte) error {
-	return unmarshalBinaryWithSignatureAndData(info, L1InfoFuncIsthmusBytes4, data)
+// Interop & Jovian Binary Format
+// +---------+--------------------------+
+// | Bytes   | Field                    |
+// +---------+--------------------------+
+// | 4       | Function signature       |
+// | 4       | BaseFeeScalar            |
+// | 4       | BlobBaseFeeScalar        |
+// | 8       | SequenceNumber           |
+// | 8       | Timestamp                |
+// | 8       | L1BlockNumber            |
+// | 32      | BaseFee                  |
+// | 32      | BlobBaseFee              |
+// | 32      | BlockHash                |
+// | 32      | BatcherHash              |
+// | 4       | OperatorFeeScalar        |
+// | 8       | OperatorFeeConstant      |
+// | 2       | DAFootprintGasScalar     |
+// +---------+--------------------------+
+
+func (info *L1BlockInfo) marshalBinaryJovian() ([]byte, error) {
+	w := bytes.NewBuffer(make([]byte, 0, L1InfoIsthmusLen))
+	if err := solabi.WriteSignature(w, L1InfoFuncJovianBytes4); err != nil {
+		return nil, err
+	}
+	if err := binary.Write(w, binary.BigEndian, info.BaseFeeScalar); err != nil {
+		return nil, err
+	}
+	if err := binary.Write(w, binary.BigEndian, info.BlobBaseFeeScalar); err != nil {
+		return nil, err
+	}
+	if err := binary.Write(w, binary.BigEndian, info.SequenceNumber); err != nil {
+		return nil, err
+	}
+	if err := binary.Write(w, binary.BigEndian, info.Time); err != nil {
+		return nil, err
+	}
+	if err := binary.Write(w, binary.BigEndian, info.Number); err != nil {
+		return nil, err
+	}
+	if err := solabi.WriteUint256(w, info.BaseFee); err != nil {
+		return nil, err
+	}
+	blobBasefee := info.BlobBaseFee
+	if blobBasefee == nil {
+		blobBasefee = big.NewInt(1) // set to 1, to match the min blob basefee as defined in EIP-4844
+	}
+	if err := solabi.WriteUint256(w, blobBasefee); err != nil {
+		return nil, err
+	}
+	if err := solabi.WriteHash(w, info.BlockHash); err != nil {
+		return nil, err
+	}
+	// ABI encoding will perform the left-padding with zeroes to 32 bytes, matching the "batcherHash" SystemConfig format and version 0 byte.
+	if err := solabi.WriteAddress(w, info.BatcherAddr); err != nil {
+		return nil, err
+	}
+	if err := binary.Write(w, binary.BigEndian, info.OperatorFeeScalar); err != nil {
+		return nil, err
+	}
+	if err := binary.Write(w, binary.BigEndian, info.OperatorFeeConstant); err != nil {
+		return nil, err
+	}
+	if err := binary.Write(w, binary.BigEndian, info.DAFootprintGasScalar); err != nil {
+		return nil, err
+	}
+	return w.Bytes(), nil
+}
+
+func (info *L1BlockInfo) unmarshalBinaryJovian(data []byte) error {
+	if len(data) != L1InfoJovianLen {
+		return fmt.Errorf("data is unexpected length: %d", len(data))
+	}
+	r := bytes.NewReader(data)
+
+	var err error
+	if _, err := solabi.ReadAndValidateSignature(r, []byte(L1InfoFuncJovianBytes4)); err != nil {
+		return err
+	}
+	if err := binary.Read(r, binary.BigEndian, &info.BaseFeeScalar); err != nil {
+		return ErrInvalidJovianFormat
+	}
+	if err := binary.Read(r, binary.BigEndian, &info.BlobBaseFeeScalar); err != nil {
+		return ErrInvalidJovianFormat
+	}
+	if err := binary.Read(r, binary.BigEndian, &info.SequenceNumber); err != nil {
+		return ErrInvalidJovianFormat
+	}
+	if err := binary.Read(r, binary.BigEndian, &info.Time); err != nil {
+		return ErrInvalidJovianFormat
+	}
+	if err := binary.Read(r, binary.BigEndian, &info.Number); err != nil {
+		return ErrInvalidJovianFormat
+	}
+	if info.BaseFee, err = solabi.ReadUint256(r); err != nil {
+		return err
+	}
+	if info.BlobBaseFee, err = solabi.ReadUint256(r); err != nil {
+		return err
+	}
+	if info.BlockHash, err = solabi.ReadHash(r); err != nil {
+		return err
+	}
+	// The "batcherHash" will be correctly parsed as address, since the version 0 and left-padding matches the ABI encoding format.
+	if info.BatcherAddr, err = solabi.ReadAddress(r); err != nil {
+		return err
+	}
+	if err := binary.Read(r, binary.BigEndian, &info.OperatorFeeScalar); err != nil {
+		return ErrInvalidJovianFormat
+	}
+	if err := binary.Read(r, binary.BigEndian, &info.OperatorFeeConstant); err != nil {
+		return ErrInvalidJovianFormat
+	}
+	if err := binary.Read(r, binary.BigEndian, &info.DAFootprintGasScalar); err != nil {
+		return ErrInvalidJovianFormat
+	}
+	if !solabi.EmptyReader(r) {
+		return errors.New("too many bytes")
+	}
+	return nil
 }
 
 // isEcotoneButNotFirstBlock returns whether the specified block is subject to the Ecotone upgrade,
@@ -389,9 +512,18 @@ func isIsthmusButNotFirstBlock(rollupCfg *rollup.Config, l2Timestamp uint64) boo
 	return rollupCfg.IsIsthmus(l2Timestamp) && !rollupCfg.IsIsthmusActivationBlock(l2Timestamp)
 }
 
+// isJovianButNotFirstBlock returns whether the specified block is subject to the Jovian upgrade,
+// but is not the activation block itself.
+func isJovianButNotFirstBlock(rollupCfg *rollup.Config, l2Timestamp uint64) bool {
+	return rollupCfg.IsJovian(l2Timestamp) && !rollupCfg.IsJovianActivationBlock(l2Timestamp)
+}
+
 // L1BlockInfoFromBytes is the inverse of L1InfoDeposit, to see where the L2 chain is derived from
 func L1BlockInfoFromBytes(rollupCfg *rollup.Config, l2BlockTime uint64, data []byte) (*L1BlockInfo, error) {
 	var info L1BlockInfo
+	if isJovianButNotFirstBlock(rollupCfg, l2BlockTime) {
+		return &info, info.unmarshalBinaryJovian(data)
+	}
 	// Important, this should be ordered from most recent to oldest
 	if isIsthmusButNotFirstBlock(rollupCfg, l2BlockTime) {
 		return &info, info.unmarshalBinaryIsthmus(data)
@@ -442,17 +574,23 @@ func L1InfoDeposit(rollupCfg *rollup.Config, sysCfg eth.SystemConfig, seqNumber 
 		l1BlockInfo.BaseFeeScalar = scalars.BaseFeeScalar
 
 		if isIsthmusActivated {
-			operatorFee := sysCfg.OperatorFee()
-			l1BlockInfo.OperatorFeeScalar = operatorFee.Scalar
-			l1BlockInfo.OperatorFeeConstant = operatorFee.Constant
-		}
-
-		if isIsthmusActivated {
-			out, err := l1BlockInfo.marshalBinaryIsthmus()
-			if err != nil {
-				return nil, fmt.Errorf("failed to marshal Isthmus l1 block info: %w", err)
+			if isJovianButNotFirstBlock(rollupCfg, l2Timestamp) {
+				l1BlockInfo.DAFootprintGasScalar = sysCfg.DAFootprintGasScalar
+				out, err := l1BlockInfo.marshalBinaryJovian()
+				if err != nil {
+					return nil, fmt.Errorf("failed to marshal Jovian l1 block info: %w", err)
+				}
+				data = out
+			} else {
+				operatorFee := sysCfg.OperatorFee()
+				l1BlockInfo.OperatorFeeScalar = operatorFee.Scalar
+				l1BlockInfo.OperatorFeeConstant = operatorFee.Constant
+				out, err := l1BlockInfo.marshalBinaryIsthmus()
+				if err != nil {
+					return nil, fmt.Errorf("failed to marshal Isthmus l1 block info: %w", err)
+				}
+				data = out
 			}
-			data = out
 		} else {
 			out, err := l1BlockInfo.marshalBinaryEcotone()
 			if err != nil {

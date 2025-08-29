@@ -51,6 +51,7 @@ contract DeployConfig is Script {
     uint256 public l2GenesisBlockGasLimit;
     uint32 public basefeeScalar;
     uint32 public blobbasefeeScalar;
+    uint16 public daFootprintGasScalar;
     bool public enableGovernance;
     uint256 public faultGameAbsolutePrestate;
     uint256 public faultGameGenesisBlock;
@@ -120,6 +121,7 @@ contract DeployConfig is Script {
         l2GenesisBlockGasLimit = stdJson.readUint(_json, "$.l2GenesisBlockGasLimit");
         basefeeScalar = uint32(_readOr(_json, "$.gasPriceOracleBaseFeeScalar", 1368));
         blobbasefeeScalar = uint32(_readOr(_json, "$.gasPriceOracleBlobBaseFeeScalar", 810949));
+        daFootprintGasScalar = uint16(_readOr(_json, "$.daFootprintGasScalar", 400));
 
         enableGovernance = _readOr(_json, "$.enableGovernance", false);
         systemConfigStartBlock = stdJson.readUint(_json, "$.systemConfigStartBlock");

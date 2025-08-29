@@ -59,6 +59,8 @@ contract DeployOPChainInput is BaseDeployIO {
     uint32 internal _operatorFeeScalar;
     uint64 internal _operatorFeeConstant;
 
+    uint16 internal _daFootprintGasScalar;
+
     function set(bytes4 _sel, address _addr) public {
         require(_addr != address(0), "DeployOPChainInput: cannot set zero address");
         if (_sel == this.opChainProxyAdminOwner.selector) _opChainProxyAdminOwner = _addr;
@@ -95,6 +97,8 @@ contract DeployOPChainInput is BaseDeployIO {
             _operatorFeeScalar = SafeCast.toUint32(_value);
         } else if (_sel == this.operatorFeeConstant.selector) {
             _operatorFeeConstant = SafeCast.toUint64(_value);
+        } else if (_sel == this.daFootprintGasScalar.selector) {
+            _daFootprintGasScalar = SafeCast.toUint16(_value);
         } else {
             revert("DeployOPChainInput: unknown selector");
         }
@@ -225,6 +229,10 @@ contract DeployOPChainInput is BaseDeployIO {
 
     function operatorFeeConstant() public view returns (uint64) {
         return _operatorFeeConstant;
+    }
+
+    function daFootprintGasScalar() public view returns (uint16) {
+        return _daFootprintGasScalar;
     }
 }
 
