@@ -40,7 +40,7 @@ func TestPostInbox(gt *testing.T) {
 }
 
 func TestPostInteropUpgradeComprehensive(gt *testing.T) {
-	t := devtest.ParallelT(gt)
+	t := devtest.SerialT(gt)
 	sys := presets.NewSimpleInterop(t)
 	require := t.Require()
 	logger := t.Logger()
