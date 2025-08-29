@@ -48,7 +48,6 @@ contract LivenessModule2 is ILivenessModule2 {
         SafeConfig storage config = safeConfigs[msg.sender];
 
         // Store the parameters related to this safe
-        // Store the parameters related to this safe
         config.livenessChallengePeriod = _livenessChallengePeriod;
         config.fallbackOwner = _fallbackOwner;
         config.challengeStartTime = 0;
