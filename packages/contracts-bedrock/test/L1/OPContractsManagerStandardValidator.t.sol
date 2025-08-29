@@ -755,7 +755,13 @@ contract OPContractsManagerStandardValidator_ETHLockbox_Test is OPContractsManag
     ///         ETHLockbox version is invalid.
     function test_validate_ethLockboxInvalidVersion_succeeds() public {
         vm.mockCall(address(ethLockbox), abi.encodeCall(ISemver.version, ()), abi.encode("0.0.0"));
-        assertEq("LOCKBOX-10", _validate(true));
+
+        // TODO(#?????): Use SystemConfig feature flag here instead.
+        if (address(ethLockbox) == address(0)) {
+            assertEq("", _validate(true));
+        } else {
+            assertEq("LOCKBOX-10", _validate(true));
+        }
     }
 
     /// @notice Tests that the validate function successfully returns the right error when the
@@ -766,7 +772,13 @@ contract OPContractsManagerStandardValidator_ETHLockbox_Test is OPContractsManag
             abi.encodeCall(IProxyAdmin.getProxyImplementation, (address(ethLockbox))),
             abi.encode(address(0xbad))
         );
-        assertEq("LOCKBOX-20", _validate(true));
+
+        // TODO(#?????): Use SystemConfig feature flag here instead.
+        if (address(ethLockbox) == address(0)) {
+            assertEq("", _validate(true));
+        } else {
+            assertEq("LOCKBOX-20", _validate(true));
+        }
     }
 
     /// @notice Tests that the validate function successfully returns the right error when the
@@ -775,14 +787,26 @@ contract OPContractsManagerStandardValidator_ETHLockbox_Test is OPContractsManag
         vm.mockCall(
             address(ethLockbox), abi.encodeCall(IProxyAdminOwnedBase.proxyAdmin, ()), abi.encode(address(0xbad))
         );
-        assertEq("LOCKBOX-30", _validate(true));
+
+        // TODO(#?????): Use SystemConfig feature flag here instead.
+        if (address(ethLockbox) == address(0)) {
+            assertEq("", _validate(true));
+        } else {
+            assertEq("LOCKBOX-30", _validate(true));
+        }
     }
 
     /// @notice Tests that the validate function successfully returns the right error when the
     ///         ETHLockbox systemConfig is invalid.
     function test_validate_ethLockboxInvalidSystemConfig_succeeds() public {
         vm.mockCall(address(ethLockbox), abi.encodeCall(IETHLockbox.systemConfig, ()), abi.encode(address(0xbad)));
-        assertEq("LOCKBOX-40", _validate(true));
+
+        // TODO(#?????): Use SystemConfig feature flag here instead.
+        if (address(ethLockbox) == address(0)) {
+            assertEq("", _validate(true));
+        } else {
+            assertEq("LOCKBOX-40", _validate(true));
+        }
     }
 
     /// @notice Tests that the validate function successfully returns the right error when the
@@ -791,7 +815,13 @@ contract OPContractsManagerStandardValidator_ETHLockbox_Test is OPContractsManag
         vm.mockCall(
             address(ethLockbox), abi.encodeCall(IETHLockbox.authorizedPortals, (optimismPortal2)), abi.encode(false)
         );
-        assertEq("LOCKBOX-50", _validate(true));
+
+        // TODO(#?????): Use SystemConfig feature flag here instead.
+        if (address(ethLockbox) == address(0)) {
+            assertEq("", _validate(true));
+        } else {
+            assertEq("LOCKBOX-50", _validate(true));
+        }
     }
 }
 

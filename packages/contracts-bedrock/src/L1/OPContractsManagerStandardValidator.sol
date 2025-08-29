@@ -475,6 +475,7 @@ contract OPContractsManagerStandardValidator is ISemver {
         IETHLockbox _lockbox = IETHLockbox(_portal.ethLockbox());
 
         // If this chain isn't using the ETHLockbox, skip the validation.
+        // TODO(#?????): Use SystemConfig feature flag here instead.
         if (address(_lockbox) == address(0)) {
             return _errors;
         }
