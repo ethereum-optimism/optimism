@@ -13,7 +13,6 @@ import { GnosisSafe as Safe } from "safe-contracts/GnosisSafe.sol";
 import { ModuleManager } from "safe-contracts/base/ModuleManager.sol";
 
 import { LivenessModule2 } from "src/safe/LivenessModule2.sol";
-import { ILivenessModule2 } from "interfaces/safe/ILivenessModule2.sol";
 
 contract DeployOwnershipTest is Test, DeployOwnership {
     address internal constant SENTINEL_MODULES = address(0x1);

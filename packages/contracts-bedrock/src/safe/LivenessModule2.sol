@@ -46,9 +46,6 @@ contract LivenessModule2 is ILivenessModule2 {
 
         // Set the caller as a safe and store its configuration
         SafeConfig storage config = safeConfigs[msg.sender];
-        if (config.fallbackOwner != address(0)) {
-            revert LivenessModule2_ModuleAlreadyEnabled();
-        }
 
         // Store the parameters related to this safe
         config.livenessChallengePeriod = _livenessChallengePeriod;

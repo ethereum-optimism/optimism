@@ -1,0 +1,269 @@
+[
+  {
+    "inputs": [],
+    "name": "cancelChallenge",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "_safe",
+        "type": "address"
+      }
+    ],
+    "name": "changeOwnershipToFallback",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "disableModule",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "_livenessChallengePeriod",
+        "type": "uint256"
+      },
+      {
+        "internalType": "address",
+        "name": "_fallbackOwner",
+        "type": "address"
+      }
+    ],
+    "name": "enableModule",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "_safe",
+        "type": "address"
+      }
+    ],
+    "name": "isChallenged",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "name": "safeConfigs",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "livenessChallengePeriod",
+        "type": "uint256"
+      },
+      {
+        "internalType": "address",
+        "name": "fallbackOwner",
+        "type": "address"
+      },
+      {
+        "internalType": "uint256",
+        "name": "challengeStartTime",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "_safe",
+        "type": "address"
+      }
+    ],
+    "name": "startChallenge",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "version",
+    "outputs": [
+      {
+        "internalType": "string",
+        "name": "",
+        "type": "string"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "_safe",
+        "type": "address"
+      }
+    ],
+    "name": "viewConfiguration",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      },
+      {
+        "internalType": "address",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "safe",
+        "type": "address"
+      }
+    ],
+    "name": "ChallengeCancelled",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "safe",
+        "type": "address"
+      },
+      {
+        "indexed": false,
+        "internalType": "address",
+        "name": "fallbackOwner",
+        "type": "address"
+      }
+    ],
+    "name": "ChallengeExecuted",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "safe",
+        "type": "address"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "challengeStartTime",
+        "type": "uint256"
+      }
+    ],
+    "name": "ChallengeStarted",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "safe",
+        "type": "address"
+      }
+    ],
+    "name": "ModuleDisabled",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "safe",
+        "type": "address"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "livenessChallengePeriod",
+        "type": "uint256"
+      },
+      {
+        "indexed": false,
+        "internalType": "address",
+        "name": "fallbackOwner",
+        "type": "address"
+      }
+    ],
+    "name": "ModuleEnabled",
+    "type": "event"
+  },
+  {
+    "inputs": [],
+    "name": "LivenessModule2_ChallengeAlreadyExists",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "LivenessModule2_ChallengeDoesNotExist",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "LivenessModule2_ChallengeNotSuccessful",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "LivenessModule2_InvalidParameters",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "LivenessModule2_ModuleNotEnabled",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "LivenessModule2_OwnerNotFound",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "LivenessModule2_UnauthorizedCaller",
+    "type": "error"
+  }
+]

@@ -1,0 +1,9 @@
+[
+  {
+    "bytes": "32",
+    "label": "safeConfigs",
+    "offset": 0,
+    "slot": "0",
+    "type": "mapping(address => struct LivenessModule2.SafeConfig)"
+  }
+]

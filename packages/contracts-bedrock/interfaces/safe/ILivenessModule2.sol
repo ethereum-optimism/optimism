@@ -10,9 +10,6 @@ interface ILivenessModule2 is ISemver {
     /// @notice Error for when module is not enabled for the Safe
     error LivenessModule2_ModuleNotEnabled();
 
-    /// @notice Error for when module is already enabled for the Safe
-    error LivenessModule2_ModuleAlreadyEnabled();
-
     /// @notice Error for when a challenge already exists
     error LivenessModule2_ChallengeAlreadyExists();
 

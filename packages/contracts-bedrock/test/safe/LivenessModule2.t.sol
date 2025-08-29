@@ -155,15 +155,6 @@ contract LivenessModule2_EnableModule_Test is LivenessModule2_TestInit {
         livenessModule2.changeOwnershipToFallback(address(newSafe.safe));
     }
 
-    function test_enableModule_alreadyEnabled_reverts() external {
-        _enableModule(safeInstance, CHALLENGE_PERIOD, fallbackOwner);
-
-        // Try to enable again directly from the Safe address
-        vm.expectRevert(ILivenessModule2.LivenessModule2_ModuleAlreadyEnabled.selector);
-        vm.prank(address(safeInstance.safe));
-        livenessModule2.enableModule(CHALLENGE_PERIOD, fallbackOwner);
-    }
-
     function test_enableModule_invalidParameters_reverts() external {
         // Test with zero period
         vm.expectRevert(ILivenessModule2.LivenessModule2_InvalidParameters.selector);
