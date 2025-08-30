@@ -59,14 +59,14 @@ func CLIFlags(envPrefix string, category string) []cli.Flag {
 		&cli.DurationFlag{
 			Name:     PutTimeoutFlagName,
 			Usage:    "Timeout for put requests. 0 means no timeout.",
-			Value:    time.Duration(0),
+			Value:    0,
 			EnvVars:  altDAEnvs(envPrefix, "PUT_TIMEOUT"),
 			Category: category,
 		},
 		&cli.DurationFlag{
 			Name:     GetTimeoutFlagName,
 			Usage:    "Timeout for get requests. 0 means no timeout.",
-			Value:    time.Duration(0),
+			Value:    0,
 			EnvVars:  altDAEnvs(envPrefix, "GET_TIMEOUT"),
 			Category: category,
 		},
