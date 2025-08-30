@@ -212,7 +212,7 @@ var optionalFlags = []cli.Flag{
 	HealthcheckExecutionP2pEnabled,
 	HealthcheckExecutionP2pMinPeerCount,
 	HealthcheckExecutionP2pRPCUrl,
-	HealthcheckExecutionP2pCheckType,
+	HealthcheckExecutionP2pCheckApi,
 }
 
 func init() {
