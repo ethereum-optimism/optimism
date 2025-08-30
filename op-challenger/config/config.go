@@ -258,7 +258,7 @@ func (c Config) Check() error {
 			return err
 		}
 	}
-	if c.TraceTypeEnabled(types.TraceTypeCannon) || c.TraceTypeEnabled(types.TraceTypePermissioned) {
+	if c.TraceTypeEnabled(types.TraceTypeCannon) || c.TraceTypeEnabled(types.TraceTypePermissioned) || c.TraceTypeEnabled(types.TraceTypeCannonKona) {
 		if c.RollupRpc == "" {
 			return ErrMissingRollupRpc
 		}

@@ -1285,7 +1285,7 @@ func requiredArgs(traceType types.TraceType) map[string]string {
 		"--datadir":              datadir,
 	}
 	switch traceType {
-	case types.TraceTypeCannon, types.TraceTypePermissioned:
+	case types.TraceTypeCannon, types.TraceTypePermissioned, types.TraceTypeCannonKona:
 		addRequiredCannonArgs(args)
 	case types.TraceTypeAsterisc:
 		addRequiredAsteriscArgs(args)
