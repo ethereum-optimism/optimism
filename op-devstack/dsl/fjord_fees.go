@@ -212,7 +212,7 @@ func (ff *FjordFees) validateFjordFeatures(receipt *types.Receipt, l1Fee *big.In
 		new(big.Int).SetUint64(uint64(baseFeeScalar)),
 		new(big.Int).SetUint64(uint64(blobBaseFeeScalar)))
 
-	expectedFee, _ := costFunc(types.RollupCostData{FastLzSize: fastLzSizeSigned})
+	expectedFee, _ := costFunc(signedTx.RollupCostData())
 
 	ff.require.Equal(receiptL1Fee, expectedFee, "Calculated L1 fee should match receipt L1 fee")
 
