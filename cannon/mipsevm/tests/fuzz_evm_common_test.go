@@ -24,9 +24,9 @@ const syscallInsn = uint32(0x00_00_00_0c)
 func FuzzStateSyscallBrk(f *testing.F) {
 	vms := GetMipsVersionTestCases(f)
 
-	initState := func(t require.TestingT, state *multithreaded.State, vm VersionedVMTestCase, r *testutil.RandHelper) {
+	initState := func(t require.TestingT, state *multithreaded.State, vm VersionedVMTestCase, r *testutil.RandHelper, goVm mipsevm.FPVM) {
 		state.GetRegistersRef()[2] = arch.SysBrk
-		testutil.StoreInstruction(state.GetMemory(), state.GetPC(), syscallInsn)
+		storeInsnWithCache(state, goVm, state.GetPC(), syscallInsn)
 	}
 
 	setExpectations := func(t require.TestingT, expected *mtutil.ExpectedState, vm VersionedVMTestCase) ExpectedExecResult {
@@ -59,12 +59,12 @@ func FuzzStateSyscallMmap(f *testing.F) {
 		heap Word
 	}
 
-	initState := func(t require.TestingT, c testCase, state *multithreaded.State, vm VersionedVMTestCase, r *testutil.RandHelper) {
+	initState := func(t require.TestingT, c testCase, state *multithreaded.State, vm VersionedVMTestCase, r *testutil.RandHelper, goVm mipsevm.FPVM) {
 		state.Heap = c.heap
 		state.GetRegistersRef()[2] = arch.SysMmap
 		state.GetRegistersRef()[4] = c.addr
 		state.GetRegistersRef()[5] = c.siz
-		testutil.StoreInstruction(state.GetMemory(), state.GetPC(), syscallInsn)
+		storeInsnWithCache(state, goVm, state.GetPC(), syscallInsn)
 	}
 
 	setExpectations := func(t require.TestingT, c testCase, expected *mtutil.ExpectedState, vm VersionedVMTestCase) ExpectedExecResult {
@@ -106,10 +106,10 @@ func FuzzStateSyscallExitGroup(f *testing.F) {
 		exitCode uint8
 	}
 
-	initState := func(t require.TestingT, c testCase, state *multithreaded.State, vm VersionedVMTestCase, r *testutil.RandHelper) {
+	initState := func(t require.TestingT, c testCase, state *multithreaded.State, vm VersionedVMTestCase, r *testutil.RandHelper, goVm mipsevm.FPVM) {
 		state.GetRegistersRef()[2] = arch.SysExitGroup
 		state.GetRegistersRef()[4] = Word(c.exitCode)
-		testutil.StoreInstruction(state.GetMemory(), state.GetPC(), syscallInsn)
+		storeInsnWithCache(state, goVm, state.GetPC(), syscallInsn)
 	}
 
 	setExpectations := func(t require.TestingT, c testCase, expected *mtutil.ExpectedState, vm VersionedVMTestCase) ExpectedExecResult {
@@ -137,11 +137,11 @@ func FuzzStateSyscallFcntl(f *testing.F) {
 		cmd Word
 	}
 
-	initState := func(t require.TestingT, c testCase, state *multithreaded.State, vm VersionedVMTestCase, r *testutil.RandHelper) {
+	initState := func(t require.TestingT, c testCase, state *multithreaded.State, vm VersionedVMTestCase, r *testutil.RandHelper, goVm mipsevm.FPVM) {
 		state.GetRegistersRef()[2] = arch.SysFcntl
 		state.GetRegistersRef()[4] = c.fd
 		state.GetRegistersRef()[5] = c.cmd
-		testutil.StoreInstruction(state.GetMemory(), state.GetPC(), syscallInsn)
+		storeInsnWithCache(state, goVm, state.GetPC(), syscallInsn)
 	}
 
 	setExpectations := func(t require.TestingT, c testCase, expected *mtutil.ExpectedState, vm VersionedVMTestCase) ExpectedExecResult {
@@ -194,13 +194,13 @@ func FuzzStateHintRead(f *testing.F) {
 
 	preimageData := []byte("hello world")
 	preimageKey := preimage.Keccak256Key(crypto.Keccak256Hash(preimageData)).PreimageKey()
-	initState := func(t require.TestingT, c testCase, state *multithreaded.State, vm VersionedVMTestCase, r *testutil.RandHelper) {
+	initState := func(t require.TestingT, c testCase, state *multithreaded.State, vm VersionedVMTestCase, r *testutil.RandHelper, goVm mipsevm.FPVM) {
 		state.PreimageKey = preimageKey
 		state.GetRegistersRef()[2] = arch.SysRead
 		state.GetRegistersRef()[4] = exec.FdHintRead
 		state.GetRegistersRef()[5] = c.addr
 		state.GetRegistersRef()[6] = c.count
-		testutil.StoreInstruction(state.GetMemory(), state.GetPC(), syscallInsn)
+		storeInsnWithCache(state, goVm, state.GetPC(), syscallInsn)
 	}
 
 	setExpectations := func(t require.TestingT, c testCase, expected *mtutil.ExpectedState, vm VersionedVMTestCase) ExpectedExecResult {
@@ -242,7 +242,7 @@ func FuzzStatePreimageRead(f *testing.F) {
 	preimageValue := []byte("hello world")
 	preimageData := mtutil.AddPreimageLengthPrefix(preimageValue)
 	preimageKey := preimage.Keccak256Key(crypto.Keccak256Hash(preimageValue)).PreimageKey()
-	initState := func(t require.TestingT, c testCase, state *multithreaded.State, vm VersionedVMTestCase, r *testutil.RandHelper) {
+	initState := func(t require.TestingT, c testCase, state *multithreaded.State, vm VersionedVMTestCase, r *testutil.RandHelper, goVm mipsevm.FPVM) {
 		state.PreimageKey = preimageKey
 		state.PreimageOffset = c.preimageOffset
 		state.GetCurrentThread().Cpu.PC = c.pc
@@ -251,7 +251,7 @@ func FuzzStatePreimageRead(f *testing.F) {
 		state.GetRegistersRef()[4] = exec.FdPreimageRead
 		state.GetRegistersRef()[5] = c.addr
 		state.GetRegistersRef()[6] = c.count
-		testutil.StoreInstruction(state.GetMemory(), state.GetPC(), syscallInsn)
+		storeInsnWithCache(state, goVm, state.GetPC(), syscallInsn)
 		state.GetMemory().SetWord(testutil.EffAddr(c.addr), preexistingMemoryVal)
 	}
 
@@ -361,14 +361,14 @@ func FuzzStateHintWrite(f *testing.F) {
 		}
 	}
 
-	initState := func(t require.TestingT, c *testCase, state *multithreaded.State, vm VersionedVMTestCase, r *testutil.RandHelper) {
+	initState := func(t require.TestingT, c *testCase, state *multithreaded.State, vm VersionedVMTestCase, r *testutil.RandHelper, goVm mipsevm.FPVM) {
 		cacheHintCalculations(t, c)
 		state.LastHint = c.lastHint
 		state.GetRegistersRef()[2] = arch.SysWrite
 		state.GetRegistersRef()[4] = exec.FdHintWrite
 		state.GetRegistersRef()[5] = c.addr
 		state.GetRegistersRef()[6] = c.count
-		testutil.StoreInstruction(state.GetMemory(), state.GetPC(), syscallInsn)
+		storeInsnWithCache(state, goVm, state.GetPC(), syscallInsn)
 		err := state.GetMemory().SetMemoryRange(c.addr, bytes.NewReader(c.hintData[int(len(c.lastHint)):]))
 		require.NoError(t, err)
 	}
@@ -426,12 +426,12 @@ func FuzzStatePreimageWrite(f *testing.F) {
 	preexistingMemoryVal := [8]byte{0x12, 0x34, 0x56, 0x78, 0x87, 0x65, 0x43, 0x21}
 	preimageData := []byte("hello world")
 	preimageKey := preimage.Keccak256Key(crypto.Keccak256Hash(preimageData)).PreimageKey()
-	initState := func(t require.TestingT, c testCase, state *multithreaded.State, vm VersionedVMTestCase, r *testutil.RandHelper) {
+	initState := func(t require.TestingT, c testCase, state *multithreaded.State, vm VersionedVMTestCase, r *testutil.RandHelper, goVm mipsevm.FPVM) {
 		state.GetRegistersRef()[2] = arch.SysWrite
 		state.GetRegistersRef()[4] = exec.FdPreimageWrite
 		state.GetRegistersRef()[5] = c.addr
 		state.GetRegistersRef()[6] = c.count
-		testutil.StoreInstruction(state.GetMemory(), state.GetPC(), syscallInsn)
+		storeInsnWithCache(state, goVm, state.GetPC(), syscallInsn)
 		state.GetMemory().SetWord(testutil.EffAddr(c.addr), arch.ByteOrderWord.Word(preexistingMemoryVal[:]))
 	}
 

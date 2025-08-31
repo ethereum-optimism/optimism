@@ -16,6 +16,7 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/params"
+	"github.com/ethereum/go-ethereum/rpc"
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/plan"
@@ -83,9 +84,9 @@ func WithTo(to *common.Address) Option {
 	}
 }
 
-func WithValue(val *big.Int) Option {
+func WithValue(val eth.ETH) Option {
 	return func(tx *PlannedTx) {
-		tx.Value.Set(val)
+		tx.Value.Set(val.ToBig())
 	}
 }
 
@@ -134,6 +135,24 @@ func WithAuthorizations(auths []types.SetCodeAuthorization) Option {
 	}
 }
 
+func WithAuthorizationTo(codeAddr common.Address) Option {
+	return func(tx *PlannedTx) {
+		tx.AuthList.DependOn(&tx.Nonce, &tx.ChainID, &tx.Priv)
+		tx.AuthList.Fn(func(ctx context.Context) ([]types.SetCodeAuthorization, error) {
+			auth1, err := types.SignSetCode(tx.Priv.Value(), types.SetCodeAuthorization{
+				ChainID: *uint256.MustFromBig(tx.ChainID.Value().ToBig()),
+				Address: codeAddr,
+				// before the nonce is compared with the authorization in the EVM, it is incremented by 1
+				Nonce: tx.Nonce.Value() + 1,
+			})
+			if err != nil {
+				return nil, fmt.Errorf("failed to sign 7702 authorization: %w", err)
+			}
+			return []types.SetCodeAuthorization{auth1}, nil
+		})
+	}
+}
+
 func WithType(t uint8) Option {
 	return func(tx *PlannedTx) {
 		tx.Type.Set(t)
@@ -142,6 +161,9 @@ func WithType(t uint8) Option {
 
 func WithGasLimit(limit uint64) Option {
 	return func(tx *PlannedTx) {
+		// The gas limit is explicitly set so remove any dependencies which may have been added by a previous call
+		// to WithEstimator.
+		tx.Gas.ResetFnAndDependencies()
 		tx.Gas.Set(limit)
 	}
 }
@@ -314,7 +336,7 @@ func WithAgainstLatestBlock(cl AgainstLatestBlock) Option {
 // Reader uses eth_call to view(read) the blockchain, and does not write persistent changes to the chain.
 // A call will return a byte string (that may be ABI-decoded), and does not have a receipt, as it was only simulated and not a persistent transaction.
 type Reader interface {
-	Call(ctx context.Context, msg ethereum.CallMsg) ([]byte, error)
+	Call(ctx context.Context, msg ethereum.CallMsg, blockNumber rpc.BlockNumber) ([]byte, error)
 }
 
 func WithReader(cl Reader) Option {
@@ -327,6 +349,7 @@ func WithReader(cl Reader) Option {
 			&tx.Value,
 			&tx.Data,
 			&tx.AccessList,
+			&tx.AgainstBlock,
 		)
 		tx.Read.Fn(func(ctx context.Context) ([]byte, error) {
 			msg := ethereum.CallMsg{
@@ -340,7 +363,7 @@ func WithReader(cl Reader) Option {
 				Data:       tx.Data.Value(),
 				AccessList: tx.AccessList.Value(),
 			}
-			return cl.Call(ctx, msg)
+			return cl.Call(ctx, msg, rpc.BlockNumber(tx.AgainstBlock.Value().NumberU64()))
 		})
 	}
 }
@@ -503,7 +526,7 @@ func (tx *PlannedTx) Defaults() {
 		if rec.Status == types.ReceiptStatusSuccessful {
 			return struct{}{}, nil
 		} else {
-			return struct{}{}, errors.New("tx failed")
+			return struct{}{}, fmt.Errorf("tx failed with status %v (%v of %v gas used)", rec.Status, rec.GasUsed, tx.Gas.Value())
 		}
 	})
 }

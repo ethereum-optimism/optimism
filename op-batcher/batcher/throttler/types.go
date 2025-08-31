@@ -35,8 +35,8 @@ type ThrottleStrategy interface {
 
 // ThrottleConfig holds the configuration parameters for throttling
 type ThrottleConfig struct {
-	Threshold         uint64
-	ThrottleTxSize    uint64
-	ThrottleBlockSize uint64
-	AlwaysBlockSize   uint64
+	TxSizeLowerLimit    uint64
+	TxSizeUpperLimit    uint64
+	BlockSizeLowerLimit uint64
+	BlockSizeUpperLimit uint64
 }

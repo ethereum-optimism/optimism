@@ -107,13 +107,14 @@ func (bs *BatcherService) initFromCLIConfig(ctx context.Context, version string,
 	bs.WaitNodeSync = cfg.WaitNodeSync
 
 	bs.ThrottleParams = config.ThrottleParams{
-		Threshold:       cfg.ThrottleThreshold,
-		MaxThreshold:    cfg.ThrottleMaxThreshold,
-		TxSize:          cfg.ThrottleTxSize,
-		BlockSize:       cfg.ThrottleBlockSize,
-		AlwaysBlockSize: cfg.ThrottleAlwaysBlockSize,
-		ControllerType:  cfg.ThrottleControllerType,
-		Endpoints:       slices.Union(cfg.L2EthRpc, cfg.AdditionalThrottlingEndpoints),
+		LowerThreshold:      cfg.ThrottleConfig.LowerThreshold,
+		UpperThreshold:      cfg.ThrottleConfig.UpperThreshold,
+		TxSizeLowerLimit:    cfg.ThrottleConfig.TxSizeLowerLimit,
+		TxSizeUpperLimit:    cfg.ThrottleConfig.TxSizeUpperLimit,
+		BlockSizeLowerLimit: cfg.ThrottleConfig.BlockSizeLowerLimit,
+		BlockSizeUpperLimit: cfg.ThrottleConfig.BlockSizeUpperLimit,
+		ControllerType:      cfg.ThrottleConfig.ControllerType,
+		Endpoints:           slices.Union(cfg.L2EthRpc, cfg.ThrottleConfig.AdditionalEndpoints),
 	}
 
 	if bs.ThrottleParams.ControllerType == config.PIDControllerType {
@@ -121,32 +122,32 @@ func (bs *BatcherService) initFromCLIConfig(ctx context.Context, version string,
 		bs.Log.Warn("PID controller is EXPERIMENTAL and should only be used by control theory experts. Improper configuration can lead to system instability or poor performance. Monitor system behavior closely when using PID control.")
 
 		// Validate PID configuration parameters
-		if cfg.ThrottlePidKp < 0 {
-			return fmt.Errorf("PID Kp gain must be non-negative, got %f", cfg.ThrottlePidKp)
+		if cfg.ThrottleConfig.PidKp < 0 {
+			return fmt.Errorf("PID Kp gain must be non-negative, got %f", cfg.ThrottleConfig.PidKp)
 		}
-		if cfg.ThrottlePidKi < 0 {
-			return fmt.Errorf("PID Ki gain must be non-negative, got %f", cfg.ThrottlePidKi)
+		if cfg.ThrottleConfig.PidKi < 0 {
+			return fmt.Errorf("PID Ki gain must be non-negative, got %f", cfg.ThrottleConfig.PidKi)
 		}
-		if cfg.ThrottlePidKd < 0 {
-			return fmt.Errorf("PID Kd gain must be non-negative, got %f", cfg.ThrottlePidKd)
+		if cfg.ThrottleConfig.PidKd < 0 {
+			return fmt.Errorf("PID Kd gain must be non-negative, got %f", cfg.ThrottleConfig.PidKd)
 		}
-		if cfg.ThrottlePidIntegralMax <= 0 {
-			return fmt.Errorf("PID IntegralMax must be positive, got %f", cfg.ThrottlePidIntegralMax)
+		if cfg.ThrottleConfig.PidIntegralMax <= 0 {
+			return fmt.Errorf("PID IntegralMax must be positive, got %f", cfg.ThrottleConfig.PidIntegralMax)
 		}
-		if cfg.ThrottlePidOutputMax <= 0 || cfg.ThrottlePidOutputMax > 1 {
-			return fmt.Errorf("PID OutputMax must be between 0 and 1, got %f", cfg.ThrottlePidOutputMax)
+		if cfg.ThrottleConfig.PidOutputMax <= 0 || cfg.ThrottleConfig.PidOutputMax > 1 {
+			return fmt.Errorf("PID OutputMax must be between 0 and 1, got %f", cfg.ThrottleConfig.PidOutputMax)
 		}
-		if cfg.ThrottlePidSampleTime <= 0 {
-			return fmt.Errorf("PID SampleTime must be positive, got %v", cfg.ThrottlePidSampleTime)
+		if cfg.ThrottleConfig.PidSampleTime <= 0 {
+			return fmt.Errorf("PID SampleTime must be positive, got %v", cfg.ThrottleConfig.PidSampleTime)
 		}
 
 		bs.ThrottleParams.PIDConfig = &config.PIDConfig{
-			Kp:          cfg.ThrottlePidKp,
-			Ki:          cfg.ThrottlePidKi,
-			Kd:          cfg.ThrottlePidKd,
-			IntegralMax: cfg.ThrottlePidIntegralMax,
-			OutputMax:   cfg.ThrottlePidOutputMax,
-			SampleTime:  cfg.ThrottlePidSampleTime,
+			Kp:          cfg.ThrottleConfig.PidKp,
+			Ki:          cfg.ThrottleConfig.PidKi,
+			Kd:          cfg.ThrottleConfig.PidKd,
+			IntegralMax: cfg.ThrottleConfig.PidIntegralMax,
+			OutputMax:   cfg.ThrottleConfig.PidOutputMax,
+			SampleTime:  cfg.ThrottleConfig.PidSampleTime,
 		}
 		bs.Log.Info("Initialized PID throttle controller",
 			"kp", bs.ThrottleParams.PIDConfig.Kp,

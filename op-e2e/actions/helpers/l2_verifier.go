@@ -18,6 +18,7 @@ import (
 	gnode "github.com/ethereum/go-ethereum/node"
 	"github.com/ethereum/go-ethereum/rpc"
 
+	opnodemetrics "github.com/ethereum-optimism/optimism/op-node/metrics"
 	"github.com/ethereum-optimism/optimism/op-node/node"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/attributes"
@@ -144,34 +145,47 @@ func NewL2Verifier(t Testing, log log.Logger, l1 derive.L1Fetcher,
 	}
 
 	metrics := &testutils.TestDerivationMetrics{}
-	ec := engine.NewEngineController(eng, log, metrics, cfg, syncCfg,
-		sys.Register("engine-controller", nil, opts))
+	ec := engine.NewEngineController(ctx, eng, log, opnodemetrics.NoopMetrics, cfg, syncCfg, sys.Register("engine-controller", nil, opts))
 
-	sys.Register("engine-reset",
-		engine.NewEngineResetDeriver(ctx, log, cfg, l1, eng, syncCfg), opts)
+	if mm, ok := interopSys.(*indexing.IndexingMode); ok {
+		mm.SetEngineController(ec)
+	}
 
-	clSync := clsync.NewCLSync(log, cfg, metrics)
+	engineResetDeriver := engine.NewEngineResetDeriver(ctx, log, cfg, l1, eng, syncCfg)
+	sys.Register("engine-reset", engineResetDeriver, opts)
+	engineResetDeriver.SetEngController(ec)
+
+	clSync := clsync.NewCLSync(log, cfg, metrics, ec)
 	sys.Register("cl-sync", clSync, opts)
 
 	var finalizer driver.Finalizer
 	if cfg.AltDAEnabled() {
-		finalizer = finality.NewAltDAFinalizer(ctx, log, cfg, l1, altDASrc)
+		finalizer = finality.NewAltDAFinalizer(ctx, log, cfg, l1, altDASrc, ec)
 	} else {
-		finalizer = finality.NewFinalizer(ctx, log, cfg, l1)
+		finalizer = finality.NewFinalizer(ctx, log, cfg, l1, ec)
 	}
 	sys.Register("finalizer", finalizer, opts)
 
-	attrHandler := attributes.NewAttributesHandler(log, cfg, ctx, eng)
+	attrHandler := attributes.NewAttributesHandler(log, cfg, ctx, eng, ec)
 	sys.Register("attributes-handler", attrHandler, opts)
+	ec.SetAttributesResetter(attrHandler)
 
 	indexingMode := interopSys != nil
 	pipeline := derive.NewDerivationPipeline(log, cfg, depSet, l1, blobsSrc, altDASrc, eng, metrics, indexingMode)
-	sys.Register("pipeline", derive.NewPipelineDeriver(ctx, pipeline), opts)
+	pipelineDeriver := derive.NewPipelineDeriver(ctx, pipeline)
+	sys.Register("pipeline", pipelineDeriver, opts)
+	ec.SetPipelineResetter(pipelineDeriver)
 
 	testActionEmitter := sys.Register("test-action", nil, opts)
 
 	syncStatusTracker := status.NewStatusTracker(log, metrics)
 	sys.Register("status", syncStatusTracker, opts)
+
+	// TODO(#17115): Refactor dependency cycles
+	ec.SetCrossUpdateHandler(syncStatusTracker)
+
+	stepDeriver := NewTestingStepSchedulingDeriver()
+	stepDeriver.AttachEmitter(testActionEmitter)
 
 	syncDeriver := &driver.SyncDeriver{
 		Derivation:     pipeline,
@@ -186,15 +200,14 @@ func NewL2Verifier(t Testing, log log.Logger, l1 derive.L1Fetcher,
 		Log:                 log,
 		Ctx:                 ctx,
 		ManagedBySupervisor: indexingMode,
+		StepDeriver:         stepDeriver,
 	}
 	// TODO(#16917) Remove Event System Refactor Comments
 	//  Couple SyncDeriver and EngineController for event refactoring
 	//  Couple EngDeriver and NewAttributesHandler for event refactoring
 	ec.SyncDeriver = syncDeriver
 	sys.Register("sync", syncDeriver, opts)
-	engDeriver := engine.NewEngDeriver(log, ctx, cfg, metrics, ec)
-	sys.Register("engine", engDeriver, opts)
-	attrHandler.EngDeriver = engDeriver
+	sys.Register("engine", ec, opts)
 
 	rollupNode := &L2Verifier{
 		eventSys:          sys,
@@ -403,8 +416,6 @@ func (s *L2Verifier) OnEvent(ctx context.Context, ev event.Event) bool {
 		s.L2PipelineIdle = true
 	case derive.PipelineStepEvent:
 		s.L2PipelineIdle = false
-	case driver.StepReqEvent:
-		s.synchronousEvents.Emit(ctx, driver.StepEvent{})
 	default:
 		return false
 	}
@@ -462,4 +473,34 @@ func (s *L2Verifier) SyncSupervisor(t Testing) {
 	require.NotNil(t, s.InteropControl, "must be managed by op-supervisor")
 	_, err := s.InteropControl.PullEvents(t.Ctx())
 	require.NoError(t, err)
+}
+
+type TestingStepSchedulingDeriver struct {
+	emitter event.Emitter
+}
+
+func NewTestingStepSchedulingDeriver() *TestingStepSchedulingDeriver {
+	return &TestingStepSchedulingDeriver{}
+}
+
+func (t *TestingStepSchedulingDeriver) NextStep() <-chan struct{} {
+	return nil
+}
+
+func (t *TestingStepSchedulingDeriver) NextDelayedStep() <-chan time.Time {
+	return nil
+}
+
+func (t *TestingStepSchedulingDeriver) RequestStep(ctx context.Context, resetBackoff bool) {
+	t.emitter.Emit(ctx, driver.StepEvent{})
+}
+
+func (t *TestingStepSchedulingDeriver) AttemptStep(ctx context.Context) {
+}
+
+func (t *TestingStepSchedulingDeriver) ResetStepBackoff(ctx context.Context) {
+}
+
+func (t *TestingStepSchedulingDeriver) AttachEmitter(em event.Emitter) {
+	t.emitter = em
 }

@@ -49,6 +49,10 @@ func NewL2CLNode(cfg L2CLNodeConfig) stack.L2CLNode {
 	}
 }
 
+func (r *rpcL2CLNode) ClientRPC() client.RPC {
+	return r.client
+}
+
 func (r *rpcL2CLNode) ID() stack.L2CLNodeID {
 	return r.id
 }

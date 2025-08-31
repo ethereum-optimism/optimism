@@ -177,7 +177,7 @@ func (l *BatchSubmitter) StartBatchSubmitting() error {
 	l.publishSignal = publishSignal
 
 	// DA throttling loop should always be started except for testing (indicated by ThrottleThreshold == 0)
-	if l.Config.ThrottleParams.Threshold > 0 {
+	if l.Config.ThrottleParams.LowerThreshold > 0 {
 		l.wg.Add(1)
 		go l.throttlingLoop(l.wg, unsafeBytesUpdated) // ranges over unsafeBytesUpdated channel
 	} else {
@@ -426,7 +426,7 @@ func (l *BatchSubmitter) unsafeDABytes() int64 {
 // sendToThrottlingLoop sends the current unsafe bytes to the throttling loop.
 // It is not blocking, no signal will be sent if the channel is full.
 func (l *BatchSubmitter) sendToThrottlingLoop(unsafeBytesUpdated chan int64) {
-	if l.Config.ThrottleParams.Threshold == 0 {
+	if l.Config.ThrottleParams.LowerThreshold == 0 {
 		return
 	}
 
@@ -612,6 +612,7 @@ func (l *BatchSubmitter) singleEndpointThrottler(wg *sync.WaitGroup, throttleSig
 		_, params := l.throttleController.Load()
 
 		var success bool
+		l.Log.Debug("Setting max DA size on endpoint", "endpoint", endpoint, "max_tx_size", params.MaxTxSize, "max_block_size", params.MaxBlockSize)
 		err := client.CallContext(
 			ctx, &success, SetMaxDASizeMethod, hexutil.Uint64(params.MaxTxSize), hexutil.Uint64(params.MaxBlockSize),
 		)
@@ -676,8 +677,8 @@ func (l *BatchSubmitter) throttlingLoop(wg *sync.WaitGroup, unsafeBytesUpdated c
 	defer wg.Done()
 	l.Log.Info("Starting DA throttling loop",
 		"controller_type", l.throttleController.GetType(),
-		"threshold", l.Config.ThrottleParams.Threshold,
-		"max_threshold", l.Config.ThrottleParams.MaxThreshold,
+		"lower_threshold", l.Config.ThrottleParams.LowerThreshold,
+		"upper_threshold", l.Config.ThrottleParams.UpperThreshold,
 	)
 	updateChans := make([]chan struct{}, len(l.Config.ThrottleParams.Endpoints))
 
@@ -696,15 +697,14 @@ func (l *BatchSubmitter) throttlingLoop(wg *sync.WaitGroup, unsafeBytesUpdated c
 
 		l.Metr.RecordThrottleIntensity(newParams.Intensity, controllerType)
 		l.Metr.RecordThrottleParams(newParams.MaxTxSize, newParams.MaxBlockSize)
-		if l.Config.ThrottleParams.Threshold > 0 {
-			l.Metr.RecordUnsafeBytesVsThreshold(uint64(unsafeBytes), l.Config.ThrottleParams.Threshold, controllerType)
+		if l.Config.ThrottleParams.LowerThreshold > 0 {
+			l.Metr.RecordUnsafeBytesVsThreshold(uint64(unsafeBytes), l.Config.ThrottleParams.LowerThreshold, controllerType)
 		}
 
 		// Update throttling state
 		if newParams.IsThrottling() {
 			l.Log.Warn("Throttling loop: unsafe bytes above threshold, scaling endpoint throttling based on intensity",
 				"unsafe_bytes", unsafeBytes,
-				"threshold", l.Config.ThrottleParams.Threshold,
 				"intensity", newParams.Intensity,
 				"max_tx_size", newParams.MaxTxSize,
 				"max_block_size", newParams.MaxBlockSize,
@@ -1167,13 +1167,13 @@ func (l *BatchSubmitter) GetThrottleControllerInfo() (config.ThrottleControllerI
 	controllerType, params := l.throttleController.Load()
 
 	info := config.ThrottleControllerInfo{
-		Type:         string(controllerType),
-		Threshold:    l.Config.ThrottleParams.Threshold,
-		MaxThreshold: l.Config.ThrottleParams.MaxThreshold,
-		CurrentLoad:  uint64(l.unsafeDABytes()),
-		Intensity:    params.Intensity,
-		MaxTxSize:    params.MaxTxSize,
-		MaxBlockSize: params.MaxBlockSize,
+		Type:           string(controllerType),
+		LowerThreshold: l.Config.ThrottleParams.LowerThreshold,
+		UpperThreshold: l.Config.ThrottleParams.UpperThreshold,
+		CurrentLoad:    uint64(l.unsafeDABytes()),
+		Intensity:      params.Intensity,
+		MaxTxSize:      params.MaxTxSize,
+		MaxBlockSize:   params.MaxBlockSize,
 	}
 
 	return info, nil
@@ -1185,7 +1185,7 @@ func (l *BatchSubmitter) ResetThrottleController() error {
 
 	l.throttleController.Reset()
 	l.Metr.RecordThrottleIntensity(0.0, l.throttleController.GetType())
-	l.Metr.RecordThrottleParams(0, l.Config.ThrottleParams.AlwaysBlockSize)
+	l.Metr.RecordThrottleParams(0, l.Config.ThrottleParams.BlockSizeUpperLimit)
 
 	l.Log.Info("Successfully reset throttle controller state")
 	return nil

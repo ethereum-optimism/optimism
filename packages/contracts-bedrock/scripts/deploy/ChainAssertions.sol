@@ -380,7 +380,6 @@ library ChainAssertions {
         require(address(_opcm) != address(0), "CHECK-OPCM-10");
 
         require(bytes(_opcm.version()).length > 0, "CHECK-OPCM-15");
-        require(bytes(_opcm.l1ContractsRelease()).length > 0, "CHECK-OPCM-16");
         require(address(_opcm.protocolVersions()) == _proxies.ProtocolVersions, "CHECK-OPCM-17");
         require(address(_opcm.superchainProxyAdmin()) == address(_superchainProxyAdmin), "CHECK-OPCM-18");
         require(address(_opcm.superchainConfig()) == _proxies.SuperchainConfig, "CHECK-OPCM-19");

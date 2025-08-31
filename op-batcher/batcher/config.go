@@ -24,6 +24,46 @@ import (
 // blob config.
 var maxBlobsPerBlock = params.DefaultPragueBlobConfig.Max
 
+type ThrottleConfig struct {
+	AdditionalEndpoints []string
+
+	TxSizeLowerLimit    uint64
+	TxSizeUpperLimit    uint64
+	BlockSizeLowerLimit uint64
+	BlockSizeUpperLimit uint64
+
+	ControllerType config.ThrottleControllerType
+	LowerThreshold uint64
+	UpperThreshold uint64
+
+	// PID Controller specific parameters
+	PidKp          float64
+	PidKi          float64
+	PidKd          float64
+	PidIntegralMax float64
+	PidOutputMax   float64
+	PidSampleTime  time.Duration
+}
+
+func (c *ThrottleConfig) Check() error {
+	if !config.ValidThrottleControllerType(c.ControllerType) {
+		return fmt.Errorf("invalid throttle controller type: %s (must be one of: %v)", c.ControllerType, config.ThrottleControllerTypes)
+	}
+
+	if c.LowerThreshold != 0 && c.UpperThreshold <= c.LowerThreshold {
+		return fmt.Errorf("throttle.upper-threshold must be greater than throttle.lower-threshold")
+	}
+
+	if c.BlockSizeLowerLimit > 0 && c.BlockSizeLowerLimit >= c.BlockSizeUpperLimit {
+		return fmt.Errorf("throttle.block-size-lower-limit must be less than throttle.block-size-upper-limit")
+	}
+
+	if c.TxSizeLowerLimit > 0 && c.ControllerType != config.StepControllerType && c.TxSizeLowerLimit >= c.TxSizeUpperLimit {
+		return fmt.Errorf("throttle.tx-size-lower-limit must be less than throttle.tx-size-upper-limit")
+	}
+	return nil
+}
+
 type CLIConfig struct {
 	// L1EthRpc is the HTTP provider URL for L1.
 	L1EthRpc string
@@ -100,37 +140,11 @@ type CLIConfig struct {
 	// ActiveSequencerCheckDuration is the duration between checks to determine the active sequencer endpoint.
 	ActiveSequencerCheckDuration time.Duration
 
-	// ThrottleThreshold is the number of pending unsafe_da_bytes beyond which the batcher will start throttling future bytes. Set to 0 to
-	// disable sequencer throttling entirely (only recommended for testing).
-	ThrottleThreshold uint64
-
-	// ThrottleMaxThreshold is the number of pending_usafe_da_bytes at (and beyond) which the batcher will be throttling at 100% intensity.
-	ThrottleMaxThreshold uint64
-
-	// ThrottleTxSize is the DA size of a transaction to start throttling when we are over the throttling threshold.
-	ThrottleTxSize uint64
-	// ThrottleBlockSize is the total per-block DA limit to start imposing on block building when we are over the throttling threshold.
-	ThrottleBlockSize uint64
-	// ThrottleAlwaysBlockSize is the total per-block DA limit to always imposing on block building.
-	ThrottleAlwaysBlockSize uint64
-
 	// TestUseMaxTxSizeForBlobs allows to set the blob size with MaxL1TxSize.
 	// Should only be used for testing purposes.
 	TestUseMaxTxSizeForBlobs bool
 
-	// AdditionalThrottlingEndpoints is a list of additional endpoints to throttle.
-	AdditionalThrottlingEndpoints []string
-
-	// ThrottleControllerType is the type of throttle controller to use. Set to step by default
-	ThrottleControllerType config.ThrottleControllerType
-
-	// PID Controller specific parameters
-	ThrottlePidKp          float64
-	ThrottlePidKi          float64
-	ThrottlePidKd          float64
-	ThrottlePidIntegralMax float64
-	ThrottlePidOutputMax   float64
-	ThrottlePidSampleTime  time.Duration
+	ThrottleConfig ThrottleConfig
 
 	TxMgrConfig   txmgr.CLIConfig
 	LogConfig     oplog.CLIConfig
@@ -184,12 +198,8 @@ func (c *CLIConfig) Check() error {
 		return fmt.Errorf("too many frames for blob transactions, max %d", maxBlobsPerBlock)
 	}
 
-	if !config.ValidThrottleControllerType(c.ThrottleControllerType) {
-		return fmt.Errorf("invalid throttle controller type: %s (must be one of: %v)", c.ThrottleControllerType, config.ThrottleControllerTypes)
-	}
-
-	if c.ThrottleThreshold != 0 && c.ThrottleMaxThreshold <= c.ThrottleThreshold {
-		return fmt.Errorf("throttle-max-threshold must be greater than throttle-threshold")
+	if err := c.ThrottleConfig.Check(); err != nil {
+		return err
 	}
 
 	if err := c.MetricsConfig.Check(); err != nil {
@@ -218,38 +228,41 @@ func NewConfig(ctx *cli.Context) *CLIConfig {
 		PollInterval:    ctx.Duration(flags.PollIntervalFlag.Name),
 
 		/* Optional Flags */
-		MaxPendingTransactions:        ctx.Uint64(flags.MaxPendingTransactionsFlag.Name),
-		MaxChannelDuration:            ctx.Uint64(flags.MaxChannelDurationFlag.Name),
-		MaxL1TxSize:                   ctx.Uint64(flags.MaxL1TxSizeBytesFlag.Name),
-		MaxBlocksPerSpanBatch:         ctx.Int(flags.MaxBlocksPerSpanBatch.Name),
-		TargetNumFrames:               ctx.Int(flags.TargetNumFramesFlag.Name),
-		ApproxComprRatio:              ctx.Float64(flags.ApproxComprRatioFlag.Name),
-		Compressor:                    ctx.String(flags.CompressorFlag.Name),
-		CompressionAlgo:               derive.CompressionAlgo(ctx.String(flags.CompressionAlgoFlag.Name)),
-		Stopped:                       ctx.Bool(flags.StoppedFlag.Name),
-		WaitNodeSync:                  ctx.Bool(flags.WaitNodeSyncFlag.Name),
-		CheckRecentTxsDepth:           ctx.Int(flags.CheckRecentTxsDepthFlag.Name),
-		BatchType:                     ctx.Uint(flags.BatchTypeFlag.Name),
-		DataAvailabilityType:          flags.DataAvailabilityType(ctx.String(flags.DataAvailabilityTypeFlag.Name)),
-		ActiveSequencerCheckDuration:  ctx.Duration(flags.ActiveSequencerCheckDurationFlag.Name),
-		TxMgrConfig:                   txmgr.ReadCLIConfig(ctx),
-		LogConfig:                     oplog.ReadCLIConfig(ctx),
-		MetricsConfig:                 opmetrics.ReadCLIConfig(ctx),
-		PprofConfig:                   oppprof.ReadCLIConfig(ctx),
-		RPC:                           oprpc.ReadCLIConfig(ctx),
-		AltDA:                         altda.ReadCLIConfig(ctx),
-		ThrottleThreshold:             ctx.Uint64(flags.ThrottleThresholdFlag.Name),
-		ThrottleTxSize:                ctx.Uint64(flags.ThrottleTxSizeFlag.Name),
-		ThrottleBlockSize:             ctx.Uint64(flags.ThrottleBlockSizeFlag.Name),
-		ThrottleAlwaysBlockSize:       ctx.Uint64(flags.ThrottleAlwaysBlockSizeFlag.Name),
-		AdditionalThrottlingEndpoints: ctx.StringSlice(flags.AdditionalThrottlingEndpointsFlag.Name),
-		ThrottleControllerType:        config.ThrottleControllerType(ctx.String(flags.ThrottleControllerTypeFlag.Name)),
-		ThrottlePidKp:                 ctx.Float64(flags.ThrottlePidKpFlag.Name),
-		ThrottlePidKi:                 ctx.Float64(flags.ThrottlePidKiFlag.Name),
-		ThrottlePidKd:                 ctx.Float64(flags.ThrottlePidKdFlag.Name),
-		ThrottlePidIntegralMax:        ctx.Float64(flags.ThrottlePidIntegralMaxFlag.Name),
-		ThrottlePidOutputMax:          ctx.Float64(flags.ThrottlePidOutputMaxFlag.Name),
-		ThrottlePidSampleTime:         ctx.Duration(flags.ThrottlePidSampleTimeFlag.Name),
-		ThrottleMaxThreshold:          ctx.Uint64(flags.ThrottleMaxThresholdFlag.Name),
+		MaxPendingTransactions:       ctx.Uint64(flags.MaxPendingTransactionsFlag.Name),
+		MaxChannelDuration:           ctx.Uint64(flags.MaxChannelDurationFlag.Name),
+		MaxL1TxSize:                  ctx.Uint64(flags.MaxL1TxSizeBytesFlag.Name),
+		MaxBlocksPerSpanBatch:        ctx.Int(flags.MaxBlocksPerSpanBatch.Name),
+		TargetNumFrames:              ctx.Int(flags.TargetNumFramesFlag.Name),
+		ApproxComprRatio:             ctx.Float64(flags.ApproxComprRatioFlag.Name),
+		Compressor:                   ctx.String(flags.CompressorFlag.Name),
+		CompressionAlgo:              derive.CompressionAlgo(ctx.String(flags.CompressionAlgoFlag.Name)),
+		Stopped:                      ctx.Bool(flags.StoppedFlag.Name),
+		WaitNodeSync:                 ctx.Bool(flags.WaitNodeSyncFlag.Name),
+		CheckRecentTxsDepth:          ctx.Int(flags.CheckRecentTxsDepthFlag.Name),
+		BatchType:                    ctx.Uint(flags.BatchTypeFlag.Name),
+		DataAvailabilityType:         flags.DataAvailabilityType(ctx.String(flags.DataAvailabilityTypeFlag.Name)),
+		ActiveSequencerCheckDuration: ctx.Duration(flags.ActiveSequencerCheckDurationFlag.Name),
+		TxMgrConfig:                  txmgr.ReadCLIConfig(ctx),
+		LogConfig:                    oplog.ReadCLIConfig(ctx),
+		MetricsConfig:                opmetrics.ReadCLIConfig(ctx),
+		PprofConfig:                  oppprof.ReadCLIConfig(ctx),
+		RPC:                          oprpc.ReadCLIConfig(ctx),
+		AltDA:                        altda.ReadCLIConfig(ctx),
+		ThrottleConfig: ThrottleConfig{
+			AdditionalEndpoints: ctx.StringSlice(flags.AdditionalThrottlingEndpointsFlag.Name),
+			TxSizeLowerLimit:    ctx.Uint64(flags.ThrottleTxSizeLowerLimitFlag.Name),
+			TxSizeUpperLimit:    ctx.Uint64(flags.ThrottleTxSizeUpperLimitFlag.Name),
+			BlockSizeLowerLimit: ctx.Uint64(flags.ThrottleBlockSizeLowerLimitFlag.Name),
+			BlockSizeUpperLimit: ctx.Uint64(flags.ThrottleBlockSizeUpperLimitFlag.Name),
+			ControllerType:      config.ThrottleControllerType(ctx.String(flags.ThrottleControllerTypeFlag.Name)),
+			LowerThreshold:      ctx.Uint64(flags.ThrottleUsafeDABytesLowerThresholdFlag.Name),
+			UpperThreshold:      ctx.Uint64(flags.ThrottleUsafeDABytesUpperThresholdFlag.Name),
+			PidKp:               ctx.Float64(flags.ThrottlePidKpFlag.Name),
+			PidKi:               ctx.Float64(flags.ThrottlePidKiFlag.Name),
+			PidKd:               ctx.Float64(flags.ThrottlePidKdFlag.Name),
+			PidIntegralMax:      ctx.Float64(flags.ThrottlePidIntegralMaxFlag.Name),
+			PidOutputMax:        ctx.Float64(flags.ThrottlePidOutputMaxFlag.Name),
+			PidSampleTime:       ctx.Duration(flags.ThrottlePidSampleTimeFlag.Name),
+		},
 	}
 }

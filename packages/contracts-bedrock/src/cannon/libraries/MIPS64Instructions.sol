@@ -34,8 +34,6 @@ library MIPS64Instructions {
         uint32 opcode;
         /// @param fun The function value parsed from insn.
         uint32 fun;
-        /// @param stateVersion The state version.
-        uint256 stateVersion;
     }
 
     struct ExecuteMipsInstructionParams {
@@ -51,8 +49,6 @@ library MIPS64Instructions {
         uint64 rt;
         /// @param mem The value fetched from memory for the current instruction.
         uint64 mem;
-        /// @param stateVersion The state version.
-        uint256 stateVersion;
     }
 
     /// @param _pc The program counter.
@@ -181,8 +177,7 @@ library MIPS64Instructions {
                 fun: _args.fun,
                 rs: rs,
                 rt: rt,
-                mem: mem,
-                stateVersion: _args.stateVersion
+                mem: mem
             });
             uint64 val = executeMipsInstruction(params) & U64_MASK;
 
@@ -248,7 +243,6 @@ library MIPS64Instructions {
         uint64 rs = _args.rs;
         uint64 rt = _args.rt;
         uint64 mem = _args.mem;
-        uint256 stateVersion = _args.stateVersion;
         unchecked {
             if (opcode == 0 || (opcode >= 8 && opcode < 0xF) || opcode == 0x18 || opcode == 0x19) {
                 assembly {
@@ -494,7 +488,7 @@ library MIPS64Instructions {
                         return i;
                     }
                     // dclz, dclo
-                    else if (st.featuresForVersion(stateVersion).supportDclzDclo && (fun == 0x24 || fun == 0x25)) {
+                    else if (fun == 0x24 || fun == 0x25) {
                         if (fun == 0x24) {
                             rs = ~rs;
                         }

@@ -555,5 +555,14 @@ func gasCost(rcpt *types.Receipt) eth.ETH {
 	if rcpt.L1Fee != nil {
 		cost = cost.Add(eth.WeiBig(rcpt.L1Fee))
 	}
+	if rcpt.OperatorFeeConstant != nil && rcpt.OperatorFeeScalar != nil {
+		// https://github.com/ethereum-optimism/op-geth/blob/6005dd53e1b50fe5a3f59764e3e2056a639eff2f/core/types/rollup_cost.go#L244-L247
+		// Also see: https://specs.optimism.io/protocol/isthmus/exec-engine.html#operator-operatorCost
+		operatorCost := new(big.Int).SetUint64(rcpt.GasUsed)
+		operatorCost.Mul(operatorCost, new(big.Int).SetUint64(*rcpt.OperatorFeeScalar))
+		operatorCost = operatorCost.Div(operatorCost, big.NewInt(1_000_000))
+		operatorCost = operatorCost.Add(operatorCost, new(big.Int).SetUint64(*rcpt.OperatorFeeConstant))
+		cost = cost.Add(eth.WeiBig(operatorCost))
+	}
 	return cost
 }

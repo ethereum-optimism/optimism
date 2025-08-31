@@ -87,6 +87,7 @@ ALLOWED_FILES=(
   "src/dispute/DelayedWETH.sol:DelayedWETH"
   # "src/dispute/DisputeGameFactory.sol:DisputeGameFactory"
   "src/dispute/FaultDisputeGame.sol:FaultDisputeGame"
+  "src/dispute/v2/FaultDisputeGameV2.sol:FaultDisputeGameV2"
   "src/dispute/PermissionedDisputeGame.sol:PermissionedDisputeGame"
   "src/dispute/SuperFaultDisputeGame.sol:SuperFaultDisputeGame"
   "src/dispute/SuperPermissionedDisputeGame.sol:SuperPermissionedDisputeGame"

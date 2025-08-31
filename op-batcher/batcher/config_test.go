@@ -38,12 +38,17 @@ func validBatcherConfig() batcher.CLIConfig {
 		MetricsConfig:          metrics.DefaultCLIConfig(),
 		PprofConfig:            oppprof.DefaultCLIConfig(),
 		// The compressor config is not checked in config.Check()
-		RPC:                    rpc.DefaultCLIConfig(),
-		CompressionAlgo:        derive.Zlib,
-		ThrottleThreshold:      flags.DefaultThrottleThreshold,
-		ThrottleMaxThreshold:   flags.DefaultThrottleMaxThreshold,
-		ThrottleTxSize:         0,
-		ThrottleControllerType: "step", // default controller type
+		RPC:             rpc.DefaultCLIConfig(),
+		CompressionAlgo: derive.Zlib,
+		ThrottleConfig: batcher.ThrottleConfig{
+			ControllerType:      flags.DefaultThrottleControllerType,
+			LowerThreshold:      flags.DefaultThrottleLowerThreshold,
+			UpperThreshold:      flags.DefaultThrottleUpperThreshold,
+			TxSizeLowerLimit:    flags.DefaultThrottleTxSizeLowerLimit,
+			TxSizeUpperLimit:    flags.DefaultThrottleTxSizeUpperLimit,
+			BlockSizeLowerLimit: flags.DefaultThrottleBlockSizeLowerLimit,
+			BlockSizeUpperLimit: flags.DefaultThrottleBlockSizeUpperLimit,
+		},
 	}
 }
 
@@ -125,20 +130,20 @@ func TestBatcherConfig(t *testing.T) {
 		{
 			name: "throttle_max_threshold=throttle_threshold",
 			override: func(c *batcher.CLIConfig) {
-				c.ThrottleThreshold = 5
-				c.ThrottleMaxThreshold = 5
+				c.ThrottleConfig.LowerThreshold = 5
+				c.ThrottleConfig.UpperThreshold = 5
 
 			},
-			errString: "throttle-max-threshold must be greater than throttle-threshold",
+			errString: "throttle.upper-threshold must be greater than throttle.lower-threshold",
 		},
 		{
 			name: "throttle_max_threshold=throttle_threshold",
 			override: func(c *batcher.CLIConfig) {
-				c.ThrottleThreshold = 5
-				c.ThrottleMaxThreshold = 4
+				c.ThrottleConfig.LowerThreshold = 5
+				c.ThrottleConfig.UpperThreshold = 4
 
 			},
-			errString: "throttle-max-threshold must be greater than throttle-threshold",
+			errString: "throttle.upper-threshold must be greater than throttle.lower-threshold",
 		},
 	}
 

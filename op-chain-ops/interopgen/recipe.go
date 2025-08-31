@@ -77,7 +77,6 @@ func (recipe *InteropDevRecipe) Build(addrs devkeys.Addresses) (*WorldConfig, er
 		Challenger:            challenger,
 		Deployer:              superchainDeployer,
 		Implementations: OPCMImplementationsConfig{
-			L1ContractsRelease: "dev",
 			FaultProof: SuperFaultProofConfig{
 				WithdrawalDelaySeconds:          big.NewInt(302400),
 				MinProposalSizeBytes:            big.NewInt(10000),

@@ -240,6 +240,11 @@ func testRPCEndpoint(endpoint RPCEndpoint) error {
 	if strings.Contains(endpoint.Name, "supervisor") {
 		return testSupervisor(ctx, rpcClient)
 	}
+	if strings.Contains(endpoint.Name, "test-sequencer") {
+		// TODO: No public or unauthenticated health/status API exists for test-sequencer yet.
+		//    Admin API is still in progress — skip readiness check until it's available.
+		return nil
+	}
 	return testEthNode(ctx, rpcClient)
 }
 

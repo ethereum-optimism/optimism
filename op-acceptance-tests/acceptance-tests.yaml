@@ -43,9 +43,8 @@ gates:
         timeout: 6h
       - package: github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/isthmus/operator_fee
         timeout: 6h
-      # TODO: Re-enable this test when the withdrawal root is no longer flaky
-      # - package: github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/isthmus/withdrawal_root
-      #   timeout: 20m
+      - package: github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/isthmus/withdrawal_root
+        timeout: 20m
       - package: github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/isthmus/erc20_bridge
         timeout: 10m
       - package: github.com/ethereum-optimism/optimism/op-acceptance-tests/tests/isthmus/pectra

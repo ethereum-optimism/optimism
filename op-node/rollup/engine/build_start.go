@@ -18,21 +18,21 @@ func (ev BuildStartEvent) String() string {
 	return "build-start"
 }
 
-func (eq *EngDeriver) onBuildStart(ctx context.Context, ev BuildStartEvent) {
+func (eq *EngineController) onBuildStart(ctx context.Context, ev BuildStartEvent) {
 	rpcCtx, cancel := context.WithTimeout(eq.ctx, buildStartTimeout)
 	defer cancel()
 
 	if ev.Attributes.DerivedFrom != (eth.L1BlockRef{}) &&
-		eq.ec.PendingSafeL2Head().Hash != ev.Attributes.Parent.Hash {
+		eq.PendingSafeL2Head().Hash != ev.Attributes.Parent.Hash {
 		// Warn about small reorgs, happens when pending safe head is getting rolled back
 		eq.log.Warn("block-attributes derived from L1 do not build on pending safe head, likely reorg",
-			"pending_safe", eq.ec.PendingSafeL2Head(), "attributes_parent", ev.Attributes.Parent)
+			"pending_safe", eq.PendingSafeL2Head(), "attributes_parent", ev.Attributes.Parent)
 	}
 
 	fcEvent := ForkchoiceUpdateEvent{
 		UnsafeL2Head:    ev.Attributes.Parent,
-		SafeL2Head:      eq.ec.safeHead,
-		FinalizedL2Head: eq.ec.finalizedHead,
+		SafeL2Head:      eq.safeHead,
+		FinalizedL2Head: eq.finalizedHead,
 	}
 	if fcEvent.UnsafeL2Head.Number < fcEvent.FinalizedL2Head.Number {
 		err := fmt.Errorf("invalid block-building pre-state, unsafe head %s is behind finalized head %s", fcEvent.UnsafeL2Head, fcEvent.FinalizedL2Head)
@@ -45,7 +45,7 @@ func (eq *EngDeriver) onBuildStart(ctx context.Context, ev BuildStartEvent) {
 		FinalizedBlockHash: fcEvent.FinalizedL2Head.Hash,
 	}
 	buildStartTime := time.Now()
-	id, errTyp, err := startPayload(rpcCtx, eq.ec.engine, fc, ev.Attributes.Attributes)
+	id, errTyp, err := startPayload(rpcCtx, eq.engine, fc, ev.Attributes.Attributes)
 	if err != nil {
 		switch errTyp {
 		case BlockInsertTemporaryErr:

@@ -524,9 +524,9 @@ func (s *EthClient) SuggestGasPrice(ctx context.Context) (*big.Int, error) {
 }
 
 // Call executes a message call transaction but never mined into the blockchain.
-func (s *EthClient) Call(ctx context.Context, msg ethereum.CallMsg) ([]byte, error) {
+func (s *EthClient) Call(ctx context.Context, msg ethereum.CallMsg, blockNumber rpc.BlockNumber) ([]byte, error) {
 	var hex hexutil.Bytes
-	err := s.client.CallContext(ctx, &hex, "eth_call", ToCallArg(msg), "pending")
+	err := s.client.CallContext(ctx, &hex, "eth_call", ToCallArg(msg), blockNumber)
 	if err != nil {
 		return nil, err
 	}

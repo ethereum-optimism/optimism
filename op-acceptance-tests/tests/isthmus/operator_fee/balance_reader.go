@@ -4,7 +4,7 @@ import (
 	"context"
 	"math/big"
 
-	"github.com/ethereum-optimism/optimism/devnet-sdk/testing/systest"
+	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
 	"github.com/ethereum-optimism/optimism/op-service/predeploys"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/ethclient"
@@ -15,12 +15,12 @@ import (
 // BalanceReader provides methods to read balances from the chain
 type BalanceReader struct {
 	client *ethclient.Client
-	t      systest.T
+	t      devtest.T
 	logger log.Logger
 }
 
 // NewBalanceReader creates a new BalanceReader instance
-func NewBalanceReader(t systest.T, client *ethclient.Client, logger log.Logger) *BalanceReader {
+func NewBalanceReader(t devtest.T, client *ethclient.Client, logger log.Logger) *BalanceReader {
 	return &BalanceReader{
 		client: client,
 		t:      t,

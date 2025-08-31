@@ -88,6 +88,8 @@ prepare-upgrade-env *ARGS : build-go-ffi
   export FORK_BLOCK_NUMBER=$pinnedBlockNumber
   echo "Running upgrade tests at block $FORK_BLOCK_NUMBER"
   export FORK_RPC_URL=$ETH_RPC_URL
+  export FORK_RETRIES=10
+  export FORK_BACKOFF=1000
   export FORK_TEST=true
   export USE_MT_CANNON=true
   {{ARGS}} \

@@ -8,7 +8,7 @@ optimism_package:
         node0:
           el:
             type: op-geth
-            image: "us-docker.pkg.dev/oplabs-tools-artifacts/images/op-geth:v1.101503.2-rc.3"
+            image: ""
             log_level: ""
             extra_env_vars: {}
             extra_labels: {}
@@ -35,7 +35,7 @@ optimism_package:
         node1:
           el:
             type: op-reth
-            image: "ghcr.io/paradigmxyz/op-reth@sha256:7d83174c900a623897d5cf3a42764f19047ca47034f9726f5a9fad2c7ed32fee"
+            image: ""
             log_level: ""
             extra_env_vars: {}
             extra_labels: {}

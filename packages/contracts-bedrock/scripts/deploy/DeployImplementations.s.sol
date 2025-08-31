@@ -5,7 +5,6 @@ import { Script } from "forge-std/Script.sol";
 
 // Libraries
 import { Chains } from "scripts/libraries/Chains.sol";
-import { LibString } from "@solady/utils/LibString.sol";
 import { Types } from "scripts/libraries/Types.sol";
 
 // Interfaces
@@ -47,9 +46,6 @@ contract DeployImplementations is Script {
         uint256 proofMaturityDelaySeconds;
         uint256 disputeGameFinalityDelaySeconds;
         uint256 mipsVersion;
-        // This is used in opcm to signal which version of the L1 smart contracts is deployed.
-        // It takes the format of `op-contracts/v*.*.*`.
-        string l1ContractsRelease;
         // Outputs from DeploySuperchain.s.sol.
         ISuperchainConfig superchainConfigProxy;
         IProtocolVersions protocolVersionsProxy;
@@ -118,8 +114,7 @@ contract DeployImplementations is Script {
     function createOPCMContract(
         Input memory _input,
         Output memory _output,
-        IOPContractsManager.Blueprints memory _blueprints,
-        string memory _l1ContractsRelease
+        IOPContractsManager.Blueprints memory _blueprints
     )
         private
         returns (IOPContractsManager opcm_)
@@ -152,7 +147,7 @@ contract DeployImplementations is Script {
             // nosemgrep: sol-safety-deployutils-args
             DeployUtils.createDeterministic({
                 _name: "OPContractsManager",
-                _args: encodeOPCMConstructor(_l1ContractsRelease, _input, _output),
+                _args: encodeOPCMConstructor(_input, _output),
                 _salt: _salt
             })
         );
@@ -163,12 +158,10 @@ contract DeployImplementations is Script {
 
     /// @notice Encodes the constructor of the OPContractsManager contract. Used to avoid stack too
     ///         deep errors inside of the createOPCMContract function.
-    /// @param _l1ContractsRelease The release of the L1 contracts.
     /// @param _input The deployment input parameters.
     /// @param _output The deployment output parameters.
     /// @return encoded_ The encoded constructor.
     function encodeOPCMConstructor(
-        string memory _l1ContractsRelease,
         Input memory _input,
         Output memory _output
     )
@@ -188,7 +181,6 @@ contract DeployImplementations is Script {
                     _input.superchainConfigProxy,
                     _input.protocolVersionsProxy,
                     _input.superchainProxyAdmin,
-                    _l1ContractsRelease,
                     _input.upgradeController
                 )
             )
@@ -196,8 +188,6 @@ contract DeployImplementations is Script {
     }
 
     function deployOPContractsManager(Input memory _input, Output memory _output) private {
-        string memory l1ContractsRelease = _input.l1ContractsRelease;
-
         // First we deploy the blueprints for the singletons deployed by OPCM.
         // forgefmt: disable-start
         IOPContractsManager.Blueprints memory blueprints;
@@ -222,7 +212,7 @@ contract DeployImplementations is Script {
         // forgefmt: disable-end
         vm.stopBroadcast();
 
-        IOPContractsManager opcm = createOPCMContract(_input, _output, blueprints, l1ContractsRelease);
+        IOPContractsManager opcm = createOPCMContract(_input, _output, blueprints);
 
         vm.label(address(opcm), "OPContractsManager");
         _output.opcm = opcm;
@@ -587,7 +577,6 @@ contract DeployImplementations is Script {
             "DeployImplementations: disputeGameFinalityDelaySeconds not set"
         );
         require(_input.mipsVersion != 0, "DeployImplementations: mipsVersion not set");
-        require(!LibString.eq(_input.l1ContractsRelease, ""), "DeployImplementations: l1ContractsRelease not set");
         require(
             address(_input.superchainConfigProxy) != address(0), "DeployImplementations: superchainConfigProxy not set"
         );

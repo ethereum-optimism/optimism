@@ -65,13 +65,11 @@ func TestNewDeployImplementationsScript(t *testing.T) {
 			ProofMaturityDelaySeconds:       big.NewInt(4),
 			DisputeGameFinalityDelaySeconds: big.NewInt(5),
 			MipsVersion:                     big.NewInt(mipsVersion),
-			// Release version to set OPCM implementations for, of the format `op-contracts/vX.Y.Z`.
-			L1ContractsRelease:    "dev-release",
-			SuperchainConfigProxy: proxyAddress,
-			ProtocolVersionsProxy: protocolVersionsAddress,
-			SuperchainProxyAdmin:  proxyAdminAddress,
-			UpgradeController:     common.BigToAddress(big.NewInt(13)),
-			Challenger:            common.BigToAddress(big.NewInt(14)),
+			SuperchainConfigProxy:           proxyAddress,
+			ProtocolVersionsProxy:           protocolVersionsAddress,
+			SuperchainProxyAdmin:            proxyAdminAddress,
+			UpgradeController:               common.BigToAddress(big.NewInt(13)),
+			Challenger:                      common.BigToAddress(big.NewInt(14)),
 		})
 
 		// And do some simple asserts

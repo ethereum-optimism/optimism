@@ -42,14 +42,13 @@ func TestNotTruncateDatabaseOnRestartWithExistingDatabase(gt *testing.T) {
 	t := devtest.SerialT(gt)
 	sys := presets.NewSingleChainMultiNode(t)
 
-	startSafeBlock := sys.L2CLB.SafeL2BlockRef().Number
-
 	dsl.CheckAll(t,
 		sys.L2CL.AdvancedFn(types.LocalSafe, 1, 30),
 		sys.L2CLB.AdvancedFn(types.LocalSafe, 1, 30))
-
 	sys.L2CLB.Matched(sys.L2CL, types.LocalSafe, 30)
-	sys.L2CLB.VerifySafeHeadDatabaseMatches(sys.L2CL)
+
+	preRestartSafeBlock := sys.L2CLB.SafeL2BlockRef().Number
+	sys.L2CLB.VerifySafeHeadDatabaseMatches(sys.L2CL, dsl.WithMinRequiredL2Block(preRestartSafeBlock))
 
 	// Restart the verifier op-node, but not the EL so the existing chain data is not deleted.
 	sys.L2CLB.Stop()
@@ -61,5 +60,5 @@ func TestNotTruncateDatabaseOnRestartWithExistingDatabase(gt *testing.T) {
 	sys.L2CLB.Matched(sys.L2CL, types.LocalSafe, 30)
 	sys.L2CLB.Advanced(types.LocalSafe, 1, 30) // At least one safe head db update after resync
 
-	sys.L2CLB.VerifySafeHeadDatabaseMatches(sys.L2CL, dsl.WithMinRequiredL2Block(startSafeBlock))
+	sys.L2CLB.VerifySafeHeadDatabaseMatches(sys.L2CL, dsl.WithMinRequiredL2Block(preRestartSafeBlock))
 }

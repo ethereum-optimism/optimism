@@ -2,21 +2,19 @@ package frontend
 
 import (
 	"context"
-	"math/big"
+	"encoding/json"
 
-	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/apis"
+
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/rpc"
 )
 
 type EthBackend interface {
-	GetBlockByNumber(ctx context.Context, number *big.Int) (*types.Header, error)
-	GetBlockByHash(ctx context.Context, hash common.Hash) (*types.Header, error)
-	GetBlockReceipts(ctx context.Context, blockNrOrHash rpc.BlockNumberOrHash) ([]*types.Receipt, error)
-	ChainId(ctx context.Context) (eth.ChainID, error)
+	apis.EthAPI
 }
-
 type EthFrontend struct {
 	b EthBackend
 }
@@ -25,18 +23,18 @@ func NewEthFrontend(b EthBackend) *EthFrontend {
 	return &EthFrontend{b: b}
 }
 
-func (e *EthFrontend) GetBlockByNumber(ctx context.Context, number *big.Int) (*types.Header, error) {
-	return e.b.GetBlockByNumber(ctx, number)
+func (e *EthFrontend) GetBlockByNumber(ctx context.Context, number rpc.BlockNumber, fullTx bool) (json.RawMessage, error) {
+	return e.b.GetBlockByNumber(ctx, number, fullTx)
 }
 
-func (e *EthFrontend) GetBlockByHash(ctx context.Context, hash common.Hash) (*types.Header, error) {
-	return e.b.GetBlockByHash(ctx, hash)
+func (e *EthFrontend) GetBlockByHash(ctx context.Context, hash common.Hash, fullTx bool) (json.RawMessage, error) {
+	return e.b.GetBlockByHash(ctx, hash, fullTx)
 }
 
 func (e *EthFrontend) GetBlockReceipts(ctx context.Context, blockNrOrHash rpc.BlockNumberOrHash) ([]*types.Receipt, error) {
 	return e.b.GetBlockReceipts(ctx, blockNrOrHash)
 }
 
-func (e *EthFrontend) ChainId(ctx context.Context) (eth.ChainID, error) {
+func (e *EthFrontend) ChainId(ctx context.Context) (hexutil.Big, error) {
 	return e.b.ChainId(ctx)
 }

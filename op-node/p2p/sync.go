@@ -717,7 +717,7 @@ func (s *SyncClient) doRequest(ctx context.Context, id peer.ID, expectedBlockNum
 	select {
 	case s.results <- syncResult{payload: envelope, peer: id}:
 	case <-ctx.Done():
-		return fmt.Errorf("failed to process response, sync client is too busy: %w", err)
+		return fmt.Errorf("failed to process response, sync client is too busy")
 	}
 	return nil
 }

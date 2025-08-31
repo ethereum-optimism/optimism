@@ -22,22 +22,15 @@ type sessionKeyType struct{}
 
 var ctxKeySession = sessionKeyType{}
 
-// WithSession returns a new context with the given Session.
-func WithSession(ctx context.Context, s *Session) context.Context {
+// WithSyncTesterSession returns a new context with the given Session.
+func WithSyncTesterSession(ctx context.Context, s *eth.SyncTesterSession) context.Context {
 	return context.WithValue(ctx, ctxKeySession, s)
 }
 
-// SessionFromContext retrieves the Session from the context, if present.
-func SessionFromContext(ctx context.Context) (*Session, bool) {
-	s, ok := ctx.Value(ctxKeySession).(*Session)
+// SyncTesterSessionFromContext retrieves the Session from the context, if present.
+func SyncTesterSessionFromContext(ctx context.Context) (*eth.SyncTesterSession, bool) {
+	s, ok := ctx.Value(ctxKeySession).(*eth.SyncTesterSession)
 	return s, ok
-}
-
-type Session struct {
-	SessionID string
-	Latest    uint64
-	Safe      uint64
-	Finalized uint64
 }
 
 type APIRouter interface {

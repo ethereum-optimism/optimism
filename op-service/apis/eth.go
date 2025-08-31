@@ -8,6 +8,7 @@ import (
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/rpc"
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/sources/batching"
@@ -100,7 +101,7 @@ type Gas interface {
 
 type EthCall interface {
 	// Call executes a message call transaction but never mined into the blockchain.
-	Call(ctx context.Context, msg ethereum.CallMsg) ([]byte, error)
+	Call(ctx context.Context, msg ethereum.CallMsg, blockNumber rpc.BlockNumber) ([]byte, error)
 }
 
 type TransactionSender interface {

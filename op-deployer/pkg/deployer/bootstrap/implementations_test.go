@@ -73,7 +73,6 @@ func testImplementations(t *testing.T, forkRPCURL string, cacheDir string) {
 			PrivateKey:                      "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80",
 			ArtifactsLocator:                loc,
 			Logger:                          lgr,
-			L1ContractsRelease:              "dev",
 			WithdrawalDelaySeconds:          standard.WithdrawalDelaySeconds,
 			MinProposalSizeBytes:            standard.MinProposalSizeBytes,
 			ChallengePeriodSeconds:          standard.ChallengePeriodSeconds,

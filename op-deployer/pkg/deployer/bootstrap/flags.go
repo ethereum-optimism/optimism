@@ -18,7 +18,6 @@ const (
 	MIPSVersionFlagName                     = "mips-version"
 	ProxyOwnerFlagName                      = "proxy-owner"
 	SuperchainProxyAdminOwnerFlagName       = "superchain-proxy-admin-owner"
-	L1ContractsReleaseFlagName              = "l1-contracts-release"
 	ProtocolVersionsOwnerFlagName           = "protocol-versions-owner"
 	GuardianFlagName                        = "guardian"
 	PausedFlagName                          = "paused"
@@ -81,12 +80,6 @@ var (
 		EnvVars: deployer.PrefixEnvVar("SUPERCHAIN_PROXY_ADMIN_OWNER"),
 		Value:   common.Address{}.Hex(),
 	}
-	L1ContractsReleaseFlag = &cli.StringFlag{
-		Name:    L1ContractsReleaseFlagName,
-		Usage:   "L1 contracts release",
-		EnvVars: deployer.PrefixEnvVar("L1_CONTRACTS_RELEASE"),
-		Value:   "dev",
-	}
 	ProtocolVersionsOwnerFlag = &cli.StringFlag{
 		Name:    ProtocolVersionsOwnerFlagName,
 		Usage:   "Owner address for protocol versions",
@@ -139,6 +132,11 @@ var (
 		Usage:   "Path to a JSON file",
 		EnvVars: deployer.PrefixEnvVar("CONFIG"),
 	}
+	ChallengerFlag = &cli.StringFlag{
+		Name:    "challenger",
+		Usage:   "Challenger.",
+		EnvVars: deployer.PrefixEnvVar("CHALLENGER"),
+	}
 )
 
 var ImplementationsFlags = []cli.Flag{
@@ -152,11 +150,11 @@ var ImplementationsFlags = []cli.Flag{
 	ChallengePeriodSecondsFlag,
 	ProofMaturityDelaySecondsFlag,
 	DisputeGameFinalityDelaySecondsFlag,
-	L1ContractsReleaseFlag,
 	SuperchainConfigProxyFlag,
 	ProtocolVersionsProxyFlag,
 	UpgradeControllerFlag,
 	SuperchainProxyAdminFlag,
+	ChallengerFlag,
 }
 
 var ProxyFlags = []cli.Flag{

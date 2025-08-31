@@ -116,11 +116,6 @@ interface IOPContractsManagerInteropMigrator {
 }
 
 interface IOPContractsManager {
-    // -------- Events --------
-
-    /// @notice Emitted when the OPCM setRC function is called.
-    event Released(bool _isRC);
-
     // -------- Structs --------
 
     /// @notice Represents the roles that can be set when deploying a standard OP Stack chain.
@@ -252,13 +247,7 @@ interface IOPContractsManager {
     /// @notice Address of the ProxyAdmin contract shared by all chains.
     function superchainProxyAdmin() external view returns (IProxyAdmin);
 
-    /// @notice L1 smart contracts release deployed by this version of OPCM. This is used in opcm to signal which
-    /// version of the L1 smart contracts is deployed. It takes the format of `op-contracts/vX.Y.Z`.
-    function l1ContractsRelease() external view returns (string memory);
-
     // -------- Errors --------
-
-    error OnlyUpgradeController();
 
     /// @notice Thrown when an address is the zero address.
     error AddressNotFound(address who);
@@ -307,7 +296,6 @@ interface IOPContractsManager {
         ISuperchainConfig _superchainConfig,
         IProtocolVersions _protocolVersions,
         IProxyAdmin _superchainProxyAdmin,
-        string memory _l1ContractsRelease,
         address _upgradeController
     )
         external;
@@ -371,10 +359,6 @@ interface IOPContractsManager {
     function implementations() external view returns (Implementations memory);
 
     function upgradeController() external view returns (address);
-
-    function isRC() external view returns (bool);
-
-    function setRC(bool _isRC) external;
 }
 
 /// @notice Minimal interface only used for calling `implementations()` method but without retrieving the ETHLockbox

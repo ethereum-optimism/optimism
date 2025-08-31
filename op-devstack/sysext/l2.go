@@ -177,7 +177,7 @@ func (o *Orchestrator) hydrateFlashblocksBuilderIfPresent(node *descriptors.Node
 	associatedConductorService, ok := node.Services[ConductorServiceName]
 	require.True(ok, "L2 rbuilder service must have an associated conductor service", l2ID)
 
-	flashblocksWsUrl, _, err := o.findProtocolService(rbuilderService, WebsocketFlashblocksProtocol)
+	flashblocksWsUrl, flashblocksWsHeaders, err := o.findProtocolService(rbuilderService, WebsocketFlashblocksProtocol)
 	require.NoError(err, "failed to find websocket service for rbuilder")
 
 	flashblocksBuilder := shim.NewFlashblocksBuilderNode(shim.FlashblocksBuilderNodeConfig{
@@ -187,8 +187,9 @@ func (o *Orchestrator) hydrateFlashblocksBuilderIfPresent(node *descriptors.Node
 			Client:       o.rpcClient(l2Net.T(), rbuilderService, RPCProtocol, "/", opts...),
 			ChainID:      l2ID.ChainID(),
 		},
-		Conductor:        l2Net.Conductor(stack.ConductorID(associatedConductorService.Name)),
-		FlashblocksWsUrl: flashblocksWsUrl,
+		Conductor:            l2Net.Conductor(stack.ConductorID(associatedConductorService.Name)),
+		FlashblocksWsUrl:     flashblocksWsUrl,
+		FlashblocksWsHeaders: flashblocksWsHeaders,
 	})
 
 	l2Net.AddFlashblocksBuilder(flashblocksBuilder)
@@ -231,13 +232,14 @@ func (o *Orchestrator) hydrateFlashblocksWebsocketProxyMaybe(net *descriptors.L2
 	}
 
 	for _, instance := range fbWsProxyService {
-		wsUrl, _, err := o.findProtocolService(instance, WebsocketFlashblocksProtocol)
+		wsUrl, wsHeaders, err := o.findProtocolService(instance, WebsocketFlashblocksProtocol)
 		require.NoError(err, "failed to get the websocket url for the flashblocks websocket proxy", "service", instance.Name)
 
 		fbWsProxyShim := shim.NewFlashblocksWebsocketProxy(shim.FlashblocksWebsocketProxyConfig{
 			CommonConfig: shim.NewCommonConfig(l2Net.T()),
 			ID:           stack.NewFlashblocksWebsocketProxyID(instance.Name, l2ID.ChainID()),
 			WsUrl:        wsUrl,
+			WsHeaders:    wsHeaders,
 		})
 		fbWsProxyShim.SetLabel(match.LabelVendor, string(match.FlashblocksWebsocketProxy))
 		l2Net.AddFlashblocksWebsocketProxy(fbWsProxyShim)

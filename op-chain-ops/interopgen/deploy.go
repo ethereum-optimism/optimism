@@ -191,7 +191,6 @@ func DeploySuperchainToL1(l1Host *script.Host, opcmScripts *opcm.Scripts, superC
 		ProofMaturityDelaySeconds:       superCfg.Implementations.FaultProof.ProofMaturityDelaySeconds,
 		DisputeGameFinalityDelaySeconds: superCfg.Implementations.FaultProof.DisputeGameFinalityDelaySeconds,
 		MipsVersion:                     superCfg.Implementations.FaultProof.MipsVersion,
-		L1ContractsRelease:              superCfg.Implementations.L1ContractsRelease,
 		SuperchainProxyAdmin:            superDeployment.SuperchainProxyAdmin,
 		SuperchainConfigProxy:           superDeployment.SuperchainConfigProxy,
 		ProtocolVersionsProxy:           superDeployment.ProtocolVersionsProxy,

@@ -19,8 +19,6 @@ import { StandardConstants } from "scripts/deploy/StandardConstants.sol";
 // Libraries
 import { EIP1967Helper } from "test/mocks/EIP1967Helper.sol";
 import { Blueprint } from "src/libraries/Blueprint.sol";
-import { ForgeArtifacts } from "scripts/libraries/ForgeArtifacts.sol";
-import { Bytes } from "src/libraries/Bytes.sol";
 import { GameType, Duration, Hash, Claim } from "src/dispute/lib/LibUDT.sol";
 import { Proposal, GameTypes } from "src/dispute/lib/Types.sol";
 
@@ -85,7 +83,6 @@ contract OPContractsManager_Harness is OPContractsManager {
         ISuperchainConfig _superchainConfig,
         IProtocolVersions _protocolVersions,
         IProxyAdmin _superchainProxyAdmin,
-        string memory _l1ContractsRelease,
         address _upgradeController
     )
         OPContractsManager(
@@ -97,7 +94,6 @@ contract OPContractsManager_Harness is OPContractsManager {
             _superchainConfig,
             _protocolVersions,
             _superchainProxyAdmin,
-            _l1ContractsRelease,
             _upgradeController
         )
     { }
@@ -466,13 +462,13 @@ contract OPContractsManager_Upgrade_Harness is CommonTest {
         // Check that the PermissionedDisputeGame is upgraded to the expected version, references
         // the correct anchor state and has the mipsImpl. Although Upgrade 15 doesn't actually
         // change any of this, we might as well check it again.
-        assertEq(ISemver(address(pdg)).version(), "1.7.0");
+        assertEq(ISemver(address(pdg)).version(), "1.8.0");
         assertEq(address(pdg.vm()), impls.mipsImpl);
         assertEq(pdg.l2ChainId(), oldPDG.l2ChainId());
 
         // If the old FaultDisputeGame exists, we expect it to be upgraded. Check same as above.
         if (address(oldFDG) != address(0)) {
-            assertEq(ISemver(address(fdg)).version(), "1.7.0");
+            assertEq(ISemver(address(fdg)).version(), "1.8.0");
             assertEq(address(fdg.vm()), impls.mipsImpl);
             assertEq(fdg.l2ChainId(), oldFDG.l2ChainId());
         }
@@ -687,7 +683,6 @@ contract OPContractsManager_TestInit is Test {
                             superchainConfigProxy,
                             protocolVersionsProxy,
                             superchainProxyAdmin,
-                            "dev",
                             address(this)
                         )
                     )
@@ -793,7 +788,6 @@ contract OPContractsManager_ChainIdToBatchInboxAddress_Test is Test {
             _superchainConfig: superchainConfigProxy,
             _protocolVersions: protocolVersionsProxy,
             _superchainProxyAdmin: superchainProxyAdmin,
-            _l1ContractsRelease: "dev",
             _upgradeController: upgradeController
         });
     }
@@ -1382,50 +1376,6 @@ contract OPContractsManager_Upgrade_Test is OPContractsManager_Upgrade_Harness {
         // test environment.
         VerifyOPCM verify = new VerifyOPCM();
         verify.run(address(opcm), true);
-    }
-
-    function test_isRcFalseAfterCalledByUpgrader_works() public {
-        assertTrue(opcm.isRC());
-        bytes memory releaseBytes = bytes(opcm.l1ContractsRelease());
-        assertEq(Bytes.slice(releaseBytes, releaseBytes.length - 3, 3), "-rc", "release should end with '-rc'");
-
-        runUpgradeTestAndChecks(upgrader);
-
-        assertFalse(opcm.isRC(), "isRC should be false");
-        releaseBytes = bytes(opcm.l1ContractsRelease());
-        assertNotEq(Bytes.slice(releaseBytes, releaseBytes.length - 3, 3), "-rc", "release should not end with '-rc'");
-    }
-
-    function testFuzz_upgrade_nonUpgradeControllerDelegatecallerShouldNotSetIsRCToFalse_works(
-        address _nonUpgradeController
-    )
-        public
-    {
-        if (
-            _nonUpgradeController == upgrader || _nonUpgradeController == address(0)
-                || _nonUpgradeController < address(0x4200000000000000000000000000000000000000)
-                || _nonUpgradeController > address(0x4200000000000000000000000000000000000800)
-                || _nonUpgradeController == address(vm)
-                || _nonUpgradeController == 0x000000000000000000636F6e736F6c652e6c6f67
-                || _nonUpgradeController == 0x4e59b44847b379578588920cA78FbF26c0B4956C
-        ) {
-            _nonUpgradeController = makeAddr("nonUpgradeController");
-        }
-
-        // Set the proxy admin owner to be the non-upgrade controller
-        vm.store(
-            address(proxyAdmin),
-            bytes32(ForgeArtifacts.getSlot("ProxyAdmin", "_owner").slot),
-            bytes32(uint256(uint160(_nonUpgradeController)))
-        );
-        vm.store(
-            address(disputeGameFactory),
-            bytes32(ForgeArtifacts.getSlot("DisputeGameFactory", "_owner").slot),
-            bytes32(uint256(uint160(_nonUpgradeController)))
-        );
-
-        // Run the upgrade test and checks
-        runUpgradeTestAndChecks(_nonUpgradeController);
     }
 
     function test_upgrade_duplicateL2ChainId_succeeds() public {
@@ -2031,53 +1981,5 @@ contract OPContractsManager_Version_Test is OPContractsManager_TestInit {
 
     function test_semver_works() public view {
         assertNotEq(abi.encode(prestateUpdater.version()), abi.encode(0));
-    }
-}
-
-/// @title OPContractsManager_SetRC_Test
-/// @notice Tests the `setRC` function of the `OPContractsManager` contract.
-contract OPContractsManager_SetRC_Test is OPContractsManager_Upgrade_Harness {
-    event Released(bool _isRC);
-
-    /// @notice Tests the setRC function can be set by the upgrade controller.
-    function test_setRC_succeeds(bool _isRC) public {
-        skipIfNotOpFork("test_setRC_succeeds");
-
-        vm.prank(upgrader);
-
-        vm.expectEmit(true, true, true, true);
-        emit Released(_isRC);
-
-        opcm.setRC(_isRC);
-        assertTrue(opcm.isRC() == _isRC, "isRC should be true");
-        bytes memory releaseBytes = bytes(opcm.l1ContractsRelease());
-        if (_isRC) {
-            assertEq(Bytes.slice(releaseBytes, releaseBytes.length - 3, 3), "-rc", "release should end with '-rc'");
-        } else {
-            assertNotEq(
-                Bytes.slice(releaseBytes, releaseBytes.length - 3, 3), "-rc", "release should not end with '-rc'"
-            );
-        }
-    }
-
-    /// @notice Tests the setRC function can not be set by non-upgrade controller.
-    function test_setRC_nonUpgradeController_reverts(address _nonUpgradeController) public {
-        // Disallow the upgrade controller to have code, or be a 'special' address.
-        if (
-            _nonUpgradeController == upgrader || _nonUpgradeController == address(0)
-                || _nonUpgradeController < address(0x4200000000000000000000000000000000000000)
-                || _nonUpgradeController > address(0x4200000000000000000000000000000000000800)
-                || _nonUpgradeController == address(vm)
-                || _nonUpgradeController == 0x000000000000000000636F6e736F6c652e6c6f67
-                || _nonUpgradeController == 0x4e59b44847b379578588920cA78FbF26c0B4956C
-                || _nonUpgradeController.code.length > 0
-        ) {
-            _nonUpgradeController = makeAddr("nonUpgradeController");
-        }
-
-        vm.prank(_nonUpgradeController);
-
-        vm.expectRevert(IOPContractsManager.OnlyUpgradeController.selector);
-        opcm.setRC(true);
     }
 }

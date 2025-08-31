@@ -33,13 +33,15 @@ func TestParseSession_Valid(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, newReq)
 
-	session, ok := backend.SessionFromContext(newReq.Context())
+	session, ok := backend.SyncTesterSessionFromContext(newReq.Context())
 	require.True(t, ok)
 	require.NotNil(t, session)
 	require.Equal(t, id, session.SessionID)
-	require.Equal(t, uint64(100), session.Latest)
-	require.Equal(t, uint64(90), session.Safe)
-	require.Equal(t, uint64(80), session.Finalized)
+	require.Equal(t, uint64(100), session.InitialState.Latest)
+	require.Equal(t, uint64(90), session.InitialState.Safe)
+	require.Equal(t, uint64(80), session.InitialState.Finalized)
+	require.Equal(t, session.InitialState.Latest, session.Validated)
+	require.Equal(t, session.InitialState, session.CurrentState)
 	require.Equal(t, "/chain/1/synctest", newReq.URL.Path)
 }
 
@@ -51,13 +53,15 @@ func TestParseSession_DefaultsToZero(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, newReq)
 
-	session, ok := backend.SessionFromContext(newReq.Context())
+	session, ok := backend.SyncTesterSessionFromContext(newReq.Context())
 	require.True(t, ok)
 	require.NotNil(t, session)
 	require.Equal(t, id, session.SessionID)
-	require.Equal(t, uint64(0), session.Latest)
-	require.Equal(t, uint64(0), session.Safe)
-	require.Equal(t, uint64(0), session.Finalized)
+	require.Equal(t, uint64(0), session.InitialState.Latest)
+	require.Equal(t, uint64(0), session.InitialState.Safe)
+	require.Equal(t, uint64(0), session.InitialState.Finalized)
+	require.Equal(t, session.InitialState.Latest, session.Validated)
+	require.Equal(t, session.InitialState, session.CurrentState)
 }
 
 func TestParseSession_NoSessionInitialized(t *testing.T) {
@@ -67,7 +71,7 @@ func TestParseSession_NoSessionInitialized(t *testing.T) {
 	require.NoError(t, err)
 	require.Same(t, req, newReq)
 
-	_, ok := backend.SessionFromContext(newReq.Context())
+	_, ok := backend.SyncTesterSessionFromContext(newReq.Context())
 	require.False(t, ok)
 }
 

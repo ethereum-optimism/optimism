@@ -7,6 +7,8 @@ import (
 	"math/big"
 	"os"
 
+	"github.com/ethereum-optimism/optimism/op-service/ioutil"
+
 	"github.com/ethereum-optimism/optimism/op-service/cliutil"
 
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/pipeline"
@@ -246,7 +248,7 @@ func AddGameType(ctx context.Context, cfg AddGameTypeConfig) (opcm.AddGameTypeOu
 
 	lgr := cfg.Logger
 
-	artifactsFS, err := artifacts.Download(ctx, cfg.ArtifactsLocator, artifacts.BarProgressor(), cfg.CacheDir)
+	artifactsFS, err := artifacts.Download(ctx, cfg.ArtifactsLocator, ioutil.BarProgressor(), cfg.CacheDir)
 	if err != nil {
 		return output, nil, fmt.Errorf("failed to download artifacts: %w", err)
 	}

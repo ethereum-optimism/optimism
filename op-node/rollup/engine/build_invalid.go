@@ -30,7 +30,7 @@ func (ev InvalidPayloadAttributesEvent) String() string {
 	return "invalid-payload-attributes"
 }
 
-func (eq *EngDeriver) onBuildInvalid(ctx context.Context, ev BuildInvalidEvent) {
+func (eq *EngineController) onBuildInvalid(ctx context.Context, ev BuildInvalidEvent) {
 	eq.log.Warn("could not process payload attributes", "err", ev.Err)
 
 	// Deposit transaction execution errors are suppressed in the execution engine, but if the
@@ -43,19 +43,19 @@ func (eq *EngDeriver) onBuildInvalid(ctx context.Context, ev BuildInvalidEvent) 
 		return
 	}
 
-	if ev.Attributes.IsDerived() && eq.cfg.IsHolocene(ev.Attributes.DerivedFrom.Time) {
+	if ev.Attributes.IsDerived() && eq.rollupCfg.IsHolocene(ev.Attributes.DerivedFrom.Time) {
 		eq.emitDepositsOnlyPayloadAttributesRequest(ctx, ev.Attributes.Parent.ID(), ev.Attributes.DerivedFrom)
 		return
 	}
 
 	// Revert the pending safe head to the safe head.
-	eq.ec.SetPendingSafeL2Head(eq.ec.SafeL2Head())
+	eq.SetPendingSafeL2Head(eq.SafeL2Head())
 	// suppress the error b/c we want to retry with the next batch from the batch queue
 	// If there is no valid batch the node will eventually force a deposit only block. If
 	// the deposit only block fails, this will return the critical error above.
 
 	// Try to restore to previous known unsafe chain.
-	eq.ec.SetBackupUnsafeL2Head(eq.ec.BackupUnsafeL2Head(), true)
+	eq.SetBackupUnsafeL2Head(eq.BackupUnsafeL2Head(), true)
 
 	// drop the payload without inserting it into the engine
 
@@ -63,7 +63,7 @@ func (eq *EngDeriver) onBuildInvalid(ctx context.Context, ev BuildInvalidEvent) 
 	eq.emitter.Emit(ctx, InvalidPayloadAttributesEvent(ev))
 }
 
-func (eq *EngDeriver) emitDepositsOnlyPayloadAttributesRequest(ctx context.Context, parent eth.BlockID, derivedFrom eth.L1BlockRef) {
+func (eq *EngineController) emitDepositsOnlyPayloadAttributesRequest(ctx context.Context, parent eth.BlockID, derivedFrom eth.L1BlockRef) {
 	eq.log.Warn("Holocene active, requesting deposits-only attributes", "parent", parent, "derived_from", derivedFrom)
 	// request deposits-only version
 	eq.emitter.Emit(ctx, derive.DepositsOnlyPayloadAttributesRequestEvent{

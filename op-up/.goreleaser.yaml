@@ -12,7 +12,7 @@ before:
 builds:
   - id: main
     main: .
-    binary: "op"
+    binary: "{{ .ProjectName }}"
     env:
       - CGO_ENABLED=0
     goos:
@@ -29,23 +29,16 @@ builds:
 archives:
   - format: tar.gz
     # this name template makes the OS and Arch compatible with the results of `uname`.
-    name_template: "op-{{ .Version }}-{{ tolower .Os }}-{{ .Arch }}"
+    name_template: "{{ .ProjectName }}-{{ .Version }}-{{ tolower .Os }}-{{ .Arch }}"
     wrap_in_directory: true
     files: []
 
 dockers:
-  - id: default
-    goos: linux
+  - goos: linux
     goarch: amd64
-    dockerfile: Dockerfile.default
+    dockerfile: Dockerfile
     image_templates:
       - "us-docker.pkg.dev/oplabs-tools-artifacts/images/{{ .ProjectName }}:{{ .Tag }}"
-  - id: minimal
-    goos: linux
-    goarch: amd64
-    dockerfile: Dockerfile.minimal
-    image_templates:
-      - "us-docker.pkg.dev/oplabs-tools-artifacts/images/{{ .ProjectName }}:{{ .Tag }}-minimal"
 
 changelog:
   sort: asc
@@ -61,5 +54,5 @@ release:
   make_latest: false
 
 monorepo:
-  tag_prefix: "{{ .ProjectName }}/"
+  tag_prefix: op-up/
   dir: op-up

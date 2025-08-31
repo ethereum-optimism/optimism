@@ -18,9 +18,10 @@ func GeneratePreState(ctx context.Context, pEnv *Env, globalIntent *state.Intent
 	lgr := pEnv.Logger.New("stage", "generate-pre-state")
 
 	if preStateBuilder == nil {
-		lgr.Warn("preStateBuilder not found - skipping prestate generation")
+		lgr.Debug("preStateBuilder not found, skipping prestate generation")
 		return nil
 	}
+	lgr.Info("preStateBuilder found, proceeding with prestate generation")
 
 	prestateBuilderOpts := []prestate.PrestateBuilderOption{}
 	generateDepSet := false

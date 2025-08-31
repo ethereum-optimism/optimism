@@ -18,6 +18,7 @@
   "log_level" "--log.level=info"
   "log_format" "--log.format=logfmtms"
   "interop_mempool_filtering" "--rollup.interopmempoolfiltering"
+  "experimental_sequencer_api" "--experimental.sequencer-api"
 -}}
 ---
 optimism_package:
@@ -37,6 +38,9 @@ optimism_package:
       extra_params:
       - {{ $flags.log_level }}
       - {{ $flags.log_format }}
+  test-sequencers:
+    sequencer:
+      enabled: true
   chains:
     op-kurtosis1:
       participants:
@@ -63,6 +67,7 @@ optimism_package:
             extra_labels: {}
             extra_params:
               - {{ $flags.log_format }}
+              - {{ $flags.experimental_sequencer_api }}
             tolerations: []
             volume_size: 0
             min_cpu: 0

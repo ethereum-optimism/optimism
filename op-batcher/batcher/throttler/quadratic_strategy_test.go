@@ -21,12 +21,12 @@ const (
 func TestQuadraticStrategy_NewQuadraticStrategy(t *testing.T) {
 	strategy := NewQuadraticStrategy(TestQuadraticThreshold, TestQuadraticMaxThreshold, newTestLogger(t))
 
-	if strategy.threshold != TestQuadraticThreshold {
-		t.Errorf("expected threshold %d, got %d", TestQuadraticThreshold, strategy.threshold)
+	if strategy.lowerThreshold != TestQuadraticThreshold {
+		t.Errorf("expected threshold %d, got %d", TestQuadraticThreshold, strategy.lowerThreshold)
 	}
 
-	if strategy.maxThreshold != TestQuadraticMaxThreshold {
-		t.Errorf("expected maxThreshold %d, got %d", TestQuadraticMaxThreshold, strategy.maxThreshold)
+	if strategy.upperThreshold != TestQuadraticMaxThreshold {
+		t.Errorf("expected maxThreshold %d, got %d", TestQuadraticMaxThreshold, strategy.upperThreshold)
 	}
 
 	// Test initial state
