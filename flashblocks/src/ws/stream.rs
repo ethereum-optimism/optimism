@@ -181,7 +181,7 @@ mod tests {
     use crate::ExecutionPayloadBaseV1;
     use alloy_primitives::bytes::Bytes;
     use brotli::enc::BrotliEncoderParams;
-    use std::future;
+    use std::{future, iter};
     use tokio_tungstenite::tungstenite::{Error, Utf8Bytes};
 
     /// A `FakeConnector` creates [`FakeStream`].
@@ -235,6 +235,21 @@ mod tests {
     impl<T: IntoIterator<Item = Result<Message, Error>>> From<T> for FakeConnector {
         fn from(value: T) -> Self {
             Self(FakeStream(value.into_iter().collect()))
+        }
+    }
+
+    /// Repeatedly fails to connect with the given error message.
+    #[derive(Clone)]
+    struct FailingConnector(String);
+
+    impl WsConnect for FailingConnector {
+        type Stream = FakeStream;
+
+        fn connect(
+            &mut self,
+            _ws_url: Url,
+        ) -> impl Future<Output = eyre::Result<Self::Stream>> + Send + Sync {
+            future::ready(Err(eyre!("{}", &self.0)))
         }
     }
 
@@ -313,5 +328,20 @@ mod tests {
         let expected_messages = vec!["Attack attempt detected".to_owned()];
 
         assert_eq!(actual_messages, expected_messages);
+    }
+
+    #[tokio::test]
+    async fn test_connect_error_causes_retries() {
+        let tries = 3;
+        let error_msg = "test".to_owned();
+        let messages = FailingConnector(error_msg.clone());
+        let ws_url = "http://localhost".parse().unwrap();
+        let stream = WsFlashBlockStream::with_connector(ws_url, messages);
+
+        let actual_errors: Vec<_> =
+            stream.take(tries).map(Result::unwrap_err).map(|e| format!("{e}")).collect().await;
+        let expected_errors: Vec<_> = iter::repeat_n(error_msg, tries).collect();
+
+        assert_eq!(actual_errors, expected_errors);
     }
 }
