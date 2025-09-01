@@ -201,7 +201,10 @@ mod tests {
                     .iter()
                     .map(|v| match v {
                         Ok(msg) => Ok(msg.clone()),
-                        Err(err) => unimplemented!("Cannot clone this error: {err}"),
+                        Err(err) => Err(match err {
+                            Error::AttackAttempt => Error::AttackAttempt,
+                            err => unimplemented!("Cannot clone this error: {err}"),
+                        }),
                     })
                     .collect(),
             )
@@ -295,6 +298,19 @@ mod tests {
             stream.map(Result::unwrap_err).map(|e| format!("{e}")).collect().await;
         let expected_messages =
             vec!["Unexpected websocket message: Text(Utf8Bytes(b\"test\"))".to_owned()];
+
+        assert_eq!(actual_messages, expected_messages);
+    }
+
+    #[tokio::test]
+    async fn test_stream_passes_errors_through() {
+        let messages = FakeConnector::from([Err(Error::AttackAttempt)]);
+        let ws_url = "http://localhost".parse().unwrap();
+        let stream = WsFlashBlockStream::with_connector(ws_url, messages);
+
+        let actual_messages: Vec<_> =
+            stream.map(Result::unwrap_err).map(|e| format!("{e}")).collect().await;
+        let expected_messages = vec!["Attack attempt detected".to_owned()];
 
         assert_eq!(actual_messages, expected_messages);
     }
