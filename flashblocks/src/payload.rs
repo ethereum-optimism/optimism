@@ -27,6 +27,18 @@ pub struct FlashBlock {
     pub metadata: Metadata,
 }
 
+impl FlashBlock {
+    /// Returns the block number of this flashblock.
+    pub const fn block_number(&self) -> u64 {
+        self.metadata.block_number
+    }
+
+    /// Returns the first parent hash of this flashblock.
+    pub fn parent_hash(&self) -> Option<B256> {
+        Some(self.base.as_ref()?.parent_hash)
+    }
+}
+
 /// Provides metadata about the block that may be useful for indexing or analysis.
 #[derive(Default, Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
 pub struct Metadata {

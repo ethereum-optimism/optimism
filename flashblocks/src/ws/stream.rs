@@ -1,5 +1,4 @@
 use crate::FlashBlock;
-use eyre::eyre;
 use futures_util::{stream::SplitStream, FutureExt, Stream, StreamExt};
 use std::{
     fmt::{Debug, Formatter},
@@ -13,6 +12,7 @@ use tokio_tungstenite::{
     tungstenite::{Error, Message},
     MaybeTlsStream, WebSocketStream,
 };
+use tracing::debug;
 use url::Url;
 
 /// An asynchronous stream of [`FlashBlock`] from a websocket connection.
@@ -78,17 +78,27 @@ where
             }
         }
 
-        let msg = ready!(self
-            .stream
-            .as_mut()
-            .expect("Stream state should be unreachable without stream")
-            .poll_next_unpin(cx));
+        loop {
+            let Some(msg) = ready!(self
+                .stream
+                .as_mut()
+                .expect("Stream state should be unreachable without stream")
+                .poll_next_unpin(cx))
+            else {
+                return Poll::Ready(None);
+            };
 
-        Poll::Ready(msg.map(|msg| match msg {
-            Ok(Message::Binary(bytes)) => FlashBlock::decode(bytes),
-            Ok(msg) => Err(eyre!("Unexpected websocket message: {msg:?}")),
-            Err(err) => Err(err.into()),
-        }))
+            match msg {
+                Ok(Message::Binary(bytes)) => return Poll::Ready(Some(FlashBlock::decode(bytes))),
+                Ok(Message::Ping(_) | Message::Pong(_)) => {
+                    // can ginore for now
+                }
+                Ok(msg) => {
+                    debug!("Received unexpected message: {:?}", msg);
+                }
+                Err(err) => return Poll::Ready(Some(Err(err.into()))),
+            }
+        }
     }
 }
 
@@ -249,7 +259,7 @@ mod tests {
             &mut self,
             _ws_url: Url,
         ) -> impl Future<Output = eyre::Result<Self::Stream>> + Send + Sync {
-            future::ready(Err(eyre!("{}", &self.0)))
+            future::ready(Err(eyre::eyre!("{}", &self.0)))
         }
     }
 
@@ -304,17 +314,11 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_stream_fails_to_decode_non_binary_message() {
+    async fn test_stream_ignores_non_binary_message() {
         let messages = FakeConnector::from([Ok(Message::Text(Utf8Bytes::from("test")))]);
         let ws_url = "http://localhost".parse().unwrap();
-        let stream = WsFlashBlockStream::with_connector(ws_url, messages);
-
-        let actual_messages: Vec<_> =
-            stream.map(Result::unwrap_err).map(|e| format!("{e}")).collect().await;
-        let expected_messages =
-            vec!["Unexpected websocket message: Text(Utf8Bytes(b\"test\"))".to_owned()];
-
-        assert_eq!(actual_messages, expected_messages);
+        let mut stream = WsFlashBlockStream::with_connector(ws_url, messages);
+        assert!(stream.next().await.is_none());
     }
 
     #[tokio::test]

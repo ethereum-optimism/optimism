@@ -4,6 +4,7 @@ use alloy_rpc_types_engine::PayloadId;
 use serde::{Deserialize, Serialize};
 use std::{fmt::Debug, io};
 
+/// Internal helper for decoding
 #[derive(Clone, Debug, PartialEq, Default, Deserialize, Serialize)]
 struct FlashblocksPayloadV1 {
     /// The payload id of the flashblock
