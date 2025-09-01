@@ -1,5 +1,5 @@
 use crate::{ExecutionPayloadBaseV1, FlashBlock};
-use alloy_eips::{eip2718::WithEncoded, BlockNumberOrTag, Decodable2718};
+use alloy_eips::{eip2718::WithEncoded, BlockNumberOrTag};
 use alloy_primitives::B256;
 use futures_util::{FutureExt, Stream, StreamExt};
 use reth_chain_state::{CanonStateNotifications, CanonStateSubscriptions, ExecutedBlock};
@@ -10,7 +10,7 @@ use reth_evm::{
 };
 use reth_execution_types::ExecutionOutcome;
 use reth_primitives_traits::{
-    AlloyBlockHeader, BlockTy, HeaderTy, NodePrimitives, ReceiptTy, SignedTransaction,
+    AlloyBlockHeader, BlockTy, HeaderTy, NodePrimitives, ReceiptTy, Recovered, SignedTransaction,
 };
 use reth_revm::{cached::CachedReads, database::StateProviderDatabase, db::State};
 use reth_rpc_eth_types::{EthApiError, PendingBlock};
@@ -36,7 +36,7 @@ pub struct FlashBlockService<
 > {
     rx: S,
     current: Option<PendingBlock<N>>,
-    blocks: FlashBlockSequence,
+    blocks: FlashBlockSequence<N::SignedTx>,
     evm_config: EvmConfig,
     provider: Provider,
     canon_receiver: CanonStateNotifications<N>,
@@ -47,19 +47,18 @@ pub struct FlashBlockService<
     cached_state: Option<(B256, CachedReads)>,
 }
 
-impl<
-        N: NodePrimitives,
-        S,
-        EvmConfig: ConfigureEvm<Primitives = N, NextBlockEnvCtx: From<ExecutionPayloadBaseV1> + Unpin>,
-        Provider: StateProviderFactory
-            + CanonStateSubscriptions<Primitives = N>
-            + BlockReaderIdExt<
-                Header = HeaderTy<N>,
-                Block = BlockTy<N>,
-                Transaction = N::SignedTx,
-                Receipt = ReceiptTy<N>,
-            >,
-    > FlashBlockService<N, S, EvmConfig, Provider>
+impl<N, S, EvmConfig, Provider> FlashBlockService<N, S, EvmConfig, Provider>
+where
+    N: NodePrimitives,
+    EvmConfig: ConfigureEvm<Primitives = N, NextBlockEnvCtx: From<ExecutionPayloadBaseV1> + Unpin>,
+    Provider: StateProviderFactory
+        + CanonStateSubscriptions<Primitives = N>
+        + BlockReaderIdExt<
+            Header = HeaderTy<N>,
+            Block = BlockTy<N>,
+            Transaction = N::SignedTx,
+            Receipt = ReceiptTy<N>,
+        >,
 {
     /// Constructs a new `FlashBlockService` that receives [`FlashBlock`]s from `rx` stream.
     pub fn new(rx: S, evm_config: EvmConfig, provider: Provider) -> Self {
@@ -129,12 +128,7 @@ impl<
 
         builder.apply_pre_execution_changes()?;
 
-        let transactions = self.blocks.iter_ready().flat_map(|v| v.diff.transactions.clone());
-
-        for encoded in transactions {
-            let tx = N::SignedTx::decode_2718_exact(encoded.as_ref())?;
-            let signer = tx.try_recover()?;
-            let tx = WithEncoded::new(encoded, tx.with_signer(signer));
+        for tx in self.blocks.ready_transactions() {
             let _gas_used = builder.execute_transaction(tx)?;
         }
 
@@ -186,8 +180,11 @@ where
         while let Poll::Ready(Some(result)) = this.rx.poll_next_unpin(cx) {
             match result {
                 Ok(flashblock) => {
-                    new_flashblock = true;
-                    this.blocks.insert(flashblock)
+                    if let Err(err) = this.blocks.insert(flashblock) {
+                        debug!(%err, "Failed to prepare flashblock");
+                    } else {
+                        new_flashblock = true;
+                    }
                 }
                 Err(err) => return Poll::Ready(Some(Err(err))),
             }
@@ -234,15 +231,18 @@ where
 
 /// Simple wrapper around an ordered B-tree to keep track of a sequence of flashblocks by index.
 #[derive(Debug)]
-struct FlashBlockSequence {
+struct FlashBlockSequence<T> {
     /// tracks the individual flashblocks in order
     ///
     /// With a blocktime of 2s and flashblock tickrate of ~200ms, we expect 10 or 11 flashblocks
     /// per slot.
-    inner: BTreeMap<u64, FlashBlock>,
+    inner: BTreeMap<u64, PreparedFlashBlock<T>>,
 }
 
-impl FlashBlockSequence {
+impl<T> FlashBlockSequence<T>
+where
+    T: SignedTransaction,
+{
     const fn new() -> Self {
         Self { inner: BTreeMap::new() }
     }
@@ -250,22 +250,24 @@ impl FlashBlockSequence {
     /// Inserts a new block into the sequence.
     ///
     /// A [`FlashBlock`] with index 0 resets the set.
-    fn insert(&mut self, flashblock: FlashBlock) {
+    fn insert(&mut self, flashblock: FlashBlock) -> eyre::Result<()> {
         if flashblock.index == 0 {
             trace!(number=%flashblock.block_number(), "Tracking new flashblock sequence");
             // Flash block at index zero resets the whole state
             self.clear();
-            self.inner.insert(flashblock.index, flashblock);
-            return
+            self.inner.insert(flashblock.index, PreparedFlashBlock::new(flashblock)?);
+            return Ok(())
         }
 
         // only insert if we we previously received the same block, assume we received index 0
         if self.block_number() == Some(flashblock.metadata.block_number) {
             trace!(number=%flashblock.block_number(), index = %flashblock.index, block_count = self.inner.len()  ,"Received followup flashblock");
-            self.inner.insert(flashblock.index, flashblock);
+            self.inner.insert(flashblock.index, PreparedFlashBlock::new(flashblock)?);
         } else {
             trace!(number=%flashblock.block_number(), index = %flashblock.index, current=?self.block_number()  ,"Ignoring untracked flashblock following");
         }
+
+        Ok(())
     }
 
     /// Returns the number of tracked flashblocks.
@@ -275,32 +277,66 @@ impl FlashBlockSequence {
 
     /// Returns the first block number
     fn block_number(&self) -> Option<u64> {
-        Some(self.inner.values().next()?.metadata.block_number)
+        Some(self.inner.values().next()?.block().metadata.block_number)
     }
 
     /// Returns the payload base of the first tracked flashblock.
     fn payload_base(&self) -> Option<ExecutionPayloadBaseV1> {
-        self.inner.values().next()?.base.clone()
+        self.inner.values().next()?.block().base.clone()
     }
 
     fn clear(&mut self) {
         self.inner.clear();
     }
 
-    /// Iterator over sequence of ready flashblocks
+    /// Iterator over sequence of executable transactions.
     ///
     /// A flashblocks is not ready if there's missing previous flashblocks, i.e. there's a gap in
     /// the sequence
     ///
     /// Note: flashblocks start at `index 0`.
-    fn iter_ready(&self) -> impl Iterator<Item = &FlashBlock> {
+    fn ready_transactions(&self) -> impl Iterator<Item = WithEncoded<Recovered<T>>> + '_ {
         self.inner
             .values()
             .enumerate()
             .take_while(|(idx, block)| {
                 // flashblock index 0 is the first flashblock
-                block.index == *idx as u64
+                block.block().index == *idx as u64
             })
-            .map(|(_, block)| block)
+            .flat_map(|(_, block)| block.txs.clone())
+    }
+}
+
+#[derive(Debug)]
+struct PreparedFlashBlock<T> {
+    /// The prepared transactions, ready for execution
+    txs: Vec<WithEncoded<Recovered<T>>>,
+    /// The tracked flashblock
+    block: FlashBlock,
+}
+
+impl<T> PreparedFlashBlock<T> {
+    const fn block(&self) -> &FlashBlock {
+        &self.block
+    }
+}
+
+impl<T> PreparedFlashBlock<T>
+where
+    T: SignedTransaction,
+{
+    /// Creates a flashblock that is ready for execution by preparing all transactions
+    ///
+    /// Returns an error if decoding or signer recovery fails.
+    fn new(block: FlashBlock) -> eyre::Result<Self> {
+        let mut txs = Vec::with_capacity(block.diff.transactions.len());
+        for encoded in block.diff.transactions.iter().cloned() {
+            let tx = T::decode_2718_exact(encoded.as_ref())?;
+            let signer = tx.try_recover()?;
+            let tx = WithEncoded::new(encoded, tx.with_signer(signer));
+            txs.push(tx);
+        }
+
+        Ok(Self { txs, block })
     }
 }
