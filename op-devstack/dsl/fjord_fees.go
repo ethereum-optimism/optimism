@@ -1,6 +1,7 @@
 package dsl
 
 import (
+	"context"
 	"math/big"
 
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
@@ -10,6 +11,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/predeploys"
 	"github.com/ethereum-optimism/optimism/op-service/txintent/bindings"
 	"github.com/ethereum-optimism/optimism/op-service/txintent/contractio"
+	"github.com/ethereum-optimism/optimism/op-service/txplan"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 )
@@ -194,16 +196,22 @@ func (ff *FjordFees) validateFjordFeatures(receipt *types.Receipt, l1Fee *big.In
 		bindings.WithTo(predeploys.L1BlockAddr),
 		bindings.WithTest(ff.t))
 
-	baseFeeScalar, err := contractio.Read(l1Block.BasefeeScalar(), ff.ctx)
+	overrideBlockOpt := func(ptx *txplan.PlannedTx) {
+		ptx.AgainstBlock.Fn(func(ctx context.Context) (eth.BlockInfo, error) {
+			return client.InfoByHash(ctx, receipt.BlockHash)
+		})
+	}
+
+	baseFeeScalar, err := contractio.Read(l1Block.BasefeeScalar(), ff.ctx, overrideBlockOpt)
 	ff.require.NoError(err, "should get base fee scalar")
 
-	l1BaseFee, err := contractio.Read(l1Block.Basefee(), ff.ctx)
+	l1BaseFee, err := contractio.Read(l1Block.Basefee(), ff.ctx, overrideBlockOpt)
 	ff.require.NoError(err, "should get L1 base fee")
 
-	blobBaseFeeScalar, err := contractio.Read(l1Block.BlobBaseFeeScalar(), ff.ctx)
+	blobBaseFeeScalar, err := contractio.Read(l1Block.BlobBaseFeeScalar(), ff.ctx, overrideBlockOpt)
 	ff.require.NoError(err, "should get blob base fee scalar")
 
-	blobBaseFee, err := contractio.Read(l1Block.BlobBaseFee(), ff.ctx)
+	blobBaseFee, err := contractio.Read(l1Block.BlobBaseFee(), ff.ctx, overrideBlockOpt)
 	ff.require.NoError(err, "should get blob base fee")
 
 	costFunc := types.NewL1CostFuncFjord(

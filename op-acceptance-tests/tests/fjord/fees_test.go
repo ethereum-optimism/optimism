@@ -12,6 +12,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/predeploys"
 	txib "github.com/ethereum-optimism/optimism/op-service/txintent/bindings"
 	"github.com/ethereum-optimism/optimism/op-service/txintent/contractio"
+	"github.com/ethereum/go-ethereum/core/types"
 )
 
 func TestFees(gt *testing.T) {
@@ -39,8 +40,32 @@ func TestFees(gt *testing.T) {
 		txib.WithTest(t),
 	)
 
-	txBytes := make([]byte, 100)
-	gpoL1Fee, err := contractio.Read(gpo.GetL1Fee(txBytes), ctx)
+	_, txs, err := l2Client.InfoAndTxsByHash(ctx, result.TransactionReceipt.BlockHash)
+	require.NoError(err)
+
+	var signedTx *types.Transaction
+	for _, tx := range txs {
+		if tx.Hash() == result.TransactionReceipt.TxHash {
+			signedTx = tx
+			break
+		}
+	}
+	require.NotNil(signedTx)
+
+	unsignedTx := types.NewTx(&types.DynamicFeeTx{
+		Nonce:     signedTx.Nonce(),
+		To:        signedTx.To(),
+		Value:     signedTx.Value(),
+		Gas:       signedTx.Gas(),
+		GasFeeCap: signedTx.GasFeeCap(),
+		GasTipCap: signedTx.GasTipCap(),
+		Data:      signedTx.Data(),
+	})
+
+	txUnsigned, err := unsignedTx.MarshalBinary()
+	require.NoError(err)
+
+	gpoL1Fee, err := contractio.Read(gpo.GetL1Fee(txUnsigned), ctx)
 	require.NoError(err)
 	require.Equal(result.L1Fee, gpoL1Fee.ToBig())
 }
