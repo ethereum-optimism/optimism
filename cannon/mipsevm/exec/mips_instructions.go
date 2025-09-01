@@ -697,6 +697,11 @@ func UpdateSubWord(vaddr Word, memWord Word, byteLength Word, value Word) Word {
 }
 
 func calculateSubWordMaskAndOffset(vaddr Word, byteLength Word) (dataMask, bitOffset, bitLength Word) {
+	// Validate byteLength to prevent potential issues
+	if byteLength == 0 || byteLength > arch.WordSizeBytes || (byteLength&(byteLength-1)) != 0 {
+		panic(fmt.Sprintf("invalid byteLength: %d, must be power of 2 and <= %d", byteLength, arch.WordSizeBytes))
+	}
+
 	bitLength = byteLength << 3
 	dataMask = ^Word(0) >> (arch.WordSize - bitLength)
 
@@ -704,6 +709,12 @@ func calculateSubWordMaskAndOffset(vaddr Word, byteLength Word) (dataMask, bitOf
 	byteIndexMask := vaddr & arch.ExtMask & ^(byteLength - 1)
 	maxByteShift := arch.WordSizeBytes - byteLength
 	byteIndex := vaddr & byteIndexMask
+
+	// Ensure byteIndex doesn't exceed maxByteShift to prevent negative bitOffset
+	if byteIndex > maxByteShift {
+		byteIndex = maxByteShift
+	}
+
 	bitOffset = (maxByteShift - byteIndex) << 3
 
 	return dataMask, bitOffset, bitLength
