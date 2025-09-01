@@ -1178,7 +1178,6 @@ jobs:
         description: The gate to run the acceptance tests against. This gate should be defined in op-acceptance-tests/acceptance-tests.yaml.
         type: string
         default: ""
-
       no_output_timeout:
         description: Timeout for when CircleCI kills the job if there's no output
         type: string
@@ -1255,7 +1254,7 @@ jobs:
             else
               echo "Running in gate mode (gate=<<parameters.gate>>)"
             fi
-            LOG_LEVEL=debug just acceptance-test "<<parameters.devnet>>" "<<parameters.gate>>"
+            LOG_LEVEL=info just acceptance-test "<<parameters.devnet>>" "<<parameters.gate>>"
       - run:
           name: Print results (summary)
           working_directory: op-acceptance-tests
@@ -2484,7 +2483,7 @@ workflows:
       - op-acceptance-tests:
           name: memory-all
           gate: ""  # Empty gate = gateless mode
-          no_output_timeout: 60m
+          no_output_timeout: 90m
           context:
             - circleci-repo-readonly-authenticated-github-token
             - discord
