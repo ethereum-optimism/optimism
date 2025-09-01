@@ -1,4 +1,4 @@
-use crate::{ExecutionPayloadBaseV1, FlashBlockService, FlashBlockWsStream};
+use crate::{ExecutionPayloadBaseV1, FlashBlockService, WsFlashBlockStream};
 use futures_util::StreamExt;
 use reth_chain_state::CanonStateSubscriptions;
 use reth_evm::ConfigureEvm;
@@ -39,7 +39,7 @@ where
         > + Unpin
         + 'static,
 {
-    let stream = FlashBlockWsStream::new(ws_url);
+    let stream = WsFlashBlockStream::new(ws_url);
     let mut service = FlashBlockService::new(stream, evm_config, provider);
     let (tx, rx) = watch::channel(None);
 

@@ -5,7 +5,7 @@ pub use payload::{
     ExecutionPayloadBaseV1, ExecutionPayloadFlashblockDeltaV1, FlashBlock, Metadata,
 };
 pub use service::FlashBlockService;
-pub use ws::FlashBlockWsStream;
+pub use ws::{WsConnect, WsFlashBlockStream};
 
 mod app;
 mod payload;
