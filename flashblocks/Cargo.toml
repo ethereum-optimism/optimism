@@ -46,3 +46,4 @@ tracing.workspace = true
 eyre.workspace = true
 
 [dev-dependencies]
+test-case.workspace = true
