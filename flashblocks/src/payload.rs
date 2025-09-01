@@ -37,7 +37,7 @@ pub struct Metadata {
     pub new_account_balances: BTreeMap<Address, U256>,
     /// Execution receipts for all transactions in the block.
     /// Contains logs, gas usage, and other EVM-level metadata.
-    pub receipts: BTreeMap<B256, BTreeMap<String, OpReceipt>>,
+    pub receipts: BTreeMap<B256, OpReceipt>,
 }
 
 /// Represents the base configuration of an execution payload that remains constant

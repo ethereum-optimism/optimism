@@ -32,7 +32,7 @@ alloy-rpc-types-engine = { workspace = true, features = ["serde"] }
 
 # io
 tokio.workspace = true
-tokio-tungstenite.workspace = true
+tokio-tungstenite = { workspace = true, features = ["rustls-tls-native-roots"] }
 serde.workspace = true
 serde_json.workspace = true
 url.workspace = true
