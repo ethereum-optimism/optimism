@@ -26,7 +26,7 @@ import { IETHLockbox } from "interfaces/L1/IETHLockbox.sol";
 import { IOPContractsManagerStandardValidator } from "interfaces/L1/IOPContractsManagerStandardValidator.sol";
 
 interface IOPContractsManagerContractsContainer {
-    error DevFeatureInProd();
+    error OPContractsManagerContractsContainer_DevFeatureInProd();
 
     function __constructor__(
         IOPContractsManager.Blueprints memory _blueprints,

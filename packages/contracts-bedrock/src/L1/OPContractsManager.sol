@@ -52,7 +52,7 @@ contract OPContractsManagerContractsContainer {
     bytes32 public immutable devFeatureBitmap;
 
     /// @notice Thrown when a development feature is enabled in production.
-    error DevFeatureInProd();
+    error OPContractsManagerContractsContainer_DevFeatureInProd();
 
     /// @param _blueprints The blueprint contract addresses.
     /// @param _implementations The implementation contract addresses.
@@ -68,7 +68,7 @@ contract OPContractsManagerContractsContainer {
 
         // Development features MUST NOT be enabled on Mainnet.
         if (block.chainid == 1 && !_isTestingEnvironment() && uint256(_devFeatureBitmap) != 0) {
-            revert DevFeatureInProd();
+            revert OPContractsManagerContractsContainer_DevFeatureInProd();
         }
     }
 
