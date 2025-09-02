@@ -42,7 +42,7 @@ contract Predeploys_TestInit is CommonTest {
     }
 
     /// @notice Internal test function for predeploys validation across different forks.
-    function _test_predeploys(Fork _fork, bool _enableCrossL2Inbox) internal {
+    function _test_predeploys(Fork _fork, bool _enableCrossL2Inbox, bool _isCustomGasToken) internal {
         uint256 count = 2048;
         uint160 prefix = uint160(0x420) << 148;
 
@@ -57,7 +57,8 @@ contract Predeploys_TestInit is CommonTest {
                 continue;
             }
 
-            bool isPredeploy = Predeploys.isSupportedPredeploy(addr, uint256(_fork), _enableCrossL2Inbox);
+            bool isPredeploy =
+                Predeploys.isSupportedPredeploy(addr, uint256(_fork), _enableCrossL2Inbox, _isCustomGasToken);
 
             bytes memory code = addr.code;
             if (isPredeploy) assertTrue(code.length > 0);
@@ -133,7 +134,7 @@ contract Predeploys_Unclassified_Test is Predeploys_TestInit {
     /// @notice Tests that the predeploy addresses are set correctly. They have code
     ///         and the proxied accounts have the correct admin.
     function test_predeploys_succeeds() external {
-        _test_predeploys(Fork.ISTHMUS, false);
+        _test_predeploys(Fork.ISTHMUS, false, false);
     }
 }
 
@@ -150,12 +151,28 @@ contract Predeploys_UnclassifiedInterop_Test is Predeploys_TestInit {
     /// @notice Tests that the predeploy addresses are set correctly. They have code and the
     ///         proxied accounts have the correct admin. Using interop with inbox.
     function test_predeploysWithInbox_succeeds() external {
-        _test_predeploys(Fork.INTEROP, true);
+        _test_predeploys(Fork.INTEROP, true, false);
     }
 
     /// @notice Tests that the predeploy addresses are set correctly. They have code and the
     ///         proxied accounts have the correct admin. Using interop without inbox.
     function test_predeploysWithoutInbox_succeeds() external {
-        _test_predeploys(Fork.INTEROP, false);
+        _test_predeploys(Fork.INTEROP, false, false);
+    }
+}
+
+/// @title Predeploys_CustomGasToken_Test
+/// @notice Tests the `Predeploys` contract with custom gas token.
+contract Predeploys_CustomGasToken_Test is Predeploys_TestInit {
+    /// @notice Test setup. Enabling custom gas token.
+    function setUp() public virtual override {
+        super.enableCustomGasToken();
+        super.setUp();
+    }
+
+    /// @notice Tests that the predeploy addresses are set correctly. They have code and the
+    ///         proxied accounts have the correct admin. Using custom gas token.
+    function test_predeploysWithCustomGasToken_succeeds() external {
+        _test_predeploys(Fork.ISTHMUS, false, true);
     }
 }

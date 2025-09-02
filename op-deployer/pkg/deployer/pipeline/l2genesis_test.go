@@ -53,6 +53,9 @@ func TestCalculateL2GenesisOverrides(t *testing.T) {
 				SequencerFeeVaultWithdrawalNetwork:       "local",
 				EnableGovernance:                         false,
 				GovernanceTokenOwner:                     standard.GovernanceTokenOwner,
+				IsCustomGasToken:                         false,
+				GasPayingTokenName:                       "Custom Gas Token",
+				GasPayingTokenSymbol:                     "CGT",
 			},
 			expectedSchedule: func() *genesis.UpgradeScheduleDeployConfig {
 				return standard.DefaultHardforkScheduleForTag("")
@@ -73,6 +76,9 @@ func TestCalculateL2GenesisOverrides(t *testing.T) {
 					"enableGovernance":                         true,
 					"governanceTokenOwner":                     "0x1111111111111111111111111111111111111111",
 					"l2GenesisInteropTimeOffset":               "0x1234",
+					"isCustomGasToken":                         false,
+					"gasPayingTokenName":                       "Custom Gas Token",
+					"gasPayingTokenSymbol":                     "CGT",
 				},
 			},
 			chainIntent: &state.ChainIntent{},
@@ -87,6 +93,9 @@ func TestCalculateL2GenesisOverrides(t *testing.T) {
 				SequencerFeeVaultWithdrawalNetwork:       "remote",
 				EnableGovernance:                         true,
 				GovernanceTokenOwner:                     common.HexToAddress("0x1111111111111111111111111111111111111111"),
+				IsCustomGasToken:                         false,
+				GasPayingTokenName:                       "Custom Gas Token",
+				GasPayingTokenSymbol:                     "CGT",
 			},
 			expectedSchedule: func() *genesis.UpgradeScheduleDeployConfig {
 				sched := standard.DefaultHardforkScheduleForTag("")
@@ -114,6 +123,9 @@ func TestCalculateL2GenesisOverrides(t *testing.T) {
 					"enableGovernance":                         true,
 					"governanceTokenOwner":                     "0x1111111111111111111111111111111111111111",
 					"l2GenesisInteropTimeOffset":               "0x1234",
+					"isCustomGasToken":                         false,
+					"gasPayingTokenName":                       "Custom Gas Token",
+					"gasPayingTokenSymbol":                     "CGT",
 				},
 			},
 			expectError: false,
@@ -127,6 +139,9 @@ func TestCalculateL2GenesisOverrides(t *testing.T) {
 				SequencerFeeVaultWithdrawalNetwork:       "remote",
 				EnableGovernance:                         true,
 				GovernanceTokenOwner:                     common.HexToAddress("0x1111111111111111111111111111111111111111"),
+				IsCustomGasToken:                         false,
+				GasPayingTokenName:                       "Custom Gas Token",
+				GasPayingTokenSymbol:                     "CGT",
 			},
 			expectedSchedule: func() *genesis.UpgradeScheduleDeployConfig {
 				sched := standard.DefaultHardforkScheduleForTag("")

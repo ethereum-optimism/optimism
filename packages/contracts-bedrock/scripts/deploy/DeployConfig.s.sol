@@ -74,7 +74,7 @@ contract DeployConfig is Script {
     uint256 public daResolveWindow;
     uint256 public daBondSize;
     uint256 public daResolverRefundPercentage;
-
+    bool public isCustomGasToken;
     bool public useInterop;
     bool public useUpgradedFork;
 
@@ -119,6 +119,7 @@ contract DeployConfig is Script {
         l2GenesisBlockGasLimit = stdJson.readUint(_json, "$.l2GenesisBlockGasLimit");
         basefeeScalar = uint32(_readOr(_json, "$.gasPriceOracleBaseFeeScalar", 1368));
         blobbasefeeScalar = uint32(_readOr(_json, "$.gasPriceOracleBlobBaseFeeScalar", 810949));
+        isCustomGasToken = _readOr(_json, "$.isCustomGasToken", false);
 
         enableGovernance = _readOr(_json, "$.enableGovernance", false);
         systemConfigStartBlock = stdJson.readUint(_json, "$.systemConfigStartBlock");
@@ -215,6 +216,26 @@ contract DeployConfig is Script {
     ///      system be deployed in setUp().
     function setUseUpgradedFork(bool _useUpgradedFork) public {
         useUpgradedFork = _useUpgradedFork;
+    }
+
+    /// @notice Allow the `isCustomGasToken` config to be overridden in testing environments
+    function setIsCustomGasToken(bool _isCustomGasToken) public {
+        isCustomGasToken = _isCustomGasToken;
+    }
+
+    /// @notice Allow the `baseFeeVaultWithdrawalNetwork` config to be overridden in testing environments
+    function setBaseFeeVaultWithdrawalNetwork(uint256 _baseFeeVaultWithdrawalNetwork) public {
+        baseFeeVaultWithdrawalNetwork = _baseFeeVaultWithdrawalNetwork;
+    }
+
+    /// @notice Allow the `l1FeeVaultWithdrawalNetwork` config to be overridden in testing environments
+    function setL1FeeVaultWithdrawalNetwork(uint256 _l1FeeVaultWithdrawalNetwork) public {
+        l1FeeVaultWithdrawalNetwork = _l1FeeVaultWithdrawalNetwork;
+    }
+
+    /// @notice Allow the `sequencerFeeVaultWithdrawalNetwork` config to be overridden in testing environments
+    function setSequencerFeeVaultWithdrawalNetwork(uint256 _sequencerFeeVaultWithdrawalNetwork) public {
+        sequencerFeeVaultWithdrawalNetwork = _sequencerFeeVaultWithdrawalNetwork;
     }
 
     function latestGenesisFork() internal view returns (Fork) {

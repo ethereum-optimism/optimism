@@ -2,6 +2,8 @@
 pragma solidity ^0.8.0;
 
 interface IL2ToL1MessagePasser {
+    error NotAllowedOnCGTMode();
+
     event MessagePassed(
         uint256 indexed nonce,
         address indexed sender,

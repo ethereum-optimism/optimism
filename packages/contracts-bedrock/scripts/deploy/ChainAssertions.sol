@@ -91,6 +91,8 @@ library ChainAssertions {
             require(config.l1StandardBridge() == _contracts.L1StandardBridge, "CHECK-SCFG-180");
             require(config.optimismPortal() == _contracts.OptimismPortal, "CHECK-SCFG-200");
             require(config.optimismMintableERC20Factory() == _contracts.OptimismMintableERC20Factory, "CHECK-SCFG-210");
+            // Check custom gas token
+            require(config.isCustomGasToken() == _doi.isCustomGasToken(), "CHECK-SCFG-220");
         } else {
             require(config.owner() == address(0), "CHECK-SCFG-220");
             require(config.overhead() == 0, "CHECK-SCFG-230");

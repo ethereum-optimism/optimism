@@ -8,15 +8,10 @@ import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
 import { IProxyAdminOwnedBase } from "interfaces/L1/IProxyAdminOwnedBase.sol";
 
 interface IL1CrossDomainMessenger is ICrossDomainMessenger, IProxyAdminOwnedBase {
-
     error ReinitializableBase_ZeroInitVersion();
 
     function PORTAL() external view returns (IOptimismPortal);
-    function initialize(
-        ISystemConfig _systemConfig,
-        IOptimismPortal _portal
-    )
-        external;
+    function initialize(ISystemConfig _systemConfig, IOptimismPortal _portal) external;
     function initVersion() external view returns (uint8);
     function portal() external view returns (IOptimismPortal);
     function systemConfig() external view returns (ISystemConfig);

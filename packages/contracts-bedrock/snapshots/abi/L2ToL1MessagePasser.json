@@ -152,5 +152,10 @@
     ],
     "name": "WithdrawerBalanceBurnt",
     "type": "event"
+  },
+  {
+    "inputs": [],
+    "name": "NotAllowedOnCGTMode",
+    "type": "error"
   }
 ]

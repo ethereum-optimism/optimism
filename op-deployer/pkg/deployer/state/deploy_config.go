@@ -71,6 +71,12 @@ func CombineDeployConfig(intent *Intent, chainIntent *ChainIntent, state *State,
 				EIP1559Elasticity:        chainIntent.Eip1559Elasticity,
 			},
 
+			GasTokenDeployConfig: genesis.GasTokenDeployConfig{
+				IsCustomGasToken:     chainIntent.CustomGasToken.Enabled,
+				GasPayingTokenName:   chainIntent.CustomGasToken.Name,
+				GasPayingTokenSymbol: chainIntent.CustomGasToken.Symbol,
+			},
+
 			// STOP! This struct sets the _default_ upgrade schedule for all chains.
 			// Any upgrades you enable here will be enabled for all new deployments.
 			// In-development hardforks should never be activated here. Instead, they

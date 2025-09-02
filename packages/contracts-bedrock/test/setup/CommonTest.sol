@@ -34,6 +34,7 @@ contract CommonTest is Test, Setup, Events {
 
     bool useAltDAOverride;
     bool useInteropOverride;
+    bool useCustomGasToken;
 
     /// @dev This value is only used in forked tests. During forked tests, the default is to perform the upgrade before
     ///      running the tests.
@@ -68,6 +69,12 @@ contract CommonTest is Test, Setup, Events {
         }
         if (useUpgradedFork) {
             deploy.cfg().setUseUpgradedFork(true);
+        }
+        if (useCustomGasToken) {
+            deploy.cfg().setIsCustomGasToken(true);
+            deploy.cfg().setBaseFeeVaultWithdrawalNetwork(1);
+            deploy.cfg().setL1FeeVaultWithdrawalNetwork(1);
+            deploy.cfg().setSequencerFeeVaultWithdrawalNetwork(1);
         }
 
         if (isForkTest()) {
@@ -202,5 +209,10 @@ contract CommonTest is Test, Setup, Events {
         _checkNotDeployed("non-upgraded fork");
 
         useUpgradedFork = false;
+    }
+
+    function enableCustomGasToken() public {
+        _checkNotDeployed("custom gas token");
+        useCustomGasToken = true;
     }
 }

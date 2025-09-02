@@ -87,6 +87,17 @@ func TestValidateStandardValues(t *testing.T) {
 			},
 			ErrIncompatibleValue,
 		},
+		{
+			"CustomGasToken",
+			func(intent *Intent) {
+				intent.Chains[0].CustomGasToken = &CustomGasToken{
+					Enabled: true,
+					Name:    "Custom Gas Token",
+					Symbol:  "CGT",
+				}
+			},
+			ErrNonStandardValue,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -131,6 +142,10 @@ func TestValidateCustomValues(t *testing.T) {
 	err = intent.Check()
 	require.NoError(t, err)
 
+	setCustomGasToken(&intent)
+	err = intent.Check()
+	require.NoError(t, err)
+
 	tests := []struct {
 		name    string
 		mutator func(intent *Intent)
@@ -152,6 +167,28 @@ func TestValidateCustomValues(t *testing.T) {
 			func(intent *Intent) {
 				intent.OPCMAddress = nil
 				intent.SuperchainRoles = nil
+			},
+			ErrIncompatibleValue,
+		},
+		{
+			"empty custom gas token name when enabled",
+			func(intent *Intent) {
+				intent.Chains[0].CustomGasToken = &CustomGasToken{
+					Enabled: true,
+					Name:    "",
+					Symbol:  "CGT",
+				}
+			},
+			ErrIncompatibleValue,
+		},
+		{
+			"empty custom gas token symbol when enabled",
+			func(intent *Intent) {
+				intent.Chains[0].CustomGasToken = &CustomGasToken{
+					Enabled: true,
+					Name:    "Custom Gas Token",
+					Symbol:  "",
+				}
 			},
 			ErrIncompatibleValue,
 		},
@@ -210,4 +247,12 @@ func setFeeAddresses(intent *Intent) {
 	intent.Chains[0].BaseFeeVaultRecipient = common.HexToAddress("0x08")
 	intent.Chains[0].L1FeeVaultRecipient = common.HexToAddress("0x09")
 	intent.Chains[0].SequencerFeeVaultRecipient = common.HexToAddress("0x0A")
+}
+
+func setCustomGasToken(intent *Intent) {
+	intent.Chains[0].CustomGasToken = &CustomGasToken{
+		Enabled: true,
+		Name:    "Custom Gas Token",
+		Symbol:  "CGT",
+	}
 }

@@ -1077,7 +1077,7 @@ contract OPContractsManagerDeployer is OPContractsManagerBase {
             output.opChainProxyAdmin, address(output.l1ERC721BridgeProxy), implementation.l1ERC721BridgeImpl, data
         );
 
-        data = encodeOptimismPortalInitializer(output);
+        data = encodeOptimismPortalInitializer(output, _input);
         upgradeToAndCall(
             output.opChainProxyAdmin, address(output.optimismPortalProxy), implementation.optimismPortalImpl, data
         );
@@ -1229,7 +1229,10 @@ contract OPContractsManagerDeployer is OPContractsManagerBase {
     }
 
     /// @notice Helper method for encoding the OptimismPortal initializer data.
-    function encodeOptimismPortalInitializer(OPContractsManager.DeployOutput memory _output)
+    function encodeOptimismPortalInitializer(
+        OPContractsManager.DeployOutput memory _output,
+        OPContractsManager.DeployInput memory _input
+    )
         internal
         view
         virtual
@@ -1237,7 +1240,12 @@ contract OPContractsManagerDeployer is OPContractsManagerBase {
     {
         return abi.encodeCall(
             IOptimismPortal.initialize,
-            (_output.systemConfigProxy, _output.anchorStateRegistryProxy, _output.ethLockboxProxy)
+            (
+                _output.systemConfigProxy,
+                _output.anchorStateRegistryProxy,
+                _output.ethLockboxProxy,
+                _input.isCustomGasToken
+            )
         );
     }
 
@@ -1268,6 +1276,21 @@ contract OPContractsManagerDeployer is OPContractsManagerBase {
         (IResourceMetering.ResourceConfig memory referenceResourceConfig, ISystemConfig.Addresses memory opChainAddrs) =
             defaultSystemConfigParams(_input, _output);
 
+        return systemConfigInitializerData(_input, _superchainConfig, referenceResourceConfig, opChainAddrs);
+    }
+
+    /// @notice Helper method for encoding the call data for the SystemConfig initializer.
+    function systemConfigInitializerData(
+        OPContractsManager.DeployInput memory _input,
+        ISuperchainConfig _superchainConfig,
+        IResourceMetering.ResourceConfig memory referenceResourceConfig,
+        ISystemConfig.Addresses memory opChainAddrs
+    )
+        internal
+        view
+        virtual
+        returns (bytes memory)
+    {
         return abi.encodeCall(
             ISystemConfig.initialize,
             (
@@ -1658,6 +1681,7 @@ contract OPContractsManager is ISemver {
         uint32 basefeeScalar;
         uint32 blobBasefeeScalar;
         uint256 l2ChainId;
+        bool isCustomGasToken;
         // The correct type is Proposal memory but OP Deployer does not yet support structs.
         bytes startingAnchorRoot;
         // The salt mixer is used as part of making the resulting salt unique.
@@ -1760,9 +1784,9 @@ contract OPContractsManager is ISemver {
 
     // -------- Constants and Variables --------
 
-    /// @custom:semver 3.0.0
+    /// @custom:semver 3.0.1
     function version() public pure virtual returns (string memory) {
-        return "3.0.0";
+        return "3.0.1";
     }
 
     OPContractsManagerGameTypeAdder public immutable opcmGameTypeAdder;

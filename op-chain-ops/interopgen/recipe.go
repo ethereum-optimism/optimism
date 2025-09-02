@@ -243,7 +243,9 @@ func (r *InteropDevL2Recipe) build(l1ChainID uint64, addrs devkeys.Addresses) (*
 				GasPriceOracleBlobBaseFeeScalar: 810949,
 			},
 			GasTokenDeployConfig: genesis.GasTokenDeployConfig{
-				UseCustomGasToken: false,
+				IsCustomGasToken:     false,
+				GasPayingTokenName:   "Custom Gas Token",
+				GasPayingTokenSymbol: "CGT",
 			},
 			OperatorDeployConfig: genesis.OperatorDeployConfig{
 				P2PSequencerAddress: sequencerP2P,

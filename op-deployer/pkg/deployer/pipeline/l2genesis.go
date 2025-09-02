@@ -22,6 +22,9 @@ import (
 )
 
 type l2GenesisOverrides struct {
+	IsCustomGasToken                         bool                      `json:"isCustomGasToken"`
+	GasPayingTokenName                       string                    `json:"gasPayingTokenName"`
+	GasPayingTokenSymbol                     string                    `json:"gasPayingTokenSymbol"`
 	FundDevAccounts                          bool                      `json:"fundDevAccounts"`
 	BaseFeeVaultMinimumWithdrawalAmount      *hexutil.Big              `json:"baseFeeVaultMinimumWithdrawalAmount"`
 	L1FeeVaultMinimumWithdrawalAmount        *hexutil.Big              `json:"l1FeeVaultMinimumWithdrawalAmount"`
@@ -94,6 +97,9 @@ func GenerateL2Genesis(pEnv *Env, intent *state.Intent, bundle ArtifactsBundle, 
 		DeployCrossL2Inbox:                       len(intent.Chains) > 1,
 		EnableGovernance:                         overrides.EnableGovernance,
 		FundDevAccounts:                          overrides.FundDevAccounts,
+		IsCustomGasToken:                         thisIntent.CustomGasToken.Enabled,
+		GasPayingTokenName:                       thisIntent.CustomGasToken.Name,
+		GasPayingTokenSymbol:                     thisIntent.CustomGasToken.Symbol,
 	}); err != nil {
 		return fmt.Errorf("failed to call L2Genesis script: %w", err)
 	}
@@ -156,6 +162,9 @@ func wdNetworkToBig(wd genesis.WithdrawalNetwork) *big.Int {
 
 func defaultOverrides() l2GenesisOverrides {
 	return l2GenesisOverrides{
+		IsCustomGasToken:                         false,
+		GasPayingTokenName:                       "Custom Gas Token",
+		GasPayingTokenSymbol:                     "CGT",
 		FundDevAccounts:                          false,
 		BaseFeeVaultMinimumWithdrawalAmount:      standard.VaultMinWithdrawalAmount,
 		L1FeeVaultMinimumWithdrawalAmount:        standard.VaultMinWithdrawalAmount,

@@ -1,0 +1,37 @@
+[
+  {
+    "bytes": "1",
+    "label": "_initialized",
+    "offset": 0,
+    "slot": "0",
+    "type": "uint8"
+  },
+  {
+    "bytes": "1",
+    "label": "_initializing",
+    "offset": 1,
+    "slot": "0",
+    "type": "bool"
+  },
+  {
+    "bytes": "32",
+    "label": "minters",
+    "offset": 0,
+    "slot": "1",
+    "type": "mapping(address => bool)"
+  },
+  {
+    "bytes": "32",
+    "label": "gasPayingTokenName",
+    "offset": 0,
+    "slot": "2",
+    "type": "string"
+  },
+  {
+    "bytes": "32",
+    "label": "gasPayingTokenSymbol",
+    "offset": 0,
+    "slot": "3",
+    "type": "string"
+  }
+]

@@ -40,6 +40,7 @@ type DeployOPChainInput struct {
 	DisputeClockExtension        uint64
 	DisputeMaxClockDuration      uint64
 	AllowCustomDisputeParameters bool
+	IsCustomGasToken             bool
 
 	OperatorFeeScalar   uint32
 	OperatorFeeConstant uint64

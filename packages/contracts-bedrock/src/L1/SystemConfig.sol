@@ -142,9 +142,9 @@ contract SystemConfig is ProxyAdminOwnedBase, OwnableUpgradeable, Reinitializabl
     event ConfigUpdate(uint256 indexed version, UpdateType indexed updateType, bytes data);
 
     /// @notice Semantic version.
-    /// @custom:semver 3.4.0
+    /// @custom:semver 3.4.1
     function version() public pure virtual returns (string memory) {
-        return "3.4.0";
+        return "3.4.1";
     }
 
     /// @notice Constructs the SystemConfig contract.
@@ -496,5 +496,11 @@ contract SystemConfig is ProxyAdminOwnedBase, OwnableUpgradeable, Reinitializabl
     /// @return address The guardian address.
     function guardian() public view returns (address) {
         return superchainConfig.guardian();
+    }
+
+    /// @notice Returns whether the gas token is custom by reading from the OptimismPortal.
+    /// @return bool True if the gas token is custom, false otherwise.
+    function isCustomGasToken() public view returns (bool) {
+        return IOptimismPortal2(payable(optimismPortal())).isCustomGasToken();
     }
 }

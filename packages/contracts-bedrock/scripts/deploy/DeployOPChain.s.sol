@@ -55,6 +55,7 @@ contract DeployOPChainInput is BaseDeployIO {
     Duration internal _disputeClockExtension;
     Duration internal _disputeMaxClockDuration;
     bool internal _allowCustomDisputeParameters;
+    bool internal _isCustomGasToken;
 
     uint32 internal _operatorFeeScalar;
     uint64 internal _operatorFeeConstant;
@@ -107,13 +108,21 @@ contract DeployOPChainInput is BaseDeployIO {
     }
 
     function set(bytes4 _sel, bytes32 _value) public {
-        if (_sel == this.disputeAbsolutePrestate.selector) _disputeAbsolutePrestate = Claim.wrap(_value);
-        else revert("DeployImplementationsInput: unknown selector");
+        if (_sel == this.disputeAbsolutePrestate.selector) {
+            _disputeAbsolutePrestate = Claim.wrap(_value);
+        } else {
+            revert("DeployImplementationsInput: unknown selector");
+        }
     }
 
     function set(bytes4 _sel, bool _value) public {
-        if (_sel == this.allowCustomDisputeParameters.selector) _allowCustomDisputeParameters = _value;
-        else revert("DeployOPChainInput: unknown selector");
+        if (_sel == this.allowCustomDisputeParameters.selector) {
+            _allowCustomDisputeParameters = _value;
+        } else if (_sel == this.isCustomGasToken.selector) {
+            _isCustomGasToken = _value;
+        } else {
+            revert("DeployOPChainInput: unknown selector");
+        }
     }
 
     function opChainProxyAdminOwner() public view returns (address) {
@@ -160,6 +169,10 @@ contract DeployOPChainInput is BaseDeployIO {
         require(_l2ChainId != 0, "DeployOPChainInput: not set");
         require(_l2ChainId != block.chainid, "DeployOPChainInput: invalid l2ChainId");
         return _l2ChainId;
+    }
+
+    function isCustomGasToken() public view returns (bool) {
+        return _isCustomGasToken;
     }
 
     function startingAnchorRoot() public pure returns (bytes memory) {
@@ -381,7 +394,8 @@ contract DeployOPChain is Script {
             disputeMaxGameDepth: _doi.disputeMaxGameDepth(),
             disputeSplitDepth: _doi.disputeSplitDepth(),
             disputeClockExtension: _doi.disputeClockExtension(),
-            disputeMaxClockDuration: _doi.disputeMaxClockDuration()
+            disputeMaxClockDuration: _doi.disputeMaxClockDuration(),
+            isCustomGasToken: _doi.isCustomGasToken()
         });
 
         vm.broadcast(msg.sender);

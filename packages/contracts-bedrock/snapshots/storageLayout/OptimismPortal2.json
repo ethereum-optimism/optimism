@@ -145,5 +145,12 @@
     "offset": 20,
     "slot": "63",
     "type": "bool"
+  },
+  {
+    "bytes": "1",
+    "label": "isCustomGasToken",
+    "offset": 21,
+    "slot": "63",
+    "type": "bool"
   }
 ]

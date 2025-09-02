@@ -3,9 +3,11 @@ pragma solidity 0.8.15;
 
 // Libraries
 import { Constants } from "src/libraries/Constants.sol";
+import { Predeploys } from "src/libraries/Predeploys.sol";
 
 // Interfaces
 import { ISemver } from "interfaces/universal/ISemver.sol";
+import { ILiquidityController } from "interfaces/L2/ILiquidityController.sol";
 
 /// @custom:proxied true
 /// @custom:predeploy 0x4200000000000000000000000000000000000015
@@ -15,6 +17,11 @@ import { ISemver } from "interfaces/universal/ISemver.sol";
 ///         set by the "depositor" account, a special system address. Depositor account transactions
 ///         are created by the protocol whenever we move to a new epoch.
 contract L1Block is ISemver {
+    /// @notice Storage slot for the isCustomGasToken flag
+    /// @dev bytes32(uint256(keccak256("l1block.isCustomGasToken")) - 1)
+    bytes32 private constant IS_CUSTOM_GAS_TOKEN_SLOT =
+        0xd2ff82c9b477ff6a09f530b1c627ffb4b0b81e2ae2ba427f824162e8dad020aa;
+
     /// @notice Address of the special depositor account.
     function DEPOSITOR_ACCOUNT() public pure returns (address addr_) {
         addr_ = Constants.DEPOSITOR_ACCOUNT;
@@ -61,35 +68,33 @@ contract L1Block is ISemver {
     /// @notice The scalar value applied to the operator fee.
     uint32 public operatorFeeScalar;
 
-    /// @custom:semver 1.6.1
+    /// @custom:semver 1.6.2
     function version() public pure virtual returns (string memory) {
-        return "1.6.1";
+        return "1.6.2";
     }
 
-    /// @notice Returns the gas paying token, its decimals, name and symbol.
-    function gasPayingToken() public pure returns (address addr_, uint8 decimals_) {
-        addr_ = Constants.ETHER;
-        decimals_ = 18;
+    /// @notice Returns whether the gas paying token is custom.
+    function isCustomGasToken() public view returns (bool isCustom_) {
+        bytes32 slot = IS_CUSTOM_GAS_TOKEN_SLOT;
+        assembly {
+            isCustom_ := sload(slot)
+        }
     }
 
     /// @notice Returns the gas paying token name.
     ///         If nothing is set in state, then it means ether is used.
     ///         This function cannot be removed because WETH depends on it.
-    function gasPayingTokenName() public pure returns (string memory name_) {
-        name_ = "Ether";
+    function gasPayingTokenName() public view returns (string memory name_) {
+        name_ =
+            isCustomGasToken() ? ILiquidityController(Predeploys.LIQUIDITY_CONTROLLER).gasPayingTokenName() : "Ether";
     }
 
     /// @notice Returns the gas paying token symbol.
     ///         If nothing is set in state, then it means ether is used.
     ///         This function cannot be removed because WETH depends on it.
-    function gasPayingTokenSymbol() public pure returns (string memory symbol_) {
-        symbol_ = "ETH";
-    }
-
-    /// @notice Getter for custom gas token paying networks. Returns true if the
-    ///         network uses a custom gas token.
-    function isCustomGasToken() public pure returns (bool is_) {
-        is_ = false;
+    function gasPayingTokenSymbol() public view returns (string memory symbol_) {
+        symbol_ =
+            isCustomGasToken() ? ILiquidityController(Predeploys.LIQUIDITY_CONTROLLER).gasPayingTokenSymbol() : "ETH";
     }
 
     /// @custom:legacy
@@ -210,6 +215,20 @@ contract L1Block is ISemver {
         assembly {
             // operatorFeeScalar (uint32), operatorFeeConstant (uint64)
             sstore(operatorFeeConstant.slot, shr(160, calldataload(164)))
+        }
+    }
+
+    /// @notice Set chain to use custom gas token (callable by depositor account)
+    function setCustomGasToken() external {
+        require(
+            msg.sender == Constants.DEPOSITOR_ACCOUNT,
+            "L1Block: only the depositor account can set isCustomGasToken flag"
+        );
+        require(isCustomGasToken() == false, "L1Block: CustomGasToken already active");
+
+        bytes32 slot = IS_CUSTOM_GAS_TOKEN_SLOT;
+        assembly {
+            sstore(slot, 1)
         }
     }
 }

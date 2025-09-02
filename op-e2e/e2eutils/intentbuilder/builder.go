@@ -48,6 +48,7 @@ type L2Configurator interface {
 	WithL1StartBlockHash(hash common.Hash)
 	WithAdditionalDisputeGames(games []state.AdditionalDisputeGame)
 	WithFinalizationPeriodSeconds(value uint64)
+	WithCustomGasToken(enabled bool, name, symbol string)
 	ContractsConfigurator
 	L2VaultsConfigurator
 	L2RolesConfigurator
@@ -384,6 +385,14 @@ func (c *l2Configurator) WithEIP1559DenominatorCanyon(value uint64) {
 
 func (c *l2Configurator) WithEIP1559Denominator(value uint64) {
 	c.builder.intent.Chains[c.chainIndex].Eip1559Denominator = value
+}
+
+func (c *l2Configurator) WithCustomGasToken(enabled bool, name, symbol string) {
+	c.builder.intent.Chains[c.chainIndex].CustomGasToken = &state.CustomGasToken{
+		Enabled: enabled,
+		Name:    name,
+		Symbol:  symbol,
+	}
 }
 
 func (c *l2Configurator) WithEIP1559Elasticity(value uint64) {

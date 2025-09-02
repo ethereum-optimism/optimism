@@ -709,6 +709,11 @@ func newChainIntent(t *testing.T, dk *devkeys.MnemonicDevKeys, l1ChainID *big.In
 			Proposer:          addrFor(t, dk, devkeys.ProposerRole.Key(l1ChainID)),
 			Challenger:        addrFor(t, dk, devkeys.ChallengerRole.Key(l1ChainID)),
 		},
+		CustomGasToken: &state.CustomGasToken{
+			Enabled: standard.CustomGasTokenEnabled,
+			Name:    standard.CustomGasTokenName,
+			Symbol:  standard.CustomGasTokenSymbol,
+		},
 	}
 }
 

@@ -6,7 +6,6 @@ import { CommonTest } from "test/setup/CommonTest.sol";
 
 // Libraries
 import { Encoding } from "src/libraries/Encoding.sol";
-import { Constants } from "src/libraries/Constants.sol";
 import "src/libraries/L1BlockErrors.sol";
 
 /// @title L1Block_ TestInit
@@ -18,18 +17,6 @@ contract L1Block_TestInit is CommonTest {
     function setUp() public virtual override {
         super.setUp();
         depositor = l1Block.DEPOSITOR_ACCOUNT();
-    }
-}
-
-/// @title L1Block_GasPayingToken_Test
-/// @notice Tests the `gasPayingToken` function of the `L1Block` contract.
-contract L1Block_GasPayingToken_Test is L1Block_TestInit {
-    /// @notice Tests that the `gasPayingToken` function returns the correct token address and
-    ///         decimals.
-    function test_gasPayingToken_succeeds() external view {
-        (address token, uint8 decimals) = l1Block.gasPayingToken();
-        assertEq(token, Constants.ETHER);
-        assertEq(uint256(decimals), uint256(18));
     }
 }
 

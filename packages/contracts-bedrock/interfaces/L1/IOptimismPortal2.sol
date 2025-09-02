@@ -22,6 +22,7 @@ interface IOptimismPortal2 is IProxyAdminOwnedBase {
     error OptimismPortal_BadTarget();
     error OptimismPortal_CallPaused();
     error OptimismPortal_CalldataTooLarge();
+    error OptimismPortal_NotAllowedOnCGTMode();
     error OptimismPortal_GasEstimation();
     error OptimismPortal_GasLimitTooLow();
     error OptimismPortal_ImproperDisputeGame();
@@ -50,7 +51,12 @@ interface IOptimismPortal2 is IProxyAdminOwnedBase {
     event WithdrawalProven(bytes32 indexed withdrawalHash, address indexed from, address indexed to);
     event WithdrawalProvenExtension1(bytes32 indexed withdrawalHash, address indexed proofSubmitter);
     event ETHMigrated(address indexed lockbox, uint256 ethBalance);
-    event PortalMigrated(IETHLockbox oldLockbox, IETHLockbox newLockbox, IAnchorStateRegistry oldAnchorStateRegistry, IAnchorStateRegistry newAnchorStateRegistry);
+    event PortalMigrated(
+        IETHLockbox oldLockbox,
+        IETHLockbox newLockbox,
+        IAnchorStateRegistry oldAnchorStateRegistry,
+        IAnchorStateRegistry newAnchorStateRegistry
+    );
 
     receive() external payable;
 
@@ -83,10 +89,12 @@ interface IOptimismPortal2 is IProxyAdminOwnedBase {
     function initialize(
         ISystemConfig _systemConfig,
         IAnchorStateRegistry _anchorStateRegistry,
-        IETHLockbox _ethLockbox
+        IETHLockbox _ethLockbox,
+        bool _isCustomGasToken
     )
         external;
     function initVersion() external view returns (uint8);
+    function isCustomGasToken() external view returns (bool);
     function l2Sender() external view returns (address);
     function minimumGasLimit(uint64 _byteCount) external pure returns (uint64);
     function numProofSubmitters(bytes32 _withdrawalHash) external view returns (uint256);
