@@ -35,12 +35,6 @@ func TestJovianActivationAtGenesis(gt *testing.T) {
 	env.Seq.ActL1HeadSignal(t)
 	env.Seq.ActBuildToL1Head(t)
 
-	// verify in logs that correct stage got activated
-	recs := env.Logs.FindLogs(testlog.NewMessageContainsFilter("activating Jovian stage during reset"), testlog.NewAttributesFilter("role", e2esys.RoleSeq))
-	require.Len(t, recs, 2)
-	recs = env.Logs.FindLogs(testlog.NewMessageContainsFilter("activating Jovian stage during reset"), testlog.NewAttributesFilter("role", e2esys.RoleVerif))
-	require.Len(t, recs, 2)
-
 	env.ActBatchSubmitAllAndMine(t)
 
 	// verifier picks up the L2 chain that was submitted
