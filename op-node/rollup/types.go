@@ -586,6 +586,9 @@ func (c *Config) IsActivationBlock(oldTime, newTime uint64) ForkName {
 	if c.IsInterop(newTime) && !c.IsInterop(oldTime) {
 		return Interop
 	}
+	if c.IsJovian(newTime) && !c.IsJovian(oldTime) {
+		return Jovian
+	}
 	if c.IsIsthmus(newTime) && !c.IsIsthmus(oldTime) {
 		return Isthmus
 	}
