@@ -22,7 +22,7 @@ use reth_evm::ConfigureEvm;
 use reth_node_api::{FullNodeComponents, FullNodeTypes, HeaderTy};
 use reth_node_builder::rpc::{EthApiBuilder, EthApiCtx};
 use reth_optimism_flashblocks::{
-    launch_wss_flashblocks_service, ExecutionPayloadBaseV1, FlashBlockRx,
+    ExecutionPayloadBaseV1, FlashBlockRx, FlashBlockService, WsFlashBlockStream,
 };
 use reth_rpc::eth::{core::EthApiInner, DevSigner};
 use reth_rpc_eth_api::{
@@ -43,6 +43,8 @@ use reth_tasks::{
     TaskSpawner,
 };
 use std::{fmt, fmt::Formatter, marker::PhantomData, sync::Arc, time::Instant};
+use tokio::sync::watch;
+use tracing::info;
 
 /// Adapter for [`EthApiInner`], which holds all the data required to serve core `eth_` API.
 pub type EthApiNodeBackend<N, Rpc> = EthApiInner<N, Rpc>;
@@ -457,13 +459,20 @@ where
             None
         };
 
-        let flashblocks_rx = flashblocks_url.map(|ws_url| {
-            launch_wss_flashblocks_service(
-                ws_url,
+        let flashblocks_rx = if let Some(ws_url) = flashblocks_url {
+            info!(target: "reth:cli", %ws_url,  "Launching flashblocks service");
+            let (tx, rx) = watch::channel(None);
+            let stream = WsFlashBlockStream::new(ws_url);
+            let service = FlashBlockService::new(
+                stream,
                 ctx.components.evm_config().clone(),
                 ctx.components.provider().clone(),
-            )
-        });
+            );
+            ctx.components.task_executor().spawn_blocking(Box::pin(service.run(tx)));
+            Some(rx)
+        } else {
+            None
+        };
 
         let eth_api = ctx.eth_api_builder().with_rpc_converter(rpc_converter).build_inner();
 

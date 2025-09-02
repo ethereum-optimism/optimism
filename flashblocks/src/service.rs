@@ -50,6 +50,7 @@ pub struct FlashBlockService<
 impl<N, S, EvmConfig, Provider> FlashBlockService<N, S, EvmConfig, Provider>
 where
     N: NodePrimitives,
+    S: Stream<Item = eyre::Result<FlashBlock>> + Unpin,
     EvmConfig: ConfigureEvm<Primitives = N, NextBlockEnvCtx: From<ExecutionPayloadBaseV1> + Unpin>,
     Provider: StateProviderFactory
         + CanonStateSubscriptions<Primitives = N>
@@ -58,7 +59,7 @@ where
             Block = BlockTy<N>,
             Transaction = N::SignedTx,
             Receipt = ReceiptTy<N>,
-        >,
+        > + Unpin,
 {
     /// Constructs a new `FlashBlockService` that receives [`FlashBlock`]s from `rx` stream.
     pub fn new(rx: S, evm_config: EvmConfig, provider: Provider) -> Self {
@@ -70,6 +71,17 @@ where
             canon_receiver: provider.subscribe_to_canonical_state(),
             provider,
             cached_state: None,
+        }
+    }
+
+    /// Drives the services and sends new blocks to the receiver
+    ///
+    /// Note: this should be spawned
+    pub async fn run(mut self, tx: tokio::sync::watch::Sender<Option<PendingBlock<N>>>) {
+        while let Some(block) = self.next().await {
+            if let Ok(block) = block.inspect_err(|e| tracing::error!("{e}")) {
+                let _ = tx.send(block).inspect_err(|e| tracing::error!("{e}"));
+            }
         }
     }
 
