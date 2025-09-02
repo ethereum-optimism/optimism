@@ -3,7 +3,6 @@ package fjord
 import (
 	"context"
 	"crypto/rand"
-	"math/big"
 	"testing"
 
 	"github.com/ethereum/go-ethereum/rpc"
@@ -160,26 +159,26 @@ func checkFastLZTransactions(t devtest.T, ctx context.Context, sys *presets.Mini
 		txUnsigned, err := unsignedTx.MarshalBinary()
 		require.NoError(err)
 
-		gpoFee, err := dsl.ReadGasPriceOracleL1Fee(ctx, gasPriceOracle, txUnsigned)
+		gpoFee, err := dsl.ReadGasPriceOracleL1FeeAt(ctx, l2Client, gasPriceOracle, txUnsigned, receipt.BlockHash)
 		require.NoError(err)
 
 		fastLzSize := uint64(types.FlzCompressLen(txUnsigned) + 68)
-		gethGPOFee, err := dsl.CalculateFjordL1Cost(ctx, l2Client, types.RollupCostData{FastLzSize: fastLzSize}, receipt.BlockNumber)
+		gethGPOFee, err := dsl.CalculateFjordL1Cost(ctx, l2Client, types.RollupCostData{FastLzSize: fastLzSize}, receipt.BlockHash)
 		require.NoError(err)
 		require.Equal(gethGPOFee.Uint64(), gpoFee.Uint64())
 
-		expectedFee, err := dsl.CalculateFjordL1Cost(ctx, l2Client, signedTx.RollupCostData(), receipt.BlockNumber)
+		expectedFee, err := dsl.CalculateFjordL1Cost(ctx, l2Client, signedTx.RollupCostData(), receipt.BlockHash)
 		require.NoError(err)
 		require.NotNil(receipt.L1Fee)
 		dsl.ValidateL1FeeMatches(t, expectedFee, receipt.L1Fee)
 
-		upperBound, err := contractio.Read(gasPriceOracle.GetL1FeeUpperBound(big.NewInt(int64(len(txUnsigned)))), ctx)
+		upperBound, err := dsl.ReadGasPriceOracleL1FeeUpperBoundAt(ctx, l2Client, gasPriceOracle, len(txUnsigned), receipt.BlockHash)
 		require.NoError(err)
 		txLenGPO := len(txUnsigned) + 68
 		flzUpperBound := uint64(txLenGPO + txLenGPO/255 + 16)
-		upperBoundCost, err := dsl.CalculateFjordL1Cost(ctx, l2Client, types.RollupCostData{FastLzSize: flzUpperBound}, receipt.BlockNumber)
+		upperBoundCost, err := dsl.CalculateFjordL1Cost(ctx, l2Client, types.RollupCostData{FastLzSize: flzUpperBound}, receipt.BlockHash)
 		require.NoError(err)
-		require.Equal(upperBoundCost.Uint64(), upperBound.ToBig().Uint64())
+		require.Equal(upperBoundCost.Uint64(), upperBound.Uint64())
 
 		_, err = contractio.Read(gasPriceOracle.BaseFeeScalar(), ctx)
 		require.NoError(err)

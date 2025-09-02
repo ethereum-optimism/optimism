@@ -48,7 +48,7 @@ func TestFees(gt *testing.T) {
 	txUnsigned, err := unsignedTx.MarshalBinary()
 	require.NoError(err)
 
-	gpoL1Fee, err := dsl.ReadGasPriceOracleL1Fee(ctx, gpo, txUnsigned)
+	gpoL1Fee, err := dsl.ReadGasPriceOracleL1FeeAt(ctx, l2Client, gpo, txUnsigned, result.TransactionReceipt.BlockHash)
 	require.NoError(err)
 	dsl.ValidateL1FeeMatches(t, result.L1Fee, gpoL1Fee)
 }

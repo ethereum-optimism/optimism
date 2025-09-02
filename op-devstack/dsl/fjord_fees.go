@@ -196,12 +196,12 @@ func (ff *FjordFees) validateFjordFeatures(receipt *types.Receipt, l1Fee *big.In
 		return fastLzSizeSigned, nil
 	}
 
-	expectedFee, err := CalculateFjordL1Cost(ff.ctx, client, signedTx.RollupCostData(), receipt.BlockNumber)
+	expectedFee, err := CalculateFjordL1Cost(ff.ctx, client, signedTx.RollupCostData(), receipt.BlockHash)
 	ff.require.NoError(err, "should calculate L1 fee")
 
-	ff.require.Equal(receiptL1Fee, expectedFee, "Calculated L1 fee should match receipt L1 fee")
+	ff.require.Equalf(expectedFee, receiptL1Fee, "Calculated L1 fee should match receipt L1 fee (expected=%s actual=%s)", expectedFee.String(), receiptL1Fee.String())
 
-	ff.require.Equal(receipt.L1Fee, expectedFee, "L1 fee in receipt must be correct")
+	ff.require.Equalf(expectedFee, receipt.L1Fee, "L1 fee in receipt must be correct (expected=%s actual=%s)", expectedFee.String(), receipt.L1Fee.String())
 
 	return fastLzSizeSigned, expectedFee
 }
@@ -292,9 +292,29 @@ func CreateUnsignedTransactionFromSigned(signedTx *types.Transaction) (*types.Tr
 	}), nil
 }
 
-// ReadGasPriceOracleL1Fee reads the L1 fee from GasPriceOracle for an unsigned transaction
-func ReadGasPriceOracleL1Fee(ctx context.Context, gpo *bindings.GasPriceOracle, txUnsigned []byte) (*big.Int, error) {
-	result, err := contractio.Read(gpo.GetL1Fee(txUnsigned), ctx)
+// ReadGasPriceOracleL1FeeAt reads the L1 fee from GasPriceOracle for an unsigned transaction
+// evaluated against a specific L2 block hash.
+func ReadGasPriceOracleL1FeeAt(ctx context.Context, client apis.EthClient, gpo *bindings.GasPriceOracle, txUnsigned []byte, blockHash common.Hash) (*big.Int, error) {
+	overrideBlockOpt := func(ptx *txplan.PlannedTx) {
+		ptx.AgainstBlock.Fn(func(ctx context.Context) (eth.BlockInfo, error) {
+			return client.InfoByHash(ctx, blockHash)
+		})
+	}
+	result, err := contractio.Read(gpo.GetL1Fee(txUnsigned), ctx, overrideBlockOpt)
+	if err != nil {
+		return nil, err
+	}
+	return result.ToBig(), nil
+}
+
+// ReadGasPriceOracleL1FeeUpperBoundAt reads the L1 fee upper bound for a tx length pinned to a block hash.
+func ReadGasPriceOracleL1FeeUpperBoundAt(ctx context.Context, client apis.EthClient, gpo *bindings.GasPriceOracle, txLen int, blockHash common.Hash) (*big.Int, error) {
+	overrideBlockOpt := func(ptx *txplan.PlannedTx) {
+		ptx.AgainstBlock.Fn(func(ctx context.Context) (eth.BlockInfo, error) {
+			return client.InfoByHash(ctx, blockHash)
+		})
+	}
+	result, err := contractio.Read(gpo.GetL1FeeUpperBound(big.NewInt(int64(txLen))), ctx, overrideBlockOpt)
 	if err != nil {
 		return nil, err
 	}
@@ -305,11 +325,11 @@ func ReadGasPriceOracleL1Fee(ctx context.Context, gpo *bindings.GasPriceOracle, 
 func ValidateL1FeeMatches(t devtest.T, calculatedFee, receiptFee *big.Int) {
 	require := t.Require()
 	require.NotNil(receiptFee, "L1 fee should be present in receipt")
-	require.Equal(calculatedFee.Uint64(), receiptFee.Uint64(), "L1 fee should match between calculated and receipt")
+	require.Equalf(calculatedFee.Uint64(), receiptFee.Uint64(), "L1 fee mismatch (expected=%d actual=%d)", calculatedFee.Uint64(), receiptFee.Uint64())
 }
 
 // CalculateFjordL1Cost calculates L1 cost using Fjord formula with block-specific L1 state
-func CalculateFjordL1Cost(ctx context.Context, client apis.EthClient, rollupCostData types.RollupCostData, blockNumber *big.Int) (*big.Int, error) {
+func CalculateFjordL1Cost(ctx context.Context, client apis.EthClient, rollupCostData types.RollupCostData, blockHash common.Hash) (*big.Int, error) {
 	l1Block := bindings.NewL1Block(
 		bindings.WithClient(client),
 		bindings.WithTo(predeploys.L1BlockAddr),
@@ -317,7 +337,7 @@ func CalculateFjordL1Cost(ctx context.Context, client apis.EthClient, rollupCost
 
 	overrideBlockOpt := func(ptx *txplan.PlannedTx) {
 		ptx.AgainstBlock.Fn(func(ctx context.Context) (eth.BlockInfo, error) {
-			return client.InfoByNumber(ctx, blockNumber.Uint64())
+			return client.InfoByHash(ctx, blockHash)
 		})
 	}
 
