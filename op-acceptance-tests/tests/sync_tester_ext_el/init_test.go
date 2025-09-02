@@ -15,7 +15,8 @@ func TestMain(m *testing.M) {
 	// tailscale
 	L2ELEndpoint := "https://sepolia.optimism.io/"
 	L1CLBeaconEndpoint := "https://beacon-api-proxy-sepolia.primary.client.dev.oplabs.cloud"
-	L1ELEndpoint := "https://proxyd-l1-sepolia.primary.client.dev.oplabs.cloud"
+	// L1ELEndpoint := "https://proxyd-l1-sepolia.primary.client.dev.oplabs.cloud"
+	L1ELEndpoint := "https://ci-sepolia-l1.optimism.io"
 
 	presets.DoMain(m, presets.WithMinimalExternalELWithSuperchainRegistry(L1CLBeaconEndpoint, L1ELEndpoint, L2ELEndpoint, L1ChainID, L2NetworkName, eth.FCUState{
 		Latest:    32012748,
