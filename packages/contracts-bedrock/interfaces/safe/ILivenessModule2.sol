@@ -6,7 +6,7 @@ import { ISemver } from "interfaces/universal/ISemver.sol";
 /// @title ILivenessModule2
 /// @notice Interface for LivenessModule2, a singleton module for challenge-based ownership transfer
 interface ILivenessModule2 is ISemver {
-    
+
     /// @notice Configuration for a Safe's liveness module
     struct ModuleConfig {
         uint256 livenessResponsePeriod;
@@ -39,7 +39,6 @@ interface ILivenessModule2 is ISemver {
 
     /// @notice Error for when trying to clear configuration while module is still enabled
     error LivenessModule2_ModuleStillEnabled();
-
 
     /// @notice Emitted when a Safe enables the module
     event ModuleEnabled(address indexed safe, uint256 livenessResponsePeriod, address fallbackOwner);
@@ -79,7 +78,6 @@ interface ILivenessModule2 is ISemver {
 
     /// @notice Clears the module configuration for a Safe
     function clear() external;
-
 
     /// @notice Returns challenge_start_time + liveness_response_period if there is a challenge, or 0 if not
     /// @param _safe The Safe address to query
