@@ -9,6 +9,7 @@ import { Claim, Duration, GameType, Hash, GameTypes, Proposal } from "src/disput
 import { Strings } from "@openzeppelin/contracts/utils/Strings.sol";
 import { Features } from "src/libraries/Features.sol";
 import { DevFeatures } from "src/libraries/DevFeatures.sol";
+import { LibString } from "@solady/utils/LibString.sol";
 
 // Interfaces
 import { ISemver } from "interfaces/universal/ISemver.sol";
@@ -666,8 +667,16 @@ contract OPContractsManagerUpgrader is OPContractsManagerBase {
 
         // If the SuperchainConfig is not already upgraded, upgrade it. NOTE that this type of
         // upgrade means that chains can ONLY be upgraded via this OPCM contract if they use the
-        // same SuperchainConfig contract. We will assert this later.
-        if (_superchainProxyAdmin.getProxyImplementation(address(_superchainConfig)) != impls.superchainConfigImpl) {
+        // same SuperchainConfig contract. We will assert this later. NOTE that we are temporarily
+        // doing a strict version comparison instead of an implementation address comparison
+        // because the implementation address is different when running test coverage + upgrade
+        // tests. Will be replaced shortly by proper version comparison.ProxyType
+        if (
+            !LibString.eq(
+                ISuperchainConfig(_superchainProxyAdmin.getProxyImplementation(address(_superchainConfig))).version(),
+                ISuperchainConfig(impls.superchainConfigImpl).version()
+            )
+        ) {
             // Attempt to upgrade. If the ProxyAdmin is not the SuperchainConfig's admin, this will revert.
             upgradeToAndCall(
                 _superchainProxyAdmin,
