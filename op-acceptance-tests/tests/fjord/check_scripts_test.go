@@ -12,7 +12,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
-	"github.com/ethereum-optimism/optimism/op-service/apis"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/predeploys"
 	txib "github.com/ethereum-optimism/optimism/op-service/txintent/bindings"
@@ -148,56 +147,37 @@ func checkFastLZTransactions(t devtest.T, ctx context.Context, sys *presets.Mini
 			require.NoError(err)
 			require.NotNil(receipt)
 
-			_, txs, err := l2Client.InfoAndTxsByHash(ctx, receipt.BlockHash)
+			signedTx, err = dsl.FindSignedTransactionFromReceipt(ctx, l2Client, receipt)
 			require.NoError(err)
-
-			for _, tx := range txs {
-				if tx.Hash() == receipt.TxHash {
-					signedTx = tx
-					break
-				}
-			}
 			require.NotNil(signedTx)
 		}
 
 		require.Equal(uint64(1), receipt.Status)
 
-		blockNumber := receipt.BlockNumber
-
-		unsignedTx := types.NewTx(&types.DynamicFeeTx{
-			Nonce:     signedTx.Nonce(),
-			To:        signedTx.To(),
-			Value:     signedTx.Value(),
-			Gas:       signedTx.Gas(),
-			GasFeeCap: signedTx.GasFeeCap(),
-			GasTipCap: signedTx.GasTipCap(),
-			Data:      signedTx.Data(),
-		})
+		unsignedTx, err := dsl.CreateUnsignedTransactionFromSigned(signedTx)
+		require.NoError(err)
 
 		txUnsigned, err := unsignedTx.MarshalBinary()
 		require.NoError(err)
-		txSigned, err := signedTx.MarshalBinary()
-		require.NoError(err)
 
-		gpoFee, err := contractio.Read(gasPriceOracle.GetL1Fee(txUnsigned), ctx)
+		gpoFee, err := dsl.ReadGasPriceOracleL1Fee(ctx, gasPriceOracle, txUnsigned)
 		require.NoError(err)
 
 		fastLzSize := uint64(types.FlzCompressLen(txUnsigned) + 68)
-		gethGPOFee, err := fjordL1Cost(l2Client, blockNumber, fastLzSize)
+		gethGPOFee, err := dsl.CalculateFjordL1Cost(l2Client, types.RollupCostData{FastLzSize: fastLzSize}, receipt.BlockNumber)
 		require.NoError(err)
-		require.Equal(gethGPOFee.Uint64(), gpoFee.ToBig().Uint64())
+		require.Equal(gethGPOFee.Uint64(), gpoFee.Uint64())
 
-		signedFastLzSize := uint64(types.FlzCompressLen(txSigned))
-		gethFee, err := fjordL1Cost(l2Client, blockNumber, signedFastLzSize)
+		expectedFee, err := dsl.CalculateFjordL1Cost(l2Client, signedTx.RollupCostData(), receipt.BlockNumber)
 		require.NoError(err)
 		require.NotNil(receipt.L1Fee)
-		require.Equal(gethFee.Uint64(), receipt.L1Fee.Uint64())
+		dsl.ValidateL1FeeMatches(t, expectedFee, receipt.L1Fee)
 
 		upperBound, err := contractio.Read(gasPriceOracle.GetL1FeeUpperBound(big.NewInt(int64(len(txUnsigned)))), ctx)
 		require.NoError(err)
 		txLenGPO := len(txUnsigned) + 68
 		flzUpperBound := uint64(txLenGPO + txLenGPO/255 + 16)
-		upperBoundCost, err := fjordL1Cost(l2Client, blockNumber, flzUpperBound)
+		upperBoundCost, err := dsl.CalculateFjordL1Cost(l2Client, types.RollupCostData{FastLzSize: flzUpperBound}, receipt.BlockNumber)
 		require.NoError(err)
 		require.Equal(upperBoundCost.Uint64(), upperBound.ToBig().Uint64())
 
@@ -206,37 +186,4 @@ func checkFastLZTransactions(t devtest.T, ctx context.Context, sys *presets.Mini
 		_, err = contractio.Read(gasPriceOracle.BlobBaseFeeScalar(), ctx)
 		require.NoError(err)
 	}
-}
-
-func fjordL1Cost(client apis.EthClient, blockNumber *big.Int, fastLzSize uint64) (*big.Int, error) {
-	l1Block := txib.NewL1Block(
-		txib.WithClient(client),
-		txib.WithTo(predeploys.L1BlockAddr),
-	)
-
-	baseFeeScalar, err := contractio.Read(l1Block.BasefeeScalar(), context.Background())
-	if err != nil {
-		return nil, err
-	}
-	l1BaseFee, err := contractio.Read(l1Block.Basefee(), context.Background())
-	if err != nil {
-		return nil, err
-	}
-	blobBaseFeeScalar, err := contractio.Read(l1Block.BlobBaseFeeScalar(), context.Background())
-	if err != nil {
-		return nil, err
-	}
-	blobBaseFee, err := contractio.Read(l1Block.BlobBaseFee(), context.Background())
-	if err != nil {
-		return nil, err
-	}
-
-	costFunc := types.NewL1CostFuncFjord(
-		l1BaseFee,
-		blobBaseFee,
-		new(big.Int).SetUint64(uint64(baseFeeScalar)),
-		new(big.Int).SetUint64(uint64(blobBaseFeeScalar)))
-
-	fee, _ := costFunc(types.RollupCostData{FastLzSize: fastLzSize})
-	return fee, nil
 }

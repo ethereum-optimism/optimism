@@ -4,15 +4,13 @@ import (
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
-	"github.com/ethereum-optimism/optimism/op-devstack/dsl"
+	dsl "github.com/ethereum-optimism/optimism/op-devstack/dsl"
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
 
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/predeploys"
 	txib "github.com/ethereum-optimism/optimism/op-service/txintent/bindings"
-	"github.com/ethereum-optimism/optimism/op-service/txintent/contractio"
-	"github.com/ethereum/go-ethereum/core/types"
 )
 
 func TestFees(gt *testing.T) {
@@ -40,32 +38,17 @@ func TestFees(gt *testing.T) {
 		txib.WithTest(t),
 	)
 
-	_, txs, err := l2Client.InfoAndTxsByHash(ctx, result.TransactionReceipt.BlockHash)
+	signedTx, err := dsl.FindSignedTransactionFromReceipt(ctx, l2Client, result.TransactionReceipt)
 	require.NoError(err)
-
-	var signedTx *types.Transaction
-	for _, tx := range txs {
-		if tx.Hash() == result.TransactionReceipt.TxHash {
-			signedTx = tx
-			break
-		}
-	}
 	require.NotNil(signedTx)
 
-	unsignedTx := types.NewTx(&types.DynamicFeeTx{
-		Nonce:     signedTx.Nonce(),
-		To:        signedTx.To(),
-		Value:     signedTx.Value(),
-		Gas:       signedTx.Gas(),
-		GasFeeCap: signedTx.GasFeeCap(),
-		GasTipCap: signedTx.GasTipCap(),
-		Data:      signedTx.Data(),
-	})
+	unsignedTx, err := dsl.CreateUnsignedTransactionFromSigned(signedTx)
+	require.NoError(err)
 
 	txUnsigned, err := unsignedTx.MarshalBinary()
 	require.NoError(err)
 
-	gpoL1Fee, err := contractio.Read(gpo.GetL1Fee(txUnsigned), ctx)
+	gpoL1Fee, err := dsl.ReadGasPriceOracleL1Fee(ctx, gpo, txUnsigned)
 	require.NoError(err)
-	require.Equal(result.L1Fee, gpoL1Fee.ToBig())
+	dsl.ValidateL1FeeMatches(t, result.L1Fee, gpoL1Fee)
 }

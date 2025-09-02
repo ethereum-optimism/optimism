@@ -2,6 +2,7 @@ package dsl
 
 import (
 	"context"
+	"fmt"
 	"math/big"
 
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
@@ -44,6 +45,7 @@ func NewFjordFees(t devtest.T, l2Network *L2Network) *FjordFees {
 	}
 }
 
+// ValidateTransaction validates the transaction and returns the validation result
 func (ff *FjordFees) ValidateTransaction(from *EOA, to *EOA, amount *big.Int) FjordFeesValidationResult {
 	client := ff.l2Network.inner.L2ELNode(match.FirstL2EL).EthClient()
 
@@ -108,6 +110,7 @@ func (ff *FjordFees) ValidateTransaction(from *EOA, to *EOA, amount *big.Int) Fj
 	}
 }
 
+// getVaultBalances gets the balances of the vaults
 func (ff *FjordFees) getVaultBalances(client apis.EthClient) VaultBalances {
 	baseFee := ff.getBalance(client, predeploys.BaseFeeVaultAddr)
 	l1Fee := ff.getBalance(client, predeploys.L1FeeVaultAddr)
@@ -122,12 +125,14 @@ func (ff *FjordFees) getVaultBalances(client apis.EthClient) VaultBalances {
 	}
 }
 
+// getBalance gets the balance of an address
 func (ff *FjordFees) getBalance(client apis.EthClient, addr common.Address) *big.Int {
 	balance, err := client.BalanceAt(ff.ctx, addr, nil)
 	ff.require.NoError(err)
 	return balance
 }
 
+// calculateVaultIncreases calculates the increases in the vaults
 func (ff *FjordFees) calculateVaultIncreases(before, after VaultBalances) VaultBalances {
 	return VaultBalances{
 		BaseFeeVault:   new(big.Int).Sub(after.BaseFeeVault, before.BaseFeeVault),
@@ -137,6 +142,7 @@ func (ff *FjordFees) calculateVaultIncreases(before, after VaultBalances) VaultB
 	}
 }
 
+// validateFjordFeatures validates that the features of the Fjord transaction are correct
 func (ff *FjordFees) validateFjordFeatures(receipt *types.Receipt, l1Fee *big.Int) (uint64, *big.Int) {
 	ff.require.NotNil(receipt.L1Fee, "L1 fee should be present in Fjord")
 	ff.require.True(l1Fee.Cmp(big.NewInt(0)) > 0, "L1 fee should be greater than 0 in Fjord")
@@ -190,37 +196,8 @@ func (ff *FjordFees) validateFjordFeatures(receipt *types.Receipt, l1Fee *big.In
 		return fastLzSizeSigned, nil
 	}
 
-	// Use the existing L1Block binding which has all the fee methods we need
-	l1Block := bindings.NewL1Block(
-		bindings.WithClient(client),
-		bindings.WithTo(predeploys.L1BlockAddr),
-		bindings.WithTest(ff.t))
-
-	overrideBlockOpt := func(ptx *txplan.PlannedTx) {
-		ptx.AgainstBlock.Fn(func(ctx context.Context) (eth.BlockInfo, error) {
-			return client.InfoByHash(ctx, receipt.BlockHash)
-		})
-	}
-
-	baseFeeScalar, err := contractio.Read(l1Block.BasefeeScalar(), ff.ctx, overrideBlockOpt)
-	ff.require.NoError(err, "should get base fee scalar")
-
-	l1BaseFee, err := contractio.Read(l1Block.Basefee(), ff.ctx, overrideBlockOpt)
-	ff.require.NoError(err, "should get L1 base fee")
-
-	blobBaseFeeScalar, err := contractio.Read(l1Block.BlobBaseFeeScalar(), ff.ctx, overrideBlockOpt)
-	ff.require.NoError(err, "should get blob base fee scalar")
-
-	blobBaseFee, err := contractio.Read(l1Block.BlobBaseFee(), ff.ctx, overrideBlockOpt)
-	ff.require.NoError(err, "should get blob base fee")
-
-	costFunc := types.NewL1CostFuncFjord(
-		l1BaseFee,
-		blobBaseFee,
-		new(big.Int).SetUint64(uint64(baseFeeScalar)),
-		new(big.Int).SetUint64(uint64(blobBaseFeeScalar)))
-
-	expectedFee, _ := costFunc(signedTx.RollupCostData())
+	expectedFee, err := CalculateFjordL1Cost(client, signedTx.RollupCostData(), receipt.BlockNumber)
+	ff.require.NoError(err, "should calculate L1 fee")
 
 	ff.require.Equal(receiptL1Fee, expectedFee, "Calculated L1 fee should match receipt L1 fee")
 
@@ -229,6 +206,7 @@ func (ff *FjordFees) validateFjordFeatures(receipt *types.Receipt, l1Fee *big.In
 	return fastLzSizeSigned, expectedFee
 }
 
+// validateFeeDistribution validates that the fees are distributed correctly to the vaults
 func (ff *FjordFees) validateFeeDistribution(l1Fee, baseFee, priorityFee, operatorFee *big.Int, vaults VaultBalances) {
 	ff.require.True(l1Fee.Sign() >= 0, "L1 fee must be non-negative")
 	ff.require.True(baseFee.Sign() > 0, "Base fee must be positive")
@@ -241,6 +219,7 @@ func (ff *FjordFees) validateFeeDistribution(l1Fee, baseFee, priorityFee, operat
 	ff.require.Equal(operatorFee, vaults.OperatorVault, "Operator fee must match OperatorFeeVault increase")
 }
 
+// validateTotalBalance validates that the total balance of the wallet and the vaults is correct
 func (ff *FjordFees) validateTotalBalance(walletDiff *big.Int, totalFee *big.Int, vaults VaultBalances) {
 	totalVaultIncrease := new(big.Int).Add(vaults.BaseFeeVault, vaults.L1FeeVault)
 	totalVaultIncrease.Add(totalVaultIncrease, vaults.SequencerVault)
@@ -261,6 +240,7 @@ func (ff *FjordFees) getCoinbaseBalance(client apis.EthClient) *big.Int {
 	return balance
 }
 
+// validateVaultIncreaseFees validates that the fees are distributed correctly to the vaults
 func (ff *FjordFees) validateVaultIncreaseFees(
 	l2Fee, baseFee, priorityFee, l1Fee, operatorFee, coinbaseDiff *big.Int,
 	vaultsAfter, vaultsBefore VaultBalances) {
@@ -282,4 +262,88 @@ func (ff *FjordFees) validateVaultIncreaseFees(
 	ff.t.Logf("  Priority Fee: %s (vault increase: %s)", priorityFee, vaultsIncrease.SequencerVault)
 	ff.t.Logf("  L1 Fee: %s (vault increase: %s)", l1Fee, vaultsIncrease.L1FeeVault)
 	ff.t.Logf("  Operator Fee: %s (vault increase: %s)", operatorFee, vaultsIncrease.OperatorVault)
+}
+
+// FindSignedTransactionFromReceipt finds the signed transaction from a receipt and block
+func FindSignedTransactionFromReceipt(ctx context.Context, client apis.EthClient, receipt *types.Receipt) (*types.Transaction, error) {
+	_, txs, err := client.InfoAndTxsByHash(ctx, receipt.BlockHash)
+	if err != nil {
+		return nil, err
+	}
+
+	for _, tx := range txs {
+		if tx.Hash() == receipt.TxHash {
+			return tx, nil
+		}
+	}
+	return nil, fmt.Errorf("signed transaction not found for hash %s", receipt.TxHash)
+}
+
+// CreateUnsignedTransactionFromSigned creates an unsigned transaction from a signed one
+func CreateUnsignedTransactionFromSigned(signedTx *types.Transaction) (*types.Transaction, error) {
+	return types.NewTx(&types.DynamicFeeTx{
+		Nonce:     signedTx.Nonce(),
+		To:        signedTx.To(),
+		Value:     signedTx.Value(),
+		Gas:       signedTx.Gas(),
+		GasFeeCap: signedTx.GasFeeCap(),
+		GasTipCap: signedTx.GasTipCap(),
+		Data:      signedTx.Data(),
+	}), nil
+}
+
+// ReadGasPriceOracleL1Fee reads the L1 fee from GasPriceOracle for an unsigned transaction
+func ReadGasPriceOracleL1Fee(ctx context.Context, gpo *bindings.GasPriceOracle, txUnsigned []byte) (*big.Int, error) {
+	result, err := contractio.Read(gpo.GetL1Fee(txUnsigned), ctx)
+	if err != nil {
+		return nil, err
+	}
+	return result.ToBig(), nil
+}
+
+// ValidateL1FeeMatches checks that the calculated L1 fee matches the actual receipt L1 fee
+func ValidateL1FeeMatches(t devtest.T, calculatedFee, receiptFee *big.Int) {
+	require := t.Require()
+	require.NotNil(receiptFee, "L1 fee should be present in receipt")
+	require.Equal(calculatedFee.Uint64(), receiptFee.Uint64(), "L1 fee should match between calculated and receipt")
+}
+
+// CalculateFjordL1Cost calculates L1 cost using Fjord formula with block-specific L1 state
+func CalculateFjordL1Cost(client apis.EthClient, rollupCostData types.RollupCostData, blockNumber *big.Int) (*big.Int, error) {
+	l1Block := bindings.NewL1Block(
+		bindings.WithClient(client),
+		bindings.WithTo(predeploys.L1BlockAddr),
+	)
+
+	overrideBlockOpt := func(ptx *txplan.PlannedTx) {
+		ptx.AgainstBlock.Fn(func(ctx context.Context) (eth.BlockInfo, error) {
+			return client.InfoByNumber(ctx, blockNumber.Uint64())
+		})
+	}
+
+	baseFeeScalar, err := contractio.Read(l1Block.BasefeeScalar(), context.Background(), overrideBlockOpt)
+	if err != nil {
+		return nil, err
+	}
+	l1BaseFee, err := contractio.Read(l1Block.Basefee(), context.Background(), overrideBlockOpt)
+	if err != nil {
+		return nil, err
+	}
+	blobBaseFeeScalar, err := contractio.Read(l1Block.BlobBaseFeeScalar(), context.Background(), overrideBlockOpt)
+	if err != nil {
+		return nil, err
+	}
+	blobBaseFee, err := contractio.Read(l1Block.BlobBaseFee(), context.Background(), overrideBlockOpt)
+	if err != nil {
+		return nil, err
+	}
+
+	costFunc := types.NewL1CostFuncFjord(
+		l1BaseFee,
+		blobBaseFee,
+		new(big.Int).SetUint64(uint64(baseFeeScalar)),
+		new(big.Int).SetUint64(uint64(blobBaseFeeScalar)))
+
+	fee, _ := costFunc(rollupCostData)
+	return fee, nil
 }
