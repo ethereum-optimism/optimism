@@ -62,7 +62,7 @@ contract LivenessModule2 is ILivenessModule2 {
         // Check if the calling safe has configuration set
         ModuleConfig storage config = safeConfigs[msg.sender];
         if (config.fallbackOwner == address(0)) {
-            revert LivenessModule2_ModuleNotEnabled();
+            revert LivenessModule2_ModuleNotConfigured();
         }
 
         // Check that this module is NOT enabled on the calling Safe
@@ -103,7 +103,7 @@ contract LivenessModule2 is ILivenessModule2 {
         ModuleConfig storage config = safeConfigs[_safe];
 
         if (config.fallbackOwner == address(0)) {
-            revert LivenessModule2_ModuleNotEnabled();
+            revert LivenessModule2_ModuleNotConfigured();
         }
 
         // Check that the module is still enabled on the target Safe
@@ -140,7 +140,7 @@ contract LivenessModule2 is ILivenessModule2 {
 
         // Check if the calling safe has configuration set
         if (config.fallbackOwner == address(0)) {
-            revert LivenessModule2_ModuleNotEnabled();
+            revert LivenessModule2_ModuleNotConfigured();
         }
 
         uint256 startTime = challengeStartTime[msg.sender];
@@ -150,7 +150,7 @@ contract LivenessModule2 is ILivenessModule2 {
 
         // Check if response period has expired
         if (block.timestamp >= startTime + config.livenessResponsePeriod) {
-            revert LivenessModule2_ResponsePeriodExpired();
+            revert LivenessModule2_ResponsePeriodEnded();
         }
 
         delete challengeStartTime[msg.sender];
@@ -169,7 +169,7 @@ contract LivenessModule2 is ILivenessModule2 {
         ModuleConfig storage config = safeConfigs[_safe];
 
         if (config.fallbackOwner == address(0)) {
-            revert LivenessModule2_ModuleNotEnabled();
+            revert LivenessModule2_ModuleNotConfigured();
         }
 
         // Check that the module is still enabled on the target Safe

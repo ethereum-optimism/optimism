@@ -182,7 +182,7 @@ contract LivenessModule2_Configure_Test is LivenessModule2_TestInit {
     }
 
     function test_clear_notEnabled_reverts() external {
-        vm.expectRevert(ILivenessModule2.LivenessModule2_ModuleNotEnabled.selector);
+        vm.expectRevert(ILivenessModule2.LivenessModule2_ModuleNotConfigured.selector);
         vm.prank(address(safeInstance.safe));
         livenessModule2.clear();
     }
@@ -227,7 +227,7 @@ contract LivenessModule2_Challenge_Test is LivenessModule2_TestInit {
     function test_challenge_moduleNotEnabled_reverts() external {
         address newSafe = makeAddr("newSafe");
 
-        vm.expectRevert(ILivenessModule2.LivenessModule2_ModuleNotEnabled.selector);
+        vm.expectRevert(ILivenessModule2.LivenessModule2_ModuleNotConfigured.selector);
         vm.prank(fallbackOwner);
         livenessModule2.challenge(newSafe);
     }
@@ -239,6 +239,29 @@ contract LivenessModule2_Challenge_Test is LivenessModule2_TestInit {
         vm.expectRevert(ILivenessModule2.LivenessModule2_ChallengeAlreadyExists.selector);
         vm.prank(fallbackOwner);
         livenessModule2.challenge(address(safeInstance.safe));
+    }
+
+    function test_challenge_moduleDisabledAtSafeLevel_reverts() external {
+        // Create a Safe, configure it, then disable the module at Safe level
+        (, uint256[] memory newKeys) = SafeTestLib.makeAddrsAndKeys("disabledSafe", NUM_OWNERS);
+        SafeInstance memory disabledSafe = _setupSafe(newKeys, THRESHOLD);
+
+        // Enable module and configure
+        _enableModule(disabledSafe, CHALLENGE_PERIOD, fallbackOwner);
+
+        // Now disable the module at Safe level (but keep config)
+        SafeTestLib.execTransaction(
+            disabledSafe,
+            address(disabledSafe.safe),
+            0,
+            abi.encodeCall(ModuleManager.disableModule, (address(0x1), address(livenessModule2))),
+            Enum.Operation.Call
+        );
+
+        // Try to challenge - should revert because module is disabled at Safe level
+        vm.expectRevert(ILivenessModule2.LivenessModule2_ModuleNotEnabled.selector);
+        vm.prank(fallbackOwner);
+        livenessModule2.challenge(address(disabledSafe.safe));
     }
 
     function test_respond_succeeds() external {
@@ -289,7 +312,7 @@ contract LivenessModule2_Challenge_Test is LivenessModule2_TestInit {
         vm.warp(block.timestamp + CHALLENGE_PERIOD + 1);
 
         // Try to cancel - should fail as response period has expired
-        vm.expectRevert(ILivenessModule2.LivenessModule2_ResponsePeriodExpired.selector);
+        vm.expectRevert(ILivenessModule2.LivenessModule2_ResponsePeriodEnded.selector);
         vm.prank(address(safeInstance.safe));
         livenessModule2.respond();
     }
@@ -342,7 +365,7 @@ contract LivenessModule2_ChangeOwnershipToFallback_Test is LivenessModule2_TestI
     function test_changeOwnershipToFallback_moduleNotEnabled_reverts() external {
         address newSafe = makeAddr("newSafe");
 
-        vm.expectRevert(ILivenessModule2.LivenessModule2_ModuleNotEnabled.selector);
+        vm.expectRevert(ILivenessModule2.LivenessModule2_ModuleNotConfigured.selector);
         livenessModule2.changeOwnershipToFallback(newSafe);
     }
 
@@ -358,6 +381,28 @@ contract LivenessModule2_ChangeOwnershipToFallback_Test is LivenessModule2_TestI
 
         // Try to execute before response period expires
         vm.expectRevert(ILivenessModule2.LivenessModule2_ResponsePeriodActive.selector);
+        livenessModule2.changeOwnershipToFallback(address(safeInstance.safe));
+    }
+
+    function test_changeOwnershipToFallback_moduleDisabledAtSafeLevel_reverts() external {
+        // Start a challenge
+        vm.prank(fallbackOwner);
+        livenessModule2.challenge(address(safeInstance.safe));
+
+        // Warp past challenge period
+        vm.warp(block.timestamp + CHALLENGE_PERIOD + 1);
+
+        // Disable the module at Safe level
+        SafeTestLib.execTransaction(
+            safeInstance,
+            address(safeInstance.safe),
+            0,
+            abi.encodeCall(ModuleManager.disableModule, (address(0x1), address(livenessModule2))),
+            Enum.Operation.Call
+        );
+
+        // Try to execute ownership transfer - should revert because module is disabled at Safe level
+        vm.expectRevert(ILivenessModule2.LivenessModule2_ModuleNotEnabled.selector);
         livenessModule2.changeOwnershipToFallback(address(safeInstance.safe));
     }
 

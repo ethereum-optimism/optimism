@@ -258,6 +258,11 @@
   },
   {
     "inputs": [],
+    "name": "LivenessModule2_ModuleNotConfigured",
+    "type": "error"
+  },
+  {
+    "inputs": [],
     "name": "LivenessModule2_ModuleNotEnabled",
     "type": "error"
   },
@@ -273,7 +278,7 @@
   },
   {
     "inputs": [],
-    "name": "LivenessModule2_ResponsePeriodExpired",
+    "name": "LivenessModule2_ResponsePeriodEnded",
     "type": "error"
   },
   {

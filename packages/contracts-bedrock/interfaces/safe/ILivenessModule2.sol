@@ -16,14 +16,17 @@ interface ILivenessModule2 is ISemver {
     /// @notice Error for when module is not enabled for the Safe
     error LivenessModule2_ModuleNotEnabled();
 
+    /// @notice Error for when Safe is not configured for this module
+    error LivenessModule2_ModuleNotConfigured();
+
     /// @notice Error for when a challenge already exists
     error LivenessModule2_ChallengeAlreadyExists();
 
     /// @notice Error for when no challenge exists
     error LivenessModule2_ChallengeDoesNotExist();
 
-    /// @notice Error for when trying to cancel a challenge after the response period has expired
-    error LivenessModule2_ResponsePeriodExpired();
+    /// @notice Error for when trying to cancel a challenge after the response period has ended
+    error LivenessModule2_ResponsePeriodEnded();
 
     /// @notice Error for when trying to execute ownership transfer while the response period is still active
     error LivenessModule2_ResponsePeriodActive();
