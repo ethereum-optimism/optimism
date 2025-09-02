@@ -95,7 +95,7 @@ func NewDefaultMinimalSystemWithSyncTesterIDs(l1ID, l2ID eth.ChainID) DefaultMin
 	minimal := NewDefaultMinimalSystemIDs(l1ID, l2ID)
 	return DefaultMinimalSystemWithSyncTesterIDs{
 		DefaultMinimalSystemIDs: minimal,
-		SyncTester:              stack.NewSyncTesterID("s", l2ID),
+		SyncTester:              stack.NewSyncTesterID("sync-tester", l2ID),
 	}
 }
 
@@ -135,7 +135,7 @@ func DefaultMinimalSystemWithSyncTester(dest *DefaultMinimalSystemWithSyncTester
 		ids.L2EL,
 	}))
 
-	opt.Add(WithSyncTester([]stack.L2ELNodeID{ids.L2EL}))
+	opt.Add(WithSyncTester(ids.SyncTester, []stack.L2ELNodeID{ids.L2EL}))
 
 	opt.Add(stack.Finally(func(orch *Orchestrator) {
 		*dest = ids
