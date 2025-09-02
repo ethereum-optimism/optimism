@@ -135,7 +135,7 @@ contract SystemConfig is ProxyAdminOwnedBase, OwnableUpgradeable, Reinitializabl
     /// @notice The SuperchainConfig contract that manages the pause state.
     ISuperchainConfig public superchainConfig;
 
-    /// @notice Feature flags.
+    /// @notice Bytes32 feature flag name to boolean enabled value.
     mapping(bytes32 => bool) public isFeatureEnabled;
 
     /// @notice Emitted when configuration is updated.
@@ -144,10 +144,14 @@ contract SystemConfig is ProxyAdminOwnedBase, OwnableUpgradeable, Reinitializabl
     /// @param data       Encoded update data.
     event ConfigUpdate(uint256 indexed version, UpdateType indexed updateType, bytes data);
 
-    /// @notice Emitted when a feature is toggled.
-    /// @param feature Feature that was toggled.
+    /// @notice Emitted when a feature is set.
+    /// @param feature Feature that was set.
     /// @param enabled Whether the feature is enabled.
-    event FeatureToggled(bytes32 indexed feature, bool indexed enabled);
+    event FeatureSet(bytes32 indexed feature, bool indexed enabled);
+
+    /// @notice Thrown when attempting to enable/disable a feature when already enabled/disabled,
+    ///         respectively.
+    error SystemConfig_InvalidFeatureState();
 
     /// @notice Semantic version.
     /// @custom:semver 3.5.0
@@ -492,18 +496,25 @@ contract SystemConfig is ProxyAdminOwnedBase, OwnableUpgradeable, Reinitializabl
         _resourceConfig = _config;
     }
 
-    /// @notice Toggles a feature flag. Can only be called by the ProxyAdmin or its owner.
-    /// @param _feature Feature to toggle.
+    /// @notice Sets a feature flag enabled or disabled. Can only be called by the ProxyAdmin or
+    ///         its owner.
+    /// @param _feature Feature to set.
     /// @param _enabled Whether the feature should be enabled or disabled.
-    function toggleFeature(bytes32 _feature, bool _enabled) external {
-        // Features can only be toggled by the ProxyAdmin or its owner.
+    function setFeature(bytes32 _feature, bool _enabled) external {
+        // Features can only be set by the ProxyAdmin or its owner.
         _assertOnlyProxyAdminOrProxyAdminOwner();
 
-        // Toggle the feature.
+        // As a sanity check, prevent users from enabling the feature if already enabled or
+        // disabling the feature if already disabled. This helps to prevent accidental misuse.
+        if ((_enabled && isFeatureEnabled[_feature]) || (!_enabled && !isFeatureEnabled[_feature])) {
+            revert SystemConfig_InvalidFeatureState();
+        }
+
+        // Set the feature.
         isFeatureEnabled[_feature] = _enabled;
 
         // Emit an event.
-        emit FeatureToggled(_feature, _enabled);
+        emit FeatureSet(_feature, _enabled);
     }
 
     /// @notice Returns the current pause state of the system by checking if the SuperchainConfig is paused for this

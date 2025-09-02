@@ -726,6 +726,24 @@
   {
     "inputs": [
       {
+        "internalType": "bytes32",
+        "name": "_feature",
+        "type": "bytes32"
+      },
+      {
+        "internalType": "bool",
+        "name": "_enabled",
+        "type": "bool"
+      }
+    ],
+    "name": "setFeature",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
         "internalType": "uint256",
         "name": "_overhead",
         "type": "uint256"
@@ -832,24 +850,6 @@
   {
     "inputs": [
       {
-        "internalType": "bytes32",
-        "name": "_feature",
-        "type": "bytes32"
-      },
-      {
-        "internalType": "bool",
-        "name": "_enabled",
-        "type": "bool"
-      }
-    ],
-    "name": "toggleFeature",
-    "outputs": [],
-    "stateMutability": "nonpayable",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
         "internalType": "address",
         "name": "newOwner",
         "type": "address"
@@ -945,7 +945,7 @@
         "type": "bool"
       }
     ],
-    "name": "FeatureToggled",
+    "name": "FeatureSet",
     "type": "event"
   },
   {
@@ -1013,6 +1013,11 @@
   {
     "inputs": [],
     "name": "ReinitializableBase_ZeroInitVersion",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "SystemConfig_InvalidFeatureState",
     "type": "error"
   }
 ]
