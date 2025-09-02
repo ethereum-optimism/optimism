@@ -12,6 +12,7 @@ import { Enum as SafeOps } from "safe-contracts/common/Enum.sol";
 import { DeployUtils } from "scripts/libraries/DeployUtils.sol";
 
 import { LivenessModule2 } from "src/safe/LivenessModule2.sol";
+import { ILivenessModule2 } from "interfaces/safe/ILivenessModule2.sol";
 import { ISuperchainConfig } from "interfaces/L1/ISuperchainConfig.sol";
 
 import { Deploy } from "./Deploy.s.sol";
@@ -309,7 +310,13 @@ contract DeployOwnership is Deploy {
             _safe: safe,
             _target: livenessModule,
             _data: abi.encodeCall(
-                LivenessModule2.configure, (livenessModuleConfig.livenessInterval, livenessModuleConfig.fallbackOwner)
+                LivenessModule2.configure,
+                (
+                    ILivenessModule2.ModuleConfig({
+                        livenessResponsePeriod: livenessModuleConfig.livenessInterval,
+                        fallbackOwner: livenessModuleConfig.fallbackOwner
+                    })
+                )
             )
         });
 

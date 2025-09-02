@@ -6,6 +6,12 @@ import { ISemver } from "interfaces/universal/ISemver.sol";
 /// @title ILivenessModule2
 /// @notice Interface for LivenessModule2, a singleton module for challenge-based ownership transfer
 interface ILivenessModule2 is ISemver {
+    
+    /// @notice Configuration for a Safe's liveness module
+    struct ModuleConfig {
+        uint256 livenessResponsePeriod;
+        address fallbackOwner;
+    }
 
     /// @notice Error for when module is not enabled for the Safe
     error LivenessModule2_ModuleNotEnabled();
@@ -62,9 +68,8 @@ interface ILivenessModule2 is ISemver {
     function version() external view returns (string memory);
 
     /// @notice Configures the module for a Safe that has already enabled it
-    /// @param _livenessResponsePeriod The period in seconds for a liveness response
-    /// @param _fallbackOwner The address that will become owner if challenge succeeds
-    function configure(uint256 _livenessResponsePeriod, address _fallbackOwner) external;
+    /// @param _config The configuration parameters for the module
+    function configure(ModuleConfig memory _config) external;
 
     /// @notice Clears the module configuration for a Safe
     function clear() external;

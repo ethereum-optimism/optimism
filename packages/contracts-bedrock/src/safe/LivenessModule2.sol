@@ -21,12 +21,6 @@ contract LivenessModule2 is ILivenessModule2 {
     /// @notice Reserved address used as the previous owner to the first owner in a Safe
     address public constant SENTINEL_OWNER = address(0x1);
 
-    /// @notice Configuration for a Safe's liveness module
-    struct ModuleConfig {
-        uint256 livenessResponsePeriod;
-        address fallbackOwner;
-    }
-
     /// @notice Mapping from Safe address to its configuration
     mapping(address => ModuleConfig) public safeConfigs;
 
@@ -39,11 +33,9 @@ contract LivenessModule2 is ILivenessModule2 {
 
     /// @notice Configures the module for a Safe that has already enabled it
     /// @dev MUST only be callable by a Safe that has enabled this module
-    /// @dev MUST take as parameters liveness_response_period and fallback_owner and store them as related to the safe
-    /// @param _livenessResponsePeriod The period in seconds for a liveness response
-    /// @param _fallbackOwner The address that will become owner if challenge succeeds
-    function configure(uint256 _livenessResponsePeriod, address _fallbackOwner) external {
-        if (_livenessResponsePeriod == 0 || _fallbackOwner == address(0)) {
+    /// @param _config The configuration parameters for the module
+    function configure(ModuleConfig memory _config) external {
+        if (_config.livenessResponsePeriod == 0 || _config.fallbackOwner == address(0)) {
             revert LivenessModule2_InvalidParameters();
         }
 
@@ -54,14 +46,12 @@ contract LivenessModule2 is ILivenessModule2 {
         }
 
         // Store the configuration for this safe
-        ModuleConfig storage config = safeConfigs[msg.sender];
-        config.livenessResponsePeriod = _livenessResponsePeriod;
-        config.fallbackOwner = _fallbackOwner;
+        safeConfigs[msg.sender] = _config;
 
         // Clear any existing challenge when configuring/re-configuring
         delete challengeStartTime[msg.sender];
 
-        emit ModuleEnabled(msg.sender, _livenessResponsePeriod, _fallbackOwner);
+        emit ModuleEnabled(msg.sender, _config.livenessResponsePeriod, _config.fallbackOwner);
     }
 
     /// @notice Clears the module configuration for a Safe

@@ -67,14 +67,21 @@
   {
     "inputs": [
       {
-        "internalType": "uint256",
-        "name": "_livenessResponsePeriod",
-        "type": "uint256"
-      },
-      {
-        "internalType": "address",
-        "name": "_fallbackOwner",
-        "type": "address"
+        "components": [
+          {
+            "internalType": "uint256",
+            "name": "livenessResponsePeriod",
+            "type": "uint256"
+          },
+          {
+            "internalType": "address",
+            "name": "fallbackOwner",
+            "type": "address"
+          }
+        ],
+        "internalType": "struct ILivenessModule2.ModuleConfig",
+        "name": "_config",
+        "type": "tuple"
       }
     ],
     "name": "configure",

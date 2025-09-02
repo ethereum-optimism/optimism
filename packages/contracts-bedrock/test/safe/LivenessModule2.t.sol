@@ -54,12 +54,10 @@ contract LivenessModule2_TestInit is Test, SafeTestTools {
 
     /// @notice Helper to enable the LivenessModule2 for a Safe
     function _enableModule(SafeInstance memory _safe, uint256 _period, address _fallback) internal {
+        ILivenessModule2.ModuleConfig memory config =
+            ILivenessModule2.ModuleConfig({ livenessResponsePeriod: _period, fallbackOwner: _fallback });
         SafeTestLib.execTransaction(
-            _safe,
-            address(livenessModule2),
-            0,
-            abi.encodeCall(LivenessModule2.configure, (_period, _fallback)),
-            Enum.Operation.Call
+            _safe, address(livenessModule2), 0, abi.encodeCall(LivenessModule2.configure, (config)), Enum.Operation.Call
         );
     }
 
@@ -139,19 +137,25 @@ contract LivenessModule2_Configure_Test is LivenessModule2_TestInit {
         // Now configure should revert because the module is not enabled at the Safe level
         vm.expectRevert(ILivenessModule2.LivenessModule2_ModuleNotEnabled.selector);
         vm.prank(address(newSafe.safe));
-        livenessModule2.configure(CHALLENGE_PERIOD, fallbackOwner);
+        livenessModule2.configure(
+            ILivenessModule2.ModuleConfig({ livenessResponsePeriod: CHALLENGE_PERIOD, fallbackOwner: fallbackOwner })
+        );
     }
 
     function test_configure_invalidParameters_reverts() external {
         // Test with zero period
         vm.expectRevert(ILivenessModule2.LivenessModule2_InvalidParameters.selector);
         vm.prank(address(safeInstance.safe));
-        livenessModule2.configure(0, fallbackOwner);
+        livenessModule2.configure(
+            ILivenessModule2.ModuleConfig({ livenessResponsePeriod: 0, fallbackOwner: fallbackOwner })
+        );
 
         // Test with zero address
         vm.expectRevert(ILivenessModule2.LivenessModule2_InvalidParameters.selector);
         vm.prank(address(safeInstance.safe));
-        livenessModule2.configure(CHALLENGE_PERIOD, address(0));
+        livenessModule2.configure(
+            ILivenessModule2.ModuleConfig({ livenessResponsePeriod: CHALLENGE_PERIOD, fallbackOwner: address(0) })
+        );
     }
 
     function test_clear_succeeds() external {

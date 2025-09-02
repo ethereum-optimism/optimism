@@ -4,7 +4,7 @@
     "label": "safeConfigs",
     "offset": 0,
     "slot": "0",
-    "type": "mapping(address => struct LivenessModule2.ModuleConfig)"
+    "type": "mapping(address => struct ILivenessModule2.ModuleConfig)"
   },
   {
     "bytes": "32",
