@@ -87,6 +87,7 @@ jobs:
 
   publish-docker-image:
     name: Publish Docker Image
+    needs: extract-version
     strategy:
       matrix:
         configs:
@@ -106,7 +107,7 @@ jobs:
         run: |
           platform=${{ matrix.configs.platform }}
           echo "PLATFORM_PAIR=${platform//\//-}" >> $GITHUB_ENV
-          echo "RELEASE_VERSION=${GITHUB_REF#refs/tags/rollup-boost/}" >> $GITHUB_ENV
+          echo "RELEASE_VERSION=${{ needs.extract-version.outputs.VERSION }}" >> $GITHUB_ENV
 
       - name: Print version
         run: |
@@ -166,6 +167,7 @@ jobs:
     runs-on: warp-ubuntu-latest-x64-16x
     needs:
       - publish-docker-image
+      - extract-version
     steps:
       - name: Download digests
         uses: actions/download-artifact@v4
@@ -197,20 +199,19 @@ jobs:
           images: ${{ env.REGISTRY_IMAGE }}
           tags: |
             type=sha
-            type=pep440,pattern={{version}}
-            type=pep440,pattern={{major}}.{{minor}}
-            type=raw,value=latest,enable=${{ !contains(env.RELEASE_VERSION, '-rc') }}
+            type=raw,value=${{ needs.extract-version.outputs.VERSION }}
+            type=raw,value=latest,enable=${{ !contains(needs.extract-version.outputs.VERSION, '-') }}
 
       - name: Create manifest list and push
         working-directory: /tmp/digests
         run: |
-          image=$(
-            jq -cr '.tags | first' <<< "$DOCKER_METADATA_OUTPUT_JSON"
-          )
-
-          docker buildx imagetools create -t $image $(
-            printf '${{ env.REGISTRY_IMAGE }}@sha256:%s ' *
-          )
+          # Create manifest for each tag
+          jq -cr '.tags[]' <<< "$DOCKER_METADATA_OUTPUT_JSON" | while read -r tag; do
+            echo "Creating manifest for tag: $tag"
+            docker buildx imagetools create -t $tag $(
+              printf '${{ env.REGISTRY_IMAGE }}@sha256:%s ' *
+            )
+          done
 
       - name: Install regctl
         uses: regclient/actions/regctl-installer@main
