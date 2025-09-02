@@ -20,7 +20,7 @@ use std::{
     time::{Duration, Instant},
 };
 use tokio::pin;
-use tracing::{debug, trace};
+use tracing::{debug, trace, warn};
 
 /// The `FlashBlockService` maintains an in-memory [`PendingBlock`] built out of a sequence of
 /// [`FlashBlock`]s.
@@ -82,6 +82,8 @@ where
                 let _ = tx.send(block).inspect_err(|e| tracing::error!("{e}"));
             }
         }
+
+        warn!("Flashblock service has stopped");
     }
 
     /// Returns the cached reads at the given head hash.
