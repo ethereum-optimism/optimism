@@ -186,6 +186,15 @@ contract LivenessModule2_Configure_Test is LivenessModule2_TestInit {
         vm.prank(address(safeInstance.safe));
         livenessModule2.clear();
     }
+
+    function test_clear_moduleStillEnabled_reverts() external {
+        _enableModule(safeInstance, CHALLENGE_PERIOD, fallbackOwner);
+
+        // Try to clear while module is still enabled (should revert)
+        vm.expectRevert(ILivenessModule2.LivenessModule2_ModuleStillEnabled.selector);
+        vm.prank(address(safeInstance.safe));
+        livenessModule2.clear();
+    }
 }
 
 /// @title LivenessModule2_Challenge_Test

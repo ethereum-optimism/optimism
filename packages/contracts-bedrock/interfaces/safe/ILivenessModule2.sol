@@ -34,6 +34,9 @@ interface ILivenessModule2 is ISemver {
     /// @notice Error for invalid parameters
     error LivenessModule2_InvalidParameters();
 
+    /// @notice Error for when trying to clear configuration while module is still enabled
+    error LivenessModule2_ModuleStillEnabled();
+
 
     /// @notice Emitted when a Safe enables the module
     event ModuleEnabled(address indexed safe, uint256 livenessResponsePeriod, address fallbackOwner);

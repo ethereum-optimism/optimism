@@ -69,7 +69,7 @@ contract LivenessModule2 is ILivenessModule2 {
         // This prevents clearing configuration while module is still enabled
         Safe safe = Safe(payable(msg.sender));
         if (safe.isModuleEnabled(address(this))) {
-            revert LivenessModule2_ModuleNotEnabled();
+            revert LivenessModule2_ModuleStillEnabled();
         }
 
         // Erase the configuration data for this safe
