@@ -196,7 +196,7 @@ func (ff *FjordFees) validateFjordFeatures(receipt *types.Receipt, l1Fee *big.In
 		return fastLzSizeSigned, nil
 	}
 
-	expectedFee, err := CalculateFjordL1Cost(client, signedTx.RollupCostData(), receipt.BlockNumber)
+	expectedFee, err := CalculateFjordL1Cost(ff.ctx, client, signedTx.RollupCostData(), receipt.BlockNumber)
 	ff.require.NoError(err, "should calculate L1 fee")
 
 	ff.require.Equal(receiptL1Fee, expectedFee, "Calculated L1 fee should match receipt L1 fee")
@@ -309,7 +309,7 @@ func ValidateL1FeeMatches(t devtest.T, calculatedFee, receiptFee *big.Int) {
 }
 
 // CalculateFjordL1Cost calculates L1 cost using Fjord formula with block-specific L1 state
-func CalculateFjordL1Cost(client apis.EthClient, rollupCostData types.RollupCostData, blockNumber *big.Int) (*big.Int, error) {
+func CalculateFjordL1Cost(ctx context.Context, client apis.EthClient, rollupCostData types.RollupCostData, blockNumber *big.Int) (*big.Int, error) {
 	l1Block := bindings.NewL1Block(
 		bindings.WithClient(client),
 		bindings.WithTo(predeploys.L1BlockAddr),
@@ -321,19 +321,19 @@ func CalculateFjordL1Cost(client apis.EthClient, rollupCostData types.RollupCost
 		})
 	}
 
-	baseFeeScalar, err := contractio.Read(l1Block.BasefeeScalar(), context.Background(), overrideBlockOpt)
+	baseFeeScalar, err := contractio.Read(l1Block.BasefeeScalar(), ctx, overrideBlockOpt)
 	if err != nil {
 		return nil, err
 	}
-	l1BaseFee, err := contractio.Read(l1Block.Basefee(), context.Background(), overrideBlockOpt)
+	l1BaseFee, err := contractio.Read(l1Block.Basefee(), ctx, overrideBlockOpt)
 	if err != nil {
 		return nil, err
 	}
-	blobBaseFeeScalar, err := contractio.Read(l1Block.BlobBaseFeeScalar(), context.Background(), overrideBlockOpt)
+	blobBaseFeeScalar, err := contractio.Read(l1Block.BlobBaseFeeScalar(), ctx, overrideBlockOpt)
 	if err != nil {
 		return nil, err
 	}
-	blobBaseFee, err := contractio.Read(l1Block.BlobBaseFee(), context.Background(), overrideBlockOpt)
+	blobBaseFee, err := contractio.Read(l1Block.BlobBaseFee(), ctx, overrideBlockOpt)
 	if err != nil {
 		return nil, err
 	}

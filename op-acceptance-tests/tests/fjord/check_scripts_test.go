@@ -164,11 +164,11 @@ func checkFastLZTransactions(t devtest.T, ctx context.Context, sys *presets.Mini
 		require.NoError(err)
 
 		fastLzSize := uint64(types.FlzCompressLen(txUnsigned) + 68)
-		gethGPOFee, err := dsl.CalculateFjordL1Cost(l2Client, types.RollupCostData{FastLzSize: fastLzSize}, receipt.BlockNumber)
+		gethGPOFee, err := dsl.CalculateFjordL1Cost(ctx, l2Client, types.RollupCostData{FastLzSize: fastLzSize}, receipt.BlockNumber)
 		require.NoError(err)
 		require.Equal(gethGPOFee.Uint64(), gpoFee.Uint64())
 
-		expectedFee, err := dsl.CalculateFjordL1Cost(l2Client, signedTx.RollupCostData(), receipt.BlockNumber)
+		expectedFee, err := dsl.CalculateFjordL1Cost(ctx, l2Client, signedTx.RollupCostData(), receipt.BlockNumber)
 		require.NoError(err)
 		require.NotNil(receipt.L1Fee)
 		dsl.ValidateL1FeeMatches(t, expectedFee, receipt.L1Fee)
@@ -177,7 +177,7 @@ func checkFastLZTransactions(t devtest.T, ctx context.Context, sys *presets.Mini
 		require.NoError(err)
 		txLenGPO := len(txUnsigned) + 68
 		flzUpperBound := uint64(txLenGPO + txLenGPO/255 + 16)
-		upperBoundCost, err := dsl.CalculateFjordL1Cost(l2Client, types.RollupCostData{FastLzSize: flzUpperBound}, receipt.BlockNumber)
+		upperBoundCost, err := dsl.CalculateFjordL1Cost(ctx, l2Client, types.RollupCostData{FastLzSize: flzUpperBound}, receipt.BlockNumber)
 		require.NoError(err)
 		require.Equal(upperBoundCost.Uint64(), upperBound.ToBig().Uint64())
 
