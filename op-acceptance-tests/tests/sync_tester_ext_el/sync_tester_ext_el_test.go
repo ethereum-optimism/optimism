@@ -10,9 +10,13 @@ import (
 )
 
 func TestSyncTesterExtEL(gt *testing.T) {
+	// if os.Getenv("NIGHTLY_CI_TAILSCALE_JOB") != "true" {
+	// 	gt.Skip("Skipping test because NIGHTLY_CI_TAILSCALE_JOB is not set")
+	// }
+
 	t := devtest.SerialT(gt)
 
-	sys := presets.NewMinimalExternalELWithExternalL1(t, "https://proxyd-l1-sepolia.primary.client.dev.oplabs.cloud", "https://beacon-api-proxy-sepolia.primary.client.dev.oplabs.cloud", eth.ChainIDFromUInt64(11155111))
+	sys := presets.NewMinimalExternalELWithExternalL1(t)
 	require := t.Require()
 
 	// Test that we can get chain IDs from L2CL node

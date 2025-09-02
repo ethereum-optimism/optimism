@@ -42,7 +42,7 @@ func WithMinimalExternalELWithSuperchainRegistry(l1CLBeaconRPC, l1ELRPC, l2ELRPC
 	return stack.MakeCommon(sysgo.DefaultMinimalExternalELSystemWithEndpointAndSuperchainRegistry(&sysgo.DefaultMinimalExternalELSystemIDs{}, l1CLBeaconRPC, l1ELRPC, l2ELRPC, l1ChainID, networkName, fcus))
 }
 
-func NewMinimalExternalELWithExternalL1(t devtest.T, l1ELRPCURL, l1CLBeaconURL string, l1ChainID eth.ChainID) *MinimalExternalEL {
+func NewMinimalExternalELWithExternalL1(t devtest.T) *MinimalExternalEL {
 	system := shim.NewSystem(t)
 	orch := Orchestrator()
 	orch.Hydrate(system)

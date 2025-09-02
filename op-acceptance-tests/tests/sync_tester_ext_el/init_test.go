@@ -10,10 +10,12 @@ import (
 
 func TestMain(m *testing.M) {
 	L2NetworkName := "sepolia"
+	L1ChainID := eth.ChainIDFromUInt64(11155111)
+
+	// tailscale
 	L2ELEndpoint := "https://sepolia.optimism.io/"
 	L1CLBeaconEndpoint := "https://beacon-api-proxy-sepolia.primary.client.dev.oplabs.cloud"
 	L1ELEndpoint := "https://proxyd-l1-sepolia.primary.client.dev.oplabs.cloud"
-	L1ChainID := eth.ChainIDFromUInt64(11155111)
 
 	presets.DoMain(m, presets.WithMinimalExternalELWithSuperchainRegistry(L1CLBeaconEndpoint, L1ELEndpoint, L2ELEndpoint, L1ChainID, L2NetworkName, eth.FCUState{
 		Latest:    32012748,
