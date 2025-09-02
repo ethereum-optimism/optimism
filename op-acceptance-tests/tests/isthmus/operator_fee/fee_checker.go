@@ -37,11 +37,9 @@ func (f *stateGetterAdapterFactory) NewStateGetterAdapter(blockNumber *big.Int) 
 
 // GetState implements the StateGetter interface
 func (sga *stateGetterAdapter) GetState(addr common.Address, key common.Hash) common.Hash {
-	var result common.Hash
 	val, err := sga.client.StorageAt(sga.ctx, addr, key, sga.blockNumber)
 	require.NoError(sga.t, err)
-	copy(result[:], val)
-	return result
+	return common.BytesToHash(val)
 }
 
 // FeeChecker provides methods to calculate various types of fees
