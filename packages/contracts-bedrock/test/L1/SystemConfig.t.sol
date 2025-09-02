@@ -747,9 +747,6 @@ contract SystemConfig_SetFeature_Test is SystemConfig_TestInit {
 
     /// @notice Tests that `setFeature` enables a feature successfully when called by ProxyAdmin.
     function test_setFeature_enableFeatureByProxyAdmin_succeeds() external {
-        // Verify feature is initially disabled
-        assertFalse(systemConfig.isFeatureEnabled(Features.ETH_LOCKBOX));
-
         vm.expectEmit(address(systemConfig));
         emit FeatureSet(Features.ETH_LOCKBOX, true);
 
@@ -779,9 +776,6 @@ contract SystemConfig_SetFeature_Test is SystemConfig_TestInit {
 
     /// @notice Tests that `setFeature` enables a feature successfully when called by ProxyAdmin owner.
     function test_setFeature_enableFeatureByProxyAdminOwner_succeeds() external {
-        // Verify feature is initially disabled
-        assertFalse(systemConfig.isFeatureEnabled(Features.ETH_LOCKBOX));
-
         vm.expectEmit(address(systemConfig));
         emit FeatureSet(Features.ETH_LOCKBOX, true);
 
@@ -795,9 +789,6 @@ contract SystemConfig_SetFeature_Test is SystemConfig_TestInit {
     /// @notice Tests that `setFeature` can toggle the same feature multiple times.
     function test_setFeature_multipleToggles_succeeds() external {
         address proxyAdmin = address(systemConfig.proxyAdmin());
-
-        // Initially disabled
-        assertFalse(systemConfig.isFeatureEnabled(Features.ETH_LOCKBOX));
 
         // Enable feature
         vm.prank(proxyAdmin);

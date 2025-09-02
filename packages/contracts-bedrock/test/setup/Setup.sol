@@ -5,10 +5,9 @@ pragma solidity 0.8.15;
 import { console2 as console } from "forge-std/console2.sol";
 import { Vm, VmSafe } from "forge-std/Vm.sol";
 import { EIP1967Helper } from "test/mocks/EIP1967Helper.sol";
-import { DevFlags } from "test/setup/DevFlags.sol";
+import { FeatureFlags } from "test/setup/FeatureFlags.sol";
 
 // Scripts
-import { LibString } from "@solady/utils/LibString.sol";
 import { Deploy } from "scripts/deploy/Deploy.s.sol";
 import { ForkLive } from "test/setup/ForkLive.s.sol";
 import { Fork, LATEST_FORK } from "scripts/libraries/Config.sol";
@@ -69,7 +68,7 @@ import { ICrossL2Inbox } from "interfaces/L2/ICrossL2Inbox.sol";
 ///      sets the L2 contracts directly at the predeploy addresses instead of setting them
 ///      up behind proxies. In the future we will migrate to importing the genesis JSON
 ///      file that is created to set up the L2 contracts instead of setting them up manually.
-contract Setup is DevFlags {
+contract Setup is FeatureFlags {
     using ForkUtils for Fork;
 
     /// @notice The address of the foundry Vm contract.
@@ -297,6 +296,9 @@ contract Setup is DevFlags {
         }
 
         console.log("Setup: registered L1 deployments");
+
+        // Update the SystemConfig address.
+        setSystemConfig(systemConfig);
     }
 
     /// @dev Sets up the L2 contracts. Depends on `L1()` being called first.

@@ -14,6 +14,7 @@ import { StandardBridge } from "src/universal/StandardBridge.sol";
 import { Predeploys } from "src/libraries/Predeploys.sol";
 import { AddressAliasHelper } from "src/vendor/AddressAliasHelper.sol";
 import { EIP1967Helper } from "test/mocks/EIP1967Helper.sol";
+import { Features } from "src/libraries/Features.sol";
 
 // Interfaces
 import { ICrossDomainMessenger } from "interfaces/universal/ICrossDomainMessenger.sol";
@@ -421,8 +422,13 @@ contract L1StandardBridge_Receive_Test is CommonTest {
         vm.prank(alice, alice);
         (bool success,) = address(l1StandardBridge).call{ value: 100 }(hex"");
         assertEq(success, true);
-        assertEq(address(optimismPortal2).balance, portalBalanceBefore);
-        assertEq(address(ethLockbox).balance, ethLockboxBalanceBefore + 100);
+
+        if (isSysFeatureEnabled(Features.ETH_LOCKBOX)) {
+            assertEq(address(optimismPortal2).balance, portalBalanceBefore);
+            assertEq(address(ethLockbox).balance, ethLockboxBalanceBefore + 100);
+        } else {
+            assertEq(address(optimismPortal2).balance, portalBalanceBefore + 100);
+        }
     }
 
     /// @notice Verifies receive function reverts when called by contracts
@@ -448,8 +454,13 @@ contract L1StandardBridge_DepositETH_Test is L1StandardBridge_TestInit {
         uint256 portalBalanceBefore = address(optimismPortal2).balance;
         uint256 ethLockboxBalanceBefore = address(ethLockbox).balance;
         l1StandardBridge.depositETH{ value: 500 }(50000, hex"dead");
-        assertEq(address(optimismPortal2).balance, portalBalanceBefore);
-        assertEq(address(ethLockbox).balance, ethLockboxBalanceBefore + 500);
+
+        if (isSysFeatureEnabled(Features.ETH_LOCKBOX)) {
+            assertEq(address(optimismPortal2).balance, portalBalanceBefore);
+            assertEq(address(ethLockbox).balance, ethLockboxBalanceBefore + 500);
+        } else {
+            assertEq(address(optimismPortal2).balance, portalBalanceBefore + 500);
+        }
     }
 
     /// @notice Tests that depositing ETH succeeds for an EOA using 7702 delegation.
@@ -461,8 +472,13 @@ contract L1StandardBridge_DepositETH_Test is L1StandardBridge_TestInit {
         uint256 portalBalanceBefore = address(optimismPortal2).balance;
         uint256 ethLockboxBalanceBefore = address(ethLockbox).balance;
         l1StandardBridge.depositETH{ value: 500 }(50000, hex"dead");
-        assertEq(address(optimismPortal2).balance, portalBalanceBefore);
-        assertEq(address(ethLockbox).balance, ethLockboxBalanceBefore + 500);
+
+        if (isSysFeatureEnabled(Features.ETH_LOCKBOX)) {
+            assertEq(address(optimismPortal2).balance, portalBalanceBefore);
+            assertEq(address(ethLockbox).balance, ethLockboxBalanceBefore + 500);
+        } else {
+            assertEq(address(optimismPortal2).balance, portalBalanceBefore + 500);
+        }
     }
 
     /// @notice Tests that depositing ETH reverts if the call is not from an EOA.
@@ -487,8 +503,13 @@ contract L1StandardBridge_DepositETHTo_Test is L1StandardBridge_TestInit {
         uint256 portalBalanceBefore = address(optimismPortal2).balance;
         uint256 ethLockboxBalanceBefore = address(ethLockbox).balance;
         l1StandardBridge.depositETHTo{ value: 600 }(bob, 60000, hex"dead");
-        assertEq(address(optimismPortal2).balance, portalBalanceBefore);
-        assertEq(address(ethLockbox).balance, ethLockboxBalanceBefore + 600);
+
+        if (isSysFeatureEnabled(Features.ETH_LOCKBOX)) {
+            assertEq(address(optimismPortal2).balance, portalBalanceBefore);
+            assertEq(address(ethLockbox).balance, ethLockboxBalanceBefore + 600);
+        } else {
+            assertEq(address(optimismPortal2).balance, portalBalanceBefore + 600);
+        }
     }
 
     /// @notice Verifies depositETHTo succeeds with various recipients and amounts
@@ -500,10 +521,17 @@ contract L1StandardBridge_DepositETHTo_Test is L1StandardBridge_TestInit {
 
         vm.deal(alice, _amount);
 
+        uint256 portalBalanceBefore = address(optimismPortal2).balance;
         uint256 ethLockboxBalanceBefore = address(ethLockbox).balance;
+
         vm.prank(alice);
         l1StandardBridge.depositETHTo{ value: _amount }(_to, 60000, hex"dead");
-        assertEq(address(ethLockbox).balance, ethLockboxBalanceBefore + _amount);
+
+        if (isSysFeatureEnabled(Features.ETH_LOCKBOX)) {
+            assertEq(address(ethLockbox).balance, ethLockboxBalanceBefore + _amount);
+        } else {
+            assertEq(address(optimismPortal2).balance, portalBalanceBefore + _amount);
+        }
     }
 }
 
@@ -820,8 +848,13 @@ contract L1StandardBridge_Uncategorized_Test is L1StandardBridge_TestInit {
         uint256 portalBalanceBefore = address(optimismPortal2).balance;
         uint256 ethLockboxBalanceBefore = address(ethLockbox).balance;
         l1StandardBridge.bridgeETH{ value: 500 }(50000, hex"dead");
-        assertEq(address(optimismPortal2).balance, portalBalanceBefore);
-        assertEq(address(ethLockbox).balance, ethLockboxBalanceBefore + 500);
+
+        if (isSysFeatureEnabled(Features.ETH_LOCKBOX)) {
+            assertEq(address(optimismPortal2).balance, portalBalanceBefore);
+            assertEq(address(ethLockbox).balance, ethLockboxBalanceBefore + 500);
+        } else {
+            assertEq(address(optimismPortal2).balance, portalBalanceBefore + 500);
+        }
     }
 
     /// @notice Tests that bridging ETH to a different address succeeds.
@@ -834,8 +867,13 @@ contract L1StandardBridge_Uncategorized_Test is L1StandardBridge_TestInit {
         uint256 portalBalanceBefore = address(optimismPortal2).balance;
         uint256 ethLockboxBalanceBefore = address(ethLockbox).balance;
         l1StandardBridge.bridgeETHTo{ value: 600 }(bob, 60000, hex"dead");
-        assertEq(address(optimismPortal2).balance, portalBalanceBefore);
-        assertEq(address(ethLockbox).balance, ethLockboxBalanceBefore + 600);
+
+        if (isSysFeatureEnabled(Features.ETH_LOCKBOX)) {
+            assertEq(address(optimismPortal2).balance, portalBalanceBefore);
+            assertEq(address(ethLockbox).balance, ethLockboxBalanceBefore + 600);
+        } else {
+            assertEq(address(optimismPortal2).balance, portalBalanceBefore + 600);
+        }
     }
 
     /// @notice Tests that finalizing bridged ETH succeeds.

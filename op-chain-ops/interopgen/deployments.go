@@ -18,6 +18,7 @@ type Implementations struct {
 	OpcmStandardValidator            common.Address `json:"OPCMStandardValidator"`
 	DelayedWETHImpl                  common.Address `json:"DelayedWETHImpl"`
 	OptimismPortalImpl               common.Address `json:"OptimismPortalImpl"`
+	OptimismPortalInteropImpl        common.Address `json:"OptimismPortalInteropImpl"`
 	ETHLockboxImpl                   common.Address `json:"ETHLockboxImpl"`
 	PreimageOracleSingleton          common.Address `json:"PreimageOracleSingleton"`
 	MipsSingleton                    common.Address `json:"MipsSingleton"`

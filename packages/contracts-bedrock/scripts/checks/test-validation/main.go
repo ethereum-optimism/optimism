@@ -147,6 +147,10 @@ func checkTestStructure(artifact *solc.ForgeArtifact) []error {
 
 	// Validate each contract name in the compilation target
 	for _, contractName := range artifact.Metadata.Settings.CompilationTarget {
+		if isExcludedTest(contractName) {
+			continue
+		}
+
 		contractParts := strings.Split(contractName, "_")
 
 		// Check for initialization test pattern
@@ -309,6 +313,16 @@ func isExcluded(filePath string) bool {
 	return false
 }
 
+// Checks if a contract name should be excluded from test validation
+func isExcludedTest(contractName string) bool {
+	for _, excluded := range excludedTests {
+		if excluded == contractName {
+			return true
+		}
+	}
+	return false
+}
+
 // Defines the list of paths that should be excluded from validation
 var excludedPaths = []string{
 	// PATHS EXCLUDED FROM SRC VALIDATION:
@@ -382,6 +396,13 @@ var excludedPaths = []string{
 	"test/L1/ProxyAdminOwnedBase.t.sol",  // Tests internal functions not in ABI
 	"test/L1/SystemConfig.t.sol",         // Tests internal functions not in ABI
 	"test/safe/SafeSigners.t.sol",        // Function name validation issues
+}
+
+var excludedTests = []string{
+	// Interop tests hosted in the OptimismPortal2 test file.
+	"OptimismPortal2_MigrateLiquidity_Test",
+	"OptimismPortal2_MigrateToSuperRoots_Test",
+	"OptimismPortal2_UpgradeInterop_Test",
 }
 
 // Defines the signature for test name validation functions
