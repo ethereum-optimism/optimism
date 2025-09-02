@@ -121,6 +121,7 @@ func (m *Miner) Fork(t *testing.T, blockNumber uint64, attrs *eth.PayloadAttribu
 			NoTxPool:              true,
 			GasLimit:              &gasLimit,
 			EIP1559Params:         &eip1559Params,
+			MinBaseFee:            0,
 		}
 	}
 	m.MineAt(t, head, attrs)
@@ -141,6 +142,7 @@ func (m *Miner) MineAt(t *testing.T, head *types.Header, attrs *eth.PayloadAttri
 			NoTxPool:              true,
 			GasLimit:              &gasLimit,
 			EIP1559Params:         &eip1559Params,
+			MinBaseFee:            0,
 		}
 	}
 	result, err := m.engineAPI.ForkchoiceUpdatedV3(context.Background(), &eth.ForkchoiceState{

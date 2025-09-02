@@ -61,7 +61,11 @@ func NewBlockProcessorFromPayloadAttributes(provider BlockDataProvider, parent c
 			d = provider.Config().BaseFeeChangeDenominator(header.Time)
 			e = provider.Config().ElasticityMultiplier()
 		}
-		header.Extra = eip1559.EncodeHoloceneExtraData(d, e)
+		if provider.Config().IsJovian(header.Time) {
+			header.Extra = eip1559.EncodeJovianExtraData(d, e, attrs.MinBaseFee)
+		} else {
+			header.Extra = eip1559.EncodeHoloceneExtraData(d, e)
+		}
 	}
 
 	return NewBlockProcessorFromHeader(provider, header)

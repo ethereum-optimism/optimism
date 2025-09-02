@@ -583,6 +583,9 @@ func (c *Config) ActivationTimeFor(fork ForkName) *uint64 {
 // block's time is oldTime. It return an empty ForkName if no fork activation takes place between
 // those timestamps. It can be used for both, L1 and L2 blocks.
 func (c *Config) IsActivationBlock(oldTime, newTime uint64) ForkName {
+	if c.IsJovian(newTime) && !c.IsJovian(oldTime) {
+		return Jovian
+	}
 	if c.IsInterop(newTime) && !c.IsInterop(oldTime) {
 		return Interop
 	}
