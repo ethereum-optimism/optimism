@@ -300,10 +300,6 @@ semgrep:
 semgrep-test:
   cd ../../ && semgrep scan --test --config .semgrep/rules/ .semgrep/tests/
 
-# Checks that the frozen code has not been modified.
-check-frozen-code:
-  ./scripts/checks/check-frozen-files.sh
-
 # Runs all checks.
 check:
   @just semgrep-test-validity-check \

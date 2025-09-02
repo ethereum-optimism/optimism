@@ -7,7 +7,6 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-sync-tester/synctester/backend"
-	"github.com/ethereum/go-ethereum/log"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 )
@@ -29,7 +28,7 @@ func TestParseSession_Valid(t *testing.T) {
 	query.Set(eth.Finalized, "80")
 
 	req := newRequest("/chain/1/synctest/"+id, query)
-	newReq, err := parseSession(req, log.New())
+	newReq, err := parseSession(req)
 	require.NoError(t, err)
 	require.NotNil(t, newReq)
 
@@ -49,7 +48,7 @@ func TestParseSession_DefaultsToZero(t *testing.T) {
 	id := uuid.New().String()
 	req := newRequest("/chain/1/synctest/"+id, nil)
 
-	newReq, err := parseSession(req, log.New())
+	newReq, err := parseSession(req)
 	require.NoError(t, err)
 	require.NotNil(t, newReq)
 
@@ -67,7 +66,7 @@ func TestParseSession_DefaultsToZero(t *testing.T) {
 func TestParseSession_NoSessionInitialized(t *testing.T) {
 	req := newRequest("/chain/1/synctest", nil)
 
-	newReq, err := parseSession(req, log.New())
+	newReq, err := parseSession(req)
 	require.NoError(t, err)
 	require.Same(t, req, newReq)
 
@@ -77,7 +76,7 @@ func TestParseSession_NoSessionInitialized(t *testing.T) {
 
 func TestParseSession_InvalidSessionIDFormat(t *testing.T) {
 	req := newRequest("/chain/1/synctest/not-a-uuid", nil)
-	_, err := parseSession(req, log.New())
+	_, err := parseSession(req)
 	require.ErrorIs(t, err, ErrInvalidSessionIDFormat)
 }
 
@@ -87,6 +86,6 @@ func TestParseSession_InvalidQueryParam(t *testing.T) {
 	query.Set(eth.Unsafe, "not-a-number") // invalid uint64
 
 	req := newRequest("/chain/1/synctest/"+id, query)
-	_, err := parseSession(req, log.New())
+	_, err := parseSession(req)
 	require.ErrorIs(t, err, ErrInvalidParams)
 }

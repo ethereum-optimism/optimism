@@ -8,6 +8,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-devstack/presets"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
+	"github.com/google/uuid"
 )
 
 func TestSyncTesterE2E(gt *testing.T) {
@@ -39,7 +40,7 @@ func TestSyncTesterE2E(gt *testing.T) {
 
 	// Test that we can get chain ID from SyncTester
 	syncTester := sys.SyncTester.Escape()
-	syncTesterChainID, err := syncTester.API().ChainID(t.Ctx())
+	syncTesterChainID, err := syncTester.APIWithSession(uuid.New().String()).ChainID(t.Ctx())
 	require.NoError(err, "should be able to get chain ID from SyncTester")
 	require.Equal(eth.ChainIDFromUInt64(901), syncTesterChainID, "SyncTester should be on chain 901")
 
