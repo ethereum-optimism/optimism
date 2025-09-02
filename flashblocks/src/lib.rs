@@ -8,6 +8,7 @@ pub use service::FlashBlockService;
 pub use ws::{WsConnect, WsFlashBlockStream};
 
 mod payload;
+mod sequence;
 mod service;
 mod ws;
 

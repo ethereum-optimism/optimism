@@ -47,3 +47,4 @@ eyre.workspace = true
 
 [dev-dependencies]
 test-case.workspace = true
+alloy-consensus.workspace = true
