@@ -39,7 +39,7 @@ func CombineDeployConfig(intent *Intent, chainIntent *ChainIntent, state *State,
 				FundDevAccounts: intent.FundDevAccounts,
 			},
 			L2GenesisBlockDeployConfig: genesis.L2GenesisBlockDeployConfig{
-				L2GenesisBlockGasLimit:      60_000_000,
+				L2GenesisBlockGasLimit:      hexutil.Uint64(chainIntent.GasLimit),
 				L2GenesisBlockBaseFeePerGas: &l2GenesisBlockBaseFeePerGas,
 			},
 			L2VaultsDeployConfig: genesis.L2VaultsDeployConfig{
