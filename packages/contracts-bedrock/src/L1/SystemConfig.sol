@@ -28,6 +28,9 @@ contract SystemConfig is ProxyAdminOwnedBase, OwnableUpgradeable, Reinitializabl
     /// @custom:value GAS_LIMIT            Represents an update to gas limit on L2.
     /// @custom:value UNSAFE_BLOCK_SIGNER  Represents an update to the signer key for unsafe
     ///                                    block distrubution.
+    /// @custom:value EIP_1559_PARAMS      Represents an update to EIP-1559 parameters.
+    /// @custom:value OPERATOR_FEE_PARAMS  Represents an update to operator fee parameters.
+    /// @custom:value MIN_BASE_FEE         Represents an update to the minimum base fee.
     enum UpdateType {
         BATCHER,
         FEE_SCALARS,
@@ -136,7 +139,7 @@ contract SystemConfig is ProxyAdminOwnedBase, OwnableUpgradeable, Reinitializabl
     /// @notice The SuperchainConfig contract that manages the pause state.
     ISuperchainConfig public superchainConfig;
 
-    /// @notice The minimum base fee.
+    /// @notice The minimum base fee, in wei.
     uint64 public minBaseFee;
 
     /// @notice Emitted when configuration is updated.
