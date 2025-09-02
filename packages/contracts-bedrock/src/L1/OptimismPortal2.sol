@@ -208,7 +208,7 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ReinitializableBase
     }
 
     /// @param _proofMaturityDelaySeconds The proof maturity delay in seconds.
-    constructor(uint256 _proofMaturityDelaySeconds) ReinitializableBase(2) {
+    constructor(uint256 _proofMaturityDelaySeconds) ReinitializableBase(3) {
         PROOF_MATURITY_DELAY_SECONDS = _proofMaturityDelaySeconds;
         _disableInitializers();
     }

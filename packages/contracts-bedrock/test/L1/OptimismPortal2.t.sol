@@ -309,7 +309,7 @@ contract OptimismPortal2_Upgrade_Test is CommonTest {
 
         // Verify that the initialized slot was updated.
         bytes32 initializedSlotAfter = vm.load(address(optimismPortal2), bytes32(slot.slot));
-        assertEq(initializedSlotAfter, bytes32(uint256(2)));
+        assertEq(initializedSlotAfter, bytes32(uint256(3)));
 
         // Assert the portal is properly upgraded.
         assertEq(address(optimismPortal2.anchorStateRegistry()), _newAnchorStateRegistry);
@@ -338,9 +338,9 @@ contract OptimismPortal2_Upgrade_Test is CommonTest {
         // Get the slot for _initialized.
         StorageSlot memory slot = ForgeArtifacts.getSlot("OptimismPortal2", "_initialized");
 
-        // Slot value should be set to 2 (already initialized).
+        // Slot value should be set to 3 (already initialized).
         bytes32 initializedSlotBefore = vm.load(address(optimismPortal2), bytes32(slot.slot));
-        assertEq(initializedSlotBefore, bytes32(uint256(2)));
+        assertEq(initializedSlotBefore, bytes32(uint256(3)));
 
         // AnchorStateRegistry address should be non-zero.
         assertNotEq(address(optimismPortal2.anchorStateRegistry()), address(0));
@@ -412,7 +412,7 @@ contract OptimismPortal2_UpgradeInterop_Test is CommonTest {
 
         // Verify that the initialized slot was updated.
         bytes32 initializedSlotAfter = vm.load(address(optimismPortal2), bytes32(slot.slot));
-        assertEq(initializedSlotAfter, bytes32(uint256(2)));
+        assertEq(initializedSlotAfter, bytes32(uint256(3)));
 
         // Assert the portal is properly upgraded.
         assertEq(address(optimismPortal2.ethLockbox()), address(ethLockbox));
@@ -458,9 +458,9 @@ contract OptimismPortal2_UpgradeInterop_Test is CommonTest {
         // Get the slot for _initialized.
         StorageSlot memory slot = ForgeArtifacts.getSlot("OptimismPortal2", "_initialized");
 
-        // Slot value should be set to 2 (already initialized).
+        // Slot value should be set to 3 (already initialized).
         bytes32 initializedSlotBefore = vm.load(address(optimismPortal2), bytes32(slot.slot));
-        assertEq(initializedSlotBefore, bytes32(uint256(2)));
+        assertEq(initializedSlotBefore, bytes32(uint256(3)));
 
         // AnchorStateRegistry address should be non-zero.
         assertNotEq(address(optimismPortal2.anchorStateRegistry()), address(0));
@@ -2749,7 +2749,7 @@ contract OptimismPortal2_Params_Test is CommonTest {
         // The value passed to the initialize must be larger than the last value
         // that initialize was called with.
         IProxy(payable(address(optimismPortal2))).upgradeToAndCall(
-            address(nextImpl), abi.encodeCall(NextImpl.initialize, (3))
+            address(nextImpl), abi.encodeCall(NextImpl.initialize, (4))
         );
         assertEq(IProxy(payable(address(optimismPortal2))).implementation(), address(nextImpl));
 

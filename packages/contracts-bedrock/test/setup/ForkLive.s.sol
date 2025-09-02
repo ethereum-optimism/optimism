@@ -210,30 +210,12 @@ contract ForkLive is Deployer {
         bytes memory upgraderCode = address(upgrader).code;
         vm.etch(upgrader, vm.getDeployedCode("test/mocks/Callers.sol:DelegateCaller"));
 
-        // The 2.0.0 OPCM requires that the SuperchainConfig and ProtocolVersions contracts have
+        // The 4.1.0 OPCM requires that the SuperchainConfig and ProtocolVersions contracts have
         // been upgraded before it will upgrade other contracts. These contracts can only be
-        // upgraded by the Superchain ProxyAdmin owner. For simplicity, we always just call U13
+        // upgraded by the Superchain ProxyAdmin owner. For simplicity, we always just call U16a
         // once without any chain configs to trigger this upgrade.
         ISuperchainConfig superchainConfig = ISuperchainConfig(artifacts.mustGetAddress("SuperchainConfigProxy"));
         address superchainPAO = IProxyAdmin(EIP1967Helper.getAdmin(address(superchainConfig))).owner();
-        vm.etch(superchainPAO, vm.getDeployedCode("test/mocks/Callers.sol:DelegateCaller"));
-        DelegateCaller(superchainPAO).dcForward(
-            address(0x026b2F158255Beac46c1E7c6b8BbF29A4b6A7B76),
-            abi.encodeCall(IOPContractsManager.upgrade, (new IOPContractsManager.OpChainConfig[](0)))
-        );
-
-        // Start by doing Upgrade 13.
-        DelegateCaller(upgrader).dcForward(
-            address(0x026b2F158255Beac46c1E7c6b8BbF29A4b6A7B76), abi.encodeCall(IOPContractsManager.upgrade, (opChains))
-        );
-
-        // Then do Upgrade 14.
-        DelegateCaller(upgrader).dcForward(
-            address(0x3A1f523a4bc09cd344A2745a108Bb0398288094F), abi.encodeCall(IOPContractsManager.upgrade, (opChains))
-        );
-
-        // Like with Upgrade 13, we need to first call U16 from the Superchain ProxyAdmin owner to
-        // trigger the upgrade of the SuperchainConfig contract.
         vm.etch(superchainPAO, vm.getDeployedCode("test/mocks/Callers.sol:DelegateCaller"));
         DelegateCaller(superchainPAO).dcForward(
             address(opcm), abi.encodeCall(IOPContractsManager.upgrade, (new IOPContractsManager.OpChainConfig[](0)))

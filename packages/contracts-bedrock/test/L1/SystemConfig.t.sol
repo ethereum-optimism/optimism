@@ -36,7 +36,6 @@ contract SystemConfig_TestInit is CommonTest {
 
     function setUp() public virtual override {
         super.setUp();
-        skipIfForkTest("SystemConfig_Initialize_Test: cannot test initialization on forked network");
         batchInbox = deploy.cfg().batchInboxAddress();
         owner = deploy.cfg().finalSystemOwner();
         basefeeScalar = deploy.cfg().basefeeScalar();
@@ -94,6 +93,12 @@ contract SystemConfig_Constructor_Test is SystemConfig_TestInit {
 /// @title SystemConfig_Initialize_Test
 /// @notice Test contract for SystemConfig `initialize` function.
 contract SystemConfig_Initialize_Test is SystemConfig_TestInit {
+    /// @notice Skips the test if it's running on a forked network.
+    function setUp() public override {
+        super.setUp();
+        skipIfForkTest("SystemConfig_Initialize_Test: cannot test initialization on forked network");
+    }
+
     /// @notice Tests that initialization sets the correct values.
     function test_initialize_succeeds() external view {
         assertEq(systemConfig.owner(), owner);
@@ -250,7 +255,7 @@ contract SystemConfig_Upgrade_Test is SystemConfig_TestInit {
 
         // Verify that the initialized slot was updated.
         bytes32 initializedSlotAfter = vm.load(address(systemConfig), bytes32(slot.slot));
-        assertEq(initializedSlotAfter, bytes32(uint256(2)));
+        assertEq(initializedSlotAfter, bytes32(uint256(3)));
 
         // Verify that the l2ChainId was updated.
         assertEq(systemConfig.l2ChainId(), 1234);
@@ -282,9 +287,9 @@ contract SystemConfig_Upgrade_Test is SystemConfig_TestInit {
         // Get the slot for _initialized.
         StorageSlot memory slot = ForgeArtifacts.getSlot("SystemConfig", "_initialized");
 
-        // Slot value should be set to 2 (already initialized).
+        // Slot value should be set to 3 (already initialized).
         bytes32 initializedSlotBefore = vm.load(address(systemConfig), bytes32(slot.slot));
-        assertEq(initializedSlotBefore, bytes32(uint256(2)));
+        assertEq(initializedSlotBefore, bytes32(uint256(3)));
 
         // l2ChainId should be non-zero.
         assertNotEq(systemConfig.l2ChainId(), 0);
