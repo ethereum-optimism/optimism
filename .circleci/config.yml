@@ -1073,6 +1073,7 @@ jobs:
         default: "go-tests-short-ci"
     machine: true
     resource_class: <<parameters.resource_class>>
+    circleci_ip_ranges: true
     steps:
       - checkout-from-workspace
       - run:

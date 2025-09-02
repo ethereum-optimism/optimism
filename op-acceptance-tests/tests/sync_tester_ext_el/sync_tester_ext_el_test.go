@@ -1,7 +1,6 @@
 package sync_tester_ext_el
 
 import (
-	"os"
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-devstack/devtest"
@@ -11,9 +10,9 @@ import (
 )
 
 func TestSyncTesterExtEL(gt *testing.T) {
-	if os.Getenv("NIGHTLY_CI_TAILSCALE_JOB") != "true" {
-		gt.Skip("Skipping test because NIGHTLY_CI_TAILSCALE_JOB is not set")
-	}
+	// if os.Getenv("NIGHTLY_CI_TAILSCALE_JOB") != "true" {
+	// 	gt.Skip("Skipping test because NIGHTLY_CI_TAILSCALE_JOB is not set")
+	// }
 
 	t := devtest.SerialT(gt)
 
