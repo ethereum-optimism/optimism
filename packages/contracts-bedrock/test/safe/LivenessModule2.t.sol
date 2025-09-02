@@ -14,7 +14,7 @@ contract LivenessModule2_TestInit is Test, SafeTestTools {
     using SafeTestLib for SafeInstance;
 
     // Events
-    event ModuleEnabled(address indexed safe, uint256 livenessChallengePeriod, address fallbackOwner);
+    event ModuleEnabled(address indexed safe, uint256 livenessResponsePeriod, address fallbackOwner);
     event ModuleDisabled(address indexed safe);
     event ChallengeStarted(address indexed safe, uint256 challengeStartTime);
     event ChallengeCancelled(address indexed safe);
