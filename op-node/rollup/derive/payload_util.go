@@ -90,7 +90,14 @@ func PayloadToSystemConfig(rollupCfg *rollup.Config, payload *eth.ExecutionPaylo
 		Scalar:      info.L1FeeScalar,
 		GasLimit:    uint64(payload.GasLimit),
 	}
-	if rollupCfg.IsHolocene(uint64(payload.Timestamp)) {
+	if rollupCfg.IsJovian(uint64(payload.Timestamp)) {
+		if err := eip1559.ValidateJovianExtraData(payload.ExtraData); err != nil {
+			return eth.SystemConfig{}, err
+		}
+		d, e, _ := eip1559.DecodeJovianExtraData(payload.ExtraData)
+		copy(r.EIP1559Params[:], eip1559.EncodeHolocene1559Params(d, e))
+		// TODO r.MinBaseFee = m
+	} else if rollupCfg.IsHolocene(uint64(payload.Timestamp)) {
 		if err := eip1559.ValidateHoloceneExtraData(payload.ExtraData); err != nil {
 			return eth.SystemConfig{}, err
 		}
