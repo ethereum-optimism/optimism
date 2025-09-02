@@ -23,7 +23,7 @@ const defaultGasLimit = 30_000_000
 var HoloceneExtraData = eip1559.EncodeHoloceneExtraData(250, 6)
 
 // MinBaseFeeExtraData represents the default extra data for Jovian-genesis chains.
-var MinBaseFeeExtraData = eip1559.EncodeMinBaseFeeExtraData(250, 6, 0)
+var MinBaseFeeExtraData = eip1559.EncodeJovianExtraData(250, 6, 0)
 
 // NewL2Genesis will create a new L2 genesis
 func NewL2Genesis(config *DeployConfig, l1StartHeader *eth.BlockRef) (*core.Genesis, error) {
