@@ -824,7 +824,7 @@ contract OPContractsManagerUpgrader is OPContractsManagerBase {
             // this function, determine if the ETHLockbox exists. If it does, enable the feature in
             // the SystemConfig.
             if (address(optimismPortal.ethLockbox()) != address(0)) {
-                _opChainConfigs[i].systemConfigProxy.toggleFeature(Features.ETH_LOCKBOX, true);
+                _opChainConfigs[i].systemConfigProxy.setFeature(Features.ETH_LOCKBOX, true);
             }
 
             // Separate context to avoid stack too deep.
@@ -1200,7 +1200,7 @@ contract OPContractsManagerDeployer is OPContractsManagerBase {
         // contract. Only other way to get the ETHLockbox feature as of u16a is to have already had
         // the ETHLockbox in U16 and then upgrade to U16a.
         if (isDevFeatureEnabled(DevFeatures.OPTIMISM_PORTAL_INTEROP)) {
-            output.systemConfigProxy.toggleFeature(Features.ETH_LOCKBOX, true);
+            output.systemConfigProxy.setFeature(Features.ETH_LOCKBOX, true);
         }
 
         data = encodeOptimismMintableERC20FactoryInitializer(output);
