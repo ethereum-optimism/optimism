@@ -59,7 +59,7 @@
   },
   {
     "inputs": [],
-    "name": "disable",
+    "name": "clear",
     "outputs": [],
     "stateMutability": "nonpayable",
     "type": "function"
@@ -77,7 +77,7 @@
         "type": "address"
       }
     ],
-    "name": "enableModule",
+    "name": "configure",
     "outputs": [],
     "stateMutability": "nonpayable",
     "type": "function"

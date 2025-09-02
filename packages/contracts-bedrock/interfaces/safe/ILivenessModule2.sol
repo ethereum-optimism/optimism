@@ -61,13 +61,13 @@ interface ILivenessModule2 is ISemver {
     /// @return version The contract version
     function version() external view returns (string memory);
 
-    /// @notice Enables the module by the multisig to be challenged
+    /// @notice Configures the module for a Safe that has already enabled it
     /// @param _livenessResponsePeriod The period in seconds for a liveness response
     /// @param _fallbackOwner The address that will become owner if challenge succeeds
-    function enableModule(uint256 _livenessResponsePeriod, address _fallbackOwner) external;
+    function configure(uint256 _livenessResponsePeriod, address _fallbackOwner) external;
 
-    /// @notice Disables the module by an enabled safe
-    function disable() external;
+    /// @notice Clears the module configuration for a Safe
+    function clear() external;
 
 
     /// @notice Returns challenge_start_time + liveness_response_period if there is a challenge, or 0 if not

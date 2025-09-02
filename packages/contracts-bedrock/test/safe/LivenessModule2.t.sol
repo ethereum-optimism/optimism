@@ -58,7 +58,7 @@ contract LivenessModule2_TestInit is Test, SafeTestTools {
             _safe,
             address(livenessModule2),
             0,
-            abi.encodeCall(LivenessModule2.enableModule, (_period, _fallback)),
+            abi.encodeCall(LivenessModule2.configure, (_period, _fallback)),
             Enum.Operation.Call
         );
     }
@@ -66,7 +66,7 @@ contract LivenessModule2_TestInit is Test, SafeTestTools {
     /// @notice Helper to disable the LivenessModule2 for a Safe
     function _disableModule(SafeInstance memory _safe) internal {
         SafeTestLib.execTransaction(
-            _safe, address(livenessModule2), 0, abi.encodeCall(LivenessModule2.disable, ()), Enum.Operation.Call
+            _safe, address(livenessModule2), 0, abi.encodeCall(LivenessModule2.clear, ()), Enum.Operation.Call
         );
     }
 
@@ -78,10 +78,10 @@ contract LivenessModule2_TestInit is Test, SafeTestTools {
     }
 }
 
-/// @title LivenessModule2_EnableModule_Test
-/// @notice Tests enabling and disabling the module
-contract LivenessModule2_EnableModule_Test is LivenessModule2_TestInit {
-    function test_enableModule_succeeds() external {
+/// @title LivenessModule2_Configure_Test
+/// @notice Tests configuring and clearing the module
+contract LivenessModule2_Configure_Test is LivenessModule2_TestInit {
+    function test_configure_succeeds() external {
         vm.expectEmit(true, true, true, true);
         emit ModuleEnabled(address(safeInstance.safe), CHALLENGE_PERIOD, fallbackOwner);
 
@@ -93,82 +93,68 @@ contract LivenessModule2_EnableModule_Test is LivenessModule2_TestInit {
         assertEq(livenessModule2.challengeStartTime(address(safeInstance.safe)), 0);
     }
 
-    function test_enableModule_multipleSafes_succeeds() external {
-        // Test that multiple independent safes can enable the module
-        address safe1 = makeAddr("safe1");
-        address safe2 = makeAddr("safe2");
-        address safe3 = makeAddr("safe3");
+    function test_configure_multipleSafes_succeeds() external {
+        // Test that multiple independent safes can configure the module
+        (, uint256[] memory keys1) = SafeTestLib.makeAddrsAndKeys("safe1", NUM_OWNERS);
+        SafeInstance memory safe1 = _setupSafe(keys1, THRESHOLD);
+        SafeTestLib.enableModule(safe1, address(livenessModule2));
+
+        (, uint256[] memory keys2) = SafeTestLib.makeAddrsAndKeys("safe2", NUM_OWNERS);
+        SafeInstance memory safe2 = _setupSafe(keys2, THRESHOLD);
+        SafeTestLib.enableModule(safe2, address(livenessModule2));
+
+        (, uint256[] memory keys3) = SafeTestLib.makeAddrsAndKeys("safe3", NUM_OWNERS);
+        SafeInstance memory safe3 = _setupSafe(keys3, THRESHOLD);
+        SafeTestLib.enableModule(safe3, address(livenessModule2));
 
         address fallback1 = makeAddr("fallback1");
         address fallback2 = makeAddr("fallback2");
         address fallback3 = makeAddr("fallback3");
 
-        // Enable module for safe1
-        vm.prank(safe1);
-        livenessModule2.enableModule(1 days, fallback1);
-
-        // Enable module for safe2
-        vm.prank(safe2);
-        livenessModule2.enableModule(2 days, fallback2);
-
-        // Enable module for safe3
-        vm.prank(safe3);
-        livenessModule2.enableModule(3 days, fallback3);
+        // Configure module for each safe
+        _enableModule(safe1, 1 days, fallback1);
+        _enableModule(safe2, 2 days, fallback2);
+        _enableModule(safe3, 3 days, fallback3);
 
         // Verify each safe has independent configuration
-        (uint256 period1, address fb1) = livenessModule2.safeConfigs(safe1);
+        (uint256 period1, address fb1) = livenessModule2.safeConfigs(address(safe1.safe));
         assertEq(period1, 1 days);
         assertEq(fb1, fallback1);
 
-        (uint256 period2, address fb2) = livenessModule2.safeConfigs(safe2);
+        (uint256 period2, address fb2) = livenessModule2.safeConfigs(address(safe2.safe));
         assertEq(period2, 2 days);
         assertEq(fb2, fallback2);
 
-        (uint256 period3, address fb3) = livenessModule2.safeConfigs(safe3);
+        (uint256 period3, address fb3) = livenessModule2.safeConfigs(address(safe3.safe));
         assertEq(period3, 3 days);
         assertEq(fb3, fallback3);
     }
 
-    function test_enableModule_requiresSafeModuleInstallation_reverts() external {
+    function test_configure_requiresSafeModuleInstallation_reverts() external {
         // Create a safe that has NOT installed the module at the Safe level
         (, uint256[] memory newKeys) = SafeTestLib.makeAddrsAndKeys("newSafe", NUM_OWNERS);
         SafeInstance memory newSafe = _setupSafe(newKeys, THRESHOLD);
         // Note: we don't call SafeTestLib.enableModule here
 
-        // Configure the module (this should work even without Safe-level installation)
-        _enableModule(newSafe, CHALLENGE_PERIOD, fallbackOwner);
-
-        // Verify configuration was stored
-        (uint256 period, address fb) = livenessModule2.safeConfigs(address(newSafe.safe));
-        assertEq(period, CHALLENGE_PERIOD);
-        assertEq(fb, fallbackOwner);
-
-        // But trying to execute a challenge should fail because the Safe hasn't
-        // enabled this module at the Safe level (so execTransactionFromModule will fail)
-        vm.prank(fallbackOwner);
-        livenessModule2.challenge(address(newSafe.safe));
-
-        vm.warp(block.timestamp + CHALLENGE_PERIOD + 1);
-
-        // This should fail because the module is not enabled at the Safe level
-        // The Safe will revert with "GS104" when execTransactionFromModule is called by non-enabled module
-        vm.expectRevert("GS104");
-        livenessModule2.changeOwnershipToFallback(address(newSafe.safe));
+        // Now configure should revert because the module is not enabled at the Safe level
+        vm.expectRevert(ILivenessModule2.LivenessModule2_ModuleNotEnabled.selector);
+        vm.prank(address(newSafe.safe));
+        livenessModule2.configure(CHALLENGE_PERIOD, fallbackOwner);
     }
 
-    function test_enableModule_invalidParameters_reverts() external {
+    function test_configure_invalidParameters_reverts() external {
         // Test with zero period
         vm.expectRevert(ILivenessModule2.LivenessModule2_InvalidParameters.selector);
         vm.prank(address(safeInstance.safe));
-        livenessModule2.enableModule(0, fallbackOwner);
+        livenessModule2.configure(0, fallbackOwner);
 
         // Test with zero address
         vm.expectRevert(ILivenessModule2.LivenessModule2_InvalidParameters.selector);
         vm.prank(address(safeInstance.safe));
-        livenessModule2.enableModule(CHALLENGE_PERIOD, address(0));
+        livenessModule2.configure(CHALLENGE_PERIOD, address(0));
     }
 
-    function test_disable_succeeds() external {
+    function test_clear_succeeds() external {
         _enableModule(safeInstance, CHALLENGE_PERIOD, fallbackOwner);
 
         vm.expectEmit(true, true, true, true);
@@ -181,10 +167,10 @@ contract LivenessModule2_EnableModule_Test is LivenessModule2_TestInit {
         assertEq(fbOwner, address(0));
     }
 
-    function test_disable_notEnabled_reverts() external {
+    function test_clear_notEnabled_reverts() external {
         vm.expectRevert(ILivenessModule2.LivenessModule2_ModuleNotEnabled.selector);
         vm.prank(address(safeInstance.safe));
-        livenessModule2.disable();
+        livenessModule2.clear();
     }
 }
 

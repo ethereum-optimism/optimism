@@ -37,38 +37,46 @@ contract LivenessModule2 is ILivenessModule2 {
     /// @custom:semver 2.0.0
     string public constant version = "2.0.0";
 
-    /// @notice Enables the module by the multisig to be challenged and sets the liveness_response_period and
-    /// fallback_owner
-    /// @dev MUST set the caller as a safe
+    /// @notice Configures the module for a Safe that has already enabled it
+    /// @dev MUST only be callable by a Safe that has enabled this module
     /// @dev MUST take as parameters liveness_response_period and fallback_owner and store them as related to the safe
-    /// @dev MUST accept an arbitrary number of independent safe contracts to enable the module
     /// @param _livenessResponsePeriod The period in seconds for a liveness response
     /// @param _fallbackOwner The address that will become owner if challenge succeeds
-    function enableModule(uint256 _livenessResponsePeriod, address _fallbackOwner) external {
+    function configure(uint256 _livenessResponsePeriod, address _fallbackOwner) external {
         if (_livenessResponsePeriod == 0 || _fallbackOwner == address(0)) {
             revert LivenessModule2_InvalidParameters();
         }
 
-        // Set the caller as a safe and store its configuration
-        ModuleConfig storage config = safeConfigs[msg.sender];
+        // Check that this module is enabled on the calling Safe
+        Safe safe = Safe(payable(msg.sender));
+        if (!safe.isModuleEnabled(address(this))) {
+            revert LivenessModule2_ModuleNotEnabled();
+        }
 
-        // Store the parameters related to this safe
+        // Store the configuration for this safe
+        ModuleConfig storage config = safeConfigs[msg.sender];
         config.livenessResponsePeriod = _livenessResponsePeriod;
         config.fallbackOwner = _fallbackOwner;
 
-        // Clear any existing challenge when enabling/re-enabling
+        // Clear any existing challenge when configuring/re-configuring
         delete challengeStartTime[msg.sender];
 
         emit ModuleEnabled(msg.sender, _livenessResponsePeriod, _fallbackOwner);
     }
 
-    /// @notice Disables the module by an enabled safe
-    /// @dev MUST only be executable by an enabled safe
+    /// @notice Clears the module configuration for a Safe
+    /// @dev MUST only be executable by a Safe that has this module enabled
     /// @dev MUST erase the existing liveness_response_period and fallback_owner data related to the calling safe
-    /// @dev Note: Disabling the module also cancels any ongoing challenges
-    function disable() external {
+    /// @dev Note: Clearing the configuration also cancels any ongoing challenges
+    function clear() external {
+        // Check that this module is enabled on the calling Safe
+        Safe safe = Safe(payable(msg.sender));
+        if (!safe.isModuleEnabled(address(this))) {
+            revert LivenessModule2_ModuleNotEnabled();
+        }
+
         ModuleConfig storage config = safeConfigs[msg.sender];
-        // Check if the calling safe has the module enabled
+        // Check if the calling safe has configuration set
         if (config.fallbackOwner == address(0)) {
             revert LivenessModule2_ModuleNotEnabled();
         }

@@ -309,7 +309,7 @@ contract DeployOwnership is Deploy {
             _safe: safe,
             _target: livenessModule,
             _data: abi.encodeCall(
-                LivenessModule2.enableModule, (livenessModuleConfig.livenessInterval, livenessModuleConfig.fallbackOwner)
+                LivenessModule2.configure, (livenessModuleConfig.livenessInterval, livenessModuleConfig.fallbackOwner)
             )
         });
 
