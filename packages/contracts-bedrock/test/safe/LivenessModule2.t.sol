@@ -63,6 +63,16 @@ contract LivenessModule2_TestInit is Test, SafeTestTools {
 
     /// @notice Helper to disable the LivenessModule2 for a Safe
     function _disableModule(SafeInstance memory _safe) internal {
+        // First disable the module at the Safe level
+        SafeTestLib.execTransaction(
+            _safe,
+            address(_safe.safe),
+            0,
+            abi.encodeCall(ModuleManager.disableModule, (address(0x1), address(livenessModule2))),
+            Enum.Operation.Call
+        );
+
+        // Then clear the module configuration
         SafeTestLib.execTransaction(
             _safe, address(livenessModule2), 0, abi.encodeCall(LivenessModule2.clear, ()), Enum.Operation.Call
         );
@@ -174,7 +184,9 @@ contract LivenessModule2_Configure_Test is LivenessModule2_TestInit {
         emit ModuleDisabled(address(safeInstance.safe));
 
         // Now clear the configuration
-        _disableModule(safeInstance);
+        SafeTestLib.execTransaction(
+            safeInstance, address(livenessModule2), 0, abi.encodeCall(LivenessModule2.clear, ()), Enum.Operation.Call
+        );
 
         (uint256 period, address fbOwner) = livenessModule2.safeConfigs(address(safeInstance.safe));
         assertEq(period, 0);
@@ -246,7 +258,10 @@ contract LivenessModule2_Challenge_Test is LivenessModule2_TestInit {
         (, uint256[] memory newKeys) = SafeTestLib.makeAddrsAndKeys("disabledSafe", NUM_OWNERS);
         SafeInstance memory disabledSafe = _setupSafe(newKeys, THRESHOLD);
 
-        // Enable module and configure
+        // First enable module at Safe level
+        SafeTestLib.enableModule(disabledSafe, address(livenessModule2));
+
+        // Then configure
         _enableModule(disabledSafe, CHALLENGE_PERIOD, fallbackOwner);
 
         // Now disable the module at Safe level (but keep config)
@@ -325,6 +340,20 @@ contract LivenessModule2_Challenge_Test is LivenessModule2_TestInit {
 
         vm.expectRevert(ILivenessModule2.LivenessModule2_ModuleNotEnabled.selector);
         vm.prank(address(safeThatDidntEnable.safe));
+        livenessModule2.respond();
+    }
+
+    function test_respond_moduleNotConfigured_reverts() external {
+        // Create a Safe that has the module enabled but never configured
+        (, uint256[] memory newKeys) = SafeTestLib.makeAddrsAndKeys("safeNotConfigured", NUM_OWNERS);
+        SafeInstance memory safeNotConfigured = _setupSafe(newKeys, THRESHOLD);
+
+        // Enable the module at Safe level but don't configure it
+        SafeTestLib.enableModule(safeNotConfigured, address(livenessModule2));
+        // Note: we don't call _enableModule to configure it
+
+        vm.expectRevert(ILivenessModule2.LivenessModule2_ModuleNotConfigured.selector);
+        vm.prank(address(safeNotConfigured.safe));
         livenessModule2.respond();
     }
 }
