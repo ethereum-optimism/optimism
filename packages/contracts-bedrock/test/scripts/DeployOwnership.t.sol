@@ -75,6 +75,6 @@ contract DeployOwnershipTest is Test, DeployOwnership {
         assertEq(configuredFallback, lmConfig.fallbackOwner);
 
         // Verify no active challenge exists initially
-        assertEq(LivenessModule2(livenessModule).isChallenged(address(securityCouncilSafe)), 0);
+        assertEq(LivenessModule2(livenessModule).getChallengePeriodEnd(address(securityCouncilSafe)), 0);
     }
 }

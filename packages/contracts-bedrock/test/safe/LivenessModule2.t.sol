@@ -224,7 +224,7 @@ contract LivenessModule2_Challenge_Test is LivenessModule2_TestInit {
         vm.prank(fallbackOwner);
         livenessModule2.challenge(address(safeInstance.safe));
 
-        uint256 challengeEndTime = livenessModule2.isChallenged(address(safeInstance.safe));
+        uint256 challengeEndTime = livenessModule2.getChallengePeriodEnd(address(safeInstance.safe));
         assertEq(challengeEndTime, block.timestamp + CHALLENGE_PERIOD);
     }
 
@@ -291,7 +291,7 @@ contract LivenessModule2_Challenge_Test is LivenessModule2_TestInit {
         _respondToChallenge(safeInstance);
 
         // Verify challenge is cancelled
-        uint256 challengeEndTime = livenessModule2.isChallenged(address(safeInstance.safe));
+        uint256 challengeEndTime = livenessModule2.getChallengePeriodEnd(address(safeInstance.safe));
         assertEq(challengeEndTime, 0);
     }
 
@@ -387,7 +387,7 @@ contract LivenessModule2_ChangeOwnershipToFallback_Test is LivenessModule2_TestI
         assertEq(safeInstance.safe.getThreshold(), 1);
 
         // Verify challenge is reset
-        uint256 challengeEndTime = livenessModule2.isChallenged(address(safeInstance.safe));
+        uint256 challengeEndTime = livenessModule2.getChallengePeriodEnd(address(safeInstance.safe));
         assertEq(challengeEndTime, 0);
     }
 
@@ -466,13 +466,13 @@ contract LivenessModule2_ChangeOwnershipToFallback_Test is LivenessModule2_TestI
         vm.prank(fallbackOwner);
         livenessModule2.challenge(address(safeInstance.safe));
 
-        uint256 challengeEndTime = livenessModule2.isChallenged(address(safeInstance.safe));
+        uint256 challengeEndTime = livenessModule2.getChallengePeriodEnd(address(safeInstance.safe));
         assertGt(challengeEndTime, 0);
     }
 }
 
 /// @title LivenessModule2_IsChallenged_Test
-/// @notice Tests the isChallenged function and related view functionality
+/// @notice Tests the getChallengePeriodEnd function and related view functionality
 contract LivenessModule2_IsChallenged_Test is LivenessModule2_TestInit {
     function test_safeConfigs_succeeds() external {
         // Before enabling
@@ -489,20 +489,20 @@ contract LivenessModule2_IsChallenged_Test is LivenessModule2_TestInit {
         assertEq(livenessModule2.challengeStartTime(address(safeInstance.safe)), 0);
     }
 
-    function test_isChallenged_succeeds() external {
+    function test_getChallengePeriodEnd_succeeds() external {
         _enableModule(safeInstance, CHALLENGE_PERIOD, fallbackOwner);
 
         // No challenge
-        assertEq(livenessModule2.isChallenged(address(safeInstance.safe)), 0);
+        assertEq(livenessModule2.getChallengePeriodEnd(address(safeInstance.safe)), 0);
 
         // With challenge
         vm.prank(fallbackOwner);
         livenessModule2.challenge(address(safeInstance.safe));
-        assertEq(livenessModule2.isChallenged(address(safeInstance.safe)), block.timestamp + CHALLENGE_PERIOD);
+        assertEq(livenessModule2.getChallengePeriodEnd(address(safeInstance.safe)), block.timestamp + CHALLENGE_PERIOD);
 
         // After cancellation
         _respondToChallenge(safeInstance);
-        assertEq(livenessModule2.isChallenged(address(safeInstance.safe)), 0);
+        assertEq(livenessModule2.getChallengePeriodEnd(address(safeInstance.safe)), 0);
     }
 
     function test_version_succeeds() external view {

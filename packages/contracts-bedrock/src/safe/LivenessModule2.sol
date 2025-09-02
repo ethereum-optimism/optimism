@@ -84,7 +84,7 @@ contract LivenessModule2 is ILivenessModule2 {
     /// @dev MUST never revert
     /// @param _safe The Safe address to query
     /// @return The challenge end timestamp, or 0 if no challenge
-    function isChallenged(address _safe) external view returns (uint256) {
+    function getChallengePeriodEnd(address _safe) external view returns (uint256) {
         uint256 startTime = challengeStartTime[_safe];
         if (startTime == 0) {
             return 0;

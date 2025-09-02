@@ -82,7 +82,7 @@ interface ILivenessModule2 is ISemver {
     /// @notice Returns challenge_start_time + liveness_response_period if there is a challenge, or 0 if not
     /// @param _safe The Safe address to query
     /// @return The challenge end timestamp, or 0 if no challenge
-    function isChallenged(address _safe) external view returns (uint256);
+    function getChallengePeriodEnd(address _safe) external view returns (uint256);
 
     /// @notice Challenges an enabled safe
     /// @param _safe The Safe to challenge
